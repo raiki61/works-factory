@@ -8,7 +8,7 @@
 この文書の語は README・materials.md・prior-decisions.md の頭の物を使う。よく出る物だけ、ここでも短く書く:
 
 - 素材: 判定の役が読む 15 の欄の 1 つで、値は状態 `{status, count?, detail?, checked?, reason?}`。この観点は `consistency` と `bypass` の 2 つを書く（materials.md の頭）。
-- 判定から入る run と `entry`: 差分が空で、人の修正の依頼だけで始まる run。工場の本線の workflow（line。この観点の block を include でつなぐ側）が、run の始めにそう決めた時だけ、依頼の出どころの文（例「人の依頼（/path/req.json）」）を port `entry` に入れる。`entry` が空でなければ、この観点の役は起こさず、機械が 2 つの素材に理由つきの `not_applicable` を書く（役の返答の受け付けは通らない）。単独で呼ぶ時も、`entry` に字を入れればこの道を通る（5 節）。
+- 判定から入る run と `entry`: 差分が空で、人の修正の依頼だけで始まる run。工場の本線の workflow（line。この観点の block を include でつなぐ側）が、run の始めにそう決めた時だけ、依頼の出どころの文（例「人の依頼（/path/req.json）」）を port `entry` に入れる。`entry` が在り、かつ対象差分が空なら、この観点の役は起こさず、機械が 2 つの素材に理由つきの `not_applicable` を書く（役の返答の受け付けは通らない）。単独で呼ぶ時も、`entry` に字を入れればこの道を通る（5 節）。
 - P1 の役: 元の graphloops の段の名で、修正の前に差分を見る素材の観点（prior-decisions と purpose-review の 2 本〔P0〕のほかの 9 本）。今のコードの名 `p1.consistency_bypass` はこの段の節の名。
 - 穴: 今の指示の md が持つ「［材料: 〜］」の差し込み所（`MATERIAL_HOLES`）。新しい形の `{name}` の差し込み口に当たる。
 - 作業ツリーの照らしと `GUARDED`: 受け付け（accept の script）が、役を起こす前に写した作業ツリーの姿（`tree.json`）と今の姿を比べ、違えば拒む。`GUARDED` は観点の宣言の 1 つで、AI の node が `mutates_checkout: false` を持つ時に真。その時は Archon 自身も node の前後の `git status --porcelain` を照らすので、受け付けは比べる欄からその 1 つ（`porcelain`）だけを外し、HEAD・枝・git が無視するファイルなどの残りの欄で比べる（materials.md の 5.1・4 節の 2）。
@@ -25,7 +25,7 @@
 
 ### 1.1 役
 
-対象差分を起点に、依存先・近傍・呼び元まで読み、(1) リポジトリ横断の整合性（宣言と使用・界面の追従・近傍の規約との食い違い）と、(2) 近傍が実際に使っている標準の機構の迂回を、互いに独立に見て、2 つの素材の状態と 2 系統の所見の行と、見た範囲・見ていない範囲を返す。役は何も動かせないので、所見はどれも未実測の仮説として出させる。判定から入る run（`entry` が空でない）では役を起こさず、2 つの素材に理由つきの `not_applicable` を書く。機械が、作業ツリーを変えていないか・所見の場所がファイルに在るか・2 つの素材の欄が決まりに合うかで受け付ける。
+対象差分を起点に、依存先・近傍・呼び元まで読み、(1) リポジトリ横断の整合性（宣言と使用・界面の追従・近傍の規約との食い違い）と、(2) 近傍が実際に使っている標準の機構の迂回を、互いに独立に見て、2 つの素材の状態と 2 系統の所見の行と、見た範囲・見ていない範囲を返す。役は何も動かせないので、所見はどれも未実測の仮説として出させる。判定から入る run（`entry` が在り、かつ対象差分が空）では役を起こさず、2 つの素材に理由つきの `not_applicable` を書く。機械が、作業ツリーを変えていないか・所見の場所がファイルに在るか・2 つの素材の欄が決まりに合うかで受け付ける。
 
 ### 1.2 port
 
@@ -62,11 +62,11 @@ materials.md の 1.4 の名だけ: `intake.json`・`view.json`・`diff.patch`・
   - `MATERIALS = ("consistency", "bypass")`（今の `MATERIAL_NODES['p1.consistency_bypass']['materials']` の順。`lib/judge_accept.py:1650-1656`）
   - `GUARDED = True`（AI の node が `mutates_checkout: false` を持つ。今の accept の `with: {status_guarded: true}`。`workflows/judge/works-factory-judge.yaml:1224`）
   - `NA = "never"`、`NA_REASON = ""`（今の節は `applies_cond` を持たず `na_self_ok: False`）
-  - `due(view, values)`: `values["entry"]` が空でなければ `materialkit.entry_skip("P1 の役")`（今の `not_request_entry` の訳「…のため、P1 の役を起こさない」。`:1511-1516`）。空なら `materialkit.Due(True, "判定から入る run でない（port entry が空）——通常の run")`。
-  - `fill(view, values, due)`: `{m: materialkit.fill_entry(values["entry"], 0) for m in MATERIALS}`（回さないのは判定から入る run の時だけ。今の `_fill_one` の 1 つ目の枝。`request` を持たないので件数は 0 を渡す〔materials.md の 2.6〕）。
+  - `due(view, values)`: `materialkit.not_entry_due(view, values, "P1 の役")`（`values["entry"]` が在り、かつ対象差分が空の時だけ `entry_skip` の訳で回さない）（今の `not_request_entry` の訳「…のため、P1 の役を起こさない」。`:1511-1516`）。空なら `materialkit.Due(True, "判定から入る run でない（port entry が空）——通常の run")`。
+  - `fill(view, values, due)`: `{m: materialkit.fill_entry(values["entry"], None) for m in MATERIALS}`（回さないのは判定から入る run の時だけ。今の `_fill_one` の 1 つ目の枝。`request` の port を持たない観点は件数に None を渡し、「件数は渡されていない」と書かれる〔materials.md の 2.6。判定から入る run は依頼の行が 1 件以上ある時だけなので 0 件は偽〕）。
   - `applies(view, values)`: `raise NotImplementedError`。
   - `judged_na(view, values)`: `return False`。
-  - `values(view, values)`: `{"repo": str(view.repo), "review_rev": view.review_rev, "base": view.base, "diff_file": view.diff_file, "changed_files": dump(list(view.changed_files)), "review_md": own}` に、`theirs` が空でない時だけ `"repo_review_md": theirs` を足した物。`own, theirs = materialkit.review_md_paths(view.repo)`。`dump` は `json.dumps(x, ensure_ascii=False, indent=1)`。
+  - `values(view, values)`: `{"repo": str(view.repo), "review_rev": view.review_rev, "base": view.base, "diff_file": view.diff_file, "changed_files": dump(list(view.changed_files)), "review_md": own}` に、`"repo_review_md": theirs` を（空の字の回も含め）常に足した物。`own, theirs = materialkit.review_md_paths(view.repo)`。`dump` は `json.dumps(x, ensure_ascii=False, indent=1)`。
   - `when(view, values)`: `{"repo_review": bool(theirs)}`（対象リポジトリの REVIEW.md の行の段落。`theirs` は `values` と同じく `review_md_paths` から）。外への検索の決まりの断片を入れないので `spawns` は置かない。
   - `before(view, values, reply, place)`: `return None, reply, False`。
   - `after(view, values, reply, place)`: `return None`（この観点に `post_check` は無い）。
@@ -101,7 +101,7 @@ materials.md の 3.1 の並び。
 1. `<!-- if rejected -->` `{shared:rejected}` `<!-- end rejected -->` — 条件: `rejects-consistency-bypass.json` に拒否が 1 件以上。`{rejection}` ← `rolekit.rejects_text(rolekit.rejected(place, "consistency-bypass"))`。
 2. `{shared:role-inspector}`（役の定義。決まった文）。
 3. 外への検索の決まりは入れない（web も外のコマンドも持たない。今の md にも無い）。
-4. 役の 1 段落（決まった文）: 新しい会話で起きていること・2 つを独立に見ること・ほかの役の所見を受けていないことと、その訳。
+4. 役の 1 段落（決まった文）: 役の名と・2 つを独立に見ること・ほかの役の所見を受けていないことと、その訳。
 5. 道具の段落（決まった文）と `{shared:material-readonly}`。
 6. `## Materials` と差し込み口: `{repo}` ← `view.repo`、`{review_rev}` ← `view.review_rev`、`{diff_file}` ← `view.diff_file`（Read させるパス）、`{base}` ← `view.base`、`{changed_files}` ← `view.changed_files`（JSON の配列の字）、`{review_md}` ← `review_md_paths` の 1 つ目。`<!-- if repo_review -->` の 1 行と `{repo_review_md}` ← 2 つ目 `<!-- end repo_review -->` — 条件: 対象の根に `REVIEW.md` が在る。
 7. `## What to do`（決まった文）: 今の graphloops の指示の段（`material-consistency-bypass.md:44-50`・`:53`）を英語にした物。
@@ -120,7 +120,7 @@ md の本文（英語。この block の 2 つ目の commit でこのまま置�
 
 {shared:role-inspector}
 
-You are the consistency-bypass role, started in a new conversation. You do two checks, independently of each other: consistency across the repository, and bypasses of standard mechanisms. **You are not given any other role's findings.** The local findings are kept from you on purpose: when findings are shared, every reviewer anchors on that frame and stops noticing a mechanism that the neighbouring code bypasses.
+You are the consistency-bypass role. You do two checks, independently of each other: consistency across the repository, and bypasses of standard mechanisms. **You are not given any other role's findings.** The local findings are kept from you on purpose: when findings are shared, every reviewer anchors on that frame and stops noticing a mechanism that the neighbouring code bypasses.
 
 Your tools are Read, Grep, and Glob. You have no Bash, so you cannot run git or any other command.
 

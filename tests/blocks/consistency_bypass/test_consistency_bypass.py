@@ -103,6 +103,7 @@ class FlowCase(unittest.TestCase):
         self.assertIn("起こさない", got["reason"])
         fin = self.finish()
         self.assertEqual((fin["ok"], fin["status"]), (True, "skipped"))
+        self.assertIn("件数は渡されていない", json.dumps(self.material(), ensure_ascii=False))
         for name, mat in self.material()["materials"].items():
             with self.subTest(name=name):
                 self.assertEqual(mat["status"], "not_applicable")
@@ -179,6 +180,7 @@ class ShapeCase(unittest.TestCase):
               "retry": {"max_attempts": 2, "on_error": "all"}, "mutates_checkout": False}
 
     def setUp(self):
+        kit.load(NAME, "viewpoint")  # lib/ を sys.path に足す（launchgroups・rolekit の import に要る）
         doc = yaml.safe_load((BLOCK / f"works-factory-{NAME}.yaml").read_text(encoding="utf-8"))
         self.nodes = {n["id"]: n for n in doc["nodes"]}
         self.body = {n["id"]: n for n in self.nodes[LOOP]["loop_group"]["nodes"]}

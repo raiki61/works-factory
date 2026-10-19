@@ -1,7 +1,7 @@
 """観点 consistency-bypass（整合性と標準機構の迂回）の宣言（docs/design/materials.md の 5.1・docs/design/consistency-bypass.md の 1.5）。
 
 対象差分の依存先・近傍・呼び元を読ませ、リポジトリ横断の整合性（素材 consistency）と標準機構の迂回（素材 bypass）を独立に見て、
-所見の行も 2 系統（findings・bypass_findings）で返させる。判定から入る run（entry が空でない）では役を起こさず、2 つの素材に理由つきの
+所見の行も 2 系統（findings・bypass_findings）で返させる。判定から入る run（entry が在り、対象差分が空の時だけ）では役を起こさず、2 つの素材に理由つきの
 not_applicable を書く。『条件に当たらない』は名乗れない。受け付けの流れと出口は lib/materialkit が持ち、ここは宣言だけを持つ。
 """
 import json
@@ -27,8 +27,8 @@ def due(view, values) -> materialkit.Due:
 
 
 def fill(view, values, due) -> dict:
-    # 回さないのは判定から入る run の時だけ。この観点は依頼の行を持たないので、件数は 0 を渡す
-    return {m: materialkit.fill_entry(values["entry"], 0) for m in MATERIALS}
+    # 回さないのは判定から入る run の時だけ。この観点は port request を持たないので、件数は None（渡されていない）を渡す
+    return {m: materialkit.fill_entry(values["entry"], None) for m in MATERIALS}
 
 
 def applies(view, values) -> materialkit.Due:
