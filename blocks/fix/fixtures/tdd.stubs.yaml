@@ -1,0 +1,29 @@
+# 組の形で TDD の実行器（fixtures/tdd-runner.py。pack の写しの置き場から）を渡す: group-start が一式を 1 回走らせて輪を置き、1 周目は
+# 新しい単位の役 tdd-new が振り分けの段の指示で起き、tdd-step が振り分けを受けて、修正の輪へ進む
+fixture:
+  expect: completed
+  reached: [intake, group-start, tdd-prep, tdd-new, tdd-step, fix-prep, finish]
+  inputs:
+    mode: group
+    group: '{"group_id":"g1","unit_ids":["stats.py:4 mean"],"items":[]}'
+    judgment: '{"units":[{"key":"stats.py:4 mean","label":"block","reason":"空の並びで 0 除算する"}],"questions":[]}'
+    tdd_suite: .archon/workflows/works-factory/fix/fixtures/tdd-runner.py
+  resolved-text-contains:
+    tdd-new: '## What this role does'
+exec-code: true
+tdd-new:
+  phase: route
+  units: [{unit_key: "stats.py:4 mean", route: direct, why: 先にテストを書けない単位として直す}]
+fixer:
+  changes: []
+  not_done: []
+  fix_closure: {status: not_applicable}
+  mechanism_changed: false
+  premise_drift: false
+  gates_changed: false
+  seams_changed: false
+  security_surface_changed: false
+  path_changed: false
+  interactions: []
+  wrote_refs: []
+  plan_faces: []

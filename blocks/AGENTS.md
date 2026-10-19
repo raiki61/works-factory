@@ -36,3 +36,4 @@
 - 試験は `tests/blocks/<block の名の - を _ にした物>/`。助けは `tests/blocks/kit.py`。
 - 単独で回す: `WORKS_FACTORY_FOLDER=blocks bin/works-factory workflow run works-factory-<block> --cwd <対象> --input <名>=<値>`。
 - 機械: `tests/layers/test_block_shape.py`（`docs/design/README.md` の 7.1 の yes/no と、今ある yes/no の検査の当てはめ）。
+- 筋書きで届かない AI の node（`workflow:` の `fan_out:` の先・loop の 2 周目だけに回る node）の指示は、block の試験 `tests/blocks/<block>/test_prompts.py` で prep を回して照らし、その表 `RENDERED`（`{node の id: md の決まった文}`）に行を置く。形の検査は表の在りと字だけを見る。

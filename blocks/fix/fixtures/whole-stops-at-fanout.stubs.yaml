@@ -1,0 +1,10 @@
+# 全体の形: 入力の結びと prep を見る（dry-run は workflow: の node を回せないので、組の node で落ちる。今の block-stops-at-fanout と同じ）
+fixture:
+  expect: failed
+  fail-node: groups-seq
+  reached: [intake, prep]
+  inputs:
+    mode: whole
+    parallel: 'false'
+    judgment: '{"units":[{"key":"stats.py:4 mean","label":"block","reason":"空の並びで 0 除算する"}],"questions":[]}'
+exec-code: true
