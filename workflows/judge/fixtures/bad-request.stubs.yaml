@@ -3,18 +3,18 @@ fixture:
   expect: completed
   reached:
   - ins
-  - head-depth__finish
+  - head-depth-run__finish
   - spec-in
   - parallel-pr__finish
-  - premises__finish
+  - premises-run__finish
   - verdict
   inputs:
     request: '[{"where": "app.py", "text": "Uploads fail on a flaky link; retry them."}]'
 exec-code: true
-head-depth__intake:
+head-depth-run__intake:
   due: false
   reason: '筋書き: block の中は block の筋書きが見る'
-head-depth__finish:
+head-depth-run__finish:
   ok: true
   status: ok
   reason: ''
@@ -24,7 +24,7 @@ head-depth__finish:
   record:
     type: archon_artifact
     run_id: stub
-    path: head-depth/depth-head.json
+    path: head-depth-run/depth-head.json
   report:
   - '- 段: 標準'
 parallel-pr__scan:
@@ -49,10 +49,10 @@ parallel-pr__finish:
     versus: review-graph は任せ先の役が gh で投稿する
   report:
   - '- 並行 PR: clean'
-premises__intake:
+premises-run__intake:
   due: false
   reason: '筋書き: block の中は block の筋書きが見る'
-premises__finish:
+premises-run__finish:
   ok: false
   status: failed
   reason: '入力 request: 依頼の行の形が違う'

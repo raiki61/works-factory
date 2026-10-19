@@ -65,7 +65,7 @@ script の名は `lib/` のモジュールの名と重ねない（README の 7.1
 
 ### 1.4 place のファイル
 
-`ports.place()`（単独の run では `$ARTIFACTS_DIR/`、line から judge のまとめを通して include された時は `$ARTIFACTS_DIR/judge/head-depth/`）の下に書く。名は `src/steps.py` だけが持つ。
+`ports.place()`（単独の run では `$ARTIFACTS_DIR/`、line から judge のまとめを通して include された時は `$ARTIFACTS_DIR/judge/head-depth-run/`）の下に書く。名は `src/steps.py` だけが持つ。
 
 - `intake.json`: `{facts, due, failed, reason, lang}`。`facts` は 3.1 の形。`failed` は intake が落ちた時だけ true。
 - `depth-head.json`: 控え。今の `judge/depth-head.json` と同じ名・同じ形。

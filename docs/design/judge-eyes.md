@@ -67,29 +67,31 @@
 - `tier`・`tier_why`・`row_asks`・`tier_record`: head-depth の `tier`・`why`・`rows`・`record`。head-depth が返らなかった run は `標準` と訳「run の頭の深さの段が返らなかった（標準で進む）」と null（今の「落ちても判定は標準で進む」。head-depth の設計書の 1.6）。
 - `verify`: verify の `verify` の pointer か null（回さなかった・返らなかった）。`verify_why`: 回さなかった訳（段と名指しの表で切だった・開いた単位が無い・判定が止まった）か空。
 - `report`: このまとめの行（止めの行・回さなかった段の行・返らなかった block の行）。`sections`: 0 節の形。並びは 1.3 の順。
-- `optional`: `world__`・`head-depth__`・素材の 10 本の `<id>__`（落ちても判定は進む段）。
+- `optional`: `world__`・`head-depth-run__`・素材の 10 本の `<include の id>__`（落ちても判定は進む段）。
 
 ### 1.3 node の並び（`workflows/judge/works-factory-judge.yaml`）
 
 並びと条件は今の judge のまま（`workflows/judge/works-factory-judge.yaml` の depends_on と when）。止めの記録（今の `judge/stop.json`）は使わず、前の段の出力の欄で `when:` を書く（README 4.3）。
 
+include の id: block の中の node（loop_group の本体の中の物も）と同じ id で include しない。Archon の include の展開（`packages/workflows/src/include-expander.ts`）は取り込む block の上の段の id だけを `<include の id>__<id>` に改め、loop_group の本体の中の `$<id>.output` は改めないので、block の役と同じ id で include すると本体の受け付けの node（役の返答を受けて照らす script。premises なら `premises-accept` の `with: {reply: $premises.output}`）の `$<役の id>.output` が include の返す node を指して落ちる（初めての本物の run で premises が落ちた）。そこで役と同じ名を持つ block は `<block の名>-run` で include し（head-depth・premises・purpose・素材の 10 本・diagnose）、受け皿は `<include の id>-out`。報告の節と `received` の鍵は block の名のまま（`src/fallback.py` の `include_id` が block の名から include の id を引く）。機械: `tests/layers/test_block_shape.py` の検査の 13 番（README の 7.1 の 13）。
+
 1. `ins`（script）: 入力の `spec`・`world`・`web` を出力に写す。
-2. `head-depth`（include。`depends_on: [ins]`）。`with:` `request`・`has_checks`・`thickness`・`spec`・`design_only`・`lang`。→ `head-depth-out`。
+2. `head-depth-run`（include。`depends_on: [ins]`）。`with:` `request`・`has_checks`・`thickness`・`spec`・`design_only`・`lang`。→ `head-depth-run-out`。
 3. `spec`（include、`mode: write`。`depends_on: [ins]`・`when: $ins.output.spec == true`）。`with:` `request`・`pr_text`・`user_env_dir`・`lang`。→ `spec-out`。中に仕様の承認ノードを持つ（README 8.1。graph は持たない）。
 4. `spec-in`（返し。`depends_on: [ins, spec-out]`・`none_failed_min_one_success`）: `go`（仕様の段を挟まないか、spec の `status` が `approved`）・`stop_reason`（spec の返りの止めの語。spec を挟んだのに返りが無ければ `works:spec`）・`spec`・`added_rows`・`added_origin`・`request`（graph の入力 `request` の後ろに `added_rows` の行を積んだ依頼を place の `request.json` に書いた pointer。仕様を挟まない run は入力の写し。依頼が容器の形なら `findings` の後ろに積む）。今の `spec_freeze` は受け入れ条件の行を `judge/request.json` に積み、後の前提の実測（`premises_accept`）・世界の解（`world_intake`）・並行 PR（`pr_scan` の `where`）・先行議論の突合（`request_wheres`）がそれを読んだ。block は変えず、この `request` を 5〜9 の `request` に渡して同じ能力を続ける（組み込みの決め `docs/design/integration.md` の 4.1 の 1）。
 5. `parallel-pr`（include。`depends_on: [spec-in]`・`when: $spec-in.output.go == true`）。`with:` `request: $spec-in.output.request`・`base`・`changed: "[]"`・`lang`。仕様の承認の後に回る（承認で書いた受け入れテストのファイルを、役の前の写しに入れるため。parallel-pr の設計書の 1.6）。→ `parallel-pr-out`。
-6. `premises`（include。`depends_on: [parallel-pr]`・`when: $parallel-pr.output.stop_reason == ''`）。`with:` `request: $spec-in.output.request`・`carried`・`lang`。→ `premises-out`。
-7. `purpose`（include。`depends_on: [premises]`・`when: $premises.output.ok == true`）。`with:` `request`・`pr_text`・`constraints: $premises.output.constraints`・`lang`。→ `purpose-out`。
-8. `world`（include。`depends_on: [purpose, ins]`・`when: $purpose.output.ok == true && $ins.output.world == true`）。`with:` `request: $spec-in.output.request`・`purpose: $purpose.output.purpose_text`・`means: $purpose.output.means`・`web: $ins.output.web`・`lang`。→ `world-out`。7 の purpose は積む前の入力 `request` を受ける（今の `purpose_prep` も依頼のファイルを先に読み、積んだ `request.json` は依頼のファイルが無い時だけ読んだ）。
-9. 素材の観点 10 本（include。gate-efficacy は include しない〔3 節の持ち主の決め 2026-10-19〕。どれも `depends_on: [purpose, world-out]`・`trigger_rule: none_failed_min_one_success`・`when: $purpose.output.ok == true`。互いを待たずに並ぶ）。`with:` はどれも `base`・`entry`・`lang` と、観点ごとに足す物: prior-decisions は `request: $spec-in.output.request`、purpose-review と external-standards は `purpose: $purpose.output.purpose`。回す条件と回さない時の素材の埋めは各 block が持つ（materials.md の 10 節）。世界の解の受け皿 `world-out` に依るのは、世界の解が切られた・落ちた run でも素材を回すため（今の `material-route` の `depends_on: [purpose-loop, world-finish]` と `none_failed_min_one_success`）。各 `→ <id>-out`。
-   - id: `prior-decisions`・`purpose-review`・`local-review`・`consistency-bypass`・`hygiene`・`external-standards`・`procedure-trace`・`test-double-fidelity`・`main-path-observation`・`provenance`。
-10. `diagnose-in`（script。`depends_on:` 素材の 10 本の受け皿と `parallel-pr-out`・`head-depth-out`・`world-out`・`spec-in`・`premises-out`・`purpose-out`。`trigger_rule: all_done`。`when:` を持たない）: diagnose へ渡す飛ばされうる値をそろえる返し。落ちない（読めなければ `ok: false` と訳）。
+6. `premises-run`（include。`depends_on: [parallel-pr]`・`when: $parallel-pr.output.stop_reason == ''`）。`with:` `request: $spec-in.output.request`・`carried`・`lang`。→ `premises-run-out`。
+7. `purpose-run`（include。`depends_on: [premises-run]`・`when: $premises-run.output.ok == true`）。`with:` `request`・`pr_text`・`constraints: $premises-run.output.constraints`・`lang`。→ `purpose-run-out`。
+8. `world`（include。`depends_on: [purpose-run, ins]`・`when: $purpose-run.output.ok == true && $ins.output.world == true`）。`with:` `request: $spec-in.output.request`・`purpose: $purpose-run.output.purpose_text`・`means: $purpose-run.output.means`・`web: $ins.output.web`・`lang`。→ `world-out`。7 の purpose は積む前の入力 `request` を受ける（今の `purpose_prep` も依頼のファイルを先に読み、積んだ `request.json` は依頼のファイルが無い時だけ読んだ）。
+9. 素材の観点 10 本（include。gate-efficacy は include しない〔3 節の持ち主の決め 2026-10-19〕。どれも `depends_on: [purpose-run, world-out]`・`trigger_rule: none_failed_min_one_success`・`when: $purpose-run.output.ok == true`。互いを待たずに並ぶ）。`with:` はどれも `base`・`entry`・`lang` と、観点ごとに足す物: prior-decisions は `request: $spec-in.output.request`、purpose-review と external-standards は `purpose: $purpose-run.output.purpose`。回す条件と回さない時の素材の埋めは各 block が持つ（materials.md の 10 節）。世界の解の受け皿 `world-out` に依るのは、世界の解が切られた・落ちた run でも素材を回すため（今の `material-route` の `depends_on: [purpose-loop, world-finish]` と `none_failed_min_one_success`）。各 `→ <id>-out`。
+   - id: `prior-decisions-run`・`purpose-review-run`・`local-review-run`・`consistency-bypass-run`・`hygiene-run`・`external-standards-run`・`procedure-trace-run`・`test-double-fidelity-run`・`main-path-observation-run`・`provenance-run`。
+10. `diagnose-in`（script。`depends_on:` 素材の 10 本の受け皿と `parallel-pr-out`・`head-depth-run-out`・`world-out`・`spec-in`・`premises-run-out`・`purpose-run-out`。`trigger_rule: all_done`。`when:` を持たない）: diagnose へ渡す飛ばされうる値をそろえる返し。落ちない（読めなければ `ok: false` と訳）。
     - `go`（前提の実測と目的の固定の受け皿の `ok` が両方真）・`purpose`（purpose の `purpose` の pointer）・`constraints`（premises の `constraints` の pointer）。diagnose の `when:` と `with:` はこの返しだけを読む（3 節の決め「`when:` は飛びうる node を読まない」）。
     - `materials`: 素材の 10 本の `material` の pointer を観点の順に並べた JSON の配列（値。diagnose の設計書の 1.6 の「11 本の `material` を並べた JSON の配列」。materials.md の 11 節の未確認「配列の組み方」の答え: Archon の `with:` は配列を組めないので script が組む）。返りの無い観点（受け皿が飛んだ）は配列に入れず `missing` に名を返す（diagnose の `materialkit.assemble` が残りを `not_run` で埋め、この graph の `report` が名指す）。
     - `pr_material`（parallel-pr の `material`。返らなければ null）・`world_rows`（world の `rows` か `""`）・`row_asks`（head-depth の `rows` か `[]`）・`depth_why`（head-depth の `why` か `""`）・`spec_rows`・`spec_origin`（`spec-in` の `added_rows` の pointer か `""` と `added_origin`）。
     - `verify`: `verify_by_tier[<head-depth の tier。返らなければ 標準>]` が真か（1.5）。
-11. `diagnose`（include。`depends_on: [diagnose-in]`・`when: $diagnose-in.output.ok == true && $diagnose-in.output.go == true`）。`with:`（diagnose の設計書の 1.6）: `request`（積む前の入力）・`request_origin`・`base`・`purpose`・`constraints`・`materials`・`pr_material`・`world_rows`・`row_asks`・`depth_why`・`spec_rows`・`spec_origin` ← `diagnose-in`・`baseline`・`pr_text`・`policy`・`lang`。`objection` と `prior` は渡さない（判定の道）。素材の観点が諦めていれば、diagnose が判定役を起こさずに `stopped` と `works:material` を返す（diagnose の設計書の 1.2。今の `diagnose_prep` の「残りで組んだ上で止める」）。→ `diagnose-out`。
-12. `verify`（include。`depends_on: [diagnose, diagnose-in]`・`when: $diagnose-in.output.verify == true && $diagnose.output.ready == true`）。`with:` `judgment: $diagnose.output.judgment`・`lang`。diagnose の受け付けの輪が何回回っても、diagnose が返った後に 1 回だけ回る。→ `verify-out`。
+11. `diagnose-run`（include。`depends_on: [diagnose-in]`・`when: $diagnose-in.output.ok == true && $diagnose-in.output.go == true`）。`with:`（diagnose の設計書の 1.6）: `request`（積む前の入力）・`request_origin`・`base`・`purpose`・`constraints`・`materials`・`pr_material`・`world_rows`・`row_asks`・`depth_why`・`spec_rows`・`spec_origin` ← `diagnose-in`・`baseline`・`pr_text`・`policy`・`lang`。`objection` と `prior` は渡さない（判定の道）。素材の観点が諦めていれば、diagnose が判定役を起こさずに `stopped` と `works:material` を返す（diagnose の設計書の 1.2。今の `diagnose_prep` の「残りで組んだ上で止める」）。→ `diagnose-run-out`。
+12. `verify`（include。`depends_on: [diagnose-run, diagnose-in]`・`when: $diagnose-in.output.verify == true && $diagnose-run.output.ready == true`）。`with:` `judgment: $diagnose-run.output.judgment`・`lang`。diagnose の受け付けの輪が何回回っても、diagnose が返った後に 1 回だけ回る。→ `verify-out`。
 13. `verdict`（script。全部の受け皿と返しに `depends_on`。`trigger_rule: all_done`）: まとめの判定（1.4）と返り（1.2）。
 
 ### 1.4 まとめの判定（`verdict`。`src/verdict.py`）
@@ -111,7 +113,7 @@ line が段ごとに引いた真偽の表 `verify_by_tier` を、head-depth が�
 
 ### 1.6 place のファイルとコード
 
-- place（judge の graph の include の道。line から include されれば `judge/`）に書くのは `verdict` の `purpose-review.json`・`verdict.json`（返りの写し）だけ。名は `src/files.py`。block のファイルは各 block の place（`judge/<id>/`）に在り、graph は pointer で受け渡す。
+- place（judge の graph の include の道。line から include されれば `judge/`）に書くのは `verdict` の `purpose-review.json`・`verdict.json`（返りの写し）だけ。名は `src/files.py`。block のファイルは各 block の place（`judge/<include の id>/`。例: `judge/premises-run/`）に在り、graph は pointer で受け渡す。
 - `src/verdict.py`（止めの順・返りの組み立て・節の並び）・`src/files.py`。`scripts/`: `ins.py`・`returned.py`・`spec_in.py`・`diagnose_in.py`・`verdict.py`。
 - 使う `lib/`: `materialkit`（`read`。素材の `status`・purpose-review の `reply` を読む）・`stopby`・`oneline`・`jsonfile`。今の `lib/judge_accept.py` の graph の部分（`intake`・`material_route`・`verdict`・`start_view`・`write_stop`・`read_stop`・`PORTS`・`FIRST_PORTS`・`require_ports`）は使わない（README 9.2 の「`judge/` の決め打ちの包みと `PORTS`・`FIRST_PORTS` は DELETE」）。
 
@@ -124,7 +126,7 @@ line が段ごとに引いた真偽の表 `verify_by_tier` を、head-depth が�
 - `spec-loop`〜`spec-freeze`（J92〜J99）: spec の block（`mode: write`）。仕様の承認ノードは block の中。承認の後の作業ツリーの写しの取り直し（J97 の尾）は、parallel-pr と premises が役の直前に自分で写すので要らない（parallel-pr の設計書の 10 節の 3）。
 - `pr-scan`〜`pr-check-reads`（J31〜J41）: parallel-pr の block。下げた物の宣言（J41）は block の出力 `downgrades` で line に返す。
 - `premises-loop`（J08〜J13）・`purpose-prep`〜`purpose-loop`（J14〜J20）: premises・purpose の block。「目的は最初の修正の前に 1 度だけ固める」（J14）は、この graph が purpose を 1 回だけ include し、再審の道が通らないことで続く。
-- `world-*`（J21〜J30）: world の block。目的の文が無い・止めた run は回さない（J27）は `when: $purpose.output.ok == true`。網が無い・web が off でも段を止めない（J25）は world の block の中で、graph は world の失敗で止めない（`optional`）。
+- `world-*`（J21〜J30）: world の block。目的の文が無い・止めた run は回さない（J27）は `when: $purpose-run.output.ok == true`。網が無い・web が off でも段を止めない（J25）は world の block の中で、graph は world の失敗で止めない（`optional`）。
 - `material-route`・素材の 11 の輪（J42〜J62）: 素材の観点の block。回す条件と回さない時の埋めは各 block の intake（materials.md の 10 節）。役を起こす前の作業ツリーの写しは観点ごと（materials.md の 11 節の未確認「11 本の見方がずれうる」の答え: どれも同じ `base` を受け、役が作業ツリーを変えたら各 block の受け付けが拒むので、見方は同じ版の同じ作業ツリーになる。graph は `material.json` の `base` を突き合わせない）。素材の 15 欄（J60・J61）は diagnose が `materialkit.assemble` でそろえる。
 - `diagnose-prep`〜`diagnose-loop`（J63〜J82）: diagnose の block。
 - `verify-prep`〜`verify-merge`（J83〜J86）: verify の block と 1.5。回さない時に「回さなかった形」の申し送りを置くこと（J83 の尾）はやめる（verify の設計書の 1.6。訳は line の報告の行と、この graph の `verify_why`）。

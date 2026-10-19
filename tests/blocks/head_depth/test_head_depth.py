@@ -339,11 +339,11 @@ class FinishCase(_RepoCase):
         self.assert_record_readable(fin, "標準")
 
     def test_included_block_writes_in_its_own_place(self):
-        self.intake("judge__head-depth__intake")
-        self.run.script("depth_prep", "judge__head-depth__head-depth-loop.head-depth-prep")
-        self.run.script("depth_accept", "judge__head-depth__head-depth-loop.head-depth-accept", reply=json.dumps(LIGHT_REPLY))
-        fin = self.run.script("finish", "judge__head-depth__finish")
-        self.assertEqual(fin["record"]["path"], "judge/head-depth/depth-head.json")
+        self.intake("judge__head-depth-run__intake")
+        self.run.script("depth_prep", "judge__head-depth-run__head-depth-loop.head-depth-prep")
+        self.run.script("depth_accept", "judge__head-depth-run__head-depth-loop.head-depth-accept", reply=json.dumps(LIGHT_REPLY))
+        fin = self.run.script("finish", "judge__head-depth-run__finish")
+        self.assertEqual(fin["record"]["path"], "judge/head-depth-run/depth-head.json")
         self.assertFalse((self.run.artifacts / "depth-head.json").exists())
 
 

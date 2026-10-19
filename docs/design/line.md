@@ -73,9 +73,9 @@
 18. 修正の後の読むだけの 3 つ（並行 PR の確かめ直し・再審・仕様の照らし。互いを待たない。`depends_on: [fixed]`）。3 つの中の AI の役はどれも、受け付けで「役が作業ツリーを変えていない」を照らす（役の前と後の作業ツリーの姿を比べる。parallel-pr の設計書の受け付けの 3）。作業ツリーを変える物（2 つの修正の段と、その中の差分の審査の手直し）と同時に走ると、ほかの node の変更を役の変更と見て拒むので、それらが全部済んだ `fixed` の後に置く（13 節）:
     - `parallel-pr-after`（include `works-factory-parallel-pr`。`when: $start.output.ports.entry != '' && $fixed.output.diffed == true`）→ `parallel-pr-after-out`（受け皿）。8 節の 1。
     - `rejudge-run`（include `works-factory-diagnose`。`when: $fixed.output.rejudge == true`）→ `rejudge-run-out`（受け皿）。4.4。id は今の line と同じ `rejudge-run`（diagnose の loop の本体に同じ id の node `rejudge` が在り、Archon は loop の中の `$<include の id>.output` を include の返りへ書き換えるので、`rejudge` にすると diagnose の中の読みが壊れる）。
-    - `spec-check`（include `works-factory-spec`、`mode: check`。`when: $start.output.ports.spec == true`）→ `spec-check-out`（受け皿）。
+    - `spec-check-run`（include `works-factory-spec`、`mode: check`。`when: $start.output.ports.spec == true`）→ `spec-check-run-out`（受け皿。include の id は block の中の node `spec-check` と分ける。judge-eyes.md の 1.3 の「include の id」）。
 19. `judged`（script。`depends_on: [fixed, rejudge-run-out]`・`none_failed_min_one_success`）: 判定（再審が走れば再審）を後ろへ渡す（4.4）。再審の返す node が落ちても落ちないように受け皿を読み、`$fixed.output.rejudge` が真なのに受け皿の got が null なら止める。
-20. `test-gate-final`（include。`depends_on: [judged, parallel-pr-after-out, spec-check-out]`・`none_failed_min_one_success`・`when: $fixed.output.go == true && $judged.output.stop_reason == ''`）→ `test-gate-final-out`（受け皿）。上げ直しの止め（`raise` の `works:line-script`）は `fixed.go` が偽にして運ぶ（`raise` は直す物が無い周に飛ぶので、`when:` で直に読まない）。
+20. `test-gate-final`（include。`depends_on: [judged, parallel-pr-after-out, spec-check-run-out]`・`none_failed_min_one_success`・`when: $fixed.output.go == true && $judged.output.stop_reason == ''`）→ `test-gate-final-out`（受け皿）。上げ直しの止め（`raise` の `works:line-script`）は `fixed.go` が偽にして運ぶ（`raise` は直す物が無い周に飛ぶので、`when:` で直に読まない）。
 21. `eyes-in`（script。`depends_on: [test-gate-final-out]`）→ `eyes`（include `works-factory-eyes`。`depends_on: [eyes-in]`）→ `eyes-out`（受け皿）。
 22. `merge-seal`（include `works-factory-merge`、`mode: seal`。`depends_on: [eyes-out]`・`when: $fixed.output.no_fix == false`）→ `merge-seal-out`（受け皿。id は `bin/apply` が名指すので今のまま）。
 23. `ask-final`（script。`depends_on: [eyes-out, merge-seal-out]`・`none_failed_min_one_success`。merge の apply に渡す封じの値 `sealed_hash`・`fingerprint`・`green_ok`・`eyes_ok`・`r2` も受け皿の got から読んで返す）→ `gate-final`（`wait:`）→ `answer-final`（script `gate_answer`。`none_failed_min_one_success`）: 最後の承認ノード（2 節の 4）。
@@ -133,7 +133,7 @@ line は一番上の graph なので、place は run directory の根（README 4
 - `lang`: 始めの記録の `lang`。どの include にも渡す（README 5.3。空の時の扱いは 15 節）。
 - `web`: いつも `"on"`。今の line に web を切る入力は無く、網が無い時は world の block が自分で知識だけの行に倒す（world の設計書の 1.2）。world の設計書の 1.6 は「`features_cut` から引く」と書くが、機能の語に web は無い（`lib/entry.py` の `FEATURES`）。
 - `world`（flag）: `features_cut` に `world` が無いか。読み手: judge の graph（world を回すか）。
-- `spec`（flag）: `input.spec`。読み手: judge の graph（spec write）・head-depth の `spec`・`spec-check` の `when:`。
+- `spec`（flag）: `input.spec`。読み手: judge の graph（spec write）・head-depth の `spec`・`spec-check-run` の `when:`。
 - `has_checks`（flag）: `test_cmd` か `tdd_suite` が空でない（今の `depth.has_checks`）。読み手: head-depth・`fix-in`。
 - `thickness`: head-depth の `choice(auto|light|standard|heavy)` に写した語（空・自動 → auto、軽量 → light、標準 → standard、重厚 → heavy）。`forced`: 単位の深さを固定する語（空・自動 → 空、軽量・標準・重厚 → その語。`fix-in` が `decide_doc` に渡す）。
 - `design_only`（flag）・`unattended`（flag）: 読み手: head-depth・fix の `unattended`・承認ノードの script。
@@ -169,7 +169,7 @@ line は一番上の graph なので、place は run directory の根（README 4
    - 判定の役が保留にしたままの問いは冒頭と本文に見せるが、開ける理由に数えない（L-G36）。
    - 開き方は `gates.opens`（always はいつも・when_needed は理由が在る時・protected_only は守りのパスの当たりの時）。
    - 本文の節の並びは今のまま（守りのパス → 申し出 → 修正役が人に回した物 → 減っていない単位 → 例で試していない単位 → 閉鎖の数え直し → 同じ run で直した案の項目 → 最後のテストの一式と修正前のテスト → 回さなかった試験 → ログ・作業ツリー → 差分の審査の穴と手直し → 異議と再審 → 構造のブロックが落ちた周 → 直した後の実測 → 修正前に通した行と往復 → 許したテストの変更 → 取り込むと消えるファイル → 独立の目と R2 の入力の控え → clean とレンズ → 残り → 承認し直すかの問い → 人に聞いている問い → 保留と答えた問いと当たらなかった答え → 出口 pr の時の push 先の 1 行）。足す節: 「修正の後の並行 PR の確かめ直し」を独立の目の前に置く。
-   - 読む物は修正の事実（`fixed` と、その `stages` の段ごとの fix・lens・delta-review の got）・試験（`test-gate-final-out`）・目（`eyes-out`）・封じ（`merge-seal-out`）・判定（`judged`）・仕様（`spec-check-out`）・往復の記録（`plan-converge.json`）・修正前と案の直しの答え・並行 PR（`parallel-pr-after-out`）。どれも受け皿の got を `ports.picked` で名指して読む（欄を 3 つ以上読むので、まるごとで受ける。README 4.2）。受け皿の got の中の欄は `with:` で読めない（受け皿の `output_format` は `got` の中を宣言しないので、Archon が宣言の外の道を誤りにする）ので、merge の apply に渡す封じの値もここで読んで返す。
+   - 読む物は修正の事実（`fixed` と、その `stages` の段ごとの fix・lens・delta-review の got）・試験（`test-gate-final-out`）・目（`eyes-out`）・封じ（`merge-seal-out`）・判定（`judged`）・仕様（`spec-check-run-out`）・往復の記録（`plan-converge.json`）・修正前と案の直しの答え・並行 PR（`parallel-pr-after-out`）。どれも受け皿の got を `ports.picked` で名指して読む（欄を 3 つ以上読むので、まるごとで受ける。README 4.2）。受け皿の got の中の欄は `with:` で読めない（受け皿の `output_format` は `got` の中を宣言しないので、Archon が宣言の外の道を誤りにする）ので、merge の apply に渡す封じの値もここで読んで返す。
 
 ## 3 計画の往復（記録・止め・安全の上限）
 
@@ -221,7 +221,7 @@ line は一番上の graph なので、place は run directory の根（README 4
 
 ### 4.5 block ごとの `with:`（line が配る物）
 
-`P` は `$start.output.ports`、`J` は判定のまとめの返り（judge-eyes.md の 1.2）。作り手の名指しは line の側だけが持つ。修正から後ろの node（fix・replan・replan-review・refix-run・lens・delta-review の 2 段・rejudge-run・spec-check・eyes-in・eyes）は、判定・構造の目・独立設計・計画の値を `$judge.output.*` などでなく `$fix-in.output.<欄>` から読む（固定材料の run は判定と計画が飛び、`fix-in` が写しの値を運ぶため。今の line の形のまま）。
+`P` は `$start.output.ports`、`J` は判定のまとめの返り（judge-eyes.md の 1.2）。作り手の名指しは line の側だけが持つ。修正から後ろの node（fix・replan・replan-review・refix-run・lens・delta-review の 2 段・rejudge-run・spec-check-run・eyes-in・eyes）は、判定・構造の目・独立設計・計画の値を `$judge.output.*` などでなく `$fix-in.output.<欄>` から読む（固定材料の run は判定と計画が飛び、`fix-in` が写しの値を運ぶため。今の line の形のまま）。
 
 - test-gate base: `mode: base`・`test_cmd`・`tdd_suite`・`base` ← `P.base_rev`・`request` ← `P.request`・`request_scope`・`reuse_dir`・`reuse_key` ← `P.run_id`・`user_env_dir`・`lang`。
 - test-gate final: `mode: final`・同じ物に `tdd_suite` ← `$test-gate-base.output.suite`・`baseline` ← `$test-gate-base.output.baseline`（固定材料の run は `fix-in` が運んだ値）。
@@ -352,7 +352,7 @@ line は一番上の graph なので、place は run directory の根（README 4
 - `fix-in`: 4.1（L-W65・L-E43）。
 - `fix`(-out)・`after-fix`・`replan`(-out)・`replan-review`(-out)・`ask-replan`・`gate-replan`・`answer-replan`・`refix-run`: 4.2 と 2 節の 3（L-W17・L-W18・L-W44〜L-W48・L-D23〜L-D40）。
 - `fixed`: 4.3（L-W49・L-D37）。
-- `spec-check`: spec の block の `mode: check`（spec の設計書の 1.6）。照らせない時の問い（spec=on なのに仕様の指しが無い）は block が返す。止めの語 `works:spec-changed`（人待ち）は line が spec の返りの `questions` から立てる。差分の審査・最後のテスト・独立の目は飛ばさない（今のまま）。
+- `spec-check-run`: spec の block の `mode: check`（spec の設計書の 1.6）。照らせない時の問い（spec=on なのに仕様の指しが無い）は block が返す。止めの語 `works:spec-changed`（人待ち）は line が spec の返りの `questions` から立てる。差分の審査・最後のテスト・独立の目は飛ばさない（今のまま）。
 - `rejudge-run`(-out)・`judged`: 4.4（L-W40〜L-W43・L-D41〜L-D49）。再審は判定役の会話を継がない（持ち主の決め。S40）のは diagnose の中。
 - `redepth`: 5.3（L-W50・L-W51・L-D05〜L-D13）。fix の中の上げ直し（`fixboard.redepth`。差分の審査を省くか）と合わせて、1 回目の修正の段と差分の審査の間の 1 回にした。差分の審査とレンズは今と同じく修正の段ごとに回る（delta-review と lens の block を段ごとに include）。
 - `test-gate-final`(-out): 今のまま（L-W52・L-W53）。`when:` の読む物は `fixed.go`・`judged.stop_reason`・`raise.stop_reason`。

@@ -305,7 +305,7 @@ node:
 
 1. `policy-in`（script）: 依頼の行を組んで place に `request.json` を書く。`problem` が空でなければ行は `[{where: "依頼", text: problem}]`、空なら `[{where: "方針", text: policy}]`。解き方は `policy` を箇条の行ごとに割った配列（箇条が無ければ全体を 1 つ）。返り `{request (pointer), means, purpose, web, lang}`。値を include へ運ぶのはこの node だけにする（include の `with:` に `$INPUTS` を書けるかは（未確認）なので頼らない）。
 2. `world`（`include: works-factory-world`）: `with:` は `request: $policy-in.output.request`・`means: $policy-in.output.means`・`purpose`・`web`・`lang` を `policy-in` の出力から。
-3. `review`（`include: works-factory-plan-review`。`trigger_rule: all_done`）: plan-review の text の形（README の 8.2）。`with: {proposal: <policy の文>, purpose, world_rows: $world.output.rows, lang}`。土台の PR では置かず、plan-review の PR が足した（README の 11.1）。
+3. `review-run`（`include: works-factory-plan-review`。`trigger_rule: all_done`。id は plan-review の中の役 `review` と分ける。judge-eyes.md の 1.3 の「include の id」）: plan-review の text の形（README の 8.2）。`with: {proposal: <policy の文>, purpose, world_rows: $world.output.rows, lang}`。土台の PR では置かず、plan-review の PR が足した（README の 11.1）。
 4. `result`（script。`trigger_rule: all_done`）: world と review の返りをまとめ、`differs` の行（依頼は X、定石は Y）と欠陥を先頭に並べた `report` を組んで返す。`holes` は review が受けた返答の `faces`、`ok` は world と review の両方の `ok`（review が回らなければ偽）。
 
 承認ノードは持たない。定石からの外れを人に回すのは line の修正前の承認ノードの仕事で、この入口は結果を返すだけ。

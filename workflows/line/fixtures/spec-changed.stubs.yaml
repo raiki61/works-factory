@@ -1,10 +1,10 @@
 # 仕様の段（spec=on）の run で、修正の後に承認済みの受け入れ条件のテストが承認の版から変わった（#510）。差分の審査・最後のテスト・
-# 独立の目・封じは回したまま、最後の承認ノードが問いを載せて開き、結末は人待ち（needs_human。止めは spec-check:works:spec-changed）。
+# 独立の目・封じは回したまま、最後の承認ノードが問いを載せて開き、結末は人待ち（needs_human。止めは spec-check-run:works:spec-changed）。
 # 照らしの中身は spec の block の筋書きが見る。dry-run の置き場に承認済みの仕様を置けないので、spec-check の返りを stub で差す。
 fixture:
   expect: completed
   inputs: {request: .archon/workflows/works-factory/line/fixtures/request.json, spec: 'on'}
-  reached: [start, gate-start, answer-start, test-gate-base__result, judge__verdict, tiers, owed, structure__finish, independent-design__finish, plan__finish, plan-review-run__finish, plan-out, ask-before-fix, answer-before-fix, fix-in, fix__finish, after-fix, raise, fixed, judged, test-gate-final__result, eyes-in, eyes__verdict, spec-check__finish, merge-seal__merge, ask-final, gate-final, answer-final, merge-apply__merge, collect, report__finish, sweep-children, result]
+  reached: [start, gate-start, answer-start, test-gate-base__result, judge__verdict, tiers, owed, structure__finish, independent-design__finish, plan__finish, plan-review-run__finish, plan-out, ask-before-fix, answer-before-fix, fix-in, fix__finish, after-fix, raise, fixed, judged, test-gate-final__result, eyes-in, eyes__verdict, spec-check-run__finish, merge-seal__merge, ask-final, gate-final, answer-final, merge-apply__merge, collect, report__finish, sweep-children, result]
   resolved-text-contains: {gate-final: '承認し直すかの問い（承認の後に受け入れ条件のテストが変わった）: 1 件'}
 exec-code: true
 gate-start: {decision: approve, text: ''}
@@ -47,15 +47,15 @@ test-gate-base__result:
   suite_note: ''
   report: ['試験の関門（base）: 緑']
 judge__ins: {spec: false, world: false, web: 'on'}
-judge__head-depth__intake: {due: false, reason: ''}
-judge__head-depth__finish:
+judge__head-depth-run__intake: {due: false, reason: ''}
+judge__head-depth-run__finish:
   ok: true
   status: ok
   reason: ''
   tier: 標準
   why: 筋書きの stub
   rows: []
-  record: {type: archon_artifact, run_id: dry-run, path: head-depth/depth-head.json}
+  record: {type: archon_artifact, run_id: dry-run, path: head-depth-run/depth-head.json}
   report: ['- 段: 標準']
 judge__spec-in: {go: false, stop_reason: '', reason: '', request: null, spec: null, added_rows: null, added_origin: ''}
 judge__diagnose-in:
@@ -418,19 +418,19 @@ merge-apply__merge:
   optional:
   - {node: pr-open, bare: false}
   report: ['- merge（apply）: 置いた']
-report__facts: {outcome: needs_human, ok: false, stop_reason: 'spec-check:works:spec-changed', machine: null, next_request: null, prior_failures: null, ai_go: false, stamp: ''}
+report__facts: {outcome: needs_human, ok: false, stop_reason: 'spec-check-run:works:spec-changed', machine: null, next_request: null, prior_failures: null, ai_go: false, stamp: ''}
 report__finish:
   ok: false
   outcome: needs_human
-  stop_reason: spec-check:works:spec-changed
+  stop_reason: spec-check-run:works:spec-changed
   machine: {type: archon_artifact, run_id: dry-run, path: report/report.machine.json}
   human: {type: archon_artifact, run_id: dry-run, path: report/report.md}
   detail: null
   next_request: null
   prior_failures: null
   report: ['- 報告']
-spec-check__intake: {mode: check, go: false, reason: ''}
-spec-check__finish:
+spec-check-run__intake: {mode: check, go: false, reason: ''}
+spec-check-run__finish:
   ok: true
   status: checked
   stop_reason: works:spec-changed

@@ -28,7 +28,7 @@ ROOT = E2E.parents[1]
 # 照らしの where の run の記録 → その run の工程（親は線、子は fix の組ごとの子の run）
 RECORDS = {"record/parent.json": "works-factory-line", "record/child-*.json": "works-factory-fix"}
 # 線の中のブロック（置き場の parent/ の次のフォルダ。line の include の id で、include の中の節の place はその id のフォルダの下に
-# 重なる。例: parent/judge/diagnose/）のうち、種の run で必ず走り、seen の行を持つ物と、線そのもの。fix の組の子の run の置き場は
+# 重なる。例: parent/judge/diagnose-run/）のうち、種の run で必ず走り、seen の行を持つ物と、線そのもの。fix の組の子の run の置き場は
 # 子の run の根（child-*/）で、fix の物。条件で回る include（lens・delta-review・案の直しの道・再審・仕様・修正の後の並行 PR）は
 # 必ずは走らないので入れない。independent-design は種の run で必ず走るが、独立設計の能力の行は #261 の決め直しで本物の通しの
 # 照らしの外（scenario-only）にしたので、seen の行が無く入れない（設計を目に渡した跡は L-W55、承認ノードの控えは L-W33 が照らす）
@@ -56,7 +56,7 @@ NAMED_BY_PATTERN = {
     "parent/plan/r1/ripple-units.json": "workflows/plan/src/files.py::RIPPLE_UNITS",
     "parent/judge/verdict.json": "workflows/judge/src/files.py::VERDICT",
     "parent/judge/parallel-pr/material-pr-check.json": "workflows/parallel-pr/src/files.py::MATERIAL",
-    "parent/judge/diagnose/query-examples.json": "workflows/diagnose/src/files.py::QUERY_EXAMPLES_FILE",
+    "parent/judge/diagnose-run/query-examples.json": "workflows/diagnose/src/files.py::QUERY_EXAMPLES_FILE",
     "parent/structure/design.jsonl": "workflows/structure/src/files.py::DESIGN_FILE",
     "parent/eyes/r1/r1-comments.json": "workflows/r1/src/steps.py::save",
     "parent/eyes/r1/r1-minimality.json": "workflows/r1/src/steps.py::save",
@@ -291,7 +291,7 @@ class EvidenceTableCase(unittest.TestCase):
         """#355（c38831c2）: E12 の削除候補は役が削る物を見つけた時だけ出る（健やかな種の run で必ず通る道でない。seen の基準 (3)）。
         L-W08 の記録は空の {units: [], paths: []} でも書かれ、働かなかった run と同じ跡（基準 (2)）。照らしは働いた時だけ当たる物で残す。
         置き場は組み込みの後の include の道（eyes の中の r1・judge の中の diagnose）の下"""
-        for i, where in (("E12", "parent/eyes/r1/r1-comments.json"), ("L-W08", "parent/judge/diagnose/structure-units-dropped.json")):
+        for i, where in (("E12", "parent/eyes/r1/r1-comments.json"), ("L-W08", "parent/judge/diagnose-run/structure-units-dropped.json")):
             with self.subTest(row=i):
                 row = self.by_id[i]
                 self.assertEqual((row["kind"], row.get("check"), row.get("where")), ("seed-cannot", "json-has", where))

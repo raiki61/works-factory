@@ -1014,7 +1014,7 @@ nodes:
       got: "$rejudge-run.output"
       names: "ok status mode stop_reason reason ready judgment units questions inputs brief materials out_of_purpose answer_ties rejudge_verdict
         rejudge_exit rejudge_diff downgrades report"
-  - id: spec-check
+  - id: spec-check-run
     include: works-factory-spec
     depends_on: [fixed]
     when: "$start.output.ports.spec == true"
@@ -1023,11 +1023,11 @@ nodes:
       spec: "$fix-in.output.spec"
       user_env_dir: "$start.output.ports.user_env_dir"
       lang: "$start.output.ports.lang"
-  - id: spec-check-out
+  - id: spec-check-run-out
     <<: *receiver
-    depends_on: [spec-check]
+    depends_on: [spec-check-run]
     with:
-      got: "$spec-check.output"
+      got: "$spec-check-run.output"
       names: "ok status stop_reason reason spec added_rows added_origin questions unchecked report"
   # 19 判定（再審が走れば再審）を後ろへ渡す（docs/design/line.md の 4.4）。再審の返す node が落ちても落ちないように受け皿を読む
   - id: judged
@@ -1067,7 +1067,7 @@ nodes:
   # 20 試験の関門（final）。上げ直しの止めは fixed.go が偽にして運ぶ
   - id: test-gate-final
     include: works-factory-test-gate
-    depends_on: [judged, parallel-pr-after-out, spec-check-out]
+    depends_on: [judged, parallel-pr-after-out, spec-check-run-out]
     trigger_rule: none_failed_min_one_success
     when: "$fixed.output.go == true && $judged.output.stop_reason == ''"
     with:
@@ -1189,7 +1189,7 @@ nodes:
       tests: {from: "$test-gate-final-out.output.got", if_skipped: null}
       eyes: {from: "$eyes-out.output.got", if_skipped: null}
       seal: {from: "$merge-seal-out.output.got", if_skipped: null}
-      spec_check: {from: "$spec-check-out.output.got", if_skipped: null}
+      spec_check: {from: "$spec-check-run-out.output.got", if_skipped: null}
       parallel_after: {from: "$parallel-pr-after-out.output.got", if_skipped: null}
       replan_review: {from: "$replan-review-out.output.got", if_skipped: null}
       replan_answer: {from: "$answer-replan.output.answer", if_skipped: null}
@@ -1263,7 +1263,7 @@ nodes:
     depends_on: [testcmd, start, answer-start, test-gate-base-out, judge-out, tiers, owed, structure-out, structure-in, independent-design-out,
                  design-in, plan-rounds-out, ask-before-fix, answer-before-fix, fix-in, fix-out, after-fix, raise, lens-out, lens-in,
                  delta-review-out, replan-out, replan-review-out, ask-replan, answer-replan, refix-run-out, lens-2-out, lens-2-in,
-                 delta-review-2-out, fixed, parallel-pr-after-out, rejudge-run-out, spec-check-out, judged, test-gate-final-out, eyes-in,
+                 delta-review-2-out, fixed, parallel-pr-after-out, rejudge-run-out, spec-check-run-out, judged, test-gate-final-out, eyes-in,
                  eyes-out, merge-seal-out, ask-final, answer-final, merge-apply-out]
     trigger_rule: all_done
     always_run: true
@@ -1300,7 +1300,7 @@ nodes:
       fixed: {from: "$fixed.output", if_skipped: null}
       parallel_after: {from: "$parallel-pr-after-out.output.got", if_skipped: null}
       rejudge: {from: "$rejudge-run-out.output.got", if_skipped: null}
-      spec_check: {from: "$spec-check-out.output.got", if_skipped: null}
+      spec_check: {from: "$spec-check-run-out.output.got", if_skipped: null}
       judged: {from: "$judged.output", if_skipped: null}
       test_gate_final: {from: "$test-gate-final-out.output.got", if_skipped: null}
       eyes_in: {from: "$eyes-in.output", if_skipped: null}
@@ -1358,7 +1358,7 @@ nodes:
       merge_seal: {from: "$merge-seal-out.output.got", if_skipped: null}
       eyes: {from: "$eyes-out.output.got", if_skipped: null}
       answer_final: {from: "$answer-final.output.answer", if_skipped: null}
-      spec_check: {from: "$spec-check-out.output.got", if_skipped: null}
+      spec_check: {from: "$spec-check-run-out.output.got", if_skipped: null}
       children: {from: "$sweep-children.output", if_skipped: null}
     output_format:
       type: object

@@ -411,7 +411,7 @@ class StartCase(Seeded):
         self.assertFalse(self.record(self.start(request="request_ok.json"))["input"]["spec"])
 
     def test_spec_on_reaches_the_ports(self):
-        """#550: spec=on は配る値 spec で judge の graph と spec-check に渡る（拒んだ・落ちた返りは偽）"""
+        """#550: spec=on は配る値 spec で judge の graph と spec-check-run に渡る（拒んだ・落ちた返りは偽）"""
         self.assertIs(self.start(request="request_ok.json", spec="on")["ports"]["spec"], True)
         self.assertIs(self.start(request="request_ok.json")["ports"]["spec"], False)
         self.assertIs(self.start(base="base", spec="on")["ports"]["spec"], False)

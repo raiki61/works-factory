@@ -4,8 +4,8 @@
 # review の入口に届き、result がまとめる）だけを見る。world と plan-review の中の道は、それぞれの block の筋書きが見る
 fixture:
   expect: completed
-  reached: [policy-in, world__intake, world-classes-prep, world-classes, world-classes-accept, world__pick, world__finish, review__intake,
-            text-prep, review-text, text-accept, review__review-reads, review__finish, result]
+  reached: [policy-in, world__intake, world-classes-prep, world-classes, world-classes-accept, world__pick, world__finish, review-run__intake,
+            text-prep, review-text, text-accept, review-run__review-reads, review-run__finish, result]
   inputs:
     policy: '- Retry a failed upload three times with a fixed one second wait.'
 exec-code: true

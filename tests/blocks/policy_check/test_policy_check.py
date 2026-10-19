@@ -36,10 +36,10 @@ class PolicyInCase(unittest.TestCase):
     def test_policy_reaches_the_review_intake_as_text(self):
         """policy-in の方針の文と目的を、事前審査の block の入口が方針の文だけの形（text）で読む"""
         got = self.run.script("policy_in", policy=POLICY, problem="", purpose="p", web="off", lang="")
-        intake = self.run.other("plan-review").script("intake", "review__intake", proposal=got["policy"], purpose=got["purpose"],
+        intake = self.run.other("plan-review").script("intake", "review-run__intake", proposal=got["policy"], purpose=got["purpose"],
                                                       world_rows="null", lang=got["lang"])
         self.assertEqual(intake, {"due": True, "form": "text", "tree": False, "k": 0, "reason": ""})
-        doc = json.loads((self.run.artifacts / "review" / "intake.json").read_text(encoding="utf-8"))
+        doc = json.loads((self.run.artifacts / "review-run" / "intake.json").read_text(encoding="utf-8"))
         self.assertEqual((doc["proposal_text"], doc["purpose"]), (POLICY, "p"))
 
 
@@ -49,12 +49,12 @@ class ResultCase(unittest.TestCase):
 
     def review(self, faces, ok=True) -> dict:
         """事前審査の block（形 text）の返り: holes は place の review.json の pointer"""
-        (self.run.artifacts / "review").mkdir(exist_ok=True)
-        (self.run.artifacts / "review" / "review.json").write_text(json.dumps({"faces": faces, "shrink": [], "reason": "r"}),
-                                                                 encoding="utf-8")
+        (self.run.artifacts / "review-run").mkdir(exist_ok=True)
+        (self.run.artifacts / "review-run" / "review.json").write_text(json.dumps({"faces": faces, "shrink": [], "reason": "r"}),
+                                                                     encoding="utf-8")
         head = "事前審査（方針の文）: 穴 1 件（block 1）・別案 0 件"
         return {"ok": ok, "status": "ok" if ok else "failed", "form": "text", "round": 0, "reason": "",
-                "holes": json.loads(self.run.pointer("review/review.json")), "blocks": [f["key"] for f in faces], "pass": None,
+                "holes": json.loads(self.run.pointer("review-run/review.json")), "blocks": [f["key"] for f in faces], "pass": None,
                 "asks": [], "deviations": [], "replan": [], "gave_up": None,
                 "report": [head, *(f"- [{f['kind']}] {f['key']}: {f['why']}" for f in faces)]}
 

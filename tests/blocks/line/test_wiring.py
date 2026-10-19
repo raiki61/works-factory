@@ -48,7 +48,7 @@ NOT_PASSED = {
     **{("rejudge-run", name): "判定の道だけが読む（再審の道は prior と objection で考え直す。docs/design/diagnose.md の 1.2）"
        for name in ("answers", "base", "baseline", "constraints", "depth_why", "materials", "pr_material", "pr_text", "prior_failures",
                     "request_origin", "row_asks", "spec_origin", "spec_rows")},
-    ("spec-check", "request"): "write の時だけ読む", ("spec-check", "pr_text"): "write の時だけ読む",
+    ("spec-check-run", "request"): "write の時だけ読む", ("spec-check-run", "pr_text"): "write の時だけ読む",
     **{("merge-seal", name): "apply と check の時だけ読む"
        for name in ("answer", "deliver", "items", "r2", "request", "sealed_hash", "user_env_dir")},
 }
@@ -225,7 +225,7 @@ class WhenCase(unittest.TestCase):
     def test_after_fix_nodes_read_the_judgment_through_fix_in(self):
         """修正から後ろの node は判定・構造の目・独立設計・計画の値を fix-in から読む（固定材料の run は判定と計画が飛ぶ）"""
         after = ("fix", "replan", "replan-review", "refix-run", "lens", "delta-review", "lens-2", "delta-review-2", "rejudge-run",
-                 "spec-check", "eyes")
+                 "spec-check-run", "eyes")
         early = ("$judge.output", "$judge-out", "$plan-rounds", "$structure-in", "$design-in", "$tiers", "$owed",
                  "$answer-before-fix")
         for key in after:

@@ -51,15 +51,15 @@ report__finish:
   prior_failures: null
   report: ['- 報告']
 judge__ins: {spec: false, world: false, web: 'on'}
-judge__head-depth__intake: {due: false, reason: ''}
-judge__head-depth__finish:
+judge__head-depth-run__intake: {due: false, reason: ''}
+judge__head-depth-run__finish:
   ok: true
   status: ok
   reason: ''
   tier: 標準
   why: 筋書きの stub
   rows: []
-  record: {type: archon_artifact, run_id: dry-run, path: head-depth/depth-head.json}
+  record: {type: archon_artifact, run_id: dry-run, path: head-depth-run/depth-head.json}
   report: ['- 段: 標準']
 judge__spec-in: {go: false, stop_reason: '', reason: '', request: null, spec: null, added_rows: null, added_origin: ''}
 judge__diagnose-in:

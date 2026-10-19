@@ -291,11 +291,11 @@ class FinishCase(_RepoCase):
         self.assertIn("前提の実測の支度が落ちた", fin["reason"])
 
     def test_included_block_writes_in_its_own_place(self):
-        self.run.script("intake", "judge__premises__intake", request=REQUEST, carried="[]", lang="")
-        self.run.script("measure_prep", "judge__premises__premises-loop.premises-prep")
-        self.run.script("measure_accept", "judge__premises__premises-loop.premises-accept", reply=json.dumps(GOOD))
-        fin = self.run.script("finish", "judge__premises__finish")
-        self.assertEqual(fin["constraints"]["path"], "judge/premises/premises.json")
+        self.run.script("intake", "judge__premises-run__intake", request=REQUEST, carried="[]", lang="")
+        self.run.script("measure_prep", "judge__premises-run__premises-loop.premises-prep")
+        self.run.script("measure_accept", "judge__premises-run__premises-loop.premises-accept", reply=json.dumps(GOOD))
+        fin = self.run.script("finish", "judge__premises-run__finish")
+        self.assertEqual(fin["constraints"]["path"], "judge/premises-run/premises.json")
         self.assertFalse((self.run.artifacts / "premises.json").exists())
 
 

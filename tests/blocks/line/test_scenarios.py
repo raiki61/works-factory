@@ -172,7 +172,7 @@ class LineReturnsTest(unittest.TestCase):
     def test_spec_changed_stop_reaches_the_report(self):
         trace = self.traces["spec-changed"]
         self.assertEqual(out(trace, "result")["outcome"], "needs_human")
-        self.assertEqual(out(trace, "result")["stop_reason"], "spec-check:works:spec-changed")
+        self.assertEqual(out(trace, "result")["stop_reason"], "spec-check-run:works:spec-changed")
         for node in ("test-gate-final__result", "eyes__verdict", "merge-seal__merge", "gate-final"):
             self.assertTrue(ran(trace, node), node)
 
@@ -402,7 +402,7 @@ class FixFixtureTest(unittest.TestCase):
 
     def test_spec_check_does_not_run_without_a_spec_stage(self):
         """固定材料の run は仕様の段と組めない（spec は偽）ので、仕様の照らしの block は飛ぶ"""
-        self.assertFalse(ran(self.trace, "spec-check__finish"))
+        self.assertFalse(ran(self.trace, "spec-check-run__finish"))
 
 
 if __name__ == "__main__":

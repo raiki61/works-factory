@@ -39,10 +39,10 @@ gate-start:
 gate-final:
   decision: approve
   text: ''
-judge__head-depth__intake:
+judge__head-depth-run__intake:
   due: false
   reason: '筋書き: block の中は block の筋書きが見る'
-judge__head-depth__finish:
+judge__head-depth-run__finish:
   ok: true
   status: ok
   reason: ''
@@ -52,7 +52,7 @@ judge__head-depth__finish:
   record:
     type: archon_artifact
     run_id: dry-run
-    path: head-depth/depth-head.json
+    path: head-depth-run/depth-head.json
   report:
   - '- 段: 標準'
 judge__parallel-pr__scan:
@@ -77,30 +77,30 @@ judge__parallel-pr__finish:
     versus: review-graph は任せ先の役が gh で投稿する
   report:
   - '- 並行 PR: clean'
-judge__premises__intake:
+judge__premises-run__intake:
   due: false
   reason: '筋書き: block の中は block の筋書きが見る'
-judge__premises__finish:
+judge__premises-run__finish:
   ok: true
   status: ok
   reason: ''
   constraints:
     type: archon_artifact
     run_id: dry-run
-    path: premises/premises.json
+    path: premises-run/premises.json
   report:
   - '- 前提の実測: 1 件'
-judge__purpose__intake:
+judge__purpose-run__intake:
   due: false
   reason: '筋書き: block の中は block の筋書きが見る'
-judge__purpose__finish:
+judge__purpose-run__finish:
   ok: true
   status: ok
   reason: ''
   purpose:
     type: archon_artifact
     run_id: dry-run
-    path: purpose/purpose.json
+    path: purpose-run/purpose.json
   purpose_text: Uploads survive a flaky link.
   source: ③writer の要約
   means:
@@ -120,11 +120,11 @@ judge__world__finish:
   dropped: 0
   report:
   - '- 世界の解: 1 類'
-judge__diagnose__intake:
+judge__diagnose-run__intake:
   due: false
   mode: judge
   reason: '筋書き: block の中は block の筋書きが見る'
-judge__diagnose__finish:
+judge__diagnose-run__finish:
   ok: true
   status: ok
   mode: judge
@@ -134,7 +134,7 @@ judge__diagnose__finish:
   judgment:
     type: archon_artifact
     run_id: dry-run
-    path: diagnose/judgment.json
+    path: diagnose-run/judgment.json
   units: []
   questions: []
   inputs: null
@@ -142,7 +142,7 @@ judge__diagnose__finish:
   materials:
     type: archon_artifact
     run_id: dry-run
-    path: diagnose/materials.json
+    path: diagnose-run/materials.json
   out_of_purpose: null
   answer_ties: null
   rejudge_verdict: null
@@ -151,134 +151,134 @@ judge__diagnose__finish:
   downgrades: []
   report:
   - '- 判定: 開いた単位 1'
-judge__prior-decisions__intake:
+judge__prior-decisions-run__intake:
   due: false
   reason: '筋書き: block の中は block の筋書きが見る'
-judge__prior-decisions__finish:
+judge__prior-decisions-run__finish:
   ok: true
   status: skipped
   reason: ''
   material:
     type: archon_artifact
     run_id: dry-run
-    path: prior-decisions/material.json
+    path: prior-decisions-run/material.json
   report:
   - '観点 prior-decisions: skipped'
-judge__purpose-review__intake:
+judge__purpose-review-run__intake:
   due: false
   reason: '筋書き: block の中は block の筋書きが見る'
-judge__purpose-review__finish:
+judge__purpose-review-run__finish:
   ok: true
   status: skipped
   reason: ''
   material:
     type: archon_artifact
     run_id: dry-run
-    path: purpose-review/material.json
+    path: purpose-review-run/material.json
   report:
   - '観点 purpose-review: skipped'
-judge__local-review__intake:
+judge__local-review-run__intake:
   due: false
   reason: '筋書き: block の中は block の筋書きが見る'
-judge__local-review__finish:
+judge__local-review-run__finish:
   ok: true
   status: skipped
   reason: ''
   material:
     type: archon_artifact
     run_id: dry-run
-    path: local-review/material.json
+    path: local-review-run/material.json
   report:
   - '観点 local-review: skipped'
-judge__consistency-bypass__intake:
+judge__consistency-bypass-run__intake:
   due: false
   reason: '筋書き: block の中は block の筋書きが見る'
-judge__consistency-bypass__finish:
+judge__consistency-bypass-run__finish:
   ok: true
   status: skipped
   reason: ''
   material:
     type: archon_artifact
     run_id: dry-run
-    path: consistency-bypass/material.json
+    path: consistency-bypass-run/material.json
   report:
   - '観点 consistency-bypass: skipped'
-judge__hygiene__intake:
+judge__hygiene-run__intake:
   due: false
   reason: '筋書き: block の中は block の筋書きが見る'
-judge__hygiene__finish:
+judge__hygiene-run__finish:
   ok: true
   status: skipped
   reason: ''
   material:
     type: archon_artifact
     run_id: dry-run
-    path: hygiene/material.json
+    path: hygiene-run/material.json
   report:
   - '観点 hygiene: skipped'
-judge__external-standards__intake:
+judge__external-standards-run__intake:
   due: false
   reason: '筋書き: block の中は block の筋書きが見る'
-judge__external-standards__finish:
+judge__external-standards-run__finish:
   ok: true
   status: skipped
   reason: ''
   material:
     type: archon_artifact
     run_id: dry-run
-    path: external-standards/material.json
+    path: external-standards-run/material.json
   report:
   - '観点 external-standards: skipped'
-judge__procedure-trace__intake:
+judge__procedure-trace-run__intake:
   due: false
   reason: '筋書き: block の中は block の筋書きが見る'
-judge__procedure-trace__finish:
+judge__procedure-trace-run__finish:
   ok: true
   status: skipped
   reason: ''
   material:
     type: archon_artifact
     run_id: dry-run
-    path: procedure-trace/material.json
+    path: procedure-trace-run/material.json
   report:
   - '観点 procedure-trace: skipped'
-judge__test-double-fidelity__intake:
+judge__test-double-fidelity-run__intake:
   due: false
   reason: '筋書き: block の中は block の筋書きが見る'
-judge__test-double-fidelity__finish:
+judge__test-double-fidelity-run__finish:
   ok: true
   status: skipped
   reason: ''
   material:
     type: archon_artifact
     run_id: dry-run
-    path: test-double-fidelity/material.json
+    path: test-double-fidelity-run/material.json
   report:
   - '観点 test-double-fidelity: skipped'
-judge__main-path-observation__intake:
+judge__main-path-observation-run__intake:
   due: false
   reason: '筋書き: block の中は block の筋書きが見る'
-judge__main-path-observation__finish:
+judge__main-path-observation-run__finish:
   ok: true
   status: skipped
   reason: ''
   material:
     type: archon_artifact
     run_id: dry-run
-    path: main-path-observation/material.json
+    path: main-path-observation-run/material.json
   report:
   - '観点 main-path-observation: skipped'
-judge__provenance__intake:
+judge__provenance-run__intake:
   due: false
   reason: '筋書き: block の中は block の筋書きが見る'
-judge__provenance__finish:
+judge__provenance-run__finish:
   ok: true
   status: skipped
   reason: ''
   material:
     type: archon_artifact
     run_id: dry-run
-    path: provenance/material.json
+    path: provenance-run/material.json
   report:
   - '観点 provenance: skipped'
 judge__world__pick:

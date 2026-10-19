@@ -4,7 +4,7 @@
 # ///
 """修正の段へ運ぶ値を 1 か所に集める node fix-in（docs/design/line.md の 4.1・5.2）。
 
-修正から後ろの node（fix・replan・replan-review・refix-run・lens・delta-review の 2 段・rejudge・spec-check・eyes-in・eyes）は、
+修正から後ろの node（fix・replan・replan-review・refix-run・lens・delta-review の 2 段・rejudge-run・spec-check-run・eyes-in・eyes）は、
 判定・構造の目・独立設計・計画の往復の値を、ここの返りの欄（$fix-in.output.<欄>）からだけ読む。
 - 通常の run: 受け皿の got（直す前のテスト・判定のまとめ・構造の目）と返し（段の表・独立設計・計画の往復）と修正前の承認の答えを
   運ぶ値 received_live に組み、平らな欄にする。go は修正前の承認を通ったか。go が真なら、修正の前に 1 度だけ run の置き場を固定材料に

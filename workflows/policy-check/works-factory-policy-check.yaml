@@ -48,7 +48,7 @@ nodes:
       purpose: "$policy-in.output.purpose"
       web: "$policy-in.output.web"
       lang: "$policy-in.output.lang"
-  - id: review
+  - id: review-run
     include: works-factory-plan-review
     depends_on: [policy-in, world]
     trigger_rule: all_done
@@ -61,11 +61,11 @@ nodes:
     script: result
     runtime: uv
     mutates_checkout: false
-    depends_on: [world, review]
+    depends_on: [world, review-run]
     trigger_rule: all_done
     with:
       world: {from: "$world.output", if_skipped: null}
-      review: {from: "$review.output", if_skipped: null}
+      review: {from: "$review-run.output", if_skipped: null}
     output_format:
       type: object
       additionalProperties: false

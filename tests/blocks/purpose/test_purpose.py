@@ -351,11 +351,11 @@ class FinishCase(_RepoCase):
         self.assertIn("目的の文を受け付けた控えが無い", fin["reason"])
 
     def test_included_block_writes_in_its_own_place(self):
-        self.run.script("intake", "judge__purpose__intake", request=REQUEST, pr_text="", constraints="[]", lang="")
-        self.run.script("purpose_prep", "judge__purpose__purpose-loop.purpose-prep")
-        self.run.script("purpose_accept", "judge__purpose__purpose-loop.purpose-accept", reply=json.dumps(GOOD))
-        fin = self.run.script("finish", "judge__purpose__finish")
-        self.assertEqual(fin["purpose"]["path"], "judge/purpose/purpose.json")
+        self.run.script("intake", "judge__purpose-run__intake", request=REQUEST, pr_text="", constraints="[]", lang="")
+        self.run.script("purpose_prep", "judge__purpose-run__purpose-loop.purpose-prep")
+        self.run.script("purpose_accept", "judge__purpose-run__purpose-loop.purpose-accept", reply=json.dumps(GOOD))
+        fin = self.run.script("finish", "judge__purpose-run__finish")
+        self.assertEqual(fin["purpose"]["path"], "judge/purpose-run/purpose.json")
         self.assertFalse((self.run.artifacts / "purpose.json").exists())
 
 

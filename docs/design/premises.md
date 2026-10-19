@@ -58,7 +58,7 @@ script の名は `lib/` のモジュールの名と重ねない（README の 7.1
 
 ### 1.4 place のファイル
 
-`ports.place()`（単独の run では `$ARTIFACTS_DIR/`、line から judge のまとめを通して include された時は `$ARTIFACTS_DIR/judge/premises/`）の下に書く。名は `src/steps.py` だけが持つ。
+`ports.place()`（単独の run では `$ARTIFACTS_DIR/`、line から judge のまとめを通して include された時は `$ARTIFACTS_DIR/judge/premises-run/`）の下に書く。名は `src/steps.py` だけが持つ。
 
 - `intake.json`: `{findings, carried, lang, failed, reason}`。intake が消してよいのは、自分が名を持つこの節のファイルだけ（`intake.json`・`tree.json`・`premises.json`・`rejects-premises.json`・`premises-prompt-*.md`）。`findings` は依頼の行の配列、`carried` は運ばれた実測の行の配列。`failed` は intake が落ちた時だけ true で、`reason` はその訳（ほかは空の字）。
 - `tree.json`: 作業ツリーの写し（`accept.tree_state` の形）。今の `judge/judge-tree.json` に当たる。
@@ -393,7 +393,7 @@ script を子のプロセスで回す（今の `tests/workflows/test_judge.py:69
 
 ### 7.4 keep-essence の番号
 
-12 の仕組みのどれも、この block が直に担う物ではない（README の 10 節）。この block の出力（制約）は、独立設計の役（9）と根本の診断に所与として渡る材料で、`実測` の札に出力を求める照らし（`AcceptCase` の `test_measured_without_output_rejected` の写し）が、誤った事実を独立の目に所与として渡さない守りになる。e2e の照らしの表 `tests/e2e/evidence.json` の `J09`（依頼の実測の測り直し。今は筋書きでのみ）は、node の id と place のパス（`judge/premises/`）を新しい物に合わせる。
+12 の仕組みのどれも、この block が直に担う物ではない（README の 10 節）。この block の出力（制約）は、独立設計の役（9）と根本の診断に所与として渡る材料で、`実測` の札に出力を求める照らし（`AcceptCase` の `test_measured_without_output_rejected` の写し）が、誤った事実を独立の目に所与として渡さない守りになる。e2e の照らしの表 `tests/e2e/evidence.json` の `J09`（依頼の実測の測り直し。今は筋書きでのみ）は、node の id と place のパス（`judge/premises-run/`）を新しい物に合わせる。
 
 ### 7.5 済んだと言える条件（PR ごと。README の 11.2）
 

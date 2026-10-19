@@ -62,7 +62,7 @@ script の名は `lib/` のモジュールの名と重ねない（README の 7.1
 
 ### 1.4 place のファイル
 
-`ports.place()`（単独の run では `$ARTIFACTS_DIR/`、line から judge のまとめを通して include された時は `$ARTIFACTS_DIR/judge/purpose/`）の下に書く。名は `src/steps.py` だけが持つ。
+`ports.place()`（単独の run では `$ARTIFACTS_DIR/`、line から judge のまとめを通して include された時は `$ARTIFACTS_DIR/judge/purpose-run/`）の下に書く。名は `src/steps.py` だけが持つ。
 
 - `intake.json`: `{request, pr_text, constraints, lang, frozen, failed, reason}`。`request` は役に見せる依頼の写し（`prior_failures` を外した物）。
 - `tree.json`: 作業ツリーの写し（`accept.tree_state` の形）。今の `judge/purpose-tree.json` に当たる。
@@ -377,7 +377,7 @@ script を子のプロセスで回す（今の `tests/workflows/test_judge.py:69
 
 - 9（独立設計）: 独立の目は目的の文だけから設計する。この block は、目的の文に依頼の解き方を混ぜさせない（md の「目的と解き方を分けよ」と、受け付けが `means` を外して別に置く）。守るのは `AcceptCase` の `test_good_reply_writes_purpose_and_means` の写し（`purpose.json` に `means` が無く、`purpose-means.json` に在る）と、`PromptCase` の前の run の判断を見せない試験（持ち主の決め `premises-purpose`）。
 - 12（世界の解に照らす）: 世界の解は依頼の解き方を定石と比べる。その解き方の並びはこの block の `means`。守るのは `FinishCase`（`means` が出力の欄に載る）。読み手の側（world が `means` を受ける）は world の試験。
-- e2e の照らしの表 `tests/e2e/evidence.json` の `J16`（作業ツリーの写し。今は `judge/purpose-tree.json`）と `J17`（`judge/purpose.json` の `source_files`）は、node の id と place のパス（`judge/purpose/tree.json`・`judge/purpose/purpose.json`）を新しい物に合わせる。
+- e2e の照らしの表 `tests/e2e/evidence.json` の `J16`（作業ツリーの写し。今は `judge/purpose-tree.json`）と `J17`（`judge/purpose.json` の `source_files`）は、node の id と place のパス（`judge/purpose-run/tree.json`・`judge/purpose-run/purpose.json`）を新しい物に合わせる。
 
 ### 7.5 済んだと言える条件（PR ごと。README の 11.2）
 

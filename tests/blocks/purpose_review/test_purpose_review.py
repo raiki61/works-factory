@@ -193,11 +193,11 @@ class FlowCase(unittest.TestCase):
         self.assertIn("PATCH /threads/{id} を {a, b} で $x と受ける", self.prep()["prompt"])
 
     def test_included_block_writes_in_its_own_place(self):
-        self.run.script("intake", "judge__purpose-review__intake", base="", purpose=purpose(), entry="", lang="")
-        self.run.script("role_prep", f"judge__purpose-review__{LOOP}.{NAME}-prep")
-        self.assertTrue((self.run.artifacts / "judge" / "purpose-review" / f"{NAME}-prompt-1.md").is_file())
-        fin = self.run.script("finish", "judge__purpose-review__finish")
-        self.assertEqual(fin["material"]["path"], "judge/purpose-review/material.json")
+        self.run.script("intake", "judge__purpose-review-run__intake", base="", purpose=purpose(), entry="", lang="")
+        self.run.script("role_prep", f"judge__purpose-review-run__{LOOP}.{NAME}-prep")
+        self.assertTrue((self.run.artifacts / "judge" / "purpose-review-run" / f"{NAME}-prompt-1.md").is_file())
+        fin = self.run.script("finish", "judge__purpose-review-run__finish")
+        self.assertEqual(fin["material"]["path"], "judge/purpose-review-run/material.json")
 
 
 class ViewpointCase(unittest.TestCase):

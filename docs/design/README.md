@@ -244,7 +244,7 @@ Archon の源で確かめた読み方（この形はこれに合わせた）:
 - `command:` の md は `<workflow のフォルダ>/commands/<名>.md` から探す（同じファイルの `resolveCommandContentForScan`）。block の指示の md は Archon に読ませず prep が読むので、`commands/` でなく `prompts/` に置く。生の型（`{name}` が埋まっていない物）が AI に届く道はこれで無くなる。
 - 名の script は `<workflow のフォルダ>/scripts/` の 1 段下までの、知った拡張子のファイル全部で、名が重なると誤り（`A/packages/workflows/src/script-discovery.ts` の `MAX_SCRIPT_DISCOVERY_DEPTH = 1` と `discoverPackScripts`）。だから block の中の Python の部品は `scripts/` の下に置かず、`src/` に置く。
 - Archon は run の始めに `.archon` の源を丸ごと写し取り、resume もその写しから走る（`A/packages/workflows/src/workflow-source.ts`）。`src/` と `prompts/` は写しに入るが、`lib/` は入らない（`ports.lib_root` は環境変数 `WORKS_FACTORY_ROOT` から辿る）。block だけが使うコードを block に置くと、止まった run の resume が同じコードで続く、という利点もある。
-- `include:` は読み込みの時の平らな展開。中の node の id は `<include の id>__<id>` になり、`returns:` の node が `$<include の id>.output` になる。`inputs:` に無い鍵と、欠けた必須の入力は読み込みの誤り（`A/packages/workflows/src/include-expander.ts` の頭の説明と、憲法の `inputs:` + `returns:` + `with:` の行）。
+- `include:` は読み込みの時の平らな展開。中の上の段の node の id は `<include の id>__<id>` になり、`returns:` の node が `$<include の id>.output` になる。loop_group の本体の中の `$<id>.output` は改められないので、include の id が block の中の node の id（本体の中の物も）と同じだと、本体の中の字が include の返す node を指してしまう（7.1 の 13）。`inputs:` に無い鍵と、欠けた必須の入力は読み込みの誤り（`A/packages/workflows/src/include-expander.ts` の頭の説明と、憲法の `inputs:` + `returns:` + `with:` の行）。
 
 ## 4 port
 
@@ -344,6 +344,7 @@ block の設計書（`docs/design/<block>.md`）は、頭に block の全体（�
 
 11. YAML に指示の文を置く鍵（`loop:` の node・`agents:`・`on_reject` と `decisions` の `rework` の `prompt`）が無く、形のファイルは照らしの知らない語を持たない（13 章）。
 12. AI の node の md（`{part:…}` と `{shared:…}` を入れた後）に `"欄":` の形で書いた欄が、その node の `output_format` のどこかの深さの `properties` に在る（返答の型が指示の欄を全部持つ。組み込みの前の `tests/workflows/test_reply_fields.py` の後継。`docs/design/integration.md` の 4.2-2）。
+13. `include:` の node（loop_group の本体の中の物も）の id が、取り込む workflow の中のどの node の id（上の段も、どの深さの loop_group の本体も）とも違う。役と同じ名を持つ block は `<block の名>-run` で include する（judge-eyes.md の 1.3 の「include の id」）。
 
 1 の `systemPrompt:`（`prompts/<node-id>.system.md`）・3 の照らし方（筋書きの `resolved-text-contains` が md の決まった文）・5 の `json(shared:<schema>)`・6 の block と graph の見分けは 13 章の土台の決め。検査は `tests/layers/test_block_shape.py` 1 本。
 

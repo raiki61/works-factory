@@ -72,11 +72,11 @@ from tests.e2e import evidence, make_target  # noqa: E402
 
 # 工場の run の記録から読む判定・目の返答・封じた差分の置き場（run の置き場 parent/ の下の、line の include の道の place。
 # docs/design/integration.md の 4.3-15。使い手はこの道具だけなので、道の定数はここに直に置く）。judge の graph の中の
-# diagnose の place は judge/diagnose/（judge-eyes.md の 1.6）、再審は line が include する rejudge-run/、目は eyes の graph の中の
+# diagnose の place は judge/diagnose-run/（judge-eyes.md の 1.6）、再審は line が include する rejudge-run/、目は eyes の graph の中の
 # eyes/r1/・eyes/r4/、封じは line の merge-seal/（merge.md の 1.3）。ファイルの名は作り手の block（diagnose・r1・r4）が持つ名
 # （diagnose の files.JUDGMENT_FILE・r1 の files.MINIMALITY・r4 の files.REPLY。この道具の試験 test_reviewbench の SourcesCase が
 # 作り手の output_format と縛る）
-JUDGMENT = "parent/judge/diagnose/judgment.json"
+JUDGMENT = "parent/judge/diagnose-run/judgment.json"
 REJUDGMENT = "parent/rejudge-run/judgment.json"
 R1 = "parent/eyes/r1/r1-minimality.json"
 R4 = "parent/eyes/r4/r4-scope.json"
@@ -100,7 +100,7 @@ EVENTS = "record/{name}-events.json"
 WITHHELD = {"web": "denied", "gh": "withheld"}
 JUDGE_MODEL = "claude-sonnet-5"   # 公開の採点と同じ判定役の模型（ReviewBench の docs/OFFLINE_EVAL.md）
 KEY_LINE = "判定役が API キーを要るなら、作るかは持ち主の決め（#435）"
-# 素の Claude Code の模型と effort は、works-factory の判定の中心の役（workflows/judge/works-factory-judge.yaml の diagnose。群
+# 素の Claude Code の模型と effort は、works-factory の判定の中心の役（workflows/judge/works-factory-judge.yaml の diagnose-run。群
 # @wf-judge-core の既定。lib/launchgroups.py）と同じ。持ち主の言葉「同じ模型・effort」の基準を run ごとに揺らさないため、旗で選ばせず、
 # 群の表からも引かない（表を書き換えると基準が黙って動く）
 PLAIN_MODEL, PLAIN_EFFORT = "opus", "high"

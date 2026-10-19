@@ -32,6 +32,12 @@
 12. AI の node の md（と system の md。{shared:…}・{part:…} を入れた後）に `"欄":` の形で書いた欄が、その node の output_format の
    どこかの深さの properties に在る（形に無い欄は Archon の構造化の出力が拒むので、役は指示が求める欄を返せない。
    docs/design/integration.md の 4.2-2。tests/workflows/test_reply_fields.py の後継。指示の文は md だけなので lib の字は辿らない）
+13. include: の node（loop_group の本体の中の物も）の id が、include する workflow の中のどの node の id（上の段も、どの深さの
+   loop_group の本体も）とも違う。Archon の include の展開（packages/workflows/src/include-expander.ts）は、取り込む workflow の
+   上の段の id だけを `<include の id>__<id>` に改め、loop_group の本体の中の `$<id>.output` は改めない。同じ id だと、本体の中の
+   `$<id>.output` が include の returns の node を指してしまい、本当の run で「その node はまだ出力を持たない」と落ちる
+   （筋書きはこれを捕まえない: graph の筋書きは include した block の入口と出口を台本で差し替えて中の loop を回さず、block の筋書きは
+   block を単独で回す。dry-run は include の中の loop の本体に include の道を渡さないので、本体の script を本物で回す graph の筋書きも組めない）
 
 今ある yes/no の検査も pack（workflows/）に当てる（ExistingRulesCase）: E6（外への書き込み）・E7（読むだけの node の印）・E12（期限を
 置かない）・E16（承認ノードの形）・E19（AI の node の retry）は tests/layers/scan.py の照らしを、pack を一時の木の workflows/ に写して
@@ -85,6 +91,15 @@ def nodes(doc: dict) -> list[dict]:
     for node in doc.get("nodes") or []:
         out.append(node)
         out += (node.get("loop_group") or {}).get("nodes") or []
+    return out
+
+
+def all_nodes(listed) -> list[dict]:
+    """node の全部（どの深さの loop_group の本体も）"""
+    out = []
+    for node in listed or []:
+        out.append(node)
+        out += all_nodes((node.get("loop_group") or {}).get("nodes"))
     return out
 
 
@@ -428,9 +443,24 @@ def check_reply_fields(pack: pathlib.Path) -> list[str]:
     return out
 
 
+def check_include_ids_unique(pack: pathlib.Path) -> list[str]:
+    out = []
+    by_name = {}
+    for folder in folders(pack):
+        doc = load(folder)
+        by_name[doc.get("name")] = {n["id"] for n in all_nodes(doc.get("nodes"))}
+    for folder in folders(pack):
+        for node in all_nodes(load(folder).get("nodes")):
+            inner = by_name.get(node.get("include"))
+            if inner is not None and node["id"] in inner:
+                out.append(f"{folder.name}: include の node {node['id']} の id が、取り込む {node['include']} の中の node の id と同じ"
+                           f"（本体の中の ${node['id']}.output が include の returns を指してしまう。include の id を <名>-run などに変える）")
+    return out
+
+
 CHECKS = (check_prompt_from_prep, check_prompt_files, check_standalone_renders, check_standalone_inputs, check_input_forms,
           check_graphs_have_no_roles, check_no_run_root_or_other_folders, check_returns_carry_outcome_and_report, check_module_names,
-          check_block_tests, check_no_text_in_yaml, check_reply_fields)
+          check_block_tests, check_no_text_in_yaml, check_reply_fields, check_include_ids_unique)
 
 
 class RealTreeCase(unittest.TestCase):
@@ -515,6 +545,7 @@ class SeedCase(unittest.TestCase):
 
     def test_each_check_catches_its_break(self):
         demo = yaml.safe_load(self.GOOD["demo/works-factory-demo.yaml"])
+        other = yaml.safe_load(self.GOOD["other/works-factory-other.yaml"])
 
         def nodes_with(i, **kw):
             copy = json.loads(json.dumps(demo))
@@ -577,6 +608,16 @@ class SeedCase(unittest.TestCase):
             (check_no_text_in_yaml, {".shared/schemas/x.schema.json": '{"oneOf": []}'}, "$.oneOf"),
             (check_reply_fields, {"demo/prompts/role.md": '{shared:rejected}\n{part:rules}\nReturn {{"ok": true}}.\n'}, "['ok']"),
             (check_reply_fields, {"demo/prompts/parts/rules.md": 'rules\n"field": x\n'}, "['field']"),
+            (check_include_ids_unique, {"other/works-factory-other.yaml": yaml.safe_dump(
+                {**other, "nodes": [*other["nodes"], {"id": "role", "include": "works-factory-demo"}]})}, "include の node role"),
+            (check_include_ids_unique, {"other/works-factory-other.yaml": yaml.safe_dump(
+                {**other, "nodes": [*other["nodes"], {"id": "outer", "loop_group": {"nodes": [
+                    {"id": "finish", "include": "works-factory-demo"}]}}]})}, "include の node finish"),
+            (check_include_ids_unique, {"other/works-factory-other.yaml": yaml.safe_dump(
+                {**other, "nodes": [*other["nodes"], {"id": "deep", "include": "works-factory-demo"}]}),
+                "demo/works-factory-demo.yaml": yaml.safe_dump({**demo, "nodes": [*demo["nodes"], {"id": "outer", "loop_group": {
+                    "nodes": [{"id": "inner", "loop_group": {"nodes": [{"id": "deep", "script": "prep"}]}}]}}]})},
+             "include の node deep"),
         ]
         for check, changes, word in cases:
             with self.subTest(check=check.__name__, changes=sorted(changes)):

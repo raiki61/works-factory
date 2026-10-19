@@ -33,7 +33,7 @@ nodes:
         spec: {type: boolean}
         world: {type: boolean}
         web: {type: string, enum: ['on', 'off']}
-  - id: head-depth
+  - id: head-depth-run
     include: works-factory-head-depth
     depends_on: [ins]
     with:
@@ -43,7 +43,7 @@ nodes:
       spec: "$INPUTS.spec"
       design_only: "$INPUTS.design_only"
       lang: "$INPUTS.lang"
-  - id: head-depth-out
+  - id: head-depth-run-out
     # 受け皿の本体はここ 1 か所。ほかは <<: *receiver で受け、id・depends_on・with だけを書く（names は運ぶ欄の名）
     <<: &receiver
       script: returned
@@ -56,9 +56,9 @@ nodes:
         properties:
           got: {type: [object, 'null']}
           why: {type: string}
-    depends_on: [head-depth]
+    depends_on: [head-depth-run]
     with:
-      got: "$head-depth.output"
+      got: "$head-depth-run.output"
       names: "ok status reason tier why rows record report"
   - id: spec
     include: works-factory-spec
@@ -111,7 +111,7 @@ nodes:
     with:
       got: "$parallel-pr.output"
       names: "ok status stop_reason reason material excluded drafts reads downgrades report"
-  - id: premises
+  - id: premises-run
     include: works-factory-premises
     depends_on: [parallel-pr]
     when: "$parallel-pr.output.stop_reason == ''"
@@ -119,35 +119,35 @@ nodes:
       request: "$spec-in.output.request"
       carried: "$INPUTS.carried"
       lang: "$INPUTS.lang"
-  - id: premises-out
+  - id: premises-run-out
     <<: *receiver
-    depends_on: [premises]
+    depends_on: [premises-run]
     with:
-      got: "$premises.output"
+      got: "$premises-run.output"
       names: "ok status reason constraints report"
-  - id: purpose
+  - id: purpose-run
     include: works-factory-purpose
-    depends_on: [premises]
-    when: "$premises.output.ok == true"
+    depends_on: [premises-run]
+    when: "$premises-run.output.ok == true"
     with:
       request: "$INPUTS.request"
       pr_text: "$INPUTS.pr_text"
-      constraints: "$premises.output.constraints"
+      constraints: "$premises-run.output.constraints"
       lang: "$INPUTS.lang"
-  - id: purpose-out
+  - id: purpose-run-out
     <<: *receiver
-    depends_on: [purpose]
+    depends_on: [purpose-run]
     with:
-      got: "$purpose.output"
+      got: "$purpose-run.output"
       names: "ok status reason purpose purpose_text source means report"
   - id: world
     include: works-factory-world
-    depends_on: [purpose, ins]
-    when: "$purpose.output.ok == true && $ins.output.world == true"
+    depends_on: [purpose-run, ins]
+    when: "$purpose-run.output.ok == true && $ins.output.world == true"
     with:
       request: "$spec-in.output.request"
-      purpose: "$purpose.output.purpose_text"
-      means: "$purpose.output.means"
+      purpose: "$purpose-run.output.purpose_text"
+      means: "$purpose-run.output.means"
       web: "$ins.output.web"
       lang: "$INPUTS.lang"
   - id: world-out
@@ -157,182 +157,182 @@ nodes:
       got: "$world.output"
       names: "ok status reason rows classes dropped report"
   # 素材の観点 10 本（gate-efficacy は持ち主の決めで include しない。docs/design/judge-eyes.md の 3 節）。互いを待たずに並ぶ。世界の解の受け皿に依るのは、世界の解が切られた・落ちた run でも回すため
-  - id: prior-decisions
+  - id: prior-decisions-run
     include: works-factory-prior-decisions
-    depends_on: [purpose, world-out]
+    depends_on: [purpose-run, world-out]
     trigger_rule: none_failed_min_one_success
-    when: "$purpose.output.ok == true"
+    when: "$purpose-run.output.ok == true"
     with:
       base: "$INPUTS.base"
       entry: "$INPUTS.entry"
       request: "$spec-in.output.request"
       lang: "$INPUTS.lang"
-  - id: prior-decisions-out
+  - id: prior-decisions-run-out
     <<: *receiver
-    depends_on: [prior-decisions]
+    depends_on: [prior-decisions-run]
     with:
-      got: "$prior-decisions.output"
+      got: "$prior-decisions-run.output"
       names: "ok status reason material report"
-  - id: purpose-review
+  - id: purpose-review-run
     include: works-factory-purpose-review
-    depends_on: [purpose, world-out]
+    depends_on: [purpose-run, world-out]
     trigger_rule: none_failed_min_one_success
-    when: "$purpose.output.ok == true"
+    when: "$purpose-run.output.ok == true"
     with:
       base: "$INPUTS.base"
       entry: "$INPUTS.entry"
-      purpose: "$purpose.output.purpose"
+      purpose: "$purpose-run.output.purpose"
       lang: "$INPUTS.lang"
-  - id: purpose-review-out
+  - id: purpose-review-run-out
     <<: *receiver
-    depends_on: [purpose-review]
+    depends_on: [purpose-review-run]
     with:
-      got: "$purpose-review.output"
+      got: "$purpose-review-run.output"
       names: "ok status reason material report"
-  - id: local-review
+  - id: local-review-run
     include: works-factory-local-review
-    depends_on: [purpose, world-out]
+    depends_on: [purpose-run, world-out]
     trigger_rule: none_failed_min_one_success
-    when: "$purpose.output.ok == true"
+    when: "$purpose-run.output.ok == true"
     with:
       base: "$INPUTS.base"
       entry: "$INPUTS.entry"
       lang: "$INPUTS.lang"
-  - id: local-review-out
+  - id: local-review-run-out
     <<: *receiver
-    depends_on: [local-review]
+    depends_on: [local-review-run]
     with:
-      got: "$local-review.output"
+      got: "$local-review-run.output"
       names: "ok status reason material report"
-  - id: consistency-bypass
+  - id: consistency-bypass-run
     include: works-factory-consistency-bypass
-    depends_on: [purpose, world-out]
+    depends_on: [purpose-run, world-out]
     trigger_rule: none_failed_min_one_success
-    when: "$purpose.output.ok == true"
+    when: "$purpose-run.output.ok == true"
     with:
       base: "$INPUTS.base"
       entry: "$INPUTS.entry"
       lang: "$INPUTS.lang"
-  - id: consistency-bypass-out
+  - id: consistency-bypass-run-out
     <<: *receiver
-    depends_on: [consistency-bypass]
+    depends_on: [consistency-bypass-run]
     with:
-      got: "$consistency-bypass.output"
+      got: "$consistency-bypass-run.output"
       names: "ok status reason material report"
-  - id: hygiene
+  - id: hygiene-run
     include: works-factory-hygiene
-    depends_on: [purpose, world-out]
+    depends_on: [purpose-run, world-out]
     trigger_rule: none_failed_min_one_success
-    when: "$purpose.output.ok == true"
+    when: "$purpose-run.output.ok == true"
     with:
       base: "$INPUTS.base"
       entry: "$INPUTS.entry"
       lang: "$INPUTS.lang"
-  - id: hygiene-out
+  - id: hygiene-run-out
     <<: *receiver
-    depends_on: [hygiene]
+    depends_on: [hygiene-run]
     with:
-      got: "$hygiene.output"
+      got: "$hygiene-run.output"
       names: "ok status reason material report"
-  - id: external-standards
+  - id: external-standards-run
     include: works-factory-external-standards
-    depends_on: [purpose, world-out]
+    depends_on: [purpose-run, world-out]
     trigger_rule: none_failed_min_one_success
-    when: "$purpose.output.ok == true"
+    when: "$purpose-run.output.ok == true"
     with:
       base: "$INPUTS.base"
       entry: "$INPUTS.entry"
-      purpose: "$purpose.output.purpose"
+      purpose: "$purpose-run.output.purpose"
       lang: "$INPUTS.lang"
-  - id: external-standards-out
+  - id: external-standards-run-out
     <<: *receiver
-    depends_on: [external-standards]
+    depends_on: [external-standards-run]
     with:
-      got: "$external-standards.output"
+      got: "$external-standards-run.output"
       names: "ok status reason material report"
-  - id: procedure-trace
+  - id: procedure-trace-run
     include: works-factory-procedure-trace
-    depends_on: [purpose, world-out]
+    depends_on: [purpose-run, world-out]
     trigger_rule: none_failed_min_one_success
-    when: "$purpose.output.ok == true"
+    when: "$purpose-run.output.ok == true"
     with:
       base: "$INPUTS.base"
       entry: "$INPUTS.entry"
       lang: "$INPUTS.lang"
-  - id: procedure-trace-out
+  - id: procedure-trace-run-out
     <<: *receiver
-    depends_on: [procedure-trace]
+    depends_on: [procedure-trace-run]
     with:
-      got: "$procedure-trace.output"
+      got: "$procedure-trace-run.output"
       names: "ok status reason material report"
-  - id: test-double-fidelity
+  - id: test-double-fidelity-run
     include: works-factory-test-double-fidelity
-    depends_on: [purpose, world-out]
+    depends_on: [purpose-run, world-out]
     trigger_rule: none_failed_min_one_success
-    when: "$purpose.output.ok == true"
+    when: "$purpose-run.output.ok == true"
     with:
       base: "$INPUTS.base"
       entry: "$INPUTS.entry"
       lang: "$INPUTS.lang"
-  - id: test-double-fidelity-out
+  - id: test-double-fidelity-run-out
     <<: *receiver
-    depends_on: [test-double-fidelity]
+    depends_on: [test-double-fidelity-run]
     with:
-      got: "$test-double-fidelity.output"
+      got: "$test-double-fidelity-run.output"
       names: "ok status reason material report"
-  - id: main-path-observation
+  - id: main-path-observation-run
     include: works-factory-main-path-observation
-    depends_on: [purpose, world-out]
+    depends_on: [purpose-run, world-out]
     trigger_rule: none_failed_min_one_success
-    when: "$purpose.output.ok == true"
+    when: "$purpose-run.output.ok == true"
     with:
       base: "$INPUTS.base"
       entry: "$INPUTS.entry"
       lang: "$INPUTS.lang"
-  - id: main-path-observation-out
+  - id: main-path-observation-run-out
     <<: *receiver
-    depends_on: [main-path-observation]
+    depends_on: [main-path-observation-run]
     with:
-      got: "$main-path-observation.output"
+      got: "$main-path-observation-run.output"
       names: "ok status reason material report"
-  - id: provenance
+  - id: provenance-run
     include: works-factory-provenance
-    depends_on: [purpose, world-out]
+    depends_on: [purpose-run, world-out]
     trigger_rule: none_failed_min_one_success
-    when: "$purpose.output.ok == true"
+    when: "$purpose-run.output.ok == true"
     with:
       base: "$INPUTS.base"
       entry: "$INPUTS.entry"
       lang: "$INPUTS.lang"
-  - id: provenance-out
+  - id: provenance-run-out
     <<: *receiver
-    depends_on: [provenance]
+    depends_on: [provenance-run]
     with:
-      got: "$provenance.output"
+      got: "$provenance-run.output"
       names: "ok status reason material report"
   - id: diagnose-in
     script: diagnose_in
     runtime: uv
     mutates_checkout: false
-    depends_on: [prior-decisions-out, purpose-review-out, local-review-out, consistency-bypass-out, hygiene-out, external-standards-out, procedure-trace-out, test-double-fidelity-out, main-path-observation-out, provenance-out, parallel-pr-out, head-depth-out, world-out, spec-in, premises-out, purpose-out]
+    depends_on: [prior-decisions-run-out, purpose-review-run-out, local-review-run-out, consistency-bypass-run-out, hygiene-run-out, external-standards-run-out, procedure-trace-run-out, test-double-fidelity-run-out, main-path-observation-run-out, provenance-run-out, parallel-pr-out, head-depth-run-out, world-out, spec-in, premises-run-out, purpose-run-out]
     trigger_rule: all_done
     with:
-      prior_decisions_out: {from: "$prior-decisions-out.output", if_skipped: null}
-      purpose_review_out: {from: "$purpose-review-out.output", if_skipped: null}
-      local_review_out: {from: "$local-review-out.output", if_skipped: null}
-      consistency_bypass_out: {from: "$consistency-bypass-out.output", if_skipped: null}
-      hygiene_out: {from: "$hygiene-out.output", if_skipped: null}
-      external_standards_out: {from: "$external-standards-out.output", if_skipped: null}
-      procedure_trace_out: {from: "$procedure-trace-out.output", if_skipped: null}
-      test_double_fidelity_out: {from: "$test-double-fidelity-out.output", if_skipped: null}
-      main_path_observation_out: {from: "$main-path-observation-out.output", if_skipped: null}
-      provenance_out: {from: "$provenance-out.output", if_skipped: null}
+      prior_decisions_out: {from: "$prior-decisions-run-out.output", if_skipped: null}
+      purpose_review_out: {from: "$purpose-review-run-out.output", if_skipped: null}
+      local_review_out: {from: "$local-review-run-out.output", if_skipped: null}
+      consistency_bypass_out: {from: "$consistency-bypass-run-out.output", if_skipped: null}
+      hygiene_out: {from: "$hygiene-run-out.output", if_skipped: null}
+      external_standards_out: {from: "$external-standards-run-out.output", if_skipped: null}
+      procedure_trace_out: {from: "$procedure-trace-run-out.output", if_skipped: null}
+      test_double_fidelity_out: {from: "$test-double-fidelity-run-out.output", if_skipped: null}
+      main_path_observation_out: {from: "$main-path-observation-run-out.output", if_skipped: null}
+      provenance_out: {from: "$provenance-run-out.output", if_skipped: null}
       parallel_pr_out: {from: "$parallel-pr-out.output", if_skipped: null}
       world_out: {from: "$world-out.output", if_skipped: null}
-      head_depth_out: {from: "$head-depth-out.output", if_skipped: null}
+      head_depth_out: {from: "$head-depth-run-out.output", if_skipped: null}
       spec_in: {from: "$spec-in.output", if_skipped: null}
-      premises_out: {from: "$premises-out.output", if_skipped: null}
-      purpose_out: {from: "$purpose-out.output", if_skipped: null}
+      premises_out: {from: "$premises-run-out.output", if_skipped: null}
+      purpose_out: {from: "$purpose-run-out.output", if_skipped: null}
     output_format:
       type: object
       additionalProperties: false
@@ -354,7 +354,7 @@ nodes:
         tier: {type: string}
         verify: {type: boolean}
   # 判定の道だけ（objection・prior は渡さない。再審は line が diagnose を直に include する）
-  - id: diagnose
+  - id: diagnose-run
     include: works-factory-diagnose
     depends_on: [diagnose-in]
     when: "$diagnose-in.output.ok == true && $diagnose-in.output.go == true"
@@ -375,18 +375,18 @@ nodes:
       pr_text: "$INPUTS.pr_text"
       policy: "$INPUTS.policy"
       lang: "$INPUTS.lang"
-  - id: diagnose-out
+  - id: diagnose-run-out
     <<: *receiver
-    depends_on: [diagnose]
+    depends_on: [diagnose-run]
     with:
-      got: "$diagnose.output"
+      got: "$diagnose-run.output"
       names: "ok status mode stop_reason reason ready judgment units questions inputs brief materials out_of_purpose answer_ties downgrades report"
   - id: verify
     include: works-factory-verify
-    depends_on: [diagnose, diagnose-in]
-    when: "$diagnose-in.output.verify == true && $diagnose.output.ready == true"
+    depends_on: [diagnose-run, diagnose-in]
+    when: "$diagnose-in.output.verify == true && $diagnose-run.output.ready == true"
     with:
-      judgment: "$diagnose.output.judgment"
+      judgment: "$diagnose-run.output.judgment"
       lang: "$INPUTS.lang"
   - id: verify-out
     <<: *receiver
@@ -398,28 +398,28 @@ nodes:
     script: verdict
     runtime: uv
     mutates_checkout: false
-    depends_on: [head-depth-out, spec-out, spec-in, parallel-pr-out, premises-out, purpose-out, world-out, prior-decisions-out, purpose-review-out, local-review-out, consistency-bypass-out, hygiene-out, external-standards-out, procedure-trace-out, test-double-fidelity-out, main-path-observation-out, provenance-out, diagnose-in, diagnose-out, verify-out]
+    depends_on: [head-depth-run-out, spec-out, spec-in, parallel-pr-out, premises-run-out, purpose-run-out, world-out, prior-decisions-run-out, purpose-review-run-out, local-review-run-out, consistency-bypass-run-out, hygiene-run-out, external-standards-run-out, procedure-trace-run-out, test-double-fidelity-run-out, main-path-observation-run-out, provenance-run-out, diagnose-in, diagnose-run-out, verify-out]
     trigger_rule: all_done
     with:
-      head_depth_out: {from: "$head-depth-out.output", if_skipped: null}
+      head_depth_out: {from: "$head-depth-run-out.output", if_skipped: null}
       spec_out: {from: "$spec-out.output", if_skipped: null}
       spec_in: {from: "$spec-in.output", if_skipped: null}
       parallel_pr_out: {from: "$parallel-pr-out.output", if_skipped: null}
-      premises_out: {from: "$premises-out.output", if_skipped: null}
-      purpose_out: {from: "$purpose-out.output", if_skipped: null}
+      premises_out: {from: "$premises-run-out.output", if_skipped: null}
+      purpose_out: {from: "$purpose-run-out.output", if_skipped: null}
       world_out: {from: "$world-out.output", if_skipped: null}
-      prior_decisions_out: {from: "$prior-decisions-out.output", if_skipped: null}
-      purpose_review_out: {from: "$purpose-review-out.output", if_skipped: null}
-      local_review_out: {from: "$local-review-out.output", if_skipped: null}
-      consistency_bypass_out: {from: "$consistency-bypass-out.output", if_skipped: null}
-      hygiene_out: {from: "$hygiene-out.output", if_skipped: null}
-      external_standards_out: {from: "$external-standards-out.output", if_skipped: null}
-      procedure_trace_out: {from: "$procedure-trace-out.output", if_skipped: null}
-      test_double_fidelity_out: {from: "$test-double-fidelity-out.output", if_skipped: null}
-      main_path_observation_out: {from: "$main-path-observation-out.output", if_skipped: null}
-      provenance_out: {from: "$provenance-out.output", if_skipped: null}
+      prior_decisions_out: {from: "$prior-decisions-run-out.output", if_skipped: null}
+      purpose_review_out: {from: "$purpose-review-run-out.output", if_skipped: null}
+      local_review_out: {from: "$local-review-run-out.output", if_skipped: null}
+      consistency_bypass_out: {from: "$consistency-bypass-run-out.output", if_skipped: null}
+      hygiene_out: {from: "$hygiene-run-out.output", if_skipped: null}
+      external_standards_out: {from: "$external-standards-run-out.output", if_skipped: null}
+      procedure_trace_out: {from: "$procedure-trace-run-out.output", if_skipped: null}
+      test_double_fidelity_out: {from: "$test-double-fidelity-run-out.output", if_skipped: null}
+      main_path_observation_out: {from: "$main-path-observation-run-out.output", if_skipped: null}
+      provenance_out: {from: "$provenance-run-out.output", if_skipped: null}
       diagnose_in: {from: "$diagnose-in.output", if_skipped: null}
-      diagnose_out: {from: "$diagnose-out.output", if_skipped: null}
+      diagnose_out: {from: "$diagnose-run-out.output", if_skipped: null}
       verify_out: {from: "$verify-out.output", if_skipped: null}
     output_format:
       type: object

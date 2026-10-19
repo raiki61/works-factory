@@ -176,10 +176,10 @@ class FlowCase(unittest.TestCase):
         self.assertIn("intake.json", self.run.failing("role_prep", f"{LOOP}.{NAME}-prep"))
 
     def test_included_block_writes_in_its_own_place(self):
-        self.run.script("intake", "judge__hygiene__intake", base="", entry="", lang="")
-        self.run.script("role_prep", f"judge__hygiene__{LOOP}.{NAME}-prep")
-        fin = self.run.script("finish", "judge__hygiene__finish")
-        self.assertEqual(fin["material"]["path"], "judge/hygiene/material.json")
+        self.run.script("intake", "judge__hygiene-run__intake", base="", entry="", lang="")
+        self.run.script("role_prep", f"judge__hygiene-run__{LOOP}.{NAME}-prep")
+        fin = self.run.script("finish", "judge__hygiene-run__finish")
+        self.assertEqual(fin["material"]["path"], "judge/hygiene-run/material.json")
 
 
 class PasteCase(unittest.TestCase):

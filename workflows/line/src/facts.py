@@ -26,7 +26,7 @@ LINE_STOPS = (("start", "start"), ("answer-start", "answer_start"), ("tiers", "t
               ("answer-replan", "answer_replan"), ("lens-2-in", "lens_2_in"), ("fixed", "fixed"), ("judged", "judged"),
               ("ask-final", "ask_final"), ("answer-final", "answer_final"))
 # block の返りの止めの語（node の id → collect の入力の名）。修正後の並行 PR の確かめ直しは run を止めない（docs/design/line.md の 8.1）
-BLOCK_STOPS = (("judge", "judge"), ("spec-check", "spec_check"))
+BLOCK_STOPS = (("judge", "judge"), ("spec-check-run", "spec_check"))
 GIVE_UP = "give-up"
 NOT_OK = "not-ok"
 CHAIN_CUT = "chain-cut"
@@ -316,7 +316,7 @@ def stop_rows(values: dict, returns: dict) -> list:
             out.append({"at": "fix" if n == 1 else "refix-run", "word": word})
     spec = as_dict(values.get("spec_check"))
     if spec and [q for q in _list(spec.get("questions")) if isinstance(q, str) and q.strip()]:
-        out.append({"at": "spec-check", "word": stopby.SPEC_CHANGED})
+        out.append({"at": "spec-check-run", "word": stopby.SPEC_CHANGED})
     seen, kept = set(), []
     for row in out:
         key = (row["at"], row["word"])
@@ -972,7 +972,7 @@ RETURNED = (("test-gate-base", "test_gate_base"), ("judge", "judge"), ("structur
             ("independent-design", "independent_design"), ("plan-rounds", "rounds"), ("fix", "fix"), ("lens", "lens"),
             ("delta-review", "delta"), ("replan", "replan"), ("replan-review", "replan_review"), ("refix-run", "refix"),
             ("lens-2", "lens_2"), ("delta-review-2", "delta_2"), ("parallel-pr-after", "parallel_after"), ("rejudge-run", "rejudge"),
-            ("spec-check", "spec_check"), ("test-gate-final", "test_gate_final"), ("eyes", "eyes"), ("merge-seal", "merge_seal"),
+            ("spec-check-run", "spec_check"), ("test-gate-final", "test_gate_final"), ("eyes", "eyes"), ("merge-seal", "merge_seal"),
             ("merge-apply", "merge_apply"))
 
 

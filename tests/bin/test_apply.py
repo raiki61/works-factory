@@ -164,7 +164,7 @@ class ApplyTest(TargetCase):
     def test_apply_notes_pending_reapproval(self):
         """#550: 承認し直すかの問いを残した run は、断らずに当て、標準エラーにそう 1 行で知らせる。止めの語が別の待ち
         （fix の衝突が先に立った）でも、照らせなかった（止めの語は works:line-script）でも、問いの数で知らせる"""
-        for stop in ("spec-check:works:spec-changed", "fix:works:conflict", "spec-check:works:line-script"):
+        for stop in ("spec-check-run:works:spec-changed", "fix:works:conflict", "spec-check-run:works:line-script"):
             with self.subTest(stop=stop):
                 git(self.target, "reset", "-q", "--hard")
                 value = self.value(outcome="needs_human", stop_reason=stop, spec_questions=2)
@@ -416,7 +416,7 @@ class ApplyTest(TargetCase):
         """#565: 知らせは当てた後に出す。断った時は断りの 1 行だけで、当てていない差分に「当てた」と言わない"""
         (self.target / "stats.py").write_text("def mean(xs):\n    return 0\n", encoding="utf-8")
         before = self.status()
-        rc, out, err = self.run_apply(self.record(self.value(outcome="needs_human", stop_reason="spec-check:works:spec-changed",
+        rc, out, err = self.run_apply(self.record(self.value(outcome="needs_human", stop_reason="spec-check-run:works:spec-changed",
                                                              spec_questions=2)))
         self.assertEqual((rc, out), (1, ""), err)
         self.assertEqual(len(err.strip().splitlines()), 1, err)

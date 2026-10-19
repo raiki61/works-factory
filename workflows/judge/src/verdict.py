@@ -1,12 +1,12 @@
 """judge の graph のまとめ（docs/design/judge-eyes.md の 1.4）。include した block の受け皿の got を読み、止めの語の順の最初の物と、
 line が配る欄と、報告の節を組む。観点の判断はしない（どれも block の出力の欄を運ぶだけ）。
 
-- TITLES: include の id → 報告の節の見出し（並びは 1.3 の順）
+- TITLES: include した block の名 → 報告の節の見出し（並びは 1.3 の順）
 - stop_of(received) -> (止めの語, 訳): 1.4 の順（仕様・並行 PR・前提の実測・目的の固定・判定・判定の裏取り）の最初の物。無ければ ("", "")
 - build(received, *, world_on, world_has_rows, notes) -> まとめの出力（purpose_review の欄は script が pointer を入れる。notes は
   script が読めなかった物の行）
 
-received は include の id → 受け皿の got（返りが無ければ None）。返しの "spec-in"・"diagnose-in" は、その出力（走らなければ None）。
+received は include した block の名（受け皿の id の -out の前）→ 受け皿の got（返りが無ければ None）。返しの "spec-in"・"diagnose-in" は、その出力（走らなければ None）。
 """
 import headdepth  # lib/。段の語
 import oneline  # lib/
@@ -114,13 +114,13 @@ def _sections(received: dict, own: list) -> list:
 
 
 def _absorbed(received: dict) -> list:
-    """自分の宣言に、include した block の返りの optional（[{node, bare}]）を include の id の頭を付けて足す"""
+    """自分の宣言に、include した block の返りの optional（[{node, bare}]）を include の id（fallback.include_id）の頭を付けて足す"""
     rows = list(OPTIONAL)
     for name in TITLES:
         got = _got(received, name)
         for row in (got or {}).get("optional") or []:
             if isinstance(row, dict) and isinstance(row.get("node"), str) and row["node"]:
-                rows.append(row if row.get("bare") is True else {"node": f"{name}__{row['node']}", "bare": False})
+                rows.append(row if row.get("bare") is True else {"node": f"{fallback.include_id(name)}__{row['node']}", "bare": False})
     seen, out = set(), []
     for row in rows:
         key = (row["node"], row.get("bare") is True)

@@ -567,7 +567,7 @@ prep は `prompt.PromptError` と値の読み落ち（`intake.json` が読めな
   - `require_ports`（前の版の判定の返りを受けたら止める）→ line（受け皿の側）。
 - 入口（judge の `intake.py` と `intake`、`:3832-3868`）: 再審なら判定の置き場に触らない → 道は `objection`。依頼の行を型に通す・止めの語 `works:request` → 5.1 の 3（`requestrows`）。運ばれた制約 → premises の block。前の run の失敗の行を 1 度だけ置く → 5.1 の 7 の `prior_failures`・`redesign`。入口の作業ツリーの姿 `judge-tree.json` → 並行 PR と前提の block がそれぞれ取る。世界の解の切り替え → graph。
 - YAML の鍵: `review_launch`・`retry`・`fresh_context: false`・`max_iterations: 3`・`until_bash`・`trigger_rule: none_failed_min_one_success`・`if_skipped: null` → 1.3（同じ）。`diagnose-prep` の `when`（判定の道だけ）・`verify-merge` の `when` → 道の `when`（1.3）と、裏取りは verify の block。
-- 例の run の記録の照らし（`tests/e2e/evidence.json` の J67〜J82・J100・R76・L-D41・L-D44・L-W42）→ 組み込みで、`where` を新しい place（`parent/judge/diagnose/…`・再審の include の id の下）に、`writer` を `src/judge.py` の関数の名に替える。
+- 例の run の記録の照らし（`tests/e2e/evidence.json` の J67〜J82・J100・R76・L-D41・L-D44・L-W42）→ 組み込みで、`where` を新しい place（`parent/judge/diagnose-run/…`・再審の include の id の下）に、`writer` を `src/judge.py` の関数の名に替える。
 
 ## 7 単独で呼ぶ
 

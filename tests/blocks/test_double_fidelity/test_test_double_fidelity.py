@@ -126,11 +126,12 @@ class FlowCase(unittest.TestCase):
         self.assertIn("intake.json", self.run.failing("role_prep", f"{LOOP}.{NAME}-prep"))
 
     def test_included_block_writes_in_its_own_place(self):
-        self.run.script("intake", "judge__test-double-fidelity__intake", base="", entry="", lang="")
-        self.run.script("role_prep", f"judge__test-double-fidelity__{LOOP}.{NAME}-prep")
-        self.assertTrue((self.run.artifacts / "judge" / NAME / f"{NAME}-prompt-1.md").is_file())
-        fin = self.run.script("finish", f"judge__test-double-fidelity__finish")
-        self.assertEqual(fin["material"]["path"], f"judge/{NAME}/material.json")
+        RUN = f"{NAME}-run"   # judge の graph がこの block を include する id（block の中の node と同じ id にしない）
+        self.run.script("intake", f"judge__{RUN}__intake", base="", entry="", lang="")
+        self.run.script("role_prep", f"judge__{RUN}__{LOOP}.{NAME}-prep")
+        self.assertTrue((self.run.artifacts / "judge" / RUN / f"{NAME}-prompt-1.md").is_file())
+        fin = self.run.script("finish", f"judge__{RUN}__finish")
+        self.assertEqual(fin["material"]["path"], f"judge/{RUN}/material.json")
 
 
 class ShapeCase(unittest.TestCase):

@@ -131,7 +131,7 @@ class FactsCase(unittest.TestCase):
                            "questions": ["受け入れ条件のテストが変わった"], "unchecked": False, "report": []}
         got = self.build(v)
         self.assertIn({"at": "owed", "word": "works:line-script"}, got["stops"])
-        self.assertIn({"at": "spec-check", "word": "works:spec-changed"}, got["stops"], "承認し直すかの問いは人待ちの語")
+        self.assertIn({"at": "spec-check-run", "word": "works:spec-changed"}, got["stops"], "承認し直すかの問いは人待ちの語")
 
     def test_halts(self):
         v = passing()
