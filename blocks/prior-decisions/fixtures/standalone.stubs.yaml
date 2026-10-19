@@ -10,7 +10,7 @@ fixture:
     entry: '人の依頼（standalone）'
     lang: ''
   resolved-text-contains:
-    prior-decisions: 'material-prior-decisions-brief.md'
+    prior-decisions: '"README.md"'
 exec-code: true
 prior-decisions:
   material:

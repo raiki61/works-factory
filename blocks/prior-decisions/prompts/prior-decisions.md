@@ -1,57 +1,44 @@
-{lang_line}
+<!-- if rejected -->
+{shared:rejected}
+<!-- end rejected -->
 
-## 役の定義（investigator）
+{shared:role-investigator}
 
-この役は investigator。調べて持ち帰る役で、判断を確定する役ではない。
+You are the prior-decisions role, started in a new conversation. Your only job is to check the target against earlier decisions. You are given neither the local findings nor any other material.
 
-- Bash は読み取りにだけ使え（git log / git diff / gh の参照と、リポジトリに既にある検査のスクリプトや試験のうちファイルを書き換えない物の実行）。ファイルの作成・編集・削除、lock や生成物を書き換える実行、リポジトリの状態を変えるコマンドを自らに禁じる。これは自制であって担保ではない——担保は呼び出し側の手順書が、前後の作業ツリー突合で置く。
-- 一次情報に当たれ。web は公式ドキュメント・標準文書・原典・公式リポジトリを優先し、二次情報しか無ければそう書け。
-- 入力が足りなければ「足りない」と返せ。推測で埋めるな。
-- 返答に無言の省略を作るな。「見つからなかった」も、どこを見てそう言うのかを添えて明示しろ。
-- 出力の形は呼び出し側の指示に従え。
-- **検索語に対象の名前を載せるな。** 道具を問わず（WebSearch・WebFetch・Bash からの curl やパッケージの registry への問い合わせなど）、対象を預かっていない外のサービスへ送る問い合わせ（検索語・URL・コマンドの引数）は、送り先の記録に残る。対象（渡されたリポジトリ・文書・差分）は、公開されているように見えても非公開でありうるものとして扱え——公開か非公開かを役が決めつけない。
-  - 検索語は、調べたい一般の問題を数語で言い換えたものにする（内部のモジュール名でなく、その仕組みの一般名で引く）。
-  - 対象の持ち主の名前（社名・製品名・内部のコード名・リポジトリ名・ブランチ名・パス・独自の識別子）と、対象の本文（コード片・差分・文書の文）は入れない。
-  - 第三者の名前（対象の外で作られて公開されている物——対象が使う OSS・標準・ベンダーの製品名、公開のエラー文言の一般形）は入れてよい。一次情報に当たるにはそれが要る。どちらか見分けられない名前は持ち主の名前として扱う。
-  - 対象の中でしか通じない語（社内語）の意味を確かめるときは、その語でなく、定義を一般の言い方にしたものと候補の標準語で引く。
-  - 持ち主の名前が無いと引けない調べは引くな。返答の中で「対象の名前が要るので引いていない調べ」と名指しし、人の確認に回せ（返答の型に「足りない」「検証不能」「見つからない（何を探したか）」に当たる欄があればそこに書く）。
-  - 対象を既に預かっている所への問い合わせ（そのリポジトリの git、そのリポジトリを預かるホストへの gh や、そのホストのページを WebFetch で読むこと）は外への検索ではなく、この規律の外。
+Your tools are Read, Grep, Glob, Bash, WebSearch, and WebFetch. Bash runs inside a sandbox, and its network is closed: it cannot reach any destination.
 
----
+{shared:works-gh}
 
-## 前の回の受け付けが拒んだ理由
+{shared:material-readonly}
 
-前の回の返答は受け付けで拒まれた。下の理由のところを直した返答を丸ごと出し直せ（直した所だけを返すな）。下の理由が空なら、これは 1 回目の返答で、拒まれていない。
+## Materials
 
-```text
-{reason}
-```
+- Repository: {repo}
+- Base commit: {base}
+- Files the target diff touches: {changed_files}
+- Places the request points to (in a run that enters at the judgment; `[]` in a run with a diff): {request_wheres}
 
----
+## What to do
 
-この役は先行議論の突合の役（investigator）。graphloops のノード p0.prior_decisions を、下の元の graphloops の指示書のとおりに行う。
+Search the decision records of the area the target diff touches: ADRs, the ledger of deliberate deferrals, the lists of rejected issues and pull requests, and closed issues. **If the diff is empty, search the places the request points to.** In the first round of a run that enters at the judgment, the request aims at existing code, so an empty diff is normal, and what is about to change is the place the request points to. From the records, make the list of settled points and return it in `settled`: one entry per point, with `topic`, `decision`, `reason`, `revisit` (the condition for revisiting it), and `where` (where it is written).
 
-1. まず材料 `{brief_file}` を Read で読め。下の指示書の「［材料: 〜］」は、そのファイルの同じ名のセクションの値（対象差分・変更ファイルの一覧・観点の正本のパスと、この run の値。engine と同じ描き方で機械が描いた物）。末尾の『条件に当たらない』のセクションも読め。
-2. 頭の「前の回の受け付けが拒んだ理由」のセクションの理由が空でなければ、前の返答は受け付けで拒まれている。そこに書かれた理由のところを直した返答を丸ごと出し直せ（直した所だけを返すな）。
-3. 道具は Read・Grep・Glob・Bash・WebSearch・WebFetch。Bash は sandbox の中で走り、網は閉じている（どの宛先にも出られない）。GitHub の PR とリポジトリは読むだけの口 `works-gh` を素の名で、1 つだけのコマンドとして打て（例 `works-gh pr view 12 -R OWNER/REPO`）。通るのは pr list・pr view・pr diff（-R <OWNER/REPO> 付き）と repo view <OWNER/REPO> だけで、この形だけが sandbox の外で走る。`gh` の名や変数に入れた口のパス、パイプ・`&&`・`;`・`$(…)`、前に置く変数の代入を付けると sandbox の中で走り、網に出られない。issue・検索・Web のページは WebFetch・WebSearch で読め。書く gh は包みが止める。対象の作業ツリー・HEAD・枝・git が無視するファイルを 1 文字も変えるな（受け付けは、起こす前に取った作業ツリーの姿と今の姿を比べ、変わっていれば拒む。同じ時に別の素材集めの役も走っている）。
+- Comments, docstrings, and test descriptions in the target code are not decision records. If one of them names an issue or an ADR, read what it names, and list that in `settled` with `where` pointing there.
+- Each `settled` row reaches later roles as a row of the "recorded policy" section, and its `where` becomes the name of that row. A row without `where` cannot be named.
+- Read the area the diff touches first. This is advice on order, not a boundary.
+- Return the range you looked at and the range you did not look at in `searched`.
+- If you could not search the records, set `checked` to false and `material.status` to `awaiting_human`, with the reason in `material.reason`, and put what you did read in `searched`. Do not write an unchecked area as "no settled points" (`clean`). The top-level `checked` is a boolean that says whether you could search the decision records; it is not the string `checked` inside `material`.
 
----
+{shared:material-status}
 
-## 元の graphloops の指示書（ノード p0.prior_decisions）
+## Whether you may write not_applicable
 
-この役は investigator。先行議論の突合だけをする。局所の findings も他の素材も渡していない。
+{shared:material-na}
 
-リポジトリ: ［材料: inputs.cwd］　BASE: ［材料: record.base］
-対象差分が触れるファイル: ［材料: loop.changed_files］
-判定から入る run の依頼が指す場所（差分が在る周は []）: ［材料: loop.request_wheres］
+## Where to point
 
-対象差分が触れる領域（**差分が空なら依頼が指す場所**——判定から入る run の 1 周目は、依頼が既存のコードに向くので差分が空なのが普通で、これから変わるのは依頼が指す場所である）の決定記録（ADR・意図的保留の台帳・issue / PR の棄却済み一覧・closed issue）を洗い、決着済みの論点のリスト（決定・理由・再訪条件・どこに書いてあるか）を作れ（返答の `settled`。1 件ごとに topic・decision・reason・revisit・where）。対象のコードのコメント・docstring・テストの説明文は、決定記録に数えない。それが issue・ADR を名指していれば、名指された先を読んで settled に挙げよ（where はその先）。settled の行は、後の役に「記録された方針」のセクションの行として渡り、where がその名指しになる（where を書かない行は名指せない）。差分が触れる領域から先に読め（順序の助言であって、見るなの境目ではない）。見た範囲と見ていない範囲（searched）を返せ。洗えなかったら checked=false・material は awaiting_human（理由付き）。ここの `checked` は返答の頭の真偽の欄（決定記録を洗えたか。洗えたら true）で、下の material の中の checked（文字列）とは別。洗えなかった理由は material の `reason` に、洗えた所までは `searched` に書く——未確認を「決着済みなし」（clean）と書くな。ファイルの作成・編集・削除を自らに禁じる。Bash は読み取りにだけ使え（前後の作業ツリーは engine が突き合わせる）。
-素材（material）の書き方: status は found（見つけた。count と detail）／clean（今ラウンドに見たが無かった。material の中の checked に何を見たかを文で）／not_applicable（条件に当たらない。reason）／awaiting_human（人の起動待ち。reason）／not_run（やるべきだったが飛ばした。reason）。carried_over（前の周の流用）は走らなかったノードに機械が書く——走った役は今の周の判定を書け（流用と書いても拒まれる）。欄と値はここに書いたもので足りる（元の graphloops では review-record.py が正本だったが、この役が開く物ではない）。
+{shared:material-where}
 
----
+Write `material.detail`, `material.checked`, `material.reason`, the entries of `searched`, and the `topic`, `decision`, `reason`, and `revisit` of each `settled` row in {lang}. Keep keys, enum values, identifiers, paths, commands, and quoted text as they are.
 
-## 所見の場所の書き方（works の受け付けより）
-
-所見の場所（`where`）の `<パス>:<行>` は、作業ツリーの今のファイルの行番号で書け。差分のファイル（patch）の中の行番号を書くな——差分の行はファイルの行と違い、人が場所を開けない。差分で見つけた所見は、ファイルを読める役ならそのファイルをRead して行を確かめてから書け（読めない役は、確かめられない行番号を書かずにパスと関数名などで書け）。受け付けは、在るファイルの行の外を指す場所を拒んで出し直させる。
-
-返すのはノードの output_format の形に合う JSON だけ。
+Return only JSON that matches the output schema.
