@@ -1,0 +1,9 @@
+{
+  "description": "目的の監査の受けた返答 {verdict, reason, findings}。ほかの欄は許す",
+  "type": "object",
+  "properties": {
+    "verdict": {"type": "string"},
+    "reason": {"type": "string"},
+    "findings": {"type": "array"}
+  }
+}

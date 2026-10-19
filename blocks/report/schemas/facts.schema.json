@@ -1,0 +1,392 @@
+{
+  "description": "結末と冒頭 3 行を決める事実のオブジェクト。どの欄も無くてよく、無い欄は facts_in の既定。空のオブジェクトは事実が渡されていない（結末は record_invalid）。欄の意味は docs/design/report.md の 1.2",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "start_ok": {
+      "type": "boolean"
+    },
+    "problems": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "notes": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "gates": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "at": {
+            "type": "string"
+          },
+          "decision": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "text": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "at",
+          "decision",
+          "text"
+        ]
+      }
+    },
+    "stops": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "at": {
+            "type": "string"
+          },
+          "word": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "at",
+          "word"
+        ]
+      }
+    },
+    "halts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "at": {
+            "type": "string"
+          },
+          "word": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "at",
+          "word"
+        ]
+      }
+    },
+    "waits": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "conflicts": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "at": {
+                "type": "string"
+              },
+              "word": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "at",
+              "word"
+            ]
+          }
+        },
+        "conflicts_if_closed": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "at": {
+                "type": "string"
+              },
+              "word": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "at",
+              "word"
+            ]
+          }
+        },
+        "others": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "at": {
+                "type": "string"
+              },
+              "word": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "at",
+              "word"
+            ]
+          }
+        }
+      }
+    },
+    "cut": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "additionalProperties": false,
+      "required": [
+        "at",
+        "word"
+      ],
+      "properties": {
+        "at": {
+          "type": "string"
+        },
+        "word": {
+          "type": "string"
+        }
+      }
+    },
+    "optional": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "returned": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "no_fix": {
+      "type": "boolean"
+    },
+    "left": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "where": {
+            "type": "string"
+          },
+          "text": {
+            "type": "string"
+          },
+          "unmeasured": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "where",
+          "text"
+        ]
+      }
+    },
+    "proved": {
+      "type": "boolean"
+    },
+    "head": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "before": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "stopped": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "after": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "notices": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "asks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "kind": {
+            "type": "string"
+          },
+          "text": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "text"
+        ]
+      }
+    },
+    "tallied": {
+      "type": "object"
+    },
+    "counted_left": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "decisions": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "before": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "after": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "outside": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "apply": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "sealed": {
+          "type": "boolean"
+        },
+        "placed": {
+          "type": "boolean"
+        },
+        "redesign": {
+          "type": "string"
+        },
+        "said": {
+          "type": "string"
+        },
+        "pr": {
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "commits": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "carry": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "findings": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        },
+        "prior": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        },
+        "drafts": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        },
+        "constraints": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        }
+      }
+    },
+    "stop_lines": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "before": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "after": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "outcome_parts": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "gate": {
+          "type": "string"
+        },
+        "eyes": {
+          "type": "string"
+        },
+        "data": {
+          "type": "string"
+        }
+      }
+    },
+    "round": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "line_rev": {
+      "type": "string"
+    }
+  }
+}

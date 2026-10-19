@@ -1,0 +1,24 @@
+# 直した後の道（mode: after）: 差分を測り、同じ目が差分を見て受け付けを通る。base は本物の commit を要るので、入口・指示・受け付け・出口は
+# 差し替えて配線だけを見る。差分を本物の対象で回す道は tests/blocks/structure の試験が見る
+fixture:
+  expect: completed
+  reached: [measure, structure-eye-prep, structure-eye, structure-eye-accept, finish]
+  inputs:
+    mode: after
+    base: '0123456789abcdef0123456789abcdef01234567'
+measure: {eye: true, reason: ''}
+structure-eye-prep: {prompt: 'stub: 指示', attempt: 1}
+structure-eye:
+  rows:
+    - {unit_id: diff, verdict: 汚れない, faces: [], evidence: [/units/0/id], reason: "stub: 知る場所が増えない"}
+structure-eye-accept: {ok: true, done: true, give_up: false, reason: '', attempt: 1}
+finish:
+  ok: true
+  status: ok
+  reason: ''
+  structure: {type: archon_artifact, run_id: fixture-run, path: structure-state.json}
+  after: {type: archon_artifact, run_id: fixture-run, path: structure-after.json}
+  dirty: 0
+  escalate: 0
+  optional: [{node: measure, bare: false}]
+  report: []

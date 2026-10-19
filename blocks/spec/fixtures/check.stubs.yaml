@@ -1,0 +1,9 @@
+# mode check: 固めた仕様（approved-spec.json。受け入れ条件のテストは作業ツリーの README.md）の受け入れ条件のテストが承認の版のままかを照らす。
+# 役も承認ノードも起こさない。仕様の値は pointer でなく、作業ツリーの中のファイルのパスで渡す
+fixture:
+  expect: completed
+  reached: [intake, spec-check, finish]
+  inputs:
+    mode: check
+    spec: .archon/workflows/works-factory/spec/fixtures/approved-spec.json
+exec-code: true

@@ -1,0 +1,16 @@
+# 筋書き base-resubmit: 任せ先の CI の役の輪の出し直しの周。ci-prep を差し替えて出し直し（resubmit: true）の周にすると、1 回目の役 ci は
+# when で飛び、ci-fix-prep が本当に出し直しの指示を組み（組んだ指示の字を照らす）、出し直しの役 ci-fix の返答（拒まれた欄だけ）の後に
+# 受け付けと返す node に届く。出し直しを前の答えと合わせる中身は tests/blocks/test_gate/ が script を子のプロセスで回して見る
+fixture:
+  expect: completed
+  reached: [intake, run, ci-prep, ci-fix-prep, ci-fix, ci-accept, result]
+  inputs:
+    mode: base
+    tdd_suite: /tmp/runner
+  resolved-text-contains:
+    ci-fix: 'In this same conversation, fix only what was rejected and return it.'
+exec-code: true
+ci-prep: {prompt: "", resubmit: true, attempt: 2}
+ci-fix:
+  material: {status: awaiting_human, reason: "CI の定義が実機を要る"}
+ci-accept: {ok: true, done: true, give_up: false, reason: ""}

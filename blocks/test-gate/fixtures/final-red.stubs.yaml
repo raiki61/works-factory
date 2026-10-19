@@ -1,0 +1,37 @@
+# 筋書き final-red: 今回入れた赤（introduced）。run は完走し、返す node は赤を認証しない（ok: false）
+intake: {ok: true, reason: ""}
+run:
+  by: engine
+  material: {status: found, count: 1, detail: "suite: exit 1"}
+  runs: [{name: suite, exit: 1, how: direct}]
+  skipped_steps: []
+  same_as: null
+  log: logs/a1/checks.log
+  junit_steps: [suite]
+  fingerprint_before: {head: "2222222222222222222222222222222222222222", diff_hash: "bb"}
+  fingerprint_after: {head: "2222222222222222222222222222222222222222", diff_hash: "bb"}
+result:
+  mode: final
+  ok: false
+  green: false
+  red_cause: introduced
+  ran_steps: {ran: [suite], unran: []}
+  baseline: null
+  fingerprint: {head: "2222222222222222222222222222222222222222", diff_hash: "bb"}
+  test_outcomes: {rows: [], unmeasured: ""}
+  evidence: {type: archon_artifact, run_id: stub-run, path: evidence.md}
+  by: engine
+  suites_line: "走らせた: suite（exit 1・direct）／走らせなかった: test_cmd（渡されていない）"
+  log: logs/a1/checks.log
+  baseline_line: "修正前のテスト: 赤（元の結末（入力 baseline） の status found）"
+  reason: "緑でない"
+  suite: "/tmp/runner"
+  suite_note: ""
+  report: ["試験の関門（final）: 緑でない・ok False・赤の原因 introduced"]
+fixture:
+  inputs:
+    mode: final
+    baseline: test-gate-base/baseline.json
+    tdd_suite: /tmp/runner
+  expect: completed
+  reached: [intake, run, result]

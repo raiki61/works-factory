@@ -7,7 +7,7 @@ fixture:
     request: '[{"where": "README.md", "text": "The README should say how to start the tool"}]'
     entry: '人の依頼（standalone）'
   resolved-text-contains:
-    prior-decisions: 'You are the prior-decisions role, started in a new conversation.'
+    prior-decisions: 'You are the prior-decisions role.'
 exec-code: true
 prior-decisions:
   material:

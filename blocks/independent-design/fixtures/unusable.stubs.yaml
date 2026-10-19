@@ -1,0 +1,8 @@
+# 目的の出典が目的不明の道: 入口が役を起こさず（輪は飛ばされる）、出口が status: unusable と訳を返す。run は止めない
+fixture:
+  expect: completed
+  reached: [intake, finish]
+  inputs:
+    purpose: '目的が取れなかった run の目的の文'
+    purpose_source: '目的不明'
+exec-code: true

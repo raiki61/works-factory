@@ -51,7 +51,7 @@ materials.md の 1.4 の名だけ: `intake.json`・`view.json`・`diff.patch`・
   - `MATERIALS = ("provenance",)`
   - `GUARDED = False`（AI の node が `mutates_checkout: false` を持たない。今の accept の `with: {status_guarded: false, …}`。`workflows/judge/works-factory-judge.yaml:1762`）
   - `NA = "never"`、`NA_REASON = ""`（今の `MATERIAL_NODES['p1.provenance']` が `applies_cond` を持たず `na_self_ok: False`。`lib/judge_accept.py:1692-1695`）
-  - `due(view, values)`: `values["entry"]` が空でなければ `materialkit.entry_skip("出典の確かめ")`（今の `provenance_due` の入口の枝の名詞。判定から入る run `df5e111f-…` の `material-route.json` の `roles.provenance.why` と同じ字になる）。空なら `materialkit.Due(True, "根拠の出所検査は run ごとに 1 回回す（判定から入る run でない。1 run は 1 周で、いつも初回）")`。今の `_because` の字（「初回か、前の周の P3 が何かを直した周——成り立つ（round=1・前の周の P3 が触ったファイルは 0 件）」）は使わない（prior-decisions.md の 1.5 の `due` と同じ決め方。7 節）。
+  - `due(view, values)`: `materialkit.is_entry_run(view, values)`（`values["entry"]` が在り、かつ対象差分が空）なら `materialkit.entry_skip("出典の確かめ")`（今の `provenance_due` の入口の枝の名詞。判定から入る run `df5e111f-…` の `material-route.json` の `roles.provenance.why` と同じ字になる）。そうでなければ `materialkit.Due(True, "根拠の出所検査は run ごとに 1 回回す（判定から入る run でない。1 run は 1 周で、いつも初回）")`。今の `_because` の字（「初回か、前の周の P3 が何かを直した周——成り立つ（round=1・前の周の P3 が触ったファイルは 0 件）」）は使わない（prior-decisions.md の 1.5 の `due` と同じ決め方。7 節）。
   - `fill(view, values, due)`: `{"provenance": materialkit.fill_entry(values["entry"], 0)}`（`due` が偽になるのは入口の時だけ。今の `_fill_one` の 1 つ目の枝）。
   - `applies(view, values)`: `raise NotImplementedError`。
   - `judged_na(view, values)`: `return False`。
@@ -90,7 +90,7 @@ materials.md の 3.1 の並び。
 1. `<!-- if rejected -->` `{shared:rejected}` `<!-- end rejected -->` — 条件: `rejects-provenance.json` に拒否が 1 件以上。`{rejection}` ← `rolekit.rejects_text(rolekit.rejected(place, "provenance"))`。
 2. 役の定義の断片は置かない（今の md の頭は外への検索の決まりの塊だけ。materials.md の 5.2）。
 3. `{shared:query-rule}`。`spawns: false`。
-4. 役の 1 段落（決まった文）: 新しい会話で起きていること・根拠の出所検査だけをすること。
+4. 役の 1 段落（決まった文）: 自分が provenance の役であること・根拠の出所検査だけをすること。
 5. 道具の段落（決まった文。網の開いた Bash と一時の置き場）と `{shared:material-readonly}`。works-gh は使わない（今の md も持たない。網が開いているので gh の口を分けない）。
 6. `## Materials` と 3 つの差し込み口: `{diff_file}` ← `view.diff_file`（Read を持つ役なのでパス）、`{base}` ← `view.base`、`{repo}` ← `view.repo`。
 7. `## What to do`（決まった文）: 今の md の「元の graphloops の指示書」の段（`material-provenance.md:34-38`）を英語にした物。
@@ -109,7 +109,7 @@ md の本文（英語。この block の 2 つ目の commit でこのまま置�
 
 {shared:query-rule}
 
-You are the provenance role, started in a new conversation. Your only job is to check where the grounds that the target diff cites come from.
+You are the provenance role. Your only job is to check where the grounds that the target diff cites come from.
 
 Your tools are Read, Grep, Glob, Bash, WebSearch, and WebFetch. Bash runs inside a sandbox; make any copy in a temporary folder outside the target (for example one made with `mktemp -d`). The wrapper stops writes to the target's working tree.
 
@@ -167,7 +167,7 @@ md の中に、`$` の直後に英字か `{` が続く字は無い（materials.m
 ```markdown
 {shared:query-rule の本文: Rules for queries to outside services …}
 
-You are the provenance role, started in a new conversation. …（決まった文）
+You are the provenance role. …（決まった文）
 
 Your tools are Read, Grep, Glob, Bash, WebSearch, and WebFetch. Bash runs inside a sandbox; make any copy in a temporary folder outside the target …
 
@@ -283,3 +283,8 @@ bin/works-factory <読ませるフォルダを blocks/ にする引数（名は�
 - md の「P2」「writer」の段の名を落とす。訳: 役が自分の返答を決めるのに要らない graphloops の型の名で、残すと役が「P2」を探す。読み手が判定役であることは残した。
 - `report_lines` に差分の根に無い根拠の行を足す。訳: 循環と未確認の前提は人が報告で見て直す物で、`claims` の 17 行の全部を出すと素材の節が長くなる。`exists_at_base` が偽の行だけにした（例の run では 17 行のうち 7 行）。報告に載せるかは line と report の配線の決め（materials.md の 1.6）。
 - 試験のフォルダの名を `tests/blocks/provenance/` にする（`-` を持たない名なのでそのまま）。
+- 実装で決めた事（#765 の実装）:
+  - `fill` の `fill_entry` に渡す件数は `None`（「依頼の件数は渡されていない」）にする。訳: この観点は `request` の入力を持たず、materials.md の 2.6 が「`request` を持たない観点は `None`」と決めている。1.5 の `0` は 2.5 の「句が替わる」と食い違っていた。
+  - 役の 1 段落から「started in a new conversation」を外し、「You are the provenance role.」にする。訳: 輪は `fresh_context: false` で、2 回目からは同じ会話の続きに指示が届くので、新しい会話とは言えない（調整役の注意）。fixture の決まった文もこの文にした。
+  - 輪の中の node の `depends_on` は雛形のまま（prep は先頭で、役は prep だけに依る）。訳: 出し直し専用の prep が無く、役の直前に同じ層の node が 2 つ並ぶ形が無い。
+  - 指示の比べ（1 つ目の commit）の日本語の md は共通の断片を使わず、今の md の字をそのまま置いた（断片は英語のため）。値の口は `lang_line`・`reason`・`brief_file`。`lang_line` には port `lang` の値（空なら既定の言語の英語の文）を入れた。

@@ -1,0 +1,16 @@
+# 役の返答が受け付けを通らない道: run は止めず、出口が status: failed と標準を返す。筋書きでは輪が 1 周で終わるので
+# 却下は 1 回で、3 回で諦める数えは tests/blocks/head_depth の試験が確かめる
+fixture:
+  expect: completed
+  reached: [intake, head-depth-prep, head-depth, head-depth-accept, finish]
+  inputs:
+    request: '[{"where": "stats.py:4-5", "text": "mean は 2 でなく 3 を返す"}]'
+    has_checks: 'true'
+exec-code: true
+head-depth:
+  why: 筋書きの役は依頼の字に無い引用を返す
+  items:
+    - item: 1
+      unknown: 原因
+      cause_quote: 依頼に無い字の引用
+  groups: []

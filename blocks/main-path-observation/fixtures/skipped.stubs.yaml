@@ -1,0 +1,18 @@
+# 判定から入る run の道: 入口が役を起こさず（due が偽）、出口が素材を出どころつきの not_applicable にして status: skipped を返す。
+# 筋書きの place は空なので入口と出口の返りを差し替えて配線（due が偽なら輪を通らずに出口へ届く）だけを見る。素材の中身は
+# tests/blocks/main_path_observation の試験が見る
+fixture:
+  expect: completed
+  reached: [intake, finish]
+  inputs:
+    base: ''
+    entry: '人の依頼（standalone）'
+    lang: ''
+exec-code: true
+intake: {due: false, reason: 判定から入る run の周のため、主経路の観察を起こさない}
+finish:
+  ok: true
+  status: skipped
+  reason: 判定から入る run の周のため、主経路の観察を起こさない
+  material: {type: archon_artifact, run_id: fixture-run, path: material.json}
+  report: []

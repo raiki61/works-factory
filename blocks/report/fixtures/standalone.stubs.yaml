@@ -1,0 +1,21 @@
+# 単独の run: sections と facts だけで最後まで届く（script は本当に走り、AI の役の返答だけを差し替える）。始めの記録も、ほかの block の run も
+# 要らない。書き手は本文 1 段落を返し、初見の読み手は通す。結末は fixed で、人に向けた報告が書かれる
+fixture:
+  expect: completed
+  reached: [facts, write-prep, write, cold-prep, cold, write-accept, finish]
+  inputs:
+    sections: '[{"title": "直した所", "lines": ["単位 u1: 直した"]}]'
+    facts: '{"start_ok": true, "proved": true}'
+  resolved-text-contains:
+    write: 'You are the writer of the final report, started in a new conversation.'
+    cold: 'You have no context: you are given none of the history, the record, or the diff.'
+exec-code: true
+write:
+  text: 平均の関数を直した。単位 u1 は直って、最後のテストまで通った。
+  terms: []
+  handoff: {read: [], kept: [], set_aside: [], open: []}
+cold:
+  verdict: pass
+  stops: []
+  guessed: []
+  decidable: true

@@ -1,0 +1,9 @@
+{
+  "description": "独立設計との比べ（R2）の結果。null は省いた・走らなかった",
+  "type": ["object", "null"],
+  "required": ["status"],
+  "properties": {
+    "status": {"type": "string"},
+    "reason": {"type": "string"}
+  }
+}
