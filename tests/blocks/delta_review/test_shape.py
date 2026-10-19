@@ -88,7 +88,9 @@ class ShapeCase(unittest.TestCase):
                     self.assertEqual(inner["runtime"], "uv")
         for n in (1, 2):
             self.assertEqual(LOOPS[f"review-{n}-loop"][f"review-{n}-prep"]["with"], {"n": n})
-            self.assertEqual(LOOPS[f"review-{n}-loop"][f"review-{n}-accept"]["with"], {"n": n, "reply": f"$review-{n}.output"})
+            seal = "$intake.output.seal"   # 入口の凍結の印は Archon が持ち、役の手の届かない with: で受け付けへ渡る
+            self.assertEqual(LOOPS[f"review-{n}-loop"][f"review-{n}-accept"]["with"], {"n": n, "reply": f"$review-{n}.output", "seal": seal})
+            self.assertEqual(LOOPS[f"refix-{n}-loop"][f"refix-{n}-accept"]["with"], {"n": n, "reply": f"$refix-{n}.output", "seal": seal})
             self.assertEqual(LOOPS[f"refix-{n}-loop"][f"refix-{n}-prep"]["with"], {"n": n})
             self.assertEqual(NODES[f"owed-{n}"]["with"], {"n": n})
 

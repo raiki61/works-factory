@@ -44,8 +44,8 @@ def rounds(place) -> dict:
     """往復の状態 {rounds, pass, gave_up: [(役の名, 往復, 訳)], missing: [訳], errors: [訳]}。
     - rounds: 審査の控え review-<n>.json か、受け付けずに輪が終わった往復（拒否の控えが在る）の数
     - pass: 最後に数えた往復の審査の控えの pass（控えが無ければ false）
-    - gave_up: 諦めた役（審査の控えの gave_up・審査の控えが無く拒否だけが在る往復・3 回拒まれた手直し・受け付けずに輪が終わった手直し）
-    - missing: 回るはずの輪の控えも拒否も無い往復（役が走らなかったか落ちた）"""
+    - gave_up: 諦めた役（審査の控えの gave_up・受け付けの控えが無く拒否の控えが諦めの数に届いた役。rolekit.given_up_reason）
+    - missing: 回るはずの輪の受け付けの控えが無く、諦めてもいない往復（役が走らなかったか、拒否の後に役か支度の node が落ちた）"""
     place = pathlib.Path(place)
     out = {"rounds": 0, "pass": False, "gave_up": [], "missing": [], "errors": []}
     for row in _read(place, files.ERRORS) or []:
@@ -60,21 +60,23 @@ def rounds(place) -> dict:
             out["rounds"], out["pass"] = n, bool(record.get("pass"))
             if record.get("gave_up"):
                 out["gave_up"].append((role, n, str(record.get("reason") or "") or _last(place, role)))
-        elif rejected:
+        elif rolekit.given_up_reason(place, role):
             out["rounds"], out["pass"] = n, False
             out["gave_up"].append((role, n, _last(place, role)))
         else:
-            out["missing"].append(f"{n} 回目の審査の受け付けの控えが無い（役が走らなかったか落ちた）")
+            out["missing"].append(f"{n} 回目の審査の受け付けの控えが無い（役が走らなかったか落ちた"
+                                  + ("。拒否の後に役か支度の node が落ちた" if rejected else "") + "）")
             continue
         if not (place / files.refix_head(n)).is_file():
             continue   # 手直しを起こさなかった（義務が無い・諦めた）
         role = files.REFIX[n]
         if (place / files.refix_reply(n)).is_file():
             continue
-        if rolekit.rejected(place, role):
+        if rolekit.given_up_reason(place, role):
             out["gave_up"].append((role, n, _last(place, role)))
         else:
-            out["missing"].append(f"{n} 回目の手直しの受け付けの控えが無い（役が走らなかったか落ちた）")
+            out["missing"].append(f"{n} 回目の手直しの受け付けの控えが無い（役が走らなかったか落ちた"
+                                  + ("。拒否の後に役か支度の node が落ちた" if rolekit.rejected(place, role) else "") + "）")
     return out
 
 

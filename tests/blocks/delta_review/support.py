@@ -64,7 +64,9 @@ class Case(unittest.TestCase):
     def intake(self, **inputs):
         ports = {"base": self.base, "plan": "", "lens_rows": "", "fix_reply": "null", "permits": "[]", "plan_review": "null",
                  "policy": "", "request": "[]", "lang": "", **inputs}
-        return self.run.script("intake", **ports)
+        got = self.run.script("intake", **ports)
+        self.seal = got.get("seal")   # 受け付けの node へ with: で渡る入口の印（YAML の seal: $intake.output.seal と同じ）
+        return got
 
     def read(self, name):
         return json.loads((self.run.artifacts / name).read_text(encoding="utf-8"))
@@ -73,10 +75,10 @@ class Case(unittest.TestCase):
         return (self.run.artifacts / name).exists()
 
     def review(self, n, reply, **env):
-        return self.run.script("review_accept", n=str(n), reply=json.dumps(reply, ensure_ascii=False))
+        return self.run.script("review_accept", n=str(n), reply=json.dumps(reply, ensure_ascii=False), seal=json.dumps(self.seal))
 
     def refix(self, n, reply):
-        return self.run.script("refix_accept", n=str(n), reply=json.dumps(reply, ensure_ascii=False))
+        return self.run.script("refix_accept", n=str(n), reply=json.dumps(reply, ensure_ascii=False), seal=json.dumps(self.seal))
 
     def step(self, script, n):
         return self.run.script(script, n=str(n))

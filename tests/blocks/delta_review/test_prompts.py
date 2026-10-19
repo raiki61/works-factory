@@ -1,6 +1,7 @@
 """審査役の指示とまとめて使う断片（docs/design/delta-review.md の 2.3・4 節の 3・11 節の 6。手直しの役の指示は test_refix.py の RefixPromptCase）。"""
 import json
 import re
+from unittest import mock
 
 from tests.blocks import kit
 from tests.blocks.delta_review import support as s
@@ -97,6 +98,28 @@ class ReviewPromptCase(s.Flow):
         text = self.first()
         for kind in review.FACE_KINDS:
             self.assertIn(f"`{kind}`", text)
+
+
+class BorrowedCase(s.Flow):
+    """借りた写しが固定と違えば、指示を組まずに errors.json に node と訳を積んで落ちる"""
+
+    def broken_pin(self, n, kind):
+        steps = kit.load(s.BLOCK_NAME, "steps")
+        with self.run.env(), mock.patch.object(steps.borrowed.seat, "pinned", side_effect=ValueError("the pin differs")):
+            with self.assertRaises(ValueError):
+                getattr(steps, f"{kind}_prompt")(self.run.artifacts, n)
+        row = self.read("errors.json")[-1]
+        self.assertEqual(row["node"], f"{kind}-{n}")
+        self.assertIn("借りた写しが使えない: the pin differs", row["reason"])
+
+    def test_the_review_seat(self):
+        self.write("a.py", "alpha = 1\nbeta = 22\n")
+        self.intake(fix_reply=json.dumps(s.CLAIMED))
+        self.broken_pin(1, "review")
+
+    def test_the_touch_up_seat(self):
+        self.start()
+        self.broken_pin(1, "refix")
 
 
 class WriterRulesCase(s.Case):

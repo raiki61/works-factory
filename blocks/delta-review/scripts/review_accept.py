@@ -10,18 +10,18 @@ from pathlib import Path
 sys.dont_write_bytecode = True
 sys.path[:0] = [str(Path(__file__).resolve().parents[2] / ".shared"), str(Path(__file__).resolve().parents[1])]
 import ports  # noqa: E402
-from src import review, steps  # noqa: E402
+from src import files, review, steps  # noqa: E402
 
 
 n = steps.round_input(os.environ.get("INPUTS_N"))   # 配線の誤り（n が 1 か 2 でない）は落ちて名指す
 
 
 def compute():
-    return review.accept_reply(ports.place(), n, os.environ.get("INPUTS_REPLY", ""), Path.cwd())
+    return review.accept_reply(ports.place(), n, os.environ.get("INPUTS_REPLY", ""), Path.cwd(), steps.sealed(os.environ.get("INPUTS_SEAL")))
 
 
 def fallback(why: str) -> dict:
-    steps.broke(ports.place(), "review-accept", f"受け付けが落ちた（{why}）")
+    steps.broke(ports.place(), files.REVIEW[n] + "-accept", f"受け付けが落ちた（{why}）")
     return {"ok": False, "done": True, "reason": f"受け付けが落ちた（{why}）"}
 
 

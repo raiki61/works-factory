@@ -105,26 +105,31 @@ def inner_faces(place, n: int, repo) -> list:
 
 def tree_moved(place, n: int, repo) -> str:
     """役を起こす前の作業ツリーの写し review-<n>-tree.json と今の作業ツリーの違いを述べる文（同じなら空）。写しが無い・形が違えば
-    その訳（読むだけの役を起こす前に写しを撮っていない）"""
+    出し直しでは直らない配線の誤りなので touchup.Broken（読むだけの役を起こす前に写しを撮っていない）"""
     path = pathlib.Path(place) / files.review_tree(n)
     snap = jsonfile.read_or(path)
     if snap is None:
-        return f"作業ツリーの写し {path} が無いか読めない（読むだけの役を起こす前に写しを撮っていない）"
+        raise touchup.Broken(f"作業ツリーの写し {path} が無いか読めない（読むだけの役を起こす前に写しを撮っていない）")
     errs = validate_schema(snap, accept.TREE_SCHEMA)
     if errs:
-        return f"作業ツリーの写し {path} の形が違う: " + "; ".join(errs)
+        raise touchup.Broken(f"作業ツリーの写し {path} の形が違う: " + "; ".join(errs))
     moved = accept.tree_moved({k: snap[k] for k in accept.TREE_KEYS}, pathlib.Path(repo), keys=files.TREE_KEYS)
     if not moved:
         return ""
     return READONLY_MOVED + "この役は読むだけの役で、作業ツリー・HEAD・枝・git が無視するファイルを変えてはいけない（" + "・".join(moved) + "）"
 
 
-def take(place, n: int, reply, repo) -> dict:
-    """n 回目の審査役の返答の 1 回分の受け付け。返り {ok, reason} か {ok: True, owed}。諦めは rolekit の輪が数える"""
+def take(place, n: int, reply, repo, sealed) -> dict:
+    """n 回目の審査役の返答の 1 回分の受け付け。返り {ok, reason} か {ok: True, owed}。諦めは rolekit の輪が数える。sealed は入口の返りの
+    凍結の印。受け付けの中の例外（git が落ちた・控えが書けない・配線の誤り）は役への拒否にせず touchup.stop で止める"""
+    return touchup.guarded(place, files.REVIEW[n] + "-accept", lambda: _take(place, n, reply, repo, sealed))
+
+
+def _take(place, n: int, reply, repo, sealed) -> dict:
     if not isinstance(reply, dict):
         return {"ok": False, "reason": "返答が JSON のオブジェクトでない"}
     try:
-        materials.verify(place)
+        materials.verify(place, sealed)
     except ValueError as error:
         return touchup.stop(place, files.REVIEW[n] + "-accept", f"範囲・許しの写しが入口の後に変わった: {error}")
     bad = problems(place, n, reply, repo)
@@ -165,10 +170,10 @@ def gave_up_record(place, n: int) -> None:
                     "reason": rolekit.given_up_reason(pathlib.Path(place), files.REVIEW[n])})
 
 
-def accept_reply(place, n: int, raw, repo) -> dict:
+def accept_reply(place, n: int, raw, repo, sealed) -> dict:
     """スクリプト review_accept の本体: 返答の字 raw を受け、拒否は rolekit の控え（rejects-review-<n>.json）に積み、3 回目で done。
     返り {ok, done, reason}"""
     place = pathlib.Path(place)
-    got = rolekit.accept_round(place, files.REVIEW[n], raw, lambda reply: take(place, n, reply, repo),
+    got = rolekit.accept_round(place, files.REVIEW[n], raw, lambda reply: take(place, n, reply, repo, sealed),
                                on_give_up=lambda: gave_up_record(place, n))
     return {"ok": bool(got["ok"]), "done": bool(got["done"]), "reason": str(got["reason"])}

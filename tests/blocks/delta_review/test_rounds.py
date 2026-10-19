@@ -49,6 +49,19 @@ class RoundsCase(s.Flow):
         self.assertEqual(self.step("owed", 1), {"due": False, "reason": "1 回目の審査が直す義務を出していない（通った）"})
         self.assertFalse(self.exists("refix-1-head.json"))
 
+    def test_a_failing_record_without_owed_rows_stops_instead_of_starting_the_writer(self):
+        self.write("a.py", "alpha = 1\nbeta = 22\n")
+        self.intake(fix_reply=json.dumps(s.CLAIMED))
+        self.assertTrue(self.review(1, s.review_reply(checks=[s.check()]))["ok"])
+        record = self.read("review-1.json")
+        (self.run.artifacts / "review-1.json").write_text(json.dumps({**record, "pass": False}), encoding="utf-8")
+        got = self.step("owed", 1)
+        self.assertFalse(got["due"])
+        self.assertIn("義務の行が 0 件", got["reason"])
+        self.assertFalse(self.exists("refix-1-head.json"))
+        self.assertEqual(self.read("errors.json")[-1]["node"], "owed-1")
+        self.assertEqual(self.run.script("finish")["status"], "failed")
+
     def test_owed_after_a_given_up_review_does_not_start_the_writer(self):
         self.write("a.py", "alpha = 1\nbeta = 22\n")
         self.intake(fix_reply=json.dumps(s.CLAIMED))
@@ -166,12 +179,20 @@ class FinishCase(s.Flow):
         self.assertIn("refix-1（1 回目）", fin["reason"])
         self.assertTrue(any(x.startswith("- 手直し（1 回目）が 3 回拒まれて諦めた: ") for x in fin["report"]), fin["report"])
 
-    def test_a_round_that_was_rejected_but_never_taken_counts_as_a_round_given_up(self):
+    def test_a_round_rejected_but_never_taken_nor_given_up_is_failed(self):
         self.write("a.py", "alpha = 1\nbeta = 22\n")
         self.intake(fix_reply=json.dumps(s.CLAIMED))
-        self.review(1, s.review_reply(checks=[]))   # 筋書きの輪は 1 周で終わる
+        self.review(1, s.review_reply(checks=[]))   # 拒否の後に役か支度の node が落ちた（諦めた役は控えを書く）
         fin = self.run.script("finish")
-        self.assertEqual((fin["status"], fin["rounds"], fin["pass"]), ("gave_up", 1, False))
+        self.assertEqual((fin["ok"], fin["status"], fin["pass"]), (False, "failed", False))
+        self.assertIn("1 回目の審査", fin["reason"])
+
+    def test_a_writer_rejected_but_never_taken_nor_given_up_is_failed(self):
+        self.start()
+        self.refix(1, self.handled(self.answer(HOLE)))
+        fin = self.run.script("finish")
+        self.assertEqual((fin["ok"], fin["status"]), (False, "failed"))
+        self.assertIn("1 回目の手直し", fin["reason"])
 
     def test_a_loop_that_never_ran_is_failed_naming_the_missing_record(self):
         self.write("a.py", "alpha = 1\nbeta = 22\n")

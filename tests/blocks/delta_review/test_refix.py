@@ -91,6 +91,18 @@ class RefixAcceptCase(s.Flow):
         self.assertEqual([r["done"] for r in self.trace()[-3:]], [False, False, True])
         self.assertFalse(self.exists("refix-1-reply.json"))
 
+    def test_a_reply_that_is_not_an_object_is_rejected(self):
+        self.rejected([self.answer(HOLE)], "JSON のオブジェクトでない")
+
+    def test_a_missing_head_tree_stops_the_writer_and_the_run_is_failed(self):
+        (self.run.artifacts / "refix-1-head.json").unlink()
+        got = self.refix(1, self.both())
+        self.assertEqual((got["ok"], got["done"]), (False, True))
+        self.assertIn("refix-1-head.json", got["reason"])
+        self.assertEqual(self.read("errors.json")[-1]["node"], "refix-1-accept")
+        fin = self.run.script("finish")
+        self.assertEqual((fin["ok"], fin["status"]), (False, "failed"))
+
     def test_unreadable_reply_is_a_rejection(self):
         got = self.run.script("refix_accept", n="1", reply="nope")
         self.assertEqual((got["ok"], got["done"]), (False, False))
@@ -219,15 +231,65 @@ class RefixPromptCase(s.Flow):
 
 
 class SealCase(s.Flow):
-    """許しの写し（scope.json・permits.json）は入口の後に書き換えられない（keep-essence 3: 許す道は 1 本）"""
+    """許しの写し（scope.json・permits.json）と範囲の照らしで外すパスの控え（cut-1.json）は入口の後に書き換えられない
+    （keep-essence 3: 許す道は 1 本）。印は trace.jsonl と入口の返り seal に在り、seal は Archon が with: で受け付けへ渡す"""
 
-    def test_intake_seals_both_copies_in_the_planmarks_mark_shape(self):
-        self.start()
+    def marks(self):
         rows = [json.loads(x) for x in (self.run.artifacts / "trace.jsonl").read_text(encoding="utf-8").splitlines()]
-        marks = {r["file"]: r for r in rows if r["op"] == "plan_fields_saved"}
-        self.assertEqual(sorted(marks), ["permits.json", "scope.json"])
+        return [r for r in rows if r["op"] == "plan_fields_saved"]
+
+    def test_intake_seals_the_copies_in_the_planmarks_mark_shape_and_returns_the_marks(self):
+        self.start()
+        marks = {r["file"]: r for r in self.marks()}
+        self.assertEqual(sorted(marks), ["cut-1.json", "permits.json", "scope.json"])
         for name, row in marks.items():
-            self.assertEqual((row["round"], row["sha256"]), (1, hashlib.sha256((self.run.artifacts / name).read_bytes()).hexdigest()))
+            digest = hashlib.sha256((self.run.artifacts / name).read_bytes()).hexdigest()
+            self.assertEqual((row["round"], row["sha256"], self.seal[name]), (1, digest, digest))
+
+    def test_an_edited_copy_with_a_rewritten_mark_is_caught_by_the_seal_archon_holds(self):
+        self.start()
+        target = self.run.artifacts / "permits.json"
+        target.write_text('["anything.py"]', encoding="utf-8")
+        trace = self.run.artifacts / "trace.jsonl"
+        old = next(r["sha256"] for r in self.marks() if r["file"] == "permits.json")
+        trace.write_text(trace.read_text(encoding="utf-8").replace(old, hashlib.sha256(target.read_bytes()).hexdigest()), encoding="utf-8")
+        got = self.refix(1, self.handled(self.answer("copy-of-the-rule"), self.answer("claimed-closed-hole")))
+        self.assertEqual((got["ok"], got["done"]), (False, True))
+        self.assertIn("permits.json", got["reason"])
+        self.assertEqual(self.run.script("finish")["status"], "failed")
+
+    def test_a_second_mark_is_caught(self):
+        self.start()
+        target = self.run.artifacts / "permits.json"
+        target.write_text('["anything.py"]', encoding="utf-8")
+        with open(self.run.artifacts / "trace.jsonl", "a", encoding="utf-8") as f:
+            f.write(json.dumps({"op": "plan_fields_saved", "round": 1, "file": "permits.json",
+                                "sha256": hashlib.sha256(target.read_bytes()).hexdigest()}) + "\n")
+        got = self.refix(1, self.handled(self.answer("copy-of-the-rule"), self.answer("claimed-closed-hole")))
+        self.assertEqual((got["ok"], got["done"]), (False, True))
+        self.assertIn("凍結の印が重なった", got["reason"])
+
+    def test_a_rewritten_cut_stops_the_writers_accept(self):
+        self.start()
+        cut = self.read("cut-1.json")
+        (self.run.artifacts / "cut-1.json").write_text(json.dumps({**cut, "files": [*cut["files"], "b.py"]}), encoding="utf-8")
+        got = self.refix(1, self.handled(self.answer("copy-of-the-rule"), self.answer("claimed-closed-hole")))
+        self.assertEqual((got["ok"], got["done"]), (False, True))
+        self.assertIn("cut-1.json", got["reason"])
+
+    def test_an_unreadable_copy_is_named(self):
+        self.start()
+        (self.run.artifacts / "permits.json").unlink()
+        got = self.refix(1, self.handled(self.answer("copy-of-the-rule"), self.answer("claimed-closed-hole")))
+        self.assertEqual((got["ok"], got["done"]), (False, True))
+        self.assertIn("写し permits.json が読めない", got["reason"])
+
+    def test_an_accept_without_the_seal_names_the_wiring(self):
+        self.start()
+        reply = self.handled(self.answer("copy-of-the-rule"), self.answer("claimed-closed-hole"))
+        got = self.run.script("refix_accept", n="1", reply=json.dumps(reply))
+        self.assertEqual((got["ok"], got["done"]), (False, True))
+        self.assertIn("with:", got["reason"])
 
     def test_a_rewritten_copy_stops_the_writers_accept_and_the_run_is_failed(self):
         self.start()

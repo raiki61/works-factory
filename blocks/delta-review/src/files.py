@@ -9,6 +9,7 @@ import pathlib
 import ports
 
 import accept  # lib/
+import lens  # lib/
 
 ROUNDS = (1, 2)
 REVIEW = {1: "review-1", 2: "review-2"}   # 審査役の node の id（却下の控えの名と prompts/<id>.md）
@@ -17,8 +18,8 @@ SKIP = (ports.RUNTIME_COPY_PREFIX,)       # 差分に数えないパスの頭（
 TREE_KEYS = accept.status_keys("true")    # 読むだけの役の node は mutates_checkout: false で Archon が git status を照らす。porcelain は比べから外す
 
 INTAKE, SKIPPED, ERRORS, TRACE = "intake.json", "skipped.json", "errors.json", "trace.jsonl"
-SCOPE, FIX_REPLY, PERMITS, PLAN_REVIEW, REQUEST, LENS = (
-    "scope.json", "fix-reply.json", "permits.json", "plan-review.json", "request.json", "lens.json")
+SCOPE, FIX_REPLY, PERMITS, PLAN_REVIEW, REQUEST = "scope.json", "fix-reply.json", "permits.json", "plan-review.json", "request.json"
+LENS = lens.LENS_FILE   # lens.read が place から読む名
 VERDICTS, HOLES, DIFF = "verdicts.json", "holes.json", "delta.diff"
 
 

@@ -23,6 +23,22 @@ class IntakeCase(s.Case):
                 self.assertEqual((fin["ok"], fin["status"], fin["rounds"], fin["pass"], fin["holes"], fin["diff"]), (False, "failed", 0, False, None, None))
                 self.assertIn(f"入力 {port}", fin["reason"])
 
+    def test_a_plan_of_the_wrong_shape_fails_the_intake_naming_the_field(self):
+        for doc, said in (("text", "object でも配列でもない"), ({"plan_items": {}}, "plan_items が配列でない"),
+                          ([{"item": 0}], "plan_items[0]"), ([{"item": True}], "plan_items[0]"), (["x"], "plan_items[0]"),
+                          ({"plan_items": [], "ruled_paths": [1]}, "ruled_paths"), ({"plan_items": [], "agreed": ["x"]}, "agreed")):
+            with self.subTest(doc=doc):
+                got = self.intake(plan=self.file("plan.json", doc))
+                self.assertEqual(got["due"], False)
+                self.assertIn("入力 plan", got["reason"])
+                self.assertIn(said, got["reason"])
+
+    def test_an_empty_base_fails_the_intake(self):
+        got = self.intake(base="")
+        self.assertEqual(got["due"], False)
+        self.assertIn("入力 base: 空", got["reason"])
+        self.assertTrue(self.read("intake.json")["failed"])
+
     def test_empty_diff_without_a_claimed_hole_skips_the_review(self):
         got = self.intake()
         self.assertFalse(got["due"])
@@ -34,7 +50,7 @@ class IntakeCase(s.Case):
 
     def test_empty_diff_with_a_claimed_hole_still_runs(self):
         got = self.intake(fix_reply=json.dumps(s.CLAIMED))
-        self.assertEqual(got, {"due": True, "reason": ""})
+        self.assertEqual((got["due"], got["reason"], sorted(got["seal"])), (True, "", ["cut-1.json", "permits.json", "scope.json"]))
         self.assertFalse(self.exists("skipped.json"))
         self.assertEqual(self.read("cut-1.json")["files"], [])
         self.assertTrue(self.exists("review-1-brief.json") and self.exists("review-1-tree.json"))

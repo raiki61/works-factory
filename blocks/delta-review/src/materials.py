@@ -99,30 +99,42 @@ def request_copy(place, raw) -> str:
 
 
 # ---------------------------------------------------------------- 凍結の印（lib/planmarks.py の凍結の印と同じ形）
-SEALED = (files.SCOPE, files.PERMITS)   # 手直しの役が書き換えると許しが黙って広がる写し（テストの変更の許しは 1 本。keep-essence 3）
+# 手直しの役が書き換えると許しが黙って広がる写し（テストの変更の許しは 1 本。keep-essence 3）。cut-1.json の files は範囲の照らしで外すパス
+SEALED = (files.SCOPE, files.PERMITS, files.cut(1))
 
 
-def seal(place) -> None:
-    """入口が写しを置いた後に、写しのバイトの sha256 を trace.jsonl に 1 行ずつ書く（planmarks.SAVED_OP の行 {round, sha256} に、写しの名 file を足す）"""
-    for name in SEALED:
-        raw = (pathlib.Path(place) / name).read_bytes()
-        files.trace(place, planmarks.SAVED_OP, round=1, file=name, sha256=hashlib.sha256(raw).hexdigest())
+def seal(place, names) -> dict:
+    """入口が写しを置いた後に、写しのバイトの sha256 を trace.jsonl に 1 行ずつ書き（planmarks.SAVED_OP の行 {round, sha256} に、写しの名
+    file を足す）、{写しの名: sha256} を返す。返りは入口の返りの seal になり、受け付けの node へは Archon が with: で渡す（役の手の届かない所）"""
+    out = {}
+    for name in names:
+        out[name] = hashlib.sha256((pathlib.Path(place) / name).read_bytes()).hexdigest()
+        files.trace(place, planmarks.SAVED_OP, round=1, file=name, sha256=out[name])
+    return out
 
 
-def verify(place) -> None:
-    """受け付けが写しを使う前に印と照らす。印が無い・写しが読めない・sha256 が違う（入口の後に書き換えた）なら名指す ValueError"""
+def verify(place, sealed) -> None:
+    """受け付けが写しを使う前に印と照らす。sealed は入口の返りの seal（with: の値）。trace.jsonl の印が写しごとにちょうど 1 本でない・
+    写しが読めない・sha256 が sealed とも印とも合わない（入口の後に書き換えた）なら名指す ValueError"""
     rows = []
     try:
         rows = [json.loads(x) for x in (pathlib.Path(place) / files.TRACE).read_text(encoding="utf-8").splitlines() if x.strip()]
     except (OSError, ValueError):
         pass
+    if not isinstance(sealed, dict):
+        raise ValueError("入口の返りの凍結の印 seal が受け付けに渡っていない（with: の配線の誤り）")
     for name in SEALED:
-        mark = next((r for r in reversed(rows) if isinstance(r, dict) and r.get("op") == planmarks.SAVED_OP and r.get("file") == name), None)
-        if mark is None:
+        marks = [r for r in rows if isinstance(r, dict) and r.get("op") == planmarks.SAVED_OP and r.get("file") == name]
+        if not marks:
             raise ValueError(f"写し {name} の凍結の印が無い（入口が置いていない）")
+        if len(marks) > 1:
+            raise ValueError(f"写し {name} の凍結の印が重なった（{len(marks)} 本。入口は 1 本だけ書く）")
+        if not isinstance(sealed.get(name), str):
+            raise ValueError(f"入口の返りの seal に写し {name} の印が無い")
         try:
             raw = (pathlib.Path(place) / name).read_bytes()
         except OSError as error:
             raise ValueError(f"写し {name} が読めない。{planmarks.SAVED_OP} の印が在る: {error}") from None
-        if hashlib.sha256(raw).hexdigest() != mark.get("sha256"):
-            raise ValueError(f"写し {name} のバイトの sha256 が {planmarks.SAVED_OP} の印と違う（入口の後に書き換えた）")
+        digest = hashlib.sha256(raw).hexdigest()
+        if digest != sealed[name] or digest != marks[0].get("sha256"):
+            raise ValueError(f"写し {name} のバイトの sha256 が入口の印と違う（入口の後に書き換えた）")

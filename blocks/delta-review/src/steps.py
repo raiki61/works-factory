@@ -1,6 +1,6 @@
 """差分の審査の block の script の node の中身（docs/design/delta-review.md の 6 節）。script は port の字を読んでここへ渡すだけ。
 
-- intake: port を読み、この block のファイルを消し、材料を写し、審査が要るかを決め、要れば 1 回目の差分と材料を置く
+- intake: port を読み、この block のファイルを消し、材料を写し、審査が要るかを決め、要れば 1 回目の差分と材料を置く。写しの凍結の印 seal を返す
 - review_prompt・refix_prompt: 審査役・手直しの役の指示を prompts/<node>.md から組む（組めなければ errors.json に積んで落ちる）
 - owed: n 回目の審査が義務を出したかを決め、出していれば手直しの材料と段の頭の木を置く
 - cut2: 1 回目の手直しが fixed と答えた穴が在る時だけ、手直しだけの差分と 2 回目の材料を置く
@@ -11,6 +11,7 @@ import pathlib
 import ports
 import prompt
 
+import accept  # lib/
 import jsonfile  # lib/
 import leftovers  # lib/
 import lens  # lib/
@@ -27,6 +28,16 @@ def round_input(raw) -> int:
     if str(raw) not in tuple(str(n) for n in files.ROUNDS):
         raise ValueError(f"入力 n は {' か '.join(str(n) for n in files.ROUNDS)}: {raw!r}")
     return int(raw)
+
+
+def sealed(raw):
+    """受け付けの script の入力 seal（入口の返りの凍結の印 {写しの名: sha256} を Archon が with: で渡した字）。読めなければ None
+    （materials.verify が配線の誤りと名指す）"""
+    try:
+        value = json.loads(ports.text(raw))
+    except ValueError:
+        return None
+    return value if isinstance(value, dict) else None
 
 
 def read_intake(place) -> dict:
@@ -86,6 +97,7 @@ def intake(place, repo, *, base, plan, lens_rows, fix_reply, permits, plan_revie
     for pattern in files.OWN_PROMPTS:
         for path in place.glob(pattern):
             path.unlink()
+    sealed = {}
     doc = {"due": False, "failed": False, "reason": "", "base": "", "declared_at": "", "lens_error": "", "policy": "", "lang": prompt.lang(lang)}
     try:
         doc["base"] = _port("base", lambda: _tree_of(repo, ports.text(base)))
@@ -102,7 +114,7 @@ def intake(place, repo, *, base, plan, lens_rows, fix_reply, permits, plan_revie
             _port("policy", lambda: materials.policy_body(doc["policy"]))   # 読めない文書は入口で名指す
         jsonfile.write(place / files.SCOPE, scope)
         jsonfile.write(place / files.PERMITS, paths)
-        materials.seal(place)
+        sealed.update(materials.seal(place, (files.SCOPE, files.PERMITS)))
         if reply is not None:
             jsonfile.write(place / files.FIX_REPLY, reply)
         if review_of_plan is not None:
@@ -114,13 +126,14 @@ def intake(place, repo, *, base, plan, lens_rows, fix_reply, permits, plan_revie
             doc["reason"] = why
         else:
             cut.cut(place, 1, repo, doc["base"])
+            sealed.update(materials.seal(place, (files.cut(1),)))
             cut.brief(place, 1, repo, doc["declared_at"], scope=scope, reply=reply, plan_review=review_of_plan, lens_error=doc["lens_error"])
             cut.freeze(place, 1, repo)
             doc["due"] = True
-    except (ValueError, leftovers.Unreadable, OSError) as error:
+    except (ValueError, leftovers.Unreadable, OSError, accept.Reject) as error:
         doc.update(due=False, failed=True, reason=oneline.one_line(error))
     jsonfile.write(place / files.INTAKE, doc)
-    return {"due": doc["due"], "reason": doc["reason"]}
+    return {"due": doc["due"], "reason": doc["reason"], "seal": sealed}
 
 
 # ---------------------------------------------------------------- 指示
@@ -200,6 +213,10 @@ def owed(place, n: int, repo) -> dict:
             return {"due": False, "reason": f"{n} 回目の審査を諦めた"}
         if record.get("pass") is not False:
             return {"due": False, "reason": f"{n} 回目の審査が直す義務を出していない（通った）"}
+        if not touchup.owed_rows(place, n):   # 通らなかったのに答える義務が無い: 手直しの役はどう答えても拒まれるので起こさず止める
+            why = f"{n} 回目の審査の控えが通らなかったと言うのに、手直しが答える義務の行が 0 件（{files.review_reply(n)} と控えが食い違う）"
+            broke(place, f"owed-{n}", why)
+            return {"due": False, "reason": why}
         head = place / files.refix_head(n)
         if not head.is_file():
             jsonfile.write(head, {"tree": leftovers.snapshot(repo)})

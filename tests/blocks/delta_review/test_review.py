@@ -77,10 +77,30 @@ class ReviewAcceptCase(s.Case):
         self.write("note.txt", "the reader wrote this\n")
         self.rejected(s.review_reply(checks=[s.check()]), text="読むだけの役が作業ツリーを変えた")
 
-    def test_missing_tree_snapshot_is_rejected_naming_it(self):
+    def stopped(self, reply, text):
+        """出し直しでは直らない壊れ: 役への拒否にせず、errors.json に積んですぐ諦め、出口は failed"""
+        got = self.review(1, reply)
+        self.assertEqual((got["ok"], got["done"]), (False, True), got)
+        self.assertIn(text, got["reason"])
+        self.assertEqual(self.read("errors.json")[-1]["node"], "review-1-accept")
+        fin = self.run.script("finish")
+        self.assertEqual((fin["ok"], fin["status"]), (False, "failed"))
+        self.assertIn(text, fin["reason"])
+
+    def test_missing_tree_snapshot_stops_the_round_naming_it(self):
         self.start()
         (self.run.artifacts / "review-1-tree.json").unlink()
-        self.rejected(s.review_reply(checks=[s.check()]), text="作業ツリーの写し")
+        self.stopped(s.review_reply(checks=[s.check()]), "作業ツリーの写し")
+
+    def test_a_tree_snapshot_of_the_wrong_shape_stops_the_round(self):
+        self.start()
+        (self.run.artifacts / "review-1-tree.json").write_text('{"nope": 1}', encoding="utf-8")
+        self.stopped(s.review_reply(checks=[s.check()]), "の形が違う")
+
+    def test_an_exception_inside_the_acceptance_stops_the_round_instead_of_rejecting_the_role(self):
+        self.start()
+        (self.run.artifacts / "delta-1.patch").unlink()   # 照らしの差分が読めない（git や控えの壊れと同じ、役の外の壊れ）
+        self.stopped(s.review_reply(checks=[s.check()]), "受け付けの中で例外")
 
     def test_a_hole_makes_the_round_owe_and_the_record_says_so(self):
         self.start()

@@ -2,7 +2,7 @@
 # requires-python = ">=3.12"
 # dependencies = []
 # ///
-"""差分の審査の入口: port を読み、この block のファイルを消し、材料を写し、審査が要るかを決め、要れば 1 回目の差分と材料と作業ツリーの写しを置く。port が読めなくても落ちず、due: false と理由を返す"""
+"""差分の審査の入口: port を読み、この block のファイルを消し、材料を写し、審査が要るかを決め、要れば 1 回目の差分と材料と作業ツリーの写しを置く。写しの凍結の印 seal を返す（受け付けの node へ with: で渡る）。port が読めなくても落ちず、due: false と理由を返す"""
 import os
 import sys
 from pathlib import Path
@@ -20,4 +20,4 @@ def compute():
                         policy=os.environ.get("INPUTS_POLICY"), request=os.environ.get("INPUTS_REQUEST"), lang=os.environ.get("INPUTS_LANG"))
 
 
-ports.run(compute, lambda why: {"due": False, "reason": f"入口が落ちた（{why}）"})
+ports.run(compute, lambda why: {"due": False, "reason": f"入口が落ちた（{why}）", "seal": {}})

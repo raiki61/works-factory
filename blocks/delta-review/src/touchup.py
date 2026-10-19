@@ -168,6 +168,10 @@ def problems(place, n: int, reply: dict) -> list:
     return errs
 
 
+class Broken(Exception):
+    """出し直しでは直らない配線の誤り（受け付けが要る控えが無い・形が違う）。guarded が stop にする"""
+
+
 def stop(place, node: str, reason: str) -> dict:
     """出し直しても直らない壊れ: 訳を errors.json に積み、回数を待たずに諦める（出口が status: failed にする）"""
     path = pathlib.Path(place) / files.ERRORS
@@ -175,17 +179,30 @@ def stop(place, node: str, reason: str) -> dict:
     return {"ok": False, "give_up": True, "reason": reason}
 
 
-def take(place, n: int, reply, repo, base: str) -> dict:
-    place = pathlib.Path(place)
+def guarded(place, node: str, compute) -> dict:
+    """受け付けの本体を回す。中の例外は役への拒否（rolekit.accept_round が既定でする）にせず、stop で止める"""
+    try:
+        return compute()
+    except Exception as error:  # noqa: BLE001
+        why = str(error) if isinstance(error, Broken) else f"受け付けの中で例外（{type(error).__name__}: {oneline.one_line(error)}）"
+        return stop(place, node, why)
+
+
+def take(place, n: int, reply, repo, base: str, sealed) -> dict:
+    """n 回目の手直しの返答の 1 回分の受け付け。sealed は入口の返りの凍結の印。受け付けの中の例外は stop で止める"""
+    return guarded(place, files.REFIX[n] + "-accept", lambda: _take(pathlib.Path(place), n, reply, repo, base, sealed))
+
+
+def _take(place, n: int, reply, repo, base: str, sealed) -> dict:
     if not isinstance(reply, dict):
         return {"ok": False, "reason": "返答が JSON のオブジェクトでない"}
     try:
-        materials.verify(place)
+        materials.verify(place, sealed)
     except ValueError as error:
         return stop(place, files.REFIX[n] + "-accept", f"範囲・許しの写しが入口の後に変わった: {error}")
     head = (jsonfile.read_or(place / files.refix_head(n)) or {}).get("tree") or ""
     if not head:
-        return {"ok": False, "reason": f"手直しの段の頭の木 {files.refix_head(n)} が無い（手直しの役を起こす前に控えていない）"}
+        raise Broken(f"手直しの段の頭の木 {files.refix_head(n)} が無い（手直しの役を起こす前に控えていない）")
     bad = problems(place, n, reply) + undeclared(reply, repo, head)
     if bad:
         return {"ok": False, "reason": PROBLEMS + "\n".join(f"  - {x}" for x in bad)}
@@ -206,12 +223,12 @@ def take(place, n: int, reply, repo, base: str) -> dict:
     return {"ok": True, "reason": ""}
 
 
-def accept_reply(place, n: int, raw, repo, base: str) -> dict:
+def accept_reply(place, n: int, raw, repo, base: str, sealed) -> dict:
     """スクリプト refix_accept の本体。拒否は rolekit の控え（rejects-refix-<n>.json）に積み、3 回目で done（作業ツリーの手直しは
     戻さない）。返り {ok, done, reason}"""
     place = pathlib.Path(place)
     role = files.REFIX[n]
     iteration = rolekit.attempt(place, role)
-    got = rolekit.accept_round(place, role, raw, lambda reply: take(place, n, reply, repo, base))
+    got = rolekit.accept_round(place, role, raw, lambda reply: take(place, n, reply, repo, base, sealed))
     files.trace(place, "refix_accepted" if got["ok"] else "refix_rejected", node=f"{role}-accept", iteration=iteration, done=bool(got["done"]))
     return {"ok": bool(got["ok"]), "done": bool(got["done"]), "reason": str(got["reason"])}

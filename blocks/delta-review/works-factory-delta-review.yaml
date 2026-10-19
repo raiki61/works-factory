@@ -35,13 +35,16 @@ nodes:
     script: intake
     runtime: uv
     mutates_checkout: false
-    output_format: &due_out
+    output_format:
       type: object
       additionalProperties: false
-      required: [due, reason]
+      required: [due, reason, seal]
       properties:
         due: {type: boolean}
         reason: {type: string}
+        seal:
+          type: object
+          additionalProperties: {type: string}
   - id: review-1-loop
     depends_on: [intake]
     when: $intake.output.due == true
@@ -138,7 +141,7 @@ nodes:
           runtime: uv
           mutates_checkout: false
           depends_on: [review-1]
-          with: {n: 1, reply: $review-1.output}
+          with: {n: 1, reply: $review-1.output, seal: $intake.output.seal}
           output_format: &accept_out
             type: object
             additionalProperties: false
@@ -154,7 +157,13 @@ nodes:
     with: {n: 1}
     depends_on: [review-1-loop]
     trigger_rule: all_done
-    output_format: *due_out
+    output_format: &due_out
+      type: object
+      additionalProperties: false
+      required: [due, reason]
+      properties:
+        due: {type: boolean}
+        reason: {type: string}
   - id: refix-1-loop
     depends_on: [owed-1]
     when: $owed-1.output.due == true
@@ -215,7 +224,7 @@ nodes:
           runtime: uv
           mutates_checkout: false
           depends_on: [refix-1]
-          with: {n: 1, reply: $refix-1.output}
+          with: {n: 1, reply: $refix-1.output, seal: $intake.output.seal}
           output_format: *accept_out
   - id: cut-2
     script: cut2
@@ -285,7 +294,7 @@ nodes:
           runtime: uv
           mutates_checkout: false
           depends_on: [review-2]
-          with: {n: 2, reply: $review-2.output}
+          with: {n: 2, reply: $review-2.output, seal: $intake.output.seal}
           output_format: *accept_out
   - id: owed-2
     script: owed
@@ -355,7 +364,7 @@ nodes:
           runtime: uv
           mutates_checkout: false
           depends_on: [refix-2]
-          with: {n: 2, reply: $refix-2.output}
+          with: {n: 2, reply: $refix-2.output, seal: $intake.output.seal}
           output_format: *accept_out
   - id: finish
     script: finish
