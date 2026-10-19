@@ -1,0 +1,5 @@
+{"type": "object", "required": ["units"],
+ "properties": {"framing": {"type": "string"}, "one_shot": {"type": "string"},
+                "units": {"type": "array", "items": {"type": "object", "required": ["key", "label"],
+                          "properties": {"key": {"type": "string", "minLength": 1}, "label": {"type": "string"},
+                                         "disposition": {"type": "string"}}}}}}
