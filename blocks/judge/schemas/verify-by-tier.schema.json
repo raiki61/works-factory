@@ -1,0 +1,9 @@
+{
+  "description": "段ごとに判定の裏取りを回すか（line が段 → 回す物の表と名指しから引いた真偽）。無い段は回さない",
+  "type": "object",
+  "properties": {
+    "軽量": {"type": "boolean"},
+    "標準": {"type": "boolean"},
+    "重厚": {"type": "boolean"}
+  }
+}

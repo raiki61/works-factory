@@ -1,0 +1,3 @@
+{
+  "description": "修正役が足した規模の数値の欄（名は x_ で始まる）の object（r1 の port x_scalars と同じ形。形はここで照らさない）"
+}

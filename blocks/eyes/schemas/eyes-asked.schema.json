@@ -1,0 +1,15 @@
+{
+  "description": "修正前の承認ノードで聞いた項目の配列（r4 の port asked と同じ形）",
+  "type": "array",
+  "items": {
+    "type": "object",
+    "properties": {
+      "kind": {
+        "type": "string"
+      },
+      "text": {
+        "type": "string"
+      }
+    }
+  }
+}

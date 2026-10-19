@@ -1,0 +1,24 @@
+{
+  "description": "独立設計の役の返答か null（r2 の port design と同じ形）",
+  "type": [
+    "object",
+    "null"
+  ],
+  "properties": {
+    "question_stands": {
+      "type": "boolean"
+    },
+    "reason": {
+      "type": "string"
+    },
+    "premise_invalid_reason": {
+      "type": "string"
+    },
+    "design": {
+      "type": "string"
+    },
+    "elements": {
+      "type": "array"
+    }
+  }
+}
