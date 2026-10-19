@@ -401,6 +401,19 @@ class ReviewAcceptCase(FlowCase):
         self.assertIn("no_add", saved["reason"])
         self.assertFalse((f.place / "pass.json").exists())
 
+    def test_review_json_is_written_last(self):
+        """足す: review.json は受け付けの最後に書く（今の boardview._take の順）。pass.json を書く所で落ちた回は拒みになり、review.json
+        を残さない。その後に役が落ちて輪が終わっても、出口は受けた返答と読まずに failed を返す。前の回の review.json も頭で消える"""
+        f = self.flow
+        self.prepped()
+        (f.place / "review.json").write_text(dump(review()), encoding="utf-8")
+        (f.place / "pass.json.tmp").mkdir()
+        got = f.accept(review())
+        self.assertEqual((got["ok"], got["done"]), (False, False))
+        self.assertIn("受け付けの中で例外", got["reason"])
+        self.assertFalse((f.place / "review.json").exists())
+        self.assertEqual(f.finish()["status"], "failed")
+
     def test_pass_after_three_rejects_is_not_given_up(self):
         """元 ReviewAcceptCase.test_pass_after_three_rejects_is_not_given_up: 3 回拒まれた後に通った返答は諦めと読まない"""
         f = self.flow

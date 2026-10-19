@@ -158,8 +158,11 @@ def take(place, reply, repo, *, keys=accept.TREE_KEYS, fix_reply=None, tree_repl
     （review-tree・review-tree-fix）の返答で、どれも JSON に戻した値（起きなかった node は None）。出し直しは前の答えの控えと
     rolekit.merge_fields で合わせ（rolekit.resubmitted）、合わせた答えの全体を照らす。拒みは place の控えに積み、受け付けの網
     rolekit.NET_AFTER 回目で done・give_up（工場の不具合。その時は最後の拒みの訳を reason に置いた空の返答を review.json に書き、
-    pass.json は書かない）。返り {ok, done, give_up, reason}"""
+    pass.json は書かない）。返り {ok, done, give_up, reason}。頭で前の回の review.json・review-marks.json・pass.json を消し、
+    review.json は最後に書く（今の boardview._take の順。途中で落ちた回の物を出口が受けた返答と読まない）"""
     place = pathlib.Path(place)
+    for name in (files.REVIEW, FACE_MARKS, files.PASS):
+        (place / name).unlink(missing_ok=True)
     intake = steps.read_intake(place)
     first = reply if reply is not None else tree_reply
     part = fix_reply if fix_reply is not None else tree_fix_reply
@@ -218,7 +221,6 @@ def _take(place: pathlib.Path, intake: dict, reply: dict, repo, keys) -> dict:
         raise Reject(f"{REVIEW_NODE}: " + "; ".join(twice))
     bare_review, face_marks = marks.split_faces(review)
     written = {**bare_review, converge.RESOLVED: merged["resolved"]} if merged["resolved"] else bare_review
-    jsonfile.write(place / files.REVIEW, written, indent=2)
     jsonfile.write(place / FACE_MARKS, face_marks, indent=2)
     if form == "plan":
         checks = jsonfile.read_or(place / files.PRECEDENT_CHECKS)
@@ -232,4 +234,5 @@ def _take(place: pathlib.Path, intake: dict, reply: dict, repo, keys) -> dict:
             "origins": merged["origins"], "refs": merged.get("refs") or refs, "push": tree.get(converge.STUCK_PUSH),
             "files": {**merged["files"], **_material_file(place)}, "rejects": _pass_rejects(place),
             "precedent_checks": checks if isinstance(checks, dict) else {}}, indent=2)
+    jsonfile.write(place / files.REVIEW, written, indent=2)   # 最後に書く（出口はこれが在れば受けた返答と読む）
     return {"ok": True, "reason": ""}
