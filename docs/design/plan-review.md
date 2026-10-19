@@ -701,7 +701,7 @@ Return only JSON that matches the output schema.
 
 - 行: 修正案の項目 `i` の `narrows` の行ごとに `{kind: "regression", node: "p2.fix_plan", text: "修正案 <i+1> が狭める能力: <what>——<why>", units: <項目の unit_keys>, mark: <その行の決め手の欄>}`。穴のうち `kind` が `HUMAN_FACE_KINDS` の行で、kind policy なら記録された方針の行を名指す物（`policy.unrecorded` が偽）だけ `{kind, node: "p2.plan_review", text: "事前審査の穴 [<kind>] <key>: <why>", units: <穴の unit_keys>, mark}`。字の形は今のまま（line の承認ノードと修正の後の照らし `gatemarks.NARROW_HEAD`・`FACE_HEAD` がこの頭で読む）。
 - `decided`: `gatemarks.decided(mark)`。
-- `why`: `{obvious, world, clean, not_overkill}` ごとの揃わない訳の並び（今の `axis_reasons` のまま: `decided_by` が無いか `undecided_because` が在る・出どころが現物に無い〔`cite.sources_problem`。依頼の引用は port `request` の本文と照らし、作業ツリーの外で引いてよい根は依頼のファイルと place の親〕・柵の印・世界の解の行の無い run で `world` も URL も無い・構造の目が人に上げた単位・汚れると見た単位に案の答えが無い・案の単位の外）。
+- `why`: `{obvious, world, clean, not_overkill}` ごとの揃わない訳の並び（今の `axis_reasons` のまま: `decided_by` が無いか `undecided_because` が在る・出どころが現物に無い〔`cite.sources_problem`。依頼の引用は port `request` の本文と照らし、作業ツリーの外で引いてよい根は依頼のファイルと run の置き場の根 `$ARTIFACTS_DIR`（place の親ではない）〕・柵の印・世界の解の行の無い run で `world` も URL も無い・構造の目が人に上げた単位・汚れると見た単位に案の答えが無い・案の単位の外）。
 - 形 replan も同じ行を返す（今は形 replan の承認ノードは `replan_asks` だけを使ったが、事実として返し、使うかは line が決める）。
 
 ### 10.2 外れ `deviations`
