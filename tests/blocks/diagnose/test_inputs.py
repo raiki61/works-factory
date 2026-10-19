@@ -199,6 +199,13 @@ class JudgeIntakeCase(_Base):
         self.assertEqual([(b["origin"], len(b["findings"])) for b in batches],
                          [("人の依頼（/path/req.json）", 2), ("仕様（人が承認した受け入れ条件）", 1)])
 
+    def test_spec_rows_of_a_wrong_shape_stop(self):
+        for rows in ([{"where": "tests/test_x.py"}], [{"where": "a", "text": "b", "extra": "c"}], ["a"]):
+            with self.subTest(rows=rows):
+                got = self.intake(spec_rows=self.write("spec/added-rows.json", rows), spec_origin="仕様（人が承認した受け入れ条件）")
+                self.assertFalse(got["due"])
+                self.assertIn("入力 spec_rows", got["reason"])
+
     def test_empty_request_has_no_batch(self):
         self.assertTrue(self.intake(request="[]")["due"])
         self.assertEqual(self.doc("diagnose-input.json")["request_findings"], [])

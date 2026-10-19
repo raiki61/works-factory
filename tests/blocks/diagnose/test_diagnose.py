@@ -279,6 +279,26 @@ class RejudgePathCase(_Base):
         self.assertTrue((self.art / "rejudge-exit.json").is_file())
 
 
+class FallbackCase(_Base):
+    """script が思わぬ例外で落ちても、出口がその訳を返せるように place に控えを書く"""
+
+    def test_intake_that_falls_leaves_its_reason_in_intake_json(self):
+        (self.art / "diagnose-input.json").mkdir(parents=True)   # 名で消せない物を置いて、思わぬ例外を起こす
+        got = self.intake()
+        self.assertFalse(got["due"])
+        doc = self.doc("intake.json")
+        self.assertEqual((doc["status"], doc["stop_reason"], doc["due"]), ("failed", "works:judge", False))
+        self.assertEqual(doc["reason"], got["reason"])
+        out = self.finish()
+        self.assertEqual((out["status"], out["stop_reason"]), ("failed", "works:judge"))
+        self.assertIn("判定役の材料を組めない", out["reason"])
+
+    def test_accept_that_falls_leaves_its_reason_in_prompt_error(self):
+        got = self.accept(judge_ok())   # intake の控えが無いので受け付けが落ちる
+        self.assertEqual((got["ok"], got["done"]), (False, True))
+        self.assertEqual(self.doc("prompt-error.json"), {"node": "diagnose-accept", "reason": got["reason"]})
+
+
 class YamlCase(unittest.TestCase):
     def setUp(self):
         self.doc = yaml.safe_load((BLOCK / "works-factory-diagnose.yaml").read_text(encoding="utf-8"))

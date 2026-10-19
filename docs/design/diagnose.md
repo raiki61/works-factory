@@ -442,7 +442,7 @@ Return only JSON that matches the output schema.
 
 ## 5 script の node
 
-どの script も `ports.run(compute, fallback)` で包み、落ちない（prep だけは、指示が組めなければ `prompt-error.json` に node と訳を書いてから落ちる。world の 9.1 の 10）。入力は `os.environ.get("INPUTS_<名>")` を字のままで読み、`ports` の form の口に渡す（名を組んで読まない。README の 4.2）。
+どの script も `ports.run(compute, fallback)` で包み、落ちない（prep だけは、指示が組めなければ `prompt-error.json` に node と訳を書いてから落ちる。world の 9.1 の 10）。判定の受け付け（`diagnose_accept`）の fallback は落ちた訳を `prompt-error.json` に `{node, reason}` で、intake の fallback は `intake.json` に `{status: failed, stop_reason, reason}` で残す（出口が訳を返せるように。審査の指摘）。入力は `os.environ.get("INPUTS_<名>")` を字のままで読み、`ports` の form の口に渡す（名を組んで読まない。README の 4.2）。
 
 ### 5.1 `intake.py`（`src/inputs.py` の `intake(place, repo, raw)`）
 

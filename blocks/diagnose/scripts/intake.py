@@ -3,7 +3,7 @@
 # dependencies = []
 # ///
 """診断の入口: port を読み、道（判定か再審）を決め、この block のファイルを名で消して道ごとの支度をする。判定の道は対象差分・素材の
-15 欄・材料のファイル・作業ツリーの写し、再審の道は 1 回目の判定の写しと単位の前の写し。読めない port は due: false と訳。落ちない"""
+15 欄・材料のファイル・作業ツリーの写し、再審の道は 1 回目の判定の写しと単位の前の写し。読めない port は due: false と訳。落ちない（思わぬ落ちは intake.json に status: failed と訳を書く）"""
 import os
 import sys
 from pathlib import Path
@@ -35,7 +35,13 @@ def compute():
 def fallback(why: str) -> dict:
     rejudge = bool(os.environ.get("INPUTS_OBJECTION", "").strip())
     head = "再審の支度ができない" if rejudge else "判定役の材料を組めない"
-    return {"due": False, "mode": "rejudge" if rejudge else "judge", "reason": f"{head}（{why}）"}
+    mode, reason = ("rejudge" if rejudge else "judge"), f"{head}（{why}）"
+    try:
+        from src import inputs
+        inputs.intake_fell(ports.place(), mode, reason)
+    except Exception:  # noqa: BLE001 — 落ちない node の口。控えが書けなくても返りは返す
+        pass
+    return {"due": False, "mode": mode, "reason": reason}
 
 
 ports.run(compute, fallback)

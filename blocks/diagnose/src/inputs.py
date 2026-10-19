@@ -236,12 +236,12 @@ def _constraint_rows(value) -> list:
 
 
 def _spec_rows(path, origin) -> list:
-    """仕様が足した受け入れ条件の行（added-rows.json の配列）。ファイルが在るのに出どころの名が空なら落とす"""
+    """仕様が足した受け入れ条件の行（added-rows.json の配列。行の形は共通の依頼の行の形で照らす）。ファイルが在るのに出どころの名が空なら落とす"""
     if path is None:
         return []
     if not origin:
         raise ValueError("spec_rows の出どころの名が要る（spec_origin が空）")
-    got = json.loads(pathlib.Path(path).read_text(encoding="utf-8"))
+    got = ports.json(str(path), "shared:request.schema.json")
     if not isinstance(got, list):
         raise ValueError(f"{path} が依頼の行の配列でない")
     return got
@@ -394,6 +394,24 @@ def prep(place, build, *args) -> dict:
         node = {rejudge_prompt: "rejudge-prep", rejudge_fix_prompt: "rejudge-fix-prep"}.get(build, "diagnose-prep")
         _write(pathlib.Path(place) / files.PROMPT_ERROR_FILE, {"node": node, "reason": oneline.one_line(f"{type(e).__name__}: {e}")})
         raise
+
+
+def fell(place, node: str, reason: str) -> None:
+    """script の fallback の控え: node が落ちた訳を prompt-error.json {node, reason} に書く（出口が受けた判定の無い訳に読む）。書けなくても落ちない"""
+    try:
+        _write(pathlib.Path(place) / files.PROMPT_ERROR_FILE, {"node": node, "reason": oneline.one_line(reason)})
+    except OSError:
+        pass
+
+
+def intake_fell(place, mode: str, reason: str) -> None:
+    """intake の fallback の控え: intake.json を {status: failed, stop_reason, reason} で書く（出口が「読めない」でなく訳を返す）。書けなくても落ちない"""
+    stop = files.REJUDGE_STOP if mode == files.REJUDGE else files.JUDGE_STOP
+    try:
+        _write(pathlib.Path(place) / files.INTAKE_FILE, {"mode": mode, "due": False, "status": "failed", "stop_reason": stop,
+                                                        "reason": oneline.one_line(reason), "values": {}})
+    except OSError:
+        pass
 
 
 def accept_diagnose(place, raw: str, repo) -> dict:
