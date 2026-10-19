@@ -10,7 +10,7 @@ workflows/line/scripts/ask_before_fix.py の決まりのまま、軸・項目・
 - 開く: 事前審査の人に回しうる行（asks の decided が偽か why の在る行）・世界の解の外れ（deviations の world の why の在る行）・
   構造の目の人に上げる行・問いの台帳の問い（gatemarks.ledger_at の読み）・方針の文書の変化。軸の行は項目が無い時だけ足す
 - 無人の run: 台帳の問いは載せず deferred に返す。ほかの項目は gates.passage（全部が通す推しの尾を持つ時だけ推しで進み、ほかは
-  works:needs-human で止める）
+  works:needs-human で止める。止めた時は止めた項目も deferred に返し、報告と次の依頼の下書きに届ける）
 返り: open・go・stop_reason・text・deferred・asked（載せた項目の文）・pushed（推しで進んだ答え）・passes（聞かずに通した行）・
 policy_changed（方針の文書の変化の行を載せたか。answer-before-fix が固め直す）。
 

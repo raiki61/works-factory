@@ -73,6 +73,22 @@ class AnswerDraftsCase(unittest.TestCase):
                 self.assertEqual(self.drafts(returns, gates={"gate-final": {"decision": "continue", "text": ""}}, unattended=unattended),
                                  drafts)
 
+    def test_each_item_of_a_stopped_unattended_gate_gets_a_draft(self):
+        """元 test_each_stopped_item_gets_a_marked_draft: 無人の run で修正前の承認ノードが開かずに止まった時、止めた項目（事前審査が
+        人に回した行）ごとに印つきの下書き。gates.before_fix が組んだ出力を ask_before_fix の値としてそのまま渡す"""
+        gates = kit.load(BLOCK, "gates")
+        rounds = {"ok": True, "status": "ok", "round": 1, "deviations": [],
+                  "asks": [{"kind": "regression", "text": "狭めるか", "decided": False},
+                           {"kind": "world", "text": "どの定石に寄せるか", "decided": False}]}
+        got = gates.before_fix(rounds, unattended_run=True, design=False)
+        self.assertEqual((got["open"], got["go"]), (False, False), got)
+        items = [text for _, text in got["items"]]
+        self.assertEqual(len(items), 2, got)
+        drafts = self.drafts(values={"ask_before_fix": {k: got[k] for k in ("deferred", "asked")}},
+                             gates={"gate-before-fix": None}, unattended=True)
+        self.assertEqual([d["question"] for d in drafts], items, drafts)
+        self.assertTrue(all(d["draft"] is True and d["source"] for d in drafts), drafts)
+
     def test_attended_or_passed_gate_gets_no_gate_item_drafts(self):
         """元 test_attended_run_gets_no_gate_item_drafts: 人の居る run と、修正前の承認ノードを通した（approve・continue）無人の run は、
         承認ノードの項目の下書きを作らない"""

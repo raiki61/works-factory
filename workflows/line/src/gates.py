@@ -360,7 +360,10 @@ def before_fix(rounds: dict | None, *, unattended_run: bool, design: bool, ledge
     texts = [text for _, text in items]
     if unattended_run:
         got = passage(texts, row_push)
-        return {**closed, "go": got.go, "stop_reason": got.stop_reason, "items": items, "deferred": deferred, "asked": got.asked,
+        # 推しで抜けられずに止めた項目は誰にも見せていないので、載せなかった項目として報告と次の依頼の下書きへ（元 runreport が
+        # 無人の run で関所が通さなかった事前審査の問いを下書きにしたのと同じ）
+        held = deferred if got.go else [*deferred, *texts]
+        return {**closed, "go": got.go, "stop_reason": got.stop_reason, "items": items, "deferred": held, "asked": got.asked,
                 "pushed": got.pushed, "passes": passes, "policy_changed": changed}
     return {"open": True, "go": True, "stop_reason": "", "items": items, "deferred": deferred, "asked": texts, "pushed": None,
             "passes": passes, "policy_changed": changed}
