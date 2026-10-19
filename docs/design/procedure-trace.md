@@ -236,7 +236,8 @@ Return only JSON that matches the output schema.
 - まとめた: md:53 の「ファイルの作成・編集・削除を自らに禁じる」は、役の定義の Bash の箇条と `{shared:material-readonly}` が言うので消し、続く「$TMPDIR の中も同じで…書くことを許すものではない」（#221 の足し）だけを箇条に残した。
 - 移した: md:52 の指摘の提出基準を箇条 1 つに（字の中身は同じ）。
 - 消した: md:34 の手順 1 の「書いてよいとあり、差分が当たらないと判じたなら not_applicable で返してよい。書いてよいとない時は…手順を続けよ」。扱いの文は `{shared:material-na}` が回ごとに 1 つだけ入れる。
-- 足した物は無い。英語にした（#764）。役の名「手順トレースの役」は "the procedure-trace role"。
+- 変えた: 断片 `material-where` の尾の文を、受け付けが照らす範囲（`where` と `text` を持つ行だけ。ほかの行は照らさない）に合わせて狭めた。
+- 英語にした（#764）。役の名「手順トレースの役」は "the procedure-trace role"。
 
 ### 2.7 元の works と graphloops の同じ場面
 

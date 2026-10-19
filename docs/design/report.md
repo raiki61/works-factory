@@ -276,7 +276,7 @@ The outcome word of this run is **{outcome}** (the stage that stopped it and the
 
 ## Outline (what to read: the machine's facts file above and the files it lists)
 
-Write the report in {lang}. If the files are in another language, still write in that language. Keep code identifiers, paths, and error messages as they are.
+Write the report in {lang}. This covers every field a person reads: the body of the report, the terms, and the handoff notes. If the files are in another language, still write in that language. Do not translate keys, enum values, code identifiers, paths, commands, or error messages; keep them as they are (keys are matched across rounds).
 
 1. **The section on what a person decides expands the machine's one line per item**: everything listed in the facts' section "{decisions_heading}", with the kinds named as that section names them; do not reorder them here. If a row at its top is about a group that the re-check removed because it turned red, that is a sign that a correct fix may have been dropped, so include it as an item too. When the outcome word is `stopped_by_request` (stopped by a stop mark that the request placed) or `stopped_by_human` (a person stopped it at an approval node), or when it is `needs_human` and there is a reason to open an approval node (the reason for opening in line 1 of the machine's first lines, or an independent review that did not pass — write "needs a fix" and "needs a redesign" apart, and do not give "needs a fix" as a reason to discard the diff), always include as one item where it stopped, the text of the reason, and the questions left unanswered, adding that to continue one starts a new run and that the stages after the stop did not run. If there is nothing, see the format rules. Put the questions of the judgment file's question ledger that became `resolved` or `decided` under "Decided in the judgment file", with their grounds, right after the section on what a person decides and before item 2. The order is: the first 3 lines (machine) → the summary → what a person decides → decided in the judgment file → item 2 onward.
    Write what you ask so that a person who did not watch the run can read it for the first time and decide: (1) separate what is urgent from what can wait, and give the counts first; (2) each item can be read on its own; (3) for each item, say what to decide, why it came up (the actual trigger), what happens with each option, and what stops if nobody decides; (4) give the material for choosing, but write only the options and reasons written in the judgment file (the recommendation at the tail of a question's text, and the `options` and `reason` of the judgment file's ledger), and do not recommend a new option yourself. **A question written only in internal vocabulary ([block], do-now, defer, zero prescription, R1 to R4, material names, stable keys) cannot be decided as it is.**
@@ -394,7 +394,7 @@ Notes that earlier rounds of you wrote, named by the machine, oldest first. …
 
 - まとめた: 却下の扱い（md:7 の手順 3）を共通の断片 `{shared:rejected}` と、前の答えを読み直す手順（`<!-- if prev -->`）に。今は拒否の訳のファイル（`rejects-report.md`）と前の答えのファイルの、run directory からの相対のパスを渡して Read させた。新しい形では拒否の文の全部を指示に入れ（world と同じ。#351）、前の答え（本文が長い）だけを絶対パスで渡す。「1 回目は両方空」（md:7 の尾）は、却下が無い時は段落ごと入れない形にして要らなくした。
 - 移した: 引き継ぎのメモの頼みと前の周の節（`lib/handoff.py` の `ASK`・`HEAD`・`USE`・`NONE`・`UNREADABLE`。Python の定数の文だった）を、共通の断片 `{shared:handoff}` に。Python に残るのは前の周のメモのパスの行と、周ごとの短い札（`(no notes)`・`(unreadable)`）だけ。
-- 移した: 言語の 1 行（md:1。`$facts.output.lang_line`。`rolekit.LANG_RULE`）と「報告は依頼の言語で書く」（md:16）を、構成の頭の `Write the report in {lang}.` の 1 文に。
+- 移した: 言語の 1 行（md:1。`$facts.output.lang_line`。`rolekit.LANG_RULE`）と「報告は依頼の言語で書く」（md:16）を、構成の頭の `Write the report in {lang}. This covers every field a person reads…` の文に（訳さない物の句も含む）。
 - 移した: 機械が照らす字（見出しの字「人が決めること」・セルの字数 50・機械の報告の節の見出し）を `{decisions_head}`・`{cell_limit}`・`{decisions_heading}`・`{stop_heading}`・`{where_heading}` の値に（README の 5.3 の「md と validation が同じ字を持つべき値」）。今は md の字と `report_roles` の定数が別々に同じ字を持っていた。
 - 替えた: 機械の報告の節の名指し「1. 人が決めること」「2. 入口・段・決めた人」「3. 止めたか」「5. 見る所」を、新しい番号（1.9）の値に。「2. 入口・段・決めた人」の入口の行（md:20・21）は、節を名指さず "the facts say that this run entered at the judgment" にした（その節は line が見出しを付けるので、report の md が名を持たない）。
 - 替えた: 構成 5 の R1 の削ったコメントと残した why の読み方（md:24。`$ARTIFACTS_DIR/eyes/` の下の `r1.json` の欄 `deletions` と `r1-comments.json` の欄 `kept` を Read で読め）を、「facts の R1 の節に並ぶ物」に。ほかの block の place のファイルの名と欄の名を report の md が持たないため。r1 の block がその行を `report` の欄に組む（1.6）。
@@ -403,6 +403,8 @@ Notes that earlier rounds of you wrote, named by the machine, oldest first. …
 - 替えた: 書式の決まりの日本語の例（「直すべき欠陥として判定した物（block）」「さっきの」「上のセクションの」）を英語の例に。本文の言語は `{lang}` で決まるので、例は言語に依らない言い方にした。決まり（初出で「中身（記号）」・前後の文脈に頼る参照を残さない）は同じ。
 - まとめた: 構成 1 の「無ければ『人が決めることは無い』と 1 行」（md:18）と、書式の決まりの「その 1 行も書かず…置き換える」（md:33）の二重を、構成 1 の "If there is nothing, see the format rules." と書式の決まりの 1 か所に。決まりは今と同じ（書かない）。
 - 消した: 材料の 2 つの列挙（md:7 の facts のファイルの中身の列挙と、見る所の下の例のファイルの列挙）。ほかの block の物の名を md が持たないため。
+- 足した: 役の段落の「started in a new conversation」（この node は `fresh_context: true` で周ごとに新しい会話。今の指示には無かった。2.3 の 2）。
+- 戻した: 言語の規則の全文（`rolekit.LANG_RULE`）。人が読む欄（本文・`terms`・`handoff`）は `{lang}`、key・enum の値・識別子・パス・コマンド・エラー文は訳さない。一度は "Write the report in {lang}" だけに狭めたのを戻した。
 - 足した物は無い。英語にした（#764）。役の名「書き手」は "the writer"。
 
 ### 2.7 元の works と graphloops の同じ場面
@@ -550,6 +552,7 @@ Return only JSON that matches the output schema.
 - 移した: 詳細のファイルの機械の節の見出しの字（md:11）を `{machine_heading}` の値に（`report_roles.MACHINE_HEADING` と同じ字を 2 か所が持たない）。
 - 替えた: 区切りの字「==== ここから ====」「==== ここまで ====」を英語の区切りに。区切りは残した（本文は材料で、指示の節ではない）。
 - 替えた: 「ラウンドの経緯・記録・差分は一切渡されていない」の「ラウンドの経緯」（md:13）を "the history" に（1 run = 1 周で、周の経緯の語が要らない）。
+- まとめた: 返す JSON の形（今の md は欄ごとの箇条）を、output schema に合う JSON だけを返す 1 文に（形は schema が縛る）。
 - 足した物は無い。英語にした。役の名「初見の読み手」は "the cold reader"（断片の中）。
 
 ### 3.7 元の works と graphloops の同じ場面

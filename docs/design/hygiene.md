@@ -236,7 +236,8 @@ Return only JSON that matches the output schema.
 - 消した: 材料の尾の『条件に当たらない』の段（材料のファイルの 1821-1823 行。`_na_note` が 11 本に一律に足した物）。訳: この役の返答に `material` の欄は無く、`not_applicable` を書く欄が無い。素材は機械が `material_from_findings` で `found` か `clean` にする。
 - 消した: md:27 の拒否の手順（`{shared:rejected}` が言う）と、md:25 の「下の指示書と、囲いの中の材料…だけを読んで答えろ」（道具の段落の「this prompt is everything you are given」と同じ事）。
 - 残した: 「`findings` と `seen` の 2 つだけを返し、差分の外を見ないと言えない事は `seen` に『判断できなかった所』として書く」（md:49。#221）。役の定義の「判断できることと、できないことを分けて返せ」を返答の 2 欄に当てる文で、この役の返答の形を決める。
-- 足した物は無い。英語にした（#764）。役の名「衛生の役」は "the hygiene role"。観点の節の本文は `lib/REVIEW.md` の日本語のまま入る（観点の正本を英語にするのは REVIEW.md を移す PR の決め。README の 9.3）。
+- 変えた: 断片 `material-where` の尾の文を、受け付けが照らす範囲（`where` と `text` を持つ行だけ。ほかの行は照らさない）に合わせて狭めた。
+- 英語にした（#764）。役の名「衛生の役」は "the hygiene role"。観点の節の本文は `lib/REVIEW.md` の日本語のまま入る（観点の正本を英語にするのは REVIEW.md を移す PR の決め。README の 9.3）。
 
 ### 2.7 元の works と graphloops の同じ場面
 

@@ -113,7 +113,7 @@ script の名は `lib/` のモジュールの名と重ねない（README の 7.1
 ### 2.3 組み立ての順（`prompts/head-depth.md`）
 
 1. `<!-- if rejected -->` `{shared:rejected}` `<!-- end rejected -->` — 条件: 前の回の accept の理由が空でない。断片の中の `{rejection}` ← これまでの拒みの理由の全部（place の控えから、古い順。8 節の自分で決めた 10）。
-2. 役の定義（決まった文）: 新しい会話で起きていること・行ごとに種類を 1 つ引用で示す・段は機械が引く・群の選び。差し込み口 `{light}`・`{standard}`・`{heavy}`（← `lib/headdepth.py` の `LIGHT`・`STANDARD` と `lib/depth.py` の `HEAVY`）。
+2. 役の定義（決まった文）: 行ごとに種類を 1 つ引用で示す・段は機械が引く・群の選び。差し込み口 `{light}`・`{standard}`・`{heavy}`（← `lib/headdepth.py` の `LIGHT`・`STANDARD` と `lib/depth.py` の `HEAVY`）。
 3. 段の意味（決まった文）。差し込み口 `{light}`・`{standard}`・`{heavy}`・`{cause}`。
 4. 読むだけの決まり（決まった文）。
 5. `## Input` の 2 行（決まった文）: 対象のリポジトリ・材料は機械が測った物・この run には機械の確かめが在る。
@@ -129,7 +129,7 @@ md の本文（英語。この block の PR の 2 つ目の commit でこのま�
 {shared:rejected}
 <!-- end rejected -->
 
-You are the run-depth role, started in a new conversation. For each line of a person's fix request, name the one kind of unknown that is still left, with a quote from the request's text and a quote from the repository's lines (questions 1 and 2). The depth tier ({light}, {standard}, or {heavy}) is taken by the machine from the heaviest kind among the lines; you do not return a tier. Also pick, with reasons, only the node groups whose default model or effort should change (question 3).
+You are the run-depth role. For each line of a person's fix request, name the one kind of unknown that is still left, with a quote from the request's text and a quote from the repository's lines (questions 1 and 2). The depth tier ({light}, {standard}, or {heavy}) is taken by the machine from the heaviest kind among the lines; you do not return a tier. Also pick, with reasons, only the node groups whose default model or effort should change (question 3).
 
 What the tiers mean: a {light} run is only for a request where the place to fix and the way to fix it are known on every line. If a run is wrongly made {light}, holes that should be found before the fix stay hidden until after the fix. {standard} runs every check as before; a run wrongly made {standard} only costs more and does no harm. {heavy} adds to {standard} a second check of the judgment and a per-item tree in the review of the plan, and costs much more. So give a lighter kind only where you can show it with quotes, and when in doubt choose `{cause}` (which gives {standard}).
 
@@ -228,7 +228,7 @@ properties:
 ### 2.5 描いた骨組み（例の run の値）
 
 ```markdown
-You are the run-depth role, started in a new conversation. … The depth tier (軽量, 標準, or 重厚) is taken by the machine from the heaviest kind among the lines; …
+You are the run-depth role. … The depth tier (軽量, 標準, or 重厚) is taken by the machine from the heaviest kind among the lines; …
 
 What the tiers mean: a 軽量 run is only for a request where … when in doubt choose `原因` (which gives 標準).
 
@@ -292,7 +292,9 @@ Return only JSON of this shape.
 - 消した: 記録だけの 1 文の括弧書き「（止めた版 a972888a は run の中で後のノードの模型を付け替えられず、子の run は親の模型の設定を受け継ぐ）」（`lib/launchgroups.py:47`）。役が知るべきなのは「効かない」ことだけで、訳の Archon の版の事実は持ち主の決め `head-choice-record-only` と `docs/polyfills.md` に在る。
 - 消した: ほかの node の id（`$head-depth-reject.output.*`・`$head-depth-prep.output.brief_file`）。
 - 並べ替えた: `## 入力` の 2 行（材料・対象のリポジトリ）を、対象のリポジトリ・材料の説明の順にし、材料の本文をその後に置いた。材料の説明の文（md:21 の「機械が測った物で、依頼の行ごとの番号・字・番地と…末尾に群のセクションが在り…」）は残した。
-- 足した物は無い。2 つ目の commit で英語にした（#764）。役の名「run の頭の深さの役」は "the run-depth role"。1 つ目の commit（日本語）では、材料の札は今の字（「行 n:」「番地:」「ファイル 在る・行の範囲 ファイルの中」「既定 sonnet・medium」）のまま、2 つ目の commit で 3.2 の英語の札にする。
+- 足した: 役の定義の「段は返さない」（`you do not return a tier`。段は機械が行の種類の重い方から引く。2.3 の 2）。
+- 消さなかった: 輪は `fresh_context: false` なので、2 回目からは会話の続き。役の定義に「新しい会話で起きている」と書かない（元の指示にも無い）。
+- 2 つ目の commit で英語にした（#764）。役の名「run の頭の深さの役」は "the run-depth role"。1 つ目の commit（日本語）では、材料の札は今の字（「行 n:」「番地:」「ファイル 在る・行の範囲 ファイルの中」「既定 sonnet・medium」）のまま、2 つ目の commit で 3.2 の英語の札にする。
 
 ### 2.7 元の works と graphloops の同じ場面
 

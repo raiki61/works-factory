@@ -250,7 +250,7 @@ def _class_lines(rows) -> str:
 
 def judge_prompt(out, node: str = JUDGE_NODE) -> dict:
     """web の役の指示を組んで place に書く。返り {prompt}。web が on の run は node JUDGE_NODE（web の検索と取得を持つ）、off の run は
-    OFFLINE_NODE（道具を持たない）で、どちらも同じ md（prompts/parts/world-judge.md）から組む。run の web と node が食い違えば配線の誤り"""
+    OFFLINE_NODE（道具を持たない）で、どちらも同じ部品 md（prompts/parts/world-judge.md）から組む。外への検索の決まり（query-rule）は JUDGE_NODE の md だけが持つ。run の web と node が食い違えば配線の誤り"""
     out = pathlib.Path(out)
     doc = _need(out, INTAKE)
     if (node == OFFLINE_NODE) == bool(doc["web"]):
@@ -263,7 +263,10 @@ def judge_prompt(out, node: str = JUDGE_NODE) -> dict:
               "max_excerpts": MAX_EXCERPTS * len({r["class_id"] for r in rows}), "min_excerpt": excerpts.MIN_EXCERPT,
               "same": worldmark.SAME, "differs": worldmark.DIFFERS, "none": worldmark.NONE, "min_challenge": MIN_CHALLENGE,
               "lang": doc["lang"]}
-    return _emit(out, node, values, {"rejected": bool(rejected), "spawns": False, "web": bool(doc["web"])})
+    when = {"rejected": bool(rejected), "web": bool(doc["web"])}
+    if node == JUDGE_NODE:
+        when["spawns"] = False   # query-rule は道具を持つ node の md だけが持つ（offline の md には無い）
+    return _emit(out, node, values, when)
 
 
 def _excerpts(reply) -> tuple:

@@ -129,7 +129,10 @@ class ShapeCase(unittest.TestCase):
         self.assertEqual(whens, {"$pick.output.due == true && $pick.output.web == true",
                                  "$pick.output.due == true && $pick.output.web == false"})
         for node in ("world-judge", "world-judge-offline"):
-            self.assertEqual((BLOCK / "prompts" / f"{node}.md").read_text(encoding="utf-8"), "{part:world-judge}\n", "同じ md から組む")
+            self.assertTrue((BLOCK / "prompts" / f"{node}.md").read_text(encoding="utf-8").endswith("{part:world-judge}\n"), "同じ部品の md から組む")
+        self.assertIn("{shared:query-rule}", (BLOCK / "prompts" / "world-judge.md").read_text(encoding="utf-8"))
+        self.assertNotIn("{shared:query-rule}", (BLOCK / "prompts" / "world-judge-offline.md").read_text(encoding="utf-8"),
+                         "道具を持たない役に外への検索の決まりを渡さない")
 
     def test_web_off_fixture_needs_no_network(self):
         fixture = kit.fixture("world", "standalone")

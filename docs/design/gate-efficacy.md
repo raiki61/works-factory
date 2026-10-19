@@ -262,7 +262,8 @@ Return only JSON that matches the output schema.
 - 消した: graphloops の見出し「P1 ゲートの実効性確認（writer が実行・該当 PR のみ）」（md:34）。「writer が実行」は graphloops の起こす側の名で、この役の振る舞いを決めない。
 - 言い換えた: 「P3（判定の後に差分を直す段）」（md:40 の 2 か所）を "the step that fixes the diff after the judgment" に（段の番号で他の block を名指さない）。「変異の腕の一覧に足す（直す）要あり」の字は、機械が読まない（`lib/`・`workflows/` を探して読み手が無い）ので、決まった字を求めず、`{lang}` で書く人に見せる note の中身として言い換えた。
 - 消した: 素材の書き方の尾「欄と値の正本は review-record.py」（prior-decisions と同じ）。
-- 足した物は無い。英語にした（#764）。役の名「ゲートの実効性確認の役（任せ先）」は "the gate-efficacy role"。
+- 変えた: 断片 `material-where` の尾の文を、受け付けが照らす範囲（`where` と `text` を持つ行だけ。ほかの行は照らさない）に合わせて狭めた。
+- 英語にした（#764）。役の名「ゲートの実効性確認の役（任せ先）」は "the gate-efficacy role"。
 
 ### 2.7 元の works と graphloops の同じ場面
 

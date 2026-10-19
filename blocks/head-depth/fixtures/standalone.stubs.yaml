@@ -7,7 +7,7 @@ fixture:
     request: '[{"where": "stats.py:4-5", "text": "mean は 2 でなく 3 を返す"}]'
     has_checks: 'true'
   resolved-text-contains:
-    head-depth: 'You are the run-depth role, started in a new conversation.'
+    head-depth: 'You are the run-depth role.'
 exec-code: true
 head-depth:
   why: 筋書きの役は原因が残る行を返す

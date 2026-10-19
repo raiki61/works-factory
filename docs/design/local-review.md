@@ -341,7 +341,8 @@ prior-decisions.md の 2.6 の族に共通の差（材料のファイルを指�
 - 消した: 「engine の post_check が拒む」「engine が P1 の前後で突き合わせる」の engine・post_check・P1・P2 の名指し（md:50・54・56）。"the acceptance step" と "the judgment … later in this run" に替えた（役が見ない仕組みの名）。
 - 残した: 実測の訳（2026-09-15 の型設計のレンズが 3 周起きなかった・旗の綴りが旗に取られた）。役が行を省かない・綴りを書かない訳として、返答の形を決めるため。
 - 移した: 借りたスキルの読み替え（md:89-166）の頭の 1 文を英語の決まった文に、本文を `{unattended}` の値に。本文は今も `seat.overlay_body` が `lib/borrow/unattended.md` から組む字で（今の試験 `tests/workflows/test_judge.py:521-530` がそれと md の末尾の一致を見ていた）、新しい形では写しを md に置かず、源から入れる。置く所を結びの前に移した（3.1 の並びの言語の 1 文と結びの 1 文を最後に保つため）。
-- 足した物は無い。役の名「局所レビューの役」は "the local-review role"。
+- 変えた: 断片 `material-where` の尾の文を、受け付けが照らす範囲（`where` と `text` を持つ行だけ。ほかの行は照らさない）に合わせて狭めた。
+- 役の名「局所レビューの役」は "the local-review role"。
 
 ### 2.7 元の works と graphloops の同じ場面
 

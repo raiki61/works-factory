@@ -168,7 +168,7 @@ md の本文（英語。この block の PR でこのまま置く）:
 If a reason says you changed the real working tree, first undo what you changed, then run again on the copy. Undoing means returning only those things named in the reasons that you yourself changed to how they were before you were started: delete the caches and build outputs your runs created, and move any HEAD or branch you moved back to where it was. This is the only exception to the rule below that you must not change the real working tree; make no other writes. Do not delete uncommitted changes or untracked files you did not create (do not undo in bulk with git reset, clean, or stash). If something cannot be undone, write what you could not undo in `reason`, then run again on the copy (`reason` can be written with any status: even if the rerun ends `{found}` or `{clean}`, write in `reason` what you could not undo).
 <!-- end rejected -->
 
-You are the CI delegate, started in a new conversation. The machine could not run the target repository's CI, so you read the repository's CI definitions, run its tests and lint on a copy of the working tree, and return the result as material.
+You are the CI delegate, started for this check. The machine could not run the target repository's CI, so you read the repository's CI definitions, run its tests and lint on a copy of the working tree, and return the result as material.
 
 ## Where and what
 
@@ -224,7 +224,7 @@ Return only JSON of the form `{"material": {...}}` that matches the output schem
 ### 2.5 描いた骨組み（例の run `92f4ca04-…` の base の 1 回目の値）
 
 ```markdown
-You are the CI delegate, started in a new conversation. …（決まった文）
+You are the CI delegate, started for this check. …（決まった文）
 
 ## Where and what
 
@@ -260,6 +260,8 @@ Return only JSON of the form `{"material": {...}}` that matches the output schem
 - まとめた: 読むだけの役の段落の「上の『前の回の受け付けが拒んだ理由』のセクションを見よ」（md:30）を、却下が貼られた時の言い方に（却下の無い回にセクションを指さない）。
 - まとめた: 返す形の 2 段落（md:34 の素材の書き方と md:36 の「返すのは `{"material": {...}}` の JSON だけ」）を `## How to answer` の箇条と結びの 1 文に。
 - 足した: 言語の 1 文（`{lang}`。#764）。今の指示は日本語で書かれていたので、素材の文も日本語になっていた。
+- 足した: 役の定義の「started for this check」（輪は `fresh_context: false` で出し直しが同じ会話の続きなので、「新しい会話」とは書かない）。
+- 足した: base が空の run では、素材の `BASE:` に `(none)` を入れる（`src/prompts.py` の `NO_BASE`）。
 - 消した物は無い。決まり（緑を仮定しない・走ったかは件数で決める・終わるまで待つ・系統ごとの終了コード・走った赤が勝つ・systems の分け方・自己申告・本物の作業ツリーを変えない・戻し方の例外）は全部残した。
 - 英語にした（#764）。役の名「任せ先の CI の役」は "the CI delegate"。
 
@@ -343,6 +345,7 @@ Write `reason`, `detail`, and `checked` in the language of the person's request.
 - 移した: 指示書の本文（`RESUBMIT_ASK`・`FIELD_RULES`）を共通の断片 `resubmit` に。指示書のファイルを Read させる道をやめ、指示に直に貼る（README 5.2 の「指示をファイルから Read せずに受け取れる」）。YAML の 1 行（「指示書を Read で全部読め」）は要らなくなった。
 - 消した: 指示書のファイル `resubmit-ci-<n>.md`（読み手が無くなる）。
 - 足した: 言語の 1 文。
+- 変えた: 拒まれた理由を貼る囲いを ``` でなく `~~~text` にした（理由の字に ``` が入っても囲みが閉じない。断片 `resubmit` の持ち物）。
 - 英語にした。
 
 1 つ目の commit の作り方: md を `{shared:resubmit}` だけにし、断片の 1 つ目の commit の字を今の `RESUBMIT_ASK` に `FIELD_RULES` を入れた字（日本語のまま）にする。比べは試験の値で、組んだ指示が今の `resubmit-ci-1.md` の中身と同じになることを照らす（YAML の 1 行の「Read で読め」は比べから外す。読ませる道をやめた差なので 2 つ目の commit の一覧に載る）。
@@ -465,6 +468,7 @@ Return only JSON that matches the output schema.
 - 移した: 材料の文の中身（対象の根・宣言が在るか・test_cmd の囲い）を md の `## Material` の節に直に入れた。材料の文のファイルを Read させる道（md:5-7「材料の文: $suite-prep.output.brief_file」「まずこのファイルを Read で全部読め」）をやめた。材料の文の見出しと札（「# 実行器を書く材料」「- 対象の根:」「- 対象の根の宣言 …: 在る・無い」「## test_cmd（人が渡したテストのコマンド。字のまま）」「無い（人が渡していない）」、:93-97）は md の決まった文になった。lib の `_brief` は組み込みで、読み手が無くなるので外せる（`suitewrite` は KEEP）。
 - 移した: 実行器の約束の環境変数の名（md:16 の `TDD_SUITE_ONLY`）を差し込み口 `{only_env}` に（`baseline_red.ONLY_ENV` と同じ字）。宣言の名も `{decl_name}` に。
 - まとめた: 「返す形」（md:25-27 の JSON の形の 1 行）を `## How to answer` の箇条と結びの 1 文に。
+- 足した: 役の定義の「started in a new conversation」（この node は `fresh_context: true` で、新しい会話で起きる。今の指示には無かった）。
 - 足した: 言語の 1 文。
 - 英語にした。役の名「TDD の実行器の書き手」は "the TDD runner writer"。
 
