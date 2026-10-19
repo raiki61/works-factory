@@ -138,6 +138,11 @@ class IntakeFormCase(_Case):
                 self.assertTrue(got["reason"].startswith(f"入力 {name}: "), got["reason"])
         got = self.run.intake(**self.run.plan_inputs(design=v.dump({"question_stands": True})))
         self.assertIn("入力 design", got["reason"])
+        for name in ("structure", "ripple", "prior"):   # 足す: file と宣言した port に値を直に渡すと file の誤りで落ちる
+            with self.subTest(value=name):
+                got = self.run.intake(**self.run.plan_inputs(**{name: v.dump({"items": [], "overlaps": []})}))
+                self.assertFalse(got["due"])
+                self.assertTrue(got["reason"].startswith(f"入力 {name}: file の入力は"), got["reason"])
         got = self.run.intake(**self.run.plan_inputs(tree="maybe"))
         self.assertIn("入力 tree", got["reason"])
 

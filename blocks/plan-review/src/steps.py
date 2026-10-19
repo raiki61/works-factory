@@ -288,6 +288,13 @@ def _json(name: str, raw, schema=None):
     return None if _blank(raw) else _port(name, lambda: ports.json(raw, schema))
 
 
+def _json_file(name: str, raw):
+    """file と宣言した port のうち JSON のファイルを渡す物（structure・ripple・prior・conflicts）。ports.file を通してから JSON に読む
+    （値を直に渡すと file の誤りで落ちる。空は None）"""
+    path = _file(name, raw)
+    return None if path is None else _port(name, lambda: ports.json(str(path)))
+
+
 def _soft(name: str, read, defaults: list):
     """読めない時は落とさず、無いとして読み、訳の行を defaults に足す（excluded・request・means）"""
     try:
@@ -343,16 +350,16 @@ def _plan_doc(d: pathlib.Path, repo, raw: dict, proposal: dict, defaults: list, 
     request_file, request = _request(raw.get("request"), defaults)
     means = _soft("means", lambda: _json("means", raw.get("means"), "stated-means.schema.json"), defaults) or []
     design_doc = _json("design", raw.get("design"), "review-design.schema.json")
-    structure_doc = _json("structure", raw.get("structure"))
+    structure_doc = _json_file("structure", raw.get("structure"))
     if structure_doc is None:
         defaults.append(EMPTY_STRUCTURE)
-    ripple_doc = _json("ripple", raw.get("ripple"))
+    ripple_doc = _json_file("ripple", raw.get("ripple"))
     if ripple_doc is None:
         defaults.append(EMPTY_RIPPLE)
-    prior = _json("prior", raw.get("prior"))
+    prior = _json_file("prior", raw.get("prior"))
     if prior is not None:
         _shaped("prior", prior, files.PRIOR_SHAPE, "往復の記録")
-    conflicts = _json("conflicts", raw.get("conflicts")) if form == "replan" else None
+    conflicts = _json_file("conflicts", raw.get("conflicts")) if form == "replan" else None
     tree_word = ports.text(raw.get("tree")).strip() or "auto"
     _port("tree", lambda: ports.choice(tree_word, TREE_WORDS))
 
