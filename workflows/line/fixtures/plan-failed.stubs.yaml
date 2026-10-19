@@ -68,6 +68,7 @@ judge__diagnose-in:
   tier: 標準
   verify: false
 judge__verdict:
+  questions: []
   ok: true
   stop_reason: ''
   reason: ''

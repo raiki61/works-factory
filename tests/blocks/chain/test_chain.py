@@ -655,7 +655,8 @@ class ChainScenariosTest(unittest.TestCase):
         return node in trace and trace[node]["state"] in ("completed", "stubbed")
 
     def test_every_scenario_passes(self):
-        self.assertEqual(sorted(self.results), sorted(SCENARIOS))
+        """決めの語を照らす筋書き（SCENARIOS）と、単独で回る形の筋書き standalone（README 7.1 の 3。合否だけを見る）が全部通る"""
+        self.assertEqual(sorted(self.results), sorted((*SCENARIOS, "standalone")))
         for name, got in self.results.items():
             with self.subTest(scenario=name):
                 self.assertTrue(got["pass"], json.dumps(got, ensure_ascii=False))

@@ -291,7 +291,7 @@ class InsideTest(unittest.TestCase):
         (self.place / swepro.SECRET).write_text(json.dumps({name: value}), encoding="utf-8")
 
     def sealed_plan(self, diff=DIFF, **value):
-        files = {test_run.JUDGMENT: test_run.UNITS, swepro.apply.APPLY_DIFF: diff}
+        files = {test_run.JUDGMENT: test_run.UNITS, swepro.apply.APPLY_DIFF: diff, swepro.apply.SEALED_DIFF: diff}
         self.set_plan(value=value, artifacts=files)
 
     def inside(self, producer="works-factory"):
@@ -309,14 +309,15 @@ class InsideTest(unittest.TestCase):
         rows = [json.loads(line) for line in self.log.read_text(encoding="utf-8").splitlines()] if self.log.exists() else []
         return [r for r in rows if r["who"] == who]
 
-    def seal(self, diff=DIFF) -> dict:
-        return {"ok": True, "hash": swepro.apply.seal.digest(diff.encode()), "diff": POINTER}
+    def seal(self, diff=DIFF, name=swepro.apply.APPLY_DIFF) -> dict:
+        """merge の返りの封じの欄。差分の先の名は、置く段（apply.diff）と封じる段（sealed.diff）で違う（bin/apply が名の末尾で照らす）"""
+        return {"ok": True, "hash": swepro.apply.seal.digest(diff.encode()), "diff": {**POINTER, "path": name}}
 
     def predicted(self, result, patch="") -> dict:
         return swepro.prediction(OPENLIBRARY, result["producer"], patch, result, 1.0, "f")
 
     def test_sealed_diff_is_applied_and_captured(self):
-        self.sealed_plan(apply=self.seal(), sealed=self.seal())
+        self.sealed_plan(apply=self.seal(), sealed=self.seal(name=swepro.apply.SEALED_DIFF))
         done, result = self.inside()
         self.assertEqual(done.returncode, 0, done.stderr)
         self.assertEqual((self.workdir / "a.py").read_text(encoding="utf-8"), "x = 2\n")
@@ -328,7 +329,7 @@ class InsideTest(unittest.TestCase):
         self.assertTrue((self.out / "evidence" / "record" / "parent.json").is_file())
 
     def test_factory_starts_with_origin_at_a_copy_of_head_in_the_attempt_place(self):
-        self.sealed_plan(apply=self.seal(), sealed=self.seal())
+        self.sealed_plan(apply=self.seal(), sealed=self.seal(name=swepro.apply.SEALED_DIFF))
         head = git(self.workdir, "rev-parse", "HEAD")
         done, result = self.inside()
         self.assertEqual(done.returncode, 0, done.stderr)
@@ -339,7 +340,7 @@ class InsideTest(unittest.TestCase):
         self.assertEqual(result["error"], None)
 
     def test_origin_and_its_copy_stay_out_of_the_patch(self):
-        self.sealed_plan(apply=self.seal(), sealed=self.seal())
+        self.sealed_plan(apply=self.seal(), sealed=self.seal(name=swepro.apply.SEALED_DIFF))
         done, _ = self.inside()
         self.assertEqual(done.returncode, 0, done.stderr)
         patch = self.patch()
@@ -349,7 +350,7 @@ class InsideTest(unittest.TestCase):
 
     def test_target_with_a_remote_keeps_it(self):
         git(self.workdir, "remote", "add", "origin", "https://example.invalid/app.git")
-        self.sealed_plan(apply=self.seal(), sealed=self.seal())
+        self.sealed_plan(apply=self.seal(), sealed=self.seal(name=swepro.apply.SEALED_DIFF))
         done, _ = self.inside()
         self.assertEqual(done.returncode, 0, done.stderr)
         self.assertEqual(self.calls()[0]["origin"], "https://example.invalid/app.git")
@@ -358,7 +359,7 @@ class InsideTest(unittest.TestCase):
     def test_origin_copy_that_cannot_be_made_stops_before_the_factory(self):
         (self.place / "attempt").mkdir(parents=True, exist_ok=True)
         (self.place / "attempt" / swepro.ORIGIN_COPY).write_text("not a repository\n", encoding="utf-8")
-        self.sealed_plan(apply=self.seal(), sealed=self.seal())
+        self.sealed_plan(apply=self.seal(), sealed=self.seal(name=swepro.apply.SEALED_DIFF))
         done, result = self.inside()
         self.assertEqual(done.returncode, swepro.run.STOPPED, done.stderr)
         self.assertIn("origin の写しを置けない", result["error"])
@@ -393,7 +394,7 @@ class InsideTest(unittest.TestCase):
 
     def factory_starts_with_archon_config_that_copies_submodule_contents(self, with_history):
         self.add_submodule(with_history=with_history)
-        self.sealed_plan(apply=self.seal(), sealed=self.seal())
+        self.sealed_plan(apply=self.seal(), sealed=self.seal(name=swepro.apply.SEALED_DIFF))
         done, result = self.inside()
         self.assertEqual(done.returncode, 0, done.stderr)
         expected = {"worktree": {"initSubmodules": False, "copyFiles": ["vendor/sub/r.py", "vendor/sub/s.py"]}}
@@ -445,7 +446,7 @@ class InsideTest(unittest.TestCase):
 
     def test_archon_config_stays_out_of_the_patch(self):
         self.add_submodule()
-        self.sealed_plan(apply=self.seal(), sealed=self.seal())
+        self.sealed_plan(apply=self.seal(), sealed=self.seal(name=swepro.apply.SEALED_DIFF))
         done, _ = self.inside()
         self.assertEqual(done.returncode, 0, done.stderr)
         self.assertTrue((self.workdir / swepro.ARCHON_CONFIG).is_file())
@@ -457,7 +458,7 @@ class InsideTest(unittest.TestCase):
         self.add_submodule()
         (self.workdir / ".archon").mkdir()
         (self.workdir / swepro.ARCHON_CONFIG).write_text("worktree: {}\n", encoding="utf-8")
-        self.sealed_plan(apply=self.seal(), sealed=self.seal())
+        self.sealed_plan(apply=self.seal(), sealed=self.seal(name=swepro.apply.SEALED_DIFF))
         done, result = self.inside()
         self.assertEqual(done.returncode, swepro.run.STOPPED, done.stderr)
         self.assertIn(swepro.ARCHON_CONFIG, result["error"])
@@ -465,7 +466,7 @@ class InsideTest(unittest.TestCase):
         self.assertEqual(self.calls(), [])
 
     def test_target_without_submodules_gets_no_archon_config(self):
-        self.sealed_plan(apply=self.seal(), sealed=self.seal())
+        self.sealed_plan(apply=self.seal(), sealed=self.seal(name=swepro.apply.SEALED_DIFF))
         done, _ = self.inside()
         self.assertEqual(done.returncode, 0, done.stderr)
         self.assertIsNone(self.calls()[0]["archon_config"])
@@ -490,7 +491,7 @@ class InsideTest(unittest.TestCase):
         gone = subprocess.run(["git", "-C", str(self.workdir), "diff", "--cached"], capture_output=True, text=True,
                               check=True, env=hermetic.child_env()).stdout
         git(self.workdir, "reset", "-q", "--hard")
-        self.sealed_plan(gone, apply=self.seal(gone), sealed=self.seal(gone))
+        self.sealed_plan(gone, apply=self.seal(gone), sealed=self.seal(gone, name=swepro.apply.SEALED_DIFF))
         done, result = self.inside()
         self.assertEqual(done.returncode, 0, done.stderr)
         self.assertEqual(result["apply"]["code"], 0, result["apply"])
@@ -499,7 +500,7 @@ class InsideTest(unittest.TestCase):
 
     def test_sealed_diff_that_does_not_apply_is_a_failed_producer(self):
         stale = DIFF.replace("-x = 1", "-x = 5")
-        self.sealed_plan(stale, apply=self.seal(stale), sealed=self.seal(stale))
+        self.sealed_plan(stale, apply=self.seal(stale), sealed=self.seal(stale, name=swepro.apply.SEALED_DIFF))
         done, result = self.inside()
         self.assertEqual(done.returncode, 0, done.stderr)
         self.assertEqual(result["apply"]["code"], swepro.apply.REFUSED)
@@ -559,7 +560,7 @@ class InsideTest(unittest.TestCase):
         self.assertIn("needs_human", predicted["stop_why"])
 
     def test_needs_human_with_seal_applies_with_allow_stopped(self):
-        self.sealed_plan(outcome="needs_human", sealed=self.seal())
+        self.sealed_plan(outcome="needs_human", sealed=self.seal(name=swepro.apply.SEALED_DIFF))
         done, result = self.inside()
         self.assertEqual(done.returncode, 0, done.stderr)
         self.assertIn("+x = 2", self.patch())

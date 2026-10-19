@@ -30,10 +30,14 @@ IN_LOOP_REFUSED = {
         "merge は出口の語 pr の時に PR を作る子の run（archon-pr）を workflow: の節で起こす。Archon は loop_group の本体に workflow: の"
         "節を置けない（fix と同じ）。線と周の鎖は merge を輪の外でだけ include するので、能力は落ちない（狭めでない）"),
     f"{scan.OURS_PREFIX}probe-judge": (
-        ["error: loop_group 'rounds' body: wait node 'block__spec-gate' must be the body's sole terminal sink"],
-        "judge の関所 spec-gate（wait: の attention）は本体の終わりでないので、Archon は輪の本体に置けない（止めた Archon の "
-        "packages/workflows/src/loader.ts の loop_group の本体の照らし）。線は judge を輪の外でだけ include する。輪の中で include "
+        ["error: loop_group 'rounds' body: wait node 'block__spec__spec-gate' must be the body's sole terminal sink"],
+        "judge の graph が include する spec の関所 spec-gate（wait: の attention）は本体の終わりでないので、Archon は輪の本体に"
+        "置けない（止めた Archon の packages/workflows/src/loader.ts の loop_group の本体の照らし）。線は judge を輪の外でだけ include する。輪の中で include "
         "できる形（関所を本体の終わりに置く）にするかは区分 J。区分の issue で外す"),
+    f"{scan.OURS_PREFIX}probe-spec": (
+        ["error: loop_group 'rounds' body: wait node 'block__spec-gate' must be the body's sole terminal sink"],
+        "spec の関所 spec-gate（wait: の attention）は本体の終わりでないので、Archon は輪の本体に置けない（judge と同じ。judge の "
+        "graph は spec を include する）。線は judge も spec も輪の外でだけ include するので、能力は落ちない（狭めでない）"),
 }
 
 

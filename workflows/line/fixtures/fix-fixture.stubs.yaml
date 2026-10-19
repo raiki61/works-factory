@@ -137,7 +137,7 @@ test-gate-final__run:
   junit_steps: []
   fingerprint_before: {head: hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh, diff_hash: dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd}
   fingerprint_after: {head: hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh, diff_hash: dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd}
-eyes__ins: {run: true, merge: false}
+eyes__ins: {run: true, merge: false, head: hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh}
 eyes__structure-after__measure: {eye: false, reason: ''}
 eyes__structure-after__finish:
   ok: true

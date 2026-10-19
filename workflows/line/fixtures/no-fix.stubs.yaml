@@ -74,6 +74,7 @@ judge__diagnose-in:
   tier: 標準
   verify: false
 judge__verdict:
+  questions: []
   ok: true
   stop_reason: ''
   reason: ''
@@ -143,7 +144,7 @@ test-gate-final__result:
   suite: ''
   suite_note: ''
   report: ['試験の関門（final）: 緑']
-eyes__ins: {run: true, merge: false}
+eyes__ins: {run: true, merge: false, head: hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh}
 eyes__structure-after__measure: {eye: false, reason: ''}
 eyes__structure-after__finish:
   ok: true

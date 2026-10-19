@@ -75,6 +75,7 @@ judge__diagnose-in:
   tier: 標準
   verify: false
 judge__verdict:
+  questions: []
   ok: true
   stop_reason: ''
   reason: ''
@@ -281,7 +282,7 @@ parallel-pr-after__finish:
   report: ['- 並行 PR: clean']
 test-gate-final__intake: {ok: true, reason: ''}
 test-gate-final__run: {}
-eyes__ins: {run: true, merge: false}
+eyes__ins: {run: true, merge: false, head: hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh}
 eyes__structure-after__measure: {eye: false, reason: ''}
 eyes__structure-after__finish:
   ok: true
