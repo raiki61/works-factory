@@ -77,9 +77,10 @@ def source() -> pathlib.Path:
 
 @contextlib.contextmanager
 def tree(names: Iterable[str], workflows: pathlib.Path = WORKFLOWS, shared: pathlib.Path = WORKFLOWS / SHARED,
-         files: dict[str, str] | None = None) -> Iterator[pathlib.Path]:
+         files: dict[str, str] | None = None, later: dict[str, str] | None = None) -> Iterator[pathlib.Path]:
     """workflows の names のフォルダと shared（既定はこのリポジトリの workflows/.shared/）を pack の形で置いて commit した使い捨ての git の木。
-    files（根からのパス → 中身）は対象のリポジトリの側のファイルとして一緒に commit する（exec-code の筋書きの作業ツリーに入る）"""
+    files（根からのパス → 中身）は対象のリポジトリの側のファイルとして一緒に commit する（exec-code の筋書きの作業ツリーに入る）。
+    later は 2 つ目の commit に置く（筋書きが base: HEAD~1 を渡すと、これが対象差分になる）"""
     with tempfile.TemporaryDirectory() as tmp:
         root = pathlib.Path(tmp) / "tree"
         placed = place.pack_folder(PACK, root)
@@ -93,6 +94,12 @@ def tree(names: Iterable[str], workflows: pathlib.Path = WORKFLOWS, shared: path
         git(root, "init", "-q")
         git(root, "add", "-A")
         git(root, "commit", "-q", "-m", "seed")
+        if later:
+            for rel, body in later.items():
+                (root / rel).parent.mkdir(parents=True, exist_ok=True)
+                (root / rel).write_text(body, encoding="utf-8")
+            git(root, "add", "-A")
+            git(root, "commit", "-q", "-m", "target")
         yield root
 
 
@@ -101,8 +108,9 @@ TARGET_FILES = {"README.md": "# Fixture target\n\nSee AGENTS.md.\n", "AGENTS.md"
 
 
 def blocks_tree(names: Iterable[str]) -> contextlib.AbstractContextManager[pathlib.Path]:
-    """blocks/ の names の block と blocks/.shared/ を pack の形で置き、TARGET_FILES を置いた使い捨ての git の木（tree と同じ形）"""
-    return tree(names, BLOCKS, BLOCKS / SHARED, TARGET_FILES)
+    """blocks/ の names の block と blocks/.shared/ を pack の形で置き、TARGET_FILES を 2 つ目の commit に置いた使い捨ての git の木
+    （tree と同じ形。条件つきの観点の筋書きは base: HEAD~1 で TARGET_FILES を対象差分にできる）"""
+    return tree(names, BLOCKS, BLOCKS / SHARED, later=TARGET_FILES)
 
 
 def archon(cwd: pathlib.Path, *args: str, aliases: bool = True, **env: str | None) -> subprocess.CompletedProcess:

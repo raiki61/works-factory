@@ -1,0 +1,9 @@
+# 判定から入る run（port entry に字が在る）: 外部標準照合の役は起こさず、出口が status: skipped を返す。役の node は走らないので、
+# 筋書きは役の返答を持たない。出口の素材が出どころつきの not_applicable になることは tests/blocks/external_standards の試験が確かめる
+fixture:
+  expect: completed
+  reached: [intake, finish]
+  inputs:
+    purpose: 'null'
+    entry: '人の依頼（standalone）'
+exec-code: true
