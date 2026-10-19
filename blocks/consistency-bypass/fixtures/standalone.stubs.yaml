@@ -1,0 +1,20 @@
+# 単独の run: port の値だけで最後まで届く（始めの記録を読まない）。script は本当に走り、役の返答だけを差し替える。
+# 指示が md から組まれたことを md の決まった文で照らす。出口の status が ran になることは tests/blocks/consistency_bypass の試験が
+# 確かめる（筋書きは値と node の返りの欄を照らさない）
+fixture:
+  expect: completed
+  reached: [intake, consistency-bypass-prep, consistency-bypass, consistency-bypass-accept, finish]
+  inputs:
+    base: ''
+    entry: ''
+    lang: ''
+  resolved-text-contains:
+    consistency-bypass: 'この役は整合性と標準機構の迂回を見る役（inspector）。'
+exec-code: true
+consistency-bypass:
+  consistency: {status: clean, checked: 呼び手を見た}
+  bypass: {status: clean, checked: 標準の口を見た}
+  findings: []
+  bypass_findings: []
+  seen: 差分の全部
+  unseen: 無し
