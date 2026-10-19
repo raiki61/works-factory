@@ -60,8 +60,6 @@ judge__world__intake: {"due": false, "findings": 1, "reason": "筋書き: block 
 judge__world__pick: {"due": false, "web": false, "reason": "筋書き: block の中は block の筋書きが見る"}
 lens__finish: {"ok": true, "status": "ok", "reason": "", "rows": null, "ran": 1, "failed": 0, "not_routed": 0, "carry": [], "report": [], "optional": []}
 lens__intake: {"due": false, "reason": "", "silent_failure_hunter_go": false}
-merge-apply__merge: {"mode": "apply", "ok": true, "hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "diff": null, "protected_hits": null, "protected_count": null, "reason": "", "deliver": {"act": "placed", "pr": null, "reason": ""}, "optional": [], "report": []}
-merge-apply__place: {"mode": "seal", "ok": false, "hash": "", "diff": null, "protected_hits": null, "protected_count": null, "reason": "", "base_rev": "", "deliver": ""}
 merge-seal__merge: {"mode": "seal", "ok": true, "hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "diff": null, "protected_hits": [], "protected_count": 0, "reason": "", "deliver": null, "optional": [], "report": []}
 merge-seal__place: {"mode": "seal", "ok": false, "hash": "", "diff": null, "protected_hits": null, "protected_count": null, "reason": "", "base_rev": "", "deliver": ""}
 owed: {"owed": true, "why": "", "recorded": [], "stop_reason": ""}
