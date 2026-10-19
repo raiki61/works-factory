@@ -1,0 +1,33 @@
+# 単独の run: 組の形・実行器なし。判定（1 単位を [block] で持つ。$ARTIFACTS_DIR を字のまま持つ）と組だけで最後まで届く（script は本当に
+# 走り、AI の役の返答だけを差し替える）。TDD のループは回らず、修正役が 1 回起き、受け付けが拒んでも筋書きは completed
+fixture:
+  expect: completed
+  reached: [intake, group-start, fix-prep, fixer, consult-check, consult-accept, fix-accept, group-end, fix-reads, finish]
+  inputs:
+    mode: group
+    group: '{"group_id":"g1","unit_ids":["stats.py:4 mean"],"items":[]}'
+    judgment: '{"units":[{"key":"stats.py:4 mean","label":"block","disposition":"do-now","reason":"空の並びで 0 除算する（$ARTIFACTS_DIR の字はそのまま）"}],"questions":[]}'
+  resolved-text-contains:
+    fixer: 'Do not say "done" without changing anything'
+exec-code: true
+fixer:
+  changes:
+    - unit_key: "stats.py:4 mean"
+      files: [stats.py]
+      what: 空の並びを先に返す
+      closure: {mechanism: 0 除算, fix_mechanism: 空を先に返す, verified_how: 走らせた, sites: [{site: mean, red_seen: true, path: stats.py}]}
+      root_or_symptom: {kind: root, why: 根を塞いだ}
+      bypass_tried: 空の並びを渡した
+      breaks: {how: grep mean, result: 呼び元は動く}
+      precedent: {verdict: does_not_apply, reason: 当たらない, problem: 0 除算の守り, source: Python の文書}
+  not_done: []
+  fix_closure: {status: clean, checked: 赤を見た}
+  mechanism_changed: false
+  premise_drift: false
+  gates_changed: false
+  seams_changed: false
+  security_surface_changed: false
+  path_changed: false
+  interactions: []
+  wrote_refs: []
+  plan_faces: []
