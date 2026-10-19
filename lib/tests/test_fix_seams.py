@@ -1,17 +1,13 @@
-"""fix の部品の継ぎ目の直し（盤面の物を置き場のパスと引数に替えた所）と lib/groups.py の試験。盤面は使わず、
-tests/bin/gitkit.py と tests/e2e/target-seed/ の写しで小さなリポジトリを作る。
+"""fix の部品の継ぎ目の直し（盤面の物を置き場のパスと引数に替えた所）のうち、KEEP の lib を試す物（integration.md 4.2-6）。
+盤面は使わず、tests/bin/gitkit.py と tests/e2e/target-seed/ の写しで小さなリポジトリを作る。groups・leftovers・writes の
+継ぎ目は test_groups・test_leftovers・test_writes に移した。
 
 縛る事:
-- groups.adopt_tree・end_tree・diff_since: 同じ clone の 2 つの worktree の間で親の姿の木を子に写し、子の変更の差分を取り、
-  unittrees.apply で 2 つの組の差分を順に当てる。2 つ目が当たらない時に 1 つ目が残り、2 つ目は当たらないと返る
-- leftovers.record_ignored・remove_new_ignored: 控えに無かった無視されるファイルだけを消し、前から在った無視されるフォルダの
-  中は残し、除くパスの頭の下は消さない。既定の () では除かない。控えは置き場のフォルダに置く
-- writes の除き（check・unrecorded の skip）も同じ。fixboard.base_rev は元の writes.base_rev と同じ順で版を選ぶ
 - lens の控えは置き場の lens.json。summary は差分の審査の出力をファイルのパスで受ける
-- refix・lenses・rulebook: refix.cut・accept_review・accept_fix は置き場のファイルと引数の値で回り、範囲の外の手直しを
-  planrange.check_paths の行で拒む。lenses.render は役の定義の本文から、rulebook.render は rolekit.compose で指示書を組む
-- ruling.prep・accept_rule: 置き場のファイルで回り、作業ツリーの控えは fixboard.snapshot、拒否の理由のファイル・言語の行・輪の回は
-  引数、配線の誤りは ValueError
+- conflict: 食い違いの申し出の読みと裁定の控え
+- planrange: 範囲の外の手直しを check_paths の行で拒む
+- recount: 数え直しは置き場のファイルと引数の値で回る
+- rulebook.render は rolekit.compose で指示書を組む
 """
 import json
 import pathlib
@@ -24,14 +20,9 @@ sys.dont_write_bytecode = True
 if str(LIB) not in sys.path:
     sys.path.append(str(LIB))
 
-from tests.bin.gitkit import committed_copy, git  # noqa: E402
-import fixboard  # noqa: E402
-import groups  # noqa: E402
-import leftovers  # noqa: E402
+from tests.bin.gitkit import committed_copy  # noqa: E402
 import lens  # noqa: E402
 import rolekit  # noqa: E402
-import unittrees  # noqa: E402
-import writes  # noqa: E402
 from tests.bin import hermetic  # noqa: E402
 
 SEED = LIB.parent / "tests" / "e2e" / "target-seed"
@@ -53,182 +44,6 @@ class TempCase(unittest.TestCase):
         self.rev = committed_copy(self.repo, SEED)
         self.place = self.tmp / "place"
         self.place.mkdir()
-
-
-class TestGroups(TempCase):
-    """親の作業ツリー（未 commit の直しを持つ）の姿を木で子の worktree に写し、子の差分を親へ順に当てる"""
-
-    def child(self, name: str) -> pathlib.Path:
-        path = self.tmp / name
-        git(self.repo, "worktree", "add", "--detach", "--quiet", str(path), "HEAD")
-        return path
-
-    def test_adopt_copies_parent_shape_and_diffs_apply_in_order(self):
-        stats = (self.repo / "stats.py").read_text(encoding="utf-8")
-        (self.repo / "stats.py").write_text(stats + "\n# 親の直し\n", encoding="utf-8")
-        (self.repo / "NOTES.md").write_text("親の新しいファイル\n", encoding="utf-8")
-        tree = groups.end_tree(self.repo)
-        self.assertEqual(tree, leftovers.snapshot(self.repo))
-
-        c1, c2 = self.child("c1"), self.child("c2")
-        (c1 / "NOTES.md").write_text("子に前から在った追跡外のファイル\n", encoding="utf-8")   # 木にも在る名
-        for c in (c1, c2):
-            groups.adopt_tree(c, tree)
-            self.assertEqual((c / "stats.py").read_text(encoding="utf-8"), stats + "\n# 親の直し\n", "親の未 commit の直しが見える")
-            self.assertEqual((c / "NOTES.md").read_text(encoding="utf-8"), "親の新しいファイル\n", "木の姿に替わる")
-            self.assertEqual(groups.end_tree(c), tree, "写した後の子の姿は親の木と同じ")
-            self.assertEqual(groups.diff_since(c, tree, groups.end_tree(c)), "", "変えていなければ差分は空")
-
-        (c1 / "NOTES.md").write_text("組 1 の直し\n", encoding="utf-8")
-        (c1 / "ONE.md").write_text("組 1 の新しいファイル\n", encoding="utf-8")
-        (c2 / "NOTES.md").write_text("組 2 の直し\n", encoding="utf-8")   # 組 1 と同じ行
-        d1 = groups.diff_since(c1, tree, groups.end_tree(c1))
-        d2 = groups.diff_since(c2, tree, groups.end_tree(c2))
-        self.assertIn("diff --git a/NOTES.md b/NOTES.md", d1)
-        self.assertIn("diff --git a/ONE.md b/ONE.md", d1)
-
-        self.assertEqual(unittrees.apply(self.repo, d1), (True, ""))
-        ok, why = unittrees.apply(self.repo, d2)
-        self.assertFalse(ok)
-        self.assertTrue(why)
-        self.assertEqual((self.repo / "NOTES.md").read_text(encoding="utf-8"), "組 1 の直し\n", "1 つ目が残る")
-        self.assertEqual((self.repo / "ONE.md").read_text(encoding="utf-8"), "組 1 の新しいファイル\n")
-        self.assertEqual((self.repo / "stats.py").read_text(encoding="utf-8"), stats + "\n# 親の直し\n")
-
-
-class TestLeftovers(TempCase):
-    """控えは置き場のフォルダに置く。消すのは控えに無かった無視されるファイルだけ"""
-
-    def setUp(self):
-        super().setUp()
-        (self.repo / ".gitignore").write_text("*.log\n.venv/\nvendored/\n", encoding="utf-8")
-        git(self.repo, "add", ".gitignore")
-        git(self.repo, "commit", "-q", "-m", "ignore")
-        (self.repo / ".venv").mkdir()
-        (self.repo / ".venv" / "old.txt").write_text("前から\n", encoding="utf-8")
-        (self.repo / "old.log").write_text("前から\n", encoding="utf-8")
-
-    def make_new(self):
-        (self.repo / "new.log").write_text("修正役が残した\n", encoding="utf-8")
-        (self.repo / ".venv" / "new.txt").write_text("前から在ったフォルダの中\n", encoding="utf-8")
-        (self.repo / "vendored").mkdir(exist_ok=True)
-        (self.repo / "vendored" / "copy.log").write_text("除く頭の下\n", encoding="utf-8")
-
-    def test_record_writes_before_into_the_place(self):
-        got = leftovers.record_ignored(self.place, self.repo)
-        self.assertEqual(got["file"], str(self.place / leftovers.IGNORED_BEFORE_FILE))
-        before = json.loads((self.place / leftovers.IGNORED_BEFORE_FILE).read_text(encoding="utf-8"))
-        self.assertEqual(set(before), {"ignored", "ignored_dirs", "dirs", "head_tree"})
-        self.assertEqual(before["ignored_dirs"], [".venv/"])
-        self.assertIn("old.log", before["ignored"])
-        self.assertEqual(leftovers.head_tree(self.place), leftovers.snapshot(self.repo))
-
-    def test_removes_only_new_ignored_and_keeps_skip_prefix(self):
-        leftovers.record_ignored(self.place, self.repo)
-        self.make_new()
-        got = leftovers.remove_new_ignored(self.place, self.repo, skip=SKIP)
-        self.assertEqual(got["count"], 1)
-        self.assertEqual(json.loads((self.place / leftovers.REMOVED_FILE).read_text(encoding="utf-8")), {"removed": ["new.log"]})
-        self.assertFalse((self.repo / "new.log").exists())
-        self.assertTrue((self.repo / "old.log").is_file(), "前から在った無視されるファイルは残す")
-        self.assertTrue((self.repo / ".venv" / "new.txt").is_file(), "前から在った無視されるフォルダの中は残す")
-        self.assertTrue((self.repo / "vendored" / "copy.log").is_file(), "除くパスの頭の下は消さない")
-
-    def test_default_skips_nothing(self):
-        leftovers.record_ignored(self.place, self.repo)
-        self.make_new()
-        got = leftovers.remove_new_ignored(self.place, self.repo)
-        self.assertEqual(got["count"], 2)
-        self.assertFalse((self.repo / "vendored").exists(), "既定の () では除かない（空になった親も消す）")
-        self.assertTrue((self.repo / ".venv" / "new.txt").is_file())
-
-    def test_no_before_is_unreadable(self):
-        with self.assertRaises(leftovers.Unreadable):
-            leftovers.remove_new_ignored(self.place, self.repo, skip=SKIP)
-
-    def test_keeps_files_inside_old_ignored_dirs_and_empty_dirs(self):
-        """F418: 前から在った無視されるフォルダ（svc/.venv）に足したファイルは 1 本も消さず、新しく出来た無視されるフォルダは丸ごと
-        消す。前から在った空のフォルダ（build/empty・追跡するフォルダの下の src/cache）に置かれた無視されるファイルは消すがフォルダは
-        残し、後から出来たフォルダは消す。フォルダの控えの無い古い形の控えは拒んで何も消さない（元 works/tests/test_blk_fix.py:1641
-        test_keeps_new_files_inside_ignored_dir_that_was_there_before・:1661 test_keeps_empty_dir_that_was_there_before・:1682
-        test_refuses_old_record_without_dirs の写し）"""
-        (self.repo / ".gitignore").write_text("*.log\n.venv/\nvendored/\n__pycache__/\n*.pyc\n**/.venv\n", encoding="utf-8")
-        (self.repo / "src").mkdir()
-        (self.repo / "src" / "keep.txt").write_text("k\n", encoding="utf-8")
-        git(self.repo, "add", ".gitignore", "src/keep.txt")
-        git(self.repo, "commit", "-q", "-m", "ignore")
-        venv = self.repo / "svc" / ".venv"
-        (venv / "lib").mkdir(parents=True)
-        (venv / "lib" / "old.py").write_text("o\n", encoding="utf-8")
-        (self.repo / "build" / "empty").mkdir(parents=True)
-        (self.repo / "src" / "cache").mkdir()
-        leftovers.record_ignored(self.place, self.repo)
-        added = [venv / "lib" / "pkg" / f"m{i}.py" for i in range(5)]
-        added[0].parent.mkdir()
-        for p in added:
-            p.write_text("m\n", encoding="utf-8")
-        (self.repo / "svc2" / ".venv" / "lib").mkdir(parents=True)
-        (self.repo / "svc2" / ".venv" / "lib" / "n.py").write_text("n\n", encoding="utf-8")
-        (self.repo / "build" / "empty" / "x.pyc").write_bytes(b"x")
-        (self.repo / "src" / "cache" / "y.pyc").write_bytes(b"y")
-        (self.repo / "src" / "new" / "__pycache__").mkdir(parents=True)
-        (self.repo / "src" / "new" / "__pycache__" / "z.pyc").write_bytes(b"z")
-        got = leftovers.remove_new_ignored(self.place, self.repo, skip=SKIP)
-        removed = json.loads((self.place / leftovers.REMOVED_FILE).read_text(encoding="utf-8"))["removed"]
-        self.assertEqual(got["count"], len(removed))
-        self.assertEqual([p for p in added if not p.exists()], [], "前から在った .venv に足したファイルは残す")
-        self.assertTrue((venv / "lib" / "old.py").exists())
-        self.assertFalse((self.repo / "svc2").exists(), "修正役の後に出来た無視のフォルダは消す")
-        self.assertTrue((self.repo / "build" / "empty").is_dir(), "前から在った空のフォルダは残す")
-        self.assertFalse((self.repo / "build" / "empty" / "x.pyc").exists())
-        self.assertTrue((self.repo / "src" / "cache").is_dir(), "前から在った空のフォルダは残す")
-        self.assertFalse((self.repo / "src" / "cache" / "y.pyc").exists())
-        self.assertFalse((self.repo / "src" / "new").exists(), "修正役の後に出来たフォルダは消す")
-        self.assertTrue((self.repo / "src" / "keep.txt").exists())
-        with self.subTest("フォルダの控えの無い古い形の控え"):
-            (self.place / leftovers.IGNORED_BEFORE_FILE).write_text(json.dumps({"ignored": []}), encoding="utf-8")
-            (self.repo / "__pycache__").mkdir()
-            (self.repo / "__pycache__" / "x.pyc").write_bytes(b"x")
-            with self.assertRaisesRegex(leftovers.Unreadable, "dirs"):
-                leftovers.remove_new_ignored(self.place, self.repo, skip=SKIP)
-            self.assertTrue((self.repo / "__pycache__" / "x.pyc").exists())
-
-
-class TestWritesSeams(TempCase):
-    def setUp(self):
-        super().setUp()
-        self.log = self.tmp / "writes.jsonl"
-        self.log.write_text("", encoding="utf-8")
-        d = self.repo / "vendored" / "workflows"
-        d.mkdir(parents=True)
-        (d / "copy.yaml").write_text("x: 1\n", encoding="utf-8")
-
-    def test_skip_prefix_is_not_counted(self):
-        paths = writes.changed(self.repo, self.rev)
-        self.assertEqual(paths, ["vendored/workflows/copy.yaml"])
-        self.assertEqual(writes.check({}, self.repo, paths, self.log, skip=SKIP)["problems"], [])
-        self.assertEqual(writes.unrecorded(self.repo, paths, self.log, skip=SKIP), [])
-
-    def test_default_counts_everything(self):
-        paths = writes.changed(self.repo, self.rev)
-        got = writes.check({}, self.repo, paths, self.log)
-        self.assertEqual(got["left"], ["vendored/workflows/copy.yaml"])
-        self.assertIn("vendored/workflows/copy.yaml", got["problems"][0])
-
-    def test_trace_rows_go_to_the_place(self):
-        writes.trace(self.place, "fix", {"note": writes.NO_RECORD, "left": ["a.py"]})
-        writes.trace(self.place, "refix", {"note": "", "left": []})
-        self.assertEqual(_traced(self.place), [{"op": writes.NO_RECORD_OP, "node": "fix", "note": writes.NO_RECORD},
-                                               {"op": writes.LEFT_OP, "node": "fix", "paths": ["a.py"]}])
-
-
-class TestBaseTestTexts(TempCase):
-    """fixboard.base_rev は元の writes.base_rev と同じ順で修正前の版を選ぶ"""
-
-    def test_base_rev_order(self):
-        self.assertEqual(fixboard.base_rev({"inputs": {"review_rev": "abc"}}, "def"), "abc")
-        self.assertEqual(fixboard.base_rev({"inputs": {}}, "def"), "def")
-        self.assertEqual(fixboard.base_rev(None), "HEAD")
 
 
 class TestLensPlace(unittest.TestCase):
@@ -293,65 +108,9 @@ class ConflictSeamCase(unittest.TestCase):
         self.assertEqual([r["op"] for r in _trace_rows(self.place)], [c.PARK_OP])
         self.assertEqual(c.park(self.place, [{**CLAIM, "unit_key": KEY_B}], source=c.TDD_SOURCE, round_=2), ["c2-2"])
 
-    def test_ruling_leaves_duty_and_fix_plan_item_gets_replan(self):
-        c = self.conflict
-        c.park(self.place, [CLAIM, {**CLAIM, "unit_key": KEY_B}], source=c.FIX_SOURCE)
-        self.assertEqual(self.fixboard.fix_duty(self.place, {KEY_A, KEY_B}), ({KEY_A, KEY_B}, {}))
-        path = c.apply_rulings(self.place, {"c1-1": {"decision": c.REPLAN, "text": "案の項目 1 の受け入れのテストが誤り",
-                                                     "limits": [], "plan_items": [1], "plan_units": [KEY_A]},
-                                            "c1-2": {"decision": "fix_code_as", "text": "コードを hi を返す形に直せ",
-                                                     "limits": ["stats.py"]}}, by="t")
-        self.assertEqual(path, self.place / c.RULINGS_FILE)
-        self.assertTrue(path.is_file())
-        rows = {r["id"]: r for r in c.items(self.place)}
-        self.assertEqual(rows["c1-1"][c.REPLAN_STATE], c.WAITING)
-        self.assertEqual(rows["c1-1"]["ruling"]["decision"], c.REPLAN)
-        self.assertNotIn(c.REPLAN_STATE, rows["c1-2"])
-        self.assertEqual([r["id"] for r in c.waiting(self.place)], ["c1-1"])
-        self.assertEqual([r["id"] for r in c.ruled_fix(self.place)], ["c1-2"])
-        self.assertEqual(c.asked(self.place), [])
-        owed, excused = self.fixboard.fix_duty(self.place, {KEY_A, KEY_B})
-        self.assertEqual(owed, {KEY_B})
-        self.assertIn("fix_plan_item の裁定 c1-1", excused[KEY_A])
-        self.assertEqual(self.fixboard.nothing_owed_but_excused(self.place, {KEY_A}), {KEY_A: excused[KEY_A]})
-        self.assertEqual(self.fixboard.nothing_owed_but_excused(self.place, {KEY_A, KEY_B}), {})
-        self.assertEqual([r["op"] for r in _trace_rows(self.place)], [c.PARK_OP, c.PARK_OP, c.RULE_OP, c.RULE_OP])
 
-    def test_replan_readers_take_the_items_from_the_stored_ruling(self):
-        """apply_rulings が積んだ fix_plan_item の行から、fixboard.replan_items と conflict.replan_rows が同じ案の項目を読む
-        （項目の番号は裁定の欄の中。組の項目に落ちない）"""
-        c = self.conflict
-        c.park(self.place, [CLAIM], source=c.FIX_SOURCE)
-        c.apply_rulings(self.place, {"c1-1": {"decision": c.REPLAN, "text": "案の項目 1 の受け入れのテストが誤り",
-                                              "limits": [], "plan_items": [1], "plan_units": [KEY_A, KEY_B]}}, by="t")
-        rows = c.items(self.place)
-        self.assertEqual(self.fixboard.replan_items(rows, [{"unit_ids": [KEY_A, KEY_B], "items": [1, 2]}]), ["1"])
-        self.assertEqual(self.fixboard.replan_items(rows), ["1"])
-        self.assertEqual([r["id"] for r in c.replan_rows(rows, 1, [])], ["c1-1"])
-        self.assertEqual(c.replan_rows(rows, 2, [KEY_B]), [])
 
-    def test_ask_human_is_asked_and_amended_returns_to_duty(self):
-        c = self.conflict
-        c.park(self.place, [CLAIM, {**CLAIM, "unit_key": KEY_B}], source=c.FIX_SOURCE)
-        c.apply_rulings(self.place, {"c1-1": {"decision": c.ASK, "text": "方針の変更で人が決める", "limits": []},
-                                     "c1-2": {"decision": c.REPLAN, "text": "案の項目 2 の範囲が誤り", "limits": []}},
-                        by="t")
-        self.assertEqual([r["id"] for r in c.asked(self.place)], ["c1-1"])
-        c.set_replan(self.place, ["c1-2"], c.AMENDED)
-        self.assertEqual(c.amended_keys(self.place), {KEY_B})
-        self.assertEqual(self.fixboard.fix_duty(self.place, {KEY_A, KEY_B})[0], {KEY_B})
-        self.assertEqual(_trace_rows(self.place)[-1], {"op": c.REPLAN_OP, "id": "c1-2", "unit_key": KEY_B,
-                                                       "state": c.AMENDED, "why": ""})
-        with self.assertRaises(ValueError):
-            c.set_replan(self.place, ["c1-1"], c.AMENDED)
 
-    def test_withheld_and_returned_are_arguments(self):
-        owed, excused = self.fixboard.fix_duty(self.place, {KEY_A, KEY_B},
-                                               withheld_by={KEY_B: {"key": "q1", "kind": "fork", "status": "held"}})
-        self.assertEqual(owed, {KEY_A})
-        self.assertIn("答え待ちの問い q1", excused[KEY_B])
-        owed, _ = self.fixboard.fix_duty(self.place, {KEY_A}, withheld_by={}, returned={KEY_B})
-        self.assertEqual(owed, {KEY_A, KEY_B})
 
     def test_broken_store_is_value_error(self):
         c = self.conflict
@@ -682,15 +441,6 @@ class RecountSeamCase(TempCase):
         self.assertIn("precedent に problem と source", self.accept(unsearched)["reason"])
         unsearched["changes"][0]["precedent"]["searched"] = "標準ライブラリの文書と課題の一覧を引いた"
         self.assertTrue(self.accept(unsearched)["ok"], "not_found は searched が在れば通す")
-
-    def test_fix_reply_reads_the_reply_file(self):
-        import fixboard
-        f = self.place / "fix-reply.json"
-        f.write_text(json.dumps(_fix_ok(), ensure_ascii=False), encoding="utf-8")
-        got, path = fixboard.fix_reply(f)
-        self.assertEqual((len(got["changes"]), path), (2, f.resolve()))
-        with self.assertRaises(self.recount.Unreadable):
-            fixboard.fix_reply(None)
 
 
 class RulebookSeamCase(unittest.TestCase):

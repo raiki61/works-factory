@@ -273,14 +273,6 @@ class VerdictCase(_Tmp):
         self.assertEqual(eyekit.headline("R1", {"status": "pass", "reason": "最小\n で ある"}), "R1: pass（最小 で ある）")
         self.assertEqual(eyekit.headline("R1", {"status": "pass", "reason": ""}), "R1: pass（理由なし）")
 
-    def test_constants_are_the_eyeverdict_words(self):
-        """写した定数は今の eyeverdict の字のまま（組み込みで eyeverdict を消すまで、2 か所が同じ字を言う）"""
-        import eyeverdict
-        for name in ("FELL_MARK", "NO_FILE", "UNNAMED_REDESIGN", "RAISED_BY_POINTS", "BROKEN_POINTS", "NO_AFTER", "REVIEW_ACCEPTED",
-                     "REVIEW_BLOCKED", "REVIEW_GAVE_UP", "REVIEW_HELD", "REVIEW_NO_PLAN", "REVIEW_UNREAD", "LANE"):
-            with self.subTest(name):
-                self.assertEqual(getattr(eyekit, name), getattr(eyeverdict, name))
-
 
 if __name__ == "__main__":
     unittest.main()

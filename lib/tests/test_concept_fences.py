@@ -262,7 +262,7 @@ class FenceCase(unittest.TestCase):
                 n = cf().count_lines(line, fence, "lib/x.py")
                 self.assertEqual(n, 1)
                 self.assertNotEqual(cf().verdict(found | {"lib/x.py": n}, fence["known"]), [])
-                more = found | {"lib/runreport.py": found["lib/runreport.py"] + n}
+                more = found | {"workflows/report/src/machine.py": found["workflows/report/src/machine.py"] + n}   # 既知の漏れの在るファイルに 1 行足す
                 self.assertNotEqual(cf().verdict(more, fence["known"]), [])
         for line in ('return {"prior_failures": None}', 'VALUES = ("prior_failures", "redepth")'):
             self.assertEqual(cf().count_lines(line, fence, "lib/x.py"), 0, line)

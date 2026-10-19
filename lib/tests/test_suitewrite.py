@@ -21,7 +21,7 @@ LIB = pathlib.Path(__file__).resolve().parents[1]
 if str(LIB) not in sys.path:
     sys.path.append(str(LIB))
 
-import startrec  # noqa: E402
+import jsonfile  # noqa: E402
 import suitewrite  # noqa: E402
 
 CMD = "make check"
@@ -39,10 +39,10 @@ class SuiteWriteCase(unittest.TestCase):
         self.folder = self.tmp / "art" / "suite"
         self.keep = self.tmp / "home" / "suites"
         self.file = self.tmp / "art" / "record.json"
-        startrec.save(self.file, {"run_id": "r", "test_cmd": f"  {CMD}\n", "tdd_suite": ""})
+        jsonfile.write(self.file, {"run_id": "r", "test_cmd": f"  {CMD}\n", "tdd_suite": ""}, indent=2, parents=True)
 
     def record(self) -> dict:
-        return startrec.load(self.file)
+        return jsonfile.read_dict(self.file)
 
     def mark(self) -> dict:
         return self.record()[suitewrite.KEY]
@@ -70,7 +70,7 @@ class SuiteWriteCase(unittest.TestCase):
 
     def test_prepare_without_a_kept_runner_writes_the_brief_and_a_pessimistic_mark(self):
         cmd = "make check ARGS='`x` ```y```'"
-        startrec.save(self.file, {**self.record(), "test_cmd": cmd})
+        jsonfile.write(self.file, {**self.record(), "test_cmd": cmd}, indent=2, parents=True)
         got = self.prepare()
         self.assertTrue(got["write"])
         brief = pathlib.Path(got["brief_file"]).read_text(encoding="utf-8")
@@ -96,11 +96,11 @@ class SuiteWriteCase(unittest.TestCase):
         self.put_kept()
         for test_cmd, keep in (("", self.keep), (CMD, None)):
             with self.subTest(test_cmd=test_cmd, keep=keep):
-                startrec.save(self.file, {"run_id": "r", "test_cmd": test_cmd, "tdd_suite": ""})
+                jsonfile.write(self.file, {"run_id": "r", "test_cmd": test_cmd, "tdd_suite": ""}, indent=2, parents=True)
                 self.assertTrue(suitewrite.prepare(self.file, self.folder, keep, self.root)["write"])
 
     def test_prepare_does_nothing_with_a_named_suite(self):
-        startrec.save(self.file, {"run_id": "r", "test_cmd": CMD, "tdd_suite": "run-tests.sh"})
+        jsonfile.write(self.file, {"run_id": "r", "test_cmd": CMD, "tdd_suite": "run-tests.sh"}, indent=2, parents=True)
         self.assertEqual(self.prepare(), {"write": False, "brief_file": ""})
         self.assertNotIn(suitewrite.KEY, self.record())
         self.assertFalse(self.folder.exists())
@@ -119,7 +119,7 @@ class SuiteWriteCase(unittest.TestCase):
                            ({"made": False, "body": "", "why": ""}, suitewrite.NO_WHY),
                            (None, suitewrite.NO_REPLY)):
             with self.subTest(why=why):
-                startrec.save(self.file, {"run_id": "r", "test_cmd": CMD, "tdd_suite": ""})
+                jsonfile.write(self.file, {"run_id": "r", "test_cmd": CMD, "tdd_suite": ""}, indent=2, parents=True)
                 self.prepare()
                 self.assertEqual(suitewrite.place(self.file, self.folder, reply), {"made": False, "why": why})
                 self.assertEqual((self.mark()["ok"], self.mark()["why"], self.mark()["path"]), (False, why, ""))
@@ -139,7 +139,7 @@ class SuiteWriteCase(unittest.TestCase):
         for ran, why in ((None, suitewrite.NOT_RUN), ({"exit": 2, "problems": [problem], "count": None}, problem),
                          ({"exit": 0, "problems": [], "count": 0}, suitewrite.NO_CASES)):
             with self.subTest(why=why):
-                startrec.save(self.file, {"run_id": "r", "test_cmd": CMD, "tdd_suite": ""})
+                jsonfile.write(self.file, {"run_id": "r", "test_cmd": CMD, "tdd_suite": ""}, indent=2, parents=True)
                 self.written()
                 self.assertEqual(suitewrite.settle(self.file, ran, self.keep), {"done": True, "ok": False, "why": why})
                 self.assertEqual((self.record()["tdd_suite"], self.mark()["ok"], self.mark()["why"]), ("", False, why))

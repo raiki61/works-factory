@@ -18,6 +18,7 @@ if str(LIB) not in sys.path:
 import answer  # noqa: E402
 import gatemarks  # noqa: E402
 import seal  # noqa: E402
+from tests.archon import WORKFLOWS  # noqa: E402
 
 FORK = {"key": "q-a", "kind": "fork", "status": "held", "origin": "A", "depends": ["B"], "options": ["x", "y"], "reason": "割れる"}
 PUSHED_FORK = {**FORK, "reason": "割れる。推し: x——呼び手が既に x を前提にしている"}
@@ -190,7 +191,8 @@ class EyeWordsCase(unittest.TestCase):
 
 class SpecWordsCase(unittest.TestCase):
     """承認し直すかの問いを「変わった」か「照らせなかった」かで言う選びは spec_words の 1 か所だけ（#564）"""
-    CHOOSERS = (LIB.parent / "workflows" / "line" / "scripts" / "ask_final.py", LIB / "runreport.py")
+    # 最後の承認ノードの文（元 ask_final.py）と報告の事実（元 runreport.py）は、組み込みで line の src/final.py・facts.py へ移った
+    CHOOSERS = (WORKFLOWS / "line" / "src" / "final.py", WORKFLOWS / "line" / "src" / "facts.py")
     WORDS = ("SPEC_UNCHECKED", "SPEC_UNCHECKED_HEAD", "SPEC_UNCHECKED_NOTE", "SPEC_CHANGED_HEAD", "SPEC_CHANGED_LABEL",
              "SPEC_CHANGED_KIND", "SPEC_CHANGED_NOTE")
 
