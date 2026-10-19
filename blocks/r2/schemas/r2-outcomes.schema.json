@@ -1,0 +1,19 @@
+{
+  "description": "テストごとの base と最後の結末。null は渡されていない",
+  "type": ["object", "null"],
+  "properties": {
+    "rows": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "key": {"type": "string"},
+          "base": {"type": "string"},
+          "final": {"type": "string"},
+          "fail_message": {"type": "string"}
+        }
+      }
+    },
+    "unmeasured": {"type": "string"}
+  }
+}
