@@ -105,7 +105,7 @@ def policy_row(record: dict, folder: Path, answered: list) -> str:
 
 
 def ask(replan_got, review_got, old_plan: str, ids: list, conflicts: str, before_fix, *, unattended: bool, run_id: str,
-        policy: str = "") -> dict:
+        policy: str = "", missing=()) -> dict:
     import answer
     import gatemarks
     import replan
@@ -114,7 +114,9 @@ def ask(replan_got, review_got, old_plan: str, ids: list, conflicts: str, before
     closed = {"open": False, "go": False, "stop_reason": "", "text": "", "widened": [], "asked": [], "pushed": None}
     if replan_got is None or replan_got["ok"] is not True:
         return closed
-    old_fields, new_fields = plan_items(old_plan), plan_items(gates.path_of(replan_got["plan"]))
+    missing = list(missing)   # 指す先が無い・読めない控え（聞く行にする。形の違う pointer は落ちる）
+    old_fields = plan_items(old_plan)
+    new_fields = plan_items(gates.located(replan_got["plan"], "案の直しの修正案の欄", missing))
     ruled, unread = ruled_rows(conflicts)
     rows, widened, sections = [], [], []
     if review_got is None or review_got["status"] != "ok":
@@ -140,6 +142,7 @@ def ask(replan_got, review_got, old_plan: str, ids: list, conflicts: str, before
     for r in facts:
         if unattended and isinstance(r, dict) and r.get("widened") and not r.get("human"):
             widened.append(f"項目 {r.get('item')}: {replan.widen_text(r['widened'])}")
+    rows += [f"{row}{gates.UNREAD_TAIL}" for row in dict.fromkeys(missing)]
     if policy:
         rows.append(policy)
     if not rows:
@@ -172,9 +175,12 @@ def compute() -> dict:
     previous = gates.read_json(ports.place() / PREVIOUS)
     answered = [a for a in (before_fix, previous) if isinstance(a, dict)]
     row = policy_row(startrec.load(record_path) if record_path else {}, ports.place(), answered)
-    return ask(ports.picked(raw["replan"], REPLAN), ports.picked(raw["review"], REVIEW), gates.path_of(raw["old_plan"]),
-               [str(x) for x in ids] if isinstance(ids, list) else [], gates.path_of(raw["conflicts"]), before_fix,
-               unattended=bool(given.get("unattended")), run_id=os.environ["WORKFLOW_ID"], policy=row)
+    missing: list = []
+    old_plan = gates.located(raw["old_plan"], "承認済みの修正案の欄", missing)
+    conflicts = gates.located(raw["conflicts"], "修正の申し出と裁定の控え", missing)
+    return ask(ports.picked(raw["replan"], REPLAN), ports.picked(raw["review"], REVIEW), old_plan,
+               [str(x) for x in ids] if isinstance(ids, list) else [], conflicts, before_fix,
+               unattended=bool(given.get("unattended")), run_id=os.environ["WORKFLOW_ID"], policy=row, missing=missing)
 
 
 def fallback(reason: str) -> dict:

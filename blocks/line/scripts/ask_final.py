@@ -54,13 +54,14 @@ def compute() -> dict:
         record = startrec.load(record_path) if record_path else {}
     except (OSError, ValueError) as error:
         record, unread = {}, [f"始めの記録を読めない（保留の問いと起点の版を読んでいない。{type(error).__name__}: {error}）"]
-    doc = gates.read_json(gates.path_of(fix_in["record"]))
+    missing: list = []   # 指す先が無い・読めない控え（開ける理由にする。形の違う pointer は落ちる）
+    doc = gates.read_located(fix_in["record"], "往復の記録", missing)
     rounds_lines = rounds.lines(doc, str(ports.place() / files.PLAN_CONVERGE_DIR)) if isinstance(doc, dict) else []
     widened = ports.parsed(raw["widened"])
     got = final.gather(fix_in=dict(fix_in), fixed=dict(fixed), judged=ports.picked(raw["judged"], JUDGED), tests=tests, eyes=eyes,
                        seal_got=seal, spec_check=ports.picked(raw["spec_check"], SPEC), parallel_after=parallel_after,
                        replan_answer=ports.parsed(raw["replan_answer"]), widened=widened if isinstance(widened, list) else [],
-                       record=record, given=given, rounds_lines=rounds_lines, unread=unread)
+                       record=record, given=given, rounds_lines=rounds_lines, unread=unread, missing=missing)
     out = final.ask(got, mode=ports.text(raw["final_gate"]), unattended=bool(given.get("unattended")), run_id=os.environ["WORKFLOW_ID"])
     return {**final.keep(out, ports.place()), **final.merge_values(tests, eyes, seal)}
 

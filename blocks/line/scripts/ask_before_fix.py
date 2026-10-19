@@ -46,20 +46,23 @@ def compute() -> dict:
     record_path = ports.file(raw["record"])
     record = startrec.load(record_path) if record_path else {}
     place = ports.place()
-    rec_doc = gates.read_json(gates.path_of((rounds or {}).get("record"))) if rounds else None
+    unread: list = []   # 指す先が無い・読めない控え（開ける理由にする。形の違う pointer は落ちる）
+    rec_doc = gates.read_located((rounds or {}).get("record"), "往復の記録", unread) if rounds else None
     stuck = rounds_mod.stuck_reason(rec_doc, str(place / files.PLAN_CONVERGE_DIR)) if rounds and rounds.get("stalled") and isinstance(rec_doc, dict) else ""
     ledger = None
     if judge is not None and judge["judgment"] is not None:
-        doc = gates.read_json(gates.path_of(judge["judgment"])) or {}
-        ledger = gatemarks.ledger_files(doc, ties_file=gates.path_of(judge["answer_ties"]) or None,
-                                        materials_file=gates.path_of(judge["materials"]) or None, answers=gates.request_answers(record),
-                                        gate=None, takes_push=unattended)
+        doc = gates.read_located(judge["judgment"], "判定", unread)
+        ties = gates.located(judge["answer_ties"], "答えの結び", unread)
+        materials = gates.located(judge["materials"], "素材の状態", unread)
+        if isinstance(doc, dict):
+            ledger = gatemarks.ledger_files(doc, ties_file=ties or None, materials_file=materials or None,
+                                            answers=gates.request_answers(record), gate=None, takes_push=unattended)
     change = gates.policy_change(record, Path.cwd(), place)
     previous = gates.read_json(place / PREVIOUS)
     got = gates.before_fix(dict(rounds) if rounds is not None else None, unattended_run=unattended, design=design, ledger=ledger,
-                           design_rows_=gates.design_rows(gates.path_of(raw["structure"])),
+                           design_rows_=gates.design_rows(gates.located(raw["structure"], "構造の目の控え", unread)),
                            policy_row=gates.change_row(change) if change else "", stuck_reason=stuck, record_doc=rec_doc,
-                           answered=[previous] if isinstance(previous, dict) else [])
+                           answered=[previous] if isinstance(previous, dict) else [], unread=unread)
     text = ""
     if got["open"]:
         asking = {"node": gatemarks.GATE_NODE, "question": QUESTION, "items": [t for _, t in got["items"]],
