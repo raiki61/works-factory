@@ -1,0 +1,8 @@
+{
+  "description": "修正の印（修正の出力の changed。真偽の欄と前提のずれの申告の文 premise_drift_note。ほかの真偽の欄も許す）。空のオブジェクトは渡されていない",
+  "type": "object",
+  "properties": {
+    "premise_drift": {"type": "boolean"},
+    "premise_drift_note": {"type": "string"}
+  }
+}
