@@ -174,7 +174,7 @@ def input_doc(materials: dict, by_role: dict, batches: list, constraints: list, 
 
 
 def _judge_prep(place: pathlib.Path, repo, raw: dict) -> tuple:
-    request = _port("request", lambda: requestrows.parts(raw.get("request")), files.REQUEST_STOP)
+    request = _port("request", lambda: _request_parts(raw.get("request")), files.REQUEST_STOP)
     rows = request[carry.FINDINGS]
     request_origin = ports.text(raw.get("request_origin")).strip()
     base = ports.text(raw.get("base")).strip()
@@ -228,6 +228,23 @@ def _judge_prep(place: pathlib.Path, repo, raw: dict) -> tuple:
 def base_determination(view) -> dict:
     """素材の doc のどれも根を持たない時の base_determination（写す元 judge_accept の素材の束ね）: 差分の見方の根と commit の数"""
     return {"status": "found", "count": int(view.commits or 0), "detail": f"{view.base}（始めの記録の差分の根。空なら HEAD）"}
+
+
+def _request_parts(raw) -> dict:
+    """依頼の容器を読む。行の無い run は空の配列 `[]` だけで言う。ファイル・pointer・容器の形で依頼を渡したのに行が空なら拒む
+    （写す元 judge_accept.intake: 依頼を宣言した run は行が空でも型に通し、findings の minItems 1 で拒んでいた）"""
+    got = requestrows.parts(raw)
+    if not got[carry.FINDINGS] and _declared(raw):
+        raise ValueError("依頼を渡したのに行が空（依頼の行の無い run は空の配列 [] を渡す）")
+    return got
+
+
+def _declared(raw) -> bool:
+    """port request が依頼の行の無い run の印（字のままの空の配列）でないか"""
+    try:
+        return json.loads(ports.text(raw)) != []
+    except ValueError:
+        return True
 
 
 def _constraint_rows(value) -> list:

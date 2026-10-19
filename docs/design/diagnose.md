@@ -453,7 +453,7 @@ Return only JSON that matches the output schema.
 
 判定の道（読む順。どれかが読めなければそこで止め、`status: failed`・`due: false`。理由は「入力 <名>: <訳>」）:
 
-3. `request` を `requestrows.parts`（知らない鍵・下書きの行も拒む）で読む。落ちれば `stop_reason: works:request`。ほかの入力の落ちは `works:judge`。
+3. `request` を `requestrows.parts`（知らない鍵・下書きの行も拒む）で読む。字のままの空の配列 `[]` でない（ファイル・pointer・容器の形で渡した）のに行が空なら「入力 request: 依頼を渡したのに行が空…」で拒む（今の `check_request` の `minItems` 1。11 節の 29）。落ちれば `stop_reason: works:request`。ほかの入力の落ちは `works:judge`。
 4. 素材をそろえる（`assemble_materials`）: `materials` を `ports.json(raw, "materials.schema.json")` で読み、要素ごとに `ports.file`（dict は `json.dumps` してから）で解き、`materialkit.read` で読む。`pr_material` が空か `null` の字でなければ `ports.json(raw, "pr-material.schema.json")` で読み、 `{"role": "parallel-pr", "status": "ran", "reply": null, "materials": {"parallel_pr": <札>}, "base": null, "commits": null}` を並びの後ろに足す。`baseline` が在れば `baseline_local_checks(path)`（読めない・形が違えば `not_run` と訳。今のまま）、無ければ `local_checks` を足さない（`materialkit.assemble` が `not_run`「走っていない…」で埋める）。`materialkit.assemble(docs, local_checks=…)` の 15 欄を `materials.json` に書く。
 5. `view = materialkit.take_view(place, repo, base)`。`Reject` なら `works:judge`・「対象差分が取れない（<訳>）——判定役を起こさない」（今の字、`:2858`）。素材の `base_determination` が `not_run`（根を持つ素材の doc が 1 本も無い run）なら、今のとおり見方の根と commit の数で `{status: found, count: view.commits, detail: "<view.base>（始めの記録の差分の根。空なら HEAD）"}` に埋めてから `materials.json` に書く（`base_determination`。今の `lib/judge_accept.py` の素材の束ね）。
 6. 依頼のバッチ（`request_batches`）: 人の依頼の行（`request` の行）を `{round: 1, origin: request_origin か「人の依頼（依頼の行）」, findings}`、仕様の行（`spec_rows` を `ports.file` → JSON の配列）を `{round: 1, origin: spec_origin, findings}`。行の無いバッチは置かない（今の `request_batches`、`:1901-1910`）。`spec_rows` が在って `spec_origin` が空なら「入力 spec_origin: spec_rows の出どころの名が要る」で落とす。
@@ -718,6 +718,8 @@ WORKS_FACTORY_FOLDER=blocks bin/works-factory workflow run works-factory-diagnos
 26. `COUNT_BUDGET`（数える問いを走らせる量の上限。300 回か 900 秒）は今の判定の受け付けが持つ数のまま写す。根拠: 振る舞いを変えない写しで、新しい期限ではない（同じ返答を出し直し続ける輪の網）。
 27. 素材の欄から `gate_efficacy` を外す。この block が読む欄は `files.MATERIALS`（`lib/materialkit.MATERIALS` の 15 欄から `gate_efficacy` を除いた 14 欄）で、`materials.json`・材料のファイルの `materials` もその 14 欄。材料のファイルの鍵 `gate_arms` も無く、指示 md も `gate_arms`・`gate_efficacy` を言わない。受け付けの問いの出どころ（素材名）の域も 14 欄。gate-efficacy の block の素材が `materials` の port に来ても読まない。根拠: 持ち主の決め 2026-10-19 「重い試験は全部まとめてやるし、なんならＣＩに任せて先に進めたい」「その診断の…種類から外せばいいのでは」。`lib/materialkit.py` は変えない（gate-efficacy の block は単独で回り、素材の欄の照らしは全体の表を使う）。外した素材を回す graph を持つ時は、graph が `materials` に渡さない。
 28. 材料のファイルに対象差分のパス `diff_file`（place の `diff.patch` の絶対パス）を置き、素材の `base_determination` は根を持つ素材の doc が無ければ見方の根で `found` に埋める（5.1 の 5 と 7）。根拠: 今の再審は `diff.patch` を材料として直に渡し（`lib/judge_accept.py` の `REJUDGE_MATERIALS`）、新の再審は 1 回目の材料のファイルを読むので、パスが無いと差分に届かない。`base_determination` は今の素材の束ねが見方で埋めていて、`not_run` のままだと `gatemarks.UNMEASURED` に入り、依頼の答えの結びの照らしが甘くなる。どちらも今の能力を残す直し（審査の指摘）。
+29. 依頼を宣言した run（port `request` が字のままの空の配列 `[]` でない）で行が空なら、`works:request` で止める。根拠: 今の判定の入口は、始めの記録が依頼のファイルを名指した run では行が空でも `check_request` に通し、`minItems` 1 で拒んでいた（`lib/judge_accept.py` の `intake`）。block は始めの記録を読まないので、「宣言した」を port の値が `[]` の字でないことで見る（審査の指摘で落ちていたのを戻した）。
+30. 世界の解の行（`world_rows`）と素材の要素（`materials` の pointer）が読めない時は、今の「無い」として進む形をやめ、「入力 <名>: <訳>」で `failed`・`works:judge` に止める（振る舞いの変更）。根拠: 読めない入力を「無い」と読むと、判定役は世界の解や素材の観点が走らなかった run と区別できず、黙って材料の欠けた判定を出す。止めて訳を出口に残す方が、承認ノードと報告で人が気づける。
 
 ## 12 未確認
 

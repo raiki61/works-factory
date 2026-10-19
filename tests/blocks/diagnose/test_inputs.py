@@ -210,6 +210,15 @@ class JudgeIntakeCase(_Base):
         self.assertTrue(self.intake(request="[]")["due"])
         self.assertEqual(self.doc("diagnose-input.json")["request_findings"], [])
 
+    def test_declared_request_without_rows_is_works_request(self):
+        """依頼をファイル・pointer・容器の形で渡したのに行が空なら拒む（旧 check_request の minItems 1）。行の無い run は [] だけ"""
+        for request in (self.write("req/empty.json", []), self.write("req/container.json", {"findings": []}), '{"findings": []}'):
+            with self.subTest(request=request):
+                got = self.intake(request=request)
+                self.assertFalse(got["due"])
+                self.assertIn("入力 request: 依頼を渡したのに行が空", got["reason"])
+                self.assertEqual(self.doc("intake.json")["stop_reason"], "works:request")
+
     def test_answers_come_from_the_container_unless_the_port_has_rows(self):
         container = json.dumps({"findings": REQUEST, "answers": [{"question": "容器の問い", "text": "容器の答え"}]}, ensure_ascii=False)
         self.intake(request=container)
