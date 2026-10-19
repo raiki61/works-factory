@@ -105,7 +105,7 @@ def write_prompt(place, *, run_id: str) -> dict:
               "decisions_head": writer.DECISIONS_HEAD, "lang": prompt.lang(doc.get("lang")),
               "decisions_heading": files.bare(files.DECISIONS_HEADING), "cell_limit": writer.CELL_LIMIT, "handoff_rounds": notes}
     when = {"rejected": bool(rejected), "prev": prev, "handoff_rounds": bool(notes)}
-    out = prompt.emit(files.WRITE_NODE, values, when, rolekit.attempt(place, files.ROLE))
+    out = prompt.emit(files.WRITE_NODE, values, when, prompt.round_of(files.WRITE_NODE))
     return {"prompt": out["prompt"]}
 
 
@@ -113,7 +113,7 @@ def cold_prompt(place, raw) -> dict:
     """初見の読み手の指示を組んで place に書く（本文は人に向けた報告の頭と同じ物）。返り {prompt}"""
     place = pathlib.Path(place)
     values = {"body": writer.cold_body(raw, place=place), "machine_heading": files.bare(writer.MACHINE_HEADING)}
-    out = prompt.emit(files.COLD_NODE, values, {}, rolekit.attempt(place, files.ROLE))
+    out = prompt.emit(files.COLD_NODE, values, {}, prompt.round_of(files.COLD_NODE))
     return {"prompt": out["prompt"]}
 
 

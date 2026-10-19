@@ -2,7 +2,7 @@
 # requires-python = ">=3.12"
 # dependencies = []
 # ///
-"""書き手の返答と初見の読み手の判定を受け付ける（ループの until が done を読む）。受け取った物は place に書く。諦めても落ちない"""
+"""書き手の返答と初見の読み手の判定を受け付ける（ループの until が done を読む）。受け取った物は place に書く。諦めても落ちないが、思わぬ誤りは落とす"""
 import os
 import sys
 from pathlib import Path
@@ -17,4 +17,4 @@ def compute():
     return writer.accept(os.environ.get("INPUTS_REPLY", ""), os.environ.get("INPUTS_COLD", ""), place=ports.place())
 
 
-ports.run(compute, lambda why: {"done": True, "ok": False, "reason": f"受け付けが落ちた（{why}）", "kind": "answer", "prev_file": ""})
+ports.returns(compute())   # 思わぬ誤りは捕まえない: node を落として run を failed にし、finish が書き手のノードの落ちを機械の報告の頭に置く（resume できる）

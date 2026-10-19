@@ -134,6 +134,14 @@ class AcceptCase(Flow):
         got = self.run.script("write_accept", LOOP + "write-accept", reply="", cold="")
         self.assertEqual((got["done"], got["ok"], got["kind"]), (False, False, "answer"))
 
+    def test_unexpected_error_in_accept_fails_the_node(self):
+        """思わぬ誤り（拒否の読み物に書けない）は捕まえない: node が落ち、ai.json は無く、finish が書き手のノードの落ちを頭に置く"""
+        self.facts()
+        (self.place / "rejects-report.md").mkdir()
+        err = self.run.failing("write_accept", LOOP + "write-accept", reply=base.default_reply(), cold=json.dumps(base.BAD_COLD))
+        self.assertIn("rejects-report.md", err)
+        self.assertFalse((self.place / "ai.json").exists())
+
 
 class FinishCase(Flow):
     def test_without_ai_file_returns_machine_report(self):

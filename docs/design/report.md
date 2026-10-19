@@ -402,6 +402,7 @@ Notes that earlier rounds of you wrote, named by the machine, oldest first. …
 - 消した: 語の表のファイルの名 `lib/glossary.json` と例の語（md:12「根本の単位・レンズ」）。書き手は語の表を開かず、機械が言い換えることだけを知ればよい。
 - 替えた: 書式の決まりの日本語の例（「直すべき欠陥として判定した物（block）」「さっきの」「上のセクションの」）を英語の例に。本文の言語は `{lang}` で決まるので、例は言語に依らない言い方にした。決まり（初出で「中身（記号）」・前後の文脈に頼る参照を残さない）は同じ。
 - まとめた: 構成 1 の「無ければ『人が決めることは無い』と 1 行」（md:18）と、書式の決まりの「その 1 行も書かず…置き換える」（md:33）の二重を、構成 1 の "If there is nothing, see the format rules." と書式の決まりの 1 か所に。決まりは今と同じ（書かない）。
+- 消した: 材料の 2 つの列挙（md:7 の facts のファイルの中身の列挙と、見る所の下の例のファイルの列挙）。ほかの block の物の名を md が持たないため。
 - 足した物は無い。英語にした（#764）。役の名「書き手」は "the writer"。
 
 ### 2.7 元の works と graphloops の同じ場面
@@ -447,7 +448,7 @@ Notes that earlier rounds of you wrote, named by the machine, oldest first. …
   - `test_writer.py`: 写す元 `lib/tests/test_runreport.py` の `GlossaryCase`・`AcceptCase`・`ReportGiveUpCase`・`CollectCase`・`ColdBodyCase`、`lib/tests/test_report_roles.py` の全部、`lib/tests/test_handoff.py` のうち `SCHEMA` と `save`・`unreadable` の物（文の定数の字の試験は写さない）。返答の型の YAML（`write` の `output_format` の `handoff`）と `handoff.SCHEMA` の一致も照らす。
   - `test_scripts.py`: script を子のプロセスで回す。始めの記録の無い使い捨ての `ARTIFACTS_DIR` で、port の値だけを渡し、`facts` → `write_prep` → 台本の返答 → `cold_prep` → 台本の判定 → `write_accept` → `finish`。写す元 `tests/workflows/test_report.py` の `FactsCase`（`facts` の入力の形に替える）・`AcceptScriptCase`・`RejectScriptCase`（`write_prep` に）・`ColdPrepScriptCase`・`CollectScriptCase`。`WriterRunCase`（#702 の筋書き。書き手が使用枠の切れで落ち、別のトークンの resume で書き直す）は、block を include する小さな graph の形のまま写す。
   - `test_fixtures.py`: 今の `FixtureCase` の形（全部の fixture が通り、`archon validate` の誤りと警告が 0）。
-  - `test_prompts.py`: 指示の比べ（下）。
+  - `test_prompt_flow.py`: 指示の比べ（下）。
   - 写さない試験: `tests/workflows/test_report.py` の `ShapeCase`（30 の入力の説明の字）・`CopiedTextsCase`（元の works の指示書の写しの台帳）・`TypedCase`（型つきの成果物の一覧）・`OutDirCase`（`runreport.OUT_DIR`）・`ConvergeLinesCase`（往復の行。line へ）。
 - 指示の比べ（README の 11.4）:
   - 1 つ目の commit: `prompts/write.md` を、今の `workflows/report/commands/report.md` の `$facts.output.lang_line`・`$facts.output.outcome`・`$facts.output.stop_reason`・`$write-reject.output.reason`・`$write-reject.output.prev`・`$write-reject.output.handoff` を `{lang_line}`・`{outcome}`・`{stop_reason}`・`{reason_file}`・`{prev}`・`{handoff}` に替え、`$ARTIFACTS_DIR/$facts.output.facts_file` を `{facts_file}` に替えた日本語の字で置く。`prompts/cold.md` も同じく `workflows/report/commands/cold-check.md` の `$cold-prep.output.body` を `{body}` に替えた字で置く。試験は例の run の値で、組んだ字が、今の md に同じ値を入れた字と同じになることを照らす。比べる前に古い字に当てる置き換えは 2 つだけ: (a) `$ARTIFACTS_DIR/` で始まる相対のパスを絶対パスに（md:24 の `$ARTIFACTS_DIR/eyes/` も run directory の絶対パスに）、(b) 「の、run の置き場からの相対のパス」を「のパス」に、「（`$ARTIFACTS_DIR/` の下のそのパス）」を空に（新しい値が絶対パスなので）。
@@ -467,7 +468,7 @@ Notes that earlier rounds of you wrote, named by the machine, oldest first. …
 ### 3.3 組み立ての順（`prompts/cold.md`）
 
 1. `{shared:role-cold-reader}`（役の定義。決まった文）。
-2〜3. `{shared:report-head-check}`（報告の頭の確かめの 2 段落。下の md の 2・3 段落目をこの断片に置く。この block の PR が足し、cold-read の block の `form: report_head` も使う）。断片の中の差し込み口 `{machine_heading}` ← `report_roles.MACHINE_HEADING` の `## ` を外した字（「機械が各段の出力と run の記録から組んだ事実（AI は書き換えていない）」。詳細のファイルの見出しと同じ字）。
+2〜3. `{shared:report-head-check}`（報告の頭の確かめの 2 段落。下の md の 2・3 段落目をこの断片に置く。この block の PR が足す。使うのは report の block の初見の読み手だけで、cold-read の block は使わない）。断片の中の差し込み口 `{machine_heading}` ← `report_roles.MACHINE_HEADING` の `## ` を外した字（「機械が各段の出力と run の記録から組んだ事実（AI は書き換えていない）」。詳細のファイルの見出しと同じ字）。
 4. 渡した物だけを読めの 1 文（決まった文）。
 5. 区切りの行と `{body}` ← `writer.cold_body(writer, place=place)`（機械の報告の冒頭・書き手の頭・その頭に現れる語の定義の節を、語の表で言い換えた物。人に向けた報告の頭と同じ字）。
 6. 返す物と判定の決まり（決まった文）。
@@ -493,7 +494,7 @@ Return (1) where you could not follow the meaning and stopped (`stops`), (2) wha
 Return only JSON that matches the output schema.
 ```
 
-共通の断片 `blocks/.shared/prompts/report-head-check.md`（この block の PR が足す。cold-read の block の `form: report_head` も使い、cold-read の設計書はこの名を使って断片を足さない）:
+共通の断片 `blocks/.shared/prompts/report-head-check.md`（この block の PR が足す。使うのは report の block の初見の読み手だけ。cold-read の block は使わず、その設計書はこの名を使って断片を足さない）:
 
 ```markdown
 The reader of this text switches between several tasks while reading. Check whether the first 3 lines alone let a reader say what it is about, whether it concerns them, and whether it is urgent. If they do not, write in `stops` where that stopped working. Also write in `stops`, as places where you stopped, any reference that relies on context outside the text or before or after it (such as "the one mentioned earlier"), and any place that shows only a symbol, an abbreviation, or a path without saying what it is.
@@ -570,7 +571,7 @@ graphloops の `prompts/review-loop/report.cold_check.md` は書き手の前の�
 - `facts.py`: `INPUTS_SECTIONS`・`INPUTS_FACTS`・`INPUTS_LANG` を `os.environ.get(…)` の字のままで読み、`ports.json(…, "sections.schema.json")`・`ports.json(…, "facts.schema.json")`・`ports.text(…)` で値にし、`facts_in.read` で既定を埋める。読めない入力は落とさず、その訳を `problems` に足す（結末は `record_invalid`）。`transcript.read()`、`transcript.facts(rows, exclude_prefix=transcript.own_prefix(), optional=facts.optional)`、`outcome.decide`、`machine.build` の順に呼び、`facts.json` を書いて返す。返り `{outcome, ok, stop_reason, machine, next_request, prior_failures, ai_go, stamp}`（`ai_go` は結末が `record_invalid` でない時に真。`stamp` は `writer.stamp(run_id, <block の YAML のパス>, facts.round, facts.line_rev, facts.start_ok)`）。思わぬ誤りは捕まえ、`machine.fallback_report` の機械の報告（`report-unwritten.md`）を指す `record_invalid` の返りにする。lib を読めない時は標準ライブラリだけで `report-facts-unwritten.md` を書いて返す（今の `facts.py` の 3 段のまま）。
 - `write_prep.py`: `writer.note_writer_fell(<report.md>, None, run_id=…)`（resume の前に finish が置いた行を外す。今の `reject.py`）→ 2.3 の値と真偽を組み、`prompt.render("write", values, when)`、`write-prompt-<n>.md` に書いて `{prompt}` を返す。
 - `cold_prep.py`: `INPUTS_WRITER` を字のままで読み、`body = writer.cold_body(raw, place=place)`、`prompt.render("cold", {"body": body, "machine_heading": …}, {})`、`cold-prompt-<n>.md` に書いて `{prompt}` を返す。
-- `write_accept.py`: `INPUTS_REPLY`・`INPUTS_COLD` を字のままで読み、`writer.accept(reply, cold, place=place)` の返りから `{done, ok, reason, kind, prev_file}` を返す。
+- `write_accept.py`: `INPUTS_REPLY`・`INPUTS_COLD` を字のままで読み、`writer.accept(reply, cold, place=place)` の返りから `{done, ok, reason, kind, prev_file}` を返す。思わぬ誤り（`rejects-report.md` に書けないなど）は捕まえない: node が落ちて run が failed になり、finish が「書き手のノードが落ちた」を機械の報告の頭に置き、resume できる（今の `report_accept.py` と同じ）。
 - `finish.py`: `facts.json` と run の記録を読み、書き手のループ（`transcript.own_prefix() + "write-loop"`）が落ちていれば `writer.note_writer_fell(<report.md>, fell, run_id=…)`（使用枠の切れなら resume の命令 `answer.resume(run_id)` を添える。#702）。`writer.collect(<report.md の字>, place=place, stamp=…)` で人に向けた報告と詳細のファイルを書く（`ai.json` が無ければ書かない）。返りは 1.2 の出力の 9 欄。落ちない: 思わぬ誤りは捕まえて `record_invalid` と訳を返し、facts の機械の報告の pointer が在ればそれを指す（今の `collect.py` の `fallen`）。lib を読めない時は `report-finish-unwritten.md` を書いて指す。
 
 ## 5 受け付けの文と諦め
@@ -608,7 +609,7 @@ README の 10 節の 11「直す単位ごとの記録が報告と最後の承認
 ```sh
 uv run --isolated python3 -m unittest discover -s tests/blocks/report -t .
 uv run --isolated python3 -m unittest tests.blocks.report.test_sections
-uv run --isolated python3 -m unittest tests.blocks.report.test_prompts
+uv run --isolated python3 -m unittest tests.blocks.report.test_prompt_flow
 uv run --isolated python3 -m unittest tests.blocks.report.test_fixtures
 uv run --isolated python3 -m unittest tests.layers.test_block_shape
 ```
@@ -621,7 +622,7 @@ uv run --isolated python3 -m unittest tests.layers.test_block_shape
 - 結末の 10 語と決める順は report に置き、どの block の欄が止め・人待ち・残りに当たるかの読み分けは line が `facts` に入れる。訳: README の 9.2 は `outcome` を report へ MOVE とし、8.5 は report が「結末の語を決め」と書く。一方で今の決め方は block の返りの欄の名（`stalled`・`premise_check`・`units` など）を読むので、それを report が持つと report がほかの block を名指す（憲法の 3）。読み分けは承認ノードと段の表を持つ line の持ち物（README の 1.2 の U・D）。結末の順と 10 語は chain も読む report の約束なので report に残した。
 - 機械の報告の「1. 人が決めること」「2. 止めたか」「3. 見る所」「4. 役が呼んだ道具」と冒頭 3 行・次の run に引き継ぐ落ちた理由・模型・費用・注意は report が組み、ほかの節は `sections` から並べる。訳: これらは結末の語か run の記録に依り、結末を決めるのは report なので、line が先に組めない。
 - run の記録（Archon の `$LOG_DIR/<WORKFLOW_ID>.jsonl`）は report が自分で読む。訳: 落ちた node（`interrupted` の決め）・費用・模型・道具の呼びは run の記録にしか無く、report 自身の node（書き手のループ）の落ちも finish が読む。README の 4.3 の「block は自分の place と、port の値が指すファイルのほかは開かない」は工場の run の記録（始めの記録・run directory の根）を指す決まりと読み、Archon が node に渡す run の記録はその外とした（README の直しに書いた）。単独の run では report 自身の node だけが載る。
-- 書き手のループの中の初見の読み手（`cold`）は report の中に置き、line の `loop_group` に report と cold-read の 2 つの block を include して回す形（cold-read の設計書の `form: report_head`）は採らない。Archon は `loop_group` の中の `include:` を許す（`A/packages/workflows/src/include-expander.ts:202` ほか）ので、できないからではない。訳は 3 つ: (1) 1 回の書き手の返答を受けるかは、同じ回の初見の読み手の判定で決まる（今の `runreport.accept` は書き手の返答と判定を一緒に照らす）。graph のループにすると、受け付けの node は cold-read の後に要り、report の受け付けの決まり（表のセル・`terms` の型・前の答えの控え・引き継ぎのメモ・上限の回の受け取り）を cold-read の block か graph の script が持つことになる（憲法の 3、graph は計算を持たない）。(2) report を単独で呼ぶと初見の読み手の確かめが落ちる（憲法の 5。今の report は単独の筋書きでも確かめを回す）。(3) ループの回ごとに facts（結末の決めと機械の報告）を回し直さないために report を 2 つに割ることになり、置き場と控え（`rejects-report.json`・`r<n>/`）が 2 つの block にまたがる。文の重なりは、役の定義の断片 `role-cold-reader` と、報告の頭の確かめの段落の断片 `report-head-check`（3.3 の 2・3 の段落。cold-read の block の `form: report_head` も同じ断片を使う）で避ける。
+- 書き手のループの中の初見の読み手（`cold`）は report の中に置き、line の `loop_group` に report と cold-read の 2 つの block を include して回す形（cold-read の設計書の `form: report_head`）は採らない。Archon は `loop_group` の中の `include:` を許す（`A/packages/workflows/src/include-expander.ts:202` ほか）ので、できないからではない。訳は 3 つ: (1) 1 回の書き手の返答を受けるかは、同じ回の初見の読み手の判定で決まる（今の `runreport.accept` は書き手の返答と判定を一緒に照らす）。graph のループにすると、受け付けの node は cold-read の後に要り、report の受け付けの決まり（表のセル・`terms` の型・前の答えの控え・引き継ぎのメモ・上限の回の受け取り）を cold-read の block か graph の script が持つことになる（憲法の 3、graph は計算を持たない）。(2) report を単独で呼ぶと初見の読み手の確かめが落ちる（憲法の 5。今の report は単独の筋書きでも確かめを回す）。(3) ループの回ごとに facts（結末の決めと機械の報告）を回し直さないために report を 2 つに割ることになり、置き場と控え（`rejects-report.json`・`r<n>/`）が 2 つの block にまたがる。文の重なりは、役の定義の断片 `role-cold-reader` と、報告の頭の確かめの段落の断片 `report-head-check`（3.3 の 2・3 の段落。cold-read の block は使わず、report の block の初見の読み手だけが使う）で避ける。
 - 型つきの成果物の一覧（`$TYPED_ARTIFACTS_FILE`）を読まない。訳: 今 TDD の単位・緑の認証・独立の目の判定を読んでいたのは、それらの block の出力を report が直に読む形だったため。新しい形では作り手が `report` の欄で行を渡す（README の 4.1）。
 - 行の無い節を落とさずに 1 行を置く。訳: 今の `build` は行の無い節を黙って飛ばしていた（`if lines`）が、新しい形では節を graph が明示して渡すので、渡された節が消えると読み手は「段が走らなかった」と「行を返さなかった」を見分けられない（持ち主の決め `no-silent-loosen`）。
 - `sections` の形はこの設計書が決め、土台の PR では何も置かない。訳: README の 11.1 は「sections の形は土台で決めるので、ほかの block を待たない」と書くが、ほかの block が守るのは 4.1 の `report` の欄（日本語の行の配列）だけで、節の見出しと `files` は graph が付ける。だから report の PR が `schemas/sections.schema.json` を置けば、ほかの block は待たずに作れる。

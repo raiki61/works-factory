@@ -45,7 +45,7 @@ HEAD_LINES = 20            # 人が決める物の件数に依らない行（題
 LINES_PER_DECISION = 8     # 人が決める物 1 件の行
 WRITER_FELL = "AI が書く報告の本文は無い。書き手のノードが落ちた（{error}）。この機械の報告が報告の全部"
 WRITER_QUOTA = ("。使用枠が切れて落ちたので、別のアカウントで run を resume すれば本文を書き直して報告に載せる"
-                "（{command}。周の鎖 works-factory-chain が起こした run なら、この run でなく鎖の run を resume する）")
+                "（{command}。周の鎖が起こした run なら、この run でなく鎖の run を resume する）")
 COLD_UNREADABLE = "初見の読み手の返答を読めない（判定の語が無い）"
 COLD_EMPTY = "（止まった所・推測の欄が空）"
 CELL_REASON = ("表のセルに説明の文を入れない（書式の決まり: 表は状態・件数・日付など数語の値の一覧だけ。端末の表は列ごとに"
