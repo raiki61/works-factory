@@ -129,8 +129,13 @@ class PromptCase(_RepoCase):
     def test_query_rule_and_source_words_are_filled(self):
         self.intake(lang="Japanese")
         text = self.prep()["prompt"]
-        self.assertTrue(text.startswith("Rules for queries to outside services:"), text[:80])
-        self.assertNotIn("If you start a sub-agent", text)
+        # 断片の字は照らさない（字は .shared/prompts/query-rule.md が持つ）。断片の頭の行が入り、段落 spawns は入らないことだけを見る
+        rule = (kit.SHARED / "prompts" / "query-rule.md").read_text(encoding="utf-8").splitlines()
+        self.assertTrue(text.startswith(rule[0]), text[:80])
+        spawns = rule[rule.index("<!-- if spawns -->") + 1:rule.index("<!-- end spawns -->")]
+        self.assertTrue(spawns)
+        for line in spawns:
+            self.assertNotIn(line, text)
         for word in self.steps.SOURCES:
             self.assertIn(f"`{word}`", text)
         self.assertIn('write "目的不明: " followed by', text)

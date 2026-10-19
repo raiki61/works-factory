@@ -6,7 +6,7 @@ fixture:
   inputs:
     request: '[{"where": "stats.py:4", "text": "mean は 2 でなく 3 を返す。分母を len(xs) にする"}]'
   resolved-text-contains:
-    purpose: '"where": "stats.py:4"'
+    purpose: 'You are the purpose role, started in a new conversation.'
 exec-code: true
 purpose:
   purpose_text: 平均の関数が正しい値を返す

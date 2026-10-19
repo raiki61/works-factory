@@ -19,6 +19,7 @@ import pathlib
 
 import ports
 import prompt
+import requestrows
 
 import accept     # lib/。作業ツリーの写しと比べ・guard・in_repo
 import carry      # lib/。without_prior（前の run の判断を外す）
@@ -93,7 +94,8 @@ def intake(out, *, request, pr_text, constraints, lang) -> dict:
     out = pathlib.Path(out)
     doc = {"request": [], "pr_text": "", "constraints": [], "lang": "", "frozen": False, "failed": False, "reason": ""}
     try:
-        doc["request"] = request_copy(_port("request", lambda: ports.json(request, "shared:request.schema.json")))
+        _port("request", lambda: requestrows.parts(request))   # 形・知らない鍵・下書きの行の拒み（役に見せる写しは字のまま）
+        doc["request"] = request_copy(_port("request", lambda: ports.json(request, requestrows.SCHEMA)))
         doc["pr_text"] = ports.text(pr_text)
         doc["constraints"] = _port("constraints", lambda: constraint_rows(
             ports.json(constraints, "shared:constraints.schema.json")))
@@ -130,7 +132,7 @@ def purpose_prompt(out) -> dict:
               "unknown_source": UNKNOWN_SOURCE, "measured": MEASURED, "hypothesis": HYPOTHESIS,
               "lang": prompt.lang(doc["lang"])}
     when = {"rejected": bool(rejected), "pr": bool(doc["pr_text"].strip()), "spawns": False}
-    return prompt.emit(NODE, values, when, len(rejected) + 1)
+    return prompt.emit(NODE, values, when, prompt.round_of(NODE))
 
 
 # ---------------------------------------------------------------- 受け付け

@@ -474,7 +474,7 @@ uv run --isolated python3 tests/changed.py
 
 実装（block の PR）で決めた事。設計書の上の節と README の 13 章（土台の決め）が食い違う所と、どちらも書いていない所:
 
-7. 依頼の形は block の `schemas/request.schema.json` に置かず、土台が置いた共通の形 `shared:request.schema.json` を使った。前提の実測の形も共通の `blocks/.shared/schemas/constraints.schema.json` に置いた（中身は今の前提の役の `output_format` の行と同じ。premises.md はこの worktree に無い）。根拠: README の 13 章「同じ名の形のファイルが pack の 2 か所に在れば形の検査が赤」「足りない共通の形（`constraints.schema.json` など）は、最初に要った PR が足す」。
+7. 依頼の形は block の `schemas/request.schema.json` に置かず、土台が置いた共通の形 `shared:request.schema.json` を使った。前提の実測の形も共通の `blocks/.shared/schemas/constraints.schema.json` に置いた（中身は今の前提の役の `output_format` の行と同じ。premises.md はこの worktree に無い）。根拠: README の 13 章「同じ名の形のファイルが pack の 2 か所に在れば形の検査が赤」「足りない共通の形（`constraints.schema.json` など）は、最初に要った PR が足す」。 依頼の容器の照らし（知らない鍵・下書きの行の拒み）は土台の口 `requestrows.parts` に通し、役に見せる写しは `ports.json` で読んだ値から `prior_failures` だけを外す（ほかの欄は字のまま。3.1 の 4）。
 8. `kind` が `実測` の行が `measured_output` を持つかは、形の照らし（`engine.schema` は if/then を持たない）でなく `src/steps.py` の `constraint_rows` が確かめ、無ければ入口が `failed` にする（訳の字は今の `measured_needs_output` に合わせた）。
 9. 前の回の却下の理由は `with: {reason: $LOOP_PREV…}` で運ばず、prep が place の却下の控え（`rolekit.rejected`）から全部を `rolekit.rejects_text` で読む（1.3 の `with:` と 2.2・3.2・5 節の `rejection` の出どころを替えた）。根拠: README の 13 章の土台の決め（resume で輪が 1 周目から回り直しても数え直さない・#351 の「却下の理由を古い順に全部渡す」）と手本の world。上の 6 はこれで替わる。
 10. 入口は place の中のファイルを全部は消さず、この block が名を持つファイル（`intake.json`・`tree.json`・`purpose-means.json`・`rejects-purpose.json`・`purpose-prompt-*.md`）だけを消す（3.1 の 3 を替えた）。`purpose.json` は在れば固めた目的の道に入るので消さない。根拠: README の 13 章「place は作るだけで、消さない」。
