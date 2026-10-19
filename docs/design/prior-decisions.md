@@ -198,7 +198,7 @@ Your tools are Read, Grep, Glob, Bash, WebSearch, and WebFetch. …
 
 ## Materials
 
-- Repository: /Users/p03623/.local/state/works-factory/targets/6c76444e/archon-home/workspaces/raiki61/works-factory/worktrees/archon/task-works-factory-line-1792348017642
+- Repository: ~/.local/state/works-factory/targets/6c76444e/archon-home/workspaces/raiki61/works-factory/worktrees/archon/task-works-factory-line-1792348017642
 - Base commit: 4428f368d229f2d4f4343122c620c3fdeb334184
 - Files the target diff touches: []
 - Places the request points to (in a run that enters at the judgment; `[]` in a run with a diff): [
