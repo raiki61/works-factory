@@ -1,0 +1,23 @@
+# 単独の run: port の値だけで最後まで届く（始めの記録を読まない）。script は本当に走り、ゲートの検算の役の返答だけを差し替える。
+# 指示が md から組まれたことを md の決まった文で照らす。出口の status が ran になることは tests/blocks/gate_efficacy の試験が確かめる
+fixture:
+  expect: completed
+  reached: [intake, gate-efficacy-prep, gate-efficacy, gate-efficacy-accept, finish]
+  inputs:
+    base: ''
+    gates: ''
+    entry: ''
+    lang: ''
+  resolved-text-contains:
+    gate-efficacy: 'この役はゲートの実効性確認の役（任せ先）。'
+exec-code: true
+gate-efficacy:
+  material:
+    status: clean
+    checked: the arms of the gate the diff adds, on a copy of the repository
+  arms:
+    - gate: tests/test_app.py
+      arm: the fence on a pinned value
+      red_confirmed: true
+      control_green: true
+      hit_evidence: the unique marker appeared in the test output
