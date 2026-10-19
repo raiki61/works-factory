@@ -70,7 +70,7 @@ script の node はどれも `runtime: uv`・`mutates_checkout: false`。レン�
 
 `ports.place()`（単独の run では `$ARTIFACTS_DIR/`、line から include された時は `$ARTIFACTS_DIR/lens/`）の下。名は `src/files.py` だけが持ち、入口はこの名と `<lens>-prompt-*.md` だけを名で引いて消す。
 
-- `intake.json`: `{base, files, routes: {<lens>: {go, reason, agent, body}}, failed, reason}`（`body` は振り分けで引いた定義の本文。prep が読む）。
+- `intake.json`: `{base, files, lang, routes: {<lens>: {go, reason, agent, body}}, failed, reason}`（`body` は振り分けで引いた定義の本文。prep が読む）。
 - `lens.diff`: 差分（今の `fix-delta.patch` に当たる）。
 - `lens.json`: レンズの行（今と同じ名・同じ形。`lib/lens.py` の `LENS_FILE`）。
 - `reply-<key>.json`: 受け取った返答。
@@ -199,7 +199,7 @@ Write `why` and `findings_none` in the language of the request (the user's langu
    1. `intake.json` が無い・`failed` → `status: failed`・`rows: null`・数えは 0・`report` は「レンズ: 落ちた（<訳>）」の 1 行。
    2. ほかは `lens.collect(place, {<lens>: <reply-<key>.json の値か None>…})` で `pending` の行を埋めて `lens.json` を書き直す。控えが無い・読めない（`ValueError`）・書けない時は `status: failed`・`reason`「レンズの集め役が終わらなかった: <訳>」（今の `fixboard.LENS_NOT_DONE` の字）。
    3. `errors.json` に prep の行が在れば `status: failed`（行は `failed` のまま控えに残る）。
-   4. 数え `ran`・`failed`・`not_routed`・`carry`・`report`（5 節）を組み、`{ok, status, reason, rows: ports.pointer(lens.json), ran, failed, not_routed, carry, report, optional}` を返す。`optional` は `src/files.py` の `OPTIONAL`（表の行ごとに `{node: <lens>, bare: false}` と `{node: <lens>-take, bare: false}`）。
+   4. 数え `ran`・`failed`・`not_routed`・`carry`・`report`（5 節）を組み、`{ok, status, reason, rows: ports.pointer(lens.json), ran, failed, not_routed, carry, report, optional}` を返す。`optional` は `src/steps.py` の `OPTIONAL`（表の行ごとに `{node: <lens>, bare: false}` と `{node: <lens>-take, bare: false}`）。
    5. 例外は全部捕まえ、標準ライブラリだけで `{ok: false, status: failed, reason, rows: null, ran: 0, failed: 0, not_routed: 0, carry: [], report: [<訳の 1 行>], optional: OPTIONAL}` を返す。
 
 `finish` の `output_format`: 全部の欄を `required`。`status` は `enum: [ok, failed]`、`rows` は `type: [object, "null"]` に pointer の 3 つの欄、数えは `minimum: 0` の整数、`carry` は `{where, text}` の object の配列、`report` は字の配列、`optional` は `{node, bare}` の object の配列。`intake` の返りは `additionalProperties: false` で `due`・`reason`・表の行ごとの `<key>_go` を全部 `required`。
@@ -296,6 +296,13 @@ PYTEST_XDIST_AUTO_NUM_WORKERS=4 WORKS_FACTORY_ARCHON_CACHE=<Archon の源の置�
 5. 状態の語は `ok` と `failed` の 2 つにし、レンズが落ちても `ok`。根拠: 今もレンズの落ちは行に残して先へ進み、集めが壊れた時だけ run を止めた。
 6. 採った・採らなかった件数と「手直しの差分にはレンズが当たらない」の行は、差分の審査の block の報告に置いた。根拠: 数える事実（審査の返答の `lens` の欄）と、手直しの差分を見る段を持つのは差分の審査の block（README の 4.1）。
 7. 指示の比べ（README の 11.4: 1 つ目の commit で md を日本語のまま置いて古い指示と同じ字かを試験で照らし、2 つ目で英語にする）の 1 つ目の commit と試験は作らない。英語の md を直に書き、審査が 8.3 の一覧で新旧を見る（持ち主の、作り直しの 2 波目からの「速さ」の決め）。
+8. `intake.json` に `lang`（port `lang` の字）も書く。根拠: `<lens>-prep` は `with:` で lens の名しか受けず、言語の文を組むには入口の控えから読むしかない（1.4 の形に足した）。
+9. `finish` は `errors.json` に `<lens>-prep` の行が在れば `status: failed`・`ok: false`（3 節の 4 の 3）。`reason` は「レンズの指示が組めなかった: <node>（<訳>）」。入口が `errors.json` に積んだ行は入口の `failed` で先に処理される。
+10. `base` が版として読めない時の訳は「入力 base: git の版（木か commit）として読めない: <値>」。`leftovers.Unreadable` を `ValueError` に替えて port の名を頭に付ける。
+11. 入口の `ports.run` の fallback の返りの `<key>_go` は script の中に字で書いた（`silent_failure_hunter_go`）。落ちた先で `src` を import せずに返すため。表に足す時は script も直す（`ShapeCase` が YAML の欄と表を結ぶ）。
+12. 試験は `tests/blocks/lens/test_lens.py` の 1 本に `IntakeCase`・`PromptCase`・`FinishCase`・`ShapeCase` を置いた。`finish.py` の逃げ道の `optional` も表の 1 行を字で持つ。
+13. 筋書き `not-routed` は `base: HEAD` で、`reached: [intake, finish]`（レンズの 3 つの node は飛ぶ）。
+14. `lens_prep.py` は `src` の import も try の中に置き、import が壊れても標準ライブラリだけで `errors.json` に積んでから落ちる（出口が `status: failed` にする。3 節の 2）。
 
 ## 10 README へ返す問題
 
@@ -306,9 +313,3 @@ PYTEST_XDIST_AUTO_NUM_WORKERS=4 WORKS_FACTORY_ARCHON_CACHE=<Archon の源の置�
 
 - 起動の隔離した設定（`CLAUDE_CONFIG_DIR`）が、block の script の node にも今の fix の `lens-prep` と同じく渡り、`agent_def` が利用者の plugin を引けるか（本物の単独の run で確かめる）。
 - 持ち主の決め `code-review-lens`（標準の /code-review をレンズに入れる）の当て方は、今の表に入っていない。表に足すのは振る舞いを変える話で、この作り直しの外。
-8. `intake.json` に `lang`（port `lang` の字）も書く。根拠: `<lens>-prep` は `with:` で lens の名しか受けず、言語の文を組むには入口の控えから読むしかない（1.4 の形に足した）。
-9. `finish` は `errors.json` に `<lens>-prep` の行が在れば `status: failed`・`ok: false`（3 節の 4 の 3）。`reason` は「レンズの指示が組めなかった: <node>（<訳>）」。入口が `errors.json` に積んだ行は入口の `failed` で先に処理される。
-10. `base` が版として読めない時の訳は「入力 base: git の版（木か commit）として読めない: <値>」。`leftovers.Unreadable` を `ValueError` に替えて port の名を頭に付ける。
-11. 入口の `ports.run` の fallback の返りの `<key>_go` は script の中に字で書いた（`silent_failure_hunter_go`）。落ちた先で `src` を import せずに返すため。表に足す時は script も直す（`ShapeCase` が YAML の欄と表を結ぶ）。
-12. 試験は `tests/blocks/lens/test_lens.py` の 1 本に `IntakeCase`・`PromptCase`・`FinishCase`・`ShapeCase` を置いた。`finish.py` の逃げ道の `optional` も表の 1 行を字で持つ。
-13. 筋書き `not-routed` は `base: HEAD` で、`reached: [intake, finish]`（レンズの 3 つの node は飛ぶ）。

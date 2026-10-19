@@ -21,4 +21,4 @@ The diff is a starting point, not a border: read the callers and the readers too
 - If there is no finding, leave `findings` empty, and write in `findings_none` what you read that lets you say there is none.
 - Return only JSON.
 
-Write `why` and `findings_none` in {lang}. Keep paths, identifiers, commands, and error messages as they are.
+Write `why` and `findings_none` in {lang}. Keep JSON keys, enum values, paths, identifiers, commands, and error messages as they are.

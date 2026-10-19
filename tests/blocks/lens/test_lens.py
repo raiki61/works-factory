@@ -4,12 +4,17 @@
 intake → lens_prep → 台本の返答を渡す lens_take → finish と回す。YAML と筋書きの揃いも見る。筋書きを Archon の workflow test で回すのは
 tests/layers/test_block_shape.py。
 """
+import ast
 import json
+import os
+import subprocess
+import sys
 import unittest
 from unittest import mock
 
 import yaml
 
+from tests.bin import hermetic
 from tests.bin.gitkit import git
 from tests.blocks import kit
 
@@ -259,6 +264,25 @@ class FinishCase(_RepoCase):
         self.assertEqual((got["ok"], got["ran"], got["rows"]["path"]), (True, 1, "lens/lens.json"))
 
 
+    def test_prep_whose_import_breaks_still_writes_the_error(self):
+        self.change()
+        self.intake()
+        env = hermetic.child_env(**{**self.run.environ(lens=LENS), "WORKS_FACTORY_ROOT": str(self.run.artifacts / "no-lib")})
+        done = subprocess.run([sys.executable, str(BLOCK / "scripts" / "lens_prep.py")], cwd=self.run.repo, env=env,
+                              capture_output=True, text=True, encoding="utf-8")
+        self.assertNotEqual(done.returncode, 0)
+        self.assertEqual(self.read("errors.json")[-1]["node"], LENS)
+        got = self.finish()
+        self.assertEqual((got["ok"], got["status"]), (False, "failed"))
+
+
+def _literals(script: str, key: str) -> list:
+    """script の中の辞書の字面 {key: 値} の値（ast.literal_eval できる物）を全部返す"""
+    tree = ast.parse((BLOCK / "scripts" / script).read_text(encoding="utf-8"))
+    return [ast.literal_eval(v) for d in ast.walk(tree) if isinstance(d, ast.Dict)
+            for k, v in zip(d.keys, d.values) if isinstance(k, ast.Constant) and k.value == key]
+
+
 class ShapeCase(unittest.TestCase):
     def setUp(self):
         self.doc = yaml.safe_load((BLOCK / "works-factory-lens.yaml").read_text(encoding="utf-8"))
@@ -294,6 +318,19 @@ class ShapeCase(unittest.TestCase):
             props = node["output_format"]["properties"]["findings"]["items"]["properties"]
             lenses = kit.load("lens", "lenses")
             self.assertEqual((props["cite"]["minLength"], props["why"]["minLength"]), (lenses.MIN_CITE, lenses.MIN_WHY))
+
+    def test_fallbacks_that_hand_copy_the_table_match_it(self):
+        steps = kit.load("lens", "steps")
+        want = [{"node": n, "bare": False} for r in self.table for n in (r["lens"], f"{r['lens']}-take")]
+        self.assertEqual(steps.OPTIONAL, want)
+        self.assertEqual(_literals("finish.py", "optional"), [want])
+        keys = {f"{r['lens'].replace('-', '_')}_go" for r in self.table}
+        source = (BLOCK / "scripts" / "intake.py").read_text(encoding="utf-8")
+        self.assertEqual({w for w in __import__("re").findall(r"[a-z0-9_]+_go", source)}, keys)
+        self.assertEqual(set(self.nodes["intake"]["output_format"]["properties"]) - {"due", "reason"}, keys)
+
+    def test_prep_error_file_name_is_the_one_in_files(self):
+        self.assertIn(f'/ "{kit.load("lens", "files").ERRORS}"', (BLOCK / "scripts" / "lens_prep.py").read_text(encoding="utf-8"))
 
     def test_intake_output_lists_exactly_the_table_keys(self):
         keys = {f"{r['lens'].replace('-', '_')}_go" for r in self.table}
