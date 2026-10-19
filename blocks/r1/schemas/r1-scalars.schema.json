@@ -1,0 +1,4 @@
+{
+  "description": "修正役が足した規模の数値の欄（名は x_ で始まる）の object。欄の名と値の照らしは src/scalars.py が行い、外れは落とさず unmeasured に名指す",
+  "type": "object"
+}
