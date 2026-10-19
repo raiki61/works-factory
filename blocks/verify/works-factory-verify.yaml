@@ -3,7 +3,7 @@ description: '判定の裏取りの block（docs/design/verify.md）。判定の
 inputs:
   judgment:
     required: true
-    description: 'json(judgment.schema.json): 受け付けを通った判定。欄 framing（字）・one_shot（字）・units（行の配列。行は key と label を持ち、disposition・reason・origin_analysis・why_chain・prescriptions を持ちうる）。開いた単位（label が block か、suggest で disposition が do-now）を確かめる'
+    description: 'json(shared:judgment.schema.json): 受け付けを通った判定。欄 framing（字）・one_shot（字）・units（行の配列。行は key と label を持ち、disposition・reason・origin_analysis・why_chain・prescriptions を持ちうる）。開いた単位（label が block か、suggest で disposition が do-now）を確かめる'
   lang: {default: '', description: 'text: 人に見せる欄（下請けの答えの evidence・location・why・real_root と、相乗りの答えの why）の言語。空は既定の文（依頼の言語）'}
 returns: finish
 outcome_field: ok

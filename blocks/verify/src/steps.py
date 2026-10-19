@@ -88,10 +88,23 @@ def synergy_schema() -> dict:
                            "order": {"type": "array", "items": order}}}
 
 
+JUDGMENT_SCHEMA = "shared:judgment.schema.json"   # 2 つ以上の block が使う判定の形（docs/design/verify.md の 1.2）
+
+
 # ---------------------------------------------------------------- 判定の単位
 def is_open(u) -> bool:
     """単位が直す義務を残すか（lib/judge_accept.is_open と同じ）"""
     return u["label"] == "block" or (u["label"] == "suggest" and u.get("disposition") == "do-now")
+
+
+def read_judgment(raw):
+    """port judgment を共通の形で読み、この block が要る欄を足して照らす。共通の形（shared:judgment.schema.json）は単位の label を
+    必須にしないが、開いた単位を選ぶ is_open が label を読むので、label が字でない単位はここで拒む（KeyError で落とさない）"""
+    doc = ports.json(raw, JUDGMENT_SCHEMA)
+    for n, u in enumerate(doc["units"], 1):
+        if not isinstance(u, dict) or not isinstance(u.get("label"), str):
+            raise ValueError(f"units の {n} 行目に label（字）が無い")
+    return doc
 
 
 def open_units(judgment) -> list:
@@ -136,7 +149,7 @@ def _clean(out: pathlib.Path, judgment) -> None:
     """この block の名のファイルだけを名で引いて消す。前の起動の答えを今の判定の答えに数えない。answers/ と place は消さない"""
     ns = set()
     try:
-        ns.update(range(1, len(open_units(ports.json(judgment, "judgment.schema.json"))) + 1))
+        ns.update(range(1, len(open_units(read_judgment(judgment))) + 1))
     except ValueError:
         pass
     plan = jsonfile.read_or(out / PLAN_FILE)
@@ -200,7 +213,7 @@ def prep(out, *, judgment, lang) -> dict:
     out = pathlib.Path(out)
     _clean(out, judgment)
     try:
-        doc = _port("judgment", lambda: ports.json(judgment, "judgment.schema.json"))
+        doc = _port("judgment", lambda: read_judgment(judgment))
         text = prompt.lang(lang)
         units = open_units(doc)
     except ValueError as e:

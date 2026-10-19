@@ -91,6 +91,16 @@ class PrepCase(_Base):
                 self.assertTrue(done["reason"].startswith("入力 judgment: "), done["reason"])
                 self.assertEqual(self.notes()["units"], [])
 
+    def test_unit_without_label_does_not_go_and_finish_fails(self):
+        """共通の判定の形は label を必須にしないので、label の無い単位は src の受け付けが拒む（KeyError で落ちない）"""
+        no_label = {"key": MEAN, "reason": "事実: 分母が違う"}
+        got = self.prep(judgment(no_label, unit(CLAMP)))
+        self.assertIs(got["go"], False)
+        done = self.finish()
+        self.assertEqual((done["ok"], done["status"]), (False, "failed"))
+        self.assertEqual(done["reason"], "入力 judgment: units の 1 行目に label（字）が無い")
+        self.assertEqual(self.notes()["units"], [])
+
     def test_two_open_units_write_briefs_and_prompt(self):
         got = self.prep(lang="日本語")
         self.assertIs(got["go"], True)
