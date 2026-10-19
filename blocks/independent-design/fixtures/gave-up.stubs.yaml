@@ -1,0 +1,12 @@
+# 役の返答が受け付けを通らない道: run は止めず、出口が status: failed と訳を返す。筋書きでは輪が 1 周で終わるので却下は 1 回で、
+# 3 回で諦める数えは tests/blocks/independent_design の試験が確かめる。要素の無い返答は、問いが立つ設計として拒まれる
+fixture:
+  expect: completed
+  reached: [intake, design-prep, design, design-accept, finish]
+  inputs:
+    purpose: 'commit のフックが、対象のテストのコマンドと同じ環境で走るようにする'
+exec-code: true
+design:
+  question_stands: true
+  reason: '問いは実在する。'
+  design: '設計だけを書いて、要素を並べない。'

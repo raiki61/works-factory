@@ -1,0 +1,19 @@
+# 単独の run: 目的の文だけで最後まで届く（script は本当に走り、AI の役の返答だけを差し替える）。答え・実測した制約・依頼のファイル・
+# 方針・足した行の印は渡さない（空の入力）。役の返答は例の run の形（問いが立ち、要素が 1 つ）
+fixture:
+  expect: completed
+  reached: [intake, design-prep, design, design-accept, finish]
+  inputs:
+    purpose: 'commit のフックが、対象のテストのコマンドと同じ環境で走るようにする'
+  resolved-text-contains:
+    design: 'この役は独立の目の 1 つ（R2 ゼロベース再導出（独立設計の半分））として、新しい会話で起きている。'
+exec-code: true
+design:
+  question_stands: true
+  reason: 'フックの環境は対象のコマンドの環境と別に組まれていて、問いは実在する。'
+  premise_invalid_reason: ''
+  design: '対象のコマンドの環境を作る所を 1 か所にし、フックはそれを呼ぶだけにする。'
+  elements:
+    - id: D1
+      adds: ['フックが対象のコマンドの環境を呼ぶ']
+      removes: ['フックの自前の環境の組み立て']
