@@ -1,0 +1,29 @@
+{
+ "requirements": [
+  {
+   "key": "R1",
+   "text": "mean は要素の数で割る"
+  }
+ ],
+ "acceptance": [
+  {
+   "key": "A1",
+   "requirement": "R1",
+   "file": "README.md",
+   "name": "test_mean_divides_by_count",
+   "run": "false",
+   "sha256": "6bb595b2b36db169d116da91e1d9c39b063125c2d152ca01db06c2e43ccd606f",
+   "exit_at_approval": 1
+  }
+ ],
+ "out_of_scope": [],
+ "approval": {
+  "round": 1,
+  "node": "spec.approve",
+  "kinds": [
+   "spec_approval"
+  ],
+  "answer": "continue",
+  "note": ""
+ }
+}

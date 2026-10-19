@@ -1,0 +1,17 @@
+# 単独の run: port の値だけで最後まで届く（始めの記録を読まない）。script は本当に走り、代役の忠実性の役の返答だけを差し替える。
+# 指示が md から組まれたことを md の決まった文で照らす。出口の status が ran になることは tests/blocks/test_double_fidelity の試験が確かめる
+fixture:
+  expect: completed
+  reached: [intake, test-double-fidelity-prep, test-double-fidelity, test-double-fidelity-accept, finish]
+  inputs:
+    base: ''
+    entry: ''
+    lang: ''
+  resolved-text-contains:
+    test-double-fidelity: 'You are the test-double-fidelity role.'
+exec-code: true
+test-double-fidelity:
+  material:
+    status: clean
+    checked: the test doubles at the seams the diff touches, against one value taken from the real thing
+  mismatches: []

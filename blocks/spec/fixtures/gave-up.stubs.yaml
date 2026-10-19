@@ -1,0 +1,14 @@
+# 書く役の返答が受け付けを通らない道（テストのファイルが無い）: 審査と承認ノードは開かず、出口が status: failed と stop_reason works:spec を返す。
+# 筋書きでは輪が 1 周で終わるので却下は 1 回で、3 回で諦める数えは tests/blocks/spec の試験が確かめる
+fixture:
+  expect: completed
+  reached: [intake, spec-write, spec-write-accept, spec-ask, finish]
+  inputs:
+    request: '[{"where": "stats.py:4", "text": "mean は 2 でなく 3 を返す。分母を len(xs) にする"}]'
+exec-code: true
+spec-write:
+  requirements:
+    - {key: R1, text: mean は要素の数で割る}
+  acceptance:
+    - {key: A1, requirement: R1, file: no-such-test.py, name: test_mean_divides_by_count, run: 'false'}
+  out_of_scope: []

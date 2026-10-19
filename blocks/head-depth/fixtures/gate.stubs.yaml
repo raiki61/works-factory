@@ -1,0 +1,8 @@
+# 機械の止めの道: 呼ぶ人が段を名指すと、役を起こさず（輪は when で飛ぶ）その段で出口へ届く
+fixture:
+  expect: completed
+  reached: [intake, finish]
+  inputs:
+    request: '[{"where": "stats.py:4-5", "text": "mean は 2 でなく 3 を返す"}]'
+    thickness: standard
+exec-code: true

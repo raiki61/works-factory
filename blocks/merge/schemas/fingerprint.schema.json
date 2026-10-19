@@ -1,0 +1,9 @@
+{
+  "description": "修正の後のテストの緑の認証の指紋。null は指紋が無い",
+  "type": ["object", "null"],
+  "required": ["head", "diff_hash"],
+  "properties": {
+    "head": {"type": "string"},
+    "diff_hash": {"type": "string"}
+  }
+}

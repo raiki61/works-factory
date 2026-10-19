@@ -106,3 +106,26 @@ def fixture(block: str, name: str) -> dict:
 
 def tests_of(block: str, tests: pathlib.Path = ROOT / "tests" / "blocks") -> pathlib.Path:
     return tests / block.replace("-", "_")
+
+
+def dry_run_traces(block: str, names) -> dict:
+    """筋書きの名 → blocks/<block>/fixtures/ のその筋書きの stub で block を dry-run（exec-code）した trace（ノードの id → trace の行）。
+    workflow test はノードの出力を返さないので、stub と入力をそのまま `workflow run --dry-run` に渡す（tests/e2e/test_line_scenarios.py の
+    dry_run_traces の blocks/ 版。木は archon.blocks_tree）。Archon の源か bun が無ければ archon.absent の見送り"""
+    from tests import archon
+    out = {}
+    with archon.blocks_tree([block]) as tree:
+        for name in names:
+            given = fixture(block, name)
+            stubs = tree.parent / f"{name}.stubs.yaml"
+            stubs.write_text(yaml.safe_dump({k: v for k, v in given.items() if k not in ("fixture", "exec-code")},
+                                            allow_unicode=True), encoding="utf-8")
+            args = [arg for k, v in (given["fixture"].get("inputs") or {}).items() for arg in ("--input", f"{k}={v}")]
+            done = archon.archon(tree, "workflow", "run", f"works-factory-{block}", "--dry-run", "--exec-code", "--stubs", str(stubs),
+                                 "--json", *args, "--cwd", str(tree))
+            try:
+                # 落ちた dry-run は trace の後ろに {ok: false, error} を足して出すので、頭の 1 つの JSON だけを読む
+                out[name] = {n["nodeId"]: n for n in json.JSONDecoder().raw_decode(done.stdout.lstrip())[0]["trace"]}
+            except (json.JSONDecodeError, KeyError, TypeError) as error:
+                raise AssertionError(f"{name} の dry-run の trace が読めない（{error}）: {done.stdout[-2000:]}{done.stderr[-2000:]}") from None
+    return out

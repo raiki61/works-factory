@@ -1,0 +1,7 @@
+# 測れた単位が無い道（paths の空な単位だけ）: 構造の目の輪を飛ばし、出口には届く。出口は ok で、測らなかった単位を控えの skipped に残す
+fixture:
+  expect: completed
+  reached: [measure, finish]
+  inputs:
+    units: '[{"id": "u1", "paths": [], "summary": "書き方の全体"}]'
+exec-code: true

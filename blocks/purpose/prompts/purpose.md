@@ -4,7 +4,7 @@
 
 {shared:query-rule}
 
-You are the purpose role, started in a new conversation. Write the "original purpose" of this run as one sentence (`purpose_text`).
+You are the purpose role. Write the "original purpose" of this run as one sentence (`purpose_text`).
 
 **Separate the purpose from the means.** In the purpose sentence, write only what the request wants to reach (what it wants to do, and why). Do not write the means the request proposes (means such as "fix it like this" or "add this part"). List the request's means in the extra field `means`, one sentence each (leave out `means` if the request proposes no means). The request's means is a proposal that will be doubted against the practice of the world; it is not the purpose. If means mix into the purpose sentence, a design made from the purpose alone also falls into the frame of the same means, and the proposal is taken as given before it is compared with the practice.
 
@@ -39,7 +39,7 @@ The PR's number, title, and body (a run without a PR says so). This is the sourc
 
 ### Measured premises
 
-Each row of `constraints` has `text` (the constraint), `measured_how` (how it was measured), `kind` (`{measured}` or `{hypothesis}`), and, for `{measured}`, `measured_output` (the command that was run and its output). An empty array means there are no measured premises. If you write numbers, sizes, or counts in the purpose sentence, use only values measured here. **Do not take a row with `kind` `{hypothesis}` as given.**
+Each row of `constraints` has `text` (the constraint), `measured_how` (how it was measured), `kind` (`{measured}` or `{hypothesis}`), and, when present, `measured_output` (the command that was run and its output). An empty array means there are no measured premises. If you write numbers, sizes, or counts in the purpose sentence, use only values measured here. **Do not take a row with `kind` `{hypothesis}` as given.**
 
 ```json
 {constraints}

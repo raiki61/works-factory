@@ -112,11 +112,12 @@ class IntakeCase(_RepoCase):
                 self.assertIn("入力 request", got["reason"])
                 self.assertTrue(self.read("intake.json")["failed"])
 
-    def test_measured_row_needs_its_output(self):
-        bad = json.dumps([{"text": "数は 3", "measured_how": "数えた", "kind": "実測"}], ensure_ascii=False)
-        got = self.intake(constraints=bad)
-        self.assertFalse(got["due"])
-        self.assertIn("measured_output", got["reason"])
+    def test_carried_measured_row_without_output_passes(self):
+        """前の run から持ち越した実測の行（lib/carry.carried_constraints の形）は measured_output を持たないが、止めない"""
+        carried = json.dumps([{"text": "数は 3", "measured_how": "数えた", "kind": "実測"}], ensure_ascii=False)
+        got = self.intake(constraints=carried)
+        self.assertTrue(got["due"], got)
+        self.assertEqual(self.read("intake.json")["constraints"][0]["text"], "数は 3")
 
     def test_constraint_rows_keep_the_old_contract(self):
         """行の欄は今の前提の役の output_format のとおり: 知らない欄と、空白だけの measured_output を拒む"""

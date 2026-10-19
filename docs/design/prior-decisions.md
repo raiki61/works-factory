@@ -119,7 +119,7 @@ md の本文（英語。この block の 2 つ目の commit でこのまま置�
 
 {shared:role-investigator}
 
-You are the prior-decisions role, started in a new conversation. Your only job is to check the target against earlier decisions. You are given neither the local findings nor any other material.
+You are the prior-decisions role. Your only job is to check the target against earlier decisions. You are given neither the local findings nor any other material.
 
 Your tools are Read, Grep, Glob, Bash, WebSearch, and WebFetch. Bash runs inside a sandbox, and its network is closed: it cannot reach any destination.
 
@@ -184,7 +184,7 @@ md の中に `$` の字は無い（materials.md の 3.1 の終わり）。
 ```markdown
 {shared:role-investigator の本文: You are the investigator: … と、その中の {shared:query-rule} の本文 Rules for queries to outside services …}
 
-You are the prior-decisions role, started in a new conversation. …（決まった文）
+You are the prior-decisions role. …（決まった文）
 
 Your tools are Read, Grep, Glob, Bash, WebSearch, and WebFetch. …
 

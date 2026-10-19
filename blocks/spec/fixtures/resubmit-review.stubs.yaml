@@ -1,0 +1,18 @@
+# 審査役の返答が拒まれた後の出し直し（resubmit-write.stubs.yaml と同じ形）。書く役は通り、審査の 1 周目の prep の返りを「出し直す」に
+# 差し替える。受け入れ条件のテストのファイルはこのファイル自身（Given / When / Then の 3 語と、テストの名 test_mean_divides_by_count を持つ）
+fixture:
+  expect: completed
+  reached: [intake, spec-write-accept, spec-review-prep, spec-review-fix-prep, spec-review-fix, spec-review-accept, spec-ask, finish]
+  inputs:
+    request: '[{"where": "stats.py:4", "text": "mean は 2 でなく 3 を返す。分母を len(xs) にする"}]'
+  resolved-text-contains:
+    spec-review-fix: "Your previous answer was rejected by the machine's check."
+exec-code: true
+spec-write:
+  requirements:
+    - {key: R1, text: mean は要素の数で割る}
+  acceptance:
+    - {key: A1, requirement: R1, file: .archon/workflows/works-factory/spec/fixtures/resubmit-review.stubs.yaml, name: test_mean_divides_by_count, run: 'false'}
+  out_of_scope: []
+spec-review-prep: {prompt: '', resubmit: true}
+spec-review-fix: {}

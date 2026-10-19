@@ -1,0 +1,28 @@
+# 単独の run: 依頼の行だけで最後まで届く（script は本当に走り、AI の役の返答と承認ノードの答えだけを差し替える）。受け入れ条件のテストの
+# ファイルは、筋書きの作業ツリーに在るこのファイル自身にした（Given / When / Then の 3 語と、テストの名 test_mean_divides_by_count を
+# 中に持つ）。審査が穴を 1 件挙げるので直す輪も回り、承認ノードは approve と答える
+fixture:
+  expect: completed
+  reached: [intake, spec-write, spec-write-accept, spec-review, spec-review-accept, spec-revise, spec-revise-accept, spec-ask, spec-gate, spec-freeze, finish]
+  inputs:
+    request: '[{"where": "stats.py:4", "text": "mean は 2 でなく 3 を返す。分母を len(xs) にする"}]'
+  resolved-text-contains:
+    spec-write: 'You are the spec writer.'
+    spec-review: 'You are the spec reviewer.'
+    spec-revise: 'You are the spec reviser.'
+exec-code: true
+spec-write: &spec
+  requirements:
+    - {key: R1, text: mean は要素の数で割る}
+  acceptance:
+    - {key: A1, requirement: R1, file: .archon/workflows/works-factory/spec/fixtures/standalone.stubs.yaml, name: test_mean_divides_by_count, run: 'false'}
+  out_of_scope: []
+spec-review:
+  faces:
+    - {key: F1, kind: ambiguous, where: R1, why: 空の並びの時に何を返すかが書かれていない（要件にも受け入れ条件にも無い）}
+  reason: 要件 R1 は空の並びを渡した時に何を返すかが曖昧で、受け入れ条件 A1 もそこを試していない
+spec-revise:
+  spec: *spec
+  handled:
+    - {key: F1, handled: declared, how: 空の並びは依頼の範囲の外と決め、out_of_scope に宣言した}
+spec-gate: {decision: approve, text: ''}

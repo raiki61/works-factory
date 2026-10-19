@@ -60,8 +60,8 @@ materials.md の 1.4 の名だけ: `intake.json`・`view.json`・`diff.patch`・
   - `GUARDED = False`（AI の node が `mutates_checkout: false` を持たない。今の accept の `with: {status_guarded: false, …}`。`works-factory-judge.yaml:1621`）
   - `NA = "cond"`、`NA_REASON = "対象差分は外部との継ぎ目（別プロセス・別サービス・ブラウザ・外部 API・プロトコル）に触れていない"`（今の `MATERIAL_NODES['p1.test_double_fidelity']['na_reason']`、`lib/judge_accept.py:1681-1685` の字のまま）。当たる条件がいつも真なので今は使われない（`fill_na` を呼ぶ道が無い）が、`applies` が偽を返せるようになった時に `materialkit.fill_na` と md の `na_cond_false` の段落が使う
   - `NOUN = "代役の忠実さの確かめ"`（今の `_deep_due` に渡した名詞。`:1573-1574`）
-  - `due(view, values)`: `values["entry"]` が空でなければ `materialkit.entry_skip(NOUN)`。空なら `materialkit.Due(True, "代役の忠実さの確かめは、判定から入る run でなければ run ごとに 1 回回す（1 run は 1 周で、いつも初回。差分が外部との継ぎ目に触れるかは機械が決められないので、触れる側に倒す）")`（自分で決めた。7 節）。
-  - `fill(view, values, due)`: `{"test_double_fidelity": materialkit.fill_entry(values["entry"], 0)}`。`due` が偽になるのは判定から入る run だけなので、埋めはこの 1 通り（今の `_fill_one` の 1 つ目の枝。`:1937-1941`）。
+  - `due(view, values)`: `materialkit.is_entry_run(view, values)`（`entry` があり、かつ対象差分が空。族の決め。materials.md の 2.6）が真なら `materialkit.entry_skip(NOUN)`。偽（`entry` が空、または修正が入って差分がある）なら `materialkit.Due(True, "代役の忠実さの確かめは、判定から入る run でなければ run ごとに 1 回回す（1 run は 1 周で、いつも初回。差分が外部との継ぎ目に触れるかは機械が決められないので、触れる側に倒す）")`（自分で決めた。7 節）。
+  - `fill(view, values, due)`: `{"test_double_fidelity": materialkit.fill_entry(values["entry"], None)}`。`due` が偽になるのは判定から入る run だけなので、埋めはこの 1 通り（今の `_fill_one` の 1 つ目の枝。`:1937-1941`）。
   - `applies(view, values)`: `materialkit.Due(True, "差分が外部との継ぎ目に触れる")`（今の `seams_touched` が、機械が真に倒した `touches_external_seams` で返す字。`:1474-1485`・`due_view` の `:1356`）。
   - `judged_na(view, values)`: `return False`。
   - `values(view, values)`: `{"diff_file": view.diff_file, "changed_files_file": view.changed_files_file, "repo": str(view.repo)}`。役は Read を持つので、差分と一覧はパスで渡す（materials.md の 3.1 の 6）。
@@ -119,7 +119,7 @@ md の本文（英語。この block の 2 つ目の commit でこのまま置�
 
 {shared:query-rule}
 
-You are the test-double-fidelity role, started in a new conversation. Your only job is to check whether the test doubles at the seams the target diff touches have the same shape as the real thing. You are given neither the local findings nor any other material.
+You are the test-double-fidelity role. Your only job is to check whether the test doubles at the seams the target diff touches have the same shape as the real thing. You are given neither the local findings nor any other material.
 
 Your tools are Read, Grep, Glob, Bash, WebSearch, and WebFetch. Bash runs inside a sandbox, and its network is open. Make any copy you need for running things in a temporary folder (create it with `mktemp -d`); the wrapper stops writes to the target's working tree.
 
@@ -175,7 +175,7 @@ md の中に、`$` の直後に英字か `{` が続く字は無い（materials.m
 ```markdown
 {shared:query-rule の本文: Rules for queries to outside services …（7 行）}
 
-You are the test-double-fidelity role, started in a new conversation. …（決まった文）
+You are the test-double-fidelity role. …（決まった文）
 
 Your tools are Read, Grep, Glob, Bash, WebSearch, and WebFetch. Bash runs inside a sandbox, and its network is open. …
 
@@ -302,3 +302,8 @@ bin/works-factory <読ませるフォルダを blocks/ にする引数（名は�
 - 指示から「継ぎ目に触れない差分なら not_applicable」を消す。訳: 受け付けがいつも拒む書き方を指示が勧めると、役が 1 回拒まれる道が残る。材料の節と受け付けの側に合わせた（2.6）。
 - `report_lines` に不一致の行を 1 行ずつ足す。訳: prior-decisions が決着済みの論点を足したのと同じく、素材の 1 行（件数と detail の要約）だけでは、どの継ぎ目のどこかが報告から辿れない。
 - `test_run_launch` の注記「denyWrite は pr-check の注釈と同じ」を、`net_closed_launch` の注記 3 行の写しに替える。訳: 錨を展開した block の YAML に pr-check は無く、名指す先が無い注記になる（block はほかの block を名指さない。憲法の 3）。
+- 実装で決めた事（materials.md の 10.1 と同じ扱い）:
+  - `fill` は `materialkit.fill_entry(entry, None)`（件数は渡されていない、と言う）。訳: 1.5 の `0` だと「依頼 0 件」と言い切るが、この block は依頼の件数を受けない。2.9 の試験の句（「件数は渡されていない」）と、受けない事実に合わせた。
+  - 役の 1 段落の頭を「You are the test-double-fidelity role.」にし、「started in a new conversation」を外した。訳: 輪が `fresh_context: false` で、2 回目からは同じ会話が続くので、新しい会話と言うと事実と違う（調整役の指摘）。2.3 の本文もこの文に揃えた。固定の文（筋書きの `resolved-text-contains`）もこの文。
+  - 輪の中は prep → 役 → accept の 1 本線で、同じ層に node を 2 つ置かない（会話を続ける役の前に複数 node の層を作ると Archon が会話を切るため）。
+  - `intake.py` は `request` の port を持たない（この block の入力は `base`・`entry`・`lang` の 3 つだけ）。

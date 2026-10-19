@@ -1,0 +1,136 @@
+name: works-factory-head-depth
+description: 'run の頭の深さの block（docs/design/head-depth.md）。依頼の行ごとに、まだ決まっていない事の種類（無し・原因・形・範囲）を依頼の字とリポジトリの行の引用つきで AI の役に選ばせ、引用が実在するかを機械が照らし、その種類から run 全体の深さの段（軽量・標準・重厚）を機械が引く。あわせて、既定の模型か effort を替えるべき群を訳つきで選ばせ、記録だけに残す。名指し・仕様の段・設計だけ・依頼の行が無い・機械の確かめが無い run は役を起こさず機械が段を決める。照らしが通らない・役が走らない時は標準に倒す。単独の run でも、graph から include されても回る'
+inputs:
+  request:
+    required: true
+    description: 'json(shared:request.schema.json): 依頼の行の配列 [{where, text, mechanism?, measured?, false_positive_if?}]。それを findings の欄に持つオブジェクトでもよい（工場の依頼のファイルの形）。空の配列は依頼の行の無い run（役を起こさず標準）'
+  has_checks: {default: 'false', description: 'flag: 機械の確かめ（試験のコマンドか TDD の実行器）が在るか。false なら役を起こさず標準'}
+  thickness: {default: 'auto', description: 'choice(auto|light|standard|heavy): 呼ぶ人の段の名指し（light は軽量・standard は標準・heavy は重厚）。auto（空も同じ）は役が依頼の行から選ぶ。ほかは役を起こさずその段'}
+  spec: {default: 'false', description: 'flag: 仕様の段を挟む run か。true なら役を起こさず標準'}
+  design_only: {default: 'false', description: 'flag: 設計だけの run か。true なら役を起こさず標準'}
+  lang: {default: '', description: 'text: 人に見せる欄（why・groups[].why）の言語。空は依頼の行の言語'}
+returns: finish
+outcome_field: ok
+nodes:
+  - id: intake
+    script: intake
+    runtime: uv
+    mutates_checkout: false
+    output_format:
+      type: object
+      additionalProperties: false
+      required: [due, reason]
+      properties:
+        due: {type: boolean}
+        reason: {type: string}
+  - id: head-depth-loop
+    depends_on: [intake]
+    when: $intake.output.due == true
+    loop_group:
+      max_iterations: 3
+      fresh_context: false
+      until_bash: done=$head-depth-accept.output.done; test "$done" = true
+      nodes:
+        - id: head-depth-prep
+          script: depth_prep
+          runtime: uv
+          mutates_checkout: false
+          output_format:
+            type: object
+            additionalProperties: false
+            required: [prompt]
+            properties: {prompt: {type: string, minLength: 1}}
+        - id: head-depth
+          prompt: "$head-depth-prep.output.prompt"
+          depends_on: [head-depth-prep]
+          model: '@wf-judge-materials'
+          settingSources: [user]
+          allowed_tools: [Read, Grep, Glob]
+          sandbox: {enabled: true, allowUnsandboxedCommands: false}
+          idle_timeout: 1728000000
+          mutates_checkout: false
+          retry: {max_attempts: 2, on_error: all}
+          output_format:
+            type: object
+            additionalProperties: false
+            required: [why, items, groups]
+            properties:
+              why: {type: string, minLength: 1, pattern: '\S'}
+              groups:
+                type: array
+                items: {type: object, additionalProperties: false, required: [group, model, effort, why], properties: {group: {type: string, minLength: 1}, model: {type: string, minLength: 1}, effort: {type: string, minLength: 1}, why: {type: string, minLength: 1}}}
+              items:
+                type: array
+                items:
+                  type: object
+                  additionalProperties: false
+                  required: [item, unknown, cause_quote]
+                  properties:
+                    item: {type: integer, minimum: 1}
+                    unknown:
+                      type: string
+                      enum: [無し, 原因, 形, 範囲]
+                    cause_quote: {type: string, minLength: 1}
+                    where: {type: string, minLength: 3}
+                    code_quote: {type: string, minLength: 1}
+        - id: head-depth-accept
+          script: depth_accept
+          runtime: uv
+          mutates_checkout: false
+          depends_on: [head-depth]
+          with: {reply: $head-depth.output}
+          output_format:
+            type: object
+            additionalProperties: false
+            required: [ok, done, reason]
+            properties:
+              ok: {type: boolean}
+              done: {type: boolean}
+              reason: {type: string}
+  - id: finish
+    script: finish
+    runtime: uv
+    mutates_checkout: false
+    depends_on: [intake, head-depth-loop]
+    trigger_rule: all_done
+    output_format:
+      type: object
+      additionalProperties: false
+      required: [ok, status, reason, tier, why, rows, record, report]
+      properties:
+        ok: {type: boolean}
+        status:
+          type: string
+          enum: [ok, failed]
+        reason: {type: string}
+        tier:
+          type: string
+          enum: [軽量, 標準, 重厚]
+        why: {type: string}
+        rows:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required: [item, unknown, cause_quote]
+            properties:
+              item: {type: integer, minimum: 1}
+              unknown:
+                type: string
+                enum: [無し, 原因, 形, 範囲]
+              cause_quote: {type: string}
+              where: {type: string}
+              code_quote: {type: string}
+        record:
+          type: object
+          additionalProperties: false
+          required: [type, run_id, path]
+          properties:
+            type:
+              type: string
+              enum: [archon_artifact]
+            run_id: {type: string}
+            path: {type: string}
+        report:
+          type: array
+          items: {type: string}

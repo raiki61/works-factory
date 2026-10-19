@@ -1,0 +1,125 @@
+name: works-factory-main-path-observation
+description: >-
+  主経路の実行観測: 対象差分が利用者から見える経路か外部との継ぎ目を変える時に、その経路を実際に 1 回動かし、通った値を観測する。素材集めの観点の block
+  （docs/design/materials.md の形）。単独の run でも、判定のまとめから include されても動く
+inputs:
+  base: {default: "", description: "text: 対象差分の根の commit（対象差分は、この commit から作業ツリーの今の姿まで。未追跡の新しいファイルも入る）。空は HEAD"}
+  entry: {default: "", description: "text: 判定から入る run の出どころの文（例「人の依頼（/path/req.json）」）。空は判定から入る run でない"}
+  lang: {default: "", description: "text: 人に見せる欄（material の detail・checked・reason と、observed の path・value）の言語。空は依頼の言語"}
+returns: finish
+outcome_field: ok
+nodes:
+  - id: intake
+    script: intake
+    runtime: uv
+    mutates_checkout: false
+    output_format:
+      type: object
+      additionalProperties: false
+      required: [due, reason]
+      properties:
+        due: {type: boolean}
+        reason: {type: string}
+  - id: main-path-observation-loop
+    depends_on: [intake]
+    when: $intake.output.due == true
+    loop_group:
+      max_iterations: 3
+      fresh_context: false
+      until_bash: done=$main-path-observation-accept.output.done; test "$done" = true
+      nodes:
+        - id: main-path-observation-prep
+          script: role_prep
+          runtime: uv
+          mutates_checkout: false
+          output_format:
+            type: object
+            additionalProperties: false
+            required: [prompt]
+            properties:
+              prompt: {type: string}
+        - id: main-path-observation
+          prompt: "$main-path-observation-prep.output.prompt"
+          depends_on: [main-path-observation-prep]
+          model: '@wf-judge-materials'
+          settingSources: [user]
+          allowed_tools: [Read, Grep, Glob, Bash, WebSearch, WebFetch]
+          sandbox:
+            enabled: true
+            allowUnsandboxedCommands: false
+            failIfUnavailable: true
+            enableWeakerNetworkIsolation: true
+            network:
+              allowedDomains: ['*']
+              allowLocalBinding: true
+            # 作業ツリー・ほかの run の worktree・artifacts を書けなくする（~ は起動が隔離した HOME で、~/../archon-home が Archon の家。
+            # 写しは作業ツリーの外の一時の置き場に作らせるので、/ は書ける。起こす直前に包み（workflows/.shared/fence.py）が
+            # denyWrite を印と読み、cwd・共通の .git・worktree の根などを足す。issue #293・#309）
+            filesystem:
+              allowWrite: [/]
+              denyWrite: ['~/../archon-home']
+          idle_timeout: 1728000000
+          retry: {max_attempts: 2, on_error: all}
+          output_format:
+            type: object
+            required: [material, observed]
+            additionalProperties: false
+            properties:
+              material:
+                type: object
+                required: [status]
+                additionalProperties: false
+                properties:
+                  status:
+                    type: string
+                    enum: [found, clean, carried_over, not_applicable, awaiting_human, not_run]
+                  count: {type: integer, minimum: 0}
+                  detail: {type: string}
+                  checked: {type: string}
+                  reason: {type: string}
+                  from_round: {type: integer, minimum: 1}
+              observed:
+                type: array
+                items:
+                  type: object
+                  required: [path, value]
+                  additionalProperties: false
+                  properties:
+                    path: {type: string, minLength: 1}
+                    value: {type: string, minLength: 1}
+        - id: main-path-observation-accept
+          script: role_accept
+          runtime: uv
+          mutates_checkout: false
+          depends_on: [main-path-observation]
+          with: {reply: $main-path-observation.output}
+          output_format:
+            type: object
+            additionalProperties: false
+            required: [ok, done, reason]
+            properties:
+              ok: {type: boolean}
+              done: {type: boolean}
+              reason: {type: string}
+  - id: finish
+    script: finish
+    runtime: uv
+    mutates_checkout: false
+    depends_on: [intake, main-path-observation-loop]
+    trigger_rule: all_done
+    output_format:
+      type: object
+      additionalProperties: false
+      required: [ok, status, reason, material, report]
+      properties:
+        ok: {type: boolean}
+        status: {type: string, enum: [ran, skipped, gave_up, failed]}
+        reason: {type: string}
+        material:
+          type: [object, "null"]
+          required: [type, run_id, path]
+          properties:
+            type: {const: archon_artifact}
+            run_id: {type: string}
+            path: {type: string}
+        report: {type: array, items: {type: string}}
