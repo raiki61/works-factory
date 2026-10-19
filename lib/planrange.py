@@ -37,7 +37,6 @@ import posixpath
 import conflict
 from globs import glob_match   # 同じ名の口 globs(it) がこのモジュールに在る
 import planmarks
-import promptsection
 import stopby   # L1。止めの理由の住処
 
 # 単位に結べない変わったパスがほかの項目の out_of_scope に当たり、ある項目の範囲には入る時に足す文（申告すればその項目で照らす）
@@ -45,8 +44,8 @@ OWNER_HINT = "（項目 {nums} の範囲には入る。その項目の単位の 
 LIFTED = "out_of_scope_lifted"   # with_agreed が項目の写しに足す欄: 合意でその項目の out_of_scope から外したパス（字のまま）
 NO_PLAN = "承認済みの修正案か works の欄の控えが無い"
 NO_SCOPE = "範囲の欄の無い控え（217 番の形の共有ボード）"
-SCOPE_HEAD = promptsection.Section("## 変えてよいパスと触らない物（受け付けがこの値で照らす）", source="fn:planrange.scope_text")
-TESTS_HEAD = promptsection.Section("## 変えてよいテストと凍ったテスト（受け付けがこの名で照らす）", source="fn:planrange.tests_text")
+SCOPE_HEAD = "## 変えてよいパスと触らない物（受け付けがこの値で照らす）"
+TESTS_HEAD = "## 変えてよいテストと凍ったテスト（受け付けがこの名で照らす）"
 
 
 def globs(it: dict) -> list[str]:

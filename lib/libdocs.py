@@ -47,12 +47,11 @@ import time
 import impact
 import libdocs_local
 import libdocs_web
-import promptsection
 import webget
 
 ENV_SWITCH = "WORKS_LIBDOCS_WEB"       # off で網に出ない（出ないことを節に書く）
 MAX_LIBS = 8                           # 1 回に引くライブラリの数の上限（超えた物は名前で言う）
-TITLE = promptsection.Section("## ライブラリの文書（手元の版・公式）", source="fn:libdocs.section")
+TITLE = "## ライブラリの文書（手元の版・公式）"
 CACHE_DIR = "libdocs"                  # 盤面の周の置き場の下の控えと文書のファイル（run をまたぐ控えも同じ名の置き場）
 # ライブラリごとの置き場の下の、手元の版の署名と説明のファイルの名（local-<中身の sha256 の頭 8 桁>.md）。中身は単位が使う名で
 # 変わり、並べの枝（同じ周の置き場を分け合う）が別の単位で同じライブラリを書くので、中身で名を分けて互いに上書きしない
@@ -326,9 +325,9 @@ def _lib_dir(lib: dict) -> str:
     return re.sub(r"[^A-Za-z0-9._@-]", "_", f"{lib['name']}@{lib['version'] or 'any'}")
 
 
-DOC_TITLE = promptsection.Section("# {lib} {version}（手元の版。import せずに読んだ署名と説明）", source="fn:libdocs._local_text")
-FRAGMENT_HEAD = promptsection.Section("## {title}", source="fn:libdocs._local_text")
-LIB_HEAD = promptsection.Section("### {lib} {version}", source="fn:libdocs._render")
+DOC_TITLE = "# {lib} {version}（手元の版。import せずに読んだ署名と説明）"
+FRAGMENT_HEAD = "## {title}"
+LIB_HEAD = "### {lib} {version}"
 
 
 def _local_text(lib: dict, local: dict) -> str:

@@ -63,7 +63,6 @@ import answer  # noqa: E402
 import cite  # noqa: E402
 import impact  # noqa: E402
 import planmarks  # noqa: E402
-import promptsection  # noqa: E402
 import rolekit  # noqa: E402
 from rolekit import BoardGap  # noqa: E402
 
@@ -80,12 +79,12 @@ UNPAIRED_HEAD = "独立設計に対の無い仕組み: "
 QUOTE_HEADS = (DRIFT_HEAD, UNPAIRED_HEAD)
 ROW_QUOTE_KEYS = ("approach", "files", "allowed_paths", "shrink_first")   # 案の行のうち、引用の照らしが読む欄
 TEXT_SEP = "\x00"   # 引用の照らしで文を継ぐ字（畳みの空白に化けないので、欄をまたぐ引用は字のままと数えない）
-HUMAN_HEAD = promptsection.Section("### 承認ノードの答え", source="fn:design.human_answers")
+HUMAN_HEAD = "### 承認ノードの答え"
 HUMAN_ASK = ("人が承認ノードで答えた前提（run の中で人が決めた物）。ほかのセクションより先に読め。答えが目的の文や前の要求を取り下げ・変えていれば、"
              "取り下げ・変えた後の要求を前提にせよ（取り下げた要求を固定の契約にしない）。設計が取り下げた要求を置いていても、"
              "そのことだけでは差にも前提の崩れにも数えず、答えに照らした目的で突き合わせよ。")
-DESIGN_PREMISE_HEAD = promptsection.Section("## 人が決めた前提（機械が貼った）", source="fn:design.prep")
-NAMED_HEAD = promptsection.Section("### 依頼が名指した設計書のセクション", source="fn:design.named_sections")
+DESIGN_PREMISE_HEAD = "## 人が決めた前提（機械が貼った）"
+NAMED_HEAD = "### 依頼が名指した設計書のセクション"
 NAMED_ASK = "依頼が名指した設計書のセクションの本文（依頼を固めた版のファイルから機械が抜いた）。目的の文と同じく依頼の一部として読め。"
 CODE_SPAN_ANCHOR = re.compile(r"`([^`\s]+\.[A-Za-z0-9]+#[^`\s]+)`")
 # 持ち主の地の文の名指し: 「`<path>` 3 節」「`<path>` の §3」（見出しの頭の番号で引く。パスは拡張子つき）
@@ -124,9 +123,9 @@ PREMISE_KINDS = ("human_answer", "named_section", "repo_map")
 # 対象のリポジトリの地図として根から読む名（関所の決め: 根の 2 つだけ。docs/ の下や README は読まない）。中身は分類せず丸ごと貼る。
 # AGENTS.md は blk-fix の fixrules.PROMPT_NAMES（役の指示書として読む名）とも重なる（core から blk-fix へは依らないので別に置く）
 MAP_NAMES = ("ARCHITECTURE.md", "AGENTS.md")
-MAP_HEAD = promptsection.Section("### 対象のリポジトリの地図", source="fn:design.repo_map")
-MAP_FILE_HEAD = promptsection.Section("#### {name}:1-{total}", source="fn:design.repo_map")
-NAMED_BODY_HEAD = promptsection.Section("#### {name}（{src}）", source="fn:design.named_sections")
+MAP_HEAD = "### 対象のリポジトリの地図"
+MAP_FILE_HEAD = "#### {name}:1-{total}"
+NAMED_BODY_HEAD = "#### {name}（{src}）"
 MAP_ASK = ("対象のリポジトリの根に在る地図の文書（依頼を固めた版のファイルから機械が貼った。見出しは出どころのパス:行）。"
            "依頼が名指していなくても、仕組みの中に既に在る実物（信用の起点・外との通信の経路・守る物）から設計を始めよ。")
 
@@ -552,7 +551,7 @@ BODY_OPEN, BODY_CLOSE = "=====独立設計ここから=====", "=====独立設計
 QUOTE_FROM = f"独立設計の本文（{BODY_OPEN} と {BODY_CLOSE} の間）の文を字のまま引け"
 QUOTE_FROM_ELEMENTS = "本文の後ろの要素の一覧の行（`D1: 足す: …／消す: …`）の字"
 QUOTE_NONE = "対が無ければ null"
-ELEMENTS_HEAD = promptsection.Section("### 独立設計の要素（design_map の design_ref が指す id）", source="fn:design.element_lines")
+ELEMENTS_HEAD = "### 独立設計の要素（design_map の design_ref が指す id）"
 
 
 def element_gaps(reply) -> list:

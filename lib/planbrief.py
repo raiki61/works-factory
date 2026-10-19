@@ -49,37 +49,35 @@ sys.dont_write_bytecode = True
 
 import fixboard  # noqa: E402  （置き場の trace.jsonl への 1 行・planmarks に渡す読み口）
 import planmarks  # noqa: E402
-import promptsection  # noqa: E402
 import structmark  # noqa: E402
 
 LEDGER = "briefs.json"
 NAME = "brief-{n}.md"
-HEAD = promptsection.Section("## 要求の正本（brief）", source="fn:planbrief.head_text")
+HEAD = "## 要求の正本（brief）"
 RESTORED_OP = "brief_restored"
 CUT_OP = "brief_cut"   # 周の 1 回目の cut と切り直しの印（trace）
 RECUT_OP = "brief_recut"   # 差し替えの印の後の切り直しの印 {round, items: [番号…]}（trace。直後に CUT_OP の行）
 BACKGROUND = "背景（参照。brief と食い違えば brief が勝つ。brief が誤りと見たら申し出よ）"
 READ_ALL = "まず Read で全部読め。下の決まりの『brief の決まり（要求の正本と背景）』に従え"
 NONE = "無し"
-_FN = "fn:planbrief.render"
-TITLE = promptsection.Section("# 要求の正本: 修正案の項目 {n}", source=_FN)
-UNITS_HEAD = promptsection.Section("## 直す単位", source=_FN)
-APPROACH_HEAD = promptsection.Section("## やり方（approach）", source=_FN)
-FILES_HEAD = promptsection.Section("## ファイル構成（files）", source=_FN)
-DEPENDS_HEAD = promptsection.Section(f"## 前の項目から受ける物（{planmarks.DEPENDS_KEY}）", source=_FN)
-SHRINK_HEAD = promptsection.Section("## 足さずに閉じる形（shrink_first）", source=_FN)
-NARROWS_HEAD = promptsection.Section("## 狭める能力（narrows）", source=_FN)
-ROUTE_HEAD = promptsection.Section("## 直し方の道（route）", source=_FN)
-TESTS_HEAD = promptsection.Section("## 受け入れのテスト（tests）", source=_FN)
-REWRITE_HEAD = promptsection.Section("## 書き換えてよい既存のテスト（rewrite_tests）", source=_FN)
-REFACTOR_HEAD = promptsection.Section("## 整えの申告（refactor）", source=_FN)
-ALLOWED_HEAD = promptsection.Section("## 書いてよいパス（allowed_paths）", source=_FN)
-OUT_OF_SCOPE_HEAD = promptsection.Section("## 触らない物（out_of_scope）", source=_FN)
-PURPOSE_HEAD = promptsection.Section("## 目的の文（凍結）", source=_FN)
-STRUCTURE_ROW_HEAD = promptsection.Section("## 構造の目の行", source=_FN)
-STRUCTURE_HEAD = promptsection.Section("## 構造の目の行と処方への答え（structure）", source=_FN)
-BACKGROUND_HEAD = promptsection.Section(f"## {BACKGROUND}", source=_FN)
-UNIT_HEAD = promptsection.Section("### {key}", source="fn:planbrief._unit")
+TITLE = "# 要求の正本: 修正案の項目 {n}"
+UNITS_HEAD = "## 直す単位"
+APPROACH_HEAD = "## やり方（approach）"
+FILES_HEAD = "## ファイル構成（files）"
+DEPENDS_HEAD = f"## 前の項目から受ける物（{planmarks.DEPENDS_KEY}）"
+SHRINK_HEAD = "## 足さずに閉じる形（shrink_first）"
+NARROWS_HEAD = "## 狭める能力（narrows）"
+ROUTE_HEAD = "## 直し方の道（route）"
+TESTS_HEAD = "## 受け入れのテスト（tests）"
+REWRITE_HEAD = "## 書き換えてよい既存のテスト（rewrite_tests）"
+REFACTOR_HEAD = "## 整えの申告（refactor）"
+ALLOWED_HEAD = "## 書いてよいパス（allowed_paths）"
+OUT_OF_SCOPE_HEAD = "## 触らない物（out_of_scope）"
+PURPOSE_HEAD = "## 目的の文（凍結）"
+STRUCTURE_ROW_HEAD = "## 構造の目の行"
+STRUCTURE_HEAD = "## 構造の目の行と処方への答え（structure）"
+BACKGROUND_HEAD = f"## {BACKGROUND}"
+UNIT_HEAD = "### {key}"
 
 
 UNSCOPED = "無し（この案は範囲を決めていない。範囲では縛らない）"   # 範囲の欄の無い項目（依頼 218 より前の案）の範囲の節

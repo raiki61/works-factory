@@ -29,7 +29,6 @@ import converge  # noqa: E402
 import gatemarks  # noqa: E402
 import oneline  # noqa: E402
 import planmarks  # noqa: E402
-import promptsection  # noqa: E402
 import report  # noqa: E402  （関所の止める語 FINAL_GATE_STOPS。案の直しの関所も同じ語で止める）
 
 TRIP_FILE = "replan.json"
@@ -41,9 +40,9 @@ REPLAN_ASK = ("承認済みの修正案の項目のうち、下に貼った項�
               "ほかの項目は返すな。直した項目は事前審査に掛かり、約束の欄（unit_keys・narrows・files の消す側（op が delete・rename の行と change=remove の symbol）・allowed_paths・out_of_scope・"
               "rewrite_tests・tests の behavior）を変えた時は承認ノードに出る。")
 REPLAN_REJECT = "直した項目の返答に誤りが在る（下の行を全部直して出し直せ）:"
-ITEM_HEAD = promptsection.Section("## 直す項目 {n}（承認済みの修正案の項目の番号）", source="fn:replan._section")
-OLD_HEAD = promptsection.Section("### 前の項目（承認済み。機械が貼った）", source="fn:replan._section")
-ROW_HEAD = promptsection.Section("### 修正の段の申し出と裁定（{id}）", source="fn:replan._section")
+ITEM_HEAD = "## 直す項目 {n}（承認済みの修正案の項目の番号）"
+OLD_HEAD = "### 前の項目（承認済み。機械が貼った）"
+ROW_HEAD = "### 修正の段の申し出と裁定（{id}）"
 # 無人の run で範囲を広げるだけの直しを聞かずに通した項目の文（元 replan.py:152-154。案の直しの関所の節と報告が同じ字を読む）
 WIDEN_OP = "replan_widened_unattended"
 WIDEN_LINE = "直した——無人の run なので人に聞かずに範囲を広げた（{what}）"
@@ -56,7 +55,7 @@ NOT_RUN_WHY = "2 度目の修正が走らなかった（直した案ができな
 NO_NOTE = "（一言なし）"                          # 元 replan.NO_NOTE
 PENDING_WHY = "未完了（前の run が途中で落ちて、案の直しを終えていない）"   # 元 replan.PENDING_WHY（途中で落ちた run の待つ行）
 CLOSE_WHY = "同じ run の中で案の直しを終えられなかった（案の段に戻るのは 1 run に 1 回）"   # 元 replan.CLOSE_WHY
-FACES_HEAD = promptsection.Section("## 直した項目 {item}（単位 {units}）の事前審査の穴", source="fn:replan.fix_notes")   # 元 replan.FACES_HEAD
+FACES_HEAD = "## 直した項目 {item}（単位 {units}）の事前審査の穴"   # 元 replan.FACES_HEAD
 NO_REVIEW_WHY = "（案の直しの事前審査の返答を読めない——採った項目の事前審査の穴を渡していない: {why}）"
 
 

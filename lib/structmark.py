@@ -38,7 +38,6 @@ import concepthome
 import eye   # ブロックの時間の欄（eye.wall）
 import listcut
 import planmarks   # 修正案の外れの訳の文の住処（answer_line）
-import promptsection
 
 COPY_FILE = "structure/state.json"
 AFTER_FILE = "structure-after.json"
@@ -46,13 +45,13 @@ AFTER_FILE = "structure-after.json"
 FENCE_UP_LIST = "住処の外の知る場所の増え（after.fence_up）"
 NEW_NAMES_LIST = "新しい名（after.new_names）"
 MISSING = "構造の目の行なしで計画した"
-PLAN_HEAD = promptsection.Section("## 構造の目の行（設計を知らない次の人が足す形が増えないかを別の目が見た判定。機械が貼った）", source="fn:structmark.plan_section")
+PLAN_HEAD = "## 構造の目の行（設計を知らない次の人が足す形が増えないかを別の目が見た判定。機械が貼った）"
 DIRTY = "汚れる"           # 設計の行の verdict の語（約束は構造のブロックの設計の行の型の enum）
 ROUTE_UP = "人に上げる"    # 設計の行の route の語（同じ約束。関所の項目にする行。gatemarks が読む）
 PLAN_ASK = ("汚れると見た行の単位を持つ項目は、行ごとに避け方（chosen）に従うか、従わない訳を、項目の works の欄 structure に書け"
             "（{row: <行の頭の単位の id>, follows: true} か {row, deviation: <訳>}。欠けは受け付けが拒む）。")
 PLAN_NONE = "構造の目が汚れると見た行は無い（structure の欄に構造の目の行への答えは要らない）。"
-PLAN_CLEAN_HEAD = promptsection.Section("### 汚れないと見た行（参考。structure にこの行への答えを書くと受け付けが拒む）", source="fn:structmark.plan_section")
+PLAN_CLEAN_HEAD = "### 汚れないと見た行（参考。structure にこの行への答えを書くと受け付けが拒む）"
 
 
 def write(path, *, status: str, reason: str, design_file: str, timed=(), skipped=()) -> pathlib.Path:
