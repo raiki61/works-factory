@@ -396,7 +396,7 @@
 ### `readme-english` 根の README.md は英語の 1 版だけにする
 
 - 持ち主の言葉（2026-10-18、claude-plugins の窓口の会話）: 「うん。いいよ。英語にしましょう。」（works-factory の README.md を英語だけの 1 版にし、日本語の版は並べない案への答え。もとは raiki61/claude-plugins の根の README を英語の 1 版にした決め〔claude-plugins の `docs/readme-language.md`〕）
-- 決め: 根の `README.md` は英語だけで書く。日本語の訳の版（`README.ja.md` など）は持たない。ほかの文書（各階層の `AGENTS.md`・`MISSION.md`・`docs/`）と、工場が人や役に見せる字（役の指示書・殻の案内・報告）は日本語のまま。
+- 決め: 根の `README.md` は英語だけで書く。日本語の訳の版（`README.ja.md` など）は持たない。ほかの文書（各階層の `AGENTS.md`・`MISSION.md`・`docs/`）と、工場が人に見せる字（殻の案内・報告）は日本語のまま。役の指示書（AI への指示の文）は、2026-10-19 の `prompts-english` で英語に替えた。
 - 当て方: 根の `AGENTS.md` の「文書は日本語。」の例外の 1 文。`README.md` の見出しは英語なので、見出しを名指す所（`lib/testcmd_check.py` の `HOW`・`docs/works-parity.md` の「今」の欄の `README.md「…」`）は英語の見出しの名で指す。殻や工場が出す日本語の字（`bin/_lib/launcher.py` の `TARGET_ENV_NOTICE`・試験の行の頭「止める（test_cmd）」「注意（test_cmd）」）は、README に字のまま引く。
 
 ### 2026-10-11 の決めから導いた事（持ち主の決めでなく、根拠つきの判断）
@@ -452,6 +452,12 @@
 - 持ち主の言葉: なし（本文の要約）
 - 決め: `overnight-speed`（PR の単位は大きく、聞かずに merge）は #765 の作り直しの間だけ効かせ、組み込みの後に外す（外した日をここに足す）。`simple-software` に沿って、層の検査のコード（`tests/layers/scan.py` の 2,070 行など）を、置き場の形と API に置き換えて小さくする。
 - 当て方: `docs/design/README.md` の 11 章。
+
+### `prompts-english` AI への指示の文は英語で書く
+
+- 持ち主の言葉: なし（本文の要約）。#764 の本文に「オーナーが 2026-10-19 に英語でよいと言った」と残る。
+- 決め: AI のノードへの指示の文は、ノードごとの md に英語で書く（#764）。人に見せる字（報告・承認の文・人に見せる却下の文・殻の案内）は日本語のまま。`lang-one`（中は 1 つの言語、人と話す所だけその人の言語）に沿う。2026-10-18 の `readme-english` が書いた「役の指示書は日本語のまま」は、これで替わった。
+- 当て方: `docs/design/README.md` の 2 章と 5 章・`blocks/AGENTS.md`。
 
 ## 引き継いだ決め
 

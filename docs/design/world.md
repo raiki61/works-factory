@@ -40,12 +40,12 @@
 
 ### 1.3 node の並び（`blocks/world/works-factory-world.yaml`）
 
-1. `intake`（script `intake.py`）: port を読み、place を作り直して `intake.json` を書く。返り `{due, findings, reason}`。
+1. `intake`（script `intake.py`）: port を読み、place の中のこの block のファイルを名で引いて消し（place そのものは消さない。単独の run では place が run directory の根なので。README の 13 章）、`intake.json` を書く。返り `{due, findings, reason}`。
 2. `world-classes-loop`（`loop_group`、最大 3 回、`fresh_context: false`、`until_bash` は accept の `done`。`when: $intake.output.due == true`）
    - `world-classes-prep`（script `restate_prep.py`。`with:` を持たない。前の回までの却下は place の控えから読む。9.1 の 6）: 指示を組む。返り `{prompt}`。
    - `world-classes`（AI。`prompt: "$world-classes-prep.output.prompt"`・`allowed_tools: []`・`mutates_checkout: false`・model `@wf-judge-core`・閉じた sandbox・`retry`・`idle_timeout: 1728000000`。`output_format` は今の `classes` のまま）
    - `world-classes-accept`（script `restate_accept.py`。`with: {reply: $world-classes.output}`）: 返り `{ok, done, reason}`。
-3. `pick`（script `pick.py`。`trigger_rule: all_done`）: 取る類を `MAX_CLASSES`（5）まで決めて `plan.json` に書く。返り `{due, reason}`。
+3. `pick`（script `pick.py`。`trigger_rule: all_done`）: 取る類を `MAX_CLASSES`（5）まで決めて `plan.json` に書く。返り `{due, web, reason}`（`web` は入口が読んだ port `web` が on か。下の 2 つの輪のどちらを回すかを決める）。
 4. `world-judge-loop`（同じ形。`when: $pick.output.due == true && $pick.output.web == true`）と `world-judge-offline-loop`（`when: … && $pick.output.web == false`。本体は `world-judge-offline-prep`〔script `offline_prep.py`〕・`world-judge-offline`〔AI。`allowed_tools: []`。返す形は `world-judge` と同じ〕・`world-judge-offline-accept`〔script `web_accept.py`〕）。web が off の run は道具を持たない役の輪だけが回る（9.1 の 7）
    - `world-judge-prep`（script `web_prep.py`）・`world-judge`（AI。`allowed_tools: [WebSearch, WebFetch]`・model `@wf-judge-materials`。`output_format` は今の `rows`・`excerpts` のまま）・`world-judge-accept`（script `web_accept.py`。抜き書きを取り直して照らす）。
 5. `finish`（script `finish.py`。`trigger_rule: all_done`）: 行を `world.jsonl` に、段の控えを `state.json` に書き、出力を返す。どの段が落ちても落ちない（今の落とし穴 K1・K13 の決まり）。

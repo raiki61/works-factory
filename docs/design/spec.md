@@ -56,7 +56,7 @@ AI の node の起動の鍵（今の YAML の錨のまま写す）:
 
 並び:
 
-1. `intake`（script `intake.py`。`mutates_checkout: false`）: port を読み、mode を決める。write なら place を作り直し、依頼の行を `request.json` に書く。返り `{mode, go, reason}`（`mode` は `write`・`check`、`go` は先へ進むか）。
+1. `intake`（script `intake.py`。`mutates_checkout: false`）: port を読み、mode を決める。write なら place の中のこの block のファイルを名で引いて消し（place そのものは消さない。README の 13 章）、依頼の行を `request.json` に書く。返り `{mode, go, reason}`（`mode` は `write`・`check`、`go` は先へ進むか）。
 2. `spec-write-loop`（`loop_group`、`max_iterations: 3`、`fresh_context: false`、`until_bash: 'done=$spec-write-accept.output.done; test "$done" = true'`。`depends_on: [intake]`・`when: "$intake.output.go == true && $intake.output.mode == 'write'"`）
    - `spec-write-prep`（script `write_prep.py`。`with: {prev: "$LOOP_PREV.spec-write-accept.output.ok"}`）: 返り `{prompt, resubmit}`。
    - `spec-write`（AI。`prompt: "$spec-write-prep.output.prompt"`・`depends_on: [spec-write-prep]`・`when: "$spec-write-prep.output.resubmit != true"`・書く系の鍵。`output_format` は 2.4 の形）。
@@ -522,7 +522,7 @@ How to answer:
 
 ## 6 script の node
 
-- `intake.py`: `INPUTS_MODE`・`INPUTS_REQUEST`・`INPUTS_PR_TEXT`・`INPUTS_SPEC`・`INPUTS_USER_ENV_DIR` を `os.environ.get("INPUTS_MODE")` などの字のままで読み、`ports` に渡す。mode が `write` なら place を作り直し（中を全部消す）、依頼の行を `request.json` に書き（容器の形なら `findings` を取り出す。行の形の照らしは `request.schema.json`）、`intake.json` に `{mode, go, reason, pr_text}` を書く。依頼が読めない時は `go: false`・`stop.json` に `works:spec` と訳。mode が `check` なら place を消さず（check の include は自分の place を持つ）`go: true`。返り `{mode, go, reason}`。
+- `intake.py`: `INPUTS_MODE`・`INPUTS_REQUEST`・`INPUTS_PR_TEXT`・`INPUTS_SPEC`・`INPUTS_USER_ENV_DIR` を `os.environ.get("INPUTS_MODE")` などの字のままで読み、`ports` に渡す。mode が `write` なら place の中のこの block のファイルを名で引いて消し（place そのものは消さない。README の 13 章）、依頼の行を `request.json` に書き（容器の形なら `findings` を取り出す。行の形の照らしは `request.schema.json`）、`intake.json` に `{mode, go, reason, pr_text}` を書く。依頼が読めない時は `go: false`・`stop.json` に `works:spec` と訳。mode が `check` なら place を消さず（check の include は自分の place を持つ）`go: true`。返り `{mode, go, reason}`。
 - `write_prep.py`・`review_prep.py`・`revise_prep.py`: `INPUTS_PREV` を読み、`rolekit.resubmitting(place, <役の名>, prev)` が真なら `prompt.render("<役>-fix", {"resubmit_reason": <最後の却下>, "candidate_file": <控えのパス>}, {})` と `resubmit: true`、偽なら `prompt.render("<役>", values, when)` と `resubmit: false` を返す。`values` は 2.3・3.3・4.3 の差し込み口（`lang` が空なら README の 5.3 の既定の英文）。`when` は `{"rejected": <却下の控えが空でない>, "pr_text": <intake.json の pr_text が空でない>}`。query-rule の断片の `spawns` は `False`。今の `rejects.py` の `lang_line`・`reason`・`brief` の欄は無くなる。
 - `take.py`: 今の `spec_accept.py` と同じ。`INPUTS_ROLE`・`INPUTS_STATUS_GUARDED`・`INPUTS_REPLY`・`INPUTS_FIX_REPLY` を読み、`rolekit.resubmitted(place, ROLES[role], reply, fix_reply, rolekit.merge_fields)` で合わせ、`rolekit.accept_parsed(place, ROLES[role], got, lambda r: src.take.take(place, role, r, <作業ツリー>, keys=accept.status_keys(<status_guarded>)))`。返り `{ok, done, reason, revise}`。
 - `ask.py`: `src.gate.ask(place, <作業ツリー>, ports.run_id())`。中の誤りは `stop.json` に `works:spec` と「仕様の承認ノードの文を組めない（<型>: <文>）」を書き、`{ask: false, message: ""}`（今の `spec_ask.py` のまま）。
