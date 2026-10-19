@@ -1,0 +1,9 @@
+# 判定から入る run: 役を起こさず、出口が status: skipped を返す（素材は入口の理由つきの not_applicable）。AI の node には届かない
+fixture:
+  expect: completed
+  reached: [intake, finish]
+  inputs:
+    base: ''
+    entry: '人の依頼（standalone）'
+    lang: ''
+exec-code: true
