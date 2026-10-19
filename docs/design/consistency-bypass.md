@@ -193,7 +193,7 @@ md の中に `$` の字は無い。`{` は差し込み口と断片だけ。見�
 ```markdown
 {shared:role-inspector の本文: This role is an inspector. …（6 行）}
 
-You are the consistency-bypass role, started in a new conversation. …（決まった文）
+You are the consistency-bypass role. You do two checks, independently of each other: … （決まった文。実物は prompts/consistency-bypass.md）
 
 Your tools are Read, Grep, and Glob. You have no Bash, …
 
