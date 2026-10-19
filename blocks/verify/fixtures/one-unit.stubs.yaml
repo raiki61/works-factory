@@ -1,0 +1,7 @@
+# 開いた単位が 1 つ: 相乗りが無いので回さない（束ね役は when で飛ぶ）
+fixture:
+  expect: completed
+  reached: [prep, finish]
+  inputs:
+    judgment: '{"units":[{"key":"a.py mean: 分母","label":"block","reason":"分母が違う"}]}'
+exec-code: true

@@ -490,3 +490,12 @@ README の 10 節の 12 の仕組みのどれも、この block が担わない�
 - 束ね役の組に外への検索の決まりの塊が入る（2.6）。束ね役は検索しないので害は無いと見たが、指示の大きさが約 1.5 KB 増える。
 - 読み手が include されない run の null をどう書くか（1.6）。plan・report・line の設計書で決める。
 - `blocks/.shared/schemas/judgment.schema.json` を diagnose が置くか（1.2）。置けば `json(shared:judgment.schema.json)` にする。
+
+## 9 決めた事（作った時）
+
+- 6 節の 1（`materials` を持たない）・4（`tests/layers/scan.py` の `KEEP_CHECKOUT` に `("verify", "judge-verify")` を 1 行足す）・6（`ok` は `status == "ok"`）・7（1 本の md を段落で 4 通りに組む。`.shared` は変えない）は、設計書どおりに作った。6 節の 2・3（plan と diagnose の入力）は読み手の設計書の事で、この block では何も足していない。
+- `judgment.schema.json` は `blocks/verify/schemas/` に置いた（`blocks/.shared/schemas/` に同名の形がまだ無いため）。diagnose が共通に置いたら `json(shared:judgment.schema.json)` に替えて、この形を消す。
+- 見立て（`framing`・`one_shot`）が両方とも字でない判定は、`view` の段落を偽にし、`{view}` には空の字を渡す。
+- `prep.json` の `failed` が真になるのは、port が読めない・指示が組めない・例外の時。開いた単位が 2 つ未満の時は `failed` が偽。
+- 作業ツリーの写しが読めない・形が違う時の訳は、写しの読み込みの失敗を `OSError`・`ValueError`・`Reject` で受けて 1 行にする。
+- 指示の md は英語で直に置き、日本語の同文の commit と指示の同値の試験は作っていない（第 2 波の決め）。
