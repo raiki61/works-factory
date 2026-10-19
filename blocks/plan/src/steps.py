@@ -55,7 +55,10 @@ def _git(repo, *args) -> str:
     p = subprocess.run(["git", "-C", str(repo), *args], capture_output=True, stdin=subprocess.DEVNULL)
     if p.returncode != 0:
         raise OSError(p.stderr.decode("utf-8", "replace").strip() or f"git {args[0]} が終了コード {p.returncode}")
-    return p.stdout.decode("utf-8")
+    try:
+        return p.stdout.decode("utf-8")
+    except UnicodeDecodeError as e:
+        raise OSError(f"git {args[0]} の出力が utf-8 で読めない: {e}") from None
 
 
 def rows_of(doc, key: str) -> list:
@@ -112,30 +115,38 @@ def _prior(raw, folder) -> dict | None:
     doc = ports.json(text, "plan-prior.schema.json")
     out = {"round": doc["round"], "record": doc.get("record")}
     for field, name in files.PRIOR_COPIES.items():
-        out[field] = nested_file(doc.get(field), folder, name)
+        try:
+            out[field] = nested_file(doc.get(field), folder, name)
+        except ValueError:
+            if field in ("reply", "fields"):
+                raise
+            out[field] = None   # 無い指摘・前の周の控えは『受けていない』と読んで進む（今と同じ）
         out[field] = str(out[field]) if out[field] is not None else None
     if out["reply"] is None or out["fields"] is None:
         raise ValueError("prior の reply・fields が無い")
     out["handoffs"] = []
     for row in doc.get("handoffs") or []:
-        path = nested_file(row.get("handoff"), folder, f"prior-handoff-r{row['round']}.json")
+        try:
+            path = nested_file(row.get("handoff"), folder, f"prior-handoff-r{row['round']}.json")
+        except ValueError:
+            path = None   # 控えが無い周は『メモ無し』と名指す（今と同じ）
         out["handoffs"].append({"round": row["round"], "handoff": str(path) if path else None})
     return out
 
 
 # ---------------------------------------------------------------- 入口
-def _unreadable(mode: str, why: list, unread: list, name: str, error) -> None:
-    """形 plan で読めない judgment・world_rows は役を起こさない訳に、形 replan では読めなかった入力に残す"""
-    if mode == "plan":
+def _unreadable(mode: str, why: list, unread: list, name: str, error, *, holds: bool = False) -> None:
+    """形 plan で読めない judgment と、どちらの形でも読めない world_rows（holds）は役を起こさない訳に、形 replan の judgment は読めなかった入力に残す"""
+    if mode == "plan" or holds:
         why.append(f"{name} が読めない（{error}）")
     else:
         unread.append(f"{name}: {error}")
 
 
-def intake(place, repo, raw: dict) -> dict:
+def intake(place, repo, k: int, raw: dict) -> dict:
     """全部の port を読み、周を開く（docs/design/plan.md の 4 節）。raw は port の名 → INPUTS_<名> の字。返り {go, mode, round, reason}。
-    周のフォルダ r<k>/（k は prior.round + 1。前の周が無ければ 1）を作り、在れば名のファイルだけを消す。読めない port の扱い: 形 plan の
-    judgment・world_rows・prior と形 replan の prior・ruling は役を起こさず（go 偽）、ほかは intake.json の unread に名指して役を起こす"""
+    周のフォルダ r<k>/（k は files.next_round が決めた周の番号。prior が読めない時は在る周の一番大きい番号 + 1 で、前の周のフォルダを開き直さない）
+    を作り、在れば名のファイルだけを消す。読めない port の扱い: 形 plan の judgment と、どちらの形でも world_rows・prior・ruling は役を起こさず（go 偽）、ほかは intake.json の unread に名指して役を起こす"""
     place = pathlib.Path(place)
     why: list[str] = []
     unread: list[str] = []
@@ -146,13 +157,6 @@ def intake(place, repo, raw: dict) -> dict:
     except ValueError as e:
         why.append(f"ruling が読めない（{e}）")
     mode = "replan" if ruling else "plan"
-    k = 1
-    try:
-        probe = ports.text(raw["prior"])
-        if probe.strip():
-            k = ports.json(probe, "plan-prior.schema.json")["round"] + 1
-    except (ValueError, KeyError, TypeError) as e:
-        why.append(f"prior が読めない（{e}）")
     folder = files.round_dir(place, k)
     folder.mkdir(parents=True, exist_ok=True)
     for brief in files.read_round(folder).get("items") or []:
@@ -188,7 +192,7 @@ def intake(place, repo, raw: dict) -> dict:
             worldmark.rows(str(path))   # 行の形を先に照らす（読めなければ ValueError）
             ctx["world_rows"] = str(path)
     except ValueError as e:
-        _unreadable(mode, why, unread, "world_rows", e)
+        _unreadable(mode, why, unread, "world_rows", e, holds=True)
     ctx["units"] = _optional_json(raw["units"], "unit-catalog.schema.json", "units", unread, [])
     ctx["answers"] = _optional_json(raw["answers"], "request-answers.schema.json", "answers", unread, [])
     ctx["prior_failures"] = _optional_json(raw["prior_failures"], "shared:prior-failures.schema.json", "prior_failures", unread, [])
@@ -480,10 +484,12 @@ def _pointer(folder, name: str):
 def status_of(folder, rnd: dict, fields) -> tuple:
     """(status, reason)。status は ok・nothing_owed・held・gave_up・failed（docs/design/plan.md の 1.2）"""
     folder = pathlib.Path(folder)
+    if rnd.get("error"):   # 周を開く途中で落ちた周は、フォルダに何が残っていても failed
+        return "failed", str(rnd["why"])
     if fields:
         return "ok", ""
     if not rnd["go"]:
-        if rnd.get("error") or not rnd["why"]:
+        if not rnd["why"]:
             return "failed", str(rnd["why"] or "入口の控え round.json が無い（入口の node が落ちた）")
         return ("nothing_owed" if rnd["why"] == NOTHING_OWED else "held"), str(rnd["why"])
     error = files.read_json(folder / files.PROMPT_ERROR)

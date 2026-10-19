@@ -22,6 +22,7 @@ brief = kit.load("plan", "brief")
 files = kit.load("plan", "files")
 
 import converge  # noqa: E402  （lib/。base が sys.path に足す）
+import gatemarks  # noqa: E402
 import libdocs  # noqa: E402
 import planmarks  # noqa: E402
 import rolekit  # noqa: E402
@@ -468,6 +469,25 @@ class SurvivesCase(unittest.TestCase):
         self.assertEqual((again["round"], again["go"]), (1, True), "lib が読める次の入口は同じ周を開き直す（周の番号は prior が決める）")
         self.assertNotIn("error", run.read("r1/round.json"))
 
+    def test_a_crashed_intake_never_reopens_the_previous_round(self):
+        """lib が読めず落ちた入口は、前の周のフォルダ（prior の pointer の先）に書かず、新しい周に error を残す。出口は前の案があっても failed"""
+        run = PlanRun(self)
+        line = Line(run)
+        first = line.round()
+        before = {n: (run.art / "r1" / n).read_bytes() for n in (files.REPLY, files.FIELDS, files.ROUND, files.RIPPLE)}
+        run.env_extra = {"WORKS_FACTORY_ROOT": str(self.no_lib(run))}
+        prior = line.prior(None)
+        run.inputs["prior"] = json.dumps(prior, ensure_ascii=False)
+        rnd = run.script("intake")
+        self.assertEqual((rnd["round"], rnd["go"]), (first["round"] + 1, False))
+        self.assertTrue(run.read("r2/round.json")["error"])
+        self.assertEqual(run.read("current-round.json"), {"round": 2})
+        run.script("ripple_items", check=False)   # lib が読めないので node は落ちる（出口は all_done で進む）
+        out = run.script("finish")
+        self.assertEqual((out["status"], out["round"]), ("failed", 2))
+        for name, data in before.items():
+            self.assertEqual((run.art / "r1" / name).read_bytes(), data, name)
+
     def test_intake_takes_over_a_folder_left_half_open(self):
         """周のフォルダが既に在れば開き直す。消すのは周の名のファイルだけ（ほかのファイルと、place の直下の指示の記録は残す）"""
         run = PlanRun(self)
@@ -500,6 +520,19 @@ class BriefCase(unittest.TestCase):
 
     def prompt(self, run, n=0):
         return writer_prompts(run)[n]
+
+    def test_head_asks_no_narrow_first(self):
+        """修正案の役の指示は、narrows を書く前に狭めない案を探し、無い時だけ no_narrow に結果を書けと言う"""
+        text = (base.BLOCK / "prompts" / "plan-writer.md").read_text(encoding="utf-8")
+        self.assertIn("Look first for a plan that does not narrow", text)
+        self.assertIn(gatemarks.NO_NARROW, text)
+
+    def test_plan_head_has_concept_rule(self):
+        """判断の 1 軸と考えの住処の観点が修正案の役の指示に載り、事前審査の頼みは載らない"""
+        text = (base.BLOCK / "prompts" / "plan-writer.md").read_text(encoding="utf-8")
+        self.assertIn("One axis of judgment", text)
+        self.assertIn("Use the homes of concepts", text)
+        self.assertIn("{shared:concept-map}", text)
 
     def test_prompt_carries_policy_concept_map_and_prior_failures(self):
         run = PlanRun(self)

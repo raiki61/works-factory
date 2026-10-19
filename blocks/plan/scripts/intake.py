@@ -13,9 +13,22 @@ sys.path[:0] = [str(Path(__file__).resolve().parents[2] / ".shared"), str(Path(_
 import ports  # noqa: E402
 
 
+K = []   # この周の番号（compute が決め、fallback が同じ番号の周のフォルダに書く）
+
+
+def round_number() -> int:
+    from src import files
+    if not K:
+        K.append(files.next_round(ports.place(), os.environ.get("INPUTS_PRIOR")))
+    return K[0]
+
+
 def compute():
+    from src import files
+    k = round_number()
+    files.write_json(ports.place() / files.CURRENT_ROUND, {"round": k})   # lib を読む前に置く（後の node が今の周を引く）
     from src import steps
-    return steps.intake(ports.place(), Path.cwd(), {
+    return steps.intake(ports.place(), Path.cwd(), k, {
         "judgment": os.environ.get("INPUTS_JUDGMENT"),
         "units": os.environ.get("INPUTS_UNITS"),
         "answer_ties": os.environ.get("INPUTS_ANSWER_TIES"),
@@ -41,11 +54,12 @@ def compute():
 
 
 def fallback(why: str) -> dict:
+    reason = f"周を開くノードの中で誤りが起きた: {why}"
     try:
         from src import files
-        return files.crash_round(ports.place(), f"周を開くノードの中で誤りが起きた: {why}")
+        return files.crash_round(ports.place(), reason, round_number())
     except Exception:  # noqa: BLE001 — 控えを残せなくても返りは返す
-        return {"go": False, "mode": "plan", "round": 1, "reason": f"周を開くノードの中で誤りが起きた: {why}"}
+        return {"go": False, "mode": "plan", "round": 1, "reason": reason}
 
 
 ports.run(compute, fallback)

@@ -90,11 +90,28 @@ def read_round(d) -> dict:
     return doc
 
 
-def crash_round(place, why: str, k: int = 0) -> dict:
-    """周を開く途中で落ちた時の返り。標準ライブラリだけで、周のフォルダに go 偽・訳つきの round.json と current-round.json を置く
-    （周のフォルダが無ければ作る。周の番号 k が決まっていなければ、今の current-round.json か 1）。error 真の印は出口が failed と読む"""
+def highest_round(place) -> int:
+    """place に在る周のフォルダ r<n> の一番大きい n（無ければ 0）"""
+    nums = [int(p.name[1:]) for p in pathlib.Path(place).glob("r*") if p.is_dir() and p.name[1:].isdigit()]
+    return max(nums, default=0)
+
+
+def next_round(place, raw_prior) -> int:
+    """この周の番号。port prior が読めれば prior.round + 1、空なら 1。空でないのに読めない時は、在る周のフォルダの一番大きい番号 + 1
+    （前の周のフォルダを開き直して、pointer の先のファイルを消さない）。標準ライブラリと ports だけ（intake の fallback も同じ式で番号を決める）"""
+    text = ports.text(raw_prior)
+    if not text.strip():
+        return 1
+    try:
+        return int(ports.json(text)["round"]) + 1
+    except (ValueError, KeyError, TypeError, OSError):
+        return highest_round(place) + 1
+
+
+def crash_round(place, why: str, k: int) -> dict:
+    """周を開く途中で落ちた時の返り。標準ライブラリだけで、周 k のフォルダに go 偽・訳つきの round.json と current-round.json を置く
+    （周のフォルダが無ければ作る。k は next_round が決めた番号で、前の周の番号を使い回さない）。error 真の印は出口が failed と読む"""
     place = pathlib.Path(place)
-    k = k or current_round(place)
     doc = {"round": k, "mode": "plan", "go": False, "why": why, "items": [], "error": True}
     try:
         write_json(round_dir(place, k) / ROUND, doc)

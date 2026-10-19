@@ -7,7 +7,7 @@ fixture:
   inputs:
     judgment: '{"units": [{"key": "stats.py mean: 分母が 1 少ない", "label": "block", "disposition": "do-now"}], "questions": []}'
   resolved-text-contains:
-    plan-writer-fix: "Your previous answer was rejected by the machine's check."
+    plan-writer-fix: "For `plan`, the rule above that a field you return replaces the previous field as a whole does not apply; `plan` is merged by the rules below."
 exec-code: true
 plan-prep: {prompt: '', resubmit: true}
 plan-writer-fix: {}

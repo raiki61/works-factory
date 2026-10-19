@@ -134,7 +134,7 @@ class PlaceCase(unittest.TestCase):
         raw = base.defaults()
         raw["judgment"] = dump(judgment())
         raw.update({k: v if isinstance(v, str) else dump(v) for k, v in inputs.items()})
-        return steps.intake(self.place, self.repo, raw)
+        return steps.intake(self.place, self.repo, files.next_round(self.place, raw["prior"]), raw)
 
     def opened(self, **inputs) -> tuple:
         """入口を回して (周のフォルダ, intake.json の値)。役を起こす周であること"""
@@ -448,6 +448,17 @@ class BaseTestsCase(PlaceCase):
         self.assertIn("test_stats.py", texts)
         self.assertIn("def test_mean_of_three", texts["test_stats.py"])
         self.assertNotIn("stats.py", texts)
+
+    def test_non_utf8_test_file_is_unread_not_an_exception(self):
+        rev = git(self.repo, "rev-parse", "HEAD")
+        (self.repo / "test_latin.py").write_bytes("# caf\xe9\n".encode("latin-1"))
+        git(self.repo, "add", "-A")
+        git(self.repo, "commit", "-q", "-m", "latin-1")
+        rev = git(self.repo, "rev-parse", "HEAD")
+        texts, unread = take.base_test_texts(self.repo, rev)
+        self.assertEqual(unread, ["test_latin.py"])
+        self.assertIn("test_stats.py", texts)
+        self.assertIsNone(take.exists_at(self.repo, rev)("test_latin.py::test_x"), "読めない版のファイルは『その版に無い』と同じ扱い")
 
     def test_unreadable_rev_names_rev(self):
         self.assertEqual(take.base_test_texts(self.repo, "no-such-rev"), ({}, ["<版>"]))
@@ -775,6 +786,14 @@ class RoundCase(PlaceCase):
     def prior(self, k=3, **more):
         return {"round": k, "reply": {"plan": [item(MEAN, CLAMP)]}, "fields": {"round": k, "fields": []}, **more}
 
+    def test_unreadable_world_rows_hold_the_replan_round_too(self):
+        bad = self.place / "judge" / "world.jsonl"
+        bad.parent.mkdir(parents=True)
+        bad.write_text("{壊れた行\n", encoding="utf-8")
+        got = self.intake(ruling=[1], prior=self.prior(k=1), world_rows=self.run.pointer("judge/world.jsonl"))
+        self.assertEqual((got["mode"], got["go"]), ("replan", False))
+        self.assertIn("world_rows が読めない", got["reason"])
+
     def test_first_round_is_one(self):
         got = self.intake()
         self.assertEqual(got, {"go": True, "mode": "plan", "round": 1, "reason": ""})
@@ -819,6 +838,27 @@ class RoundCase(PlaceCase):
                 self.assertFalse(got["go"])
                 self.assertIn("prior が読めない", got["reason"])
                 self.assertEqual(files.read_round(files.current_dir(self.place))["why"], got["reason"])
+
+    def test_unreadable_prior_deletes_nothing_of_earlier_rounds(self):
+        """読めない prior で前の周のフォルダを開き直さない（pointer の先の reply・plan-fields・handoff を消さない）"""
+        folder = self.place / "r1"
+        for name in (files.REPLY, files.FIELDS, files.HANDOFF):
+            files.write_json(folder / name, {"keep": name})
+        got = self.intake(prior="{壊れ")
+        self.assertEqual((got["go"], got["round"]), (False, 2))
+        for name in (files.REPLY, files.FIELDS, files.HANDOFF):
+            self.assertEqual(files.read_json(folder / name), {"keep": name})
+
+    def test_missing_review_and_handoff_files_read_as_not_received(self):
+        reply = self.artifact("r1/reply.json", {"plan": [item(MEAN, CLAMP)]})
+        self.artifact("r1/plan-fields.json", {"round": 1, "fields": []})
+        prior = {"round": 1, "reply": json.loads(reply), "fields": str(self.place / "r1" / "plan-fields.json"),
+                 "review": str(self.place / "無い指摘.json"), "handoffs": [{"round": 1, "handoff": str(self.place / "無いメモ.json")}]}
+        got = self.intake(prior=dump(prior))
+        self.assertEqual((got["go"], got["round"]), (True, 2), got)
+        _, ctx = steps.load(self.place)
+        self.assertIsNone(ctx["prior"]["review"])
+        self.assertEqual(ctx["prior"]["handoffs"], [{"round": 1, "handoff": None}])
 
     def test_reopening_a_round_removes_only_its_own_files(self):
         """同じ周を開き直すと、その周の名のファイル（と round.json が名指す項目の brief）だけを消す。place の直下の指示の記録・ほかの周の
@@ -924,8 +964,21 @@ class FilesCase(PlaceCase):
         self.assertEqual(self.read(self.place / "r3" / files.ROUND),
                          {"round": 3, "mode": "plan", "go": False, "why": "落ちた訳", "items": [], "error": True})
         self.assertEqual(self.read(self.place / files.CURRENT_ROUND), {"round": 3})
-        self.assertEqual(files.crash_round(self.place, "また落ちた")["round"], 3, "番号が無ければ今の周")
-        self.assertEqual(steps.status_of(self.place / "r3", files.read_round(self.place / "r3"), None), ("failed", "また落ちた"))
+        files.write_json(self.place / "r3" / files.REPLY, {"plan": []})
+        files.write_json(self.place / "r3" / files.FIELDS, {"round": 3, "fields": [{"x": 1}]})
+        rnd = files.read_round(self.place / "r3")
+        self.assertEqual(steps.status_of(self.place / "r3", rnd, [{"x": 1}]), ("failed", "落ちた訳"), "落ちた周は残った案があっても failed")
+        self.assertEqual(files.crash_round(self.place, "別の周", 4)["round"], 4, "番号は呼び手が決める（前の周の番号を使い回さない）")
+        self.assertEqual(files.read_round(self.place / "r3")["why"], "落ちた訳")
+
+    def test_next_round_follows_prior_or_the_highest_folder(self):
+        files.write_json(self.place / "r1" / files.ROUND, {"round": 1})
+        files.write_json(self.place / "r2" / files.ROUND, {"round": 2})
+        self.assertEqual(files.next_round(self.place, ""), 1)
+        self.assertEqual(files.next_round(self.place, dump({"round": 1})), 2)
+        for bad in ("{壊れ", dump({"reply": 1}), dump({"round": "x"})):
+            with self.subTest(bad=bad):
+                self.assertEqual(files.next_round(self.place, bad), 3, "読めない prior は在る周の一番大きい番号 + 1")
 
     def test_crash_finish_fills_pointers_and_keeps_a_kept_plan(self):
         files.write_json(self.place / files.CURRENT_ROUND, {"round": 2})

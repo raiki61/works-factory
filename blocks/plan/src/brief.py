@@ -35,14 +35,13 @@ DUTY_OWED = "must be in the plan"
 DUTY_MAY = "may be in the plan (origin or depends of a question that waits for a person's answer; may be left out)"
 DUTY_FILLED = "the machine fills in the previous pass's row (you need not write it if unchanged; do not write closed items)"
 NO_ROWS = "No row of objection and ruling was found (no row in conflicts names this item)"
-CAP = 120   # 記録された方針の行に並べる答え・論点の頭の字数（lib/policy.py の _CAP と同じ）
 VERDICT_WORDS = {"root": "the root", "not_root": "not the root", "unsure": "cannot tell if it is the root"}
 PLACE_WORDS = {"same": "related (same place)", "apart": "related (different place)"}
 WHEN_NAMES = ("rejected", "replan", "excluded", "prior_notes", "prior_redesign", "recorded_none", "maps_found", "handoff_rounds", "units",
               "filled", "skipped", "questions", "view", "precedents", "prescriptions", "structure_missing", "structure_dirty",
               "structure_clean_only", "structure_clean", "world", "ripple_units", "ripple_units_error", "verify", "verify_unreadable",
               "unknown_rows", "unknown_none", "spec", "prior", "prior_review", "no_prior_review", "revise", "owed_suggests", "revise_notes",
-              "revise_keys", "closed_items", "held_items", "prior_ripple", "prior_ripple_error", "policy", "unread")
+              "revise_keys", "closed_items", "held_items", "prior_ripple", "prior_ripple_error", "policy", "unread", "prior_fix_plan", "prior_fields_only")
 
 
 def _dump(doc) -> str:
@@ -51,7 +50,7 @@ def _dump(doc) -> str:
 
 def _head(text) -> str:
     text = oneline.one_line(text or "")
-    return text if len(text) <= CAP else text[:CAP] + "…"
+    return text if len(text) <= policy._CAP else text[:policy._CAP] + "…"
 
 
 def _exists(path) -> str:
@@ -101,7 +100,7 @@ def structure_rows(path) -> dict:
         return {**out, "note": structmark.note({"status": "failed", "reason": str(e)}), "has": True}
     if not rows:
         return out
-    is_dirty = lambda r: r.get("verdict") == structmark.DIRTY and isinstance(r.get("unit_id"), str)   # noqa: E731
+    is_dirty = structmark._is_dirty
     return {**out, "has": True, "dirty": _bullets([r for r in rows if is_dirty(r)]), "clean": _bullets([r for r in rows if not is_dirty(r)])}
 
 
@@ -388,6 +387,7 @@ def values(place, repo) -> tuple:
         if prior:
             w["prior"] = True
             v["prior_fix_plan"], v["prior_fields"] = prior.get("fix_plan") or "", prior["fields"]
+            w["prior_fix_plan"], w["prior_fields_only"] = bool(prior.get("fix_plan")), not prior.get("fix_plan")
             v["prior_review"] = prior.get("review") or ""
             w["prior_review"], w["no_prior_review"] = bool(prior.get("review")), not prior.get("review")
             extra = revise_values(record) if prior.get("review") else revise_values({"passes": []})

@@ -171,8 +171,13 @@ The notes file {verify_file} cannot be read (read the units as the judgment has 
 <!-- if prior -->
 ## The previous round's plan and the review's findings (pasted by the machine)
 
-- Plan of the previous round: {prior_fix_plan} and {prior_fields} (Read them. Keep closed items in this form, unchanged.)
 <!-- end prior -->
+<!-- if prior_fix_plan -->
+- Plan of the previous round: {prior_fix_plan} and {prior_fields} (Read them. Keep closed items in this form, unchanged.)
+<!-- end prior_fix_plan -->
+<!-- if prior_fields_only -->
+- Fields of the previous round's plan: {prior_fields} (Read it. Keep closed items in this form, unchanged.)
+<!-- end prior_fields_only -->
 <!-- if prior_review -->
 - Review findings: {prior_review}
 <!-- end prior_review -->
@@ -242,6 +247,6 @@ Of the items of the approved plan, fix only the items pasted below. During the f
 {unread}
 <!-- end unread -->
 
-Write the fields that people read (approach, shrink_first, every why, why_not, no_narrow, undecided_because, world, deviation, the what of narrows, the note and why of recommend, the how of block_answers, and handoff; they appear at approval nodes and in the report) in {lang}. Keep keys, enum values, code identifiers, paths, commands, and error messages as they are (keys are matched across rounds, so do not translate them).
+Write the fields that people read (approach, shrink_first, every why, why_not, no_narrow, undecided_because, world, deviation, the what of narrows, the note and why of recommend, the how of block_answers, and handoff, and any other free-text field shown at approval nodes or in the report, such as the behavior, old and new of tests and rewrite_tests, responsibility, the concept of home, route_why, and red_why) in {lang}. Keep keys, enum values, code identifiers, paths, commands, and error messages as they are (keys are matched across rounds, so do not translate them).
 
 Return only JSON that matches the output schema.

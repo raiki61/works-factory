@@ -138,10 +138,13 @@ def save(folder, k: int, plan: dict, fields: list, bare: dict, *, amended=None, 
         try:
             step()
         except OSError as e:
-            for done, _ in steps_:
-                (folder / done).unlink(missing_ok=True)
             why = f"受けた修正案の控え {name} を置けない: {e}"
-            files.write_json(folder / files.ROUND, {**files.read_round(folder), "why": why, "halt": True})   # 機械の故障。出口は failed と読む
+            try:
+                for done, _ in steps_:
+                    (folder / done).unlink(missing_ok=True)
+                files.write_json(folder / files.ROUND, {**files.read_round(folder), "why": why, "halt": True})   # 機械の故障。出口は failed と読む
+            except OSError as again:   # 巻き戻しも書けなくても、止める訳は返す（出口は round.json に無ければ rejects の訳で failed を返す）
+                why += f"（巻き戻しも書けなかった: {again}）"
             return {"ok": False, "halt": True, "count": False, "give_up": True, "reason": why}
     return {"ok": True, "reason": ""}
 
