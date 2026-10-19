@@ -1,0 +1,134 @@
+name: works-factory-structure
+description: '構造の目の block（docs/design/structure.md）。判定が切った直しの単位ごとに、直しが対象のリポジトリの構造を汚すか（設計の考えを知る場所を増やすか）を、機械の実測を見せた道具なしの目に判じさせる。汚れると見た単位には推しの避け方を書かせ、決め手を当たっても避け方が決まらない単位だけを人に上げる行にさせる。落ちず、控えと報告の行を返す。単独の run でも、graph から include されても回る'
+inputs:
+  units:
+    default: '[]'
+    description: 'json(units.schema.json): 直しの単位の配列 [{id, paths, summary}]。paths が空の単位は測らずに skipped に名指す'
+  policy:
+    default: ''
+    description: 'file: 人が run に固めた方針の文書。空の字は、方針の文書が渡されていない'
+returns: finish
+outcome_field: ok
+nodes:
+  - id: measure
+    script: survey
+    runtime: uv
+    mutates_checkout: false
+    output_format:
+      type: object
+      additionalProperties: false
+      required: [eye, reason]
+      properties:
+        eye: {type: boolean}
+        reason: {type: string}
+  - id: structure-eye-loop
+    depends_on: [measure]
+    when: "$measure.output.eye == true"
+    loop_group:
+      max_iterations: 3
+      fresh_context: false
+      until_bash: 'done=$structure-eye-accept.output.done; test "$done" = true'
+      nodes:
+        - id: structure-eye-prep
+          script: prep
+          runtime: uv
+          mutates_checkout: false
+          output_format:
+            type: object
+            additionalProperties: false
+            required: [prompt, attempt]
+            properties:
+              prompt: {type: string, minLength: 1}
+              attempt: {type: integer}
+        - id: structure-eye
+          prompt: "$structure-eye-prep.output.prompt"
+          depends_on: [structure-eye-prep]
+          model: '@wf-plan-structure'
+          allowed_tools: []
+          settingSources: [user]
+          sandbox: {enabled: true, allowUnsandboxedCommands: false}
+          mutates_checkout: false
+          idle_timeout: 1728000000
+          retry: {max_attempts: 2, on_error: all}
+          output_format:
+            type: object
+            required: [rows]
+            additionalProperties: false
+            properties:
+              rows:
+                type: array
+                items:
+                  type: object
+                  required: [unit_id, verdict, faces, evidence, reason]
+                  additionalProperties: false
+                  properties:
+                    unit_id: {type: string, minLength: 1, pattern: '\S'}
+                    verdict: {type: string, enum: [汚れる, 汚れない]}
+                    faces: {type: array, items: {type: integer, minimum: 1, maximum: 6}}
+                    evidence: {type: array, items: {type: string}}
+                    reason: {type: string, minLength: 1, pattern: '\S'}
+                    chosen: {type: string}
+                    rejected:
+                      type: array
+                      items:
+                        type: object
+                        required: [option, cost]
+                        additionalProperties: false
+                        properties:
+                          option: {type: string}
+                          cost: {type: string}
+                    chosen_reason: {type: string}
+                    route: {type: string, enum: [自分で決める, 人に上げる]}
+                    undecided_because: {type: string}
+        - id: structure-eye-accept
+          script: take
+          runtime: uv
+          mutates_checkout: false
+          depends_on: [structure-eye]
+          with: {reply: $structure-eye.output}
+          output_format:
+            type: object
+            additionalProperties: false
+            required: [ok, done, give_up, reason, attempt]
+            properties:
+              ok: {type: boolean}
+              done: {type: boolean}
+              give_up: {type: boolean}
+              reason: {type: string}
+              attempt: {type: integer}
+  - id: finish
+    script: finish
+    runtime: uv
+    mutates_checkout: false
+    depends_on: [measure, structure-eye-loop]
+    trigger_rule: all_done
+    output_format:
+      type: object
+      additionalProperties: false
+      required: [ok, status, reason, structure, dirty, escalate, optional, report]
+      properties:
+        ok: {type: boolean}
+        status:
+          type: string
+          enum: [ok, failed]
+        reason: {type: string}
+        structure:
+          type: [object, 'null']
+          properties:
+            type:
+              type: string
+              enum: [archon_artifact]
+            run_id: {type: string}
+            path: {type: string}
+        dirty: {type: integer}
+        escalate: {type: integer}
+        optional:
+          type: array
+          items:
+            type: object
+            properties:
+              node: {type: string}
+              bare: {type: boolean}
+        report:
+          type: array
+          items: {type: string}

@@ -1,0 +1,13 @@
+# 単独の run: 単位 1 つだけで最後まで届く（script は本当に走り、AI の役の返答だけを差し替える。対象は tests/archon.py の TARGET_FILES の
+# 小さなリポジトリ）。役の返答は汚れない 1 行で、根拠は view.json の中を指す
+fixture:
+  expect: completed
+  reached: [measure, structure-eye-prep, structure-eye, structure-eye-accept, finish]
+  inputs:
+    units: '[{"id": "u1", "paths": ["README.md"], "summary": "README の 1 行を直す"}]'
+  resolved-text-contains:
+    structure-eye: 'この役は「構造の目」で、新しい会話で起きている。'
+exec-code: true
+structure-eye:
+  rows:
+    - {unit_id: u1, verdict: 汚れない, faces: [], evidence: [/units/0/id], reason: "stub: 知る場所が増えない"}

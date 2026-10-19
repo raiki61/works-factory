@@ -1,0 +1,10 @@
+# 役の返答が受け付けで拒まれる道: run は止めず、出口が status: failed と拒否の理由を返す。筋書きでは輪が 1 周で終わるので拒否は 1 回で、
+# 3 回で諦める数えは tests/blocks/structure の試験が確かめる
+fixture:
+  expect: completed
+  reached: [measure, structure-eye-prep, structure-eye, structure-eye-accept, finish]
+  inputs:
+    units: '[{"id": "u1", "paths": ["README.md"], "summary": "README の 1 行を直す"}]'
+exec-code: true
+structure-eye:
+  rows: []
