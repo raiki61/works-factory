@@ -337,3 +337,13 @@ bin/works-factory <読ませるフォルダを blocks/ にする引数（名は�
 7. 読んだ証拠の欠けを、この block の報告の行で出す。根拠: README の 4.1。
 8. 下げた物の宣言を、この block の出力の欄 `downgrades` で自分の行だけ返す（`lib/downgrades.json` を写さない）。根拠: ファイルは 2 つの block の事を持ち、読み手は報告の頭だけ（6 節の 6）。block はほかの block の事を持たない（憲法の 3）。
 9. 素材の欄の照らし（`carried_over` と `not_applicable` の拒み・札ごとの要る欄）を受け付けに戻す（4 節の 4）。根拠: graphloops（`check_record`・`na_self_ok: false`）と元の works が持ち、工場で記録なく落ちた。md が既に「拒まれる」と言っているので、指示とコードを揃える。照らしは素材の観点の族と同じ `materialkit.check_record` を使い、`mode` は `never`（この役は『条件に当たらない』を名乗れない）。
+10. 実装で決めた事（main の決まりが設計書と食い違った所、設計書が黙っていた所）:
+    - `request.schema.json` を block の `schemas/` に写さず、`shared:request.schema.json` を使う。根拠: 形のファイルの名は pack の中で 1 か所（`tests/layers/test_block_shape.py` の 5）。`changed.schema.json` だけ block に置く。
+    - md の `@{u}` は `@{{u}}` と書く。根拠: `{u}` は差し込み口の形（小文字の名を `}` で閉じる）に当たり、値が無いと指示が組めない（1.2 と 2.3 の注は誤り）。
+    - 役の定義の頭の文から "started in a new conversation" を外した（"You are the parallel-PR role."）。根拠: 輪は `fresh_context: false` で、2 回目以降は同じ会話を継ぐ。
+    - 作業ツリーの写しの照らしは `lib/materialkit.moved_since` を使い、`take.py` に写しの読みを持たない。根拠: 同じ部品が `lib/` に在る（2 つ以上の block が使う）。
+    - `scan` は返りを place の `scan.json` にも残し、`finish` がそれを読む（`finish` は `scan` の返りを `with:` で受けない）。根拠: `scan` が落ちた回・飛んだ回でも `finish` が訳を読める。
+    - `prep` は `lang` を `INPUTS_LANG` から直に読む（place に控えない）。
+    - 入力が読めない・作業ツリーの写しが取れない時は、`scan` が `go_role: false` と訳を返し、出口が `status: failed`・素材 `not_run` にする（役を起こしても写しが無く受け付けが比べられない）。
+    - `reason`（出口）は `scan` の訳を、機械が決めた時も役に任せた時も入れる（1.2 の「役に任せた訳」に合わせた）。
+    - 筋書き: `standalone` は役の道（`scan` だけ差し替え。筋書きの作業ツリーは remote が GitHub でなく、本当に走らせると機械が条件外と決めて役を起こさないため）、機械の道は `machine`、`gave-up` は投稿したと名乗る返答。

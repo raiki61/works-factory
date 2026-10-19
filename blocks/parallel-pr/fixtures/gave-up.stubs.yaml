@@ -6,7 +6,7 @@ fixture:
   inputs:
     changed: '["a.py"]'
   resolved-text-contains:
-    pr-check: 'この役は読むだけ。ファイルを書く・消す'
+    pr-check: 'You are the parallel-PR role.'
 exec-code: true
 scan:
   go_role: true

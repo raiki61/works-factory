@@ -17,6 +17,7 @@ from src import files  # noqa: E402
 
 place = ports.place()
 rejected = rolekit.rejected(place, files.ROLE)
-values = {"brief_file": str(place / files.BRIEF), "limit": files.PR_LIMIT, "lang_line": rolekit.lang_line({"lang": ports.text(os.environ.get("INPUTS_LANG"))}),
-          "rejection": rolekit.rejects_text(rejected)}
-ports.returns(prompt.emit(files.ROLE, values, {}, prompt.round_of(files.ROLE)))
+values = {"brief_file": str(place / files.BRIEF), "limit": files.PR_LIMIT, "lang": prompt.lang(os.environ.get("INPUTS_LANG")),
+          "rejection": rolekit.rejects_text(rejected), "na_why": ""}
+when = {"rejected": bool(rejected), "spawns": False, "na_never": True, "na_cond_true": False, "na_cond_false": False, "na_judged": False}
+ports.returns(prompt.emit(files.ROLE, values, when, prompt.round_of(files.ROLE)))
