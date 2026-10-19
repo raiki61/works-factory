@@ -1,0 +1,104 @@
+name: works-factory-hygiene
+description: >-
+  コード衛生: 対象差分を、何の機能かも近傍のコードも知らない目（道具を持たない役）で読み、言語・フレームワーク一般の衛生の逸脱を拾う。
+  素材集めの観点の block（docs/design/materials.md の形）。単独の run でも、判定のまとめから include されても動く
+inputs:
+  base: {default: "", description: "text: 対象差分の根の commit（対象差分は、この commit から作業ツリーの今の姿まで。未追跡の新しいファイルも入る）。空は HEAD"}
+  entry: {default: "", description: "text: 判定から入る run の出どころの文（例「人の依頼（/path/req.json）」）。空は判定から入る run でない"}
+  lang: {default: "", description: "text: 人に見せる欄（findings の行の text・mechanism・measured・false_positive_if と seen）の言語。空は依頼の言語"}
+returns: finish
+outcome_field: ok
+nodes:
+  - id: intake
+    script: intake
+    runtime: uv
+    mutates_checkout: false
+    output_format:
+      type: object
+      additionalProperties: false
+      required: [due, reason]
+      properties:
+        due: {type: boolean}
+        reason: {type: string}
+  - id: hygiene-loop
+    depends_on: [intake]
+    when: $intake.output.due == true
+    loop_group:
+      max_iterations: 3
+      fresh_context: false
+      until_bash: done=$hygiene-accept.output.done; test "$done" = true
+      nodes:
+        - id: hygiene-prep
+          script: role_prep
+          runtime: uv
+          mutates_checkout: false
+          output_format:
+            type: object
+            additionalProperties: false
+            required: [prompt]
+            properties:
+              prompt: {type: string}
+        - id: hygiene
+          prompt: "$hygiene-prep.output.prompt"
+          depends_on: [hygiene-prep]
+          model: '@wf-judge-materials'
+          settingSources: [user]
+          allowed_tools: []
+          mutates_checkout: false
+          sandbox: {enabled: true, allowUnsandboxedCommands: false}
+          idle_timeout: 1728000000
+          retry: {max_attempts: 2, on_error: all}
+          output_format:
+            type: object
+            required: [findings, seen]
+            additionalProperties: false
+            properties:
+              findings:
+                type: array
+                items:
+                  type: object
+                  required: [where, text]
+                  additionalProperties: false
+                  properties:
+                    where: {type: string}
+                    text: {type: string}
+                    mechanism: {type: string}
+                    measured: {type: string}
+                    false_positive_if: {type: string}
+              seen: {type: string}
+        - id: hygiene-accept
+          script: role_accept
+          runtime: uv
+          mutates_checkout: false
+          depends_on: [hygiene]
+          with: {reply: $hygiene.output}
+          output_format:
+            type: object
+            additionalProperties: false
+            required: [ok, done, reason]
+            properties:
+              ok: {type: boolean}
+              done: {type: boolean}
+              reason: {type: string}
+  - id: finish
+    script: finish
+    runtime: uv
+    mutates_checkout: false
+    depends_on: [intake, hygiene-loop]
+    trigger_rule: all_done
+    output_format:
+      type: object
+      additionalProperties: false
+      required: [ok, status, reason, material, report]
+      properties:
+        ok: {type: boolean}
+        status: {type: string, enum: [ran, skipped, gave_up, failed]}
+        reason: {type: string}
+        material:
+          type: [object, "null"]
+          required: [type, run_id, path]
+          properties:
+            type: {const: archon_artifact}
+            run_id: {type: string}
+            path: {type: string}
+        report: {type: array, items: {type: string}}

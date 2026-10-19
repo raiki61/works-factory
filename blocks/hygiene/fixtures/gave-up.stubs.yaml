@@ -1,0 +1,15 @@
+# 衛生の役の返答が受け付けを通らない道（seen が空の clean）: run は止めず、出口が落ちずに返る。筋書きでは輪が 1 周で終わるので
+# 却下は 1 回で、3 回で諦めて出口が status: gave_up を返す数えは tests/blocks/hygiene の試験が確かめる
+fixture:
+  expect: completed
+  reached: [intake, hygiene-prep, hygiene, hygiene-accept, finish]
+  inputs:
+    base: ''
+    entry: ''
+    lang: ''
+  resolved-text-contains:
+    hygiene: '差分を読む役。道具は 1 つも無い'
+exec-code: true
+hygiene:
+  findings: []
+  seen: ''
