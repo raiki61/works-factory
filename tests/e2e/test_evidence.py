@@ -1,9 +1,9 @@
 """照らしの道具 tests/e2e/evidence.py の試験（collect・5 種の照らしの判じ・check）と、照らしの表 evidence.json の試験。
 collect の後ろの Archon は偽の殻で、家の fake-runs.json の run を workflow runs・get で答える。
 
-表の試験は、表を能力の棚卸し docs/plans/2026-10-13-capabilities/ と線の配線の文書 docs/plans/2026-10-13-line-wiring.md に
-照らす。棚卸しの行は、区分の ID で始まる頭の箇条で「本物の run」の欄を持つ物（ほかの行を指すだけの参照の行と、穴の要約の再掲は
-欄を持たない）。"""
+表の試験は、行の形と、seen の行の書き手の指し（writer の `path::名`）がリポジトリの定義を指すことを照らす。能力の棚卸しと線の
+配線の文書への照らしは、組み込みで照らす相手ごと消した（docs/design/integration.md の 4.2-1f）。指しの読みは keep-essence の
+照らし tests/layers/test_keep_essence.py と同じ口。"""
 import ast
 import io
 import json
@@ -15,26 +15,16 @@ import tokenize
 import unittest
 from collections.abc import Callable
 
+from tests import archon
 from tests.bin import hermetic, stepnames
 from tests.e2e import evidence, make_target
 from tests.layers import scan
-from tests.layers.test_capability_pointers import EVIDENCE_ROW_ID, POINTER, ROW, mention, python_definitions, yaml_definitions
+from tests.layers.test_keep_essence import POINTER, python_definitions, yaml_definitions
 
 E2E = pathlib.Path(__file__).resolve().parent
 ROOT = E2E.parents[1]
-INVENTORY = ROOT / "docs" / "plans" / "2026-10-13-capabilities"
-INVENTORY_FILES = ("line.md", "judge.md", "plan.md", "fix.md", "tail.md")
-WIRING = ROOT / "docs" / "plans" / "2026-10-13-line-wiring.md"
-PART_CLOSES = re.compile(rf"- ({EVIDENCE_ROW_ID})〔")
-ROW_MENTION = mention(EVIDENCE_ROW_ID)
-SCENARIO_ONLY = "筋書きでのみ"
-# 基準で seen から移した scenario-only の行の why の頭（棚卸しの字でなく移した訳を持つ）
-OUT_OF_REAL_RUN = "本物の通しの照らしの外（#261 の決め直し）: "
-# 基準で移した行の棚卸しの「本物の run」の欄の字（筋書きでのみ（本物の通しの照らしの外。在れば <元の名指し>））
-OUT_OF_REAL_RUN_MARK = "本物の通しの照らしの外"
 # 照らしの where の run の記録 → その run の工程（親は線、子は fix の組ごとの子の run）
 RECORDS = {"record/parent.json": "works-factory-line", "record/child-*.json": "works-factory-fix"}
-OUTSIDE = "この文書の外"
 # 線の中のブロック（置き場の parent/ の次のフォルダ）と線そのもの。fix の組の子の run の置き場は fix
 BLOCKS = ("judge", "structure", "plan", "plan-review", "fix", "test-gate", "eyes", "merge", "report")
 LINE_ITSELF = "line"
@@ -51,7 +41,7 @@ NAMED_BY_PATTERN = {
     "parent/eyes/r1-comments.json": "workflows/eyes/works-factory-eyes.yaml::r1-comments-save",
     "parent/judge/material-prior-decisions-brief.md": "lib/judge_accept.py::material_brief_file",
     "parent/judge/material-prior-decisions.json": "lib/judge_accept.py::material_file",
-    "parent/judge/material-pr-check.json": "lib/judge_accept.py::material_file",
+    "parent/judge/material-pr-check.json": "workflows/parallel-pr/src/files.py::MATERIAL",
     "parent/judge/material-purpose-review.json": "lib/judge_accept.py::material_file",
     "parent/plan/r1/brief-1.md": "lib/planfile.py::BRIEF_FILE",
     "parent/structure/eye-prompt-1.md": "lib/eye.py::PROMPT_FILE",
@@ -62,7 +52,7 @@ NAMED_BY_PATTERN = {
     "parent/judge/query-examples.json": "lib/marks.py::KINDS",
     "parent/plan/r1/rejects-plan.json": "lib/rolekit.py::rejects_path",
     "parent/plan/r1/rejects-plan.md": "lib/rolekit.py::rejects_text_path",
-    "parent/structure/design.jsonl": "lib/structbeside.py::DESIGN_FILE",
+    "parent/structure/design.jsonl": "workflows/structure/src/files.py::DESIGN_FILE",
     "parent/plan-review/gate-marks.json": "lib/marks.py::KINDS",
 }
 
@@ -199,7 +189,7 @@ def seen_writer_problems(rows: list[dict], code: CodeText) -> list[str]:
         rest = row["where"].split("/")[1:]
         folder = rest[0] if len(rest) > 1 and not re.search(r"[*?\[]", rest[0]) else ""
         if folder:
-            block = ROOT / "workflows" / folder
+            block = archon.WORKFLOWS / folder
             here = [whole, *(code.text(p.relative_to(ROOT).as_posix()) for p in sorted(block.rglob("*"))
                              if p.suffix in (".py", ".yaml") and "fixtures" not in p.parts)]
             if not any(code.names(t, folder) for t in here):
@@ -246,20 +236,6 @@ elif args[1] == "get":
 """
 
 
-def inventory() -> dict[str, str]:
-    """棚卸しの行の ID → 「本物の run」の欄の字"""
-    rows, current = {}, None
-    for name in INVENTORY_FILES:
-        for line in (INVENTORY / name).read_text(encoding="utf-8").splitlines():
-            if line.startswith("#"):
-                current = None
-            elif head := ROW.match(line):
-                current = head.group(1) if re.fullmatch(EVIDENCE_ROW_ID, head.group(1)) else None
-            elif current and (real := re.match(r"\s+- 本物の run: (.*)", line)):
-                rows.setdefault(current, real.group(1))
-    return rows
-
-
 def block_of(where: str) -> str:
     """照らしの where を置く書き手のブロック（parent/ の次のフォルダ・child-*/ は fix・ほかは線そのもの）"""
     head, *rest = where.split("/")
@@ -268,40 +244,17 @@ def block_of(where: str) -> str:
     return rest[0] if head == "parent" and len(rest) > 1 and rest[0] in BLOCKS else LINE_ITSELF
 
 
-def wiring() -> tuple[dict[str, set[str]], dict[str, str]]:
-    """線の配線の文書の（部分の名 → 閉じる行）と（「この文書の外」の行 → それを名指した節の名）"""
-    parts, outside = {}, {}
-    part = section = None
-    for line in WIRING.read_text(encoding="utf-8").splitlines():
-        if line.startswith("## "):
-            head = re.match(r"## 部分 (\S+) ", line)
-            part = head.group(1) if head else None
-            section = OUTSIDE if line.startswith(f"## {OUTSIDE}") else None
-        elif section and line.startswith("### "):
-            section = line[4:].strip()
-        elif part and (closing := PART_CLOSES.match(line)):
-            parts.setdefault(part, set()).add(closing.group(1))
-        elif section and section != OUTSIDE:
-            for named in ROW_MENTION.findall(line):
-                outside.setdefault(named, section)
-    return parts, outside
-
-
 class EvidenceTableCase(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.rows = evidence.read_table(evidence.TABLE)
         cls.by_id = {row["id"]: row for row in cls.rows}
-        cls.inventory = inventory()
 
     def kind_of(self, kind):
         return {row["id"] for row in self.rows if row["kind"] == kind}
 
-    def test_every_inventory_row_is_in_the_table(self):
-        self.assertGreater(len(self.inventory), 1000)
+    def test_row_ids_are_unique(self):
         self.assertEqual(len(self.by_id), len(self.rows), "表に同じ ID の行が 2 つ在る")
-        self.assertEqual(set(self.by_id) - set(self.inventory), set(), "棚卸しに無い行が表に在る")
-        self.assertEqual(set(self.inventory) - set(self.by_id), set(), "棚卸しの行が表に無い")
 
     def test_every_row_has_a_known_kind_and_fields(self):
         for row in self.rows:
@@ -317,21 +270,6 @@ class EvidenceTableCase(unittest.TestCase):
             with self.subTest(broken=broken):
                 self.assertIsNotNone(evidence.row_problem(broken))
 
-    def test_scenario_only_rows_match_the_inventory(self):
-        """線の配線の部分は全部 main に入ったので、閉じる行も棚卸しが筋書きでのみと書けば scenario-only（部分を待たない）"""
-        scenario_only = self.kind_of("scenario-only")
-        says = {i for i, real in self.inventory.items() if real.startswith(SCENARIO_ONLY)}
-        never = {i for i, real in self.inventory.items() if SCENARIO_ONLY not in real}
-        self.assertEqual(says - scenario_only, set(), "棚卸しが筋書きでのみと書く行が scenario-only でない")
-        self.assertEqual(scenario_only & never, set(), "棚卸しが筋書きでのみと書かない行が scenario-only")
-        self.assertEqual(self.kind_of("waits-part") - never, set(), "棚卸しが筋書きでのみと書く行が部分を待っている")
-        for i in sorted(scenario_only):
-            with self.subTest(row=i):
-                if self.by_id[i]["why"].startswith(OUT_OF_REAL_RUN):
-                    self.assertIn(OUT_OF_REAL_RUN_MARK, self.inventory[i], "基準で移した行の棚卸しの欄が直っていない")
-                else:
-                    self.assertEqual(self.by_id[i]["why"], self.inventory[i], "欄 why が棚卸しの字でない")
-
     def test_no_row_waits_for_a_part(self):
         """部分は全部 main に入り、check は waits-part の行が 1 つでも残れば落ちる（#154 の最後の通し c38831c2 は L-W08 だけで rc=1）"""
         self.assertEqual(self.kind_of("waits-part"), set())
@@ -343,16 +281,6 @@ class EvidenceTableCase(unittest.TestCase):
             with self.subTest(row=i):
                 row = self.by_id[i]
                 self.assertEqual((row["kind"], row.get("check"), row.get("where")), ("seed-cannot", "json-has", where))
-
-    def test_waits_part_rows_are_closing_rows_of_that_part(self):
-        """waits-part の行はその部分の閉じる行で scenario-only でない行。閉じる行は本物の run の記録で決めたものから waits-part を
-        離れる（seen・seed-cannot など）ので、閉じる行の全部が waits-part とは縛らない"""
-        parts, _ = wiring()
-        for part in evidence.PARTS:
-            with self.subTest(part=part):
-                waiting = {row["id"] for row in self.rows if row["kind"] == "waits-part" and row["part"] == part}
-                self.assertTrue(parts.get(part))
-                self.assertLessEqual(waiting, parts[part] - self.kind_of("scenario-only"))
 
     def test_node_rules_name_node_ids_the_workflow_makes(self):
         """run の記録の節を照らす行は node-completed で、node はその run の工程の YAML から組んだ節の id そのもの（include の頭は
@@ -388,28 +316,30 @@ class EvidenceTableCase(unittest.TestCase):
     def test_writers_hold_when_lines_shift(self):
         """名で指すので、Python でも YAML でも関係の無い行がずれても照らしは緑のまま"""
         code = CodeText(read=shifted)
-        for rel in ("lib/planfile.py", "workflows/eyes/works-factory-eyes.yaml"):
+        for rel in ("lib/structmark.py", "workflows/eyes/works-factory-eyes.yaml"):
             self.assertEqual(len(code.lines(rel)), len(CodeText().lines(rel)) + 1)
-        self.assertEqual(writer_code(code, "workflows/eyes/works-factory-eyes.yaml::r1-minimality")[2],
-                         writer_code(CodeText(), "workflows/eyes/works-factory-eyes.yaml::r1-minimality")[2])
+        self.assertEqual(writer_code(code, "workflows/eyes/works-factory-eyes.yaml::structure-after")[2],
+                         writer_code(CodeText(), "workflows/eyes/works-factory-eyes.yaml::structure-after")[2])
         self.assertEqual(seen_writer_problems(writer_rows(self.rows), code), [])
         self.assertEqual(pattern_writer_problems(code), [])
 
     def test_a_pointer_off_the_writer_fails(self):
         code = CodeText()
-        for writer in ("lib/planfile.py:83", "lib/planfile.py::no_such_name", "lib/nope.py::f", "workflows/nope.yaml::x",
+        for writer in ("lib/structmark.py:83", "lib/structmark.py::no_such_name", "lib/nope.py::f", "workflows/nope.yaml::x",
                        "docs/a.py::f"):
             with self.subTest(writer=writer):
-                self.assertNotEqual(seen_writer_problems([{"id": "J1", "where": "parent/plan/r1/brief-1.md",
+                self.assertNotEqual(seen_writer_problems([{"id": "J1", "where": "parent/eyes/structure-after.json",
                                                            "writer": writer}], code), [])
+        self.assertEqual(seen_writer_problems([{"id": "J1", "where": "parent/eyes/structure-after.json",
+                                                "writer": "lib/structmark.py::write_after"}], code), [])
         for row in ({"where": "parent/judge/purpose-means-x.json", "writer": "lib/rolekit.py::lang_line"},
-                    {"where": "parent/nosuchfolder/brief-1.md", "writer": "lib/planfile.py::write_brief"},
+                    {"where": "parent/nosuchfolder/structure-after.json", "writer": "lib/structmark.py::write_after"},
                     {"where": "record/parent.json", "check": "node-completed", "node": "eyes__prep",
                      "writer": "workflows/eyes/works-factory-eyes.yaml::structure-after"}):
             with self.subTest(row=row):
                 self.assertNotEqual(seen_writer_problems([{"id": "J1", **row}], code), [])
-        for where, writer in (("parent/plan/r1/brief-1.md", "lib/structbeside.py::DESIGN_FILE"),
-                              ("parent/eyes/r1.json", "workflows/eyes/works-factory-eyes.yaml::prep"),
+        for where, writer in (("parent/structure/brief-1.md", "lib/structmark.py::AFTER_FILE"),
+                              ("parent/eyes/r1.json", "workflows/eyes/works-factory-eyes.yaml::structure-after"),
                               ("parent/eyes/r1-comments.json", "workflows/eyes/works-factory-eyes.yaml::structure-after"),
                               ("parent/plan/r1/rejects-plan.json", "lib/rolekit.py::lang_line")):
             with self.subTest(where=where, writer=writer):
@@ -426,18 +356,15 @@ class EvidenceTableCase(unittest.TestCase):
             with self.subTest(block=block):
                 self.assertGreaterEqual(len(seen.get(block, [])), 1)
 
-    def test_backlog_and_handed_off_rows_name_their_place(self):
-        _, outside = wiring()
+    def test_handed_off_rows_name_their_place(self):
         for row in self.rows:
             with self.subTest(row=row["id"]):
-                if row["kind"] == "backlog":
-                    self.assertEqual(row["why"], outside.get(row["id"]), "backlog の行は「この文書の外」のその節の名を持つ")
                 if row["kind"] == "handed-off":
                     self.assertTrue(row["why"].strip() and row["to"].strip())
 
 
 SCENARIO = ROOT / "tests" / "e2e" / "scenario.json"
-SCRIPTS = ROOT / "workflows"
+SCRIPTS = archon.WORKFLOWS
 IDLE_RUN = "idle"
 SKIPPED, COMPLETED = "skipped", evidence.COMPLETED
 LINE = "works-factory-line"
