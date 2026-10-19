@@ -134,14 +134,15 @@ def _port(name: str, read):
 
 def _clean(out: pathlib.Path, judgment) -> None:
     """この block の名のファイルだけを名で引いて消す。前の起動の答えを今の判定の答えに数えない。answers/ と place は消さない"""
+    ns = set()
+    try:
+        ns.update(range(1, len(open_units(ports.json(judgment, "judgment.schema.json"))) + 1))
+    except ValueError:
+        pass
     plan = jsonfile.read_or(out / PLAN_FILE)
-    if isinstance(plan, dict) and isinstance(plan.get("units"), list):
-        ns = [r["n"] for r in plan["units"] if isinstance(r, dict) and isinstance(r.get("n"), int)]
-    else:
-        try:
-            ns = list(range(1, len(open_units(ports.json(judgment, "judgment.schema.json"))) + 1))
-        except ValueError:
-            ns = []
+    if isinstance(plan, dict) and isinstance(plan.get("units"), list):   # 前の控えの番号と今の番号の和（今の単位が多くても古い答えを残さない）
+        ns.update(r["n"] for r in plan["units"] if isinstance(r, dict) and isinstance(r.get("n"), int))
+    ns = sorted(ns)
     names = [*OWN_FILES, *(UNIT_BRIEF.format(n=n) for n in ns), *(f"{ANSWERS_DIR}/{ANSWER_FILE.format(n=n)}" for n in ns)]
     for name in names:
         (out / name).unlink(missing_ok=True)

@@ -2,6 +2,7 @@
 VerifyPrepCase・VerifyMergeCase から写した）。git のリポジトリは初めの commit を置いてから使う。"""
 import json
 import pathlib
+import shutil
 import unittest
 
 from tests.bin.gitkit import git
@@ -133,6 +134,31 @@ class PrepCase(_Base):
         self.assertTrue((self.out / "answers").is_dir())
         self.assertEqual(sorted(p.name for p in self.out.glob("judge-verify-prompt-*.md")), ["judge-verify-prompt-1.md"])
 
+    def test_answers_above_the_recorded_numbers_are_deleted_too(self):
+        self.prep()   # 控えは番号 1・2
+        self.answer(3, FMT)
+        self.prep(judgment(unit(MEAN), unit(CLAMP), unit(FMT), unit("stats.py x: y")))   # 今回は 4 つ
+        self.assertFalse((self.out / "answers" / "unit-3.json").exists())
+
+    def test_without_a_record_answers_are_deleted_by_this_runs_count(self):
+        self.answer(1, MEAN)
+        self.answer(2, CLAMP)
+        self.answer(3, FMT)
+        self.assertFalse((self.out / "plan.json").exists())
+        self.prep(judgment(unit(MEAN), unit(CLAMP)))
+        self.assertEqual(sorted(p.name for p in (self.out / "answers").glob("unit-*.json")), ["unit-3.json"])
+
+    def test_exception_in_prep_gives_not_run_and_keeps_the_judgment(self):
+        (self.out / "judgment.json").write_text("判定\n", encoding="utf-8")
+        shutil.rmtree(self.run.repo / ".git")   # git の外になり、作業ツリーの写しが取れず例外
+        got = self.prep()
+        self.assertIs(got["go"], False)
+        self.assertIn("例外", got["reason"])
+        self.assertEqual(self.notes()["units"], [])
+        self.assertFalse((self.out / "plan.json").exists())
+        self.assertEqual((self.out / "judgment.json").read_text(encoding="utf-8"), "判定\n")
+        self.assertEqual(json.loads((self.out / "prep.json").read_text(encoding="utf-8"))["failed"], True)
+
     def test_stop_word_is_declared_once(self):
         import stopby
         self.assertEqual(self.steps.STOP, stopby.HEAD + "judge-verify")
@@ -200,6 +226,14 @@ class FinishCase(_Base):
         done = self.finish()
         self.assertEqual((done["status"], done["stop_reason"]), ("failed", "works:judge-verify"))
         self.assertIn("tree.json", done["reason"])
+
+    def test_malformed_tree_copy_counts_as_moved(self):
+        for raw in ('{"head": 1}', "[]", "{壊れた", json.dumps({"head": "x"})):
+            with self.subTest(raw=raw):
+                (self.out / "tree.json").write_text(raw, encoding="utf-8")
+                done = self.finish()
+                self.assertEqual((done["status"], done["stop_reason"]), ("failed", "works:judge-verify"))
+                self.assertIn("tree.json", done["reason"])
 
     def test_finish_without_prep_record_writes_not_run(self):
         for name in ("plan.json", "verify.json", "prep.json"):

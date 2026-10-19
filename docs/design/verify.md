@@ -179,7 +179,7 @@ You are a sub-agent that checks the judgment's units. You only read: look into t
 - Do not propose removing, adding, or relabelling units. A unit is a duty to fix, and this check does not reduce it. Even if a unit turns out not to be the root cause, that only reaches the role that writes the plan and the report, as a note.
 - Use the web (WebSearch, WebFetch) only when the code behind the evidence does not settle the question. Do not reopen the sources of the judge's precedents.
 - Write `why` and `evidence` as facts you saw (path:line and what was there). If it is a guess, answer `{unsure}`.
-- Write the free-text fields of your answer (`evidence`, `location`, `why`, `real_root`, and the `why` of every row) in {lang}. Keep paths, identifiers, and unit keys as they are.
+- Write the free-text fields of your answer (`evidence`, `location`, `why`, `real_root`, and the `why` of every row) in {lang}. Keep paths, identifiers, and unit keys as they are. If the request is not shown to you, write in the same language as the `reason` text of the units.
 <!-- end aggregator -->
 <!-- if view -->
 
@@ -328,6 +328,8 @@ What to look at: (1) Root cause (`verdict`): … One of `root`, `not_root`, `uns
 - 移した: 語（`root`・`not_root`・`unsure`・`same`・`apart`）を差し込み口に（型の enum と受け付けと同じ定数から入れる。README の 5.3）。
 - 消した: 束ね役の node の YAML の `command:` と、ほかの node の id（`$verify-prep.output.lang_line`・`$verify-prep.output.prompt_file`）。
 - 足した物: 上の 2 つ（束ね役の「頼みに足すな」と、下請けの言語の箇条）だけ。英語にした（#764）。
+- 足した物（レビューの直し）: 言語の箇条の末尾に「依頼が見えない時は、単位の `reason` と同じ言語で書く」を足した。`lang` が空だと `{lang}` は既定の文（依頼の言語）になるが、下請けには依頼を見せない（2.2）ので解けないため。言語を選ぶ仕組みは足さず、md の 1 文で閉じる。`{lang}` はそのまま。
+- 足した物（レビューの直し）: `{shared:query-rule}` が「Go to primary sources first」（一次の出典を先に読む）の項を持ち込む。元の指示（md:3-10）に無かった項で、下請けにも届く。
 - 役の定義の断片（`role-inspector` など）は使わない。どれも「ファイルを作れない・作ろうとするな」と言い、答えのファイルを Write で書く下請けと食い違うため。今と同じく役の段落を md に持つ。
 
 ### 2.7 元の works と graphloops の同じ場面
