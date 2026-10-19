@@ -55,7 +55,7 @@
 
 ### 1.3 node の並び（`blocks/structure/works-factory-structure.yaml`）
 
-1. `measure`（script `survey.py`。`mutates_checkout: false`）: port を読み、place を作り直し、書いた意図を探して読み、mode に応じて段 A か段 B を回し、目に見せる材料を `view.json` に書く。返り `{eye, reason}`（`eye` は構造の目を起こすか）。`output_format`: `{type: object, additionalProperties: false, required: [eye, reason], properties: {eye: {type: boolean}, reason: {type: string}}}`。
+1. `measure`（script `survey.py`。`mutates_checkout: false`）: port を読み、place の中のこの block のファイルを名で引いて消し（place そのものは消さない。README の 13 章）、書いた意図を探して読み、mode に応じて段 A か段 B を回し、目に見せる材料を `view.json` に書く。返り `{eye, reason}`（`eye` は構造の目を起こすか）。`output_format`: `{type: object, additionalProperties: false, required: [eye, reason], properties: {eye: {type: boolean}, reason: {type: string}}}`。
 2. `structure-eye-loop`（`loop_group`、`max_iterations: 3`、`fresh_context: false`、`until_bash: 'done=$structure-eye-accept.output.done; test "$done" = true'`。`depends_on: [measure]`・`when: "$measure.output.eye == true"`）
    - `structure-eye-prep`（script `prep.py`。`mutates_checkout: false`）: 指示を組む。返り `{prompt, attempt}`。
    - `structure-eye`（AI。`prompt: "$structure-eye-prep.output.prompt"`・`depends_on: [structure-eye-prep]`・`model: '@wf-plan-structure'`・`allowed_tools: []`・`settingSources: [user]`・`sandbox: {enabled: true, allowUnsandboxedCommands: false}`・`mutates_checkout: false`・`idle_timeout: 1728000000`・`retry: {max_attempts: 2, on_error: all}`。`output_format` は 2.4 の形）。
@@ -331,7 +331,7 @@ after では、差分が変えたファイル（14 本）の上のフォルダ�
 
 ## 3 script の node
 
-- `survey.py`（`measure`）: `INPUTS_MODE`・`INPUTS_UNITS`・`INPUTS_INTENT`・`INPUTS_POLICY`・`INPUTS_BASE`・`INPUTS_PLAN` を `os.environ.get("INPUTS_MODE")` などの字のままで読み、`ports` に渡す。place を作り直す（中を全部消す）。根は作業ツリー（`Path.cwd()`）。
+- `survey.py`（`measure`）: `INPUTS_MODE`・`INPUTS_UNITS`・`INPUTS_INTENT`・`INPUTS_POLICY`・`INPUTS_BASE`・`INPUTS_PLAN` を `os.environ.get("INPUTS_MODE")` などの字のままで読み、`ports` に渡す。place の中のこの block のファイルを名で引いて消す（place そのものは消さない。README の 13 章）。根は作業ツリー（`Path.cwd()`）。
   - intent（`src/intent.py` の `find(root, rev, paths, given, policy)`。返りは `[{path, rev, text, cut, reason}]` で `intent.json` に書く）:
     - 読む版 `rev`: before は `HEAD`、after は port `base`。
     - port `intent` が空でなければ、その各パス。空なら、`design.MAP_NAMES`（`ARCHITECTURE.md`・`AGENTS.md`）の根の物と、単位の `paths`（after では単位の `paths` と段 B の `changed` の和）の各ファイルの上の各フォルダ（根を除く。浅い順・名の順）に在る同じ名の物のうち、`rev` に追跡されている物（`git ls-tree -r --name-only <rev>`）。
@@ -420,9 +420,9 @@ bin/works-factory <同じ引数> workflow run works-factory-structure \
 ## 9 未確認
 
 - 起動の殻で `blocks/` を読ませる引数の名と、5 節の命令の正確な形。
-- Archon は `prompt:` に入れた値の中の `$` に続く字を置き換え直す（materials の設計書の 3.1。`lib/rolekit.py` の `with_reject` の docstring）。書いた意図の文書と差分には対象の字の `$…` が入りうるので、役が見る字と機械の写しが食い違いうる。md で「`$` を含まない所を抜き書きに選べ」と言って避けた（11 節の 13）。置き換えを止める口が Archon に在るかは未確認。
+- Archon は `prompt:` に入れた値の中の `$` に続く字を置き換え直す、と書いた（materials の設計書の 3.1。`lib/rolekit.py` の `with_reject` の docstring）。土台の PR が、止めた版の Archon は値を読み直さないと源で確かめた（README の 13 章）。md の「`$` を含まない所を抜き書きに選べ」の 1 文（11 節の 13）は害が無いので置いたまま、外すかは作る時に決める。
 - `prompt:` に入る指示の大きさ: after の指示は差分（最大 40000 バイト）と書いた意図（文書ごとに最大 6000 字）を持ち、今の目の指示（例の run で 21 KB、大きい run で 234 KB）と同じ桁。README の未確認の一覧と同じ。
-- 目の既定の system prompt に作業ツリーの cwd と git status が入ること（6 節の 7）を、書いた意図と比べる見方の下で塞ぐか。塞ぐ形（Archon の `systemPrompt`）は YAML に指示の文を書くことになり、README の 5 節がその置き場を決めていない。
+- 目の既定の system prompt に作業ツリーの cwd と git status が入ること（6 節の 7）を、書いた意図と比べる見方の下で塞ぐか。塞ぐ形は system prompt の md（`prompts/<node-id>.system.md` を prep が組み、YAML は `systemPrompt: "$<prep>.output.system"` だけ。README の 5.2 と 13 章）で、憲法の 2 に触れずに書ける。塞ぐかは振る舞いを変えるので、この作り直しの外。
 
 ## 10 決めた所の図
 
@@ -448,9 +448,9 @@ mode=before                          mode=after
 5. port `policy` と `plan` を足した（README の 8.2 は `mode`・`units`・`intent`・`base`）。根拠: 今の目は人が固めた方針の文書を見ていて（`context.rules`）、直した後の控えは修正案の外れの訳を持ち、R1・R3 の頭と最後の承認ノードが読む（`structmark.deviation_lines`）。無いと元の能力が落ちる。
 6. place に書けない時の控えの置き場 `structure-spare/` を持たず、`structure: null` を返す。根拠: README の 4.3（block は自分の place のほかを開かない）。spare は place の外。読み手は null を「構造の目の行なしで計画した」と同じに扱える（今も構造が飛ばされた run は `structure-in` が null を渡す）。理由は `reason` と `report` に残る。
 7. 出力に `optional` を残した。根拠: line の collect が、block の中の node が落ちた時に先へ進めてよいかをこの宣言で読み、報告がそれを分ける（`workflows/line/scripts/collect.py:31-33`）。宣言は自分の node の id だけで、ほかの block を名指さない。line の設計書が宣言の形を替えるなら、それに合わせる。
-8. 目を Git の外で起こす旗（元の works）も、`systemPrompt` の替えも足さない。根拠: 今の振る舞いのまま。足すと YAML に指示の文が入り（`systemPrompt` は Archon の鍵で md から入れる口が無い）、README の憲法の 2 と食い違う。9 節の未確認に残した。
+8. 目を Git の外で起こす旗（元の works）も、`systemPrompt` の替えも足さない。根拠: 今の振る舞いのまま。system prompt の md の口（README の 13 章）で憲法の 2 に触れずに足せるが、目に届く物が変わる（振る舞いの変更）ので、この作り直しの外に置く。9 節の未確認に残した。
 9. `lib/design-row.schema.json` を写さない。根拠: 実行の時に読む物が無く（#232 から）、行の型の正本は node の `output_format`（README の 4.1「写しを持たない」）。
 10. 受け付けが書いた設計の行を、書いた直後に `structmark.rows` で読み直し、読めなければ `status: failed` にする。根拠: 元の works の `structure_edge` が持ち、工場で記録なく落ちた（6 節の 8）。行を書くのも読む口もこの block の内なので、1 か所で閉じる。
 11. 6 つの形の文を md に移し、受け付けは形の数 `FORM_COUNT`（6）だけを持つ。根拠: 形の文は AI にだけ届く決まった指示の文（README の憲法の 2）。今の試験 `test_six_forms_match_the_design_doc` が設計書との一致を見ていたのは、文が Python に在ったため。
 12. `verdict`・`route` の語は日本語のまま。根拠: 語は plan・plan-review・line・report・eyes が読む行の形（`structmark`・`gatemarks`・`planmarks` が持つ）で、この block の PR は `lib/` を変えない（README の 11.1）。
-13. 抜き書きに `$` を含まない所を選ばせる（md の 1 文）。根拠: 9 節の Archon の置き換え。照らしを緩めずに、置き換えで食い違いうる所を役に避けさせる。
+13. 抜き書きに `$` を含まない所を選ばせる（md の 1 文）。根拠: 9 節の Archon の置き換え。照らしを緩めずに、置き換えで食い違いうる所を役に避けさせる。止めた版は読み直さない（README の 13 章）ので、この 1 文は要らなくなった。害は無く、外すかは作る時に決める。

@@ -56,7 +56,7 @@
 
 ### 1.3 node の並び（`blocks/parallel-pr/works-factory-parallel-pr.yaml`）
 
-1. `scan`（script `scan.py`）: port を読み、place を作り直し、役の前の作業ツリーの写し `tree.json` を取り、機械の道を回す。返り `{go_role, reason}`。
+1. `scan`（script `scan.py`）: port を読み、place の中のこの block のファイルを名で引いて消し（place そのものは消さない。README の 13 章）、役の前の作業ツリーの写し `tree.json` を取り、機械の道を回す。返り `{go_role, reason}`。
    - `output_format`: `{type: object, additionalProperties: false, required: [go_role, reason], properties: {go_role: {type: boolean}, reason: {type: string}}}`。
 2. `pr-check-loop`（`loop_group`、`max_iterations: 3`、`fresh_context: false`、`until_bash: 'done=$pr-check-accept.output.done; test "$done" = true'`、`when: "$scan.output.go_role == true"`）
    - `pr-check-prep`（script `prep.py`。`mutates_checkout: false`）: 指示を組む。返り `{prompt}`（`output_format` は `prompt` の string だけ）。
@@ -247,7 +247,7 @@ Return only JSON that matches the output schema.
 
 ## 3 script の node
 
-- `scan.py`: `INPUTS_REQUEST`・`INPUTS_BASE`・`INPUTS_CHANGED` を `os.environ.get("INPUTS_REQUEST")` などの字のままで読み、`ports.json(…, "request.schema.json")`・`ports.text(…)`・`ports.json(…, "changed.schema.json")` に渡す（口の名は土台の PR の `ports.py` に合わせる）。place を作り直し（中のファイルを全部消す）、`tree.json` に `accept.tree_state(<作業ツリー>)` を書く。それから今の `pr_scan` と同じ順: `forge.reason(forge.detect(repo))` が空でなければ `not_applicable` の素材、そうでなければ `parallel_pr_plan`（`fallback` なら役へ、`blocked` なら `not_run`）、数えを `parallel_pr_scan` で回して `parallel_pr_reply`。渡し物 `pr-brief.json` はどの道でも書く。機械が決めた時は `material-pr-check.json` と空の `pr-excluded.json`（`{node, head, excluded: []}`）を書く。中の誤りは今の `pr_check.py` と同じく捕まえて役に任せる（`go_role: true`、`reason` は「機械の道が落ちた（<型>: <文>）——役に任せる」）。
+- `scan.py`: `INPUTS_REQUEST`・`INPUTS_BASE`・`INPUTS_CHANGED` を `os.environ.get("INPUTS_REQUEST")` などの字のままで読み、`ports.json(…, "request.schema.json")`・`ports.text(…)`・`ports.json(…, "changed.schema.json")` に渡す（口の名は土台の PR の `ports.py` に合わせる）。place の中のこの block のファイルを名で引いて消し（place そのものは消さない。README の 13 章）、`tree.json` に `accept.tree_state(<作業ツリー>)` を書く。それから今の `pr_scan` と同じ順: `forge.reason(forge.detect(repo))` が空でなければ `not_applicable` の素材、そうでなければ `parallel_pr_plan`（`fallback` なら役へ、`blocked` なら `not_run`）、数えを `parallel_pr_scan` で回して `parallel_pr_reply`。渡し物 `pr-brief.json` はどの道でも書く。機械が決めた時は `material-pr-check.json` と空の `pr-excluded.json`（`{node, head, excluded: []}`）を書く。中の誤りは今の `pr_check.py` と同じく捕まえて役に任せる（`go_role: true`、`reason` は「機械の道が落ちた（<型>: <文>）——役に任せる」）。
 - `prep.py`: 却下の控えを `rolekit.rejected(place, "pr-check")` で読み、`prompt.render("pr-check", values, when)` で組んで返す。`values` は `brief_file`・`limit`・`lang`（空なら README の 5.3 の既定の英文）・`rejection`（却下が在る時）・`na_why`（空の字。`material-na` の断片の差し込み口）。`when` は `{"rejected": <却下が在るか>, "na_never": True, "na_cond_true": False, "na_cond_false": False, "na_judged": False}`。query-rule の断片の `spawns` は `False`。
 - `take.py`: `rolekit.accept_round(place, "pr-check", INPUTS_REPLY, take, on_give_up=…)`。`take` は 4 節の順で照らす。諦めた時の控えは別に書かず、`finish` が `rolekit.given_up_reason(place, "pr-check")` を読む（今の止めの控え `write_stop(stopby.PR, …)` の替わり）。
 - `read_proof.py`: 今の `pr_reads.py` と同じく落ちない（中の誤りは `{ok: false, missing: [], index_file: "", reason}` で返す）。`reads.guarded(lambda: src.proof.collect(place, reads.log_here(), repo), owner="pr-check", place=place)`。

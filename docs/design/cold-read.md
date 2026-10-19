@@ -40,7 +40,7 @@
 
 ### 1.3 node の並び（`blocks/cold-read/works-factory-cold-read.yaml`）
 
-1. `cold-prep`（script `cold_prep.py`）: port を読み、place を作り直し、指示を組む。返り `{due, prompt, reason}`。本文が読めない時は `due: false` と訳（指示は空の字）。
+1. `cold-prep`（script `cold_prep.py`）: port を読み、place の中のこの block のファイルを名で引いて消し（place そのものは消さない。README の 13 章）、指示を組む。返り `{due, prompt, reason}`。本文が読めない時は `due: false` と訳（指示は空の字）。
 2. `cold`（AI。`depends_on: [cold-prep]`・`when: "$cold-prep.output.due == true"`・`prompt: "$cold-prep.output.prompt"`・`context: fresh`・`allowed_tools: []`・`settingSources: [user]`・`sandbox: {enabled: true, allowUnsandboxedCommands: false}`・`mutates_checkout: false`・`model: '@wf-report'`・`idle_timeout: 1728000000`・`retry: {max_attempts: 2, on_error: all}`・`output_format` は今の `cold` の物を字のまま）
 3. `finish`（script `finish.py`。`depends_on: [cold-prep, cold]`・`trigger_rule: all_done`・`with: {prep: {from: "$cold-prep.output", if_skipped: null}, reply: {from: "$cold.output", if_skipped: null}}`）: 返答を読んで出力を返す。どの段が落ちても落ちない。
 

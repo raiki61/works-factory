@@ -52,7 +52,7 @@
 
 ### 1.3 node の並び（`blocks/head-depth/works-factory-head-depth.yaml`）
 
-1. `intake`（script `intake.py`。`mutates_checkout: false`）: port を読み、place を作り直し、事実を測って機械の止めを通し、標準（か止めの段）の控えを先に書く。`intake.json` を書く。返り `{due, reason}`。
+1. `intake`（script `intake.py`。`mutates_checkout: false`）: port を読み、place の中のこの block のファイルを名で引いて消し（place そのものは消さない。README の 13 章）、事実を測って機械の止めを通し、標準（か止めの段）の控えを先に書く。`intake.json` を書く。返り `{due, reason}`。
 2. `head-depth-loop`（`loop_group`、`max_iterations: 3`、`fresh_context: false`、`until_bash: done=$head-depth-accept.output.done; test "$done" = true`。`depends_on: [intake]`・`when: $intake.output.due == true`）
    - `head-depth-prep`（script `depth_prep.py`。`mutates_checkout: false`・`with: {reason: "$LOOP_PREV.head-depth-accept.output.reason"}`）: 指示を組む。返り `{prompt}`。
    - `head-depth`（AI。`depends_on: [head-depth-prep]`・`prompt: "$head-depth-prep.output.prompt"`・`model: '@wf-judge-materials'`・`settingSources: [user]`・`allowed_tools: [Read, Grep, Glob]`・`sandbox: {enabled: true, allowUnsandboxedCommands: false}`・`idle_timeout: 1728000000`・`mutates_checkout: false`・`retry: {max_attempts: 2, on_error: all}`。`output_format` は今のまま。2.4）
@@ -334,7 +334,7 @@ graphloops と元の works には、この役の受け付けに当たる物（�
 ### 3.1 `intake.py`
 
 1. `request`・`has_checks`・`thickness`・`spec`・`design_only`・`lang` を `os.environ.get("INPUTS_REQUEST")` などの字のままで読み、`ports.json(raw, "request.schema.json")`・`ports.flag(raw)`・`ports.choice(raw, ("自動", "軽量", "標準", "重厚"))`・`ports.text(raw)` に渡す（口の名は土台の PR の `ports.py` に合わせる。world.md の 4 節と同じ前提）。`thickness` が空の字なら `自動` と読む。
-2. place を作り直す（place の中のファイルを全部消す）。
+2. place の中のこの block のファイル（`src/` の定数が名を持つ物と `<node-id>-prompt-*.md`）を名で引いて消す。place そのものと、ほかの物は消さない（単独の run では place が run directory の根。README の 13 章）。
 3. 依頼の行 `rows` は、値が配列ならそれ、object なら `findings` の欄。
 4. `facts = steps.facts(rows, has_checks=…, spec=…, design_only=…, thickness=…, repo=Path.cwd())`。形は今の控えの `facts` と同じ鍵: `{"items": [{item, text, where, path_ok, lines_ok}], "test_cmd": has_checks, "spec": spec, "design_only": design_only, "forced": <thickness が 軽量・標準・重厚 ならその語、自動なら "">}`。`items` の作り方と `_place` は今の `lib/headdepth.py:74-90` のまま。
 5. `go, tier, why = steps.gate(facts)`。今の `lib/headdepth.py:93-102` と同じ順: `forced` → `(False, forced, "入力 thickness の名指し（<forced>）")`、`spec` → `(False, 標準, "仕様の段を挟む run")`、`design_only` → `(False, 標準, "設計だけの run")`、行が無い → `(False, 標準, "依頼の行が無い（差分だけの run）")`、`test_cmd` が偽 → `(False, 標準, "機械の確かめが無い（tdd_suite も test_cmd も空）——代わりの最後のテストが測れない")`、どれでもない → `(True, "", "")`。
@@ -542,6 +542,8 @@ uv run --isolated python3 tests/changed.py
 7. `ok` は「段が設計どおりに決まったか」にし、役が 3 回拒まれた・走らなかった時は `false` にした。graph はこの欄で止めない（今も深さは判定を止めない）。根拠: Archon の `outcome_field` は単独の run の成否（true → succeeded・false → failed）を決めるだけで、include の先へは伝わらない（`A/.archon/workflow-language-constitution.md:90`）。単独で回した人には、標準に倒れた訳が失敗として見える方がよい。
 
 ## 9 README へ返す問題
+
+下の 7 つは README に当てた（3 節・5.3・6 節の 9・7.1 の 10・8.1・9.2・9.3・11.2・11.3・13 章）。
 
 1. 段の語の住処: README の 9.3 は `headdepth` の KEEP を「段の語と控えの読み」と書くが、段の語は今 `lib/depth.py:58-60`（`LIGHT`・`STANDARD`・`HEAVY`）と `:91`（`HEADS`）に在り、`lib/headdepth.py` は `LIGHT`・`STANDARD` だけを写している。`depth` は line へ MOVE（9.2）なので、組み込みで段の語 4 つを `lib/headdepth` へ移す手を 11.3 に書く必要がある。この block は作り直しの間 `lib/depth.py` の `HEAVY`・`HEADS` を読む。
 2. 報告の「run の頭の深さ」の 1 行（`headdepth.report_line`）は、段と根拠（head-depth）と省く物・足した物（line の表）にまたがる。README の 8.1 と 4.1 はどちらが組むかを書いていない。この設計書は 8 節の 3 で割った。

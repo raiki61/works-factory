@@ -7,7 +7,7 @@ block の script と `src/` が Archon と出入りする口と、2 つ以上の
 
 - 入力の読み: script は `os.environ.get("INPUTS_<名>")` を字のまま読み、`ports` の form の口（`text`・`flag`・`choice`・`json`・`file`）に渡す。名を組んで読まない。依頼の行は `requestrows.findings(raw)`（形の照らしと、知らない鍵・下書きの行の拒みまで）。
 - place: `ports.place()` だけ。run directory の根（Archon の環境変数）を script と `src/` に書かない。place は作るだけで消さない。block が消してよいのは、自分が名を持つファイルだけ（名で引く。`rejects-*.json` のような広い形で消さない）。ほかの block に渡すファイルは `ports.pointer(path)` で出力に入れる。
-- 指示: prep は `prompt.emit(node_id, values, when, prompt.round_of(node_id))`（組むだけなら `prompt.render`）だけで組む。md のパスも文も渡さない。前の回の却下は `with:` の `$LOOP_PREV` で受けず、place の却下の控え（`lib/rolekit` の `rejected(place, <名>)`）から全部を読む。
+- 指示: prep は `prompt.emit(node_id, values, when, prompt.round_of(node_id))`（組むだけなら `prompt.render`）だけで組む。md のパスも文も渡さない。前の回の却下は `with:` の `$LOOP_PREV` で受けず、place の却下の控え（`lib/rolekit` の `rejected(place, <名>)`）から全部を読む。`prompt.render` は md の全部の `{name}` に値を要る（選ばれない段落の中の `{name}` も、system の md の物も数える）。prep はいつも同じ組の値を渡し、入らない段落の `{name}` には空の字を渡す。
 - node の出力: `ports.returns(obj)`。落ちない node は `ports.run(compute, fallback)`。
 
 ## `.shared` と `lib/` の分け
