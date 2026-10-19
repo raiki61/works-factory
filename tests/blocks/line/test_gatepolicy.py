@@ -1,25 +1,16 @@
 """人の関所と無人の方針（元 lib/tests/test_gatepolicy.py。住処は line の src/gates.py。docs/design/line.md の 6 節）の語・入口の確かめ・
-始めの記録からの読み・最後の関所を開くかの決め。一時の置き場のファイルだけ（git・子のプロセスなし）。
+始めの記録の dict からの読み・最後の関所を開くかの決め。一時の置き場のファイルだけ（git・子のプロセスなし）。
 
 元の StuckPushableCase は、止まった壁打ちを推しで越えてよいかの決めが往復の記録の住処 src/rounds.py へ移ったので、
 tests/blocks/line/test_converge_line.py が持つ。
 """
-import json
-import tempfile
 import unittest
 
 from tests.blocks import kit
 
 gp = kit.load("line", "gates")
-startrec = __import__("sys").modules["src.startrec"]   # gates が読んだのと同じ src の始めの記録の口
 import answer  # noqa: E402
 import stopby  # noqa: E402
-
-
-def record(d, **fields):
-    p = startrec.path(d)
-    p.parent.mkdir(parents=True, exist_ok=True)
-    p.write_text(json.dumps(fields), encoding="utf-8")
 
 
 class WordsCase(unittest.TestCase):
@@ -56,30 +47,11 @@ class CheckCase(unittest.TestCase):
 
 
 class ReadCase(unittest.TestCase):
-    def test_reads_the_start_record(self):
-        """読み手は始めの記録から読む（線の節に入力を写さない）。記録が無い・欄が空なら既定（always・人の居る run）"""
-        with tempfile.TemporaryDirectory() as d:
-            self.assertEqual(gp.final_mode(d), gp.ALWAYS)
-            self.assertFalse(gp.unattended(d))
-            record(d, **{gp.FINAL_KEY: "when_needed", gp.UNATTENDED_KEY: gp.UNATTENDED})
-            self.assertEqual(gp.final_mode(d), "when_needed")
-            self.assertTrue(gp.unattended(d))
-            record(d, **{gp.FINAL_KEY: "", gp.UNATTENDED_KEY: ""})
-            self.assertEqual(gp.final_mode(d), gp.ALWAYS)
-            self.assertFalse(gp.unattended(d))
-
     def test_reads_the_start_record_dict(self):
         """報告と台帳の見え方は始めの記録の dict から同じ式で読む（無い・欄が無いなら人の居る run）"""
         self.assertTrue(gp.unattended_of({gp.UNATTENDED_KEY: gp.UNATTENDED}))
         self.assertFalse(gp.unattended_of({}))
         self.assertFalse(gp.unattended_of(None))
-
-    def test_unknown_mode_in_record_is_an_error(self):
-        """入口が確かめた語の外が記録に在れば配線の誤り（黙って always に倒さない）"""
-        with tempfile.TemporaryDirectory() as d:
-            record(d, **{gp.FINAL_KEY: "sometimes"})
-            with self.assertRaises(ValueError):
-                gp.final_mode(d)
 
     def test_head_words(self):
         """報告の頭の行の句: 記録に開き方が在れば「最後の関所: <語>」、無ければ空"""

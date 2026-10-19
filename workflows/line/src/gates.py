@@ -10,7 +10,7 @@ lib/boardview.py の方針の文書の変化（policy_change・change_row）と 
 始めの記録は src.startrec の口で読み、KEEP の lib に記録を読ませない（integration.md の 4.3-追加-6）。
 
 - 最後の承認ノードの開き方と無人の語（元 gatepolicy）: FINAL_KEY・UNATTENDED_KEY・FINAL_GATES（ALWAYS・WHEN_NEEDED・PROTECTED_ONLY）・
-  UNATTENDED・UNATTENDED_WORDS・FINAL_KIND・Refused・check・final_mode・unattended・unattended_of・opens・head_words・Push・Passage・
+  UNATTENDED・UNATTENDED_WORDS・FINAL_KIND・Refused・check・unattended_of・opens・head_words・Push・Passage・
   passage（stuck_pushable は往復の記録の住処 src.rounds が持つ）
 - row_push(text)・_as_push(rec, note): 項目の推しの尾の、無人の方針の読み（元 gatemarks）
 - design_only(doc)・request_answers(doc): 始めの記録の dict から、設計だけの run か・依頼が先に持っていた答え（元 gatemarks の
@@ -37,7 +37,6 @@ import policy
 import stopby
 import structmark
 
-from src import startrec
 
 # ---------------------------------------------------------------- 元 lib/gatepolicy.py
 FINAL_KEY = "final_gate"
@@ -65,19 +64,6 @@ def check(final, unattended, *, spec) -> dict:
         raise Refused(f"spec=on と無人の run（{UNATTENDED_KEY}）は組めない——仕様の承認は承認ノードで、無人の run は承認ノードで止めるので"
                       "仕様が固まらずに止まる（人の居る run で回す）")
     return {FINAL_KEY: mode, UNATTENDED_KEY: alone}
-
-
-def final_mode(board_dir) -> str:
-    """始めの記録の最後の関所の開き方（無い・空は ALWAYS。語の外は ValueError）"""
-    mode = str(startrec.read(board_dir).get(FINAL_KEY) or "").strip() or ALWAYS
-    if mode not in FINAL_GATES:
-        raise ValueError(f"始めの記録の {FINAL_KEY}={mode!r} は知らない値（{' / '.join(FINAL_GATES)}）")
-    return mode
-
-
-def unattended(board_dir) -> bool:
-    """run が無人で回っているか（始めの記録の欄。読めなければ人の居る run）"""
-    return unattended_of(startrec.read(board_dir))
 
 
 def unattended_of(doc) -> bool:
