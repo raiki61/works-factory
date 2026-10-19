@@ -1,17 +1,12 @@
-"""引き継ぎのメモ（考え handoff）の住処: 役が次の周の自分へ書くメモの型・頼み・前の周の節・控えの書き読み。
+"""引き継ぎのメモ（考え handoff）の住処: 役が次の周の自分へ書くメモの型と控えの書き読み。
 
 役は周ごとに新しい会話で起きて、前の周で読んだ所も考えも持たない。そこで役の返答に、本文・案とは別の欄 handoff を持たせ、
-受け付けが外して周のフォルダに置き（控えの名と置き場は marks の種 handoff）、次の周の材料が前の周のメモをパスで名指す。
-計画の受け付け（lib/planfile.py）も報告の受け付け（lib/runreport.py）もここを呼び、型・頼み・節を自分で持たない。
-役の返答の型の YAML の写し（計画の workflows/plan/works-factory-plan.yaml・報告の workflows/report/works-factory-report.yaml）は
-SCHEMA の写しで、持ち主との一致は試験が見る。
+受け付けが外して周のフォルダに置き（控えの名は FILE）、次の周の材料が前の周のメモをパスで名指す。メモを書けという頼みと前の周の
+節の文は共通の断片 blocks/.shared/prompts/handoff.md に在る（integration.md 4.3-追加-1）。
 
 - FIELD・KEYS・SCHEMA: 返答の欄の名・4 つの欄（read・kept・set_aside・open）・欄の型
-- ASK: メモを書けという頼み（役の名を含まない。計画の材料も報告の輪の頭の節も同じ文を貼る）
-- HEAD・USE・NONE・UNREADABLE: 前の周の節の見出し・前の周のメモの使い方・メモが無い周の文・読めない周の文
-- path_of(board)・save(board, note): 周のフォルダ board の控えのパス・控えを置く（空なら前の控えを消す）
+- FILE・path_of(board)・save(board, note): 控えの名・周のフォルダ board の控えのパス・控えを置く（空なら前の控えを消す）
 - unreadable(rounds): 在るのに読めない控えのパスの並び
-- section(rounds): 前の周のフォルダの並び（古い順）の節。並びが空なら節ごと出さない
 """
 from __future__ import annotations
 
@@ -22,10 +17,10 @@ _CORE = pathlib.Path(__file__).resolve().parent
 if str(_CORE) not in sys.path:
     sys.path.insert(0, str(_CORE))
 
-import marks  # noqa: E402
-import promptsection  # noqa: E402
+import jsonfile  # noqa: E402
 
 FIELD = "handoff"
+FILE = "handoff.json"
 KEYS = ("read", "kept", "set_aside", "open")
 _TEXT = {"type": "string", "minLength": 1}
 SCHEMA = {"type": "object", "additionalProperties": False, "required": list(KEYS),
@@ -38,20 +33,11 @@ SCHEMA = {"type": "object", "additionalProperties": False, "required": list(KEYS
                   "type": "object", "additionalProperties": False, "required": ["option", "why"],
                   "properties": {"option": _TEXT, "why": _TEXT}}},
               "open": {"type": "array", "items": _TEXT}}}
-ASK = (f"次の周の自分は新しい会話で起きて、この会話で読んだ所も考えも持たない。返答の欄 {FIELD}（本文・案とは別の欄。"
-       "機械が周のフォルダに置き、本文・案には入らない）に、次の周の自分へのメモを書け: read＝読んだ所（path・lines・読んだ訳 why）、"
-       "kept＝保つと決めた事とその訳の文、set_aside＝脇に置いた案（option）と置いた訳（why）——選んだ道に限らず別の直し方・書き方も、"
-       "open＝まだ決まっていない所の文。どの並びも空でよいが、4 つとも書け")
-HEAD = promptsection.Section("## 前の周の引き継ぎのメモ（機械が名指した）", source="fn:handoff.section")
-USE = ("前の周の自分が書いたメモの使い方: read に並ぶ所から読み直し、kept を保ち、set_aside の案は拒否の訳・審査の指摘が求めない限り"
-       "戻さず、open は拒否の訳・審査の指摘と突き合わせろ。メモは古い周から順に全部読め")
-NONE = "置かれていない（その周の役がメモを書かなかったか、返答の本文が空で受け付けがメモを置かなかった）"
-UNREADABLE = "読めない（控えが壊れている。読まずに進め）"
 
 
 def path_of(board) -> pathlib.Path:
-    """周のフォルダ board の引き継ぎのメモの控えのパス（marks の種 handoff）"""
-    return marks.path_of("handoff", board)
+    """周のフォルダ board の引き継ぎのメモの控えのパス"""
+    return pathlib.Path(board) / FILE
 
 
 def save(board, note) -> None:
@@ -60,7 +46,7 @@ def save(board, note) -> None:
     path = path_of(board)
     if note:
         path.parent.mkdir(parents=True, exist_ok=True)
-        marks.write(path, note)
+        jsonfile.dump(path, note)
     else:
         path.unlink(missing_ok=True)
 
@@ -71,24 +57,6 @@ def unreadable(rounds) -> list:
     out = []
     for board in rounds:
         path = path_of(board)
-        if path.exists() and not isinstance(marks.load(path), dict):
+        if path.exists() and not isinstance(jsonfile.read_or(path), dict):
             out.append(path)
     return out
-
-
-def section(rounds) -> str:
-    """前の周のフォルダの並び rounds（古い順）の節: HEAD の直後に使い方 USE を置き、1 周 1 行で、メモの在る周はパス（Read で読め。
-    中身は貼らない）、無い周は NONE、読めない周は UNREADABLE と名指す。並びが空なら（前の周が無い）節ごと出さない"""
-    rounds = list(rounds)
-    if not rounds:
-        return ""
-    broken = set(unreadable(rounds))
-    lines = []
-    for board in rounds:
-        path = path_of(board)
-        if path in broken:
-            note = UNREADABLE
-        else:
-            note = f"{path}（Read で読め）" if path.is_file() else NONE
-        lines.append(f"- {pathlib.Path(board).name}: {note}")
-    return f"{HEAD}\n\n{USE}\n\n" + "\n".join(lines)

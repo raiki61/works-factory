@@ -11,7 +11,6 @@ import shutil
 import sys
 import tempfile
 import unittest
-from unittest import mock
 
 LIB = pathlib.Path(__file__).resolve().parents[1]
 if str(LIB) not in sys.path:

@@ -19,7 +19,6 @@ knowledge の行は、頭の節・関所の行に NOT_WEB と名指して並べ�
   盤面の根から読む判定の支度・修正案の頭・関所が使う。呼び手は None と [] の違いを `stage_rows(d) or []` の 1 式で書く）。
   read・write・stage_rows の name は控えのファイルの名（既定は判定の STATE_FILE。事前審査の盤面の写しは COPY_STATE）
 - ref_problems(reply, board_dir): 判定の返答の先例の出どころ world:<類の id> が控えの指す行に無い誤りの文（判定の受け付けが拒む）
-- section(rows): 判定・修正案・事前審査の頭に貼る節（行が無ければ ""）。修正案の役に行ごとの答えを頼む文は PLAN_ASK
 - need(rows)・challenges(rows): 修正案の受け付けに渡す答えの要る行の表（planmarks.Need。答えの仕組みは構造の目の汚れる
   行と同じ 1 つ。行は項目に場所で結ばず、どの項目も答えていない行だけを欠けにする）・類ごとの依頼の解き方との比べの文（事前審査の
   外れの訳に添える）
@@ -29,12 +28,13 @@ knowledge の行は、頭の節・関所の行に NOT_WEB と名指して並べ�
   依頼の出どころは依頼のファイルのパス（パス全体で照らす）・依頼の引用・依頼の解き方 means で、目的の文の出典 source_files は入れない。
   依頼が解き方を示していない行（verdict none）の外れは依頼の出どころにならない。
   web で確かめていない行（knowledge）は従う答えだけが揃い、外れは人に聞く——計画の 5.5 節「知識だけの定石に従うのは自明側、外れは人へ」）
-- gate_line(row, answer)・report_lines(board_dir): 関所の項目と報告の節「世界の解」の行
+- gate_line(row, answer): 関所の項目の行
+行を役に見せる節と行ごとの答えを頼む文は block の md（integration.md 4.3-追加-1）、報告の節「世界の解」の行は world の src/report.py。
 
 依頼の解き方（足し欄 means。計画の W6・5.3 節の 1）: 目的の役は目的の文に解き方を書かず、依頼が示した解き方（手段）を役の型の
-足し欄 MEANS に分ける。足す・外す・置くの手順は住処 marks（種 means）に任せ、欄の意味（型・読んだ後の使い方）をここが持つ。
+足し欄 MEANS に分ける。欄の意味（型・読んだ後の使い方）と控えの名 MEANS_FILE をここが持つ。
 目的の文の型は写しのまま。控えは世界の解の段の入力（言い直す役が依頼の解き方として見る）で、独立設計には渡さない（目的だけから設計する）。
-- MEANS_NODES・split_means(reply): 欄を持つ節・（欄を外した返答の写し, 手段の並び）
+- split_means(reply): （欄を外した返答の写し, 手段の並び）
 - write_means(board_dir, means)・means_of(board_dir, name): 控えを置く（空なら置かない）・読む（無い・読めなければ []。name は写しの名）
 - copy_means(src_file, board_dir): 控えのファイル（判定の外の読み手は判定の出力の欄 purpose_means のパス）を別の置き場に写しの名
   COPY_MEANS で写す（事前審査の置き場の関所が世界の解の外れの出どころを照らす）
@@ -44,13 +44,11 @@ import pathlib
 import shutil
 
 import cite   # 依頼の引用「…」の形と語（決め手の出どころの照らしの住処）
-import judgebeside  # 判定の隣のファイルの名の住処（控え STATE_FILE の名）
-import marks  # 返答の足し欄の住処（種 means）
+import jsonfile
 import planmarks  # 修正案の欄 structure の答えの仕組み（答えの要る行の表 Need）
-import promptsection
 
 WORLD_FILE = "world.jsonl"
-STATE_FILE = judgebeside.WORLD_STATE_FILE
+STATE_FILE = "world-state.json"
 VERDICTS = ("same", "differs", "none")
 SAME, DIFFERS, NONE = VERDICTS
 BASES = ("web", "knowledge")
@@ -62,17 +60,12 @@ VERSUS_FIELDS = ("proposed", "verdict", "challenge")
 ANSWER_KEY = "world"   # 修正案の項目の欄 structure の答えの行で類の id を持つ鍵
 SOURCE_PREFIX = "world:"   # 判定の先例の出どころで世界の行を指す頭の字（world:<類の id>）。ANSWER_KEY とは別の約束
 VERDICT_WORDS = {SAME: "定石と同じ", DIFFERS: "定石と違う", NONE: "依頼は解き方を示していない"}
-HEAD = promptsection.Section("## 世界の解の行（依頼の行ごとの問題の類・世の中の定石・依頼の解き方との比べ）", source="fn:worldmark.section")
-PLAN_ASK = ("当たる所の在る行（答えの要る行）は、行ごとにどれかの項目が、定石に従う（{world: <類の id>, follows: true}）"
-            "か、従わない訳（{world: <類の id>, deviation: <訳と出どころ>}）を項目の works の欄 structure に書け（どの項目も"
-            "答えていない行は受け付けが拒む）。依頼の解き方は定石と比べて疑う案で、決め手にならない——依頼そのものを出どころにした外れは修正前の承認ノードで人に回る。"
-            f"「{NOT_WEB}」の行も同じに答える")
 STATES = ("ok", "failed")
 MEANS = "means"
-MEANS_NODES = marks.nodes(MEANS)
+MEANS_FILE = "purpose-means.json"
 # 判定の外の盤面（事前審査）が、受けた控えを自分の置き場に写す名（判定の置き場の名と分ける。workflows/AGENTS.md の E4）
 COPY_STATE = f"judge-{STATE_FILE}"
-COPY_MEANS = f"judge-{marks.KINDS[MEANS].file}"
+COPY_MEANS = f"judge-{MEANS_FILE}"
 
 
 # ---------------------------------------------------------------- 読む
@@ -158,11 +151,15 @@ def ref_problems(reply, board_dir) -> list:
 # ---------------------------------------------------------------- 依頼の解き方（足し欄 means）
 
 
+def _means_path(board_dir) -> pathlib.Path:
+    return pathlib.Path(getattr(board_dir, "dir", board_dir)) / MEANS_FILE
+
+
 def split_means(reply) -> tuple:
     """（欄を外した返答の写し, 手段の並び。欄が無ければ []）。dict でない返答はそのまま"""
     if not isinstance(reply, dict):
         return reply, []
-    out, got = marks.split(MEANS, MEANS_NODES[0], reply, (MEANS,))
+    out, got = jsonfile.split(reply, (), (MEANS,))
     return out, [m for m in got.get(MEANS) or [] if isinstance(m, str) and m.strip()]
 
 
@@ -170,7 +167,7 @@ def write_means(board_dir, means) -> None:
     """手段の並びを盤面の根の控えに置く（空なら置かない）"""
     got = [m for m in means or [] if isinstance(m, str) and m.strip()]
     if got:
-        marks.write(marks.path_of(MEANS, board_dir), {MEANS: got})
+        jsonfile.dump(_means_path(board_dir), {MEANS: got})
 
 
 def copy_means(src_file, board_dir) -> None:
@@ -184,7 +181,7 @@ def copy_means(src_file, board_dir) -> None:
 
 
 def means_of(board_dir, name: str | None = None) -> list:
-    doc = marks.load(pathlib.Path(board_dir) / name if name else marks.path_of(MEANS, board_dir))
+    doc = jsonfile.read_or(pathlib.Path(board_dir) / name if name else _means_path(board_dir))
     got = doc.get(MEANS) if isinstance(doc, dict) else None
     return [m for m in got if isinstance(m, str) and m.strip()] if isinstance(got, list) else []
 
@@ -201,18 +198,6 @@ def _versus(r: dict) -> str:
     return f"{head}——{v['challenge']}" if v.get("verdict") == DIFFERS and v.get("challenge") else head
 
 
-def section(rows) -> str:
-    """行の並びから判定・修正案・事前審査の頭の節（行が無ければ ""）"""
-    if not rows:
-        return ""
-    lines = [HEAD, ""]
-    for r in rows:
-        lines += [f"- 類 {r['class_id']}（依頼の行 {r['finding']}・{r['where']}）: {r['problem']}（作業: {r['activity']}）",
-                  f"  - 定石: {r['practice']}{_mark(r)}",
-                  *[f"  - 出どころ {s.get('id')}: {s.get('url')}「{s.get('excerpt')}」" for s in r["sources"] if isinstance(s, dict)],
-                  f"  - 当たる所: {r['applies'] or '無い（答えの要らない行）'}" + (f"／当たらない所: {r['not_applies']}" if r["not_applies"] else ""),
-                  f"  - {_versus(r)}"]
-    return "\n".join(lines) + "\n"
 
 
 # ---------------------------------------------------------------- 答え
@@ -297,18 +282,3 @@ def gate_line(row, answer) -> str:
         return f"{head}／案は定石に従う"
     return f"{head}／案は外れる——{answer.get('deviation')}"
 
-
-def report_lines(board_dir) -> list:
-    st = read(board_dir)
-    if st is None:
-        return []
-    if st["status"] != "ok":
-        return [f"- 世界の解の段が落ちた（行なしで進んだ）: {st.get('reason') or '理由の記録が無い'}"]
-    try:
-        got = rows(st.get("world_file") or "") if st.get("world_file") else []
-    except ValueError as e:
-        return [f"- 世界の解の行が読めない: {e}"]
-    out = [f"- 類 {r['class_id']}（依頼の行 {r['finding']}）: {r['practice']}{_mark(r)}"
-           f"（{_versus(r)}）" for r in got]
-    out.append(f"- 類 {st.get('classes', len(got))}・落とした抜き書き {st.get('dropped', 0)}")
-    return out

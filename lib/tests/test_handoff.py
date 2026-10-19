@@ -1,4 +1,4 @@
-"""引き継ぎのメモの住処（lib/handoff.py）の検査。型・頼み・前の周の節・控えの書き読みが計画と報告で 1 つであること。"""
+"""引き継ぎのメモの住処（lib/handoff.py）の検査。型と控えの書き読みが 1 つであること（頼みと前の周の節の文は共通の断片 handoff.md）。"""
 import json
 import pathlib
 import sys
@@ -10,8 +10,6 @@ if str(LIB) not in sys.path:
     sys.path.append(str(LIB))
 
 import handoff  # noqa: E402
-import planfile  # noqa: E402
-import report_roles  # noqa: E402
 
 NOTE = {"read": [{"path": "stats.py", "lines": "1-20", "why": "mean の分母を確かめた"}],
         "kept": ["分母は len(xs) にする"],
@@ -25,52 +23,14 @@ class HandoffCase(unittest.TestCase):
         self.addCleanup(tmp.cleanup)
         self.dir = pathlib.Path(tmp.name)
 
-    def test_plan_and_report_take_the_one_schema(self):
-        """計画も報告もメモの型・欄の名・頼みを自前で持たず、報告の書き手の返答の型の handoff は handoff.SCHEMA と同じで、
-        4 つ目の欄は open。欄の名に decided・rejected・doubts を使わない（#712: 返答の型の欄にこの名が並ぶと、報告の書き手がモデルの提供元の安全の判定 reasoning_extraction に止められた）。頼みは役の名を含まず、メモは本文・案に入らないと言う"""
-        for module in (planfile, report_roles):
-            for name in ("HANDOFF", "HANDOFF_KEYS", "HANDOFF_SCHEMA", "HANDOFF_HEAD", "HANDOFF_ASK", "NO_HANDOFF", "handoff_section"):
-                with self.subTest(module=module.__name__, name=name):
-                    self.assertFalse(hasattr(module, name), f"{module.__name__}.{name} がまだ在る")
+    def test_one_schema(self):
+        """4 つ目の欄は open。欄の名に decided・rejected・doubts を使わない（#712: 返答の型の欄にこの名が並ぶと、報告の書き手がモデルの提供元の安全の判定 reasoning_extraction に止められた）"""
         self.assertEqual(handoff.FIELD, "handoff")
         self.assertEqual(handoff.KEYS, ("read", "kept", "set_aside", "open"))
         self.assertFalse({"decided", "rejected", "doubts"} & set(handoff.KEYS))
         self.assertEqual(list(handoff.SCHEMA["properties"]), list(handoff.KEYS))
         self.assertEqual(handoff.SCHEMA["required"], list(handoff.KEYS))
-        self.assertEqual(report_roles.TEXT_SCHEMA["properties"][handoff.FIELD], handoff.SCHEMA)
-        for key in handoff.KEYS:
-            self.assertIn(key, handoff.ASK)
-        self.assertIn(handoff.FIELD, handoff.ASK)
-        for role in ("plan", "報告"):
-            self.assertNotIn(role, handoff.ASK, "頼みは役に依らない字")
-        self.assertIn("本文", handoff.ASK)
-        self.assertIn(handoff.FIELD, planfile.RESUBMIT_RULES)
-        self.assertIn(handoff.FIELD, planfile.REPLAN_RESUBMIT_RULES)
-
-    def test_section_names_every_prior_note_oldest_first(self):
-        rounds = [self.dir / f"r{n}" for n in (1, 2, 3)]
-        handoff.save(rounds[0], NOTE)
-        rounds[1].mkdir()
-        rounds[2].mkdir()
-        (rounds[2] / "handoff.json").write_text("{壊れた", encoding="utf-8")
-        text = handoff.section(rounds)
-        self.assertTrue(text.startswith(handoff.HEAD), text)
-        self.assertEqual(handoff.HEAD.source, "fn:handoff.section")
-        self.assertLess(text.index(handoff.HEAD), text.index(handoff.USE))
-        self.assertLess(text.index(handoff.USE), text.index(str(handoff.path_of(rounds[0]))))
-        for word in ("read", "kept", "set_aside", "open"):
-            self.assertIn(word, handoff.USE)
-        lines = [line for line in text.splitlines() if line.startswith("- ")]
-        self.assertEqual(len(lines), 3, "1 周 1 行")
-        self.assertIn(str(handoff.path_of(rounds[0])), lines[0])
-        self.assertIn("r1", lines[0])
-        self.assertIn(handoff.NONE, lines[1])
-        self.assertIn("r2", lines[1])
-        self.assertNotIn(str(handoff.path_of(rounds[1])), lines[1])
-        self.assertIn(handoff.UNREADABLE, lines[2])
-        self.assertIn("r3", lines[2])
-        self.assertNotIn(NOTE["kept"][0], text, "中身は貼らずパスで名指す")
-        self.assertEqual(handoff.section([]), "", "並びが空なら節ごと出さない")
+        self.assertEqual(handoff.path_of(self.dir), self.dir / handoff.FILE)
 
     def test_unreadable_names_only_broken_prior_notes(self):
         r1, r2, r3, r4, r5 = (self.dir / f"r{n}" for n in range(1, 6))

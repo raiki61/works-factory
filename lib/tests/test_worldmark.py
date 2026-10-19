@@ -3,7 +3,6 @@
 行のファイル（JSON Lines）の読み・指示書の頭の節・答えの要る行・関所の軸・関所の行と、約束
 （blk-world/world-row.schema.json）の欄と語が住処の定数と揃うことを見る。一時の置き場のファイルだけ（網・git・子のプロセスなし）。
 """
-import inspect
 import json
 import pathlib
 import sys
@@ -58,30 +57,11 @@ class Files(unittest.TestCase):
         with self.assertRaises(ValueError):
             worldmark.rows(self.dir / "missing.jsonl")
 
-    def test_section_marks_knowledge_rows(self):
-        p = self.put([row(), row(finding=2, class_id="w2", basis="knowledge", sources=[], practice="小さな定石")])
-        got = worldmark.section(worldmark.rows(p))
-        self.assertIn(worldmark.HEAD, got)
-        self.assertIn("w1", got)
-        self.assertIn("https://example.org/tdd", got)
-        lines = [ln for ln in got.splitlines() if "小さな定石" in ln]
-        self.assertTrue(lines and worldmark.NOT_WEB in lines[0], got)
-        self.assertNotIn(worldmark.NOT_WEB, "\n".join(ln for ln in got.splitlines() if "最小の仮の実装" in ln))
-        self.assertIn("依頼は読む役を足す", got)
-
-    def test_readers_are_stage_rows_and_section(self):
-        """住処の読み口は stage_rows（控えが指す行。無ければ None）と section(rows)（行の並びから頭の節）と報告の report_lines"""
-        for name in ("board_rows", "board_section", "plan_section"):
+    def test_readers_are_stage_rows(self):
+        """住処の読み口は stage_rows（控えが指す行。無ければ None）。行を役に見せる節は block の md、報告の行は world の src"""
+        for name in ("board_rows", "board_section", "plan_section", "section", "report_lines", "HEAD", "PLAN_ASK"):
             self.assertFalse(hasattr(worldmark, name), name)
         self.assertTrue(callable(worldmark.stage_rows))
-        got = worldmark.section([row(), row(finding=2, class_id="w2")])
-        self.assertIn(worldmark.HEAD, got)
-        self.assertIn("w1", got)
-        self.assertIn("w2", got)
-
-    def test_section_empty_when_no_rows(self):
-        self.assertEqual(list(inspect.signature(worldmark.section).parameters), ["rows"], "行の並びを取る（行のファイルの名は取らない）")
-        self.assertEqual(worldmark.section([]), "")
 
     def test_read_state(self):
         self.assertIsNone(worldmark.read(self.dir))
@@ -102,25 +82,6 @@ class Files(unittest.TestCase):
         self.assertEqual([r["class_id"] for r in worldmark.stage_rows(self.dir)], ["w1"])
         worldmark.write(self.dir, status="failed", reason="段が落ちた", world_file="", classes=0, dropped=0)
         self.assertIsNone(worldmark.stage_rows(self.dir))
-
-    def test_report_lines(self):
-        p = self.put([row(), row(finding=2, class_id="w2", basis="knowledge", sources=[])])
-        (self.dir / worldmark.STATE_FILE).write_text(json.dumps(
-            {"status": "ok", "reason": "", "world_file": str(p), "classes": 2, "dropped": 4}),
-            encoding="utf-8")
-        got = "\n".join(worldmark.report_lines(self.dir))
-        self.assertIn("w1", got)
-        self.assertIn(worldmark.NOT_WEB, got)
-        for n in ("類 2", "落とした抜き書き 4"):
-            self.assertIn(n, got)
-        self.assertEqual(worldmark.report_lines(self.dir / "none"), [])
-
-    def test_report_lines_failed_state(self):
-        (self.dir / worldmark.STATE_FILE).write_text(json.dumps({"status": "failed", "reason": "言い直す役が 3 回拒まれた",
-                                                                 "world_file": ""}), encoding="utf-8")
-        got = "\n".join(worldmark.report_lines(self.dir))
-        self.assertIn("言い直す役が 3 回拒まれた", got)
-
 
 class Notes(unittest.TestCase):
     """構造の目への単位の注記の道（unit_note・where_paths）は無い。世界の解は判定の単位の処方と先例を通って届く"""
@@ -299,6 +260,7 @@ class Contract(unittest.TestCase):
     def test_constants(self):
         self.assertEqual(worldmark.WORLD_FILE, "world.jsonl")
         self.assertEqual(worldmark.STATE_FILE, "world-state.json")
+        self.assertEqual(worldmark.MEANS_FILE, "purpose-means.json")
         self.assertEqual(worldmark.VERDICTS, ("same", "differs", "none"))
         self.assertEqual(worldmark.BASES, ("web", "knowledge"))
         self.assertEqual(worldmark.NOT_WEB, "web で確かめていない")

@@ -71,12 +71,12 @@ note_plan の無い控え（行に items が無い）は今までどおり全体
 - prev_row(b, n)・answered_hits(b, n)・carried_notes(b): 前の往復のその項目の案の行・当たりの答えと、suggest の穴（往復の行の
   notes。項目を開き直さず、受け付けが後の往復の返答に今の案の単位だけで引き継ぎ、修正の段へ運ぶ。答えと照らしが要る suggest は
   owed_faces が引く開いた項目の物だけで、閉じた・保留の項目の物と審査が消えたと言った物は参考として渡る）
-- revise_section(doc)・review_section(b)・stuck_reason(b)・lines(b): 指示書に足す文（review_section は、最後の往復に保留の項目が
-  在れば HELD_CITES と保留の項目ごとの block の key も貼る）・関所の理由・報告の行（往復ごとの行は
-  前の往復の block を審査が suggest に下げた key も名指し、disputed と答えた穴の key と根拠を 1 行ずつ後ろに足す）
+- stuck_reason(b)・lines(b): 関所の理由・報告の行（往復ごとの行は前の往復の block を審査が suggest に下げた key も名指し、disputed と
+  答えた穴の key と根拠を 1 行ずつ後ろに足す）。修正案の役と事前審査の役に返す節の文（前の revise_section・review_section と頼みの文）は
+  plan・plan-review の md（integration.md 4.3-追加-1）
 
-役の型に欄を足す・返答から外す手順は住処 marks（種 converge）に任せる。外した欄は足し欄の控えでなく、この往復の控えに置く。
-盤面の b のうち round・dir・work・trace だけを使い、標準ライブラリと住処 marks・promptsection・cite（L1）だけを import する
+返答から欄を外す道は jsonfile.split。外した欄は足し欄の控えでなく、この往復の控えに置く。
+盤面の b のうち round・dir・work・trace だけを使い、標準ライブラリと jsonfile・cite（L1）だけを import する
 （gatemarks がこのモジュールを読み、entry が gatemarks を読むので、entry・rolekit・gatemarks を import すると輪になる）。
 """
 from __future__ import annotations
@@ -89,8 +89,7 @@ import re
 import shutil
 
 import cite
-import marks
-import promptsection
+import jsonfile
 
 RECORD = "plan-converge.json"
 PASS_DIR = "plan-converge"
@@ -118,24 +117,6 @@ CENTRAL = ("breaks_fix", "loses_behavior", "against_policy", "forces_redesign")
 PERIPHERAL = "peripheral"
 REACH_SCHEMA = {"type": "string", "enum": [*CENTRAL, PERIPHERAL]}
 
-REVISE_ASK = ("事前審査（別の目）が、修正案に下の block（直しへ進めない穴）を挙げた。block ごとに、案を直したなら handled に fixed、"
-              "how に直した所を、直さずに異を唱えるなら handled に disputed、how に根拠を、block_answers に 1 行ずつ書け（key は下の key を"
-              "一字も変えずに写す）。そのうえで変えた項目の行だけを plan に返せ（前の案と同じ型の行。閉じた項目は書くな。変えない開いた項目と"
-              "保留の項目も書かなくてよく、機械が前の往復の行を差し込む。fixed と答えた block の項目は変えた行を返せ）。下の答えの要る suggest（開いた項目に付いた物）にも、block と同じく key ごとに"
-              " block_answers に 1 行書け。suggest は止め時には数えない。直した案は新しい会話の事前審査に掛かり、"
-              "中央（reach が peripheral でない）の block が残れば直しへ進まずに承認ノードで止まる。開いた block が端（peripheral）"
-              "だけになれば直しへ進み、端の block は修正の段へ申し送られる。")
-REREVIEW_ASK = ("下は前の往復で挙がった block と答えの要る suggest と、修正案の役の答え（fixed＝直した・disputed＝異を唱えた）。下の差分と"
-                "波及の一覧を読み、前の block と答えの要る suggest の key ごとに、穴が消えたなら resolved にその key を入れ、残っていれば同じ key"
-                "のまま faces に挙げ直せ（block の見出しの物は severity block、答えの要る suggest の見出しの物は severity suggest のままで、"
-                "block に上げない。reach も前の往復と同じ値にする。前に中央の値だった block を peripheral に付け替えるなら、why の頭の 1 文に、"
-                "前の定義に当たらなくなった訳を書け。同じ穴に別の key を付けない。key は一字も変えずに写す）。新しい穴は新しい key で挙げよ。"
-                "前の中央の block が 1 つでも残ると、案は直しへ進まず承認ノードで止まる（peripheral の block と suggest は止め時に数えない）。")
-ORIGIN_ASK = ("今の往復で新しく挙げた block（前のどの往復の block の key とも違う物）が在れば、origins に 1 件ずつ {key, origin} で"
-              "出自を書け。origin は missed（前に審査した案の行に既に在ったのに、前の審査が見落とした穴）・introduced（直しが"
-              "持ち込んだ穴）・rephrased（前の block の言い換え。of に言い換えた前の block の key を書き、その key は resolved に"
-              "入れる）のどれか。quote に、穴が指す案の文を 1 つ字のまま引け（差分の行の場所と - / + の印は除き、文の字だけ。"
-              "『〜が案に無い』のような欠けの穴は空にする）。分けられない時と、前の block を挙げ直すだけの時は書かない。")
 PERSISTED_WHY = ("事前審査（記録の名 p2.plan_review）の同じ block が、案を直した後も残った（{keys}。壁打ち {n} 往復。"
                  "往復ごとの案と審査: {path}）")
 UNSETTLED_WHY = ("事前審査（記録の名 p2.plan_review）の block が、壁打ち {n} 往復でも消えない（往復ごとに別の穴が出た。"
@@ -152,10 +133,6 @@ LINE_SHARE = ("1 回目の block {first} 件・後の回の新しい block: 見�
 LINE_NO_BLOCK = "止めた block なし"
 LINE_PASS = ("  - {k} 往復目: block {keys}・答えの要る穴（block と suggest）への答え fixed {f} 件・disputed {d} 件・審査が消えたと言った key {resolved}"
              "・審査が suggest か peripheral に下げた key {down}")
-CLOSED_ASK = "下の項目は前の往復で事前審査が block を挙げずに閉じた。plan に書くな（機械が前の往復の行のまま差し込む）:"
-NOTES_HEAD = ("参考: 答えの要らない suggest の穴（閉じた・保留の項目に付いた物と、審査が消えたと言った物。答えなくてよく、採っても"
-              "採らなくてもよい。項目を開き直さない。修正の段にも事前審査の返答として渡る）:")
-HELD_NOTE = "下の項目は同じ block が続いたので保留にした（直さなくてよい。書かなければ機械が差し込む。承認ノードが読む）:"
 ITEMS_WHY = "固まった項目: {closed}。保留の項目: {held}。開いたままの項目: {open}"
 LINE_DISPUTED = "    退けた答え {key}: {how}"
 LINE_ITEMS = "    項目: 閉じた {closed}・開いた {open}・保留 {held}・相乗りの審査の block {synergy}"
@@ -217,8 +194,6 @@ STUCK_PUSH = "stuck_recommend"
 HELD_MARK = "held"
 KEY_CHAR = "[A-Za-z0-9_-]"   # key の 1 字（gatemarks の台帳の key の照らしも読む）
 HELD_CITES_HEAD = "止まった時の推し（" + STUCK_PUSH + "）の note に引く物"
-HELD_CITES = (HELD_CITES_HEAD + ": 下の保留の項目の block（今の往復は審査しない）と、今の往復で挙げる block の key 全部と、"
-              "その項目の番号")
 TREE_KEYS = (ITEMS, DESIGN_MAP, ORIGINS, SYNERGY, STUCK_PUSH)   # 事前審査の返答から外す木の欄
 
 
@@ -909,7 +884,7 @@ def split(role: str, reply: dict) -> tuple[dict, list]:
     """（壁打ちの欄を外した返答の写し, 外した値（無ければ []））"""
     if role not in FIELDS:
         return copy.deepcopy(reply), []
-    out, got = marks.split("converge", role, reply, (FIELDS[role][0],))
+    out, got = jsonfile.split(reply, (), (FIELDS[role][0],))
     got = got.get(FIELDS[role][0])
     return out, got if isinstance(got, list) else []
 
@@ -917,76 +892,13 @@ def split(role: str, reply: dict) -> tuple[dict, list]:
 def tree_split(reply: dict) -> tuple[dict, dict]:
     """（木の欄 TREE_KEYS（束ね役の欄 ITEMS・SYNERGY と対応表 DESIGN_MAP・出自 ORIGINS と、壁打ちが止まる往復の一番上の推し
     STUCK_PUSH）を外した返答の写し, {欄: 値 | None}）"""
-    out, got = marks.split("converge", "plan-review", reply, TREE_KEYS)
+    out, got = jsonfile.split(reply, (), TREE_KEYS)
     return out, {name: got.get(name) for name in TREE_KEYS}
 
 
 # ---------------------------------------------------------------- 文
 def _keys(keys) -> str:
     return "、".join(keys) if keys else NONE
-
-
-FACE_HEAD = promptsection.Section("### {key}", source="fn:converge._face_text")
-PASS_HEAD = promptsection.Section("## {n} 往復目の block", source="fn:converge.review_section")
-OWED_HEAD = promptsection.Section("## {n} 往復目の答えの要る suggest", source="fn:converge.review_section")
-
-
-def _face_text(f: dict) -> str:
-    return "\n".join([FACE_HEAD.format(key=f['key']), *(f"- {n}: {f[n]}" for n in FACE_KEYS[1:]),
-                      *([f"- {REACH}: {f[REACH]}"] if REACH in f else [])])
-
-
-def _owed_suggest_text(owed: list, n: int) -> list[str]:
-    """答えの要る穴 owed のうち block でない物の節（OWED_HEAD の見出しと face 1 件 1 節。無ければ []）"""
-    suggests = [f for f in owed if f["severity"] != "block"]
-    return ["\n\n".join([OWED_HEAD.format(n=n), *(_face_text(f) for f in suggests)])] if suggests else []
-
-
-def revise_section(doc: dict) -> str:
-    """修正案の役に返す時の指示書の節（REVISE_ASK と、返した block の face 1 件 1 節と、答えの要る suggest（OWED_HEAD の下。
-    開いた項目に付いた物）と、残りの suggest の参考（NOTES_HEAD の下。閉じた・保留の項目に付いた物と、審査が消えたと言った物）と、
-    閉じた・保留の項目）。返さない時は空"""
-    row = held(doc)
-    if row is None:
-        return ""
-    owed = owed_faces(doc, row)
-    parts = [REVISE_ASK, *(_face_text(f) for f in owed if f["severity"] == "block"), *_owed_suggest_text(owed, row["pass"])]
-    notes = row.get("notes")
-    asked = {f["key"] for f in owed}
-    rest = [f for f in notes or [] if f.get("key") not in asked]
-    if not notes:
-        parts.append(f"suggest の key: {_keys(row['suggests'])}")
-    elif rest:
-        parts.append("\n\n".join([NOTES_HEAD, *(_face_text(f) for f in rest)]))
-    for state, head in ((CLOSED, CLOSED_ASK), (HELD, HELD_NOTE)):
-        named = [it for it in row.get("items") or [] if it.get("state") == state]
-        if named:
-            parts.append("\n".join([head, *(f"- {_label(it)}" for it in named)]))
-    return "\n\n".join(parts)
-
-
-def review_section(b) -> str:
-    """2 往復目からの事前審査の指示書の節（REREVIEW_ASK と、前の往復ごとの block の face（PASS_HEAD の下）と答えの要る suggest
-    （OWED_HEAD の下。owed_faces の物なので、閉じた項目の suggest と審査が消えたと言った suggest は貼らない）と修正案の役の答え）。
-    最後の往復に保留の項目が在れば、最後に HELD_CITES と保留の項目ごとの『- 項目 n（単位）: block の key』の行も貼る（推しを書く役が
-    stuck_recommend の note に引く key の集合を知る。束ね役の指示書も同じ節を貼る）。
-    1 往復目は空。出自の頼み ORIGIN_ASK は貼らない（出自を書く役は、審査の答えを書く層ごとに違う。貼るのは書き手の居る層）"""
-    doc = read(b)
-    passes = doc["passes"]
-    if not passes:
-        return ""
-    replies = [p.get("answers", []) for p in passes[1:]] + [doc["open"].get("answers", [])]
-    parts = [REREVIEW_ASK]
-    for p, answers in zip(passes, replies):
-        parts.append(PASS_HEAD.format(n=p['pass']))
-        parts += [_face_text(f) for f in p["faces"]] or [NONE]
-        parts += _owed_suggest_text(owed_faces(doc, p), p["pass"])
-        parts.append("修正案の役の答え:\n" + ("\n".join(f"- {a.get('key')}: {a.get('handled')}（{a.get('how')}）"
-                                                      for a in answers) or NONE))
-    held = [it for it in passes[-1].get("items") or [] if it.get("state") == HELD]
-    if held:
-        parts.append("\n".join([HELD_CITES, *(f"- {_label(it)}: {_keys(it.get('blocks') or [])}" for it in held)]))
-    return "\n\n".join(parts)
 
 
 def stuck_keys(doc: dict) -> list:
