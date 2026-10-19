@@ -61,14 +61,14 @@ materials.md の 1.4 の名だけ: `intake.json`・`view.json`・`diff.patch`・
   - `GUARDED = False`（今の accept の `with: {status_guarded: false, …}`。`works-factory-judge.yaml:1691`）
   - `NA = "cond"`、`NA_REASON = "対象差分は利用者から見える経路・外部との継ぎ目を変えていない"`（今の `MATERIAL_NODES['p1.main_path_observation']['na_reason']`、`lib/judge_accept.py:1686-1691` の字のまま）。当たる条件がいつも真なので今は使われない（test-double-fidelity.md の 1.5 と同じ）
   - `NOUN = "主経路の観察"`（今の `main_path_observation_due` の訳の名詞。`:1578-1586`）
-  - `due(view, values)`: `values["entry"]` が空でなければ `materialkit.entry_skip(NOUN)`。空なら `materialkit.Due(True, "主経路の観察は、判定から入る run でなければ run ごとに 1 回回す（1 run は 1 周で、いつも初回。差分が利用者から見える経路に触れるかは機械が決められないので、触れる側に倒す）")`（自分で決めた。7 節）。
-  - `fill(view, values, due)`: `{"main_path_observation": materialkit.fill_entry(values["entry"], 0)}`（`due` が偽になるのは判定から入る run だけ）。
+  - `due(view, values)`: `materialkit.is_entry_run(view, values)`（`entry` が在り、対象差分が空）なら `materialkit.entry_skip(NOUN)`。そうでなければ `materialkit.Due(True, "主経路の観察は、判定から入る run でなければ run ごとに 1 回回す（1 run は 1 周で、いつも初回。差分が利用者から見える経路に触れるかは機械が決められないので、触れる側に倒す）")`（自分で決めた。7 節）。
+  - `fill(view, values, due)`: `{"main_path_observation": materialkit.fill_entry(values["entry"], None)}`（`due` が偽になるのは判定から入る run だけ）。
   - `applies(view, values)`: `materialkit.Due(True, "差分が利用者から見える経路に触れる")`（今の `user_path_touched` が、機械が真に倒した `touches_user_path` で返す字。`:1474-1486`・`due_view` の `:1357`）。
   - `judged_na(view, values)`: `return False`。
   - `values(view, values)`: `{"diff_file": view.diff_file, "changed_files_file": view.changed_files_file, "repo": str(view.repo)}`。
   - `when(view, values)`: `{"spawns": False}`。
   - `before(view, values, reply, place)`: `return None, reply, False`。
-  - `after(view, values, reply, place)`: 今の `main_path_observed`（`:2138-2143`）の写し。`st = (reply.get("material") or {}).get("status")`、`st in materialkit.OBSERVED_STATUS and not reply.get("observed")` なら 3 節の文を返す。ほかは `None`。今は `Reject` を上げたが、宣言の口（materials.md の 5.1）は文を返す形なので、文を返す。
+  - `after(view, values, reply, place)`: 今の `main_path_observed`（`:2138-2143`）の写し。`material = reply.get("material")`、`st = material.get("status") if isinstance(material, dict) else None`（`material` が object でなくても落ちない）、`st in materialkit.OBSERVED_STATUS and not reply.get("observed")` なら 3 節の文を返す。ほかは `None`。今は `Reject` を上げたが、宣言の口（materials.md の 5.1）は文を返す形なので、文を返す。
   - `after_accept(reply, place)`: 何もしない。
   - `materials_of(reply)`: `{"main_path_observation": reply["material"]} if isinstance(reply.get("material"), dict) else {}`（今の `writes` の `materials.main_path_observation ← material`）。
   - `report_lines(doc)`: `reply` の `observed` の行ごとに `f"  - 観測: {oneline(path)} → {oneline(value)}"`。`reply` が null か行が無ければ `[]`。
@@ -120,7 +120,7 @@ md の本文（英語。2 つ目の commit でこのまま置く）:
 
 {shared:query-rule}
 
-You are the main-path-observation role, started in a new conversation. Your only job is to run, once, the path that the target diff changes, and to observe the values that pass through it. You are given neither the local findings nor any other material.
+You are the main-path-observation role. Your only job is to run, once, the path that the target diff changes, and to observe the values that pass through it. You are given neither the local findings nor any other material.
 
 Your tools are Read, Grep, Glob, Bash, WebSearch, and WebFetch. Bash runs inside a sandbox, and its network is open. Make any copy you need for running things in a temporary folder (create it with `mktemp -d`); the wrapper stops writes to the target's working tree.
 
@@ -178,7 +178,7 @@ md の中に、`$` の直後に英字か `{` が続く字は無い。差し込�
 ```markdown
 {shared:query-rule の本文: Rules for queries to outside services …（7 行）}
 
-You are the main-path-observation role, started in a new conversation. …（決まった文）
+You are the main-path-observation role. Your only job is to run, once, the path that the target diff changes, and to observe the values that pass through it. You are given neither the local findings nor any other material.
 
 Your tools are Read, Grep, Glob, Bash, WebSearch, and WebFetch. Bash runs inside a sandbox, and its network is open. …
 
@@ -267,7 +267,6 @@ materials.md の 4 節の順。観点の前の照らしは無く、後の照ら�
 ```sh
 uv run --isolated python3 -m unittest discover -s tests/blocks/main_path_observation -t .
 uv run --isolated python3 -m unittest tests.layers.test_block_shape
-uv run --isolated python3 -m unittest tests.blocks.main_path_observation.test_prompts
 ```
 
 ## 3 script の node
@@ -307,7 +306,7 @@ bin/works-factory <読ませるフォルダを blocks/ にする引数（名は�
 - 「次の周の judge が再審する」を「人に届き、人が決める」に替える。訳: 工場に次の周が無く、今の工場で人待ちが届く先の事実に合わせた（1.6）。
 - `## Where to point` に前置きを置く。訳: 返答に `where` の欄が無く、断片の「`where`」の指す先を役が取り違えうる。
 - `report_lines` に観測の行を 1 行ずつ足す。訳: 素材の 1 行だけでは、何を動かして何を見たか（何を見ていないか）が報告から辿れない。例の run の 4 行目「実ブラウザ・実 DB を通るピン留め経路 → 未観測（環境が無い）」のような行が人の手当ての手がかりになる。
-- 実装で決めた事（#765）:
+- （実装で決めた事・訳だけ。本文は 1.5・2.3 節）#765:
   - `fill` の件数は `0` でなく `None`（materials.md の 10 節・2.6 の決め。この観点は `request` を持たず、`0` だと「0 件」と誤って言う）。
   - `due` は `values["entry"]` の有無でなく `materialkit.is_entry_run`（`entry` が在り、対象差分が空）で入口の周を決める（materials.md の 10.1）。差分が在れば `entry` が在っても回す。
   - 指示の 1 段落の頭を `You are the main-path-observation role.` にし、`started in a new conversation` を外した。訳: 輪は `fresh_context: false` で、2 回目からは同じ会話の続きに出し直すので、「新しい会話」は事実に合わない。

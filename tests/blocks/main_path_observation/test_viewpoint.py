@@ -44,6 +44,9 @@ class ViewpointCase(unittest.TestCase):
         for st in ("awaiting_human", "not_run", "not_applicable"):
             self.assertIsNone(self.vp.after(None, {}, {"material": {"status": st}, "observed": []}, None))
 
+    def test_after_survives_a_material_that_is_not_an_object(self):
+        self.assertIsNone(self.vp.after(None, {}, {"material": "x", "observed": []}, None))
+
     def test_material_and_report(self):
         self.assertEqual(self.vp.materials_of({}), {})
         self.assertEqual(self.vp.materials_of({"material": {"status": "clean"}}), {"main_path_observation": {"status": "clean"}})
