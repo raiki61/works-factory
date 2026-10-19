@@ -1,0 +1,21 @@
+{
+  "description": "修正の単位ごとの結末の配列（r1 の port fixes と同じ形）",
+  "type": "array",
+  "items": {
+    "type": "object",
+    "properties": {
+      "unit_id": {
+        "type": "string"
+      },
+      "group_id": {
+        "type": "string"
+      },
+      "status": {
+        "type": "string"
+      },
+      "reason": {
+        "type": "string"
+      }
+    }
+  }
+}
