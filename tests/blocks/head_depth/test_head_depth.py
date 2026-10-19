@@ -129,6 +129,12 @@ class PromptCase(_RepoCase):
         for name in launch.GROUPS:
             self.assertIn(f"`{name}`", text)
         self.assertEqual(sum(1 for line in text.splitlines() if line.startswith("- `@wf-")), len(launch.GROUPS))
+        for name, spec in launch.GROUPS.items():
+            self.assertIn(f"- `{name}`: {spec['what']} (default {spec['model']}, {spec['effort']})", text)
+        self.assertIn(", ".join(launch.MODELS), text)
+        self.assertIn(", ".join(launch.EFFORTS), text)
+        self.assertEqual(launch.EFFORTS[0], "low")
+        self.assertEqual(launch.EFFORTS[-1], "max")
         for word in (*self.steps.UNKNOWNS, *self.steps.HEADS):
             self.assertIn(word, text)
         self.assertNotRegex(text, r"\{[a-z0-9_]+\}", "埋まらない差し込み口が無い")
@@ -188,6 +194,10 @@ class CheckCase(_RepoCase):
         bad = self.check(reply({**NONE_ITEM, "cause_quote": "me"}), rows=[{"where": "stats.py:4-5", "text": "mean は 2"}])
         self.assertEqual(len([b for b in bad if "字より短い" in b]), 1)
         self.assertIn(f"{self.steps.cite.QUOTE_MIN} 字より短い", bad[0])
+
+    def test_code_quote_floor(self):
+        short = self.check(reply({**NONE_ITEM, "code_quote": CODE[:3]}))
+        self.assertEqual([x for x in short if "字より短い" in x], [f"行 1: code_quote が {self.steps.cite.QUOTE_MIN} 字より短い"])
 
     def test_where_span_edge(self):
         (self.run.repo / "long.py").write_text("value = 1\n" * 40, encoding="utf-8")
@@ -367,6 +377,9 @@ class ShapeCase(unittest.TestCase):
         self.assertTrue(text.startswith(f"choice({'|'.join(self.steps.THICKNESS)}):"), text)
         self.assertEqual(list(self.steps.THICKNESS.values())[1:], list(self.steps.HEADS))
         self.assertEqual(_doc()["inputs"]["thickness"]["default"], "auto")
+
+    def test_has_checks_defaults_to_false(self):
+        self.assertEqual(_doc()["inputs"]["has_checks"]["default"], "false")
 
     def test_loop_bound_matches_the_give_up_count(self):
         self.assertEqual(self.nodes["head-depth-loop"]["loop_group"]["max_iterations"], self.steps.rolekit.GIVE_UP_AFTER)
