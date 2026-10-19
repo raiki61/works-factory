@@ -17,7 +17,7 @@ import ports  # noqa: E402
 import conflict  # noqa: E402
 import oneline  # noqa: E402
 
-from src import board, files  # noqa: E402
+from src import board, files, runvals  # noqa: E402
 
 
 def main() -> dict:
@@ -34,7 +34,8 @@ def main() -> dict:
         doc = board.read_json(out_dir / gid / board.RESULT_FILE, {}) or {}
         rows = [r for r in doc.get("conflicts") or [] if isinstance(r, dict)]
         child = doc.get("place") if isinstance(doc.get("place"), str) else ""
-        roots = conflict.cite_roots(place) + (conflict.cite_roots(child) if child else [])
+        roots = conflict.cite_roots(runvals.read(place)["request_file"], place) + (
+            conflict.cite_roots(runvals.read(child)["request_file"], child) if child else [])
         kept, lost = board.cited_rows(rows, repo, roots)
         ok += kept
         dropped += [f"{gid}: {line}" for line in lost]

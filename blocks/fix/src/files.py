@@ -6,7 +6,6 @@ lib/ のモジュールは import しない（返す node が lib を読めな�
 """
 from __future__ import annotations
 
-import os
 import pathlib
 
 MODES = ("whole", "group")   # port mode の語（docs/design/fix.md の 13.1 の 1）
@@ -59,12 +58,3 @@ CONFLICTS_DROPPED = "conflicts-dropped.json"
 TDD_DELIVERED = "tdd-delivered.json"         # TDD の役に渡した証拠の種類と回の控え（今の tdd-<k>/next.delivered.json の代わり）
 FIXER_DELIVERED = "fixer-delivered.json"     # 修正役に渡した証拠の種類と回の控え（今の prompt-p3.fix.delivered.json）
 RULED_DELIVERED = "fix-ruled-delivered.json"
-
-# run をまたぐ控えの根（Archon が project ごとに渡す STATE_DIR の下。ライブラリの文書の控え。今の boundary.shared_cache）
-SHARED_CACHE_ENV = "STATE_DIR"
-SHARED_CACHE = "works-factory"
-
-
-def shared_cache() -> pathlib.Path | None:
-    state = os.environ.get(SHARED_CACHE_ENV)
-    return pathlib.Path(state) / SHARED_CACHE if state else None

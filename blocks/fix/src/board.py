@@ -14,11 +14,12 @@ import re
 import types
 
 import answer
+import fixboard as libboard   # lib/。overflow_trace は値で受ける形（integration.md 4.3-1）なので、値は下の overflow_trace が組む
 import jsonfile
 import oneline
 import rolekit
 from fixboard import (  # noqa: F401  lib のまま呼ぶ名（docs/design/fix.md の 1.5.2）
-    trace, trace_rows, TRACE_FILE, read_json, write_json, write_text, plan_view, marks_view, allowed_test_rows, _allowed_row, child_allowed_rows, scope_brief, overflow_trace, ALLOWED_SOURCES, FIX_IN_DIFF_CORE, run_diff, DIFF_EMPTY, diff_file, pr_revs, pr_diff, pr_added_lines, HUMAN_FACE_KINDS, UNIT_STATUSES, FIXED, GIVEN_UP, NOT_DONE, UNIT_LEFT, HANDOFF_HEAD, accept_out, round_number, snapshot, touched_since, undeclared_writes, UNDECLARED)
+    trace, trace_rows, TRACE_FILE, read_json, write_json, write_text, plan_view, marks_view, allowed_test_rows, _allowed_row, child_allowed_rows, scope_brief, ALLOWED_SOURCES, FIX_IN_DIFF_CORE, run_diff, DIFF_EMPTY, diff_file, pr_revs, pr_diff, pr_added_lines, HUMAN_FACE_KINDS, UNIT_STATUSES, FIXED, GIVEN_UP, NOT_DONE, UNIT_LEFT, HANDOFF_HEAD, accept_out, round_number, snapshot, touched_since, undeclared_writes, UNDECLARED)
 
 from src import files as fixnames
 from src.files import (  # noqa: F401
@@ -864,8 +865,8 @@ def adopt_prior_pass(place, prior, items, repo) -> dict:
 
 def marks_path(place) -> pathlib.Path:
     """置き場の凍結した修正案の欄の控え（plan-fields.json）のパス"""
-    import marks
-    return marks.path_of("plan", pathlib.Path(place))
+    import planmarks
+    return pathlib.Path(place) / planmarks.FIELDS_FILE
 
 
 def verified_tests(tdd) -> list:
@@ -1331,8 +1332,9 @@ def take_conflicts(reply: dict, place, repo, pass_: str, owed) -> tuple:
         items = [i for i in items if not (isinstance(i, dict) and i.get("unit_key") in known)]
     owed = owed_units_but_asked(place, owed)
     if items:
-        entries = conflict.problems_by_entry(items, repo=repo, board_dir=place, owed=owed, try_query=judge_query(place),
-                                             briefs=planbrief.by_unit_at(place))
+        from src import runvals
+        entries = conflict.problems_by_entry(items, repo=repo, board_dir=place, owed=owed, request_file=runvals.read(place)["request_file"],
+                                             try_query=judge_query(place), briefs=planbrief.by_unit_at(place))
         lines = [(key, CONFLICT_BAD + " / ".join(texts)) for _, key, texts in entries if key and texts] \
             + [(None, CONFLICT_BAD + t) for _, key, texts in entries if not key for t in texts]
         both = sorted({i.get("unit_key") for i in items if isinstance(i, dict)}
@@ -1916,6 +1918,22 @@ def _without_rows(reply: dict, rest: list, mine: set, repo) -> dict:
         out["bash_writes"] = [w for w in reply["bash_writes"]
                               if not (isinstance(w, dict) and factchecks.declared_files([{"files": [w.get("path")]}], repo) & mine)]
     return out
+
+
+def overflow_trace(place, trail: dict, repo, *, pass_: str, attempt: int) -> None:
+    """受けた回 (pass_, attempt) のはみ出しの trace の行を書く。値の選びは fix の src/ が持ち（はみ出しを相談で認めた合意の行の origin が
+    accept の id・機械が戻した物 trail の reverted・守りのテスト・関所の条件の相談〔origin が gate〕で認めた新しいテストのうち今の木 repo に
+    在る物）、書くのは lib の fixboard.overflow_trace に値で渡す。はみ出しの相談はこの置き場の受け付けが聞いた物だけを数える
+    （agreed(carried=False)。戻せた組の子から写した行は子の置き場の受け付けが数えた物で、ここで二重に数えない）"""
+    import conflict
+    from src import consult, gates
+    rows = conflict.agreed(place, carried=False)
+    libboard.overflow_trace(
+        place, trail,
+        agreed=[r.get("id") for r in rows if r.get("origin") == consult.ORIGIN_ACCEPT],
+        guards=gates.guards(place, pass_=pass_, attempt=attempt),
+        gate_tests=[g for r in rows if r.get("origin") == consult.ORIGIN_GATE
+                    for g in r.get("granted_new_tests") or [] if isinstance(g, dict) and gates.present(repo, g.get("id"))])
 
 
 def settle_overflow(asks: list, found: list, whole: dict, place, repo, *, head: str, reverted, trail: dict, pass_: str,

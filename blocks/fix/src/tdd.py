@@ -106,6 +106,7 @@ import conflict  # noqa: E402  （lib。食い違いの申し出の確かめ・�
 from src import board as fixboard  # noqa: E402  （lib。直す義務 fix_duty。元 conflict.fix_duty の値で受ける形）
 from src import files as fixnames  # noqa: E402
 from src import rules as fixrules  # noqa: E402  （同じブロックの lib。指示書の組み立て）
+from src import runvals  # noqa: E402  （依頼のファイル。values.json）
 import impact  # noqa: E402  （.shared/core。変更に当たる試験の選び）
 import planbrief  # noqa: E402  （同じブロックの lib。承認済みの修正案の項目ごとの brief の凍結）
 import planmarks  # noqa: E402  （.shared/core。修正案の項目の works の欄。単位の約束）
@@ -118,7 +119,6 @@ import writes  # noqa: E402  （.shared/core。書き込みの出どころの突
 import jsonfile  # noqa: E402
 import leftovers  # noqa: E402
 import oneline  # noqa: E402
-import promptsection  # noqa: E402
 from leftovers import Unreadable, git, git_names  # noqa: E402
 
 PHASES = ("route", "test", "fix", "refactor")
@@ -642,7 +642,7 @@ def _briefs(board_dir: pathlib.Path, **sources) -> list:
 # 引き継ぎ（依頼 243 の 2）。輪の役は周ごとに新しい会話で起きる（同じ単位の段の間も会話を継がない）ので、前の単位が何を変えたかと、
 # 今の周の段・今の単位・この単位の前の段の結果を、会話の履歴でなく機械が状態から書いて渡す（prep の今の単位の節の後。振り分けの
 # 段は義務の単位の後）
-HANDOFF_HEAD = promptsection.Section("## 前の単位の引き継ぎ（機械が状態から書いた物）", source="fn:tddloop.handoff_lines")
+HANDOFF_HEAD = "## 前の単位の引き継ぎ（機械が状態から書いた物）"
 
 
 def current_lines(st) -> list:
@@ -699,7 +699,7 @@ def handoff_lines(st) -> list:
 
 
 # 今の単位と一緒に直す単位（同じ修正案の項目の後の単位。together）の節の見出し（prep）
-TOGETHER_HEAD = promptsection.Section("## 今の単位と一緒に直す単位（同じ修正案の項目。1 つの brief と 1 つのやり方を共にする）", source="fn:tddloop._together_lines")
+TOGETHER_HEAD = "## 今の単位と一緒に直す単位（同じ修正案の項目。1 つの brief と 1 つのやり方を共にする）"
 
 
 def _items(st, k) -> set:
@@ -1350,6 +1350,7 @@ def _conflict(st, reply, repo, try_query=None) -> tuple:
     else:
         owed = {st["queue"][st["cur"]]}
     probs = conflict.problems([item], repo=repo, board_dir=pathlib.Path(st["work"]).parent, owed=owed,
+                              request_file=runvals.read(pathlib.Path(st["work"]).parent)["request_file"],
                               try_query=try_query, briefs=planbrief.by_unit_at(pathlib.Path(st["work"]).parent))
     if probs:
         return probs, None
@@ -1462,13 +1463,12 @@ def step(state_file, reply, repo, try_query=None, log=None) -> dict:
             "writes": got}
 
 
-RESULT_TITLE = promptsection.Section("# TDD のループの結果（機械が書いた）", source="fn:tddloop._finish")
-FIXED_HEAD = promptsection.Section("## ループで直した単位（直さず、changes に 1 行を書け。テストのファイルは変えるな——受け付けが拒む。"
-                                   "食い違いの裁定 fix_test_scope が範囲に並べた所だけは例外。修正案の rewrite_tests の名指しはループで書き換えて凍結した）",
-                                   source="fn:tddloop._finish")
-CONFLICT_HEAD = promptsection.Section("## 食い違いで止めた単位（直すな。ループの後に裁定役が裁き、裁定が理由のファイルで届く）", source="fn:tddloop._finish")
-OUT_HEAD = promptsection.Section("## 直す義務から外れた単位（直すな。not_done に理由を書け）", source="fn:tddloop._finish")
-DIRECT_HEAD = promptsection.Section("## direct の単位（ここで直せ）", source="fn:tddloop._finish")
+RESULT_TITLE = "# TDD のループの結果（機械が書いた）"
+FIXED_HEAD = ("## ループで直した単位（直さず、changes に 1 行を書け。テストのファイルは変えるな——受け付けが拒む。"
+              "食い違いの裁定 fix_test_scope が範囲に並べた所だけは例外。修正案の rewrite_tests の名指しはループで書き換えて凍結した）")
+CONFLICT_HEAD = "## 食い違いで止めた単位（直すな。ループの後に裁定役が裁き、裁定が理由のファイルで届く）"
+OUT_HEAD = "## 直す義務から外れた単位（直すな。not_done に理由を書け）"
+DIRECT_HEAD = "## direct の単位（ここで直せ）"
 
 def _finish(st, repo) -> None:
     """輪の後の修正役へ渡す summary.md と、凍ったテストのファイルの控え（frozen）"""

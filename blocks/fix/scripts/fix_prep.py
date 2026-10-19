@@ -43,7 +43,7 @@ def main() -> dict:
     try:
         got = prompts.fixer(place, repo, "first", values, owed=owed, items=functools.partial(board.place_items, place),
                             sources=board.brief_sources(place), green=tdd.green_units(summary),
-                            frozen=facts.frozen_tests(place, state, "first"), shared=files.shared_cache())
+                            frozen=facts.frozen_tests(place, state, "first"), shared=ports.shared_cache())
     except prompts.Broken as e:
         prompts.error(place, "fixer", oneline.one_line(e))
         raise
