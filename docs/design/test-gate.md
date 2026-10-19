@@ -552,6 +552,16 @@ e2e の `tests/e2e/evidence.json` の L-E38・L-W28・L-W53・T1・T6・T18・T2
 8. 拒まれた後の出し直しと書き手の材料を、指示書のファイルを Read させる道から、指示に値を貼る道に替える。根拠: README 5.2（指示は prep が組んで `prompt` で返す）。読ませる道は、Read を持つ役にしか使えず、指示の在りかが 2 つになる。今の振る舞い（同じ会話の続き・拒まれた欄だけ）は変わらない。
 9. 出し直しの断片の囲いを `~~~` にする。根拠: 却下の理由の字は Python が組み、受け付けの文に `` ``` `` が入りうる（素材の detail の写しなど）。今の `` ``` `` の囲いはそれで閉じる。
 
+10. place の作り直しで消すのは、この block の名の在るファイルとフォルダだけにする（`src/files.py` の `fresh_place`）。1.3 の「place の中を `logs/` のほかは消し」は、単独の run では place が run directory の根なので、ほかの block のファイルまで消す。根拠: 土台の決め「block が消してよいのは、自分が名を持つファイルだけ」。`logs/a<k>/` は消さない（今と同じ）。拒否の控え・合わせた答えの控えの名は `rolekit` が組むので、`rejects`・`candidate` の関数で引く。
+11. port `request` の形は、`blocks/test-gate/schemas/request.schema.json`（1.5 の `anyOf`）でなく、土台の `shared:request.schema.json` で受け、読みは `requestrows.findings`。根拠: `anyOf` は `KNOWN_KEYWORDS` に無く、`ports.json` も形の検査も拒む。同じ名の形のファイルを 2 か所に置くことも検査が拒む（形の名は pack の中で 1 か所）。空の依頼（`[]`・空の字）は `[]` として読む。
+12. node `ci-fix-prep`（script `ci_fix_prep.py`）を足して 13 の node にし、出し直しの役 `ci-fix` の指示をこの prep が組む（`ci-prep` は出し直しの周は `prompt` を `""` で返す）。根拠: 形の検査 `check_standalone_renders` は、AI の node ごとに「その node の prep を差し替えず、`reached` に在り、`exec-code: true` の筋書き」で指示の字を照らすが、輪（`loop_group`）の 2 周目は dry-run で回らない（`until_bash` は動かず、1 周で終わる）ので、`ci-prep` が `resubmit: true` を返す周を本物の script では作れない。prep を分ければ、筋書きは `ci-prep` を差し替えて出し直しの周を作り、`ci-fix-prep` は本物で指示を組める。振る舞いは変わらない（出し直しの周だけ `ci-fix-prep` が回る）。
+13. 筋書き（12 節）は検査の決まりに合わせて作る。`standalone` は `exec-code: true` で script を本物に回し、AI の 2 つ（`ci`・`suite-write`）だけ差し替える（宣言も test_cmd も無い作業ツリーなので任せ先の輪と実行器の輪が回る）。`base-resubmit` は `exec-code: true` で `ci-prep`・`ci-fix`・`ci-accept` を差し替える。ほかの 5 本（`base-engine`・`base-suite-kept`・`base-suite-written`・`final-green`・`final-red`）は配線だけを見るので script も差し替える。12 節の `standalone`（engine の形）は `base-engine` に、`base-role` は `standalone` に寄せた。根拠: 検査が `standalone` の `exec-code: true` と、AI の node ごとの本物の prep を求める。
+14. `ports.items(raw)` は足さず、入力 `optional`（`[{node, bare}]` の JSON の字）は `src/certify.py` の `optional_items` で読む。`drop_runner_env`・`suite_keep`・`RUNTIME_COPY_PREFIX`・`pointer` は土台の `ports.py` に既に在るので、土台は触らない。根拠: 1.5 の「土台に無ければ足す」は、`items` だけが無く、使い手がこの block の 1 か所だけ。
+15. md の字の `}}` は差し込みの口が `}` 1 つにする（`{{`・`}}` は字の波括弧の書き方）。`{"material": {...}}` の終わりの `}}` は 1 つに縮むので、md には `{"material": {...}}}}` と書く（2.3 の注の「字として残る」は `{...}` と `{}` に限る）。
+16. script が `with:` で受けた入力の字を値に戻す口は、`src/inputs.py` の `value`（JSON でなければ字のまま）。根拠: 読めない返答を `rolekit.resubmitted` が「JSON として読めない」と拒める。`ports.parsed` は JSON でない字を落とす。
+17. 報告の行（10 節）の final の 2 は、元の `_tests_head_lines` の 1 行目だけ（修正前のテストの行は 1 で出す）。
+18. 返す node の誤り（`certify.failed`）は、lib を読めなくても返せるよう、`src/files.py`・`src/certify.py` の頭で lib を import しない（lib は関数の中で読む）。`run.json` の名は `files.RUN` に字で持ち、`declared_checks.RUN_FILE` と同じことを試験が縛る。誤りの回の `suite` は intake.json の port `tdd_suite`（読めなければ `""`）。
+
 ## 12 試験
 
 - standalone の fixture（`blocks/test-gate/fixtures/`。どれも script の node も差し替え、配線を見る。今の 7 本の入力から `start` を外し、port の値に替える）:
