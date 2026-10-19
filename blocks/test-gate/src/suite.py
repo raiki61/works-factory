@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import pathlib
 
-import startrec     # lib/。形を問わない JSON の読み書き
+import jsonfile     # lib/。形を問わない JSON の読み書き
 import suitewrite   # lib/
 
 from src import files
@@ -19,11 +19,11 @@ def path(place) -> pathlib.Path:
 
 
 def write(place, test_cmd: str, tdd_suite: str) -> None:
-    startrec.save(path(place), {"test_cmd": test_cmd, "tdd_suite": tdd_suite})
+    jsonfile.write(path(place), {"test_cmd": test_cmd, "tdd_suite": tdd_suite}, indent=2, parents=True)
 
 
 def load(place) -> dict:
-    return startrec.load(path(place))
+    return jsonfile.read_dict(path(place))
 
 
 def outputs(place, mode: str, tdd_suite: str) -> dict:
