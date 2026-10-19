@@ -8,6 +8,7 @@ carry の prior-failures-in.json・answer の gates/<承認ノード>.json・pol
 - PLAN_CONVERGE: 計画の往復の記録（plan-out が周ごとに 1 行足して書き直す。plan-review の port prior の先）。PLAN_CONVERGE_FILES は
   往復の行の files の写しのフォルダ（plan-converge/<k>/）
 - PLAN_PRIOR: 次の周の plan の port prior の先（plan-rounds/prior-<k>.json）
+- PLAN_REVIEW: 止まった案を無人の run が推しで進める周の、事前審査の返答に保留の穴を足した写し（plan-out が書き、修正の段へ渡す）
 - REPLAN_PRIOR: 案の直しの plan の port prior の先（after-fix が書く）
 - FINAL_GATE_MD: 開いた最後の承認ノードの文の控え
 - SECTIONS・FACTS: report に pointer で渡す 2 つの形（collect が書く。docs/design/line.md の 7 節）
@@ -17,6 +18,7 @@ CARRIED = "carried.json"
 PLAN_CONVERGE = "plan-converge.json"
 PLAN_CONVERGE_FILES = "plan-converge/{k}"
 PLAN_PRIOR = "plan-rounds/prior-{k}.json"
+PLAN_REVIEW = "plan-rounds/review-{k}.json"
 REPLAN_PRIOR = "replan-prior.json"
 FINAL_GATE_MD = "gates/final-gate.md"
 SECTIONS = "report-in/sections.json"

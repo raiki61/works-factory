@@ -234,6 +234,7 @@ nodes:
       world: "$judge.output.world"
       decisions: "$judge.output.decisions"
       answer: "$answer-start.output.answer"
+      record: "$start.output.record"
       ports: "$start.output.ports"
     output_format:
       type: object
@@ -624,6 +625,9 @@ nodes:
       units_tier: "$fix-in.output.units_tier"
       switches: "$fix-in.output.switches"
       judgment: "$fix-in.output.judgment"
+      plan: "$fix-in.output.plan"
+      answer_ties: "$fix-in.output.answer_ties"
+      materials: "$fix-in.output.materials"
       tier_record: "$fix-in.output.tier_record"
       answer: "$fix-in.output.answer"
       record: "$start.output.record"
