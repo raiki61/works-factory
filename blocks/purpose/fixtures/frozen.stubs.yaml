@@ -1,0 +1,18 @@
+# 同じ place で前に固めた目的が在る道: 入口が役を起こさず、出口が固めた目的を status: ok で返す。筋書きの place は空なので、
+# 入口と出口の返りを差し替えて配線（due が偽なら輪を通らずに出口へ届く）だけを見る。固めた目的を読む道は tests/blocks/purpose の試験が見る
+fixture:
+  expect: completed
+  reached: [intake, finish]
+  inputs:
+    request: '[{"where": "stats.py:4", "text": "mean は 2 でなく 3 を返す。分母を len(xs) にする"}]'
+exec-code: true
+intake: {due: false, reason: 目的は既に固めてある（purpose.json）}
+finish:
+  ok: true
+  status: ok
+  reason: 目的は既に固めてある（purpose.json）
+  purpose: {type: archon_artifact, run_id: fixture-run, path: purpose.json}
+  purpose_text: 平均の関数が正しい値を返す
+  source: ②計画・タスク記述
+  means: [分母を len(xs) にする]
+  report: []
