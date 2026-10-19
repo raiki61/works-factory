@@ -13,6 +13,7 @@ import json
 import pathlib
 import shutil
 import unittest
+from unittest import mock
 
 from tests.bin.gitkit import committed_copy
 from tests.blocks import kit
@@ -400,6 +401,7 @@ class ReviewAcceptCase(FlowCase):
         self.assertEqual((saved["faces"], saved["shrink"]), ([], []))
         self.assertIn("no_add", saved["reason"])
         self.assertFalse((f.place / "pass.json").exists())
+        self.assertEqual(f.read(self.take.FACE_MARKS), [])   # 足す: 出口の asks が読む決め手の欄は空の並び
 
     def test_review_json_is_written_last(self):
         """足す: review.json は受け付けの最後に書く（今の boardview._take の順）。pass.json を書く所で落ちた回は拒みになり、review.json
@@ -746,6 +748,14 @@ class ReplanCase(FlowCase):
         got = f.finish()
         self.assertEqual((got["status"], got["form"], got["pass"], got["blocks"]), ("ok", "replan", None, [CLAMP_BLOCK["key"]]))
 
+    def test_replan_does_not_ask_where_earlier_blocks_went(self):
+        """足す: 前の往復の答えの要る穴の行き先（resolved_gaps）は形 plan だけが照らす。形 replan は往復の続きでないので、前の往復の
+        block を挙げ直さず resolved にも書かない返答を受ける"""
+        f = self.flow
+        self.replan(first=review(CLAMP_BLOCK))
+        got = f.accept(review())
+        self.assertTrue(got["ok"], got["reason"])
+
     def test_replan_drift_quotes_checked_and_extra_fields_dropped(self):
         """元 ReplanCase.test_replan_drift_quotes_checked_and_extra_fields_dropped: 壁打ちと束ね役の任意の欄（resolved・items）は外して
         から照らし、独立設計が立つ時は穴の引用と design_map を直した項目の行と照らす"""
@@ -956,6 +966,20 @@ class PartsCase(FlowCase):
         validate = kit.load(BLOCK, "tree").validate_schema
         self.assertEqual(validate(review(face("good-kind-face")), fmt), [])
         self.assertTrue(validate(review(face("bad-kind-face", kind="taste")), fmt))
+
+    def test_node_schema_names_each_way_it_cannot_read(self):
+        """足す: 下請けの答えの型を YAML から読む node_schema は、node が無い・output_format が無い（次の node が先）・JSON の流れの
+        形でない・object でない時に、それぞれ node を名指して落ちる"""
+        files = self.flow.module("files")
+        cases = {"- id: other\n  output_format: {}\n": "YAML に node review が無い",
+                 "- id: review\n  prompt: x\n- id: next\n  output_format: {}\n": "node review に output_format が無い",
+                 "- id: review\n  output_format:\n    type: object\n": "output_format が JSON の形でない",
+                 "- id: review\n  output_format: [1]\n": "output_format が object でない"}
+        for text, word in cases.items():
+            yaml_file = self.flow.tmp / "shape.yaml"
+            yaml_file.write_text(f"nodes:\n{text}", encoding="utf-8")
+            with self.subTest(word=word), mock.patch.object(files, "YAML", yaml_file), self.assertRaisesRegex(ValueError, word):
+                files.node_schema("review")
 
 
 if __name__ == "__main__":

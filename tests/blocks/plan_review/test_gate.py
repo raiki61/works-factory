@@ -242,6 +242,21 @@ class SplitCase(GateBase):
         self.lib.planmarks.save(self.place, 1, [{"structure": [{"row": "u", "follows": True}]}])
         self.assertEqual(self.row(DECIDED)["why"], {})
 
+    def test_structure_rows_not_ok_or_unreadable_are_none(self):
+        """足す: 構造の目の控えが ok でない周と、行のファイルが読めない周は、構造の目の行が無いと読む（人に上げた単位に当たらない）"""
+        self.put_rows(ROUTE_UP)
+        copy = self.place / self.lib.structmark.COPY_FILE
+        self.lib.structmark.write(copy, status="failed", reason="落ちた", design_file=str(self.tmp / "design.jsonl"))
+        self.assertEqual(self.row(DECIDED)["why"], {})
+        (self.tmp / "broken.jsonl").write_text("{\n", encoding="utf-8")
+        self.lib.structmark.write(copy, status="ok", reason="", design_file=str(self.tmp / "broken.jsonl"))
+        self.assertEqual(self.row(DECIDED)["why"], {})
+
+    def test_dirty_unit_without_fields_record_is_not_checked(self):
+        """足す: 欄の控えが無い周は、汚れる単位の答えの欠けを照らさない（欠けは受け付けが拒む）"""
+        self.put_rows({**ROUTE_UP, "route": "自分で決める", "route_reason": "決め手で決まる", "undecided_because": ""})
+        self.assertEqual(self.row(DECIDED)["why"], {})
+
     def test_fences_are_overkill(self):
         """元 SplitCase.test_fences_are_overkill: 柵の印が在る行は決め手が在っても揃わない"""
         got = self.row({**DECIDED, "fences": ["external_write"]})
