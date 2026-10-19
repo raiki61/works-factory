@@ -1,0 +1,19 @@
+# 手順トレースの役の返答が受け付けを通らない道（手順のファイルに触れる run では not_applicable は名乗れない）: run は止めず、出口が
+# 落ちずに返る。筋書きでは輪が 1 周で終わるので却下は 1 回で、3 回で諦めて出口が status: gave_up を返す数えは
+# tests/blocks/procedure_trace の試験が確かめる
+fixture:
+  expect: completed
+  reached: [intake, procedure-trace-prep, procedure-trace, procedure-trace-accept, finish]
+  inputs:
+    base: '4b825dc642cb6eb9a060e54bf8d69288fbee4904'
+    entry: ''
+    lang: ''
+  resolved-text-contains:
+    procedure-trace: 'この役は手順トレースの役（investigator）。graphloops のノード p1.procedure_trace を、下の元の graphloops の指示書のとおりに行う。'
+exec-code: true
+procedure-trace:
+  material:
+    status: not_applicable
+    reason: no procedure files
+  findings: []
+  unmeasured: []
