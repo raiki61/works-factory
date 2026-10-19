@@ -53,6 +53,16 @@ OVERLAPS = {
     ("lib/planblk.py", "SYNERGY_FILE"):
         "事前審査の答えのフォルダに置く別のファイルで、judgeverify.SYNERGY_FILE と字だけ同じ。区分 P。区分の issue で外す",
     ("lib/fixboard.py", "UNITS_FILE"): "fix の置き場の入力 units の写しで、structfile.UNITS_FILE と字だけ同じ。区分 F。区分の issue で外す",
+    ("lib/materialkit.py", "REVIEW_MD"):
+        "boardview.REVIEW_MD の写し。#765 の作り直しで今の lib のモジュールは変えないので写した。組み込みで boardview の側を外す",
+    ("lib/materialkit.py", "CHANGED"):
+        "judge_accept.CHANGED_FILE の写し。#765 の作り直しで今の lib のモジュールは変えないので写した。組み込みで judge_accept の側を外す",
+    ("lib/materialkit.py", "INTAKE"):
+        "素材の観点の作業フォルダに置く別のファイル（観点の入口の控え）で、judge_accept.INTAKE_FILE（判定の入口の返り）と字だけ同じ。"
+        "組み込みで judge_accept の側を外す",
+    ("lib/materialkit.py", "TREE"):
+        "素材の観点の作業フォルダに置く別のファイル（観点の入口の作業ツリーの姿）で、planfile.TREE_FILE（修正案の役の前の姿）と字だけ同じ。"
+        "組み込みで planfile の側を外す",
 }
 
 
