@@ -16,7 +16,6 @@ fixture:
   - hygiene__finish
   - external-standards__finish
   - procedure-trace__finish
-  - gate-efficacy__finish
   - test-double-fidelity__finish
   - main-path-observation__finish
   - provenance__finish
@@ -237,19 +236,6 @@ procedure-trace__finish:
     path: procedure-trace/material.json
   report:
   - '観点 procedure-trace: skipped'
-gate-efficacy__intake:
-  due: false
-  reason: '筋書き: block の中は block の筋書きが見る'
-gate-efficacy__finish:
-  ok: true
-  status: skipped
-  reason: ''
-  material:
-    type: archon_artifact
-    run_id: stub
-    path: gate-efficacy/material.json
-  report:
-  - '観点 gate-efficacy: skipped'
 test-double-fidelity__intake:
   due: false
   reason: '筋書き: block の中は block の筋書きが見る'

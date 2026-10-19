@@ -15,7 +15,7 @@ from tests.blocks import kit
 
 BLOCK = "judge"
 MATERIALS = ("prior-decisions", "purpose-review", "local-review", "consistency-bypass", "hygiene", "external-standards",
-             "procedure-trace", "gate-efficacy", "test-double-fidelity", "main-path-observation", "provenance")
+             "procedure-trace", "test-double-fidelity", "main-path-observation", "provenance")
 INCLUDED = ("head-depth", "spec", "parallel-pr", "premises", "purpose", "world", *MATERIALS, "diagnose", "verify")
 # include した block の入力のうち、この graph が渡さない物と訳（README の 8.1・各設計書の 1.2）
 NOT_PASSED = {
@@ -295,7 +295,7 @@ class ScriptCase(unittest.TestCase):
         got = passing()
         got["hygiene"] = None
         out = self.run.script("diagnose_in", "judge__diagnose-in", verify_by_tier='{"標準": true}', **self.receivers(got))
-        self.assertEqual((out["ok"], out["missing"], out["verify"], len(out["materials"])), (True, ["hygiene"], True, 10))
+        self.assertEqual((out["ok"], out["missing"], out["verify"], len(out["materials"])), (True, ["hygiene"], True, 9))
 
     def test_diagnose_in_falls_without_crashing(self):
         out = self.run.script("diagnose_in", "judge__diagnose-in", verify_by_tier='{"標準": "yes"}', spec_in="null")
@@ -329,6 +329,8 @@ class WiringCase(unittest.TestCase):
     def test_every_block_of_the_judgment_is_included_once(self):
         named = sorted(n["include"] for n in self.includes.values())
         self.assertEqual(named, sorted(f"works-factory-{b}" for b in INCLUDED))
+        self.assertNotIn("works-factory-gate-efficacy", named, "重い検算は run の中で回さない（持ち主の決め 2026-10-19）")
+        self.assertNotIn("gates", self.doc["inputs"])
 
     def test_no_rejudge_path(self):
         self.assertNotIn("objection", self.includes["diagnose"]["with"])

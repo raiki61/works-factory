@@ -1,5 +1,5 @@
 name: works-factory-judge
-description: '判定のまとめの graph（docs/design/judge-eyes.md の 1 節）。run の頭の深さ・仕様・並行 PR・前提の実測・目的の固定・世界の解・素材の観点 11 本・根本の診断・判定の裏取りの block を今の judge と同じ順と条件で並べ、どこかの段が止めれば止めの語を返して後ろを回さない。判定の道だけを持ち、再審は持たない。line から 1 つの include で呼ばれ、単独でも依頼の行だけで回る'
+description: '判定のまとめの graph（docs/design/judge-eyes.md の 1 節）。run の頭の深さ・仕様・並行 PR・前提の実測・目的の固定・世界の解・素材の観点 10 本・根本の診断・判定の裏取りの block を今の judge と同じ順と条件で並べ、どこかの段が止めれば止めの語を返して後ろを回さない。判定の道だけを持ち、再審は持たない。line から 1 つの include で呼ばれ、単独でも依頼の行だけで回る'
 inputs:
   request: {default: '[]', description: 'json(shared:request.schema.json): 依頼の行の配列か、それを findings の欄に持つ object（工場の依頼のファイルの形）。空の配列は依頼の行が無い run'}
   pr_text: {default: '', description: 'text: 依頼が名指す PR の番号・題・本文を並べた文。空は PR の無い run'}
@@ -13,7 +13,6 @@ inputs:
   thickness: {default: 'auto', description: 'choice(auto|light|standard|heavy): 呼ぶ人の段の名指し（light は軽量・standard は標準・heavy は重厚）。auto は役と機械が決める'}
   design_only: {default: 'false', description: 'flag: 設計だけの run か。true なら run の頭の深さの役を起こさず標準'}
   verify_by_tier: {default: '{}', description: 'json(verify-by-tier.schema.json): 段ごとに判定の裏取りを回すか {軽量, 標準, 重厚}（真偽）。空の object はどの段でも回さない'}
-  gates: {default: '', description: 'text: 変異の検算をまとめる道の語（"merge" はこの run でゲートの検算を回さない）。空は回す'}
   user_env_dir: {default: '', description: 'text: 利用者の HOME・XDG に戻して起こした印を置く置き場の絶対パス。空は place'}
   request_origin: {default: '', description: 'text: 依頼の行の出どころの名（判定役に見せる依頼のバッチの origin）。空は「人の依頼（依頼の行）」'}
   baseline: {default: '', description: 'file: 直す前の試験の結末（試験の関門が直す前に書いた baseline.json）。空は local_checks を not_run にする'}
@@ -157,7 +156,7 @@ nodes:
     with:
       got: "$world.output"
       names: "ok status reason rows classes dropped report"
-  # 素材の観点 11 本。互いを待たずに並ぶ。世界の解の受け皿に依るのは、世界の解が切られた・落ちた run でも回すため
+  # 素材の観点 10 本（gate-efficacy は持ち主の決めで include しない。docs/design/judge-eyes.md の 3 節）。互いを待たずに並ぶ。世界の解の受け皿に依るのは、世界の解が切られた・落ちた run でも回すため
   - id: prior-decisions
     include: works-factory-prior-decisions
     depends_on: [purpose, world-out]
@@ -266,22 +265,6 @@ nodes:
     with:
       got: "$procedure-trace.output"
       names: "ok status reason material report"
-  - id: gate-efficacy
-    include: works-factory-gate-efficacy
-    depends_on: [purpose, world-out]
-    trigger_rule: none_failed_min_one_success
-    when: "$purpose.output.ok == true"
-    with:
-      base: "$INPUTS.base"
-      entry: "$INPUTS.entry"
-      gates: "$INPUTS.gates"
-      lang: "$INPUTS.lang"
-  - id: gate-efficacy-out
-    <<: *receiver
-    depends_on: [gate-efficacy]
-    with:
-      got: "$gate-efficacy.output"
-      names: "ok status reason material report"
   - id: test-double-fidelity
     include: works-factory-test-double-fidelity
     depends_on: [purpose, world-out]
@@ -331,7 +314,7 @@ nodes:
     script: diagnose_in
     runtime: uv
     mutates_checkout: false
-    depends_on: [prior-decisions-out, purpose-review-out, local-review-out, consistency-bypass-out, hygiene-out, external-standards-out, procedure-trace-out, gate-efficacy-out, test-double-fidelity-out, main-path-observation-out, provenance-out, parallel-pr-out, head-depth-out, world-out, spec-in, premises-out, purpose-out]
+    depends_on: [prior-decisions-out, purpose-review-out, local-review-out, consistency-bypass-out, hygiene-out, external-standards-out, procedure-trace-out, test-double-fidelity-out, main-path-observation-out, provenance-out, parallel-pr-out, head-depth-out, world-out, spec-in, premises-out, purpose-out]
     trigger_rule: all_done
     with:
       prior_decisions_out: {from: "$prior-decisions-out.output", if_skipped: null}
@@ -341,7 +324,6 @@ nodes:
       hygiene_out: {from: "$hygiene-out.output", if_skipped: null}
       external_standards_out: {from: "$external-standards-out.output", if_skipped: null}
       procedure_trace_out: {from: "$procedure-trace-out.output", if_skipped: null}
-      gate_efficacy_out: {from: "$gate-efficacy-out.output", if_skipped: null}
       test_double_fidelity_out: {from: "$test-double-fidelity-out.output", if_skipped: null}
       main_path_observation_out: {from: "$main-path-observation-out.output", if_skipped: null}
       provenance_out: {from: "$provenance-out.output", if_skipped: null}
@@ -416,7 +398,7 @@ nodes:
     script: verdict
     runtime: uv
     mutates_checkout: false
-    depends_on: [head-depth-out, spec-out, spec-in, parallel-pr-out, premises-out, purpose-out, world-out, prior-decisions-out, purpose-review-out, local-review-out, consistency-bypass-out, hygiene-out, external-standards-out, procedure-trace-out, gate-efficacy-out, test-double-fidelity-out, main-path-observation-out, provenance-out, diagnose-in, diagnose-out, verify-out]
+    depends_on: [head-depth-out, spec-out, spec-in, parallel-pr-out, premises-out, purpose-out, world-out, prior-decisions-out, purpose-review-out, local-review-out, consistency-bypass-out, hygiene-out, external-standards-out, procedure-trace-out, test-double-fidelity-out, main-path-observation-out, provenance-out, diagnose-in, diagnose-out, verify-out]
     trigger_rule: all_done
     with:
       head_depth_out: {from: "$head-depth-out.output", if_skipped: null}
@@ -433,7 +415,6 @@ nodes:
       hygiene_out: {from: "$hygiene-out.output", if_skipped: null}
       external_standards_out: {from: "$external-standards-out.output", if_skipped: null}
       procedure_trace_out: {from: "$procedure-trace-out.output", if_skipped: null}
-      gate_efficacy_out: {from: "$gate-efficacy-out.output", if_skipped: null}
       test_double_fidelity_out: {from: "$test-double-fidelity-out.output", if_skipped: null}
       main_path_observation_out: {from: "$main-path-observation-out.output", if_skipped: null}
       provenance_out: {from: "$provenance-out.output", if_skipped: null}

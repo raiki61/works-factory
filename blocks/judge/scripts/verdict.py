@@ -66,7 +66,6 @@ def compute(ports):
         "hygiene": _got(ports, os.environ.get("INPUTS_HYGIENE_OUT")),
         "external-standards": _got(ports, os.environ.get("INPUTS_EXTERNAL_STANDARDS_OUT")),
         "procedure-trace": _got(ports, os.environ.get("INPUTS_PROCEDURE_TRACE_OUT")),
-        "gate-efficacy": _got(ports, os.environ.get("INPUTS_GATE_EFFICACY_OUT")),
         "test-double-fidelity": _got(ports, os.environ.get("INPUTS_TEST_DOUBLE_FIDELITY_OUT")),
         "main-path-observation": _got(ports, os.environ.get("INPUTS_MAIN_PATH_OBSERVATION_OUT")),
         "provenance": _got(ports, os.environ.get("INPUTS_PROVENANCE_OUT")),

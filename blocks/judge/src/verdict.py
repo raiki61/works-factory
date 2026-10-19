@@ -18,8 +18,7 @@ JUDGE_STOP = stopby.declare("judge", "受け付けを通った判定が無いま
 TITLES = {"head-depth": "run の頭の深さ", "spec": "仕様", "parallel-pr": "並行 PR", "premises": "前提の実測", "purpose": "目的の固定",
           "world": "世界の解", "prior-decisions": "素材: 先行議論の突合", "purpose-review": "素材: 目的の監査",
           "local-review": "素材: 局所レビュー", "consistency-bypass": "素材: 整合性と標準機構の迂回", "hygiene": "素材: コード衛生",
-          "external-standards": "素材: 外部標準の照合", "procedure-trace": "素材: 手順トレース",
-          "gate-efficacy": "素材: 新設ゲートの実効性", "test-double-fidelity": "素材: 代役の忠実性",
+          "external-standards": "素材: 外部標準の照合", "procedure-trace": "素材: 手順トレース", "test-double-fidelity": "素材: 代役の忠実性",
           "main-path-observation": "素材: 主経路の実行観測", "provenance": "素材: 根拠の出所", "diagnose": "根本の診断",
           "verify": "判定の単位の裏取り"}
 OWN_TITLE = fallback.OWN_TITLE

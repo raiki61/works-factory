@@ -2,7 +2,7 @@
 
 - 何の話か: 工場のメイングラフ `works-factory-line` を、block を `include:` で並べる graph `blocks/line/` に作り直す設計（組み込みの PR で作る。README の 11.3 の 1）。あわせて、line を周ごとに子の run として起こす `works-factory-chain` の移しを 12 節に短く書く。型は [README.md](README.md) の 1 節（graph の定義と形の直し 7）・4 節・8.7 節に従う。判定と独立の目のまとめ（judge・eyes の graph）は [judge-eyes.md](judge-eyes.md)。
 - 決めたこと: line は配線と流れの決めだけを持つ。持つのは、どの block をいつ回すか（`when:`）・承認ノード 4 つ・計画の往復の記録と止めと安全の上限・一度だけの include（案の直し・2 度目の修正・再審・修正の後の並行 PR の確かめ直し）・深さの表（段 → 回す物）と、fix と delta-review の間の 1 回の上げ直し・無人の方針・始めの記録（line だけが書き、block には port の値として配る）・報告への受け渡し（`sections`・`facts`）。AI の node は持たない。README 8.7 の「今の工場の穴」3 つは 8 節で決めた（並行 PR を修正の後に 1 度だけ確かめ直す・fix に外した hunk を渡す・入力 `gates` を足す）。
-- 持ち主（リポジトリの owner）に求めること: 1 つ。入力 `gates`（変異の検算を合流でまとめる道）を line に足すこと（8 節の 3）。前の棚卸しで「段 3 で変異の検算と一緒に持ち主に聞く」と決めた件（`docs/plans/2026-10-13-capabilities/line.md` の S37）なので、既定の振る舞いを変えない形で足し、通すかを確かめてもらう。ほかは README・持ち主の決め・今のコードで決まった（13 節）。決まらない物は 15 節。
+- 持ち主（リポジトリの owner）に求めること: なし。入力 `gates`（変異の検算を合流でまとめる道）は、持ち主の決め（2026-10-19）で足さない（8 節の 3）。ほかは README・持ち主の決め・今のコードで決まった（13 節）。決まらない物は 15 節。
 - 読む人: 組み込みの PR で line と chain を書く実装の役。block の設計書の書き手（自分の block の port を line がどこから配るかを 1.6・4〜7 節で引く）。
 
 この文書の語は README の頭の物を使う（block・graph・port・place・prep・accept・pointer・埋め・Archon の YAML の鍵・form の書き方）。ほかに:
@@ -22,14 +22,13 @@
 
 ### 1.2 port
 
-入力（YAML の `inputs:`。今の line の 16 個と、足す 1 個 `gates`）。form は README の 4.1 の物（`text`・`file`・`json(<形>)`・`flag`・`choice(a|b)`）。語を受ける入力は `text` にする（`start` が知らない語を名指して拒む今の文を残すため。`choice` は Archon が照らさず、拒む所が増えるだけ）。説明の字は今の YAML の `description` を、作り手を名指さない形で写す。
+入力（YAML の `inputs:`。今の line の 16 個）。form は README の 4.1 の物（`text`・`file`・`json(<形>)`・`flag`・`choice(a|b)`）。語を受ける入力は `text` にする（`start` が知らない語を名指して拒む今の文を残すため。`choice` は Archon が照らさず、拒む所が増えるだけ）。説明の字は今の YAML の `description` を、作り手を名指さない形で写す。
 
 - `request`: `file: 修正依頼のファイル（findings の JSON の配列か {findings, pr, issue, answers, prior_failures, constraints} の形）。相対なら対象の根から。依頼の行か差分の少なくとも 1 つが要る`。既定 `""`。
 - `base`: `text: 差分の根を名指す版（枝・タグ・commit）。差分の根は base と HEAD の merge-base。pr と一緒には名指さない`。既定 `""`。
 - `pr`: `text: PR の番号。base の版と head は run の中で gh で読む。base と一緒には名指さない`。既定 `""`。
 - `spec`: `text: 仕様の段を挟むか（空か on）。依頼の文が要り、無人の run・固定材料とは組めない`。既定 `""`。
 - `test_cmd`・`tdd_suite`・`final_gate`・`unattended`・`design_only`・`thickness`・`features_off`・`features_on`・`policy_md`・`fix_fixture`・`lang`・`deliver`: 今の説明のまま（form は `text`）。
-- `gates`（足す）: `text: 変異の検算をまとめる道の語（空か merge）。merge は合流した版でまとめて撃つ run で、ゲートの検算の観点を回さない。ほかの語は拒む`。既定 `""`（8 節の 3）。
 
 出力（`returns: result`・`outcome_field: fixed`）。欄の名は今のまま（`bin/apply`・chain・通しの試験が今の名で読む。report の設計書の 1.6）:
 
@@ -111,7 +110,7 @@ line は一番上の graph なので、place は run directory の根（README 4
 
 ### 1.6 始めの記録と配る値
 
-始めの記録は今の形（`lib/startrec.py`）に欄 `gates` を足した物。書き手は `start` だけで、`answer-before-fix` が欄 `policy` を 1 度書き直す（1.4 の 5）。block は読まない。`start` は書いた記録から下の値を引いて出力の欄 `ports`（object）に並べ、node は `$start.output.ports.<名>` で読む。固定材料の run は、取り込んだ記録（`fixture.adopt` が今の run の id・入力・版で書き換えた物）から同じ式で引く（値の源を 1 つにする）。拒んだ run の `ports` は全部の欄を空の値で持つ（後ろは `when:` で飛ぶ）。
+始めの記録は今の形（`lib/startrec.py`）。書き手は `start` だけで、`answer-before-fix` が欄 `policy` を 1 度書き直す（1.4 の 5）。block は読まない。`start` は書いた記録から下の値を引いて出力の欄 `ports`（object）に並べ、node は `$start.output.ports.<名>` で読む。固定材料の run は、取り込んだ記録（`fixture.adopt` が今の run の id・入力・版で書き換えた物）から同じ式で引く（値の源を 1 つにする）。拒んだ run の `ports` は全部の欄を空の値で持つ（後ろは `when:` で飛ぶ）。
 
 - `request`: 依頼のファイルの絶対パス。依頼の無い run は `"[]"`。読み手: judge の graph（head-depth・spec・parallel-pr・premises・purpose・world・prior-decisions）・test-gate の `request`・`parallel-pr-after`。block は `requestrows` で読み、下書きの行と知らない鍵を拒む（`start` も `carry.parts` で先に拒んでいる）。
 - `request_file`: 同じ絶対パスか `""`（`file` の form の port 用）。読み手: independent-design・fix・merge（apply）・eyes の graph（r2〜r4）。
@@ -130,7 +129,7 @@ line は一番上の graph なので、place は run directory の根（README 4
 - `thickness`: head-depth の `choice(auto|light|standard|heavy)` に写した語（空・自動 → auto、軽量 → light、標準 → standard、重厚 → heavy）。`forced`: 単位の深さを固定する語（空・自動 → 空、軽量・標準・重厚 → その語。`fix-in` が `decide_doc` に渡す）。
 - `design_only`（flag）・`unattended`（flag）: 読み手: head-depth・fix の `unattended`・承認ノードの script。
 - `policy`: 固めた方針の写しのパス（`policy.frozen_copy`）か `""`。読み手: structure・independent-design・plan・plan-review・fix・eyes の graph。`answer-before-fix` が固め直した時は、その後ろの読み手に `$answer-before-fix.output.policy` を渡す（2 節の 2）。
-- `test_cmd`・`tdd_suite`・`reuse_dir`（`tree_run.reuse_dir`）・`user_env_dir`（run directory の根）・`run_id`（test-gate と fix の `reuse_key`）・`deliver`・`gates`。
+- `test_cmd`・`tdd_suite`・`reuse_dir`（`tree_run.reuse_dir`）・`user_env_dir`（run directory の根）・`run_id`（test-gate と fix の `reuse_key`）・`deliver`。
 - `parallel`（flag）: `features_cut` に `fix_lanes` も `tdd_lanes` も無い。読み手: fix の `parallel`。
 - `verify_by_tier`（object）: 段ごとに判定の裏取りを回すか（`{軽量: bool, 標準: bool, 重厚: bool}`。`entry.switch(記録, "judge_verify", tier_adds(段)) == "on"` を段ごとに引いた物）。読み手: judge の graph（judge-eyes.md の 1.3）。段の表を judge の graph に持たせないため、line が表を引いた結果を値で渡す（13 節）。
 - `tree_named`: 事前審査の木の名指し（`features_on`・`features_off` の `review_tree` の名指しだけを読んだ `on`・`off`、名指しが無ければ空）。読み手: `tiers`。
@@ -145,7 +144,7 @@ line は一番上の graph なので、place は run directory の根（README 4
 
 仕様の承認ノードは spec の block の中に在り、line は持たない（README 8.1）。答えの受け方は 4 つとも `lib/answer.py` の `taken`（承認ノードが飛ばされたら前の node の決めをそのまま渡し、answer は null。通す語なら go、ほかの語は `human:<承認ノード>` で止める。一言が空なら既定の文。答えを `gates/<承認ノード>.json` に書く）。
 
-1. 起動の承認ノード `gate-start`: `start` が `ask`（無人の run でない）を返した時に開く。文は `start.gate_text`（今の冒頭 3 行・入口の文・固定材料の行・段・機能・最後の承認ノードの開き方・出口・テストの注・答え方 2 行）に、`gates` の句（merge の時だけ「変異の検算: 合流した版でまとめて撃つ（gates=merge）——この run ではゲートの検算を回さない」）を足す。
+1. 起動の承認ノード `gate-start`: `start` が `ask`（無人の run でない）を返した時に開く。文は `start.gate_text`（今の冒頭 3 行・入口の文・固定材料の行・段・機能・最後の承認ノードの開き方・出口・テストの注・答え方 2 行）。
 2. 修正前の承認ノード `gate-before-fix`: `ask-before-fix` が決める（今の `ask_before_fix.py` の決まりのまま）。
    - 計画ができていない → 開かず、修正へも進まない。
    - 必ず開く: 往復が止まった（3 節の `stalled`）・設計だけの run。この 2 つは承認ノードの項目に「設計だけ」の種類の行を 1 行足して開く。項目の中に同じ種類の行（止まった理由を尾に持つ行）が既に在れば、その行を足さない（同じ行を 2 度載せない。L-D19・P249）。開くことは変わらない。
@@ -322,17 +321,16 @@ line は一番上の graph なので、place は run directory の根（README 4
 
 ### 8.3 始めの記録に `gates` を書く物が無い
 
-- 今の事実: gate-efficacy の `gates` が `merge` の時にこの観点を回さない道は、始めの記録の欄 `gates` を読むが、書き手が工場に無い。訳の字 `GATES_MERGE_WHY` は元の works の入口の入力（`init --input gates=merge`）を名指す。前の棚卸しは「線が入力 gates を落とした。持ち主の確かめ待ち（段 3 で変異の検算と一緒に聞く）」とした（S37・L-E40）。
-- 決め: line に入力 `gates`（空か `merge`）を足し、`start` が知らない語を拒み（`entry` の語の確かめと同じ形の `Refused`）、始めの記録の欄 `gates` に置き、gate-efficacy の port `gates` に配る。chain も同じ名で子に渡す（12 節）。既定の空は今の振る舞いと同じ（観点を回す）なので、名指さない run は変わらない。元の能力（元の works の入口が持った道）を戻すだけで、ほかの能力を削らない。
-- 持ち主への確かめ: S37 で聞くと決めた件なので、冒頭の「求めること」に置いた。通さない答えなら、入力を足さず、gate-efficacy の `gates` は既定の空のまま（今と同じ）にし、訳の字の「init --input gates=merge」を「この工場の入口には無い」に替える。
-- 字の直し: `GATES_MERGE_WHY` の「（init --input gates=merge）」は、足した後は line の入力の名を言う字（「（works-factory-line の --input gates=merge）」）に替える。字は gate-efficacy の block が持つので、その block の直し（15 節）。
+- 今の事実: gate-efficacy の `gates` が `merge` の時にこの観点を回さない道は、始めの記録の欄 `gates` を読むが、書き手が工場に無い。訳の字 `GATES_MERGE_WHY` は元の works の入口の入力（`init --input gates=merge`）を名指す（S37・L-E40）。
+- 決め: line に入力 `gates` を足さない。持ち主の決め（2026-10-19）「重い試験は全部まとめてやるし、なんならＣＩに任せて先に進めたい」: 重い確かめは工場の run の中で回さず、まとめて回すか CI に任せる。judge の graph は gate-efficacy を include しない（judge-eyes.md の 3 節）ので、run の中で変異の検算の観点は回らず、`gates` を配る先も無い。gate-efficacy の block は `blocks/` に残り、まとめて回す時に単独の run で使う（block の port `gates` はそのまま）。
+- 字の直し: `GATES_MERGE_WHY` の字は gate-efficacy の block の物で、line は直さない。
 
 ## 9 今の line との比べ（全部の確かめ・止め・承認ノード・書く順の行き先）
 
 今の node ごとに、持つ決まりと、新しい形の在りか。棚卸しの行（L-E・L-G・L-W・L-D）は行き先の所に名指す。
 
 - `testcmd`・`testcmd-stop`: test_cmd が対象の手元（run の作業ツリーと同じ git の作業ツリーのうち外の全部）を走らせる形なら AI の前で止める・`WORKS_FACTORY_ALLOW_TESTCMD=1` で止めずに注意・確かめが落ちたら止める・止めない時の注意の行を報告の冒頭へ。→ line（今のまま。`src/testcmd_check.py`）。
-- `start`: 入力の語の確かめ（spec・final_gate・unattended・features の知らない語と両方への名指し・design_only・thickness・段が足す機能を features_off で切る組・deliver・足す gates）・固定材料のフォルダと方針の文書の在りか・spec と固定材料の組みの拒み・依頼のファイルの読めない／JSON でない／形が違うの 3 つの拒み・findings の型（L-E01〜L-E04）・PR と issue の gh の読み（L-E11〜L-E15）・差分の根（L-E07〜L-E10・L-E20・L-E21）・依頼も差分も無い入力の拒み（L-E07）・spec=on で依頼の文が無い時の拒み（L-E29）・入口の形 `input`（L-E19）・版の控え（L-E44〜L-E46。拒む run でも書く）・方針の固め（L-E35・S24）・prior_failures の置き（L-E05）・固定材料の取り込み（L-E42）・起動の承認ノードの文（L-E47〜L-E49）・落ちない（L-E53）。→ line の `start`（今のまま）と、配る値（1.6。L-E33 の「機能の切り替えがブロックに届く」は、block が記録を読む形から line が値で配る形に替わる）。
+- `start`: 入力の語の確かめ（spec・final_gate・unattended・features の知らない語と両方への名指し・design_only・thickness・段が足す機能を features_off で切る組・deliver）・固定材料のフォルダと方針の文書の在りか・spec と固定材料の組みの拒み・依頼のファイルの読めない／JSON でない／形が違うの 3 つの拒み・findings の型（L-E01〜L-E04）・PR と issue の gh の読み（L-E11〜L-E15）・差分の根（L-E07〜L-E10・L-E20・L-E21）・依頼も差分も無い入力の拒み（L-E07）・spec=on で依頼の文が無い時の拒み（L-E29）・入口の形 `input`（L-E19）・版の控え（L-E44〜L-E46。拒む run でも書く）・方針の固め（L-E35・S24）・prior_failures の置き（L-E05）・固定材料の取り込み（L-E42）・起動の承認ノードの文（L-E47〜L-E49）・落ちない（L-E53）。→ line の `start`（今のまま）と、配る値（1.6。L-E33 の「機能の切り替えがブロックに届く」は、block が記録を読む形から line が値で配る形に替わる）。
 - `gate-start`・`answer-start`: 2 節の 1（L-G01〜L-G10）。
 - `test-gate-base`(-out): 今のまま。判定の前に走り、固定材料の run は飛ぶ。
 - `judge`(-out): judge の graph（judge-eyes.md）。返りの欄の名は変わる（1.6・4.5 が新しい名で読む）。今の `judge_accept.require_ports`（前の版の返りを resume で受けたら止める）は、新しい graph の返りの形で同じ照らしを `fix-in` と `collect` に置く（欄の欠けた got を空と読まない。L-W67 の能力）。
@@ -361,7 +359,7 @@ line は一番上の graph なので、place は run directory の根（README 4
 
 ## 10 元の works と graphloops の同じ場面
 
-- 元の works の線（`works/darkfactory/darkfactory.yaml`・`lib/line_edge.py`）: 承認ノード 4 つ・計画の往復・案の直しの refit・再審の h-rejudge（refit の後）・深さの上げ直し `depth.raise_`・最後の承認ノードの `_final_needs`。工場は同じ順で写し（今の line の docstring が元の行を名指す）、この設計は形を変えない。元の works に在って工場に無い物のうち、この設計で戻すのは入口の `gates`（8.3）。元の works の止め札（関所の間で走っている run を外から止める）は持ち込まない（S60 の決め `stop-at-gates`）。
+- 元の works の線（`works/darkfactory/darkfactory.yaml`・`lib/line_edge.py`）: 承認ノード 4 つ・計画の往復・案の直しの refit・再審の h-rejudge（refit の後）・深さの上げ直し `depth.raise_`・最後の承認ノードの `_final_needs`。工場は同じ順で写し（今の line の docstring が元の行を名指す）、この設計は形を変えない。元の works に在って工場に無い物のうち、入口の `gates` は戻さない（8.3。持ち主の決め 2026-10-19）。元の works の止め札（関所の間で走っている run を外から止める）は持ち込まない（S60 の決め `stop-at-gates`）。
 - graphloops の review-graph（`graphs/review-loop.json` の周の loop）: 周ごとに P0〜P4 を回し、次の周の頭で判定を回し直す。工場は 1 run = 1 周で、次の周は chain が別の run で回す。graphloops の周の条件で工場に無い物のうち、並行 PR の回し直しはこの設計で 1 run の中に戻す（8.1）。ほかの周の条件（目的の出典を前の周が触った時の目的の監査の回し直しなど）は、1 run = 1 周ではいつも偽で、今も回らない（素材の観点の族の設計書の 5.2）。
 - 意図して外した記録: 周の鎖の 1 run = 1 周（持ち主の決め `carry`）。並行 PR の回し直しを外した PR の記録は（未確認）（parallel-pr の設計書の 6 節の 2）。
 
@@ -370,9 +368,9 @@ line は一番上の graph なので、place は run directory の根（README 4
 graph は AI の node を持たないので、README 6 節の node ごとの 9 項（指示の組み立て・描いた骨組み・指示の比べ）は当たらない。確かめは筋書きと振る舞いの試験と通しの試験。
 
 - standalone の筋書き `blocks/line/fixtures/standalone.stubs.yaml`（7.1 の 4）: `fixture.inputs` は `request`（`fixtures/request.json`）・`test_cmd` だけ。include した block の AI の node と、include の中の loop の本体の script を台本で差し替え（README 13 章: dry-run は include の道を loop の本体に渡さない）、line の script は本物で回す。`reached` に `result`。
-- 今の筋書き 36 本（`workflows/line/fixtures/`）を新しい node の id に書き直す（README 11.3 の 2）。足す筋書き: `parallel-pr-after-found`（判定から入る run で、修正の後の並行 PR が found → 最後の承認ノードが開く）・`gates-merge`（`gates=merge` で gate-efficacy が skipped）・`gates-refused`（知らない語で AI の前に止まる）・`fix-excluded`（`excluded` が fix に届く。`resolved-text-contains` でなく `with` の値の照らし）・`light-all-units`（軽量で全部の単位が軽量 → lens・delta-review・r1〜r4 が飛び、structure after は走る）。
+- 今の筋書き 36 本（`workflows/line/fixtures/`）を新しい node の id に書き直す（README 11.3 の 2）。足す筋書き: `parallel-pr-after-found`（判定から入る run で、修正の後の並行 PR が found → 最後の承認ノードが開く）・`fix-excluded`（`excluded` が fix に届く。`resolved-text-contains` でなく `with` の値の照らし）・`light-all-units`（軽量で全部の単位が軽量 → lens・delta-review・r1〜r4 が飛び、structure after は走る）。
 - 振る舞いの試験 `tests/blocks/line/`（今の `tests/workflows/test_line.py`・`test_gate_head.py`・`test_testcmd_head.py` と `lib/tests/test_fixture.py`・`test_startrec.py`・`test_testcmd_check.py`・`test_versions.py` を元にする。README 9.5）:
-  - `test_start.py`: 入力の拒み（今の `StartCase` の全部）と、配る値（1.6 の欄ごと。`entry` が差分の空と依頼の数の両方で決まる・`verify_by_tier` が名指しで全段 on/off になる・`gates` の語）。
+  - `test_start.py`: 入力の拒み（今の `StartCase` の全部）と、配る値（1.6 の欄ごと。`entry` が差分の空と依頼の数の両方で決まる・`verify_by_tier` が名指しで全段 on/off になる）。
   - `test_gates.py`: 4 つの承認ノード（今の `GateAnswerCase`・`AskBeforeFixCase`・`AskReplanCase`・`AskFinalCase`・`AskFinalReadsCase`・`FinalGateCase`・`UnattendedPolicyCallCase`・`LedgerAsksCase`）。足す: 修正の後の並行 PR の found と失敗が開ける理由に入り must でない。
   - `test_tiers.py`: 表の行が今の `depth.TIERS` と同じ（組み込みの前に写しを照らす）・単位の深さ・`skip_rerun`・上げ直しの信号の全部（今の `RedepthCase`）・`checks` と `eyes_due`（前の run が運んだ実測で省かない）。
   - `test_rounds.py`: 往復の記録の行・止め時の 5 語・上限 20 と `max_iterations` の突き合わせ・上限で止めた行の `capped`・止まった案を推しで進める時の保留の穴の足し・2 本の `prior` の形（今の `PlanOutCase`・`PlanOutNothingOwedCase`）。
@@ -386,7 +384,7 @@ graph は AI の node を持たないので、README 6 節の node ごとの 9 �
 
 今の `workflows/chain/` を `blocks/chain/` に移す（README 11.3 の 1）。line を周ごとに子の run として起こす形・5 組の周の node・止めの決め・最後の差分・PR の渡しは今のまま。直す所だけ:
 
-- 子の line に渡す入力の錨 `line_inputs` に `gates: "$INPUTS.gates"` を足し、鎖の入力にも `gates`（説明は「どの周の子にも渡すメイングラフの同じ名の入力」）を足す（8.3）。
+- 子の line に渡す入力の錨 `line_inputs` に `gates` は足さない（8.3。持ち主の決め 2026-10-19）。
 - `hand`（include `works-factory-merge`、`mode: check`）の `with:` の `base_rev` を、merge の port の名 `base` に改める（merge の設計書の 1.6）。ほかの欄（`sealed_hash`・`deliver`・`request`・`user_env_dir`）は今のまま。
 - script（`chain_start`・`round_commit`・`round_facts`・`decide`・`final_diff`・`result`）は `boundary` の代わりに `ports` の口で入力を読む。読む lib（`chain`・`entry`・`entryshape`・`runbranch`・`carry`・`runreport`・`report`・`seal`）と埋め `child_pointer` は KEEP（README 9.3）。chain の置き場のファイル（`chain/final.diff`・`chain/round-<k>.diff`・`chain.md`・`chain/<子>/next-request.json`）の名は `blocks/chain/src/files.py` が持つ。
 - 子の line の返りの欄（`outcome`・`apply`・`r2_status`・`spec_questions`・`next_request`）は line が今の名で返す（1.2）ので、`decide` と `round_facts` は変わらない。
@@ -424,7 +422,7 @@ keep-essence の 12 の仕組みのうち、line が担う物（6・8・10・11�
 
 ほか:
 
-- 入力 `gates` を足すことの持ち主の確かめ（冒頭・8.3）。通れば、gate-efficacy の block の `GATES_MERGE_WHY` の字を line の入力の名に替える直しを、その block の PR で出す。
+- 入力 `gates` は持ち主の決め（2026-10-19）で足さない（8.3）。確かめは済んだ。
 - `lang` が空の時: README 5.3 は「空なら line が依頼の言語を決めて渡す」と言うが、言語を自動で選ぶ仕組みを作らない決めとぶつかる。この設計は空のまま渡す（依頼を読む役は既定の文で依頼の言語に書く）。依頼を見ない役（test-gate の任せ先・実行器の書き手）に、依頼の文の頭を引いて「この文と同じ言語」と書いた値を渡すかを決める。
 - `startrec` の読む口の残し方: KEEP の lib（`headdepth`・`suitewrite`・`conflict`・`runreport`）が始めの記録を読む所が組み込みの後に残るか。残れば読む口だけを `lib/` に残す。
 - 包みが始めの記録を読む `graph_map`（機能の語）は、block の外の埋めが line の記録を読む形のまま残る。README 4.3 は block の話で埋めに当たらないと読んだ。

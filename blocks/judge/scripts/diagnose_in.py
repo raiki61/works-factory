@@ -2,7 +2,7 @@
 # requires-python = ">=3.12"
 # dependencies = []
 # ///
-"""返し diagnose-in（docs/design/judge-eyes.md の 1.3 の 10）: diagnose へ渡す飛ばされうる値を、受け皿の got からそろえる（素材の観点 11 本の
+"""返し diagnose-in（docs/design/judge-eyes.md の 1.3 の 10）: diagnose へ渡す飛ばされうる値を、受け皿の got からそろえる（素材の観点 10 本の
 material の配列と返らなかった観点の名・並行 PR の素材の札・世界の解の行・頭の深さの行と根拠・仕様の足した行）。判定の裏取りを回すかを、
 line が引いた段ごとの表 verify_by_tier から head-depth の段（返らなければ標準）で選ぶ。前提の実測と目的の固定が通ったか（go）と、
 両方の pointer も運ぶ（diagnose の when: と with: はこの返しだけを読む）。落ちない（落ちたら ok: false で diagnose を回さない）"""
@@ -36,7 +36,6 @@ def compute():
         "hygiene": _got(os.environ.get("INPUTS_HYGIENE_OUT")),
         "external-standards": _got(os.environ.get("INPUTS_EXTERNAL_STANDARDS_OUT")),
         "procedure-trace": _got(os.environ.get("INPUTS_PROCEDURE_TRACE_OUT")),
-        "gate-efficacy": _got(os.environ.get("INPUTS_GATE_EFFICACY_OUT")),
         "test-double-fidelity": _got(os.environ.get("INPUTS_TEST_DOUBLE_FIDELITY_OUT")),
         "main-path-observation": _got(os.environ.get("INPUTS_MAIN_PATH_OBSERVATION_OUT")),
         "provenance": _got(os.environ.get("INPUTS_PROVENANCE_OUT")),
