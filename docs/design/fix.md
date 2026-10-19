@@ -859,6 +859,24 @@ node ごとの場面は 2〜6 節の 7。block 全体では:
 7. `decision_records_changed` は 6 つの印に入らず、前の控えとの論理和を取らない。
 8. `assert-changed` の YAML の注記は「落ちない」と書くが、比べの外の誤りでは落ちる（7 節の注記の直しは注記だけ）。
 
+### 13.4 作りで決めた事（実装の役。設計書が黙っていた・main の決まりと合わなかった所）
+
+1. lib の `conflict` は、依頼のファイルを place の始めの記録 `r1/start.json` から読む（`conflict.request_file`・`cite_roots`。申し出の名指しの根と、裁定役の ask_human の出どころの照らしが使う）。1.5.2 で `conflict` を写さずに呼ぶので、`src/runvals.py` が `values.json` と同じ時に `{request_file, answers}` だけの写しを `r1/start.json`（`src/files.py` の `LIB_START`。lib の `startrec.REL` と同じ字）に置き、子にも写す。根拠: 置かないと依頼のファイルを名指す申し出が拒まれ、依頼の在る run の ask_human の照らしが効かなくなる（今の能力が落ちる）。組み込みで `conflict` を割る時に外す（16 節の 3）。
+2. 組の子は親の `values.json` と上の写しを写すが、`intake.json` は写さない。根拠: 子の `intake.json` は子の port（`group`・`from_tree`・`out_dir`）を持ち、親の物で上書きすると組を失う。子の script は組と `out_dir` を自分の `intake.json`（`src.intake.load`）から読む（今の script は `INPUTS_GROUP` などを node ごとに読んでいた）。
+3. port `answers` の形のファイルは `gate-answers.schema.json` にした（1.2 の `answers.schema.json` は independent-design の block に同じ名が在り、形の名は pack の中で 1 つの決まり〔7.1 の 5〕に当たる）。
+4. 写したモジュールの中の place の名の定数（`src/tdd.py` の `STATE`・`src/consult.py` の `QUESTION_FILE`・`src/clash.py` の `BRIEF`・`src/ruling.py` の `TREE` など）は写しのまま持つ（写しの中身を変えない決まりが勝つ）。`src/files.py` は今の `fixnames`・`fixbeside` の名と `fixboard` の置き場の名の定数（1.5.3）と新しい名を持つ。
+5. run をまたぐ控えの根（ライブラリの文書。今の `boundary.shared_cache`、環境変数 `STATE_DIR`）は `src/files.py` の `shared_cache()` に置いた（`.shared/ports.py` に口が無く、使い手はこの block だけ）。
+6. 修正役の段落 `scope` は、承認済みの修正案が無くても、凍ったテストのファイルか既存のテストの変更の許しが在れば真にする。根拠: 今の指示はテストの節（`planrange.tests_text`）をいつも載せていた（2.3 の表の「修正案が在る」だけだと、修正案の無い run で凍ったテストの名指しが指示から落ちる）。
+7. 下請けの審査役の頼み `prompts/sub/g1-review.md` も、2.3.2 の `G1_EXTRA` のほかに、今の `seat.g1_prompt` どおり `G1_SUB_RULES` と検索の決まり `{shared:query-rule}`（`spawns` は偽）を持つ（今の能力を落とさない）。
+8. TDD の役の座の効く所と効かない所は、差し込み口を `{seat_applies}`・`{seat_not_applies}` の 2 つに分けた（見出しの文を md に置くため。4.3 の 8 の `{seat_notes}`）。修正役の座の型の名は `{seat_file}`（今の `PROMPT_HEAD` の `{file}`）。
+9. 範囲の相談の答えの役の指示は、`board.consult_ask` が受ける口 `render`（`src/prompts.consult_render`）が md から組み、place の `consult-<pass>-<turn>-ask.md` と `<node>-prompt-<n>.md` の両方に同じ字が残る（今の `consult_ask` は指示書を書いていた）。頼みごとの節の材料は `src/consult.py` の `asks_text`（今の `question` から決まった文と答え方の行を除いた物）。
+10. 「読む物」の空の値は `(empty)`（今の `rulebook.EMPTY` の「（空）」の英語）。
+11. `src/tdd.py` の `prep` は材料（`{go, new_unit, state, path, briefs}`）だけを返し、`handoff_rows`・`together_rows` を足した（`handoff_lines`・`_together_lines` から見出しと決まった文を除いた行）。今の単位の行 `current_lines` の「上の『前の回の返答を機械が拒んだ理由』」は材料の日本語のまま（13.2 の 5）。
+12. 裁定役と合わせ役の指示は `src/prompts.py` の `ruler`・`clash` が組む（script と試験が同じ口を呼ぶ。`prompt.render` は block の中の呼び手を要る）。
+13. 出力の `tdd_refused` と受け付けの行の選びは、`lib/fixbeside.py` を import せずに `src/finish.py` が今の関数と同じ中身で組む（1.5.2 の「fixbeside は import しない」）。
+14. 筋書き `tdd.stubs.yaml` の実行器のパス `.archon/workflows/works-factory/fix/fixtures/tdd-runner.py` は `tests/archon.py` の木の cwd から届いた（16 節の 2 は閉じた）。
+15. 共通の断片 `writer-rules` は、delta-review の PR がまだ置いていない間に、この block の側で今の `common.md` から英語で書いた（見出しは 2.3.1・2.5 の字）。delta-review の側の写しと見出しの字が違う（`Divergence reports …`・`Evidence for a fix that cannot show …`）ので、2 つを合わせる時にどちらかに揃える（修正役・TDD の役の md と `brief.md` が見出しの字で名指す）。
+
 ## 14 試験
 
 ### 14.1 standalone と筋書き（`blocks/fix/fixtures/`。どれも `exec-code: true` で AI の node だけを差し替える。prep は差し替えない）
@@ -923,7 +941,7 @@ WORKS_FACTORY_FOLDER=blocks bin/works-factory workflow run works-factory-fix --c
 ## 16 未確認
 
 1. 95 KB ほどの指示を `prompt: "$<prep>.output.prompt"` で渡した時に、役に全部が届くか（13.1 の 11。止めた Archon の源では走っている間は丸ごと持つ）。本物の単独の run（README 11.2）で `fixer-prompt-<n>.md` と役の会話の頭を照らす。
-2. `tdd.stubs.yaml` の実行器のパス（`.archon/workflows/<pack>/fix/fixtures/tdd-runner.py`）が、`tests/archon.py` の木の cwd から届くか。届かなければ `tdd-runner.py` を `tests/archon.py` の `TARGET_FILES` の側に置く（その時は共通の試験の助けを直す 1 行がこの PR に入る）。
+2. （閉じた。13.4 の 14）`tdd.stubs.yaml` の実行器のパス（`.archon/workflows/<pack>/fix/fixtures/tdd-runner.py`）が、`tests/archon.py` の木の cwd から届くか。
 3. 組み込みで `conflict` を行の形（KEEP）と決めの部分（fix の `src/`）に割る時、`planrange`（delta-review も使う）が `test_permits` をどこから呼ぶか（keep-essence の 3 の 1 本を保つ割り方）。
 4. line の上げ直しが、今 fix の中の `redepth` だけが数えた「修正役の異議」（出力 `objection`）を信号に足すか（line の設計書）。
 5. delta-review の設計書が、fix の出力の `start_tree`・`reply`・`ruled_reply`・`scope`・`conflicts`・`checked` で足りるとするか（今の delta-review の材料は fix の place の `fix-reply.json`・`p2.plan_review.json`・`conflicts.json`・`trace.jsonl` の合意・方針を読んでいた）。足りなければ fix の出力の欄を足す（この設計書を直す）。

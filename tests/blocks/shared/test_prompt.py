@@ -1,6 +1,7 @@
 """blocks/.shared/prompt.py の口（docs/design/README.md の 5 節）: md に値を入れて指示を組み、md と値が食い違えば名指して落ちる"""
 import sys
 import unittest
+from unittest import mock
 
 from tests.bin import hermetic
 from tests.blocks import kit
@@ -145,6 +146,32 @@ class CallerCase(Base):
     def test_lang_default(self):
         self.assertEqual(prompt.lang(""), "the language of the request (the user's language)", "空なら共通の断片の文")
         self.assertEqual(prompt.lang(" Japanese "), "Japanese")
+
+
+class SubCase(Base):
+    """sub: block の prompts/sub/<name>.md（AI の node でない下請けの頼み）を render と同じ決まりで組み、place に書かない"""
+
+    def sub(self, text, values=None, when=None):
+        (self.block / "prompts" / "sub").mkdir(exist_ok=True)
+        (self.block / "prompts" / "sub" / "helper.md").write_text(text, encoding="utf-8")
+        return prompt._compose(self.block, "helper", values or {}, when, folder="sub")["prompt"]
+
+    def test_fragments_paragraphs_and_slots(self):
+        self.part("rules", "Rule {x}\n")
+        got = self.sub("{template}\n{part:rules}\n<!-- if ask -->\nAsk\n<!-- end ask -->\n", {"template": "T", "x": "1"}, {"ask": False})
+        self.assertEqual(got, "T\nRule 1\n")
+
+    def test_missing_value_is_refused(self):
+        with self.assertRaisesRegex(prompt.PromptError, r"\['template'\] に値が無い"):
+            self.sub("{template}\n")
+
+    def test_sub_writes_nothing_in_the_place(self):
+        """fix の prompts/sub/g1-review.md を組んでも place に何も書かない（書くのは呼び手）"""
+        run = kit.Run(self, "fix")
+        with run.env(), mock.patch.object(prompt.ports, "caller_block", return_value=kit.BLOCKS / "fix"):
+            got = prompt.sub("g1-review", {"template": "TEMPLATE"}, {"spawns": False})
+        self.assertTrue(got.startswith("TEMPLATE\n"))
+        self.assertEqual(list(run.artifacts.iterdir()), [])
 
 
 if __name__ == "__main__":
