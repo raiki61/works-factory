@@ -668,7 +668,7 @@ Return only JSON that matches the output schema.
 8. 形 plan: 前の往復の答えの要る穴の行き先（`converge.resolved_gaps`）が在れば `RESOLVED_REJECT`。
 9. 返答の全体（`plan_review_output`: `faces`・`shrink` の key の重なり・案に無い単位・穴も別案も無いのに `faces_none` が空同然〔`blank` で 20 字〕）。誤りは `Reject("p2.plan_review: …")`。
 10. `fences` の語の重なり（今は型の `uniqueItems`）: 在れば「faces[j]（key）: fences に同じ語が 2 つ」で拒む。
-11. 通れば: 外した決め手の欄を `review-marks.json`（`files.FACE_MARKS`。`faces` と同じ並び）に書き、出口の `asks` が行に重ねて読む（下）。木の往復なら先行例の出典の確かめを `precedent-checks.json` に足す（`save_precedents`。控えに在る出典は書き換えない）。形 plan なら `pass.json` を書く（9.3）。最後に、決め手の欄を外した返答（`src/marks.split_marks`）を `review.json` に書く（`resolved` が在れば欄 `converge.RESOLVED` に。今と同じ形）。`review.json` を最後に書くのは今の `boardview._take` と同じ順で、途中で落ちた回の物を出口が受けた返答と読まないため（受け付けは頭で前の回の `review.json`・`review-marks.json`・`pass.json` を消す）。
+11. 通れば: 外した決め手の欄を `review-marks.json`（`files.FACE_MARKS`。`faces` と同じ並び）に書き、出口の `asks` が行に重ねて読む（下）。木の往復なら先行例の出典の確かめを `precedent-checks.json` に足す（`save_precedents`。控えに在る出典は書き換えない）。形 plan なら `pass.json` を書く（9.3）。最後に、単位を名に戻した返答を決め手の欄を持ったまま `review.json` に書く（`resolved` が在れば欄 `converge.RESOLVED` に。今の `boardview._take` と同じ形。決め手の欄を外した写し〔`src/marks.split_faces`〕は `pass.json` の `review` だけが持つ）。`review.json` を最後に書くのは今の `boardview._take` と同じ順で、途中で落ちた回の物を出口が受けた返答と読まないため（受け付けは頭で前の回の `review.json`・`review-marks.json`・`pass.json` を消す）。
 
 - 却下の理由の文は Python が組む日本語のまま（README 5.3）。中身は今と同じ。
 - 回数: 受け付けの網（`rolekit.accept_parsed(…, net=True)`。`rolekit.NET_AFTER` 回目で done・give_up）。拒否の回数では諦めない（今の「受け付けの拒否の回数では諦めず」。届けば工場の不具合）。
@@ -676,11 +676,11 @@ Return only JSON that matches the output schema.
 
 ### 9.2 `review.json` の形
 
-`{faces, shrink, reason, faces_none?, resolved?}`。`faces` の行は返答の行から決め手の欄（`decided_by`・`undecided_because`・`fences`・`world`・`recommend`・`no_narrow`）を外し、`unit_keys` を単位の名に戻した物。木の往復は、まとめた `faces`（項目の答えと相乗りの答えと、前の往復から持ち越す suggest〔`converge.carried_notes`〕）・`shrink`・束ね役の `reason`・`faces_none`（無ければ項目ごとの `checked`）。今の `pass-<k>/review.json` と同じ形（修正の段・差分の審査・独立の目が今の形で読む）。止まった案を推しで進める時の保留の穴（今の `converge.HELD_MARK` つきの行）は足さない（line が足す。1.6）。
+`{faces, shrink, reason, faces_none?, resolved?}`。`faces` の行は返答の行の `unit_keys` を単位の名に戻した物で、決め手の欄（`decided_by`・`undecided_because`・`fences`・`world`・`recommend`・`no_narrow`）を持ったまま（今と同じ。報告の読み手が `recommend`・`no_narrow`・`world` を読む）。外した写しは `review-marks.json` と `pass.json` の `review` に在る。木の往復は、まとめた `faces`（項目の答えと相乗りの答えと、前の往復から持ち越す suggest〔`converge.carried_notes`〕）・`shrink`・束ね役の `reason`・`faces_none`（無ければ項目ごとの `checked`）。今の `pass-<k>/review.json` と同じ形（修正の段・差分の審査・独立の目が今の形で読む）。止まった案を推しで進める時の保留の穴（今の `converge.HELD_MARK` つきの行）は足さない（line が足す。1.6）。
 
 ### 9.3 `pass.json` の形（往復の記録に足す行の材料）
 
-`{pass: k, plan: <converge.plan_rows の行>, answers: <block_answers>, review: <review.json と同じ中身（決め手の欄を外し、単位を名に戻した返答。今 record_pass に渡していた bare_review）>, resolved, synergy, hits: {<項目>: <当たりの答えの行>}, origins: <申告の行>, refs: {<項目>: <design_ref の並び>}, push: <stuck_recommend か null>, files: {<名>: <絶対パス>}, rejects: [{role: "p2.plan_review", at, reason, kind?}], precedent_checks: {...}}`。`files` は今の `record_pass` に渡していた物（答えのファイル・相乗りの答え・材料のファイル）。`rejects` はこの往復の事前審査の拒否だけ（計画の拒否は line が足す。今の `_pass_rejects` の後半）。line はこれを `converge.add_pass` に渡す（1.6）。
+`{pass: k, plan: <converge.plan_rows の行>, answers: <block_answers>, review: <review.json から決め手の欄を外した写し（単位を名に戻した返答。今 record_pass に渡していた bare_review）>, resolved, synergy, hits: {<項目>: <当たりの答えの行>}, origins: <申告の行>, refs: {<項目>: <design_ref の並び>}, push: <stuck_recommend か null>, files: {<名>: <絶対パス>}, rejects: [{role: "p2.plan_review", at, reason, kind?}], precedent_checks: {...}}`。`files` は今の `record_pass` に渡していた物（答えのファイル・相乗りの答え・材料のファイル）。`rejects` はこの往復の事前審査の拒否だけ（計画の拒否は line が足す。今の `_pass_rejects` の後半）。line はこれを `converge.add_pass` に渡す（1.6）。
 
 ### 9.4 方針の文の受け付け（text-accept。`src/textform.py`）
 

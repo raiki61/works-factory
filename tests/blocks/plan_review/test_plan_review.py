@@ -381,7 +381,7 @@ class FlowCase(_Case):
         review = self.run.read(got["holes"]["path"])
         self.assertEqual(sorted(review), ["faces", "reason", "shrink"])
         self.assertEqual(review["faces"][0]["unit_keys"], [v.UNIT_MEAN], "単位の番号は名に戻す")
-        self.assertNotIn("decided_by", review["faces"][0], "決め手の欄は review.json に入らない")
+        self.assertEqual(review["faces"][0]["decided_by"], "依頼の引用「平均」", "決め手の欄は review.json に残る（今と同じ形）")
         row = self.run.read(got["pass"]["path"])
         for name in ("pass", "plan", "answers", "review", "resolved", "synergy", "hits", "origins", "refs", "push", "files", "rejects",
                      "precedent_checks"):

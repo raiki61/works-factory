@@ -220,7 +220,9 @@ def _take(place: pathlib.Path, intake: dict, reply: dict, repo, keys) -> dict:
     if twice:
         raise Reject(f"{REVIEW_NODE}: " + "; ".join(twice))
     bare_review, face_marks = marks.split_faces(review)
-    written = {**bare_review, converge.RESOLVED: merged["resolved"]} if merged["resolved"] else bare_review
+    # review.json は決め手の欄を持ったまま書く（今の boardview._take と同じ。報告の読み手が穴の recommend・no_narrow・world を読む）。
+    # 往復の記録に足す pass.json の review だけを、欄を外した写しにする（今の record_pass に渡した bare_review）
+    written = {**review, converge.RESOLVED: merged["resolved"]} if merged["resolved"] else review
     jsonfile.write(place / FACE_MARKS, face_marks, indent=2)
     if form == "plan":
         checks = jsonfile.read_or(place / files.PRECEDENT_CHECKS)

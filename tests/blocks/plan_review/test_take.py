@@ -504,16 +504,18 @@ class ReviewAcceptCase(FlowCase):
         self.assertIn("faces[0]（fenced-twice-row）: fences に同じ語が 2 つ（irreversible）", got["reason"])
         self.assertTrue(f.accept(review({**twice, "fences": ["irreversible", "external_write"]}))["ok"])
 
-    def test_marks_leave_review_json_for_the_marks_file(self):
-        """決め手の欄（decided_by・fences・recommend など）は review.json と pass.json の review から外れ、出口の asks が読む
-        review-marks.json に穴と同じ並びで在る"""
+    def test_marks_stay_in_review_json_and_leave_the_pass_row(self):
+        """決め手の欄（decided_by・undecided_because・world・fences・recommend・no_narrow）は、今の boardview._take と同じく review.json
+        の穴に残る（報告の読み手が recommend・no_narrow・world を読む）。往復の記録に足す pass.json の review からは外れ、出口の asks が
+        読む review-marks.json に穴と同じ並びで在る"""
         f = self.flow
         self.prepped()
         mark = {"decided_by": "https://docs.python.org/3/library/statistics.html#statistics.mean の定義", "undecided_because": "",
                 "world": "公式の statistics.mean は空の列で例外を投げる"}
         self.assertTrue(f.accept(review(face("regression-decided", kind="regression", severity="suggest", **mark)))["ok"])
-        for doc in (f.read("review.json"), f.read("pass.json")["review"]):
-            self.assertFalse(set(mark) & set(doc["faces"][0]))
+        kept = f.read("review.json")["faces"][0]
+        self.assertEqual({k: kept.get(k) for k in mark}, mark)
+        self.assertFalse(set(mark) & set(f.read("pass.json")["review"]["faces"][0]))
         self.assertEqual(f.read(self.take.FACE_MARKS), [mark])
         got = f.finish()
         self.assertEqual([(a["node"], a["mark"], a["decided"]) for a in got["asks"]], [(self.take.REVIEW_NODE, mark, True)])
