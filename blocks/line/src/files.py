@@ -5,8 +5,8 @@ carry の prior-failures-in.json・answer の gates/<承認ノード>.json・pol
 - START: 始めの記録（start が 1 度書く。拒んだ run も版の控えと拒みの訳を書く。起動の殻と包みと bin/ が同じ所を読むので、名と置き場を
   変えない。今の lib/startrec.py の REL）
 - CARRIED: 依頼の容器の constraints（start が書く。premises の port carried に渡す）
-- PLAN_CONVERGE: 計画の往復の記録（plan-out が周ごとに 1 行足して書き直す。plan-review の port prior の先）。PLAN_CONVERGE_FILES は
-  往復の行の files の写しのフォルダ（plan-converge/<k>/）
+- PLAN_CONVERGE: 計画の往復の記録（plan-out が周ごとに 1 行足して書き直す。plan-review の port prior の先）。PLAN_CONVERGE_DIR は
+  往復の行の files の写しの置き場で、PLAN_CONVERGE_FILES はその中の周ごとのフォルダ（plan-converge/<k>/）
 - PLAN_PRIOR: 次の周の plan の port prior の先（plan-rounds/prior-<k>.json）
 - PLAN_REVIEW: 止まった案を無人の run が推しで進める周の、事前審査の返答に保留の穴を足した写し（plan-out が書き、修正の段へ渡す）
 - REPLAN_PRIOR: 案の直しの plan の port prior の先（after-fix が書く）
@@ -16,7 +16,8 @@ carry の prior-failures-in.json・answer の gates/<承認ノード>.json・pol
 START = "r1/start.json"
 CARRIED = "carried.json"
 PLAN_CONVERGE = "plan-converge.json"
-PLAN_CONVERGE_FILES = "plan-converge/{k}"
+PLAN_CONVERGE_DIR = "plan-converge"
+PLAN_CONVERGE_FILES = PLAN_CONVERGE_DIR + "/{k}"
 PLAN_PRIOR = "plan-rounds/prior-{k}.json"
 PLAN_REVIEW = "plan-rounds/review-{k}.json"
 REPLAN_PRIOR = "replan-prior.json"

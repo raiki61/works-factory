@@ -1036,6 +1036,7 @@ nodes:
       fix_in: "$fix-in.output"
       rejudge_due: "$fixed.output.rejudge"
       objection: "$fixed.output.objection"
+      fixed_units: "$fixed.output.units"
       rejudge: {from: "$rejudge-run-out.output.got", if_skipped: null}
     output_format:
       type: object
