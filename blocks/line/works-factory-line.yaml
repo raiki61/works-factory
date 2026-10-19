@@ -196,7 +196,7 @@ nodes:
       got: "$judge.output"
       names: "ok stop_reason reason ready units judgment answer_ties out_of_purpose materials brief inputs purpose purpose_text purpose_source
         means purpose_review constraints world world_state spec spec_rows spec_origin excluded pr_drafts downgrades decisions tier tier_why
-        row_asks tier_record verify verify_why report sections optional"
+        row_asks tier_record verify verify_why report sections"
   # 5 段 → 回す物の表（docs/design/line.md の 5.1）
   - id: tiers
     script: tiers
@@ -480,7 +480,7 @@ nodes:
     script: fix_in
     runtime: uv
     mutates_checkout: false
-    depends_on: [answer-start, test-gate-base-out, judge-out, tiers, structure-out, design-in, plan-rounds-out, ask-before-fix,
+    depends_on: [answer-start, test-gate-base-out, judge-out, tiers, owed, structure-out, design-in, plan-rounds-out, ask-before-fix,
                  answer-before-fix]
     trigger_rule: none_failed_min_one_success
     with:
@@ -498,12 +498,13 @@ nodes:
       before_fix_policy: {from: "$answer-before-fix.output.policy", if_skipped: null}
       deferred: {from: "$ask-before-fix.output.deferred", if_skipped: null}
       passes: {from: "$ask-before-fix.output.passes", if_skipped: null}
+      recorded: {from: "$owed.output.recorded", if_skipped: null}
     output_format:
       type: object
       additionalProperties: false
       required: [go, no_fix, stop_reason, received, policy, answer, deferred, passes, baseline, suite, judgment, units, answer_ties, materials,
                  out_of_purpose, verify, excluded, tier_record, decisions, world, spec, purpose, purpose_text, means, constraints, brief,
-                 inputs, structure, design, design_reason, design_premises, plan, fix_plan, ripple, reply, review, record, handoffs, owed,
+                 inputs, recorded, structure, design, design_reason, design_premises, plan, fix_plan, ripple, reply, review, record, handoffs, owed,
                  round, units_tier, skip_rerun, switches]
       properties:
         go: {type: boolean}
@@ -533,6 +534,7 @@ nodes:
         constraints: {type: [object, 'null']}
         brief: {type: [object, 'null']}
         inputs: {type: [object, 'null']}
+        recorded: {type: array, items: {type: object}}
         structure: {type: [object, 'null']}
         design: {type: [object, 'null']}
         design_reason: {type: string}
@@ -743,6 +745,7 @@ nodes:
       tree: "off"
       excluded: "$fix-in.output.excluded"
       policy: "$fix-in.output.policy"
+      recorded: "$fix-in.output.recorded"
       request: "$start.output.ports.request_file"
       review_rev: "$start.output.ports.review_rev"
       diff_base: "$start.output.ports.base"
@@ -979,7 +982,7 @@ nodes:
     with:
       got: "$parallel-pr-after.output"
       names: "ok status stop_reason reason material excluded drafts reads downgrades report"
-  - id: rejudge
+  - id: rejudge-run
     include: works-factory-diagnose
     depends_on: [fixed]
     when: "$fixed.output.rejudge == true"
@@ -996,11 +999,11 @@ nodes:
       verify: "$fix-in.output.verify"
       excluded: "$fix-in.output.excluded"
       lang: "$start.output.ports.lang"
-  - id: rejudge-out
+  - id: rejudge-run-out
     <<: *receiver
-    depends_on: [rejudge]
+    depends_on: [rejudge-run]
     with:
-      got: "$rejudge.output"
+      got: "$rejudge-run.output"
       names: "ok status mode stop_reason reason ready judgment units questions inputs brief materials out_of_purpose answer_ties rejudge_verdict
         rejudge_exit rejudge_diff downgrades report"
   - id: spec-check
@@ -1023,13 +1026,13 @@ nodes:
     script: judged
     runtime: uv
     mutates_checkout: false
-    depends_on: [fixed, rejudge-out]
+    depends_on: [fixed, rejudge-run-out]
     trigger_rule: none_failed_min_one_success
     with:
       fix_in: "$fix-in.output"
       rejudge_due: "$fixed.output.rejudge"
       objection: "$fixed.output.objection"
-      rejudge: {from: "$rejudge-out.output.got", if_skipped: null}
+      rejudge: {from: "$rejudge-run-out.output.got", if_skipped: null}
     output_format:
       type: object
       additionalProperties: false
@@ -1250,7 +1253,7 @@ nodes:
     depends_on: [testcmd, start, answer-start, test-gate-base-out, judge-out, tiers, owed, structure-out, structure-in, independent-design-out,
                  design-in, plan-rounds-out, ask-before-fix, answer-before-fix, fix-in, fix-out, after-fix, raise, lens-out, lens-in,
                  delta-review-out, replan-out, replan-review-out, ask-replan, answer-replan, refix-run-out, lens-2-out, lens-2-in,
-                 delta-review-2-out, fixed, parallel-pr-after-out, rejudge-out, spec-check-out, judged, test-gate-final-out, eyes-in,
+                 delta-review-2-out, fixed, parallel-pr-after-out, rejudge-run-out, spec-check-out, judged, test-gate-final-out, eyes-in,
                  eyes-out, merge-seal-out, ask-final, answer-final, merge-apply-out]
     trigger_rule: all_done
     always_run: true
@@ -1286,7 +1289,7 @@ nodes:
       delta_2: {from: "$delta-review-2-out.output.got", if_skipped: null}
       fixed: {from: "$fixed.output", if_skipped: null}
       parallel_after: {from: "$parallel-pr-after-out.output.got", if_skipped: null}
-      rejudge: {from: "$rejudge-out.output.got", if_skipped: null}
+      rejudge: {from: "$rejudge-run-out.output.got", if_skipped: null}
       spec_check: {from: "$spec-check-out.output.got", if_skipped: null}
       judged: {from: "$judged.output", if_skipped: null}
       test_gate_final: {from: "$test-gate-final-out.output.got", if_skipped: null}

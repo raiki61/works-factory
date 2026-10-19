@@ -1,0 +1,23 @@
+"""line の place のファイルの名（docs/design/line.md の 1.4）。line は一番上の graph なので、place は run directory の根。名の字は
+このモジュールだけが持つ。標準ライブラリだけ。KEEP の lib が自分で名を持って書く物（ghreads の github.json・entryshape の pr.md・
+carry の prior-failures-in.json・answer の gates/<承認ノード>.json・policy の方針の写し）は、ここに写さない。
+
+- START: 始めの記録（start が 1 度書く。拒んだ run も版の控えと拒みの訳を書く。起動の殻と包みと bin/ が同じ所を読むので、名と置き場を
+  変えない。今の lib/startrec.py の REL）
+- CARRIED: 依頼の容器の constraints（start が書く。premises の port carried に渡す）
+- PLAN_CONVERGE: 計画の往復の記録（plan-out が周ごとに 1 行足して書き直す。plan-review の port prior の先）。PLAN_CONVERGE_FILES は
+  往復の行の files の写しのフォルダ（plan-converge/<k>/）
+- PLAN_PRIOR: 次の周の plan の port prior の先（plan-rounds/prior-<k>.json）
+- REPLAN_PRIOR: 案の直しの plan の port prior の先（after-fix が書く）
+- FINAL_GATE_MD: 開いた最後の承認ノードの文の控え
+- SECTIONS・FACTS: report に pointer で渡す 2 つの形（collect が書く。docs/design/line.md の 7 節）
+"""
+START = "r1/start.json"
+CARRIED = "carried.json"
+PLAN_CONVERGE = "plan-converge.json"
+PLAN_CONVERGE_FILES = "plan-converge/{k}"
+PLAN_PRIOR = "plan-rounds/prior-{k}.json"
+REPLAN_PRIOR = "replan-prior.json"
+FINAL_GATE_MD = "gates/final-gate.md"
+SECTIONS = "report-in/sections.json"
+FACTS = "report-in/facts.json"
