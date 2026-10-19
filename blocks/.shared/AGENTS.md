@@ -1,0 +1,41 @@
+<!-- coldwrite:skip AI 向けの決まり。語は docs/design/README.md の頭の語の一覧で定義 -->
+# pack の共通の部品（`blocks/.shared/`）の決まり
+
+block の script と `src/` が Archon と出入りする口と、2 つ以上の block が使う指示の断片と port の形を置く。設計は `docs/design/README.md` の 4 章と 5 章。
+
+## 口を通さずに書けない物
+
+- 入力の読み: script は `os.environ.get("INPUTS_<名>")` を字のまま読み、`ports` の form の口（`text`・`flag`・`choice`・`json`・`file`）に渡す。名を組んで読まない。依頼の行は `requestrows.findings(raw)`（形の照らしと、知らない鍵・下書きの行の拒みまで）。
+- place: `ports.place()` だけ。run directory の根（Archon の環境変数）を script と `src/` に書かない。place は作るだけで消さない。block が消してよいのは、自分が名を持つファイルだけ（名で引く。`rejects-*.json` のような広い形で消さない）。ほかの block に渡すファイルは `ports.pointer(path)` で出力に入れる。
+- 指示: prep は `prompt.emit(node_id, values, when, prompt.round_of(node_id))`（組むだけなら `prompt.render`）だけで組む。md のパスも文も渡さない。前の回の却下は `with:` の `$LOOP_PREV` で受けず、place の却下の控え（`lib/rolekit` の `rejected(place, <名>)`）から全部を読む。
+- node の出力: `ports.returns(obj)`。落ちない node は `ports.run(compute, fallback)`。
+
+## `.shared` と `lib/` の分け
+
+- 2 つ以上の block が使う助けのうち、Archon の pointer（`{type: archon_artifact, run_id, path}`）・`INPUTS_`・place・node の実行の記録を解く所は、ここの口（`ports.py` か、ここの小さなモジュール）に置く。試験は `tests/blocks/shared/`。
+- 解いた後のパスや値を受けて中身（行・欄の意味）を返す所は `lib/` に置く（`lib/` は Archon を知らない。`lib/AGENTS.md` の E3）。試験は `lib/tests/`。`lib/` の今のモジュールは変えない。2 つ以上の block が使う新しいモジュールは足してよい（例 `lib/materialkit.py`）。
+- pointer の JSON を読んで行を返す助けは、pointer を解く所が `ports.json`・`ports.file` に既に在るので、ここに新しい口を足さない。script は `ports.json(raw, schema)` の値を渡し、行を取り出す所だけを `lib/` の新しいモジュールに置く（試験は `lib/tests/`）。
+- JSON を読む口は、先に `ports.json`・`lib/jsonfile.py` に無いかを見る。
+
+## 口の一覧
+
+- `ports.py`: `text(raw)`・`flag(raw)`・`choice(raw, words)`・`json(raw, schema)`（schema は block の `schemas/` の名か `shared:<名>`）・`file(raw)`・`parsed(raw)`・`picked(raw, names, optional=())`（names の欄が作り手の出力に無ければ `KeyError`。無くてよい欄は optional）・`unknown_keywords(shape)`・`place()`・`pointer(path)`・`returns(obj)`・`run(compute, fallback)`・`lib_root()`。import すると `lib/` が読めるようになる。
+- `ports.py` の、対象のコマンドを起こす block の口（`workflows/.shared/boundary.py` と同じ約束）: `RUNTIME_COPY`・`RUNTIME_COPY_PREFIX`・`RUNNER_PREFIXES`・`RUNNER_NAMES`・`drop_runner_env(user_env)`・`suite_keep()`。
+- 埋め: `ports.polyfill(name)`（`fence`・`childsweep`・`child_pointer`・`skip_value`）。組み込みで埋めをここへ移すまで、リポジトリの `workflows/.shared/` から読む。役の書き込みの柵（`fence`）は起動の殻が役の claude を包むので、block が import する物ではない（読むだけの役は YAML の `sandbox.filesystem.denyWrite` に印を書く。根の `workflows/AGENTS.md` の E7）。
+- `prompt.py`: `render(node_id, values, when)`・`emit(node_id, values, when, n)`・`round_of(node_id)`・`lang(raw)`・`PromptError`。
+- `requestrows.py`: `parts(raw)`・`findings(raw)`。依頼の行の port を読む口。
+
+## 置く物
+
+- `prompts/<name>.md`: 2 つ以上の block が使う指示の断片。md から `{shared:<name>}` で入れる。今在る名:
+  - `rejected`: 前の回の却下（中の口 `{rejection}`）。
+  - `query-rule`: 外への検索と出典の決まりの全部（名を出さない・どの出典を先に読むか）。役が web を引く時の決まりはここに足す。段落 `spawns` の真偽が要る（下請けを起こさない役は `spawns: false`）。役の定義と node の md は検索の決まりを書き直さず `{shared:query-rule}` で受け、断片を変えた時に取り込む md は直さない。断片の文だけを直す依頼は `prompts/query-rule.md` 1 本で閉じる。この一覧の行は断片の名や段落（`spawns`）が変わる時だけ直す。`tests/blocks/` に断片の字を照らす試験は無い（`tests/workflows/test_judge.py` の `QUERY_RULE` は旧の `lib/agents/judge.md` を照らす物で、作り直しの間は触らない）。
+  - `lang-default`: `lang` が空の時の言語の文（`prompt.lang` が読む）。
+  - 役の定義 5 本: `role-judge`・`role-blind-judge`・`role-cold-reader`・`role-inspector`・`role-investigator`。
+- 取り置いた断片の名（まだ置かない。最初に要った PR が、この名で足す）: `resubmit`・`policy`・`design-premises`・`unknown-asks`・`works-gh`・`material-status`・`material-na`・`material-where`・`material-readonly`・`handoff`・`report-head-check`。名は設計書の段で決め、ここに足す。
+- `schemas/<name>.schema.json`: 2 つ以上の block が使う port の形。今在る物: `request.schema.json`（依頼の行）。
+  - 形は `lib/graphloops/engine/schema.py` の `KNOWN_KEYWORDS` の語だけで書く（`type`・`enum`・`const`・`required`・`properties`・`patternProperties`・`additionalProperties`・`items`・`minItems`・`maxItems`・`minimum`・`maximum`・`minLength`・`maxLength`・`pattern`・`note`・`description`）。`anyOf`・`oneOf`・`format`・`$ref` などは照らしが効かないので、`ports.json` も形の検査も拒む。
+  - `required` は値が object の時だけ効く（`request.schema.json` は行の配列 `[]` を通す。空の依頼の扱いは block が決める）。
+  - 1 つの block の不具合は、その block の `src/` と `tests/blocks/<block>/` で閉じ、共通の形は直さない。
+- 埋め（Archon に無い物を外から補う部品）は組み込みで `workflows/.shared/` から移す。今は置かない。
+- 機械: `tests/layers/test_block_shape.py`・口の試験は `tests/blocks/shared/`。

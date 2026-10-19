@@ -1,0 +1,219 @@
+name: works-factory-guidance-path
+description: '案内の道の目（docs/design/guidance-path.md・README の 8.6）。文脈を持たない読み手に典型の変更の頼みだけを 1 つずつ渡し、リポジトリの入口から案内（AGENTS.md・設計書）と手本だけを頼りに辿らせ、どこに変更を置くか・何を写したかを記録する。置いた所が頼みの閉じるべき所の外なら、案内を見直す役が案内の直しを出す。単独の run でも、graph から include されても回る'
+inputs:
+  requests:
+    required: true
+    description: 'json(requests.schema.json): 頼みの一覧 [{id, request, closes}]。request は典型の変更の頼みの文（読み手にはこれだけを渡す）、closes はその頼みが閉じるべき所（作業ツリーの根からのファイルかフォルダのパス。置いた所が全部どれかの中なら当たり。新しい block は {new}（試験のフォルダは {new_}）で書き、全部が同じ名に結ばれ、その所がまだ無い時だけ当たる）。値そのものか pointer で渡す（パスでは受けない）'
+  entry: {default: '', description: 'text: 入口のファイル（作業ツリーの根からのパスを空白で区切る）。空は README.md と AGENTS.md'}
+  lang: {default: '', description: 'text: 人に見せる欄（why・change・stuck・guessed）の言語。空は頼みの言語'}
+returns: finish
+outcome_field: ok
+nodes:
+  - id: intake
+    script: intake
+    runtime: uv
+    mutates_checkout: false
+    output_format:
+      type: object
+      additionalProperties: false
+      required: [due, requests, reason]
+      properties:
+        due: {type: boolean}
+        requests: {type: integer}
+        reason: {type: string}
+  # 頼みごとに新しい会話の読み手を起こす（fresh_context: true。前の頼みで読んだ物が次の頼みに残らない）。1 周が頼み 1 つの 1 回で、
+  # 頼みごとに 3 回拒まれたら諦めて次へ進む。max_iterations は Archon が求める輪の上限で、頼みの数 × 3 回が収まる大きさにした
+  - id: walk-loop
+    depends_on: [intake]
+    when: $intake.output.due == true
+    loop_group:
+      max_iterations: 60
+      fresh_context: true
+      until_bash: done=$walk-accept.output.done; test "$done" = true
+      nodes:
+        - id: walk-prep
+          script: walk_prep
+          runtime: uv
+          mutates_checkout: false
+          output_format:
+            type: object
+            additionalProperties: false
+            required: [prompt]
+            properties: {prompt: {type: string, minLength: 1}}
+        - id: guidance-walk
+          prompt: "$walk-prep.output.prompt"
+          depends_on: [walk-prep]
+          model: '@wf-report'
+          settingSources: [user]
+          allowed_tools: [Read, Glob, Grep]
+          # 読み手に見せない所（src/steps.py の HIDDEN と同じ並び。Claude Code の Read の規則は Glob・Grep にも当たる）
+          denied_tools: ['Read(./blocks/guidance-path/**)', 'Read(./tests/blocks/guidance_path/**)', 'Read(./docs/design/guidance-path.md)',
+                         'Read(./.archon/**)']
+          mutates_checkout: false
+          sandbox: {enabled: true, allowUnsandboxedCommands: false}
+          idle_timeout: 1728000000
+          retry: {max_attempts: 2, on_error: all}
+          output_format:
+            type: object
+            required: [steps, placed, copied, stuck, guessed]
+            additionalProperties: false
+            properties:
+              steps:
+                type: array
+                items:
+                  type: object
+                  required: [file, why]
+                  additionalProperties: false
+                  properties: {file: {type: string, minLength: 1}, why: {type: string}}
+              placed:
+                type: array
+                items:
+                  type: object
+                  required: [path, change]
+                  additionalProperties: false
+                  properties: {path: {type: string, minLength: 1}, change: {type: string}}
+              copied:
+                type: array
+                items:
+                  type: object
+                  required: [path, why]
+                  additionalProperties: false
+                  properties: {path: {type: string, minLength: 1}, why: {type: string}}
+              stuck:
+                type: array
+                items: {type: string}
+              guessed:
+                type: array
+                items: {type: string}
+        - id: walk-accept
+          script: walk_accept
+          runtime: uv
+          mutates_checkout: false
+          depends_on: [guidance-walk]
+          with: {reply: $guidance-walk.output}
+          output_format:
+            type: object
+            additionalProperties: false
+            required: [ok, done, reason]
+            properties:
+              ok: {type: boolean}
+              done: {type: boolean}
+              reason: {type: string}
+  - id: compare
+    script: compare
+    runtime: uv
+    mutates_checkout: false
+    depends_on: [intake, walk-loop]
+    trigger_rule: all_done
+    output_format:
+      type: object
+      additionalProperties: false
+      required: [due, misses, reason]
+      properties:
+        due: {type: boolean}
+        misses: {type: integer}
+        reason: {type: string}
+  - id: fix-loop
+    depends_on: [compare]
+    when: $compare.output.due == true
+    loop_group:
+      max_iterations: 3
+      fresh_context: false
+      until_bash: done=$fix-accept.output.done; test "$done" = true
+      nodes:
+        - id: fix-prep
+          script: fix_prep
+          runtime: uv
+          mutates_checkout: false
+          output_format:
+            type: object
+            additionalProperties: false
+            required: [prompt]
+            properties: {prompt: {type: string, minLength: 1}}
+        - id: guidance-fix
+          prompt: "$fix-prep.output.prompt"
+          depends_on: [fix-prep]
+          model: '@wf-judge-core'
+          settingSources: [user]
+          allowed_tools: [Read, Glob, Grep]
+          mutates_checkout: false
+          sandbox: {enabled: true, allowUnsandboxedCommands: false}
+          idle_timeout: 1728000000
+          retry: {max_attempts: 2, on_error: all}
+          output_format:
+            type: object
+            required: [fixes]
+            additionalProperties: false
+            properties:
+              fixes:
+                type: array
+                items:
+                  type: object
+                  required: [request, kind, where, change, why]
+                  additionalProperties: false
+                  properties:
+                    request: {type: string}
+                    kind:
+                      type: string
+                      enum: [guide, model, block]
+                    where: {type: string, minLength: 1}
+                    change: {type: string, minLength: 1}
+                    why: {type: string, minLength: 1}
+        - id: fix-accept
+          script: fix_accept
+          runtime: uv
+          mutates_checkout: false
+          depends_on: [guidance-fix]
+          with: {reply: $guidance-fix.output}
+          output_format:
+            type: object
+            additionalProperties: false
+            required: [ok, done, reason]
+            properties:
+              ok: {type: boolean}
+              done: {type: boolean}
+              reason: {type: string}
+  - id: finish
+    script: finish
+    runtime: uv
+    mutates_checkout: false
+    depends_on: [compare, fix-loop]
+    trigger_rule: all_done
+    output_format:
+      type: object
+      additionalProperties: false
+      required: [ok, status, reason, paths, fixes, hits, misses, report]
+      properties:
+        ok: {type: boolean}
+        status:
+          type: string
+          enum: [ok, failed]
+        reason: {type: string}
+        paths:
+          anyOf:
+            - type: object
+              additionalProperties: false
+              required: [type, run_id, path]
+              properties:
+                type:
+                  type: string
+                  enum: [archon_artifact]
+                run_id: {type: string}
+                path: {type: string}
+            - {type: 'null'}
+        fixes:
+          type: array
+          items:
+            type: object
+            required: [request, kind, where, change, why]
+            properties:
+              request: {type: string}
+              kind: {type: string}
+              where: {type: string}
+              change: {type: string}
+              why: {type: string}
+        hits: {type: integer}
+        misses: {type: integer}
+        report:
+          type: array
+          items: {type: string}

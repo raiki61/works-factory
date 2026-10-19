@@ -1,0 +1,73 @@
+name: works-factory-policy-check
+description: '方針の文だけを入れる入口の graph（docs/design/world.md の 9 節）。方針の文（直し方の案）を世界の解で評価し、定石と違う所を先に並べて返す。承認ノードは持たない。事前審査の観点は、事前審査の block ができた時にその PR が足す'
+inputs:
+  policy:
+    required: true
+    description: 'text: 評価する方針の文（直し方の案）'
+  problem: {default: '', description: 'text: 何が困っているか（依頼の文）。空なら方針の文を依頼の行として使う'}
+  purpose: {default: '', description: 'text: 目的の 1 文。空は渡されていない'}
+  web: {default: 'on', description: 'choice(on|off): web で出典を探すか'}
+  lang: {default: '', description: 'text: 人に見せる欄の言語。空は依頼の言語'}
+returns: result
+outcome_field: ok
+nodes:
+  - id: policy-in
+    script: policy_in
+    runtime: uv
+    mutates_checkout: false
+    output_format:
+      type: object
+      additionalProperties: false
+      required: [request, means, purpose, web, lang]
+      properties:
+        request:
+          type: object
+          additionalProperties: false
+          required: [type, run_id, path]
+          properties:
+            type:
+              type: string
+              enum: [archon_artifact]
+            run_id: {type: string}
+            path: {type: string}
+        means:
+          type: array
+          items: {type: string}
+        purpose: {type: string}
+        web:
+          type: string
+          enum: ['on', 'off']
+        lang: {type: string}
+  - id: world
+    include: works-factory-world
+    depends_on: [policy-in]
+    with:
+      request: "$policy-in.output.request"
+      means: "$policy-in.output.means"
+      purpose: "$policy-in.output.purpose"
+      web: "$policy-in.output.web"
+      lang: "$policy-in.output.lang"
+  - id: result
+    script: result
+    runtime: uv
+    mutates_checkout: false
+    depends_on: [world]
+    trigger_rule: all_done
+    with:
+      world: {from: "$world.output", if_skipped: null}
+    output_format:
+      type: object
+      additionalProperties: false
+      required: [ok, world, holes, report]
+      properties:
+        ok: {type: boolean}
+        world:
+          anyOf:
+            - {type: object}
+            - {type: 'null'}
+        holes:
+          type: array
+          items: {type: object}
+        report:
+          type: array
+          items: {type: string}

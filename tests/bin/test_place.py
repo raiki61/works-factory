@@ -210,6 +210,13 @@ class WorkflowSourceTest(unittest.TestCase):
         self.assertEqual(files(place.pack_folder(self.pack, shim)), files(self.root / "workflows"))
         self.assertEqual([p.name for p in (shim / place.WORKFLOW_FOLDER).iterdir()], [self.pack["ours"]["pack"]])
 
+    def test_named_folder_is_read_as_the_pack(self):
+        """作り直しの間の 2 つ目の pack（blocks/）を選べる。置き場は指す先ごとに分かれる"""
+        write(self.root / "blocks/world/works-factory-world.yaml", b"name: works-factory-world\n")
+        shim = place.workflow_source(self.pack, self.root, self.cache, "blocks")
+        self.assertEqual(files(place.pack_folder(self.pack, shim)), files(self.root / "blocks"))
+        self.assertNotEqual(shim, place.workflow_source(self.pack, self.root, self.cache))
+
     def test_edits_in_the_repo_show_without_placing_again(self):
         shim = place.workflow_source(self.pack, self.root, self.cache)
         write(self.root / "workflows/line/added.yaml", b"added")
