@@ -8,7 +8,7 @@
   - 修正は TDD（先に落ちるテストを書き、直して通す）で進め、互いに触らない直しは別々の作業ツリー（枝）で並べて進める。
   - 独立の目は、直しを作った AI と別の AI が 4 つの観点（R1〜R4。中身は `docs/design/judge-eyes.md` の 2 章と `docs/design/r1.md`〜`r4.md`）で直しを確かめる段。
 - 土台: Archon（AI の処理をグラフにして YAML で書き、機械が順に回す道具）の、ASF と同じ開発中の源（止めた Archon（`docs/design/archon.md` の「語」））。書き方は、Archon の作者が作った SDLC のグラフの束 ASF（AI software factory）に寄せる。
-- 持ち主のエッセンスはグラフそのもの（どの確かめと役が在り、何をし、どの順でつながり、どこで人に聞くか）。Archon の書き方で `workflows/` に書く。script ノードが呼ぶ Python の助け手は、Archon を知らない `lib/` に置く。
+- 持ち主のエッセンスはグラフそのもの（どの確かめと役が在り、何をし、どの順でつながり、どこで人に聞くか）。Archon の書き方で `workflows/` に書く。観点 1 つを単独で回せる block（`workflows/<block>/`）にし、graph（メイングラフ `workflows/line/` など）が block をつなぐ（#765。型は `docs/design/README.md`）。1 つの block だけが使う Python はその block の `src/` に、2 つ以上の block が使う助け手は Archon を知らない `lib/` に置く。
 - 今の works（raiki61/claude-plugins の `works/`）と同じ能力に届いたら置き換える。
 
 ## 範囲の外
@@ -17,5 +17,5 @@
 - ASF のコードを写すこと。型（作りの考え）だけを採り、`docs/asf-notes.md` に書く。
 - ASF や Archon 同梱のグラフを `include`（別のグラフを取り込む Archon の書き方）すること。横に並べて見比べるだけ。
 - グラフの YAML を別の形から変換して作ること。YAML は手で書き、そのまま Archon に渡す。
-- 4 つの層の外の新しい層や仕組み。層は、人が打つ入口（`bin/`）・グラフ（`workflows/`）・Archon との境（`workflows/.shared/`）・助け手（`lib/`）。足すなら先に持ち主の決めを `docs/owner-decisions.md` に書く。
+- 層の外の新しい層や仕組み。層は、人が打つ入口（`bin/`）・graph と block（`workflows/`）・pack の共通の部品（`workflows/.shared/`）・助け手（`lib/`）で、地図は `docs/layers.json`。足すなら先に持ち主の決めを `docs/owner-decisions.md` に書く。
 - 特定の言語・テストの実行器に寄った確かめ。対象に依らない言い方で書く。
