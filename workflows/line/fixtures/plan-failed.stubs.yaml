@@ -107,18 +107,6 @@ judge__verdict:
   report: ['- 判定: 開いた単位 1']
   sections: []
   optional: []
-structure__measure: {eye: false, reason: ''}
-structure__finish:
-  ok: true
-  status: ok
-  reason: ''
-  structure: null
-  after: null
-  dirty: 0
-  escalate: 0
-  optional:
-  - {node: measure, bare: false}
-  report: ['- 構造: 汚れない']
 independent-design__intake: {due: false, status: '', reason: ''}
 independent-design__finish:
   ok: true

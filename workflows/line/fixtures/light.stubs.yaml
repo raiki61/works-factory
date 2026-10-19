@@ -236,36 +236,6 @@ fix__finish:
   item_claims: null
   freeze_off: []
   report: ['- 修正: 1 単位']
-lens__intake: {due: false, reason: '', silent_failure_hunter_go: false}
-lens__finish:
-  ok: true
-  status: ok
-  reason: ''
-  rows: {type: archon_artifact, run_id: dry-run, path: lens/rows.json}
-  ran: 1
-  failed: 0
-  not_routed: 0
-  carry: []
-  report: ['- レンズ: 1 本']
-  optional:
-  - {node: silent-failure-hunter, bare: false}
-delta-review__intake:
-  due: false
-  reason: ''
-  seal: {}
-delta-review__owed-1: {due: false, reason: ''}
-delta-review__cut-2: {due: false, reason: ''}
-delta-review__owed-2: {due: false, reason: ''}
-delta-review__finish:
-  ok: true
-  status: ok
-  reason: ''
-  rounds: 1
-  pass: true
-  holes: {type: archon_artifact, run_id: dry-run, path: delta-review/holes.json}
-  diff: {type: archon_artifact, run_id: dry-run, path: delta-review/diff.patch}
-  carry: []
-  report: ['- 差分の審査: 通った']
 parallel-pr-after__scan: {go_role: false, reason: ''}
 parallel-pr-after__finish:
   ok: true
@@ -328,42 +298,6 @@ eyes__structure-after__finish:
 eyes__after-in:
   after: {type: archon_artifact, run_id: dry-run, path: eyes/structure-after.json}
   why: ''
-eyes__r1__intake: {due: false, reason: ''}
-eyes__r1__finish:
-  ok: true
-  status: ran
-  reason: ''
-  verdict: {status: pass, reason: r1 は通した}
-  questions: []
-  report: ['R1: pass']
-eyes__r2__intake: {compare: false, premise: false, reason: ''}
-eyes__r2__finish:
-  ok: true
-  status: ran
-  reason: ''
-  verdict: {status: pass, reason: r2 は通した}
-  questions: []
-  report: ['R2: pass']
-  premise_check: null
-  notes: []
-eyes__r3__intake: {due: false, reason: ''}
-eyes__r3__finish:
-  ok: true
-  status: ran
-  reason: ''
-  verdict: {status: pass, reason: r3 は通した}
-  questions: []
-  report: ['R3: pass']
-eyes__r4__intake: {due: false, reason: ''}
-eyes__r4__finish:
-  ok: true
-  status: ran
-  reason: ''
-  verdict: {status: pass, reason: r4 は通した}
-  questions: []
-  report: ['R4: pass']
-  passes: []
-  coherence: null
 eyes__verdict:
   ok: true
   r1: {status: pass, reason: r1 は通した}

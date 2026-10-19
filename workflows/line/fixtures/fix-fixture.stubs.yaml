@@ -10,33 +10,6 @@ fixture:
 exec-code: true
 gate-start: {decision: approve, text: ''}
 gate-final: {decision: approve, text: ''}
-owed:
-  owed: true
-  why: ''
-  recorded: []
-  stop_reason: ''
-plan-out:
-  done: true
-  ok: true
-  status: ok
-  round: 1
-  plan_prior: null
-  record: null
-  plan: {type: archon_artifact, run_id: dry-run, path: plan/plan-fields.json}
-  fix_plan: {type: archon_artifact, run_id: dry-run, path: plan/fix-plan.json}
-  reply: null
-  handoffs: []
-  ripple: {type: archon_artifact, run_id: dry-run, path: plan/ripple.json}
-  owed: [u1]
-  gave_up: null
-  stalled: false
-  capped: false
-  review: null
-  asks: []
-  deviations: []
-  review_status: ok
-  review_reason: ''
-  stop_reason: ''
 fix__intake: {ok: false, whole: false, reason: ''}
 fix__fix-reads:
   ok: true

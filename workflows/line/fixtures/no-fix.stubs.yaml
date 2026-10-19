@@ -8,11 +8,6 @@ fixture:
 exec-code: true
 gate-start: {decision: approve, text: ''}
 gate-final: {decision: approve, text: ''}
-owed:
-  owed: true
-  why: ''
-  recorded: []
-  stop_reason: ''
 test-gate-base__intake: {ok: true, reason: ''}
 test-gate-base__run:
   by: engine
