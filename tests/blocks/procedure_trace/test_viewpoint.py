@@ -1,5 +1,4 @@
 """観点の宣言 blocks/procedure-trace/src/viewpoint.py のこの観点だけの中身（族の全部に当てる照らしは tests/blocks/materials/）"""
-import sys
 import unittest
 
 from tests.blocks import kit
@@ -16,12 +15,6 @@ class ViewpointCase(unittest.TestCase):
     def test_declaration(self):
         self.assertEqual((self.vp.MATERIALS, self.vp.GUARDED, self.vp.NA, self.vp.NA_PARAGRAPH, self.vp.NA_REASON),
                          (("procedure_trace",), False, "cond", True, "対象差分に手順書・スクリプト・CI 定義の変更が無い"))
-
-    def test_patterns_match_the_current_factory(self):
-        """組み込みまで同じ字が lib/judge_accept.py に 2 つ在るので、ずれを照らす。組み込みで lib の側が消える時にこの照らしを消す"""
-        sys.path.append(str(kit.ROOT / "lib"))
-        import judge_accept
-        self.assertEqual(self.vp.PROCEDURE_PATTERNS, judge_accept.PROCEDURE_PATTERNS)
 
     def test_applies_names_the_procedure_files(self):
         self.assertEqual(self.vp.procedure_files(self.view("src/a.txt", "docs/x.md", "run.sh", "run.sh")), ["docs/x.md", "run.sh"])
