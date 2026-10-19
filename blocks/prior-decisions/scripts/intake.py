@@ -12,11 +12,12 @@ sys.dont_write_bytecode = True
 sys.path[:0] = [str(Path(__file__).resolve().parents[2] / ".shared"), str(Path(__file__).resolve().parents[1])]
 import ports  # noqa: E402
 import materialkit  # noqa: E402  （lib/。ports を読むと lib/ が sys.path に入る）
+import requestrows  # noqa: E402
 from src import viewpoint  # noqa: E402
 
 values, unreadable = {}, []
 for name, read in (("base", lambda: ports.text(os.environ.get("INPUTS_BASE"))),
-                   ("request", lambda: ports.json(os.environ.get("INPUTS_REQUEST"), "shared:request.schema.json")),
+                   ("request", lambda: requestrows.findings(os.environ.get("INPUTS_REQUEST"))),
                    ("entry", lambda: ports.text(os.environ.get("INPUTS_ENTRY"))),
                    ("lang", lambda: ports.text(os.environ.get("INPUTS_LANG")))):
     try:

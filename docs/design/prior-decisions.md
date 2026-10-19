@@ -329,3 +329,4 @@ bin/works-factory <読ませるフォルダを blocks/ にする引数（名は�
 - （実装で決めた事）md に `{shared:query-rule}` を置かない（2.3 の 3 を外した）。訳: 土台の `role-investigator` が中に `{shared:query-rule}` を持つ（6 節の未確認の答え）。2 回入れると同じ決まりが 2 度届く。`spawns: false` は役の定義の中の段落のために渡す。
 - （実装で決めた事）宣言に `NA_PARAGRAPH = True` を足す（materials.md の 10.1）。
 - （実装で決めた事）筋書きは出口の `status` を照らせないので、`ran`・`gave_up` は `tests/blocks/prior_decisions/test_prior_decisions.py` が照らす（2.9 の筋書きの「`finish` の `status` が…」を試験へ移した。materials.md の 10.1）。
+- （実装で決めた事）`intake.py` は `request` を `ports.json` でなく土台の共通の口 `requestrows.findings` で読む（3 節の読み方を替えた）。訳: `blocks/.shared/AGENTS.md` の「依頼の行は `requestrows.findings(raw)`」。形の照らしに足して、前の run の下書きの行と知らない最上位の鍵を拒む（今の `carry.parts` と同じ）。prep の回の番号は `prompt.round_of(NAME)`（同じ AGENTS.md の決まり）。筋書きの `resolved-text-contains` は md の決まった文（役の 1 段落の頭の文）で照らす（形の検査 7.1 の 3）。

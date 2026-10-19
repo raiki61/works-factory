@@ -1,6 +1,6 @@
 # 単独の run: port の値だけで最後まで届く（始めの記録を読まない）。script は本当に走り、突合の役の返答だけを差し替える。
-# 判定から入る run（entry が在る）なので、依頼の行の where が指示の材料に入る。出口の status が ran になることは
-# tests/blocks/prior_decisions の試験が確かめる（筋書きは node の返りの欄を照らせない）
+# 指示が md から組まれたことを md の決まった文で照らす。依頼の行の where が材料に入ることと、出口の status が ran になることは
+# tests/blocks/prior_decisions の試験が確かめる（筋書きは値と node の返りの欄を照らさない）
 fixture:
   expect: completed
   reached: [intake, prior-decisions-prep, prior-decisions, prior-decisions-accept, finish]
@@ -10,7 +10,7 @@ fixture:
     entry: '人の依頼（standalone）'
     lang: ''
   resolved-text-contains:
-    prior-decisions: '"README.md"'
+    prior-decisions: 'You are the prior-decisions role, started in a new conversation.'
 exec-code: true
 prior-decisions:
   material:

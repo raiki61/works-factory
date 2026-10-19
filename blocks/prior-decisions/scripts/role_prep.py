@@ -14,5 +14,5 @@ import materialkit  # noqa: E402  （lib/。ports を読むと lib/ が sys.path
 from src import viewpoint  # noqa: E402
 import prompt  # noqa: E402
 
-values, when, n = materialkit.prompt_inputs(viewpoint, ports.place(), prompt.lang)
-ports.returns(prompt.emit(viewpoint.NAME, values, when, n))
+values, when, _ = materialkit.prompt_inputs(viewpoint, ports.place(), prompt.lang)
+ports.returns(prompt.emit(viewpoint.NAME, values, when, prompt.round_of(viewpoint.NAME)))

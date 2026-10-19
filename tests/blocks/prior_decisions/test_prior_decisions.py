@@ -111,6 +111,17 @@ class FlowCase(unittest.TestCase):
         self.assertIn("request", fin["reason"])
         self.assertEqual(self.material()["materials"]["prior_decisions"]["status"], "not_run")
 
+    def test_draft_rows_and_unknown_keys_are_refused(self):
+        """依頼の行は共通の口 requestrows で読む: 前の run の下書きの行（draft・source の欄）と知らない最上位の鍵を拒む"""
+        for raw in (json.dumps([{"where": "a.py", "text": "x", "draft": True, "source": "前の run"}]),
+                    json.dumps({"findings": [{"where": "a.py", "text": "x"}], "odd": 1})):
+            with self.subTest(raw=raw):
+                self.setUp()
+                self.assertFalse(self.intake(request=raw)["due"])
+                fin = self.finish()
+                self.assertEqual(fin["status"], "failed")
+                self.assertIn("request", fin["reason"])
+
     def test_lang_reaches_the_prompt(self):
         self.intake(lang="Japanese")
         self.assertIn("row in Japanese.", self.prep()["prompt"])
