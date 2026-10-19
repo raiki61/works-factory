@@ -391,7 +391,7 @@ class DesignCase(_Case):
         ask = prompt[prompt.index("## Independent design"):prompt.index("## What to look at")]
         for want in ("kind contract_drift, severity block", design.DRIFT_HEAD, design.UNPAIRED_HEAD, "「…」",
                      *(f"`{k}`" for k in design.ROW_QUOTE_KEYS), "design_map", "Design to plan", "`item`, `path`, and `symbol` null",
-                     "The synergy review and the bundler do not write it", "use 「」 only for quotes",
+                     "and the bundler (the role that starts the sub-agents) do not write it", "use 「」 only for quotes",
                      "Do not raise the implementation details", "Check that the plan weighed what already exists",
                      design.BODY_OPEN, design.BODY_CLOSE, "A point you cannot quote from the design does not count"):
             self.assertIn(want, ask, want)
