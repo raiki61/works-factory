@@ -6,7 +6,7 @@ inputs:
     description: 'choice(whole|group): 形。whole は graph から include された親（組ごとに自分を子の run として起こす。単独の run では Archon が先祖と同じ名の子を拒むので回らない）。group は組 1 つを直す（単独の run・子の run）'
   judgment:
     default: ''
-    description: 'json(judgment.schema.json): 判定（units・questions・precedents・framing などを持つ object）。whole と、out_dir の無い group では必須。out_dir の在る group（子の run）は親の写しを読むので空でよい'
+    description: 'json(shared:judgment.schema.json): 判定（units・questions・precedents・framing などを持つ object）。whole と、out_dir の無い group では必須。out_dir の在る group（子の run）は親の写しを読むので空でよい'
   plan:
     default: ''
     description: 'json(plan-fields.schema.json): 承認済みの修正案の欄の控え {fields}（凍結の印を付けて置く）。空は修正案の無い run'
@@ -18,7 +18,7 @@ inputs:
     description: 'json(answer-ties.schema.json): 依頼の答えを判定の問い・単位に結んだ行。null は結びが無い（字の一致だけ）'
   materials:
     default: 'null'
-    description: 'json(materials.schema.json): 判定の素材の状態（素材の名 → {status, …}）。null は無い'
+    description: 'json(fix-materials.schema.json): 判定の素材の状態（素材の名 → {status, …}）。null は無い'
   ripple:
     default: ''
     description: 'file: 波及の一覧（承認済みの修正案の項目が変える名の呼び出し元と試験）。空は無い'
@@ -27,16 +27,16 @@ inputs:
     description: 'json(skip-rerun.schema.json): 緑の後の試験の走らせ直し（TDD のループの test_cmd の関門と、組を当てた後の test_cmd）を省く単位の key の配列。空の配列は省かない'
   answers:
     default: 'null'
-    description: 'json(gate-answers.schema.json): 修正の前の承認ノードの答え {decision, text, asked}。null は聞いていない'
+    description: 'json(fix-answers.schema.json): 修正の前の承認ノードの答え {decision, text, asked}。null は聞いていない'
   request_answers:
     default: '[]'
-    description: 'json(request-answers.schema.json): 依頼のファイルが先に持っていた問いへの答えの行。空の配列は無い'
+    description: 'json(fix-request-answers.schema.json): 依頼のファイルが先に持っていた問いへの答えの行。空の配列は無い'
   unattended:
     default: 'false'
     description: 'flag: 無人の run か（判定の推しつきの fork・held を答えとして数える）'
   plan_review:
     default: 'null'
-    description: 'json(plan-review.schema.json): 事前審査の返答（faces・shrink）。修正役が plan_faces で穴と別案に答える。null は事前審査の無い run'
+    description: 'json(fix-plan-review.schema.json): 事前審査の返答（faces・shrink）。修正役が plan_faces で穴と別案に答える。null は事前審査の無い run'
   prior:
     default: 'null'
     description: 'json(carry.schema.json): 前の修正の段の申し送り（前の段の出力 carry の先 {conflicts, loops}）。2 回目の修正の段だけに渡す。null は 1 回目の段'

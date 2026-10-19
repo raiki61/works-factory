@@ -25,6 +25,8 @@
   RUNTIME_COPY・RUNTIME_COPY_PREFIX（Archon が run の作業ツリーに写す置き場。差分に数えない）・RUNNER_PREFIXES・RUNNER_NAMES・
   drop_runner_env(user_env)（Archon が script の node に立てる変数を落とす。先に印の置き場 user_env を立てる）・suite_keep()（TDD の
   実行器の取り置きの根。起動の殻が渡す）
+- shared_cache() -> Path | None: run をまたぐ控えの根（Archon が project ごとに渡す STATE_DIR の下の works-factory/。渡されなければ None で、
+  控えを使わない。workflows/.shared/boundary.py の shared_cache と同じ約束の写し）
 - polyfill(name): 埋め（workflows/.shared/<name>.py。fence・childsweep・child_pointer・skip_value）を読んだモジュール。組み込みで埋めを
   この pack の .shared/ へ移すまでの間だけ、リポジトリの根（WORKS_FACTORY_ROOT）から読む
 
@@ -50,6 +52,8 @@ RUNNER_NAMES = frozenset({
 })
 USER_ENV_RAN_DIR = "WORKS_FACTORY_USER_ENV_RAN_DIR"   # lib/userenv.py の RAN_DIR_ENV
 SUITE_KEEP_ENV = "WORKS_FACTORY_SUITE_KEEP"            # bin/_lib/launcher.py の SUITE_KEEP_ENV
+SHARED_CACHE_ENV = "STATE_DIR"                         # Archon が project ごとに渡す run をまたぐ置き場
+SHARED_CACHE = "works-factory"                         # その下の、この pack の控えのフォルダ
 ROOT_ENV = "WORKS_FACTORY_ROOT"
 PACK = Path(__file__).resolve().parents[1]
 SHARED = Path(__file__).resolve().parent
@@ -276,6 +280,11 @@ def drop_runner_env(user_env: str) -> None:
 def suite_keep() -> Path | None:
     keep = os.environ.get(SUITE_KEEP_ENV)
     return Path(keep) if keep else None
+
+
+def shared_cache() -> Path | None:
+    state = os.environ.get(SHARED_CACHE_ENV)
+    return Path(state) / SHARED_CACHE if state else None
 
 
 def polyfill(name: str):

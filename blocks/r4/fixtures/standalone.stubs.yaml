@@ -1,0 +1,18 @@
+# 単独の run: 元の目的の文だけで最後まで届く（base は既定の HEAD。script は本当に走り、AI の役の返答だけを差し替える）。
+# 返答は例の run（df5e111f）の形の pass（棚卸しは発火せず、方針とのぶつかりも無い）
+fixture:
+  expect: completed
+  reached: [intake, r4-scope-prep, r4-scope, r4-scope-accept, finish]
+  inputs:
+    purpose: 'commit のフックが、対象のテストのコマンドと同じ環境で走るようにする'
+  resolved-text-contains:
+    r4-scope: 'As the inspector: R4, the scope the change does not see.'
+exec-code: true
+r4-scope:
+  status: pass
+  reason: 'stub: 差分が手を付けていない横断のリスクは無い'
+  capability_inventory: {fired: false}
+  policy_conflicts: []
+  surfaced: []
+  seen: ['stub: README.md']
+  unseen: []

@@ -1,0 +1,18 @@
+{
+  "type": "array",
+  "items": {
+    "type": "object",
+    "required": [
+      "where",
+      "text"
+    ],
+    "properties": {
+      "where": {
+        "type": "string"
+      },
+      "text": {
+        "type": "string"
+      }
+    }
+  }
+}

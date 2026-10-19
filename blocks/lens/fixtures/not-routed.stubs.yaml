@@ -1,0 +1,7 @@
+# 差分が空の道: base を今の姿の HEAD にするので変わったファイルが無く、レンズは起きずに出口へ届く（出口は ok で not_routed の行を返す）
+fixture:
+  expect: completed
+  reached: [intake, finish]
+  inputs:
+    base: HEAD
+exec-code: true

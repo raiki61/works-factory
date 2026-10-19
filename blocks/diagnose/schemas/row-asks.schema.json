@@ -1,0 +1,15 @@
+{
+  "description": "頭の深さが依頼の行ごとに返した未知の種類の行の配列 [{item, unknown, cause_quote, where?, code_quote?}]",
+  "type": "array",
+  "items": {
+    "type": "object",
+    "required": ["item", "unknown", "cause_quote"],
+    "properties": {
+      "item": {"type": "integer"},
+      "unknown": {"type": "string"},
+      "cause_quote": {"type": "string"},
+      "where": {"type": "string"},
+      "code_quote": {"type": "string"}
+    }
+  }
+}

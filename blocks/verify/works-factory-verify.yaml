@@ -1,0 +1,68 @@
+name: works-factory-verify
+description: '判定の裏取りの block（docs/design/verify.md）。判定の開いた単位が 2 つ以上ある時、単位ごとに「直せば依頼の症状が消える根本か・判定の理由が言う事実がコードに在るか・key が名指す所が直す所か」を、判定役と別の目の下請けに確かめさせ、別の 1 つの下請けに単位どうしの重複・関わり・順番を見させる。束ね役が下請けを並べて起こし、機械が答えのファイルを型で確かめて申し送りにまとめる。単位は消さない・足さない。単独の run でも、graph から include されても回る'
+inputs:
+  judgment:
+    required: true
+    description: 'json(shared:judgment.schema.json): 受け付けを通った判定。欄 framing（字）・one_shot（字）・units（行の配列。行は key と label を持ち、disposition・reason・origin_analysis・why_chain・prescriptions を持ちうる）。開いた単位（label が block か、suggest で disposition が do-now）を確かめる'
+  lang: {default: '', description: 'text: 人に見せる欄（下請けの答えの evidence・location・why・real_root と、相乗りの答えの why）の言語。空は既定の文（依頼の言語）'}
+returns: finish
+outcome_field: ok
+nodes:
+  - id: prep
+    script: prep
+    runtime: uv
+    mutates_checkout: false
+    output_format:
+      type: object
+      additionalProperties: false
+      required: [go, prompt, reason]
+      properties:
+        go: {type: boolean}
+        prompt: {type: string}
+        reason: {type: string}
+  - id: judge-verify
+    prompt: "$prep.output.prompt"
+    depends_on: [prep]
+    when: "$prep.output.go == true"
+    model: '@wf-judge-core'
+    context: fresh
+    settingSources: [user]
+    allowed_tools: [Read, Grep, Glob, WebSearch, WebFetch, Agent, Write]
+    mutates_checkout: false
+    sandbox: {enabled: true, allowUnsandboxedCommands: false}
+    idle_timeout: 1728000000
+    retry: {max_attempts: 2, on_error: all}
+    output_format:
+      type: object
+      additionalProperties: false
+      required: [summary]
+      properties:
+        summary: {type: string, minLength: 10}
+  - id: finish
+    script: finish
+    runtime: uv
+    mutates_checkout: false
+    depends_on: [prep, judge-verify]
+    trigger_rule: all_done
+    output_format:
+      type: object
+      additionalProperties: false
+      required: [ok, status, stop_reason, reason, verify, report]
+      properties:
+        ok: {type: boolean}
+        status:
+          type: string
+          enum: [ok, failed]
+        stop_reason: {type: string}
+        reason: {type: string}
+        verify:
+          type: [object, 'null']
+          properties:
+            type:
+              type: string
+              enum: [archon_artifact]
+            run_id: {type: string}
+            path: {type: string}
+        report:
+          type: array
+          items: {type: string}

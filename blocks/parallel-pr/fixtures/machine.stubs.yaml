@@ -1,0 +1,9 @@
+# 機械が決める道: 筋書きの作業ツリー（tests/archon.py の対象）には remote が無いので、本物の scan は条件外（not_applicable）と機械が決めて
+# 役を起こさず、役の輪と読んだ証拠の node を通らずに出口へ届く。差し替えるのは AI の node だけで、scan・finish は本当に走る
+# （exec-code: true）。値の振る舞いは tests/blocks/parallel_pr の試験が見る
+fixture:
+  expect: completed
+  reached: [scan, finish]
+  inputs:
+    changed: '["a.py"]'
+exec-code: true

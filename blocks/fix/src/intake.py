@@ -12,10 +12,10 @@ import ports
 
 from src import files
 
-SCHEMAS = {"judgment": "judgment.schema.json", "plan": "plan-fields.schema.json", "fix_plan": "fix-plan.schema.json",
-           "answer_ties": "answer-ties.schema.json", "materials": "materials.schema.json",
-           "skip_rerun": "skip-rerun.schema.json", "answers": "gate-answers.schema.json",
-           "request_answers": "request-answers.schema.json", "plan_review": "plan-review.schema.json",
+SCHEMAS = {"judgment": "shared:judgment.schema.json", "plan": "plan-fields.schema.json", "fix_plan": "fix-plan.schema.json",
+           "answer_ties": "answer-ties.schema.json", "materials": "fix-materials.schema.json",
+           "skip_rerun": "skip-rerun.schema.json", "answers": "fix-answers.schema.json",
+           "request_answers": "fix-request-answers.schema.json", "plan_review": "fix-plan-review.schema.json",
            "prior": "carry.schema.json", "only_items": "only-items.schema.json", "group": "group.schema.json",
            "excluded": "excluded.schema.json"}
 FILES = ("ripple", "baseline", "policy", "request")

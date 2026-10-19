@@ -1,0 +1,22 @@
+# 単独の run: 凍結した目的の文だけで最後まで届く（base は既定の HEAD。script は本当に走り、2 つの AI の役の返答だけを差し替える）。
+# 返答は例の run（df5e111f）の形: 前段は候補 1 件・kept 1 件、2 段目は pass
+fixture:
+  expect: completed
+  reached: [intake, r1-comments-prep, r1-comments, r1-comments-save, r1-minimality-prep, r1-minimality, r1-minimality-save, finish]
+  inputs:
+    purpose: 'commit のフックが、対象のテストのコマンドと同じ環境で走るようにする'
+  resolved-text-contains:
+    r1-comments: 'You are a meticulous code comment analyzer with deep expertise in technical documentation and long-term code maintainability.'
+    r1-minimality: 'As the judge: R1 redundancy and minimality. Judge whether the cumulative diff is minimal, whether its prescriptions are justified, and whether the question ledger has become an escape route.'
+exec-code: true
+r1-comments:
+  candidates:
+    - {where: 'README.md:1', comment: '# 入口の説明', same_content_at: 'README.md の見出し', reason: 'stub: 見出しの言い直し'}
+  kept:
+    - {where: 'README.md:3', fact: 'stub: 既定の値を選んだ訳'}
+r1-minimality:
+  status: pass
+  reason: 'stub: 削る所も正当化の無い増分も無い'
+  deletions: []
+  ledger_audit: []
+  increments: []

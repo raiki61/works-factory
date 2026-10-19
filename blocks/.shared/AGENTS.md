@@ -19,7 +19,7 @@ block の script と `src/` が Archon と出入りする口と、2 つ以上の
 
 ## 口の一覧
 
-- `ports.py`: `text(raw)`・`flag(raw)`・`choice(raw, words)`・`json(raw, schema)`（schema は block の `schemas/` の名か `shared:<名>`）・`file(raw)`・`parsed(raw)`・`picked(raw, names, optional=())`（names の欄が作り手の出力に無ければ `KeyError`。無くてよい欄は optional）・`unknown_keywords(shape)`・`place()`・`pointer(path)`・`returns(obj)`・`run(compute, fallback)`・`lib_root()`。import すると `lib/` が読めるようになる。
+- `ports.py`: `text(raw)`・`flag(raw)`・`choice(raw, words)`・`json(raw, schema)`（schema は block の `schemas/` の名か `shared:<名>`）・`file(raw)`・`parsed(raw)`・`picked(raw, names, optional=())`（names の欄が作り手の出力に無ければ `KeyError`。無くてよい欄は optional）・`unknown_keywords(shape)`・`place()`・`pointer(path)`・`returns(obj)`・`run(compute, fallback)`・`lib_root()`・`shared_cache()`（run をまたぐ控えの根。`STATE_DIR` の下の `works-factory/`、渡されなければ None）。import すると `lib/` が読めるようになる。
 - `ports.py` の、対象のコマンドを起こす block の口（`workflows/.shared/boundary.py` と同じ約束）: `RUNTIME_COPY`・`RUNTIME_COPY_PREFIX`・`RUNNER_PREFIXES`・`RUNNER_NAMES`・`drop_runner_env(user_env)`・`suite_keep()`。
 - 埋め: `ports.polyfill(name)`（`fence`・`childsweep`・`child_pointer`・`skip_value`）。組み込みで埋めをここへ移すまで、リポジトリの `workflows/.shared/` から読む。役の書き込みの柵（`fence`）は起動の殻が役の claude を包むので、block が import する物ではない（読むだけの役は YAML の `sandbox.filesystem.denyWrite` に印を書く。根の `workflows/AGENTS.md` の E7）。
 - `prompt.py`: `render(node_id, values, when)`・`emit(node_id, values, when, n)`・`round_of(node_id)`・`lang(raw)`・`sub(name, values, when)`・`PromptError`。`sub` は block の `prompts/sub/<name>.md`（AI の node でない下請けに役が渡す頼み）を `render` と同じ決まりで組んだ字を返し、place には書かない（node の md の決まり 7.1 の 2 は `prompts/sub/` に掛からない）。
@@ -35,13 +35,18 @@ block の script と `src/` が Archon と出入りする口と、2 つ以上の
   - `policy`: 人の方針（中の口 `{policy_body}`）。方針を受ける役の全部が、段落の中で差し込む。
   - `resubmit`: 拒まれた後に、同じ会話の続きで拒まれた欄だけを返させる役の指示（中の口 `{rejection}`・`{candidate}`）。
   - `handoff`: 引き継ぎのメモの頼みと前の周のメモのセクション（中の口 `{handoff_rounds}`。段落 `handoff_rounds` の真偽が要る。報告の書き手と、plan の書き手が使う）。
+  - `recorded-policy`: 記録された方針（人か持ち主が決めた出どころの決まりと名指しの行。中の口 `{recorded_rows}`。段落 `recorded_none` の真偽が要る）。修正案の役が差し込む。目の外の block も使う（値は `lib/eyekit.py` の `recorded_rows_text` が組む）。
+  - `prior-failures`: 前の run で最後まで通らなかった物の行（中の口 `{prior_notes}`・`{prior_redesign}`。段落 `prior_notes`・`prior_redesign` の真偽が要る）。
+  - `unknown-asks`: 頭の深さの、依頼の行ごとの未知の種類と、種類ごとにすること（中の口 `{kind_none}`・`{kind_cause}`・`{kind_shape}`・`{kind_scope}`・`{unknown_rows}`・`{unknown_why}`。段落 `unknown_rows`・`unknown_none` の真偽が要る）。
   - `report-head-check`: 報告の頭の確かめの 2 段落（中の口 `{machine_heading}`。報告の block の初見の読み手だけが使う）。
   - 役の定義 5 本: `role-judge`・`role-blind-judge`・`role-cold-reader`・`role-inspector`・`role-investigator`。
   - `works-gh`: 読むだけの gh の口の使い方。
   - `writer-rules`: 作業ツリーを直す書き手の役の決まり（直し方・テストで赤→緑を示せない直しの証拠・食い違いの申し出・守ること）。段落 `conflict`（食い違いの申し出）・`evidence`（証拠の頭。4 つの種類のどれかが真の時）・`docs`・`prompts_kind`・`config`・`code`（証拠の 4 つの種類）・`where_fixer`・`where_tdd`・`where_rework`（証拠を書く場所。使う役の 1 つだけを真にする）の真偽が要る。
   - 素材の観点の族（docs/design/materials.md の 3.2）: `material-status`・`material-na`（段落 `na_never`・`na_cond_true`・`na_cond_false`・`na_judged`、中の口 `{na_why}`）・`material-where`・`material-readonly`。
-- 取り置いた断片の名（まだ置かない。最初に要った PR が、この名で足す）: `unknown-asks`。名は設計書の段で決め、ここに足す。
-- `schemas/<name>.schema.json`: 2 つ以上の block が使う port の形。今在る物: `request.schema.json`（依頼の行）・`constraints.schema.json`（前提の実測の行）。
+  - 目の外の block も使う物（docs/design/r1.md の 0.6）: `axis`（判断の 1 軸の 1 文）・`concept-map`（考えの住処の地図。段落 `maps_found` の真偽が要る。中は次の 2 本を選ぶだけ）・`concept-map-found`（中の口 `{concept_maps}`）・`concept-map-none`（中の口 `{map_tail}`）。値は `lib/eyekit.py` の `maps` が組む。`concept-map-found`・`concept-map-none` は段落の印を持たないので、段落の中に地図を置く md（r4 のまとめた形）はこの 2 本を自分の段落で選ぶ。
+  - 独立の目の族（docs/design/r1.md の 0.6。r1〜r4 だけが使う。どれも段落の印を持たないので、段落の中に置ける）: `eye-role`（役の 2 行目と 3 行目）・`eye-diff`（累積差分の 1 段落。中の口 `{diff_file}`・`{base}`・`{changed_files}`・`{repo}`。値は `eyekit.diff_values`）・`eye-frozen`（読むのはこの run に固定した作業ツリー）・`eye-green`（最後のテストの認証が通っていない 1 文。md は `<!-- if not green -->` の中に置く）・`eye-seen`（seen と unseen・status の 3 語。中の口 `{st_pass}`・`{st_redesign}`・`{st_unverifiable}`）・`eye-coherence`（R3 の観点の全部。`axis`・`eye-seen` を中に持ち、中の口 `{home_prefix}`・`{after_section}`・`{review_md}`・`{repo_review_md}`。地図は持たない）・`eye-policy`（`policy` とこの役の書く先 reason。md は `<!-- if policy -->` の中に置く）・`eye-recorded-policy`（目の 1 文と `recorded-policy`。段落の外に置く）。
+- 取り置いた断片の名（まだ置かない。最初に要った PR が、この名で足す）: 今は無い。
+- `schemas/<name>.schema.json`: 2 つ以上の block が使う port の形。今在る物: `request.schema.json`（依頼の行）・`constraints.schema.json`（前提の実測の行）・`purpose.schema.json`（固めた目的）・`units.schema.json`（判定が切った根本の単位の目録）・`plan-verdict.schema.json`（事前審査の最後の往復の結論）・`gate-answers.schema.json`（承認ノードの人の答え `{start, before_fix}`）・`pushes.schema.json`（無人の run が採った推しの文）・`fix-marks.schema.json`（修正の印）・`judgment.schema.json`（受け付けた判定。欄 `units`・`questions`）・`prior-failures.schema.json`（前の run で通らなかった物の行 `[{where, text}]`）。
   - 形は `lib/graphloops/engine/schema.py` の `KNOWN_KEYWORDS` の語だけで書く（`type`・`enum`・`const`・`required`・`properties`・`patternProperties`・`additionalProperties`・`items`・`minItems`・`maxItems`・`minimum`・`maximum`・`minLength`・`maxLength`・`pattern`・`note`・`description`）。`anyOf`・`oneOf`・`format`・`$ref` などは照らしが効かないので、`ports.json` も形の検査も拒む。
   - `required` は値が object の時だけ効く（`request.schema.json` は行の配列 `[]` を通す。空の依頼の扱いは block が決める）。
   - 1 つの block の不具合は、その block の `src/` と `tests/blocks/<block>/` で閉じ、共通の形は直さない。

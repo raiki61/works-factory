@@ -1,0 +1,14 @@
+# 再審の役の返答が拒まれた後の出し直し: 筋書きは輪を 1 周しか回さないので、1 周目の prep の返りを「出し直す」に差し替えて出し直しの役の
+# 道（出し直しの指示を組む prep・出し直しの役・受け付け）へ届かせる。出し直しの指示は本物の prep が md から組む。合わせる前の答えの控えが
+# 無いので受け付けは拒み、出口が status: failed・works:rejudge を返す
+fixture:
+  expect: completed
+  reached: [intake, rejudge-prep, rejudge-fix-prep, rejudge-fix, rejudge-accept, finish]
+  inputs:
+    objection: 修正役が、単位 stats.py mean の分母が 2 の固定値 の処方が 1 語足りないと言っている
+    prior: '{"units": [{"key": "stats.py mean の分母が 2 の固定値", "label": "block", "disposition": "do-now"}], "questions": [], "framing": "", "one_shot": "", "materials_missing": [], "carried_r1": [], "one_shot_closes": [], "precedents": []}'
+  resolved-text-contains:
+    rejudge-fix: "Your previous answer was rejected by the machine's check."
+exec-code: true
+rejudge-prep: {prompt: '', resubmit: true}
+rejudge-fix: {}
