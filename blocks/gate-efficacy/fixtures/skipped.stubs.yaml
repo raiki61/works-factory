@@ -1,0 +1,7 @@
+# 合流の道（gates が merge）: 役の node に届かず、素材は not_applicable で埋まって出口が status: skipped を返す
+fixture:
+  expect: completed
+  reached: [intake, finish]
+  inputs:
+    gates: merge
+exec-code: true
