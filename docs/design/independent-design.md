@@ -402,6 +402,24 @@ bin/works-factory <読ませるフォルダを blocks/ にする引数（名は�
 7. `purpose_review` が読めない時だけ落ちずに監査の無い形で進め、訳を控えに残す。根拠: 今の振る舞い（`_purpose_review`）を変えない。README 4.2 の「読めない pointer は落とす」は ports の口の決まりで、block がその誤りを捕まえて控えに名指して進むのは黙った緩めではない（持ち主の決め `no-silent-loosen` の「黙って」に当たらない）。
 8. 制約の `kind` の語「仮説」を md に `{hypothesis}` で入れ、値を `src/steps.py` に 1 つ置く。根拠: README 5.3（md と受け付け・データが同じ字を持つべき値は定数 1 つ）。語の正本は premises の block の出力の形で、その block の行の形のモジュールが lib に置かれたらそこから引く。
 9. prep は前の周の却下の理由を `$LOOP_PREV` で受けず、place の却下の控えから読む。根拠: 書いた時は、Archon が `with:` に貼った前の周の値をもう 1 度置き換える（今の裁定 R44）と読んだ。土台の PR が、止めた版は読み直さないと源で確かめ（README の 13 章）、それでも resume で却下が抜けないよう控えから読む形に決めた。world も同じ形（world.md の 9.1 の 6）。
+10. `constraints` の形は、土台の共通の形 `shared:constraints.schema.json` を使い、この block に `schemas/constraints.schema.json` を置かない（1.5 を直した）。根拠: 形のファイルの名は pack の中で 1 か所にしか置けない（`tests/layers/test_block_shape.py` の 5）。共通の形は `measured_how` が必須で `kind` が 実測／仮説 の二択と今の前提の実測の出力に合わせて厳しいが、独立設計の入力は前提の実測の block の出力そのものなので足りる。`{constraints: [...]}` の形のオブジェクトも読む。
+11. `answers.schema.json` は `anyOf` を使わず、説明だけの形にする（1.5 を直した）。根拠: `anyOf` は照らしの語（`KNOWN_KEYWORDS`）に無く、`ports.json` も形の検査も拒む。`{decision, text}` かその配列かの選びは `src/steps.py` の `answer_rows` が読み、`decision` を持たない行は答えの無い行として読む（今の `_answer_rows` と同じ）。
+12. standalone の筋書きは `exec-code: true` で、差し替えるのは AI の node `design` だけにする（12 節の「script の node も差し替える」を直した）。根拠: 7.1 の 3 が、筋書きの `resolved-text-contains` を prep が md から本当に組んだ指示に照らす（prep を差し替えると証にならない）。`gave-up` の筋書きは要素の無い返答を `design` に返させ、受け付けが 1 回拒む道を見る（筋書きの輪は 1 周で終わるので、3 回で諦める数えは試験が見る）。`unusable` は入口が本当に走る。
+13. 入口が消すのは、この block が名を持つファイルだけ（`intake.json`・`design-tree.json`・`design-premises.json`・`design.json`・`finish.json`・`rejects-r2.design.json`・`design-prompt-*.md`・`design-system-*.md`）。3 節の「place の中のファイルを全部消してから」を直した。根拠: block が消してよいのは自分が名を持つファイルだけ（`blocks/.shared/AGENTS.md`）。
+14. `r2_view` の `rules` は、`purpose_unusable` でなく、`design.named_sections` が引く `MD_LINK`・`_md_lines`・`_md_slugs`（`lib/boardview.py:151-176` の写し）を持つ（1.5 を直した）。目的が使えるかは `unusable(source, review)` が決める。根拠: 依頼の名指しの節を引く `design._named_targets`・`_section` は `b.rules` のこの 3 つを読む。
+15. 依頼のファイルが在らない・読めない時は、落とさず、`REQUEST_UNREAD` の行を控えの `withheld`（種類 `named_section`）に残して名指しの節を貼らない。方針のファイルが在らない時は port の読みの決まりで `failed`。根拠: 今は依頼のファイルが読めなくても独立設計は回る（`_request`）。1.2 と 3 節の「ほかの port が読めない時は failed」から依頼だけを外した。今は読めない訳の 1 行を名指しの節の見出しの下に貼っていたが、見出しと頼みの文が断片に移ったので貼らず、控えだけに残す（2.6 の「消した」と同じ向き）。
+16. 空の入力（空の字か `null`）は、`purpose_review`・`constraints`・`answers`・`request`・`policy` で、既定と同じ「無い」と読む。根拠: graph の `with:` は値の無い欄を空の字で渡しうる。`json` の口は空の字を拒むので、block が先に既定へ寄せる（黙って緩めるのでなく、1.2 の port の説明の「空は…」に書いた意味）。
+17. 日本語の md（1 つ目の commit）は今の `r2-design.md` と同じ字を並べ、`lang` の差し込み口と、裏取りを通っていない目的の判定の段落（`<!-- if stale -->`）は 2 つ目の commit の英語の md で入れる。1 つ目の commit では、その行は今のとおり `（無い）` を入れて常に載る。却下の段落の置き場（md の頭の `{shared:rejected}`）は 1 つ目の commit から変えた（今は役の定義の後の囲みの頭）。この違いは、指示の比べの試験が却下の無い値で照らすので、試験の外にある。
+18. `blocks/.shared/AGENTS.md` の断片の一覧に `design-premises`・`policy` を足し、取り置いた名から外した。
+19. 下げている所の行の字は `src/report.py` の定数に持ち、`lib/downgrades.json` の `r2.design` の行と同じ字であることを試験が突き合わせる（組み込みで `lib/downgrades.json` が消える時にこの試験も消す）。
+
+直すべき点（設計書・README）:
+
+- 1.5 の `schemas/constraints.schema.json`・`answers.schema.json` の書き方（10・11）。
+- 12 節の fixture の「どれも script の node も差し替え」（12）。
+- 1.5 の `r2_view` の `rules`（14）。
+- 3 節の「place の中のファイルを全部消してから」（13）。
+- `tests/e2e/evidence.json` の R36・P171 を新しい物に合わせる件は、この block の PR の外（e2e と `workflows/` に触る）なので、組み込みの PR で行う。
 
 ## 12 試験
 
