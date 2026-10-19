@@ -231,12 +231,27 @@ line が段ごとに引いた真偽の表 `verify_by_tier` を、head-depth が�
 - graph の筋書きは、include した block ごとに入口（`intake`・`scan`・`prep`）と出口（`finish`）の node を台本で差し替え、block の中を飛ばす（1.8 の「AI の node と loop の本体の script を差し替え」から変えた）。訳: dry-run は include の中の loop の本体に include の道を渡さない（README 13 節）ので、block の中の道は block 自身の筋書きが見る。止めた Archon の `workflow test` は使われない台本（`unusedStubs`）を外れにするので、走らない分岐の台本は置かない。spec-on の筋書きは仕様の承認ノードを通らない（承認ノードは spec の block の筋書きが見る）。
 - 試験の助け: `tests/blocks/kit.py` の `dry_run_traces` に include する block の名 `included` を足した（graph の筋書きは include 先と同じ木で回す）。`tests/layers/test_block_shape.py` の `ExistingRulesCase` は、graph のフォルダ（include を持つ物）について、今の `workflows/` の同じ名のサブグラフの役を名指す表 `KEEP_CHECKOUT` の行（`("judge", "judge-verify")`）が「工程に無い」と出る行だけを外す（graph は役を持たない。表の行は今の `workflows/judge` の物）。
 
+### 作る時に決めた事（eyes）
+
+- 「まま R4 を回した」の尾は r1 と r2 の行だけに足す（2.4 の「ほかの目」から狭めた）。訳: R4 が待つのは R1・R2 だけ（E8。2.3 の 6）で、R3 は R4 と並んで走るので「R3 が落ちたまま R4 を回した」は事実でない。今の `eyeverdict.collect` も尾を r1 と R2 の比べの行だけに足していた。
+- `merge` が真で r4 の出力に `coherence` の行が無い（r4 が返らなかった・行が壊れた）時は、`r3` を `unverifiable`・`eyekit.fell_text("r4", "まとめた R3 の行（coherence）が無い")` にする。
+- r1・r3・r4 の `after` は返し `after-in`（落ちない。structure after の `after` の pointer か `""`）から受ける。verdict は `run`・`merge`・`skip_why` を `ins` でなく graph の入力から読む（`ins` は落ちうるので `with:` で読まない。judge と同じ）。`skip_why` が空なら行は「訳が渡されていない」。
+- `after_ok` は structure after の受け皿の `ok`。偽なら `report` に「直した後の構造の実測が無い（<訳>）」の 1 行。`sections` は `merge` の run で r3 の節を置かない。`optional` は structure after が返した `optional` を `structure-after__` の頭で足す。
+- r4 の `trigger_rule` は 2.3 の 6 のまま `none_failed_min_one_success`（r1 の設計書の 0.11 は `all_done` と書く。依る node はどれも落ちない受け皿と返しなので、どちらでも r1・r2 が落ちた run で回る。`none_failed_min_one_success` は `after-in` が飛んだ run〔`ins` が落ちた〕で回らない）。
+- 形のファイル（2.2）の名: `eyes-fixes`・`eyes-scalars`・`eyes-design`・`eyes-design-premises`・`eyes-outcomes`・`eyes-tdd`・`eyes-asked`・`eyes-declared`・`eyes-intent`（中身は受ける block の形と同じ）。
+- 筋書きは judge と同じく、include した block の入口（structure は `measure`、r1〜r4 は `intake`）と出口（`finish`）を台本で差し替える。
+
 ## 4 未確認
 
 2 波目の設計書（diagnose・r1〜r4・verify）は、この設計書を書き終える前に置かれたので、配線はその 1.2 と 1.6 に合わせた（1.3 の 10・11、2.2・2.3）。残る物:
 
 - r1 の設計書の 0.11 の「目の判定の行が在る時の『まま R4 を回した』の尾」は graph に置いた（2.4）。r4 の出力に `coherence` の行が無い run（`merge` が偽）で `r3` が返らなかった時は、0.9 の `fell_text` で `unverifiable` にする。
 - verify の出力 `stop_reason` と、開いた単位が 2 つ未満で回さなかった時の `reason`（`verify_why` に写す）は、verify の設計書の 1.2 の形のまま読む。
+
+作った時に残った物（どれも include する block が main に入るのを待つ）:
+
+- judge の配線の yes/no のうち、include した block の `inputs:` を照らす物と、筋書き（dry-run）は、parallel-pr・素材の観点 7 本（purpose-review・local-review・hygiene・external-standards・procedure-trace・gate-efficacy）・diagnose・verify が `blocks/` に入るまで赤。作る時は、その block の設計書の 1.2 の port と出力の欄だけを持つ仮の block を作業の木の外に置いて、`archon validate` と全部の筋書きを通した（仮の block は置かない）。
+- eyes のまとめの中身（`src/verdict.py`）は `lib/eyekit`（r1 の PR が足す）を読む。eyes の入力の形のうち `shared:` の 5 本（`plan-verdict`・`gate-answers`・`fix-marks`・`pushes`・`units`）も r1 の PR が足す。それまで eyes の `VerdictCase`・verdict の script の試験・形の検査（7.1 の 5）・筋書きは赤。
 
 ほか:
 
