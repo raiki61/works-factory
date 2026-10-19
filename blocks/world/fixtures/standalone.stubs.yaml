@@ -9,7 +9,7 @@ fixture:
     means: '["read one environment variable for the folder"]'
     web: 'off'
   resolved-text-contains:
-    world-classes: 'You are the restater, started in a new conversation.'
+    world-classes: 'You are the restater.'
     world-judge-offline: 'The web is off for this run: do not search or fetch.'
 exec-code: true
 world-classes:

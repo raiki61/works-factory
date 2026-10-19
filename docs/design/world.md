@@ -102,7 +102,7 @@ md の本文の正本は `blocks/world/prompts/world-classes.md`。この設計�
 ### 2.5 描いた骨組み（例の run の値）
 
 ```markdown
-You are the restater, started in a new conversation. …（決まった文）
+You are the restater. …（決まった文）
 
 One core rule: **do not ask about … Ask how practitioners do this kind of work.**
 
@@ -184,7 +184,7 @@ md の中の `{id, url, excerpt}` は差し込み口の形（`{` の直後が小
 ```markdown
 {shared:query-rule の本文: Rules for queries to outside services …（7 行）}
 
-You are the web role, started in a new conversation. …（決まった文）
+You are the web role. …（決まった文）
 
 - Copy each excerpt word for word …（決まりの箇条 7 つ）
 

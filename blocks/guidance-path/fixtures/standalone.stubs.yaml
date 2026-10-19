@@ -7,7 +7,7 @@ fixture:
     requests: '[{"id": "add-check", "request": "Add one more check that an AI role answer must pass.", "closes": ["blocks/world/"]}]'
   resolved-text-contains:
     guidance-walk: 'You are a first-time contributor to this repository, started in a new conversation.'
-    guidance-fix: 'You are the guidance reviewer, started in a new conversation.'
+    guidance-fix: 'You are the guidance reviewer.'
 exec-code: true
 guidance-walk:
   steps:

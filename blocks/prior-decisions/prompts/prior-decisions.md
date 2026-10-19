@@ -4,7 +4,7 @@
 
 {shared:role-investigator}
 
-You are the prior-decisions role, started in a new conversation. Your only job is to check the target against earlier decisions. You are given neither the local findings nor any other material.
+You are the prior-decisions role. Your only job is to check the target against earlier decisions. You are given neither the local findings nor any other material.
 
 Your tools are Read, Grep, Glob, Bash, WebSearch, and WebFetch. Bash runs inside a sandbox, and its network is closed: it cannot reach any destination.
 

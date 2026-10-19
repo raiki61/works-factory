@@ -144,7 +144,7 @@ properties:
 ```markdown
 {shared:query-rule の本文: Rules for queries to outside services …（spawns の段落は入らない）}
 
-You are the purpose role, started in a new conversation. …
+You are the purpose role. …
 
 **Separate the purpose from the means.** …
 
@@ -247,7 +247,7 @@ Each row of `constraints` has … (`実測` or `仮説`) …
   3. `source_files` に、作業ツリーの根からの相対の正規形で版に在るファイルでない物が在る（`src/sourcefiles.py` の `errors`）→ 「source_files に作業ツリーの根からの相対の正規形で版に在るファイルでない物が在る: [<名>…]——出典にしたリポジトリの中のファイルを、…（依頼のファイルなどリポジトリの外の物・git が無視するファイルは書かない）」。git が動かない時は「source_files を確かめられない（…）」で拒む（『分からない』を合格に倒さない）。
   - どれも `Reject` を `accept.guard` が `{ok: false, reason}` にする。照らしは `accept.in_repo(repo)` の中で回す。
 - 受けた時: `split_means(reply)` で外した `means` の並びを先に `purpose-means.json` に `{"means": [...]}` で書き（並びが空でも書く。今の :1251-1254 と同じ結果）、最後に `means` を外した返答を `purpose.json` に書く（`purpose.json` が済んだ印）。
-- 回数: `rolekit.accept_round(place, "purpose", raw, take)`。受けた時は 1 回目でも `done` が true、拒んだ時は 3 回目の拒みで `done` が true になり、loop を抜ける。loop は `fresh_context: false` なので、2 回目からは同じ会話の続きで役が起きる（md の「started in a new conversation」は 1 回目の事で、2 回目からは却下の段落が頭に入る。今の md と同じ）。run は止めない。
+- 回数: `rolekit.accept_round(place, "purpose", raw, take)`。受けた時は 1 回目でも `done` が true、拒んだ時は 3 回目の拒みで `done` が true になり、loop を抜ける。loop は `fresh_context: false` なので、2 回目からは同じ会話の続きで役が起きる（md は「新しい会話で起きた」とは書かない。2 回目からは却下の段落が頭に入る）。run は止めない。
 - 諦めた時に出口へ書く物: `finish` が `status: failed`・`purpose: null`・`purpose_text: ""`・`source: ""`・`means: []`・`reason` に `rolekit.given_up_reason(place, "purpose")`（最後の拒みの文）・`report` に `目的の文: <reason>` を返す。
 
 ### 2.9 試験
@@ -352,7 +352,7 @@ bin/works-factory <読ませるフォルダを blocks/ にする引数（名は�
 ### 7.1 standalone の fixture（`blocks/purpose/fixtures/`）
 
 - 形は README の 13 章のとおり、`exec-code: true` で script を本当に走らせ、AI の node の返答だけを差し替える。入力はどれも `request: '[{"where": "stats.py:4", "text": "mean は 2 でなく 3 を返す。分母を len(xs) にする"}]'` だけ。
-- `standalone.stubs.yaml`: `expect: completed`・`reached: [intake, purpose-prep, purpose, purpose-accept, finish]`。prep は差し替えない。`resolved-text-contains` の `purpose` は md の決まった文（`You are the purpose role, started in a new conversation.`）。役の返答は `{purpose_text: 平均の関数が正しい値を返す, source: ②計画・タスク記述, known_weaknesses: [], source_files: [], means: [分母を len(xs) にする]}`。
+- `standalone.stubs.yaml`: `expect: completed`・`reached: [intake, purpose-prep, purpose, purpose-accept, finish]`。prep は差し替えない。`resolved-text-contains` の `purpose` は md の決まった文（`You are the purpose role.`）。役の返答は `{purpose_text: 平均の関数が正しい値を返す, source: ②計画・タスク記述, known_weaknesses: [], source_files: [], means: [分母を len(xs) にする]}`。
 - `frozen.stubs.yaml`: 筋書きの place は空なので、`intake: {due: false, reason: 目的は既に固めてある（purpose.json）}` と `finish`（`status: ok`）の返りを差し替えて、輪を通らずに出口へ届く配線だけを見る。`reached: [intake, finish]`。固めた目的を読む道は `FinishCase` が見る。
 - `gave-up.stubs.yaml`: 役の返答だけを差し替え、`source_files` に版に無いファイルを返させる。`reached: [intake, purpose-prep, purpose, purpose-accept, finish]`・`expect: completed`。筋書きは輪を 1 周で終えるので、3 回で諦める数えは `FinishCase` が見る。
 
