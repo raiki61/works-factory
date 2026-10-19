@@ -404,8 +404,11 @@ class CoherenceCase(_RepoCase):
         text = self.prep()["prompt"]
         for want in ("R3 overall coherence, in this same conversation", "You do not look at R1 or R2; other roles do",
                      "Where concepts live", "Map of where concepts live", "(none at the root of the target repository)",
-                     "For R3, a conflict with the policy is judged by R3: write the item it conflicts with in `r3.reason`"):
+                     "For R3, a conflict with the policy is judged by R3: write the item it conflicts with in `r3.reason`",
+                     "First look at R3 and write `r3`, then look at R4."):
             self.assertIn(want, text)
+        self.assertLess(text.index("R3 overall coherence, in this same conversation"), text.index("Map of where concepts live"))
+        self.assertLess(text.index("Map of where concepts live"), text.index("As the inspector: R4"))
         r3 = {**R3, "status": "redesign-needed", "reason": "文書が古い"}
         self.assertTrue(self.accept({**PASS, "r3": r3})["ok"])
         done = self.finish()

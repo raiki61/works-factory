@@ -27,6 +27,28 @@ The rows below are blocks that the plan's review raised and the fixer answered i
 {declared}
 <!-- end declared -->
 
+<!-- if coherence -->
+---
+
+## R3 overall coherence, in this same conversation
+
+In this same conversation you look at two viewpoints: R3 (this section) and R4 (after it). First look at R3 and write `r3`, then look at R4. You do not look at R1 or R2; other roles do (R1 catches the most holes that do not overlap with the other eyes, and R2 would be biased if it saw the conclusions of the other viewpoints). Look at each viewpoint by its own rules, and do not skip either. Apply the role definition above to a viewpoint only while you are looking at that viewpoint.
+
+- Write the R3 answer (`status`, `reason`, `seen`, `unseen`) in the field `r3`, and the R4 answer in the top-level fields of your reply.
+- Choose `status` for each viewpoint separately, by that viewpoint's own rule; do not match the label of the other viewpoint.
+- You may write what you found under one viewpoint in the fields of the other viewpoint too; when you do, write it by the rule of the viewpoint you write it to.
+- For R3, a conflict with the policy is judged by R3: write the item it conflicts with in `r3.reason` (the `policy_conflicts` rule is R4's only).
+- The reason the machine's check rejected your R4 answer is given in this conversation (in the section "Why your previous answer was rejected", or in the message that asks you to resubmit).
+
+{shared:eye-coherence}
+<!-- end coherence -->
+<!-- if coherence_map -->
+{shared:concept-map-found}
+<!-- end coherence_map -->
+<!-- if coherence_nomap -->
+{shared:concept-map-none}
+<!-- end coherence_nomap -->
+
 ---
 
 As the inspector: R4, the scope the change does not see. Look for the cross-cutting risks that hide not inside the diff but in the area the diff is trying to solve, and that the change did not touch (several lenses: SRE, security, data governance).
@@ -51,26 +73,6 @@ Rows already passed at the approval node before the fix (a person's answer, or t
 Split the risks by whether this change introduced or exposed them. A risk this change introduced or exposed is redesign-needed. A risk that is purely pre-existing and unrelated you only list in `surfaced` at [suggest] or lighter, and it does not stop a pass. `surfaced` is the list of risks that are not fixed but only told to a person: one entry per risk, with `where` (the place) and `text` (what is risky), and, when known, `mechanism` (how it happens), `measured` (a measurement), and `false_positive_if` (the condition under which it would be a false positive). "[suggest] or lighter" means the finding label (heaviest first: block, suggest, nit, info) is suggest or lighter, so it passes without being fixed. Put the label at the head of `text`, like [suggest]; never use [block].
 
 {shared:eye-seen}
-
-<!-- if coherence -->
-## R3 overall coherence, in this same conversation
-
-In this same conversation you look at two viewpoints: R4 (above) and R3 (below). You do not look at R1 or R2; other roles do (R1 catches the most holes that do not overlap with the other eyes, and R2 would be biased if it saw the conclusions of the other viewpoints). Look at each viewpoint by its own rules, and do not skip either. Apply the role definition above to a viewpoint only while you are looking at that viewpoint.
-
-- Write the R3 answer (`status`, `reason`, `seen`, `unseen`) in the field `r3`, and the R4 answer in the top-level fields of your reply.
-- Choose `status` for each viewpoint separately, by that viewpoint's own rule; do not match the label of the other viewpoint.
-- You may write what you found under one viewpoint in the fields of the other viewpoint too; when you do, write it by the rule of the viewpoint you write it to.
-- For R3, a conflict with the policy is judged by R3: write the item it conflicts with in `r3.reason` (the `policy_conflicts` rule is R4's only).
-- The reason the machine's check rejected your R4 answer is given in this conversation (in the section "Why your previous answer was rejected", or in the message that asks you to resubmit).
-
-{shared:eye-coherence}
-<!-- end coherence -->
-<!-- if coherence_map -->
-{shared:concept-map-found}
-<!-- end coherence_map -->
-<!-- if coherence_nomap -->
-{shared:concept-map-none}
-<!-- end coherence_nomap -->
 
 {shared:eye-frozen}
 

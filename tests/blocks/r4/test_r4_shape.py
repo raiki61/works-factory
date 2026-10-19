@@ -156,6 +156,8 @@ class TextCase(unittest.TestCase):
         coherence = text[text.index("<!-- if coherence -->"):text.index("<!-- end coherence -->")]
         self.assertIn("{shared:eye-coherence}", coherence)
         self.assertNotIn("{shared:concept-map", coherence)
+        self.assertLess(text.index("<!-- end coherence_nomap -->"), text.index("As the inspector: R4"),
+                        "まとめた形の R3 と地図の節は R4 の本文の前（旧 eyes-one の順。docs/design/r4.md の 9 の 16）")
 
     def test_both_prompts_end_with_the_language_and_json(self):
         self.assertIn("{lang}", md("r4-scope").rstrip().splitlines()[-2])
