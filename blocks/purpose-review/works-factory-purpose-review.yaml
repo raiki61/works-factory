@@ -5,7 +5,7 @@ description: >-
   の形）。単独の run でも、判定のまとめから include されても動く
 inputs:
   base: {default: "", description: "text: 対象差分の根の commit（対象差分は、この commit から作業ツリーの今の姿まで。未追跡の新しいファイルも入る）。空は HEAD"}
-  purpose: {default: "null", description: "json(purpose.schema.json): 固めた目的 {purpose_text, source, known_weaknesses, source_files}。null は目的の文がこの run に無い"}
+  purpose: {default: "null", description: "json(shared:purpose.schema.json): 固めた目的 {purpose_text, source, known_weaknesses, source_files}。null は目的の文がこの run に無い"}
   entry: {default: "", description: "text: 判定から入る run の出どころの文（例「人の依頼（/path/req.json）」）。空は判定から入る run でない"}
   lang: {default: "", description: "text: 人に見せる欄（reason、findings の text）の言語。空は依頼の言語"}
 returns: finish

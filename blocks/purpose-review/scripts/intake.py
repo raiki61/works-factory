@@ -16,7 +16,7 @@ from src import viewpoint  # noqa: E402
 
 values, unreadable = {}, []
 for name, read in (("base", lambda: ports.text(os.environ.get("INPUTS_BASE"))),
-                   ("purpose", lambda: ports.json(os.environ.get("INPUTS_PURPOSE"), "purpose.schema.json")),
+                   ("purpose", lambda: ports.json(os.environ.get("INPUTS_PURPOSE"), "shared:purpose.schema.json")),
                    ("entry", lambda: ports.text(os.environ.get("INPUTS_ENTRY"))),
                    ("lang", lambda: ports.text(os.environ.get("INPUTS_LANG")))):
     try:

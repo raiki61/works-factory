@@ -62,7 +62,11 @@ class FlowCase(unittest.TestCase):
         cases = ((GOOD, ""),
                  (reply(("どこにも無い字列", 1)), "'どこにも無い字列' が現物に 1 件も無い"),
                  (reply(("件数は 3 件", 2)), "'件数は 3 件' の件数の申告 2 が数え直し 1 と違う"),
-                 (reply(), "『狭めている』のに findings が空"))
+                 (reply(), "『狭めている』のに findings が空"),
+                 (reply(("件数は 3 件\n件数", 1)), "cite に改行が入っている"),
+                 (reply(("  ", 1)), "cite（作業ツリーで引ける字列）が空"),
+                 (reply(("件数\0", 1)), "NUL が入っている"),
+                 ({**GOOD, "findings": ["件数は 3 件"]}, "素の文字列は受け取らない"))
         for got, why in cases:
             with self.subTest(why=why):
                 self.setUp()
@@ -77,6 +81,17 @@ class FlowCase(unittest.TestCase):
                     self.assertEqual(done, {"ok": True, "done": True, "reason": ""})
                     accepted = json.loads((self.run.artifacts / "accepted.json").read_text(encoding="utf-8"))
                     self.assertEqual(accepted["reply"], GOOD)
+
+    def test_an_unresolvable_review_version_is_rejected_not_passed(self):
+        self.assertTrue(self.intake()["due"])
+        self.prep()
+        path = self.run.artifacts / "intake.json"   # accept が固めた版を読むのは入口の控え（view.json は人が読む写し）
+        doc = json.loads(path.read_text(encoding="utf-8"))
+        doc["view"]["review_rev"] = "0123456789abcdef0123456789abcdef01234567"
+        path.write_text(json.dumps(doc, ensure_ascii=False), encoding="utf-8")
+        done = self.accept(GOOD)
+        self.assertFalse(done["ok"], done)
+        self.assertIn("採点する版 0123456789ab を解決できない", done["reason"])
 
     def test_a_good_reply_reaches_the_material(self):
         self.assertTrue(self.intake()["due"])
@@ -212,7 +227,7 @@ class ViewpointCase(unittest.TestCase):
         loop = next(n for n in doc["nodes"] if n["id"] == LOOP)["loop_group"]["nodes"]
         role = next(n for n in loop if n["id"] == NAME)
         self.assertEqual(list(self.vp.VERDICTS), role["output_format"]["properties"]["verdict"]["enum"])
-        schema = json.loads((BLOCK / "schemas" / "purpose.schema.json").read_text(encoding="utf-8"))
+        schema = json.loads((kit.SHARED / "schemas" / "purpose.schema.json").read_text(encoding="utf-8"))
         self.assertIn(self.vp.WRITER_SOURCE, schema["properties"]["source"]["enum"])
         steps = kit.load("purpose", "steps")
         self.assertEqual(self.vp.WRITER_SOURCE, steps.WRITER_SOURCE)
