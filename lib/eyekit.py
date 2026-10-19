@@ -7,6 +7,7 @@
 - diff_values(diff): 断片 eye-diff の値 {diff_file, changed_files, base, repo}
 - maps(repo): 断片 concept-map の値と段落の真偽 ({concept_maps, map_tail}, found)
 - review_md(repo): (工場の観点の正本 lib/REVIEW.md の絶対パス, 対象の根の REVIEW.md の絶対パスか "")
+- review_md_values(repo): 断片 eye-coherence の値 {review_md, repo_review_md}（対象の根に REVIEW.md が無ければ NO_REPO_REVIEW_MD）
 - after_section(after_file, review)・review_line(review): R1・R3 の頭に貼る直した後の実測の材料と、事前審査の最後の往復の結論の 1 行
 - human_items(answers): 承認ノードの答え {start, before_fix} を記録の行 {round, node, answer, note, …} に
 - policy_start(policy_file, request_answers)・policy_body(policy_file): lib/policy.py の口に渡す最小の始めの記録と、断片 policy の本文
@@ -51,6 +52,7 @@ REVIEW_NOT_GIVEN = "事前審査の往復の結論が渡されていない"
 LANE = {"r1": "R1", "r2": "R2", "premise-check": "R2", "r3": "R3", "r4": "R4"}
 NO_MAP_TREE = " (the tree could not be read: {why})"   # 断片 concept-map-none の {map_tail}（木を読めなかった訳）
 MORE_MAPS = "- and {n} more"                          # 地図が MAX_MAPS を越えた分の行
+NO_REPO_REVIEW_MD = "(none at the root of the target repository)"   # 元 prep.py:122 の「対象のリポジトリの根に REVIEW.md は無い」
 
 
 # ---------------------------------------------------------------- 累積差分
@@ -96,6 +98,13 @@ def review_md(repo) -> tuple[str, str]:
     return materialkit.review_md_paths(repo)
 
 
+def review_md_values(repo) -> dict:
+    """断片 eye-coherence の値 {review_md, repo_review_md}。対象の根に REVIEW.md が無ければ repo_review_md は NO_REPO_REVIEW_MD
+    （元 prep.py:122。R3 と、R3 をまとめて見る R4 が使う）"""
+    own, theirs = review_md(repo)
+    return {"review_md": own, "repo_review_md": theirs or NO_REPO_REVIEW_MD}
+
+
 # ---------------------------------------------------------------- 直した後の実測と事前審査の結論
 def review_line(review) -> str:
     """元 eyeverdict.plan_review_line を、事前審査の置き場を読む代わりに port review の値 {round, verdict, blocks, why} で組む形"""
@@ -113,7 +122,9 @@ def review_line(review) -> str:
         return REVIEW_HELD.format(k=k, outcome=why)
     if verdict == "design":
         return REVIEW_UNREAD.format(why=REVIEW_NO_PLAN)
-    return REVIEW_UNREAD.format(why=why or f"結論の語が約束の外（{verdict!r}）")
+    if verdict == "unread":
+        return REVIEW_UNREAD.format(why=why)
+    return REVIEW_UNREAD.format(why=f"結論の語が約束の外（{verdict!r}）")
 
 
 def after_section(after_file, review) -> str:
@@ -149,8 +160,9 @@ def policy_start(policy_file, request_answers) -> dict:
 
 
 def policy_body(policy_file) -> str:
-    """断片 policy の {policy_body}。policy.PASTE_CAP バイトまで（超えた分は写しのパスを末尾に書く）。方針の文書が無ければ空の字"""
-    if not policy_file:
+    """断片 policy の {policy_body}。policy.PASTE_CAP バイトまで（超えた分は写しのパスを末尾に書く）。方針の文書が無い・読めなければ
+    空の字（元 policy.section と同じく節ごと貼らない）"""
+    if not policy_file or not pathlib.Path(policy_file).is_file():
         return ""
     return policy.brief(policy_start(policy_file, []))["paste"]
 

@@ -109,7 +109,8 @@ class AfterCase(_Tmp):
         """test_r1_head_carries_after_counts の控えが無い半分"""
         self.assertEqual(eyekit.after_section(None, {}), eyekit.NO_AFTER)
         self.assertEqual(eyekit.after_section(self.tmp / structmark.AFTER_FILE, {}), eyekit.NO_AFTER)
-        self.assertIn("structure-after.json でない", eyekit.after_section(self.tmp / "other.json", {}))
+        self.assertEqual(eyekit.after_section(self.tmp / "other.json", {}), eyekit.AFTER_MISNAMED.format(path=self.tmp / "other.json"))
+        self.assertIn("structure-after.json でない", eyekit.AFTER_MISNAMED)
 
     def test_counts_only_without_deviations(self):
         """test_r1_head_carries_after_counts: 外れの訳の無い run は数の 1 文だけ（事前審査の行も載せない）"""
@@ -136,10 +137,21 @@ class AfterCase(_Tmp):
             ({"round": 3, "verdict": "design"}, eyekit.REVIEW_UNREAD.format(why=eyekit.REVIEW_NO_PLAN)),
             ({"round": 3, "verdict": "unread", "why": "往復の案が別の周"}, eyekit.REVIEW_UNREAD.format(why="往復の案が別の周")),
             ({}, eyekit.REVIEW_UNREAD.format(why=eyekit.REVIEW_NOT_GIVEN)),
+            ({"round": 3, "verdict": "maybe", "why": "x"}, eyekit.REVIEW_UNREAD.format(why="結論の語が約束の外（'maybe'）")),
         ]
         for review, want in cases:
             with self.subTest(review.get("verdict")):
                 self.assertEqual(eyekit.review_line(review), want)
+
+
+class ReviewMdCase(_Tmp):
+    def test_repo_review_md_says_when_the_target_has_none(self):
+        """test_prep_pastes_the_premises_and_names_the_target_review_md の REVIEW.md の半分（r3 と r4 のまとめた形が使う）"""
+        got = eyekit.review_md_values(self.tmp)
+        self.assertEqual(got, {"review_md": eyekit.review_md(self.tmp)[0], "repo_review_md": eyekit.NO_REPO_REVIEW_MD})
+        (self.tmp / "REVIEW.md").write_text("# 観点\n", encoding="utf-8")
+        self.assertEqual(pathlib.Path(eyekit.review_md_values(self.tmp)["repo_review_md"]), (self.tmp / "REVIEW.md").resolve())
+        self.assertTrue(pathlib.Path(eyekit.review_md_values(self.tmp)["review_md"]).is_file())
 
 
 class HumanItemsCase(unittest.TestCase):
@@ -160,6 +172,7 @@ class PolicyCase(_Tmp):
         doc.write_text("方針の第 1 項\n", encoding="utf-8")
         self.assertEqual(eyekit.policy_body(doc), "方針の第 1 項\n")
         self.assertEqual(eyekit.policy_body(None), "")
+        self.assertEqual(eyekit.policy_body(self.tmp / "gone.md"), "")
         doc.write_bytes(b"a" * (policy.PASTE_CAP + 10))
         got = eyekit.policy_body(doc)
         self.assertLessEqual(len(got.encode("utf-8")), policy.PASTE_CAP)
