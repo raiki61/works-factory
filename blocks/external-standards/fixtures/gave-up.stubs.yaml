@@ -1,0 +1,23 @@
+# 外部標準照合の役の返答が受け付けを通らない道（diff_at が ranked に無い）: run は止めず、出口が落ちずに返る。筋書きでは輪が
+# 1 周で終わるので却下は 1 回で、3 回で諦めて出口が status: gave_up を返す数えは tests/blocks/external_standards の試験が確かめる
+fixture:
+  expect: completed
+  reached: [intake, external-standards-prep, external-standards, external-standards-accept, finish]
+  inputs:
+    purpose: '{"purpose_text":"設定ファイルの読み込みを速くする変更","source":"①PR 説明","known_weaknesses":[],"source_files":[]}'
+  resolved-text-contains:
+    external-standards: 'この役は外部標準照合の役（investigator。作る前に既製の定番解が無いかを疑う目）。'
+exec-code: true
+external-standards:
+  material:
+    status: clean
+    checked: the dependencies the diff imports
+  findings: []
+  seen: the touched files
+  unseen: nothing
+  web_refetched: true
+  rankings:
+    - problem: parsing a configuration file
+      source: 'the language documentation, section "Configuration files"'
+      ranked: [use the standard parser]
+      diff_at: hand-written splitting on separators

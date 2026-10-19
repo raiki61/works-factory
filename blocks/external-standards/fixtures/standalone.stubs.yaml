@@ -1,0 +1,27 @@
+# 単独の run: port の値だけで最後まで届く（始めの記録を読まない）。script は本当に走り、外部標準照合の役の返答だけを差し替える。
+# 指示が md から組まれたことを md の決まった文で照らす。出口の status が ran になることは tests/blocks/external_standards の試験が
+# 確かめる（筋書きは値と node の返りの欄を照らさない）
+fixture:
+  expect: completed
+  reached: [intake, external-standards-prep, external-standards, external-standards-accept, finish]
+  inputs:
+    base: ''
+    purpose: '{"purpose_text":"設定ファイルの読み込みを速くする変更","source":"①PR 説明","known_weaknesses":[],"source_files":[]}'
+    entry: ''
+    lang: ''
+  resolved-text-contains:
+    external-standards: 'この役は外部標準照合の役（investigator。作る前に既製の定番解が無いかを疑う目）。'
+exec-code: true
+external-standards:
+  material:
+    status: clean
+    checked: the dependencies the diff imports and the declared plugins
+  findings: []
+  seen: the touched files and the dependencies they import
+  unseen: nothing outside the touched area
+  web_refetched: true
+  rankings:
+    - problem: parsing a configuration file
+      source: 'the language documentation, section "Configuration files": prefer the standard parser'
+      ranked: [use the standard parser]
+      diff_at: use the standard parser
