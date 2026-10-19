@@ -1,0 +1,3 @@
+{
+  "description": "人が承認ノードで返した答え {decision, text} か、その配列。null と空の配列は答えが無い。形は照らしの語（anyOf は使えない）で書けないので、decision を持たない行は src/steps.py の answer_rows が無い物として読む"
+}
