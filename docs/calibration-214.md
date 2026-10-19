@@ -1,8 +1,8 @@
-<!-- coldwrite:skip #214 の比べの記録。語は docs/design.md の「語」のセクションで定義 -->
+<!-- coldwrite:skip #214 の比べの記録。語は docs/design/README.md の頭の語の一覧で定義 -->
 # #214 の自作の較正の束の比べ（記録）
 
 - 欠陥を仕込んだ自作の較正の束 11 行を、今の works と works-factory に 1 回ずつ無人で回した比べの結果。
-- 束・種・旗の表は持ち主の決め `public-bench-at-major`（2026-10-14）で消した。比べは公開ベンチに移った（`docs/design.md` の段 3 の 3）。
+- 束・種・旗の表は持ち主の決め `public-bench-at-major`（2026-10-14）で消した。比べは公開ベンチに移った（#765 で消した `docs/design.md` の段 3 の 3。`cbc7297` の版で読める）。
 - 出典は #214 の最後から 2 つ目のコメント（「## 結論」）。生の証拠は運び役の機械の `~/.local/state/works-factory/calibration/` に在り、リポジトリには入れない。
 
 ## 版と数
