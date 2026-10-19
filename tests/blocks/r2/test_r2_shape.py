@@ -96,10 +96,13 @@ class RoleCase(unittest.TestCase):
         for name, spec in DOC["inputs"].items():
             with self.subTest(name):
                 self.assertNotIn("block", spec["description"])
+                self.assertNotIn("の出力", spec["description"])
 
         for path in sorted((BLOCK / "schemas").glob("*.schema.json")):
             with self.subTest(path.name):
-                self.assertNotIn("block", json.loads(path.read_text(encoding="utf-8")).get("description", ""))
+                description = json.loads(path.read_text(encoding="utf-8")).get("description", "")
+                self.assertNotIn("block", description)
+                self.assertNotIn("の出力", description)
 
 
 class TextCase(unittest.TestCase):

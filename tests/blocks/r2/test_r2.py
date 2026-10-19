@@ -230,7 +230,7 @@ class CompareRoadCase(_RepoCase):
         self.assertNotIn("打ち消し", text)
 
     def test_runtime_copy_is_left_out_of_the_origin_section(self):
-        """test_skipped_paths_are_left_out_of_the_pr_diff_too: Archon が作業ツリーに写す置き場の下は、直しの差分のファイルに載らない"""
+        """test_skipped_paths_are_left_out_of_the_pr_diff_too を直しの差分の側で: Archon が作業ツリーに写す置き場の下は、直しの差分のファイルに載らない"""
         (self.repo / ".archon").mkdir()
         (self.repo / ".archon" / "w.yaml").write_text("x: 1\n", encoding="utf-8")
         self.intake()
@@ -281,9 +281,9 @@ class PremiseSectionCase(_RepoCase):
         後半が足す drift・constraint の kind も、控えの kind の許す一覧 KINDS の外なら落ちる"""
         self.intake(answers=dump({"start": {"decision": "continue", "text": "x"}}))
         with self.run.env():
-            import design
             steps = kit.load("r2", "steps")
             premises = steps.premises
+            design = premises.design
             with mock.patch.object(design, "PREMISE_KINDS", ("named_section", "repo_map")):
                 with self.assertRaises(premises.BoardGap) as raised:
                     steps.compare_prompt(self.place, self.repo)
@@ -435,7 +435,6 @@ class SkippedRoadCase(_RepoCase):
         done = self.finish()
         self.assertEqual(done["verdict"]["reason"], "独立設計と比べなかった: 独立設計の返答に問いが立つかの欄（question_stands）が無い")
         self.assertEqual(done["status"], "skipped")
-
 
     def test_a_design_with_a_missing_field_is_not_due(self):
         """design の値が missing の欄を持つ時は、問いが立つ・立たないと言っていても役を起こさない（形の照らしは余分な欄を通す）"""
