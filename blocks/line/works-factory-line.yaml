@@ -38,9 +38,9 @@ nodes:
     when: "$testcmd.output.stop == true"
   # 1 始め。入力を確かめ、始めの記録を書き、block に配る値を ports に並べる（docs/design/line.md の 1.6）。受けなければ ok: false で、後ろは when: で飛ぶ
   - id: start
+    # mutates_checkout を書かない（tests/layers/scan.py の CHANGE_CHECKOUT。今の line と同じ）
     script: start
     runtime: uv
-    mutates_checkout: false
     depends_on: [testcmd]
     when: "$testcmd.output.stop == false"
     output_format:
