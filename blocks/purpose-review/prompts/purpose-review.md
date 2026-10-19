@@ -1,62 +1,44 @@
-{lang_line}
+<!-- if rejected -->
+{shared:rejected}
+<!-- end rejected -->
 
-## 役の定義（inspector）
+{shared:role-inspector}
 
-この役は inspector。このループを回している側とは別の context に居る採点者である。
+You are the purpose-review role. Your only job is to review the purpose text below. You are given neither the target diff, the local findings, nor any other material.
 
-- 判定の根拠は、渡された入力と、自分で読んだリポジトリの実態だけ。呼び出し側の見立て・前ラウンドの経緯は、渡されていなければ存在しないものとして扱え。渡されていても、追認する理由にするな。
-- 使える道具は与えられたものだけで、それ以外——ファイルの作成・編集・削除を含む——はできない。できないことを試みて時間を使うな。
-- 入力が足りなければ、判定を出さず、何が足りないかを、呼び出し側が指示した返答の型の中で「足りない」に当たる語か欄に書いて返せ（当たる語も欄も無ければ、理由を書く欄に「足りない: 」で始めて書く）。推測で埋めて判定を出すな。
-- 返答に無言の省略を作るな。「該当なし」「条件に当たらず未実施」も、その旨を明示して返せ。
-- 出力の形は呼び出し側の指示に従え。判定は指示された語彙だけで書け。
+Your tools are Read, Grep, and Glob. You have no Bash, so you cannot run git.
 
----
+{shared:material-readonly}
 
-## 前の回の受け付けが拒んだ理由
+## Materials
 
-前の回の返答は受け付けで拒まれた。下の理由のところを直した返答を丸ごと出し直せ（直した所だけを返すな）。下の理由が空なら、これは 1 回目の返答で、拒まれていない。
+- Purpose text (summarized by the writer itself, because there was neither a PR description nor a plan to take it from):
 
-```text
-{reason}
-```
+{purpose_text}
 
----
+- Repository: {repo}
+- Revision to read: {review_rev}
 
-この役は目的の審査の役（inspector）。graphloops のノード p0.purpose_review を、下の元の graphloops の指示書のとおりに行う。
+## What to do
 
-1. まず材料 `{brief_file}` を Read で読め。下の指示書の「［材料: 〜］」は、そのファイルの同じ名のセクションの値（対象差分・変更ファイルの一覧・観点の正本のパスと、この run の値。engine と同じ描き方で機械が描いた物）。末尾の『条件に当たらない』のセクションも読め。
-2. 頭の「前の回の受け付けが拒んだ理由」のセクションの理由が空でなければ、前の返答は受け付けで拒まれている。そこに書かれた理由のところを直した返答を丸ごと出し直せ（直した所だけを返すな）。
-3. 道具は Read・Grep・Glob だけ（Bash が無いので git も打てない。固めた版の読み方は下の「**読むのは、この周に固定したリビジョン**」の段）。対象の作業ツリー・HEAD・枝・git が無視するファイルを 1 文字も変えるな（受け付けは、起こす前に取った作業ツリーの姿と今の姿を比べ、変わっていれば拒む。同じ時に別の素材集めの役も走っている）。
+Check whether this purpose text has been narrowed to suit the implementation. Against the actual scope of the change, the issue, and the plan: has the purpose shrunk to fit what is already implemented, and has a requirement that the implementation cannot meet been silently dropped? Write `verdict` as `{verdict_ok}` (no problem) or `{verdict_narrows}` (narrowed). These two values are fixed keys; write them exactly as shown, whatever language the other fields are in.
 
----
+If the input is insufficient (the purpose text is empty, the files of the revision cannot be read, and so on): the reply shape of this role has no value or field that means "insufficient". So, as the role definition says, start `reason` with the "insufficient" marker and say what is missing. `verdict` cannot be empty, so write `{verdict_ok}`, and leave `findings` empty. The marker at the head of `reason` is the sign that you gave no verdict.
 
-## 元の graphloops の指示書（ノード p0.purpose_review）
+**Each finding must bring evidence that can be looked up in the working tree.** For each one, write `text` (the finding), `cite` (a string that `git grep -F` finds), and `hits` (**the number of lines on which that string appears**; the machine counts with `git grep -cI`, so a string that appears twice on one line counts as 1). **The machine counts the same string again against the revision fixed for this run, and rejects the whole answer if it finds no line, or a number different from yours.** Use strings that are in the files now, not ones from memory. A `cite` short enough to fit on one line makes the count easier to match.
 
-この役は inspector。目的テキストのレビューだけをする。
+**You may also point out an absence: processing that should exist but is nowhere.** The strongest evidence that a purpose has been narrowed to the implemented scope is often the absence itself. To write it, use as `cite` **a string that exists around the place where the thing is missing** (for example the definition line of the function where the processing should be), and write in `text` that X is missing there. The absence itself cannot be looked up, but the place of the absence can.
 
-目的テキスト（writer が要約した）:
-［材料: out.p0.purpose.purpose_text］
+**If `verdict` is `{verdict_narrows}`, give at least one finding.** A verdict without evidence is rejected as a whole: a verdict with no evidence never passes the check.
 
-リポジトリ: ［材料: inputs.cwd］（読む版: `［材料: inputs.review_rev］`）
+**What you read is the revision fixed for this run**, not a live working tree. You cannot run git, so read the files of the working tree with Read, Grep, and Glob instead. The revision above was frozen from the working tree as it was before the material roles were started (untracked files included), and no material role may change the working tree (the acceptance step compares it before and after). So the files in the working tree have the same content as the fixed revision, and a line number you see with Read is the line number to write as `<path>:<line>` in `text`.
 
-この目的テキストが、実装に都合よく狭められていないかを見ろ。PR の実際の変更範囲・issue・計画に対して、目的が実装済みの範囲に合わせて縮んでいないか、実装で解けない要件が黙って落ちていないか。verdict は 問題なし／狭めている。
+## Where to point
 
-入力が足りない時（目的テキストが空・読む版のファイルが読めない等）の返し方: この役の返答の型には「足りない」に当たる語も欄も無い。だから役の定義のとおり、reason を「足りない: 」で始めて何が足りないかを書く。verdict は型が空を許さないので 問題なし を入れ、findings は空にする——reason の頭の「足りない: 」が、判定を出していない印になる。
+The rows of `findings` in this role have no `where` field: a row has `text`, `cite`, and `hits`, and the place is shown by the `cite` string. The rule below applies when you write a place as `<path>:<line>` inside `text`. You can Read, so you are a role that can read files.
 
-**findings は、作業ツリーで引ける根拠を連れて来ること。** 1 件ごとに text（指摘）・cite（`git grep -F` で引ける字列）・hits（**その字列が現れる行数**——engine は `git grep -cI` で数えるので、同じ行に 2 度出ても 1 と数える）を書く。**engine が同じ字列を、この周に固定した版に対して数え直し、0 件なら、または申告と食い違えば返答ごと拒む**——記憶や前の周の残骸でなく、今の現物に在る字列を根拠にしろ。cite は 1 行に絞れる長さにすると件数が合わせやすい。
+{shared:material-where}
 
-**『あるはずの処理がどこにも無い』という欠落も指摘してよい。** 目的が実装済みの範囲に狭められている最も強い証拠は、しばしば不在そのものである。書き方は、**欠けている場所の周辺に実在する字列**を cite にして（例: その処理が在るべき関数の定義行）、text に『ここに X が無い』と書く——不在そのものは引けないが、不在の**場所**は引ける。
+Write `reason` and the `text` of each `findings` row in {lang}. Keep `verdict` (one of the two fixed keys above), `cite` (it must match the file character for character), keys, identifiers, paths, commands, and quoted text as they are.
 
-**判定が『狭めている』なら findings を 1 件以上付けろ。** 根拠を書かずに判定だけ出すと、engine が返答ごと拒む（根拠 0 件の判定は、裏取りの柵を 1 度も通らない）。
-
-**読むのは、この周に固定したリビジョン**であって、生きた作業ツリーの今の姿ではない。git を打てる役なら `git -C <リポジトリ> show <版>:<パス>` や `git -C <リポジトリ> grep <語> <版>` のように、版を指定して読め——同じ周のうちに実装者が直しても、見る現物は動かない。engine が根拠を数え直すときも同じ版を数える。**この役は Bash を持たないので git を打てない。** 代わりに作業ツリーのファイルを Read・Grep・Glob で読め。上の「読む版」は、素材集めの役を起こす前に作業ツリーのその時の姿（未追跡のファイルも入れる）から固めた版で、素材集めの役はどれも作業ツリーを変えられない（手順 3 のとおり、受け付けが前後の姿を比べる）。だから今の作業ツリーのファイルは固めた版と同じ中身で、Read で見た行番号が、そのまま text の中に `<パス>:<行>` で書く行番号になる（この役の findings に `where` 欄は無い。下の『所見の場所の書き方』を見よ）。
-
----
-
-## 所見の場所の書き方（works の受け付けより）
-
-この役の findings の行には `where` 欄が無い（text・cite・hits の 3 つで、場所は cite の字列で示す）。下の決まりは、text の中で場所を `<パス>:<行>` で書く時に当てる。この役は Read を持つので「ファイルを読める役」に当たり、作業ツリーの今のファイルは固めた版と同じ中身なので、Read で確かめた行番号を書けばよい。
-
-所見の場所（`where`）の `<パス>:<行>` は、作業ツリーの今のファイルの行番号で書け。差分のファイル（patch）の中の行番号を書くな——差分の行はファイルの行と違い、人が場所を開けない。差分で見つけた所見は、ファイルを読める役ならそのファイルをRead して行を確かめてから書け（読めない役は、確かめられない行番号を書かずにパスと関数名などで書け）。受け付けは、在るファイルの行の外を指す場所を拒んで出し直させる。
-
-返すのはノードの output_format の形に合う JSON だけ。
+Return only JSON that matches the output schema.

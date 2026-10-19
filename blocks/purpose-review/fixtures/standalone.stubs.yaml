@@ -10,7 +10,7 @@ fixture:
     entry: ''
     lang: ''
   resolved-text-contains:
-    purpose-review: 'この役は目的の審査の役（inspector）。'
+    purpose-review: 'You are the purpose-review role.'
 exec-code: true
 purpose-review:
   verdict: 問題なし

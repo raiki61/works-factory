@@ -158,6 +158,25 @@ class FlowCase(unittest.TestCase):
         self.assertFalse(got["ok"])
         self.assertIn("読むだけの役が作業ツリーを変えた", got["reason"])
 
+    def test_prompt_carries_the_values_and_the_rejection(self):
+        self.intake(lang="Japanese")
+        got = self.prep()["prompt"]
+        self.assertIn(TEXT, got)
+        self.assertIn("Revision to read: " + json.loads((self.run.artifacts / "view.json").read_text(encoding="utf-8"))["review_rev"], got)
+        self.assertIn("`問題なし` (no problem) or `狭めている` (narrowed)", got)
+        self.assertIn("findings` row in Japanese.", got)
+        self.assertNotIn("new conversation", got, "later rounds resume the same conversation")
+        self.assertNotIn("Why your previous answer was rejected", got)
+        self.assertFalse(self.accept(reply())["ok"])
+        again = self.prep()["prompt"]
+        self.assertTrue(again.startswith("## Why your previous answer was rejected"), again[:80])
+        self.assertIn("findings が空", again)
+        self.assertTrue((self.run.artifacts / f"{NAME}-prompt-2.md").is_file())
+
+    def test_braces_in_the_purpose_text_are_kept(self):
+        self.intake(purpose=purpose(text="PATCH /threads/{id} を {a, b} で $x と受ける"))
+        self.assertIn("PATCH /threads/{id} を {a, b} で $x と受ける", self.prep()["prompt"])
+
     def test_included_block_writes_in_its_own_place(self):
         self.run.script("intake", "judge__purpose-review__intake", base="", purpose=purpose(), entry="", lang="")
         self.run.script("role_prep", f"judge__purpose-review__{LOOP}.{NAME}-prep")

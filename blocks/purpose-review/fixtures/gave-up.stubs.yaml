@@ -6,7 +6,7 @@ fixture:
   inputs:
     purpose: '{"purpose_text":"設定の読み込みが空のファイルでも落ちないようにする","source":"③writer の要約","known_weaknesses":[],"source_files":[]}'
   resolved-text-contains:
-    purpose-review: 'この役は目的の審査の役（inspector）。'
+    purpose-review: 'You are the purpose-review role.'
 exec-code: true
 purpose-review:
   verdict: 狭めている

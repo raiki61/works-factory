@@ -340,3 +340,9 @@ bin/works-factory <読ませるフォルダを blocks/ にする引数（名は�
 - 根拠の拒みの文の頭を `観点 purpose-review: ` にする。訳: 今の頭はコピーした graph の節の id（`p0.purpose_review`）で、新しい形に graph の節は無い。materials.md の 2.8 の替えと同じ。
 - 固めた目的の schema（`purpose.schema.json`）の中身をここで決め、external-standards も同じ字を写す。訳: materials.md の 1.2 は名と欄だけを書き、中身を決めていない。欄と出典の語は今の目的の役の `output_format` のまま（`means` は目的の block が別のファイルにする）。出典の語を enum で縛るので、目的の block が語を替えれば読みの段で名指して落ちる（黙って `skipped` にならない）。
 - 「足りない」の印の字を md に書かず、役の定義の断片の言い方に任せる。訳: 印は inspector の役の定義の決まり（今の `lib/agents/inspector.md` の 3 つ目の箇条）で、機械はこの印を読まない（`lib/` と `workflows/` に「足りない: 」を比べる所は無い）。字を md に写すと、断片の英語の字と食い違いうる。
+- 実装で main の決まりに合わせた事（実装者が決めた）:
+  - `schemas/purpose.schema.json` から `$schema` を外し、`description` を足した。訳: `ports.json` が照らしの知らない語 `$schema` を拒む（`KNOWN_KEYWORDS` に無い）。
+  - `role_prep.py` に 4 つの鍵を外す 1 行は要らなかった。訳: main の `materialkit.prompt_inputs` が `NA_PARAGRAPH` が偽の観点には `na_*` を足さない。`viewpoint.NA_PARAGRAPH = False`（`tests/blocks/materials/test_viewpoints.py` が名を要る）。
+  - 英語の md の「started in a new conversation」を外した。訳: 輪が `fresh_context: false` で、2 回目からは同じ会話を続ける。「新しい会話」と書くと事実に反する（調整役の知らせ）。輪は prep → 役 → accept の 1 本道で、同じ層に 2 つの node は並ばない。
+  - 「purpose」の port の既定は文字列 `"null"`。訳: `ports.json` は空の字を拒み、Archon は省いた入力に既定を入れる。
+  - `skipped.stubs.yaml` は AI の node を `reached` に入れない。status と reason の字は `tests/blocks/purpose_review` が見る。
