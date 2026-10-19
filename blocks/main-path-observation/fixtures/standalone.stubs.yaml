@@ -9,7 +9,7 @@ fixture:
     entry: ''
     lang: ''
   resolved-text-contains:
-    main-path-observation: 'この役は主経路の実行観測の役（任せ先）。'
+    main-path-observation: 'You are the main-path-observation role.'
 exec-code: true
 main-path-observation:
   material:

@@ -81,6 +81,16 @@ class FlowCase(unittest.TestCase):
                 self.assertEqual(self.material()["materials"], {"main_path_observation": material})
                 (self.run.artifacts / "accepted.json").unlink()
 
+    def test_not_applicable_is_refused_and_the_prompt_says_so(self):
+        self.intake()
+        prompt = self.prep()["prompt"]
+        self.assertIn("The condition of this viewpoint holds for this run (差分が利用者から見える経路に触れる)", prompt)
+        for gone in ("does not hold for this run", "none of the facts the machine holds", "has no condition under which"):
+            self.assertNotIn(gone, prompt)
+        got = self.accept({"material": {"status": "not_applicable", "reason": "無い"}, "observed": []})
+        self.assertEqual((got["ok"], got["done"]), (False, False))
+        self.assertIn("条件が真で走ったのに not_applicable", got["reason"])
+        self.assertTrue(self.prep()["prompt"].startswith("## Why your previous answer was rejected"))
 
     def test_three_rejections_give_up(self):
         self.intake()
@@ -119,6 +129,16 @@ class FlowCase(unittest.TestCase):
         (self.run.repo / "README.md").write_text("直した\n", encoding="utf-8")
         self.assertTrue(self.intake(entry="人の依頼（/p/req.json）")["due"])
 
+    def test_prompt_carries_the_paths_and_the_language(self):
+        (self.run.repo / "README.md").write_text("直した\n", encoding="utf-8")
+        self.intake(lang="Japanese")
+        got = self.prep()["prompt"]
+        view = json.loads((self.run.artifacts / "view.json").read_text(encoding="utf-8"))
+        for line in (f"- Target diff (Read it): {view['diff_file']}",
+                     f"- List of changed files (one file per line; Read only what you need): {view['changed_files_file']}",
+                     f"- Repository: {view['repo']}"):
+            self.assertIn(line, got)
+        self.assertIn("row in Japanese.", got)
 
     def test_included_block_writes_in_its_own_place(self):
         self.run.script("intake", f"judge__{NAME}__intake", base="", entry="", lang="")

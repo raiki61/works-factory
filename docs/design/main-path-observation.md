@@ -307,3 +307,9 @@ bin/works-factory <読ませるフォルダを blocks/ にする引数（名は�
 - 「次の周の judge が再審する」を「人に届き、人が決める」に替える。訳: 工場に次の周が無く、今の工場で人待ちが届く先の事実に合わせた（1.6）。
 - `## Where to point` に前置きを置く。訳: 返答に `where` の欄が無く、断片の「`where`」の指す先を役が取り違えうる。
 - `report_lines` に観測の行を 1 行ずつ足す。訳: 素材の 1 行だけでは、何を動かして何を見たか（何を見ていないか）が報告から辿れない。例の run の 4 行目「実ブラウザ・実 DB を通るピン留め経路 → 未観測（環境が無い）」のような行が人の手当ての手がかりになる。
+- 実装で決めた事（#765）:
+  - `fill` の件数は `0` でなく `None`（materials.md の 10 節・2.6 の決め。この観点は `request` を持たず、`0` だと「0 件」と誤って言う）。
+  - `due` は `values["entry"]` の有無でなく `materialkit.is_entry_run`（`entry` が在り、対象差分が空）で入口の周を決める（materials.md の 10.1）。差分が在れば `entry` が在っても回す。
+  - 指示の 1 段落の頭を `You are the main-path-observation role.` にし、`started in a new conversation` を外した。訳: 輪は `fresh_context: false` で、2 回目からは同じ会話の続きに出し直すので、「新しい会話」は事実に合わない。
+  - `after` は `material` が object でない返答でも落ちず `None` を返す（後の素材の欄の照らしが「素材が無い」で拒む）。
+  - 試験の `test_prompts` は、本物の run の材料のファイルの 3 つのパスを置き換え口（`<DIFF>` など）にして置き、private なパスをリポジトリに入れない。
