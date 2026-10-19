@@ -135,7 +135,14 @@ class ScriptCase(unittest.TestCase):
         self.run = kit.Run(self, BLOCK)
 
     def test_ins(self):
-        self.assertEqual(self.run.script("ins", "eyes__ins", run="false", merge="true"), {"run": False, "merge": True})
+        got = self.run.script("ins", "eyes__ins", run="false", merge="true", head="abc123")
+        self.assertEqual(got, {"run": False, "merge": True, "head": "abc123"})
+
+    def test_ins_resolves_empty_head_to_the_real_head(self):
+        """単独（head 空）で回しても structure の base が空にならない（憲法 5）"""
+        kit.git(self.run.repo, "commit", "-q", "--allow-empty", "-m", "x")
+        real = kit.git(self.run.repo, "rev-parse", "HEAD")
+        self.assertEqual(self.run.script("ins", "eyes__ins", run="true", merge="false", head="")["head"], real)
 
     def test_after_in(self):
         got = {"got": passing()["structure-after"], "why": ""}
@@ -175,7 +182,7 @@ class WiringCase(unittest.TestCase):
     def test_includes(self):
         self.assertEqual(sorted(n["include"] for n in self.includes.values()), sorted(f"works-factory-{b}" for b in INCLUDED))
         self.assertEqual(self.includes["structure-after"]["with"]["mode"], "after")
-        self.assertEqual(self.includes["structure-after"]["with"]["base"], "$INPUTS.head")
+        self.assertEqual(self.includes["structure-after"]["with"]["base"], "$ins.output.head")
 
     def test_r4_waits_r1_and_r2_and_runs_when_one_fell(self):
         r4 = self.includes["r4"]
@@ -227,14 +234,20 @@ class FixtureCase(unittest.TestCase):
             with self.subTest(scenario=name):
                 self.assertEqual(self.verdict(name)["ok"], ok, self.verdict(name)["report"])
 
+    def test_standalone_with_empty_head_hands_structure_a_real_revision(self):
+        """単独（head を渡さない）の筋書きで、ins が HEAD の版に解いた（structure の base が空で落ちない）"""
+        head = json.loads(self.traces["standalone"]["ins"]["output"])["head"]
+        self.assertRegex(head, r"^[0-9a-f]{40}$")
+
     def test_light_run_skips_eyes_and_keeps_after(self):
         out = self.verdict("all-light")
         self.assertEqual((out["r1"], out["after_ok"]), (None, True))
-        self.assertEqual(self.traces["all-light"].get("r1__intake", {}).get("state", "skipped"), "skipped")
+        for eye in ("r1", "r2", "r3", "r4"):
+            self.assertEqual(self.traces["all-light"].get(f"{eye}__intake", {}).get("state", "skipped"), "skipped", eye)
 
     def test_merged_run_skips_r3(self):
         self.assertEqual(self.traces["one-eye"].get("r3__intake", {}).get("state", "skipped"), "skipped")
-        self.assertEqual(self.verdict("one-eye")["r3"]["status"], "pass")
+        self.assertEqual(self.verdict("one-eye")["r3"], {"status": "pass", "reason": "全体の整合も見た"})
 
     def test_premise_path(self):
         self.assertIsNotNone(self.verdict("premise")["premise_check"])

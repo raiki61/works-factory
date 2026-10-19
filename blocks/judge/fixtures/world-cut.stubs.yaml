@@ -1,4 +1,4 @@
-# world-cut: world: false で世界の解を回さなくても、素材の観点 11 本と判定は回る
+# world-cut: world: false で世界の解を回さなくても、素材の観点 10 本と判定は回る
 fixture:
   expect: completed
   reached:

@@ -46,7 +46,7 @@ r1__finish:
     reason: 組み直す設計の点が在る
   questions: []
   report:
-  - 'R1: pass（r1 は通した）'
+  - 'R1: redesign-needed（組み直す設計の点が在る）'
 r2__intake:
   compare: false
   premise: false

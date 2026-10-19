@@ -1,4 +1,4 @@
-# bad-request: 前提の実測が依頼の行を拒んで failed → 目的・世界の解・素材・判定は回らず、verdict が works:premises で止める
+# bad-request: 前提の実測の出口が failed を返す台本 → 目的・世界の解・素材・判定は回らず、verdict が works:premises で止める（依頼の行を拒む requestrows の道そのものは premises の block の筋書きが見る。ここで見るのは、premises が failed の時の graph の止め方）
 fixture:
   expect: completed
   reached:

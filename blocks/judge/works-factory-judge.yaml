@@ -424,7 +424,7 @@ nodes:
     output_format:
       type: object
       additionalProperties: false
-      required: [ok, stop_reason, reason, ready, units, judgment, answer_ties, out_of_purpose, materials, brief, inputs, purpose,
+      required: [ok, stop_reason, reason, ready, units, questions, judgment, answer_ties, out_of_purpose, materials, brief, inputs, purpose,
                  purpose_text, purpose_source, means, purpose_review, constraints, world, world_state, spec, spec_rows, spec_origin,
                  excluded, pr_drafts, downgrades, decisions, tier, tier_why, row_asks, tier_record, verify, verify_why, report,
                  sections, optional]
@@ -434,6 +434,7 @@ nodes:
         reason: {type: string}
         ready: {type: boolean}
         units: {type: array, items: {type: object}}
+        questions: {type: array, items: {type: object}}
         judgment: {type: [object, 'null']}
         answer_ties: {type: [object, 'null']}
         out_of_purpose: {type: [object, 'null']}

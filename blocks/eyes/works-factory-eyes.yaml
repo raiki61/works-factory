@@ -44,10 +44,11 @@ nodes:
     output_format:
       type: object
       additionalProperties: false
-      required: [run, merge]
+      required: [run, merge, head]
       properties:
         run: {type: boolean}
         merge: {type: boolean}
+        head: {type: string}
   # 直した後の実測は目を省く run でも回す（E71）。when: を持たない
   - id: structure-after
     include: works-factory-structure
@@ -57,7 +58,7 @@ nodes:
       units: "$INPUTS.units"
       intent: "$INPUTS.intent"
       policy: "$INPUTS.policy"
-      base: "$INPUTS.head"
+      base: "$ins.output.head"
       plan: "$INPUTS.plan"
       lang: "$INPUTS.lang"
   - id: structure-after-out

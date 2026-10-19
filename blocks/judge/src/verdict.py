@@ -142,6 +142,7 @@ def build(received: dict, *, world_on: bool, world_has_rows: bool, notes: tuple 
         "ok": not stop, "stop_reason": stop, "reason": why,
         "ready": not stop and diagnose.get("ready") is True,
         "units": (diagnose.get("units") or []) if not stop else [],
+        "questions": (diagnose.get("questions") or []) if not stop else [],
         **{k: diagnose.get(k) for k in ("judgment", "answer_ties", "out_of_purpose", "materials", "brief", "inputs")},
         "purpose": (purpose or {}).get("purpose"), "purpose_text": str((purpose or {}).get("purpose_text") or ""),
         "purpose_source": str((purpose or {}).get("source") or ""), "means": (purpose or {}).get("means") or [],

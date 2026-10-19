@@ -1,4 +1,4 @@
-# spec-on: 仕様の段を挟む run。spec が approved を返せば並行 PR から先へ進む（承認ノードは spec の block の中で、spec の筋書きが見る）
+# spec-on: 仕様の段を挟む run。spec が approved を返せば並行 PR から先へ進む（承認ノードは spec の block の中で、spec の筋書きが見る。仕様が足した行の依頼への積みと diagnose への受け渡しは、筋書きでは行のファイルを置けない〔pointer が run のファイルを指すので〕ため tests/blocks/judge/test_judge.py の spec_in・diagnose_in の script の試験が見る）
 fixture:
   expect: completed
   reached:

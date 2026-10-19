@@ -49,6 +49,7 @@
 - `stop_reason`・`reason`: 1.4 の順の最初の止め（無ければ空）と、その訳。
 - `ready`: boolean。`ok` で、diagnose の `ready` が真（判定を受け、開いた単位が 1 つ以上。今の J89）。開いた単位が無いのは止めでない（`ok` 真・`ready` 偽。line は直す物が無い周に進む）。
 - `units`: 判定の開いた単位の目録 `[{id, paths, summary}]`（diagnose の出力。構造の目と r1 の形）。
+- `questions`: diagnose の `questions`（判定の保留の問い。止めた run は空）をそのまま通す（diagnose の設計書の 1.6 の「judge のまとめは questions を返りに載せる」に合わせる。line は今は読まない）。
 - `judgment`: 判定の pointer。`answer_ties`・`out_of_purpose`・`materials`（素材の 15 欄）・`brief`・`inputs`（再審の `prior_brief`・`prior_inputs` に渡す）: diagnose の出力の pointer か null。
 - `purpose`（purpose の出力の `purpose` object）・`purpose_text`・`purpose_source`・`means`。
 - `purpose_review`: 目的の監査の受けた返答の pointer（`{verdict, reason, findings}`。purpose-review の `material.json` の `reply` を `verdict` が place の `purpose-review.json` に写した物。回さなかった・受けなかった run は `{}` を書いた物）。independent-design の port `purpose_review` の形（今の `judge_accept.verdict` が `PURPOSE_REVIEW_FILE` に写していた事と同じ）。
@@ -129,7 +130,7 @@ line が段ごとに引いた真偽の表 `verify_by_tier` を、head-depth が�
 ### 1.8 試験（`tests/blocks/judge/`）
 
 - standalone の筋書き `blocks/judge/fixtures/standalone.stubs.yaml`: `fixture.inputs` は `request` だけ（依頼の行 1 つ）。include した block の AI の node と loop の本体の script を台本で差し替え（README 13 章）、graph の script は本物。`reached` に `verdict`。`verdict` の `ok` が真。
-- 筋書き（今の `workflows/judge/fixtures/` の 8 本を写す）: `bad-request`（依頼の型の拒みは line と block の受け付けに移ったので、block の `requestrows` の拒みで premises が `failed` → `works:premises`）・`judge-gave-up`（`works:judge`）・`material-peer-stop`（素材の諦め → `works:material`）・`no-open-units`（`ok` 真・`ready` 偽）・`pass`・`spec-on`（仕様の承認ノードの答えの stub）・`world-offline`（`web: off`）・`rejudge` は line へ移す（再審は line の筋書き）。足す: `verify-heavy`（`verify_by_tier` の重厚が真で、head-depth が重厚を返す → verify が回る）・`world-cut`（`world: false` でも素材が回る）。
+- 筋書き（今の `workflows/judge/fixtures/` の 8 本を写す）: `bad-request`（依頼の型の拒みは line と block の受け付けに移ったので、premises の出口が `failed` を返す台本 → `works:premises`。`requestrows` の拒みそのものは premises の block の筋書きが見る）・`judge-gave-up`（`works:judge`）・`material-peer-stop`（素材の諦め → `works:material`）・`no-open-units`（`ok` 真・`ready` 偽）・`pass`・`spec-on`（spec が approved を返して先へ進む。承認ノードは spec の block の中で graph は通らない）・`spec-stop`（spec が止めを返す → `works:spec` 系の止めの語が返り、後ろを回さない。1.4 の 1）・`world-offline`（`web: off`）・`rejudge` は line へ移す（再審は line の筋書き）。足す: `verify-heavy`（`verify_by_tier` の重厚が真で、head-depth が重厚を返す → verify が回る）・`world-cut`（`world: false` でも素材が回る）。
 - 振る舞いの試験: 止めの語の順（1.4 の 1〜6 を 1 つずつ立てて、最初の物が返る）・返りの無い block の欄が null で `report` に行が在る・`diagnose-in` の配列の順と `missing`・`verify` の選び（段が返らない時は標準）・`verdict` が落ちない（壊れた入力で `ok: false`）。元は今の `tests/workflows/test_judge.py` の graph の場面（README 9.5）。
 - 配線の yes/no: 8.1 の block の全部を 1 回ずつ include する・再審の道の block（diagnose に `objection` を渡す include）が無い・include した block の `inputs:` が全部 `with:` で渡るか、渡さない訳の一覧に在る。
 - 守る keep-essence: 7（class_query。diagnose が作り、この graph は運ぶ）・12（世界の解の行を diagnose・plan・plan-review・line へ。`world` の欄）。
@@ -165,8 +166,8 @@ line が段ごとに引いた真偽の表 `verify_by_tier` を、head-depth が�
 
 ### 2.3 node の並び（`blocks/eyes/works-factory-eyes.yaml`）
 
-1. `ins`（script）: `run`・`merge` を出力に写す。
-2. `structure-after`（include `works-factory-structure`、`mode: after`。`depends_on: [ins]`。`when:` を持たない: 目を省く run でも測る。E71）。`with:` `units`・`intent`・`policy`・`base: "$INPUTS.head"`・`plan`・`lang`。→ `structure-after-out` → `after-in`（返し。`depends_on: [ins, structure-after-out]`・`none_failed_min_one_success`。`after` の pointer か `""`）。
+1. `ins`（script）: `run`・`merge` を出力に写し、空の `head` を作業ツリーの `HEAD` の版に解いて `head` に出す（structure の `base` は空を受けない。単独で回す時のため。憲法 5）。
+2. `structure-after`（include `works-factory-structure`、`mode: after`。`depends_on: [ins]`。`when:` を持たない: 目を省く run でも測る。E71）。`with:` `units`・`intent`・`policy`・`base: "$ins.output.head"`・`plan`・`lang`。→ `structure-after-out` → `after-in`（返し。`depends_on: [ins, structure-after-out]`・`none_failed_min_one_success`。`after` の pointer か `""`）。
 3. `r1`（include。`depends_on: [after-in]`・`when: $ins.output.run == true`）。`with:` は r1 の設計書の 1.6（`base`・`purpose`・`units`・`judgment`・`fixes`・`x_scalars`・`green`・`checks`・`after: $after-in.output.after`・`review`・`policy`・`lang`）。→ `r1-out`。
 4. `r2`（include。`depends_on: [ins]`・`when: $ins.output.run == true`）。`with:` は r2 の設計書の 1.6（`base`・`head`・`base_label`・`purpose`・`design`・`design_reason`・`design_premises`・`answers`・`request`・`changed`・`constraints`・`test_outcomes`・`tdd`・`lang`）。直した後の実測を読まないので、structure（after）を待たない（E9: R1・比較役・前提の検算・R3 は互いを待たない）。→ `r2-out`。
 5. `r3`（include。`depends_on: [after-in]`・`when: $ins.output.run == true && $ins.output.merge == false`）。`with:` は r3 の設計書の 1.6（`base`・`green`・`after`・`review`・`policy`・`answers`・`request`・`pushes`・`decisions`・`lang`）。→ `r3-out`。
@@ -250,10 +251,8 @@ line が段ごとに引いた真偽の表 `verify_by_tier` を、head-depth が�
 - r1 の設計書の 0.11 の「目の判定の行が在る時の『まま R4 を回した』の尾」は graph に置いた（2.4）。r4 の出力に `coherence` の行が無い run（`merge` が偽）で `r3` が返らなかった時は、0.9 の `fell_text` で `unverifiable` にする。
 - verify の出力 `stop_reason` と、開いた単位が 2 つ未満で回さなかった時の `reason`（`verify_why` に写す）は、verify の設計書の 1.2 の形のまま読む。
 
-作った時に残った物（どれも include する block が main に入るのを待つ）:
+作った時に残った物:
 
-- judge の配線の yes/no のうち、include した block の `inputs:` を照らす物と、筋書き（dry-run）は、diagnose・verify が `blocks/` に入るまで赤（parallel-pr と素材の観点の block は main に入り、`inputs:` の照らしと、本物の入口と出口の形での筋書きが通った）。作る時は、diagnose・verify の設計書の 1.2 の port と出力の欄だけを持つ仮の block を作業の木の外に置いて、`archon validate` と全部の筋書きを通した（仮の block は置かない）。
-- eyes のまとめの中身（`src/verdict.py`）は `lib/eyekit`（r1 の PR が足す）を読む。eyes の入力の形のうち `shared:` の 5 本（`plan-verdict`・`gate-answers`・`fix-marks`・`pushes`・`units`）も r1 の PR が足す。それまで eyes の `VerdictCase`・verdict の script の試験・形の検査（7.1 の 5）・筋書きは赤。
 
 - gate-efficacy を回さない run の素材の欄 `gate_efficacy` の訳（3 節の持ち主の決め 2026-10-19）: 今は diagnose の埋めの「走っていない」になる。回さない訳を判定役に見せるかと、その口（diagnose の port か `materialkit.assemble`）は diagnose の側で決める。
 

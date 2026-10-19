@@ -49,8 +49,8 @@ def passing() -> dict:
         "world": {"ok": True, "status": "ok", "reason": "", "rows": ptr("w.jsonl"), "classes": 1, "dropped": 0, "report": ["- 世界"]},
         "diagnose-in": {"ok": True, "reason": "", "go": True, "materials": [], "missing": [], "tier": "標準", "verify": True},
         "diagnose": {"ok": True, "status": "ok", "stop_reason": "", "reason": "", "ready": True, "judgment": ptr("j.json"),
-                     "units": [{"id": "u1", "paths": ["a.py"], "summary": "s"}], "questions": [], "inputs": None, "brief": None,
-                     "materials": ptr("m.json"), "out_of_purpose": None, "answer_ties": None,
+                     "units": [{"id": "u1", "paths": ["a.py"], "summary": "s"}], "questions": [{"id": "q1", "text": "t"}], "inputs": None,
+                     "brief": None, "materials": ptr("m.json"), "out_of_purpose": None, "answer_ties": None,
                      "downgrades": [{"what": "rejudge", "versus": "rg"}], "report": ["- 判定"]},
         "verify": {"ok": True, "status": "ok", "stop_reason": "", "reason": "", "verify": ptr("v.json"), "report": ["- 裏取り"]},
     }
@@ -105,6 +105,12 @@ class FeedCase(unittest.TestCase):
         self.assertEqual((values["tier"], values["verify"], values["depth_why"], values["row_asks"]), ("標準", True, "", []),
                          "段が返らなければ標準で引く")
 
+    def test_spec_rows_are_passed_to_diagnose(self):
+        got = passing()
+        got["spec-in"] = {**got["spec-in"], "added_rows": ptr("judge/spec/added-rows.json"), "added_origin": "仕様の受け入れ条件"}
+        values = self.feed.diagnose_values(got, {})
+        self.assertEqual((values["spec_rows"], values["spec_origin"]), (ptr("judge/spec/added-rows.json"), "仕様の受け入れ条件"))
+
     def test_absent_feeds_are_empty(self):
         got = passing()
         for name in ("parallel-pr", "world", "spec-in"):
@@ -124,6 +130,7 @@ class VerdictCase(unittest.TestCase):
         out = self.build(passing())
         self.assertEqual((out["ok"], out["ready"], out["stop_reason"]), (True, True, ""))
         self.assertEqual(out["units"], passing()["diagnose"]["units"])
+        self.assertEqual(out["questions"], passing()["diagnose"]["questions"])
         self.assertEqual((out["judgment"], out["world"], out["verify"], out["verify_why"]), (ptr("j.json"), ptr("w.jsonl"), ptr("v.json"), ""))
         self.assertEqual((out["purpose_text"], out["purpose_source"], out["means"]), ("P", "①PR 説明", ["m"]))
         self.assertEqual(out["downgrades"], [{"what": "pr", "versus": "rg"}, {"what": "rejudge", "versus": "rg"}])
@@ -332,6 +339,10 @@ class WiringCase(unittest.TestCase):
         self.assertNotIn("works-factory-gate-efficacy", named, "重い検算は run の中で回さない（持ち主の決め 2026-10-19）")
         self.assertNotIn("gates", self.doc["inputs"])
 
+    def test_web_reaches_the_world_stage(self):
+        """world-offline の筋書きは world の中を台本で差し替えるので、web が world に渡ることは配線で見る"""
+        self.assertEqual(self.includes["world"]["with"]["web"], "$ins.output.web")
+
     def test_no_rejudge_path(self):
         self.assertNotIn("objection", self.includes["diagnose"]["with"])
         self.assertNotIn("prior", self.includes["diagnose"]["with"])
@@ -376,7 +387,7 @@ class WiringCase(unittest.TestCase):
 class FixtureCase(unittest.TestCase):
     """筋書きを dry-run で回し、verdict の出力を見る（include した block が blocks/ に要る）"""
     SCENARIOS = ("standalone", "pass", "bad-request", "judge-gave-up", "material-peer-stop", "no-open-units", "spec-on",
-                 "world-offline", "world-cut", "verify-heavy")
+                 "spec-stop", "world-offline", "world-cut", "verify-heavy")
 
     @classmethod
     def setUpClass(cls):
@@ -388,7 +399,8 @@ class FixtureCase(unittest.TestCase):
     def test_verdicts(self):
         want = {"standalone": (True, True, ""), "pass": (True, True, ""), "bad-request": (False, False, "works:premises"),
                 "judge-gave-up": (False, False, "works:judge"), "material-peer-stop": (False, False, "works:material"),
-                "no-open-units": (True, False, ""), "spec-on": (True, True, ""), "world-offline": (True, True, ""),
+                "no-open-units": (True, False, ""), "spec-on": (True, True, ""), "spec-stop": (False, False, "human:spec-gate"),
+                "world-offline": (True, True, ""),
                 "world-cut": (True, True, ""), "verify-heavy": (True, True, "")}
         for name, (ok, ready, stop) in want.items():
             with self.subTest(scenario=name):
@@ -397,7 +409,7 @@ class FixtureCase(unittest.TestCase):
 
     def test_verify_runs_only_when_the_tier_picks_it(self):
         self.assertIsNotNone(self.verdict("verify-heavy")["verify"])
-        self.assertEqual(self.traces["standalone"].get("verify", {}).get("state", "skipped"), "skipped")
+        self.assertEqual(self.traces["standalone"].get("verify__finish", {}).get("state", "skipped"), "skipped")
 
     def test_world_cut_still_runs_materials(self):
         out = self.verdict("world-cut")

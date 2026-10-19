@@ -16,7 +16,7 @@ STANDARD = "標準"
 
 def fallen(why: str) -> dict:
     line = f"- 判定のまとめが落ちた（{why}）"
-    return {"ok": False, "stop_reason": JUDGE_STOP, "reason": f"判定のまとめが落ちた: {why}", "ready": False, "units": [],
+    return {"ok": False, "stop_reason": JUDGE_STOP, "reason": f"判定のまとめが落ちた: {why}", "ready": False, "units": [], "questions": [],
             "judgment": None, "answer_ties": None, "out_of_purpose": None, "materials": None, "brief": None, "inputs": None,
             "purpose": None, "purpose_text": "", "purpose_source": "", "means": [], "purpose_review": None, "constraints": None,
             "world": None, "world_state": {"status": "failed", "reason": why, "classes": 0, "dropped": 0}, "spec": None,

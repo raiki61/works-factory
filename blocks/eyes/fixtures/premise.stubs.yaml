@@ -67,7 +67,7 @@ r2__finish:
     facts: []
   notes: []
   report:
-  - 'R2: pass（r2 は通した）'
+  - 'R2: unverifiable（前提不成立: 依頼の前提が今の版で成り立たない）'
 r3__intake:
   due: false
   reason: '筋書き: block の中は block の筋書きが見る'
