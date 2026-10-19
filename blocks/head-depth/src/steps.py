@@ -134,14 +134,15 @@ def intake(out, *, request, has_checks, thickness, spec, design_only, lang, repo
 # ---------------------------------------------------------------- 指示
 def rows_text(f: dict) -> str:
     """材料の行（機械が測った物）。行ごとに 2 行"""
-    return "\n".join(f"- 行 {it['item']}: {it['text']}\n  - 番地: {it['where'] or '（無い）'}"
-                     f"（ファイル {'在る' if it['path_ok'] else '無い'}・行の範囲 {'ファイルの中' if it['lines_ok'] else '外か読めない'}）"
+    return "\n".join(f"- Line {it['item']}: {it['text']}\n  - Location: {it['where'] or '(none)'} "
+                     f"(file {'exists' if it['path_ok'] else 'missing'}, "
+                     f"line range {'inside the file' if it['lines_ok'] else 'outside or unreadable'})"
                      for it in f["items"])
 
 
 def groups_text() -> str:
     """群の行（launchgroups.GROUPS の並びのまま）"""
-    return "\n".join(f"- `{name}`: {spec['what']}（既定 {spec['model']}・{spec['effort']}）"
+    return "\n".join(f"- `{name}`: {spec['what']} (default {spec['model']}, {spec['effort']})"
                      for name, spec in launchgroups.GROUPS.items())
 
 
@@ -153,7 +154,7 @@ def depth_prompt(out) -> dict:
     values = {"rejection": rolekit.rejects_text(rejected), "light": LIGHT, "standard": STANDARD, "heavy": HEAVY,
               "none": NONE, "cause": CAUSE, "shape": SHAPE, "scope": SCOPE,
               "row_count": str(len(doc["facts"]["items"])), "rows": rows_text(doc["facts"]),
-              "models": "・".join(launchgroups.MODELS), "efforts": "・".join(launchgroups.EFFORTS), "groups": groups_text(),
+              "models": ", ".join(launchgroups.MODELS), "efforts": ", ".join(launchgroups.EFFORTS), "groups": groups_text(),
               "quote_min": str(cite.QUOTE_MIN), "where_span": str(WHERE_SPAN), "lang": prompt.lang(doc["lang"])}
     return prompt.emit(NODE, values, {"rejected": bool(rejected)}, prompt.round_of(NODE))
 

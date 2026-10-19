@@ -122,7 +122,9 @@ class PromptCase(_RepoCase):
     def test_prompt_carries_rows_groups_and_words(self):
         self.intake()
         text = self.prep()["prompt"]
-        self.assertIn("- 行 1: " + TEXT, text)
+        self.assertIn("- Line 1: " + TEXT, text)
+        self.assertIn("  - Location: stats.py:4-5 (file exists, line range inside the file)", text)
+        self.assertIn("Allowed models (weakest first): haiku, sonnet, opus", text)
         launch = self.steps.launchgroups
         for name in launch.GROUPS:
             self.assertIn(f"`{name}`", text)
