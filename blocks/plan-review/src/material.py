@@ -500,7 +500,7 @@ def _doc_row(rows: list) -> bool:
 
 def policy_body(path) -> str:
     """方針の文書の本文。policy.PASTE_CAP バイトまで。超えたら先頭を切り、続きの置き場を末尾に書く（元 policy._capped。
-    independent-design の steps.policy_body と同じ）"""
+    方針を受けるほかの block も同じ形で切る）"""
     data = pathlib.Path(path).read_bytes()
     if len(data) <= policy.PASTE_CAP:
         return data.decode("utf-8", "replace")
