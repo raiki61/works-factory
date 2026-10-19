@@ -1,0 +1,14 @@
+# 目的の監査の役が『狭めている』のに根拠を付けない返答（受け付けが拒む道）: run は止めず、出口が落ちずに返る。筋書きでは輪が 1 周で
+# 終わるので却下は 1 回で、3 回で諦めて出口が status: gave_up を返す数えは tests/blocks/purpose_review の試験が確かめる
+fixture:
+  expect: completed
+  reached: [intake, purpose-review-prep, purpose-review, purpose-review-accept, finish]
+  inputs:
+    purpose: '{"purpose_text":"設定の読み込みが空のファイルでも落ちないようにする","source":"③writer の要約","known_weaknesses":[],"source_files":[]}'
+  resolved-text-contains:
+    purpose-review: 'You are the purpose-review role.'
+exec-code: true
+purpose-review:
+  verdict: 狭めている
+  reason: the purpose was cut down to the part that is implemented
+  findings: []

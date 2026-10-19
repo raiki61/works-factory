@@ -40,7 +40,7 @@ block の script と `src/` が Archon と出入りする口と、2 つ以上の
   - `works-gh`: 読むだけの gh の口の使い方。
   - 素材の観点の族（docs/design/materials.md の 3.2）: `material-status`・`material-na`（段落 `na_never`・`na_cond_true`・`na_cond_false`・`na_judged`、中の口 `{na_why}`）・`material-where`・`material-readonly`。
 - 取り置いた断片の名（まだ置かない。最初に要った PR が、この名で足す）: `unknown-asks`。名は設計書の段で決め、ここに足す。
-- `schemas/<name>.schema.json`: 2 つ以上の block が使う port の形。今在る物: `request.schema.json`（依頼の行）・`constraints.schema.json`（前提の実測の行）。
+- `schemas/<name>.schema.json`: 2 つ以上の block が使う port の形。今在る物: `request.schema.json`（依頼の行）・`constraints.schema.json`（前提の実測の行）・`purpose.schema.json`（固めた目的）。
   - 形は `lib/graphloops/engine/schema.py` の `KNOWN_KEYWORDS` の語だけで書く（`type`・`enum`・`const`・`required`・`properties`・`patternProperties`・`additionalProperties`・`items`・`minItems`・`maxItems`・`minimum`・`maximum`・`minLength`・`maxLength`・`pattern`・`note`・`description`）。`anyOf`・`oneOf`・`format`・`$ref` などは照らしが効かないので、`ports.json` も形の検査も拒む。
   - `required` は値が object の時だけ効く（`request.schema.json` は行の配列 `[]` を通す。空の依頼の扱いは block が決める）。
   - 1 つの block の不具合は、その block の `src/` と `tests/blocks/<block>/` で閉じ、共通の形は直さない。

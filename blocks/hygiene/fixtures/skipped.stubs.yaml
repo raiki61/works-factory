@@ -1,0 +1,9 @@
+# 判定から入る run（entry が在り差分が空）: 役の node に届かず、出口が status: skipped を返す
+fixture:
+  expect: completed
+  reached: [intake, finish]
+  inputs:
+    base: ''
+    entry: '人の依頼（standalone）'
+    lang: ''
+exec-code: true
