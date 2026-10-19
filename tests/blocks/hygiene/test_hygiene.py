@@ -7,6 +7,7 @@ role_accept → finish と回し、material.json と出力の 5 欄を照らす�
 import json
 import pathlib
 import unittest
+from unittest import mock
 
 import yaml
 
@@ -144,22 +145,26 @@ class FlowCase(unittest.TestCase):
         self.assertTrue((self.run.artifacts / f"{NAME}-prompt-2.md").is_file())
 
     def test_missing_viewpoint_section_fails_prep_and_finish_still_returns(self):
-        """観点の節が見つからない時は黙って空で役を起こさず落ちる（工場の不具合）。出口は failed で返る"""
+        """観点の節が見つからない時は黙って空で役を起こさず、prep の本体（prompt_inputs）が見出しの名つきの KeyError で落ちる
+        （工場の不具合）。役の返答が無いまま出口を回すと、落ちずに failed で返る（docs/design/hygiene.md の 2.9）"""
         vp = kit.load("hygiene", "viewpoint")
-        import tempfile
-        with tempfile.TemporaryDirectory() as tmp:
-            (pathlib.Path(tmp) / "REVIEW.md").write_text("# 観点\n\n本文\n", encoding="utf-8")
-            orig = vp.materialkit.review_md_paths
-            vp.materialkit.review_md_paths = lambda repo, lib_dir=None: orig(repo, tmp)
-            try:
-                view = vp.materialkit.View(self.run.repo, "b", "r", str(pathlib.Path(tmp) / "d"), (), "c", "", 0)
-                with self.assertRaises(KeyError):
-                    vp.values(view, {})
-            finally:
-                vp.materialkit.review_md_paths = orig
+        self.change()
+        self.intake()
+        own = self.run.repo / "no-section" / "REVIEW.md"
+        own.parent.mkdir()
+        own.write_text("# 観点\n\n本文\n", encoding="utf-8")
+        with self.run.env(), mock.patch.object(vp.materialkit, "review_md_paths", return_value=(str(own), "")):
+            with self.assertRaises(KeyError) as caught:
+                vp.materialkit.prompt_inputs(vp, self.run.artifacts, lambda raw: raw)
+        self.assertIn("見出し「コード衛生観点」が無い", str(caught.exception))
+        fin = self.finish()
+        self.assertEqual((fin["ok"], fin["status"]), (False, "failed"))
+        self.assertIn("役の返答を受けた記録が無い", fin["reason"])
+        self.assertEqual(self.material()["materials"]["hygiene"]["status"], "not_run")
 
     def test_failed_when_the_role_never_answered(self):
-        """prep が落ちた（観点の節が無い等）時、出口は落ちずに failed で返る"""
+        """役の返答を受けた記録が無いまま出口を回すと、落ちずに failed で返る。prep を回さない道を見る
+        （prep が落ちる道は上の試験）"""
         self.change()
         self.intake()
         fin = self.finish()
