@@ -50,7 +50,6 @@ def build(base: pathlib.Path) -> Tree:
     shutil.copytree(ROOT / "bin", repo / "bin", ignore=no_cache)
     shutil.copytree(ROOT / "lib", repo / "lib", ignore=no_cache)
     shutil.copytree(ROOT / "workflows", repo / "workflows", ignore=no_cache)
-    shutil.copytree(ROOT / "blocks", repo / "blocks", ignore=no_cache)
     shutil.copy(ROOT / "pack.json", repo / "pack.json")
     cache_home = base / "cache"
     asf = json.loads((ROOT / "factory" / "pack.json").read_text(encoding="utf-8"))

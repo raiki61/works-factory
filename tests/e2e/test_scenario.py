@@ -49,7 +49,7 @@ class ScenarioCase(unittest.TestCase):
         for name, text in (("scenario", scenario["every-block-ran"]), ("plan", plan.replace("`", ""))):
             with self.subTest(text=name):
                 listed = named(r"線の include の id は ([^。]+)。", text) + named(r"案の直しの道の include（([^）]+)）", text)
-                listed += named(r"直す物の無い周の include（([^）]+)）", text)
+                listed += named(r"条件で回る include（([^。）]+)。", text)
                 self.assertEqual(sorted(listed), sorted(includes))
                 self.assertEqual(set(named(r"eyes の R1〜R4 の役の節（([^）]+)）", text)), roles)
                 fixers = named(r"修正の役の節（([^）]+)）", text)

@@ -1,42 +1,11 @@
 {
-  "about": "層の地図（根の AGENTS.md の E22）。layers は層ごとの置き場と頼ってよい層（may_use。自分の層の中は頼ってよい）で、independent の層の中の置き場どうしは互いに頼らない。import-linter の layers・forbidden・independence の契約の形に倣う。置き場の paths の * はパスの 1 段。最初に当たる層が、そのファイルの層。outside は層の照らしの外（試験と決まりの文。/ で終わる物はフォルダ）。beside はサブグラフごとの、そのサブグラフが隣に書くファイルの名（docs/design.md の「サブグラフの出力の約束」の隣のファイル）。名は複数のサブグラフの隣に在ってよく、<k> の形の段は名の 1 段に当たる。homes はサブグラフごとの、そのサブグラフの隣のファイルの名の字をただ 1 つ持つ lib のファイル（名の住処。書き手と受け付けはその定数を import して引く）で、照らし beside は住処の中のそのサブグラフの名を数えない。known は照らしごとの既知の漏れ {パス: [当たりの数, 訳]} で、減らす向きにだけ動かす。loosened は地図を緩めた所の訳 {鍵: 訳}（tests/layers/test_layer_map.py の NotAboveMain）",
+  "about": "層の地図。layers は層ごとの置き場と頼ってよい層（may_use。自分の層の中は頼ってよい）で、independent の層の中の置き場どうしは互いに頼らない。import-linter の layers・forbidden・independence の契約の形に倣う。置き場の paths の * はパスの 1 段。最初に当たる層が、そのファイルの層。outside は層の照らしの外（試験と決まりの文。/ で終わる物はフォルダ）。lib の層は lib/ の全部（モジュールごとの行は持たない。lib/runlog.py なども lib の層）。読み手は tests/layers/scan.py（TOP_FOLDERS・BLOCKS・lib/ が頼ってはならない層の頭 LAYER_IMPORT）。既知の漏れの表 known・緩めの訳 loosened・隣のファイルの名 beside・名の住処 homes は、照らす試験 test_layer_map と古いサブグラフ・名の住処の lib が組み込みで消えたので外した（docs/design/integration.md の 4.5-9）",
   "layers": [
     {"id": "shell", "what": "起動の殻", "paths": ["bin/"], "may_use": ["shared", "lib"]},
     {"id": "top", "what": "メイングラフと周の鎖", "paths": ["workflows/line/", "workflows/chain/"], "may_use": ["shared", "lib"]},
     {"id": "shared", "what": "サブグラフの共通の部品（境の口と埋め）", "paths": ["workflows/.shared/"], "may_use": ["lib"]},
-    {"id": "block", "what": "サブグラフ", "paths": ["workflows/*/"], "may_use": ["shared", "lib"], "independent": true,
-     "names": ["judge", "structure", "plan", "plan-review", "fix", "test-gate", "eyes", "report", "merge"]},
+    {"id": "block", "what": "サブグラフ", "paths": ["workflows/*/"], "may_use": ["shared", "lib"], "independent": true, "names": ["judge", "structure", "plan", "plan-review", "fix", "test-gate", "eyes", "report", "merge"]},
     {"id": "lib", "what": "共通の lib", "paths": ["lib/"], "may_use": []}
   ],
-  "outside": ["lib/tests/", "workflows/*/fixtures/", "bin/AGENTS.md", "workflows/AGENTS.md", "lib/AGENTS.md"],
-  "beside": {
-    "judge": ["premises.json", "judge-verify.json", "pr-excluded.json", "materials.json", "depth-head.json", "purpose-review.json",
-              "answer-ties.json", "local-review-lenses.json", "pr-downgrades.json", "world-state.json", "rejudge-exit.json",
-              "rejudge-diff.json", "purpose-means.json", "material-prior-decisions.json"],
-    "structure": ["design.jsonl"],
-    "plan": ["p2.fix_plan.json", "rejects-plan.json", "replan-gave-up.json"],
-    "plan-review": ["gate-passes.json", "replan-gave-up.json", "gate.json", "design-premises.json"],
-    "fix": ["allowed-tests.json", "lenses.json", "accept-trace.json", "closure.json", "delta-holes.json", "fix-removed.json",
-            "tdd-unit.json", "tdd-<k>/state.json"],
-    "eyes": ["r4-gate-passes.json", "premise-check.json"]
-  },
-  "homes": {"judge": "lib/judgebeside.py", "plan-review": "lib/planreviewbeside.py", "eyes": "lib/eyesbeside.py", "structure": "lib/structbeside.py",
-            "fix": "lib/fixnames.py", "plan": "lib/planfile.py"},
-  "loosened": {
-    "home:judge": "#723 で judge の隣のファイルの名の字を lib/judgebeside.py の 1 か所に集めた。照らし beside が数えないのはそのファイルの中の judge の名だけで、書き手と受け付けは住処の定数を引き、ほかの読み手は判定の出力の欄のポインタで受ける",
-    "home:plan-review": "#723 で plan-review の隣のファイル（gate-passes.json・gate.json・design-premises.json）の名の字を lib/planreviewbeside.py の 1 か所に集めた。照らし beside が数えないのはそのファイルの中の plan-review の名だけで、書き手 boardview は住処の定数を引き、ほかの読み手は事前審査の出力の欄 gate_passes・gate・design_premises のポインタで受ける",
-    "home:eyes": "#723 で eyes の隣のファイル（r4-gate-passes.json・premise-check.json）の名の字を lib/eyesbeside.py の 1 か所に集めた。照らし beside が数えないのはそのファイルの中の eyes の名だけで、書き手 eyeverdict は住処の定数を引き、ほかの読み手は目の出力の欄 r4_passes・premise_reply のポインタで受ける",
-    "home:structure": "構造のサブグラフ structure の置き場のファイルの名の字を lib/structbeside.py の 1 か所に集めた（#560）。照らし beside が数えないのはそのファイルの中の structure の名だけで、書き手（structfile・eye）は住処の定数を引き、ほかの読み手は出力の欄 structure の先の控えの design_file から辿る",
-    "beside:plan:design.jsonl": "構造の目を plan から構造のサブグラフ structure に分けた（#560）。design.jsonl の書き手が structure に移ったので、隣の名の持ち主を plan から structure に替えた（名を柵の外に出してはいない）",
-    "beside-owner:structure:design.jsonl": "同じ替え（#560）。design.jsonl は構造のサブグラフの隣のファイルで、ほかのサブグラフは欄 structure の先の控えの design_file から辿る",
-    "home:fix": "#723 で fix の隣のファイルの名の字を lib/fixnames.py の 1 か所に集めた。住処を欄の表の在る lib/fixbeside.py にしないのは、fixbeside が書き手 fixboard・leftovers・tddloop を import するので、書き手が fixbeside の名を引くと import が循環するため。照らし beside が数えないのはそのファイルの中の fix の名だけで、書き手（fixboard・leftovers・tddloop・fixbeside）は住処の定数を引き、ほかの読み手は修正の出力の欄のポインタで受ける",
-    "home:plan": "#723 で plan の隣のファイル（p2.fix_plan.json・rejects-plan.json・replan-gave-up.json）の名の字を、欄の表 PORTS・FROM を持つ lib/planfile.py の 1 か所に集めた（replan-gave-up.json の定数は planblk から移した）。照らし beside が数えないのはそのファイルの中の plan の名だけで、事前審査の書き手 boardview も同じ定数を引き、ほかの読み手は計画の出力の欄で受ける"
-  },
-  "known": {
-    "import": {},
-    "beside": {},
-    "main-id": {},
-    "inner-id": {},
-    "role": {}
-  }
+  "outside": ["lib/tests/", "workflows/*/fixtures/", "bin/AGENTS.md", "workflows/AGENTS.md", "lib/AGENTS.md"]
 }

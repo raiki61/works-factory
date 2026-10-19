@@ -5,20 +5,23 @@ tox の pass_env と同じ向きで、外す名はここの 1 か所に置き、
 試験が起こす子の環境を作るのはここだけ（os.environ を手で写す口と env を渡さない子の起こしは層の柵 E21 が赤にする）。
 試験を回す口 tests/shard.py は、試験を集める前に scrub で自分の過程からも同じ名を外す（過程の中で読む既定の環境も場に依らない）。
 利用者の環境を継ぐのが用途の試験（本物の役で回す試験）は、外す前の値を inherited で名指しして引く。
-Archon が script の節に立てる変数の名は境 workflows/.shared/boundary.py が持ち、ここは引くだけ（runner_vars）。
+Archon が script の節に立てる変数の名は pack の口 .shared/ports.py が持ち、ここは引くだけ（runner_vars）。
 macOS の一時フォルダは /var→/private/var の symlink の下にあり、pathlib の relative_to は字面で比べるので、比べる試験は
 tmpdir の実体のパスを使う。
 """
 import ast
 import functools
+import json
 import os
 import pathlib
 import shutil
 import tempfile
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
+# pack の口（pack.json の ours.folder の .shared/ports.py。組み込みの入れ替えの前も後も同じ口。docs/design/integration.md の 4.5-8）
+PORTS = ROOT / json.loads((ROOT / "pack.json").read_text(encoding="utf-8"))["ours"]["folder"] / ".shared" / "ports.py"
 
-# run が立てる名（bin/ の起動・Claude Code・graphloops の engine の子の目印）。Archon が script の節に立てる名は境が持つので
+# run が立てる名（bin/ の起動・Claude Code・graphloops の engine の子の目印）。Archon が script の節に立てる名は ports が持つので
 # ここに写さない（dropped が runner_vars を引く）。
 # ANTHROPIC_ は起こし役（bin/_lib/auth_launch.py）が受け継いだ認証として先に拾い、keychain の段の試験を素通りさせる。
 # HERDR_ は herdr の枠の中で試験を回すと、殻が控えに本物の枠とサーバを残して本物の herdr へ送る（枠の試験は名指しで渡す）。
@@ -33,8 +36,9 @@ _SCRUBBED: dict = {}
 
 @functools.cache
 def runner_vars() -> dict:
-    """境 boundary.py の RUNNER_PREFIXES・RUNNER_NAMES（字から読む）。import しない: 境は skip_value を読み、__pycache__ を避ける作法も要る"""
-    tree = ast.parse((ROOT / "workflows/.shared/boundary.py").read_text(encoding="utf-8"))
+    """pack の口 ports.py の RUNNER_PREFIXES・RUNNER_NAMES（字から読む）。import しない: ports は import すると lib/ を sys.path に足し、
+    __pycache__ を避ける作法も要る"""
+    tree = ast.parse(PORTS.read_text(encoding="utf-8"))
     return {t.id: ast.literal_eval(n.value.args[0] if isinstance(n.value, ast.Call) else n.value)
             for n in tree.body if isinstance(n, ast.Assign) for t in n.targets
             if isinstance(t, ast.Name) and t.id in ("RUNNER_PREFIXES", "RUNNER_NAMES")}

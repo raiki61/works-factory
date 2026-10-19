@@ -24,11 +24,10 @@ from tests import archon
 
 if str(archon.ROOT / "lib") not in sys.path:
     sys.path.append(str(archon.ROOT / "lib"))
-import runreport  # noqa: E402
+import runlog  # noqa: E402  （run の記録の読み。受け止めの宣言の決まり _declared の持ち主。integration.md の 4.5-2）
 
-ROOT = pathlib.Path(__file__).resolve().parents[2]
-FIX_YAML = ROOT / "workflows" / "fix" / "works-factory-fix.yaml"
-LINE_YAML = ROOT / "workflows" / "line" / "works-factory-line.yaml"
+FIX_YAML = archon.WORKFLOWS / "fix" / "works-factory-fix.yaml"
+LINE_YAML = archon.WORKFLOWS / "line" / "works-factory-line.yaml"
 
 CHILD = """name: works-factory-halt-child
 description: 項目 b の 1 回目だけ落ちる子
@@ -201,7 +200,7 @@ def absorbed(ids) -> set:
     """ids のうち、fix 自身が返す節の with: の optional で受け止めると宣言した節（落ちても止めない段。線は include の id の頭を付けて受ける）"""
     fix = {n["id"]: n for n in yaml.safe_load(FIX_YAML.read_text(encoding="utf-8"))["nodes"]}
     declared = [f"fix__{row['node']}" for row in json.loads(fix["fix"]["with"]["optional"])]
-    return {nid for nid in ids if runreport._declared(f"fix__{nid}", declared)}
+    return {nid for nid in ids if runlog._declared(f"fix__{nid}", declared)}
 
 
 def guarded(ids) -> list:

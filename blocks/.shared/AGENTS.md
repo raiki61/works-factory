@@ -21,7 +21,7 @@ block の script と `src/` が Archon と出入りする口と、2 つ以上の
 
 - `ports.py`: `text(raw)`・`flag(raw)`・`choice(raw, words)`・`json(raw, schema)`（schema は block の `schemas/` の名か `shared:<名>`）・`file(raw)`・`parsed(raw)`・`picked(raw, names, optional=())`（names の欄が作り手の出力に無ければ `KeyError`。無くてよい欄は optional）・`unknown_keywords(shape)`・`place()`・`pointer(path)`・`returns(obj)`・`run(compute, fallback)`・`lib_root()`・`shared_cache()`（run をまたぐ控えの根。`STATE_DIR` の下の `works-factory/`、渡されなければ None）。import すると `lib/` が読めるようになる。
 - `ports.py` の、対象のコマンドを起こす block の口（`workflows/.shared/boundary.py` と同じ約束）: `RUNTIME_COPY`・`RUNTIME_COPY_PREFIX`・`RUNNER_PREFIXES`・`RUNNER_NAMES`・`drop_runner_env(user_env)`・`suite_keep()`。
-- 埋め: `ports.polyfill(name)`（`fence`・`childsweep`・`child_pointer`・`skip_value`）。組み込みで埋めをここへ移すまで、リポジトリの `workflows/.shared/` から読む。役の書き込みの柵（`fence`）は起動の殻が役の claude を包むので、block が import する物ではない（読むだけの役は YAML の `sandbox.filesystem.denyWrite` に印を書く。根の `workflows/AGENTS.md` の E7）。
+- 埋め: `ports.polyfill(name)`（`fence`・`childsweep`・`skip_value`。ここに在り、入れ替えの後のリポジトリの `workflows/.shared/` から読む）。`child_pointer` は chain が直に import する。役の書き込みの柵（`fence`）は起動の殻が役の claude を包むので、block が import する物ではない（読むだけの役は YAML の `sandbox.filesystem.denyWrite` に印を書く。根の `workflows/AGENTS.md` の E7）。
 - `prompt.py`: `render(node_id, values, when)`・`render_part(name, values, when)`（AI の node でない物の指示を `prompts/parts/<name>.md` から組む。束ね役が起こす下請けが Read する指示のファイルなど）・`emit(node_id, values, when, n)`・`round_of(node_id)`・`lang(raw)`・`PromptError`。
 - `requestrows.py`: `parts(raw)`・`findings(raw)`。依頼の行の port を読む口。
 

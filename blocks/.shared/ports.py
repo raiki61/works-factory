@@ -27,8 +27,8 @@
   実行器の取り置きの根。起動の殻が渡す）
 - shared_cache() -> Path | None: run をまたぐ控えの根（Archon が project ごとに渡す STATE_DIR の下の works-factory/。渡されなければ None で、
   控えを使わない。workflows/.shared/boundary.py の shared_cache と同じ約束の写し）
-- polyfill(name): 埋め（workflows/.shared/<name>.py。fence・childsweep・child_pointer・skip_value）を読んだモジュール。組み込みで埋めを
-  この pack の .shared/ へ移すまでの間だけ、リポジトリの根（WORKS_FACTORY_ROOT）から読む
+- polyfill(name): 埋め（リポジトリの根〔WORKS_FACTORY_ROOT〕の workflows/.shared/<name>.py。fence・childsweep・skip_value。組み込みの
+  入れ替えの後は pack の .shared/）を読んだモジュール。child_pointer は chain が .shared から直に import する
 
 import すると lib/ の置き場（環境変数 WORKS_FACTORY_ROOT の lib/。無ければこのファイルから辿った lib/）を sys.path の後ろに足す。
 Archon は run の始めに pack を写し取るので、run の中ではこのファイルから辿っても lib/ に届かない（起動の殻が根を渡す）。

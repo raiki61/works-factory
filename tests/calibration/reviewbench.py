@@ -32,6 +32,9 @@ GIT_ENV = {"GIT_LFS_SKIP_SMUDGE": "1", "GIT_TERMINAL_PROMPT": "0"}
 Source = namedtuple("Source", "file rows kind text prefer", defaults=(None, None))
 
 
+MISSING = "無い"   # 読み元のファイルが無い時の unread の字（全部の読み元が無ければ convert が止まる）
+
+
 class BenchError(Exception):
     pass
 
@@ -245,7 +248,7 @@ def convert(producer, entry: dict, attempt: Path, run_id: str, base: str, head: 
         try:
             doc = json.loads((ev / source.file).read_text(encoding="utf-8"))
         except FileNotFoundError:
-            unread[source.file] = "無い"
+            unread[source.file] = MISSING
             continue
         except (OSError, UnicodeDecodeError, json.JSONDecodeError) as e:
             unread[source.file] = f"読めない（{type(e).__name__}）"
@@ -263,6 +266,9 @@ def convert(producer, entry: dict, attempt: Path, run_id: str, base: str, head: 
             kept.append({**finding, "ref_as_written": written, "source": c["source"], "node": node,
                          "node_why": None if node else NO_NODE,
                          "in_final_diff": None if ranges is None else _overlaps(ranges, path, start, end)})
+    if sources and all(why == MISSING for why in unread.values()) and len(unread) == len(sources):
+        raise BenchError(f"{producer.name} の読み元が全部無い（{', '.join(unread)}）。置き場の道が run の記録と合っていない。"
+                         "0 件で採点を続けない")
     seconds, usd = ended.get("seconds"), ended.get("usd")
     usage = {**({"time_in_ms": int(seconds * 1000)} if seconds is not None else {}),
              **({"cost_usd": usd} if usd is not None else {})}

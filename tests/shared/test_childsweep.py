@@ -1,21 +1,11 @@
-"""線の後始末の埋め P7（workflows/.shared/childsweep.py）の試験。Archon は起こさず、起こす口 run に偽を差して、起こした引数と環境を照らす。"""
-import inspect
+"""線の後始末の埋め P7（pack の .shared/childsweep.py）の試験。Archon は起こさず、起こす口 run に偽を差して、起こした引数と環境を照らす。"""
 import json
 import pathlib
 import subprocess
-import sys
 import tempfile
 import unittest
 
-import yaml
-
 from bin._lib import place
-
-ROOT = pathlib.Path(__file__).resolve().parents[2]
-if str(ROOT / "lib") not in sys.path:
-    sys.path.append(str(ROOT / "lib"))
-
-import fixboard  # noqa: E402  （join の写しの鎖を縛る試験が adopt_returned の本文を読む）
 
 childsweep = place.shared("childsweep")
 
@@ -138,26 +128,30 @@ class ChildSweepTest(unittest.TestCase):
         for n, status in enumerate(("running", "pending", "cancelled")):
             self.assertIn(status, reasons[f"{OURS}{n}"])
 
-    def test_keeps_children_while_resume_may_rerun_the_join(self):
-        """fan_out の節か join が completed でない run は再開でき、再開した join が子の作業ツリーから書き込みの記録を写すので残す"""
+    def test_keeps_children_while_resume_may_rerun_the_include(self):
+        """子を起こしたノードか同じ include の中のノードのどれかが completed でない run は再開でき、再開した同じ include のノードが
+        子の作業ツリーを読みうるので残す（line.md の 1.5。include の中の読み手の名は埋めが持たない）"""
         listing = {"runs": [child(0), child(1), row(RUN, "running")]}
         for states in ({"fix__groups-par": "completed", "fix__join": "failed"},
                        {"fix__groups-par": "failed", "fix__join": "completed"},
-                       {"fix__groups-par": "completed"}):
+                       {"fix__groups-par": "completed", "fix__join": "completed", "fix__collect": "pending"},
+                       {"fix__join": "completed"}):
             with self.subTest(states=states):
                 archon = FakeArchon(listing, got=nodes(**states))
                 got = self.sweep(archon)
                 self.assertEqual(archon.completed(), [])
                 self.assertEqual(got["cleaned"], [])
                 self.assertEqual([left["branch"] for left in got["left"]], [f"{OURS}0", f"{OURS}1"])
-                open_nodes = [n for n in ("fix__groups-par", "fix__join") if states.get(n) != "completed"]
+                open_nodes = [n for n in ("fix__groups-par", *states) if states.get(n) != "completed"]
+                self.assertTrue(open_nodes)
                 for left in got["left"]:
                     for node in open_nodes:
                         self.assertIn(node, left["reason"])
                 self.assertEqual(got["error"], "")
 
-    def test_join_is_read_per_include(self):
-        """2 度目の修正（refix-run）の子は refix-run__join を見る。1 回目の join が済んでも 2 度目の join が落ちれば 2 度目の子を残す"""
+    def test_include_is_read_per_spawner(self):
+        """2 度目の修正（refix-run）の子は refix-run__ の中のノードを見る。1 回目の include が済んでも 2 度目の include の
+        ノードが落ちれば 2 度目の子を残す"""
         refix = {"parent_node_id": "refix-run__groups-par", "branch_name": f"{OURS}9"}
         archon = FakeArchon({"runs": [child(0), row("child-9", "completed", RUN, **refix), row(RUN, "running")]},
                             got=nodes(**{"fix__groups-par": "completed", "fix__join": "completed",
@@ -167,17 +161,18 @@ class ChildSweepTest(unittest.TestCase):
         self.assertEqual([left["branch"] for left in got["left"]], [f"{OURS}9"])
         self.assertIn("refix-run__join", got["left"][0]["reason"])
 
-    def test_reader_is_the_fix_join_after_every_worktree_fan_out(self):
-        """READER は fix の節の id で、作業ツリーを切る fan_out の節を全部待ち、子の作業ツリーから記録を写す script join を走らせる"""
-        fix = yaml.safe_load((ROOT / "workflows/fix/works-factory-fix.yaml").read_text(encoding="utf-8"))
-        nodes = {node["id"]: node for node in fix["nodes"]}
-        isolated = {key for key, node in nodes.items() if "fan_out" in node and node.get("isolation") == "worktree"}
-        self.assertTrue(isolated)
-        self.assertLessEqual(isolated, set(nodes[childsweep.READER]["depends_on"]))
-        self.assertEqual(nodes[childsweep.READER]["script"], "join")
-        self.assertIn("adopt_returned", (ROOT / "workflows/fix/scripts/join.py").read_text(encoding="utf-8"))
-        self.assertIn("carry_children", inspect.getsource(fixboard.adopt_returned))
-        self.assertEqual(childsweep.reader_of("fix__groups-par"), "fix__join")
+    def test_nodes_outside_the_include_do_not_hold(self):
+        """include の外のノード（後始末のノード自身や、ほかの include のノード）が completed でなくても子は消す。
+        include の外のノードが起こした子は、そのノードだけを待つ"""
+        archon = FakeArchon({"runs": [child(0), row(RUN, "running")]},
+                            got=nodes(**{"fix__groups-par": "completed", "fix__join": "completed",
+                                         "sweep-children": "running", "report__write": "failed", "fix-extra": "failed"}))
+        got = self.sweep(archon)
+        self.assertEqual(archon.completed(), [f"{OURS}0"])
+        self.assertEqual(got["left"], [])
+        self.assertEqual(childsweep.waits_on("spawn", {"spawn": "completed", "other": "failed"}), ["spawn"])
+        self.assertEqual(childsweep.waits_on("a__b__par", {"a__b__x": "failed", "a__c": "failed", "a__b__par": "completed"}),
+                         ["a__b__par", "a__b__x"])
 
     def test_unreadable_node_states_remove_nothing(self):
         for answer in ("not json\n", {"ok": False, "runId": RUN, "error": "not_found"}, {"id": RUN}):
