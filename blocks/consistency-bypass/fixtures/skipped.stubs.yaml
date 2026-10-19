@@ -1,0 +1,10 @@
+# 判定から入る run（entry に字が在る）: 入口が役を起こさず、輪を通らずに出口へ届く。出口が status: skipped で 2 つの素材に
+# not_applicable を書くことは tests/blocks/consistency_bypass の試験が確かめる
+fixture:
+  expect: completed
+  reached: [intake, finish]
+  inputs:
+    base: ''
+    entry: '人の依頼（standalone）'
+    lang: ''
+exec-code: true

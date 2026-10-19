@@ -1,0 +1,143 @@
+name: works-factory-consistency-bypass
+description: >-
+  整合性と標準機構の迂回: 対象差分の依存先・近傍・呼び元を読み、リポジトリ横断の整合性と、近傍が使う標準の機構の迂回を、互いに独立に見る。
+  素材集めの観点の block（docs/design/materials.md の形）。単独の run でも、判定のまとめから include されても動く
+inputs:
+  base: {default: "", description: "text: 対象差分の根の commit（対象差分は、この commit から作業ツリーの今の姿まで。未追跡の新しいファイルも入る）。空は HEAD"}
+  entry: {default: "", description: "text: 判定から入る run の出どころの文（例「人の依頼（/path/req.json）」）。空は判定から入る run でない"}
+  lang: {default: "", description: "text: 人に見せる欄（consistency と bypass の detail・checked・reason、findings と bypass_findings の行の text・mechanism・measured・false_positive_if、seen、unseen）の言語。空は依頼の言語"}
+returns: finish
+outcome_field: ok
+nodes:
+  - id: intake
+    script: intake
+    runtime: uv
+    mutates_checkout: false
+    output_format:
+      type: object
+      additionalProperties: false
+      required: [due, reason]
+      properties:
+        due: {type: boolean}
+        reason: {type: string}
+  - id: consistency-bypass-loop
+    depends_on: [intake]
+    when: $intake.output.due == true
+    loop_group:
+      max_iterations: 3
+      fresh_context: false
+      until_bash: done=$consistency-bypass-accept.output.done; test "$done" = true
+      nodes:
+        - id: consistency-bypass-prep
+          script: role_prep
+          runtime: uv
+          mutates_checkout: false
+          output_format:
+            type: object
+            additionalProperties: false
+            required: [prompt]
+            properties:
+              prompt: {type: string}
+        - id: consistency-bypass
+          prompt: "$consistency-bypass-prep.output.prompt"
+          depends_on: [consistency-bypass-prep]
+          model: '@wf-judge-materials'
+          settingSources: [user]
+          allowed_tools: [Read, Grep, Glob]
+          sandbox: {enabled: true, allowUnsandboxedCommands: false}
+          idle_timeout: 1728000000
+          mutates_checkout: false
+          retry: {max_attempts: 2, on_error: all}
+          output_format:
+            type: object
+            required: [consistency, bypass, findings, bypass_findings, seen, unseen]
+            additionalProperties: false
+            properties:
+              consistency:
+                type: object
+                required: [status]
+                additionalProperties: false
+                properties:
+                  status:
+                    type: string
+                    enum: [found, clean, carried_over, not_applicable, awaiting_human, not_run]
+                  count: {type: integer, minimum: 0}
+                  detail: {type: string}
+                  checked: {type: string}
+                  reason: {type: string}
+                  from_round: {type: integer, minimum: 1}
+              bypass:
+                type: object
+                required: [status]
+                additionalProperties: false
+                properties:
+                  status:
+                    type: string
+                    enum: [found, clean, carried_over, not_applicable, awaiting_human, not_run]
+                  count: {type: integer, minimum: 0}
+                  detail: {type: string}
+                  checked: {type: string}
+                  reason: {type: string}
+                  from_round: {type: integer, minimum: 1}
+              findings:
+                type: array
+                items:
+                  type: object
+                  required: [where, text]
+                  additionalProperties: false
+                  properties:
+                    where: {type: string}
+                    text: {type: string}
+                    mechanism: {type: string}
+                    measured: {type: string}
+                    false_positive_if: {type: string}
+              bypass_findings:
+                type: array
+                items:
+                  type: object
+                  required: [where, text]
+                  additionalProperties: false
+                  properties:
+                    where: {type: string}
+                    text: {type: string}
+                    mechanism: {type: string}
+                    measured: {type: string}
+                    false_positive_if: {type: string}
+              seen: {type: string}
+              unseen: {type: string}
+        - id: consistency-bypass-accept
+          script: role_accept
+          runtime: uv
+          mutates_checkout: false
+          depends_on: [consistency-bypass]
+          with: {reply: $consistency-bypass.output}
+          output_format:
+            type: object
+            additionalProperties: false
+            required: [ok, done, reason]
+            properties:
+              ok: {type: boolean}
+              done: {type: boolean}
+              reason: {type: string}
+  - id: finish
+    script: finish
+    runtime: uv
+    mutates_checkout: false
+    depends_on: [intake, consistency-bypass-loop]
+    trigger_rule: all_done
+    output_format:
+      type: object
+      additionalProperties: false
+      required: [ok, status, reason, material, report]
+      properties:
+        ok: {type: boolean}
+        status: {type: string, enum: [ran, skipped, gave_up, failed]}
+        reason: {type: string}
+        material:
+          type: [object, "null"]
+          required: [type, run_id, path]
+          properties:
+            type: {const: archon_artifact}
+            run_id: {type: string}
+            path: {type: string}
+        report: {type: array, items: {type: string}}
