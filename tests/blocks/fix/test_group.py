@@ -3,7 +3,7 @@
 今の tests/workflows/test_fix.py の GroupChildScriptsCase と lib/tests/test_fix_seams.py の GroupChildSeamCase を写した物。
 子の run は port だけを渡して回す: intake（mode group・group・out_dir＝親の place の groups/・from_tree）→ group-start → tdd-prep・
 tdd-step → fix-prep・fix-accept → group-end。親の place は prep が書く写し（intake.json・values.json・judgment.json・baseline.json）を
-試験が置く。返りは節の output_format で照らす。テストの実行器は lib/tests/test_blk_fix_tdd.py の SUITE。
+試験が置く。返りは節の output_format で照らす。テストの実行器は tests/blocks/fix/support.py の SUITE。
 写さない物: 深さの上げ直し（unit_depths・頭の深さの控え。port skip_rerun に替わった）、始めの記録の方針の固めた写し（line の仕事。
 values.json の policy をそのまま名指す）
 """
@@ -86,8 +86,8 @@ def _record(log, path, tool="Edit"):
 
 
 def _change(unit, files, **extra):
-    """修正役の返答の changes の 1 行（closure の site は 1 つ。自己申告の欄は lib/tests/test_fix_seams.py の SELF_REPORT）"""
-    from lib.tests.test_fix_seams import SELF_REPORT
+    """修正役の返答の changes の 1 行（closure の site は 1 つ。自己申告の欄は tests/blocks/fix/support.py の SELF_REPORT）"""
+    from tests.blocks.fix.support import SELF_REPORT
     return {"unit_key": unit, "files": files, "what": "直した", **SELF_REPORT, **extra,
             "closure": {"mechanism": "分母", "fix_mechanism": "len(xs)", "verified_how": "読んだ",
                         "sites": [{"site": f"{files[0]}:9", "red_seen": True}]}}
@@ -98,7 +98,7 @@ class GroupChildScriptsCase(unittest.TestCase):
     一時の $ARTIFACTS_DIR。include の道の無い単独の run なので place は $ARTIFACTS_DIR そのもの）で子のプロセスで起こす"""
 
     def setUp(self):
-        from lib.tests.test_blk_fix_tdd import SUITE
+        from tests.blocks.fix.support import SUITE
         self.tmp = hermetic.tmpdir(self, prefix="works-fix-grp-")
         self.repo = self.tmp / "repo"
         committed_copy(self.repo, SEED)
@@ -350,7 +350,7 @@ class GroupChildScriptsCase(unittest.TestCase):
     def test_join_resolves_a_relative_runner_in_the_parent_tree(self):
         """並べた子の worktree で回った輪の状態の実行器（相対パス。自分の place から根を引く）を、join は親の作業ツリーで解き直して
         写す。親の裁定の後の修正の受け付けは親の木で試験を走らせ、元で緑だった試験を赤にする直しを拒む"""
-        from lib.tests.test_blk_fix_tdd import SUITE
+        from tests.blocks.fix.support import SUITE
         (self.repo / "ci").mkdir()
         (self.repo / "ci" / "suite.py").write_text(
             "import os\nos.chdir(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))\n" + SUITE, encoding="utf-8")

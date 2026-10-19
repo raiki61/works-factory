@@ -281,5 +281,32 @@ class SourceCase(unittest.TestCase):
                          {"request_file": "/r.md", "answers": [{"a": 1}]})
 
 
+
+class GateAsksCase(unittest.TestCase):
+    """P241: 修正の置き場の判定の写しと関所の答え（answers.json の {decision, text, asked}）から引く、答えで戻る単位と外れる単位
+    （元 lib/tests/test_fix_seams.py の GateAsksCase。入口が置く写し judgment.json・answers.json を board が読む）"""
+
+    FORK = {"key": "q1", "kind": "fork", "status": "held", "origin": "u1", "options": ["a", "b"], "reason": "割れる"}
+
+    def setUp(self):
+        self.run = kit.Run(self, "fix")
+        self.place = self.run.artifacts
+        self.board = kit.load("fix", "board")
+
+    def put(self, answers):
+        (self.place / self.board.JUDGMENT_FILE).write_text(
+            _j({"units": [{"key": "u1", "label": "block"}], "questions": [self.FORK]}), encoding="utf-8")
+        (self.place / self.board.ANSWERS_FILE).write_text(_j(answers), encoding="utf-8")
+
+    def test_continue_returns_the_fork_origin(self):
+        import gatemarks
+        self.put({"decision": "approve", "text": "", "asked": [gatemarks.ask_text(self.FORK)]})
+        self.assertEqual(self.board.gate_asks(self.place), ({}, {"u1"}))
+        self.assertEqual(self.board.group_owed(self.place), ["u1"])
+        self.put({"decision": "approve", "text": "", "asked": []})
+        withheld, back = self.board.gate_asks(self.place)
+        self.assertEqual((set(withheld), back, self.board.group_owed(self.place)), ({"u1"}, set(), []))
+
+
 if __name__ == "__main__":
     unittest.main()
