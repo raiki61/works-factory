@@ -1,0 +1,14 @@
+# 単独の run: 本文のファイルだけで最後まで届く（script は本当に走り、AI の役の返答だけを差し替える）。読ませる本文は対象の README.md
+fixture:
+  expect: completed
+  reached: [cold-prep, cold, finish]
+  inputs:
+    text: README.md
+  resolved-text-contains:
+    cold: 'Read only the text below.'
+exec-code: true
+cold:
+  verdict: pass
+  stops: []
+  guessed: []
+  decidable: true
