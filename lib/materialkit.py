@@ -49,7 +49,7 @@ INTAKE = "intake.json"
 VIEW = "view.json"
 DIFF = "diff.patch"
 CHANGED = "changed-files.txt"
-TREE = "tree.json"
+TREE = core_accept.TREE   # 作業ツリーの写しのファイルの名（住処は accept）
 ACCEPTED = "accepted.json"
 MATERIAL = "material.json"
 STATUSES = ("ran", "skipped", "gave_up", "failed")
@@ -260,26 +260,9 @@ def snap_tree(place, repo) -> pathlib.Path:
     return _write(path, core_accept.tree_state(pathlib.Path(repo)))
 
 
-def _tree_snapshot(path):
-    """写す元 judge_accept._tree_snapshot。置いた作業ツリーの写し。無ければ None、読めない・形が違えば Reject"""
-    try:
-        snap = _read(path)
-    except ValueError as e:
-        raise Reject(str(e)) from None
-    if snap is None:
-        return None
-    core_accept.type_errors(snap, core_accept.TREE_SCHEMA, f"作業ツリーの写し {path} ")
-    return {k: snap[k] for k in core_accept.TREE_KEYS}
-
-
 def moved_since(place, repo, keys) -> list:
-    """写す元 judge_accept._moved_since。place の TREE から今の作業ツリーが変わった所の文（accept.tree_moved。keys の欄だけを比べる。
-    keys は accept.status_keys(viewpoint.GUARDED)）。同じなら空。写しが無い・読めない・形が違えば Reject"""
-    path = pathlib.Path(place) / TREE
-    snap = _tree_snapshot(path)
-    if snap is None:
-        raise Reject(f"作業ツリーの写し {path} が無い——役を起こす前の作業ツリーと比べられない（写しを置く段が先に走る）")
-    return core_accept.tree_moved(snap, pathlib.Path(repo), keys=keys)
+    """place の TREE から今の作業ツリーが変わった所の文。accept.moved_since を呼ぶだけ（住処は accept。integration.md 4.4-H）"""
+    return core_accept.moved_since(place, repo, keys)
 
 
 # ---------------------------------------------------------------- 2.5 所見の場所の照らし

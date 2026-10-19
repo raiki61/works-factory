@@ -243,6 +243,22 @@ class TreeCase(_RepoCase):
         with self.assertRaises(Reject):
             mk.moved_since(self.place, self.repo, ("porcelain",))
 
+    def test_moved_since_lives_in_accept(self):
+        """作業ツリーの比べの住処は accept の 1 か所で、materialkit は呼ぶだけ（integration.md 4.4-H）"""
+        import accept
+        self.assertEqual(mk.TREE, accept.TREE)
+        with self.assertRaises(Reject):
+            accept.moved_since(self.place, self.repo, ("porcelain",))
+        self.intake()
+        self.assertEqual(accept.moved_since(self.place, self.repo, ("porcelain",)), [])
+        (self.repo / "tmp.out").write_text("x\n", encoding="utf-8")
+        got = accept.moved_since(self.place, self.repo, ("porcelain",))
+        self.assertTrue(got)
+        self.assertEqual(mk.moved_since(self.place, self.repo, ("porcelain",)), got)
+        (self.place / accept.TREE).write_text("{", encoding="utf-8")
+        with self.assertRaises(Reject):
+            accept.tree_snapshot(self.place / accept.TREE)
+
 
 class LocationCase(_RepoCase):
     def test_location_beyond_the_file_is_sent_back_then_marked(self):

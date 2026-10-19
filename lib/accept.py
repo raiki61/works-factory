@@ -4,6 +4,8 @@
 - snapshot_tree: 作業ツリーの写し（git が無視するファイルも入れる。index の印に隠れた物も入れる。tree_state の土台）
 - tree_state・tree_change・tree_moved: 読むだけの役（blk-pr・blk-ci・entry.take・rejudge.take）を起こす前後の作業ツリーの姿
                  （snapshot_tree に HEAD・枝を足した物）と、その違いの文（R47）。
+- TREE・tree_snapshot・moved_since: 役を起こす前の作業ツリーの写しのファイルの名・その読み・写しから今の作業ツリーが変わった所の文
+                 （前は materialkit と、purpose・premises・parallel-pr・verify の写し。integration.md 4.4-H。block はここを呼ぶ）
 - guard・in_repo・resolve_rev・read_board・write_board・type_errors: 受け付けの部品の公開の名（ブロックのモジュールの受け付けが使う）
 - touched_files: 修正が触ったファイル（テストのキャッシュは除く。index の印に隠れた物も入れる。protect が数える）
 - flag_free_env: 本物の index の assume-unchanged・skip-worktree の印を外して git に作業ツリーを見せる env（protect も使う。
@@ -314,6 +316,35 @@ def tree_moved(before: dict, repo: pathlib.Path, *, keys=TREE_KEYS) -> list:
     except Reject as e:
         return [f"作業ツリー・HEAD が引けなくなった: {e}"]
     return tree_change(before, now, keys)
+
+
+TREE = "tree.json"   # 役を起こす前の作業ツリーの写しのファイルの名（置き場の中。materialkit.snap_tree が書く）
+
+
+def tree_snapshot(path):
+    """置いた作業ツリーの写し path の TREE_KEYS の欄。無ければ None、読めない・JSON でない・形が違えば Reject（前は
+    materialkit._tree_snapshot。写す元 judge_accept._tree_snapshot）"""
+    p = pathlib.Path(path)
+    try:
+        snap = json.loads(p.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        return None
+    except (OSError, UnicodeDecodeError, ValueError) as e:
+        raise Reject(f"{p} が読めない（{type(e).__name__}: {e}）") from None
+    if snap is None:
+        return None
+    type_errors(snap, TREE_SCHEMA, f"作業ツリーの写し {p} ")
+    return {k: snap[k] for k in TREE_KEYS}
+
+
+def moved_since(place, repo, keys) -> list:
+    """place の TREE から今の作業ツリーが変わった所の文（tree_moved。keys の欄だけを比べる。keys は status_keys(<見張る欄>)）。
+    同じなら空。写しが無い・読めない・形が違えば Reject（前は materialkit.moved_since。写す元 judge_accept._moved_since）"""
+    path = pathlib.Path(place) / TREE
+    snap = tree_snapshot(path)
+    if snap is None:
+        raise Reject(f"作業ツリーの写し {path} が無い——役を起こす前の作業ツリーと比べられない（写しを置く段が先に走る）")
+    return tree_moved(snap, pathlib.Path(repo), keys=keys)
 
 
 def _names(repo, cmd, *args, env=None) -> list:
