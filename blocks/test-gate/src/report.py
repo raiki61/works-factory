@@ -2,7 +2,7 @@
 
 今の lib/runreport.py が試験の関門の返りから組む行（_base_word・_evidence_lines・_green_lines・_tests_head_lines）を、この block の返りの値
 だけで組む。字は今と同じ。line の中の名（node の id）は block が知らないので、行の頭の札は外す。どの行を報告のどの節に載せるかは
-report の決めで、ここは行を返すだけ。出力の node の中の誤り（by が空）は、試験が走らなかったとは言わず、誤りの 1 行だけを返す。
+この後の段が決め、ここは行を返すだけ。出力の node の中の誤り（by が空）は、試験が走らなかったとは言わず、誤りの 1 行だけを返す。
 """
 from __future__ import annotations
 

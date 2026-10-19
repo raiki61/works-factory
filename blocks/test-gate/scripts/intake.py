@@ -39,8 +39,17 @@ def read(modes) -> dict:
         raise ValueError(f"mode は {'・'.join(modes)} のどれか: {mode}")
     baseline = port("baseline", ports.file, None) if mode == "final" else None   # base では渡されても読まない
     text = lambda name: ports.text(RAW[name]).strip()   # noqa: E731
+    scope = port("request_scope", ports.flag, False)
+    # 依頼の行を要るのは、範囲を依頼で絞る base だけ。ほかは読めない依頼で関門を落とさず [] にする（今の工場は where を足さないだけ）
+    if mode == "base" and scope:
+        request = port("request", requestrows.findings, [])
+    else:
+        try:
+            request = port("request", requestrows.findings, [])
+        except ValueError:
+            request = []
     return {"mode": mode, "test_cmd": ports.text(RAW["test_cmd"]), "tdd_suite": text("tdd_suite"), "base": text("base"),
-            "request": port("request", requestrows.findings, []), "request_scope": port("request_scope", ports.flag, False),
+            "request": request, "request_scope": scope,
             "baseline": str(baseline) if baseline else "", "reuse_dir": text("reuse_dir"), "reuse_key": text("reuse_key"),
             "user_env_dir": text("user_env_dir"), "lang": text("lang")}
 

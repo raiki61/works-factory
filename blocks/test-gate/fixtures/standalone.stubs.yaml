@@ -7,7 +7,7 @@ fixture:
   inputs:
     mode: base
   resolved-text-contains:
-    ci: 'You are the CI delegate, started in a new conversation.'
+    ci: 'You are the CI delegate, started for this check.'
     suite-write: 'You are the TDD runner writer, started in a new conversation.'
 exec-code: true
 ci:

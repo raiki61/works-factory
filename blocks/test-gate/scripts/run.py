@@ -6,7 +6,7 @@
 1 件ごとの結末を足し、走らせた後の指紋を取る。結果の全部は place の run.json に書き、node の返りは output_format の欄だけ。
 返りの suite_owed は、この後に TDD の実行器を用意するか（suitewrite.need。tdd_suite を省いた run の base）。
 値は intake.json から読む。base は同じ run の中の試験の結果の控え（reuse_dir。run の名は reuse_key、空ならこの run の id）を引いて置く。
-fix の TDD の輪の頭が同じ控えを引く。final は引かず置かない（最後のテストは省かない）。旗 tree_run.RERUN_ENV が立てば引かない。
+同じ reuse_key で引く後の段が同じ控えを引く。final は引かず置かない（最後のテストは省かない）。旗 tree_run.RERUN_ENV が立てば引かない。
 テストを起こす前に Archon の変数を落とす（対象のテストに継がせず、node ごとに違う値で控えの指紋を割らない）。利用者の HOME・XDG に戻して
 起こした印は user_env_dir の置き場に置かせる。
 止められたら木を止め終えてから返りを出さずに 128+信号で抜ける。走らせられない（範囲の宣言の誤りなど）は 1 で、理由を標準エラーに 1 行"""

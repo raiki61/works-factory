@@ -1,7 +1,7 @@
 # block の設計書: test-gate（試験の関門）
 
 - 何の話か: 対象のテストを機械で走らせ、直す前の結末を控え、修正の後に赤の原因を分けて緑を作業ツリーの指紋つきで認証する観点「試験の関門」を、単独で呼べる block `blocks/test-gate/` にする設計。機械が走らせ方を決められない時の任せ先の CI の役と、TDD の実行器の書き手の役も含む。型は [README.md](README.md)、書き方は [world.md](world.md) に従う。
-- 決めたこと: 今の `workflows/test-gate/` の 11 の node を、入口の 1 つを足した 12 の node の block にする。始めの記録の代わりに 11 の port で受け、TDD の実行器を始めの記録に結ぶ代わりに出力の欄 `suite` で返す。指示は英語の md 3 本（`prompts/ci.md`・`prompts/ci-fix.md`・`prompts/suite-write.md`）に置き、指示書のファイルを役に Read させる道（拒まれた後の出し直しと書き手の材料）は、指示に値を貼る形に替える。振る舞いは変えない。
+- 決めたこと: 今の `workflows/test-gate/` の 11 の node を、入口の 1 つと出し直しの指示を組む prep の 1 つを足した 13 の node の block にする（11 節の 12）。始めの記録の代わりに 11 の port で受け、TDD の実行器を始めの記録に結ぶ代わりに出力の欄 `suite` で返す。指示は英語の md 3 本（`prompts/ci.md`・`prompts/ci-fix.md`・`prompts/suite-write.md`）に置き、指示書のファイルを役に Read させる道（拒まれた後の出し直しと書き手の材料）は、指示に値を貼る形に替える。振る舞いは変えない。
 - 読む人: この block を作る実装の役（この設計書だけで作れるように書いた）。急ぎではない（README 11.1 の 1 波目。ほかの block と並べて作る）。
 - 持ち主に求めること: なし。keep-essence の 1・2・6 の守りの割り当ては 9 節、自分で決めた事は 11 節に集めた。
 
@@ -36,7 +36,7 @@
 - `test_cmd`: `text: 人が渡したテストのコマンド（対象の根で走らせる 1 行。字のまま）。空は渡されていない`。既定 `""`。
 - `tdd_suite`: `text: TDD の実行器のパス（人が渡した物か、base の出力の suite）。空は無い（base では用意する）`。既定 `""`。
 - `base`: `text: 修正前の版（範囲の照らしの起点。任せ先の役に BASE として見せる）。空は起点なし（範囲の照らしは依頼の where だけ）`。既定 `""`。
-- `request`: `json(request.schema.json): 依頼の行の配列か、それを findings の欄に持つオブジェクト（where だけを読む）。空の配列は無い`。既定 `[]`。
+- `request`: `json(shared:request.schema.json): 依頼の行の配列か、それを findings の欄に持つオブジェクト（where だけを読む）。空の配列は無い`。既定 `[]`。
 - `request_scope`: `flag: 真なら base の形で依頼の行の where を範囲の照らしの変更に足す（入口の差分が空の run）`。既定 `false`。
 - `baseline`: `file: final の時、base の出力の baseline のファイル。空は無い（1 件ごとの比べをしない）`。既定 `""`。
 - `reuse_dir`: `text: 同じ run の中の試験の結果の控えの置き場の絶対パス。base の時だけ引いて置く。空は使い回さない`。既定 `""`。
@@ -63,7 +63,8 @@ port でない環境（起動の殻が渡す。今と同じ）: 取り置きの�
 3. `ci-loop`（`depends_on: [run]`・`when: "$run.output.by == 'role_needed'"`・`loop_group`: `max_iterations: 3`・`fresh_context: false`・`until_bash: accepted=$ci-accept.output.done; test "$accepted" = true`）
    - `ci-prep`（script `ci_prep.py`。`with: {prev: "$LOOP_PREV.ci-accept.output.ok"}`）: 作業ツリーの姿と写しを置き、1 回目の役か出し直しの役のどちらかの指示を組む。返り `{prompt, resubmit, attempt}`。
    - `ci`（AI。`depends_on: [ci-prep]`・`when: "$ci-prep.output.resubmit != true"`・`prompt: "$ci-prep.output.prompt"`・下の起こし方・`output_format` は今の `ci` の物を字のまま）
-   - `ci-fix`（AI。`depends_on: [ci-prep, ci]`・`trigger_rule: none_failed_min_one_success`・`when: "$ci-prep.output.resubmit == true"`・`prompt: "$ci-prep.output.prompt"`・下の起こし方・`output_format` は `ci` の物で `required: []`）
+   - `ci-fix-prep`（script `ci_fix_prep.py`。`depends_on: [ci-prep, ci]`・`trigger_rule: none_failed_min_one_success`・`when: "$ci-prep.output.resubmit == true"`）: 出し直しの役の指示（3.3）を組む。返り `{prompt}`。`ci` の後ろの層に置く（`ci-prep` だけに依ると `ci` と同じ層に並び、Archon は並んだ層で会話を切るので、`ci-fix` が会話の続きでなく新しい会話で起きる）。
+   - `ci-fix`（AI。`depends_on: [ci-prep, ci, ci-fix-prep]`・`trigger_rule: none_failed_min_one_success`・`when: "$ci-prep.output.resubmit == true"`・`prompt: "$ci-fix-prep.output.prompt"`・下の起こし方・`output_format` は `ci` の物で `required: []`）
    - `ci-accept`（script `ci_accept.py`。`depends_on: [ci, ci-fix]`・`trigger_rule: none_failed_min_one_success`・`with: {status_guarded: true, reply: {from: "$ci.output", if_skipped: null}, fix_reply: {from: "$ci-fix.output", if_skipped: null}}`。`mode` は `with:` に書かず `intake.json` から読む）: 返り `{ok, done, give_up, reason}`。
 4. `suite-loop`（`depends_on: [run, ci-loop]`・`trigger_rule: none_failed_min_one_success`・`when: "$run.output.suite_owed == true"`・`loop_group`: `max_iterations: 2`・`fresh_context: true`・`until_bash: done=$suite-try.output.done; test "$done" = true`）
    - `suite-prep`（script `suite_prep.py`）: 取り置きを使うか、書き手の指示を組む。返り `{write, prompt}`。
@@ -95,7 +96,7 @@ script の node はどれも `runtime: uv`。`run` のほかは `mutates_checkou
 
 - `blocks/test-gate/works-factory-test-gate.yaml`
 - `blocks/test-gate/prompts/ci.md`・`prompts/ci-fix.md`・`prompts/suite-write.md`（2〜4 節）
-- `blocks/test-gate/scripts/intake.py`・`run.py`・`ci_prep.py`・`ci_accept.py`・`suite_prep.py`・`suite_place.py`・`suite_try.py`・`result.py`
+- `blocks/test-gate/scripts/intake.py`・`run.py`・`ci_prep.py`・`ci_fix_prep.py`・`ci_accept.py`・`suite_prep.py`・`suite_place.py`・`suite_try.py`・`result.py`
 - `blocks/test-gate/src/__init__.py`（空）
 - `blocks/test-gate/src/files.py`: place のファイルの名（1.4）・`LOGS = "logs"`・`fresh_place(place)`（今の `run.fresh_gate` の消す部分）・`log_dir(place)`（今の `fresh_gate` の `a<k>` を決める部分）。
 - `blocks/test-gate/src/scope.py`: 今の `workflows/test-gate/scripts/run.py` の `changed`（:39-48）と `request_wheres`（:51-61）を port の値で受ける形にした物。`request_wheres(request, mode, request_scope)` は、`mode` が `base` で `request_scope` が真の時だけ依頼の行の `where`（字の物）の並びを返す。
@@ -103,12 +104,12 @@ script の node はどれも `runtime: uv`。`run` のほかは `mutates_checkou
 - `blocks/test-gate/src/suite.py`: 実行器の控えの読み書き（`suite-state.json` を作る・読む）と、出力の `suite`・`suite_note` の組み方。
 - `blocks/test-gate/src/prompts.py`: 3 つの md に渡す値の組み立て（2.3・3.3・4.3 の差し込み口の一覧）。
 - `blocks/test-gate/src/report.py`: 報告の行（10 節）。
-- `blocks/test-gate/schemas/request.schema.json`: `{"anyOf": [{"type": "array", "items": {"type": "object"}}, {"type": "object", "properties": {"findings": {"type": "array"}}}]}`。
+- `blocks/test-gate/src/inputs.py`: script が `with:` で受けた入力の字を値に戻す口 `value`（11 節の 16）。
 - `blocks/test-gate/fixtures/` の 7 本（12 節）。
 - `tests/blocks/test_gate/__init__.py`・`test_test_gate.py`・`test_prompt_compare.py`（12 節）。
 - 共通の指示の断片（土台に無い物。この block が最初に要るので、この block の PR が足す）: `blocks/.shared/prompts/resubmit.md`（3 節。拒まれた後に同じ会話の続きで拒まれた欄だけを返させる役の全部が使う）。
 
-使う `lib/`（どれも README 9.3 の KEEP）: `declared_checks`（`run_ci`・`role_material_problems`・`suites_line`・`baseline_line`・`gate_values`・`run_how`・`drop_copy`・`CI_ROLE`・`COPY_PREFIX`・`DECL_NAME`・`MODES`・`ROLE_NEEDED`・`RUN_FILE`・`NO_ADAPTER_NOTE`・`SELF_REPORTED_NOTE`・`STATUSES`・`CiRefused`）・`green_cert`（`fingerprint`・`classify`・`certify`・`ran_steps`・`RED_CAUSES`・`RAN_BY_CAUSE` ほか）・`baseline_red`（`run_suite`・`write_baseline`・`read_baseline`・`test_outcomes`・`OUTCOMES`・`ONLY_ENV`）・`suitewrite`（`need`・`prepare`・`place`・`pending`・`settle`・`head_note`）・`tree_run`（`reuse_place`・`RERUN_ENV`・`Stopped`）・`checkscope`（`request_files`）・`accept`（`tree_state`・`tree_moved`・`status_keys`・`TREE_KEYS`・`touched_files`・`Reject`）・`rolekit`（`accept_round`・`round_outcome`・`resubmitted`・`merge_fields`・`resubmitting`・`rejected`・`rejects_text`・`candidate_path`・`attempt`・`given_up_reason`・`GIVE_UP_AFTER`・`LANG_DEFAULT`）・`graphloops/engine/util.py`（`repo_root`・`copy_worktree`）・`gatemarks`（`BASELINE_NOT_RUN`・`MATERIAL_WORDS`。報告の行）・`oneline`・`jsonfile`。`lib/startrec.py`・`lib/carry.py` は import しない（始めの記録を読まない。依頼の容器の読みは `request.schema.json` の形と `src/scope.py` で替える）。
+使う `lib/`（どれも README 9.3 の KEEP）: `declared_checks`（`run_ci`・`role_material_problems`・`suites_line`・`baseline_line`・`gate_values`・`run_how`・`drop_copy`・`CI_ROLE`・`COPY_PREFIX`・`DECL_NAME`・`MODES`・`ROLE_NEEDED`・`RUN_FILE`・`NO_ADAPTER_NOTE`・`SELF_REPORTED_NOTE`・`STATUSES`・`CiRefused`）・`green_cert`（`fingerprint`・`classify`・`certify`・`ran_steps`・`RED_CAUSES`・`RAN_BY_CAUSE` ほか）・`baseline_red`（`run_suite`・`write_baseline`・`read_baseline`・`test_outcomes`・`OUTCOMES`・`ONLY_ENV`）・`suitewrite`（`need`・`prepare`・`place`・`pending`・`settle`・`head_note`）・`tree_run`（`reuse_place`・`RERUN_ENV`・`Stopped`）・`checkscope`（`request_files`）・`accept`（`tree_state`・`tree_moved`・`status_keys`・`TREE_KEYS`・`touched_files`・`Reject`）・`rolekit`（`accept_round`・`round_outcome`・`resubmitted`・`merge_fields`・`resubmitting`・`rejected`・`rejects_text`・`candidate_path`・`attempt`・`given_up_reason`・`GIVE_UP_AFTER`・`LANG_DEFAULT`）・`graphloops/engine/util.py`（`repo_root`・`copy_worktree`）・`gatemarks`（`BASELINE_NOT_RUN`・`MATERIAL_WORDS`。報告の行）・`oneline`・`jsonfile`。`lib/carry.py` は import しない（始めの記録を読まない。依頼の容器の読みは土台の `shared:request.schema.json` の形と `requestrows.findings`・`src/scope.py` で替える）。`lib/startrec.py` は `src/suite.py` が `suite-state.json` の読み書き（`load`・`save`）にだけ import する。根拠: `lib/suitewrite.py` を変えずに使うため、控えを始めの記録と同じ口で読み書きする（11 節の 2。`load`・`save` は形を問わない JSON の読み書きで、始めの記録そのものは読まない）。
 
 埋め: `fence`（`bad_declaration`・`fenced_since`・`RECORDS_ENV`）。作り直しの間に block から埋めを import する口は土台の `ports.py` の決め（README 3 節は埋めを組み込みで `blocks/.shared/` へ移すと書くだけで、それまでの import の道を決めていない。11 節の 6）。
 
@@ -567,11 +568,13 @@ e2e の `tests/e2e/evidence.json` の L-E38・L-W28・L-W53・T1・T6・T18・T2
 
 ## 12 試験
 
-- standalone の fixture（`blocks/test-gate/fixtures/`。どれも script の node も差し替え、配線を見る。今の 7 本の入力から `start` を外し、port の値に替える）:
-  - `standalone.stubs.yaml`: 入力は `mode: base` だけ（今の `base-engine` の形: `run` が `by: engine`、`suite_owed: false`）。`reached: [intake, run, result]`。
-  - `base-role.stubs.yaml`・`base-resubmit.stubs.yaml`: 任せ先の役の輪（1 回で通る・1 回拒まれて `ci-fix` で通る）。`ci-prep` の返りは `{prompt, resubmit, attempt}` に替える。
+- standalone の fixture（`blocks/test-gate/fixtures/` の 7 本。今の入力から `start` を外し、port の値に替える。11 節の 13）:
+  - `standalone.stubs.yaml`: `exec-code: true`。入力は `mode: base` だけ。宣言も test_cmd も無い作業ツリーなので script が本物に回り、任せ先の輪と実行器の輪が回る。AI の `ci`・`suite-write` だけ差し替え、指示の字を `resolved-text-contains` で照らす。
+  - `base-resubmit.stubs.yaml`: `exec-code: true`。`ci-prep`・`ci-fix`・`ci-accept` を差し替えて出し直しの周を作り、`ci-fix-prep` が本物で指示を組む。
+  - `base-engine.stubs.yaml`: 機械が走らせた（`by: engine`）ので任せ先の輪と実行器の輪が飛ぶ。
   - `base-suite-kept.stubs.yaml`・`base-suite-written.stubs.yaml`: 実行器の輪（取り置きを使う・書き手が書く）。`result` の返りに `suite`・`suite_note` が入る。
-  - `final-green.stubs.yaml`・`final-red.stubs.yaml`: 入力に `mode: final`・`baseline: test-gate-base/baseline.json`・`tdd_suite: /tmp/runner`。
+  - `final-green.stubs.yaml`・`final-red.stubs.yaml`: 入力に `mode: final`・`baseline`・`tdd_suite`。
+  - 配線だけの 5 本（`base-engine`・`base-suite-kept`・`base-suite-written`・`final-green`・`final-red`）は script も差し替えるが、残す。見るのは script の中身でなく YAML の配線で、node の返りの値に応じて `when`・`trigger_rule` がどの輪を起こしどれを飛ばすか（`reached` の並び）と、`mode: final` の入力の鍵が通ることを Archon の workflow test で照らす。`exec-code: true` の 2 本は、宣言の無い作業ツリーの base の道と出し直しの周しか通らないので、機械が走らせた道・取り置きの実行器の道・final の道の配線はこの 5 本だけが見る。
 - `tests/blocks/test_gate/test_test_gate.py`（script を子のプロセスで回す。始めの記録の無い使い捨ての `ARTIFACTS_DIR` と、試験の対象の git のリポジトリで、port の値だけを渡す。今の `tests/workflows/test_test_gate.py` の `ScriptCase` の始めの記録の組み立てを、`intake.py` を port の値で回す形に替える）:
   - YAML の形（今の `YamlCase` から）: `test_name_inputs_and_return`（入力の鍵が 1.2 の 11 個）・`test_result_output_format_is_the_contract`（`suite`・`suite_note`・`report` を足した 18 欄。`result` の `with:` は `optional` だけ）・`test_role_node_reads_only`（`command` の代わりに `prompt: "$ci-prep.output.prompt"`）・`test_runner_writer_is_launched_like_the_ci_role_and_its_fall_is_declared`・`test_runner_loop_rewrites_only_after_a_kept_runner_fails`・`test_role_cannot_write_the_checkout`・`test_run_material_is_the_material_schema_or_null`・`test_loop_matches_give_up`・`test_loop_does_not_paste_previous_reject_by_loop_prev`・`test_script_inputs_match_with`（`INPUTS_` を読むのは `intake.py` だけ）・`test_readonly_nodes`・`test_scripts_write_nothing_outward`。
   - `RunScriptCase` の全部（`test_base_reads_request_where_as_change` は `request_scope: true` で）・`CiRoleCase` の全部（`test_prep_copies_tree_and_passes_reject` は「却下の文が `ci-prompt-<n>.md` に入る」に、`test_resubmit_returns_only_the_rejected_fields` は「`ci-fix-prompt-<n>.md` に最後の却下と控えのパスが入る」に替える。`test_reject_with_a_reference_reaches_the_prompt_verbatim` は指示の字で照らす）・`ResultScriptCase` の全部・`SuiteLoopCase` の全部（実行器の控えは `suite-state.json` で、`test_written_runner_feeds_the_red_green_check` は出力の `suite` が実行器のパスであることも照らす）。

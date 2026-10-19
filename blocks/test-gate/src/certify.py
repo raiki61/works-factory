@@ -104,7 +104,7 @@ def role_systems(material) -> dict:
 
 
 def mode_of(place) -> str:
-    """failed が使う形。intake.json が読めなければ final（最後の承認ノードが読む形）"""
+    """failed が使う形。intake.json が読めなければ final（この後の段が読む形）"""
     try:
         mode = files.read(place, files.INTAKE).get("mode")
     except (OSError, ValueError, AttributeError):

@@ -193,7 +193,8 @@ class YamlCase(unittest.TestCase):
         fix, prep = node("ci-fix"), node("ci-fix-prep")
         self.assertEqual((fix["when"], fix["prompt"], fix["trigger_rule"]),
                          ("$ci-prep.output.resubmit == true", "$ci-fix-prep.output.prompt", "none_failed_min_one_success"))
-        self.assertEqual((prep["when"], prep["depends_on"]), ("$ci-prep.output.resubmit == true", ["ci-prep"]))
+        self.assertEqual((prep["when"], prep["depends_on"], prep["trigger_rule"]),
+                         ("$ci-prep.output.resubmit == true", ["ci-prep", "ci"], "none_failed_min_one_success"))
         self.assertEqual(node("ci")["when"], "$ci-prep.output.resubmit != true")
         self.assertEqual(fix["output_format"]["required"], [])
 
@@ -389,7 +390,7 @@ class IntakeCase(ScriptCase):
         self.assertEqual((out["ok"], out["reason"]), (False, "mode は base・final のどれか: middle"))
 
     def test_unreadable_port_names_the_port(self):
-        for port, value, word in (("request", "{", "port request"), ("request_scope", "maybe", "port request_scope"),
+        for port, value, word in (("request_scope", "maybe", "port request_scope"),
                                   ("baseline", str(self.tmp / "none.json"), "port baseline")):
             with self.subTest(port):
                 self.write_start(**{port: value})
@@ -397,6 +398,21 @@ class IntakeCase(ScriptCase):
                 self.assertFalse(out["ok"])
                 self.assertIn(word, out["reason"])
                 self.given.pop(port)
+        with self.subTest("request"):
+            self.write_start(request="{", request_scope="true")
+            out = self.intake("base")
+            self.assertFalse(out["ok"])
+            self.assertIn("port request", out["reason"])
+            self.given.pop("request"), self.given.pop("request_scope")
+
+    def test_unreadable_request_is_empty_where_scope_does_not_read_it(self):
+        """依頼の行を読むのは request_scope が真の base だけ。ほかで読めない依頼は関門を落とさず [] にする"""
+        for mode, scope in (("final", "true"), ("base", "")):
+            with self.subTest(mode=mode, scope=scope):
+                self.write_start(request="{", **({"request_scope": scope} if scope else {}))
+                self.assertTrue(self.intake(mode)["ok"])
+                self.assertEqual(json.loads((self.place(mode) / "intake.json").read_text(encoding="utf-8"))["request"], [])
+                self.given.pop("request"), self.given.pop("request_scope", None)
 
     def test_deletes_only_its_own_files_and_keeps_earlier_logs(self):
         """単独の run の place は run directory の根。消すのはこの block の名の在るファイルだけで、前の走りのログは残す"""
@@ -1343,7 +1359,7 @@ class ResultScriptCase(ScriptCase):
         self.assertIn("run.json", self.pointed(out["evidence"]).read_text(encoding="utf-8"))
 
     def test_broken_intake_in_base_names_the_base_mode(self):
-        self.write_start(request="{")
+        self.write_start(request="{", request_scope="true")
         out = self.intake("base")
         self.assertFalse(out["ok"])
         failed = self.ok("result", "base")
