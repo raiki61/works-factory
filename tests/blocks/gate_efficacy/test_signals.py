@@ -41,6 +41,19 @@ class GateSignalsCase(unittest.TestCase):
         """変えていない行（頭が空白）の assert は差分がゲートを変えた印にならない"""
         self.assertEqual(self.signals.gate_signals(["calc.py"], self.assert_diff(" ")), [])
 
+    def test_diff_header_lines_are_not_assert_lines(self):
+        """ファイル名に assert を含む差分の頭の ---/+++ の行は assert の行に数えない"""
+        diff = ("diff --git a/assert_util.py b/assert_util.py\n--- a/assert_util.py\n+++ b/assert_util.py\n"
+                "@@ -1,2 +1,2 @@\n-x = 1\n+x = 2\n")
+        self.assertEqual(self.signals.gate_signals(["assert_util.py"], diff), [])
+
+    def test_file_under_tests_dir_is_a_signal_without_test_prefix(self):
+        for f in ("tests/helper.py", "test/helper.py", "src/tests/helper.py"):
+            with self.subTest(f):
+                got = self.signals.gate_signals(["calc.py", f], "")
+                self.assertEqual(len(got), 1, got)
+                self.assertIn(f, got[0])
+
     def test_unreadable_diff_gives_no_answer(self):
         """差分のファイルが読めなければ印の有無を言えない（None。役の『条件外』を受けない側）"""
         view = type("V", (), {"diff_file": "/nonexistent/diff.patch", "changed_files": ("calc.py",)})()

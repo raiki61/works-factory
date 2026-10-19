@@ -92,6 +92,31 @@ class ViewpointCase(unittest.TestCase):
         self.assertEqual(self.vp.report_lines({"reply": {"arms": [row]}}),
                          ["  - 腕: the fence（ci。赤 見た・対照の緑 見ていない・守る行の通過 見ていない）"])
 
+    def test_declared_stage_suppresses_the_error_even_if_state_carries_one(self):
+        """段が在れば読みの誤りは値にも段落の条件にも出ない（state が段と誤りを同時に返しても）"""
+        from unittest import mock
+        view = self.view(".")
+        both = {"declared": True, "argv": "[\"m\"]", "arms": "a.txt", "error": "壊れた"}
+        with mock.patch.object(self.vp.mutation, "state", return_value=both):
+            self.assertEqual(self.vp.values(view, {})["mutation_error"], "")
+            when = self.vp.when(view, {})
+        self.assertEqual((when["mutation_declared"], when["mutation_undeclared"], when["mutation_unreadable"]),
+                         (True, False, False))
+        unread = {"declared": False, "argv": "", "arms": "", "error": "壊れた"}
+        with mock.patch.object(self.vp.mutation, "state", return_value=unread):
+            self.assertEqual(self.vp.values(view, {})["mutation_error"], "壊れた")
+            self.assertTrue(self.vp.when(view, {})["mutation_unreadable"])
+
+    def test_non_ascii_argv_is_kept_as_is(self):
+        import pathlib
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp:
+            root = pathlib.Path(tmp)
+            (root / "arms.txt").write_text("arm-1\n", encoding="utf-8")
+            decl = {"suite": [{"name": "t", "argv": ["true"]}], "mutation": {"argv": ["変異", "--fast"], "arms": "arms.txt"}}
+            (root / self.vp.mutation.DECL_NAME).write_text(json.dumps(decl), encoding="utf-8")
+            self.assertEqual(self.vp.values(self.view(root), {})["mutation_argv"], '["変異", "--fast"]')
+
 
 class ArmsCase(unittest.TestCase):
     """腕の照らし（docs/design/gate-efficacy.md の 4 節。写す元 test_accept_rules の gate-efficacy の部分）"""
@@ -124,6 +149,22 @@ class ArmsCase(unittest.TestCase):
         got = self.problem("found", [{**self.GOOD, "hit_evidence": ""}])
         self.assertIn("守る行を通ったこと", got)
         self.assertIn("'a1'", got)
+
+    def test_unconfirmed_control_is_not_a_hit_complaint(self):
+        """赤を見て control を見ていない腕は、守る行の通過の句では拒まない（found なら通る）"""
+        row = {**self.GOOD, "control_green": False, "hit_evidence": ""}
+        self.assertIsNone(self.problem("found", [row]))
+        self.assertIsNone(self.problem("awaiting_human", [row]))
+
+    def test_hit_evidence_boundary_is_ten_characters(self):
+        nine, ten = "a" * 9, "a" * 10
+        got = self.problem("clean", [{**self.GOOD, "hit_evidence": nine}])
+        self.assertIn("status=clean", got)
+        self.assertIsNone(self.problem("clean", [{**self.GOOD, "hit_evidence": ten}]))
+        self.assertIn("守る行を通ったこと", self.problem("found", [{**self.GOOD, "hit_evidence": nine}]))
+        self.assertIsNone(self.problem("found", [{**self.GOOD, "hit_evidence": ten}]))
+        two = [{**self.GOOD, "arm": "short", "hit_evidence": nine}, {**self.GOOD, "arm": "long", "hit_evidence": ten}]
+        self.assertIn("測っていない腕 ['short']", self.problem("clean", two))
 
 
 if __name__ == "__main__":
