@@ -506,6 +506,10 @@ def _finish_text(d: pathlib.Path, doc: dict) -> dict:
 def _finish_plan(d: pathlib.Path, doc: dict) -> dict:
     form, k, ruled = doc["form"], int(doc.get("k") or 0), list(doc.get("ruled") or [])
     gave = rolekit.given_up_reason(d, files.REVIEW_NODE)
+    review = jsonfile.read_or(d / files.REVIEW)
+    if not gave and isinstance(review, dict) and str(review.get("reason") or "").startswith(GIVEN_UP_FACES):
+        # 拒否の控えが扱えずに受け付けが諦めた時（rolekit._unusable）は控えから諦めを読めない。受け付けが書いた諦めの空の返答で読む
+        gave = str(review["reason"])[len(GIVEN_UP_FACES):]
     if gave:
         gave_up = None
         if form == "replan":
@@ -513,7 +517,6 @@ def _finish_plan(d: pathlib.Path, doc: dict) -> dict:
                        for r in doc.get("replan_items") or [] if isinstance(r, dict)]
             jsonfile.write(d / files.REPLAN_GAVE_UP, gave_up)
         return result("gave_up", GIVEN_UP_FACES + gave, form=form, k=k, review_file=d / files.REVIEW, gave_up=gave_up, ruled=ruled, out=d)
-    review = jsonfile.read_or(d / files.REVIEW)
     if not isinstance(review, dict):
         return result("failed", _not_passed(d, files.REVIEW_NODE), form=form, k=k, ruled=ruled, out=d)
     from src import gate

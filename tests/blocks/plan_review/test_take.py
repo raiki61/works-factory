@@ -414,6 +414,19 @@ class ReviewAcceptCase(FlowCase):
         self.assertFalse((f.place / "review.json").exists())
         self.assertEqual(f.finish()["status"], "failed")
 
+    def test_give_up_without_a_usable_reject_record(self):
+        """足す: 拒否の控えが書けずに受け付けが諦めた時（rolekit._unusable）は、控えから諦めを読めない。出口は受け付けが書いた諦めの
+        空の返答（reason が GIVEN_UP_FACES で始まる）を、ok でなく gave_up と読む"""
+        f = self.flow
+        self.prepped()
+        (f.place / f"rejects-{self.take.REVIEW_NODE}.json.tmp").mkdir()   # 控えの書き込みだけが落ちる
+        got = f.accept(review(ENTRANCE_BARE))
+        self.assertEqual((got["ok"], got["done"], got["give_up"]), (False, True, True), got)
+        self.assertTrue(f.read("review.json")["reason"].startswith(self.take.GIVEN_UP_FACES))
+        got = f.finish()
+        self.assertEqual((got["ok"], got["status"], got["pass"]), (False, "gave_up", None), got)
+        self.assertTrue(got["reason"].startswith(self.take.GIVEN_UP_FACES), got["reason"])
+
     def test_pass_after_three_rejects_is_not_given_up(self):
         """元 ReviewAcceptCase.test_pass_after_three_rejects_is_not_given_up: 3 回拒まれた後に通った返答は諦めと読まない"""
         f = self.flow
