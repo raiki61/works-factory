@@ -1,0 +1,26 @@
+# 単独の run: 判定（開いた単位 1 つ）と単位の目録だけで最後まで届く（始めの記録は要らない）。script は本当に走り、修正案の役の返答だけを差し替える。
+# files の path は使い捨ての木の根に在る README.md の modify
+fixture:
+  expect: completed
+  reached: [intake, ripple-units, plan-prep, plan-writer, plan-accept, ripple-items, finish]
+  inputs:
+    judgment: '{"units": [{"key": "stats.py mean: 分母が 1 少ない", "label": "block", "disposition": "do-now"}], "questions": []}'
+    units: '[{"id": "stats.py mean: 分母が 1 少ない", "paths": ["README.md"], "summary": "mean は 2 でなく 3 を返す"}]'
+  resolved-text-contains:
+    plan-writer: 'You are the planning role, and you only read.'
+exec-code: true
+plan-writer:
+  plan:
+    - unit_keys: [1]
+      approach: "stub: README.md の説明を 1 行直す"
+      files:
+        - {path: README.md, op: modify, responsibility: "stub: 説明の 1 行を直す", symbols: [], home: {concept: "stub: 説明の文", why: "stub: 説明は README.md にある"}, considered: [{path: AGENTS.md, why_not: "stub: 規則の文書に説明は置かない"}]}
+      shrink_first: "stub: 足す物は無い。1 行を直すだけで足りる"
+      narrows: []
+      route: direct
+      route_why: "stub: 説明の 1 行を直すだけ"
+      tests: []
+      rewrite_tests: []
+      refactor: {declared: false, why: ""}
+      allowed_paths: [README.md]
+      out_of_scope: []

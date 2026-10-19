@@ -1,0 +1,1 @@
+One axis for judging: does the whole become simpler, while it still meets the purpose and the guarding mechanisms keep working? Simplicity is measured not by line count but by the number of places that know a design concept.

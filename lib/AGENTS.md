@@ -4,7 +4,7 @@
 `lib/` を書く時に読む。リポジトリ全体の決まりは根の `AGENTS.md`。
 
 - `#765` の作り直しの間の pack `blocks/` から使う物は、2 つ以上の block（か graph か `bin/`）が使う物だけを置く。1 つの block だけが使う物は `blocks/<block>/src/`（持ち主の決め `block-local-code`）。Archon の pointer・`INPUTS_`・place を解く所は `blocks/.shared/` の口（`ports.py` など）に置き、ここは解いた後のパスや値を受ける。作り直しの間は、今のモジュール（block が写した元の物も含む）を変えない。2 つ以上の block が使う新しいモジュールは足してよい（試験は `lib/tests/`）。
-- 2 つ以上の block が使う短い部品: `jsonfile`（JSON の読み書き）・`oneline`（1 行に畳む）・`rolekit`（受け付けの回の数え・却下の控え・諦め）・`worldmark`（世界の解の行の欄と語）・`carry`（依頼の容器の読み）・`webget`（網の口）・`materialkit`（素材の観点の族の共通の部品。docs/design/materials.md）。
+- 2 つ以上の block が使う短い部品: `jsonfile`（JSON の読み書き）・`oneline`（1 行に畳む）・`rolekit`（受け付けの回の数え・却下の控え・諦め）・`worldmark`（世界の解の行の欄と語）・`carry`（依頼の容器の読み）・`webget`（網の口）・`materialkit`（素材の観点の族の共通の部品。docs/design/materials.md）・`eyekit`（独立の目の族 r1〜r4 の共通の部品。docs/design/r1.md の 0.5）。
 
 ## E3 lib/ は Archon を知らない
 

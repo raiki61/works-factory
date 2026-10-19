@@ -1,0 +1,23 @@
+# まとめた形: coherence が真の run は、範囲の役の指示に R3 の節が入り、返答に欄 r3 が付く（受け付けが r3 の形を照らす）
+fixture:
+  expect: completed
+  reached: [intake, r4-scope-prep, r4-scope, r4-scope-accept, finish]
+  inputs:
+    purpose: 'commit のフックが、対象のテストのコマンドと同じ環境で走るようにする'
+    coherence: 'true'
+  resolved-text-contains:
+    r4-scope: 'You do not look at R1 or R2; other roles do'
+exec-code: true
+r4-scope:
+  status: pass
+  reason: 'stub: 差分が手を付けていない横断のリスクは無い'
+  capability_inventory: {fired: false}
+  policy_conflicts: []
+  surfaced: []
+  seen: ['stub: README.md']
+  unseen: []
+  r3:
+    status: redesign-needed
+    reason: 'stub: 文書が古い'
+    seen: ['stub: docs/concepts.md']
+    unseen: []

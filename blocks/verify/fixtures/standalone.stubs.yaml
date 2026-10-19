@@ -1,0 +1,11 @@
+# 単独の run: 判定だけで最後まで届く（script は本当に走り、AI の束ね役の返答だけを差し替える）。答えのファイルは無いので、申し送りは両方の単位を「確かめられなかった」とする
+fixture:
+  expect: completed
+  reached: [prep, judge-verify, finish]
+  inputs:
+    judgment: '{"framing":"根は 1 つ","one_shot":"照らしを足す","units":[{"key":"a.py mean: 分母","label":"block","reason":"分母が違う"},{"key":"a.py clamp: 上限","label":"block","reason":"上限が違う"},{"key":"a.py doc: 文言","label":"nit","reason":"言い回し"}]}'
+  resolved-text-contains:
+    judge-verify: 'You are the aggregator. Do not look at the units yourself.'
+exec-code: true
+judge-verify:
+  summary: 'Unit 1: root; Unit 2: root; Synergy: duplicates 0, relations 0, order 0'

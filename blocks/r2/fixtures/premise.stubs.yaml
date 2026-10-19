@@ -1,0 +1,17 @@
+# 前提の検算の道: 独立設計が「問いが立たない」と返した run。検算の役の返答だけを差し替える（返答は例の run 1f233eb2 の形）
+fixture:
+  expect: completed
+  reached: [intake, premise-check-prep, premise-check, premise-check-save, finish]
+  inputs:
+    purpose: 'ベンチの台で、工場の AI の役の Bash が使う環境を直す'
+    design: '{"question_stands": false, "reason": "既に入っている", "premise_invalid_reason": "compose の main の security_opt に既に在る"}'
+  resolved-text-contains:
+    premise-check: 'As the judge: R2 returned premise-invalid (the question to solve does not stand).'
+exec-code: true
+premise-check:
+  key: 'この依頼の 2 つの手当ては既に入っているか'
+  assumption: '既存の設定で満たされている'
+  assumption_false: false
+  evidence: 'stub: 修正前の HEAD に既に在る'
+  verdict: escalate
+  reason: 'stub: 反証できない'
