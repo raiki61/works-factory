@@ -151,7 +151,9 @@ class Archon:
         left = []
         for kid in sorted(ids - {run_id}):
             run = self.get(kid)
-            if isinstance(run, dict) and run.get("status") == RUNNING:
+            if isinstance(run, str):   # 読めない子の run は、running かを確かめられないので片付けられなかった物に数える
+                left.append(kid)
+            elif run.get("status") == RUNNING:
                 done = subprocess.run([*self.head, "workflow", "abandon", kid, *(["--cwd", self.cwd] if self.cwd else [])],
                                       env=self.env, capture_output=True, text=True, encoding="utf-8")
                 if done.returncode != 0:

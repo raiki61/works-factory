@@ -192,12 +192,14 @@
 
 ### P13 run を cancel しても AI のノードのプロセスが残る
 
+- 穴（2 つ目）: run の持ち主は SIGTERM を受けると自分の run だけを failed にして抜け、子の run を書き換えないので、前で起こした周の鎖を止めると子の run が running のまま残る。持ち主が先に消えていた run（kill -9 など。Archon の cancel が受けない）の子の run も running で残る（この埋めの前から同じで稀。issue は立てず、ここに書くだけ。工場窓口の決め）。
 - 穴: `workflow cancel` が止めるのは、切り離した持ち主（`--detach`）のプロセスグループだけ。AI のノードの provider（Claude）は持ち主がノードごとに detached で起こす別のプロセスで自分のセッションに居るので、cancel の後も親が 1 になって残り、その下の claude と claude が起こしたプロセスも残る。子の run のノードも同じ持ち主の中で走るので同じ。前で起こした run（`--detach` の無い `workflow run`）は cancel が拒み、何も止めない。拒みの文が勧める前の命令の割り込みも、provider に届かない。
 - 証拠:
   - `packages/core/src/services/run-owner-stop.ts` の「process.kill(-pid, 'SIGTERM');」（cancel は持ち主の番号のグループへだけ送る）
   - `packages/core/src/providers/process-provider.ts` の「detached: process.platform !== 'win32',」（provider のプロセスを持ち主のグループの外に起こす）
   - `packages/workflows/src/exec-environment.ts` の「WORKFLOW_ID: execution.runId,」（AI のノードのプロセスは run の id を env に持つ。番号のつながりの外の印はこれだけ）
   - `packages/core/src/operations/workflow-operations.ts` の「because it is not a detached run (a foreground CLI run, or an Archon server)」（前の run の cancel を拒む）
+  - `packages/cli/src/utils/owned-run-termination.ts` の「log.info({ runId, status, signal }, 'workflow.termination_skip_not_running');」（持ち主は SIGTERM を受けると、自分の run だけを `failWorkflowRun` で failed にして抜け、子の run は書き換えない）
 - 上流（`a972888a` の後の dev の `a972888a7` まで）: 塞がっていない（止めた版が読んだ dev の頭。`64ec0c2e..a972888a7` の 24 commit は証拠のファイルを変えていない。`core/src/db/workflows.ts` の `cancelWorkflowRun` などを `workflow-run-*.ts` へ移した `50a9e0848`（#4509）は、本文が「Function bodies are unchanged」と言う移し）。
 - 実測（2026-10-18、`355f1867` で、止めた Archon に偽の claude〔`CLAUDE_BIN_PATH`。自分と同じグループの子と、別のセッションの子を起こして眠る〕の AI のノードと、`workflow:` の子の run の AI のノードを並べた使い捨てのグラフ。試験 `tests/bin/test_runstop.py` のグラフと同じ形）:
   - `--detach` の run の `workflow cancel` は `"processStopped": true` を返すが、ノードごとの provider（`bun --no-env-file <源>/packages/providers/src/claude/plugin.ts`）が親 1 で残った。数秒の後に provider は claude を止めたが、provider 自身と claude の子（同じグループの物も別のセッションの物も）は 15 秒の後も残った。子の run のノードも同じ。
@@ -206,7 +208,7 @@
 - 埋め: `bin/_lib/runstop.py`。殻が `workflow cancel <run>` の時だけ Archon を子として起こし、前と後で run のプロセスを数えて残りを止める。印は 2 つ: run と、Archon の記録（`workflow runs` の `parent_run_id`）で辿れる子の run の完全な id（`workflow runs` が出す 8 字の短い id で打たれても、Archon の cancel と同じく `workflow get` で直す）を env の `WORKFLOW_ID` に持つ自分の利用者のプロセス（AI のノードも bash のノードも持つ。env は `ps -A -E -ww`〔macOS〕・`ps -A e -ww`〔Linux〕の args の後ろを読む）と、走っている根の run の生きた持ち主（`workflow get` の `execution_owner` で、この機械とこの利用者の物・`last_activity_at` より前に始まって Archon の本体の `workflow` の命令を走らせるプロセス）。どちらもその子孫を親子の鎖で拾い、cancel の前に数えた物の子孫は持ち主が消えた後も辿る。持ち主のグループとセッションでは拾わない（前の命令の持ち主はシェルのジョブの長で、`| tee` の相手が同じグループに居る）。cancel の後に、生きた物へ SIGTERM、`lib/tree_run.py` の `KILL_GRACE` 秒の後に SIGKILL を 1 本ずつ送る。cancel が拒んだ前の run の持ち主も止め（run は failed になる。持ち主へ先に SIGTERM を送って抜けるのを待ち、残りを止める）、Archon が書き換えずに running で残す子の run を `workflow abandon` で cancelled にし（片付けられなければ、残った子の run の id と命令を 1 行で出す）、残りが無ければ 0 で抜ける。持ち主の木を数えない時（running でない・子の run・持ち主が別の機械・別の利用者・居ない・番号に別の物が居る・`last_activity_at` が読めない）はその訳を、env を読めない時はその訳と手で探す命令を 1 行で出す。止めた物と、止めた後も残った物（pid とコマンドの名）を 1 行ずつ出す。Archon の命令の別名は作らない（持ち主の決め `one-launcher`）。
   - 足りない残り: env の `WORKFLOW_ID` を外して起こされた子孫で、数える前に親子の鎖が切れた物（拾う印が無い）。env を読めない環境では、持ち主の木（走っている根の run の生きた持ち主の子孫）だけを止める。
 - 使う block と graph: メイングラフ（入口）と周の鎖
-- 外す条件: cancel が provider のプロセスの木ごと止め、前の run も止められる版が出たら
+- 外す条件: cancel が provider のプロセスの木ごと止め、前の run も止められる版が出たら。持ち主が SIGTERM を受けて終わる時に子の run も書き換える版が出たら、殻の `abandon_running`（子の run への `workflow abandon`）と、ほかのプロセスより先に持ち主へ SIGTERM を送る順も外す
 
 ## Archon の決めに合わせた形
 
