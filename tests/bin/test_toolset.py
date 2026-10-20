@@ -93,7 +93,7 @@ def make_user_config(base: pathlib.Path, only=None, scope="user", project=None) 
             _put(d / ".claude-plugin" / "plugin.json", json.dumps({"name": name, "version": ver}))
             for s in BORROW_SKILLS + ["brainstorming"]:
                 _put(d / "skills" / s / "SKILL.md", f"---\nname: {s}\n---\n偽の {s}\n")
-            _put(d / "skills" / "receiving-code-review" / "find-polluter.sh", "#!/bin/sh\n", 0o755)
+            _put(d / "skills" / "receiving-code-review" / "run.sh", "#!/bin/sh\n", 0o755)
             _put(d / "LICENSE", "MIT License\n\nCopyright (c) 2025 Test\n")
             for f in ("SKILL.md", "implementer-prompt.md", "task-reviewer-prompt.md"):   # 部品（parts）は 2 本だけを借りる
                 _put(d / "skills" / "subagent-driven-development" / f, f"偽の {f}\n")
@@ -392,7 +392,7 @@ class VendorCase(Base):
     @unittest.skipIf(os.name == "nt", "SKIP posix-mode: 実行の権限は POSIX だけ")
     def test_vendor_keeps_exec_bit(self):
         toolset.vendor(self.borrow_dir, installed_dir(self.user, "superpowers"), "9.9.0", SHA, "2026-10-02")
-        sh = self.borrow_dir / "superpowers/9.9.0/skills/receiving-code-review/find-polluter.sh"
+        sh = self.borrow_dir / "superpowers/9.9.0/skills/receiving-code-review/run.sh"
         self.assertTrue(os.access(sh, os.X_OK))
         self.assertFalse(os.access(sh.parent / "SKILL.md", os.X_OK))
 
