@@ -9,8 +9,13 @@
   見ず、__pycache__ は .gitignore に隠れて git status に出ない）。共有の bin/_lib/ はどの試験も見ない（別の実行の残り物で揺れる）。
   試験自身の import の分は各試験の頭の sys.dont_write_bytecode に任せ、試験では縛らない
 - 認証が無い時の案内は、名を settings.json の env に置く道と、値を出さずに項目の在りかを確かめる命令を言う
+- 利用者の settings.json に apiKeyHelper が在れば、利用者の HOME で起こしてキーを得て ANTHROPIC_API_KEY として子に渡す。
+  受け継いだ認証・名指し・CLAUDE_KEYCHAIN_SERVICE の項目の後、Claude Code 自身のログインの前に効く。失敗したら黙って
+  ほかの段へ移らず、apiKeyHelper を名指して止まる。キーの値は出さない（#795）
+- 認証が無い時の案内は API キーの道（ANTHROPIC_API_KEY・ゲートウェイの値は子に運ばないこと）も言う
 security は偽の runner に差し替え、本物の keychain には触らない。
 """
+import json
 import os
 import pathlib
 import shutil
@@ -63,10 +68,147 @@ class Howto(unittest.TestCase):
     def test_names_the_settings_env_route(self):
         self.assertIn('settings.json の env に "%s": "<項目の名>"' % auth_launch.ITEM_ENV, auth_launch.HOWTO)
 
+    def test_names_the_api_key_route(self):
+        """API キーの道（ANTHROPIC_API_KEY）と、ゲートウェイの値は子に運ばないこと、apiKeyHelper の道を言う"""
+        for word in ("ANTHROPIC_API_KEY", "ANTHROPIC_BASE_URL", "apiKeyHelper"):
+            self.assertIn(word, auth_launch.HOWTO)
+        self.assertIn("子には運ばない", auth_launch.HOWTO)
+
     def test_check_command_does_not_print_the_value(self):
         self.assertIn("security find-generic-password -s <項目の名> で", auth_launch.HOWTO)
         command = auth_launch.HOWTO.split("security find-generic-password", 1)[1].split(" で", 1)[0]
         self.assertNotIn("-w", command.split())
+
+
+KEY = "sk-ant-api03-fake-for-test"
+
+
+def write_settings(config_dir, body):
+    config_dir.mkdir(parents=True, exist_ok=True)
+    (config_dir / "settings.json").write_text(body if isinstance(body, str) else json.dumps(body), encoding="utf-8")
+
+
+def helper(stdout=KEY, returncode=0, error=None):
+    """偽の apiKeyHelper の runner（呼ばれた時の command・HOME・CLAUDE_CONFIG_DIR は calls に残る）"""
+    calls = []
+
+    def run(command, home, config):
+        calls.append((command, home, config))
+        if error:
+            raise error
+        return types.SimpleNamespace(stdout=stdout, returncode=returncode)
+    run.calls = calls
+    return run
+
+
+class ApiKeyHelper(unittest.TestCase):
+    def setUp(self):
+        self.tmp = hermetic.tmpdir(self)
+        self.home = str(self.tmp)
+        write_settings(self.tmp / ".claude", {"apiKeyHelper": "print-key"})
+
+    def resolve(self, env=None, helper_runner=None, platform="linux", cfg="", sec=None):
+        return auth_launch.resolve(env or {}, self.home, cfg, platform=platform, runner=sec or keychain({}),
+                                   helper_runner=helper_runner)
+
+    def test_helper_key_goes_to_the_child_as_anthropic_api_key(self):
+        h = helper()
+        got, name, why = self.resolve(helper_runner=h)
+        self.assertIsNone(why)
+        self.assertEqual(got, {"ANTHROPIC_API_KEY": KEY})
+        self.assertIn("apiKeyHelper", name)
+        self.assertNotIn(KEY, name)
+        self.assertEqual(h.calls, [("print-key", self.home, str(self.tmp / ".claude"))])
+
+    def test_helper_runs_in_the_users_config_dir_when_given(self):
+        write_settings(self.tmp / "cfg", {"apiKeyHelper": "from-cfg"})
+        h = helper()
+        self.resolve(helper_runner=h, cfg=str(self.tmp / "cfg"))
+        self.assertEqual(h.calls, [("from-cfg", self.home, str(self.tmp / "cfg"))])
+
+    def test_helper_beats_the_claude_code_login_and_never_reads_it(self):
+        """apiKeyHelper が在れば、保存済みのログイン（macOS の keychain 項目・ほかの OS の資格のファイル）へ落ちない"""
+        write_credentials(self.tmp / ".claude")
+        sec = keychain({"Claude Code-credentials": TOKEN})
+        for platform in ("darwin", "linux"):
+            with self.subTest(platform=platform):
+                got, _name, why = self.resolve(helper_runner=helper(), platform=platform, sec=sec)
+                self.assertIsNone(why)
+                self.assertEqual(got, {"ANTHROPIC_API_KEY": KEY})
+        self.assertEqual(sec.calls, [])
+
+    def test_inherited_auth_and_named_item_stay_above_the_helper(self):
+        h = helper()
+        got, name, _ = self.resolve({"ANTHROPIC_API_KEY": "env-key"}, helper_runner=h)
+        self.assertEqual((got, name), ({"ANTHROPIC_API_KEY": "env-key"}, "ANTHROPIC_API_KEY"))
+        got, _name, _ = self.resolve({"WORKS_FACTORY_KEYCHAIN_ITEM": "named"}, helper_runner=h, platform="darwin",
+                                     sec=keychain({"named": TOKEN}))
+        self.assertEqual(got, {"CLAUDE_CODE_OAUTH_TOKEN": TOKEN})
+        self.assertEqual(h.calls, [])
+
+    def test_helper_failure_stops_naming_it_without_trying_other_stages(self):
+        """終了コードが 0 でない・空の出力・起こせない・時間切れは、ログインや keychain に移らず apiKeyHelper を名指して止まる"""
+        write_credentials(self.tmp / ".claude")
+        sec = keychain({"Claude Code-credentials": TOKEN, "svc": TOKEN})
+        cases = (helper(returncode=1), helper(stdout="  \n"), helper(error=FileNotFoundError()),
+                 helper(error=subprocess.TimeoutExpired("x", 1)))
+        for h in cases:
+            for platform in ("darwin", "linux"):
+                with self.subTest(platform=platform):
+                    got, _name, why = self.resolve({"CLAUDE_KEYCHAIN_SERVICE": "gone"}, helper_runner=h, platform=platform, sec=sec)
+                    self.assertIsNone(got)
+                    self.assertIn("apiKeyHelper", why)
+        self.assertNotIn("Claude Code-credentials", sec.calls)
+
+    def test_helper_value_never_appears_in_messages(self):
+        got, name, why = self.resolve(helper_runner=helper(stdout=KEY, returncode=3))
+        self.assertIsNone(got)
+        self.assertNotIn(KEY, "%s %s" % (name, why))
+
+    def test_settings_without_a_usable_helper_fall_through_as_before(self):
+        write_credentials(self.tmp / ".claude")
+        for body in ({"env": {}}, {"apiKeyHelper": ""}, {"apiKeyHelper": 3}, "not json", "[]"):
+            with self.subTest(body=body):
+                write_settings(self.tmp / ".claude", body)
+                h = helper()
+                got, _name, why = self.resolve(helper_runner=h)
+                self.assertIsNone(why)
+                self.assertEqual(got, {"CLAUDE_CODE_OAUTH_TOKEN": TOKEN})
+                self.assertEqual(h.calls, [])
+
+    def test_default_runner_uses_the_users_home_and_config_dir(self):
+        with mock.patch.object(auth_launch.subprocess, "run") as run:
+            auth_launch.user_helper_runner("cmd", "/users-home", "/users-home/.claude")
+        self.assertEqual(run.call_args.args[0], "cmd")
+        self.assertTrue(run.call_args.kwargs["shell"])
+        env = run.call_args.kwargs["env"]
+        self.assertEqual((env["HOME"], env["CLAUDE_CONFIG_DIR"]), ("/users-home", "/users-home/.claude"))
+
+    @unittest.skipIf(sys.platform == "win32", "SKIP windows: sh の 1 行")
+    def test_exec_hands_the_helper_key_only_to_the_child(self):
+        tmp = hermetic.tmpdir(self)
+        write_settings(tmp / "user" / ".claude", {"apiKeyHelper": "echo %s" % KEY})
+        env = hermetic.child_env(HOME=str(tmp / "iso"), CLAUDE_CONFIG_DIR=str(tmp / "iso-config"))
+        probe = "import os; print(os.environ.get('ANTHROPIC_API_KEY') == %r, os.environ['HOME'])" % KEY
+        r = subprocess.run([sys.executable, "-I", str(CORE / "auth_launch.py"), "exec", "--user-home", str(tmp / "user"),
+                            "--", sys.executable, "-I", "-c", probe],
+                           env=env, capture_output=True, text=True, encoding="utf-8", timeout=60)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(r.stdout.split(), ["True", str(tmp / "iso")])
+        self.assertNotIn(KEY, r.stderr)
+
+    @unittest.skipIf(sys.platform == "win32", "SKIP windows: sh の 1 行")
+    def test_exec_stops_with_howto_when_the_helper_fails(self):
+        tmp = hermetic.tmpdir(self)
+        write_settings(tmp / ".claude", {"apiKeyHelper": "exit 7"})
+        write_credentials(tmp / ".claude")
+        env = hermetic.child_env(HOME=str(tmp))
+        r = subprocess.run([sys.executable, "-I", str(CORE / "auth_launch.py"), "exec", "--for", "bin/start",
+                            "--user-home", str(tmp), "--", sys.executable, "-c", "print('started')"],
+                           env=env, capture_output=True, text=True, encoding="utf-8", timeout=60)
+        self.assertEqual((r.returncode, r.stdout), (2, ""))
+        self.assertTrue(r.stderr.startswith("bin/start: " + auth_launch.HOWTO), r.stderr)
+        self.assertIn("apiKeyHelper", r.stderr)
 
 
 class ResolveOrder(unittest.TestCase):

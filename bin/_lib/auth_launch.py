@@ -5,7 +5,10 @@
 1. 前の段: WORKS_FACTORY_KEYCHAIN_ITEM を名指していれば、その項目を claude_auth の read_keychain で読む。取れなければ次へ進まず止まる
 2. 真ん中: claude_auth の auth_env を丸ごと呼ぶ（受け継いだ認証 → CLAUDE_KEYCHAIN_SERVICE で名指した項目）。
    claude_auth の部品をここで並べ直さない
-3. 後ろの段: 真ん中が足せなかった時だけ、Claude Code 自身の保存済みのログインを読む。macOS では keychain の項目、
+2.5. apiKeyHelper の段: 真ん中が足せなかった時、利用者の <CLAUDE_CONFIG_DIR>/settings.json（無ければ <HOME>/.claude）に
+   apiKeyHelper が在れば、利用者の HOME でそれを起こして標準出力のキーを ANTHROPIC_API_KEY として子に渡す（値は表示も保存もしない。
+   設定の写しは子に作らない）。在る時は後ろの段へ落ちない。失敗したら黙ってほかの段へ移らず、apiKeyHelper を名指して止まる
+3. 後ろの段: 真ん中と apiKeyHelper の段が足せなかった時だけ、Claude Code 自身の保存済みのログインを読む。macOS では keychain の項目、
    ほかの OS では利用者の <CLAUDE_CONFIG_DIR>/.credentials.json（隔離の前の値。無ければ <HOME>/.claude）。
    子の CLAUDE_CONFIG_DIR は隔離した置き場のままなので（claude_auth の段 3 は隔離の下では効かない）、トークンを
    CLAUDE_CODE_OAUTH_TOKEN として子に渡す。keychain の無い OS で claude /login しただけの人はここで動く
@@ -35,7 +38,9 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))   # -I はス�
 import claude_auth  # noqa: E402
 
 ITEM_ENV = "WORKS_FACTORY_KEYCHAIN_ITEM"   # 前の段で名指す keychain の項目名の置き場
-HOWTO = ("認証が無い。keychain にトークンの項目が既に在るなら、その項目名を %s か CLAUDE_KEYCHAIN_SERVICE に"
+HOWTO = ("認証が無い。API キーで使うなら ANTHROPIC_API_KEY（ゲートウェイなら ANTHROPIC_BASE_URL も）を環境に置いて起動する"
+         "（設定の env に書いたゲートウェイの値は子には運ばない）。API キーを返すコマンドを settings.json の apiKeyHelper に"
+         "書いていれば、それを起こしてキーを得る。keychain にトークンの項目が既に在るなら、その項目名を %s か CLAUDE_KEYCHAIN_SERVICE に"
          "設定する（毎回付けずに済ますなら、Claude Code の設定の置き場の settings.json の env に"
          " \"%s\": \"<項目の名>\" の組を書く）。項目の名は推して試さず、"
          "macOS なら security find-generic-password -s <項目の名> で在るかを確かめる（値を出す -w は付けない）。"
@@ -45,6 +50,7 @@ HOWTO = ("認証が無い。keychain にトークンの項目が既に在るな�
 # 名指しで決めた時に子から外す名。Claude Code は CLAUDE_CODE_OAUTH_TOKEN より上の資格を先に使う
 # （code.claude.com/docs/en/authentication の Authentication precedence）。claude_auth の INHERITED に無い FOUNDRY の旗もここで外す
 ABOVE_TOKEN = tuple(claude_auth.INHERITED) + ("CLAUDE_CODE_USE_FOUNDRY",)
+HELPER_TIMEOUT = 30   # apiKeyHelper を待つ秒数
 CREDENTIALS = ".credentials.json"   # keychain の無い OS で Claude Code が保存済みのログインを置くファイル（CLAUDE_CONFIG_DIR の下）
 
 
@@ -99,7 +105,34 @@ def read_credentials(path):
     return tok, None
 
 
-def resolve(env, user_home, user_config, platform=sys.platform, runner=None):
+def api_key_helper(config_dir):
+    """利用者の settings.json の apiKeyHelper（コマンドの字）。無い・読めない・字でなければ None"""
+    try:
+        cmd = (json.loads((config_dir / "settings.json").read_text(encoding="utf-8")) or {}).get("apiKeyHelper")
+    except (OSError, ValueError, AttributeError):
+        return None
+    return cmd if isinstance(cmd, str) and cmd.strip() else None
+
+
+def user_helper_runner(command, home, config):
+    """apiKeyHelper を利用者の HOME・設定の置き場で起こす（Claude Code と同じくシェルで）"""
+    return subprocess.run(command, shell=True, capture_output=True, encoding="utf-8", timeout=HELPER_TIMEOUT,
+                          env={**os.environ, "HOME": home, "CLAUDE_CONFIG_DIR": config})
+
+
+def run_helper(command, home, config, helper_runner):
+    """(キー, 失敗の理由)。値と helper の標準エラーは理由に入れない"""
+    try:
+        p = helper_runner(command, home, config)
+    except Exception as e:   # 起こせない・時間切れ
+        return None, "起こせない(%s)" % type(e).__name__
+    if p.returncode != 0:
+        return None, "終了コード %s" % p.returncode
+    key = (p.stdout or "").strip()
+    return (key, None) if key else (None, "出力が空")
+
+
+def resolve(env, user_home, user_config, platform=sys.platform, runner=None, helper_runner=None):
     """(子に足す認証の変数, 出どころの名, 止まる理由)。取れた時は止まる理由が None、取れない時は変数が None"""
     runner = runner or user_runner(user_home)
     named = env.get(ITEM_ENV)
@@ -116,13 +149,20 @@ def resolve(env, user_home, user_config, platform=sys.platform, runner=None):
         if name:
             return got, name, None
         return got, "keychain の項目 %s（CLAUDE_KEYCHAIN_SERVICE）" % note[len("keychain("):-1], None
+    config = menv["CLAUDE_CONFIG_DIR"]
+    command = api_key_helper(pathlib.Path(config))
+    if command:
+        key, miss = run_helper(command, user_home, config, helper_runner or user_helper_runner)
+        if not key:
+            return None, "apiKeyHelper", "apiKeyHelper（%s）が失敗した: %s" % (pathlib.Path(config) / "settings.json", miss)
+        return {"ANTHROPIC_API_KEY": key}, "apiKeyHelper（%s）" % (pathlib.Path(config) / "settings.json"), None
     if platform == "darwin":
         for service in claude_code_items(user_config):
             tok, _ = claude_auth.read_keychain(service, login_json_runner(runner))
             if tok:
                 return {"CLAUDE_CODE_OAUTH_TOKEN": tok}, "Claude Code の keychain の項目 " + service, None
         return None, None, "%s、Claude Code の keychain の項目 %s にも無い" % (note, " ".join(claude_code_items(user_config)))
-    path = pathlib.Path(menv["CLAUDE_CONFIG_DIR"]) / CREDENTIALS
+    path = pathlib.Path(config) / CREDENTIALS
     tok, miss = read_credentials(path)
     if tok:
         return {"CLAUDE_CODE_OAUTH_TOKEN": tok}, "Claude Code の保存済みのログイン %s" % path, None
