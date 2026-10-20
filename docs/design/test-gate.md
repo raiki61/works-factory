@@ -391,7 +391,7 @@ test-gate と fix の 2 つの block が使うので `lib/` に置く（憲法�
   - `whole`: 真なら選べない。地図が引けない（git の誤りなど）か、分からない物が直に関わる所に在る（`select_tests` の `run_all`）時で、今までどおり一式を走らせる。理由は `reasons`。
   - `files`: 回す試験のファイル（根からの相対）。作業ツリーに在る物だけ。`left`: 届いただけで直には関わらず回さない試験。`far`: 深さ 2 以上の分からない物（理由の形）。
 - `args(repo, picked)`: `files` を絶対パスにした並び。TDD の実行器の約束（4.3・`baseline_red.run_suite` の `args`）の「第 1 引数の後ろに足す試験のファイル」と、環境変数 `TDD_SUITE_ONLY=1`（`only=True`）で走らせる。引数を解かない実行器は一式を走らせる（実行器の書き手の指示が決めている。同じ事を確かめる）。
-- `lines(picked, ran)`: 報告の行（14.6）。
+- `lines(picked)`: 報告の行（14.6）。走らせた試験の数と名前・走らせなかった試験・全体の試験を CI と人に任せた事、`whole` なら一式を走らせた理由。
 
 ### 14.3 起点
 
@@ -403,7 +403,7 @@ test-gate と fix の 2 つの block が使うので `lib/` に置く（憲法�
 ### 14.4 当てる所
 
 - `run`（final を含む）: `by` が `role_needed` で `tdd_suite` が在る時、一式を 1 回でなく `pick` の選びで走らせる。`whole` なら今までどおり一式。`files` が空なら走らせず、`run.json` の `suite` を `null`・`related` に選びの結果を置く。
-- `suite-loop`: `suite_owed` を、(3) の道で関わる試験が 1 件も無い（`files` が空で `whole` でない）時は偽にする（走らせる試験が無いのに書き手を起こさない）。`suite-try` の 1 回は、`run.json` の `related`（`run` が選んだ結果。`suite-loop` は `run` の後なので同じ物）で走らせる。選びが `whole` なら一式。実行器の照らし（JUnit XML が出て試験が 1 件以上）は、走らせた試験の上で変わらない。
+- `suite-loop`: `suite_owed` は今までどおり（`tdd_suite` を省いた base）。関わる試験が 0 件でも実行器を書く AI を起こす。実行器は fix の TDD ループが後で使うので、試験が無い対象でも要る。`suite-try` の 1 回は、`run.json` の `related`（`run` が選んだ結果。`suite-loop` は `run` の後なので同じ物）で走らせる。`files` があればそれだけ、`whole` なら一式。`files` が空（関わる試験が 0 件）の時は、実行器が JUnit XML を書く事（試験が 1 件以上）の確かめに、一式を 1 回走らせる。確かめの基準（JUnit XML が出て試験が 1 件以上）は変えない。
 - 選びを `run.json` の `related` に 1 回だけ置き、`suite-try` と `result` は引き直さない（base の中で 2 度引いて食い違わない）。
 
 ### 14.5 任せ先の CI の役の輪を外した後の (3) の道
@@ -412,20 +412,21 @@ test-gate と fix の 2 つの block が使うので `lib/` に置く（憲法�
   - 実行器が走り、結末が取れた: 終了コード 0 なら `clean`（`checked` に走らせた試験の数）、そうでなければ `found`（`count` は落ちた件数）。
   - 関わる試験が無く走らせなかった: `not_applicable`（`reason`: 変更に関わる試験が無い。全体の試験は CI と人に任せる）。
   - 実行器が無い・走らなかった・結末が取れない: base は `awaiting_human`、final は `not_run`。`reason` に訳（実行器を作れなかった理由は `suite_note`）。base を `awaiting_human` にするのは、任せ先の役が走らせられなかった時の base と同じ扱い（鎖を止めず、判定の台帳に載せる）。
-- 認証: (3) の道の final は、緑（`clean`）でも認証しない（`green_cert.certify` の `held`。訳は「AI が書いた実行器が、関わる試験だけを走らせた緑——機械は実行器の中身を照らしていない」）。今までの「任せ先の自己申告の緑を認証しない」を、任せ先の役が無くなっても緩めない。認証するかは持ち主の選び（納品の残った疑問）。
-- 赤の原因の分け（`classify`）と `test_outcomes` は、実行器の 1 件ごとの結末で今までどおり。(3) の道の `ran_steps` は `{ran: ["関わる試験の実行器"], unran: []}`（走らなかった時は `unran` に入れる）。`by` は `role_needed` のまま（語は変えない。意味は「走らせ方が決まらず、AI が書いた実行器で関わる試験を走らせる道」）。
+- 認証: (3) の道の final は、緑（`clean`）でも認証しない（`green_cert.certify` の `held_reason`。訳は「AI が書いた実行器が、関わる試験だけを走らせた緑——機械は実行器の中身を照らしていない」）。今までの「任せ先の自己申告の緑を認証しない」を、任せ先の役が無くなっても緩めない。認証するかは持ち主の選び（納品の残った疑問）。
+- 赤の原因の分け（`classify`）と `test_outcomes` は、実行器の 1 件ごとの結末で今までどおり。ただし直す前の結果が関わる試験だけ（`baseline.json` の `narrow`）の時は、直す前の結果に無い試験の赤を `introduced` と読まず、比べる事実が無い赤（`red_cause` 空）にする。合格と確定しないのは同じ。直す前が全部の試験（宣言の在る対象と test_cmd の対象）の時は今までどおり。(3) の道の `ran_steps` は `{ran: ["関わる試験の実行器"], unran: []}`（走らなかった時は `unran` に入れる）。`by` は `role_needed` のまま（語は変えない。意味は「走らせ方が決まらず、AI が書いた実行器で関わる試験を走らせる道」）。
 - 止め方は変わらない: 実行器が作れなかった base は止めず（`awaiting_human`）、判定の台帳の問いに載る。final は `not_run`・`incomplete` で認証せず、最後の承認ノードが人に回す。
 
 ### 14.6 報告
 
 - test-gate の出力に欄 `related` を足す: `{applied, whole, files, left, far, reasons}`（道 (1)(2)・選びを引かない run は `applied: false`）。
-- 報告の部品は line の `src/sections.py`: 節「走らせなかった範囲（CI と人に任せた物）」を足す。base と final の `related` から、走らせた試験の数・走らせなかった試験（`left` の名・`far`）・「全体の試験は CI と人に任せた」・`whole` で一式を走らせた理由を並べる。道 (1)(2) の run は、範囲の宣言で回さなかった段（`skipped_steps`）を載せる（今は `suites_line` に在る物を同じ節に集める）。
-- test-gate の `report` の行は、(3) の道で `SELF_REPORTED_NOTE` の代わりに `held` の訳を出す。
+- 報告の部品は line の `src/sections.py`: 節「走らせなかった範囲（CI と人に任せた物）」を足す。base と final の `related` から、走らせた試験の数・走らせなかった試験（`left` の名・`far`）・「全体の試験は CI と人に任せた」・`whole` で一式を走らせた理由を並べる。道 (1)(2) の run は走らせ方の 1 行（`suites_line`。範囲の宣言で回さなかった段を含む）を載せ、「工場は絞らない」とは書かない（利用者が決めた走らせ方、と書く）。
+- test-gate の `report` の行は、(3) の道で final に `SELF_REPORTED_NOTE`（実行器の緑を合格と確定しない旨）を出す。
+- 報告の節「走らせなかった範囲」: 絞った道は `lib/related.lines`、利用者が走らせ方を決めた道（`related.applied` が偽）は走らせ方の 1 行（`suites_line`）を出す。本線の `collect.py` の欄の一覧に `related` を載せて届ける。
 
 ### 14.7 変えた守り
 
 - 「任せ先の自己申告の緑を認証しない」: 任せ先の役を外したので、対象が無くなった。代わりに (3) の道の final の緑は認証しない（14.5）。(3) の道の final はこれまでも認証されなかったので、認証の結果は変わらない。
-- 「直す前から赤だった試験と直しで壊した試験を分ける」: 変えない。ただし元の結末は関わる試験だけなので、元の結末に無い試験が final で落ちると `introduced`（`_must_pass` の決め）と読まれる。14.3 で final の選びを base の選びを含む形にして減らす。
+- 「直す前から赤だった試験と直しで壊した試験を分ける」: 変えない。ただし元の結末は関わる試験だけなので、元の結末に無い試験が final で落ちた時は、`introduced` と読まず比べる事実が無い赤にする（14.5。`green_cert.classify` の `baseline_narrow`）。14.3 で final の選びを base の選びを含む形にして、そうなる場面を減らす。
 - 「赤は認証しない」: 変えない。
 
 ### 14.8 自分で決めた事

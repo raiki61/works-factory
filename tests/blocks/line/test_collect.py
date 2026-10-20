@@ -323,6 +323,24 @@ class CollectScriptCase(unittest.TestCase):
         self.assertTrue(facts["start_ok"])
         self.assertEqual(got["facts"]["path"], "report-in/facts.json")
 
+    def test_the_not_run_section_reaches_the_report_through_collect(self):
+        """試験の関門の返りの related は、collect の受け皿の欄を通って報告の節「走らせなかった範囲」に届く（欄の一覧から外れると、絞った run
+        でも走らせ方の行に落ち、「工場は絞らない」と誤って出る）"""
+        run = kit.Run(self, BLOCK)
+        seed(run)
+        (run.artifacts / "r1").mkdir()
+        (run.artifacts / "r1" / "start.json").write_text(json.dumps(record()), encoding="utf-8")
+        v = passing()
+        rel = {"applied": True, "whole": False, "files": ["tests/test_a.py"], "left": ["tests/test_b.py"], "far": [], "reasons": [], "ran": "related"}
+        v["test_gate_base"] = {**v["test_gate_base"], "related": rel, "suites_line": "走らせた: x"}
+        v["test_gate_final"] = {**v["test_gate_final"], "related": rel, "suites_line": "走らせた: x"}
+        got = run.script("collect", **self.args(v))
+        sections = json.loads((run.artifacts / got["sections"]["path"]).read_text(encoding="utf-8"))
+        lines = next(s for s in sections if s["title"].startswith("走らせなかった範囲"))["lines"]
+        text = "\n".join(lines)
+        self.assertIn("  - tests/test_b.py", lines)
+        self.assertNotIn("工場は絞らない", text)
+
     def test_prior_version_return_is_not_read_as_empty(self):
         """前の版の返り（受け皿の got の欄の欠け）を resume で受けたら空と読まず、訳だけの facts で record_invalid に倒す（4.3-12）"""
         run = kit.Run(self, BLOCK)

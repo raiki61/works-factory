@@ -1245,6 +1245,24 @@ class RelatedCase(ScriptCase):
         self.assertEqual((out["green"], out["ok"], out["red_cause"]), (False, False, green_cert.INTRODUCED))
         self.assertEqual([r["key"] for r in out["test_outcomes"]["rows"]], ["test_stats.TestStats::test_mean_of_three"])
 
+    def test_a_red_outside_the_narrow_base_is_not_called_introduced(self):
+        """修正前の確かめが関わる試験だけ（1 件）で、最後の確かめが全部の試験（選べなかった）の時、修正前の結果に無い試験の赤は、直しが
+        起こした赤とも元からの赤とも言わない（比べる事実が無い。合格と確定しないのは同じ）"""
+        self.touch()
+        self.ok("run", "base")
+        base = self.ok("result", "base")
+        other = self.tmp / "other-runner.sh"
+        other.write_text("#!/bin/sh\nprintf '%s' \"<testsuite><testcase classname='test_stats.TestStats' name='test_mean_of_three'/>"
+                         "<testcase classname='test_far.TestFar' name='test_far'><failure message='x'/></testcase></testsuite>\" > \"$1\"\nexit 1\n",
+                         encoding="utf-8")
+        other.chmod(0o755)
+        (self.repo / "widget.js").write_text("export function widget() { return 1 }\n", encoding="utf-8")
+        self.write_start(baseline=str(self.pointed(base["baseline"])), tdd_suite=str(other))
+        self.ok("run", "final")
+        out = self.ok("result", "final")
+        self.assertTrue(out["related"]["whole"])
+        self.assertEqual((out["ok"], out["red_cause"]), (False, ""))
+
     def test_nothing_related_in_the_final_is_not_a_green(self):
         self.write_start(tdd_suite=str(self.runner))
         self.ok("run", "base")

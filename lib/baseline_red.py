@@ -79,10 +79,11 @@ def _must_pass(c, baseline):
     return baseline is None or baseline.get(_key(c), "passed") == "passed"
 
 
-def _broken_others(cases, baseline, hit):
+def _broken_others(cases, baseline, hit, scope=None):
     """名指しの外（hit に無い）で落ちた、通っていなければならないテスト（_must_pass）——赤と緑の確認が同じ 1 本を読む
     （元 works/.shared/core/graphloops/rules/review-loop-tdd.py:102-104）"""
-    return [c for c in cases if id(c) not in hit and c["outcome"] in ("failure", "error") and _must_pass(c, baseline)]
+    return [c for c in cases if id(c) not in hit and c["outcome"] in ("failure", "error") and _must_pass(c, baseline)
+            and (scope is None or _key(c) in scope)]
 
 
 def red_problems(named, cases, exit_code, baseline=None):
@@ -111,11 +112,18 @@ def red_problems(named, cases, exit_code, baseline=None):
     return probs
 
 
-def green_problems(named, cases, exit_code, baseline=None, baseline_exit=0):
+def green_problems(named, cases, exit_code, baseline=None, baseline_exit=0, narrow=False, also=()):
     """緑の確認: 名指しのテストが全部通り、名指しの外で通っていなければならない物（_must_pass）も通る。一式が 0 で終わる
     （JUnit に載らない失敗——件数の柵など——も拾う）。元の一式が 0 で終わっていなかったなら終了コードは問わない
+    narrow が真（元の結末が変更に関わる試験だけで、今の回は全部の試験を走らせた。持ち主の決め related-tests-only）なら、比べるのは元の結末に
+    載った試験と名指しと also（前の単位が赤から緑にした試験の id）だけ: 元の結末に無い試験の赤は問わず、一式の終了コードも、その範囲の結果が
+    全部通っていれば問わない
     （元 works/.shared/core/graphloops/rules/review-loop-tdd.py:132-147）"""
-    probs = [] if exit_code == 0 or baseline_exit != 0 else [
+    scope = None
+    if narrow and baseline is not None:
+        scope = {_key(c) for c in cases if _key(c) in baseline or any(match_case(t, [c]) for t in (*named, *also))}
+    clean = scope is not None and not any(c["outcome"] in ("failure", "error") for c in cases if _key(c) in scope)
+    probs = [] if exit_code == 0 or baseline_exit != 0 or clean else [
         f"テスト一式が exit {exit_code} で終わった——JUnit の結末が全部通っていても、一式としては緑でない"]
     hit = set()
     for t in named:
@@ -125,7 +133,7 @@ def green_problems(named, cases, exit_code, baseline=None, baseline_exit=0):
         if c is None or c["outcome"] != "passed":
             probs.append(f"{t}: {'一式の結末に居ない' if c is None else c['outcome']}——名指しのテストが緑でない")
     probs += [f"{_key(c)} が {c['outcome']}——ほかのテストが緑でない（元は通っていた・この周に足した物）"
-              for c in _broken_others(cases, baseline, hit)]
+              for c in _broken_others(cases, baseline, hit, scope)]
     return probs
 
 

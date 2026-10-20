@@ -1244,7 +1244,10 @@ def _green(st, u, repo) -> list:
         return other
     files, full = _reached(st, repo)
     cases, code = _run(st, repo, u["tests"], files, full)
-    return rules().green_problems(u["tests"], cases, code, st["baseline"], st["baseline_exit"]) \
+    rel = st.get("related") or {}
+    narrow = bool(full and rel.get("applied") and not rel.get("whole"))   # 元の結末が関わる試験だけで、今の回は全部の試験
+    return rules().green_problems(u["tests"], cases, code, st["baseline"], st["baseline_exit"], narrow=narrow,
+                                  also=sorted(_verified(st))) \
         or _vanished_problems(st, u, cases, st["last_run"]["args"], repo) or _test_cmd_problems(st, repo)
 
 

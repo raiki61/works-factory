@@ -28,7 +28,7 @@ import ports  # noqa: E402
 
 # 受け皿の got の欄（YAML の受け皿の names と同じ並び）
 GOT = {
-    "test_gate_base": "mode ok green red_cause ran_steps baseline fingerprint test_outcomes evidence by suites_line log baseline_line reason suite suite_note report",
+    "test_gate_base": "mode ok green red_cause ran_steps baseline fingerprint test_outcomes evidence by suites_line log baseline_line reason suite suite_note related report",
     "judge": "ok stop_reason reason ready units judgment answer_ties out_of_purpose materials brief inputs purpose purpose_text purpose_source "
              "means purpose_review constraints world world_state spec spec_rows spec_origin excluded pr_drafts downgrades decisions tier tier_why "
              "row_asks tier_record verify verify_why report sections optional",
@@ -46,7 +46,7 @@ GOT = {
     "rejudge": "ok status mode stop_reason reason ready judgment units questions inputs brief materials out_of_purpose answer_ties "
                "rejudge_verdict rejudge_exit rejudge_diff downgrades report",
     "spec_check": "ok status stop_reason reason spec added_rows added_origin questions unchecked report",
-    "test_gate_final": "mode ok green red_cause ran_steps baseline fingerprint test_outcomes evidence by suites_line log baseline_line reason suite suite_note report",
+    "test_gate_final": "mode ok green red_cause ran_steps baseline fingerprint test_outcomes evidence by suites_line log baseline_line reason suite suite_note related report",
     "eyes": "ok r1 r2 r3 r4 questions passes premise_check notes after dirty escalate after_ok report sections",
     "merge_seal": "mode ok hash diff protected_hits protected_count reason deliver report",
     "merge_apply": "mode ok hash diff protected_hits protected_count reason deliver report",

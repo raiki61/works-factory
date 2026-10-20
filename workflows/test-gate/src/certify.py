@@ -124,6 +124,12 @@ def runner_steps(run: dict) -> dict:
     return {"ran": [RUNNER_STEP], "unran": []} if suite_exit(run) is not None else {"ran": [], "unran": [RUNNER_STEP]}
 
 
+def _narrow(run: dict) -> bool:
+    """この run の結末が関わる試験だけか（絞る道で、選べて（whole でなく）、走らせた or 関わる試験が無い）"""
+    got = run.get("related") or {}
+    return bool(got.get("applied")) and got.get("ran") in ("related", "none")
+
+
 def related_lines(run: dict) -> list:
     """証拠の文の関わる試験の行（絞らない道は無し）"""
     import related
@@ -169,7 +175,8 @@ def certified(place, optional_raw) -> dict:
         base = baseline_red.read_baseline(pathlib.Path(doc["baseline"]))
     cases, rows = test_outcomes(base, run) if mode == "final" else (None, None)
     red_cause, summary = green_cert.classify(material=material, runs=run["runs"], cases=run["cases"], baseline_cases=cases,
-                                             junit_steps=run["junit_steps"], junit_unran=run["junit_unran"])
+                                             junit_steps=run["junit_steps"], junit_unran=run["junit_unran"],
+                                             baseline_narrow=bool(base and base.get("narrow")))
     ok, why = green_cert.certify(mode=mode, material_status=status, green=green, before=run["fingerprint_before"],
                                  after=run["fingerprint_after"], now=now, self_reported=role, held_reason=green_cert.RUNNER_HELD,
                                  material_reason=(material or {}).get("reason"))
@@ -180,7 +187,7 @@ def certified(place, optional_raw) -> dict:
     if mode == "base":
         baseline_red.write_baseline(place / files.BASELINE, suite=state.get("tdd_suite") or "", test_cmd=doc["test_cmd"],
                                     rev=now["head"], exit=suite_exit(run), cases=run["cases"], by=run["by"], material=material,
-                                    runs=run["runs"], skipped_steps=run["skipped_steps"],
+                                    runs=run["runs"], skipped_steps=run["skipped_steps"], narrow=_narrow(run),
                                     exit_codes={r["name"]: r["exit"] for r in run["runs"]}, junit_steps=run["junit_steps"],
                                     fingerprint=now, how=declared_checks.run_how(root, run, test_cmd=doc["test_cmd"], material=material))
         out["baseline"] = ports.pointer(place / files.BASELINE)

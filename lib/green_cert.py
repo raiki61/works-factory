@@ -100,7 +100,7 @@ def _keys(cases) -> str:
     return "・".join(keys[:HEAD_LIMIT]) + more
 
 
-def classify(*, material, runs, cases, baseline_cases, junit_steps, junit_unran) -> tuple:
+def classify(*, material, runs, cases, baseline_cases, junit_steps, junit_unran, baseline_narrow=False) -> tuple:
     """赤の原因を事実だけで分ける ——（red_cause, summary）。red_cause は ""・environment・incomplete・introduced・inherited。順:
     1. 素材の status が clean → ("", "")
     2. 赤の段（exit が 0 でない段）が 1 つ以上在り、全部が起こせない段（tree_run.launch_kind が broken）→ environment
@@ -112,7 +112,9 @@ def classify(*, material, runs, cases, baseline_cases, junit_steps, junit_unran)
     5. baseline_cases が在り、落ちた物が 1 つ以上在って全部が元でも落ちていて、broken を除く赤の段が全部 junit_steps に在って junit_unran に無い → inherited
     6. ほか（JUnit の無い赤の段・shell の test_cmd の赤・baseline_cases が None）→ ""（原因の無い赤）。試験に入ったかの証拠が無いので、
        ran_note は走らなかったと言い切らず UNVERIFIED_RUN と読む（直す前と同じログの赤も、試験が同じに落ちたのと見分けられない）
-    baseline_cases は元の結末の cases。呼び手は、元の結末の exit が None の時と、1 件ごとの結末の出どころが無い時に None を渡す"""
+    baseline_cases は元の結末の cases。呼び手は、元の結末の exit が None の時と、1 件ごとの結末の出どころが無い時に None を渡す。
+    baseline_narrow が真（元の結末が変更に関わる試験だけ。持ち主の決め related-tests-only）なら、元の結末に無い試験の赤は introduced と
+    読まず、比べる事実が無い赤として 6. に落とす（直しのせいとも元からとも言えない）"""
     status = (material or {}).get("status")
     if status == "clean":
         return "", ""
@@ -123,17 +125,17 @@ def classify(*, material, runs, cases, baseline_cases, junit_steps, junit_unran)
     unran = f"JUnit の報告を宣言した段が走らなかった: {'・'.join(map(str, junit_unran))}" if junit_unran else ""
     if status in NOT_DONE or (unran and not declared_checks.ran_reds(runs, junit_unran)):
         return INCOMPLETE, "；".join([*([f"素材が {status}"] if status in NOT_DONE else []), *([unran] if unran else [])])
-    cause, summary = _red_cause(reds, broken, cases, baseline_cases, set(junit_steps or []) - set(junit_unran or []))
+    cause, summary = _red_cause(reds, broken, cases, baseline_cases, set(junit_steps or []) - set(junit_unran or []), baseline_narrow)
     return cause, f"{summary}（{unran}）" if unran else summary
 
 
-def _red_cause(reds, broken, cases, baseline_cases, read_steps) -> tuple:
+def _red_cause(reds, broken, cases, baseline_cases, read_steps, narrow=False) -> tuple:
     """classify の 4.〜6.（read_steps は試験の報告を読めた段。走らなかった段の赤は受け継いだ赤と言わない）"""
     names = "・".join(str(r.get("name")) for r in reds) or "無し"
     failed = [c for c in cases or [] if c.get("outcome") in baseline_red.FAILED]
     if baseline_cases is not None:
         base = baseline_red.outcomes(baseline_cases)
-        introduced = [c for c in failed if baseline_red._must_pass(c, base)]
+        introduced = [c for c in failed if baseline_red._must_pass(c, base) and not (narrow and baseline_red._key(c) not in base)]
         if introduced:
             return INTRODUCED, (f"今回落ちて元で通っていたか元に無かった {len(introduced)} 件: {_keys(introduced)}"
                                   f"（赤の段: {names}。元の結末の 1 件ごとの結末と比べた）")
