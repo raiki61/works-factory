@@ -144,6 +144,9 @@ def launch(argv: list[str], user: dict[str, str], here: Path) -> int:
         if (effective := place.read_provider_cap(Path(child["ARCHON_HOME"]))) is not None:
             print(f"{NAME}: claude の同時数の上限 {effective} が効いている（{Path(child['ARCHON_HOME']) / place.CAP_FILE}）",
                   file=sys.stderr)
+        elif place.flow_cap_unread(Path(child["ARCHON_HOME"])):
+            print(f"{NAME}: 上限の設定が 1 行の形で在るかもしれず、殻は値を読めない（{Path(child['ARCHON_HOME']) / place.CAP_FILE}）",
+                  file=sys.stderr)
     if executing and not no_auth:
         check = subprocess.run([*auth, "check", *auth_user], env=user, stdout=subprocess.PIPE, text=True,
                                encoding="utf-8")

@@ -16,6 +16,7 @@ run のノードに渡す環境変数（launcher.run_env）・AI ノードの群
 import hashlib
 import importlib.util
 import json
+import os
 import shutil
 import subprocess
 import sys
@@ -196,31 +197,57 @@ def read_provider_cap(archon_home: Path) -> int | None:
     return int(value) if value.isascii() and value.isdigit() and int(value) >= 1 else None
 
 
+def _flow_form(text: str) -> bool:
+    """config.yaml の最上位の中身の行（空行とコメントを除く）が { か [ で始まる 1 行の形か。Archon の ai tier set・ai alias set と serve の設定画面は
+    config.yaml 全体を 1 行の形で書き直す（packages/core/src/config/config-loader.ts）"""
+    first = next((line.strip() for line in text.splitlines() if _is_content(line)), "")
+    return first.startswith(("{", "["))
+
+
+def flow_cap_unread(archon_home: Path) -> bool:
+    """config.yaml が 1 行の形で、concurrency の字が在る（上限の設定が中にあるかもしれず、殻は値を読めない）か"""
+    try:
+        text = (archon_home / CAP_FILE).read_text(encoding="utf-8")
+    except OSError:
+        return False
+    return _flow_form(text) and "concurrency" in text
+
+
 def write_provider_cap(archon_home: Path, cap: int | None) -> None:
-    """cap が整数なら、隔離した Archon の家の config.yaml の concurrency.providers.claude の鍵だけを足すか書き換える（ほかの鍵・コメントは
-    残す。ファイルが無ければその鍵だけで作る）。置き場の設定として残る。cap が None（渡していない）なら何もしない。待たせるのは Archon で、
-    工場は列を持たない。鍵が値を持つ形（concurrency: {…} など）で足せない時は ValueError"""
+    """cap が整数なら、隔離した Archon の家の config.yaml の concurrency.providers.claude の鍵だけを足すか書き換える（ほかの鍵・コメント・
+    改行の形は残す。ファイルが無ければその鍵だけで作る）。値が今と同じなら書かず、違う時は同じ置き場の一時ファイルを os.replace で置き換える
+    （走り中の run が書きかけを読まない）。置き場の設定として残る。cap が None（渡していない）なら何もしない。待たせるのは Archon で、
+    工場は列を持たない。鍵が値を持つ形（concurrency: {…} など）や、ファイル全体が 1 行の形で足せない時は、何も書かずに ValueError"""
     if cap is None:
         return
     path = archon_home / CAP_FILE
-    text = path.read_text(encoding="utf-8") if path.is_file() else ""
+    text = path.read_bytes().decode("utf-8") if path.is_file() else ""
+    if _flow_form(text):
+        raise ValueError(f"{path} は Archon の命令（ai tier set など）が 1 行の形で書いたので、殻は上限を足せない。上限は "
+                         f"`concurrency: {{providers: {{{DEFAULT_PROVIDER}: {cap}}}}}` を手で入れて渡すか、{CAP_ENV} を外して起動する")
+    eol = "\r\n" if "\r\n" in text else "\n"
     lines = text.splitlines(keepends=True)
     if lines and not lines[-1].endswith("\n"):
-        lines[-1] += "\n"
+        lines[-1] += eol
     top, providers, claude = _locate(lines)
     if claude is not None:
-        lines[claude] = f"{' ' * _indent(lines[claude])}{DEFAULT_PROVIDER}: {cap}\n"
+        lines[claude] = f"{' ' * _indent(lines[claude])}{DEFAULT_PROVIDER}: {cap}{eol}"
     elif providers is not None:
         at = _block_end(lines, providers)
-        lines[at:at] = [f"{' ' * (_indent(lines[providers]) + 2)}{DEFAULT_PROVIDER}: {cap}\n"]
+        lines[at:at] = [f"{' ' * (_indent(lines[providers]) + 2)}{DEFAULT_PROVIDER}: {cap}{eol}"]
     elif top is not None:
         at = _block_end(lines, top)
         pad = " " * (_indent(lines[top]) + 2)
-        lines[at:at] = [f"{pad}providers:\n", f"{pad}  {DEFAULT_PROVIDER}: {cap}\n"]
+        lines[at:at] = [f"{pad}providers:{eol}", f"{pad}  {DEFAULT_PROVIDER}: {cap}{eol}"]
     else:
-        lines += ["concurrency:\n", "  providers:\n", f"    {DEFAULT_PROVIDER}: {cap}\n"]
+        lines += [f"concurrency:{eol}", f"  providers:{eol}", f"    {DEFAULT_PROVIDER}: {cap}{eol}"]
+    written = "".join(lines)
+    if written == text:
+        return
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text("".join(lines), encoding="utf-8")
+    tmp = path.with_name(path.name + ".tmp")
+    tmp.write_bytes(written.encode("utf-8"))
+    os.replace(tmp, path)
 
 
 def git_fetch(repo: str, commit: str, dest: Path) -> None:
