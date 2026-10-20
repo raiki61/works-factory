@@ -480,6 +480,22 @@
 - 決め: `no-queue` に 1 つだけ外しを足す。利用者が上限を渡した時だけ（環境変数 `WORKS_FACTORY_CLAUDE_CONCURRENCY`）、殻が隔離した Archon の家の `config.yaml` の `concurrency.providers.claude` の鍵だけを足すか書き換え（ほかの鍵・コメント・並びは残す）、Archon の provider の同時数の上限に届ける。越える分を空きまで待たせるのは Archon で、工場は列も錠も枝の数の上限も持たない。渡さない既定は今のまま（一度も渡さなければ、並べに上限を付けず、家に何も書かない）。
 - 当て方: `bin/_lib/launcher.py`（E15 の殻）と `bin/_lib/place.py`。上限は起動ごとの値でなく置き場の設定として残る（Archon の上限は置き場ごとに効き、走り中の run もリクエストのたびに読み直すため）。鍵だけを触る（利用者の tier・alias など、同じ `config.yaml` の設定を壊さない）。変数を渡さない起動は `config.yaml` に何もしない（消さない。ある起動が消すとほかの run の上限が外れるため）。殻は起動のたびに、鍵が在ればその値を標準エラーに 1 行出す。上限を外すには利用者が `config.yaml` の行を消す（外すための新しい値は足さない）。README の「同時の数が小さいキーを使う人へ」。
 
+## 2026-10-20 の決め（起動の認証）
+
+### `api-key-helper-relay` apiKeyHelper は殻が起こしてキーを環境で子に渡す（#795）
+
+- 持ち主の言葉: 「次に回すやつはどうぞ！」（2026-10-20。工場窓口が #795 に推した 3 つの案への答え）
+- 推した案: 1. 認証が無い時の案内 `HOWTO` と README に API キーの道（`ANTHROPIC_API_KEY`。ゲートウェイなら `ANTHROPIC_BASE_URL` も環境に置いて起動する。ゲートウェイの値は子に運ばない）を書く。2. 利用者の `settings.json` に `apiKeyHelper` が在れば、殻が利用者の HOME で起こしてキーを得て、`ANTHROPIC_API_KEY` として子に渡す（値は表示も保存もしない）。3. `apiKeyHelper` が在る時は Claude Code 自身のログインへ落ちず、失敗したら黙って別の段へ移らず、`apiKeyHelper` を名指して止まる。
+- 決め: 上の 1〜3 のとおり。`apiKeyHelper` を子の設定に写す道は採らない（柵 `bin/_lib/toolset.py` の許す鍵を増やさない）。後の PR #798 のレビューで工場窓口が次を足した（2026-10-20）。
+  - 段の順は Claude Code 自身の優先順に合わせる: 名指し → 親の環境の認証（Bedrock・Vertex・`ANTHROPIC_AUTH_TOKEN`・`ANTHROPIC_API_KEY`）→ `CLAUDE_KEYCHAIN_SERVICE` → `apiKeyHelper` → 親の環境の `CLAUDE_CODE_OAUTH_TOKEN` だけの認証（`apiKeyHelper` の設定が無い時は、`CLAUDE_KEYCHAIN_SERVICE` も名指していても環境のトークンを採り、keychain の項目は読まない）→ Claude Code 自身のログイン。出典は https://code.claude.com/docs/en/authentication#authentication-precedence の 4. `apiKeyHelper`・5. `CLAUDE_CODE_OAUTH_TOKEN`。
+  - 読む設定は、会社が配る設定のファイル（macOS `/Library/Application Support/ClaudeCode/`・Linux と WSL `/etc/claude-code/`・Windows `C:\Program Files\ClaudeCode\` の `managed-settings.json` の後に `managed-settings.d/*.json` を名前順に重ね、単一の値は後が勝つ。https://code.claude.com/docs/en/managed-settings）に `apiKeyHelper` が在ればそれ、無ければ利用者の `<CLAUDE_CONFIG_DIR>/settings.json`（無ければ `<HOME>/.claude`）。MDM（構成プロファイル・レジストリ）と remote（claude.ai の server-managed settings）は読まない。Claude Code は remote → MDM → ファイルの順に見て policy を持つ一番上の 1 つだけを使うので、remote か MDM が policy を配る機械では Claude Code はファイルの `apiKeyHelper` を使わないが、殻はファイルの物を採る。README に「remote か MDM で配られている時は `ANTHROPIC_API_KEY` を環境に置いて起動する」と書く。対象のリポジトリの `.claude/settings.json` は読まない。
+  - 設定が JSON として壊れている・object でない・`apiKeyHelper` が字でない時は、保存済みのログインへ落ちず、そのファイルを名指して止まる（Claude Code の「refuses to start」と同じ）。会社が配る設定のファイルを OS が読ませない時（PermissionError。root だけが読める置き場など）は、Claude Code に合わせて無いものとして進む（「If the operating system denied the read ... every session starts without that source's policies」。https://code.claude.com/docs/en/managed-settings）。利用者の設定を読めない時は止まる。キーが無い・空の字は「無い」。
+  - `apiKeyHelper` は利用者の HOME・`XDG_*`（殻が隔離の前に控えた値）で起こし、標準エラーは捕まえずに端末へ流す。起こすのは起動ごとに 1 回で、Archon を起こす直前の exec だけ。check（利用者の環境で認証を確かめる段階）は起こさず、出どころの名と設定のパスだけを出す。失敗したら exec が Archon を起こす前に名指して止まる（止まる前に残る物は run の置き場の中のファイルだけ）。check の標準出力のパイプと exec の環境でキーを渡す道は採らない: 殻はトークンを読まない・出さない（`bin/_lib/launcher.py` の頭。トークンを持つのは `auth_launch.py` の exec だけ）。使い捨てのキーを出す helper や指紋の確かめを求める helper でも 1 回で済む。
+  - キーは起動の時に 1 回取り、run の間ずっと同じ値を子に渡す（Claude Code 自身は 5 分ごとと 401/403 の時に起こし直すが、工場の子はそうしない）。期限の短いキーを出す `apiKeyHelper` では、長い run が途中で認証落ちになりうる。その時は期限の長いキーを `ANTHROPIC_API_KEY` に置いて起動する。
+  - コマンドの待ちに期限は付けない（`no-timeouts`。止めるのは起動した人）。
+- 訳: `others-may-use` と E14。`apiKeyHelper` だけで Claude Code を使う人は子に認証が届かず止まり、案内も OAuth の道しか言わなかった。`apiKeyHelper` の設定から起動しても既定の `~/.claude` にサブスクのログインが在れば黙ってそのアカウントで子を起こす形は、`claude_auth.py` の「利用者が選んだ経路を黙って別の口に差し替えない」に反した。
+- 当て方: `bin/_lib/auth_launch.py`（`api_key_helper`・`resolve`）と `tests/bin/test_auth_launch.py`・README の環境変数の項。
+
 ## 引き継いだ決め
 
 今の works の地図から、works-factory でも生きる物を選んだ。外した物は末尾。
