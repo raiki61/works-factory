@@ -37,6 +37,15 @@ import auth_launch  # noqa: E402
 import claude_auth  # noqa: E402
 import hermetic  # noqa: E402
 
+
+def _forbid_the_real_managed_dir(platform=None):
+    raise AssertionError("本物の会社の設定の置き場を読みに行った。試験は managed_dir（空の一時フォルダ）を渡すか、default_managed_dir を差し替える")
+
+
+# 全部の試験の前に差し替える。会社が apiKeyHelper を配った機械で試験を回すと、本物の helper が起きてしまう（#798 の再レビュー）
+auth_launch.default_managed_dir_real = auth_launch.default_managed_dir
+auth_launch.default_managed_dir = _forbid_the_real_managed_dir
+
 TOKEN = "sk-ant-oat01-fake-for-test"
 
 
@@ -281,9 +290,9 @@ class ApiKeyHelper(unittest.TestCase):
                 path.unlink()
 
     def test_managed_dir_per_platform(self):
-        self.assertEqual(str(auth_launch.default_managed_dir("darwin")), "/Library/Application Support/ClaudeCode")
-        self.assertEqual(str(auth_launch.default_managed_dir("linux")), "/etc/claude-code")
-        self.assertEqual(str(auth_launch.default_managed_dir("win32")), "C:\\Program Files\\ClaudeCode")
+        self.assertEqual(str(auth_launch.default_managed_dir_real("darwin")), "/Library/Application Support/ClaudeCode")
+        self.assertEqual(str(auth_launch.default_managed_dir_real("linux")), "/etc/claude-code")
+        self.assertEqual(str(auth_launch.default_managed_dir_real("win32")), "C:\\Program Files\\ClaudeCode")
 
     def test_default_runner_does_not_capture_stderr(self):
         """標準エラーは捕まえずに端末へ流す（期限が無いので、helper の問いが見えないまま待ち続けない）"""
@@ -316,11 +325,27 @@ class ApiKeyHelper(unittest.TestCase):
             auth_launch.user_helper_runner("cmd", "/u", "/u/.claude")
         self.assertEqual(run.call_args.kwargs["env"]["XDG_CONFIG_HOME"], "/u/.config")
 
+    def test_check_names_the_helper_source_without_running_it(self):
+        """check は helper を起こさず、出どころの名とパスだけを返す（helper は exec の 1 回だけ。使い捨てのキーや指紋の確かめを求める helper のため）"""
+        h = helper()
+        got, name, why = auth_launch.resolve({}, self.home, "", platform="linux", runner=keychain({}), helper_runner=h,
+                                             managed_dir=self.managed, fetch=False)
+        self.assertIsNone(why)
+        self.assertEqual(got, {})
+        self.assertIn(str(self.tmp / ".claude" / "settings.json"), name)
+        self.assertEqual(h.calls, [])
+
+    def test_check_still_stops_on_unusable_settings(self):
+        write_settings(self.tmp / ".claude", "not json")
+        got, _name, why = auth_launch.resolve({}, self.home, "", platform="linux", runner=keychain({}), helper_runner=helper(),
+                                              managed_dir=self.managed, fetch=False)
+        self.assertIsNone(got)
+        self.assertIn(str(self.tmp / ".claude" / "settings.json"), why)
+
     @unittest.skipIf(sys.platform == "win32", "SKIP windows: sh の 1 行")
-    def test_a_launch_runs_the_helper_twice_once_per_check_and_exec(self):
-        """起動の殻は認証の確かめ（check）と起動（exec）を別のプロセスで走らせ、キーを渡すにはファイルか引数に置くしか無い
-        （採らない）ので、helper は起動ごとに 2 回起こされる。README と決め api-key-helper-relay に書いた回数を縛る。
-        exec の helper は隔離の前の XDG_CONFIG_HOME で起こされる"""
+    def test_a_launch_runs_the_helper_once_in_exec_only(self):
+        """起動 1 回で helper は 1 回だけ、exec で起こされる（check では起こさない）。exec の helper は隔離の前の XDG_CONFIG_HOME で
+        起こされる。README と決め api-key-helper-relay に書いた回数を縛る"""
         tmp = hermetic.tmpdir(self)
         count = tmp / "count"
         script = tmp / "helper.sh"
@@ -334,10 +359,36 @@ class ApiKeyHelper(unittest.TestCase):
                                                env=env, capture_output=True, text=True, encoding="utf-8", timeout=60)
         r = run(["check", *base], hermetic.child_env(HOME=str(tmp / "user"), XDG_CONFIG_HOME="/checker"))
         self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn("apiKeyHelper", r.stdout)
+        self.assertIn(str(tmp / "user" / ".claude" / "settings.json"), r.stdout)
+        self.assertFalse(count.exists())
         r = run(["exec", *base, "--", sys.executable, "-I", "-c", "pass"],
                 hermetic.child_env(HOME=str(tmp / "iso"), XDG_CONFIG_HOME="/iso-xdg", WORKS_FACTORY_USER_ENV=record))
         self.assertEqual(r.returncode, 0, r.stderr)
-        self.assertEqual(count.read_text().split(), ["/checker", "/user-xdg"])
+        self.assertEqual(count.read_text().split(), ["/user-xdg"])
+
+    def test_a_managed_file_the_os_denies_is_skipped_like_claude_code(self):
+        """OS が読ませない（PermissionError）会社の設定のファイルは無いものとして次の出どころへ進む（Claude Code と同じ。
+        https://code.claude.com/docs/en/managed-settings）。壊れた JSON・字でない値で止まるのは今のまま。利用者の設定は読めなければ止まる"""
+        denied = self.write_managed("managed-settings.json", {"apiKeyHelper": "managed-cmd"})
+        real = pathlib.Path.read_text
+
+        def read_text(path, *a, **kw):
+            if path == denied:
+                raise PermissionError(13, "denied")
+            return real(path, *a, **kw)
+        h = helper()
+        with mock.patch.object(pathlib.Path, "read_text", read_text):
+            got, _name, why = self.resolve(helper_runner=h)
+            self.assertIsNone(why)
+            self.assertEqual([c[0] for c in h.calls], ["print-key"])
+            user = self.tmp / ".claude" / "settings.json"
+            real_managed = denied
+            real_managed.unlink()
+            denied = user
+            got, _name, why = self.resolve(helper_runner=helper())
+        self.assertIsNone(got)
+        self.assertIn(str(user), why)
 
     def test_default_runner_uses_the_users_home_and_config_dir(self):
         err = io.StringIO()
@@ -378,7 +429,27 @@ class ApiKeyHelper(unittest.TestCase):
         self.assertIn("apiKeyHelper（", r.stderr.splitlines()[-1])
 
 
-class ResolveOrder(unittest.TestCase):
+class NoRealManagedDir(unittest.TestCase):
+    """会社の設定の置き場を空の一時フォルダにする（本物の置き場は読まない）"""
+
+    def setUp(self):
+        empty = hermetic.tmpdir(self) / "no-managed"
+        patch = mock.patch.object(auth_launch, "default_managed_dir", lambda platform=None: empty)
+        patch.start()
+        self.addCleanup(patch.stop)
+
+
+class ResolveOrder(NoRealManagedDir):
+    def test_oauth_token_in_the_env_beats_a_named_keychain_service_without_a_helper(self):
+        """親の環境に CLAUDE_CODE_OAUTH_TOKEN が在り CLAUDE_KEYCHAIN_SERVICE も名指し、helper が無い時は、環境のトークンを採り
+        keychain の項目を読まない"""
+        run = keychain({"svc": TOKEN})
+        env = {"CLAUDE_CODE_OAUTH_TOKEN": "sk-ant-oat01-env", "CLAUDE_KEYCHAIN_SERVICE": "svc"}
+        got, name, why = auth_launch.resolve(env, "/u", "", platform="darwin", runner=run)
+        self.assertIsNone(why)
+        self.assertEqual((got, name), ({"CLAUDE_CODE_OAUTH_TOKEN": "sk-ant-oat01-env"}, "CLAUDE_CODE_OAUTH_TOKEN"))
+        self.assertEqual(run.calls, [])
+
     def test_middle_stage_follows_the_copys_auth_env(self):
         """真ん中は写しの auth_env の結果にそのまま従う（番兵に差し替えると出どころの名と子に渡す値が変わる）"""
         seen = {}
@@ -495,7 +566,7 @@ class ResolveOrder(unittest.TestCase):
         self.assertEqual(run.call_args.kwargs["env"]["HOME"], "/users-home")
 
 
-class ChildEnv(unittest.TestCase):
+class ChildEnv(NoRealManagedDir):
     ISOLATED = {"HOME": "/run/home", "CLAUDE_CONFIG_DIR": "/run/claude-config"}
 
     def test_every_source_keeps_the_isolated_config_dir(self):
@@ -540,7 +611,7 @@ class IsolatedLaunch(unittest.TestCase):
         env = hermetic.child_env(HOME=str(tmp / "iso"), PATH=str(bin_dir) + os.pathsep + os.environ.get("PATH", ""),
                                  WORKS_FACTORY_KEYCHAIN_ITEM="named", ANTHROPIC_API_KEY="k", CLAUDE_CODE_OAUTH_TOKEN="inherited")
         r = subprocess.run([sys.executable, "-I", str(CORE / "auth_launch.py"), "exec", "--user-home", str(tmp / "user"),
-                            "--", sys.executable, "-I", "-c", probe], env=env, capture_output=True, text=True, encoding="utf-8", timeout=60)
+                            "--managed-dir", str(tmp / "managed"), "--", sys.executable, "-I", "-c", probe], env=env, capture_output=True, text=True, encoding="utf-8", timeout=60)
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertNotIn(TOKEN, r.stdout + r.stderr)
         self.assertEqual(r.stdout.strip(), '{"CLAUDE_CODE_OAUTH_TOKEN": true, "ANTHROPIC_API_KEY": null, "HOME": "%s"}'
@@ -556,7 +627,8 @@ class IsolatedLaunch(unittest.TestCase):
                 bin_dir = self.fake_security(tmp, "nothing-here")
                 env = hermetic.child_env(HOME=str(tmp), PATH=str(bin_dir) + os.pathsep + os.environ.get("PATH", ""), **extra)
                 r = subprocess.run([sys.executable, "-I", str(CORE / "auth_launch.py"), "exec", "--for", "bin/start",
-                                    "--user-home", str(tmp), "--", sys.executable, "-c", "print('started')"],
+                                    "--user-home", str(tmp), "--managed-dir", str(tmp / "managed"), "--", sys.executable, "-c",
+                                    "print('started')"],
                                    env=env, capture_output=True, text=True, encoding="utf-8", timeout=60)
                 self.assertEqual(r.returncode, 2)
                 self.assertEqual(r.stdout, "")
@@ -573,7 +645,7 @@ class IsolatedLaunch(unittest.TestCase):
         probe = ("import os; print(os.environ.get('CLAUDE_CODE_OAUTH_TOKEN') == %r, os.environ['CLAUDE_CONFIG_DIR'], "
                  "os.environ['HOME'])" % TOKEN)
         r = subprocess.run([sys.executable, "-I", str(CORE / "auth_launch.py"), "exec", "--for", "bin/start",
-                            "--user-home", str(tmp / "user"), "--user-config", str(tmp / "user-config"), "--",
+                            "--user-home", str(tmp / "user"), "--user-config", str(tmp / "user-config"), "--managed-dir", str(tmp / "managed"), "--",
                             sys.executable, "-I", "-c", probe],
                            env=env, capture_output=True, text=True, encoding="utf-8", timeout=60)
         self.assertEqual(r.returncode, 0, r.stderr)
@@ -586,7 +658,8 @@ class IsolatedLaunch(unittest.TestCase):
         bin_dir = self.fake_security(tmp, "named")
         env = hermetic.child_env(HOME=str(tmp), PATH=str(bin_dir) + os.pathsep + os.environ.get("PATH", ""),
                                  WORKS_FACTORY_NO_AUTH="1", WORKS_FACTORY_KEYCHAIN_ITEM="named")
-        r = subprocess.run([sys.executable, "-I", str(CORE / "auth_launch.py"), "exec", "--user-home", str(tmp), "--",
+        r = subprocess.run([sys.executable, "-I", str(CORE / "auth_launch.py"), "exec", "--user-home", str(tmp),
+                            "--managed-dir", str(tmp / "managed"), "--",
                             sys.executable, "-I", "-c", "import os; print('started', os.environ.get('CLAUDE_CODE_OAUTH_TOKEN'))"],
                            env=env, capture_output=True, text=True, encoding="utf-8", timeout=60)
         self.assertEqual((r.returncode, r.stdout.strip()), (0, "started None"), r.stderr)
@@ -614,7 +687,8 @@ class IsolatedLaunch(unittest.TestCase):
         home = tmp / "home"
         home.mkdir()
         env = hermetic.child_env(CLAUDE_CODE_OAUTH_TOKEN=TOKEN, HOME=str(home))
-        r = subprocess.run([sys.executable, "-I", str(core / "auth_launch.py"), "check", "--user-home", str(home)],
+        r = subprocess.run([sys.executable, "-I", str(core / "auth_launch.py"), "check", "--user-home", str(home),
+                            "--managed-dir", str(tmp / "managed")],
                            env=env, capture_output=True, text=True, encoding="utf-8", timeout=60)
         self.assertEqual((r.returncode, r.stdout.strip()), (0, "CLAUDE_CODE_OAUTH_TOKEN"), r.stderr)
         self.assertNotIn(TOKEN, r.stdout + r.stderr)

@@ -11,8 +11,10 @@
    それを起こして標準出力のキーを ANTHROPIC_API_KEY として子に渡す（値は表示も保存もしない。標準エラーは端末へ流す。
    設定の写しは子に作らない。期限は付けない）。在る時は後ろの段へ落ちない。失敗したら黙ってほかの段へ移らず、apiKeyHelper を
    名指して止まる。設定が JSON として壊れている・apiKeyHelper が文字列でない時も、壊れたファイルを名指して止まる。
-   MDM（構成プロファイル・レジストリ）と対象のリポジトリの .claude/settings.json は読まない。
-   起動の殻は check と exec を別のプロセスで走らせるので、helper は起動ごとに 2 回起こされる
+   OS が読ませない会社の設定のファイルは、Claude Code と同じく無いものとして進む。
+   MDM・remote（claude.ai の server-managed settings）と対象のリポジトリの .claude/settings.json は読まない。
+   起こすのは exec の 1 回だけ。check は起こさず、出どころの名とパスだけを返す（使い捨てのキーや指紋の確かめを求める helper のため）。
+   check の標準出力のパイプと exec の環境でキーを渡す道は採らない（殻はトークンを読まない・出さない。launcher.py の頭）
 3. 後ろの段: 真ん中と apiKeyHelper の段が足せなかった時だけ、Claude Code 自身の保存済みのログインを読む。macOS では keychain の項目、
    ほかの OS では利用者の <CLAUDE_CONFIG_DIR>/.credentials.json（隔離の前の値。無ければ <HOME>/.claude）。
    子の CLAUDE_CONFIG_DIR は隔離した置き場のままなので（claude_auth の段 3 は隔離の下では効かない）、トークンを
@@ -121,13 +123,19 @@ def default_managed_dir(platform=sys.platform):
     return pathlib.Path("/etc/claude-code")
 
 
-def settings_helper(path):
+def settings_helper(path, denied_is_absent=False):
     """(apiKeyHelper のコマンドの字か None, 使えない理由か None)。ファイルが無い・キーが無い・空の字は「無い」。
-    読めない・JSON として壊れている・object でない・字でない値は、黙って「無い」にせず理由を返す"""
+    読めない・JSON として壊れている・object でない・字でない値は、黙って「無い」にせず理由を返す。ただし denied_is_absent なら、
+    OS が読ませない（PermissionError）ファイルは無いものとして進む（会社の設定を読めない時の Claude Code の振る舞い。
+    https://code.claude.com/docs/en/managed-settings の「If the operating system denied the read ...」）"""
     try:
         text = path.read_text(encoding="utf-8")
     except FileNotFoundError:
         return None, None
+    except PermissionError:
+        if denied_is_absent:
+            return None, None
+        return None, "%s を読めない(PermissionError)" % path
     except (OSError, UnicodeDecodeError) as e:
         return None, "%s を読めない(%s)" % (path, type(e).__name__)
     try:
@@ -156,7 +164,7 @@ def find_helper(config_dir, managed_dir):
         pass
     found = (None, None)
     for f in files:
-        cmd, why = settings_helper(f)
+        cmd, why = settings_helper(f, denied_is_absent=True)
         if why:
             return None, f, why
         if cmd:
@@ -208,8 +216,9 @@ def run_helper(command, home, config, helper_runner):
     return (key, None) if key else (None, "出力が空")
 
 
-def resolve(env, user_home, user_config, platform=sys.platform, runner=None, helper_runner=None, managed_dir=None):
-    """(子に足す認証の変数, 出どころの名, 止まる理由)。取れた時は止まる理由が None、取れない時は変数が None"""
+def resolve(env, user_home, user_config, platform=sys.platform, runner=None, helper_runner=None, managed_dir=None, fetch=True):
+    """(子に足す認証の変数, 出どころの名, 止まる理由)。取れた時は止まる理由が None、取れない時は変数が None。
+    fetch が偽（check）なら apiKeyHelper は起こさず、出どころの名とパスだけを返す（変数は空）。起こすのは exec の 1 回だけ"""
     runner = runner or user_runner(user_home)
     named = env.get(ITEM_ENV)
     if named:
@@ -219,8 +228,10 @@ def resolve(env, user_home, user_config, platform=sys.platform, runner=None, hel
         return {"CLAUDE_CODE_OAUTH_TOKEN": tok}, "keychain の項目 %s（%s）" % (named, ITEM_ENV), None
     menv = dict(env, HOME=user_home, CLAUDE_CONFIG_DIR=user_config or str(pathlib.Path(user_home) / ".claude"))
     out, note = claude_auth.auth_env(menv, platform=platform, runner=runner)
-    # Claude Code 自身の優先順は apiKeyHelper が CLAUDE_CODE_OAUTH_TOKEN より上。親の環境の OAuth トークンだけが認証の時は、
-    # apiKeyHelper の設定が在れば先に効かせる（ほかの受け継いだ認証・CLAUDE_KEYCHAIN_SERVICE の項目は今のまま上）
+    # Claude Code 自身の優先順は apiKeyHelper が CLAUDE_CODE_OAUTH_TOKEN より上。親の環境に CLAUDE_CODE_OAUTH_TOKEN しか認証が無い時は、
+    # apiKeyHelper の設定が在れば先に効かせる。設定が無ければ環境のトークンを採る（CLAUDE_KEYCHAIN_SERVICE も名指していても、
+    # auth_env は受け継いだ認証を先に採るので keychain の項目は読まない）。ほかの受け継いだ認証・名指し・CLAUDE_KEYCHAIN_SERVICE
+    # の項目だけが認証の時は、今のまま apiKeyHelper より上
     oauth_only = claude_auth.inherited(menv) == OAUTH and not any(
         claude_auth.active(k, menv.get(k)) for k in claude_auth.INHERITED if k != OAUTH)
     if claude_auth.added(note) and not oauth_only:
@@ -233,6 +244,8 @@ def resolve(env, user_home, user_config, platform=sys.platform, runner=None, hel
     command, source, bad = find_helper(pathlib.Path(config), managed_dir or default_managed_dir(platform))
     if bad:
         return None, "apiKeyHelper", "apiKeyHelper の設定が使えない: %s" % bad
+    if command and not fetch:
+        return {}, "apiKeyHelper（%s）" % source, None
     if command:
         run = helper_runner or (lambda c, h, d: user_helper_runner(c, h, d, str(source)))
         key, miss = run_helper(command, user_home, config, run)
@@ -285,7 +298,8 @@ def main(argv):
         if os.environ.get("WORKS_FACTORY_NO_AUTH") == "1":
             os.execve(target[0], target, dict(os.environ))
     got, name, why = resolve(os.environ, a.user_home, a.user_config,
-                             managed_dir=pathlib.Path(a.managed_dir) if a.managed_dir else None)
+                             managed_dir=pathlib.Path(a.managed_dir) if a.managed_dir else None,
+                             fetch=a.cmd == "exec")
     if got is None:
         print("%s: %s（%s）" % (a.caller, HOWTO, why), file=sys.stderr)
         return 2
