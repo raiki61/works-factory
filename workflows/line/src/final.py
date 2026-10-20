@@ -2,7 +2,8 @@
 
 開ける理由の列 needs(got) を 1 つ組み、開くかと冒頭の 1 行目をこの列だけから作る（元 works の line_edge._final_needs）。列の行のうち
 守りのパスの当たり（確かめられなかった時も）・書き換えを許したテストに触った・人に回した食い違いの申し出・申し出の控えを読めない・
-修正の段の控えを読めない・承認の後に受け入れ条件のテストが変わった（spec の check の questions。照らせなかった時は「照らせなかった」）
+修正の段の控えを読めない・承認の後に受け入れ条件のテストが変わった（spec の check の questions。照らせなかった時は「照らせなかった」）・
+読めなかった控え（直した後の実測・封じた差分・問いの台帳の控えなど。got の unread。読めた控えについての注記 lost_ties は数えない）
 は開き方に依らず開く（must。通すのは人の答えだけ）。ほかは開き方 final_gate で開く（src.gates.opens）。無人の run で開くはずの時は
 開かずに works:needs-human で止め、merge の apply を飛ばす（L-G39・L-W25）。判定の役が保留にしたままの問いは冒頭と本文に見せるが
 開ける理由に数えない（L-G36）。修正の後の並行 PR の確かめ直し（8.1）が重なりを見つけた・確かめ直せなかった時は、開き方で開く理由。
@@ -130,6 +131,8 @@ def needs(got: dict) -> list:
         why.append((f"{MISSING_HEAD}（{len(got['missing'])} 件: {'・'.join(got['missing'])}）", True))
     if got["beside_unread"]:
         why.append((f"{BESIDE_UNREAD}（{len(got['beside_unread'])} 件。人に回した物・数え直しの食い違いを数えられない）", True))
+    if got["unread"]:
+        why.append((f"読めなかった控えが在る（{len(got['unread'])} 件。数え漏れが在りうるので人の確かめが要る）", True))
     if got["handoffs"]:
         why.append((f"{HANDOFF_REASON}（{len(got['handoffs'])} 件）", False))
     parallel = parallel_reason(got)
@@ -338,6 +341,7 @@ def final_text(got: dict, why: list, run_id: str) -> str:
     lines += eye_lines(got)
     lines += question_lines(got)
     lines += [f"- {why_}" for why_ in got["unread"]]
+    lines += [f"- {note}" for note in got["lost_ties"]]
     lines += [f"- 封じた差分の hash: {got['hash'] or '（無い）'}", *pr_line(got),
               f"- この文の控え: run の置き場の {files.FINAL_GATE_MD}", "",
               "答え方（人が決める承認ノード。依頼者に聞いて、その言葉で答える）:",
@@ -386,10 +390,11 @@ def asked_conflicts(pointers) -> tuple:
 
 
 def ledger_rows(judged: dict | None, record: dict, before_fix, *, unattended: bool) -> tuple:
-    """(問いの台帳から並べる行 {held, answered, unmatched, unread_holds}, 添える行)。判定・結び・素材の状態は judged の pointer、依頼の答えは
+    """(問いの台帳から並べる行 {held, answered, unmatched, unread_holds, lost_ties}, 読めなかった訳の行)。lost_ties は読めた控えについての注記
+    （結びの宛て先が今の問いにも単位にも無く字の一致で当てた。材料に見せるだけで、読めなかった控えには数えない）。判定・結び・素材の状態は judged の pointer、依頼の答えは
     始めの記録、修正前の答えは fix-in が運んだ物（gatemarks.ledger_files。結びの宛て先が今の問いにも単位にも無ければ字の一致に落とし、
-    そのことを 1 行添える）。判定が無い時は空、読めなければ添える行に訳"""
-    empty = {"held": [], "answered": [], "unmatched": [], "unread_holds": []}
+    そのことを lost_ties の行にする）。判定が無い時は空、読めなければ読めなかった訳の行"""
+    empty = {"held": [], "answered": [], "unmatched": [], "unread_holds": [], "lost_ties": []}
     if judged is None or judged.get("judgment") is None:
         return empty, []
     try:
@@ -401,8 +406,8 @@ def ledger_rows(judged: dict | None, record: dict, before_fix, *, unattended: bo
         return empty, [f"判定の問いの控えか始めの記録を読めない（保留の問いを数えていない。{type(error).__name__}: {error}）"]
     units = [u.get("key") for u in b.record["units"]]
     return ({"held": gatemarks.held_lines(b), "answered": gatemarks.answered_lines(b),
-             "unmatched": gatemarks.unmatched_answer_lines(b), "unread_holds": gatemarks.unread_hold_lines(b)},
-            gatemarks.lost_ties(b.ties, b.record["questions"], units))
+             "unmatched": gatemarks.unmatched_answer_lines(b), "unread_holds": gatemarks.unread_hold_lines(b),
+             "lost_ties": gatemarks.lost_ties(b.ties, b.record["questions"], units)}, [])
 
 
 def after_rows(after) -> tuple:
@@ -515,7 +520,7 @@ def gather(*, fix_in: dict, fixed: dict, judged: dict | None, tests: dict | None
     deleted, touched, deleted_unread = sealed_files(closing.get("diff"))
     beside = fix_beside(fixed.get("stages"))
     allowed, untouched = touched_allowed(beside.pop("allowed"), touched)
-    rows, ledger_notes = ledger_rows(judged, record, fix_in.get("answer"), unattended=bool(given.get("unattended")))
+    rows, ledger_unread = ledger_rows(judged, record, fix_in.get("answer"), unattended=bool(given.get("unattended")))
     split, unproven = split_and_unproven(fixed, (judged or {}).get("judgment"))
     passes = gatemarks.pass_lines([*(fix_in.get("passes") or []), *(eye.get("passes") or [])])
     return {
@@ -546,7 +551,7 @@ def gather(*, fix_in: dict, fixed: dict, judged: dict | None, tests: dict | None
         "converge": rounds_lines, "parallel_after": parallel_after,
         **rows,
         "missing": list(dict.fromkeys(missing)),
-        "unread": [*unread, *ledger_notes, *([after_unread] if after_unread else []), *([deleted_unread] if deleted_unread else [])],
+        "unread": [*unread, *ledger_unread, *([after_unread] if after_unread else []), *([deleted_unread] if deleted_unread else [])],
     }
 
 

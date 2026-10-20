@@ -121,7 +121,8 @@ ALLOWED = {
         "lib/AGENTS.md",
         # 借りたスキルを無人の役で読む時の読み替え（役が読む文）。役の skills: の宣言と受け付けのループを、役に名指して説く
         "lib/borrow/unattended.md#Archon",
-        "lib/borrow/unattended.md#loop_group",
+        # 消した文の原文の記録（台帳の ! 行の old）に残る字。記録は元の字のまま残す物
+        "lib/borrow/COPIED_FROM#loop_group",
         # Archon の run の記録（$LOG_DIR/<WORKFLOW_ID>.jsonl）を読む口。report と chain の 2 つが使うので lib に上げた
         # （docs/design/integration.md の 4.5-2 の決め）
         "lib/runlog.py",

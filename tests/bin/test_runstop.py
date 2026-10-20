@@ -174,6 +174,25 @@ class CancelStopsTheRunTreeTest(unittest.TestCase):
         self.assertGone(found, "hosts", "claude", "kids", "shell")
         self.assertEqual(self.get(run_id)["status"], "failed")
 
+    def test_cancel_of_a_foreground_run_leaves_no_child_run_running(self):
+        """前で起こした run の持ち主を止めると、Archon は子の run を running のまま残す。殻は持ち主が抜けた後、子の run を abandon で
+        cancelled にする。同じ機械で並べて走る別の run（と、その子の run）は running のまま"""
+        other = self.detach()
+        untouched = self.tree(other)
+        owner, run_id = self.foreground()
+        self.tree(run_id)
+        kids = [r["id"] for r in self.runs() if r.get("parent_run_id") == run_id]
+        self.assertEqual(len(kids), 1)
+        code, err = self.cancel(run_id)
+        self.assertEqual(code, 0, err)
+        owner.wait()
+        self.assertEqual([self.get(kid)["status"] for kid in kids], ["cancelled"], err)
+        self.assertEqual(self.get(other)["status"], "running")
+        self.assertEqual([kid["status"] for kid in self.runs() if kid.get("parent_run_id") == other], ["running"])
+        self.assertEqual({k: [pid for pid in pids if not alive(pid)] for k, pids in untouched.items()}, {k: [] for k in untouched}, err)
+        code, err = self.cancel(other)
+        self.assertEqual(code, 0, err)
+
     def test_ai_processes_left_by_an_interrupted_foreground_run_are_stopped(self):
         """前の命令を Ctrl-C で止めた run（failed）は持ち主の木を数えない訳を出し、残った AI のノードのプロセスを WORKFLOW_ID で
         見つけて止める"""
@@ -223,6 +242,20 @@ class CancelStopsTheRunTreeTest(unittest.TestCase):
         self.assertEqual(code, 1, err)   # Archon は持ち主が答えないので拒む（abandon を勧める）
         self.assertGone(found, "hosts", "claude", "kids", "shell")
         self.assertIn(f"run {run_id} のプロセス", err)
+
+
+class AbandonRunningTest(unittest.TestCase):
+    def test_a_child_run_that_cannot_be_read_is_named_with_the_command_to_abandon_it(self):
+        """子の run を workflow get で読めない時も黙って飛ばさず、片付けられなかった run の id と人が打つ命令を 1 行で出す"""
+        archon = runstop.Archon(["archon"], {}, "/target")
+        archon.get = lambda run_id: "run を読めない: 壊れた出力"
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err):
+            archon.abandon_running("parent", {"parent", "kid"})
+        lines = err.getvalue().splitlines()
+        self.assertEqual(len(lines), 1, err.getvalue())
+        self.assertIn("kid", lines[0])
+        self.assertIn("archon workflow abandon kid --cwd /target", lines[0])
 
 
 class RunIdTest(unittest.TestCase):

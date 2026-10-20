@@ -14,7 +14,8 @@
 軽量の単位の key）・switches（段の切り替え。tiers の返りか、運んだ判定の段で引き直した物）・no_fix（判定が止めずに直す単位を出さな
 かったか、計画の status が nothing_owed）・excluded（判定のまとめの excluded。fix の 2 段に渡す。8.2）・policy（修正前の答えが
 固め直した写しか、配る値の方針の写し）。運ぶ値の欄を受ける時は、要る欄を全部 ports.picked で名指す（欄の欠けた前の版の返りを
-空と読まない。integration.md 4.3-12）。例外の時は進まない形と止めの語 works:line-script。
+空と読まない。integration.md 4.3-12）。例外の時は進まない形と止めの語 works:line-script で、落ちた訳（壊れた始めの記録 start.json の名など）を
+返りの reason に載せる（collect が報告の problems に出す）。落ちない時の reason は空。
 
 入力（with:）: fixture（start の fixture）・start_go・ports・test_gate_base・judge・tiers・structure・design・rounds・before_fix_go・
 before_fix_answer・before_fix_policy・deferred・passes・recorded（どれも飛ばされうるので {from, if_skipped: null}）
@@ -126,11 +127,11 @@ def fix_in(raw: dict, place: Path, repo: Path, run_id: str) -> dict:
     live = received_live(raw)
     if carried is not None:
         received = _carried(json.loads(carried.read_text(encoding="utf-8")))
-        return {**flat(received, dealt, record), "go": start_go, "received": received, "stop_reason": ""}
+        return {**flat(received, dealt, record), "go": start_go, "received": received, "stop_reason": "", "reason": ""}
     go = ports.parsed(raw["before_fix_go"]) is True
     if go:
         fixture.noted_capture(place, repo, run_id=run_id, carried=live)
-    return {**flat(live, dealt, record), "go": go, "received": None, "stop_reason": ""}
+    return {**flat(live, dealt, record), "go": go, "received": None, "stop_reason": "", "reason": ""}
 
 
 def compute() -> dict:
@@ -152,7 +153,7 @@ FALLBACK_KEYS = ("baseline", "judgment", "answer_ties", "materials", "out_of_pur
 
 def fallback(reason: str) -> dict:
     from src import guard
-    return {**dict.fromkeys(FALLBACK_KEYS), "go": False, "no_fix": False, "stop_reason": guard.LINE_SCRIPT, "policy": "", "deferred": [],
+    return {**dict.fromkeys(FALLBACK_KEYS), "go": False, "no_fix": False, "stop_reason": guard.LINE_SCRIPT, "reason": reason, "policy": "", "deferred": [],
             "passes": [], "suite": "", "units": [], "purpose_text": "", "means": [], "recorded": [], "design_reason": "", "handoffs": [],
             "owed": [], "units_tier": [], "skip_rerun": [], "switches": {}}
 

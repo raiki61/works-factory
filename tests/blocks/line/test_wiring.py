@@ -102,6 +102,13 @@ class ReceiverCase(unittest.TestCase):
         self.assertEqual(sorted(receiver["with"]["names"].split()), sorted(LOOP["plan-out"]["output_format"]["properties"]))
         self.assertNotIn("plan-rounds-review-out", TOP)
 
+    def test_plan_rounds_wait_on_every_stage_that_can_stop(self):
+        """計画の往復の when は、前の段のうち止める理由（stop_reason）を返す node（owed・structure-in・tiers）の全部を見る"""
+        guard = TOP["plan-rounds"]["when"]
+        for stage in ("owed", "structure-in", "tiers"):
+            with self.subTest(stage=stage):
+                self.assertIn(f"${stage}.output.stop_reason == ''", guard)
+
     def test_all_done_readers_read_receivers_only(self):
         """all_done で集める collect と、落ちうる include の後ろの集め役は、include の返りを直に読まない（落ちた node への with: は
         Archon が誤りにする）"""

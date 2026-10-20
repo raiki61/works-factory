@@ -36,6 +36,8 @@
    loop_group の本体も）とも違う。Archon の include の展開（packages/workflows/src/include-expander.ts）は、取り込む workflow の
    上の段の id だけを `<include の id>__<id>` に改め、loop_group の本体の中の `$<id>.output` は改めない。同じ id だと、本体の中の
    `$<id>.output` が include の returns の node を指してしまい、本当の run で「その node はまだ出力を持たない」と落ちる
+   取り込む workflow がさらに取り込む workflow（line → eyes → r4 の 2 段）の繰り返しの中の node と、同じ graph の別の include が持ち込む
+   繰り返しの中の node の id も同じに数える。
    （筋書きはこれを捕まえない: graph の筋書きは include した block の入口と出口を台本で差し替えて中の loop を回さず、block の筋書きは
    block を単独で回す。dry-run は include の中の loop の本体に include の道を渡さないので、本体の script を本物で回す graph の筋書きも組めない）
 
@@ -444,17 +446,38 @@ def check_reply_fields(pack: pathlib.Path) -> list[str]:
 
 
 def check_include_ids_unique(pack: pathlib.Path) -> list[str]:
+    docs = {load(folder).get("name"): load(folder) for folder in folders(pack)}
+
+    def body_ids(name, seen=()) -> set:
+        """name の workflow が展開後も改められずに残る id: loop_group の本体の中の node と、取り込む workflow の同じ物（何段でも）"""
+        doc = docs.get(name)
+        if doc is None or name in seen:
+            return set()
+        out = set()
+        for node in all_nodes(doc.get("nodes")):
+            out |= {n["id"] for n in all_nodes((node.get("loop_group") or {}).get("nodes"))}
+            out |= body_ids(node.get("include"), (*seen, name))
+        return out
+
+    def inner_ids(name) -> set:
+        doc = docs.get(name)
+        if doc is None:
+            return set()
+        return {n["id"] for n in all_nodes(doc.get("nodes"))} | body_ids(name)
+
     out = []
-    by_name = {}
     for folder in folders(pack):
-        doc = load(folder)
-        by_name[doc.get("name")] = {n["id"] for n in all_nodes(doc.get("nodes"))}
-    for folder in folders(pack):
-        for node in all_nodes(load(folder).get("nodes")):
-            inner = by_name.get(node.get("include"))
-            if inner is not None and node["id"] in inner:
-                out.append(f"{folder.name}: include の node {node['id']} の id が、取り込む {node['include']} の中の node の id と同じ"
+        includes = [n for n in all_nodes(load(folder).get("nodes")) if n.get("include")]
+        for node in includes:
+            if node["id"] in inner_ids(node["include"]):
+                out.append(f"{folder.name}: include の node {node['id']} の id が、取り込む {node['include']} の中の node の id"
+                           f"（その先で取り込む workflow の繰り返しの中の node も含む）と同じ"
                            f"（本体の中の ${node['id']}.output が include の returns を指してしまう。include の id を <名>-run などに変える）")
+            for other in includes:
+                if other is not node and node["id"] in body_ids(other["include"]):
+                    out.append(f"{folder.name}: include の node {node['id']} の id が、同じ graph の別の include {other['id']}"
+                               f"（{other['include']}）が持ち込む繰り返しの中の node の id と同じ"
+                               f"（その本体の中の ${node['id']}.output が include の returns を指してしまう。include の id を <名>-run などに変える）")
     return out
 
 
@@ -532,6 +555,23 @@ class SeedCase(unittest.TestCase):
             else:
                 got = check(root)
         return got
+
+    def nested_include(self, loop_id, include_id, *, sibling):
+        """demo の繰り返しの中に node loop_id を置き、other に id loop_id の include を足した木の変更。sibling が偽なら other が mid を取り込み、
+        mid が demo を取り込む 2 段（line → eyes → r4 の形）。真なら other の別の include include_id が demo を取り込む（同じ graph の別の include）"""
+        demo = yaml.safe_load(self.GOOD["demo/works-factory-demo.yaml"])
+        other = yaml.safe_load(self.GOOD["other/works-factory-other.yaml"])
+        demo["nodes"] = [*demo["nodes"], {"id": "outer", "loop_group": {"nodes": [{"id": loop_id, "script": "prep"}]}}]
+        mid = {"name": "works-factory-mid", "returns": "x", "outcome_field": "ok",
+               "nodes": [{"id": include_id, "include": "works-factory-demo"}]}
+        if sibling:
+            other["nodes"] = [*other["nodes"], {"id": include_id, "include": "works-factory-demo"},
+                              {"id": loop_id, "include": "works-factory-mid"}]
+            mid["nodes"] = [{"id": "x", "script": "x"}]
+        else:
+            other["nodes"] = [*other["nodes"], {"id": loop_id, "include": "works-factory-mid"}]
+        return {"demo/works-factory-demo.yaml": yaml.safe_dump(demo), "other/works-factory-other.yaml": yaml.safe_dump(other),
+                "mid/works-factory-mid.yaml": yaml.safe_dump(mid)}
 
     def yaml_with(self, **top):
         doc = yaml.safe_load(self.GOOD["demo/works-factory-demo.yaml"])
@@ -618,6 +658,8 @@ class SeedCase(unittest.TestCase):
                 "demo/works-factory-demo.yaml": yaml.safe_dump({**demo, "nodes": [*demo["nodes"], {"id": "outer", "loop_group": {
                     "nodes": [{"id": "inner", "loop_group": {"nodes": [{"id": "deep", "script": "prep"}]}}]}}]})},
              "include の node deep"),
+            (check_include_ids_unique, self.nested_include("deep2", "mid-inner", sibling=False), "include の node deep2"),
+            (check_include_ids_unique, self.nested_include("deep2", "other-inner", sibling=True), "別の include other-inner"),
         ]
         for check, changes, word in cases:
             with self.subTest(check=check.__name__, changes=sorted(changes)):
