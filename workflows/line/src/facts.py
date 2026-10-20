@@ -671,7 +671,7 @@ def constraints_of(returns: dict, run_id: str) -> list:
 # 「判定の単位の裏取り」）・premise_lines（premises の block の report。節「前提の実測」）・_design_lines（independent-design の block の
 # report。節「独立設計」）・_pr_draft_lines（parallel-pr の block の report。節「並行 PR」）・_converge_lines（line の rounds.lines。節「計画の往復」）
 DEFERRED_HEAD = "無人の run で修正前の承認ノードに載せずに報告へ回した問い（承認ノードを開かずに修正へ進めた）"
-FINAL_REASONS_HEAD = "最後の承認ノードを開ける理由（無人の run では開かずに止めた理由）"
+FINAL_REASONS_HEAD = {True: "最後の承認ノードを開ける理由（無人の run では開かずに止めた理由）", False: "最後の承認ノードを開けた理由"}  # 無人の run か → 見出し
 EYE_PASSES_HEAD = ("修正前の承認ノードで通した行（人が通したか、無人の run が推しで通したので、独立の目 R4 の問いから外して聞き直さ"
                    "なかった行。どちらかは行ごとに書く）")
 
@@ -763,7 +763,7 @@ def amend_lines(values: dict, returns: dict, gates: dict, closed: bool) -> list:
     return _counted(replan.AMEND_HEAD, rows)
 
 
-def more_lines(values: dict, returns: dict, gates: dict, *, closed: bool, cwd=None) -> list:
+def more_lines(values: dict, returns: dict, gates: dict, *, closed: bool, unattended: bool, cwd=None) -> list:
     """人が決めることの節の後ろの行: 申し出の内訳・例で証明できない問い・外した範囲・内側の語・聞かずに通した行・直した案の項目・
     載せなかった問いと最後の承認ノードを開ける理由"""
     import report
@@ -774,7 +774,7 @@ def more_lines(values: dict, returns: dict, gates: dict, *, closed: bool, cwd=No
     out += amend_lines(values, returns, gates, closed)
     out += _counted(DEFERRED_HEAD, [json.dumps(q, ensure_ascii=False) if not isinstance(q, str) else q
                                     for q in _list(as_dict(values.get("ask_before_fix")).get("deferred"))])
-    out += _counted(FINAL_REASONS_HEAD, [str(r) for r in _list(as_dict(values.get("ask_final")).get("reasons"))])
+    out += _counted(FINAL_REASONS_HEAD[unattended], [str(r) for r in _list(as_dict(values.get("ask_final")).get("reasons"))])
     return out
 
 
@@ -838,7 +838,7 @@ def decisions(values: dict, returns: dict, gates: dict, record: dict, *, unatten
     after += stageslib.always_rows(got)
     after += [*stageslib.tests_left_lines(got), *stageslib.gates_lines(got), *stageslib.plan_ask_lines(got)]
     after += [f"修正の控え: {x}" for x in got["unread"]]
-    after += more_lines(values, returns, gates, closed=closed, cwd=cwd)
+    after += more_lines(values, returns, gates, closed=closed, unattended=unattended, cwd=cwd)
     _, _, outside_count = _outside(returns)
     counted_left = [f"修正 {u.get('unit_id')}" for u in unreturned]
     return {"before": before, "after": after, "outside": [outside_count] if outside_count else []}, asks, tallied, counted_left

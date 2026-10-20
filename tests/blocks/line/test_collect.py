@@ -247,8 +247,20 @@ class MoreLinesCase(unittest.TestCase):
         self.assertIn("並行 PR #7 と重なるので外した範囲: a.py:1-3（重なる）", after)
         self.assertIn("修正前の承認ノードが聞かずに通した行（gate-before-fix）: 1 件", after)
         self.assertIn(self.f.DEFERRED_HEAD + ": 1 件", after)
-        self.assertIn(self.f.FINAL_REASONS_HEAD + ": 1 件", after)
+        self.assertIn("最後の承認ノードを開けた理由: 1 件", after)
         self.assertNotIn("組めない", joined)
+
+    def test_final_reasons_head_follows_the_run_kind(self):
+        """最後の承認ノードを開ける理由の見出しは、人が答える run では「無人の run」と言わない（無人の run だけが開かずに止める）"""
+        for unattended, expected, absent in ((False, "最後の承認ノードを開けた理由: 1 件", "無人の run"),
+                                             (True, "最後の承認ノードを開ける理由（無人の run では開かずに止めた理由）: 1 件", None)):
+            v = passing()
+            v["start"] = {**v["start"], "unattended": unattended}
+            v["ask_final"] = {**v["ask_final"], "reasons": ["最後のテストが緑でない"]}
+            after = self.after(v)
+            self.assertIn(expected, after)
+            if absent:
+                self.assertFalse([x for x in after if x.startswith("最後の承認ノードを開け") and absent in x], after)
 
     def test_amend_lines_name_the_replanned_items(self):
         v = passing()
