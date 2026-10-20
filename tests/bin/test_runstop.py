@@ -244,6 +244,20 @@ class CancelStopsTheRunTreeTest(unittest.TestCase):
         self.assertIn(f"run {run_id} のプロセス", err)
 
 
+class AbandonRunningTest(unittest.TestCase):
+    def test_a_child_run_that_cannot_be_read_is_named_with_the_command_to_abandon_it(self):
+        """子の run を workflow get で読めない時も黙って飛ばさず、片付けられなかった run の id と人が打つ命令を 1 行で出す"""
+        archon = runstop.Archon(["archon"], {}, "/target")
+        archon.get = lambda run_id: "run を読めない: 壊れた出力"
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err):
+            archon.abandon_running("parent", {"parent", "kid"})
+        lines = err.getvalue().splitlines()
+        self.assertEqual(len(lines), 1, err.getvalue())
+        self.assertIn("kid", lines[0])
+        self.assertIn("archon workflow abandon kid --cwd /target", lines[0])
+
+
 class RunIdTest(unittest.TestCase):
     def test_the_run_id_is_read_after_flags_and_their_values(self):
         self.assertEqual(runstop.run_id_of(["workflow", "cancel", "--cwd", "/x", "--json", "r1"]), "r1")
