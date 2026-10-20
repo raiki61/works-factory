@@ -246,7 +246,7 @@ Write `text` and `measured_how` in the language of the request lines. …
 
 ### 2.7 元の works と graphloops の同じ場面
 
-元の works の `works/blk-premises/`（入力 `request`〔依頼のファイルのパス〕・`base_rev`、出口 10 欄の独立したブロック）から、工場は判定のブロックの中に写した（#76。`消した計画（git の履歴）docs/plans/2026-10-12-blocks/judge.md:30`・`:62`）。graphloops の同じ場面は `prompts/review-loop/p0.premises.md`（`p0.premises`。4 行の短い指示）と、写しの rules の `measured_needs_output`。
+元の works の `works/blk-premises/`（入力 `request`〔依頼のファイルのパス〕・`base_rev`、出口 10 欄の独立したブロック）から、工場は判定のブロックの中に写した（#76。`消した計画（git の履歴。ab47a4d の版で読める）docs/plans/2026-10-12-blocks/judge.md:30`・`:62`）。graphloops の同じ場面は `prompts/review-loop/p0.premises.md`（`p0.premises`。4 行の短い指示）と、写しの rules の `measured_needs_output`。
 
 - 独立したブロックの形（入力だけで動く）: 工場は judge の中に直に置き、`judge/request.json` を読む形にした（#76）。この block で元の形に戻す。
 - 出口の要約 `constraints_summary`（判定役に貼る 1 行 1 制約の文）と数（`constraints`・`measured`・`hypotheses`・`claims`・`claims_hypothesis`）と `reads_file`: 工場は #232 で `lib/premises.py` の `collect` を「届かない関数」として消した（`d91c4b49`。工場の線では判定役の支度が `premises.json` を直に読むため）。この block は数を戻さない（8 節の自分で決めた 4）。要約の文は戻さない（読み手の md の材料の組み方なので、読み手の block が組む）。`reads_file` は元の works でも「まだ無い（空）」の欄だった。

@@ -93,6 +93,18 @@ class FactsCase(Flow):
         self.facts()
         self.assertIn("子の run abcd1234 のノード tdd が落ちた（誤り: 429 rate_limit_error: concurrent request limit reached）", self.machine())
 
+    def test_child_run_record_without_a_fall_or_with_broken_json_is_said(self):
+        """子の記録が読めても落ちた node が無い・記録の JSON が壊れている時も、黙らずに子の run を名指して言う"""
+        self.log({"type": "node_error", "step": "fix__groups-par", "ts": "2026-10-12T00:01:00Z", "execution": {},
+                  "error": "fan_out node 'groups-par' (join: all_success): child 0 (run aaaa1111) failed: x; child 1 (run bbbb2222) failed: y"})
+        log_dir = pathlib.Path(self.run.extra["LOG_DIR"])
+        (log_dir / "aaaa1111-0000.jsonl").write_text(json.dumps({"type": "node_start", "step": "tdd", "ts": "t"}) + "\n", encoding="utf-8")
+        (log_dir / "bbbb2222-0000.jsonl").write_bytes(b'{"type": "node_error", "step": \xff\xfe broken\n')
+        self.facts()
+        body = self.machine()
+        self.assertIn("子の run aaaa1111 の記録に落ちたノードが無い", body)
+        self.assertIn("子の run bbbb2222 の記録 bbbb2222-0000.jsonl が読めない", body)
+
     def test_child_run_without_a_record_is_said_not_dropped(self):
         self.log({"type": "node_error", "step": "fix__groups-par", "ts": "2026-10-12T00:01:00Z", "execution": {},
                   "error": "fan_out node 'groups-par' (join: all_success): child 0 (run 99999999) failed: x"})

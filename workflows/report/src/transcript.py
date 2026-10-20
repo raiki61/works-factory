@@ -22,6 +22,9 @@ UNSEEN = "取れない（U6）: Bash で読み書きしたファイル（道具�
 CHILD_RUNS = "子の run の道具の呼びは子の run の記録に在り、上のノードごとの行に入らない"
 CHILD_LOOPS = "子の run のループの回り直しは子の run の記録に在り、この行に入らない"
 SHOWN_FILES = 3
+CHILD_NO_FALL = "記録に落ちたノードが無い（親の記録は子が落ちたと言う）"
+CHILD_NO_RECORD = "記録が読めない（run の記録の置き場に <子の run の id>.jsonl が無い）"
+CHILD_UNREADABLE = "{name} が読めない（{why}）"
 CHILD_FALL = re.compile(r"child (\d+) \(run ([0-9a-f]{8})\)")   # Archon が fan_out の node の誤りに書く子の run の名乗り（run の id の先頭 8 字）
 
 
@@ -133,17 +136,17 @@ def child_falls(run: dict) -> list:
     out = []
     for child in dict.fromkeys(m.group(2) for e in errors.values() for m in CHILD_FALL.finditer(str(e))):
         paths = sorted(pathlib.Path(log_dir).glob(f"{child}*.jsonl")) if log_dir else []
-        rows = None
-        for path in paths[:1]:
-            try:
-                rows = [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip().startswith("{")]
-            except (OSError, ValueError) as e:
-                out.append({"child": child, "why": f"{path.name} が読めない（{getattr(e, 'strerror', None) or e}）"})
-                rows = []
-        if rows is None:
-            out.append({"child": child, "why": "記録が読めない（run の記録の置き場に <子の run の id>.jsonl が無い）"})
+        if not paths:
+            out.append({"child": child, "why": CHILD_NO_RECORD})
             continue
-        got = facts(rows)
+        try:
+            rows = [json.loads(line) for line in paths[0].read_text(encoding="utf-8").splitlines() if line.strip().startswith("{")]
+        except (OSError, ValueError) as e:
+            out.append({"child": child, "why": CHILD_UNREADABLE.format(name=f"記録 {paths[0].name}", why=getattr(e, "strerror", None) or e)})
+            continue
+        fell = facts(rows)["errors"]
+        if not fell:
+            out.append({"child": child, "why": CHILD_NO_FALL})
         out += [{"child": child, "node": step, "error": (str(error).strip().splitlines() or ["誤りの文が無い"])[0]}
-                for step, error in got["errors"].items()]
+                for step, error in fell.items()]
     return out

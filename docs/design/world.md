@@ -251,7 +251,7 @@ Return only JSON that matches the output schema.
 
 元の works の `works/blk-world/`（入力 3 つ・出口 6 欄の独立したブロック）から、工場はほぼ同じコードを写した。工場に無い物・違う物と、その訳:
 
-- 独立したブロックの形: 工場は judge の中に直に置き、`judge/` の決まったファイルを読む形にした（#76。`消した計画（git の履歴）docs/plans/2026-10-12-blocks/judge.md:64`）。この block で元の形（入力だけで動く）に戻す。
+- 独立したブロックの形: 工場は judge の中に直に置き、`judge/` の決まったファイルを読む形にした（#76。`消した計画（git の履歴。ab47a4d の版で読める）docs/plans/2026-10-12-blocks/judge.md:64`）。この block で元の形（入力だけで動く）に戻す。
 - ループの回ごとの支度の node（元の world-classes-prep・world-judge-prep）: 工場は world-intake・world-plan に畳み、却下の理由を reject の node で渡す形にした（#100）。この block は、回ごとの prep に戻す（README の 5.2 の「AI の node ごとに prep 1 つ」の形）。働きは同じ。
 - run で 1 回の歯止め（元の `line_edge.py:1027` は控えが在れば回さなかった）: 工場に無い（（未確認）: 意図の記録なし）。この block では 1.6 の配線（judge のまとめが 1 回だけ include する）で同じ事になる。
 - 出口での行の検査（元の world_edge が行を読めるか確かめた）: 工場は読み手の `stage_rows` が弾く形にした（#334）。この block の `finish.py` は行を自分で書くので、書く前に `worldmark` の行の形で確かめる（読み手の確かめも残る）。
