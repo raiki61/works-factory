@@ -150,16 +150,20 @@ def _continued(answers, text: str) -> bool:
 
 
 def design_rows(structure) -> list:
-    """構造の目の控え（structure の block の出力 structure の先 state.json のパス）の設計の行。控えが無い・落ちた周は []"""
+    """構造の目の控え（structure の block の出力 structure の先 state.json のパス）の設計の行。控えが無い・落ちた周は []。
+    控えや設計の行のファイルが壊れていれば、読めないと名指して ValueError（空の一覧にして設計の問いを黙って消さない）"""
     if not structure:
         return []
-    state = structmark.read(pathlib.Path(structure))
-    if not state or state.get("status") != "ok":
+    path = pathlib.Path(structure)
+    state = structmark.read(path)
+    if state is None:
+        raise ValueError(f"構造の目の控え {path} を読めない（JSON でないか、status が ok・failed でない。設計の問いを数えていない）")
+    if state.get("status") != "ok":
         return []
     try:
         return structmark.rows(state.get("design_file") or "")
-    except ValueError:
-        return []
+    except ValueError as error:
+        raise ValueError(f"構造の目の控え {path} の設計の行を読めない（設計の問いを数えていない）: {error}") from None
 
 
 def design_items(rows: list, answers=()) -> list:

@@ -262,8 +262,8 @@ Your tools are Read, Grep, Glob, Bash, WebSearch, WebFetch, Skill (to start a sk
 
 ## Materials
 
-- Target diff: ~/.local/state/works-factory/targets/316e3bbc/archon-home/workspaces/<owner>/<repo>/artifacts/runs/53e71318-ac9f-4468-ae72-5f6ed569a667/judge/local-review/diff.patch (a copy of the diff from the base commit `7defb7ec5fac098b7302f5bfc11a02f151f4d262` to …)
-- List of changed files: ~/.local/state/works-factory/targets/316e3bbc/…/runs/53e71318-…/judge/local-review/changed-files.txt (…)
+- Target diff: ~/.local/state/works-factory/targets/316e3bbc/archon-home/workspaces/<owner>/<repo>/artifacts/runs/53e71318-ac9f-4468-ae72-5f6ed569a667/judge/local-review-run/diff.patch (a copy of the diff from the base commit `7defb7ec5fac098b7302f5bfc11a02f151f4d262` to …)
+- List of changed files: ~/.local/state/works-factory/targets/316e3bbc/…/runs/53e71318-…/judge/local-review-run/changed-files.txt (…)
 - Review viewpoints: ~/.cache/works-factory-plugin/56032b5a88e2add0e1bda0949986271e1f649ea6/lib/REVIEW.md. …
 - The target repository's own review viewpoints: ~/.local/state/works-factory/targets/316e3bbc/archon-home/workspaces/<owner>/<repo>/worktrees/archon/task-works-factory-line-1792307529854/REVIEW.md. Read it too.
 

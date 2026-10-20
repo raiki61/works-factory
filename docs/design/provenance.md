@@ -175,7 +175,7 @@ Your tools are Read, Grep, Glob, Bash, WebSearch, and WebFetch. Bash runs inside
 
 ## Materials
 
-- Target diff (Read it): ~/.local/state/works-factory/targets/316e3bbc/archon-home/workspaces/<owner>/<repo>/artifacts/runs/53e71318-ac9f-4468-ae72-5f6ed569a667/judge/provenance/diff.patch
+- Target diff (Read it): ~/.local/state/works-factory/targets/316e3bbc/archon-home/workspaces/<owner>/<repo>/artifacts/runs/53e71318-ac9f-4468-ae72-5f6ed569a667/judge/provenance-run/diff.patch
 - Base commit: 7defb7ec5fac098b7302f5bfc11a02f151f4d262
 - Repository: ~/.local/state/works-factory/targets/316e3bbc/archon-home/workspaces/<owner>/<repo>/worktrees/archon/task-works-factory-line-1792307529854
 

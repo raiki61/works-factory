@@ -133,6 +133,15 @@ class FactsCase(unittest.TestCase):
         self.assertIn({"at": "owed", "word": "works:line-script"}, got["stops"])
         self.assertIn({"at": "spec-check-run", "word": "works:spec-changed"}, got["stops"], "承認し直すかの問いは人待ちの語")
 
+    def test_script_fall_reason_reaches_the_problems(self):
+        """script が落ちて返した reason（fix-in が壊れた start.json の名を運ぶ）は、止めの語と別に報告の problems に名指しで載る"""
+        v = passing()
+        v["fix_in"] = {**(v.get("fix_in") or {}), "stop_reason": "works:line-script", "reason": "json の入力のファイル r1/start.json が JSON として読めない"}
+        got = self.build(v)
+        self.assertTrue(any("fix-in" in p and "r1/start.json" in p for p in got["problems"]), got["problems"])
+        v["fix_in"] = {**v["fix_in"], "stop_reason": "", "reason": ""}
+        self.assertFalse(any("r1/start.json" in p for p in self.build(v)["problems"]))
+
     def test_halts(self):
         v = passing()
         v["merge_seal"] = {**v["merge_seal"], "ok": False}

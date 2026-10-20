@@ -192,7 +192,7 @@ Your tools are Read, Grep, Glob, Bash, WebSearch, and WebFetch. …
 ## Materials
 
 - Repository: ~/.local/state/works-factory/targets/316e3bbc/archon-home/workspaces/<owner>/<repo>/worktrees/archon/task-works-factory-line-1792307529854
-- Target diff (Read it): ~/.local/state/works-factory/targets/316e3bbc/archon-home/workspaces/<owner>/<repo>/artifacts/runs/53e71318-ac9f-4468-ae72-5f6ed569a667/judge/procedure-trace/diff.patch
+- Target diff (Read it): ~/.local/state/works-factory/targets/316e3bbc/archon-home/workspaces/<owner>/<repo>/artifacts/runs/53e71318-ac9f-4468-ae72-5f6ed569a667/judge/procedure-trace-run/diff.patch
 - Files the target diff touches: [
  "README.md",
  "backend/app/api/model/schemas.py",
