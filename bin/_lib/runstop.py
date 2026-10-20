@@ -15,10 +15,11 @@ AI のノードの provider（Claude）は、持ち主がノードごとに deta
 - 数え上げ: cancel を打つ前に 2 つの印で数え、持ち主が消えて親子の鎖が切れた後も、数えた物の子孫を辿れるようにする。持ち主の木を
   数えない run（running でない・子の run・持ち主が別の機械か別の利用者か居ない・持ち主の番号に別の物が居る）は、その訳を 1 行で出し、
   WORKFLOW_ID だけで探す。env を読めない環境では、その訳と手で探す命令を 1 行で出す。
-- 止め: cancel の後に数え直し、生きた物へ SIGTERM、KILL_GRACE 秒の内に消えなければ SIGKILL を 1 本ずつ送る（グループへは送らない）。
+- 止め: cancel の後に数え直し、生きた持ち主が居れば先に持ち主だけへ SIGTERM を送って抜けるのを（KILL_GRACE 秒まで）待ち、残りの生きた物へ SIGTERM、KILL_GRACE 秒の内に消えなければ SIGKILL を 1 本ずつ送る（グループへは送らない）。
   cancel が拒んだ前の run の持ち主も止める（Archon の拒みの文が勧める、前の命令の割り込みと同じ SIGTERM。run は failed になる）。
 - 出し: 止めた物と、止めた後も残った物（pid とコマンドの名）を、それぞれ 1 行で標準エラーに出す。残りが在れば終了の値は 1。
-  殻が前の run の持ち主を止めて残りが無ければ 0（Archon の拒みの文の割り込みは要らない）。ほかは cancel の値。
+  殻が前の run の持ち主を止めたら、Archon が書き換えない子の run のうち running の物を workflow abandon で cancelled にする
+  （片付けられなければ、残った子の run の id と片付けの命令を 1 行で出す）。残りが無ければ 0（Archon の拒みの文の割り込みは要らない）。ほかは cancel の値。
 抜け道: env の WORKFLOW_ID を外した子孫は、数える前に親子の鎖が切れていると拾わない。
 """
 import os
@@ -77,7 +78,7 @@ def cancel(head: list[str], argv: list[str], env: Mapping[str, str], cwd: str | 
     if not alive:
         return code
     names = commands(alive)
-    left, why = stop(ids, known)
+    left, why = stop(ids, known, owner)
     if left is None:
         say(f"止めた後の run {run_id} のプロセスを数えられない（{why}）")
         return 1
@@ -87,6 +88,8 @@ def cancel(head: list[str], argv: list[str], env: Mapping[str, str], cwd: str | 
         tail = ("。持ち主も止めたので run は failed になる。Archon の拒みの文の割り込みは要らない（続けるなら workflow resume、"
                 "手放すなら workflow abandon）") if held else ""
         say(f"Archon の cancel の後に残っていた run {run_id} のプロセス {len(stopped)} 本を止めた: {listed(stopped, names)}{tail}")
+    if held:
+        archon.abandon_running(run_id, ids)
     if left:
         say(f"止めた後も残ったプロセス: {listed(left, {**names, **commands(left)})}")
         return 1
@@ -141,6 +144,23 @@ class Archon:
                     ids.add(run["id"])
                     todo.append(run["id"])
         return ids
+
+    def abandon_running(self, run_id: str, ids: set[str]) -> None:
+        """持ち主を止めた後も running で残る子の run（Archon は持ち主の止まった run の子の run を書き換えない）を workflow abandon で
+        cancelled にする。片付けられなければ、残った子の run の id と片付けの命令を 1 行で出す"""
+        left = []
+        for kid in sorted(ids - {run_id}):
+            run = self.get(kid)
+            if isinstance(run, str):   # 読めない子の run は、running かを確かめられないので片付けられなかった物に数える
+                left.append(kid)
+            elif run.get("status") == RUNNING:
+                done = subprocess.run([*self.head, "workflow", "abandon", kid, *(["--cwd", self.cwd] if self.cwd else [])],
+                                      env=self.env, capture_output=True, text=True, encoding="utf-8")
+                if done.returncode != 0:
+                    left.append(kid)
+        if left:
+            say(f"run {run_id} の子の run が running のまま残った: {'、'.join(left)}。片付けるなら: "
+                + "; ".join(f"{' '.join(self.head)} workflow abandon {kid}" + (f" --cwd {self.cwd}" if self.cwd else "") for kid in left))
 
     def owner_tree(self, run_id: str, run: dict | str) -> tuple[int | None, dict[int, float]]:
         """run（get の物）の生きた持ち主の番号と known（{持ち主の番号: 開始時刻}）。持ち主の木を数えない run は訳を出して (None, {})"""
@@ -256,9 +276,21 @@ def env_part(args: str | None, line: str) -> str:
     return line[len(args):] if args is not None and line.startswith(args) else line
 
 
-def stop(ids: set[str], known: dict[int, float]) -> tuple[dict | None, str | None]:
+def stop(ids: set[str], known: dict[int, float], owner: int | None = None) -> tuple[dict | None, str | None]:
     """run のプロセスへ SIGTERM、KILL_GRACE 秒の内に消えなければ SIGKILL を送り、止めた後も残った物を返す。表を読めなければ (None, 訳)。
-    回ごとに数え直し（数えた物は known に足す）、その回に生きていた物へ 1 本ずつ送る"""
+    回ごとに数え直し（数えた物は known に足す）、その回に生きていた物へ 1 本ずつ送る。owner（生きた持ち主の番号）が居れば、先に
+    持ち主だけへ SIGTERM を送り、抜けるのを（KILL_GRACE 秒まで）待ってから残りを送る。持ち主の後始末（子の run の状態の書き込み）を
+    残りの SIGKILL が切らないため"""
+    alive, _ = members(ids, known)
+    if owner in (alive or {}):
+        known.update({owner: alive[owner].started})
+        try:
+            os.kill(owner, signal.SIGTERM)
+        except OSError:
+            pass
+        end = time.monotonic() + tree_run.KILL_GRACE
+        while time.monotonic() < end and owner in (members(ids, known)[0] or {}):
+            time.sleep(WAIT)
     for sig in (signal.SIGTERM, signal.SIGKILL):
         alive, why = members(ids, known)
         if not alive:
