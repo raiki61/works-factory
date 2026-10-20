@@ -12,6 +12,8 @@
 - 計画の行: 計画の部品 `workflows/plan/` の修正案の役が返す `plan[]` の項目（`workflows/plan/works-factory-plan.yaml` の `output_format`）。ファイルの行はその中の `files[]`（`path`・`op`・`responsibility`・`symbols`・`home`・`considered`）。
 - 単位: 判定が出す直す単位（根本の欠陥 1 つ分）。計画の行は `unit_keys` で単位を指す。人の仕様では、人が分けた直しのまとまり 1 つを単位と呼ぶ。
 - 候補の 5 つ: GitHub Spec Kit・OpenSpec・Kiro（AWS の IDE）の EARS 記法・superpowers の writing-plans・BMAD-METHOD。
+- 判定: 本線（メイングラフ `works-factory-line`）の頭の段。依頼を直す単位に割り、決まっていない点を人に問い返す（graph `works-factory-judge`）。
+- 憲法の 6・E9〜E11: 根の `AGENTS.md` の決まり。憲法の 6 は「機械の検査は yes/no の形の決まりだけにする」。E9 は「graph の名は `works-factory-<フォルダの名>`」、E10 は「新しい置き場や仕組みは、先に持ち主の決めを `docs/owner-decisions.md` に書いてから足す」、E11 は「仕組みを足す前に、Archon が持つか・ASF が持つか・本当に要るかの 3 つを確かめる」。
 
 ## 1 仕様の形の比べ
 
