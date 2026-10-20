@@ -37,14 +37,13 @@ def judge(place: Path, root: Path, snap: dict, got: tuple, mode: str, keys=accep
     moved = accept.tree_moved({k: snap[k] for k in accept.TREE_KEYS}, root, keys=keys)
     if moved:
         return {"ok": False, "reason": f"読むだけの役が作業ツリーを変えた: CI の任せ先はテストを写し {snap.get('copy_dir')} の上で走らせ、"
-                                       "対象の作業ツリー・HEAD・枝・git が無視するファイルを変えてはいけない（変えた物を元に戻し、"
-                                       "写しの上で走らせ直せ）（" + "・".join(moved) + "）"}
+                                       "対象の作業ツリー・HEAD・枝・git が無視するファイルを変えてはいけない（" + "・".join(moved) + "）"}
     reply, why = got
     if reply is None:
         return {"ok": False, "reason": why}
     problems = declared_checks.role_material_problems(reply.get("material"), mode=mode)
     if problems:
-        return {"ok": False, "reason": "素材の欄 material を丸ごと直して出し直せ: " + "；".join(problems)}
+        return {"ok": False, "reason": "素材の欄 material が記録の決まりに合わない: " + "；".join(problems)}
     (place / files.MATERIAL).write_text(json.dumps({"material": reply["material"]}, ensure_ascii=False, indent=1) + "\n",
                                         encoding="utf-8")
     return {"ok": True, "reason": ""}

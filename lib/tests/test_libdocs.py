@@ -181,7 +181,7 @@ class SectionCase(Base):
         self.write("requirements.txt", "requests==2.32.3\n")
         http = ok_http()
         text = self.section([f], http)
-        self.assertTrue(text.startswith(libdocs.TITLE), text)
+        self.assertTrue(text.startswith("数: 見つけた 1 本"), text)
         self.assertIn("- 公式の文書: 取れた 1 本", text)
         self.assertIn(f"- 公式: {PYPI_PAGE} → ", text)
         self.assertIn("Use `requests.Session` to keep cookies", self.saved("official-1-readme.md"))
@@ -235,7 +235,7 @@ class SourcesCase(Base):
         f = self.write("app.py", "import requests\nimport flask\n")
         text = libdocs.section(self.board.work(""), self.repo, [f], get=FakeHttp(), env={})
         self.assertIn("- どこからも文書が無い: flask、requests（手元に入っていない。公式から取れなかった", text)
-        self.assertIn("WebSearch・WebFetch", text)
+        self.assertNotIn("WebSearch", text, "自分で引けの文は呼び手の md が持つ")
         self.assertIn("- 手元の版: 読めた 0 本／入っていない 2 本（flask、requests）", text)
         self.assertIn("- 公式の文書: 取れた 0 本", text)
         self.assertIn("見つからない 2 本（flask、requests）", text)
@@ -340,7 +340,6 @@ class FilesCase(Base):
         self.assertIn(f"- 公式: {PYPI_PAGE} → {official}", block)
         self.assertIn("- 公式の要約: HTTP for Humans.", block, "安く取れる要点は数行だけ")
         self.assertIn("requests.Session", block, "単位が使う名を並べる（ファイルの中を探す手がかり）")
-        self.assertIn("Read", text, "要る時にファイルを Read で読めと言う")
         self.assertIn("控えたファイル 2 本", text)
         self.assertIn("LOCAL DOCSTRING", local.read_text(encoding="utf-8"))
         self.assertIn(str(self.repo / REQ_SP / "requests" / "sessions.py"), local.read_text(encoding="utf-8"))
@@ -462,7 +461,6 @@ class NoContext7Case(HomeBase):
         self.assertFalse([u for u, _ in seen if "context7" in u], "Context7 の口に問わない")
         self.assertTrue(all("Authorization" not in h for _, h in seen), "鍵の頭はどこにも付けない")
         self.assertNotIn("Context7", text)
-        self.assertNotIn("Context7", libdocs.TITLE)
 
     def test_leftover_context7_caches_are_not_read(self):
         self.leftovers(self.home / libdocs.CACHE_DIR)

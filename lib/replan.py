@@ -1,11 +1,9 @@
 """同じ run の中の案の直し（依頼 226）。裁定 fix_plan_item の単位は次の run へ持ち越さず、同じ run の中で案に戻す。
 
-案の直しの役（計画のブロックを ruling の入力つきで 2 度目に差し込んだ口）が読む文と、項目の形の小道具だけを置く:
+案の直しの控えと、項目の形の小道具だけを置く（役への指示の文は plan の md が持つ）:
 - TRIP_FILE・TRIP_KEYS: 案の直しの控えの名と、その行の欄（item・units・rows（待つ行の id）・old（承認済みの項目）・brief・
   new（関所の決め手の欄を外した直した項目）・new_marks（外した欄）・review・contract_changed・human_faces・widened・ask・
   answer・result・why）。まだ無い値は null
-- 修正案の役には誤りと裁かれた項目・申し出・裁定の文だけを渡し（REPLAN_ASK）、返答は渡した項目に限る（数・unit_keys の字・
-  works の欄・狭めない案の誤りを全部並べて 1 回で拒む。REPLAN_REJECT）。項目ごとの節の見出しは ITEM_HEAD・OLD_HEAD・ROW_HEAD
 - new_item(row): 控えの行の直した項目に、外した決め手の欄を narrows の行ごとに戻した形
 - bare(item): 項目から関所の決め手の欄を外した写し（約束の欄の比べ planmarks.contract_diff に渡す形。案の直しの事前審査と受け付けが引く）
 - _malformed(reply): 修正案の返答の形の崩れ
@@ -33,15 +31,6 @@ import report  # noqa: E402  （関所の止める語 FINAL_GATE_STOPS。案の�
 TRIP_FILE = "replan.json"
 TRIP_KEYS = ("item", "units", "rows", "old", "brief", "new", "new_marks", "review", "contract_changed", "human_faces", "widened",
              "ask", "answer", "result", "why")
-REPLAN_ASK = ("承認済みの修正案の項目のうち、下に貼った項目だけを直せ。修正の段で修正役がこの項目の誤りを申し出て、裁定役が"
-              "fix_plan_item（案の項目そのものの誤り）と裁いた。申し出の文と裁定の文を読み、裁定の文が名指した所を直した項目を"
-              "返せ。plan は下に貼った項目と同じ数・同じ順で、各項目の unit_keys は貼った文字列を一字も変えずに写せ（番号で書かない）。depends_on の unit も、前の項目の単位を unit_keys と同じ字（番号でなく）で書け。"
-              "ほかの項目は返すな。直した項目は事前審査に掛かり、約束の欄（unit_keys・narrows・files の消す側（op が delete・rename の行と change=remove の symbol）・allowed_paths・out_of_scope・"
-              "rewrite_tests・tests の behavior）を変えた時は承認ノードに出る。")
-REPLAN_REJECT = "直した項目の返答に誤りが在る（下の行を全部直して出し直せ）:"
-ITEM_HEAD = "## 直す項目 {n}（承認済みの修正案の項目の番号）"
-OLD_HEAD = "### 前の項目（承認済み。機械が貼った）"
-ROW_HEAD = "### 修正の段の申し出と裁定（{id}）"
 # 無人の run で範囲を広げるだけの直しを聞かずに通した項目の文（元 replan.py:152-154。案の直しの関所の節と報告が同じ字を読む）
 WIDEN_OP = "replan_widened_unattended"
 WIDEN_LINE = "直した——無人の run なので人に聞かずに範囲を広げた（{what}）"

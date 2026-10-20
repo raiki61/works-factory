@@ -93,48 +93,5 @@ class Shape(unittest.TestCase):
         self.assertNotEqual(c.row_key(a), c.row_key({"where": "b.py", "text": "k1（理由 A）"}))
 
 
-class Board(unittest.TestCase):
-    def setUp(self):
-        self.tmp = tempfile.TemporaryDirectory()
-        self.addCleanup(self.tmp.cleanup)
-        self.d = pathlib.Path(self.tmp.name)
-
-    def test_place_prior_and_section(self):
-        c = carry()
-        self.assertEqual(c.prior_section(self.d), "")
-        c.place_prior(self.d, [])
-        self.assertEqual(c.prior_section(self.d), "")
-        c.place_prior(self.d, [{"where": "受け付け  fix", "text": "a\nb"}])
-        self.assertEqual(c.prior_section(self.d), c.PRIOR_HEAD + "\n\n- 受け付け fix: a b")
-
-    def test_redesign_rows_get_their_own_fix_section(self):
-        """受け付けの拒否の行は注意の節（PRIOR_HEAD）に、独立の目 R2 の作り直しの行は直す穴の節（REDESIGN_HEAD）に、別々に描く"""
-        c = carry()
-        accept = {"where": "受け付け fix", "text": "拒んだ理由"}
-        redesign = {"where": c.REDESIGN_WHERE, "text": "R2 が redesign-needed: 独立設計と構造が合わない"}
-        c.place_prior(self.d, [redesign, accept])
-        got = c.prior_section(self.d)
-        notes, fix = got.split(c.REDESIGN_HEAD)
-        self.assertEqual(notes.strip(), c.PRIOR_HEAD + "\n\n- 受け付け fix: 拒んだ理由")
-        self.assertEqual(fix.strip(), "- 独立の目 R2: R2 が redesign-needed: 独立設計と構造が合わない")
-        self.assertIn("直す穴。この周の先頭で直す", c.REDESIGN_HEAD)
-        self.assertNotIn("直す穴。この周の先頭で直す", c.PRIOR_HEAD)
-        c.place_prior(self.d, [redesign])
-        self.assertEqual(c.prior_section(self.d), c.REDESIGN_HEAD + "\n\n- 独立の目 R2: R2 が redesign-needed: 独立設計と構造が合わない")
-
-    def test_prior_section_raises_given_gap(self):
-        """読めない置き場は呼び手が渡した例外の型で止める（黙って 0 件に見せない）"""
-        c = carry()
-
-        class Gap(Exception):
-            pass
-        (self.d / c.PRIOR_IN_FILE).write_text("{", encoding="utf-8")
-        with self.assertRaises(Gap):
-            c.prior_section(self.d, gap=Gap)
-        (self.d / c.PRIOR_IN_FILE).write_text("{}", encoding="utf-8")
-        with self.assertRaises(ValueError):
-            c.prior_section(self.d)
-
-
 if __name__ == "__main__":
     unittest.main()

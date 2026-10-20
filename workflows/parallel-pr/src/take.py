@@ -55,7 +55,7 @@ def check_excluded(reply: dict, repo) -> list:
             out.append(f"{at}: ファイルは PR {h['pr']} の交差したファイル {c.get('files')} に無い")
         f = pathlib.Path(repo) / h["file"]
         if not f.is_file():
-            out.append(f"{at}: ファイルが今の作業ツリーに無い（行の範囲は今の作業ツリーのファイルで書く）")
+            out.append(f"{at}: ファイルが今の作業ツリーに無い")
         else:
             n = len(f.read_bytes().splitlines())
             if h["end"] > n:
@@ -89,7 +89,7 @@ def take(place, repo, reply) -> dict:
         return {"ok": False, "reason": str(e)}
     if moved:
         return {"ok": False, "reason": "読むだけの役が作業ツリーを変えた: 並行 PR の任せ先は読むだけの役で、作業ツリー・HEAD・枝・"
-                "git が無視するファイルを変えてはいけない（checkout・switch・stash・reset・gh pr checkout を打つな）（"
+                "git が無視するファイルを変えてはいけない（"
                 + "・".join(moved) + "）"}
     head = json.loads((place / files.TREE).read_text(encoding="utf-8"))["head"]
     material = reply.get("material")

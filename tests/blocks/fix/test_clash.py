@@ -25,6 +25,12 @@ def src():
     return joinkit.board, clash, ruling, tdd
 
 
+def write_rulings(place):
+    joinkit.load_src()
+    from src import rulings
+    rulings.write(place)
+
+
 WHY = "組 g2 の直しを親の作業ツリーで前の組と合わせると試験が赤"
 
 
@@ -54,7 +60,8 @@ class ClashClaimsCase(Place):
     def test_rulings_file_tells_the_ruled_fixer_not_to_fix_clash_units(self):
         [rid] = self.parked(["B"])
         conflict.apply_rulings(self.place, {rid: {"decision": "fix_code_as", "text": "b.py をこう直す", "limits": []}}, by="t")
-        self.assertIn(conflict.CLASH_PROMISE, (self.place / conflict.RULINGS_FILE).read_text(encoding="utf-8"))
+        write_rulings(self.place)
+        self.assertIn("A ruling to fix, on a claim from the join between groups", (self.place / conflict.RULINGS_FILE).read_text(encoding="utf-8"))
 
 
 class RejudgeCase(Place):
@@ -317,7 +324,7 @@ class ClashScenarioCase(Whole):
         self.assertEqual((got["ok"], got["done"]), (False, False), got)
         self.assertIn("食い違いの印", got["reason"])
         self.assertIn("d.md（8 字）", got["reason"])
-        self.assertIn("長さの違う下線", got["reason"])
+        self.assertIn("an underline whose length differs from the markers", (pathlib.Path(__file__).resolve().parents[3] / "workflows" / "fix" / "prompts" / "parts" / "clash.md").read_text(encoding="utf-8"))
         out = self.prep()
         d.write_text("Title\n=======\nSub\n=======\n", encoding="utf-8")
         got = self.accept(self.fixed_reply(("e.py", "d.md")), out["iteration"])
@@ -325,7 +332,7 @@ class ClashScenarioCase(Whole):
 
     def test_join_text_clash_brief_carries_each_file_marker_and_the_rule(self):
         """setext の 7 字の下線を持つ d.md と、= の行の無い e.py が字で当たらずに印つきで当て直された時、brief はファイルごとの
-        印の 4 つの頭（d.md は 8 字・e.py は 7 字）と拒みの決まり MARKER_RULE を載せ、clash.json の行の marked はパス→印の長さを持つ"""
+        印の 4 つの頭（d.md は 8 字・e.py は 7 字）を載せ（拒みの決まりは md が持つ）、clash.json の行の marked はパス→印の長さを持つ"""
         self.joined_with_text_clash(seed={"d.md": "Title\n=======\nbody\n"}, g1={"d.md": "Title\n=======\ng1 body\n"},
                                     g2={"d.md": "Title\n=======\nSub\n=======\n"})
         out = self.prep()
@@ -334,7 +341,7 @@ class ClashScenarioCase(Whole):
         self.assertEqual(brief["conflicted"], ["d.md", "e.py"])
         self.assertEqual(brief["markers"], {"d.md": ["<" * 8, "|" * 8, "=" * 8, ">" * 8],
                                             "e.py": ["<" * 7, "|" * 7, "=" * 7, ">" * 7]})
-        self.assertEqual(brief["marker_rule"], self.clash.MARKER_RULE)
+        self.assertNotIn("marker_rule", brief)
         [row] = self.clash.load(self.place)
         self.assertEqual(row["marked"], {"d.md": 8, "e.py": 7})
 
@@ -406,7 +413,8 @@ class ClashScenarioCase(Whole):
         self.assertTrue(out["go"], out)
         brief = json.loads((self.place / "clash-brief-g2.json").read_text(encoding="utf-8"))
         self.assertEqual([r["id"] for r in brief["rulings"]], [rid])
-        self.assertIn(conflict.CLASH_PROMISE, (self.place / conflict.RULINGS_FILE).read_text(encoding="utf-8"))
+        write_rulings(self.place)
+        self.assertIn("A ruling to fix, on a claim from the join between groups", (self.place / conflict.RULINGS_FILE).read_text(encoding="utf-8"))
         (self.repo / "b.py").write_text(self.FIXED_B, encoding="utf-8")
         got = self.accept(self.fixed_reply(), out["iteration"], "ruled")
         self.assertEqual((got["ok"], got["done"]), (True, True), got)

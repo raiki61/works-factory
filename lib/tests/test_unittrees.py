@@ -307,7 +307,7 @@ class Checks(unittest.TestCase):
     def test_clash_prompt_points_to_the_marker_fields_of_the_brief(self):
         rules = CLASH_PART.read_text(encoding="utf-8")
         self.assertIn("`markers`", rules)
-        self.assertIn("`marker_rule`", rules)
+        self.assertIn("{marker_size}", rules)
         self.assertNotIn("`=======`", rules)
 
 

@@ -39,7 +39,7 @@ FACE_KINDS = ("missing", "ambiguous", "out_of_scope")   # 審査の穴の種類�
 HANDLED = ("absorbed", "declared")                       # 穴への答えの語
 MIN_WHY = MIN_REASON = MIN_HOW = MIN_FACES_NONE = 20     # 審査・直しの自由文の字数の下限
 ORIGIN = "仕様（人が承認した受け入れ条件。テストの本文は writer が書いた）"
-PROVENANCE = "【仕様の受け入れ条件——テストの本文は writer が書き、人は承認しただけ。役の観察と同じく反証の対象】"
+PROVENANCE = "【仕様の受け入れ条件——テストの本文は writer が書き、人は承認しただけ】"
 NOT_RUN = "仕様の段が最後まで回らなかった"
 
 

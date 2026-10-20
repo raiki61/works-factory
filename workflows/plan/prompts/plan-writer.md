@@ -62,6 +62,8 @@ Range of parallel pull requests. Do not touch it, and do not put it in a unit: {
 ## Units to fix in this round (pasted by the machine from the judgment; point to them in unit_keys by the no below)
 
 {units}
+
+The mark at the end of each unit row is its duty: `{duty_owed}` — the unit must be in the plan; `{duty_may}` — the unit may be in the plan (it is the origin or depends of a question that waits for a person's answer; it may be left out); `{duty_filled}` — the machine fills in the previous pass's row (you need not write it if unchanged; do not write closed items).
 <!-- end units -->
 <!-- if filled -->
 - The machine fills in these numbers (items of the previous pass's plan; you need not write items you do not change; do not write closed items): {filled}
@@ -112,6 +114,8 @@ For each row that has a place it applies to (a row that needs an answer), some i
 ## Ripple list before the plan (looked up by the machine with git grep: the callers and tests of the names that the unit keys name. Read it before you write the plan)
 
 A hit not covered is a hit that is in none of the item's paths it may write (allowed_paths), acceptance tests (tests), or tests to rewrite (rewrite_tests). Put what the fix touches (adjusting the callers, rewriting tests that assert a literal value) in that item's allowed_paths or rewrite_tests now. What you put in the plan can be written during the fix without asking about the scope (outside the scope, the only way is for the fix to ask for permission). Do not put in what you do not touch (a later review checks each hit: covered, not affected, or a hole).
+
+{part:ripple-notes}
 
 {ripple_units}
 <!-- end ripple_units -->
@@ -197,6 +201,8 @@ The items below were held because the same block persisted (you need not fix the
 ## Ripple list (looked up by the machine with git grep: the callers and tests of the names that the items change)
 
 A hit not covered is a hit that is in none of the item's paths it may write (allowed_paths), acceptance tests (tests), or tests to rewrite (rewrite_tests). Put what the fix touches (adjusting the callers, rewriting tests that assert a literal value) in that item's allowed_paths or rewrite_tests now. What you put in the plan can be written during the fix without asking about the scope (outside the scope, the only way is for the fix to ask for permission). Do not put in what you do not touch (a later review checks each hit: covered, not affected, or a hole).
+
+{part:ripple-notes}
 
 {prior_ripple}
 <!-- end prior_ripple -->

@@ -29,9 +29,7 @@ findings だけにする（容器の形を規則の側へ漏らさない）。
 - is_redesign(row): 行が独立の目 R2 の作り直しの行か（where が REDESIGN_WHERE）
 - row_key(row): 行の鍵（where と、text の最初の「（」までを空白を詰めて \\t でつないだ物。理由の尾だけ違う行を同じ物と見る）
 - schema(name)・errors(doc, name): 約束の Schema（NEXT_SCHEMA・PRIOR_SCHEMA）と、それに照らした誤りの一覧
-- place_prior(board_dir, rows)・prior_section(board_dir, gap=ValueError):
-  盤面の根に照らしてから書く口と、依頼の前の失敗を役の材料に貼る節（受け付けの拒否の行の注意の節と、作り直しの行の直す穴の
-  節の 2 つ。読めなければ呼び手が渡した例外の型 gap）
+- place_prior(board_dir, rows): 盤面の根に照らしてから書く口
 """
 import argparse
 import functools
@@ -62,16 +60,12 @@ CARRIED_HOW = "前の run の前提の検算（run {run}）"   # 報告が書く
 CARRIED_HOW_HEAD = CARRIED_HOW.split("（", 1)[0]   # 運ばれた制約の行の見分け（独立の目が R2 を省かない印）
 CI_WHERE = "run の後の CI"   # carry_ci が足す prior_failures の行の where
 REDESIGN_WHERE = "独立の目 R2"   # 独立の目 R2 の作り直しの行の where（報告が書き、is_redesign が読む）
-CI_TEXT = ("試験 {id} が CI で赤だった（重い試験は run の外の CI で回る。前の run の直しがこの試験を赤にした見込み。"
-           "同じ試験を赤にしない直しを出す）")
+CI_TEXT = "試験 {id} が CI で赤だった（重い試験は run の外の CI で回る）"
 
 # 盤面の根のファイル
 NEXT_REQUEST_FILE = "next-request.json"   # 次の run の依頼の下書き {findings, prior_failures, answers?}（依頼の型の object の形）
 PRIOR_FAILURES_FILE = "prior-failures.json"   # この run で最後まで通らなかった受け付けと R2 の作り直しの理由 [{where, text}]
 PRIOR_IN_FILE = "prior-failures-in.json"   # 依頼の prior_failures の写し [{where, text}]（place_prior。読むのは consumes で宣言した物）
-PRIOR_HEAD = ("## 前の run で最後まで通らなかった物（機械が貼った。受け付けの拒否の行は直す穴ではない——"
-                                   "同じ所で落ちない返答を出すための注意）")
-REDESIGN_HEAD = "## 前の周の独立の目が作り直しを要ると言った物——直す穴。この周の先頭で直す"
 
 # 約束（この置き場の JSON Schema）
 NEXT_SCHEMA = "next-request.schema.json"
@@ -252,27 +246,6 @@ def place_prior(board_dir, rows: list) -> None:
 def is_redesign(row) -> bool:
     """行が独立の目 R2 の作り直しの行か（where が REDESIGN_WHERE。空白は詰めて比べる）"""
     return isinstance(row, dict) and oneline.one_line(row.get("where") or "") == REDESIGN_WHERE
-
-
-def prior_section(board_dir, gap=ValueError) -> str:
-    """盤面の根の PRIOR_IN_FILE の行を、役の材料に貼る節にした物: 受け付けの拒否などの行は PRIOR_HEAD の節（注意）に、作り直しの行
-    （is_redesign）は REDESIGN_HEAD の節（直す穴）に、それぞれ 1 件 1 行。どちらの行も無ければ ""。読めない・形が違えば
-    gap（呼び手が渡す例外の型。盤面の層の呼び手は BoardGap。黙って 0 件に見せない）"""
-    p = pathlib.Path(board_dir) / PRIOR_IN_FILE
-    if not p.is_file():
-        return ""
-    try:
-        rows = json.loads(p.read_text(encoding="utf-8"))
-    except (OSError, ValueError) as e:
-        raise gap(f"{p} が読めない: {e}") from None
-    if not isinstance(rows, list) or not all(isinstance(r, dict) for r in rows):
-        raise gap(f"{p} の形が違う（[{{where, text}}]）")
-    if not rows:
-        return ""
-    notes, redesign = [r for r in rows if not is_redesign(r)], [r for r in rows if is_redesign(r)]
-    return "\n\n".join(head + "\n\n" + "\n".join(f"- {oneline.one_line(r.get('where', ''))}: "
-                                                 f"{oneline.one_line(r.get('text', ''))}" for r in part)
-                       for head, part in ((PRIOR_HEAD, notes), (REDESIGN_HEAD, redesign)) if part)
 
 
 def carry_ci(doc, ids) -> dict:

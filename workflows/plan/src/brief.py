@@ -30,9 +30,9 @@ import worldmark  # lib/
 from src import files, ripple, steps
 
 NOT_WEB = "not checked on the web"   # md と世界の解の行の印が同じ字を持つ
-DUTY_OWED = "must be in the plan"
-DUTY_MAY = "may be in the plan (origin or depends of a question that waits for a person's answer; may be left out)"
-DUTY_FILLED = "the machine fills in the previous pass's row (you need not write it if unchanged; do not write closed items)"
+DUTY_OWED = "owed"           # 単位の行の末の札。意味は md が持つ（plan-writer.md の units の段落）
+DUTY_MAY = "optional"
+DUTY_FILLED = "machine-filled"
 NO_ROWS = "No row of objection and ruling was found (no row in conflicts names this item)"
 VERDICT_WORDS = {"root": "the root", "not_root": "not the root", "unsure": "cannot tell if it is the root"}
 PLACE_WORDS = {"same": "related (same place)", "apart": "related (different place)"}
@@ -337,18 +337,20 @@ def values(place, repo) -> tuple:
         "ripple_units_error", "verify_rows", "verify_file", "kind_none", "kind_cause", "kind_shape", "kind_scope", "unknown_rows",
         "unknown_why", "spec", "prior_fix_plan", "prior_fields", "prior_review", "revise_blocks", "revise_pass", "owed_suggests",
         "revise_notes", "suggest_keys", "closed_items", "held_items", "prior_ripple", "prior_ripple_error", "policy_body",
-        "replan_items", "unread", "lang", "not_web")}
+        "replan_items", "unread", "lang", "not_web", "duty_owed", "duty_may", "duty_filled")}
     w = dict.fromkeys(WHEN_NAMES, False)
     v["rejection"], w["rejected"] = rolekit.rejects_text(rejected), bool(rejected)
     w["replan"] = not plan_form
     v["not_web"] = NOT_WEB
+    v["duty_owed"], v["duty_may"], v["duty_filled"] = DUTY_OWED, DUTY_MAY, DUTY_FILLED
     v["kind_none"], v["kind_cause"], v["kind_shape"], v["kind_scope"] = headdepth.NONE, headdepth.CAUSE, headdepth.SHAPE, headdepth.SCOPE
     # 並行 PR の範囲・ライブラリの文書
     v["excluded_file"] = _exists(ctx.get("excluded"))
     w["excluded"] = bool(v["excluded_file"])
     keys = set(steps.slots(judgment)) if isinstance(judgment, dict) else None
     lib_files, why = libdocs.unit_files(repo, ctx["judgment"], keys) if ctx.get("judgment") else ([], "判定のファイルが無い")
-    v["lib_docs"] = libdocs.section(place, repo, lib_files, shared=ports.shared_cache()) + (f"\n- 単位のファイルの引き: {why}" if why else "")
+    rows = libdocs.section(place, repo, lib_files, shared=ports.shared_cache()) + (f"\n- 単位のファイルの引き: {why}" if why else "")
+    v["lib_docs"] = prompt.render_part("lib-docs", {"rows": rows}).strip()
     # 前の run の失敗の行・記録された方針・地図・引き継ぎのメモ
     v["prior_notes"], v["prior_redesign"] = prior_failure_rows(ctx.get("prior_failures") or [])
     w["prior_notes"], w["prior_redesign"] = bool(v["prior_notes"]), bool(v["prior_redesign"])

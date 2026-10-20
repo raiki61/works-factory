@@ -39,7 +39,6 @@
   （要るのは表の行だけ）。deviations(fields) は控えの欄から外れの訳の並びを引く（事前審査の頭・報告・最後の関所が読む）。
   prescriptions(b) は判定の返答（盤面の節 JUDGE_NODE の最新の出力）の単位ごとの処方（写しの盤面の記録は単位の処方を写さない
   ので、修正案の頭と修正役の brief はここから引く。利用者の声 D2）
-- HEAD: 修正案の役の指示書の頭に足す文。事前審査の役の頭の節（前の review_section）の文は plan-review の md（integration.md 4.3-追加-1）
 - MACHINE_KEY・machine_face_gaps(faces): 欄の行のうち機械が足し修正案の役が直せない欄（removes_tests）。where でそれを名指す block の
   穴は事前審査の受け付けが拒む（役が直せない穴で案の往復を回さない）
 - 範囲の欄の glob の読み（誤り glob_problem・当たり glob_match・交わり globs_meet）と根の外への上り climbs は lib/globs.py。gaps は
@@ -56,7 +55,7 @@
 - scoped(items): 範囲の欄の在る項目の並びか（217 番の形の控えは範囲の無い run と同じに扱う 1 つの決まり。
   修正の受け付けの範囲の照らしと差分の審査の準拠の受け付けが使う）
 
-写しの engine の型の検査と時刻（engine.schema・engine.util。L0 の写し）と JSON の読み書き jsonfile・cite（L1。出どころの引き方の文）・glob の読み globs だけを使い、entry・conflict を import しない（conflict がこのモジュールを読むので、
+写しの engine の型の検査と時刻（engine.schema・engine.util。L0 の写し）と JSON の読み書き jsonfile・glob の読み globs だけを使い、entry・conflict を import しない（conflict がこのモジュールを読むので、
 輪を作らない）。
 """
 from __future__ import annotations
@@ -79,7 +78,6 @@ if str(_GL) not in sys.path:
 
 from engine.schema import validate_schema  # noqa: E402
 from engine.util import now  # noqa: E402
-import cite  # noqa: E402
 import globs  # noqa: E402
 import jsonfile  # noqa: E402
 
@@ -182,63 +180,10 @@ STRUCTURE_REJECT = ("修正案の項目の works の欄 structure に欠けか�
                     "避け方に従うか外れの訳を書く。世界の解の答えの要る行は、行ごとにどれかの項目が定石に従うか外れの訳を"
                     "書く）。下の行を直した案を丸ごと出し直せ:")
 ANSWER_KEYS = ("row", "prescription", "world")   # 欄 structure の行が答える先の鍵（ちょうど 1 つ）
-STRUCTURE_HEAD = ("structure＝構造の目が汚れると見た行（頭の『構造の目の行』のセクションの単位）への答えの並び。その単位を unit_keys に持つ"
-                  "項目は、行ごとに {row: <単位の id（行の頭の字のまま）>, follows: true}（避け方 chosen に従う）か "
-                  f"{{row: <単位の id>, deviation: <従わない訳。{MIN_DEVIATION} 字以上>}} を書け（欠けは受け付けが拒む）。"
-                  "判定の処方（頭の『判定の処方』のセクション）から外れる項目は {prescription: <単位の key>, deviation: <訳>} を、"
-                  "処方に従うなら {prescription: <単位の key>, follows: true} を並べてよい。"
-                  "頭の『世界の解の行』のセクションに当たる所（答えの要る行）が在れば、答えの要る行ごとに、どれかの項目が "
-                  "{world: <類の id>, follows: true}（定石に従う）か {world: <類の id>, deviation: <従わない訳。"
-                  f"{MIN_DEVIATION} 字以上で、出どころ（URL・<パス>:<行>・決定の記録のパス）を添える>}} を書け（{cite.RUN_FILES}）。どの項目も答えていない"
-                  "答えの要る行は受け付けが拒む。依頼そのものを出どころにした外れは修正前の承認ノードで人に回る。"
-                  "汚れる行も答えの要る世界の解の行も無い項目は空の並びか書かない")
 REJECT = ("修正案の項目の works の欄（route・tests・rewrite_tests・refactor・allowed_paths・out_of_scope・depends_on）か、files の行"
           "（symbols の name・消す行の why・replaced_by・home・considered）に欠けか誤りが在る。下の行を直した案を丸ごと出し直せ:")
 DEPENDS_REJECT = (f"修正案の項目の依存 {DEPENDS_KEY} に誤りが在る（unit は案の項目の unit_keys の字・自分の項目の単位でない・受ける物は"
                   "その項目の files の <パス>::<名前> か <パス>・依存は循環しない）。下の行を直した案を丸ごと出し直せ:")
-# 修正案の役の指示書の頭に足す文（写しの指示書はこの欄を知らない）
-HEAD = ("修正案の項目の works の欄: 写しの指示書はこの欄を知らないが、plan[] の各項目に必ず書け。"
-        "route＝直し方の道（tdd＝先に落ちる受け入れのテストを書いてから直す・direct＝テストを先に書かずに直す）。"
-        f"route_why＝direct を選んだ理由（route が direct なら {MIN_WHY} 字以上。tdd なら空でよい）。"
-        "tests＝この項目で新しく足す受け入れのテストの並び（route が tdd なら 1 本以上）。各行は id（<パス>::<クラス>::<名前> か "
-        "<パス>::<名前>。パスは作業ツリーの根からの相対で、まだ無いテストを名指す）・behavior（確かめる振る舞い）・path（本物の経路を"
-        "どう通すか。mock の戻り値を断言しない）・red_kind・red_why（今のコードでなぜ赤になるか）。red_kind は断言の失敗（assertion）か"
-        "期待した例外が出ない（exception）のどちらかで、項目の files に宣言した名前（change=add の symbol の名と、op=create の .py の path）の失敗は赤に数え、"
-        "宣言の外の名前・import や収集の失敗は赤に数えない。"
-        "tests の id と置き場は、名指すファイル（無ければ同じディレクトリの既存のテストのファイル）の既存のテストの置き方"
-        "（クラスの中か一番外か・クラス名の付け方）に合わせよ。"
-        "rewrite_tests＝依頼で振る舞いが変わるため期待を書き換える既存のテストの並び。各行は id（作業ツリーに在るテストの定義）・"
-        "behavior（変わる振る舞い）・old（今の期待）・new（新しい期待）。期待値を実装に合わせるための書き換えは書かない。"
-        f"refactor＝整えの申告 {{declared, why}}（整えをするなら declared を true にし、why に {MIN_WHY} 字以上で理由を書く）。"
-        "承認された案は項目ごとの brief に切り出され、修正役・TDD の役の要求の正本になる。rewrite_tests に名指さない既存のテストは"
-        "修正で変えられない。欠けや誤りは、受け付けが plan[<i>].<欄> の行を名指して拒む。"
-        "allowed_paths＝その項目で書いてよいパスの glob の並び（1 つ以上。作業ツリーの根からの相対・/ 区切り・** は段をまたぐ）。"
-        "tests・rewrite_tests の id のファイルは書かなくても範囲に入り、out_of_scope の glob をそのファイルに当てた案は拒む。"
-        "移す・消すファイルの元のパスも allowed_paths に書け。"
-        "直しに付いてくる文書（方針の記録・設計の文書・変更の記録など、直しで振る舞いや決めが変わると書き換える文書）も、"
-        "書き換えるなら allowed_paths と files に入れよ（入れないと修正の途中で範囲の相談になる）。"
-        "** や * や **/* や **/?* や **/*.* のような字の無い（* と ? と [..] と . だけの）丸ごとの許しは拒む。"
-        "out_of_scope＝範囲の中でも触らない物 {glob, why} の並び（why は "
-        f"{MIN_WHY} 字以上。無ければ空の並び）。修正の受け付けは差分をこの範囲と照らし、外れたら同じ brief で返す。"
-        "files＝足す物・消す物を 1 ファイルごとに書いた行の並び（FILES_SCHEMA）。各行は path（作業ツリーの根からの相対で 1 ファイル）・"
-        "op（create＝新設・modify＝変える・delete＝消す・rename＝移す。rename は元のパスを from に書く）・responsibility（そのファイルの "
-        "1 つの受け持ち）・symbols（そのファイルで足す・消す名の並び [{name, change（add か remove）}]。name は識別子（関数・欄・"
-        "CLI・テストの名）で書き、/ を含む字（/ で始まる欄の指しを除く）や行の path の拡張子で終わる字を書くな。パスは行の path に書く）・"
-        "home（{concept, why}。その行が住処になる考えの名 concept と、ここを選んだ訳 why。置き場のパスは行の path が持つので書かない）・"
-        "considered（[{path, why_not}] で 1 行以上。考えて退けた別の置き場。path はファイルのパスだけ（lib/x.py:12 の形にしない。"
-        f"行の番号は why_not に書く）、why_not は {MIN_WHY} 字以上の退けた訳）を、op を問わず全部の行に必ず書く。"
-        "受け付けが照らすのは 5 つ: considered の path が行の path と同じ・同じ行で同じ path を 2 度書く・path の形の誤り（\\ ・根の外・"
-        "整えていない形）・2 段以上の path の最初の段が対象の根に無い・同じ home.concept（前後の空白と大文字小文字を除く）を案の 2 行に"
-        "置く（一方の行の considered にもう一方の行の path が在れば矛盾としても拒む。op=delete の行の home は照らしに数えない）。機械は差分で、change=add の name を行の path の足した行から、change=remove の name を消した行から、"
-        "op=create・delete・rename の path を新設・消し・移しから探す。消す物（op が delete・rename の行と change=remove の symbol）は"
-        f"why（消す訳。{MIN_WHY} 字以上）を必ず書き、置き換え先が在れば replaced_by（<パス>::<名前> か <パス>）も書け。足す物の行に why・"
-        "replaced_by は書くな。"
-        # 消す名の句: 波及の一覧の kind removed の当たりを、案の範囲で先に覆わせる（覆わない当たりは事前審査が答える）
-        "消す名を名指すファイルは allowed_paths に入れよ。入れない当たりは事前審査の下請けが答える。"
-        f"{DEPENDS_KEY}＝項目の間の依存（任意）。後の項目が前の項目の結果を前提にするなら、項目をまとめずに分け、後の項目に "
-        "{unit: <前の項目の unit_keys のどれか 1 つ（unit_keys と同じ書き方）>, receives: [<前の項目の files から受ける物。"
-        "<パス>::<名前> か <パス>>]} を書け（自分の項目の単位・案に無い単位・前の項目の files に無い物・依存の循環は受け付けが拒む）。"
-        + STRUCTURE_HEAD)
 MACHINE_KEY = "removes_tests"   # 欄の行のうち split が足し、修正案の役が書かない・直せない欄。rewrite_tests の limit も split が
 # 足すが、役の書く id から決まり、その行への block は役が id を直して答えられるので、わざと入れない
 

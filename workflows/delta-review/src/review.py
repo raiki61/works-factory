@@ -99,7 +99,7 @@ def inner_faces(place, n: int, repo) -> list:
     対象が修正の前の版で既に使う語は数えない。key は「<kind> <パス>:<行>」"""
     base = cut.read_cut(place, 1)["base"]
     return [{"key": f"{report.INNER_FACE_KIND} {h['path']}:{h['line']}", "kind": report.INNER_FACE_KIND, "where": h["path"],
-             "cite": h["text"], "why": f"足した行に works の内側の語（{'・'.join(h['words'])}）が在る。対象の読み手に通じない。言い換えよ"}
+             "cite": h["text"], "why": f"足した行に works の内側の語（{'・'.join(h['words'])}）が在る"}
             for h in report.inner_word_hits(_added_text(place, n, repo), lambda w: report.target_uses(repo, base, w))]
 
 

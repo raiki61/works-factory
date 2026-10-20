@@ -731,6 +731,8 @@ class CiRoleCase(ScriptCase):
         self.assertIn(first["reason"], fix["prompt"])
         self.assertIn(str(self.place("base") / "candidate-ci.json"), fix["prompt"])
         self.assertEqual((self.place("base") / "ci-fix-prompt-1.md").read_text(encoding="utf-8"), fix["prompt"])
+        self.assertIn("If a reason says you changed the real working tree, first undo what you changed", fix["prompt"])
+        self.assertIn("fix the whole `material` field and return it again", fix["prompt"])
         resumed = self.ok("ci_prep", "base", prev="")
         self.assertIs(resumed["resubmit"], False)
         self.assertTrue(resumed["prompt"])

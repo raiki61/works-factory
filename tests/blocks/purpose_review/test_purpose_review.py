@@ -185,6 +185,8 @@ class FlowCase(unittest.TestCase):
         self.assertFalse(self.accept(reply())["ok"])
         again = self.prep()["prompt"]
         self.assertTrue(again.startswith("## Why your previous answer was rejected"), again[:80])
+        self.assertIn("Split it and give one finding per line.", again)
+        self.assertIn("open the working tree and give a string that exists there", again)
         self.assertIn("findings が空", again)
         self.assertTrue((self.run.artifacts / f"{NAME}-prompt-2.md").is_file())
 

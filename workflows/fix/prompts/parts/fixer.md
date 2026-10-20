@@ -1,5 +1,7 @@
 <!-- if rejected -->
 {shared:rejected}
+
+The acceptance ran all its checks. Fix every line listed under the headings, all in one resubmission.
 <!-- end rejected -->
 
 <!-- if rulings_first -->
@@ -28,6 +30,8 @@ Answer every key below in the answer's `plan_faces`, one row per key (copy the k
 The acceptance checks the paths you changed against these values and rejects what is off. If a path you declared in `changes[].files` is explicitly allowed by one of that unit's items (allowed_paths, the test files), it is checked only against the `out_of_scope` of that unit's items (the `out_of_scope` of other items does not apply). For every other path, the `out_of_scope` of every item is stronger than the scope and also wins over the permitted paths (only a path excluded through a scope consultation does not apply for that item). The paths and test permissions allowed by scope consultations are included here too.
 
 {scope_rows}
+
+The permits that apply to all items (the permission to change tests, and the paths added by rulings to fix) do not win over `out_of_scope`.
 <!-- end scope -->
 
 <!-- if tests -->
@@ -36,8 +40,25 @@ The acceptance checks the paths you changed against these values and rejects wha
 The acceptance checks the tests you added, the existing tests whose bodies you changed, and the frozen test files against these names, and rejects what is off. If you need something off the list, ask in a scope consultation before you change it.
 
 {tests_rows}
-- Changing or removing the body of any other existing test function is rejected.
 <!-- end tests -->
+<!-- if tests_new -->
+- A new test that is not in "足してよい新しいテスト" is rejected when you add it.
+<!-- end tests_new -->
+<!-- if tests_tail -->
+- The ranges in "本体を変えてよい既存のテストの範囲": `<path>` is the whole file, `<path>:<line>` is the whole function that contains the line, and `<path>:<line>-<line>` is the lines as written.
+<!-- end tests_tail -->
+<!-- if frozen_files -->
+- Rewriting a frozen test file outside the names and ranges above is rejected. The functions of new tests you only added do not count as frozen; they are checked against "足してよい新しいテスト" above.
+<!-- end frozen_files -->
+<!-- if frozen_verified -->
+- Do not change the names under "ループが書き換えて凍らせた名指し" any more, even if they are in the names above.
+<!-- end frozen_verified -->
+<!-- if frozen_unruled -->
+- The ranges of rulings `fix_test_scope` do not lift the freeze in this round: rewriting a file under "今の段の TDD のループが凍らせたファイル" outside the names above and the ranges of scope consultations is rejected.
+<!-- end frozen_unruled -->
+<!-- if tests_tail -->
+- Changing or removing the body of any other existing test function is rejected.
+<!-- end tests_tail -->
 
 <!-- if tests_how -->
 ## How the tests were run before the fix

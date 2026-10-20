@@ -5,7 +5,7 @@
 その周の受け付けを回さずに次の 3 つの節で答える（節を組むのはブロックの script。ここは部品だけを持つ）:
 
 1. 頼みの節（script consult_check）: 機械の先の確かめ（screen・oos_hits）で断る頼みを断り、残りを状態（STATE）に積み、
-   答えの役への指示書（question。QUESTION）を書く。
+   答えの役への指示書（render が md から組む）を書く。
 2. 答えの役（consult-answer。AI）: 修正案の指し札と波及の一覧を読む新しい会話で、読むだけの道具で答える（ANSWER_SCHEMA）。
 3. 確かめの節（script consult_accept → settle）: 答えを確かめ（judge。許すのは頼んだ物の中だけ。人の関所の条件の相談を除く）、
    1 頼み 1 行を置き場の trace.jsonl（conflict.ASKED_OP）に書き、修正役が読む答えのファイルを書く。合意（allow の行）は
@@ -36,7 +36,7 @@
 - oos_hits(items, item, paths, tests): 頼んだパスが当たる out_of_scope（その項目の物を先に、ほかの項目の物を後に）
 - overrides(hits, item, granted_paths, granted_tests): 許した物のうち、その項目の out_of_scope を外した物
 - judge(answer, paths, tests): 答えの 1 件の確かめ（(行の欄 | None, 注記)）
-- question(items, asks): 答えの節の指示書の本文
+- asks_text(items, asks): 答えの役の指示の {asks} の材料（頼みごとの節の並び）
 - gate_notes(b, human_items, round_)・gate_asks(b, items, human_items, round_): 人の関所の条件の頼み
 - consulted_units(rows): 受け付けの行（fixboard.accept_trace_rows）のうち、範囲の相談を頼んだ行の単位の名（関所の条件の相談は除く。unit_keys の
   無い行は『項目 n』）。読むのは修正の後の深さの上げ直し（latedepth.signals）
@@ -55,6 +55,7 @@ import sys
 sys.dont_write_bytecode = True   # 下の import が pack の中に __pycache__ を作らないように（必ず import より前）
 
 import answer  # noqa: E402
+import prompt  # noqa: E402   .shared の口（答えのファイルの決まった文は prompts/parts/answer-file-*.md）
 import conflict  # noqa: E402   範囲の相談の trace の行（ASKED_OP）と頼みの欄（CONSULT_FIELD）
 from src import board as fixboard  # noqa: E402   置き場の trace.jsonl への 1 行
 import gatemarks  # noqa: E402   直す前の人の関所の節の名（GATE_NODE。関所の条件の相談の一言を引く）
@@ -105,32 +106,6 @@ ANSWER_SCHEMA = {
 }
 
 
-QUESTION = """\
-# 範囲の相談（修正の段から）
-
-あなたがこの会話で書いた修正案を、別の役が直している。直している側から、範囲の相談が {n} 件来た。範囲を広げるかは仕様の判断で、
-決めるのはあなた。案を書いた時の考えと、今のリポジトリ（Read・Grep・Glob で読める。書く道具は無い）で決めよ。
-頼んだパスが out_of_scope（触らない物）に当たる相談には、当たる glob と外した理由を並べてある。あなたがこの項目の out_of_scope に
-書いた物なら、外した理由が今も立つかを直している側の理由と比べて考え直せ: allow なら、この項目ではそのパスだけ out_of_scope から
-外れて範囲に入る。理由が今も立つなら deny。ほかの項目の out_of_scope に当たる物を allow すると、この項目の単位の変更としてだけ
-通る（その項目の out_of_scope は変わらない）。
-
-{asks}
-
-答えは次の JSON だけ（`answers` に相談の番号ごとに 1 件。番号は上の「相談 <番号>」）:
-- ask: 相談の番号
-- decision: allow（範囲に足してよい）・deny（足さない。範囲の中で直せ）・defer（今の run では直さない。次の run の仕事）
-- paths: 足してよいパス（頼まれた物の中から。allow の時だけ。頼まれていない物は機械が捨てる。「承認ノードで出した条件」の相談には
-  頼まれた物の一覧が無い。条件が求める物を自分で挙げてよい。機械はリポジトリの根の外のパスだけ捨てる）
-- tests: 書き換えてよいテストの範囲（頼まれた物の中から。allow の時だけ。期待を実装に合わせるための書き換えは許すな）
-- new_tests: 足してよい新しいテスト（頼まれた物の中から。allow の時だけ。無ければ省く）。{{id, red_kind}} の並び。red_kind は
-  足す前の木でテストの中の検査で落ちる赤（failure）になるテストなら {red}、足す前の木でも緑の守りのテスト（人の条件の「X を
-  壊さないことを確かめよ」の型）なら {guard}。同じ id をもう一度許せば後の答えが勝つ（種類の直し）。期待を実装に合わせるための
-  許しは出すな
-- spec: 直す側が従う仕様の補い（無ければ空）
-- reason: 決めた理由（{min_why} 字以上）
-"""
-
 ASK_TEXT = """\
 ## 相談 {n}: 項目 {item}（単位: {units}）
 
@@ -148,29 +123,10 @@ ASK_GATE_TEXT = """\
 
 - 項目の今の範囲（allowed_paths）: {allowed}
 - 触らない物（out_of_scope）: {oos}
-- 承認ノードで出した条件（字のまま。直す前に人が答えた物か、無人の run が採った推し（直前の行に「無人の run が採った推し」と
-  書いた物）で、通す範囲と条件を超えて削れない）:
+- 承認ノードで出した条件:
 {why}
-{oos_hits}- 答え方: この条件を満たすのにこの項目で要る、足すパス・書き換える既存のテストの範囲・足す新しいテスト（id と赤の種類）を決めよ。
-  この項目に関わらない条件なら deny。
-"""
+{oos_hits}"""
 
-ANSWER_HEAD = """\
-# 範囲の相談の答え（相談の周 {turn}）
-
-前の返答の consult に、修正案を書いた役が答えた（機械が確かめて共有ボードに残した）。相談ごとの答え:
-"""
-ANSWER_HEAD_ACCEPT = """\
-# 範囲の相談の答え（相談の周 {turn}）
-
-受け付けが見つけたはみ出しを、修正案を書いた役に聞いた（機械が確かめて共有ボードに残した）。相談ごとの答え:
-"""
-ANSWER_HEAD_GATE = """\
-# 範囲の相談の答え（相談の周 {turn}）
-
-承認ノードで出した条件を、修正案を書いた役に聞いた（機械が確かめて共有ボードに残した）。相談ごとの答え:
-"""
-ANSWER_ROW_HEAD = "## 相談（項目 {item}・パス {paths}・テスト {tests}{new_tests}）"
 
 
 ORIGIN_ACCEPT = "accept"   # 頼みと確かめの行の origin: 受け付けが見つけて積んだ頼み（無い＝修正役が返答の consult に書いた頼み）
@@ -310,7 +266,7 @@ def _hits_text(hits: list, item: str) -> str:
     """指示書の相談の節の out_of_scope の当たりの行（無ければ空）"""
     if not hits:
         return ""
-    lines = ["- out_of_scope に当たる頼み（外した理由が今も立つかを考え直して決めよ）:"]
+    lines = ["- out_of_scope に当たる頼み:"]
     for h in hits:
         why = h.get("why") or "（記録なし）"
         if h["item"] == str(item):
@@ -369,37 +325,9 @@ def judge(answer, paths: list, tests: list, new_tests=(), open_ended: bool = Fal
     return out, notes
 
 
-def question(items: dict, asks: list) -> str:
-    """答えの節の指示書の本文（asks は screen を通った頼みの行 {n, item, paths, tests, why}。out_of_scope の当たり（oos_hits の行）を
-    持たなければ、ここで引く）"""
-    show = lambda xs: "・".join(xs) if xs else "（無し）"   # noqa: E731
-    parts = []
-    for a in asks:
-        it = items.get(a["item"]) or {}
-        oos = [f"{g}（{w}）" if w else g for g, w in _oos_rows(it)]
-        hits = a.get("out_of_scope")
-        hits = oos_hits(items, a["item"], a["paths"] + [_test_file(x) for x in a.get("new_tests") or []], a["tests"]) \
-            if hits is None else hits
-        why = "\n".join("  " + line for line in a["why"].splitlines())
-        if a.get("origin") == ORIGIN_GATE:
-            parts.append(ASK_GATE_TEXT.format(n=a["n"], item=a["item"], units=show(it.get("unit_keys") or []),
-                                              allowed=show(it.get("allowed_paths") or []), oos=show(oos),
-                                              oos_hits=_hits_text(hits, a["item"]), why=why))
-            continue
-        parts.append(ASK_TEXT.format(n=a["n"], item=a["item"], units=show(it.get("unit_keys") or []),
-                                     allowed=show(it.get("allowed_paths") or []), oos=show(oos),
-                                     paths=show(a["paths"]), tests=show(a["tests"]), new_tests=show(a.get("new_tests") or []),
-                                     oos_hits=_hits_text(hits, a["item"]), why=why))
-    return QUESTION.format(n=len(asks), asks="\n".join(parts).rstrip("\n"), min_why=MIN_WHY, guard=planmarks.GUARD_KIND,
-                           red=planmarks.AGREED_RED)
-
-
-ANSWER_HOW = "- 答え方:"   # ASK_GATE_TEXT の答え方の行の頭（決まった文は md の段落 gate。asks_text が除く）
-
-
 def asks_text(items: dict, asks: list) -> str:
-    """答えの役の指示の差し込み口 {asks} の材料: question の頼みごとの節（ASK_TEXT・ASK_GATE_TEXT）の並び。決まった文（QUESTION の
-    決まりと答え方の行）は md（prompts/parts/consult.md）が持つので除く"""
+    """答えの役の指示の差し込み口 {asks} の材料: 頼みごとの節（ASK_TEXT・ASK_GATE_TEXT）の並び。決まった文は md
+    （prompts/parts/consult.md）が持つ"""
     show = lambda xs: "・".join(xs) if xs else "（無し）"   # noqa: E731
     parts = []
     for a in asks:
@@ -413,7 +341,6 @@ def asks_text(items: dict, asks: list) -> str:
             text = ASK_GATE_TEXT.format(n=a["n"], item=a["item"], units=show(it.get("unit_keys") or []),
                                         allowed=show(it.get("allowed_paths") or []), oos=show(oos),
                                         oos_hits=_hits_text(hits, a["item"]), why=why)
-            text = text[:text.index(ANSWER_HOW)] if ANSWER_HOW in text else text
             parts.append(text.rstrip("\n") + "\n")
             continue
         parts.append(ASK_TEXT.format(n=a["n"], item=a["item"], units=show(it.get("unit_keys") or []),
@@ -572,35 +499,34 @@ def carry_agreed(place, results) -> None:
 
 
 def answer_text(turn: int, rows: list) -> str:
-    """修正役が読む答えのファイルの本文（相談ごとに 1 節）"""
-    head = ANSWER_HEAD_ACCEPT if any(r.get("origin") == ORIGIN_ACCEPT for r in rows) else \
-        ANSWER_HEAD_GATE if any(r.get("origin") == ORIGIN_GATE for r in rows) else ANSWER_HEAD
-    lines = [head.format(turn=turn)]
+    """修正役が読む答えのファイルの本文（相談ごとに 1 節）。決まった文は prompts/parts/answer-file-head.md・answer-file-row.md"""
+    accept = any(r.get("origin") == ORIGIN_ACCEPT for r in rows)
+    gate = not accept and any(r.get("origin") == ORIGIN_GATE for r in rows)
+    lines = [prompt.render_part("answer-file-head", {"turn": turn}, {"accept": accept, "gate": gate, "plain": not accept and not gate}).strip() + "\n"]
+    join = lambda xs: "・".join(xs) if xs else "（無し）"   # noqa: E731
     for r in rows:
-        head = ANSWER_ROW_HEAD.format(item=r.get('item') or '（無し）', paths=('・'.join(r.get('paths') or [])) or '（無し）',
-                                      tests=('・'.join(r.get('tests') or [])) or '（無し）',
-                                      new_tests=f"・新しいテスト {'・'.join(r['new_tests'])}" if r.get("new_tests") else "")
-        if r["status"] == ANSWERED:
-            body = [f"- 答え: {r['decision']}"]
-            if r["decision"] == ALLOW:
-                body.append(f"- 範囲に入った物: パス {('・'.join(r['granted_paths'])) or '（無し）'}・テスト "
-                            f"{('・'.join(r['granted_tests'])) or '（無し）'}（受け付けはこれを範囲に入れる。頼んだ物の残りは入らない）")
-                if r.get("granted_new_tests"):
-                    body.append("- 足してよい新しいテスト: " + "・".join(f"{g['id']}（{g['red_kind']}）" for g in r["granted_new_tests"]))
-            if r.get("overrode_out_of_scope"):
-                body.append("- out_of_scope を外した（この項目ではこのパスだけ範囲に入る）: " + "・".join(
-                    f"{h['path']}（{h['glob']}）" for h in r["overrode_out_of_scope"]))
-            elif r["decision"] != ALLOW and any(h.get("item") == r.get("item") for h in r.get("out_of_scope") or []):
-                body.append("- out_of_scope は外したまま（変えるな）")
-            if r.get("spec"):
-                body.append(f"- 仕様の補い（従え）: {r['spec']}")
-            body.append(f"- 理由: {r['reason']}")
-        else:
-            why = r.get("why_refused") or r.get("why_unavailable") or " / ".join(r.get("notes") or [])
-            body = [f"- 答え: なし（{r['status']}）", f"- 理由: {why}"]
-        if r.get("notes") and r["status"] == ANSWERED:
-            body.append(f"- 機械の注記: {' / '.join(r['notes'])}")
-        lines.append(head + "\n\n" + "\n".join(body) + "\n")
+        answered = r["status"] == ANSWERED
+        decision = r.get("decision")
+        allowed = answered and decision == ALLOW
+        overrode = bool(answered and r.get("overrode_out_of_scope"))
+        kept = bool(answered and not overrode and decision != ALLOW
+                    and any(h.get("item") == r.get("item") for h in r.get("out_of_scope") or []))
+        why = r.get("why_refused") or r.get("why_unavailable") or " / ".join(r.get("notes") or [])
+        values = {
+            "item": r.get("item") or "（無し）", "paths": join(r.get("paths")), "tests": join(r.get("tests")),
+            "new_tests": f"・新しいテスト {'・'.join(r['new_tests'])}" if r.get("new_tests") else "",
+            "decision": str(decision or ""), "status": str(r["status"]),
+            "granted_paths": join(r.get("granted_paths")), "granted_tests": join(r.get("granted_tests")),
+            "granted_new": "・".join(f"{g['id']}（{g['red_kind']}）" for g in r.get("granted_new_tests") or []),
+            "overrode": "・".join(f"{h['path']}（{h['glob']}）" for h in r.get("overrode_out_of_scope") or []),
+            "spec": str(r.get("spec") or ""),
+            "reason": str(r["reason"]) if answered else str(why),
+            "notes": " / ".join(r.get("notes") or []),
+        }
+        when = {"answered": answered, "unanswered": not answered, "allowed": allowed,
+                "granted_new": bool(allowed and r.get("granted_new_tests")), "overrode": overrode, "kept": kept,
+                "spec": bool(answered and r.get("spec")), "notes": bool(answered and r.get("notes"))}
+        lines.append(prompt.render_part("answer-file-row", values, when).strip() + "\n")
     return "\n".join(lines)
 
 

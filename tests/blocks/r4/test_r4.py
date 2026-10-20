@@ -286,11 +286,13 @@ class AcceptCase(_RepoCase):
         self.assertIn(first["reason"], fix)
         self.assertIn(str(self.place / "candidate-r4-scope.json"), fix)
         self.assertIn("In this same conversation, fix only what was rejected and return it.", fix)
+        self.assertIn("copies the name of a line of the \"Recorded policy\" section character for character", fix)
         self.assertEqual((self.place / "r4-scope-fix-prompt-1.md").read_text(encoding="utf-8"), fix)
         resumed = self.prep(prev="")
         self.assertIs(resumed["resubmit"], False)
         self.assertIn(first["reason"].splitlines()[0], resumed["prompt"])
         self.assertIn("Why your previous answer was rejected", resumed["prompt"])
+        self.assertIn("write `r3` by the rules of the R3 view", resumed["prompt"])
         fixed = [f"{copy}:2 の『空の列は試験しない』に反する"]
         got = self.accept("null", {"policy_conflicts": fixed})
         self.assertEqual((got["ok"], got["done"]), (True, True), got["reason"])

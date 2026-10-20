@@ -32,10 +32,10 @@ UNKNOWN_SOURCE = "目的不明"   # 目的の出典の語（目的の固定の b
 NARROWS = "狭めている"        # 目的の監査の verdict の語
 START_GATE_NODE = "始めの承認ノード"   # 承認ノードの答えの行の札（lib の語）
 PREMISE_MISS = "premise_invalid_reason の名指しが固めた版の実物に当たらない（追跡されたファイルと、その行の範囲を名指せ）: "
-ELEMENTS_REJECT = "問いが立つ設計の elements に誤りが在る（設計の要素を 1 つ以上、id の重ならない {id, adds, removes} の行で並べる。下の行を直した返答を丸ごと出し直せ）: "
+ELEMENTS_REJECT = "問いが立つ設計の elements に誤りが在る（設計の要素を 1 つ以上、id の重ならない {id, adds, removes} の行で並べる）: "
 READONLY_MOVED = "読むだけの役が作業ツリーを変えた: "
 NO_TREE = "役を起こす前の作業ツリーの控え {name} が無い（支度のノードが走っていない）"
-STALE_WHY = "裏取りを通っていない形の findings（旧形の素の文字列、または cite 無し）に乗った『狭めている』なので、R2 を止める根拠には使わない"
+STALE_WHY = "裏取りを通っていない形の findings（旧形の素の文字列、または cite 無し）に乗った『狭めている』"
 PURPOSE_REVIEW_UNREAD = ("入力 purpose_review の先（目的の監査の受けた返答）を読めない（{why}）——監査は無かったとして読み、"
                          "独立設計を目的の『狭めている』では止めない")
 REQUEST_UNREAD = "入力 request の依頼のファイル {path} を読めない（{why}）——依頼の本文は空として読み、依頼が名指した設計書のセクションは渡っていない"

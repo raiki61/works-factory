@@ -149,7 +149,6 @@ class KindRowsCase(unittest.TestCase):
                            "ruling": {"decision": "ask_human", "text": "方針の変更で人が決める", "limits": [], "by": "x"}}])
         self.assertEqual(conflict.kind_counts(self.b)["unset"], 1)
         self.assertIn("種類 無し", conflict.human_lines(self.b)[0])
-        self.assertIn("申し出の種類: （無し）", conflict.write_rulings(self.b).read_text(encoding="utf-8"))
 
 
 class HeldByRulingsCase(KindRowsCase):
@@ -206,19 +205,6 @@ class BriefKindCase(unittest.TestCase):
         with mock.patch.object(planbrief, "_ledger", side_effect=planbrief.LedgerBroken("x")):
             self.assertEqual(planbrief.by_unit_at(self.dir), {})
         self.assertEqual(planbrief.by_unit_at(self.dir / "no-board"), {})
-
-
-class RulingLimitsTextCase(KindRowsCase):
-    """裁定の limits が広げるのは案の項目の範囲に足すパスだけ（planscope の継ぎ目の決まり）を、裁定役の決まり・裁定の文・
-    修正役の brief の決まりが同じく言う"""
-
-    def test_rulings_file_says_only_ruled_paths_widen(self):
-        rows = [{"id": f"c1-{i}", "round": 1, "source": "fix", **ITEM, "status": "ruled",
-                 "ruling": {"decision": d, "text": "裁きの文を十字以上で書く", "limits": [], "by": "x"}}
-                for i, d in enumerate(("fix_code_as", conflict.REPLACE), 1)]
-        self.write_items(rows)
-        text = conflict.write_rulings(self.b).read_text(encoding="utf-8")
-        self.assertEqual(text.count("「範囲」に並べたパスだけ"), 2, text)
 
 
 def fake_with_rows(rows):
@@ -388,65 +374,6 @@ class TestReplanState(unittest.TestCase):
         conflict.set_replan(b, ["c1-2"], conflict.GAVE_UP, why="別の理由")
         self.assertEqual(b.traced, [])
         self.assertNotIn("replan_why", conflict.items(b)[1])
-
-
-class TestReplanWords(unittest.TestCase):
-    """fix_plan_item の意味は「同じ run の中で案を直す」（依頼 226）。持ち越しの語が残らず、裁定の文の約束が状態ごとに正しい"""
-
-    @staticmethod
-    def flat(p):
-        return re.sub(r'[\s"]', "", p.read_text(encoding="utf-8"))
-
-    def test_replan_promise_says_same_run(self):
-        b = fake_with_rows([row("c1-1", MEAN, "fix_plan_item", state="waiting", plan_units=[MEAN, CLAMP])])
-        text = conflict.write_rulings(b).read_text(encoding="utf-8")
-        self.assertIn("この run の中で修正案の役がこの項目だけを直し、事前審査と承認ノードの決まりを通ってから、2 回目の修正の段で直す",
-                      text)
-
-    def test_gave_up_rows_promise_the_last_gate(self):
-        """諦めた行（gave_up）は案の直しを約束しない。ask_human と同じく最後の人の関所で人が決め、諦めた理由を添える"""
-        b = fake_with_rows([row("c1-1", MEAN, "fix_plan_item", state="waiting", plan_units=[MEAN, CLAMP])])
-        conflict.set_replan(b, ["c1-1"], conflict.GAVE_UP, why="修正案の役の直しが 3 回とも拒まれた: 数が違う")
-        text = conflict.write_rulings(b).read_text(encoding="utf-8")
-        self.assertNotIn("2 回目の修正の段で直す", text)
-        self.assertIn("最後の承認ノードで人が決める", text)
-        self.assertIn("修正案の役の直しが 3 回とも拒まれた: 数が違う", text)
-
-    def test_parked_note_excludes_every_unit_outside_duty(self):
-        """申し出の回の返答を出し直す注記は、直す義務の外の単位すべて（ask_human・fix_plan_item のどの状態も・1 回目に
-        受け付けた単位）を除くと言う"""
-        b = fake_with_rows([row("c1-1", MEAN, "ask_human")])
-        b.work(conflict.PARKED_REPLY).write_text("{}", encoding="utf-8")
-        text = conflict.write_rulings(b).read_text(encoding="utf-8")
-        self.assertIn("直す義務の外の単位はすべて除く", text)
-        self.assertIn("1 回目の修正の段で受け付けた単位", text)
-
-    @staticmethod
-    def section(text, rid):
-        return text.split(f"## {rid}:", 1)[1].split("\n## ", 1)[0]
-
-    def test_second_pass_new_replan_rows_promise_the_last_gate(self):
-        """2 回目の修正の段（案を直した行が在る。conflict.second_pass）で新しく fix_plan_item と裁いた行（待つ行）は、無い 3 回目の
-        修正の段を約束せず、修正の段を抜ける時に諦めた行になり最後の人の関所へ行くと言う（replan.settle が締める）"""
-        waiting = row("c2-1", MEAN, "fix_plan_item", state="waiting", plan_units=[MEAN])
-        b = fake_with_rows([row("c1-1", CLAMP, "fix_plan_item", state="amended", plan_units=[CLAMP]), waiting])
-        mine = self.section(conflict.write_rulings(b).read_text(encoding="utf-8"), "c2-1")
-        self.assertNotIn("2 回目の修正の段で直す", mine)
-        self.assertIn(conflict.LATE_REPLAN_PROMISE, mine)
-        self.assertIn("最後の承認ノードで人が決める", mine)
-        first = self.section(conflict.write_rulings(fake_with_rows([waiting])).read_text(encoding="utf-8"), "c2-1")
-        self.assertIn("2 回目の修正の段で直す", first, "1 回目の段の待つ行は今どおり")
-
-    def test_ask_human_promise_keeps_held_work_conditionally(self):
-        """ask_human の約束は、直しが作業ツリーに在ればそのまま残す（戻すな・触るな。機械が戻した時は控えの patch を当て直すな）と
-        条件の形で言い、changes に書くなも残す。約束は decision だけで選ぶので、機械が戻した行（by=works:fix-accept）にも同じ文が
-        届く——だから直しを残したと過去の事実を言い切る HELD_WORK_KEPT は使わない"""
-        b = fake_with_rows([row("c1-1", MEAN, "ask_human")])
-        mine = self.section(conflict.write_rulings(b).read_text(encoding="utf-8"), "c1-1")
-        self.assertIn("この単位の直しが作業ツリーに在れば、そのまま残す（戻すな・触るな", mine)
-        self.assertIn("当て直すな", mine)
-        self.assertIn("changes に書くな", mine)
-        self.assertNotIn(conflict.HELD_WORK_KEPT, mine)
 
 
 if __name__ == "__main__":

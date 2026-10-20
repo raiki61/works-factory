@@ -9,7 +9,7 @@
 
 - unusable(b):   目的の出典が R2 に使えない理由（目的不明・狭めている。無ければ None）。式は写しの rules の purpose_unusable
                  （p4.assemble と同じ 1 本）を呼ぶ
-- premises:      R2 の 2 つの役（r2.design・r2.compare）に共通して貼る節の並び（人の答え → 名指しの節 → 地図）と、貼った入力の控え {given, withheld, seen}（kind は PREMISE_KINDS の中だけ）。
+- 前提の材料:    R2 の 2 つの役（r2.design・r2.compare）に貼る材料の本文（見出しと頼みの文は持たない。共通の断片 design-premises.md が持つ）と、貼った入力の控え {given, withheld, seen}（kind は PREMISE_KINDS の中だけ）。
                  human_answers（人の関所の答え。asked は写さず、answer の無い機械の行は withheld。seen は貼った答えの数と
                  最後の round の印で、突き合わせの側が独立設計の後に来た答えを分けて並べる）と named_sections（依頼が
                  名指した設計書の節の本文。文書の拡張子（impact.DOC_EXT）のパスのリンク・`<path>#<見出し>`・`<path>` N 節と、
@@ -71,7 +71,6 @@ DESIGN_FILE = "design.json"             # 受け付けた設計の返答（盤�
 MISSING = "独立設計が取れなかった"
 HANDED_OP = "r2_design_handed"         # 設計の控えを後段に渡した trace の行（元 works/.shared/core/design.py:74）
 MISSING_OP = "r2_design_missing"       # 設計が無いまま先へ進んだ trace の行（元 :75）
-REJECT_HEADING = rolekit.REJECT_HEADING
 UNUSABLE = {"目的不明": "目的の出典が取れない（目的不明）——独立設計を回さない",
             "狭めている": "目的の文を監査が『狭めている』と判定した——狭められた目的で独立設計を回さない"}
 DRIFT_HEAD = "独立設計との構造の食い違い: "
@@ -79,13 +78,6 @@ UNPAIRED_HEAD = "独立設計に対の無い仕組み: "
 QUOTE_HEADS = (DRIFT_HEAD, UNPAIRED_HEAD)
 ROW_QUOTE_KEYS = ("approach", "files", "allowed_paths", "shrink_first")   # 案の行のうち、引用の照らしが読む欄
 TEXT_SEP = "\x00"   # 引用の照らしで文を継ぐ字（畳みの空白に化けないので、欄をまたぐ引用は字のままと数えない）
-HUMAN_HEAD = "### 承認ノードの答え"
-HUMAN_ASK = ("人が承認ノードで答えた前提（run の中で人が決めた物）。ほかのセクションより先に読め。答えが目的の文や前の要求を取り下げ・変えていれば、"
-             "取り下げ・変えた後の要求を前提にせよ（取り下げた要求を固定の契約にしない）。設計が取り下げた要求を置いていても、"
-             "そのことだけでは差にも前提の崩れにも数えず、答えに照らした目的で突き合わせよ。")
-DESIGN_PREMISE_HEAD = "## 人が決めた前提（機械が貼った）"
-NAMED_HEAD = "### 依頼が名指した設計書のセクション"
-NAMED_ASK = "依頼が名指した設計書のセクションの本文（依頼を固めた版のファイルから機械が抜いた）。目的の文と同じく依頼の一部として読め。"
 CODE_SPAN_ANCHOR = re.compile(r"`([^`\s]+\.[A-Za-z0-9]+#[^`\s]+)`")
 # 持ち主の地の文の名指し: 「`<path>` 3 節」「`<path>` の §3」（見出しの頭の番号で引く。パスは拡張子つき）
 CODE_SPAN_NUM = re.compile(r"`([^`\s#]+\.[A-Za-z0-9]+)`\s*(?:の\s*)?(?:§\s*(\d+(?:\.\d+)*)|(\d+(?:\.\d+)*)\s*節)")
@@ -123,11 +115,8 @@ PREMISE_KINDS = ("human_answer", "named_section", "repo_map")
 # 対象のリポジトリの地図として根から読む名（関所の決め: 根の 2 つだけ。docs/ の下や README は読まない）。中身は分類せず丸ごと貼る。
 # AGENTS.md は blk-fix の fixrules.PROMPT_NAMES（役の指示書として読む名）とも重なる（core から blk-fix へは依らないので別に置く）
 MAP_NAMES = ("ARCHITECTURE.md", "AGENTS.md")
-MAP_HEAD = "### 対象のリポジトリの地図"
 MAP_FILE_HEAD = "#### {name}:1-{total}"
 NAMED_BODY_HEAD = "#### {name}（{src}）"
-MAP_ASK = ("対象のリポジトリの根に在る地図の文書（依頼を固めた版のファイルから機械が貼った。見出しは出どころのパス:行）。"
-           "依頼が名指していなくても、仕組みの中に既に在る実物（信用の起点・外との通信の経路・守る物）から設計を始めよ。")
 
 
 def human_answers(b) -> tuple:
@@ -147,7 +136,7 @@ def human_answers(b) -> tuple:
         note = h.get("note") or "（一言なし）"
         rows.append(f"{at}（{kinds}）: {h['answer']}（一言: {note}）")
         last = h.get("round")
-    text = (f"{HUMAN_HEAD}\n\n{HUMAN_ASK}\n\n" + "\n".join(f"- {r}" for r in rows)) if rows else ""
+    text = "\n".join(f"- {r}" for r in rows)
     return text, rows, machine, {"count": len(rows), "last_round": last}
 
 
@@ -400,7 +389,7 @@ def named_sections(b, repo) -> tuple:
         given.append({"kind": "named_section", "what": t})
         if rest:
             withheld.append({"kind": "named_section", "what": t, "why": f"{FILE_CAP} バイトを超えた残り（{rest}）"})
-    text = (f"{NAMED_HEAD}\n\n{NAMED_ASK}\n\n" + "\n\n".join(parts)) if parts else ""
+    text = "\n\n".join(parts)
     return text, given, withheld
 
 
@@ -431,22 +420,7 @@ def repo_map(repo) -> tuple:
         parts.append(f"- 地図なし: 根の {'・'.join(MAP_NAMES)} は固めた版に無い")
         if not withheld:
             withheld.append({"kind": "repo_map", "what": "・".join(MAP_NAMES), "why": "対象のリポジトリの根に追跡されていない"})
-    return f"{MAP_HEAD}\n\n{MAP_ASK}\n\n" + "\n\n".join(parts), given, withheld
-
-
-def premises(b, repo) -> tuple:
-    """(R2 の 2 つの役に共通して貼る、人が決めた前提の節の並び（人の関所の答え・依頼が名指した設計書の節・対象のリポジトリの地図。
-    空の節は除く。地図の節は空にならない）,
-    控え {given, withheld, seen})。控えは貼った本文と同じ呼び出しから作る（別の源から組み直さない）"""
-    human, rows, machine, seen = human_answers(b)
-    named, given, withheld = named_sections(b, repo)
-    mapped, map_given, map_withheld = repo_map(repo)
-    given = [{"kind": "human_answer", "what": r} for r in rows] + given + map_given
-    outside = sorted({g["kind"] for g in given} - set(PREMISE_KINDS))
-    if outside:   # 一覧の外の源（ほかのブロックの出力など）から貼る口を作らない
-        raise BoardGap(f"独立設計に渡す入力の種類が許す一覧（{' / '.join(PREMISE_KINDS)}）の外: {', '.join(outside)}")
-    withheld = [{"kind": "human_item", "what": m, "why": "answer の無い行（機械が積んだ。人の答えでない）"} for m in machine] + withheld + map_withheld
-    return [s for s in (human, named, mapped) if s], {"given": given, "withheld": withheld, "seen": seen}
+    return "\n\n".join(parts), given, withheld
 
 
 def claims_unpassed(reply) -> list:
