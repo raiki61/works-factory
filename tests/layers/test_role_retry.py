@@ -1,4 +1,8 @@
-"""`workflows/` の YAML の AI ノード（`prompt:`・`command:`。輪の中も）が `retry` を形 `scan.ROLE_RETRY` で持つか、真上に外す理由の行を持つ（workflows/AGENTS.md の E19 の機械の行）。"""
+"""graph と block の YAML の AI のノード（`prompt:`・`command:`。`loop_group` の本体の中も）が `retry` を形 `scan.ROLE_RETRY`（`{max_attempts: 2, on_error: all}`）で持つか、ノードの頭の行の真上に外す理由の行 `# retry なし: <理由>` を持つ（`workflows/AGENTS.md` の E19 の機械の行）。
+
+- 両方在るのも赤。照らしは `tests/layers/scan.py` の `_role_retry`。
+- `on_error: all` を書く訳（止めた Archon の既定は `on_error: transient` で、種類が `unknown` の失敗を出し直さない）と、`loop_group` のノードそのものに書けない訳は `docs/design/archon.md` の E19 の節。
+"""
 import pathlib
 import unittest
 
@@ -9,6 +13,7 @@ ROOT = pathlib.Path(__file__).resolve().parents[2]
 SEEDS = pathlib.Path(__file__).resolve().parent / "seeds"
 BLOCK = "workflows/judge/works-factory-judge.yaml"
 RETRY = "retry: {max_attempts: 2, on_error: all}"
+REAL = "workflows/diagnose/works-factory-diagnose.yaml"   # AI の node を持つ本物の block（judge の graph は include だけで AI の node を持たない）
 
 
 class RoleRetryTest(unittest.TestCase):
@@ -34,10 +39,10 @@ class RoleRetryTest(unittest.TestCase):
         self.assertEqual(self.problems(nodes), [])
 
     def test_removing_one_retry_from_the_real_tree_is_red(self):
-        path = ROOT / BLOCK
+        path = ROOT / REAL
         text = path.read_text(encoding="utf-8")
         self.assertIn(RETRY, text)
-        with tree({BLOCK: text.replace(RETRY, "", 1)}) as root:
+        with tree({REAL: text.replace(RETRY, "", 1)}) as root:
             got = scan.problems("E19", root)
         self.assertEqual(len(got), 1, got)
         self.assertIn("retry も", got[0])

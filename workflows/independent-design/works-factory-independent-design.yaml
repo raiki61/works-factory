@@ -1,0 +1,148 @@
+name: works-factory-independent-design
+description: '独立設計の block（docs/design/independent-design.md）。目的の文と、実測した制約・人が決めた前提・人の方針だけから、道具を持たない別の役が、修正案・判定・差分を見ずに、問いが立つかを疑った上で理想の設計と要素の一覧を作る。問いが立たなければ設計せず根拠を返す。根拠の名指しが対象の実物に在ること、立つ設計が要素を持つこと、役が作業ツリーを変えていないことを機械が確かめる。目的が使えない時は役を起こさない。単独の run でも、graph から include されても回る'
+inputs:
+  purpose:
+    required: true
+    description: 'text: 元の目的の 1 文（目的の固定の purpose_text）'
+  purpose_source: {default: '', description: 'text: 目的の出典の語（目的の固定の source）。目的不明なら役を起こさない。空は出典を渡されていない（起こす）'}
+  purpose_review: {default: '{}', description: 'json(purpose-review.schema.json): 目的の監査の受けた返答 {verdict, reason, findings}。裏取りを通った「狭めている」なら役を起こさない。空のオブジェクトは監査が無い'}
+  constraints: {default: '[]', description: 'json(shared:constraints.schema.json): 実測した制約の配列 [{text, measured_how, kind, measured_output?}]（前提の実測の constraints）か、それを constraints の欄に持つオブジェクト。空の配列は渡されていない'}
+  answers: {default: '[]', description: 'json(answers.schema.json): 人が承認ノードで返した答え {decision, text} か、その配列。null と空の配列は答えが無い'}
+  request: {default: '', description: 'file: 依頼のファイル（依頼が名指した設計書の章をここから引く）。空は依頼のファイルが無い'}
+  policy: {default: '', description: 'file: 人の方針の文書を run の頭で固めた写し。空は方針が無い'}
+  base: {default: '', description: 'text: 審査する変更の起点の版（入口の差分の根）。空は足した行の印を付けない'}
+  head: {default: '', description: 'text: 審査する変更の先の版（修正前の HEAD）。空は HEAD'}
+  lang: {default: '', description: 'text: 人に見せる欄（reason・premise_invalid_reason・design・elements の字）の言語。空は依頼の言語'}
+returns: finish
+outcome_field: ok
+nodes:
+  - id: intake
+    script: intake
+    runtime: uv
+    mutates_checkout: false
+    output_format:
+      type: object
+      additionalProperties: false
+      required: [due, status, reason]
+      properties:
+        due: {type: boolean}
+        status:
+          type: string
+          enum: ['', unusable, failed]
+        reason: {type: string}
+  - id: design-loop
+    depends_on: [intake]
+    when: "$intake.output.due == true"
+    loop_group:
+      max_iterations: 3
+      fresh_context: false
+      until_bash: done=$design-accept.output.done; test "$done" = true
+      nodes:
+        - id: design-prep
+          script: design_prep
+          runtime: uv
+          mutates_checkout: false
+          output_format:
+            type: object
+            additionalProperties: false
+            required: [prompt, system]
+            properties:
+              prompt: {type: string, minLength: 1}
+              system: {type: string, minLength: 1}
+        - id: design
+          prompt: "$design-prep.output.prompt"
+          systemPrompt: "$design-prep.output.system"
+          depends_on: [design-prep]
+          model: '@wf-plan-review'
+          allowed_tools: []
+          settingSources: [user]
+          sandbox: {enabled: true, allowUnsandboxedCommands: false}
+          mutates_checkout: false
+          idle_timeout: 1728000000
+          retry: {max_attempts: 2, on_error: all}
+          output_format: {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["question_stands", "reason", "design"],
+                "properties": {
+                  "question_stands": {"type": "boolean"},
+                  "reason": {"type": "string", "minLength": 1, "pattern": "\\S"},
+                  "premise_invalid_reason": {"type": "string"},
+                  "design": {"type": "string"},
+                  "elements": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": ["id", "adds", "removes"],
+                      "properties": {
+                        "id": {"type": "string", "pattern": "^D[0-9]+$"},
+                        "adds": {"type": "array", "items": {"type": "string"}},
+                        "removes": {"type": "array", "items": {"type": "string"}}
+                      }
+                    }
+                  }
+                }
+              }
+        - id: design-accept
+          script: design_accept
+          runtime: uv
+          depends_on: [design]
+          mutates_checkout: false
+          with:
+            status_guarded: true
+            reply: $design.output
+          output_format:
+            type: object
+            additionalProperties: false
+            required: [ok, done, give_up, reason]
+            properties:
+              ok: {type: boolean}
+              done: {type: boolean}
+              give_up: {type: boolean}
+              reason: {type: string}
+  - id: finish
+    script: finish
+    runtime: uv
+    mutates_checkout: false
+    depends_on: [intake, design-loop]
+    trigger_rule: all_done
+    output_format:
+      type: object
+      additionalProperties: false
+      required: [ok, status, stands, design, premises, reason, downgrades, report]
+      properties:
+        ok: {type: boolean}
+        status:
+          type: string
+          enum: [ok, unusable, failed]
+        stands: {type: [boolean, 'null']}
+        design:
+          type: [object, 'null']
+          properties:
+            type:
+              type: string
+              enum: [archon_artifact]
+            run_id: {type: string}
+            path: {type: string}
+        premises:
+          type: [object, 'null']
+          properties:
+            type:
+              type: string
+              enum: [archon_artifact]
+            run_id: {type: string}
+            path: {type: string}
+        reason: {type: string}
+        downgrades:
+          type: array
+          items:
+            type: object
+            required: [node, what, versus]
+            properties:
+              node: {type: string}
+              what: {type: string}
+              versus: {type: string}
+        report:
+          type: array
+          items: {type: string}

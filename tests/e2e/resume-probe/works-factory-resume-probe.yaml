@@ -1,6 +1,6 @@
 name: works-factory-resume-probe
 description: |
-  段 1b の U1 の使い捨ての工程（docs/design.md の U1）。AI の役は無い。関所の前と後に bash の節を置き、関所で止めて
+  段 1b の U1 の使い捨ての工程（docs/design/archon.md の U1）。AI の役は無い。関所の前と後に bash の節を置き、関所で止めて
   approve・resume した後も run の id が変わらないかを見る。回すのは tests/e2e/test_resume_probe.py。
 
 nodes:

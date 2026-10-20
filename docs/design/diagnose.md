@@ -1,6 +1,6 @@
 # block の設計書: diagnose（根本の診断と再審）
 
-- 何の話か（読む人: この block の実装者・つなぐ graph の設計書の書き手・英語の md を照らす審査役。語と節の番号は [README.md](README.md) の物）: 素材・依頼の行・世界の解・前提の実測などを読み、人の修正依頼を根本の単位にまとめてラベルと disposition を確定させる判定役と、修正役が判定に異議を出した時に同じ block の中で判定を考え直す再審の役を、単独で呼べる block `blocks/diagnose/` にする設計。型は [README.md](README.md)、手本は [world.md](world.md)。
+- 何の話か（読む人: この block の実装者・つなぐ graph の設計書の書き手・英語の md を照らす審査役。語と節の番号は [README.md](README.md) の物）: 素材・依頼の行・世界の解・前提の実測などを読み、人の修正依頼を根本の単位にまとめてラベルと disposition を確定させる判定役と、修正役が判定に異議を出した時に同じ block の中で判定を考え直す再審の役を、単独で呼べる block `workflows/diagnose/` にする設計。型は [README.md](README.md)、手本は [world.md](world.md)。
 - 決めたこと: 今の judge の `diagnose-prep`・`diagnose-loop`・`rejudge-prep`・`rejudge-loop` と、返す節 `verdict` のうち判定と再審の分を、頂 4 つ（`intake`・診断の輪・再審の輪・`finish`）の block にする。AI の node は 2 つ（判定役 `diagnose`・再審の役 `rejudge`）。今の再審の輪の出し直しの役（`rejudge-fix`。拒まれた欄だけを返す）も置く（4 節・11 節の 5）。道は port `objection` が空か（README の 8.1）で分かれ、再審は同じ block に置く（持ち主の決め `rejudge-cohabit`）。判定役の材料は指示に直に入れず、値だけの JSON 1 本（`diagnose-input.json`）に書いて Read させ、鍵の意味は全部 md が持つ（Python は指示の文を持たない。11 節の 1）。受け付けの規則は今の `lib/judge_accept.py` の判定と再審の部分を `src/` に写す（README の 9.2 の MOVE）。振る舞いは変えない（変えた所は 11 節に名指す）。
 - 持ち主に求めること: なし。
 - 読む人と使い方: この block を作る実装者（1〜5 節の名と順をそのまま作る）と、つなぐ graph（judge のまとめ・line）の設計書の書き手（1.6）。README の 11.1 の 2 波目。審査役は 9.4 の「残す指示の一覧」で、英語の md を古い指示と 1 件ずつ照らす。
@@ -62,7 +62,7 @@
 - `excluded`（再審）: `file: 並行 PR の外す範囲（pr-excluded.json）。空は渡されていない`。既定 `""`。
 - `lang`（両方）: `text: 人に見せる欄の言語（2.4・3.4 が名指す欄）。空は依頼の行の言語`。既定 `""`。
 
-出力（`returns: finish`、`outcome_field: ok`）。`finish` の `output_format` は `additionalProperties: false` で、下の欄を全部 `required` にする。pointer は `{type: archon_artifact, run_id, path}`、null を取る欄は `type: [object, 'null']`（`anyOf` は使わない。`blocks/.shared/AGENTS.md`）。
+出力（`returns: finish`、`outcome_field: ok`）。`finish` の `output_format` は `additionalProperties: false` で、下の欄を全部 `required` にする。pointer は `{type: archon_artifact, run_id, path}`、null を取る欄は `type: [object, 'null']`（`anyOf` は使わない。`workflows/.shared/AGENTS.md`）。
 
 - `ok`: boolean。`status` が `ok` か。
 - `status`: `ok`（判定か再審を受け付けた）・`stopped`（素材の観点が諦めていたので判定役を起こさなかった）・`failed`（入力が読めない・対象差分が取れない・役を諦めた・1 回目の判定が無い・どこかの段が落ちた）。
@@ -86,7 +86,7 @@
 
 今との違い: 今は入力を `judge/start.json`・`judge/request.json`・`judge/premises.json`・`judge/purpose.json`・`judge/material-<役>.json`・`judge/world-state.json`・`judge/depth-head.json`・`judge/prior-failures-in.json`・`judge/stop.json` から名で開き（`lib/judge_accept.py:2764-2872`）、再審は同じ run の `judge/` を名で開いて 1 回目の判定と材料を読んだ（`:3312-3345`）。出口は judge 全体の返す節 `verdict` の 26 欄に混ざっていた（`:3938-3995`）。止めの記録の確かめは無くし（README の 4.3）、前の段の落ち（前提・目的が無い）で止めるのは graph の `when:` が決める。
 
-### 1.3 node の並び（`blocks/diagnose/works-factory-diagnose.yaml`）
+### 1.3 node の並び（`workflows/diagnose/works-factory-diagnose.yaml`）
 
 AI の node の起動の鍵（今の YAML の錨 `review_launch` のまま。`workflows/judge/works-factory-judge.yaml:227-234`）: `model: '@wf-judge-core'`・`settingSources: [user]`・`allowed_tools: [Read, Grep, Glob, WebSearch, WebFetch]`・`sandbox: {enabled: true, allowUnsandboxedCommands: false}`・`idle_timeout: 1728000000`・`mutates_checkout: false`・`retry: {max_attempts: 2, on_error: all}`。YAML の錨で 2 つの AI の node に配ってよい。script の node はどれも `runtime: uv`・`mutates_checkout: false`。
 
@@ -118,24 +118,24 @@ script の名は `lib/` のモジュールの名と重ねない（README の 7.1
 
 ### 1.5 コードの置き場
 
-- `blocks/diagnose/src/__init__.py`（空）。
-- `blocks/diagnose/src/files.py`: place のファイルの名（1.4）・役の名 `DIAGNOSE_ROLE = "diagnose"`・`REJUDGE_ROLE = "rejudge"`・節の名 `REJUDGE_NODE = "p2.rejudge"`（`units-before.json` と差の行の `node` に書く今の字）・`GUARDED = True`（今の accept の `with: {status_guarded: true}`。`:1991`・`:2178`）・止めの語（下の 5.6）。
-- `blocks/diagnose/src/judge.py`: 判定の受け付けの芯。`lib/judge_accept.py` から写す（MOVE）:
+- `workflows/diagnose/src/__init__.py`（空）。
+- `workflows/diagnose/src/files.py`: place のファイルの名（1.4）・役の名 `DIAGNOSE_ROLE = "diagnose"`・`REJUDGE_ROLE = "rejudge"`・節の名 `REJUDGE_NODE = "p2.rejudge"`（`units-before.json` と差の行の `node` に書く今の字）・`GUARDED = True`（今の accept の `with: {status_guarded: true}`。`:1991`・`:2178`）・止めの語（下の 5.6）。
+- `workflows/diagnose/src/judge.py`: 判定の受け付けの芯。`lib/judge_accept.py` から写す（MOVE）:
   - 表: `LABELS`（`:135`）・`Kind` と `QUESTION_KINDS` の `domain` と `fields`（`:233-257`。`note` の文は写さず md へ。2.6）・`QUESTION_FIELDS`・`UNIT_FIELDS`（`:273-274`）・`QUESTION_STATUS`（`:293-298`。`QUESTION_STATUS_NOTE` の文は md へ）・`NO_OPEN_ORIGIN`（`:319`）・`REVIEWS`（`:133`）・`EMPTY`・`ONE_LINE_FIELDS`（`:244-246`・`:388`）・`ASK_KEYS`（`:369-374`）・`COUNT_BUDGET`・`COUNT_CACHE_FILE`・`COUNT_BUDGET_FILE`（`:265-267`）・`PREMISE_THREE`・`_CASE_MARKS`（`:789-790`）。
-  - 関数: `origin_not_awaiting`・`targets`・`is_open`・`open_units`・`settled_state_errors`（`:195-241`）・`blank`・`_keys_once`（`:248-262`）・`_run_query`（`:270-299`）・`_head_at_rev`・`_judge_tree_unchanged`（`:414-449`。写しのファイルは `tree.json`、`_moved_since` は `materialkit.moved_since`）・`_precedent_gap`・`_precedent_errors`・`_awaiting_origins`（`:505-544`）・`judge_output`（`:547-658`。`prev_deletions`・`prev_questions`・`defer_ledger` の引数と、それに頼る `_carried_r1_accounted`・`_fork_moves_forward` は写さない。11 節の 4）・`_judged`（`:667-692`。世界の解の出どころの照らしは下の `world_ref_problems`）・`unmeasured`・`origin_of`・`answer_binds`・`answer_tie_problems`（`:726-786`。依頼の答えと作り直しの行と素材は引数で受ける）・`claims_premise_three`・`recorded_question_problems`（`:793-813`。記録された方針の行は引数で受ける）・`take`・`accept`（`:816-858`）・`_unit_file_paths`・`structure_units`（`:871-910`）。
+  - 写さない物: 素材の欄の全体の表 `MATERIALS`（`judge_output` が読む `:630`）は `materialkit.MATERIALS` を import する（同じ字の組。統合の設計書 integration.md の 4.4-K）。この block が読むのは `files.MATERIALS`（そこから `gate_efficacy` を除いた 14 欄。11 節の 27）。`is_open`・`open_units` は共通の `judgmark`（下の「使う `lib/`」。統合の設計書の 4.4-H）から `from judgmark import …` で受け、`src/judge.py` の名で出し直して `rejudge.py` と試験が引く。
+  - 関数: `origin_not_awaiting`・`targets`・`settled_state_errors`（`:195-241`）・`blank`・`_keys_once`（`:248-262`）・`_run_query`（`:270-299`）・`_head_at_rev`・`_judge_tree_unchanged`（`:414-449`。写しのファイルは `tree.json`、`_moved_since` は `materialkit.moved_since`）・`_precedent_gap`・`_precedent_errors`・`_awaiting_origins`（`:505-544`）・`judge_output`（`:547-658`。`prev_deletions`・`prev_questions`・`defer_ledger` の引数と、それに頼る `_carried_r1_accounted`・`_fork_moves_forward` は写さない。11 節の 4）・`_judged`（`:667-692`。世界の解の出どころの照らしは下の `world_ref_problems`）・`unmeasured`・`origin_of`・`answer_binds`・`answer_tie_problems`（`:726-786`。依頼の答えと作り直しの行と素材は引数で受ける）・`claims_premise_three`・`recorded_question_problems`（`:793-813`。記録された方針の行は引数で受ける）・`take`・`accept`（`:816-858`）・`_unit_file_paths`・`structure_units`（`:871-910`）。
   - 足す関数: `world_ref_problems(reply, rows) -> list`（今の `worldmark.ref_problems`〔`lib/worldmark.py:148-155`〕を、控えのフォルダでなく行の並び `rows` で受ける形にした写し。`known = {r["class_id"] for r in rows}`、`cite.ref_problem(s, worldmark.SOURCE_PREFIX, known)`）。
-- `blocks/diagnose/src/rejudge.py`: 再審の芯。`lib/judge_accept.py` から写す: `REJUDGE_VERDICTS`・`ADOPTED`・`REJUDGE_SETTLED`・`REJUDGE_UNIT_FIELDS`・`_NUMBERS`（`:3214-3226`）・`rejudge_output`（`:3234-3242`）・`_named_numbers`・`diff_units`（`:3245-3292`）・`take`（今の `rejudge_take`、`:3348-3388`。1 回目の判定は place の `first-judgment.json` から読む）・`collect`（今の `rejudge_collect`、`:3391-3426`。止めの控えは書かず、出口の `ok`・`reason` だけを返す）・`verdict_of`（今の `rejudge_verdict`、`:3429-3439`）。`_rejudge_brief`（`:3295-3309`）は写さず、文は md、値は `src/inputs.py` の `rejudge_values` へ（3.3）。
-- `blocks/diagnose/src/inputs.py`: port を読み、道ごとの支度をし、指示の値を組む（5.1〜5.4）。写す物: `baseline_local_checks`（`:2640-2651`）・`material_rows` の行の辿り方（`:701-717`。行は 5.1 の 7 の `material_rows`）・方針の本文の上限の切り方（今の `policy._capped`、`lib/policy.py:141-147`。independent-design の `policy_body(path)` と同じ写し。組み込みで 1 つに寄せる）。足す物: `request_batches`（5.1 の 6）・`assemble_materials`（5.1 の 4）・`input_doc`（5.1 の 7）・`diagnose_values`（2.3）・`rejudge_values`（3.3）。
-- `blocks/diagnose/src/exit.py`: `finish` の本体（5.6）と `EMPTY_JUDGMENT`（今の `:3871-3872`）。
-- `blocks/diagnose/src/report.py`: 報告の行（5.7）。
-- `blocks/diagnose/schemas/`: `materials.schema.json`（`{type: array}`。要素の形は `src/inputs.py` が 1 つずつ照らす: dict の pointer か空でない字）・`pr-material.schema.json`（`{type: object, required: [status], properties: {status: {type: string, enum: [found, clean, carried_over, not_applicable, awaiting_human, not_run]}, count: {type: integer}, detail: {type: string}, checked: {type: string}, reason: {type: string}}}`）・`row-asks.schema.json`（行の配列。`required: [item, unknown, cause_quote]`・`item` は integer、ほかは string）・`answer-rows.schema.json`（行の配列。`required: [question, text]`、`command`・`output` は string）。どれも `KNOWN_KEYWORDS` の語だけで書く。null を取る `pr_material`・`prior` は、script が字の空と `null` を先に見て None にしてから `ports.json` に渡す（形は object だけを書く）。共通の形は `blocks/.shared/schemas/` の物を使う: `request.schema.json`・`constraints.schema.json`（在る）・`judgment.schema.json`・`prior-failures.schema.json`（本文は plan.md の 1.2。plan・verify と共に読む。この PR を作る時に main に無ければ、この PR がその本文で足す）。
-- 指示: `prompts/diagnose.md`・`prompts/rejudge.md`。共通の断片は `rejected`・`role-judge`（中で `query-rule`）・`policy`・`recorded-policy`・`prior-failures`・`unknown-asks`。`policy`（本文は independent-design.md の 2.3）・`recorded-policy`・`prior-failures`・`unknown-asks`（本文と口と段落は plan.md の 2.3。plan と同じ物を使う）は、この PR を作る時に main に無ければ、この PR がその本文で足し、`blocks/.shared/AGENTS.md` の名の一覧に足す（README の 11.1）。断片の中の行の札（記録された方針の行・頭の深さの行）は plan.md の 2.3 の「材料の札の英語」と同じ字にする（11 節の 14）。
-- 使う `lib/`（どれも KEEP。import するだけで変えない）: `accept`（`Reject`・`guard`・`in_repo`・`resolve_rev`・`snapshot_tree`・`tree_state`・`status_keys`・`_git`）・`materialkit`（`take_view`・`snap_tree`・`moved_since`・`read`・`assemble`・`review_md_paths`）・`rolekit`（`accept_round`・`rejected`・`rejects_text`・`given_up_reason`）・`querytest`・`outpurpose`・`gatemarks`（`ASKING`・`asks_human`・`split_answer_ties`・`save_answer_ties`・`_tie_row_problems`・`_squeeze`・`ANSWER_TIES`・`ANSWER_TIE_MIN`・`unmeasured_of`・`origin`・`binds`・`_fix_duty`）・`worldmark`（`rows`・`SOURCE_PREFIX`）・`cite`（`ref_problem`）・`carry`（`parts`・`is_redesign`・`row_key`・`ANSWERS`・`PRIOR`）・`policy`（`recorded`・`hits`・`RECORDED_TERM`）・`headdepth`（`NONE`・`CAUSE`・`SHAPE`・`SCOPE`）・`premises` の語（`仮説`。今は `lib/runreport.py` の `HYPOTHESIS` に在るので、作り直しの間は `src/files.py` の定数 `HYPOTHESIS = "仮説"` に置く。independent-design.md の 2.3 の 4 と同じ扱い）・`baseline_red`（`read_baseline`）・`stopby`・`oneline`・`jsonfile`・`graphloops/engine/util.py`（`Reject`・`run_count`・`repo_root`・`git`・`pick`）。`lib/judge_accept.py` は import しない（README の 9.2 で割って消す側）。
-- 作り直しの間は `lib/judge_accept.py` の判定と再審の部分を消さない（今の judge と line が使う）。組み込みで消す。
+- `workflows/diagnose/src/rejudge.py`: 再審の芯。`lib/judge_accept.py` から写す: `REJUDGE_VERDICTS`・`ADOPTED`・`REJUDGE_SETTLED`・`REJUDGE_UNIT_FIELDS`・`_NUMBERS`（`:3214-3226`）・`rejudge_output`（`:3234-3242`）・`_named_numbers`・`diff_units`（`:3245-3292`）・`take`（今の `rejudge_take`、`:3348-3388`。1 回目の判定は place の `first-judgment.json` から読む）・`collect`（今の `rejudge_collect`、`:3391-3426`。止めの控えは書かず、出口の `ok`・`reason` だけを返す）・`verdict_of`（今の `rejudge_verdict`、`:3429-3439`）。`_rejudge_brief`（`:3295-3309`）は写さず、文は md、値は `src/inputs.py` の `rejudge_values` へ（3.3）。
+- `workflows/diagnose/src/inputs.py`: port を読み、道ごとの支度をし、指示の値を組む（5.1〜5.4）。写す物: `baseline_local_checks`（`:2640-2651`）・`material_rows` の行の辿り方（`:701-717`。行は 5.1 の 7 の `material_rows`）・方針の本文の上限の切り方（今の `policy._capped`、`lib/policy.py:141-147`。independent-design の `policy_body(path)` と同じ写し。組み込みで 1 つに寄せる）。足す物: `request_batches`（5.1 の 6）・`assemble_materials`（5.1 の 4）・`input_doc`（5.1 の 7）・`diagnose_values`（2.3）・`rejudge_values`（3.3）。
+- `workflows/diagnose/src/exit.py`: `finish` の本体（5.6）と `EMPTY_JUDGMENT`（今の `:3871-3872`）。
+- `workflows/diagnose/src/report.py`: 報告の行（5.7）。
+- `workflows/diagnose/schemas/`: `materials.schema.json`（`{type: array}`。要素の形は `src/inputs.py` が 1 つずつ照らす: dict の pointer か空でない字）・`pr-material.schema.json`（`{type: object, required: [status], properties: {status: {type: string, enum: [found, clean, carried_over, not_applicable, awaiting_human, not_run]}, count: {type: integer}, detail: {type: string}, checked: {type: string}, reason: {type: string}}}`）・`row-asks.schema.json`（行の配列。`required: [item, unknown, cause_quote]`・`item` は integer、ほかは string）・`answer-rows.schema.json`（行の配列。`required: [question, text]`、`command`・`output` は string）。どれも `KNOWN_KEYWORDS` の語だけで書く。null を取る `pr_material`・`prior` は、script が字の空と `null` を先に見て None にしてから `ports.json` に渡す（形は object だけを書く）。共通の形は `workflows/.shared/schemas/` の物を使う: `request.schema.json`・`constraints.schema.json`（在る）・`judgment.schema.json`・`prior-failures.schema.json`（本文は plan.md の 1.2。plan・verify と共に読む。この PR を作る時に main に無ければ、この PR がその本文で足す）。
+- 指示: `prompts/diagnose.md`・`prompts/rejudge.md`。共通の断片は `rejected`・`role-judge`（中で `query-rule`）・`policy`・`recorded-policy`・`prior-failures`・`unknown-asks`。`policy`（本文は independent-design.md の 2.3）・`recorded-policy`・`prior-failures`・`unknown-asks`（本文と口と段落は plan.md の 2.3。plan と同じ物を使う）は、この PR を作る時に main に無ければ、この PR がその本文で足し、`workflows/.shared/AGENTS.md` の名の一覧に足す（README の 11.1）。断片の中の行の札（記録された方針の行・頭の深さの行）は plan.md の 2.3 の「材料の札の英語」と同じ字にする（11 節の 14）。
+- 使う `lib/`（どれも KEEP。import するだけで変えない）: `accept`（`Reject`・`guard`・`in_repo`・`resolve_rev`・`snapshot_tree`・`tree_state`・`status_keys`・`_git`）・`materialkit`（`MATERIALS`・`take_view`・`snap_tree`・`moved_since`・`read`・`assemble`・`review_md_paths`）・`judgmark`（`is_open`・`open_units`。新しい lib のモジュール。verify・plan も読み、fix は組み込みの後に読む。統合の設計書の 4.4-H）・`rolekit`（`accept_round`・`rejected`・`rejects_text`・`given_up_reason`）・`querytest`・`outpurpose`・`gatemarks`（`ASKING`・`asks_human`・`split_answer_ties`・`save_answer_ties`・`_tie_row_problems`・`_squeeze`・`ANSWER_TIES`・`ANSWER_TIE_MIN`・`unmeasured_of`・`origin`・`binds`・`_fix_duty`）・`worldmark`（`rows`・`SOURCE_PREFIX`）・`cite`（`ref_problem`）・`carry`（`parts`・`is_redesign`・`row_key`・`ANSWERS`・`PRIOR`）・`policy`（`recorded`・`hits`・`RECORDED_TERM`）・`headdepth`（`NONE`・`CAUSE`・`SHAPE`・`SCOPE`）・`premises` の語（`仮説`。今は `lib/runreport.py` の `HYPOTHESIS` に在るので、作り直しの間は `src/files.py` の定数 `HYPOTHESIS = "仮説"` に置く。independent-design.md の 2.3 の 4 と同じ扱い）・`baseline_red`（`read_baseline`）・`stopby`・`oneline`・`jsonfile`・`graphloops/engine/util.py`（`Reject`・`run_count`・`repo_root`・`git`・`pick`）。`lib/judge_accept.py` は import しない（README の 9.2 で割って消す側）。
 
 ### 1.6 つなぎ方（graph の側。block には書かない）
 
-- 判定の道: judge のまとめ（`blocks/judge/`）が `include: works-factory-diagnose` を置く（id `diagnose`）。`depends_on` は目的の固定・前提の実測・世界の解・頭の深さ・仕様（write）・並行 PR・素材の観点 11 本（今の `diagnose-prep` の `depends_on`、`:1773-1774`）、`trigger_rule: all_done`。`when:` は前提の実測と目的の固定が `ok`（premises.md・purpose.md の 1.6）。`with:`:
+- 判定の道: judge のまとめ（`workflows/judge/`）が `include: works-factory-diagnose` を置く（id `diagnose`）。`depends_on` は目的の固定・前提の実測・世界の解・頭の深さ・仕様（write）・並行 PR・素材の観点 11 本（今の `diagnose-prep` の `depends_on`、`:1773-1774`）、`trigger_rule: all_done`。`when:` は前提の実測と目的の固定が `ok`（premises.md・purpose.md の 1.6）。`with:`:
   - `request: $<依頼の pointer>`・`request_origin: <line が始めの記録から組んだ出どころの名。判定から入る run は入口の印の origin、ほかは「人の依頼（<依頼のファイル>）」。今の request_batches の字>`・`base: <始めの記録の diff_base>`
   - `purpose: $purpose.output.purpose`・`constraints: $premises.output.constraints`・`world_rows: $world.output.rows`・`row_asks: $head-depth.output.rows`・`depth_why: $head-depth.output.why`
   - `materials: <11 本の $<観点>.output.material を並べた JSON の配列>`（materials.md の 1.6）・`pr_material: $parallel-pr.output.material`（parallel-pr.md の 1.2 は `material` を札のオブジェクトで返す。11 節の 3）
@@ -182,7 +182,7 @@ script の名は `lib/` のモジュールの名と重ねない（README の 7.1
 
 `when` の値は `{rejected, spawns: False, purpose, repo_review, pr_text, policy, prior_notes, prior_redesign, recorded_none, unknown_rows, unknown_none}`。値は上の差し込み口の全部を、段落が入らない回も空の字で渡す（README の 5.2）。md に `$` の直後に英字か `{` が続く字を置かない（materials.md の 3.1）。JSON の例の `{answer, to}` などは差し込み口の形に合わないので字のまま残る。合う形の字は `{{`・`}}` で書く。
 
-md の本文の正本は `blocks/diagnose/prompts/diagnose.md`。この設計書は組み立ての順と、残す指示の一覧（9.4）だけを持つ。
+md の本文の正本は `workflows/diagnose/prompts/diagnose.md`。この設計書は組み立ての順と、残す指示の一覧（9.4）だけを持つ。
 
 共通の断片 `unknown-asks`・`recorded-policy`・`prior-failures` の本文は plan.md の 2.3 で決めた物を使い、この設計書には写さない（2 波目で plan と同時に書いた。食い違えば先に main に入った物に揃える）。
 
@@ -258,6 +258,11 @@ Return only JSON that matches the output schema.
 例の run の `diagnose-input.json` の値（鍵の頭だけ）: `materials` は 14 欄（`base_determination` found・count 0、`local_checks` clean、`parallel_pr` found 1、`prior_decisions` found、P1 の観点 9 本は `not_applicable`〔判定から入る run〕、`procedure_trace` not_applicable、`fix_closure` not_applicable）・P1 の所見の鍵 9 つと `purpose_review` はどれも null・`prior_decisions` は突合の返答（決着済みの論点 3 行）・`request_findings` は 1 バッチ（origin「人の依頼（<依頼のファイル>）」・行 1 つ）・`constraints` は 1 行（`kind` 実測）・`world_rows` は 1 行（類 `w-459d38b29048`、依頼の解き方は定石と同じ）・`answers` は `[]`・`changed_files` は `[]`。`intake.json` の値は、`row_asks` が 1 行（行 1・`無し`・番地 `workflows/merge/scripts/pr_commit.py:73-76`）・前の run の行と作り直しの行は無い・記録された方針は `settled` の 3 行。PR・方針・対象の REVIEW.md は無いので、`pr_text`・`policy`・`repo_review` の段落は入らない。1 回目で通ったので却下の段落も入らない。`lang` は空で、`{lang}` に既定の文が入った形。
 
 ### 2.6 今の指示との差
+
+- 足した差（新旧の指示の比べの納品。2026-10-19）: `undecided_min`（先行例の `undecided_because` の最小の字数。受け付けは前から照らしていた）を md に足した。
+- 足した差（新旧の指示の比べの納品。2026-10-19）: 「推し:」の印を日本語の字に固定した（受け付けが読む字）。指示は見出しを写せと言う。
+- 足した差（新旧の指示の比べの納品。2026-10-19）: 素材の欄から `gate_efficacy` と `gate_arms` を外した（11 節の 27）。素材の欄の欠けを言う訳の句は落ちた。
+- 足した差（新旧の指示の比べの納品。2026-10-19）: 世界の解の行は札の文でなく素の JSON になったので、`basis: knowledge` は web で確かめていない・`versus.verdict` は依頼の解き方との比べ・`applies` が空の行は答えの要らない行、の意味を md の `world_rows` の箇条に 1 文ずつ足した（今の札の文と同じ意味）。
 
 作り直しの時の、古い指示との差の記録。後の指示の変更では、ここに足さない。
 
@@ -398,6 +403,11 @@ Return only JSON that matches the output schema.
 例の run は 1 回目で通ったので却下の段落は入らない。仕様と方針は無かったので、その段落も入らない。今の材料のファイルは「1 回目の判定・判定役の材料・対象差分・前提の制約・凍結した目的・素材の状態・世界の解の行・判定の裏取り・並行 PR の外す範囲」の 9 本を並べた（`judge/` の名のファイル）。新しい形では対象差分・前提の制約・素材の状態は判定役の材料の中に値かパスで在る（3.6）。
 
 ### 3.6 今の指示との差
+
+- 足した差（新旧の指示の比べの納品。2026-10-19）: `facts_min`（`new_facts` の最小の字数）を足した。
+- 足した差（新旧の指示の比べの納品。2026-10-19）: 印「足りない:」「確かめられない:」を英語にした（「推し:」は受け付けが日本語の字を読むので日本語のまま。扱いが割れる）。
+- 足した差（新旧の指示の比べの納品。2026-10-19）: 方針が無い run では方針の段を出さない。
+- 足した差（新旧の指示の比べの納品。2026-10-19）: 「この役は Bash を持たない」を足した。
 
 今の指示は `workflows/judge/commands/rejudge.md`（77 行。`$rejudge-reject.output.*`・`$rejudge-prep.output.brief_file`）と、役が Read した `rejudge/brief.md`（`_rejudge_brief`、`:3295-3309`）の 2 か所に在る。
 
@@ -557,12 +567,12 @@ prep は `prompt.PromptError` と値の読み落ち（`intake.json` が読めな
   - `require_ports`（前の版の判定の返りを受けたら止める）→ line（受け皿の側）。
 - 入口（judge の `intake.py` と `intake`、`:3832-3868`）: 再審なら判定の置き場に触らない → 道は `objection`。依頼の行を型に通す・止めの語 `works:request` → 5.1 の 3（`requestrows`）。運ばれた制約 → premises の block。前の run の失敗の行を 1 度だけ置く → 5.1 の 7 の `prior_failures`・`redesign`。入口の作業ツリーの姿 `judge-tree.json` → 並行 PR と前提の block がそれぞれ取る。世界の解の切り替え → graph。
 - YAML の鍵: `review_launch`・`retry`・`fresh_context: false`・`max_iterations: 3`・`until_bash`・`trigger_rule: none_failed_min_one_success`・`if_skipped: null` → 1.3（同じ）。`diagnose-prep` の `when`（判定の道だけ）・`verify-merge` の `when` → 道の `when`（1.3）と、裏取りは verify の block。
-- 例の run の記録の照らし（`tests/e2e/evidence.json` の J67〜J82・J100・R76・L-D41・L-D44・L-W42）→ 組み込みで、`where` を新しい place（`parent/judge/diagnose/…`・再審の include の id の下）に、`writer` を `src/judge.py` の関数の名に替える。
+- 例の run の記録の照らし（`tests/e2e/evidence.json` の J67〜J82・J100・R76・L-D41・L-D44・L-W42）→ 組み込みで、`where` を新しい place（`parent/judge/diagnose-run/…`・再審の include の id の下）に、`writer` を `src/judge.py` の関数の名に替える。
 
 ## 7 単独で呼ぶ
 
 ```sh
-WORKS_FACTORY_FOLDER=blocks bin/works-factory workflow run works-factory-diagnose --cwd <対象> \
+bin/works-factory workflow run works-factory-diagnose --cwd <対象> \
   --input request='[{"where":"stats.py:4","text":"mean は 2 でなく 3 を返す。分母を len(xs) にする"}]'
 ```
 
@@ -570,11 +580,11 @@ WORKS_FACTORY_FOLDER=blocks bin/works-factory workflow run works-factory-diagnos
 
 ## 8 作るファイルと触るファイル
 
-作る: `blocks/diagnose/`（YAML・`prompts/` 2 本・`scripts/` 6 本・`src/` 7 本・`schemas/` 4 本・`fixtures/` 3 本）・`tests/blocks/diagnose/`。main に無ければ足す: 共通の断片 `blocks/.shared/prompts/` の `policy.md`・`recorded-policy.md`・`prior-failures.md`・`unknown-asks.md`、共通の形 `blocks/.shared/schemas/` の `judgment.schema.json`・`prior-failures.schema.json`、`blocks/.shared/AGENTS.md` の名の一覧の行（足した名を「今在る名」へ移す 1 行ずつ）。触らない: `lib/`（読むだけ）・`workflows/`・ほかの block・graph（judge のまとめと line は後の PR）。
+作る: `workflows/diagnose/`（YAML・`prompts/` 2 本・`scripts/` 6 本・`src/` 7 本・`schemas/` 4 本・`fixtures/` 3 本）・`tests/blocks/diagnose/`。main に無ければ足す: 共通の断片 `workflows/.shared/prompts/` の `policy.md`・`recorded-policy.md`・`prior-failures.md`・`unknown-asks.md`、共通の形 `workflows/.shared/schemas/` の `judgment.schema.json`・`prior-failures.schema.json`、`workflows/.shared/AGENTS.md` の名の一覧の行（足した名を「今在る名」へ移す 1 行ずつ）。触らない: `lib/`（読むだけ）・`workflows/`・ほかの block・graph（judge のまとめと line は後の PR）。
 
 ## 9 試験
 
-### 9.1 standalone の fixture（`blocks/diagnose/fixtures/`。AI の node だけを差し替え、`exec-code: true`）
+### 9.1 standalone の fixture（`workflows/diagnose/fixtures/`。AI の node だけを差し替え、`exec-code: true`）
 
 - `standalone.stubs.yaml`: 入力は `request`（JSON の字 1 行）だけ。`diagnose` を開いた単位の無い返答（`units: []`・`questions: []`・`framing: <1 文>`・`one_shot: ""`・`materials_missing: []`・`carried_r1: []`・`one_shot_closes: []`・`precedents: []`）で差し替える。`reached: [intake, diagnose-prep, diagnose, diagnose-accept, finish]`。`resolved-text-contains: {diagnose: <md の ## This role の 1 文目の決まった字>}`。finish は `status: ok`・`ready: false`・`stop_reason: ""`（今の `no-open-units.stubs.yaml` の道）。
 - `gave-up.stubs.yaml`: 入力は `request` だけ。`diagnose` の返答の単位のラベルが `bogus`。輪は 1 周で終わり（dry-run は `until_bash` を走らせない）、finish は最後の却下の理由で `status: failed`・`works:judge`。run は `completed`。
@@ -703,9 +713,9 @@ WORKS_FACTORY_FOLDER=blocks bin/works-factory workflow run works-factory-diagnos
 11. `ok` は `status == "ok"`（判定か再審を受け付けた）。開いた単位が無い判定も `ok: true`・`ready: false` で、止めではない（今の `test_no_open_units_is_not_a_stop`）。`stopped`（素材の観点が諦めた）は `ok: false`。根拠: world の 9.1 の 1 と同じく、単独で呼ぶ人が `outcome_field:` で落ちを知れる。
 12. `judgment` の pointer はいつも返し、受けた判定が無ければ空の形を書いて指す。根拠: 今の `verdict` の `_fill` と同じ。読み手（verify・line・report）が null の枝を持たずに済む。ほかの任意の pointer は null（world の 9.1 の 2 と同じ。Archon は pointer の先が空でないかを照らす）。
 13. 再審の道の `answer_ties`・`materials`・`out_of_purpose` は null。根拠: 再審は単位だけを考え直し、結び・素材・目的の外の行は 1 回目の物が正（今の line の `judged` も 1 回目の物を持ち続ける）。
-14. 前の run の行・記録された方針・頭の深さの行の節は、plan.md が名と本文と口を決めた共通の断片 `prior-failures`・`recorded-policy`・`unknown-asks` を使い、行の英語の札も plan.md の 2.3 の字にそろえる。port の形 `judgment.schema.json`・`prior-failures.schema.json` も plan.md の 1.2 の物を `blocks/.shared/schemas/` に置いて共に使う。根拠: 2 つ以上の block が使う段落と形は `blocks/.shared/` に 1 つ（README の 5.1・13 章）。2 波目で plan と同時に書いたので、名を割らないよう先に書かれた方に合わせた。
+14. 前の run の行・記録された方針・頭の深さの行の節は、plan.md が名と本文と口を決めた共通の断片 `prior-failures`・`recorded-policy`・`unknown-asks` を使い、行の英語の札も plan.md の 2.3 の字にそろえる。port の形 `judgment.schema.json`・`prior-failures.schema.json` も plan.md の 1.2 の物を `workflows/.shared/schemas/` に置いて共に使う。根拠: 2 つ以上の block が使う段落と形は `workflows/.shared/` に 1 つ（README の 5.1・13 章）。2 波目で plan と同時に書いたので、名を割らないよう先に書かれた方に合わせた。
 15. 頭の深さの段の根拠を port `depth_why` で受ける。根拠: 今の判定役は、種類が決まっていない run で「決まっていない（訳: <控えの why>）」を見ていた（`headdepth.section`）。`row_asks` だけでは訳が落ちる。head-depth の出力 `why` がその字（head-depth.md の 1.2）。
-16. 共通の形 `judgment.schema.json`・`prior-failures.schema.json` と断片 `unknown-asks`・`prior-failures` は plan の作業場（7d93fe30）の物を字のまま、断片 `recorded-policy` は r1 の作業場（6271e0bd）の物を字のまま置く（統合の指示。同じ道は同じ中身）。plan の `judgment.schema.json` は `units` の行の `key` だけを必須にし、`prescriptions`（字の配列）と `questions`（object の配列）の型を縛る。verify の block ごとの形との差は 2 つ: 共通の形は `label` を要らない（verify の `is_open` は `label` を直に引くので、verify は自分で確かめるか形を足す）・`prescriptions` が字・`questions` が字の配列の判定は共通の形が拒む（verify の形は通す）。diagnose が書く判定（`output_format` が型を保つ）は両方とも通る。試験 `test_judgment_schema.py` が差を名指しで固定する。
+16. 共通の形 `judgment.schema.json`・`prior-failures.schema.json` と断片 `unknown-asks`・`prior-failures` は plan の作業場（7d93fe30）の物を字のまま、断片 `recorded-policy` は r1 の作業場（6271e0bd）の物を字のまま置く（統合の指示。同じ道は同じ中身）。plan の `judgment.schema.json` は `units` の行の `key` だけを必須にし、`prescriptions`（字の配列）と `questions`（object の配列）の型を縛る。verify の block ごとの形との差は 2 つ: 共通の形は `label` を要らない（`judgmark.is_open` は `label` の無い単位を閉じた物と読む。verify は共通の形を読んだ後に `label` が字かを自分で確かめて拒む）・`prescriptions` が字・`questions` が字の配列の判定は共通の形が拒む（verify の形は通す）。diagnose が書く判定（`output_format` が型を保つ）は両方とも通る。試験 `test_judgment_schema.py` が差を名指しで固定する。
 17. 入力 `answers` の形のファイルは `answer-rows.schema.json` と呼ぶ（最初の版の設計書の port の欄の名は `answers.schema.json` だった。1.2・1.5 は直した）。根拠: `tests/layers/test_block_shape.py` の「形のファイルの名は pack の中で 1 か所」が、independent-design の `answers.schema.json`（別の形）と重なる名を拒む。中身は port の説明のとおり（行の配列、`question`・`text` が必須）。
 18. 判定の受け付けの `_name_hints` と `NUMBER_HINTS` は写さない。根拠: 言い換える相手の文は `_carried_r1_accounted` だけが書き（11 節の 4 で写さない）、この block ではどの拒否の文にも当たらない。働かない規則は外す（リポジトリの決まり）。
 19. 再審の `take` は、返答の単位の行に空でない `key` が無ければ、`judgment.json` を書く前に拒む（今は書いた後の `diff_units` で `TypeError` が上がり、`judgment.json` が書かれたまま受け付けが落ちた）。根拠: 出口は `judgment.json` が在れば再審を受けたと読むので、拒んだ返答の判定が残ると受けたことになる。output_format が `key` を必須にしているので、通る返答の振る舞いは変わらない。

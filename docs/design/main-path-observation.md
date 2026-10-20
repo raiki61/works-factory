@@ -1,6 +1,6 @@
 # block の設計書: main-path-observation（主経路の実行観測）
 
-- 何の話か: 対象差分が利用者から見える経路か外部との継ぎ目を変える時に、その経路を実際に 1 回動かし、通った値を観測させる素材の観点「主経路の実行観測」を、単独で呼べる block `blocks/main-path-observation/` にする設計。族の共通の形は [materials.md](materials.md)、写す手本は [prior-decisions.md](prior-decisions.md)。
+- 何の話か: 対象差分が利用者から見える経路か外部との継ぎ目を変える時に、その経路を実際に 1 回動かし、通った値を観測させる素材の観点「主経路の実行観測」を、単独で呼べる block `workflows/main-path-observation/` にする設計。族の共通の形は [materials.md](materials.md)、写す手本は [prior-decisions.md](prior-decisions.md)。
 - 決めたこと: 今の judge の `material-route` の 1 列と `main-path-observation-loop`（prep・役・accept）を、materials.md の 5 つの node の block にする。入力は共通の 3 つ（`base`・`entry`・`lang`）だけ。判定から入る run では役を起こさず、出どころつきの `not_applicable` を機械が書く。『条件に当たらない』の扱いは `cond` で、当たる条件はいつも真（機械は経路かを決められないので触れる側に倒す。今と同じ）。観点の後の照らしは今の `main_path_observed`（見たと言う状態は観測した値を 1 つ以上持つ）を `src/viewpoint.py` に写す。指示は 1 本の英語の md にし、材料のファイルを無くす。振る舞いは変えない。
 - 持ち主に求めること: なし。
 - 読む人と使い方: この block を作る実装者（1〜3 節の名と順をそのまま作る）。素材の観点の残りの 10 本の 1 本（README の 11.1 の 1 波目）。急ぎの度合い: 族の部品（`lib/materialkit.py`）と 1 本目の観点 prior-decisions を入れる PR の後なら、ほかの観点を待たずにいつ作ってもよい（ほかの block はこの block を待たない。読み手の diagnose は 2 波目）。
@@ -35,7 +35,7 @@
 
 今との違い: 今は入力を `judge/start.json` から名で開き、回すかを `material-route` が決め（`main_path_observation_due`）、回さない時の埋めは diagnose-prep の `fill_materials` が写した。受けた返答は `judge/material-main-path-observation.json` に書き、判定役は返答の全体を `out.p1.main_path_observation` の穴で読んだ（`lib/judge_accept.py:2764-2795` の `_diagnose_ctx`）。
 
-### 1.3 node の並び（`blocks/main-path-observation/works-factory-main-path-observation.yaml`）
+### 1.3 node の並び（`workflows/main-path-observation/works-factory-main-path-observation.yaml`）
 
 materials.md の 1.3 の雛形の `<観点>` を `main-path-observation` にした物。
 
@@ -54,8 +54,8 @@ materials.md の 1.4 の名だけ: `intake.json`・`view.json`・`diff.patch`・
 
 ### 1.5 コードの置き場
 
-- `blocks/main-path-observation/src/__init__.py`（空）。
-- `blocks/main-path-observation/src/viewpoint.py`: materials.md の 5.1 の宣言。中身:
+- `workflows/main-path-observation/src/__init__.py`（空）。
+- `workflows/main-path-observation/src/viewpoint.py`: materials.md の 5.1 の宣言。中身:
   - `NAME = "main-path-observation"`
   - `MATERIALS = ("main_path_observation",)`
   - `GUARDED = False`（今の accept の `with: {status_guarded: false, …}`。`works-factory-judge.yaml:1691`）
@@ -72,13 +72,13 @@ materials.md の 1.4 の名だけ: `intake.json`・`view.json`・`diff.patch`・
   - `after_accept(reply, place)`: 何もしない。
   - `materials_of(reply)`: `{"main_path_observation": reply["material"]} if isinstance(reply.get("material"), dict) else {}`（今の `writes` の `materials.main_path_observation ← material`）。
   - `report_lines(doc)`: `reply` の `observed` の行ごとに `f"  - 観測: {oneline(path)} → {oneline(value)}"`。`reply` が null か行が無ければ `[]`。
-- `blocks/main-path-observation/src/oldbrief.py`（1 つ目の commit だけ）: 今の材料のファイルを同じ字で組む `brief(view) -> str`。
+- `workflows/main-path-observation/src/oldbrief.py`（1 つ目の commit だけ）: 今の材料のファイルを同じ字で組む `brief(view) -> str`。
 - schema のファイルは無い。
 - 使う `lib/`: `materialkit`（`OBSERVED_STATUS` も）・`rolekit`・`oneline`。
 
 ### 1.6 つなぎ方（graph の側。block には書かない）
 
-- 判定のまとめ（`blocks/judge/`）: `include: works-factory-main-path-observation`、`depends_on` は materials.md の 1.6。`with:` は `base`・`entry`・`lang`（[test-double-fidelity.md](test-double-fidelity.md) の 1.6 と同じ作り手）。
+- 判定のまとめ（`workflows/judge/`）: `include: works-factory-main-path-observation`、`depends_on` は materials.md の 1.6。`with:` は `base`・`entry`・`lang`（[test-double-fidelity.md](test-double-fidelity.md) の 1.6 と同じ作り手）。
 - 読み手: diagnose だけ。
   - port `materials` を `materialkit.assemble` で 15 欄にそろえ、素材 `main_path_observation` を読む。素材が `awaiting_human` なら、判定役は人への問い（`awaiting`）を必ず載せる（今の判定役の指示の「素材が awaiting_human なら awaiting を必ず載せろ」、`DIAGNOSE_EXCERPT` の `:2717`）。これが今の「人待ちが人に届く」道で、新しい形でも diagnose の設計書が持つ。
   - 判定役の材料の「主経路の実行観測」の穴（今の `{{?out.p1.main_path_observation}}`）は返答の全体（`material` と `observed`）だった。新しい形では同じ `material.json` の `reply` の欄から取る。
@@ -220,6 +220,7 @@ Return only JSON that matches the output schema.
 - 替えた: 「（台帳に載り、次の周の judge が『動かす手段が本当に無いか』を再審する）」（md:38）を「It reaches a person, who decides whether there is really no way to run it.」に。訳: 工場は 1 run = 1 周で、次の周も盤面の台帳も無い。今の工場で `awaiting_human` が届く先は、判定役が必ず立てる人への問い（1.6）。役に「書いた `reason` が人に読まれる」ことを伝え、`reason` に人が何をすればよいかを書かせる、という文の役目は残した。
 - 足した: 「`found` と `clean` は `observed` に 1 行以上要り、無ければ受け付けが拒む」の箇条と、`awaiting_human` の `reason` に「人が何を動かして何を見ればよいか」を書けの句。訳: 今の md は「observed に経路と観測した値」とだけ言い、受け付けの `main_path_observed` の決まりを役が知らずに 1 回拒まれる道が在った。受け付けの決まりは変わらない（自分で決めた。7 節）。後の句は、例の run の役が自ら書いていた形（「人が、…を当てた DB で結合テストを走らせ、実画面で…を見る必要がある」）を指示の側に置いた。
 - 足した: `## Where to point` の前置きの 1 文。訳: この返答の欄に `where` は無く、`{shared:material-where}` の「`where`」が何を指すかが役に分からない。今の md は前置き無しで同じ段を置いていた。
+- 変えた: 断片 `material-where` の尾の文を、受け付けが照らす範囲（`where` と `text` を持つ行だけ。ほかの行は照らさない）に合わせて狭めた。
 - 英語にした（#764）。役の名「主経路の実行観測の役（任せ先）」は "the main-path-observation role"。
 
 ### 2.7 元の works と graphloops の同じ場面
@@ -248,7 +249,7 @@ materials.md の 4 節の順。観点の前の照らしは無く、後の照ら�
 
 ### 2.9 試験
 
-- standalone の fixture（`blocks/main-path-observation/fixtures/`）:
+- standalone の fixture（`workflows/main-path-observation/fixtures/`）:
   - `standalone.stubs.yaml`: `fixture.inputs` は `base: ""`・`entry: ""`・`lang: ""`。AI の node だけを台本の返答（`material.status: clean`・`checked` 1 文・`observed` 1 行）で差し替える。`reached` に `finish`。`finish` の `status` が `ran`。
   - `gave-up.stubs.yaml`: 台本の返答が 3 回とも `material.status: clean`・`observed: []`（後の照らしで拒まれる）。`finish` の `status` が `gave_up`、run は `completed`。
   - `skipped.stubs.yaml`: `entry: "人の依頼（standalone）"`。AI の node に届かず、`finish` の `status` が `skipped`。
@@ -285,7 +286,7 @@ materials.md の 2.8 と 4 節の文に、観点の後の照らしの文を 1 �
 ## 5 単独で呼ぶ
 
 ```sh
-bin/works-factory <読ませるフォルダを blocks/ にする引数（名は土台の PR で決める）> workflow run works-factory-main-path-observation \
+bin/works-factory workflow run works-factory-main-path-observation \
   --input base=<差分の根の commit>
 ```
 
@@ -294,7 +295,6 @@ bin/works-factory <読ませるフォルダを blocks/ にする引数（名は�
 ## 6 未確認
 
 - 土台の `prompt.render` が、入らない段落の中の差し込み口を「使われない値」に数えるか（materials.md の 11 節）。
-- 起動の殻で `blocks/` を読ませる引数の名。
 - diagnose の設計書が、素材 `main_path_observation` の `awaiting_human` から人への問いを立てる今の決まり（1.6）を持ち続けるか。この block は素材の状態を返すだけで、問いは立てない。
 
 ## 7 自分で決めた事（この block だけ）

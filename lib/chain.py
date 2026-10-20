@@ -1,4 +1,4 @@
-"""周の鎖の決め（考え chain）。標準ライブラリと持ち越しの住処 carry・報告の見出しの宣言 promptsection だけを import する。
+"""周の鎖の決め（考え chain）。標準ライブラリと持ち越しの住処 carry だけを import する。
 
 元は今の works（版 2aa7c66cf7abe1fe09699ac2942d107123214168）の works/.shared/core/chain.py。鎖は、1 回の起動が周ごとの run を最大 MAX_ROUNDS 本つなぐ並び。
 起こす・待つ・承認・再開・費用の合算はグラフの側が持ち、ここは周の間の決め（次を起こすか・止めの語・次の依頼・最後の差分に採る周）と、
@@ -36,7 +36,6 @@ if _HERE not in sys.path:
     sys.path.append(_HERE)
 
 import carry  # noqa: E402
-import promptsection  # noqa: E402
 
 KIND_CLOSED, KIND_HALTED, KIND_HUMAN, KIND_WAIT, KIND_OPEN = "closed", "halted", "human", "wait", "open"
 KINDS = (KIND_CLOSED, KIND_HALTED, KIND_HUMAN, KIND_WAIT, KIND_OPEN)
@@ -54,7 +53,7 @@ STOPS = {
     "cost_unread": "費用が読めない周が在り、上限を守れると言えない",
 }
 REPORT, FINAL = "chain.md", "chain/final.diff"   # 親の run の置き場からの相対（bin/apply も引く）
-REPORT_HEAD = promptsection.Section("# 周の鎖の報告（run {run}）", human="人が読む鎖の報告 chain.md の見出し。役の指示書には貼らない")
+REPORT_HEAD = "# 周の鎖の報告（run {run}）"
 ROUNDS = re.compile(r"[1-9][0-9]*")
 BUDGET = re.compile(r"[0-9]+(\.[0-9]+)?|\.[0-9]+")
 

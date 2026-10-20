@@ -2,60 +2,62 @@
 # requires-python = ">=3.12"
 # dependencies = []
 # ///
-"""節 assert-changed（形 ""）: 申告したファイルが run の始めから本当に変わったか（p1.worktree_after。ASF の assert-changed と同じ考え）。
-
-申告 = 親の木へ戻せた組（join.json の returned）の子が受け付けた修正役の返答（result.json の reply_file）と、裁定の後の修正役の返答
-（置き場の fix-ruled-reply.json。在れば）の changes[].files。変わった物 = 始めの木（groups.json の start_tree）から作業ツリーの今の姿
-（未追跡を含む。無視される物と .archon/ の下は数えない）で変わったパス。直す義務の単位が残らず外れた単位だけの run は空の申告を
-通す（fixboard.nothing_owed_but_excused）。突き合わせは fixboard.changed_problem。
-通らない時も落ちずに ok: false と理由を返す。結果は置き場の assert-changed.json = {ok, reason} にも書く（delta-cut・collect が読む）。
-置き場の groups.json が無い・返答の形が違う・git が効かない: assert-changed.json に ok: false と理由を書き、標準エラーに 1 行で 1。
-"""
+"""node assert-changed（全体の形）: 戻せた組と裁定の後の返答の changes[].files が始めの木から本当に変わったか（申告が空なら、
+直す義務が残らず外れた単位だけの run だけを通す）と、始めの木から今への変更が並行 PR に回した hunk に触れていないか。比べが通らない時は ok: false と理由（落ちない）。比べの外の誤り（groups.json が
+無い・git が効かない）は assert-changed.json に訳を書いて落ちる。今のまま。返り {ok, reason}"""
+import os
 import sys
 from pathlib import Path
 
 sys.dont_write_bytecode = True
-sys.path.insert(0, str(Path(__file__).resolve().parents[2] / ".shared"))
-import boundary  # noqa: E402
-sys.path.append(str(boundary.lib_root()))
+sys.path[:0] = [str(Path(__file__).resolve().parents[2] / ".shared"), str(Path(__file__).resolve().parents[1])]
+import ports  # noqa: E402
 
-import fixboard  # noqa: E402
+
 import oneline  # noqa: E402
+
+from src import board  # noqa: E402
+
+SKIP = (ports.RUNTIME_COPY_PREFIX,)
 
 
 def replies(place: Path, plan: dict) -> list:
     """申告を読む返答の並び（戻せた組の reply_file と、裁定の後の返答）"""
-    joined = fixboard.read_json(place / fixboard.JOIN_FILE, {}) or {}
+    joined = board.read_json(place / board.JOIN_FILE, {}) or {}
     back = [g["group_id"] for g in joined.get("groups") or [] if g.get("returned")]
     out = []
     for gid in back:
-        r = fixboard.read_json(Path(plan["out_dir"]) / gid / fixboard.RESULT_FILE, {}) or {}
+        r = board.read_json(Path(plan["out_dir"]) / gid / board.RESULT_FILE, {}) or {}
         if r.get("reply_file"):
-            out.append(fixboard.read_json(r["reply_file"]))
-    ruled = fixboard.read_json(place / fixboard.RULED_REPLY_FILE)
+            out.append(board.read_json(r["reply_file"]))
+    ruled = board.read_json(place / board.RULED_REPLY_FILE)
     return out + ([ruled] if ruled is not None else [])
 
 
 def main(place: Path) -> dict:
-    plan = fixboard.read_json(place / fixboard.GROUPS_FILE)
+    plan = board.read_json(place / board.GROUPS_FILE)
     if not isinstance(plan, dict) or not plan.get("start_tree"):
         raise ValueError(f"置き場に groups.json（start_tree）が無い（{place}）")
-    declared = fixboard.declared_files(replies(place, plan))
-    touched = fixboard.touched_since(boundary.work_tree(), plan["start_tree"], boundary.SKIP)
+    declared = board.declared_files(replies(place, plan))
+    touched = board.touched_since(Path.cwd(), plan["start_tree"], SKIP)
     owed = [k for g in plan["groups"] for k in g["unit_ids"]]
-    excused = fixboard.nothing_owed_but_excused(place, set(owed)) if not declared else {}
-    ok, reason = fixboard.changed_problem(declared, touched, excused)
+    excused = board.nothing_owed_but_excused(place, set(owed)) if not declared else {}
+    ok, reason = board.changed_problem(declared, touched, excused)
+    # 並行 PR に回した hunk は、始めの木から今への変更を 1 度照らす（TDD の役・合わせ役・裁定の後の修正役の変更も届く）
+    held = board.check_excluded(place, Path.cwd(), plan["start_tree"])
+    if held:
+        return {"ok": False, "reason": "\n".join([reason, *held] if reason else held)}
     return {"ok": ok, "reason": reason}
 
 
 if __name__ == "__main__":
-    here = boundary.place("fix")
+    here = ports.place()
     try:
         result = main(here)
     except Exception as e:
         why = f"{type(e).__name__}: {oneline.one_line(e)}"
-        fixboard.write_json(here / fixboard.ASSERT_FILE, {"ok": False, "reason": f"変更の確かめが回せない（{why}）"})
+        board.write_json(here / board.ASSERT_FILE, {"ok": False, "reason": f"変更の確かめが回せない（{why}）"})
         print(f"assert-changed: {why}", file=sys.stderr)
         sys.exit(1)
-    fixboard.write_json(here / fixboard.ASSERT_FILE, result)
-    boundary.returns(result)
+    board.write_json(here / board.ASSERT_FILE, result)
+    ports.returns(result)

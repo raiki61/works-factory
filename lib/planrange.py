@@ -21,7 +21,7 @@
   役の brief の範囲の欄（fixboard.scope_brief）が同じ値を引く 1 か所
 - fix_scope(b, pass_, *, items, agreed, round_): 修正の段（pass_ first・ruled）の引数で scope を引く（rule は OOS_MINE）
 - scope_text(got): 役の指示書に貼る節（SCOPE_HEAD）。scope の値の out_of_scope の決まりの文（rule）と、項目の範囲・out_of_scope・
-  許しのパスを字のまま並べる
+  許しのパスを字のまま並べる（fix の試験が受け付けの値との揃いを照らす口。fix の指示は src/rules.py の scope_rows が組む）
 - test_ids(it): 項目の足してよい新しいテストの id（修正の段の受け付けの planscope.problems と指示書が同じ値を引く）
 - tests_text(got, edits, frozen): 修正役の指示書に貼る節（TESTS_HEAD）。足してよい新しいテスト（test_ids）・本体を変えてよい既存の
   テスト（conflict.edit_permits）・凍ったテスト（factchecks.frozen_tests）を字のまま並べる
@@ -37,7 +37,6 @@ import posixpath
 import conflict
 from globs import glob_match   # 同じ名の口 globs(it) がこのモジュールに在る
 import planmarks
-import promptsection
 import stopby   # L1。止めの理由の住処
 
 # 単位に結べない変わったパスがほかの項目の out_of_scope に当たり、ある項目の範囲には入る時に足す文（申告すればその項目で照らす）
@@ -45,8 +44,8 @@ OWNER_HINT = "（項目 {nums} の範囲には入る。その項目の単位の 
 LIFTED = "out_of_scope_lifted"   # with_agreed が項目の写しに足す欄: 合意でその項目の out_of_scope から外したパス（字のまま）
 NO_PLAN = "承認済みの修正案か works の欄の控えが無い"
 NO_SCOPE = "範囲の欄の無い控え（217 番の形の共有ボード）"
-SCOPE_HEAD = promptsection.Section("## 変えてよいパスと触らない物（受け付けがこの値で照らす）", source="fn:planrange.scope_text")
-TESTS_HEAD = promptsection.Section("## 変えてよいテストと凍ったテスト（受け付けがこの名で照らす）", source="fn:planrange.tests_text")
+SCOPE_HEAD = "## 変えてよいパスと触らない物（受け付けがこの値で照らす）"
+TESTS_HEAD = "## 変えてよいテストと凍ったテスト（受け付けがこの名で照らす）"
 
 
 def globs(it: dict) -> list[str]:

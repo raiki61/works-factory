@@ -1,17 +1,19 @@
 """工程の YAML の `script:` が名指す節の script は、同じ工程のほかの節の script を import しない（workflows/AGENTS.md の E4）。
 
-節の script を import すると、その script の振る舞いが 2 つの節に跨る。共に使う物は lib/ か境の口（workflows/.shared/boundary.py）に置く。
-同じ scripts/ の import を拾う規則は K8 の tests/layers/scan.py の 1 か所が持ち、ここは K8 の許しの表を通さずに節どうしだけを見る。
+節の script を import すると、その script の振る舞いが 2 つの節に跨る。共に使う物は block の src/（持ち主の決め block-local-code）か
+lib/ か口（pack の .shared/ports.py）に置く。同じ scripts/ の import を拾う規則は K8 の tests/layers/scan.py の 1 か所が持ち、ここは
+K8 の許しの表を通さずに節どうしだけを見る。pack は tests/archon.py の WORKFLOWS。
 """
 import pathlib
 import unittest
 
 import yaml
 
+from tests.archon import WORKFLOWS
 from tests.layers import scan
 from tests.workflows.test_uv_scripts import script_nodes
 
-ROOT = pathlib.Path(__file__).resolve().parents[2]
+ROOT = WORKFLOWS.parent   # scan は根の下の workflows/ を pack として読む
 
 
 def node_names(folder: pathlib.Path) -> set[str]:

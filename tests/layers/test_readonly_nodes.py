@@ -1,11 +1,13 @@
-"""作業ツリーを変えない節が `mutates_checkout: false` を書き、役の節が役の決まりを守る（workflows/AGENTS.md の E7 の機械の行）。
+"""作業ツリーを変えないノードが `mutates_checkout: false` を書き、役のノードが役の決まりを守る（`workflows/AGENTS.md` の E7 の機械の行）。
 
-全部のブロックと線の役の節（`prompt:`・`command:`。輪の中も）の印は道具から導く: `allowed_tools` に Bash・Edit・Write（scan.TREE_CHANGERS）
-が無い役は書き、在る役は書かない（外れは表 scan.KEEP_CHECKOUT の役だけ）。script・bash の節は表 scan.CHANGE_CHECKOUT の節の外が書く。
-`loop:` の節は作らない（Archon は loop: の節の mutates_checkout を無視する）。役の節は settingSources: [user]・閉じた sandbox・
-表 scan.ROLE_TOOLS の中の allowed_tools を持つ（K18）。役の model は表 launchgroups.GROUPS の群の名で、役にも工程の根にも effort を書かない
-（ノードの effort は群の別名の effort より先に採られ、run ごとの付け替えが効かなくなる）。Bash を持ち Edit・Write を持たない役は sandbox の denyWrite に
-scan.NO_TREE_WRITE を書く（#293）。
+- 全部の block と graph の AI のノード（`prompt:`・`command:`。`loop_group` の中も）の印は道具から導く: `allowed_tools` に Bash・Edit・Write（`scan.TREE_CHANGERS`）が無い役は書き、在る役は書かない。外れは、変える道具を持つが作業ツリーを変えない役（表 `scan.KEEP_CHECKOUT`。訳つき）だけ。
+- script・bash のノードは、作業ツリーを変えるノード（表 `scan.CHANGE_CHECKOUT`。訳つき）の外の全部が書き、表のノードは書かない。
+- `loop:` のノードを置かない（在れば赤。Archon は `loop:` のノードの `mutates_checkout` を無視して警告を出すので、印を書けない）。
+- AI のノードは `settingSources: [user]`・閉じた `sandbox`（`enabled: true`・`allowUnsandboxedCommands: false`）・表 `scan.ROLE_TOOLS` の中の `allowed_tools` を持つ。
+- 役の `model` は表 `lib/launchgroups.py` の `GROUPS` の群の名（`'@wf-<群>'`）で、役にもグラフの根にも `effort`・`modelReasoningEffort` が無い（`test_role_model_names_a_group_without_effort`。役のノードに書いた `effort` は群の別名の `effort` より先に採られ、グラフの根に書いた `effort` も `effort` の無い全部のノードへ写って同じく先に採られる。どちらでも run ごとの `--model @wf-<群>=…` の付け替えが黙って効かなくなる）。
+- Bash を持ち Edit・Write を持たない役は `sandbox.filesystem.denyWrite` に `scan.NO_TREE_WRITE`（`~/../archon-home`。起動が隔離した Archon の家）を書き、`'.'` を書かない（`test_bash_reader_without_no_tree_write_is_red`。`'.'` は cwd を塞がない。#293）。値の `archon-home` は `bin/_lib/isolate.py` の `DIRS`（起動が 1 つの隔離の置き場の下に作るフォルダの名の表。HOME は `home`、Archon の家は `archon-home`）から取る。役の HOME は `<隔離の置き場>/home` なので、`~/..` は隔離の置き場になり、値は隔離した Archon の家を指す（`test_no_tree_write_names_the_isolated_archon_home`）。書き込みの柵の包み（役の claude の前に挟む殻。`docs/polyfills.md` の埋め P5、`workflows/.shared/fence.py`）は、`denyWrite` にこの値（印）が在る起動にだけ、書いてはならない場所の一覧を足す。それは `tests/shared/test_fence.py` が見る。
+- 違反の見本は `tests/layers/seeds/e7`・`k18-*`・`k3-*` に 1 本 1 違反。
+- 訳と Archon の振る舞いは `docs/design/archon.md` の E7 の節。
 """
 import os
 import pathlib
@@ -13,6 +15,7 @@ import tempfile
 import unittest
 
 from bin._lib import isolate
+from tests.archon import WORKFLOWS
 from tests.layers import scan
 from tests.layers.trees import tree
 
@@ -200,7 +203,7 @@ class ReadonlyNodesTest(unittest.TestCase):
         """表が名指した節は本物の工程の script・bash の節（表が古くなって黙って外さない）"""
         for block, ident in scan.CHANGE_CHECKOUT:
             with self.subTest(block=block, node=ident):
-                folder = next(p for p in (ROOT / "workflows" / block, ROOT / "blocks" / block) if p.is_dir())   # 作り直しの間は blocks/ の block も
+                folder = WORKFLOWS / block
                 _, document = scan._workflow_doc(folder)
                 node = next((n for n in scan._nodes(document) if getattr(scan._top(n, "id"), "value", None) == ident), None)
                 self.assertIsNotNone(node)

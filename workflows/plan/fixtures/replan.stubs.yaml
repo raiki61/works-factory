@@ -1,36 +1,26 @@
-# 筋書き: 案の直し（ruling つきの差し込み）。形 replan で案の前の波及の一覧が飛び、修正案の役と返す節に届く
-round: {round: 2, mode: replan, dir: plan/r2, go: true}
-plan-prep: {brief: plan/r2/brief-1.md, attempt: 1, resubmit: false}
+# 案の直し（ruling つき）: 形 replan で案の前の波及の一覧が飛び、修正案の役と受け付けに届く。直す元の案は prior（reply と fields を値で）
+fixture:
+  expect: completed
+  reached: [intake, plan-prep, plan-writer, plan-accept, ripple-items, finish]
+  inputs:
+    ruling: '[1]'
+    judgment: '{"units": [{"key": "stats.py mean: 分母が 1 少ない", "label": "block", "disposition": "do-now"}], "questions": []}'
+    prior: '{"round": 1, "reply": {"plan": [{"unit_keys": ["stats.py mean: 分母が 1 少ない"], "approach": "stub: README.md の説明を 1 行直す。それだけで足りる", "files": [{"path": "README.md", "op": "modify", "responsibility": "stub: 説明の 1 行を直す", "symbols": [], "home": {"concept": "stub: 説明の文", "why": "stub: 説明は README.md にある"}, "considered": [{"path": "AGENTS.md", "why_not": "stub: 規則の文書に説明は置かない"}]}], "shrink_first": "stub: 足す物は無い。1 行を直すだけで足りる", "narrows": [], "route": "direct", "route_why": "stub: 説明の 1 行を直すだけ", "tests": [], "rewrite_tests": [], "refactor": {"declared": false, "why": ""}, "allowed_paths": ["README.md"], "out_of_scope": []}]}, "fields": {"round": 1, "fields": [{"route": "direct", "route_why": "stub: 説明の 1 行を直すだけ", "tests": [], "rewrite_tests": [], "refactor": {"declared": false, "why": ""}, "allowed_paths": ["README.md"], "out_of_scope": [], "unit_keys": ["stats.py mean: 分母が 1 少ない"], "files": [{"path": "README.md", "op": "modify", "responsibility": "stub: 説明の 1 行を直す", "symbols": [], "home": {"concept": "stub: 説明の文", "why": "stub: 説明は README.md にある"}, "considered": [{"path": "AGENTS.md", "why_not": "stub: 規則の文書に説明は置かない"}]}], "removes_tests": []}]}}'
+  resolved-text-contains:
+    plan-writer: 'Of the items of the approved plan, fix only the items pasted below.'
+exec-code: true
 plan-writer:
   plan:
-    - unit_keys: ["stats.py mean: 分母が len(xs) - 1 になっている"]
-      approach: "stub: 裁定の文が名指した所を直した項目"
+    - unit_keys: ["stats.py mean: 分母が 1 少ない"]
+      approach: "stub: 裁定の文が名指した所を直した項目。それだけを直す"
       files:
-        - {path: stats.py, op: modify, responsibility: "stub: 平均の分母の式を直す", symbols: [], home: {concept: "stub: 平均の分母の式", why: "stub: 式は stats.py にある"}, considered: [{path: test_stats.py, why_not: "stub: 試験のファイルに式は置かない"}]}
-      shrink_first: "stub: 足す物は無い。式を 1 か所直すだけで足りる"
+        - {path: README.md, op: modify, responsibility: "stub: 説明の 1 行を直す", symbols: [], home: {concept: "stub: 説明の文", why: "stub: 説明は README.md にある"}, considered: [{path: AGENTS.md, why_not: "stub: 規則の文書に説明は置かない"}]}
+      shrink_first: "stub: 足す物は無い。1 行を直すだけで足りる"
       narrows: []
       route: direct
-      route_why: "stub: 式を 1 か所直すだけ"
+      route_why: "stub: 説明の 1 行を直すだけ"
       tests: []
       rewrite_tests: []
       refactor: {declared: false, why: ""}
-      allowed_paths: [stats.py, test_stats.py]
+      allowed_paths: [README.md, AGENTS.md]
       out_of_scope: []
-plan-accept: {ok: true, done: true, give_up: false, reason: "", attempt: 1}
-ripple-items: {ripple_file: plan/r2/ripple.json}
-plan-reads: {ok: true, missing: [], index_file: plan/r2/reads-replan-block.json, reason: ""}
-plan:
-  ready: true
-  plan: {type: archon_artifact, run_id: fixture-run, path: plan/r2/plan-fields.json}
-  ripple: {type: archon_artifact, run_id: fixture-run, path: plan/r2/ripple.json}
-  depth: []
-  round: 2
-  fix_plan: {type: archon_artifact, run_id: fixture-run, path: plan/r2/p2.fix_plan.json}
-  rejects: []
-  nothing_owed: false
-  gave_up: null
-fixture:
-  expect: completed
-  inputs:
-    ruling: '["1"]'
-  reached: [round, plan-writer, plan]

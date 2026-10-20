@@ -2,192 +2,136 @@
 # requires-python = ">=3.12"
 # dependencies = []
 # ///
-"""全部のサブグラフと承認ノードと返しのノードの出力を、report の入力の形に集める返しのノード collect（埋め P2。trigger_rule: all_done）。
+"""report へ渡す 2 つの形（sections・facts）を組んで place に書く node collect（docs/design/line.md の 7 節。trigger_rule: all_done・
+always_run: true）。sections は src/sections.py、facts は src/facts.py が組み、place の src.files.SECTIONS・FACTS に書いて pointer を返す。
 
-欄と report の入力のポートは、線の YAML の report の with: が結ぶ（with: は $collect.output.<欄> だけを読む）。
-サブグラフと計画の往復の出力は受け皿のノード（returned.py。<include の id>-out・plan-rounds-out・plan-rounds-review-out）の出力を
-`{from: "$<受け皿>.output", if_skipped: null}` で受ける。受けた物の got が、include の id ごとの出力の欄の object になる。
-飛ばされた（受けるノードが落ちたか飛ばされた）受け皿は null。計画の往復の出力は plan と plan-review の欄を別の受け皿で受け、欄が全部
-null の方（plan-review が飛ばされた周で抜けた往復）は null。直す物が無い周（計画の往復が飛び、独立設計だけを作る design-only が
-走った）は、plan-review の欄に design-only の受け皿の出力を置く（L-W07）。
-fix は 1 回目と 2 度目の修正を合わせたノード fixed の出力（申し出は段ごとのポインタの配列。report の約束の fix の形）。fixed が
-飛ばされた（2 度目の修正の中が落ちた）時は 1 回目の出力。2 度目の修正の段の行（refixed・2 度目の異議をつないだ objection・1 回目の行を
-写した 2 度目の申し出）も fixed の出力が運ぶ。
-固定材料から始めた run（fix-in の received が在る）は直す前のテスト・判定・計画の往復・修正前の承認が飛ぶので、その受け皿と
-承認の答え・載せなかった問いの空の所を、fix-in が運んだ写しの値（received）で埋める（報告の結末の決めは判定と計画の出力が無いと
-途中で終わった run と読む）。
-判定・再審・計画・案の直し・修正の受け皿の got と fixed の出力がこの版より前に走った返り（judge_accept.require_ports・
-planfile.require_ports・fixbeside.require_ports と、fixed の段の並び records の無い出力）なら、欄を空と読んで結末を作らず fallback で止める。
+受け皿の got・返し・承認の答え・line の script の出力を `{from, if_skipped: null}` で受ける（飛んだ物は null）。block の返り（受け皿の
+got）は要る欄を全部名指して読む（欄の欠けた前の版の返りを resume で受けたら空と読まない。integration.md 4.3-12）。固定材料の run は
+判定・計画が飛ぶので、fix-in が運んだ写し（received）で埋める（facts.returns_of・sections.build）。
 
-メイングラフのノードの値（docs/design.md の report の出力の「メイングラフの値」）:
-- stops: メイングラフの script のノード（STOPS）の止めの語 {ノード: 語}（入口の拒み・無人の承認ノードの止め・script の例外・人の止め。
-  空と飛ばされたノードは載せない）
-- deferred・widened・final_reasons・spec_changed: 無人の run で承認ノードに載せなかった問い・聞かずに通した範囲を広げるだけの直し・
-  最後の承認ノードを開ける理由・承認の後に受け入れ条件のテストが変わった問い（spec-check の questions）（飛ばされたノードは []）
-- prior_failures: 依頼の前の失敗のポインタ（start の出力）・redepth: 直した後の深さの上げ直しの出力・spec_unchecked: 受け入れ条件の
-  テストを照らせなかったか（spec-check の unchecked）（飛ばされたノードは null）
-- notices: run を止めずに進めた起こす前の注意の行の並び（メイングラフの YAML の collect の with: が、どのノードの出力の字かを決める。
-  行ごとに割る。飛ばされたノードと空の字は []）
-- optional: 受け止める段の宣言（落ちても先へ進めてよい段の、区切りで終わるノードの id の頭かノードの id の並び。runreport._declared）。
-  include 丸ごと受け止める段の宣言はメイングラフの collect の with: の optional、ブロックの中の節の宣言は各ブロックが返す節の返りの欄
-  optional で、受け皿が運ぶ。ここで include の id の頭を付けて（absorbed）メイングラフの宣言と重ねずに合わせる。report の入力の欄の値には
-  宣言を載せない（collect() の最後で外す）
-- stages: 段の表 STAGES（下。役の名 → ノードの id と返りの続き。報告の lib はこの表で段の名と途中の切れ目を決め、ノードの id も段の順も持たない）
-- user_env_dir: 利用者の HOME・XDG に戻して起こした印の置き場（start の出力の字。飛ばされたら ""）
+落ちない: 組めない時も fallback が訳だけの sections と facts（problems に訳。結末は record_invalid）を書いて pointer を返す。facts の
+部分ごとの組めなさは facts.build が訳を problems・notes に足す。
 
-result が $collect.output を読むので、このノードは落ちない: 境の口を読めない時も、標準ライブラリだけで fallback の出力を書く（字の入力 TEXTS は
-そのまま運ぶ。止めの理由は LINE_SCRIPT。境の口の LINE_SCRIPT の写しで、lib/tests/test_stopby.py が突き合わせる）。
-
-入力（with:）: <include の id>（受け皿の出力）・plan・plan_review・design_only（計画の往復と直す物が無い周の受け皿の出力）・start・
-fixed・fix_in（fix-in の出力）・gate_<承認ノード>・stop_<ノード>・deferred・widened・final_reasons・spec_changed・prior_failures・redepth・spec_unchecked・optional・notices・
-user_env_dir
+入力（with:）: notices（testcmd の注意の字）・start・answer_start・tiers・owed・structure_in・design_in・ask_before_fix・answer_before_fix・
+fix_in・after_fix・raise・lens_in・ask_replan・answer_replan・lens_2_in・fixed・judged・eyes_in・ask_final・answer_final（line の script の
+出力）・test_gate_base・judge・structure・independent_design・rounds・fix・lens・delta・replan・replan_review・refix・lens_2・delta_2・
+parallel_after・rejudge・spec_check・test_gate_final・eyes・merge_seal・merge_apply（受け皿の got）・optional（line 自身の受け止める段の宣言）
 """
 import json
 import os
 import sys
 from pathlib import Path
 
-try:
-    sys.path.insert(0, str(Path(__file__).resolve().parents[2] / ".shared"))
-    import boundary
-    import childsweep
-    unread = None
-except Exception as error:   # result が読むノードは落ちない（上の docstring）
-    boundary, childsweep, unread = None, None, error
-if boundary is not None:
-    with boundary.guarded_imports():
-        import fixbeside
-        import judge_accept
-        import planfile
+sys.dont_write_bytecode = True
+sys.path[:0] = [str(Path(__file__).resolve().parents[2] / ".shared"), str(Path(__file__).resolve().parents[1])]
+import ports  # noqa: E402
 
-RECEIVED = ("test_gate_base", "judge", "rejudge", "structure", "replan", "replan_review", "fix", "test_gate_final", "eyes", "merge_seal",
-            "merge_apply")
-ROUNDS = ("plan", "plan_review")
-GATES = ("gate_start", "gate_before_fix", "gate_replan", "gate_final")
-STOPS = ("start", "answer-start", "ask-before-fix", "answer-before-fix", "fix-in", "after-fix", "judged", "owed", "structure-in", "ask-replan", "answer-replan", "fixed",
-         "spec-check", "redepth", "ask-final", "answer-final")
-LISTS = ("deferred", "widened", "final_reasons", "spec_changed", "optional")
-VALUES = ("prior_failures", "redepth", "spec_unchecked")
-TEXT_LINES = ("notices",)   # 字を行ごとの並びに割る入力
-TEXTS = ("user_env_dir",)   # 字のまま運ぶ入力（飛ばされたら ""）
-LINE_SCRIPT = "works:line-script"
-# 受け皿が運んだブロックの返りの宣言（欄 optional）を、記録の step の頭にする対応: collect の欄 → その返りを返す include の id の並び。
-# 欄の名と include の id は字が違う物（rejudge は rejudge-run）があり、2 度目の修正 refix-run は受け皿が無く 1 回目の修正 fix と同じブロックの
-# 宣言を使う（refix-run は fix の後にしか走らない）
-INNER = {"test_gate_base": ("test-gate-base",), "judge": ("judge",), "rejudge": ("rejudge-run",), "structure": ("structure",),
-         "fix": ("fix", "refix-run"), "merge_apply": ("merge-apply",)}
-# 段の表（メイングラフの段の名と順を持つ 1 か所。report へ値で渡し、lib はこの表で段の名と返りの続きの切れ目を決める）。
-# nodes: 報告の入力の役の名 → この線の節の id（名の替わった物だけ。承認の答えの役は承認ノードの id を指す。載っていない役は名がそのまま節の id）。
-# links: 返りの続き。前の段 before の欄 flag（None は返りが在るだけ）が真なのに後の段 after の返りが無ければ text の切れ目。
-# held: before の返りのこの欄が偽なら切れ目に数えない（線が意図して後の段を飛ばした周）。needs: この役の返りが無い周は数えない
-STAGES = {
-    "nodes": {"before-tests": "test-gate-base", "final-tests": "test-gate-final", "sealed-diff": "merge-seal",
-              "applied-diff": "merge-apply", "replan-review-result": "replan-review", "start-answer": "gate-start",
-              "before-fix-answer": "gate-before-fix", "replan-answer": "gate-replan", "final-answer": "gate-final"},
-    "links": [
-        {"before": "judge", "flag": "ready", "after": "plan", "text": "判定が直す単位を出したのに計画の出力が無い"},
-        {"before": "plan", "flag": "ready", "after": "fix", "text": "計画が修正案を出したのに修正の出力が無い"},
-        {"before": "fix", "flag": None, "after": "final-tests", "text": "修正の段が走ったのに最後のテストの出力が無い", "held": "go"},
-        {"before": "final-tests", "flag": "ok", "after": "sealed-diff", "text": "最後のテストが通ったのに差分を封じた出力が無い",
-         "needs": "fix"},
-    ],
+# 受け皿の got の欄（YAML の受け皿の names と同じ並び）
+GOT = {
+    "test_gate_base": "mode ok green red_cause ran_steps baseline fingerprint test_outcomes evidence by suites_line log baseline_line reason suite suite_note report",
+    "judge": "ok stop_reason reason ready units judgment answer_ties out_of_purpose materials brief inputs purpose purpose_text purpose_source "
+             "means purpose_review constraints world world_state spec spec_rows spec_origin excluded pr_drafts downgrades decisions tier tier_why "
+             "row_asks tier_record verify verify_why report sections optional",
+    "structure": "ok status reason structure after dirty escalate report",
+    "independent_design": "ok status stands design premises reason downgrades report",
+    "rounds": "done ok status round plan_prior record plan fix_plan reply handoffs ripple owed gave_up stalled capped review asks deviations review_status review_reason stop_reason",
+    "fix": "ok reason units groups conflicts carry replan_items objection diff start_tree reply ruled_reply scope checked allowed_test_changes "
+           "changed x_scalars handoffs mismatched plan_declared stop_reason allowed_tests accept_trace closure tdd_unit tdd frozen removed "
+           "tdd_refused item_claims freeze_off report",
+    "lens": "ok status reason rows ran failed not_routed carry report",
+    "delta": "ok status reason rounds pass holes diff carry report",
+    "replan": "ok status reason mode round owed plan fix_plan reply handoff replan ripple rejects gave_up report",
+    "replan_review": "ok status form round reason holes blocks pass asks deviations replan gave_up reads report",
+    "parallel_after": "ok status stop_reason reason material excluded drafts reads downgrades report",
+    "rejudge": "ok status mode stop_reason reason ready judgment units questions inputs brief materials out_of_purpose answer_ties "
+               "rejudge_verdict rejudge_exit rejudge_diff downgrades report",
+    "spec_check": "ok status stop_reason reason spec added_rows added_origin questions unchecked report",
+    "test_gate_final": "mode ok green red_cause ran_steps baseline fingerprint test_outcomes evidence by suites_line log baseline_line reason suite suite_note report",
+    "eyes": "ok r1 r2 r3 r4 questions passes premise_check notes after dirty escalate after_ok report sections",
+    "merge_seal": "mode ok hash diff protected_hits protected_count reason deliver report",
+    "merge_apply": "mode ok hash diff protected_hits protected_count reason deliver report",
 }
+GOT["refix"] = GOT["fix"]
+GOT["lens_2"] = GOT["lens"]
+GOT["delta_2"] = GOT["delta"]
 
 
-def filled(got: dict | None) -> dict | None:
-    return None if got is None or all(value is None for value in got.values()) else got
-
-
-def carried(fix_in) -> dict:
-    """固定材料の run の写しの値（fix-in の received）。ほかの run と飛んだ fix-in は空"""
-    got = boundary.value(fix_in)
-    received = got.get("received") if isinstance(got, dict) else None
-    return received if isinstance(received, dict) else {}
-
-
-def without_optional(value):
-    """report の入力の欄の値（ブロックの返り）から、宣言の欄 optional を外す。宣言は欄 optional で別に運ぶ"""
-    return {key: item for key, item in value.items() if key != "optional"} if isinstance(value, dict) else value
-
-
-def absorbed(got: dict, own: list) -> list:
-    """受け止める段の宣言: メイングラフ自身の並び own に、この run で受け皿が運んだ got の各欄の optional（[{node, bare}]）を include の id の
-    頭を付けて（INNER。bare の行はループの中の節で、記録の step に素の id で載るので頭を付けない）重ねずに足す。宣言の無い欄
-    （受け皿が null・差し替えの返りに optional が無い）は宣言を持たない物と読み、形の違う行は読み飛ばす"""
-    heads = list(own)
-    for field, includes in INNER.items():
-        block = got.get(field)
-        for row in boundary.as_items(block.get("optional") if isinstance(block, dict) else None):
-            if not isinstance(row, dict) or not isinstance(row.get("node"), str) or not row["node"]:
-                continue
-            heads += [row["node"]] if row.get("bare") is True else [f"{include}{childsweep.INCLUDE_SEP}{row['node']}" for include in includes]
-    return list(dict.fromkeys(heads))
-
-
-def collect(received: dict, line: dict) -> dict:
-    got = {name: (boundary.value(received.get(name)) or {}).get("got") for name in (*RECEIVED, *ROUNDS, "design_only")}
-    design_only = got.pop("design_only")
-    for name in ("judge", "rejudge"):
-        judge_accept.require_ports(got[name])
-    for name in ("plan", "replan"):
-        planfile.require_ports(got[name])
-    fixbeside.require_ports(got["fix"])
-    fixed = boundary.value(line["fixed"])
-    if isinstance(fixed, dict) and "records" not in fixed:
-        raise ValueError(fixbeside.PRIOR_VERSION)
-    stops = {node: boundary.text((line.get("stops") or {}).get(node)) for node in STOPS}
-    out = {
-        **got,
-        "stages": STAGES,
-        "fix": None if got["fix"] is None else fixed if isinstance(fixed, dict) else got["fix"],
-        "plan": filled(got["plan"]),
-        "plan_review": filled(got["plan_review"]) or filled(design_only),
-        "start": boundary.value(line["start"]),
-        **{name: boundary.value(line["gates"][name]) for name in GATES},
-        "stops": {node: word for node, word in stops.items() if word},
-        **{name: boundary.items(line.get(name)) for name in LISTS},
-        **{name: boundary.value(line.get(name)) for name in VALUES},
-        **{name: boundary.text(line.get(name)).splitlines() for name in TEXT_LINES},
-        **{name: boundary.text(line.get(name)) for name in TEXTS},
-    }
-    out["optional"] = absorbed(got, out["optional"])   # 宣言を読むのはこの run で受け皿が運んだ got だけ（carried は読まない）
-    out = {**out, **{name: value for name, value in carried(line.get("fix_in")).items() if name in out and not out[name]}}
-    return {name: without_optional(value) if name in (*RECEIVED, *ROUNDS) else value for name, value in out.items()}
-
-
-def received_of_env() -> dict:
-    return {name: os.environ.get(f"INPUTS_{name.upper()}") for name in (*RECEIVED, *ROUNDS, "design_only")}
-
-
-def stop_key(node: str) -> str:
-    return f"stop_{node.replace('-', '_')}"
-
-
-def line_of_env() -> dict:
+def raw_inputs() -> dict:
+    """with: の入力の全部（字のまま。名を組まずに 1 つずつ読む）"""
     return {
-        "start": os.environ.get("INPUTS_START"),
-        "fixed": os.environ.get("INPUTS_FIXED"),
-        "fix_in": os.environ.get("INPUTS_FIX_IN"),
-        "gates": {name: os.environ.get(f"INPUTS_{name.upper()}") for name in GATES},
-        "stops": {node: os.environ.get(f"INPUTS_{stop_key(node).upper()}") for node in STOPS},
-        **{name: os.environ.get(f"INPUTS_{name.upper()}") for name in (*LISTS, *VALUES, *TEXT_LINES, *TEXTS)},
+        "notices": os.environ.get("INPUTS_NOTICES"), "start": os.environ.get("INPUTS_START"),
+        "answer_start": os.environ.get("INPUTS_ANSWER_START"), "test_gate_base": os.environ.get("INPUTS_TEST_GATE_BASE"),
+        "judge": os.environ.get("INPUTS_JUDGE"), "tiers": os.environ.get("INPUTS_TIERS"), "owed": os.environ.get("INPUTS_OWED"),
+        "structure": os.environ.get("INPUTS_STRUCTURE"), "structure_in": os.environ.get("INPUTS_STRUCTURE_IN"),
+        "independent_design": os.environ.get("INPUTS_INDEPENDENT_DESIGN"), "design_in": os.environ.get("INPUTS_DESIGN_IN"),
+        "rounds": os.environ.get("INPUTS_ROUNDS"), "ask_before_fix": os.environ.get("INPUTS_ASK_BEFORE_FIX"),
+        "answer_before_fix": os.environ.get("INPUTS_ANSWER_BEFORE_FIX"), "fix_in": os.environ.get("INPUTS_FIX_IN"),
+        "fix": os.environ.get("INPUTS_FIX"), "after_fix": os.environ.get("INPUTS_AFTER_FIX"), "raise": os.environ.get("INPUTS_RAISE"),
+        "lens": os.environ.get("INPUTS_LENS"), "lens_in": os.environ.get("INPUTS_LENS_IN"), "delta": os.environ.get("INPUTS_DELTA"),
+        "replan": os.environ.get("INPUTS_REPLAN"), "replan_review": os.environ.get("INPUTS_REPLAN_REVIEW"),
+        "ask_replan": os.environ.get("INPUTS_ASK_REPLAN"), "answer_replan": os.environ.get("INPUTS_ANSWER_REPLAN"),
+        "refix": os.environ.get("INPUTS_REFIX"), "lens_2": os.environ.get("INPUTS_LENS_2"), "lens_2_in": os.environ.get("INPUTS_LENS_2_IN"),
+        "delta_2": os.environ.get("INPUTS_DELTA_2"), "fixed": os.environ.get("INPUTS_FIXED"),
+        "parallel_after": os.environ.get("INPUTS_PARALLEL_AFTER"), "rejudge": os.environ.get("INPUTS_REJUDGE"),
+        "spec_check": os.environ.get("INPUTS_SPEC_CHECK"), "judged": os.environ.get("INPUTS_JUDGED"),
+        "test_gate_final": os.environ.get("INPUTS_TEST_GATE_FINAL"), "eyes_in": os.environ.get("INPUTS_EYES_IN"),
+        "eyes": os.environ.get("INPUTS_EYES"), "merge_seal": os.environ.get("INPUTS_MERGE_SEAL"),
+        "ask_final": os.environ.get("INPUTS_ASK_FINAL"), "answer_final": os.environ.get("INPUTS_ANSWER_FINAL"),
+        "merge_apply": os.environ.get("INPUTS_MERGE_APPLY"), "optional": os.environ.get("INPUTS_OPTIONAL"),
     }
+
+
+def values_of(raw: dict) -> dict:
+    """読んだ値: 受け皿の got は picked（欄の全部を名指す）、ほかは parsed、notices は字"""
+    out = {}
+    for name, text in raw.items():
+        if name == "notices":
+            out[name] = ports.text(text) if text not in (None, "null") else ""
+        elif name in GOT:
+            got = ports.picked(text, GOT[name].split())
+            out[name] = None if got is None else dict(got)
+        else:
+            out[name] = ports.parsed(text)
+    return out
+
+
+def record_of(start) -> tuple[dict | None, str]:
+    """始めの記録の dict と読めなかった訳（start の出力の record の pointer の先）"""
+    from src import facts
+    ptr = start.get("record") if isinstance(start, dict) else None
+    if ptr is None:
+        return None, "始めの記録が無い（start が飛んだか、記録を書けなかった）"
+    doc, why = facts.read_ptr(ptr)
+    if why:
+        return None, f"始めの記録が読めない: {why}"
+    if not isinstance(doc, dict):
+        return None, "始めの記録が JSON のオブジェクトでない"
+    return doc, ""
+
+
+def write(name: str, doc) -> dict:
+    path = ports.place() / name
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(doc, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
+    return ports.pointer(path)
+
+
+def compute():
+    raw = raw_inputs()
+    from src import facts, files, sections
+    values = values_of(raw)
+    record, why = record_of(values.get("start"))
+    built = facts.build(values, record, why, cwd=Path.cwd())
+    secs = sections.build(values, record or {}, cwd=Path.cwd(), folder=ports.place())
+    return {"sections": write(files.SECTIONS, secs), "facts": write(files.FACTS, built)}
 
 
 def fallback(reason: str) -> dict:
-    return {**{name: None for name in (*RECEIVED, *ROUNDS)}, "start": None, **{name: None for name in GATES},
-            "stops": {"collect": LINE_SCRIPT}, **{name: [] for name in LISTS}, **{name: None for name in VALUES}, **{name: [] for name in TEXT_LINES},
-            **{name: os.environ.get(f"INPUTS_{name.upper()}", "") for name in TEXTS}, "stages": STAGES}
+    """訳だけの sections と facts（problems に訳。結末は record_invalid）"""
+    from src import files, guard
+    secs = [{"title": "入口・段・決めた人", "lines": [f"報告の材料を組めなかった（{reason}）"]}]
+    doc = {"problems": [f"collect が報告の材料を組めなかった: {reason}"], "stops": [{"at": "collect", "word": guard.LINE_SCRIPT}]}
+    return {"sections": write(files.SECTIONS, secs), "facts": write(files.FACTS, doc)}
 
 
-def main() -> None:
-    if boundary is None:
-        reason = f"{type(unread).__name__}: {unread}"
-        print(reason, file=sys.stderr)
-        print(json.dumps(fallback(reason), ensure_ascii=False, allow_nan=False), flush=True)
-    else:
-        boundary.run(lambda: collect(received_of_env(), line_of_env()), fallback)
-
-
-if __name__ == "__main__":
-    main()
+ports.run(compute, fallback)

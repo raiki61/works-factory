@@ -4,15 +4,14 @@
 写しは Ajv が照らすので、持ち主の 1 行の欄（engine.schema が前後の空白を除いて minLength を数える `^[^\\n\\r\\x00]+$`）は、
 同じ字を通す trimmed.LINE で書いてもよい。前後の空白を除いた下限の pattern（trimmed.trimmed_pattern）は外して比べる。
 """
-import pathlib
 import sys
 import unittest
 
 import yaml
 
+from tests.archon import ROOT, WORKFLOWS
 from tests.bin import trimmed
 
-ROOT = pathlib.Path(__file__).resolve().parents[2]
 for _p in (ROOT / "lib", ROOT / "lib" / "graphloops"):
     if str(_p) not in sys.path:
         sys.path.append(str(_p))
@@ -56,8 +55,8 @@ def _nodes(nodes):
 
 
 def copies():
-    """(ブロック/節/道, 写しを持つ欄の properties)。ブロックの YAML の全部の節の output_format から拾う"""
-    for path in sorted((ROOT / "workflows").glob("*/works-factory-*.yaml")):
+    """(ブロック/節/道, 写しを持つ欄の properties)。pack（tests/archon.py の WORKFLOWS）のブロックの YAML の全部の節の output_format から拾う"""
+    for path in sorted(WORKFLOWS.glob("*/works-factory-*.yaml")):
         doc = yaml.safe_load(path.read_text(encoding="utf-8"))
         for n in _nodes(doc.get("nodes") or []):
             for where, props in _how_parents(n.get("output_format") or {}):

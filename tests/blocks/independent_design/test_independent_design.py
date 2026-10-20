@@ -106,11 +106,6 @@ class ShapeCase(unittest.TestCase):
                 fx = kit.fixture("independent-design", name)
                 self.assertLessEqual(set(fx["fixture"]["reached"]), ids)
 
-    def test_downgrades_are_the_current_row(self):
-        rows = json.loads((kit.ROOT / "lib" / "downgrades.json").read_text(encoding="utf-8"))
-        self.assertEqual(kit.load("independent-design", "report").DOWNGRADES, [r for r in rows if r["node"] == "r2.design"])
-
-
 class FlowCase(_RepoCase):
     def test_flow_reaches_the_design_and_the_ledger(self):
         got = self.intake(constraints=dump(values.CONSTRAINTS), answers=dump(values.ANSWERS))
@@ -447,12 +442,20 @@ class PremisesCase(_RepoCase):
             with self.assertRaises(premises.BoardGap):
                 premises.material(view, self.run.repo)
 
-    def test_a_changed_lib_head_is_an_error_not_a_double_head(self):
+    def test_the_head_is_cut_by_its_shape_not_by_the_libs_words(self):
+        """lib の見出しと頼みの文の字を読まずに、頭（# が 3 つの見出しと頼みの 2 段落）を外す。頭の無い本文（頭を md へ出した後の lib）はそのまま。
+        頭だけで材料が無い本文は誤り（黙って頭を貼り直さない）"""
         premises = kit.load("independent-design", "premises")
         view = self.steps.r2_view("", values.ANSWERS)
         self.assertTrue(premises.material(view, self.run.repo)["answers"].startswith("- 周 1"))
-        changed = ("違う見出し\n\n違う頼み\n\n- 周 1", ["周 1"], [], {"count": 1, "last_round": 1})
-        with unittest.mock.patch.object(premises.design, "human_answers", return_value=changed):
+        reworded = ("### 違う見出し\n\n違う頼み\n\n- 周 1", ["周 1"], [], {"count": 1, "last_round": 1})
+        with unittest.mock.patch.object(premises.design, "human_answers", return_value=reworded):
+            self.assertEqual(premises.material(view, self.run.repo)["answers"], "- 周 1")
+        bare = ("- 周 1", ["周 1"], [], {"count": 1, "last_round": 1})
+        with unittest.mock.patch.object(premises.design, "human_answers", return_value=bare):
+            self.assertEqual(premises.material(view, self.run.repo)["answers"], "- 周 1")
+        headless = ("### 見出しだけ\n\n頼み", ["周 1"], [], {"count": 1, "last_round": 1})
+        with unittest.mock.patch.object(premises.design, "human_answers", return_value=headless):
             with self.assertRaises(ValueError):
                 premises.material(view, self.run.repo)
 

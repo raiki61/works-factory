@@ -13,20 +13,17 @@ deliver は seal の時 null。apply・check の時 {act, pr, reason}:
 PR を作る子の run が落ちると読み戻しの節が飛ばされ、子の記録が読めないので、そのことを訳にする（子の run は Archon の記録に残る）。
 optional は PR を作る子の run の節（落ちても報告まで進めてよい）。
 落ちない: 照らしの節の返りが読めない時も、ok: false と訳を返す。
+欄 report は src/report.py が組む（docs/design/merge.md の 9 節）。
 
 入力: mode（照らしの形。返りが読めない時の mode）・place（照らしの節の返り）・commit（commit の節の返りか null）・read（読み戻しの節の返りか null）・optional（宣言の JSON の字）
 """
-import json
 import os
 import sys
 from pathlib import Path
 
-try:
-    sys.path.insert(0, str(Path(__file__).resolve().parents[2] / ".shared"))
-    import boundary
-    unread = None
-except Exception as error:   # 返す節が結ぶので落ちない（上の docstring）
-    boundary, unread = None, error
+sys.dont_write_bytecode = True
+sys.path[:0] = [str(Path(__file__).resolve().parents[2] / ".shared"), str(Path(__file__).resolve().parents[1])]
+import ports  # noqa: E402
 
 PLACE = ("mode", "ok", "hash", "diff", "protected_hits", "protected_count", "reason", "deliver")
 COMMIT = ("go", "head", "branch", "commits", "split", "reason")
@@ -34,6 +31,14 @@ READ = ("ok", "number", "url", "is_draft", "reason")
 RETURNS = PLACE[:-1]
 MODES = ("seal", "apply", "check")
 PR = "pr"
+
+
+def as_items(got) -> list:
+    return got if isinstance(got, list) else []
+
+
+def as_text(got) -> str:
+    return got if isinstance(got, str) else ""
 
 
 def deliver(place, commit, read) -> dict | None:
@@ -48,7 +53,7 @@ def deliver(place, commit, read) -> dict | None:
     if commit.get("go") is not True:
         return stopped(commit.get("reason") or "commit のノードが進めなかった（訳の記録が無い）")
     pushed = f"枝 {commit.get('branch')} の commit {commit.get('head')} を積んだ後"
-    stacked = {"commits": boundary.as_items(commit.get("commits")), "split": boundary.as_text(commit.get("split"))}
+    stacked = {"commits": as_items(commit.get("commits")), "split": as_text(commit.get("split"))}
     if read is None:
         return {**unconfirmed(f"{pushed}、PR を作る子の run が落ちたか返らなかった（push と PR の作成が済んだかは子の run の記録で確かめる）"),
                 **stacked}
@@ -67,29 +72,23 @@ def unconfirmed(reason: str) -> dict:
 
 
 def handed() -> dict:
-    place = boundary.picked(os.environ.get("INPUTS_PLACE"), PLACE)
-    optional = boundary.items(os.environ.get("INPUTS_OPTIONAL"))
+    from src import files, report
+    place = ports.picked(os.environ.get("INPUTS_PLACE"), PLACE)
+    optional = as_items(ports.parsed(os.environ.get("INPUTS_OPTIONAL")))
     if place is None:
         return {**broken("照らしのノードの出力が無い"), "optional": optional}
-    commit = boundary.picked(os.environ.get("INPUTS_COMMIT"), COMMIT)
-    read = boundary.picked(os.environ.get("INPUTS_READ"), READ)
-    return {**{name: place.get(name) for name in RETURNS}, "deliver": deliver(place, commit, read), "optional": optional}
+    commit = ports.picked(os.environ.get("INPUTS_COMMIT"), COMMIT)
+    read = ports.picked(os.environ.get("INPUTS_READ"), READ)
+    handed_over = deliver(place, commit, read)
+    return {**{name: place.get(name) for name in RETURNS}, "deliver": handed_over, "optional": optional,
+            "report": report.lines(dict(place), handed_over, ports.place() / files.SEALED)}
 
 
 def broken(reason: str) -> dict:
     mode = os.environ.get("INPUTS_MODE", "")
     return {"mode": mode if mode in MODES else "seal", "ok": False, "hash": "", "diff": None, "protected_hits": None,
-            "protected_count": None, "reason": reason, "deliver": None, "optional": []}
+            "protected_count": None, "reason": reason, "deliver": None, "optional": [],
+            "report": [f"差分の確定（{mode if mode in MODES else 'seal'}）: {reason}"]}
 
 
-def main() -> None:
-    if boundary is None:
-        reason = f"{type(unread).__name__}: {unread}"
-        print(reason, file=sys.stderr)
-        print(json.dumps(broken(reason), ensure_ascii=False, allow_nan=False), flush=True)
-    else:
-        boundary.run(handed, broken)
-
-
-if __name__ == "__main__":
-    main()
+ports.run(handed, broken)

@@ -1,4 +1,9 @@
-"""`tests/`・`lib/tests/` の試験の子の環境は hermetic.child_env で作る（tests/AGENTS.md の E21 の機械の行）。"""
+"""`tests/`・`lib/tests/` の試験の子の環境は `tests/bin/hermetic.child_env` で作る（`tests/AGENTS.md` の E21 の機械の行）。
+
+- `tests/` と `lib/tests/` の `*.py` に、`os.environ` を写す形（`scan.COPIED_ENVIRON`）と、`env=` の無い子の起こし（`scan.SPAWNS`）が無い。既定が `None` の引数を差し替えずに `env=` へ渡す形も当てる。照らしは `tests/layers/scan.py` の `_hermetic_env`。
+- 外しは `scan.ALLOWED["E21"]` の行（訳つき）だけ: 子の環境を作る道具でなく利用者の環境を継ぐのが用途の物（本物の run・較正の命令の道具・試験を回す口 `tests/changed.py`）と、子の環境を組む口でない物（偽の script の字）。
+- 試験を回す口が過程の環境から名を外し、外した値を `inherited` で引けることは `tests/test_shard.py` の `ScrubTest`。
+"""
 import pathlib
 import unittest
 

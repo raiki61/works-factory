@@ -1,4 +1,8 @@
-"""Archon が読む所（place.workflow_source の置き場の .archon/workflows/<pack>/ の下）の全部のファイルが、workflows/ とバイトで同じ（workflows/AGENTS.md の E1 の機械の行）。"""
+"""Archon が読む所（`place.workflow_source` の置き場の `.archon/workflows/<pack>/` の下）の全部のファイルが、`workflows/` とバイトで同じ（`workflows/AGENTS.md` の E1 の機械の行）。
+
+- YAML は手で書き、生成・前処理・鍵の削りをしない。Archon は run の始めにその中身をバイトのまま写し取る。
+- pack の形で置くので、`.shared/`（`ports.py` など）も同じ置き場に在る。
+"""
 import pathlib
 import tempfile
 import unittest
@@ -18,7 +22,7 @@ class NoConversionTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             shim = place.workflow_source(loaded, ROOT, pathlib.Path(tmp))
             read = files(place.pack_folder(loaded, shim))
-        self.assertIn(".shared/boundary.py", read)
+        self.assertIn(".shared/ports.py", read)
         self.assertEqual(read, files(ROOT / loaded["ours"]["folder"]))
 
 

@@ -1,6 +1,6 @@
 # block の設計書: lens（黙った失敗のレンズ）
 
-- 何の話か: 修正の後の差分に、利用者が入れた review の agent（今は pr-review-toolkit の silent-failure-hunter）を 1 本ずつ独立の node として当て、指摘を出どころのレンズの名つきで返す観点を、単独で呼べる block `blocks/lens/` にする設計。型は [README.md](README.md)、形は手本の [world.md](world.md) に従う。指摘を確かめて穴にするのは差分の審査の block（[delta-review.md](delta-review.md)）で、この block は指摘を集めるだけ。
+- 何の話か: 修正の後の差分に、利用者が入れた review の agent（今は pr-review-toolkit の silent-failure-hunter）を 1 本ずつ独立の node として当て、指摘を出どころのレンズの名つきで返す観点を、単独で呼べる block `workflows/lens/` にする設計。型は [README.md](README.md)、形は手本の [world.md](world.md) に従う。指摘を確かめて穴にするのは差分の審査の block（[delta-review.md](delta-review.md)）で、この block は指摘を集めるだけ。
 - 決めたこと: 今の fix の中の 4 つの node（lens-prep・lens・lens-reply・lens-collect）を、入口・レンズごとの 3 つの node（prep・役・受け取り）・出口の block にする。レンズを起こすかの振り分け（変わったファイルが在るか・定義が引けるか）は入口が決める。落ちたレンズは理由つきの行に残して先へ進み、集めが壊れた時だけ `ok: false` を返す（今と同じ）。入力は差分の版・レンズの一覧・言語の 3 つで、差分はこの block が自分で切る。指示は英語の断片 1 本（`prompts/parts/lens.md`）にし、今 Python が持つ文（役の定義の見出し・仕事と返し方の節）は md へ出す。返りの中継の埋め（P8 の `lens-reply`）は要らなくなる。
 - 持ち主に求めること: なし。読み手は、この block を作る実装の役と、その PR の審査（README の 11.1 の作る順の 2 波目の block。急ぎの期限は無い）。
 
@@ -9,7 +9,7 @@
 - line: 工場のメイングラフ（README の 8.7）。どの block をいつ回すか（`when:`）と、渡す値（`with:`）を決める。
 - 今: 作り直す前の、今動いている工場（`workflows/fix/` と `lib/`）。元の works: 工場の移植元。
 - 深さで省く・上げ直し・戻せない組・案の直し: 差分の審査と同じ条件の語。定義は [delta-review.md](delta-review.md) の頭の語。
-- 依頼の行: run に渡された修正依頼の行（`blocks/.shared/schemas/request.schema.json` の形）。`lang` が空の時の既定の文は共通の断片 `lang-default`。
+- 依頼の行: run に渡された修正依頼の行（`workflows/.shared/schemas/request.schema.json` の形）。`lang` が空の時の既定の文は共通の断片 `lang-default`。
 - レンズ: 利用者が入れた plugin の review の agent の定義（`agents/<役>.md` の本文）を指示に貼り、修正の後の差分をその観点だけで見させる AI の node。子（Agent）を起こさない。読むだけ（Read・Grep・Glob）。
 - レンズの表: この block が知るレンズの並び（`src/lenses.py` の `LENSES`。今の `lib/lenses.py` の `LENSES` の写し）。行ごとに YAML の node が 3 つずつ在る。
 - 振り分け: レンズごとに起こすか（`go`）と起こさない理由を決めること。
@@ -52,7 +52,7 @@
 
 今との違い: 今は fix の place の 1 回目の差分の控え（`loop-fix_delta.json`）と始めの記録（言語）を名で開き、行を fix の place の `lens.json` に書き、差分の審査の材料 `review1-brief.json` の `lens` の欄に足し（`fixboard.brief_lens`）、集め役の事実を `lenses.json` に書いた。この block は、差分を `base` から自分で切り、行を自分の place に書いて pointer で返す。差分の審査の材料に足すのは、差分の審査の block が port `lens_rows` で受けて行う。採った・採らなかった件数（差分の審査の返答の `lens` の欄で数える）は差分の審査の block の報告の行になる。
 
-### 1.3 node の並び（`blocks/lens/works-factory-lens.yaml`）
+### 1.3 node の並び（`workflows/lens/works-factory-lens.yaml`）
 
 script の node はどれも `runtime: uv`・`mutates_checkout: false`。レンズの表の 1 行ごとに、下の番号 2〜4 の 3 つの node（prep・役・受け取り）を置く（今は silent-failure-hunter の 1 行。node の id はレンズの名 `<lens>`、欄の名はその `-` を `_` にした `<key>`）。
 
@@ -79,12 +79,11 @@ script の node はどれも `runtime: uv`・`mutates_checkout: false`。レン�
 
 ### 1.5 コードの置き場
 
-- `blocks/lens/src/__init__.py`: 空。
+- `workflows/lens/src/__init__.py`: 空。
 - `src/lenses.py`: レンズの表 `LENSES = ({"lens": "silent-failure-hunter", "agent": "pr-review-toolkit:silent-failure-hunter"},)`・`key(name)`（`-` を `_` に）・振り分け `route(row, files)`（今の `_any_change`: 変わったファイルが無ければ `(False, "修正の差分に変わったファイルが無い")`）・定義の引き `definition(agent)`（今の `fixboard.lens_route` の引きの部分: `engine.validator.agent_def(agent)` を呼び、例外〔`SystemExit` を含む〕は「<agent> の定義を引けない（<型>: <訳>）」、`None` か本文が空なら「<agent> の定義が役の設定に無い（pr-review-toolkit が入っていない）」を起こさない理由にする）。写す元 `lib/lenses.py` の `LENSES`・`key`・`_any_change` と `fixboard.lens_route`。字の下限 `MIN_CITE = 4`・`MIN_WHY = 20`（YAML の `output_format` の `minLength` と同じ字）も持つ。`lenses.render` の文は md へ出し、ここに持たない。
 - `src/files.py`: 1.4 の名と `SKIP = (ports.RUNTIME_COPY_PREFIX,)`。
 - `src/steps.py`: 入口（差分を切る〔`leftovers.snapshot`・`unittrees.pathspec_without(SKIP)`・`leftovers.git(… text=False)`・`leftovers.git_names`。delta-review の `src/cut.py` の `cut` と同じ手続き〕・振り分け・`lens.write_routes`）・prep の値・受け取り・出口（`lens.collect(place, {<lens>: <reply-<key>.json の中身か None>})`・数え・`carry`・`report`）。
 - 使う `lib/`（KEEP。変えない）: `lens`（`LENS_FILE`・`STATES`・`UNSEEN`・`write_routes`・`collect`・`read`）・`leftovers`・`unittrees`（`pathspec_without`）・`jsonfile`・`oneline`・`graphloops/engine/validator.py`（`agent_def`。README の 9.1 で DELETE の候補。10 節の 1）。
-- 作り直しの間は `lib/lenses.py` と `fixboard` のレンズの部分（`lens_route`・`lens_collector`・`brief_lens`・`LENS_*`・`ROLE_DEF_HEAD`）を消さない（今の fix が使う）。組み込みで消す（README の 9.2 の lens の MOVE）。
 
 ### 1.6 つなぎ方（graph の側。block には書かない）
 
@@ -122,7 +121,7 @@ script の node はどれも `runtime: uv`・`mutates_checkout: false`。レン�
 
 定義の本文 `{body}` は利用者の plugin の字（英語）のまま入る。本文の中の `{…}` は値の中の字なので差し込み口にならない（`prompt.py` は入れた値を読み直さない）。
 
-md の本文の正本は `blocks/lens/prompts/parts/lens.md`（設計書は本文を写さない）。
+md の本文の正本は `workflows/lens/prompts/parts/lens.md`（設計書は本文を写さない）。
 
 ### 2.4 返す形
 
@@ -207,7 +206,7 @@ Write `why` and `findings_none` in the language of the request (the user's langu
 ## 4 単独で呼ぶ
 
 ```sh
-WORKS_FACTORY_FOLDER=blocks bin/works-factory workflow run works-factory-lens --cwd <対象> --input base=<修正の前の木か commit>
+bin/works-factory workflow run works-factory-lens --cwd <対象> --input base=<修正の前の木か commit>
 ```
 
 定義を引くには、起動の隔離した設定に pr-review-toolkit が入っているか、`PR_REVIEW_TOOLKIT_ROOT` がその置き場を指す（`engine.validator.find_plugin_path` の探す順）。どちらも無い手元では、`--input lenses='[{"lens":"silent-failure-hunter","body":"<定義の本文>"}]'` で本文を渡せる。出力は `workflow get <run>` の `finish` の返り。
@@ -245,7 +244,7 @@ WORKS_FACTORY_FOLDER=blocks bin/works-factory workflow run works-factory-lens --
 
 ## 8 試験と、済んだと言える条件
 
-### 8.1 standalone の fixture（`blocks/lens/fixtures/`）
+### 8.1 standalone の fixture（`workflows/lens/fixtures/`）
 
 どれも `exec-code: true`・prep を差し替えない・AI の node の返答だけを差し替える。
 
@@ -306,7 +305,7 @@ PYTEST_XDIST_AUTO_NUM_WORKERS=4 WORKS_FACTORY_ARCHON_CACHE=<Archon の源の置�
 
 ## 10 README へ返す問題
 
-1. `lib/graphloops/engine/validator.py` は README の 9.1 で DELETE（未確認つき）だが、`agent_def` と `find_plugin_path` はこの block が利用者の定義を引くのに使う（使い手はこの block 1 つ）。組み込みで消すなら、その 2 つを `blocks/lens/src/` へ移す。
+1. `lib/graphloops/engine/validator.py` は README の 9.1 で DELETE（未確認つき）だが、`agent_def` と `find_plugin_path` はこの block が利用者の定義を引くのに使う（使い手はこの block 1 つ）。組み込みで消すなら、その 2 つを `workflows/lens/src/` へ移す。
 2. `lib/leftovers.py`（README の 9 節に区分が無い）と `lib/unittrees.py` の `pathspec_without`（MOVE fix の中）を、この block と差分の審査の block も使う（delta-review.md の 12 節の 2・3）。
 
 ## 11 未確認

@@ -1,10 +1,12 @@
-"""関所の項目の推し（gatemarks の recommend）と、無人の run が関所で止まった時の答えの下書き（gatemarks.answer_drafts）。
-FAST: test_plan_gate の偽の盤面で写しの RL の human_gate を直に呼ぶ（盤面・git・子のプロセスなし）。
+"""承認ノードの項目の推し（gatemarks の recommend）の欄の形と照らし（recommend_gaps）と、下書きの答えを依頼の入口が拒むこと（carry）。
 
-実の利用者の run ac9e02ab は無人の run で、直す前の関所に 2 件（方針の文書の柵 policy_doc）が挙がって止まった。関所の文の推しは
-「判定の役が書いていない」と出て、機械が読める推しの答えはどこにも無く、次の run の依頼の下書き next-request.json は空だった。
-役が関所に回す行に構造の推し recommend {answer, note, why} を書き、無人の run が関所で止まったら、項目ごとの答えの下書きを
-next-request.json の answers に draft: true と出どころ source つきで置く。機械は関所に答えない（下書きを使う前に人が見直す）。
+元は今の lib/tests/test_gate_drafts.py（docs/design/README.md の 9.5）。元の 13 本のうち、lib に残る物の試験をここに戻す:
+SchemaCase の 2 本（推しの欄の型と、照らし・尾・下書きが欄の名を 1 か所から読む）・GapsCase の 5 本・IntakeCase の 4 本。
+元は test_plan_gate の偽の盤面の行（TP.NARROW・TP.FACE）を借りたが、その試験は組み込みで消えたので、行はここに置く。
+移った先の在る物: SchemaCase の test_rule_text_asks_for_recommend と test_shape_text_is_built_from_the_keys（役の頭の文
+gatemarks.HEAD は plan の block の指示書へ、拒みの文 planblk.RECOMMEND_REJECT は plan の src/steps.py へ）は
+tests/blocks/plan/test_shape.py の RecommendShapeCase。無人の run が推しで修正前の承認ノードを抜けるかは
+tests/blocks/line/test_gate_drafts.py。
 """
 import json
 import pathlib
@@ -16,21 +18,20 @@ LIB = pathlib.Path(__file__).resolve().parents[1]
 sys.dont_write_bytecode = True
 if str(LIB) not in sys.path:
     sys.path.append(str(LIB))
-from lib.tests import test_plan_gate as TP  # noqa: E402
-import gatemarks  # noqa: E402
 import carry  # noqa: E402
 import converge  # noqa: E402
-import planblk  # noqa: E402
+import gatemarks  # noqa: E402
 
 REC = {"answer": "continue", "note": "daemon だけを Recreate にする範囲で通す", "why": "Dagster 公式の chart が同じ分け方"}
 NO_NARROW = "daemon を別の Deployment に分け、webserver は RollingUpdate に残す形を当たったが、決着済みの配置を組み替える"
+# 元 lib/tests/test_plan_gate.py の NARROW・FACE（修正案の狭める行と事前審査の穴の行）
+NARROW = {"what": "空の列の mean", "why": "空の列の平均は 0 割りの例外のまま"}
+FACE = {"key": "clamp の上限の意味が変わる", "unit_keys": ["u"], "kind": "regression", "where": "stats.py clamp",
+        "why": "上限を超えた値に lo を返す今の振る舞いに頼る呼び手が在れば結果が変わる", "severity": "block"}
+BAD = ({**REC, "answer": "maybe"}, {k: v for k, v in REC.items() if k != "why"}, "通す", {**REC, "note": ""})
 
 
 class SchemaCase(unittest.TestCase):
-    def test_rule_text_asks_for_recommend(self):
-        for node in gatemarks.NODES:
-            self.assertIn(gatemarks.RECOMMEND, gatemarks.HEAD[node])
-
     def test_recommend_schema_is_built_from_the_keys(self):
         """推しの欄の名は RECOMMEND_KEYS の 1 か所（頭が答えの enum、残りが RECOMMEND_MIN 字以上の文）"""
         schema = gatemarks.MARK_SCHEMA[gatemarks.RECOMMEND]
@@ -45,45 +46,34 @@ class SchemaCase(unittest.TestCase):
             draft = gatemarks._gate_draft("t", {gatemarks.RECOMMEND: rec}, gatemarks.NODES[0])
             self.assertIn("stop: daemon だけを止める（推す理由: chart が同じ分け方）", json.dumps(draft, ensure_ascii=False))
 
-    def test_shape_text_is_built_from_the_keys(self):
-        """役への頭と受け付けの拒み（planblk の 1 つを planfile・boardview が読む）が書かせる推しの形は 1 つの文 RECOMMEND_SHAPE
-        で、その文は欄の名・答え・字の下限を持ち主から組む"""
-        shape = gatemarks.RECOMMEND_SHAPE
-        for word in (*gatemarks.RECOMMEND_KEYS, *gatemarks.RECOMMEND_ANSWERS, f"{gatemarks.RECOMMEND_MIN} 字以上"):
-            self.assertIn(word, shape)
-        for node in gatemarks.NODES:
-            self.assertIn(shape, gatemarks.HEAD[node])
-        self.assertIn(shape, planblk.RECOMMEND_REJECT)
-        self.assertFalse(hasattr(gatemarks, "RECOMMEND_REJECT"))
-
 
 class GapsCase(unittest.TestCase):
     def plan(self, rec):
-        return {"plan": [{"narrows": [{**TP.NARROW, "no_narrow": NO_NARROW, **({"recommend": rec} if rec is not None else {})}]}]}
+        return {"plan": [{"narrows": [{**NARROW, "no_narrow": NO_NARROW, **({"recommend": rec} if rec is not None else {})}]}]}
 
     def test_absent_and_good_recommend_pass(self):
         self.assertEqual(gatemarks.recommend_gaps("p2.fix_plan", self.plan(None)), [])
         self.assertEqual(gatemarks.recommend_gaps("p2.fix_plan", self.plan(REC)), [])
 
     def test_malformed_recommend_is_named(self):
-        for bad in ({**REC, "answer": "maybe"}, {k: v for k, v in REC.items() if k != "why"}, "通す", {**REC, "note": ""}):
+        for bad in BAD:
             with self.subTest(bad=bad):
                 got = gatemarks.recommend_gaps("p2.fix_plan", self.plan(bad))
                 self.assertEqual(len(got), 1, got)
                 self.assertIn("plan[0].narrows[0]", got[0])
 
     def test_review_faces_are_checked_too(self):
-        got = gatemarks.recommend_gaps("p2.plan_review", {"faces": [{**TP.FACE, "recommend": {"answer": "x"}}]})
+        got = gatemarks.recommend_gaps("p2.plan_review", {"faces": [{**FACE, "recommend": {"answer": "x"}}]})
         self.assertEqual(len(got), 1, got)
         self.assertIn("faces[0]", got[0])
 
     def test_review_stuck_recommend_is_checked_too(self):
         """返答の一番上の止まった時の推し（converge.STUCK_PUSH）も faces の行と同じ形で照らし、崩れていれば 1 行で名指す。
         整った推しと、欄の無い返答は通す"""
-        reply = {"faces": [TP.FACE]}
+        reply = {"faces": [FACE]}
         self.assertEqual(gatemarks.recommend_gaps("p2.plan_review", reply), [])
         self.assertEqual(gatemarks.recommend_gaps("p2.plan_review", {**reply, converge.STUCK_PUSH: REC}), [])
-        for bad in ({**REC, "answer": "maybe"}, {k: v for k, v in REC.items() if k != "why"}, "通す", {**REC, "note": ""}):
+        for bad in BAD:
             with self.subTest(bad=bad):
                 got = gatemarks.recommend_gaps("p2.plan_review", {**reply, converge.STUCK_PUSH: bad})
                 self.assertEqual(len(got), 1, got)

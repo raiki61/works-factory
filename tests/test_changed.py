@@ -27,8 +27,9 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 IN_CI = "全部の試験は CI に寄せる（持ち主の決め full-suite-in-ci）"
 WORKERS = "3"
 COUNT = re.compile(r"Ran (\d+) tests?")
-COPIED = ("lib/impact.py", "lib/changemap.py", "tests/changed.py", "tests/shard.py", "tests/bin/hermetic.py",
-          "workflows/.shared/boundary.py")
+# hermetic は pack.json の ours.folder の .shared/ports.py から Archon の変数の名を読む（docs/design/integration.md の 4.5-8）
+COPIED = ("lib/impact.py", "lib/changemap.py", "tests/changed.py", "tests/shard.py", "tests/bin/hermetic.py", "pack.json",
+          hermetic.PORTS.relative_to(ROOT).as_posix())
 ONE_TEST = "import unittest\n\n\nclass T(unittest.TestCase):\n    def test_one(self):\n        pass\n"
 TWO_TESTS = ONE_TEST + "\n    def test_two(self):\n        pass\n"
 LIB_TEST = ("import unittest\n\nfrom lib import {name}\n\n\nclass T(unittest.TestCase):\n"

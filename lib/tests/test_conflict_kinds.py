@@ -12,7 +12,7 @@
 - fix_plan_item の行の案の直しの状態（waiting・amended・gave_up。依頼 226）: 裁定で waiting に置き、set_replan の 1 か所で
   amended か gave_up に移す。amended の単位は直す義務に戻り、gave_up の行は ask_human の行として字のまま並ぶ。欄の無い前の形の
   行は waiting と読む
-- 修正役の受け付け（fixboard.accept_reply）は、直す義務の外の単位の申し出と、申し出た単位を changes にも書いた返答を
+- （fix の試験へ移った）修正役の受け付け（fixboard.accept_reply）は、直す義務の外の単位の申し出と、申し出た単位を changes にも書いた返答を
   食い違いの申し出の拒否（check conflict）にし、積まない（FixAcceptSeamCase。元 works/blk-fix/scripts/accept.py:319-333）
 盤面・子のプロセスは使わない（関数を直に呼ぶ。一時の置き場に種のファイルと控えを書くだけ。git は FixAcceptSeamCase の
 受け付けが段の頭の木と版を引く小さなリポジトリだけ）。
@@ -32,14 +32,11 @@ if str(LIB) not in sys.path:
 
 import conflict  # noqa: E402
 import fixboard  # noqa: E402
-import fixrules  # noqa: E402
 import rulebook  # noqa: E402
 
 # 決まりの文の本体の置き場（scripts が import の後にする置き替えと同じ。lib/ の字にパスを書かない）
 FR = LIB.parent / "workflows" / "fix" / "commands" / "fix-rules"
 rulebook.CANON = FR / "common.md"
-fixrules.SHARED = rulebook.CANON
-fixrules.RULES_DIR = FR
 
 KEY = "stats.py clamp: 上限を超えた値に lo を返す"
 ITEM = {"unit_key": KEY, "between": ["stats.py:3", "test_stats.py:2"],
@@ -109,12 +106,6 @@ class KindCase(unittest.TestCase):
 
     def test_word_names_the_outlet(self):
         self.assertEqual(conflict.WORD, "divergence")
-
-    def test_rules_name_the_kinds(self):
-        sec = fixrules.sections(fixrules.SHARED)["core-conflict"]
-        for k in conflict.DIV_KINDS:
-            self.assertIn(f"`{k}`", sec)
-        self.assertIn('"kind"', fixrules.sections(fixrules.TDD)["tdd-remap"])
 
 
 class FakeBoard:
@@ -216,22 +207,10 @@ class BriefKindCase(unittest.TestCase):
             self.assertEqual(planbrief.by_unit_at(self.dir), {})
         self.assertEqual(planbrief.by_unit_at(self.dir / "no-board"), {})
 
-    def test_brief_rules_name_the_kinds(self):
-        # 節 brief-canon の申し出の道（範囲の外・query・brief の誤り・承認ノードで答えた条件）がそれぞれ種類の名を言う
-        sec = fixrules.sections(fixrules.BRIEF)["brief-canon"]
-        for k in ("scope_needed", "query_hits_fixed", "brief_vs_judgment"):
-            self.assertIn(f"`kind` は `{k}`", sec)
-
 
 class RulingLimitsTextCase(KindRowsCase):
     """裁定の limits が広げるのは案の項目の範囲に足すパスだけ（planscope の継ぎ目の決まり）を、裁定役の決まり・裁定の文・
     修正役の brief の決まりが同じく言う"""
-
-    def test_ruler_says_limits_only_add_paths(self):
-        """裁定役の決まり（ruler）は、足しても項目は変わらず、項目の `tests`・`files`（足す物・消す物の行）を直しで満たす義務は残ると言う"""
-        sec = fixrules.sections(fixrules.RULER)["ruler-reply"]
-        for w in ("空なら足すパスは無い", "新しいファイル", "`out_of_scope`", "`tests`・`files`"):
-            self.assertIn(w, sec)
 
     def test_rulings_file_says_only_ruled_paths_widen(self):
         rows = [{"id": f"c1-{i}", "round": 1, "source": "fix", **ITEM, "status": "ruled",
@@ -240,13 +219,6 @@ class RulingLimitsTextCase(KindRowsCase):
         self.write_items(rows)
         text = conflict.write_rulings(self.b).read_text(encoding="utf-8")
         self.assertEqual(text.count("「範囲」に並べたパスだけ"), 2, text)
-
-    def test_ruler_opens_brief_for_limits_too(self):
-        # 範囲（limits）を書く時も fix_plan_item を考える時も、その単位の brief を開く
-        self.assertIn("`limits` を書く時と `fix_plan_item` を考える時は", fixrules.sections(fixrules.RULER)["ruler-head"])
-
-    def test_brief_rule_names_ruling_limits(self):
-        self.assertIn("裁定の「範囲」", fixrules.sections(fixrules.BRIEF)["brief-canon"])
 
 
 def fake_with_rows(rows):
@@ -371,8 +343,6 @@ class TestReplanState(unittest.TestCase):
                 self.assertIn(conflict.UNFIXED_LEFT, line)
                 self.assertNotIn(conflict.FIX_IN_DIFF, line)
         self.assertNotIn(conflict.FIX_IN_DIFF, conflict.held_by_rulings(b)[CLAMP])
-        unruled = fake_with_rows([{**query, "ruling": None, "status": "parked"}, {**broke, "ruling": None, "status": "parked"}])
-        self.assertEqual(fixboard.parked_reasons(unruled.dir, [CLAMP]), {CLAMP: fixboard.PARKED_FOR_RULING})
 
     def test_gave_up_row_keeps_the_unit_fix_in_the_tree(self):
         """諦めた fix_plan_item の行（修正役に直した分を戻すなと約束した。GAVE_UP_PROMISE）と別の ask_human の行が同じ単位に並ぶ時、
@@ -427,9 +397,6 @@ class TestReplanWords(unittest.TestCase):
     def flat(p):
         return re.sub(r'[\s"]', "", p.read_text(encoding="utf-8"))
 
-    def test_ruler_says_same_run(self):
-        self.assertIn("同じ run の中で修正案の役", fixrules.sections(fixrules.RULER)["ruler-reply"])
-
     def test_replan_promise_says_same_run(self):
         b = fake_with_rows([row("c1-1", MEAN, "fix_plan_item", state="waiting", plan_units=[MEAN, CLAMP])])
         text = conflict.write_rulings(b).read_text(encoding="utf-8")
@@ -480,50 +447,6 @@ class TestReplanWords(unittest.TestCase):
         self.assertIn("当て直すな", mine)
         self.assertIn("changes に書くな", mine)
         self.assertNotIn(conflict.HELD_WORK_KEPT, mine)
-
-
-class FixAcceptSeamCase(unittest.TestCase):
-    """修正役の受け付け（fixboard.accept_reply）の申し出の照らし（take_conflicts）: 直す義務の外の単位の申し出と、申し出た
-    単位を changes にも書いた返答を拒む（元 works/blk-fix/scripts/accept.py:319-333。元 test_blk_fix_conflict.py:152
-    test_conflict_outside_owed_units_is_rejected）"""
-
-    def setUp(self):
-        from tests.bin.gitkit import committed_copy
-        tmp = tempfile.TemporaryDirectory(prefix="works-conflict-accept-")
-        self.addCleanup(tmp.cleanup)
-        root = pathlib.Path(tmp.name)
-        self.repo, self.place = root / "repo", root / "place"
-        self.rev = committed_copy(self.repo, LIB.parent / "tests" / "e2e" / "target-seed")
-        self.place.mkdir()
-        (self.place / fixboard.JUDGMENT_FILE).write_text(json.dumps({"units": [{"key": MEAN}, {"key": CLAMP}]}),
-                                                         encoding="utf-8")
-
-    def accept(self, conflicts, changes=()):
-        import leftovers
-        reply = {"changes": [{"unit_key": k, "what": "直した", "files": ["stats.py"]} for k in changes],
-                 "conflicts": conflicts}
-        return fixboard.accept_reply(reply, self.place, self.repo, pass_="first", iteration=1, owed=[MEAN, CLAMP], judged=[],
-                                     head=leftovers.snapshot(self.repo), base_rev=self.rev)
-
-    def claim(self, key=MEAN):
-        return {"unit_key": key, "between": ["stats.py:9", "test_stats.py:9"],
-                "why_both_cannot_hold": "テストは分母 len(xs) - 1 の値を期待しているが、依頼は算術平均を求めている",
-                "which_is_right": "request", "kind": "unnamed_test_broke"}
-
-    def conflict_rejects(self, got) -> str:
-        return " ".join(r["text"] for r in got["rejects"] if r["check"] == "conflict")
-
-    def test_conflict_unit_also_in_changes_is_rejected(self):
-        got = self.accept([self.claim()], changes=[MEAN, CLAMP])
-        self.assertEqual((got["ok"], got["conflicted"]), (False, False), got)
-        self.assertIn(f"申し出た単位を changes にも書いた: {MEAN}", self.conflict_rejects(got))
-        self.assertEqual(conflict.items(self.place), [], "拒んだ申し出は積まない")
-        got = self.accept([self.claim("stats.py ghost: 作り話の単位")])
-        self.assertFalse(got["ok"], got)
-        self.assertIn("今の直す義務の単位に無い", self.conflict_rejects(got))
-        self.assertEqual(conflict.items(self.place), [])
-        got = self.accept([self.claim()])
-        self.assertEqual((got["ok"], got["conflicted"]), (True, True), got)
 
 
 if __name__ == "__main__":

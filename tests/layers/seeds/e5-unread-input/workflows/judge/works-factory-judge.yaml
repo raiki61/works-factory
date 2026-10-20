@@ -1,0 +1,18 @@
+name: works-factory-judge
+inputs:
+  request: {default: '[]', description: 'json: 依頼の行'}
+  base: {default: '', description: 'text: 差分の根'}
+  lang: {default: '', description: 'text: 人に見せる欄の言語'}
+returns: verdict
+outcome_field: ready
+nodes:
+  - id: verdict
+    script: verdict
+    runtime: uv
+    with:
+      language: "$INPUTS.lang"
+    output_format:
+      type: object
+      properties:
+        ready: { type: boolean }
+      required: [ready]

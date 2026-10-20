@@ -13,58 +13,58 @@ description: |
 inputs:
   rounds:
     required: true
-    description: つなぐ周の数（1〜5 の整数）。範囲の外は chain-start が AI の前で止める
+    description: 'text: つなぐ周の数（1〜5 の整数）。範囲の外は chain-start が AI の前で止める'
   budget_usd:
     default: ""
-    description: 費用の上限 USD（空か正の数）。在れば、累計と最大の周の費用の和が上限を越えうる時と、費用が読めない周が在る時に止める
+    description: 'text: 費用の上限 USD（空か正の数）。在れば、累計と最大の周の費用の和が上限を越えうる時と、費用が読めない周が在る時に止める'
   request:
     default: ""
-    description: 1 周目の子にだけ渡すメイングラフの同じ名の入力。2 周目からは request を前の周が運んだ次の依頼に替え、ほかは空にする
+    description: 'text: 1 周目の子にだけ渡すメイングラフの同じ名の入力。2 周目からは request を前の周が運んだ次の依頼に替え、ほかは空にする'
   base:
     default: ""
-    description: 1 周目の子にだけ渡すメイングラフの同じ名の入力。2 周目からは request を前の周が運んだ次の依頼に替え、ほかは空にする
+    description: 'text: 1 周目の子にだけ渡すメイングラフの同じ名の入力。2 周目からは request を前の周が運んだ次の依頼に替え、ほかは空にする'
   pr:
     default: ""
-    description: 1 周目の子にだけ渡すメイングラフの同じ名の入力。2 周目からは request を前の周が運んだ次の依頼に替え、ほかは空にする
+    description: 'text: 1 周目の子にだけ渡すメイングラフの同じ名の入力。2 周目からは request を前の周が運んだ次の依頼に替え、ほかは空にする'
   spec:
     default: ""
-    description: 1 周目の子にだけ渡すメイングラフの同じ名の入力。2 周目からは request を前の周が運んだ次の依頼に替え、ほかは空にする
+    description: 'text: 1 周目の子にだけ渡すメイングラフの同じ名の入力。2 周目からは request を前の周が運んだ次の依頼に替え、ほかは空にする'
   test_cmd:
     default: ""
-    description: どの周の子にも渡すメイングラフの同じ名の入力
+    description: 'text: どの周の子にも渡すメイングラフの同じ名の入力'
   tdd_suite:
     default: ""
-    description: どの周の子にも渡すメイングラフの同じ名の入力
+    description: 'text: どの周の子にも渡すメイングラフの同じ名の入力'
   final_gate:
     default: ""
-    description: どの周の子にも渡すメイングラフの同じ名の入力
+    description: 'text: どの周の子にも渡すメイングラフの同じ名の入力'
   unattended:
     default: ""
-    description: どの周の子にも渡すメイングラフの同じ名の入力
+    description: 'text: どの周の子にも渡すメイングラフの同じ名の入力'
   design_only:
     default: ""
-    description: メイングラフの同じ名の入力。鎖とは組めず、空でなければ chain-start が拒む（子には空のまま渡る）
+    description: 'text: メイングラフの同じ名の入力。鎖とは組めず、空でなければ chain-start が拒む（子には空のまま渡る）'
   thickness:
     default: ""
-    description: どの周の子にも渡すメイングラフの同じ名の入力
+    description: 'text: どの周の子にも渡すメイングラフの同じ名の入力'
   features_off:
     default: ""
-    description: どの周の子にも渡すメイングラフの同じ名の入力
+    description: 'text: どの周の子にも渡すメイングラフの同じ名の入力'
   features_on:
     default: ""
-    description: どの周の子にも渡すメイングラフの同じ名の入力
+    description: 'text: どの周の子にも渡すメイングラフの同じ名の入力'
   policy_md:
     default: ""
-    description: どの周の子にも渡すメイングラフの同じ名の入力
+    description: 'text: どの周の子にも渡すメイングラフの同じ名の入力'
   fix_fixture:
     default: ""
-    description: メイングラフの同じ名の入力。鎖とは組めず、空でなければ chain-start が拒む（子には空のまま渡る）
+    description: 'text: メイングラフの同じ名の入力。鎖とは組めず、空でなければ chain-start が拒む（子には空のまま渡る）'
   lang:
     default: ""
-    description: どの周の子にも渡すメイングラフの同じ名の入力
+    description: 'text: どの周の子にも渡すメイングラフの同じ名の入力'
   deliver:
     default: ""
-    description: 出口の語（lib/entry.py の DELIVERS）。周の子には空で渡し、子は PR を作らない。pr は最後の差分を封じた後に、親の run の枝を最後の差分と照らし、Archon に同梱の archon-pr で PR を 1 本だけ作る（親の run の枝が対象の既定の枝と同じ名なら push せずに止める。merge はしない）。知らない語は chain-start が止める
+    description: 'text: 出口の語（lib/entry.py の DELIVERS）。周の子には空で渡し、子は PR を作らない。pr は最後の差分を封じた後に、親の run の枝を最後の差分と照らし、Archon に同梱の archon-pr で PR を 1 本だけ作る（親の run の枝が対象の既定の枝と同じ名なら push せずに止める。merge はしない）。知らない語は chain-start が止める'
 
 # 周の commit（round-k-commit）は run の作業ツリーの枝へ積む。--no-worktree で利用者の作業ツリーに走らせない
 worktree:
@@ -106,7 +106,7 @@ nodes:
   # 同じ物は 1 周目の定義のアンカーが持ち、2〜5 周目は <<: * で受ける。アンカーが共有するのは commit・facts・decide の本体（script・
   # runtime・timeout・output_format と、facts・decide の mutates_checkout）と、子の workflow（round_line）と、子へ渡す入力（line_inputs）と facts・decide の入力
   # （facts_inputs・decide_inputs）。周ごとに残すのは id・depends_on・when・前の決めから受ける request・base・pr・spec・rows・child と
-  # round-k の参照（outcome・apply・r2_status・spec_questions・facts・commit・next_request）。縛るのは tests/workflows/test_chain.py。
+  # round-k の参照（outcome・apply・r2_status・spec_questions・facts・commit・next_request）。縛るのは tests/blocks/chain/test_chain.py。
   # 前の周が飛ぶと、既定の trigger_rule で後ろの周も全部飛ぶ
   - id: round-1
     <<: &round_line
@@ -386,7 +386,7 @@ nodes:
     when: "$chain-start.output.deliver == 'pr' && $final-diff.output.placed == true"
     with:
       mode: check
-      base_rev: "$chain-start.output.origin"
+      base: "$chain-start.output.origin"
       sealed_hash: "$final-diff.output.sealed.hash"
       deliver: "$chain-start.output.deliver"
       request: "$chain-start.output.first_request"

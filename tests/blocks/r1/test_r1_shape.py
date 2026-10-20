@@ -28,7 +28,7 @@ color: green
 ---
 
 """
-ROLE_HEAD = "## Role definition (pr-review-toolkit:comment-analyzer)\n\n"
+ROLE_HEAD = "## Role definition (comment analyzer)\n\n"
 
 # 役の返答の型の正本（今の works の review-loop.json の r1.comment_candidates・r1.minimality の schema。tests/workflows/test_eyes.py の
 # GRAPH_SCHEMAS の r1 の 2 つの写し。note は YAML ではコメントに書く）と、r1-minimality に足した物（#663。R1_ADDED）
@@ -156,6 +156,13 @@ class TextCase(unittest.TestCase):
         unhoused = unhoused[:unhoused.index("(not counted as a finding)")]
         self.assertIn("as a justifiable increment", unhoused)
         self.assertNotIn("{st_", unhoused)
+
+    def test_minimality_writes_the_home_head_as_the_readers_do(self):
+        """考えの住処の頭の字は md が直に持つ（lib の頭の定数を値で渡さない）。報告と承認ノードの読み手の字と同じ"""
+        import concepthome   # lib/（kit.load が sys.path に足す）
+        text = md("r1-minimality")
+        self.assertEqual(text.count(f'"{concepthome.PREFIX}"'), 2)
+        self.assertNotIn("{home_prefix}", text)
 
     def test_minimality_holds_the_shared_sections(self):
         """test_concept_map_only_on_r1_and_r3・test_policy_section_on_r1_r3_r4・test_concept_map_is_pasted_after_the_concept_head の r1"""

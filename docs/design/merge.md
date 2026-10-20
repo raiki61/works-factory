@@ -1,6 +1,6 @@
 # block の設計書: merge（差分の確定と取り込み）
 
-- 何の話か: run の差分を封じて hash を取り、守りのファイルに触れたかを数え、最後の承認ノードの後に封じた差分と今の差分を照らしてから置く（出口の語 pr なら run の枝に積んで PR を作る）観点「差分の確定と取り込み」を、単独で呼べる block `blocks/merge/` にする設計。AI の node を持たない。型は [README.md](README.md)、書き方は [world.md](world.md) に従う。
+- 何の話か: run の差分を封じて hash を取り、守りのファイルに触れたかを数え、最後の承認ノードの後に封じた差分と今の差分を照らしてから置く（出口の語 pr なら run の枝に積んで PR を作る）観点「差分の確定と取り込み」を、単独で呼べる block `workflows/merge/` にする設計。AI の node を持たない。型は [README.md](README.md)、書き方は [world.md](world.md) に従う。
 - 決めたこと: 今の `workflows/merge/` の 5 つの node（place・pr-commit・pr-open・pr-read・merge）を、同じ並びの block にする。始めの記録の代わりに差分の根を port `base` で受け、出力に報告の行の欄 `report` を足す。守りのファイルの当たりを数えるのは、今の独立の目（eyes）の重ねの数えをやめて、この block の seal と apply だけにする（README 13 節）。形は seal・apply・check の 3 つを残し、PR の作成は Archon 同梱の `archon-pr` を子の run として起こす今の形を残す。振る舞いは変えない。
 - 読む人: この block を作る実装の役（この設計書だけで作れるように書いた）。急ぎではない（README 11.1 の 1 波目。ほかの block と並べて作る）。
 - 持ち主に求めること: なし。README の 8.4 と違う所（形が 3 つ・入力 `diff` が無い・`workflow: archon-pr`）は、どれも今の持ち主の決めと履歴から 1 つに決まったので、10 節に根拠を書いて進めた。keep-essence の 10 と封じた差分の守りの割り当ては 8 節。
@@ -53,7 +53,7 @@ seal は、今の作業ツリーと差分の根の間の差分を封じ、守り
 
 今との違い: 今は差分の根を `start`（始めの記録の pointer。seal と apply）か `base_rev`（check）の 2 つの入力から読み分けていた。block は始めの記録を読まないので、3 つの形とも `base` 1 つで受ける。出力の `diff` の `path` は今 `merge/sealed.diff` などの決まった字の enum だったが、place は include の道で決まる（`merge-seal/sealed.diff`・`merge-apply/apply.diff`・`hand/apply.diff` など）ので、末尾の名の形で縛る（1.3）。
 
-### 1.3 node の並び（`blocks/merge/works-factory-merge.yaml`）
+### 1.3 node の並び（`workflows/merge/works-factory-merge.yaml`）
 
 1. `place`（script `merge.py`・`mutates_checkout: false`）: `with:` は `mode`・`base`・`fingerprint`・`green_ok`・`eyes_ok`・`sealed_hash`・`answer`・`r2`・`deliver` を `$INPUTS.<名>` で。差分を組んで封じる・照らす・置く（3 節）。返り `{mode, ok, hash, diff, protected_hits, protected_count, reason, base_rev, deliver}`（今のまま。`base_rev` は port `base` の値、`deliver` は確かめた出口の語）。
 2. `pr-commit`（script `pr_commit.py`。`depends_on: [place]`・`when: "$place.output.ok == true && $place.output.deliver == 'pr' && $place.output.mode != 'seal'"`・`with: {mode: "$place.output.mode", base_rev: "$place.output.base_rev", sealed_hash: "$place.output.hash", request: $INPUTS.request, user_env_dir: $INPUTS.user_env_dir, items: $INPUTS.items}`）: 今のまま。作業ツリーの HEAD と index を変えるので `mutates_checkout` を書かない（今と同じ。E6 の外への書き込みの 1 つの node ではない。push はしない）。返りは今の `output_format` のまま。
@@ -78,18 +78,18 @@ apply と check は始めに前の `apply.diff` を消し、置くと決めた�
 
 作るファイル（この block の PR が触るのはこれと `tests/blocks/merge/` と、この設計書だけ）:
 
-- `blocks/merge/works-factory-merge.yaml`
-- `blocks/merge/scripts/merge.py`・`pr_commit.py`・`pr_read.py`・`handed.py`（今の 4 本の写し。3 節の違いだけを直す）
-- `blocks/merge/src/__init__.py`（空）
-- `blocks/merge/src/files.py`: place のファイルの名（1.4）と `PROTECTED_FILE`（今の `merge.py:20` の `merge/protected-all.json` の代わり）。
-- `blocks/merge/src/report.py`: 報告の行（9 節）。
+- `workflows/merge/works-factory-merge.yaml`
+- `workflows/merge/scripts/merge.py`・`pr_commit.py`・`pr_read.py`・`handed.py`（今の 4 本の写し。3 節の違いだけを直す）
+- `workflows/merge/src/__init__.py`（空）
+- `workflows/merge/src/files.py`: place のファイルの名（1.4）と `PROTECTED_FILE`（今の `merge.py:20` の `merge/protected-all.json` の代わり）。
+- `workflows/merge/src/report.py`: 報告の行（9 節）。
 形のファイル 4 本は `anyOf` を使わず `type: ["object", "null"]` と `required`・`properties` で書く（10 節の 10）:
 
-- `blocks/merge/schemas/fingerprint.schema.json`: `{"type": ["object", "null"], "required": ["head", "diff_hash"], "properties": {"head": {"type": "string"}, "diff_hash": {"type": "string"}}}`。
-- `blocks/merge/schemas/answer.schema.json`: `{"type": ["object", "null"], "required": ["decision"], "properties": {"decision": {"type": "string"}, "text": {"type": "string"}}}`。
-- `blocks/merge/schemas/r2.schema.json`: `{"type": ["object", "null"], "required": ["status"], "properties": {"status": {"type": "string"}, "reason": {"type": "string"}}}`。
-- `blocks/merge/schemas/items.schema.json`: `{"type": ["object", "null"]}`（中の形は `itemcommits.split` が読み、読めない記録は 1 つの commit に倒す。今のまま）。
-- `blocks/merge/fixtures/` の 7 本（11 節）。
+- `workflows/merge/schemas/fingerprint.schema.json`: `{"type": ["object", "null"], "required": ["head", "diff_hash"], "properties": {"head": {"type": "string"}, "diff_hash": {"type": "string"}}}`。
+- `workflows/merge/schemas/answer.schema.json`: `{"type": ["object", "null"], "required": ["decision"], "properties": {"decision": {"type": "string"}, "text": {"type": "string"}}}`。
+- `workflows/merge/schemas/r2.schema.json`: `{"type": ["object", "null"], "required": ["status"], "properties": {"status": {"type": "string"}, "reason": {"type": "string"}}}`。
+- `workflows/merge/schemas/items.schema.json`: `{"type": ["object", "null"]}`（中の形は `itemcommits.split` が読み、読めない記録は 1 つの commit に倒す。今のまま）。
+- `workflows/merge/fixtures/` の 7 本（11 節）。
 - `tests/blocks/merge/__init__.py`・`test_merge.py`（11 節）。
 
 AI の node を持たないので `prompts/` を置かない（README 7.1 の 2 は AI の node の md だけを縛る）。
@@ -97,8 +97,6 @@ AI の node を持たないので `prompts/` を置かない（README 7.1 の 2 
 使う `lib/`（どれも README 9.3 の KEEP）: `seal`（`digest`・`write_readback`・`diff_files`・`seal_refusal`・`apply_refusal`・`hash_refusal`・`unknown_row`・`deleted_paths`・`deleted_lines`・`UNKNOWN_HEAD`・`REDESIGN`）・`protect`（`merged`・`hits`・`lines`・`shown`・`Broken`）・`green_cert`（`diff_bytes`・`diff_between`・`matches`）・`entry`（`deliver_word`・`DELIVERS`。`entry` は README 9.3 で line・chain・merge が使う KEEP）・`entryshape`（`named`）・`forge`（`repo_of`）・`itemcommits`（`split`）・`runbranch`（`pr_branches`・`staged`・`commit_parts`・`commit`・`git`・`ORIGIN`・`GitFailed`・`PartFailed`）・`tree_run`（`outside_env`・`split_mark`・`place_mark`）・`oneline`・`listcut`。
 
 使う土台の `ports.py` の口（どれも今の土台に在る。この PR は `ports.py` を触らない。10 節の 9）: `text`・`flag`・`choice`・`json`・`file`・`parsed`・`picked`・`place`・`pointer`・`run`・`drop_runner_env`・`RUNTIME_COPY`・`RUNTIME_COPY_PREFIX`。今の `boundary.py` の口のうち土台に無い物（`resolve`・`value`・`items`・`as_items`・`as_text`・`guarded_imports`・`SKIP`）は足さず、block の中で組む（`resolve` の代わりに `ports.place()` と `src/files.py` の名、`SKIP` の代わりに `(ports.RUNTIME_COPY_PREFIX,)`、ほかは各 script の数行の関数と script の頭の import の受け）。
-
-作り直しの間は `workflows/merge/` と、使う lib を変えない。
 
 ### 1.6 つなぎ方（graph の側。block には書かない）
 
@@ -166,7 +164,7 @@ AI の返答を受けないので、却下と諦めの loop は無い。置い�
 ## 5 単独で呼ぶ
 
 ```sh
-bin/works-factory <読ませるフォルダを blocks/ にする引数（名は実装で決める）> workflow run works-factory-merge \
+bin/works-factory workflow run works-factory-merge \
   --cwd <対象> --input mode=seal --input base=<差分の根の commit>
 ```
 
@@ -224,8 +222,8 @@ bin/works-factory <読ませるフォルダを blocks/ にする引数（名は�
 6. （9 で替えた）土台の `ports.py` に要る口を 1.5 に並べ、無い物は最初に要った block の PR が足す。根拠: 今の `boundary.py` の口で、test-gate・fix も使う（憲法の 4）。README 3 節は `ports.py` を `boundary.py` の後継と書くが、口の一覧を決めていない。
 7. 出力の `diff.path` を enum から末尾の名の形に替える。根拠: README 4.4（place は include の道で決まる）で、line の 2 つの include と chain の 1 つで place の字が違う。名の住処は block の `src/files.py` だけ（README 4.4）。
 8. 守りの当たりの行と `bin/apply` の打ち方の行を `report` に入れず、欄で返す。根拠: README 4.1 は報告の文を事実を持つ block が組むと決めたが、この 2 つは他の block の事実（ほかの人が決めることの件数・結末の語・最後の答え）と合わせて初めて決まる。事実を欄で返し、組むのは report と line にする。
-9. 土台の `ports.py` を直さず、1.5 の口のうち無い物は block の中で組む。根拠: 土台は別の PR の持ち物で、この PR が触るのは `blocks/merge/` と `tests/blocks/merge/` と設計書だけ（作り直しの間は既存の共通の口を変えない）。`resolve` は要らない（place の下のファイルは `ports.place()` と `src/files.py` の名で直に指す）。`value`・`items`・`as_items`・`as_text` は各 script の 2〜3 行の関数（`parsed` の読みと型の倒し方）に、`SKIP` は `(ports.RUNTIME_COPY_PREFIX,)` に、`guarded_imports` は script の頭の `try: import …` と `ports.run` の fallback に替えた。10 節の 6 の「最初に要った PR が足す」は、足す先が土台の PR になるので、足さずに済む形にした。本文は 1.5 の使う口の段と 3.1 の 2。
-10. 形のファイル 4 本は、`anyOf` でなく `type: [object, "null"]`（と `required`・`properties`）で書く。根拠: `blocks/.shared/AGENTS.md` と `ports.unknown_keywords` が `anyOf` を拒む（`KNOWN_KEYWORDS` に無く、照らしが黙って飛ばす）。`required` は値が object の時だけ効くので、null は通り、object は `decision`・`status`・`head`・`diff_hash` を要る。本文は 1.5 の形のファイルの段。
+9. 土台の `ports.py` を直さず、1.5 の口のうち無い物は block の中で組む。根拠: 土台は別の PR の持ち物で、この PR が触るのは `workflows/merge/` と `tests/blocks/merge/` と設計書だけ（作り直しの間は既存の共通の口を変えない）。`resolve` は要らない（place の下のファイルは `ports.place()` と `src/files.py` の名で直に指す）。`value`・`items`・`as_items`・`as_text` は各 script の 2〜3 行の関数（`parsed` の読みと型の倒し方）に、`SKIP` は `(ports.RUNTIME_COPY_PREFIX,)` に、`guarded_imports` は script の頭の `try: import …` と `ports.run` の fallback に替えた。10 節の 6 の「最初に要った PR が足す」は、足す先が土台の PR になるので、足さずに済む形にした。本文は 1.5 の使う口の段と 3.1 の 2。
+10. 形のファイル 4 本は、`anyOf` でなく `type: [object, "null"]`（と `required`・`properties`）で書く。根拠: `workflows/.shared/AGENTS.md` と `ports.unknown_keywords` が `anyOf` を拒む（`KNOWN_KEYWORDS` に無く、照らしが黙って飛ばす）。`required` は値が object の時だけ効くので、null は通り、object は `decision`・`status`・`head`・`diff_hash` を要る。本文は 1.5 の形のファイルの段。
 11. 入力 `green_ok`・`eyes_ok` は `ports.flag` で読み、`true`/`false` でない値（空・`null` など）は偽に倒す（拒む側）。根拠: 1.2 の「真偽でない値は偽」。`ports.flag` は不正な字で落ちるので、script が `ValueError` を偽に替える。`fingerprint`・`answer`・`r2` は空と `null` を無し（`None`）に、それ以外は `ports.json` で読む。JSON として読めない字は `ok: false`。形の照らしに落ちた `fingerprint` は合わない指紋、`answer` は通さない答えとして拒み、差分と守りの当たりは書く（今の挙動の「拒むが書く」のまま）。`r2` の形の違いは `ok: false`。本文は 3.1。
 12. 入力 `request`（form `file`）は `ports.file` で読み、読めない・無いファイルは空に倒す（依頼が名指した issue を引けなくても止めない。今の `entryshape.named` の挙動のまま）。`items` は `ports.json` で形を照らし、JSON として読めない字は字のまま `itemcommits.split` に渡して 1 つの commit に倒す（今の `boundary.value` のまま）。
 13. `report.lines` の引数は `(place, deliver, sealed_diff)`（前の版の設計の `(place, commit, read, deliver)` から替えた）。根拠: 積んだ commit の並びと訳は `deliver` が `commits`・`split` で既に持つので、commit と read の返りを渡し直す要が無い。seal の消すファイルの行は封じた差分を読むので、実のパス（`ports.place()` の `sealed.diff`）を受ける。node `merge` の place は seal の node と同じ include の道なので同じ場所を指す。本文は 1.3 の 5 と 3.4。
@@ -234,7 +232,7 @@ bin/works-factory <読ませるフォルダを blocks/ にする引数（名は�
 
 ## 11 試験
 
-- standalone の fixture（`blocks/merge/fixtures/`。今の 7 本の入力の `start` を `base` に替える。script の node も差し替え、配線を見る）:
+- standalone の fixture（`workflows/merge/fixtures/`。今の 7 本の入力の `start` を `base` に替える。script の node も差し替え、配線を見る）:
   - `standalone.stubs.yaml`（今の `seal.stubs.yaml`）: 入力は `mode: seal`・`base: <40 字の版>`。`reached: [place, merge]`（PR の node は走らない）。
   - `apply.stubs.yaml`・`apply-refused.stubs.yaml`・`empty-diff.stubs.yaml`: 置く・拒む・差分が空。
   - `pr.stubs.yaml`・`pr-same-branch.stubs.yaml`・`pr-child-failed.stubs.yaml`: PR を作る・既定の枝の名で止める・子の run が落ちて `unconfirmed`。
@@ -250,6 +248,6 @@ bin/works-factory <読ませるフォルダを blocks/ にする引数（名は�
 
 ## 12 未確認
 
-- 起動の殻で `blocks/` を読ませる引数の名と、5 節の命令の正確な形。
+- 5 節の命令の正確な形。
 - `archon workflow test` が `workflow: archon-pr` の node を `blocks/` の pack だけを読ませた時にも差し替えで通すか（今の筋書き `pr.stubs.yaml` は `workflows/` の pack で通っている）。
 - 計画が許したテストの書き換えを apply で拒まない今の形を、意図して決めた記録（6 節の 1）。

@@ -1,4 +1,4 @@
-"""独立の目の族（blocks/r1〜r4。docs/design/r1.md の 0 節）が共に使う部品。どれも lib/eyeverdict.py の関数の写しか、それを値で
+"""独立の目の族（workflows/r1〜r4。docs/design/r1.md の 0 節）が共に使う部品。どれも lib/eyeverdict.py の関数の写しか、それを値で
 受ける形にした物（写す元は関数ごとの docstring）。標準ライブラリと KEEP の lib の部品だけを読む。実行系を知らない（パスと値を受け、
 値を返す）。ファイルの名は呼び手の block が渡す。
 
@@ -6,8 +6,8 @@
 - changed_files(diff_text): 差分が触れたファイルの並び
 - diff_values(diff): 断片 eye-diff の値 {diff_file, changed_files, base, repo}
 - maps(repo): 断片 concept-map の値と段落の真偽 ({concept_maps, map_tail}, found)
-- review_md(repo): (工場の観点の正本 lib/REVIEW.md の絶対パス, 対象の根の REVIEW.md の絶対パスか "")
-- review_md_values(repo): 断片 eye-coherence の値 {review_md, repo_review_md}（対象の根に REVIEW.md が無ければ NO_REPO_REVIEW_MD）
+- review_md(repo, own_file): (工場の観点の正本 own_file〔呼び手の block が渡す〕の絶対パス, 対象の根の REVIEW.md の絶対パスか "")
+- review_md_values(repo, own_file): 断片 eye-coherence の値 {review_md, repo_review_md}（対象の根に REVIEW.md が無ければ NO_REPO_REVIEW_MD）
 - after_section(after_file, review)・review_line(review): R1・R3 の頭に貼る直した後の実測の材料と、事前審査の最後の往復の結論の 1 行
 - human_items(answers): 承認ノードの答え {start, before_fix} を記録の行 {round, node, answer, note, …} に
 - policy_start(policy_file, request_answers)・policy_body(policy_file): lib/policy.py の口に渡す最小の始めの記録と、断片 policy の本文
@@ -93,15 +93,15 @@ def maps(repo) -> tuple[dict, bool]:
     return {"concept_maps": "\n".join(rows), "map_tail": tail}, bool(found)
 
 
-def review_md(repo) -> tuple[str, str]:
-    """元 prep.py:121-122。materialkit.review_md_paths の返り"""
-    return materialkit.review_md_paths(repo)
+def review_md(repo, own_file) -> tuple[str, str]:
+    """元 prep.py:121-122。materialkit.review_md_paths の返り（工場の観点の正本 own_file は呼び手の block が渡す）"""
+    return materialkit.review_md_paths(repo, own_file)
 
 
-def review_md_values(repo) -> dict:
+def review_md_values(repo, own_file) -> dict:
     """断片 eye-coherence の値 {review_md, repo_review_md}。対象の根に REVIEW.md が無ければ repo_review_md は NO_REPO_REVIEW_MD
     （元 prep.py:122。R3 と、R3 をまとめて見る R4 が使う）"""
-    own, theirs = review_md(repo)
+    own, theirs = review_md(repo, own_file)
     return {"review_md": own, "repo_review_md": theirs or NO_REPO_REVIEW_MD}
 
 
@@ -192,7 +192,7 @@ def recorded_rows_text(rows) -> tuple[str, bool]:
     if of["push"]:
         out.append("- Pushes the run took on its own, with no person answering, at an approval node or for a held question of the judgment (not a person's answer):")
         out += [f"  - name `{r['name']}`: {_head(r.get('text'))}" for r in of["push"]]
-    out.append("- Settled points (an earlier check):" + ("" if of["settled"] else " none"))
+    out.append("- Settled points (from the decision records):" + ("" if of["settled"] else " none"))
     out += [f"  - name `{r['name']}`: {_head(r.get('text'))}" if r.get("name")
             else f"  - (no `where`, so it cannot be named) {_head(r.get('text'))}" for r in of["settled"]]
     return "\n".join(out), not any(r.get("name") for r in rows)

@@ -1,163 +1,25 @@
 name: works-factory-report
 description: |
-  報告のサブグラフ。メイングラフの最後で、前の段が落ちても飛ばされても走る。結末の 10 語と止めの語を決め、機械の報告・次の run の依頼の
-  下書き・前の失敗の行を run の置き場の report/ に書く（facts）。報告の冒頭 3 行（起きたこと・差分を当ててよいか・人が決めることの
-  1 件 1 行）は facts が組む。結果を名乗れる run では、書き手が平易な要約・人が決めること・本文を書き、道具を持たない初見の読み手が
+  報告の block（docs/design/report.md）。run の最後に、graph が渡した事実から結末の 10 語と止めた段の語を決め、機械の報告（冒頭 3 行・人が決める物・
+  止めたか・見る所・役が呼んだ道具・graph が渡したセクションの全部・次の run に引き継ぐ落ちた理由・模型・費用・注意）と、次の run の依頼の下書き・
+  前の失敗の行を place に書く（facts）。結果を名乗れる run では、書き手が平易な要約・人が決めること・本文を書き、道具を持たない初見の読み手が
   頭だけを読んで確かめる（write-loop。3 回目は通らなくても受け取って印を付け、人に向けた報告の冒頭で言う）。
-  出力ノード report は落ちない: 人に向けた報告（report-ai.md。詳しい中身は隣の report-detail.md）が無くても機械の報告を返す。書き手のループが
-  落ちた run は failed で終わり、report は機械の報告の冒頭に本文が無い訳を置く（使用枠の切れなら、別のアカウントで resume すると
-  write-loop と report が走り直して本文が載る）。型つきの成果物の一覧（tdd-unit・green-cert・eye-verdict）は
-  with: でなく facts が $TYPED_ARTIFACTS_FILE から読む（workflows/AGENTS.md の E5）。
+  出口 finish は落ちない: 人に向けた報告（report-ai.md。詳しい中身は隣の report-detail.md）が無くても機械の報告を返す。書き手のループが落ちた
+  run は failed で終わり、finish は機械の報告の冒頭に本文が無い訳を置く（使用枠の切れなら、別のアカウントで resume すると write-loop と finish が
+  走り直して本文が載る）。単独の run でも、graph から include されても回る
 
 inputs:
-  start:
-    default: ""
-    description: >-
-      始めの記録の JSON ファイルを指すポインタ {type, run_id, path}（path は run の置き場からの相対）。
-      空か null は始めの記録が届いていないこと（結果を名乗れない run）
-  before-tests:
-    default: ""
-    description: >-
-      直す前のテストの出力。JSON のオブジェクト {mode, ok, green, red_cause, baseline, evidence, by, suites_line, log, reason など}
-      （baseline・evidence はポインタ {type, run_id, path} か null）。空か null はその段が飛ばされた・落ちたこと
-  judge:
-    default: ""
-    description: >-
-      判定の出力。JSON のオブジェクト {ready, stop_reason, units, judgment, purpose, world, spec, out_of_purpose, depth, depth_why など}
-      （judgment 以下の文書の欄はポインタ {type, run_id, path} か null、units は単位の配列）。空か null はその段が飛ばされた・落ちたこと
-  rejudge:
-    default: ""
-    description: >-
-      {ready, stop_reason, units, judgment, purpose, world, spec, out_of_purpose, depth, depth_why など} の形の JSON のオブジェクト
-      （文書の欄はポインタか null）。同じ形の前の出力より新しい出力。在ればこちらを先に読む。空か null は走らなかったこと
-  structure:
-    default: ""
-    description: >-
-      構造の目の出力。JSON のオブジェクト（ok は控えの status が ok か、もう 1 つの欄は構造の目の控えのポインタ {type, run_id, path} で、
-      控えの design_file が構造の目の行のファイルを指す）。空か null はその段が飛ばされた・落ちたこと
-  plan:
-    default: ""
-    description: >-
-      計画の出力。JSON のオブジェクト {ready, stop_reason, round, depth など}（修正案・波及の文書の欄はポインタ {type, run_id, path}
-      か null、depth は単位ごとの {unit_id, depth, why} の配列、round は何回目の案か）。空か null はその段が飛ばされた・落ちたこと
-  plan-review:
-    default: ""
-    description: >-
-      事前審査の出力。JSON のオブジェクト {pass, stalled, ask_human, questions, gate_axes など}（questions は {kind, text} の配列、
-      指摘・聞かずに通した行・承認の項目と壁打ちの行・独立設計の文書の欄はポインタ {type, run_id, path} か null）。空か null はその段が飛ばされた・落ちた・欄が全部 null だったこと
-  replan:
-    default: ""
-    description: >-
-      {ready, stop_reason, round, depth など} の形の JSON のオブジェクト（文書の欄はポインタか null）。同じ形の前の出力より新しい出力。
-      在ればこちらを先に読む。空か null は走らなかったこと
-  replan-review-result:
-    default: ""
-    description: >-
-      {pass, stalled, ask_human, questions, gate_axes など} の形の JSON のオブジェクト（文書の欄はポインタか null）。
-      同じ形の前の出力より新しい出力。在ればこちらを先に読む。空か null は走らなかったこと
-  fix:
-    default: ""
-    description: >-
-      修正の出力。JSON のオブジェクト {done, go, units, conflicts, replan_items, objection, refixed, delta_review, allowed_test_changes, handoffs,
-      stop_reason, diff, records など}（units は {unit_id, status, reason} の配列、conflicts はポインタの配列でもよく、records は段ごとの
-      {diff, 控えの欄} の配列、diff などの文書の欄はポインタか null）。空か null はその段が飛ばされた・落ちた・走らなかったこと
-  final-tests:
-    default: ""
-    description: >-
-      最後のテストの出力。JSON のオブジェクト {mode, ok, green, red_cause, ran_steps, baseline, evidence, by, suites_line, log, baseline_line,
-      reason など}（baseline・evidence はポインタ {type, run_id, path} か null）。空か null はその段が飛ばされた・落ちたこと
-  eyes:
-    default: ""
-    description: >-
-      独立の目の出力。JSON のオブジェクト {ok, r1, r2, r3, r4, questions, premise_check, structure_after, protected_hits, notes, r4_passes,
-      premise_reply など}（r1〜r4 は {status, reason} か null で、null は深さで省いた目か結果が無い目。questions は問いの文の配列、
-      structure_after・notes・r4_passes・premise_reply はポインタか null）。空か null はその段が飛ばされた・落ちたこと
-  sealed-diff:
-    default: ""
-    description: >-
-      差分を封じた出力。JSON のオブジェクト {mode, ok, hash, diff, protected_hits, protected_count, reason}（diff は封じた差分を指すポインタ
-      {type, run_id, path} か null、protected_hits は守りのパスの字の配列で先頭の数行と残りの 1 行、全件の数は protected_count、ok が偽の時
-      reason が訳）。空か null はその段が飛ばされた・落ちたこと
-  applied-diff:
-    default: ""
-    description: >-
-      差分を置いた出力。JSON のオブジェクト {mode, ok, hash, diff, reason}（diff は置いた先を指すポインタ {type, run_id, path} か null、
-      ok が偽の時 reason が訳）。空か null はその段が飛ばされた・落ちた・最後の承認が止めて置かなかったこと
-  start-answer:
-    default: ""
-    description: >-
-      始めの承認の答え。JSON のオブジェクト {decision, text, asked}（無人の run が推しで進んだ答えは欄 pushed も持つ）。
-      空か null はその承認が開かなかったこと
-  before-fix-answer:
-    default: ""
-    description: >-
-      修正前の承認の答え。JSON のオブジェクト {decision, text, asked}（asked は承認に載せた問いの文の配列。無人の run が推しで進んだ
-      答えは欄 pushed も持つ）。空か null はその承認が開かなかったこと
-  replan-answer:
-    default: ""
-    description: >-
-      案の直しの承認の答え。JSON のオブジェクト {decision, text, asked}（無人の run が推しで進んだ答えは欄 pushed も持つ）。
-      空か null はその承認が開かなかったこと
-  final-answer:
-    default: ""
-    description: >-
-      最後の承認の答え。JSON のオブジェクト {decision, text, asked}（無人の run が推しで進んだ答えは欄 pushed も持つ）。
-      decision が止める語で text が request: で始まれば止め札。空か null はその承認が開かなかったこと
-  stops:
-    default: ""
-    description: >-
-      止めの語の表。JSON のオブジェクト {段の id: 止めの語}（空の語の段は載せない）。語は入口の拒み・無人の承認の止め・script の例外・
-      人の止めを言う。空のオブジェクトか空は止めた段が無いこと
-  prior-failures:
-    default: ""
-    description: >-
-      依頼が運んだ前の run の失敗の行のファイルを指すポインタ {type, run_id, path}（中身は {where, text} の配列）。空か null は運ばれていないこと
-  deferred:
-    default: ""
-    description: >-
-      無人の run で承認に載せずに回した問いの文の JSON の配列。空の配列か空は無いこと
-  widened:
-    default: ""
-    description: >-
-      聞かずに通した範囲を広げるだけの直しの 1 件 1 行の文の JSON の配列。空の配列か空は無いこと
-  final-reasons:
-    default: ""
-    description: >-
-      最後の承認を開ける理由の文の JSON の配列。空の配列か空は無いこと
-  spec-changed:
-    default: ""
-    description: >-
-      承認の後に受け入れ条件のテストが変わった問いの文の JSON の配列。空の配列か空は無いこと
-  spec-unchecked:
-    default: ""
-    description: >-
-      受け入れ条件のテストが変わったかを照らせなかったかの JSON の真偽値。true は照らせなかった。空か null は判らないこと
-  redepth:
-    default: ""
-    description: >-
-      直した後の深さの上げ直しの出力。JSON のオブジェクト {depth, skip_optional, raised, counted, stop_reason}（depth は単位ごとの
-      {unit_id, depth, why} の配列、skip_optional は省く理由の字で空の字は標準）。空か null は上げ直しが走らなかったこと
-  optional:
-    default: ""
-    description: >-
-      落ちても先へ進めてよい段の宣言。JSON の字の配列で、各行は区切り（__ か -）で終わる段の id の頭か段の id そのもの。
-      空の配列か空は宣言が無いこと（落ちを全部途中で終わったと数える）
-  stages:
-    default: ""
-    description: >-
-      段の表。JSON のオブジェクト {nodes: {役の名: 段の id}, links: [{before, flag, after, text, held?, needs?}]}。nodes は段の id が役の名と
-      違う役だけを写す。links は出力の続きで、before の出力の欄 flag（null は出力が在るだけ）が真なのに after の出力が無ければ text の切れ目。
-      held は before の出力のその欄が偽なら数えず、needs はその役の出力が無い周は数えない。届かなければ空（結果を名乗れない）
-  notices:
-    default: ""
-    description: >-
-      run を止めずに進めた起こす前の注意の行の文の JSON の配列。報告の冒頭の 3 行と人が決める物の下に 1 行ずつ載る。空の配列か空は無いこと
-  user-env-dir:
-    default: ""
-    description: >-
-      利用者の HOME・XDG に戻して起こした印を置いたフォルダの絶対パスの字。空は印を置かずに起こしたこと（印を読まない）
+  sections:
+    required: true
+    description: 'json(sections.schema.json): 報告のセクションの配列 [{title, lines, files?}]。機械の報告に、この並びのまま 1 セクションずつ載る。各 block の出力の report の欄を graph が並べた物。files は書き手が読むファイル [{label, ref}]（ref は Archon の pointer かファイルの絶対パスの字）'
+  facts:
+    default: '{}'
+    description: 'json(facts.schema.json): 結末と冒頭 3 行を決める事実のオブジェクト（欄は設計書の 1.2）。空のオブジェクトは事実が渡されていない（結末は record_invalid）'
+  lang:
+    default: ''
+    description: 'text: 書き手が書く本文の言語。空は依頼の言語'
 
-returns: report
+returns: finish
 outcome_field: ok
 
 nodes:
@@ -168,18 +30,16 @@ nodes:
     output_format:
       type: object
       additionalProperties: false
-      required: [outcome, ok, stop_reason, report, next_request, prior_failures, ai_go, facts_file, stamp, lang_line]
+      required: [outcome, ok, stop_reason, machine, next_request, prior_failures, ai_go, stamp]
       properties:
         outcome: {type: string}
         ok: {type: boolean}
         stop_reason: {type: string}
-        report: {type: [object, "null"]}
+        machine: {type: [object, "null"]}
         next_request: {type: [object, "null"]}
         prior_failures: {type: [object, "null"]}
         ai_go: {type: boolean}
-        facts_file: {type: string}
         stamp: {type: string}
-        lang_line: {type: string}
 
   - id: write-loop
     depends_on: [facts]
@@ -187,22 +47,21 @@ nodes:
     loop_group:
       max_iterations: 3
       fresh_context: true
-      until_bash: done=$accept.output.done; test "$done" = true
+      until_bash: done=$write-accept.output.done; test "$done" = true
       nodes:
-        - id: write-reject
-          script: reject
+        - id: write-prep
+          script: write_prep
           runtime: uv
           mutates_checkout: false
-          with: {reason: "$LOOP_PREV.accept.output.reason_file", prev: "$LOOP_PREV.accept.output.prev_file"}
           output_format:
             type: object
             additionalProperties: false
-            required: [reason, prev, handoff]
-            properties: {reason: {type: string}, prev: {type: string}, handoff: {type: string}}
+            required: [prompt]
+            properties: {prompt: {type: string, minLength: 1}}
 
         - id: write
-          command: report
-          depends_on: [write-reject]
+          prompt: "$write-prep.output.prompt"
+          depends_on: [write-prep]
           model: '@wf-report'
           allowed_tools: [Read, Grep, Glob, WebSearch, WebFetch]
           settingSources: [user]
@@ -266,12 +125,11 @@ nodes:
           output_format:
             type: object
             additionalProperties: false
-            required: [body]
-            properties:
-              body: {type: string}
+            required: [prompt]
+            properties: {prompt: {type: string, minLength: 1}}
 
         - id: cold
-          command: cold-check
+          prompt: "$cold-prep.output.prompt"
           depends_on: [cold-prep]
           context: fresh
           model: '@wf-report'
@@ -291,8 +149,8 @@ nodes:
               guessed: {type: array, items: {type: string}}
               decidable: {type: boolean}
 
-        - id: accept
-          script: report_accept
+        - id: write-accept
+          script: write_accept
           runtime: uv
           mutates_checkout: false
           depends_on: [write, cold]
@@ -302,41 +160,46 @@ nodes:
           output_format:
             type: object
             additionalProperties: false
-            required: [done, ok, reason, kind, reason_file, prev_file]
+            required: [done, ok, reason, kind, prev_file]
             properties:
               done: {type: boolean}
               ok: {type: boolean}
               reason: {type: string}
               kind: {type: string}
-              reason_file: {type: string}
               prev_file: {type: string}
 
-  - id: report
-    script: collect
+  - id: finish
+    script: finish
     runtime: uv
     mutates_checkout: false
     depends_on: [facts, write-loop]
     trigger_rule: all_done
-    with:
-      facts: $facts.output
     output_format:
       type: object
       additionalProperties: false
-      required: [outcome, stop_reason, report, report_ai, next_request, prior_failures, ok]
+      required: [ok, outcome, stop_reason, machine, human, detail, next_request, prior_failures, report]
       properties:
+        ok: {type: boolean}
         outcome:
           type: string
           enum: [fixed, fixed_needs_check, no_fix_needed, round_limit, stopped_by_request, stopped_by_human, stopped_by_line,
                  needs_human, record_invalid, interrupted]
         stop_reason: {type: string}
-        report:
+        machine:
           type: object
           required: [type, run_id, path]
           properties:
             type: {const: archon_artifact}
             run_id: {type: string}
             path: {type: string}
-        report_ai:
+        human:
+          type: [object, "null"]
+          required: [type, run_id, path]
+          properties:
+            type: {const: archon_artifact}
+            run_id: {type: string}
+            path: {type: string}
+        detail:
           type: [object, "null"]
           required: [type, run_id, path]
           properties:
@@ -357,4 +220,4 @@ nodes:
             type: {const: archon_artifact}
             run_id: {type: string}
             path: {type: string}
-        ok: {type: boolean}
+        report: {type: array, items: {type: string}}

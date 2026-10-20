@@ -2,63 +2,53 @@
 # requires-python = ">=3.12"
 # dependencies = []
 # ///
-"""節 tdd-step（形 group の tdd-loop の中。役 tdd の後）: 役の返答を機械が確かめて段を進める（tddloop.step）。
-
-段は route → 単位ごとに test（赤）→ fix（緑）→（申告の在る単位だけ）refactor。赤・緑は実行器の JUnit XML で機械が決める
-（役の申告では決まらない）。段ごとに 3 回目の拒否で諦め、その単位を単位の頭の木に戻し、機械の申し出を積んで次の単位へ。
-食い違いの申し出（phase conflict）は、名指しが現物に在れば単位を止める（query の申し出は判定者の問いを当てる。fixboard.judge_query）。
-止めた申し出は状態の未送の並びから置き場の conflicts.json に積む（tddloop.flush_unsent → conflict.park_claims。前の周が積めなかった
-物も積み直す）。並べの周（tddlanes）は使わない（組の並べは子の run の fan_out が持つ）。
-入力 reply は同じ単位の続きの役 tdd の返答、reply_new は新しい単位の役 tdd-new の返答（周ごとにどちらか一方だけが起き、
-飛ばされた方は null か空。両方が空なら役が飛ばされた周）。拒んだ理由は置き場の tdd-step-reject-<n>.md にも書き、パスを返す
-（次の指示書にも tddloop.prep が載せる）。
-返り {ok, done, reason, reason_file, phase}（done は輪が済んだ時）。輪の状態が読めない・済んだ輪に返答が来た・git が効かない:
-標準エラーに 1 行で 1。
-"""
+"""node tdd-step（組の形の tdd-loop の中。役の後）: 役の返答を機械が確かめて段を進める（src/tdd.step。今のまま）。止めた申し出は
+状態の未送の並びから place の conflicts.json に積む（tdd.flush_unsent → conflict.park_claims）。入力 reply は同じ単位の続きの役 tdd の
+返答、reply_new は新しい単位の役 tdd-new の返答（周ごとにどちらか一方だけ）。拒んだ理由は place の tdd-step-reject-<n>.md にも書く。
+返り {ok, done, reason, reason_file, phase}"""
 import os
 import sys
 from pathlib import Path
 
 sys.dont_write_bytecode = True
-sys.path.insert(0, str(Path(__file__).resolve().parents[2] / ".shared"))
-import boundary  # noqa: E402
-sys.path.append(str(boundary.lib_root()))
+sys.path[:0] = [str(Path(__file__).resolve().parents[2] / ".shared"), str(Path(__file__).resolve().parents[1])]
+import ports  # noqa: E402
 
 import conflict  # noqa: E402
-import fixboard  # noqa: E402
 import oneline  # noqa: E402
-import tddloop  # noqa: E402
 import writelog  # noqa: E402
+
+from src import board, runvals, tdd  # noqa: E402
 
 REJECT = "tdd-step-reject-{}.md"
 
 
 def read_reply():
-    reply = boundary.value(os.environ["INPUTS_REPLY"])
+    value = ports.polyfill("skip_value").value   # null・空・飛ばされた返答は None、JSON でなければ字のまま（step が拒む）
+    reply = value(os.environ.get("INPUTS_REPLY"))
     if reply is None:
-        reply = boundary.value(os.environ.get("INPUTS_REPLY_NEW"))   # 単位が替わった周は新しい単位の役の返答
-    return reply   # 読めない返答は字のまま。step が拒む（出し直しの回数に数える）
+        reply = value(os.environ.get("INPUTS_REPLY_NEW"))   # 単位が替わった周は新しい単位の役の返答
+    return reply
 
 
 def main() -> dict:
     reply = read_reply()
-    place = boundary.place("fix")
-    repo = boundary.work_tree()
-    started = fixboard.read_json(place / fixboard.TDD_START_FILE)
+    place, repo = ports.place(), Path.cwd()
+    started = board.read_json(place / board.TDD_START_FILE)
     if not isinstance(started, dict):
-        raise ValueError(f"置き場に {fixboard.TDD_START_FILE} が無い（group-start が走らなかった。{place}）")
+        raise ValueError(f"置き場に {board.TDD_START_FILE} が無い（group-start が走らなかった。{place}）")
     if not started.get("go"):
         return {"ok": True, "done": True, "reason": "", "reason_file": "", "phase": "done"}
     state = started["state_file"]
-    hits = fixboard.judge_query(place)
+    hits = board.judge_query(place)
     log = writelog.log_here()
-    boundary.drop_runner_env(os.environ.get("INPUTS_USER_ENV_DIR", ""))   # 対象のテストに Archon の変数を継がせない（place・repo は先に取った）
-    out = tddloop.step(state, reply, repo, try_query=hits, log=log)
-    tddloop.flush_unsent(state, lambda rows: conflict.park_claims(place, rows))
+    ports.drop_runner_env(runvals.read(place)["user_env_dir"])   # 対象のテストに Archon の変数を継がせない（place・repo は先に取った）
+    out = tdd.step(state, reply, repo, try_query=hits, log=log)
+    tdd.flush_unsent(state, lambda rows: conflict.park_claims(place, rows))
     reason_file = ""
     if out["reason"]:
-        n = len(tddloop.load_state(state).get("calls") or [])
-        reason_file = str(fixboard.write_text(place / REJECT.format(n), out["reason"] + "\n"))
+        n = len(tdd.load_state(state).get("calls") or [])
+        reason_file = str(board.write_text(place / REJECT.format(n), out["reason"] + "\n"))
     return {"ok": bool(out["ok"]), "done": bool(out["done"]), "reason": out["reason"], "reason_file": reason_file,
             "phase": out["phase"]}
 
@@ -69,4 +59,4 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"tdd-step: {type(e).__name__}: {oneline.one_line(e)}", file=sys.stderr)
         sys.exit(1)
-    boundary.returns(result)
+    ports.returns(result)

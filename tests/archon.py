@@ -11,7 +11,8 @@
   aliases=False で起こす（家の置き場は別。--config の層が値を運ぶことを照らす試験が使う）。
   bun が無ければ見送る。
 - 木: 使い捨ての git の木。中の .archon/workflows/<pack>/ に、名指した工程のフォルダとこのリポジトリの .shared/ を写して commit する。
-  作り直しの間の 2 つ目の pack blocks/（docs/design/README.md の 3 節）は blocks_tree で置く（.shared/ も blocks/.shared/ を写す）。
+  pack のフォルダは pack.json の ours.folder（WORKFLOWS。組み込みの入れ替えの前も後も同じ口）。blocks_tree は block の筋書き用に
+  TARGET_FILES を 2 つ目の commit に置く木。
   `archon validate` は --workflow-source を受けず、--cwd は git の木しか受けないので、確かめる時はこの木を --cwd に渡す。
 - validate の数えない警告: Claude Code に同梱の skill（BUILTIN_SKILLS）と、借りる superpowers の skill（BORROWED_SKILLS。
   lib/borrow/borrow.json の superpowers.skills）を節が名指した時の「ディスクに無い」の警告だけ。同梱の skill は SKILL.md を
@@ -42,8 +43,26 @@ BORROWED_SKILLS = frozenset(json.loads((ROOT / "lib" / "borrow" / "borrow.json")
                             ["superpowers"]["skills"])
 BUILTIN_SKILL_WARNING = re.compile(r"Skill '([^']+)' not found in ")
 WORKFLOWS = ROOT / PACK["ours"]["folder"]
-BLOCKS = ROOT / "blocks"
 SHARED = ".shared"
+
+
+def src_module(block: str, module: str):
+    """pack の block の src/<module> を、この過程に読み込んだモジュール（試験は block の src を読んでよい。読んではいけないのは lib と
+    ほかの block の側。docs/design/integration.md の 4.5-7）。src は package の名が block ごとに重なるので、読む前に前の src を外す
+    （tests/blocks/kit.py の load と同じ）。lib/ も sys.path に置く（src は lib のモジュールを名だけで import する）"""
+    import importlib
+    import sys
+    lib = str(ROOT / "lib")
+    if lib not in sys.path:
+        sys.path.append(lib)
+    for name in [m for m in sys.modules if m == "src" or m.startswith("src.")]:
+        del sys.modules[name]
+    folder = str(WORKFLOWS / block)
+    sys.path.insert(0, folder)
+    try:
+        return importlib.import_module(f"src.{module}")
+    finally:
+        sys.path.remove(folder)
 
 
 def absent(reason: str) -> unittest.SkipTest | AssertionError:
@@ -103,14 +122,14 @@ def tree(names: Iterable[str], workflows: pathlib.Path = WORKFLOWS, shared: path
         yield root
 
 
-# blocks/ の筋書きの作業ツリーに置く、対象のリポジトリの小さな入口（guidance-path の読み手が辿る所。.archon の外に要る）
+# block の筋書きの作業ツリーに置く、対象のリポジトリの小さな入口（guidance-path の読み手が辿る所。.archon の外に要る）
 TARGET_FILES = {"README.md": "# Fixture target\n\nSee AGENTS.md.\n", "AGENTS.md": "# Rules\n\nNew review viewpoints are blocks.\n"}
 
 
 def blocks_tree(names: Iterable[str]) -> contextlib.AbstractContextManager[pathlib.Path]:
-    """blocks/ の names の block と blocks/.shared/ を pack の形で置き、TARGET_FILES を 2 つ目の commit に置いた使い捨ての git の木
+    """pack の names の block と pack の .shared/ を置き、TARGET_FILES を 2 つ目の commit に置いた使い捨ての git の木
     （tree と同じ形。条件つきの観点の筋書きは base: HEAD~1 で TARGET_FILES を対象差分にできる）"""
-    return tree(names, BLOCKS, BLOCKS / SHARED, later=TARGET_FILES)
+    return tree(names, WORKFLOWS, WORKFLOWS / SHARED, later=TARGET_FILES)
 
 
 def archon(cwd: pathlib.Path, *args: str, aliases: bool = True, **env: str | None) -> subprocess.CompletedProcess:

@@ -66,7 +66,6 @@ if str(_CORE / "graphloops") not in sys.path:
 from engine.util import safe_name  # noqa: E402
 import jsonfile  # noqa: E402
 import oneline  # noqa: E402
-import promptsection  # noqa: E402
 
 
 class BoardGap(Exception):
@@ -130,7 +129,7 @@ def pointed_lang_line(raw, locate) -> str:
     return record_lang_line(path)
 
 
-REJECT_HEADING = promptsection.Section("## 前の回の受け付けが拒んだ理由", source="fn:rolekit.with_reject")
+REJECT_HEADING = "## 前の回の受け付けが拒んだ理由"
 
 
 REJECT_LINE = ("前の回までの返答は受け付けで拒まれた。これまでの拒否の理由の全部（古い順）がファイル {path} に在る。先に Read で"

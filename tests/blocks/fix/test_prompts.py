@@ -1,4 +1,4 @@
-"""修正の block（blocks/fix/）の 9 つの AI の node の指示を、その prep（か prep が呼ぶ src/prompts.py の口）を回して md から組み、
+"""修正の block（workflows/fix/）の 9 つの AI の node の指示を、その prep（か prep が呼ぶ src/prompts.py の口）を回して md から組み、
 決まった文が入ることを見る（docs/design/fix.md の 14.2 の test_prompts.py）。
 
 表 RENDERED は、筋書き（fixtures/）で届かない 6 つの node（全体の形は fan_out で dry-run が落ち、tdd は同じ単位の 2 周目にだけ回る）の
@@ -199,7 +199,8 @@ class FixerParagraphsCase(unittest.TestCase):
         for name in ("parts/fixer.md", "parts/tdd.md", "parts/clash.md", "ruler.md"):
             with self.subTest(name=name):
                 text = (BLOCK / "prompts" / name).read_text(encoding="utf-8")
-                self.assertIn("Keep keys, enum values, code identifiers, paths, commands, and error messages as they are.", text)
+                self.assertIn("Keep keys, enum values, code identifiers, paths, commands, and error messages as they are "
+                              "(keys are matched across rounds, so do not translate them).", text)
         fixer = (BLOCK / "prompts" / "parts" / "fixer.md").read_text(encoding="utf-8")
         for field in ("`coverage.remaining`", "`precedent.problem`", "`precedent.searched`"):
             self.assertIn(field, fixer.rsplit("Write the human-facing fields", 1)[1])
@@ -215,6 +216,62 @@ class FixerParagraphsCase(unittest.TestCase):
         self.assertIn("- **route**", text)
         for other in ("- **test**", "- **fix**", "- **refactor**"):
             self.assertNotIn(other, text)
+
+
+class ConflictWordsCase(unittest.TestCase):
+    """食い違いの申し出の種類と裁定の範囲の決まりの文が、組んだ指示に在る（keep-essence の 8。元 lib/tests/test_conflict_kinds.py の
+    test_rules_name_the_kinds・test_brief_rules_name_the_kinds・test_ruler_says_limits_only_add_paths・test_ruler_opens_brief_for_limits_too・
+    test_brief_rule_names_ruling_limits と test_conflict_replan_words.py の test_ruler_says_same_run）"""
+
+    def planned_fixer(self) -> str:
+        run = seeded(self)
+        run.script("intake", mode="group", group=json.dumps({"group_id": "g1", "unit_ids": [KEY], "items": [1]}), judgment=JUDGMENT,
+                   plan=PLAN, fix_plan=FIX_PLAN)
+        run.script("group_start")
+        return run.script("fix_prep")["prompt"]
+
+    def ruler(self) -> str:
+        run = seeded(self)
+        run.script("intake", mode="whole", judgment=JUDGMENT, parallel="false")
+        run.script("prep")
+        conflict.park(run.artifacts, [{"unit_key": KEY, "between": ["stats.py:2", "stats.py:1"], "why_both_cannot_hold": "期待と実装が両立しない",
+                                       "which_is_right": "unknown", "kind": "needs_context"}], source=conflict.FIX_SOURCE)
+        return run.script("rule_prep")["prompt"]
+
+    def test_rules_name_the_kinds(self):
+        """共通の断片 writer-rules の食い違いの決まりと TDD の役の指示が、DIV_KINDS の語を全部 `語` で言う"""
+        text = self.planned_fixer()
+        for kind in conflict.DIV_KINDS:
+            self.assertIn(f"`{kind}`", text)
+        run = seeded(self)
+        run.script("intake", mode="group", group=GROUP, judgment=JUDGMENT, tdd_suite=str(RUNNER))
+        run.script("group_start")
+        tdd = run.script("tdd_prep")["prompt"]
+        for kind in conflict.DIV_KINDS:
+            self.assertIn(f"`{kind}`", tdd)
+        self.assertIn('"kind"', tdd)
+
+    def test_brief_rules_name_the_kinds(self):
+        """brief の決まりの申し出の道（範囲の外・query・brief の誤り）がそれぞれ種類の名を言う"""
+        text = self.planned_fixer()
+        for kind in ("scope_needed", "query_hits_fixed", "brief_vs_judgment"):
+            self.assertIn(f"`kind` is `{kind}`", text)
+
+    def test_brief_rule_names_ruling_limits(self):
+        self.assertIn("the ruling wins over the brief within the ruling's scope", self.planned_fixer())
+
+    def test_ruler_says_limits_only_add_paths(self):
+        """裁定役の決まりは、足しても項目は変わらず、項目の `tests`・`files`（足す物・消す物の行）を直しで満たす義務は残ると言う"""
+        text = self.ruler()
+        for word in ("if empty, no path is added", "a new file outside the scope", "`out_of_scope`", "`tests` and `files`"):
+            self.assertIn(word, text)
+
+    def test_ruler_opens_brief_for_limits_too(self):
+        """範囲（limits）を書く時も fix_plan_item を考える時も、その単位の brief を開く"""
+        self.assertIn("When you write `limits` and when you consider `fix_plan_item`, open that unit's brief", self.ruler())
+
+    def test_ruler_says_same_run(self):
+        self.assertIn("within the same run, the fix plan's side fixes that item", self.ruler())
 
 
 class SubAgentFilesCase(unittest.TestCase):

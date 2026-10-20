@@ -1,6 +1,6 @@
 # block の設計書: report（報告を書く）
 
-- 何の話か: run の最後に結末の語を決め、機械の報告を組み、書き手の役が人に向けた本文を書き、初見の読み手が頭だけを読んで確かめる「報告」を、単独で呼べる block `blocks/report/` にする設計。型は [README.md](README.md)、手本は [world.md](world.md)。
+- 何の話か: run の最後に結末の語を決め、機械の報告を組み、書き手の役が人に向けた本文を書き、初見の読み手が頭だけを読んで確かめる「報告」を、単独で呼べる block `workflows/report/` にする設計。型は [README.md](README.md)、手本は [world.md](world.md)。
 - 決めたこと: 今の `workflows/report/` の 7 つの node を、同じ 7 つの node の block にする（facts・write-loop〔write-prep・write・cold-prep・cold・write-accept〕・finish）。入力は今の 30 個（block ごとの返り 13・承認ノードの答え 4・line の値 12 と `start`）から、`sections`（block ごとの `report` の欄を graph が並べた節）・`facts`（結末を決める事実）・`lang` の 3 つにする。報告の節の行は事実を持つ block が組み、report は並べて継ぐだけにする（README の 4.1）。結末の語の 10 語と決める順は report が持ち、どの block の欄が止め・人待ち・残りに当たるかの読み分けは line が `facts` に入れる。指示は 2 本の英語の md（`prompts/write.md`・`prompts/cold.md`）にする。keep-essence の 11（直す単位ごとの記録が報告に届く）は、fix が単位の行を `report` の欄に組み、line が節にして渡し、report が字を変えずに機械の報告と詳細のファイルに載せる形で守る（7 節）。振る舞いは変えない（変わる所は 1.9 の一覧）。
 - 持ち主に求めること: なし。
 - 読む人と使い方: この block を作る実装者（1〜5 節の名と順をそのまま作る）と、`sections`・`facts` を組む line の設計書の書き手（1.2 の表の「今」と 1.6）。1 波目の PR（README の 11.1）。
@@ -116,7 +116,7 @@ run の結末の語（10 語のどれか）と止めた段の語を、line が�
 - 型つきの成果物の一覧（`$TYPED_ARTIFACTS_FILE`）は読まない（今の facts の `listing`。TDD の単位の行と緑の認証と独立の目の判定は、作り手の block の `report` の欄で届く）。
 - 始めの記録は読まない（今の facts の `start_record`。要る事実は `facts` の欄で届く）。
 
-### 1.3 node の並び（`blocks/report/works-factory-report.yaml`）
+### 1.3 node の並び（`workflows/report/works-factory-report.yaml`）
 
 1. `facts`（script `facts.py`）: port を読み、run の記録を読み、結末を決め、機械の報告・次の run の依頼の下書き・前の失敗を書く。`facts.json` に書き手の段の値を置く。返り `{outcome, ok, stop_reason, machine, next_request, prior_failures, ai_go, stamp}`。0 以外で終わらない（4 節の 3 段の受け皿）。
 2. `write-loop`（`loop_group`、最大 3 回、`fresh_context: true`、`until_bash: done=$write-accept.output.done; test "$done" = true`、`depends_on: [facts]`、`when: "$facts.output.ai_go == 'true'"`）
@@ -143,21 +143,20 @@ node の名の今との違い: `write-reject` → `write-prep`（指示を組む
 
 ### 1.5 コードの置き場
 
-- `blocks/report/src/__init__.py`（空）。
-- `blocks/report/src/files.py`: 1.4 の名の定数と、機械の報告の report の見出し（`TITLE = "# 報告（run {run}）"`・`DECISIONS_HEADING = "## 1. 人が決めること"`・`STOP_HEADING = "## 2. 止めたか"`・`WHERE_HEADING = "## 3. 見る所"`・`CALLS_HEADING = "## 4. 役が呼んだ道具"`・`PRIOR_HEADING = "## 次の run に引き継ぐ落ちた理由"`・`MODEL_HEADING = "## 模型"`・`COST_HEADING = "## 費用"`・`NOTES_HEADING = "## 注意（読めなかった物）"`）。今の `lib/report.py` と `lib/runreport.py` の `promptsection.Section` の見出しを字にした物（`promptsection` は README の 9.1 で消す）。
-- `blocks/report/src/facts_in.py`: `facts` の port の値を、1.2 の表の既定を埋めた dict にする `read(value) -> dict`。形の違う欄は `ValueError`（訳を名指す。黙って既定にしない）。
-- `blocks/report/src/outcome.py`: 結末の決め `decide(facts, run) -> (outcome, stop_reason)`（1.7）・残りの行 `left_all(facts, run)`・結末で決まる人が決める物 `outcome_asks(outcome, facts, left)`。写す元 `lib/outcome.py` の `decide_outcome`・`_human_stop`・`_line_stop`・`_waits`・`cut_at`・`absorbed_rows`（`:312-535`）。返りの欄を読む所は line へ行くので写さず、`facts` の欄を読む形に書き直す。
-- `blocks/report/src/transcript.py`: Archon の run の記録（`$LOG_DIR/<WORKFLOW_ID>.jsonl`）を読む `read() -> (rows, why)`（今 `boundary.transcript`、`workflows/.shared/boundary.py:299-315`）・`own_prefix()`（自分の include の頭。今 `boundary.own_prefix`、`:254-263`。`ports` に同じ口が在ればそれを呼ぶ）・`facts(rows, *, exclude_prefix, optional)`（写す元 `lib/runreport.py` の `transcript_facts`・`_declared`・`_resubmit`・`_count_call`、`:247-347`）・`cost_rows`・`resubmit_rows`・`head_cost`（`:350-388`）・`node_model_lines(run)`（`_model_lines` の node ごとの行の部分、`:411-423`）・`calls_lines(run, why, repo)`（`_reads_lines` の run の記録の道具の呼びの部分と `UNSEEN`・`CHILD_RUNS` の行、`:1727-1757`・`:1779-1786`。フックの証拠のファイルを読む部分は写さない）・`writer_fell(rows, step)`（`:2081-2093`）。
-- `blocks/report/src/machine.py`: 機械の報告を組む `build(sections, facts, outcome, stop_reason, run, *, place, run_id, run_why, repo) -> dict`（1.8）と `fallback_report(place, why)`。写す元 `runreport.build`（`:1789-1881`）の組み立ての順・`head_lines`（`:1242-1249`）・`ask_counts`（`:1237-1239`）・`_apply_lines`（`:1295-1311`）・`apply_said`・`_apply_answer`（`:1327-1355`）・`_gate_line`（`:1685-1689`）・`_bullets`（`:1722-1724`）・`fallback_report`（`:1893-1898`）。下書きの行は `gatemarks.draft_line` と `DRAFT_HEAD`（`lib/gatemarks.py:1095`・`:1136-1143`）を写す。次の依頼と前の失敗の書き込みは今の `:1866-1880`（`carry.compose`・`carry.errors`・`carry.write`）。
-- `blocks/report/src/writer.py`: 書き手のループと出口。写す元 `runreport` の `pack_terms`・`_term_pattern`・`plain_words`・`swapped_line`・`glossary_section`（`:852-928`）・`_parse`・`_cold_of`・`_cold_lines`・`_cold_facts`・`_cold_reason`・`machine_head`・`cold_body`（`:1902-1964`）・`_refused`・`_reject_count`・`_give_up`・`_carry_rejected`・`_prior_rounds`・`accept`（`:1967-2078`）・`note_writer_fell`（`:2096-2109`）・`stamp`（`:2112-2127`）・`embedded`・`_not_passed_note`・`line_budget`・`_cut`・`_fences`・`collect`（`:2130-2211`）と、`lib/report_roles.py` の全部（`DECISIONS_HEAD`・`NOT_PASSED`・`TERM_SCHEMA`・`TEXT_SCHEMA`・`MACHINE_HEADING`・`CELL_LIMIT`・`REJECT_KINDS`・`UNKNOWN_KIND`・`COLD_REJECTS_LINE`・`FAILED_TITLE`・`GLOSSARY_HEADING`・`CELL_REASON`・`_terms_problems`・`head_of`・`format_problems`・`count_rejects`）。`handoff_part`（`:2014-2019`）は、頼みの文と使い方の文を md へ移し、前の周のメモのパスの行だけを組む `handoff_rounds(place) -> str` にする（2.3 の 11）。`stamp` は始めの記録の代わりに `round`・`line_rev`・`start_ok` を受ける（1.9）。
-- `blocks/report/src/glossary.json`: `lib/glossary.json` を字のまま写す（README の 9.2 の MOVE）。`pack_terms` はこのファイルを読む。
-- `blocks/report/schemas/sections.schema.json`・`facts.schema.json`（1.2）。
+- `workflows/report/src/__init__.py`（空）。
+- `workflows/report/src/files.py`: 1.4 の名の定数と、機械の報告の report の見出し（`TITLE = "# 報告（run {run}）"`・`DECISIONS_HEADING = "## 1. 人が決めること"`・`STOP_HEADING = "## 2. 止めたか"`・`WHERE_HEADING = "## 3. 見る所"`・`CALLS_HEADING = "## 4. 役が呼んだ道具"`・`PRIOR_HEADING = "## 次の run に引き継ぐ落ちた理由"`・`MODEL_HEADING = "## 模型"`・`COST_HEADING = "## 費用"`・`NOTES_HEADING = "## 注意（読めなかった物）"`）。今の `lib/report.py` と `lib/runreport.py` の `promptsection.Section` の見出しを字にした物（`promptsection` は README の 9.1 で消す）。
+- `workflows/report/src/facts_in.py`: `facts` の port の値を、1.2 の表の既定を埋めた dict にする `read(value) -> dict`。形の違う欄は `ValueError`（訳を名指す。黙って既定にしない）。
+- `workflows/report/src/outcome.py`: 結末の決め `decide(facts, run) -> (outcome, stop_reason)`（1.7）・残りの行 `left_all(facts, run)`・結末で決まる人が決める物 `outcome_asks(outcome, facts, left)`。写す元 `lib/outcome.py` の `decide_outcome`・`_human_stop`・`_line_stop`・`_waits`・`cut_at`・`absorbed_rows`（`:312-535`）。返りの欄を読む所は line へ行くので写さず、`facts` の欄を読む形に書き直す。
+- `workflows/report/src/transcript.py`: Archon の run の記録（`$LOG_DIR/<WORKFLOW_ID>.jsonl`）を読む `read() -> (rows, why)`（今 `boundary.transcript`、`workflows/.shared/boundary.py:299-315`）・`own_prefix()`（自分の include の頭。今 `boundary.own_prefix`、`:254-263`。`ports` に同じ口が在ればそれを呼ぶ）・`facts(rows, *, exclude_prefix, optional)`（写す元 `lib/runreport.py` の `transcript_facts`・`_declared`・`_resubmit`・`_count_call`、`:247-347`）・`cost_rows`・`resubmit_rows`・`head_cost`（`:350-388`）・`node_model_lines(run)`（`_model_lines` の node ごとの行の部分、`:411-423`）・`calls_lines(run, why, repo)`（`_reads_lines` の run の記録の道具の呼びの部分と `UNSEEN`・`CHILD_RUNS` の行、`:1727-1757`・`:1779-1786`。フックの証拠のファイルを読む部分は写さない）・`writer_fell(rows, step)`（`:2081-2093`）。
+- `workflows/report/src/machine.py`: 機械の報告を組む `build(sections, facts, outcome, stop_reason, run, *, place, run_id, run_why, repo) -> dict`（1.8）と `fallback_report(place, why)`。写す元 `runreport.build`（`:1789-1881`）の組み立ての順・`head_lines`（`:1242-1249`）・`ask_counts`（`:1237-1239`）・`_apply_lines`（`:1295-1311`）・`apply_said`・`_apply_answer`（`:1327-1355`）・`_gate_line`（`:1685-1689`）・`_bullets`（`:1722-1724`）・`fallback_report`（`:1893-1898`）。下書きの行は `gatemarks.draft_line` と `DRAFT_HEAD`（`lib/gatemarks.py:1095`・`:1136-1143`）を写す。次の依頼と前の失敗の書き込みは今の `:1866-1880`（`carry.compose`・`carry.errors`・`carry.write`）。
+- `workflows/report/src/writer.py`: 書き手のループと出口。写す元 `runreport` の `pack_terms`・`_term_pattern`・`plain_words`・`swapped_line`・`glossary_section`（`:852-928`）・`_parse`・`_cold_of`・`_cold_lines`・`_cold_facts`・`_cold_reason`・`machine_head`・`cold_body`（`:1902-1964`）・`_refused`・`_reject_count`・`_give_up`・`_carry_rejected`・`_prior_rounds`・`accept`（`:1967-2078`）・`note_writer_fell`（`:2096-2109`）・`stamp`（`:2112-2127`）・`embedded`・`_not_passed_note`・`line_budget`・`_cut`・`_fences`・`collect`（`:2130-2211`）と、`lib/report_roles.py` の全部（`DECISIONS_HEAD`・`NOT_PASSED`・`TERM_SCHEMA`・`TEXT_SCHEMA`・`MACHINE_HEADING`・`CELL_LIMIT`・`REJECT_KINDS`・`UNKNOWN_KIND`・`COLD_REJECTS_LINE`・`FAILED_TITLE`・`GLOSSARY_HEADING`・`CELL_REASON`・`_terms_problems`・`head_of`・`format_problems`・`count_rejects`）。`handoff_part`（`:2014-2019`）は、頼みの文と使い方の文を md へ移し、前の周のメモのパスの行だけを組む `handoff_rounds(place) -> str` にする（2.3 の 11）。`stamp` は始めの記録の代わりに `round`・`line_rev`・`start_ok` を受ける（1.9）。
+- `workflows/report/src/glossary.json`: `lib/glossary.json` を字のまま写す（README の 9.2 の MOVE）。`pack_terms` はこのファイルを読む。
+- `workflows/report/schemas/sections.schema.json`・`facts.schema.json`（1.2）。
 - 使う `lib/`（KEEP）: `report`（`OUTCOMES`・`OUTCOME_WORDS`・`REQUEST_BY`・`HUMAN_BY`・`CHECKS_LEFT`・`ABSORBED_WHERE`・`INTERRUPTED_HEAD`・`RETRIED_HEAD`・`ABSORBED_HEAD`・`_first_error`・`_time`・`prior_lines`）・`answer`（`STOP_WORDS`・`resume`）・`stopby`（`is_line`・`WAITING`）・`carry`（`compose`・`errors`・`write`・`NEXT_REQUEST_FILE`・`PRIOR_FAILURES_FILE`・`NEXT_SCHEMA`・`PRIOR_SCHEMA`）・`handoff`（`FIELD`・`SCHEMA`・`save`・`unreadable`・`path_of`。文の定数 `ASK`・`HEAD`・`USE`・`NONE`・`UNREADABLE` は使わない）・`rolekit`（受け付けの回・控え・諦め・`candidate_path`・`reject_file_or_blank`）・`jsonfile`・`oneline`・`graphloops/engine/schema.py`（`validate_schema`）。`lib/runreport.py`・`lib/outcome.py`・`lib/report_roles.py` は import しない（写して置く。README の 9.2 の MOVE と、9.3 の「runreport は block の中身を import しない形に軽くする」）。
-- 作り直しの間は `lib/runreport.py`・`lib/outcome.py`・`lib/report_roles.py`・`lib/glossary.json` を消さない（今の report と line が使う）。組み込みで、写した部分を消す。
 
 ### 1.6 つなぎ方（graph の側。block には書かない）
 
-- line（組み込みの後の `blocks/line/`）: 最後に `include: works-factory-report` を置く（id `report`、`trigger_rule: all_done`）。その前の script の node（今の `collect` の後継）が、各 block の出力を受けて `sections` と `facts` を組み、place にファイルとして書いて pointer を `with:` で渡す（README の 4.2 の「欄を 3 つ以上読む時は pointer 1 つ」）。`lang` は始めの記録の `lang`。
+- line（組み込みの後の `workflows/line/`）: 最後に `include: works-factory-report` を置く（id `report`、`trigger_rule: all_done`）。その前の script の node（今の `collect` の後継）が、各 block の出力を受けて `sections` と `facts` を組み、place にファイルとして書いて pointer を `with:` で渡す（README の 4.2 の「欄を 3 つ以上読む時は pointer 1 つ」）。`lang` は始めの記録の `lang`。
 - `sections` の並びは今の機械の報告の節の並びに合わせる（line の設計書が決める）。今の節と、新しい形でその行を組む作り手:
   - 「2. 入口・段・決めた人」（今 `_entry_lines`・`_depth_lines`・`_head_depth_line`・`_prior_in_lines`・`_policy_lines`・凍結の行）→ line。ただし run の頭の深さの行（今 `_head_depth_line`）の段と根拠は head-depth の `report`、省く物・足した物は line が組む（head-depth の設計書の 8 節の 3）。
   - 「4. 読んだ証拠と包み」のうち、フックの記録の行（今 `_reads_lines` の `HOOK_HEAD` の下。`reads-*.json` を run directory から探した物）→ 読んだ証拠の node を持つ block（今 `lib/reads.py` を使う fix・plan・plan-review・parallel-pr）が自分の `report` の欄に組む。run の記録の道具の呼びの行は report が組む（節「4. 役が呼んだ道具」）。
@@ -171,7 +170,7 @@ node の名の今との違い: `write-reject` → `write-prep`（指示を組む
   - 「模型」の群ごとの選びの行（今 `headdepth.groups_lines`）→ head-depth の `report` には入れない。ノードごとの実際の模型の事実と並ぶ節なので、head-depth の出力 `record` の pointer から KEEP の `headdepth.groups_lines` で組む（head-depth の設計書の 8 節の 3）。line が組んで `sections` に入れるか、report が受けて組むかは line の設計書で決める。
 - 節「3. 見る所」の元（今の `POINTERS`、`lib/runreport.py:181-188` の 18 個）は、line が各節の `files` に入れる（判定・目的・定石・仕様・目的の外の所見・計画・構造の目・波及・事前審査・独立設計・差分・申し出と裁定・直す前の結末・試験の記録 2 つ・直した後の構造・封じた差分・置いた差分）。
 - `facts` は 1.2 の表の「今」の計算を line の `src/` が持つ（承認ノードの答え・止めの語・段の表・無人の方針は line の持ち物。README の 1.2 の U・D）。
-- 読み手: chain（`outcome`・`next_request` を、line の返りの欄を通して読む。今と同じ）。line の返りの欄 `report`・`report_ai` は、組み込みで `machine`・`human` を写す（`bin/` は報告を読まない）。
+- 読み手: 周の鎖 chain（line を子の run として回す親のグラフ。`outcome`〔結末の語〕・`next_request`〔次の周の依頼の pointer〕を、line の返りの欄を通して読む。今と同じ）。line の返りの欄 `report`・`report_ai` は、組み込みで `machine`・`human` を写す（`bin/` は報告を読まない）。`detail`・`report` は line の返りの欄 `report_detail`・`report_lines` に写す（line の設計書の 1.2）。
 - e2e の照らしの表 `tests/e2e/evidence.json` の行のうち `where` が `parent/report/report.md`・`report-ai.md`・`next-request.json` の物は、line の include の id を `report` にすれば置き場の字はそのまま。`writer` の欄（`lib/runreport.py::_decisions` など）は、その行を組む作り手の block の関数の名に替える（組み込みの時）。
 
 ### 1.7 結末の決め（`src/outcome.py` の `decide`）
@@ -276,7 +275,7 @@ The outcome word of this run is **{outcome}** (the stage that stopped it and the
 
 ## Outline (what to read: the machine's facts file above and the files it lists)
 
-Write the report in {lang}. If the files are in another language, still write in that language. Keep code identifiers, paths, and error messages as they are.
+Write the report in {lang}. This covers every field a person reads: the body of the report, the terms, and the handoff notes. If the files are in another language, still write in that language. Do not translate keys, enum values, code identifiers, paths, commands, or error messages; keep them as they are (keys are matched across rounds).
 
 1. **The section on what a person decides expands the machine's one line per item**: everything listed in the facts' section "{decisions_heading}", with the kinds named as that section names them; do not reorder them here. If a row at its top is about a group that the re-check removed because it turned red, that is a sign that a correct fix may have been dropped, so include it as an item too. When the outcome word is `stopped_by_request` (stopped by a stop mark that the request placed) or `stopped_by_human` (a person stopped it at an approval node), or when it is `needs_human` and there is a reason to open an approval node (the reason for opening in line 1 of the machine's first lines, or an independent review that did not pass — write "needs a fix" and "needs a redesign" apart, and do not give "needs a fix" as a reason to discard the diff), always include as one item where it stopped, the text of the reason, and the questions left unanswered, adding that to continue one starts a new run and that the stages after the stop did not run. If there is nothing, see the format rules. Put the questions of the judgment file's question ledger that became `resolved` or `decided` under "Decided in the judgment file", with their grounds, right after the section on what a person decides and before item 2. The order is: the first 3 lines (machine) → the summary → what a person decides → decided in the judgment file → item 2 onward.
    Write what you ask so that a person who did not watch the run can read it for the first time and decide: (1) separate what is urgent from what can wait, and give the counts first; (2) each item can be read on its own; (3) for each item, say what to decide, why it came up (the actual trigger), what happens with each option, and what stops if nobody decides; (4) give the material for choosing, but write only the options and reasons written in the judgment file (the recommendation at the tail of a question's text, and the `options` and `reason` of the judgment file's ledger), and do not recommend a new option yourself. **A question written only in internal vocabulary ([block], do-now, defer, zero prescription, R1 to R4, material names, stable keys) cannot be decided as it is.**
@@ -314,7 +313,7 @@ Return only the JSON `{"text": "<the body of the report in Markdown>", "terms": 
 
 `{"text": …}` と `{<the notes, …>}` は差し込み口の形（`{` の直後が小文字の名で `}` で閉じる）に合わないので、そのまま字として残る（world.md の 3.3 の終わりと同じ）。md に `$` の字は無い（materials.md の 3.1 の終わりの決まり）。
 
-共通の断片 `blocks/.shared/prompts/handoff.md`（この block の PR が足す。plan の書き手も使う〔`lib/handoff.py` の docstring「計画の受け付けも報告の受け付けもここを呼び」〕ので、2 つの block が使う断片。plan の設計書はこの名を使い、断片を足さない）:
+共通の断片 `workflows/.shared/prompts/handoff.md`（この block の PR が足す。plan の書き手も使う〔`lib/handoff.py` の docstring「計画の受け付けも報告の受け付けもここを呼び」〕ので、2 つの block が使う断片。plan の設計書はこの名を使い、断片を足さない）:
 
 ```markdown
 ## Notes handed over between rounds
@@ -394,7 +393,7 @@ Notes that earlier rounds of you wrote, named by the machine, oldest first. …
 
 - まとめた: 却下の扱い（md:7 の手順 3）を共通の断片 `{shared:rejected}` と、前の答えを読み直す手順（`<!-- if prev -->`）に。今は拒否の訳のファイル（`rejects-report.md`）と前の答えのファイルの、run directory からの相対のパスを渡して Read させた。新しい形では拒否の文の全部を指示に入れ（world と同じ。#351）、前の答え（本文が長い）だけを絶対パスで渡す。「1 回目は両方空」（md:7 の尾）は、却下が無い時は段落ごと入れない形にして要らなくした。
 - 移した: 引き継ぎのメモの頼みと前の周の節（`lib/handoff.py` の `ASK`・`HEAD`・`USE`・`NONE`・`UNREADABLE`。Python の定数の文だった）を、共通の断片 `{shared:handoff}` に。Python に残るのは前の周のメモのパスの行と、周ごとの短い札（`(no notes)`・`(unreadable)`）だけ。
-- 移した: 言語の 1 行（md:1。`$facts.output.lang_line`。`rolekit.LANG_RULE`）と「報告は依頼の言語で書く」（md:16）を、構成の頭の `Write the report in {lang}.` の 1 文に。
+- 移した: 言語の 1 行（md:1。`$facts.output.lang_line`。`rolekit.LANG_RULE`）と「報告は依頼の言語で書く」（md:16）を、構成の頭の `Write the report in {lang}. This covers every field a person reads…` の文に（訳さない物の句も含む）。
 - 移した: 機械が照らす字（見出しの字「人が決めること」・セルの字数 50・機械の報告の節の見出し）を `{decisions_head}`・`{cell_limit}`・`{decisions_heading}`・`{stop_heading}`・`{where_heading}` の値に（README の 5.3 の「md と validation が同じ字を持つべき値」）。今は md の字と `report_roles` の定数が別々に同じ字を持っていた。
 - 替えた: 機械の報告の節の名指し「1. 人が決めること」「2. 入口・段・決めた人」「3. 止めたか」「5. 見る所」を、新しい番号（1.9）の値に。「2. 入口・段・決めた人」の入口の行（md:20・21）は、節を名指さず "the facts say that this run entered at the judgment" にした（その節は line が見出しを付けるので、report の md が名を持たない）。
 - 替えた: 構成 5 の R1 の削ったコメントと残した why の読み方（md:24。`$ARTIFACTS_DIR/eyes/` の下の `r1.json` の欄 `deletions` と `r1-comments.json` の欄 `kept` を Read で読め）を、「facts の R1 の節に並ぶ物」に。ほかの block の place のファイルの名と欄の名を report の md が持たないため。r1 の block がその行を `report` の欄に組む（1.6）。
@@ -403,6 +402,8 @@ Notes that earlier rounds of you wrote, named by the machine, oldest first. …
 - 替えた: 書式の決まりの日本語の例（「直すべき欠陥として判定した物（block）」「さっきの」「上のセクションの」）を英語の例に。本文の言語は `{lang}` で決まるので、例は言語に依らない言い方にした。決まり（初出で「中身（記号）」・前後の文脈に頼る参照を残さない）は同じ。
 - まとめた: 構成 1 の「無ければ『人が決めることは無い』と 1 行」（md:18）と、書式の決まりの「その 1 行も書かず…置き換える」（md:33）の二重を、構成 1 の "If there is nothing, see the format rules." と書式の決まりの 1 か所に。決まりは今と同じ（書かない）。
 - 消した: 材料の 2 つの列挙（md:7 の facts のファイルの中身の列挙と、見る所の下の例のファイルの列挙）。ほかの block の物の名を md が持たないため。
+- 足した: 役の段落の「started in a new conversation」（この node は `fresh_context: true` で周ごとに新しい会話。今の指示には無かった。2.3 の 2）。
+- 戻した: 言語の規則の全文（`rolekit.LANG_RULE`）。人が読む欄（本文・`terms`・`handoff`）は `{lang}`、key・enum の値・識別子・パス・コマンド・エラー文は訳さない。一度は "Write the report in {lang}" だけに狭めたのを戻した。
 - 足した物は無い。英語にした（#764）。役の名「書き手」は "the writer"。
 
 ### 2.7 元の works と graphloops の同じ場面
@@ -435,7 +436,7 @@ Notes that earlier rounds of you wrote, named by the machine, oldest first. …
 
 ### 2.9 試験
 
-- standalone の fixture（`blocks/report/fixtures/`。AI の node だけを台本の返答で差し替え、script は本物を走らせる `--exec-code`）:
+- standalone の fixture（`workflows/report/fixtures/`。AI の node だけを台本の返答で差し替え、script は本物を走らせる `--exec-code`）:
   - `standalone.stubs.yaml`: `fixture.inputs` は `sections`（`[{"title":"直した所","lines":["単位 u1: 直した"]}]`）と `facts`（`{"start_ok":true,"proved":true}`）だけ。`write` は本文 1 段落・`terms: []`・`handoff` の 4 つの空の配列、`cold` は `pass`。`reached` に `facts`・`write`・`cold`・`write-accept`・`finish`。`finish` の `outcome` が `fixed`、`human` が null でない。
   - `no-ai-report.stubs.yaml`: `facts` が `{}`。結末は `record_invalid`、書き手のループは飛び、`finish` の `human` が null（今の筋書きの写し）。
   - `stopped-by-request.stubs.yaml`: `facts.gates` に、`decision` が `answer.STOP_WORDS` の語で `text` が `request:` で始まる答え。結末は `stopped_by_request`（今の筋書きの写し）。
@@ -494,7 +495,7 @@ Return (1) where you could not follow the meaning and stopped (`stops`), (2) wha
 Return only JSON that matches the output schema.
 ```
 
-共通の断片 `blocks/.shared/prompts/report-head-check.md`（この block の PR が足す。使うのは report の block の初見の読み手だけ。cold-read の block は使わず、その設計書はこの名を使って断片を足さない）:
+共通の断片 `workflows/.shared/prompts/report-head-check.md`（この block の PR が足す。使うのは report の block の初見の読み手だけ。cold-read の block は使わず、その設計書はこの名を使って断片を足さない）:
 
 ```markdown
 The reader of this text switches between several tasks while reading. Check whether the first 3 lines alone let a reader say what it is about, whether it concerns them, and whether it is urgent. If they do not, write in `stops` where that stopped working. Also write in `stops`, as places where you stopped, any reference that relies on context outside the text or before or after it (such as "the one mentioned earlier"), and any place that shows only a symbol, an abbreviation, or a path without saying what it is.
@@ -550,6 +551,7 @@ Return only JSON that matches the output schema.
 - 移した: 詳細のファイルの機械の節の見出しの字（md:11）を `{machine_heading}` の値に（`report_roles.MACHINE_HEADING` と同じ字を 2 か所が持たない）。
 - 替えた: 区切りの字「==== ここから ====」「==== ここまで ====」を英語の区切りに。区切りは残した（本文は材料で、指示の節ではない）。
 - 替えた: 「ラウンドの経緯・記録・差分は一切渡されていない」の「ラウンドの経緯」（md:13）を "the history" に（1 run = 1 周で、周の経緯の語が要らない）。
+- まとめた: 返す JSON の形（今の md は欄ごとの箇条）を、output schema に合う JSON だけを返す 1 文に（形は schema が縛る）。
 - 足した物は無い。英語にした。役の名「初見の読み手」は "the cold reader"（断片の中）。
 
 ### 3.7 元の works と graphloops の同じ場面
@@ -566,7 +568,7 @@ graphloops の `prompts/review-loop/report.cold_check.md` は書き手の前の�
 
 ## 4 script の node
 
-どれも uv の頭の宣言を持ち、`sys.dont_write_bytecode = True` を import より前に置き、`blocks/.shared/` と `lib/` と block のフォルダを `sys.path` に足す（土台の `ports` の口に従う）。
+どれも uv の頭の宣言を持ち、`sys.dont_write_bytecode = True` を import より前に置き、`workflows/.shared/` と `lib/` と block のフォルダを `sys.path` に足す（土台の `ports` の口に従う）。
 
 - `facts.py`: `INPUTS_SECTIONS`・`INPUTS_FACTS`・`INPUTS_LANG` を `os.environ.get(…)` の字のままで読み、`ports.json(…, "sections.schema.json")`・`ports.json(…, "facts.schema.json")`・`ports.text(…)` で値にし、`facts_in.read` で既定を埋める。読めない入力は落とさず、その訳を `problems` に足す（結末は `record_invalid`）。`transcript.read()`、`transcript.facts(rows, exclude_prefix=transcript.own_prefix(), optional=facts.optional)`、`outcome.decide`、`machine.build` の順に呼び、`facts.json` を書いて返す。返り `{outcome, ok, stop_reason, machine, next_request, prior_failures, ai_go, stamp}`（`ai_go` は結末が `record_invalid` でない時に真。`stamp` は `writer.stamp(run_id, <block の YAML のパス>, facts.round, facts.line_rev, facts.start_ok)`）。思わぬ誤りは捕まえ、`machine.fallback_report` の機械の報告（`report-unwritten.md`）を指す `record_invalid` の返りにする。lib を読めない時は標準ライブラリだけで `report-facts-unwritten.md` を書いて返す（今の `facts.py` の 3 段のまま）。
 - `write_prep.py`: `writer.note_writer_fell(<report.md>, None, run_id=…)`（resume の前に finish が置いた行を外す。今の `reject.py`）→ 2.3 の値と真偽を組み、`prompt.render("write", values, when)`、`write-prompt-<n>.md` に書いて `{prompt}` を返す。
@@ -583,7 +585,7 @@ graphloops の `prompts/review-loop/report.cold_check.md` は書き手の前の�
 ## 6 単独で呼ぶ
 
 ```sh
-bin/works-factory <読ませるフォルダを blocks/ にする引数（名は土台の PR で決める）> workflow run works-factory-report \
+bin/works-factory workflow run works-factory-report \
   --input sections='[{"title":"直した所","lines":["単位 u1: 直した"],"files":[{"label":"差分","ref":"/tmp/diff.patch"}]}]' \
   --input facts='{"start_ok":true,"proved":true}'
 ```
@@ -629,12 +631,12 @@ uv run --isolated python3 -m unittest tests.layers.test_block_shape
 - 書き手の md から、ほかの block の place のファイルの名（`r1.json`・`r1-comments.json`）と欄の名を外し、r1 の block がその行を `report` の欄に組むことを求める。訳: 憲法の 3（block はほかの block を名指さない）。今の能力（構成 5 の R1 の削ったコメントと残した why）は、r1 の行が届くことで残る（r1 の設計書の宿題として 1.6 に書いた）。
 - 共通の断片 `handoff` をこの block の PR が足す。訳: report は 1 波目、plan は 2 波目で、先に要るのが report（README の 11.1 の「最初に要った PR が足す」）。
 - 実装で決めた事（作った時に、シートが黙っていたか、main の決まりと食い違った所）:
-  - script の node の中身は `blocks/report/src/steps.py` に置き（`facts`・`facts_fallback`・`write_prompt`・`cold_prompt`・`finish`・`finish_fallback`）、`scripts/` は `ports.run` で呼ぶ薄い皮にした。訳: 1.5 の一覧に script の中身の置き場が無く、purpose の手本が `src/steps.py` に置く形だった。
+  - script の node の中身は `workflows/report/src/steps.py` に置き（`facts`・`facts_fallback`・`write_prompt`・`cold_prompt`・`finish`・`finish_fallback`）、`scripts/` は `ports.run` で呼ぶ薄い皮にした。訳: 1.5 の一覧に script の中身の置き場が無く、purpose の手本が `src/steps.py` に置く形だった。
   - 出口 `finish` は `with:` を持たず、`facts.json` と place のファイルの在り方（`report.md`・`next-request.json`・`prior-failures.json`・`report-detail.md`）から pointer を組む。facts が落ちた時も `facts.json` を書く（標準ライブラリだけ）。訳: 4 節が出口の入力を `facts.json` と run の記録としか書かず、pointer を `facts.json` に足すと 1.4 の欄の一覧と食い違う。
   - `facts.schema.json` の `tallied` は値の型（整数）を `facts_in.read` が照らす。訳: 形の照らし（`KNOWN_KEYWORDS`）は欄の名が開いたオブジェクトの値の型を書けない（`additionalProperties` は偽の時しか読まれない）。
   - 書き手の md の末尾の JSON の例は、Archon でなく `prompt.render` が `{{`・`}}` を 1 つの括弧にするので、閉じの `}}` を `}}}}` と書いた（シートの md は `}}` のままで、組むと `}` になり例が 1 つ閉じ足りない）。
   - `cold-gave-up.stubs.yaml` は dry-run のループが 1 周で終わる（`until_bash` は走らない）ので、初見の読み手が 1 回通さない道（受け付けが出し直させ、run は止まらず出口が返る）を回す。3 回目の受け取りと印は `tests/blocks/report/test_scripts.py` の `AcceptCase` が確かめる。
-  - 共通の断片 `handoff`・`report-head-check` を `blocks/.shared/prompts/` に足し、`blocks/.shared/AGENTS.md` の名の一覧を取り置きから今在る名へ移した。
+  - 共通の断片 `handoff`・`report-head-check` を `workflows/.shared/prompts/` に足し、`workflows/.shared/AGENTS.md` の名の一覧を取り置きから今在る名へ移した。
   - `rejects-report.md` は、拒んだ回の `write-accept` が今までどおり書く（書き手の指示は `rejects-report.json` の控えから組むが、拒否の全部の読み物として残す）。
   - run の記録の `own_prefix` は、ループの本体の node（`<ループの id>.<node の id>`）の path でも段ごとの `__` の頭を継ぐ形にした（`ports` に同じ口が無かったので `src/transcript.py` に置いた）。
 
@@ -645,4 +647,4 @@ uv run --isolated python3 -m unittest tests.layers.test_block_shape
 - `ports` が自分の include の道の頭（今の `boundary.own_prefix`）を返す口を持つか（1.5 の `transcript.own_prefix`）。
 - Archon の `when: "$facts.output.ai_go == 'true'"` の形（今の YAML のまま。真偽の出力の比べの字の形を変えない）。
 - cold の `{body}` に書き手の本文が入るので、本文に `$<英字>` の字が在ると Archon が置き換え直しうる（今も同じ。`$cold-prep.output.body` の形で入れていた）。直すかは振る舞いを変えるので、この作り直しの外。
-- 起動の殻で `blocks/` を読ませる引数の名と、6 節の命令の正確な形。
+- 6 節の命令の正確な形。

@@ -139,9 +139,9 @@ class FlowCase(unittest.TestCase):
 
     def test_included_block_writes_in_its_own_place(self):
         self.script_file()
-        self.run.script("intake", "judge__procedure-trace__intake", base="", entry="", lang="")
-        self.run.script("role_prep", f"judge__procedure-trace__{LOOP}.{NAME}-prep")
-        self.assertTrue((self.run.artifacts / "judge" / "procedure-trace" / f"{NAME}-prompt-1.md").is_file())
+        self.run.script("intake", "judge__procedure-trace-run__intake", base="", entry="", lang="")
+        self.run.script("role_prep", f"judge__procedure-trace-run__{LOOP}.{NAME}-prep")
+        self.assertTrue((self.run.artifacts / "judge" / "procedure-trace-run" / f"{NAME}-prompt-1.md").is_file())
 
 
 class ShapeCase(unittest.TestCase):

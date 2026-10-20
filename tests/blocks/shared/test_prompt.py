@@ -1,4 +1,4 @@
-"""blocks/.shared/prompt.py の口（docs/design/README.md の 5 節）: md に値を入れて指示を組み、md と値が食い違えば名指して落ちる"""
+"""workflows/.shared/prompt.py の口（docs/design/README.md の 5 節）: md に値を入れて指示を組み、md と値が食い違えば名指して落ちる"""
 import sys
 import unittest
 from unittest import mock
@@ -39,7 +39,7 @@ class SlotCase(Base):
     def test_missing_and_unused_values_are_named(self):
         self.md("A {one} B {two}\n")
         self.refused(r"\['two'\] に値が無い", {"one": "1"})
-        self.refused(r"値 \['three'\] の差し込み口", {"one": "1", "two": "2", "three": "3"})
+        self.refused(r"値 \['three'\] の置き換えの印", {"one": "1", "two": "2", "three": "3"})
 
     def test_values_are_text_or_integers(self):
         self.md("A {one}\n")
@@ -134,8 +134,11 @@ class FragmentCase(Base):
             prompt._compose(self.block, "../x", {}, None)
 
     def test_every_shared_fragment_expands(self):
-        """共通の断片は、どれも差し込めて、断片の中の断片も解ける（.shared の断片は part を持たない）"""
+        """共通の断片は、どれも差し込めて、断片の中の断片も解ける（.shared の断片は part を持たない）。断片の名の形でない md
+        （REVIEW.md。観点の役がパスで読む正本）は差し込まない"""
         for path in sorted((kit.SHARED / "prompts").glob("*.md")):
+            if not prompt.FRAGMENT.fullmatch("{shared:%s}" % path.stem):
+                continue
             with self.subTest(fragment=path.name):
                 self.md("{shared:%s}\n" % path.stem)
                 text = prompt._expand("{shared:%s}" % path.stem, self.block, (), False)

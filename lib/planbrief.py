@@ -33,8 +33,6 @@
 - by_unit_at: 今の周の控えの brief を単位ごとに {unit_key: [{item, file（絶対パス）}]}（切らない・書き戻さない。食い違いの申し出の
   brief_vs_judgment の確かめが読む。置き場が無い・控えが無い・壊れているなら {}）
 - for_units: 単位の key に当たる項目の行だけ
-- head_text: 指示書の頭に置く、brief を名指す節（今直す単位を渡すと、項目のほかの単位に「今は直すな」と添える。単位の書き方は unit_note。
-  TDD の輪は今の単位と一緒に直す同じ項目の単位も今直す単位に渡す）
 - files: 今の周の brief のファイル（読んだ証拠に足す）
 """
 from __future__ import annotations
@@ -49,41 +47,39 @@ sys.dont_write_bytecode = True
 
 import fixboard  # noqa: E402  （置き場の trace.jsonl への 1 行・planmarks に渡す読み口）
 import planmarks  # noqa: E402
-import promptsection  # noqa: E402
 import structmark  # noqa: E402
 
 LEDGER = "briefs.json"
 NAME = "brief-{n}.md"
-HEAD = promptsection.Section("## 要求の正本（brief）", source="fn:planbrief.head_text")
+HEAD = "## 要求の正本（brief）"
 RESTORED_OP = "brief_restored"
 CUT_OP = "brief_cut"   # 周の 1 回目の cut と切り直しの印（trace）
 RECUT_OP = "brief_recut"   # 差し替えの印の後の切り直しの印 {round, items: [番号…]}（trace。直後に CUT_OP の行）
 BACKGROUND = "背景（参照。brief と食い違えば brief が勝つ。brief が誤りと見たら申し出よ）"
 READ_ALL = "まず Read で全部読め。下の決まりの『brief の決まり（要求の正本と背景）』に従え"
 NONE = "無し"
-_FN = "fn:planbrief.render"
-TITLE = promptsection.Section("# 要求の正本: 修正案の項目 {n}", source=_FN)
-UNITS_HEAD = promptsection.Section("## 直す単位", source=_FN)
-APPROACH_HEAD = promptsection.Section("## やり方（approach）", source=_FN)
-FILES_HEAD = promptsection.Section("## ファイル構成（files）", source=_FN)
-DEPENDS_HEAD = promptsection.Section(f"## 前の項目から受ける物（{planmarks.DEPENDS_KEY}）", source=_FN)
-SHRINK_HEAD = promptsection.Section("## 足さずに閉じる形（shrink_first）", source=_FN)
-NARROWS_HEAD = promptsection.Section("## 狭める能力（narrows）", source=_FN)
-ROUTE_HEAD = promptsection.Section("## 直し方の道（route）", source=_FN)
-TESTS_HEAD = promptsection.Section("## 受け入れのテスト（tests）", source=_FN)
-REWRITE_HEAD = promptsection.Section("## 書き換えてよい既存のテスト（rewrite_tests）", source=_FN)
-REFACTOR_HEAD = promptsection.Section("## 整えの申告（refactor）", source=_FN)
-ALLOWED_HEAD = promptsection.Section("## 書いてよいパス（allowed_paths）", source=_FN)
-OUT_OF_SCOPE_HEAD = promptsection.Section("## 触らない物（out_of_scope）", source=_FN)
-PURPOSE_HEAD = promptsection.Section("## 目的の文（凍結）", source=_FN)
-STRUCTURE_ROW_HEAD = promptsection.Section("## 構造の目の行", source=_FN)
-STRUCTURE_HEAD = promptsection.Section("## 構造の目の行と処方への答え（structure）", source=_FN)
-BACKGROUND_HEAD = promptsection.Section(f"## {BACKGROUND}", source=_FN)
-UNIT_HEAD = promptsection.Section("### {key}", source="fn:planbrief._unit")
+TITLE = "# 要求の正本: 修正案の項目 {n}"
+UNITS_HEAD = "## 直す単位"
+APPROACH_HEAD = "## やり方（approach）"
+FILES_HEAD = "## ファイル構成（files）"
+DEPENDS_HEAD = f"## 前の項目から受ける物（{planmarks.DEPENDS_KEY}）"
+SHRINK_HEAD = "## 足さずに閉じる形（shrink_first）"
+NARROWS_HEAD = "## 狭める能力（narrows）"
+ROUTE_HEAD = "## 直し方の道（route）"
+TESTS_HEAD = "## 受け入れのテスト（tests）"
+REWRITE_HEAD = "## 書き換えてよい既存のテスト（rewrite_tests）"
+REFACTOR_HEAD = "## 整えの申告（refactor）"
+ALLOWED_HEAD = "## 書いてよいパス（allowed_paths）"
+OUT_OF_SCOPE_HEAD = "## 触らない物（out_of_scope）"
+PURPOSE_HEAD = "## 目的の文（凍結）"
+STRUCTURE_ROW_HEAD = "## 構造の目の行"
+STRUCTURE_HEAD = "## 構造の目の行と処方への答え（structure）"
+BACKGROUND_HEAD = f"## {BACKGROUND}"
+UNIT_HEAD = "### {key}"
 
 
 UNSCOPED = "無し（この案は範囲を決めていない。範囲では縛らない）"   # 範囲の欄の無い項目（依頼 218 より前の案）の範囲の節
-NOT_NOW = "今は直すな"   # brief の行で、項目の単位のうち今直す単位でない物の頭（head_text）
+NOT_NOW = "今は直すな"   # brief の行で、項目の単位のうち今直す単位でない物の頭（brief を名指す文は fix の src/rules.py が組む）
 
 
 class LedgerBroken(ValueError):
@@ -476,27 +472,6 @@ def for_units(briefs: list, keys) -> list[dict]:
     """unit_keys が keys と重なる項目の行（項目の順。1 つの単位が 2 項目に在れば両方）"""
     want = set(keys)
     return [r for r in briefs if want & set(r.get("unit_keys") or [])]
-
-
-def unit_note(keys: list, owed=None) -> str:
-    """項目の単位の並び keys の書き方: owed（今直す単位の key）と重なる物を「、」で並べ（無ければ NONE）、ほかの単位は
-    「・今は直すな: …」と添える。owed が None なら keys を全部（head_text の行と fixrules の下請けの実装役の型の題が使う）"""
-    keys = list(keys or [])
-    want = None if owed is None else set(owed)
-    now = keys if want is None else [k for k in keys if k in want]
-    rest = [k for k in keys if k not in now]
-    return ("、".join(now) or NONE) + (f"・{NOT_NOW}: {'、'.join(rest)}" if rest else "")
-
-
-def head_text(briefs: list, owed=None) -> str:
-    """指示書の頭に置く、brief を名指す節。brief が無ければ空。owed（今直す単位の key）を渡すと、行の「単位」は owed と重なる
-    物だけにし、項目のほかの単位（義務から外れた・今の段の外）は「今は直すな」と添えて並べる。None なら項目の単位を全部"""
-    if not briefs:
-        return ""
-
-    def row(r):
-        return f"- 項目 {r['item']}: {r['file']}（sha256 {r['sha256']}・単位 {unit_note(r.get('unit_keys'), owed)}）"
-    return f"{HEAD}\n\n" + "\n".join(row(r) for r in briefs) + f"\n\n{READ_ALL}"
 
 
 def files(b, round_: int = 1) -> list[str]:

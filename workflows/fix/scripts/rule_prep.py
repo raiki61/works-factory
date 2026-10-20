@@ -2,42 +2,30 @@
 # requires-python = ">=3.12"
 # dependencies = []
 # ///
-"""節 rule-prep（形 "" の裁定の輪の頭）: 裁定役の指示書を組んで置き場に書く（ruling.prep。作業ツリーの姿を控え、申し出の控え・
-判定・依頼・持ち主の決まりを名指す）。2 回目からはこの輪の拒否の理由の全部のファイル（rule-accept が積んだ拒否の控え rejects-rule.json を
-rolekit.reject_file が 1 つにまとめた rejects-rule.md）を 1 行目で名指す。返り {prompt_file, iteration}。裁く申し出が無い・判定の写しが無い: 標準エラーに 1 行で非 0。
-"""
+"""node rule-prep（全体の形の裁定の輪の頭）: 作業ツリーの姿を控え（rule-tree.json。読むだけの役の見張り）、裁定役の指示を md から
+組む（src/ruling.prep の値を src/prompts.ruler_values が prompts/ruler.md に入れる）。前の回の却下は控え rejects-rule.json の全部。
+返り {prompt, iteration}"""
+import os
 import sys
 from pathlib import Path
 
 sys.dont_write_bytecode = True
-sys.path.insert(0, str(Path(__file__).resolve().parents[2] / ".shared"))
-import boundary  # noqa: E402
-sys.path.append(str(boundary.lib_root()))
+sys.path[:0] = [str(Path(__file__).resolve().parents[2] / ".shared"), str(Path(__file__).resolve().parents[1])]
+import ports  # noqa: E402
 
-import fixboard  # noqa: E402
-import fixrules  # noqa: E402
 import oneline  # noqa: E402
-import policy  # noqa: E402
-import rolekit  # noqa: E402
-import rulebook  # noqa: E402
-import ruling  # noqa: E402
-import startrec  # noqa: E402
 
-RULES = Path(__file__).resolve().parents[1] / "commands" / "fix-rules"
-rulebook.CANON = RULES / "common.md"
-fixrules.SHARED = rulebook.CANON
-fixrules.RULES_DIR = RULES
+from src import board, prompts, ruling, runvals  # noqa: E402
 
 
 def main() -> dict:
-    place, repo = boundary.place("fix"), boundary.work_tree()
-    judgment = place / fixboard.JUDGMENT_FILE
+    place, repo = ports.place(), Path.cwd()
+    judgment = place / board.JUDGMENT_FILE
     if not judgment.is_file():
         raise ValueError(f"置き場に判定の写し {judgment.name} が無い")
-    start = startrec.read(place)
-    got = ruling.prep(place, repo, {"judgment_file": str(judgment), "policy_path": policy.frozen_copy(start)},
-                      reject_file=rolekit.reject_file(place, ruling.ROLE), lang=rolekit.lang_line(start))
-    return {"prompt_file": got["prompt_file"], "iteration": int(got["iteration"])}
+    got = ruling.prep(place, repo, {"judgment_file": str(judgment), "policy_path": runvals.read(place)["policy"]})
+    out = prompts.ruler(place, got)
+    return {"prompt": out["prompt"], "iteration": int(got["iteration"])}
 
 
 if __name__ == "__main__":
@@ -46,4 +34,4 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"rule-prep: {type(e).__name__}: {oneline.one_line(e)}", file=sys.stderr)
         sys.exit(1)
-    boundary.returns(out)
+    ports.returns(out)

@@ -74,7 +74,7 @@ class ManifestCase(unittest.TestCase):
 
     def test_ordinary_files_are_not_protected(self):
         """守らない追跡ファイルは当たらない。lib/ の物でも照らす（一覧の外のパスだけで照らすと、lib/** のような広すぎる行を足しても緑のまま）"""
-        for rel in ("README.md", "lib/impact.py", "lib/tests/test_blk_plan.py"):
+        for rel in ("README.md", "lib/impact.py", "lib/tests/test_impact.py"):
             with self.subTest(rel=rel):
                 self.assertIn(rel, self.files)
                 self.assertEqual(protect.hits([rel], self.doc), [])

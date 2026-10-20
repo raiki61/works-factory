@@ -1,6 +1,6 @@
 # block の設計書: test-double-fidelity（代役の忠実性）
 
-- 何の話か: 対象差分が外部との継ぎ目（別プロセス・別サービス・ブラウザ・外部 API・プロトコル）に触れる時に、テストの代役（モック・スタブ・フェイク）の形が実物と合うかを、実物から取った値 1 件で確かめる素材の観点「代役の忠実性」を、単独で呼べる block `blocks/test-double-fidelity/` にする設計。族の共通の形は [materials.md](materials.md)、写す手本は [prior-decisions.md](prior-decisions.md)。
+- 何の話か: 対象差分が外部との継ぎ目（別プロセス・別サービス・ブラウザ・外部 API・プロトコル）に触れる時に、テストの代役（モック・スタブ・フェイク）の形が実物と合うかを、実物から取った値 1 件で確かめる素材の観点「代役の忠実性」を、単独で呼べる block `workflows/test-double-fidelity/` にする設計。族の共通の形は [materials.md](materials.md)、写す手本は [prior-decisions.md](prior-decisions.md)。
 - 決めたこと: 今の judge の `material-route` の 1 列と `test-double-fidelity-loop`（prep・役・accept）を、materials.md の 5 つの node の block にする。入力は共通の 3 つ（`base`・`entry`・`lang`）だけ。判定から入る run では役を起こさず、出どころつきの `not_applicable` を機械が書く。『条件に当たらない』の扱いは `cond` で、当たる条件はいつも真（機械は継ぎ目かを決められないので触れる側に倒す。今と同じ）。観点の前と後の照らしは無い。指示は 1 本の英語の md にし、材料のファイルを無くす。振る舞いは変えない。
 - 持ち主に求めること: なし。
 - 読む人と使い方: この block を作る実装者（1〜3 節の名と順をそのまま作る）。素材の観点の残りの 10 本の 1 本（README の 11.1 の 1 波目の「残りの 10 本を同時に作る」）。急ぎの度合い: 族の部品（`lib/materialkit.py`）と 1 本目の観点 prior-decisions を入れる PR の後なら、ほかの観点を待たずにいつ作ってもよい（ほかの block はこの block を待たない。読み手の diagnose は 2 波目）。
@@ -34,7 +34,7 @@
 
 今との違い: 今は入力を `judge/start.json`（差分の根・入口の印）から名で開き、回すかを `material-route` が決め（`test_double_fidelity_due`）、回さない時の埋めは `material-route.json` の `fill` から diagnose-prep の `fill_materials` が写した。受けた返答は `judge/material-test-double-fidelity.json` に書き、判定役は返答の全体を `out.p1.test_double_fidelity` の穴で読んだ（`lib/judge_accept.py:2764-2795` の `_diagnose_ctx`）。
 
-### 1.3 node の並び（`blocks/test-double-fidelity/works-factory-test-double-fidelity.yaml`）
+### 1.3 node の並び（`workflows/test-double-fidelity/works-factory-test-double-fidelity.yaml`）
 
 materials.md の 1.3 の雛形の `<観点>` を `test-double-fidelity` にした物。
 
@@ -53,8 +53,8 @@ materials.md の 1.4 の名だけ: `intake.json`・`view.json`・`diff.patch`・
 
 ### 1.5 コードの置き場
 
-- `blocks/test-double-fidelity/src/__init__.py`（空）。
-- `blocks/test-double-fidelity/src/viewpoint.py`: materials.md の 5.1 の宣言。中身:
+- `workflows/test-double-fidelity/src/__init__.py`（空）。
+- `workflows/test-double-fidelity/src/viewpoint.py`: materials.md の 5.1 の宣言。中身:
   - `NAME = "test-double-fidelity"`
   - `MATERIALS = ("test_double_fidelity",)`
   - `GUARDED = False`（AI の node が `mutates_checkout: false` を持たない。今の accept の `with: {status_guarded: false, …}`。`works-factory-judge.yaml:1621`）
@@ -71,13 +71,13 @@ materials.md の 1.4 の名だけ: `intake.json`・`view.json`・`diff.patch`・
   - `after_accept(reply, place)`: 何もしない。
   - `materials_of(reply)`: `{"test_double_fidelity": reply["material"]} if isinstance(reply.get("material"), dict) else {}`（今の `writes` の `materials.test_double_fidelity ← material`）。
   - `report_lines(doc)`: `reply` の `mismatches` の行ごとに `f"  - 代役の不一致: {oneline(text)}（{where}）"`。`reply` が null か行が無ければ `[]`。
-- `blocks/test-double-fidelity/src/oldbrief.py`（1 つ目の commit だけ。2.9）: 今の材料のファイルを同じ字で組む `brief(view) -> str`。2 つ目の commit で消す。
+- `workflows/test-double-fidelity/src/oldbrief.py`（1 つ目の commit だけ。2.9）: 今の材料のファイルを同じ字で組む `brief(view) -> str`。2 つ目の commit で消す。
 - schema のファイルは無い（json の入力を持たない）。
 - 使う `lib/`: `materialkit`・`rolekit`・`oneline`。
 
 ### 1.6 つなぎ方（graph の側。block には書かない）
 
-- 判定のまとめ（`blocks/judge/`）: `include: works-factory-test-double-fidelity`、`depends_on` は materials.md の 1.6。`with:` は `base: <line が始めの記録から引いた diff_base>`・`entry: <line が始めの記録から引いた出どころの文。判定から入る run でなければ空>`・`lang: <始めの記録の lang>`。
+- 判定のまとめ（`workflows/judge/`）: `include: works-factory-test-double-fidelity`、`depends_on` は materials.md の 1.6。`with:` は `base: <line が始めの記録から引いた diff_base>`・`entry: <line が始めの記録から引いた出どころの文。判定から入る run でなければ空>`・`lang: <始めの記録の lang>`。
 - 読み手: diagnose だけ。
   - port `materials`（11 本の `material` の配列の 1 つ）を `materialkit.assemble` で 15 欄にそろえ、素材 `test_double_fidelity` を読む。
   - 判定役の材料の「代役の忠実性」の穴（今の `{{?out.p1.test_double_fidelity}}`、`DIAGNOSE_EXCERPT` の `:2717`）は返答の全体（`material` と `mismatches`）だった。新しい形では同じ `material.json` の `reply` の欄から取る（`_reply_of` が `material-<役>.json` の `reply` を読んでいた形のまま）。どう描くかは diagnose の設計書が決める。
@@ -218,6 +218,7 @@ Return only JSON that matches the output schema.
 - 消した: 道具の段の「同じ時に別の素材集めの役も走っている」の断定（prior-decisions.md の 2.6 と同じ。`{shared:material-readonly}` の「走りうる」）。
 - 足した: 道具の段の「its network is open」。今の md は網を言わないが、起こし方（`network: {allowedDomains: ['*']}`）の事実を役に伝える 1 句で、prior-decisions の「網は閉じている」と対になる。
 - 残した: `mismatches` は頭の欄で `material` と別・1 件 1 行・`found` の時の `count` は行の数（#221 が足した段）。返答の形を決める文なので残した。
+- 変えた: 断片 `material-where` の尾の文を、受け付けが照らす範囲（`where` と `text` を持つ行だけ。ほかの行は照らさない）に合わせて狭めた。
 - 英語にした（#764）。役の名「代役の忠実性の役（任せ先）」は "the test-double-fidelity role"。「任せ先」（元の graphloops の `run_by: writer` の委任の印）は、block の中に任せる元が無いので訳さない。
 
 ### 2.7 元の works と graphloops の同じ場面
@@ -247,7 +248,7 @@ materials.md の 4 節の順のまま。観点の前の照らしと後の照ら�
 
 ### 2.9 試験
 
-- standalone の fixture（`blocks/test-double-fidelity/fixtures/`）:
+- standalone の fixture（`workflows/test-double-fidelity/fixtures/`）:
   - `standalone.stubs.yaml`: `fixture.inputs` は `base: ""`・`entry: ""`・`lang: ""`。AI の node `test-double-fidelity` だけを台本の返答（`material.status: clean`・`checked` 1 文・`mismatches: []`）で差し替え、script は本物（`--exec-code`）。`reached` に `finish`。`finish` の出力の `status` が `ran`。
   - `gave-up.stubs.yaml`: 台本の返答が 3 回とも `material.status: not_applicable`（`cond_true` で拒まれる）。`finish` の `status` が `gave_up`、run は `completed`。
   - `skipped.stubs.yaml`: `entry: "人の依頼（standalone）"`。AI の node に届かず（`reached` に `test-double-fidelity` が無い）、`finish` の `status` が `skipped`。
@@ -284,7 +285,7 @@ materials.md の 2.8 と 4 節の文だけを使う。この観点が足す拒�
 ## 5 単独で呼ぶ
 
 ```sh
-bin/works-factory <読ませるフォルダを blocks/ にする引数（名は土台の PR で決める）> workflow run works-factory-test-double-fidelity \
+bin/works-factory workflow run works-factory-test-double-fidelity \
   --input base=<差分の根の commit>
 ```
 
@@ -293,7 +294,6 @@ bin/works-factory <読ませるフォルダを blocks/ にする引数（名は�
 ## 6 未確認
 
 - 土台の `prompt.render` が、入らない段落（`na_never`・`na_cond_false`・`na_judged`）の中の差し込み口を「使われない値」に数えるか（materials.md の 11 節）。
-- 起動の殻で `blocks/` を読ませる引数の名（prior-decisions.md の 6 節と同じ）。
 
 ## 7 自分で決めた事（この block だけ）
 

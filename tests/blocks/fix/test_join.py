@@ -1,4 +1,4 @@
-"""修正の block（blocks/fix/）の全体の形の頭と組の戻し: prep・join・conflict-check の script と、src/board.py の組の分けと戻しの口・
+"""修正の block（workflows/fix/）の全体の形の頭と組の戻し: prep・join・conflict-check の script と、src/board.py の組の分けと戻しの口・
 src/lanes.py の試験（docs/design/fix.md の 14.2 の test_join.py）。
 
 今の tests/workflows/test_fix.py の BlockScriptsCase の prep・join・conflict-check の部分、lib/tests/test_lanekit.py、
@@ -101,7 +101,7 @@ class Whole(unittest.TestCase):
 
     # ---- 助け
     def go(self, name, env_extra=None, **inputs):
-        """blocks/fix/scripts/<name>.py を子のプロセスで回す。(終了の値, 標準出力の JSON か None, 標準エラー)"""
+        """workflows/fix/scripts/<name>.py を子のプロセスで回す。(終了の値, 標準出力の JSON か None, 標準エラー)"""
         env = hermetic.child_env(**self.run.environ(**inputs), PYTHONDONTWRITEBYTECODE="1", **(env_extra or {}))
         done = subprocess.run([sys.executable, str(kit.BLOCKS / "fix" / "scripts" / f"{name}.py")], cwd=self.repo, env=env,
                               capture_output=True, text=True, encoding="utf-8")
@@ -141,10 +141,10 @@ class Whole(unittest.TestCase):
         return out_dir
 
     def rerun_seed(self, files_, *, test_cmd=""):
-        """走らせ直しの種: files を commit し、実行器（lib/tests/test_blk_fix_tdd.py の SUITE）を values.json に置き、その実行器で
+        """走らせ直しの種: files を commit し、実行器（tests/blocks/fix/support.py の SUITE）を values.json に置き、その実行器で
         取った直す前の結末を place に置く。返りは始めの木"""
         import baseline_red
-        from lib.tests.test_blk_fix_tdd import SUITE
+        from tests.blocks.fix.support import SUITE
         for name, text in files_.items():
             (self.repo / name).parent.mkdir(parents=True, exist_ok=True)
             (self.repo / name).write_text(text, encoding="utf-8")
@@ -190,7 +190,7 @@ class PrepCase(Whole):
         self.assertEqual(out["count"], 2)
         self.assertEqual(out["out_dir"], str(self.place / "groups"))
         self.assertEqual(out["start_tree"], self.snapshot())
-        for name in (files.VALUES, files.LIB_START, "judgment.json", "plan-fields.json", board.PLAN_REPLY_FILE,
+        for name in (files.VALUES, "judgment.json", "plan-fields.json", board.PLAN_REPLY_FILE,
                      "fix-ignored-before.json", "groups.json", "only-items.json", "base-rev.json"):
             self.assertTrue((self.place / name).is_file(), name)
         self.assertEqual(json.loads((self.place / "groups.json").read_text(encoding="utf-8")), out)
@@ -1102,7 +1102,7 @@ class GroupBoardCase(unittest.TestCase):
 
     def test_rerun_problem_names_red_unrunnable_and_unreported_tests(self):
         import baseline_red
-        from lib.tests.test_blk_fix_tdd import SUITE
+        from tests.blocks.fix.support import SUITE
         suite = self.tmp / "suite.py"
         suite.write_text(SUITE, encoding="utf-8")
         named = ["test_stats.py::TestStats::test_mean_of_three"]
@@ -1157,6 +1157,23 @@ class GroupBoardCase(unittest.TestCase):
             green = f"{sys.executable} -c \"import sys; sys.exit(0)\""
             self.assertEqual(board.rerun_problem(self.place, self.repo, str(suite), cases, named, name="cmd-green",
                                                  test_cmd=green), "")
+
+
+
+class LanekitSeamCase(unittest.TestCase):
+    """lanes.groups: 項目を共にする単位は同じ組（推移的）・組の順と組の中の順は入力の順。待ちの列と固定の枝の数は持たない
+    （持ち主の決め no-queue。元 lib/tests/test_fix_seams.py の LanekitSeamCase）"""
+
+    def setUp(self):
+        load_src()
+
+    def test_groups_units_sharing_items_transitively_in_input_order(self):
+        rows = [("u3", ["i1"]), ("u1", ["i2"]), ("u2", ["i1", "i3"]), ("u5", []), ("u4", ["i3"]), ("u6", ["i2"])]
+        self.assertEqual(lanes.groups(rows), [["u3", "u2", "u4"], ["u1", "u6"], ["u5"]])
+
+    def test_no_queue_and_no_fixed_lane_count(self):
+        for name in ("MAX_LANES", "queue_put", "take"):
+            self.assertFalse(hasattr(lanes, name), name)
 
 
 if __name__ == "__main__":

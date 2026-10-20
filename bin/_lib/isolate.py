@@ -12,7 +12,7 @@ run の置き場にだけ置き、継いだ値が印を書かせない）。
 並べて走る子の run が工場の家の .gitconfig のロックにぶつからないことも、この向け直しに懸かる（#727）。止めた Archon は、子の
 作業場の親のフォルダを自分で作り、root でない利用者なら、まだ無い作業場のパスのいちばん近い在る親が自分の利用者の物になるので、
 git の全体の設定に safe.directory を書かない。ARCHON_HOME を殻を起こした利用者の持つ run の置き場の下へ向けるのは、その親が
-他人の物にならないという前提を崩さないため（上流の分岐の細目は docs/design.md の 64ec0c2e の項）。ほかの直し方は取れない。子の run は 1 つの Archon のプロセスの中で走って環境を分け合うので、
+他人の物にならないという前提を崩さないため（上流の分岐の細目は docs/design/archon.md の「Archon の分かっていること」の safe.directory の項）。ほかの直し方は取れない。子の run は 1 つの Archon のプロセスの中で走って環境を分け合うので、
 子ごとに GIT_CONFIG_GLOBAL を替えられない。前もって家の .gitconfig に親のフォルダを入れても、Archon は作業場のパスそのままの
 行しか済みと見ない（作業場のパスは前もって分からないので、先に書き終えておく道も無い）。落ちた子を起こし直す道は、Archon が
 workflow: のノードの retry: を拒むので、グラフの中に置けない。試験は tests/bin/test_isolate.py の ParallelWorktreeGrantCase。

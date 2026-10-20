@@ -2,74 +2,59 @@
 # requires-python = ">=3.12"
 # dependencies = []
 # ///
-"""節 fix-prep（形 group の修正の輪の頭）: 修正役の指示書を組んで置き場に書く（fixrules.prep。決まりは commands/fix-rules/）。
-
-直す義務は組の単位（入力 group の unit_ids）のうち判定の直す義務の物（fixboard.group_owed）。義務が残らない（全部が答え待ち・
-直さない裁定で外れた）時は go: false（修正役を起こさない）。この輪の拒否の理由の全部のファイル（fix-accept が書いた
-拒否の控え rejects-fix-accept.json を rolekit.reject_file が 1 つにまとめた rejects-fix-accept.md）を指示書の頭で名指す。段の頭の木（TDD の輪の後の姿）を 1 回目に置き場の fix-head.json に控える
-（受け付けの書き込みの出どころと、諦めた単位の戻し先。TDD の輪が書いた物を修正役の物に数えない）。範囲の相談の答えがまだ渡っていない周は、答えのファイルを名指す続きの指示書だけを
-書く（fixrules.prep の中の consult の引き）。TDD の輪が緑にした単位（tddloop.green_units）の外の単位には、修正役が項目ごとに
-Agent の新しい会話で下請け（実装役・審査役）を起こす節と下請けのファイルを置く（fixrules.g1_values・seat.g1_section）。輪が全部を
-緑にした周は借りたスキルの座（seat.section）。凍ったテスト（factchecks.frozen_tests）を受け付けと同じ口で引いて指示書に貼る。相談の控え（consult.json）には除くパスの頭 boundary.SKIP を足す。段の頭の木と
-同じ時に、除くパスの頭 boundary.SKIP の下の姿を skip-before.json に控える（fixboard.record_skipped。受け付けがその下を変えた返答を拒む）。
-返り {prompt_file, go, iteration}。回す側の誤り（判定の写しが無い・brief の控えが壊れた）は標準エラーに 1 行で非 0。
-"""
+"""node fix-prep（組の形の修正の輪の頭）: 修正役の指示を md から組む（src/prompts.fixer。今の fixrules.prep の順）。
+直す義務は組の単位のうち判定の直す義務の物（board.group_owed）。義務が残らなければ go: false。段の頭の木（TDD の輪の後の姿）と
+除くパスの頭の下の姿を 1 回目に控える（fix-head.json・skip-before.json）。範囲の相談の答えがまだ渡っていない周・はみ出しを相談に
+積んだ周は続きの段落だけを組む（回は数え直さない）。TDD の輪が緑にした単位の外の単位には、項目ごとの下請けのファイルを置く。
+返り {prompt, go, iteration}。回す側の誤り（判定の写しが無い・brief の控えが壊れた・指示が組めない）は prompt-error.json に書いて非 0"""
 import functools
 import os
 import sys
 from pathlib import Path
 
 sys.dont_write_bytecode = True
-sys.path.insert(0, str(Path(__file__).resolve().parents[2] / ".shared"))
-import boundary  # noqa: E402
-sys.path.append(str(boundary.lib_root()))
+sys.path[:0] = [str(Path(__file__).resolve().parents[2] / ".shared"), str(Path(__file__).resolve().parents[1])]
+import ports  # noqa: E402
 
-import factchecks  # noqa: E402
-import fixboard  # noqa: E402
-import fixrules  # noqa: E402
 import groups  # noqa: E402
 import oneline  # noqa: E402
-import rolekit  # noqa: E402
-import rulebook  # noqa: E402
-import startrec  # noqa: E402
-import tddloop  # noqa: E402
 import writelog  # noqa: E402
 
-RULES = Path(__file__).resolve().parents[1] / "commands" / "fix-rules"
-rulebook.CANON = RULES / "common.md"
-fixrules.SHARED = rulebook.CANON
-fixrules.RULES_DIR = RULES
-ACCEPT = "fix-accept"            # 受け付けの節（拒否の控え rejects-<名>.json の名）
+from src import board, facts, files, intake, prompts, rules, tdd  # noqa: E402
+
+NODE = "fix-prep"
+SKIP = (ports.RUNTIME_COPY_PREFIX,)
 
 
 def main() -> dict:
-    place, repo = boundary.place("fix"), boundary.work_tree()
-    group = boundary.parsed(os.environ.get("INPUTS_GROUP"))
-    owed = fixboard.group_owed(place, group["unit_ids"] if group else None)
-    head = place / fixrules.head_file("first")
+    place, repo = ports.place(), Path.cwd()
+    group = intake.load(place).get("group")
+    owed = board.group_owed(place, group["unit_ids"] if group else None)
+    head = place / rules.head_file("first")
     if not head.is_file():
-        fixboard.record_skipped(place, repo, boundary.SKIP)   # 印より先に（落ちて回し直した prep が控えを飛ばさない）
-        fixboard.write_json(head, {"tree": groups.end_tree(repo)})
-    start = startrec.read(place)
-    n = fixrules.iteration_next(fixrules.prompt_path(place))
-    duty, _ = fixboard.fix_duty(place, owed)
+        board.record_skipped(place, repo, SKIP)   # 印より先に（落ちて回し直した prep が控えを飛ばさない）
+        board.write_json(head, {"tree": groups.end_tree(repo)})
+    n = rules.iteration_next(place / prompts.LEDGER["first"])
+    duty, _ = board.fix_duty(place, owed)
     if not duty:
-        return {"prompt_file": "", "go": False, "iteration": n}
-    state, summary = fixboard.loop_files(place)
-    got = fixrules.prep(place, repo, fixboard.fix_values(place, owed, start=start, state=state, summary=summary,
-                                                         answer_node=fixrules.answer_node("first")),
-                        "first", owed=owed, items=functools.partial(fixboard.place_items, place), sources=fixboard.brief_sources(place),
-                        reject_file=rolekit.reject_file(place, ACCEPT), lang=rolekit.lang_line(start),
-                        green=tddloop.green_units(summary), frozen=factchecks.frozen_tests(place, state, "first"),
-                        shared=boundary.shared_cache())
-    fixboard.consult_skip(place, boundary.SKIP, writelog.log_here())
-    return {"prompt_file": got["prompt_file"], "go": True, "iteration": got["iteration"]}
+        return {"prompt": "", "go": False, "iteration": n}
+    state, summary = board.loop_files(place)
+    values = board.fix_values(place, owed, state=state, summary=summary, answer_node=rules.answer_node("first"))
+    try:
+        got = prompts.fixer(place, repo, "first", values, owed=owed, items=functools.partial(board.place_items, place),
+                            sources=board.brief_sources(place), green=tdd.green_units(summary),
+                            frozen=facts.frozen_tests(place, state, "first"), shared=ports.shared_cache())
+    except prompts.Broken as e:
+        prompts.error(place, "fixer", oneline.one_line(e))
+        raise
+    board.consult_skip(place, SKIP, writelog.log_here())
+    return {"prompt": got["prompt"], "go": True, "iteration": got["iteration"]}
 
 
 if __name__ == "__main__":
     try:
         out = main()
     except Exception as e:
-        print(f"fix-prep: {type(e).__name__}: {oneline.one_line(e)}", file=sys.stderr)
+        print(f"{NODE}: {type(e).__name__}: {oneline.one_line(e)}", file=sys.stderr)
         sys.exit(1)
-    boundary.returns(out)
+    ports.returns(out)

@@ -1,4 +1,4 @@
-"""ブロックの script（workflows/*/scripts/*.py と、Archon が見つける 1 段下のフォルダの物）の頭の uv の script の宣言の試験。
+"""ブロックの script（pack の <ブロック>/scripts/*.py と、Archon が見つける 1 段下のフォルダの物）の頭の uv の script の宣言の試験。
 
 Archon は script の節（runtime: uv）を対象の作業ツリーを cwd に `uv run <ファイル>` で起こす。宣言が無いと uv は対象の
 pyproject.toml を拾い、作業ツリーに .venv と uv.lock を作る（作業ツリーを変えない約束が破れる）。
@@ -7,6 +7,7 @@ pyproject.toml を拾い、作業ツリーに .venv と uv.lock を作る（作�
   ファイルに当たり、`script:` に本体を直に書かない（止めた Archon の packages/workflows/src/script-discovery.ts の
   MAX_SCRIPT_DISCOVERY_DEPTH・scanScriptDir、executor-shared.ts の isInlineScript）
 - pyproject.toml を置いた種の写しを cwd に `uv run` で起こしても、`git status --porcelain --ignored` が前後で同じ
+- pack は tests/archon.py の WORKFLOWS（入れ替えの前も後も同じ口。docs/design/integration.md の 4.5-11）
 """
 import pathlib
 import re
@@ -18,10 +19,10 @@ import unittest
 
 import yaml
 
+from tests.archon import ROOT, WORKFLOWS
 from tests.bin import hermetic
 from tests.bin.gitkit import committed_copy, git
 
-ROOT = pathlib.Path(__file__).resolve().parents[2]
 SEED = ROOT / "tests" / "e2e" / "target-seed"
 
 
@@ -33,7 +34,7 @@ def scripts(workflows: pathlib.Path) -> list[pathlib.Path]:
     return sorted(p for depth in range(DISCOVERY_DEPTH + 1) for p in workflows.glob("*/scripts/" + "*/" * depth + "*.py"))
 
 
-SCRIPTS = scripts(ROOT / "workflows")
+SCRIPTS = scripts(WORKFLOWS)
 if str(ROOT / "lib") not in sys.path:
     sys.path.append(str(ROOT / "lib"))
 
@@ -105,7 +106,7 @@ class HeaderTest(unittest.TestCase):
                              ["b/scripts/a.py", "b/scripts/g/c.py"])
 
     def test_scripts_exist(self):
-        self.assertTrue(SCRIPTS, "workflows/*/scripts/ に script が 1 本も無い")
+        self.assertTrue(SCRIPTS, "pack の */scripts/ に script が 1 本も無い")
 
     def test_every_script_declares_itself(self):
         for script in SCRIPTS:
@@ -113,7 +114,7 @@ class HeaderTest(unittest.TestCase):
                 self.assertEqual(script.read_text(encoding="utf-8").splitlines()[:4], HEADER)
 
     def test_every_named_script_archon_can_find_declares_itself(self):
-        self.assertEqual(script_faults(ROOT / "workflows"), [])
+        self.assertEqual(script_faults(WORKFLOWS), [])
 
     def test_a_tree_with_each_fault_is_named(self):
         """1 段下の宣言の無い script・当たらない名・直に書いた本体・同じ名の 2 つを、それぞれ名指す。"""
@@ -159,7 +160,7 @@ class UvRunTest(unittest.TestCase):
         env.pop("VIRTUAL_ENV", None)
         for script in SCRIPTS:
             with self.subTest(script=str(script.relative_to(ROOT))):
-                artifacts = self.tmp / "artifacts" / script.relative_to(ROOT / "workflows").with_suffix("")
+                artifacts = self.tmp / "artifacts" / script.relative_to(WORKFLOWS).with_suffix("")
                 artifacts.mkdir(parents=True)
                 before = self.status()
                 done = subprocess.run(["uv", "run", str(script)], cwd=self.repo, stdin=subprocess.DEVNULL,

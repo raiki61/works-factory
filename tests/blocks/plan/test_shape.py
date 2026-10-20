@@ -192,5 +192,27 @@ class ShapeCase(unittest.TestCase):
         self.assertEqual(re.findall(r"\{[a-z_]+\}", text).count("{whole_plan}"), 1)
 
 
+class RecommendShapeCase(unittest.TestCase):
+    """lib/tests/test_gate_drafts.py の SchemaCase にあった、役の頭の文の試験 2 本（#765 の組み込みで lib の試験から外れた物）の plan の分。
+    元の gatemarks.HEAD["p2.fix_plan"]（役の頭の文）に当たるのは、この block では plan-writer の md"""
+
+    def setUp(self):
+        self.steps = kit.load("plan", "steps")
+        self.md = (BLOCK / "prompts" / "plan-writer.md").read_text(encoding="utf-8")
+
+    def test_rule_text_asks_for_recommend(self):
+        """元 test_rule_text_asks_for_recommend: 修正案の役の指示が、人に回す行の推しの欄を求める"""
+        self.assertIn(f"write {gatemarks.RECOMMEND} = the one answer you recommend", self.md)
+
+    def test_shape_text_is_built_from_the_keys(self):
+        """元 test_shape_text_is_built_from_the_keys の役の頭と受け付けの拒みの 2 つ: 役への指示が書かせる推しの形（欄の名・答え・字の下限）が
+        lib の持ち主の欄と語と下限に揃い、拒みの文は持ち主の 1 つの文 RECOMMEND_SHAPE を持つ"""
+        shape = gatemarks.RECOMMEND_SHAPE
+        for word in (*gatemarks.RECOMMEND_KEYS, *gatemarks.RECOMMEND_ANSWERS, f"{gatemarks.RECOMMEND_MIN} characters or more"):
+            self.assertIn(word, self.md)
+        self.assertIn(shape, self.steps.RECOMMEND_REJECT)
+        self.assertFalse(hasattr(gatemarks, "RECOMMEND_REJECT"))
+
+
 if __name__ == "__main__":
     unittest.main()

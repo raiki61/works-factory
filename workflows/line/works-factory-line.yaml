@@ -1,283 +1,327 @@
 name: works-factory-line
-description: |
-  works-factory のメイングラフ。修正依頼か差分を受け、9 つのサブグラフ（judge・structure・plan・plan-review・fix・test-gate・eyes・report・merge）を
-  include: で並べ、承認ノード・計画の往復・一度だけの include（案の直しと 2 度目の修正・再審）・深さの上げ直し・無人の方針を持ち、
-  どの道でも報告を出す。順と承認ノードは docs/design.md の「メイングラフ」、サブグラフとの受け渡しは同じ文書の「サブグラフの出力の約束」。
-  YAML は配線だけで、決めはメイングラフの script（workflows/line/scripts/）、確かめは lib/ が持つ。
-  修正から後ろのノードは、直す前のテスト・判定・計画・修正前の承認の答えを中継のノード fix-in から読む。固定材料（fix_fixture）を
-  名指した run は、start が写しを取り込み、直す前のテスト・判定・計画を飛ばして fix-in が写しの値を運び、修正から始める。
-  サブグラフに渡す飛ばされうる値は、返しのノード（埋め P2: answer-*・structure-in・collect）が `{from, if_skipped: null}` で受けて明示の値で返し直す。
-  サブグラフと計画の往復の出力は受け皿のノード（埋め P8: <include の id>-out・plan-rounds-out・plan-rounds-review-out）が受け直し、collect はそこからだけ読む
-  （受けるノードが落ちても受け皿が飛ばされるだけで、報告まで届く）。
-  出力はメイングラフのノード result（結末の語と、結末が fixed・fixed_needs_check の時に真の fixed）。
-
+description: '工場のメイングラフ（docs/design/line.md の 1〜11 章）。修正依頼か差分を受け、block を include で並べて直しを作り、承認ノード 4 つで人に見せ、差分を封じて置き、どの道でも報告を出す。判定と独立の目はそれぞれ 1 つの include（judge と eyes の graph）で呼ぶ。line が持つのは流れだけ: どの block をいつ回すか・承認ノードと無人の方針・計画の往復の記録と止め・一度だけの include（案の直し・2 度目の修正・再審・修正の後の並行 PR の確かめ直し）・深さの表と 1 回の上げ直し・始めの記録（block には port の値で配る）・報告への受け渡し。AI の node は持たない'
 inputs:
-  request:
-    default: ""
-    description: 修正依頼のファイル（findings の JSON の配列か、{findings, pr, issue, answers, prior_failures} の形）のパス。相対なら対象の根から。依頼の行か差分の少なくとも 1 つが要る（どちらも無ければ start が AI の前で止める）
-  base:
-    default: ""
-    description: 差分の根を名指す版（枝・タグ・commit）。差分の根は base と HEAD の merge-base。pr と一緒には名指さない
-  pr:
-    default: ""
-    description: PR の番号。base の版と head は start が run の中で gh で読み、読めなければ・head が対象の HEAD と違えば止める。base と一緒には名指さない
-  spec:
-    default: ""
-    description: 仕様の段を挟むか（空か on）。依頼の文が要り、無人の run・固定材料とは組めない
-  test_cmd:
-    default: ""
-    description: テストのコマンド（対象の根で走らせる 1 行）。test-gate が読む
-  tdd_suite:
-    default: ""
-    description: テストの実行器（JUnit XML の書き先を第 1 引数に受ける実行ファイル。対象の根から）。空なら修正前のテストの後に、同じ test_cmd で前に照らしを通った取り置きを使い、無ければ AI の手番 1 回が test_cmd と CI の定義から書く。走らせて JUnit XML が出て試験が 1 件以上の時だけ修正の段の TDD のループを回す（ほかは飛ばす）
-  final_gate:
-    default: ""
-    description: 最後の承認ノードの開き方。always（空の既定。無人の run の空の既定は when_needed）・when_needed・protected_only（lib/gatepolicy.py）。守りのパスの当たりと申し出はどれでも開く
-  unattended:
-    default: ""
-    description: 無人の run か（空か true）。true は人が答えない run で、台帳の問いは承認ノードに載せず（判定の推しつきの分かれ道の問いは推しを答えに採って直す義務に戻し）、承認ノードを開くはずの時は項目の全部の推しが通すならその推しで進み、そうでなければ開かずに止める（needs-human）
-  design_only:
-    default: ""
-    description: 設計だけの run か（空か true）。true は修正前の承認ノードを必ず開く
-  thickness:
-    default: ""
-    description: 手厚さ（深さ）。空・自動は機械が単位ごとに決める。軽量・標準は全部の単位をその深さに固定する。重厚は単位を標準に固定する。段ごとに省く物・足す物は docs/design.md の深さの段の表（lib/depth.py の TIERS）
-  features_off:
-    default: ""
-    description: 切る機能（語をカンマか空白で区切った 1 行。語と既定は lib/entry.py の FEATURES・FEATURE_DEFAULTS）。知らない語は start が止める
-  features_on:
-    default: ""
-    description: 入れる機能（features_off と同じ語）。features_off と同じ語を名指せば start が止める
-  policy_md:
-    default: ""
-    description: 人の方針の文書のパス（空なら既定の置き場）。相対なら対象の根から。名指した文書が無ければ start が止める
-  fix_fixture:
-    default: ""
-    description: 固定材料のフォルダ（前の run の報告の「固定材料」の行。前の run の修正の前の写し）。名指すと判定と修正案を作り直さずに修正から始める。相対なら対象の根から。無いフォルダ・写しと違う木や依頼や入力は start が AI の前で止める。spec と周の鎖とは組めない
-  lang:
-    default: ""
-    description: 報告と、承認ノード・報告に載る役の文の言語。空は依頼文の言語
-  deliver:
-    default: ""
-    description: 出口の語（lib/entry.py の DELIVERS）。空は封じた差分を run の置き場に置くだけ（既定）。pr は最後の承認ノードの後に、照らした差分を run の枝に修正案の項目ごとの commit で積み（分けられなければ 1 つの commit）、push して対象の既定の枝へ向けた PR を作る（run の枝が既定の枝と同じ名なら push せずに止める。merge はしない）。知らない語は start が止める
-
+  request: {default: '', description: 'file: 修正依頼のファイル（findings の JSON の配列か {findings, pr, issue, answers, prior_failures, constraints} の形）。相対なら対象の根から。依頼の行か差分の少なくとも 1 つが要る'}
+  base: {default: '', description: 'text: 差分の根を名指す版（枝・タグ・commit）。差分の根は base と HEAD の merge-base。pr と一緒には名指さない'}
+  pr: {default: '', description: 'text: PR の番号。base の版と head は run の中で gh で読む。base と一緒には名指さない'}
+  spec: {default: '', description: 'text: 仕様の段を挟むか（空か on）。依頼の文が要り、無人の run・固定材料とは組めない'}
+  test_cmd: {default: '', description: 'text: テストのコマンド（対象の根で走らせる 1 行）。試験の関門が読む'}
+  tdd_suite: {default: '', description: 'text: テストの実行器（JUnit XML の書き先を第 1 引数に受ける実行ファイル。対象の根から）。空なら直す前のテストの後に、同じ test_cmd で前に照らしを通った取り置きを使い、無ければ AI の手番 1 回が test_cmd と CI の定義から書く。走らせて JUnit XML が出て試験が 1 件以上の時だけ修正の段の TDD のループを回す'}
+  final_gate: {default: '', description: 'text: 最後の承認ノードの開き方。always（空の既定。無人の run の空の既定は when_needed）・when_needed・protected_only。守りのパスの当たりと申し出はどれでも開く'}
+  unattended: {default: '', description: 'text: 無人の run か（空か true）。true は人が答えない run で、台帳の問いは承認ノードに載せず（判定の推しつきの分かれ道の問いは推しを答えに採って直す義務に戻し）、承認ノードを開くはずの時は項目の全部の推しが通すならその推しで進み、そうでなければ開かずに止める（needs-human）'}
+  design_only: {default: '', description: 'text: 設計だけの run か（空か true）。true は修正前の承認ノードを必ず開く'}
+  thickness: {default: '', description: 'text: 手厚さ（深さ）。空・自動は機械が単位ごとに決める。軽量・標準は全部の単位をその深さに固定する。重厚は単位を標準に固定する。段ごとに省く物・足す物は docs/design/line.md の 5.1 の表'}
+  features_off: {default: '', description: 'text: 切る機能（語をカンマか空白で区切った 1 行。語と既定は lib/entry.py の FEATURES・FEATURE_DEFAULTS）。知らない語は start が止める'}
+  features_on: {default: '', description: 'text: 入れる機能（features_off と同じ語）。features_off と同じ語を名指せば start が止める'}
+  policy_md: {default: '', description: 'text: 人の方針の文書のパス（空なら既定の置き場）。相対なら対象の根から。名指した文書が無ければ start が止める'}
+  fix_fixture: {default: '', description: 'text: 固定材料のフォルダ（前の run の報告の「固定材料」の行。前の run の修正の前の写し）。名指すと判定と修正案を作り直さずに修正から始める。相対なら対象の根から。無いフォルダ・写しと違う木や依頼や入力は start が AI の前で止める。spec と周の鎖とは組めない'}
+  lang: {default: '', description: 'text: 報告と、承認ノード・報告に載る役の文の言語。空は依頼文の言語'}
+  deliver: {default: '', description: 'text: 出口の語（lib/entry.py の DELIVERS）。空は封じた差分を run の置き場に置くだけ（既定）。pr は最後の承認ノードの後に、照らした差分を run の枝に修正案の項目ごとの commit で積み（分けられなければ 1 つの commit）、push して対象の既定の枝へ向けた PR を作る（merge はしない）。知らない語は start が止める'}
 returns: result
 outcome_field: fixed
-
 nodes:
   # 0 test_cmd の形の確かめ。対象の手元を試す形なら testcmd-stop が理由の文で run を止める（AI を起こす前）
   - id: testcmd
     script: testcmd
     runtime: uv
+    mutates_checkout: false
     output_format:
       type: object
-      properties:
-        stop: { type: boolean }
-        reason: { type: string }
+      additionalProperties: false
       required: [stop, reason]
-    mutates_checkout: false
-
+      properties:
+        stop: {type: boolean}
+        reason: {type: string}
   - id: testcmd-stop
     cancel: "$testcmd.output.reason"
     depends_on: [testcmd]
     when: "$testcmd.output.stop == true"
-
-  # 1 始め。入力をそろえ、始めの記録を書く。受けなければ ok: false で、後ろは when: で飛ぶ（AI を起こす前に止める）
+  # 1 始め。入力を確かめ、始めの記録を書き、block に配る値を ports に並べる（docs/design/line.md の 1.6）。受けなければ ok: false で、後ろは when: で飛ぶ
   - id: start
+    # mutates_checkout を書かない（tests/layers/scan.py の CHANGE_CHECKOUT。今の line と同じ）
     script: start
     runtime: uv
     depends_on: [testcmd]
     when: "$testcmd.output.stop == false"
     output_format:
       type: object
+      additionalProperties: false
+      required: [ok, stop_reason, reason, record, prior_failures, ask, gate_text, unattended, design_only, final_gate, from_fixture, fixture,
+                 ports]
       properties:
-        ok: { type: boolean }
-        stop_reason: { type: string }
-        reason: { type: string }
-        record: { type: [object, "null"] }
-        prior_failures: { type: [object, "null"] }
-        ask: { type: boolean }
-        gate_text: { type: string }
-        unattended: { type: boolean }
-        design_only: { type: boolean }
-        final_gate: { type: string }
-        spec: { type: boolean }
-        from_fixture: { type: boolean }
-        fixture: { type: [object, "null"] }
-        reuse_dir: { type: string }
-        user_env_dir: { type: string }
-      required: [ok, stop_reason, reason, record, prior_failures, ask, gate_text, unattended, design_only, final_gate, spec,
-                 from_fixture, fixture, reuse_dir, user_env_dir]
-
-  # 2 起動の関所
+        ok: {type: boolean}
+        stop_reason: {type: string}
+        reason: {type: string}
+        record: {type: [object, 'null']}
+        prior_failures: {type: [object, 'null']}
+        ask: {type: boolean}
+        gate_text: {type: string}
+        unattended: {type: boolean}
+        design_only: {type: boolean}
+        final_gate: {type: string}
+        from_fixture: {type: boolean}
+        fixture: {type: [object, 'null']}
+        ports:
+          type: object
+          additionalProperties: false
+          required: [request, request_file, pr_text, carried, carried_measured, base, base_rev, request_origin, base_label, review_rev, entry,
+                     lang, web, world, spec, has_checks, thickness, forced, design_only, unattended, policy, test_cmd, tdd_suite, reuse_dir,
+                     user_env_dir, run_id, deliver, parallel, verify_by_tier, tree_named, takes_push, request_scope, prior_rows,
+                     request_answers]
+          properties:
+            request: {type: string}
+            request_file: {type: string}
+            pr_text: {type: string}
+            carried: {type: [object, string]}
+            carried_measured: {type: boolean}
+            base: {type: string}
+            base_rev: {type: string}
+            request_origin: {type: string}
+            base_label: {type: string}
+            review_rev: {type: string}
+            entry: {type: string}
+            lang: {type: string}
+            web: {type: string}
+            world: {type: boolean}
+            spec: {type: boolean}
+            has_checks: {type: boolean}
+            thickness: {type: string}
+            forced: {type: string}
+            design_only: {type: boolean}
+            unattended: {type: boolean}
+            policy: {type: string}
+            test_cmd: {type: string}
+            tdd_suite: {type: string}
+            reuse_dir: {type: string}
+            user_env_dir: {type: string}
+            run_id: {type: string}
+            deliver: {type: string}
+            parallel: {type: boolean}
+            verify_by_tier: {type: object}
+            tree_named: {type: string}
+            takes_push: {type: boolean}
+            request_scope: {type: boolean}
+            prior_rows: {type: array}
+            request_answers: {type: array}
+  # 2 起動の承認ノード（docs/design/line.md の 2 節の 1）
   - id: gate-start
     wait:
       attention: "$start.output.gate_text"
       form: select
-      options: [{ id: approve }, { id: continue }, { id: stop }, { id: reject }]
+      options: [{id: approve}, {id: continue}, {id: stop}, {id: reject}]
     depends_on: [start]
     when: "$start.output.ask == true"
-
   - id: answer-start
-    script: gate_answer
-    runtime: uv
-    output_format:
-      type: object
-      properties:
-        go: { type: boolean }
-        answer: { type: [object, "null"] }
-        stop_reason: { type: string }
-      required: [go, answer, stop_reason]
-    mutates_checkout: false
+    # 承認ノードの答えの受け方の本体はここ 1 か所。answer-final は <<: *gate_answer で受ける
+    <<: &gate_answer
+      script: gate_answer
+      runtime: uv
+      mutates_checkout: false
+      output_format:
+        type: object
+        additionalProperties: false
+        required: [go, answer, stop_reason]
+        properties:
+          go: {type: boolean}
+          answer: {type: [object, 'null']}
+          stop_reason: {type: string}
     depends_on: [start, gate-start]
     trigger_rule: none_failed_min_one_success
     with:
-      gate: { from: "$gate-start.output", if_skipped: null }
+      gate: {from: "$gate-start.output", if_skipped: null}
       go: "$start.output.ok"
       stop_reason: "$start.output.stop_reason"
-      place: gate-start
+      place: "gate-start"
       final: "false"
-
-  # 3 直す前の結末
+  # 3 直す前の結末（固定材料の run は飛ぶ）
   - id: test-gate-base
     include: works-factory-test-gate
     depends_on: [answer-start]
     when: "$answer-start.output.go == true && $start.output.from_fixture == false"
     with:
-      mode: base
-      start: "$start.output.record"
-      baseline: null
-      reuse_dir: "$start.output.reuse_dir"
-      user_env_dir: "$start.output.user_env_dir"
-
+      mode: "base"
+      test_cmd: "$start.output.ports.test_cmd"
+      tdd_suite: "$start.output.ports.tdd_suite"
+      base: "$start.output.ports.base_rev"
+      request: "$start.output.ports.request"
+      request_scope: "$start.output.ports.request_scope"
+      reuse_dir: "$start.output.ports.reuse_dir"
+      reuse_key: "$start.output.ports.run_id"
+      user_env_dir: "$start.output.ports.user_env_dir"
+      lang: "$start.output.ports.lang"
   - id: test-gate-base-out
-    # 受け皿 13 本の本体（script・runtime・timeout・output_format・mutates_checkout）はここ 1 か所。ほかの 12 本は <<: *receiver で受け、
-    # 受け皿ごとに id・depends_on・with だけを書く。with: の names は got から運ぶ
-    # 欄の名で、宣言の外の欄は運ばない（workflows/AGENTS.md の E5）
+    # 受け皿の本体はここ 1 か所。ほかは <<: *receiver で受け、id・depends_on・with だけを書く（names は運ぶ欄の名）
     <<: &receiver
       script: returned
       runtime: uv
+      mutates_checkout: false
       output_format:
         type: object
+        additionalProperties: false
+        required: [got, why]
         properties:
-          got: { type: [object, "null"] }
-          stop_reason: { type: string }
-        required: [got, stop_reason]
-      mutates_checkout: false
+          got: {type: [object, 'null']}
+          why: {type: string}
     depends_on: [test-gate-base]
     with:
       got: "$test-gate-base.output"
-      names: "mode ok green red_cause ran_steps baseline fingerprint test_outcomes evidence by suites_line log baseline_line reason optional"
-
-  # 4 判定
+      names: "mode ok green red_cause ran_steps baseline fingerprint test_outcomes evidence by suites_line log baseline_line reason suite suite_note report"
+  # 4 判定のまとめ（docs/design/judge-eyes.md の 1 節）
   - id: judge
     include: works-factory-judge
     depends_on: [test-gate-base]
     when: "$test-gate-base.output.ok == true"
     with:
-      start: "$start.output.record"
+      request: "$start.output.ports.request"
+      pr_text: "$start.output.ports.pr_text"
+      carried: "$start.output.ports.carried"
+      base: "$start.output.ports.base"
+      entry: "$start.output.ports.entry"
+      web: "$start.output.ports.web"
+      world: "$start.output.ports.world"
+      spec: "$start.output.ports.spec"
+      has_checks: "$start.output.ports.has_checks"
+      thickness: "$start.output.ports.thickness"
+      design_only: "$start.output.ports.design_only"
+      verify_by_tier: "$start.output.ports.verify_by_tier"
+      user_env_dir: "$start.output.ports.user_env_dir"
+      request_origin: "$start.output.ports.request_origin"
       baseline: "$test-gate-base.output.baseline"
-      objection: ""
-      prior_failures: "$start.output.prior_failures"
-      user_env_dir: "$start.output.user_env_dir"
-
+      policy: "$start.output.ports.policy"
+      lang: "$start.output.ports.lang"
   - id: judge-out
     <<: *receiver
     depends_on: [judge]
     with:
       got: "$judge.output"
-      names: "ready stop_reason units judgment purpose world spec out_of_purpose rejudge_verdict depth depth_why premises verify
-        pr_excluded materials purpose_review depth_record decisions answer_ties review_lenses pr_drafts rejudge_exit rejudge_diff
-        purpose_means world_state optional"
-
-  # 4' 構造の目。計画の 1 回目の周が修正案の役を起こす run（直す義務の単位が在り、行き止まりが無く、入力が読める。owed が計画の周を
-  # 開く口と同じ決めを引く）でだけ、判定が切った単位を run に 1 回だけ測って見る（単位が変わるのは再審の後だけで、その後に計画は走らない）。
-  # 計画の往復・案の直し・事前審査は同じ控えを入力 structure で受ける（構造が飛ばされた run は structure-in が null を渡す）
+      names: "ok stop_reason reason ready units questions judgment answer_ties out_of_purpose materials brief inputs purpose purpose_text purpose_source
+        means purpose_review constraints world world_state spec spec_rows spec_origin excluded pr_drafts downgrades decisions tier tier_why
+        row_asks tier_record verify verify_why report sections"
+  # 5 段 → 回す物の表（docs/design/line.md の 5.1）
+  - id: tiers
+    script: tiers
+    runtime: uv
+    mutates_checkout: false
+    depends_on: [judge]
+    when: "$judge.output.ok == true"
+    with:
+      tier: "$judge.output.tier"
+      tree_named: "$start.output.ports.tree_named"
+      record: "$start.output.record"
+    output_format:
+      type: object
+      additionalProperties: false
+      required: [tier, omits, merge, tree, adds, lines, stop_reason]
+      properties:
+        tier: {type: string}
+        omits: {type: boolean}
+        merge: {type: boolean}
+        tree: {type: string, enum: ['on', 'off', 'auto']}
+        adds: {type: array, items: {type: string}}
+        lines: {type: array, items: {type: string}}
+        stop_reason: {type: string}
+  # 6 計画の周の前の支度と構造の目。計画の 1 回目の周が修正案の役を起こす run でだけ、判定が切った単位を run に 1 回だけ測って見る
   - id: owed
     script: owed
     runtime: uv
-    output_format:
-      type: object
-      properties:
-        owed: { type: boolean }
-        why: { type: string }
-        stop_reason: { type: string }
-      required: [owed, why, stop_reason]
     mutates_checkout: false
-    depends_on: [judge]
+    depends_on: [judge, answer-start]
     when: "$judge.output.ready == true"
     with:
-      start: "$start.output.record"
       judgment: "$judge.output.judgment"
       answer_ties: "$judge.output.answer_ties"
       materials: "$judge.output.materials"
       world: "$judge.output.world"
-
+      decisions: "$judge.output.decisions"
+      answer: "$answer-start.output.answer"
+      record: "$start.output.record"
+      ports: "$start.output.ports"
+    output_format:
+      type: object
+      additionalProperties: false
+      required: [owed, why, recorded, stop_reason]
+      properties:
+        owed: {type: boolean}
+        why: {type: string}
+        recorded: {type: array, items: {type: object}}
+        stop_reason: {type: string}
   - id: structure
     include: works-factory-structure
     depends_on: [owed]
     when: "$owed.output.owed == true"
     with:
-      start: "$start.output.record"
+      mode: "before"
       units: "$judge.output.units"
-
+      intent: "[]"
+      policy: "$start.output.ports.policy"
+      lang: "$start.output.ports.lang"
   - id: structure-out
     <<: *receiver
     depends_on: [structure]
     with:
       got: "$structure.output"
-      names: "ok structure optional"
-
+      names: "ok status reason structure after dirty escalate report"
   - id: structure-in
-    script: structure_in
-    runtime: uv
-    output_format:
-      type: object
-      properties:
-        structure: {}
-        stop_reason: { type: string }
-      required: [structure, stop_reason]
-    mutates_checkout: false
+    # 返しの本体はここ 1 か所（docs/design/line.md の 1.5 の relay）。ほかは <<: *relay で受け、output_format だけを書き替える
+    <<: &relay
+      script: relay
+      runtime: uv
+      mutates_checkout: false
     depends_on: [judge, structure]
     trigger_rule: none_failed_min_one_success
     when: "$judge.output.ready == true"
     with:
-      structure: { from: "$structure.output.structure", if_skipped: null }
-
-  # 5' 直す物が無い周（判定が直す単位を出さず、止めてもいない）は修正案を作らず、最後の R2 が要る独立設計だけを作る（元
-  # works/darkfactory/lib/line_edge.py:1107-1119 の plan_edge）。後ろは fixed が直す物の無い形で受けて、最後のテストと独立の目で周を締める。
-  # 計画の直す義務が 0 件の周（plan-out の nothing_owed。元 line_edge.py:1109-1114 の空の修正）も同じ尾を通る。判定は単位を出したので
-  # 結末は round_limit。when は判定が ready でない句を先に置く: 飛ばされた plan-rounds の欄は読むと落ち、評価は偽の句で止まる
-  - id: design-only
-    include: works-factory-plan-review
-    depends_on: [judge, plan-rounds]
-    trigger_rule: none_failed_min_one_success
-    when: "$judge.output.ready == false && $judge.output.stop_reason == '' || $judge.output.ready == true && $plan-rounds.output.nothing_owed == true"
+      got: {from: "$structure.output", if_skipped: null}
+      field: "structure"
+    output_format:
+      type: object
+      additionalProperties: false
+      required: [structure, stop_reason]
+      properties:
+        structure: {type: [object, 'null']}
+        stop_reason: {type: string}
+  # 7 独立設計（判定の後に 1 回。どの周でも。直す物が無い周の R2 も読む）
+  - id: independent-design
+    include: works-factory-independent-design
+    depends_on: [judge, answer-start]
+    when: "$judge.output.ok == true"
     with:
-      mode: design
-      start: "$start.output.record"
-      units: "$judge.output.units"
-      judgment: "$judge.output.judgment"
-      purpose: "$judge.output.purpose"
-      world: "$judge.output.world"
-      premises: "$judge.output.premises"
+      purpose: "$judge.output.purpose_text"
+      purpose_source: "$judge.output.purpose_source"
       purpose_review: "$judge.output.purpose_review"
-      decisions: "$judge.output.decisions"
-      plan: "null"
-      structure: "null"
-      ripple: "null"
+      constraints: "$judge.output.constraints"
       answers: "$answer-start.output.answer"
-
-  - id: design-only-out
+      request: "$start.output.ports.request_file"
+      policy: "$start.output.ports.policy"
+      base: "$start.output.ports.base"
+      head: "$start.output.ports.base_rev"
+      lang: "$start.output.ports.lang"
+  - id: independent-design-out
     <<: *receiver
-    depends_on: [design-only]
+    depends_on: [independent-design]
     with:
-      got: "$design-only.output"
-      names: "pass stalled review gate_passes gate design design_premises gate_axes ask_human questions gave_up"
-
-  # 5 計画の往復。中の節は外から見えないので、本体の終わりの返しの節 plan-out が返りを欄ごとに受けて返す
+      got: "$independent-design.output"
+      names: "ok status stands design premises reason downgrades report"
+  - id: design-in
+    <<: *relay
+    depends_on: [judge, independent-design]
+    trigger_rule: none_failed_min_one_success
+    when: "$judge.output.ok == true"
+    with:
+      got: {from: "$independent-design.output", if_skipped: null}
+      field: "design reason premises"
+    output_format:
+      type: object
+      additionalProperties: false
+      required: [design, reason, premises, stop_reason]
+      properties:
+        design: {type: [object, 'null']}
+        reason: {type: [string, 'null']}
+        premises: {type: [object, 'null']}
+        stop_reason: {type: string}
+  # 8 計画の往復（docs/design/line.md の 3 節）。本体に承認ノードと AI の node を直に置かない。止め時は plan-out が決める
   - id: plan-rounds
-    depends_on: [judge, structure-in]
+    depends_on: [judge, owed, structure-in, design-in, tiers]
     when: "$judge.output.ready == true && $owed.output.stop_reason == '' && $structure-in.output.stop_reason == ''"
     loop_group:
       max_iterations: 20
@@ -286,968 +330,1055 @@ nodes:
         - id: plan
           include: works-factory-plan
           with:
-            start: "$start.output.record"
-            units: "$judge.output.units"
             judgment: "$judge.output.judgment"
-            verify: "$judge.output.verify"
-            pr_excluded: "$judge.output.pr_excluded"
-            depth_record: "$judge.output.depth_record"
+            units: "$judge.output.units"
             answer_ties: "$judge.output.answer_ties"
             materials: "$judge.output.materials"
+            answers: "$start.output.ports.request_answers"
+            takes_push: "$start.output.ports.takes_push"
+            verify: "$judge.output.verify"
+            excluded: "$judge.output.excluded"
+            depth_record: "$judge.output.tier_record"
             decisions: "$judge.output.decisions"
-            world: "$judge.output.world"
-            spec: "$judge.output.spec"
+            world_rows: "$judge.output.world"
             structure: "$structure-in.output.structure"
-            review: "$LOOP_PREV.plan-out.output.review"
-            ruling: []
-            conflicts: null
-            prior_failures: "$start.output.prior_failures"
-
+            spec: "$judge.output.spec"
+            policy: "$start.output.ports.policy"
+            prior_failures: "$start.output.ports.prior_rows"
+            prior: "$LOOP_PREV.plan-out.output.plan_prior"
+            ruling: "[]"
+            base: "$start.output.ports.base_rev"
+            review_rev: "$start.output.ports.review_rev"
+            diff_base: "$start.output.ports.base"
+            lang: "$start.output.ports.lang"
         - id: plan-review-run
           include: works-factory-plan-review
           depends_on: [plan]
-          when: "$plan.output.ready == true"
+          when: "$plan.output.ok == true"
           with:
-            start: "$start.output.record"
-            units: "$judge.output.units"
+            proposal: "$plan.output.fix_plan"
+            fields: "$plan.output.plan"
             judgment: "$judge.output.judgment"
-            purpose: "$judge.output.purpose"
-            premises: "$judge.output.premises"
-            materials: "$judge.output.materials"
-            pr_excluded: "$judge.output.pr_excluded"
-            purpose_review: "$judge.output.purpose_review"
-            decisions: "$judge.output.decisions"
-            purpose_means: "$judge.output.purpose_means"
-            world: "$judge.output.world"
-            plan: "$plan.output.plan"
-            fix_plan: "$plan.output.fix_plan"
-            plan_rejects: "$plan.output.rejects"
+            purpose: "$judge.output.purpose_text"
+            design: "$design-in.output.design"
+            design_why: "$design-in.output.reason"
+            world_rows: "$judge.output.world"
+            means: "$judge.output.means"
             structure: "$structure-in.output.structure"
             ripple: "$plan.output.ripple"
-            answers: "$answer-start.output.answer"
-            ruling: []
-            round_limit: 20
-            head_depth: "$judge.output.depth"
-
+            prior: "$LOOP_PREV.plan-out.output.record"
+            tree: "$tiers.output.tree"
+            excluded: "$judge.output.excluded"
+            policy: "$start.output.ports.policy"
+            recorded: "$owed.output.recorded"
+            request: "$start.output.ports.request_file"
+            review_rev: "$start.output.ports.review_rev"
+            diff_base: "$start.output.ports.base"
+            lang: "$start.output.ports.lang"
         - id: plan-out
           script: plan_out
           runtime: uv
-          output_format:
-            type: object
-            properties:
-              ready: {}
-              plan: {}
-              ripple: {}
-              depth: {}
-              round: {}
-              fix_plan: {}
-              rejects: {}
-              gave_up: {}
-              pass: {}
-              stalled: {}
-              review: {}
-              gate_passes: {}
-              gate: {}
-              design: {}
-              design_premises: {}
-              gate_axes: {}
-              ask_human: {}
-              questions: {}
-              nothing_owed: { type: boolean }
-              done: { type: boolean }
-              stop_reason: { type: string }
-            required: [ready, plan, ripple, depth, round, fix_plan, rejects, gave_up, pass, stalled, review, gate_passes, gate, design,
-                       design_premises, gate_axes, ask_human, questions, nothing_owed, done, stop_reason]
           mutates_checkout: false
           depends_on: [plan, plan-review-run]
           trigger_rule: none_failed_min_one_success
           with:
-            round_limit: 20
-            ready: "$plan.output.ready"
-            plan: "$plan.output.plan"
-            ripple: "$plan.output.ripple"
-            depth: "$plan.output.depth"
-            round: "$plan.output.round"
-            fix_plan: "$plan.output.fix_plan"
-            rejects: "$plan.output.rejects"
-            nothing_owed: "$plan.output.nothing_owed"
-            gave_up: "$plan.output.gave_up"
-            pass: { from: "$plan-review-run.output.pass", if_skipped: null }
-            stalled: { from: "$plan-review-run.output.stalled", if_skipped: null }
-            review: { from: "$plan-review-run.output.review", if_skipped: null }
-            gate_passes: { from: "$plan-review-run.output.gate_passes", if_skipped: null }
-            gate: { from: "$plan-review-run.output.gate", if_skipped: null }
-            design: { from: "$plan-review-run.output.design", if_skipped: null }
-            design_premises: { from: "$plan-review-run.output.design_premises", if_skipped: null }
-            gate_axes: { from: "$plan-review-run.output.gate_axes", if_skipped: null }
-            ask_human: { from: "$plan-review-run.output.ask_human", if_skipped: null }
-            questions: { from: "$plan-review-run.output.questions", if_skipped: null }
-
+            plan: "$plan.output"
+            review: {from: "$plan-review-run.output", if_skipped: null}
+            prior: "$LOOP_PREV.plan-out.output.record"
+            unattended: "$start.output.ports.unattended"
+          output_format:
+            type: object
+            additionalProperties: false
+            required: [done, ok, status, round, plan_prior, record, plan, fix_plan, reply, handoffs, ripple, owed, gave_up, stalled, capped,
+                       review, asks, deviations, review_status, review_reason, stop_reason]
+            properties:
+              done: {type: boolean}
+              ok: {type: boolean}
+              status: {type: string}
+              round: {type: integer}
+              plan_prior: {type: [object, 'null']}
+              record: {type: [object, 'null']}
+              plan: {type: [object, 'null']}
+              fix_plan: {type: [object, 'null']}
+              reply: {type: [object, 'null']}
+              handoffs: {type: array, items: {type: object}}
+              ripple: {type: [object, 'null']}
+              owed: {type: array}
+              gave_up: {type: [array, 'null']}
+              stalled: {type: boolean}
+              capped: {type: boolean}
+              review: {type: [object, 'null']}
+              asks: {type: array}
+              deviations: {type: array}
+              review_status: {type: string}
+              review_reason: {type: string}
+              stop_reason: {type: string}
   - id: plan-rounds-out
     <<: *receiver
     depends_on: [plan-rounds]
     with:
       got: "$plan-rounds.output"
-      names: "ready plan ripple depth round fix_plan rejects nothing_owed gave_up"
-
-  - id: plan-rounds-review-out
-    <<: *receiver
-    depends_on: [plan-rounds]
-    with:
-      got: "$plan-rounds.output"
-      names: "pass stalled review gate_passes gate design design_premises gate_axes ask_human questions"
-
-  # 6 修正前の関所
+      names: "done ok status round plan_prior record plan fix_plan reply handoffs ripple owed gave_up stalled capped review asks deviations
+        review_status review_reason stop_reason"
+  # 9 修正前の承認ノード（docs/design/line.md の 2 節の 2）。軸・項目・聞かずに通した行は line が組む
   - id: ask-before-fix
     script: ask_before_fix
     runtime: uv
+    mutates_checkout: false
+    depends_on: [plan-rounds-out, judge-out, structure-in]
+    with:
+      rounds: "$plan-rounds-out.output.got"
+      structure: "$structure-in.output.structure"
+      judge: "$judge-out.output.got"
+      record: "$start.output.record"
+      ports: "$start.output.ports"
     output_format:
       type: object
+      additionalProperties: false
+      required: [open, go, stop_reason, text, deferred, asked, pushed, passes, policy_changed]
       properties:
-        open: { type: boolean }
-        go: { type: boolean }
-        stop_reason: { type: string }
-        text: { type: string }
-        deferred: { type: array }
-        asked: { type: array }
-        pushed: { type: [object, "null"] }
-      required: [open, go, stop_reason, text, deferred, asked, pushed]
-    mutates_checkout: false
-    depends_on: [plan-rounds]
-    with:
-      ready: "$plan-rounds.output.ready"
-      pass: "$plan-rounds.output.pass"
-      stalled: "$plan-rounds.output.stalled"
-      ask_human: "$plan-rounds.output.ask_human"
-      gate_axes: "$plan-rounds.output.gate_axes"
-      questions: "$plan-rounds.output.questions"
-      unattended: "$start.output.unattended"
-      design_only: "$start.output.design_only"
-
+        open: {type: boolean}
+        go: {type: boolean}
+        stop_reason: {type: string}
+        text: {type: string}
+        deferred: {type: array}
+        asked: {type: array}
+        pushed: {type: [object, 'null']}
+        passes: {type: array}
+        policy_changed: {type: boolean}
   - id: gate-before-fix
     wait:
       attention: "$ask-before-fix.output.text"
       form: select
-      options: [{ id: approve }, { id: continue }, { id: stop }, { id: reject }]
+      options: [{id: approve}, {id: continue}, {id: stop}, {id: reject}]
     depends_on: [ask-before-fix]
     when: "$ask-before-fix.output.open == true"
-
   - id: answer-before-fix
     script: before_fix_answer
     runtime: uv
-    output_format:
-      type: object
-      properties:
-        go: { type: boolean }
-        answer: { type: [object, "null"] }
-        stop_reason: { type: string }
-      required: [go, answer, stop_reason]
     mutates_checkout: false
     depends_on: [ask-before-fix, gate-before-fix]
     trigger_rule: none_failed_min_one_success
     with:
-      gate: { from: "$gate-before-fix.output", if_skipped: null }
+      gate: {from: "$gate-before-fix.output", if_skipped: null}
       go: "$ask-before-fix.output.go"
       stop_reason: "$ask-before-fix.output.stop_reason"
-      place: gate-before-fix
+      place: "gate-before-fix"
       asked: "$ask-before-fix.output.asked"
-      start: "$start.output.record"
       pushed: "$ask-before-fix.output.pushed"
-
-  # 7 修正の段へ運ぶ値の中継。通常の run は受け皿と修正前の承認の答えから組み、修正に入る時に 1 度だけ固定材料を写す。固定材料の run は
-  # start が取り込んだ写しの値を運ぶ。どの run でも走る（answer-start は必ず走る）ので、後ろが直に読んでも飛んだ値で落ちない
+      policy_changed: "$ask-before-fix.output.policy_changed"
+      record: "$start.output.record"
+      ports: "$start.output.ports"
+    output_format:
+      type: object
+      additionalProperties: false
+      required: [go, answer, stop_reason, policy]
+      properties:
+        go: {type: boolean}
+        answer: {type: [object, 'null']}
+        stop_reason: {type: string}
+        policy: {type: string}
+  # 10 修正の段へ運ぶ値を 1 か所に集める（docs/design/line.md の 4.1・5.2）。修正から後ろの node は判定・構造の目・独立設計・計画の値をここから読む
   - id: fix-in
     script: fix_in
     runtime: uv
-    output_format:
-      type: object
-      properties:
-        go: { type: boolean }
-        baseline: {}
-        units: {}
-        judgment: {}
-        purpose: {}
-        world: {}
-        spec: {}
-        rejudge_verdict: {}
-        premises: {}
-        verify: {}
-        pr_excluded: {}
-        materials: {}
-        purpose_review: {}
-        depth_record: {}
-        decisions: {}
-        answer_ties: {}
-        purpose_means: {}
-        plan: {}
-        ripple: {}
-        depth: {}
-        head_depth: {}
-        structure: {}
-        fix_plan: {}
-        review: {}
-        gate_passes: {}
-        gate: {}
-        design: {}
-        design_premises: {}
-        questions: {}
-        answer: {}
-        deferred: { type: array }
-        received: { type: [object, "null"] }
-        stop_reason: { type: string }
-      required: [go, baseline, units, judgment, purpose, world, spec, rejudge_verdict, premises, verify, pr_excluded, materials,
-                 purpose_review, depth_record, decisions, answer_ties, purpose_means, plan, ripple, depth, head_depth, structure,
-                 fix_plan, review, gate_passes, gate, design, design_premises, questions, answer, deferred, received, stop_reason]
     mutates_checkout: false
-    depends_on: [answer-start, test-gate-base-out, judge-out, structure-out, plan-rounds-out, plan-rounds-review-out, ask-before-fix,
+    depends_on: [answer-start, test-gate-base-out, judge-out, tiers, owed, structure-out, design-in, plan-rounds-out, ask-before-fix,
                  answer-before-fix]
     trigger_rule: none_failed_min_one_success
     with:
       fixture: "$start.output.fixture"
       start_go: "$answer-start.output.go"
-      test_gate_base: { from: "$test-gate-base-out.output", if_skipped: null }
-      judge: { from: "$judge-out.output", if_skipped: null }
-      structure: { from: "$structure-out.output", if_skipped: null }
-      plan: { from: "$plan-rounds-out.output", if_skipped: null }
-      plan_review: { from: "$plan-rounds-review-out.output", if_skipped: null }
-      before_fix_go: { from: "$answer-before-fix.output.go", if_skipped: null }
-      before_fix_answer: { from: "$answer-before-fix.output.answer", if_skipped: null }
-      deferred: { from: "$ask-before-fix.output.deferred", if_skipped: null }
-
-  # 修正。裁定が計画の項目の誤りとしたら案の直しとその後の 2 度目の修正を、修正役の異議（1 回目か 2 度目）が在れば再審を、1 度ずつ差し込む
+      ports: "$start.output.ports"
+      record: "$start.output.record"
+      test_gate_base: {from: "$test-gate-base-out.output.got", if_skipped: null}
+      judge: {from: "$judge-out.output.got", if_skipped: null}
+      tiers: {from: "$tiers.output", if_skipped: null}
+      structure: {from: "$structure-out.output.got", if_skipped: null}
+      design: {from: "$design-in.output", if_skipped: null}
+      rounds: {from: "$plan-rounds-out.output.got", if_skipped: null}
+      before_fix_go: {from: "$answer-before-fix.output.go", if_skipped: null}
+      before_fix_answer: {from: "$answer-before-fix.output.answer", if_skipped: null}
+      before_fix_policy: {from: "$answer-before-fix.output.policy", if_skipped: null}
+      deferred: {from: "$ask-before-fix.output.deferred", if_skipped: null}
+      passes: {from: "$ask-before-fix.output.passes", if_skipped: null}
+      recorded: {from: "$owed.output.recorded", if_skipped: null}
+    output_format:
+      type: object
+      additionalProperties: false
+      required: [go, no_fix, stop_reason, received, policy, answer, deferred, passes, baseline, suite, judgment, units, answer_ties, materials,
+                 out_of_purpose, verify, excluded, tier_record, decisions, world, spec, purpose, purpose_text, means, constraints, brief,
+                 inputs, recorded, structure, design, design_reason, design_premises, plan, fix_plan, ripple, reply, review, record, handoffs, owed,
+                 round, units_tier, skip_rerun, switches]
+      properties:
+        go: {type: boolean}
+        no_fix: {type: boolean}
+        stop_reason: {type: string}
+        received: {type: [object, 'null']}
+        policy: {type: string}
+        answer: {type: [object, 'null']}
+        deferred: {type: array}
+        passes: {type: array}
+        baseline: {}
+        suite: {type: string}
+        judgment: {type: [object, 'null']}
+        units: {type: array}
+        answer_ties: {type: [object, 'null']}
+        materials: {type: [object, 'null']}
+        out_of_purpose: {type: [object, 'null']}
+        verify: {type: [object, 'null']}
+        excluded: {type: [object, 'null']}
+        tier_record: {type: [object, 'null']}
+        decisions: {type: [object, 'null']}
+        world: {type: [object, 'null']}
+        spec: {type: [object, 'null']}
+        purpose: {type: [object, 'null']}
+        purpose_text: {type: string}
+        means: {type: array}
+        constraints: {type: [object, 'null']}
+        brief: {type: [object, 'null']}
+        inputs: {type: [object, 'null']}
+        recorded: {type: array, items: {type: object}}
+        structure: {type: [object, 'null']}
+        design: {type: [object, 'null']}
+        design_reason: {type: string}
+        design_premises: {type: [object, 'null']}
+        plan: {type: [object, 'null']}
+        fix_plan: {type: [object, 'null']}
+        ripple: {type: [object, 'null']}
+        reply: {type: [object, 'null']}
+        review: {type: [object, 'null']}
+        record: {type: [object, 'null']}
+        handoffs: {type: array}
+        owed: {type: array}
+        round: {type: [integer, 'null']}
+        units_tier: {type: array, items: {type: object}}
+        skip_rerun: {type: array, items: {type: string}}
+        switches: {type: object}
+  # 11 修正（1 回目）
   - id: fix
     include: works-factory-fix
     depends_on: [fix-in]
-    when: "$fix-in.output.go == true"
+    when: "$fix-in.output.go == true && $fix-in.output.no_fix == false"
     with:
-      start: "$start.output.record"
-      baseline: "$fix-in.output.baseline"
-      units: "$fix-in.output.units"
+      mode: "whole"
       judgment: "$fix-in.output.judgment"
       answer_ties: "$fix-in.output.answer_ties"
       materials: "$fix-in.output.materials"
-      depth_record: "$fix-in.output.depth_record"
       plan: "$fix-in.output.plan"
       fix_plan: "$fix-in.output.fix_plan"
       ripple: "$fix-in.output.ripple"
-      depth: "$fix-in.output.depth"
-      head_depth: "$fix-in.output.head_depth"
-      answers: "$fix-in.output.answer"
       plan_review: "$fix-in.output.review"
-      reuse_dir: "$start.output.reuse_dir"
-      user_env_dir: "$start.output.user_env_dir"
-
+      answers: "$fix-in.output.answer"
+      request_answers: "$start.output.ports.request_answers"
+      unattended: "$start.output.ports.unattended"
+      parallel: "$start.output.ports.parallel"
+      test_cmd: "$start.output.ports.test_cmd"
+      reuse_dir: "$start.output.ports.reuse_dir"
+      reuse_key: "$start.output.ports.run_id"
+      user_env_dir: "$start.output.ports.user_env_dir"
+      lang: "$start.output.ports.lang"
+      policy: "$fix-in.output.policy"
+      request: "$start.output.ports.request_file"
+      baseline: "$fix-in.output.baseline"
+      tdd_suite: "$fix-in.output.suite"
+      skip_rerun: "$fix-in.output.skip_rerun"
+      excluded: "$fix-in.output.excluded"
   - id: fix-out
     <<: *receiver
     depends_on: [fix]
     with:
       got: "$fix.output"
-      names: "done units groups conflicts replan_items objection diff allowed_test_changes changed x_scalars delta_review handoffs mismatched plan_declared
-        stop_reason allowed_tests accept_trace lenses closure delta_holes tdd_unit removed tdd_refused item_claims optional"
-
+      names: "ok reason units groups conflicts carry replan_items objection diff start_tree reply ruled_reply scope checked allowed_test_changes
+        changed x_scalars handoffs mismatched plan_declared stop_reason allowed_tests accept_trace closure tdd_unit tdd frozen removed
+        tdd_refused item_claims freeze_off report"
+  # 12 案の直しを差し込むか（run に 1 度）と、案の直しの plan に渡す前の周（docs/design/line.md の 4.2）
   - id: after-fix
     script: after_fix
     runtime: uv
-    output_format:
-      type: object
-      properties:
-        replan: { type: boolean }
-        stop_reason: { type: string }
-      required: [replan, stop_reason]
     mutates_checkout: false
     depends_on: [fix]
     with:
       replan_items: "$fix.output.replan_items"
-
-  - id: replan
-    include: works-factory-plan
-    depends_on: [after-fix]
-    when: "$after-fix.output.replan == true"
+      rounds: "$fix-in.output.record"
+      plan: "$fix-in.output.plan"
+      fix_plan: "$fix-in.output.fix_plan"
+      ripple: "$fix-in.output.ripple"
+      reply: "$fix-in.output.reply"
+      handoffs: "$fix-in.output.handoffs"
+      round: "$fix-in.output.round"
+    output_format:
+      type: object
+      additionalProperties: false
+      required: [replan, prior, stop_reason]
+      properties:
+        replan: {type: boolean}
+        prior: {type: [object, 'null']}
+        stop_reason: {type: string}
+  # 13 修正の後の上げ直し。run に 1 回、1 回目の修正の段と差分の審査の間（docs/design/line.md の 5.3）
+  - id: raise
+    script: raise_depth
+    runtime: uv
+    mutates_checkout: false
+    depends_on: [fix-in, fix, after-fix]
+    when: "$fix-in.output.go == true"
     with:
-      start: "$start.output.record"
-      units: "$fix-in.output.units"
+      fix: "$fix.output"
+      replan: "$after-fix.output.replan"
+      units_tier: "$fix-in.output.units_tier"
+      switches: "$fix-in.output.switches"
       judgment: "$fix-in.output.judgment"
-      verify: "$fix-in.output.verify"
-      pr_excluded: "$fix-in.output.pr_excluded"
-      depth_record: "$fix-in.output.depth_record"
+      plan: "$fix-in.output.plan"
       answer_ties: "$fix-in.output.answer_ties"
       materials: "$fix-in.output.materials"
+      tier_record: "$fix-in.output.tier_record"
+      answer: "$fix-in.output.answer"
+      record: "$start.output.record"
+      ports: "$start.output.ports"
+    output_format:
+      type: object
+      additionalProperties: false
+      required: [units, checks, skip_why, eyes_due, raised, counted, lines, stop_reason]
+      properties:
+        units: {type: array, items: {type: object}}
+        checks: {type: boolean}
+        skip_why: {type: string}
+        eyes_due: {type: boolean}
+        raised: {type: array}
+        counted: {type: string}
+        lines: {type: array, items: {type: string}}
+        stop_reason: {type: string}
+  # 14 1 回目の段の差分の審査。回すのは、深さで省かない（raise.checks）・修正の段の変更の確かめが通った（fix.checked.ok）・
+  # 戻せず当たったままの組が無い（fix.stop_reason が空。止めの語 works:unrestored でない）時だけ（docs/design/line.md の 4.5。
+  # delta-review と lens の設計書の 1.6 が今の delta-cut から line へ移した 3 つ）。lens と delta-review は同じ when: を持つ
+  - id: lens
+    include: works-factory-lens
+    depends_on: [raise]
+    when: "$raise.output.checks == true && $fix.output.ok == true && $fix.output.checked.ok == true && $fix.output.stop_reason == ''"
+    with:
+      base: "$fix.output.start_tree"
+      lang: "$start.output.ports.lang"
+  - id: lens-out
+    <<: *receiver
+    depends_on: [lens]
+    with:
+      got: "$lens.output"
+      names: "ok status reason rows ran failed not_routed carry report"
+  - id: lens-in
+    <<: *relay
+    depends_on: [raise, lens-out]
+    trigger_rule: none_failed_min_one_success
+    with:
+      got: {from: "$lens-out.output.got", if_skipped: null}
+      field: "rows"
+    output_format:
+      type: object
+      additionalProperties: false
+      required: [rows, stop_reason]
+      properties:
+        rows: {type: [object, 'null']}
+        stop_reason: {type: string}
+  - id: delta-review
+    include: works-factory-delta-review
+    depends_on: [lens-in]
+    when: "$raise.output.checks == true && $fix.output.ok == true && $fix.output.checked.ok == true && $fix.output.stop_reason == ''"
+    with:
+      base: "$fix.output.start_tree"
+      plan: "$fix.output.scope"
+      lens_rows: "$lens-in.output.rows"
+      fix_reply: "$fix.output.reply"
+      permits: "$fix.output.allowed_tests"
+      plan_review: "$fix-in.output.review"
+      policy: "$fix-in.output.policy"
+      request: "$start.output.ports.request"
+      lang: "$start.output.ports.lang"
+  - id: delta-review-out
+    <<: *receiver
+    depends_on: [delta-review]
+    with:
+      got: "$delta-review.output"
+      names: "ok status reason rounds pass holes diff carry report"
+  # 15 案の直し（一度だけ。docs/design/line.md の 4.2）。作業ツリーを変える手直しの後に回す
+  - id: replan
+    include: works-factory-plan
+    depends_on: [after-fix, delta-review-out]
+    trigger_rule: none_failed_min_one_success
+    when: "$after-fix.output.replan == true"
+    with:
+      judgment: "$fix-in.output.judgment"
+      units: "$fix-in.output.units"
+      answer_ties: "$fix-in.output.answer_ties"
+      materials: "$fix-in.output.materials"
+      answers: "$start.output.ports.request_answers"
+      takes_push: "$start.output.ports.takes_push"
+      verify: "$fix-in.output.verify"
+      excluded: "$fix-in.output.excluded"
+      depth_record: "$fix-in.output.tier_record"
       decisions: "$fix-in.output.decisions"
-      world: "$fix-in.output.world"
-      spec: "$fix-in.output.spec"
+      world_rows: "$fix-in.output.world"
       structure: "$fix-in.output.structure"
-      review: ""
+      spec: "$fix-in.output.spec"
+      policy: "$fix-in.output.policy"
+      prior_failures: "$start.output.ports.prior_rows"
+      prior: "$after-fix.output.prior"
       ruling: "$fix.output.replan_items"
       conflicts: "$fix.output.conflicts"
-      prior_failures: "$start.output.prior_failures"
-
+      base: "$start.output.ports.base_rev"
+      review_rev: "$start.output.ports.review_rev"
+      diff_base: "$start.output.ports.base"
+      lang: "$start.output.ports.lang"
   - id: replan-out
     <<: *receiver
     depends_on: [replan]
     with:
       got: "$replan.output"
-      names: "ready plan ripple depth round fix_plan rejects nothing_owed gave_up"
-
+      names: "ok status reason mode round owed plan fix_plan reply handoff replan ripple rejects gave_up report"
   - id: replan-review
     include: works-factory-plan-review
     depends_on: [replan]
-    when: "$replan.output.ready == true"
+    when: "$replan.output.ok == true"
     with:
-      start: "$start.output.record"
-      units: "$fix-in.output.units"
+      proposal: "$replan.output.fix_plan"
+      fields: "$replan.output.plan"
       judgment: "$fix-in.output.judgment"
-      purpose: "$fix-in.output.purpose"
-      premises: "$fix-in.output.premises"
-      materials: "$fix-in.output.materials"
-      pr_excluded: "$fix-in.output.pr_excluded"
-      purpose_review: "$fix-in.output.purpose_review"
-      decisions: "$fix-in.output.decisions"
-      purpose_means: "$fix-in.output.purpose_means"
-      world: "$fix-in.output.world"
-      plan: "$replan.output.plan"
-      fix_plan: "$replan.output.fix_plan"
-      plan_rejects: "$replan.output.rejects"
+      purpose: "$fix-in.output.purpose_text"
+      design: "$fix-in.output.design"
+      design_why: "$fix-in.output.design_reason"
+      world_rows: "$fix-in.output.world"
+      means: "$fix-in.output.means"
       structure: "$fix-in.output.structure"
       ripple: "$replan.output.ripple"
-      answers: "$answer-start.output.answer"
+      prior: "$fix-in.output.record"
+      tree: "off"
+      excluded: "$fix-in.output.excluded"
+      policy: "$fix-in.output.policy"
+      recorded: "$fix-in.output.recorded"
+      request: "$start.output.ports.request_file"
+      review_rev: "$start.output.ports.review_rev"
+      diff_base: "$start.output.ports.base"
       ruling: "$fix.output.replan_items"
       conflicts: "$fix.output.conflicts"
-      gate_answers: "$fix-in.output.answer"
-
+      lang: "$start.output.ports.lang"
   - id: replan-review-out
     <<: *receiver
     depends_on: [replan-review]
     with:
       got: "$replan-review.output"
-      names: "pass stalled review gate_passes gate design design_premises gate_axes ask_human questions gave_up"
-
+      names: "ok status form round reason holes blocks pass asks deviations replan gave_up reads report"
   - id: ask-replan
     script: ask_replan
     runtime: uv
+    mutates_checkout: false
+    depends_on: [replan-out, replan-review-out]
+    trigger_rule: none_failed_min_one_success
+    with:
+      replan: "$replan-out.output.got"
+      review: {from: "$replan-review-out.output.got", if_skipped: null}
+      old_plan: "$fix-in.output.plan"
+      items: "$fix.output.replan_items"
+      conflicts: "$fix.output.conflicts"
+      before_fix: "$fix-in.output.answer"
+      record: "$start.output.record"
+      ports: "$start.output.ports"
     output_format:
       type: object
-      properties:
-        open: { type: boolean }
-        go: { type: boolean }
-        stop_reason: { type: string }
-        text: { type: string }
-        widened: { type: array }
-        asked: { type: array }
-        pushed: { type: [object, "null"] }
+      additionalProperties: false
       required: [open, go, stop_reason, text, widened, asked, pushed]
-    mutates_checkout: false
-    depends_on: [replan-review]
-    with:
-      old_plan: "$fix-in.output.plan"
-      new_plan: "$replan.output.plan"
-      items: "$fix.output.replan_items"
-      ask_human: "$replan-review.output.ask_human"
-      questions: "$replan-review.output.questions"
-      conflicts: "$fix.output.conflicts"
-      unattended: "$start.output.unattended"
-
+      properties:
+        open: {type: boolean}
+        go: {type: boolean}
+        stop_reason: {type: string}
+        text: {type: string}
+        widened: {type: array}
+        asked: {type: array}
+        pushed: {type: [object, 'null']}
   - id: gate-replan
     wait:
       attention: "$ask-replan.output.text"
       form: select
-      options: [{ id: approve }, { id: continue }, { id: stop }, { id: reject }]
+      options: [{id: approve}, {id: continue}, {id: stop}, {id: reject}]
     depends_on: [ask-replan]
     when: "$ask-replan.output.open == true"
-
   - id: answer-replan
     script: replan_answer
     runtime: uv
-    output_format:
-      type: object
-      properties:
-        go: { type: boolean }
-        answer: { type: [object, "null"] }
-        stop_reason: { type: string }
-        fix_answers: { type: [object, "null"] }
-        fix_notes: { type: string }
-        fix_ripple: { type: [object, "null"] }
-      required: [go, answer, stop_reason, fix_answers, fix_notes, fix_ripple]
     mutates_checkout: false
     depends_on: [ask-replan, gate-replan]
     trigger_rule: none_failed_min_one_success
     with:
-      gate: { from: "$gate-replan.output", if_skipped: null }
+      gate: {from: "$gate-replan.output", if_skipped: null}
       go: "$ask-replan.output.go"
       stop_reason: "$ask-replan.output.stop_reason"
-      place: gate-replan
+      place: "gate-replan"
       before_fix: "$fix-in.output.answer"
       asked: "$ask-replan.output.asked"
-      review: { from: "$replan-review.output.review", if_skipped: null }
-      fix_plan: "$replan.output.fix_plan"
-      items: "$fix.output.replan_items"
-      ripple: "$replan.output.ripple"
-      first_ripple: "$fix-in.output.ripple"
       pushed: "$ask-replan.output.pushed"
-
+      replan: "$replan-out.output.got"
+      review: {from: "$replan-review-out.output.got", if_skipped: null}
+      items: "$fix.output.replan_items"
+      first_ripple: "$fix-in.output.ripple"
+      units_tier: "$fix-in.output.units_tier"
+    output_format:
+      type: object
+      additionalProperties: false
+      required: [go, answer, stop_reason, fix_answers, fix_notes, fix_ripple, plan_review, units_tier, skip_rerun]
+      properties:
+        go: {type: boolean}
+        answer: {type: [object, 'null']}
+        stop_reason: {type: string}
+        fix_answers: {type: [object, 'null']}
+        fix_notes: {type: string}
+        fix_ripple: {type: [object, 'null']}
+        plan_review: {type: [object, 'null']}
+        units_tier: {type: array, items: {type: object}}
+        skip_rerun: {type: array, items: {type: string}}
   - id: refix-run
     include: works-factory-fix
     depends_on: [answer-replan]
     when: "$answer-replan.output.go == true"
     with:
-      start: "$start.output.record"
-      baseline: "$fix-in.output.baseline"
-      units: "$fix-in.output.units"
+      mode: "whole"
       judgment: "$fix-in.output.judgment"
       answer_ties: "$fix-in.output.answer_ties"
       materials: "$fix-in.output.materials"
-      depth_record: "$fix-in.output.depth_record"
       plan: "$replan.output.plan"
       fix_plan: "$replan.output.fix_plan"
       ripple: "$answer-replan.output.fix_ripple"
-      depth: "$replan.output.depth"
-      head_depth: "$fix-in.output.head_depth"
+      plan_review: "$answer-replan.output.plan_review"
       answers: "$answer-replan.output.fix_answers"
-      only_items: "$fix.output.replan_items"
-      prior_conflicts: "$fix.output.conflicts"
-      plan_review: "$replan-review.output.review"
       notes: "$answer-replan.output.fix_notes"
-      reuse_dir: "$start.output.reuse_dir"
-      user_env_dir: "$start.output.user_env_dir"
-
+      only_items: "$fix.output.replan_items"
+      prior: "$fix.output.carry"
+      request_answers: "$start.output.ports.request_answers"
+      unattended: "$start.output.ports.unattended"
+      parallel: "$start.output.ports.parallel"
+      test_cmd: "$start.output.ports.test_cmd"
+      reuse_dir: "$start.output.ports.reuse_dir"
+      reuse_key: "$start.output.ports.run_id"
+      user_env_dir: "$start.output.ports.user_env_dir"
+      lang: "$start.output.ports.lang"
+      policy: "$fix-in.output.policy"
+      request: "$start.output.ports.request_file"
+      baseline: "$fix-in.output.baseline"
+      tdd_suite: "$fix-in.output.suite"
+      skip_rerun: "$answer-replan.output.skip_rerun"
+      excluded: "$fix-in.output.excluded"
+  - id: refix-run-out
+    <<: *receiver
+    depends_on: [refix-run]
+    with:
+      got: "$refix-run.output"
+      names: "ok reason units groups conflicts carry replan_items objection diff start_tree reply ruled_reply scope checked allowed_test_changes
+        changed x_scalars handoffs mismatched plan_declared stop_reason allowed_tests accept_trace closure tdd_unit tdd frozen removed
+        tdd_refused item_claims freeze_off report"
+  # 16 2 度目の段の差分の審査（2 度目の修正が走った時だけ）。形と when: の決めは 14 と同じで、値は 2 度目の fix から。上げ直しはしない
+  - id: lens-2
+    include: works-factory-lens
+    depends_on: [refix-run, raise]
+    when: "$raise.output.checks == true && $refix-run.output.ok == true && $refix-run.output.checked.ok == true && $refix-run.output.stop_reason == ''"
+    with:
+      base: "$refix-run.output.start_tree"
+      lang: "$start.output.ports.lang"
+  - id: lens-2-out
+    <<: *receiver
+    depends_on: [lens-2]
+    with:
+      got: "$lens-2.output"
+      names: "ok status reason rows ran failed not_routed carry report"
+  - id: lens-2-in
+    <<: *relay
+    depends_on: [refix-run, lens-2-out]
+    trigger_rule: none_failed_min_one_success
+    with:
+      got: {from: "$lens-2-out.output.got", if_skipped: null}
+      field: "rows"
+    output_format:
+      type: object
+      additionalProperties: false
+      required: [rows, stop_reason]
+      properties:
+        rows: {type: [object, 'null']}
+        stop_reason: {type: string}
+  - id: delta-review-2
+    include: works-factory-delta-review
+    depends_on: [lens-2-in, raise]
+    when: "$raise.output.checks == true && $refix-run.output.ok == true && $refix-run.output.checked.ok == true && $refix-run.output.stop_reason == ''"
+    with:
+      base: "$refix-run.output.start_tree"
+      plan: "$refix-run.output.scope"
+      lens_rows: "$lens-2-in.output.rows"
+      fix_reply: "$refix-run.output.reply"
+      permits: "$refix-run.output.allowed_tests"
+      plan_review: "$answer-replan.output.plan_review"
+      policy: "$fix-in.output.policy"
+      request: "$start.output.ports.request"
+      lang: "$start.output.ports.lang"
+  - id: delta-review-2-out
+    <<: *receiver
+    depends_on: [delta-review-2]
+    with:
+      got: "$delta-review-2.output"
+      names: "ok status reason rounds pass holes diff carry report"
+  # 17 2 つの修正の段と、段ごとの差分の審査を合わせる（docs/design/line.md の 4.3）
   - id: fixed
     script: fixed
     runtime: uv
-    output_format:
-      type: object
-      properties:
-        units: { type: array }
-        groups: {}
-        conflicts: { type: array }
-        replan_items: {}
-        objection: {}
-        diff: {}
-        records: { type: array }
-        item_claims: {}
-        allowed_test_changes: {}
-        changed: {}
-        x_scalars: { type: object }
-        delta_review: {}
-        handoffs: { type: array }
-        mismatched: { type: array }
-        plan_declared: { type: array }
-        done: { type: boolean }
-        go: { type: boolean }
-        rejudge: { type: boolean }
-        refixed: { type: boolean }
-        plan: {}
-        ripple: {}
-        design: {}
-        design_premises: {}
-        plan_questions: {}
-        answer: {}
-        no_fix: { type: boolean }
-        stop_reason: { type: string }
-      required: [units, groups, conflicts, replan_items, objection, diff, records, item_claims, allowed_test_changes, changed, x_scalars,
-                 delta_review, handoffs, mismatched, plan_declared,
-                 done, go, rejudge, refixed, plan, ripple, design, design_premises, plan_questions, answer, no_fix, stop_reason]
     mutates_checkout: false
-    depends_on: [after-fix, refix-run, replan-out, design-only]
+    depends_on: [fix-in, after-fix, raise, fix-out, lens-out, delta-review-out, replan-out, refix-run-out, lens-2-out, delta-review-2-out]
     trigger_rule: none_failed_min_one_success
     with:
-      fix: { from: "$fix.output", if_skipped: null }
-      refix: { from: "$refix-run.output", if_skipped: null }
-      replan: { from: "$after-fix.output.replan", if_skipped: null }
-      stop_after_fix: { from: "$after-fix.output.stop_reason", if_skipped: null }
-      plan: { from: "$fix-in.output.plan", if_skipped: null }
-      ripple: { from: "$fix-in.output.ripple", if_skipped: null }
-      replanned: { from: "$replan-out.output.got", if_skipped: null }
-      design: { from: "$fix-in.output.design", if_skipped: null }
-      design_premises: { from: "$fix-in.output.design_premises", if_skipped: null }
-      plan_questions: { from: "$fix-in.output.questions", if_skipped: null }
-      answer: { from: "$fix-in.output.answer", if_skipped: null }
-      no_fix_design: { from: "$design-only.output.design", if_skipped: null }
-      no_fix_design_premises: { from: "$design-only.output.design_premises", if_skipped: null }
-
-  # 7b 承認済みの受け入れ条件のテストの照らし（spec=on の run だけ中身が在る。spec=on なのに判定の指しが無ければ問う）
-  - id: spec-check
-    script: spec_check
-    runtime: uv
+      fix_in: "$fix-in.output"
+      fix: {from: "$fix-out.output.got", if_skipped: null}
+      after_fix: {from: "$after-fix.output", if_skipped: null}
+      raise: {from: "$raise.output", if_skipped: null}
+      lens: {from: "$lens-out.output.got", if_skipped: null}
+      delta: {from: "$delta-review-out.output.got", if_skipped: null}
+      replan: {from: "$replan-out.output.got", if_skipped: null}
+      refix: {from: "$refix-run-out.output.got", if_skipped: null}
+      lens_2: {from: "$lens-2-out.output.got", if_skipped: null}
+      delta_2: {from: "$delta-review-2-out.output.got", if_skipped: null}
     output_format:
       type: object
+      additionalProperties: false
+      required: [go, done, held, no_fix, diffed, checks, eyes_due, skip_why, rejudge, refixed, stages, carry, tdd, units, groups, conflicts,
+                 replan_items, objection, diff, item_claims, allowed_test_changes, changed, x_scalars, handoffs, mismatched, plan_declared,
+                 plan, ripple, left, stop_reason]
       properties:
-        questions: { type: array }
-        stop_reason: { type: string }
-        unchecked: { type: boolean }
-      required: [questions, stop_reason, unchecked]
-    mutates_checkout: false
+        go: {type: boolean}
+        done: {type: boolean}
+        held: {type: boolean}
+        no_fix: {type: boolean}
+        diffed: {type: boolean}
+        checks: {type: boolean}
+        eyes_due: {type: boolean}
+        skip_why: {type: string}
+        rejudge: {type: boolean}
+        refixed: {type: boolean}
+        stages: {type: array, items: {type: object}}
+        carry: {type: array}
+        tdd: {type: array}
+        units: {type: array}
+        groups: {type: array}
+        conflicts: {type: array}
+        replan_items: {type: array}
+        objection: {type: string}
+        diff: {type: [object, 'null']}
+        item_claims: {type: [object, 'null']}
+        allowed_test_changes: {type: array}
+        changed: {type: [object, 'null']}
+        x_scalars: {type: object}
+        handoffs: {type: array}
+        mismatched: {type: array}
+        plan_declared: {type: array}
+        plan: {type: [object, 'null']}
+        ripple: {type: [object, 'null']}
+        left: {type: array}
+        stop_reason: {type: string}
+  # 18 修正の後の読むだけの 3 つ（互いを待たない。作業ツリーを変える手直しの後に置く）
+  - id: parallel-pr-after
+    include: works-factory-parallel-pr
     depends_on: [fixed]
+    when: "$start.output.ports.entry != '' && $fixed.output.diffed == true"
     with:
-      spec: { from: "$fix-in.output.spec", if_skipped: null }
-      spec_on: "$start.output.spec"
-
-  # 再審は 2 度目の修正の後（元 works/darkfactory/darkfactory.yaml:827 の h-rejudge は refit の後）。1 回目と 2 度目の修正役の異議を 1 度だけ再審する
+      request: "$start.output.ports.request"
+      base: "$start.output.ports.base_rev"
+      changed: "[]"
+      lang: "$start.output.ports.lang"
+  - id: parallel-pr-after-out
+    <<: *receiver
+    depends_on: [parallel-pr-after]
+    with:
+      got: "$parallel-pr-after.output"
+      names: "ok status stop_reason reason material excluded drafts reads downgrades report"
   - id: rejudge-run
-    include: works-factory-judge
+    include: works-factory-diagnose
     depends_on: [fixed]
     when: "$fixed.output.rejudge == true"
     with:
-      start: "$start.output.record"
-      baseline: "$fix-in.output.baseline"
+      request: "$start.output.ports.request"
       objection: "$fixed.output.objection"
-      prior_failures: "$start.output.prior_failures"
-      user_env_dir: "$start.output.user_env_dir"
-
+      prior: "$fix-in.output.judgment"
+      prior_brief: "$fix-in.output.brief"
+      prior_inputs: "$fix-in.output.inputs"
+      world_rows: "$fix-in.output.world"
+      purpose: "$fix-in.output.purpose"
+      policy: "$fix-in.output.policy"
+      spec: "$fix-in.output.spec"
+      verify: "$fix-in.output.verify"
+      excluded: "$fix-in.output.excluded"
+      lang: "$start.output.ports.lang"
   - id: rejudge-run-out
     <<: *receiver
     depends_on: [rejudge-run]
     with:
       got: "$rejudge-run.output"
-      names: "ready stop_reason units judgment purpose world spec out_of_purpose rejudge_verdict depth depth_why premises verify
-        pr_excluded materials purpose_review depth_record decisions answer_ties review_lenses pr_drafts rejudge_exit rejudge_diff
-        purpose_means world_state optional"
-
+      names: "ok status mode stop_reason reason ready judgment units questions inputs brief materials out_of_purpose answer_ties rejudge_verdict
+        rejudge_exit rejudge_diff downgrades report"
+  - id: spec-check-run
+    include: works-factory-spec
+    depends_on: [fixed]
+    when: "$start.output.ports.spec == true"
+    with:
+      mode: "check"
+      spec: "$fix-in.output.spec"
+      user_env_dir: "$start.output.ports.user_env_dir"
+      lang: "$start.output.ports.lang"
+  - id: spec-check-run-out
+    <<: *receiver
+    depends_on: [spec-check-run]
+    with:
+      got: "$spec-check-run.output"
+      names: "ok status stop_reason reason spec added_rows added_origin questions unchecked report"
+  # 19 判定（再審が走れば再審）を後ろへ渡す（docs/design/line.md の 4.4）。再審の返す node が落ちても落ちないように受け皿を読む
   - id: judged
     script: judged
     runtime: uv
-    output_format:
-      type: object
-      properties:
-        units: {}
-        judgment: {}
-        purpose: {}
-        world: {}
-        rejudge_verdict: {}
-        premises: {}
-        materials: {}
-        decisions: {}
-        answer_ties: {}
-        rejudged: { type: boolean }
-        rejudge_exit: {}
-        new_open_units: { type: array }
-        lowered: { type: array }
-        unnamed_changed: { type: array }
-        unread: { type: string }
-        stop_reason: { type: string }
-      required: [units, judgment, purpose, world, rejudge_verdict, premises, materials, decisions, answer_ties, rejudged, rejudge_exit,
-                 new_open_units, lowered, unnamed_changed, unread, stop_reason]
     mutates_checkout: false
-    depends_on: [fixed, rejudge-run]
+    depends_on: [fixed, rejudge-run-out]
     trigger_rule: none_failed_min_one_success
     with:
-      judge_units: "$fix-in.output.units"
-      judge_judgment: "$fix-in.output.judgment"
-      judge_purpose: "$fix-in.output.purpose"
-      judge_world: "$fix-in.output.world"
-      judge_rejudge_verdict: "$fix-in.output.rejudge_verdict"
-      judge_premises: "$fix-in.output.premises"
-      judge_materials: "$fix-in.output.materials"
-      judge_decisions: "$fix-in.output.decisions"
-      judge_answer_ties: "$fix-in.output.answer_ties"
-      rejudge: { from: "$rejudge-run.output", if_skipped: null }
+      fix_in: "$fix-in.output"
+      rejudge_due: "$fixed.output.rejudge"
       objection: "$fixed.output.objection"
-
-  - id: redepth
-    script: redepth
-    runtime: uv
+      fixed_units: "$fixed.output.units"
+      rejudge: {from: "$rejudge-run-out.output.got", if_skipped: null}
     output_format:
       type: object
+      additionalProperties: false
+      required: [units, judgment, answer_ties, materials, out_of_purpose, rejudged, rejudge_verdict, rejudge_exit, rejudge_diff, new_open_units,
+                 lowered, unnamed_changed, unread, lines, carry, stop_reason]
       properties:
-        depth: { type: array }
-        skip_optional: { type: string }
-        raised: { type: array }
-        counted: { type: string }
-        stop_reason: { type: string }
-      required: [depth, skip_optional, raised, counted, stop_reason]
-    mutates_checkout: false
-    depends_on: [judged]
-    with:
-      depth: { from: "$fix-in.output.depth", if_skipped: null }
-      replan_depth: { from: "$replan.output.depth", if_skipped: null }
-      head_depth: "$fix-in.output.head_depth"
-      units: "$fixed.output.units"
-      conflicts: "$fixed.output.conflicts"
-      plan: "$fixed.output.plan"
-      diff: "$fixed.output.diff"
-      records: "$fixed.output.records"
-      judgment: "$judged.output.judgment"
-      start: "$start.output.record"
-      answer: { from: "$fix-in.output.answer", if_skipped: null }
-      answer_ties: "$judged.output.answer_ties"
-      depth_record: "$fix-in.output.depth_record"
-      materials: "$judged.output.materials"
-      replanned: { from: "$after-fix.output.replan", if_skipped: null }
-      rejudged: "$fixed.output.rejudge"
-      plan_declared: "$fixed.output.plan_declared"
-
-  # 8 試験の関門（final）
+        units: {type: array}
+        judgment: {type: [object, 'null']}
+        answer_ties: {type: [object, 'null']}
+        materials: {type: [object, 'null']}
+        out_of_purpose: {type: [object, 'null']}
+        rejudged: {type: boolean}
+        rejudge_verdict: {type: [string, 'null']}
+        rejudge_exit: {type: [object, 'null']}
+        rejudge_diff: {type: [object, 'null']}
+        new_open_units: {type: array}
+        lowered: {type: array}
+        unnamed_changed: {type: array}
+        unread: {type: string}
+        lines: {type: array, items: {type: string}}
+        carry: {type: array}
+        stop_reason: {type: string}
+  # 20 試験の関門（final）。上げ直しの止めは fixed.go が偽にして運ぶ
   - id: test-gate-final
     include: works-factory-test-gate
-    depends_on: [redepth, spec-check]
-    when: "$fixed.output.go == true && $judged.output.stop_reason == '' && $redepth.output.stop_reason == ''"
+    depends_on: [judged, parallel-pr-after-out, spec-check-run-out]
+    trigger_rule: none_failed_min_one_success
+    when: "$fixed.output.go == true && $judged.output.stop_reason == ''"
     with:
-      mode: final
-      start: "$start.output.record"
+      mode: "final"
+      test_cmd: "$start.output.ports.test_cmd"
+      tdd_suite: "$fix-in.output.suite"
+      base: "$start.output.ports.base_rev"
+      request: "$start.output.ports.request"
+      request_scope: "$start.output.ports.request_scope"
       baseline: "$fix-in.output.baseline"
-      user_env_dir: "$start.output.user_env_dir"
-
+      reuse_dir: "$start.output.ports.reuse_dir"
+      reuse_key: "$start.output.ports.run_id"
+      user_env_dir: "$start.output.ports.user_env_dir"
+      lang: "$start.output.ports.lang"
   - id: test-gate-final-out
     <<: *receiver
     depends_on: [test-gate-final]
     with:
       got: "$test-gate-final.output"
-      names: "mode ok green red_cause ran_steps baseline fingerprint test_outcomes evidence by suites_line log baseline_line reason optional"
-
-  # 9 独立の目
+      names: "mode ok green red_cause ran_steps baseline fingerprint test_outcomes evidence by suites_line log baseline_line reason suite suite_note report"
+  # 21 独立の目のまとめ（docs/design/judge-eyes.md の 2 節）。回すか・まとめるかは eyes-in が組む（docs/design/line.md の 5.4）
+  - id: eyes-in
+    script: eyes_in
+    runtime: uv
+    mutates_checkout: false
+    depends_on: [test-gate-final-out]
+    with:
+      fix_in: "$fix-in.output"
+      fixed: "$fixed.output"
+      start_answer: {from: "$answer-start.output.answer", if_skipped: null}
+      replan_review: {from: "$replan-review-out.output.got", if_skipped: null}
+      judged: "$judged.output"
+      record: "$start.output.record"
+      ports: "$start.output.ports"
+    output_format:
+      type: object
+      additionalProperties: false
+      required: [merge, policy, review, pushes, answers, asked, notes]
+      properties:
+        merge: {type: boolean}
+        policy: {type: string}
+        review: {type: object}
+        pushes: {type: array, items: {type: string}}
+        answers: {type: object}
+        asked: {type: array, items: {type: object}}
+        notes: {type: array, items: {type: string}}
   - id: eyes
     include: works-factory-eyes
-    depends_on: [test-gate-final]
+    depends_on: [eyes-in]
     with:
-      start: "$start.output.record"
+      run: "$fixed.output.eyes_due"
+      merge: "$eyes-in.output.merge"
+      skip_why: "$fixed.output.skip_why"
+      base: "$start.output.ports.base"
+      head: "$start.output.ports.base_rev"
+      base_label: "$start.output.ports.base_label"
       units: "$judged.output.units"
       judgment: "$judged.output.judgment"
-      purpose: "$judged.output.purpose"
-      world: "$judged.output.world"
+      purpose: "$fix-in.output.purpose_text"
       plan: "$fixed.output.plan"
       ripple: "$fixed.output.ripple"
-      depth: "$redepth.output.depth"
-      head_depth: "$fix-in.output.head_depth"
-      design: "$fixed.output.design"
-      design_premises: "$fixed.output.design_premises"
-      changed: "$fixed.output.changed"
+      fixes: "$fixed.output.units"
       x_scalars: "$fixed.output.x_scalars"
-      fix_units: "$fixed.output.units"
-      green_ok: "$test-gate-final.output.ok"
-      test_outcomes: "$test-gate-final.output.test_outcomes"
+      changed: "$fixed.output.changed"
+      declared: "$fixed.output.plan_declared"
+      tdd: "$fixed.output.tdd"
+      design: "$fix-in.output.design"
+      design_reason: "$fix-in.output.design_reason"
+      design_premises: "$fix-in.output.design_premises"
+      constraints: "$fix-in.output.constraints"
+      world_rows: "$fix-in.output.world"
+      green: "$test-gate-final.output.ok"
       checks: "$test-gate-final.output.evidence"
-      records: "$fixed.output.records"
-      plan_declared: "$fixed.output.plan_declared"
-      plan_questions: "$fixed.output.plan_questions"
-      answers: "$fixed.output.answer"
-      start_answers: "$answer-start.output.answer"
-      answer_ties: "$judged.output.answer_ties"
-      materials: "$judged.output.materials"
-      premises: "$judged.output.premises"
-      decisions: "$judged.output.decisions"
-
+      test_outcomes: "$test-gate-final.output.test_outcomes"
+      policy: "$eyes-in.output.policy"
+      review: "$eyes-in.output.review"
+      pushes: "$eyes-in.output.pushes"
+      answers: "$eyes-in.output.answers"
+      asked: "$eyes-in.output.asked"
+      request: "$start.output.ports.request_file"
+      decisions: "$fix-in.output.decisions"
+      intent: "[]"
+      lang: "$start.output.ports.lang"
   - id: eyes-out
     <<: *receiver
     depends_on: [eyes]
     with:
       got: "$eyes.output"
-      names: "ok r1 r2 r3 r4 questions premise_check structure_after protected_hits notes r4_passes premise_reply"
-
-  # 10 封じる
+      names: "ok r1 r2 r3 r4 questions passes premise_check notes after dirty escalate after_ok report sections"
+  # 22 封じる（直す物が無い周は飛ぶ）。depends_on は eyes でなく受け皿の eyes-out（eyes の返す node が落ちても封じの node を待たせ
+  # 続けない）。with: の eyes_ok・fingerprint・green_ok は eyes と test-gate-final の返りの欄を直に読む（main の線と同じ式）
   - id: merge-seal
     include: works-factory-merge
-    depends_on: [eyes]
+    depends_on: [eyes-out]
     when: "$fixed.output.no_fix == false"
     with:
-      mode: seal
-      start: "$start.output.record"
+      mode: "seal"
+      base: "$start.output.ports.base_rev"
       fingerprint: "$test-gate-final.output.fingerprint"
       green_ok: "$test-gate-final.output.ok"
       eyes_ok: "$eyes.output.ok"
-
   - id: merge-seal-out
     <<: *receiver
     depends_on: [merge-seal]
     with:
       got: "$merge-seal.output"
-      names: "mode ok hash diff protected_hits protected_count reason deliver optional"
-
-  # 11 最後の関所
+      names: "mode ok hash diff protected_hits protected_count reason deliver report"
+  # 23 最後の承認ノード（docs/design/line.md の 2 節の 4）。受け皿の got だけを読み、置く段に渡す値も返す（受け皿の got の中の欄は with: で読めない）
   - id: ask-final
     script: ask_final
     runtime: uv
-    output_format:
-      type: object
-      properties:
-        open: { type: boolean }
-        go: { type: boolean }
-        stop_reason: { type: string }
-        text: { type: string }
-        reasons: { type: array }
-      required: [open, go, stop_reason, text, reasons]
     mutates_checkout: false
-    depends_on: [eyes, merge-seal]
+    depends_on: [eyes-out, merge-seal-out]
     trigger_rule: none_failed_min_one_success
     with:
+      fix_in: "$fix-in.output"
+      fixed: "$fixed.output"
+      judged: "$judged.output"
+      tests: {from: "$test-gate-final-out.output.got", if_skipped: null}
+      eyes: {from: "$eyes-out.output.got", if_skipped: null}
+      seal: {from: "$merge-seal-out.output.got", if_skipped: null}
+      spec_check: {from: "$spec-check-run-out.output.got", if_skipped: null}
+      parallel_after: {from: "$parallel-pr-after-out.output.got", if_skipped: null}
+      replan_review: {from: "$replan-review-out.output.got", if_skipped: null}
+      replan_answer: {from: "$answer-replan.output.answer", if_skipped: null}
+      widened: {from: "$ask-replan.output.widened", if_skipped: null}
+      start_answer: {from: "$answer-start.output.answer", if_skipped: null}
+      record: "$start.output.record"
       final_gate: "$start.output.final_gate"
-      unattended: "$start.output.unattended"
-      tests: { from: "$test-gate-final.output", if_skipped: null }
-      conflicts: "$fixed.output.conflicts"
-      fix_records: "$fixed.output.records"
-      handoffs: "$fixed.output.handoffs"
-      mismatched: "$fixed.output.mismatched"
-      eyes: { from: "$eyes.output", if_skipped: null }
-      objection: "$fixed.output.objection"
-      rejudge_verdict: "$judged.output.rejudge_verdict"
-      seal: { from: "$merge-seal.output", if_skipped: null }
-      structure: { from: "$fix-in.output.structure", if_skipped: null }
-      judgment: "$judged.output.judgment"
-      units: "$judged.output.units"
-      rejudged: "$judged.output.rejudged"
-      rejudge_exit: "$judged.output.rejudge_exit"
-      first_judgment: "$fix-in.output.judgment"
-      answer_ties: "$judged.output.answer_ties"
-      materials: "$judged.output.materials"
-      first_units: "$fix-in.output.units"
-      fix_units: "$fixed.output.units"
-      groups: "$fixed.output.groups"
-      delta_review: "$fixed.output.delta_review"
-      replan_items: "$fixed.output.replan_items"
-      refixed: "$fixed.output.refixed"
-      replan_answer: { from: "$answer-replan.output.answer", if_skipped: null }
-      replan_gate: gate-replan
-      widened: { from: "$ask-replan.output.widened", if_skipped: null }
-      review: { from: "$fix-in.output.review", if_skipped: null }
-      review_passes: { from: "$fix-in.output.gate_passes", if_skipped: null }
-      review_gate: { from: "$fix-in.output.gate", if_skipped: null }
-      replan_review: { from: "$replan-review.output.review", if_skipped: null }
-      replan_review_passes: { from: "$replan-review.output.gate_passes", if_skipped: null }
-      replan_review_gate: { from: "$replan-review.output.gate", if_skipped: null }
-      start: "$start.output.record"
-      before_fix_answer: { from: "$fix-in.output.answer", if_skipped: null }
-      spec_changed: { from: "$spec-check.output.questions", if_skipped: [] }
-      spec_unchecked: { from: "$spec-check.output.unchecked", if_skipped: false }
-
+      ports: "$start.output.ports"
+    output_format:
+      type: object
+      additionalProperties: false
+      required: [open, go, stop_reason, text, reasons, sealed_hash, fingerprint, green_ok, eyes_ok, r2]
+      properties:
+        open: {type: boolean}
+        go: {type: boolean}
+        stop_reason: {type: string}
+        text: {type: string}
+        reasons: {type: array}
+        sealed_hash: {type: string}
+        fingerprint: {type: [object, 'null']}
+        green_ok: {type: boolean}
+        eyes_ok: {type: boolean}
+        r2: {type: [object, 'null']}
   - id: gate-final
     wait:
       attention: "$ask-final.output.text"
       form: select
-      options: [{ id: approve }, { id: continue }, { id: stop }, { id: reject }]
+      options: [{id: approve}, {id: continue}, {id: stop}, {id: reject}]
     depends_on: [ask-final]
     when: "$ask-final.output.open == true"
-
   - id: answer-final
-    script: gate_answer
-    runtime: uv
-    output_format:
-      type: object
-      properties:
-        go: { type: boolean }
-        answer: { type: [object, "null"] }
-        stop_reason: { type: string }
-      required: [go, answer, stop_reason]
-    mutates_checkout: false
+    <<: *gate_answer
     depends_on: [ask-final, gate-final]
     trigger_rule: none_failed_min_one_success
     with:
-      gate: { from: "$gate-final.output", if_skipped: null }
+      gate: {from: "$gate-final.output", if_skipped: null}
       go: "$ask-final.output.go"
       stop_reason: "$ask-final.output.stop_reason"
-      place: gate-final
+      place: "gate-final"
       final: "true"
-
-  # 12 外へ 1 度だけ書く（既定は差分を run の置き場に置くだけ。出口の語 pr の時だけ run の枝に積んで PR を作る。E17）
+  # 24 外へ 1 度だけ書く（既定は差分を run の置き場に置くだけ。出口の語 pr の時だけ run の枝に積んで PR を作る。E17）
   - id: merge-apply
     include: works-factory-merge
     depends_on: [answer-final]
     when: "$answer-final.output.go == true && $fixed.output.no_fix == false"
     with:
-      mode: apply
-      start: "$start.output.record"
-      fingerprint: "$test-gate-final.output.fingerprint"
-      green_ok: "$test-gate-final.output.ok"
-      eyes_ok: "$eyes.output.ok"
-      sealed_hash: "$merge-seal.output.hash"
+      mode: "apply"
+      base: "$start.output.ports.base_rev"
+      fingerprint: "$ask-final.output.fingerprint"
+      green_ok: "$ask-final.output.green_ok"
+      eyes_ok: "$ask-final.output.eyes_ok"
+      sealed_hash: "$ask-final.output.sealed_hash"
       answer: "$answer-final.output.answer"
-      r2: "$eyes.output.r2"
-      deliver: "$INPUTS.deliver"
-      request: "$INPUTS.request"
-      user_env_dir: "$start.output.user_env_dir"
+      r2: "$ask-final.output.r2"
+      deliver: "$start.output.ports.deliver"
+      request: "$start.output.ports.request_file"
+      user_env_dir: "$start.output.ports.user_env_dir"
       items: "$fixed.output.item_claims"
-
   - id: merge-apply-out
     <<: *receiver
     depends_on: [merge-apply]
     with:
       got: "$merge-apply.output"
-      names: "mode ok hash diff protected_hits protected_count reason deliver optional"
-
-  # 13 報告。前の段が落ちても飛ばされても走る。resume でも collect と result は回し直す（always_run。report は include で、Archon は
-  # include の always_run を捨てるので、回し直した collect の返りが変われば Archon が report の中の控えを捨てて回し直す）
+      names: "mode ok hash diff protected_hits protected_count reason deliver report"
+  # 25 報告へ渡す 2 つの形（sections・facts）を組む（docs/design/line.md の 7 節）。前の段が落ちても飛ばされても走る。resume でも
+  # 回し直す（always_run。report は include で、Archon は include の always_run を捨てるので、collect の返りが変われば report が回し直る）
   - id: collect
     script: collect
     runtime: uv
-    output_format:
-      type: object
-      properties:
-        start: {}
-        test_gate_base: {}
-        judge: {}
-        rejudge: {}
-        structure: {}
-        plan: {}
-        plan_review: {}
-        replan: {}
-        replan_review: {}
-        fix: {}
-        test_gate_final: {}
-        eyes: {}
-        merge_seal: {}
-        merge_apply: {}
-        gate_start: {}
-        gate_before_fix: {}
-        gate_replan: {}
-        gate_final: {}
-        stops: { type: object }
-        deferred: { type: array }
-        widened: { type: array }
-        final_reasons: { type: array }
-        optional: { type: array }
-        prior_failures: {}
-        redepth: {}
-        spec_changed: { type: array }
-        spec_unchecked: {}
-        stages: { type: object }
-        notices: { type: array }
-        user_env_dir: {}
-      required: [start, test_gate_base, judge, rejudge, structure, plan, plan_review, replan, replan_review, fix, test_gate_final, eyes, merge_seal, merge_apply, gate_start, gate_before_fix, gate_replan, gate_final,
-                 stops, deferred, widened, final_reasons, optional, prior_failures, redepth, spec_changed, spec_unchecked, stages, notices,
-                 user_env_dir]
     mutates_checkout: false
-    depends_on: [testcmd, start, answer-start, test-gate-base-out, judge-out, owed, structure-out, structure-in, design-only-out, plan-rounds-out, plan-rounds-review-out, ask-before-fix,
-                 answer-before-fix, fix-in, fix-out, after-fix, rejudge-run-out, judged, replan-out, replan-review-out, ask-replan, answer-replan,
-                 fixed, spec-check, redepth, test-gate-final-out, eyes-out, merge-seal-out, ask-final, answer-final, merge-apply-out]
+    depends_on: [testcmd, start, answer-start, test-gate-base-out, judge-out, tiers, owed, structure-out, structure-in, independent-design-out,
+                 design-in, plan-rounds-out, ask-before-fix, answer-before-fix, fix-in, fix-out, after-fix, raise, lens-out, lens-in,
+                 delta-review-out, replan-out, replan-review-out, ask-replan, answer-replan, refix-run-out, lens-2-out, lens-2-in,
+                 delta-review-2-out, fixed, parallel-pr-after-out, rejudge-run-out, spec-check-run-out, judged, test-gate-final-out, eyes-in,
+                 eyes-out, merge-seal-out, ask-final, answer-final, merge-apply-out]
     trigger_rule: all_done
     always_run: true
     with:
-      start: { from: "$start.output.record", if_skipped: null }
-      fixed: { from: "$fixed.output", if_skipped: null }
-      gate_start: { from: "$answer-start.output.answer", if_skipped: null }
-      gate_before_fix: { from: "$answer-before-fix.output.answer", if_skipped: null }
-      gate_replan: { from: "$answer-replan.output.answer", if_skipped: null }
-      gate_final: { from: "$answer-final.output.answer", if_skipped: null }
-      test_gate_base: { from: "$test-gate-base-out.output", if_skipped: null }
-      judge: { from: "$judge-out.output", if_skipped: null }
-      rejudge: { from: "$rejudge-run-out.output", if_skipped: null }
-      structure: { from: "$structure-out.output", if_skipped: null }
-      plan: { from: "$plan-rounds-out.output", if_skipped: null }
-      plan_review: { from: "$plan-rounds-review-out.output", if_skipped: null }
-      design_only: { from: "$design-only-out.output", if_skipped: null }
-      replan: { from: "$replan-out.output", if_skipped: null }
-      replan_review: { from: "$replan-review-out.output", if_skipped: null }
-      fix: { from: "$fix-out.output", if_skipped: null }
-      test_gate_final: { from: "$test-gate-final-out.output", if_skipped: null }
-      eyes: { from: "$eyes-out.output", if_skipped: null }
-      merge_seal: { from: "$merge-seal-out.output", if_skipped: null }
-      merge_apply: { from: "$merge-apply-out.output", if_skipped: null }
-      fix_in: { from: "$fix-in.output", if_skipped: null }
-      stop_start: { from: "$start.output.stop_reason", if_skipped: null }
-      stop_answer_start: { from: "$answer-start.output.stop_reason", if_skipped: null }
-      stop_ask_before_fix: { from: "$ask-before-fix.output.stop_reason", if_skipped: null }
-      stop_answer_before_fix: { from: "$answer-before-fix.output.stop_reason", if_skipped: null }
-      stop_fix_in: { from: "$fix-in.output.stop_reason", if_skipped: null }
-      stop_after_fix: { from: "$after-fix.output.stop_reason", if_skipped: null }
-      stop_judged: { from: "$judged.output.stop_reason", if_skipped: null }
-      stop_owed: { from: "$owed.output.stop_reason", if_skipped: null }
-      stop_structure_in: { from: "$structure-in.output.stop_reason", if_skipped: null }
-      stop_ask_replan: { from: "$ask-replan.output.stop_reason", if_skipped: null }
-      stop_answer_replan: { from: "$answer-replan.output.stop_reason", if_skipped: null }
-      stop_fixed: { from: "$fixed.output.stop_reason", if_skipped: null }
-      stop_redepth: { from: "$redepth.output.stop_reason", if_skipped: null }
-      stop_spec_check: { from: "$spec-check.output.stop_reason", if_skipped: null }
-      stop_ask_final: { from: "$ask-final.output.stop_reason", if_skipped: null }
-      stop_answer_final: { from: "$answer-final.output.stop_reason", if_skipped: null }
-      deferred: { from: "$ask-before-fix.output.deferred", if_skipped: null }
-      widened: { from: "$ask-replan.output.widened", if_skipped: null }
-      final_reasons: { from: "$ask-final.output.reasons", if_skipped: null }
-      spec_changed: { from: "$spec-check.output.questions", if_skipped: null }
-      spec_unchecked: { from: "$spec-check.output.unchecked", if_skipped: null }
-      prior_failures: { from: "$start.output.prior_failures", if_skipped: null }
-      redepth: { from: "$redepth.output", if_skipped: null }
-      notices: { from: "$testcmd.output.reason", if_skipped: null }
-      user_env_dir: { from: "$start.output.user_env_dir", if_skipped: null }
-      # 受け止める段の宣言: include 丸ごと受け止める段だけをここに書く。ブロックの中の節は各ブロックが返りの欄 optional で宣言し、
-      # collect が include の頭を付けて合わせる。宣言の外の落ちは途中で終わった run に数える
-      optional: '["eyes__"]'
-
+      notices: {from: "$testcmd.output.reason", if_skipped: null}
+      start: {from: "$start.output", if_skipped: null}
+      answer_start: {from: "$answer-start.output", if_skipped: null}
+      test_gate_base: {from: "$test-gate-base-out.output.got", if_skipped: null}
+      judge: {from: "$judge-out.output.got", if_skipped: null}
+      tiers: {from: "$tiers.output", if_skipped: null}
+      owed: {from: "$owed.output", if_skipped: null}
+      structure: {from: "$structure-out.output.got", if_skipped: null}
+      structure_in: {from: "$structure-in.output", if_skipped: null}
+      independent_design: {from: "$independent-design-out.output.got", if_skipped: null}
+      design_in: {from: "$design-in.output", if_skipped: null}
+      rounds: {from: "$plan-rounds-out.output.got", if_skipped: null}
+      ask_before_fix: {from: "$ask-before-fix.output", if_skipped: null}
+      answer_before_fix: {from: "$answer-before-fix.output", if_skipped: null}
+      fix_in: {from: "$fix-in.output", if_skipped: null}
+      fix: {from: "$fix-out.output.got", if_skipped: null}
+      after_fix: {from: "$after-fix.output", if_skipped: null}
+      raise: {from: "$raise.output", if_skipped: null}
+      lens: {from: "$lens-out.output.got", if_skipped: null}
+      lens_in: {from: "$lens-in.output", if_skipped: null}
+      delta: {from: "$delta-review-out.output.got", if_skipped: null}
+      replan: {from: "$replan-out.output.got", if_skipped: null}
+      replan_review: {from: "$replan-review-out.output.got", if_skipped: null}
+      ask_replan: {from: "$ask-replan.output", if_skipped: null}
+      answer_replan: {from: "$answer-replan.output", if_skipped: null}
+      refix: {from: "$refix-run-out.output.got", if_skipped: null}
+      lens_2: {from: "$lens-2-out.output.got", if_skipped: null}
+      lens_2_in: {from: "$lens-2-in.output", if_skipped: null}
+      delta_2: {from: "$delta-review-2-out.output.got", if_skipped: null}
+      fixed: {from: "$fixed.output", if_skipped: null}
+      parallel_after: {from: "$parallel-pr-after-out.output.got", if_skipped: null}
+      rejudge: {from: "$rejudge-run-out.output.got", if_skipped: null}
+      spec_check: {from: "$spec-check-run-out.output.got", if_skipped: null}
+      judged: {from: "$judged.output", if_skipped: null}
+      test_gate_final: {from: "$test-gate-final-out.output.got", if_skipped: null}
+      eyes_in: {from: "$eyes-in.output", if_skipped: null}
+      eyes: {from: "$eyes-out.output.got", if_skipped: null}
+      merge_seal: {from: "$merge-seal-out.output.got", if_skipped: null}
+      ask_final: {from: "$ask-final.output", if_skipped: null}
+      answer_final: {from: "$answer-final.output", if_skipped: null}
+      merge_apply: {from: "$merge-apply-out.output.got", if_skipped: null}
+      # 受け止める段の宣言: include 丸ごと受け止める段だけをここに書く（docs/design/line.md の 7.2 の optional）。block の中の node は
+      # 各 block が返りの欄 optional で宣言し、collect が include の頭を付けて合わせる
+      optional: '["eyes__", "lens__", "lens-2__"]'
+    output_format:
+      type: object
+      additionalProperties: false
+      required: [sections, facts]
+      properties:
+        sections: {type: object}
+        facts: {type: object}
+  # 26 報告（どの道でも走る）
   - id: report
     include: works-factory-report
     depends_on: [collect]
     trigger_rule: all_done
     with:
-      start: "$collect.output.start"
-      before-tests: "$collect.output.test_gate_base"
-      judge: "$collect.output.judge"
-      rejudge: "$collect.output.rejudge"
-      structure: "$collect.output.structure"
-      plan: "$collect.output.plan"
-      plan-review: "$collect.output.plan_review"
-      replan: "$collect.output.replan"
-      replan-review-result: "$collect.output.replan_review"
-      fix: "$collect.output.fix"
-      final-tests: "$collect.output.test_gate_final"
-      eyes: "$collect.output.eyes"
-      sealed-diff: "$collect.output.merge_seal"
-      applied-diff: "$collect.output.merge_apply"
-      start-answer: "$collect.output.gate_start"
-      before-fix-answer: "$collect.output.gate_before_fix"
-      replan-answer: "$collect.output.gate_replan"
-      final-answer: "$collect.output.gate_final"
-      stops: "$collect.output.stops"
-      prior-failures: "$collect.output.prior_failures"
-      deferred: "$collect.output.deferred"
-      widened: "$collect.output.widened"
-      final-reasons: "$collect.output.final_reasons"
-      spec-changed: "$collect.output.spec_changed"
-      spec-unchecked: "$collect.output.spec_unchecked"
-      redepth: "$collect.output.redepth"
-      optional: "$collect.output.optional"
-      stages: "$collect.output.stages"
-      notices: "$collect.output.notices"
-      user-env-dir: "$collect.output.user_env_dir"
-
-  # 後始末。fix の並べの子の run が残した作業ツリーと枝を消す（issue #113）。消すのはこの run の子で status が
-  # completed の物で、子を起こした fan_out の節と join が済んだ物だけ（再開が join を走らせ直しうる間は残す）。落ちない（返りの error に畳む）ので run の結末を変えず、返り {cleaned, left, error} は result が線の返りに載せる
+      sections: "$collect.output.sections"
+      facts: "$collect.output.facts"
+      lang: "$INPUTS.lang"
+  # 27 後始末。fix の組の子の run が残した作業ツリーと枝を消す。消すのはこの run の子で status が completed の物で、子を起こした node と
+  # 同じ include の中の node が全部 completed になった物だけ（再開がそれを走らせ直しうる間は残す）。落ちない（返りの error に畳む）
   - id: sweep-children
     script: sweep_children
     runtime: uv
-    output_format:
-      type: object
-      properties:
-        cleaned: { type: array, items: { type: object } }
-        left: { type: array, items: { type: object } }
-        error: { type: string }
-      required: [cleaned, left, error]
     mutates_checkout: false
     depends_on: [report]
     trigger_rule: all_done
-
-  # 線の返す節
+    output_format:
+      type: object
+      additionalProperties: false
+      required: [cleaned, left, error]
+      properties:
+        cleaned: {type: array, items: {type: object}}
+        left: {type: array, items: {type: object}}
+        error: {type: string}
+  # 28 line の返す node（docs/design/line.md の 1.2 の出力。欄の名は今のまま）
   - id: result
     script: result
     runtime: uv
-    output_format:
-      type: object
-      properties:
-        fixed: { type: boolean }
-        ok: {}
-        outcome: {}
-        stop_reason: {}
-        report: {}
-        report_ai: {}
-        next_request: {}
-        prior_failures: {}
-        apply: { type: [object, "null"] }
-        sealed: { type: [object, "null"] }
-        r2_status: { type: [string, "null"] }
-        final_answer: { type: [object, "null"] }
-        spec_questions: { type: integer }
-        children: { type: [object, "null"] }
-      required: [fixed, ok, outcome, stop_reason, report, report_ai, next_request, prior_failures, apply, sealed, r2_status,
-                 final_answer, spec_questions, children]
     mutates_checkout: false
     depends_on: [collect, report, sweep-children]
     trigger_rule: all_done
     always_run: true
     with:
-      ok: { from: "$report.output.ok", if_skipped: null }
-      outcome: { from: "$report.output.outcome", if_skipped: null }
-      stop_reason: { from: "$report.output.stop_reason", if_skipped: null }
-      report: { from: "$report.output.report", if_skipped: null }
-      report_ai: { from: "$report.output.report_ai", if_skipped: null }
-      next_request: { from: "$report.output.next_request", if_skipped: null }
-      prior_failures: { from: "$report.output.prior_failures", if_skipped: null }
-      merge_apply: { from: "$collect.output.merge_apply", if_skipped: null }
-      merge_seal: { from: "$collect.output.merge_seal", if_skipped: null }
-      eyes: { from: "$collect.output.eyes", if_skipped: null }
-      gate_final: { from: "$collect.output.gate_final", if_skipped: null }
-      spec_changed: { from: "$collect.output.spec_changed", if_skipped: null }
-      children: { from: "$sweep-children.output", if_skipped: null }
+      report: {from: "$report.output", if_skipped: null}
+      merge_apply: {from: "$merge-apply-out.output.got", if_skipped: null}
+      merge_seal: {from: "$merge-seal-out.output.got", if_skipped: null}
+      eyes: {from: "$eyes-out.output.got", if_skipped: null}
+      answer_final: {from: "$answer-final.output.answer", if_skipped: null}
+      spec_check: {from: "$spec-check-run-out.output.got", if_skipped: null}
+      children: {from: "$sweep-children.output", if_skipped: null}
+    output_format:
+      type: object
+      additionalProperties: false
+      required: [fixed, ok, outcome, stop_reason, report, report_ai, report_detail, report_lines, next_request, prior_failures, apply,
+                 sealed, r2_status, final_answer, spec_questions, children]
+      properties:
+        fixed: {type: boolean}
+        ok: {type: boolean}
+        outcome: {type: string}
+        stop_reason: {type: string}
+        report: {type: [object, 'null']}
+        report_ai: {type: [object, 'null']}
+        report_detail: {type: [object, 'null']}
+        report_lines: {type: array, items: {type: string}}
+        next_request: {type: [object, 'null']}
+        prior_failures: {type: [object, 'null']}
+        apply: {type: [object, 'null']}
+        sealed: {type: [object, 'null']}
+        r2_status: {type: [string, 'null']}
+        final_answer: {type: [object, 'null']}
+        spec_questions: {type: integer}
+        children: {type: [object, 'null']}

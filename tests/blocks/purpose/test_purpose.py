@@ -176,7 +176,7 @@ class PromptCase(_RepoCase):
         self.assertIn('write "目的不明: " followed by', text)
         self.assertIn("in Japanese", text)
         self.assertNotRegex(text, r"\{[a-z0-9_]+\}", "埋まらない差し込み口が無い")
-        self.assertIn('`{"findings": [...], "pr": [...], "issue": [...]}`', text)
+        self.assertIn('an object whose keys are `findings`, `pr`, and `issue` (each an array)', text)
 
     def test_rejected_reply_brings_the_reasons_to_the_next_prompt(self):
         self.intake()
@@ -351,11 +351,11 @@ class FinishCase(_RepoCase):
         self.assertIn("目的の文を受け付けた控えが無い", fin["reason"])
 
     def test_included_block_writes_in_its_own_place(self):
-        self.run.script("intake", "judge__purpose__intake", request=REQUEST, pr_text="", constraints="[]", lang="")
-        self.run.script("purpose_prep", "judge__purpose__purpose-loop.purpose-prep")
-        self.run.script("purpose_accept", "judge__purpose__purpose-loop.purpose-accept", reply=json.dumps(GOOD))
-        fin = self.run.script("finish", "judge__purpose__finish")
-        self.assertEqual(fin["purpose"]["path"], "judge/purpose/purpose.json")
+        self.run.script("intake", "judge__purpose-run__intake", request=REQUEST, pr_text="", constraints="[]", lang="")
+        self.run.script("purpose_prep", "judge__purpose-run__purpose-loop.purpose-prep")
+        self.run.script("purpose_accept", "judge__purpose-run__purpose-loop.purpose-accept", reply=json.dumps(GOOD))
+        fin = self.run.script("finish", "judge__purpose-run__finish")
+        self.assertEqual(fin["purpose"]["path"], "judge/purpose-run/purpose.json")
         self.assertFalse((self.run.artifacts / "purpose.json").exists())
 
 

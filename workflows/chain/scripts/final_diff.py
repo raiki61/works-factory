@@ -17,7 +17,7 @@ sealed だけを当てられる（bin/apply の --allow-stopped）。placed は�
 chain.md を消し、final.diff は封じた時だけ、chain.md は周の差分を作れた時だけ書く（resume で走り直して採る周が無くなったり final() が
 途中で返ったりしても、前の回の差分や、それを名指す表が残らない）。
 出力ノード result が結ぶので落ちない: どの誤りも ok: false と訳を返す。1 つの周の差分を作れない時は、残りの周だけで最後の差分を
-作らず、chain.md も書かずに、その周（d<k>）と子の run の id を訳で名指す（result がその訳を stop_reason にする）。境の口か lib を読めない時も、標準ライブラリだけで返す。
+作らず、chain.md も書かずに、その周（d<k>）と子の run の id を訳で名指す（result がその訳を stop_reason にする）。ports か lib を読めない時も、標準ライブラリだけで返す。
 この時は final() が走らず、何も消さない（消す名の持ち主の lib/chain が読めない）。前の回の表が残りうるが、result が読めない訳を
 stop_reason にし、sealed は null。
 
@@ -29,19 +29,19 @@ import re
 import sys
 from pathlib import Path
 
+sys.dont_write_bytecode = True
+sys.path[:0] = [str(Path(__file__).resolve().parents[2] / ".shared"), str(Path(__file__).resolve().parents[1])]
 try:
-    sys.path.insert(0, str(Path(__file__).resolve().parents[2] / ".shared"))
-    import boundary
+    import ports
+    from src import files, reads
+    import chain
+    import green_cert
+    import seal
     unread = None
 except Exception as error:   # 出力ノード result が結ぶので落ちない（上の docstring）
-    boundary, unread = None, error
+    ports, unread = None, error
 
-if boundary is not None:
-    with boundary.guarded_imports():
-        import chain
-        import green_cert
-        import seal
-
+SKIP = (ports.RUNTIME_COPY_PREFIX,) if ports is not None else ()   # 差分に数えない（Archon が run の作業ツリーに写す置き場）
 DECISION = re.compile(r"INPUTS_D[1-9][0-9]*")   # 周 k の決めの入力 d<k>。周の数はグラフの with: が持つ。result.py も同じ読み（試験が縛る）
 
 
@@ -51,12 +51,13 @@ def as_dict(value) -> dict:
 
 def decisions() -> list:
     names = sorted(filter(DECISION.fullmatch, os.environ), key=lambda name: int(name[len("INPUTS_D"):]))
-    return [d for d in (boundary.value(os.environ[name]) for name in names) if isinstance(d, dict)]
+    return [d for d in (reads.value(os.environ[name]) for name in names) if isinstance(d, dict)]
 
 
-def sealed_at(rel: str, data: bytes) -> dict:
-    ptr = boundary.pointer(rel)
-    return {"ok": True, "hash": seal.write_readback(boundary.resolve(ptr), data), "diff": ptr}
+def sealed_at(rel: str, data: bytes) -> tuple:
+    """親の置き場の rel に差分を封じて書く。(書いたパス, {ok, hash, diff: pointer})"""
+    path = ports.place() / rel
+    return path, {"ok": True, "hash": seal.write_readback(path, data), "diff": ports.pointer(path)}
 
 
 def with_diffs(repo: Path, origin: str, rows: list) -> list:
@@ -66,10 +67,10 @@ def with_diffs(repo: Path, origin: str, rows: list) -> list:
         r = dict(r)
         if r.get("head") and prev:
             try:
-                data = green_cert.diff_between(repo, prev, r["head"], skip=boundary.SKIP)
+                data = green_cert.diff_between(repo, prev, r["head"], skip=SKIP)
                 r["files"] = len(seal.diff_files(repo, data)) if data else 0
                 if r.get("kind") == chain.KIND_HALTED and data:
-                    r["diff"] = str(boundary.resolve(sealed_at(f"chain/round-{r['n']}.diff", data)["diff"]))
+                    r["diff"] = str(sealed_at(files.round_diff(r["n"]), data)[0])
             except Exception as error:   # 出力ノード result が結ぶので落ちない（上の docstring）
                 raise RuntimeError(f"周 {r.get('n')}（d{r.get('n')}・子の run {r.get('run') or '読めない'}）の差分を作れない: "
                                    f"{type(error).__name__}: {error}") from error
@@ -105,9 +106,9 @@ def spec_of(rows: list, kept: dict) -> int:
 
 
 def final() -> dict:
-    for stale in (chain.FINAL, chain.REPORT):
-        boundary.resolve(boundary.pointer(stale)).unlink(missing_ok=True)
-    start = as_dict(boundary.value(os.environ.get("INPUTS_START")))
+    for stale in (files.FINAL, files.REPORT):
+        (ports.place() / stale).unlink(missing_ok=True)
+    start = as_dict(reads.value(os.environ.get("INPUTS_START")))
     if start.get("ok") is not True:
         return nothing(start.get("reason") or "chain-start が鎖を受けなかった")
     made = decisions()
@@ -121,25 +122,25 @@ def final() -> dict:
     elif not origin:
         got["reason"] = "元の基が無い（鎖を起こした時の作業ツリーに commit が無い）"
     else:
-        data = green_cert.diff_between(repo, origin, kept["head"], skip=boundary.SKIP)
+        data = green_cert.diff_between(repo, origin, kept["head"], skip=SKIP)
         got.update(kept=kept["n"], outcome=kept.get("outcome") or "")
         if not data:
             got["reason"] = f"差分が空（元の基から周 {kept['n']} の結果まで変わった物が無い）"
         else:
-            got["sealed"] = sealed_at(chain.FINAL, data)
+            got["sealed"] = sealed_at(files.FINAL, data)[1]
             got["apply"] = {**got["sealed"], **placed(rows, kept)}
             got["r2_status"] = r2_of(rows, kept)
             got["spec_questions"] = spec_of(rows, kept)
             got["ok"] = True
             got["placed"] = got["apply"]["ok"] is True
     run = os.environ["WORKFLOW_ID"]
-    report = boundary.pointer(chain.REPORT)
-    final_path = str(boundary.resolve(got["sealed"]["diff"])) if got["sealed"] else ""
+    report_path = ports.place() / files.REPORT
+    final_path = str(ports.place() / files.FINAL) if got["sealed"] else ""
     text = chain.render({"run": run, "rounds_max": start.get("rounds"), "rounds": rows, "original_base": origin,
                          "stop": None if last.get("act") == "launch" else {"word": last.get("word"), "text": last.get("text")},
                          "final": final_path, "apply": f"bin/apply {run}", "worktree": str(repo)})
-    boundary.resolve(report).write_text(text, encoding="utf-8")
-    return {**got, "report": report}
+    report_path.write_text(text, encoding="utf-8")
+    return {**got, "report": ports.pointer(report_path)}
 
 
 def nothing(reason: str) -> dict:
@@ -148,12 +149,12 @@ def nothing(reason: str) -> dict:
 
 
 def main() -> None:
-    if boundary is None:
+    if ports is None:
         reason = f"{type(unread).__name__}: {unread}"
         print(reason, file=sys.stderr)
         print(json.dumps(nothing(reason), ensure_ascii=False, allow_nan=False), flush=True)
     else:
-        boundary.run(final, nothing)
+        ports.run(final, nothing)
 
 
 if __name__ == "__main__":

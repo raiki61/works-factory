@@ -1,15 +1,15 @@
-"""根の直下のファイルとフォルダが根の AGENTS.md の「リポジトリの形」の木に在る物だけ。`workflows/` の直下が `line/`・`chain/`・
-9 つのブロック・`.shared/` だけ。各ブロックが `works-factory-<ブロック>.yaml` を持つ。試験のフォルダに `__init__.py` が在る（根の AGENTS.md の機械の行）。
+"""根の直下のファイルとフォルダが、根の `AGENTS.md` の「リポジトリの形」の木に在る物だけ（根の `AGENTS.md` の機械の行）。
 
-木の名は AGENTS.md から読み、ここに写さない。ブロックの名は tests/layers/scan.py の BLOCKS。
-見るファイルは git が知る物と、まだ add していないが無視されない物（.venv・__pycache__ など無視の物は見ない）。
+- 木の名は AGENTS.md から読み、ここに写さない。木は「リポジトリの形」の ```text の中の行で、1 行は `├── 名   説明` の形。名の欄（`├── ` などの線の後から、2 つ以上の空白の前まで）は `・` で並べてよく、`/` より後は根の直下の名に関わらない。根の直下の段（字下げの 1 段目）の名の欄が空白を含む行（例 `ASF の取り付け命令が置いた物`）は、名でなく組の見出しで、その下の 1 段（字下げの 2 段目）の名を根の直下の名に数える。木の根の直下の名は 1 度だけ。
+- `workflows/` の直下は、`works-factory-<名>.yaml` を持つフォルダ（block と graph）・`.shared/`・`AGENTS.md` だけ。直下のフォルダが自分の名の YAML を持たなければ赤（block の名の表は持たない。持ち主の決め `shape-checks-only`）。
+- 試験を置くフォルダ（`test_*.py` の在るフォルダとその上の全部）に `__init__.py` が在る（無いと Python 3.12 の unittest は黙って見つけない）。小さな対象のリポジトリの種 `tests/e2e/target-seed/` には置かない。
+- 見るファイルは git が知る物と、まだ add していないが無視されない物（`.venv`・`__pycache__` など無視の物は見ない）。
 """
 import pathlib
 import re
 import unittest
 
 from tests.bin.gitkit import git
-from tests.layers import scan
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 TREE = re.compile(r"^## リポジトリの形\n.*?^```text\n(.*?)^```", re.M | re.S)
@@ -49,17 +49,14 @@ def problems(paths, agents_md):
     allowed = set(entries)
     for top in sorted({p.split("/")[0] for p in paths} - allowed):
         out.append(f"根の直下の {top} が木に無い")
-    blocks = set(scan.BLOCKS) | {".shared"}
     flows = [p.split("/", 1)[1] for p in paths if p.startswith("workflows/")]
     for name in sorted({f for f in flows if "/" not in f} - {"AGENTS.md"}):
         out.append(f"workflows/ の直下のファイル {name} は AGENTS.md の外")
-    folders = sorted({f.split("/")[0] for f in flows if "/" in f})
+    folders = sorted({f.split("/")[0] for f in flows if "/" in f} - {".shared"})
     have = set(paths)
     for name in folders:
-        if name not in blocks:
-            out.append(f"workflows/{name}/ は line・chain・ブロック・.shared のどれでもない")
-        elif name != ".shared" and f"workflows/{name}/works-factory-{name}.yaml" not in have:
-            out.append(f"workflows/{name}/ に works-factory-{name}.yaml が無い")
+        if f"workflows/{name}/works-factory-{name}.yaml" not in have:
+            out.append(f"workflows/{name}/ に works-factory-{name}.yaml が無い（直下のフォルダは自分の名の YAML を持つ block・graph と .shared だけ）")
     homes = {p.rpartition("/")[0] for p in paths if re.fullmatch(r"test_.*\.py", p.rpartition("/")[2])}
     need = set()
     for home in homes:
@@ -85,7 +82,7 @@ def agents_md():
 
 
 GOOD = ["AGENTS.md", "lib/__init__.py", "lib/tests/__init__.py", "lib/tests/test_a.py",
-        "workflows/AGENTS.md", "workflows/judge/works-factory-judge.yaml", "workflows/.shared/boundary.py",
+        "workflows/AGENTS.md", "workflows/judge/works-factory-judge.yaml", "workflows/.shared/ports.py",
         *(f"{seed}/tests/test_x.py" for seed in SEEDS)]
 
 
@@ -111,7 +108,13 @@ class LayoutTest(unittest.TestCase):
         self.check("notes.txt", "notes.txt")
 
     def test_unknown_workflows_folder(self):
-        self.check("workflows/skills/a.md", "workflows/skills/")
+        self.check("workflows/skills/a.md", "workflows/skills/ に works-factory-skills.yaml が無い")
+
+    def test_any_folder_with_its_yaml_is_clean(self):
+        self.assertEqual(problems([*GOOD, "workflows/any-name/works-factory-any-name.yaml"], agents_md()), [])
+
+    def test_folder_with_another_name_yaml(self):
+        self.check("workflows/plan/works-factory-judge.yaml", "works-factory-plan.yaml")
 
     def test_unknown_workflows_file(self):
         self.check("workflows/README.md", "README.md")

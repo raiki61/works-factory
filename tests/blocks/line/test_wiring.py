@@ -1,0 +1,315 @@
+"""line の YAML の配線（docs/design/line.md の 11 節の test_wiring.py）: 受け皿・返し・一度だけの include・include した block の入力の
+全部が渡るか名指した訳に在るか（L-W67）・when: が名に depth を含む欄を読まない・差分の審査の 3 つの when:・報告がいつも走ること。
+
+元は今の tests/workflows/test_line.py の LineWiringCase・FixWiringCase・NoFixWiringCase・SharedPlacesWiringCase・StructureOnceCase・
+HandoffCase（docs/design/README.md の 9.5）。include した block の中は各 block の試験が見る。include した block の YAML が workflows/ に
+無い間（組み込みの前に別の枝に在る block）は、その block の照らしだけを見送らずに赤にする（組み込みの後はどれも在る）。
+"""
+import contextlib
+import io
+import json
+import os
+import re
+import runpy
+import tempfile
+import unittest
+from unittest import mock
+
+import yaml
+
+from tests.blocks import kit
+
+BLOCK = "line"
+PATH = kit.BLOCKS / BLOCK / f"works-factory-{BLOCK}.yaml"
+TEXT = PATH.read_text(encoding="utf-8")
+DOC = yaml.safe_load(TEXT)
+TOP = {n["id"]: n for n in DOC["nodes"]}
+LOOP = {n["id"]: n for n in TOP["plan-rounds"]["loop_group"]["nodes"]}
+NODES = {**TOP, **LOOP}
+INCLUDES = {k: n for k, n in NODES.items() if "include" in n}
+ONCE = ("replan", "replan-review", "refix-run", "rejudge-run", "parallel-pr-after")
+STAGES = (("lens", "delta-review", "fix"), ("lens-2", "delta-review-2", "refix-run"))
+
+# include した block の入力のうち、line が渡さない物と訳（各設計書の 1.2・1.6）
+NOT_PASSED = {
+    ("test-gate-base", "baseline"): "final の時だけ読む（base は直す前の結末を作る側）",
+    ("structure", "base"): "after の時だけ読む（line は before で回す。after は eyes の graph の中）",
+    ("structure", "plan"): "after の時だけ読む",
+    **{(fix, name): "group の時だけ読む（whole の親が自分を子に起こす時に渡す）"
+       for fix in ("fix", "refix-run") for name in ("group", "from_tree", "out_dir")},
+    ("fix", "notes"): "案の直しの後の 2 回目の修正の段だけ",
+    ("fix", "only_items"): "2 回目の修正の段だけ（1 回目は直す義務の単位の全部）",
+    ("fix", "prior"): "2 回目の修正の段だけ（1 回目の段の申し送り）",
+    ("lens", "lenses"): "block の既定の表（docs/design/line.md の 4.5）",
+    ("lens-2", "lenses"): "block の既定の表",
+    ("plan", "conflicts"): "形 replan だけが読む（往復の中は形 plan）",
+    ("plan-review-run", "ruling"): "形 replan だけが読む",
+    ("plan-review-run", "conflicts"): "形 replan だけが読む",
+    **{("rejudge-run", name): "判定の道だけが読む（再審の道は prior と objection で考え直す。docs/design/diagnose.md の 1.2）"
+       for name in ("answers", "base", "baseline", "constraints", "depth_why", "materials", "pr_material", "pr_text", "prior_failures",
+                    "request_origin", "row_asks", "spec_origin", "spec_rows")},
+    ("spec-check-run", "request"): "write の時だけ読む", ("spec-check-run", "pr_text"): "write の時だけ読む",
+    **{("merge-seal", name): "apply と check の時だけ読む"
+       for name in ("answer", "deliver", "items", "r2", "request", "sealed_hash", "user_env_dir")},
+}
+
+
+def block_doc(name: str) -> dict:
+    block = name.removeprefix("works-factory-")
+    path = kit.BLOCKS / block / f"works-factory-{block}.yaml"
+    if not path.is_file():
+        raise AssertionError(f"include した block {block} が workflows/ に無い（組み込みで別の枝から入る）")
+    return yaml.safe_load(path.read_text(encoding="utf-8"))
+
+
+def returns_of(doc: dict) -> dict:
+    return next(n for n in doc["nodes"] if n["id"] == doc["returns"])
+
+
+def refs(value) -> str:
+    return json.dumps(value, ensure_ascii=False)
+
+
+class ReceiverCase(unittest.TestCase):
+    """受け皿（埋め P8）と返し（埋め P2）"""
+
+    def test_bodies_are_written_once(self):
+        for script, count in (("returned", 1), ("relay", 1), ("gate_answer", 1)):
+            with self.subTest(script=script):
+                self.assertEqual(len(re.findall(rf"^\s*script: {script}\s*$", TEXT, re.M)), count)
+        self.assertEqual(sorted(k for k, n in TOP.items() if n.get("script") == "relay"),
+                         ["design-in", "lens-2-in", "lens-in", "structure-in"])
+        self.assertEqual(sorted(k for k, n in TOP.items() if n.get("script") == "gate_answer"), ["answer-final", "answer-start"])
+
+    def test_every_top_include_has_a_receiver_with_every_field(self):
+        """受け皿は include の返りをまるごと受け、運ぶ欄の名は block の返す node の output_format の欄と同じ（optional はいつも無くてよい欄
+        なので名指さない）。report は報告そのもので、受け皿を持たない（result が直に読む）"""
+        for key, node in INCLUDES.items():
+            if key in LOOP or key == "report":
+                continue
+            with self.subTest(include=key):
+                receiver = TOP.get(f"{key}-out")
+                self.assertIsNotNone(receiver, "受け皿が無い")
+                self.assertEqual((receiver["script"], receiver["depends_on"], receiver.get("trigger_rule")), ("returned", [key], None))
+                self.assertEqual(receiver["with"]["got"], f"${key}.output")
+                props = set(returns_of(block_doc(node["include"]))["output_format"]["properties"]) - {"optional"}
+                self.assertEqual(sorted(receiver["with"]["names"].split()), sorted(props))
+
+    def test_plan_rounds_have_one_receiver_with_the_plan_out_fields(self):
+        """今の 2 つの受け皿（plan-rounds-out・plan-rounds-review-out）を 1 つにした（docs/design/line.md の 9 節）"""
+        receiver = TOP["plan-rounds-out"]
+        self.assertEqual(receiver["with"]["got"], "$plan-rounds.output")
+        self.assertEqual(sorted(receiver["with"]["names"].split()), sorted(LOOP["plan-out"]["output_format"]["properties"]))
+        self.assertNotIn("plan-rounds-review-out", TOP)
+
+    def test_all_done_readers_read_receivers_only(self):
+        """all_done で集める collect と、落ちうる include の後ろの集め役は、include の返りを直に読まない（落ちた node への with: は
+        Archon が誤りにする）"""
+        includes = [k for k in INCLUDES if k not in LOOP]
+        for reader in ("collect", "fixed", "fix-in", "judged", "ask-final"):
+            with self.subTest(reader=reader):
+                reads = refs({k: v for k, v in TOP[reader].get("with", {}).items() if isinstance(v, dict)})
+                self.assertFalse([k for k in includes if f'"${k}.output' in reads], f"{reader} が include を from: で直に読む")
+        self.assertEqual(TOP["collect"]["trigger_rule"], "all_done")
+        for key in includes:
+            if key != "report":
+                self.assertIn(f"{key}-out", TOP["collect"]["depends_on"], key)
+
+    def test_merge_seal_waits_for_the_eyes_receiver(self):
+        """eyes の graph の返す node が落ちても merge-seal の with: が落ちた node を読まない（docs/design/line.md の 1.3）"""
+        self.assertEqual(TOP["merge-seal"]["depends_on"], ["eyes-out"])
+
+    def test_merge_apply_reads_the_seal_through_ask_final(self):
+        """受け皿の got の中の欄は with: で読めない（Archon は output_format の宣言の外の道を誤りにする）ので、封じの値は最後の承認ノードが
+        受け皿から読んで返す。封じが落ちた run は sealed_hash が空で、merge の apply が拒む（閉じた側に倒れる）"""
+        with_ = TOP["merge-apply"]["with"]
+        for name in ("sealed_hash", "fingerprint", "green_ok", "eyes_ok", "r2"):
+            self.assertEqual(with_[name], f"$ask-final.output.{name}", name)
+        self.assertNotIn("$merge-seal.output", refs(with_))
+
+
+class IncludeInputsCase(unittest.TestCase):
+    def test_include_inputs_are_passed_or_named(self):
+        """L-W67: include した block の inputs: の全部が with: で渡るか、渡さない訳の一覧に在る。block の inputs: に無い鍵は渡さない"""
+        for key, node in INCLUDES.items():
+            with self.subTest(include=key):
+                inputs = set(block_doc(node["include"]).get("inputs") or {})
+                given = set(node.get("with") or {})
+                self.assertEqual(sorted(given - inputs), [], "block の inputs: に無い鍵を渡している")
+                self.assertEqual(sorted(i for i in inputs - given if (key, i) not in NOT_PASSED), [])
+
+    def test_not_passed_names_real_inputs(self):
+        for (key, name) in NOT_PASSED:
+            with self.subTest(include=key, name=name):
+                self.assertIn(name, block_doc(INCLUDES[key]["include"]).get("inputs") or {})
+                self.assertNotIn(name, INCLUDES[key].get("with") or {})
+
+    def test_once_only_includes(self):
+        """一度だけの include は line に 1 つずつ（案の直し・その事前審査・2 度目の修正・再審・修正の後の並行 PR）"""
+        named = [n["include"] for n in INCLUDES.values()]
+        for key in ONCE:
+            with self.subTest(include=key):
+                self.assertIn(key, TOP)
+                self.assertNotIn("loop_group", TOP[key])
+        self.assertEqual(named.count("works-factory-fix"), 2)
+        self.assertEqual(named.count("works-factory-plan"), 2)
+        self.assertEqual(named.count("works-factory-plan-review"), 2)
+        self.assertEqual(named.count("works-factory-diagnose"), 1)
+        self.assertEqual(named.count("works-factory-parallel-pr"), 1)
+        self.assertEqual(named.count("works-factory-judge"), 1, "再審は判定のまとめを 2 度 include せず diagnose を直に include する")
+        self.assertEqual(named.count("works-factory-eyes"), 1)
+        self.assertNotIn("works-factory-gate-efficacy", named, "重い検算は run の中で回さない（持ち主の決め 2026-10-19）")
+        self.assertNotIn("gates", DOC["inputs"])
+
+    def test_include_ids_are_not_loop_body_ids(self):
+        """展開した後の node の id が重ならない（Archon は include した block の頭の段の node にだけ `<include の id>__` を付け、loop の
+        中の node の id はそのまま残す。今の LineWiringCase の同じ名の試験）"""
+        def body_ids(nodes, inside=False):
+            got = set()
+            for node in nodes:
+                if "include" in node:
+                    got |= body_ids(block_doc(node["include"])["nodes"])
+                elif inside:
+                    got.add(node["id"])
+                if "loop_group" in node:
+                    got |= body_ids(node["loop_group"]["nodes"], inside=True)
+            return got
+        self.assertEqual(set(INCLUDES) & body_ids(DOC["nodes"]), set())
+
+
+class WhenCase(unittest.TestCase):
+    def test_when_does_not_read_depth_fields(self):
+        """when: が読むのは真偽の欄で、深さの語や名に depth を含む欄を読まない（表を引くのは line の src。docs/design/line.md の 5.3）"""
+        for key, node in NODES.items():
+            when = node.get("when") or ""
+            with self.subTest(node=key):
+                self.assertFalse(re.search(r"\.[a-z_]*depth[a-z_]*\b", when), when)
+                self.assertNotIn("軽量", when)
+
+    def test_delta_review_stages_share_the_three_moved_conditions(self):
+        """delta-review と lens の設計書の 1.6 が今の delta-cut から line へ移した 3 つ: 深さで省かない・変更の確かめが通った・戻せず
+        当たったままの組が無い（fix の stop_reason が空）。段ごとに lens と delta-review が同じ when: を持つ"""
+        for lens, review, fix in STAGES:
+            with self.subTest(stage=fix):
+                want = (f"$raise.output.checks == true && ${fix}.output.ok == true && ${fix}.output.checked.ok == true"
+                        f" && ${fix}.output.stop_reason == ''")
+                self.assertEqual(TOP[lens]["when"], want)
+                self.assertEqual(TOP[review]["when"], want)
+                self.assertEqual(TOP[lens]["with"]["base"], f"${fix}.output.start_tree")
+                self.assertEqual(TOP[review]["with"]["base"], f"${fix}.output.start_tree")
+                self.assertEqual(TOP[review]["with"]["plan"], f"${fix}.output.scope")
+                self.assertEqual(TOP[review]["with"]["fix_reply"], f"${fix}.output.reply")
+                self.assertEqual(TOP[review]["with"]["permits"], f"${fix}.output.allowed_tests")
+        self.assertEqual(TOP["delta-review"]["with"]["plan_review"], TOP["fix"]["with"]["plan_review"])
+        self.assertEqual(TOP["delta-review-2"]["with"]["plan_review"], TOP["refix-run"]["with"]["plan_review"])
+
+    def test_raise_is_once_before_the_first_review(self):
+        """上げ直しは run に 1 回、1 回目の修正の段の後・1 回目の差分の審査の前（2 度目の段の前では上げ直さない。5.3）"""
+        self.assertEqual([k for k, n in TOP.items() if n.get("script") == "raise_depth"], ["raise"])
+        self.assertEqual(TOP["raise"]["depends_on"], ["fix-in", "fix", "after-fix"])
+        self.assertEqual(TOP["lens"]["depends_on"], ["raise"])
+
+    def test_parallel_pr_after_runs_for_judged_entries_with_a_diff(self):
+        """8.1: 判定から入る run で、直した差分が在る時だけ、修正の後に 1 度だけ並行 PR を確かめ直す"""
+        node = TOP["parallel-pr-after"]
+        self.assertEqual(node["when"], "$start.output.ports.entry != '' && $fixed.output.diffed == true")
+        self.assertEqual((node["with"]["base"], node["with"]["changed"]), ("$start.output.ports.base_rev", "[]"))
+        self.assertIn("parallel-pr-after-out", TOP["test-gate-final"]["depends_on"])
+
+    def test_excluded_reaches_both_fix_stages(self):
+        """8.2・integration.md 4.1-5: 並行 PR が外した hunk を fix の 1 回目と 2 度目に渡す"""
+        self.assertEqual(TOP["fix"]["with"]["excluded"], "$fix-in.output.excluded")
+        self.assertEqual(TOP["refix-run"]["with"]["excluded"], "$fix-in.output.excluded")
+        self.assertNotIn("excluded", TOP["parallel-pr-after"]["with"])
+
+    def test_after_fix_nodes_read_the_judgment_through_fix_in(self):
+        """修正から後ろの node は判定・構造の目・独立設計・計画の値を fix-in から読む（固定材料の run は判定と計画が飛ぶ）"""
+        after = ("fix", "replan", "replan-review", "refix-run", "lens", "delta-review", "lens-2", "delta-review-2", "rejudge-run",
+                 "spec-check-run", "eyes")
+        early = ("$judge.output", "$judge-out", "$plan-rounds", "$structure-in", "$design-in", "$tiers", "$owed",
+                 "$answer-before-fix")
+        for key in after:
+            with self.subTest(node=key):
+                text = refs(TOP[key].get("with"))
+                self.assertFalse([e for e in early if e in text], text)
+
+
+class FlowCase(unittest.TestCase):
+    def test_report_reruns_on_resume(self):
+        """L-W60: 報告はいつも走る。collect・report・result は all_done で、collect と result は always_run（include の always_run は
+        Archon が捨てるので report には書かない）"""
+        for key in ("collect", "report", "result"):
+            self.assertEqual(TOP[key]["trigger_rule"], "all_done", key)
+        for key in ("collect", "result"):
+            self.assertIs(TOP[key].get("always_run"), True, key)
+        self.assertNotIn("always_run", TOP["report"])
+        self.assertEqual(TOP["report"]["depends_on"], ["collect"])
+
+    def test_start_is_not_always_run(self):
+        """L-E34: 呼び直しで機能・test_cmd・入口の形・base_rev を替えない"""
+        self.assertNotIn("always_run", TOP["start"])
+
+    def test_four_gates_have_the_same_options(self):
+        gates = [k for k, n in TOP.items() if "wait" in n]
+        self.assertEqual(gates, ["gate-start", "gate-before-fix", "gate-replan", "gate-final"])
+        for key in gates:
+            self.assertEqual([o["id"] for o in TOP[key]["wait"]["options"]], ["approve", "continue", "stop", "reject"], key)
+        self.assertFalse([k for k in LOOP if "wait" in LOOP[k]], "往復の本体に承認ノードを置かない（E16）")
+
+    def test_plan_rounds_carry_two_priors(self):
+        """3 節: plan の prior は plan の形、plan-review の prior は往復の記録の形で、1 周目はどちらも空"""
+        self.assertEqual(LOOP["plan"]["with"]["prior"], "$LOOP_PREV.plan-out.output.plan_prior")
+        self.assertEqual(LOOP["plan-review-run"]["with"]["prior"], "$LOOP_PREV.plan-out.output.record")
+        self.assertEqual(LOOP["plan-review-run"]["with"]["tree"], "$tiers.output.tree")
+        self.assertNotIn("round_limit", LOOP["plan-review-run"]["with"])
+        self.assertEqual(TOP["plan-rounds"]["loop_group"]["max_iterations"], 20)
+        self.assertNotIn("fresh_context", TOP["plan-rounds"]["loop_group"])
+
+    def test_line_has_no_ai_node(self):
+        self.assertFalse([k for k, n in NODES.items() if "prompt" in n or "command" in n])
+
+    def test_line_inputs_are_the_current_sixteen(self):
+        self.assertEqual(sorted(DOC["inputs"]), sorted(
+            ("request", "base", "pr", "spec", "test_cmd", "tdd_suite", "final_gate", "unattended", "design_only", "thickness",
+             "features_off", "features_on", "policy_md", "fix_fixture", "lang", "deliver")))
+        self.assertEqual((DOC["returns"], DOC["outcome_field"]), ("result", "fixed"))
+
+
+class ScriptReadsCase(unittest.TestCase):
+    """with: を持つ line の script の node の全部を、with: の鍵の全部を "null" にして走らせ、読んだ INPUTS_<名> が with: の鍵と同じ
+    （片方だけ欄を足すと、欄が黙って報告から落ちる。今の LineWiringCase の同じ名の試験）。script は落ちない（fallback）ので null でも回る"""
+
+    class Recorded(dict):
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, **kwargs)
+            self.read = set()
+
+        def get(self, key, default=None):
+            self.read.add(key)
+            return super().get(key, default)
+
+        def __getitem__(self, key):
+            self.read.add(key)
+            return super().__getitem__(key)
+
+    def test_with_keys_are_what_the_script_reads(self):
+        scripts = kit.BLOCKS / BLOCK / "scripts"
+        for key, node in NODES.items():
+            if "script" not in node or not node.get("with"):
+                continue
+            path = scripts / f"{node['script']}.py"
+            with self.subTest(node=key):
+                self.assertTrue(path.is_file(), f"{path.name} が無い")
+                with tempfile.TemporaryDirectory() as tmp:
+                    env = self.Recorded(WORKFLOW_ID=kit.RUN_ID, ARTIFACTS_DIR=tmp, WORKS_FACTORY_ROOT=str(kit.ROOT),
+                                        **{f"INPUTS_{name.upper()}": "null" for name in node["with"]})
+                    with mock.patch.object(os, "environ", env), contextlib.redirect_stdout(io.StringIO()), \
+                            contextlib.redirect_stderr(io.StringIO()):
+                        runpy.run_path(str(path), run_name="__main__")
+                    read = {name for name in env.read if isinstance(name, str) and name.startswith("INPUTS_")}
+                    self.assertTrue({f"INPUTS_{name.upper()}" for name in node["with"]} <= read,
+                                    f"with: の鍵を読まない: {sorted({f'INPUTS_{n.upper()}' for n in node['with']} - read)}")
+
+
+if __name__ == "__main__":
+    unittest.main()

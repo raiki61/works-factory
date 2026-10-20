@@ -2,29 +2,43 @@
 # requires-python = ">=3.12"
 # dependencies = []
 # ///
-"""事前審査の受け付け（boardview.take_review）。役の節は単独の組（reply・fix_reply）と束ね役の組（tree_reply・tree_fix_reply）の
-4 つで、起きなかった節の返答は null（if_skipped: null）。null でない方を take_review の reply・fix_reply に渡す（どの組が起きたかは
-boardview が知らない。open の tree で木のまとめに入るかを決める）。拒まれた後の出し直しの役の返答 fix_reply（拒まれた欄だけ）は
-前の答えと合わせてから照らす。拒みは控えに積み、受け付けの網 rolekit.NET_AFTER 回目で done・give_up（届けば工場の不具合）"""
+"""事前審査の返答を受け付ける（docs/design/plan-review.md の 9.1）。4 つの組の返答（review・review-fix・review-tree・review-tree-fix。
+起きなかった node は null）のうち起きた組を src/take.py の take に渡す。通れば review.json（と形 plan なら pass.json）を書く。
+拒否の回数では諦めず、受け付けの網 rolekit.NET_AFTER 回目で done・give_up。中の誤りは crash.json に訳を書き、done・give_up で返す（落ちない）"""
 import os
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2] / ".shared"))
-import boundary  # noqa: E402
-
-sys.path.append(str(boundary.lib_root()))
-import accept  # noqa: E402
-import boardview  # noqa: E402
+sys.dont_write_bytecode = True
+sys.path[:0] = [str(Path(__file__).resolve().parents[2] / ".shared"), str(Path(__file__).resolve().parents[1])]
+import ports  # noqa: E402
 
 
-def replied(*raws):
-    """with: で受けた返答の字（節ごとに 1 つ）のうち、null でない最初の値（起きた節の返答。どれも無ければ None）"""
-    got = (boundary.value(raw) for raw in raws)
-    return next((x for x in got if x is not None), None)
+def _reply(raw: str):
+    """返答の字を値に戻す（空と null は起きなかった node の None。JSON として読めない字は字のまま渡し、受け付けが拒みの訳にする）"""
+    try:
+        return ports.parsed(raw)
+    except ValueError:
+        return ports.text(raw)
 
 
-boundary.returns(boardview.take_review(Path(os.environ["ARTIFACTS_DIR"]) / boardview.FOLDER,
-                                       replied(os.environ.get("INPUTS_REPLY"), os.environ.get("INPUTS_TREE_REPLY")), Path.cwd(),
-                                       keys=accept.status_keys(os.environ.get("INPUTS_STATUS_GUARDED", "")),
-                                       fix_reply=replied(os.environ.get("INPUTS_FIX_REPLY"), os.environ.get("INPUTS_TREE_FIX_REPLY"))))
+def compute():
+    import accept  # lib/
+    from src import take
+    return take.take(ports.place(), _reply(os.environ.get("INPUTS_REPLY", "")), Path.cwd(),
+                     keys=accept.status_keys(os.environ.get("INPUTS_STATUS_GUARDED", "")),
+                     fix_reply=_reply(os.environ.get("INPUTS_FIX_REPLY", "")),
+                     tree_reply=_reply(os.environ.get("INPUTS_TREE_REPLY", "")),
+                     tree_fix_reply=_reply(os.environ.get("INPUTS_TREE_FIX_REPLY", "")))
+
+
+def fallback(why: str) -> dict:
+    try:
+        from src import steps
+        steps.record_crash(ports.place(), "review-accept", why)
+    except Exception:  # noqa: BLE001 — 控えを残せなくても返りは返す
+        pass
+    return {"ok": False, "done": True, "give_up": True, "reason": f"受け付けが落ちた（{why}）"}
+
+
+ports.run(compute, fallback)

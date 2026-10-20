@@ -1,0 +1,129 @@
+"""修正の段へ運ぶ値の中継 fix-in（docs/design/line.md の 4.1・5.2。元 tests/workflows/test_line.py の FixInCase）。
+
+運ぶ欄の全部・固定材料の run（写しの値を同じ式で運ぶ）・no_fix・excluded（判定のまとめの excluded を fix の 2 段へ。8.2・
+integration.md 4.1-5 の line の側）・units_tier・skip_rerun・switches・修正前の答えの方針の写し・記録された方針の行と、前の版の返り
+（要る欄の欠けた got）を空と読まずに止めること（integration.md 4.3-12）を見る。
+"""
+import json
+import unittest
+
+import yaml
+
+from tests.blocks import kit
+
+BLOCK = "line"
+U1 = "u1"
+
+
+def line_node(node_id: str) -> dict:
+    doc = yaml.safe_load((kit.BLOCKS / BLOCK / f"works-factory-{BLOCK}.yaml").read_text(encoding="utf-8"))
+    return next(n for n in doc["nodes"] if n["id"] == node_id)
+
+
+class FixInCase(unittest.TestCase):
+    def setUp(self):
+        self.run = kit.Run(self, BLOCK)
+
+    def ptr(self, rel, doc=None):
+        if doc is not None:
+            path = self.run.artifacts / rel
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(json.dumps(doc, ensure_ascii=False), encoding="utf-8")
+        return {"type": "archon_artifact", "run_id": kit.RUN_ID, "path": rel}
+
+    def judge(self, **kw):
+        names = ("judgment", "answer_ties", "out_of_purpose", "materials", "brief", "inputs", "purpose", "constraints", "world", "spec",
+                 "excluded", "decisions", "tier_record", "verify")
+        return {"ok": True, "stop_reason": "", "ready": True, "units": [{"id": U1, "paths": ["a.py"], "summary": "s"}],
+                "purpose_text": "P", "means": ["m"], "tier": "軽量", **{n: self.ptr(f"judge/{n}.json") for n in names}, **kw}
+
+    def rounds(self, **kw):
+        plan = self.ptr("plan/plan-fields.json", {"fields": [{"unit_keys": [U1], "allowed_paths": ["a.py"], "tests": [], "rewrite_tests": []}]})
+        return {"ok": True, "status": "ok", "round": 2, "record": self.ptr("plan-converge.json"), "plan": plan,
+                "fix_plan": self.ptr("plan/fix-plan.json"), "reply": self.ptr("plan/reply.json"), "handoffs": [{"round": 1}],
+                "ripple": self.ptr("plan/ripple.json"), "owed": [U1], "review": self.ptr("plan-review/review.json"), **kw}
+
+    def inputs(self, **kw):
+        base = {"fixture": "null", "start_go": "true",
+                "ports": {"policy": "/p/frozen.md", "forced": "", "has_checks": True, "tree_named": ""},
+                "test_gate_base": {"baseline": self.ptr("test-gate/baseline.json"), "suite": "/s/run.sh"},
+                "judge": self.judge(), "tiers": {"tier": "軽量", "omits": True, "merge": True, "tree": "off", "adds": [], "lines": ["l"],
+                                                 "stop_reason": ""},
+                "structure": {"structure": self.ptr("structure/structure.json")},
+                "design": {"design": self.ptr("independent-design/design.json"), "reason": "", "premises": None, "stop_reason": ""},
+                "rounds": self.rounds(), "before_fix_go": True, "before_fix_answer": {"decision": "approve", "text": "", "asked": []},
+                "before_fix_policy": None, "deferred": [], "passes": ["通した行"], "recorded": [{"source": "answer", "name": "q", "text": "a"}]}
+        base.update(kw)
+        return {k: v if isinstance(v, str) else json.dumps(v, ensure_ascii=False) for k, v in base.items()}
+
+    def fix_in(self, **kw):
+        return self.run.script("fix_in", **self.inputs(**kw))
+
+    def test_every_carried_field_is_flat(self):
+        got = self.fix_in()
+        self.assertEqual(set(got), set(line_node("fix-in")["output_format"]["required"]))
+        self.assertEqual((got["go"], got["no_fix"], got["stop_reason"]), (True, False, ""))
+        self.assertEqual(got["excluded"], self.ptr("judge/excluded.json"), "外した hunk は判定のまとめの excluded（8.2）")
+        self.assertEqual((got["baseline"], got["suite"]), (self.ptr("test-gate/baseline.json"), "/s/run.sh"))
+        self.assertEqual((got["structure"], got["design"], got["design_reason"]),
+                         (self.ptr("structure/structure.json"), self.ptr("independent-design/design.json"), ""))
+        self.assertEqual((got["plan"], got["review"], got["round"], got["owed"]), (self.rounds()["plan"], self.rounds()["review"], 2, [U1]))
+        self.assertEqual((got["purpose_text"], got["means"], got["units"][0]["id"]), ("P", ["m"], U1))
+        self.assertEqual(got["policy"], "/p/frozen.md", "修正前の答えが固め直さなければ配る値の方針の写し")
+        self.assertEqual((got["passes"], got["recorded"][0]["source"]), (["通した行"], "answer"))
+        self.assertEqual(got["answer"]["decision"], "approve")
+
+    def test_unit_tier_and_switches(self):
+        got = self.fix_in()
+        self.assertEqual([(r["unit_id"], r["depth"]) for r in got["units_tier"]], [(U1, "軽量")])
+        self.assertEqual(got["skip_rerun"], [U1], "段が省く物を持つ時だけ軽量の単位の走らせ直しを省く")
+        self.assertEqual((got["switches"]["tier"], got["switches"]["merge"], got["switches"]["tree"]), ("軽量", True, "off"))
+        standard = self.fix_in(tiers={"tier": "標準", "omits": False, "merge": False, "tree": "auto", "adds": [], "lines": []})
+        self.assertEqual(standard["skip_rerun"], [])
+        forced = self.fix_in(ports={"policy": "", "forced": "標準", "has_checks": True, "tree_named": ""})
+        self.assertEqual(forced["units_tier"][0]["depth"], "標準", "thickness の名指しで固定する")
+        unchecked = self.fix_in(ports={"policy": "", "forced": "", "has_checks": False, "tree_named": ""})
+        self.assertEqual(unchecked["units_tier"][0]["depth"], "標準", "機械の確かめが無ければ標準")
+
+    def test_refrozen_policy_reaches_the_later_nodes(self):
+        self.assertEqual(self.fix_in(before_fix_policy="/p/refrozen.md")["policy"], "/p/refrozen.md")
+
+    def test_not_approved_does_not_go(self):
+        got = self.fix_in(before_fix_go="null", before_fix_answer="null")
+        self.assertEqual((got["go"], got["answer"]), (False, None))
+        self.assertFalse((self.run.artifacts / "fixture").exists())
+
+    def test_no_fix_marks(self):
+        """直す物が無い周の印: 判定が止めずに直す単位を出さなかったか、計画の status が nothing_owed"""
+        self.assertTrue(self.fix_in(judge=self.judge(ready=False), rounds="null", before_fix_go="null")["no_fix"])
+        self.assertTrue(self.fix_in(rounds=self.rounds(ok=False, status="nothing_owed"))["no_fix"])
+        self.assertFalse(self.fix_in(judge=self.judge(ok=False, ready=False, stop_reason="works:judge"), rounds="null")["no_fix"],
+                         "判定が止めた run は直す物が無い周でない")
+
+    def test_fixture_run_carries_the_copy(self):
+        """固定材料の run: start が置いた運ぶ値を同じ式で平らにし、go は起動の承認。判定・計画・修正前の承認は飛んでいる"""
+        received = {name: json.loads(self.inputs()[name]) for name in ("test_gate_base", "judge", "tiers", "structure", "design", "rounds")}
+        received.update({"gate_before_fix": {"decision": "approve", "text": "", "asked": []}, "before_fix_policy": None, "deferred": [],
+                         "passes": [], "recorded": []})
+        carried = self.ptr("fixture-in/carried.json", received)
+        skipped = {name: "null" for name in ("test_gate_base", "judge", "tiers", "structure", "design", "rounds", "before_fix_go",
+                                             "before_fix_answer", "before_fix_policy", "deferred", "passes", "recorded")}
+        got = self.fix_in(fixture=carried, **skipped)
+        self.assertEqual((got["go"], got["no_fix"], got["excluded"], got["received"]["judge"]["tier"]),
+                         (True, False, self.ptr("judge/excluded.json"), "軽量"))
+        self.assertEqual(got["units_tier"][0]["depth"], "軽量")
+        self.assertEqual(self.fix_in(fixture=carried, start_go="false", **skipped)["go"], False)
+
+    def test_older_returns_are_not_read_as_empty(self):
+        """要る欄の欠けた got（前の版の返りを resume で受けた）は空と読まずに止める（integration.md 4.3-12）"""
+        judge = self.judge()
+        del judge["excluded"]
+        got = self.fix_in(judge=judge)
+        self.assertEqual((got["go"], got["stop_reason"]), (False, "works:line-script"))
+        rounds = self.rounds()
+        del rounds["review"]
+        self.assertEqual(self.fix_in(rounds=rounds)["stop_reason"], "works:line-script")
+
+
+if __name__ == "__main__":
+    unittest.main()

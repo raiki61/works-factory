@@ -1,93 +1,107 @@
-<!-- coldwrite:skip AI 向けの決まり。語は docs/design.md の「語」のセクションで定義 -->
-# グラフ（`workflows/`）の決まり
+<!-- coldwrite:skip AI 向けの決まり。語は docs/design/README.md の頭の語の一覧で定義 -->
+# pack（`workflows/`）の決まり
 
-メイングラフとサブグラフの YAML・役の指示書・ノードの script・境（`.shared/`）を書く時に読む。リポジトリ全体の決まりは根の `AGENTS.md`。
+block と graph の YAML・AI のノードへの指示の md・script・`src/`・`.shared/` を書く時に読む。リポジトリ全体の決まりは根の `AGENTS.md`。設計の正本は `docs/design/README.md`、block ごとの設計書は `docs/design/<block>.md`。
+
+- block を名指す依頼（例「world check」「世界の解」は `workflows/world/`、設計書は `docs/design/world.md`）は `workflows/<block>/` と `tests/blocks/<block の名の - を _ にした物>/` で閉じる。
+- 「全部の役」「どの役も」と言う依頼は pack の全部の役のこと。役が共に読む決まりは `.shared/prompts/` の断片 1 本で閉じる（断片の名は `.shared/AGENTS.md`）。
+
+## 憲法
+
+1. YAML はつなぐだけ。値はコードが計算し、判断は AI がする（Archon の憲法の "YAML coordinates. Code computes. Agents judge."）。
+2. AI のノードの指示は、そのノードの md 1 本に英語で書く。Python は指示の文を持たず、md の `{name}` に値を渡す。
+3. block は宣言した port だけで受け渡しし、ほかの block を名指さない。つなぐのは graph だけ。
+4. 1 つの block だけが使うコードは、その block のフォルダに置く。`lib/` には 2 つ以上の block が使う物だけを置く。
+5. どの block も、文とリポジトリだけで単独で回る。block ごとの standalone の fixture で確かめる。
+6. 機械の検査は yes/no の形の決まりだけにする。数の上限や許す物の表では縛らず、間違った書き方を API と置き場の形で書けなくする。
+
+## 変更の種類ごとに閉じる所（`docs/design/README.md` の 1.2）
+
+- 指示の文だけを変える（I）: その node の `prompts/<node-id>.md` 1 本。同じ block の 2 つ以上の node が使う文は `prompts/parts/<name>.md`、2 つ以上の block が使う文は `.shared/prompts/<name>.md`（`.shared/AGENTS.md` の名の一覧も試験も直さない）。返す形・`src/`・試験・設計書は、依頼が返す形や検査を変えると言う時だけ触る。
+- 受け付けに確かめを足す（A）: その block の `src/` の受け付け・`prompts/<node-id>.md` の 1 段落・`tests/blocks/<block>/`・設計書の受け付けの所（受け付けの決まりが変わる）。`fixtures/` は触らない（筋書きは完了・`reached`・指示の字だけを見るので、拒否を足しても通る）。
+- 不具合を直す（B）: その block の `src/`（と `scripts/`）と `tests/blocks/<block>/`。設計書と、共通の口（`.shared/` の `requestrows.py`・`ports.py`）・形・断片は、原因がそこに見えても直さない（出力の形は設計書に決めてあり、直すのはそれに合わせる block のコード）。
+- 入力を足す（P）: 受け手の block の `inputs:`・`schemas/`・それを読む script と `src/`・`prompts/`・`tests/blocks/<block>/`。既定値つきの任意の入力なら、今の呼び手（graph）と根の README の例はそのまま回るので触らない。graph の `with:` は、その graph から値を渡すと依頼が言う時だけ足す。設計書の port の所は直す（port が変わる）。
+- 観点を足す（N）: 新しい block のフォルダ `workflows/<block>/`・`tests/blocks/<block の名の - を _ にした物>/`・`docs/design/<block>.md`。graph の `with:` と include は、つなぐと依頼が言う時だけ。根の README は触らない（単独で回す例は world の 1 つで足りる。新しい block の単独の呼び方は設計書の「単独で呼ぶ」の所に書く）。
+- 2 つ以上の block が使う助け: Archon の pointer・`INPUTS_`・place を解く所は `.shared/` の口、解いた後のパスや値を受ける所は `lib/` の新しいモジュール（`.shared/AGENTS.md` の「`.shared` と `lib/` の分け」）。助けを置くだけの依頼では、使い手の block の `scripts/`・`src/` は触らない（使い始めは、その block を名指す別の変更で）。
+- 承認ノード・無人の方針・深さの表・計画の往復を変える（U・D）: line の `src/`（`docs/design/line.md`）。未知の種類 → 段の表は `lib/headdepth.py`（head-depth・line・diagnose・plan が読む）。
+- block の中で閉じる変更では、設計書 `docs/design/<block>.md` は port・node の並び・受け付けの決まりが変わる時だけ直し、筋書き（`fixtures/`）は通らなくなった時だけ直す。設計書は md の本文を写さない（本文の正本は block の `prompts/`）。
+
+## 始め方
+
+- 新しい block は `workflows/world/` を写して始める（手本は 1 つ）。graph の手本は `workflows/policy-check/`。
+- 設計書は `docs/design/<block>.md` に 1 本。型は `docs/design/README.md` の 6 章、手本は `docs/design/world.md`。
+- 置き場の形は `docs/design/README.md` の 3 章: `works-factory-<block>.yaml`・`prompts/<node-id>.md`（system prompt は `prompts/<node-id>.system.md`）・`prompts/parts/<name>.md`・`scripts/<name>.py`・`src/`（package の名は `src`）・`schemas/<port>.schema.json`・`fixtures/standalone.stubs.yaml`。
+- 入力・place・指示は `.shared/` の口（`ports.py`・`prompt.py`・`requestrows.py`）を通して書く。口の一覧と、共通の断片・共通の port の形の名は `.shared/AGENTS.md`。
+- YAML に指示の文を書かない: `loop:` の node・`agents:`・`on_reject` と `decisions` の `rework` の `prompt` は使わない（`loop_group` と prep で書く）。
+- 試験は `tests/blocks/<block の名の - を _ にした物>/`。助けは `tests/blocks/kit.py`。筋書きで届かない AI の node（`workflow:` の `fan_out:` の先・loop の 2 周目だけに回る node）の指示は、block の試験 `test_prompts.py` の表 `RENDERED` に行を置いて照らす。
+- 単独で回す: `bin/works-factory workflow run works-factory-<block> --cwd <対象> --input <名>=<値>`。
+- 機械: `tests/layers/test_block_shape.py`（`docs/design/README.md` の 7.1 の yes/no）。
 
 ## E1 YAML は変換せずに Archon に渡す
 
-- `workflows/` の YAML は手で書き、`bin/` は写さずに Archon に読ませる（`--workflow-source` に渡す置き場の `.archon/workflows/works-factory` がこのフォルダを指す pack の形。名前の script と `.shared/` は pack の形の時だけ効く。`bin/_lib/place.py`）。Archon は run の始めにその中身をバイトのまま写し取る。生成・前処理・鍵の削りをしない。
-- 作りの規則は Archon の `workflow-language-constitution.md`（Archon の源の `.archon/workflow-language-constitution.md`。要点「YAML coordinates. Code computes. Agents judge.」）。YAML はノードの順・承認ノード・ループ・入出力の配線だけを持つ。値の計算は `script:` のノードか役の指示書に置く。
-- Archon の確かめ（`archon validate workflows`）が警告なしで通る。数えない警告は 1 つの形だけ: Claude Code に同梱の skill（`tests/archon.py` の `BUILTIN_SKILLS`。`code-review`・`simplify`・`security-review`）と、借りる superpowers の skill（`tests/archon.py` の `BORROWED_SKILLS`。`lib/borrow/borrow.json` の `superpowers.skills`）をノードの `skills:` に名指した時の「Claude skill '<名>' not found on disk — expected for built-in…」の警告（level が warning・field が `skills`・文がこの形・名が 2 つの一覧のどちらかに在る、の全部が当たる物。照らしは `tests/archon.py` の `counted` の 1 か所）。同梱の skill はディスクに `SKILL.md` が無く、借りる skill は起動の時に run の隔離した設定へ入るので確かめの使い捨ての木には無い。止めた Archon の `packages/workflows/src/validator.ts` の `validateWorkflowResources` は名指すたびにこの警告を出す。一方で止めた Archon はノードの `skills:` に名指した skill しか役に渡さない（`packages/providers/src/claude/provider.ts` の `applyNodeConfig` の `options.skills = nodeConfig.skills ?? [];`）ので、名指さないと judge の局所レビューの役がレンズを起こせない。2 つの一覧に無い名の警告と、同梱の名でも別の置き場に入っていて届かない時の誤り（installed elsewhere）は今までどおり数える。`validate` は `--workflow-source` を受けず黙って捨て、`--cwd` は git の木しか受けないので、`.archon/workflows/works-factory/` にグラフのフォルダと `.shared/` を写した使い捨ての git の木（`tests/archon.py`）を `--cwd` に渡す。
-- 機械: `tests/layers/test_no_conversion.py`（Archon が読む所と `workflows/` のバイト一致）・`tests/layers/test_archon_validate.py`（確かめの結果に誤りも警告も無い。上の同梱の skill と借りる skill の警告だけは `tests/archon.py` の `counted` で数えない。種 `tests/layers/seeds/e1/workflows/skills/` で、一覧に無い名の警告と installed elsewhere の誤りが数えられることを縛る）。
+- `workflows/` の YAML は手で書き、`bin/` は写さずに Archon に読ませる（`--workflow-source` に渡す置き場の `.archon/workflows/works-factory` がこのフォルダを指す pack の形。`bin/_lib/place.py`）。生成・前処理・鍵の削りをしない。
+- Archon の確かめ（`archon validate`）が警告なしで通る。数えない警告は、同梱の skill と借りる superpowers の skill を `skills:` に名指した時の「ディスクに無い」の 1 つの形だけ（訳は `docs/design/archon.md`）。
+- 機械: `tests/layers/test_no_conversion.py`・`tests/layers/test_archon_validate.py`・`tests/layers/test_block_shape.py` の `ArchonCase`。
 
-## E2 境の中身は全部、名簿に載せる
+## E2 `.shared/` の中身は口と埋めだけで、埋めは名簿に載せる
 
-- `workflows/.shared/` のファイルは 2 種類だけ。Archon との出入りの口（境の入出力のモジュール。1 つ）と、埋め（polyfill。Archon に無い物を外から補う部品）。`bin/_lib/` には埋めと入口の部品（`bin/AGENTS.md` の E15）が並ぶので、埋めでない入口の部品は `tests/layers/scan.py` の `ALLOWED["E2"]` に 1 行ずつ置いて外す。
-- 埋めは `docs/polyfills.md` に 1 行ずつ載せる。載せる欄は、穴・Archon の証拠の引用・外す条件。YAML の型の埋め（メイングラフの受け皿のノードなど）や、期限の値のような置き場を持たない埋めも載せる。
-- 機械: `tests/layers/test_polyfills_listed.py`（`workflows/.shared/` と `bin/_lib/` のファイルが、境の口・`ALLOWED["E2"]` の行・名簿の `- 埋め:` の行の頭の欄が名指す物のどれかに当たる。行の説明の文にだけ名が出る部品は数えない。木に在るかの照らしは頭の欄に限らず行の全部のパスに掛かり、名簿の `- 埋め:` の行が名指す `workflows/`・`bin/`・`lib/`・`tests/` の下のパスが木に無い行も赤。ただし置き場のパスの直後に「（予定）」と書いた行は、木に無くてよい）。
+- `.shared/` のファイルは、Archon との出入りの口（`ports.py`・`prompt.py`・`requestrows.py`）・2 つ以上の block が使う断片と形（`prompts/`・`schemas/`）・埋め（polyfill。Archon に無い物を外から補う部品）だけ。
+- 埋めは `docs/polyfills.md` に 1 行ずつ載せる（穴・Archon の証拠の引用・外す条件）。置き場を持たない埋め（YAML の型・期限の値）も載せる。`bin/_lib/` の埋めでない入口の部品は `tests/layers/scan.py` の `ALLOWED["E2"]` に訳つきで置く。
+- 機械: `tests/layers/test_polyfills_listed.py`・`tests/layers/test_polyfill_evidence.py`。
 
-## E4 サブグラフはほかのサブグラフのファイルを指さず、入力の説明で作り手を名指さない
+## E4 block はほかの block のファイルを指さず、入力の説明で作り手を名指さない
 
-- サブグラフ（`workflows/<名>/`）の script は、ほかのサブグラフのフォルダへのパスを組まない。受け取りは `with:` の入力・前のノードの出力・ポインタ（`archon_artifact`）・型つきの成果物（`output_type`）だけ。
-- サブグラフの script は `lib/` と境の口を呼ぶだけで、確かめの中身を持たない。
-- グラフ（`workflows/`）が `bin/` の物を import しない決まりと、その機械は根の `AGENTS.md` の E22 に在る。
-- script は同じ `scripts/` の別の script を import しない（共に使う物は lib か境の口に置く）。script の名を lib のモジュールの名にしない（script のフォルダが `sys.path` の頭に来るので、`import <名>` が lib の物でなく script を読む）。
-- ほかのサブグラフが作ったファイルは、出力の欄（中身か、ポインタ）として入力で受ける。ポインタの先の隣のファイルを名で開かない（`docs/design.md` の「サブグラフの出力の約束」）。judge・structure・plan・fix の置き場のファイルはそれぞれの出力の欄（名の表は `lib/judge_accept.py` の `PORTS`・`FIRST_PORTS`（ファイルの名は判定の名の住処 `lib/judgebeside.py`）、`lib/structfile.py` の `PORTS`（ファイルの名は構造の名の住処 `lib/structbeside.py`）、`lib/planfile.py` の `PORTS`・`FROM`（ファイルの名も計画の名の住処の `lib/planfile.py`）、`lib/fixbeside.py` の `PORTS`・`FROM`（ファイルの名は修正の名の住処 `lib/fixnames.py`））で、plan-review と eyes の隣のファイルは出力の欄 `gate_passes`・`gate`・`design_premises` と `r4_passes`・`premise_reply`（名の住処 `lib/planreviewbeside.py`・`lib/eyesbeside.py`）で受け、持ち主の外（メイングラフ・ほかのサブグラフの script と、名の住処でない `lib/` のモジュール）は名を持たない。読み手はポインタの欄を自分で戻さず、出力のままの段と戻す口を住処の読み手の口（`fixbeside.read` ほか）に渡す。run の共有の置き場（試験の結果の控え・利用者の HOME・XDG に戻して起こした印）は、一番上のグラフ（メイングラフと周の鎖）の始めのノードが作って入力で渡し（メイングラフは `reuse_dir`・`user_env_dir`、周の鎖は印の置き場 `user_env_dir` だけ）、サブグラフは自分の置き場の形から辿らない。受けた物を自分の置き場へ写す時は自分の名で写す。
-- サブグラフの `inputs:` の `description:` は受け取る値の形（型・意味・空や null の時の意味・ポインタなら先のファイルの名）を書き、作り手（ほかのサブグラフ・その役・メイングラフ・周の鎖のノード）を名指さない（「修正前の承認ノードの答え」でなく「修正の前に人が返した答え」）。結びはメイングラフの `with:` だけが持ち、説明に写すとずれる（持ち主の決め `io-in-output-format`）。そのサブグラフ自身の YAML の兄弟ノードの `$<id>.output` は作り手の名指しに数えない。
-- 機械: `tests/layers/test_block_paths.py`（サブグラフの名は層の地図 `docs/layers.json`（根の `AGENTS.md` の E22）から読む。サブグラフの `inputs:` の `description:`（YAML の値として読むので、flow の形も `>-`・`|` の複数行の形も覆う）に、作り手の名指しが無い。名指しは 5 つの型: `$<id>.output`（自分の YAML のノードの id は除く）・語「メイングラフ」と「ノード」・ほかのサブグラフの名（`works-factory-` の頭が付いてもよい）・ほかのサブグラフの和名（`docs/design.md` の「## サブグラフ」の `### <名>（<和名>）`）を作り手として書く形 `<和名>役`・`<和名>が`・`<和名>の段`（中身の語としての和名「判定のポインタ」は数えない）・一番上のグラフ（メイングラフと周の鎖）のノードの id のうち `-` を含む物。`-` の無い id は普通の語と重なるので語としては数えない。一番上のグラフ自身の入力は見ない。指示書（`commands/`）と入力の説明の中のほかのサブグラフの役の id（backtick で囲んだ id は `-` の有無に依らず数え、素の語は `-` を含む id だけを数える。自分の YAML の字の値そのもの（返答の enum の語など）は自分の語で数えない）と古い名 `blk-*`、指示書の中のほかのサブグラフへのパス（`workflows/<名>/`）とほかのサブグラフの和名を作り手として書く形 `<和名>役`・`<和名>の段`（指示書の長い文では `<和名>が` が中身の語の主語「判定が正本」と重なるので数えない）は、根の `AGENTS.md` の E22 の照らし role（`tests/layers/test_layer_map.py`）が見る。照らし role は、役が読む借りた読み替え `lib/borrow/unattended.md` にも、どのサブグラフの役の id・名・パスも無いことを見る。サブグラフの `scripts/` とサブグラフの YAML（直に書いた script）の字に、ほかのサブグラフを指すパス（`workflows/<名>/`・Archon が読む所の `.archon/workflows/works-factory/<名>/`（pack の形。pack の段 `works-factory` は飛ばして見る）・`../<名>/`）が無い。`scripts/` の字には `lib/`・`workflows/.shared/`・自分のサブグラフの外への相対パスも無い。`scripts/*.py` の import の名が同じ `scripts/` の別のファイルの名でない。メイングラフとサブグラフの `scripts/*.py` の名と `lib/*.py` の名が重ならない。表 `tests/layers/scan.py` の `NAME_HOMES`（持ち主のサブグラフごとの行: judge・structure・plan・plan-review・fix・eyes の置き場のファイルと、メイングラフの run の共有の置き場）の名（行の名の出どころの値。judge は `judge_accept.PORTS`・`FIRST_PORTS`、structure は `structfile.PORTS`、plan は `planfile.PORTS`・`FROM`、fix は `fixbeside.PORTS`・`FROM`、plan-review は名の住処の `planreviewbeside.GATE_PASSES_FILE`・`GATE_FILE`・`DESIGN_PREMISES_FILE`、eyes は名の住処の `eyesbeside.R4_PASSES_FILE`・`PREMISE_FILE`、メイングラフの置き場は `tree_run.REUSE_SUB`・`userenv.RAN_FILE`）を、持ち主の外の script（メイングラフの置き場の行の持ち主はメイングラフ）・`workflows/.shared/`・住処（行の住処。書き手と名を定数で持つモジュール）でない `lib/` の下の `.py`（下のフォルダも。`lib/tests/` は除く）が名指さない。名指しは、名の字そのもの（長い文の一部は数えない）・住処の定数（`<モジュール>.<名>`・`from <モジュール> import <名>`・`getattr(<モジュール>, "<名>")`。定数を並べた tuple も、tuple の代入の 1 つずつも）と名の出どころの表（引く形は import を許した所でも鳴る）・その名の `marks` の種（`marks.KINDS[<種>]`・`marks.path_of(<種>, …)`）・開く関数（住処の中の、上の名指しか開く関数の呼び出しを持つ物。plan の行の `lib/rolekit.py` と、メイングラフの置き場の行の `lib/tree_run.py`・`lib/userenv.py` は頭の関数の全部）に置き場に届くパスの値を渡す呼び出し・書き手 `judge_accept` の import（照らしの部品だけを使う所は `ALLOWED["E4"]` に 1 行ずつ）。置き場に届くパスの値は、ポインタの隣（`.parent`・`.parents[…]`・`.with_name(…)`。`__file__` に根を持つ物は除く）と、メイングラフの置き場の行では環境の `ARTIFACTS_DIR` の読み、それらを `/` で継いだ・`Path(…)` に包んだ・並べた値、それを置いた名（代入・for の的・`.append(…)` の並び）、照らす木の中でそれを返す関数の呼び。メイングラフの置き場の行は、印の環境変数（`userenv.RAN_DIR_ENV` とその値の定数）に届く値を置く形（`os.environ[…] = …`・`update`・`setdefault`・`putenv`）も名指しに数える。機械が見ない形（書かない。人が見る）: f 文字列や字の連結で組んだ名、値から読んだ中身を介した形（`str(…)`・`.get(…)`）、サブグラフの行でポインタを通らずに `ARTIFACTS_DIR` の読みや境の口の出力（`boundary.place`・`boundary.inside_artifacts`）からほかのサブグラフの置き場を組む形。住処の中の関数が持ち主の置き場を名で開くかも人が見る）。
+- block の `scripts/`・`src/` は、ほかの block のフォルダへのパスを組まず、run directory の根（`ARTIFACTS_DIR`）を読まない。受け取りは `with:` の入力（`ports` の form の口）と、作り手の出力の欄の pointer だけ。place のファイルの名はその block の `src/` だけが持つ。
+- 入力の `description:` は `<form>: <意味>` で受け取る値の形と意味を書き、作り手（ほかの block・graph のノード）を名指さない。結びは graph の `with:` だけが持つ（持ち主の決め `io-in-output-format`）。
+- script は同じ `scripts/` の別の script を import しない（共に使う物は `src/`）。script の名を `lib/` のモジュールと `.shared/` の口の名にしない。
+- 機械: `tests/layers/test_block_shape.py`（7.1 の 5・7・9）・`tests/workflows/test_script_imports.py`。入力の説明が作り手を名指さないことは人が見る。
 
-## E5 サブグラフの出力は 1 つのノードの構造体
+## E5 block の出力は 1 つのノードの構造体
 
-- サブグラフの YAML は `returns:` で 1 つのノードを名指す。サブグラフの間で渡す物の型の正本は、そのノードの `output_format`（素の JSON Schema）と、メイングラフの `with:` だけ。写しの型は持たない（持ち主の決め `io-in-output-format`）。
-- 大きい中身はファイルに置き、出力にはポインタ `{type: archon_artifact, run_id, path}` を入れる。
-- サブグラフの間は `with:` と出力の構造体だけで渡す。飛ばされうる段の出力は、受ける側の `with:` に `{ from: "$<id>.output.<欄>", if_skipped: null }` を書く（ASF の `W/ship/archon-ship.yaml`:148）。出力をまるごとで受ける時は、script のノードの `with:` に `{ from: "$<id>.output", if_skipped: null }`（飛ばされない段は字のまま `"$<id>.output"`）を書き、script は読む欄を `boundary.picked(os.environ.get("INPUTS_<鍵>"), <欄の名の並び>)` で名指して読む（欄の名の並びはモジュールの頭の字の tuple か lib の部品の定数。受け皿は運ぶ欄の名を YAML の `with:` の `names:` に空白区切りで宣言し、`boundary.picked(env.get("INPUTS_GOT"), boundary.text(env.get("INPUTS_NAMES")).split())` で受ける。口は宣言した欄しか持たず、宣言の外の名を読むと KeyError で止まる）。受け手が include の時は、メイングラフの中継のノード（`script:` のノード）で受けてから渡す（埋め P2。Archon は include の `with:` に書いた束ねを黙って JSON の値として渡すので、書けたように見えて効かない）。並べた物の集まりは `fan_out:` の出力（入力の順の配列）で受ける。
-- 型つきの成果物の一覧（`$TYPED_ARTIFACTS_FILE`）を読むのは report サブグラフだけ。ループの出力は最後の 1 周しか残らないので、全部の周の記録（試験の関門の認証・認めた元からの赤・範囲の外の所見）を拾うのに使う（ASF の `W/.shared/report.ts`:130-140 と同じ）。引く時は include の頭（`<include の id>__`）と `loopGroupPath` で自分の分だけに絞り、一覧の `errors` を捨てない（読めた分と一緒に返す）。読む部品は report サブグラフの中に置く。
-- 仕事の結末を表す欄は `outcome_field:` で名指す。run が終わったことと仕事がうまくいったことは別の事実。
-- サブグラフの `inputs:` の入力は、どれもサブグラフの中に読み手（script の `INPUTS_<名>` か、役の指示書（`commands/` と YAML の `prompt:`）の `$INPUTS.<名>`）を持つ。YAML の `with:` で script へ渡すだけの字は読み手でない。逆向きに、script が `INPUTS_{…}` を組んで回す lib の部品の名の並び（`fixboard.PREP_INPUTS` の形）の名は、どれもサブグラフの `inputs:` に在る（宣言の無い名は Archon が渡さず、script は空の字を黙って読む）。ループ（`loop_group`）の中の AI ノードは自分の `with:` を結ばない。前の周の値はループの頭の script のノードが `$LOOP_PREV` で結んで返し、役はその出力を読む（Archon は include の時に役の `with:` を既定の字で固める。PR #100）。
-- 機械: `tests/layers/test_block_returns.py`（全サブグラフに `returns:` と `outcome_field:` が在り、出力ノードが `output_format` を持ち、`outcome_field` の欄がその `required` に在る。出力の欄のどれも、メイングラフの `$<include の id>.output.<欄>`（入れ子の道 `.<欄>.<…>` は頭の欄）にも、まるごとの参照 `$<include の id>.output` を受ける script の口 `boundary.picked` の宣言した名にも無ければ赤（出力の欄 ⊆ 読みの和）。読み手の無い入力（今の物は `ALLOWED["E5"]` に名指し、区分の issue で外す）と、`inputs:` に無い名を回す lib の名の並びと、ループの中で `with:` を結ぶ AI ノードも赤）。メイングラフが欄つきの参照で読む欄が出力ノードの `output_format` に在るかは Archon の `validate`（`tests/layers/test_archon_validate.py`。E1）が照らす。validate はまるごとの参照の読む欄を見られないので、そこは E5 が照らし、次も赤にする: 宣言した名が `output_format` に無い（宣言した名 ⊆ 出力の欄）、口の名の並びが読める 3 つの形（module の頭で 1 度だけ置く字の tuple の名・lib の部品の字の tuple の定数 `<部品>.<定数>`・ノードの `with:` の `names:` の字を読む上の形）の外（解かずに赤）、口が 1 つの呼びでない・口の 1 つ目の引数が `os.environ.get("INPUTS_<鍵>")` か `os.environ["INPUTS_<鍵>"]` そのものでない（まるごとの値を別の名に取っておけない）・`INPUTS_<鍵>` の字が口の呼びの外に在る、script の `with:` の外のまるごとの参照（受けてよい置き場は script のノードの `with:<鍵>` の直の字か `with:<鍵>.from` の字だけで、ほかは置き場を並べずに全部赤）。宣言の外の欄は口が値として返さない。まるごとの参照を受ける script は環境変数を字のままの鍵（`os.environ.get("<字>")`・`os.environ["<字>"]`・`os.getenv("<字>")`）でだけ読み、名を組んで読む・回す・写す・ほかの名へ渡す読みは、値の流れを解かずに形で赤にする。
+- block の YAML は `returns:` で 1 つのノードを名指し、`outcome_field:` で仕事がうまくいったかの欄を名指す。そのノードの `output_format` には `report`（報告に載せる日本語の行の配列）を置く。block の間で渡す物の型の正本は、そのノードの `output_format` と graph の `with:` だけ（持ち主の決め `io-in-output-format`）。
+- 大きい中身はファイルに置き、出力には pointer `{type: archon_artifact, run_id, path}` を入れる。作り手の欄を 3 つ以上読む受け手は、作り手の出力を丸ごと置いたファイルの pointer 1 つで受ける（`docs/design/README.md` の 4.2）。
+- 飛ばされうる段の出力は、受ける側の `with:` に `{ from: "$<id>.output.<欄>", if_skipped: null }` で受ける。include の受け手へ束ねて渡す時は、graph の中継の script のノードで受けてから渡す（埋め P2）。
+- 機械: `tests/layers/test_block_returns.py`・`tests/layers/test_block_shape.py`（7.1 の 8）。
 
 ## E6 外への書き込みは 1 つの script のノードで、書いた後に読み戻す
 
-- GitHub・対象のリポジトリの main・人に見える所への書き込みは、サブグラフごとに 1 つの `script:` のノードだけが行う。書いた後に読み戻し、読めた値で返る。終了の値 0 は書けた証拠にしない。
-- 機械: `tests/layers/test_outward_write.py`（`gh`・`git push`・`git merge` を呼ぶノードがサブグラフに 1 つ以下。名簿は試験の中の表）。読み戻しの有無は人が見る。
+- GitHub・対象のリポジトリの main・人に見える所への書き込みは、block ごとに 1 つの `script:` のノードだけが行う。書いた後に読み戻し、読めた値で返る。終了の値 0 は書けた証拠にしない。
+- 機械: `tests/layers/test_outward_write.py`。読み戻しの有無は人が見る。
 
 ## E7 読むだけのノードは mutates_checkout: false を書く
 
-- 作業ツリーを変えないノード（読むだけの役と、読むだけの script）は `mutates_checkout: false` を書く。script・bash のノードは全部書き、外れは作業ツリーを変えるノード（`tests/layers/scan.py` の表 `CHANGE_CHECKOUT`。訳つき）だけ。Archon は書いたノードが作業ツリーを変えたら、そのノードを落とす。AI ノード（`prompt:`・`command:`）の印は道具から決まる: `allowed_tools` に Bash・Edit・Write が無い役は書き、在る役は書かない（今の works の `works/tests/test_yaml_rules.py` と同じ）。Bash を持つ読む役（judge の素材集めの役など）は、今の works と同じく受け付けの script が作業ツリーの姿を比べ、変えた返答を拒む。外れは変える道具を持つが作業ツリーを変えない役（`tests/layers/scan.py` の表 `KEEP_CHECKOUT`。訳つき）だけ。Bash を持ち Edit・Write を持たない役は `sandbox.filesystem.denyWrite` に `~/../archon-home`（`scan.py` の `NO_TREE_WRITE`。起動が隔離した HOME の隣の Archon の家）を書き、作業ツリーへの書き込みそのものを止める（`'.'` は cwd を塞がない。実測 2026-10-13。issue #293）。この値は包み（`workflows/.shared/fence.py`。埋め P5）の印も兼ね、包みは起こす直前に cwd・共通の `.git`・全部の worktree の根などを `denyWrite` に足す（issue #309）。
-- `loop:` のノードを作らない（Archon は `loop:` のノードの `mutates_checkout` を無視して警告を出す。止めた Archon の `packages/workflows/src/schemas/dag-node.ts` の `LOOP_NODE_AI_FIELDS`）。読むだけの役の繰り返しは `loop_group` で書く。
-- AI ノードは `settingSources: [user]`・閉じた `sandbox`（`enabled: true`・`allowUnsandboxedCommands: false`）・道具の表（`scan.py` の `ROLE_TOOLS`）の中の `allowed_tools` を持つ（今の works の `works/tests/test_yaml_rules.py` の決まり）。
-- 役の `model` は群の名（`lib/launchgroups.py` の `GROUPS` の `'@wf-<群>'`）を書き、`effort` を書かない。グラフの根にも `effort`・`modelReasoningEffort` を書かない。止めた Archon はノードの `effort` を別名の `effort` より先に採り、グラフの根の `effort` は `effort` の無いノードへ写る（`include-expander.ts`・`loader.ts`）ので、どちらも run ごとの `--model @wf-<群>=…` の付け替えを黙って効かなくする。
-- 機械: `tests/layers/test_readonly_nodes.py`（全部のサブグラフとメイングラフの AI ノードの印が道具に合う。script・bash のノードは表 `CHANGE_CHECKOUT` の外の全部に在り、表のノードには無い。`loop:` のノードが無い。AI ノードが上の 3 つの鍵を持つ。役の `model` が `GROUPS` の群の名で、役にもグラフの根にも `effort`・`modelReasoningEffort` が無いこと（`test_role_model_names_a_group_without_effort`）。Bash を持つ読むだけの役の denyWrite に `NO_TREE_WRITE` が在り `'.'` が無いこと（`test_bash_reader_without_no_tree_write_is_red`）。値は `isolate.DIRS` の置き場の名から引き、`isolate()` が組む HOME から解くと隔離した Archon の家を指すことは `test_no_tree_write_names_the_isolated_archon_home`。包みがこの値を印と読み、一覧を足すことは `tests/shared/test_fence.py`。違反の見本は `tests/layers/seeds/e7`・`k18-*`・`k3-*` に 1 本 1 違反）。
-- `runtime: uv` の script は頭に uv の script の宣言（PEP 723 の 4 行 `# /// script`・`# requires-python = ">=3.12"`・`# dependencies = []`・`# ///`）を置く。Archon は script のノードを対象の作業ツリーを cwd にして `uv run <ファイル>` で起こすので、宣言が無いと対象に `pyproject.toml` が在る時に uv が作業ツリーに `.venv`・`uv.lock` を作り、読むだけのノードが落ちる（issue #92）。機械: `tests/workflows/test_uv_scripts.py`（`workflows/*/scripts/` から Archon と同じく 1 段下のフォルダまでの `.py` の頭の 4 行・YAML の `script:` の名が全部その中のファイルに当たり、直に書いた `script:` が無いこと・`pyproject.toml` の在る種で走らせても作業ツリーが変わらないこと）。
+- 作業ツリーを変えないノード（読むだけの役と、読むだけの script）は `mutates_checkout: false` を書く。AI のノードの印は道具から決まる（Bash・Edit・Write の無い役は書く）。Bash を持ち Edit・Write を持たない役は `sandbox.filesystem.denyWrite` に起動が隔離した Archon の家を書く（埋め P5 の印を兼ねる）。
+- AI のノードは `settingSources: [user]`・閉じた `sandbox`・道具の表の中の `allowed_tools` を持ち、`model` は群の名（`lib/launchgroups.py`）を書いて `effort` を書かない。グラフの根にも `effort` を書かない。
+- `runtime: uv` の script は頭に uv の script の宣言（PEP 723 の 4 行）を置く。
+- 訳と Archon の振る舞いは `docs/design/archon.md`。
+- 機械: `tests/layers/test_readonly_nodes.py`・`tests/workflows/test_uv_scripts.py`・`tests/layers/test_block_shape.py` の `RealTreeCase`。
 
 ## E12 期限・タイムアウトを置かない
 
-- YAML のノードにも script にも期限を置かない。止める時は止め札で止める。持ち主の決め `no-timeouts`。
-- 期限の鍵の当て方は次のとおり（止めた Archon（`docs/design.md` の「語」）の `packages/workflows/src/schemas/dag-node.ts`・`dag-executor.ts` で確かめた）。
-  - 書かなければ期限の無い鍵は書かない: `script:`・`bash:` の `timeout`、`loop:`・`loop_group:` の `timeout`（`until_bash` の確かめ）。Archon の文書 `packages/docs-web/src/content/docs/guides/script-nodes.md` の `timeout`「Omitted: no timeout, the node runs until it exits」。
-  - 書かなくても既定の期限が当たる鍵には、実質無しの値 `1728000000`（ミリ秒で 20 日。今の works と同じ値。埋め P14）を書く: `prompt:`・`command:` の `idle_timeout`、`loop:` の `idle_timeout`（1 周ごと。無いと 30 分）、`approval:` の `idle_timeout`（`on_reject` の直しの役が受け継ぐ。承認ノードは `approval:` で書かない（E16））、`wait:` の中の `deadline_ms`（`event` を待つ時に要る）。`attention` の待ち（承認ノード）は期限を持たない（Archon の文書 `guides/authoring-workflows.md` の「An attention wait has no deadline」）
-  - `cancel:`・`include:`・`workflow:` は期限を持たない（`include:`・`workflow:` の先のノードは自分の鍵を持つ）
-- 機械: `tests/layers/test_no_timeouts.py`（`workflows/` の YAML のノードが全部上の種類のどれかで（知らない種類は赤）、どのノードも `timeout` を書かず、既定の期限が当たるノードに上の鍵が在り、`idle_timeout`・`deadline_ms` が全部 `1728000000`）。
+- YAML のノードにも script にも期限を置かない。止める時は止め札で止める。持ち主の決め `no-timeouts`。書かなくても既定の期限が当たる鍵（AI のノードと `loop:` の `idle_timeout`・`wait:` の `deadline_ms`）には実質無しの値 `1728000000` を書く（埋め P14。鍵ごとの訳は `docs/design/archon.md`）。
+- 機械: `tests/layers/test_no_timeouts.py`。
 
 ## E16 承認ノードと並べは最新の ASF の形で書く
 
-- 承認ノード: `wait:` の `attention`（見せる文）を `form: select` で書き、選び肢を `options` に並べる。後ろのノードはその答え `{decision, text}` を `{ from: "$<承認ノード>.output", if_skipped: null }` で受ける（ASF の `d97d00ef` の `W/merge-queue/archon-merge-queue.yaml`:8・179-225 の形を、止めた Archon 355f1867 が非推奨にした `approval:` から書き換えた物）。持ち主の決め `asf-way-gates-fanout`。
-- `approval:` と、グラフの頭の `interactive:` は書かない。止めた Archon は読み込みで非推奨の警告を出し（`packages/workflows/src/loader.ts` の `LEGACY_PAUSE_REPLACEMENTS` と「workflow-level 'interactive:' is deprecated and has no effect」）、`interactive:` は効かない。
-- 筋書き（`fixtures/*.stubs.yaml`）が承認ノードを通る時は、その承認ノードの答えを stub に書く（`<承認ノード>: {decision: approve, text: ''}`）。止めた Archon の dry-run は、答えの stub の無い `wait:` で止まる（`packages/workflows/src/dry-run.ts`）。
-- 並べ: `fan_out:`（`items`・`as`・`max_parallel`・`join`）で書く（ASF の `d97d00ef` の `W/verify-runtime-suite/archon-verify-runtime-suite.yaml`:27-34）。作業ツリーに書く並べ（fix の組）は、組ごとに子の run を起こして作業ツリーを分ける。子の run が自分の作業ツリーを持つかは段 1 で実測する（`docs/design.md` の U8）。待ちの列・固定の枝の数・錠は持たない（持ち主の決め `no-queue`）。
-- どの承認ノードも `options` に答えの語（`lib/answer.py` の `GO_WORDS`・`STOP_WORDS`。`STOP_WORDS` は `REJECT` を含む）を全部持つ（止めた Archon は `options` に無い答えを拒み、run は承認ノードで止まったまま。`workflow respond <run> continue|stop|approve|reject` と `workflow approve`・`reject` は、どれも `{decision, text}` を返して run を続ける。実測 2026-10-16）。ループ（`loop_group`）の本体に承認ノードを置かない（本体が承認ノードで終わるループの再開は会話を引き継がない。今の works の `works/tests/test_yaml_rules.py` 43-45 行）。
-- 機械: `tests/layers/test_gates.py`（全グラフの承認ノードが `wait:` の `attention` で `form: select` を持ち、`options` に `lib/answer.py` の答えの語を全部持つ。`approval:` のノードが無い。ループの本体に承認ノードが無い。どのグラフも頭に `interactive` を書かない。include されるサブグラフはグラフの頭に `worktree`・`container`・`evidence_policy`・`mutates_checkout` を書かない（一番上のグラフ（メイングラフ・周の鎖）は書いてよい））。筋書きの stub は `workflow test` が照らす（答えの stub の無い承認ノードで止まると赤）。並べの形は人が見る。
+- 承認ノードは `wait:` の `attention` を `form: select` で書き、`options` に答えの語（`lib/answer.py` の `GO_WORDS`・`STOP_WORDS`）を全部並べる。後ろのノードは答え `{decision, text}` を `{ from: "$<承認ノード>.output", if_skipped: null }` で受ける。`approval:` とグラフの頭の `interactive:` は書かない。ループの本体に承認ノードを置かない。持ち主の決め `asf-way-gates-fanout`。
+- 筋書きが承認ノードを通る時は、その承認ノードの答えを stub に書く。
+- 並べは `fan_out:` で書く。作業ツリーに書く並べ（fix の組）は組ごとに子の run を起こして作業ツリーを分ける。待ちの列・固定の枝の数・錠は持たない（持ち主の決め `no-queue`）。
+- 機械: `tests/layers/test_gates.py`。並べの形は人が見る。
 
 ## E17 対象のリポジトリには差分を置くだけ
 
-- merge サブグラフの既定は、封じた差分を run の置き場に置くだけ。対象のリポジトリに当てるのは人で、`bin/apply` が封じた hash を照らしてから当てる。PR を作る・merge する動きは、使う人が選んだ時だけ働く道にする。対象のリポジトリごとにレビューと merge の決まりと権限が違うため（持ち主の決め `diff-only-to-target`・`others-may-use`）。
-- 選べる道は出口の語で選ぶ（入力 `deliver`。語の一覧は `lib/entry.py` の `DELIVERS` の 1 か所で、メイングラフと周の鎖の始めのノードが知らない語を AI の前で止める）。今の語は空（差分を置くだけ）と `pr`（PR まで）だけ。
-- `pr` の道は merge の中の 2 つだけで作る: 封じた hash を照らした後に run の枝へ修正案の項目ごとの commit を積むノード `pr-commit`（積む所の照らしは周の commit と同じ `lib/runbranch.py`、項目への分け方は `lib/itemcommits.py`。分けられなければ 1 つの commit）と、Archon に同梱の `archon-pr` の子の run を起こす `workflow:` のノード `pr-open`。push と PR の作成と読み戻しは `archon-pr` の script のノード publish がし、題と本文を決める AI のノード prepare は書き込みをしない。自前の push・PR の道（gh を探す仕組み・gh の旗の解釈・push のフックの扱い）は作らない。`pr-commit` は対象の commit のフックを飛ばさず、落ちれば積まずに止める（周の commit は run の中の途中なので飛ばす）。
-- push の先の枝は仕組みで縛る: `pr-open` は `archon-pr` の入力 `branch` に `pr-commit` が積んだ枝を渡し、publish は prepare の返す `head` でなくその枝へ push する（publish は force で push しない）。子の run には `branch` のほか入力で文を渡せない（`with:` と `input:` は一緒に書けない）ので、照らしの要約・封じた hash・run の id・報告の在りか・名指した issue は積んだ commit の文に載せる。PR の題と本文は prepare が決めるので、報告の冒頭そのものは載らない（報告は merge の後に書かれる。持ち主の決め `deliver-via-archon-pr`）。PR の向け先の repo と base（prepare が決める）は縛れないので、読み戻しの `pr-read` が repo・head の repo・head の枝・base の枝・head の版を照らし、違えば「作ったと確かめられなかった」と言う。
-- 工場は対象の既定の枝へは push しない: push の先は run の枝（上の `branch`）で、run の枝の名が対象の既定の枝（origin の HEAD が指す枝）と同じなら、commit も push もせずに止め、報告の冒頭に訳を出す。merge はしない（PR の merge は対象のレビューと決まりに任せる）。周の鎖の子の run は出口の語を空で受けて PR を作らず、PR は鎖の親が最後の差分を封じた後に 1 本だけ作る。
-- ASF が PR を merge するのは、ASF がこのリポジトリ（works-factory）を作る時だけ。運び役が works-factory 自身で順番待ちに積むのは、持ち主がこのリポジトリに限って許した運用で、工場の機能にはしない。
-- 書く資格: PR の作成は publish が PATH の頭の gh の口（利用者の gh のログインを継ぐ `bin/_lib/hostgh.py`）で打つ。push は publish が素の `git push` で打ち、資格は run の環境で git が見つける物だけ（起動の殻は git の資格を run に渡さない。隔離した HOME では利用者の `~/.gitconfig` の資格の口は見えない）。見つからなければ publish が落ち、報告は「作ったと確かめられなかった」と言う。AI の役（prepare も）は読むだけの gh の口と `git push` の拒み（`bin/_lib/toolset.py` の `DENY_PUSH`）を持ち、script のノードが起こす対象のコマンド（試験・受け入れのコマンド・`pr-commit` の commit のフック）にも同じ読むだけの gh の口を PATH の頭に置く（`lib/tree_run.py` の `outside_env`・`lib/userenv.py` の `read_gh_first`）。どれも事故の柵で、堅い境ではない。
-- 機械: `tests/workflows/test_merge.py`（既定の空の語では commit と PR のノードが走らず渡し方は置いただけ・既定の枝と同じ名の run の枝では積まず push しない・`pr-open` が積んだ枝を `branch` で渡す・読み戻しが repo と枝と版を照らす・commit のフックが落ちれば積まない・PR の子の run が落ちても出力ノードは落ちずに「確かめられなかった」と返す）・`tests/workflows/test_chain.py`（周の子は空の語・PR は親が 1 度だけ）・`tests/shared/test_archon_contract.py` の `ArchonPrTest`（止めた版の `archon-pr` の AI のノードが prepare だけで、publish が script で入力 `branch` の枝へ push する形。版の上げで崩れたら赤）・`tests/bin/test_launcher.py` の `test_target_commands_hit_the_read_only_gh`。対象が守るほかの枝（既定の枝の外）は工場が forge を読まないので照らせない。そこは publish が force で push しないことに頼り、人が見る。
+- merge の既定は、封じた差分を run の place に置くだけ。対象のリポジトリに当てるのは人で、`bin/apply` が封じた hash を照らしてから当てる（持ち主の決め `diff-only-to-target`・`others-may-use`）。
+- 選べる道は出口の語（入力 `deliver`。語の一覧は `lib/entry.py` の `DELIVERS`）で選ぶ。今の語は空と `pr` だけ。`pr` の道は merge の中の 2 つだけで作り、push と PR の作成は Archon 同梱の `archon-pr` に任せる（持ち主の決め `deliver-via-archon-pr`）。対象の既定の枝へは push しない。周の鎖の子は PR を作らず、鎖の親が最後に 1 本だけ作る。
+- 設計は `docs/design/merge.md`。
+- 機械: `tests/blocks/merge/`・`tests/blocks/chain/`・`tests/shared/test_archon_contract.py` の `ArchonPrTest`・`tests/bin/test_launcher.py`。対象が守るほかの枝は人が見る。
 
 ## E19 AI ノードの出し直しは Archon の retry で持つ
 
-- AI ノード（`prompt:`・`command:`。`loop_group` の本体の中も）は `retry: {max_attempts: 2, on_error: all}` を持つ（eyes と同じ形）。構造化出力の一過性の失敗 1 つで run 全体が落ちないため。工場の側に自前の出し直しを作らない。回数と、どの失敗で出し直すか（`on_error`）は Archon の機能で、工場はどのノードに付けるかと外す理由だけを持つ。
-- 止めた Archon は、`retry` を書かない AI ノードにも既定の出し直しを当てるが、`on_error: transient` なので、種類が `unknown` の失敗は出し直さない（`packages/workflows/src/dag-executor.ts` の `getEffectiveNodeRetryConfig`・`retryableFailureClass`）。だから `on_error: all` を書く。`loop_group` のノードそのものには書かない（`packages/workflows/src/schemas/dag-node.ts` の `dagNodeSchema` が「'retry' is not supported on loop_group nodes」の誤りにする）。本体の AI ノードに書けば、本体の中でも出し直す。
-- 2 回走ると困るノード（外への書き込みを持つ物など）だけ外し、ノードの頭の行の真上に `# retry なし: <理由>` を 1 行で書く。
-- 機械: `tests/layers/test_role_retry.py`（全部のグラフの AI ノードが `retry` をこの形（`scan.py` の `ROLE_RETRY`）で持つか、真上に理由の在る外しの行を持つ。両方在るのも赤。照らしは `tests/layers/scan.py` の `_role_retry`）。
+- AI ノード（`loop_group` の本体の中も）は `retry: {max_attempts: 2, on_error: all}` を持つ。`loop_group` のノードそのものには書かない。2 回走ると困るノードだけ外し、ノードの頭の行の真上に `# retry なし: <理由>` を 1 行で書く。工場の側に自前の出し直しを作らない。
+- 機械: `tests/layers/test_role_retry.py`。
 
 ## E20 深さの段は表 1 か所に置き、when の句で飛ばさない
 
-- run の頭の深さ（judge の `depth`）の段（軽量・標準・重厚）の定義は `lib/depth.py` の `TIERS` 1 か所。`docs/design.md` の「深さの段の表」（段・省く物・足す物・理由の 4 欄）はその写しで、行は `TIERS` と等しくなければならない。深さの語・段が省く物・重厚が足す機能・報告の行はどれも `TIERS` から引き、字を写さない。持ち主の決め `depth-by-reason`。
-- ノードを深さの値で飛ばさない: どのノードの `when` も、出力の深さの欄を読む句（`$<ノード>.output.<名に depth を含む欄>`）を持たない。計画の壁打ち（plan と plan-review の往復）はどの段でも省かない。段の足しは、機能の切り替えの式（`lib/entry.py` の `feature_words`・`switch` の `adds`）を通して効かせる。
-- 機械: `tests/layers/test_depth_skip.py`（どのノード〔メイングラフ・サブグラフの頭の段・ループの中〕の `when` も深さの欄を読む句を持たない・表の行が `depth.TIERS` と等しい。照らしは `tests/layers/scan.py` の `_depth_when`）。
+- run の頭の深さの段（軽量・標準・重厚）の定義は line の `src/tiers.py` の `TIERS` 1 か所。`docs/design/line.md` の「深さの段の表」はその写しで、行は `TIERS` と等しい。持ち主の決め `depth-by-reason`・`three-tiers`。
+- ノードを深さの値で飛ばさない: どのノードの `when` も、出力の深さの欄を読む句を持たない。省くかを `when:` に渡す時は、line が表から引いた真偽だけにする。計画の壁打ち（plan と plan-review の往復）はどの段でも省かない。
+- 機械: `tests/layers/test_depth_skip.py`。

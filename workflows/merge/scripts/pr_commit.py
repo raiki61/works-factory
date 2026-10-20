@@ -2,7 +2,7 @@
 # requires-python = ">=3.12"
 # dependencies = []
 # ///
-"""出口の語 pr の commit の節 pr-commit。照らした差分を run の作業ツリーの枝へ、修正案の項目（1 つの論理の変更）ごとの commit に積み、
+"""出口の語 pr の commit の node pr-commit。照らした差分を run の作業ツリーの枝へ、修正案の項目（1 つの論理の変更）ごとの commit に積み、
 PR を作る子の run に渡す枝を返す。
 
 積む前に止める（go: false と訳。何も積まない）: 本体の作業ツリーか切り離された HEAD（lib/runbranch.py）・run の枝の名が対象の既定の
@@ -36,33 +36,32 @@ commit の並び [{item, subject, head}]（1 つに倒した・積まなかっ�
 相対なら対象の根から。空は無し）・items（修正の段の記録 itemcommits.merged の形。空は無し）・
 user_env_dir（利用者の HOME・XDG に戻した印を置く置き場の絶対パス。空は置き場が無い）
 """
-import json
 import os
 import sys
 from pathlib import Path
 
-try:
-    sys.path.insert(0, str(Path(__file__).resolve().parents[2] / ".shared"))
-    import boundary
-    unread = None
-except Exception as error:   # 返す節が結ぶので落ちない（上の docstring）
-    boundary, unread = None, error
+sys.dont_write_bytecode = True
+sys.path[:0] = [str(Path(__file__).resolve().parents[2] / ".shared"), str(Path(__file__).resolve().parents[1])]
+import ports  # noqa: E402
 
-if boundary is not None:
-    with boundary.guarded_imports():
-        import entryshape
-        import forge
-        import green_cert
-        import itemcommits
-        import oneline
-        import runbranch
-        import seal
-        import tree_run
+try:
+    import entryshape
+    import forge
+    import green_cert
+    import itemcommits
+    import oneline
+    import runbranch
+    import seal
+    import tree_run
+    unread = None
+except Exception as error:   # lib/ を読めなくても落ちない（go: false と訳を返す）
+    unread = error
 
 CHECKED = {
     "apply": "最後の承認ノードの後に、封じた差分の hash・修正の後のテストの緑の認証・独立の確かめ・守りのパスの当たりを照らして通った",
     "check": "封じた差分の hash を今の差分と照らして通った（テストと確かめは差分を作った所で済んだ）",
 }
+SKIP = (ports.RUNTIME_COPY_PREFIX,)
 SUBJECT_WIDTH = 60   # 項目の commit の題に載せる approach の頭の字数
 UNCHECKED = "各 commit の時点で試験が通るかは確かめていない（確かめたのは、積み終えた木の差分の hash が封じた hash と同じこと）"
 NOTHING = "作業ツリーに積む変更が無い（封じた差分は既に枝の commit に在る）"
@@ -110,7 +109,7 @@ def item_message(parts: list, i: int, heads: list, run_id: str, tail: list, issu
 def stack(repo: Path, record, hook_env, mode: str, run_id: str, sealed: str, name: str, base: str, issues: list) -> tuple:
     """今の変更を積む: (積んだ項目の commit の並び, 1 つに倒した・積まなかった訳)。git の誤りは runbranch.GitFailed のまま。
     hook_env() は積む変更が在る時だけ 1 度呼び、hooks を走らせる commit の環境を返す（印を置く）"""
-    paths = runbranch.staged(repo, boundary.RUNTIME_COPY)
+    paths = runbranch.staged(repo, ports.RUNTIME_COPY)
     if not paths:
         return [], NOTHING
     env = hook_env()
@@ -123,7 +122,7 @@ def stack(repo: Path, record, hook_env, mode: str, run_id: str, sealed: str, nam
             return [{"item": p.item, "subject": subject(p), "head": h} for p, h in zip(parts, heads)], ""
         except runbranch.PartFailed as error:
             split = f"項目ごとの {error.index + 1} 本目で hooks が落ちた: {error}"
-    runbranch.commit(repo, message(mode, run_id, sealed, name, base, issues, split), boundary.RUNTIME_COPY, hook_env=env)
+    runbranch.commit(repo, message(mode, run_id, sealed, name, base, issues, split), ports.RUNTIME_COPY, hook_env=env)
     return [], split
 
 
@@ -135,12 +134,31 @@ def origin_repo(repo: Path):
     return None if got is None else {"host": got["host"], "path": f"{got['owner']}/{got['name']}"}
 
 
+def request_path(raw) -> str:
+    """依頼のファイルのパス。空・読めない・無いファイルは空（依頼が名指した issue を引けなくても止めない）"""
+    try:
+        path = ports.file(raw)
+    except ValueError:
+        return ""
+    return "" if path is None else str(path)
+
+
+def item_record(raw):
+    """修正の段の記録。空と null は無し。読めない記録は字のまま渡し、itemcommits.split が 1 つの commit に倒す"""
+    try:
+        return ports.json(raw, "items.schema.json") if ports.text(raw).strip() not in ("", "null") else None
+    except ValueError:
+        return ports.text(raw)
+
+
 def commit() -> dict:
+    if unread is not None:
+        raise unread
     repo = Path.cwd()
     run_id = os.environ["WORKFLOW_ID"]
-    mode = boundary.text(os.environ.get("INPUTS_MODE"))
-    base_rev = boundary.text(os.environ.get("INPUTS_BASE_REV"))
-    sealed = boundary.text(os.environ.get("INPUTS_SEALED_HASH"))
+    mode = ports.text(os.environ.get("INPUTS_MODE"))
+    base_rev = ports.text(os.environ.get("INPUTS_BASE_REV"))
+    sealed = ports.text(os.environ.get("INPUTS_SEALED_HASH"))
     if mode not in CHECKED:
         return stopped(f"照らしの形 {mode!r} は {' か '.join(CHECKED)} でない（照らした差分しか積まない）")
     if not base_rev:
@@ -151,12 +169,12 @@ def commit() -> dict:
     target = origin_repo(repo)
     if target is None:
         return stopped(f"{runbranch.ORIGIN} の URL から PR を出す repo（host と owner/name）を決められない")
-    why = seal.hash_refusal(sealed, seal.digest(green_cert.diff_bytes(repo, base_rev, skip=boundary.SKIP)))
+    why = seal.hash_refusal(sealed, seal.digest(green_cert.diff_bytes(repo, base_rev, skip=SKIP)))
     if why:
         return stopped(f"{why}（commit しない）")
-    _, issues = entryshape.named({"request": boundary.text(os.environ.get("INPUTS_REQUEST"))}, repo)
-    record = boundary.value(os.environ.get("INPUTS_ITEMS"))
-    boundary.drop_runner_env(os.environ.get("INPUTS_USER_ENV_DIR", ""))   # 入力を読み終えた。hooks に Archon の変数を継がせない
+    _, issues = entryshape.named({"request": request_path(os.environ.get("INPUTS_REQUEST"))}, repo)
+    record = item_record(os.environ.get("INPUTS_ITEMS"))
+    ports.drop_runner_env(os.environ.get("INPUTS_USER_ENV_DIR", ""))   # 入力を読み終えた。hooks に Archon の変数を継がせない
     env, mark = tree_run.split_mark(tree_run.outside_env(os.environ))
 
     def hook_env() -> dict:
@@ -171,20 +189,10 @@ def commit() -> dict:
         return stopped(f"{error}（積まない・push しない）")
     except runbranch.GitFailed as error:
         return stopped(f"commit が通らなかった（対象の commit の hooks が落ちたか）: {error}（積まない・push しない）")
-    why = seal.hash_refusal(sealed, seal.digest(green_cert.diff_between(repo, base_rev, head, skip=boundary.SKIP)))
+    why = seal.hash_refusal(sealed, seal.digest(green_cert.diff_between(repo, base_rev, head, skip=SKIP)))
     if why:
         return stopped(f"積んだ commit {head} の差分が封じた差分と違う: {why}（push しない）")
     return {"go": True, "head": head, "branch": name, "base": base, "repo": target, "commits": commits, "split": split, "reason": ""}
 
 
-def main() -> None:
-    if boundary is None:
-        reason = f"{type(unread).__name__}: {unread}"
-        print(reason, file=sys.stderr)
-        print(json.dumps(stopped(reason), ensure_ascii=False, allow_nan=False), flush=True)
-    else:
-        boundary.run(commit, stopped)
-
-
-if __name__ == "__main__":
-    main()
+ports.run(commit, stopped)
