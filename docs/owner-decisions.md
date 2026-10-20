@@ -477,7 +477,7 @@
 
 - 持ち主の言葉: 「次に回すやつはどうぞ！」（2026-10-20。工場窓口が #795 に推した 3 つの案への答え）
 - 推した案: 1. 認証が無い時の案内 `HOWTO` と README に API キーの道（`ANTHROPIC_API_KEY`。ゲートウェイなら `ANTHROPIC_BASE_URL` も環境に置いて起動する。ゲートウェイの値は子に運ばない）を書く。2. 利用者の `settings.json` に `apiKeyHelper` が在れば、殻が利用者の HOME で起こしてキーを得て、`ANTHROPIC_API_KEY` として子に渡す（値は表示も保存もしない）。3. `apiKeyHelper` が在る時は Claude Code 自身のログインへ落ちず、失敗したら黙って別の段へ移らず、`apiKeyHelper` を名指して止まる。
-- 決め: 上の 1〜3 のとおり。`apiKeyHelper` を子の設定に写す道は採らない（柵 `bin/_lib/toolset.py` の許す鍵を増やさない）。段の順は、名指し → 受け継いだ認証 → `CLAUDE_KEYCHAIN_SERVICE` → `apiKeyHelper` → Claude Code 自身のログイン（Claude Code 自身の優先順でも環境の `ANTHROPIC_API_KEY` は `apiKeyHelper` より上）。読む設定は利用者の `<CLAUDE_CONFIG_DIR>/settings.json`（無ければ `<HOME>/.claude`）だけで、読めない・`apiKeyHelper` が字でない設定は「無い」と同じに扱う。
+- 決め: 上の 1〜3 のとおり。`apiKeyHelper` を子の設定に写す道は採らない（柵 `bin/_lib/toolset.py` の許す鍵を増やさない）。段の順は、名指し → 受け継いだ認証 → `CLAUDE_KEYCHAIN_SERVICE` → `apiKeyHelper` → Claude Code 自身のログイン（Claude Code 自身の優先順でも環境の `ANTHROPIC_API_KEY` は `apiKeyHelper` より上）。読む設定は利用者の `<CLAUDE_CONFIG_DIR>/settings.json`（無ければ `<HOME>/.claude`）だけで、読めない・`apiKeyHelper` が字でない設定は「無い」と同じに扱う。コマンドの待ちに期限は付けない（`no-timeouts`。止めるのは起動した人）。
 - 訳: `others-may-use` と E14。`apiKeyHelper` だけで Claude Code を使う人は子に認証が届かず止まり、案内も OAuth の道しか言わなかった。`apiKeyHelper` の設定から起動しても既定の `~/.claude` にサブスクのログインが在れば黙ってそのアカウントで子を起こす形は、`claude_auth.py` の「利用者が選んだ経路を黙って別の口に差し替えない」に反した。
 - 当て方: `bin/_lib/auth_launch.py`（`api_key_helper`・`resolve`）と `tests/bin/test_auth_launch.py`・README の環境変数の項。
 

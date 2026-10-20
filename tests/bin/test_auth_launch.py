@@ -15,6 +15,7 @@
 - 認証が無い時の案内は API キーの道（ANTHROPIC_API_KEY・ゲートウェイの値は子に運ばないこと）も言う
 security は偽の runner に差し替え、本物の keychain には触らない。
 """
+import io
 import json
 import os
 import pathlib
@@ -147,11 +148,10 @@ class ApiKeyHelper(unittest.TestCase):
         self.assertEqual(h.calls, [])
 
     def test_helper_failure_stops_naming_it_without_trying_other_stages(self):
-        """終了コードが 0 でない・空の出力・起こせない・時間切れは、ログインや keychain に移らず apiKeyHelper を名指して止まる"""
+        """終了コードが 0 でない・空の出力・起こせない時は、ログインや keychain に移らず apiKeyHelper を名指して止まる"""
         write_credentials(self.tmp / ".claude")
         sec = keychain({"Claude Code-credentials": TOKEN, "svc": TOKEN})
-        cases = (helper(returncode=1), helper(stdout="  \n"), helper(error=FileNotFoundError()),
-                 helper(error=subprocess.TimeoutExpired("x", 1)))
+        cases = (helper(returncode=1), helper(stdout="  \n"), helper(error=FileNotFoundError()))
         for h in cases:
             for platform in ("darwin", "linux"):
                 with self.subTest(platform=platform):
@@ -177,9 +177,12 @@ class ApiKeyHelper(unittest.TestCase):
                 self.assertEqual(h.calls, [])
 
     def test_default_runner_uses_the_users_home_and_config_dir(self):
-        with mock.patch.object(auth_launch.subprocess, "run") as run:
+        err = io.StringIO()
+        with mock.patch.object(auth_launch.subprocess, "run") as run, mock.patch.object(sys, "stderr", err):
             auth_launch.user_helper_runner("cmd", "/users-home", "/users-home/.claude")
         self.assertEqual(run.call_args.args[0], "cmd")
+        self.assertNotIn("timeout", run.call_args.kwargs)   # 期限を足さない（持ち主の決め no-timeouts）。止めるのは起動した人
+        self.assertIn("apiKeyHelper", err.getvalue())       # 待っているコマンドが分かる 1 行（キーの値は出さない）
         self.assertTrue(run.call_args.kwargs["shell"])
         env = run.call_args.kwargs["env"]
         self.assertEqual((env["HOME"], env["CLAUDE_CONFIG_DIR"]), ("/users-home", "/users-home/.claude"))
@@ -207,8 +210,8 @@ class ApiKeyHelper(unittest.TestCase):
                             "--user-home", str(tmp), "--", sys.executable, "-c", "print('started')"],
                            env=env, capture_output=True, text=True, encoding="utf-8", timeout=60)
         self.assertEqual((r.returncode, r.stdout), (2, ""))
-        self.assertTrue(r.stderr.startswith("bin/start: " + auth_launch.HOWTO), r.stderr)
-        self.assertIn("apiKeyHelper", r.stderr)
+        self.assertTrue(r.stderr.splitlines()[-1].startswith("bin/start: " + auth_launch.HOWTO), r.stderr)
+        self.assertIn("apiKeyHelper（", r.stderr.splitlines()[-1])
 
 
 class ResolveOrder(unittest.TestCase):

@@ -50,7 +50,6 @@ HOWTO = ("認証が無い。API キーで使うなら ANTHROPIC_API_KEY（ゲー
 # 名指しで決めた時に子から外す名。Claude Code は CLAUDE_CODE_OAUTH_TOKEN より上の資格を先に使う
 # （code.claude.com/docs/en/authentication の Authentication precedence）。claude_auth の INHERITED に無い FOUNDRY の旗もここで外す
 ABOVE_TOKEN = tuple(claude_auth.INHERITED) + ("CLAUDE_CODE_USE_FOUNDRY",)
-HELPER_TIMEOUT = 30   # apiKeyHelper を待つ秒数
 CREDENTIALS = ".credentials.json"   # keychain の無い OS で Claude Code が保存済みのログインを置くファイル（CLAUDE_CONFIG_DIR の下）
 
 
@@ -115,8 +114,10 @@ def api_key_helper(config_dir):
 
 
 def user_helper_runner(command, home, config):
-    """apiKeyHelper を利用者の HOME・設定の置き場で起こす（Claude Code と同じくシェルで）"""
-    return subprocess.run(command, shell=True, capture_output=True, encoding="utf-8", timeout=HELPER_TIMEOUT,
+    """apiKeyHelper を利用者の HOME・設定の置き場で起こす（Claude Code と同じくシェルで）。終わるまで待つ（期限を足さない。
+    止めるのは起動した人。持ち主の決め no-timeouts）。何を待っているかが分かる 1 行を標準エラーに出す（キーの値は出さない）"""
+    print("auth_launch.py: apiKeyHelper のコマンドを起こしてキーを得る（終わるまで待つ）", file=sys.stderr)
+    return subprocess.run(command, shell=True, capture_output=True, encoding="utf-8",
                           env={**os.environ, "HOME": home, "CLAUDE_CONFIG_DIR": config})
 
 
@@ -124,7 +125,7 @@ def run_helper(command, home, config, helper_runner):
     """(キー, 失敗の理由)。値と helper の標準エラーは理由に入れない"""
     try:
         p = helper_runner(command, home, config)
-    except Exception as e:   # 起こせない・時間切れ
+    except Exception as e:   # 起こせない
         return None, "起こせない(%s)" % type(e).__name__
     if p.returncode != 0:
         return None, "終了コード %s" % p.returncode
