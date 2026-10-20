@@ -514,6 +514,20 @@ def pushed_said(gates: dict, taken=()) -> str:
     return "。".join(said)
 
 
+def script_fall_notes(values: dict) -> list:
+    """line の script が落ちて（止めの語 works:line-script）返した訳の行。今は fix-in が reason を運ぶ（壊れた始めの記録 start.json の名など）。
+    止めの語の行は語の意味しか言わないので、訳は problems に名指しで出す"""
+    import oneline
+    import stopby
+    out = []
+    for node, name in LINE_STOPS:
+        got = as_dict(values.get(name))
+        why = got.get("reason")
+        if got.get("stop_reason") == stopby.LINE_SCRIPT and isinstance(why, str) and why.strip():
+            out.append(f"{node} の script が落ちた（{oneline.one_line(why)}）")
+    return out
+
+
 def stop_words(stops: list) -> list:
     import stopby
     return [f"{s['at']} が {s['word']}（{stopby.REASONS.get(str(s['word']).removeprefix(stopby.HEAD), '語の意味の記録が無い')}）" for s in stops]
@@ -998,6 +1012,7 @@ def build(values: dict, record: dict | None, record_why: str = "", cwd=None) -> 
 
     got = part("修正の段の控え", lambda: beside(returns), stageslib.read([], stageslib.resolve), outcome=False)
     problems += part("申し出と裁定", lambda: conflict_rows(returns)[1], [])
+    problems += part("script の落ちた訳", lambda: script_fall_notes(values), [])
     fixed = as_dict(values.get("fixed"))
     measured = part("依頼の答えが当たった素材", lambda: _measured(returns, gates, record, unattended), set(), outcome=False)
     facts_ctx = {"eyes_due": fixed.get("eyes_due") if fixed else None, "beside": got, "measured": measured}

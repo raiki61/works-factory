@@ -81,7 +81,7 @@
 - `rejudge_verdict`: `採る`・`退ける`・`一部採る` か null（再審の道で受け付けた時だけ）。
 - `rejudge_exit`: pointer（`rejudge-exit.json`）か null（再審の道で intake が通った時は必ず在る）。
 - `rejudge_diff`: pointer（`rejudge-diff.json`）か null（再審を 1 回でも受け付けた時だけ）。
-- `downgrades`: この block が元の能力から下げている所の宣言 `[{what, versus}]`。いつも次の 1 行（今の `docs/nodes.json:194` の字。11 節の 9）: `{what: "再審は判定役の会話を継がず、保存した返答を読む新しい会話で回す", versus: "review-graph と今の works は判定役の会話を継ぐ"}`。
+- `downgrades`: この block が元の能力から下げている所の宣言 `[{what, versus}]`。いつも次の 1 行（今の `docs/nodes.json:194`（#765 で消した） の字。11 節の 9）: `{what: "再審は判定役の会話を継がず、保存した返答を読む新しい会話で回す", versus: "review-graph と今の works は判定役の会話を継ぐ"}`。
 - `report`: 報告に載せる日本語の行の配列（5.7）。
 
 今との違い: 今は入力を `judge/start.json`・`judge/request.json`・`judge/premises.json`・`judge/purpose.json`・`judge/material-<役>.json`・`judge/world-state.json`・`judge/depth-head.json`・`judge/prior-failures-in.json`・`judge/stop.json` から名で開き（`lib/judge_accept.py:2764-2872`）、再審は同じ run の `judge/` を名で開いて 1 回目の判定と材料を読んだ（`:3312-3345`）。出口は judge 全体の返す節 `verdict` の 26 欄に混ざっていた（`:3938-3995`）。止めの記録の確かめは無くし（README の 4.3）、前の段の落ち（前提・目的が無い）で止めるのは graph の `when:` が決める。
@@ -292,7 +292,7 @@ Return only JSON that matches the output schema.
 
 - 元の works の `blk-judge`（`works/blk-judge/`。`lib/judgebrief.py`・`judgetake.py`・`judgeverify.py`）: 工場はほぼ同じ受け付けを写した（#76 `0c4a6793`）。材料を engine の描き方で描いて Read させる形も同じ。この block は描き方を値の JSON と md に替える（11 節の 1）。
 - graphloops の `prompts/review-loop/p2.diagnose.md`（48 行）: 手順 1〜9 と台帳の段の元。工場の md はこれに、世界の解の行を先に使う（keep-essence の 12）・目的の外の所見を `out_of_purpose` で名指す・依頼の答えの結び・③ の名乗りの照らし（#478 など）を足した。この block はそのまま持つ。
-- graphloops の `p2.history.md`（周の 2 回目の判定）: 工場に無い。持ち主の決め `no-history-for-now`（`docs/nodes.json:23`）。この block も持たない。
+- graphloops の `p2.history.md`（周の 2 回目の判定）: 工場に無い。持ち主の決め `no-history-for-now`（`docs/nodes.json:23`（#765 で消した））。この block も持たない。
 - `_carried_r1_accounted`・`_fork_moves_forward`（前の周の R1 の削除候補・前の周の fork）: 工場は 1 run = 1 周（持ち主の決め carry）で、受け付けはいつも空の前の周を渡すので働かない。この block では写さない（11 節の 4）。
 - 両方より良く、残す物: class_query の件数を機械が数え直して置き換え、0 件は置き換えずに印を残す（keep-essence の 7）・class_query の例 hits と misses を同じ旗で問いに当てる・先行例の `world:<類の id>` が世界の解の行に在ることを照らす（keep-essence の 12）・目的の外の所見を材料の行に当てて次の run に運ぶ・③ を名乗る問いが記録された方針を名指すことを照らす。
 
@@ -414,7 +414,7 @@ Return only JSON that matches the output schema.
 - 移した: 材料のファイルの見出しと段（「回す側の異議」「今の周のユニット」「今の周の台帳」「自分の見立て」「1 回目の判定と材料（Read して読む）」「人の方針」）を md の節へ。値（異議・単位・台帳・見立て・パス・方針の本文）は差し込み口に。材料のファイル `brief.md` は書かない。
 - 変えた: 読ませるファイルの並び。今の「判定役の材料」（`diagnose-brief.md`）は、1 回目の判定役に渡した指示（`diagnose-prompt-<n>.md`。記録された方針・前の run の行・頭の深さの行・方針の本文を含む）と材料のファイル `diagnose-input.json` の 2 本になる。今の 9 本のうち、対象差分（`diff.patch`）・前提の制約（`premises.json`）・素材の状態（`materials.json`）は `diagnose-input.json` の中に在る（差分はそのパスを鍵 `diff_file` に、制約と素材は値）。1 回目の判定は place に写した `first-judgment.json`。在る物だけを並べる決まりは今のまま。
 - 消した: 「新しい会話で起きている（判定役の会話は継がず…）」（md:20）。輪は `fresh_context: false` で、拒まれた後の回は同じ会話の続きなので、この字は 2 回目からの回で誤りになる（1 波目を作った時の決め）。「1 回目の判定はこの会話で書いた物ではなく、ファイルから読め」に言い換えた。
-- 消した: 規律の 2 の「超えても決着しなければ、新しい別の judge が会話に参加して…判定する（`p2.rejudge_third`。常設ではなく、そのときだけ立つ）」。工場にも今の works にもその node は無い（`docs/nodes.json:57`）ので、役に無い仕組みを在ると言っていた。「往復の数を数えるのはこの役の外で、回数で返し方は変わらない」は残す。
+- 消した: 規律の 2 の「超えても決着しなければ、新しい別の judge が会話に参加して…判定する（`p2.rejudge_third`。常設ではなく、そのときだけ立つ）」。工場にも今の works にもその node は無い（`docs/nodes.json:57`（#765 で消した））ので、役に無い仕組みを在ると言っていた。「往復の数を数えるのはこの役の外で、回数で返し方は変わらない」は残す。
 - 消した: 節の名「P2-9」「P2 で書いたもの」・「writes が units を丸ごと置き換える」の `writes`（元の仕組みの名）。「返さなかった単位は消える」の事実は残す。
 - まとめた: 却下の段落（md:22-29）を `{shared:rejected}` に。拒まれた後の出し直しは、今のとおり出し直しの役（`rejudge-fix`。拒まれた欄だけ返す。4 節）が受ける。1 回目の役が再び起きる回（resume で輪が 1 周目から回り直した時）は、この段落を読んで丸ごと出し直す。
 - 移した: 役の定義（md:3-16）を `{shared:role-judge}` へ、人の方針の段（md:69-72）を `{shared:policy}` へ。言語の 1 行（md:1）を結びの 1 文へ。
@@ -424,7 +424,7 @@ Return only JSON that matches the output schema.
 
 - 元の works の `blk-rejudge`（`works/blk-rejudge/`）と graphloops の `p2.rejudge.md`: 判定役の会話の続き（`--resume`）で考え直させた。工場は会話を継がず、保存した判定を読む新しい会話にした（`docs/owner-decisions.md:412` の推しの決め。Archon は include をまたいで会話を継げない）。下げている所として出力 `downgrades` で宣言する（11 節の 9）。
 - 元の works の `rejudge-session.json`（判定役の会話が見つからない時の止め）: 工場は「1 回目の判定が無い」時の止めに読み替えた（語 `works:rejudge-session`）。この block も同じ。
-- graphloops の `p2.rejudge_third.md`（3 往復で決着しない時の第三の目）・`p2.rejudge2.md`・`p2.rejudge3.md`: 工場も今の works も持たない（再審は 1 周に 1 回。`docs/nodes.json:57`）。この block も持たない。
+- graphloops の `p2.rejudge_third.md`（3 往復で決着しない時の第三の目）・`p2.rejudge2.md`・`p2.rejudge3.md`: 工場も今の works も持たない（再審は 1 周に 1 回。`docs/nodes.json:57`（#765 で消した））。この block も持たない。
 - 両方より良く、残す物: 確かめた事実の長さを機械が照らす・単位の前後の差を異議の名指しで分けて報告に出す（争点でない単位の変化を見せる）・block から下げた単位を拒まずに名指す。
 
 ### 3.8 受け付け（`src/rejudge.py` の `take`。順は今の `rejudge_take`、`:3348-3388`）
@@ -708,7 +708,7 @@ bin/works-factory workflow run works-factory-diagnose --cwd <対象> \
 6. 判定役の却下の理由は、今の前の回の 1 件から、輪の却下の全部（古い順）にする。根拠: README の 13 章の決め（prep は place の控えから全部を読み、`with:` で `$LOOP_PREV` の理由を運ばない。resume で輪が 1 周目から回り直しても却下が抜けない）。再審の役は今も全部（`rejects.py`）なので同じ。
 7. 記録された方針の方針の文書の行は、port `policy` の写しのパスだけで組み、元の置き場（`alias`）を持たない。根拠: README の 4.2 は始めの記録を block に渡さず、port `policy` は independent-design・structure と同じく写しのパスだけを運ぶ。名指しは行の札が示す写しのパス `<写し>:<行>` で当たる（`policy._hit` は `name` か `alias` のどちらかで当てる）ので、受け付けの照らしは働く。元の置き場で名指した返答だけが当たらなくなる。行の札の元の置き場は plan と同じく `none` と書く（plan.md の 10 節の 5）。
 8. `request_origin` と `spec_origin` を port にする。根拠: 依頼のバッチの出どころの名は、今は始めの記録の依頼のファイルの名と入口の印から judge が組んだ（`request_batches`）。block は始めの記録を読まない（README の 4.2）ので、組む所は line（`request_origin`）と spec（`added_origin`。spec.md の 11 節の 4）。
-9. 出力 `downgrades` に「再審は判定役の会話を継がない」の 1 行を返す。根拠: この下げは今 `docs/nodes.json:194` にだけ宣言されていて、その表は組み込みで消える（README の 9.4）。下げている block が自分の行を出力の欄で返す決め（README の 9.2 の `downgrades.json` の行・parallel-pr.md の 10 節の 8）に合わせないと、宣言が黙って消える。報告の「下げている所」の数に 1 件が足されるかは report と line の設計書の決め（今の報告は `downgrades.json` の 2 件だけを数える）。
+9. 出力 `downgrades` に「再審は判定役の会話を継がない」の 1 行を返す。根拠: この下げは今 `docs/nodes.json:194`（#765 で消した） にだけ宣言されていて、その表は組み込みで消える（README の 9.4）。下げている block が自分の行を出力の欄で返す決め（README の 9.2 の `downgrades.json` の行・parallel-pr.md の 10 節の 8）に合わせないと、宣言が黙って消える。報告の「下げている所」の数に 1 件が足されるかは report と line の設計書の決め（今の報告は `downgrades.json` の 2 件だけを数える）。
 10. 止めの語 `works:judge`・`works:material`・`works:request` は今の `lib/judge_accept.py` と同じ名と同じ意味の文で `stopby.declare` する。根拠: 読み手（line・report・chain）が今の語で読む。`stopby.declare` は同じ名を別の意味で足すと落ちるので、字のまま写す。
 11. `ok` は `status == "ok"`（判定か再審を受け付けた）。開いた単位が無い判定も `ok: true`・`ready: false` で、止めではない（今の `test_no_open_units_is_not_a_stop`）。`stopped`（素材の観点が諦めた）は `ok: false`。根拠: world の 9.1 の 1 と同じく、単独で呼ぶ人が `outcome_field:` で落ちを知れる。
 12. `judgment` の pointer はいつも返し、受けた判定が無ければ空の形を書いて指す。根拠: 今の `verdict` の `_fill` と同じ。読み手（verify・line・report）が null の枝を持たずに済む。ほかの任意の pointer は null（world の 9.1 の 2 と同じ。Archon は pointer の先が空でないかを照らす）。
