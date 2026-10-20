@@ -7,7 +7,7 @@
 - 2 つ以上の block が読む出力の行の形（欄の名・語・行を読む述語）は、作り手の出力ごとに 1 モジュールに置く（手本は `worldmark`。`docs/design/README.md` の 4.1）。
 - Archon の pointer・`INPUTS_`・place を解く所は `workflows/.shared/` の口（`ports.py` など）に置き、ここは解いた後のパスや値を受ける。
 - AI に届く決まった文を Python の定数に持たない（憲法の 2）。役に届く文は block の md か `workflows/.shared/prompts/` の断片に置く。
-  機械: `tests/layers/test_no_prompt_text_in_python.py`（指示を組む関数が文の定数を読まない・定数に英語の文を持たない。block の `src/`・`scripts/` も同じ）。
+  機械: `tests/layers/test_no_prompt_text_in_python.py`。照らす範囲は `lib/*.py` と block の `src/`・`scripts/` の 1 段目。`lib/` に効くのは「直下の定数に英語の文を持たない」だけで、「指示を組む関数が文の定数を読まない」は block の `src/`・`scripts/` に効く（`lib/` は指示を組まない）。
 - 短い部品の例: `jsonfile`（JSON の読み書き）・`oneline`（1 行に畳む）・`rolekit`（受け付けの回の数え・却下の控え・諦め）・`worldmark`（世界の解の行の欄と語）・`carry`（依頼の容器の読み）・`webget`（網の口）・`materialkit`（素材の観点の族の共通の部品）・`eyekit`（独立の目の族 r1〜r4 の共通の部品）・`runlog`（run の記録の読み）・`judgmark`（判定の出力の行の形）。
 
 ## E3 lib/ は Archon を知らない

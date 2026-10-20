@@ -438,7 +438,7 @@ Your previous answer was rejected by the machine's check. In this same conversat
 The reason the check rejected it (verbatim):
 
 ~~~text
-修正案の項目の works の欄 structure に欠けか誤りが在る（構造の目が汚れると見た単位を持つ項目は、…）。下の行を直した案を丸ごと出し直せ:
+修正案の項目の works の欄 structure に欠けか誤りが在る（構造の目が汚れると見た単位を持つ項目は、…）。拒んだ行:
   - plan[0].structure[0].row（1）: 構造の目が汚れると見た行の単位でない（在るのは [<単位の key 2 つ>]）
   - …
 ~~~

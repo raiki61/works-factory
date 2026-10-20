@@ -2,7 +2,7 @@
 （docs/design/independent-design.md の 2.3 の 3）。見出しと頼みの文は共通の断片 prompts/design-premises.md が持つ。
 
 lib/design.py の human_answers・named_sections・repo_map を呼び、返りの本文から頭（見出しと頼みの文の 2 段落）を外す。lib の頭の字は読まず、
-頭の形（# が 3 つの見出し）だけで見分ける。頭が無い本文はそのまま使う。控え {given, withheld, seen} は design.premises と同じ組み方。
+頭の形（# が 3 つの見出し）だけで見分ける。頭が無い本文はそのまま使う。控え {given, withheld, seen} は、この module の material が組む。
 """
 from __future__ import annotations
 

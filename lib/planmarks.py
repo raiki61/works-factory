@@ -178,12 +178,12 @@ FIELD_SCHEMA = {
 
 STRUCTURE_REJECT = ("修正案の項目の works の欄 structure に欠けか誤りが在る（構造の目が汚れると見た単位を持つ項目は、その行ごとに"
                     "避け方に従うか外れの訳を書く。世界の解の答えの要る行は、行ごとにどれかの項目が定石に従うか外れの訳を"
-                    "書く）。下の行を直した案を丸ごと出し直せ:")
+                    "書く）。拒んだ行:")
 ANSWER_KEYS = ("row", "prescription", "world")   # 欄 structure の行が答える先の鍵（ちょうど 1 つ）
 REJECT = ("修正案の項目の works の欄（route・tests・rewrite_tests・refactor・allowed_paths・out_of_scope・depends_on）か、files の行"
-          "（symbols の name・消す行の why・replaced_by・home・considered）に欠けか誤りが在る。下の行を直した案を丸ごと出し直せ:")
+          "（symbols の name・消す行の why・replaced_by・home・considered）に欠けか誤りが在る。拒んだ行:")
 DEPENDS_REJECT = (f"修正案の項目の依存 {DEPENDS_KEY} に誤りが在る（unit は案の項目の unit_keys の字・自分の項目の単位でない・受ける物は"
-                  "その項目の files の <パス>::<名前> か <パス>・依存は循環しない）。下の行を直した案を丸ごと出し直せ:")
+                  "その項目の files の <パス>::<名前> か <パス>・依存は循環しない）。拒んだ行:")
 MACHINE_KEY = "removes_tests"   # 欄の行のうち split が足し、修正案の役が書かない・直せない欄。rewrite_tests の limit も split が
 # 足すが、役の書く id から決まり、その行への block は役が id を直して答えられるので、わざと入れない
 

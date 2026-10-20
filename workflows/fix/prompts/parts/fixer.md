@@ -133,7 +133,7 @@ The ripple list: {ripple_file} (the callers and tests of the names the approved 
 <!-- if libdocs -->
 ## Library documents (installed version and official)
 
-The machine fetched the documents of the libraries the files of this unit use from two sources and kept them whole as files on the shared board (the bodies are not pasted here; below, each library has a block with its name, version, source, and file paths): (1) the installed version: signatures and descriptions read, without importing, from the code of the version installed in the run's working tree or in the main working tree of the same repository (the installed code itself); (2) official: the library owner's documents (the README on PyPI or npm, llms.txt in the docs location; matched to the version where possible). When you need an API's signature, arguments, or usage, Read that library's file (you may decide whether to read it by whether you need it; search by the names the unit uses). For the libraries below under "no document from anywhere" and for what is missing here, fetch the official documents yourself with WebSearch and WebFetch.
+{shared:lib-docs}
 
 {libdocs_rows}
 <!-- end libdocs -->

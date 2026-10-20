@@ -514,6 +514,8 @@ class ReplanCase(unittest.TestCase):
         self.assertIn("一字も変えずに写す", why[1])
         self.assertIn(RULING_TEXT, prompts[0])
         self.assertIn(ITEM_HEAD.format(n=1), prompts[0])
+        for phrase in ("the brief wins", "could not be looked up", "did not decide a scope"):
+            self.assertIn(phrase, prompts[0], "直し直す回の指示に brief の読み方の句が無い")
         self.assertNotIn("人に聞く裁定の文", prompts[0], "fix_plan_item でない裁定の行は渡さない")
         self.assertIn(CONCEPT_HEAD, prompts[0])
         trace = [json.loads(x) for x in (rnd / files.TRACE).read_text(encoding="utf-8").splitlines()]

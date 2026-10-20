@@ -419,7 +419,7 @@ fix-ruled の 2 周目は、頭の 1 の後に 3（`<place>/fix-reply.json`）�
 2. `<!-- if ripple -->` 波及の一覧の 1 文と `{ripple_file}`（今の `RIPPLE_READ`）。
 3. `# Scope consultation (from the fixing stage)` と今の `consult.QUESTION` の決まり（決めるのはあなた・out_of_scope の考え直し方・ほかの項目の out_of_scope を allow した時の効き方）と `{count}`（頼みの件数）。
 4. `<!-- if plain -->` 頼みの答え方の段落（今の `ASK_TEXT` の「答え方」の部分。頼まれた物の中からだけ許す）。`<!-- if gate -->` 承認ノードの条件の頼みの答え方の段落（今の `ASK_GATE_TEXT` の「答え方」の部分。条件が求める物を自分で挙げてよい・関わらない条件なら deny）。
-5. `{asks}`（← `consult.question` の頼みごとの節 `## 相談 <n>: 項目 <m>（単位: …）` と行〔今の範囲・out_of_scope と当たった glob と外した理由・足したいパス・テストの範囲・新しいテスト・当たり・理由・承認ノードの条件の字〕。決まった文を除いた材料だけ）。
+5. `{asks}`（← `consult.asks_text` の頼みごとの節 `## 相談 <n>: 項目 <m>（単位: …）` と行〔今の範囲・out_of_scope と当たった glob と外した理由・足したいパス・テストの範囲・新しいテスト・当たり・理由・承認ノードの条件の字〕。決まった文を除いた材料だけ）。
 6. 答えの JSON の欄の決まり（今の `QUESTION` の後半: ask・decision・paths・tests・new_tests〔red と guard〕・spec・reason、期待を実装に合わせる許しを出すな）。
 7. 人に見せる欄の言語の 1 文と `{lang}`（`reason`・`spec`）。
 

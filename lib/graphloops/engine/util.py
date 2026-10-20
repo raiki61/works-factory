@@ -17,9 +17,6 @@ class Reject(Exception):
     """受け付けない（exit 1）。直して呼び直せる。"""
 
 
-FIX_REJECT_HEADING = "下の行を直した返答を丸ごと出し直せ:"
-
-
 def now():
     return datetime.datetime.now().astimezone().isoformat(timespec="seconds")
 

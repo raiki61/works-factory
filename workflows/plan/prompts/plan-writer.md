@@ -221,6 +221,8 @@ Could not build the ripple list ({prior_ripple_error}). Look up the callers and 
 Of the items of the approved plan, fix only the items pasted below. During the fix, an objection was raised that these items are wrong, and the ruling judged it fix_plan_item (an error in the plan item itself). Read the text of the objection and the text of the ruling, and return the items with the places that the ruling names fixed. plan has the same number of items in the same order as the items pasted below, and in each item copy the pasted unit_keys strings without changing a single character (do not write numbers). Write the unit of depends_on, too, in the same characters as the unit_keys of the earlier item's unit (not as a number). Do not return the other items. The items you fix go to a later review, and when you change a promised field (unit_keys, narrows, the removing side of files (rows whose op is delete or rename, and change=remove symbols), allowed_paths, out_of_scope, rewrite_tests, or the behavior of tests), they are shown to a person at an approval node.
 
 {replan_items}
+
+{shared:brief-reading}
 <!-- end replan -->
 
 <!-- if unread -->
