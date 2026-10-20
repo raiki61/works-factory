@@ -58,15 +58,15 @@ class RoleSkillsCase(unittest.TestCase):
             (pack / ".shared" / "prompts" / "look.md").write_text("pr-review-toolkit:silent-failure-hunter を起こせ\n", encoding="utf-8")
             block = pack / "blk"
             (block / "prompts" / "parts").mkdir(parents=True)
-            (block / "prompts" / "a.md").write_text("前置き\nsystematic-debugging を使え。code-reviewer.md は読むな\n", encoding="utf-8")
-            (block / "prompts" / "a-ok.md").write_text("systematic-debugging を使え\n", encoding="utf-8")
+            (block / "prompts" / "a.md").write_text("前置き\nreceiving-code-review を使え。code-reviewer.md は読むな\n", encoding="utf-8")
+            (block / "prompts" / "a-ok.md").write_text("receiving-code-review を使え\n", encoding="utf-8")
             (block / "prompts" / "b.md").write_text("{shared:look}\n", encoding="utf-8")
             (block / "prompts" / "c.md").write_text("{shared:look}\n", encoding="utf-8")
             (block / "prompts" / "d.md").write_text("頭\n{part:tail}\n", encoding="utf-8")
             (block / "prompts" / "parts" / "tail.md").write_text("/simplify を呼べ\n", encoding="utf-8")
             (block / "works-factory-blk.yaml").write_text(yaml.safe_dump({"nodes": [
                 {"id": "a", "prompt": "$p.output.prompt"},
-                {"id": "a-ok", "prompt": "$p.output.prompt", "skills": ["systematic-debugging"]},
+                {"id": "a-ok", "prompt": "$p.output.prompt", "skills": ["receiving-code-review"]},
                 {"id": "loop", "loop_group": {"nodes": [
                     {"id": "b", "prompt": "$p.output.prompt"},
                     {"id": "c", "prompt": "$p.output.prompt", "plugins": ["pr-review-toolkit@works-local"]},
@@ -74,7 +74,7 @@ class RoleSkillsCase(unittest.TestCase):
                 ]}},
             ]}), encoding="utf-8")
             self.assertEqual(undeclared(pack), {
-                ("blk/prompts/a.md", 2, "systematic-debugging"),
+                ("blk/prompts/a.md", 2, "receiving-code-review"),
                 ("blk/prompts/b.md", 1, PLUGIN),
                 ("blk/prompts/d.md", 2, "simplify"),
             })
