@@ -1,4 +1,4 @@
-"""修正の受け付けの試験（docs/design/fix.md の 8.1・8.2・10 節の 5 と 7・14.2 の test_fix_accept.py）。blocks/fix/src の写し
+"""修正の受け付けの試験（docs/design/fix.md の 8.1・8.2・10 節の 5 と 7・14.2 の test_fix_accept.py）。workflows/fix/src の写し
 （board・facts・gates・scope・unitrows・parking・rules）を kit.load で読み、script は kit.Run で子のプロセスで回す。
 
 写した元と、この中の 3 つの部分:
@@ -23,6 +23,7 @@
    修正役の指示は fix_prep・fix_ruled_prep の返りの prompt の字（prompts/parts/fixer.md）。拒否の理由は指示に貼られる
    （{shared:rejected}）。裁定の輪（rule_prep・rule_accept）は test_ruling.py、consult_check の答えの役の起こしは test_consult.py
 """
+import ast
 import contextlib
 import hashlib
 import importlib
@@ -2091,7 +2092,7 @@ _S_MODS = ("board", "facts", "gates", "scope", "unitrows", "parking", "rules", "
 
 
 def _s_load() -> types.SimpleNamespace:
-    """blocks/fix の src を読み直し、試験が使うモジュールを 1 つの名前空間で返す（ほかの block の試験が src を読み替えても、
+    """workflows/fix の src を読み直し、試験が使うモジュールを 1 つの名前空間で返す（ほかの block の試験が src を読み替えても、
     同じ試験の中では 1 組の写しを使う）"""
     kit.load("fix", "board")
     return types.SimpleNamespace(**{n: importlib.import_module(f"src.{n}") for n in _S_MODS})
@@ -2546,8 +2547,7 @@ class FixgatesSeamCase(SeamTemp):
     def test_broken_fields_are_a_value_error(self):
         """凍結の印と食い違う欄の控えは、盤面を止める BoardGap でなく ValueError（止めるのは呼び手）"""
         fixgates = self.m.gates
-        import marks
-        marks.path_of("plan", self.place).write_text("{}", encoding="utf-8")
+        self.b.marks_path(self.place).write_text("{}", encoding="utf-8")
         with self.assertRaises(ValueError):
             fixgates.problems(self.place, self.repo, self.rev, "", 1)
         self.assertFalse((self.place / fixgates.LEDGER).exists())
@@ -3231,6 +3231,231 @@ class OverflowTraceSeamCase(SeamTemp):
         self.assertEqual((row["agreed"], row["gate_tests"]), ([1], []))
 
 
+class OverflowRowCase(SeamTemp):
+    """はみ出しの trace の行の鍵の正本は impact の行の形。fix の board.overflow_trace は値を選び、lib の fixboard.overflow_trace に名で
+    渡す（元 lib/tests/test_impact.py の OverflowRowCase。lib の書き手は値を受ける形になった）"""
+
+    def written_row(self):
+        import conflict
+        import fixboard
+        consult, gates = self.m.consult, self.m.gates
+        rows = [{"origin": consult.ORIGIN_ACCEPT, "id": "合意"},
+                {"origin": consult.ORIGIN_GATE, "granted_new_tests": [{"id": "関所の試験", "red_kind": "assertion"}]}]
+        written = []
+        with mock.patch.object(conflict, "agreed", return_value=rows), \
+                mock.patch.object(gates, "present", return_value=True), \
+                mock.patch.object(gates, "guards", return_value=[{"id": "守り", "base": "passed"}]), \
+                mock.patch.object(fixboard, "trace", lambda place, op, **row: written.append(row)):
+            self.b.overflow_trace("盤面", {"reverted": ["戻した"]}, "木", pass_="first", attempt=1)
+        (row,) = written
+        return row
+
+    def test_values_bind_to_keys_by_name(self):
+        import impact
+        want = {"agreed": ["合意"], "reverted": ["戻した"], "guards": ["守り: 守りのテスト（base で passed）"],
+                "gate_tests": ["関所の試験（assertion）"]}
+        self.assertEqual({k: self.written_row()[k] for k in impact.ACCEPT_OVERFLOW_KEYS}, want)
+        with mock.patch.object(impact, "ACCEPT_OVERFLOW_KEYS", tuple(reversed(impact.ACCEPT_OVERFLOW_KEYS))):
+            self.assertEqual({k: self.written_row()[k] for k in want}, want, "鍵の並びの順は値の行き先を変えない")
+
+
+class WritesLogNameCase(SeamTemp):
+    """書き込みの記録の名の持ち主は writelog.LOG の 1 か所。fix の受け付けの既定の置き場はその名を引き、src にほかの写しの字が無い
+    （元 lib/tests/test_writes.py の WritesLogNameCase。block の src の字を照らす）"""
+
+    def test_default_record_name_is_writelog_log(self):
+        import writelog
+        import writes
+        seen = []
+
+        def check(reply, repo, paths, log, **kw):
+            seen.append(pathlib.Path(log))
+            return {"problems": ["止める"], "reply": reply}
+
+        with mock.patch.object(writelog, "LOG", "renamed.jsonl"), mock.patch.object(writes, "check", check), \
+                mock.patch.object(writes, "changed", return_value=[]):
+            self.m.facts.check_writes({}, self.place, "HEAD", self.place, "")
+        self.assertEqual([p.name for p in seen], ["renamed.jsonl"])
+
+    def test_no_second_copy_of_the_record_name_in_src(self):
+        copies = []
+        for path in sorted((kit.BLOCKS / "fix" / "src").glob("*.py")):
+            tree = ast.parse(path.read_text(encoding="utf-8"))
+            docs = {id(n.body[0].value) for n in ast.walk(tree)
+                    if isinstance(n, (ast.Module, ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)) and n.body
+                    and isinstance(n.body[0], ast.Expr) and isinstance(n.body[0].value, ast.Constant)}
+            copies += [f"{path.name}:{n.lineno} {n.value!r}" for n in ast.walk(tree)
+                       if isinstance(n, ast.Constant) and isinstance(n.value, str) and id(n) not in docs
+                       and "writes" in n.value and n.value.endswith(".jsonl")]
+        self.assertEqual(copies, [], "書き込みの記録の名は writelog.LOG を引く")
+
+
+class ParkingSkipCase(SeamTemp):
+    """parking の除くパスの頭（引数 skip。既定 () では除かない）。元 lib/tests/test_fix_seams.py の SmallGapsSeamCase"""
+
+    SKIP = ("vendored/",)
+
+    def test_parking_ours_skips_only_the_given_heads(self):
+        parking = self.m.parking
+        self.assertTrue(parking._ours("vendored/x.py"), "既定の () では除かない")
+        self.assertFalse(parking._ours("vendored/x.py", self.SKIP))
+        self.assertFalse(parking._ours("vendored", self.SKIP), "頭のフォルダそのものも除く")
+        self.assertTrue(parking._ours("vendoredx/x.py", self.SKIP), "頭の字で始まるだけの別のフォルダは除かない")
+        self.assertTrue(parking._ours("stats.py", self.SKIP))
+
+    def test_parking_footprint_and_settle_pass_the_skip(self):
+        parking = self.m.parking
+        rows = [{"unit_key": "a", "files": ["stats.py", "vendored/copy.py"]}]
+        self.assertEqual(parking.footprint(rows, [], "/home/x/repo"), {"a": {"stats.py", "vendored/copy.py"}})
+        feet = parking.footprint(rows, [], "/home/x/repo", self.SKIP)
+        self.assertEqual(feet, {"a": {"stats.py"}})
+        both = {"a": {"stats.py", "vendored/copy.py"}}
+        args = dict(keys={"a"}, feet=both, reached={}, owed={"a"}, out_of_duty=set(), changed=set())
+        self.assertEqual(parking.settle(["a: 落ちた"], **args).files, {"stats.py", "vendored/copy.py"})
+        got = parking.settle(["a: 落ちた"], **args, skip=self.SKIP)
+        self.assertEqual((set(got.park), got.files), ({"a"}, {"stats.py"}))
+        owed = parking.park_owed(["写しの行"], feet=both, owed={"a"}, out_of_duty=set(), skip=self.SKIP)
+        self.assertEqual((set(owed.park), owed.files), ({"a"}, {"stats.py"}))
+
+
+class SinceCase(SeamTemp):
+    """修正の段の受け付けと事前の確かめの since: 見る変更は since の木からの物だけで、その前の変更を範囲と出どころで照らさない。since の後に
+    自分の out_of_scope を触れば今どおり拒む（元 lib/tests/test_fix_seams.py の LaneChecksSeamCase。元 works/tests/test_fix_lanes.py の
+    TestItemStartPoint の test_second_item_is_checked_from_its_own_start・test_second_item_touching_its_own_out_of_scope_is_still_rejected）"""
+
+    def record(self, log, path):
+        import writes
+        real = os.path.realpath(path)
+        with open(log, "a", encoding="utf-8") as f:
+            f.write(json.dumps({"tool_name": "Write", "path": real, "file_sha": writes._sha(real)}) + "\n")
+
+    def since_case(self):
+        """1 つ目の項目の直し（test_stats.py に行を足し、新しい NOTES.md を作る。記録は無い）の後の木を since に取り、
+        2 つ目の項目の直し（stats.py）を足す。2 つ目の項目は NOTES.md と test_stats.py を out_of_scope に持つ"""
+        import leftovers
+        tests = self.repo / "test_stats.py"
+        tests.write_text(tests.read_text(encoding="utf-8") + "# 項目 1 の注記\n", encoding="utf-8")
+        (self.repo / "NOTES.md").write_text("項目 1 の記録\n", encoding="utf-8")
+        since = leftovers.snapshot(self.repo)
+        stats = self.repo / "stats.py"
+        text = stats.read_text(encoding="utf-8")
+        for old, new in R_FIXED.items():
+            text = text.replace(old, new)
+        stats.write_text(text, encoding="utf-8")
+        item = {"item": 2, "unit_keys": [R_MEAN], "files": [], "route": "direct", "tests": [],
+                "rewrite_tests": [], "allowed_paths": ["stats.py"],
+                "out_of_scope": [{"glob": "NOTES.md", "why": "記録は項目 2 では触らない"},
+                                 {"glob": "test_stats.py", "why": "試験は項目 2 では触らない"}]}
+        reply = {"changes": [{"unit_key": R_MEAN, "files": ["stats.py"]}]}
+        return self.m.facts, since, item, reply
+
+    def test_plan_scope_looks_only_after_since(self):
+        fc, since, item, reply = self.since_case()
+        args = (reply, [R_MEAN], self.place, self.rev, self.repo, "", "first")
+        lines, _ = fc.check_plan_scope(*args, items=[item])
+        self.assertTrue(any("NOTES.md" in t for t in lines), "since が無ければ版からの変更を全部照らす")
+        lines, _ = fc.check_plan_scope(*args, since=since, items=[item])
+        self.assertEqual(lines, [], "since の前の変更は照らさない")
+        (self.repo / "NOTES.md").write_text("項目 2 が書き足した\n", encoding="utf-8")
+        lines, _ = fc.check_plan_scope(*args, since=since, items=[item])
+        self.assertTrue(any("NOTES.md" in t for t in lines), lines)
+        self.assertFalse(any("test_stats.py" in t for t in lines), "since の前に変えたファイルは照らさない")
+
+    def test_plan_scope_asks_about_every_change_after_since(self):
+        """since の後に版の中身へ戻した・since の前に作ったファイルを消した・読めない（UTF-8 でない）ファイルを書いた変更も、
+        版からの差分に残らなくても out_of_scope で照らす"""
+        fc, since, item, reply = self.since_case()
+        args = (reply, [R_MEAN], self.place, self.rev, self.repo, "", "first")
+        git(self.repo, "checkout", self.rev, "--", "test_stats.py")
+        (self.repo / "NOTES.md").unlink()
+        (self.repo / "NOTES.bin").write_bytes(b"\xff\xfe\x00bad")
+        item["out_of_scope"].append({"glob": "NOTES.bin", "why": "記録は項目 2 では触らない"})
+        lines, _ = fc.check_plan_scope(*args, since=since, items=[item])
+        for path in ("test_stats.py", "NOTES.md", "NOTES.bin"):
+            self.assertTrue(any(f"{path} は項目 2 の out_of_scope" in t for t in lines), (path, lines))
+
+    def test_plan_scope_skips_a_file_deleted_before_since(self):
+        """版に在り since の前に消えたファイルは、since の後に触っていなければ後の項目の out_of_scope で照らさない（run 97fd532f）"""
+        (self.repo / "LEGACY.md").write_text("古い記録\n", encoding="utf-8")
+        git(self.repo, "add", "LEGACY.md")
+        git(self.repo, "commit", "-q", "-m", "legacy")
+        self.rev = git(self.repo, "rev-parse", "HEAD")
+        (self.repo / "LEGACY.md").unlink()
+        fc, since, item, reply = self.since_case()
+        item["out_of_scope"].append({"glob": "LEGACY.md", "why": "記録は項目 2 では触らない"})
+        lines, _ = fc.check_plan_scope(reply, [R_MEAN], self.place, self.rev, self.repo, "", "first", since=since, items=[item])
+        self.assertEqual(lines, [])
+
+    def test_plan_scope_skips_untouched_binary_and_crlf_files_written_before_since(self):
+        """since の前に書いた UTF-8 でない・CRLF のファイルも、since の後に触っていなければ後の項目の out_of_scope で照らさない
+        （触ったかは git の比べで決める。読み方の違う 2 つの文字列を比べない）"""
+        (self.repo / "IMG.bin").write_bytes(b"\xff\xfe\x00img")
+        (self.repo / "WIN.md").write_bytes(b"line one\r\nline two\r\n")
+        fc, since, item, reply = self.since_case()
+        item["out_of_scope"] += [{"glob": "IMG.bin", "why": "項目 2 では触らない"}, {"glob": "WIN.md", "why": "項目 2 では触らない"}]
+        lines, _ = fc.check_plan_scope(reply, [R_MEAN], self.place, self.rev, self.repo, "", "first", since=since, items=[item])
+        self.assertEqual(lines, [])
+
+    def test_plan_scope_skips_a_file_only_the_git_filter_shows_changed(self):
+        """since の前に書いた ident のファイルは、作業ツリーの中身（$Id: <sha> $）と since の木の中身（$Id$）が違っても git の
+        比べでは触っていない: 修正役が足した行（足す行の path の外の同名の定義）として照らさない（#333）"""
+        import leftovers
+        import writes
+        (self.repo / ".gitattributes").write_text("helper.py ident\n", encoding="utf-8")
+        (self.repo / "helper.py").write_text(f'def helper(): return "$Id: {"0" * 40} $"\n', encoding="utf-8")
+        stats = self.repo / "stats.py"
+        since = leftovers.snapshot(self.repo)
+        stats.write_text(stats.read_text(encoding="utf-8") + "\n\ndef helper():\n    return 1\n", encoding="utf-8")
+        item = {"item": 1, "unit_keys": [R_MEAN], "route": "direct", "tests": [], "rewrite_tests": [],
+                "files": [{"path": "stats.py", "op": "modify", "responsibility": "平均の助け手",
+                           "home": {"concept": "平均の助け手", "why": "平均の式の置き場"},
+                           "considered": [{"path": "alt_home.py", "why_not": "同じ仕事の助け手が alt_home.py:3 に無かった"}],
+                           "symbols": [{"name": "helper", "change": "add"}]}],
+                "allowed_paths": ["stats.py"], "out_of_scope": []}
+        reply = {"changes": [{"unit_key": R_MEAN, "files": ["stats.py"]}]}
+        self.assertEqual(writes.changed_from(self.repo, since), ["stats.py"], "git の比べでは helper.py を触っていない")
+        lines, _ = self.m.facts.check_plan_scope(reply, [R_MEAN], self.place, self.rev, self.repo, "", "first", since=since,
+                                                 items=[item])
+        self.assertEqual(lines, [])
+
+    def test_plan_scope_counts_what_the_loop_fixed_before_since(self):
+        """TDD の輪が直し終えた単位（stats.py の直しと files の add・tests の test_mean_of_two）の後の木を since（段の頭）に取り、修正役が
+        何も変えずにその単位の行だけを返せば、欠けにしない（修正役の指示書は輪の単位を直し直させない。較正 clamp-above）"""
+        import leftovers
+        tests = self.repo / "test_stats.py"
+        tests.write_text(tests.read_text(encoding="utf-8").replace("\n\nif __name__", _l_NEW_TEST + "\n\nif __name__"),
+                         encoding="utf-8")
+        stats = self.repo / "stats.py"
+        text = stats.read_text(encoding="utf-8")
+        for old, new in R_FIXED.items():
+            text = text.replace(old, new)
+        stats.write_text(text, encoding="utf-8")
+        since = leftovers.snapshot(self.repo)
+        item = {"item": 1, "unit_keys": [R_MEAN], "route": "tdd", "tests": [{"id": _l_MEAN_ID}], "rewrite_tests": [],
+                "files": [{"path": "test_stats.py", "op": "modify", "responsibility": "平均の試験",
+                           "home": {"concept": "平均の試験", "why": "平均の試験の置き場"},
+                           "considered": [{"path": "alt_home.py", "why_not": "同じ仕事の助け手が alt_home.py:3 に無かった"}],
+                           "symbols": [{"name": "TestStats::test_mean_of_two", "change": "add"}]}],
+                "allowed_paths": ["stats.py", "test_stats.py"], "out_of_scope": []}
+        reply = {"changes": [{"unit_key": R_MEAN, "files": ["stats.py", "test_stats.py"]}]}
+        args = (reply, [R_MEAN], self.place, self.rev, self.repo, "", "first")
+        lines, _ = self.m.facts.check_plan_scope(*args, since=since, items=[item])
+        self.assertEqual(lines, [])
+
+    def test_writes_look_only_after_since(self):
+        import writelog
+        fc, since, _, reply = self.since_case()
+        log = self.place / writelog.LOG
+        log.write_text("", encoding="utf-8")
+        got = fc.check_writes(reply, self.place, self.rev, self.repo, "")
+        self.assertTrue(any("NOTES.md" in p for p in got["problems"]), got)
+        got = fc.check_writes(reply, self.place, self.rev, self.repo, "", since=since)
+        self.assertTrue(any("stats.py" in p for p in got["problems"]), got)
+        self.assertFalse(any("NOTES.md" in p or "test_stats.py" in p for p in got["problems"]), got)
+        self.record(log, self.repo / "stats.py")
+        self.assertEqual(fc.check_writes(reply, self.place, self.rev, self.repo, "", since=since)["problems"], [])
+
+
 class GateItemsSeamCase(unittest.TestCase):
     """直す前の人の関所の答え {decision, text} が、範囲の相談の人の条件（consult.gate_notes）に届く"""
 
@@ -3673,9 +3898,9 @@ class FixLoopScriptsCase(_XPlace):
 
     def test_accept_traces_tests_left_to_ci_and_final_stage(self):
         """F013: 受け付けの回ごとに accept-trace.json に impact.ACCEPT_TRACE_OP の行（ci_left・final_left・final_far）を積み、
-        読み手（fixbeside）は組と段ごとに最後の回＝受けた回の行を読む。名は輪の状態から引く"""
-        import fixbeside
+        読み手は組と段ごとに最後の回＝受けた回の行を読む（fix の finish._accepted_tests）。名は輪の状態から引く"""
         import impact
+        finish = importlib.import_module("src.finish")
         board = self.board
         self._x_fix_mean()
         self._x_accept("fix_accept", {"changes": []}, 1)
@@ -3683,7 +3908,7 @@ class FixLoopScriptsCase(_XPlace):
         self.assertEqual((out["ok"], out["done"]), (True, True), out)
         rows = [r for r in board.accept_trace_rows(self.place) if r["op"] == impact.ACCEPT_TRACE_OP]
         self.assertEqual([(r["pass"], r["attempt"]) for r in rows], [("first", 1), ("first", 2)])
-        self.assertEqual([(r["attempt"], r["ci_left"], r["final_left"]) for r in fixbeside._accepted_tests(rows)], [(2, [], [])])
+        self.assertEqual([(r["attempt"], r["ci_left"], r["final_left"]) for r in finish._accepted_tests(rows)], [(2, [], [])])
         state = self._x_json("tdd-state.json", {"ci_left": ["tests/test_slow.py"], "final_left": ["tests/test_far.py"],
                                                 "final_far": ["lib/far.py"]})
         board.tests_trace(self.place, str(state), "", pass_="ruled", attempt=1)
@@ -3693,8 +3918,7 @@ class FixLoopScriptsCase(_XPlace):
 
     def test_accept_traces_skipped_gates(self):
         """F041: 事後の関門の束が受け入れのテストの赤緑を確かめずに受けた回は、置き場の trace に gates.SKIPPED_OP の行と訳を積み
-        （義務の外 OUT_OF_DUTY は除く。board.gates_trace）、accept_trace_rows が運び、報告が「受け付け N 回・理由」で数える"""
-        import fixbeside
+        （義務の外 OUT_OF_DUTY は除く。board.gates_trace）、accept_trace_rows が運ぶ（報告の「受け付け N 回・理由」の数え方は report の試験）"""
         board, gates = self.board, self.gates
         self._x_fix_mean()
         out = self._x_accept("fix_accept", {"changes": [_x_change(_X_MEAN, ["stats.py"])]}, 1)
@@ -3706,8 +3930,6 @@ class FixLoopScriptsCase(_XPlace):
         board.gates_trace(self.place, pass_="first", attempt=2)
         rows = [r for r in board.accept_trace_rows(self.place) if r["op"] == gates.SKIPPED_OP]
         self.assertEqual([r["why"] for r in rows], [[gates.NO_SUITE]])
-        self.assertEqual(fixbeside.gates_lines({"trace": rows}),
-                         [f"事後の関門の束: 受け付け 1 回が受け入れのテストの赤緑を確かめずに通した（理由: {gates.NO_SUITE}）"])
 
     def test_undeclared_change_is_rejected(self):
         """書き込みの記録が無い run は、段の頭の木からの変更が changes[].files にも bash_writes にも無ければ拒む（keep-essence の 5）"""
@@ -4071,26 +4293,19 @@ class HandoffCase(_XPlace):
     """修正役が人に回した物（breaks.accepted）が報告の人が決めることに届く"""
 
     def test_common_rules_breaks_promise_reaches_the_decisions(self):
-        """部分 D2 やる事 1（S03）: 修正役の指示の共通の決まり（blocks/.shared/prompts/writer-rules.md）の「人に回す物は
+        """部分 D2 やる事 1（S03）: 修正役の指示の共通の決まり（workflows/.shared/prompts/writer-rules.md）の「人に回す物は
         breaks.accepted に書け……機械が人に見せる一覧（報告の「人が決めること」）に載せる」が本当になる: 組の子の返答の
         breaks.accepted が組の結果の handoffs と fix の出力の handoffs を通って報告の人が決めることのセクションに 1 件 1 行で出る"""
-        import report
-        import runreport
         board = self.board
         text = self._x_ok("fix_prep")["prompt"]
         self.assertIn("**Write what goes to a person in `breaks.accepted`.**", text)
         self.assertIn("The machine puts them in the list shown to the person (the report's \"what the person decides\")", text)
-        place = self.tmp / "handoff"
-        place.mkdir()
-        (place / "fix.diff").write_text("x", encoding="utf-8")
         reply = {"changes": [{"unit_key": "u1", "breaks": {"accepted": "ADR-3 と食い違う既定を残す（docs/adr/3.md:4）"}}]}
         child = board.group_result({"group_id": "g1", "unit_ids": ["u1"]}, start_tree="t", end_tree="t", tdd=None, reply=reply)
-        fix = {"done": True, "units": [{"unit_id": "u1", "status": "fixed", "reason": ""}], "conflicts": None,
-               "diff": str(place / "fix.diff"), "delta_review": {"rounds": 1, "pass": True},
-               "handoffs": board.final_lines([child], "handoffs"), "mismatched": []}
-        got = runreport.build({"fix": fix}, {}, {}, None, "fixed", "", out_dir=self.tmp / "report")
-        body = pathlib.Path(got["report"]).read_text(encoding="utf-8").split(f"{report.DECISIONS_HEADING}\n\n", 1)[1]
-        self.assertIn(f"- {board.HANDOFF_HEAD}: 1 件\n  - u1: 壊すと分かって通した——ADR-3 と食い違う既定を残す（docs/adr/3.md:4）", body)
+        # 報告の「人が決めること」への組み立ては report の試験。ここは fix の出力の handoffs の欄まで: 1 件 1 行で単位と理由を持つ
+        (line,) = board.final_lines([child], "handoffs")
+        self.assertIn("u1", line)
+        self.assertIn("壊すと分かって通した——ADR-3 と食い違う既定を残す（docs/adr/3.md:4）", line)
 
 
 if __name__ == "__main__":

@@ -1,168 +1,95 @@
-# 筋書き pass: 目が全部起きる配線。独立設計は問いが立つと言い、前提の検算（premise-check）は飛ぶ。
-# 返す節の差し替えの ok が true なので、仕事の結末は succeeded
+# pass: 名指しの入力つきで、4 つの目と直した後の実測が通る
 fixture:
   expect: completed
-  inputs:
-    units: '[]'
-    judgment: 'null'
-    purpose: 'null'
-    world: 'null'
-    plan: 'null'
-    ripple: 'null'
-    depth: '[]'
-    design: 'null'
-    changed: '{}'
-    fix_units: '[]'
-    green_ok: 'true'
-    test_outcomes: '{"rows": [{"key": "tests.test_a::test_entry", "base": "failure", "final": "passed", "fail_message": "AssertionError"}], "unmeasured": ""}'
-    records: '[{"diff": {"type": "archon_artifact", "run_id": "dry-run", "path": "fix/fix/fix.diff"}, "tdd_unit": {"type": "archon_artifact", "run_id": "dry-run", "path": "fix/fix/tdd-unit.json"}}]'
   reached:
-  - structure-after
-  - prep
-  - r1-comments
-  - r1-comments-save
-  - r1-minimality
-  - r2-compare
-  - r3-coherence
-  - r4-reject
-  - r4-scope
-  - r4-accept
-  - r1-minimality-verdict
-  - r2-compare-verdict
-  - r3-coherence-verdict
-  - r4-scope-verdict
-  - eyes-complete
-  - protected
+  - ins
+  - structure-after__finish
+  - after-in
+  - r1__finish
+  - r2__finish
+  - r3__finish
+  - r4__finish
   - verdict
-structure-after:
-  after: &id001
-    type: archon_artifact
-    run_id: dry-run
-    path: eyes/structure-after.json
+  inputs:
+    base: HEAD
+    purpose: Uploads survive a flaky link.
+    units: '[{"id": "u1", "summary": "retry the upload", "paths": ["app.py"]}]'
+    lang: English
+    green: 'true'
+exec-code: true
+structure-after__measure:
+  eye: false
+  reason: '筋書き: block の中は block の筋書きが見る'
+structure-after__finish:
+  ok: true
   status: ok
   reason: ''
-protected:
-  hits: []
-  lines: []
-  broken: ''
-prep:
-  run_eyes: true
-  one_eye: false
-  one_briefs: ''
-  compare_due: true
-  premise_due: false
-  purpose_text: 古い入口を消す
-  design_text: 入口を 1 つにする
-  design_reply: '{}'
-  diff_file: /tmp/diff.patch
-  diff_lines: 6
-  changed_files: a.py
-  scalars: 足した行 1・消した行 1
-  cwd: /tmp/repo
-  base_rev: 0123abc
-  review_md: /tmp/REVIEW.md
-  repo_review_md: （対象のリポジトリの根に REVIEW.md は無い）
-  policy_path: ''
-  recorded_policy: "## 記録された方針\n\n記録された方針: 無い"
-  lang_line: 人が読む文の欄は依頼文の言語で書け。
-  r1_head: '## 最小の意味'
-  r3_head: '## 考えの住処'
-  concept_map: '## 考えの住処の地図'
-  candidates_file: /tmp/eyes/r1-comments.json
-  judgment_file: /tmp/judgment.json
-  units_text: '- u1'
-  fixes_text: '- u1: fixed'
-  constraints_text: （無い）
-  premises_text: '### 記録の制約'
-  carried: ''
-  plan_declared: ''
-  r4_context: '- 波及の一覧: /tmp/ripple.json'
-  green_line: ''
-  measured_text: "### テストごとの base と最後の結末\n\n- 赤→緑（base で赤・最後に緑）: 1 件\n  - `tests.test_a::test_entry`（base failure: AssertionError）"
-  origin_text: '- 起点は修正前の HEAD `0123abc`（HEAD）。PR の差分は無い（累積差分はこの run の直しの差分だけ）'
-r1-comments:
-  candidates: []
-  kept: []
-r1-comments-save:
-  saved: true
-r1-minimality:
-  status: pass
-  reason: 累積差分は最小
-  deletions: []
-  ledger_audit: []
-  increments: []
-r1-minimality-verdict:
-  eye: r1
-  status: pass
-  reason: 累積差分は最小
-r3-coherence:
-  status: pass
-  reason: 整合
-  seen:
-  - a.py
-  unseen: []
-r3-coherence-verdict:
-  eye: r3
-  status: pass
-  reason: 整合
-r4-reject:
-  reason: ''
-  one_eye: false
-r4-scope:
-  status: pass
-  reason: 横断の危うさなし
-  capability_inventory:
-    fired: false
-  policy_conflicts: []
-  surfaced: []
-  seen:
-  - a.py
-  unseen: []
-r4-accept:
+  structure: null
+  after:
+    type: archon_artifact
+    run_id: stub
+    path: structure-after/structure-after.json
+  dirty: 0
+  escalate: 0
+  optional:
+  - node: measure
+    bare: false
+  report:
+  - '- 直した後の実測: 増えていない'
+r1__intake:
+  due: false
+  reason: '筋書き: block の中は block の筋書きが見る'
+r1__finish:
   ok: true
-  done: true
-  give_up: false
+  status: ran
   reason: ''
-  reply:
+  verdict:
     status: pass
-    reason: 横断の危うさなし
-    capability_inventory:
-      fired: false
-    policy_conflicts: []
-    surfaced: []
-    seen:
-    - a.py
-    unseen: []
-r4-scope-verdict:
-  eye: r4
-  status: pass
-  reason: 横断の危うさなし
-r2-compare:
-  status: pass
-  reason: 構造は同じ
-  differences: []
-r2-compare-verdict:
-  eye: r2
-  status: pass
-  reason: 構造は同じ
-verdict:
+    reason: r1 は通した
+  questions: []
+  report:
+  - 'R1: pass（r1 は通した）'
+r2__intake:
+  compare: false
+  premise: false
+  reason: '筋書き: block の中は block の筋書きが見る'
+r2__finish:
   ok: true
-  r1:
+  status: ran
+  reason: ''
+  verdict:
     status: pass
-    reason: 累積差分は最小
-  r2:
-    status: pass
-    reason: 構造は同じ
-  r3:
-    status: pass
-    reason: 整合
-  r4:
-    status: pass
-    reason: 横断の危うさなし
+    reason: r2 は通した
   questions: []
   premise_check: null
-  structure_after: *id001
-  protected_hits: []
-  notes: null
-  r4_passes: null
-  premise_reply: null
+  notes: []
+  report:
+  - 'R2: pass（r2 は通した）'
+r3__intake:
+  due: false
+  reason: '筋書き: block の中は block の筋書きが見る'
+r3__finish:
+  ok: true
+  status: ran
+  reason: ''
+  verdict:
+    status: pass
+    reason: r3 は通した
+  questions: []
+  report:
+  - 'R3: pass（r3 は通した）'
+r4__intake:
+  due: false
+  reason: '筋書き: block の中は block の筋書きが見る'
+r4__finish:
+  ok: true
+  status: ran
+  reason: ''
+  verdict:
+    status: pass
+    reason: r4 は通した
+  questions: []
+  passes: []
+  coherence: null
+  report:
+  - 'R4: pass（r4 は通した）'

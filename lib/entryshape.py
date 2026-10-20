@@ -31,7 +31,6 @@ import tempfile
 import carry  # noqa: E402  （依頼の容器の形 parts）
 import ghreads  # noqa: E402  （run の中の gh の読み出し・盤面の github.json）
 import oneline  # noqa: E402
-import promptsection  # noqa: E402
 import engine.util as _util  # noqa: E402
 from engine.util import Reject, git  # noqa: E402
 
@@ -128,7 +127,7 @@ def refuse_empty(items: list, change, repo: pathlib.Path) -> None:
 
 
 def build(inp: dict, repo: pathlib.Path) -> dict:
-    """入口の節（start）が確かめた入力 inp から、入口の入力の形（始めの記録の欄 input。約束は docs/design.md の線の start の record）を作る:
+    """入口の節（start）が確かめた入力 inp から、入口の入力の形（始めの記録の欄 input。約束は docs/design/line.md の 1.6 の始めの記録）を作る:
     {base: {rev, from, name, label}, head_rev, diff: {empty, files, stat}, requests, request_file, pr: {number, title, body} | None,
     spec}。base は差分の根（名指しが無ければ HEAD・from head）、diff は差分の根から作業ツリーの今の姿までの測り（diff_of）、
     requests は依頼の行の数、pr は PR の番号と題と本文（目的の役が出典 ① PR 説明として読む。元は盤面の根の pr.md を線が
@@ -142,11 +141,11 @@ def build(inp: dict, repo: pathlib.Path) -> dict:
             "spec": bool(inp.get("spec"))}
 
 
-REQUEST_HEAD = promptsection.Section("## 依頼", source="fn:entryshape.request_text")
-PR_TEXT_HEAD = promptsection.Section("## PR #{number} の題と本文", source="fn:entryshape.request_text")
-PR_TITLE = promptsection.Section("# PR #{number}", source="fn:entryshape.write_pr_file")
-PR_SUBJECT_HEAD = promptsection.Section("## 題", source="fn:entryshape.write_pr_file")
-PR_BODY_HEAD = promptsection.Section("## 本文", source="fn:entryshape.write_pr_file")
+REQUEST_HEAD = "## 依頼"
+PR_TEXT_HEAD = "## PR #{number} の題と本文"
+PR_TITLE = "# PR #{number}"
+PR_SUBJECT_HEAD = "## 題"
+PR_BODY_HEAD = "## 本文"
 
 
 def request_text(inp: dict) -> str:

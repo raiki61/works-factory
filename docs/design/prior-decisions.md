@@ -1,6 +1,6 @@
 # block の設計書: prior-decisions（先行議論の突合）
 
-- 何の話か: 対象差分が触れる領域（差分が空なら依頼が指す場所）の決定記録を洗い、決着済みの論点を集める素材の観点「先行議論の突合」を、単独で呼べる block `blocks/prior-decisions/` にする設計。素材の観点の族の 1 本目で、族の共通の形は [materials.md](materials.md) に従う。型は [README.md](README.md)、手本は [world.md](world.md)。
+- 何の話か: 対象差分が触れる領域（差分が空なら依頼が指す場所）の決定記録を洗い、決着済みの論点を集める素材の観点「先行議論の突合」を、単独で呼べる block `workflows/prior-decisions/` にする設計。素材の観点の族の 1 本目で、族の共通の形は [materials.md](materials.md) に従う。型は [README.md](README.md)、手本は [world.md](world.md)。
 - 決めたこと: 今の judge の `material-route` の 1 列と `prior-decisions-loop`（prep・役・accept の 3 つの node）を、5 つの node（intake・prep・役・accept・finish）の block にする。入力は差分の根・依頼の行・判定から入る run の出どころ・言語の 4 つの port だけで、run の記録を読まない。指示は 1 本の英語の md（`prompts/prior-decisions.md`）にし、今は別のファイル（`material-prior-decisions-brief.md`）に描いて役に Read させた材料を、指示の中に直に入れる。決着済みの論点の行（`settled`）は今と同じ形で `material.json` に残り、記録された方針の読み手（`policy.recorded`）が今の読み方のまま読む。振る舞いは変えない。
 - 持ち主に求めること: なし。
 - 読む人と使い方: この block を作る実装者（1〜3 節の名と順をそのまま作る）と、残りの 10 本の観点の設計書の書き手（写す手本）。素材の観点の族の共通の部品と同じ PR に入る（README の 11.1 の 1 波目）。
@@ -34,7 +34,7 @@ README の 8.1 の例は「prior-decisions は request・purpose」と書くが�
 
 今との違い: 今は入力を `judge/start.json`（差分の根・入口の印）・`judge/request.json`（依頼の行）・`judge/stop.json` から名で開き（`lib/judge_accept.py:1882-1919`・`:1958-1962`）、受けた返答を `judge/material-prior-decisions.json` に書き、判定の出力の欄 `decisions` がそのパスを外へ出していた（`lib/judge_accept.py:3884` の `FIRST_PORTS`）。回すかは `material-route` が決めた（1 run = 1 周ではいつも回す）。
 
-### 1.3 node の並び（`blocks/prior-decisions/works-factory-prior-decisions.yaml`）
+### 1.3 node の並び（`workflows/prior-decisions/works-factory-prior-decisions.yaml`）
 
 materials.md の 1.3 の雛形の `<観点>` を `prior-decisions` にした物。
 
@@ -53,8 +53,8 @@ materials.md の 1.3 の雛形の `<観点>` を `prior-decisions` にした物�
 
 ### 1.5 コードの置き場
 
-- `blocks/prior-decisions/src/__init__.py`（空）。
-- `blocks/prior-decisions/src/viewpoint.py`: materials.md の 5.1 の宣言。中身:
+- `workflows/prior-decisions/src/__init__.py`（空）。
+- `workflows/prior-decisions/src/viewpoint.py`: materials.md の 5.1 の宣言。中身:
   - `NAME = "prior-decisions"`
   - `MATERIALS = ("prior_decisions",)`
   - `GUARDED = False`（AI の node が `mutates_checkout: false` を持たない。今の accept の `with: {status_guarded: false}`。`workflows/judge/works-factory-judge.yaml:973`）
@@ -72,12 +72,12 @@ materials.md の 1.3 の雛形の `<観点>` を `prior-decisions` にした物�
   - `materials_of(reply)`: `{"prior_decisions": reply["material"]} if isinstance(reply.get("material"), dict) else {}`（今の `writes` の `materials.prior_decisions ← material`。`:1636`）。無ければ空にし、`check_record` が「素材 'prior_decisions' が返答に無い」で拒む。
   - `report_lines(doc)`: `settled` の行ごとに `f"  - 決着済みの論点: {oneline(topic)}（{where か「書いてある所の記録が無い」}）"`。`reply` が null なら `[]`。行は字下げ 2 つで始め、materials.md の 2.10 の素材の 1 行の下に並ぶ形にする。
 - 1 つ目の commit（`d05a8711`）だけ `src/oldbrief.py`（今の材料のファイルを同じ字で組む）を置き、2 つ目の commit で消した（2.9）。
-- `schemas/` は置かない。`request` の形は土台の共通の形 `blocks/.shared/schemas/request.schema.json`（`json(shared:request.schema.json)`）で、読む口は `requestrows.findings`。
+- `schemas/` は置かない。`request` の形は土台の共通の形 `workflows/.shared/schemas/request.schema.json`（`json(shared:request.schema.json)`）で、読む口は `requestrows.findings`。
 - 使う `lib/`: `materialkit`（族の部品の全部）・`rolekit`・`oneline`。決着済みの論点の行を読むのは `policy`（読み手の側。この block は import しない）。
 
 ### 1.6 つなぎ方（graph の側。block には書かない）
 
-- 判定のまとめ（`blocks/judge/`）: `include: works-factory-prior-decisions`、`depends_on` は materials.md の 1.6。`with:` は `base: <line が始めの記録から引いた diff_base>`・`request: <依頼の pointer>`（world の `request` と同じ物）・`entry: <line が始めの記録から引いた出どころの文。判定から入る run でなければ空>`・`lang: <始めの記録の lang>`。
+- 判定のまとめ（`workflows/judge/`）: `include: works-factory-prior-decisions`、`depends_on` は materials.md の 1.6。`with:` は `base: <line が始めの記録から引いた diff_base>`・`request: <依頼の pointer>`（world の `request` と同じ物）・`entry: <line が始めの記録から引いた出どころの文。判定から入る run でなければ空>`・`lang: <始めの記録の lang>`。
 - 読み手:
   - diagnose の `materials`（11 本の `material` の配列の 1 つ）。
   - 記録された方針の読み手（今の判定の出力の欄 `decisions` を受けていた全部: diagnose の判定の材料と受け付け〔`lib/judge_accept.py:799-801`・`:2824`〕・plan・plan-review・fix・r3・r4）。判定のまとめが `$prior-decisions.output.material`（`material.json` を指す Archon の pointer。中身ではない）を返りの欄 `decisions` にして line へ返し、line が今と同じ配線で配る。読み手は `policy.recorded(start, decisions_file)` に、その pointer を開いたパスを渡す。`policy._settled_rows` は `doc["reply"]["settled"]` を読むので、`material.json` の形（`reply` の欄）のまま読める。
@@ -264,7 +264,7 @@ materials.md の 4 節の順のまま。観点の前の照らしと後の照ら�
 
 ### 2.9 試験
 
-- standalone の fixture（`blocks/prior-decisions/fixtures/`）:
+- standalone の fixture（`workflows/prior-decisions/fixtures/`）:
   - `standalone.stubs.yaml`: `fixture.inputs` は `base: ""`・`request: '[{"where":"README.md","text":"…直したい事…"}]'`・`entry: "人の依頼（standalone）"`・`lang: ""`。AI の node `prior-decisions` だけを台本の返答（`material.status: clean`・`checked: true`・`searched` 1 行・`settled: []`）で差し替え、script は本物（`--exec-code`）。`reached` に `finish`、`resolved-text-contains` に md の決まった文（7 節）。`finish` の出力の `status` が `ran` になることは試験が照らす（筋書きは node の返りを照らせない）。
   - `gave-up.stubs.yaml`: 台本の返答が 3 回とも `material.status: not_applicable`。run は `completed`（dry-run は輪を 1 周で終えるので、3 回で `finish` が `status: gave_up` を返す数えは試験が照らす）。
   - 回す条件は持たない（いつも回す）ので `skipped.stubs.yaml` は置かない。
@@ -304,7 +304,7 @@ materials.md の 2.8 と 4 節の文だけを使う。この観点が足す拒�
 ## 5 単独で呼ぶ
 
 ```sh
-WORKS_FACTORY_FOLDER=blocks bin/works-factory workflow run works-factory-prior-decisions \
+bin/works-factory workflow run works-factory-prior-decisions \
   --input request='[{"where":"docs/owner-decisions.md","text":"…直したい事…"}]' \
   --input entry='人の依頼（手で起こした run）' --input base=
 ```
@@ -314,7 +314,7 @@ WORKS_FACTORY_FOLDER=blocks bin/works-factory workflow run works-factory-prior-d
 ## 6 未確認
 
 - 土台の役の定義の断片の名 `role-investigator` と、その断片が外への検索の決まりを含むか（materials.md の 11 節）。
-- 起動の殻で `blocks/` を読ませる引数の名と、5 節の命令の正確な形（world.md の 10 節と同じ）。
+- 5 節の命令の正確な形（world.md の 10 節と同じ）。
 
 ## 7 自分で決めた事（この block だけ）
 

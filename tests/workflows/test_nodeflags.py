@@ -1,4 +1,4 @@
-"""全部のブロックの YAML（workflows/<ブロック>/works-factory-<ブロック>.yaml）の節の印の照らし。
+"""全部のブロックの YAML（pack の <ブロック>/works-factory-<ブロック>.yaml。pack は tests/archon.py の WORKFLOWS）の節の印の照らし。
 
 - coldwrite を節の plugins: に名指さない。coldwrite は隔離した設定の settings.json の hooks で全部の役に効かせる
   （bin/_lib/toolset.py）。節に名指すと、入れていない普通の利用者（E14）の run でその節が落ちる
@@ -12,19 +12,19 @@
   子の run は親の起動の時の模型の設定を受け継ぐだけで、頭の深さの役の選びは上げる向きも下げる向きも子の走りに効かない（持ち主の決め
   `head-choice-record-only`。#659）
 """
-import pathlib
 import unittest
 
 import yaml
 
-from tests.layers import scan
+from tests.archon import ROOT, WORKFLOWS
 
-WORKFLOWS = pathlib.Path(__file__).resolve().parents[2] / "workflows"
 DOCS = {p.parent.name: yaml.safe_load(p.read_text(encoding="utf-8")) for p in sorted(WORKFLOWS.glob("*/works-factory-*.yaml"))}
 # tests/e2e の工程も本物の役に output_format を渡す（tests/e2e/test_loop_prev_real.py は WORKS_FACTORY_REAL_RUN=1 の時だけ回り、CI は回さない）
 E2E_DOCS = {f"e2e/{p.parent.name}": yaml.safe_load(p.read_text(encoding="utf-8"))
-            for p in sorted((WORKFLOWS.parent / "tests" / "e2e").glob("*/works-factory-*.yaml"))}
+            for p in sorted((ROOT / "tests" / "e2e").glob("*/works-factory-*.yaml"))}
 
+
+ROLE_KINDS = ("prompt", "command")   # 役（AI）の節の鍵
 
 # JSON Schema Draft 2020-12 の鍵の全部。出典: https://json-schema.org/draft/2020-12/json-schema-core（8 Core・
 # 10 Applicator・11 Unevaluated）と https://json-schema.org/draft/2020-12/json-schema-validation（6 Validation・
@@ -92,7 +92,7 @@ def guarded_mismatches(doc, block: str) -> list:
         if n.get("script") not in tree_accepts:
             continue
         flag = (n.get("with") or {}).get("status_guarded")
-        roles = [nodes[d] for d in n.get("depends_on") or [] if d in nodes and any(k in nodes[d] for k in scan.ROLE_KINDS)]
+        roles = [nodes[d] for d in n.get("depends_on") or [] if d in nodes and any(k in nodes[d] for k in ROLE_KINDS)]
         if not roles:
             if flag not in (None, False):
                 out.append(f"{n['id']}: 役を受けない節の status_guarded が {flag!r}")
@@ -163,7 +163,7 @@ class NodeFlagsCase(unittest.TestCase):
 
     def test_output_formats_are_found(self):
         """output_format を 1 つも拾えなければ上の照らしは空回りする"""
-        self.assertIn("r1-minimality", output_formats(DOCS["eyes"]))
+        self.assertIn("r1-minimality", output_formats(DOCS["r1"]))
         self.assertIn("echo", output_formats(E2E_DOCS["e2e/loop-prev"]))
 
 

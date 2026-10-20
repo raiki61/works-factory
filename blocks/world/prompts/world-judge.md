@@ -1,1 +1,0 @@
-{part:world-judge}

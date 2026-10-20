@@ -2,69 +2,102 @@
 # requires-python = ">=3.12"
 # dependencies = []
 # ///
-"""返す節: 判定か再審の結果を、線との約束（docs/design.md の「judge の出力」）の欄で返す（lib/judge_accept.verdict）。ほかのブロックが
-読む置き場のファイルは欄のポインタで返す（lib/judge_accept.PORTS）。run の頭の深さの欄 depth・depth_why は控え judge/depth-head.json
-から読む（lib/headdepth。再審と控えの無い run は標準）。
-決して落ちない: 境の口と lib を読む所から中の誤りを全部捕まえて標準エラーに書き、判定と目的の指し札の先を空の形で置いて
-ready: false と止めの理由を返す（線は落ちた返す節の先へ進めない）。
-返りの全部（約束の形も）に欄 optional を載せる: 入力（with:）optional の、このブロックが落ちても線が先へ進めてよい節の宣言
-（[{node, bare}] の JSON の字）を境の口 boundary.items で読んだ並び。境の口を読めない時だけ []"""
+"""返す node verdict（docs/design/judge-eyes.md の 1.4）: 受け皿の got から止めの語の順の最初の物と line が配る欄を組み、目的の監査の受けた
+返答を place の purpose-review.json に写し（受けていなければ {}）、まとめを verdict.json に写す。
+落ちない: 中の誤りは全部捕まえて ok: false と works:judge を返す。境の口か lib を読めない時も、標準ライブラリだけの src/fallback で返す"""
 import json
 import os
 import sys
 from pathlib import Path
 
-
-# lib/judge_accept.PORTS・FIRST_PORTS の欄（lib を読めない時に null で返す。名の照らしは tests/workflows/test_judge.py）
-PORTS = ("premises", "verify", "pr_excluded", "materials", "purpose_review", "depth_record", "rejudge_exit", "rejudge_diff",
-         "purpose_means", "world_state", "decisions", "answer_ties", "review_lenses", "pr_drafts")
+sys.dont_write_bytecode = True
+sys.path[:0] = [str(Path(__file__).resolve().parents[2] / ".shared"), str(Path(__file__).resolve().parents[1])]
 
 
-def fallen(objection: str) -> dict:
-    """lib を読めなかった時の約束の形。判定と目的の指し札の先（Archon が在って空でないかを照らす）を空の形で置く"""
-    here = "rejudge" if objection.strip() else "judge"
-    folder = Path(os.environ.get("ARTIFACTS_DIR", ".")) / here
-    empty = {"judgment.json": {"units": [], "questions": [], "framing": "", "one_shot": "", "materials_missing": [],
-                               "carried_r1": [], "one_shot_closes": [], "precedents": []},
-             "purpose.json": {"purpose_text": "", "source": "", "known_weaknesses": [], "source_files": []}}
+def _got(ports, raw):
+    raw = ports.text(raw).strip()
+    whole = None if raw in ("", "null") else ports.json(raw)
+    return whole.get("got") if isinstance(whole, dict) else None
+
+
+def _value(ports, raw):
+    raw = ports.text(raw).strip()
+    return None if raw in ("", "null") else ports.json(raw)
+
+
+def _has_rows(ports, ptr) -> tuple:
+    """(世界の解の行のファイルに行が在るか, 読めない訳)。行の無い段は空のファイルを置くので、行が 0 なら null で返す（今の J29）"""
+    if not isinstance(ptr, dict):
+        return False, ""
     try:
-        folder.mkdir(parents=True, exist_ok=True)
-        for name, doc in empty.items():
-            if not (folder / name).is_file():
-                (folder / name).write_text(json.dumps(doc, ensure_ascii=False), encoding="utf-8")
-    except OSError:
-        pass
-    ptr = lambda name: {"type": "archon_artifact", "run_id": os.environ.get("WORKFLOW_ID", ""), "path": f"{here}/{name}"}  # noqa: E731
-    return {"ready": False, "stop_reason": "works:rejudge" if objection.strip() else "works:judge", "units": [],
-            "judgment": ptr("judgment.json"), "purpose": ptr("purpose.json"),
-            "world": None, "spec": None, "out_of_purpose": None, "rejudge_verdict": None,
-            **dict.fromkeys(PORTS), "depth": "標準", "depth_why": "判定の出力ノードが lib を読めない"}
+        text = ports.file(json.dumps(ptr)).read_text(encoding="utf-8")
+    except (OSError, ValueError) as error:
+        return False, f"世界の解の行のファイルが読めない（{error}）"
+    return any(line.strip() for line in text.splitlines()), ""
 
 
-objection = os.environ.get("INPUTS_OBJECTION", "")
-ja = boundary = None
-try:
-    sys.dont_write_bytecode = True
-    sys.path.insert(0, str(Path(__file__).resolve().parents[2] / ".shared"))
-    import boundary
-
-    sys.path.append(str(boundary.lib_root()))
-    import judge_accept as ja
-
-    jdir = boundary.resolve(boundary.pointer(ja.JUDGE_DIR))
-    rdir = boundary.resolve(boundary.pointer(ja.REJUDGE_DIR))
+def _review_reply(ports, got) -> tuple:
+    """(目的の監査の受けた返答か {}, 読めない訳)。受けていない・読めない時は {}"""
+    import materialkit
+    if not isinstance(got, dict) or not got.get("material"):
+        return {}, ""
     try:
-        out = ja.verdict(jdir, rdir, Path.cwd(), objection, boundary.pointer)
-    except Exception as e:  # noqa: BLE001  返す節は落ちない
-        print(f"verdict: {type(e).__name__}: {e}", file=sys.stderr)
-        out = ja.verdict_fallback(jdir, rdir, objection, boundary.pointer)
-    out.update(ja.head_depth(jdir, objection))
-except Exception as e:  # noqa: BLE001  境の口か lib を読めない
-    print(f"verdict: {type(e).__name__}: {e}", file=sys.stderr)
-    out = fallen(objection)
-noted = boundary.items(os.environ.get("INPUTS_OPTIONAL")) if boundary is not None else []
-try:
-    print(json.dumps({**out, "optional": noted}, ensure_ascii=False, allow_nan=False), flush=True)
-except ValueError as e:
-    print(f"verdict: 出力が JSON に書けない: {e}", file=sys.stderr)
-    print(json.dumps({**fallen(objection), "optional": noted}, ensure_ascii=False, allow_nan=False), flush=True)
+        reply = materialkit.read(ports.file(json.dumps(got["material"]))).get("reply")
+    except ValueError as error:
+        return {}, f"目的の監査の素材が読めない（{error}）"
+    return (reply if isinstance(reply, dict) else {}), ""
+
+
+def compute(ports):
+    import jsonfile
+    from src import files, verdict
+    received = {
+        "head-depth": _got(ports, os.environ.get("INPUTS_HEAD_DEPTH_OUT")),
+        "spec": _got(ports, os.environ.get("INPUTS_SPEC_OUT")),
+        "spec-in": _value(ports, os.environ.get("INPUTS_SPEC_IN")),
+        "parallel-pr": _got(ports, os.environ.get("INPUTS_PARALLEL_PR_OUT")),
+        "premises": _got(ports, os.environ.get("INPUTS_PREMISES_OUT")),
+        "purpose": _got(ports, os.environ.get("INPUTS_PURPOSE_OUT")),
+        "world": _got(ports, os.environ.get("INPUTS_WORLD_OUT")),
+        "prior-decisions": _got(ports, os.environ.get("INPUTS_PRIOR_DECISIONS_OUT")),
+        "purpose-review": _got(ports, os.environ.get("INPUTS_PURPOSE_REVIEW_OUT")),
+        "local-review": _got(ports, os.environ.get("INPUTS_LOCAL_REVIEW_OUT")),
+        "consistency-bypass": _got(ports, os.environ.get("INPUTS_CONSISTENCY_BYPASS_OUT")),
+        "hygiene": _got(ports, os.environ.get("INPUTS_HYGIENE_OUT")),
+        "external-standards": _got(ports, os.environ.get("INPUTS_EXTERNAL_STANDARDS_OUT")),
+        "procedure-trace": _got(ports, os.environ.get("INPUTS_PROCEDURE_TRACE_OUT")),
+        "test-double-fidelity": _got(ports, os.environ.get("INPUTS_TEST_DOUBLE_FIDELITY_OUT")),
+        "main-path-observation": _got(ports, os.environ.get("INPUTS_MAIN_PATH_OBSERVATION_OUT")),
+        "provenance": _got(ports, os.environ.get("INPUTS_PROVENANCE_OUT")),
+        "diagnose-in": _value(ports, os.environ.get("INPUTS_DIAGNOSE_IN")),
+        "diagnose": _got(ports, os.environ.get("INPUTS_DIAGNOSE_OUT")),
+        "verify": _got(ports, os.environ.get("INPUTS_VERIFY_OUT")),
+    }
+    world = received["world"]
+    reply, unread = _review_reply(ports, received["purpose-review"])
+    rows, unrows = _has_rows(ports, (world or {}).get("rows"))
+    out = verdict.build(received, world_on=ports.flag(os.environ.get("INPUTS_WORLD")), world_has_rows=rows,
+                        notes=tuple(n for n in (unrows, unread) if n))
+    place = ports.place()
+    out["purpose_review"] = ports.pointer(jsonfile.write(place / files.PURPOSE_REVIEW, reply))
+    json.dumps(out, allow_nan=False)
+    jsonfile.write(place / files.VERDICT, out)
+    return out
+
+
+def main():
+    try:
+        import ports
+    except Exception as error:  # noqa: BLE001 — 境の口を読めない時も返す node は落ちない
+        from src import fallback
+        print(json.dumps(fallback.fallen(f"境の口が読めない: {type(error).__name__}: {error}"), ensure_ascii=False, allow_nan=False), flush=True)
+        return
+
+    def fell(why):
+        from src import fallback
+        return fallback.fallen(why)
+
+    ports.run(lambda: compute(ports), fell)
+
+
+main()

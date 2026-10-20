@@ -1,6 +1,6 @@
 # block の設計書: delta-review（差分の審査と手直し）
 
-- 何の話か: 修正の直後に、修正だけの差分を読むだけの審査役に見せて修正が新しく作った穴を挙げさせ、書く役に同じ周のうちに直させる（審査と手直しを 2 往復まで）観点を、単独で呼べる block `blocks/delta-review/` にする設計。型は [README.md](README.md)、形は手本の [world.md](world.md) に従う。
+- 何の話か: 修正の直後に、修正だけの差分を読むだけの審査役に見せて修正が新しく作った穴を挙げさせ、書く役に同じ周のうちに直させる（審査と手直しを 2 往復まで）観点を、単独で呼べる block `workflows/delta-review/` にする設計。型は [README.md](README.md)、形は手本の [world.md](world.md) に従う。
 - 決めたこと: 今の fix の中の 12 の node（delta-cut・delta-loop・refix-loop・review2-loop・refix2-loop とその中身）を、AI の node 4 つ（review-1・refix-1・review-2・refix-2）と script の node の block にする。深さで審査を省くか・戻せない組が在るか・変更の確かめが通ったかは line の `when:` に移し、差分が空で検算する物も無い時だけ block が自分で審査を飛ばす。入力は README の 3 つ（`base`・`plan`・`lens_rows`）に、修正役の返答・テストの変更の許し・事前審査の返答・方針・依頼・言語を足した 9 つ。修正の段の値は、fix の設計書が決めた fix の返りの欄（`start_tree`・`scope`・`reply`・`allowed_tests`）をそのまま受ける。指示は 4 本の英語の md と block の中の断片 2 本にし、Python が持っていた決まった文（範囲の節の頭・座の頭・始めの記録の 2 行・言語の行）は md へ出す。書く役の決まりの正本（今の `fix-rules/common.md`）は fix と共に使うので共通の断片 `writer-rules` にする。受け付けの照らしと書く順は今のまま。
 
 この文書の語は README の頭の物を使う。ほかに:
@@ -40,7 +40,7 @@
 - `request`: `json(shared:request.schema.json): 依頼の行の配列か、それを findings の欄に持つオブジェクト。手直しの役が先に全部読む。空の配列は依頼の文が無い`。既定 `[]`。
 - `lang`: `text: 人に見せる欄（審査役の why・faces_none・checks の why・compliance の read と行の why・quality の why、手直しの役の how・bash_writes の why）の言語。空は依頼の行の言語`。既定 `""`。
 
-`schemas/` の形（`KNOWN_KEYWORDS` だけで書く。`blocks/.shared/AGENTS.md`）:
+`schemas/` の形（`KNOWN_KEYWORDS` だけで書く。`workflows/.shared/AGENTS.md`）:
 
 - `fix-reply.schema.json`: `{"type": ["object", "null"], "properties": {"changes": {"type": "array", "items": {"type": "object"}}, "not_done": {"type": "array", "items": {"type": "object"}}, "plan_faces": {"type": "array", "items": {"type": "object", "required": ["key", "handled"], "properties": {"key": {"type": "string"}, "handled": {"type": "string"}}}}}}`
 - `permits.schema.json`: `{"type": "array"}`（行は object か字。行の形は `src/materials.py` の `permit_paths` が見る）
@@ -60,7 +60,7 @@
 
 今との違い: 今は fix の place の中で、修正の段のファイル（`groups.json`・`join.json`・`conflicts.json`・`trace.jsonl` の相談の行・`plan-fields.json` と凍結の印・`fix-plan-reply.json`・`judgment.json`・`p2.plan_review.json`・`depth.json`・`assert-changed.json`・始めの記録）を名で開き、返りは fix の出力の `delta_review {rounds, pass}` と `delta_holes`・`lenses`（pointer）だった。この block は、それらのうち差分の審査が読む物だけを port の値で受ける。範囲の相談・裁定・テストの許しの読み分け（`conflict.agreed`・`ruled_paths`・`held_by_rulings`・`test_permits`）は修正の block の事実で、fix の返りの `scope`・`allowed_tests`・`reply` を、それぞれ 1 つの port で受ける（どれも fix がもう別々の pointer で返す欄で、受け手が組み直す物は無い。README の 4.2 の「3 つ以上の欄は 1 つの pointer」は、作り手の返りの欄を 1 つの object として読む時の決まりで、ここでは別々のファイル）。
 
-### 1.3 node の並び（`blocks/delta-review/works-factory-delta-review.yaml`）
+### 1.3 node の並び（`workflows/delta-review/works-factory-delta-review.yaml`）
 
 どの script の node も `runtime: uv`・`mutates_checkout: false`（どれも作業ツリーを変えない。7.1 と E7）。
 
@@ -119,7 +119,7 @@ e2e の照らしの表 `tests/e2e/evidence.json` の差分の審査の行（L-W2
 
 README の 11.1 の 3 のとおり、fix と同じ波で `lib/fixboard.py` の中身を写す。写す範囲が重ならないよう、この block が写すのは下に名指す物だけ。ほかの `fixboard` の関数は fix の物。
 
-- `blocks/delta-review/src/__init__.py`: 空。
+- `workflows/delta-review/src/__init__.py`: 空。
 - `src/files.py`: 1.4 の名・往復の数 `ROUNDS = (1, 2)`・役の名（`REVIEW = {1: "review-1", 2: "review-2"}`・`REFIX = {1: "refix-1", 2: "refix-2"}`）・除くパスの頭 `SKIP = (ports.RUNTIME_COPY_PREFIX,)`・比べる欄 `TREE_KEYS = accept.status_keys("true")`（今の `with: {status_guarded: true}`。読むだけの役の node は `mutates_checkout: false` で Archon が `git status` を照らすので `porcelain` を比べから外す）。
 - `src/materials.py`（port の読みと材料の写し）: `scope(raw)`（`ports.file` の先の JSON を読み、object なら `plan_items`・`ruled_paths`・`agreed`、配列なら `{plan_items: <配列>, ruled_paths: [], agreed: []}`。項目は object で `item` が 1 以上の整数。`planmarks.scoped(plan_items)` が偽なら `plan_items` を `[]` にする〔今の `scope_brief` が `planrange.scope` の `None` を `[]` にしたのと同じ〕。このため範囲の欄の無い項目の run では名札も付かない（照らしは変わらない）。読めない・形が違えば理由を名指す `ValueError`）・`fix_reply(raw)`（`ports.json(raw, "fix-reply.schema.json")`）・`permit_paths(raw)`（`ports.json(raw, "permits.schema.json")` の行から `path` か字を取り、重ねずに並べる）・`policy_body(path)`（今の `fixboard.policy_brief` と `policy.brief` の貼る本文。`policy._capped(<バイト>, path)`。読めなければ `ValueError`。11 節の 15）・`lens_copy(place, raw)`（先の JSON を place の `lens.json` に写し `lens.read(place)` で形を照らす。読めない・形が違えば写しを消して訳の字を返す。今の `lens_error` の道）・`request_copy(place, raw)`（`requestrows.parts` で照らした値を `request.json` に書き、パスを返す。行が 0 なら書かずに空の字）・`seal(place, names)`・`verify(place, sealed)`（写しの凍結の印。11 節の 11）。
 - `src/cut.py`（差分と材料。写す元 `lib/refix.py` の `_cut_delta`・`cut`・`snapshot_name`・`_drop_stale` の要る所と `fixboard.run_diff`・`delta_review_due`・`claimed_closed`・`snapshot`・`_fix_report`）:
@@ -133,7 +133,6 @@ README の 11.1 の 3 のとおり、fix と同じ波で `lib/fixboard.py` の�
 - `src/borrowed.py`（座の材料）: `seat.pinned()`（写しが固定と違えば `ValueError`）・型の本文 `seat.fill("task-review", 穴)`・判定の語の表の行（`spseam.load_seams()["task-review"]["words"]` と `seat.VERDICT_WORDS` から `| <型の語> | <works の語> | `<欄>.verdict`: `<値>` |` の行を並べる。今の `seat.words_table` の行の組み方。見出しと注の 2 行は md）・スキルの名と効く所・効かない所（`seat.skill_of`・`seams.json` の `applies`・`not_applies` を `- ` の行に）・読み替えの本文 `seat.overlay_body(seat.OVERLAY_KINDS[<review か refix>])` と在りか `spseam.BORROW_DIR / spseam.OVERLAY_FILE`。座の文の決まった字（今の `seat.HEAD`・`WINS`・`SKILL_LEAD`・`APPLIES`・`NOT_APPLIES`・`PROMPT_HEAD`・`WORDS_HEAD`・`NOTE_ROWS`・`OVERLAY_HEAD`）は使わず md に置く。
 - `src/summary.py`（出口。写す元 `fixboard.delta_review`・`fixbeside._ties`・`branch_rows`・`branch_head`・`handled_head`・`BRANCH_HEAD`・`next_items` の手直しの行・`always_rows` のレンズの行・`line/scripts/ask_final.py` の `delta_lines`）: 6 節の 9。
 - 使う `lib/`（どれも KEEP。変えない）: `accept`（`tree_state`・`tree_moved`・`TREE_SCHEMA`・`status_keys`）・`gatemarks`（`HANDLED_WORDS`）・`holeties`・`jsonfile`・`lens`・`leftovers`・`oneline`・`planmarks`（`scoped`・`test_paths`）・`planrange`（`outside`・`globs`・`LIFTED`。`OOS_ANY` の字は md へ）・`policy`（`_capped`・`POLICY_KIND`）・`protect`・`report`（`inner_word_hits`・`target_uses`・`INNER_FACE_KIND`）・`rolekit`・`seat`・`spseam`・`unittrees`（`pathspec_without`）・`writelog`・`writes`・`graphloops/engine/schema.py`（`validate_schema`）・`graphloops/engine/util.py`（`READ_CAP`・`read_capped`）。`fixboard`・`refix`・`refixrules`・`deltamarks`・`fixbeside`・`rulebook`・`fixrules` は import しない（写す）。
-- 作り直しの間は `lib/deltamarks.py`・`lib/refix.py`・`lib/refixrules.py` と `fixboard` の写した部分を消さない（今の fix が使う）。組み込みで消す（README の 9.2）。
 
 ### 1.6 つなぎ方（graph の側。block には書かない）
 
@@ -196,7 +195,7 @@ README の 11.1 の 3 のとおり、fix と同じ波で `lib/fixboard.py` の�
 
 差し込み口の値（`src/review.py` の定数。md と受け付けが同じ字を持つ。`change` は `fix`・`touch-up`〔11 節の 20〕、`policy_body` は方針の本文）: `copy`・`entrance`・`contract_drift`・`dead_path`・`scope_creep`（← `FACE_KINDS`。YAML の `kind` の enum と同じ並び。試験が結ぶ）・`regression`・`policy_kind`・`precedent`（← `HUMAN_FACE_KINDS = ("regression", policy.POLICY_KIND)` と `PLAN_ONLY_FACE_KINDS` の残り `"precedent"`）・`min_key`（8）・`min_cite`（4）・`min_why`（20）・`min_none`（`NONE_MIN` の 20）。段落の名: `rejected`・`first`（review-1 は true、review-2 は false）・`policy`。
 
-md の本文の正本は `blocks/delta-review/prompts/`（設計書は本文を写さない）。
+md の本文の正本は `workflows/delta-review/prompts/`（設計書は本文を写さない）。
 
 ### 2.4 返す形
 
@@ -266,7 +265,7 @@ Return only JSON that matches the output schema.
 
 ### 2.7 元の works と graphloops の同じ場面
 
-- graphloops の `prompts/review-loop/p3.delta_review.md`（18 行。block `blocks/review-loop/delta/` の `p3.delta_review`）: 3 点と検算と穴の行の書き方は同じ。違い: graphloops は検算の key を engine が振った番号 `no` の整数で指させ（「写すな」）、工場は key を一字も変えずに写させる（工場の受け付けが key の集合で照らすので、番号の道は要らない。今のまま）。graphloops に無く工場に在る物（2 判定・レンズ・座・守りのファイル・方針・範囲の欄・修正の報告）は、この block も全部持つ。graphloops の「修正の後の後退は R4 が BASE と比べて人に上げる」は、工場では「後の段が人に上げる」（独立の目を名指さない）。
+- graphloops の `prompts/review-loop/p3.delta_review.md`（18 行。block `workflows/review-loop/delta/` の `p3.delta_review`）: 3 点と検算と穴の行の書き方は同じ。違い: graphloops は検算の key を engine が振った番号 `no` の整数で指させ（「写すな」）、工場は key を一字も変えずに写させる（工場の受け付けが key の集合で照らすので、番号の道は要らない。今のまま）。graphloops に無く工場に在る物（2 判定・レンズ・座・守りのファイル・方針・範囲の欄・修正の報告）は、この block も全部持つ。graphloops の「修正の後の後退は R4 が BASE と比べて人に上げる」は、工場では「後の段が人に上げる」（独立の目を名指さない）。
 - graphloops の `p3.delta_gates`（周の版に変異を撃って見逃しに答える並行の線）: 工場に無い。持ち主の決め `no-mutation-in-graph`（2026-10-13。`docs/owner-decisions.md:208`）で戻さない。この block も持たない。
 - 元の works の `works/blk-delta/`: 入力 `base_rev` 1 つ・出口 `{ok, faces, review_file, diff_file, owed, fix_rev}`。審査の後の「読んだ証拠」の node `review-reads`（受け付けの条件にしない記録 `reads-review.json`）が在った。工場の fix には無い（`git log -S review-reads` は事前審査の物だけに当たり、差分の審査で外した記録は見つからない。（未確認））。この block にも足さない（読んだ証拠は受け付けの条件でなく、今の工場の報告も読まない）。
 - 2 判定（準拠と品質）・座・レンズ・守りのファイル・範囲の照らしは、工場が足した物（依頼 218・#94 など）。この block は全部残す。
@@ -315,7 +314,7 @@ Return only JSON that matches the output schema.
    - `<!-- if scope -->` `## Paths you may change and things you must not touch (the acceptance checks against these values)` と決まった文（受け付けはこの値で照らし外れを拒む・今の `planrange.OOS_ANY` の決まりの文・範囲の相談で許されたパスとテストの許しもここに入っている）と `{scope_items}`（← 項目ごとの行。1.5 の `touchup.scope_lines`）と許しの行の頭（決まった文）と `{scope_permits}` `<!-- end scope -->` — 条件: 範囲の欄の在る承認済みの項目が在る（今の `scope_text` が空でない時）。
 3. 役の頭（決まった文。頭の 1 文は `You are the writer who touches up the holes the diff review raised.`）: 審査役が挙げた穴と、機械が差分の足した行に見つけた works の内側の語の穴（`kind` が `{inner_word}`）と、塞がっていなかった検算を同じ周のうちに直す。材料 `{brief_file}` の欄ごとの説明（`owed`・`diff_file`・`plan_items`〔`held`・`held_units` に向けて直さない〕・`ruled_paths`・`agreed`・`compliance`・`ties`）と、修正の差分 `{diff_file}`、方針の段落。このノードが在る理由の 1 段落。
 4. `{part:refix-rules}`（手直しの 2 本が共に使う断片）:
-   1. `{shared:writer-rules}`（書く役の決まりの正本。今の `fix-rules/common.md`。段落 `conflict`〔今の `core-conflict`〕は false、証拠の種類の段落 `docs`・`prompts_kind`・`config`・`code` は true。段落の名は fix の設計書の 2.3.1 の物に揃えた）。
+   1. `{shared:writer-rules}`（書く役の決まりの正本。今の `fix-rules/common.md`。段落 `conflict`〔今の `core-conflict`〕は false、証拠の種類の段落 `docs`・`prompts_kind`・`config`・`code` と証拠の頭の段落 `evidence` は true、証拠を書く場所は `where_rework` だけ true〔`how` に書く〕で `where_fixer`・`where_tdd` は false。段落の名は fix の設計書の 2.3.1 の物に揃えた）。
    2. `{shared:query-rule}`（段落 `spawns` は false）。
    3. `## Reinterpretation for this loop (this wins over the rules above)`（今の `refix-remap` の 5 つの箇条）。
    4. `## Rules for the touch-up only`（今の `refix-keep`）。
@@ -389,6 +388,7 @@ Return only JSON that matches the output schema.
 - 移した: 書く役の決まりの正本 `common.md` を共通の断片 `writer-rules` に（fix の役も使うので 2 つの block の断片。12 節の 1）。今の `refixrules.NOT_HERE`（`core-conflict` を載せない）は段落 `conflict` の false にした。
 - 移した: 座の決まった文（`seat.HEAD`・`SKILL_LEAD`・`WINS`・`APPLIES`・`NOT_APPLIES`・`OVERLAY_HEAD`）を md へ。効く所・効かない所の箇条と読み替えの本文は、借りた写し（`lib/borrow/`）の字のまま値で入れる。
 - 移した: 言語の 1 行（`rolekit.LANG_RULE` の汎用の欄の並び「reason・how・what・why・異議…」）を、この node の人に見せる欄（`how`・`bash_writes` の `why`）の名指しに。
+- 足した（指示の新旧の比べで見つかった書き漏れ。害は無い）: `review-2` の `faces_none` に 20 字以上の下限（受け付けは前から求めていた）。`refix-2` から `next-request.json` の名を外した（ほかの block の place のファイルの名を書かない。5 節の 6）。
 - 移した: 穴の語 `inner_word`・答えの語 `fixed`・`declared`・字の下限を差し込み口に。
 - 足した: `{shared:query-rule}`。この役は WebSearch・WebFetch を持つのに、今の指示は外への検索の決まり（対象の名を検索語に載せない）を持たなかった。共通の断片の決まり（`.shared/AGENTS.md`「役が web を引く時の決まりはここ」）に合わせた。
 - 替えた: 材料の欄 `reads`（`loop.delta_owed`・`loop.fix_delta`）を材料から外した。md は `owed`・`diff_file` の上の段の欄だけを名指していた（今と同じ）。
@@ -517,7 +517,7 @@ Return only JSON that matches the output schema.
 ## 8 単独で呼ぶ
 
 ```sh
-WORKS_FACTORY_FOLDER=blocks bin/works-factory workflow run works-factory-delta-review --cwd <対象> \
+bin/works-factory workflow run works-factory-delta-review --cwd <対象> \
   --input base=<修正の前の木か commit> \
   --input plan=<承認済みの項目の JSON のファイル> --input lens_rows=<レンズの行のファイル>
 ```
@@ -533,14 +533,14 @@ WORKS_FACTORY_FOLDER=blocks bin/works-factory workflow run works-factory-delta-r
 
 ## 10 試験と、済んだと言える条件
 
-### 10.1 standalone の fixture（`blocks/delta-review/fixtures/`）
+### 10.1 standalone の fixture（`workflows/delta-review/fixtures/`）
 
 どれも `exec-code: true`・prep を差し替えない・AI の node の返答だけを差し替える。入力の `base` は `HEAD`（筋書きの作業ツリーは commit した直後で、差分は空）、`fix_reply` は `'{"changes": [], "not_done": [], "plan_faces": [{"key": "claimed-closed-hole", "handled": "absorbed", "how": "The fix says it closed this hole."}]}'`（塞いだと言う穴が在るので、差分が空でも審査が回る）。
 
 - `standalone.stubs.yaml`: `expect: completed`・`reached: [intake, review-1-prep, review-1, review-1-accept, owed-1, finish]`。`resolved-text-contains` の `review-1` は `You are the inspector for the diff of this round's fix.`。審査役の返答: `faces: []`・`faces_none`（20 字以上）・`checks: [{key: claimed-closed-hole, closed: true, why: (20 字以上)}]`・`compliance: {verdict: not_applicable, items: [], read: (20 字以上)}`・`quality: {verdict: pass, why: (20 字以上)}`。
 - `two-rounds.stubs.yaml`: 4 つの役に届く。審査役 1 回目は同じ key を `closed: false` で返し（義務 1）、手直しの役 1 回目は `handled: [{key: claimed-closed-hole, handled: fixed, how: (20 字以上), files: [README.md]}]`、審査役 2 回目は `checks: [{key: claimed-closed-hole, closed: false, why}]`・`faces: []`・`faces_none`、手直しの役 2 回目は declared。`reached` に `review-1`・`refix-1`・`cut-2`・`review-2`・`refix-2`・`finish`。`resolved-text-contains` は 4 つの役の md の頭の 1 文（2.3・3.3・4 節の 3・5 節の 3）。
 - `gave-up.stubs.yaml`: 審査役 1 回目が `where` に変わっていないファイルを書いた穴を返す。dry-run の輪は 1 周なので拒否は 1 回で、`finish` が `status: gave_up`（6 節の 9 の 3）を返し、run は `completed`。3 回で諦める数えは `ReviewAcceptCase` が見る。
-- 筋書きは完了・`reached`・指示の字だけを見る（`blocks/AGENTS.md`）。
+- 筋書きは完了・`reached`・指示の字だけを見る（`workflows/AGENTS.md`）。
 
 ### 10.2 `tests/blocks/delta_review/`（`kit.Run` で script を子のプロセスで回す。始めの記録は置かない）
 
@@ -570,7 +570,7 @@ review-1（今の `commands/delta-review.md` と座）:
 3. 修正の差分は Read する。周の頭に固めた版と同じ手続きで固めた修正後の姿の差で、未追跡の新規ファイルも載る。日本語のパスは git の引用の形で出るので、名前は一覧の字を使う。
 4. 材料は Read する JSON。事前審査で予測された穴（null なら事前審査は無い）と、その穴への修正役の答え（absorbed は塞いだと言う・declared は残す）。
 5. 守りのファイルの段落（緩める変更の 4 つの例・穴にする・`kind` は 5 つの語・最後の承認ノードにも必ず出る）。
-6. レンズの段落（利用者が入れた pr-review-toolkit の agent を 1 本ずつ独立に起こした局所レビューの行・無検算で写さない・差分と今の姿で確かめる・当たっていれば穴にし `lens` にレンズの名を一字も変えずに写す・機械が採った件数を数える・`failed`・`not_routed` の観点は誰も見ていない・空なら走らせていない・`lens_error`）。
+6. レンズの段落（利用者が入れたレビューの agent を 1 本ずつ独立に起こした局所レビューの行・無検算で写さない・差分と今の姿で確かめる・当たっていれば穴にし `lens` にレンズの名を一字も変えずに写す・機械が採った件数を数える・`failed`・`not_routed` の観点は誰も見ていない・空なら走らせていない・`lens_error`）。
 7. `plan_items` の欄の説明（項目の番号・単位・やり方・files の op と symbols と why・受け入れのテスト・書き換えてよいテスト・範囲・触らない物・空なら修正案は無い・`held`・`held_units` の扱い・合意を足した `allowed_paths`・`out_of_scope_lifted`）。
 8. `ruled_paths`（範囲が広がるのはこのパスと合意だけ）・`agreed`（行の欄・`agreed` の tests は許しで義務ではない・空なら合意は無い）・`fix_report`（主張であって証拠ではない）。
 9. 型の手順で審査する・ぶつかる所はこの指示が勝つ（返す形・読む義務・"Do not crawl the broader codebase" と「変わったファイルを別に Read しない」は効かない・判定の欄の値は行で決まり、表と行が食い違えば行・`plan_items` が空なら `not_applicable`・結ばれない穴が在れば `fail`）。
@@ -661,7 +661,7 @@ PYTEST_XDIST_AUTO_NUM_WORKERS=4 WORKS_FACTORY_ARCHON_CACHE=<Archon の源の置�
 11. 承認済みの修正案の項目の凍結の印（作り手の place の `plan-fields.json` と印。今の `conflict.fields_broken`）の照らしは、この block では持たない。根拠: 項目は port で値として受け、その印と控えは作り手の place に在る（README の 4.3）。項目の形が壊れていれば入口が `failed` にする。ただしテストの変更の許しは、この block の place の写し（`scope.json`・`permits.json`）に移るので、手直しの役が黙って書き換えて許しを広げないよう（keep-essence 3「許す道は 1 本」）、入口が写しを置いた後に sha256 の印を `trace.jsonl` に書く（`lib/planmarks.py` の凍結の印 `SAVED_OP` と同じ形 {op, round, sha256} に写しの名 `file` を足した行）。審査と手直しの受け付けは写しを使う前に印と照らし（`materials.verify`）、印が無い・写しが読めない・sha256 が違えば、出し直させずに諦め（`errors.json` に積む）、出口が `status: failed` を返す（integration.md の 4.1-3 の決め）。手直しの役は Write・Bash を持ち、材料のパスから place の場所を知るので、`trace.jsonl` の印も書き換えられる。そこで (a) 印は写しごとにちょうど 1 本を求め（足した印は「印が重なった」で止まる）、(b) 入口は印の値 `{写しの名: sha256}` を返りの `seal` に出し、YAML の受け付けの node が `with: {seal: $intake.output.seal}` で受ける（値は Archon が node の出力として持ち、役の手が届かない）。受け付けは写しの sha256 を `seal` と `trace.jsonl` の印の両方と照らす。`seal` が渡らなければ配線の誤りとして止める。封じる写しに `cut-1.json` も入れる（`files` は手直しの範囲の照らしで外すパス。書き換えると許しが広がる）。`refix-<n>-head.json`・`review-<n>-reply.json` も place の中に在り同じ形の穴を持つが、この直しの範囲の外（今の fix にも同じ穴がある）。
 12. 指示の比べの日本語の commit と試験は作らない。根拠: 持ち主の 2 波目の決め（速さ）。審査は 10.3 の一覧で新旧を並べて見る。
 13. 2 回目の手直しの指示にも範囲の節を貼る。根拠: 今もそうしていた（`refix_prep.py` の docstring「n によらず貼る」）。受け付けも n によらず範囲を照らす。
-14. 書く役の決まりの正本の置き場（もと 13 節の未確認の 1 つ目。持ち主に聞かず、本流の決まりで決めた）: 共通の断片 `blocks/.shared/prompts/writer-rules.md`（`{shared:writer-rules}`）。根拠: 2 つ以上の block が使う文は `.shared` に置く（`blocks/.shared/AGENTS.md`）。この PR が断片を置き、`.shared/AGENTS.md` の断片の一覧に行を足した。中身は今の `workflows/fix/commands/fix-rules/common.md` を英語にした物で、段落の名は `conflict`（今の `core-conflict`）・`docs`・`prompts_kind`・`config`・`code`（今の `evidence-docs`・`evidence-prompts`・`evidence-config`・`evidence-code`）。この block の手直しの役は `conflict` を false、ほかを true で差し込む。fix の block は同じ断片を差し込み、役ごとの選び（`rules` など）を段落の真偽で足す。fix の設計書の 2.3.1・1.5.4 の「fix の中の断片」は、fix の PR がこの断片に合わせる。
+14. 書く役の決まりの正本の置き場（もと 13 節の未確認の 1 つ目。持ち主に聞かず、本流の決まりで決めた）: 共通の断片 `workflows/.shared/prompts/writer-rules.md`（`{shared:writer-rules}`）。根拠: 2 つ以上の block が使う文は `.shared` に置く（`workflows/.shared/AGENTS.md`）。この PR が断片を置き、`.shared/AGENTS.md` の断片の一覧に行を足した。中身は今の `workflows/fix/commands/fix-rules/common.md` を英語にした物で、段落の名は `conflict`（今の `core-conflict`）・`docs`・`prompts_kind`・`config`・`code`（今の `evidence-docs`・`evidence-prompts`・`evidence-config`・`evidence-code`）・`evidence`（証拠の頭と文）・`where_fixer`・`where_tdd`・`where_rework`（証拠を書く場所の 1 文）。この block の手直しの役は `conflict`・`where_fixer`・`where_tdd` を false、`docs`・`prompts_kind`・`config`・`code`・`evidence`・`where_rework` を true で差し込む（`src/steps.py` の `when`）。fix の block は同じ断片を差し込み、役ごとの選び（`rules` など）を段落の真偽で足す。fix の設計書の 2.3.1・1.5.4 の「fix の中の断片」は、fix の PR がこの断片に合わせる。
 15. 方針の貼り方: 審査役の指示は共通の断片 `{shared:policy}`（口 `{policy_body}`）を段落 `policy` の中で差し込む。根拠: `.shared/AGENTS.md` が「方針を受ける役の全部が、段落の中で差し込む」と決めている。今の「材料の `policy.paste` を Read して先に全部読む」と同じ能力（本文の貼り・上限での切り詰めと続きの置き場・先に読む・発行者が守らせる制約・方針に照らす・ぶつかる項を `why` に・書き換えない）が、断片と `prompts/parts/policy.md` の 1 文（`kind` の選び方）で残る。このため 2.2 の材料の欄 `policy` と `materials.policy_brief` は無く、`materials.policy_body(path)`（`policy.PASTE_CAP` で切る。independent-design の `policy_body` と同じ手続き）が値を作る。方針が無い時は段落ごと落ちる（守らせる物が無い）。手直しの役は方針の文書のパスを指示の頭に書き、先に全部読ませる（3.3 のとおり）。
 16. 対象の守りの宣言を読む commit: 入口は `base` を木の sha に解いて `intake.json` の `base` に置き（差分・累積の差分・内側の語の照らしはこれを使う）、`protect.merged` が commit を要る（`<rev>^{commit}`）ので、別に `declared_at` を置く。`base` が commit ならそれ、木だけなら今の HEAD（役は commit しないので run の間は動かない）、commit が 1 つも無ければ空（自分の一覧だけで守りを照らす）。根拠: 入力 `base` は木も commit も受ける（1.2）が、木だけを渡すと対象の守りの宣言が読めず `protected_files_error` で落ちる（今は fix の返りの start_tree と別に修正前の HEAD の版を持っていた）。
 17. script の node の中身は `src/steps.py` に置いた（入口・指示の組み立て・義務の判定・2 回目の差分）。script は port の字を読んで渡すだけ（world と同じ）。1.5 の割り当て（`cut`・`review`・`verdicts`・`touchup`・`borrowed`・`summary`・`materials`・`files`）に足した 1 本。
@@ -670,11 +670,11 @@ PYTEST_XDIST_AUTO_NUM_WORKERS=4 WORKS_FACTORY_ARCHON_CACHE=<Archon の源の置�
 20. 審査役の指示の 3 点・使えない語・穴の行の書き方の断片 `prompts/parts/faces.md` と方針の断片 `prompts/parts/policy.md` は、1 回目と 2 回目で「修正」と「手直し」の語だけが違うので、差し込み口 `{change}`（`fix`・`touch-up`）にした。
 21. 報告の行は `- ` で始め、字下げの行は `  - ` にした（world の報告と同じ。今の `ask_final.delta_lines` は呼び手が `- ` を足していた）。
 22. 手直しの段の頭の木 `refix-<n>-head.json` が無い時は、受け付けが（落ちずに）その訳を名指して止める（出し直しでは直らないので `touchup.stop`。3.8 の 1）。`owed` は頭の木が在れば撮り直さない（手直しの役が書いた後に撮り直すと、申告の無い変更を数え損なう）。
-23. 形のファイル `fix-reply.schema.json`・`permits.schema.json`・`plan-review.schema.json` はこの block の `schemas/` に置いた（1.2 のとおり）。fix の block が同じ名の形（`plan-review.schema.json`）を持つと、`tests/layers/test_block_shape.py` が「2 つの block に同じ名」で赤にするので、後に入る PR が `blocks/.shared/schemas/` へ寄せる。
+23. 形のファイル `fix-reply.schema.json`・`permits.schema.json`・`plan-review.schema.json` はこの block の `schemas/` に置いた（1.2 のとおり）。fix の block が同じ名の形（`plan-review.schema.json`）を持つと、`tests/layers/test_block_shape.py` が「2 つの block に同じ名」で赤にするので、後に入る PR が `workflows/.shared/schemas/` へ寄せる。
 
 ## 12 README へ返す問題
 
-1. 書く役の決まりの正本 `fix-rules/common.md` は、fix と delta-review の 2 つの block が使う。README の 1.3 の形の直し 3 と 5.1 の例は fix の中の断片 `prompts/parts/` と書くが、共通の断片 `blocks/.shared/prompts/writer-rules.md` になる（11 節の 6・14）。`.shared/AGENTS.md` の名の一覧には足した。
+1. 書く役の決まりの正本 `fix-rules/common.md` は、fix と delta-review の 2 つの block が使う。README の 1.3 の形の直し 3 と 5.1 の例は fix の中の断片 `prompts/parts/` と書くが、共通の断片 `workflows/.shared/prompts/writer-rules.md` になる（11 節の 6・14）。`.shared/AGENTS.md` の名の一覧には足した。
 2. `lib/leftovers.py` は README の 9 節のどの区分にも無い。fix（後始末）と delta-review・lens（作業ツリーの姿を木に固める `snapshot`・`git`）が使うので KEEP。
 3. `lib/unittrees.py` は MOVE（fix）だが、`pathspec_without` を delta-review と lens も使う。KEEP の部分に入れる。
 4. `lib/gatemarks.py` の `HANDLED_WORDS`（手直しの答えの語の人向けの字）は、報告の行を組むのがこの block になったので、この block だけが使う。組み込みで delta-review の `src/` へ移す。

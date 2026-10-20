@@ -1,0 +1,386 @@
+# line の standalone の筋書き（docs/design/line.md の 11 節・README の 7.1 の 4）。入力は依頼のファイルと test_cmd だけ。
+# include した block の中は、各 block の筋書きの台本を include の id を頭に付けて使う（judge の graph は判定が直す単位を出さない
+# no-open-units の台本、ほかは standalone の台本）。line の script と、台本にしない block の script は本物で回す。
+# dry-run は include の中の loop の本体に include の道を渡さない（README 13 章）ので、report の書き手の loop の本体（write-prep・
+# write・cold-prep・cold・write-accept。loop の本体の id には頭が付かない）は台本にする。
+# 道: 起動の承認ノードを通し、直す前のテスト・判定（直す単位が無い）・段の表・独立設計の後、直す物が無い周の形で fix-in・fixed・
+# 判定の受け渡し・最後のテスト・独立の目を回し、最後の承認ノードを通って報告と result まで届く（封じと置きは直す物が無いので飛ぶ）。
+# 判定の台本の pointer は先のファイルを持たないので、line の script はそれを読めない訳を承認ノードと報告の行に書いて進む
+fixture:
+  expect: completed
+  reached:
+  - testcmd
+  - start
+  - answer-start
+  - test-gate-base__result
+  - judge__verdict
+  - tiers
+  - independent-design__finish
+  - design-in
+  - fix-in
+  - fixed
+  - judged
+  - test-gate-final__result
+  - eyes-in
+  - eyes__verdict
+  - ask-final
+  - answer-final
+  - collect
+  - report__finish
+  - sweep-children
+  - result
+  inputs:
+    request: .archon/workflows/works-factory/line/fixtures/request.json
+    test_cmd: 'true'
+exec-code: true
+gate-start:
+  decision: approve
+  text: ''
+gate-final:
+  decision: approve
+  text: ''
+judge__head-depth-run__intake:
+  due: false
+  reason: '筋書き: block の中は block の筋書きが見る'
+judge__head-depth-run__finish:
+  ok: true
+  status: ok
+  reason: ''
+  tier: 標準
+  why: 原因が未知の行が在る
+  rows: []
+  record:
+    type: archon_artifact
+    run_id: dry-run
+    path: head-depth-run/depth-head.json
+  report:
+  - '- 段: 標準'
+judge__parallel-pr__scan:
+  go_role: false
+  reason: '筋書き: block の中は block の筋書きが見る'
+judge__parallel-pr__finish:
+  ok: true
+  status: clean
+  stop_reason: ''
+  reason: ''
+  material:
+    status: clean
+    checked: 開いている PR は無い
+  excluded:
+    type: archon_artifact
+    run_id: dry-run
+    path: parallel-pr/pr-excluded.json
+  drafts: null
+  reads: null
+  downgrades:
+  - what: 担当の PR へ申し送りを投稿しない（下書きを報告に載せる）
+    versus: review-graph は任せ先の役が gh で投稿する
+  report:
+  - '- 並行 PR: clean'
+judge__premises-run__intake:
+  due: false
+  reason: '筋書き: block の中は block の筋書きが見る'
+judge__premises-run__finish:
+  ok: true
+  status: ok
+  reason: ''
+  constraints:
+    type: archon_artifact
+    run_id: dry-run
+    path: premises-run/premises.json
+  report:
+  - '- 前提の実測: 1 件'
+judge__purpose-run__intake:
+  due: false
+  reason: '筋書き: block の中は block の筋書きが見る'
+judge__purpose-run__finish:
+  ok: true
+  status: ok
+  reason: ''
+  purpose:
+    type: archon_artifact
+    run_id: dry-run
+    path: purpose-run/purpose.json
+  purpose_text: Uploads survive a flaky link.
+  source: ③writer の要約
+  means:
+  - retry
+  report:
+  - '- 目的: Uploads survive a flaky link.'
+judge__world__intake:
+  due: false
+  findings: 1
+  reason: '筋書き: block の中は block の筋書きが見る'
+judge__world__finish:
+  ok: true
+  status: ok
+  reason: ''
+  rows: null
+  classes: 1
+  dropped: 0
+  report:
+  - '- 世界の解: 1 類'
+judge__diagnose-run__intake:
+  due: false
+  mode: judge
+  reason: '筋書き: block の中は block の筋書きが見る'
+judge__diagnose-run__finish:
+  ok: true
+  status: ok
+  mode: judge
+  stop_reason: ''
+  reason: ''
+  ready: false
+  judgment:
+    type: archon_artifact
+    run_id: dry-run
+    path: diagnose-run/judgment.json
+  units: []
+  questions: []
+  inputs: null
+  brief: null
+  materials:
+    type: archon_artifact
+    run_id: dry-run
+    path: diagnose-run/materials.json
+  out_of_purpose: null
+  answer_ties: null
+  rejudge_verdict: null
+  rejudge_exit: null
+  rejudge_diff: null
+  downgrades: []
+  report:
+  - '- 判定: 開いた単位 1'
+judge__prior-decisions-run__intake:
+  due: false
+  reason: '筋書き: block の中は block の筋書きが見る'
+judge__prior-decisions-run__finish:
+  ok: true
+  status: skipped
+  reason: ''
+  material:
+    type: archon_artifact
+    run_id: dry-run
+    path: prior-decisions-run/material.json
+  report:
+  - '観点 prior-decisions: skipped'
+judge__purpose-review-run__intake:
+  due: false
+  reason: '筋書き: block の中は block の筋書きが見る'
+judge__purpose-review-run__finish:
+  ok: true
+  status: skipped
+  reason: ''
+  material:
+    type: archon_artifact
+    run_id: dry-run
+    path: purpose-review-run/material.json
+  report:
+  - '観点 purpose-review: skipped'
+judge__local-review-run__intake:
+  due: false
+  reason: '筋書き: block の中は block の筋書きが見る'
+judge__local-review-run__finish:
+  ok: true
+  status: skipped
+  reason: ''
+  material:
+    type: archon_artifact
+    run_id: dry-run
+    path: local-review-run/material.json
+  report:
+  - '観点 local-review: skipped'
+judge__consistency-bypass-run__intake:
+  due: false
+  reason: '筋書き: block の中は block の筋書きが見る'
+judge__consistency-bypass-run__finish:
+  ok: true
+  status: skipped
+  reason: ''
+  material:
+    type: archon_artifact
+    run_id: dry-run
+    path: consistency-bypass-run/material.json
+  report:
+  - '観点 consistency-bypass: skipped'
+judge__hygiene-run__intake:
+  due: false
+  reason: '筋書き: block の中は block の筋書きが見る'
+judge__hygiene-run__finish:
+  ok: true
+  status: skipped
+  reason: ''
+  material:
+    type: archon_artifact
+    run_id: dry-run
+    path: hygiene-run/material.json
+  report:
+  - '観点 hygiene: skipped'
+judge__external-standards-run__intake:
+  due: false
+  reason: '筋書き: block の中は block の筋書きが見る'
+judge__external-standards-run__finish:
+  ok: true
+  status: skipped
+  reason: ''
+  material:
+    type: archon_artifact
+    run_id: dry-run
+    path: external-standards-run/material.json
+  report:
+  - '観点 external-standards: skipped'
+judge__procedure-trace-run__intake:
+  due: false
+  reason: '筋書き: block の中は block の筋書きが見る'
+judge__procedure-trace-run__finish:
+  ok: true
+  status: skipped
+  reason: ''
+  material:
+    type: archon_artifact
+    run_id: dry-run
+    path: procedure-trace-run/material.json
+  report:
+  - '観点 procedure-trace: skipped'
+judge__test-double-fidelity-run__intake:
+  due: false
+  reason: '筋書き: block の中は block の筋書きが見る'
+judge__test-double-fidelity-run__finish:
+  ok: true
+  status: skipped
+  reason: ''
+  material:
+    type: archon_artifact
+    run_id: dry-run
+    path: test-double-fidelity-run/material.json
+  report:
+  - '観点 test-double-fidelity: skipped'
+judge__main-path-observation-run__intake:
+  due: false
+  reason: '筋書き: block の中は block の筋書きが見る'
+judge__main-path-observation-run__finish:
+  ok: true
+  status: skipped
+  reason: ''
+  material:
+    type: archon_artifact
+    run_id: dry-run
+    path: main-path-observation-run/material.json
+  report:
+  - '観点 main-path-observation: skipped'
+judge__provenance-run__intake:
+  due: false
+  reason: '筋書き: block の中は block の筋書きが見る'
+judge__provenance-run__finish:
+  ok: true
+  status: skipped
+  reason: ''
+  material:
+    type: archon_artifact
+    run_id: dry-run
+    path: provenance-run/material.json
+  report:
+  - '観点 provenance: skipped'
+judge__world__pick:
+  due: false
+  web: false
+  reason: '筋書き: block の中は block の筋書きが見る'
+eyes__structure-after__measure:
+  eye: false
+  reason: '筋書き: block の中は block の筋書きが見る'
+eyes__structure-after__finish:
+  ok: true
+  status: ok
+  reason: ''
+  structure: null
+  after:
+    type: archon_artifact
+    run_id: dry-run
+    path: structure-after/structure-after.json
+  dirty: 0
+  escalate: 0
+  optional:
+  - node: measure
+    bare: false
+  report:
+  - '- 直した後の実測: 増えていない'
+eyes__r1__intake:
+  due: false
+  reason: '筋書き: block の中は block の筋書きが見る'
+eyes__r1__finish:
+  ok: true
+  status: ran
+  reason: ''
+  verdict:
+    status: pass
+    reason: r1 は通した
+  questions: []
+  report:
+  - 'R1: pass（r1 は通した）'
+eyes__r2__intake:
+  compare: false
+  premise: false
+  reason: '筋書き: block の中は block の筋書きが見る'
+eyes__r2__finish:
+  ok: true
+  status: ran
+  reason: ''
+  verdict:
+    status: pass
+    reason: r2 は通した
+  questions: []
+  premise_check: null
+  notes: []
+  report:
+  - 'R2: pass（r2 は通した）'
+eyes__r3__intake:
+  due: false
+  reason: '筋書き: block の中は block の筋書きが見る'
+eyes__r3__finish:
+  ok: true
+  status: ran
+  reason: ''
+  verdict:
+    status: pass
+    reason: r3 は通した
+  questions: []
+  report:
+  - 'R3: pass（r3 は通した）'
+eyes__r4__intake:
+  due: false
+  reason: '筋書き: block の中は block の筋書きが見る'
+eyes__r4__finish:
+  ok: true
+  status: ran
+  reason: ''
+  verdict:
+    status: pass
+    reason: r4 は通した
+  questions: []
+  passes: []
+  coherence: null
+  report:
+  - 'R4: pass（r4 は通した）'
+write-prep:
+  prompt: '筋書き: 書き手の指示は report の筋書きが見る'
+write:
+  text: 平均の関数を直した。単位 u1 は直って、最後のテストまで通った。
+  terms: []
+  handoff:
+    read: []
+    kept: []
+    set_aside: []
+    open: []
+cold-prep:
+  prompt: '筋書き: 初見の読み手の指示は report の筋書きが見る'
+cold:
+  verdict: pass
+  stops: []
+  guessed: []
+  decidable: true
+write-accept:
+  done: true
+  ok: true
+  reason: ''
+  kind: ''
+  prev_file: ''

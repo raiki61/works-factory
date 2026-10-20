@@ -9,5 +9,5 @@ nodes:
       type: object
       properties:
         ready: { type: boolean }
-        unread: { type: string }
-      required: [ready, unread]
+        units: { type: array }
+      required: [units]

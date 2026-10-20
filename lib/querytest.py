@@ -1,12 +1,10 @@
 """判定役の class_query の問いを、例で試してから受ける（Semgrep の ruleid/ok と同じ形）。works だけの検査（裁定 TA25）。
 
-写しの class_query は additionalProperties: false で例の欄を持てないので、足す・外す・置く・読むの手順は住処 marks（種 query。
-例は役の型（accept.role_schema）にだけ足し、受け付けは盤面へ渡す前に例を外して query-examples.json に置く）に任せる。項目 35: 部分一致の defects の問いが、直した後の正しい行も
+例は役の型（block の output_format）にだけ在り、受け付けは盤面へ渡す前に例を外して query-examples.json に置く。項目 35: 部分一致の defects の問いが、直した後の正しい行も
 数えたまま判定の基準になり、修正役が何をしても件数が減らなかった。
 
-- NODES・EXAMPLE_FIELDS・REASON_FIELDS・with_examples(schema): 例を持てる節と、例の欄（hits＝当たるべき 1 行・misses＝当たってはならない
-  1 行）と理由の欄（examples_unavailable＝例を出せない理由・misses_omitted_why＝defects の misses を書けない理由）と、
-  units[].class_query にそれを足した役の型
+- EXAMPLE_FIELDS・REASON_FIELDS・EXAMPLES_SCHEMA: 例の欄（hits＝当たるべき 1 行・misses＝当たってはならない
+  1 行）と理由の欄（examples_unavailable＝例を出せない理由・misses_omitted_why＝defects の misses を書けない理由）と、その型
 - run_examples(how, lines): 例を 1 行 1 ファイルに書き、数える本体と同じ旗（engine の count_argv）の git grep --no-index で当てる
 - judge_hits(units, replaced): 食い違いの申し出の correct_lines に判定者の問い（裁定 replace_query の後は置き換えた問い）を当てる口
   （conflict.problems の try_query）
@@ -32,10 +30,10 @@ if str(_GL) not in sys.path:
 
 import engine.util as _util  # noqa: E402
 from engine.schema import validate_schema  # noqa: E402
-import marks  # noqa: E402
+import jsonfile  # noqa: E402
 
-EXAMPLES_FILE = marks.KINDS["query"].file
-NODES = marks.nodes("query")   # 役の型に例の欄を足し、受け付けが例を外して試す節（blk-judge・blk-rejudge）
+EXAMPLES_FILE = "query-examples.json"
+STEPS = ("units", jsonfile.EACH, "class_query")   # 返答の中の例を持つ行の道
 EXAMPLE_FIELDS = ("hits", "misses")
 UNAVAILABLE, MISSES_OMITTED = "examples_unavailable", "misses_omitted_why"
 REASON_FIELDS = (UNAVAILABLE, MISSES_OMITTED)   # 例を出せない・misses を書けない理由（例の欄と同じく盤面へ渡す前に外す）
@@ -56,14 +54,6 @@ EXAMPLES_SCHEMA = {
     UNAVAILABLE: {**_WHY, "note": "例を 1 行も出せない理由（hits・misses と一緒に書かない）。例の無い単位は「例で証明できない」印で人に見せる"},
     MISSES_OMITTED: {**_WHY, "note": "counts が defects なのに misses を書けない理由（在るべき物が無い型など、直した後を 1 行に書けない時）"},
 }
-
-
-def with_examples(schema: dict) -> dict:
-    """units[].class_query を持つ節の型に例の欄を足した写し（持たなければそのまま）"""
-    cq = (((schema.get("properties") or {}).get("units") or {}).get("items") or {}).get("properties", {}).get("class_query")
-    if not isinstance(cq, dict) or "properties" not in cq:
-        return schema
-    return marks.add("query", NODES[0], schema, EXAMPLES_SCHEMA)   # 例を持てる節は同じ道（units[].class_query）
 
 
 def _flags(how) -> tuple:
@@ -181,7 +171,7 @@ def split(reply: dict, is_open=None) -> tuple:
     例か理由を持つ単位と、is_open が渡れば例の無い開いた単位（unproven: 印の理由）を載せる"""
     units = reply.get("units") or [] if isinstance(reply, dict) else []
     unproved = {r["key"]: r["why"] for r in unproven(units, is_open)} if is_open else {}
-    out, got = marks.split("query", NODES[0], reply, FIELDS)
+    out, got = jsonfile.split(reply, STEPS, FIELDS)
     examples = {str(u.get("key")): ex for u, ex in zip((out.get("units") if isinstance(out, dict) else None) or [], got)
                 if ex}
     for key, why in unproved.items():
@@ -191,13 +181,18 @@ def split(reply: dict, is_open=None) -> tuple:
 
 def save(board, examples: dict, *, replace: bool = False) -> pathlib.Path:
     """盤面の query-examples.json に足す（同じ key は新しい方）。replace は前の中身を捨てる（判定が単位を全部出し直した時）"""
-    p = marks.path_of("query", board)
-    marks.write(p, {**({} if replace else _saved(board)), **examples})
+    p = _path(board)
+    jsonfile.dump(p, {**({} if replace else _saved(board)), **examples})
     return p
 
 
+def _path(board) -> pathlib.Path:
+    """盤面の根の控えのパス（board は盤面か、その置き場のパス）"""
+    return pathlib.Path(getattr(board, "dir", board)) / EXAMPLES_FILE
+
+
 def _saved(board) -> dict:
-    doc = marks.load(marks.path_of("query", board))
+    doc = jsonfile.read_or(_path(board))
     return doc if isinstance(doc, dict) else {}
 
 

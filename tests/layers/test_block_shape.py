@@ -1,4 +1,4 @@
-"""blocks/ の block と graph の形の検査（docs/design/README.md の 7.1）。どれも yes/no で、数の上限・許す物の表は持たない。
+"""pack（tests/archon.py の WORKFLOWS。組み込みの入れ替えの後の workflows/）の block と graph の形の検査（docs/design/README.md の 7.1）。どれも yes/no で、数の上限・許す物の表は持たない。
 
 1. AI の node の prompt: は、同じ workflow の script の node の `$<id>.output.prompt` 1 つだけ。command: を持つ AI の node は無い。
    systemPrompt: を持つなら、同じ prep の `$<id>.output.system` 1 つだけで、prompts/<node-id>.system.md が在る（逆も）
@@ -29,10 +29,19 @@
    prompt。形のファイル（block の schemas/ と .shared/schemas/）は照らしの知らない語を持たない（ports.unknown_keywords）
 10. どの workflow にも試験のフォルダ tests/blocks/<名の - を _ にした物>/ が在り、__init__.py と test_*.py を持つ（Python の
    package の名は - を持てない）
+12. AI の node の md（と system の md。{shared:…}・{part:…} を入れた後）に `"欄":` の形で書いた欄が、その node の output_format の
+   どこかの深さの properties に在る（形に無い欄は Archon の構造化の出力が拒むので、役は指示が求める欄を返せない。
+   docs/design/integration.md の 4.2-2。tests/workflows/test_reply_fields.py の後継。指示の文は md だけなので lib の字は辿らない）
+13. include: の node（loop_group の本体の中の物も）の id が、include する workflow の中のどの node の id（上の段も、どの深さの
+   loop_group の本体も）とも違う。Archon の include の展開（packages/workflows/src/include-expander.ts）は、取り込む workflow の
+   上の段の id だけを `<include の id>__<id>` に改め、loop_group の本体の中の `$<id>.output` は改めない。同じ id だと、本体の中の
+   `$<id>.output` が include の returns の node を指してしまい、本当の run で「その node はまだ出力を持たない」と落ちる
+   （筋書きはこれを捕まえない: graph の筋書きは include した block の入口と出口を台本で差し替えて中の loop を回さず、block の筋書きは
+   block を単独で回す。dry-run は include の中の loop の本体に include の道を渡さないので、本体の script を本物で回す graph の筋書きも組めない）
 
-今ある yes/no の検査も blocks/ に当てる（ExistingRulesCase）: E6（外への書き込み）・E7（読むだけの node の印）・E12（期限を
-置かない）・E16（承認ノードの形）・E19（AI の node の retry）は tests/layers/scan.py の照らしを、blocks/ を workflows/ の場所に写した
-一時の木に当てる。uv の script の頭の宣言（4 行）はここで照らす。E1（archon validate が警告なしで通る）は ArchonCase。
+今ある yes/no の検査も pack（workflows/）に当てる（ExistingRulesCase）: E6（外への書き込み）・E7（読むだけの node の印）・E12（期限を
+置かない）・E16（承認ノードの形）・E19（AI の node の retry）は tests/layers/scan.py の照らしを、pack を一時の木の workflows/ に写して
+当てる。uv の script の頭の宣言（4 行）はここで照らす。E1（archon validate が警告なしで通る）は ArchonCase。
 """
 import ast
 import json
@@ -51,15 +60,16 @@ from tests.layers import scan
 from tests.layers.trees import tree
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
-BLOCKS = ROOT / "blocks"
+BLOCKS = archon.WORKFLOWS   # pack のフォルダ workflows/（pack.json の ours.folder から読む。docs/design/integration.md の 4.5-11）
 SHARED = ".shared"
 LIB = ROOT / "lib"
 FORM = re.compile(r"^(text|file|flag|json\((shared:)?([A-Za-z0-9_.-]+)\)|choice\([a-z0-9_-]+(?:\|[a-z0-9_-]+)+\)): ")
 SYSTEM_REF = re.compile(r"^\$([a-z0-9][a-z0-9_-]*)\.output\.system$")
 PROMPT_REF = re.compile(r"^\$([a-z0-9][a-z0-9_-]*)\.output\.prompt$")
 FRAGMENT = re.compile(r"\{(shared|part):([a-z0-9][a-z0-9_-]*)\}")
-RENDER_PART_NAME = re.compile(r"[a-z0-9][a-z0-9-]*")   # blocks/.shared/prompt.py の NODE_ID と同じ字（render_part はほかの名を拒む）
+RENDER_PART_NAME = re.compile(r"[a-z0-9][a-z0-9-]*")   # workflows/.shared/prompt.py の NODE_ID と同じ字（render_part はほかの名を拒む）
 MARK = re.compile(r"^<!-- (if|if not|end) ([a-z0-9_]+) -->$")
+JSON_KEY = re.compile(r'"([A-Za-z_]\w*)"\s*:', re.ASCII)
 UV_HEAD = ["# /// script", '# requires-python = ">=3.12"', "# dependencies = []", "# ///"]
 STANDALONE = "standalone"
 
@@ -81,6 +91,15 @@ def nodes(doc: dict) -> list[dict]:
     for node in doc.get("nodes") or []:
         out.append(node)
         out += (node.get("loop_group") or {}).get("nodes") or []
+    return out
+
+
+def all_nodes(listed) -> list[dict]:
+    """node の全部（どの深さの loop_group の本体も）"""
+    out = []
+    for node in listed or []:
+        out.append(node)
+        out += all_nodes((node.get("loop_group") or {}).get("nodes"))
     return out
 
 
@@ -397,9 +416,51 @@ def check_block_tests(pack: pathlib.Path, tests: pathlib.Path | None = None) -> 
     return out
 
 
+def shape_names(shape) -> set:
+    """形のどの深さの `properties` の名も（`patternProperties` の鍵は名でない）"""
+    if isinstance(shape, list):
+        return set().union(*map(shape_names, shape))
+    if not isinstance(shape, dict):
+        return set()
+    names = set((shape.get("properties") or {}).keys())
+    for key in ("properties", "patternProperties"):
+        names |= shape_names(list((shape.get(key) or {}).values()))
+    for key in ("items", "additionalProperties", "anyOf", "oneOf", "allOf"):
+        names |= shape_names(shape.get(key))
+    return names
+
+
+def check_reply_fields(pack: pathlib.Path) -> list[str]:
+    out = []
+    for folder in folders(pack):
+        for node in ai_nodes(load(folder)):
+            texts = [_expand(path.read_text(encoding="utf-8"), pack, folder)
+                     for path in (folder / "prompts" / f"{node['id']}.md", folder / "prompts" / f"{node['id']}.system.md")
+                     if path.is_file()]
+            missing = sorted({k for t in texts for k in JSON_KEY.findall(t)} - shape_names(node.get("output_format") or {}))
+            if missing:
+                out.append(f"{folder.name}: AI の node {node['id']} の md が書く欄 {missing} が output_format に無い")
+    return out
+
+
+def check_include_ids_unique(pack: pathlib.Path) -> list[str]:
+    out = []
+    by_name = {}
+    for folder in folders(pack):
+        doc = load(folder)
+        by_name[doc.get("name")] = {n["id"] for n in all_nodes(doc.get("nodes"))}
+    for folder in folders(pack):
+        for node in all_nodes(load(folder).get("nodes")):
+            inner = by_name.get(node.get("include"))
+            if inner is not None and node["id"] in inner:
+                out.append(f"{folder.name}: include の node {node['id']} の id が、取り込む {node['include']} の中の node の id と同じ"
+                           f"（本体の中の ${node['id']}.output が include の returns を指してしまう。include の id を <名>-run などに変える）")
+    return out
+
+
 CHECKS = (check_prompt_from_prep, check_prompt_files, check_standalone_renders, check_standalone_inputs, check_input_forms,
           check_graphs_have_no_roles, check_no_run_root_or_other_folders, check_returns_carry_outcome_and_report, check_module_names,
-          check_block_tests, check_no_text_in_yaml)
+          check_block_tests, check_no_text_in_yaml, check_reply_fields, check_include_ids_unique)
 
 
 class RealTreeCase(unittest.TestCase):
@@ -484,6 +545,7 @@ class SeedCase(unittest.TestCase):
 
     def test_each_check_catches_its_break(self):
         demo = yaml.safe_load(self.GOOD["demo/works-factory-demo.yaml"])
+        other = yaml.safe_load(self.GOOD["other/works-factory-other.yaml"])
 
         def nodes_with(i, **kw):
             copy = json.loads(json.dumps(demo))
@@ -544,6 +606,18 @@ class SeedCase(unittest.TestCase):
             (check_no_text_in_yaml, {"demo/works-factory-demo.yaml": yaml.safe_dump(with_rework)}, "rework.prompt"),
             (check_no_text_in_yaml, {"demo/schemas/doc.schema.json": '{"anyOf": [], "format": "uri"}'}, "$.anyOf"),
             (check_no_text_in_yaml, {".shared/schemas/x.schema.json": '{"oneOf": []}'}, "$.oneOf"),
+            (check_reply_fields, {"demo/prompts/role.md": '{shared:rejected}\n{part:rules}\nReturn {{"ok": true}}.\n'}, "['ok']"),
+            (check_reply_fields, {"demo/prompts/parts/rules.md": 'rules\n"field": x\n'}, "['field']"),
+            (check_include_ids_unique, {"other/works-factory-other.yaml": yaml.safe_dump(
+                {**other, "nodes": [*other["nodes"], {"id": "role", "include": "works-factory-demo"}]})}, "include の node role"),
+            (check_include_ids_unique, {"other/works-factory-other.yaml": yaml.safe_dump(
+                {**other, "nodes": [*other["nodes"], {"id": "outer", "loop_group": {"nodes": [
+                    {"id": "finish", "include": "works-factory-demo"}]}}]})}, "include の node finish"),
+            (check_include_ids_unique, {"other/works-factory-other.yaml": yaml.safe_dump(
+                {**other, "nodes": [*other["nodes"], {"id": "deep", "include": "works-factory-demo"}]}),
+                "demo/works-factory-demo.yaml": yaml.safe_dump({**demo, "nodes": [*demo["nodes"], {"id": "outer", "loop_group": {
+                    "nodes": [{"id": "inner", "loop_group": {"nodes": [{"id": "deep", "script": "prep"}]}}]}}]})},
+             "include の node deep"),
         ]
         for check, changes, word in cases:
             with self.subTest(check=check.__name__, changes=sorted(changes)):
@@ -591,7 +665,7 @@ class SeedCase(unittest.TestCase):
 
 
 class ExistingRulesCase(unittest.TestCase):
-    """今ある yes/no の検査（tests/layers/scan.py）を blocks/ に当てる。scan は木の workflows/ を見るので、blocks/ をそこへ写した一時の木に当てる"""
+    """今ある yes/no の検査（tests/layers/scan.py）を pack（workflows/）に当てる。pack を一時の木の workflows/ に写して当てる"""
 
     RULES = ("E6", "E7", "E12", "E16", "E19")
 
@@ -601,8 +675,8 @@ class ExistingRulesCase(unittest.TestCase):
             shutil.copytree(BLOCKS, root / "workflows", ignore=shutil.ignore_patterns("__pycache__"))
             shutil.copy(ROOT / "pack.json", root / "pack.json")
             shutil.copytree(ROOT / "factory", root / "factory")
-            # graph（include を持つ物）は役を持たないので、今の workflows/ の同じ名のサブグラフ（judge・eyes）の役を名指す
-            # 表 KEEP_CHECKOUT の行が「工程に無い」と出る。その行は今の workflows/ の表の話で、graph の形の外れではない
+            # graph（include を持つ物）は役を持たないので、graph の名（judge・eyes など）の役を名指す表 KEEP_CHECKOUT の行が
+            # 「工程に無い」と出る。その行は表の話で、graph の形の外れではない
             graphs = {f.name for f in folders(BLOCKS) if any("include" in n for n in nodes(load(f)))}
             stale = re.compile(rf"^workflows/({'|'.join(map(re.escape, graphs)) or '$^'})/[^:]+:1: 表 KEEP_CHECKOUT が名指した役 ")
             for rule in self.RULES:
@@ -612,7 +686,7 @@ class ExistingRulesCase(unittest.TestCase):
 
 
 class ArchonCase(unittest.TestCase):
-    """E1 と 7.1 の 3: blocks/ の全部の workflow を Archon の validate に通し、全部の筋書きを workflow test で回す"""
+    """E1 と 7.1 の 3: pack（workflows/）の全部の workflow を Archon の validate に通し、全部の筋書きを workflow test で回す"""
 
     @classmethod
     def setUpClass(cls):

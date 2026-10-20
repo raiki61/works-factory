@@ -1,4 +1,4 @@
-"""機械の報告（blocks/report/src/machine.py。docs/design/report.md の 1.8）の節の並びと字。写す元は lib/tests/test_runreport.py の BuildCase
+"""機械の報告（workflows/report/src/machine.py。docs/design/report.md の 1.8）の節の並びと字。写す元は lib/tests/test_runreport.py の BuildCase
 （冒頭 3 行・止めたか・見る所・模型・費用・注意）・DraftsCase・CarryCase・StampCase。節の中身を返りから組む試験は作り手の block と graph の試験の物"""
 import json
 import pathlib

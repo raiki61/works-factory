@@ -1,4 +1,4 @@
-"""修正の block（blocks/fix/works-factory-fix.yaml）の形（docs/design/fix.md の 14.2 の test_yaml.py）: loop の上限が定数と同じ・柵 nodes-ok の
+"""修正の block（workflows/fix/works-factory-fix.yaml）の形（docs/design/fix.md の 14.2 の test_yaml.py）: loop の上限が定数と同じ・柵 nodes-ok の
 結び・all_done の node・会話を継ぐ役の直前の層・役の起こし方が今の YAML と同じ・自分を起こす組の node・指示の受け渡し"""
 import pathlib
 import sys

@@ -1,4 +1,4 @@
-"""書き手のループと出口（blocks/report/src/writer.py）。写す元は lib/tests/test_runreport.py の GlossaryCase・AcceptCase・ReportGiveUpCase・
+"""書き手のループと出口（workflows/report/src/writer.py）。写す元は lib/tests/test_runreport.py の GlossaryCase・AcceptCase・ReportGiveUpCase・
 CollectCase・ColdBodyCase、lib/tests/test_report_roles.py の全部、lib/tests/test_handoff.py のうち型と控えの書き読みの物（文の定数の字の試験は
 写さない。文は md が持つ）。返答の型の YAML と handoff.SCHEMA の一致も照らす。"""
 import json

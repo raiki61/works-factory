@@ -44,11 +44,10 @@ sys.dont_write_bytecode = True
 _HERE = pathlib.Path(__file__).resolve().parent
 if str(_HERE / "graphloops") not in sys.path:   # 殻は python3 -I で起こす（-I は自分の置き場を sys.path に足さない）
     sys.path.insert(0, str(_HERE / "graphloops"))   # 写しの engine（board と同じ足し方）
-if str(_HERE) not in sys.path:   # 同じ置き場の promptsection
+if str(_HERE) not in sys.path:   # 同じ置き場の lib のモジュール
     sys.path.insert(0, str(_HERE))
 
 from engine.schema import validate_schema  # noqa: E402
-import promptsection  # noqa: E402
 import oneline  # noqa: E402
 
 # 依頼の容器の欄の名
@@ -70,10 +69,9 @@ CI_TEXT = ("試験 {id} が CI で赤だった（重い試験は run の外の C
 NEXT_REQUEST_FILE = "next-request.json"   # 次の run の依頼の下書き {findings, prior_failures, answers?}（依頼の型の object の形）
 PRIOR_FAILURES_FILE = "prior-failures.json"   # この run で最後まで通らなかった受け付けと R2 の作り直しの理由 [{where, text}]
 PRIOR_IN_FILE = "prior-failures-in.json"   # 依頼の prior_failures の写し [{where, text}]（place_prior。読むのは consumes で宣言した物）
-PRIOR_HEAD = promptsection.Section("## 前の run で最後まで通らなかった物（機械が貼った。受け付けの拒否の行は直す穴ではない——"
-                                   "同じ所で落ちない返答を出すための注意）", source="fn:carry.prior_section")
-REDESIGN_HEAD = promptsection.Section("## 前の周の独立の目が作り直しを要ると言った物——直す穴。この周の先頭で直す",
-                                      source="fn:carry.prior_section")
+PRIOR_HEAD = ("## 前の run で最後まで通らなかった物（機械が貼った。受け付けの拒否の行は直す穴ではない——"
+                                   "同じ所で落ちない返答を出すための注意）")
+REDESIGN_HEAD = "## 前の周の独立の目が作り直しを要ると言った物——直す穴。この周の先頭で直す"
 
 # 約束（この置き場の JSON Schema）
 NEXT_SCHEMA = "next-request.schema.json"

@@ -1,0 +1,84 @@
+name: works-factory-cold-read
+description: '初見の読み手の block（docs/design/cold-read.md）。渡された本文のファイルを、文脈を持たず道具も持たない読み手に 1 回だけ読ませ、意味が取れずに止まった所・推測で埋めた所・本文だけで決められるかを返す。書き直させるかは決めず、呼んだ側が出力の欄で決める。単独の run でも、graph から include されても回る'
+inputs:
+  text:
+    required: true
+    description: 'file: 読ませる本文のファイル（字のまま読み手に貼る）'
+  lang: {default: '', description: 'text: 人に見せる欄（stops・guessed の字）の言語。空は本文の言語'}
+returns: finish
+outcome_field: ok
+nodes:
+  - id: cold-prep
+    script: cold_prep
+    runtime: uv
+    mutates_checkout: false
+    output_format:
+      type: object
+      additionalProperties: false
+      required: [due, prompt, reason]
+      properties:
+        due: {type: boolean}
+        prompt: {type: string}
+        reason: {type: string}
+  - id: cold
+    prompt: "$cold-prep.output.prompt"
+    depends_on: [cold-prep]
+    when: "$cold-prep.output.due == true"
+    context: fresh
+    model: '@wf-report'
+    allowed_tools: []
+    settingSources: [user]
+    sandbox: {enabled: true, allowUnsandboxedCommands: false}
+    mutates_checkout: false
+    idle_timeout: 1728000000
+    retry: {max_attempts: 2, on_error: all}
+    output_format:
+      type: object
+      required: [verdict, stops, guessed, decidable]
+      additionalProperties: false
+      properties:
+        verdict: {type: string, enum: [pass, redesign-needed]}
+        stops: {type: array, items: {type: string}}
+        guessed: {type: array, items: {type: string}}
+        decidable: {type: boolean}
+  # 役の返答の受け皿。出口は落ちうる役の node を結ばず、受け皿が写したファイルで読む（役が落ちても受け皿が飛ぶだけ）
+  - id: cold-save
+    script: cold_save
+    runtime: uv
+    mutates_checkout: false
+    depends_on: [cold]
+    with:
+      reply: $cold.output
+    output_format:
+      type: object
+      additionalProperties: false
+      required: [saved]
+      properties:
+        saved: {type: boolean}
+  - id: finish
+    script: finish
+    runtime: uv
+    mutates_checkout: false
+    depends_on: [cold-prep, cold-save]
+    trigger_rule: all_done
+    with:
+      prep: {from: "$cold-prep.output", if_skipped: null}
+    output_format:
+      type: object
+      additionalProperties: false
+      required: [ok, status, reason, verdict, pass, stops, guessed, decidable, stuck, report]
+      properties:
+        ok: {type: boolean}
+        status:
+          type: string
+          enum: [ok, failed]
+        reason: {type: string}
+        verdict:
+          type: string
+          enum: [pass, redesign-needed, '']
+        pass: {type: boolean}
+        stops: {type: array, items: {type: string}}
+        guessed: {type: array, items: {type: string}}
+        decidable: {type: boolean}
+        stuck: {type: array, items: {type: string}}
+        report: {type: array, items: {type: string}}

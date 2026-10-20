@@ -2,30 +2,54 @@
 # requires-python = ">=3.12"
 # dependencies = []
 # ///
-"""修正の後に、案の直しを差し込むかを決めるノード after-fix（docs/design.md の「メイングラフ」の「順と承認ノード」の 7）。
+"""修正の後に、案の直しを差し込むかを決める node after-fix（docs/design/line.md の 4.2）。
 
-when: は配列が空かを比べられないので、ここで数える。fix の返りの replan_items（裁定が誤りとした計画の項目）が空でなければ案の直し。
-線に差し込みが 1 つしか無いので、1 run に 1 度。再審を差し込むかは、2 度目の修正の後の節 fixed が両方の修正役の異議で決める
-（元 works/darkfactory/darkfactory.yaml:827。再審は案の直しと 2 度目の修正の後）。
-例外で決められなかった時は止めの理由 works:line-script を返し、fixed がそれを読んで後ろ（試験の関門から先）へ進めない。
+when: は配列が空かを比べられないので、ここで数える。fix の replan_items（裁定が誤りとした計画の項目）が空でなければ案の直し（1 run に
+1 度。line に差し込みは 1 つしか無い）。真の時は、案の直しの plan の port prior に渡す承認済みの案の周（最後の周の reply・fields〔欄 plan〕・
+fix_plan・ripple と、全部の周の handoff。review と record は null。plan の設計書の 1.6 の plan-prior.schema.json の形）を place の
+src.files.REPLAN_PRIOR に書いて pointer を返す。例外の時は止めの語 works:line-script を返し、fixed が held にして試験の関門から先へ進めない。
 
-入力（with:）: replan_items（fix の返り）
+入力（with:）: replan_items（fix の出力）・rounds（計画の往復の記録の pointer。読まない。往復の外の周であることの控え）・plan・fix_plan・
+ripple・reply（承認済みの案の最後の周の出力の pointer か null）・handoffs（全部の周の handoff の pointer の並び）・round（周の番号）
 """
+import json
 import os
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2] / ".shared"))
-import boundary  # noqa: E402
+sys.dont_write_bytecode = True
+sys.path[:0] = [str(Path(__file__).resolve().parents[2] / ".shared"), str(Path(__file__).resolve().parents[1])]
+import ports  # noqa: E402
 
 
-def decide(replan_items: list) -> dict:
-    return {"replan": bool(replan_items), "stop_reason": ""}
+def prior_doc(env) -> dict:
+    """案の直しの plan の prior（plan-prior.schema.json の欄 round・reply・fields・fix_plan・ripple・review・record・handoffs）"""
+    rnd = ports.parsed(env.get("INPUTS_ROUND"))
+    return {"round": rnd if isinstance(rnd, int) and rnd >= 1 else 1, "reply": ports.parsed(env.get("INPUTS_REPLY")),
+            "fields": ports.parsed(env.get("INPUTS_PLAN")), "fix_plan": ports.parsed(env.get("INPUTS_FIX_PLAN")),
+            "ripple": ports.parsed(env.get("INPUTS_RIPPLE")), "review": None, "record": None,
+            "handoffs": [h for h in ports.parsed(env.get("INPUTS_HANDOFFS")) or [] if isinstance(h, dict)]}
+
+
+def compute():
+    from src import files
+    env = {"INPUTS_REPLAN_ITEMS": os.environ.get("INPUTS_REPLAN_ITEMS"), "INPUTS_ROUND": os.environ.get("INPUTS_ROUND"),
+           "INPUTS_REPLY": os.environ.get("INPUTS_REPLY"), "INPUTS_PLAN": os.environ.get("INPUTS_PLAN"),
+           "INPUTS_FIX_PLAN": os.environ.get("INPUTS_FIX_PLAN"), "INPUTS_RIPPLE": os.environ.get("INPUTS_RIPPLE"),
+           "INPUTS_HANDOFFS": os.environ.get("INPUTS_HANDOFFS"), "INPUTS_ROUNDS": os.environ.get("INPUTS_ROUNDS")}
+    items = ports.parsed(env["INPUTS_REPLAN_ITEMS"]) or []
+    if not isinstance(items, list):
+        raise ValueError(f"replan_items が配列でない（{type(items).__name__}）")
+    if not items:
+        return {"replan": False, "prior": None, "stop_reason": ""}
+    path = ports.place() / files.REPLAN_PRIOR
+    path.write_text(json.dumps(prior_doc(env), ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
+    return {"replan": True, "prior": ports.pointer(path), "stop_reason": ""}
 
 
 def fallback(reason: str) -> dict:
-    return {"replan": False, "stop_reason": boundary.LINE_SCRIPT}
+    from src import guard
+    return {"replan": False, "prior": None, "stop_reason": guard.LINE_SCRIPT}
 
 
-if __name__ == "__main__":
-    boundary.run(lambda: decide(boundary.items(os.environ.get("INPUTS_REPLAN_ITEMS"))), fallback)
+ports.run(compute, fallback)

@@ -1,33 +1,32 @@
-# review-prep が出し直し（resubmit: true）を返した周。1 回目の役 plan-review は when で飛び、出し直しの役 plan-review-fix と受け付けと
-# 返す節に届く（配線だけを見る。出し直しを合わせる中身は tests/workflows/test_plan_review.py が script を子のプロセスで回して見る）
-open: { ok: true, r2_go: true, tree: false, k: 1, form: review, reason: "" }
-r2-prep: { prompt: "stub: 元の目的と実測した制約" }
-r2-design: { question_stands: true, reason: "stub: 問いは立つ", design: "stub: 理想解", elements: [{ id: D1, adds: ["stub: 入口の 1 本化"], removes: [] }] }
-r2-accept: { ok: true, done: true, give_up: false, reason: "" }
-review-prep: { prompt_file: "", brief: "/fixture/plan-review/pass-1/resubmit-2.md", resubmit: true }
-plan-review-fix: { faces: [], shrink: [], reason: "stub: 写し・入口・契約のずれを確かめた", faces_none: "stub: 穴が無いことを全部の見ることで確かめた" }
-review-accept: { ok: true, done: true, give_up: false, reason: "" }
-review-reads: { ok: true, missing: [], index_file: plan-review/pass-1/reads-plan-review-block.json, reason: "" }
-review:
-  pass: true
-  stalled: false
-  review: { type: archon_artifact, run_id: "fixture-run", path: "plan-review/pass-1/review.json" }
-  gate_passes: { type: archon_artifact, run_id: "fixture-run", path: "plan-review/pass-1/gate-passes.json" }
-  gate: { type: archon_artifact, run_id: "fixture-run", path: "plan-review/pass-1/gate.json" }
-  design: { type: archon_artifact, run_id: "fixture-run", path: "plan-review/design.json" }
-  design_premises: null
-  gate_axes: { obvious: { ok: true, note: "" }, world: { ok: true, note: "" }, clean: { ok: true, note: "" }, not_overkill: { ok: true, note: "" } }
-  ask_human: false
-  questions: []
-  gave_up: null
+# 拒まれた後の出し直し（単独の組）: 筋書きは輪を 1 周しか回さないので、1 周目の review-prep の返りを「出し直す」に差し替えて、出し直しの
+# 指示を組む review-fix-prep・出し直しの役・受け付けへ届かせる。出し直しの役の指示は本物の prep が md から組む。合わせる前の答えの控えが
+# 無いので受け付けは拒み、出口が status: failed を返す
 fixture:
-  inputs:
-    units: "[]"
-    judgment: "{\"type\":\"archon_artifact\",\"run_id\":\"fixture-run\",\"path\":\"judge/judgment.json\"}"
-    purpose: "{\"type\":\"archon_artifact\",\"run_id\":\"fixture-run\",\"path\":\"judge/purpose.json\"}"
-    world: "null"
-    plan: "{\"type\":\"archon_artifact\",\"run_id\":\"fixture-run\",\"path\":\"plan/r1/plan-fields.json\"}"
-    structure: "{\"type\":\"archon_artifact\",\"run_id\":\"fixture-run\",\"path\":\"structure/structure-state.json\"}"
-    ripple: "{\"type\":\"archon_artifact\",\"run_id\":\"fixture-run\",\"path\":\"plan/ripple.json\"}"
   expect: completed
-  reached: [r2-design, plan-review-fix, review-accept, review]
+  reached:
+  - intake
+  - review-prep
+  - review-fix-prep
+  - review-fix
+  - review-accept
+  - review-reads
+  - finish
+  inputs:
+    proposal: '{"plan": [{"unit_keys": ["stats.py mean: 分母が len(xs) - 1 になっている"], "approach": "項目 1 の直し: stats.py mean: 分母が len(xs) - 1 になっている
+      を直す", "files": [{"path": "stats.py", "op": "modify", "responsibility": "この行の受け持ち", "home": {"concept": "stats.py の考え（helper_1）", "why":
+      "この行の path が住処だから"}, "considered": [{"path": "alt_home.py", "why_not": "同じ仕事の助け手が alt_home.py:3 に無かった"}], "symbols": [{"name": "helper_1",
+      "change": "add"}]}], "shrink_first": "要らない", "narrows": []}]}'
+    fields: '{"round": 1, "fields": [{"route": "direct", "route_why": "1 行の直しで済む", "tests": [], "rewrite_tests": [], "refactor": "無い", "allowed_paths":
+      ["stats.py"], "out_of_scope": [], "structure": []}]}'
+    judgment: '{"units": [{"key": "stats.py mean: 分母が len(xs) - 1 になっている", "label": "block", "disposition": "fix", "reason": "分母が 1 少ない"}], "framing":
+      "分母と上限の 2 つの誤り", "one_shot": "2 か所を直す"}'
+    purpose: 統計の関数が正しい値を返す
+    tree: 'off'
+  resolved-text-contains:
+    review-fix: Your previous answer was rejected by the machine's check.
+exec-code: true
+review-prep:
+  prompt: ''
+  resubmit: true
+  tree: false
+review-fix: {}

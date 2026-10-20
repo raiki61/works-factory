@@ -4,7 +4,7 @@ place:
   mode: apply
   ok: true
   hash: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-  diff: { type: archon_artifact, run_id: fixture-run, path: merge/apply.diff }
+  diff: { type: archon_artifact, run_id: fixture-run, path: apply.diff }
   protected_hits: null
   protected_count: null
   reason: ""
@@ -39,7 +39,7 @@ fixture:
   reached: [place, pr-commit, pr-open, pr-read, merge]
   inputs:
     mode: apply
-    start: '{"type":"archon_artifact","run_id":"fixture-run","path":"start.json"}'
+    base: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
     sealed_hash: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
     answer: '{"decision":"approve","text":""}'
     deliver: pr

@@ -1,62 +1,62 @@
 name: works-factory-structure
-description: |
-  構造のサブグラフ（メイングラフが include する部品。単独では回さない）。判定が切った単位が名指すファイルを機械で実測し（段 A）、
-  構造の目（道具なしの別の会話）が直しが構造を汚すかを単位ごとに判定して、構造の目の控えを 1 つ返す（元の works の blk-structure）。
-  置き場は run の置き場の structure/ の下だけ（出力の欄が指すファイルの名の住処は lib/structbeside.py、置き場の書き手は lib/structfile.py）。
-  出力ノード structure は落ちない（中の誤りを捕まえて ok: false と、在って空でない控えのポインタを返す）。
-
+description: '構造の目の block（docs/design/structure.md）。直しの単位ごとに、直しが対象のリポジトリの構造を汚すか（書いた意図に反するか、設計の考えを知る場所を増やすか）を、書いた意図と機械の実測を見せた道具なしの目に判じさせる。直す前（修正案の前に単位を見る）と直した後（差分を見る）を mode で選ぶ。汚れると見た単位には推しの避け方を書かせ、決め手を当たっても避け方が決まらない単位だけを人に上げる行にさせる。落ちず、控えと報告の行を返す。単独の run でも、graph から include されても回る'
 inputs:
-  start:
-    default: ""
-    description: 始めの記録のポインタ。欄 policy（固めた方針の文書の写し）を読む
+  mode:
+    default: before
+    description: 'choice(before|after): before は直す前に単位を測って見る。after は base から今の作業ツリーまでの差分を測って見る'
   units:
-    default: "[]"
-    description: 単位の目録（[{id, paths, summary}]）。paths が空の単位は測らない
-
-returns: structure
+    default: '[]'
+    description: 'json(shared:units.schema.json): 直しの単位の配列 [{id, paths, summary}]。before では paths が空の単位は測らずに skipped に名指す。after では空の配列でよく、その時は差分の全体を 1 つの単位（id は diff）として見る'
+  intent:
+    default: '[]'
+    description: 'json(intent.schema.json): 書いた意図の文書のパスの配列（作業ツリーの根からの相対）。空の配列なら決まった名（ARCHITECTURE.md・AGENTS.md）で探す'
+  policy:
+    default: ''
+    description: 'file: 人が run に固めた方針の文書。空の字は、方針の文書が渡されていない'
+  base:
+    default: ''
+    description: 'text: after の時の直す前の版の commit。before では読まない'
+  plan:
+    default: ''
+    description: 'file: after の時の修正案の欄のファイル（plan-fields.json。欄 fields）。構造の目の避け方から外れた訳を読む。空の字は、修正案が渡されていない。before では読まない'
+  lang:
+    default: ''
+    description: 'text: 人に見せる欄（reason・chosen・chosen_reason・rejected・undecided_because）の言語。空は共通の既定（依頼の言語）'
+returns: finish
 outcome_field: ok
-
 nodes:
-  # 段 A の実測。paths の在る単位を structure/ で測る
-  - id: structure-measure
-    script: structure_measure
+  - id: measure
+    script: survey
     runtime: uv
     mutates_checkout: false
     output_format:
       type: object
       additionalProperties: false
-      required: [structure_file, design_file, eye]
+      required: [eye, reason]
       properties:
-        structure_file: {type: string}
-        design_file: {type: string}
         eye: {type: boolean}
-
-  # 構造の目の輪。拒否の後は同じ会話で出し直させ、3 回目の拒否で受け付けが done（give_up）を出して輪を抜ける
-  # （max_iterations で落とさない）
+        reason: {type: string}
   - id: structure-eye-loop
-    depends_on: [structure-measure]
-    when: "$structure-measure.output.eye == true"
+    depends_on: [measure]
+    when: "$measure.output.eye == true"
     loop_group:
       max_iterations: 3
       fresh_context: false
       until_bash: 'done=$structure-eye-accept.output.done; test "$done" = true'
       nodes:
         - id: structure-eye-prep
-          script: eye_prep
+          script: prep
           runtime: uv
           mutates_checkout: false
-          with:
-            structure_file: $structure-measure.output.structure_file
           output_format:
             type: object
             additionalProperties: false
-            required: [prompt, prompt_file, attempt]
+            required: [prompt, attempt]
             properties:
-              prompt: {type: string}
-              prompt_file: {type: string}
+              prompt: {type: string, minLength: 1}
               attempt: {type: integer}
         - id: structure-eye
-          command: structure-eye
+          prompt: "$structure-eye-prep.output.prompt"
           depends_on: [structure-eye-prep]
           model: '@wf-plan-structure'
           allowed_tools: []
@@ -65,8 +65,6 @@ nodes:
           mutates_checkout: false
           idle_timeout: 1728000000
           retry: {max_attempts: 2, on_error: all}
-          # 行の形は lib/design-row.schema.json から route_reason（受け付けが足す）と precedents を除き、route を任意にした物
-          # （今の works の structure-eye の型。持ち主との一致は試験が見る）
           output_format:
             type: object
             required: [rows]
@@ -97,15 +95,21 @@ nodes:
                     chosen_reason: {type: string}
                     route: {type: string, enum: [自分で決める, 人に上げる]}
                     undecided_because: {type: string}
+                    intent:
+                      type: array
+                      items:
+                        type: object
+                        required: [path, quote]
+                        additionalProperties: false
+                        properties:
+                          path: {type: string, minLength: 1, pattern: '\S'}
+                          quote: {type: string, minLength: 1, pattern: '\S'}
         - id: structure-eye-accept
-          script: eye_accept
+          script: take
           runtime: uv
           mutates_checkout: false
           depends_on: [structure-eye]
-          with:
-            structure_file: $structure-measure.output.structure_file
-            design_file: $structure-measure.output.design_file
-            reply: $structure-eye.output
+          with: {reply: $structure-eye.output}
           output_format:
             type: object
             additionalProperties: false
@@ -116,32 +120,47 @@ nodes:
               give_up: {type: boolean}
               reason: {type: string}
               attempt: {type: integer}
-
-  # 返す節。構造の目の控え structure-state.json を書いて指す（目が飛んだ・落ちた・3 回拒まれた run も書く。実測が落ちた・目を起こす
-  # run なのに目の受け付けが済んでいない run は status: failed で ok: false）。落ちない（中の誤りは訳つきの failed の控えと ok: false）。
-  # optional は、このブロックの中の節が落ちても線が先へ進めてよい宣言（構造の実測と構造の目。落ちても修正案は構造の目の行なしで進む）。
-  # [{node, bare}] の JSON の字で、node は自分の中の節の id かその頭（区切り - で終わる物は頭）、bare はループの中の節で、記録の step に
-  # include の前付けの無い素の id で載るか。線は受け皿で受け、include の id の頭を付けて報告へ渡す
-  - id: structure
-    script: structure_collect
+  - id: finish
+    script: finish
     runtime: uv
     mutates_checkout: false
-    depends_on: [structure-measure, structure-eye-loop]
+    depends_on: [measure, structure-eye-loop]
     trigger_rule: all_done
-    with:
-      optional: '[{"node": "structure-", "bare": false}, {"node": "structure-eye", "bare": true}, {"node": "structure-eye-", "bare": true}]'
     output_format:
       type: object
       additionalProperties: false
-      required: [ok, structure]
+      required: [ok, status, reason, structure, after, dirty, escalate, optional, report]
       properties:
-        optional: {type: array}
         ok: {type: boolean}
+        status:
+          type: string
+          enum: [ok, failed]
+        reason: {type: string}
         structure:
-          type: object
-          additionalProperties: false
-          required: [type, run_id, path]
+          type: [object, 'null']
           properties:
-            type: {type: string, enum: [archon_artifact]}
+            type:
+              type: string
+              enum: [archon_artifact]
             run_id: {type: string}
             path: {type: string}
+        after:
+          type: [object, 'null']
+          properties:
+            type:
+              type: string
+              enum: [archon_artifact]
+            run_id: {type: string}
+            path: {type: string}
+        dirty: {type: integer}
+        escalate: {type: integer}
+        optional:
+          type: array
+          items:
+            type: object
+            properties:
+              node: {type: string}
+              bare: {type: boolean}
+        report:
+          type: array
+          items: {type: string}

@@ -1,8 +1,7 @@
-# 筋書き: 測れた単位が無い（実測が落ちた・paths の在る単位が無い）run。構造の目の輪が飛び、返す節には届く
-structure-measure: {structure_file: structure/structure.json, design_file: structure/design.jsonl, eye: false}
-structure:
-  ok: false
-  structure: {type: archon_artifact, run_id: fixture-run, path: structure/structure-state.json}
+# 測れた単位が無い道（paths の空な単位だけ）: 構造の目の輪を飛ばし、出口には届く。出口は ok で、測らなかった単位を控えの skipped に残す
 fixture:
   expect: completed
-  reached: [structure-measure, structure]
+  reached: [measure, finish]
+  inputs:
+    units: '[{"id": "u1", "paths": [], "summary": "書き方の全体"}]'
+exec-code: true

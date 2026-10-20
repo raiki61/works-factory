@@ -545,7 +545,8 @@ class ReplanCase(unittest.TestCase):
         self.assertEqual(run.json(out["plan"]), {"round": 2, "fields": []})
         error = run.json(out["ripple"])["error"]
         self.assertIn(f"{rolekit.NET_AFTER} 回とも受け付けで拒まれた", error)
-        self.assertIn(replan.REPLAN_REJECT, error)
+        self.assertIn(steps.REPLAN_REJECT, error)
+        self.assertEqual(steps.REPLAN_REJECT, replan.REPLAN_REJECT)
         rows = json.loads((run.pointed(out["plan"]).parent / files.REPLAN_GAVE_UP).read_text(encoding="utf-8"))
         self.assertEqual([(r["item"], r["ruling"]) for r in rows], [(1, RULING_TEXT)])
         self.assertTrue(rows[0]["why"].startswith(steps.PLAN_GAVE_UP_WHY.split("{")[0]), rows[0]["why"])

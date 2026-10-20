@@ -1,4 +1,4 @@
-"""修正の block（blocks/fix/）の組の合わせ: src/clash.py（lib/clash.py の写し）と、合わせの申し出・裁定の語（conflict.JOIN_SOURCE・
+"""修正の block（workflows/fix/）の組の合わせ: src/clash.py（lib/clash.py の写し）と、合わせの申し出・裁定の語（conflict.JOIN_SOURCE・
 conflict.REJUDGE。持ち主の決め clash-goes-to-ruling）と、join から裁定の後の合わせのループまで script を順に起こす筋書き
 （docs/design/fix.md の 14.2 の test_clash.py）。
 

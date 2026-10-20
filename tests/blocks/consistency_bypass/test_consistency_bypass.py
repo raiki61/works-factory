@@ -142,11 +142,11 @@ class FlowCase(unittest.TestCase):
         self.assertIn("intake.json", self.run.failing("role_prep", f"{LOOP}.{NAME}-prep"))
 
     def test_included_block_writes_in_its_own_place(self):
-        self.run.script("intake", "judge__consistency-bypass__intake", base="", entry="", lang="")
-        self.run.script("role_prep", f"judge__consistency-bypass__{LOOP}.{NAME}-prep")
-        self.assertTrue((self.run.artifacts / "judge" / "consistency-bypass" / f"{NAME}-prompt-1.md").is_file())
-        fin = self.run.script("finish", "judge__consistency-bypass__finish")
-        self.assertEqual(fin["material"]["path"], "judge/consistency-bypass/material.json")
+        self.run.script("intake", "judge__consistency-bypass-run__intake", base="", entry="", lang="")
+        self.run.script("role_prep", f"judge__consistency-bypass-run__{LOOP}.{NAME}-prep")
+        self.assertTrue((self.run.artifacts / "judge" / "consistency-bypass-run" / f"{NAME}-prompt-1.md").is_file())
+        fin = self.run.script("finish", "judge__consistency-bypass-run__finish")
+        self.assertEqual(fin["material"]["path"], "judge/consistency-bypass-run/material.json")
 
 
 class ViewpointCase(unittest.TestCase):

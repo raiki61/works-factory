@@ -1,4 +1,4 @@
-"""観点の宣言 blocks/external-standards/src/viewpoint.py のこの観点だけの中身（族の全部に当てる照らしは tests/blocks/materials/）"""
+"""観点の宣言 workflows/external-standards/src/viewpoint.py のこの観点だけの中身（族の全部に当てる照らしは tests/blocks/materials/）"""
 import unittest
 
 from tests.blocks import kit
@@ -52,7 +52,7 @@ class ViewpointCase(unittest.TestCase):
                          ["  - 順位: 付けられる問題なし（定番解なし）"])
 
     def test_section_names_are_headings_of_the_source_of_truth(self):
-        heads = [line[3:] for line in (kit.ROOT / "lib" / "REVIEW.md").read_text(encoding="utf-8").splitlines() if line.startswith("## ")]
+        heads = [line[3:] for line in (kit.SHARED / "prompts" / "REVIEW.md").read_text(encoding="utf-8").splitlines() if line.startswith("## ")]
         for name in (self.vp.STANDARDS_SECTION, self.vp.CRITERIA_SECTION):
             with self.subTest(name=name):
                 self.assertTrue(any(h.startswith(name) for h in heads), name)

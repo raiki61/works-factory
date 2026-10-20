@@ -1,0 +1,45 @@
+# spec-stop: 仕様の段が止めを返す（人が仕様の承認ノードで止めた）→ 並行 PR から先は回らず、verdict が human:spec-gate で止める（judge-eyes.md の 1.4 の 1）
+fixture:
+  expect: completed
+  reached:
+  - ins
+  - spec__finish
+  - head-depth-run__finish
+  - spec-in
+  - verdict
+  inputs:
+    request: '[{"where": "app.py", "text": "Uploads fail on a flaky link; retry them."}]'
+    spec: 'true'
+exec-code: true
+head-depth-run__intake:
+  due: false
+  reason: '筋書き: block の中は block の筋書きが見る'
+head-depth-run__finish:
+  ok: true
+  status: ok
+  reason: ''
+  tier: 標準
+  why: 原因が未知の行が在る
+  rows: []
+  record:
+    type: archon_artifact
+    run_id: stub
+    path: head-depth-run/depth-head.json
+  report:
+  - '- 段: 標準'
+spec__intake:
+  mode: write
+  go: false
+  reason: '筋書き: block の中は block の筋書きが見る'
+spec__finish:
+  ok: false
+  status: stopped
+  stop_reason: human:spec-gate
+  reason: 人が仕様の承認ノードで止めた
+  spec: null
+  added_rows: null
+  added_origin: ''
+  questions: []
+  unchecked: false
+  report:
+  - '- 仕様: 止めた'

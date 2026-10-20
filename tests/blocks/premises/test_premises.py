@@ -235,14 +235,13 @@ class FinishCase(_RepoCase):
         self.assertEqual(self.run.script("finish"),
                          {"ok": True, "status": "ok", "reason": "",
                           "constraints": {"type": "archon_artifact", "run_id": kit.RUN_ID, "path": "premises.json"},
-                          "measured": 1, "hypotheses": 0, "report": []})
+                          "report": []})
 
     def test_report_names_the_request_measured_that_stayed_a_hypothesis(self):
         self.intake()
         self.prep()
         self.assertTrue(self.accept(HYP)["ok"])
         fin = self.run.script("finish")
-        self.assertEqual((fin["measured"], fin["hypotheses"]), (0, 1))
         self.assertEqual(fin["report"], [f"依頼の実測を測り直せなかった（前提は仮説）: stats.py:4——{HYP['constraints'][0]['text']}"])
 
     def test_report_is_empty_without_measured_in_the_request(self):
@@ -256,7 +255,7 @@ class FinishCase(_RepoCase):
         self.prep()
         self.assertTrue(self.accept({"constraints": []})["ok"])
         fin = self.run.script("finish")
-        self.assertEqual((fin["ok"], fin["status"], fin["measured"], fin["hypotheses"], fin["report"]), (True, "ok", 0, 0, []))
+        self.assertEqual((fin["ok"], fin["status"], fin["report"]), (True, "ok", []))
 
     def test_three_rejections_give_up(self):
         self.intake()
@@ -265,8 +264,7 @@ class FinishCase(_RepoCase):
             got = self.accept({"constraints": []})
         self.assertEqual((got["ok"], got["done"]), (False, True))
         fin = self.run.script("finish")
-        self.assertEqual((fin["ok"], fin["status"], fin["constraints"], fin["measured"], fin["hypotheses"]),
-                         (False, "failed", None, 0, 0))
+        self.assertEqual((fin["ok"], fin["status"], fin["constraints"]), (False, "failed", None))
         self.assertIn("stats.py:4", fin["reason"])
         self.assertIn("3 回とも", fin["reason"], "諦めた文（given_up_reason）で、最後の拒否の文そのままではない")
         self.assertEqual(fin["report"], [f"前提の制約: {fin['reason']}"])
@@ -293,11 +291,11 @@ class FinishCase(_RepoCase):
         self.assertIn("前提の実測の支度が落ちた", fin["reason"])
 
     def test_included_block_writes_in_its_own_place(self):
-        self.run.script("intake", "judge__premises__intake", request=REQUEST, carried="[]", lang="")
-        self.run.script("measure_prep", "judge__premises__premises-loop.premises-prep")
-        self.run.script("measure_accept", "judge__premises__premises-loop.premises-accept", reply=json.dumps(GOOD))
-        fin = self.run.script("finish", "judge__premises__finish")
-        self.assertEqual(fin["constraints"]["path"], "judge/premises/premises.json")
+        self.run.script("intake", "judge__premises-run__intake", request=REQUEST, carried="[]", lang="")
+        self.run.script("measure_prep", "judge__premises-run__premises-loop.premises-prep")
+        self.run.script("measure_accept", "judge__premises-run__premises-loop.premises-accept", reply=json.dumps(GOOD))
+        fin = self.run.script("finish", "judge__premises-run__finish")
+        self.assertEqual(fin["constraints"]["path"], "judge/premises-run/premises.json")
         self.assertFalse((self.run.artifacts / "premises.json").exists())
 
 
@@ -342,9 +340,9 @@ class ShapeCase(unittest.TestCase):
             with self.subTest(bad):
                 self.assertTrue(validate_schema(bad, shape))
 
-    def test_finish_counts_match_the_returns_shape(self):
+    def test_finish_fields_match_the_returns_shape(self):
         props = self.nodes["finish"]["output_format"]["properties"]
-        self.assertEqual(set(props), {"ok", "status", "reason", "constraints", "measured", "hypotheses", "report"})
+        self.assertEqual(set(props), {"ok", "status", "reason", "constraints", "report"})
 
 
 if __name__ == "__main__":

@@ -1,6 +1,12 @@
-"""`lib/` に Archon の名の字の形が無く、`workflows`・`bin` の中の物を import しない（lib/AGENTS.md の E3 の機械の行）。"""
+"""`lib/` に Archon の名の字の形が無く、`workflows`・`bin` の中の物を import しない（`lib/AGENTS.md` の E3 と根の `AGENTS.md` の E22 の機械の行）。
+
+- Archon の名: `archon`・`$ARTIFACTS_DIR`・`$TYPED_ARTIFACTS_FILE`・`ARCHON_` で始まる環境変数・`INPUTS_<名>`・`WORKFLOW_ID`・`$LOOP_PREV`・`loop_group`・`$<ノード>.output`・`output_type` の語（照らしは `scan.ARCHON_WORDS` の字の形だけで、ノードの id は照らさない）。
+- import の向き: 層の地図 `docs/layers.json` で lib が頼ってよい層（`may_use`）の外の層の頭のフォルダ（`workflows`・`bin`）を import しない（`scan.LAYER_IMPORT`）。
+- 照らしから外すのは `tests/layers/scan.py` の `ALLOWED["E3"]` の行だけ: この決まりの文の `lib/AGENTS.md` と、役が読む借りたスキルの読み替え `lib/borrow/unattended.md` が役に説く Archon の字（`<パス>#<字>` の行）と、Archon の run の記録を読む口 `lib/runlog.py` とその試験 `lib/tests/test_runlog.py`（report と chain の 2 つが使うので lib に上げた。`docs/design/integration.md` の 4.5-2）。
+"""
 import pathlib
 import unittest
+from unittest import mock
 
 from tests.layers import scan
 from tests.layers.trees import tree
@@ -49,7 +55,8 @@ class LibBlindTest(unittest.TestCase):
 
     def test_named_word_allowance_hides_only_that_word(self):
         """ALLOWED の `<パス>#<字>` の行は、そのファイルのその字だけを外す（同じファイルのほかの字は赤のまま）"""
-        with tree({"lib/tests/test_blk_fix.py": 'A = "$LOOP_PREV"\nB = "INPUTS_OTHER"\n'}) as root:
+        with tree({"lib/x.py": 'A = "$LOOP_PREV"\nB = "INPUTS_OTHER"\n'}) as root, \
+                mock.patch.dict(scan.ALLOWED, {"E3": ("lib/x.py#$LOOP_PREV",)}):
             got = scan.problems("E3", root)
         self.assertEqual(len(got), 1, got)
         self.assertIn("INPUTS_OTHER", got[0])

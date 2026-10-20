@@ -1,0 +1,6 @@
+# 単独の run: rounds が範囲の外なら chain-start が act: refused を返し、周のノードは全部飛ぶ（line の block 無しで回る。周の筋書きは refused 以外の 7 本）
+fixture:
+  expect: "completed"
+  inputs: {"rounds": "6", "request": "request.json"}
+  reached: ["chain-start", "final-diff", "result"]
+exec-code: true

@@ -1,89 +1,298 @@
-# 筋書き spec-on: 始めの記録が仕様の段を選んだ run。仕様を書き・審査し・穴を直し、関所の承認（筋書きでは spec-gate の stub が答える）の後に
-# 受け入れテストを固めてから判定の道へ進む
+# spec-on: 仕様の段を挟む run。spec が approved を返せば並行 PR から先へ進む（承認ノードは spec の block の中で、spec の筋書きが見る。仕様が足した行の依頼への積みと diagnose への受け渡しは、筋書きでは行のファイルを置けない〔pointer が run のファイルを指すので〕ため tests/blocks/judge/test_judge.py の spec_in・diagnose_in の script の試験が見る）
 fixture:
   expect: completed
-  reached: [spec-accept, spec-review-accept, spec-revise-accept, spec-ask, spec-gate, spec-freeze, pr-scan, diagnose-accept, verdict]
-intake: {go: true, mode: judge, spec: true, world: false, reason: ''}
-head-depth-prep: {go: false, brief_file: '', reason: 仕様の段を挟む run}
-pr-scan: {go: true, go_role: false, reason: 開いている PR に交差が無い}
-premises:
-  constraints: []
-premises-reject: {reason: '', "lang_line": ""}
-premises-accept: &id001 {ok: true, done: true, reason: ''}
-purpose-prep: {go: true, brief_file: /tmp/judge/purpose-brief.md, reason: ''}
-purpose:
-  purpose_text: 平均と範囲の関数が正しい値を返す
-  source: ①PR 説明
-  known_weaknesses: []
-  source_files: []
-  means: []
-purpose-reject: {reason: '', "lang_line": ""}
-purpose-accept: *id001
-spec: &id002
-  requirements:
-  - {key: R1, text: mean は要素の数で割る}
-  acceptance:
-  - {key: A1, requirement: R1, file: test_spec.py, name: test_mean_divides_by_count, run: make test-mean}
-  out_of_scope: []
-spec-reject: {reason: '', "lang_line": ""}
-spec-accept: {ok: true, done: true, reason: '', revise: false}
-spec-review:
-  faces:
-  - {key: F1, kind: ambiguous, where: R1, why: 空の並びの時に何を返すかが書かれていない}
-  reason: 要件 R1 は空の並びを渡した時に何を返すかが曖昧で、受け入れ条件 A1 もそこを試していない
-spec-review-reject: {reason: '', "lang_line": ""}
-spec-review-accept: {ok: true, done: true, reason: '', revise: true}
-spec-revise:
-  spec: *id002
-  handled:
-  - {key: F1, handled: declared, how: 空の並びは範囲の外と out_of_scope に宣言した}
-spec-revise-reject: {reason: '', "lang_line": ""}
-spec-revise-accept: {ok: true, done: true, reason: '', revise: false}
-spec-ask: {ask: true, message: '仕様の関所: 要件 R1・受け入れ条件 A1'}
-spec-gate: {decision: approve, text: ''}
-spec-freeze: {go: true, reason: ''}
-material-route: {prior_decisions: false, purpose_review: false, local_review: false, consistency_bypass: false, hygiene: false, external_standards: false, procedure_trace: false, gate_efficacy: false, test_double_fidelity: false, main_path_observation: false, provenance: false, reason: 差分の空の run}
-diagnose-prep: {go: true, brief_file: /tmp/judge/diagnose-brief.md, review_md: /tmp/lib/REVIEW.md, repo_review_md: '', reason: ''}
-diagnose:
-  units:
-  - {key: 'stats.py mean: 分母が len(xs) - 1', label: block}
-  questions: []
-  framing: 分母の取り違え
-  one_shot: 分母を len(xs) にする
-  materials_missing: []
-  carried_r1: []
-  one_shot_closes: ['stats.py mean: 分母が len(xs) - 1']
-  precedents: []
-diagnose-reject: {reason: '', "lang_line": ""}
-diagnose-accept: *id001
-verify-prep: {go: false, prompt_file: '', reason: 開いた単位が 2 つ未満, "lang_line": ""}
-verify-merge: {ok: true, reason: ''}
-verdict:
-  depth: 標準
-  depth_why: 筋書きの stub
-  ready: true
+  reached:
+  - ins
+  - spec__finish
+  - head-depth-run__finish
+  - spec-in
+  - parallel-pr__finish
+  - premises-run__finish
+  - purpose-run__finish
+  - world__finish
+  - prior-decisions-run__finish
+  - purpose-review-run__finish
+  - local-review-run__finish
+  - consistency-bypass-run__finish
+  - hygiene-run__finish
+  - external-standards-run__finish
+  - procedure-trace-run__finish
+  - test-double-fidelity-run__finish
+  - main-path-observation-run__finish
+  - provenance-run__finish
+  - diagnose-in
+  - diagnose-run__finish
+  - verdict
+  inputs:
+    request: '[{"where": "app.py", "text": "Uploads fail on a flaky link; retry them."}]'
+    spec: 'true'
+exec-code: true
+head-depth-run__intake:
+  due: false
+  reason: '筋書き: block の中は block の筋書きが見る'
+head-depth-run__finish:
+  ok: true
+  status: ok
+  reason: ''
+  tier: 標準
+  why: 原因が未知の行が在る
+  rows: []
+  record:
+    type: archon_artifact
+    run_id: stub
+    path: head-depth-run/depth-head.json
+  report:
+  - '- 段: 標準'
+parallel-pr__scan:
+  go_role: false
+  reason: '筋書き: block の中は block の筋書きが見る'
+parallel-pr__finish:
+  ok: true
+  status: clean
   stop_reason: ''
+  reason: ''
+  material:
+    status: clean
+    checked: 開いている PR は無い
+  excluded:
+    type: archon_artifact
+    run_id: stub
+    path: parallel-pr/pr-excluded.json
+  drafts: null
+  reads: null
+  downgrades:
+  - what: 担当の PR へ申し送りを投稿しない（下書きを報告に載せる）
+    versus: review-graph は任せ先の役が gh で投稿する
+  report:
+  - '- 並行 PR: clean'
+premises-run__intake:
+  due: false
+  reason: '筋書き: block の中は block の筋書きが見る'
+premises-run__finish:
+  ok: true
+  status: ok
+  reason: ''
+  constraints:
+    type: archon_artifact
+    run_id: stub
+    path: premises-run/premises.json
+  report:
+  - '- 前提の実測: 1 件'
+purpose-run__intake:
+  due: false
+  reason: '筋書き: block の中は block の筋書きが見る'
+purpose-run__finish:
+  ok: true
+  status: ok
+  reason: ''
+  purpose:
+    type: archon_artifact
+    run_id: stub
+    path: purpose-run/purpose.json
+  purpose_text: Uploads survive a flaky link.
+  source: ③writer の要約
+  means:
+  - retry
+  report:
+  - '- 目的: Uploads survive a flaky link.'
+world__intake:
+  due: false
+  findings: 1
+  reason: '筋書き: block の中は block の筋書きが見る'
+world__finish:
+  ok: true
+  status: ok
+  reason: ''
+  rows: null
+  classes: 1
+  dropped: 0
+  report:
+  - '- 世界の解: 1 類'
+diagnose-run__intake:
+  due: false
+  mode: judge
+  reason: '筋書き: block の中は block の筋書きが見る'
+diagnose-run__finish:
+  ok: true
+  status: ok
+  mode: judge
+  stop_reason: ''
+  reason: ''
+  ready: true
+  judgment:
+    type: archon_artifact
+    run_id: stub
+    path: diagnose-run/judgment.json
   units:
-  - id: 'stats.py mean: 分母が len(xs) - 1'
-    paths: [stats.py]
-    summary: 分母の取り違え
-  judgment: {type: archon_artifact, run_id: fixture, path: judge/judgment.json}
-  purpose: {type: archon_artifact, run_id: fixture, path: judge/purpose.json}
-  world: null
-  spec: {type: archon_artifact, run_id: fixture, path: judge/spec.json}
+  - id: u1
+    paths:
+    - app.py
+    summary: retry the upload
+  questions: []
+  inputs: null
+  brief: null
+  materials:
+    type: archon_artifact
+    run_id: stub
+    path: diagnose-run/materials.json
   out_of_purpose: null
-  rejudge_verdict: null
-  premises: null
-  verify: null
-  pr_excluded: null
-  materials: null
-  purpose_review: null
-  depth_record: null
-  decisions: null
   answer_ties: null
-  review_lenses: null
-  pr_drafts: null
+  rejudge_verdict: null
   rejudge_exit: null
   rejudge_diff: null
-  purpose_means: null
-  world_state: null
+  downgrades: []
+  report:
+  - '- 判定: 開いた単位 1'
+prior-decisions-run__intake:
+  due: false
+  reason: '筋書き: block の中は block の筋書きが見る'
+prior-decisions-run__finish:
+  ok: true
+  status: skipped
+  reason: ''
+  material:
+    type: archon_artifact
+    run_id: stub
+    path: prior-decisions-run/material.json
+  report:
+  - '観点 prior-decisions: skipped'
+purpose-review-run__intake:
+  due: false
+  reason: '筋書き: block の中は block の筋書きが見る'
+purpose-review-run__finish:
+  ok: true
+  status: skipped
+  reason: ''
+  material:
+    type: archon_artifact
+    run_id: stub
+    path: purpose-review-run/material.json
+  report:
+  - '観点 purpose-review: skipped'
+local-review-run__intake:
+  due: false
+  reason: '筋書き: block の中は block の筋書きが見る'
+local-review-run__finish:
+  ok: true
+  status: skipped
+  reason: ''
+  material:
+    type: archon_artifact
+    run_id: stub
+    path: local-review-run/material.json
+  report:
+  - '観点 local-review: skipped'
+consistency-bypass-run__intake:
+  due: false
+  reason: '筋書き: block の中は block の筋書きが見る'
+consistency-bypass-run__finish:
+  ok: true
+  status: skipped
+  reason: ''
+  material:
+    type: archon_artifact
+    run_id: stub
+    path: consistency-bypass-run/material.json
+  report:
+  - '観点 consistency-bypass: skipped'
+hygiene-run__intake:
+  due: false
+  reason: '筋書き: block の中は block の筋書きが見る'
+hygiene-run__finish:
+  ok: true
+  status: skipped
+  reason: ''
+  material:
+    type: archon_artifact
+    run_id: stub
+    path: hygiene-run/material.json
+  report:
+  - '観点 hygiene: skipped'
+external-standards-run__intake:
+  due: false
+  reason: '筋書き: block の中は block の筋書きが見る'
+external-standards-run__finish:
+  ok: true
+  status: skipped
+  reason: ''
+  material:
+    type: archon_artifact
+    run_id: stub
+    path: external-standards-run/material.json
+  report:
+  - '観点 external-standards: skipped'
+procedure-trace-run__intake:
+  due: false
+  reason: '筋書き: block の中は block の筋書きが見る'
+procedure-trace-run__finish:
+  ok: true
+  status: skipped
+  reason: ''
+  material:
+    type: archon_artifact
+    run_id: stub
+    path: procedure-trace-run/material.json
+  report:
+  - '観点 procedure-trace: skipped'
+test-double-fidelity-run__intake:
+  due: false
+  reason: '筋書き: block の中は block の筋書きが見る'
+test-double-fidelity-run__finish:
+  ok: true
+  status: skipped
+  reason: ''
+  material:
+    type: archon_artifact
+    run_id: stub
+    path: test-double-fidelity-run/material.json
+  report:
+  - '観点 test-double-fidelity: skipped'
+main-path-observation-run__intake:
+  due: false
+  reason: '筋書き: block の中は block の筋書きが見る'
+main-path-observation-run__finish:
+  ok: true
+  status: skipped
+  reason: ''
+  material:
+    type: archon_artifact
+    run_id: stub
+    path: main-path-observation-run/material.json
+  report:
+  - '観点 main-path-observation: skipped'
+provenance-run__intake:
+  due: false
+  reason: '筋書き: block の中は block の筋書きが見る'
+provenance-run__finish:
+  ok: true
+  status: skipped
+  reason: ''
+  material:
+    type: archon_artifact
+    run_id: stub
+    path: provenance-run/material.json
+  report:
+  - '観点 provenance: skipped'
+spec__intake:
+  mode: write
+  go: false
+  reason: '筋書き: block の中は block の筋書きが見る'
+spec__finish:
+  ok: true
+  status: approved
+  stop_reason: ''
+  reason: ''
+  spec:
+    type: archon_artifact
+    run_id: stub
+    path: spec/spec.json
+  added_rows: null
+  added_origin: ''
+  questions: []
+  unchecked: false
+  report:
+  - '- 仕様: 承認'
+world__pick:
+  due: false
+  web: false
+  reason: '筋書き: block の中は block の筋書きが見る'

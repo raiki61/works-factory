@@ -96,9 +96,7 @@ import fixboard  # noqa: E402  （置き場の trace.jsonl への 1 行）
 import globs  # noqa: E402
 import oneline  # noqa: E402
 import planmarks  # noqa: E402  （planmarks は conflict・entry を読まないので輪にならない）
-import promptsection  # noqa: E402
 import stopby  # noqa: E402  （L1。止めの理由の住処）
-import startrec  # noqa: E402  （始めの記録の読み口）
 from engine.util import Reject  # noqa: E402  （上の行が写しの engine を sys.path に足す）
 
 FILE = "conflicts.json"                 # 盤面の今の周の作業ファイル {"items": [...]}
@@ -229,21 +227,16 @@ CONSULT_SCHEMA = {
 # ---------------------------------------------------------------- 名指しの確かめ
 
 
-def no_requests(board_dir) -> bool:
-    """ラインの盤面が、依頼の行を持たずに始めた run か（始めの記録の入口の入力の形 input.requests が 0。入口の種類は見ない）。
-    依頼を読むブロックの intake はこの run でだけ空の依頼を受ける（ブロックを単独で回した時・依頼の在る run・入力の形の無い
-    控えの空は今までどおり欠け）"""
-    return startrec.requests(startrec.read(board_dir)) == 0
+def no_requests(requests) -> bool:
+    """依頼の行を持たずに始めた run か（依頼の数 requests が 0。値は呼び手〔line〕が始めの記録の入口の入力の形 input.requests から
+    渡す。入口の種類は見ない）。依頼を読むブロックの intake はこの run でだけ空の依頼を受ける（ブロックを単独で回した時・依頼の在る
+    run・入力の形の無い控え〔None〕の空は今までどおり欠け）。始めの記録は読まない（integration.md 4.3-追加-6）"""
+    return requests == 0
 
 
-def request_file(board_dir) -> str:
-    """run の依頼のファイル（盤面の始めの記録の startrec.request_file。無ければ空）"""
-    return startrec.request_file(startrec.read(board_dir))
-
-
-def cite_roots(board_dir, root=None) -> list:
-    """盤面の受け付けが名指しを許す、作業ツリーの外の根（依頼のファイルと、root。root の既定は盤面の置き場）"""
-    return [request_file(board_dir), str(board_dir if root is None else root)]
+def cite_roots(request_file, root) -> list:
+    """受け付けが名指しを許す、作業ツリーの外の根（依頼のファイル request_file〔無ければ空〕と、root。値は呼び手が渡す）"""
+    return [str(request_file or ""), str(root)]
 
 
 def _correct_problem(it, try_query) -> str:
@@ -302,21 +295,21 @@ def _brief_problem(it, at, repo, briefs) -> str:
     return f"{at}: {bad}" if bad else ""
 
 
-def problems(items, *, repo, board_dir, owed, try_query=None, briefs=None) -> list:
+def problems(items, *, repo, board_dir, owed, request_file="", try_query=None, briefs=None) -> list:
     """申し出の一覧の機械の確かめ（受け付けの前）。文の一覧（空なら全部通る）。problems_by_entry の文を順につないだ物"""
-    return [t for _, _, lines in problems_by_entry(items, repo=repo, board_dir=board_dir, owed=owed, try_query=try_query,
-                                                   briefs=briefs) for t in lines]
+    return [t for _, _, lines in problems_by_entry(items, repo=repo, board_dir=board_dir, owed=owed, request_file=request_file,
+                                                   try_query=try_query, briefs=briefs) for t in lines]
 
 
-def problems_by_entry(items, *, repo, board_dir, owed, try_query=None, briefs=None) -> list:
+def problems_by_entry(items, *, repo, board_dir, owed, request_file="", try_query=None, briefs=None) -> list:
     """申し出ごとの機械の確かめ。[(i, 読めた unit_key か None, 文の並び)]（申し出の順。通れば文の並びは空）。key が読めるのは
     dict の申し出の unit_key が str で owed に在る時だけ（欄の崩れ・owed に無い key は None）。配列全体の誤りは [(None, None, [文])]。
     try_query(unit_key, lines) は which_is_right: query の申し出の correct_lines に判定者の問いを当てる口（呼ぶ側が渡す。当たれば空・
     外れれば文）。briefs は今の周の brief の行 {unit_key: [{item, file}]}（planbrief.by_unit_at。None と {} は brief の無い run で、
-    brief_vs_judgment を通さない）"""
+    brief_vs_judgment を通さない）。名指しを許す作業ツリーの外の根は依頼のファイル request_file（呼び手が値で渡す）と board_dir"""
     if not isinstance(items, list) or not items:
         return [(None, None, ["食い違いの申し出は 1 件以上の配列"])]
-    roots = cite_roots(board_dir)
+    roots = cite_roots(request_file, board_dir)
     seen = set()
     return [(i, *_entry_problems(i, it, repo, roots, owed, seen, try_query, briefs)) for i, it in enumerate(items)]
 
@@ -695,9 +688,9 @@ def apply_rulings(b, rulings: dict, *, by: str) -> pathlib.Path:
     return write_rulings(b)
 
 
-RULINGS_TITLE = promptsection.Section(f"# {HEAD}の裁定（機械が書いた。裁いたのは読むだけの裁定役か機械）", source="fn:conflict.write_rulings")
-RULING_HEAD = promptsection.Section("## {id}: {unit_key}", source="fn:conflict.write_rulings")
-PREV_REPLY_HEAD = promptsection.Section("## 前の回の返答", source="fn:conflict.write_rulings")
+RULINGS_TITLE = f"# {HEAD}の裁定（機械が書いた。裁いたのは読むだけの裁定役か機械）"   # 裁定の文の見出し（write_rulings。修正役が Read する）
+RULING_HEAD = "## {id}: {unit_key}"
+PREV_REPLY_HEAD = "## 前の回の返答"
 
 
 def write_rulings(b) -> pathlib.Path:

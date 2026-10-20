@@ -20,20 +20,24 @@ import os
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2] / ".shared"))
-import boundary  # noqa: E402
-import child_pointer  # noqa: E402
-
-with boundary.guarded_imports():
+sys.dont_write_bytecode = True
+sys.path[:0] = [str(Path(__file__).resolve().parents[2] / ".shared"), str(Path(__file__).resolve().parents[1])]
+try:
+    import ports
+    import child_pointer
     import carry
     import chain
-    import runreport
+    import runlog
+    from src import files, reads
+    unread = None
+except Exception as error:   # 落ちない（上の docstring）
+    ports, unread = None, error
 
 
 def spent_by(child: str) -> tuple:
     """子のノードの (費用 USD か None, 費用を読めたか, 分か None)。記録が無い・費用の欄の無い行が在る時は費用を読めない"""
-    rows, _ = boundary.transcript()
-    facts = runreport.transcript_facts(rows)
+    rows, _ = runlog.read()
+    facts = runlog.facts(rows)
     cost = facts["cost"].get(child)
     return cost, cost is not None and child not in facts["uncosted"], facts["minutes"].get(child)
 
@@ -43,24 +47,24 @@ def first_doc(path: str):
 
 
 def facts() -> dict:
-    child = boundary.text(os.environ.get("INPUTS_CHILD"))
+    child = reads.text(os.environ.get("INPUTS_CHILD"))
     cost, cost_read, minutes = spent_by(child)
     out = {"ok": True, "error": "", "run": "", "keys": [], "held_rows": [], "request": "", "source": "", "cost": cost,
            "cost_read": cost_read, "minutes": minutes}
-    ptr = boundary.parsed(os.environ.get("INPUTS_NEXT_REQUEST"))
+    ptr = ports.parsed(os.environ.get("INPUTS_NEXT_REQUEST"))
     if ptr is None:
         return out
     try:
         source = child_pointer.resolve(ptr)
         nxt = json.loads(source.read_text(encoding="utf-8"))
-        first = chain.first_of(first_doc(boundary.text(os.environ.get("INPUTS_FIRST_REQUEST"))),
-                               boundary.value(os.environ.get("INPUTS_FIRST_PR")) or 0)
+        first = chain.first_of(first_doc(reads.text(os.environ.get("INPUTS_FIRST_REQUEST"))),
+                               reads.value(os.environ.get("INPUTS_FIRST_PR")) or 0)
         carried = chain.next_request(nxt, first)
     except (OSError, ValueError) as error:
         return {**out, "error": f"子の次の依頼を読めない（{' '.join(f'{type(error).__name__}: {error}'.split())}）"}
     request = ""
     if carried[carry.FINDINGS]:
-        place = Path(os.environ["ARTIFACTS_DIR"]) / "chain" / child
+        place = ports.place() / files.NEXT_REQUEST_DIR / child
         place.mkdir(parents=True, exist_ok=True)
         carry.write(place / carry.NEXT_REQUEST_FILE, carried)
         request = str(place / carry.NEXT_REQUEST_FILE)
@@ -73,5 +77,14 @@ def fallback(reason: str) -> dict:
             "cost_read": False, "minutes": None}
 
 
+def main() -> None:
+    if ports is None:
+        reason = f"{type(unread).__name__}: {unread}"
+        print(reason, file=sys.stderr)
+        print(json.dumps(fallback(reason), ensure_ascii=False, allow_nan=False), flush=True)
+    else:
+        ports.run(facts, fallback)
+
+
 if __name__ == "__main__":
-    boundary.run(facts, fallback)
+    main()

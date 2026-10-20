@@ -1,6 +1,6 @@
 # block の設計書: external-standards（外部標準照合）
 
-- 何の話か: 対象差分が解いている問題を一般の問題の類に言い直し、リポジトリの外の一次情報（公式文書・標準・当該 OSS の issue と PR・ソース）で、枯れた定番解からの逸脱・定番解の劣化変種・手元の依存の使い残しを見る素材の観点「外部標準照合」を、単独で呼べる block `blocks/external-standards/` にする設計。族の共通の形は [materials.md](materials.md)、1 本目の手本は [prior-decisions.md](prior-decisions.md)。型は [README.md](README.md)。
+- 何の話か: 対象差分が解いている問題を一般の問題の類に言い直し、リポジトリの外の一次情報（公式文書・標準・当該 OSS の issue と PR・ソース）で、枯れた定番解からの逸脱・定番解の劣化変種・手元の依存の使い残しを見る素材の観点「外部標準照合」を、単独で呼べる block `workflows/external-standards/` にする設計。族の共通の形は [materials.md](materials.md)、1 本目の手本は [prior-decisions.md](prior-decisions.md)。型は [README.md](README.md)。
 - 決めたこと: 今の judge の `material-route` の 1 列と `external-standards-loop`（prep・役・accept）を、materials.md の 5 つの node の block にする。入力は差分の根・固めた目的・判定から入る run の出どころ・言語の 4 つの port。判定から入る run では役を起こさず、出どころつきの `not_applicable` を書く。今は別のファイルに描いて役に Read させた材料と、prep の出力で入れていた観点の正本のパスを、指示の中に直に入れる。順位の行の照らし（今の `external_rankings`）は block の `src/` に写す。振る舞いは変えない。
 - 持ち主に求めること: なし。
 - 読む人と使い方: この block を作る実装者（1〜4 節の名と順をそのまま作る）。素材の観点の残り 10 本と同じ PR の束に入る（README の 11.1 の 1 波目）。
@@ -23,14 +23,14 @@
 入力（YAML の `inputs:`）:
 
 - `base`・`entry`: materials.md の 1.2 の字のまま（`base` は対象差分の根の commit。空は HEAD。`entry` は判定から入る run の出どころの文。空はそうでない run。1.1）。
-- `purpose`: materials.md の 1.2 の字のまま（`json(purpose.schema.json)`。既定 `null`）。schema の中身は [purpose-review.md](purpose-review.md) の 1.5 と字のまま同じ物を `blocks/.shared/schemas/purpose.schema.json`（`shared:purpose.schema.json`）に置く。
+- `purpose`: materials.md の 1.2 の字のまま（`json(purpose.schema.json)`。既定 `null`）。schema の中身は [purpose-review.md](purpose-review.md) の 1.5 と字のまま同じ物を `workflows/.shared/schemas/purpose.schema.json`（`shared:purpose.schema.json`）に置く。
 - `lang`: `text: 人に見せる欄（material の detail・checked・reason、findings の text・mechanism・measured・false_positive_if、seen・unseen、rankings の problem・ranked・diff_at・why_not_higher、rankings_none）の言語。空は依頼の言語`。既定 `""`。
 
 出力（`returns: finish`、`outcome_field: ok`）: materials.md の 1.2 の 5 欄だけ。`material.json` の `reply` は受けた返答（`material`・`findings`・`seen`・`unseen`・`web_refetched`・`rankings`・`rankings_none?`）、`materials` は `{"external_standards": <返答の material>}`。
 
 今との違い: 今は目的を `judge/purpose.json` から名で開き、無ければ目的の文の欄に「目的の文はこの run に無い…」の文（`PURPOSE_MISSING`、`lib/judge_accept.py:1219-1220`）を入れた（`_purpose_or_missing`、`:2078-2080`）。観点の正本のパスは prep の出力の欄 `review_md`・`repo_review_md` で md に入れた（`workflows/judge/commands/material-external-standards.md:41`）。受けた返答は `judge/material-external-standards.json` に書いた。
 
-### 1.3 node の並び（`blocks/external-standards/works-factory-external-standards.yaml`）
+### 1.3 node の並び（`workflows/external-standards/works-factory-external-standards.yaml`）
 
 materials.md の 1.3 の雛形の `<観点>` を `external-standards` にした物。
 
@@ -49,8 +49,8 @@ materials.md の 1.4 の名だけ: `intake.json`・`view.json`・`diff.patch`・
 
 ### 1.5 コードの置き場
 
-- `blocks/external-standards/src/__init__.py`（空）。
-- `blocks/external-standards/src/viewpoint.py`: materials.md の 5.1 の宣言。中身:
+- `workflows/external-standards/src/__init__.py`（空）。
+- `workflows/external-standards/src/viewpoint.py`: materials.md の 5.1 の宣言。中身:
   - `NAME = "external-standards"`
   - `MATERIALS = ("external_standards",)`
   - `GUARDED = False`（AI の node が `mutates_checkout: false` を持たない。今の accept の `with: {status_guarded: false}`。`workflows/judge/works-factory-judge.yaml:1382`）
@@ -70,13 +70,13 @@ materials.md の 1.4 の名だけ: `intake.json`・`view.json`・`diff.patch`・
   - `after_accept(reply, place)`: 何もしない。
   - `materials_of(reply)`: `{"external_standards": reply["material"]} if isinstance(reply.get("material"), dict) else {}`（今の `writes` の `materials.external_standards ← material`。`:1665`）。
   - `report_lines(doc)`: `reply` が null なら `[]`。在れば `rankings` の行ごとに `f"  - 順位: {oneline(problem)}——差分は {k} 位／{len(ranked)} 位中（{oneline(diff_at)}）"`（`k` は `ranked.index(diff_at) + 1`。受け付けを通った返答では `diff_at` はいつも `ranked` に在る）。`rankings` が空なら `f"  - 順位: 付けられる問題なし（{oneline(rankings_none)}）"` の 1 行。字下げ 2 つで、materials.md の 2.10 の素材の 1 行の下に並ぶ。
-- `blocks/external-standards/src/rankings.py`: 順位の行の照らし。公開の名は `problem(reply) -> str | None` だけ。写す元（`lib/judge_accept.py`）: `external_rankings`（`:2146-2157`。`Reject` を上げる代わりに拒む文を返し、通れば `None`）・`blank`（`:248-251`）・`EMPTY`（`:244-245`。字のまま）。
-- `blocks/.shared/schemas/purpose.schema.json`（`shared:purpose.schema.json`）: [purpose-review.md](purpose-review.md) の 1.5 の字のまま。
+- `workflows/external-standards/src/rankings.py`: 順位の行の照らし。公開の名は `problem(reply) -> str | None` だけ。写す元（`lib/judge_accept.py`）: `external_rankings`（`:2146-2157`。`Reject` を上げる代わりに拒む文を返し、通れば `None`）・`blank`（`:248-251`）・`EMPTY`（`:244-245`。字のまま）。
+- `workflows/.shared/schemas/purpose.schema.json`（`shared:purpose.schema.json`）: [purpose-review.md](purpose-review.md) の 1.5 の字のまま。
 - 使う `lib/`: `materialkit`・`rolekit`・`oneline`。
 
 ### 1.6 つなぎ方（graph の側。block には書かない）
 
-- 判定のまとめ（`blocks/judge/`）: `include: works-factory-external-standards`、`depends_on` は materials.md の 1.6。`with:` は `base`・`entry`・`lang` を materials.md の 1.6 のとおり、`purpose: $purpose.output.purpose`（目的の block の `purpose.json` の pointer。目的の block が `failed` の run は、目的の block の設計書のとおり graph が判定の前で止めるので、ここに null が来るのは単独の run と目的の block を外した run だけ）。
+- 判定のまとめ（`workflows/judge/`）: `include: works-factory-external-standards`、`depends_on` は materials.md の 1.6。`with:` は `base`・`entry`・`lang` を materials.md の 1.6 のとおり、`purpose: $purpose.output.purpose`（目的の block の `purpose.json` の pointer。目的の block が `failed` の run は、目的の block の設計書のとおり graph が判定の前で止めるので、ここに null が来るのは単独の run と目的の block を外した run だけ）。
 - 読み手: diagnose の `materials`（11 本の `material` の配列の 1 つ。素材 `external_standards` の欄）。判定役の材料の「外部標準」の所見の行（今の `record.process.external_findings`。`lib/judge_accept.py:2770`・`:2776`）は、`role` が `external-standards` の doc の `reply.findings` から取る（diagnose の設計書の決め）。
 - `rankings` は今どの役の材料にも入っていない（graphloops の `writes` の `process.external_rankings` を工場は写したが、`_diagnose_ctx` は読まない）。新しい形も `reply` に残し、報告の行（1.5 の `report_lines`）だけが読む。
 
@@ -249,6 +249,8 @@ Return only JSON that matches the output schema.
 - 言い換えた: `$TMPDIR`（md:59）を「TMPDIR 環境変数が名指す一時ディレクトリ」に（materials.md の 3.1 の終わり）。
 - 消した: md:59 の「GitHub を読む口は上の手順 3 のとおりで…issue と検索は works-gh でも通らないので WebFetch・WebSearch で読め」。`{shared:works-gh}` が同じ事を言う。
 - 消した: 素材の書き方の尾（md:60）の「欄と値の正本は受け付けが使う検証器 review-record.py だが…」（prior-decisions.md の 2.6 と同じ）。
+- 変えた: 断片 `material-where` の尾の文を、受け付けが照らす範囲（`where` と `text` を持つ行だけ。ほかの行は照らさない）に合わせて狭めた。
+- 足した: `rankings` の `ranked`（選択肢の名だけ）と `source`（原文の引用）の書き分け。消した: gh の参照と、works-gh の断片の結びの 1 文。
 - 英語にした（#764）。役の名「外部標準照合の役」は "the external-standards role"。
 
 ### 2.7 元の works と graphloops の同じ場面
@@ -275,7 +277,7 @@ materials.md の 4 節の順のまま。観点の前の照らしは無く、後�
 
 ### 2.9 試験
 
-- standalone の fixture（`blocks/external-standards/fixtures/`）:
+- standalone の fixture（`workflows/external-standards/fixtures/`）:
   - `standalone.stubs.yaml`: `fixture.inputs` は `base: ""`・`purpose: '{"purpose_text":"…目的の文…","source":"①PR 説明","known_weaknesses":[],"source_files":[]}'`・`entry: ""`・`lang: ""`。AI の node `external-standards` だけを台本の返答（`material.status: clean`・`checked` 1 行・`findings: []`・`seen`・`unseen` 1 行ずつ・`web_refetched: true`・`rankings` 1 行〔`ranked` 1 つ、`diff_at` が同じ字〕）で差し替える。`finish` の `status` が `ran`。
   - `gave-up.stubs.yaml`: 台本の返答が 3 回とも `diff_at` が `ranked` に無い。`finish` の `status` が `gave_up`、run は `completed`。
   - `skipped.stubs.yaml`: `entry: "人の依頼（standalone）"`。AI の node は走らず、`finish` の `status` が `skipped`、`material.json` の素材 `external_standards` が `not_applicable` で、`reason` が出どころ「人の依頼（standalone）」と「件数は渡されていない」の句を含む。
@@ -317,7 +319,7 @@ materials.md の 6 節の雛形のまま。この block だけの物:
 ## 5 単独で呼ぶ
 
 ```sh
-bin/works-factory <読ませるフォルダを blocks/ にする引数（名は土台の PR で決める）> workflow run works-factory-external-standards \
+bin/works-factory workflow run works-factory-external-standards \
   --input purpose=/path/to/purpose.json --input base=<差分の根の commit>
 ```
 
@@ -327,7 +329,7 @@ bin/works-factory <読ませるフォルダを blocks/ にする引数（名は�
 
 - 土台の `prompt.render` が `<!-- if purpose -->` と `<!-- if not purpose -->` を同じ md に並べて書けるか（README の 5.1 は逆の条件の書き方を決めているが、同じ名を 2 回使う例は無い）。書けなければ `not purpose` の段落を名 `no_purpose` にし、`when` に `"no_purpose": values["purpose"] is None` を足す。
 - 土台の `prompt.render` が、差し込んだ値（目的の文・自覚済みの弱点）の中の `{…}` と `$…` を置き換え直さないか（[purpose-review.md](purpose-review.md) の 6 節と同じ）。
-- 起動の殻で `blocks/` を読ませる引数の名と、5 節の命令の正確な形。
+- 5 節の命令の正確な形。
 
 ## 7 自分で決めた事（この block だけ）
 
@@ -340,9 +342,9 @@ bin/works-factory <読ませるフォルダを blocks/ にする引数（名は�
 - 回す時の `due` の訳を、今の `external_standards_due` の字でなく「外部標準の照合は、判定から入る run でなければ run ごとに 1 回回す（1 run は 1 周で、いつも初回）」にする。訳: 1 run = 1 周（持ち主の決め carry）で、前の周の P3 と機構を変えた周の枝はいつも効かない。効かない枝の名を人に見せる `reason` に残すと、読む人が「前の周」が在ると取り違える。prior-decisions.md の 1.5 と、ほかの P1 の観点（test-double-fidelity・main-path-observation など）と同じ決め方。回すかの真偽は今と同じ。
 - 実装時に決めた事（#765 の実装）:
   - `fill` は `materialkit.fill_entry(values["entry"], None)`。訳: 1.5 は `0` を渡すと書くが、`fill_entry` は `0` を「依頼 0 件」と書き、`None` が「件数は渡されていない」の句になる（materials.md の 2.6）。この観点は port `request` を持たないので `None` が書いた意図に合う。
-  - `purpose` の形 `purpose.schema.json` は `blocks/.shared/schemas/` に 1 つ置く（`shared:purpose.schema.json`）。訳: 1.2 は block ごとの写しを書くが、`tests/layers/test_block_shape.py` の入力の形の検査が「形のファイルの名は pack の中で 1 か所。2 つ以上の block が使う形は `.shared/schemas/`」と決める。`$schema` の鍵は `KNOWN_KEYWORDS` に無いので外した。
+  - `purpose` の形 `purpose.schema.json` は `workflows/.shared/schemas/` に 1 つ置く（`shared:purpose.schema.json`）。訳: 1.2 は block ごとの写しを書くが、`tests/layers/test_block_shape.py` の入力の形の検査が「形のファイルの名は pack の中で 1 か所。2 つ以上の block が使う形は `.shared/schemas/`」と決める。`$schema` の鍵は `KNOWN_KEYWORDS` に無いので外した。
   - 役の md の頭の文から「started in a new conversation」を外した（`You are the external-standards role. Your only job …`）。訳: 輪は `fresh_context: false` で、2 回目からは同じ会話を続けるので、「新しい会話」と言うと誤る。standalone の筋書きの決まった文もこの頭の文に合わせた。
   - `NA_PARAGRAPH = True` を宣言に足した（共通の試験が要る名。1.5 は書いていない）。
   - 1 つ目の commit の材料のファイル `src/oldbrief.py` は、本物の run の物が手元に無いので、今の `judge_accept.material_prep` の字（見出し・節の名・『条件に当たらない』の段）を `lib/judge_accept.py` の定数から組み直して書いた。本物の run の物との字の比べ（2.9 の (b)）はしていない。2 つ目の commit で消した。
   - 試験は 2.9 のとおり。起こし方の照らしは `tests/workflows/test_judge.py` の行を `ShapeCase.LAUNCH` に字で写した。
-  - `values` は目的の値と `repo_review_md` を、段落が入らない時は空の字で渡す。訳: 1.5 は「在る時だけ」と書くが、`blocks/.shared/AGENTS.md` の決め（指示を組む口は選ばれない段落の中の `{name}` も数える。prep はいつも同じ組の値を渡す）が勝つ。
+  - `values` は目的の値と `repo_review_md` を、段落が入らない時は空の字で渡す。訳: 1.5 は「在る時だけ」と書くが、`workflows/.shared/AGENTS.md` の決め（指示を組む口は選ばれない段落の中の `{name}` も数える。prep はいつも同じ組の値を渡す）が勝つ。

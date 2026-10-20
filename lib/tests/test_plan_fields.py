@@ -494,15 +494,6 @@ class TestSplitAndBoard(PlanFieldsCase):
                                                   "limit": "test_stats.py:11"}])
         self.assertEqual(planmarks.rewrites(types.SimpleNamespace(dir=self.tmp, round=4)), [])
 
-    def test_review_section(self):
-        self.assertEqual(planmarks.review_section(types.SimpleNamespace(dir=self.tmp, round=1)), "")
-        _, fields = planmarks.split({"plan": [item()]}, self.repo)
-        planmarks.save(self.tmp, 1, fields)
-        got = planmarks.review_section(types.SimpleNamespace(dir=self.tmp, round=1))
-        self.assertTrue(got.startswith("\n\n" + planmarks.REVIEW_HEAD), got)
-        for w in (planmarks.REVIEW_ASK, "test_stats.py::TestStats::test_mean_of_two", "本物の経路", "mock"):
-            self.assertIn(w, got)
-
     def test_head_names_every_field(self):
         for w in ("route", "route_why", "tests", "rewrite_tests", "refactor", "red_kind", "assertion", "exception", "brief"):
             self.assertIn(w, planmarks.HEAD)
@@ -732,13 +723,10 @@ class ScopeFieldsCase(PlanFieldsCase):
         self.assertEqual(set(bare["plan"][0]), {"unit_keys", "approach", "files", "shrink_first", "narrows"})
         self.assertEqual((fields[0]["allowed_paths"], fields[0]["out_of_scope"]), (["stats.py"], []))
 
-    def test_head_and_review_ask_name_scope_fields(self):
+    def test_head_names_scope_fields(self):
         for w in ("allowed_paths", "out_of_scope", "識別子", "home", "considered", "files", "depends_on", "why", "replaced_by"):
             self.assertIn(w, planmarks.HEAD)
         self.assertNotIn("canonical", planmarks.HEAD)
-        self.assertIn("allowed_paths", planmarks.REVIEW_ASK)
-        self.assertIn("change=remove", planmarks.REVIEW_ASK)
-        self.assertNotIn("項目の removes", planmarks.REVIEW_ASK)
 
     def test_head_asks_for_moved_and_removed_paths(self):
         self.assertIn("移す・消すファイルの元のパスも allowed_paths に書け", planmarks.HEAD)

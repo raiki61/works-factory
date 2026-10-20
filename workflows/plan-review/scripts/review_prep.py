@@ -2,33 +2,46 @@
 # requires-python = ">=3.12"
 # dependencies = []
 # ///
-"""事前審査の支度（boardview.review_material）: 材料のファイル pass-<k>/prompt.md と役を起こす前の作業ツリーの姿を置く。返り {prompt_file, brief, resubmit, tree}。
-この輪の実行の中で前の周が拒まれ（with: の prev が前の周の受け付けの ok の false。拒否の文を with: に貼らないのは元の裁定 R44）、
-受け付けが合わせた答えの控えが在れば（rolekit.resubmitting）、材料の代わりに出し直しの役の短い指示書を書き（boardview.review_resubmit）、
-resubmit: true とそのパス brief で出し直しの役（1 回目の役の会話の続き）を起こさせる。
-tree は open の tree（木の往復か）で、出し直しの枝も材料の枝も同じ値を返す。輪の中の役の節の when がこの値と resubmit で
-単独の組（plan-review／plan-review-fix）と束ね役の組（plan-review-tree／plan-review-tree-fix）を振り分ける。
-ライブラリの文書の run をまたぐ控えは、境の控えの根（boundary.shared_cache）に置く"""
+"""事前審査の役の指示を組む（docs/design/plan-review.md の 8 節の review_prep）。前の周の受け付けが拒み、合わせた答えの控えが在れば
+返り {prompt: "", resubmit: true} だけを返し（出し直しの役の指示は review-fix-prep が組む）、無ければ材料のファイルを書いて 1 回目の役（review・review-tree）の指示を組む。
+役を起こす前の作業ツリーの姿も置く。組めなければ crash.json に訳を書いてから落ちる（出口が訳を名指す）"""
 import os
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2] / ".shared"))
-import boundary  # noqa: E402
+sys.dont_write_bytecode = True
+sys.path[:0] = [str(Path(__file__).resolve().parents[2] / ".shared"), str(Path(__file__).resolve().parents[1])]
+import ports  # noqa: E402
+from src import steps  # noqa: E402
 
-sys.path.append(str(boundary.lib_root()))
-import boardview  # noqa: E402
-import rolekit  # noqa: E402
 
-COMMAND = Path(__file__).resolve().parents[1] / "commands" / "plan-review.md"
+def compute(place: Path, repo: Path) -> dict:
+    import accept    # lib/
+    import jsonfile  # lib/
+    import prompt
+    import rolekit   # lib/
+    from src import files, material, view
+    intake = steps.read_intake(place)
+    tree = bool(intake.get("tree"))
+    prev = ports.parsed(os.environ.get("INPUTS_PREV", ""))
+    if rolekit.resubmitting(place, files.REVIEW_NODE, prev):
+        # 出し直しの役の指示は review-fix-prep が組む（出し直しの周だけ回る）。ここは作業ツリーの姿を置き直すだけ
+        jsonfile.write(place / files.TREE_STATE, accept.tree_state(repo))
+        return {"prompt": "", "resubmit": True, "tree": tree}
+    node = "review-tree" if tree else "review"
+    n = prompt.round_of(node)
+    b = view.view(place, intake)
+    path, values, when = material.write_material(place, intake, repo, n=n, b=b)
+    if tree:
+        from src import tree as tree_part
+        values, when = tree_part.write_tree(place, b, intake, path, n)
+    out = prompt.emit(node, values, when, n)
+    jsonfile.write(place / files.TREE_STATE, accept.tree_state(repo))
+    return {"prompt": out["prompt"], "resubmit": False, "tree": tree}
 
-folder = Path(os.environ["ARTIFACTS_DIR"]) / boardview.FOLDER
-opened = boardview.read_open(folder)
-tree = opened.get("tree") is True
-pass_dir = boardview.pass_dir(folder, opened["k"])
-if rolekit.resubmitting(pass_dir, boardview.REVIEW_NODE, boundary.value(os.environ.get("INPUTS_PREV"))):
-    boundary.returns({"prompt_file": "", "brief": str(boardview.review_resubmit(folder, Path.cwd())), "resubmit": True, "tree": tree})
-else:
-    path = boardview.review_material(folder, Path.cwd(), COMMAND.read_text(encoding="utf-8"),
-                                     boundary.lib_root() / boardview.REVIEW_MD, shared=boundary.shared_cache())
-    boundary.returns({"prompt_file": str(path), "brief": "", "resubmit": False, "tree": tree})
+
+try:
+    ports.returns(compute(ports.place(), Path.cwd()))
+except Exception as error:
+    steps.record_crash(ports.place(), "review-prep", f"{type(error).__name__}: {error}")
+    raise

@@ -1,8 +1,10 @@
-"""節の script は入力の字（INPUTS_<名>）を自分で json.loads しない。JSON に戻すのは境の口（workflows/.shared/boundary.py の
-parsed・value・pointed・needed・items・flag・picked）だけ。
+"""節の script は入力の字（INPUTS_<名>）を自分で json.loads しない。JSON に戻すのは口（pack の .shared/ports.py の
+json・parsed・picked・file・flag・choice。docs/design/README.md の 4 節）だけ。
 
 止めた Archon は output_format で宣言した欄の null と無い欄を、include の入力に空の字で渡す（tests/shared/test_archon_contract.py が
-照らす）。json.loads("") は落ちるので、前の失敗の持ち越しの無い run が判定の入口で止まった（#265）。口は空の字を null と読む。
+照らす）。json.loads("") は落ちるので、前の失敗の持ち越しの無い run が判定の入口で止まった（#265）。飛ばされうる欄を受ける口
+（parsed・picked・file）は空の字を null と読み、値の要る口（json・flag）は空を黙って空にせず理由を名指して落ちる（持ち主の決め
+no-silent-loosen）。pack は tests/archon.py の WORKFLOWS。
 
 script の字を ast で読み、入力の字が流れ込む名（入力を代入した名・それを回した名・それを渡した script の中の関数の引数・入力の字を返す script の中の関数の返り）
 を辿って、json.loads にそれが届けば赤にする。lib/ の関数・境の口・ファイルの読み（read_text）の返りは入力の字でないので、そこで辿りを切る。
@@ -10,11 +12,12 @@ script の字を ast で読み、入力の字が流れ込む名（入力を代�
 import ast
 import json
 import pathlib
+import sys
 import unittest
 
-ROOT = pathlib.Path(__file__).resolve().parents[2]
+from tests.archon import ROOT, WORKFLOWS
 
-SCRIPTS = sorted({*ROOT.glob("workflows/*/scripts/*.py"), *ROOT.glob("workflows/*/scripts/*/*.py")})
+SCRIPTS = sorted({*WORKFLOWS.glob("*/scripts/*.py"), *WORKFLOWS.glob("*/scripts/*/*.py")})
 INPUT_HEAD = "INPUTS_"
 FILE_READS = frozenset({"read_text", "read_bytes"})
 
@@ -97,6 +100,12 @@ def input_decodes(path: pathlib.Path) -> list[str]:
             if _json_loads(node) and any(flow.carries(arg) for arg in node.args)]
 
 
+sys.dont_write_bytecode = True
+if str(WORKFLOWS / ".shared") not in sys.path:
+    sys.path.insert(0, str(WORKFLOWS / ".shared"))
+import ports  # noqa: E402
+
+
 class InputReadsCase(unittest.TestCase):
     def test_scripts_leave_input_decoding_to_the_boundary(self):
         self.assertTrue(SCRIPTS)
@@ -109,51 +118,50 @@ class InputReadsCase(unittest.TestCase):
             'raw = os.environ["INPUTS_GROUP"].strip()\ngroup = json.loads(raw) if raw else None\n': True,
             'LINE = {"a": os.environ.get("INPUTS_A", "")}\nfor name, raw in LINE.items():\n    json.loads(raw)\n': True,
             'v = json.loads(os.environ.get(f"INPUTS_{name}") or "null")\n': True,
-            'path = boundary.pointed(os.environ["INPUTS_START"])\njson.loads(path.read_text(encoding="utf-8"))\n': False,
+            'path = ports.file(os.environ["INPUTS_START"])\njson.loads(path.read_text(encoding="utf-8"))\n': False,
             'art = Path(os.environ["ARTIFACTS_DIR"]) / os.environ["INPUTS_DIR"]\njson.loads((art / "r.json").read_text())\n': False,
             'json.loads(os.environ.get("ARCHON_NODE_EXECUTION") or "{}")\n': False,
             'def given():\n    return {"a": os.environ.get("INPUTS_A")}\nline = given()\njson.loads(line["a"])\n': True,
-            'def given():\n    return boundary.value(os.environ.get("INPUTS_A"))\njson.loads(given())\n': False,
+            'def given():\n    return ports.parsed(os.environ.get("INPUTS_A"))\njson.loads(given())\n': False,
         }
         for source, hit in cases.items():
             with self.subTest(source):
-                tree = ast.parse("import json, os\nimport boundary\nfrom pathlib import Path\n" + source)
+                tree = ast.parse("import json, os\nimport ports\nfrom pathlib import Path\n" + source)
                 flow = _Flow(tree)
                 found = any(_json_loads(n) and any(flow.carries(a) for a in n.args) for n in ast.walk(tree))
                 self.assertEqual(found, hit)
 
-    def test_the_boundary_reads_empty_text_as_null(self):
-        """宣言した null の欄が届く空の字を、口の読み手は全部「無い」と読む"""
-        from tests.shared.test_boundary import boundary
-        self.assertEqual((boundary.parsed(""), boundary.value(""), boundary.pointed(""), boundary.items(""), boundary.flag(""),
-                          boundary.text("")),
-                         (None, None, None, [], False, ""))
-        with self.assertRaisesRegex(ValueError, "入力 start のポインタが無い"):
-            boundary.needed("", "start")
+    def test_the_ports_read_empty_text_as_null(self):
+        """宣言した null の欄が届く空の字を、飛ばされうる欄を受ける口は「無い」と読み、値の要る口は理由を名指して落ちる"""
+        self.assertEqual((ports.parsed(""), ports.picked("", ("ok",)), ports.file(""), ports.text("")), (None, None, None, ""))
+        with self.assertRaisesRegex(ValueError, "json の入力が空"):
+            ports.json("")
+        with self.assertRaisesRegex(ValueError, "true か false"):
+            ports.flag("")
 
     def test_picked_reads_only_the_named_fields(self):
-        """まるごとの入力の字を、宣言した名だけの dict にする。欠けた名は None、宣言の外の名は [] でも .get でも KeyError。飛んだ節（null・
-        空の字・無い入力）は None、dict でない値は ValueError"""
-        from tests.shared.test_boundary import boundary
+        """まるごとの入力の字を、宣言した名だけの dict にする。欠けた名は KeyError（optional に名指した名だけは None）、宣言の外の名は
+        [] でも .get でも KeyError。飛んだ節（null・空の字・無い入力）は None、dict でない値は ValueError"""
         raw = json.dumps({"ok": True, "hash": "123", "reason": "", "diff": None, "extra": 1})
-        got = boundary.picked(raw, ("ok", "hash", "reason", "diff", "missing"))
+        got = ports.picked(raw, ("ok", "hash", "reason", "diff"), optional=("missing",))
         self.assertEqual(got, {"ok": True, "hash": "123", "reason": "", "diff": None, "missing": None})
         self.assertIsInstance(got, dict)
         self.assertEqual((got["hash"], got["reason"], got.get("diff"), got.get("missing")), ("123", "", None, None))
         for read in (lambda: got["extra"], lambda: got.get("extra"), lambda: got["typo"], lambda: got.get("typo")):
             with self.assertRaises(KeyError):
                 read()
+        with self.assertRaisesRegex(KeyError, "missing"):
+            ports.picked(raw, ("ok", "missing"))
         for skipped in ("null", "", "  ", None):
             with self.subTest(skipped=skipped):
-                self.assertIsNone(boundary.picked(skipped, ("ok",)))
+                self.assertIsNone(ports.picked(skipped, ("ok",)))
         for not_dict in ("[]", "[1]", '"text"', "7", "true", "not json"):
             with self.subTest(not_dict=not_dict), self.assertRaises(ValueError):
-                boundary.picked(not_dict, ("ok",))
+                ports.picked(not_dict, ("ok",))
 
     def test_picked_get_takes_a_default_but_still_refuses_undeclared_names(self):
         """Picked.get は dict.get と同じく既定値を受けるが、宣言の外の名は既定値があっても KeyError（宣言した名の値はそのまま返す）"""
-        from tests.shared.test_boundary import boundary
-        got = boundary.picked(json.dumps({"ok": True, "extra": 1}), ("ok", "missing"))
+        got = ports.picked(json.dumps({"ok": True, "extra": 1}), ("ok",), optional=("missing",))
         self.assertEqual((got.get("ok", False), got.get("missing", "x")), (True, None))
         for name in ("extra", "typo"):
             with self.subTest(name), self.assertRaises(KeyError):
@@ -161,8 +169,7 @@ class InputReadsCase(unittest.TestCase):
 
     def test_picked_is_the_only_way_to_the_whole_dict(self):
         """返りまるごとを欄を削らずに戻す口は無い（素通しの口を置くと、宣言の外の欄が値として script に届く）"""
-        from tests.shared.test_boundary import boundary
-        self.assertFalse(hasattr(boundary, "passed"))
+        self.assertFalse(hasattr(ports, "passed"))
 
 
 if __name__ == "__main__":

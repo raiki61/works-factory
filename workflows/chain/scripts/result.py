@@ -18,7 +18,7 @@ deliver は出口の語 pr の時だけ、PR を作った（act: pr と pr の�
 置いていなければ stopped、置いたのに返りが無ければ（hand の中で push や PR の作成が済んだかもしれない）unconfirmed。出口の語が空なら null。
 最後の決めが launch なのに次の決めが無い時は、次の周の子の run が落ちた（親の周のノードが落ち、後ろが飛んだ）ので act: wait と
 続け方を返す。
-lib を読まない。落ちない: 境の口を読めない時も、標準ライブラリだけで返す。
+lib を読まない。落ちない: ports を読めない時も、標準ライブラリだけで返す。
 
 入力（with:）: start（chain-start の出力）・final（final-diff の出力）・hand（渡しのブロックの返りの欄 deliver。`{from, if_skipped: null}`）・d1〜d<周の数の上限>（round-k-decide の出力。番号の順に読む。どれも `{from, if_skipped: null}`）
 """
@@ -28,12 +28,14 @@ import re
 import sys
 from pathlib import Path
 
+sys.dont_write_bytecode = True
+sys.path[:0] = [str(Path(__file__).resolve().parents[2] / ".shared"), str(Path(__file__).resolve().parents[1])]
 try:
-    sys.path.insert(0, str(Path(__file__).resolve().parents[2] / ".shared"))
-    import boundary
+    import ports
+    from src import reads
     unread = None
 except Exception as error:   # 出力ノードは落ちない（上の docstring）
-    boundary, unread = None, error
+    ports, unread = None, error
 
 CLOSED = "closed"
 PR = "pr"   # 出口の語（lib/entry.py の DELIVER_PR。result は lib を読まないので字で持ち、試験が同じことを縛る）
@@ -89,15 +91,15 @@ def fallback(reason: str) -> dict:
 
 
 def main() -> None:
-    if boundary is None:
+    if ports is None:
         reason = f"{type(unread).__name__}: {unread}"
         print(reason, file=sys.stderr)
         print(json.dumps(fallback(reason), ensure_ascii=False, allow_nan=False), flush=True)
     else:
         names = sorted(filter(DECISION.fullmatch, os.environ), key=lambda name: int(name[len("INPUTS_D"):]))
         decisions = [os.environ[name] for name in names]
-        boundary.run(lambda: result(boundary.value(os.environ.get("INPUTS_START")), boundary.value(os.environ.get("INPUTS_FINAL")),
-                                    [boundary.value(d) for d in decisions], boundary.value(os.environ.get("INPUTS_HAND"))), fallback)
+        ports.run(lambda: result(reads.value(os.environ.get("INPUTS_START")), reads.value(os.environ.get("INPUTS_FINAL")),
+                                    [reads.value(d) for d in decisions], reads.value(os.environ.get("INPUTS_HAND"))), fallback)
 
 
 if __name__ == "__main__":

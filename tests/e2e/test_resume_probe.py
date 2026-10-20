@@ -1,6 +1,6 @@
 """段 1b の U1・P1 の使い捨ての工程（tests/e2e/resume-probe/・owner-lost-probe/。AI の役は無い）を止めた Archon で照らす。
 
-段 1b の実測の run は使い捨ての家と一緒に消えて読み戻せないので、U1（resume の後の run の id。docs/design.md）はこの試験が
+段 1b の実測の run は使い捨ての家と一緒に消えて読み戻せないので、U1（resume の後の run の id。docs/design/archon.md）はこの試験が
 CI で回し直す。P1（docs/polyfills.md）は持ち主のプロセスを止めるので手で回し、ここでは工程の形だけを validate で照らす。
 """
 import json

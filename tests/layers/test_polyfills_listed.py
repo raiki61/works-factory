@@ -1,4 +1,10 @@
-"""`workflows/.shared/` と `bin/_lib/` のファイルが境の口・入口の部品の外し・埋めの名簿の `- 埋め:` の行の頭の欄のどれかに当たり（説明の文にだけ出る名は数えない）、名簿の `- 埋め:` の行の全部のリポジトリの中のパスが木に無い行も赤。「（予定）」の行は木に無くてよい（workflows/AGENTS.md の E2 の機械の行）。"""
+"""`workflows/.shared/` と `bin/_lib/` のファイルが、pack の口・入口の部品の外し・埋めの名簿の `- 埋め:` の行の頭の欄のどれかに当たる（`workflows/AGENTS.md` の E2 の機械の行）。
+
+- pack の口: `ports.py`・`prompt.py`・`requestrows.py`。2 つ以上の block が使う断片と形（`prompts/`・`schemas/`）と `AGENTS.md` も口の側に数える。
+- 入口の部品の外し: `bin/_lib/` の埋めでない物（起動の認証と隔離を元の works から持ってきた部品）は `tests/layers/scan.py` の `ALLOWED["E2"]` に 1 行ずつ訳つきで置く。
+- 名簿 `docs/polyfills.md` の `- 埋め:` の行の頭の欄（`- 埋め:` の直後の、`、` 区切りのパスの並び）が名指す物だけを数え、行の説明の文にだけ名が出る部品は数えない。
+- 木に在るかの照らしは頭の欄に限らず行の全部のパスに掛かり、名簿の `- 埋め:` の行が名指す `workflows/`・`bin/`・`lib/`・`tests/` の下のパスが木に無い行も赤。置き場のパスの直後に「（予定）」と書いた行は、木に無くてよい。
+"""
 import pathlib
 import unittest
 
@@ -58,9 +64,23 @@ class PolyfillsListedTest(unittest.TestCase):
             got = scan.problems("E2", root)
         self.assertEqual(got, [])
 
-    def test_boundary_and_listed_are_allowed(self):
+    def test_pack_ports_and_listed_are_allowed(self):
         got = scan.problems("E2", SEEDS / "e2")
-        self.assertFalse(any("boundary.py" in line or "listed.py" in line for line in got), got)
+        self.assertFalse(any(name in line for line in got
+                             for name in ("ports.py", "listed.py", "prompts/piece.md", "schemas/shape.schema.json")), got)
+
+    def test_every_pack_port_is_allowed(self):
+        names = ("ports.py", "prompt.py", "requestrows.py", "AGENTS.md", "prompts/a.md", "schemas/b.schema.json")
+        with tree({f"workflows/.shared/{n}": "" for n in names}) as root:
+            got = scan.problems("E2", root)
+        self.assertEqual(got, [])
+
+    def test_retired_boundary_is_not_a_port(self):
+        """入れ替えで消した境の口 boundary.py は、もう pack の口に数えない"""
+        with tree({"workflows/.shared/boundary.py": "", "workflows/.shared/sub/ports.py": ""}) as root:
+            got = scan.problems("E2", root)
+        self.assertEqual(got, ["workflows/.shared/boundary.py:1: 名簿にも pack の口にも当たらない",
+                               "workflows/.shared/sub/ports.py:1: 名簿にも pack の口にも当たらない"])
 
     def test_required_mention_wins_over_planned(self):
         registry = "- 埋め: `workflows/.shared/later.py`（予定）\n- 埋め: `workflows/.shared/later.py`\n"
@@ -72,28 +92,28 @@ class PolyfillsListedTest(unittest.TestCase):
         registry = "- 埋め: `bin/_lib/y.py`。説明の中の `bin/_lib/x.py`\n"
         with tree({"docs/polyfills.md": registry, "bin/_lib/x.py": "", "bin/_lib/y.py": ""}) as root:
             got = scan.problems("E2", root)
-        self.assertEqual(got, ["bin/_lib/x.py:1: 名簿にも境の口にも当たらない"])
+        self.assertEqual(got, ["bin/_lib/x.py:1: 名簿にも pack の口にも当たらない"])
 
     def test_shared_name_only_in_description_is_red(self):
         registry = "- 埋め: `workflows/.shared/y.py`。説明の中の `workflows/.shared/x.py`\n"
         files = {"docs/polyfills.md": registry, "workflows/.shared/x.py": "", "workflows/.shared/y.py": ""}
         with tree(files) as root:
             got = scan.problems("E2", root)
-        self.assertEqual(got, ["workflows/.shared/x.py:1: 名簿にも境の口にも当たらない"])
+        self.assertEqual(got, ["workflows/.shared/x.py:1: 名簿にも pack の口にも当たらない"])
 
     def test_every_head_path_counts_and_description_does_not(self):
         registry = "- 埋め: `bin/_lib/a.py`、`bin/_lib/b.py`。説明の `bin/_lib/c.py`\n"
         files = {"docs/polyfills.md": registry, **{f"bin/_lib/{n}.py": "" for n in "abc"}}
         with tree(files) as root:
             got = scan.problems("E2", root)
-        self.assertEqual(got, ["bin/_lib/c.py:1: 名簿にも境の口にも当たらない"])
+        self.assertEqual(got, ["bin/_lib/c.py:1: 名簿にも pack の口にも当たらない"])
 
     def test_parenthesized_description_after_head_is_not_counted(self):
         """（予定）は欄を続け、ほかの `（` は欄を閉じる"""
         registry = "- 埋め: `bin/_lib/p.py`（予定）、`bin/_lib/y.py`（中身は `bin/_lib/x.py`）。\n"
         with tree({"docs/polyfills.md": registry, "bin/_lib/x.py": "", "bin/_lib/y.py": ""}) as root:
             got = scan.problems("E2", root)
-        self.assertEqual(got, ["bin/_lib/x.py:1: 名簿にも境の口にも当たらない"])
+        self.assertEqual(got, ["bin/_lib/x.py:1: 名簿にも pack の口にも当たらない"])
 
 
 if __name__ == "__main__":

@@ -2,8 +2,7 @@
 
 修正案の役（p2.fix_plan）の項目の行に、直し方の道（route・route_why）・受け入れのテスト（tests）・書き換える既存のテスト
 （rewrite_tests）・整えの申告（refactor）・書いてよいパス（allowed_paths）・触らない物（out_of_scope。依頼 218）を書かせる。承認された案は後で項目ごとの brief に切り出され、修正役・TDD の役が従う
-要求の正本になる。写しの graph の型は欄を持てない（写しはバイト一致で縛られる）ので、足す・外す・置く・読むの手順は住処
-marks（種 plan。役の型にだけ欄を足し、受け付けが盤面へ渡す前に外して盤面の plan-fields.json に置く）に任せる。
+要求の正本になる。欄は役の型（block の output_format）にだけ在り、受け付けが盤面へ渡す前に外して盤面の plan-fields.json（FIELDS_FILE）に置く。
 - gaps(reply, repo, exists=): 欠けと誤りの行（files の行の誤り——symbols の name がパスの形か行の path の拡張子で終わる・同じ
   (path, name, change) の重なり・considered の path の誤り・消す側の訳 why の欠け——も。修正案の受け付けが拒む。拒否の理由は書いた役に戻り、その役が直せる）。exists は
   受け入れのテストが既に在るかを引く口（既定は作業ツリー。同じ run の中の案の直しは修正の起点の版の木）
@@ -40,10 +39,9 @@ marks（種 plan。役の型にだけ欄を足し、受け付けが盤面へ渡�
   （要るのは表の行だけ）。deviations(fields) は控えの欄から外れの訳の並びを引く（事前審査の頭・報告・最後の関所が読む）。
   prescriptions(b) は判定の返答（盤面の節 JUDGE_NODE の最新の出力）の単位ごとの処方（写しの盤面の記録は単位の処方を写さない
   ので、修正案の頭と修正役の brief はここから引く。利用者の声 D2）
-- HEAD・REVIEW_HEAD・REVIEW_ASK・review_section(b): 修正案の役と事前審査の役の指示書の頭に足す文
-- MACHINE_KEY・MACHINE_LABEL・machine_face_gaps(faces): 欄の行のうち機械が足し修正案の役が直せない欄（removes_tests）。事前審査の
-  頭では役の書いた欄と分けて MACHINE_LABEL で名乗り、where でそれを名指す block の穴は事前審査の受け付けが拒む（役が直せない穴で
-  案の往復を回さない）
+- HEAD: 修正案の役の指示書の頭に足す文。事前審査の役の頭の節（前の review_section）の文は plan-review の md（integration.md 4.3-追加-1）
+- MACHINE_KEY・machine_face_gaps(faces): 欄の行のうち機械が足し修正案の役が直せない欄（removes_tests）。where でそれを名指す block の
+  穴は事前審査の受け付けが拒む（役が直せない穴で案の往復を回さない）
 - 範囲の欄の glob の読み（誤り glob_problem・当たり glob_match・交わり globs_meet）と根の外への上り climbs は lib/globs.py。gaps は
   誤った glob と、out_of_scope の glob が tests・rewrite_tests の id のファイルに当たる案を拒む
 - approved_items(b): 今の周の承認済みの修正案の項目と凍結した欄を同じ番号で合わせた並び（修正の受け付けが差分と照らす）
@@ -58,7 +56,7 @@ marks（種 plan。役の型にだけ欄を足し、受け付けが盤面へ渡�
 - scoped(items): 範囲の欄の在る項目の並びか（217 番の形の控えは範囲の無い run と同じに扱う 1 つの決まり。
   修正の受け付けの範囲の照らしと差分の審査の準拠の受け付けが使う）
 
-写しの engine の型の検査と時刻（engine.schema・engine.util。L0 の写し）と住処 marks（L1）・cite（L1。出どころの引き方の文）・glob の読み globs だけを使い、entry・conflict を import しない（conflict がこのモジュールを読むので、
+写しの engine の型の検査と時刻（engine.schema・engine.util。L0 の写し）と JSON の読み書き jsonfile・cite（L1。出どころの引き方の文）・glob の読み globs だけを使い、entry・conflict を import しない（conflict がこのモジュールを読むので、
 輪を作らない）。
 """
 from __future__ import annotations
@@ -83,12 +81,11 @@ from engine.schema import validate_schema  # noqa: E402
 from engine.util import now  # noqa: E402
 import cite  # noqa: E402
 import globs  # noqa: E402
-import marks  # noqa: E402
-import promptsection  # noqa: E402
+import jsonfile  # noqa: E402
 
-NODES = marks.nodes("plan")
-NODE = NODES[0]
-FIELDS_FILE = marks.KINDS["plan"].file   # 盤面の根の控え {"round": 周, "fields": [項目ごとの欄], "amended"?: {番号: 核の欄}}
+STEPS = ("plan", jsonfile.EACH)   # 返答の中の欄を持つ行（修正案の項目）の道
+NODE = "p2.fix_plan"   # 盤面の記録で修正案の返答を引く節（plan_items。前の marks の種 plan の節）
+FIELDS_FILE = "plan-fields.json"   # 盤面の根の控え {"round": 周, "fields": [項目ごとの欄], "amended"?: {番号: 核の欄}}
 SAVED_OP = "plan_fields_saved"     # save が盤面の trace に書く凍結の印 {round, sha256}
 TRACE_FILE = "trace.jsonl"
 DEPENDS_KEY = "depends_on"       # 項目の間の依存の欄の名（1 か所。ITEMS_RULE・REJECT・planbrief が貼る）
@@ -242,22 +239,8 @@ HEAD = ("修正案の項目の works の欄: 写しの指示書はこの欄を�
         "{unit: <前の項目の unit_keys のどれか 1 つ（unit_keys と同じ書き方）>, receives: [<前の項目の files から受ける物。"
         "<パス>::<名前> か <パス>>]} を書け（自分の項目の単位・案に無い単位・前の項目の files に無い物・依存の循環は受け付けが拒む）。"
         + STRUCTURE_HEAD)
-REVIEW_HEAD = promptsection.Section("## 修正案の項目の works の欄（機械が貼った）", source="fn:planmarks.review_section")
-FIELDS_ITEM_HEAD = promptsection.Section("### 修正案の項目 {n}", source="fn:planmarks.review_section")
-DEVIATION_HEAD = promptsection.Section("## 構造の目の避け方・判定の処方・世界の解から外れた訳（修正案の欄 structure から機械が並べた。訳が成り立つかを見よ）", source="fn:planmarks.review_section")
 MACHINE_KEY = "removes_tests"   # 欄の行のうち split が足し、修正案の役が書かない・直せない欄。rewrite_tests の limit も split が
 # 足すが、役の書く id から決まり、その行への block は役が id を直して答えられるので、わざと入れない
-REVIEW_ASK = ("下は修正案の役が項目ごとに書いた works の欄（route・受け入れのテスト tests・書き換える既存のテスト rewrite_tests・"
-              "整えの申告 refactor・書いてよいパス allowed_paths・触らない物 out_of_scope）。承認されると項目ごとの brief になり、"
-              "修正役・TDD の役の要求の正本になる。受け入れのテストが"
-              "本物の経路を通るか・mock の戻り値を断言していないか・文言の比べに寄っていないか、red_kind の赤が今のコードで本当に"
-              "起きるか、rewrite_tests が依頼で変わる振る舞いだけを書き換え、期待値を実装に合わせる書き換えでないかを見よ。"
-              "allowed_paths が項目の直しに足りて広すぎないか、out_of_scope が依頼の触らない物を覆うかも見よ。"
-              "項目の後の機械が足した許しの行 " + MACHINE_KEY + " は、項目の files の change=remove の symbol（消す名）をコードの識別子として"
-              "使う修正前のテストを機械が並べた物で、修正案の役は書いていない・直せない。where でこれを名指す block は受け付けが拒む。許しが"
-              "広すぎる・狭すぎると見るなら、その項目の files の change=remove の symbol を名指せ。"
-              "穴は faces に挙げよ")
-MACHINE_LABEL = f"機械が足した許しの行 {MACHINE_KEY}（修正案の役は書いていない・直せない。書き換え・消しを許すだけで、消す指示でも義務でもない）:"
 
 
 # ---------------------------------------------------------------- 役の型
@@ -1071,7 +1054,7 @@ def split(reply: dict, repo: pathlib.Path, *, base_tests: dict | None = None) ->
     base_tests（パス → 修正前の版のテストのファイルの中身）を渡せば、項目の files の change=remove の symbol（消す名）をコードの
     識別子として使うテストの行 removes_tests [{id, limit}] も足す（書き換え・消しを許すだけの行で、義務でない。作業ツリーでは消えた
     テストも修正前の版で探す）。repo は rewrite_tests の範囲 limit を引く作業ツリー"""
-    out, rows = marks.split("plan", NODE, reply, KEYS)
+    out, rows = jsonfile.split(reply, STEPS, KEYS)
     items = out.get("plan") if isinstance(out, dict) else None
     for it, got in zip(items if isinstance(items, list) else [], rows):
         if not isinstance(it, dict):   # 形の崩れた項目の欄は空のまま
@@ -1218,7 +1201,7 @@ def save(board, rnd: int, fields: list, amended: dict | None = None, *, trace=No
     doc = {"round": rnd, "fields": fields}
     if amended is not None:
         doc[AMENDED_KEY] = {str(n): core for n, core in amended.items()}
-    raw = marks.write(marks.path_of("plan", d), doc)
+    raw = jsonfile.dump(_path(d), doc)
     row = {"round": rnd, "sha256": hashlib.sha256(raw).hexdigest()}
     if trace is not None:
         trace(SAVED_OP, **row)
@@ -1232,9 +1215,14 @@ def append_trace(folder, op: str, **row) -> None:
         f.write(json.dumps({"t": now(), "op": op, **row}, ensure_ascii=False) + "\n")
 
 
+def _path(b) -> pathlib.Path:
+    """盤面の根の控えのパス（b は盤面か、その置き場のパス）"""
+    return pathlib.Path(getattr(b, "dir", b)) / FIELDS_FILE
+
+
 def _doc(b) -> dict | None:
     """今の周（b.round）の控えの全体。控えが無い・周が違う・読めない・fields が並びでないなら None"""
-    doc = marks.load(marks.path_of("plan", b))
+    doc = jsonfile.read_or(_path(b))
     if not isinstance(doc, dict) or doc.get("round") != b.round or not isinstance(doc.get("fields"), list):
         return None
     return doc
@@ -1319,7 +1307,7 @@ def _frozen_doc(b) -> dict | None:
     mark = _saved_mark(b)
     if mark is None:
         return None
-    p = marks.path_of("plan", b)
+    p = _path(b)
     try:
         raw = p.read_bytes()
     except OSError as e:
@@ -1424,16 +1412,6 @@ def unit_contract(fields: list | None, key: str) -> dict | None:
             "rewrites": list(rws), "refactor": refactor, "names": list(names)}
 
 
-def _json_block(v) -> str:
-    return f"```json\n{json.dumps(v, ensure_ascii=False, indent=1)}\n```"
-
-
-def _item_block(f: dict) -> str:
-    block = _json_block({k: v for k, v in f.items() if k != MACHINE_KEY})
-    machine = f.get(MACHINE_KEY)
-    return block + (f"\n\n{MACHINE_LABEL}\n\n{_json_block({MACHINE_KEY: machine})}" if machine else "")
-
-
 # 境は ASCII の識別子の字だけで見る（\w は仮名・漢字も語の字に数え、「項目1のremoves_testsが」を見逃す）
 _MACHINE_KEY_IN = re.compile(rf"(?<![A-Za-z0-9_]){re.escape(MACHINE_KEY)}(?![A-Za-z0-9_])")
 
@@ -1446,20 +1424,3 @@ def machine_face_gaps(faces: list) -> list[str]:
             for j, f in enumerate(faces)
             if f.get("severity") == "block" and _MACHINE_KEY_IN.search(str(f.get("where") or ""))]
 
-
-def review_section(b, notes=None) -> str:
-    """事前審査の役の指示書の頭に貼る節（"\\n\\n" で始まる）: 見る点の頼みと、項目ごとの欄の JSON（機械の足した欄 MACHINE_KEY は
-    役の書いた欄から外し、空でなければ MACHINE_LABEL の後に別の JSON で貼る）。控えが無ければ空。
-    控えは frozen で読む（凍結の印と食い違えば FieldsBroken。読む側が盤面を止める）。notes は {世界の解の類の id: 依頼の解き方との
-    比べの文}（呼び手が世界の解の行の住処から渡す）で、その類の外れの訳の尾に添える"""
-    fields = frozen(b)
-    if fields is None:
-        return ""
-    rows = [f"{FIELDS_ITEM_HEAD.format(n=n)}\n\n{_item_block(f)}" for n, f in enumerate(fields, 1)]
-    devs = deviations(fields)
-    head = ""
-    if devs:
-        notes = notes or {}
-        head = f"\n\n{DEVIATION_HEAD}\n\n" + "\n".join(
-            f"- {answer_line(d)}" + (f"（定石との比べ: {notes[d['world']]}）" if notes.get(d.get("world")) else "") for d in devs)
-    return f"{head}\n\n{REVIEW_HEAD}\n\n{REVIEW_ASK}\n\n" + "\n\n".join(rows)

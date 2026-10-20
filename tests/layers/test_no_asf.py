@@ -1,4 +1,8 @@
-"""`workflows/` の YAML の `include:`・`workflow:` の値が `works-factory-` で始まる（根の AGENTS.md の E8 の機械の行）。"""
+"""`workflows/` の YAML の `include:`・`workflow:` の値が `works-factory-` で始まる（根の `AGENTS.md` の E8 の機械の行）。
+
+- 外しは 1 つだけ: merge の `pr-open` が出口の語 `pr`（依頼の入力 `deliver` の値。`pr` の時だけ PR を作る）の時に起こす Archon 同梱の `archon-pr`（表 `tests/layers/scan.py` の `ARCHON_CALLS`。持ち主の決め `deliver-via-archon-pr`）。
+- ASF のコードを写していないことと、`docs/asf-notes.md` の行は人が見る。
+"""
 import pathlib
 import unittest
 

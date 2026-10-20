@@ -1,4 +1,4 @@
-"""試験の関門の block（blocks/test-gate/）の YAML の形と、script を子のプロセスで走らせる振る舞いの試験（docs/design/test-gate.md の 12 節）。
+"""試験の関門の block（workflows/test-gate/）の YAML の形と、script を子のプロセスで走らせる振る舞いの試験（docs/design/test-gate.md の 12 節）。
 
 - YAML: block の名・入力（port 11 個）・返す node の output_format（今の 15 欄に suite・suite_note・report を足した 18 欄）・任せ先の CI の役の node の形・
   輪の上限と受け付けの諦める回数・script の INPUTS_<名> と with: の鍵（INPUTS_ を読むのは intake.py だけ）・読むだけの node
@@ -43,7 +43,6 @@ import green_cert  # noqa: E402
 import launchgroups  # noqa: E402
 import rolekit  # noqa: E402
 import suitewrite  # noqa: E402
-import tddloop  # noqa: E402
 import tree_run  # noqa: E402
 import userenv  # noqa: E402
 from engine.schema import validate_schema  # noqa: E402  （declared_checks が lib/graphloops を sys.path に足す）
@@ -259,7 +258,7 @@ class EvidenceRowsCase(unittest.TestCase):
         rows = json.loads((ROOT / "tests" / "e2e" / "evidence.json").read_text(encoding="utf-8"))
         heads = [p.removeprefix("- ") for p in (certify.RUN_ROW, certify.LOG_ROW)]
         texts = [r["text"] for r in rows if str(r.get("where", "")).endswith("/evidence.md")
-                 and str(r.get("where")).startswith("parent/test-gate/") and any(h in str(r.get("text")) for h in heads)]
+                 and str(r.get("where")).startswith(("parent/test-gate-base/", "parent/test-gate-final/")) and any(h in str(r.get("text")) for h in heads)]
         self.assertTrue(texts)
         for text in texts:
             with self.subTest(text):
@@ -1449,6 +1448,7 @@ class SuiteLoopCase(ScriptCase):
         """keep-essence 1（赤緑の機械の判定）は tdd_suite を省いた run でも効く: 書いた実行器を 1 回走らせた結末が照らしを通れば
         実行器の控えの tdd_suite に結び、元の結末に 1 件ごとの結末が載り、出力の suite が実行器の絶対パスで、修正の段の TDD の輪が
         その実行器で名指しの赤を判じる。照らしを通った実行器は test_cmd の字で取り置く"""
+        tddloop = kit.load("fix", "tdd")   # keep-essence 1 の継ぎ目: 修正の段の TDD の輪（integration.md 4.3-3）
         self.assertEqual(tddloop.start(self.tmp / "fix", self.repo, "", "[]")["reason"], tddloop.NO_SUITE)
         self.ok("run", "base")
         prep, tried = self.round(self.RED)
@@ -1538,7 +1538,7 @@ class SuiteLoopCase(ScriptCase):
 
 class PromptCase(ScriptCase):
     """3 つの指示（prompts/*.md）に prep が入れる値と、段落の選び（docs/design/test-gate.md の 2.3・3.3・4.3）"""
-    LANG_DEFAULT = "the language of the request (the user's language)"   # blocks/.shared/prompts/lang-default.md
+    LANG_DEFAULT = "the language of the request (the user's language)"   # workflows/.shared/prompts/lang-default.md
     OTHER_SLOTS = {"root", "base", "copy_dir", "tmp_dir", "mode", "attempt", "decl_name", "lang"}
 
     def test_status_slots_are_the_declared_statuses(self):

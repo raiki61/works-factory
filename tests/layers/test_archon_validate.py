@@ -1,8 +1,9 @@
-"""`archon validate workflows` が自分の工程（works-factory-*）に誤りも警告も出さない（workflows/AGENTS.md の E1 の機械の行）。
+"""`archon validate` が自分のグラフ（`works-factory-*`）に誤りも警告も出さない（`workflows/AGENTS.md` の E1 の機械の行）。
 
-木は tests/archon.py の使い捨ての木に workflows/ の全部（線とブロック）を pack の形で置いた物。
-同梱の skill の警告は数えない（tests/archon.py の counted）。
-Archon の源か bun が無ければ見送る。
+- 木は `tests/archon.py` の使い捨ての git の木に `workflows/` の全部（block と graph と `.shared/`）を pack の形（`.archon/workflows/works-factory/`）で置いた物。`validate` は `--workflow-source` を受けず黙って捨て、`--cwd` は git の木しか受けないので、この木を `--cwd` に渡す。
+- 数えない警告は 1 つの形だけ: Claude Code に同梱の skill（`tests/archon.py` の `BUILTIN_SKILLS`）と借りる superpowers の skill（`BORROWED_SKILLS`。`lib/borrow/borrow.json` の `superpowers.skills`）をノードの `skills:` に名指した時の「Claude skill '<名>' not found on disk — expected for built-in…」の警告（level が warning・field が `skills`・文がこの形・名が 2 つの一覧のどちらかに在る、の全部が当たる物。照らしは `tests/archon.py` の `counted` の 1 か所）。訳は `docs/design/archon.md` の E1 の節。
+- 2 つの一覧に無い名の警告と、同梱の名でも別の置き場に入っていて届かない時の誤り（installed elsewhere）は数える。種 `tests/layers/seeds/e1/workflows/skills/` で、その 2 つが数えられることを縛る。
+- Archon の源か bun が無ければ見送る（CI は `WORKS_FACTORY_ARCHON_REQUIRED` で赤にする）。
 """
 import json
 import pathlib
@@ -29,10 +30,14 @@ IN_LOOP_REFUSED = {
         "merge は出口の語 pr の時に PR を作る子の run（archon-pr）を workflow: の節で起こす。Archon は loop_group の本体に workflow: の"
         "節を置けない（fix と同じ）。線と周の鎖は merge を輪の外でだけ include するので、能力は落ちない（狭めでない）"),
     f"{scan.OURS_PREFIX}probe-judge": (
-        ["error: loop_group 'rounds' body: wait node 'block__spec-gate' must be the body's sole terminal sink"],
-        "judge の関所 spec-gate（wait: の attention）は本体の終わりでないので、Archon は輪の本体に置けない（止めた Archon の "
-        "packages/workflows/src/loader.ts の loop_group の本体の照らし）。線は judge を輪の外でだけ include する。輪の中で include "
+        ["error: loop_group 'rounds' body: wait node 'block__spec__spec-gate' must be the body's sole terminal sink"],
+        "judge の graph が include する spec の関所 spec-gate（wait: の attention）は本体の終わりでないので、Archon は輪の本体に"
+        "置けない（止めた Archon の packages/workflows/src/loader.ts の loop_group の本体の照らし）。線は judge を輪の外でだけ include する。輪の中で include "
         "できる形（関所を本体の終わりに置く）にするかは区分 J。区分の issue で外す"),
+    f"{scan.OURS_PREFIX}probe-spec": (
+        ["error: loop_group 'rounds' body: wait node 'block__spec-gate' must be the body's sole terminal sink"],
+        "spec の関所 spec-gate（wait: の attention）は本体の終わりでないので、Archon は輪の本体に置けない（judge と同じ。judge の "
+        "graph は spec を include する）。線は judge も spec も輪の外でだけ include するので、能力は落ちない（狭めでない）"),
 }
 
 

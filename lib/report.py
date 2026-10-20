@@ -10,6 +10,7 @@ lib/runreport（機械の報告・次の依頼・前の失敗・費用）に移�
 - prior_lines(rows, next_file): 次の run に運んだ落ちた理由の節の行
 - tdd_lines(stages)・freeze_lines(stages): 修正の段ごとの TDD の輪の単位の結末の行（keep-essence の 11）と、輪を回していない段で
   テストの凍結が効いていないと言う冒頭 2 の行（keep-essence の 3）
+- CMD_LIGHT: 単位の出口の test_cmd の軽量の語（fix が書き line が数える）
 - INNER_WORDS・INNER_WORD・INNER_WORDS_HEAD: 直しが対象に書く文に混じってはいけない works の内側の語の表と見出し
 - inner_word_hits(diff_text, known)・target_uses(repo, rev, word)・INNER_FACE_KIND: 差分の足した行への表の照らし（読み手は
   lib/runreport の報告の一覧と lib/refix の差分の審査の受け付け）と、対象が直す前の版で既に使う語か、機械の穴の kind の語
@@ -35,7 +36,6 @@ import carry  # noqa: E402  （L1。次の run への持ち越しの形の住処
 import chain  # noqa: E402
 import changemap  # noqa: E402
 import oneline  # noqa: E402
-import promptsection  # noqa: E402
 import stopby  # noqa: E402
 
 OUTCOMES = ("fixed", "fixed_needs_check", "no_fix_needed", "round_limit", "stopped_by_request", "stopped_by_human", "stopped_by_line",
@@ -52,24 +52,27 @@ CHECKS_LEFT = "人が確かめる物"   # fixed_needs_check の残り（冒頭 3
 EYES_WHERE = "独立の目"
 ABSORBED_WHERE = "受け止めた落ち"
 REPORT_FILE = "report.md"
-FOR_READERS = "人が読む報告の本文の見出し。役の指示書には貼らない"
-PRIOR_HEADING = promptsection.Section("## 次の run に引き継ぐ落ちた理由", human=FOR_READERS)
-OUTSIDE_HEADING = promptsection.Section("## 判定が目的の外とした所見", human=FOR_READERS)   # 1 件ずつの行（outpurpose.report_lines）。冒頭 1 は件数の行だけ（outpurpose.count_line）
-WORLD_HEADING = promptsection.Section("## 世界の解", human=FOR_READERS)   # 依頼の行ごとの定石と依頼の解き方との比べ（runreport._world_lines。控えの無い run は節を出さない）
-TDD_HEADING = promptsection.Section("## TDD のループの単位ごとの結末", human=FOR_READERS)   # keep-essence の 11（修正のブロックの出口 tdd を、修正の段ごとに単位の行で）
+FOR_READERS = "人が読む報告の本文の見出し。役の指示書には貼らない"   # 下の見出しの字はどれも人が読む報告の物
+PRIOR_HEADING = "## 次の run に引き継ぐ落ちた理由"
+OUTSIDE_HEADING = "## 判定が目的の外とした所見"   # 1 件ずつの行（outpurpose.report_lines）。冒頭 1 は件数の行だけ（outpurpose.count_line）
+WORLD_HEADING = "## 世界の解"   # 依頼の行ごとの定石と依頼の解き方との比べ（runreport._world_lines。控えの無い run は節を出さない）
+TDD_HEADING = "## TDD のループの単位ごとの結末"   # keep-essence の 11（修正のブロックの出口 tdd を、修正の段ごとに単位の行で）
 TDD_STAGES = ("修正の段", "案を直した後の修正の段")   # build の tdd の並び（ラインの report の with の fix_tdd・refit_tdd の順）
+# 単位ごとの深さの語のうち、緑の後の test_cmd を走らせない語（fix が単位の出口の test_cmd に書き、line が深さの行に数える。
+# 前は tddloop.CMD_LIGHT。integration.md 4.5-14・4.4-F）
+CMD_LIGHT = "light"
 FREEZE_OFF_HEAD = "テストの凍結"   # 冒頭 2 の行の頭（TDD の輪を回していない修正の段は、凍結が効いていないと言う。freeze_lines）
 R2_REDESIGN = "R2 が redesign-needed"      # 検証器と独立の目が R2 の作り直しの行に付ける頭（findings から外し prior_failures にだけ載せる）
 FINAL_GATE_STOPS = answer.STOP_WORDS            # 最後の関所の答えのうち止める語（書き手 line_edge の GATE_STOP）
 REQUEST_BY = "request:"                        # 止め札で止めた盤面の state.stop.by の頭
 HUMAN_BY = stopby.HUMAN
-DECISIONS_HEADING = promptsection.Section("## 1. 人が決めること", human=FOR_READERS)
-ENTRY_HEADING = promptsection.Section("## 2. 入口・段・決めた人", human=FOR_READERS)
-STOP_HEADING = promptsection.Section("## 3. 止めたか", human=FOR_READERS)
-READS_HEADING = promptsection.Section("## 4. 読んだ証拠と包み", human=FOR_READERS)
-WHERE_HEADING = promptsection.Section("## 5. 見る所", human=FOR_READERS)
+DECISIONS_HEADING = "## 1. 人が決めること"
+ENTRY_HEADING = "## 2. 入口・段・決めた人"
+STOP_HEADING = "## 3. 止めたか"
+READS_HEADING = "## 4. 読んだ証拠と包み"
+WHERE_HEADING = "## 5. 見る所"
 HEADINGS = (DECISIONS_HEADING, ENTRY_HEADING, STOP_HEADING, READS_HEADING, WHERE_HEADING)
-TITLE_HEADING = promptsection.Section("# 報告（run {run}）", human=FOR_READERS)
+TITLE_HEADING = "# 報告（run {run}）"
 INTERRUPTED_HEAD = "run が途中で終わった"
 RETRIED_HEAD = "前の試みで落ち、続きで済んだノード"
 ABSORBED_HEAD = "落ちたが、メイングラフが宣言のとおり受け止めたノード"
@@ -257,9 +260,9 @@ def freeze_lines(stages) -> list:
             for name, tdd in stages if isinstance(tdd, dict) and not tdd.get("ran")]
 
 
-MODEL_HEADING = promptsection.Section("## 模型", human=FOR_READERS)
-COST_HEADING = promptsection.Section("## 費用", human=FOR_READERS)
-STRUCTURE_HEADING = promptsection.Section("## 構造の目", human=FOR_READERS)
-UNSEEN_LENS_HEADING = promptsection.Section("## 未確認のレンズ", human=FOR_READERS)   # 局所レビューの見ていないレンズ（diverted.report_lines）
+MODEL_HEADING = "## 模型"
+COST_HEADING = "## 費用"
+STRUCTURE_HEADING = "## 構造の目"
+UNSEEN_LENS_HEADING = "## 未確認のレンズ"   # 局所レビューの見ていないレンズ（diverted.report_lines）
 
 

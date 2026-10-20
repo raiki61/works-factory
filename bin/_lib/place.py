@@ -151,14 +151,14 @@ def pack_folder(pack: dict, base: Path) -> Path:
     return base / WORKFLOW_FOLDER / pack["ours"]["pack"]
 
 
-def workflow_source(pack: dict, root: Path, cache: Path, folder: str | None = None) -> Path:
-    """--workflow-source に渡す置き場を返す。その中の .archon/workflows/<pack> は root の自分のグラフのフォルダ（folder。None なら
-    pack.json の ours.folder）を指す。作り直しの間の 2 つ目の pack blocks/（docs/design/README.md の 3 章）は folder で選ぶ。
+def workflow_source(pack: dict, root: Path, cache: Path) -> Path:
+    """--workflow-source に渡す置き場を返す。その中の .archon/workflows/<pack> は root の自分のグラフのフォルダ（pack.json の
+    ours.folder）を指す。
 
     置き場の名は指す先のパスの hash なので、同じ root からは同じ置き場になる。前の形の置き場（.archon/workflows が
     直にグラフのフォルダを指す symlink）は、そのまま使うと pack の symlink をグラフのフォルダの中に作るので、消す案内で止まる。
     """
-    target = (root / (folder or pack["ours"]["folder"])).resolve()
+    target = (root / pack["ours"]["folder"]).resolve()
     shim = cache / "workflow-source" / hashlib.sha256(str(target).encode()).hexdigest()[:16]
     link = pack_folder(pack, shim)
     folder = link.parent

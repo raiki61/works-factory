@@ -114,7 +114,7 @@ def outside_env(environ):
     - userenv.RECORD（起動の殻がいつも控えた、隔離の前の HOME・XDG_*）・userenv.RAN_DIR_ENV・継いだ userenv.MARK はいつも外し、
       RECORD が在れば中の値に戻して、印のパスを MARK に置く（userenv.restore。印を置くのは、この写しで子を起こす側が起こす
       直前。RECORD の形が違う・RAN_DIR_ENV が無ければ ValueError）。戻すのはこの写しだけで、実行基盤・役・script 自身は隔離の
-      まま（この写しで起こす対象のコマンドの子を除く。数え上げは docs/design.md の「対象のコマンドの環境と準備」）
+      まま（この写しで起こす対象のコマンドの子を除く。数え上げは docs/design/ の「対象のコマンドの環境と準備」の節）
     実行基盤は script の節を `uv run <ファイル>` で起こし、uv は PATH の頭に自分の python の bin を足し、VIRTUAL_ENV・
     UV_RUN_RECURSION_DEPTH を立てる。そのまま渡すと `python3 -m <試験の実行器>` が uv の python を掴んで偽の赤になる。
     限界: 節に deps: を足すと uv は --with の層の bin も足し、それは外れない（今の節は deps を持たない）"""

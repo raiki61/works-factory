@@ -1,8 +1,13 @@
-"""深さの段の表と depth.TIERS の一致、深さを読む when の句の無さ（workflows/AGENTS.md の E20 の機械の行）。今の木は緑、小さな木で 1 本 1 違反の赤を作る。"""
+"""深さの段の表と line の段の表 `TIERS`（`scan.tiers()`。`workflows/line/src/tiers.py`）の一致と、深さを読む `when` の句の無さ（`workflows/AGENTS.md` の E20 の機械の行。持ち主の決め `depth-by-reason`・`three-tiers`）。
+
+- 表は `docs/design/line.md` の「### 深さの段の表」（`scan.DEPTH_TABLE`）。行（段・省く物・足す物）が `TIERS` と等しい。省く物・足す物の欄は `` `名` `` を並べるか「無し」。
+- どのノード（メイングラフ・include した graph と block の頭の段・ループの中）の `when` も、出力の深さの欄を読む句（`$<ノード>.output.<名に depth を含む欄>`）を持たない。省くかを `when:` に渡す時は、line が表から引いた真偽（`raise` の `checks`・`eyes_due` など）だけにする。
+- 今の木は緑、小さな木で 1 本 1 違反の赤を作る。
+"""
 import pathlib
 import unittest
 
-from lib import depth
+from lib import headdepth
 from tests.layers import scan
 from tests.layers.trees import tree
 
@@ -31,8 +36,8 @@ def cell(names) -> str:
 
 def design(heavy=None) -> str:
     rows = []
-    for tier, spec in depth.TIERS.items():
-        adds = heavy if heavy is not None and tier == depth.HEAVY else spec["adds"]
+    for tier, spec in scan.tiers().items():
+        adds = heavy if heavy is not None and tier == headdepth.HEAVY else spec["adds"]
         rows.append(f"| {tier} | {cell(spec['omits'])} | {cell(adds)} | 理由 |")
     return "\n".join(["# 設計", "", scan.DEPTH_HEAD, "", "| 段 | 省く物 | 足す物 | 理由 |", "| --- | --- | --- | --- |", *rows, "", "## 次", ""])
 
@@ -45,13 +50,13 @@ class DepthSkipTest(unittest.TestCase):
         rows, broken = scan._tier_rows(ROOT)
         self.assertEqual(broken, [])
         self.assertEqual({tier: (omits, adds) for _, tier, omits, adds in rows},
-                         {tier: (tuple(spec["omits"]), tuple(spec["adds"])) for tier, spec in depth.TIERS.items()})
+                         {tier: (tuple(spec["omits"]), tuple(spec["adds"])) for tier, spec in scan.tiers().items()})
         self.assertEqual(scan.problems("E20", ROOT), [])
-        text = design().replace(f"| {depth.STANDARD} |", "| 標準x |", 1)
+        text = design().replace(f"| {headdepth.STANDARD} |", "| 標準x |", 1)
         with tree({LINE: line(), BLOCK: block(), scan.DEPTH_TABLE: text}) as root:
             got = scan.problems("E20", root)
-        self.assertTrue(any(f"段 {depth.STANDARD} の行が無い" in g for g in got), got)
-        self.assertTrue(any("標準x が depth.TIERS に無い" in g for g in got), got)
+        self.assertTrue(any(f"段 {headdepth.STANDARD} の行が無い" in g for g in got), got)
+        self.assertTrue(any("標準x が line の TIERS に無い" in g for g in got), got)
 
     def problems(self, line_text=None, block_text=None, design_text=None):
         with tree({LINE: line_text or line(), BLOCK: block_text or block(), scan.DEPTH_TABLE: design_text or design()}) as root:
@@ -72,7 +77,7 @@ class DepthSkipTest(unittest.TestCase):
         self.red("ノード pr__loop", block_text=block(clause=CLAUSE))
 
     def test_heavy_adds_drifting_from_tiers_is_red(self):
-        self.red(f"段 {depth.HEAVY} の省く物・足す物が depth.TIERS と違う", design_text=design(heavy=("judge_verify",)))
+        self.red(f"段 {headdepth.HEAVY} の省く物・足す物が line の TIERS と違う", design_text=design(heavy=("judge_verify",)))
 
 
 if __name__ == "__main__":

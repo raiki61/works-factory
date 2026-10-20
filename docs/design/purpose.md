@@ -1,14 +1,14 @@
 # block の設計書: purpose（目的の固定）
 
-- 何の話か: run の「元の目的」を AI の役に 1 つの文にさせ、依頼が示した解き方（手段）を目的から分けて返す観点を、単独で呼べる block `blocks/purpose/` にする設計。型は [README.md](README.md) に、形は手本の [world.md](world.md) に従う。
+- 何の話か: run の「元の目的」を AI の役に 1 つの文にさせ、依頼が示した解き方（手段）を目的から分けて返す観点を、単独で呼べる block `workflows/purpose/` にする設計。型は [README.md](README.md) に、形は手本の [world.md](world.md) に従う。
 - 決めたこと: 今の judge の 4 つの node（purpose-prep・purpose-reject・purpose・purpose-accept）を、6 つの node の block にする。入力は依頼・PR の説明の文・前提の実測・言語の 4 つの port だけで、始めの記録と止めの記録を読まない。指示は英語の md 1 本（`prompts/purpose.md`）にまとめ、材料のファイル `purpose-brief.md` を Read させる形をやめて、材料を指示の中に入れる。前の run の判断（依頼の `prior_failures`）を機械で外すこと、目的は 1 度固めたら変えないこと（once）、出典のファイルの照らしは今のまま残す。出力は目的の文・出典の語・解き方の並びを欄で返し、目的の控え全体を pointer で返す。振る舞いは変えない。
 - 持ち主に求めること: なし。読み手は、この block を作る実装の役（この文書だけで作れる細かさにした）と、その PR の審査。
 
 この文書の語は README の頭の物を使う。ほかに:
 
 - 持ち主: このリポジトリの owner（決めを下す人）。「持ち主の決め `<名>`」は `docs/owner-decisions.md` の決めの名。
-- line: 工場（works-factory。この repo の Archon の workflow 群）のメイングラフ。始めの記録（run の起動の時の入力の記録）を書き、block に port の値を配る。judge のまとめ（`blocks/judge/`）は判定の block を `include:` で並べる graph で、line がそれを include する。
-- 土台の PR: README の 11.1 の 0 の PR（`blocks/.shared/ports.py`・`prompt.py`・共通の指示の断片 `rejected.md`・`query-rule.md`・起動の殻の口を置く）。この block の PR より先に入る。この文書が「土台に合わせる」と書く名は、そこで決まる。
+- line: 工場（works-factory。この repo の Archon の workflow 群）のメイングラフ。始めの記録（run の起動の時の入力の記録）を書き、block に port の値を配る。judge のまとめ（`workflows/judge/`）は判定の block を `include:` で並べる graph で、line がそれを include する。
+- 土台の PR: README の 11.1 の 0 の PR（`workflows/.shared/ports.py`・`prompt.py`・共通の指示の断片 `rejected.md`・`query-rule.md`・起動の殻の口を置く）。この block の PR より先に入る。この文書が「土台に合わせる」と書く名は、そこで決まる。
 - 源と bun: 試験が Archon を起こすのに要る、止めた版の Archon のソース（`bin/_lib/place.archon_source` が取る）と JavaScript の実行環境 bun。無い手元では、その試験を名前つきで見送る（`tests/AGENTS.md`）。
 - keep-essence: 元の works が守る 12 の仕組み（README の 10 節）。9 は「独立設計と R1〜R4」で、R1〜R4 は修正の後に別の目が見る 4 つの確かめ（R1 最小性・R2 独立設計との比べ・R3 全体の整合・R4 見えていない範囲）。12 は「世界の解に照らす」。
 - 1 つ目の commit・2 つ目の commit: この block の PR の中の 2 つの commit（README の 11.4）。1 つ目は指示の md を日本語のまま置いて今の指示と同じ字かを試験で照らし、2 つ目で英語にする。2.3 の md の本文は 2 つ目の物。
@@ -47,7 +47,7 @@
 
 今との違い: 今は支度が始めの記録の依頼のファイルと PR（`lib/judge_accept.py:1258-1284` の `purpose_prep`）と `judge/premises.json` を読み、止めの記録 `judge/stop.json` を見て役を起こすかを決め（`workflows/judge/scripts/purpose_prep.py:19-24`）、受け付けは `judge/purpose.json`・`judge/purpose-means.json` に書き、諦めた時は止めの記録（`stopby.PURPOSE`）を置いた。出口は judge の返す節の欄 `purpose`・`purpose_means`（pointer）だった。この block は、PR の説明を文の port で、前提の実測を json の port で受け、止めの記録の代わりに `status` を返す。`purpose_text`・`source`・`means` を欄でも返すのは、読み手が 3 つ以上の欄を読まない時に pointer を開かずに済むため（世界の解の block は `purpose_text` と `means` を欄で受ける。world.md の 1.6）。
 
-### 1.3 node の並び（`blocks/purpose/works-factory-purpose.yaml`）
+### 1.3 node の並び（`workflows/purpose/works-factory-purpose.yaml`）
 
 1. `intake`（script `intake.py`。`mutates_checkout: false`）: place に固めた目的が在れば port を読まずに役を起こさない。無ければ port を読み、この block が名を持つファイルを消して、材料を `intake.json` に、作業ツリーの写しを `tree.json` に書く。返り `{due, reason}`。
 2. `purpose-loop`（`loop_group`、`max_iterations: 3`、`fresh_context: false`、`until_bash: done=$purpose-accept.output.done; test "$done" = true`。`depends_on: [intake]`・`when: $intake.output.due == true`）
@@ -62,7 +62,7 @@ script の名は `lib/` のモジュールの名と重ねない（README の 7.1
 
 ### 1.4 place のファイル
 
-`ports.place()`（単独の run では `$ARTIFACTS_DIR/`、line から judge のまとめを通して include された時は `$ARTIFACTS_DIR/judge/purpose/`）の下に書く。名は `src/steps.py` だけが持つ。
+`ports.place()`（単独の run では `$ARTIFACTS_DIR/`、line から judge のまとめを通して include された時は `$ARTIFACTS_DIR/judge/purpose-run/`）の下に書く。名は `src/steps.py` だけが持つ。
 
 - `intake.json`: `{request, pr_text, constraints, lang, frozen, failed, reason}`。`request` は役に見せる依頼の写し（`prior_failures` を外した物）。
 - `tree.json`: 作業ツリーの写し（`accept.tree_state` の形）。今の `judge/purpose-tree.json` に当たる。
@@ -74,16 +74,15 @@ script の名は `lib/` のモジュールの名と重ねない（README の 7.1
 
 ### 1.5 コードの置き場
 
-- `blocks/purpose/src/__init__.py`: 空。
-- `blocks/purpose/src/steps.py`: 今の `lib/judge_accept.py` の `refuse_if_frozen`（:1224-1230）・`check_purpose`（:1233-1255）・`PURPOSE_RULE`（:1218）と、作業ツリーの比べ `_tree_snapshot`・`_moved_since`・`_tree_unchanged`（:1121-1160。写しの在る道だけ）の写し。`purpose_prep`（:1258-1284）は、材料の文を組む部分を md へ出し、依頼の写しの作り方（`carry.without_prior`）だけを `request_copy(doc)` として写す。place のファイルの名（`INTAKE_FILE`・`TREE_FILE = "tree.json"`・`PURPOSE_FILE = "purpose.json"`・`MEANS_FILE = "purpose-means.json"`・`ROLE = "purpose"`）と、出典の語 `PR_SOURCE = "①PR 説明"`・`PLAN_SOURCE = "②計画・タスク記述"`・`WRITER_SOURCE = "③writer の要約"`・`UNKNOWN_SOURCE = "目的不明"`、制約の `kind` の語 `MEASURED = "実測"`・`HYPOTHESIS = "仮説"` もここだけが持つ。解き方の分け（今の `worldmark.split_means`。`lib/worldmark.py:161-166`）は `split_means(reply)` として写す: 返答の写しから鍵 `means` を外し、`means` の中の空白だけでない字だけを並べる（今の `split_means` が頼る `lib/marks.py` は、README の 9.1 で消すと決まった部品なので使わない）。
-- `blocks/purpose/src/sourcefiles.py`: 今の `lib/purpose.py:24-46` の `_source_files_errors` と、それが頼る `lib/judge_accept.py` の `_resolve_target`（:2250-2260）・`_in_version`（:2236-2247）の写し。根は `engine.util.repo_root(engine.util.git)`、git の向き先は `accept.in_repo(repo)`。拒みの訳の字は今のまま。
-- block の `schemas/` は置かない。依頼の形は共通の `blocks/.shared/schemas/request.schema.json`（依頼の容器の照らしは土台の口 `requestrows.parts`）、前提の実測の形は共通の `blocks/.shared/schemas/constraints.schema.json`（行の欄は今の前提の役の `output_format` と同じで、行は `additionalProperties: false`、`measured_output` は空白だけでない字。容器の外側は閉じない。`実測` の行の `measured_output` の欠けは拒まない: 役の返りには在り、前の run から持ち越した行〔`lib/carry.py` の `carried_constraints`〕には無い）。
+- `workflows/purpose/src/__init__.py`: 空。
+- `workflows/purpose/src/steps.py`: 今の `lib/judge_accept.py` の `refuse_if_frozen`（:1224-1230）・`check_purpose`（:1233-1255）・`PURPOSE_RULE`（:1218）と、作業ツリーの比べ `_tree_snapshot`・`_moved_since`・`_tree_unchanged`（:1121-1160。写しの在る道だけ）の写し。`purpose_prep`（:1258-1284）は、材料の文を組む部分を md へ出し、依頼の写しの作り方（`carry.without_prior`）だけを `request_copy(doc)` として写す。place のファイルの名（`INTAKE_FILE`・`TREE_FILE = "tree.json"`・`PURPOSE_FILE = "purpose.json"`・`MEANS_FILE = "purpose-means.json"`・`ROLE = "purpose"`）と、出典の語 `PR_SOURCE = "①PR 説明"`・`PLAN_SOURCE = "②計画・タスク記述"`・`WRITER_SOURCE = "③writer の要約"`・`UNKNOWN_SOURCE = "目的不明"`、制約の `kind` の語 `MEASURED = "実測"`・`HYPOTHESIS = "仮説"` もここだけが持つ。解き方の分け（今の `worldmark.split_means`。`lib/worldmark.py:161-166`）は `split_means(reply)` として写す: 返答の写しから鍵 `means` を外し、`means` の中の空白だけでない字だけを並べる（今の `split_means` が頼る `lib/marks.py` は、README の 9.1 で消すと決まった部品なので使わない）。
+- `workflows/purpose/src/sourcefiles.py`: 今の `lib/purpose.py:24-46` の `_source_files_errors` と、それが頼る `lib/judge_accept.py` の `_resolve_target`（:2250-2260）・`_in_version`（:2236-2247）の写し。根は `engine.util.repo_root(engine.util.git)`、git の向き先は `accept.in_repo(repo)`。拒みの訳の字は今のまま。
+- block の `schemas/` は置かない。依頼の形は共通の `workflows/.shared/schemas/request.schema.json`（依頼の容器の照らしは土台の口 `requestrows.parts`）、前提の実測の形は共通の `workflows/.shared/schemas/constraints.schema.json`（行の欄は今の前提の役の `output_format` と同じで、行は `additionalProperties: false`、`measured_output` は空白だけでない字。容器の外側は閉じない。`実測` の行の `measured_output` の欠けは拒まない: 役の返りには在り、前の run から持ち越した行〔`lib/carry.py` の `carried_constraints`〕には無い）。
 - 使う `lib/`: `accept`（KEEP。`tree_state`・`tree_moved`・`type_errors`・`TREE_SCHEMA`・`status_keys`・`guard`・`in_repo`）・`carry`（KEEP。`without_prior`）・`rolekit`（KEEP。`accept_round`・`rejected`・`rejects_text`・`given_up_reason`）・`graphloops/engine/util.py`（KEEP。`Reject`・`git`・`repo_root`）・`jsonfile`・`oneline`。
-- 作り直しの間は `lib/purpose.py` と `lib/judge_accept.py` の目的の部分を消さない（今の judge が使う）。組み込みで消す（README の 9.2）。
 
 ### 1.6 つなぎ方（graph の側。block には書かない）
 
-- judge のまとめ（`blocks/judge/`）: `include: works-factory-purpose`。`depends_on: [premises]`・`when: $premises.output.ok == true`（今は前提の段が諦めると止めの記録で目的の役を起こさなかった。`workflows/judge/scripts/purpose_prep.py:19-21`）。`with:` は `request: $<依頼の pointer>`・`pr_text: <始めの記録の input.pr から line が組んだ文。PR の無い run は空>`・`constraints: $premises.output.constraints`・`lang: <始めの記録の lang>`。PR の文の組み方（今の `lib/judge_accept.py:1074-1081` の `pr_file_text`。番号・題・本文の見出し）は line の物。
+- judge のまとめ（`workflows/judge/`）: `include: works-factory-purpose`。`depends_on: [premises]`・`when: $premises.output.ok == true`（今は前提の段が諦めると止めの記録で目的の役を起こさなかった。`workflows/judge/scripts/purpose_prep.py:19-21`）。`with:` は `request: $<依頼の pointer>`・`pr_text: <始めの記録の input.pr から line が組んだ文。PR の無い run は空>`・`constraints: $premises.output.constraints`・`lang: <始めの記録の lang>`。PR の文の組み方（今の `lib/judge_accept.py:1074-1081` の `pr_file_text`。番号・題・本文の見出し）は line の物。
 - `status` が `failed` の時: 今は judge の返りが `stop_reason: works:purpose` になった（`lib/judge_accept.py:3920`）。graph は `$purpose.output.ok == true` を世界の解・素材・diagnose の `when:` に置き、judge のまとめの返りの止めの語に `works:purpose` を入れる。
 - 読み手:
   - world: `purpose: $purpose.output.purpose_text`・`means: $purpose.output.means`（world.md の 1.6）。
@@ -117,7 +116,7 @@ script の名は `lib/` のモジュールの名と重ねない（README の 7.1
 11. `## Steps`（決まった文）: 手順 1〜5。差し込み口 `{pr_source}`・`{plan_source}`・`{writer_source}`・`{unknown_source}`。
 12. `## Output`（決まった文）: 欄の並び・対象の名前が要るので引かなかった調べの書き方・言語の 1 文。差し込み口 `{pr_source}`・`{plan_source}`・`{writer_source}`・`{unknown_source}`・`{lang}`。
 
-md の本文の正本は `blocks/purpose/prompts/purpose.md`（設計書は本文を写さない。`blocks/AGENTS.md` の変更の種類ごとに閉じる所）。
+md の本文の正本は `workflows/purpose/prompts/purpose.md`（設計書は本文を写さない。`workflows/AGENTS.md` の変更の種類ごとに閉じる所）。
 
 `{"findings": [...], …}` は差し込み口の形に合わないので字として残る。`"{unknown_source}: "` は差し込み口で、出典の語が入る。
 
@@ -225,7 +224,10 @@ Each row of `constraints` has … (`実測` or `仮説`) …
 - 消した: 役の定義の 2 文目「graphloops の P0 ＞ 4「元の目的」をテキスト化（`p0.purpose`）と同じ仕事」（md:24）。写しの元の名で、役のする事を言わない（world.md の 3.6 の「works の包みより」を消したのと同じ）。
 - 替えた: 節「この文が何に使われるか」（md:30-34）を「この文に成り立つ事」（`## What holds for this sentence`）にし、「ゼロベースの再導出（R2）に渡す唯一の入力」（md:32）と「判定役にも渡る（split・fork・resolved を決めるのに要る。…）」（md:33）を、「目的の文は後で依頼なしに読まれる決まった入力になる。目的だけで、何に達するか・いつ済むかが言えるように書く」の 1 行にした。手順 3 の「出典を後の周の修正が書き換えた周には目的の審査だけを走り直す」「列挙が無いと『狭めている』の判定が残り全周を縛る（実測 2026-09-13 …）」（md:53）は、「書いた名は run の全周で目的と一緒に固まり、後の周は修正が変えたファイルの名と字のまま比べる。列挙から漏れた出典は当たらず、後の変更に気づかれない」にした（後の役の振る舞いでなく、この役の出力の性質だけを書く。#772 の審査）。「R2 は unverifiable になる」（md:51）を「目的から作る設計を確かめられない」にした。この block はほかの block の名と、その返答の語（split・fork・resolved・unverifiable）を書かない（憲法の 3）。言っている事（唯一の入力なので混ぜ物を入れない・判定にも要る）は同じ。graphloops で渡し忘れた話は、この役のする事に関わらないので消した。
 - 消した: ほかの node の id（`$purpose-reject.output.*`・`$purpose-prep.output.brief_file`）。
-- 足した物は無い。2 つ目の commit で英語にした（#764）。役の名「目的の役」は "the purpose role"。
+- 足した: `measured_output` を「when present」（在る時だけ）とした。
+- 変えた: 調べを引いていない時の添え書きが決まった英語の字になり、{lang} で書く欄に混ざる。
+- 消した: Agent で子を起こす文（この役は子を起こさない）。
+- 2 つ目の commit で英語にした（#764）。役の名「目的の役」は "the purpose role"。
 
 ### 2.7 元の works と graphloops の同じ場面
 
@@ -313,16 +315,16 @@ null を許す欄の書き方は、今の `workflows/chain/works-factory-chain.y
 
 作る:
 
-- `blocks/purpose/works-factory-purpose.yaml`
-- `blocks/purpose/prompts/purpose.md`
-- `blocks/purpose/scripts/intake.py`・`purpose_prep.py`・`purpose_accept.py`・`finish.py`（どれも uv の頭の宣言 `# /// script` を持つ）
-- `blocks/purpose/src/__init__.py`・`src/steps.py`・`src/sourcefiles.py`
-- `blocks/.shared/schemas/constraints.schema.json`（共通の形。`.shared/AGENTS.md` の一覧にも足す）
-- `blocks/purpose/fixtures/standalone.stubs.yaml`・`frozen.stubs.yaml`・`gave-up.stubs.yaml`
+- `workflows/purpose/works-factory-purpose.yaml`
+- `workflows/purpose/prompts/purpose.md`
+- `workflows/purpose/scripts/intake.py`・`purpose_prep.py`・`purpose_accept.py`・`finish.py`（どれも uv の頭の宣言 `# /// script` を持つ）
+- `workflows/purpose/src/__init__.py`・`src/steps.py`・`src/sourcefiles.py`
+- `workflows/.shared/schemas/constraints.schema.json`（共通の形。`.shared/AGENTS.md` の一覧にも足す）
+- `workflows/purpose/fixtures/standalone.stubs.yaml`・`frozen.stubs.yaml`・`gave-up.stubs.yaml`
 - `tests/blocks/purpose/__init__.py`・`test_purpose.py`
 - `docs/design/purpose.md`（この文書。直す時）
 
-触らない: `lib/`（読むだけ）・`workflows/`・ほかの block。共通の形 `request.schema.json` と口 `requestrows.py` は土台の物を使う。共通の断片 `blocks/.shared/prompts/rejected.md`・`query-rule.md` は土台の PR が置く物を使う。
+触らない: `lib/`（読むだけ）・`workflows/`・ほかの block。共通の形 `request.schema.json` と口 `requestrows.py` は土台の物を使う。共通の断片 `workflows/.shared/prompts/rejected.md`・`query-rule.md` は土台の PR が置く物を使う。
 
 ## 5 差し込み口の一覧（`prompts/purpose.md`）
 
@@ -341,7 +343,7 @@ null を許す欄の書き方は、今の `workflows/chain/works-factory-chain.y
 ## 6 単独で呼ぶ
 
 ```sh
-bin/works-factory <読ませるフォルダを blocks/ にする引数（名は土台の PR で決める）> workflow run works-factory-purpose \
+bin/works-factory workflow run works-factory-purpose \
   --input request='[{"where":"stats.py:4","text":"mean は 2 でなく 3 を返す。分母を len(xs) にする"}]'
 ```
 
@@ -349,7 +351,7 @@ bin/works-factory <読ませるフォルダを blocks/ にする引数（名は�
 
 ## 7 試験と、済んだと言える条件
 
-### 7.1 standalone の fixture（`blocks/purpose/fixtures/`）
+### 7.1 standalone の fixture（`workflows/purpose/fixtures/`）
 
 - 形は README の 13 章のとおり、`exec-code: true` で script を本当に走らせ、AI の node の返答だけを差し替える。入力はどれも `request: '[{"where": "stats.py:4", "text": "mean は 2 でなく 3 を返す。分母を len(xs) にする"}]'` だけ。
 - `standalone.stubs.yaml`: `expect: completed`・`reached: [intake, purpose-prep, purpose, purpose-accept, finish]`。prep は差し替えない。`resolved-text-contains` の `purpose` は md の決まった文（`You are the purpose role.`）。役の返答は `{purpose_text: 平均の関数が正しい値を返す, source: ②計画・タスク記述, known_weaknesses: [], source_files: [], means: [分母を len(xs) にする]}`。
@@ -375,7 +377,7 @@ script を子のプロセスで回す（今の `tests/workflows/test_judge.py:69
 
 - 9（独立設計）: 独立の目は目的の文だけから設計する。この block は、目的の文に依頼の解き方を混ぜさせない（md の「目的と解き方を分けよ」と、受け付けが `means` を外して別に置く）。守るのは `AcceptCase` の `test_good_reply_writes_purpose_and_means` の写し（`purpose.json` に `means` が無く、`purpose-means.json` に在る）と、`PromptCase` の前の run の判断を見せない試験（持ち主の決め `premises-purpose`）。
 - 12（世界の解に照らす）: 世界の解は依頼の解き方を定石と比べる。その解き方の並びはこの block の `means`。守るのは `FinishCase`（`means` が出力の欄に載る）。読み手の側（world が `means` を受ける）は world の試験。
-- e2e の照らしの表 `tests/e2e/evidence.json` の `J16`（作業ツリーの写し。今は `judge/purpose-tree.json`）と `J17`（`judge/purpose.json` の `source_files`）は、node の id と place のパス（`judge/purpose/tree.json`・`judge/purpose/purpose.json`）を新しい物に合わせる。
+- e2e の照らしの表 `tests/e2e/evidence.json` の `J16`（作業ツリーの写し。今は `judge/purpose-tree.json`）と `J17`（`judge/purpose.json` の `source_files`）は、node の id と place のパス（`judge/purpose-run/tree.json`・`judge/purpose-run/purpose.json`）を新しい物に合わせる。
 
 ### 7.5 済んだと言える条件（PR ごと。README の 11.2）
 
@@ -393,7 +395,7 @@ PYTEST_XDIST_AUTO_NUM_WORKERS=4 WORKS_FACTORY_ARCHON_CACHE=<Archon の源の置�
 4. PR の説明は README のとおり文の port `pr_text` で受け、番号・題・本文の見出しを組むのは line に残した。根拠: 単独の run で人が PR の本文をそのまま渡せる。見出しの組み方（`pr_file_text`）は始めの記録の `input.pr` の形を知る line の物。
 5. 出力に `purpose_text`・`source`・`means` を欄で置き、目的の控え全体は pointer で返す。根拠: 世界の解と独立設計は `purpose_text`（と `means`）しか読まない（README の 4.2 の「3 つ以上の欄を読む時だけ pointer」）。素材の観点・diagnose・plan は 4 つの欄を読むので pointer。
 6. 前の回までの却下の理由は、prep が place の却下の控えから全部を読む（`with: {reason: $LOOP_PREV…}` で前の回の 1 つだけを運ぶ形にしない）。根拠: README の 13 章と `.shared/AGENTS.md` の土台の決め（resume で輪が 1 周目から回り直しても数え直さない・#351 の「却下の理由を古い順に全部渡す」）と手本の world。
-7. 依頼の形は共通の `shared:request.schema.json` を使い、前提の実測の形も共通の `blocks/.shared/schemas/constraints.schema.json` に置いて、block の `schemas/` は持たない。根拠: README の 13 章「同じ名の形のファイルが pack の 2 か所に在れば形の検査が赤」「足りない共通の形（`constraints.schema.json` など）は、最初に要った PR が足す」。形の行は今の前提の役の `output_format`（`workflows/judge/works-factory-judge.yaml:594-606`）と [premises.md](premises.md) の行の形に合わせ、`additionalProperties: false` と `measured_output` の `minLength`・`pattern` を持たせた（#772 の審査）。premises.md の形との違い: `if`/`then`・`oneOf`・`$ref`・`$defs` は `KNOWN_KEYWORDS` の外なので使わない（`実測` の行の `measured_output` の扱いは 8）。容器の外側（`{constraints: [...]}` のほかの欄）は閉じない（前提の実測の block の返りまるごとの pointer を受けるため）。依頼の容器の照らしは土台の口 `requestrows.parts` に通し、役に見せる写しは `ports.json` の値から `prior_failures` だけを外す（ほかの欄は字のまま）。
+7. 依頼の形は共通の `shared:request.schema.json` を使い、前提の実測の形も共通の `workflows/.shared/schemas/constraints.schema.json` に置いて、block の `schemas/` は持たない。根拠: README の 13 章「同じ名の形のファイルが pack の 2 か所に在れば形の検査が赤」「足りない共通の形（`constraints.schema.json` など）は、最初に要った PR が足す」。形の行は今の前提の役の `output_format`（`workflows/judge/works-factory-judge.yaml:594-606`）と [premises.md](premises.md) の行の形に合わせ、`additionalProperties: false` と `measured_output` の `minLength`・`pattern` を持たせた（#772 の審査）。premises.md の形との違い: `if`/`then`・`oneOf`・`$ref`・`$defs` は `KNOWN_KEYWORDS` の外なので使わない（`実測` の行の `measured_output` の扱いは 8）。容器の外側（`{constraints: [...]}` のほかの欄）は閉じない（前提の実測の block の返りまるごとの pointer を受けるため）。依頼の容器の照らしは土台の口 `requestrows.parts` に通し、役に見せる写しは `ports.json` の値から `prior_failures` だけを外す（ほかの欄は字のまま）。
 8. `実測` の行の `measured_output` の欠けは拒まない。根拠: 前の run から持ち越した行（`lib/carry.py:137-141` の `carried_constraints`・`lib/runreport.py:1814`）は `measured_output` を持たず、元の judge は前提の受け付けの後にそれを足して（`lib/judge_accept.py:1187-1192` の `with_carried`）目的の役へ確かめずに貼った（:1274-1281）。拒めば持ち越しの在る run が毎回ここで止まる。役自身の返りの `measured_output` は前提の block が見る。
 9. 固めた目的の照らしを port の読みより先にした。根拠: 今の `purpose_prep` も材料を読む前に `refuse_if_frozen` で役を起こさないと決めた（`lib/judge_accept.py:1264-1267`）。固めた目的は port の値に依らないので、port が読めなくても固めた目的を返す（#772 の審査）。
 10. 入口は place の中の、この block が名を持つファイルだけを消す（`purpose.json` は在れば固めた目的の道に入るので消さない）。根拠: README の 13 章と `.shared/AGENTS.md`「place は作るだけで消さない。消してよいのは自分が名を持つファイルだけ」。
@@ -412,6 +414,6 @@ PYTEST_XDIST_AUTO_NUM_WORKERS=4 WORKS_FACTORY_ARCHON_CACHE=<Archon の源の置�
 
 ## 10 未確認
 
-- 起動の殻で `blocks/` を読ませる引数の名と、6 節の命令の正確な形（world.md と同じ）。
+- 6 節の命令の正確な形（world.md と同じ）。
 - `ports.py` の口の名（`json`・`text`・`pointer`・`returns`・`place`）。土台の PR の名に合わせる。
 - 元の works の目的のブロックの intake が前提の実測を照らした `check_constraints` を、工場が #76 で写さなかった意図（2.7）。

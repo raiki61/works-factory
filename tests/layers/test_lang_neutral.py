@@ -1,4 +1,9 @@
-"""役の指示書（`workflows/*/commands/`）と `lib/` に、言語と実行器の名の語の表に当たる字が無い（根の AGENTS.md の E13 の機械の行）。"""
+"""AI のノードへの指示の md（`workflows/*/prompts/`・`workflows/.shared/prompts/`）と `lib/` に、言語と実行器の名の語の表に当たる字が無い（根の `AGENTS.md` の E13 の機械の行。持ち主の決め `lang-neutral`）。
+
+- 語の表は `tests/layers/scan.py` の `LANG_WORDS`。事実上の標準の形式（JUnit XML など）は表に入れない。
+- 照らさない物: `lib/tests/`（lib 自身の試験）・`lib/AGENTS.md`・借りた superpowers の写し `lib/borrow/superpowers/`（上流の字のままの写しで、固定 `lib/borrow/borrow.json` の pin の sha256 が 1 字も変えさせない。フォルダに固定のファイルと台帳 `COPIED_FROM` のほかが無いことをここで見る）。
+- 例外: 拡張子と言語の対応・テストのファイルの名の慣習の表と、それを作る標準ライブラリの import は、`lib/impact.py`・`lib/changemap.py`・`lib/libdocs.py`・`lib/libdocs_local.py` に限って書いてよい（根の `AGENTS.md` の E13 の「例外」の行）。機械はファイルごとに外すので、表の外に言語の名が無いことは人が見る。
+"""
 import json
 import pathlib
 import unittest
@@ -26,7 +31,15 @@ class LangNeutralTest(unittest.TestCase):
     def test_seed_caught(self):
         got = scan.problems("E13", SEEDS / "e13")
         self.assertGreaterEqual(len(got), 1)
-        self.assertTrue(any("workflows/judge/commands/a.md" in line for line in got), got)
+        self.assertTrue(any("workflows/judge/prompts/a.md" in line for line in got), got)
+
+    def test_shared_prompts_and_parts_are_in_scope(self):
+        files = {"workflows/.shared/prompts/a.md": "pytest\n", "workflows/judge/prompts/parts/b.md": "pytest\n",
+                 "workflows/judge/scripts/c.py": 'CMD = "pytest"\n'}
+        with tree(files) as root:
+            got = scan.problems("E13", root)
+        self.assertEqual(sorted(line.split(":")[0] for line in got),
+                         ["workflows/.shared/prompts/a.md", "workflows/judge/prompts/parts/b.md"], got)
 
     def test_lib_is_in_scope(self):
         with tree({"lib/run.py": 'CMD = "pytest"\n'}) as root:
@@ -34,7 +47,7 @@ class LangNeutralTest(unittest.TestCase):
         self.assertTrue(any("lib/run.py:1" in line for line in got), got)
 
     def test_name_with_version_is_red(self):
-        with tree({"workflows/judge/commands/a.md": "run `ruby3 check.rb`\n"}) as root:
+        with tree({"workflows/judge/prompts/a.md": "run `ruby3 check.rb`\n"}) as root:
             got = scan.problems("E13", root)
         self.assertTrue(any("a.md:1" in line and "ruby" in line for line in got), got)
 
@@ -44,9 +57,9 @@ class LangNeutralTest(unittest.TestCase):
             self.assertEqual(scan.problems("E13", root), [])
 
     def test_unreadable_file_is_red(self):
-        with tree({"workflows/judge/commands/b.md": b"\xe9 pytest\n"}) as root:
+        with tree({"workflows/judge/prompts/b.md": b"\xe9 pytest\n"}) as root:
             got = scan.problems("E13", root)
-        self.assertTrue(any("commands/b.md" in line for line in got), got)
+        self.assertTrue(any("prompts/b.md" in line for line in got), got)
 
 
 if __name__ == "__main__":

@@ -1,6 +1,6 @@
 # block の設計書: parallel-pr（並行 PR）
 
-- 何の話か: 開いている PR とこの run の変更ファイルの交差を見て、ぶつかる hunk を run の範囲から外し、担当への申し送りの下書きを作る観点「並行 PR」を、単独で呼べる block `blocks/parallel-pr/` にする設計。型は [README.md](README.md) に従い、形は [world.md](world.md) を写した。
+- 何の話か: 開いている PR とこの run の変更ファイルの交差を見て、ぶつかる hunk を run の範囲から外し、担当への申し送りの下書きを作る観点「並行 PR」を、単独で呼べる block `workflows/parallel-pr/` にする設計。型は [README.md](README.md) に従い、形は [world.md](world.md) を写した。
 - 決めたこと: 今の judge の 5 つの node（pr-scan・pr-check-loop の 3 つ・pr-check-reads）を、6 つの node の block にする。入力は依頼の行・差分の根・変更ファイル・言語の 4 つの port だけで、始めの記録と `judge/` の置き場を読まない。指示は 1 本の英語の md（`prompts/pr-check.md`）にまとめる。振る舞いは変えない（違いは 6 節に全部書いた）。
 - 持ち主に求めること: なし。この block を作る人（実装の役）は、この設計どおりに作る。自分で決めた事は 10 節に集めた（記録として置く。持ち主の確認は待たない）。
 
@@ -54,7 +54,7 @@
 
 今との違い: 今は差分の根を `judge/start.json`（`start_view` の `diff_base`）から、依頼の行を `judge/request.json` から、止めの控えを `judge/stop.json` から名で開き（`lib/judge_accept.py:3547-3584`）、役の前の作業ツリーの写しは judge の入口（か仕様の承認の後）が置いた `judge/judge-tree.json` を使っていた（`:3622`）。出口は判定の出力の欄 `pr_excluded`・`pr_drafts` と `materials` の中だった。止めの控えの確かめは無くし（回すかは graph の `when:`。README の 4.3）、作業ツリーの写しはこの block が自分で取る。
 
-### 1.3 node の並び（`blocks/parallel-pr/works-factory-parallel-pr.yaml`）
+### 1.3 node の並び（`workflows/parallel-pr/works-factory-parallel-pr.yaml`）
 
 1. `scan`（script `scan.py`）: port を読み、place の中のこの block のファイルを名で引いて消し（place そのものは消さない。README の 13 章）、役の前の作業ツリーの写し `tree.json` を取り、機械の道を回す。返り `{go_role, reason}`。
    - `output_format`: `{type: object, additionalProperties: false, required: [go_role, reason], properties: {go_role: {type: boolean}, reason: {type: string}}}`。
@@ -83,19 +83,19 @@ script の名は `lib/` のモジュールの名と重ねない（README の 7.1
 
 ### 1.5 コードの置き場
 
-- `blocks/parallel-pr/src/files.py`: place のファイルの名（1.4）と `ROLE = "pr-check"`・`NODE = "p0.parallel_pr"`・`PR_LIMIT = 100`。
-- `blocks/parallel-pr/src/scan.py`: 今の `lib/judge_accept.py` の `_github_repo`（:3453）・`_pr_files`（:3469。1.2 の 3 段の決め方に替える）・`parallel_pr_plan`（:3485）・`parallel_pr_scan`（:3500）・`parallel_pr_reply`（:3523）・`_pr_material`（:3541）・`pr_scan`（:3547）の写し。`start_view`・`read_stop`・`_requests` の読みは消し、port の値を引数で受ける。
-- `blocks/parallel-pr/src/take.py`: 今の `check_no_post`（:3593）・`prcheck_drafts`（:3602）・`prcheck_take`（:3610）・`pr_accept`（:3636）・`NO_POST` の写しと、今の `lib/prcheck.py` の `_anchored`・`check_excluded`・`_write`・`EXCLUDED_FIELD`。`_moved_since`・`_tree_snapshot` は自分の `tree.json` を読む形の写し（`lib/accept.py` の `tree_state`・`tree_moved`・`type_errors`・`TREE_SCHEMA` を呼ぶ）。`prcheck._write` が使う `marks.write` は消す（`marks` は README の 9.1 で DELETE）ので、`jsonfile.write` で書く。
-- `blocks/parallel-pr/src/proof.py`: 今の `pr_reads`（:3646）の写し（`lib/reads.py` の `collect`・`index_name`・`stamp`・`log_here`・`guarded` を呼ぶ）。
-- `blocks/parallel-pr/src/report.py`: 報告の行（8 節）。今の `prcheck.draft_lines` の写しを持つ。
-- `blocks/parallel-pr/schemas/changed.schema.json`（`request.schema.json` は block に写さず `shared:request.schema.json` を使う。10 節の 10）（`{type: array, items: {type: string, minLength: 1}}`）。
+- `workflows/parallel-pr/src/files.py`: place のファイルの名（1.4）と `ROLE = "pr-check"`・`NODE = "p0.parallel_pr"`・`PR_LIMIT = 100`。
+- `workflows/parallel-pr/src/scan.py`: 今の `lib/judge_accept.py` の `_github_repo`（:3453）・`_pr_files`（:3469。1.2 の 3 段の決め方に替える）・`parallel_pr_plan`（:3485）・`parallel_pr_scan`（:3500）・`parallel_pr_reply`（:3523）・`_pr_material`（:3541）・`pr_scan`（:3547）の写し。`start_view`・`read_stop`・`_requests` の読みは消し、port の値を引数で受ける。
+- `workflows/parallel-pr/src/take.py`: 今の `check_no_post`（:3593）・`prcheck_drafts`（:3602）・`prcheck_take`（:3610）・`pr_accept`（:3636）・`NO_POST` の写しと、今の `lib/prcheck.py` の `_anchored`・`check_excluded`・`_write`・`EXCLUDED_FIELD`。`_moved_since`・`_tree_snapshot` は自分の `tree.json` を読む形の写し（`lib/accept.py` の `tree_state`・`tree_moved`・`type_errors`・`TREE_SCHEMA` を呼ぶ）。`prcheck._write` が使う `marks.write` は消す（`marks` は README の 9.1 で DELETE）ので、`jsonfile.write` で書く。
+- `workflows/parallel-pr/src/proof.py`: 今の `pr_reads`（:3646）の写し（`lib/reads.py` の `collect`・`index_name`・`stamp`・`log_here`・`guarded` を呼ぶ）。
+- `workflows/parallel-pr/src/report.py`: 報告の行（8 節）。今の `prcheck.draft_lines` の写しを持つ。
+- `workflows/parallel-pr/schemas/changed.schema.json`（`request.schema.json` は block に写さず `shared:request.schema.json` を使う。10 節の 10）（`{type: array, items: {type: string, minLength: 1}}`）。
 - 使う `lib/`: `materialkit`（`STATUS`・`check_record`）・`forge`（`detect`・`reason`・`repo_of`・`redact`・`_git`・`GITHUB`）・`ghreads`（`_gh`。gh の読む口）・`accept`（`touched_files`・`tree_state`・`tree_moved`・`type_errors`・`TREE_SCHEMA`・`Reject`）・`reads`・`rolekit`（`accept_round`・`rejected`・`rejects_text`・`given_up_reason`）・`stopby`（`PR`）・`jsonfile`・`oneline`。
 - 素材の札の語と照らし: 素材の観点の族の共通の部品 `lib/materialkit.py`（[materials.md](materials.md) の 2 節）の `STATUS`・`check_record`。この block の `material` は diagnose が素材の 1 欄（`parallel_pr`）として読むので、同じ語と同じ照らしを使う（自分で決めた。10 節の 2）。この block の PR は、そのモジュールと断片 `works-gh`・`material-status`・`material-na` を置く PR（素材の観点の 1 本目）の後に出す。
-- 作り直しの間は `lib/prcheck.py` と `lib/judge_accept.py` の並行 PR の部分を消さない（今の judge が使う）。組み込みで消す（README の 9.2）。`lib/downgrades.json` と `prcheck.downgrades`・`head_downgrades` はこの block に写さない（6 節の 6）。
+- `lib/downgrades.json` と `prcheck.downgrades`・`head_downgrades` はこの block に写さない（6 節の 6）。
 
 ### 1.6 つなぎ方（graph の側。block には書かない）
 
-- judge のまとめ（`blocks/judge/`）: `include: works-factory-parallel-pr`。`when:` は今の pr-scan の条件「判定の道（再審の道でない）で、仕様の段が止めていない」を line が引いた真偽。`with:` は `request: $<依頼の pointer>`・`base: <始めの記録の diff_base>`・`changed: "[]"`・`lang: <始めの記録の lang>`。仕様の段を挟む run では、今と同じく仕様の承認の後に回す（承認で書いた受け入れテストのファイルを、役の前の写しに入れるため。今の `spec_answer` が写しを取り直していた事の替わり）。
+- judge のまとめ（`workflows/judge/`）: `include: works-factory-parallel-pr`。`when:` は今の pr-scan の条件「判定の道（再審の道でない）で、仕様の段が止めていない」を line が引いた真偽。`with:` は `request: $<依頼の pointer>`・`base: <始めの記録の diff_base>`・`changed: "[]"`・`lang: <始めの記録の lang>`。仕様の段を挟む run では、今と同じく仕様の承認の後に回す（承認で書いた受け入れテストのファイルを、役の前の写しに入れるため。今の `spec_answer` が写しを取り直していた事の替わり）。
 - 読み手: diagnose の `materials`（`$parallel-pr.output.material`）と再審の材料（`excluded`）・plan と plan-review と案の直し（`excluded`。今の `planblk.head` の「外す hunk」の節）・report の `sections`（`$parallel-pr.output.report`）と下げた物（`downgrades`）・line（`stop_reason` で止めるか）。fix には今も渡らない（6 節の 5）。
 
 ## 2 node の設計シート: pr-check（任せ先の役）
@@ -243,6 +243,7 @@ Return only JSON that matches the output schema.
 - 替えた: 渡し物のパス `$ARTIFACTS_DIR/judge/pr-brief.json` を `{brief_file}`（place の絶対パス）に。上限 100 を `{limit}` に（`src/files.py` の `PR_LIMIT` と受け付けの打ち切りの決めが同じ字を持つ。README の 5.3）。
 - 消した: 見出し「# P0-5 並行 PR 衝突チェック」の段の番号（graphloops の段の名で、この block は知らない）。
 - 消した: 6 段の括弧の中の「外した hunk は後の役——判定・修正案・修正——に触らない範囲として渡る」「下書きは報告の冒頭に載り」（下流の block の振る舞いを役に前提として伝えていた。world の 3.6 と同じ決め）。「人が読んで渡す」だけを残した。
+- 足した: `pr-check` に、共通の断片 `works-gh` から、WebFetch・WebSearch の使い方の 1 文が入った。
 - 足した物: 共通の断片 `query-rule` の「一次の出典を先に当たる」の 1 項目（今の指示には無い）と、`material-na` の断片の `na_never` の文（「found か clean と書き、確かめられなければ not_run と理由を書く」。今の指示は『条件に当たらない』の段を持たなかった）。どちらも共通の断片が持つ文で、この block では書き換えない。英語にした（#764）。役の名「任せ先の役」は "the parallel-PR role"。
 
 ## 3 script の node
@@ -273,7 +274,7 @@ Return only JSON that matches the output schema.
 ## 5 単独で呼ぶ
 
 ```sh
-bin/works-factory <読ませるフォルダを blocks/ にする引数（名は実装で決める）> workflow run works-factory-parallel-pr \
+bin/works-factory workflow run works-factory-parallel-pr \
   --cwd <対象> --input base=<差分の根の commit> \
   --input changed='["path/to/file.py"]'
 ```
@@ -298,7 +299,7 @@ bin/works-factory <読ませるフォルダを blocks/ にする引数（名は�
 
 ## 7 試験
 
-- standalone の fixture（`blocks/parallel-pr/fixtures/`）:
+- standalone の fixture（`workflows/parallel-pr/fixtures/`）:
   - `standalone.stubs.yaml`: 入力は `changed: '["a.py"]'` だけ（`request`・`base` は既定）。役の道: `scan` を `go_role: true` で差し替え（筋書きの作業ツリーは remote が GitHub でなく、本当に走らせると機械が条件外と決めて役を起こさないため）、AI の node `pr-check` に返答を置き、`exec-code: true` でほかの script は本当に走らせる。`reached: [scan, pr-check-prep, pr-check, pr-check-accept, pr-check-reads, finish]`。
   - `machine.stubs.yaml`: 機械が決める道。差し替えるのは AI の node だけなので何も差し替えず、本物の `scan` が筋書きの作業ツリー（remote が無い）で条件外と決め、`reached: [scan, finish]`。
   - `gave-up.stubs.yaml`: 担当の PR へ投稿したと名乗る返答（`handed_over: true`）で受け付けが拒む道。筋書きでは輪が 1 周で終わるので、3 回で諦めて `stop_reason` が `works:pr` になる数えは tests/blocks/parallel_pr の試験が見る。run は `completed`。
@@ -325,7 +326,7 @@ bin/works-factory <読ませるフォルダを blocks/ にする引数（名は�
 
 ## 9 未確認
 
-- 起動の殻で `blocks/` を読ませる引数の名と、5 節の命令の正確な形。
+- 5 節の命令の正確な形。
 - `archon workflow test` が script の node を走らせるか、差し替えを要るか（7 節の fixture の書き方）。
 
 ## 10 自分で決めた事

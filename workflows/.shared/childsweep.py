@@ -1,4 +1,4 @@
-"""埋め P7（docs/polyfills.md）。メイングラフの後始末（issue #113）: fix の並べ（groups-par）の子の run が残した作業ツリーと枝を、止めた Archon の complete --force で消す。
+"""埋め P7（docs/polyfills.md）。メイングラフの後始末（issue #113）: 作業ツリーを切る子の run（fix の組の並べなど）が残した作業ツリーと枝を、止めた Archon の complete --force で消す。
 
 Archon は fan_out の子の作業ツリーを子が終わっても消さない（Archon の authoring-workflows.md の「It is not removed when the child
 finishes」）。この部品はメイングラフの最後のノードから呼ばれ、この run の子だけを選んで消し、出力 {cleaned, left, error} に消した物と残した物を
@@ -9,10 +9,12 @@ finishes」）。この部品はメイングラフの最後のノードから呼
   （packages/core/src/workflows/child-isolation-resolver.ts）。一覧は新しい順なので、この run の行が一覧に在れば子は全部入っている。
 - status が completed の子だけを消す。再開は completed の子を起こし直さず記録だけを使うが、failed などの子は作業ツリーを
   使い回して起こし直す（packages/workflows/src/dag-executor.ts の fan_out の再開）。
-- completed の子でも、子を起こした fan_out のノードと、同じ include の join（子の作業ツリーから書き込みの記録を写す。
-  workflows/fix/scripts/join.py の fixboard.adopt_returned（writes.carry_children））の両方がこの run で completed になるまでは残す。どちらかが落ちた run は
-  再開でき、再開は前に成功したノードだけを飛ばし、依存が走り直したノードも走らせ直す（dag-executor.ts の node_skipped_prior_success・
-  node_prior_cache_invalidated）ので、join が消えた作業ツリーを読みに行く。ノードの状態は workflow get --json --verbose の nodes で読む。
+- completed の子でも、子を起こしたノードと同じ include の中のノード（id の頭の <include の id>__ が同じ物）が全部この run で
+  completed か skipped（when が偽で飛んだ。ふつうの run でも条件で回らないノードは在る）になるまでは残す。同じ include の中には子の作業ツリーから書き込みの記録を写すノード（fix の中の名は fix の設計書が決める）が
+  在り、この部品はその名を持たない（README 1.3 の歩かせ 4・line.md の 1.5）。どれかが落ちた run は再開でき、再開は前に成功した
+  ノードだけを飛ばし、依存が走り直したノードも走らせ直す（dag-executor.ts の node_skipped_prior_success・
+  node_prior_cache_invalidated）ので、走り直すノードが消えた作業ツリーを読みに行く。include の外（id に __ の無い）ノードが子を
+  起こした時は、そのノードだけを待つ。ノードの状態は workflow get --json --verbose の nodes で読む。
 - --force は commit していない変更の照らしを越えるために要る（子は修正を commit せず木の sha で親へ渡す）。越えないのは
   Archon が作った証の照らしで、人の作業ツリーは Archon が拒む（packages/isolation/src/providers/worktree.ts）。
   complete は終了の値で成否を言わないので、標準出力の「  Completed: <枝>」の行で読む（packages/cli/src/commands/isolation.ts）。
@@ -37,7 +39,8 @@ BRANCH_KEY = "branch_name"
 NODE_KEY = "parent_node_id"
 PARENT_KEY = "parent_run_id"
 DONE = "completed"
-READER = "join"
+SKIPPED = "skipped"
+SETTLED = (DONE, SKIPPED)   # ノードの済んだ状態: 走り終えたか、when が偽で飛んだ（飛んだノードは子の作業ツリーを読まない）
 NODES = "nodes"
 NODE_ID = "nodeId"
 STATE = "state"
@@ -75,10 +78,18 @@ def select(run_id: str, listing: object) -> tuple[list[dict], list[dict]]:
     return remove, left
 
 
-def reader_of(node: str) -> str:
-    """fan_out のノード（<include の id>__groups-par）の子の作業ツリーを読む、同じ include の join のノードの id"""
+def include_of(node: str) -> str:
+    """子を起こしたノードの id の include の頭（<include の id>__）。include の外のノードなら空"""
     head, sep, _ = node.rpartition(INCLUDE_SEP)
-    return f"{head}{sep}{READER}"
+    return f"{head}{sep}" if head else ""
+
+
+def waits_on(node: str, states: Mapping[str, object]) -> list[str]:
+    """子を起こしたノードの子の作業ツリーを消す前に completed か skipped を待つノード: 同じ include の中の全部（include の外なら自分だけ）"""
+    include = include_of(node)
+    if not include:
+        return [node]
+    return sorted({node} | {n for n in states if isinstance(n, str) and n.startswith(include)})
 
 
 def unread(remove: list[dict], got: object) -> tuple[list[dict], list[dict]]:
@@ -89,9 +100,10 @@ def unread(remove: list[dict], got: object) -> tuple[list[dict], list[dict]]:
     states = {n.get(NODE_ID): n.get(STATE) for n in nodes if isinstance(n, dict)}
     keep, left = [], []
     for found in remove:
-        open_nodes = [n for n in (found["node"], reader_of(found["node"])) if states.get(n) != DONE]
+        open_nodes = [n for n in waits_on(found["node"], states) if states.get(n) not in SETTLED]
         if open_nodes:
-            reason = f"ノード {'・'.join(open_nodes)} が completed でない。再開が join を走らせ直し子の作業ツリーを読みうるので残す"
+            reason = (f"ノード {'・'.join(open_nodes)} が completed でも skipped でもない。再開が同じ include のノードを走らせ直し子の作業ツリーを"
+                      "読みうるので残す")
             left.append({**found, "reason": reason})
         else:
             keep.append(found)

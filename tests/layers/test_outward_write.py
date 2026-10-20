@@ -1,7 +1,7 @@
-"""外へ書く（`gh`・`git push`・`git merge` を呼ぶ）節が、ブロックごとに 1 つ以下（workflows/AGENTS.md の E6 の機械の行）。
+"""外へ書く（`gh`・`git push`・`git merge` を呼ぶ）ノードが、block ごとに 1 つ以下（`workflows/AGENTS.md` の E6 の機械の行）。
 
-節の字は、直に書いた `script:`・`bash:` の中身と、名前の script（ブロックの `scripts/` のファイル）の中身。
-書いた後に読み戻すかは人が見る。
+- ノードの字は、直に書いた `script:`・`bash:` の中身と、名の script（block の `scripts/` のファイル）の中身。
+- 書いた後に読み戻し、読めた値で返る（終了の値 0 を書けた証拠にしない）かは人が見る。
 """
 import pathlib
 import unittest

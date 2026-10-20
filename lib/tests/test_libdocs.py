@@ -363,33 +363,6 @@ class FilesCase(Base):
         self.assertTrue(all(str(p) in a or str(p) in b for p in files))
 
 
-class ComposerCase(Base):
-    def test_plan_head_carries_the_section(self):
-        import planblk
-        f = self.write("app.py", "import requests\n")
-        sec = libdocs.section(self.board.work(""), self.repo, [f], get=ok_http(), env={})
-        for role in planblk.ROLES:
-            with self.subTest(role):
-                self.assertIn(libdocs.TITLE, planblk.head(role, "", sec))
-                self.assertNotIn(libdocs.TITLE, planblk.head(role, ""))
-
-    def test_plan_prep_section_reads_the_judgment_on_the_board(self):
-        import planblk
-        from unittest import mock
-        self.write("app.py", "import requests\n")
-        self.write("requirements.txt", "requests==2.32.3\n")
-        (self.board.dir / "out").mkdir(parents=True)
-        (self.board.dir / "out" / "diagnose.json").write_text(json.dumps({"units": []}), encoding="utf-8")
-        self.board.state = {"outputs": {"p2.diagnose": {"file": "out/diagnose.json"}}}
-        with mock.patch.object(libdocs, "unit_files", return_value=(["app.py"], "")) as uf, \
-                mock.patch.object(libdocs, "http_get", ok_http()):
-            text = planblk.lib_section(self.board, self.repo)
-        self.assertEqual(uf.call_args.args[1], str(self.board.dir / "out" / "diagnose.json"))
-        self.assertIn("取れた 1 本", text)
-        self.board.state = {"outputs": {}}
-        self.assertIn("判定の出力が共有ボードに無い", planblk.lib_section(self.board, self.repo))
-
-
 class HomeBase(Base):
     """run をまたぐ控えの根（呼ぶ側が shared で渡す）を持つ run の節"""
     T = 1_800_000_000.0

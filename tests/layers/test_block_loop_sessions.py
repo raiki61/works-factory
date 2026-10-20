@@ -1,17 +1,17 @@
-"""blocks/ の会話を続ける輪（loop_group の fresh_context: false）で、役の節の層とその前に 2 つ以上の節の層が無いかの yes/no。
+"""pack（tests/archon.py の WORKFLOWS）の会話を続ける輪（loop_group の fresh_context: false）で、役の節の層とその前に 2 つ以上の節の層が無いかの yes/no。
 
 Archon は 2 つ以上の節が並んだ層で会話を切るので、そこを越えた役は宣言に反して新しい会話で起きる。判定は workflows/ の検査
 （tests/workflows/test_loop_sessions.py の parallel_before_role）をそのまま使う。
 """
-import pathlib
 import unittest
 
 import yaml
 
+from tests.archon import WORKFLOWS
 from tests.bin.stepnames import walk
 from tests.workflows.test_loop_sessions import parallel_before_role
 
-PACK = pathlib.Path(__file__).resolve().parents[2] / "blocks"
+PACK = WORKFLOWS
 
 
 def loops():

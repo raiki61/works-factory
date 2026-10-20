@@ -2,84 +2,55 @@
 # requires-python = ">=3.12"
 # dependencies = []
 # ///
-"""判定の単位と判定を後の段へ渡す節 judged。
+"""判定（再審が走れば再審）を後ろへ渡す node judged（docs/design/line.md の 4.4。決まりは src/stages.py の judged）。
 
-再審（rejudge-run）が走ればその返りから、走らなければ判定（judge）の返りから返す。後の段は単位と判定をここから読む。
-再審が走った時は、再審の判定の出力の欄 rejudge_exit が指す再審の出口（書き手は
-lib/judge_accept.rejudge_collect。元 works/.shared/core/rejudge.py の collect 552-563 行と diff_units 474-509 行）の比べを返す
-（自分では数えない。報告も同じファイルを読む。出口のポインタは欄 rejudge_exit で最後の関所へ返す）:
-- new_open_units: 再審の後に開いた単位（再審の前は無いか開いていなかった）
-- lowered: 再審の前は block で、後は block でない単位
-- unnamed_changed: 欄が変わったか増えた・消えたのに、異議の文が名指していない単位（変化は争点外として強調する側に倒す）
-出口を読めない時は 3 つを空にし、読めなかった訳を unread に返す（黙って空にしない）。例外の時は止めの理由
-works:line-script を返し、fixed がそれを読んで後ろへ進めない。
-再審が止まった（3 回とも拒まれた・支度ができない。judge のブロックが止めの理由 works:rejudge ほかを返した）時は、その止めの理由を
-stop_reason で返し、fixed が試験の関門・独立の目・merge へ進めない（元 works/.shared/core/rejudge.py 546-558 行の b.stop）。
+再審（diagnose を直に include した rejudge-run）の返す node が落ちても落ちないように、受け皿 rejudge-run-out の got を読む。走るはず
+（fixed の rejudge が真）なのに got が null なら、再審が返らなかったと止めの語 works:rejudge で止める。前後の比べ（後に開いた単位・
+block から下げた単位・異議が名指さずに変わった単位）は再審の出口を読み、読めなければ訳を unread。例外の時は works:line-script。
 
-入力（with:）: judge_<欄>（judge の返り。fix-in の欄つきの参照）・rejudge（rejudge-run の返りまるごと。`{from, if_skipped: null}`。
-読む欄の名は REJUDGE で、止めの理由 stop_reason も同じ返りから読む）・objection（fix の異議）
+入力（with:）: fix_in（fix-in の出力まるごと。1 回目の判定の値）・rejudge_due（fixed の rejudge）・objection（fixed の objection）・
+rejudge（受け皿 rejudge-run-out の got か null）・fixed_units（fixed の units。再審が開いた単位のうち、修正の段が受けた単位を
+「この run では直していない」から除く）
 """
 import os
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2] / ".shared"))
-import boundary  # noqa: E402
+sys.dont_write_bytecode = True
+sys.path[:0] = [str(Path(__file__).resolve().parents[2] / ".shared"), str(Path(__file__).resolve().parents[1])]
+import ports  # noqa: E402
 
-with boundary.guarded_imports():
-    import report
-
-FIELDS = ("units", "judgment", "purpose", "world", "rejudge_verdict", "premises", "materials", "decisions", "answer_ties")
-# rejudge-run の返りから読む欄（口 boundary.picked に渡す）。止めの理由 stop_reason と再審の出口 rejudge_exit も同じ返りから読む
-REJUDGE = (*FIELDS, "stop_reason", "rejudge_exit")
-COMPARED = ("new_open_units", "lowered", "unnamed_changed")
+FIX_IN = ("judgment", "units", "answer_ties", "materials", "out_of_purpose")
+REJUDGE = ("ok", "status", "mode", "stop_reason", "reason", "ready", "judgment", "units", "questions", "inputs", "brief", "materials",
+           "out_of_purpose", "answer_ties", "rejudge_verdict", "rejudge_exit", "rejudge_diff", "downgrades", "report")
 
 
-def compared(rejudge: dict | None) -> dict:
-    """再審の出口の比べ（再審が無ければ空）。出口を読めなければ空と訳"""
-    empty = {**{key: [] for key in COMPARED}, "unread": ""}
-    if rejudge is None:
-        return empty
-    try:
-        path = boundary.resolve(rejudge.get("rejudge_exit")) if rejudge.get("rejudge_exit") is not None else None
-    except (OSError, ValueError, TypeError, AttributeError, KeyError) as error:
-        return {**empty, "unread": f"再審の前後を比べられない（再審の出口のポインタを開けない。{type(error).__name__}: {error}）"}
-    doc, why = report.rejudge_exit(path)
-    if doc is None:
-        return {**empty, "unread": f"再審の前後を比べられない（{why}）"}
-    return {**{key: [k for k in doc.get(key) or [] if isinstance(k, str)] for key in COMPARED}, "unread": ""}
+def compute():
+    raw = {"fix_in": os.environ.get("INPUTS_FIX_IN"), "due": os.environ.get("INPUTS_REJUDGE_DUE"),
+           "objection": os.environ.get("INPUTS_OBJECTION"), "rejudge": os.environ.get("INPUTS_REJUDGE"),
+           "fixed_units": os.environ.get("INPUTS_FIXED_UNITS")}
+    from src import stages
+    fix_in = ports.picked(raw["fix_in"], FIX_IN)
+    rejudge = ports.picked(raw["rejudge"], REJUDGE)
+    return stages.judged(dict(fix_in or {}), None if rejudge is None else dict(rejudge), due=ports.flag(raw["due"]),
+                         objection=ports.text(raw["objection"]), fixed_units=fixed_units(raw["fixed_units"]))
 
 
-def judged(judge: dict, rejudge: dict | None, objection: str, rejudge_stop: str = "") -> dict:
-    took = rejudge if rejudge is not None else judge
-    return {**{key: took.get(key) for key in FIELDS}, "rejudged": rejudge is not None,
-            "rejudge_exit": rejudge.get("rejudge_exit") if rejudge is not None else None, **compared(rejudge),
-            "stop_reason": rejudge_stop if rejudge is not None else ""}
-
-
-def judge_from_env() -> dict:
-    """judge_ の頭の入力（fix-in の欄つきの参照）。値は enum の字か null なので、どの欄も boundary.value で読む"""
-    return {"units": boundary.value(os.environ.get("INPUTS_JUDGE_UNITS")),
-            "judgment": boundary.value(os.environ.get("INPUTS_JUDGE_JUDGMENT")),
-            "purpose": boundary.value(os.environ.get("INPUTS_JUDGE_PURPOSE")),
-            "world": boundary.value(os.environ.get("INPUTS_JUDGE_WORLD")),
-            "rejudge_verdict": boundary.value(os.environ.get("INPUTS_JUDGE_REJUDGE_VERDICT")),
-            "premises": boundary.value(os.environ.get("INPUTS_JUDGE_PREMISES")),
-            "materials": boundary.value(os.environ.get("INPUTS_JUDGE_MATERIALS")),
-            "decisions": boundary.value(os.environ.get("INPUTS_JUDGE_DECISIONS")),
-            "answer_ties": boundary.value(os.environ.get("INPUTS_JUDGE_ANSWER_TIES"))}
-
-
-def from_env() -> tuple:
-    rejudge = boundary.picked(os.environ.get("INPUTS_REJUDGE"), REJUDGE)   # 走らなかった（飛んだ節）なら None
-    stop = rejudge["stop_reason"] if rejudge is not None else ""
-    return (judge_from_env(), rejudge, boundary.text(os.environ.get("INPUTS_OBJECTION")), boundary.as_text(stop))
+def fixed_units(raw) -> list:
+    """修正の段が受けた単位の行（fixed の units。配列でなければ ValueError）"""
+    got = ports.parsed(raw)
+    if got is None:
+        return []
+    if not isinstance(got, list):
+        raise ValueError(f"fixed_units が配列でない（{type(got).__name__}）")
+    return [u for u in got if isinstance(u, dict)]
 
 
 def fallback(reason: str) -> dict:
-    return {**{key: None for key in FIELDS}, "rejudged": False, "rejudge_exit": None, "new_open_units": [], "lowered": [], "unnamed_changed": [],
-            "unread": "", "stop_reason": boundary.LINE_SCRIPT}
+    from src import guard
+    return {"units": [], "judgment": None, "answer_ties": None, "materials": None, "out_of_purpose": None, "rejudged": False,
+            "rejudge_verdict": None, "rejudge_exit": None, "rejudge_diff": None, "new_open_units": [], "lowered": [],
+            "unnamed_changed": [], "unread": "", "lines": [], "carry": [], "stop_reason": guard.LINE_SCRIPT}
 
 
-if __name__ == "__main__":
-    boundary.run(lambda: judged(*from_env()), fallback)
+ports.run(compute, fallback)

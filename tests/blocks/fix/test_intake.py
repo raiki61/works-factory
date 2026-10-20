@@ -1,9 +1,9 @@
-"""修正の block（blocks/fix/）の入口 intake の試験（docs/design/fix.md の 1.2・1.4・7 節の intake.py・14.2）。
+"""修正の block（workflows/fix/）の入口 intake の試験（docs/design/fix.md の 1.2・1.4・7 節の intake.py・14.2）。
 
 script intake.py を子のプロセスで回し（始めの記録の無い使い捨ての run directory と git のリポジトリ。port の値だけを渡す）、
 - 形ごとの必須（whole は judgment・group は group・out_dir の無い group は judgment も）を ok: false と「入力 <名>: …」の理由で返す
 - 読めない port（壊れた JSON・形に合わない値・無いファイル・ほかの run の pointer・flag と choice の語）の理由
-- place に書く intake.json と values.json（src/runvals.py）の中身と、lib の conflict が読む写し r1/start.json
+- place に書く intake.json と values.json（src/runvals.py）の中身
 - reuse_key の既定がこの run の id（WORKFLOW_ID）
 を照らす。src の関数（intake.read・intake.load・runvals.read・runvals.adopt）は kit.load で読んで直に呼ぶ。
 """
@@ -178,11 +178,10 @@ class ValuesCase(IntakeCase):
             "answers": [{"q": "分母は", "a": "len(xs)"}], "unattended": True, "parallel": False, "skip_rerun": ["A"],
             "excluded": []})
 
-    def test_compat_start_record_holds_only_the_request(self):
-        """lib の conflict（写さずに呼ぶ）が place の r1/start.json から依頼のファイルと答えの行を読む"""
+    def test_no_start_record_copy_is_written(self):
+        """lib の conflict は依頼のファイルを値で受けるので、始めの記録の形の写し r1/start.json は置かない"""
         self.intake(**self.full_inputs())
-        self.assertEqual(self.read("r1/start.json"),
-                         {"request_file": str(self.request), "answers": [{"q": "分母は", "a": "len(xs)"}]})
+        self.assertFalse((self.place / "r1" / "start.json").exists())
 
     def test_intake_json_holds_what_it_read(self):
         """json の port は値（pointer・パスの先を開いた物）、file の port は字のパス、flag は真偽、text は前後の空白を落とす
@@ -269,7 +268,7 @@ class SourceCase(unittest.TestCase):
         self.assertEqual(self.runvals.read(place), self.runvals.DEFAULTS)
 
     def test_runvals_adopt_copies_the_parent(self):
-        """組の子は親の values.json と r1/start.json を写す。親に無ければ子の物のまま"""
+        """組の子は親の values.json を写す。親に無ければ子の物のまま"""
         parent, child = self.run.artifacts / "parent", self.run.artifacts / "child"
         parent.mkdir()
         child.mkdir()
@@ -277,8 +276,34 @@ class SourceCase(unittest.TestCase):
         self.assertEqual(self.runvals.adopt(parent, child), mine)
         theirs = self.runvals.write(parent, {"test_cmd": "parent", "request_file": "/r.md", "answers": [{"a": 1}]})
         self.assertEqual(self.runvals.adopt(parent, child), theirs)
-        self.assertEqual(json.loads((child / "r1" / "start.json").read_text(encoding="utf-8")),
-                         {"request_file": "/r.md", "answers": [{"a": 1}]})
+        self.assertFalse((child / "r1" / "start.json").exists())
+
+
+
+class GateAsksCase(unittest.TestCase):
+    """P241: 修正の置き場の判定の写しと関所の答え（answers.json の {decision, text, asked}）から引く、答えで戻る単位と外れる単位
+    （元 lib/tests/test_fix_seams.py の GateAsksCase。入口が置く写し judgment.json・answers.json を board が読む）"""
+
+    FORK = {"key": "q1", "kind": "fork", "status": "held", "origin": "u1", "options": ["a", "b"], "reason": "割れる"}
+
+    def setUp(self):
+        self.run = kit.Run(self, "fix")
+        self.place = self.run.artifacts
+        self.board = kit.load("fix", "board")
+
+    def put(self, answers):
+        (self.place / self.board.JUDGMENT_FILE).write_text(
+            _j({"units": [{"key": "u1", "label": "block"}], "questions": [self.FORK]}), encoding="utf-8")
+        (self.place / self.board.ANSWERS_FILE).write_text(_j(answers), encoding="utf-8")
+
+    def test_continue_returns_the_fork_origin(self):
+        import gatemarks
+        self.put({"decision": "approve", "text": "", "asked": [gatemarks.ask_text(self.FORK)]})
+        self.assertEqual(self.board.gate_asks(self.place), ({}, {"u1"}))
+        self.assertEqual(self.board.group_owed(self.place), ["u1"])
+        self.put({"decision": "approve", "text": "", "asked": []})
+        withheld, back = self.board.gate_asks(self.place)
+        self.assertEqual((set(withheld), back, self.board.group_owed(self.place)), ({"u1"}, set(), []))
 
 
 if __name__ == "__main__":

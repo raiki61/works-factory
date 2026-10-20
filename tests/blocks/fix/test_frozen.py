@@ -7,7 +7,7 @@ st["handoff"] は frozen_tree の無い古い状態の時だけの控え。輪�
 .py の `<パス>:<行>` 1 つは、その行を含む関数の全体に広がる（`<行>-<行>` は書いたとおり）。この試験の「範囲の外の行」は
 その広がりの外を指す（広がりの試験は test_tdd.py の FunctionSpanCase）。
 種の git は gitkit の型の写し（盤面・子の実行器なし）。元 lib/tests/test_tdd_frozen.py の FrozenRuledScopeCase と
-lib/tests/test_conflict_kinds.py の TestReplanState.test_permit_sources_are_read_in_one_place を blocks/fix に向けた物。
+lib/tests/test_conflict_kinds.py の TestReplanState.test_permit_sources_are_read_in_one_place を workflows/fix に向けた物。
 """
 import ast
 import json

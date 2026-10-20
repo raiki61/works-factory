@@ -45,6 +45,7 @@ import toolset  # noqa: E402
 import gitkit  # noqa: E402
 import hermetic  # noqa: E402
 import spseam  # noqa: E402
+from tests import archon  # noqa: E402
 from tests.bin import copyledger  # noqa: E402
 
 BORROW = spseam.BORROW_DIR
@@ -1693,9 +1694,7 @@ class NewerCase(Base):
 
 class RecordNameCase(unittest.TestCase):
     def test_record_name_is_what_lib_versions_reads(self):
-        """借りた物の記録の名は、run の版の控え（lib/versions.py。L-E45）が読む名と同じ（lib は bin を読まないので名を 2 か所に持つ）"""
-        lib = str(pathlib.Path(__file__).resolve().parents[2] / "lib")
-        if lib not in sys.path:
-            sys.path.append(lib)
-        import versions
+        """借りた物の記録の名は、run の版の控え（line の src/versions.py。L-E45）が読む名と同じ（graph は bin を読まないので名を
+        2 か所に持つ。docs/design/integration.md の 4.5-7）"""
+        versions = archon.src_module("line", "versions")
         self.assertEqual(versions.TOOLSET_RECORD, toolset.RECORD)

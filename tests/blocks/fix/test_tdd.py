@@ -1,4 +1,4 @@
-"""fix の block の TDD の輪（blocks/fix/src/tdd.py。lib/tddloop.py の写し）と、輪の赤の判定を読む事後の関門の赤緑
+"""fix の block の TDD の輪（workflows/fix/src/tdd.py。lib/tddloop.py の写し）と、輪の赤の判定を読む事後の関門の赤緑
 （src/gates.py の red_green）の検査。lib/tests/test_blk_fix_tdd.py・test_tdd_outside.py・test_tdd_frozen_function_span.py・
 test_fix_gates.py の TestRedGreen を src の写しに向け直した物（docs/design/fix.md の 14.2）。
 
@@ -64,28 +64,7 @@ CLAMP = "stats.py clamp: 上限を超えた値に lo を返す"
 OPEN = json.dumps([MEAN, CLAMP], ensure_ascii=False)
 V1 = {"ok", "files", "changes_file", "removed"}
 
-# 対象リポジトリの根で test_*.py を unittest で回し、JUnit XML を第 1 引数に書く実行器（本線の tdd_suite の約束と同じ形）
-SUITE = '''
-import sys, unittest, xml.etree.ElementTree as ET
-sys.dont_write_bytecode = True
-sys.path.insert(0, ".")
-out = sys.argv[1]
-rows = []
-class R(unittest.TestResult):
-    def addSuccess(self, t): rows.append((t, None))
-    def addFailure(self, t, e): rows.append((t, "failure"))
-    def addError(self, t, e): rows.append((t, "error"))
-    def addSkip(self, t, r): rows.append((t, "skipped"))
-unittest.defaultTestLoader.discover(".", pattern="test_*.py", top_level_dir=".").run(R())
-root = ET.Element("testsuite")
-for t, kind in rows:
-    cls, name = t.id().rsplit(".", 1)
-    tc = ET.SubElement(root, "testcase", classname=cls, name=name)
-    if kind:
-        ET.SubElement(tc, kind)
-ET.ElementTree(root).write(out)
-sys.exit(0 if all(k in (None, "skipped") for _, k in rows) else 1)
-'''
+from tests.blocks.fix.support import SUITE  # noqa: E402
 
 # SUITE の写しで、pytest の JUnit に合わせる実行器: 断言の失敗も本体の例外も failure と書き、message に「<型>: <文>」を付ける
 # （pytest は本体の例外を failure と書く。引用の照らし tdd.red_check はこの message を読む）
@@ -119,6 +98,54 @@ PASSING_TEST = '''
     def test_clamp_below_range(self):
         self.assertEqual(clamp(-5, 0, 10), 0)
 '''
+
+
+class RunnerSeamCase(Case):
+    """TDD の輪の実行器と failure の文の読みは baseline_red の物で、諦めは 3 回目（元 lib/tests/test_fix_seams.py の SmallGapsSeamCase。
+    keep-essence の 4。申し出の頼みの文が種類を全部言うことは test_prompts.py の ConflictWordsCase）"""
+
+    def test_tdd_loop_takes_the_runner_from_baseline_red_and_gives_up_on_the_third(self):
+        import baseline_red
+        self.assertIs(tdd.run_suite, baseline_red.run_suite)
+        self.assertIs(tdd._failure_attrs, baseline_red._failure_attrs)
+        self.assertEqual(tdd.retry_max(), 3)
+
+
+class StepLogCase(Case):
+    """tdd.step は作業ツリーと書き込みの記録を別に受け、記録も申告も無い変更は段を拒み、記録が在れば通す（元 lib/tests/test_fix_seams.py の
+    LaneChecksSeamCase.test_tdd_step_matches_writes_with_the_given_log。元 works/tests/test_tdd_lanes.py の
+    TestLaneCommand.test_unrecorded_write_in_lane_is_rejected）"""
+
+    def test_tdd_step_matches_writes_with_the_given_log(self):
+        import writes
+        tmp = hermetic.tmpdir(self, prefix="works-tdd-step-log-")
+        repo, place = tmp / "repo", tmp / "place"
+        committed_copy(repo, SEED)
+        place.mkdir()
+        suite = tmp / "suite.py"
+        suite.write_text(SUITE, encoding="utf-8")
+        start = tdd.start(place, repo, str(suite), OPEN)
+        self.assertTrue(start["go"], start)
+        state = start["state_file"]
+        log = tmp / "run-writes.jsonl"   # 置き場の外の記録（既定の置き場の記録は使わない）
+        log.write_text("", encoding="utf-8")
+        got = tdd.step(state, {"phase": "route", "units": [
+            {"unit_key": MEAN, "route": "tdd"},
+            {"unit_key": CLAMP, "route": "direct", "why": "文書の直しと同じで、先にテストを書けない単位"}]}, repo, log=log)
+        self.assertTrue(got["ok"], got)
+        tests = repo / "test_stats.py"
+        tests.write_text(tests.read_text(encoding="utf-8").replace("\n\nif __name__", NEW_TEST + "\n\nif __name__"), encoding="utf-8")
+        reply = {"phase": "test", "unit_key": MEAN, "test_files": ["test_stats.py"],
+                 "tests": ["test_stats.py::TestStats::test_mean_of_two"]}
+        got = tdd.step(state, dict(reply), repo, log=log)
+        self.assertEqual((got["ok"], got["phase"]), (False, "test"), got)
+        self.assertIn(writes.REJECT, got["reason"])
+        self.assertIn("test_stats.py", got["reason"])
+        real = os.path.realpath(tests)
+        with open(log, "a", encoding="utf-8") as f:
+            f.write(json.dumps({"tool_name": "Write", "path": real, "file_sha": writes._sha(real)}) + "\n")
+        got = tdd.step(state, dict(reply), repo, log=log)
+        self.assertEqual((got["ok"], got["phase"]), (True, "fix"), got)
 
 
 class TestNoSuite(Case):

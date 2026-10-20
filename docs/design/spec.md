@@ -1,6 +1,6 @@
 # block の設計書: spec（仕様）
 
-- 何の話か: 依頼が完成と言える要件と、要件ごとの受け入れテストを書き、別の目で審査して直し、人の承認ノードで承認された物を固める観点「仕様」を、単独で呼べる block `blocks/spec/` にする設計。修正の後に、承認したテストが変わったかを照らす道（今の line の `spec-check`）も同じ block に置く。型は [README.md](README.md) に従い、形は [world.md](world.md) を写した。
+- 何の話か: 依頼が完成と言える要件と、要件ごとの受け入れテストを書き、別の目で審査して直し、人の承認ノードで承認された物を固める観点「仕様」を、単独で呼べる block `workflows/spec/` にする設計。修正の後に、承認したテストが変わったかを照らす道（今の line の `spec-check`）も同じ block に置く。型は [README.md](README.md) に従い、形は [world.md](world.md) を写した。
 - 決めたこと: 今の judge の仕様の 6 つの node の並び（3 つの loop・spec-ask・spec-gate・spec-freeze）と、line の `spec-check` を、`mode` choice(write|check) を持つ 1 つの block にする。入力は依頼の行・PR の題と本文・固めた仕様・印の置き場・言語の port だけで、始めの記録と `judge/` の置き場を読まない。人の承認ノードは block の中に置き、単独の run でも人が答える。指示は 6 本の英語の md（役 3 つと、拒まれた後の出し直し 3 つ）に書く。
 - 持ち主に求めること: なし。この block を作る人（実装の役）は、この設計どおりに 1 本の PR で作る（README の 11.1 の 1 波目）。自分で決めた事は 11 節に集めた（記録として置く。持ち主の確認は待たない）。
 
@@ -47,7 +47,7 @@
 
 今との違い: 今は依頼の行・止めの控え・却下の控え・役の返答を `judge/` の決まった名で開き（`lib/judge_accept.py:2999-3175`）、言語の 1 行を始めの記録から引き（`rejects.py` の `INPUTS_START`）、固めた後に `judge/request.json` に行を積んで判定の残りに渡し、作業ツリーの写し `judge/judge-tree.json` を取り直していた。check は line の script が `judge_accept.spec_questions` を呼んでいた。行の積み・写しの取り直しは無くし、足した行は出力で返す（line が判定に渡す）。
 
-### 1.3 node の並び（`blocks/spec/works-factory-spec.yaml`）
+### 1.3 node の並び（`workflows/spec/works-factory-spec.yaml`）
 
 AI の node の起動の鍵（今の YAML の錨のまま写す）:
 
@@ -88,19 +88,18 @@ loop の出口を `$spec-write-loop.output.ok` で読むのは今の YAML と同
 
 ### 1.5 コードの置き場
 
-- `blocks/spec/src/files.py`: 1.4 の名と、役の名の表 `ROLES = {"write": "spec-write", "review": "spec-review", "revise": "spec-revise"}`・拒否の文の頭の節の名 `NODES = {"write": "spec.write", "review": "spec.review", "revise": "spec.revise"}`（今の `SPEC_ROLES`・`SPEC_NODES`）・`GWT = ("Given", "When", "Then")`・`STOP = stopby.declare("spec", "仕様のループが諦めた・固まらなかった")`・`GATE = "spec-gate"`。
-- `blocks/spec/src/take.py`: 今の `lib/judge_accept.py` の `_spec_errors`（:2908）・`spec_write_output`（:2931）・`spec_review_output`（:2938）・`spec_revise_output`（:2948）・`spec_revise_due`・`spec_faces_open`・`spec_view`（:2962-2989。仕様の道かの条件 `spec_flow` は消し、block が呼ばれたら仕様の道）・`spec_now`（:2992）・`spec_take`（:2999）・`_keys_once`・`blank`・`read_capped`・`READ_CAP` の使う分の写し。`Reject` は `lib/accept.py` の物。
-- `blocks/spec/src/gate.py`: 今の `spec_approve`（:3038）・`spec_ask`（:3062）・`spec_answer`（:3135）と、`lib/specblk.py` の `APPROVE`・`GATE_STOP_NOTE`・`FLAG_BY_PREFIX`・`gate_text`・`parse_gate` の写し（`RUN_ID_HOLE` は `gate_text` の中の字 `<id>`、`snapshot_name` は `files.py` の `snapshot_path` に移した）。`gate_text` は `lib/gatemarks.py` の `gate_text`（line の修正前の承認ノードと共に使う組み立て）を呼ぶ。
-- `blocks/spec/src/freeze.py`: 今の `sha_file`・`sha_and_why`・`_file_sha`・`_spec_run`（:3089）・`spec_freeze`（:3102）の写しと、足した行の字 `ORIGIN`・`PROVENANCE`（今の `SPEC_ORIGIN`・`SPEC_PROVENANCE`、:2875-2876 の字のまま）。`spec_freeze` は依頼の行のファイルに積まず、`added-rows.json` に書く。
-- `blocks/spec/src/check.py`: 今の `spec_check`（:3177）・`spec_questions`（:3195）の写しと、仕様が渡されない時の問いの字（今の `workflows/line/scripts/spec_check.py` の `NO_POINTER` を「照らす承認済みの仕様が渡されていない——受け入れ条件のテストが変わったかを照らせない」に）と、照らしが落ちた時の問いの字（今の `fallback` の字）。問いの頭の語は `lib/gatemarks.py` の `SPEC_CHANGED_LABEL`（問いの行の形。最後の承認ノードと報告も読む）。
-- `blocks/spec/src/report.py`: 報告の行（9 節）。
-- `blocks/spec/schemas/request.schema.json`（world と同じ形の写し）。
+- `workflows/spec/src/files.py`: 1.4 の名と、役の名の表 `ROLES = {"write": "spec-write", "review": "spec-review", "revise": "spec-revise"}`・拒否の文の頭の節の名 `NODES = {"write": "spec.write", "review": "spec.review", "revise": "spec.revise"}`（今の `SPEC_ROLES`・`SPEC_NODES`）・`GWT = ("Given", "When", "Then")`・`STOP = stopby.declare("spec", "仕様のループが諦めた・固まらなかった")`・`GATE = "spec-gate"`。
+- `workflows/spec/src/take.py`: 今の `lib/judge_accept.py` の `_spec_errors`（:2908）・`spec_write_output`（:2931）・`spec_review_output`（:2938）・`spec_revise_output`（:2948）・`spec_revise_due`・`spec_faces_open`・`spec_view`（:2962-2989。仕様の道かの条件 `spec_flow` は消し、block が呼ばれたら仕様の道）・`spec_now`（:2992）・`spec_take`（:2999）・`_keys_once`・`blank`・`read_capped`・`READ_CAP` の使う分の写し。`Reject` は `lib/accept.py` の物。
+- `workflows/spec/src/gate.py`: 今の `spec_approve`（:3038）・`spec_ask`（:3062）・`spec_answer`（:3135）と、`lib/specblk.py` の `APPROVE`・`GATE_STOP_NOTE`・`FLAG_BY_PREFIX`・`gate_text`・`parse_gate` の写し（`RUN_ID_HOLE` は `gate_text` の中の字 `<id>`、`snapshot_name` は `files.py` の `snapshot_path` に移した）。`gate_text` は `lib/gatemarks.py` の `gate_text`（line の修正前の承認ノードと共に使う組み立て）を呼ぶ。
+- `workflows/spec/src/freeze.py`: 今の `sha_file`・`sha_and_why`・`_file_sha`・`_spec_run`（:3089）・`spec_freeze`（:3102）の写しと、足した行の字 `ORIGIN`・`PROVENANCE`（今の `SPEC_ORIGIN`・`SPEC_PROVENANCE`、:2875-2876 の字のまま）。`spec_freeze` は依頼の行のファイルに積まず、`added-rows.json` に書く。
+- `workflows/spec/src/check.py`: 今の `spec_check`（:3177）・`spec_questions`（:3195）の写しと、仕様が渡されない時の問いの字（今の `workflows/line/scripts/spec_check.py` の `NO_POINTER` を「照らす承認済みの仕様が渡されていない——受け入れ条件のテストが変わったかを照らせない」に）と、照らしが落ちた時の問いの字（今の `fallback` の字）。問いの頭の語は `lib/gatemarks.py` の `SPEC_CHANGED_LABEL`（問いの行の形。最後の承認ノードと報告も読む）。
+- `workflows/spec/src/report.py`: 報告の行（9 節）。
+- `workflows/spec/schemas/request.schema.json`（world と同じ形の写し）。
 - 使う `lib/`: `accept`（`tree_state`・`tree_moved`・`TREE_KEYS`・`status_keys`・`Reject`）・`rolekit`（`accept_parsed`・`resubmitted`・`merge_fields`・`resubmitting`・`candidate_path`・`rejected`・`rejects_text`・`given_up_reason`・`attempt`・`BoardGap`）・`tree_run`（`run`・`outside_env`）・`userenv`（印）・`gatemarks`（`gate_text`・`SPEC_CHANGED_LABEL`）・`answer`（`GO_WORDS`・`STOP_WORDS`。`gate_text` の答え方の行）・`stopby`（`HUMAN`・`declare`）・`graphloops/engine/util.py`（`safe_name`）・`jsonfile`・`oneline`。
-- 作り直しの間は `lib/specblk.py` と `lib/judge_accept.py` の仕様の部分を消さない（今の judge と line が使う）。組み込みで消す（README の 9.2）。
 
 ### 1.6 つなぎ方（graph の側。block には書かない）
 
-- write: judge のまとめ（`blocks/judge/`）が `include: works-factory-spec` を置く。`when:` は line が始めの記録の `input.spec` から引いた真偽。`with:` は `mode: write`・`request: $<依頼の pointer>`・`pr_text: <依頼が名指す PR の題と本文。purpose の block の pr_text と同じ値>`・`user_env_dir: <始めの記録の user_env_dir>`・`lang`。仕様の段は今と同じく、直す前の試験の関門（test-gate base）の後、並行 PR の前に回す（赤い受け入れテストが直す前の結末を汚さないため。並行 PR の役の前の写しに受け入れテストを入れるため）。`status` が `approved` でなければ、line は今と同じく run を `stop_reason` で止める。
+- write: judge のまとめ（`workflows/judge/`）が `include: works-factory-spec` を置く。`when:` は line が始めの記録の `input.spec` から引いた真偽。`with:` は `mode: write`・`request: $<依頼の pointer>`・`pr_text: <依頼が名指す PR の題と本文。purpose の block の pr_text と同じ値>`・`user_env_dir: <始めの記録の user_env_dir>`・`lang`。仕様の段は今と同じく、直す前の試験の関門（test-gate base）の後、並行 PR の前に回す（赤い受け入れテストが直す前の結末を汚さないため。並行 PR の役の前の写しに受け入れテストを入れるため）。`status` が `approved` でなければ、line は今と同じく run を `stop_reason` で止める。
 - write の出力の読み手: diagnose（`added_rows` と `added_origin`。今の `request_batches` が `SPEC_PROVENANCE` の頭で分けていたバッチ）・plan（`spec`。案の項目の `tests` に受け入れテストを入れる。今の `plan_prep.py:18` の `INPUTS_SPEC`）・再審の材料（`spec`）・report（`report`）・check の include（`spec`）。
 - check: line が fix の後・最後の試験の前に `include: works-factory-spec` を置く（今の `spec-check` の node の所）。`when:` は「仕様の段を挟んだ run」（始めの記録の `input.spec`）。`with:` は `mode: check`・`spec: <write の出力の spec。無ければ空>`。line は `questions` が在れば `stop_reason` を `works:spec-changed` にし（今の `spec_check.py:43`）、`unchecked` を最後の承認ノードと報告に渡す。
 - 無人の run と仕様の段の組みは、今と同じく line の入口が拒む（`lib/gatepolicy.py:61` の `check`。仕様の承認は承認ノードで、無人の run は承認ノードで止めるため）。block は無人の方針を知らない。
@@ -217,6 +216,7 @@ Return only JSON that matches the output schema.
 - 替えた: この node が在る訳の実測の例の「2 周目以降は P1 を通常どおり走らせる」「P1 が run の最後まで戻らない」を、graphloops の段の名 P1 を外した言い方に（block は段の名を知らない）。
 - 消した: 「同じテストが、後で TDD の『先に書く赤いテスト』になる」「その時点で緑なら『赤を見ていない』と判定役に渡る」の、後ろの block の振る舞いを前提として伝える部分（world の 3.6 と同じ決め）。「赤を見ていないと記録される」だけを残した。
 - 消した: 見出しの括弧「（writer の仕事。仕様の道だけ）」と、役の札「writer」。
+- 消した: 外への検索の決まりの頭の「Agent で子を起こすなら、子への指示に下の塊をそのまま含めよ」（この役は Agent の道具を持たない。断片の `spawns` の段落に `false` を渡して出さない）。
 - 英語にした（#764）。役の名は "the spec writer"。
 
 ## 3 node の設計シート: spec-review（審査役）
@@ -342,6 +342,8 @@ Return only JSON that matches the output schema.
 - 替えた: 実測の例の P1 の名（2.6 と同じ）。
 - 消した: 見出しの括弧「（judge。仕様の道だけ）」と、役の札「judge」の 2 度目（役の定義の断片が言う）。
 - 並べ替えた: 却下の段落を頭に（world と同じ）。役の定義・検索の決まり・この役の文の順は今のまま。
+- 足した: 「読むだけ」の段落（Read・Grep・Glob と web の検索と取得だけを持ち、作業ツリーを 1 字も変えない。機械が起こす前の写しと今を比べ、変わっていれば答えを拒む）。
+- 消した: 外への検索の決まりの頭の「Agent で子を起こすなら、子への指示に下の塊をそのまま含めよ」（この役は Agent の道具を持たない。断片の `spawns` の段落に `false` を渡して出さない）。
 - 英語にした。役の名は "the spec reviewer"。
 
 ## 4 node の設計シート: spec-revise（直す役）
@@ -444,6 +446,7 @@ Return only JSON that matches the output schema.
 - 足した: PR の題と本文の節（2.6 と同じ訳）。
 - 替えた: 「engine が … 人に見せて承認を求め」の engine を「the machine」に（graphloops の engine の名は block の外の物）。
 - 消した: 見出しの括弧「（writer の仕事。仕様の道だけ）」と役の札「writer」。
+- 消した: 外への検索の決まりの頭の「Agent で子を起こすなら、子への指示に下の塊をそのまま含めよ」（この役は Agent の道具を持たない。断片の `spawns` の段落に `false` を渡して出さない）。
 - 英語にした。役の名は "the spec reviser"。
 
 ## 5 node の設計シート: spec-write-fix・spec-review-fix・spec-revise-fix（出し直しの役）
@@ -466,7 +469,7 @@ md の本文（3 本とも）:
 {shared:resubmit}
 ```
 
-断片 `blocks/.shared/prompts/resubmit.md` の本文（英語。今の `lib/rolekit.py:419-425` の `RESUBMIT_ASK` と `FIELD_RULES`〔:435〕を 1 つにした物。仕様の 3 つの役と diagnose の再審の役が使うので、`blocks/.shared/` に置く。最初に要るのはどちらかの PR で、先に出す PR が足す）:
+断片 `workflows/.shared/prompts/resubmit.md` の本文（英語。今の `lib/rolekit.py:419-425` の `RESUBMIT_ASK` と `FIELD_RULES`〔:435〕を 1 つにした物。仕様の 3 つの役と diagnose の再審の役が使うので、`workflows/.shared/` に置く。最初に要るのはどちらかの PR で、先に出す PR が足す）:
 
 ~~~~markdown
 Your previous answer was rejected by the machine's check. In this same conversation, fix only what was rejected and return it. The material and the repository are as you already read them in this conversation (do not read them again; read only what you need to confirm the reason for the rejection).
@@ -576,7 +579,7 @@ graphloops と元の works の仕様の段は、`p0.base` と `p0.local_checks`�
 ### 10.1 単独で呼ぶ
 
 ```sh
-bin/works-factory <読ませるフォルダを blocks/ にする引数（名は実装で決める）> workflow run works-factory-spec \
+bin/works-factory workflow run works-factory-spec \
   --cwd <対象> --input request='[{"where":"README","text":"…直したい事…"}]'
 ```
 
@@ -586,7 +589,7 @@ bin/works-factory <読ませるフォルダを blocks/ にする引数（名は�
 
 ### 10.2 試験
 
-- standalone の fixture（`blocks/spec/fixtures/`。どれも入力は port の値だけで、始めの記録を持たない）:
+- standalone の fixture（`workflows/spec/fixtures/`。どれも入力は port の値だけで、始めの記録を持たない）:
   - `standalone.stubs.yaml`: 入力は `request`（JSON の字 1 行）だけ。今の `spec-on.stubs.yaml` の仕様の部分を写し、承認ノード `spec-gate` を `{decision: approve, text: ''}` で差し替える（今の筋書きと同じ。`archon workflow test` は `wait:` の node も台本で答える）。`reached: [spec-write-accept, spec-review-accept, spec-revise-accept, spec-ask, spec-gate, spec-freeze, finish]`。
   - `gate-stop.stubs.yaml`: `spec-gate` を `{decision: stop, text: 範囲が違う}`、`finish` の返りの `status` が `stopped`、run は `completed`。
   - `gave-up.stubs.yaml`: `spec-write-accept` が 3 回拒み、`spec-ask` が `{ask: false, message: ''}`、`spec-gate` が飛ぶ、`finish` が `status: failed`。
@@ -609,13 +612,13 @@ bin/works-factory <読ませるフォルダを blocks/ にする引数（名は�
 4. 足した行の出どころの名を出力の欄 `added_origin` で渡す。根拠: 今は diagnose が `SPEC_PROVENANCE` の字の頭で行を分けていて、2 つの block が同じ字を持つ。名を値で渡せば、読み手は作り手の字を持たずに済む（README の 4.1 の「行の形は作り手ごとに lib の 1 モジュール」を、字 1 つのために作らずに済ませる）。行の本文の頭の `PROVENANCE` は、判定の役が読む材料として今のまま残す。
 5. 出力に `status`・`stop_reason`・`reason`・`questions`・`unchecked`・`added_origin` を足した。根拠: 今、仕様の段の止めは run を止め（`human:spec-gate` など）、check の問いは最後の承認ノードと報告と `bin/apply` に届く。どれも無いと元の能力が落ちる。止めるかは line が決め、block は語を返す。
 6. 承認ノードの文の組み立て `gatemarks.gate_text` は `lib/` に残る物として使う。根拠: line の修正前の承認ノードと仕様の承認ノードの 2 つが使う（`lib/gatemarks.py:366` の docstring）。README の 9.2 は `gatemarks` の承認ノードの決めの部分を line の `src/` へ移すと書くが、`gate_text` は決めでなく文の組み立てで、2 つの使い手を持つ。
-7. 出し直しの段落を共通の断片 `resubmit` にした。根拠: 仕様の 3 つの役と diagnose の再審の役（今の `rejudge-loop` の `rejudge-fix`）が同じ `RESUBMIT_ASK` を使う。README の 5.1 の決め（2 つ以上の block が使う段落は `blocks/.shared/prompts/`）。
+7. 出し直しの段落を共通の断片 `resubmit` にした。根拠: 仕様の 3 つの役と diagnose の再審の役（今の `rejudge-loop` の `rejudge-fix`）が同じ `RESUBMIT_ASK` を使う。README の 5.1 の決め（2 つ以上の block が使う段落は `workflows/.shared/prompts/`）。
 8. 審査役の指示に `{shared:role-judge}` と `{shared:query-rule}` を並べた。根拠: 今の審査役の指示は `lib/agents/judge.md` の本文を写していて、その中に外への検索の決まりの塊が在る（world の query-rule の元 `lib/agents/judge.md:16-22`）。役の定義の断片に検索の決まりを持たせると 2 か所目の写しになる。断片の名 `role-judge` は、土台の PR が役の定義 5 本に付ける名に合わせる（`role-<役>` を仮の名にした）。
 
 ## 12 実装で決めた事（実装の役が書く。設計書と main の決まりが食い違った所・設計書が黙っていた所）
 
-1. 入口が write の回の頭で消すのは、この block が名で持つファイルだけ（`src/files.py` の `own_files()`・`own_prompts()`）。今の judge の入口は place を作り直して中を全部消していたが、「block が消してよいのは自分が名を持つファイルだけ」（`blocks/.shared/AGENTS.md`）に合わせて替えた。ほかの物の名のファイルは残る。消すのは mode が write と分かった直後（依頼を読む前）で、依頼が読めなくても前の回のファイルは残らない。
-2. 依頼の行の形は `shared:request.schema.json` を使い、block に写しを置かない（1.5 の「`blocks/spec/schemas/request.schema.json`（world と同じ形の写し）」を取り下げ）。形のファイルの名は pack の中で 1 か所にしか置けない（`tests/layers/test_block_shape.py` の 5）。
+1. 入口が write の回の頭で消すのは、この block が名で持つファイルだけ（`src/files.py` の `own_files()`・`own_prompts()`）。今の judge の入口は place を作り直して中を全部消していたが、「block が消してよいのは自分が名を持つファイルだけ」（`workflows/.shared/AGENTS.md`）に合わせて替えた。ほかの物の名のファイルは残る。消すのは mode が write と分かった直後（依頼を読む前）で、依頼が読めなくても前の回のファイルは残らない。
+2. 依頼の行の形は `shared:request.schema.json` を使い、block に写しを置かない（1.5 の「`workflows/spec/schemas/request.schema.json`（world と同じ形の写し）」を取り下げ）。形のファイルの名は pack の中で 1 か所にしか置けない（`tests/layers/test_block_shape.py` の 5）。
 3. 出し直しの指示を組む node `spec-<役>-fix-prep` を役ごとに足した（script は 3 つで 1 本 `fix_prep.py`。`with: {role}`）。`spec-<役>-prep` は出し直すかと 1 回目の指示だけを返す（出し直しの時の `prompt` は空）。訳: 筋書きは輪を 1 周しか回さない（`until_bash` を仮定で満たす）ので、出し直しの役は 1 周目に届かない。出し直すかを決める prep の返りだけを筋書きで差し替え、出し直しの指示を組む prep は差し替えずに本物を回せば、出し直しの役の md を筋書きが照らせる（`check_standalone_renders` は、AI の node の prep を差し替えた筋書きを証にしない）。筋書きは `resubmit-write`・`resubmit-review`・`resubmit-revise` の 3 本を足した。
 4. script は prep を 1 本 `prep.py`（`with: {role, prev}`）、受け付けを 1 本 `take.py` にした（設計書は prep 3 本）。違いは `role` だけで、`with:` に結ぶ入力が node ごとに揃う。
 5. 承認ノードの文に入れる run の id は `ports.run_id()` でなく `ports.pointer(<place のファイル>)["run_id"]` で引く（`ports.py` にその口は無い。土台の `ports.py` は変えない）。
@@ -623,6 +626,6 @@ bin/works-factory <読ませるフォルダを blocks/ にする引数（名は�
 7. 出力: `stopped` で `stop_reason` が `human:spec-gate` か `request:spec-gate`、`failed` で `works:spec`。check の `ok` は `status` が `checked` の時だけ真（照らせなかった `unchecked` は偽）。照らしの node が返りを返さなかった時は、照らせなかった（問い 1 行・`unchecked`）として返す。
 8. 入口が `mode` を読めない時は `mode` を空にして `go` 偽・`failed`（`works:spec`）で返す。write の止めの控え `stop.json` は、入口が読めなかった時にも書く。
 9. `answer`（承認ノードの答え）が通す語で、`spec-ask.json` が無い時は、`stop.json` に `works:spec` と「`spec-ask.json` が無い・形が違う」を書く（今の `spec_answer` のまま。承認ノードが開かなかった時は null で別の道）。
-10. 審査役の md は `{shared:role-judge}` の次に `{shared:query-rule}` を並べず、`{shared:role-judge}` だけにした（3.3 の本文から `{shared:query-rule}` の行を除いた）。訳: main の `blocks/.shared/prompts/role-judge.md` は末尾に `{shared:query-rule}` を持つので、並べると検索の決まりが 2 度入る（11 節の 8 は「役の定義の断片は検索の決まりを持たない」としていたが、main の断片は持つ）。段落 `spawns` の真偽は審査役の md でも `when` に渡す（断片の中の段落）。
-11. 共通の断片 `blocks/.shared/prompts/resubmit.md` を足した（5.3 の本文。2 つ目の commit。口の名は `{rejection}`・`{candidate}`、`{}` は `` `{}` `` の字で書く。diagnose の再審の役と同じ断片）。`blocks/.shared/AGENTS.md` の取り置いた名の一覧から `resubmit` を今在る名に移した。出し直しの 3 本の md は `{shared:resubmit}` の 1 行。
-12. `tests/layers` の E7 の表 `CHANGE_CHECKOUT` に行 `("spec", "spec-freeze")` を足し、表の行が指す node を探す `tests/layers/test_readonly_nodes.py` の試験が `blocks/<block>/` も探すようにした（`mutates_checkout: false` を書くと、受け入れ条件のコマンドが作業ツリーに書いた時に Archon が node を落とす。1.3 の「`mutates_checkout:` は書かない」と、main の E7 の「script の node は false か表の行」の食い違いを、表に行を足して解いた）。
+10. 審査役の md は `{shared:role-judge}` の次に `{shared:query-rule}` を並べず、`{shared:role-judge}` だけにした（3.3 の本文から `{shared:query-rule}` の行を除いた）。訳: main の `workflows/.shared/prompts/role-judge.md` は末尾に `{shared:query-rule}` を持つので、並べると検索の決まりが 2 度入る（11 節の 8 は「役の定義の断片は検索の決まりを持たない」としていたが、main の断片は持つ）。段落 `spawns` の真偽は審査役の md でも `when` に渡す（断片の中の段落）。
+11. 共通の断片 `workflows/.shared/prompts/resubmit.md` を足した（5.3 の本文。2 つ目の commit。口の名は `{rejection}`・`{candidate}`、`{}` は `` `{}` `` の字で書く。diagnose の再審の役と同じ断片）。`workflows/.shared/AGENTS.md` の取り置いた名の一覧から `resubmit` を今在る名に移した。出し直しの 3 本の md は `{shared:resubmit}` の 1 行。
+12. `tests/layers` の E7 の表 `CHANGE_CHECKOUT` に行 `("spec", "spec-freeze")` を足し、表の行が指す node を探す `tests/layers/test_readonly_nodes.py` の試験が `workflows/<block>/` も探すようにした（`mutates_checkout: false` を書くと、受け入れ条件のコマンドが作業ツリーに書いた時に Archon が node を落とす。1.3 の「`mutates_checkout:` は書かない」と、main の E7 の「script の node は false か表の行」の食い違いを、表に行を足して解いた）。

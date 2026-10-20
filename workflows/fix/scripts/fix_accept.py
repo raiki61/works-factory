@@ -2,83 +2,73 @@
 # requires-python = ">=3.12"
 # dependencies = []
 # ///
-"""節 fix-accept（形 group の修正の輪の終わり）: 修正役の返答を受け付ける（fixboard.accept_reply。照らしは factchecks・fixgates・
-書き込みの出どころ（記録が無い run は段の頭の木からの変更が全部 changes[].files か bash_writes に在るか。U6 の狭め）・
-recount.accept_fix・tddloop.selected_problems。除くパスの頭 boundary.SKIP）。
-
+"""node fix-accept（組の形の修正の輪の終わり）: 修正役の返答を受け付ける（src/board.accept_reply。今のまま）。
 - 範囲の相談の周（入力 consulted が true）は受け付けを回さず done: false
-- 修正役を起こさなかった（入力 reply が null）周は done: true（直す義務が残らない）
-- 拒否は rolekit の控え rejects-fix-accept.json に積み（fixboard.accept_out。reason_file はこの輪の拒否の全部のファイル
-  rolekit.reject_file の rejects-fix-accept.md）、最後の回（rolekit.is_last_attempt。回は控えの拒否の数 + 1）まで done: false。
-  最後の回の拒否は、名指しの単位だけを段の頭の木に戻して諦め、ほかの単位を受けて done: true（指示書の番号 INPUTS_ITERATION は
-  諦めの判断に使わない。with: の入力は残るが読まない）
-- 範囲の外のはみ出しだけの返答は拒まずに範囲の相談に積むか機械が戻す（fixboard.settle_overflow）。積んだ回は done: false で、控えに数えない（count: false）
+- 修正役を起こさなかった（入力 reply が null）周は、義務の単位を not_done で fix-units.json に書いて done: true
+- 拒否は rolekit の控え rejects-fix-accept.json に積み（board.accept_out）、最後の回まで done: false。最後の回の拒否は、名指しの
+  単位だけを段の頭の木に戻して諦め、ほかの単位を受けて done: true
 - 1 回目で裁かれていない申し出が在れば輪を抜ける（done: true。裁定の後の修正役が受け付け直す）
-置き場に残す物: fix-units.json（{unit_key: {status, reason}}）・fix-reply.json（受けた返答に 6 つの印と rejudge_requested を
-前の控えと論理和で重ねた物）。
-返り {ok, done, reason, reason_file}。回す側の誤り（返答が読めない・判定の写しが無い）は標準エラーに 1 行で非 0。拒否の控え rejects-fix-accept.json が読めない・書けない時は
-落ちずに done: true の拒否（理由『拒否の控えが扱えない』）。rejects-fix-accept.md が書けない時は標準エラーに 1 行で非 0。
-"""
+返り {ok, done, reason, reason_file}。回す側の誤り（返答が読めない・判定の写しが無い）は標準エラーに 1 行で非 0"""
 import os
 import sys
 from pathlib import Path
 
 sys.dont_write_bytecode = True
-sys.path.insert(0, str(Path(__file__).resolve().parents[2] / ".shared"))
-import boundary  # noqa: E402
-sys.path.append(str(boundary.lib_root()))
+sys.path[:0] = [str(Path(__file__).resolve().parents[2] / ".shared"), str(Path(__file__).resolve().parents[1])]
+import ports  # noqa: E402
 
-import fixboard  # noqa: E402
 import oneline  # noqa: E402
 import rolekit  # noqa: E402
-import startrec  # noqa: E402
 import writelog  # noqa: E402
+
+from src import board, intake, runvals  # noqa: E402
 
 NAME = "fix-accept"
 NOT_LAUNCHED = "修正役を起こさなかった（組の直す義務の単位が残らない）"
+SKIP = (ports.RUNTIME_COPY_PREFIX,)
 
 
 def main() -> dict:
-    raw = os.environ["INPUTS_REPLY"]
+    raw = os.environ.get("INPUTS_REPLY", "")
     consulted = os.environ.get("INPUTS_CONSULTED", "").strip().lower() == "true"
     if consulted:
-        return {"ok": False, "done": False, "reason": fixboard.CONSULTED, "reason_file": ""}
-    place, repo = boundary.place("fix"), boundary.work_tree()
-    group = boundary.parsed(os.environ.get("INPUTS_GROUP"))
-    owed = fixboard.group_owed(place, group["unit_ids"] if group else None)
-    if boundary.value(raw) is None:
-        _, excused = fixboard.fix_duty(place, owed)
-        fixboard.write_json(place / fixboard.FIX_UNITS_FILE, fixboard.unit_outcomes(owed, {}, excused=excused))
+        return {"ok": False, "done": False, "reason": board.CONSULTED, "reason_file": ""}
+    place, repo = ports.place(), Path.cwd()
+    group = intake.load(place).get("group")
+    owed = board.group_owed(place, group["unit_ids"] if group else None)
+    if ports.polyfill("skip_value").value(raw) is None:
+        _, excused = board.fix_duty(place, owed)
+        board.write_json(place / board.FIX_UNITS_FILE, board.unit_outcomes(owed, {}, excused=excused))
         return {"ok": True, "done": True, "reason": NOT_LAUNCHED, "reason_file": ""}
     reply, why = rolekit.parse_reply(raw)
     if reply is None:
         raise ValueError(why)
-    iteration, stopped = fixboard.round_number(place, NAME)
+    iteration, stopped = board.round_number(place, NAME)
     if stopped:
         return stopped
-    start = startrec.read(place)
-    state, _ = fixboard.loop_files(place)
-    judgment = fixboard.read_json(place / fixboard.JUDGMENT_FILE) or {}
-    head = fixboard.fixer_head(place, "first")
+    values = runvals.read(place)
+    state, _ = board.loop_files(place)
+    judgment = board.read_json(place / board.JUDGMENT_FILE) or {}
+    head = board.fixer_head(place, "first")
     log = writelog.log_here()
-    boundary.drop_runner_env(os.environ.get("INPUTS_USER_ENV_DIR", ""))   # 対象のテストを走らせる前に Archon の変数を落とす（place は先に取った）
-    got = fixboard.accept_reply(reply, place, repo, pass_="first", iteration=iteration, owed=owed,
-                                judged=judgment.get("units"), suite=str(start.get("tdd_suite") or ""), state=state,
-                                head=head, skip=boundary.SKIP, log=log)
+    ports.drop_runner_env(values["user_env_dir"])   # 対象のテストを走らせる前に Archon の変数を落とす（place は先に取った）
+    got = board.accept_reply(reply, place, repo, pass_="first", iteration=iteration, owed=owed,
+                             judged=judgment.get("units"), suite=str(values["tdd_suite"] or ""), state=state,
+                             head=head, skip=SKIP, log=log)
     return finish(place, got, iteration)
 
 
 def finish(place: Path, got: dict, iteration: int) -> dict:
-    fixboard.write_json(place / fixboard.FIX_UNITS_FILE, got["units"])
+    board.write_json(place / board.FIX_UNITS_FILE, got["units"])
     if got["ok"]:
-        path = place / fixboard.FIX_REPLY_FILE
-        fixboard.write_json(path, fixboard.reply_marks(got["reply"], fixboard.read_json(path)))
-        fixboard.trace(place, "fix_accepted", node=NAME, iteration=iteration, parked=sorted(got["parked"]),
-                       conflicted=got["conflicted"])
-        return {"ok": True, "done": True, "reason": fixboard.PARKED_FOR_RULING if got["conflicted"] else "",
+        path = place / board.FIX_REPLY_FILE
+        board.write_json(path, board.reply_marks(got["reply"], board.read_json(path)))
+        board.trace(place, "fix_accepted", node=NAME, iteration=iteration, parked=sorted(got["parked"]),
+                    conflicted=got["conflicted"])
+        return {"ok": True, "done": True, "reason": board.PARKED_FOR_RULING if got["conflicted"] else "",
                 "reason_file": ""}
-    out = fixboard.accept_out(place, NAME, got)
-    fixboard.trace(place, "fix_rejected", node=NAME, iteration=iteration, done=out["done"], parked=sorted(got["parked"]))
+    out = board.accept_out(place, NAME, got)
+    board.trace(place, "fix_rejected", node=NAME, iteration=iteration, done=out["done"], parked=sorted(got["parked"]))
     return {**out, "reason": got["reason"]}
 
 
@@ -88,4 +78,4 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"{NAME}: {type(e).__name__}: {oneline.one_line(e)}", file=sys.stderr)
         sys.exit(1)
-    boundary.returns(out)
+    ports.returns(out)

@@ -9,14 +9,14 @@ from pathlib import Path
 
 sys.dont_write_bytecode = True
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / ".shared"))
-import boundary  # noqa: E402
+import ports  # noqa: E402  （pack の .shared/ports.py）
 
 REASON = "loop-prev-round-1-rejected"
 
 heard = os.environ["INPUTS_HEARD"].strip()
 if heard == REASON:
-    boundary.returns({"done": True, "reason": ""})
+    ports.returns({"done": True, "reason": ""})
 elif heard:
-    boundary.returns({"done": False, "reason": f"知らない聞き返し: {heard}"})
+    ports.returns({"done": False, "reason": f"知らない聞き返し: {heard}"})
 else:
-    boundary.returns({"done": False, "reason": REASON})
+    ports.returns({"done": False, "reason": REASON})

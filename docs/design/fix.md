@@ -1,6 +1,6 @@
 # block の設計書: fix（修正）
 
-- 何の話か: 承認済みの修正案を項目ごとに直す観点「修正」を、単独で呼べる block `blocks/fix/` にする設計。直しの組ごとに自分を子の run として起こし（`workflow:` と `fan_out:`）、組の子の中で単位ごとの TDD の loop と修正役を回し、親で組を合わせ（合わせ役）、食い違いの申し出を読むだけの裁定役が裁き、裁定の後に直し直す。範囲の相談（修正案の側への問い）もこの block の中に在る。型は [README.md](README.md)、書き方は [world.md](world.md) に従う。
+- 何の話か: 承認済みの修正案を項目ごとに直す観点「修正」を、単独で呼べる block `workflows/fix/` にする設計。直しの組ごとに自分を子の run として起こし（`workflow:` と `fan_out:`）、組の子の中で単位ごとの TDD の loop と修正役を回し、親で組を合わせ（合わせ役）、食い違いの申し出を読むだけの裁定役が裁き、裁定の後に直し直す。範囲の相談（修正案の側への問い）もこの block の中に在る。型は [README.md](README.md)、書き方は [world.md](world.md) に従う。
 - 決めたこと: 今の `workflows/fix/` の node のうち、差分の審査・レンズ・手直し（`delta-cut`〜`refix2-loop`）を delta-review と lens の block に渡し、残りを同じ並びの block にする。始めの記録の代わりに port で受け、run の頭の深さ（`depth`・`head_depth`・`depth_record`）と fix の中の深さの上げ直し（`fixboard.redepth`）を外して、port `skip_rerun` 1 つにする。AI の node は 9 つ（修正役・裁定の後の修正役・相談の答え 2・TDD の役 2・裁定役・合わせ役 2）で、指示の本文は block の 5 つの断片（`fixer`・`consult`・`tdd`・`clash`・`brief`）と裁定役の md 1 本と、書く役の決まりの共通の断片 `writer-rules`（delta-review の手直しの役と共に使う）に寄せる。lib の 12 モジュールを `src/` へ写す（どの関数をどこへ写すかは 1.5）。振る舞いは変えない。変える所は 13 節に名指した物だけ。
 - 読む人: この block を作る実装の役（この設計書だけで作れるように書いた）。README 11.1 の 3 波目（delta-review と同時。写す範囲は 1.5.3 で割った）。
 - 持ち主に求めること: なし。README・持ち主の決め・今のコードの事実で 1 つに決まらなかった物は 16 節（未確認）に置いた。作り直しの中で見つけた今の工場の不具合（相談の答えの役が修正役の会話の分かれとして起きる・振り分けの段の書き込みが戻らない など）は直さず 13.3 に並べた（振る舞いを変えるので作り直しの外。structure の設計書の 11 節の 8 と同じ扱い）。
@@ -92,7 +92,7 @@
 
 今との違い（欄）: 外した欄は `done`（→ `ok`）・`delta_review`・`delta_holes`・`lenses`（delta-review と lens の出力へ）・`optional`（落ちてよい node が無くなった。レンズが出た）。`units` の読み口 `fixbeside.read`・`records` は組み込みで line の `src/` に移る（README 9.1 で `fixbeside` は DELETE）。
 
-### 1.3 node の並び（`blocks/fix/works-factory-fix.yaml`）
+### 1.3 node の並び（`workflows/fix/works-factory-fix.yaml`）
 
 頭の `description` は「修正の block（docs/design/fix.md）。…」の 1 段落（今の頭の 8 行の中身から差分の審査を外した物）。script の node はどれも `runtime: uv`。AI の node の起こし方は 2 節〜6 節に書く（今の錨 `&fix_launch`・`&tdd_launch`・`&consult_launch`・`&clash_launch` と YAML の `ruler` の鍵を字のまま写し、`prompt:` だけを `"$<prep>.output.prompt"` にする）。
 
@@ -136,7 +136,7 @@ loop の中の会話（README 13 章の決め・今の振る舞いのまま）: 
 
 `ports.place()`（単独の run と組の子の run では `$ARTIFACTS_DIR/`、line から include された時は `$ARTIFACTS_DIR/<include の id>/`。今の `fix/fix/` と `fix/refix-run/`）の下に、今と同じ名で書く。名は `src/files.py` だけが持つ（今の `fixnames`・`fixbeside` の名の住処と、`fixboard`・`tddloop`・`consult` などの名の定数の写しを 1 つにする）。
 
-- 入口: `intake.json`（port の値）・`values.json`（今の始めの記録の写し `r1/start.json` の代わり。`{tdd_suite, test_cmd, reuse_key, reuse_dir, user_env_dir, lang, policy, request_file, answers, unattended, parallel, skip_rerun, excluded}`。`src/runvals.py` だけが読み書きする。組の子は親の物を写す）。
+- 入口: `intake.json`（port の値）・`values.json`（今の始めの記録の写し `r1/start.json` の代わり。lib の `conflict` は値で受けるので `r1/start.json` は置かない。`{tdd_suite, test_cmd, reuse_key, reuse_dir, user_env_dir, lang, policy, request_file, answers, unattended, parallel, skip_rerun, excluded}`。`src/runvals.py` だけが読み書きする。組の子は親の物を写す）。
 - 入力の写し（今のまま）: `judgment.json`・`judge-ties.json`・`judge-materials.json`・`plan-fields.json`（と凍結の印）・`fix-plan-reply.json`・`p2.plan_review.json`・`ripple.json`・`answers.json`・`only-items.json`・`baseline.json`・`base-rev.json`・`human-notes.md`・`fix-ignored-before.json`。今の `units.json`・`depth.json`・`head-depth.json`・`judge-depth-head.json`・`depth-raised.json` は書かない（読み手が無い・深さは port `skip_rerun` に替わる。13.1 の 2）。
 - 組: `groups.json`・`groups/<group_id>/group-start.json`・`groups/<group_id>/result.json`・`join.json`・`join/<group_id>.diff`・`clash.json`・`clash-brief-<gid>.json`・`clash-turns-<pass>.json`。
 - TDD の loop: `tdd-start.json`・`tdd-<k>/state.json`・`tdd-<k>/summary.md`・`tdd-<k>/suite-<n>.log`・`tdd-<k>/junit-<n>.xml`・`tdd-<k>/test-cmd-0.log`・`tdd-step-reject-<n>.md`・`tdd-prompt-<n>.md`・`tdd-new-prompt-<n>.md`（今の `tdd-<k>/next.md` と `next.delivered.json` の代わり。渡した証拠の種類の控えは `tdd-delivered.json`）。
@@ -151,13 +151,13 @@ loop の中の会話（README 13 章の決め・今の振る舞いのまま）: 
 
 作るファイル（この block の PR が触るのはこれと `tests/blocks/fix/` と、この設計書と、下の「共通の物に足す 2 つ」だけ）:
 
-- `blocks/fix/works-factory-fix.yaml`
-- 共通の物に足す 2 つ: `blocks/.shared/prompt.py` の口 `sub`（1.5.4）と、`tests/layers/test_block_shape.py` の 7.1 の 3 の照らしの 1 つの道（14.3）。どちらも `.shared/AGENTS.md`・`blocks/AGENTS.md` の 1 行と一緒に足す。共通の断片 `writer-rules` は delta-review の PR が置き、この block は使うだけ（1.5.4）
-- `blocks/fix/prompts/`: node ごとの md 9 本（`fixer.md`・`fix-ruled.md` は `{part:fixer}` の 1 行、`consult-answer.md`・`ruled-consult-answer.md` は `{part:consult}`、`tdd.md`・`tdd-new.md` は `{part:tdd}`、`clash-fix.md`・`clash-ruled.md` は `{part:clash}`、`ruler.md` は本文）と断片 `prompts/parts/`（`fixer.md`・`consult.md`・`tdd.md`・`clash.md`・修正役と TDD の役が共に使う `brief.md`）と、下請けの指示 `prompts/sub/g1-impl.md`・`prompts/parts/g1-review.md`（1.5.4）。
-- `blocks/fix/scripts/`: `intake.py`・`prep.py`・`join.py`・`clash_prep.py`・`clash_accept.py`・`conflict_check.py`・`rule_prep.py`・`rule_accept.py`・`fix_ruled_prep.py`・`fix_ruled_accept.py`・`consult_check.py`・`consult_accept.py`・`clean.py`・`assert_changed.py`・`group_start.py`・`tdd_prep.py`・`tdd_step.py`・`fix_prep.py`・`fix_accept.py`・`group_end.py`・`fix_reads.py`・`finish.py`（今の名のまま。`collect.py` は `finish.py`、`route.py` は `intake.py` に）。どの script も「`os.environ.get("INPUTS_<名>")` を字のまま読み、`src/` の 1 つの関数を呼び、`ports.returns` で返す」だけにする。
-- `blocks/fix/src/`（package `src`。1.5.1 の写しと、この block の新しいモジュール）
-- `blocks/fix/schemas/`（1.2 の 12 本）
-- `blocks/fix/fixtures/`（14 節）と `blocks/fix/fixtures/tdd-runner.py`（TDD の筋書きの実行器。14 節）
+- `workflows/fix/works-factory-fix.yaml`
+- 共通の物に足す 2 つ: `workflows/.shared/prompt.py` の口 `sub`（1.5.4）と、`tests/layers/test_block_shape.py` の 7.1 の 3 の照らしの 1 つの道（14.3）。どちらも `.shared/AGENTS.md`・`workflows/AGENTS.md` の 1 行と一緒に足す。共通の断片 `writer-rules` は delta-review の PR が置き、この block は使うだけ（1.5.4）
+- `workflows/fix/prompts/`: node ごとの md 9 本（`fixer.md`・`fix-ruled.md` は `{part:fixer}` の 1 行、`consult-answer.md`・`ruled-consult-answer.md` は `{part:consult}`、`tdd.md`・`tdd-new.md` は `{part:tdd}`、`clash-fix.md`・`clash-ruled.md` は `{part:clash}`、`ruler.md` は本文）と断片 `prompts/parts/`（`fixer.md`・`consult.md`・`tdd.md`・`clash.md`・修正役と TDD の役が共に使う `brief.md`・brief の行を名指す節 `brief-head.md`）と、下請けの指示 `prompts/parts/g1-impl.md`・`prompts/parts/g1-review.md`（1.5.4）。
+- `workflows/fix/scripts/`: `intake.py`・`prep.py`・`join.py`・`clash_prep.py`・`clash_accept.py`・`conflict_check.py`・`rule_prep.py`・`rule_accept.py`・`fix_ruled_prep.py`・`fix_ruled_accept.py`・`consult_check.py`・`consult_accept.py`・`clean.py`・`assert_changed.py`・`group_start.py`・`tdd_prep.py`・`tdd_step.py`・`fix_prep.py`・`fix_accept.py`・`group_end.py`・`fix_reads.py`・`finish.py`（今の名のまま。`collect.py` は `finish.py`、`route.py` は `intake.py` に）。どの script も「`os.environ.get("INPUTS_<名>")` を字のまま読み、`src/` の 1 つの関数を呼び、`ports.returns` で返す」だけにする。
+- `workflows/fix/src/`（package `src`。1.5.1 の写しと、この block の新しいモジュール）
+- `workflows/fix/schemas/`（1.2 の 12 本）
+- `workflows/fix/fixtures/`（14 節）と `workflows/fix/fixtures/tdd-runner.py`（TDD の筋書きの実行器。14 節）
 
 #### 1.5.1 lib から `src/` へ写すモジュール（README 9.2 の MOVE）
 
@@ -188,8 +188,8 @@ script の名と `lib/` のモジュールの名は重ねない（README 7.1 の
 
 - `conflict` の全部。README 9.2 は「`conflict` の決めの部分（申し出と裁定の積み方・`test_permits`）を fix へ MOVE」と書くが、作り直しの間は写さない。訳: KEEP の `planrange`（delta-review も使う）・`gatemarks`・`replan`・`outcome`・`runreport`・`seat` が今の `conflict` の決めの関数（`test_permits`・`edit_permits`・`agreed`・`ruled_paths`・`held_by_rulings` など）を呼ぶ。fix が写しを持つと、テストの変更を許す道が lib と fix の 2 本になり、keep-essence の 3 の「許す道は 1 本」が作り直しの間だけ崩れる余地ができる（README 10 節の 3 が「この関数は fix の `src/` の 1 つのまま残り、block をまたがない」と書く状態は、`planrange` の割りと一緒に組み込みで作る）。組み込みで行の形（KEEP）と決めの部分（fix の `src/`）に割る（16 節の 3）。
 - `unittrees` の全部。README 9.2 は MOVE と書くが、KEEP の `green_cert`・`tree_run`・`groups`・`refix`（delta-review）・`eyeverdict`・`boardview` が使うので、憲法の 4（2 つ以上の使い手は lib）で KEEP に倒した。
-- `fixboard` の次の名（lib の `conflict`・`planbrief`・`writes`・`eyeverdict`・`deltamarks`・`boardview`・`runreport`・`outcome`・`gatemarks` が import する。`src/board.py` は `import fixboard` で lib の物を呼ぶ）: `trace`・`trace_rows`・`TRACE_FILE`・`read_json`・`write_json`・`write_text`・`plan_view`・`marks_view`・`allowed_test_rows`・`_allowed_row`・`child_allowed_rows`・`scope_brief`・`overflow_trace`・`ALLOWED_SOURCES`・`FIX_IN_DIFF_CORE`・`run_diff`・`DIFF_EMPTY`・`diff_file`・`pr_revs`・`pr_diff`・`pr_added_lines`・`HUMAN_FACE_KINDS`・`UNIT_STATUSES`・`FIXED`・`GIVEN_UP`・`NOT_DONE`・`UNIT_LEFT`・`HANDOFF_HEAD`・`accept_out`・`round_number`・`snapshot`・`touched_since`・`undeclared_writes`・`UNDECLARED`。lib の `fixboard` の残りの関数はこの block から呼ばない（`src/board.py` の写しを呼ぶ）。
-- 使う lib（KEEP。README 9.3）: `accept`・`baseline_red`・`cite`・`globs`・`groups`・`impact`・`itemcommits`・`jsonfile`・`leftovers`・`libdocs`・`libdocs_local`・`libdocs_web`・`listcut`・`oneline`・`planbrief`・`planmarks`・`planrange`・`policy`・`querytest`・`reads`・`recount`・`replan`・`report`（`tdd_lines`・`freeze_lines`）・`rolekit`・`seat`（`fill`・`pinned`・`overlay_body`・`OVERLAY_KINDS`・`SEATS`・`carries`・`skill_of`。見出しと決まった文の定数は使わない）・`spseam`・`borrow/`・`stopby`・`tree_run`・`gatemarks`（`duty`・`ledger_files`・`withheld_by`・`returned`・`returned_lines`・`gate_items`）・`answer`（`said`）・`writes`・`writelog`・`graphloops/engine/util.py`。`lib/startrec.py`・`lib/gatepolicy.py`・`lib/depth.py`・`lib/latedepth.py`・`lib/headdepth.py`・`lib/fixbeside.py`・`lib/fixnames.py` は import しない（line へ MOVE・DELETE の物。13.1）。
+- `fixboard` の次の名（lib の `conflict`・`planbrief`・`writes`・`eyeverdict`・`deltamarks`・`boardview`・`runreport`・`outcome`・`gatemarks` が import する。`src/board.py` は `import fixboard` で lib の物を呼ぶ）: `trace`・`trace_rows`・`TRACE_FILE`・`read_json`・`write_json`・`write_text`・`plan_view`・`marks_view`・`allowed_test_rows`・`_allowed_row`・`child_allowed_rows`・`scope_brief`・`overflow_trace`・`ALLOWED_SOURCES`・`FIX_IN_DIFF_CORE`・`run_diff`・`DIFF_EMPTY`・`diff_file`・`pr_revs`・`pr_diff`・`pr_added_lines`・`HUMAN_FACE_KINDS`・`UNIT_STATUSES`・`FIXED`・`GIVEN_UP`・`NOT_DONE`・`UNIT_LEFT`・`HANDOFF_HEAD`・`accept_out`・`round_number`・`snapshot`・`touched_since`・`undeclared_writes`・`UNDECLARED`。lib の `fixboard` の残りの関数はこの block から呼ばない（`src/board.py` の写しを呼ぶ）。`overflow_trace` は値を受ける形（`overflow_trace(place, trail, *, agreed, guards, gate_tests)`。lib は相談の合意・守りのテストを読まない）なので、`src/board.py` が同じ名の `overflow_trace(place, trail, repo, *, pass_, attempt)` を持ち、合意の id（`conflict.agreed(carried=False)` の origin が accept の行）・守りのテスト（`gates.guards`）・関所の条件の相談で認めた新しいテストのうち今の木に在る物（`gates.present`）を選んで lib に値で渡す（integration.md の 4.3-1）。
+- 使う lib（KEEP。README 9.3）: `accept`・`baseline_red`・`cite`・`globs`・`groups`・`impact`・`itemcommits`・`jsonfile`・`leftovers`・`libdocs`・`libdocs_local`・`libdocs_web`・`listcut`・`oneline`・`planbrief`・`planmarks`・`planrange`・`policy`・`querytest`・`reads`・`recount`・`replan`・`report`（`tdd_lines`・`freeze_lines`）・`rolekit`・`seat`（`fill`・`pinned`・`overlay_body`・`OVERLAY_KINDS`・`SEATS`・`carries`・`skill_of`。見出しと決まった文の定数は使わない。下請けの指示と座の型の穴の値〔`SCENE`・`NO_REPORT_FILE`・`G1_REPORT`・`G1_HEAD_SHA`・`G1_IMPL_REPORT`・`G1_PATCH` と `_g1_row`・`g1_diff_cmd`〕は lib の `seat` に無くなるので `src/rules.py` が持つ）・`spseam`・`borrow/`・`stopby`・`tree_run`・`gatemarks`（`duty`・`ledger_files`・`withheld_by`・`returned`・`returned_lines`・`gate_items`）・`answer`（`said`）・`writes`・`writelog`・`graphloops/engine/util.py`。`lib/startrec.py`・`lib/gatepolicy.py`・`lib/depth.py`・`lib/latedepth.py`・`lib/headdepth.py`・`lib/fixbeside.py`・`lib/fixnames.py` は import しない（line へ MOVE・DELETE の物。13.1）。
 
 埋め: `ports.polyfill("childsweep")` は使わない（組の子の作業ツリーの後始末は line の node。README の 1.3 の歩かせ 4 の「子を起こしたノードと同じ include の中のノードが全部 completed になるまで消さない」は line の設計書が持つ）。
 
@@ -207,15 +207,13 @@ DELETE（どの block にも写さない）: `PREP_INPUTS`・`MODES`・`LANE_SWI
 
 #### 1.5.4 共通の口に足す物（この block が最初に要る）
 
-- 下請けの指示を組む口は、plan-review の枝が置いた `blocks/.shared/prompt.py` の `render_part(name, values, when=None) -> str`（呼んだ script の在る block の `prompts/parts/<name>.md` を `render` と同じ決まりで組んだ字を返し、place には書かない）を使う。書くのは呼び手（修正役に渡す下請けの指示のファイル `g1-impl-<n>.md`・`g1-review-<n>.md`）。訳: 下請けは Archon の node でないので `render` の node の md に置けず、今は決まった文を `lib/seat.py` の定数（`G1_SUB_HEAD`・`G1_SUB_RULES`・`G1_EXTRA`）と `direct.md` の節 `fix-ask-sub` と `lib/agents/judge.md`（検索語の規律）から Python が組んでいた（憲法の 2 に当たる）。block の断片の置き場は `prompts/parts/` の 1 つだけ（`docs/design/README.md` の 3 章）。この枝は初め `sub` と `prompts/sub/` を足したが、窓口の決めで `render_part` と `prompts/parts/` に替え、断片を字を変えずに移した。
-- 共通の断片 `writer-rules`（`blocks/.shared/prompts/writer-rules.md`。`{shared:writer-rules}`）: 書く役の決まりの正本（今の `fix-rules/common.md` の `core-fix`・`evidence` と 4 つの種類・`core-conflict`・`core-keep`）。修正役・TDD の役と、delta-review の手直しの役の 2 つの block が使うので共通の断片にする（`blocks/.shared/AGENTS.md` と README 11.1 の決まり。工場の作り直しのまとめ役の決め。README の形の直し 3 は fix の中の断片と書いたが、手直しの役が fix の外の block になった）。置くのは先に作る delta-review の PR で、この block は受けて使うだけ（足さない・直さない）。段落の名は `conflict`（食い違いの申し出）と `docs`・`prompts_kind`・`config`・`code`（証拠の 4 つの種類）の 5 つで、ほかの段落（直し方・証拠の頭・守ること）はいつも入る。この block は `conflict` をいつも真で渡す（手直しの役は偽）。
+- 下請けの指示を組む口は、plan-review の枝が置いた `workflows/.shared/prompt.py` の `render_part(name, values, when=None) -> str`（呼んだ script の在る block の `prompts/parts/<name>.md` を `render` と同じ決まりで組んだ字を返し、place には書かない）を使う。書くのは呼び手（修正役に渡す下請けの指示のファイル `g1-impl-<n>.md`・`g1-review-<n>.md`）。訳: 下請けは Archon の node でないので `render` の node の md に置けず、今は決まった文を `lib/seat.py` の定数（`G1_SUB_HEAD`・`G1_SUB_RULES`・`G1_EXTRA`）と `direct.md` の節 `fix-ask-sub` と `lib/agents/judge.md`（検索語の規律）から Python が組んでいた（憲法の 2 に当たる）。block の断片の置き場は `prompts/parts/` の 1 つだけ（`docs/design/README.md` の 3 章）。この枝は初め `sub` と `prompts/sub/` を足したが、窓口の決めで `render_part` と `prompts/parts/` に替え、断片を字を変えずに移した。
+- 共通の断片 `writer-rules`（`workflows/.shared/prompts/writer-rules.md`。`{shared:writer-rules}`）: 書く役の決まりの正本（今の `fix-rules/common.md` の `core-fix`・`evidence` と 4 つの種類・`core-conflict`・`core-keep`）。修正役・TDD の役と、delta-review の手直しの役の 2 つの block が使うので共通の断片にする（`workflows/.shared/AGENTS.md` と README 11.1 の決まり。工場の作り直しのまとめ役の決め。README の形の直し 3 は fix の中の断片と書いたが、手直しの役が fix の外の block になった）。置くのは先に作る delta-review の PR で、この block は受けて使うだけ（足さない・直さない）。段落の名は 9 つ: `conflict`（食い違いの申し出）・`docs`・`prompts_kind`・`config`・`code`（証拠の 4 つの種類）・`evidence`（証拠の頭と文。種類の 1 つでも真の時）・`where_fixer`・`where_tdd`・`where_rework`（証拠を書く場所の 1 文。役ごとに 1 つだけ真）。ほかの段落（直し方・守ること）はいつも入る。この block は `conflict` をいつも真で渡し、`evidence` は 4 つの種類の 1 つでも真の時に真、書く場所は修正役が `where_fixer`・TDD の役が `where_tdd` を真にして `where_rework` は偽にする（delta-review の手直しの役は `conflict` が偽、4 つの種類と `evidence` が真、`where_rework` だけが真で `where_fixer`・`where_tdd` は偽）。
 - 外への検索の決まりは今在る `{shared:query-rule}`、却下の段落は `{shared:rejected}`。ほかの共通の断片は足さない。
 
 #### 1.5.5 事前の確かめのコマンド
 
-修正役が返答の前に走らせる事前の確かめ（今の `lib/factchecks.py` を `python3 lib/factchecks.py <place>/consult.json --reply <draft>` で起こす。F100）は、`blocks/fix/src/facts.py` の `main` を `python3 <block のフォルダ>/src/facts.py <place>/consult.json --reply <draft>` で起こす形に替える。コマンドの字は `src/prompts.py` が組んで `{check_cmd}` で md に入れる（今の `check_cmd` と同じく `sys.executable` から）。`src/facts.py` は単独で起こされた時に `sys.path` に `blocks/.shared` と `blocks/fix` と `lib/` を足す（script の頭と同じ 2 行と `ports` の import）。
-
-作り直しの間は `workflows/fix/` と、写した元の lib のモジュールを変えない（今の fix が使う）。組み込みで消す（README 9.2）。
+修正役が返答の前に走らせる事前の確かめ（今の `lib/factchecks.py` を `python3 lib/factchecks.py <place>/consult.json --reply <draft>` で起こす。F100）は、`workflows/fix/src/facts.py` の `main` を `python3 <block のフォルダ>/src/facts.py <place>/consult.json --reply <draft>` で起こす形に替える。コマンドの字は `src/prompts.py` が組んで `{check_cmd}` で md に入れる（今の `check_cmd` と同じく `sys.executable` から）。`src/facts.py` は単独で起こされた時に `sys.path` に `workflows/.shared` と `workflows/fix` と `lib/` を足す（script の頭と同じ 2 行と `ports` の import）。
 
 ### 1.6 つなぎ方（graph の側。block には書かない）
 
@@ -223,7 +221,7 @@ DELETE（どの block にも写さない）: `PREP_INPUTS`・`MODES`・`LANE_SWI
 - 2 回目の修正の段（案の直しの後）: 同じ物に `plan`・`fix_plan` ← 案の直し・`ripple`・`answers`・`notes` ← 案の直しの承認ノード・`only_items` ← `$fix.output.replan_items`・`prior` ← `$fix.output.carry`・`plan_review` ← 案の直しの事前審査。
 - 読み手（line の設計書で配る）: line の受け皿と 2 段の合わせ（`units`・`groups`・`conflicts`・`objection`・`stop_reason`・`ok`・`diff` ほか）・line の上げ直し（`units`・`conflicts`・`diff`・`plan_declared`・`objection`・`tdd_refused`・`accept_trace`）・delta-review（`start_tree`・`reply`・`ruled_reply`・`scope`・`conflicts`・`checked`。`when:` は `checked.ok` と `stop_reason == ""` と line の深さの表）・eyes と r2・r4（`units`・`changed`・`x_scalars`・`plan_declared`・`tdd`）・lens（`start_tree`）・merge（`item_claims`）・line の最後の承認ノードと report（`handoffs`・`mismatched`・`allowed_tests`・`accept_trace`・`closure`・`removed`・`conflicts`・`freeze_off`・`report`）・案の直し（`replan_items`・`conflicts`）。
 - 組の子の作業ツリーの後始末は line の終わりの node（今の `sweep_children`）。
-- `workflow: works-factory-fix` は、作り直しの間は `blocks/` だけを pack にして回すので新しい block を指す（README 3 節）。
+- `workflow: works-factory-fix` は `workflows/fix/` の block を指す（pack は `workflows/` の 1 つ。README 3 節）。
 
 ## 2 node の設計シート: fixer と fix-ruled（修正役・裁定の後の修正役）
 
@@ -267,16 +265,16 @@ DELETE（どの block にも写さない）: `PREP_INPUTS`・`MODES`・`LANE_SWI
 1. `<!-- if rejected -->` `{shared:rejected}`（`{rejection}` ← `rolekit.rejects_text(rolekit.rejected(place, "fix-accept"))`。fix-ruled は `"fix-ruled-accept"`）。
 2. `<!-- if rulings_first -->` 裁定の文を先に全部読めの 1 文と `{rulings_file}`。
 3. `<!-- if ruled_reply -->` 保存した 1 回目の返答を先に全部読めの 1 文と `{saved_reply}`（今の文の「あなたは新しい会話なので」は外す。13.2 の 2）。
-4. `<!-- if briefs -->` `## The requirement (briefs)` と `{brief_rows}`（← `planbrief.head_text` の行。見出しと結びの 1 文〔「まず Read で全部読め…」〕は md）。
+4. `<!-- if briefs -->` `## The requirement (briefs)` と `{brief_rows}`（← `src/rules.py` の `brief_rows`。項目ごとの 1 行〔項目の番号・brief のパス・sha256・単位。今直さない単位は「今は直すな」と添える〕を `planbrief.for_units` の項目から組む。見出しと結びの 1 文〔「まず Read で全部読め…」〕は md の部品 `prompts/parts/brief-head.md` で、修正役と TDD の役の指示が `{part:brief-head}` で入れ、下請けが Read する座の型の `[BRIEF_FILE]` の本文も `render_part` で同じ部品から組む。lib の `planbrief.head_text`・`unit_note` は呼ばない）。
 5. `<!-- if faces -->` `## Pre-review keys to answer (plan_faces)` と頭の 1 文と `{faces_rows}`（← `board.plan_faces_text` の行）。
-6. `<!-- if scope -->` `## Paths you may change and what you must not touch` と頭の決まり（今の `planrange.OOS_MINE`）と `{scope_rows}`（← `planrange.scope_text` の行）。`<!-- if tests -->`（13.4 の 6）`## Tests you may add or change, and frozen tests` と頭の 1 文と `{tests_rows}`（← `planrange.tests_text` の行）と結びの 1 文（名指しの外の既存のテストの関数を変える・消すと拒む）。
+6. `<!-- if scope -->` `## Paths you may change and what you must not touch` と頭の決まり（今の `planrange.OOS_MINE`）と `{scope_rows}`（← `src/rules.py` の `scope_rows`。項目ごとの範囲の行と全部の項目に効く許しの行だけ。lib の `planrange.scope_text` は呼ばない）。`<!-- if tests -->`（13.4 の 6）`## Tests you may add or change, and frozen tests` と頭の 1 文と `{tests_rows}`（← `src/rules.py` の `tests_rows`。足してよい新しいテスト・本体を変えてよい既存のテストの名指しと範囲・凍ったテストの行だけ。lib の `planrange.tests_text` は呼ばない）と結びの 1 文（名指しの外の既存のテストの関数を変える・消すと拒む）。
 7. `<!-- if tests_how -->` `## How the tests were run before the fix` と `{tests_how}`（← `board.tests_how_text` の how の行）と「環境や命令を探さずにこの形で回せ」。
 8. `<!-- if policy -->` 方針の文書の 1 行と `{policy_path}`／`<!-- if no_policy -->` 「方針の文書は無い」。`<!-- if request -->` 依頼のファイルの 1 行と `{request_file}`／`<!-- if no_request -->`。
 9. `<!-- if rules -->` `# Fixing (the writer's job)` と役の 1 段落と `## What to read`（`{judgment_file}`・`{open_units}`・`{plan_file}`・`{policy_path}`・`{summary_file}`・`{notes_file}` と各行の決まり。今の `direct.md` の `fix-head`）。
 10. `{part:brief}` と `{shared:writer-rules}`（2.3.1。`conflict` はいつも真）。
 11. `<!-- if rules -->` 何も変えずに済んだと言うな（今の `fix-keep`）。
 12. `<!-- if ask -->` `## Scope consultation and the pre-check`（今の `fix-ask`。`{budget}` ← `consult.BUDGET`・`{draft}`・`{check_cmd}`）。`<!-- if ask_ripple -->` 波及の一覧の 1 行と `{ripple_file}`。
-13. `<!-- if libdocs -->` `## Library documents (installed version and official)` と頭の 1 文と `{libdocs_rows}`（← `libdocs.section` の本文から見出しと頭の 1 文を除いた行。数・取れた物・ライブラリごとのパス）。
+13. `<!-- if libdocs -->` `## Library documents (installed version and official)` と頭の 1 文と `{libdocs_rows}`（← `libdocs.section` の本文から見出しと頭の 1 文を除いた行。数・取れた物・ライブラリごとのパス。取る・控える仕事を含む `section` は plan の枝も使うので lib に残り、この block は見出し〔`libdocs.TITLE`〕と頭の文〔`libdocs.HEAD`〕を剥がして行だけを入れる）。
 14. `<!-- if g1 -->` `## Running subagents`（今の `seat.G1_HEAD`・`G1_STEPS` の 6 手順・`G1_LOOP_NOTE`・`DIVERGENCE_HINT` の 6 つの場面・`G1_OVERRIDES` を英語の決まった文に）と `{g1_items}`（← 項目ごとの 1 行「項目 n: 実装役 <ファイル>・審査役 <ファイル>・差分のコマンド <字>」）と `## Reading borrowed skills` の頭の 1 文と `{unattended}`（← `seat.overlay_body(seat.OVERLAY_KINDS["fix"])`。日本語のまま。local-review の設計書と同じ）。
 15. `<!-- if seat_one -->` `## The borrowed seat`（今の `seat.HEAD`・`WINS`・`PROMPT_HEAD` を英語に）と `{seat_body}`（← `seat.fill` で埋めた superpowers の implementer の型。借りた写しの字のまま）と `{unattended}`。
 16. `<!-- if rules -->` `## What to write for each fix (one changes row)` と `## What to write for the whole round` と、受け付けが見る物の結びの段落（今の `fix-reply`）。
@@ -292,7 +290,7 @@ DELETE（どの block にも写さない）: `PREP_INPUTS`・`MODES`・`LANE_SWI
 どの段落も 1 つの名で選ぶ（TDD の役はいつも `rules`・`conflict` が真）。
 
 - `prompts/parts/brief.md`（この block だけ）: `<!-- if rules -->` `## Brief rules (the source of the requirement and the background)` と決まり 1〜8（今の `brief.md` の `brief-canon`）。
-- `{shared:writer-rules}`（1.5.4。delta-review の PR が置く）: いつも入る `## How to fix`（今の `core-fix` の 10 の決まり）と `## Evidence for fixes whose red-to-green a test cannot show` の頭、`<!-- if docs -->`・`<!-- if prompts_kind -->`・`<!-- if config -->`・`<!-- if code -->` の 4 つの種類、`<!-- if conflict -->` `## Conflict declarations (do not bend to get green)`（今の `core-conflict`）、いつも入る `## What to keep`（今の `core-keep`）。
+- `{shared:writer-rules}`（1.5.4。delta-review の PR が置く）: いつも入る `## How to fix`（今の `core-fix` の 10 の決まり）と `## Evidence for fixes whose red-to-green a test cannot show` の頭、`<!-- if evidence -->` の頭と、書く場所の `<!-- if where_fixer -->`・`<!-- if where_tdd -->`・`<!-- if where_rework -->`、`<!-- if docs -->`・`<!-- if prompts_kind -->`・`<!-- if config -->`・`<!-- if code -->` の 4 つの種類、`<!-- if conflict -->` `## Conflict declarations (do not bend to get green)`（今の `core-conflict`）、いつも入る `## What to keep`（今の `core-keep`）。
 
 #### 2.3.2 下請けの指示（`prompts/parts/g1-impl.md`・`g1-review.md`。1.5.4 の `prompt.render_part`）
 
@@ -380,7 +378,13 @@ fix-ruled の 2 周目は、頭の 1 の後に 3（`<place>/fix-reply.json`）�
 - 消した: 使われていない節 `fix-lane`（`direct.md:65-73`。どこからも組まれていない）。
 - 消した: ほかの node と block の名（「差分の審査」「独立の目」「メイングラフの最後のテストの段」など、今の文が後の段の振る舞いを前提に書いた句）は、block の外の名を持たない言い方に（「後の工程が回す」）。決まりの意味は変えない。
 - 移した: 言語の 1 行（`rolekit.LANG_RULE` の汎用の欄の並び）を、この node の人に見せる欄の名指しと `{lang}` に。
-- 足した（指示の量だけ）: 続きの周（相談の答え・はみ出しの積み・はみ出しの答え）にも共通の断片 `writer-rules` の直し方・食い違いの申し出・守ることが入る（2.3 の結び。断片の段落の名が `conflict` と 4 つの種類だけのため）。決まりは同じ会話で前に渡した物と同じ字。ほかに足した物は無い。
+- 足した（指示の量だけ）: 続きの周（相談の答え・はみ出しの積み・はみ出しの答え）にも共通の断片 `writer-rules` の直し方・食い違いの申し出・守ることが入る（2.3 の結び。断片の段落の名が `conflict` と 4 つの種類だけのため）。決まりは同じ会話で前に渡した物と同じ字。ほかに足した物は次の 5 つ（指示の新旧の比べで見つかった書き漏れ。害は無い）。
+- 足した: 修正役（`fixer`・`fix-ruled`）に、sandbox が下書きの置き場への書き込みを拒んだら `$TMPDIR` に書いて `--reply` にそのパスを渡す逃げ道（事前の確かめの節）。
+- 無い（今の指示にあった）: 「Return only the JSON」の 1 文が `fixer`・`fix-ruled`・`ruler`・`clash-fix`・`clash-ruled` に無い。`output_format` が返りの形を縛るので害は無く、足さない。
+- 変えた: `tdd` の役の名と節の並びが今の `tdd.md` と違う（節の名を英語の見出しにし、並びを 2.3 の表の順にした）。決まりの中身は同じ。
+- 足した: `consult-answer` の段落 `plain` に、答え方の文（頼みの番号ごとに 1 行ずつ答える）。件数の字は「{count} scope consultation(s)」に直した（1 件の時の複数形の誤りを md で直した）。
+- 言語の 1 文に、今の `rolekit.LANG_RULE` の括弧「（key は周をまたいで突き合わせるので訳さない）」を戻した（`fixer`・`ruler`・`tdd`・`clash`。元と同じ）。
+- 下請け（`g1-impl`・`g1-review`）の検索の決まりは、共通の断片 `query-rule` の頭の行だけを持つ（md の同じ意味の頭の行は消した）。断片が足す「一次の出典を先に読む」は README 5.1 に 1 行で載せる（この設計書には足さない）。
 - 英語にした（#764）。材料の行（`{brief_rows}` など）は今の lib が組む日本語の字のまま入る（lib を変えないため。組み込みで lib の文を md へ出す時に英語の札にする。16 節の 6）。
 
 ### 2.7 元の works と graphloops の同じ場面
@@ -388,7 +392,7 @@ fix-ruled の 2 周目は、頭の 1 の後に 3（`<place>/fix-reply.json`）�
 - 元の works `works/blk-fix/blk-fix.yaml` の `fix-loop`（:1543。`max_iterations` 12 = 受け付けの 3 回 + 相談の枠 9、項目ごとの下請け）と受け付け `scripts/accept.py` の確かめの表 13 種（consult・frozen・writes・conflict・pack・duplicate・not_opened・accepted・excused・scope・tests・gates・copy）。工場は `accepted`（2 回目の段の控えの照らし）を外し、`closure` と `plan_faces` を足した（#94 で外し、#264 で plan_faces を戻した）。この block は今の工場の 14 種のまま。
 - 元の範囲の相談は修正案を書いた役の会話の続き（`continue=fix-planner`）、裁定の後の修正役は 1 回目の修正役の会話の続き（`continue=fix`）だった。工場は Archon の loop の中で `context.resume` を使えない（同じ loop の中の node を名指せない。止めた Archon の `loader.ts` の `context.resume cannot name a source inside the same loop_group body`）ので、保存した返答と修正案を読ませる形にした（#94。F218・F222）。この block も同じ。
 - 元の並べの枝の修正役（`fix-lane-loop-1..3`）と枝の決まり `fix-lane` は、組ごとの子の run に替わった（持ち主の決め `no-queue`・#94）。
-- graphloops `prompts/review-loop/p3.fix.md` と `blocks/review-loop/fix/block.json`（確かめ `fix_covers_open_units`）。工場は `lib/recount.py` にほぼ全部を写した。graphloops の新しいファイルに `git add -N` を打つ決まり（p3.fix.md:42）は元の works にも工場にも無い（足さない。振る舞いの外）。
+- graphloops `prompts/review-loop/p3.fix.md` と `workflows/review-loop/fix/block.json`（確かめ `fix_covers_open_units`）。工場は `lib/recount.py` にほぼ全部を写した。graphloops の新しいファイルに `git add -N` を打つ決まり（p3.fix.md:42）は元の works にも工場にも無い（足さない。振る舞いの外）。
 - この block が両方より良く、残す物: 書き込みの出どころを拒否にする（graphloops は記録だけ）・凍ったテストとテストの変更を許す道が 1 本・範囲の相談・食い違いの申し出と読むだけの裁定・はみ出しを拒まずに相談へ積む・最後の回だけ名指しの単位を戻して諦める・閉鎖の数え直しの食い違いを人に見せる。
 
 ### 2.8 受け付け（fix-accept・fix-ruled-accept）
@@ -550,7 +554,7 @@ Write the human-facing fields (…) in 依頼文の言語（利用者の言語�
 ### 4.7 元の works と graphloops の同じ場面
 
 - 元の works の `tdd-start`・`tdd-loop`（`blk-fix.yaml:119`・`:151`。上限 40・同じ単位は同じ会話・3 回で諦め・軽量の単位は test_cmd を走らせない）と同じ。工場の #233 で同じ単位の会話を継ぐ形（tdd と tdd-new の振り分け）を戻した。元の TDD の並べの枝（`tdd-fork`・`tdd-lane-loop-1..3`・`tdd-join`・`tdd-rest-loop`）は組ごとの子の run に替わった（#94・`no-queue`）。
-- graphloops の `blocks/review-loop/fix-tdd/block.json`（`rules/review-loop-tdd.py` の `red_problems`・`green_problems`、`RETRY_MAX=3`）。graphloops は毎回一式の全部で緑を求め、書きにくさの旗（`FRICTION_FLAGS`）と `surface_change` を持つ。工場は名指しと変更に直に関わる試験だけを走らせ、一式は後の工程で 1 回（元の works と同じ）。書きにくさの旗は元の works の時から無い（足さない）。
+- graphloops の `workflows/review-loop/fix-tdd/block.json`（`rules/review-loop-tdd.py` の `red_problems`・`green_problems`、`RETRY_MAX=3`）。graphloops は毎回一式の全部で緑を求め、書きにくさの旗（`FRICTION_FLAGS`）と `surface_change` を持つ。工場は名指しと変更に直に関わる試験だけを走らせ、一式は後の工程で 1 回（元の works と同じ）。書きにくさの旗は元の works の時から無い（足さない）。
 
 ### 4.8 受け付け（tdd-step）
 
@@ -692,7 +696,7 @@ Write `how` and `bash_writes[].why` in 依頼文の言語（利用者の言語�
 
 ## 7 script の node
 
-どの script も、頭の 2 行で `blocks/.shared` と `blocks/fix` を `sys.path` に足し、`ports` を import してから `src` を呼ぶ（world と同じ）。今の script が `boundary.place("fix")` で取っていた置き場は `ports.place()`、`boundary.work_tree()` は `Path.cwd()`（Archon の cwd）、`boundary.drop_runner_env` は `ports.drop_runner_env`、`boundary.SKIP` は `(ports.RUNTIME_COPY_PREFIX,)` に替える。誤りの扱い（落ちる node・落ちない node）は今のまま。
+どの script も、頭の 2 行で `workflows/.shared` と `workflows/fix` を `sys.path` に足し、`ports` を import してから `src` を呼ぶ（world と同じ）。今の script が `boundary.place("fix")` で取っていた置き場は `ports.place()`、`boundary.work_tree()` は `Path.cwd()`（Archon の cwd）、`boundary.drop_runner_env` は `ports.drop_runner_env`、`boundary.SKIP` は `(ports.RUNTIME_COPY_PREFIX,)` に替える。誤りの扱い（落ちる node・落ちない node）は今のまま。
 
 - `intake.py`: `INPUTS_MODE` ほか 1.2 の全部を字のまま読み、`src.intake.read(raw)` に渡す。`mode` が whole なら `judgment` が要る、group なら `group` が要り、`out_dir` が空の group は `judgment` も要る（無ければ `ok: false`・「入力 <名>: whole の形には要る」の形の理由）。`json` の形の port は `ports.json(raw, "<名>.schema.json")`（空の字は渡されていないと読む）、`file` は `ports.file`、`flag`・`choice`・`text` はそれぞれの口。`src.runvals.write(place, …)` で `values.json`（1.4。`reuse_key` が空なら `os.environ["WORKFLOW_ID"]`）、`intake.json` に読んだ値（judgment などは値か読んだパス）を書く。返り `{ok, whole, reason}`。落ちない（`ports.run`）。
 - `prep.py`: 今の `prep.py` と同じ順（1 書き込みの記録を空で作る → 2 判定・判定の写し 3 つ〔ties・materials。深さの写しは書かない〕→ 3 修正案の欄と凍結の印 → 4 `fix-plan-reply.json` → 5 `p2.plan_review.json` → 6 `ripple.json` → 7 `answers.json` → 8 `only-items.json` → 9 `prior` が在れば `src.carry.adopt(place, prior, only_items, repo)`（`prior/<k>/` に置いて今の `adopt_prior_pass` と同じ写し）→ 10 `baseline.json` → 11 `fix-ignored-before.json` → 12 `base-rev.json` → 13 始めの木 → 14 `human-notes.md` → 15 `groups/` と `groups.json`）。値は `intake.json` から（今は `INPUTS_<名>` の pointer を `boundary.resolve` で開いていた）。今の落ちる時（判定が無い・修正案の形・only_items の形・prior の束の形・git の誤り）は落ちる（exit 1）。並べるかは `board.parallel`（組が 2 つ以上・port `parallel`・`git remote` が空でない）。
@@ -865,11 +869,11 @@ node ごとの場面は 2〜6 節の 7。block 全体では:
 
 ### 13.4 作りで決めた事（実装の役。設計書が黙っていた・main の決まりと合わなかった所）
 
-1. lib の `conflict` は、依頼のファイルを place の始めの記録 `r1/start.json` から読む（`conflict.request_file`・`cite_roots`。申し出の名指しの根と、裁定役の ask_human の出どころの照らしが使う）。1.5.2 で `conflict` を写さずに呼ぶので、`src/runvals.py` が `values.json` と同じ時に `{request_file, answers}` だけの写しを `r1/start.json`（`src/files.py` の `LIB_START`。lib の `startrec.REL` と同じ字）に置き、子にも写す。根拠: 置かないと依頼のファイルを名指す申し出が拒まれ、依頼の在る run の ask_human の照らしが効かなくなる（今の能力が落ちる）。組み込みで `conflict` を割る時に外す（16 節の 3）。
+1. lib の `conflict` は、依頼のファイルを値で受ける（`conflict.problems`・`problems_by_entry` の引数 `request_file`・`cite_roots(request_file, root)`。申し出の名指しの根と、裁定役の ask_human の出どころの照らしが使う。組み込みで `conflict` が始めの記録を読まなくなった: integration.md の 4.3-追加-6）。この block は `runvals.read(place)["request_file"]` を渡す。始めの記録の形の写し `r1/start.json` は読み手が無くなったので置かない（`files.LIB_START` を外した）。
 2. 組の子は親の `values.json` と上の写しを写すが、`intake.json` は写さない。根拠: 子の `intake.json` は子の port（`group`・`from_tree`・`out_dir`）を持ち、親の物で上書きすると組を失う。子の script は組と `out_dir` を自分の `intake.json`（`src.intake.load`）から読む（今の script は `INPUTS_GROUP` などを node ごとに読んでいた）。
 3. port `answers`・`materials`・`request_answers`・`plan_review` の形のファイルは、.shared と ほかの block に同じ名で別の形が在るため `fix-<名>.schema.json` にした（形の名は pack の中で 1 つの決まり〔7.1 の 5〕。port `judgment` は .shared の物を `shared:` で使う）。旧: `gate-answers.schema.json` にした（1.2 の `answers.schema.json` は independent-design の block に同じ名が在り、形の名は pack の中で 1 つの決まり〔7.1 の 5〕に当たる）。
 4. 写したモジュールの中の place の名の定数（`src/tdd.py` の `STATE`・`src/consult.py` の `QUESTION_FILE`・`src/clash.py` の `BRIEF`・`src/ruling.py` の `TREE` など）は写しのまま持つ（写しの中身を変えない決まりが勝つ）。`src/files.py` は今の `fixnames`・`fixbeside` の名と `fixboard` の置き場の名の定数（1.5.3）と新しい名を持つ。
-5. run をまたぐ控えの根（ライブラリの文書。今の `boundary.shared_cache`、環境変数 `STATE_DIR`）は `src/files.py` の `shared_cache()` に置いた（`.shared/ports.py` に口が無く、使い手はこの block だけ）。
+5. run をまたぐ控えの根（ライブラリの文書。今の `boundary.shared_cache`、環境変数 `STATE_DIR`）は `.shared/ports.py` の `shared_cache()` を呼ぶ（`prep` の script が引いて `src/rules.py` に値で渡す。この block に写しは持たない）。
 6. 修正役の指示は、範囲の節（段落 `scope`。真偽は承認済みの修正案が在るか）とテストの節（段落 `tests`。`rules` の時はいつも真）に分ける。根拠: 今の指示はテストの節（`planrange.tests_text`）をいつも載せ、範囲の節は修正案が在る時だけだった（2.3 の表）。修正案の無い run でも、変えてよい既存のテストと「これ以外の既存のテストの関数の本体を変える・消すと拒む」の文は指示に残す。
 7. 下請けの審査役の頼み `prompts/parts/g1-review.md` も、2.3.2 の `G1_EXTRA` のほかに、今の `seat.g1_prompt` どおり `G1_SUB_RULES` と検索の決まり `{shared:query-rule}`（`spawns` は偽）を持つ（今の能力を落とさない）。
 8. TDD の役の座の効く所と効かない所は、差し込み口を `{seat_applies}`・`{seat_not_applies}` の 2 つに分けた（見出しの文を md に置くため。4.3 の 8 の `{seat_notes}`）。修正役の座の型の名は `{seat_file}`（今の `PROMPT_HEAD` の `{file}`）。
@@ -888,7 +892,7 @@ node ごとの場面は 2〜6 節の 7。block 全体では:
 
 ## 14 試験
 
-### 14.1 standalone と筋書き（`blocks/fix/fixtures/`。どれも `exec-code: true` で AI の node だけを差し替える。prep は差し替えない）
+### 14.1 standalone と筋書き（`workflows/fix/fixtures/`。どれも `exec-code: true` で AI の node だけを差し替える。prep は差し替えない）
 
 - `standalone.stubs.yaml`: 組の形・実行器なし。入力は `mode: group`・`group: '{"group_id":"g1","unit_ids":["stats.py:4 mean"],"items":[]}'`・`judgment`（その 1 単位を [block] で持つ判定の JSON の字。`class_query` を持たない）だけ。`fixer` は `changes` 1 行の返答（受け付けが拒んでも筋書きは completed）。`reached: [intake, group-start, fix-prep, fixer, consult-check, consult-accept, fix-accept, group-end, fix-reads, finish]`。`resolved-text-contains: {fixer: <fixer の md の決まった文。例 "Do not say \"done\" without changing anything">}`。判定の字に `$ARTIFACTS_DIR` を入れ、字のまま届くことも照らす（world の 9.1 の 5）。
 - `consult.stubs.yaml`: 組の形で修正案（`plan`・`fix_plan`。項目 1 つ・`allowed_paths: ["stats.py"]`）を渡し、`fixer` が `consult`（項目 1・`paths: ["README.md"]`）を返す。`reached` に `consult-answer`・`consult-accept`。`resolved-text-contains: {consult-answer: <consult の md の決まった文>}`。
@@ -902,12 +906,13 @@ node ごとの場面は 2〜6 節の 7。block 全体では:
 
 - `test_intake.py`: 形ごとの必須・読めない port の理由・`values.json` の中身・`reuse_key` の既定。
 - `test_yaml.py`: loop の上限が定数と同じ（TDD 40 = `tdd.MAX_ITERATIONS`・修正と裁定の後の修正 12 = 3 + `consult.BUDGET`・裁定 3 = `rolekit.GIVE_UP_AFTER`・合わせ 9 = `limit`）・`nodes-ok` が `finish` と `fix-reads` のほかの全部に結ぶ・`finish` と `fix-reads` だけが `all_done`・`fresh_context: false` の loop で継ぐ役の直前に 2 つ以上の node の層が無い・`tdd-new` だけが `context: fresh`・裁定役と相談の答えの役が `mutates_checkout: false` で書く道具を持たない・役の模型と道具と sandbox と `skills` が今の YAML と同じ（今の `RolesCase` を写す）・`groups-par` と `groups-seq` が自分を起こし `all_success`・どの AI の node の `prompt:` も同じ loop の prep の `$<id>.output.prompt`。
-- `test_prompts.py`: 9 つの AI の node の md を、その prep を子のプロセスで回して組み、決まった文が入ることを見る（place は試験が用意する: 判定・修正案・申し出・状態）。表 `RENDERED = {node: <md の決まった文>}` に、筋書きで届かない 6 つ（`ruler`・`clash-fix`・`clash-ruled`・`fix-ruled`・`ruled-consult-answer`・`tdd`）を置く（14.3）。修正役の続きの周（resume・queued・overflow_answer）で決まりの段落が入らないこと、ruled の 1 周目だけ裁定の文の段落が入ること、TDD の段ごとに 1 つの段だけの段落が入ること。
+- `test_prompts.py`: 9 つの AI の node の md を、その prep を子のプロセスで回して組み、決まった文が入ることを見る（place は試験が用意する: 判定・修正案・申し出・状態）。表 `RENDERED = {node: <md の決まった文>}` に、筋書きで届かない 6 つ（`ruler`・`clash-fix`・`clash-ruled`・`fix-ruled`・`ruled-consult-answer`・`tdd`）を置く（14.3）。修正役の続きの周（resume・queued・overflow_answer）で決まりの段落が入らないこと、食い違いの申し出の種類（`conflict.DIV_KINDS`）の全部が共通の断片 writer-rules と TDD の役の指示に `` `語` `` で在ること・brief の決まりと裁定役の決まりが種類と範囲（`limits`）の言い方をすること（`ConflictWordsCase`。keep-essence の 8。元 `test_conflict_kinds.py` の文の照らし）、ruled の 1 周目だけ裁定の文の段落が入ること、TDD の段ごとに 1 つの段だけの段落が入ること。
 - `test_tdd.py`: 今の `lib/tests/test_blk_fix_tdd.py` の全部（153 本）と `test_tdd_outside.py`・`test_tdd_frozen.py`・`test_tdd_frozen_function_span.py`・`test_baseline_red.py` のうち tddloop を呼ぶ物。`skip_rerun` で test_cmd を省く試験を足す（今の `TestTestCmdGate` の軽量の行を port で）。
 - `test_frozen.py`: keep-essence の 3（10 節）。
-- `test_fix_accept.py`: 今の `FixAcceptSeamCase`（36 本）・`SettleOverflowSeamCase`・`OverflowTraceSeamCase`・`FactchecksSeamCase`・`FixgatesSeamCase`・`ScopeTextSeamCase`・`PlanrangeSeamCase`・`GateItemsSeamCase`・`lib/tests/test_fix_gates.py`・`test_plan_scope.py`・`test_fix_units.py`・`test_fix_duty.py`・`test_duty_sets.py` と、`tests/workflows/test_fix.py` の `FixLoopScriptsCase`・`FixAcceptCase`・`HandoffCase`。
+- `test_fix_accept.py`: 今の `FixAcceptSeamCase`（36 本）・`SettleOverflowSeamCase`・`OverflowTraceSeamCase`・`FactchecksSeamCase`・`FixgatesSeamCase`・`ScopeTextSeamCase`・`PlanrangeSeamCase`・`GateItemsSeamCase`・`lib/tests/test_fix_gates.py`・`test_plan_scope.py`・`test_fix_units.py`・`test_fix_duty.py`・`test_duty_sets.py` と、`tests/workflows/test_fix.py` の `FixLoopScriptsCase`・`FixAcceptCase`・`HandoffCase`、`OverflowRowCase`（今の `lib/tests/test_impact.py`。値を受ける新しい形）、`WritesLogNameCase`（今の `lib/tests/test_writes.py`。書き込みの記録の名は `writelog.LOG` の 1 か所）。
 - `test_consult.py`: 今の `lib/tests/test_consult.py` の全部と `RolesCase` の相談の配線。
-- `test_join.py`・`test_clash.py`: 今の `BlockScriptsCase` の join と conflict-check・`ClashScenarioCase`・`lib/tests/test_clash.py`・`test_lanekit.py`・`GroupScriptsSeamCase`。
+- `test_join.py`・`test_clash.py`: 今の `BlockScriptsCase` の join と conflict-check・`ClashScenarioCase`・`lib/tests/test_clash.py`・`test_lanekit.py`・`GroupScriptsSeamCase`、`test_fix_seams.py` の `LanekitSeamCase`（`lanes.groups`。`test_join.py`）。
+- `test_fix_seams.py` の割り当て（integration.md の 4.2-6。KEEP のモジュールを試す `TestGroups`・`TestLeftovers`・`TestWritesSeams` は lib/tests に残る）: `GateAsksCase` → `test_intake.py`、`LaneChecksSeamCase` → `test_tdd.py`（`StepLogCase`。step の記録）と `test_fix_accept.py`（`SinceCase`。since）、`SmallGapsSeamCase` → `test_tdd.py`（`RunnerSeamCase`。3 回目で諦める）と `test_fix_accept.py`（`ParkingSkipCase`。parking）と `test_prompts.py`（`ConflictWordsCase`。申し出の種類の全部が決まりの文に在る）、`LanekitSeamCase` → `test_join.py`。
 - `test_ruling.py`: 今の `RulingSeamCase`・`ConflictSeamCase`・`RulerTypeCase`・`FixLoopScriptsCase` の rule の部分。
 - `test_group.py`: 今の `GroupChildScriptsCase`（26 本）と `GroupChildSeamCase`。
 - `test_carry.py`: 1 回目の段の `carry.json` を 2 回目の段の `prior` に渡し、PRIOR の行・AMENDED への移り・前の輪の凍結が 2 回目の受け付けに効く（今の `RefixCase` と `adopt_prior_pass` の試験を、フォルダの代わりに束で）。
@@ -916,7 +921,7 @@ node ごとの場面は 2〜6 節の 7。block 全体では:
 
 ### 14.3 形の検査に足す物（`tests/layers/test_block_shape.py`）
 
-7.1 の 3 の照らし（`check_standalone_renders`）に 1 つの道を足す: AI の node が筋書きで照らされなくても、その block の試験 `tests/blocks/<block>/test_prompts.py` の表 `RENDERED` に node の id が在り、その値が node の md の決まった文の中に在れば、照らされたと数える（表の行を照らすのは試験の側で、形の検査は表の在りと字だけを見る yes/no）。`RENDERED` の node が筋書きでも照らされていれば、表の行は要らない（どちらか 1 つ）。この block の PR が足す（`.shared/AGENTS.md` と `blocks/AGENTS.md` の決まりの 1 行も）。
+7.1 の 3 の照らし（`check_standalone_renders`）に 1 つの道を足す: AI の node が筋書きで照らされなくても、その block の試験 `tests/blocks/<block>/test_prompts.py` の表 `RENDERED` に node の id が在り、その値が node の md の決まった文の中に在れば、照らされたと数える（表の行を照らすのは試験の側で、形の検査は表の在りと字だけを見る yes/no）。`RENDERED` の node が筋書きでも照らされていれば、表の行は要らない（どちらか 1 つ）。この block の PR が足す（`.shared/AGENTS.md` と `workflows/AGENTS.md` の決まりの 1 行も）。
 
 ### 14.4 指示の新旧の比べ（審査の役が 1 つずつ照らす、英語の md が持つべき今の指示）
 
@@ -938,7 +943,7 @@ node ごとの場面は 2〜6 節の 7。block 全体では:
 ## 15 単独で呼ぶ
 
 ```sh
-WORKS_FACTORY_FOLDER=blocks bin/works-factory workflow run works-factory-fix --cwd <対象> \
+bin/works-factory workflow run works-factory-fix --cwd <対象> \
   --input mode=group \
   --input group='{"group_id":"g1","unit_ids":["<単位の key>"],"items":[]}' \
   --input judgment=<判定のファイルのパス> \

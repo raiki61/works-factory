@@ -40,5 +40,19 @@ class ListcutCase(unittest.TestCase):
         self.assertEqual(listcut.lines(["x"], name="増え（after.fence_up）"), ["  - x"])
 
 
+class CapBytesCase(unittest.TestCase):
+    """役に貼る本文をバイトで切る口（前は graphloops/engine/render.py。integration.md 4.3-6）"""
+
+    def test_cuts_at_bytes_and_names_the_cut(self):
+        cut = []
+        self.assertEqual(listcut.cap_bytes("あい", "x", cut, cap=6), "あい")
+        self.assertEqual(cut, [])
+        got = listcut.cap_bytes("あいう", "x", cut, cap=6)
+        self.assertTrue(got.startswith("あい\n\n［"), got)
+        self.assertEqual(cut, ["x: 9 バイトを 6 バイトで切った"])
+        self.assertEqual(listcut.cap_bytes("あいう", "x", [], cap=None), "あいう")
+        self.assertEqual(listcut.FILE_CAP, 40000)
+
+
 if __name__ == "__main__":
     unittest.main()

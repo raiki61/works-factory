@@ -1,4 +1,4 @@
-"""修正の block（blocks/fix/）の返す node finish と、全体の形の終わりの clean・assert-changed の試験（docs/design/fix.md の 1.2・7 節・
+"""修正の block（workflows/fix/）の返す node finish と、全体の形の終わりの clean・assert-changed の試験（docs/design/fix.md の 1.2・7 節・
 11 節・14.2）。
 
 今の tests/workflows/test_fix.py の BlockScriptsCase の collect・clean・assert_changed の試験を写した（差分の審査とレンズの欄の物は
@@ -138,11 +138,6 @@ class FinishPlace(unittest.TestCase):
     def beside(self, out) -> pathlib.Path:
         return (self.art / out["diff"]["path"]).parent
 
-    def read_stage(self, out) -> dict:
-        """出力を 1 段として、line が使う読み手の口 fixbeside.read で読む（pointer は place の中のパスに戻す）"""
-        import fixbeside
-        return fixbeside.read([out], lambda ptr: self.art / ptr["path"])
-
     def without_lib(self) -> dict:
         """lib が読めない（WORKS_FACTORY_ROOT の先に lib/ が無い）finish。落ちずに約束の形を返す"""
         empty = self.tmp / "no-root"
@@ -234,7 +229,6 @@ class CollectCase(FinishPlace):
 
     def test_collect_returns_removed_as_pointers_to_every_scope_file(self):
         """#681: clean が消したパスの控えは全件を欄に載せず、place の根と scope の根の控えの pointer の並びで返す"""
-        import fixbeside
         import leftovers
         self.collect_place()
         write(self.place / leftovers.REMOVED_FILE, {"removed": [f"build/{i}.o" for i in range(5000)]})
@@ -243,8 +237,8 @@ class CollectCase(FinishPlace):
         self.assertEqual([self.art / ptr["path"] for ptr in out["removed"]],
                          [self.place / leftovers.REMOVED_FILE, self.place / "sub" / leftovers.REMOVED_FILE])
         self.assertLess(len(json.dumps(out["removed"])), 1000)
-        rows = fixbeside.always_rows(self.read_stage(out))
-        self.assertTrue(any("clean が消したファイル" in r and r.endswith(": 5001 本") for r in rows), rows)
+        names = [json.loads(p.read_text(encoding="utf-8"))["removed"] for p in map(lambda ptr: self.art / ptr["path"], out["removed"])]
+        self.assertEqual([len(x) for x in names], [5000, 1], "控えの全件が pointer の先に残る（読み手の数え方は report と line の試験）")
 
     def test_unrestored_group_holds_the_tree_and_stops_for_a_human(self):
         """#403: 戻せず当たったままの組が在る run は、裁定・後始末が木を動かさず、finish は ok: false と人待ちの止めの語
@@ -364,47 +358,41 @@ class CollectCase(FinishPlace):
     def test_collect_writes_the_closure_beside_the_diff(self):
         """F428・R72（S28）: 閉鎖の表（組の子の結果の closure と、裁定の後の段の place の fix-unit-rows.json）と申告の単位
         （claimed）を diff の隣の closure.json に置く"""
-        import fixbeside
         self.collect_place(result_extra={"closure": [self.CLOSURE_A], "claimed": ["A"]})
         write(self.place / "fix-unit-rows.json", {"round": 1, "rows": [self.CLOSURE_B]})
         write(self.place / "fix-ruled-reply.json", {"changes": [{"unit_key": "B"}, {"unit_key": "C"}]})
         out = self.finish()
         doc = json.loads((self.beside(out) / self.files.CLOSURE_FILE).read_text(encoding="utf-8"))
         self.assertEqual(doc, {"rows": [self.CLOSURE_A, self.CLOSURE_B], "claimed": ["A", "B", "C"]})
-        got = self.read_stage(out)
-        self.assertEqual([x.split("（")[0] for x in fixbeside.closure_lines(got, mismatched_only=True)], ["A: 閉じていない"])
-        self.assertEqual([x.split("（")[0] for x in fixbeside.closure_lines(got, stuck_only=True)], ["A: 閉じていない"])
-        self.assertEqual(fixbeside.closure_lines(got), ["C: 閉鎖の表に行が無い（修正役の申告だけで、機械の数え直しで閉じたと確かめていない）"])
-        self.assertEqual(fixbeside.not_closed(got), ["A"])
+        # 閉じたかの読み分け（closure_lines・not_closed）は読み手（report・line）の物。ここは読み手が読む 2 つの欄を縛る:
+        # 閉じていない行は A だけ、申告したのに表に行が無い単位は C だけ
+        self.assertEqual([r["unit_key"] for r in doc["rows"] if not r["closed"]], ["A"])
+        self.assertEqual(sorted(set(doc["claimed"]) - {r["unit_key"] for r in doc["rows"]}), ["C"])
 
     def test_collect_writes_the_accept_trace_beside_the_diff(self):
         """F013・F041・R37: 受け付けの行を、組の子の結果の accept_trace と place の trace.jsonl の受け付けの行から diff の隣の
         accept-trace.json に置く"""
-        import fixbeside
-        child = {"op": fixbeside.TESTS_OP, "ci_left": ["tests/test_slow.py"], "final_left": ["tests/test_far.py"], "final_far": [],
+        import importlib
+
+        import impact
+        gates = importlib.import_module("src.gates")
+        child = {"op": impact.ACCEPT_TRACE_OP, "ci_left": ["tests/test_slow.py"], "final_left": ["tests/test_far.py"], "final_far": [],
                  "group_id": "g1"}
         self.collect_place(result_extra={"accept_trace": [child]})
-        self.board.trace(self.place, fixbeside.SKIPPED_OP, why=["実行器が無い"])
+        self.board.trace(self.place, gates.SKIPPED_OP, why=["実行器が無い"])
         self.board.trace(self.place, "fix_accepted", node="fix-ruled-accept")
         out = self.finish()
         rows = json.loads((self.beside(out) / self.files.ACCEPT_TRACE_FILE).read_text(encoding="utf-8"))
-        self.assertEqual([r["op"] for r in rows], [fixbeside.TESTS_OP, fixbeside.SKIPPED_OP])
-        got = self.read_stage(out)
-        text = "\n".join([*fixbeside.tests_left_lines(got), *fixbeside.gates_lines(got)])
-        for want in ("  - tests/test_slow.py", "最後のテストの段に任せた試験（1 件", "  - tests/test_far.py",
-                     "事後の関門の束: 受け付け 1 回が受け入れのテストの赤緑を確かめずに通した（理由: 実行器が無い）"):
-            self.assertIn(want, text)
+        self.assertEqual([r["op"] for r in rows], [impact.ACCEPT_TRACE_OP, gates.SKIPPED_OP])
+        self.assertEqual((rows[0]["ci_left"], rows[0]["final_left"], rows[1]["why"]),
+                         (["tests/test_slow.py"], ["tests/test_far.py"], ["実行器が無い"]))   # 行の読み方（報告の文）は report の試験
 
     def test_collect_names_the_beside_files_when_it_cannot_build_the_return(self):
         """K13・errors F1・F2: 出力を組めない（place に groups.json が無い）時、閉鎖の表は無く、読み手は無いと名指して 0 件に
         見せない（閉鎖の表の訳は閉じたかを数えていない行）"""
-        import fixbeside
         out = self.finish()
         self.assertFalse(out["ok"])
-        self.assertIsNone(out["closure"])
-        got = self.read_stage(out)
-        self.assertIn("修正の控え closure が無い", got["unread"])
-        self.assertTrue(all(x.endswith(fixbeside.CLOSURE_UNREAD) for x in got["closure_unread"]) and got["closure_unread"])
+        self.assertIsNone(out["closure"])   # 読み手（report・line）はこの null を「閉じたかを数えていない」と読む
 
     def test_collect_takes_units_fixed_after_ruling(self):
         """裁定の後の修正の段が直した単位（place の fix-units.json）は fixed で返る"""

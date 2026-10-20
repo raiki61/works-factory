@@ -17,6 +17,7 @@ import unittest
 
 from bin._lib import auth_launch, launcher, place, toolset
 from lib import answer, launchgroups, reads, userenv, writelog
+from tests import archon
 from tests.bin import fakelaunch, hermetic
 from tests.bin.fakelaunch import ENTRY, FAKE_BUN, put, unique_run_id
 from tests.bin.gitkit import git
@@ -118,17 +119,6 @@ class LauncherTest(unittest.TestCase):
                 "workflow", "respond", "--cwd", str(self.target)]
         return {"env": {"WORKS_FACTORY_ROOT": str(self.repo), answer.ENV: shlex.join(head)},
                 "workflows": {"autoResumeOnQuotaReset": False}, "aliases": place.group_presets()}
-
-    def test_folder_env_reads_the_named_pack(self):
-        """作り直しの間の 2 つ目の pack blocks/ を、新しい run だけ環境変数で選ぶ（docs/design/README.md の 3 節）"""
-        argv = self.reached(self.launch("workflow", "run", "works-factory-world", "--input", "request=x",
-                                        WORKS_FACTORY_FOLDER="blocks"))["argv"]
-        self.assertEqual(argv[7], "--workflow-source")
-        self.assertEqual((pathlib.Path(argv[8]) / ".archon" / "workflows" / "works-factory").resolve(), self.repo / "blocks")
-        for bad in ("../workflows", "absent", ".shared"):
-            with self.subTest(bad=bad):
-                err = self.stopped(self.launch("workflow", "run", "works-factory-world", WORKS_FACTORY_FOLDER=bad))
-                self.assertIn("WORKS_FACTORY_FOLDER", err)
 
     def test_run_gets_cwd_and_workflow_source_before_user_args(self):
         got = self.reached(self.launch("workflow", "run", "works-factory-line", "--input", "request=x", cwd=self.target / "sub"))
@@ -942,7 +932,7 @@ class ReadmeUsageTest(unittest.TestCase):
         self.assertEqual(entry.request_problems(parts[carry.FINDINGS]), [])
 
     def test_test_cmd_and_start_point_are_documented(self):
-        from lib import testcmd_check
+        testcmd_check = archon.src_module("line", "testcmd_check")   # 今の lib/testcmd_check.py の行き先（line の src。4.5-7）
         self.assertIn("「test_cmd and worktrees」", testcmd_check.HOW)
         test_cmd = self.section("test_cmd and worktrees")
         for word in ("--input test_cmd=", testcmd_check.ALLOW_ENV, "止める（test_cmd）", "注意（test_cmd）"):

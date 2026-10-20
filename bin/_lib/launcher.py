@@ -27,14 +27,11 @@ NAME = "works-factory"
 RESUMING = frozenset({"resume", "approve", "reject", "respond", "answer"})
 CONTINUING = frozenset({"wake", "signal"})
 EXECUTING = frozenset({"run"}) | RESUMING | CONTINUING
-# run のノードが lib/ を探すリポジトリの根（workflows/.shared/boundary.py の lib_root が読む名）
+# run のノードが lib/ を探すリポジトリの根（workflows/.shared/ports.py の lib_root が読む名）
 ROOT_ENV = "WORKS_FACTORY_ROOT"
 # 読むだけと分かった上の命令。ほか（trigger・chat・serve・殻の知らない命令）は AI を走らせうるので認証に通す
 READING = frozenset({"validate", "version", "help"})
 HOME_ENV = "WORKS_FACTORY_HOME"   # 利用者が選ぶ家（run_home）
-# 新しい run が読む pack のフォルダ（リポジトリの根の直下のフォルダの名）。空は pack.json の ours.folder。作り直しの間の 2 つ目の
-# pack blocks/ を単独で回す時に blocks を選ぶ（docs/design/README.md の 3 章）。続ける命令は run が始めに写し取った pack から走るので読まない
-FOLDER_ENV = "WORKS_FACTORY_FOLDER"
 NO_AUTH_ENV = "WORKS_FACTORY_NO_AUTH"   # 認証の要らない起動（lib/entryshape.py の NO_AUTH_ENV と同じ名）
 HOST_GH_DIR = "host-gh"
 FENCE_DIR = "claude-fence"
@@ -42,7 +39,7 @@ FENCE = ROOT / "workflows" / ".shared" / "fence.py"
 # 包みが印の在る起動を書く記録（fence.py の RECORDS_ENV と同じ名）。子の env に置くと、run が包みを通ると script のノードに宣言する
 FENCE_RECORDS_ENV = "WORKS_FACTORY_FENCE_RECORDS"
 FENCE_RECORDS = "launches.jsonl"
-# TDD の実行器の取り置きの根を script のノードに渡す名（workflows/.shared/boundary.py の SUITE_KEEP_ENV と同じ名）
+# TDD の実行器の取り置きの根を script のノードに渡す名（workflows/.shared/ports.py の SUITE_KEEP_ENV と同じ名）
 SUITE_KEEP_ENV = "WORKS_FACTORY_SUITE_KEEP"
 SUITE_KEEP = "suites"
 # run の中のノードが殻を入れ子にせず同じ Archon を起こす命令の頭を置く名（名の持ち主は読む側の埋め P7）
@@ -59,7 +56,7 @@ ARCHON_CWD_ENV_FILES = (".env", ".env.local", ".env.development", ".env.producti
 # この照らしでは守れない。その役からは write_fence の --own が取り置きと工場の根を守る
 SANDBOX_WRITABLE = ("/tmp/claude-*", "/private/tmp/claude-*")
 # 実行する run の起動で毎回出す 1 行（持ち主の決め target-user-env）。tree_run.outside_env の env で起こす対象のコマンド（数え上げは
-# docs/design.md の「対象のコマンドの環境と準備」）は利用者の HOME・XDG で走る。コマンドごとの守りは工場が作らない（隔離が要る人は工場ごと包む）
+# docs/design/archon.md の「対象のコマンドの環境と準備」）は利用者の HOME・XDG で走る。コマンドごとの守りは工場が作らない（隔離が要る人は工場ごと包む）
 TARGET_ENV_NOTICE = ("AI が書いた試験のコードを、あなたの権限（利用者の HOME・XDG）で走らせる。書く物も利用者の家に入る。"
                      "守りが要るなら工場ごとコンテナか VM の中で回す")
 
@@ -163,7 +160,7 @@ def launch(argv: list[str], user: dict[str, str], here: Path) -> int:
         args = argv
     else:
         try:
-            workflows = place.workflow_source(loaded, ROOT, cache, pack_folder(user))
+            workflows = place.workflow_source(loaded, ROOT, cache)
         except RuntimeError as error:
             raise Stop(str(error)) from None
         rest = without_flag(without_flag(argv[3:], "--cwd"), "--config")
@@ -183,17 +180,6 @@ def launch(argv: list[str], user: dict[str, str], here: Path) -> int:
     if not reads_only(argv):
         command = [*auth, "exec", *auth_user, "--", *command]
     os.execve(command[0], command, child)
-
-
-def pack_folder(user: Mapping[str, str]) -> str | None:
-    """新しい run が読む pack のフォルダの名（FOLDER_ENV。空なら None で pack.json の ours.folder）。リポジトリの根の直下の
-    フォルダの名でなければ止める"""
-    name = user.get(FOLDER_ENV, "").strip()
-    if not name:
-        return None
-    if "/" in name or name.startswith(".") or not (ROOT / name).is_dir():
-        raise Stop(f"{FOLDER_ENV}={name!r} はリポジトリの根の直下の pack のフォルダの名にする（例 blocks）")
-    return name
 
 
 def reads_only(argv: list[str]) -> bool:
@@ -234,7 +220,7 @@ def adopting(flags: list[str]) -> bool:
 
 
 def run_env(home: Path, target: Path) -> dict[str, str]:
-    """run のノード（script・bash）に渡す環境変数: lib/ を探すリポジトリの根（workflows/.shared/boundary.py の lib_root）と、承認ノードの
+    """run のノード（script・bash）に渡す環境変数: lib/ を探すリポジトリの根（workflows/.shared/ports.py の lib_root）と、承認ノードの
     文の答えの行の頭（answer_head）"""
     return {ROOT_ENV: str(ROOT), answer.ENV: answer_head(home, target)}
 

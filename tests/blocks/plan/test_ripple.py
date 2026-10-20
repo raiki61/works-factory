@@ -1,4 +1,4 @@
-"""波及の一覧（blocks/plan/src/ripple.py。今の lib/tests/test_ripple.py の写し。docs/design/plan.md の 9.2）の検査。
+"""波及の一覧（workflows/plan/src/ripple.py。今の lib/tests/test_ripple.py の写し。docs/design/plan.md の 9.2）の検査。
 
 項目が変える名（単位の key の `+` の後の名・files の change=add の symbol の名のうち対象に在る物）を `git grep -w` で引き、本体の呼び出し元と試験に分け、
 項目の allowed_paths・tests・rewrite_tests に照らして覆っていない当たりを名指す。見本は run 195g の波及の見落としの形

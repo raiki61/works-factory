@@ -1,6 +1,6 @@
 # block の設計書: local-review（局所レビュー）
 
-- 何の話か: 対象差分に、宣言したレビューのレンズ（組み込みの skill 3 本と pr-review-toolkit の agent 4 本）を 1 本ずつ起こして所見を集める素材の観点「局所レビュー」を、単独で呼べる block `blocks/local-review/` にする設計。素材の観点の族の 1 本で、族の共通の形は [materials.md](materials.md)、手本の書き方は [prior-decisions.md](prior-decisions.md) に従う。型は [README.md](README.md)。
+- 何の話か: 対象差分に、宣言したレビューのレンズ（組み込みの skill 3 本と pr-review-toolkit の agent 4 本）を 1 本ずつ起こして所見を集める素材の観点「局所レビュー」を、単独で呼べる block `workflows/local-review/` にする設計。素材の観点の族の 1 本で、族の共通の形は [materials.md](materials.md)、手本の書き方は [prior-decisions.md](prior-decisions.md) に従う。型は [README.md](README.md)。
 - 決めたこと: 今の judge の `material-route` の 1 列と `local-review-loop`（prep・役・accept）を、5 つの node の block にする。入力は族の共通の 3 つ（`base`・`entry`・`lang`）だけ。レンズの一覧（今の `LOCAL_REVIEW_SKILLS`）・見ていないレンズの印（今の `lib/diverted.py`）・必須のレンズの照らし（今の `_lens_gap`）・レンズと行の照らし（今の `local_review_covers_lenses`）は block の `src/lenses.py` 1 か所に置く。レンズごとの注意の文（今の一覧の `note`）は Python から md へ移す。見ていないレンズは出力の `report` の行で返し、報告の「未確認のレンズ」の元になる。振る舞いは変えない。
 - 持ち主に求めること: なし。
 - 読む人と使い方: この block を作る実装者（1〜4 節の名と順をそのまま作る）。素材の観点の残り 9 本と同じ時に作る（README の 11.1 の 1 波目）。
@@ -30,7 +30,7 @@
 
 今との違い: 今は `material-route` が `not_request_entry` で回すかを決め、受けた返答を `judge/material-local-review.json` に、見ていないレンズを `judge/local-review-lenses.json` に書き、判定の出力の欄 `review_lenses` が後者のパスを外へ出していた（`lib/judge_accept.py:3885`、`lib/runreport.py:1478-1481` が読む）。新しい形では見ていないレンズは出力の `report` の行で出る（README の 4.1 の「報告の文は事実を持つ block が組む」）。
 
-### 1.3 node の並び（`blocks/local-review/works-factory-local-review.yaml`）
+### 1.3 node の並び（`workflows/local-review/works-factory-local-review.yaml`）
 
 materials.md の 1.3 の雛形の `<観点>` を `local-review` にした物。
 
@@ -51,8 +51,8 @@ materials.md の 1.4 の名（`intake.json`・`view.json`・`diff.patch`・`chan
 
 ### 1.5 コードの置き場
 
-- `blocks/local-review/src/__init__.py`（空）。
-- `blocks/local-review/src/lenses.py`（この観点だけの部品。docstring の頭に `lib/diverted.py` の docstring の「なぜ要るか」の段を写す）:
+- `workflows/local-review/src/__init__.py`（空）。
+- `workflows/local-review/src/lenses.py`（この観点だけの部品。docstring の頭に `lib/diverted.py` の docstring の「なぜ要るか」の段を写す）:
   - `LENSES: tuple[dict, ...]`: レンズの宣言。今の `LOCAL_REVIEW_SKILLS`（`lib/judge_accept.py:1697-1706`）の 7 本を同じ順で、欄 `skill`・`args`（在る物だけ）・`required`・`applies_cond`（在る物だけ）に絞って写す。`note` は写さない（文は md の 2.3 の `## Notes per lens` へ移す）。
     ```python
     LENSES = (
@@ -77,7 +77,7 @@ materials.md の 1.4 の名（`intake.json`・`view.json`・`diff.patch`・`chan
   - `installed_plugins() -> set | None`: 写す元 `_installed_plugins`（`lib/judge_accept.py:2424-2433`。環境変数 `CLAUDE_CONFIG_DIR` の下の `plugins/installed_plugins.json`）。
   - `lens_gap(skills, reply) -> tuple[str, bool] | None`: 写す元 `_lens_gap`（`:2435-2460`）。違いは 3 つ（どれも振る舞いは同じ）: 持ち越しの判定 `carry_ok` は変数ごと外し、`simplify_carried` は不足を免じない（今も `carry_ok = False` で同じ）。`/simplify` の不足の文の尾は「（simplify_carried: true の持ち越しはこの run では受けない——1 run は 1 周で、前の周の版が無い）」にする。プラグインの欠けの尾の入れ直しの道を、今の字の `dev/toolset.py`（工場に無いパス）から `bin/_lib/toolset.py install`（起動の殻 `bin/_lib/launcher.py:361-364` が run の頭に打つ物）に直す。
   - `covers_lenses(skills, reply) -> str | None`: 写す元 `local_review_covers_lenses`（`:2186-2220`）。`Reject` を上げる代わりに拒む文を返す（通れば None）。文の違い: 宣言の外の名の文の「正本は graph の skills（…）。名指しを増やしたいなら graph を直せ（役が勝手に増やした名前は数えられない）」を「正本は宣言のレンズ（…）。役が足した名は数えられない」に、`skills` が空の文の「graph に宣言を書け」を外す（block は graph を名指さない。materials.md の 10 節）。ほかの文は字のまま。
-- `blocks/local-review/src/viewpoint.py`: materials.md の 5.1 の宣言。中身:
+- `workflows/local-review/src/viewpoint.py`: materials.md の 5.1 の宣言。中身:
   - `NAME = "local-review"`
   - `MATERIALS = ("local_review",)`
   - `GUARDED = False`（作業ツリーの照らしを外すのではなく、Archon が節の前後の git status を照らさない役なので、accept が `porcelain` も含む全部の欄を比べる、の意味。AI の node が `mutates_checkout: false` を持たない。今の accept の `with: {status_guarded: false}`。`workflows/judge/works-factory-judge.yaml:1123`）
@@ -93,12 +93,12 @@ materials.md の 1.4 の名（`intake.json`・`view.json`・`diff.patch`・`chan
   - `after_accept(reply, place)`: `jsonfile` で `place / lenses.LENS_FILE` に `{"round": 1, "unseen": lenses.unseen(reply)}` を書く（今の `:2595`・`:2620-2621`）。
   - `materials_of(reply)`: `{"local_review": reply["material"]} if isinstance(reply.get("material"), dict) else {}`（今の `writes` の `materials.local_review ← material`）。
   - `report_lines(doc)`: `reply` が null なら `[]`。在れば `[f"  - {s}" for s in lenses.unseen_lines(lenses.unseen(doc["reply"]))]`（字下げ 2 つ。materials.md の 2.10 の素材の 1 行の下に並ぶ）。
-- `blocks/local-review/src/oldbrief.py`（1 つ目の commit だけ）: 今の材料のファイルを同じ字で組む `brief(view, values) -> str`。レンズの一覧は今の `LOCAL_REVIEW_SKILLS` の `note` つきの字をこのファイルに写して持つ（`lib/judge_accept.py` は import しない）。2 つ目の commit で消す。
-- 使う `lib/`: `materialkit`・`rolekit`・`jsonfile`・`oneline`・`seat`（`overlay_body` と `OVERLAY_KINDS`。KEEP。README の 9.3）。`lib/diverted.py` は import しない（README の 9.2 で local-review へ MOVE する物。作り直しの間は今の judge のために残す）。
+- `workflows/local-review/src/oldbrief.py`（1 つ目の commit だけ）: 今の材料のファイルを同じ字で組む `brief(view, values) -> str`。レンズの一覧は今の `LOCAL_REVIEW_SKILLS` の `note` つきの字をこのファイルに写して持つ（`lib/judge_accept.py` は import しない）。2 つ目の commit で消す。
+- 使う `lib/`: `materialkit`・`rolekit`・`jsonfile`・`oneline`・`seat`（`overlay_body` と `OVERLAY_KINDS`。KEEP。README の 9.3）。`lib/diverted.py` は import しない（README の 9.2 で local-review へ MOVE した物）。
 
 ### 1.6 つなぎ方（graph の側。block には書かない）
 
-- 判定のまとめ（`blocks/judge/`）: `include: works-factory-local-review`、`depends_on` は materials.md の 1.6。`with:` は `base`・`entry`・`lang` の共通の 3 つだけ（作り手は materials.md の 1.6）。
+- 判定のまとめ（`workflows/judge/`）: `include: works-factory-local-review`、`depends_on` は materials.md の 1.6。`with:` は `base`・`entry`・`lang` の共通の 3 つだけ（作り手は materials.md の 1.6）。
 - 読み手:
   - diagnose の `materials`（11 本の `material` の配列の 1 つ）。素材 `local_review` は `materialkit.assemble` が 15 欄にそろえる。判定役の材料の「局所の findings」（今の `_diagnose_ctx` の `process.local_findings ← reply.findings`、`lib/judge_accept.py:2769-2773`）は、diagnose が同じ配列の `role == "local-review"` の `materialkit.read` の返りの `reply["findings"]` から取る（読み方は diagnose の設計書が決める）。
   - 報告の「未確認のレンズ」の節（今の `runreport._unseen_lens_lines` が `review_lenses` の先を `diverted.report_lines` で読んだ物）: この block の `report` の欄の、素材の 1 行の後ろの行。report.md の 1.6 は「未確認のレンズ → local-review」とする。修正の後のレンズの行（今の `fixbeside.lens_lines`）を同じ節に並べるのは line の決め。
@@ -341,7 +341,8 @@ prior-decisions.md の 2.6 の族に共通の差（材料のファイルを指�
 - 消した: 「engine の post_check が拒む」「engine が P1 の前後で突き合わせる」の engine・post_check・P1・P2 の名指し（md:50・54・56）。"the acceptance step" と "the judgment … later in this run" に替えた（役が見ない仕組みの名）。
 - 残した: 実測の訳（2026-09-15 の型設計のレンズが 3 周起きなかった・旗の綴りが旗に取られた）。役が行を省かない・綴りを書かない訳として、返答の形を決めるため。
 - 移した: 借りたスキルの読み替え（md:89-166）の頭の 1 文を英語の決まった文に、本文を `{unattended}` の値に。本文は今も `seat.overlay_body` が `lib/borrow/unattended.md` から組む字で（今の試験 `tests/workflows/test_judge.py:521-530` がそれと md の末尾の一致を見ていた）、新しい形では写しを md に置かず、源から入れる。置く所を結びの前に移した（3.1 の並びの言語の 1 文と結びの 1 文を最後に保つため）。
-- 足した物は無い。役の名「局所レビューの役」は "the local-review role"。
+- 変えた: 断片 `material-where` の尾の文を、受け付けが照らす範囲（`where` と `text` を持つ行だけ。ほかの行は照らさない）に合わせて狭めた。
+- 役の名「局所レビューの役」は "the local-review role"。
 
 ### 2.7 元の works と graphloops の同じ場面
 
@@ -377,7 +378,7 @@ materials.md の 4 節の順。観点の前の照らし（4 節の 3）と後の
 
 ### 2.9 試験
 
-- standalone の fixture（`blocks/local-review/fixtures/`）:
+- standalone の fixture（`workflows/local-review/fixtures/`）:
   - `standalone.stubs.yaml`: `fixture.inputs` は `base: ""`・`entry: ""`・`lang: ""`。AI の node `local-review` だけを台本の返答（`material.status: clean`・`checked` 1 文・`simplify_carried: false`・`findings` は 7 本のレンズに 1 行ずつ、`items: []`・`invoked: true`・`failed: "起こしたが所見なし（差分を見た）"`。ただし `/code-review` の行は `items` に 1 件〔`where` は fixture の作業ツリーに在るファイルの 1 行目〕を持たせ、見ていない印が付かない形にする）で差し替え、script は本物（`--exec-code`）。`reached` に `finish`。`finish` の `status` が `ran`。
   - `gave-up.stubs.yaml`: 台本の返答が 3 回とも `material.status: not_applicable`（ほかは standalone と同じ）。`finish` の `status` が `gave_up`、run は `completed`。
   - `skipped.stubs.yaml`: `entry: "人の依頼（standalone）"`。AI の node に届かず、`finish` の `status` が `skipped`、`reason` が `materialkit.entry_skip("P1 の役").why` の字。
@@ -420,7 +421,7 @@ materials.md の 2.8 と 4 節の文に、2.8 の前の照らしと後の照ら�
 ## 5 単独で呼ぶ
 
 ```sh
-bin/works-factory <読ませるフォルダを blocks/ にする引数（名は土台の PR で決める）> workflow run works-factory-local-review \
+bin/works-factory workflow run works-factory-local-review \
   --input base=<差分の根の commit。空なら HEAD>
 ```
 

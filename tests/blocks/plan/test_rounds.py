@@ -31,7 +31,7 @@ from engine.schema import validate_schema  # noqa: E402
 
 FORK = "f0" * 20   # 差分の run の差分の根（読む版と違う版）
 
-# md の札（prompts/plan-writer.md と blocks/.shared/prompts/ の断片の見出しと頼みの頭）
+# md の札（prompts/plan-writer.md と workflows/.shared/prompts/ の断片の見出しと頼みの頭）
 ROLE_HEAD = "You are the planning role, and you only read."
 PRIOR_HEAD = "## The previous round's plan and the review's findings"
 NO_REVIEW = "- Review findings: not received"
@@ -680,7 +680,7 @@ class BriefCase(unittest.TestCase):
         run = PlanRun(self, diff_base=FORK)
         run.include()
         self.assertIn(f"Repository: {run.repo.resolve()} (version read: `{run.base}`)  BASE: `{FORK}`  "
-                      f"Viewpoint source: {base.ROOT / 'lib' / 'REVIEW.md'}", self.prompt(run))
+                      f"Viewpoint source: {kit.SHARED / 'prompts' / 'REVIEW.md'}", self.prompt(run))
 
     def test_excluded_range_named(self):
         run = PlanRun(self)

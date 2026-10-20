@@ -12,17 +12,13 @@
 入力: got（PR の記録 {number, url, state, repo, head_repo, head, base, head_revision, is_draft, …}）・head（積んだ commit）・
 branch（積んだ枝）・base_branch（既定の枝）・repo（origin の {host, path}）
 """
-import json
 import os
 import sys
 from pathlib import Path
 
-try:
-    sys.path.insert(0, str(Path(__file__).resolve().parents[2] / ".shared"))
-    import boundary
-    unread = None
-except Exception as error:   # 返す節が結ぶので落ちない（上の docstring）
-    boundary, unread = None, error
+sys.dont_write_bytecode = True
+sys.path[:0] = [str(Path(__file__).resolve().parents[2] / ".shared"), str(Path(__file__).resolve().parents[1])]
+import ports  # noqa: E402
 
 NAMES = ("number", "url", "state", "repo", "head_repo", "head", "base", "head_revision", "is_draft")
 OPEN = "open"
@@ -53,9 +49,9 @@ def mismatch(got, want: dict) -> str:
 
 
 def read() -> dict:
-    got = boundary.picked(os.environ.get("INPUTS_GOT"), NAMES)
-    want = {"head": boundary.text(os.environ.get("INPUTS_HEAD")), "branch": boundary.text(os.environ.get("INPUTS_BRANCH")),
-            "base": boundary.text(os.environ.get("INPUTS_BASE_BRANCH")), "repo": boundary.value(os.environ.get("INPUTS_REPO"))}
+    got = ports.picked(os.environ.get("INPUTS_GOT"), NAMES)
+    want = {"head": ports.text(os.environ.get("INPUTS_HEAD")), "branch": ports.text(os.environ.get("INPUTS_BRANCH")),
+            "base": ports.text(os.environ.get("INPUTS_BASE_BRANCH")), "repo": ports.parsed(os.environ.get("INPUTS_REPO"))}
     if got is None:
         return not_read("PR の記録が無い")
     url, number = got.get("url"), got.get("number")
@@ -67,14 +63,4 @@ def read() -> dict:
     return {"ok": True, "number": number, "url": url, "is_draft": got.get("is_draft") is True, "reason": ""}
 
 
-def main() -> None:
-    if boundary is None:
-        reason = f"{type(unread).__name__}: {unread}"
-        print(reason, file=sys.stderr)
-        print(json.dumps(not_read(reason), ensure_ascii=False, allow_nan=False), flush=True)
-    else:
-        boundary.run(read, not_read)
-
-
-if __name__ == "__main__":
-    main()
+ports.run(read, not_read)

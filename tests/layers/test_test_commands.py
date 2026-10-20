@@ -1,7 +1,8 @@
-"""run の中の確かめの命令と全部の試験の命令を、役が取り違えないように書いてある（tests/AGENTS.md。持ち主の決め full-suite-in-ci）。
+"""run の中の確かめの命令と全部の試験の命令を、役が取り違えないように書いてある（`tests/AGENTS.md`。持ち主の決め `full-suite-in-ci`）。
 
-run の中の役は決まりの文書から確かめの全体の命令を探す。そこに書いた run の中の命令は UNIT が先に在り、
-全部の試験の命令は tests/AGENTS.md の CI の行にだけ在る。読み方そのものは人が見る。
+- `tests/AGENTS.md` に run の中の命令 `uv run --isolated python3 tests/changed.py`（試験の中の定数 `UNIT`）が、全部の試験の命令より先に在る。
+- 全部の試験の命令（`python3 -m unittest discover`）は `tests/AGENTS.md` の CI の行にだけ在り、その行は「CI が回す物」と「回さない」を持つ。ほかの決まりの文書（全部の階層の `AGENTS.md`・根の `README.md`・`MISSION.md`・`engineering.md`）と `pyproject.toml` には無い。
+- どちらが run の中の命令と読めるか（読み方そのもの）は人が見る。
 """
 import pathlib
 import unittest

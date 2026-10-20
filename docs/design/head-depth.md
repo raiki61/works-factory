@@ -1,14 +1,14 @@
 # block の設計書: head-depth（run の頭の深さ）
 
-- 何の話か: 依頼の行ごとに「まだ決まっていない事の種類」（未知の種類）を引用つきで AI に選ばせ、その種類から run 全体の深さの段（軽量・標準・重厚）を機械が引く観点を、単独で呼べる block `blocks/head-depth/` にする設計。型は [README.md](README.md) に、形は手本の [world.md](world.md) に従う。
-- 決めたこと: 今の judge の 4 つの node（head-depth-prep・head-depth-reject・head-depth・head-depth-accept）を、5 つの node の block にする。入力は依頼の行・機械の確かめの有無・段の名指し・仕様の段・設計だけ・言語の 6 つの port だけで、始めの記録と止めの記録を読まない。指示は英語の md 1 本（`prompts/head-depth.md`）にまとめ、今の材料のファイル `depth-head-brief.md` を Read させる形をやめて、材料を指示の中に入れる。lib の Python に在った群の節の見出しと「記録だけ」の 1 文は md へ出す。未知の種類 → 段の表（今の `headdepth.UNKNOWNS`）と受け付けは、この block の `src/` に置く。振る舞いは変えない。
+- 何の話か: 依頼の行ごとに「まだ決まっていない事の種類」（未知の種類）を引用つきで AI に選ばせ、その種類から run 全体の深さの段（軽量・標準・重厚）を機械が引く観点を、単独で呼べる block `workflows/head-depth/` にする設計。型は [README.md](README.md) に、形は手本の [world.md](world.md) に従う。
+- 決めたこと: 今の judge の 4 つの node（head-depth-prep・head-depth-reject・head-depth・head-depth-accept）を、5 つの node の block にする。入力は依頼の行・機械の確かめの有無・段の名指し・仕様の段・設計だけ・言語の 6 つの port だけで、始めの記録と止めの記録を読まない。指示は英語の md 1 本（`prompts/head-depth.md`）にまとめ、今の材料のファイル `depth-head-brief.md` を Read させる形をやめて、材料を指示の中に入れる。lib の Python に在った群の節の見出しと「記録だけ」の 1 文は md へ出す。受け付けは、この block の `src/` に置く。未知の種類 → 段の表（`headdepth.UNKNOWNS`）は、未知の種類を読む diagnose・plan も使うので `lib/headdepth` に残す。振る舞いは変えない。
 - 持ち主に求めること: なし。読み手は、この block を作る実装の役（この文書だけで作れる細かさにした）と、その PR の審査。
 
 この文書の語は README の頭の物を使う。ほかに:
 
 - 持ち主: このリポジトリの owner（決めを下す人）。「持ち主の決め `<名>`」は `docs/owner-decisions.md` の決めの名。
-- line: 工場（works-factory。この repo の Archon の workflow 群）のメイングラフ。始めの記録（run の起動の時の入力の記録）を書き、block に port の値を配る。judge のまとめ（`blocks/judge/`）は判定の block を `include:` で並べる graph で、line がそれを include する。
-- 土台の PR: README の 11.1 の 0 の PR（`blocks/.shared/ports.py`・`prompt.py`・共通の指示の断片 `rejected.md`・`query-rule.md`・起動の殻の口を置く）。この block の PR より先に入る。この文書が「土台に合わせる」と書く名は、そこで決まる。
+- line: 工場（works-factory。この repo の Archon の workflow 群）のメイングラフ。始めの記録（run の起動の時の入力の記録）を書き、block に port の値を配る。judge のまとめ（`workflows/judge/`）は判定の block を `include:` で並べる graph で、line がそれを include する。
+- 土台の PR: README の 11.1 の 0 の PR（`workflows/.shared/ports.py`・`prompt.py`・共通の指示の断片 `rejected.md`・`query-rule.md`・起動の殻の口を置く）。この block の PR より先に入る。この文書が「土台に合わせる」と書く名は、そこで決まる。
 - 源と bun: 試験が Archon を起こすのに要る、止めた版の Archon のソース（`bin/_lib/place.archon_source` が取る）と JavaScript の実行環境 bun。無い手元では、その試験を名前つきで見送る（`tests/AGENTS.md`）。
 - keep-essence: 元の works が守る 12 の仕組み（README の 10 節）。9 は「独立設計と R1〜R4」で、R1〜R4 は修正の後に別の目が見る 4 つの確かめ（R1 最小性・R2 独立設計との比べ・R3 全体の整合・R4 見えていない範囲）。12 は「世界の解に照らす」。
 - 1 つ目の commit・2 つ目の commit: この block の PR の中の 2 つの commit（README の 11.4）。1 つ目は指示の md を日本語のまま置いて今の指示と同じ字かを試験で照らし、2 つ目で英語にする。2.3 の md の本文は 2 つ目の物。
@@ -50,7 +50,7 @@
 
 今との違い: 今は入力を `judge/request.json` と始めの記録のポインタ（`INPUTS_START`。`lib/headdepth.py:82-90` の `facts` が `test_cmd`・`tdd_suite`・`input.spec`・`design_only`・`thickness` を読む）と止めの記録 `judge/stop.json`（`workflows/judge/scripts/head_depth_prep.py:25-29`）から読み、出口は judge の返す節の欄 `depth`・`depth_why`・`depth_record`（`lib/judge_accept.py:3995-4003` の `head_depth`）だった。止めの記録の確かめは無くし、回すかは graph の `when:` が決める（README の 4.3）。報告の行の「省く物・足した物」（今の `headdepth.report_line` の後半。`lib/headdepth.py:266-272`）は段 → 回す物の表から引く物なので line が組み、この block の `report` には段と根拠だけを置く（8 節の自分で決めた 3）。
 
-### 1.3 node の並び（`blocks/head-depth/works-factory-head-depth.yaml`）
+### 1.3 node の並び（`workflows/head-depth/works-factory-head-depth.yaml`）
 
 1. `intake`（script `intake.py`。`mutates_checkout: false`）: port を読み、place の中のこの block のファイルを名で引いて消し（place そのものは消さない。README の 13 章）、事実を測って機械の止めを通し、標準（か止めの段）の控えを先に書く。`intake.json` を書く。返り `{due, reason}`。
 2. `head-depth-loop`（`loop_group`、`max_iterations: 3`、`fresh_context: false`、`until_bash: done=$head-depth-accept.output.done; test "$done" = true`。`depends_on: [intake]`・`when: $intake.output.due == true`）
@@ -65,7 +65,7 @@ script の名は `lib/` のモジュールの名と重ねない（README の 7.1
 
 ### 1.4 place のファイル
 
-`ports.place()`（単独の run では `$ARTIFACTS_DIR/`、line から judge のまとめを通して include された時は `$ARTIFACTS_DIR/judge/head-depth/`）の下に書く。名は `src/steps.py` だけが持つ。
+`ports.place()`（単独の run では `$ARTIFACTS_DIR/`、line から judge のまとめを通して include された時は `$ARTIFACTS_DIR/judge/head-depth-run/`）の下に書く。名は `src/steps.py` だけが持つ。
 
 - `intake.json`: `{facts, due, failed, reason, lang}`。`facts` は 3.1 の形。`failed` は intake が落ちた時だけ true。
 - `depth-head.json`: 控え。今の `judge/depth-head.json` と同じ名・同じ形。
@@ -76,26 +76,24 @@ script の名は `lib/` のモジュールの名と重ねない（README の 7.1
 
 ### 1.5 コードの置き場
 
-- `blocks/head-depth/src/__init__.py`: 空。
-- `blocks/head-depth/src/steps.py`: 今の `lib/headdepth.py` の `facts`・`gate`・`brief`（材料の行を組む部分だけ）・`_place`・`_squash`・`_known`・`tier_of`・`_check_item`・`check` と、定数 `NONE`・`CAUSE`・`SHAPE`・`SCOPE`・`UNKNOWNS`・`WHERE_SPAN`・`NO_ROWS`・`NO_REPLY`・`NOT_ACCEPTED`・機械の止めの訳の字（`lib/depth.py:75` の `UNCHECKED` と `lib/depth.py:207` の `named_why` の字の写し）を写した物。place のファイルの名（`INTAKE_FILE = "intake.json"`・`RECORD_FILE = "depth-head.json"`・`ROLE = "head-depth"`）もここだけが持つ。`facts` は始めの記録でなく port の値を受ける（3.1）。
-- `blocks/head-depth/src/report.py`: `report_line(tier, why) -> str`。`f"run の頭の深さ: {tier}" + (f"（根拠: {why}）" if why else "")`。
-- 依頼の行の形は `blocks/.shared/schemas/request.schema.json`（`json(shared:request.schema.json)`。この block は `schemas/` を持たない。8 節の自分で決めた 9）。
+- `workflows/head-depth/src/__init__.py`: 空。
+- `workflows/head-depth/src/steps.py`: 今の `lib/headdepth.py` の `facts`・`gate`・`brief`（材料の行を組む部分だけ）・`_place`・`_squash`・`_check_item`・`check` と、定数 `WHERE_SPAN`・`NO_ROWS`・`NO_REPLY`・`NOT_ACCEPTED`・機械の止めの訳の字（`lib/depth.py:75` の `UNCHECKED` と `lib/depth.py:207` の `named_why` の字の写し）を写した物。place のファイルの名（`INTAKE_FILE = "intake.json"`・`RECORD_FILE = "depth-head.json"`・`ROLE = "head-depth"`）もここだけが持つ。`facts` は始めの記録でなく port の値を受ける（3.1）。
+- `workflows/head-depth/src/report.py`: `report_line(tier, why) -> str`。`f"run の頭の深さ: {tier}" + (f"（根拠: {why}）" if why else "")`。
+- 依頼の行の形は `workflows/.shared/schemas/request.schema.json`（`json(shared:request.schema.json)`。この block は `schemas/` を持たない。8 節の自分で決めた 9）。
 - 使う `lib/`:
-  - `headdepth`（KEEP。段の語と控え）: `LIGHT`・`STANDARD`・`record`・`read_file`。
-  - `depth`（作り直しの間だけ）: `HEAVY`・`HEADS`（段の重さの順）。今の `lib/headdepth.py` が `HEAVY`・`HEADS` を自分の名で出していないため。組み込みで `lib/headdepth` に段の語の 4 つ（`LIGHT`・`STANDARD`・`HEAVY`・`HEADS`）を移したら、そちらを読むように 1 行直す（8 節の README へ返す問題 1）。
+  - `headdepth`（KEEP。段の語と控え、未知の種類 → 段の表）: `LIGHT`・`STANDARD`・`HEAVY`・`HEADS`・`NONE`・`CAUSE`・`SHAPE`・`SCOPE`・`UNKNOWNS`・`known`・`tier_of`・`record`・`read_file`。
   - `cite`（KEEP）: `CITE`・`QUOTE_MIN`・`problem`・`file_problem`・`quoted_in`・`resolved`（番地の規則と引用の照らし）。
   - `launchgroups`（KEEP）: `GROUPS`・`MODELS`・`EFFORTS`・`choices`。`brief_section` と `RECORD_ONLY`・`SECTION_HEAD` は使わない（文は md へ）。
   - `rolekit`（KEEP）: `accept_round`・`given_up_reason`。
   - `jsonfile`・`oneline`。
-- 作り直しの間は `lib/headdepth.py` の `facts`・`gate`・`brief`・`check` などを消さない（今の judge が使う）。組み込みで、`lib/headdepth.py` から未知の種類 → 段の表と受け付けを消し、`section`・`ASKS`・`UNKNOWN_HEAD` は読み手の block（diagnose・plan）へ移す（README の 9.2・9.3）。
 
 ### 1.6 つなぎ方（graph の側。block には書かない）
 
-- judge のまとめ（`blocks/judge/`）: `include: works-factory-head-depth`。`when:` は「再審の道でない」（今の `head-depth-prep` の `when: $intake.output.go == true && $intake.output.mode == 'judge'`）。`with:` は `request: $<依頼の pointer>`・`has_checks: <始めの記録の test_cmd か tdd_suite が空でない>`（今の `depth.has_checks`）・`thickness: <始めの記録の thickness。空なら 自動>`・`spec: <始めの記録の input.spec>`・`design_only: <始めの記録の design_only が "true">`・`lang: <始めの記録の lang>`。値は line が始めの記録から引いて judge のまとめに配る。
+- judge のまとめ（`workflows/judge/`）: `include: works-factory-head-depth`。`when:` は「再審の道でない」（今の `head-depth-prep` の `when: $intake.output.go == true && $intake.output.mode == 'judge'`）。`with:` は `request: $<依頼の pointer>`・`has_checks: <始めの記録の test_cmd か tdd_suite が空でない>`（今の `depth.has_checks`）・`thickness: <始めの記録の thickness。空なら 自動>`・`spec: <始めの記録の input.spec>`・`design_only: <始めの記録の design_only が "true">`・`lang: <始めの記録の lang>`。値は line が始めの記録から引いて judge のまとめに配る。
 - 判定の裏取り（verify）と根本の診断（diagnose）は、この block の後に回す（今の `test_verify_waits_on_the_head_depth`。`tests/workflows/test_judge.py:929-940`）。判定のまとめの `depends_on` に置く。
 - 読み手:
   - line: `tier`（段 → 回す物の表を引く）・`why`・`record`（修正の後の上げ直しが `headdepth.cited_files` で引用の外を数える。報告の `## 模型` の節が `headdepth.groups_lines` で群の選びの行を組む）。
-  - diagnose の `row_asks`（`$head-depth.output.rows`）。plan も同じ行を受ける（今の `lib/planfile.py:677` の `headdepth.section`）。種類ごとの指示の文（今の `lib/headdepth.py:210-216` の `ASKS`）は、2 つの読み手の md が使う共通の断片 `blocks/.shared/prompts/unknown-asks.md` に移す（8 節の自分で決めた 4）。
+  - diagnose の `row_asks`（`$head-depth.output.rows`）。plan も同じ行を受ける（今の `lib/planfile.py:677` の `headdepth.section`）。種類ごとの指示の文（今の `lib/headdepth.py:210-216` の `ASKS`）は、2 つの読み手の md が使う共通の断片 `workflows/.shared/prompts/unknown-asks.md` に移す（8 節の自分で決めた 4）。
   - report の `sections`（`$head-depth.output.report`）。
 - `status` が `failed` でも、graph は止めない。今と同じく、段は標準で先へ進む（深さは判定を止めない。`workflows/judge/scripts/head_depth_prep.py:7`）。
 - 再審の道の段は、今と同じく line が「標準・再審の判定」（今の `headdepth.REJUDGE_WHY`）と決める。この block は再審の道で回らない。
@@ -113,7 +111,7 @@ script の名は `lib/` のモジュールの名と重ねない（README の 7.1
 ### 2.3 組み立ての順（`prompts/head-depth.md`）
 
 1. `<!-- if rejected -->` `{shared:rejected}` `<!-- end rejected -->` — 条件: 前の回の accept の理由が空でない。断片の中の `{rejection}` ← これまでの拒みの理由の全部（place の控えから、古い順。8 節の自分で決めた 10）。
-2. 役の定義（決まった文）: 新しい会話で起きていること・行ごとに種類を 1 つ引用で示す・段は機械が引く・群の選び。差し込み口 `{light}`・`{standard}`・`{heavy}`（← `lib/headdepth.py` の `LIGHT`・`STANDARD` と `lib/depth.py` の `HEAVY`）。
+2. 役の定義（決まった文）: 行ごとに種類を 1 つ引用で示す・段は機械が引く・群の選び。差し込み口 `{light}`・`{standard}`・`{heavy}`（← `lib/headdepth.py` の `LIGHT`・`STANDARD` と `lib/depth.py` の `HEAVY`）。
 3. 段の意味（決まった文）。差し込み口 `{light}`・`{standard}`・`{heavy}`・`{cause}`。
 4. 読むだけの決まり（決まった文）。
 5. `## Input` の 2 行（決まった文）: 対象のリポジトリ・材料は機械が測った物・この run には機械の確かめが在る。
@@ -129,7 +127,7 @@ md の本文（英語。この block の PR の 2 つ目の commit でこのま�
 {shared:rejected}
 <!-- end rejected -->
 
-You are the run-depth role, started in a new conversation. For each line of a person's fix request, name the one kind of unknown that is still left, with a quote from the request's text and a quote from the repository's lines (questions 1 and 2). The depth tier ({light}, {standard}, or {heavy}) is taken by the machine from the heaviest kind among the lines; you do not return a tier. Also pick, with reasons, only the node groups whose default model or effort should change (question 3).
+You are the run-depth role. For each line of a person's fix request, name the one kind of unknown that is still left, with a quote from the request's text and a quote from the repository's lines (questions 1 and 2). The depth tier ({light}, {standard}, or {heavy}) is taken by the machine from the heaviest kind among the lines; you do not return a tier. Also pick, with reasons, only the node groups whose default model or effort should change (question 3).
 
 What the tiers mean: a {light} run is only for a request where the place to fix and the way to fix it are known on every line. If a run is wrongly made {light}, holes that should be found before the fix stay hidden until after the fix. {standard} runs every check as before; a run wrongly made {standard} only costs more and does no harm. {heavy} adds to {standard} a second check of the judgment and a per-item tree in the review of the plan, and costs much more. So give a lighter kind only where you can show it with quotes, and when in doubt choose `{cause}` (which gives {standard}).
 
@@ -223,12 +221,12 @@ properties:
         code_quote: {type: string, minLength: 1}
 ```
 
-`unknown` の enum は `src/steps.py` の `UNKNOWNS` の鍵と同じ並び（試験が結ぶ。7.2）。人に見せる欄は `why` と `groups[].why`（報告の「run の頭の深さ」の行と `## 模型` の節に載る）で、言語は `{lang}`。`cause_quote`・`code_quote` は写しなので訳さない。
+`unknown` の enum は `lib/headdepth.py` の `UNKNOWNS` の鍵と同じ並び（試験が結ぶ。7.2）。人に見せる欄は `why` と `groups[].why`（報告の「run の頭の深さ」の行と `## 模型` の節に載る）で、言語は `{lang}`。`cause_quote`・`code_quote` は写しなので訳さない。
 
 ### 2.5 描いた骨組み（例の run の値）
 
 ```markdown
-You are the run-depth role, started in a new conversation. … The depth tier (軽量, 標準, or 重厚) is taken by the machine from the heaviest kind among the lines; …
+You are the run-depth role. … The depth tier (軽量, 標準, or 重厚) is taken by the machine from the heaviest kind among the lines; …
 
 What the tiers mean: a 軽量 run is only for a request where … when in doubt choose `原因` (which gives 標準).
 
@@ -292,7 +290,9 @@ Return only JSON of this shape.
 - 消した: 記録だけの 1 文の括弧書き「（止めた版 a972888a は run の中で後のノードの模型を付け替えられず、子の run は親の模型の設定を受け継ぐ）」（`lib/launchgroups.py:47`）。役が知るべきなのは「効かない」ことだけで、訳の Archon の版の事実は持ち主の決め `head-choice-record-only` と `docs/polyfills.md` に在る。
 - 消した: ほかの node の id（`$head-depth-reject.output.*`・`$head-depth-prep.output.brief_file`）。
 - 並べ替えた: `## 入力` の 2 行（材料・対象のリポジトリ）を、対象のリポジトリ・材料の説明の順にし、材料の本文をその後に置いた。材料の説明の文（md:21 の「機械が測った物で、依頼の行ごとの番号・字・番地と…末尾に群のセクションが在り…」）は残した。
-- 足した物は無い。2 つ目の commit で英語にした（#764）。役の名「run の頭の深さの役」は "the run-depth role"。1 つ目の commit（日本語）では、材料の札は今の字（「行 n:」「番地:」「ファイル 在る・行の範囲 ファイルの中」「既定 sonnet・medium」）のまま、2 つ目の commit で 3.2 の英語の札にする。
+- 足した: 役の定義の「段は返さない」（`you do not return a tier`。段は機械が行の種類の重い方から引く。2.3 の 2）。
+- 消さなかった: 輪は `fresh_context: false` なので、2 回目からは会話の続き。役の定義に「新しい会話で起きている」と書かない（元の指示にも無い）。
+- 2 つ目の commit で英語にした（#764）。役の名「run の頭の深さの役」は "the run-depth role"。1 つ目の commit（日本語）では、材料の札は今の字（「行 n:」「番地:」「ファイル 在る・行の範囲 ファイルの中」「既定 sonnet・medium」）のまま、2 つ目の commit で 3.2 の英語の札にする。
 
 ### 2.7 元の works と graphloops の同じ場面
 
@@ -410,15 +410,15 @@ properties:
 
 作る:
 
-- `blocks/head-depth/works-factory-head-depth.yaml`
-- `blocks/head-depth/prompts/head-depth.md`
-- `blocks/head-depth/scripts/intake.py`・`depth_prep.py`・`depth_accept.py`・`finish.py`（どれも uv の頭の宣言 `# /// script` を持つ）
-- `blocks/head-depth/src/__init__.py`・`src/steps.py`・`src/report.py`
-- `blocks/head-depth/fixtures/standalone.stubs.yaml`・`gate.stubs.yaml`・`gave-up.stubs.yaml`
+- `workflows/head-depth/works-factory-head-depth.yaml`
+- `workflows/head-depth/prompts/head-depth.md`
+- `workflows/head-depth/scripts/intake.py`・`depth_prep.py`・`depth_accept.py`・`finish.py`（どれも uv の頭の宣言 `# /// script` を持つ）
+- `workflows/head-depth/src/__init__.py`・`src/steps.py`・`src/report.py`
+- `workflows/head-depth/fixtures/standalone.stubs.yaml`・`gate.stubs.yaml`・`gave-up.stubs.yaml`
 - `tests/blocks/head_depth/__init__.py`・`test_head_depth.py`・`test_prompt_compare.py`（1 つ目の commit だけ。2 つ目の commit で消す）
 - `docs/design/head-depth.md`（この文書。直す時）
 
-触らない: `lib/`（読むだけ）・`workflows/`・ほかの block。共通の断片 `blocks/.shared/prompts/rejected.md` は土台の PR が置く物を使う。`unknown-asks.md` はこの block では作らない（読み手の diagnose か plan の PR が、最初に要った方で足す。1.6）。
+触らない: `lib/`（読むだけ）・`workflows/`・ほかの block。共通の断片 `workflows/.shared/prompts/rejected.md` は土台の PR が置く物を使う。`unknown-asks.md` はこの block では作らない（読み手の diagnose か plan の PR が、最初に要った方で足す。1.6）。
 
 `tests/blocks/head-depth/` でなく `tests/blocks/head_depth/` にするのは、Python の package の名に `-` を使えず、unittest が見つけないため（8 節の自分で決めた 1）。
 
@@ -443,7 +443,7 @@ properties:
 ## 6 単独で呼ぶ
 
 ```sh
-bin/works-factory <読ませるフォルダを blocks/ にする引数（名は土台の PR で決める）> workflow run works-factory-head-depth \
+bin/works-factory workflow run works-factory-head-depth \
   --input request='[{"where":"stats.py:4","text":"mean は 2 でなく 3 を返す"}]' \
   --input has_checks=true
 ```
@@ -452,7 +452,7 @@ bin/works-factory <読ませるフォルダを blocks/ にする引数（名は�
 
 ## 7 試験と、済んだと言える条件
 
-### 7.1 standalone の fixture（`blocks/head-depth/fixtures/`）
+### 7.1 standalone の fixture（`workflows/head-depth/fixtures/`）
 
 - 3 本とも AI の node（`head-depth`）の返答だけを差し替え、script は本当に走る（`exec-code: true`。8 の 12）。`intake`・`head-depth-prep`・`head-depth-accept`・`finish` の stub は置かない。
 - `standalone.stubs.yaml`: `fixture.inputs` は `request: '[{"where": "stats.py:4-5", "text": "mean は 2 でなく 3 を返す"}]'`・`has_checks: 'true'` だけ。`expect: completed`・`reached: [intake, head-depth-prep, head-depth, head-depth-accept, finish]`。stub は `head-depth: {why: 筋書きの役は原因が残る行を返す, items: [{item: 1, unknown: 原因, cause_quote: mean は 2 でなく 3 を返す}], groups: []}` だけ。受け付けが引用を照らして通し、出口が標準を返す。`resolved-text-contains` は `head-depth` の指示の決まった文。
@@ -468,7 +468,7 @@ script を子のプロセスで回す（今の `tests/workflows/test_judge.py:69
 - `CheckCase`（元: `lib/tests/test_headdepth.py::CheckTest` の全部）: 引用の通った `無し`・`範囲` が通る、標準は訳だけで足りる、外れた引用を拒む、引用の字数の下限の訳、範囲の上限ちょうどは通る、依頼の行の無い軽量を拒む、段は一番重い種類、種類ごとの照らしの決まり、標準の行も照らす、`原因` の `where` を照らす。`src.steps` を直に import して呼んでよい（block の中の試験なので）。
 - `AcceptCase`（元: `tests/workflows/test_judge.py::HeadDepthTest` の `test_accept_takes_a_quoted_light_reply`・`test_accept_refuses_a_quote_the_code_lacks_and_keeps_standard`・`test_accept_records_the_tier_and_row_kinds`・`test_accept_records_group_choices_without_changing_the_tier`・`test_refused_reply_keeps_the_role_why`）: `intake` → `depth_accept` を子で回し、控えの段・`items`・`groups`・拒んだ時の `why`（`NOT_ACCEPTED` の頭・拒みの訳・`役の訳: …`）を照らす。
 - `FinishCase`（元: `test_verdict_returns_the_recorded_depth`・`test_verdict_without_record_is_standard`）: 受けた時は `status: ok` と控えの段と `rows`、3 回拒まれた時は `status: failed` と標準と最後の拒みの文、機械の止めの時は `status: ok` と止めの段、`intake` が落ちた時は `status: failed`。どれも `record` の先が `headdepth.read_file` で読め、`report` が 1 行。
-- `ShapeCase`（元: `test_role_kinds_are_the_lib_kinds`・`test_depth_words_are_the_lib_words`）: YAML の `head-depth` の `output_format` の `unknown` の enum が `list(steps.UNKNOWNS)`、`finish` の `tier` の enum が `list(depth.HEADS)`、`output_format` に段の欄が無い、`required` が `[why, items, groups]`、loop の `max_iterations` が `rolekit.GIVE_UP_AFTER`。AI の node の鍵（モデルの群・`settingSources`・道具・sandbox・`idle_timeout`・`mutates_checkout`・`retry`）が 1.3 のとおり（元: `test_roles_keep_the_old_settings` の head-depth の行）。
+- `ShapeCase`（元: `test_role_kinds_are_the_lib_kinds`・`test_depth_words_are_the_lib_words`）: YAML の `head-depth` の `output_format` の `unknown` の enum が `list(headdepth.UNKNOWNS)`、`finish` の `tier` の enum が `list(depth.HEADS)`、`output_format` に段の欄が無い、`required` が `[why, items, groups]`、loop の `max_iterations` が `rolekit.GIVE_UP_AFTER`。AI の node の鍵（モデルの群・`settingSources`・道具・sandbox・`idle_timeout`・`mutates_checkout`・`retry`）が 1.3 のとおり（元: `test_roles_keep_the_old_settings` の head-depth の行）。
 - 写さない試験: `lib/tests/test_headdepth.py::SectionTest`（`section` は読み手の block の試験へ）・`RecordTest`（KEEP の lib の試験として残る）・`ReportLineTest`（`groups_lines` は lib に残り、`report_line` の後半は line へ）・`tests/workflows/test_judge.py::HeadDepthTest.test_heavy_record_does_not_cut_the_verify`・`test_verify_waits_on_the_head_depth`（verify と judge のまとめの試験へ）・`test_prompt_states_the_lib_limits`（差し込み口で要らない）・`test_unreadable_start_pointer_degrades_in_every_lang_line_script`（始めの記録を読まない）。
 
 ### 7.3 指示の比べ（README の 11.4）
@@ -499,12 +499,12 @@ uv run --isolated python3 tests/changed.py
 1. 試験のフォルダを `tests/blocks/head_depth/` にした。根拠: Python の package の名に `-` は使えず、unittest の discover が見つけない（`tests/AGENTS.md` の「`__init__.py` が無いと黙って見つけない」と同じ種類の黙った漏れ）。README の 3 節は `tests/blocks/<block>/` と書くので、`-` を `_` に替える決まりを README に足すのがよい。
 2. 材料のファイル（`depth-head-brief.md`）を Read させる形をやめ、材料を指示の中に入れた。根拠: 材料の題と群の節の見出しと記録だけの 1 文は lib の Python が持つ決まった文で、憲法の 2（Python は指示の文を持たない）に当たる。README の 5.2 は `prompt:` に指示を直に入れる形を決めていて、world も材料を指示に入れている。役の道具（Read）はリポジトリを読むために残る。
 3. 報告の行を、段と根拠（この block）と、省く物・足した物（line）に割った。根拠: 「省く物・足した物」は段 → 回す物の表（`lib/depth.py` の `TIERS`。line へ MOVE）から引く字で、この block は表を持たない（README の 1.2 の D）。報告の文は事実を持つ block が組む（README の 4.1）ので、段の表の事実は line が組む。群の選びの行（`## 模型` の節）も、ノードごとの実際の模型の事実と並ぶ節なので、line（か report）が `record` の pointer から `headdepth.groups_lines`（KEEP）で組む。
-4. 種類ごとの指示の文（`lib/headdepth.py:210-216` の `ASKS`）は、読み手 2 つ（diagnose・plan）の md が使う共通の断片 `blocks/.shared/prompts/unknown-asks.md` に移す。この block は種類の語と行（`rows`）を出力で渡すだけにする。根拠: `ASKS` は受け手の役に向けた指示の文で、憲法の 2 で md へ出す。読み手が 2 つの block なので README の 5.1 の決まりで `blocks/.shared/prompts/` に置く。断片は、最初に要った PR（diagnose か plan）が足す（README の 11.1 の並べ方）。
+4. 種類ごとの指示の文（`lib/headdepth.py:210-216` の `ASKS`）は、読み手 2 つ（diagnose・plan）の md が使う共通の断片 `workflows/.shared/prompts/unknown-asks.md` に移す。この block は種類の語と行（`rows`）を出力で渡すだけにする。根拠: `ASKS` は受け手の役に向けた指示の文で、憲法の 2 で md へ出す。読み手が 2 つの block なので README の 5.1 の決まりで `workflows/.shared/prompts/` に置く。断片は、最初に要った PR（diagnose か plan）が足す（README の 11.1 の並べ方）。
 5. （10 で直した）却下の段落に入れる理由は、今と同じく前の回の 1 つだけ（prep の `with: reason`）にした。world は控えの拒みを古い順に全部入れる（#351）が、この役は今まで前の回の理由だけで、`fresh_context: false` の同じ会話の中なので前の理由は会話に残っている。振る舞いを変えない。
 6. `has_checks` の既定を `false` にした。根拠: 渡し忘れた時に役を起こさず標準に倒れる（誤って軽量にする害は大きく、誤って標準にする害は費用だけ。役の md の段の意味の文と同じ向き）。
 7. `ok` は「段が設計どおりに決まったか」にし、役が 3 回拒まれた・走らなかった時は `false` にした。graph はこの欄で止めない（今も深さは判定を止めない）。根拠: Archon の `outcome_field` は単独の run の成否（true → succeeded・false → failed）を決めるだけで、include の先へは伝わらない（`A/.archon/workflow-language-constitution.md:90`）。単独で回した人には、標準に倒れた訳が失敗として見える方がよい。
 8. port `thickness` の語を ASCII の `auto|light|standard|heavy` にした（設計書は `自動|軽量|標準|重厚`）。根拠: 形の検査 `check_input_forms` の `FORM` が choice の語を `[a-z0-9_-]` に縛る（main の決まりが設計書より先）。`src/steps.py` の `THICKNESS` が語 → 名指しの段（auto は名指さない）を持ち、試験が入力の説明・既定・`depth.HEADS` の並びと突き合わせる。graph（line）は始めの記録の thickness を `light|standard|heavy` に写して渡す。
-9. 依頼の行の形は `blocks/.shared/schemas/request.schema.json` を `json(shared:request.schema.json)` で名指し、読みは `requestrows.findings` を通す。この block は `schemas/` を持たない（4 節の `schemas/request.schema.json` の写しと `$defs`・`oneOf`・`$ref` は作らない）。根拠: 同じ名の形のファイルが pack の 2 か所に在れば検査が赤で、`oneOf`・`$ref` は `KNOWN_KEYWORDS` に無く照らしが効かない。知らない最上位の鍵・下書きの行も `requestrows` が拒む。9 節の問題 5 はこれで閉じる。
+9. 依頼の行の形は `workflows/.shared/schemas/request.schema.json` を `json(shared:request.schema.json)` で名指し、読みは `requestrows.findings` を通す。この block は `schemas/` を持たない（4 節の `schemas/request.schema.json` の写しと `$defs`・`oneOf`・`$ref` は作らない）。根拠: 同じ名の形のファイルが pack の 2 か所に在れば検査が赤で、`oneOf`・`$ref` は `KNOWN_KEYWORDS` に無く照らしが効かない。知らない最上位の鍵・下書きの行も `requestrows` が拒む。9 節の問題 5 はこれで閉じる。
 10. 前の回までの拒みは prep が place の控え（`rolekit.rejected`）から全部読み、古い順に `{rejection}` へ入れる。`head-depth-prep` は `with:` を持たない（`$LOOP_PREV` で受けない）。8 の 5（前の回の 1 つだけ）は、main の決まり（`.shared/AGENTS.md`: 前の回の却下は `$LOOP_PREV` で受けず、控えから全部を読む）に合わせて直した。根拠: resume で輪が回り直しても数え直さず、全部を渡すのは world・purpose と同じ読み口。役は拒まれた点を取りこぼさない（能力は落ちない）。
 11. 入口が消すのは自分が名を持つファイル（`intake.json`・`depth-head.json`・`rejects-head-depth.json`・`head-depth-prompt-*.md`）だけ。place を丸ごと消さない。根拠: `.shared/AGENTS.md` の「block が消してよいのは、自分が名を持つファイル」。
 12. fixture は AI の node（`head-depth`）の返答だけを差し替え、script は本当に走る（`exec-code: true`）。7.1 の `intake`・`head-depth-prep`・`accept`・`finish` の stub は置かない。`resolved-text-contains` は md の決まった文。`test_fixtures.py` は置かない（筋書きは `tests/layers/test_block_shape.py` が回すので重なる）。根拠: 形の検査 `check_standalone_renders` の決まり。
@@ -519,12 +519,12 @@ uv run --isolated python3 tests/changed.py
 2. 報告の「run の頭の深さ」の 1 行（`headdepth.report_line`）は、段と根拠（head-depth）と省く物・足した物（line の表）にまたがる。README の 8.1 と 4.1 はどちらが組むかを書いていない。この設計書は 8 節の 3 で割った。
 3. 種類ごとの指示の文 `ASKS` の行き先が README の 9 節に無い（`headdepth` の KEEP にも、head-depth の MOVE にも書かれていない）。この設計書は 8 節の 4 で共通の断片にした。
 4. `tests/blocks/<block>/` に `-` を含む block の名（head-depth・plan-review・delta-review など）がそのまま使えない（8 節の 1）。
-5. 依頼の port の形 `request.schema.json` は world・purpose・premises・head-depth・spec・parallel-pr・diagnose の 7 つの block が同じ中身を持つことになる。7.1 の 5 は schema を block の `schemas/` に置けと縛るので、写しが 7 つになる。2 つ以上の block が使う物は 1 か所という憲法の 4 と合わない。`blocks/.shared/schemas/` を許すか、写しの一致を試験で縛るかを README で決めるのがよい。
+5. 依頼の port の形 `request.schema.json` は world・purpose・premises・head-depth・spec・parallel-pr・diagnose の 7 つの block が同じ中身を持つことになる。7.1 の 5 は schema を block の `schemas/` に置けと縛るので、写しが 7 つになる。2 つ以上の block が使う物は 1 か所という憲法の 4 と合わない。`workflows/.shared/schemas/` を許すか、写しの一致を試験で縛るかを README で決めるのがよい。
 6. 人に見せる欄の言語の既定の英語の文（README の 5.3）の住処が決まっていない（world.md にも無い）。全部の block が使うので、土台の `prompt.py` か `ports.py` の 1 か所に置く必要がある。
 7. README の 6 節の 9 と 11.2 が「指示の比べ（10.3）」を指すが、指示の比べは 11.4 に在る。
 
 ## 10 未確認
 
-- 起動の殻で `blocks/` を読ませる引数の名と、6 節の命令の正確な形（world.md と同じ）。
+- 6 節の命令の正確な形（world.md と同じ）。
 - `ports.py` の口の名（`json`・`flag`・`choice`・`text`・`pointer`・`returns`・`place`）。土台の PR の名に合わせる。
 - `archon workflow test` の筋書きで、`when:` で飛んだ loop の後の `trigger_rule: all_done` の `finish` が `reached` に入るか（今の judge の筋書きは同じ形で通っている）。

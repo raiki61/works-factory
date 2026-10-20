@@ -13,7 +13,6 @@ sys.dont_write_bytecode = True
 if str(LIB) not in sys.path:
     sys.path.append(str(LIB))
 import converge  # noqa: E402
-from lib.tests.test_plan_gate import internal_subjects  # noqa: E402
 
 
 def face(key, severity="block", kind="regression", units=("u",), reach=None):
@@ -80,15 +79,11 @@ class DecideCase(unittest.TestCase):
         self.assertEqual(converge.decide(passed([face("a"), face("b")], [face("a"), face("c")])), converge.PERSISTED)
 
     def test_peripheral_only_blocks_settle(self):
-        """2 往復目から、最後の往復の block が端だけなら SETTLED（直しへ進む。proceeds が真）。1 往復目の端の block は AGAIN
+        """2 往復目から、最後の往復の block が端だけなら SETTLED（直しへ進む）。1 往復目の端の block は AGAIN
         （一度は修正案の役に返す）"""
         self.assertEqual(converge.decide(passed([edge("a")])), converge.AGAIN)
         got = converge.decide(passed([face("a")], [edge("b"), edge("c")]))
         self.assertEqual(got, converge.SETTLED)
-        self.assertTrue(converge.proceeds(got))
-        self.assertTrue(converge.proceeds(converge.CLEAN))
-        for word in (converge.AGAIN, converge.PERSISTED, converge.UNSETTLED):
-            self.assertFalse(converge.proceeds(word), word)
 
     def test_peripheral_block_that_persists_does_not_stop(self):
         """前の往復から続く block でも、今の往復の札が端なら PERSISTED にしない（端だけなら SETTLED、中央の新しい block が並べば
@@ -206,7 +201,6 @@ class RecordCase(BoardCase):
         doc = converge.read(self.b)
         self.assertEqual([f.get(converge.REACH) for f in converge.owed_faces(doc, doc["passes"][-1])],
                          [converge.PERIPHERAL, "breaks_fix", None])
-        self.assertIn(f"- {converge.REACH}: {converge.PERIPHERAL}", converge.revise_section(doc))
         self.record(["key-c1"])
         self.assertEqual(converge.read(self.b)["outcome"], converge.PERSISTED)
 
@@ -265,7 +259,6 @@ class FieldsCase(BoardCase):
         converge.note_answers(self.b, [answer("a"), answer("s", handled="disputed", how=how)])
         row = self.record([], extra=[face("s", severity="suggest")], resolved=["a"])
         self.assertEqual(row["outcome"], converge.CLEAN)
-        self.assertIn(converge.LINE_DISPUTED.format(key="s", how=how), converge.lines(self.b), "退けた理由は報告に残る")
 
     def test_resolved_gaps_need_previous_suggest_accounted(self):
         """前の往復の suggest は、resolved に入れるか同じ key で faces に挙げ直す。resolved に入れても『前の往復の block と suggest に無い』で拒まない"""
@@ -274,19 +267,6 @@ class FieldsCase(BoardCase):
         self.assertEqual(gaps, ["前の suggest s を resolved に入れるか、同じ key で faces に挙げ直せ"])
         self.assertEqual(converge.resolved_gaps(self.b, [face("b")], ["a", "s"]), [])
         self.assertEqual(converge.resolved_gaps(self.b, [face("b"), face("s", severity="suggest")], ["a"]), [])
-
-    def test_review_section_carries_owed_suggests(self):
-        """2 往復目の審査の節は、前の往復の答えの要る suggest を『答えの要る suggest』の見出しの下に貼り、block の見出しの下には
-        block だけを置く"""
-        self.record(["a"], extra=[face("s", severity="suggest")])
-        sec = converge.review_section(self.b)
-        block_head = converge.PASS_HEAD.format(n=1)
-        owed_head = converge.OWED_HEAD.format(n=1)
-        self.assertEqual(owed_head, "## 1 往復目の答えの要る suggest")
-        at = {name: sec.index(name) for name in (block_head, "### a", owed_head, "### s", "修正案の役の答え:")}
-        self.assertEqual(sorted(at, key=at.get), [block_head, "### a", owed_head, "### s", "修正案の役の答え:"])
-        self.assertIn("s の場所", sec)
-        self.assertIn("s が穴である理由", sec)
 
     def test_owed_faces_drop_suggest_once_resolved(self):
         """審査が resolved に入れた suggest は、持ち越しの写しが後の往復の faces に残っても、答えも照らしも求めない。入れなかった
@@ -310,181 +290,6 @@ class FieldsCase(BoardCase):
         self.assertEqual((bare, got[converge.ORIGINS]), ({"faces": []}, said))
         self.assertEqual(converge.tree_split({"faces": []})[1][converge.ORIGINS], None)
         self.assertEqual(reply, {"faces": [], converge.ORIGINS: said})   # 元は変えない
-        self.record(["key-alpha"])   # 2 往復目からの審査の共有の節は出自の頼みを貼らない（頼みは書き手の居る層が貼る）
-        sec = converge.review_section(self.b)
-        self.assertNotIn(converge.ORIGIN_ASK, sec)
-        self.assertTrue(sec.startswith(converge.REREVIEW_ASK), sec)
-
-
-class TextCase(BoardCase):
-    def test_stuck_reason_names_keys_and_record(self):
-        self.assertEqual(converge.stuck_reason(self.b), "")
-        self.record(["key-alpha"])
-        self.assertEqual(converge.stuck_reason(self.b), "")
-        self.record(["key-alpha", "key-beta"])
-        why = converge.stuck_reason(self.b)
-        self.assertEqual(why, converge.PERSISTED_WHY.format(keys="key-alpha", n=2,
-                                                             path=self.b.work(converge.PASS_DIR)))
-        self.record([], resolved=["key-alpha", "key-beta"])
-        self.assertEqual(converge.stuck_reason(self.b), "")
-
-    def test_stuck_reason_unsettled(self):
-        """UNSETTLED は輪の安全の上限の周（at_cap）の止まりだけ（中央の新しい block が出る 2 往復目は at_cap でなければ AGAIN）"""
-        self.record(["key-a1"])
-        self.assertEqual(self.record(["key-b1"])["outcome"], converge.AGAIN)
-        b = self.b = self.board(2)
-        self.record(["key-a1"])
-        self.record(["key-b1"], at_cap=True)
-        why = converge.stuck_reason(b)
-        self.assertTrue(why.startswith(converge.UNSETTLED_WHY.format(keys="key-b1", n=2, path=self.b.work(converge.PASS_DIR))), why)
-        self.assertIn("1 往復目 1 → 2 往復目 1", why)
-
-    def test_capped_pass_stops_with_cap_reason(self):
-        """輪の安全の上限の周（at_cap）に着いて、まだ AGAIN だった往復は UNSETTLED で止まり、行に capped が立つ。関所の理由は上限に
-        届いた事実を工場の不具合として言い（中央の新しい穴が出続ける往復も普通は届かない）、往復ごとの数を添える。減らなかったとは
-        言わず、頭の行の結末の名札も減らないと言わない。CLEAN と PERSISTED の往復は at_cap でもそのまま"""
-        self.record(["key-a1", "key-a2"])
-        row = self.record(["key-b1"], at_cap=True)
-        self.assertEqual((row["outcome"], row["capped"]), (converge.UNSETTLED, True))
-        self.assertIsNone(converge.held(converge.read(self.b)))
-        why = converge.stuck_reason(self.b)
-        self.assertTrue(why.startswith(converge.UNSETTLED_WHY.split("（往復ごとに")[0].format(n=2)), why)
-        self.assertIn(converge.CAP_WHY.format(n=2, counts="1 往復目 2 → 2 往復目 1"), why)
-        self.assertNotIn("前の往復より減らなかった", why)
-        self.assertIn("工場の不具合", why)
-        head = converge.lines(self.b)[0]
-        self.assertNotIn("減らない", head)
-        self.assertIn("（記録の名 unsettled）", head)
-        b = self.board(2)
-        converge.record_pass(b, {"faces": [face("key-a1")]}, resolved=[], files={})
-        row = converge.record_pass(b, {"faces": []}, resolved=["key-a1"], files={}, at_cap=True)
-        self.assertEqual(row["outcome"], converge.CLEAN)
-        self.assertNotIn("capped", row)
-        b = self.board(3)
-        converge.record_pass(b, {"faces": [face("key-a1")]}, resolved=[], files={})
-        row = converge.record_pass(b, {"faces": [face("key-a1"), face("key-b1")]}, resolved=[], files={}, at_cap=True)
-        self.assertEqual(row["outcome"], converge.PERSISTED)
-        self.assertNotIn("capped", row)
-        self.assertNotIn(converge.CAP_WHY.split("（")[0].format(n=2), converge.stuck_reason(b))
-
-    def test_capped_marks_only_the_stop_at_the_cap(self):
-        """止まった壁打ちを推しで越えてよいかの決め（gatepolicy.stuck_pushable）が読む、上限の周で止めたかの事実"""
-        def doc(rnd, passes, plan=()):
-            b = self.board(rnd)
-            if plan:
-                converge.note_plan(b, [row(u) for u in plan])
-            for keys, cap in passes:
-                units = (lambda k: ["u1"] if k.startswith("key-a") else ["u2"]) if plan else (lambda k: ["u"])
-                converge.record_pass(b, {"faces": [face(k, units=units(k)) for k in keys]}, resolved=[], files={}, at_cap=cap)
-            return converge.read(b)
-        again = doc(2, [(["key-a1"], False)])
-        self.assertEqual(again["outcome"], converge.AGAIN)
-        self.assertFalse(converge.capped(again))
-        clean = doc(3, [([], False)])
-        self.assertEqual(clean["outcome"], converge.CLEAN)
-        self.assertFalse(converge.capped(clean))
-        again = doc(4, [(["key-a1"], False), (["key-b1"], False)])
-        self.assertEqual(again["outcome"], converge.AGAIN, "中央の新しい block の往復は止まらない（数で止めない）")
-        self.assertFalse(converge.capped(again))
-        persisted = doc(5, [(["key-a1"], False), (["key-a1", "key-b1"], False)])
-        self.assertEqual(persisted["outcome"], converge.PERSISTED)
-        self.assertFalse(converge.capped(persisted))
-        capped = doc(6, [(["key-a1", "key-a2"], False), (["key-b1"], True)])
-        self.assertEqual((capped["outcome"], capped["passes"][-1]["capped"]), (converge.UNSETTLED, True))
-        self.assertTrue(converge.capped(capped))
-        held_passes = [(["key-a1", "key-b1", "key-b2", "key-b3"], False), (["key-a1", "key-b4", "key-b5"], False), (["key-b6"], True)]
-        held = doc(7, held_passes, plan=("u1", "u2"))
-        self.assertEqual((held["outcome"], held["passes"][-1]["capped"]), (converge.PERSISTED, True))
-        self.assertTrue(converge.capped(held), "保留の項目が在る上限の止まりは outcome が PERSISTED でも上限の止まり")
-        self.assertFalse(converge.capped({"outcome": None, "passes": []}))
-
-    def test_capped_stop_names_open_counts_per_pass(self):
-        """輪の上限の周で止めた時は、上限に届いた句に往復ごとの開いた数を添える（数の比べで止める句は無い）"""
-        b = self.board(2)
-        for keys, cap in ((["key-a1", "key-a2", "key-a3"], False), (["key-b1", "key-b2"], False), (["key-c1"], True)):
-            converge.record_pass(b, {"faces": [face(k) for k in keys]}, resolved=[], files={}, at_cap=cap)
-        why = converge.stuck_reason(b)
-        self.assertTrue(why.startswith(converge.UNSETTLED_WHY.split("（往復ごとに")[0].format(n=3)), why)
-        self.assertIn(converge.CAP_WHY.format(n=3, counts="1 往復目 3 → 2 往復目 2 → 3 往復目 1"), why)
-        self.assertNotIn("開いた block の数", why)
-
-    def test_lines_head_names_first_pass_share(self):
-        """1 回目の block と後の回の見落としから、1 回目に出た割合を頭の行に出す。割合は閉じた項目の取りこぼしを数えない上限と書く。
-        見落としの申告は項目の控えの事実（行の変わらない項目の block）で照らして採る"""
-        converge.note_plan(self.b, [row("u1")])
-        self.record(["key-a1", "key-a2"])
-        converge.record_pass(self.b, {"faces": [face("key-b1")]}, resolved=["key-a1", "key-a2"], files={},
-                             origins=[{"key": "key-b1", "origin": converge.ORIGIN_MISSED}])
-        head = converge.lines(self.b)[0]
-        for part in ("1 回目の block 2 件", "見落とし 1", "1 回目に出た割合は 2/3", "閉じた項目の取りこぼしは数えない上限",
-                     "run の後で見つかった穴は割合に入らない"):
-            self.assertIn(part, head)
-
-    def test_lines_head_without_blocks_says_none(self):
-        converge.record_pass(self.b, {"faces": []}, resolved=[], files={})
-        head = converge.lines(self.b)[0]
-        self.assertIn(converge.LINE_NO_BLOCK, head)
-        self.assertNotIn("0/0", head)
-        self.assertNotIn("1 回目の block", head)
-
-    def test_lines_summarize_passes(self):
-        self.assertEqual(converge.lines(self.b), [])
-        self.record(["key-alpha"])
-        converge.note_answers(self.b, [answer("key-alpha")])
-        self.record(["key-alpha"])
-        got = converge.lines(self.b)
-        path = self.b.work(converge.PASS_DIR)
-        share = converge.LINE_SHARE.format(first=1, missed=0, introduced=0, rephrased=0, unsplit=0, share="1/1", total="1/1")
-        self.assertEqual(got[0], converge.LINE_HEAD.format(n=2, word="同じ block が続いた", outcome="persisted",
-                                                           persists="key-alpha", share=share, path=path))
-        self.assertEqual(got[1:], [
-            converge.LINE_PASS.format(k=1, keys="key-alpha", f=0, d=0, resolved="無い", down="無い"),
-            converge.LINE_PASS.format(k=2, keys="key-alpha", f=1, d=0, resolved="無い", down="無い")])
-
-    def test_lines_name_blocks_downgraded_to_suggest(self):
-        """前の往復の block を審査が suggest に下げた key は、その往復の行に出る（block から消えたのが resolved でなく格下げだと
-        報告で分かる。Task 1 の持ち越し m2）。前の往復で block でなかった suggest は出さない"""
-        self.record(["key-alpha"])
-        converge.note_answers(self.b, [answer("key-alpha")])
-        self.record([], extra=[face("key-alpha", severity="suggest"), face("key-gamma", severity="suggest")])
-        got = converge.lines(self.b)
-        self.assertEqual(got[2], converge.LINE_PASS.format(k=2, keys="無い", f=1, d=0, resolved="無い", down="key-alpha"))
-        self.assertIn("key-alpha", got[2])
-        self.assertNotIn("key-gamma", got[2])
-
-    def test_lines_name_central_lowered_to_peripheral(self):
-        """前の往復で中央だった block を審査が peripheral に付け替えた key は、その往復の行の『下げた key』に出る（前から端だった
-        block は出さない）"""
-        self.record([], extra=[face("key-alpha"), edge("key-beta")])
-        converge.note_answers(self.b, [answer("key-alpha"), answer("key-beta")])
-        self.record([], extra=[edge("key-alpha"), edge("key-beta")])
-        got = converge.lines(self.b)
-        self.assertEqual(got[2], converge.LINE_PASS.format(k=2, keys="key-alpha、key-beta", f=2, d=0, resolved="無い", down="key-alpha"))
-        self.assertIn("（記録の名 settled）", got[0])
-
-    def test_texts_keep_record_names_in_parens(self):
-        self.record(["key-alpha"])
-        converge.note_answers(self.b, [answer("key-alpha", handled="disputed", how="前提が違うので直さない")])
-        self.record(["key-alpha"])
-        texts = [converge.stuck_reason(self.b), *converge.lines(self.b)]
-        self.assertEqual(internal_subjects("\n".join(texts)), [])
-
-    def test_review_section_empty_on_first_pass(self):
-        self.assertEqual(converge.review_section(self.b), "")
-        self.record(["key-alpha"])
-        converge.note_answers(self.b, [answer("key-alpha")])
-        sec = converge.review_section(self.b)
-        self.assertTrue(sec.startswith(converge.REREVIEW_ASK), sec)
-        self.assertIn("key-alpha", sec)
-        self.assertIn("案の項目 1 の手順を直した", sec)
-
-    def test_revise_section_lists_held_blocks(self):
-        self.assertEqual(converge.revise_section(converge.read(self.b)), "")
-        self.record(["key-alpha"], extra=[face("key-sugg", severity="suggest")])
-        sec = converge.revise_section(converge.read(self.b))
-        self.assertTrue(sec.startswith(converge.REVISE_ASK), sec)
-        for part in ("key-alpha", "regression", "key-alpha の場所", "key-alpha が穴である理由", "key-sugg"):
-            self.assertIn(part, sec)
 
 
 def row(*units, approach="案の手順"):
@@ -587,7 +392,6 @@ class ItemsCase(BoardCase):
         self.assertEqual((self.states(got), got["outcome"]), ([converge.HELD, converge.OPEN, converge.CLOSED], converge.AGAIN))
         got = self.review([face("key-b4", units=["u2"])], resolved=["key-b3"])
         self.assertEqual((self.states(got), got["outcome"]), ([converge.HELD, converge.OPEN, converge.CLOSED], converge.AGAIN))
-        self.assertEqual(converge.stuck_reason(self.b), "")
 
     def test_items_go_again_while_new_central_blocks_come(self):
         """開いた項目に中央の新しい block が出続ける間は、開いた数が減らなくても往復の数に依らず AGAIN。端だけになった往復で SETTLED"""
@@ -713,46 +517,6 @@ class ItemsCase(BoardCase):
         self.assertIn("前の block key-b2 を resolved に入れるか、同じ key で faces に挙げ直せ",
                       converge.resolved_gaps(self.b, [], ["key-b1"]))
 
-    def test_texts_name_closed_and_held_items(self):
-        self.review([face("key-a1", units=["u1"]), face("key-b1", units=["u2"])])
-        self.review([face("key-a1", units=["u1"]), face("key-b2", units=["u2"])])
-        self.review([], resolved=["key-b2"])
-        why = converge.stuck_reason(self.b)
-        self.assertIn("項目 1", why)
-        self.assertIn("key-a1", why)
-        self.assertIn("項目 2", why)
-        self.assertTrue(any("保留" in line for line in converge.lines(self.b)), converge.lines(self.b))
-        self.assertEqual(internal_subjects("\n".join([why, *converge.lines(self.b)])), [])
-
-    def test_revise_section_names_closed_items(self):
-        self.review([face("key-a1", units=["u1"])])
-        sec = converge.revise_section(converge.read(self.b))
-        self.assertIn(converge.CLOSED_ASK, sec)
-        self.assertIn("項目 2（u2）", sec)
-
-    def test_revise_section_shows_only_open_item_blocks_and_closed_items(self):
-        self.review([face("key-a1", units=["u1"]), face("key-b1", units=["u2"])])
-        self.review([face("key-a1", units=["u1"]), face("key-b2", units=["u2"])])
-        sec = converge.revise_section(converge.read(self.b))
-        self.assertIn("key-b2", sec)
-        self.assertNotIn("### key-a1", sec)
-
-    def test_revise_section_asks_open_items_only(self):
-        converge.note_plan(self.b, [row("u1"), row("u2"), row("u3")])
-        self.review([face("key-a1", units=["u1"]), face("key-b1", units=["u2"])])
-        self.review([face("key-a1", units=["u1"]), face("key-b2", units=["u2"])])
-        sec = converge.revise_section(converge.read(self.b))
-        self.assertIn(converge.REVISE_ASK, sec)
-        self.assertIn("変えた項目の行だけ", converge.REVISE_ASK)
-        self.assertNotIn("丸ごと", converge.REVISE_ASK)
-        self.assertIn("閉じた項目は書くな", converge.REVISE_ASK)
-        self.assertIn("fixed と答えた block の項目は変えた行を返せ", converge.REVISE_ASK)
-        self.assertIn("書くな", converge.CLOSED_ASK)
-        self.assertNotIn("一字も変えずに入れよ", converge.CLOSED_ASK)
-        self.assertIn("書かなければ機械が差し込む", converge.HELD_NOTE)
-        self.assertIn("項目 3（u3）", sec)
-        self.assertIn("項目 1（u1）", sec)
-
     def open_and_closed_suggests(self):
         """項目 1（u1）に block a と suggest t、項目 2（u2）に suggest s だけ: 項目 1 が開き、項目 2 は閉じる"""
         got = self.review([face("a", units=["u1"]), face("t", severity="suggest", units=["u1"]),
@@ -771,66 +535,20 @@ class ItemsCase(BoardCase):
 
     def test_owed_suggest_drops_once_its_item_closes(self):
         """木にしない往復の筋: 開いた項目の suggest s は次の往復の行き先と貼る節に載り、その項目が block 無しで閉じた後の往復では
-        どちらにも載らない（block に結んだ止め時は変わらない）"""
+        行き先に載らない（block に結んだ止め時は変わらない）"""
         self.review([face("a", units=["u1"]), face("s", severity="suggest", units=["u1"]), face("b", units=["u2"])])
         self.assertIn("前の suggest s を resolved に入れるか、同じ key で faces に挙げ直せ",
                       converge.resolved_gaps(self.b, [], ["a", "b"]))
-        sec = converge.review_section(self.b)
-        self.assertIn("### s", sec[sec.index(converge.OWED_HEAD.format(n=1)):])
         got = self.review([face("s", severity="suggest", units=["u1"]), face("c", units=["u2"])], resolved=["a", "b"])
         self.assertEqual(self.states(got), [converge.CLOSED, converge.OPEN])
         self.assertEqual(got["outcome"], converge.AGAIN)
         self.assertEqual(converge.resolved_gaps(self.b, [], ["b", "c"]), [], "閉じた項目の suggest s の行き先は求めない")
-        sec = converge.review_section(self.b)
-        self.assertNotIn(converge.OWED_HEAD.format(n=1), sec)
-        self.assertNotIn(converge.OWED_HEAD.format(n=2), sec)
-        self.assertNotIn("### s", sec)
         self.assertEqual(converge.answer_gaps(converge.read(self.b), [answer("c")]), [])
-
-    def test_revise_section_asks_suggests_of_open_items(self):
-        """修正案の役に返す節は、開いた項目の suggest を『答えの要る suggest』の見出しの下に並べ、閉じた項目の suggest だけを
-        参考の見出し NOTES_HEAD の後に並べる"""
-        self.open_and_closed_suggests()
-        sec = converge.revise_section(converge.read(self.b))
-        names = (converge.OWED_HEAD.format(n=1), "### t", converge.NOTES_HEAD, "### s")
-        at = {name: sec.index(name) for name in names}
-        self.assertEqual(sorted(at, key=at.get), list(names))
-        self.assertEqual(sec.count("### t"), 1)
-        self.assertEqual(sec.count("### s"), 1)
-        self.assertIn("### a", sec[:at[names[0]]])
 
     def test_item_blocks_include_open_item_suggests(self):
         """項目 1 が次の往復で答える前の穴には、項目 1 の block a と suggest t が入り、閉じた項目 2 の suggest s は入らない"""
         self.open_and_closed_suggests()
         self.assertEqual(converge.item_blocks(self.b, 1), ["a", "t"])
-
-    def test_review_section_names_held_cites_for_the_stuck_push(self):
-        """項目 1 を保留にした往復の後の review_section は、止まった時の推しの note に引く物（HELD_CITES）として保留の項目 1 の block
-        key-a1 と『項目 1』を貼る。止まった後は、今の往復の block と貼られた物の全部を引いた note なら uncited は空・今の往復の block
-        だけなら key-a1 と『項目 1』を名指す（『項目 12』と key-a12 は引用に数えない）。保留の項目の前の往復の block は stuck_faces が
-        印 HELD_MARK つきで返し、block_faces は数えない"""
-        self.review([face("key-a1", units=["u1"]), face("key-b1", units=["u2"])])
-        self.assertNotIn(converge.HELD_CITES, converge.review_section(self.b))
-        self.review([face("key-a1", units=["u1"]), face("key-b2", units=["u2"])])
-        sec = converge.review_section(self.b)
-        self.assertIn(converge.HELD_CITES, sec)
-        self.assertIn("- 項目 1（u1）: key-a1", sec[sec.index(converge.HELD_CITES):])
-        self.assertNotIn("項目 2（u2）: ", sec[sec.index(converge.HELD_CITES):], "開いた項目は貼らない（今の往復で挙げる）")
-        self.assertEqual(converge.uncited("何でも", converge.read(self.b)), [], "止まっていない控えは照らさない")
-        got = self.review([edge("key-b3", units=["u2"])], resolved=["key-b2"])
-        self.assertEqual(got["outcome"], converge.PERSISTED, "保留の項目のほかの開いた block が端だけの往復")
-        doc = converge.read(self.b)
-        self.assertEqual(converge.stuck_keys(doc), ["key-a1", "key-b3"])
-        self.assertIn("key-a1、key-b3", converge.stuck_reason(self.b), "stuck_reason も同じ式で止めた key を出す")
-        cites = "key-a1 と key-b3 を項目 1・項目 2 の修正の中で片付ける"
-        self.assertEqual(converge.uncited(cites, doc), [])
-        self.assertEqual(converge.uncited("key-b3 を項目 2 の修正で片付ける", doc), ["key-a1", "項目 1"])
-        self.assertEqual(converge.uncited("key-a12 と key-b3 を項目 12・項目 2 で片付ける", doc), ["key-a1", "項目 1"])
-        self.assertEqual(converge.uncited("key-a1・key-b3・項目 1・項目 2", doc), [])
-        held = converge.stuck_faces(doc)
-        self.assertEqual([f["key"] for f in held], ["key-a1"], "最後の往復の faces に在る key-b3 は足さない")
-        self.assertEqual(held[0], {**face("key-a1", units=["u1"]), converge.HELD_MARK: True})
-        self.assertEqual(converge.block_faces({"faces": held}), [])
 
     def test_new_block_on_unchanged_item_defaults_missed(self):
         """どの項目の行も変わっていない 2 往復目の新しい block は、出自を渡さなくても、introduced を渡しても missed（渡した物は
@@ -852,16 +570,12 @@ class ItemsCase(BoardCase):
         self.assertEqual(got["origins"], {"key-b1": converge.ORIGIN_INTRODUCED, "key-b2": converge.ORIGIN_UNSPLIT,
                                           "key-c1": converge.ORIGIN_INTRODUCED})
         self.assertEqual(got["origins_claimed"], [])
-        self.assertIn(converge.LINE_SHARE.format(first=1, missed=0, introduced=2, rephrased=0, unsplit=1, share="1/2", total="1/4"),
-                      converge.lines(b)[0])
 
     def test_rephrased_block_is_not_counted_new(self):
         """前の block の言い換え（of が前の往復の block で、今の往復の resolved に在る）は rephrased で残り、頭の行は言い換え 1 件と出す"""
         claim = {"key": "key-a2", "origin": converge.ORIGIN_REPHRASED, "of": "key-a1"}
         b, got = self.second_pass(2, [face("key-a2", units=["u1"])], origins=[claim])
         self.assertEqual((got["origins"], got["origins_claimed"]), ({"key-a2": converge.ORIGIN_REPHRASED}, []))
-        self.assertIn(converge.LINE_SHARE.format(first=1, missed=0, introduced=0, rephrased=1, unsplit=0, share="1/1", total="1/1"),
-                      converge.lines(b)[0])
 
     def test_rephrased_without_resolved_prior_key_falls_back(self):
         """of が前の往復に無い key・今の往復の resolved に無い key の rephrased は採らず、既定（行が変わっていなければ missed）に

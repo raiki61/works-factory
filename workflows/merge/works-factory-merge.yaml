@@ -1,51 +1,46 @@
 name: works-factory-merge
 description: |
-  取り込みと渡し方。seal は run の差分を封じて守りのパスの当たりを返し、apply は封じた hash を今の差分と照らして run の置き場に置き、
-  check は封じた hash を今の差分と照らすだけで置く。apply・check の後の渡し方は出口の語で決まる: 空は置くだけ（対象のリポジトリへ
+  差分の確定と取り込み。seal は作業ツリーの差分を封じて守りのファイルの当たりを返し、apply は封じた hash を今の差分と照らして place に置き、
+  check は封じた hash を今の差分と照らすだけで置く。apply・check の後の渡し方は出口の語 deliver で決まる: 空は置くだけ（対象のリポジトリへ
   当てるのは人）、pr は照らした差分を run の枝に修正案の項目ごとの commit で積み（項目に分けられなければ 1 つの commit）、Archon に
   同梱の archon-pr の子の run がその枝への push と PR の作成をする（対象の既定の枝と同じ名の枝では止める。merge はしない）
 inputs:
   mode:
     required: true
-    description: seal（差分を封じる）・apply（封じた差分を置き場に置く）・check（封じた hash を今の差分と照らすだけで置く）
-  start:
-    default: ""
-    description: 始めの記録のポインタ（base_rev を読む。seal・apply だけ）
-  base_rev:
-    default: ""
-    description: 差分の根の版（check だけ）
+    description: 'choice(seal|apply|check): 形。seal は今の差分を封じて守りのファイルの当たりを数える。apply は封じた hash と今の差分を照らし、置いてよい時だけ置く。check は封じた hash と今の差分を照らすだけで置く'
+  base:
+    required: true
+    description: 'text: 差分の根の版（seal と apply は修正前の HEAD、check は鎖の元の基）'
   fingerprint:
-    default: ""
-    description: 修正の後のテストの緑の認証の指紋 {head, diff_hash}
+    default: 'null'
+    description: 'json(fingerprint.schema.json): 修正の後のテストの緑の認証の指紋 {head, diff_hash}。null は指紋が無い（seal は照らさない。apply は人の答えが無ければ拒む）'
   green_ok:
-    default: ""
-    description: 修正の後のテストが通ったか（ok）
+    default: 'false'
+    description: 'flag: 修正の後のテストが通ったか（apply で、人の答えが無い時だけ読む）'
   eyes_ok:
-    default: ""
-    description: 修正の後の独立の確かめが通ったか（ok）
+    default: 'false'
+    description: 'flag: 修正の後の独立の確かめが通ったか（apply で、人の答えが無い時だけ読む）'
   sealed_hash:
-    default: ""
-    description: 封じた差分の hash（apply・check）
+    default: ''
+    description: 'text: 封じた差分の sha256（apply と check）。空は封じていない'
   answer:
-    default: ""
-    description: 最後に人が返した答え {decision, text}。人に聞かなければ null（apply だけ）
+    default: 'null'
+    description: 'json(answer.schema.json): 最後の承認ノードで人が返した答え {decision, text}。null は承認ノードが開かなかった（apply だけ）'
   r2:
-    default: ""
-    description: 独立設計との比較（R2）の {status, reason}。省いた・走らなければ null（apply だけ）
+    default: 'null'
+    description: 'json(r2.schema.json): 独立設計との比べ（R2）の {status, reason}。null は省いた・走らなかった（apply だけ）'
   deliver:
-    default: ""
-    description: 出口の語（空は差分を置くだけ・pr は PR まで。lib/entry.py の DELIVERS。apply・check だけ）
+    default: ''
+    description: 'text: 出口の語。空は差分を place に置くだけ、pr は照らした差分を run の枝に積んで PR を作る（apply と check だけ）。ほかの語は ok: false'
   request:
-    default: ""
-    description: 依頼のファイルのパス（相対なら対象の根から。空は無し）。pr の時に、PR の文へ依頼が名指した issue を渡す
-  user_env_dir:
-    default: ""
-    description: 利用者の HOME・XDG に戻して起こした印（user-env-ran）を置く置き場の絶対パス。空は置き場が無い（戻す run では止まる）。pr の commit の hooks だけが読む
+    default: ''
+    description: 'file: 依頼のファイル（pr の時に、依頼が名指した issue を commit の文に閉じない参照で書く）。空は無い'
   items:
-    default: ""
-    description: >-
-      差分のパスを修正案の項目に決める記録 {items, claims, unread}（lib/itemcommits.py の merged の形。空は無し）。pr の時に、差分を
-      項目ごとの commit に分ける（apply・check だけ）
+    default: 'null'
+    description: 'json(items.schema.json): 差分のパスを修正案の項目に決める記録 {items, claims, unread}（fix の出力。lib/itemcommits.py の merged の形）。null は無い（pr の時に 1 つの commit に倒す）'
+  user_env_dir:
+    default: ''
+    description: 'text: 利用者の HOME・XDG に戻して起こした印を置く置き場の絶対パス。空は置き場が無い（戻す run では pr の commit を積まずに止める）。pr の commit の hooks だけが読む'
 returns: merge
 outcome_field: ok
 nodes:
@@ -55,8 +50,7 @@ nodes:
     mutates_checkout: false
     with:
       mode: $INPUTS.mode
-      start: $INPUTS.start
-      base_rev: $INPUTS.base_rev
+      base: $INPUTS.base
       fingerprint: $INPUTS.fingerprint
       green_ok: $INPUTS.green_ok
       eyes_ok: $INPUTS.eyes_ok
@@ -79,7 +73,7 @@ nodes:
           properties:
             type: { type: string, enum: [archon_artifact] }
             run_id: { type: string }
-            path: { type: string, enum: [merge/sealed.diff, merge/apply.diff, merge/refused.diff] }
+            path: { type: string, pattern: "(^|/)(sealed|apply|refused)\\.diff$" }
           required: [type, run_id, path]
         protected_hits:
           type: [array, "null"]
@@ -198,7 +192,7 @@ nodes:
           properties:
             type: { type: string, enum: [archon_artifact] }
             run_id: { type: string }
-            path: { type: string, enum: [merge/sealed.diff, merge/apply.diff, merge/refused.diff] }
+            path: { type: string, pattern: "(^|/)(sealed|apply|refused)\\.diff$" }
           required: [type, run_id, path]
         protected_hits:
           type: [array, "null"]
@@ -225,5 +219,8 @@ nodes:
           required: [act, pr, reason]
         optional:
           type: array
-      required: [mode, ok, hash, diff, protected_hits, protected_count, reason, deliver, optional]
+        report:
+          type: array
+          items: { type: string }
+      required: [mode, ok, hash, diff, protected_hits, protected_count, reason, deliver, optional, report]
       additionalProperties: false

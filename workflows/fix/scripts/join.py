@@ -2,93 +2,70 @@
 # requires-python = ">=3.12"
 # dependencies = []
 # ///
-"""節 join（形 ""）: 子が out_dir/<group_id>/result.json に書いた結果を組の順に読み、並べた run（par）は子の差分を決めた順に親の
-作業ツリーへ当てて確かめ直す（p3.lane_merge）。
-
-並べた run: 組ごとに子の終わりの木と始めの木の差分（groups.diff_since）を 3 方向で当て（unittrees.apply。lanekit.merge_in_order の順）、
-当てた後に、前の組とも重なったファイルの名指しのテストの中身が子の終わりの木と同じかを照らし（fixboard.tests_moved）、前に戻せた
-組とその組で赤 → 緑を確かめた名指しと、変えたファイルに当たる試験（名指しの無い組も。重なったファイルから地図が届く試験も足す）を
-親の木で走らせ直し、test_cmd の関門が on なら test_cmd も 1 回走らせる（fixboard.rerun_problem・rerun_cmd。元
-works/blk-fix/lib/tddlanes.py:688 _green_after。その前に Archon の変数を環境から落とす）。赤なら今の組だけを戻して後の組を当て続け、
-戻した組を置き場の clash.json に直し待ちで控える（clash.record。後ろの合わせのループが当て直して直すか、裁定へ回す。持ち主の決め
-clash-goes-to-ruling）。字で当たらない組も控える（合わせのループが食い違いの印つきで当て直し、合わせ役が印を解く。確かめ直しが
-落ちた組は控えない）。戻せた組の子から親へ写す物は fixboard.adopt_returned の 1 つの口が持つ（子の書き込みの記録を親の作業ツリーの
-記録へ。writes.carry_children。親の手直しの受け付けが、子の書いた変更を記録の無い変更と見ない。子の TDD の輪の状態と、子の run の範囲の
-相談の合意も）。
-当たらない・確かめ直しが赤・確かめ直しが落ちた組は当てたパスを戻して、returned: false と理由。
-当てたパスを戻せなかった組は当てていないと言わず、当たったままのパスを欄 unrestored に名指し（fixboard.UNRESTORED）、作業ツリーが
-信用できないので後の組は当てない（fixboard.AFTER_UNRESTORED。返す節が止めの語 stopby.UNRESTORED で人に回す）。
-並べない run は子が親の木で直したので当てず、どの組も returned: true。
-置き場に join.json = {par, groups: [{group_id, unit_ids, returned, reason, backed_out?, unrestored?}], units: [{unit_id, group_id, status, reason}]}
-（backed_out は当ててから確かめ直しが赤か落ちて戻した組だけが持つ、戻したパスの並び。unrestored は戻せなかった組だけが持つ、
-当たったままのパスの並び。後ろの合わせのループが、直し待ちに控えた組の行を置き直して欄 clash を足す。lib/clash.py）を書き、
-組の差分は join/<group_id>.diff に控える。返り {groups: 組の数, returned: 戻せた組の数}。
-置き場の groups.json が無い・読めない・git が効かない: 標準エラーに 1 行で 1。結果のファイルが無いか読めない組が在れば、作業ツリーを
-変えずに同じく 1（子が落ちた run は組の節が落ちてこの節が走らず、諦めた子も group-end が結果を書くので、結果の無い組は壊れた結果。
-持ち越しにして済んだ子の変更を失わず、この節が落ちて run を止める。issue #576）。
-"""
+"""node join（全体の形）: 子が out_dir/<group_id>/result.json に書いた結果を組の順に読み、並べた run は子の差分を決めた順に親の
+作業ツリーへ当てて確かめ直す（board.join_group・lanes.merge_in_order）。確かめ直しの赤で戻した組と字で当たらなかった組は合わせの
+控えに積む（clash.record）。当たったままの組が在れば後の組を当てない。戻せた組の子から書き込みの記録・TDD の輪の状態・範囲の相談の
+合意を親の place へ写す（board.adopt_returned）。走らせ直しの test_cmd は board.rerun_cmd が port skip_rerun で決める。今のまま。
+返り {groups, returned}。結果の無い組・git が効かない: 標準エラーに 1 行で 1"""
 import os
 import sys
 from pathlib import Path
 
 sys.dont_write_bytecode = True
-sys.path.insert(0, str(Path(__file__).resolve().parents[2] / ".shared"))
-import boundary  # noqa: E402
-sys.path.append(str(boundary.lib_root()))
+sys.path[:0] = [str(Path(__file__).resolve().parents[2] / ".shared"), str(Path(__file__).resolve().parents[1])]
+import ports  # noqa: E402
 
-import clash  # noqa: E402
-import fixboard  # noqa: E402
-import lanekit  # noqa: E402
 import oneline  # noqa: E402
-import startrec  # noqa: E402
 import unittrees  # noqa: E402
 import writelog  # noqa: E402
 
+from src import board, clash, lanes, runvals  # noqa: E402
+
 
 def main() -> dict:
-    place = boundary.place("fix")
-    plan = fixboard.read_json(place / fixboard.GROUPS_FILE)
+    place = ports.place()
+    plan = board.read_json(place / board.GROUPS_FILE)
     if not isinstance(plan, dict) or not isinstance(plan.get("groups"), list):
         raise ValueError(f"置き場に groups.json が無いか形が違う（{place}）")
     out_dir = Path(plan["out_dir"])
-    results = {g["group_id"]: fixboard.usable_result(out_dir / g["group_id"]) for g in plan["groups"]}
+    results = {g["group_id"]: board.usable_result(out_dir / g["group_id"]) for g in plan["groups"]}
     missing = [gid for gid, r in results.items() if r is None]
     if missing:
         raise ValueError(f"組の子の結果のファイルが無いか読めない（{'・'.join(missing)}）")
     outcomes, backed_out, unrestored = {}, {}, {}
     applied, log = [], None   # 戻せた組の子の書き込みの記録の (子の作業ツリー, 子の記録, 当てたパス) と、親の作業ツリーの記録
     if plan["par"]:
-        repo = boundary.work_tree()
+        repo = Path.cwd()
         log = writelog.log_here()
-        start = startrec.read(place)
-        cases = (fixboard.read_json(place / fixboard.BASELINE_FILE, {}) or {}).get("cases") or []
-        boundary.drop_runner_env(os.environ.get("INPUTS_USER_ENV_DIR", ""))   # 確かめ直しのテストに Archon の変数を継がせない（置き場のパスは上で取った）
+        start = runvals.read(place)
+        cases = (board.read_json(place / board.BASELINE_FILE, {}) or {}).get("cases") or []
+        ports.drop_runner_env(start["user_env_dir"])   # 確かめ直しのテストに Archon の変数を継がせない（置き場のパスは上で取った）
         verified = []   # 戻せた組が赤 → 緑を確かめた名指し（後の組の確かめ直しで一緒に走らせる）
         red, clashes = {}, []   # 組ごとの確かめ直しの赤の文と、赤で戻した組・字で当たらない組（合わせのループが直す。clash.record）
 
         def merge_one(g, earlier):
             if unrestored:   # 戻せず当たったままの組が在れば後の組は当てない
-                return lanekit.Merge(fixboard.AFTER_UNRESTORED.format(group=next(iter(unrestored))), "", [], [], False)
+                return lanes.Merge(board.AFTER_UNRESTORED.format(group=next(iter(unrestored))), "", [], [], False)
             r = results[g["group_id"]]
-            tdd_rows = fixboard.child_tdd_units(r)
-            union = sorted({f for u in tdd_rows for f in fixboard.unit_test_files(u)} | {t["path"] for t in fixboard.child_allowed_rows(r)})
-            named = [*verified, *fixboard.child_verified(r)]
+            tdd_rows = board.child_tdd_units(r)
+            union = sorted({f for u in tdd_rows for f in board.unit_test_files(u)} | {t["path"] for t in board.child_allowed_rows(r)})
+            named = [*verified, *board.child_verified(r)]
 
             def check(names):
                 shared = set(names) & earlier
-                red[g["group_id"]] = fixboard.tests_moved(repo, r["end_tree"], tdd_rows, shared) or fixboard.rerun_problem(
-                    place, repo, start.get("tdd_suite", ""), cases, named, name=f"rerun-{g['group_id']}", shared=shared,
-                    test_cmd=fixboard.rerun_cmd(place, r, start.get("test_cmd", "")))
+                red[g["group_id"]] = board.tests_moved(repo, r["end_tree"], tdd_rows, shared) or board.rerun_problem(
+                    place, repo, start["tdd_suite"], cases, named, name=f"rerun-{g['group_id']}", shared=shared,
+                    test_cmd=board.rerun_cmd(place, r, start["test_cmd"]))
                 return red[g["group_id"]]
             try:
-                got = fixboard.join_group(
+                got = board.join_group(
                     repo, r.get("start_tree") or plan["start_tree"], r["end_tree"], place / "join" / f"{g['group_id']}.diff",
                     union=union, check=check)
             except Exception as e:   # 子の木が引けない・git が落ちた組は戻さない（ほかの組は先へ）
-                return lanekit.Merge(f"組の差分を当てられない（{type(e).__name__}: {oneline.one_line(e)[:300]}）",
+                return lanes.Merge(f"組の差分を当てられない（{type(e).__name__}: {oneline.one_line(e)[:300]}）",
                                      "", [], [], False)
             if not got.why:
-                verified.extend(t for t in fixboard.child_verified(r) if t not in verified)
+                verified.extend(t for t in board.child_verified(r) if t not in verified)
             if got.unrestored:
                 unrestored[g["group_id"]] = got.unrestored
             elif got.backed_out and got.why == red.get(g["group_id"]):
@@ -97,7 +74,7 @@ def main() -> dict:
                 names = unittrees.patch_names(Path(got.patch).read_text(encoding="utf-8", errors="surrogateescape"))
                 clashes.append(clash.new_row(g["group_id"], g["unit_ids"], got.patch, names, earlier, got.why, clash.TEXT))
             return got
-        for g, got in lanekit.merge_in_order(plan["groups"], merge_one):
+        for g, got in lanes.merge_in_order(plan["groups"], merge_one):
             outcomes[g["group_id"]] = (results[g["group_id"]], not got.why, got.why)
             if got.backed_out:
                 backed_out[g["group_id"]] = got.backed_out
@@ -108,13 +85,13 @@ def main() -> dict:
         outcomes = {gid: (r, True, "") for gid, r in results.items()}
     if plan["par"]:
         clash.record(place, clashes)
-    rows, units = fixboard.join_rows(plan["groups"], outcomes, backed_out, unrestored)
+    rows, units = board.join_rows(plan["groups"], outcomes, backed_out, unrestored)
     joined = {"par": bool(plan["par"]), "groups": rows, "units": units}
-    if unrestored:   # 後の写しが落ちても、当たったままの組を後の節（fixboard.held）が読めるように先に書く
-        fixboard.write_json(place / fixboard.JOIN_FILE, joined)
-    fixboard.adopt_returned(place, boundary.work_tree(), [outcomes[g["group_id"]][0] for g in plan["groups"] if outcomes[g["group_id"]][1]],
+    if unrestored:   # 後の写しが落ちても、当たったままの組を後の節（board.held）が読めるように先に書く
+        board.write_json(place / board.JOIN_FILE, joined)
+    board.adopt_returned(place, Path.cwd(), [outcomes[g["group_id"]][0] for g in plan["groups"] if outcomes[g["group_id"]][1]],
                             log=log, applied=applied)
-    fixboard.write_json(place / fixboard.JOIN_FILE, joined)
+    board.write_json(place / board.JOIN_FILE, joined)
     return {"groups": len(rows), "returned": sum(1 for r in rows if r["returned"])}
 
 
@@ -124,4 +101,4 @@ if __name__ == "__main__":
     except Exception as e:   # 回す側の誤り（置き場が無い・groups.json が読めない・git が効かない）か、結果の無い組
         print(f"join: {type(e).__name__}: {oneline.one_line(e)}", file=sys.stderr)
         sys.exit(1)
-    boundary.returns(result)
+    ports.returns(result)

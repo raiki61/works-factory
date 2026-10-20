@@ -609,9 +609,8 @@ class SplitCase(_Case):
     def test_fixed_heads_are_the_literals_readers_match(self):
         """頭の決まった字（最小性・足りない・考えの住処・独立設計の 2 つの頭）は言語によらず読み手と同じ字で指示に入る（14 節の 20）"""
         prompt, _ = self.texts(design=V.dump(V.DESIGN_OK), lang="English")
-        for head in (files.MINIMAL_HEAD, files.SHORT_HEAD, files.HOME_HEAD, design.DRIFT_HEAD, design.UNPAIRED_HEAD):
+        for head in (files.MINIMAL_HEAD, files.SHORT_HEAD, material.concepthome.PREFIX, design.DRIFT_HEAD, design.UNPAIRED_HEAD):
             self.assertIn(f'"{head}"', prompt, head)
-        self.assertEqual(files.HOME_HEAD, material.concepthome.PREFIX)
         self.assertIn("in English.", prompt)
 
     def test_material_heads_are_named_by_the_md(self):
@@ -626,20 +625,11 @@ class SplitCase(_Case):
     def test_material_has_no_instruction_text(self):
         """足す: 材料のファイルは指示の文を持たない（MAT_HEADS と札の外の、今の決まりの文の頭の字も、md の決まりの文も無い）。
         ライブラリの文書の節は lib の libdocs の字のまま（17 節の未確認）なので除いて見る"""
-        import boardview
-        import planblk
-        import ripple
-        olds = (planblk.DESIGN_ASK, planblk.DIFF_ASK, planblk.CROSS_ASK, planblk.NO_MAP_KEYS, planblk.DESIGN_NOT_STANDS,
-                planblk.REUSE_REVIEW, planblk.HANDOFF_REVIEW, planblk.EXCLUDED_HEAD, planmarks.REVIEW_ASK, planmarks.MACHINE_LABEL,
-                converge.REREVIEW_ASK, converge.ORIGIN_ASK, converge.HELD_CITES, boardview.UNITS_LINE, boardview.REVIEW_ASK_REPLAN,
-                boardview.DEFAULTS_HEAD, ripple.SCOPE_ASK, policy.RECORDED_RULE, policy.FACE_EXAMPLE_HEAD)
         mats = [self.second(design=V.dump(V.DESIGN_OK), excluded=self.r.put("judge/pr-excluded.json", {"excluded": ["docs/"]}))[1],
                 self.texts(design=V.dump(V.DESIGN_OK))[1], self.replan()[1]]
         rules = [line.strip() for line in md_texts().splitlines() if len(line.strip()) > 60 and "{" not in line]
         for mat in mats:
             body = re.sub(r"## Library documents\n\n.*?(?=\n## |\Z)", "", mat, flags=re.S)
-            for old in olds:
-                self.assertNotIn(old[:14], body, old[:30])
             for rule in rules:
                 self.assertNotIn(rule[:50], body, rule[:50])
             for word in ("Read ", "Raise ", "Do not ", "Check "):

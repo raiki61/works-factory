@@ -1,0 +1,112 @@
+name: works-factory-premises
+description: '前提の実測の block（docs/design/premises.md）。依頼に書かれた数値・規模・件数・在る/無いの主張を、AI の役に作業ツリーで測り直させ、走らせたコマンドと出力を付けた制約の一覧にする。依頼者の measured は信じず測り直させ、役が作業ツリーを変えていないかを機械が写しと比べる。前の run が運んだ実測を返答に足して返す。単独の run でも、graph から include されても回る'
+inputs:
+  request:
+    required: true
+    description: 'json(shared:request.schema.json): 依頼の行の配列 [{where, text, mechanism?, measured?, false_positive_if?}]。それを findings の欄に持つオブジェクトでもよい（工場の依頼のファイルの形）。空の配列は依頼の行の無い run（測る主張は無い）'
+  carried: {default: '[]', description: 'json(shared:constraints.schema.json): 前の run が運んだ前提の実測の行の配列 [{text, measured_how, kind, measured_output?}]（それを constraints の欄に持つオブジェクトでもよい）。空の配列は運ばれていない。空で request が容器の形なら、容器の constraints の欄を使う'}
+  lang: {default: '', description: 'text: 人に見せる欄（text・measured_how）の言語。空は依頼の行の言語'}
+returns: finish
+outcome_field: ok
+nodes:
+  - id: intake
+    script: intake
+    runtime: uv
+    mutates_checkout: false
+    output_format:
+      type: object
+      additionalProperties: false
+      required: [due, reason]
+      properties:
+        due: {type: boolean}
+        reason: {type: string}
+  - id: premises-loop
+    depends_on: [intake]
+    when: $intake.output.due == true
+    loop_group:
+      max_iterations: 3
+      fresh_context: false
+      until_bash: done=$premises-accept.output.done; test "$done" = true
+      nodes:
+        - id: premises-prep
+          script: measure_prep
+          runtime: uv
+          mutates_checkout: false
+          output_format:
+            type: object
+            additionalProperties: false
+            required: [prompt]
+            properties: {prompt: {type: string, minLength: 1}}
+        - id: premises
+          prompt: "$premises-prep.output.prompt"
+          depends_on: [premises-prep]
+          model: '@wf-judge-materials'
+          settingSources: [user]
+          allowed_tools: [Read, Grep, Glob, Bash, WebSearch, WebFetch]
+          sandbox:
+            enabled: true
+            allowUnsandboxedCommands: false
+            # denyWrite は書き込みを塞ぐ役の目印。役の claude を起こす直前に fence.py がこの値を読み、塞ぐ先に cwd・共通の .git・worktree の根を足す
+            filesystem:
+              denyWrite: ['~/../archon-home']
+          idle_timeout: 1728000000
+          retry: {max_attempts: 2, on_error: all}
+          output_format:
+            type: object
+            required: [constraints]
+            additionalProperties: false
+            properties:
+              constraints:
+                type: array
+                items:
+                  type: object
+                  required: [text, measured_how, kind]
+                  additionalProperties: false
+                  properties:
+                    text: {type: string}
+                    measured_how: {type: string}
+                    kind:
+                      type: string
+                      enum: [実測, 仮説]
+                    measured_output: {type: string, minLength: 1, pattern: '\S'}
+        - id: premises-accept
+          script: measure_accept
+          runtime: uv
+          mutates_checkout: false
+          depends_on: [premises]
+          with: {reply: $premises.output}
+          output_format:
+            type: object
+            additionalProperties: false
+            required: [ok, done, reason]
+            properties:
+              ok: {type: boolean}
+              done: {type: boolean}
+              reason: {type: string}
+  - id: finish
+    script: finish
+    runtime: uv
+    mutates_checkout: false
+    depends_on: [intake, premises-loop]
+    trigger_rule: all_done
+    output_format:
+      type: object
+      additionalProperties: false
+      required: [ok, status, reason, constraints, report]
+      properties:
+        ok: {type: boolean}
+        status:
+          type: string
+          enum: [ok, failed]
+        reason: {type: string}
+        constraints:
+          type: [object, 'null']
+          properties:
+            type:
+              type: string
+              enum: [archon_artifact]
+            run_id: {type: string}
+            path: {type: string}
+        report:
+          type: array
+          items: {type: string}

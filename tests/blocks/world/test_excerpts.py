@@ -1,4 +1,4 @@
-"""世界の解の抜き書きの照らしと検索語の検査（blocks/world/src/excerpts.py。lib/tests/test_world_check.py の写し。docs/design/world.md の 8 節）。
+"""世界の解の抜き書きの照らしと検索語の検査（workflows/world/src/excerpts.py。lib/tests/test_world_check.py の写し。docs/design/world.md の 8 節）。
 
 - 検索語の検査: 依頼の行（where と字）から対象の識別子を集め（banned_tokens）、問題の類・検索語・定石の文に現れたら名指す（text_problems）
 - 抜き書きの照らし: 機械が同じ URL を取り直した本文で照らし、本文に字のまま在る抜き書きだけを残す（verify）。

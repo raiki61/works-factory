@@ -2,20 +2,28 @@
 
 止めた Archon は、落ちた節の出力を結んだ節を trigger_rule: all_done でも落とす（packages/workflows/src/dag-executor.ts の
 resolveBindingDirective・output-ref.ts の resolveNodeOutputField・assertProducerNotFailed）。返りの指し札の先が無い・空でも節を落とす（artifact-pointer.ts の checkPointer）。
-返りは JSON.parse で読むので NaN・Infinity を書けない。
-- 線と全ブロックの返す節の script を、境の口（.shared）も lib も隣の script も無い一時のフォルダへ単独で写し、入力無しで走らせる。
-  終了の値 0 で、標準出力の JSON が節の output_format に合う
-- 返す節が with:・when:・本文で読む $<id>.output の <id> は表 NEVER_FAIL に在り、表の行はその節を lib 無しで走らせる試験を名指す
-- 単独で走らせた返りの指し札の先は在って空でない
-- 表 LIBLESS_EXITS の script も、単独で走らせた返りが節の output_format に合う
-- scripts/ から標準出力へ書く道は境の口（boundary.returns）だけ。外は表 LIBLESS_EXITS の script の
-  json.dumps(..., allow_nan=False) だけ（境の口も lib も読めない時にも返す道）
+返りは JSON.parse で読むので NaN・Infinity を書けない。pack は tests/archon.py の WORKFLOWS。
+
+落ちてはいけない節（NeverFail。表を持たず YAML から組む。持ち主の決め shape-checks-only）:
+- どの graph でも、返す節が with:・when:・本文で読む $<id>.output の節（返す節はどれも trigger_rule: all_done で、落ちた節の後にも走る）
+- 落ちた節の後にも走る節（trigger_rule が all_done・one_success か always_run）が include の節の出力を直に読めば、include した
+  block の返す節。受け皿（埋め P8。既定の trigger_rule で受ける節。docs/design/line.md の頭の語）を通して読む block の返す節は、
+  落ちても受け皿が飛ぶだけなので入らない
+- ほかの run を workflow: で起こす graph と、起こされる graph（周の鎖・line・fix・merge）の返す節。run の結果を殻と鎖が読む
+- 結ばれた include の節は、その block の返す節に置き換えて同じ照らしを当てる
+
+照らし:
+- 落ちてはいけない節は script の節で（AI の節は retry の後に落ちうる）、一時のフォルダへ単独で写して入力無しで走らせると、終了の値 0 で、
+  標準出力の JSON が節の output_format に合い、返りの指し札の先が在って空でない。単独とは lib も隣の script も無い木で、口
+  （.shared/ports.py。docs/design/README.md の 4 節）と自分の block の src/ だけを置く（block のコードは block のフォルダに在り、
+  lib は起動の殻が渡す根から読むので、読めない時が在る）
+- scripts/ から標準出力へ書く道は口（ports.returns）だけ。口を読めない時に直に書く script（口の外の道）は json.dumps(...,
+  allow_nan=False) だけを書き、単独で走らせても節の output_format に合う
 """
 import ast
-import contextlib
-import importlib
 import importlib.util
 import io
+import contextlib
 import json
 import os
 import pathlib
@@ -29,73 +37,23 @@ from unittest import mock
 
 import yaml
 
-ROOT = pathlib.Path(__file__).resolve().parents[2]
-WORKFLOWS = ROOT / "workflows"
-if str(ROOT / "lib") not in sys.path:
-    sys.path.append(str(ROOT / "lib"))
-import chain  # noqa: E402  （周の鎖の周の数の上限 MAX_ROUNDS）
+from tests.archon import ROOT, WORKFLOWS, src_module
+
 RUN_ID = "run-alone"
-HERE = "tests.workflows.test_returns_never_fail.ReturnScriptCase."
-ALONE_RETURN = HERE + "test_every_returns_script_runs_alone_and_fits_its_output_format"
-ALONE_BOUND = HERE + "test_every_bound_script_runs_alone_and_fits_its_output_format"
-
-# 返す節が結ぶ節: (工程のフォルダ, 節の id) → その節を lib 無しで走らせる試験。include の節は差し込むブロックの返す節の試験
-NEVER_FAIL = {
-    ("plan", "round"): ALONE_BOUND,
-    ("report", "facts"): ALONE_BOUND,
-    ("line", "report"): ALONE_RETURN,
-    ("line", "collect"): ALONE_BOUND,
-    ("line", "sweep-children"): ALONE_BOUND,
-    ("chain", "chain-start"): ALONE_BOUND,
-    ("chain", "final-diff"): ALONE_BOUND,
-    ("chain", "hand"): ALONE_RETURN,
-    ("merge", "place"): ALONE_BOUND,
-    ("merge", "pr-commit"): ALONE_BOUND,
-    ("merge", "pr-read"): ALONE_BOUND,
-    **{("chain", f"round-{k}-decide"): ALONE_BOUND for k in range(1, chain.MAX_ROUNDS + 1)},
-}
-
-# 境の口を読めない時にも返すため、標準出力へ直に書く script（パス → 訳）
-LIBLESS_EXITS = {
-    "workflows/line/scripts/result.py": "線の返す節",
-    "workflows/line/scripts/collect.py": "線の返す節が $collect.output で結ぶ",
-    "workflows/line/scripts/sweep_children.py": "線の返す節が $sweep-children.output で結ぶ",
-    "workflows/judge/scripts/verdict.py": "judge の返す節",
-    "workflows/structure/scripts/structure_collect.py": "structure の返す節",
-    "workflows/plan/scripts/plan_collect.py": "plan の返す節",
-    "workflows/plan/scripts/round.py": "plan の返す節が $round.output.dir で結ぶ",
-    "workflows/plan/scripts/plan_reads.py": "読んだ証拠の節。受け付けの条件でないので、境の口を読めない時も ok: false で返す（線を止めない）",
-    "workflows/plan-review/scripts/result.py": "plan-review の返す節",
-    "workflows/plan-review/scripts/review_reads.py": "読んだ証拠の節。受け付けの条件でないので、境の口を読めない時も ok: false で返す（線を止めない）",
-    "workflows/fix/scripts/fix_reads.py": "読んだ証拠の節。受け付けの条件でないので、境の口を読めない時も ok: false で返す（ブロックを止めない）",
-    "workflows/judge/scripts/pr_reads.py": "読んだ証拠の節。受け付けの条件でないので、境の口を読めない時も ok: false で返す（ブロックを止めない）",
-    "workflows/plan-review/scripts/pass_open.py": "差し込みの頭。境の口を読めない時も ok: false で返す今の振る舞いを残す",
-    "workflows/fix/scripts/collect.py": "fix の返す節",
-    "workflows/test-gate/scripts/result.py": "test-gate の返す節",
-    "workflows/eyes/scripts/verdict.py": "eyes の返す節",
-    "workflows/merge/scripts/merge.py": "merge の返す節が $place.output で結ぶ",
-    "workflows/merge/scripts/handed.py": "merge の返す節",
-    "workflows/merge/scripts/pr_commit.py": "merge の返す節が $pr-commit.output で結ぶ",
-    "workflows/merge/scripts/pr_read.py": "merge の返す節が $pr-read.output で結ぶ",
-    "workflows/report/scripts/collect.py": "report の返す節",
-    "workflows/report/scripts/facts.py": "report の返す節が $facts.output で結ぶ",
-    "workflows/chain/scripts/result.py": "周の鎖の返す節",
-    "workflows/chain/scripts/chain_start.py": "周の鎖の返す節が $chain-start.output で結ぶ",
-    "workflows/chain/scripts/decide.py": "周の鎖の返す節が $round-k-decide.output で結ぶ",
-    "workflows/chain/scripts/final_diff.py": "周の鎖の返す節が $final-diff.output で結ぶ",
-}
-
+PREFIX = "works-factory-"
+LENIENT = ("all_done", "one_success")   # 落ちた節の後にも走る trigger_rule
+AI_KEYS = ("prompt", "command")
 BOUND = re.compile(r"\$([A-Za-z][\w-]*)\.output\b")
 TYPES = {"object": dict, "array": list, "string": str, "boolean": bool, "null": type(None)}
 
 
-def load(block: str) -> dict:
-    return yaml.safe_load((WORKFLOWS / block / f"works-factory-{block}.yaml").read_text(encoding="utf-8"))
+def load(block: str, pack: pathlib.Path = WORKFLOWS) -> dict:
+    return yaml.safe_load((pack / block / f"{PREFIX}{block}.yaml").read_text(encoding="utf-8"))
 
 
-def blocks() -> list[str]:
-    """線と全ブロック（works-factory-<名>.yaml を持つフォルダ）"""
-    return sorted(p.parent.name for p in WORKFLOWS.glob("*/works-factory-*.yaml") if p.stem == f"works-factory-{p.parent.name}")
+def blocks(pack: pathlib.Path = WORKFLOWS) -> list[str]:
+    """pack の graph と block（works-factory-<名>.yaml を持つフォルダ）"""
+    return sorted(p.parent.name for p in pack.glob(f"*/{PREFIX}*.yaml") if p.stem == f"{PREFIX}{p.parent.name}")
 
 
 def all_nodes(value) -> list[dict]:
@@ -108,17 +66,60 @@ def all_nodes(value) -> list[dict]:
     return []
 
 
-def node(block: str, nid: str) -> dict | None:
-    return next((n for n in all_nodes(load(block)["nodes"]) if n["id"] == nid), None)
+def node(doc: dict, nid: str) -> dict | None:
+    return next((n for n in all_nodes(doc["nodes"]) if n["id"] == nid), None)
 
 
-def return_node(block: str) -> dict:
-    doc = load(block)
+def return_node(doc: dict) -> dict:
     return next(n for n in doc["nodes"] if n["id"] == doc["returns"])
 
 
-def script_of(block: str, n: dict) -> pathlib.Path:
-    return WORKFLOWS / block / "scripts" / f"{n['script']}.py"
+def bound_ids(n: dict) -> list[str]:
+    """節が with:・when:・本文で読む $<id>.output の <id>"""
+    text = yaml.safe_dump({k: v for k, v in n.items() if k != "output_format"}, allow_unicode=True)
+    return sorted(set(BOUND.findall(text)))
+
+
+def lenient(n: dict) -> bool:
+    return n.get("trigger_rule") in LENIENT or n.get("always_run") is True
+
+
+def target(n: dict) -> str | None:
+    """include の節が差し込む block の名"""
+    name = n.get("include")
+    return name[len(PREFIX):] if isinstance(name, str) and name.startswith(PREFIX) else None
+
+
+def never_fail(pack: pathlib.Path = WORKFLOWS) -> dict[tuple[str, str], str]:
+    """落ちてはいけない (block, 節の id) → 訳（docstring の 3 つ）。結ばれた include の節は差し込む block の返す節に置き換える"""
+    docs = {b: load(b, pack) for b in blocks(pack)}
+    out: dict[tuple[str, str], str] = {}
+
+    def add(block: str, nid: str, why: str) -> None:
+        n = node(docs[block], nid)
+        inner = target(n) if n else None
+        if inner in docs:
+            add(inner, docs[inner]["returns"], f"{why}（{block} の include {nid} の返す節）")
+        else:
+            out.setdefault((block, nid), why)
+
+    for block, doc in docs.items():
+        ret = return_node(doc)
+        for nid in bound_ids(ret):
+            add(block, nid, f"{block} の返す節 {ret['id']} が ${nid}.output を読む")
+        for n in all_nodes(doc["nodes"]):
+            if n is ret or not lenient(n):
+                continue
+            for nid in bound_ids(n):
+                m = node(doc, nid)
+                if m is not None and target(m) in docs:
+                    add(block, nid, f"{block} の {n['id']}（{n.get('trigger_rule') or 'always_run'}）が ${nid}.output を直に読む")
+    called = {n["workflow"][len(PREFIX):] for doc in docs.values() for n in all_nodes(doc["nodes"])
+              if isinstance(n.get("workflow"), str) and n["workflow"].startswith(PREFIX)}
+    callers = {b for b, doc in docs.items() if any(isinstance(n.get("workflow"), str) for n in all_nodes(doc["nodes"]))}
+    for block in sorted((called | callers) & set(docs)):
+        add(block, docs[block]["returns"], f"{block} は workflow: で run を起こすか起こされ、その返りを殻か親の run が読む")
+    return out
 
 
 def is_type(value, name: str) -> bool:
@@ -156,81 +157,6 @@ def misfits(value, schema: dict, at: str = "$") -> list[str]:
     return out
 
 
-def run_alone(script: pathlib.Path, place: pathlib.Path) -> tuple[subprocess.CompletedProcess, pathlib.Path]:
-    """script だけを place/workflows/<工程>/scripts/ に写し（.shared も lib も隣の script も無い）、入力無しで走らせる"""
-    alone = place / "workflows" / script.parents[1].name / "scripts" / script.name
-    alone.parent.mkdir(parents=True)
-    shutil.copyfile(script, alone)
-    artifacts = place / "artifacts"
-    artifacts.mkdir()
-    env = {"ARTIFACTS_DIR": str(artifacts), "WORKFLOW_ID": RUN_ID, "PATH": os.environ.get("PATH", ""),
-           "PYTHONDONTWRITEBYTECODE": "1"}
-    done = subprocess.run([sys.executable, str(alone)], cwd=place, env=env, capture_output=True, text=True, encoding="utf-8")
-    return done, artifacts
-
-
-def alone_problems(done: subprocess.CompletedProcess, schema: dict | None) -> list[str]:
-    """単独で走らせた結果が、終了の値 0 で JSON 1 つを書き、output_format に合うか"""
-    if done.returncode != 0:
-        return [f"終了の値 {done.returncode}: {done.stderr.strip()[-400:]}"]
-    try:
-        got = json.loads(done.stdout)
-    except ValueError as e:
-        return [f"標準出力が JSON 1 つでない（{e}）: {done.stdout[:400]!r}"]
-    return misfits(got, schema) if schema else []
-
-
-def pointers(value):
-    """返りの中の指し札（入れ子も）。指し札は run_id と path を持つ物で見分け、type の字は見分けに使わない（字を書き違えた
-    指し札も resolve が拒んで赤になる）"""
-    if isinstance(value, dict):
-        if {"run_id", "path"} <= set(value):
-            yield value
-        else:
-            for v in value.values():
-                yield from pointers(v)
-    elif isinstance(value, list):
-        for v in value:
-            yield from pointers(v)
-
-
-def pointer_problems(value, artifacts: pathlib.Path) -> list[str]:
-    """指し札を境の口の resolve で解き、先が在って空でないか"""
-    shared = str(WORKFLOWS / ".shared")
-    if shared not in sys.path:
-        sys.path.append(shared)
-    import boundary
-
-    out = []
-    with mock.patch.dict(os.environ, {"ARTIFACTS_DIR": str(artifacts), "WORKFLOW_ID": RUN_ID}):
-        for ptr in pointers(value):
-            try:
-                path = boundary.resolve(ptr)
-            except (KeyError, ValueError) as e:
-                out.append(f"{ptr}: 解けない（{e}）")
-                continue
-            if not path.is_file() or path.stat().st_size == 0:
-                out.append(f"{ptr['path']}: 先が無いか空")
-    return out
-
-
-def unlisted_bindings(block: str, n: dict, table: dict) -> list[str]:
-    """返す節が読む $<id>.output の <id> のうち、表に無い物"""
-    text = yaml.safe_dump({k: v for k, v in n.items() if k != "output_format"}, allow_unicode=True)
-    return [f"{block} の返す節 {n['id']} が ${nid}.output を読むが NEVER_FAIL に無い"
-            for nid in sorted(set(BOUND.findall(text))) if (block, nid) not in table]
-
-
-def missing_test(dotted: str) -> str:
-    """名指した試験が無ければ訳（在れば空）"""
-    module, cls, method = dotted.rsplit(".", 2)
-    try:
-        found = getattr(getattr(importlib.import_module(module), cls), method)
-    except (ImportError, AttributeError) as e:
-        return f"試験 {dotted} が無い（{e}）"
-    return "" if callable(found) else f"試験 {dotted} が呼べない"
-
-
 def stdout_writes(tree: ast.AST) -> list[tuple[int, bool]]:
     """標準出力へ書く呼び出しの (行, json.dumps(..., allow_nan=False) を書くか)"""
     def is_stdout(x) -> bool:
@@ -257,21 +183,86 @@ def stdout_writes(tree: ast.AST) -> list[tuple[int, bool]]:
     return out
 
 
-def exit_problems(files: list[pathlib.Path], table: dict, root: pathlib.Path) -> list[str]:
-    """境の口の外で標準出力へ書く所（表に無い script か、allow_nan=False の json.dumps でない物）"""
+def writes_stdout(script: pathlib.Path) -> bool:
+    return bool(stdout_writes(ast.parse(script.read_text(encoding="utf-8"))))
+
+
+def run_alone(script: pathlib.Path, place: pathlib.Path, pack: pathlib.Path = WORKFLOWS
+              ) -> tuple[subprocess.CompletedProcess, pathlib.Path]:
+    """script を place/workflows/<block>/scripts/ に写して入力無しで走らせる。lib も隣の script も置かず、口（pack の .shared/）と
+    自分の block の src/ だけを置く"""
+    block = script.parents[1]
+    alone = place / "workflows" / block.name / "scripts" / script.name
+    alone.parent.mkdir(parents=True)
+    shutil.copyfile(script, alone)
+    skip = shutil.ignore_patterns("__pycache__")
+    if (block / "src").is_dir():
+        shutil.copytree(block / "src", alone.parents[1] / "src", ignore=skip)
+    if (pack / ".shared").is_dir():
+        shutil.copytree(pack / ".shared", place / "workflows" / ".shared", ignore=skip)
+    artifacts = place / "artifacts"
+    artifacts.mkdir()
+    env = {"ARTIFACTS_DIR": str(artifacts), "WORKFLOW_ID": RUN_ID, "PATH": os.environ.get("PATH", ""),
+           "PYTHONDONTWRITEBYTECODE": "1"}
+    done = subprocess.run([sys.executable, str(alone)], cwd=place, env=env, capture_output=True, text=True, encoding="utf-8")
+    return done, artifacts
+
+
+def alone_problems(done: subprocess.CompletedProcess, schema: dict | None) -> list[str]:
+    """単独で走らせた結果が、終了の値 0 で JSON 1 つを書き、output_format に合うか"""
+    if done.returncode != 0:
+        return [f"終了の値 {done.returncode}: {done.stderr.strip()[-400:]}"]
+    try:
+        got = json.loads(done.stdout)
+    except ValueError as e:
+        return [f"標準出力が JSON 1 つでない（{e}）: {done.stdout[:400]!r}"]
+    return misfits(got, schema) if schema else []
+
+
+def pointers(value):
+    """返りの中の指し札（入れ子も）。指し札は run_id と path を持つ物で見分け、type の字は見分けに使わない（字を書き違えた
+    指し札も照らしが拒んで赤になる）"""
+    if isinstance(value, dict):
+        if {"run_id", "path"} <= set(value):
+            yield value
+        else:
+            for v in value.values():
+                yield from pointers(v)
+    elif isinstance(value, list):
+        for v in value:
+            yield from pointers(v)
+
+
+def pointer_problems(value, artifacts: pathlib.Path) -> list[str]:
+    """指し札を口の照らし（ports.inside と run の id）で解き、先が在って空でないか"""
+    import ports
     out = []
-    for path in files:
-        name = path.relative_to(root).as_posix()
-        for line, ok in stdout_writes(ast.parse(path.read_text(encoding="utf-8"))):
-            if name not in table:
-                out.append(f"{name}:{line}: 境の口（boundary.returns）の外で標準出力に書く")
-            elif not ok:
-                out.append(f"{name}:{line}: 境の口の外の道は json.dumps(..., allow_nan=False) だけを書く")
+    for ptr in pointers(value):
+        try:
+            if ptr.get("type") != ports.POINTER_TYPE or ptr.get("run_id") != RUN_ID:
+                raise ValueError(f"この run の {ports.POINTER_TYPE} でない")
+            path = ports.inside(ptr.get("path"), artifacts)
+        except ValueError as e:
+            out.append(f"{ptr}: 解けない（{e}）")
+            continue
+        if not path.is_file() or path.stat().st_size == 0:
+            out.append(f"{ptr['path']}: 先が無いか空")
     return out
 
 
-def block_scripts(root: pathlib.Path) -> list[pathlib.Path]:
-    return sorted(p for p in root.glob("workflows/*/scripts/**/*.py") if "__pycache__" not in p.parts)
+def exit_problems(files: list[pathlib.Path], root: pathlib.Path) -> list[str]:
+    """口の外で標準出力へ書く所のうち、allow_nan=False の json.dumps でない物"""
+    return [f"{path.relative_to(root).as_posix()}:{line}: 口の外の道は json.dumps(..., allow_nan=False) だけを書く"
+            for path in files for line, ok in stdout_writes(ast.parse(path.read_text(encoding="utf-8"))) if not ok]
+
+
+def block_scripts(pack: pathlib.Path) -> list[pathlib.Path]:
+    return sorted(p for p in pack.glob("*/scripts/**/*.py") if "__pycache__" not in p.parts)
+
+
+sys.dont_write_bytecode = True
+if str(WORKFLOWS / ".shared") not in sys.path:
+    sys.path.insert(0, str(WORKFLOWS / ".shared"))
 
 
 class ReturnScriptCase(unittest.TestCase):
@@ -280,104 +271,94 @@ class ReturnScriptCase(unittest.TestCase):
         tmp = tempfile.TemporaryDirectory()
         cls.addClassCleanup(tmp.cleanup)
         base = pathlib.Path(tmp.name)
-        cls.returns, cls.bound = {}, {}
-        for block in blocks():
-            n = return_node(block)
-            done, artifacts = run_alone(script_of(block, n), base / "returns" / block)
-            cls.returns[block] = (n, done, artifacts)
-        for block, nid in NEVER_FAIL:
-            n = node(block, nid)
+        cls.table = never_fail()
+        cls.runs = {}
+        for (block, nid) in cls.table:
+            n = node(load(block), nid)
             if n is not None and "script" in n:
-                done, artifacts = run_alone(script_of(block, n), base / "bound" / f"{block}-{nid}")
-                cls.bound[(block, nid)] = (n, done, artifacts)
+                script = WORKFLOWS / block / "scripts" / f"{n['script']}.py"
+                cls.runs[(block, nid)] = (n, *run_alone(script, base / "never" / f"{block}-{nid}"))
 
-    def test_every_returns_script_runs_alone_and_fits_its_output_format(self):
-        self.assertGreaterEqual(set(self.returns), {"line", "judge", "structure", "plan", "plan-review", "fix", "test-gate", "eyes",
-                                                    "merge", "report"})
-        for block, (n, done, _) in self.returns.items():
-            with self.subTest(block):
-                self.assertIn("output_format", n)
-                self.assertEqual(alone_problems(done, n["output_format"]), [], f"{block}/scripts/{n['script']}.py")
+    def test_never_failing_nodes_are_found(self):
+        """line と周の鎖の返す節・返す節が結ぶ節・include の返す節を拾えなければ、下の照らしは空回りする"""
+        self.assertLessEqual({("line", "result"), ("chain", "result"), ("line", "sweep-children"), ("report", "finish")},
+                             set(self.table))
 
-    def test_every_bound_script_runs_alone_and_fits_its_output_format(self):
-        self.assertEqual({k for k, v in NEVER_FAIL.items() if v == ALONE_BOUND}, set(self.bound))
-        for (block, nid), (n, done, _) in self.bound.items():
+    def test_never_failing_nodes_are_scripts(self):
+        """落ちてはいけない節は script の節（AI の節は retry の後にも落ちうる。承認ノードの答えも script の節で受ける）"""
+        for (block, nid), why in self.table.items():
             with self.subTest(f"{block}:{nid}"):
-                self.assertEqual(alone_problems(done, n.get("output_format")), [], f"{block}/scripts/{n['script']}.py")
+                n = node(load(block), nid)
+                self.assertIsNotNone(n, f"節が無い（{why}）")
+                self.assertIn("script", n, f"{why}が、{nid} は script の節でない（{sorted(k for k in n if k in AI_KEYS)}）")
 
-    def test_every_libless_exit_runs_alone_and_fits_its_output_format(self):
-        """LIBLESS_EXITS の script は、境の口も lib も読めない時に直に返す道の返りも、節の output_format に合う"""
-        tmp = tempfile.TemporaryDirectory()
-        self.addCleanup(tmp.cleanup)
-        used = [(block, n) for block in blocks() for n in all_nodes(load(block)["nodes"])
-                if "script" in n and script_of(block, n).relative_to(ROOT).as_posix() in LIBLESS_EXITS]
-        self.assertEqual({script_of(b, n).relative_to(ROOT).as_posix() for b, n in used}, set(LIBLESS_EXITS))
-        for block, n in used:
-            with self.subTest(f"{block}:{n['id']}"):
-                done, _ = run_alone(script_of(block, n), pathlib.Path(tmp.name) / block / n["id"])
-                self.assertEqual(alone_problems(done, n.get("output_format")), [], f"{block}/scripts/{n['script']}.py")
-
-    def test_return_node_binds_only_never_failing_nodes(self):
-        for block in blocks():
-            with self.subTest(block):
-                self.assertEqual(unlisted_bindings(block, return_node(block), NEVER_FAIL), [])
-        for (block, nid), dotted in NEVER_FAIL.items():
+    def test_never_failing_scripts_run_alone_and_fit_their_output_format(self):
+        for (block, nid), (n, done, _) in self.runs.items():
             with self.subTest(f"{block}:{nid}"):
-                self.assertIsNotNone(node(block, nid), f"表の行 {block}:{nid} の節が無い")
-                self.assertEqual(missing_test(dotted), "")
-                self.assertIn(f"${nid}.output", yaml.safe_dump(return_node(block), allow_unicode=True),
-                              f"表の行 {block}:{nid} を返す節が読まない（古い行）")
+                self.assertEqual(alone_problems(done, n.get("output_format")), [],
+                                 f"{block}/scripts/{n['script']}.py（{self.table[(block, nid)]}）")
 
     def test_every_pointer_in_a_fallback_return_names_a_nonempty_file(self):
-        runs = {**{b: v for b, v in self.returns.items()}, **{f"{b}:{i}": v for (b, i), v in self.bound.items()}}
-        for name, (_, done, artifacts) in runs.items():
-            with self.subTest(name):
+        for (block, nid), (_, done, artifacts) in self.runs.items():
+            with self.subTest(f"{block}:{nid}"):
                 self.assertEqual(done.returncode, 0, done.stderr)
                 self.assertEqual(pointer_problems(json.loads(done.stdout), artifacts), [])
 
-    def test_returns_leave_only_through_the_boundary(self):
-        self.assertEqual(exit_problems(block_scripts(ROOT), LIBLESS_EXITS, ROOT), [])
-        for name in LIBLESS_EXITS:
-            with self.subTest(name):
-                text = (ROOT / name).read_text(encoding="utf-8")
-                self.assertTrue(stdout_writes(ast.parse(text)), f"{name} は標準出力へ直に書かない（古い行）")
+    def test_direct_stdout_scripts_run_alone_and_fit_their_output_format(self):
+        """口の外で標準出力へ直に書く script も、単独で走らせた返りが節の output_format に合う"""
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        used = [(block, n) for block in blocks() for n in all_nodes(load(block)["nodes"])
+                if "script" in n and writes_stdout(WORKFLOWS / block / "scripts" / f"{n['script']}.py")]
+        self.assertTrue(used, "直に書く script を 1 つも拾えなければ照らしは空回りする")
+        for block, n in used:
+            with self.subTest(f"{block}:{n['id']}"):
+                done, _ = run_alone(WORKFLOWS / block / "scripts" / f"{n['script']}.py", pathlib.Path(tmp.name) / block / n["id"])
+                self.assertEqual(alone_problems(done, n.get("output_format")), [], f"{block}/scripts/{n['script']}.py")
+
+    def test_returns_leave_only_through_the_ports(self):
+        self.assertEqual(exit_problems(block_scripts(WORKFLOWS), ROOT), [])
 
 
 class ReadsFailureCase(unittest.TestCase):
-    """#371: 読んだ証拠の 4 つの節は、集める中で誤りが起きても終了の値 0 で ok: false を返し、置き場に落ちた記録
-    （lib/reads.guarded）を残す。返りは誰も読まないので、報告はこの記録で「役を起こしていない」と分ける"""
-    # (script, 集める lib の口, 置き場の run の置き場からの相対)
-    TABLE = [("workflows/fix/scripts/fix_reads.py", "fixboard.collect_reads", "fix/fix"),
-             ("workflows/judge/scripts/pr_reads.py", "judge_accept.pr_reads", "judge"),
-             ("workflows/plan/scripts/plan_reads.py", "planfile.collect_reads", "plan/r1"),
-             ("workflows/plan-review/scripts/review_reads.py", "boardview.collect_reads", "plan-review")]
+    """#371: 読んだ証拠の節は、集める中で誤りが起きても終了の値 0 で ok: false を返し、place に落ちた記録（lib/reads.guarded）を
+    残す。返りは誰も読まないので、報告はこの記録で「役を起こしていない」と分ける。fix・plan-review・parallel-pr の 3 つ
+    （plan は役に読ませるパスが無いので持たない。docs/design/integration.md の 4.1-2）"""
+    # (block, script, 集める src の口)
+    TABLE = [("fix", "fix_reads", "board.collect_reads"),
+             ("plan-review", "review_reads", "proof.collect"),
+             ("parallel-pr", "read_proof", "proof.collect")]
 
     def test_failed_collection_leaves_a_failed_evidence(self):
         if str(ROOT / "lib") not in sys.path:
             sys.path.append(str(ROOT / "lib"))
         import reads
-        for rel, target, place in self.TABLE:
-            with self.subTest(rel), tempfile.TemporaryDirectory() as tmp:
+        for block, name, target in self.TABLE:
+            with self.subTest(block), tempfile.TemporaryDirectory() as tmp:
                 artifacts = pathlib.Path(tmp)
-                spec = importlib.util.spec_from_file_location(f"reads_failure_{pathlib.Path(rel).stem}", ROOT / rel)
+                module, attr = target.split(".")
+                src = src_module(block, module)
+                path = WORKFLOWS / block / "scripts" / f"{name}.py"
+                spec = importlib.util.spec_from_file_location(f"reads_failure_{name}", path)
                 script = importlib.util.module_from_spec(spec)
-                spec.loader.exec_module(script)
-                module, name = target.split(".")
                 out = io.StringIO()
-                env = {"ARTIFACTS_DIR": str(artifacts), "WORKFLOW_ID": RUN_ID, "INPUTS_DIR": "plan/r1", "INPUTS_START": "null"}
-                with mock.patch.dict(os.environ, env), mock.patch.object(importlib.import_module(module), name, side_effect=OSError("壊れた")), \
-                        contextlib.redirect_stdout(out):
-                    self.assertEqual(script.main(), 0)
+                env = {"ARTIFACTS_DIR": str(artifacts), "WORKFLOW_ID": RUN_ID}
+                saved = list(sys.path)
+                try:
+                    with mock.patch.dict(os.environ, env), mock.patch.object(src, attr, side_effect=OSError("壊れた")), \
+                            contextlib.redirect_stdout(out):
+                        os.environ.pop("ARCHON_NODE_EXECUTION", None)
+                        spec.loader.exec_module(script)
+                        if hasattr(script, "main"):
+                            self.assertEqual(script.main(), 0)
+                finally:
+                    sys.path[:] = saved
                 got = json.loads(out.getvalue())
                 self.assertEqual((got["ok"], got["reason"]), (False, "OSError: 壊れた"))
-                [path] = (artifacts / place).glob(reads.EVIDENCE_GLOB)
-                doc, _ = reads.read_evidence(path)
+                [evidence] = artifacts.glob(reads.EVIDENCE_GLOB)
+                doc, _ = reads.read_evidence(evidence)
                 self.assertEqual(doc["sources"]["hook"], reads.FAILED)
-                why = doc["sources"]["why"]
-                if place == "plan-review":   # 見え方の材料を置いていないので、往復の番号と形を読めないと添える（#405）
-                    self.assertTrue(why.startswith(f"OSError: 壊れた（{reads.UNREAD_PASS}: "), why)
-                else:
-                    self.assertEqual(why, "OSError: 壊れた")
+                self.assertEqual(doc["sources"]["why"], "OSError: 壊れた")
 
 
 class SeedCase(unittest.TestCase):
@@ -394,38 +375,62 @@ class SeedCase(unittest.TestCase):
         path.write_text(text, encoding="utf-8")
         return path
 
-    def test_seed_return_script_that_needs_the_boundary_is_red(self):
+    def test_seed_return_script_that_needs_lib_or_a_wrong_shape_is_red(self):
         schema = {"type": "object", "required": ["ok"], "properties": {"ok": {"type": "boolean"}}}
-        top = self.seed("src/blk/scripts/a.py", "import boundary\nboundary.returns({'ok': True})\n")
-        done, _ = run_alone(top, self.dir / "a")
+        pack = self.dir / "pack"
+        self.seed("pack/.shared/ports.py", "import json\n\ndef returns(obj):\n    print(json.dumps(obj, allow_nan=False))\n")
+        head = ("import sys\nfrom pathlib import Path\n"
+                "sys.path.insert(0, str(Path(__file__).resolve().parents[2] / '.shared'))\nimport ports\n")
+        fine = self.seed("pack/blk/scripts/fine.py", head + "ports.returns({'ok': True})\n")
+        done, _ = run_alone(fine, self.dir / "fine", pack)
+        self.assertEqual(alone_problems(done, schema), [])
+        lib = self.seed("pack/blk/scripts/a.py", head + "import jsonfile\nports.returns({'ok': True})\n")
+        done, _ = run_alone(lib, self.dir / "a", pack)
         self.assertNotEqual(alone_problems(done, schema), [])
-        shape = self.seed("src/blk/scripts/b.py", "import json\nprint(json.dumps({'ok': 'yes'}, allow_nan=False))\n")
-        done, _ = run_alone(shape, self.dir / "b")
+        shape = self.seed("pack/blk/scripts/b.py", "import json\nprint(json.dumps({'ok': 'yes'}, allow_nan=False))\n")
+        done, _ = run_alone(shape, self.dir / "b", pack)
         self.assertNotEqual(alone_problems(done, schema), [])
 
-    def test_seed_unlisted_binding_and_missing_test_are_red(self):
-        n = {"id": "r", "script": "r", "with": {"dir": "$round.output.dir"}, "when": "$gate.output.ok == true"}
-        self.assertEqual(len(unlisted_bindings("blk", n, {("blk", "round"): ALONE_BOUND})), 1)
-        self.assertNotEqual(missing_test(HERE + "test_no_such_test"), "")
+    def test_seed_bindings_make_never_failing_nodes(self):
+        """返す節が結ぶ節・落ちた後にも走る節が直に読む include の返す節・workflow: で起こす graph の返す節を拾い、受け皿を通して
+        読む include の返す節と、既定の trigger_rule の節が読む節は拾わない"""
+        pack = self.dir / "pack"
+
+        def graph(name: str, doc: dict) -> None:
+            self.seed(f"pack/{name}/{PREFIX}{name}.yaml", yaml.safe_dump({"name": f"{PREFIX}{name}", **doc}))
+
+        graph("leaf", {"returns": "end", "nodes": [{"id": "work", "script": "work"},
+                                                   {"id": "end", "script": "end", "trigger_rule": "all_done",
+                                                    "with": {"w": "$work.output.x"}}]})
+        graph("other", {"returns": "end", "nodes": [{"id": "end", "script": "end"}]})
+        graph("top", {"returns": "result", "nodes": [
+            {"id": "leaf", "include": f"{PREFIX}leaf"},
+            {"id": "other", "include": f"{PREFIX}other"},
+            {"id": "other-out", "script": "returned", "depends_on": ["other"], "with": {"got": "$other.output"}},
+            {"id": "plain", "script": "plain", "with": {"x": "$leaf.output.x"}},
+            {"id": "result", "script": "result", "trigger_rule": "all_done",
+             "with": {"leaf": "$leaf.output", "other": "$other-out.output.got"}}]})
+        graph("caller", {"returns": "done", "nodes": [{"id": "child", "workflow": f"{PREFIX}leaf"},
+                                                      {"id": "done", "script": "done", "trigger_rule": "all_done"}]})
+        self.assertEqual(sorted(never_fail(pack)), [("caller", "done"), ("leaf", "end"), ("leaf", "work"), ("top", "other-out")])
 
     def test_seed_pointer_to_a_missing_or_empty_file_is_red(self):
         (self.dir / "empty.txt").write_text("", encoding="utf-8")
         (self.dir / "full.txt").write_text("x", encoding="utf-8")
         got = {"a": {"type": "archon_artifact", "run_id": RUN_ID, "path": "none.txt"},
                "b": [{"type": "archon_artifact", "run_id": RUN_ID, "path": "empty.txt"}],
-               "c": {"type": "archon_artifact", "run_id": RUN_ID, "path": "full.txt"}}
-        self.assertEqual(len(pointer_problems(got, self.dir)), 2)
+               "c": {"type": "archon_artifact", "run_id": RUN_ID, "path": "full.txt"},
+               "d": {"type": "archon_artifact", "run_id": RUN_ID, "path": "../full.txt"}}
+        self.assertEqual(len(pointer_problems(got, self.dir)), 3)
 
-    def test_seed_stdout_outside_the_boundary_is_red(self):
-        self.seed("workflows/b/scripts/raw.py", "import json, sys\nprint(json.dumps({}))\nsys.stdout.write('{}')\n")
-        self.seed("workflows/b/scripts/loose.py", "import json\nprint(json.dumps({}, ensure_ascii=False), flush=True)\n")
-        self.seed("workflows/b/scripts/fine.py", "import json, sys\nprint('x', file=sys.stderr)\n"
+    def test_seed_stdout_outside_the_ports_is_red(self):
+        self.seed("pack/b/scripts/raw.py", "import json, sys\nprint(json.dumps({}))\nsys.stdout.write('{}')\n")
+        self.seed("pack/b/scripts/loose.py", "import json\nprint(json.dumps({}, ensure_ascii=False), flush=True)\n")
+        self.seed("pack/b/scripts/fine.py", "import json, sys\nprint('x', file=sys.stderr)\n"
                   "print(json.dumps({}, allow_nan=False))\n")
-        got = exit_problems(block_scripts(self.dir), {"workflows/b/scripts/loose.py": "見本",
-                                                      "workflows/b/scripts/fine.py": "見本"}, self.dir)
+        got = exit_problems(block_scripts(self.dir / "pack"), self.dir)
         self.assertEqual([p.split(":")[0:2] for p in got],
-                         [["workflows/b/scripts/loose.py", "2"], ["workflows/b/scripts/raw.py", "2"],
-                          ["workflows/b/scripts/raw.py", "3"]])
+                         [["pack/b/scripts/loose.py", "2"], ["pack/b/scripts/raw.py", "2"], ["pack/b/scripts/raw.py", "3"]])
 
 
 if __name__ == "__main__":

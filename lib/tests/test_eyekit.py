@@ -147,11 +147,12 @@ class AfterCase(_Tmp):
 class ReviewMdCase(_Tmp):
     def test_repo_review_md_says_when_the_target_has_none(self):
         """test_prep_pastes_the_premises_and_names_the_target_review_md の REVIEW.md の半分（r3 と r4 のまとめた形が使う）"""
-        got = eyekit.review_md_values(self.tmp)
-        self.assertEqual(got, {"review_md": eyekit.review_md(self.tmp)[0], "repo_review_md": eyekit.NO_REPO_REVIEW_MD})
+        own = self.tmp / "own" / "REVIEW.md"   # 工場の観点の正本は呼び手の block が渡す（README 9.3）
+        got = eyekit.review_md_values(self.tmp, own)
+        self.assertEqual(got, {"review_md": str(own.resolve()), "repo_review_md": eyekit.NO_REPO_REVIEW_MD})
+        self.assertEqual(eyekit.review_md(self.tmp, own)[0], got["review_md"])
         (self.tmp / "REVIEW.md").write_text("# 観点\n", encoding="utf-8")
-        self.assertEqual(pathlib.Path(eyekit.review_md_values(self.tmp)["repo_review_md"]), (self.tmp / "REVIEW.md").resolve())
-        self.assertTrue(pathlib.Path(eyekit.review_md_values(self.tmp)["review_md"]).is_file())
+        self.assertEqual(pathlib.Path(eyekit.review_md_values(self.tmp, own)["repo_review_md"]), (self.tmp / "REVIEW.md").resolve())
 
 
 class HumanItemsCase(unittest.TestCase):
@@ -271,14 +272,6 @@ class VerdictCase(_Tmp):
     def test_headline_is_the_report_row_shape(self):
         self.assertEqual(eyekit.headline("R1", {"status": "pass", "reason": "最小\n で ある"}), "R1: pass（最小 で ある）")
         self.assertEqual(eyekit.headline("R1", {"status": "pass", "reason": ""}), "R1: pass（理由なし）")
-
-    def test_constants_are_the_eyeverdict_words(self):
-        """写した定数は今の eyeverdict の字のまま（組み込みで eyeverdict を消すまで、2 か所が同じ字を言う）"""
-        import eyeverdict
-        for name in ("FELL_MARK", "NO_FILE", "UNNAMED_REDESIGN", "RAISED_BY_POINTS", "BROKEN_POINTS", "NO_AFTER", "REVIEW_ACCEPTED",
-                     "REVIEW_BLOCKED", "REVIEW_GAVE_UP", "REVIEW_HELD", "REVIEW_NO_PLAN", "REVIEW_UNREAD", "LANE"):
-            with self.subTest(name):
-                self.assertEqual(getattr(eyekit, name), getattr(eyeverdict, name))
 
 
 if __name__ == "__main__":

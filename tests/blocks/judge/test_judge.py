@@ -1,4 +1,4 @@
-"""判定のまとめの graph（blocks/judge。docs/design/judge-eyes.md の 1 節）: 止めの語の順・返りの無い block の欄・diagnose へ渡す値の
+"""判定のまとめの graph（workflows/judge。docs/design/judge-eyes.md の 1 節）: 止めの語の順・返りの無い block の欄・diagnose へ渡す値の
 そろえ方・判定の裏取りの選び・返す node が落ちないこと・配線の yes/no・筋書きの verdict を確かめる。
 
 元は今の tests/workflows/test_judge.py の graph の場面（docs/design/README.md の 9.5）。include した block の中は各 block の試験が見る。
@@ -34,7 +34,7 @@ def ptr(path: str) -> dict:
 
 
 def passing() -> dict:
-    """どの段も通った受け皿の got（include の id → got）と返しの出力"""
+    """どの段も通った受け皿の got（include した block の名 → got）と返しの出力"""
     got = {
         "head-depth": {"ok": True, "status": "ok", "reason": "", "tier": "標準", "why": "原因が未知", "rows": [], "record": ptr("h.json"),
                        "report": ["- 段: 標準"]},
@@ -228,8 +228,8 @@ class VerdictCase(unittest.TestCase):
         got["head-depth"] = {**got["head-depth"], "optional": [{"node": "x", "bare": False}, {"node": "y", "bare": True}]}
         rows = self.build(got)["optional"]
         self.assertIn({"node": "world__", "bare": False}, rows)
-        self.assertIn({"node": "provenance__", "bare": False}, rows)
-        self.assertIn({"node": "head-depth__x", "bare": False}, rows)
+        self.assertIn({"node": "provenance-run__", "bare": False}, rows)
+        self.assertIn({"node": "head-depth-run__x", "bare": False}, rows)
         self.assertIn({"node": "y", "bare": True}, rows)
         self.assertEqual(len(rows), len({(r["node"], r["bare"]) for r in rows}))
 
@@ -289,7 +289,7 @@ class ScriptCase(unittest.TestCase):
         git(self.run.repo, "add", "-A")
         git(self.run.repo, "commit", "-q", "-m", "seed")
         got = self.run.script("spec_in", "judge__spec-in", spec="false", request=json.dumps(REQUEST), spec_out="null")
-        intake = self.run.other("premises").script("intake", "judge__premises__intake", request=json.dumps(got["request"]),
+        intake = self.run.other("premises").script("intake", "judge__premises-run__intake", request=json.dumps(got["request"]),
                                                    carried="[]", lang="")
         self.assertTrue(intake["due"], intake)
 
@@ -331,7 +331,8 @@ class WiringCase(unittest.TestCase):
     def setUpClass(cls):
         cls.doc = yaml.safe_load((kit.BLOCKS / BLOCK / f"works-factory-{BLOCK}.yaml").read_text(encoding="utf-8"))
         cls.nodes = {n["id"]: n for n in cls.doc["nodes"]}
-        cls.includes = {n["id"]: n for n in cls.doc["nodes"] if "include" in n}
+        # include した block の名 → include の node（id は fallback.include_id。block の中の node と同じ id にしない）
+        cls.includes = {n["include"].removeprefix("works-factory-"): n for n in cls.doc["nodes"] if "include" in n}
 
     def test_every_block_of_the_judgment_is_included_once(self):
         named = sorted(n["include"] for n in self.includes.values())
@@ -350,11 +351,17 @@ class WiringCase(unittest.TestCase):
     def test_every_include_has_a_receiver_and_the_verdict_reads_receivers_only(self):
         verdict = self.nodes["verdict"]
         self.assertEqual(verdict["trigger_rule"], "all_done")
-        for name in self.includes:
+        for node in self.includes.values():
+            name = node["id"]
             self.assertEqual(self.nodes[f"{name}-out"]["with"]["got"], f"${name}.output")
             self.assertIn(f"{name}-out", verdict["depends_on"])
         reads = json.dumps(verdict["with"])
-        self.assertFalse([n for n in self.includes if f"${n}.output" in reads], "verdict は include を直に読まない")
+        self.assertFalse([n["id"] for n in self.includes.values() if f"${n['id']}.output" in reads], "verdict は include を直に読まない")
+
+    def test_include_ids_follow_the_verdict_table(self):
+        """include の id は verdict が optional の頭に付ける名（fallback.include_id）と同じ"""
+        fallback = kit.load(BLOCK, "fallback")
+        self.assertEqual({b: n["id"] for b, n in self.includes.items()}, {b: fallback.include_id(b) for b in self.includes})
 
     def test_spec_rows_reach_the_stages_after_the_spec(self):
         """今の spec_freeze は受け入れ条件の行を依頼の行に積み、並行 PR・前提の実測・世界の解・先行議論の突合が読んだ"""
@@ -364,20 +371,19 @@ class WiringCase(unittest.TestCase):
         self.assertEqual(self.includes["diagnose"]["with"]["spec_rows"], "$diagnose-in.output.spec_rows")
 
     def test_verify_runs_only_when_picked_and_ready(self):
-        self.assertEqual(self.includes["verify"]["when"], "$diagnose-in.output.verify == true && $diagnose.output.ready == true")
+        self.assertEqual(self.includes["verify"]["when"], "$diagnose-in.output.verify == true && $diagnose-run.output.ready == true")
 
     def test_materials_run_after_world_even_when_it_is_cut(self):
         for name in MATERIALS:
             node = self.includes[name]
-            self.assertEqual((node["depends_on"], node["trigger_rule"]), (["purpose", "world-out"], "none_failed_min_one_success"))
+            self.assertEqual((node["depends_on"], node["trigger_rule"]), (["purpose-run", "world-out"], "none_failed_min_one_success"))
 
     def test_include_inputs_are_passed_or_named(self):
         """include した block の inputs: の全部が with: で渡るか、渡さない訳の一覧に在る（include した block が要る）"""
-        for name, node in self.includes.items():
-            block = node["include"].removeprefix("works-factory-")
+        for block, node in self.includes.items():
             path = kit.BLOCKS / block / f"works-factory-{block}.yaml"
             with self.subTest(block=block):
-                self.assertTrue(path.is_file(), f"include した block {block} が blocks/ に無い")
+                self.assertTrue(path.is_file(), f"include した block {block} が workflows/ に無い")
                 inputs = set(yaml.safe_load(path.read_text(encoding="utf-8")).get("inputs") or {})
                 given = set(node.get("with") or {})
                 self.assertEqual(sorted(given - inputs), [], "block の inputs: に無い鍵を渡している")
@@ -385,7 +391,7 @@ class WiringCase(unittest.TestCase):
 
 
 class FixtureCase(unittest.TestCase):
-    """筋書きを dry-run で回し、verdict の出力を見る（include した block が blocks/ に要る）"""
+    """筋書きを dry-run で回し、verdict の出力を見る（include した block が workflows/ に要る）"""
     SCENARIOS = ("standalone", "pass", "bad-request", "judge-gave-up", "material-peer-stop", "no-open-units", "spec-on",
                  "spec-stop", "world-offline", "world-cut", "verify-heavy")
 

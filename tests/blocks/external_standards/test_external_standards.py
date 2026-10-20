@@ -185,10 +185,10 @@ class FlowCase(unittest.TestCase):
         self.assertIn("intake.json", self.run.failing("role_prep", f"{LOOP}.{NAME}-prep"))
 
     def test_included_block_writes_in_its_own_place(self):
-        self.run.script("intake", "judge__external-standards__intake", base="", purpose="null", entry="", lang="")
-        self.assertTrue((self.run.artifacts / "judge" / "external-standards" / "intake.json").is_file())
-        fin = self.run.script("finish", "judge__external-standards__finish")
-        self.assertEqual(fin["material"]["path"], "judge/external-standards/material.json")
+        self.run.script("intake", "judge__external-standards-run__intake", base="", purpose="null", entry="", lang="")
+        self.assertTrue((self.run.artifacts / "judge" / "external-standards-run" / "intake.json").is_file())
+        fin = self.run.script("finish", "judge__external-standards-run__finish")
+        self.assertEqual(fin["material"]["path"], "judge/external-standards-run/material.json")
 
 
 class ShapeCase(unittest.TestCase):

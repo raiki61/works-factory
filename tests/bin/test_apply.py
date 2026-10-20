@@ -24,13 +24,14 @@ from bin._lib import apply
 from graphloops.engine.schema import validate_schema  # lib/ は bin._lib.apply が sys.path に置く
 from tests.bin import fakelaunch, hermetic
 from tests.bin.stepnames import step_names
+from tests.archon import WORKFLOWS
 from tests.bin.gitkit import git
-from tests.workflows.test_chain import ROUND_FILES, chain, run_final, run_result, three_rounds
+from tests.blocks.chain.test_chain import ROUND_FILES, chain, run_final, run_result, three_rounds
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
-MERGE = ROOT / "workflows" / "merge" / "works-factory-merge.yaml"
-LINE = ROOT / "workflows" / "line" / "works-factory-line.yaml"
-CHAIN = ROOT / "workflows" / "chain" / "works-factory-chain.yaml"
+MERGE = WORKFLOWS / "merge" / "works-factory-merge.yaml"
+LINE = WORKFLOWS / "line" / "works-factory-line.yaml"
+CHAIN = WORKFLOWS / "chain" / "works-factory-chain.yaml"
 # 周の鎖は承認のノードを持たない（最後の承認は周の子 run の中）ので、人の一言 final_answer を鎖の result は運ばない。
 # stopped_why は無い一言を言わないだけで、ほかの読む欄は鎖も線と同じに要る
 CHAIN_OMITS = {"final_answer"}
@@ -163,7 +164,7 @@ class ApplyTest(TargetCase):
     def test_apply_notes_pending_reapproval(self):
         """#550: 承認し直すかの問いを残した run は、断らずに当て、標準エラーにそう 1 行で知らせる。止めの語が別の待ち
         （fix の衝突が先に立った）でも、照らせなかった（止めの語は works:line-script）でも、問いの数で知らせる"""
-        for stop in ("spec-check:works:spec-changed", "fix:works:conflict", "spec-check:works:line-script"):
+        for stop in ("spec-check-run:works:spec-changed", "fix:works:conflict", "spec-check-run:works:line-script"):
             with self.subTest(stop=stop):
                 git(self.target, "reset", "-q", "--hard")
                 value = self.value(outcome="needs_human", stop_reason=stop, spec_questions=2)
@@ -284,16 +285,49 @@ class ApplyTest(TargetCase):
 
     def test_apply_refuses_pointer_outside_root(self):
         outside = self.place("../outside.diff", self.diff)
-        link = self.root / "merge" / "link.diff"
+        link = self.root / "link" / "apply.diff"
+        link.parent.mkdir()
         link.symlink_to(outside)
-        for name, ptr in (("..", pointer("../outside.diff")), ("絶対パス", pointer(str(outside))),
-                          ("symlink", pointer("merge/link.diff")), ("無いファイル", pointer("merge/none.diff")),
-                          ("フォルダ", pointer("merge")), ("別の run", pointer("merge/apply.diff", run_id="other")),
-                          ("指し札でない", "merge/apply.diff")):
+        (self.root / "folder" / "apply.diff").mkdir(parents=True)
+        for name, ptr, said in (("..", pointer("../apply.diff"), "外"), ("絶対パス", pointer(str(self.root / "merge/apply.diff")), "相対"),
+                                ("symlink", pointer("link/apply.diff"), "外"), ("無いファイル", pointer("none/apply.diff"), "普通のファイル"),
+                                ("フォルダ", pointer("folder/apply.diff"), "普通のファイル"),
+                                ("別の run", pointer("merge/apply.diff", run_id="other"), "別の run"),
+                                ("先の名が違う", pointer("merge/sealed.diff"), "名が apply.diff でない"),
+                                ("指し札でない", "merge/apply.diff", "読めない")):
             with self.subTest(name):
                 value = self.value()
                 value["apply"]["diff"] = ptr
-                self.assert_refused(self.run_apply(self.record(value)), 1)
+                self.assert_refused(self.run_apply(self.record(value)), 1, said)
+
+    def test_apply_reads_the_place_of_any_include(self):
+        """place は include の道で決まる（merge-seal/sealed.diff・merge-apply/apply.diff）。決まったパスでなく名の末尾で照らす（README 11.3 の 7）"""
+        self.place("merge-apply/apply.diff", self.diff)
+        self.place("merge-seal/sealed.diff", self.diff)
+        value = self.value(apply={"ok": True, "hash": sha(self.diff), "diff": pointer("merge-apply/apply.diff"), "reason": ""},
+                           sealed={"ok": True, "hash": sha(self.diff), "diff": pointer("merge-seal/sealed.diff")})
+        self.assert_applied(self.run_apply(self.record(value)))
+
+    def test_apply_checks_the_pointer_name_ending_not_the_place(self):
+        """置き場の道は include の道で決まる。道が違っても名の末尾が apply.diff・sealed.diff なら当て、ほかの名は当てない"""
+        self.place("merge-apply/apply.diff", self.diff)
+        self.place("merge-seal/sealed.diff", self.diff)
+        self.place("merge-apply/refused.diff", self.diff)
+        moved = self.value(apply={"ok": True, "hash": sha(self.diff), "diff": pointer("merge-apply/apply.diff"), "reason": ""},
+                           sealed={"ok": True, "hash": sha(self.diff), "diff": pointer("merge-seal/sealed.diff")})
+        with self.subTest("名の末尾が違う先は当てない"):
+            value = {**moved, "apply": {**moved["apply"], "diff": pointer("merge-apply/refused.diff")}}
+            self.assert_refused(self.run_apply(self.record(value)), 1, "apply.diff")
+        with self.subTest("道が違っても名の末尾が合えば当てる"):
+            self.assert_applied(self.run_apply(self.record(moved)))
+
+    def test_unchecked_way_finds_the_diff_by_name_under_any_place(self):
+        """封じのノードの出力から当てられない run は、置き場のどこに在っても名の末尾で差分を探して道を言う"""
+        (self.root / "merge" / "apply.diff").unlink()
+        (self.root / "merge" / "sealed.diff").unlink()
+        place = self.place("merge-apply/apply.diff", self.diff)
+        got = self.record(returns={"availability": "unavailable"})
+        self.assert_refused(self.run_apply(got), 2, f"git -C {self.target} apply {place}")
 
     def test_apply_accepts_short_run_id(self):
         self.assert_applied(self.run_apply(self.record(), run=SHORT))
@@ -340,9 +374,16 @@ class ApplyTest(TargetCase):
 
     def test_apply_reads_the_merge_returns(self):
         """result の apply・sealed は merge の返りの欄を写した物（計画「線の返りに足す欄」）。試験の形が merge の output_format に合う"""
-        returns = yaml.safe_load(MERGE.read_text(encoding="utf-8"))["nodes"][0]["output_format"]["properties"]
+        nodes = yaml.safe_load(MERGE.read_text(encoding="utf-8"))["nodes"]
+        returns = next((n for n in nodes if n["id"] == "merge"), nodes[0])["output_format"]["properties"]
         self.assertEqual(returns["diff"]["properties"]["type"]["enum"], [apply.POINTER_TYPE])
-        self.assertLessEqual({apply.APPLY_DIFF, apply.SEALED_DIFF}, set(returns["diff"]["properties"]["path"]["enum"]))
+        path = returns["diff"]["properties"]["path"]
+        for name in (apply.APPLY_DIFF, apply.SEALED_DIFF):
+            with self.subTest(name):
+                if "pattern" in path:   # place は include の道で決まるので、名の末尾の形で縛る（docs/design/merge.md の 1.3）
+                    self.assertRegex(f"merge-apply/{name}", path["pattern"])
+                else:
+                    self.assertTrue(any(pathlib.PurePosixPath(p).name == name for p in path["enum"]))
         for name, member in ((n, self.value()[n]) for n in ("apply", "sealed")):
             with self.subTest(name):
                 shape = {"type": "object", "properties": {k: returns[k] for k in member}, "required": list(member)}
@@ -375,7 +416,7 @@ class ApplyTest(TargetCase):
         """#565: 知らせは当てた後に出す。断った時は断りの 1 行だけで、当てていない差分に「当てた」と言わない"""
         (self.target / "stats.py").write_text("def mean(xs):\n    return 0\n", encoding="utf-8")
         before = self.status()
-        rc, out, err = self.run_apply(self.record(self.value(outcome="needs_human", stop_reason="spec-check:works:spec-changed",
+        rc, out, err = self.run_apply(self.record(self.value(outcome="needs_human", stop_reason="spec-check-run:works:spec-changed",
                                                              spec_questions=2)))
         self.assertEqual((rc, out), (1, ""), err)
         self.assertEqual(len(err.strip().splitlines()), 1, err)
@@ -587,13 +628,16 @@ class FailedAfterSealTest(TargetCase):
         self.assert_refused(self.run_apply(self.failed_run(), "--allow-failed", events=self.events()), 1, "封じた hash と合わない")
 
     def test_steps_are_the_line_seal_and_eyes_receivers_and_the_final_answer(self):
-        """SEAL_STEP は mode: seal で merge を include するノードの受け皿、EYES_STEP は merge-apply に r2 を渡すノードの受け皿で、
-        どちらも読む欄を names に宣言する。ANSWER_STEP は merge-apply に人の答えを渡すノード。どれもメイングラフの run の記録に出るノードの id"""
+        """SEAL_STEP は mode: seal で merge を include するノードの受け皿、EYES_STEP は eyes を include するノードの受け皿で、
+        どちらも読む欄を names に宣言する。merge-apply に r2 を渡すノード（最後の承認ノード）は EYES_STEP の got から r2 を引く。
+        ANSWER_STEP は merge-apply に人の答えを渡すノード。どれもメイングラフの run の記録に出るノードの id"""
         nodes = yaml.safe_load(LINE.read_text(encoding="utf-8"))["nodes"]
         by_id = {n["id"]: n for n in nodes}
         (sealer,) = [n for n in nodes if n.get("include") == "works-factory-merge" and n["with"]["mode"] == "seal"]
         (applier,) = [n for n in nodes if n.get("include") == "works-factory-merge" and n["with"]["mode"] == "apply"]
-        eyes_id = applier["with"]["r2"].removeprefix("$").removesuffix(".output.r2")
+        (eyes_id,) = [n["id"] for n in nodes if n.get("include") == "works-factory-eyes"]
+        r2_from = applier["with"]["r2"].removeprefix("$").removesuffix(".output.r2")
+        self.assertEqual(by_id[r2_from]["with"]["eyes"]["from"], f"${apply.EYES_STEP}.output.got")
         for step, source, names in ((apply.SEAL_STEP, sealer["id"], {"mode", "ok", "hash", "diff", "reason"}),
                                     (apply.EYES_STEP, eyes_id, {"r2"})):
             with self.subTest(step):

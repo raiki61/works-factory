@@ -2,66 +2,57 @@
 # requires-python = ">=3.12"
 # dependencies = []
 # ///
-"""節 tdd-prep（形 group の tdd-loop の中。役 tdd の前）: 今の段の指示書を組んでファイルに書く（tddloop.prep → fixrules.tdd_render。
-決まりの正本は commands/fix-rules/ の common.md と tdd.md）。
-
-輪は前の周の会話を継ぐ（fresh_context: false）。単位が替わった周かを tddloop.prep が new_unit で返し、YAML がそれで同じ単位の
-続きの役 tdd（会話を継ぐ）と新しい単位の役 tdd-new（context: fresh）を振り分ける。前の単位と今の単位のこれまでは引き継ぎの節
-（tddloop.handoff_lines。今の単位の段の結果 current_lines を含む）でも指示書に載せる。前の周に拒んだ理由も指示書に載る。
-run の値: 判定の写し（judgment.json）・修正案の役の返答の写し（fixboard.PLAN_REPLY_FILE。無ければ空）・人の方針の文書（始めの記録の
-固めた版の写し）・依頼の文のファイル（request_file）・修正前の関所の一言（human-notes.md）・言語の 1 行（rolekit.lang_line）。brief は置き場の凍結した欄と修正案から切る
-（planbrief.cut。修正案の無い run は無し）。
-輪が済んだ（resume で 1 周目から回し直された）・実行器の無い run は何も書かずに {prompt_file: "", go: false, new_unit: false}。
-返り {prompt_file, go, new_unit}。輪の状態が読めない・指示書を組めない: 標準エラーに 1 行で 1。
-"""
+"""node tdd-prep（組の形の tdd-loop の中。役 tdd・tdd-new の前）: 今の段の指示を md から組む（src/tdd.prep の材料を
+src/prompts.tdd が prompts/parts/tdd.md に入れる）。単位が替わった周かを new_unit で返し、YAML が同じ単位の続きの役 tdd（会話を継ぐ）
+と新しい単位の役 tdd-new（context: fresh）を振り分ける。輪が済んだ（resume で 1 周目から回り直した）・実行器の無い run は
+{prompt: "", go: false, new_unit: false}。brief の控えが壊れた・座が組めない・指示が組めない時は prompt-error.json に書いて落ちる。
+返り {prompt, go, new_unit}"""
+import os
 import sys
 from pathlib import Path
 
 sys.dont_write_bytecode = True
-sys.path.insert(0, str(Path(__file__).resolve().parents[2] / ".shared"))
-import boundary  # noqa: E402
-sys.path.append(str(boundary.lib_root()))
+sys.path[:0] = [str(Path(__file__).resolve().parents[2] / ".shared"), str(Path(__file__).resolve().parents[1])]
+import ports  # noqa: E402
 
-import fixboard  # noqa: E402
-import fixrules  # noqa: E402
 import oneline  # noqa: E402
-import policy  # noqa: E402
-import rolekit  # noqa: E402
-import rulebook  # noqa: E402
-import startrec  # noqa: E402
-import tddloop  # noqa: E402
 
-RULES = Path(__file__).resolve().parents[1] / "commands" / "fix-rules"
-rulebook.CANON = RULES / "common.md"
-fixrules.SHARED = rulebook.CANON
-fixrules.RULES_DIR = RULES
+from src import board, prompts, runvals, tdd  # noqa: E402
+
+NODE = "tdd-prep"
 
 
 def main() -> dict:
-    place = boundary.place("fix")
-    repo = boundary.work_tree()
-    started = fixboard.read_json(place / fixboard.TDD_START_FILE)
+    place, repo = ports.place(), Path.cwd()
+    started = board.read_json(place / board.TDD_START_FILE)
     if not isinstance(started, dict):
-        raise ValueError(f"置き場に {fixboard.TDD_START_FILE} が無い（group-start が走らなかった。{place}）")
+        raise ValueError(f"置き場に {board.TDD_START_FILE} が無い（group-start が走らなかった。{place}）")
     if not started.get("go"):
-        return {"prompt_file": "", "go": False, "new_unit": False}
-    start = startrec.read(place)
-    judgment_file = place / fixboard.JUDGMENT_FILE
-    plan_file = place / fixboard.PLAN_REPLY_FILE
-    notes = place / fixboard.NOTES_FILE
+        return {"prompt": "", "go": False, "new_unit": False}
+    run = runvals.read(place)
+    judgment_file = place / board.JUDGMENT_FILE
+    plan_file = place / board.PLAN_REPLY_FILE
+    notes = place / board.NOTES_FILE
     values = {"judgment_file": str(judgment_file) if judgment_file.is_file() else "",
               "plan_file": str(plan_file) if plan_file.is_file() else "",
-              "policy_path": policy.frozen_copy(start), "request_file": startrec.request_file(start),
-              "notes_file": str(notes) if notes.is_file() else "", "base_rev": fixboard.base_rev_of(place)}
-    sources = {"plan": fixboard.read_json(plan_file), "judgment": fixboard.read_json(judgment_file)}
-    out = tddloop.prep(started["state_file"], values, repo, lang=rolekit.lang_line(start), sources=sources)
-    return {"prompt_file": out["prompt_file"], "go": bool(out["go"]), "new_unit": bool(out["new_unit"])}
+              "policy_path": run["policy"], "request_file": run["request_file"],
+              "notes_file": str(notes) if notes.is_file() else "", "base_rev": board.base_rev_of(place)}
+    sources = {"plan": board.read_json(plan_file), "judgment": board.read_json(judgment_file)}
+    try:
+        view = tdd.prep(started["state_file"], sources=sources)
+        if not view["go"]:
+            return {"prompt": "", "go": False, "new_unit": False}
+        out = prompts.tdd(place, repo, view, values)
+    except (tdd.Broken, prompts.Broken) as e:
+        prompts.error(place, NODE, oneline.one_line(e))
+        raise
+    return {"prompt": out["prompt"], "go": True, "new_unit": bool(view["new_unit"])}
 
 
 if __name__ == "__main__":
     try:
         result = main()
     except Exception as e:
-        print(f"tdd-prep: {type(e).__name__}: {oneline.one_line(e)}", file=sys.stderr)
+        print(f"{NODE}: {type(e).__name__}: {oneline.one_line(e)}", file=sys.stderr)
         sys.exit(1)
-    boundary.returns(result)
+    ports.returns(result)

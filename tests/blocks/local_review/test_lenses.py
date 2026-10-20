@@ -1,4 +1,4 @@
-"""レンズの宣言と照らし blocks/local-review/src/lenses.py（写す元 lib/tests/test_diverted.py。README の 9.5 で local-review へ移す物）"""
+"""レンズの宣言と照らし workflows/local-review/src/lenses.py（写す元 lib/tests/test_diverted.py。README の 9.5 で local-review へ移す物）"""
 import unittest
 
 from tests.blocks import kit

@@ -243,6 +243,22 @@ class TreeCase(_RepoCase):
         with self.assertRaises(Reject):
             mk.moved_since(self.place, self.repo, ("porcelain",))
 
+    def test_moved_since_lives_in_accept(self):
+        """作業ツリーの比べの住処は accept の 1 か所で、materialkit は呼ぶだけ（integration.md 4.4-H）"""
+        import accept
+        self.assertEqual(mk.TREE, accept.TREE)
+        with self.assertRaises(Reject):
+            accept.moved_since(self.place, self.repo, ("porcelain",))
+        self.intake()
+        self.assertEqual(accept.moved_since(self.place, self.repo, ("porcelain",)), [])
+        (self.repo / "tmp.out").write_text("x\n", encoding="utf-8")
+        got = accept.moved_since(self.place, self.repo, ("porcelain",))
+        self.assertTrue(got)
+        self.assertEqual(mk.moved_since(self.place, self.repo, ("porcelain",)), got)
+        (self.place / accept.TREE).write_text("{", encoding="utf-8")
+        with self.assertRaises(Reject):
+            accept.tree_snapshot(self.place / accept.TREE)
+
 
 class LocationCase(_RepoCase):
     def test_location_beyond_the_file_is_sent_back_then_marked(self):
@@ -274,6 +290,11 @@ class LocationCase(_RepoCase):
 
 
 class RecordCase(unittest.TestCase):
+    def test_unmeasured_is_the_blocking_statuses(self):
+        """測れていない状態 UNMEASURED は素材の状態の表 STATUS の阻害になる物（blocks が真）から導く 1 つだけ（integration.md 4.2-5）"""
+        self.assertEqual(set(mk.UNMEASURED), {k for k, r in mk.STATUS.items() if r.blocks})
+        self.assertEqual(set(mk.UNMEASURED), {"not_run", "awaiting_human"})
+
     def test_accept_rules(self):
         """元 MaterialCase.test_accept_rules と check_record の文（「ノード」を「観点」に、graph への宣言の求めを外した）"""
         cases = (
@@ -568,12 +589,17 @@ class PromptInputsCase(_RepoCase):
 
 class ReviewMdCase(_RepoCase):
     def test_review_md_paths(self):
-        own, theirs = mk.review_md_paths(self.repo)
-        self.assertEqual(own, str(LIB / "REVIEW.md"))
+        """工場の正本は呼び手が渡すパス（lib は workflows/ を名指さない）、対象の根の REVIEW.md は在る時だけ"""
+        from tests.blocks.kit import BLOCKS as WORKFLOWS   # pack のフォルダ（入れ替えの前も後も同じ口。integration.md 4.5-11）
+        factory = WORKFLOWS / ".shared" / "prompts" / "REVIEW.md"
+        self.assertTrue(factory.is_file(), "工場の観点の正本は pack の .shared/prompts/REVIEW.md")
+        self.assertFalse((LIB / "REVIEW.md").exists())
+        own, theirs = mk.review_md_paths(self.repo, factory)
+        self.assertEqual(own, str(factory.resolve()))
         self.assertEqual(theirs, "")
         (self.repo / "REVIEW.md").write_text("x", encoding="utf-8")
-        self.assertEqual(mk.review_md_paths(self.repo)[1], str(self.repo / "REVIEW.md"))
-        self.assertEqual(mk.review_md_paths(self.repo, self.tmp)[0], str(self.tmp / "REVIEW.md"))
+        self.assertEqual(mk.review_md_paths(self.repo, factory)[1], str(self.repo / "REVIEW.md"))
+        self.assertEqual(mk.review_md_paths(self.repo, self.tmp / "REVIEW.md")[0], str(self.tmp / "REVIEW.md"))
 
 
 if __name__ == "__main__":

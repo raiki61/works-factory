@@ -1,4 +1,4 @@
-"""ゲートの印 blocks/gate-efficacy/src/signals.py（写す元 lib/tests/test_judge_accept.py の GateSignalsCase）"""
+"""ゲートの印 workflows/gate-efficacy/src/signals.py（写す元 lib/tests/test_judge_accept.py の GateSignalsCase）"""
 import unittest
 
 from tests.blocks import kit

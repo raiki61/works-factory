@@ -1,5 +1,5 @@
-"""Archon と ASF から手で写した約束（workflows/.shared/boundary.py・bin/_lib/place.py・bin/_lib/pack.py・bin/_lib/launcher.py・bin/_lib/apply.py・
-bin/_lib/startpoint.py・workflows/.shared/childsweep.py・tests/workflows/test_uv_scripts.py・lib/answer.py が launcher の頭で組む答えの行・
+"""Archon と ASF から手で写した約束（pack の .shared/ports.py・bin/_lib/place.py・bin/_lib/pack.py・bin/_lib/launcher.py・bin/_lib/apply.py・
+bin/_lib/startpoint.py・pack の .shared/childsweep.py・lib/runlog.py（run の記録の読み）・tests/workflows/test_uv_scripts.py・lib/answer.py が launcher の頭で組む答えの行・
 tests/layers/scan.py の役の節の鍵・機械の節の鍵・節の種類の鍵・test-gate の run.py が対象のテストの前に落とす Archon の変数の名）を、写した元の字に照らす。
 
 行ごとに「写しの値」と「元の中のその値の在り処（ファイルと正規表現）」を持ち、正規表現で引いた値と写しの値を比べる。
@@ -30,16 +30,17 @@ from tests.archon import CACHE_ENV, pinned_source
 from tests.bin import hermetic
 from tests.bin.gitkit import git
 from tests.layers import scan
-from tests.shared.test_boundary import boundary
 from tests.shared.test_fence import fence
 from tests.workflows import test_uv_scripts
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 if str(ROOT / "lib") not in sys.path:   # 後ろに足す（頭に入れると lib/tests が根の tests を隠す）
     sys.path.append(str(ROOT / "lib"))
-import runreport  # noqa: E402
+import runlog  # noqa: E402  （run の記録の読み。今の runreport・境の transcript の行き先。docs/design/integration.md の 4.5-2）
 
 childsweep = place.shared("childsweep")
+ports = place.shared("ports")   # pack の口（今の境 boundary.py の後継。指し札の解きは _pointer_path。docs/design/integration.md の 4.5-8）
+ARTIFACTS = "/artifacts"
 
 
 class Row(NamedTuple):
@@ -52,10 +53,10 @@ class Row(NamedTuple):
 
 def _rejects(rel: str) -> bool:
     """写しの resolve が、この run の指し札でパス rel を拒むか"""
-    env = {"WORKFLOW_ID": "run-1", "ARTIFACTS_DIR": "/artifacts"}
+    env = {"WORKFLOW_ID": "run-1", "ARTIFACTS_DIR": ARTIFACTS}
     with mock.patch.dict(os.environ, env, clear=True):
         try:
-            boundary.resolve({"type": boundary.POINTER_TYPE, "run_id": "run-1", "path": rel})
+            ports._pointer_path({"type": ports.POINTER_TYPE, "run_id": "run-1", "path": rel})
         except ValueError:
             return True
     return False
@@ -72,19 +73,19 @@ def _env_read_by(call: Callable[[], Any], env: dict) -> str:
 
 
 def _pointer_fields() -> list[str]:
-    with mock.patch.dict(os.environ, {"WORKFLOW_ID": "run-1"}, clear=True):
-        return sorted(boundary.pointer("p"))
+    with mock.patch.dict(os.environ, {"WORKFLOW_ID": "run-1", "ARTIFACTS_DIR": ARTIFACTS}, clear=True):
+        return sorted(ports.pointer(f"{ARTIFACTS}/p"))
 
 
 def _same_run_fields() -> list[str]:
     """札のどの欄を別の値に変えると、ほかの run の札として拒まれるか"""
-    env = {"WORKFLOW_ID": "run-1", "ARTIFACTS_DIR": "/artifacts"}
+    env = {"WORKFLOW_ID": "run-1", "ARTIFACTS_DIR": ARTIFACTS}
     with mock.patch.dict(os.environ, env, clear=True):
-        ptr = boundary.pointer("p")
+        ptr = ports.pointer(f"{ARTIFACTS}/p")
         refused = []
         for key in ptr:
             try:
-                boundary.resolve({**ptr, key: "run-2"})
+                ports._pointer_path({**ptr, key: "run-2"})
             except ValueError as error:
                 if "ほかの run" in str(error):
                     refused.append(key)
@@ -210,7 +211,7 @@ SDK = "packages/providers/node_modules/@anthropic-ai/claude-agent-sdk/sdk.mjs"
 POINTER_SCHEMA = "packages/workflows/src/schemas/artifact-pointer.ts"
 NODE_TRANSFORM = r"^  \.transform\(\(data\): DagNode \| IncludeDirective => \{\n(.*?)^  \}\)"
 ARCHON_ROWS = (
-    Row("指し札の型", lambda: boundary.POINTER_TYPE, POINTER_SCHEMA,
+    Row("指し札の型", lambda: ports.POINTER_TYPE, POINTER_SCHEMA,
         r"export const ARTIFACT_POINTER_TYPE = '([^']+)';"),
     Row("指し札の欄", _pointer_fields, POINTER_SCHEMA,
         r"export const artifactPointerSchema = z\.object\(\{([^}]*)\}\);",
@@ -229,17 +230,17 @@ ARCHON_ROWS = (
     Row("末尾の / を拒む（stat が ENOTDIR で拒む）", lambda: _rejects("a/"), POINTER,
         r"if \(code === 'ENOENT' \|\| code === 'ENOTDIR'\) \{\n\s*return `\$\{where\} refers to a file that does not exist",
         lambda m: True),
-    Row("run の id の環境変数", lambda: _env_read_by(lambda: boundary.pointer("p"), {}),
+    Row("run の id の環境変数", lambda: _env_read_by(lambda: ports.pointer(f"{ARTIFACTS}/p"), {"ARTIFACTS_DIR": ARTIFACTS}),
         "packages/workflows/src/exec-environment.ts", r"^\s*(\w+): context\.workflowId,$"),
     Row("run の成果物の置き場の環境変数",
-        lambda: _env_read_by(lambda: boundary.resolve({"type": boundary.POINTER_TYPE, "run_id": "r", "path": "p"}),
+        lambda: _env_read_by(lambda: ports._pointer_path({"type": ports.POINTER_TYPE, "run_id": "r", "path": "p"}),
                              {"WORKFLOW_ID": "r"}),
         "packages/workflows/src/exec-environment.ts", r"^\s*(\w+): context\.artifactsDir,$"),
     Row("script の節に立つ変数の名（test-gate・fix が対象のテストの前に落とす）", lambda: sorted(hermetic.runner_vars()["RUNNER_NAMES"]),
         "packages/workflows/src/exec-environment.ts",
         r"export function buildExecNodeEnvironment\(context: ExecNodeEnvironmentContext\): NodeJS\.ProcessEnv \{\n.*?"
         r"  return \{\n(.*?)\n  \};\n\}", lambda m: _exec_node_names(m[1])),
-    Row("入力の環境変数の鍵", lambda: re.search(r"入力は環境変数 (\w+)<UPPER_SNAKE>", boundary.__doc__)[1],
+    Row("入力の環境変数の鍵", lambda: re.search(r'os\.environ\.get\("(\w+)<名>"\)', ports.__doc__)[1],
         "packages/workflows/src/schemas/dag-node.ts",
         r"export function inputEnvKey\(name: string\): string \{\n\s*return `(\w+)\$\{name\.replace\(/-/g, '_'\)\.toUpperCase\(\)\}`;"),
     Row("AI の節（agent）の形を決める節の鍵（scan の役の節）", lambda: sorted(scan.ROLE_KINDS),
@@ -253,7 +254,7 @@ ARCHON_ROWS = (
         r"\A(?!.*node\.timeout \?\?).*?^\s*timeout: node\.(\w+),$"),
     Row("子の過程は timeout が無ければ期限を掛けない", lambda: None, "packages/workflows/src/subprocess.ts",
         r"^\s*options\.timeout === undefined\n\s*\? undefined\n\s*: setTimeout\(", lambda m: None),
-    Row("output_format で宣言した欄の null は空の解決（境の口は空の字を null と読む）", lambda: boundary.value("") is None,
+    Row("output_format で宣言した欄の null は空の解決（境の口は空の字を null と読む）", lambda: ports.parsed("") is None,
         "packages/workflows/src/output-ref.ts",
         r"if \(paths !== undefined && \(value === undefined \|\| value === null\)\) return \{ kind: 'empty' \};",
         lambda m: True),
@@ -265,7 +266,7 @@ ARCHON_ROWS = (
         r".*?resolution = resolveNodeOutputField\(nodeOutput, nodeId, field, match\);\n"
         r".*?if \(resolution\.kind === 'empty'\) return escapedForBash \? \"''\" : '([^']*)';"
         r".*?^export function nodeTemplateReferences\(\n.*?after: \[\n\s*nodeOutputRefToken\(",
-        lambda m: boundary.value(m[1])),
+        lambda m: ports.parsed(m[1])),
     Row("工程の置き場 WORKFLOW_FOLDER", lambda: place.WORKFLOW_FOLDER, "packages/paths/src/archon-paths.ts",
         r"export function getWorkflowFolderSearchPaths\(\): string\[\] \{\n\s*return \['([^']+)'\];"),
     Row("工程を走らせる命令は run と、run を続ける命令", lambda: sorted(launcher.EXECUTING - launcher.RESUMING - launcher.CONTINUING),
@@ -364,21 +365,21 @@ ARCHON_ROWS = (
     Row("節の一覧の行の id と状態の鍵", lambda: [childsweep.NODE_ID, childsweep.STATE], "packages/cli/src/commands/workflow-node-summaries.ts",
         r"case 'node_completed': \{\n.*?summaries\.set\((\w+), \{\n\s*\1,\n\s*(\w+): 'completed',",
         lambda m: list(m.groups())),
-    Row("run の記録の道具の呼びの行の型と節の欄", lambda: runreport.PROVIDER_ROW, "packages/workflows/src/logger.ts",
+    Row("run の記録の道具の呼びの行の型と節の欄", lambda: runlog.PROVIDER_ROW, "packages/workflows/src/logger.ts",
         r"type: '(provider_event)',\s*step: stepName,"),
-    Row("道具の呼びの行の出来事の欄", lambda: runreport.PROVIDER_EVENT, "packages/workflows/src/schemas/provider-event.ts",
+    Row("道具の呼びの行の出来事の欄", lambda: runlog.PROVIDER_EVENT, "packages/workflows/src/schemas/provider-event.ts",
         r"^\s*(event): providerEventSchema,"),
-    Row("出来事の道具の呼びの型", lambda: runreport.TOOL_CALL, "packages/provider-contract/src/events.ts",
+    Row("出来事の道具の呼びの型", lambda: runlog.TOOL_CALL, "packages/provider-contract/src/events.ts",
         r"type: z\.literal\('(tool_call)'\)"),
-    Row("道具の呼びの道具の名と入力の欄", lambda: [runreport.TOOL_NAME, runreport.TOOL_INPUT], "packages/provider-contract/src/events.ts",
+    Row("道具の呼びの道具の名と入力の欄", lambda: [runlog.TOOL_NAME, runlog.TOOL_INPUT], "packages/provider-contract/src/events.ts",
         r"export const toolCallSchema = z\.object\(\{.*?^\s*(name): z\.string\(\),$.*?^\s*(rawInput): z$",
         lambda m: list(m.groups())),
-    Row("run の記録の外の処理の行の型と呼びの名・終わりの符号の欄", lambda: [runreport.EXEC_ROW, runreport.EXEC_LABEL, runreport.EXIT_CODE],
+    Row("run の記録の外の処理の行の型と呼びの名・終わりの符号の欄", lambda: [runlog.EXEC_ROW, runlog.EXEC_LABEL, runlog.EXIT_CODE],
         "packages/workflows/src/logger.ts",
         r"type: '(exec_output)',\s*step: nodeId,\s*(content): commandName,\s*(exit_code): output\.exitCode,",
         lambda m: list(m.groups())),
-    Row("ループの until の呼びの名", lambda: runreport.UNTIL_ROW, "packages/workflows/src/dag-executor.ts", r"label: '(<until_bash>)'"),
-    Row("ループの回の step の継ぎ", lambda: runreport.ITERATION_MARK, "packages/workflows/src/dag-executor.ts",
+    Row("ループの until の呼びの名", lambda: runlog.UNTIL_ROW, "packages/workflows/src/dag-executor.ts", r"label: '(<until_bash>)'"),
+    Row("ループの回の step の継ぎ", lambda: runlog.ITERATION_MARK, "packages/workflows/src/dag-executor.ts",
         r"nodeId: `\$\{node\.id\}(-iteration-)\$\{String\(i\)\}`"),
     Row("workflow get の出来事の列の旗", lambda: apply.EVENTS_FLAGS, "packages/cli/src/cli.ts",
         r"'Usage: archon workflow get <run-id> \[--json\] \[(--verbose)\] \[(--events)\]'", lambda m: m.groups()),

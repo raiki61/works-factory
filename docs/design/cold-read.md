@@ -1,7 +1,7 @@
 # block の設計書: cold-read（初見の読み手）
 
-- 何の話か: 文脈を持たない読み手が本文を 1 回読み、どこで止まったか・何を推測で埋めたか・本文だけで決められるかを返す観点「初見の読み手」を、単独で呼べる汎用の block `blocks/cold-read/` にする設計。型は [README.md](README.md)、書き方は [world.md](world.md) に従う。
-- 決めたこと: 今の報告（report）の中の初見の読み手（cold-prep・cold）の、報告に依らない芯を、3 つの node の block にする。入力は読ませる本文のファイルと言語の 2 つの port だけで、報告の中身も報告の頭の決まりも知らない。指示は英語の md 1 本（`prompts/cold.md`）。役の定義は共通の断片 `role-cold-reader` で、report の block が自分の中に持つ初見の読み手の node と同じ断片を使う。
+- 何の話か: 文脈を持たない読み手が本文を 1 回読み、どこで止まったか・何を推測で埋めたか・本文だけで決められるかを返す観点「初見の読み手」を、単独で呼べる汎用の block `workflows/cold-read/` にする設計。型は [README.md](README.md)、書き方は [world.md](world.md) に従う。
+- 決めたこと: 今の報告（report）の中の初見の読み手（cold-prep・cold）の、報告に依らない芯を、4 つの node の block にする。入力は読ませる本文のファイルと言語の 2 つの port だけで、報告の中身も報告の頭の決まりも知らない。指示は英語の md 1 本（`prompts/cold.md`）。役の定義は共通の断片 `role-cold-reader` で、report の block が自分の中に持つ初見の読み手の node と同じ断片を使う。
 - 読む人: この block を作る実装の役（この設計書だけで作れるように書いた）。急ぎではない（README 11.1 の 1 波目。ほかの block と並べて作る）。
 - 持ち主に求めること: なし。自分で決めた事は 10 節に集めた。
 
@@ -38,11 +38,12 @@
 
 今との違い: 今の初見の読み手は報告の中にしか無く、読ませる本文を cold-prep が報告の置き場と書き手の返答から組み、返答を書き手の受け付けが読んでいた。この block は本文のファイルを受けて読ませるだけで、報告の頭の決まり（頭の後ろに付く物・機械が組む行）を言わない。報告の中の読み手は report の block が持ち続ける（1.6）。
 
-### 1.3 node の並び（`blocks/cold-read/works-factory-cold-read.yaml`）
+### 1.3 node の並び（`workflows/cold-read/works-factory-cold-read.yaml`）
 
 1. `cold-prep`（script `cold_prep.py`）: port を読み、place の中のこの block のファイルを名で引いて消し（place そのものは消さない。README の 13 章）、指示を組む。返り `{due, prompt, reason}`。本文が読めない時は `due: false` と訳（指示は空の字）。
 2. `cold`（AI。`depends_on: [cold-prep]`・`when: "$cold-prep.output.due == true"`・`prompt: "$cold-prep.output.prompt"`・`context: fresh`・`allowed_tools: []`・`settingSources: [user]`・`sandbox: {enabled: true, allowUnsandboxedCommands: false}`・`mutates_checkout: false`・`model: '@wf-report'`・`idle_timeout: 1728000000`・`retry: {max_attempts: 2, on_error: all}`・`output_format` は今の `cold` の物を字のまま）
-3. `finish`（script `finish.py`。`depends_on: [cold-prep, cold]`・`trigger_rule: all_done`・`with: {prep: {from: "$cold-prep.output", if_skipped: null}, reply: {from: "$cold.output", if_skipped: null}}`）: 返答を読んで出力を返す。どの段が落ちても落ちない。
+3. `cold-save`（script `cold_save.py`。`depends_on: [cold]`・既定の `trigger_rule`・`with: {reply: $cold.output}`）: 役の返答の受け皿。返答を place の `reply.json` に写す。役が落ちた・飛ばされた時はこの node も飛ぶ。
+4. `finish`（script `finish.py`。`depends_on: [cold-prep, cold-save]`・`trigger_rule: all_done`・`with: {prep: {from: "$cold-prep.output", if_skipped: null}}`）: 写しの `reply.json` を読んで出力を返す。どの段が落ちても落ちない。役の node は結ばない（このリポジトリが版を固定して使う Archon は、落ちた node の出力を `with:` で受けた node を、`trigger_rule: all_done` でも落とすため。`if_skipped` は飛ばされた時だけを受ける）。
 
 script の node はどれも `runtime: uv`・`mutates_checkout: false`。受け付けの loop は置かない（4 節）。`context: fresh` は今の読み手と同じ（新しい会話で起きる）。
 
@@ -51,7 +52,7 @@ script の node はどれも `runtime: uv`・`mutates_checkout: false`。受け�
 `ports.place()`（単独の run では `$ARTIFACTS_DIR/`、include された時は `$ARTIFACTS_DIR/<include の道>/`）の下に書く。名は `src/files.py` だけが持つ:
 
 - `cold-prompt-1.md`: 組んだ指示。
-- `reply.json`: 役の返答（`finish` が写す。役が飛ばされた・落ちた回は書かない）。
+- `reply.json`: 役の返答（受け皿 `cold-save` が写す。JSON に読めない返答は字のまま。役が飛ばされた・落ちた回は書かない）。
 - `read.json`: 出口の返りの写し。
 
 `cold-prep` は自分の名のファイル（上の 3 つ）だけを消してから書く（world の intake と同じ。ほかの物は消さない。10 節の 5）。block は 1 回の include で 1 回だけ読むので、回の番号は要らない。
@@ -60,21 +61,19 @@ script の node はどれも `runtime: uv`・`mutates_checkout: false`。受け�
 
 作るファイル（この block の PR が触るのはこれと `tests/blocks/cold_read/` と、この設計書だけ）:
 
-- `blocks/cold-read/works-factory-cold-read.yaml`
-- `blocks/cold-read/prompts/cold.md`（2 節）
-- `blocks/cold-read/scripts/cold_prep.py`・`finish.py`
-- `blocks/cold-read/src/__init__.py`（空）
-- `blocks/cold-read/src/files.py`: place のファイルの名（1.4）。
-- `blocks/cold-read/src/reply.py`: 返答の読み。今の `lib/runreport.py` の `_cold_of`（:1912-1917）・`COLD_UNREADABLE`・`COLD_EMPTY`（:1920-1921）・`_cold_lines`（:1924-1928）の写しと、`VERDICTS = ("pass", "redesign-needed")`（今の `runreport.COLD_SCHEMA` の `verdict` の enum。md の `{passed}`・`{redesign}` と `output_format` の enum が同じ字を持つ。試験が YAML の enum と突き合わせる）。`stuck(c)` は 1.2 の決まり。
-- `blocks/cold-read/src/report.py`: 報告の行（9 節）。
-- `blocks/cold-read/fixtures/standalone.stubs.yaml`・`redesign.stubs.yaml`・`unreadable.stubs.yaml`（11 節）。
+- `workflows/cold-read/works-factory-cold-read.yaml`
+- `workflows/cold-read/prompts/cold.md`（2 節）
+- `workflows/cold-read/scripts/cold_prep.py`・`cold_save.py`・`finish.py`
+- `workflows/cold-read/src/__init__.py`（空）
+- `workflows/cold-read/src/files.py`: place のファイルの名（1.4）。
+- `workflows/cold-read/src/reply.py`: 返答の読み。今の `lib/runreport.py` の `_cold_of`（:1912-1917）・`COLD_UNREADABLE`・`COLD_EMPTY`（:1920-1921）・`_cold_lines`（:1924-1928）の写しと、`VERDICTS = ("pass", "redesign-needed")`（今の `runreport.COLD_SCHEMA` の `verdict` の enum。md の `{passed}`・`{redesign}` と `output_format` の enum が同じ字を持つ。試験が YAML の enum と突き合わせる）。`stuck(c)` は 1.2 の決まり。
+- `workflows/cold-read/src/report.py`: 報告の行（9 節）。
+- `workflows/cold-read/fixtures/standalone.stubs.yaml`・`redesign.stubs.yaml`・`unreadable.stubs.yaml`（11 節）。
 - `tests/blocks/cold_read/__init__.py`・`test_cold_read.py`（11 節。Python の package の名は `-` を持てないので `_`）。
 
 使う `lib/`（KEEP）: `jsonfile`・`oneline` だけ。`lib/runreport.py`・`lib/report_roles.py` は import しない（どちらも report の物）。
 
 共通の指示の断片: `role-cold-reader`（土台の役の定義の断片）だけ。報告の頭に特有の決まりは report の PR が足す断片 `report-head-check` に在り、この block は使わない。
-
-作り直しの間は `lib/runreport.py` の `_cold_*` を消さない（今の report が使う）。どこへ移すかは report の設計書の決め。
 
 ### 1.6 つなぎ方（graph の側。block には書かない）
 
@@ -196,17 +195,18 @@ Return only JSON that matches the output schema.
 ## 3 script の node
 
 - `cold_prep.py`: `os.environ.get("INPUTS_TEXT")`・`INPUTS_LANG` を字のままで読み、`ports` の口（`file`・`text`。名は土台の `ports.py` に合わせる）に渡す。自分の名のファイルだけを消す。
-  - 本文のファイルが読めない（在らない・UTF-8 でない）→ `due: false`・`prompt: ""`・`reason: 読ませる本文のファイルを読めない（<パス>: <型の名>）`。
+  - 本文のファイルが読めない（在らない・UTF-8 でない）→ `due: false`・`prompt: ""`・`reason: 入力 text: 読ませる本文のファイルを読めない（<パス>: <型の名>）`。
   - 本文が空白だけ → `due: false`・`reason: 読ませる本文が空`。
   - ほかは `prompt.render("cold", values, when)` で組み、`cold-prompt-1.md` に書き（口が書く作りなら口に任せる）、`{due: true, prompt, reason: ""}` を返す。
   - 落ちない（中の誤りは捕まえて `due: false` と `<型>: <文>`）。
-- `finish.py`: `with:` の `prep`（`cold-prep` の返り。null は prep が落ちた）と `reply`（役の返答。飛ばされた・落ちた時は null）を受ける。
+- `cold_save.py`: `with:` の `reply`（役の返答）を `reply.json` に写す（JSON に読めない返答は字のまま）。空・null なら書かない。返り `{saved}`。
+- `finish.py`: `with:` の `prep`（`cold-prep` の返り。null は prep が落ちた）を受け、役の返答は `reply.json` から読む（無ければ役が飛ばされた・落ちた）。
   - prep が null → `status: failed`・`reason: 支度の node が落ちた`。
   - prep の `due` が偽（prep が止めた）→ `status: failed`・`reason` は prep の訳・`verdict: ""`・`pass: false`・`stops`/`guessed` は空・`decidable: false`・`stuck` は空。
-  - 返答が null（役が落ちた・飛ばされた）→ `status: failed`・`reason: 初見の読み手の役が返答を返さなかった（役が落ちたか飛ばされた）`・`stuck: [初見の読み手の返答を読めない（判定の語が無い）]`。
+  - 返答が無い・null（役が落ちた・飛ばされた）→ `status: failed`・`reason: 初見の読み手の役が返答を返さなかった（役が落ちたか飛ばされた）`・`stuck: [初見の読み手の返答を読めない（判定の語が無い）]`。
   - 返答を `src/reply.py` の `read(reply)`（`_cold_of` の写し）で読む。`verdict` が語のどれでもなければ `status: failed`・`reason: 初見の読み手の返答を読めない（判定の語が無い）`・`stuck` はその 1 行。
   - 読めれば `status: ok`・`reason: ""`、`verdict`・`pass`・`stops`・`guessed`・`decidable`・`stuck` を返す。
-  - 返答を `reply.json` に、返りを `read.json` に書く。どの道でも `report`（9 節）を付ける。落ちない。
+  - 返りを `read.json` に書く。どの道でも `report`（9 節）を付ける。落ちない。
 
 ## 4 受け付け
 
@@ -219,7 +219,7 @@ Return only JSON that matches the output schema.
 ## 5 単独で呼ぶ
 
 ```sh
-bin/works-factory <読ませるフォルダを blocks/ にする引数（名は実装で決める）> workflow run works-factory-cold-read \
+bin/works-factory workflow run works-factory-cold-read \
   --cwd <対象> --input text=docs/README-draft.md
 ```
 
@@ -271,8 +271,8 @@ bin/works-factory <読ませるフォルダを blocks/ にする引数（名は�
 
 ## 11 試験
 
-- standalone の fixture（`blocks/cold-read/fixtures/`。script の node は差し替えず本当に走らせ、AI の役 `cold` の返答だけを差し替える。10 節の 4）:
-  - `standalone.stubs.yaml`: 入力は `text: README.md` だけ。`cold` を `{verdict: pass, stops: [], guessed: [], decidable: true}` で差し替える。`resolved-text-contains` は `cold.md` 自身の決まった文（`Read only the text below.`）。`expect: completed`・`reached: [cold-prep, cold, finish]`。
+- standalone の fixture（`workflows/cold-read/fixtures/`。script の node は差し替えず本当に走らせ、AI の役 `cold` の返答だけを差し替える。10 節の 4）:
+  - `standalone.stubs.yaml`: 入力は `text: README.md` だけ。`cold` を `{verdict: pass, stops: [], guessed: [], decidable: true}` で差し替える。`resolved-text-contains` は `cold.md` 自身の決まった文（`Read only the text below.`）。`expect: completed`・`reached: [cold-prep, cold, cold-save, finish]`。
   - `redesign.stubs.yaml`: `cold` が `redesign-needed` と止まった所 1 つ。`finish` は本当に走り、`pass: false`・`stuck` 1 行になる。
   - `unreadable.stubs.yaml`: 存在しないファイル名 `no-such-file.md` を渡し、`cold-prep` が本当に `due: false` を返す。`reached: [cold-prep, finish]`（`cold` は飛ばされる）、`finish` が `status: failed`、run は `completed`。
 - `tests/blocks/cold_read/test_cold_read.py`（script を子のプロセスで回す。始めの記録の無い使い捨ての `ARTIFACTS_DIR` と git のリポジトリで、port の値だけを渡す）:
@@ -286,5 +286,5 @@ bin/works-factory <読ませるフォルダを blocks/ にする引数（名は�
 
 ## 12 未確認
 
-- 起動の殻で `blocks/` を読ませる引数の名と、5 節の命令の正確な形。
+- 5 節の命令の正確な形。
 - `prompt.render` が値の中の `{…}` を差し込み口として読み直さないか（土台の `prompt.py` の決まり。11 節の試験で縛る）。

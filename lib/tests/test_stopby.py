@@ -1,8 +1,8 @@
 """止めの理由の住処（lib/stopby.py。考え stop-reasons）の検査。
 
-表の名と定数が揃うこと・ブロックとラインが足す口（declare）の決まり・lib の中の declare の名が重ならないこと・
+表の名と定数が揃うこと・ブロックとラインが足す口（declare）の決まり・同じ名の declare は同じ意味であること・
 語の字が変わっていないこと（報告・次の run の依頼に残る字。前の run の止めを読み違えない）・住処の外に語の字が漏れないことを見る。
-関数を直に呼ぶのと、lib と線の script と境の .py を ast で読むだけ（子のプロセスなし）。
+関数を直に呼ぶのと、lib と pack（block の src・scripts）と線の script と境の .py を ast で読むだけ（子のプロセスなし）。
 """
 import ast
 import pathlib
@@ -15,8 +15,10 @@ sys.dont_write_bytecode = True
 if str(LIB) not in sys.path:
     sys.path.append(str(LIB))
 
+from tests.blocks.kit import BLOCKS as WORKFLOWS  # noqa: E402  （pack のフォルダ。入れ替えの前も後も同じ口）
+
 SKIP = ("graphloops/",)
-# 報告と次の run の依頼に残る語の字（変えると前の run の止めを読み違える）。表の語と、lib が declare で足す語
+# 報告と次の run の依頼に残る語の字（変えると前の run の止めを読み違える）。表の語と、lib と block が declare で足す語
 WORDS = frozenset({
     "works:adapter", "works:ci", "works:conflict", "works:delta", "works:empty-fix", "works:fix", "works:lens",
     "works:plan-converge", "works:pr", "works:premises", "works:purpose", "works:refix", "works:rejudge",
@@ -27,9 +29,7 @@ WORDS = frozenset({
 # 線の script と境（workflows/line/scripts/・workflows/.shared/）で止めの語の字の写しを持ってよい所: lib を読めない時の返り
 # （lib を読めないので stopby を引けない）。値は stopby の定数と同じでなければならない
 COPIES = {
-    ("workflows/.shared/boundary.py", "LINE_SCRIPT"): "LINE_SCRIPT",
     ("workflows/line/scripts/result.py", "LINE_SCRIPT"): "LINE_SCRIPT",
-    ("workflows/line/scripts/collect.py", "LINE_SCRIPT"): "LINE_SCRIPT",
 }
 
 
@@ -39,12 +39,14 @@ def stopby():
 
 
 def pack_py():
-    """lib（試験と写しの外）の .py"""
+    """lib（試験と写しの外）の .py と、pack の block の src・scripts の .py（組み込みで止めの語の declare は block へ移った）"""
     for p in sorted(LIB.rglob("*.py")):
         rel = p.relative_to(LIB).as_posix()
         if rel.split("/")[0] in ("dev", "tests", "docs") or rel.startswith(SKIP):
             continue
         yield rel, ast.parse(p.read_text(encoding="utf-8"))
+    for p in sorted([*WORKFLOWS.glob("*/src/*.py"), *WORKFLOWS.glob("*/scripts/*.py")]):
+        yield p.relative_to(ROOT).as_posix(), ast.parse(p.read_text(encoding="utf-8"))
 
 
 def declares():
@@ -128,7 +130,8 @@ class Declare(unittest.TestCase):
 
 class Pack(unittest.TestCase):
     def test_declares_are_literal_unique_and_outside_table(self):
-        """lib の declare は字の定数で、名は 1 つの持ち主だけが足し、表の名でない"""
+        """lib と block の declare は字の定数で、表の名でなく、同じ名を足す所はどれも同じ意味を言う（declare は同じ意味なら何度でも
+        通る。judge の graph は diagnose・spec の block と同じ名を同じ意味で足す）"""
         m = stopby()
         rows = declares()
         self.assertTrue(rows)
@@ -138,10 +141,10 @@ class Pack(unittest.TestCase):
                 self.assertIsInstance(meaning, str)
                 self.assertTrue(m.NAME.fullmatch(name), name)
                 self.assertNotIn(name, m.REASONS)
-        owners = {}
-        for rel, name, _ in rows:
-            owners.setdefault(name, set()).add(rel)
-        self.assertEqual({n: f for n, f in owners.items() if len(f) > 1}, {})
+        meanings = {}
+        for _, name, meaning in rows:
+            meanings.setdefault(name, set()).add(meaning)
+        self.assertEqual({n: m for n, m in meanings.items() if len(m) > 1}, {})
 
     def test_words_unchanged(self):
         """表と declare の語の字は WORDS と同じ（語を足すなら WORDS にも足す。字を変えない）"""

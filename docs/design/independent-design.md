@@ -1,6 +1,6 @@
 # block の設計書: independent-design（R2 の独立設計）
 
-- 何の話か: 目的の文と、人が決めた前提だけから、修正案・判定・差分を見ずに別の役が理想の設計を作る観点「独立設計」（keep-essence の 9 の半分。R2 のゼロベースの再導出）を、単独で呼べる block `blocks/independent-design/` にする設計。型は [README.md](README.md)、書き方は [world.md](world.md) に従う。
+- 何の話か: 目的の文と、人が決めた前提だけから、修正案・判定・差分を見ずに別の役が理想の設計を作る観点「独立設計」（keep-essence の 9 の半分。R2 のゼロベースの再導出）を、単独で呼べる block `workflows/independent-design/` にする設計。型は [README.md](README.md)、書き方は [world.md](world.md) に従う。
 - 決めたこと: 今の事前審査（plan-review）の中の 3 つの node（r2-prep・r2-design・r2-accept）と、`lib/boardview.py`・`lib/design.py` の独立設計の部分を、5 つの node の block にする。入力は 10 の port で、修正案・判定・差分の port は持たない（持たないことを試験で縛る）。指示は英語の md 2 本（`prompts/design.md`・`prompts/design.system.md`）にまとめ、lib の Python に在った見出し・頼みの文と md の「囲み」の言い直しは md に 1 回だけ書く。振る舞いは変えない。
 - 読む人: この block を作る実装の役（この設計書だけで作れるように書いた）。急ぎではない（README 11.1 の 1 波目。ほかの block と並べて作る）。
 - 持ち主に求めること: なし。自分で決めた事は 11 節に集めた（README の 8.2 の port「`purpose` だけ」を、今の役が受けている前提に合わせて 10 個に直した事を含む）。
@@ -48,7 +48,7 @@
 
 今との違い: 今は入力を plan-review の `purpose`（`purpose.json` の pointer）・`premises`・`purpose_review`・`start`（依頼のファイル・方針の文書・入口の差分の根を読む）・`answers` から読み（`workflows/plan-review/scripts/r2_prep.py`）、出口は plan-review の返りの `design`・`design_premises` の欄に混ざっていた。「同じ run に設計の控えが在れば作り直さない」の確かめ（`boardview.r2_due` の `design.made`）は無くし、1 回だけ回すことは graph の配線が持つ（1.6）。
 
-### 1.3 node の並び（`blocks/independent-design/works-factory-independent-design.yaml`）
+### 1.3 node の並び（`workflows/independent-design/works-factory-independent-design.yaml`）
 
 1. `intake`（script `intake.py`）: port を読み、place の中のこの block のファイルを名で引いて消し（place そのものは消さない。README の 13 章）、`intake.json` を書き、役を起こすかを決める。返り `{due, status, reason}`。
 2. `design-loop`（`depends_on: [intake]`、`loop_group`、`max_iterations: 3`、`fresh_context: false`、`until_bash: done=$design-accept.output.done; test "$done" = true`、`when: "$intake.output.due == true"`）
@@ -78,26 +78,24 @@ script の node はどれも `runtime: uv`・`mutates_checkout: false`。YAML �
 
 作るファイル（この block の PR が触るのはこれと `tests/blocks/independent_design/` と、この設計書だけ）:
 
-- `blocks/independent-design/works-factory-independent-design.yaml`
-- `blocks/independent-design/prompts/design.md`（2 節）・`blocks/independent-design/prompts/design.system.md`（2.3 の 2）
-- `blocks/independent-design/scripts/intake.py`・`design_prep.py`・`design_accept.py`・`finish.py`
-- `blocks/independent-design/src/__init__.py`（空）
-- `blocks/independent-design/src/files.py`: place のファイルの名（1.4）と `NODE = "r2.design"`。
-- `blocks/independent-design/src/steps.py`: 今の `lib/boardview.py` の独立設計の部分の写し。`human_items`・`_answer_rows`（:372-382）・`r2_view`（:708-711。`rules` は `MD_LINK`・`_md_lines`・`_md_slugs`〔`lib/boardview.py:151-176` の写し。`design.named_sections` が読む〕を持つ `SimpleNamespace` に替える。11 節の 14）・`_vetted`・`stale_purpose_review`（:194-203）・`_purpose_review`（:318-329 の、ファイルでなく値を受ける形）・`added_marks`（:756-785）・`check_design`（:788-812）と、使う定数 `PREMISE_MISS`・`ELEMENTS_REJECT`（:97-98）・`STALE_WHY`（:112）・`PURPOSE_REVIEW_UNREAD`（:118-119）・`REQUEST_UNREAD`（:120）・`ADDED_MARK`（:105）。`planblk.READONLY_MOVED`・`planblk.NO_TREE`（`lib/planblk.py:91-92`）の字も写す（却下の理由の文なので Python に残す。README 5.3）。指示の文（`PURPOSE_HEAD`・`CONSTRAINTS_HEAD`・`DRIFT_LINE`・`STALE_LINE`・`DESIGN_PREMISE_REREAD`・`NONE_YET`）は写さず md へ。加えて `unusable(source, review)`（`design.unusable` と `boardview.purpose_unusable` を値で受ける形にした物: `source == judge の「目的不明」の語` なら `"目的不明"`、`review.verdict == "狭めている"` かつ `_vetted(review)` なら `"狭めている"`、ほかは None）。
-- `blocks/independent-design/src/marks.py`: 足した行の印に要る git の 2 つ。今の `lib/fixboard.py` の `pr_revs`（:1107-1111）・`pr_diff`（:1114-1119）・`pr_added_lines`（:1122-1131）の写し。`unittrees._out`・`unittrees._DIFF`・`unittrees.pathspec_without`・git を起こす時に環境変数 `GIT_DIR` など 7 つ（`unittrees._GIT_PLACE`）を外す所（`lib/unittrees.py:36-70`）も、この 3 つが使う分だけ写す。git が落ちた時は `MarkError`（`unittrees.UnitTreeError` の代わり）。訳: `fixboard` と `unittrees` は README 9.2 で fix の `src/` へ MOVE するので、組み込みの後は lib に無い（11 節の 4）。
-- `blocks/independent-design/src/premises.py`: 人が決めた前提の材料を、見出しと頼みの文を除いた形で返す（2.3 の 3）。`lib/design.py` の `human_answers`・`named_sections`・`repo_map` を呼び、返りの本文から頭の字（`f"{design.HUMAN_HEAD}\n\n{design.HUMAN_ASK}\n\n"`・`f"{design.NAMED_HEAD}\n\n{design.NAMED_ASK}\n\n"`・`f"{design.MAP_HEAD}\n\n{design.MAP_ASK}\n\n"`）を `removeprefix` で外した物を材料にする。控え `{given, withheld, seen}` は `design.premises` と同じ組み方（:438-450。`PREMISE_KINDS` の外の種類は `rolekit.BoardGap` で落とす）を写す。頭の字が本文の頭に無ければ `ValueError`（lib の字が変わった時に黙って二重に貼らない）。
-- `blocks/independent-design/src/report.py`: 報告の行（10 節）。
-- `blocks/independent-design/schemas/purpose-review.schema.json`: `{"type": "object", "properties": {"verdict": {"type": "string"}, "reason": {"type": "string"}, "findings": {"type": "array"}}}`（ほかの欄は許す）。
-- `blocks/independent-design/schemas/answers.schema.json`: 説明だけの形（`anyOf` は照らしの語に無い。11 節の 11）。`{decision, text}` かその配列かの選びは `src/steps.py` の `answer_rows` が読む。
-- `constraints` の形はこの block に置かず、共通の `blocks/.shared/schemas/constraints.schema.json`（`json(shared:constraints.schema.json)`。11 節の 10）を使う。
-- `blocks/independent-design/fixtures/standalone.stubs.yaml`・`unusable.stubs.yaml`・`gave-up.stubs.yaml`（12 節）。
+- `workflows/independent-design/works-factory-independent-design.yaml`
+- `workflows/independent-design/prompts/design.md`（2 節）・`workflows/independent-design/prompts/design.system.md`（2.3 の 2）
+- `workflows/independent-design/scripts/intake.py`・`design_prep.py`・`design_accept.py`・`finish.py`
+- `workflows/independent-design/src/__init__.py`（空）
+- `workflows/independent-design/src/files.py`: place のファイルの名（1.4）と `NODE = "r2.design"`。
+- `workflows/independent-design/src/steps.py`: 今の `lib/boardview.py` の独立設計の部分の写し。`human_items`・`_answer_rows`（:372-382）・`r2_view`（:708-711。`rules` は `MD_LINK`・`_md_lines`・`_md_slugs`〔`lib/boardview.py:151-176` の写し。`design.named_sections` が読む〕を持つ `SimpleNamespace` に替える。11 節の 14）・`_vetted`・`stale_purpose_review`（:194-203）・`_purpose_review`（:318-329 の、ファイルでなく値を受ける形）・`added_marks`（:756-785）・`check_design`（:788-812）と、使う定数 `PREMISE_MISS`・`ELEMENTS_REJECT`（:97-98）・`STALE_WHY`（:112）・`PURPOSE_REVIEW_UNREAD`（:118-119）・`REQUEST_UNREAD`（:120）・`ADDED_MARK`（:105）。`planblk.READONLY_MOVED`・`planblk.NO_TREE`（`lib/planblk.py:91-92`）の字も写す（却下の理由の文なので Python に残す。README 5.3）。指示の文（`PURPOSE_HEAD`・`CONSTRAINTS_HEAD`・`DRIFT_LINE`・`STALE_LINE`・`DESIGN_PREMISE_REREAD`・`NONE_YET`）は写さず md へ。加えて `unusable(source, review)`（`design.unusable` と `boardview.purpose_unusable` を値で受ける形にした物: `source == judge の「目的不明」の語` なら `"目的不明"`、`review.verdict == "狭めている"` かつ `_vetted(review)` なら `"狭めている"`、ほかは None）。
+- `workflows/independent-design/src/marks.py`: 足した行の印に要る git の 2 つ。今の `lib/fixboard.py` の `pr_revs`（:1107-1111）・`pr_diff`（:1114-1119）・`pr_added_lines`（:1122-1131）の写し。`unittrees._out`・`unittrees._DIFF`・`unittrees.pathspec_without`・git を起こす時に環境変数 `GIT_DIR` など 7 つ（`unittrees._GIT_PLACE`）を外す所（`lib/unittrees.py:36-70`）も、この 3 つが使う分だけ写す。git が落ちた時は `MarkError`（`unittrees.UnitTreeError` の代わり）。訳: `fixboard` と `unittrees` は README 9.2 で fix の `src/` へ MOVE するので、組み込みの後は lib に無い（11 節の 4）。
+- `workflows/independent-design/src/premises.py`: 人が決めた前提の材料を、見出しと頼みの文を除いた形で返す（2.3 の 3）。`lib/design.py` の `human_answers`・`named_sections`・`repo_map` を呼び、返りの本文から頭（見出しと頼みの 2 段落）を外した物を材料にする。lib の頭の字（`design.HUMAN_HEAD` など）は読まず、頭の形（# が 3 つの見出しで始まる）だけで見分けて 3 つ目の段落から後ろを取る（組み込みで lib が頭の字を md へ出して本文だけを返す形になっても、頭が無い本文はそのまま使うので直さずに働く）。控え `{given, withheld, seen}` は `design.premises` と同じ組み方（:438-450。`PREMISE_KINDS` の外の種類は `rolekit.BoardGap` で落とす）を写す。頭だけで材料が無い本文は `ValueError`（黙って頭を貼り直さない）。
+- `workflows/independent-design/src/report.py`: 報告の行（10 節）。
+- `workflows/independent-design/schemas/purpose-review.schema.json`: `{"type": "object", "properties": {"verdict": {"type": "string"}, "reason": {"type": "string"}, "findings": {"type": "array"}}}`（ほかの欄は許す）。
+- `workflows/independent-design/schemas/answers.schema.json`: 説明だけの形（`anyOf` は照らしの語に無い。11 節の 11）。`{decision, text}` かその配列かの選びは `src/steps.py` の `answer_rows` が読む。
+- `constraints` の形はこの block に置かず、共通の `workflows/.shared/schemas/constraints.schema.json`（`json(shared:constraints.schema.json)`。11 節の 10）を使う。
+- `workflows/independent-design/fixtures/standalone.stubs.yaml`・`unusable.stubs.yaml`・`gave-up.stubs.yaml`（12 節）。
 - `tests/blocks/independent_design/__init__.py`・`test_independent_design.py`・`values.py`（12 節）。
-- 共通の指示の断片（土台に無い物。この block が最初に要るので、この block の PR が足す。README 11.1 の並べ方）: `blocks/.shared/prompts/design-premises.md`（2.3 の 3。r2 の block も使う）・`blocks/.shared/prompts/policy.md`（2.3 の 6。方針を受ける block の全部が使う）。
-- 土台の口に足す物: `blocks/.shared/prompt.py` に、AI の node の system prompt の md `prompts/<node-id>.system.md` を組む口（11 節の 1）。土台に無ければこの block の PR が足し、7.1 の 1・2 の形の検査を「`prompts/<node-id>.system.md` は、`systemPrompt: "$<prep>.output.system"` を持つ同じ id の AI の node の物」に広げる。
+- 共通の指示の断片（土台に無い物。この block が最初に要るので、この block の PR が足す。README 11.1 の並べ方）: `workflows/.shared/prompts/design-premises.md`（2.3 の 3。r2 の block も使う）・`workflows/.shared/prompts/policy.md`（2.3 の 6。方針を受ける block の全部が使う）。
+- 土台の口に足す物: `workflows/.shared/prompt.py` に、AI の node の system prompt の md `prompts/<node-id>.system.md` を組む口（11 節の 1）。土台に無ければこの block の PR が足し、7.1 の 1・2 の形の検査を「`prompts/<node-id>.system.md` は、`systemPrompt: "$<prep>.output.system"` を持つ同じ id の AI の node の物」に広げる。
 
 使う `lib/`（どれも README 9.3 の KEEP）: `design`（前提の節の材料・`UNUSABLE`・`MISSING`・`anchor_misses`・`anchor_note`・`element_gaps`・`claims_unpassed`・`claims_given`・`PREMISE_KINDS`・`head_file`・`anchors`）・`accept`（`tree_state`・`tree_moved`・`status_keys`・`write_board`・`guard`・`TREE_KEYS`）・`policy`（`PASTE_CAP`。本文の切り方は 2.3 の 6）・`rolekit`（`accept_round`・`round_outcome`・`rejected`・`rejects_text`・`given_up_reason`・`LANG_DEFAULT`）・`changemap`（`split_diff`・`new_side`）・`jsonfile`・`oneline`。`lib/boardview.py`・`lib/fixboard.py`・`lib/unittrees.py`・`lib/planfile.py`・`lib/planblk.py`・`lib/startrec.py` は import しない（どれも組み込みで別の block へ移るか消える）。
-
-作り直しの間は `lib/boardview.py` の独立設計の部分を消さない（今の plan-review が使う）。組み込みで消す（README 9.2 の「boardview（独立設計の部分は independent-design へ）」）。
 
 ### 1.6 つなぎ方（graph の側。block には書かない）
 
@@ -121,7 +119,7 @@ script の node はどれも `runtime: uv`・`mutates_checkout: false`。YAML �
 `prompts/design.md`:
 
 1. `<!-- if rejected -->` `{shared:rejected}` `<!-- end rejected -->` — 条件: 却下の控え `rolekit.rejected(place, NODE)` が空でない。断片の中の `{rejection}` ← `rolekit.rejects_text(<控え>)`（古い順に全部。日本語。4 節）。
-2. 役の定義（決まった文）: 新しい会話で起きていること・修正案も判定の経緯も実装も引き継いでいないこと・道具を持たないこと・渡すのは目的と制約と人が決めた前提と方針だけであること。
+2. 役の定義（決まった文）: 修正案も判定の経緯も実装も引き継いでいないこと・道具を持たないこと・渡すのは目的と制約と人が決めた前提と方針だけであること。
 3. `{shared:design-premises}`（人が決めた前提。r2 の block と共に使う断片）。断片の中:
    - `## Premises a person set (pasted by the machine)`（決まった見出し）
    - `<!-- if answers -->` 承認ノードの答えの見出しと頼みの文（決まった文）と `{answers}` ← `src/premises.py` が組む箇条の行（`- 周 <round>・<node>（<kinds>）: <answer>（一言: <note>）`。`design.human_answers` の行）`<!-- end answers -->` — 条件: 貼る答えの行が 1 つ以上。
@@ -159,7 +157,7 @@ md の本文（英語。この block の PR でこのまま置く）:
 {shared:rejected}
 <!-- end rejected -->
 
-You are the independent designer, one half of R2 (the zero-based re-derivation), started in a new conversation. You have inherited neither the fix plan, nor the history of the judgment, nor the implementation, nor the cumulative diff, nor the points already settled.
+You are the independent designer, one half of R2 (the zero-based re-derivation). You have inherited neither the fix plan, nor the history of the judgment, nor the implementation, nor the cumulative diff, nor the points already settled.
 You have no tools. You cannot open files, the repository, its history, or the web; the sections below are everything you are given. What you are given is the original purpose, the measured constraints, the premises a person set, and the person's policy (when there is one).
 
 {shared:design-premises}
@@ -206,7 +204,7 @@ List the design's elements in `elements`, one for each unit of what the design a
 Return only JSON that matches the output schema.
 ```
 
-断片 `blocks/.shared/prompts/design-premises.md` の本文（英語。この block の PR が足す。r2 の block も同じ断片を差し込む）:
+断片 `workflows/.shared/prompts/design-premises.md` の本文（英語。この block の PR が足す。r2 の block も同じ断片を差し込む）:
 
 ```markdown
 ## Premises a person set (pasted by the machine)
@@ -238,7 +236,7 @@ The request file could not be read, so the design-document sections the request 
 <!-- end request_unread -->
 ```
 
-断片 `blocks/.shared/prompts/policy.md` の本文（英語。この block の PR が足す。方針を受ける block の全部が使う）:
+断片 `workflows/.shared/prompts/policy.md` の本文（英語。この block の PR が足す。方針を受ける block の全部が使う）:
 
 ```markdown
 ## The person's policy
@@ -260,7 +258,7 @@ If there is a policy, it is not the target's text but a constraint the issuer of
 ### 2.5 描いた骨組み（例の run の値）
 
 ```markdown
-You are the independent designer, one half of R2 … started in a new conversation. …（決まった文）
+You are the independent designer, one half of R2 …（決まった文）
 You have no tools. …（決まった文）
 
 ## Premises a person set (pasted by the machine)
@@ -319,6 +317,11 @@ Return only JSON that matches the output schema.
 - 消した: 始めの記録が届かない時の名指しの節の 1 行（`NOT_GIVEN_START`、`boardview.py:113`）。block は始めの記録を受けないので、この場合が無い。依頼のファイルが無い時は名指しの節を貼らない（今の「依頼のファイル無し」と同じ）。
 - 足した: 言語の 1 文（`{lang}`）。今の指示は日本語で書かれていたので返答も日本語になっていた。英語にした指示で人に見せる欄の言語を保つため（#764 の求め）。
 - 足した: 役の定義の「人の方針（在る時）」の句。今も方針は本文の後ろに貼られていたが（`boardview.py:743-744`）、指示が渡す物として名指していなかった。
+- 消した: 「新しい会話で起きている」（今の `r2-design.md:1`）。この輪は `fresh_context: false` で、2 回目からは前の答えと却下を見た会話の続きなので、続く会話の役に新しい会話とは言わない（今の指示にも在った古くからの誤りを、md を英語にした時に直した）。
+- 足した: 依頼のファイルが読めなかった時の段落 `request_unread`（断片 `design-premises` の中。名指しの節が無いことを「依頼が名指していない」と読ませない）。今は読めない訳の 1 行を名指しの節の見出しの下に貼っていた（11 節の 15）。
+- 変えた: 裏取りを通っていない目的の判定の行（`stale`）は、判定が在る時だけ出す。
+- 足した: 返答の欄の決まり — 実在を名指す根拠の書き方（`<path>:<line>` か `<path>:<start>-<end>`）・`reason` は空にしない・訳さない物（key・id・パス・コマンド・識別子・エラー文）。いずれも受け付けが前から照らしていた物（今の指示は言わなかった）。
+- 直した: 共通の断片 `policy` の閉じる囲みの向き。
 - 英語にした（#764）。役の名「独立設計の役」は "the independent designer"。
 
 1 つ目の commit（日本語の md。README 11.4）の作り方: 今の `r2-design.md` の字の並びを上から写し、`$r2-prep.output.prompt` の所に、`r2_prompt` が組む本文の並び（`<!-- if premises -->` に当たる `DESIGN_PREMISE_HEAD`・`DESIGN_PREMISE_REREAD`・人の答え・名指し・地図・`---`、元の目的・制約・ドリフト・裏取りの 2 行、方針の節）を、今の字のまま md の段落と差し込み口で書く。区切りの 2 行も残す。比べは例の run の値（却下なし・方針なし）で、組んだ指示が今の `r2-prompt.md` を `r2-design.md` に差し込んだ字と同じになること、system prompt が今の `systemPrompt` と同じ字になることを照らす。2 つ目の commit で上の英語の md に替え、この節の差の一覧どおりかを並べて審査に出す。
@@ -353,7 +356,7 @@ Return only JSON that matches the output schema.
 ## 5 単独で呼ぶ
 
 ```sh
-bin/works-factory <読ませるフォルダを blocks/ にする引数（名は実装で決める）> workflow run works-factory-independent-design \
+bin/works-factory workflow run works-factory-independent-design \
   --cwd <対象> --input purpose='…目的の 1 文…' \
   --input constraints='[{"text":"…","kind":"実測"}]'
 ```
@@ -410,12 +413,12 @@ bin/works-factory <読ませるフォルダを blocks/ にする引数（名は�
 10. `constraints` の形は、土台の共通の形 `shared:constraints.schema.json` を使い、この block に `schemas/constraints.schema.json` を置かない（1.5 を直した）。根拠: 形のファイルの名は pack の中で 1 か所にしか置けない（`tests/layers/test_block_shape.py` の 5）。共通の形は `measured_how` が必須で `kind` が 実測／仮説 の二択と今の前提の実測の出力に合わせて厳しいが、独立設計の入力は前提の実測の block の出力そのものなので足りる。`{constraints: [...]}` の形のオブジェクトも読む。
 11. `answers.schema.json` は `anyOf` を使わず、説明だけの形にする（1.5 を直した）。根拠: `anyOf` は照らしの語（`KNOWN_KEYWORDS`）に無く、`ports.json` も形の検査も拒む。`{decision, text}` かその配列かの選びは `src/steps.py` の `answer_rows` が読み、`decision` を持たない行は答えの無い行として読む（今の `_answer_rows` と同じ）。
 12. standalone の筋書きは `exec-code: true` で、差し替えるのは AI の node `design` だけにする（12 節の「script の node も差し替える」を直した）。根拠: 7.1 の 3 が、筋書きの `resolved-text-contains` を prep が md から本当に組んだ指示に照らす（prep を差し替えると証にならない）。`gave-up` の筋書きは要素の無い返答を `design` に返させ、受け付けが 1 回拒む道を見る（筋書きの輪は 1 周で終わるので、3 回で諦める数えは試験が見る）。`unusable` は入口が本当に走る。
-13. 入口が消すのは、この block が名を持つファイルだけ（`intake.json`・`design-tree.json`・`design-premises.json`・`design.json`・`design-crash.json`・`finish.json`・`rejects-r2.design.json`・`design-prompt-*.md`・`design-system-*.md`）。3 節の「place の中のファイルを全部消してから」を直した。根拠: block が消してよいのは自分が名を持つファイルだけ（`blocks/.shared/AGENTS.md`）。
+13. 入口が消すのは、この block が名を持つファイルだけ（`intake.json`・`design-tree.json`・`design-premises.json`・`design.json`・`design-crash.json`・`finish.json`・`rejects-r2.design.json`・`design-prompt-*.md`・`design-system-*.md`）。3 節の「place の中のファイルを全部消してから」を直した。根拠: block が消してよいのは自分が名を持つファイルだけ（`workflows/.shared/AGENTS.md`）。
 14. `r2_view` の `rules` は、`purpose_unusable` でなく、`design.named_sections` が引く `MD_LINK`・`_md_lines`・`_md_slugs`（`lib/boardview.py:151-176` の写し）を持つ（1.5 を直した）。目的が使えるかは `unusable(source, review)` が決める。根拠: 依頼の名指しの節を引く `design._named_targets`・`_section` は `b.rules` のこの 3 つを読む。
-15. 依頼のファイルが在らない・読めない時は、落とさず、`REQUEST_UNREAD` の行を控えの `withheld`（種類 `named_section`）に残して名指しの節を貼らない。方針のファイルが在らない時は port の読みの決まりで `failed`。根拠: 今は依頼のファイルが読めなくても独立設計は回る（`_request`）。1.2 と 3 節の「ほかの port が読めない時は failed」から依頼だけを外した。今は読めない訳の 1 行を名指しの節の見出しの下に貼っていたが、見出しと頼みの文が断片に移ったので貼らず、控えだけに残す（2.6 の「消した」と同じ向き）。
+15. 依頼のファイルが在らない・読めない時は、落とさず、`REQUEST_UNREAD` の行を控えの `withheld`（種類 `named_section`）に残して名指しの節を貼らない。方針のファイルが在らない時は port の読みの決まりで `failed`。根拠: 今は依頼のファイルが読めなくても独立設計は回る（`_request`）。1.2 と 3 節の「ほかの port が読めない時は failed」から依頼だけを外した。今は読めない訳の 1 行を名指しの節の見出しの下に貼っていた。見出しと頼みの文が断片に移ったので、その行は貼らず、控えの `withheld` に残すのに加えて、断片の段落 `request_unread`（読めなかったので名指しの節は渡していない。名指しが無いと読むな）を出す（2.6 の「足した」）。
 16. 空の入力（空の字か `null`）は、`purpose_review`・`constraints`・`answers`・`request`・`policy` で、既定と同じ「無い」と読む。根拠: graph の `with:` は値の無い欄を空の字で渡しうる。`json` の口は空の字を拒むので、block が先に既定へ寄せる（黙って緩めるのでなく、1.2 の port の説明の「空は…」に書いた意味）。
 17. 日本語の md（1 つ目の commit）は今の `r2-design.md` と同じ字を並べ、`lang` の差し込み口と、裏取りを通っていない目的の判定の段落（`<!-- if stale -->`）は 2 つ目の commit の英語の md で入れる。1 つ目の commit では、その行は今のとおり `（無い）` を入れて常に載る。却下の段落の置き場（md の頭の `{shared:rejected}`）は 1 つ目の commit から変えた（今は役の定義の後の囲みの頭）。この違いは、指示の比べの試験が却下の無い値で照らすので、試験の外にある。
-18. `blocks/.shared/AGENTS.md` の断片の一覧に `design-premises`・`policy` を足し、取り置いた名から外した。
+18. `workflows/.shared/AGENTS.md` の断片の一覧に `design-premises`・`policy` を足し、取り置いた名から外した。
 19. 下げている所の行の字は `src/report.py` の定数に持ち、`lib/downgrades.json` の `r2.design` の行と同じ字であることを試験が突き合わせる（組み込みで `lib/downgrades.json` が消える時にこの試験も消す）。
 20. prep・accept の node が落ちた時は、訳を place の `design-crash.json` に残し、出口がそれを設計の無い訳に使う。根拠: 役が回った後に prep か accept が落ちても、出口が「役の loop が回らなかった」と言うと事実と違う。
 
@@ -426,7 +429,7 @@ bin/works-factory <読ませるフォルダを blocks/ にする引数（名は�
 
 ## 12 試験
 
-- standalone の fixture（`blocks/independent-design/fixtures/`。`exec-code: true` で script は本当に走り、差し替えるのは AI の node `design` の返答だけ。11 節の 12）:
+- standalone の fixture（`workflows/independent-design/fixtures/`。`exec-code: true` で script は本当に走り、差し替えるのは AI の node `design` の返答だけ。11 節の 12）:
   - `standalone.stubs.yaml`: 入力は `purpose` だけ。`design` を例の run の返答（要素 1 つ）で差し替える。`resolved-text-contains` で、prep が md から本当に組んだ指示を照らす。`expect: completed`・`reached: [intake, design-prep, design, design-accept, finish]`。
   - `unusable.stubs.yaml`: 入力は `purpose` と `purpose_source: 目的不明`。差し替えは無く、入口が本当に走って `unusable` を返す。`reached: [intake, finish]`（loop の 3 つは飛ばされる）。
   - `gave-up.stubs.yaml`: `design` が要素の無い返答を返し、受け付けが 1 回拒む（筋書きの輪は 1 周で終わる。3 回で諦める数えは試験が見る）。`finish` は `status: failed` を返し、run は `completed`。
@@ -436,13 +439,13 @@ bin/works-factory <読ませるフォルダを blocks/ にする引数（名は�
   - 指示の中身: 制約と目的が入り、修正案・判定の字が入らない（`test_prompt_carries_purpose_and_constraints_only` の写し）・人の答えと名指しの節が入る（`test_human_answers_and_named_sections_are_pasted`）・裏取りを通っていない「狭めている」の行が入る（`test_prompt_carries_drift_and_unvetted_purpose_lines` の裏取りの半分。ドリフトの半分は写さない）・目的の監査が読めない時に控えに名指す（`test_unreadable_purpose_review_sibling_is_named`）・依頼のファイルが読めない時に名指す（`test_unreadable_request_file_is_named`）・方針が入る（`PortedMaterialCase.test_design_prompt_gets_the_policy`）・system prompt が役の定義の断片の本文。
   - 足した行の印: `AddedMarkCase` の 5 本（`test_constraint_naming_an_added_line_is_marked`・`test_grep_output_naming_an_added_line_is_marked`・`test_line_the_change_did_not_add_is_not_marked`・`test_run_without_a_diff_is_not_marked`・`test_tail_two_files_share_is_not_marked`）を `base`・`head` の port で。
   - 受け付け: `DesignCase` の `test_design_accepted_and_reaches_the_review`（「reaches the review」の半分は plan-review の試験へ）・`test_standing_design_needs_elements_and_reaches_the_review`・`test_anchor_must_be_in_the_frozen_version`・`test_give_up_on_the_third_reject_still_done`・`test_tree_change_rejected`・`test_skipped_when_purpose_unusable`・`test_skipped_when_purpose_review_sibling_narrows`。
-  - 足す: 3 回拒まれた後の `finish` が `status: failed` と最後の却下の理由・`purpose_source` が「目的不明」の時に役を起こさず `status: unusable`・`premises.py` が `PREMISE_KINDS` の外の種類で落ちる・`premises.py` が lib の頭の字を外せない時に `ValueError`。
+  - 足す: 3 回拒まれた後の `finish` が `status: failed` と最後の却下の理由・`purpose_source` が「目的不明」の時に役を起こさず `status: unusable`・`premises.py` が `PREMISE_KINDS` の外の種類で落ちる・`premises.py` が lib の頭だけで材料の無い本文を受けた時に `ValueError`・lib の頭の字が違っても頭の形で外せる・頭の無い本文はそのまま。
 - 写さない試験（古い中身だけを見る）: `tests/workflows/test_plan_review.py::YamlCase.test_r2_command_is_the_original_with_only_the_allowed_edits`（写しの台帳。README 9.4）・`IsolationCase.test_defaults_are_named_in_the_premises`（始めの記録の既定。block は始めの記録を受けない）・`DesignCase.test_off_schema_reply_names_the_type_error`（型は Archon の `output_format` が落とす。4 節）・`DesignCase.test_design_handoff_is_traced`（plan-review の trace の行。設計の受け渡しは port になる）・`NoFixDesignCase`（plan-review の形 design。1.6 の配線で替わる）・`lib/tests/test_boardview.py::…test_r2_due`（控えの在る run で作り直さない確かめ。11 節の 3）。
 - 読み手の側の試験はそれぞれの block に残す: 独立設計との構造の食い違いと要素の網羅（plan-review の `test_design_drift_face_needs_quotes_in_both` ほか）・案の直しへの使い回し（`ReplanCase.test_replan_material_carries_the_independent_design`、line）・「渡されていない」の突き合わせ（r2）。
 - e2e の `tests/e2e/evidence.json` の R36・P171 は、node の id と place のパス（`plan-review/design.json` → `<include>/design.json`・`rejects-r2.design.json`）を新しい物に合わせる。
 
 ## 13 未確認
 
-- 起動の殻で `blocks/` を読ませる引数の名と、5 節の命令の正確な形。
+- 5 節の命令の正確な形。
 - 作業ツリーを cwd に起こした道具なしの役に、Archon か Claude Code が system prompt の外で作業ツリーの情報を足すか（6 節の 1）。
 - `archon workflow test` で `systemPrompt: "$<id>.output.system"` の差し替えが筋書きで通るか（fixture は prep を差し替えるので、字が入らなくても配線は見られる）。

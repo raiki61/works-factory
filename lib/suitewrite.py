@@ -41,7 +41,7 @@ if str(_CORE) not in sys.path:
 
 import declared_checks  # noqa: E402
 import oneline  # noqa: E402
-import startrec  # noqa: E402
+import jsonfile  # noqa: E402
 
 KEY = "suite_written"
 FROM_KEEP, FROM_AI = "keep", "ai"
@@ -65,7 +65,7 @@ def need(start: dict, mode: str) -> bool:
 
 
 def prepare(start_file, folder, keep, root) -> dict:
-    start = startrec.load(start_file)
+    start = jsonfile.read_dict(start_file)
     mark = _mark(start)
     folder = pathlib.Path(folder)
     if _suite(start):
@@ -105,7 +105,7 @@ def _longest_tick_run(text: str) -> int:
 
 
 def place(start_file, folder, reply) -> dict:
-    start = startrec.load(start_file)
+    start = jsonfile.read_dict(start_file)
     mark = _mark(start)
     reply = reply if isinstance(reply, dict) else {}
     body = reply.get("body") if isinstance(reply.get("body"), str) else ""
@@ -124,12 +124,12 @@ def place(start_file, folder, reply) -> dict:
 
 
 def pending(start_file) -> str:
-    mark = _mark(startrec.load(start_file))
+    mark = _mark(jsonfile.read_dict(start_file))
     return str(mark.get("path") or "") if mark.get("ok", False) is None else ""
 
 
 def settle(start_file, ran, keep) -> dict:
-    start = startrec.load(start_file)
+    start = jsonfile.read_dict(start_file)
     mark = _mark(start)
     if mark.get("ok", False) is not None or not mark.get("path"):
         return {"done": True, "ok": mark.get("ok") is True, "why": str(mark.get("why") or "")}
@@ -208,7 +208,7 @@ def _mark(start) -> dict:
 
 
 def _save(start_file, start: dict, mark: dict) -> None:
-    startrec.save(start_file, {**start, KEY: mark})
+    jsonfile.write(start_file, {**start, KEY: mark}, indent=2, parents=True)
 
 
 def head_note(start) -> str:

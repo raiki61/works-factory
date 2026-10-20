@@ -1,5 +1,8 @@
-"""工程の名が `works-factory-<フォルダの名>` で、`archon-` で始まらない（根の AGENTS.md の E9 の機械の行）。
-自分の層のパスの部分が ASF の物の名で始まらない（E18 の機械の行）。"""
+"""グラフの名が `works-factory-<フォルダの名>` で、`archon-` で始まらない（根の `AGENTS.md` の E9 の機械の行）。自分の層のパスの部分が ASF の物の名で始まらない（E18 の機械の行）。
+
+- E9: `workflows/<名>/works-factory-<名>.yaml` の `name:` がフォルダの名と同じ `works-factory-<名>`。
+- E18: `bin/`・`workflows/`・`lib/`・`tests/`・`docs/` の下のパスの部分（フォルダとファイルの名）に、`factory`・`FACTORY`・`harness`・`.factory`・`archon-` で始まる物が無い（持ち主の決め `name-by-origin`）。ASF の物が根の `AGENTS.md` の木の場所の外に無いことは人が見る。
+"""
 import pathlib
 import unittest
 
