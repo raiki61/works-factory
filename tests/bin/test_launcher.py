@@ -405,6 +405,130 @@ class LauncherTest(unittest.TestCase):
         self.assertEqual(users.read_bytes(), before)
         self.assertEqual(sorted(p.name for p in (self.home / ".archon").iterdir()), ["config.yaml"])
 
+    def test_claude_concurrency_cap_reaches_archon_home_only_when_asked(self):
+        """WORKS_FACTORY_CLAUDE_CONCURRENCY を渡した時だけ、隔離した Archon の家の config.yaml の concurrency.providers.claude に上限が届く
+        （越える分を待たせるのは Archon。持ち主の決め provider-cap-on-ask）。利用者の ~/.archon には書かない。一度も渡さなければ何も書かない。
+        書くのは run を走らせる命令だけ"""
+        users = put(self.home / ".archon" / "config.yaml", "workflows:\n  autoResumeOnQuotaReset: true\n")
+        before = users.read_bytes()
+        run = ("workflow", "run", "works-factory-line")
+        archon_home = pathlib.Path(self.reached(self.launch(*run))["env"]["ARCHON_HOME"])
+        self.assertFalse((archon_home / "config.yaml").exists())
+        done = self.launch(*run, WORKS_FACTORY_CLAUDE_CONCURRENCY="1")
+        self.assertEqual(pathlib.Path(self.reached(done)["env"]["ARCHON_HOME"]), archon_home)
+        self.assertEqual((archon_home / "config.yaml").read_text(encoding="utf-8"), "concurrency:\n  providers:\n    claude: 1\n")
+        self.assertEqual(users.read_bytes(), before)
+        with self.subTest("続ける命令にも届く"):
+            self.reached(self.launch("workflow", "resume", "run-1", WORKS_FACTORY_CLAUDE_CONCURRENCY="2"))
+            self.assertIn("    claude: 2\n", (archon_home / "config.yaml").read_text(encoding="utf-8"))
+        with self.subTest("実行しない命令は書かない"):
+            (archon_home / "config.yaml").unlink()
+            self.reached(self.launch("workflow", "list", WORKS_FACTORY_CLAUDE_CONCURRENCY="1"))
+            self.assertFalse((archon_home / "config.yaml").exists())
+
+    def test_claude_concurrency_cap_touches_only_its_own_key(self):
+        """上限の鍵だけを足すか書き換え、ほかの鍵・コメント・並びを残す。既に別の値なら渡した値に書き換わる"""
+        run = ("workflow", "run", "works-factory-line")
+        archon_home = pathlib.Path(self.reached(self.launch(*run))["env"]["ARCHON_HOME"])
+        config = archon_home / "config.yaml"
+        mine = "# 利用者の設定\nassistant: claude\nmodels:\n  tiers:\n    fast: haiku\nconcurrency:\n  maxConversations: 4\n# 末尾のコメント\n"
+        put(config, mine)
+        self.reached(self.launch(*run, WORKS_FACTORY_CLAUDE_CONCURRENCY="2"))
+        added = config.read_text(encoding="utf-8")
+        self.assertEqual(added, mine.replace("  maxConversations: 4\n", "  maxConversations: 4\n  providers:\n    claude: 2\n"))
+        with self.subTest("別の値は渡した値に書き換わる"):
+            self.reached(self.launch(*run, WORKS_FACTORY_CLAUDE_CONCURRENCY="3"))
+            self.assertEqual(config.read_text(encoding="utf-8"), added.replace("claude: 2", "claude: 3"))
+        with self.subTest("providers の中のほかの provider も残る"):
+            put(config, "concurrency:\n  providers:\n    other: 5\n")
+            self.reached(self.launch(*run, WORKS_FACTORY_CLAUDE_CONCURRENCY="2"))
+            self.assertEqual(config.read_text(encoding="utf-8"), "concurrency:\n  providers:\n    other: 5\n    claude: 2\n")
+        with self.subTest("鍵が値を持つ形（flow）なら、書き換えずに止める"):
+            put(config, "concurrency: {}\n")
+            self.assertIn("config.yaml", self.stopped(self.launch(*run, WORKS_FACTORY_CLAUDE_CONCURRENCY="2")))
+            self.assertEqual(config.read_text(encoding="utf-8"), "concurrency: {}\n")
+
+    def test_launch_without_the_variable_leaves_the_cap_and_says_it(self):
+        """変数を渡さない起動（続きの命令も）は config.yaml に何もしない（バイト単位で同じ）。上限の鍵が在れば、標準エラーに効いている値を 1 行出す"""
+        run = ("workflow", "run", "works-factory-line")
+        archon_home = pathlib.Path(self.reached(self.launch(*run, WORKS_FACTORY_CLAUDE_CONCURRENCY="2"))["env"]["ARCHON_HOME"])
+        config = archon_home / "config.yaml"
+        written = config.read_bytes()
+        for args in (run, ("workflow", "resume", "run-1"), ("workflow", "approve", "run-1")):
+            with self.subTest(args=args):
+                done = self.launch(*args)
+                self.reached(done)
+                self.assertEqual(config.read_bytes(), written)
+                self.assertIn(f"claude の同時数の上限 2 が効いている（{config}）", done.stderr)
+        with self.subTest("空の値は渡していないのと同じ"):
+            done = self.launch(*run, WORKS_FACTORY_CLAUDE_CONCURRENCY="")
+            self.reached(done)
+            self.assertEqual(config.read_bytes(), written)
+        with self.subTest("上限の鍵が無ければ何も言わない"):
+            config.unlink()
+            self.assertNotIn("同時数の上限", self.launch(*run).stderr)
+
+    def cap_config(self, text: bytes) -> pathlib.Path:
+        """上限を一度も渡していない置き場の config.yaml に text を置く（Archon の命令が書いた形の再現）"""
+        archon_home = pathlib.Path(self.reached(self.launch("workflow", "run", "works-factory-line"))["env"]["ARCHON_HOME"])
+        config = archon_home / "config.yaml"
+        config.write_bytes(text)
+        return config
+
+    def test_claude_concurrency_cap_stops_on_a_flow_form_file_without_touching_it(self):
+        """Archon の ai tier set などは config.yaml 全体を 1 行の形で書く。そこへ block の形を足すと Archon が読めなくなるので、書かずに
+        Archon を起こさず止め、ファイルは 1 バイトも変わらない。止める文にパスと手で入れる形と変数を外す道が出る"""
+        run = ("workflow", "run", "works-factory-line")
+        for text in (b"{models: {tiers: {fast: haiku}}}\n", b"# user\n\n{assistant: claude}\n"):
+            with self.subTest(text=text):
+                config = self.cap_config(text)
+                said = self.stopped(self.launch(*run, WORKS_FACTORY_CLAUDE_CONCURRENCY="2"))
+                self.assertIn(str(config), said)
+                self.assertIn("concurrency: {providers: {claude: 2}}", said)
+                self.assertIn("WORKS_FACTORY_CLAUDE_CONCURRENCY", said)
+                self.assertEqual(config.read_bytes(), text)
+
+    def test_launch_says_when_a_flow_form_file_may_hold_the_cap(self):
+        """上限を書いた後に ai tier set などでファイルが 1 行の形になると、上限は中で効き続けるが殻は値を読めない。concurrency の字が在れば、
+        効いている値の代わりに読めない旨の 1 行を標準エラーに出す。字が無ければ何も言わない"""
+        run = ("workflow", "run", "works-factory-line")
+        config = self.cap_config(b'{"concurrency":{"providers":{"claude":2}},"assistant":"claude"}\n')
+        done = self.launch(*run)
+        self.reached(done)
+        self.assertIn(f"上限の設定が 1 行の形で在るかもしれず、殻は値を読めない（{config}）", done.stderr)
+        self.assertNotIn("が効いている", done.stderr)
+        config.write_bytes(b"{assistant: claude}\n")
+        self.assertNotIn("上限の設定が", self.launch(*run).stderr)
+
+    def test_claude_concurrency_cap_is_not_rewritten_when_the_value_is_the_same(self):
+        """値が今と同じなら config.yaml に触らない（走り中の run が書きかけを読む余地を作らない）。違う時は置き換え、一時ファイルを残さない"""
+        run = ("workflow", "run", "works-factory-line")
+        config = self.cap_config(b"concurrency:\n  providers:\n    claude: 2\n")
+        before = config.stat().st_mtime_ns
+        self.reached(self.launch(*run, WORKS_FACTORY_CLAUDE_CONCURRENCY="2"))
+        self.assertEqual(config.stat().st_mtime_ns, before)
+        self.reached(self.launch(*run, WORKS_FACTORY_CLAUDE_CONCURRENCY="3"))
+        self.assertEqual(config.read_bytes(), b"concurrency:\n  providers:\n    claude: 3\n")
+        self.assertEqual(sorted(p.name for p in config.parent.glob("config.yaml*")), ["config.yaml"])
+
+    def test_claude_concurrency_cap_keeps_the_line_ending_of_the_file(self):
+        """CRLF のファイルに書いても CRLF のまま（足した行も CRLF）。末尾に改行の無いファイルも同じ形で足す"""
+        run = ("workflow", "run", "works-factory-line")
+        config = self.cap_config(b"assistant: claude\r\nconcurrency:\r\n  maxConversations: 4")
+        self.reached(self.launch(*run, WORKS_FACTORY_CLAUDE_CONCURRENCY="2"))
+        self.assertEqual(config.read_bytes(), b"assistant: claude\r\nconcurrency:\r\n  maxConversations: 4\r\n"
+                                              b"  providers:\r\n    claude: 2\r\n")
+        config.write_bytes(b"assistant: claude\r\n")
+        self.reached(self.launch(*run, WORKS_FACTORY_CLAUDE_CONCURRENCY="2"))
+        self.assertEqual(config.read_bytes(), b"assistant: claude\r\nconcurrency:\r\n  providers:\r\n    claude: 2\r\n")
+
+    def test_claude_concurrency_cap_must_be_a_positive_integer(self):
+        """1 以上の整数でない値は、Archon を起こさずに止める（Archon は上限が壊れていると provider の起動を拒むので、run の途中で落ちる前に言う）"""
+        for bad in ("0", "-1", "two", "1.5", " "):
+            with self.subTest(value=bad):
+                said = self.stopped(self.launch("workflow", "run", "works-factory-line", WORKS_FACTORY_CLAUDE_CONCURRENCY=bad))
+                self.assertIn("WORKS_FACTORY_CLAUDE_CONCURRENCY", said)
+
     def test_users_home_reaches_target_commands_whether_or_not_a_switch_is_set(self):
         """旗に依らず、起動はいつも対象のコマンドに戻す利用者の HOME を控え、AI が書いた試験のコードを利用者の権限で走らせる告知の 1 行を
         言う。役と Archon の HOME は隔離のまま。旗の名は出力に出ない"""
