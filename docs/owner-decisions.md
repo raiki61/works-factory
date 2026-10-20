@@ -471,6 +471,20 @@
 - 決め: 守りのファイルの一覧 `lib/protected.json` を、組み込みの後の置き場に合わせて書き換える。直す 5 行は、最後の承認ノードを開く所（`final-gate`。line の承認ノードの決めと `workflows/.shared/ports.py`）・その試験（`edge-test`。`tests/blocks/line/` と `tests/blocks/shared/test_ports.py`）・層の検査（`layers-test`）・検査の見本（`yaml-rules-data`）・残す `lib/graphloops/` の部品（`rules-copy`）。足す 3 行は、指示を組む口 `workflows/.shared/prompt.py`・形の検査 `tests/layers/test_block_shape.py`・keep-essence の指しの検査 `tests/layers/test_keep_essence.py`。意味の同じ行は id を変えず、`about` と訳の古い置き場の名は直してよい。ほかの行は消さない。
 - 当て方: 組み込みの PR が `lib/protected.json` を書き換え、`lib/tests/test_protect.py` を緑にする（`docs/design/README.md` の 11.3 の 8）。行を足す・消すのを人だけに許す決まり（`protected.json` の `about`）は変えない。
 
+## 2026-10-20 の決め（試験の段の絞り）
+
+### `related-tests-only` 工場が走らせる試験は、変更に関わる試験だけにする
+
+- 持ち主の言葉: 「自分に関係のあるやつだけでいいんじゃないかな。もう工場としては。全体テストとかはCIや人間たちに任せる？全部試験賭けるのは重いしね」（2026-10-20。(3) の道の run が全試験の実行器を 3 回、AI の CI の任せ先を 2 回走らせて 256〜300 分かかる、という報告を受けて）
+- 決め: test-gate が走らせる試験は、変更に関わる試験（`lib/impact.py` の `select_tests` が選ぶ直に関わる試験）だけにする。全体の試験は CI と人に任せる。
+  - 当てる所は (3) の道（`test_cmd` も `.review-checks.json` も無い対象）の、全試験の実行器を走らせる 3 か所: test-gate の `suite-try`・test-gate の final の `run`・fix の group-start（TDD の輪の頭で元の結末を取る一式）。選べない時（分からない物が直に関わる所に在る）だけ、今までどおり一式を走らせる。
+  - AI の CI の任せ先（`ci-loop`。対象の CI の定義を読んで写しの上で CI を丸ごと再現する役）は外す。全体の CI を工場が再現しない。
+  - `test_cmd` の道と `.review-checks.json` の道は、利用者が走らせ方を決めた物なので、振る舞いを変えない。
+  - 守りは残す: 直す前から赤だった試験と直しで壊した試験を分けて数える・赤は認証しない・機械でない者が書いた緑を認証しない。
+  - 報告に、走らせなかった範囲（選ばなかった試験・CI と人に任せた物）を 1 節で出す。
+- この決めで替えた決め: `suite-by-ai` の「修正の前のテストの一式の回としてその実行器を 1 回走らせ」（(3) の道では関わる試験だけを走らせる回になる）・`light-in-loop` の「test-gate（final）で一式を 1 回」（(3) の道では関わる試験だけ。一式は CI）。`full-suite-in-ci` と `gate-efficacy-outside-judge` の向きは同じで、変えない。
+- 当て方: `docs/design/test-gate.md`・`docs/design/fix.md`・`lib/related.py`。普通の利用者の環境でも要らない物を外す直し（E14）: 外す CI の任せ先は、`claude /login` しただけの人でも、実行器を書ける対象では関わる試験の実行で足り、書けない対象では「走らせていない」と報告に出して人に任せる。
+
 ## 引き継いだ決め
 
 今の works の地図から、works-factory でも生きる物を選んだ。外した物は末尾。
