@@ -10,6 +10,7 @@ macOS の一時フォルダは /var→/private/var の symlink の下にあり�
 tmpdir の実体のパスを使う。
 """
 import ast
+import atexit
 import functools
 import json
 import os
@@ -50,9 +51,23 @@ def dropped(name: str) -> bool:
             or name in runner["RUNNER_NAMES"] or name.startswith(tuple(runner["RUNNER_PREFIXES"])))
 
 
+# 起動の殻が読む、会社が配る設定の置き場の差し替えの口（bin/_lib/auth_launch.py の MANAGED_DIR_ENV。import しない: bin/ を sys.path に足さない）
+MANAGED_DIR_ENV = "WORKS_FACTORY_MANAGED_DIR"
+
+
+@functools.cache
+def empty_managed_dir() -> str:
+    """会社が配る設定の置き場の代わりの空のフォルダ（過程ごとに 1 つ。過程の終わりに消す）。殻を通る試験が、機械に会社の設定
+    （apiKeyHelper など）が在っても本物を読まないための物"""
+    folder = tempfile.mkdtemp(prefix="works-managed-")
+    atexit.register(shutil.rmtree, folder, ignore_errors=True)
+    return folder
+
+
 def child_env(**overrides) -> dict:
-    """os.environ から dropped の名を外し、overrides を上に置いた子の環境"""
+    """os.environ から dropped の名を外し、会社が配る設定の置き場を空のフォルダへ向け、overrides を上に置いた子の環境"""
     env = {k: v for k, v in os.environ.items() if not dropped(k)}
+    env[MANAGED_DIR_ENV] = empty_managed_dir()
     env.update(overrides)
     return env
 

@@ -374,7 +374,7 @@ bin/works-factory <同じ引数> workflow run works-factory-structure \
 
 元の works の `works/blk-structure/`（stage-a・stage-b・structure-eye-loop・collect。入力 `units`・`root`・`policy_path`・`base_rev`。line が「structuring」と「measuring-after」の 2 か所で include した）から、工場は目の文・6 つの形・受け付けを同じに写した。graphloops には構造の目も実測も考えの住処も無い（近いのは `p2.fix_plan.md:22-27` の `adds[].canonical`、`p2.plan_review.md:17-25` の copy・contract_drift の見方、`r3.coherence.md` の直した後の周りのコードとの整合。どれも道具を持つ役が周りのコードを読む）。工場に無い物・違う物と、その訳:
 
-1. 1 つの block を 2 回 include する形（元の works は直す前と直した後の両方を 1 つの block で持った）: 工場は段 B を eyes の node `structure-after` に移した（`docs/plans/2026-10-12-blocks/plan.md:17`・`eyes.md:28,49`、#67 `bd5c8d89`）。この block で元の形（`mode` で 2 つの時を持つ）に戻す（README の 1.3 の形の直し 7）。
+1. 1 つの block を 2 回 include する形（元の works は直す前と直した後の両方を 1 つの block で持った）: 工場は段 B を eyes の node `structure-after` に移した（`消した計画（git の履歴。ab47a4d の版で読める）docs/plans/2026-10-12-blocks/plan.md:17`・`eyes.md:28,49`、#67 `bd5c8d89`）。この block で元の形（`mode` で 2 つの時を持つ）に戻す（README の 1.3 の形の直し 7）。
 2. どの line からも include できる入力（`root`・`policy_path`・`base_rev`）: 工場は始めの記録の pointer `start` 1 つに替えた（#75 `26d6f2b0`、方針の写しは #84 `47c71757`・#163 `e9d6bc19`）。（未確認）: 「どの line からも include できる」を失うことを比べた文書は無い。この block は port（`policy`・`base`）に戻す。根は作業ツリー（Archon の cwd）で port にしない（README の 4.2）。
 3. 出口の 3 つのファイル: 工場は控え 1 つの pointer にした（#75、#560 `ca19ba37`・#750）。この block は控え（`structure`）と直した後の控え（`after`）の 2 つ。
 4. plan の中から外へ（工場の #560 `ca19ba37`・merge `13d0d0f9`〔#750〕。後の直し `ac7af0ad`・`a59844c9`・`c4ca79a8`・`b6dabb43`・`259c2889`）: この block も line が run に 1 回 include する（`owed` の when）。

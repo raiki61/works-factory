@@ -126,6 +126,22 @@ class FactsCase(unittest.TestCase):
         self.assertEqual(got["head"]["notices"], ["注意（test_cmd）: x"])
         self.assertEqual(got["left"], [])
 
+    def test_inner_node_ids_in_the_machine_lines_come_with_a_plain_name(self):
+        """報告の最初の 3 行に出る承認ノード・段の名（gate-before-fix・ask-final など）は、名の前に人が読む言葉が付く（初見の読み手が
+        止まった型）。名は残す（グラフの名で探せるように）"""
+        stop = self.f.stop_words([{"at": "ask-final", "word": "works:needs-human"}])
+        self.assertTrue(stop[0].startswith("最後の承認ノードを開ける所（ask-final） が works:needs-human"), stop)
+        said = self.f.pushed_said({"gate-before-fix": {"pushed": [{"item": "x", "answer": "continue", "note": "n", "why": "w"}]}})
+        self.assertIn("修正前の承認ノード（gate-before-fix）", said)
+        lines = self.f.pushed_lines({"gate-before-fix": {"pushed": [{"item": "x", "answer": "continue", "note": "n", "why": "w"}]}})
+        self.assertIn("承認ノード 修正前の承認ノード（gate-before-fix）", lines[0])
+
+    def test_every_node_the_machine_names_has_a_plain_name(self):
+        """止めの語を読む node と承認ノードの全部に、人が読む言葉の表の行が在る（行が無いと名だけが訳なしで出る）"""
+        names = self.f.node_names()
+        for node, _ in (*self.f.LINE_STOPS, *self.f.BLOCK_STOPS, *self.f.GATES):
+            self.assertTrue(names.get(node), node)
+
     def test_line_and_block_stops(self):
         v = passing()
         v["owed"] = {"owed": False, "why": "", "recorded": [], "stop_reason": "works:line-script"}
@@ -247,8 +263,20 @@ class MoreLinesCase(unittest.TestCase):
         self.assertIn("並行 PR #7 と重なるので外した範囲: a.py:1-3（重なる）", after)
         self.assertIn("修正前の承認ノードが聞かずに通した行（gate-before-fix）: 1 件", after)
         self.assertIn(self.f.DEFERRED_HEAD + ": 1 件", after)
-        self.assertIn(self.f.FINAL_REASONS_HEAD + ": 1 件", after)
+        self.assertIn("最後の承認ノードを開けた理由: 1 件", after)
         self.assertNotIn("組めない", joined)
+
+    def test_final_reasons_head_follows_the_run_kind(self):
+        """最後の承認ノードを開ける理由の見出しは、人が答える run では「無人の run」と言わない（無人の run だけが開かずに止める）"""
+        for unattended, expected, absent in ((False, "最後の承認ノードを開けた理由: 1 件", "無人の run"),
+                                             (True, "最後の承認ノードを開ける理由（無人の run では開かずに止めた理由）: 1 件", None)):
+            v = passing()
+            v["start"] = {**v["start"], "unattended": unattended}
+            v["ask_final"] = {**v["ask_final"], "reasons": ["最後のテストが緑でない"]}
+            after = self.after(v)
+            self.assertIn(expected, after)
+            if absent:
+                self.assertFalse([x for x in after if x.startswith("最後の承認ノードを開け") and absent in x], after)
 
     def test_amend_lines_name_the_replanned_items(self):
         v = passing()

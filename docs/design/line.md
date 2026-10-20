@@ -308,6 +308,8 @@ line は一番上の graph なので、place は run directory の根（README 4
 
 欄と意味は report の設計書の 1.2 の表。line の `src/facts.py` が、表の「今」の計算（`lib/outcome.py`・`lib/runreport.py` の同じ名の関数）を、受け皿の got を今の `returns` の形に詰め直して呼ぶ（作り直しの間は lib のまま。組み込みで、`outcome` の読み分けの部分は `facts.py` に入り、結末の 10 語と決める順は report の `src/outcome.py` へ。README 9.2）。line だけが知る値の出どころ:
 
+報告の最初の 3 行に出る承認ノード・段の名（`gate-before-fix`・`ask-final` など。止めの語の行・推しを採った承認ノードの行）は、名の前に人が読む言葉を付けた「訳（id）」で書く。表は `src/nodenames.json`（node の id → 言葉。止めの語を読む node・block の止め・承認ノードの全部に行が在る）で、Python は訳の文を持たない。初見の読み手が名の訳が無いところで止まった（run a170202f）ため。
+
 - `start_ok`・`problems`・`notes`: 始めの記録の読めなさと `outcome.record_problems`。
 - `gates`: 4 つの承認ノードの答え（承認ノードの順。開かなかった物は `decision: null`）。仕様の承認ノードの答えは spec の block の出力の止めの語で届く。
 - `stops`: line の script の止めの語（`start`・`answer-*`・`ask-*`・`fix-in`・`after-fix`・`owed`・`structure-in`・`fixed`・`raise`・`judged`）と、block の返りの `stop_reason`（judge の graph・fix・refix・spec check・test-gate）。
@@ -367,7 +369,7 @@ line は一番上の graph なので、place は run directory の根（README 4
   - `plan-review` の入力 `round_limit`・`head_depth`: 上限で止めたかと木の段の読みは line が決める（3 節・5.1）。
   - 受け皿の 2 つ（`plan-rounds-out`・`plan-rounds-review-out`）を 1 つに: 運ぶ欄は同じ。
   - 型つきの成果物の一覧の読み（今の report の facts の `listing`）: report が読まない（report の設計書の 1.2）。line も読まない。
-  - `docs/design.md` の節の名指し（今の YAML と script の docstring）: 設計書は `docs/design/line.md`。
+  - 設計書の節の名指し（今の YAML と script の docstring）: 設計書は `docs/design/line.md`（元は `docs/design.md`。#765 で消した）。
 
 ## 10 元の works と graphloops の同じ場面
 

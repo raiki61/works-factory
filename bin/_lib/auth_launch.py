@@ -13,6 +13,7 @@
    名指して止まる。設定が JSON として壊れている・apiKeyHelper が文字列でない時も、壊れたファイルを名指して止まる。
    OS が読ませない会社の設定のファイルは、Claude Code と同じく無いものとして進む。
    MDM・remote（claude.ai の server-managed settings）と対象のリポジトリの .claude/settings.json は読まない。
+   置き場は環境変数 WORKS_FACTORY_MANAGED_DIR で替えられる（無ければ上の OS ごとの置き場。既定の道は変わらない）。
    起こすのは exec の 1 回だけ。check は起こさず、出どころの名とパスだけを返す（使い捨てのキーや指紋の確かめを求める helper のため）。
    check の標準出力のパイプと exec の環境でキーを渡す道は採らない（殻はトークンを読まない・出さない。launcher.py の頭）
 3. 後ろの段: 真ん中と apiKeyHelper の段が足せなかった時だけ、Claude Code 自身の保存済みのログインを読む。macOS では keychain の項目、
@@ -112,6 +113,9 @@ def read_credentials(path):
     if not tok.startswith(claude_auth.TOKEN_PREFIX):
         return None, "トークンが無い"
     return tok, None
+
+
+MANAGED_DIR_ENV = "WORKS_FACTORY_MANAGED_DIR"   # 在れば、会社が配る設定の置き場をここに替える（無い時の道は default_managed_dir のまま。試験の子の環境が空のフォルダへ向ける）
 
 
 def default_managed_dir(platform=sys.platform):
@@ -284,7 +288,7 @@ def main(argv):
         p.add_argument("--user-home", required=True)
         p.add_argument("--user-config", default="")
         p.add_argument("--for", dest="caller", default="auth_launch.py")
-        p.add_argument("--managed-dir", default="")   # 試験用: 会社が配る設定の置き場を替える。殻は渡さない（既定は OS ごとの本物の置き場）
+        p.add_argument("--managed-dir", default="")   # 会社が配る設定の置き場を替える（環境変数 MANAGED_DIR_ENV より先に効く）。殻は渡さない
         if cmd == "exec":
             p.add_argument("argv", nargs=argparse.REMAINDER)
     a = ap.parse_args(argv)
@@ -297,8 +301,9 @@ def main(argv):
             ap.error("exec には -- の後に実行ファイルが要る")
         if os.environ.get("WORKS_FACTORY_NO_AUTH") == "1":
             os.execve(target[0], target, dict(os.environ))
+    managed = a.managed_dir or os.environ.get(MANAGED_DIR_ENV, "")
     got, name, why = resolve(os.environ, a.user_home, a.user_config,
-                             managed_dir=pathlib.Path(a.managed_dir) if a.managed_dir else None,
+                             managed_dir=pathlib.Path(managed) if managed else None,
                              fetch=a.cmd == "exec")
     if got is None:
         print("%s: %s（%s）" % (a.caller, HOWTO, why), file=sys.stderr)

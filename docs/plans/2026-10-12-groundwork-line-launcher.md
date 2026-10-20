@@ -135,7 +135,7 @@ works-factory は、修正依頼を受けて確かめ済みの変更と報告を
 - `after-fix`: `fix` の返りの `replan_items`・`objection` から、`replan`・`rejudge` を差し込むかを返す（`when:` は配列が空かを比べられないので script が数える）。どちらも 1 run に 1 度（差し込みが 1 つずつしか無いことで縛る）。
 - `judged`: `rejudge` が走れば単位と判定をその返りから、走らなければ `judge` から返す。後の段は単位と判定を `judged` から読む。再審が開いた単位と下げた単位（今の works の `rejudge.py` の `new_open_units`・`lowered`）は `collect` から報告へ渡す。
 - `fixed`: `fix` と `refix` の返りを合わせる。`diff` は `refix` が走ればその物（どちらも run の始めからの累積）。配列の欄（`units` は `unit_id` ごとに後の物、`groups`・`allowed_test_changes` は和）と、申し出（`conflicts` は走った方の指し札を全部並べた配列）は 2 つを合わせ、1 回目の申し出と許したテストの変更が最後の関所と報告から消えないようにする。
-- `redepth`: plan の深さ（`$plan-rounds.output.depth`）と、`fixed` の申し出・止めた単位、答えていない問い（`plan-rounds` の `questions` のうち関所で答えの無かった物）、`replan`・`rejudge` が走ったかから、`lib/depth.py` の `raise_doc` で上げ直し、`{depth, skip_optional}` を返す。`lib/depth.py` は `docs/plans/2026-10-12-blocks/prereq.md` の issue（ブロックの前の共有の部品。線・plan・eyes が読む）が置き、この issue も plan の issue も置かない。それが main に入るまで、筋書きは `redepth` を stub にする。
+- `redepth`: plan の深さ（`$plan-rounds.output.depth`）と、`fixed` の申し出・止めた単位、答えていない問い（`plan-rounds` の `questions` のうち関所で答えの無かった物）、`replan`・`rejudge` が走ったかから、`lib/depth.py` の `raise_doc` で上げ直し、`{depth, skip_optional}` を返す。`lib/depth.py` は `消した計画（git の履歴。ab47a4d の版で読める）docs/plans/2026-10-12-blocks/prereq.md` の issue（ブロックの前の共有の部品。線・plan・eyes が読む）が置き、この issue も plan の issue も置かない。それが main に入るまで、筋書きは `redepth` を stub にする。
 - `collect`: `trigger_rule: all_done`。全ブロックと関所と返しの節の返りを、欄ごとに `{from, if_skipped: null}` で受ける（欄ごとに受けるので、読み手の無い欄の試験が働く）。
 - `report`: `trigger_rule: all_done`（前の段が落ちても飛ばされても走る。`dag-executor.ts` 1966-2006 行）。`with:` は `$collect.output.<欄>` だけを読む。
 - `result`（線の返す節）: `trigger_rule: all_done`。report の返りの結末の語と、`fixed`（boolean。結末の語が `fixed`・`fixed_needs_check` の時に真）を返す。線は `returns: result`・`outcome_field: fixed`（今の works の線も自分の節 `result` を返した。`darkfactory.yaml` 1363 行。ASF の ship も自分の `outcome` を返す）。線が自分の返す節を持つので、代わりのブロックの report に真偽の欄が要らない。
@@ -163,7 +163,7 @@ works-factory は、修正依頼を受けて確かめ済みの変更と報告を
 
 - `works/.shared/core/entryshape.py` → `lib/entryshape.py`。`measure` が `board.diff_of`（`works/.shared/core/board.py` 554 行）を呼び、`diff_of` が写しの rules の `_worktree_tree`（`works/.shared/core/graphloops/rules/review-loop.py` 1501 行）と `_unfrozen` を呼ぶ。`board` と rules は持ってこない（移し方の 3）が、`measure` は空の入力を拒む（`refuse_empty`・`build`）芯で、盤面を開かない git の差分の読みなので外せない。そこで `diff_of`・`_worktree_tree`・`_unfrozen`（git と `engine.util` の `git`・`Reject` だけを使う約 45 行）を、元の名と中身のまま `lib/entryshape.py` の末に写し、`import board` を消す。写した行の元のパスと行を、各関数の頭の 1 行のコメントと commit と PR に書く（移し方の 1〜3 から外れる唯一の所。訳は「盤面を開かない関数が盤面のファイルに住んでいた」）。
 - `works/.shared/core/entry.py` の機能の切り替えの塊（420-514 行の `FEATURES`・`FEATURE_DEFAULTS`・`features_off`・`features_on`・`feature_words`・`features_cut`・`cut_of`・`features_on_of`・`features_part`）→ `lib/entry.py`。ほかは移し方の 2 で消す（盤面に届く）。塊が読む `script_io` の `SWITCH_ON`・`SWITCH_OFF`・`SWITCH_AUTO` と `InputRefused` は、`script_io` を持ってこないので `lib/entry.py` に元の字のまま写し、元のパスと行をコメントに書く。`_resumed_features`（呼び直しで機能が前と違えば拒む）は持ってこない。Archon は run の始めに入力を写し取り、resume はその写しで走るので、機能が途中で変わらない。
-- lib-port で外した試験の戻し: `works/tests/test_forge.py` の `GhReadsCase`（`ghreads._settle`。`entryshape` を使うので lib-port が外した）と、`works/tests/test_gate_head.py` の `FinalHeadCase`（最後の関所の頭の行）と `AskGateCase` の頭（修正前の関所の文の頭の 3 行）を、元の名で戻す（`GhReadsCase` は `lib/tests/test_forge.py` に、関所の頭の 2 つは線の script を確かめる試験に）。どれも線が持つ所の試験で、ブロックの issue は持ってこない（`docs/plans/2026-10-12-lib-port.md` の外した試験の名、`docs/plans/2026-10-12-blocks/` の eyes・plan-review の計画の渡し先）。盤面に届く行は移し方 5 で外し、外した名を PR に書く。
+- lib-port で外した試験の戻し: `works/tests/test_forge.py` の `GhReadsCase`（`ghreads._settle`。`entryshape` を使うので lib-port が外した）と、`works/tests/test_gate_head.py` の `FinalHeadCase`（最後の関所の頭の行）と `AskGateCase` の頭（修正前の関所の文の頭の 3 行）を、元の名で戻す（`GhReadsCase` は `lib/tests/test_forge.py` に、関所の頭の 2 つは線の script を確かめる試験に）。どれも線が持つ所の試験で、ブロックの issue は持ってこない（`docs/plans/2026-10-12-lib-port.md` の外した試験の名、`消した計画（git の履歴。ab47a4d の版で読める）docs/plans/2026-10-12-blocks/` の eyes・plan-review の計画の渡し先）。盤面に届く行は移し方 5 で外し、外した名を PR に書く。
 - 試験: `works/tests/test_entry_inputs.py` のうち `entryshape` の口を直に呼ぶ物（`diff_of` の 3 本・`test_build_input_from_each_entry`・`test_request_text` の見込み）と、`works/tests/test_entry.py`・`test_entry_block.py` のうち `FEATURES` の塊だけを呼ぶ物を、元の名で `lib/tests/` に置く。外した名と理由を PR に書く。
 - 線の script は `boundary.lib_root()` で `lib/` を見つける（土台の足しの issue が `WORKS_FACTORY_ROOT` を読む形にする。筋書きでは `tests/archon.py` がそれを置く）。
 
@@ -236,7 +236,7 @@ works-factory は、修正依頼を受けて確かめ済みの変更と報告を
 
 ### 範囲（触らない物）
 
-- `workflows/<ブロック>/`（8 つ）・`lib/` のうち `entryshape.py`・`entry.py` とその試験と、戻す試験の外（`lib/depth.py` は `docs/plans/2026-10-12-blocks/prereq.md` の issue）・`bin/`・`workflows/.shared/boundary.py`。
+- `workflows/<ブロック>/`（8 つ）・`lib/` のうち `entryshape.py`・`entry.py` とその試験と、戻す試験の外（`lib/depth.py` は `消した計画（git の履歴。ab47a4d の版で読める）docs/plans/2026-10-12-blocks/prereq.md` の issue）・`bin/`・`workflows/.shared/boundary.py`。
 - 根の `AGENTS.md`・`bin/AGENTS.md`・`lib/AGENTS.md`・`tests/AGENTS.md`・`docs/owner-decisions.md`・`pack.json`・`factory/`・`harness/`。
 - 関所の間の止め（持ち主の答え待ち）。周の鎖（入口の殻の issue が置き先を決める）。
 
@@ -249,7 +249,7 @@ works-factory は、修正依頼を受けて確かめ済みの変更と報告を
 ### 頼むこと（このリポジトリの協調。ブロックの issue の書き手へ）
 
 - report: 返す節の `outcome_field` を真偽の欄にする（`outcome` は字の欄なので、Archon が読み込みで拒む）。入力は `$collect.output.<欄>` の形で受ける。
-- plan: 入力 `review` は 1 周目に `''`。`lib/depth.py`（と、それが頼る `lib/impact.py`）は `docs/plans/2026-10-12-blocks/prereq.md` の issue が置く（plan の issue も線の issue も置かない）。線の `redepth` が `raise_doc` を読む。
+- plan: 入力 `review` は 1 周目に `''`。`lib/depth.py`（と、それが頼る `lib/impact.py`）は `消した計画（git の履歴。ab47a4d の版で読める）docs/plans/2026-10-12-blocks/prereq.md` の issue が置く（plan の issue も線の issue も置かない）。線の `redepth` が `raise_doc` を読む。
 - 全部: 返す節は落とさない（中で受けて `ok: false` などで返す）。筋書きの試験は、土台の足しの `tests/archon.py` の木に自分のブロックだけを置いて回す。名前の script は土台の足しの後の pack の形で効く。
 
 # B 入口の殻 1 本 bin/works-factory: 認証と隔離を整えて、止めた Archon を起こす（土台の計画 Task 5 の書き直し。持ち主の決め one-launcher）

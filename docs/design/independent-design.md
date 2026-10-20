@@ -275,7 +275,7 @@ The map documents at the target repository's root …（決まった文）
 
 #### AGENTS.md:1-153
 
-<!-- coldwrite:skip AI 向けの決まりの正本。語は docs/design.md の「語」のセクションで定義 -->
+<!-- coldwrite:skip AI 向けの決まりの正本。語は docs/design/README.md の頭の語の一覧で定義 -->
 # AGENTS.md（works-factory の AI 向けの決まり）
 …（約 150 行。対象の根の AGENTS.md の本文）
 

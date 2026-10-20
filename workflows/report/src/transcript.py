@@ -6,8 +6,12 @@
 - node_model_lines(run): ノードごとの実際に走った模型と effort の行
 - calls_lines(run, why, repo): 役が呼んだ道具のセクションの行
 - writer_fell(rows, step): 書き手のループが落ちたか
+- child_falls(run): 落ちた node が fan_out の子の run の落ちなら、その子の run の記録から読んだ落ちた訳
 """
+import json
+import os
 import pathlib
+import re
 
 import oneline   # lib/
 from runlog import COST_ROWS, PATH_TOOLS, SHELL_TOOL, facts, own_prefix, read   # noqa: F401 — lib/（read・own_prefix・facts は呼び手が transcript.* で引く）
@@ -18,6 +22,10 @@ UNSEEN = "取れない（U6）: Bash で読み書きしたファイル（道具�
 CHILD_RUNS = "子の run の道具の呼びは子の run の記録に在り、上のノードごとの行に入らない"
 CHILD_LOOPS = "子の run のループの回り直しは子の run の記録に在り、この行に入らない"
 SHOWN_FILES = 3
+CHILD_NO_FALL = "記録に落ちたノードが無い（親の記録は子が落ちたと言う）"
+CHILD_NO_RECORD = "記録が読めない（run の記録の置き場に <子の run の id>.jsonl が無い）"
+CHILD_UNREADABLE = "{name} が読めない（{why}）"
+CHILD_FALL = re.compile(r"child (\d+) \(run ([0-9a-f]{8})\)")   # Archon が fan_out の node の誤りに書く子の run の名乗り（run の id の先頭 8 字）
 
 
 def _dict(v) -> dict:
@@ -117,3 +125,28 @@ def writer_fell(rows, step: str) -> dict | None:
     failure = _dict(_dict(_dict(last.get("execution")).get("lifecycle")).get("providerFailure"))
     first = (str(last.get("error") or "").strip().splitlines() or [""])[0]
     return {"error": oneline.one_line(first) or "誤りの文が無い", "quota": failure.get("class") == QUOTA_CLASS}
+
+
+def child_falls(run: dict) -> list:
+    """落ちた node（failed・absorbed）の誤りが fan_out の子の run の落ちを名指していれば、その子の run の記録（親の記録と同じ置き場の
+    <子の run の id>.jsonl）の落ちた node ごとに {child, node, error}、記録が読めなければ {child, why}。親の記録の誤りは子の失敗の
+    総括（落ちた node の名と飛ばした数）だけで、AI の provider の 429 のような落ちた訳は子の記録にだけ在る"""
+    log_dir = os.environ.get("LOG_DIR", "")
+    errors = run.get("errors") or {}
+    out = []
+    for child in dict.fromkeys(m.group(2) for e in errors.values() for m in CHILD_FALL.finditer(str(e))):
+        paths = sorted(pathlib.Path(log_dir).glob(f"{child}*.jsonl")) if log_dir else []
+        if not paths:
+            out.append({"child": child, "why": CHILD_NO_RECORD})
+            continue
+        try:
+            rows = [json.loads(line) for line in paths[0].read_text(encoding="utf-8").splitlines() if line.strip().startswith("{")]
+        except (OSError, ValueError) as e:
+            out.append({"child": child, "why": CHILD_UNREADABLE.format(name=f"記録 {paths[0].name}", why=getattr(e, "strerror", None) or e)})
+            continue
+        fell = facts(rows)["errors"]
+        if not fell:
+            out.append({"child": child, "why": CHILD_NO_FALL})
+        out += [{"child": child, "node": step, "error": (str(error).strip().splitlines() or ["誤りの文が無い"])[0]}
+                for step, error in fell.items()]
+    return out
