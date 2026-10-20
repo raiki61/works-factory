@@ -23,7 +23,9 @@ Claude Code が自分で書く状態（projects/・.claude.json・backups/・rem
 （FAKE_CLAUDE。受けた argv を記録し、本物の 2.1.283 と同じ形で settings.json・plugins/ の状態のファイルを書く）を渡す。
 形は本物の CLI で一時の置き場に入れて確かめた（報告 $S/r61/cfg-report.md）。
 """
+import copy
 import datetime
+import hashlib
 import json
 import os
 import pathlib
@@ -50,8 +52,7 @@ from tests.bin import copyledger  # noqa: E402
 
 BORROW = spseam.BORROW_DIR
 
-BORROW_SKILLS = ["test-driven-development", "systematic-debugging", "verification-before-completion",
-                 "receiving-code-review", "requesting-code-review"]
+BORROW_SKILLS = ["test-driven-development", "receiving-code-review"]
 # 隔離した設定の superpowers の取り元（works に写した固定の版。本物の写しを読む）
 VENDORED = spseam.vendored_dir(toolset.load_borrow(BORROW)["superpowers"])
 LENSES = ["code-reviewer", "silent-failure-hunter", "type-design-analyzer", "pr-test-analyzer", "comment-analyzer"]
@@ -92,7 +93,7 @@ def make_user_config(base: pathlib.Path, only=None, scope="user", project=None) 
             _put(d / ".claude-plugin" / "plugin.json", json.dumps({"name": name, "version": ver}))
             for s in BORROW_SKILLS + ["brainstorming"]:
                 _put(d / "skills" / s / "SKILL.md", f"---\nname: {s}\n---\n偽の {s}\n")
-            _put(d / "skills" / "systematic-debugging" / "find-polluter.sh", "#!/bin/sh\n", 0o755)
+            _put(d / "skills" / "receiving-code-review" / "run.sh", "#!/bin/sh\n", 0o755)
             _put(d / "LICENSE", "MIT License\n\nCopyright (c) 2025 Test\n")
             for f in ("SKILL.md", "implementer-prompt.md", "task-reviewer-prompt.md"):   # 部品（parts）は 2 本だけを借りる
                 _put(d / "skills" / "subagent-driven-development" / f, f"偽の {f}\n")
@@ -391,7 +392,7 @@ class VendorCase(Base):
     @unittest.skipIf(os.name == "nt", "SKIP posix-mode: 実行の権限は POSIX だけ")
     def test_vendor_keeps_exec_bit(self):
         toolset.vendor(self.borrow_dir, installed_dir(self.user, "superpowers"), "9.9.0", SHA, "2026-10-02")
-        sh = self.borrow_dir / "superpowers/9.9.0/skills/systematic-debugging/find-polluter.sh"
+        sh = self.borrow_dir / "superpowers/9.9.0/skills/receiving-code-review/run.sh"
         self.assertTrue(os.access(sh, os.X_OK))
         self.assertFalse(os.access(sh.parent / "SKILL.md", os.X_OK))
 
@@ -716,23 +717,38 @@ class InstallCase(Base):
         self.assertEqual((self.cfg / "works-marketplace" / "pr-review-toolkit" / "agents" / "code-reviewer.md").read_text(),
                          "新しい版\n")
 
-    def test_stale_skill_copy_and_exec_bit_are_fixed(self):
+    def test_stale_skill_copy_is_fixed(self):
         sp = VENDORED
         self.install()
         tdd = self.cfg / "skills" / "test-driven-development"
         (tdd / "SKILL.md").write_text("古い\n", encoding="utf-8")
         (tdd / "extra.md").write_text("余分\n", encoding="utf-8")
-        polluter = self.cfg / "skills" / "systematic-debugging" / "find-polluter.sh"
-        polluter.chmod(0o644)
         part = self.borrow["superpowers"]["parts"][0]
         (self.cfg / "works-parts" / "superpowers" / part).write_text("古い\n", encoding="utf-8")
         self.install()
         self.assertEqual((self.cfg / "works-parts" / "superpowers" / part).read_bytes(), (sp / part).read_bytes())
         self.assertEqual(files_under(tdd), files_under(sp / "skills" / "test-driven-development"))
         self.assertEqual((tdd / "SKILL.md").read_bytes(), (sp / "skills" / "test-driven-development" / "SKILL.md").read_bytes())
-        self.assertTrue(os.access(polluter, os.X_OK))
         self.assertEqual(sorted(p.name for p in (self.cfg / "skills").iterdir()), sorted(BORROW_SKILLS),
                          "作業の一時の置き場か、借りない物が残っている")
+
+    def test_exec_bit_of_a_skill_file_is_kept_and_fixed(self):
+        """スキルの中の実行ファイルは、置いた後も実行権限が付き、権限の落ちた古い写しも直る。本物の写しには今は実行ファイルが
+        無いので、試験の中で本物の写しを一時フォルダに複製し、実行権限つきのファイルを 1 つ足した偽の写しを渡す
+        （install は写しを pin と照らすので、足したファイルの sha256 を入れた borrow.json の写しも渡す）"""
+        fake = self.tmp / "fake-superpowers"
+        shutil.copytree(VENDORED, fake)
+        _put(fake / "skills" / "test-driven-development" / "run.sh", "#!/bin/sh\n", 0o755)
+        borrow = copy.deepcopy(self.borrow)
+        borrow["superpowers"]["pin"]["files"]["skills/test-driven-development/run.sh"] = hashlib.sha256(b"#!/bin/sh\n").hexdigest()
+        found, vers = self.sources()
+        chosen = dict(found, superpowers=fake)
+        script = self.cfg / "skills" / "test-driven-development" / "run.sh"
+        for _ in range(2):
+            toolset.install(self.cfg, chosen, borrow, claude_bin=str(self.claude), versions=vers)
+            self.assertTrue(os.access(script, os.X_OK))
+            self.assertFalse(os.access(script.parent / "SKILL.md", os.X_OK))
+            script.chmod(0o644)
 
     def test_no_superpowers_installed_still_installs(self):
         """利用者が superpowers を入れていなくても組め、スキルは写しのバイトと同じ"""
@@ -756,7 +772,7 @@ class InstallCase(Base):
     def test_vendored_copy_breaks_are_named_in_one_group(self):
         """写しの壊れ方ごとに、superpowers のまとまりの中で該当の行を名指し、直し方を添えて、何も写す前に止まる"""
         def no_skill_dir(copy, item):
-            shutil.rmtree(copy / "skills" / "verification-before-completion")
+            shutil.rmtree(copy / "skills" / "receiving-code-review")
             return item
 
         def listed_but_not_pinned(copy, item):
@@ -770,7 +786,7 @@ class InstallCase(Base):
             return item
 
         cases = {
-            "skills/verification-before-completion/SKILL.md: 固定に在るのに手元に無い": no_skill_dir,
+            "skills/receiving-code-review/SKILL.md: 固定に在るのに手元に無い": no_skill_dir,
             "skills/brainstorming/SKILL.md: 借りる一覧（borrow.json の skills・parts）が名指すのに、固定（pin.files）にその sha256 が無い（bin/_lib/toolset.py vendor で写し直す）": listed_but_not_pinned,
             "borrow.json の superpowers に pin が無い": no_pin,
             "写しのフォルダが無い": no_copy_dir,
