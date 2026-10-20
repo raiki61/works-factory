@@ -23,7 +23,9 @@ Claude Code が自分で書く状態（projects/・.claude.json・backups/・rem
 （FAKE_CLAUDE。受けた argv を記録し、本物の 2.1.283 と同じ形で settings.json・plugins/ の状態のファイルを書く）を渡す。
 形は本物の CLI で一時の置き場に入れて確かめた（報告 $S/r61/cfg-report.md）。
 """
+import copy
 import datetime
+import hashlib
 import json
 import os
 import pathlib
@@ -729,6 +731,24 @@ class InstallCase(Base):
         self.assertEqual((tdd / "SKILL.md").read_bytes(), (sp / "skills" / "test-driven-development" / "SKILL.md").read_bytes())
         self.assertEqual(sorted(p.name for p in (self.cfg / "skills").iterdir()), sorted(BORROW_SKILLS),
                          "作業の一時の置き場か、借りない物が残っている")
+
+    def test_exec_bit_of_a_skill_file_is_kept_and_fixed(self):
+        """スキルの中の実行ファイルは、置いた後も実行権限が付き、権限の落ちた古い写しも直る。本物の写しには今は実行ファイルが
+        無いので、試験の中で本物の写しを一時フォルダに複製し、実行権限つきのファイルを 1 つ足した偽の写しを渡す
+        （install は写しを pin と照らすので、足したファイルの sha256 を入れた borrow.json の写しも渡す）"""
+        fake = self.tmp / "fake-superpowers"
+        shutil.copytree(VENDORED, fake)
+        _put(fake / "skills" / "test-driven-development" / "run.sh", "#!/bin/sh\n", 0o755)
+        borrow = copy.deepcopy(self.borrow)
+        borrow["superpowers"]["pin"]["files"]["skills/test-driven-development/run.sh"] = hashlib.sha256(b"#!/bin/sh\n").hexdigest()
+        found, vers = self.sources()
+        chosen = dict(found, superpowers=fake)
+        script = self.cfg / "skills" / "test-driven-development" / "run.sh"
+        for _ in range(2):
+            toolset.install(self.cfg, chosen, borrow, claude_bin=str(self.claude), versions=vers)
+            self.assertTrue(os.access(script, os.X_OK))
+            self.assertFalse(os.access(script.parent / "SKILL.md", os.X_OK))
+            script.chmod(0o644)
 
     def test_no_superpowers_installed_still_installs(self):
         """利用者が superpowers を入れていなくても組め、スキルは写しのバイトと同じ"""
