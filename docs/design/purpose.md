@@ -231,10 +231,10 @@ Each row of `constraints` has … (`実測` or `仮説`) …
 
 ### 2.7 元の works と graphloops の同じ場面
 
-元の works の `works/blk-purpose/`（入力 `request`〔依頼のファイルのパス〕・`constraints_file`・`base_rev`・`pr_file`、出口 `ok`・`purpose_file`・`purpose_text`・`source` の独立したブロック）から、工場は判定のブロックの中に写した（#76。`docs/plans/2026-10-12-blocks/judge.md:31`・`:111`）。graphloops の同じ場面は `prompts/review-loop/p0.purpose.md`（`p0.purpose`。once の節）。
+元の works の `works/blk-purpose/`（入力 `request`〔依頼のファイルのパス〕・`constraints_file`・`base_rev`・`pr_file`、出口 `ok`・`purpose_file`・`purpose_text`・`source` の独立したブロック）から、工場は判定のブロックの中に写した（#76。`消した計画（git の履歴）docs/plans/2026-10-12-blocks/judge.md:31`・`:111`）。graphloops の同じ場面は `prompts/review-loop/p0.purpose.md`（`p0.purpose`。once の節）。
 
 - 独立したブロックの形と、出口の `purpose_text`・`source`: 工場は judge の返す節の pointer `purpose` だけにした（#76）。この block は元の形（入力だけで動き、文と出典の語を欄で返す）に戻し、`means` も欄で返す。
-- 入力の前提の実測を写しの型と post_check（`measured_needs_output`）に通す（元の intake の `check_constraints`）: 工場には無い。計画（`docs/plans/2026-10-12-blocks/judge.md:111`）は「中身は (b) で `lib/judge_accept.py` へ」と書いたが、今の `lib/judge_accept.py` に無く、`git log -S "def check_constraints"` も工場の履歴に当たらない（#76 で写さなかった。意図の記録は（未確認））。元の judge は前提の役の受け付けの後に持ち越しの行を足し（`lib/judge_accept.py` の `with_carried`〔:1187-1192〕）、目的の役へ確かめずに貼った（:1274-1281）。持ち越しの行は `measured_output` を持たないので、この block も `実測` の行の欠けを拒まず、`constraints.schema.json` の形（知らない欄・空白だけの `measured_output`）だけを確かめる。役自身の返りの `measured_output` は前提の block が見る（[premises.md](premises.md) の 8 節の 3）。
+- 入力の前提の実測を写しの型と post_check（`measured_needs_output`）に通す（元の intake の `check_constraints`）: 工場には無い。計画（`消した計画（git の履歴）docs/plans/2026-10-12-blocks/judge.md:111`）は「中身は (b) で `lib/judge_accept.py` へ」と書いたが、今の `lib/judge_accept.py` に無く、`git log -S "def check_constraints"` も工場の履歴に当たらない（#76 で写さなかった。意図の記録は（未確認））。元の judge は前提の役の受け付けの後に持ち越しの行を足し（`lib/judge_accept.py` の `with_carried`〔:1187-1192〕）、目的の役へ確かめずに貼った（:1274-1281）。持ち越しの行は `measured_output` を持たないので、この block も `実測` の行の欠けを拒まず、`constraints.schema.json` の形（知らない欄・空白だけの `measured_output`）だけを確かめる。役自身の返りの `measured_output` は前提の block が見る（[premises.md](premises.md) の 8 節の 3）。
 - 入力 `base_rev`（写しが無い時の HEAD の照らし）: 工場は写しを必ず取るので受けない（[premises.md](premises.md) の 2.7 と同じ。意図の記録は（未確認））。この block も写しを `intake` で必ず取る。
 - 依頼の `prior_failures` を外した写しを役に渡す（元の intake）: 工場も同じ（`carry.without_prior`。持ち主の決め `premises-purpose`）。この block も残す。
 - 目的の監査（`p0.purpose_review`）をブロックに入れない（元の YAML の頭の注）: 工場も入れていない。この block も入れない（素材の観点 purpose-review の block と line の物）。
