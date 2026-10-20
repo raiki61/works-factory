@@ -881,7 +881,7 @@ def edit_permits(b, pass_: str, *, round_: int = 1) -> dict:
     """修正の段の受け付けの事後の関門（fixgates の test_edits）が、既存のテストの関数の本体の変更・消しを許す物
     {tests: 名指しの id（承認済みの修正案の rewrite_tests と、消す名を名指すテスト。test_permits の行の test）,
      limits: 範囲の文字列（範囲の相談の合意と、裁定 fix_test_scope の範囲。test を持たない行の limit）}。
-    裁定の範囲は edit_rulings で入る。修正役の指示書（planrange.tests_text）も同じ値を貼る"""
+    裁定の範囲は edit_rulings で入る。修正役の指示書の「テストの行」（fix の rules.tests_rows）も同じ値を貼る"""
     permits = test_permits(b, rulings=edit_rulings(b, pass_), round_=round_)
     return {"tests": [p["test"] for p in permits if isinstance(p.get("test"), str)],
             "limits": [p["limit"] for p in permits if "limit" in p and "test" not in p]}
