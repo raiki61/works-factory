@@ -247,9 +247,20 @@ def tdd_lines(stages) -> list:
         parked = sum(u.get("route") == "parked" for u in units)
         rows.append(f"{name}: {len(units)} 単位（赤→緑 {green}・TDD を諦めた {gave}・初めから今どおりの直し {direct}・止めた {parked}。"
                     f"実行器 {tdd.get('suite') or '—'}）" + (f"。ループを途中で抜けた: {oneline.one_line(tdd['reason'])}" if tdd.get("reason") else "")
-                    + (f"。控えから使った結果: {_reused_line(tdd['reused'])}" if tdd.get("reused") else ""))
+                    + (f"。控えから使った結果: {_reused_line(tdd['reused'])}" if tdd.get("reused") else "")
+                    + _related_line(tdd.get("related")))
         rows += [f"  - {_tdd_unit(u)}" for u in units]
     return rows
+
+
+def _related_line(rel) -> str:
+    """輪の頭の元の結末を関わる試験に絞った時の句（持ち主の決め related-tests-only）。絞らなかった・選べなかった時はその旨"""
+    if not isinstance(rel, dict) or not rel.get("applied"):
+        return ""
+    if rel.get("whole"):
+        return f"。元の結末は一式（関わる試験を選べなかった: {oneline.one_line('・'.join(rel.get('reasons') or []))}）"
+    return (f"。元の結末は変更に関わる試験 {len(rel.get('files') or [])} 件だけ（走らせなかった試験 {len(rel.get('left') or [])} 件。"
+            "全体の試験は CI と人に任せた）")
 
 
 def freeze_lines(stages) -> list:

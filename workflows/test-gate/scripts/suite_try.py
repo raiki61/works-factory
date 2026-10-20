@@ -6,6 +6,8 @@
 JUnit XML が出て試験が 1 件以上なら実行器の控えの tdd_suite に結び、書いた物なら取り置く。取り置きが通らなければ捨てて done: false で
 書き直しの周へ）。この 1 回が修正前のテストの一式の回を兼ね、通った結末は place の run.json の suite と 1 件ごとの結末に足す
 （node run が tdd_suite を走らせた時と同じ形）。走らせた後の指紋は通らなくても run.json の fingerprint_after に置く。
+走らせ方が決まらない道（run.json の related が applied）は、node run が選んだ変更に関わる試験のファイルだけを実行器に渡して走らせる
+（持ち主の決め related-tests-only）。選べなかった（whole）か、関わる試験が無くて実行器が JUnit XML を書く事を確かめられない時は、一式を 1 回走らせる。
 テストを起こす前に Archon の変数を落とし、利用者の HOME・XDG に戻して起こした印は user_env_dir の置き場に置かせる（node run と同じ）。
 止められたら木を止め終えてから返りを出さずに 128+信号で抜ける。ほかの誤りは done: true・ok: false と訳の返りにする。{done, ok, why}"""
 import json
@@ -21,6 +23,7 @@ import ports  # noqa: E402
 def attempt() -> dict:
     import baseline_red
     import green_cert
+    import related
     import suitewrite
     import tree_run
     from engine import util   # lib/graphloops
@@ -33,10 +36,14 @@ def attempt() -> dict:
     runner = suitewrite.pending(state)
     ports.drop_runner_env(doc["user_env_dir"])
     ran = cases = after = None
+    run_file = place / files.RUN
+    picked = json.loads(run_file.read_text(encoding="utf-8")).get("related") or {}   # node run が書いた物（suite-loop は run の後）
+    narrow = bool(picked.get("applied")) and not picked.get("whole") and bool(picked.get("files"))
     if runner:
         try:
             again = (place / "suite-suite.log").exists()   # 書き直しの周は捨てた取り置きのログ（訳が名指す）を上書きしない
-            cases, code, problems = baseline_red.run_suite(runner, root, place, "suite-again" if again else "suite")
+            cases, code, problems = baseline_red.run_suite(runner, root, place, "suite-again" if again else "suite",
+                                                           args=related.args(root, picked) if narrow else (), only=narrow)
             after = green_cert.fingerprint(root)
         except tree_run.Stopped as e:
             print(f"止められた（信号 {e.signum}）。テストは木ごと止めた", file=sys.stderr)
@@ -44,12 +51,13 @@ def attempt() -> dict:
         ran = {"exe": runner, "exit": code, "problems": problems, "count": None if cases is None else len(cases)}
     out = suitewrite.settle(state, ran, keep)
     if after is not None:
-        run_file = place / files.RUN
         record = json.loads(run_file.read_text(encoding="utf-8"))
         record["fingerprint_after"] = after
         if out["ok"]:
             record["suite"] = ran
             record["cases"] += cases
+            if picked.get("applied"):
+                record["related"] = {**picked, "ran": "related" if narrow else "whole"}
         run_file.write_text(json.dumps(record, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
     return out
 

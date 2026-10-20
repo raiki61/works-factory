@@ -39,7 +39,9 @@ def passing() -> dict:
     """どの段も通った run の collect の入力の値（受け皿の got と line の script の出力）"""
     tests = {"mode": "final", "ok": True, "green": True, "red_cause": "", "ran_steps": {"ran": ["t"], "unran": []}, "baseline": None,
              "fingerprint": None, "test_outcomes": None, "evidence": ptr("test-gate-final/evidence.txt"), "by": "test_cmd", "suites_line": "",
-             "log": "", "baseline_line": "直す前のテスト: 緑", "reason": "", "suite": "", "suite_note": "", "report": ["- 最後のテスト: 緑"]}
+             "log": "", "baseline_line": "直す前のテスト: 緑", "reason": "", "suite": "", "suite_note": "",
+             "related": {"applied": False, "whole": False, "files": [], "left": [], "far": [], "reasons": [], "ran": "none"},
+             "report": ["- 最後のテスト: 緑"]}
     fix = {"ok": True, "reason": "", "units": [{"unit_id": "u1", "status": "fixed"}], "groups": [], "conflicts": None, "carry": None,
            "replan_items": [], "objection": "", "diff": ptr("fix/diff"), "start_tree": "t", "reply": None, "ruled_reply": None,
            "scope": None, "checked": {"ok": True, "reason": ""}, "allowed_test_changes": [], "changed": {}, "x_scalars": {}, "handoffs": [],
@@ -287,6 +289,24 @@ class SectionsCase(unittest.TestCase):
         self.assertNotIn("深さ: 標準", entry, "省いた数が在れば raise の lines を tiers.lines で組み直す")
         self.assertTrue(any("軽量の単位 1 個で省いた" in x for x in entry), entry)
 
+    def test_not_run_section_names_what_was_left_to_ci_and_people(self):
+        """持ち主の決め related-tests-only: 関わる試験に絞った run は、走らせた試験・走らせなかった試験・全体の試験を CI と人に任せた事を
+        1 つの節に並べる。絞らない道は走らせ方の行（suites_line）を並べる。走らせた物の無い run は節を置かない"""
+        self.assertNotIn(self.s.NOT_RUN, [s["title"] for s in self.build(passing())])
+        v = passing()
+        v["test_gate_final"] = {**v["test_gate_final"], "suites_line": "走らせた: suite／走らせなかった: 無い"}
+        v["test_gate_base"] = {**v["test_gate_base"], "related": {"applied": True, "whole": False, "files": ["tests/test_a.py"],
+                                                                 "left": ["tests/test_b.py"], "far": [], "reasons": [], "ran": "related"}}
+        got = self.build(v)
+        titles = [s["title"] for s in got]
+        self.assertEqual(titles[titles.index(self.s.GREEN) + 1], self.s.NOT_RUN)
+        lines = next(s for s in got if s["title"] == self.s.NOT_RUN)["lines"]
+        text = "\n".join(lines)
+        self.assertIn("直す前のテスト:", text)
+        self.assertIn("  - tests/test_b.py", lines)
+        self.assertIn("CI と人", text)
+        self.assertIn("最後のテスト: 走らせた: suite／走らせなかった: 無い", text)
+
     def test_review_not_due_names_the_reason(self):
         v = passing()
         v["raise"] = {**v["raise"], "skip_why": "頭が軽量で全部の単位が軽量"}
@@ -311,6 +331,24 @@ class CollectScriptCase(unittest.TestCase):
         self.assertEqual(check(facts, FACTS_SCHEMA), [])
         self.assertTrue(facts["start_ok"])
         self.assertEqual(got["facts"]["path"], "report-in/facts.json")
+
+    def test_the_not_run_section_reaches_the_report_through_collect(self):
+        """試験の関門の返りの related は、collect の受け皿の欄を通って報告の節「走らせなかった範囲」に届く（欄の一覧から外れると、絞った run
+        でも走らせ方の行に落ち、「工場は絞らない」と誤って出る）"""
+        run = kit.Run(self, BLOCK)
+        seed(run)
+        (run.artifacts / "r1").mkdir()
+        (run.artifacts / "r1" / "start.json").write_text(json.dumps(record()), encoding="utf-8")
+        v = passing()
+        rel = {"applied": True, "whole": False, "files": ["tests/test_a.py"], "left": ["tests/test_b.py"], "far": [], "reasons": [], "ran": "related"}
+        v["test_gate_base"] = {**v["test_gate_base"], "related": rel, "suites_line": "走らせた: x"}
+        v["test_gate_final"] = {**v["test_gate_final"], "related": rel, "suites_line": "走らせた: x"}
+        got = run.script("collect", **self.args(v))
+        sections = json.loads((run.artifacts / got["sections"]["path"]).read_text(encoding="utf-8"))
+        lines = next(s for s in sections if s["title"].startswith("走らせなかった範囲"))["lines"]
+        text = "\n".join(lines)
+        self.assertIn("  - tests/test_b.py", lines)
+        self.assertNotIn("工場は絞らない", text)
 
     def test_prior_version_return_is_not_read_as_empty(self):
         """前の版の返り（受け皿の got の欄の欠け）を resume で受けたら空と読まず、訳だけの facts で record_invalid に倒す（4.3-12）"""

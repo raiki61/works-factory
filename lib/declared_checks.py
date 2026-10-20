@@ -36,12 +36,12 @@ from engine import declared  # noqa: E402
 from engine.schema import validate_schema  # noqa: E402
 
 DECL_NAME = declared.DECL_NAME
-# 走らせ方の語（返りの by）: engine が宣言を走らせた・engine が任せ先に落ちて test_cmd を走らせた・engine が走らせず任せ先の CI の役が
-# 素材を書いた（自己申告）
+# 走らせ方の語（返りの by）: engine が宣言を走らせた・engine が任せ先に落ちて test_cmd を走らせた・走らせ方が決まらず（宣言も test_cmd も
+# 無い）AI が書いた実行器で変更に関わる試験だけを走らせる道（持ち主の決め related-tests-only。以前は任せ先の CI の役が素材を書いた）
 RUN_WORDS = ENGINE, ROLE, ROLE_NEEDED = ("engine", "role", "role_needed")
 # 自己申告の緑・走らせなかった CI を人に見せる時の次の手（T41。最後の関所と報告が同じ字を出す）
-SELF_REPORTED_NOTE = (f"最後のテストは engine が走らせた結果ではない（任せ先の申告）。走らせる語を宣言 {DECL_NAME} に"
-                      "書けば次の run から engine が走らせる")
+SELF_REPORTED_NOTE = (f"最後のテストは AI が書いた実行器が変更に関わる試験だけを走らせた結果で、engine が走らせた結果ではない。走らせる語を宣言 "
+                      f"{DECL_NAME} に書けば次の run から機械がそれを走らせる（test_cmd を渡してもよい）。全体の試験は CI と人に任せる")
 TEST_CMD_STEP = "test_cmd"
 TAIL_LINES = 20      # 走らせた語の出力のうち、返答に写す末尾の行数（全体は置き場のファイルに残す）
 TAIL_BYTES = 2000    # その上限（バイト）。1 行が長い出力で返答が膨らまないように
@@ -214,11 +214,12 @@ def suites_line(tests: dict | None, *, role_status: str | None = None) -> str:
         ran = ran or [f"{TEST_CMD_STEP}（{tests['test_cmd_how']}）" if tests.get("test_cmd_how") else TEST_CMD_STEP]
         unrun.append("宣言の段（宣言が無いか、engine が任せ先に落ちた）")
     elif by == ROLE_NEEDED and role_status in ("clean", "found"):
-        ran = [f"任せ先の CI の役 blk-ci が選んだ一式（素材の status {role_status}）"]
+        ran = [f"AI が書いた実行器が選んだ、変更に関わる試験（素材の status {role_status}）"]
+        unrun.append(f"宣言の段・{TEST_CMD_STEP}（渡されていない）・全体の試験（CI と人に任せた）")
     elif by == ROLE_NEEDED and role_status is not None:
-        unrun.append(f"宣言の段・{TEST_CMD_STEP}（任せ先の CI の役 blk-ci が走らせなかった: 素材の status {role_status or '無い'}）")
+        unrun.append(f"宣言の段・{TEST_CMD_STEP}（渡されていない）・変更に関わる試験（実行器が走らせなかった: 素材の status {role_status or '無い'}）")
     elif by == ROLE_NEEDED:
-        unrun.append(f"宣言の段・{TEST_CMD_STEP}（任せ先の CI の役 blk-ci が走らせる）")
+        unrun.append(f"宣言の段・{TEST_CMD_STEP}（渡されていない）・変更に関わる試験（実行器が走らせる）")
     env = f"／環境で起こせなかった（コードの赤ではない）: {'・'.join(broken)}" if broken else ""
     if direct_broken:
         env += f"（{tree_run.DIRECT_HINT}）"
@@ -648,7 +649,7 @@ def run_how(root, run: dict, *, test_cmd: str, material) -> list:
                    f"{_found(argv[0]) if how == 'direct' else ''}）")
     checked = (material or {}).get("checked") if isinstance(material, dict) else None
     if run.get("by") == ROLE_NEEDED and checked:
-        out.append(f"任せ先の CI の役が走らせた物: {checked}")
+        out.append(f"AI が書いた実行器が走らせた物: {checked}")
     return out
 
 

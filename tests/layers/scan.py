@@ -996,10 +996,7 @@ KEEP_CHECKOUT = {
     ("plan-review", "review-fix"): "review の会話の続きの出し直しの役。review と同じ起こし方で、作業ツリーも run の置き場も書かない（単独の審査）",
     ("plan-review", "review-tree"): "項目ごとの下請けが答えのファイルを run の置き場に Write で書く。作業ツリーは書かない",
     ("plan-review", "review-tree-fix"): "review-tree の会話の続きの出し直しの役。項目ごとの下請けが答えのファイルを run の置き場に Write で書く。作業ツリーは書かない",
-    ("test-gate", "ci"): "Bash でテストを走らせるが作業ツリーは書かない。sandbox の denyWrite が書き込みを止め、false と ci-accept の"
-                         "作業ツリーの比べが重ねて守る（#69・#293）",
-    ("test-gate", "ci-fix"): "ci の会話の続きの出し直しの役。Bash でテストを走らせるが作業ツリーは書かない（ci と同じ起こし方・同じ守り）",
-    ("test-gate", "suite-write"): "TDD の実行器の書き手。ci と同じ起こし方で Bash を持つが、使い方の表示を読むだけで作業ツリーは書かない"
+    ("test-gate", "suite-write"): "TDD の実行器の書き手。Bash を持つが、使い方の表示を読むだけで作業ツリーは書かない"
                                   "（sandbox の denyWrite と false が守る。#516）",
 }
 # 同じ folder の名で役の id が違う 2 組（今の工程と作り直しの block）。どちらかが全部在れば、もう一方の組が無くても欠けとしない

@@ -449,6 +449,20 @@ class GroupChildScriptsCase(unittest.TestCase):
         self.assertEqual(self.run_script("group_start")["tdd"], True)
         self.assertEqual(len(count.read_text(encoding="utf-8").split()), 2, "reuse_dir の無い組の子は使い回さずに走らせる")
 
+    def test_tdd_head_is_narrowed_only_for_a_run_without_test_cmd_and_declaration(self):
+        """持ち主の決め related-tests-only: group-start は related.applies（test_cmd が空で、対象の根に走らせる段の宣言が無い）の時だけ
+        輪の頭の元の結末を関わる試験に絞る。test_cmd が在る run は今のまま（状態の related は applied 偽）"""
+        def related_of() -> dict:
+            state = json.loads(pathlib.Path(_src("board").loop_files(self.place)[0]).read_text(encoding="utf-8"))
+            return state["related"]
+        self.parent_inputs(str(self.suite))
+        self.assertEqual(self.start()["tdd"], True)
+        self.assertTrue(related_of()["applied"], "plan の欄が無くても絞る対象と読む（起点が無いので一式。whole）")
+        self.assertTrue(related_of()["whole"])
+        self.parent_inputs(str(self.suite), test_cmd="true")
+        self.assertEqual(self.start()["tdd"], True)
+        self.assertEqual(related_of(), {"applied": False})
+
     def test_tdd_prep_and_step_route_the_unit_change_between_the_two_roles(self):
         """tdd-prep は 1 周目と単位が替わる周だけ new_unit: true（新しい会話の役 tdd-new）、同じ単位の出し直しは false（続きの役
         tdd）。tdd-step は飛ばされた方の束ね（null）を読まず、起きた方の返答で段を進める（F032）"""

@@ -446,7 +446,7 @@ def child_verified(result) -> list:
 
 
 def tdd_units(groups, results) -> list:
-    """型つきの成果物 tdd-unit の本文: 組ごとの TDD の輪の結果 [{group_id, ran, reason, suite, reused, units}]（子の結果の欄 tdd。
+    """型つきの成果物 tdd-unit の本文: 組ごとの TDD の輪の結果 [{group_id, ran, reason, suite, reused, related, units}]（子の結果の欄 tdd。
     tddloop.exit_fields の形）。結果の無い組・実行器の無い組は ran: false・units: []。results は {group_id: 子の結果の dict}"""
     out = []
     for g in groups:
@@ -456,6 +456,7 @@ def tdd_units(groups, results) -> list:
         out.append({"group_id": g["group_id"], "ran": ran,
                     "reason": str(tdd.get("reason") or ("" if result else NO_RESULT)), "suite": str(tdd.get("suite") or ""),
                     "reused": tdd.get("reused") if isinstance(tdd.get("reused"), dict) else {},
+                    "related": tdd.get("related") if isinstance(tdd.get("related"), dict) else {},
                     "units": child_tdd_units(result) if ran else []})
     return out
 
