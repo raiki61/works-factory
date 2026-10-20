@@ -124,6 +124,17 @@ class FixInCase(unittest.TestCase):
         del rounds["review"]
         self.assertEqual(self.fix_in(rounds=rounds)["stop_reason"], "works:line-script")
 
+    def test_a_fall_keeps_its_reason_and_names_the_broken_start_record(self):
+        """受け取りに落ちた訳は返りの reason に載る（壊れた始めの記録 start.json の名が報告まで届く）。落ちない時は空"""
+        self.assertEqual(self.fix_in()["reason"], "")
+        broken = self.run.artifacts / "r1" / "start.json"
+        broken.parent.mkdir(parents=True, exist_ok=True)
+        broken.write_text("{not json", encoding="utf-8")
+        got = self.fix_in(record=self.ptr("r1/start.json"))
+        self.assertEqual((got["go"], got["stop_reason"]), (False, "works:line-script"))
+        self.assertIn("start.json", got["reason"])
+        self.assertIn("JSON として読めない", got["reason"])
+
 
 if __name__ == "__main__":
     unittest.main()

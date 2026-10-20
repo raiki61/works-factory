@@ -11,6 +11,8 @@ line が事前審査の返りの行（asks・deviations）から組むので、�
 """
 import json
 import pathlib
+import shutil
+import tempfile
 import unittest
 
 from tests.blocks import kit
@@ -139,6 +141,43 @@ class AskBeforeFixCase(unittest.TestCase):
         """方針の文書の変化の行は推しを持たないので、無人の run は止まる（機械は推しを作らない。L-G24）"""
         out = self.ask(policy_row="人の方針の文書 p.md が固定した版から変わった", unattended=True)
         self.assertEqual((out["go"], out["pushed"]), (False, None))
+
+
+class DesignRowsCase(unittest.TestCase):
+    """design_rows: 控えが無い・落ちた周は空、壊れた控えは読めないと名指して止まる（空の一覧で設計の問いを黙って消さない）"""
+
+    def setUp(self):
+        self.g = kit.load(BLOCK, "gates")
+        self.tmp = pathlib.Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, self.tmp, True)
+
+    def state(self, text: str, name="state.json") -> str:
+        path = self.tmp / name
+        path.write_text(text, encoding="utf-8")
+        return str(path)
+
+    def test_no_pointer_and_failed_state_are_empty(self):
+        self.assertEqual(self.g.design_rows(""), [])
+        failed = self.state(json.dumps({"status": "failed", "reason": "落ちた", "design_file": ""}))
+        self.assertEqual(self.g.design_rows(failed), [])
+
+    def test_ok_state_gives_its_rows(self):
+        design = self.state('{"unit_id": "u1"}\n', "design.jsonl")
+        ok = self.state(json.dumps({"status": "ok", "design_file": design}))
+        self.assertEqual(self.g.design_rows(ok), [{"unit_id": "u1"}])
+
+    def test_broken_state_is_named_not_emptied(self):
+        for text in ("{not json", json.dumps({"status": "weird"})):
+            with self.subTest(text=text), self.assertRaises(ValueError) as caught:
+                self.g.design_rows(self.state(text))
+            self.assertIn("state.json", str(caught.exception))
+
+    def test_broken_design_file_is_named_not_emptied(self):
+        design = self.state("not json\n", "design.jsonl")
+        ok = self.state(json.dumps({"status": "ok", "design_file": design}))
+        with self.assertRaises(ValueError) as caught:
+            self.g.design_rows(ok)
+        self.assertIn("設計の行", str(caught.exception))
 
 
 class LedgerAsksCase(unittest.TestCase):
@@ -292,6 +331,16 @@ class AskFinalCase(unittest.TestCase):
                 self.assertFalse(self.ask(got, mode="protected_only")["open"])
         clean = final_got(self.f, parallel_after={**found, "status": "clean"})
         self.assertEqual(self.f.final_needs(clean), [])
+
+    def test_unread_notes_are_a_must_open_reason(self):
+        """読めなかった控え（直した後の実測・封じた差分・問いの台帳など）は理由の一覧に載り、開き方に依らず開く。
+        無人の run では理由つきで止まる（理由が空のまま「開けない」で進まない）"""
+        got = final_got(self.f, unread=["直した後の実測の控えを読めない（柵の増えを数えていない）"])
+        self.assertTrue(any("読めなかった" in w for w in self.f.final_needs(got)), self.f.final_needs(got))
+        self.assertTrue(self.ask(got, mode="when_needed")["open"])
+        out = self.ask(got, mode="when_needed", unattended=True)
+        self.assertEqual((out["go"], out["stop_reason"]), (False, __import__("stopby").NEEDS_HUMAN))
+        self.assertTrue(out["reasons"])
 
     def test_unattended_stops_instead_of_opening(self):
         out = self.ask(final_got(self.f, tests_ok=False), mode="when_needed", unattended=True)

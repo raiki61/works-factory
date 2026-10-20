@@ -130,6 +130,8 @@ def needs(got: dict) -> list:
         why.append((f"{MISSING_HEAD}（{len(got['missing'])} 件: {'・'.join(got['missing'])}）", True))
     if got["beside_unread"]:
         why.append((f"{BESIDE_UNREAD}（{len(got['beside_unread'])} 件。人に回した物・数え直しの食い違いを数えられない）", True))
+    if got["unread"]:
+        why.append((f"読めなかった控えが在る（{len(got['unread'])} 件。数え漏れが在りうるので人の確かめが要る）", True))
     if got["handoffs"]:
         why.append((f"{HANDOFF_REASON}（{len(got['handoffs'])} 件）", False))
     parallel = parallel_reason(got)

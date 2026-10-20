@@ -78,14 +78,16 @@ prep の頭で、この block の名のファイルだけを名で引いて消�
 
 ### 1.6 つなぎ方（graph の側。block には書かない）
 
+いつ回るか（この節の言い方をここに揃える）: verify が回るのは、judge のまとめが次の `when:` を真と読んで include した時だけ。`when:` が偽で include しない run は「回らない」run と言う（「回さない」「呼ばれない」「include しない」とは書き分けず、読み手は pointer の null を受ける）。回らない既定は line の表が決める。
+
 - judge のまとめ（`workflows/judge/`）: `include: works-factory-verify`（node の id `verify`）、`depends_on: [diagnose]`。`when:` は 2 つの条件の両方が真の時（論理積）: line が深さの表（段 → 回す物）と始めの記録の名指し（今の `entry.switch(start, "judge_verify", depth.tier_adds(…))`）から引いた「判定の裏取りを回すか」が真、かつ再審の道でない（判定の道。今の `verify-merge` の `when: $intake.output.mode == 'judge'` と、`verify-prep` が判定の輪の後だけに走る形）。diagnose の中の判定の受け付けの輪が何回回っても、verify は diagnose が返った後に 1 回だけ回る（今の `verify-prep` が `depends_on: [diagnose-loop]` なのと同じ）。止めの控え（今の `read_stop`）の確かめは、前の段が落ちた時に line が include しないことで替える。`with:` は `judgment: $diagnose.output.judgment`・`lang: <始めの記録の lang>`。
-- 既定は回さない（持ち主の決め 2026-10-08。元の works の計り: 27 単位の 11 run で後の段を 1 度も変えず、1 run に 0.6〜3 USD と 1〜2 分を足した。`docs/owner-decisions.md` の 299 行の「重厚は判定の裏取り `judge_verify` を足す」）。この既定は line の表が持ち、block は知らない。
+- 既定は回らない（持ち主の決め 2026-10-08。元の works の計り: 27 単位の 11 run で後の段を 1 度も変えず、1 run に 0.6〜3 USD と 1〜2 分を足した。`docs/owner-decisions.md` の 299 行の「重厚は判定の裏取り `judge_verify` を足す」）。この既定は line の表が持ち、block は知らない。
 - 止め: line は `$verify.output.stop_reason` が空でなければ、今と同じく run をその語で止める。
 - 読み手:
   - plan の修正案の役（申し送りの節。今の `lib/planblk.py` の `verify_part` を `lib/planfile.py:676` が貼る。plan の入力 `verify`〔`workflows/plan/works-factory-plan.yaml:22`〕）: `$verify.output.verify`。同じ run の中の案の直し（2 度目の include）には渡さない（元の works の設計のまま）。README の 8.2 の plan の入力に `verify` が無い（6 節の 2）。
   - diagnose の再審の役（再審の材料に「判定の裏取り」として 1 回目の申し送りを並べる。今の `judge_accept.REJUDGE_MATERIALS` の `VERIFY_FILE`）: 1 回目の `$verify.output.verify`。README の 8.1 の diagnose の入力に無い（6 節の 3）。
   - report の `sections`: `$verify.output.report`。
-- block を include しない run では、読み手は pointer の null を受ける。今は judge の出口が回さなかった形の申し送りをいつも置いた（`judge_accept.py:3968-3970`。訳「判定の裏取りを回さなかった」か、機能の切り替えの訳）ので、plan の指示に「相乗り: 確かめられなかった（訳）」の節が、報告に「判定の単位の裏取り（0 単位。…）」の行が、回さない既定の run でもいつも出ていた。null の時にどう書くかは読み手（plan・report・line）の設計書で決める。
+- verify が回らない run（`when:` が偽で include しない）では、読み手は pointer の null を受ける。今は judge の出口が回さなかった形の申し送りをいつも置いた（`judge_accept.py:3968-3970`。訳「判定の裏取りを回さなかった」か、機能の切り替えの訳）ので、plan の指示に「相乗り: 確かめられなかった（訳）」の節が、報告に「判定の単位の裏取り（0 単位。…）」の行が、回さない既定の run でもいつも出ていた。null の時にどう書くかは読み手（plan・report・line）の設計書で決める。
 - 今の `tests/e2e/evidence.json` の L-E33（`judge_accept.py::prep_on` が `judge-verify.json` に「features_cut に judge_verify」と書く）は、回さない訳を line が持つので line の行に書き直す。J84（`judge/verify/` に下請けのファイル）と P037（plan の指示の「## 判定の単位の裏取り」）は、place のパスと見出しを新しい物に合わせる。
 
 ## 2 node の設計シート: judge-verify（束ね役。下請けのファイルも同じ md から組む）

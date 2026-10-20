@@ -192,7 +192,7 @@ line は一番上の graph なので、place は run directory の根（README 4
 
 ### 4.1 修正の段へ運ぶ値（`fix-in`）
 
-今の `fix_in.py` のまま、運ぶ値を受け皿の got と修正前の答えから組んで平らな欄にする。固定材料の run は `start` が取り込んだ写しの値を運ぶ。通常の run は修正に入る時に 1 度だけ、運ぶ値を固定材料として写す（`fixture.noted_capture`。運ぶ値の鍵が変わるので `fixture.FORMAT` を上げる。前の版の固定材料は `fixture.adopt` が拒む）。運ぶ欄は、修正から後ろの node が読む判定・構造の目・独立設計・計画の往復の値の全部（4.5 の「修正から後ろ」）。足す欄: 単位の深さ `units_tier`・`skip_rerun`・`switches`（5.2）・`no_fix`（判定が止めずに直す単位を出さなかったか、計画の `status` が `nothing_owed`。直す物が無い周の印）・`excluded`（並行 PR が外した hunk の pointer。8 節の 2）。`go` は修正前の承認を通ったか（固定材料の run は起動の承認）。
+今の `fix_in.py` のまま、運ぶ値を受け皿の got と修正前の答えから組んで平らな欄にする。固定材料の run は `start` が取り込んだ写しの値を運ぶ。通常の run は修正に入る時に 1 度だけ、運ぶ値を固定材料として写す（`fixture.noted_capture`。運ぶ値の鍵が変わるので `fixture.FORMAT` を上げる。前の版の固定材料は `fixture.adopt` が拒む）。運ぶ欄は、修正から後ろの node が読む判定・構造の目・独立設計・計画の往復の値の全部（4.5 の「修正から後ろ」）。足す欄: 単位の深さ `units_tier`・`skip_rerun`・`switches`（5.2）・`no_fix`（判定が止めずに直す単位を出さなかったか、計画の `status` が `nothing_owed`。直す物が無い周の印）・`excluded`（並行 PR が外した hunk の pointer。8 節の 2）。`go` は修正前の承認を通ったか（固定材料の run は起動の承認）。 受け取りで落ちた時（壊れた始めの記録 `start.json` など）は、止めの語 `works:line-script` に加えて落ちた訳を返りの `reason` に載せる（落ちない時は空）。`collect` が報告の `problems` に「fix-in の script が落ちた（訳）」を出す。
 
 ### 4.2 案の直しと 2 度目の修正（一度だけ）
 
