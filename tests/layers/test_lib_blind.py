@@ -2,7 +2,7 @@
 
 - Archon の名: `archon`・`$ARTIFACTS_DIR`・`$TYPED_ARTIFACTS_FILE`・`ARCHON_` で始まる環境変数・`INPUTS_<名>`・`WORKFLOW_ID`・`$LOOP_PREV`・`loop_group`・`$<ノード>.output`・`output_type` の語（照らしは `scan.ARCHON_WORDS` の字の形だけで、ノードの id は照らさない）。
 - import の向き: 層の地図 `docs/layers.json` で lib が頼ってよい層（`may_use`）の外の層の頭のフォルダ（`workflows`・`bin`）を import しない（`scan.LAYER_IMPORT`）。
-- 照らしから外すのは `tests/layers/scan.py` の `ALLOWED["E3"]` の行だけ: この決まりの文の `lib/AGENTS.md` と、役が読む借りたスキルの読み替え `lib/borrow/unattended.md` が役に説く Archon の字（`<パス>#<字>` の行）と、Archon の run の記録を読む口 `lib/runlog.py` とその試験 `lib/tests/test_runlog.py`（report と chain の 2 つが使うので lib に上げた。`docs/design/integration.md` の 4.5-2）。
+- 照らしから外すのは `tests/layers/scan.py` の `ALLOWED["E3"]` の行だけ: この決まりの文の `lib/AGENTS.md` と、役が読む借りたスキルの読み替え `lib/borrow/unattended.md` が役に説く Archon の字（`<パス>#<字>` の行）と、`lib/borrow/COPIED_FROM` の、消した文の原文の記録に残る Archon の字（`lib/borrow/COPIED_FROM#loop_group`）と、Archon の run の記録を読む口 `lib/runlog.py` とその試験 `lib/tests/test_runlog.py`（report と chain の 2 つが使うので lib に上げた。`docs/design/integration.md` の 4.5-2）。
 """
 import pathlib
 import unittest
