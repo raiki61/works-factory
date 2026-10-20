@@ -105,3 +105,8 @@ block と graph の YAML・AI のノードへの指示の md・script・`src/`�
 - run の頭の深さの段（軽量・標準・重厚）の定義は line の `src/tiers.py` の `TIERS` 1 か所。`docs/design/line.md` の「深さの段の表」はその写しで、行は `TIERS` と等しい。持ち主の決め `depth-by-reason`・`three-tiers`。
 - ノードを深さの値で飛ばさない: どのノードの `when` も、出力の深さの欄を読む句を持たない。省くかを `when:` に渡す時は、line が表から引いた真偽だけにする。計画の壁打ち（plan と plan-review の往復）はどの段でも省かない。
 - 機械: `tests/layers/test_depth_skip.py`。
+
+## E23 読めない控えは run を止めず、人の確認の側に倒す
+
+- ノードが run の置き場に残した記録のファイル（控え）が読めない（無い・壊れている・形が違う）時、それを読む script は誤りで落ちず、読めなかった事を「読めなかった控え」として返りに残す（`workflows/line/src/final.py` の `got["unread"]`、手本は #803 でそろえた形）。読めなかった控えが 1 つでも在れば、数え漏れが在りうるので、最後の承認ノードを開ける理由（開き方に依らず開く）に数える。無人の run は開かずに止める（E16・`docs/design/line.md`）。読めなかった控えを「無かった物」「通った物」として読まない。
+- 人が見る。
