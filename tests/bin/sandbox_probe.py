@@ -26,7 +26,7 @@ NO_TOOL_RESULT = 7  # 要求は届いたが、tool_result が 1 つも返らな�
 # docker を回す kernel の、利用者の名前空間の制限（1 なら sandbox が立たない）。無い kernel もある
 USERNS_LIMIT = "/proc/sys/kernel/apparmor_restrict_unprivileged_userns"
 GATE = "works-factory-test-gate"
-ROLE_NODE = "ci"
+ROLE_NODE = "suite-write"
 MARK = "sandbox-probe-mark"
 WROTE, BLOCKED = "WROTE", "BLOCKED"
 MODEL = "claude-haiku-4-5-20251001"

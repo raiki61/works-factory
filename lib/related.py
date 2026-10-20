@@ -25,6 +25,7 @@ if str(_CORE) not in sys.path:
 
 import declared_checks  # noqa: E402
 import impact  # noqa: E402
+import oneline  # noqa: E402
 
 LEFT_TO_OTHERS = "全体の試験は CI と人に任せた（工場は変更に関わる試験だけを走らせる）"
 
@@ -39,7 +40,7 @@ def pick(repo, *, rev, seeds, cache_dir) -> dict:
         m = impact.map(repo, rev=rev, seeds=sorted(str(s) for s in seeds), diff=True, cache_dir=cache_dir)
         sel = impact.select_tests(m, direct_only=True)
     except (RuntimeError, OSError, ValueError) as e:
-        return {"whole": True, "reasons": [f"変更の周りの地図が引けない（{type(e).__name__}: {' '.join(str(e).split())[:200]}）"],
+        return {"whole": True, "reasons": [f"変更の周りの地図が引けない（{type(e).__name__}: {oneline.one_line(e)[:200]}）"],
                 "files": [], "left": [], "far": []}
     if sel["run_all"]:
         return {"whole": True, "reasons": list(sel["reasons"]) or ["分からない物が直に関わる所に在る"], "files": [], "left": [],
