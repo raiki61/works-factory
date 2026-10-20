@@ -405,6 +405,45 @@ class LauncherTest(unittest.TestCase):
         self.assertEqual(users.read_bytes(), before)
         self.assertEqual(sorted(p.name for p in (self.home / ".archon").iterdir()), ["config.yaml"])
 
+    def test_claude_concurrency_cap_reaches_archon_home_only_when_asked(self):
+        """WORKS_FACTORY_CLAUDE_CONCURRENCY を渡した時だけ、隔離した Archon の家の config.yaml の concurrency.providers.claude に上限が届く
+        （越える分を待たせるのは Archon。持ち主の決め provider-cap-on-ask）。利用者の ~/.archon には書かない。渡さない既定は何も書かず、
+        前に渡した起動が書いた物は消える（上限が居残らない）。実行しない命令は書かない"""
+        users = put(self.home / ".archon" / "config.yaml", "workflows:\n  autoResumeOnQuotaReset: true\n")
+        before = users.read_bytes()
+        run = ("workflow", "run", "works-factory-line")
+        archon_home = pathlib.Path(self.reached(self.launch(*run))["env"]["ARCHON_HOME"])
+        self.assertFalse((archon_home / "config.yaml").exists())
+        got = self.reached(self.launch(*run, WORKS_FACTORY_CLAUDE_CONCURRENCY="1"))["env"]["ARCHON_HOME"]
+        self.assertEqual(pathlib.Path(got), archon_home)
+        written = (archon_home / "config.yaml").read_text(encoding="utf-8")
+        self.assertIn("concurrency:\n  providers:\n    claude: 1\n", written)
+        self.assertEqual(users.read_bytes(), before)
+        with self.subTest("上限を変えて回せば書き直る"):
+            self.reached(self.launch(*run, WORKS_FACTORY_CLAUDE_CONCURRENCY="3"))
+            self.assertIn("    claude: 3\n", (archon_home / "config.yaml").read_text(encoding="utf-8"))
+        with self.subTest("続ける命令にも届く"):
+            self.reached(self.launch("workflow", "resume", "run-1", WORKS_FACTORY_CLAUDE_CONCURRENCY="2"))
+            self.assertIn("    claude: 2\n", (archon_home / "config.yaml").read_text(encoding="utf-8"))
+        with self.subTest("渡さない起動は、工場が書いた上限を消す"):
+            self.reached(self.launch(*run))
+            self.assertFalse((archon_home / "config.yaml").exists())
+        with self.subTest("工場が書いたと印の無い config.yaml は消さない"):
+            mine = put(archon_home / "config.yaml", "concurrency:\n  providers:\n    claude: 9\n")
+            self.reached(self.launch(*run))
+            self.assertTrue(mine.is_file())
+        with self.subTest("実行しない命令は書かない"):
+            mine.unlink()
+            self.reached(self.launch("workflow", "list", WORKS_FACTORY_CLAUDE_CONCURRENCY="1"))
+            self.assertFalse((archon_home / "config.yaml").exists())
+
+    def test_claude_concurrency_cap_must_be_a_positive_integer(self):
+        """1 以上の整数でない値は、Archon を起こさずに止める（Archon は上限が壊れていると provider の起動を拒むので、run の途中で落ちる前に言う）"""
+        for bad in ("0", "-1", "two", "1.5", " "):
+            with self.subTest(value=bad):
+                said = self.stopped(self.launch("workflow", "run", "works-factory-line", WORKS_FACTORY_CLAUDE_CONCURRENCY=bad))
+                self.assertIn("WORKS_FACTORY_CLAUDE_CONCURRENCY", said)
+
     def test_users_home_reaches_target_commands_whether_or_not_a_switch_is_set(self):
         """旗に依らず、起動はいつも対象のコマンドに戻す利用者の HOME を控え、AI が書いた試験のコードを利用者の権限で走らせる告知の 1 行を
         言う。役と Archon の HOME は隔離のまま。旗の名は出力に出ない"""

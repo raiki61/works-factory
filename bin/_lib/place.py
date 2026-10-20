@@ -8,7 +8,8 @@
   pack の形にするのは、Archon が名前の script を pack のグラフの時だけグラフのフォルダの scripts/ から探し、
   pack の部品を <pack>/.shared/ から読むため（Archon の packages/workflows/src/script-discovery.ts）。
 
-Archon の家（$ARCHON_HOME）には何も書かない（$ARCHON_HOME/config.yaml・$ARCHON_HOME/workflows など）。工場が決める値は、
+Archon の家（$ARCHON_HOME）には、利用者が provider の同時数の上限を渡した時の $ARCHON_HOME/config.yaml（write_provider_cap）のほかは
+何も書かない（$ARCHON_HOME/workflows など）。工場が決める値は、
 run のノードに渡す環境変数（launcher.run_env）・AI ノードの群の別名（'@wf-<群>'）・使用枠の方針（QUOTA_POLICY）を新しい run に run 1 本ぶんの
 設定の層（run_config）で、既定の provider を Archon の環境変数（PROVIDER_ENV）で渡す。
 """
@@ -39,6 +40,12 @@ PROVIDER_ENV = "DEFAULT_AI_ASSISTANT"
 # resume する）と fan_out の子の起こし方がその待ちに効くかは未実測なので、落とす形のまま置く（docs/owner-decisions.md の
 # asf-follows-dev の近くの行）
 QUOTA_POLICY = {"autoResumeOnQuotaReset": False}
+
+# 利用者が provider の同時数の上限を渡す環境変数（持ち主の決め provider-cap-on-ask）。provider は claude だけ（DEFAULT_PROVIDER）
+CAP_ENV = "WORKS_FACTORY_CLAUDE_CONCURRENCY"
+# Archon は provider の同時数の上限を $ARCHON_HOME/config.yaml の concurrency.providers.<provider> だけから読む（packages/core/src/config/
+# provider-concurrency.ts。run の層〔--config〕からは読まない）。工場が書いた印。無い config.yaml は利用者の物なので消さない
+CAP_MARK = f"# works-factory が {CAP_ENV} から書いた。渡さない起動は消す\n"
 
 Fetch = Callable[[str, str, Path], None]
 Install = Callable[[Path], None]
@@ -104,6 +111,26 @@ def run_config(where: Path, env: Mapping[str, str], mine: dict | None = None, al
             tmp.write(text)
         Path(tmp.name).replace(path)
     return path
+
+
+def provider_cap(env: Mapping[str, str]) -> int | None:
+    """利用者が渡した provider の同時数の上限（CAP_ENV。無いか空なら None）。1 以上の整数でなければ ValueError"""
+    value = env.get(CAP_ENV)
+    if not value:
+        return None
+    if not (value.isascii() and value.isdigit() and int(value) >= 1):
+        raise ValueError(f"{CAP_ENV} は 1 以上の整数にする（受けた値: {value!r}）")
+    return int(value)
+
+
+def write_provider_cap(archon_home: Path, cap: int | None) -> None:
+    """隔離した Archon の家の config.yaml に claude の同時数の上限 cap を書く。cap が None なら、前の起動が工場の印つきで書いた物だけ消す
+    （待たせるのは Archon で、工場は列を持たない）"""
+    path = archon_home / "config.yaml"
+    if cap is not None:
+        path.write_text(f"{CAP_MARK}concurrency:\n  providers:\n    {DEFAULT_PROVIDER}: {cap}\n", encoding="utf-8")
+    elif path.is_file() and path.read_text(encoding="utf-8").startswith(CAP_MARK):
+        path.unlink()
 
 
 def git_fetch(repo: str, commit: str, dest: Path) -> None:

@@ -135,6 +135,11 @@ def launch(argv: list[str], user: dict[str, str], here: Path) -> int:
     if executing:
         refuse_bin_override([where / name for where in dict.fromkeys([here, here / (flag_value(flags, "--cwd") or "."), target])
                              for name in ARCHON_CWD_ENV_FILES] + [Path(child["ARCHON_HOME"]) / ".env"])
+    if executing:
+        try:
+            place.write_provider_cap(Path(child["ARCHON_HOME"]), place.provider_cap(user))
+        except ValueError as error:
+            raise Stop(str(error)) from None
     if executing and not no_auth:
         check = subprocess.run([*auth, "check", *auth_user], env=user, stdout=subprocess.PIPE, text=True,
                                encoding="utf-8")
