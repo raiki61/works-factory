@@ -1,13 +1,12 @@
 # 借りた superpowers のスキルを無人の役で読むときの読み替え
 
-対象は、works に写した superpowers（`lib/borrow/superpowers/<版>/`。版・commit・ファイルごとの sha256 は `borrow.json` の `pin`）のスキルのうち、借りる 5 本（`lib/borrow/borrow.json` の `skills`。`bin/_lib/toolset.py` が隔離した設定の `skills/` に写す）と、部品（スキルとしては使わず、中の型を役の指示書の骨に使うファイル。`borrow.json` の `parts`）。写しは直さない。版を上げるのは `bin/_lib/toolset.py vendor` だけ。借りた物を役に載せる時の包み方（セクションごとの使い道・錨・穴・出口の語）は、包むセクションの表 `lib/borrow/seams.json` が持つ。スキルの文が人（your human partner）や調整役（下請けの AI を起こす親の会話）を前提にしている所は、works の無人の役ではこのファイルの決まりで読み替える。スキルの文とこのファイルがぶつかったら、このファイルが勝つ。さらに、役の指示書（`workflows/*/commands/*.md` と、支度のノードが組んで役に読ませる指示書）とノードの `output_format` は、このファイルより勝つ。
+対象は、works に写した superpowers（`lib/borrow/superpowers/<版>/`。版・commit・ファイルごとの sha256 は `borrow.json` の `pin`）のスキルのうち、借りる 2 本（`lib/borrow/borrow.json` の `skills`。`bin/_lib/toolset.py` が隔離した設定の `skills/` に写す）と、部品（スキルとしては使わず、中の型を役の指示書の骨に使うファイル。`borrow.json` の `parts`）。写しは直さない。版を上げるのは `bin/_lib/toolset.py vendor` だけ。借りた物を役に載せる時の包み方（セクションごとの使い道・錨・穴・出口の語）は、包むセクションの表 `lib/borrow/seams.json` が持つ。スキルの文が人（your human partner）や調整役（下請けの AI を起こす親の会話）を前提にしている所は、works の無人の役ではこのファイルの決まりで読み替える。スキルの文とこのファイルがぶつかったら、このファイルが勝つ。さらに、役の指示書（`workflows/*/commands/*.md` と、支度のノードが組んで役に読ませる指示書）とノードの `output_format` は、このファイルより勝つ。
 
 この読み替えは、役の種類ごとのセクション（`###` の見出しが種類の名を `・` で並べる）と、種類の見出しの外の全部の役に共通の文から成る。機械（`lib/seat.py` の `overlay_body`。各 AI ノードの md が頭の 1 行を持ち、その後ろに置く）が、役の側が宣言した種類のセクションと共通の文だけを、借りたスキルを読める役と借りた型を骨にする役の指示書の末尾に載せる（superpowers の using-superpowers は、役への直の指示がスキルに勝つと定める）。載るセクションは `lib/tests/test_seat.py` と `tests/workflows/test_judge.py` が見張る。
 
 ## 読み方
 
 - 下の見出しが読み替えの決まり。行の番号やスキルの文そのものには結び付けない（版を上げると文が変わりうる。決まりと写しの原文の結び付き（錨）は `seams.json` が持ち、試験が写しに当てて縛る）。当てはまる言い回しを見たら、その決まりで読む。
-- `systematic-debugging/` の `.ts` と `.sh` はコードの例で、役への指示ではない。
 
 ## 義務の単位の行き先（どの決まりもこれに従う）
 
@@ -41,14 +40,6 @@
 
 - 分からないまま置いた前提を、返答の型の中の理由の欄に書く。
 
-## THREE-FAILS 3 回直して効かなければ、人と構成を話す
-
-4 回目の直しを打たない。ここで数えるのは 1 つの会話の中の直しの試み。受け付けのループ（`loop_group` の `max_iterations: 3`）の出し直しとは別に数える。
-
-### 修正の役
-
-「義務の単位の行き先」に従い、試した 3 つのうち一番ましな直しを残して `changes` に載せ（根を塞げていなければ `root_or_symptom` を symptom にする）、試した 3 つの直し、それぞれがどこに新しい症状を出したか、構成を疑う理由を `rejudge_requested` に書く。義務の外の単位なら、同じ理由を `not_done` に書いて直しを打ち切ってよい。
-
 ## POLICY 人の決めたこと・方針とぶつかる
 
 自分の判断で通さない。方針の文書は書き換えない。
@@ -77,7 +68,7 @@
 
 ## DISPATCH 下請けの AI を起こす・調整役として振る舞う
 
-スキルの文に従って下請けを起こさない。Agent を持つ役が起こすのは、指示書が名指す物だけ。別の目の審査は、メイングラフの別のノードが新しい会話で受け持つ。`requesting-code-review/code-reviewer.md` をテストの審査役の手引きに使うときは、`Subagent (general-purpose):` の枠と `description:` の行を読み飛ばし、`prompt: |` の中身だけを手引きとして読む。「DESCRIPTION」などの角括弧の埋め草は、engine が渡す材料で埋まる。
+スキルの文に従って下請けを起こさない。Agent を持つ役が起こすのは、指示書が名指す物だけ。別の目の審査は、メイングラフの別のノードが新しい会話で受け持つ。
 
 ## DELEGATE エージェントの報告を信じない
 
@@ -117,7 +108,7 @@ Bash を持たない（`allowed_tools` は Read・Grep・Glob）。範囲の版�
 
 ## QUOTE 人の言葉の引用・人との会話の例
 
-引用と例に込めた原則（分からない項目があれば実装を始めない・外の審査は確かめてから直す・要らない物は作らない・モックでなく本物の振る舞いを試す）はそのまま効く。会話の相手は居ないので、例の「聞き返す」は決まり ASK で読み替える。systematic-debugging の「your human partner's Signals」に当たるのは、受け付けが拒んだ理由のファイル（`reason_file`）。
+引用と例に込めた原則（分からない項目があれば実装を始めない・外の審査は確かめてから直す・要らない物は作らない・モックでなく本物の振る舞いを試す）はそのまま効く。会話の相手は居ないので、例の「聞き返す」は決まり ASK で読み替える。
 
 ### 手直しの役
 
@@ -125,8 +116,4 @@ receiving-code-review の「From your human partner」は、works では判定�
 
 ## OUTPUT 返答の形
 
-`code-reviewer.md` の出力の形（Strengths・Issues・Assessment の「Ready to merge?」）より、ノードの `output_format` の JSON の型が勝つ。merge してよいかは役が決めない。
-
-## SCENARIO スキルの作者の試験の台本と、作った記録
-
-`systematic-debugging/` の `test-pressure-*.md`・`test-academic.md`・`CREATION-LOG.md` は、スキルを作った人が AI の振る舞いを試した台本と作った記録で、役への指示ではない。`SKILL.md` からも指されていない。読まない。
+部品の型（`implementer-prompt.md` の報告・`task-reviewer-prompt.md` の最終の返答）の返答の形より、ノードの `output_format` の JSON の型が勝つ。merge してよいかは役が決めない。

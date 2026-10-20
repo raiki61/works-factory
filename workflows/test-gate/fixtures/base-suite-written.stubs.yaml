@@ -35,6 +35,7 @@ result:
   baseline_line: ""
   reason: ""
   suite: "/tmp/runner"
+  related: {applied: false, whole: false, files: [], left: [], far: [], reasons: [], ran: none}
   suite_note: "TDD の実行器は AI が書いた"
   report: ["直す前のテスト: 赤"]
 fixture:

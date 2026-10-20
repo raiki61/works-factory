@@ -26,6 +26,7 @@ result:
   baseline_line: "修正前のテスト: 赤（元の結末（入力 baseline） の status found）"
   reason: "緑でない"
   suite: "/tmp/runner"
+  related: {applied: false, whole: false, files: [], left: [], far: [], reasons: [], ran: none}
   suite_note: ""
   report: ["試験の関門（final）: 緑でない・ok False・赤の原因 introduced"]
 fixture:

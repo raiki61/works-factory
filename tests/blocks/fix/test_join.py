@@ -939,7 +939,7 @@ class GroupBoardCase(unittest.TestCase):
         row = {"unit_key": "A"}
         got = board.tdd_units([{"group_id": "g1"}, {"group_id": "g2"}],
                               {"g1": {"tdd": {"ran": True, "reason": "", "suite": "s", "units": [row]}}, "g2": None})
-        self.assertEqual(got[0], {"group_id": "g1", "ran": True, "reason": "", "suite": "s", "reused": {}, "units": [row]})
+        self.assertEqual(got[0], {"group_id": "g1", "ran": True, "reason": "", "suite": "s", "reused": {}, "related": {}, "units": [row]})
         self.assertEqual((got[1]["ran"], got[1]["units"], got[1]["reason"]), (False, [], board.NO_RESULT))
         got = board.tdd_units([{"group_id": "g1"}, {"group_id": "g2"}],
                               {"g1": {"tdd": ["x"]}, "g2": {"tdd": {"ran": True, "reason": "", "suite": "s", "units": 5}}})

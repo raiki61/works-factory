@@ -38,6 +38,7 @@ test-gate-base__result:
   reason: ''
   suite: ''
   suite_note: ''
+  related: {applied: false, whole: false, files: [], left: [], far: [], reasons: [], ran: none}
   report: ['試験の関門（base）: 緑']
 report__facts: {outcome: stopped_by_line, ok: false, stop_reason: '', machine: null, next_request: null, prior_failures: null, ai_go: false, stamp: ''}
 report__finish:

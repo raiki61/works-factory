@@ -143,6 +143,7 @@ nodes:
       test_cmd: "$start.output.ports.test_cmd"
       tdd_suite: "$start.output.ports.tdd_suite"
       base: "$start.output.ports.base_rev"
+      entry_base: "$start.output.ports.base"
       request: "$start.output.ports.request"
       request_scope: "$start.output.ports.request_scope"
       reuse_dir: "$start.output.ports.reuse_dir"
@@ -165,7 +166,7 @@ nodes:
     depends_on: [test-gate-base]
     with:
       got: "$test-gate-base.output"
-      names: "mode ok green red_cause ran_steps baseline fingerprint test_outcomes evidence by suites_line log baseline_line reason suite suite_note report"
+      names: "mode ok green red_cause ran_steps baseline fingerprint test_outcomes evidence by suites_line log baseline_line reason suite suite_note related report"
   # 4 判定のまとめ（docs/design/judge-eyes.md の 1 節）
   - id: judge
     include: works-factory-judge
@@ -322,7 +323,7 @@ nodes:
   # 8 計画の往復（docs/design/line.md の 3 節）。本体に承認ノードと AI の node を直に置かない。止め時は plan-out が決める
   - id: plan-rounds
     depends_on: [judge, owed, structure-in, design-in, tiers]
-    when: "$judge.output.ready == true && $owed.output.stop_reason == '' && $structure-in.output.stop_reason == ''"
+    when: "$judge.output.ready == true && $owed.output.stop_reason == '' && $structure-in.output.stop_reason == '' && $tiers.output.stop_reason == ''"
     loop_group:
       max_iterations: 20
       until_bash: 'done=$plan-out.output.done; [ "$done" = "true" ]'
@@ -440,6 +441,7 @@ nodes:
         open: {type: boolean}
         go: {type: boolean}
         stop_reason: {type: string}
+        reason: {type: string}
         text: {type: string}
         deferred: {type: array}
         asked: {type: array}
@@ -506,7 +508,7 @@ nodes:
     output_format:
       type: object
       additionalProperties: false
-      required: [go, no_fix, stop_reason, received, policy, answer, deferred, passes, baseline, suite, judgment, units, answer_ties, materials,
+      required: [go, no_fix, stop_reason, reason, received, policy, answer, deferred, passes, baseline, suite, judgment, units, answer_ties, materials,
                  out_of_purpose, verify, excluded, tier_record, decisions, world, spec, purpose, purpose_text, means, constraints, brief,
                  inputs, recorded, structure, design, design_reason, design_premises, plan, fix_plan, ripple, reply, review, record, handoffs, owed,
                  round, units_tier, skip_rerun, switches]
@@ -514,6 +516,7 @@ nodes:
         go: {type: boolean}
         no_fix: {type: boolean}
         stop_reason: {type: string}
+        reason: {type: string}
         received: {type: [object, 'null']}
         policy: {type: string}
         answer: {type: [object, 'null']}
@@ -1075,6 +1078,7 @@ nodes:
       test_cmd: "$start.output.ports.test_cmd"
       tdd_suite: "$fix-in.output.suite"
       base: "$start.output.ports.base_rev"
+      entry_base: "$start.output.ports.base"
       request: "$start.output.ports.request"
       request_scope: "$start.output.ports.request_scope"
       baseline: "$fix-in.output.baseline"
@@ -1087,7 +1091,7 @@ nodes:
     depends_on: [test-gate-final]
     with:
       got: "$test-gate-final.output"
-      names: "mode ok green red_cause ran_steps baseline fingerprint test_outcomes evidence by suites_line log baseline_line reason suite suite_note report"
+      names: "mode ok green red_cause ran_steps baseline fingerprint test_outcomes evidence by suites_line log baseline_line reason suite suite_note related report"
   # 21 独立の目のまとめ（docs/design/judge-eyes.md の 2 節）。回すか・まとめるかは eyes-in が組む（docs/design/line.md の 5.4）
   - id: eyes-in
     script: eyes_in

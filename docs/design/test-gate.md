@@ -1,6 +1,7 @@
 # block の設計書: test-gate（試験の関門）
 
-- 何の話か: 対象のテストを機械で走らせ、直す前の結末を控え、修正の後に赤の原因を分けて緑を作業ツリーの指紋つきで認証する観点「試験の関門」を、単独で呼べる block `workflows/test-gate/` にする設計。機械が走らせ方を決められない時の任せ先の CI の役と、TDD の実行器の書き手の役も含む。型は [README.md](README.md)、書き方は [world.md](world.md) に従う。
+- 何の話か: 対象のテストを機械で走らせ、直す前の結末を控え、修正の後に赤の原因を分けて緑を作業ツリーの指紋つきで認証する観点「試験の関門」を、単独で呼べる block `workflows/test-gate/` にする設計。TDD の実行器の書き手の役も含む（機械が走らせ方を決められない時の任せ先の CI の役は 14 節で外した）。型は [README.md](README.md)、書き方は [world.md](world.md) に従う。
+- 2026-10-20 の追記（14 節。持ち主の決め `related-tests-only`）: 走らせ方が決まらない対象（`test_cmd` も `.review-checks.json` も無い道。以下「(3) の道」）では、全部の試験でなく変更に関わる試験だけを走らせる。任せ先の CI の役の輪（`ci-loop`）は外した。2〜3 節と 5・6 節の `ci-*` の記述は、外す前の形（git の履歴）で、今は 14 節が正本。
 - 決めたこと: 今の `workflows/test-gate/` の 11 の node を、入口の 1 つと出し直しの指示を組む prep の 1 つを足した 13 の node の block にする（11 節の 12）。始めの記録の代わりに 11 の port で受け、TDD の実行器を始めの記録に結ぶ代わりに出力の欄 `suite` で返す。指示は英語の md 3 本（`prompts/ci.md`・`prompts/ci-fix.md`・`prompts/suite-write.md`）に置き、指示書のファイルを役に Read させる道（拒まれた後の出し直しと書き手の材料）は、指示に値を貼る形に替える。振る舞いは変えない。
 - 読む人: この block を作る実装の役（この設計書だけで作れるように書いた）。急ぎではない（README 11.1 の 1 波目。ほかの block と並べて作る）。
 - 持ち主に求めること: なし。keep-essence の 1・2・6 の守りの割り当ては 9 節、自分で決めた事は 11 節に集めた。
@@ -14,7 +15,7 @@
 - 利用者の環境に戻す: 起動の殻（`bin/works-factory`。Archon を隔離した HOME で起こす）が隔離したまま、対象のテストのコマンドだけは利用者の HOME・XDG に戻して起こす事。戻して起こした時に置く印のファイル（`user-env-ran`）の置き場が `user_env_dir`。置き場が空のまま戻そうとする run は、印を置けないので止まる（`lib/userenv.py`）。
 - 包み・柵（埋め fence）: 起動の殻が読むだけの役の claude を起こす直前に、作業ツリーと共有の `.git` への書き込みを塞ぐ部品（`workflows/.shared/fence.py`）。包みを通る run は、起動の記録のパスを `WORKS_FACTORY_FENCE_RECORDS` で宣言し、受け付けはその記録で柵が掛かったかを確かめる。
 - 宣言: 対象の根の走らせる段の宣言 `.review-checks.json`（graphloops の `engine/declared.py` の形）と、範囲の宣言 `.works-checks.json`（段ごとの `paths_ignore`）。
-- 走らせ方の語 `by`: `engine`（機械が宣言の段を走らせた）・`role`（機械が test_cmd を走らせた。宣言が無いか、宣言の段から落とした）・`role_needed`（機械が何も走らせられず、任せ先の CI の役が素材を書く。自己申告）。`lib/declared_checks.py` の `RUN_WORDS`。
+- 走らせ方の語 `by`: `engine`（機械が宣言の段を走らせた）・`role`（機械が test_cmd を走らせた。宣言が無いか、宣言の段から落とした）・`role_needed`（宣言も test_cmd も無く、機械が走らせられない。14 節の道: AI が書いた実行器で変更に関わる試験だけを走らせる。以前は任せ先の CI の役が素材を書いた）。`lib/declared_checks.py` の `RUN_WORDS`。
 - 素材（material）: 走らせた結果の札 `{status, count?, detail?, checked?, reason?, systems?}`。`status` は `found`・`clean`・`not_applicable`・`awaiting_human`・`not_run`。
 - 赤の原因 `red_cause`: `introduced`（直しが起こした）・`inherited`（元から赤）・`environment`（環境）・`interaction`（語として在るが今は返らない。8 節の 1）・`incomplete`（確かめが終わらない）・空（緑）。`lib/green_cert.py` の `RED_CAUSES`。
 - 指紋: 作業ツリーの `{head, diff_hash}`。走らせる前・後・認証の時の 3 つが合う時だけ緑を認証する。
@@ -26,30 +27,32 @@
 
 ### 1.1 役
 
-対象のテストの走らせ方を機械で決めて走らせる（宣言の段と test_cmd）。決められなければ任せ先の CI の役に、作業ツリーの写しの上で CI の定義を読んで走らせさせ、自己申告の素材として受ける。base は直す前の結末（段ごとの結末と、JUnit の報告が在れば 1 件ごとの結末）を控え、実行器を人が渡していなければ用意する。final は一式を走らせ、赤の原因を機械が分け（元の結末との 1 件ごとの突き合わせ）、緑を指紋つきで認証する。赤は原因が何でも認証せず、任せ先の自己申告の緑も認証しない。
+対象のテストの走らせ方を機械で決めて走らせる（宣言の段と test_cmd）。決められなければ（宣言も test_cmd も無い）AI が書く TDD の実行器で、変更に関わる試験だけを機械が走らせる（14 節。以前はここで任せ先の CI の役が CI を丸ごと再現した）。base は直す前の結末（段ごとの結末と、JUnit の報告が在れば 1 件ごとの結末）を控え、実行器を人が渡していなければ用意する。final は一式を走らせ、赤の原因を機械が分け（元の結末との 1 件ごとの突き合わせ）、緑を指紋つきで認証する。赤は原因が何でも認証せず、AI が書いた実行器の緑も認証しない。
 
 ### 1.2 port
 
-入力（YAML の `inputs:`）:
+入力（YAML の `inputs:`。12 個）:
 
 - `mode`（必須）: `choice(base|final): 形。base は直す前の結末を控える（判定の前）。final は修正の後に一式を走らせ、赤の原因を分けて緑を認証する`
 - `test_cmd`: `text: 人が渡したテストのコマンド（対象の根で走らせる 1 行。字のまま）。空は渡されていない`。既定 `""`。
 - `tdd_suite`: `text: TDD の実行器のパス（人が渡した物か、base の出力の suite）。空は無い（base では用意する）`。既定 `""`。
-- `base`: `text: 修正前の版（範囲の照らしの起点。任せ先の役に BASE として見せる）。空は起点なし（範囲の照らしは依頼の where だけ）`。既定 `""`。
+- `base`: `text: 修正前の版（範囲の照らしの起点。関わる試験の選びの起点の版にもなる）。空は起点なし（範囲の照らしは依頼の where だけ）`。既定 `""`。
+- `entry_base`: `text: 入口の差分の根（変更の起点の版）。関わる試験の選びが、ここから今の作業ツリーまでに触ったファイルを起点にする。空は修正前の版（base）`。既定 `""`。
 - `request`: `json(shared:request.schema.json): 依頼の行の配列か、それを findings の欄に持つオブジェクト（where だけを読む）。空の配列は無い`。既定 `[]`。
 - `request_scope`: `flag: 真なら base の形で依頼の行の where を範囲の照らしの変更に足す（入口の差分が空の run）`。既定 `false`。
 - `baseline`: `file: final の時、base の出力の baseline のファイル。空は無い（1 件ごとの比べをしない）`。既定 `""`。
 - `reuse_dir`: `text: 同じ run の中の試験の結果の控えの置き場の絶対パス。base の時だけ引いて置く。空は使い回さない`。既定 `""`。
 - `reuse_key`: `text: 控えに書いて引く時に照らす run の名。空はこの run の id`。既定 `""`。
 - `user_env_dir`: `text: 利用者の HOME・XDG に戻して起こした印を置く置き場の絶対パス。空は置き場が無い（戻す run では止まる）`。既定 `""`。
-- `lang`: `text: 人に見せる欄（任せ先の役の素材の reason・detail・checked と、実行器の書き手の why）の言語。空は依頼の言語`。既定 `""`。
+- `lang`: `text: 人に見せる欄（実行器の書き手の why）の言語。空は依頼の言語`。既定 `""`。
 
 port でない環境（起動の殻が渡す。今と同じ）: 取り置きの根 `WORKS_FACTORY_SUITE_KEEP`・包みの起動の記録 `WORKS_FACTORY_FENCE_RECORDS`（埋め fence の `RECORDS_ENV`）・引かずに走らせる旗 `GRAPHLOOPS_RERUN_CHECKS`（`tree_run.RERUN_ENV`）。
 
-出力（`returns: result`、`outcome_field: ok`）: 今の `result` の 15 欄（`mode`・`ok`・`green`・`red_cause`・`ran_steps`・`baseline`・`fingerprint`・`test_outcomes`・`evidence`・`by`・`suites_line`・`log`・`baseline_line`・`reason`・`optional`）を字のまま保ち、3 欄を足す:
+出力（`returns: result`、`outcome_field: ok`）: 今の `result` の 15 欄（`mode`・`ok`・`green`・`red_cause`・`ran_steps`・`baseline`・`fingerprint`・`test_outcomes`・`evidence`・`by`・`suites_line`・`log`・`baseline_line`・`reason`・`optional`）を字のまま保ち、4 欄を足す:
 
 - `suite`: 字。この後の段が使う TDD の実行器のパス。base: port `tdd_suite` が在ればそれ、無ければ照らしを通った実行器（place の `suite/runner` の絶対パス）、作れなければ `""`。final: port `tdd_suite` のまま。
 - `suite_note`: 字。実行器を取り置きから使った・書いた・作れなかったの 1 行（`suitewrite.head_note` の字）。用意しなかった run は `""`。
+- `related`: 関わる試験の選び `{applied, whole, files, left, far, reasons, ran}`（14 節）。道 (1)(2) は `applied: false`。
 - `report`: 報告に載せる日本語の行の配列（10 節）。
 
 `ok` の意味は今のまま: base は直す前の結末を控えて鎖を進めてよいか、final は緑を認証したか。`baseline`・`evidence` の pointer の `path` は place の中の相対のパス（`<include の道>/baseline.json` など）。
@@ -59,21 +62,15 @@ port でない環境（起動の殻が渡す。今と同じ）: 取り置きの�
 ### 1.3 node の並び（`workflows/test-gate/works-factory-test-gate.yaml`）
 
 1. `intake`（script `intake.py`）: port を読み、place の中を `logs/` のほかは消し、`intake.json` と実行器の控え `suite-state.json` を書く。返り `{ok, reason}`。
-2. `run`（script `run.py`。`depends_on: [intake]`・`when: "$intake.output.ok == true"`）: 今の `run` と同じ。走らせる前の指紋・`declared_checks.run_ci`・`tdd_suite` が在れば一式を 1 回・走らせた後の指紋。`run.json` に全部、返りは今の `output_format`（`suite_owed` を含む）のまま。
-3. `ci-loop`（`depends_on: [run]`・`when: "$run.output.by == 'role_needed'"`・`loop_group`: `max_iterations: 3`・`fresh_context: false`・`until_bash: accepted=$ci-accept.output.done; test "$accepted" = true`）
-   - `ci-prep`（script `ci_prep.py`。`with: {prev: "$LOOP_PREV.ci-accept.output.ok"}`）: 作業ツリーの姿と写しを置き、1 回目の役か出し直しの役のどちらかの指示を組む。返り `{prompt, resubmit, attempt}`。
-   - `ci`（AI。`depends_on: [ci-prep]`・`when: "$ci-prep.output.resubmit != true"`・`prompt: "$ci-prep.output.prompt"`・下の起こし方・`output_format` は今の `ci` の物を字のまま）
-   - `ci-fix-prep`（script `ci_fix_prep.py`。`depends_on: [ci-prep, ci]`・`trigger_rule: none_failed_min_one_success`・`when: "$ci-prep.output.resubmit == true"`）: 出し直しの役の指示（3.3）を組む。返り `{prompt}`。`ci` の後ろの層に置く（`ci-prep` だけに依ると `ci` と同じ層に並び、Archon は並んだ層で会話を切るので、`ci-fix` が会話の続きでなく新しい会話で起きる）。
-   - `ci-fix`（AI。`depends_on: [ci-prep, ci, ci-fix-prep]`・`trigger_rule: none_failed_min_one_success`・`when: "$ci-prep.output.resubmit == true"`・`prompt: "$ci-fix-prep.output.prompt"`・下の起こし方・`output_format` は `ci` の物で `required: []`）
-   - `ci-accept`（script `ci_accept.py`。`depends_on: [ci, ci-fix]`・`trigger_rule: none_failed_min_one_success`・`with: {status_guarded: true, reply: {from: "$ci.output", if_skipped: null}, fix_reply: {from: "$ci-fix.output", if_skipped: null}}`。`mode` は `with:` に書かず `intake.json` から読む）: 返り `{ok, done, give_up, reason}`。
-4. `suite-loop`（`depends_on: [run, ci-loop]`・`trigger_rule: none_failed_min_one_success`・`when: "$run.output.suite_owed == true"`・`loop_group`: `max_iterations: 2`・`fresh_context: true`・`until_bash: done=$suite-try.output.done; test "$done" = true`）
+2. `run`（script `run.py`。`depends_on: [intake]`・`when: "$intake.output.ok == true"`）: 走らせる前の指紋・`declared_checks.run_ci`・`tdd_suite` が在れば一式を 1 回（走らせ方が決まらない道は関わる試験だけ。14.4）・走らせた後の指紋。`run.json` に全部、返りは今の `output_format`（`suite_owed` を含む）のまま。
+3. `suite-loop`（`depends_on: [run]`・`when: "$run.output.suite_owed == true"`・`loop_group`: `max_iterations: 2`・`fresh_context: true`・`until_bash: done=$suite-try.output.done; test "$done" = true`）
    - `suite-prep`（script `suite_prep.py`）: 取り置きを使うか、書き手の指示を組む。返り `{write, prompt}`。
    - `suite-write`（AI。`depends_on: [suite-prep]`・`when: "$suite-prep.output.write == true"`・`prompt: "$suite-prep.output.prompt"`・下の起こし方・`output_format` は今の `suite-write` の物を字のまま）
    - `suite-place`（script `suite_place.py`。`depends_on: [suite-write]`・`with: {reply: {from: "$suite-write.output", if_skipped: null}}`）: 返り `{made, why}`。
    - `suite-try`（script `suite_try.py`。`depends_on: [suite-prep, suite-place]`・`trigger_rule: all_done`）: 返り `{done, ok, why}`。
-5. `result`（script `result.py`。`depends_on: [run, ci-loop, suite-loop]`・`trigger_rule: all_done`・`output_type: green-cert`・`with: {optional: '[{"node": "suite-loop", "bare": false}, {"node": "suite-write", "bare": true}]'}`）: 出力を返す。落ちない。
+4. `result`（script `result.py`。`depends_on: [run, suite-loop]`・`trigger_rule: all_done`・`output_type: green-cert`・`with: {optional: '[{"node": "suite-loop", "bare": false}, {"node": "suite-write", "bare": true}]'}`）: 出力を返す。落ちない。
 
-AI の 3 つの node の起こし方（今の `&ci_launch` のまま写す）: `model: '@wf-test-gate'`・`mutates_checkout: false`・`settingSources: [user]`・`allowed_tools: [Read, Grep, Glob, Bash, WebSearch, WebFetch]`・`sandbox: {enabled: true, allowUnsandboxedCommands: false, failIfUnavailable: true, enableWeakerNetworkIsolation: true, network: {allowedDomains: ['*'], allowLocalBinding: true}, filesystem: {allowWrite: ['/'], denyWrite: ['~/../archon-home']}}`・`idle_timeout: 1728000000`・`retry: {max_attempts: 2, on_error: all}`。YAML のコメントに埋めの振る舞い（包みが印を読んで足す物。#217・#309）を書かない（README 1.3 の歩かせ 8）。
+AI の node（`suite-write` だけ）の起こし方: `model: '@wf-test-gate'`・`mutates_checkout: false`・`settingSources: [user]`・`allowed_tools: [Read, Grep, Glob, Bash, WebSearch, WebFetch]`・`sandbox: {enabled: true, allowUnsandboxedCommands: false, failIfUnavailable: true, enableWeakerNetworkIsolation: true, network: {allowedDomains: ['*'], allowLocalBinding: true}, filesystem: {allowWrite: ['/'], denyWrite: ['~/../archon-home']}}`・`idle_timeout: 1728000000`・`retry: {max_attempts: 2, on_error: all}`。YAML のコメントに埋めの振る舞い（包みが印を読んで足す物。#217・#309）を書かない（README 1.3 の歩かせ 8）。
 
 script の node はどれも `runtime: uv`。`run` のほかは `mutates_checkout: false`（`run` は対象のテストを走らせるので、今と同じく書かない）。
 
@@ -86,7 +83,7 @@ script の node はどれも `runtime: uv`。`run` のほかは `mutates_checkou
 - `intake.json`: port を読んだ値。
 - `suite-state.json`: 実行器の控え `{test_cmd, tdd_suite, suite_written?}`。`lib/suitewrite.py` の関数の `start_file` に渡すファイル（11 節の 2）。照らしが通ると `tdd_suite` に実行器の絶対パスが入る。
 - `run.json`・`logs/a<k>/`（`<k>` は空いた最初の番号。前の走りのログを上書きしない）・`junit/`（宣言の段の JUnit の報告）。
-- `ci-snapshot.json`（役の前の作業ツリーの姿と写しの置き場と `prepared_at`）・`ci-material.json`（受け付けを通った素材）・`rejects-ci.json`・`candidate-ci.json`（`rolekit` が名を組む。役の名は `declared_checks.CI_ROLE` の `ci`）・`ci-prompt-<n>.md`・`ci-fix-prompt-<n>.md`。
+- `impact/`（関わる試験の選びの地図の控え。`lib/related.pick` の `cache_dir`）。`run.json` の `related` が選びの結果と走らせたか（`ran`）を持つ。
 - `suite/runner`（照らす実行器）・`suite/writer-brief.md`（`suitewrite.prepare` が書く。読み手は無いが、lib を変えないので残る）・`suite-write-prompt-<n>.md`・`suite-suite.log`・`suite-suite-again.log`・`junit-suite.xml`（`baseline_red.run_suite` が書く）。
 - `baseline.json`（base だけ）・`evidence.md`・`failure.txt`（証拠の文が書けない時だけ）。
 
@@ -95,16 +92,15 @@ script の node はどれも `runtime: uv`。`run` のほかは `mutates_checkou
 作るファイル（この block の PR が触るのはこれと `tests/blocks/test_gate/` と、この設計書だけ）:
 
 - `workflows/test-gate/works-factory-test-gate.yaml`
-- `workflows/test-gate/prompts/ci.md`・`prompts/ci-fix.md`・`prompts/suite-write.md`（2〜4 節）
-- `workflows/test-gate/scripts/intake.py`・`run.py`・`ci_prep.py`・`ci_fix_prep.py`・`ci_accept.py`・`suite_prep.py`・`suite_place.py`・`suite_try.py`・`result.py`
+- `workflows/test-gate/prompts/suite-write.md`（4 節）
+- `workflows/test-gate/scripts/intake.py`・`run.py`・`suite_prep.py`・`suite_place.py`・`suite_try.py`・`result.py`
 - `workflows/test-gate/src/__init__.py`（空）
 - `workflows/test-gate/src/files.py`: place のファイルの名（1.4）・`LOGS = "logs"`・`fresh_place(place)`（今の `run.fresh_gate` の消す部分）・`log_dir(place)`（今の `fresh_gate` の `a<k>` を決める部分）。
 - `workflows/test-gate/src/scope.py`: 今の `workflows/test-gate/scripts/run.py` の `changed`（:39-48）と `request_wheres`（:51-61）を port の値で受ける形にした物。`request_wheres(request, mode, request_scope)` は、`mode` が `base` で `request_scope` が真の時だけ依頼の行の `where`（字の物）の並びを返す。
 - `workflows/test-gate/src/certify.py`: 今の `result.py` の `suite_exit`・`test_outcomes`・`gate_fields`・`evidence`・`role_systems`・`certified`・`failed`（:24-190）の写し。始めの記録の代わりに `intake.json` と `suite-state.json` を読む。`RUN_ROW`・`LOG_ROW`・`INNER_ERROR` もここ（証拠の文の行の頭。e2e の照らしの表が引く）。
 - `workflows/test-gate/src/suite.py`: 実行器の控えの読み書き（`suite-state.json` を作る・読む）と、出力の `suite`・`suite_note` の組み方。
-- `workflows/test-gate/src/prompts.py`: 3 つの md に渡す値の組み立て（2.3・3.3・4.3 の差し込み口の一覧）。
+- `workflows/test-gate/src/prompts.py`: md に渡す値の組み立て（4.3 の差し込み口の一覧）。
 - `workflows/test-gate/src/report.py`: 報告の行（10 節）。
-- `workflows/test-gate/src/inputs.py`: script が `with:` で受けた入力の字を値に戻す口 `value`（11 節の 16）。
 - `workflows/test-gate/fixtures/` の 7 本（12 節）。
 - `tests/blocks/test_gate/__init__.py`・`test_test_gate.py`・`test_prompt_compare.py`（12 節）。
 - 共通の指示の断片（土台に無い物。この block が最初に要るので、この block の PR が足す）: `workflows/.shared/prompts/resubmit.md`（3 節。拒まれた後に同じ会話の続きで拒まれた欄だけを返させる役の全部が使う）。
@@ -122,231 +118,13 @@ script の node はどれも `runtime: uv`。`run` のほかは `mutates_checkou
 - 読み手: fix（`baseline`・`suite`）・line の修正前の承認ノードと最後の承認ノード（`by`・`suites_line`・`log`・`baseline_line`・`ran_steps`・`red_cause`・`ok`・`green`・`test_outcomes`）・r1〜r4 と eyes（`ok`・`test_outcomes`・`evidence`）・merge（`fingerprint`・`ok`）・report（`report`。型つきの成果物 `green-cert` の一覧も今のまま）。
 - 実行器を書く AI の手番を起動の承認ノードで知らせる 1 行（`suitewrite.GATE_NOTE`）は line の始めの記録の側に残る。
 
-## 2 node の設計シート: ci（任せ先の CI の役）
+## 2 node の設計シート: ci（任せ先の CI の役）——外した（2026-10-20）
 
-### 2.1 役
+持ち主の決め `related-tests-only` で、任せ先の CI の役 `ci` とその指示 `prompts/ci.md` を外した。全体の CI は工場が再現せず、CI と人に任せる。外す前の指示と設計は git の履歴（commit `e87f40a` の版）で読める。走らせ方が決まらない道は 14 節。
 
-機械が対象の CI を走らせられなかった（宣言も test_cmd も無い）時に、CI の定義を読み、作業ツリーの写しの上でテストと lint を走らせ、結果を素材の札で返す。走らせられなければ緑を仮定しない。
+## 3 node の設計シート: ci-fix（任せ先の CI の役の出し直し）——外した（2026-10-20）
 
-### 2.2 port
-
-`ci-snapshot.json` の写しの置き場と一時の置き場（← `ci-prep` が作る）・`intake.json` の `mode`（← port `mode`）・`base`（← port `base`）・作業ツリーの根・回の番号と却下の控え（← place）・`lang`。
-
-### 2.3 組み立ての順（`prompts/ci.md`）
-
-1. `<!-- if rejected -->` `{shared:rejected}` と、本物の作業ツリーを変えたと拒まれた時の戻し方の段落（決まった文）`<!-- end rejected -->` — 条件: 却下の控え `rolekit.rejected(place, CI_ROLE)` が空でない。断片の中の `{rejection}` ← `rolekit.rejects_text(<控え>)`。
-2. 役の定義（決まった文）。
-3. `## Where and what` と差し込み口 `{root}`・`{base}`・`{copy_dir}`・`{tmp_dir}`・`{mode}`・`{attempt}`、宣言の名 `{decl_name}`。
-4. 走らせる場所の決まり（決まった文。`{copy_dir}`・`{root}`・`{tmp_dir}` を使う）。
-5. `## What to do`（決まった文）と素材の語 `{found}`・`{clean}`・`{not_applicable}`・`{awaiting_human}`・`{not_run}`。
-6. 読むだけの役の決まり（決まった文）。
-7. `## How to answer`（決まった文）と素材の語・`{lang}`。
-8. 結びの 1 文。
-
-差し込み口の一覧（値の出どころ）:
-
-- `{rejection}`（断片の中）← `rolekit.rejects_text(rolekit.rejected(place, CI_ROLE))`
-- `{root}` ← `engine.util.repo_root()`（無ければ cwd）
-- `{base}` ← port `base`（空なら `(none)`）
-- `{copy_dir}`・`{tmp_dir}` ← `ci-snapshot.json` の `copy_dir`・`tmp_dir`
-- `{mode}` ← port `mode`
-- `{attempt}` ← `len(rolekit.rejected(place, CI_ROLE)) + 1`
-- `{decl_name}` ← `declared_checks.DECL_NAME`
-- `{found}`・`{clean}`・`{not_applicable}`・`{awaiting_human}`・`{not_run}` ← `declared_checks.STATUSES`（受け付けの `role_material_problems` と同じ語）
-- `{lang}` ← port `lang`（空なら `the language of the person's request`。`rolekit.LANG_DEFAULT` と同じ意味の英語の文。README 5.3。11 節の 7）
-
-差し込むかを選ぶ名（`when`）: `rejected`。
-
-md の本文（英語。この block の PR でこのまま置く）:
-
-```markdown
-<!-- if rejected -->
-{shared:rejected}
-
-If a reason says you changed the real working tree, first undo what you changed, then run again on the copy. Undoing means returning only those things named in the reasons that you yourself changed to how they were before you were started: delete the caches and build outputs your runs created, and move any HEAD or branch you moved back to where it was. This is the only exception to the rule below that you must not change the real working tree; make no other writes. Do not delete uncommitted changes or untracked files you did not create (do not undo in bulk with git reset, clean, or stash). If something cannot be undone, write what you could not undo in `reason`, then run again on the copy (`reason` can be written with any status: even if the rerun ends `{found}` or `{clean}`, write in `reason` what you could not undo).
-<!-- end rejected -->
-
-You are the CI delegate, started for this check. The machine could not run the target repository's CI, so you read the repository's CI definitions, run its tests and lint on a copy of the working tree, and return the result as material.
-
-## Where and what
-
-- The target repository (the real working tree): {root}   BASE: {base}
-- Where to run (a copy of the working tree as it is now): {copy_dir}
-- Temporary space: {tmp_dir}
-- Form: {mode} (`base` is before the fix, `final` is after the fix). Attempt: {attempt}
-
-**This prompt reaches you only when the machine could not run anything**: the target's root has no run declaration `{decl_name}`, and the person gave no test command (test_cmd).
-
-**Where to run**: run the tests and lint on the copy ({copy_dir}). Do not run them on the real tree ({root}): what they write inside the tree (dependency folders, caches, build outputs, bytecode) changes the real working tree and gets mixed into the fix's diff. The machine compares the real working tree as it was before you were started (git status, the diff from HEAD, HEAD, the branch, the paths git ignores) with how it is now, and rejects your answer if it changed. The copy is the same commit as the real tree with its uncommitted changes and untracked files on top; files that `.gitignore` excludes (dependency folders, build outputs) were not copied, so install them again on the copy if you need them (the network and user folders such as ~/.cache can be used). Type commands as `cd {copy_dir} && …`. If you need a temporary folder, use {tmp_dir} (`TMPDIR={tmp_dir}`). You may read the CI definitions with Read, Grep, and Glob on either the real tree or the copy; their contents are the same.
-
-## What to do
-
-Read the CI definitions (`.github/workflows`, task definition files, and so on), decide what to run, run the tests and lint locally, and confirm green. If red, report `{found}` with the number of red items and what they are.
-
-- **If you cannot run something, do not assume green** (permissions, CI-only jobs, real devices or outside services needed, dependencies that will not install). Write in `reason` what you tried to run and what stopped it, and set the status to `{awaiting_human}` when the form is base, or `{not_run}` when it is final (final comes after the judgment, so do not start a new wait for a person).
-- **A step whose runner refused to start, that collected no tests, or that ended with an error before it started did not run either.** Do not report it as `{found}`. Give it the "could not run" status above (write in `reason` what you ran and what stopped it), and write that the baseline check did not run (it is not a red in the code). **Decide whether something ran by the number of tests (the count in its report, if there is one), not by the exit code or the tool's name.**
-- If green, report `{clean}` and write in `checked` what you ran.
-- If the target repository has no CI or lint definitions and no tests, so there is nothing to run, report `{not_applicable}` (write in `reason` what you looked for and did not find).
-- **Once you start a run, wait until it ends.** Do not read the count partway through the output and call it green (measured 2026-09-25: an answer said `{clean}` at test 537 of 572). This prompt sets no limit on how long to wait. A system whose end you could not see (for example, because the tool timed out) counts as a system you could not run; write in `reason` how far it got and where it stopped. Giving up by the attempt number is the machine's job: you do not give up by count, and on every attempt you run in the same way.
-- If the CI definitions have several systems (jobs or stages), run all of them, and **write each system's exit code in `checked`** (an answer that ran only one system has been measured; `checked` can be written with any status).
-- When the systems' results are mixed: if even one system ran and is red, the status is `{found}` (`count` is the total number of red items among the systems that ran; `detail` gives what was red and whether the other systems were green or could not run). Keep `{found}` even if other systems did not run, including systems that fall under "did not run" above; do not use the "could not run" status, because a red that ran wins over a system that did not run. For each system that did not run, add to `detail` what stopped it.
-- If no system that ran is red but at least one system could not run, use the "could not run" status above (`{awaiting_human}` for base, `{not_run}` for final; write in `reason` which systems were stopped by what and which were green).
-- For a final `{not_run}`, split the system names in `systems`: the systems you ran in `ran`, the systems you could not run in `unran` (`ran` is empty if you could run none). The machine rejects a `{not_run}` without `systems`, and `systems` with the same name in both `ran` and `unran`. For a system you ran only in part, write the part you ran and the part you could not run under different names. When `ran` is not empty, the report and the last approval node name the systems that ran and those that could not; when it is empty, they say the tests did not run.
-- Only when every system is green is the status `{clean}`. This result is recorded as a self-report the machine has not checked, and is put to a person.
-
-You are a read-only role. Your tools are Read, Grep, and Glob, WebSearch and WebFetch for the web, and Bash only to run the tests. Do not write or delete files in the real working tree, and do not move its git state (HEAD, branches, the index, the stash). The only exception is undoing what you changed after a rejection, when a rejection is shown at the top of this prompt.
-
-## How to answer
-
-Write the material with one `status`:
-
-- `{found}`: found (needs `count` and `detail`)
-- `{clean}`: looked now and found none (needs `checked`: what you looked at)
-- `{not_applicable}`: the condition does not apply (needs `reason`)
-- `{awaiting_human}`: waiting for a person to run it; base only (needs `reason`)
-- `{not_run}`: should have run but could not; final only (needs `reason`)
-
-`checked` and `reason` can be added with any status. `systems` (`ran` and `unran`, lists of system names) is needed for a final `{not_run}`.
-
-- Write `reason`, `detail`, and `checked` in {lang}. Keep commands, exit codes, paths, test names, and error messages as they are.
-
-Return only JSON of the form `{"material": {...}}` that matches the output schema.
-```
-
-`{"material": {...}}` は差し込み口の形（`{` の直後が小文字の名で `}` で閉じる）に合わないので、字として残る。
-
-### 2.4 返す形
-
-今の `ci` の `output_format` のまま（`works-factory-test-gate.yaml:171-185`）: `material: {status (5 語), count (0 以上の整数), detail, checked, reason, systems: {ran, unran}}`。必須は `material` と `material.status`。人に見せる欄は `reason`・`detail`・`checked`（証拠の文・修正前と最後の承認ノード・報告に載る）で、言語は `{lang}`。
-
-### 2.5 描いた骨組み（例の run `92f4ca04-…` の base の 1 回目の値）
-
-```markdown
-You are the CI delegate, started for this check. …（決まった文）
-
-## Where and what
-
-- The target repository (the real working tree): ~/.local/state/works-factory/targets/10ac16be/archon-home/workspaces/<owner>/<repo>/worktrees/archon/task-works-factory-line-1792186323038   BASE: d957d1dada3d72eaafb38e08abb0b2b58e8e282d
-- Where to run (a copy of the working tree as it is now): /var/folders/sz/…/T/works-factory-ci-5_111s_p/work
-- Temporary space: /var/folders/sz/…/T/works-factory-ci-5_111s_p/tmp
-- Form: base (`base` is before the fix, `final` is after the fix). Attempt: 1
-
-**This prompt reaches you only when the machine could not run anything**: the target's root has no run declaration `.review-checks.json`, …
-
-**Where to run**: run the tests and lint on the copy (/var/folders/…/work). …
-
-## What to do
-…（箇条 9 つ）
-
-You are a read-only role. …
-
-## How to answer
-…
-- Write `reason`, `detail`, and `checked` in the language of the person's request. …
-
-Return only JSON of the form `{"material": {...}}` that matches the output schema.
-```
-
-例の run の 1 回目は拒まれていないので、却下の段落は入らない（`ci-prep` の返りの `reject` が空）。役は `awaiting_human`（lint の系統が網に阻まれた。pytest の 10 モジュールは緑）を返し、受け付けを 1 回で通った。final の 1 回目は `clean`。
-
-### 2.6 今の指示との差
-
-今の指示は `workflows/test-gate/commands/ci.md`（36 行）だけに在り、値は Archon が `$ci-prep.output.<欄>` で差し込む。
-
-- 移した: 値の差し込み（`$ci-prep.output.reject`・`root`・`base_rev`・`copy_dir`・`tmp_dir`・`mode`・`attempt`）を `{name}` に。宣言の名（md:16 の `.review-checks.json`）と素材の語（md:24-28・md:34 の found〜not_run）を差し込み口に（README 5.3。値は `declared_checks` の 1 か所で、受け付けと同じ字）。
-- まとめた: 却下の節（md:3-7 の見出しと「このセクションが空でなければ…丸ごと出し直せ」と「1 回目にはこのセクションは空」）を、共通の断片 `{shared:rejected}` と、この役だけの戻し方の段落に。却下が無い回は段落ごと入れない（「1 回目は空」の言い回しが要らない）。
-- まとめた: 読むだけの役の段落の「上の『前の回の受け付けが拒んだ理由』のセクションを見よ」（md:30）を、却下が貼られた時の言い方に（却下の無い回にセクションを指さない）。
-- まとめた: 返す形の 2 段落（md:34 の素材の書き方と md:36 の「返すのは `{"material": {...}}` の JSON だけ」）を `## How to answer` の箇条と結びの 1 文に。
-- 足した: 言語の 1 文（`{lang}`。#764）。今の指示は日本語で書かれていたので、素材の文も日本語になっていた。
-- 足した: 役の定義の「started for this check」（輪は `fresh_context: false` で出し直しが同じ会話の続きなので、「新しい会話」とは書かない）。
-- 足した: base が空の run では、素材の `BASE:` に `(none)` を入れる（`src/prompts.py` の `NO_BASE`）。
-- 消した物は無い。決まり（緑を仮定しない・走ったかは件数で決める・終わるまで待つ・系統ごとの終了コード・走った赤が勝つ・systems の分け方・自己申告・本物の作業ツリーを変えない・戻し方の例外）は全部残した。
-- 英語にした（#764）。役の名「任せ先の CI の役」は "the CI delegate"。
-
-1 つ目の commit（日本語の md。README 11.4）の作り方: 今の `ci.md` の 36 行を字のまま写し、`$ci-prep.output.<欄>` を `{<欄>}` に替える（`base_rev` は `{base}`）。素材の語と宣言の名はこの commit では字のまま置く。却下の節は今の見出しと文のまま `{reject}` を差し込む（例の run の値では空）。比べは例の run の base の 1 回目の値で、組んだ指示が今の `ci.md` に `ci-prep` の返りを差し込んだ字と同じになることを照らす。2 つ目の commit で上の英語の md に替え、この節の差の一覧どおりかを並べて審査に出す。
-
-## 3 node の設計シート: ci-fix（任せ先の CI の役の出し直し）
-
-### 3.1 役
-
-前の回の返答が受け付けで拒まれた時に、1 回目の役の会話の続きで、拒まれた欄だけを直して返す（#588・#571）。機械が前の答えと合わせてから、全体をもう 1 度照らす。
-
-### 3.2 port
-
-却下の控えの最後の理由と、機械が合わせた前の答えの控え `candidate-ci.json` のパス（← place）。材料とリポジトリは会話に在るので貼らない。
-
-### 3.3 組み立ての順（`prompts/ci-fix.md`）
-
-1. `{shared:resubmit}`（共通の断片。この block の PR が足す）。断片の中の差し込み口:
-   - `{rejection}` ← `rolekit.rejected(place, CI_ROLE)[-1]`（最後の却下の理由。今の `rolekit.write_resubmit` と同じ）
-   - `{candidate}` ← `rolekit.candidate_path(place, CI_ROLE)` の絶対パス
-2. 言語の 1 文（決まった文）と `{lang}`（← port `lang`。空なら 2.3 と同じ文）。
-
-md の本文（英語）:
-
-```markdown
-{shared:resubmit}
-
-Write `reason`, `detail`, and `checked` in {lang}. Keep commands, exit codes, paths, test names, and error messages as they are.
-```
-
-断片 `workflows/.shared/prompts/resubmit.md` の本文（英語。この block の PR が足す。今の `rolekit.RESUBMIT_ASK` と `FIELD_RULES`〔`lib/rolekit.py:419-435`〕の英語）:
-
-```markdown
-Your previous answer was rejected by the machine's check. In this same conversation, fix only what was rejected and return it. The material and the repository are as you already read them in this conversation (do not read them again; read only what you need to confirm the reason for the rejection).
-
-The reason the check rejected it (verbatim):
-
-~~~text
-{rejection}
-~~~
-
-The whole previous answer, as the machine merged it: {candidate} (you can Read it; whatever you do not return stays in this form).
-
-How to answer:
-
-- Return JSON of the same type as before, with only the fields you fix (if you fixed only files in the repository and no field, return `{}`). A field you return replaces the previous field as a whole (for an array, return every row, including the rows you do not change); a field you do not return stays as it was.
-- The machine checks the whole answer again after merging.
-```
-
-囲いを `~~~` にするのは、却下の理由の字に `` ``` `` が入りうるため（今は `` ``` `` で囲んでいた。却下の文に囲いの字が在ると囲いが閉じる）。`{}` は差し込み口の形に合わないので字として残る。
-
-### 3.4 返す形
-
-`ci` の `output_format` の写しで `required: []`（今のまま）。人に見せる欄と言語は `ci` と同じ。
-
-### 3.5 描いた骨組み
-
-本物の run の例は無い（例の 2 つの run はどちらも 1 回で通り、出し直しは起きていない）。試験の `CiRoleCase.test_resubmit_returns_only_the_rejected_fields` の値で描く:
-
-```markdown
-Your previous answer was rejected by the machine's check. In this same conversation, fix only what was rejected and return it. …
-
-The reason the check rejected it (verbatim):
-
-~~~text
-素材の欄 material を丸ごと直して出し直せ: final の not_run には systems が要る
-~~~
-
-The whole previous answer, as the machine merged it: <place>/candidate-ci.json (you can Read it; …).
-
-How to answer:
-…
-
-Write `reason`, `detail`, and `checked` in the language of the person's request. …
-```
-
-### 3.6 今の指示との差
-
-今の指示は YAML の `ci-fix` の `prompt:` の 1 行（`works-factory-test-gate.yaml:188`。「前の回の返答は受け付けで拒まれた。この会話の続きで直す。指示書 `$ci-prep.output.brief` を Read で全部読み…」）と、その指示書（`rolekit.write_resubmit` が `RESUBMIT_ASK` で書く `resubmit-ci-<n>.md`）の 2 か所に在る。
-
-- 移した: 指示書の本文（`RESUBMIT_ASK`・`FIELD_RULES`）を共通の断片 `resubmit` に。指示書のファイルを Read させる道をやめ、指示に直に貼る（README 5.2 の「指示をファイルから Read せずに受け取れる」）。YAML の 1 行（「指示書を Read で全部読め」）は要らなくなった。
-- 消した: 指示書のファイル `resubmit-ci-<n>.md`（読み手が無くなる）。
-- 足した: 言語の 1 文。
-- 変えた: 拒まれた理由を貼る囲いを ``` でなく `~~~text` にした（理由の字に ``` が入っても囲みが閉じない。断片 `resubmit` の持ち物）。
-- 英語にした。
-
-1 つ目の commit の作り方: md を `{shared:resubmit}` だけにし、断片の 1 つ目の commit の字を今の `RESUBMIT_ASK` に `FIELD_RULES` を入れた字（日本語のまま）にする。比べは試験の値で、組んだ指示が今の `resubmit-ci-1.md` の中身と同じになることを照らす（YAML の 1 行の「Read で読め」は比べから外す。読ませる道をやめた差なので 2 つ目の commit の一覧に載る）。
+2 節と同じ訳で、`ci-fix`・`ci-fix-prep` と指示 `prompts/ci-fix.md` を外した。共通の断片 `workflows/.shared/prompts/resubmit.md` はほかの block も使うので残す。
 
 ## 4 node の設計シート: suite-write（TDD の実行器の書き手）
 
@@ -403,7 +181,7 @@ You may read only this material, the root's `{decl_name}` (if it exists), the CI
 - It is started with the target root as its working directory.
 - Its first argument is where to write the JUnit XML (an absolute path). It writes each test's outcome there as JUnit XML.
 - It exits with the test tool's exit code as it is (non-zero if any test is red).
-- Arguments may follow the first argument (test files, test names, filter expressions), and the environment variable `{only_env}=1` may be set. If the test tool can take them as they are, pass them to the tool; if it cannot, drop them and run the whole suite (running the whole suite checks the same thing).
+- Arguments may follow the first argument (test files, test names, filter expressions), and the environment variable `{only_env}=1` may be set. When the person gave no test command and the root has no run declaration, the machine runs only the tests related to the change by passing their file paths here, so pass them to the tool as they are whenever it can take them (that is what keeps the run short). If the tool cannot take them, drop them and run the whole suite (running the whole suite checks the same thing).
 
 ## How to write it
 
@@ -475,17 +253,14 @@ Return only JSON that matches the output schema.
 ## 5 script の node
 
 - `intake.py`: `os.environ.get("INPUTS_MODE")`・`INPUTS_TEST_CMD`・`INPUTS_TDD_SUITE`・`INPUTS_BASE`・`INPUTS_REQUEST`・`INPUTS_REQUEST_SCOPE`・`INPUTS_BASELINE`・`INPUTS_REUSE_DIR`・`INPUTS_REUSE_KEY`・`INPUTS_USER_ENV_DIR`・`INPUTS_LANG` を字のままで読み、`ports` の口に渡す。`mode` が `declared_checks.MODES` の外なら `ok: false`・`reason: mode は base・final のどれか: <値>`。`baseline` は final の時だけ読む（base で渡されても読まない）。読めない port は `ok: false` と、読めなかった port と訳。通れば `src/files.fresh_place(place)` で place の中を `logs/` のほかは消し、`intake.json`（port の値。`request` は行の配列に揃えた物、`baseline` はパスか空）と `suite-state.json`（`{test_cmd, tdd_suite}`）を書いて `{ok: true, reason: ""}`。落ちない。
-- `run.py`: 今の `run.py` と同じ順（:81-118）。値は `intake.json` から: `test_cmd`・`tdd_suite`・`base`（今の `base_rev`）・`reuse`（`tree_run.reuse_place(reuse_dir, reuse_key or os.environ["WORKFLOW_ID"], rerun=bool(os.environ.get(tree_run.RERUN_ENV)))`、base だけ）・`wheres`（`src/scope.request_wheres`）。ログの置き場は `src/files.log_dir(place)`。テストを起こす前に `ports.drop_runner_env(user_env_dir)`。止められたら木を止めてから 128+信号で抜ける・走らせられない（`CiRefused`・`ValueError`）は 1 で抜けて理由を標準エラーに 1 行（今のまま。`result` が拾う）。返りの `suite_owed` は `suitewrite.need(<suite-state.json の dict>, mode)`。
-- `ci_prep.py`: 今の `ci_prep.py`（:34-60）と同じ順。包みの宣言が読めなければ（`fence.bad_declaration`）諦めた却下を控えに積んで落ちる（役を起こさない。今のまま）。`ci-snapshot.json` の最初の姿を保ち、写しが消えていれば作り直し、`prepared_at` を回ごとに書く。そのあと、`rolekit.resubmitting(place, CI_ROLE, <with: の prev を値に戻した物>)` が真なら `prompt.render("ci-fix", …)`（3.3）を、偽なら `prompt.render("ci", …)`（2.3）を組み、`{prompt, resubmit, attempt}` を返す。`with:` の `prev` は前の周の受け付けの `ok`（真偽）だけで、却下の文は控えから読む（R44。今の `test_loop_does_not_paste_previous_reject_by_loop_prev`）。
-- `ci_accept.py`: 今の `ci_accept.py`（:29-66）と同じ。`mode` は `intake.json` から読む。包みの柵が `prepared_at` の後のこの作業ツリーの起動に掛かったか（`fence.fenced_since`）→ 役の前後の作業ツリーの比べ（`accept.tree_moved`。`status_guarded` が真なら `accept.BEYOND_STATUS`）→ 出し直しを前の答えと合わせる（`rolekit.resubmitted` と `merge_fields`）→ 素材の欄の決まり（`declared_checks.role_material_problems`）。通れば `ci-material.json` を書く。拒めば役が置きうる `ci-material.json` を消す。終わる時（通った・諦めた）に写しを消す（`declared_checks.drop_copy`）。却下の文は今の字のまま（日本語。README 5.3）。
+- `run.py`: 今の `run.py` と同じ順（:81-118）。値は `intake.json` から: `test_cmd`・`tdd_suite`・`base`（今の `base_rev`）・`reuse`（`tree_run.reuse_place(reuse_dir, reuse_key or os.environ["WORKFLOW_ID"], rerun=bool(os.environ.get(tree_run.RERUN_ENV)))`、base だけ）・`wheres`（`src/scope.request_wheres`）。ログの置き場は `src/files.log_dir(place)`。テストを起こす前に `ports.drop_runner_env(user_env_dir)`。止められたら木を止めてから 128+信号で抜ける・走らせられない（`CiRefused`・`ValueError`）は 1 で抜けて理由を標準エラーに 1 行（今のまま。`result` が拾う）。返りの `suite_owed` は `suitewrite.need(<suite-state.json の dict>, mode)`。 2026-10-20: 走らせ方が決まらない道（`by` が `role_needed`）では、`tdd_suite` の一式を関わる試験だけにし、`run.json` に `related` を置く（14.4）。
 - `suite_prep.py`: `suitewrite.prepare(<suite-state.json>, <place>/suite, ports.suite_keep(), Path.cwd())` を呼ぶ（取り置きが在れば写して `write: false`、無いか前の周で取り置きが照らしを通らなければ控えに悲観の印を置いて `write: true`）。`write` が真なら `prompt.render("suite-write", …)`（4.3）を組んで `{write: true, prompt}`、偽なら `{write: false, prompt: ""}`。読めない入力は落ちずに `write: false`。
 - `suite_place.py`: `suitewrite.place(<suite-state.json>, <place>/suite, <reply を値に戻した物>)` を返す（今のまま。読めない入力は `made: false` と訳）。
-- `suite_try.py`: 今の `suite_try.py`（:29-55）と同じ。`suitewrite.pending(<suite-state.json>)` が在れば `baseline_red.run_suite` で 1 回走らせ（書き直しの周は `suite-again` の名でログを分ける）、`suitewrite.settle` で照らす。走らせた後の指紋は通らなくても `run.json` の `fingerprint_after` に、通れば `suite` と 1 件ごとの結末を `run.json` に足す。走らせる前に `ports.drop_runner_env(user_env_dir)`（`user_env_dir` は `intake.json` から）。止められたら 128+信号で抜ける。ほかの誤りは `done: true`・`ok: false` と訳。
-- `result.py`: `src/certify.py` の `certified` を呼んで返す。今の `result.py` と同じく、`run.json` と（任せ先の役の run なら）`ci-material.json` を読み、`green_cert.classify` で赤の原因と証拠を出し、`green_cert.certify` で認証する（final で任せ先の役が書いた緑は自己申告として認証しない）。base は `baseline.json` を `baseline_red.write_baseline` で書く（`suite` は `suite-state.json` の `tdd_suite`、`test_cmd` は `intake.json` から）。final は port `baseline` のファイルを `baseline_red.read_baseline` で読み、`test_outcomes` と修正前のテストの行を足す。`evidence.md` を書く。任せ先の役の run で包みの記録が無ければ証拠に `NO_ADAPTER_NOTE`。残った写しを消す。足した 3 欄: `suite`・`suite_note` は `src/suite.py` が `intake.json` と `suite-state.json` から組み（1.2）、`report` は `src/report.py`（10 節）。中の誤りは全部捕まえて、終了の値 0 で `ok: false`・`green: false`・`red_cause: incomplete` と誤りを名指した証拠の pointer を返す（今の `failed`。`suite` は port `tdd_suite`、`suite_note` は空、`report` は 10 節の誤りの 1 行）。
+- `suite_try.py`: 今の `suite_try.py`（:29-55）と同じ。`suitewrite.pending(<suite-state.json>)` が在れば `baseline_red.run_suite` で 1 回走らせ（書き直しの周は `suite-again` の名でログを分ける）、`suitewrite.settle` で照らす。走らせた後の指紋は通らなくても `run.json` の `fingerprint_after` に、通れば `suite` と 1 件ごとの結末を `run.json` に足す。走らせる前に `ports.drop_runner_env(user_env_dir)`（`user_env_dir` は `intake.json` から）。止められたら 128+信号で抜ける。ほかの誤りは `done: true`・`ok: false` と訳。 2026-10-20: `run.json` の `related`（`run` が選んだ物）で、選んだ試験のファイルだけを渡して走らせる。選べなかった・関わる試験が無い時は一式（14.4）。
+- `result.py`: `src/certify.py` の `certified` を呼んで返す。今の `result.py` と同じく、`run.json` と（任せ先の役の run なら）`ci-material.json` を読み、`green_cert.classify` で赤の原因と証拠を出し、`green_cert.certify` で認証する（final で任せ先の役が書いた緑は自己申告として認証しない）。base は `baseline.json` を `baseline_red.write_baseline` で書く（`suite` は `suite-state.json` の `tdd_suite`、`test_cmd` は `intake.json` から）。final は port `baseline` のファイルを `baseline_red.read_baseline` で読み、`test_outcomes` と修正前のテストの行を足す。`evidence.md` を書く。任せ先の役の run で包みの記録が無ければ証拠に `NO_ADAPTER_NOTE`。残った写しを消す。足した 3 欄: `suite`・`suite_note` は `src/suite.py` が `intake.json` と `suite-state.json` から組み（1.2）、`report` は `src/report.py`（10 節）。中の誤りは全部捕まえて、終了の値 0 で `ok: false`・`green: false`・`red_cause: incomplete` と誤りを名指した証拠の pointer を返す（今の `failed`。`suite` は port `tdd_suite`、`suite_note` は空、`report` は 10 節の誤りの 1 行）。 2026-10-20: `ci-material.json` は読まない。`by` が `role_needed` の素材は `src/certify.py` の `runner_material` が実行器の結果から組み、`related` を欄に載せる（14.5）。
 
 ## 6 受け付け
 
-- ci-accept: 5 節。拒む決まりは今のまま（包みを通る run なのに、役を起こした後のこの作業ツリーの起動に柵が掛かった記録が無い → 返答を受けずに諦める〔`give_up`〕・作業ツリーを変えた・読めない返答・素材の欄の決まり〔status ごとの要る欄・base の `awaiting_human` と final の `not_run`・final の `not_run` の `systems`・同じ名を `ran` と `unran` に書かない〕）。3 回目の却下で loop を抜ける（`rolekit.GIVE_UP_AFTER`）。諦めた時は `result` が `red_cause: incomplete` と最後の却下の理由を証拠に名指す（T45）。run は止めない。
 - suite-place と suite-try: 書き手の返答の照らしは機械の事実だけ（本文の頭が `#!`・JUnit XML が出たか・試験が 1 件以上か。`suitewrite`）。拒んで出し直させず、作れなかった訳を控えに残して、実行器の無い run の道を通る（今のまま）。2 周目は取り置きが照らしを通らなかった時の書き直しだけ。
 
 ## 7 単独で呼ぶ
@@ -501,7 +276,7 @@ final は `--input mode=final --input baseline=<base の run の baseline.json �
 
 元の works は `works/blk-ci/`（`blk-ci.yaml`・`commands/ci.md`・`prompts/p0.local_checks.md`・`prompts/p4.ci.md`・`scripts/`）と `works/blk-tests/`、`.shared/core/`（`entry.py` の `run_ci`・`tree_run.py`・`board.py`）。graphloops は `prompts/review-loop/p0.local_checks.md`・`p4.ci.md` と `engine/declared.py`。
 
-同じ物（工場がそのまま持つ）: 宣言の段を機械が走らせ、決められない時だけ任せ先の役・役は作業ツリーの写しの上で走らせる・役の前後の作業ツリーの比べ・素材の 5 語・終わるまで待つ・範囲の宣言 `paths_ignore`・3 回で諦める。
+同じ物（工場がそのまま持つ）: 宣言の段を機械が走らせる・素材の 5 語・範囲の宣言 `paths_ignore`。（決められない時の任せ先の役・役の前後の作業ツリーの比べ・終わるまで待つ・3 回で諦めるは、14 節で任せ先の役ごと外した。）
 
 工場に無い物・違う物と、その訳:
 
@@ -524,7 +299,7 @@ README 10 節の割り当てのうち、この block が担う物と読む物:
 - 6 当たる試験を選んで回し、回さなかった試験を名で残す（担うのは fix。この block は読み手）: 範囲の宣言の `paths_ignore` で回さなかった段を `skipped_steps` に、走らせられなかった段を `ran_steps.unran` に名で返す。最後の承認ノードと報告がそれを並べる。守りの試験: `RunScriptCase.test_base_reads_request_where_as_change`・`test_scope_declaration_without_review_declaration_stops`・`ResultScriptCase.test_partly_startable_steps_are_named_not_not_ran`。
 - 封じた差分（merge の設計書の 8 節）の土台: final の緑の認証の指紋 `fingerprint` を返す。merge は封じる時と置く時に、この指紋が今の作業ツリーと合うかを照らす（試験の後に木が変われば封じない・置かない）。守りの試験: `ResultScriptCase.test_final_green_is_certified_with_fingerprint_and_tree_change_voids_it`。
 
-e2e の `tests/e2e/evidence.json` の L-E38・L-W28・L-W53・T1・T6・T18・T29・T30・T33・T34・T40・T41・T42・T48・T50・T60・T66 は、node の id（`test-gate-base__ci-loop.ci` などは同じ id のまま）と place のパス（`parent/test-gate/base/…` → `parent/test-gate-base/…`）を新しい物に合わせる。
+e2e の `tests/e2e/evidence.json` の L-E38・L-W28・T1・T6・T18・T29・T30・T33・T34・T40・T41・T42・T66 は、node の id と place のパス（`parent/test-gate/base/…` → `parent/test-gate-base/…`）を新しい物に合わせる。
 
 ## 10 報告の行（`src/report.py`）
 
@@ -557,18 +332,20 @@ e2e の `tests/e2e/evidence.json` の L-E38・L-W28・L-W53・T1・T6・T18・T2
 
 10. place の作り直しで消すのは、この block の名の在るファイルとフォルダだけにする（`src/files.py` の `fresh_place`）。1.3 の「place の中を `logs/` のほかは消し」は、単独の run では place が run directory の根なので、ほかの block のファイルまで消す。根拠: 土台の決め「block が消してよいのは、自分が名を持つファイルだけ」。`logs/a<k>/` は消さない（今と同じ）。拒否の控え・合わせた答えの控えの名は `rolekit` が組むので、`rejects`・`candidate` の関数で引く。
 11. port `request` の形は、`workflows/test-gate/schemas/request.schema.json`（1.5 の `anyOf`）でなく、土台の `shared:request.schema.json` で受け、読みは `requestrows.findings`。根拠: `anyOf` は `KNOWN_KEYWORDS` に無く、`ports.json` も形の検査も拒む。同じ名の形のファイルを 2 か所に置くことも検査が拒む（形の名は pack の中で 1 か所）。空の依頼（`[]`・空の字）は `[]` として読む。
-12. node `ci-fix-prep`（script `ci_fix_prep.py`）を足して 13 の node にし、出し直しの役 `ci-fix` の指示をこの prep が組む（`ci-prep` は出し直しの周は `prompt` を `""` で返す）。根拠: 形の検査 `check_standalone_renders` は、AI の node ごとに「その node の prep を差し替えず、`reached` に在り、`exec-code: true` の筋書き」で指示の字を照らすが、輪（`loop_group`）の 2 周目は dry-run で回らない（`until_bash` は動かず、1 周で終わる）ので、`ci-prep` が `resubmit: true` を返す周を本物の script では作れない。prep を分ければ、筋書きは `ci-prep` を差し替えて出し直しの周を作り、`ci-fix-prep` は本物で指示を組める。振る舞いは変わらない（出し直しの周だけ `ci-fix-prep` が回る）。
-13. 筋書き（12 節）は検査の決まりに合わせて作る。`standalone` は `exec-code: true` で script を本物に回し、AI の 2 つ（`ci`・`suite-write`）だけ差し替える（宣言も test_cmd も無い作業ツリーなので任せ先の輪と実行器の輪が回る）。`base-resubmit` は `exec-code: true` で `ci-prep`・`ci-fix`・`ci-accept` を差し替える。ほかの 5 本（`base-engine`・`base-suite-kept`・`base-suite-written`・`final-green`・`final-red`）は配線だけを見るので script も差し替える。12 節の `standalone`（engine の形）は `base-engine` に、`base-role` は `standalone` に寄せた。根拠: 検査が `standalone` の `exec-code: true` と、AI の node ごとの本物の prep を求める。
+12. （14 節で `ci-loop` ごと外した。以下は外す前の決め）node `ci-fix-prep`（script `ci_fix_prep.py`）を足して 13 の node にし、出し直しの役 `ci-fix` の指示をこの prep が組む（`ci-prep` は出し直しの周は `prompt` を `""` で返す）。根拠: 形の検査 `check_standalone_renders` は、AI の node ごとに「その node の prep を差し替えず、`reached` に在り、`exec-code: true` の筋書き」で指示の字を照らすが、輪（`loop_group`）の 2 周目は dry-run で回らない（`until_bash` は動かず、1 周で終わる）ので、`ci-prep` が `resubmit: true` を返す周を本物の script では作れない。prep を分ければ、筋書きは `ci-prep` を差し替えて出し直しの周を作り、`ci-fix-prep` は本物で指示を組める。振る舞いは変わらない（出し直しの周だけ `ci-fix-prep` が回る）。
+13. （`ci-*` の部分は 14 節で外した。今の `standalone` は AI の `suite-write` だけ差し替える）筋書き（12 節）は検査の決まりに合わせて作る。`standalone` は `exec-code: true` で script を本物に回し、AI の 2 つ（`ci`・`suite-write`）だけ差し替える（宣言も test_cmd も無い作業ツリーなので任せ先の輪と実行器の輪が回る）。`base-resubmit` は `exec-code: true` で `ci-prep`・`ci-fix`・`ci-accept` を差し替える。ほかの 5 本（`base-engine`・`base-suite-kept`・`base-suite-written`・`final-green`・`final-red`）は配線だけを見るので script も差し替える。12 節の `standalone`（engine の形）は `base-engine` に、`base-role` は `standalone` に寄せた。根拠: 検査が `standalone` の `exec-code: true` と、AI の node ごとの本物の prep を求める。
 14. `ports.items(raw)` は足さず、入力 `optional`（`[{node, bare}]` の JSON の字）は `src/certify.py` の `optional_items` で読む。`drop_runner_env`・`suite_keep`・`RUNTIME_COPY_PREFIX`・`pointer` は土台の `ports.py` に既に在るので、土台は触らない。根拠: 1.5 の「土台に無ければ足す」は、`items` だけが無く、使い手がこの block の 1 か所だけ。
 15. md の字の `}}` は差し込みの口が `}` 1 つにする（`{{`・`}}` は字の波括弧の書き方）。`{"material": {...}}` の終わりの `}}` は 1 つに縮むので、md には `{"material": {...}}}}` と書く（2.3 の注の「字として残る」は `{...}` と `{}` に限る）。
-16. script が `with:` で受けた入力の字を値に戻す口は、`src/inputs.py` の `value`（JSON でなければ字のまま）。根拠: 読めない返答を `rolekit.resubmitted` が「JSON として読めない」と拒める。`ports.parsed` は JSON でない字を落とす。
+16. （14 節で `ci_accept.py` と一緒に外した。`src/inputs.py` は無い）script が `with:` で受けた入力の字を値に戻す口は、`src/inputs.py` の `value`（JSON でなければ字のまま）。根拠: 読めない返答を `rolekit.resubmitted` が「JSON として読めない」と拒める。`ports.parsed` は JSON でない字を落とす。
 17. 報告の行（10 節）の final の 2 は、元の `_tests_head_lines` の 1 行目だけ（修正前のテストの行は 1 で出す）。
 18. 返す node の誤り（`certify.failed`）は、lib を読めなくても返せるよう、`src/files.py`・`src/certify.py` の頭で lib を import しない（lib は関数の中で読む）。`run.json` の名は `files.RUN` に字で持ち、`declared_checks.RUN_FILE` と同じことを試験が縛る。誤りの回の `suite` は intake.json の port `tdd_suite`（読めなければ `""`）。
 
 19. 言語の既定の文は、2.3 の `the language of the person's request` でなく、土台の `prompt.lang`（共通の断片 `lang-default` の `the language of the request (the user's language)`）を使う。根拠: 土台が既定の文を 1 か所に持ち、`prompt.lang` が port の空を埋める。11 節の 7 の「この既定は役には分からない」は変わらない（line が必ず lang を渡す形が要る）。
-20. 英語の md の `{lang}`（`ci.md`・`ci-fix.md`・`suite-write.md`）の値は `prompt.lang(intake["lang"])`。`ci-fix.md` の `{lang}` は `ci-fix-prep` が intake.json の lang から入れる。出し直しの断片 `resubmit.md` は言語を持たない。
+20. 英語の md の `{lang}`（今は `suite-write.md` だけ。`ci.md`・`ci-fix.md` は 14 節で外した）の値は `prompt.lang(intake["lang"])`。`ci-fix.md` の `{lang}` は `ci-fix-prep` が intake.json の lang から入れる。出し直しの断片 `resubmit.md` は言語を持たない。
 
 ## 12 試験
+
+2026-10-20: 任せ先の CI の役を外したので、`ci-*` の筋書き（`base-resubmit`）・試験（`CiRoleCase`・`PromptCase` の ci の 3 つ・`ResultScriptCase` の任せ先の素材の試験）は外した。今の試験は 14.9。以下は外す前の設計。
 
 - standalone の fixture（`workflows/test-gate/fixtures/` の 7 本。今の入力から `start` を外し、port の値に替える。11 節の 13）:
   - `standalone.stubs.yaml`: `exec-code: true`。入力は `mode: base` だけ。宣言も test_cmd も無い作業ツリーなので script が本物に回り、任せ先の輪と実行器の輪が回る。AI の `ci`・`suite-write` だけ差し替え、指示の字を `resolved-text-contains` で照らす。
@@ -591,3 +368,78 @@ e2e の `tests/e2e/evidence.json` の L-E38・L-W28・L-W53・T1・T6・T18・T2
 - 7 節の命令の正確な形。
 - 作り直しの間に block から埋め `fence` を import する道（1.5）。
 - `output_type: green-cert` の型つきの成果物の一覧が、include の中の node でも今と同じ形で `$TYPED_ARTIFACTS_FILE` に載るか（今も include の中の node なので載ると見るが、block の名が変わる時の札の字は未確認）。
+
+## 14 関わる試験だけ走らせる（2026-10-20。持ち主の決め `related-tests-only`）
+
+### 14.1 決めと範囲
+
+- 持ち主の言葉: 「自分に関係のあるやつだけでいいんじゃないかな。もう工場としては。全体テストとかはCIや人間たちに任せる？全部試験賭けるのは重いしね」。
+- 実地（2026-10-20）で、(3) の道（`test_cmd` が空で、対象の根に `.review-checks.json` が無い run。`run.json` の `by` が `role_needed`）は、AI が書いた全試験の実行器を 3 回（base の `suite-try`・fix の group-start・final の `run`。1 回 40〜48 分）と、任せ先の CI の役を 2 回（1 回 36〜74 分）走らせて 256〜300 分かかった。`test_cmd` を渡した run は 25〜90 分。
+- 変える物:
+  1. (3) の道で全試験の実行器を走らせる 3 か所を、変更に関わる試験だけにする（14.2〜14.4）。fix の group-start は `docs/design/fix.md` の 17 節。
+  2. 任せ先の CI の役の輪（`ci-loop`: `ci-prep`・`ci`・`ci-fix-prep`・`ci-fix`・`ci-accept`）と、その指示 `prompts/ci.md`・`prompts/ci-fix.md` を外す。全体の CI は工場が再現せず、CI と人に任せる（14.5）。
+- 変えない物: 道 (1)（`test_cmd`）と道 (2)（`.review-checks.json`）の振る舞い。利用者が走らせ方を決めた物なので、絞らない。
+- 残す守り（3 つ）: 直す前から赤だった試験と直しで壊した試験を分けて数える（`green_cert.classify` の `inherited`・`introduced`）・赤は原因が何でも認証しない・機械でない者が決めた緑を認証しない（14.5 の (3) の道の final は、緑でも認証しない）。変えた物は 14.7 に書いた。
+
+### 14.2 関わる試験の選び（`lib/related.py`）
+
+test-gate と fix の 2 つの block が使うので `lib/` に置く（憲法の 4）。言語・実行器の名を持たない（E13）。
+
+- `applies(root, test_cmd)`: 走らせ方が決まらない対象か。`test_cmd` の前後の空白を除いた字が空で、`declared_checks.checks_plan(root)` が `fallback`（宣言が無い）を返す時だけ真。fix が (3) の道かを自分で決めるのに使う（`by` を fix へ運ばない）。
+- `pick(repo, *, rev, seeds, cache_dir)` → `{whole, reasons, files, left, far}`:
+  - `impact.map(repo, rev=rev, seeds=seeds, diff=True, cache_dir=cache_dir)` で `rev` から作業ツリーまでに触ったファイルと `seeds` を起点にした地図を引き、`impact.select_tests(m, direct_only=True)` で選ぶ。fix の受け付けが回す試験の選び（`selected_problems`）と同じ決め（直に関わる試験だけ。起点か深さ 1）。
+  - `whole`: 真なら選べない。地図が引けない（git の誤りなど）か、分からない物が直に関わる所に在る（`select_tests` の `run_all`）時で、今までどおり一式を走らせる。理由は `reasons`。
+  - `files`: 回す試験のファイル（根からの相対）。作業ツリーに在る物だけ。`left`: 届いただけで直には関わらず回さない試験。`far`: 深さ 2 以上の分からない物（理由の形）。
+- `args(repo, picked)`: `files` を絶対パスにした並び。TDD の実行器の約束（4.3・`baseline_red.run_suite` の `args`）の「第 1 引数の後ろに足す試験のファイル」と、環境変数 `TDD_SUITE_ONLY=1`（`only=True`）で走らせる。引数を解かない実行器は一式を走らせる（実行器の書き手の指示が決めている。同じ事を確かめる）。
+- `lines(picked)`: 報告の行（14.6）。走らせた試験の数と名前・走らせなかった試験・全体の試験を CI と人に任せた事、`whole` なら一式を走らせた理由。
+
+### 14.3 起点
+
+関わる試験の起点は、base と final で同じ決めにして、final の選びが base の選びを含むようにする（base の元の結末に無い試験が final で落ちると `introduced` と読まれるのを、直しが触った所に限るため）。
+
+- 起点の版 `rev` は新しい port `entry_base`（入口の差分の根）。空なら port `base`（修正前の版）。そこから今の作業ツリーまでに触ったファイル（未追跡を含む）が起点。base では入口の差分、final では入口の差分と直し。
+- 加えて、`request_scope` が真の run（入口の差分が空）は、依頼の行の `where` が名指す追跡中のパスも起点（`src/scope.py` の `request_wheres`。今は base だけが範囲の宣言に使う物を、関わる試験の選びでは base と final の両方に足す）。
+
+### 14.4 当てる所
+
+- `run`（final を含む）: `by` が `role_needed` で `tdd_suite` が在る時、一式を 1 回でなく `pick` の選びで走らせる。`whole` なら今までどおり一式。`files` が空なら走らせず、`run.json` の `suite` を `null`・`related` に選びの結果を置く。
+- `suite-loop`: `suite_owed` は今までどおり（`tdd_suite` を省いた base）。関わる試験が 0 件でも実行器を書く AI を起こす。実行器は fix の TDD ループが後で使うので、試験が無い対象でも要る。`suite-try` の 1 回は、`run.json` の `related`（`run` が選んだ結果。`suite-loop` は `run` の後なので同じ物）で走らせる。`files` があればそれだけ、`whole` なら一式。`files` が空（関わる試験が 0 件）の時は、実行器が JUnit XML を書く事（試験が 1 件以上）の確かめに、一式を 1 回走らせる。確かめの基準（JUnit XML が出て試験が 1 件以上）は変えない。
+- 選びを `run.json` の `related` に 1 回だけ置き、`suite-try` と `result` は引き直さない（base の中で 2 度引いて食い違わない）。
+
+### 14.5 任せ先の CI の役の輪を外した後の (3) の道
+
+- 素材（`material`）は機械が実行器の結果から組む（`src/certify.py` の `runner_material`）:
+  - 実行器が走り、結末が取れた: 終了コード 0 なら `clean`（`checked` に走らせた試験の数）、そうでなければ `found`（`count` は落ちた件数）。
+  - 関わる試験が無く走らせなかった: `not_applicable`（`reason`: 変更に関わる試験が無い。全体の試験は CI と人に任せる）。
+  - 実行器が無い・走らなかった・結末が取れない: base は `awaiting_human`、final は `not_run`。`reason` に訳（実行器を作れなかった理由は `suite_note`）。base を `awaiting_human` にするのは、任せ先の役が走らせられなかった時の base と同じ扱い（鎖を止めず、判定の台帳に載せる）。
+- 認証: (3) の道の final は、緑（`clean`）でも認証しない（`green_cert.certify` の `held_reason`。訳は「AI が書いた実行器が、関わる試験だけを走らせた緑——機械は実行器の中身を照らしていない」）。今までの「任せ先の自己申告の緑を認証しない」を、任せ先の役が無くなっても緩めない。認証するかは持ち主の選び（納品の残った疑問）。
+- 赤の原因の分け（`classify`）と `test_outcomes` は、実行器の 1 件ごとの結末で今までどおり。ただし直す前の結果が関わる試験だけ（`baseline.json` の `narrow`）の時は、直す前の結果に無い試験の赤を `introduced` と読まず、比べる事実が無い赤（`red_cause` 空）にする。合格と確定しないのは同じ。直す前が全部の試験（宣言の在る対象と test_cmd の対象）の時は今までどおり。(3) の道の `ran_steps` は `{ran: ["関わる試験の実行器"], unran: []}`（走らなかった時は `unran` に入れる）。`by` は `role_needed` のまま（語は変えない。意味は「走らせ方が決まらず、AI が書いた実行器で関わる試験を走らせる道」）。
+- 止め方は変わらない: 実行器が作れなかった base は止めず（`awaiting_human`）、判定の台帳の問いに載る。final は `not_run`・`incomplete` で認証せず、最後の承認ノードが人に回す。
+
+### 14.6 報告
+
+- test-gate の出力に欄 `related` を足す: `{applied, whole, files, left, far, reasons}`（道 (1)(2)・選びを引かない run は `applied: false`）。
+- 報告の部品は line の `src/sections.py`: 節「走らせなかった範囲（CI と人に任せた物）」を足す。base と final の `related` から、走らせた試験の数・走らせなかった試験（`left` の名・`far`）・「全体の試験は CI と人に任せた」・`whole` で一式を走らせた理由を並べる。道 (1)(2) の run は走らせ方の 1 行（`suites_line`。範囲の宣言で回さなかった段を含む）を載せ、「工場は絞らない」とは書かない（利用者が決めた走らせ方、と書く）。
+- test-gate の `report` の行は、(3) の道で final に `SELF_REPORTED_NOTE`（実行器の緑を合格と確定しない旨）を出す。
+- 報告の節「走らせなかった範囲」: 絞った道は `lib/related.lines`、利用者が走らせ方を決めた道（`related.applied` が偽）は走らせ方の 1 行（`suites_line`）を出す。本線の `collect.py` の欄の一覧に `related` を載せて届ける。
+
+### 14.7 変えた守り
+
+- 「任せ先の自己申告の緑を認証しない」: 任せ先の役を外したので、対象が無くなった。代わりに (3) の道の final の緑は認証しない（14.5）。(3) の道の final はこれまでも認証されなかったので、認証の結果は変わらない。
+- 「直す前から赤だった試験と直しで壊した試験を分ける」: 変えない。ただし元の結末は関わる試験だけなので、元の結末に無い試験が final で落ちた時は、`introduced` と読まず比べる事実が無い赤にする（14.5。`green_cert.classify` の `baseline_narrow`）。14.3 で final の選びを base の選びを含む形にして、そうなる場面を減らす。
+- 「赤は認証しない」: 変えない。
+
+### 14.8 自分で決めた事
+
+1. 選んだ試験の走らせ方（案 A を採った）: AI が書く実行器に試験のファイルを引数で渡す（TDD の実行器の約束。fix の TDD の輪・受け付けが同じ口で使っている。`baseline_red.run_suite` の `args`・`only`）。案 B（書き手の役に、選んだ試験を実行器の本文に埋め込ませる）は採らない。根拠: 元と同じ（作り直しの前の工場の fix が同じ口で使っている）・実行器は取り置きして使い回すので、run ごとに変わる選びを本文に埋めると取り置きが使えない・約束を解かない実行器は一式を走らせるので、絞れない対象でも壊れない（遅いだけ）。
+2. `by` の語 `role_needed` は変えない。根拠: 読み手（line の最後の関所・報告・通しの照らし）が多く、語を替える利益が無い。意味は 14.5 の通り。
+3. 任せ先の CI の役を外した後、実行器が作れない対象では (3) の道は試験を走らせない。根拠: 持ち主の決めが「CI を丸ごと再現するのはやめる」。走らせなかった事は `not_run`・`awaiting_human` と報告の節で言い、緑を仮定しない。
+4. `lib/` の任せ先の役の部品（`declared_checks` の `role_material_problems`・`CI_ROLE`・`drop_copy`・`NO_ADAPTER_NOTE`、`rolekit` ほか）は、この PR で消さない。ほかの block も読む物で、掃除は別の変更。
+5. 新しい port `entry_base`: 14.3 の根拠。line が始めの記録の入口の差分の根（`start.output.ports.base`。judge に渡す物と同じ値）を渡す。
+
+### 14.9 試験
+
+- `lib/tests/test_related.py`: `applies`（test_cmd と宣言が利用者の道を絞らない）・`pick`（直に関わる試験だけを選び、届いただけの試験を `left` に名前で残す・関わる試験が無いのは空の `files`・読めない物が近くに在る/地図が引けないのは `whole` と理由）・`args`・`lines`。
+- `tests/blocks/test_gate/test_test_gate.py` の `RelatedCase`: 実行器に渡す引数と `TDD_SUITE_ONLY`（`run` の final・`suite-try`）・入口の差分の根から選ぶ・関わる試験が無ければ実行器を起こさない・`whole` は一式・`test_cmd` と宣言の道は絞らない・書き手の実行器の照らし（関わる試験が無い時だけ一式を 1 回）・`result` の素材（緑は `RUNNER_HELD` で認証しない・元から赤は `inherited`・直しが起こした赤は `introduced`・実行器が無い base は `awaiting_human` で鎖を止めない・実行器が無い final は `not_run`）。
+- `tests/blocks/fix/test_tdd.py` の `RelatedStartCase` と `test_group.py`: fix の輪の頭（17 節）。
+- `tests/blocks/line/test_collect.py` の `SectionsCase`: 報告の節「走らせなかった範囲」。

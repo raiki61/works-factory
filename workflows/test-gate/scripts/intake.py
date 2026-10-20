@@ -17,6 +17,7 @@ import requestrows  # noqa: E402
 
 RAW = {"mode": os.environ.get("INPUTS_MODE"), "test_cmd": os.environ.get("INPUTS_TEST_CMD"),
        "tdd_suite": os.environ.get("INPUTS_TDD_SUITE"), "base": os.environ.get("INPUTS_BASE"),
+       "entry_base": os.environ.get("INPUTS_ENTRY_BASE"),
        "request": os.environ.get("INPUTS_REQUEST"), "request_scope": os.environ.get("INPUTS_REQUEST_SCOPE"),
        "baseline": os.environ.get("INPUTS_BASELINE"), "reuse_dir": os.environ.get("INPUTS_REUSE_DIR"),
        "reuse_key": os.environ.get("INPUTS_REUSE_KEY"), "user_env_dir": os.environ.get("INPUTS_USER_ENV_DIR"),
@@ -49,7 +50,7 @@ def read(modes) -> dict:
         except ValueError:
             request = []
     return {"mode": mode, "test_cmd": ports.text(RAW["test_cmd"]), "tdd_suite": text("tdd_suite"), "base": text("base"),
-            "request": request, "request_scope": scope,
+            "entry_base": text("entry_base"), "request": request, "request_scope": scope,
             "baseline": str(baseline) if baseline else "", "reuse_dir": text("reuse_dir"), "reuse_key": text("reuse_key"),
             "user_env_dir": text("user_env_dir"), "lang": text("lang")}
 

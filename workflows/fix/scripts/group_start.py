@@ -8,6 +8,8 @@ TDD の輪の状態を置く（src/tdd.start）。今の group_start と同じ�
 - 親の作業ツリーで 1 つずつ回る子（out_dir が在り from_tree が空）は、前の組の子が使える結果を残さずに落ちていれば、何も書かずに
   1 で止まる（#576）。自分の組の分は始めの木に戻してから始める（board.drop_unreturned）
 - 軽量の単位（port skip_rerun）は緑の後に test_cmd を走らせない（tdd.start の unit_depths に {key: "軽量"} で渡す）
+- 走らせ方が決まらない対象（test_cmd が空で、対象の根に走らせる段の宣言が無い。related.applies）は、輪の頭の元の結末を関わる試験だけにする
+  （tdd.start の narrow。持ち主の決め related-tests-only）
 返り {tdd, units, reason}。入力が読めない・前の組が止まっている・git が効かない・輪の頭が壊れた: 標準エラーに 1 行で 1"""
 import json
 import os
@@ -21,6 +23,7 @@ import ports  # noqa: E402
 import groups  # noqa: E402
 import leftovers  # noqa: E402
 import oneline  # noqa: E402
+import related  # noqa: E402
 import tree_run  # noqa: E402
 import writelog  # noqa: E402
 
@@ -69,7 +72,8 @@ def main() -> dict:
                                      rerun=bool(os.environ.get(tree_run.RERUN_ENV)))
         ports.drop_runner_env(values["user_env_dir"])   # 対象のテストに Archon の変数を継がせない（place・repo・reuse は先に取った）
         out = tdd.start(place, repo, suite, json.dumps(keys, ensure_ascii=False),
-                        test_cmd=str(values["test_cmd"] or ""), unit_depths=depths, owed=set(keys), reuse=reuse)
+                        test_cmd=str(values["test_cmd"] or ""), unit_depths=depths, owed=set(keys), reuse=reuse,
+                        narrow=related.applies(repo, str(values["test_cmd"] or "")))
     board.write_json(place / board.TDD_START_FILE, out)
     return {"tdd": bool(out["go"]), "units": len(keys), "reason": str(out.get("reason") or "")}
 

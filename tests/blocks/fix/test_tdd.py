@@ -3237,3 +3237,66 @@ class TestRedGreen(FixGatesCase):
         self.assertEqual([(r["gate"], r["id"]) for r in rows], [("red_green", MEAN_ID)], "state の版で base の木を作った")
 
 
+
+
+class RelatedStartCase(Case):
+    """持ち主の決め related-tests-only（docs/design/fix.md の 17 節）: 走らせ方が決まらない対象（narrow）の輪の頭の元の結末は、修正案が触る所
+    （凍結した欄の files の path）に関わる試験だけ。起点が無い・選べない時は一式、関わる試験が無ければ走らせない"""
+    # 第 1 引数の書き先の隣に、環境の合図と後ろの引数を控え、1 件が通る JUnit XML を書く実行器
+    RUNNER = ("import os, sys\nout = sys.argv[1]\nargs = ['only=' + os.environ.get('TDD_SUITE_ONLY', '')] + sys.argv[2:]\n"
+              "open(os.path.join(os.path.dirname(out), 'runner-args.txt'), 'w').write('\\n'.join(args) + '\\n')\n"
+              "open(out, 'w').write('<testsuite><testcase classname=\"test_stats.TestStats\" name=\"test_mean_of_three\"/></testsuite>')\n")
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+        tmp = pathlib.Path(self._tmp.name)
+        self.repo = tmp / "repo"
+        committed_copy(self.repo, SEED)
+        self.suite = tmp / "runner.py"
+        self.suite.write_text(self.RUNNER, encoding="utf-8")
+        self.board = tmp / "art" / "board"
+
+    def start(self, paths, narrow=True):
+        fields = [{"unit_keys": [MEAN], "files": [{"path": p} for p in paths]}]
+        with mock.patch.object(tdd.conflict, "frozen_fields", return_value=fields):
+            got = tdd.start(self.board, self.repo, str(self.suite), OPEN, narrow=narrow)
+        self.assertTrue(got["go"], got)
+        return json.loads(pathlib.Path(got["state_file"]).read_text(encoding="utf-8")), pathlib.Path(got["state_file"]).parent
+
+    def test_the_base_runs_only_the_tests_that_touch_the_planned_files(self):
+        st, work = self.start(["stats.py"])
+        self.assertEqual((work / "runner-args.txt").read_text(encoding="utf-8").splitlines(),
+                         ["only=1", str((self.repo / "test_stats.py").resolve())])
+        self.assertEqual(st["baseline"], {"test_stats.TestStats::test_mean_of_three": "passed"})
+        self.assertEqual((st["related"]["applied"], st["related"]["whole"], st["related"]["files"]), (True, False, ["test_stats.py"]))
+        state = work / "state.json"
+        state.write_text(json.dumps({**st, "done": True}), encoding="utf-8")
+        self.assertEqual(tdd.exit_fields({"go": True, "state_file": str(state)})["related"], st["related"], "出口の欄に選びが載る")
+
+    def test_nothing_planned_runs_the_whole_runner_as_before(self):
+        st, work = self.start([])
+        self.assertEqual((work / "runner-args.txt").read_text(encoding="utf-8").splitlines(), ["only="])
+        self.assertTrue(st["related"]["whole"] and st["related"]["reasons"])
+
+    def test_nothing_related_runs_nothing_and_starts_from_an_empty_baseline(self):
+        (self.repo / "NOTES.md").write_text("notes\n", encoding="utf-8")
+        st, work = self.start(["NOTES.md"])
+        self.assertFalse((work / "runner-args.txt").exists())
+        self.assertEqual((st["baseline"], st["baseline_exit"], st["related"]["files"]), ({}, 0, []))
+
+    def test_without_narrow_the_whole_runner_runs_and_no_related_is_reported(self):
+        st, work = self.start(["stats.py"], narrow=False)
+        self.assertEqual((work / "runner-args.txt").read_text(encoding="utf-8").splitlines(), ["only="])
+        self.assertEqual(st["related"], {"applied": False})
+        state = work / "state.json"
+        state.write_text(json.dumps({**st, "done": True}), encoding="utf-8")
+        self.assertNotIn("related", tdd.exit_fields({"go": True, "state_file": str(state)}), "絞らなかった run の出口は今のまま")
+
+    def test_report_line_says_what_the_baseline_ran(self):
+        import report
+        line = report._related_line({"applied": True, "whole": False, "files": ["a.py"], "left": ["b.py", "c.py"], "reasons": []})
+        self.assertIn("変更に関わる試験 1 件だけ", line)
+        self.assertIn("2 件", line)
+        self.assertIn("一式", report._related_line({"applied": True, "whole": True, "reasons": ["地図が引けない"]}))
+        self.assertEqual(report._related_line({"applied": False}), "")

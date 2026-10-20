@@ -208,6 +208,20 @@ class JudgeCase(unittest.TestCase):
         probs = baseline_red.green_problems(named, [row("test_x", "failure"), row("test_new", "failure")], 0, {})
         self.assertEqual(len(probs), 2, probs)
 
+    def test_green_problems_narrow_compares_only_what_the_baseline_measured(self):
+        """元の結末が変更に関わる試験だけで、今の回が全部の試験（narrow）の時: 元の結末に無い試験の赤と、それが理由の一式の終了コードで、
+        正しい修正を拒まない。元の結末に載った試験・名指し・also（前の単位が赤→緑にした試験）の赤は今までどおり拒む"""
+        named = ["test_a.py::TestA::test_x"]
+        base = {"test_a.TestA::test_old": "passed"}
+        cases = [row("test_x", "passed"), row("test_old", "passed"), row("test_far", "failure")]
+        self.assertEqual(baseline_red.green_problems(named, cases, 1, base, 0, narrow=True), [])
+        self.assertTrue(baseline_red.green_problems(named, cases, 1, base, 0), "narrow でなければ、元に無い赤と終了コードで拒む")
+        broke = [row("test_x", "passed"), row("test_old", "failure")]
+        self.assertTrue(baseline_red.green_problems(named, broke, 1, base, 0, narrow=True))
+        earlier = [row("test_x", "passed"), row("test_prev", "failure")]
+        self.assertEqual(baseline_red.green_problems(named, earlier, 1, base, 0, narrow=True), [])
+        self.assertTrue(baseline_red.green_problems(named, earlier, 1, base, 0, narrow=True, also=["test_a.py::TestA::test_prev"]))
+
 
 class MustPassCase(unittest.TestCase):
     def test_baseline_failure_is_not_asked(self):

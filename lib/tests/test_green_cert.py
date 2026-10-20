@@ -158,9 +158,9 @@ def case(name, outcome):
     return {"classname": "test_stats.TestStats", "name": name, "outcome": outcome}
 
 
-def classify(status="found", runs=(), cases=None, baseline=None, junit_steps=(), junit_unran=()):
+def classify(status="found", runs=(), cases=None, baseline=None, junit_steps=(), junit_unran=(), narrow=False):
     return green_cert.classify(material={"status": status}, runs=list(runs), cases=cases or [], baseline_cases=baseline,
-                               junit_steps=list(junit_steps), junit_unran=list(junit_unran))
+                               junit_steps=list(junit_steps), junit_unran=list(junit_unran), baseline_narrow=narrow)
 
 
 RED_UNIT = {"name": "unit", "exit": 1}
@@ -224,6 +224,19 @@ class ClassifyCase(unittest.TestCase):
 
     def test_case_absent_from_baseline_is_introduced(self):
         self.assertEqual(classify("found", [RED_UNIT], [case("test_new", "error")], [], ["unit"])[0], "introduced")
+
+    def test_narrow_baseline_does_not_call_an_unmeasured_red_introduced(self):
+        """元の結末が変更に関わる試験だけ（持ち主の決め related-tests-only）なら、元の結末に無い試験の赤は、直しのせいとも元からとも言えない。
+        元の結末が全部の試験なら、今までどおり元に無い赤は introduced"""
+        cases = [case("old", "passed"), case("outside", "failure")]
+        cause, summary = classify("found", [RED_UNIT], cases, [case("old", "passed")], ["unit"], narrow=True)
+        self.assertEqual(cause, "")
+        self.assertIn("比べる", summary)
+        self.assertEqual(classify("found", [RED_UNIT], cases, [case("old", "passed")], ["unit"], narrow=False)[0], "introduced")
+
+    def test_narrow_baseline_still_calls_a_measured_break_introduced(self):
+        cases = [case("old", "failure"), case("outside", "failure")]
+        self.assertEqual(classify("found", [RED_UNIT], cases, [case("old", "passed")], ["unit"], narrow=True)[0], "introduced")
 
     def test_inherited(self):
         cause, summary = classify("found", [RED_UNIT], [case("test_mean_of_three", "failure"), case("test_clamp_within_range", "passed")],
