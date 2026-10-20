@@ -497,7 +497,7 @@ def pushed_lines(gates: dict, taken=()) -> list:
     """「人が決めること」の頭に、無人の run が採った推しを 1 件 1 行（元 runreport._pushed_lines）"""
     import gatemarks
     import oneline
-    return [*(f"無人の run で推しを採って通した（承認ノード {at}）: {oneline.one_line(r.get('item') or '')}——"
+    return [*(f"無人の run で推しを採って通した（承認ノード {named(at)}）: {oneline.one_line(r.get('item') or '')}——"
               f"{gatemarks.RECOMMEND_WORDS.get(r.get('answer'), '')}（{r.get('answer')}）: {r.get('note')}（推す理由: {r.get('why')}）。"
               "違えば次の run の依頼で直す" for at, r in _pushed(gates)),
             *(f"無人の run で推しを採って答えた（{gatemarks.ASK_HEAD} {q.get('key')}）: 推し: {oneline.one_line(push)}——出どころ・depends の"
@@ -508,7 +508,7 @@ def pushed_lines(gates: dict, taken=()) -> list:
 def pushed_said(gates: dict, taken=()) -> str:
     got = _pushed(gates)
     where = "中身は「1. 人が決めること」のセクション"
-    said = [f"無人の run で推しを採って通した承認ノード: {'・'.join(dict.fromkeys(at for at, _ in got))}（推し {len(got)} 件。{where}）"] if got else []
+    said = [f"無人の run で推しを採って通した承認ノード: {'・'.join(dict.fromkeys(named(at) for at, _ in got))}（推し {len(got)} 件。{where}）"] if got else []
     if taken:
         said.append(f"無人の run で推しを採って答えた台帳の問い: {'・'.join(str(q.get('key')) for q, _, _ in taken)}（推し {len(taken)} 件。{where}）")
     return "。".join(said)
@@ -528,9 +528,20 @@ def script_fall_notes(values: dict) -> list:
     return out
 
 
+def node_names() -> dict:
+    """node の id → 人が読む言葉の表（nodenames.json。報告の最初の 3 行に出る名に、初見の読み手向けの訳を付ける）"""
+    return json.loads((pathlib.Path(__file__).parent / "nodenames.json").read_text(encoding="utf-8"))
+
+
+def named(at: str) -> str:
+    """node の id に人が読む言葉を前に付ける（「訳（id）」。表に無い id はそのまま）"""
+    plain = node_names().get(at)
+    return f"{plain}（{at}）" if plain else at
+
+
 def stop_words(stops: list) -> list:
     import stopby
-    return [f"{s['at']} が {s['word']}（{stopby.REASONS.get(str(s['word']).removeprefix(stopby.HEAD), '語の意味の記録が無い')}）" for s in stops]
+    return [f"{named(s['at'])} が {s['word']}（{stopby.REASONS.get(str(s['word']).removeprefix(stopby.HEAD), '語の意味の記録が無い')}）" for s in stops]
 
 
 def stopped_why(returns: dict, stops: list, final_reasons: list) -> list:
@@ -930,7 +941,7 @@ def stop_lines(returns: dict, gates: dict, stops: list) -> dict:
     """節「2. 止めたか」の line の行: line の止めの語・承認ノードの行・封じと置きの ok でない行（before）と、続きの切れ目（after）"""
     import oneline
     before = [f"メイングラフのノードの止め: {x}" for x in stop_words(stops)]
-    before += [f"承認ノード {at}: {gate_line(g)}" for at, g in gates.items()]
+    before += [f"承認ノード {named(at)}: {gate_line(g)}" for at, g in gates.items()]
     for rid in ("sealed-diff", "applied-diff"):
         m = returns.get(rid)
         if isinstance(m, dict) and m.get("ok") is not True:
