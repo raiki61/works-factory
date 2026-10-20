@@ -140,6 +140,10 @@ def launch(argv: list[str], user: dict[str, str], here: Path) -> int:
             place.write_provider_cap(Path(child["ARCHON_HOME"]), place.provider_cap(user))
         except ValueError as error:
             raise Stop(str(error)) from None
+        # 上限は置き場の設定として残り、渡さない起動も同じ置き場の上限の下で走る（Archon はリクエストのたびに読み直す）
+        if (effective := place.read_provider_cap(Path(child["ARCHON_HOME"]))) is not None:
+            print(f"{NAME}: claude の同時数の上限 {effective} が効いている（{Path(child['ARCHON_HOME']) / place.CAP_FILE}）",
+                  file=sys.stderr)
     if executing and not no_auth:
         check = subprocess.run([*auth, "check", *auth_user], env=user, stdout=subprocess.PIPE, text=True,
                                encoding="utf-8")

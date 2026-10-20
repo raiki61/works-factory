@@ -19,7 +19,7 @@
 - `asf`: `committed_here: false` は、ASF のグラフをこのリポジトリに入れないこと（字は写さず型だけ採る。`AGENTS.md` の E8）。
 - `ours`: 自分のグラフのフォルダ・Archon に読ませる pack の名（`works-factory`）・名の頭（`works-factory-`）・メイングラフの名。
 
-`bin/`（`bin/_lib/place.py`）は run の時に次を行う。Archon の家（`$ARCHON_HOME/workflows` など）には何も置かない。ただし利用者が環境変数 `WORKS_FACTORY_CLAUDE_CONCURRENCY` を渡した時だけ、隔離した家の `config.yaml` の `concurrency.providers.claude` に上限を書く（Archon はこの上限を家の `config.yaml` からだけ読み、run の層からは読まない。越える分を待たせるのは Archon。持ち主の決め `provider-cap-on-ask`）。渡さない起動は、工場が書いた印つきの `config.yaml` を消す。
+`bin/`（`bin/_lib/place.py`）は run の時に次を行う。Archon の家（`$ARCHON_HOME/workflows` など）には何も置かない。ただし利用者が環境変数 `WORKS_FACTORY_CLAUDE_CONCURRENCY` を渡した時だけ、隔離した家の `config.yaml` の `concurrency.providers.claude` の鍵だけを足すか書き換える（ほかの鍵・コメントは残す）（Archon はこの上限を家の `config.yaml` からだけ読み、run の層からは読まない。越える分を待たせるのは Archon。持ち主の決め `provider-cap-on-ask`）。上限は置き場の設定として残り（Archon はリクエストのたびに読み直す）、渡さない起動は `config.yaml` に何もしない。殻は起動のたびに、鍵が在ればその値を標準エラーに 1 行出す。
 
 1. Archon の源をその commit で 1 度だけ `<キャッシュ>/archon/<commit>/` に取り、`bun install --frozen-lockfile` で依存を入れる。bun が無ければ取る前に止まる。取り置いた源は使う前に照らす（HEAD がその commit・`git status` が空・`node_modules` が在る。ASF の `factory/consumer.py` の `verify_source` と同じ）。合わなければ消して取り直す案内で止まる。
 2. Archon は `bun <源>/packages/cli/src/cli.ts` で起こす（ASF の `factory/consumer.py` の `cli()` と同じ形）。

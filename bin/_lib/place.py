@@ -8,7 +8,7 @@
   pack の形にするのは、Archon が名前の script を pack のグラフの時だけグラフのフォルダの scripts/ から探し、
   pack の部品を <pack>/.shared/ から読むため（Archon の packages/workflows/src/script-discovery.ts）。
 
-Archon の家（$ARCHON_HOME）には、利用者が provider の同時数の上限を渡した時の $ARCHON_HOME/config.yaml（write_provider_cap）のほかは
+Archon の家（$ARCHON_HOME）には、利用者が provider の同時数の上限を渡した時の $ARCHON_HOME/config.yaml の上限の鍵（write_provider_cap）のほかは
 何も書かない（$ARCHON_HOME/workflows など）。工場が決める値は、
 run のノードに渡す環境変数（launcher.run_env）・AI ノードの群の別名（'@wf-<群>'）・使用枠の方針（QUOTA_POLICY）を新しい run に run 1 本ぶんの
 設定の層（run_config）で、既定の provider を Archon の環境変数（PROVIDER_ENV）で渡す。
@@ -44,8 +44,8 @@ QUOTA_POLICY = {"autoResumeOnQuotaReset": False}
 # 利用者が provider の同時数の上限を渡す環境変数（持ち主の決め provider-cap-on-ask）。provider は claude だけ（DEFAULT_PROVIDER）
 CAP_ENV = "WORKS_FACTORY_CLAUDE_CONCURRENCY"
 # Archon は provider の同時数の上限を $ARCHON_HOME/config.yaml の concurrency.providers.<provider> だけから読む（packages/core/src/config/
-# provider-concurrency.ts。run の層〔--config〕からは読まない）。工場が書いた印。無い config.yaml は利用者の物なので消さない
-CAP_MARK = f"# works-factory が {CAP_ENV} から書いた。渡さない起動は消す\n"
+# provider-concurrency.ts。run の層〔--config〕からは読まない）。リクエストのたびに読み直すので、置き場の設定として残る
+CAP_FILE = "config.yaml"
 
 Fetch = Callable[[str, str, Path], None]
 Install = Callable[[Path], None]
@@ -123,14 +123,104 @@ def provider_cap(env: Mapping[str, str]) -> int | None:
     return int(value)
 
 
+def _indent(line: str) -> int:
+    return len(line) - len(line.lstrip(" "))
+
+
+def _is_content(line: str) -> bool:
+    return bool(line.strip()) and not line.lstrip().startswith("#")
+
+
+def _child(lines: list[str], parent: int, key: str) -> tuple[int, int] | None:
+    """lines[parent] の下（親より深い字下げの塊）で、直下の鍵 key の行の位置と、その子の塊の終わり（最後の中身の行の次）を返す。
+    parent が -1 なら全体の最上位。無ければ None"""
+    base = _indent(lines[parent]) if parent >= 0 else -1
+    end, child_indent, found = parent + 1, None, None
+    for n in range(parent + 1, len(lines)):
+        if not _is_content(lines[n]):
+            continue
+        if _indent(lines[n]) <= base:
+            break
+        end = n + 1
+        child_indent = _indent(lines[n]) if child_indent is None else child_indent
+        if _indent(lines[n]) == child_indent and found is None and lines[n].split("#")[0].strip().split(":")[0] == key:
+            found = n
+    if found is None:
+        return None
+    return found, end
+
+
+def _block_end(lines: list[str], at: int) -> int:
+    base = _indent(lines[at])
+    end = at + 1
+    for n in range(at + 1, len(lines)):
+        if _is_content(lines[n]):
+            if _indent(lines[n]) <= base:
+                break
+            end = n + 1
+    return end
+
+
+def _plain_key(line: str, key: str) -> bool:
+    """line が値を持たない鍵 key の行（コメントは付いてよい）か"""
+    return line.split("#")[0].strip() == f"{key}:"
+
+
+def _locate(lines: list[str]) -> tuple[int | None, int | None, int | None]:
+    """config.yaml の行から concurrency・providers・claude の鍵の行の位置（無ければ None）。concurrency・providers が値を持つ形
+    （{…} など）なら ValueError"""
+    found = [None, None, None]
+    parent = -1
+    for slot, key in enumerate(("concurrency", "providers", DEFAULT_PROVIDER)):
+        hit = _child(lines, parent, key)
+        if hit is None:
+            break
+        at, _ = hit
+        if slot < 2 and not _plain_key(lines[at], key):
+            raise ValueError(f"{CAP_FILE} の {key}: が値を持つ形で、鍵だけを足せない。手で {DEFAULT_PROVIDER} の上限を書く")
+        found[slot] = at
+        parent = at
+    return found[0], found[1], found[2]
+
+
+def read_provider_cap(archon_home: Path) -> int | None:
+    """隔離した Archon の家の config.yaml に書いてある claude の同時数の上限。無い・読めない・整数でないなら None"""
+    try:
+        lines = (archon_home / CAP_FILE).read_text(encoding="utf-8").splitlines(keepends=True)
+        *_, at = _locate(lines)
+    except (OSError, ValueError):
+        return None
+    if at is None:
+        return None
+    value = lines[at].split("#")[0].split(":", 1)[1].strip()
+    return int(value) if value.isascii() and value.isdigit() and int(value) >= 1 else None
+
+
 def write_provider_cap(archon_home: Path, cap: int | None) -> None:
-    """隔離した Archon の家の config.yaml に claude の同時数の上限 cap を書く。cap が None なら、前の起動が工場の印つきで書いた物だけ消す
-    （待たせるのは Archon で、工場は列を持たない）"""
-    path = archon_home / "config.yaml"
-    if cap is not None:
-        path.write_text(f"{CAP_MARK}concurrency:\n  providers:\n    {DEFAULT_PROVIDER}: {cap}\n", encoding="utf-8")
-    elif path.is_file() and path.read_text(encoding="utf-8").startswith(CAP_MARK):
-        path.unlink()
+    """cap が整数なら、隔離した Archon の家の config.yaml の concurrency.providers.claude の鍵だけを足すか書き換える（ほかの鍵・コメントは
+    残す。ファイルが無ければその鍵だけで作る）。置き場の設定として残る。cap が None（渡していない）なら何もしない。待たせるのは Archon で、
+    工場は列を持たない。鍵が値を持つ形（concurrency: {…} など）で足せない時は ValueError"""
+    if cap is None:
+        return
+    path = archon_home / CAP_FILE
+    text = path.read_text(encoding="utf-8") if path.is_file() else ""
+    lines = text.splitlines(keepends=True)
+    if lines and not lines[-1].endswith("\n"):
+        lines[-1] += "\n"
+    top, providers, claude = _locate(lines)
+    if claude is not None:
+        lines[claude] = f"{' ' * _indent(lines[claude])}{DEFAULT_PROVIDER}: {cap}\n"
+    elif providers is not None:
+        at = _block_end(lines, providers)
+        lines[at:at] = [f"{' ' * (_indent(lines[providers]) + 2)}{DEFAULT_PROVIDER}: {cap}\n"]
+    elif top is not None:
+        at = _block_end(lines, top)
+        pad = " " * (_indent(lines[top]) + 2)
+        lines[at:at] = [f"{pad}providers:\n", f"{pad}  {DEFAULT_PROVIDER}: {cap}\n"]
+    else:
+        lines += ["concurrency:\n", "  providers:\n", f"    {DEFAULT_PROVIDER}: {cap}\n"]
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("".join(lines), encoding="utf-8")
 
 
 def git_fetch(repo: str, commit: str, dest: Path) -> None:

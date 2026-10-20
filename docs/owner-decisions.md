@@ -477,8 +477,8 @@
 
 - 持ち主の言葉: 「次に回すやつはどうぞ！」（2026-10-20。工場窓口が下の案を推した問いへの答え）
 - 推した案の中身: 同時に 1 本しか受けない API キーで回した実地の run（2026-10-19）で、並べた AI のノードが 429 で落ちた。工場は同時の数に何もせず、Archon の provider ごとの上限（Archon の家の `config.yaml` の `concurrency.providers.<provider>`）は、殻が Archon の家を run の置き場へ向けるので利用者の `~/.archon/config.yaml` から届かない。利用者が渡した時だけ上限を届け、待たせるのは Archon にする。
-- 決め: `no-queue` に 1 つだけ外しを足す。利用者が上限を渡した時だけ（環境変数 `WORKS_FACTORY_CLAUDE_CONCURRENCY`）、殻が隔離した Archon の家の `config.yaml` の `concurrency.providers.claude` に書き、Archon の provider の同時数の上限に届ける。越える分を空きまで待たせるのは Archon で、工場は列も錠も枝の数の上限も持たない。渡さない既定は今のまま（並べに上限を付けず、家に何も書かない）。
-- 当て方: `bin/_lib/launcher.py`（E15 の殻）。README の「同時の数が小さいキーを使う人へ」。
+- 決め: `no-queue` に 1 つだけ外しを足す。利用者が上限を渡した時だけ（環境変数 `WORKS_FACTORY_CLAUDE_CONCURRENCY`）、殻が隔離した Archon の家の `config.yaml` の `concurrency.providers.claude` の鍵だけを足すか書き換え（ほかの鍵・コメント・並びは残す）、Archon の provider の同時数の上限に届ける。越える分を空きまで待たせるのは Archon で、工場は列も錠も枝の数の上限も持たない。渡さない既定は今のまま（一度も渡さなければ、並べに上限を付けず、家に何も書かない）。
+- 当て方: `bin/_lib/launcher.py`（E15 の殻）と `bin/_lib/place.py`。上限は起動ごとの値でなく置き場の設定として残る（Archon の上限は置き場ごとに効き、走り中の run もリクエストのたびに読み直すため）。鍵だけを触る（利用者の tier・alias など、同じ `config.yaml` の設定を壊さない）。変数を渡さない起動は `config.yaml` に何もしない（消さない。ある起動が消すとほかの run の上限が外れるため）。殻は起動のたびに、鍵が在ればその値を標準エラーに 1 行出す。上限を外すには利用者が `config.yaml` の行を消す（外すための新しい値は足さない）。README の「同時の数が小さいキーを使う人へ」。
 
 ## 引き継いだ決め
 
