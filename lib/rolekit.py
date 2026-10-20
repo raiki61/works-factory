@@ -6,10 +6,8 @@
                   これを読むのが決まり。外れは、会話を継ぐ輪（fresh_context: false）の頭の節が前の周の受け付けの返りから拒否の 1 件
                   だけを渡す所（前の回の拒否は会話に残る）。会話を継ぐ輪でも全部を渡してよい（judge の仕様と再審の輪・eyes の R4。
                   resume で輪が 1 周目から回り直すと役は新しい会話で起きる）
-- write_rejects・reject_file・reject_file_or_blank・rejects_text_path・REJECT_LINE: rejects_text を置き場の rejects-<名>.md に書いて名指す（道具を持つ役。
-                  名指す 1 行が REJECT_LINE）
-- compose:        役に読ませる材料の組み立て: 空でない部分を空行 1 つで繋ぎ、拒否の理由のファイルが在れば 1 行目で REJECT_LINE で名指す
-- with_reject:    道具ゼロの役の指示書の頭に前の拒否の文を貼る（ファイルを名指さない。裁定 R44）
+- write_rejects・reject_file・reject_file_or_blank・rejects_text_path: rejects_text を置き場の rejects-<名>.md に書く（道具を持つ役が読む）。
+                  役に拒否を見せる頭書きの文は持たない（共通の断片 workflows/.shared/prompts/rejected.md）
 - accept_round:   受け付けの回の住処（返答を読む→take→拒否を控えに積む→GIVE_UP_AFTER 回目で諦める→最後の回かを答える）。呼び手は
                   口を引き、控えの名も回数も自分で持たない。方針 net（計画と事前審査の受け付け）は GIVE_UP_AFTER の代わりに、届かない
                   大きさの網 NET_AFTER 回目で諦める（届けば工場の不具合。NET_WHY）。take の返りの欄 ok・reason・give_up（1 回目から諦める）・count（false なら
@@ -129,13 +127,6 @@ def pointed_lang_line(raw, locate) -> str:
     return record_lang_line(path)
 
 
-REJECT_HEADING = "## 前の回の受け付けが拒んだ理由"
-
-
-REJECT_LINE = ("前の回までの返答は受け付けで拒まれた。これまでの拒否の理由の全部（古い順）がファイル {path} に在る。先に Read で"
-               "全部読み、前の回の拒否も含めてどの理由も満たす返答を丸ごと出し直せ（直した所だけを返すな）。")
-
-
 def rejects_text(reasons) -> str:
     """拒否の文の並び reasons（古い順）を、回の番号を付けて 1 つの文に（空の並びは空の字）"""
     reasons = [str(r).strip() for r in reasons]
@@ -160,14 +151,6 @@ def rejects_text_path(board, name: str) -> pathlib.Path:
     return pathlib.Path(board) / f"rejects-{safe_name(name)}.md"
 
 
-def compose(parts, *, reject_file: str = "") -> str:
-    """役に読ませる材料の組み立て（元 works/.shared/core/rolekit.py:168 の compose。AI を通さない）: 空でない部分を字のまま空行 1 つで
-    繋ぐ。reject_file（拒否の理由の全部のファイル）が在れば 1 行目でそのパスを REJECT_LINE で名指す（理由の文そのものは貼らない）。
-    同じ入力からは同じバイト"""
-    out = [REJECT_LINE.format(path=reject_file)] if reject_file else []
-    return "\n\n".join(out + [s for s in parts if s])
-
-
 def reject_file(board, name: str) -> str:
     """盤面の節でない受け付け name の拒否の控えの全部を write_rejects で書いたファイル（拒否が無ければ空の字）"""
     return write_rejects(board, name, rejected(board, name))
@@ -181,13 +164,6 @@ def reject_file_or_blank(board, name: str) -> str:
         return reject_file(board, name)
     except BoardGap:
         return ""
-
-
-def with_reject(prompt: str, reason: str) -> str:
-    """道具ゼロの役の指示書の頭に、前の拒否の文 reason（輪の全部なら rejects_text）を貼る（役はファイルを読めない。前の周の値の
-    差し込みで貼ると実行基盤が文の中の $… を置き換え直す。裁定 R44）"""
-    return (f"{REJECT_HEADING}\n\n前の回の返答は受け付けで拒まれた。下の理由のところを直した返答を丸ごと出し直せ"
-            f"（直した所だけを返すな）:\n\n```text\n{reason}\n```\n\n---\n\n{prompt}")
 
 
 # ---------------------------------------------------------------- 受け付け（出し直しの輪）

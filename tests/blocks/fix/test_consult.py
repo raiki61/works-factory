@@ -78,7 +78,7 @@ def put_asked(place, asks, pass_="first", node=NODE, items=ITEMS, unavailable=""
         asked = []
     doc = {"turns": turn, "turn_state": consult.ASKED, "rows": rows, "question_file": "", "session": None, "node": node, "items": items}
     jsonfile.write(consult.state_path(place, pass_), doc)
-    return doc, consult.question(items, asked) if asked else ""
+    return doc, consult.asks_text(items, asked) if asked else ""
 
 
 class Base(unittest.TestCase):
@@ -142,47 +142,46 @@ class ScreenCase(unittest.TestCase):
 
 class QuestionCase(unittest.TestCase):
     def test_own_out_of_scope_is_named_with_its_reason(self):
-        """指示書は、頼んだパスがあなた自身がこの項目の out_of_scope に書いた物だと言い、外した理由を字のまま引いて考え直させる"""
-        q = consult.question(ITEMS, [{"n": 1, "item": "3", "paths": ["works/README.md"], "tests": [], "why": WHY}])
-        sec = q[q.index("## 相談 1"):]
-        for w in ("works/README.md", "out_of_scope", OOS_WHY, "あなたがこの項目の out_of_scope", "考え直"):
+        """頼みの節は、頼んだパスがあなた自身がこの項目の out_of_scope に書いた物だと言い、外した理由を字のまま引く。考え直させる決まりの文は
+        md（prompts/parts/consult.md）が持つ"""
+        sec = consult.asks_text(ITEMS, [{"n": 1, "item": "3", "paths": ["works/README.md"], "tests": [], "why": WHY}])
+        for w in ("works/README.md", "out_of_scope", OOS_WHY, "あなたがこの項目の out_of_scope"):
             self.assertIn(w, sec)
+        self.assertNotIn("考え直", sec)
+        self.assertIn("reconsider whether the reason for the exclusion still holds",
+                      (BLOCK / "prompts" / "parts" / "consult.md").read_text(encoding="utf-8"))
 
     def test_other_item_out_of_scope_is_named(self):
-        q = consult.question(ITEMS, [{"n": 1, "item": "3", "paths": ["works/docs/flow.md"], "tests": [], "why": WHY}])
-        sec = q[q.index("## 相談 1"):]
+        sec = consult.asks_text(ITEMS, [{"n": 1, "item": "3", "paths": ["works/docs/flow.md"], "tests": [], "why": WHY}])
         for w in ("works/docs/flow.md", "項目 4 の out_of_scope", "works/docs/**", "文書は項目 4 では触らない"):
             self.assertIn(w, sec)
         self.assertNotIn("あなたがこの項目の out_of_scope", sec)
 
     def test_plain_ask_says_nothing_about_out_of_scope_hits(self):
-        q = consult.question(ITEMS, [{"n": 1, "item": "3", "paths": ["works/CHANGELOG.md"], "tests": [], "why": WHY}])
-        self.assertNotIn("当たる", q[q.index("## 相談 1"):])
+        q = consult.asks_text(ITEMS, [{"n": 1, "item": "3", "paths": ["works/CHANGELOG.md"], "tests": [], "why": WHY}])
+        self.assertNotIn("当たる", q)
 
 
 class AsksTextCase(unittest.TestCase):
-    """答えの役の指示の差し込み口 {asks}（consult.asks_text）: question の頼みごとの節だけで、決まりの文（QUESTION）と関所の頼みの
-    答え方の行は持たない（md の prompts/parts/consult.md が持つ）"""
+    """答えの役の指示の差し込み口 {asks}（consult.asks_text）: 頼みごとの節だけで、決まりの文と関所の頼みの答え方は持たない
+    （md の prompts/parts/consult.md が持つ）"""
 
     PLAIN = {"n": 1, "item": "3", "paths": ["works/README.md"], "tests": [], "why": WHY}
     GATE_ASK = {"n": 2, "item": "4", "paths": [], "tests": [], "why": "既存の集計を壊さないことを確かめよ", "origin": "gate"}
 
     def test_sections_are_the_question_sections_without_the_rules(self):
         text = consult.asks_text(ITEMS, [self.PLAIN])
-        q = consult.question(ITEMS, [self.PLAIN])
         self.assertTrue(text.startswith("## 相談 1: 項目 3"), text)
-        self.assertIn(text, q, "頼みの節は question の節と同じ字")
         self.assertNotIn("# 範囲の相談（修正の段から）", text)
         self.assertNotIn("答えは次の JSON だけ", text)
         for w in ("works/README.md", OOS_WHY, "あなたがこの項目の out_of_scope", WHY):
             self.assertIn(w, text)
 
-    def test_gate_ask_drops_the_answer_how_line(self):
+    def test_gate_ask_has_no_answer_how_line(self):
         text = consult.asks_text(ITEMS, [self.PLAIN, self.GATE_ASK])
         self.assertIn("## 相談 2: 項目 4", text)
         self.assertIn("既存の集計を壊さないことを確かめよ", text)
-        self.assertNotIn(consult.ANSWER_HOW, text, "関所の頼みの答え方は md の段落 gate が持つ")
-        self.assertIn(consult.ANSWER_HOW, consult.question(ITEMS, [self.GATE_ASK]), "question は今のまま答え方を持つ")
+        self.assertNotIn("- 答え方:", text, "関所の頼みの答え方は md の段落 gate が持つ")
         self.assertFalse(text.endswith("\n"))
 
 
@@ -393,7 +392,7 @@ class FlowCase(Base):
         self.assertEqual(asked["granted_new_tests"], [{"id": tid, "red_kind": "red"}])
         (agreed,) = conflict.agreed(self.b)
         self.assertEqual(agreed["granted_new_tests"], [{"id": tid, "red_kind": "red"}])
-        self.assertIn("受け付けが見つけたはみ出し", pathlib.Path(got["answer_file"]).read_text(encoding="utf-8"))
+        self.assertIn("The acceptance found a change outside the scope", pathlib.Path(got["answer_file"]).read_text(encoding="utf-8"))
         # 残りが 2 未満なら積まない（積む周と相談の周の 2 周が要る）
         consult.state_path(self.b, "first").write_text(json.dumps({"turns": consult.BUDGET - 1}), encoding="utf-8")
         consult.queue(self.b, "first", [row])
@@ -451,7 +450,7 @@ class FlowCase(Base):
         (agreed,) = conflict.agreed(self.b)
         self.assertEqual(agreed["granted_paths"], ["works/README.md", "works/docs/flow.md"])
         text = pathlib.Path(got["answer_file"]).read_text(encoding="utf-8")
-        self.assertIn("out_of_scope を外した", text)
+        self.assertIn("out_of_scope was lifted", text)
 
     def test_passes_are_separate(self):
         self.ask(reply(ask_row()), pass_="first")

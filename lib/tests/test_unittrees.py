@@ -11,8 +11,7 @@
 - marked（dict）を渡すと、同じ行の食い違いも印つきで当たり（印を書いたパスとその印の長さを marked に積む。印の長さは中身の
   どの行とも重ならない長さを 7 から選ぶ）、union の中の挿しだけの食い違いは合わせて印を書かない。markers_left はそのパスの長さの
   印の頭か区切りの行が 1 行でも残るファイルと、長さの値が正しくないパスを引く。union の挿しだけの読みも同じ長さで読む
-- 合わせ役の指示書（fix の prompts/parts/clash.md）は印の両側を MARK_LABELS の名のまま名指し、印の長さと拒まれる行の決まりは brief の
-  markers・marker_rule を指す
+- 合わせ役の指示書（fix の prompts/parts/clash.md）は印の両側を MARK_LABELS の名のまま名指し、印の長さ（brief の markers）は {marker_size} として md の clash.md に渡り、拒まれる行の決まりも clash.md が持つ
 - tests_unique: 合わせた中身に同じ名のテストの定義が 2 つ在れば合わせない。patch_names: 差分の行先のパス
 """
 import pathlib
@@ -307,7 +306,7 @@ class Checks(unittest.TestCase):
     def test_clash_prompt_points_to_the_marker_fields_of_the_brief(self):
         rules = CLASH_PART.read_text(encoding="utf-8")
         self.assertIn("`markers`", rules)
-        self.assertIn("`marker_rule`", rules)
+        self.assertIn("{marker_size}", rules)
         self.assertNotIn("`=======`", rules)
 
 

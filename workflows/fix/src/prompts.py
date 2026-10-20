@@ -18,8 +18,10 @@ import planrange  # lib/
 import rolekit    # lib/
 import seat       # lib/
 import spseam     # lib/
+import unittrees  # lib/
 
 from src import board, files, rules, runvals
+from src.rulings import write as write_rulings
 
 EMPTY = "(empty)"
 BLOCK = pathlib.Path(__file__).resolve().parents[1]
@@ -60,15 +62,8 @@ def _rejection(place, name: str) -> str:
 
 
 def _libdocs_rows(text: str) -> str:
-    """libdocs.section の本文から見出し（TITLE）と頭の文（HEAD）を除いた行"""
-    import libdocs
-    lines = text.split("\n")
-    if lines and lines[0] == libdocs.TITLE:
-        lines = lines[1:]
-    body = "\n".join(lines).strip("\n")
-    if body.startswith(libdocs.HEAD):
-        body = body[len(libdocs.HEAD):]
-    return body.strip("\n")
+    """libdocs.section は材料の行だけを返す（見出しと頭の文は md が持つ）"""
+    return text.strip("\n")
 
 
 def _kinds_when(kinds, role: str) -> dict:
@@ -96,7 +91,7 @@ def fixer_values(place, repo, pass_: str, values: dict, *, owed, items=None, sou
              "judgment_file open_units plan_file summary_file notes_file budget draft check_cmd ripple_file libdocs_rows g1_items "
              "seat_file seat_body unattended overlay_file first_prompt answer_file left lang").split()
     vals = {k: "" for k in slots}
-    when = {k: False for k in ("rejected rulings_first ruled_reply briefs faces scope tests tests_how rules ask ask_ripple libdocs g1 "
+    when = {k: False for k in ("rejected rulings_first ruled_reply briefs faces scope tests tests_new tests_tail frozen_files frozen_verified frozen_unruled tests_how rules ask ask_ripple libdocs g1 "
                                "seat_one resume queued overflow_answer conflict docs prompts_kind config code evidence where_fixer where_tdd where_rework").split()}
     when["conflict"] = True
     start_vals, start_when = _starts(values)
@@ -114,12 +109,12 @@ def fixer_values(place, repo, pass_: str, values: dict, *, owed, items=None, sou
         when["queued"] = True
         return vals, when, {"iteration": max(1, rules.iteration_next(ledger) - 1), "kinds": None, "ledger": ledger}
     n = rules.iteration_next(ledger)
-    when.update(start_when, rules=True, tests=True)   # テストの節は修正案の有無によらずいつも載る
+    when.update(start_when, rules=True, tests=True, tests_tail=True)   # テストの節は修正案の有無によらずいつも載る
     rejects = rolekit.rejected(place, ACCEPT[pass_])
     if pass_ == "ruled" and n == 1:
         rulings = place / conflict.RULINGS_FILE
         if not rulings.is_file():
-            rulings = conflict.write_rulings(place)
+            rulings = write_rulings(place)
         vals["rulings_file"] = str(rulings)
         when["rulings_first"] = True
         rejects = []
@@ -140,6 +135,10 @@ def fixer_values(place, repo, pass_: str, values: dict, *, owed, items=None, sou
     vals["scope_rows"] = rules.scope_rows(got_scope)
     vals["tests_rows"] = rules.tests_rows(got_scope, edits, frozen)
     when["scope"] = got_scope is not None
+    when["tests_new"] = got_scope is not None
+    when["frozen_files"] = bool((frozen or {}).get("files"))
+    when["frozen_verified"] = bool(when["frozen_files"] and (frozen or {}).get("verified"))
+    when["frozen_unruled"] = bool(when["frozen_files"] and (frozen or {}).get("unruled"))
     vals["tests_how"] = board.tests_how_text(place)
     when["tests_how"] = bool(vals["tests_how"])
     for key in ("judgment_file", "open_units", "plan_file", "summary_file", "notes_file"):
@@ -190,7 +189,7 @@ def fixer(place, repo, pass_: str, values: dict, **kw) -> dict:
 def g1_files(place, values: dict, repo, owed: list[str], briefs: list, config: str = "") -> list[dict]:
     """修正役が起こす下請けのファイルを、項目ごとに place に 2 つ書き（prompt.render_part。名は今のまま g1-impl-<n>.md・g1-review-<n>.md）、
     項目の順の [{item, impl_file, review_file, base, patch}] を返す（今の fixrules.g1_values）。実装役は implementer の型
-    （[BRIEF_FILE] はその項目の brief、[task name] はその項目の直す義務の単位、[REPORT_FILE] は rules.G1_IMPL_REPORT）、審査役は
+    （[BRIEF_FILE] はその項目の brief、[task name] はその項目の直す義務の単位、[REPORT_FILE] は md の g1-impl-report）、審査役は
     task-review の型（[BASE_SHA] は修正前の版、[DIFF_FILE] は place の g1-<n>.patch。型の <base>..<head> は <base> に直す）"""
     place = pathlib.Path(place)
     common = rules.implementer_values(place, values, repo, owed, briefs)
@@ -200,7 +199,7 @@ def g1_files(place, values: dict, repo, owed: list[str], briefs: list, config: s
         impl, review = place / rules.G1_IMPL.format(n=n), place / rules.G1_REVIEW.format(n=n)
         patch = str(place / rules.G1_PATCH_FILE.format(n=n))
         template = seat.fill("implementer", {**common, "[task name]": task, "[BRIEF_FILE]": brief,
-                                              "[REPORT_FILE]": rules.G1_IMPL_REPORT})
+                                              "[REPORT_FILE]": prompt.render_part("g1-impl-report", {}).strip()})
         impl.write_text(prompt.render_part("g1-impl", {"template": template.rstrip("\n"), "check_cmd": _check_cmd(config)},
                                    {"spawns": False, "ask": bool(config)}), encoding="utf-8")
         rv = rules.review_values(brief, values, base, patch)
@@ -335,7 +334,8 @@ def clash_values(place, pass_: str, accept: str, brief_file: str, patch_file: st
     v = runvals.read(place)
     start_vals, start_when = _starts({"policy_path": v["policy"], "request_file": v["request_file"]})
     rejection = _rejection(place, accept)
-    vals = {**start_vals, "rejection": rejection, "brief_file": brief_file, "patch_file": patch_file, "lang": prompt.lang(v["lang"])}
+    vals = {**start_vals, "rejection": rejection, "brief_file": brief_file, "patch_file": patch_file,
+            "marker_size": unittrees.DEFAULT_MARKER_SIZE, "lang": prompt.lang(v["lang"])}
     return vals, {**start_when, "rejected": bool(rejection), "first": pass_ == "first", "ruled": pass_ == "ruled"}
 
 

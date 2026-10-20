@@ -31,14 +31,14 @@ from src import files, marks, material, steps, view
 
 REVIEW_NODE = files.REVIEW_NODE
 # 受け付けの拒みの頭（今の lib/planblk.py:83-98 の字）
-RECOMMEND_REJECT = (f"承認ノードの項目の行の推し（{gatemarks.RECOMMEND}）の形が崩れている（直して出し直せ）。"
+RECOMMEND_REJECT = (f"承認ノードの項目の行の推し（{gatemarks.RECOMMEND}）の形が崩れている。"
                     f"書くなら {gatemarks.RECOMMEND_SHAPE} の形で:")
-RESOLVED_REJECT = "前の往復の答えの要る穴の行き先が書かれていない（下の行を全部直して出し直せ）:"
-FACE_REJECT = "穴の行に誤りが在る（下の行を全部直して出し直せ）:"
-TREE_REJECT = "項目ごとの審査の答え（下請けの答えのファイル・束ね役の items）に欠けか誤りが在る（下の行を全部直して出し直せ）:"
+RESOLVED_REJECT = "前の往復の答えの要る穴の行き先が書かれていない:"
+FACE_REJECT = "穴の行に誤りが在る:"
+TREE_REJECT = "項目ごとの審査の答え（下請けの答えのファイル・束ね役の items）に欠けか誤りが在る:"
 READONLY_MOVED = "読むだけの役が作業ツリーを変えた: "
 NO_TREE = "役を起こす前の作業ツリーの控え {name} が無い（支度のノードが走っていない）"
-DESIGN_QUOTE_REJECT = ("独立設計の引用か design_map に誤りが在る（下の行を全部直して出し直せ。「」は独立設計と案の行の引用だけに使い、"
+DESIGN_QUOTE_REJECT = ("独立設計の引用か design_map に誤りが在る（「」は独立設計と案の行の引用だけに使い、"
                        "ほかの引用は『』か `…` で書く）:")
 FENCES_TWICE = "faces[{j}]（{key}）: fences に同じ語が 2 つ（{words}）"
 GIVEN_UP_FACES = "事前審査の受け付けが諦めた: "   # 今の boardview.GIVEN_UP_FACES

@@ -1,6 +1,6 @@
 """修正前の承認ノードで通した行と、R4 の問いの行（docs/design/r4.md の 1.5）。lib/eyeverdict.py の写し（_human_passed・
 carried_section と declared_section の行の部分・R4_ROWS・_r4_rows・r4_gate_items・passed_by・gate_passes・R4_REJECT・R4_GAVE_UP）。
-R4_REJECT の尾だけは元と違う（docs/design/r4.md の 9 の 15）。
+R4_REJECT の尾（直し方の段落）は元と違い prompts/parts/rejection-fixes.md が持つ（docs/design/r4.md の 9 の 15）。
 見出しと頼みの文（gatemarks.CARRIED_HEAD・CARRIED_ASK、eyeverdict.DECLARED_HEAD・DECLARED_ASK）は写さず、prompts/r4-scope.md が持つ。
 """
 import answer      # lib/
@@ -10,9 +10,7 @@ import policy      # lib/
 # 元 .shared/core/graphloops/rules/review-loop.py:4103 の R4_ROWS（種類・R4 の返りの欄・行の頭）
 R4_ROWS = (("regression", "lost", "R4 が BASE から消えたと見た能力: "),
            (policy.POLICY_KIND, "policy_conflicts", "R4 が見た人の方針とのぶつかり: "))
-R4_REJECT = (f"policy_conflicts の次の行は{policy.RECORDED_TERM}のどの行も名指さない。{policy.RECORDED_REF}の行の名指しを字のまま"
-             "写して書き直すか、一覧に無いコードのコメント・docstring・テストの説明文（対象の文で、方針ではない）なら policy_conflicts "
-             "から外せ。下の行を全部直して、policy_conflicts を丸ごと（直さない行も含めて）出し直せ:")
+R4_REJECT = f"policy_conflicts の次の行は{policy.RECORDED_TERM}のどの行も名指さない:"
 R4_GAVE_UP = "（R4 の方針とのぶつかりの名指しが受け付けを通らなかったので、名指さない行も人に聞く: {why}）"
 
 

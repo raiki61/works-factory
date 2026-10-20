@@ -117,13 +117,11 @@ def lens_gap(skills: list, reply: dict) -> tuple | None:
     missing = [e["skill"] for e in skills if e.get("required", True) and (rows.get(e["skill"]) or {}).get("invoked") is not True]
     if not missing:
         return None
-    errs = [f"'{s}' は必須のレンズなのに invoked が true でない——必須のレンズを起こした行だけを受け付ける。/ で始まるレンズは Skill で、"
-            "<plugin>:<役> は定義の置き場を Read で読ませた汎用の子（Agent）で起こし直せ"
-            + ("（simplify_carried: true の持ち越しはこの run では受けない——1 run は 1 周で、前の周の版が無い）" if s == SIMPLIFY_LENS else "")
+    errs = [f"'{s}' は必須のレンズなのに invoked が true でない"
+            + ("（simplify_carried: true の持ち越しはこの run では受けない）" if s == SIMPLIFY_LENS else "")
             for s in missing]
     if _status(reply) == "awaiting_human":
-        errs.append("必須のレンズが起きていない返答は material を awaiting_human にできない——起こし直して invoked: true を書け"
-                    "（拒みが上限に届けば人に渡る）")
+        errs.append("必須のレンズが起きていない返答が material を awaiting_human にした")
     installed = installed_plugins()
     absent = sorted({s.split(":", 1)[0] for s in missing if ":" in s and not s.startswith("/")} - installed) \
         if installed is not None else []
@@ -144,20 +142,16 @@ def covers_lenses(skills: list, reply: dict) -> str | None:
     for i, row in enumerate(rows):
         name = row.get("skill", "")
         if name in seen:
-            errs.append(f"findings に同じ skill の行が 2 本: {name}（1 本のレンズは 1 行にまとめろ）")
+            errs.append(f"findings に同じ skill の行が 2 本: {name}")
         seen[name] = row
         if name not in declared:
-            errs.append(f"findings[{i}] の skill '{name}' は宣言に無い——正本は宣言のレンズ（{declared}）。"
-                        "役が足した名は数えられない")
+            errs.append(f"findings[{i}] の skill '{name}' は宣言のレンズ（{declared}）に無い")
     for name in declared:
         row = seen.get(name)
         if row is None:
-            errs.append(f"宣言した '{name}' の行が findings に無い——起こしたなら items を、起こしていない・"
-                        "非該当なら items を空にして failed に理由を書け。**行を省くな**（省けるなら、"
-                        "未起動が所見ゼロと同じ形で通っていた元の穴に戻る）")
+            errs.append(f"宣言した '{name}' の行が findings に無い")
         elif not row.get("items") and not (row.get("failed") or "").strip():
-            errs.append(f"'{name}' の行が items も failed も持たない——『起こして 0 件』なら failed に"
-                        "『起こしたが所見なし』と何を見たかを書け。空の行は『起こしていない』と区別できない")
+            errs.append(f"'{name}' の行が items も failed も持たない")
     awaiting = _status(reply) == "awaiting_human"
     for e in skills:
         row = seen.get(e["skill"])
@@ -165,6 +159,5 @@ def covers_lenses(skills: list, reply: dict) -> str | None:
             continue
         if row.get("invoked") is not True:
             errs.append(f"'{e['skill']}' は条件 {e['applies_cond']} が真の周（{e.get('applies_why', '評価の値が無いので当てる側に倒した')}）"
-                        "なのに invoked が true でない——起こして invoked: true を書け。呼び出しが落ちたなら failed に理由を書き、"
-                        "material を awaiting_human にせよ")
+                        "なのに invoked が true でない")
     return ("宣言したレンズと findings の行が合わない:\n" + "\n".join("  - " + e for e in errs)) if errs else None

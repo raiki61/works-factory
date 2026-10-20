@@ -89,10 +89,14 @@ class FlowCase(unittest.TestCase):
         got = self.prep()["prompt"]
         self.assertIn("You are the local-review role.", got)
         self.assertNotIn("Why your previous answer was rejected", got)
+        self.assertNotIn("How to fix the rejections of the lens rows", got)
         refused = self.accept(refused_na())
         self.assertEqual((refused["ok"], refused["done"]), (False, False))
         self.assertIn("『条件に当たらない』を名乗れない", refused["reason"])
-        self.assertTrue(self.prep()["prompt"].startswith("## Why your previous answer was rejected"))
+        again = self.prep()["prompt"]
+        self.assertTrue(again.startswith("## Why your previous answer was rejected"))
+        self.assertIn("How to fix the rejections of the lens rows", again)
+        self.assertIn("A row with neither `items` nor `failed` cannot be told from a lens that was not started.", again)
         self.assertEqual(self.accept(reply(rows(code_review=[FOUND]))), {"ok": True, "done": True, "reason": ""})
         fin = self.finish()
         self.assertEqual((fin["ok"], fin["status"], fin["reason"]), (True, "ran", ""))
@@ -111,7 +115,7 @@ class FlowCase(unittest.TestCase):
         hunter = "pr-review-toolkit:silent-failure-hunter"
         cases = ((full, ""),
                  ([r for r in full if r["skill"] != "/security-review"], "宣言した '/security-review' の行が findings に無い"),
-                 ([*full, {**full[1], "skill": "my:lens"}], "findings[7] の skill 'my:lens' は宣言に無い——正本は宣言のレンズ"),
+                 ([*full, {**full[1], "skill": "my:lens"}], "findings[7] の skill 'my:lens' は宣言のレンズ（"),
                  ([*full, full[1]], "findings に同じ skill の行が 2 本: pr-review-toolkit:code-reviewer"),
                  ([*[r for r in full if r["skill"] != hunter], {"skill": hunter, "items": [], "invoked": True, "failed": ""}],
                   f"'{hunter}' の行が items も failed も持たない"))
@@ -147,7 +151,7 @@ class FlowCase(unittest.TestCase):
                 self.assertFalse(got["ok"])
                 self.assertFalse(got["done"], "プラグインが在れば出し直させる")
                 self.assertIn("'pr-review-toolkit:code-reviewer' は必須のレンズ", got["reason"])
-                self.assertEqual("awaiting_human にできない" in got["reason"], status == "awaiting_human")
+                self.assertEqual("awaiting_human にした" in got["reason"], status == "awaiting_human")
         vp = kit.load(NAME, "viewpoint")
         self.assertEqual(vp.materialkit.rolekit.given_up_reason(self.run.artifacts, NAME), "")
 

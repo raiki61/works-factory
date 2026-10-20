@@ -492,10 +492,10 @@ class TestTestEdits(FixGatesCase):
         (self.board / conflict.FILE).write_text(json.dumps({"items": rows}, ensure_ascii=False), encoding="utf-8")
 
     def pasted(self, pass_: str, label: str) -> set:
-        """修正役の指示書の節（planrange.tests_text）の label で始まる行のバッククオートの名"""
-        text = planrange.tests_text(None, conflict.edit_permits(self.board, pass_), None)
+        """修正役の指示の行（fixrules.tests_rows）の label で始まる行のバッククオートの名"""
+        text = fixrules.tests_rows(None, conflict.edit_permits(self.board, pass_), None)
         (line,) = [ln for ln in text.splitlines() if ln.startswith(f"- {label}")]
-        return set(re.findall(r"`([^`]+)`", line.split("）: ", 1)[1]))
+        return set(re.findall(r"`([^`]+)`", re.split(r"）?: ", line, maxsplit=1)[1]))
 
     def test_pasted_edit_permits_are_what_test_edits_lets_through(self):
         """指示書に貼る名指しと範囲は、事後の関門が通す物と同じ値（conflict.edit_permits）。片方だけ変えれば赤になる"""
@@ -2223,7 +2223,7 @@ class PlanrangeSeamCase(unittest.TestCase):
 
 
 class ScopeTextSeamCase(SeamTemp):
-    """#570: 役の指示書に貼る範囲の節（planrange.scope_text）は、受け付けが照らす値（planrange.scope）と同じ関数から引く。貼った
+    """#570: 役の指示に貼る範囲の行（rules.scope_rows）は、受け付けが照らす値（planrange.scope）と同じ関数から引く。貼った
     具体のパスは照らしが通し、貼っていないパスと out_of_scope は拒む。引数を変えれば節と照らしが揃って動く"""
 
     ITEMS = PlanrangeSeamCase.ITEMS
@@ -2239,7 +2239,7 @@ class ScopeTextSeamCase(SeamTemp):
 
     def test_refix_scope_text_lists_what_check_paths_lets_through(self):
         import planrange as pr
-        text = pr.scope_text(pr.scope(self.place, items=self.ITEMS, ruled=True)[0])
+        text = self.m.rules.scope_rows(pr.scope(self.place, items=self.ITEMS, ruled=True)[0])
         for path in ("stats.py", "docs/x.md", "conf.ini", "vendored/**"):
             self.assertIn(f"`{path}`", text)
         self.assertIn("外の写し", text)
@@ -2248,22 +2248,22 @@ class ScopeTextSeamCase(SeamTemp):
         for path in ("vendored/x.py", "other.py"):
             self.assertTrue(pr.check_paths(self.place, [path], items=self.ITEMS, ruled=True)[0], path)
         self.assertNotIn("other.py", text)
-        loose = pr.scope_text(pr.scope(self.place, items=self.ITEMS, ruled=False)[0])
+        loose = self.m.rules.scope_rows(pr.scope(self.place, items=self.ITEMS, ruled=False)[0])
         self.assertNotIn("conf.ini", loose, "裁定の前は直す裁定のパスを貼らない")
         self.assertTrue(pr.check_paths(self.place, ["conf.ini"], items=self.ITEMS, ruled=False)[0], "照らしも通さない")
-        self.assertEqual(pr.scope_text(pr.scope(self.place, items=None, ruled=True)[0]), "", "照らさない run は節を置かない")
+        self.assertEqual(self.m.rules.scope_rows(pr.scope(self.place, items=None, ruled=True)[0]), "", "照らさない run は節を置かない")
 
     def test_fix_scope_text_lists_what_planscope_lets_through(self):
         import planrange as pr
         planscope = self.m.scope
-        text = pr.scope_text(pr.fix_scope(self.place, "first", items=self.ITEMS)[0])
+        text = self.m.rules.scope_rows(pr.fix_scope(self.place, "first", items=self.ITEMS)[0])
         self.assertIn("`docs/x.md`", text)
         self.assertNotIn("conf.ini", text, "段 first は直す裁定のパスを許さない")
         lines, rec = planscope.check([], self.place, self.repo, self.rev, ["docs/x.md"], pass_="first", items=self.ITEMS)
         self.assertEqual((lines, rec.get("checked", True)), ([], True))
         lines, _ = planscope.check([], self.place, self.repo, self.rev, ["conf.ini"], pass_="first", items=self.ITEMS)
         self.assertTrue(any("conf.ini" in x for x in lines), lines)
-        self.assertIn("`conf.ini`", pr.scope_text(pr.fix_scope(self.place, "ruled", items=self.ITEMS)[0]))
+        self.assertIn("`conf.ini`", self.m.rules.scope_rows(pr.fix_scope(self.place, "ruled", items=self.ITEMS)[0]))
         self.assertEqual(planscope.check([], self.place, self.repo, self.rev, ["conf.ini"], pass_="ruled", items=self.ITEMS)[0], [])
 
     def test_ruled_paths_waive_the_name_check_after_ruling(self):
@@ -2277,9 +2277,8 @@ class ScopeTextSeamCase(SeamTemp):
         lines, _ = planscope.check(rows, self.place, self.repo, self.rev, ["app.ini", "conf.ini"], pass_="ruled", items=items)
         self.assertEqual(lines, [])
 
-    def test_each_stage_pastes_the_out_of_scope_rule_its_check_applies(self):
-        """修正の段は申告した単位の項目が明示に許したパスをその項目の out_of_scope だけで照らし、手直しの段は全部の項目で照らす。
-        節の決まりの文は段ごとに照らしと同じ決まりを言う"""
+    def test_each_stage_applies_its_out_of_scope_rule(self):
+        """修正の段は申告した単位の項目が明示に許したパスをその項目の out_of_scope だけで照らし、手直しの段は全部の項目で照らす"""
         import planrange as pr
         planscope = self.m.scope
         items = [{"item": 1, "unit_keys": [KEY_A], "allowed_paths": ["shared/x.py"], "tests": [], "rewrite_tests": [],
@@ -2289,16 +2288,10 @@ class ScopeTextSeamCase(SeamTemp):
         lines, _ = planscope.problems(items, [{"unit_key": KEY_A, "files": ["shared/x.py"]}],
                                       {"shared/x.py": ("A = 1\n", "A = 2\n")})
         self.assertFalse([x for x in lines if "shared/x.py" in x], lines)
-        fix = pr.scope_text(pr.fix_scope(self.place, "first", items=items)[0])
-        self.assertIn(pr.OOS_MINE, fix)
-        self.assertNotIn(pr.OOS_ANY, fix)
         self.assertTrue(pr.outside(items, ["shared/x.py"]), "手直しの段は別の項目の out_of_scope でも拒む")
-        refix = pr.scope_text(pr.scope(self.place, items=items, ruled=True)[0])
-        self.assertIn(pr.OOS_ANY, refix)
-        self.assertNotIn(pr.OOS_MINE, refix)
 
     def test_tests_text_lists_the_new_tests_planscope_lets_through(self):
-        """#603: 修正役の指示書に貼る足してよい新しいテスト（planrange.tests_text）は、受け付けが照らす項目の tests（planrange.test_ids）
+        """#603: 修正役の指示に貼る足してよい新しいテスト（rules.tests_rows）は、受け付けが照らす項目の tests（planrange.test_ids）
         と同じ値。範囲の相談で許した新しいテストは、節にも照らしにも揃って入る"""
         import conflict
         import planrange as pr
@@ -2311,7 +2304,7 @@ class ScopeTextSeamCase(SeamTemp):
 
         def pasted_and_rejected():
             got = pr.fix_scope(self.place, "first", items=items)[0]
-            text = pr.tests_text(got, conflict.edit_permits(self.place, "first"), None)
+            text = self.m.rules.tests_rows(got, conflict.edit_permits(self.place, "first"), None)
             lines, _ = planscope.problems(got["items"], rows, changes)
             return text, [x for x in lines if "どの項目の tests にも無い" in x]
 
@@ -2586,7 +2579,7 @@ class FixAcceptSeamCase(SeamTemp):
     def test_reject_text_follows_the_check_order(self):
         found = [("copy", "数えが合わない"), ("writes", "記録が無い"), ("writes", "記録が無い"), ("duplicate", "a")]
         text = self.b.fix_reject_text(found)
-        self.assertTrue(text.startswith(self.b.FIX_REJECT_HEAD))
+        self.assertTrue(text.startswith("## "), "決まった頭の文は md が持ち、本文は確かめの見出しから始まる")
         self.assertLess(text.index("確かめ writes・1 件"), text.index("確かめ duplicate"))
         self.assertLess(text.index("確かめ duplicate"), text.index("確かめ copy"))
         self.assertEqual(self.b.fix_reject_rows(found), [("writes", "記録が無い"), ("duplicate", "a"), ("copy", "数えが合わない")])
@@ -3047,7 +3040,7 @@ class FixAcceptSeamCase(SeamTemp):
         conflict.park(self.place, [{"unit_key": R_CLAMP, "between": [], "why_both_cannot_hold": "上限を超えた値の扱いを人が決める",
                                     "which_is_right": conflict.UNKNOWN, "kind": conflict.NEEDS_CONTEXT}],
                       source=conflict.FIX_SOURCE, ruling={"decision": conflict.ASK, "text": "人が決める", "limits": [], "by": "t"})
-        conflict.write_rulings(self.place)
+        self.b.write_rulings(self.place)
         return self.b.fix_duty(self.place, [R_MEAN, R_CLAMP])[1][R_CLAMP]
 
     def _held_turns(self, held_files: dict):

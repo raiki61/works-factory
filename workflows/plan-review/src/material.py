@@ -254,9 +254,8 @@ def lib_section(b, repo, shared=None) -> str:
     judgment = pathlib.Path(b.dir) / files.JUDGMENT
     files_, why = libdocs.unit_files(repo, str(judgment)) if judgment.is_file() else ([], f"{files.JUDGMENT} が無い")
     text = libdocs.section(pathlib.Path(b.dir) / files.LIBDOCS, repo, files_, shared=shared)
-    title = str(libdocs.TITLE)
-    body = text[len(title):].lstrip("\n") if text.startswith(title) else text
-    return f"{MAT_HEADS['libdocs']}\n\n{body}" + (f"\n{LABELS['unit_files'].format(why=why)}" if why else "")
+    rows = text + (f"\n{LABELS['unit_files'].format(why=why)}" if why else "")
+    return f"{MAT_HEADS['libdocs']}\n\n{prompt.render_part('lib-docs', {'rows': rows}).strip()}"
 
 
 def deviations_section(b, place: pathlib.Path) -> str:

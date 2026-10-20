@@ -35,8 +35,7 @@ def _count_in_version(i, row, cite, rev, probed, errs):
     if hits is None:
         raise Reject(f"{HEAD}指摘の根拠を数え直せない（git grep -c の出力が `…:数` の形でない: {got.splitlines()[:1]}）")
     if hits == 0:
-        errs.append(f"findings[{i}]: '{cite[:40]}' が現物に 1 件も無い"
-                    "——現物に無い字列は受け取らない（現物を開いて、在る字列で出し直せ）")
+        errs.append(f"findings[{i}]: '{cite[:40]}' が現物に 1 件も無い")
     elif row.get("hits") != hits:
         errs.append(f"findings[{i}]: '{cite[:40]}' の件数の申告 {row.get('hits')} が数え直し {hits} と違う")
 
@@ -48,19 +47,17 @@ def _errors(rows, rev) -> list:
     probed, errs = {}, []
     for i, row in enumerate(rows):
         if not isinstance(row, dict):
-            errs.append(f"findings[{i}]: 素の文字列は受け取らない（cite を持つ形で出せ）——"
-                        "裏取りの柵が入る前の形が、数え直されないまま毎周の判定材料に載り続けていた")
+            errs.append(f"findings[{i}]: 素の文字列は受け取らない")
             continue
         cite = (row.get("cite") or "").strip()
         if not cite:
             errs.append(f"findings[{i}]: cite（作業ツリーで引ける字列）が空")
             continue
         if "\n" in cite or "\r" in cite:
-            errs.append(f"findings[{i}]: cite に改行が入っている——数えは行単位の git grep なので『どれか 1 行が在れば合格』に化ける"
-                        "（空行を混ぜれば必ず通る。-F でも同じ）。1 行 1 件に割って出せ")
+            errs.append(f"findings[{i}]: cite に改行が入っている")
             continue
         if "\0" in cite or "\0" in (row.get("target") or "") or "\0" in (row.get("where") or ""):
-            errs.append(f"findings[{i}]: cite / target / where に NUL が入っている——検索語にもパスにも使えない（現物から写し直せ）")
+            errs.append(f"findings[{i}]: cite / target / where に NUL が入っている")
             continue
         _count_in_version(i, row, cite, rev, probed, errs)
     return errs

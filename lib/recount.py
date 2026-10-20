@@ -56,7 +56,7 @@ COUNT_BUDGET_FILE = "count-budget.json"
 # 1 周に数える問いを走らせてよい回数と時間の上限（元 works/.shared/core/graphloops/rules/review-loop.py:3304 の COUNT_BUDGET）
 COUNT_BUDGET = {"calls": 300, "seconds": 900}
 EMPTY = cite.EMPTY   # 「書いていない」と同じ扱いにする語（住処は cite）
-REJECT_HEADING = "下の行を直した返答を丸ごと出し直せ:"   # 写しの FIX_REJECT_HEADING（engine/util.py）と同じ文
+REJECT_HEADING = "数え直しで拒んだ行:"   # 直し方は共通の断片 rejected.md が言う
 
 
 class Unreadable(Exception):

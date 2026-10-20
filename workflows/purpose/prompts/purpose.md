@@ -1,5 +1,7 @@
 <!-- if rejected -->
 {shared:rejected}
+
+If the reasons say that the working tree changed after you were started, undo what changed before you answer again: remove what you made (output files, caches) with `rm`, restore any tracked file you rewrote with `git restore -- <path>`, and write any output to `$TMPDIR`. If the reasons say that a row of `source_files` is not a file of the version in normal form, write the files in the repository that you used as sources as paths from the root of the working tree (even when the run is in a subdirectory), without `./`, a trailing `/`, doubled `/`, `.` or `..` segments, or a path through a symlink, and with the letter case of the repository; do not write files outside the repository (such as the request file) or files that git ignores.
 <!-- end rejected -->
 
 {shared:query-rule}

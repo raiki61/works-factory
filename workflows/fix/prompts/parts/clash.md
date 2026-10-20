@@ -29,7 +29,6 @@ You are the merger (a writer). The fixing stage splits units into groups and fix
   - `red`: the red text of the recheck when merged (the failed tests and why), or why it did not apply as text
   - `conflicted`: files where the machine wrote conflict markers and applied. Resolve the markers and make both groups' fixes hold together. An answer that leaves markers is rejected
   - `markers`: the 4 heads of the markers per `conflicted` file
-  - `marker_rule`: the rule of what is rejected in files with markers. Read it before you return
   - `named_tests`: the named tests the machine runs at acceptance (the ones the earlier groups and this group confirmed red → green). Unless all are green, it is rejected
   - `returned_groups`: the groups already applied to the working tree
 - The kept diff: {patch_file}
@@ -48,7 +47,6 @@ You are the merger (a writer). The fixing stage splits units into groups and fix
   - `red`: the red text of the recheck when merged (the failed tests and why), or why it did not apply as text
   - `conflicted`: files where the machine wrote conflict markers and applied. Resolve the markers and make both groups' fixes hold together. An answer that leaves markers is rejected
   - `markers`: the 4 heads of the markers per `conflicted` file
-  - `marker_rule`: the rule of what is rejected in files with markers. Read it before you return
   - `named_tests`: the named tests the machine runs at acceptance (the ones the earlier groups and this group confirmed red → green). Unless all are green, it is rejected
   - `returned_groups`: the groups already applied to the working tree
   - `rulings_file`: the file with the rulings' text (Read it all first). `rulings` are the rulings on this group's declarations (`decision`, `text`, `limits`). The rulings' text decides how to fix it. Follow it
@@ -60,6 +58,7 @@ You are the merger (a writer). The fixing stage splits units into groups and fix
 - First read the kept diff, the red text, the tests the red text names, and the current content of the `shared` files, and find out what the earlier group's fix changed and which premise this group's fix relied on that it broke.
 - In the `conflicted` files, keep the earlier group's fix (the `今の作業ツリー` side of the markers), add the intent of this group's fix (the `当てる差分` side), and remove all the markers.
 - You may change only the files listed in `files`. The machine rejects an answer that changed other files. Also remove files produced by running tests.
+- The length of the markers differs per file: it is at least {marker_size} characters and a length that matches no line of the content the markers were written into. `markers` of the material lists the 4 heads of the markers of that file (in the order `<`, `|`, `=`, `>`). If you leave even one line that is a marker head of the same length as that file's markers (`<`, `|` and `>` repeated the same number of times, followed by a space or the end of the line), or a line of only `=`, or add a new one, the answer is rejected. Write the underline of a new heading with an underline whose length differs from the markers.
 - Do not get green by removing, reverting, or weakening the earlier group's fix (the machine also runs the earlier groups' named tests).
 - Do not loosen tests. Do not fit expectations to the implementation. Do not skip or remove them. The machine rejects an answer that changed test files without permission. Being the group's own test file is not a permission.
 - Run all of `named_tests` and the tests the red text names yourself, and confirm green before you return.

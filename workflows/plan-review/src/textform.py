@@ -22,7 +22,7 @@ from engine.util import Reject   # lib/graphloops/engine/util.py
 from src import files, material, take as review_take, view
 
 NODE = "review-text"   # AI の node の id（prompts/review-text.md）
-WHOLE_REJECT = "返答の全体に誤りが在る（下の行を全部直して出し直せ）:"
+WHOLE_REJECT = "返答の全体に誤りが在る:"
 NONE_WHY = "穴も別案も挙げないなら faces_none に何を確かめて無いと言えるかを書け"
 
 

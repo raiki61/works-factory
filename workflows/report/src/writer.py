@@ -48,9 +48,7 @@ WRITER_QUOTA = ("。使用枠が切れて落ちたので、別のアカウント
                 "（{command}。周の鎖が起こした run なら、この run でなく鎖の run を resume する）")
 COLD_UNREADABLE = "初見の読み手の返答を読めない（判定の語が無い）"
 COLD_EMPTY = "（止まった所・推測の欄が空）"
-CELL_REASON = ("表のセルに説明の文を入れない（書式の決まり: 表は状態・件数・日付など数語の値の一覧だけ。端末の表は列ごとに"
-               f"幅を割るので、長いセルは細切れに折り返されて読めない）。「。」を含むか {CELL_LIMIT} 字を超えるセルが在る——"
-               "表をやめて箇条書きか散文にするか、セルを数語に縮めて説明は表の外に書け:\n")
+CELL_REASON = f"「。」を含むか {CELL_LIMIT} 字を超える表のセルが在る:\n"
 # 拒否の種類: cold＝書き手の頭を読んだ初見の読み手が pass でない／format＝表のセル／answer＝返答の型・受け付けの拒否
 REJECT_KINDS = ("cold", "format", "answer")
 UNKNOWN_KIND = "unknown"   # 読むときだけの種類: kind の無い行・知らない kind の行を捨てずに数える先
@@ -250,8 +248,8 @@ def _cold_reason(c: dict) -> str:
     """書き手に返す拒みの文"""
     if not c["verdict"]:
         return COLD_UNREADABLE
-    return ("初見の読み手（道具なし・報告の頭だけを読む）が redesign-needed を返した。次の所を、頭だけで意味が取れるように"
-            "直した本文を丸ごと出し直せ:\n" + "\n".join(f"- {x}" for x in _cold_lines(c) or [COLD_EMPTY]))
+    return ("初見の読み手（道具なし・報告の頭だけを読む）が redesign-needed を返した。通らなかった所:\n"
+            + "\n".join(f"- {x}" for x in _cold_lines(c) or [COLD_EMPTY]))
 
 
 def machine_head(machine_text: str) -> str:

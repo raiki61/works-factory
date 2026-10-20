@@ -37,14 +37,14 @@ BASE_TESTS_UNREAD_OP = "writes_base_tests_unread"   # 修正前の版のテス�
 COVERS_REJECT = "単位の網羅に誤りが在る（直す義務の単位は全部、どれか 1 つの項目にちょうど 1 度入れる）。案に入れてよい no は"
 MALFORMED_REJECT = "修正案の返答の形が崩れている（plan は項目の object の配列で、各項目の narrows は配列）。指示書の JSON Schema に合う形で出し直せ"
 NO_ROWS = "申し出と裁定の行が見つからない（conflicts の中に、この項目を名指す行が無い）"
-NO_NARROW_REJECT = (f"narrows の行に狭めない案を探した結果（{gatemarks.NO_NARROW}）が無いか短い（直して出し直せ）。狭めを避ける形が"
+NO_NARROW_REJECT = (f"narrows の行に狭めない案を探した結果（{gatemarks.NO_NARROW}）が無いか短い。狭めを避ける形が"
                     "在ればそれを案に採ってその行を消し、無い時だけ、どの形を当たりなぜ採れないかを書け:")
-RECOMMEND_REJECT = (f"承認ノードの項目の行の推し（{gatemarks.RECOMMEND}）の形が崩れている（直して出し直せ）。"
+RECOMMEND_REJECT = (f"承認ノードの項目の行の推し（{gatemarks.RECOMMEND}）の形が崩れている。"
                     f"書くなら {gatemarks.RECOMMEND_SHAPE} の形で:")
-REPLAN_REJECT = "直した項目の返答に誤りが在る（下の行を全部直して出し直せ）:"   # lib/replan.py の REPLAN_REJECT と同じ字（案の直しの拒否の頭）
+REPLAN_REJECT = "直した項目の返答に誤りが在る:"   # lib/replan.py の REPLAN_REJECT と同じ字（案の直しの拒否の頭）
 NOT_OWED_REJECT = "案に、直す義務の無い単位が入っている（nit・info・defer など。受け付けが受けない）。案から外せ。案に入れてよい no（必ず入れる物を含む）は"
-ANSWERS_REJECT = "答えの要る穴への答えに誤りが在る（下の行を全部直して出し直せ）:"
-CLOSED_REJECT = "閉じた・開いた項目の行が合わない（下の行を直して出し直せ）:"
+ANSWERS_REJECT = "答えの要る穴への答えに誤りが在る:"
+CLOSED_REJECT = "閉じた・開いた項目の行が合わない:"
 READONLY_MOVED = "読むだけの役が作業ツリーを変えた: "
 NO_TREE = "役を起こす前の作業ツリーの控え {name} が無い（支度のノードが走っていない）"
 PLAN_GAVE_UP_WHY = f"修正案の役の直しが受け付けの網 {rolekit.NET_AFTER} 回まで拒まれ続けた: {{reason}}"

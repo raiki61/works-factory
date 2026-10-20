@@ -45,9 +45,8 @@ _TEST_NAME = re.compile(r"^(test_|Test[A-Z_])")   # 試験の関数・クラス�
 NON_CODE_DIRS = (("docs", "plans"), ("docs-archive",))   # パスの段の並び（パスのどこに在っても）
 NON_CODE_FILES = ("CHANGELOG.md", "HANDOFF.md")
 # 項目ごとに繰り返す札（英語。docs/design/plan.md の 2.3 の終わりの波及の行）
-COMMON_NOTE = ("a name with hits in many files (only the count; the callers are not all listed. "
-               "Read and decide whether the fix touches them)")
-REMOVED_MARK = " (a hit of a name to remove: a reference that breaks after removal)"
+COMMON_NOTE = "a name with hits in many files (only the count; the callers are not all listed)"
+REMOVED_MARK = " (a hit of a name to remove)"
 REMOVED_KINDS = {"code": "removed", "test": "removed_test"}   # 変える名の当たりの kind → 消す名の当たりの kind
 
 

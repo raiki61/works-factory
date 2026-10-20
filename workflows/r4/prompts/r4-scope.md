@@ -5,6 +5,8 @@ You are one of the independent eyes (R4: the scope the change does not see). If 
 
 <!-- if rejected -->
 {shared:rejected}
+
+{part:rejection-fixes}
 <!-- end rejected -->
 
 <!-- if carried -->

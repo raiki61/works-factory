@@ -7,7 +7,6 @@
 - conflict: 食い違いの申し出の読みと裁定の控え
 - planrange: 範囲の外の手直しを check_paths の行で拒む
 - recount: 数え直しは置き場のファイルと引数の値で回る
-- rulebook.render は rolekit.compose で指示書を組む
 """
 import json
 import pathlib
@@ -441,24 +440,6 @@ class RecountSeamCase(TempCase):
         self.assertIn("precedent に problem と source", self.accept(unsearched)["reason"])
         unsearched["changes"][0]["precedent"]["searched"] = "標準ライブラリの文書と課題の一覧を引いた"
         self.assertTrue(self.accept(unsearched)["ok"], "not_found は searched が在れば通す")
-
-
-class RulebookSeamCase(unittest.TestCase):
-    def test_render_heads_rejects_and_lang(self):
-        """rulebook.render: 1 行目に載せた節と理由と決まりの sha、続けて拒否の理由のファイルの 1 行（rolekit.compose）、
-        before・決まり・after・言語の 1 行の順。同じ入力からは同じバイト"""
-        import rulebook
-        parts = [("a", "- 決まり A", "いつも"), ("b", "- 決まり B", "いつも")]
-        got = rulebook.render("refix", 1, parts, before=("頭",), after=("尻",), reject_file="/home/x/r.md", lang="言語")
-        lines = got["text"].split("\n")
-        head = json.loads(lines[0][len("<!-- works-prompt "):-len(" -->")])
-        self.assertEqual(head, got["head"])
-        self.assertEqual((head["role"], head["iteration"], [s["id"] for s in head["sections"]]), ("refix", 1, ["a", "b"]))
-        self.assertEqual(head["rules_sha"], rulebook.sha("- 決まり A\n- 決まり B"))
-        self.assertEqual(got["text"].split("\n", 1)[1],
-                         rolekit.REJECT_LINE.format(path="/home/x/r.md") + "\n\n頭\n\n- 決まり A\n- 決まり B\n\n尻\n\n言語\n")
-        self.assertEqual(rulebook.render("refix", 1, parts), rulebook.render("refix", 1, parts))
-        self.assertNotIn("拒まれた", rulebook.render("refix", 1, parts)["text"])
 
 
 if __name__ == "__main__":

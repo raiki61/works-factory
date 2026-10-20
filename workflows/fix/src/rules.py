@@ -1,6 +1,6 @@
 """修正役と TDD の役の指示に入れる値（lib/fixrules.py の値の関数の写し。docs/design/fix.md の 1.5.1）。
 
-写しは元の関数の中身を変えない。指示の文は prompts/ の md が持ち、今の rulebook.render に渡した節の組み立て（fix_parts・tdd_parts・
+写しは元の関数の中身を変えない。指示の文は prompts/ の md が持ち、元の rulebook.render に渡した節の組み立て（fix_parts・tdd_parts・
 ruler_parts・write_prompt・tdd_render・ruler_prompt・start_lines）は写さない（src/prompts.py が prompt.emit に渡す値と段落の真偽を
 組む）。変えた所: 渡した証拠の種類の控えのパス（kinds_now・iteration_next は控えのファイルを受ける）、範囲の相談の控え（ask_config は
 控えのパスを返し、文は md）、下請けの項目（g1_items は項目の行を返し、ファイルは src/prompts.py が prompt.render_part で書く）、相談の答えの
@@ -47,14 +47,8 @@ CODE_SUFFIXES = frozenset({".py", ".pyi", ".js", ".jsx", ".ts", ".tsx", ".mjs", 
 PATH_TOKEN = re.compile(r"[A-Za-z0-9_./-]*[A-Za-z0-9_-]\.[A-Za-z][A-Za-z0-9]*")
 G1_IMPL, G1_REVIEW = "g1-impl-{n}.md", "g1-review-{n}.md"   # 修正役が起こす下請けのファイル（置き場のファイル。n は項目の番号）
 G1_PATCH_FILE = "g1-{n}.patch"   # 下請けの審査役の差分のファイル（置き場のファイル。修正役が G1_PATCH で書く）
-G1_REST = "修正案のどの項目にも無い直す義務の単位 {keys}（判定のファイルが要求の正本）"   # 下請けの残りの項目の実装役の型の題
-SCENE = "works の修正の段。流れ・機械の関門・commit はメイングラフが持つ。TDD のループで直した単位はループの要約に在る"   # 修正役の座の型の場面の穴（元 seat.SCENE）
-NO_REPORT_FILE = "ファイルに書かない。返答は指示書の『返答の欄』の JSON"   # 同じ型の [REPORT_FILE]（元 seat.NO_REPORT_FILE）
-G1_REPORT = "実装役の最後のメッセージを、この型の後ろに貼る"   # 審査役の型の [REPORT_FILE]（元 seat.G1_REPORT）
-# 審査役の型の [HEAD_SHA]。works は commit しないので差分は作業ツリーと base の間。型の `git diff [BASE_SHA]..[HEAD_SHA]` は
-# g1_files が `git diff <base>` に直す（commit の範囲は空になる。Head の行にだけ残る。元 seat.G1_HEAD_SHA）
-G1_HEAD_SHA = "作業ツリー（works は commit しない）"
-G1_IMPL_REPORT = "ファイルに書かない。報告の全部を最後のメッセージに書く（修正役が審査役にそのまま渡す）"   # 実装役の型の [REPORT_FILE]（元 seat.G1_IMPL_REPORT）
+# 審査役の型の [HEAD_SHA] は md の g1-head-sha（works は commit しないので差分は作業ツリーと base の間。型の `git diff [BASE_SHA]..[HEAD_SHA]` は
+# g1_files が `git diff <base>` に直す。commit の範囲は空になる。Head の行にだけ残る。元 seat.G1_HEAD_SHA）
 # 審査の前に修正役が走らせる差分のファイルのコマンド（元 seat.G1_PATCH）。{patch} は置き場の絶対パス（shell の字で囲んだ物）で、審査役の型の
 # [DIFF_FILE] も同じパス。作業ツリーと base の差分と、未追跡の新しいファイルごとの全文の差分を書き、最後にそのパスを出す
 # （最後の git diff --no-index は差分が在ると 1 を返すので、echo で終えて 0 にする）。最初の git diff が落ちれば 1 で終える
@@ -193,9 +187,9 @@ def implementer_values(b, values: dict, repo, owed: list[str], briefs: list) -> 
     return {"[task name]": f"直す義務の単位 {len(owed)} 件" + (f"（修正案の項目 {items}）" if items else ""),
             "[BRIEF_FILE]": brief_file,
             "[Scene-setting: where this fits, dependencies, architectural context]":
-                SCENE + (f"。ループの要約のファイル: {summary}" if summary else ""),
+                prompt.render_part("g1-scene", {"summary": summary}, {"summary": bool(summary)}).strip(),
             "[directory]": "" if repo is None else str(repo),
-            "[REPORT_FILE]": NO_REPORT_FILE}
+            "[REPORT_FILE]": prompt.render_part("g1-no-report-file", {}).strip()}
 
 
 NONE = "無し"   # 行の中の単位や範囲が空の時の字（元 planbrief.NONE）
@@ -236,7 +230,7 @@ def scope_rows(got) -> str:
                   f"  - out_of_scope: {'、'.join(oos) or NONE}"]
         if it.get(planrange.LIFTED):
             lines.append(f"  - 相談で out_of_scope から外したパス: {_paths_line(it[planrange.LIFTED])}")
-    lines.append(f"- 全部の項目に効く許し（テストの変更の許し・直す裁定が足したパス。out_of_scope には勝たない）: {_paths_line(got['permits'])}")
+    lines.append(f"- 全部の項目に効く許し: {_paths_line(got['permits'])}")
     return "\n".join(lines)
 
 
@@ -247,25 +241,22 @@ def tests_rows(got, edits: dict, frozen=None) -> str:
     verified = list((frozen or {}).get("verified") or [])
     lines = []
     if got is not None:
-        lines.append("- 足してよい新しいテスト（修正案の項目の tests。範囲の相談で許された物も入っている。これに無いテストを足すと拒む）:")
+        lines.append("- 足してよい新しいテスト（修正案の項目の tests。範囲の相談で許された物も入っている）:")
         for it in got["items"]:
             units = "、".join(str(k) for k in it.get("unit_keys") or []) or NONE
             lines.append(f"  - 項目 {it.get('item')}（単位: {units}）: {_paths_line(planrange.test_ids(it))}")
     # 凍結の照らしは輪が確かめた書き換えを許しから外すので、事後の関門が id で許しても全体では拒まれる
     lines += [f"- 本体を変えてよい既存のテストの名指し（修正案の rewrite_tests と、修正案が消す名を名指すテスト）: "
               f"{_paths_line([t for t in edits['tests'] if t not in verified])}",
-              "- 本体を変えてよい既存のテストの範囲（範囲の相談で許された範囲と、裁定 fix_test_scope の範囲。`<パス>` はそのファイルの全部、"
-              f"`<パス>:<行>` はその行を含む関数の全体、`<パス>:<行>-<行>` は書いたとおりの行）: {_paths_line(edits['limits'])}"]
+              f"- 本体を変えてよい既存のテストの範囲（範囲の相談で許された範囲と、裁定 fix_test_scope の範囲）: {_paths_line(edits['limits'])}"]
     files = (frozen or {}).get("files") or []
     if files:
-        lines.append("- 凍ったテストのファイル（TDD のループが緑にした単位のテスト。上の名指しと範囲の外で書き換えると拒む。足しただけの"
-                     f"新しいテストの関数は凍結に数えず、上の「足してよい新しいテスト」で照らす）: {_paths_line(files)}")
+        lines.append(f"- 凍ったテストのファイル（TDD のループが緑にした単位のテスト）: {_paths_line(files)}")
         if verified:
-            lines.append(f"  - ループが書き換えて凍らせた名指し（上の名指しに在っても、もう変えるな）: {_paths_line(verified)}")
+            lines.append(f"  - ループが書き換えて凍らせた名指し: {_paths_line(verified)}")
         unruled = frozen.get("unruled") or []
         if unruled:
-            lines.append("  - 今の段の TDD のループが凍らせたファイル（裁定 fix_test_scope の範囲はこの周では凍結を解かない。上の名指しと"
-                         f"範囲の相談の範囲の外で書き換えると拒む）: {_paths_line(unruled)}")
+            lines.append(f"  - 今の段の TDD のループが凍らせたファイル: {_paths_line(unruled)}")
     return "\n".join(lines)
 
 
@@ -351,14 +342,14 @@ def ask_config(b, repo, values: dict, pass_: str, *, items=None) -> str:
 
 def g1_items(b, values: dict, owed: list[str], briefs: list) -> list[tuple]:
     """修正役が起こす下請けの項目 [(番号, brief のファイル, 実装役の型の [task name])]（項目の順）。どの項目にも無い直す義務の単位
-    （brief の無い run は全部）は、判定のファイルを brief にした 1 単位 1 項目（番号は修正案の項目の後。題は G1_REST）。
+    （brief の無い run は全部）は、判定のファイルを brief にした 1 単位 1 項目（番号は修正案の項目の後。題は md の g1-rest）。
     今の g1_values の項目の組み立て（ファイルは src/prompts.py の g1_files が書く）"""
     mine = planbrief.for_units(briefs, owed)
     items = [(r["item"], r["file"], _g1_task(r, owed)) for r in mine]
     covered = {k for r in mine for k in r.get("unit_keys") or []}
     rest = [k for k in owed if k not in covered]
     n = max((r["item"] for r in briefs), default=0) + 1
-    items += [(n + i, values.get("judgment_file") or "", G1_REST.format(keys=k)) for i, k in enumerate(rest)]
+    items += [(n + i, values.get("judgment_file") or "", prompt.render_part("g1-rest", {"keys": k}).strip()) for i, k in enumerate(rest)]
     return items
 
 
@@ -375,7 +366,8 @@ def g1_row(r: dict) -> str:
 def review_values(brief: str, values: dict, base: str, patch: str) -> dict:
     """審査役の下請けの型（task-review）の穴の値（[BASE_SHA] は base、[DIFF_FILE] は patch）"""
     return {"[BRIEF_FILE]": brief, "[GLOBAL_CONSTRAINTS]": values.get("policy_path") or seatkit.NONE,
-            "[REPORT_FILE]": G1_REPORT, "[BASE_SHA]": base, "[HEAD_SHA]": G1_HEAD_SHA, "[DIFF_FILE]": patch}
+            "[REPORT_FILE]": prompt.render_part("g1-report", {}).strip(), "[BASE_SHA]": base,
+            "[HEAD_SHA]": prompt.render_part("g1-head-sha", {}).strip(), "[DIFF_FILE]": patch}
 
 
 def resume_values(got: dict) -> dict:

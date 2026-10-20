@@ -23,8 +23,7 @@
 - settle_repaired(place, repo, gid, *, log): 組を戻せた組にする（join.json の行と単位。子から親へ写す物は fixboard.adopt_returned）
 - settle_parked(place, repo, gid, *, pass_, why, skip): 当て直す前の木へ戻し、申し出を積み、join.json の行に訳を置く
 - cites(patch_text, files): 申し出の名指し（<パス>:<差分の最初の塊の新しい側の始めの行>）
-- brief(place, gid, pass_)・prompt(rules, pass_, values, ...): 合わせ役の材料のファイル（印を書いたファイルごとの印の頭 markers と
-  拒みの決まり marker_rule を載せる）と指示書
+- brief(place, gid, pass_)・prompt(rules, pass_, values, ...): 合わせ役の材料のファイル（印を書いたファイルごとの印の頭 markers を載せる）と指示書
 標準ライブラリだけ。期限は持たない。
 """
 import os
@@ -36,6 +35,7 @@ sys.dont_write_bytecode = True
 
 import conflict  # noqa: E402
 from src import board as fixboard  # noqa: E402
+from src.rulings import write as write_rulings  # noqa: E402
 import impact  # noqa: E402
 import oneline  # noqa: E402
 import stopby  # noqa: E402
@@ -62,10 +62,7 @@ CLAIM = "組 {gid} の直しを親の作業ツリーで前の組と合わせる�
 TEXT_CLAIM = "組 {gid} の直しが親の作業ツリーで前の組の直しと同じ所を変え、字で当たらない（{red}）。{why}。控えの差分: {patch}"
 MARKED_TESTS = ("字で当たらない所が許しの無いテストのファイルに在り、合わせ役は印を解けない（テストの範囲の裁定 fix_test_scope が"
                 "要る）: {paths}")
-MARKER_RULE = (f"印の長さはファイルごとに違い、{unittrees.DEFAULT_MARKER_SIZE} 字以上で、印を書いた時の中身のどの行とも重ならない長さ。brief の markers がそのファイルの "
-               "4 つの印の頭（`<`・`|`・`=`・`>` の順）を並べる。そのファイルの印と同じ長さの印の頭の行（`<`・`|`・`>` が同じ数だけ並び、"
-               "空白か行の終わりが続く行）と `=` だけの行は、1 行でも残すか新しく足すと拒まれる。新しい見出しの下線は、印と長さの違う下線で書け")
-UNRESOLVED = "食い違いの印が残っている（印を解いて両方の組の直しを両立させよ。" + MARKER_RULE + "）: {paths}"
+UNRESOLVED = "食い違いの印が残っている（印の決まりは指示の「The merger's rules」）: {paths}"
 RULED_CLAIM = "裁定 {ids} の直しも通らなかった: "
 OUTSIDE = "組が変えたファイルの外を変えた（触ってよいのは {allowed} だけ）: {paths}"
 TESTS = "許しの無いテストのファイルを変えた（テストを緩めて緑にしない。直すべきテストなら直せないと答えて裁定に回せ）: {paths}"
@@ -325,7 +322,7 @@ def settle_parked(place, repo, gid: str, *, pass_: str, why: str, skip=()) -> li
                         source=conflict.JOIN_SOURCE, ruling=ruling, pass_=RULED if pass_ == RULED else None)
     conflict.mark_clash_patch(place, ids, str(patch))
     if ruling:
-        conflict.write_rulings(place)
+        write_rulings(place)
     every = list(dict.fromkeys([*(row.get("requests") or []), *ids]))
     tail = (HUMAN_TAIL if pass_ == RULED else PARKED_TAIL).format(ids="・".join(ids), patch=patch)
     _settle_join(place, gid, returned=False, reason=row["why"] + tail,
@@ -341,7 +338,7 @@ def settle_parked(place, repo, gid: str, *, pass_: str, why: str, skip=()) -> li
 def brief(place, gid: str) -> pathlib.Path:
     """合わせ役の材料のファイル（置き場の clash-brief-<group_id>.json）: 組・単位・控えの差分・触ってよいファイル・前の組とも
     重なったファイル・食い違いの種（kind）・確かめ直しの赤の文か字で当たらなかった訳・食い違いの印を書いたファイル（conflicted）と
-    そのファイルごとの印の 4 つの頭（markers）・拒みの決まり（marker_rule）・走らせる名指し・戻せている組と、段 RULED なら裁定の文の
+    そのファイルごとの印の 4 つの頭（markers）・走らせる名指し・戻せている組と、段 RULED なら裁定の文の
     ファイルと組の申し出の裁定"""
     row = _row(load(place), gid)
     ruled = row.get("pass") == RULED
@@ -350,7 +347,7 @@ def brief(place, gid: str) -> pathlib.Path:
            "shared": row.get("shared") or [], "kind": row.get("kind") or RED, "red": row["why"],
            "conflicted": list(row.get("marked") or {}),
            "markers": {p: [m.decode() for m in unittrees.marks(n)] for p, n in (row.get("marked") or {}).items()},
-           "marker_rule": MARKER_RULE, "named_tests": named_tests(place, gid),
+           "named_tests": named_tests(place, gid),
            "returned_groups": [g["group_id"] for g in _joined(place)["groups"] if g.get("returned")]}
     if ruled:
         doc["rulings_file"] = str(pathlib.Path(place) / conflict.RULINGS_FILE)

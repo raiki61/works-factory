@@ -189,6 +189,7 @@ class PromptCase(_RepoCase):
         self.assertEqual(got, {"due": True, "status": "", "reason": ""})
         text = self.prep()["prompt"]
         self.assertIn(self.steps.STALE_WHY, text)
+        self.assertIn("do not use it as a reason that the purpose cannot be taken independently", text)
         self.assertIn("A judgment of the purpose that has not passed its check", text)
         self.assertNotIn("A judgment of the purpose that has not passed its check", self.to_prompt())
 

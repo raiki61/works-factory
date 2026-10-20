@@ -40,8 +40,7 @@ FIELD_SCHEMA = {
     "quality": {"type": "object", "additionalProperties": False, "required": ["verdict", "why"], "properties": {
         "verdict": {"type": "string", "enum": list(QUALITY)}, "why": _WHY}},
 }
-REJECT = ("差分の審査の返答の 2 判定の欄（準拠 compliance・品質 quality）に欠けか誤りが在る。"
-          "下の行を直した返答を丸ごと出し直せ:")
+REJECT = ("差分の審査の返答の 2 判定の欄（準拠 compliance・品質 quality）に欠けか誤りが在る:")
 
 
 def malformed(reply) -> bool:

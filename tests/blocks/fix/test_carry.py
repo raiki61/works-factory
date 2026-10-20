@@ -17,6 +17,12 @@ from tests.bin.gitkit import committed_copy
 from tests.blocks import kit
 from tests.blocks.fix import test_tdd as tddcase
 
+
+
+def write_rulings(place):
+    kit.load("fix", "rulings").write(place)
+
+
 SEED = kit.ROOT / "tests" / "e2e" / "target-seed"
 FIRST, SECOND = "line__fix", "line__refix-run"
 JUDGMENT = {"units": [{"key": "A", "label": "block"}, {"key": "B", "label": "block"},
@@ -212,7 +218,8 @@ class SecondStageCase(StagesCase):
                                            "kind": "brief_vs_judgment"}], source=conflict.FIX_SOURCE)
         conflict.apply_rulings(self.second, {new[0]: {"decision": "fix_plan_item", "text": "項目 2 も誤り", "limits": [],
                                                       "plan_items": [2], "plan_units": ["C"]}}, by="ruler")
-        self.assertIn(conflict.LATE_REPLAN_PROMISE, (self.second / conflict.RULINGS_FILE).read_text(encoding="utf-8"))
+        write_rulings(self.second)
+        self.assertIn("this run's plan fix is already done", (self.second / conflict.RULINGS_FILE).read_text(encoding="utf-8"))
         self.joined(self.second, out["groups"])
         got = self.script(SECOND, "finish")
         self.assertEqual((got["replan_items"], got["conflicts"]["path"]), (["2"], "line/refix-run/conflicts.json"))

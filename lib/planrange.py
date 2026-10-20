@@ -16,15 +16,11 @@
 - outside(items, paths, permits, *, hint): 単位に結べない変わったパスの外れの行（全項目の範囲の和か許しに入らない・どれかの項目の
   out_of_scope に当たる）。hint なら、ほかの項目の out_of_scope に当たるがある項目の範囲には入るパスに OWNER_HINT を足す
 - approved(items, *, by): 承認済みの修正案の項目の値 items（planmarks.approved_items の形。呼び手が渡す）を照らせるか
-- scope(b, *, items, ruled, by, agreed, round_): 受け付けが照らす値 ({items: 合意を足した項目, permits: 許しのパス, rule: OOS_ANY,
-  agreed: 足した合意の行}, "")。照らさない項目なら (None, 理由)。照らし（check_paths・planscope.check）と役の指示書（scope_text）と
-  役の brief の範囲の欄（fixboard.scope_brief）が同じ値を引く 1 か所
-- fix_scope(b, pass_, *, items, agreed, round_): 修正の段（pass_ first・ruled）の引数で scope を引く（rule は OOS_MINE）
-- scope_text(got): 役の指示書に貼る節（SCOPE_HEAD）。scope の値の out_of_scope の決まりの文（rule）と、項目の範囲・out_of_scope・
-  許しのパスを字のまま並べる（fix の試験が受け付けの値との揃いを照らす口。fix の指示は src/rules.py の scope_rows が組む）
+- scope(b, *, items, ruled, by, agreed, round_): 受け付けが照らす値 ({items: 合意を足した項目, permits: 許しのパス,
+  agreed: 足した合意の行}, "")。照らさない項目なら (None, 理由)。照らし（check_paths・planscope.check）と役の指示の範囲の行
+  （fix の src/rules.py の scope_rows）と役の brief の範囲の欄（fixboard.scope_brief）が同じ値を引く 1 か所
+- fix_scope(b, pass_, *, items, agreed, round_): 修正の段（pass_ first・ruled）の引数で scope を引く
 - test_ids(it): 項目の足してよい新しいテストの id（修正の段の受け付けの planscope.problems と指示書が同じ値を引く）
-- tests_text(got, edits, frozen): 修正役の指示書に貼る節（TESTS_HEAD）。足してよい新しいテスト（test_ids）・本体を変えてよい既存の
-  テスト（conflict.edit_permits）・凍ったテスト（factchecks.frozen_tests）を字のまま並べる
 - check_paths(b, paths, *, items, ruled, by, round_): 承認済みの修正案の項目 items で paths を outside で照らす (行, 記録)。
   合意と裁定は置き場 b から読む。照らさない項目（修正案の無い・範囲の欄の無い控え）は ([], {"checked": False, "why": 理由})。
   欄の控えが凍結の印と食い違えば conflict.fields_broken の道（ValueError）
@@ -44,8 +40,6 @@ OWNER_HINT = "（項目 {nums} の範囲には入る。その項目の単位の 
 LIFTED = "out_of_scope_lifted"   # with_agreed が項目の写しに足す欄: 合意でその項目の out_of_scope から外したパス（字のまま）
 NO_PLAN = "承認済みの修正案か works の欄の控えが無い"
 NO_SCOPE = "範囲の欄の無い控え（217 番の形の共有ボード）"
-SCOPE_HEAD = "## 変えてよいパスと触らない物（受け付けがこの値で照らす）"
-TESTS_HEAD = "## 変えてよいテストと凍ったテスト（受け付けがこの名で照らす）"
 
 
 def globs(it: dict) -> list[str]:
@@ -54,7 +48,7 @@ def globs(it: dict) -> list[str]:
 
 def test_ids(it: dict) -> list[str]:
     """項目の tests の id（範囲の相談の合意で足した印 agreed の行も。現れた順・重なりは 1 つ）。修正の段の受け付けは、ここに無い
-    新しいテストを拒む（planscope.problems の 6）。修正役の指示書（tests_text）も同じ値を貼る"""
+    新しいテストを拒む（planscope.problems の 6）。修正役の指示（fix の src/rules.py の tests_rows）も同じ値を貼る"""
     return list(dict.fromkeys(row["id"] for row in it.get("tests") or []
                               if isinstance(row, dict) and isinstance(row.get("id"), str) and row["id"].strip()))
 
@@ -91,13 +85,6 @@ def oos_hit(path: str, items: list[dict]):
                  if glob_match(path, g)), None)
 
 
-# 役の指示書に貼る out_of_scope の決まりの文。oos_hit（全部の項目で照らす。outside・手直しの受け付け）と oos_hit_for（行の単位の
-# 項目が明示に許せばその項目だけで照らす。修正の段の受け付け planscope.problems の 1）の決まりを言う
-OOS_ANY = ("`out_of_scope` は範囲より強く、許しのパスにも勝つ。どの項目の `out_of_scope` も、変えた全部のパスに当たる"
-           "（範囲の相談で外したパスだけは、その項目で当たらない）。")
-OOS_MINE = ("`changes[].files` に申告したパスを、その単位の項目のどれかが明示に許していれば（allowed_paths・テストのファイル）、"
-            "その単位の項目の `out_of_scope` だけで照らす（ほかの項目の `out_of_scope` は当たらない）。それ以外のパスには、どの項目の"
-            " `out_of_scope` も範囲より強く、許しのパスにも勝つ（範囲の相談で外したパスだけは、その項目で当たらない）。")
 
 
 def oos_hit_for(path: str, mine: list[dict], items: list[dict]):
@@ -201,7 +188,7 @@ def approved(items, *, by: str = stopby.FIX):
 
 def scope(b, *, items, ruled: bool, by: str = stopby.FIX, agreed=None, round_: int = 1) -> tuple[dict | None, str]:
     """受け付けが照らす値: ({items: 承認済みの修正案の項目 items（approved に渡す値か口）に範囲の相談の合意（agreed。None なら
-    置き場 b の conflict.agreed）を足した物, permits: permit_paths, rule: out_of_scope の決まりの文 OOS_ANY（outside の決まり）,
+    置き場 b の conflict.agreed）を足した物, permits: permit_paths,
     agreed: items に足した合意の行（conflict.agreed の行のまま。出どころは各行の id と group_id）}, "")。照らさない項目なら
     (None, 理由)"""
     items, why = approved(items, by=by)
@@ -209,74 +196,12 @@ def scope(b, *, items, ruled: bool, by: str = stopby.FIX, agreed=None, round_: i
         return None, why
     agreed = conflict.agreed(b) if agreed is None else agreed
     return {"items": with_agreed(items, agreed), "permits": permit_paths(b, ruled=ruled, agreed=agreed, round_=round_),
-            "rule": OOS_ANY, "agreed": agreed}, ""
+            "agreed": agreed}, ""
 
 
 def fix_scope(b, pass_: str, *, items, agreed=None, round_: int = 1) -> tuple[dict | None, str]:
-    """修正の段（pass_ first・ruled）の受け付けが照らす値（scope。裁定の後は直す裁定のパスも許しに入る。rule は申告した単位で
-    照らす planscope.problems の決まり OOS_MINE）"""
-    got, why = scope(b, items=items, ruled=pass_ == "ruled", agreed=agreed, round_=round_)
-    if got is None:
-        return None, why
-    return {**got, "rule": OOS_MINE}, ""
-
-
-def _paths_line(paths) -> str:
-    return "、".join(f"`{p}`" for p in paths) or "無し"
-
-
-def scope_text(got) -> str:
-    """役の指示書に貼る節（SCOPE_HEAD）: scope の値 got の out_of_scope の決まりの文（rule）と、項目ごとの範囲（allowed_paths の
-    glob・tests と rewrite_tests の id のファイル）・out_of_scope・合意で外したパス（LIFTED）と、全部の項目に効く許しのパスを字のまま。
-    got が None なら空"""
-    if got is None:
-        return ""
-    lines = [SCOPE_HEAD, "", "受け付けは、変えたパスをこの値で照らし、外れを拒む。" + got["rule"]
-             + "範囲の相談で許されたパスとテストの許しも、ここに入っている。", ""]
-    for it in got["items"]:
-        units = "、".join(str(k) for k in it.get("unit_keys") or []) or "無し"
-        oos = [f"`{r['glob']}`" + (f"（{r['why']}）" if r.get("why") else "") for r in _oos_rows(it)]
-        lines += [f"- 項目 {it.get('item')}（単位: {units}）",
-                  f"  - allowed_paths: {_paths_line(globs(it))}",
-                  f"  - テストのファイル（tests・rewrite_tests の id）: {_paths_line(planmarks.test_paths(it))}",
-                  f"  - out_of_scope: {'、'.join(oos) or '無し'}"]
-        if it.get(LIFTED):
-            lines.append(f"  - 相談で out_of_scope から外したパス: {_paths_line(it[LIFTED])}")
-    lines.append(f"- 全部の項目に効く許し（テストの変更の許し・直す裁定が足したパス。out_of_scope には勝たない）: "
-                 f"{_paths_line(got['permits'])}")
-    return "\n".join(lines)
-
-
-def tests_text(got, edits: dict, frozen=None) -> str:
-    """修正役の指示書に貼る節（TESTS_HEAD）: 修正の段の受け付けがテストを照らす名を字のまま。got は fix_scope の値（項目ごとの
-    足してよい新しいテスト test_ids。照らさない項目なら None で、その行を出さない）、edits は conflict.edit_permits の値（本体を変えて
-    よい既存のテストの名指しと範囲）、frozen は factchecks.frozen_tests の値（凍ったテストのファイルと、輪が確かめた書き換えの名指しと、
-    裁定の範囲で凍結が解けない今の輪のファイル。ループの無い run は None）。純粋な関数"""
-    verified = list((frozen or {}).get("verified") or [])
-    lines = [TESTS_HEAD, "", "受け付けは、足したテスト・本体を変えた既存のテスト・凍ったテストのファイルをこの名で照らし、外れを拒む。"
-             "外れが要るなら、変える前に範囲の相談で頼め。"]
-    if got is not None:
-        lines.append("- 足してよい新しいテスト（修正案の項目の tests。範囲の相談で許された物も入っている。これに無いテストを足すと拒む）:")
-        for it in got["items"]:
-            units = "、".join(str(k) for k in it.get("unit_keys") or []) or "無し"
-            lines.append(f"  - 項目 {it.get('item')}（単位: {units}）: {_paths_line(test_ids(it))}")
-    # 凍結の照らしは輪が確かめた書き換えを許しから外すので、事後の関門が id で許しても全体では拒まれる
-    lines += [f"- 本体を変えてよい既存のテストの名指し（修正案の rewrite_tests と、修正案が消す名を名指すテスト）: "
-              f"{_paths_line([t for t in edits['tests'] if t not in verified])}",
-              "- 本体を変えてよい既存のテストの範囲（範囲の相談で許された範囲と、裁定 fix_test_scope の範囲。`<パス>` はそのファイルの全部、"
-              f"`<パス>:<行>` はその行を含む関数の全体、`<パス>:<行>-<行>` は書いたとおりの行）: {_paths_line(edits['limits'])}",
-              "- これ以外の既存のテストの関数の本体を変える・消すと拒む。"]
-    files = (frozen or {}).get("files") or []
-    if files:
-        lines.append("- 凍ったテストのファイル（TDD のループが緑にした単位のテスト。上の名指しと範囲の外で書き換えると拒む。足しただけの"
-                     f"新しいテストの関数は凍結に数えず、上の「足してよい新しいテスト」で照らす）: {_paths_line(files)}")
-        if verified:
-            lines.append(f"  - ループが書き換えて凍らせた名指し（上の名指しに在っても、もう変えるな）: {_paths_line(verified)}")
-        unruled = frozen.get("unruled") or []
-        if unruled:
-            lines.append("  - 今の段の TDD のループが凍らせたファイル（裁定 fix_test_scope の範囲はこの周では凍結を解かない。上の名指しと"
-                         f"範囲の相談の範囲の外で書き換えると拒む）: {_paths_line(unruled)}")
-    return "\n".join(lines)
+    """修正の段（pass_ first・ruled）の受け付けが照らす値（scope。裁定の後は直す裁定のパスも許しに入る）"""
+    return scope(b, items=items, ruled=pass_ == "ruled", agreed=agreed, round_=round_)
 
 
 def check_paths(b, paths, *, items, ruled: bool = True, by: str = stopby.FIX, round_: int = 1) -> tuple[list[str], dict]:

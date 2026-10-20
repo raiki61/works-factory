@@ -55,8 +55,7 @@ HEAD = "## 要求の正本（brief）"
 RESTORED_OP = "brief_restored"
 CUT_OP = "brief_cut"   # 周の 1 回目の cut と切り直しの印（trace）
 RECUT_OP = "brief_recut"   # 差し替えの印の後の切り直しの印 {round, items: [番号…]}（trace。直後に CUT_OP の行）
-BACKGROUND = "背景（参照。brief と食い違えば brief が勝つ。brief が誤りと見たら申し出よ）"
-READ_ALL = "まず Read で全部読め。下の決まりの『brief の決まり（要求の正本と背景）』に従え"
+BACKGROUND = "背景"
 NONE = "無し"
 TITLE = "# 要求の正本: 修正案の項目 {n}"
 UNITS_HEAD = "## 直す単位"
@@ -78,7 +77,7 @@ BACKGROUND_HEAD = f"## {BACKGROUND}"
 UNIT_HEAD = "### {key}"
 
 
-UNSCOPED = "無し（この案は範囲を決めていない。範囲では縛らない）"   # 範囲の欄の無い項目（依頼 218 より前の案）の範囲の節
+UNSCOPED = "無し（この案は範囲を決めていない）"   # 範囲の欄の無い項目（依頼 218 より前の案）の範囲の節
 NOT_NOW = "今は直すな"   # brief の行で、項目の単位のうち今直す単位でない物の頭（brief を名指す文は fix の src/rules.py が組む）
 
 
@@ -164,7 +163,7 @@ def _test(r) -> str:
 def _rewrite(r) -> str:
     if not isinstance(r, dict):
         return str(r)
-    return (f"`{r.get('id')}`（書き換えてよい範囲 limit: {r.get('limit') or '引けない（書き換えは許されない）'}）\n"
+    return (f"`{r.get('id')}`（書き換えてよい範囲 limit: {r.get('limit') or '引けない'}）\n"
             f"  - behavior: {r.get('behavior')}\n  - old: {r.get('old')}\n  - new: {r.get('new')}")
 
 
@@ -175,7 +174,7 @@ def _scope(r) -> str:
 
 
 def _scoped(fields: dict, key: str, line) -> str:
-    """範囲の欄 key の節の中身。欄の無い行（依頼 218 より前の案）は UNSCOPED（範囲で縛らない）、在って空なら無し"""
+    """範囲の欄 key の節の中身。欄の無い行（依頼 218 より前の案）は UNSCOPED、在って空なら無し"""
     if key not in fields:
         return UNSCOPED
     return _bullets(fields.get(key) or [], line)

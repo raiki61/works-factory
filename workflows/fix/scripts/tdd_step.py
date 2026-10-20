@@ -19,6 +19,7 @@ import oneline  # noqa: E402
 import writelog  # noqa: E402
 
 from src import board, runvals, tdd  # noqa: E402
+from src.rulings import write as write_rulings  # noqa: E402
 
 REJECT = "tdd-step-reject-{}.md"
 
@@ -44,7 +45,12 @@ def main() -> dict:
     log = writelog.log_here()
     ports.drop_runner_env(runvals.read(place)["user_env_dir"])   # 対象のテストに Archon の変数を継がせない（place・repo は先に取った）
     out = tdd.step(state, reply, repo, try_query=hits, log=log)
-    tdd.flush_unsent(state, lambda rows: conflict.park_claims(place, rows))
+    def park(rows):
+        asked = any(r["source"] == conflict.GAVE_UP_SOURCE and r["item"]["unit_key"] in conflict.amended_rows_by_unit(place) for r in rows)
+        conflict.park_claims(place, rows)
+        if asked:   # 作り直した後にまた止まった単位は裁定に回さず ask_human つきで積む。裁定の文を書き直す
+            write_rulings(place)
+    tdd.flush_unsent(state, park)
     reason_file = ""
     if out["reason"]:
         n = len(tdd.load_state(state).get("calls") or [])

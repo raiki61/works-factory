@@ -48,6 +48,10 @@ def seeded(case) -> kit.Run:
     return run
 
 
+# brief ファイルの読み方の句（背景は参照・書き換えてよい範囲が引けない・範囲を決めていない項目）。brief を読む AI の指示に共通の断片 brief-reading で入る
+BRIEF_READING = ("the brief wins", "could not be looked up", "did not decide a scope")
+
+
 class RenderedCase(unittest.TestCase):
     """表 RENDERED の node の指示を組み、表の字が入る"""
 
@@ -290,6 +294,9 @@ class SubAgentFilesCase(unittest.TestCase):
         self.assertNotIn("If you start a sub-agent", impl)   # spawns は偽
         self.assertIn("## works rules", review)
         self.assertIn(str(run.artifacts / "g1-impl-1.md"), out["prompt"])
+        for name, text in (("g1-impl", impl), ("g1-review", review), ("fixer", out["prompt"])):
+            for phrase in BRIEF_READING:
+                self.assertIn(phrase, text, f"{name} に brief の読み方の句が無い")
 
 
 if __name__ == "__main__":

@@ -46,7 +46,7 @@ def row_of(a: dict, requirement_text: str) -> dict:
     return {"where": f"{a['file']}: {a['name']}",
             "text": f"{PROVENANCE}受け入れ条件 {a['key']}（要件 {a['requirement']}）がまだ満たされていない——承認の時点で `{a['run']}` が "
                     + ("走らない" if code is None else
-                       "既に exit 0（緑——赤を見ていないので、テストが要件を確かめているかを疑え）" if code == 0 else f"exit {code}"),
+                       "既に exit 0（緑）" if code == 0 else f"exit {code}"),
             "mechanism": f"Given/When/Then の本文は {a['file']} の {a['name']} が正本（記録に写さない）。要件: {requirement_text}",
             "measured": f"承認の時点（round 1）の実測: `{a['run']}` → " + (a.get("run_error") or "") + ("" if code is None else f"exit {code}"),
             "false_positive_if": f"`{a['run']}` が今の版で exit 0 で、{a['file']} が承認の後に変わっていない（sha256 {str(a['sha256'])[:12]}）なら誤り"}
