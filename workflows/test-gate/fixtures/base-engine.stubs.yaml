@@ -1,4 +1,4 @@
-# 筋書き base-engine: 形 base で、機械が宣言の段を走らせた（by engine）ので任せ先の輪と実行器の輪は飛ばされ、返す node に届く。
+# 筋書き base-engine: 形 base で、機械が宣言の段を走らせた（by engine）ので実行器の輪は飛ばされ、返す node に届く。
 # 配線だけを見る（script も差し替える）
 intake: {ok: true, reason: ""}
 run:
@@ -28,6 +28,7 @@ result:
   baseline_line: ""
   reason: ""
   suite: ""
+  related: {applied: false, whole: false, files: [], left: [], far: [], reasons: [], ran: none}
   suite_note: ""
   report: ["直す前のテスト: 赤"]
 fixture:

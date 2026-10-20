@@ -1,15 +1,15 @@
-"""返す node の中身: run.json と（任せ先の役の run なら）ci-material.json を読み、赤の原因と証拠を出し（green_cert.classify）、今の指紋を
-取って認証する（green_cert.certify。final で素材を任せ先の役が書いた緑は自己申告として認証しない）。今の workflows/test-gate/scripts/
-result.py の suite_exit・test_outcomes・gate_fields・evidence・role_systems・certified・failed の写しで、始めの記録の代わりに
-intake.json と suite-state.json を読む。
+"""返す node の中身: run.json を読み、赤の原因と証拠を出し（green_cert.classify）、今の指紋を取って認証する（green_cert.certify）。
+今の workflows/test-gate/scripts/result.py の suite_exit・test_outcomes・gate_fields・evidence・certified・failed の写しで、始めの記録の
+代わりに intake.json と suite-state.json を読む。
+- 走らせ方が決まらない道（by role_needed。持ち主の決め related-tests-only）の素材は、機械が実行器の結果から組む（runner_material）。
+  実行器の緑は認証しない（green_cert.RUNNER_HELD）。任せ先の CI の役は外した（docs/design/test-gate.md の 14 節）
 
 - base は直す前の結末のファイル baseline.json を書く（baseline_red.write_baseline。suite は suite-state.json の tdd_suite、test_cmd は
   intake.json から）。final は port baseline のファイルを baseline_red.read_baseline で読み、修正前のテストの行を証拠に足し、
   テストごとの修正前と今の結末（test_outcomes）を返す
 - 起こした段と起こせなかった段の名（ran_steps。任せ先の役の run は素材の systems）・走らせ方（by・suites_line）・ログ（log）・
   修正前のテスト（baseline_line）・認証しなかった訳（reason）は 1 行に畳んで返す。証拠の文 evidence.md の行も同じ値から組む
-- 任せ先の役の run で包みの宣言が無ければ証拠に NO_ADAPTER_NOTE を足す。残った作業ツリーの写しを消す
-- 足した欄: suite・suite_note（src/suite.py）と report（src/report.py）
+- 足した欄: suite・suite_note（src/suite.py）・related（関わる試験の選びと走らせたか）と report（src/report.py）
 - failed: 中の誤りは全部捕まえ、ok: false・green: false・red_cause: incomplete と、誤りを名指した証拠の pointer を返す（返す node が落ちると
   線が先へ進めない）。by などの字の欄は空、reason は INNER_ERROR。lib の import はこの関数の外（certified の中）に置き、lib が読めなくても
   failed は返せる
@@ -26,6 +26,7 @@ import ports
 from src import files
 
 INNER_ERROR = "出力ノードの中の誤り"
+RUNNER_STEP = "関わる試験の実行器"   # by role_needed の run の ran_steps に載せる段の名
 RUN_ROW, LOG_ROW = "- 走らせ方: ", "- ログ: "   # 証拠の文の走らせ方・ログの行の頭（書くのはここだけ。試験と通しの照らしはここから引く）
 
 
@@ -73,9 +74,9 @@ def gate_fields(run: dict, suites: str, base_line: str, why: str) -> dict:
     return {"by": run["by"], "suites_line": one(suites), "log": one(run["log"] or ""), "baseline_line": one(base_line), "reason": one(why)}
 
 
-def evidence(mode: str, out: dict, run: dict, material, summary: str, note: str = "") -> str:
-    """証拠の文。走らせ方・ログ・修正前のテスト・ok の訳は返り out の欄（1 行に畳んだ物）と同じ値で書く。ほかの自由な文の値（役の
-    素材の reason が入る）も 1 行に畳む。note は包みの知らせ（declared_checks.NO_ADAPTER_NOTE か空）"""
+def evidence(mode: str, out: dict, run: dict, material, summary: str) -> str:
+    """証拠の文。走らせ方・ログ・修正前のテスト・ok の訳は返り out の欄（1 行に畳んだ物）と同じ値で書く。ほかの自由な文の値
+    （素材の reason）も 1 行に畳む"""
     import declared_checks
     import oneline
     one = oneline.one_line
@@ -86,10 +87,10 @@ def evidence(mode: str, out: dict, run: dict, material, summary: str, note: str 
              f"- green: {str(out['green']).lower()}",
              f"- red_cause: {out['red_cause'] or '無し'}{'（' + one(summary) + '）' if summary else ''}",
              f"{RUN_ROW}{v['suites']}",
-             *([f"- 包み: {note}"] if note else []),
              *([f"- engine の結果を任せ先へ落とした訳: {one(run['fell_back'])}"] if run.get("fell_back") else []),
              *([f"- {out['baseline_line']}"] if out["baseline_line"] else []),
-             f"- 素材: {json.dumps(material, ensure_ascii=False) if material is not None else '無い（任せ先の CI の役が素材を渡さなかった）'}",
+             f"- 素材: {json.dumps(material, ensure_ascii=False) if material is not None else '無い'}",
+             *[f"- {row}" for row in related_lines(run)],
              f"{LOG_ROW}{v['log']}",
              f"- JUnit の報告を宣言した段: {'・'.join(run['junit_steps']) or '無い'}"
              + (f"（試験を走らせなかった段: {'・'.join(run['junit_unran'])}）" if run["junit_unran"] else ""),
@@ -98,9 +99,42 @@ def evidence(mode: str, out: dict, run: dict, material, summary: str, note: str 
     return "\n".join(lines) + "\n"
 
 
-def role_systems(material) -> dict:
-    """任せ先の役の素材が書いた系統の名の分け（無ければ両方空。役の run は段の行を持たない）"""
-    return (material or {}).get("systems") or {"ran": [], "unran": []}
+def runner_material(mode: str, run: dict) -> dict:
+    """by role_needed の run の素材（機械が実行器の結果から組む）。実行器が走って結末が取れた（suite_exit が None でない）なら、終了コード
+    0 は clean、ほかは found（count は落ちた件数、最低 1）。変更に関わる試験が無く走らせなかったなら not_applicable。実行器が無い・走らな
+    かった・結末が取れないなら、base は awaiting_human、final は not_run（緑を仮定しない）"""
+    import baseline_red
+    code = suite_exit(run)
+    cases = run.get("cases") or []
+    if code is not None:
+        if code == 0:
+            return {"status": "clean", "checked": f"AI が書いた実行器が試験 {len(cases)} 件を走らせた（終了コード 0）"}
+        failed = sum(1 for c in cases if c.get("outcome") in baseline_red.FAILED)
+        return {"status": "found", "count": max(failed, 1), "detail": f"AI が書いた実行器が試験 {len(cases)} 件を走らせ、終了コード {code}"}
+    related = run.get("related") or {}
+    if related.get("applied") and not related.get("whole") and not related.get("files"):
+        return {"status": "not_applicable", "reason": "変更に関わる試験が無いので試験を走らせなかった。全体の試験は CI と人に任せる"}
+    problems = "；".join((run.get("suite") or {}).get("problems") or [])
+    why = problems or "TDD の実行器が無いか、走らなかった（実行器を作れなかった訳は suite_note）。全体の試験は CI と人に任せる"
+    return {"status": "awaiting_human" if mode == "base" else "not_run", "reason": why}
+
+
+def runner_steps(run: dict) -> dict:
+    """by role_needed の run の ran_steps: 実行器が結末を取れたら走らせた段、取れなければ走らせられなかった段"""
+    return {"ran": [RUNNER_STEP], "unran": []} if suite_exit(run) is not None else {"ran": [], "unran": [RUNNER_STEP]}
+
+
+def _narrow(run: dict) -> bool:
+    """この run の結末が関わる試験だけか（絞る道で、選べて（whole でなく）、走らせた or 関わる試験が無い）"""
+    got = run.get("related") or {}
+    return bool(got.get("applied")) and got.get("ran") in ("related", "none")
+
+
+def related_lines(run: dict) -> list:
+    """証拠の文の関わる試験の行（絞らない道は無し）"""
+    import related
+    got = run.get("related") or {}
+    return related.lines(got) if got.get("applied") else []
 
 
 def mode_of(place) -> str:
@@ -117,26 +151,21 @@ def certified(place, optional_raw) -> dict:
     import baseline_red
     import declared_checks
     import green_cert
-    import rolekit
     from engine import util   # declared_checks が lib/graphloops を sys.path に足す
 
     from src import report, suite
 
-    fence = ports.polyfill("fence")
     place = pathlib.Path(place)
     doc = files.intake(place)
     mode = doc["mode"]
     if mode not in declared_checks.MODES:
         raise ValueError(f"mode は {'・'.join(declared_checks.MODES)} のどれか: {mode!r}")
-    if (place / files.SNAPSHOT).is_file():
-        declared_checks.drop_copy(read_json(place / files.SNAPSHOT).get("top"))
     run_path = place / files.RUN
     if not run_path.is_file():
         raise ValueError(f"{files.RUN} が無い——node run が落ちたか飛ばされた")
     run = read_json(run_path)
-    ci_path = place / files.MATERIAL
     role = run["by"] == declared_checks.ROLE_NEEDED
-    material = (read_json(ci_path)["material"] if ci_path.is_file() else None) if role else run["material"]
+    material = runner_material(mode, run) if role else run["material"]
     status = (material or {}).get("status")
     green = status == "clean"
     root = pathlib.Path(util.repo_root() or os.getcwd())
@@ -145,24 +174,20 @@ def certified(place, optional_raw) -> dict:
     if mode == "final" and doc.get("baseline"):
         base = baseline_red.read_baseline(pathlib.Path(doc["baseline"]))
     cases, rows = test_outcomes(base, run) if mode == "final" else (None, None)
-    if material is None:   # 3 回とも拒まれて諦めた時は最後の拒否の文を人に見える証拠に出す（T45。元 ci_role.collect :349-356）
-        red_cause = green_cert.INCOMPLETE
-        summary = (rolekit.given_up_reason(place, declared_checks.CI_ROLE)
-                   or "任せ先の CI の役が素材を渡さなかった（受け付けが拒み続けた・ループが回らなかった）")
-    else:
-        red_cause, summary = green_cert.classify(material=material, runs=run["runs"], cases=run["cases"], baseline_cases=cases,
-                                                 junit_steps=run["junit_steps"], junit_unran=run["junit_unran"])
+    red_cause, summary = green_cert.classify(material=material, runs=run["runs"], cases=run["cases"], baseline_cases=cases,
+                                             junit_steps=run["junit_steps"], junit_unran=run["junit_unran"],
+                                             baseline_narrow=bool(base and base.get("narrow")))
     ok, why = green_cert.certify(mode=mode, material_status=status, green=green, before=run["fingerprint_before"],
-                                 after=run["fingerprint_after"], now=now, self_reported=role,
+                                 after=run["fingerprint_after"], now=now, self_reported=role, held_reason=green_cert.RUNNER_HELD,
                                  material_reason=(material or {}).get("reason"))
     out = {"mode": mode, "ok": ok, "green": green, "red_cause": red_cause,
-           "ran_steps": role_systems(material) if role else green_cert.ran_steps(run["runs"], run["junit_unran"]),
+           "ran_steps": runner_steps(run) if role else green_cert.ran_steps(run["runs"], run["junit_unran"]),
            "baseline": None, "fingerprint": None, "test_outcomes": rows}
     state = suite.load(place)
     if mode == "base":
         baseline_red.write_baseline(place / files.BASELINE, suite=state.get("tdd_suite") or "", test_cmd=doc["test_cmd"],
                                     rev=now["head"], exit=suite_exit(run), cases=run["cases"], by=run["by"], material=material,
-                                    runs=run["runs"], skipped_steps=run["skipped_steps"],
+                                    runs=run["runs"], skipped_steps=run["skipped_steps"], narrow=_narrow(run),
                                     exit_codes={r["name"]: r["exit"] for r in run["runs"]}, junit_steps=run["junit_steps"],
                                     fingerprint=now, how=declared_checks.run_how(root, run, test_cmd=doc["test_cmd"], material=material))
         out["baseline"] = ports.pointer(place / files.BASELINE)
@@ -172,10 +197,10 @@ def certified(place, optional_raw) -> dict:
              "skipped_steps": run["skipped_steps"]}
     suites = declared_checks.suites_line(tests, role_status=(status or "") if role else None)
     out.update(gate_fields(run, suites, declared_checks.baseline_line(base) if mode == "final" else "", why))
-    note = declared_checks.NO_ADAPTER_NOTE if role and not os.environ.get(fence.RECORDS_ENV) else ""
-    write(place, files.EVIDENCE, evidence(mode, out, run, material, summary, note))
+    write(place, files.EVIDENCE, evidence(mode, out, run, material, summary))
     out["evidence"] = ports.pointer(place / files.EVIDENCE)
     out["optional"] = optional_items(optional_raw)
+    out["related"] = run.get("related") or files.NOT_PICKED
     out.update(suite.outputs(place, mode, doc["tdd_suite"]))
     out["report"] = report.lines(mode, out, place)
     return out
@@ -208,7 +233,7 @@ def failed(place, error: BaseException) -> dict:
             "baseline": None, "fingerprint": None,
             "test_outcomes": {"rows": [], "unmeasured": INNER_ERROR} if mode == "final" else None,
             "evidence": pointer, "by": "", "suites_line": "", "log": "", "baseline_line": "", "reason": INNER_ERROR,
-            "optional": [], "suite": _port_suite(place), "suite_note": "",
+            "optional": [], "suite": _port_suite(place), "suite_note": "", "related": files.NOT_PICKED,
             "report": [f"試験の関門（{mode}）: {INNER_ERROR}（工場の不具合）——{pointer['path']}"]}
 
 

@@ -18,6 +18,7 @@ ENTRY = "入口・段・決めた人"
 TDD = "TDD のループの単位ごとの結末"
 TDD_2 = "TDD のループの単位ごとの結末（2 度目の修正）"
 GREEN = "緑の認証（全部の周）"
+NOT_RUN = "走らせなかった範囲（CI と人に任せた物）"
 EYES = "独立の目"
 STRUCTURE = "構造の目"
 WORLD = "世界の解"
@@ -71,6 +72,21 @@ def _section(title: str, lines: list, files=()) -> dict:
     out = {"title": title, "lines": [str(x) for x in lines]}
     if files:
         out["files"] = list(files)
+    return out
+
+
+def not_run_lines(base, final) -> list:
+    """節「走らせなかった範囲」の行（持ち主の決め related-tests-only）: 試験の関門の base と final の返りの related から、走らせた試験・走らせ
+    なかった試験・全体の試験を CI と人に任せた事・一式を走らせた理由を並べる。関わる試験に絞らない道（利用者の宣言か test_cmd）は
+    走らせ方の行（suites_line。範囲の宣言で回さなかった段を含む）を並べる。走らなかった block（返りが無い）は載せない"""
+    import related   # lib/
+    out = []
+    for label, got in (("直す前のテスト", _d(base)), ("最後のテスト", _d(final))):
+        rel = _d(got.get("related"))
+        if rel.get("applied") is True:
+            out += [f"{label}:", *[x if x.startswith(" ") else f"  {x}" for x in related.lines(rel)]]
+        elif got.get("suites_line"):
+            out.append(f"{label}: {got['suites_line']}（利用者が決めた走らせ方なので、工場は絞らない。全体の試験は CI と人に任せる）")
     return out
 
 
@@ -258,6 +274,9 @@ def build(values: dict, record: dict, *, cwd, folder) -> list:
         out.append(_section(GREEN, [*_lines(base), *_lines(v.get("test_gate_final"))],
                             _files(("直す前の結末", base.get("baseline")), ("試験の記録（直す前）", base.get("evidence")),
                                    ("試験の記録（最後）", _d(v.get("test_gate_final")).get("evidence")))))
+        scope_lines = not_run_lines(base, v.get("test_gate_final"))
+        if scope_lines:
+            out.append(_section(NOT_RUN, scope_lines))
     if eyes:
         eye_lines = [*_lines(eyes)]
         for title, lines in eyes_s.items():

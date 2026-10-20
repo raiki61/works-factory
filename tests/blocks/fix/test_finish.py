@@ -221,9 +221,9 @@ class CollectCase(FinishPlace):
         write(out_dir / "g1" / "result.json", result(
             "g1", ["A"], start, start, tdd={"ran": True, "reason": "", "suite": "run.sh", "reused": {}, "units": [TDD_ROW]}))
         out = self.finish()
-        self.assertEqual(out["tdd"], [{"group_id": "g1", "ran": True, "reason": "", "suite": "run.sh", "reused": {}, "units": [TDD_ROW]},
+        self.assertEqual(out["tdd"], [{"group_id": "g1", "ran": True, "reason": "", "suite": "run.sh", "reused": {}, "related": {}, "units": [TDD_ROW]},
                                       {"group_id": "g2", "ran": False, "reason": out["tdd"][1]["reason"], "suite": "", "reused": {},
-                                       "units": []}])
+                                       "related": {}, "units": []}])
         self.assertTrue(out["tdd"][1]["reason"])
         self.assertEqual(json.loads((self.art / out["tdd_unit"]["path"]).read_text(encoding="utf-8")), out["tdd"])
 

@@ -23,6 +23,23 @@ def request_wheres(request, mode: str, request_scope: bool) -> list:
     return [row["where"] for row in request if isinstance(row, dict) and isinstance(row.get("where"), str)]
 
 
+def related_wheres(request, request_scope: bool) -> list:
+    """関わる試験の選びの起点に足す依頼の行の where の並び。範囲の宣言に使う request_wheres と違い、base と final の両方に足す
+    （final の選びが base の選びを含むように。docs/design/test-gate.md の 14.3）。request_scope が偽・依頼が無い時は []"""
+    if request_scope is not True or not isinstance(request, list):
+        return []
+    return [row["where"] for row in request if isinstance(row, dict) and isinstance(row.get("where"), str)]
+
+
+def related_pick(root, doc: dict, cache_dir) -> dict:
+    """関わる試験の選び（lib/related.pick）。起点の版は入口の差分の根 entry_base（空なら修正前の版 base、それも無ければ HEAD）から
+    今の作業ツリーまでに触ったファイルと、依頼の where が名指す追跡中のパス（related_wheres）"""
+    import related   # lib/
+    root = pathlib.Path(root)
+    seeds = checkscope.request_files(root, related_wheres(doc["request"], doc["request_scope"]))
+    return related.pick(root, rev=doc["entry_base"] or doc["base"] or "HEAD", seeds=seeds, cache_dir=cache_dir)
+
+
 def changed(root, base: str, wheres=()):
     """範囲の宣言と照らす変更（根からのパス）。base から今の作業ツリーまでに触ったファイルと、依頼の where が名指す追跡中のパス
     （wheres）の和から Archon の置き場を除いた物。測れない（git の誤り・空）なら None（絞らない）"""
