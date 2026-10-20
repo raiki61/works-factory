@@ -48,6 +48,7 @@ def facts(place, *, sections, facts, lang, run_id: str, workflow_file, repo) -> 
     got["problems"] = [*got["problems"], *problems]
     log, log_why = transcript.read()
     run = transcript.facts(log, exclude_prefix=transcript.own_prefix(), optional=got["optional"])
+    run["children"] = transcript.child_falls(run)
     word, stop = outcomelib.decide(got, run)
     opened, unopened = machine.open_files(rows)
     built = machine.build(opened, got, word, stop, run, place=place, run_id=run_id, run_why=log_why, repo=repo, notes=unopened)

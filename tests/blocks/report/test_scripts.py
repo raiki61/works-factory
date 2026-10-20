@@ -78,6 +78,27 @@ class FactsCase(Flow):
         self.assertIn("run が途中で終わった: ノード fix__tdd が落ちた（誤り: boom）", self.machine())
         self.assertNotIn("report__facts", self.machine().split("## 2. 止めたか")[1].split("## 3.")[0])
 
+    def test_fallen_child_run_names_its_own_cause(self):
+        """fan_out の子の run が落ちると、親の記録の誤りは「子 N (run 先頭 8 字) が落ちた」と子の失敗の総括だけを言い、AI の provider の
+        429 のような落ちた訳は子の run の記録（同じ置き場の <子の run の id>.jsonl）にだけ在る。報告は子の記録を読んで訳を載せる"""
+        child = "abcd1234-0000-4000-8000-000000000000"
+        self.log({"type": "node_error", "step": "fix__groups-par", "ts": "2026-10-12T00:01:00Z", "execution": {},
+                  "error": "fan_out node 'groups-par' (join: all_success): child 1 (run abcd1234) failed: DAG workflow 'works-factory-fix' "
+                           "failed: node tdd failed. 3 downstream nodes were skipped."})
+        log_dir = pathlib.Path(self.run.extra["LOG_DIR"])
+        rows = [{"type": "node_start", "step": "tdd", "ts": "2026-10-12T00:00:00Z"},
+                {"type": "node_error", "step": "tdd", "ts": "2026-10-12T00:00:30Z",
+                 "error": "429 rate_limit_error: concurrent request limit reached\nraw detail", "execution": {}}]
+        (log_dir / f"{child}.jsonl").write_text("\n".join(json.dumps(r) for r in rows) + "\n", encoding="utf-8")
+        self.facts()
+        self.assertIn("子の run abcd1234 のノード tdd が落ちた（誤り: 429 rate_limit_error: concurrent request limit reached）", self.machine())
+
+    def test_child_run_without_a_record_is_said_not_dropped(self):
+        self.log({"type": "node_error", "step": "fix__groups-par", "ts": "2026-10-12T00:01:00Z", "execution": {},
+                  "error": "fan_out node 'groups-par' (join: all_success): child 0 (run 99999999) failed: x"})
+        self.facts()
+        self.assertIn("子の run 99999999 の記録が読めない", self.machine())
+
     def test_optional_stage_fall_is_absorbed(self):
         self.log({"type": "node_error", "step": "eyes__r1", "ts": "2026-10-12T00:01:00Z", "error": "目が落ちた", "execution": {}})
         got = self.facts(facts=json.dumps({**base.READY, "optional": ["eyes__"]}))
