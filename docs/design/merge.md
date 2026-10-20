@@ -249,5 +249,5 @@ bin/works-factory workflow run works-factory-merge \
 ## 12 未確認
 
 - 5 節の命令の正確な形。
-- `archon workflow test` が `workflow: archon-pr` の node を `blocks/` の pack だけを読ませた時にも差し替えで通すか（今の筋書き `pr.stubs.yaml` は `workflows/` の pack で通っている）。
+- （決着）`archon workflow test` が `workflow: archon-pr` の node を `workflows/` の pack だけを読ませた時に差し替えで通すか。作り直しの間の 2 つ目の pack `blocks/` は無くなり、筋書き `pr.stubs.yaml` は `workflows/` の pack で通っている。
 - 計画が許したテストの書き換えを apply で拒まない今の形を、意図して決めた記録（6 節の 1）。

@@ -78,7 +78,7 @@
 - 1 か所に閉じない物（残る散らばり）:
   - S sandbox の node の鍵と V の全 node の鍵の足し（例 `8bb804fd` の retry）: Archon は鍵を node ごとに YAML に書くので、全部の block の YAML に及ぶ。7.1 の yes/no の検査が付け忘れを止める。共通の値を 1 か所に置く口は Archon に無い（（未確認）。Archon の workflow の頭の既定値で済む鍵があれば寄せる）。
   - C 較正は `tests/calibration/` の中で、T 試験だけの変更は `tests/` の中で閉じていて、形に関わらない。
-  - V の版の上げそのものは `factory/pack.json` の版と `blocks/.shared/`・埋め・`tests/shared/test_archon_contract.py` で閉じる。block の中には届かない。
+  - V の版の上げそのものは `factory/pack.json` の版と `workflows/.shared/`・埋め・`tests/shared/test_archon_contract.py` で閉じる。block の中には届かない。
 
 ### 1.3 変更の歩かせ
 
@@ -140,7 +140,7 @@
    - 起きなくなる分: 指示の節の文を lib の `planrange.tests_text` が組む形（文は md へ）・`copied_rewrites.json`。今 lib の 7 モジュールに散ったのは、指示の文と値と受け付けが lib の別々のモジュールに在ったため。
    - 判定: 2 か所（block と、共通の照らしのモジュール）。当てる前の形では、fix の node どうしが共に使う決まりの文（今の `fix-rules/common.md`・`brief.md`）を `blocks/.shared/prompts/` に置くしかなく、fix だけの直しが pack 全体の共通の置き場に及んだ（形の直し 3）。
 8. `564a99d6`（S）読むだけの役の claude を起こす直前に、共有の `.git` と全部の作業ツリーの根まで書き込みを塞ぐ。
-   - 新しい形で触る所: `bin/_lib/`（launcher・hostgh。包みを置く殻）・埋め `blocks/.shared/fence.py`・`docs/polyfills.md`（埋めの名簿）・根の `README.md`（環境変数 `CLAUDE_BIN_PATH` で殻が止まる条件）。
+   - 新しい形で触る所: `bin/_lib/`（launcher・hostgh。包みを置く殻）・埋め `workflows/.shared/fence.py`・`docs/polyfills.md`（埋めの名簿）・根の `README.md`（環境変数 `CLAUDE_BIN_PATH` で殻が止まる条件）。
    - 起きなくなる分: judge と test-gate の YAML のコメント（block は埋めの振る舞いを書かない）・`workflows/AGENTS.md` の E7 の文（案内は決まりとパスだけ）・層の網の行。
    - 判定: 2 か所（殻と埋め）と文書 2 本。block には届かない。文書は利用者の使い方と埋めの名簿で、リポジトリの決まりが求める物。
 9. `45b08032`（W）独立の目の能力 22 行を、名前つきの試験で縛る。
@@ -192,7 +192,7 @@
 
 1. block の YAML の `workflow:` を、自分の YAML を子の run として起こす形にだけ許す（7.1 の 6）。訳: fix は直しの組ごとに自分を子として起こし（#765 の本文が手本として残すと書いた形）、組の子の結果は fix の中の受け渡し。禁じると、組の子と親を別の block と graph に割ることになり、`result.json` が block をまたぐ port になる（歩かせ 1・3）。ほかの block を名指さないので、憲法の 3 に触れない。
 2. tdd を独立の block にせず、fix の組の子の run の中の loop のままにする（8.3）。訳: block は `include:` を持てないので、組ごとの TDD の loop を別の block にすると fix から呼べない。テストの許しの「1 本」（keep-essence の 3）も、割れば 2 つの block の間の port になる（10 節が崩れる余地と書いた所）。TDD だけを単独で回すのは、今も単独で回る fix の組 1 つの形（`mode` が `group`）で足りる。
-3. 同じ block の 2 つ以上の node が使う指示の断片は、その block の `prompts/parts/<name>.md` に置き、`{part:<name>}` で差し込む（3 節・5.1）。`blocks/.shared/prompts/` は 2 つ以上の block が使う物だけ。訳: fix の 4 つの役（修正役・TDD の役・裁定役・合わせ役）だけが使う決まり（今の `fix-rules/brief.md`・`principles.md`）を pack の共通の置き場に置くと、fix だけの直しが共通の置き場に及ぶ（歩かせ 6・7）。fix と delta-review の 2 つが使う書き手の決まり（今の `fix-rules/common.md`）は、共通の断片 `writer-rules` に置く（`docs/design/integration.md` の 4.4-E）。憲法の 4（1 つの block だけが使う物はその block に）と同じ決め方。
+3. 同じ block の 2 つ以上の node が使う指示の断片は、その block の `prompts/parts/<name>.md` に置き、`{part:<name>}` で差し込む（3 節・5.1）。`workflows/.shared/prompts/` は 2 つ以上の block が使う物だけ。訳: fix の 4 つの役（修正役・TDD の役・裁定役・合わせ役）だけが使う決まり（今の `fix-rules/brief.md`・`principles.md`）を pack の共通の置き場に置くと、fix だけの直しが共通の置き場に及ぶ（歩かせ 6・7）。fix と delta-review の 2 つが使う書き手の決まり（今の `fix-rules/common.md`）は、共通の断片 `writer-rules` に置く（`docs/design/integration.md` の 4.4-E）。憲法の 4（1 つの block だけが使う物はその block に）と同じ決め方。
 4. 2 つ以上の block が読む出力の行の形（欄の名・語・行を読む述語）は、作り手の出力ごとに `lib/` の 1 モジュールに置く（4.1。2 節の 4 の当てはめ）。手本は今の `worldmark`（world.md の 1.5）。当たる物: 問いの行（今の `gatemarks` の問いの語と `asks_human`。diagnose が作り、line が読む）・食い違いの申し出の行（今の `conflict` の語と読み口。fix が作り、plan・line・report が読む）・修正案の項目（`planmarks`）・頭の深さの出力（`headdepth` の段の語と控えの読み）。`gatemarks` と `conflict` は、行の形の部分を KEEP にし、決めの部分を line と fix へ割る（9.2・9.3）。訳: `gatemarks` を丸ごと line の `src/` に移すと、diagnose が line の中身を import するか写しを持つことになる（歩かせ 2・6）。
 5. 深さの表を 2 つに割る（1.2 の D・8.1・8.3・8.7）。未知の種類 → 段（`headdepth.UNKNOWNS`）は `lib/headdepth`（diagnose・plan も読む）、段 → 回す物（今の `depth.TIERS`）・単位ごとの深さ・修正の後の上げ直し（`depth`・`latedepth`）は line。fix の中の上げ直し（今の `fixboard.redepth`。差分の審査を省くかの決め）は無くし、line が fix と delta-review の間で 1 回だけ上げ直して、delta-review を `when:` で回すか決める。fix は、緑の後の試験の走らせ直しを省く単位の一覧を port `skip_rerun` で受ける。訳: 上げ直しの読み手が fix と line の 2 つ在ると `latedepth` を line に置けず、2 つが同じ決まりで読むことを縛る試験（`294b2fe5`）が要り続ける。delta-review が fix の外の block になったので、決める所を line 1 つにできる。種類 → 段を head-depth の block の `src/` に置く案は、未知の種類を読む diagnose・plan も表を使うので採らず、`lib/headdepth` に残した（`ad88e48a` は `headdepth.py` と `head-depth.md` を一緒に直した。表を直す時は役の md の段の意味の文も合わせる）。
 6. 計画の往復の記録（往復ごとの行・止め・安全の上限）は line が持ち、plan-review には前の周の案と指摘を port `prior` で渡す（8.2・8.7）。訳: 2 往復目からの穴の出自・続いた穴・約束の欄が変わった項目（`2351c7a4`・`86e69841`）は前の周を見ないと決まらないのに、plan-review の port に前の周が無かった。上限の数を line から plan-review へ写す配線（今の `round_limit`）も、上限で止めたかを line が決めれば要らない。
