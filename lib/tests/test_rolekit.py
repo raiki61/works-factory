@@ -119,8 +119,6 @@ class RejectLedgerCase(Base):
         self.assertEqual(text, rolekit.rejects_text(["拒否 1\n2 行目", "拒否 2\n2 行目"]) + "\n")
         self.assertLess(text.index("1 回目の拒否:\n拒否 1"), text.index("2 回目の拒否:\n拒否 2"))
         self.assertEqual(rolekit.last_reject(self.tmp), "拒否 2 2 行目")
-        pasted = rolekit.with_reject("本文", rolekit.rejects_text(rolekit.rejected(self.tmp, "plan")))
-        self.assertIn("拒否 1", pasted, "道具ゼロの役に貼る文も全部")
 
 
 class AcceptRoundCase(Base):

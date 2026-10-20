@@ -51,7 +51,6 @@ import webget
 
 ENV_SWITCH = "WORKS_LIBDOCS_WEB"       # off で網に出ない（出ないことを節に書く）
 MAX_LIBS = 8                           # 1 回に引くライブラリの数の上限（超えた物は名前で言う）
-TITLE = "## ライブラリの文書（手元の版・公式）"
 CACHE_DIR = "libdocs"                  # 盤面の周の置き場の下の控えと文書のファイル（run をまたぐ控えも同じ名の置き場）
 # ライブラリごとの置き場の下の、手元の版の署名と説明のファイルの名（local-<中身の sha256 の頭 8 桁>.md）。中身は単位が使う名で
 # 変わり、並べの枝（同じ周の置き場を分け合う）が別の単位で同じライブラリを書くので、中身で名を分けて互いに上書きしない
@@ -411,7 +410,7 @@ def _count(label: str, rows: list, pick) -> str:
 
 
 def section(cache, repo, files, *, get=None, env=None, now: float | None = None, shared=None) -> str:
-    """指示書に貼る節（TITLE で始まる）。組めない時も節を返し、理由を書く。now は run をまたぐ控えの時刻の比べ（既定は今）、
+    """指示書に貼る材料の行（見出しと「読め・自分で引け」の文は呼び手の md が持つ）。組めない時も節を返し、理由を書く。now は run をまたぐ控えの時刻の比べ（既定は今）、
     shared は run をまたぐ控えの根（None なら使わない）"""
     env = os.environ if env is None else env
     get = http_get if get is None else get
@@ -419,29 +418,19 @@ def section(cache, repo, files, *, get=None, env=None, now: float | None = None,
     try:
         return _section(cache, repo, files, get, env, now, shared)
     except Exception as e:  # noqa: BLE001  組めなかったことは節に書く（黙って落とさない）
-        return f"{TITLE}\n\n組めなかった（{type(e).__name__}: {e}）。このセクションの文書は無い。"[:1000]
-
-
-HEAD = ("機械が、この単位のファイルが使うライブラリの文書を 2 つの出どころから取り、共有ボードにファイルで丸ごと控えた（本文はここに"
-        "貼っていない。ライブラリごとに下の段に名・版・出どころ・ファイルのパスを並べた）: "
-        "(1) 手元の版——run の作業ツリーか同じリポジトリの main の作業ツリーに入っている版のコードを、import せずに読んだ署名と"
-        "説明（入っている版のコードそのもの） (2) 公式——ライブラリの持ち主の文書（PyPI・npm の README、docs の場所の llms.txt。"
-        "版を合わせられる物は合わせた）。API の署名・引数・使い方が要る時は、そのライブラリのファイルを Read で読め（読むかは"
-        "要るかで決めてよい。単位が使う名で探せ）。下の「どこからも文書が無い」のライブラリと、ここで足りない所は "
-        "WebSearch・WebFetch で公式の文書を自分で引け。")
+        return f"組めなかった（{type(e).__name__}: {e}）。このセクションの文書は無い。"[:1000]
 
 
 def _section(cache, repo, files, get, env, now, shared) -> str:
-    head = [TITLE, "", HEAD]
     if repo is None:
-        return "\n".join(head + ["", "対象のリポジトリが渡されていないので、ライブラリを見つけられない（0 本）。"])
+        return "対象のリポジトリが渡されていないので、ライブラリを見つけられない（0 本）。"
     det = detect(pathlib.Path(repo), files)
     c, libs = det["counts"], det["libs"]
     unread = (f"／読めないファイル {len(det['unreadable'])} 本（"
               + _names(det["unreadable"], lambda u: f"{u['path']}: {u['reason']}") + "）") if det["unreadable"] else ""
     if not libs:
-        return "\n".join(head + ["", f"単位のファイル {c['files']} 本の import は標準ライブラリとリポジトリの中の物だけ"
-                                     f"（標準 {c['stdlib']}・リポジトリの中 {c['local']}）。ライブラリの文書を取る物は無い（0 本）{unread}。"])
+        return (f"単位のファイル {c['files']} 本の import は標準ライブラリとリポジトリの中の物だけ"
+                f"（標準 {c['stdlib']}・リポジトリの中 {c['local']}）。ライブラリの文書を取る物は無い（0 本）{unread}。")
     keys = sorted(libs)
     off = webget.is_off(env, ENV_SWITCH)
     take, over = keys[:MAX_LIBS], keys[MAX_LIBS:]
@@ -482,7 +471,7 @@ def _section(cache, repo, files, get, env, now, shared) -> str:
     name = lambda r: r["lib"]["search"]  # noqa: E731
     nums = (f"数: 見つけた {len(keys)} 本（単位のファイル {c['files']} 本の import {c['imports']}・宣言 {c['manifest']}。"
             f"標準 {c['stdlib']}・リポジトリの中 {c['local']} は除いた）／上限 {MAX_LIBS} 本を超えて取らない {len(over)} 本{unread}")
-    lines = head + ["", nums, "- 手元の版: " + "／".join((
+    lines = [nums, "- 手元の版: " + "／".join((
         _count("読めた", by_local["ok"], lambda r: f"{name(r)} {r['local']['version'] or '版不明'}"),
         _count("入っていない", by_local["absent"], name),
         _count("読めなかった", by_local["error"], lambda r: f"{name(r)}: {r['local']['note']}")))]
@@ -498,8 +487,7 @@ def _section(cache, repo, files, get, env, now, shared) -> str:
     lines.append(f"控えたファイル {saved} 本（ライブラリごとの下の段にパス）")
     if none:
         why = f"網には出ていない（{ENV_SWITCH}=off）" if off else "公式から取れなかった"
-        lines.append(f"- どこからも文書が無い: {_names(none, name)}（手元に入っていない。{why}。"
-                     "WebSearch・WebFetch で公式の文書を自分で引け）")
+        lines.append(f"- どこからも文書が無い: {_names(none, name)}（手元に入っていない。{why}）")
     for r in rows:
         if r["lib"].get("declared") and r["lib"]["declared"] != r["lib"]["version"]:
             lines.append(f"- 手元の版の注: {name(r)}: 宣言の版 {r['lib']['declared']} と入っている版 {r['lib']['version']} が違う"

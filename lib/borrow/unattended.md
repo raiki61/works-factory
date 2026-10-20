@@ -2,7 +2,7 @@
 
 対象は、works に写した superpowers（`lib/borrow/superpowers/<版>/`。版・commit・ファイルごとの sha256 は `borrow.json` の `pin`）のスキルのうち、借りる 2 本（`lib/borrow/borrow.json` の `skills`。`bin/_lib/toolset.py` が隔離した設定の `skills/` に写す）と、部品（スキルとしては使わず、中の型を役の指示書の骨に使うファイル。`borrow.json` の `parts`）。写しは直さない。版を上げるのは `bin/_lib/toolset.py vendor` だけ。借りた物を役に載せる時の包み方（セクションごとの使い道・錨・穴・出口の語）は、包むセクションの表 `lib/borrow/seams.json` が持つ。スキルの文が人（your human partner）や調整役（下請けの AI を起こす親の会話）を前提にしている所は、works の無人の役ではこのファイルの決まりで読み替える。スキルの文とこのファイルがぶつかったら、このファイルが勝つ。さらに、役の指示書（`workflows/*/commands/*.md` と、支度のノードが組んで役に読ませる指示書）とノードの `output_format` は、このファイルより勝つ。
 
-この読み替えは、役の種類ごとのセクション（`###` の見出しが種類の名を `・` で並べる）と、種類の見出しの外の全部の役に共通の文から成る。機械（`lib/seat.py` の `skill_overlay`）が、役の側が宣言した種類のセクションと共通の文だけを、借りたスキルを読める役と借りた型を骨にする役の指示書の末尾に載せる（superpowers の using-superpowers は、役への直の指示がスキルに勝つと定める）。載るセクションは `lib/tests/test_seat.py` と `tests/workflows/test_judge.py` が見張る。
+この読み替えは、役の種類ごとのセクション（`###` の見出しが種類の名を `・` で並べる）と、種類の見出しの外の全部の役に共通の文から成る。機械（`lib/seat.py` の `overlay_body`。各 AI ノードの md が頭の 1 行を持ち、その後ろに置く）が、役の側が宣言した種類のセクションと共通の文だけを、借りたスキルを読める役と借りた型を骨にする役の指示書の末尾に載せる（superpowers の using-superpowers は、役への直の指示がスキルに勝つと定める）。載るセクションは `lib/tests/test_seat.py` と `tests/workflows/test_judge.py` が見張る。
 
 ## 読み方
 

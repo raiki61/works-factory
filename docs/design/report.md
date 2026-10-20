@@ -432,7 +432,7 @@ Notes that earlier rounds of you wrote, named by the machine, oldest first. …
 - 拒んだ回は、本文と `terms` を前の答えの控え（`candidate-report.json`）に、`handoff` を `r<n>/handoff.json` に置く（今の `_carry_rejected`）。前の周のメモが読めない・控えに書けない時は、出し直させても直らないので 1 回目で諦める（`give_up`）。
 - 3 回目の拒否でループを抜ける（`rolekit.GIVE_UP_AFTER`）。諦めた時・控えが扱えない時は `ai.json` に `{accepted: false, reason, cold, rejects}` を書く。受け取った時は `{accepted: true, text, terms, cold, not_passed, rejects}`。
 - 返り `{done, ok, reason, kind, prev_file}`。`prev_file` はまだ諦めていない拒否の回で前の答えの控えが在る時だけ、その絶対パス（今は run directory からの相対だった。prep が読むだけになったので絶対パスにした）。今の `reason_file` は返さない（却下の段落の中身は prep が控えから組む）。
-- 却下の理由の文（日本語）は今の字のまま（`CELL_REASON`・`_cold_reason`・型の拒みの文）。ループを諦めた時に `ai.json` の `reason` を通って人に向けた報告の頭に載るので、人に見せる文として日本語のまま（README の 5.3）。
+- 却下の理由の文（日本語）は、返答の中身で変わる所（セルの字数・止まった所と推測した所・型の拒み）を Python に残す（`CELL_REASON`・`_cold_reason`・型の拒みの文）。毎回同じ字の直し方の段落（初見の読み手が通さなかった時の書き直し方・表のセルの直し方）は `prompts/write.md` の `rejected` の段落が持つ（#764）。ループを諦めた時に `ai.json` の `reason` を通って人に向けた報告の頭に載るので、人に見せる文として日本語のまま（README の 5.3）。
 
 ### 2.9 試験
 

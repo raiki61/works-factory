@@ -1,5 +1,13 @@
 <!-- if rejected -->
 {shared:rejected}
+
+How to fix the rejections of the lens rows:
+
+- A required lens whose `invoked` is not true: start it again. A lens whose name starts with `/` is a skill, started with Skill. A `<plugin>:<role>` lens is started with Agent as a general-purpose child that you have Read the lens's definition from its place.
+- A required lens that was not started must not make you set `material` to `awaiting_human`: start it again and write `invoked: true`. If the rejections reach the limit, the answer goes to a person.
+- A row that is missing: write one row for the declared lens. If you started it, put its findings in `items`; if you did not start it or it does not apply, leave `items` empty and write why in `failed`. Never leave the row out; leaving rows out would bring back a lens that was never started passing in the same form as "looked and found nothing".
+- A row with neither `items` nor `failed` cannot be told from a lens that was not started. If you started it and it found nothing, write in `failed` that it was started and found nothing, and what it looked at.
+- A name that is not in the declared list is not counted. Merge the rows of one lens into one row.
 <!-- end rejected -->
 
 {shared:query-rule}

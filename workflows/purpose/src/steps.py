@@ -156,9 +156,7 @@ def _tree_unchanged(out, repo) -> None:
     見る）。写しが無い・読めない・違えば Reject"""
     moved = accept.moved_since(out, repo, TREE_KEYS)   # out の tree.json（TREE_FILE）と比べる。無ければ Reject
     if moved:
-        raise Reject(f"役を起こした後から作業ツリーが変わった——{PURPOSE_RULE}（HEAD・枝・git が無視するファイルも）。作った物"
-                     "（出力のファイル・キャッシュ）は rm で消し、書き換えた追跡中のファイルは git restore -- <path> で戻してから"
-                     f"出し直せ（出力は $TMPDIR に置く）（{'・'.join(moved)}）")
+        raise Reject(f"役を起こした後から作業ツリーが変わった——{PURPOSE_RULE}（HEAD・枝・git が無視するファイルも）（{'・'.join(moved)}）")
 
 
 def check(reply, out, repo) -> dict:
@@ -173,10 +171,7 @@ def check(reply, out, repo) -> dict:
             got, means = split_means(reply)
             bad = sourcefiles.errors(got["source_files"], repo_p)
             if bad:
-                raise Reject(f"source_files に作業ツリーの根からの相対の正規形で版に在るファイルでない物が在る: {bad}"
-                             "——出典にしたリポジトリの中のファイルを、作業ツリーの根からの相対（サブディレクトリで回していても根から・"
-                             "`./` や末尾の `/`・重ねた `/`・`.` や `..` の段・symlink 経由なし・大小文字もリポジトリのまま）で書け"
-                             "（依頼のファイルなどリポジトリの外の物・git が無視するファイルは書かない）")
+                raise Reject(f"source_files に作業ツリーの根からの相対の正規形で版に在るファイルでない物が在る: {bad}")
         jsonfile.write(pathlib.Path(out) / MEANS_FILE, {MEANS: means})
         jsonfile.write(pathlib.Path(out) / PURPOSE_FILE, got)   # 最後に書く: purpose.json が在れば両方が書き終わっている
         return {"ok": True, "reason": ""}

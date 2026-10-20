@@ -170,7 +170,7 @@ loop の中の会話（README 13 章の決め・今の振る舞いのまま）: 
 | `fixgates.py` | `gates.py` | 全部 |
 | `factchecks.py` | `facts.py` | 全部（`main` は事前の確かめのコマンドとして残す。1.5.5） |
 | `fixrules.py` | `rules.py` | 全部の値の関数（`fix_values`・`owed_values`・`kinds_now`・`kind_of`・`ask_config`・`implementer_values`・`_g1_task`・`resume` の値など）。`rulebook.render` に渡す節の組み立て（`fix_parts`・`tdd_parts`・`ruler_parts`・`write_prompt`・`tdd_render`）は写さず、`src/prompts.py` が `prompt.emit` に渡す値と真偽を組む |
-| `consult.py` | `consult.py` | 全部（`question`・`answer_text` の決まった文は md と値に割る。3 節） |
+| `consult.py` | `consult.py` | 全部（`answer_text` の決まった文は md〔`prompts/parts/answer-file-head.md`・`answer-file-row.md`〕と値に割った。`question` は呼び手が無く消した。3 節） |
 | `clash.py` | `clash.py` | 全部（`prompt` の決まった文は md に。6 節） |
 | `ruling.py` | `ruling.py` | 全部（`prep` の指示の組み立ては md に。5 節） |
 | `parking.py` | `parking.py` | 全部 |
@@ -419,7 +419,7 @@ fix-ruled の 2 周目は、頭の 1 の後に 3（`<place>/fix-reply.json`）�
 2. `<!-- if ripple -->` 波及の一覧の 1 文と `{ripple_file}`（今の `RIPPLE_READ`）。
 3. `# Scope consultation (from the fixing stage)` と今の `consult.QUESTION` の決まり（決めるのはあなた・out_of_scope の考え直し方・ほかの項目の out_of_scope を allow した時の効き方）と `{count}`（頼みの件数）。
 4. `<!-- if plain -->` 頼みの答え方の段落（今の `ASK_TEXT` の「答え方」の部分。頼まれた物の中からだけ許す）。`<!-- if gate -->` 承認ノードの条件の頼みの答え方の段落（今の `ASK_GATE_TEXT` の「答え方」の部分。条件が求める物を自分で挙げてよい・関わらない条件なら deny）。
-5. `{asks}`（← `consult.question` の頼みごとの節 `## 相談 <n>: 項目 <m>（単位: …）` と行〔今の範囲・out_of_scope と当たった glob と外した理由・足したいパス・テストの範囲・新しいテスト・当たり・理由・承認ノードの条件の字〕。決まった文を除いた材料だけ）。
+5. `{asks}`（← `consult.asks_text` の頼みごとの節 `## 相談 <n>: 項目 <m>（単位: …）` と行〔今の範囲・out_of_scope と当たった glob と外した理由・足したいパス・テストの範囲・新しいテスト・当たり・理由・承認ノードの条件の字〕。決まった文を除いた材料だけ）。
 6. 答えの JSON の欄の決まり（今の `QUESTION` の後半: ask・decision・paths・tests・new_tests〔red と guard〕・spec・reason、期待を実装に合わせる許しを出すな）。
 7. 人に見せる欄の言語の 1 文と `{lang}`（`reason`・`spec`）。
 
@@ -716,7 +716,7 @@ Write `how` and `bash_writes[].why` in 依頼文の言語（利用者の言語�
 
 ### 8.1 共通の確かめの順（修正役の受け付け `board.accept_reply`。今の `fixboard.accept_reply` の写しのまま）
 
-確かめは全部回してから最後に 1 回だけ拒む（F131）。拒否の文は `FIX_REJECT_HEAD` の後に `FIX_CHECKS` の順の見出しで並べる。順と中身（どれも今の関数のまま）: consult（枠を使い切った後の consult。欄を外して続ける）→ frozen（`facts.check_frozen`。TDD の loop が凍らせたテストのファイル。許すのは `conflict.ruled_test_limits` の範囲だけ）→ writes（`writes.check`。記録の無い run は `fixboard.undeclared_writes`）→ conflict（`board.take_conflicts`。`conflict.problems_by_entry` の欄・語・名指しの現物の照らし）→ pack（`.archon/` の下）→ excluded（`board.check_excluded`。新しい: 並行 PR に回した hunk〔port `excluded`〕の行に、修正の段の始めの木から今の作業ツリーへの変更〔`git diff -U0` の旧い側の範囲〕が触れたら、hunk ごとに「並行 PR #<pr> に回した hunk <file>:<start>-<end>（<why>）を変えた」と名指して拒む。行の番号は並行 PR の確かめが走った時の作業ツリーの行なので、始めの木の中の位置は錨〔行の `sha256`〕で引き直して比べる〔2 回目の段や順に回す組の 2 つ目以降は始めの木で行がずれる〕。錨の無い行・錨が木に無い行は記録した行のまま、同じ中身が複数在れば記録した行に近い方。始めの木が無い・git が読めない・木にファイルが無い時は、通さずに照らせない訳を 1 行で拒否にする。外した hunk が無ければ照らさない）→ duplicate → not_opened → excused（`board.fix_duty`）→ scope（`scope.check`。範囲・out_of_scope・add と remove の symbol・tests の id・同名の定義・案の外の新しいテスト）→ tests（`tdd.selected_problems`。変更に直に関わる試験を走らせ、元で赤でなかった試験の赤を拒む）→ plan_faces（`board.plan_face_errors`）→ gates（`gates.problems`。受け入れのテストの base で赤・今の木で緑と、名指しの外の既存のテストの関数の本体の変更）→ closure（`board.closure_reply` と `unitrows.build`。閉じない defects の問い・数えられない問い）→ copy（`recount.accept_fix`。直す義務の単位の行・fix_closure の黙った値・interactions・bypass_tried・breaks.result・precedent・symptom の理由・coverage の母数と数え直し・clean なのに赤を見ていない・wrote_refs・差分が足した md のリンク）。
+確かめは全部回してから最後に 1 回だけ拒む（F131）。拒否の文は `FIX_CHECKS` の順の見出しで並べる（「全部を 1 回で直して出し直せ」の決まった文は md の `parts/fixer.md` の段落 `rejected`）。順と中身（どれも今の関数のまま）: consult（枠を使い切った後の consult。欄を外して続ける）→ frozen（`facts.check_frozen`。TDD の loop が凍らせたテストのファイル。許すのは `conflict.ruled_test_limits` の範囲だけ）→ writes（`writes.check`。記録の無い run は `fixboard.undeclared_writes`）→ conflict（`board.take_conflicts`。`conflict.problems_by_entry` の欄・語・名指しの現物の照らし）→ pack（`.archon/` の下）→ excluded（`board.check_excluded`。新しい: 並行 PR に回した hunk〔port `excluded`〕の行に、修正の段の始めの木から今の作業ツリーへの変更〔`git diff -U0` の旧い側の範囲〕が触れたら、hunk ごとに「並行 PR #<pr> に回した hunk <file>:<start>-<end>（<why>）を変えた」と名指して拒む。行の番号は並行 PR の確かめが走った時の作業ツリーの行なので、始めの木の中の位置は錨〔行の `sha256`〕で引き直して比べる〔2 回目の段や順に回す組の 2 つ目以降は始めの木で行がずれる〕。錨の無い行・錨が木に無い行は記録した行のまま、同じ中身が複数在れば記録した行に近い方。始めの木が無い・git が読めない・木にファイルが無い時は、通さずに照らせない訳を 1 行で拒否にする。外した hunk が無ければ照らさない）→ duplicate → not_opened → excused（`board.fix_duty`）→ scope（`scope.check`。範囲・out_of_scope・add と remove の symbol・tests の id・同名の定義・案の外の新しいテスト）→ tests（`tdd.selected_problems`。変更に直に関わる試験を走らせ、元で赤でなかった試験の赤を拒む）→ plan_faces（`board.plan_face_errors`）→ gates（`gates.problems`。受け入れのテストの base で赤・今の木で緑と、名指しの外の既存のテストの関数の本体の変更）→ closure（`board.closure_reply` と `unitrows.build`。閉じない defects の問い・数えられない問い）→ copy（`recount.accept_fix`。直す義務の単位の行・fix_closure の黙った値・interactions・bypass_tried・breaks.result・precedent・symptom の理由・coverage の母数と数え直し・clean なのに赤を見ていない・wrote_refs・差分が足した md のリンク）。
 
 - はみ出しだけの回（`board.gather_overflow`・`split_rows`・`settle_overflow`）: 拒まず、まだ聞いていない物を相談に積み（拒否に数えない）、聞いた後の物は機械が戻して受け付け直す（F110・F111）。
 - 1 回目の段で裁かれていない申し出が place に在れば、受け付けを抜けて裁定へ回す（`fix-parked-reply.json` を書く。F207。13.3 の 5）。裁定の後の新しい申し出は機械が ask_human に裁いて積む。
@@ -850,7 +850,7 @@ node ごとの場面は 2〜6 節の 7。block 全体では:
 2. 文の中の偽になった句を外した: 裁定の後の「あなたは新しい会話なので」・相談の答えの役の「（新しい会話）」・「修正案を書いた役がその会話の続きで答え」。根拠: 1 波目の作りから足した決まり（`fresh_context: false` の loop の役の md は新しい会話と言わない）と、今の振る舞い（13.3 の 1）。
 3. TDD の役の「2 回目からは変わった物だけを載せる」を外した（実際は毎回全部載せる）。
 4. 相談の答えの役に言語の 1 文を足した（README 5.3）。
-5. 材料の行（brief・穴・範囲・テスト・ライブラリ・相談の頼み・単位・引き継ぎ）は今の lib が組む日本語のまま入る。lib を変えないため（README 11.1）。決まった文だけを英語にした。役が Read するファイルの中の字（lib の `conflict.write_rulings` が書く裁定の文の約束の句・brief・答えのファイルの頭）も今の lib の日本語のまま（材料で、node の指示の md ではない）。
+5. 材料の行（brief・穴・範囲・テスト・ライブラリ・相談の頼み・単位・引き継ぎ）は今の lib が組む日本語のまま入る。lib を変えないため（README 11.1）。決まった文だけを英語にした。役が Read するファイルの決まった文は、#764 で md に移した（裁定の文の約束の句は `src/rulings.py` が `prompts/parts/ruling-promise.md`・`ruling-previous-reply.md` から組む。答えのファイルの頭は `answer-file-head.md`・`answer-file-row.md`。合わせ役の印の決まりは `parts/clash.md`）。brief の材料の字と、項目ごとの見出しと札は日本語のまま。
 6. AI の node の `output_format` は今の字のまま写す（修正役の `precedent` の `allOf`・`if`・`then`・`not` も）。根拠: 形の検査の KNOWN_KEYWORDS の決まりは port の形のファイル（`schemas/`）の決まりで、役の返答の型は Archon が役に渡す型。同じ決まりは受け付け（`recount` の `precedent` の照らし。F120）にも在る。返りの node の `output_format` は `anyOf` を使わず `type: ["object","null"]` にする。
 7. 借りた字（superpowers の型・無人の読み替え `lib/borrow/unattended.md`・seams.json の効く所）は md に写さず値で入れる（`{template}`・`{seat_body}`・`{seat_notes}`・`{unattended}`）。根拠: local-review の設計書の決めと同じ（源は `lib/borrow/` の台帳）。
 

@@ -30,7 +30,7 @@ from tests.bin.gitkit import committed_copy, git
 from tests.blocks import kit
 
 tdd = kit.load("fix", "tdd")
-from src import board, facts, gates, prompts, runvals  # noqa: E402
+from src import board, facts, gates, prompts, rules, runvals  # noqa: E402
 for _name in ("files", "rules", "runvals", "carry", "lanes", "intake", "scope", "unitrows", "consult", "clash", "ruling", "parking"):
     importlib.import_module(f"src.{_name}")   # 遅れて読む src の名（board の関数の中の import）もこの block の物に揃える
 FIX_SRC = {n: m for n, m in sys.modules.items() if n == "src" or n.startswith("src.")}
@@ -1305,9 +1305,9 @@ class TestRewriteSharedAcrossUnits(ContractCase):
 
 
 def pasted_line(text: str, head: str) -> set:
-    """修正役の指示書の節（planrange.tests_text）の head で始まる行のバッククオートの名"""
+    """修正役の指示書の節（rules.tests_rows）の head で始まる行のバッククオートの名"""
     (line,) = [ln for ln in text.splitlines() if ln.lstrip().startswith(head)]
-    return set(re.findall(r"`([^`]+)`", line.split("）: ", 1)[1]))
+    return set(re.findall(r"`([^`]+)`", re.split(r"）?: ", line, maxsplit=1)[1]))
 
 
 class TestPastedVerifiedRewrite(ContractCase):
@@ -1333,7 +1333,7 @@ class TestPastedVerifiedRewrite(ContractCase):
                                         "refactor": {"declared": False, "why": ""}}])
         edits = conflict.edit_permits(self.board, "first")
         self.assertIn(REWRITE, edits["tests"], "事後の関門は id で許す")
-        text = planrange.tests_text(None, edits, facts.frozen_tests(self.board, self.state, "first"))
+        text = rules.tests_rows(None, edits, facts.frozen_tests(self.board, self.state, "first"))
         self.assertNotIn(REWRITE, pasted_line(text, "- 本体を変えてよい既存のテストの名指し"))
         self.assertEqual(pasted_line(text, "- ループが書き換えて凍らせた名指し"), {REWRITE})
         self.assertEqual(facts.check_frozen(self.board, self.state, self.repo, "first"), [])
@@ -1367,7 +1367,7 @@ class TestPastedUnruledFrozen(LoopCase):
                 self.assertIn("test_stats.py", edits["limits"], "事後の関門は裁定の範囲を許す")
                 got = facts.frozen_tests(self.board, self.state, pass_)
                 self.assertEqual(got["unruled"], ["test_stats.py"] if frozen else [])
-                text = planrange.tests_text(None, edits, got)
+                text = rules.tests_rows(None, edits, got)
                 head = "- 今の段の TDD のループが凍らせたファイル"
                 if frozen:
                     self.assertEqual(pasted_line(text, head), {"test_stats.py"})

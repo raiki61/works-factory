@@ -183,7 +183,7 @@ def class_problems(doc: dict, reply) -> list:
         for key, text in texts + [("queries", q) for q in qs]:   # web の役に渡る文は全部、対象の名を持たない
             hit = excerpts.text_problems(text, banned)
             if hit:
-                out.append(f"{head}: {key} に依頼の行の識別子 {hit} が在る（対象の名を外し、作業の言葉で言い直せ）")
+                out.append(f"{head}: {key} に依頼の行の識別子 {hit} が在る")
     missing = [n for n in range(1, len(findings) + 1) if n not in seen]
     if missing:
         out.append(f"行の無い依頼の行: {missing}（全部の行に 1 つずつ）")
@@ -314,7 +314,7 @@ def judge_problems(rows: list, findings: list, reply, web: bool = True) -> list:
         else:
             hit = excerpts.text_problems(r["practice"], banned)
             if hit:
-                out.append(f"{head}: practice に依頼の行の識別子 {hit} が在る（対象の名を書かない）")
+                out.append(f"{head}: practice に依頼の行の識別子 {hit} が在る")
         src = r.get("sources")
         if not isinstance(src, list) or not all(isinstance(s, str) for s in src):
             out.append(f"{head}: sources は抜き書きの id の配列")

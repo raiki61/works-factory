@@ -22,6 +22,7 @@ from fixboard import (  # noqa: F401  lib のまま呼ぶ名（docs/design/fix.m
     trace, trace_rows, TRACE_FILE, read_json, write_json, write_text, plan_view, marks_view, allowed_test_rows, _allowed_row, child_allowed_rows, scope_brief, ALLOWED_SOURCES, FIX_IN_DIFF_CORE, run_diff, DIFF_EMPTY, diff_file, pr_revs, pr_diff, pr_added_lines, HUMAN_FACE_KINDS, UNIT_STATUSES, FIXED, GIVEN_UP, NOT_DONE, UNIT_LEFT, HANDOFF_HEAD, accept_out, round_number, snapshot, touched_since, undeclared_writes, UNDECLARED)
 
 from src import files as fixnames
+from src.rulings import write as write_rulings
 from src.files import (  # noqa: F401
     GROUPS_FILE, TDD_UNIT_FILE, ASSERT_FILE, RESULT_FILE, PLAN_REPLY_FILE, PLAN_REVIEW_FILE, JUDGMENT_FILE, TIES_FILE, MATERIALS_FILE, JUDGE_COPIES, CHECKED_COPIES, RIPPLE_FILE, ANSWERS_FILE, ONLY_ITEMS_FILE, BASELINE_FILE, NOTES_FILE, BASE_REV_FILE, FIX_REPLY_FILE, VALUES)
 
@@ -1054,8 +1055,6 @@ UNCLOSED_DEFECTS = ("単位 {key} の欠陥を数える問い（判定者の問�
                     "申し出る")
 UNCOUNTED_DEFECTS = ("単位 {key} の欠陥を数える問い（判定者の問いか、裁定が置き換えた問い）を修正後に数えられず、閉じたと確かめ"
                      "られない: {why}。その問いが数えられる木にして出し直せ")
-FIX_REJECT_HEAD = ("受け付けは確かめを全部回した。見出しごとに並べた行を全部直した返答を丸ごと出し直せ（直した所だけを返すな。"
-                   "1 回の出し直しで全部を直せ）:")   # 元 accept.py:195
 FIX_CHECK_HEAD = "## {head}（確かめ {cid}・{count} 件）"   # 元 works/blk-fix/lib/fixlanes.py:449
 DUPLICATE = "同じ unit_key を 2 行以上に分けた（直した単位ごとにちょうど 1 行。1 つの単位が複数のファイルに及ぶなら files に並べよ）: "
 NOT_OPENED = ("今の周に直す単位に無い unit_key を changes に書いた（開いた単位と、承認ノードで答えた問いの出どころ・depends のほかは直さない。"
@@ -1240,9 +1239,10 @@ def fix_reject_rows(found: list) -> list:
 
 
 def fix_reject_text(found: list) -> str:
-    """拒否の本文: FIX_REJECT_HEAD の後に、行の在る確かめごとに見出しと行 `  - <文>`。元 works/blk-fix/scripts/accept.py:215"""
+    """拒否の本文: 行の在る確かめごとに見出しと行 `  - <文>`（全部を直して出し直せという決まった文は md の fixer）。
+    元 works/blk-fix/scripts/accept.py:215"""
     rows = fix_reject_rows(found)
-    lines = [FIX_REJECT_HEAD]
+    lines = []
     for check, head in FIX_CHECKS.items():
         texts = [t for c, t in rows if c == check]
         if texts:
@@ -1352,7 +1352,7 @@ def take_conflicts(reply: dict, place, repo, pass_: str, owed) -> tuple:
         else:
             conflict.park(place, items, source=conflict.FIX_SOURCE, pass_=pass_,
                           ruling={"decision": conflict.ASK, "text": SECOND_CONFLICT, "limits": [], "by": FIX_ACCEPT_BY})
-            conflict.write_rulings(place)
+            write_rulings(place)
     if pass_ == "first" and conflict.unruled(place):
         write_json(pathlib.Path(place) / conflict.PARKED_REPLY, {**reply, "conflicts": items})
         return reply, {"ok": True, "parked": True, "reason": "",
@@ -1420,7 +1420,7 @@ def park_units(place, repo, settled, head: str, *, iteration: int, pass_: str) -
                       ruling={"decision": conflict.ASK, "text": f"{BOUND_PARKED}{why}（戻した直しの控え {patch}）", "limits": [],
                               "by": FIX_ACCEPT_BY})
         out[key] = GAVE_UP.format(n=iteration, patch=patch, why=why)
-    conflict.write_rulings(place)
+    write_rulings(place)
     trace(place, conflict.ACCEPT_PARKED_OP, node=FIX_ACCEPT_BY, unit_keys=list(settled.park), patch=patch,
           reasons=settled.park, unbound=settled.unbound, how=settled.how)
     return out, patch

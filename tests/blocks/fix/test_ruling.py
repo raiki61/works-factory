@@ -113,12 +113,10 @@ class ConflictSeamCase(unittest.TestCase):
         c = conflict
         c.park(self.place, [CLAIM, {**CLAIM, "unit_key": KEY_B}], source=c.FIX_SOURCE)
         self.assertEqual(board.fix_duty(self.place, {KEY_A, KEY_B}), ({KEY_A, KEY_B}, {}))
-        path = c.apply_rulings(self.place, {"c1-1": {"decision": c.REPLAN, "text": "案の項目 1 の受け入れのテストが誤り",
-                                                     "limits": [], "plan_items": [1], "plan_units": [KEY_A]},
-                                            "c1-2": {"decision": "fix_code_as", "text": "コードを hi を返す形に直せ",
-                                                     "limits": ["stats.py"]}}, by="t")
-        self.assertEqual(path, self.place / c.RULINGS_FILE)
-        self.assertTrue(path.is_file())
+        c.apply_rulings(self.place, {"c1-1": {"decision": c.REPLAN, "text": "案の項目 1 の受け入れのテストが誤り",
+                                              "limits": [], "plan_items": [1], "plan_units": [KEY_A]},
+                                     "c1-2": {"decision": "fix_code_as", "text": "コードを hi を返す形に直せ",
+                                              "limits": ["stats.py"]}}, by="t")
         rows = {r["id"]: r for r in c.items(self.place)}
         self.assertEqual(rows["c1-1"][c.REPLAN_STATE], c.WAITING)
         self.assertEqual(rows["c1-1"]["ruling"]["decision"], c.REPLAN)

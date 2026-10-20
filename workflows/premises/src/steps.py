@@ -123,8 +123,7 @@ def measured_needs_output(reply) -> None:
     bad = [str(c.get("text"))[:60] for c in reply.get("constraints") or []
            if c.get("kind") == MEASURED and not str(c.get("measured_output") or "").strip()]
     if bad:
-        raise Reject(f"p0.premises: kind={MEASURED} なのに measured_output（実行したコマンドと出力）が無い制約がある: {bad}"
-                     f"——コマンドと出力を示せないものは kind={HYPOTHESIS} に落とせ")
+        raise Reject(f"p0.premises: kind={MEASURED} なのに measured_output（実行したコマンドと出力）が無い制約がある: {bad}")
 
 
 def with_carried(reply: dict, carried: list) -> dict:
@@ -138,9 +137,7 @@ def _tree_unchanged(out, repo) -> None:
     見る）。写しが無い・読めない・違えば Reject"""
     moved = accept.moved_since(out, repo, accept.TREE_KEYS)   # out の tree.json（TREE_FILE）と比べる。無ければ Reject
     if moved:
-        raise Reject(f"役を起こした後から作業ツリーが変わった——{PREMISES_RULE}（HEAD・枝・git が無視するファイルも）。作った物"
-                     "（出力のファイル・キャッシュ）は rm で消し、書き換えた追跡中のファイルは git restore -- <path> で戻してから"
-                     f"出し直せ（出力は $TMPDIR に置く）（{'・'.join(moved)}）")
+        raise Reject(f"役を起こした後から作業ツリーが変わった——{PREMISES_RULE}（HEAD・枝・git が無視するファイルも）（{'・'.join(moved)}）")
 
 
 def check(reply, out, repo, findings: list, carried: list) -> dict:
@@ -149,8 +146,7 @@ def check(reply, out, repo, findings: list, carried: list) -> dict:
     def run():
         missing = check_claims(reply, findings)
         if missing:
-            raise Reject(f"依頼の実測を測り直した制約が無い: {'・'.join(missing)}。text に where をそのまま入れよ"
-                         f"（この作業ツリーで測り直せなければ kind: {HYPOTHESIS} に落とし、text に where と測れない理由を書く）")
+            raise Reject(f"依頼の実測を測り直した制約が無い: {'・'.join(missing)}")
         repo_p = pathlib.Path(repo)
         with accept.in_repo(repo_p):
             _tree_unchanged(out, repo_p)

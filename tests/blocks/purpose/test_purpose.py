@@ -185,6 +185,8 @@ class PromptCase(_RepoCase):
         self.assertEqual((got["ok"], got["done"]), (False, False))
         again = self.prep()["prompt"]
         self.assertTrue(again.startswith("## Why your previous answer was rejected"), again[:80])
+        self.assertIn("restore any tracked file you rewrote with `git restore -- <path>`", again)
+        self.assertIn("with the letter case of the repository", again)
         self.assertIn("nothing.md", again)
         self.assertTrue((self.run.artifacts / "purpose-prompt-2.md").is_file())
 

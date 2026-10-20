@@ -1,0 +1,1 @@
+How to read the marks in the list: a name marked "a name with hits in many files" shows only the count, and its callers are not all listed. Read them and decide whether the fix touches them. A hit marked "a hit of a name to remove" is a reference that breaks after the removal.

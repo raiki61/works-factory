@@ -1,5 +1,12 @@
 <!-- if rejected -->
 {shared:rejected}
+
+How to fix the rejections of the evidence:
+
+- If a `cite` string is not in the working tree, the machine does not accept it: open the working tree and give a string that exists there.
+- A row of `findings` is an object with `cite` (and `text` and `hits`), not a bare string. The fixed form lets the machine count every row again; a row without it would stay in the material of every round without being counted again.
+- A `cite` is one line. The count is per line of `git grep`, so a string with line breaks would pass as soon as any one line exists (an empty line mixed in always passes, with `-F` too). Split it and give one finding per line.
+- A `cite`, `target`, or `where` cannot contain a NUL, because it can be neither a search string nor a path. Copy it again from the working tree.
 <!-- end rejected -->
 
 {shared:role-inspector}

@@ -694,7 +694,8 @@ class BriefCase(unittest.TestCase):
         run = PlanRun(self)
         run.include()
         prompt = self.prompt(run)
-        self.assertIn(libdocs.TITLE, prompt)
+        self.assertIn("## Library documents (installed version and official)", prompt)
+        self.assertIn("fetch the official documents yourself with WebSearch and WebFetch", prompt)
         self.assertIn("ライブラリの文書を取る物は無い（0 本）", prompt)
 
     def test_prompt_ends_with_language_rule(self):

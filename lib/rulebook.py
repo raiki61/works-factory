@@ -5,13 +5,9 @@
   直しの証拠）・core-conflict（食い違いの申し出）・core-keep（守ること）
 - sections(path): `<!-- セクション <id> -->` の行で切った {id: 本文}（印の行は指示書に入れない）
 - fill: 型の穴 <<名>> を `値`（空は EMPTY）で埋める。穴に値が無い時は Unfilled
-- render: 節の並び [(id, 本文, 理由)] から指示書の 1 つの形。1 行目（HEADER）に、どの節を載せたか・なぜかを機械の事実として書く。
-  呼び手が取った言語の 1 行を渡せば末尾に置く
 
-同じ入力からはバイト単位で同じ指示書になる（時刻を書かない）。層は L3。どの役の道・どのブロックの決まりかは呼び手が持つ。
+指示書の組み立ては prompts/ の md と .shared/prompts/ の口 prompt.py が持つ（ここは決まりの正本の読みと型の穴の埋めだけ）。
 """
-import hashlib
-import json
 import pathlib
 import re
 import sys
@@ -22,14 +18,11 @@ _CORE = pathlib.Path(__file__).resolve().parent
 if str(_CORE) not in sys.path:
     sys.path.insert(0, str(_CORE))
 
-import rolekit  # noqa: E402  （指示書の組み立て compose）
-
 CANON = _CORE / "writerules" / "common.md"
 EMPTY = "（空）"
 HOLE = re.compile(r"<<([a-z_]+)>>")
 MARK_HEAD = "<!-- セクション"
 MARK = re.compile("^" + re.escape(MARK_HEAD) + r" ([a-z0-9-]+) -->$")
-HEADER = "<!-- works-prompt {} -->"
 
 
 class Unfilled(ValueError):
@@ -73,10 +66,6 @@ def shared() -> str:
     return join(sections(CANON).values())
 
 
-def sha(text: str) -> str:
-    return hashlib.sha256(text.encode("utf-8")).hexdigest()
-
-
 # ---------------------------------------------------------------- 値の穴
 def _value(v) -> str:
     v = "" if v is None else str(v)
@@ -97,16 +86,3 @@ def pick(values: dict, names: tuple) -> dict:
     if lack:
         raise Unfilled(f"run の値が無い: {lack}")
     return {k: values[k] for k in names}
-
-
-# ---------------------------------------------------------------- 組み立て（純粋）
-def render(role: str, iteration: int, parts: list, *, before=(), after=(), reject_file: str = "", lang: str = "") -> dict:
-    """指示書 {text, head}。決まりの節は全部載せる。head は 1 行目（HEADER）に書く機械の事実 {role, iteration, rules_sha（決まりの
-    本文の sha256）, sections: [{id, why}]}。lang は言語の 1 行（空なら置かない）で末尾に置く。
-    並び: HEADER → [拒否の理由のファイルの 1 行] → before → 決まり → after → [言語の 1 行]"""
-    rules_text = join(text for _, text, _ in parts)
-    head = {"role": role, "iteration": iteration, "rules_sha": sha(rules_text),
-            "sections": [{"id": pid, "why": w} for pid, _, w in parts]}
-    text = rolekit.compose([*before, rules_text, *after, lang], reject_file=reject_file)
-    text = HEADER.format(json.dumps(head, ensure_ascii=False)) + "\n" + text.rstrip("\n") + "\n"
-    return {"text": text, "head": head}

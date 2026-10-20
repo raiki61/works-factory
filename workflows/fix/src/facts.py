@@ -149,7 +149,7 @@ def _now_rulings(pass_: str) -> bool:
 
 
 def frozen_tests(board, state, pass_: str) -> dict:
-    """修正役の指示書（planrange.tests_text）に貼る凍ったテスト {files: run の全部の輪が凍らせたテストのファイル（_loop_freeze。
+    """修正役の指示書の「テストの行」（fix の rules.tests_rows）に貼る凍ったテスト {files: run の全部の輪が凍らせたテストのファイル（_loop_freeze。
     check_plan_scope と同じ和で、凍結の照らし tddloop.frozen_problems が輪ごとに読む frozen の和と一致する）, verified: check_frozen
     が許しから外すのと同じ名指し（_verified）, unruled: 事後の関門が裁定の範囲を許す（conflict.edit_rulings）のに、check_frozen が
     その範囲で凍結を解かない今の輪（state）の凍ったファイル（2 回目の修正の段の first）}"""

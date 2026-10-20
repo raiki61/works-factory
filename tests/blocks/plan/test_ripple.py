@@ -391,7 +391,7 @@ class RippleCase(unittest.TestCase):
         marked = [x for x in text.splitlines() if x.startswith("- h") and " removed" in x]
         self.assertTrue(marked, text)
         self.assertTrue(all(x.endswith(ripple.REMOVED_MARK) for x in marked), marked)
-        self.assertEqual(ripple.REMOVED_MARK, " (a hit of a name to remove: a reference that breaks after removal)")
+        self.assertEqual(ripple.REMOVED_MARK, " (a hit of a name to remove)")
         plain = next(x for x in text.splitlines() if x.startswith("- h") and " code " in x)
         self.assertNotIn(ripple.REMOVED_MARK, plain)
 

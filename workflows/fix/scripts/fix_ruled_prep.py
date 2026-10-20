@@ -4,7 +4,7 @@
 # ///
 """node fix-ruled-prep（全体の形の裁定の後の修正の輪の頭）: 裁定の後の修正役の指示を md から組む（src/prompts.fixer の ruled）。
 直す裁定（PRIOR でも join-clash でもない fix_test_scope・fix_code_as）が無ければ go: false。1 周目は裁定の文のファイルを名指し
-（無ければ conflict.write_rulings で書く）、毎周、保存した 1 回目の返答（board.group_fix_reply）を名指す。直す義務は board.ruled_owed。
+（無ければ rulings.write で書く）、毎周、保存した 1 回目の返答（board.group_fix_reply）を名指す。直す義務は board.ruled_owed。
 返り {prompt, go, iteration}"""
 import functools
 import os

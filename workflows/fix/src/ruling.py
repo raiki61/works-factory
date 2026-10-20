@@ -30,6 +30,7 @@ from accept import TREE_KEYS, tree_moved  # noqa: E402   共通の作業ツリ�
 import cite  # noqa: E402
 import conflict  # noqa: E402
 from src import board as fixboard  # noqa: E402   置き場への作業ツリーの姿の控え（元 entry.snapshot）
+from src.rulings import write as write_rulings  # noqa: E402   裁定の文のファイル
 from src import runvals  # noqa: E402   依頼のファイル（values.json）
 import jsonfile  # noqa: E402
 import planbrief  # noqa: E402   今の周の brief の行（fix_plan_item を brief の在る単位に限る）
@@ -236,13 +237,14 @@ def accept_rule(reply, board, base_rev, repo, *, keys=TREE_KEYS) -> dict:
             if r["decision"] == conflict.REPLAN:
                 got[conflict.PLAN_ITEMS], got[conflict.PLAN_UNITS] = plan_item_units(todo[r["id"]]["unit_key"], briefs)
             return got
-        path = conflict.apply_rulings(b, {r["id"]: stored(r) for r in reply["rulings"]}, by=BY_ROLE)
+        conflict.apply_rulings(b, {r["id"]: stored(r) for r in reply["rulings"]}, by=BY_ROLE)
+        path = write_rulings(b)
         return {"ok": True, "done": True, "reason": "", "rulings_file": str(path), "counts": conflict.counts(b)}
     handed = {}
 
     def hand_over():   # 諦めた回だけ: 裁かれていない申し出を人に回す
-        path = conflict.apply_rulings(b, {i: {"decision": conflict.ASK, "text": GIVE_UP_TEXT, "limits": []} for i in todo},
-                                      by=BY_GIVE_UP)
+        conflict.apply_rulings(b, {i: {"decision": conflict.ASK, "text": GIVE_UP_TEXT, "limits": []} for i in todo}, by=BY_GIVE_UP)
+        path = write_rulings(b)
         handed.update(rulings_file=str(path), counts=conflict.counts(b))
     out = rolekit.accept_round(b, ROLE, None, lambda _: {"ok": False, "reason": " / ".join(errs), "rulings_file": "",
                                                           "counts": conflict.counts(b)}, on_give_up=hand_over)

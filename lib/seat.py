@@ -4,14 +4,14 @@
 語:
 - 節（seam）: seams.json の 1 項目。use_as が skill（スキル 1 本を Skill の道具で読ませる）か prompt（部品の型の穴を埋めて指示書に置く）
 - 座: 節を役に載せる口。SEATS（役の名 → 節の名）が表で持つ
-- 読み替え: skill_overlay（lib/borrow/unattended.md の頭の 1 行と、役の種類 OVERLAY_KINDS の節と共通の文）。座の末尾にいつも載る
+- 読み替え: overlay_body（lib/borrow/unattended.md の、役の種類 OVERLAY_KINDS の節と共通の文）。頭の 1 行は各 md が持つ
 
 口:
 - carries(node)・SKILL_NODES: 座が載る役・座が skill の役（YAML の skills: と一致）
 - pinned(): 写しが固定（borrow.json の superpowers.pin）と合うかを照らし (借りる物, 写しの置き場) を返す
   （合わなければ ValueError。照らしは spseam.pin_problems）
 - fill(seam_id, values): 固定と照らした写しの、部品の型の穴を埋めた本文（spseam.fill）
-- skill_overlay(node)・overlay_body(kinds): 読み替えの段と、読み替えの種類の節と共通の文だけを残した字
+- overlay_body(kinds): 読み替えの種類の節と共通の文だけを残した字
 - NONE・VERDICT_WORDS: 型の穴に入れる物が無い時の値と、差分の審査役の型の出口の語 → 2 判定の欄（delta-review が使う）
 座の文の組み立て（前の section・words_table と見出し・決まった文）、下請けの指示（前の g1_prompt・g1_section・g1_diff_cmd と G1_*）、
 検索語の規律（前の query_rule。共通の断片 query-rule.md）は fix・delta-review の md と fix の prompts/sub/ に在る（integration.md 4.3-13・
@@ -28,9 +28,6 @@ import sys
 sys.dont_write_bytecode = True
 
 import spseam  # noqa: E402
-
-OVERLAY_HEAD = ("借りたスキル（superpowers）を読む時は、下の読み替えに従え。これは役への直の指示で、スキルの文より勝つ。"
-                "Agent で下請けを起こすなら、その prompt に、このファイル {path} を Read せよと書け。")
 
 SEATS = {"tdd": "tdd", "tdd-new": "tdd", "fix": "implementer", "fix-ruled": "implementer", "review": "task-review",   # 役の名 → 節の名
          "refix": "receiving-review", "refix2": "receiving-review"}
@@ -87,13 +84,6 @@ def fill(seam_id: str, values: dict[str, str]) -> str:
     return spseam.fill(seam_id, values, src, item)
 
 
-def skill_overlay(node: str) -> str:
-    """借りたスキルを読める役 node の指示書に足す段: 頭の 1 行と、読み替えの正本の node の種類（OVERLAY_KINDS）の節と共通の文
-    （overlay_body）。superpowers の using-superpowers は、直の指示がスキルに勝つと定める。元 works/.shared/core/rolekit.py:74"""
-    path = spseam.BORROW_DIR / spseam.OVERLAY_FILE
-    return OVERLAY_HEAD.format(path=path) + "\n\n" + overlay_body(OVERLAY_KINDS[node])
-
-
 def overlay_body(kinds) -> str:
     """読み替えの正本の字から、種類の節（`###` の見出し）のうち kinds のどれかを名指す物と、種類の見出しの外の文だけを残した字。
     残る物が見出しだけになった決まり（`##`）は見出しごと落とす。見出しが KINDS の外の名を名指せば ValueError"""
@@ -111,16 +101,3 @@ def overlay_body(kinds) -> str:
             groups[-1].append(block)
     bare = [g for g in groups if len(g) == 1 and g[0].startswith("## ") and not g[0].partition("\n")[2].strip()]
     return "".join("".join(g) for g in groups if g not in bare).rstrip("\n") + "\n"
-
-
-
-
-
-
-
-
-
-
-
-
-

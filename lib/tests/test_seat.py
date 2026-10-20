@@ -42,7 +42,6 @@ class SeatCase(unittest.TestCase):
         for other in (seat.FIX, seat.TDD, seat.REFIX, seat.REVIEW):
             self.assertNotIn(other, local)
         self.assertNotIn("## 義務の単位の行き先", local, "種類の節が全部落ちた決まりは見出しごと落ちる")
-        self.assertTrue(seat.skill_overlay("fix").endswith(seat.overlay_body((seat.FIX,))))
 
     def test_unknown_kind_heading_is_named(self):
         with mock.patch.object(pathlib.Path, "read_text", return_value="# t\n\n## A x\n\n### 知らない役\n\n文\n"):

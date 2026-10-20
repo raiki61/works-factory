@@ -7,8 +7,7 @@ from engine.util import Reject   # lib/graphloops
 
 from src import files, gate
 
-R3_MISSING = ("まとめた形の R3 全体の整合の答え（欄 r3 の status・reason・seen・unseen）が無いか形が違う。"
-              "R3 の観点の決まりで r3 を書いて出し直せ")
+R3_MISSING = "まとめた形の R3 全体の整合の答え（欄 r3 の status・reason・seen・unseen）が無いか形が違う"
 
 
 def r3_problem(r3) -> bool:
