@@ -3,6 +3,7 @@
 
 - 約束の選び: 裁定ごとの約束・案を直した行・諦めた行・2 回目の修正の段で待つ行・組どうしの合わせの申し出
 - 申し出の回の返答の段落（prompts/parts/ruling-previous-reply.md）
+- 作り直した後にまた止まった単位の積み（park）: 裁定に回さず ask_human で積み、裁定の文のファイルを書き直す（それ以外は書き直さない）
 """
 import json
 import pathlib
@@ -14,6 +15,7 @@ from tests.blocks import kit
 
 rulings = kit.load("fix", "rulings")
 import conflict  # noqa: E402  （lib。kit.load の後に届く）
+import stopby  # noqa: E402
 
 MEAN = "stats.py mean: 分母が len(xs) - 1 になっている"
 CLAMP = "stats.py clamp: 上限を超えた値に lo を返す"
@@ -45,6 +47,52 @@ def written(b) -> str:
 
 def section(text, rid):
     return text.split(f"## {rid}:", 1)[1].split("\n## ", 1)[0]
+
+
+def claim(key, source):
+    """TDD の輪の状態の未送の行 {source, item}（item は申し出の中身）"""
+    return {"source": source, "item": {"unit_key": key, "between": ["stats.py:3", "test_stats.py:2"],
+                                        "why_both_cannot_hold": "直した案でも確認が上限まで落ちた", "which_is_right": "unknown",
+                                        "kind": "needs_context"}}
+
+
+class ParkCase(unittest.TestCase):
+    """rulings.park（輪の状態の未送の行を積み、裁定の文のファイルを書き直すかを決める 1 か所）。案を直して直す義務に戻った単位の
+    諦めの行（機械が諦めた申し出）だけが、裁定に回らず ask_human で積まれ、裁定の文のファイルが書き直される"""
+    SENTINEL = "前に書いた裁定の文\n"
+
+    def place(self, *rows):
+        b = place_with_rows(list(rows))
+        (b / conflict.RULINGS_FILE).write_text(self.SENTINEL, encoding="utf-8")
+        return b
+
+    def amended(self):
+        return row("c1-1", MEAN, "fix_plan_item", state="amended", plan_units=[MEAN])
+
+    def test_repeat_gave_up_is_asked_to_human_and_rewrites_the_rulings_file(self):
+        b = self.place(self.amended())
+        rulings.park(b, [claim(MEAN, conflict.GAVE_UP_SOURCE)])
+        new = [r for r in conflict.items(b) if r["id"] != "c1-1"]
+        self.assertEqual([(r["ruling"]["decision"], r["ruling"]["by"]) for r in new], [(conflict.ASK, stopby.TDD_REPEAT)])
+        text = (b / conflict.RULINGS_FILE).read_text(encoding="utf-8")
+        self.assertNotEqual(text, self.SENTINEL)
+        self.assertIn(f"## {new[0]['id']}: {MEAN}", text)
+
+    def test_first_gave_up_is_parked_without_ruling_and_leaves_the_file(self):
+        b = self.place()
+        rulings.park(b, [claim(MEAN, conflict.GAVE_UP_SOURCE)])
+        self.assertEqual([r.get("ruling") for r in conflict.items(b)], [None])
+        self.assertEqual((b / conflict.RULINGS_FILE).read_text(encoding="utf-8"), self.SENTINEL)
+
+    def test_other_source_of_an_amended_unit_leaves_the_file(self):
+        b = self.place(self.amended())
+        rulings.park(b, [claim(MEAN, conflict.FIX_SOURCE)])
+        self.assertEqual((b / conflict.RULINGS_FILE).read_text(encoding="utf-8"), self.SENTINEL)
+
+    def test_gave_up_of_another_unit_leaves_the_file(self):
+        b = self.place(self.amended())
+        rulings.park(b, [claim(CLAMP, conflict.GAVE_UP_SOURCE)])
+        self.assertEqual((b / conflict.RULINGS_FILE).read_text(encoding="utf-8"), self.SENTINEL)
 
 
 class PromiseCase(unittest.TestCase):

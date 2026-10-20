@@ -13,7 +13,7 @@
 - 依頼の行の `where`: 修正依頼の 1 行が名指す所（パスか、パスと行の目安の字）。
 - 入口の差分: run を起こした時に依頼と一緒に渡された差分（入口の差分の根から修正前の HEAD まで）。判定から入る run（依頼の文だけの run）では空。
 - 利用者の環境に戻す: 起動の殻（`bin/works-factory`。Archon を隔離した HOME で起こす）が隔離したまま、対象のテストのコマンドだけは利用者の HOME・XDG に戻して起こす事。戻して起こした時に置く印のファイル（`user-env-ran`）の置き場が `user_env_dir`。置き場が空のまま戻そうとする run は、印を置けないので止まる（`lib/userenv.py`）。
-- 包み・柵（埋め fence）: 起動の殻が読むだけの役の claude を起こす直前に、作業ツリーと共有の `.git` への書き込みを塞ぐ部品（`workflows/.shared/fence.py`）。包みを通る run は、起動の記録のパスを `WORKS_FACTORY_FENCE_RECORDS` で宣言し、受け付けはその記録で柵が掛かったかを確かめる。
+- 包み・柵（埋め fence）: 起動の殻が読むだけの役の claude を起こす直前に、作業ツリーと共有の `.git` への書き込みを塞ぐ部品（`workflows/.shared/fence.py`。名簿は `docs/polyfills.md`）。この block は包みの記録を読まない（記録を読んでいた `ci-prep`・`ci-accept` は 14 節で外した）。
 - 宣言: 対象の根の走らせる段の宣言 `.review-checks.json`（graphloops の `engine/declared.py` の形）と、範囲の宣言 `.works-checks.json`（段ごとの `paths_ignore`）。
 - 走らせ方の語 `by`: `engine`（機械が宣言の段を走らせた）・`role`（機械が test_cmd を走らせた。宣言が無いか、宣言の段から落とした）・`role_needed`（宣言も test_cmd も無く、機械が走らせられない。14 節の道: AI が書いた実行器で変更に関わる試験だけを走らせる。以前は任せ先の CI の役が素材を書いた）。`lib/declared_checks.py` の `RUN_WORDS`。
 - 素材（material）: 走らせた結果の札 `{status, count?, detail?, checked?, reason?, systems?}`。`status` は `found`・`clean`・`not_applicable`・`awaiting_human`・`not_run`。
@@ -46,7 +46,7 @@
 - `user_env_dir`: `text: 利用者の HOME・XDG に戻して起こした印を置く置き場の絶対パス。空は置き場が無い（戻す run では止まる）`。既定 `""`。
 - `lang`: `text: 人に見せる欄（実行器の書き手の why）の言語。空は依頼の言語`。既定 `""`。
 
-port でない環境（起動の殻が渡す。今と同じ）: 取り置きの根 `WORKS_FACTORY_SUITE_KEEP`・包みの起動の記録 `WORKS_FACTORY_FENCE_RECORDS`（埋め fence の `RECORDS_ENV`）・引かずに走らせる旗 `GRAPHLOOPS_RERUN_CHECKS`（`tree_run.RERUN_ENV`）。
+port でない環境（起動の殻が渡す。今と同じ）: 取り置きの根 `WORKS_FACTORY_SUITE_KEEP`・引かずに走らせる旗 `GRAPHLOOPS_RERUN_CHECKS`（`tree_run.RERUN_ENV`）。
 
 出力（`returns: result`、`outcome_field: ok`）: 今の `result` の 15 欄（`mode`・`ok`・`green`・`red_cause`・`ran_steps`・`baseline`・`fingerprint`・`test_outcomes`・`evidence`・`by`・`suites_line`・`log`・`baseline_line`・`reason`・`optional`）を字のまま保ち、4 欄を足す:
 
@@ -107,7 +107,7 @@ script の node はどれも `runtime: uv`。`run` のほかは `mutates_checkou
 
 使う `lib/`（どれも README 9.3 の KEEP）: `declared_checks`（`run_ci`・`role_material_problems`・`suites_line`・`baseline_line`・`gate_values`・`run_how`・`drop_copy`・`CI_ROLE`・`COPY_PREFIX`・`DECL_NAME`・`MODES`・`ROLE_NEEDED`・`RUN_FILE`・`NO_ADAPTER_NOTE`・`SELF_REPORTED_NOTE`・`STATUSES`・`CiRefused`）・`green_cert`（`fingerprint`・`classify`・`certify`・`ran_steps`・`RED_CAUSES`・`RAN_BY_CAUSE` ほか）・`baseline_red`（`run_suite`・`write_baseline`・`read_baseline`・`test_outcomes`・`OUTCOMES`・`ONLY_ENV`）・`suitewrite`（`need`・`prepare`・`place`・`pending`・`settle`・`head_note`）・`tree_run`（`reuse_place`・`RERUN_ENV`・`Stopped`）・`checkscope`（`request_files`）・`accept`（`tree_state`・`tree_moved`・`status_keys`・`TREE_KEYS`・`touched_files`・`Reject`）・`rolekit`（`accept_round`・`round_outcome`・`resubmitted`・`merge_fields`・`resubmitting`・`rejected`・`rejects_text`・`candidate_path`・`attempt`・`given_up_reason`・`GIVE_UP_AFTER`・`LANG_DEFAULT`）・`graphloops/engine/util.py`（`repo_root`・`copy_worktree`）・`gatemarks`（`BASELINE_NOT_RUN`・`MATERIAL_WORDS`。報告の行）・`oneline`・`jsonfile`。`lib/carry.py` は import しない（始めの記録を読まない。依頼の容器の読みは土台の `shared:request.schema.json` の形と `requestrows.findings`・`src/scope.py` で替える）。`lib/startrec.py` は `src/suite.py` が `suite-state.json` の読み書き（`load`・`save`）にだけ import する。根拠: `lib/suitewrite.py` を変えずに使うため、控えを始めの記録と同じ口で読み書きする（11 節の 2。`load`・`save` は形を問わない JSON の読み書きで、始めの記録そのものは読まない）。
 
-埋め: `fence`（`bad_declaration`・`fenced_since`・`RECORDS_ENV`）。作り直しの間に block から埋めを import する口は土台の `ports.py` の決め（README 3 節は埋めを組み込みで `workflows/.shared/` へ移すと書くだけで、それまでの import の道を決めていない。11 節の 6）。
+埋め: この block は埋めを import しない（`fence` を読んでいた `ci-prep`・`ci-accept` は 14 節で外した。11 節の 6 は外す前の決め）。
 
 土台の `ports.py` に要る口（今の `workflows/.shared/boundary.py` に在り、この block が使う）: `drop_runner_env(user_env_dir)`（Archon の変数を落とし、利用者の環境の印の置き場を立てる）・`suite_keep()`（`WORKS_FACTORY_SUITE_KEEP` の読み）・`RUNTIME_COPY_PREFIX`（Archon が作業ツリーに置く工程の写し `.archon/`）・`pointer(path)`・`items(raw)`。土台に無ければ、この block の PR が `ports.py` に足す（merge と fix も使うので block の `src/` には置かない。11 節の 6）。
 
@@ -284,7 +284,7 @@ final は `--input mode=final --input baseline=<base の run の baseline.json �
 2. 素材の札の `carried_over`・`from_round`（元の works の `blk-ci.yaml:120-146`）: 工場は意図して外した（#69 `01d1a09c`「盤面の欄 carried_over と from_round を外した」）。block は周を持たないので要らない。
 3. 機械全体の試験の枠（元の works の `tree_run.slotted_run` の `slotwrap.sh`）: 持ち主の決めで持たない（`f2abe872`（#118）・#202 `3aa6ba83`）。同じ run の中の試験の結果の使い回しは #202 で戻した（この block の `reuse_dir`・`reuse_key`）。
 4. 拒まれた後の出し直し: 元の works は毎回新しい会話（`blk-ci.yaml:72` の `fresh_context: true`）で丸ごと出し直させた。工場は同じ会話の続きで拒まれた欄だけを返させ、機械が合わせる（#588 `249c88ea`、#571）。この block も同じ（3 節）。
-5. 包みの宣言の確かめ: 元の works は別の node `ci-fence`（`blk-ci.yaml:22-41`）。工場は `ci-prep`（役を起こさずに諦める）と `ci-accept`（柵が掛かったか）に畳んだ（#364 `28ed9456`）。この block も同じ。
+5. 包みの宣言の確かめ: 元の works は別の node `ci-fence`（`blk-ci.yaml:22-41`）。工場は `ci-prep`（役を起こさずに諦める）と `ci-accept`（柵が掛かったか）に畳んだ（#364 `28ed9456`）。この block も同じだった（14 節で `ci-prep`・`ci-accept` ごと外した）。
 6. 任せ先の自己申告の緑: 元の works と graphloops は人への問いに回した（元の `review-loop.py:950,2093-2095` の `_ci_by_engine`）。工場は認証しない（`green_cert.certify` の `self_reported`。#69）。最後の承認ノードと報告がそれを言う（`SELF_REPORTED_NOTE`）。この block も同じ。
 7. TDD の実行器: 元の works は test_cmd が pytest の 1 つのコマンドの時だけ起動の殻が `--junitxml` で包んだ（`skills/works/references/start.md:20`）。工場は取り置きか AI の書き手で、どの test_cmd にも用意し、機械が事実だけを照らす（#516 `2a48db54`）。この block も同じ。実行器を始めの記録に結ぶ所だけを、出力の欄 `suite` に替えた（1.2）。
 
@@ -366,7 +366,7 @@ e2e の `tests/e2e/evidence.json` の L-E38・L-W28・T1・T6・T18・T29・T30�
 ## 13 未確認
 
 - 7 節の命令の正確な形。
-- 作り直しの間に block から埋め `fence` を import する道（1.5）。
+- （外した）作り直しの間に block から埋め `fence` を import する道。`fence` を読む node ごと 14 節で外した。
 - `output_type: green-cert` の型つきの成果物の一覧が、include の中の node でも今と同じ形で `$TYPED_ARTIFACTS_FILE` に載るか（今も include の中の node なので載ると見るが、block の名が変わる時の札の字は未確認）。
 
 ## 14 関わる試験だけ走らせる（2026-10-20。持ち主の決め `related-tests-only`）

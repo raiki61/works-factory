@@ -152,6 +152,8 @@ def _stop_section(facts: dict, outcome: str, stop_reason: str, run: dict) -> lis
     if run.get("ok"):
         out += [f"{report.INTERRUPTED_HEAD}: ノード {s} が落ちた（誤り: {report._first_error({'error': (run.get('errors') or {}).get(s)})}）"
                 for s in run.get("failed") or []]
+        out += [f"子の run {c['child']} " + (f"の{c['why']}" if "why" in c else f"のノード {c['node']} が落ちた（誤り: {c['error']}）")
+                for c in run.get("children") or []]
         out += [f"{report.RETRIED_HEAD}: {r['node']}（落ちた回 {r['failures']}。最後の誤り: {r['error'] or '（誤りの文が無い）'}）"
                 for r in run.get("retried") or []]
         out += [f"{report.ABSORBED_HEAD}: {a['node']}（誤り: {report._first_error(a)}）" for a in run.get("absorbed") or []]

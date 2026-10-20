@@ -497,7 +497,7 @@ def pushed_lines(gates: dict, taken=()) -> list:
     """「人が決めること」の頭に、無人の run が採った推しを 1 件 1 行（元 runreport._pushed_lines）"""
     import gatemarks
     import oneline
-    return [*(f"無人の run で推しを採って通した（承認ノード {at}）: {oneline.one_line(r.get('item') or '')}——"
+    return [*(f"無人の run で推しを採って通した（承認ノード {named(at)}）: {oneline.one_line(r.get('item') or '')}——"
               f"{gatemarks.RECOMMEND_WORDS.get(r.get('answer'), '')}（{r.get('answer')}）: {r.get('note')}（推す理由: {r.get('why')}）。"
               "違えば次の run の依頼で直す" for at, r in _pushed(gates)),
             *(f"無人の run で推しを採って答えた（{gatemarks.ASK_HEAD} {q.get('key')}）: 推し: {oneline.one_line(push)}——出どころ・depends の"
@@ -508,7 +508,7 @@ def pushed_lines(gates: dict, taken=()) -> list:
 def pushed_said(gates: dict, taken=()) -> str:
     got = _pushed(gates)
     where = "中身は「1. 人が決めること」のセクション"
-    said = [f"無人の run で推しを採って通した承認ノード: {'・'.join(dict.fromkeys(at for at, _ in got))}（推し {len(got)} 件。{where}）"] if got else []
+    said = [f"無人の run で推しを採って通した承認ノード: {'・'.join(dict.fromkeys(named(at) for at, _ in got))}（推し {len(got)} 件。{where}）"] if got else []
     if taken:
         said.append(f"無人の run で推しを採って答えた台帳の問い: {'・'.join(str(q.get('key')) for q, _, _ in taken)}（推し {len(taken)} 件。{where}）")
     return "。".join(said)
@@ -528,9 +528,20 @@ def script_fall_notes(values: dict) -> list:
     return out
 
 
+def node_names() -> dict:
+    """node の id → 人が読む言葉の表（nodenames.json。報告の最初の 3 行に出る名に、初見の読み手向けの訳を付ける）"""
+    return json.loads((pathlib.Path(__file__).parent / "nodenames.json").read_text(encoding="utf-8"))
+
+
+def named(at: str) -> str:
+    """node の id に人が読む言葉を前に付ける（「訳（id）」。表に無い id はそのまま）"""
+    plain = node_names().get(at)
+    return f"{plain}（{at}）" if plain else at
+
+
 def stop_words(stops: list) -> list:
     import stopby
-    return [f"{s['at']} が {s['word']}（{stopby.REASONS.get(str(s['word']).removeprefix(stopby.HEAD), '語の意味の記録が無い')}）" for s in stops]
+    return [f"{named(s['at'])} が {s['word']}（{stopby.REASONS.get(str(s['word']).removeprefix(stopby.HEAD), '語の意味の記録が無い')}）" for s in stops]
 
 
 def stopped_why(returns: dict, stops: list, final_reasons: list) -> list:
@@ -671,7 +682,7 @@ def constraints_of(returns: dict, run_id: str) -> list:
 # 「判定の単位の裏取り」）・premise_lines（premises の block の report。節「前提の実測」）・_design_lines（independent-design の block の
 # report。節「独立設計」）・_pr_draft_lines（parallel-pr の block の report。節「並行 PR」）・_converge_lines（line の rounds.lines。節「計画の往復」）
 DEFERRED_HEAD = "無人の run で修正前の承認ノードに載せずに報告へ回した問い（承認ノードを開かずに修正へ進めた）"
-FINAL_REASONS_HEAD = "最後の承認ノードを開ける理由（無人の run では開かずに止めた理由）"
+FINAL_REASONS_HEAD = {True: "最後の承認ノードを開ける理由（無人の run では開かずに止めた理由）", False: "最後の承認ノードを開けた理由"}  # 無人の run か → 見出し
 EYE_PASSES_HEAD = ("修正前の承認ノードで通した行（人が通したか、無人の run が推しで通したので、独立の目 R4 の問いから外して聞き直さ"
                    "なかった行。どちらかは行ごとに書く）")
 
@@ -763,7 +774,7 @@ def amend_lines(values: dict, returns: dict, gates: dict, closed: bool) -> list:
     return _counted(replan.AMEND_HEAD, rows)
 
 
-def more_lines(values: dict, returns: dict, gates: dict, *, closed: bool, cwd=None) -> list:
+def more_lines(values: dict, returns: dict, gates: dict, *, closed: bool, unattended: bool, cwd=None) -> list:
     """人が決めることの節の後ろの行: 申し出の内訳・例で証明できない問い・外した範囲・内側の語・聞かずに通した行・直した案の項目・
     載せなかった問いと最後の承認ノードを開ける理由"""
     import report
@@ -774,7 +785,7 @@ def more_lines(values: dict, returns: dict, gates: dict, *, closed: bool, cwd=No
     out += amend_lines(values, returns, gates, closed)
     out += _counted(DEFERRED_HEAD, [json.dumps(q, ensure_ascii=False) if not isinstance(q, str) else q
                                     for q in _list(as_dict(values.get("ask_before_fix")).get("deferred"))])
-    out += _counted(FINAL_REASONS_HEAD, [str(r) for r in _list(as_dict(values.get("ask_final")).get("reasons"))])
+    out += _counted(FINAL_REASONS_HEAD[unattended], [str(r) for r in _list(as_dict(values.get("ask_final")).get("reasons"))])
     return out
 
 
@@ -838,7 +849,7 @@ def decisions(values: dict, returns: dict, gates: dict, record: dict, *, unatten
     after += stageslib.always_rows(got)
     after += [*stageslib.tests_left_lines(got), *stageslib.gates_lines(got), *stageslib.plan_ask_lines(got)]
     after += [f"修正の控え: {x}" for x in got["unread"]]
-    after += more_lines(values, returns, gates, closed=closed, cwd=cwd)
+    after += more_lines(values, returns, gates, closed=closed, unattended=unattended, cwd=cwd)
     _, _, outside_count = _outside(returns)
     counted_left = [f"修正 {u.get('unit_id')}" for u in unreturned]
     return {"before": before, "after": after, "outside": [outside_count] if outside_count else []}, asks, tallied, counted_left
@@ -930,7 +941,7 @@ def stop_lines(returns: dict, gates: dict, stops: list) -> dict:
     """節「2. 止めたか」の line の行: line の止めの語・承認ノードの行・封じと置きの ok でない行（before）と、続きの切れ目（after）"""
     import oneline
     before = [f"メイングラフのノードの止め: {x}" for x in stop_words(stops)]
-    before += [f"承認ノード {at}: {gate_line(g)}" for at, g in gates.items()]
+    before += [f"承認ノード {named(at)}: {gate_line(g)}" for at, g in gates.items()]
     for rid in ("sealed-diff", "applied-diff"):
         m = returns.get(rid)
         if isinstance(m, dict) and m.get("ok") is not True:

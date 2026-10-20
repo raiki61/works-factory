@@ -23,7 +23,7 @@ def loops():
 
 class BlockLoopSessionsTest(unittest.TestCase):
     def test_blocks_have_loops(self):
-        self.assertTrue(any(True for _ in loops()), "blocks/ に loop_group が 1 つも見えない（探し方が壊れた）")
+        self.assertTrue(any(True for _ in loops()), "workflows/ に loop_group が 1 つも見えない（探し方が壊れた）")
 
     def test_continued_loops_have_no_parallel_layer_before_a_role(self):
         for block, n in loops():

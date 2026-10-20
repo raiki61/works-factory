@@ -17,3 +17,9 @@
 - 試験の過程そのものが読む既定の環境（`lib/` の関数が `os.environ` から引く既定）も場に依らない: 試験を回す口 `tests/shard.py` は、試験を集める前に `hermetic.scrub` で同じ名を自分の過程から外す（残すのは試験の用意の名 `hermetic.ARCHON_CACHE_ENV`・`ARCHON_REQUIRED_ENV`）。利用者の環境を継ぐのが用途の試験（本物の役で回す試験の旗 `WORKS_FACTORY_REAL_RUN` と認証）は、外す前の値を `hermetic.inherited(*prefixes)` で名指しして引き、Archon へは overrides で渡す。
 - 外し: 子の環境を作る道具でなく利用者の環境を継ぐのが用途の物（本物の run・較正の命令の道具・試験を回す口 `tests/changed.py`）や、子の環境を組む口でない物（偽の script の字）は `tests/layers/scan.py` の `ALLOWED["E21"]` に訳つきで置く。
 - 機械: `tests/layers/test_hermetic_env.py`・`tests/test_shard.py` の `ScrubTest`。
+
+## E24 試験は利用者の本物の設定を読まない
+
+- 試験は、走らせた機械の利用者の本物の設定（`~/.claude`・会社が配る管理者の設定・keychain）を読まない。読む道を持つコードの試験は、置き場を一時のフォルダへ向けて、その中の設定だけを読ませる。
+- 向け先を替える口は、コード側に持つ（例: 殻が読む管理者の設定の置き場は環境変数 `WORKS_FACTORY_MANAGED_DIR`。`tests/bin/hermetic.child_env` が空の一時フォルダへ向ける）。口は無い時の既定の道を変えない（根の `AGENTS.md` の E14）。口が無い道は、本物の設定が在る時にその試験だけを skip し、訳を docstring に書く。
+- 人が見る（子の環境の組み方は E21 が機械で縛る）。
