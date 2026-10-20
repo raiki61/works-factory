@@ -1,6 +1,7 @@
 # block の設計書: test-gate（試験の関門）
 
 - 何の話か: 対象のテストを機械で走らせ、直す前の結末を控え、修正の後に赤の原因を分けて緑を作業ツリーの指紋つきで認証する観点「試験の関門」を、単独で呼べる block `workflows/test-gate/` にする設計。機械が走らせ方を決められない時の任せ先の CI の役と、TDD の実行器の書き手の役も含む。型は [README.md](README.md)、書き方は [world.md](world.md) に従う。
+- 2026-10-20 の追記（14 節。持ち主の決め `related-tests-only`）: 走らせ方が決まらない対象（`test_cmd` も `.review-checks.json` も無い道。以下「(3) の道」）では、全部の試験でなく変更に関わる試験だけを走らせる。任せ先の CI の役の輪（`ci-loop`）は外した。2〜3 節と 5・6 節の `ci-*` の記述は、外す前の形（git の履歴）で、今は 14 節が正本。
 - 決めたこと: 今の `workflows/test-gate/` の 11 の node を、入口の 1 つと出し直しの指示を組む prep の 1 つを足した 13 の node の block にする（11 節の 12）。始めの記録の代わりに 11 の port で受け、TDD の実行器を始めの記録に結ぶ代わりに出力の欄 `suite` で返す。指示は英語の md 3 本（`prompts/ci.md`・`prompts/ci-fix.md`・`prompts/suite-write.md`）に置き、指示書のファイルを役に Read させる道（拒まれた後の出し直しと書き手の材料）は、指示に値を貼る形に替える。振る舞いは変えない。
 - 読む人: この block を作る実装の役（この設計書だけで作れるように書いた）。急ぎではない（README 11.1 の 1 波目。ほかの block と並べて作る）。
 - 持ち主に求めること: なし。keep-essence の 1・2・6 の守りの割り当ては 9 節、自分で決めた事は 11 節に集めた。
@@ -591,3 +592,70 @@ e2e の `tests/e2e/evidence.json` の L-E38・L-W28・L-W53・T1・T6・T18・T2
 - 7 節の命令の正確な形。
 - 作り直しの間に block から埋め `fence` を import する道（1.5）。
 - `output_type: green-cert` の型つきの成果物の一覧が、include の中の node でも今と同じ形で `$TYPED_ARTIFACTS_FILE` に載るか（今も include の中の node なので載ると見るが、block の名が変わる時の札の字は未確認）。
+
+## 14 関わる試験だけ走らせる（2026-10-20。持ち主の決め `related-tests-only`）
+
+### 14.1 決めと範囲
+
+- 持ち主の言葉: 「自分に関係のあるやつだけでいいんじゃないかな。もう工場としては。全体テストとかはCIや人間たちに任せる？全部試験賭けるのは重いしね」。
+- 実地（2026-10-20）で、(3) の道（`test_cmd` が空で、対象の根に `.review-checks.json` が無い run。`run.json` の `by` が `role_needed`）は、AI が書いた全試験の実行器を 3 回（base の `suite-try`・fix の group-start・final の `run`。1 回 40〜48 分）と、任せ先の CI の役を 2 回（1 回 36〜74 分）走らせて 256〜300 分かかった。`test_cmd` を渡した run は 25〜90 分。
+- 変える物:
+  1. (3) の道で全試験の実行器を走らせる 3 か所を、変更に関わる試験だけにする（14.2〜14.4）。fix の group-start は `docs/design/fix.md` の 17 節。
+  2. 任せ先の CI の役の輪（`ci-loop`: `ci-prep`・`ci`・`ci-fix-prep`・`ci-fix`・`ci-accept`）と、その指示 `prompts/ci.md`・`prompts/ci-fix.md` を外す。全体の CI は工場が再現せず、CI と人に任せる（14.5）。
+- 変えない物: 道 (1)（`test_cmd`）と道 (2)（`.review-checks.json`）の振る舞い。利用者が走らせ方を決めた物なので、絞らない。
+- 残す守り（3 つ）: 直す前から赤だった試験と直しで壊した試験を分けて数える（`green_cert.classify` の `inherited`・`introduced`）・赤は原因が何でも認証しない・機械でない者が決めた緑を認証しない（14.5 の (3) の道の final は、緑でも認証しない）。変えた物は 14.7 に書いた。
+
+### 14.2 関わる試験の選び（`lib/related.py`）
+
+test-gate と fix の 2 つの block が使うので `lib/` に置く（憲法の 4）。言語・実行器の名を持たない（E13）。
+
+- `applies(root, test_cmd)`: 走らせ方が決まらない対象か。`test_cmd` の前後の空白を除いた字が空で、`declared_checks.checks_plan(root)` が `fallback`（宣言が無い）を返す時だけ真。fix が (3) の道かを自分で決めるのに使う（`by` を fix へ運ばない）。
+- `pick(repo, *, rev, seeds, cache_dir)` → `{whole, reasons, files, left, far}`:
+  - `impact.map(repo, rev=rev, seeds=seeds, diff=True, cache_dir=cache_dir)` で `rev` から作業ツリーまでに触ったファイルと `seeds` を起点にした地図を引き、`impact.select_tests(m, direct_only=True)` で選ぶ。fix の受け付けが回す試験の選び（`selected_problems`）と同じ決め（直に関わる試験だけ。起点か深さ 1）。
+  - `whole`: 真なら選べない。地図が引けない（git の誤りなど）か、分からない物が直に関わる所に在る（`select_tests` の `run_all`）時で、今までどおり一式を走らせる。理由は `reasons`。
+  - `files`: 回す試験のファイル（根からの相対）。作業ツリーに在る物だけ。`left`: 届いただけで直には関わらず回さない試験。`far`: 深さ 2 以上の分からない物（理由の形）。
+- `args(repo, picked)`: `files` を絶対パスにした並び。TDD の実行器の約束（4.3・`baseline_red.run_suite` の `args`）の「第 1 引数の後ろに足す試験のファイル」と、環境変数 `TDD_SUITE_ONLY=1`（`only=True`）で走らせる。引数を解かない実行器は一式を走らせる（実行器の書き手の指示が決めている。同じ事を確かめる）。
+- `lines(picked, ran)`: 報告の行（14.6）。
+
+### 14.3 起点
+
+関わる試験の起点は、base と final で同じ決めにして、final の選びが base の選びを含むようにする（base の元の結末に無い試験が final で落ちると `introduced` と読まれるのを、直しが触った所に限るため）。
+
+- 起点の版 `rev` は新しい port `entry_base`（入口の差分の根）。空なら port `base`（修正前の版）。そこから今の作業ツリーまでに触ったファイル（未追跡を含む）が起点。base では入口の差分、final では入口の差分と直し。
+- 加えて、`request_scope` が真の run（入口の差分が空）は、依頼の行の `where` が名指す追跡中のパスも起点（`src/scope.py` の `request_wheres`。今は base だけが範囲の宣言に使う物を、関わる試験の選びでは base と final の両方に足す）。
+
+### 14.4 当てる所
+
+- `run`（final を含む）: `by` が `role_needed` で `tdd_suite` が在る時、一式を 1 回でなく `pick` の選びで走らせる。`whole` なら今までどおり一式。`files` が空なら走らせず、`run.json` の `suite` を `null`・`related` に選びの結果を置く。
+- `suite-loop`: `suite_owed` を、(3) の道で関わる試験が 1 件も無い（`files` が空で `whole` でない）時は偽にする（走らせる試験が無いのに書き手を起こさない）。`suite-try` の 1 回は、`run.json` の `related`（`run` が選んだ結果。`suite-loop` は `run` の後なので同じ物）で走らせる。選びが `whole` なら一式。実行器の照らし（JUnit XML が出て試験が 1 件以上）は、走らせた試験の上で変わらない。
+- 選びを `run.json` の `related` に 1 回だけ置き、`suite-try` と `result` は引き直さない（base の中で 2 度引いて食い違わない）。
+
+### 14.5 任せ先の CI の役の輪を外した後の (3) の道
+
+- 素材（`material`）は機械が実行器の結果から組む（`src/certify.py` の `runner_material`）:
+  - 実行器が走り、結末が取れた: 終了コード 0 なら `clean`（`checked` に走らせた試験の数）、そうでなければ `found`（`count` は落ちた件数）。
+  - 関わる試験が無く走らせなかった: `not_applicable`（`reason`: 変更に関わる試験が無い。全体の試験は CI と人に任せる）。
+  - 実行器が無い・走らなかった・結末が取れない: base は `awaiting_human`、final は `not_run`。`reason` に訳（実行器を作れなかった理由は `suite_note`）。base を `awaiting_human` にするのは、任せ先の役が走らせられなかった時の base と同じ扱い（鎖を止めず、判定の台帳に載せる）。
+- 認証: (3) の道の final は、緑（`clean`）でも認証しない（`green_cert.certify` の `held`。訳は「AI が書いた実行器が、関わる試験だけを走らせた緑——機械は実行器の中身を照らしていない」）。今までの「任せ先の自己申告の緑を認証しない」を、任せ先の役が無くなっても緩めない。認証するかは持ち主の選び（納品の残った疑問）。
+- 赤の原因の分け（`classify`）と `test_outcomes` は、実行器の 1 件ごとの結末で今までどおり。(3) の道の `ran_steps` は `{ran: ["関わる試験の実行器"], unran: []}`（走らなかった時は `unran` に入れる）。`by` は `role_needed` のまま（語は変えない。意味は「走らせ方が決まらず、AI が書いた実行器で関わる試験を走らせる道」）。
+- 止め方は変わらない: 実行器が作れなかった base は止めず（`awaiting_human`）、判定の台帳の問いに載る。final は `not_run`・`incomplete` で認証せず、最後の承認ノードが人に回す。
+
+### 14.6 報告
+
+- test-gate の出力に欄 `related` を足す: `{applied, whole, files, left, far, reasons}`（道 (1)(2)・選びを引かない run は `applied: false`）。
+- 報告の部品は line の `src/sections.py`: 節「走らせなかった範囲（CI と人に任せた物）」を足す。base と final の `related` から、走らせた試験の数・走らせなかった試験（`left` の名・`far`）・「全体の試験は CI と人に任せた」・`whole` で一式を走らせた理由を並べる。道 (1)(2) の run は、範囲の宣言で回さなかった段（`skipped_steps`）を載せる（今は `suites_line` に在る物を同じ節に集める）。
+- test-gate の `report` の行は、(3) の道で `SELF_REPORTED_NOTE` の代わりに `held` の訳を出す。
+
+### 14.7 変えた守り
+
+- 「任せ先の自己申告の緑を認証しない」: 任せ先の役を外したので、対象が無くなった。代わりに (3) の道の final の緑は認証しない（14.5）。(3) の道の final はこれまでも認証されなかったので、認証の結果は変わらない。
+- 「直す前から赤だった試験と直しで壊した試験を分ける」: 変えない。ただし元の結末は関わる試験だけなので、元の結末に無い試験が final で落ちると `introduced`（`_must_pass` の決め）と読まれる。14.3 で final の選びを base の選びを含む形にして減らす。
+- 「赤は認証しない」: 変えない。
+
+### 14.8 自分で決めた事
+
+1. 選んだ試験の走らせ方（案 A を採った）: AI が書く実行器に試験のファイルを引数で渡す（TDD の実行器の約束。fix の TDD の輪・受け付けが同じ口で使っている。`baseline_red.run_suite` の `args`・`only`）。案 B（書き手の役に、選んだ試験を実行器の本文に埋め込ませる）は採らない。根拠: 元と同じ（作り直しの前の工場の fix が同じ口で使っている）・実行器は取り置きして使い回すので、run ごとに変わる選びを本文に埋めると取り置きが使えない・約束を解かない実行器は一式を走らせるので、絞れない対象でも壊れない（遅いだけ）。
+2. `by` の語 `role_needed` は変えない。根拠: 読み手（line の最後の関所・報告・通しの照らし）が多く、語を替える利益が無い。意味は 14.5 の通り。
+3. 任せ先の CI の役を外した後、実行器が作れない対象では (3) の道は試験を走らせない。根拠: 持ち主の決めが「CI を丸ごと再現するのはやめる」。走らせなかった事は `not_run`・`awaiting_human` と報告の節で言い、緑を仮定しない。
+4. `lib/` の任せ先の役の部品（`declared_checks` の `role_material_problems`・`CI_ROLE`・`drop_copy`・`NO_ADAPTER_NOTE`、`rolekit` ほか）は、この PR で消さない。ほかの block も読む物で、掃除は別の変更。
+5. 新しい port `entry_base`: 14.3 の根拠。line が始めの記録の入口の差分の根（`start.output.ports.base`。judge に渡す物と同じ値）を渡す。

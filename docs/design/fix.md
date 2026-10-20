@@ -962,3 +962,11 @@ bin/works-factory workflow run works-factory-fix --cwd <対象> \
 6. 材料の行の札を英語にするか（13.2 の 5。組み込みで lib の文を md へ出す時）。
 7. 13.3 の不具合の直し方（とくに 1 の相談の答えの役の会話）。
 8. 棚卸しで持ち主の確かめ待ちの 6 件（9 節の 2 つ目の項）は、この作り直しで変えない。
+
+## 17 関わる試験だけで元の結末を取る（2026-10-20。持ち主の決め `related-tests-only`）
+
+- 何を: `group-start` が TDD の輪の頭で一式を 1 回走らせて取る元の結末（`tdd.start` の `run_suite`）を、(3) の道（`test_cmd` が空で、対象の根に `.review-checks.json` が無い run）では、組の単位が触る所に関わる試験だけにする。道 (1)(2) は変えない。詳しい決めと選びは `docs/design/test-gate.md` の 14 節。
+- (3) の道かは fix が自分で決める: `related.applies(repo, values.test_cmd)`（`lib/related.py`）。test-gate の `by` を fix の port で運ばない。
+- 起点: 組の単位の約束（`plan_contract` の `files` の行のパス。約束が無い単位は起点を足さない）。`related.pick(repo, rev="HEAD", seeds=<起点>, cache_dir=<置き場>/impact)` で選び、`related.args` を `run_suite` の `args` に、`only=True` で走らせる。選べない（`whole`）か、起点が 1 つも無い時は、今までどおり一式。選びが空（関わる試験が無い）なら、元の結末は空の一式でなく `{}` として輪を回し、受け付けと最後のテストの段が確かめる。
+- 元の結末が関わる試験だけになるので、輪の緑の回の「元の結末に載ったモジュール」（`_reached`）は、選んだ試験のモジュールに絞られる。届かない試験・元の結末の外の試験は、今までどおり受け付けの `selected_problems` と最後のテストの段が確かめる。
+- 状態 `state.json` に `related`（選びの結果）を置き、報告の節「走らせなかった範囲」が読む。
