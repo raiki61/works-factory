@@ -367,7 +367,7 @@ line は一番上の graph なので、place は run directory の根（README 4
   - `plan-review` の入力 `round_limit`・`head_depth`: 上限で止めたかと木の段の読みは line が決める（3 節・5.1）。
   - 受け皿の 2 つ（`plan-rounds-out`・`plan-rounds-review-out`）を 1 つに: 運ぶ欄は同じ。
   - 型つきの成果物の一覧の読み（今の report の facts の `listing`）: report が読まない（report の設計書の 1.2）。line も読まない。
-  - `docs/design.md` の節の名指し（今の YAML と script の docstring）: 設計書は `docs/design/line.md`。
+  - 設計書の節の名指し（今の YAML と script の docstring）: 設計書は `docs/design/line.md`（元は `docs/design.md`。#765 で消した）。
 
 ## 10 元の works と graphloops の同じ場面
 
