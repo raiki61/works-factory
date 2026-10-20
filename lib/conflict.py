@@ -609,19 +609,27 @@ def park(b, rows, *, source: str, ruling: dict | None = None, round_: int = 1, p
     return ids
 
 
+def _repeated_from(row: dict, amended: dict):
+    """未送の行 {source, item} が、作り直した後にまた止まった単位の諦めなら、その単位を外していた項目を直した行（無ければ None）。
+    機械が諦めた申し出（GAVE_UP_SOURCE）で、その単位が案を直して直す義務に戻った単位（amended_rows_by_unit）の時だけ"""
+    return amended.get(row["item"]["unit_key"]) if row["source"] == GAVE_UP_SOURCE else None
+
+
+def repeat_gave_up(b, rows: list) -> list:
+    """rows（未送の行 {source, item}）のうち、作り直した後にまた止まった単位の諦めの行。park_claims がこの行を裁定に回さず積む"""
+    amended = amended_rows_by_unit(b)
+    return [r for r in rows if _repeated_from(r, amended) is not None]
+
+
 def park_claims(b, rows: list, *, round_: int = 1) -> list:
-    """輪の状態の未送の行 {source, item} を積む。機械が諦めた申し出（GAVE_UP_SOURCE）で、その単位が案を直して直す義務に戻った単位
-    （amended_rows_by_unit）なら、作り直した後にまた止まった単位なので、裁定に回さず ask_human つき（by stopby.TDD_REPEAT）で積む。ほかは裁定なし。
-    返りは積んだ・在った行の id"""
+    """輪の状態の未送の行 {source, item} を積む。作り直した後にまた止まった単位の諦めの行（repeat_gave_up）は、裁定に回さず
+    ask_human つき（by stopby.TDD_REPEAT）で積む。ほかは裁定なし。返りは積んだ・在った行の id"""
     ids = []
     amended = amended_rows_by_unit(b)
     for r in rows:
-        ruling = None
-        if r["source"] == GAVE_UP_SOURCE:
-            prior = amended.get(r["item"]["unit_key"])
-            if prior is not None:
-                ruling = {"decision": ASK, "text": REPEAT_GAVE_UP.format(prior=prior.get("id")), "limits": [],
-                          "by": stopby.TDD_REPEAT}
+        prior = _repeated_from(r, amended)
+        ruling = (None if prior is None else
+                  {"decision": ASK, "text": REPEAT_GAVE_UP.format(prior=prior.get("id")), "limits": [], "by": stopby.TDD_REPEAT})
         ids += park(b, [r["item"]], source=r["source"], ruling=ruling, round_=round_)
     return ids
 

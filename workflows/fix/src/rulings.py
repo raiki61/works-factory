@@ -63,3 +63,12 @@ def write(b) -> pathlib.Path:
     tmp.write_text("\n".join(lines), encoding="utf-8")
     os.replace(tmp, path)
     return path
+
+
+def park(place, rows: list) -> None:
+    """輪の状態の未送の行 {source, item} を place に積む（conflict.park_claims）。作り直した後にまた止まった単位（案を直して直す義務に戻った
+    単位の、機械が諦めた申し出）は裁定に回さず ask_human つきで積まれるので、裁定の文のファイルを書き直す"""
+    repeated = conflict.repeat_gave_up(place, rows)
+    conflict.park_claims(place, rows)
+    if repeated:
+        write(place)
