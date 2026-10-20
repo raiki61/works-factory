@@ -232,8 +232,7 @@ reviews:                           # 仕様を固める会話で回した審査�
 
 仕様を固める会話（壁打ち）の中で、会話の AI が工場に入れる前に部品を単独で必ず回す（持ち主の決め `spec-driven-shape`）:
 
-- 必ず回す 4 つ: 計画の審査（`works-factory-plan-review`。8 つの観点。同じ処理を 2 か所に書く写しも見る）・独立設計（`works-factory-independent-design`。目的だけから別の役が設計を作り、設計書と突き合わせて抜けや思い込みを探す）・前提の実測（`works-factory-premises`）・前の決めの確かめ（`works-factory-prior-decisions`）。
-- 要る時だけ回す: 世界の解（`works-factory-world`）。
+- 必ず回す 5 つ: 計画の審査（`works-factory-plan-review`。8 つの観点。同じ処理を 2 か所に書く写しも見る）・独立設計（`works-factory-independent-design`。目的だけから別の役が設計を作り、設計書と突き合わせて抜けや思い込みを探す）・前提の実測（`works-factory-premises`）・前の決めの確かめ（`works-factory-prior-decisions`）・世界の解（`works-factory-world`。同じ類の問題を世の中がどう解いているかを一次の出典で調べる。持ち主の決め `step-up`・keep-essence の 12）。
 - 指摘を受けて仕様を直したら、直した版で回し直す。直して消えた指摘は記録に書かない。最後の版で残った指摘は、持ち主が明示で受け入れた物だけを、受け入れた言葉つきで残してよい。それ以外が残っていれば工場に入れない。
 - 部品ごとの呼び方（`bin/works-factory workflow run <部品の graph> --cwd <対象> --input <名>=<値>`）・1 回の時間と費用・部品の指摘を `findings` に写す形・部品を本線の外から呼んで詰まった所の記録は、進め方の 6 で決める（issue #802 のコメント）。
 
@@ -242,7 +241,7 @@ run の入口で機械が確かめる事（どれも yes/no。どれかが欠け
 1. 表が schema に合う（必須の欄が在る・`acceptance` が 1 件以上で `when` と `then` が空でない・`handling` が `accepted` で `owner_words` が空でない）。
 2. `design` の設計書が対象に在る。
 3. 設計書の見出しに表の 4 つの名が無い。
-4. `reviews` に必ず回す 4 つの部品が 1 つずつ在る。
+4. `reviews` に必ず回す 5 つの部品が 1 つずつ在る。
 5. どの `reviews` の `spec_sha256` も、今の設計書と表の 4 つから計算した値と同じ（審査した版と渡した版が同じ）。
 
 ### 2.4 run の中の流れ（案）
@@ -270,11 +269,16 @@ node の並び・port・試験は進め方の 6 で、README の 6 章の型（n
 ## 4 E11 の 3 つの確かめ
 
 1. Archon が持っているか: 持たない。Archon は AI の処理を graph にして回す道具で、人の仕様を受けて工場の守りつきで実装させる道は持たない（[archon.md](archon.md)）。Archon に同梱の graph は呼ばない（E8）。
-2. ASF が持っているか: `archon-implement`（渡された指示どおりに実装だけをする graph）が近い。違いは、工場の守り（試験の段・レビュー・報告・安全の印）が付かないこと。採るのは型だけで、呼ばない（E8）。
+2. ASF が持っているか: 止めた版（`factory/pack.json` の `integration_revision_required` a972888a）の ASF では、`archon-deliver`（https://github.com/coleam00/Archon/blob/a972888a7a30a669a3a771e7caef512197de6ac4/.archon/workflows/sdlc/deliver-entry/archon-deliver.yaml 。中身は部品の `archon-deliver-block`、https://github.com/coleam00/Archon/blob/a972888a7a30a669a3a771e7caef512197de6ac4/.archon/workflows/sdlc/deliver/archon-deliver-block.yaml ）が最も近い。入力 `work` に計画のパスなどを受け（「What to deliver — a plan path, findings, a description」）、実装 `archon-implement`・下書きの PR・リスクに応じた深さのレビュー・整理・CI の役を回して、緑なら PR を ready にする（「Capped rounds of implement …, draft PR, and a review at the depth its risk earns」）。レビューと CI は在るので、「工場の守りが付かない」とは言えない。工場と違うのは次の 4 つ（どれも止めた版で読んで確かめた）:
+   - 赤と緑の判定: `archon-implement` の緑は実装の役が自分で書く欄（「`green` — true only when the work is complete AND the focused checks on what you changed passed」https://github.com/coleam00/Archon/blob/a972888a7a30a669a3a771e7caef512197de6ac4/.archon/workflows/sdlc/implement/commands/implement.md ）。元から赤かどうかも役が証拠を添えて自分で書く（「`inherited`, the same check was already failing at this run's starting commit」）。工場は赤と緑と元から赤を機械が実行の事実で判定する（keep-essence の 1・2）。
+   - TDD の印: 試験は要る所だけ書く形で（「Write a test only where a plausible edit could silently break behavior that matters … Many changes need no new test.」同じファイル）、行ごとに先に赤を見る道を名指す口は無い。工場は計画の行の `route` で単位ごとに TDD を選び、TDD の行は先に赤を見る（1.3・2.4）。
+   - 入口の確かめ: 入力 `work` は形を縛らない字で、空なら run の頭の文を仕事として読む（「Empty means the run's trigger message is the work.」）。工場は表を schema で縛り、審査の記録の欠けも含めて、AI を起こす前に yes/no で止める（2.3）。
+   - 呼べるか: Archon に同梱の graph は `include:` と `workflow:` で呼ばない（E8。外しは merge の `archon-pr` だけ）。`archon-deliver` そのものは呼べず、採るのは型だけ。
+   `archon-implement`（https://github.com/coleam00/Archon/blob/a972888a7a30a669a3a771e7caef512197de6ac4/.archon/workflows/sdlc/implement/archon-implement.yaml 。渡された指示どおりに実装だけをする graph）は `archon-deliver` の中の実装の段で、上の 1 つ目と 2 つ目の違いはそのまま当たる。
 3. 本当に要るか: 人と固め終えた仕様を渡しても、今は判定と計画の往復を通り直す。作り直しの前の本物の run の 1 本（run の id df5e111f。90 分・$24.56）では、計画の審査 $8.81・計画 $4.12・判定 $3.10 で、合わせて約 $16・約 40 分がこの段だった（issue #802）。新しい部品は作らず、今の部品をつなぎ直す graph 1 本と、入口の確かめを足すだけにする。keep-essence の 12 の仕組み（[README.md](README.md) の 10 章）との当たり:
    - 1〜6・8・10・11: 修正・試験の段・merge・報告を今のまま通すので守られる。
    - 9（独立設計と R1〜R4）: 独立設計は仕様を固める会話の中で必ず回し、入口で回した事を確かめる。R1〜R4 は run の後のレビューのまま。
-   - 12（世界の解）: 持ち主の決めで、仕様を固める会話の中で要る時だけ回す。
+   - 12（世界の解）: 仕様を固める会話の中で必ず回し、入口で回した事を確かめる（2.3）。
    - 7（class_query の数え直し）: 今の本線では探し方を作るのは判定の中の diagnose で、この道は判定を通らない。それでも保つ（5 章の 6）。探し方を誰が作るかの形は進め方の 6 で決める。
 
 ## 5 自分で決めた事
@@ -285,6 +289,7 @@ node の並び・port・試験は進め方の 6 で、README の 6 章の型（n
 4. 審査の記録は、最後に回した版で残った指摘だけを書き、版を `spec_sha256` で結ぶ。訳: 「指摘が残っている仕様は工場に入れない」を機械が yes/no で確かめられる形にするため。直した指摘を全部書かせると、直したかを機械が確かめられない。
 5. TDD の印は設計書の「TDD で直す所」に書き、計画の AI が `route` に写す（1.3）。
 6. keep-essence の 7（class_query の数え直し。欠陥ごとの探し方〔grep の型と対象のパス〕で、修正の前と後の件数を機械が数え直す。数え直すのは修正の部品が使う `lib/recount.py`）は、この道でも保つ。工場窓口の答え（2026-10-21、受付 20261020-201750-a1096f）。訳: [README.md](README.md) の 10 章の 12 の仕組みは、作り直しで守ると決めた物で、新しい道で 1 つだけ落とす訳が無い（元と同じにそろえる）。守りの指しは `tests/layers/test_keep_essence.py` が照らす。この道は判定の中の diagnose を通らないので、探し方を、仕様の設計書に人と会話の AI が書くか、run の中で計画を書く AI が設計書から起こすかの形は、進め方の 6 で決める。前の版のこの文書は「落ちる」と書いていた。
+7. 世界の解を、会話の中で必ず回す部品に入れた（2.3）。前の版のこの文書と持ち主の決め `spec-driven-shape` の最初の行は「要る時だけ」にしていた。この語は工場窓口が頼みの文に書いた物で、持ち主の言葉ではない。PR #807 のレビュー（2026-10-21）が前の決め `step-up` との食い違いを挙げ、工場窓口の答えで `step-up` と keep-essence の 12 にそろえた（決めの直した記録は `docs/owner-decisions.md` の `spec-driven-shape`）。
 
 ## 未確認の一覧
 
