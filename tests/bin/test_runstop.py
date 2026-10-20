@@ -189,7 +189,7 @@ class CancelStopsTheRunTreeTest(unittest.TestCase):
         self.assertEqual([self.get(kid)["status"] for kid in kids], ["cancelled"], err)
         self.assertEqual(self.get(other)["status"], "running")
         self.assertEqual([kid["status"] for kid in self.runs() if kid.get("parent_run_id") == other], ["running"])
-        self.assertEqual([pid for pids in untouched.values() for pid in pids if not alive(pid)], [])
+        self.assertEqual({k: [pid for pid in pids if not alive(pid)] for k, pids in untouched.items()}, {k: [] for k in untouched}, err)
         code, err = self.cancel(other)
         self.assertEqual(code, 0, err)
 
