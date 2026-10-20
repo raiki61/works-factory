@@ -440,6 +440,7 @@ nodes:
         open: {type: boolean}
         go: {type: boolean}
         stop_reason: {type: string}
+        reason: {type: string}
         text: {type: string}
         deferred: {type: array}
         asked: {type: array}

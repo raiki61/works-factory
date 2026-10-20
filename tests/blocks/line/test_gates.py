@@ -288,7 +288,7 @@ def final_got(final, **over) -> dict:
            "split": "", "unproven": [], "amend": [], "delta": [], "stuck": [], "closure": [], "tests_left": [], "gates": [], "always": [],
            "beside_unread": [], "allowed_tests": [], "allowed_untouched": 0, "structure_missing": "", "sealed": True, "seal_reason": "",
            "hash": "h", "deleted": [], "sealed_diff": "", "fenced": [], "after": [], "passes": [], "r2_inputs": [], "converge": [],
-           "parallel_after": None, "held": [], "answered": [], "unmatched": [], "unread_holds": [], "unread": []}
+           "parallel_after": None, "held": [], "answered": [], "unmatched": [], "unread_holds": [], "lost_ties": [], "unread": []}
     return {**got, **over}
 
 

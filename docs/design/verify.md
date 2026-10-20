@@ -87,8 +87,8 @@ prep の頭で、この block の名のファイルだけを名で引いて消�
   - plan の修正案の役（申し送りの節。今の `lib/planblk.py` の `verify_part` を `lib/planfile.py:676` が貼る。plan の入力 `verify`〔`workflows/plan/works-factory-plan.yaml:22`〕）: `$verify.output.verify`。同じ run の中の案の直し（2 度目の include）には渡さない（元の works の設計のまま）。README の 8.2 の plan の入力に `verify` が無い（6 節の 2）。
   - diagnose の再審の役（再審の材料に「判定の裏取り」として 1 回目の申し送りを並べる。今の `judge_accept.REJUDGE_MATERIALS` の `VERIFY_FILE`）: 1 回目の `$verify.output.verify`。README の 8.1 の diagnose の入力に無い（6 節の 3）。
   - report の `sections`: `$verify.output.report`。
-- verify が回らない run（`when:` が偽で include しない）では、読み手は pointer の null を受ける。今は judge の出口が回さなかった形の申し送りをいつも置いた（`judge_accept.py:3968-3970`。訳「判定の裏取りを回さなかった」か、機能の切り替えの訳）ので、plan の指示に「相乗り: 確かめられなかった（訳）」の節が、報告に「判定の単位の裏取り（0 単位。…）」の行が、回さない既定の run でもいつも出ていた。null の時にどう書くかは読み手（plan・report・line）の設計書で決める。
-- 今の `tests/e2e/evidence.json` の L-E33（`judge_accept.py::prep_on` が `judge-verify.json` に「features_cut に judge_verify」と書く）は、回さない訳を line が持つので line の行に書き直す。J84（`judge/verify/` に下請けのファイル）と P037（plan の指示の「## 判定の単位の裏取り」）は、place のパスと見出しを新しい物に合わせる。
+- verify が回らない run（`when:` が偽で include しない）では、読み手は pointer の null を受ける。今は judge の出口が回さなかった形の申し送りをいつも置いた（`judge_accept.py:3968-3970`。訳「判定の裏取りを回さなかった」か、機能の切り替えの訳）ので、plan の指示に「相乗り: 確かめられなかった（訳）」の節が、報告に「判定の単位の裏取り（0 単位。…）」の行が、verify が回らない既定の run でもいつも出ていた。null の時にどう書くかは読み手（plan・report・line）の設計書で決める。
+- 今の `tests/e2e/evidence.json` の L-E33（`judge_accept.py::prep_on` が `judge-verify.json` に「features_cut に judge_verify」と書く）は、回らない訳を line が持つので line の行に書き直す。J84（`judge/verify/` に下請けのファイル）と P037（plan の指示の「## 判定の単位の裏取り」）は、place のパスと見出しを新しい物に合わせる。
 
 ## 2 node の設計シート: judge-verify（束ね役。下請けのファイルも同じ md から組む）
 
