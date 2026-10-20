@@ -164,7 +164,7 @@ line は一番上の graph なので、place は run directory の根（README 4
    - `answer-before-fix`: 答えの `asked` に載せた行を付ける（fix の `answers` が問いの単位を直す義務に戻す。S46）。通した答えが方針の文書の変化の項目を通したなら、今の方針の文書を固め直し（`policy.freeze`）、始めの記録の `policy` を書き直し、返りの `policy` にその写しのパス（ほかは `$start.output.ports.policy` の値）を返す（今の `carry_policy` と `boardview.passed_version`。固め直す決めは line に移った）。
 3. 案の直しの承認ノード `gate-replan`: `ask-replan` が決める（今の `ask_replan.py` のまま）。直した項目ごとに承認済みの項目と約束の欄を比べ（`planmarks.contract_diff`）、変わった項目と、事前審査が人に聞くと言った時と、方針の文書が始めの記録の固めた版から変わっている時（`gates.policy_change`・`change_row` の行。今の事前審査の `_asked` が案の直しでも足した行。`ask-replan` は始めの記録の pointer を受ける）に開く。人が前に continue で通した同じ文の行（修正前の承認ノードの答えか、この承認ノードの前の答え）は聞き直さない（ほかの行と同じ決まり）。読めない計画は聞く側に倒す。文は項目ごとの節（約束の欄の変化・人に聞く穴・その項目を誤りとした申し出の文と裁定の文〔fix の `conflicts`。字のまま〕・前と後の項目の JSON）。`answer-replan` は 2 度目の修正に渡す `fix_answers`（修正前の条件が先・案の直しの一言が後）・`fix_notes`（採った項目の事前審査の穴のうち人に聞く種類でない物）・`fix_ripple`（作り直した波及の一覧。作れなかった時だけ 1 回目の物）と、足して `skip_rerun`（5.2）を返す。
 4. 最後の承認ノード `gate-final`: `ask-final` が決める（今の `ask_final.py` の決まりのまま。`src/final.py`）。開ける理由の列を 1 つ組み、開くかと冒頭の 1 行目をこの列だけから作る。
-   - 開き方に依らず開く（must）: 守りのパスに当たった・確かめられなかった（merge の seal の `protected_hits`）・書き換えを許したテストを触った・人に回した食い違いの申し出・申し出の控えを読めない・修正の段の控えを読めない・承認の後に受け入れ条件のテストが変わった（spec の check の `questions`。照らせなかった時は「照らせなかった」と言う）。
+   - 開き方に依らず開く（must）: 守りのパスに当たった・確かめられなかった（merge の seal の `protected_hits`）・書き換えを許したテストを触った・人に回した食い違いの申し出・申し出の控えを読めない・修正の段の控えを読めない・承認の後に受け入れ条件のテストが変わった（spec の check の `questions`。照らせなかった時は「照らせなかった」と言う）・読めなかった控え（直した後の実測・封じた差分・問いの台帳の控えなど。`got` の `unread`。読めた控えについての注記 `lost_ties` は材料に見せるだけで数えない）。
    - 開き方で開く理由: 最後のテストが緑でない・修正役が人に回した物・独立の目が通さなかった（eyes の `r1`〜`r4` の行。語は `gatemarks.REVIEW_WORDS`）・前提の検算が人に上げた（eyes の `premise_check` が escalate。E36）・申告と数え直しが合わない単位・考えの住処の柵の数が増えた（structure after の行）・人に聞いている問い（eyes の `questions` と台帳）・止めずに残った異議（再審が採らなかった）・差分を封じられなかった・足す: 修正の後の並行 PR の確かめ直しが重なりを見つけた・確かめ直せなかった（8 節の 1）。
    - 判定の役が保留にしたままの問いは冒頭と本文に見せるが、開ける理由に数えない（L-G36）。
    - 開き方は `gates.opens`（always はいつも・when_needed は理由が在る時・protected_only は守りのパスの当たりの時）。
@@ -192,7 +192,7 @@ line は一番上の graph なので、place は run directory の根（README 4
 
 ### 4.1 修正の段へ運ぶ値（`fix-in`）
 
-今の `fix_in.py` のまま、運ぶ値を受け皿の got と修正前の答えから組んで平らな欄にする。固定材料の run は `start` が取り込んだ写しの値を運ぶ。通常の run は修正に入る時に 1 度だけ、運ぶ値を固定材料として写す（`fixture.noted_capture`。運ぶ値の鍵が変わるので `fixture.FORMAT` を上げる。前の版の固定材料は `fixture.adopt` が拒む）。運ぶ欄は、修正から後ろの node が読む判定・構造の目・独立設計・計画の往復の値の全部（4.5 の「修正から後ろ」）。足す欄: 単位の深さ `units_tier`・`skip_rerun`・`switches`（5.2）・`no_fix`（判定が止めずに直す単位を出さなかったか、計画の `status` が `nothing_owed`。直す物が無い周の印）・`excluded`（並行 PR が外した hunk の pointer。8 節の 2）。`go` は修正前の承認を通ったか（固定材料の run は起動の承認）。
+今の `fix_in.py` のまま、運ぶ値を受け皿の got と修正前の答えから組んで平らな欄にする。固定材料の run は `start` が取り込んだ写しの値を運ぶ。通常の run は修正に入る時に 1 度だけ、運ぶ値を固定材料として写す（`fixture.noted_capture`。運ぶ値の鍵が変わるので `fixture.FORMAT` を上げる。前の版の固定材料は `fixture.adopt` が拒む）。運ぶ欄は、修正から後ろの node が読む判定・構造の目・独立設計・計画の往復の値の全部（4.5 の「修正から後ろ」）。足す欄: 単位の深さ `units_tier`・`skip_rerun`・`switches`（5.2）・`no_fix`（判定が止めずに直す単位を出さなかったか、計画の `status` が `nothing_owed`。直す物が無い周の印）・`excluded`（並行 PR が外した hunk の pointer。8 節の 2）。`go` は修正前の承認を通ったか（固定材料の run は起動の承認）。受け取りで落ちた時（壊れた始めの記録 `start.json` など）は、止めの語 `works:line-script` に加えて落ちた訳を返りの `reason` に載せる（落ちない時は空）。`collect` が報告の `problems` に「fix-in の script が落ちた（訳）」を出す。
 
 ### 4.2 案の直しと 2 度目の修正（一度だけ）
 

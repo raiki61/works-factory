@@ -70,6 +70,26 @@ class AskBeforeFixCase(unittest.TestCase):
         self.assertEqual(out["asked"], [f"判定 の judge/judgment.json が無い{self.g.UNREAD_TAIL}",
                                         f"答えの結び の judge/ties.json が無い{self.g.UNREAD_TAIL}"])
 
+    def test_broken_structure_state_opens_and_names_the_file(self):
+        """壊れた構造の目の控え（state.json）は、落ちて run を止めず、読めなかった控えとして承認ノードを開き、控えの名を理由に出す。
+        無人の run なら、その理由つきで止まる。どちらも設計の問いを黙って消さない"""
+        path = self.run.artifacts / "structure" / "state.json"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("{not json", encoding="utf-8")
+        judge = {"judgment": None, "answer_ties": None, "materials": None}
+        out = self.ask(judge, structure=json.dumps(ptr("structure/state.json")))
+        self.assertEqual((out["open"], out["go"], out["stop_reason"]), (True, True, ""), out)
+        self.assertIn("state.json", out["asked"][0])
+        out = self.ask(judge, unattended=True, structure=json.dumps(ptr("structure/state.json")))
+        self.assertEqual((out["open"], out["go"]), (False, False), out)
+
+    def test_fallback_keeps_the_reason(self):
+        """script が落ちた時の返りは、例外の訳を reason に載せる（壊れた控えでなく約束の誤りの pointer の例）"""
+        out = self.ask({"judgment": None, "answer_ties": None, "materials": None},
+                       structure=json.dumps({"type": "archon_artifact", "run_id": "other-run", "path": "structure/state.json"}))
+        self.assertEqual(out["stop_reason"], LINE_SCRIPT)
+        self.assertIn("other-run", out["reason"])
+
     def test_missing_structure_opens(self):
         out = self.ask({"judgment": None, "answer_ties": None, "materials": None}, structure=json.dumps(ptr("structure/state.json")))
         self.assertTrue(out["open"], out)
@@ -124,16 +144,16 @@ class AskFinalCase(unittest.TestCase):
         self.run = kit.Run(self, BLOCK)
         self.final = kit.load(BLOCK, "final")
 
-    def ask(self, *, record=None, seal=None, unattended=False):
+    def ask(self, *, record=None, seal=None, unattended=False, judged=None, final_gate="protected_only"):
         fix_in = {"answer": None, "passes": [], "structure": None, "record": record, "judgment": None, "units": []}
         fixed = {"no_fix": False, "conflicts": [], "handoffs": [], "mismatched": [], "objection": "", "units": [], "groups": [],
                  "stages": [], "replan_items": [], "refixed": False, "skip_why": ""}
         tests = {"ok": True, "green": True, "red_cause": "", "ran_steps": None, "by": "test_cmd", "suites_line": "1 本", "log": "l",
                  "baseline_line": "b", "reason": "", "fingerprint": {"head": "h", "diff_hash": "d"}}
-        return self.run.script("ask_final", fix_in=json.dumps(fix_in), fixed=json.dumps(fixed), judged="null", tests=json.dumps(tests),
+        return self.run.script("ask_final", fix_in=json.dumps(fix_in), fixed=json.dumps(fixed), judged=json.dumps(judged) if judged else "null", tests=json.dumps(tests),
                                eyes="null", seal=json.dumps(seal) if seal else "null", spec_check="null", parallel_after="null",
                                replan_review="null", replan_answer="null", widened="null", start_answer="null", record="null",
-                               final_gate="protected_only", ports=json.dumps({"unattended": unattended}))
+                               final_gate=final_gate, ports=json.dumps({"unattended": unattended}))
 
     def test_missing_rounds_record_opens_in_every_mode(self):
         out = self.ask(record=ptr("plan-converge.json"))
@@ -146,6 +166,23 @@ class AskFinalCase(unittest.TestCase):
         out = self.ask(seal=seal)
         self.assertTrue(out["open"], out)
         self.assertTrue(any("封じた差分 の merge-seal/sealed.diff が無い" in r for r in out["reasons"]), out["reasons"])
+
+    def test_lost_tie_note_is_shown_but_does_not_force_the_gate(self):
+        """読めた控えについての注記（結びの宛て先が今の問いにも単位にも無く、字の一致で当てた）は、読めなかった控えではない:
+        承認ノードの材料には出すが、必ず開ける理由に数えない（再審で問いの名が変わっただけの run が必ず止まらない）"""
+        for rel, doc in (("judge/judgment.json", {"units": [{"key": "u1", "label": "block"}], "questions": []}),
+                         ("judge/ties.json", {"rounds": {"1": [{"answer": "a", "to": "gone-q"}]}})):
+            path = self.run.artifacts / rel
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(json.dumps(doc), encoding="utf-8")
+        judged = {"units": [], "judgment": ptr("judge/judgment.json"), "answer_ties": ptr("judge/ties.json"), "materials": None,
+                  "rejudged": True, "rejudge_verdict": "", "lines": []}
+        seal = {"mode": "seal", "ok": True, "hash": "abc", "diff": None, "protected_hits": [], "protected_count": 0, "reason": "",
+                "deliver": None, "report": []}
+        out = self.ask(judged=judged, seal=seal, final_gate="when_needed")
+        self.assertEqual((out["open"], out["go"], out["reasons"]), (False, True, []), out)
+        shown = self.ask(judged=judged, seal=seal, final_gate="always")
+        self.assertIn("gone-q", shown["text"])
 
     def test_unattended_run_stops_instead_of_opening(self):
         out = self.ask(record=ptr("plan-converge.json"), unattended=True)

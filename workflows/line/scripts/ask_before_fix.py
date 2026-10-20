@@ -59,8 +59,14 @@ def compute() -> dict:
                                             answers=gates.request_answers(record), gate=None, takes_push=unattended)
     change = gates.policy_change(record, Path.cwd(), place)
     previous = gates.read_json(place / PREVIOUS)
+    structure = gates.located(raw["structure"], "構造の目の控え", unread)   # 形の違う pointer はここで ValueError（落ちる道）
+    try:
+        design_rows = gates.design_rows(structure)
+    except ValueError as error:   # 控えが在るのに壊れている: 読めなかった控えとして承認ノードを開き、控えの名を見せる
+        design_rows = []
+        unread.append(str(error))
     got = gates.before_fix(dict(rounds) if rounds is not None else None, unattended_run=unattended, design=design, ledger=ledger,
-                           design_rows_=gates.design_rows(gates.located(raw["structure"], "構造の目の控え", unread)),
+                           design_rows_=design_rows,
                            policy_row=gates.change_row(change) if change else "", stuck_reason=stuck, record_doc=rec_doc,
                            answered=[previous] if isinstance(previous, dict) else [], unread=unread)
     text = ""
@@ -68,14 +74,14 @@ def compute() -> dict:
         asking = {"node": gatemarks.GATE_NODE, "question": QUESTION, "items": [t for _, t in got["items"]],
                   "kinds": list(dict.fromkeys(k for k, _ in got["items"] if k)) or [gates.AXIS_KIND]}
         text = gatemarks.gate_text(asking, run_id=os.environ["WORKFLOW_ID"], node=gatemarks.GATE_NODE, record_name=RECORD)
-    return {"open": got["open"], "go": got["go"], "stop_reason": got["stop_reason"], "text": text, "deferred": got["deferred"],
+    return {"open": got["open"], "go": got["go"], "stop_reason": got["stop_reason"], "reason": "", "text": text, "deferred": got["deferred"],
             "asked": got["asked"], "pushed": got["pushed"], "passes": got["passes"], "policy_changed": got["policy_changed"]}
 
 
 def fallback(reason: str) -> dict:
     from src import guard
 
-    return {"open": False, "go": False, "stop_reason": guard.LINE_SCRIPT, "text": "", "deferred": [], "asked": [], "pushed": None,
+    return {"open": False, "go": False, "stop_reason": guard.LINE_SCRIPT, "reason": reason, "text": "", "deferred": [], "asked": [], "pushed": None,
             "passes": [], "policy_changed": False}
 
 
