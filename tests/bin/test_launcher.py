@@ -992,6 +992,17 @@ class LauncherTest(unittest.TestCase):
         self.assertIn("ANTHROPIC_API_KEY", list(env))
         self.assertFalse(self.security_log.exists(), "API キーの利用者で keychain を読んだ")
 
+    def test_managed_settings_folder_comes_from_the_env_and_the_default_stays(self):
+        """会社が配る設定の置き場は WORKS_FACTORY_MANAGED_DIR で替えられ、その中の apiKeyHelper がキーになる。この口は殻の既定の道を
+        変えない: 試験の子の環境が向ける空のフォルダでは、helper が無く、API キーの無い利用者は認証の案内で止まる（E14）"""
+        managed = self.tmp / "managed"
+        managed.mkdir()
+        (managed / "managed-settings.json").write_text(json.dumps({"apiKeyHelper": "echo helper-made-key"}), encoding="utf-8")
+        env = self.reached(self.launch("workflow", "run", "works-factory-line", ANTHROPIC_API_KEY=None,
+                                       WORKS_FACTORY_MANAGED_DIR=str(managed)))["env"]
+        self.assertEqual(env["ANTHROPIC_API_KEY"], "helper-made-key")
+        self.assertIn("認証が無い", self.stopped(self.launch("workflow", "run", "works-factory-line", ANTHROPIC_API_KEY=None)))
+
     def test_missing_home_or_git_stops_with_one_line(self):
         only_python = self.tmp / "only-python"
         only_python.mkdir()

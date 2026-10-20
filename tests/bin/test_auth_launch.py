@@ -13,6 +13,9 @@
   受け継いだ認証・名指し・CLAUDE_KEYCHAIN_SERVICE の項目の後、Claude Code 自身のログインの前に効く。失敗したら黙って
   ほかの段へ移らず、apiKeyHelper を名指して止まる。キーの値は出さない（#795）
 - 認証が無い時の案内は API キーの道（ANTHROPIC_API_KEY・ゲートウェイの値は子に運ばないこと）も言う
+- 会社が配る設定の置き場は、環境変数 WORKS_FACTORY_MANAGED_DIR で替えられる（殻の既定は OS ごとの本物の置き場のまま。この口は変えない）。
+  試験の子の環境（hermetic.child_env）は、この口を空の一時フォルダへ向ける（会社が apiKeyHelper を配った機械でも、殻を通る試験が
+  本物の設定を読まない）
 security は偽の runner に差し替え、本物の keychain には触らない。
 """
 import io
@@ -427,6 +430,52 @@ class ApiKeyHelper(unittest.TestCase):
         self.assertEqual((r.returncode, r.stdout), (2, ""))
         self.assertTrue(r.stderr.splitlines()[-1].startswith("bin/start: " + auth_launch.HOWTO), r.stderr)
         self.assertIn("apiKeyHelper（", r.stderr.splitlines()[-1])
+
+
+class ManagedDirEnv(unittest.TestCase):
+    """会社が配る設定の置き場の差し替えの口（環境変数 WORKS_FACTORY_MANAGED_DIR）"""
+
+    def setUp(self):
+        self.tmp = hermetic.tmpdir(self)
+        self.managed = self.tmp / "managed"
+        self.managed.mkdir()
+        (self.managed / "managed-settings.json").write_text(json.dumps({"apiKeyHelper": "managed-cmd"}), encoding="utf-8")
+
+    def check(self, **env):
+        """python3 -I で check を起こす（殻と同じ起こし方）。ANTHROPIC_API_KEY など前の段の認証は無い環境"""
+        return subprocess.run([sys.executable, "-I", str(CORE / "auth_launch.py"), "check", "--user-home", str(self.tmp / "user")],
+                              env=hermetic.child_env(HOME=str(self.tmp / "iso"), **env), capture_output=True, text=True,
+                              encoding="utf-8")
+
+    def test_the_env_names_the_folder_the_shell_reads(self):
+        done = self.check(**{auth_launch.MANAGED_DIR_ENV: str(self.managed)})
+        self.assertEqual(done.returncode, 0, done.stderr)
+        self.assertIn("apiKeyHelper", done.stdout)
+        self.assertIn(str(self.managed / "managed-settings.json"), done.stdout)
+
+    def test_the_flag_wins_over_the_env(self):
+        other = self.tmp / "other"
+        other.mkdir()
+        done = subprocess.run([sys.executable, "-I", str(CORE / "auth_launch.py"), "check", "--user-home", str(self.tmp / "user"),
+                               "--managed-dir", str(other)],
+                              env=hermetic.child_env(HOME=str(self.tmp / "iso"), **{auth_launch.MANAGED_DIR_ENV: str(self.managed)}),
+                              capture_output=True, text=True, encoding="utf-8")
+        self.assertNotIn("apiKeyHelper", done.stdout)
+
+    def test_unset_env_reads_the_default_folder(self):
+        """口が無い時の道は変わらない: OS ごとの既定の置き場（default_managed_dir）を読む（E14）"""
+        out = io.StringIO()
+        with mock.patch.object(auth_launch, "default_managed_dir", lambda platform=None: self.managed), \
+                mock.patch.dict(os.environ, {}, clear=True), mock.patch("sys.stdout", out):
+            self.assertEqual(auth_launch.main(["check", "--user-home", str(self.tmp / "user")]), 0)
+        self.assertIn("apiKeyHelper", out.getvalue())
+
+    def test_child_env_points_the_env_at_an_empty_folder(self):
+        """殻を通る試験の子の環境は、本物の会社の設定を読まない（空の既存のフォルダ）。試験が意図して渡せば、その値が勝つ"""
+        folder = pathlib.Path(hermetic.child_env()[auth_launch.MANAGED_DIR_ENV])
+        self.assertTrue(folder.is_dir())
+        self.assertEqual(list(folder.iterdir()), [])
+        self.assertEqual(hermetic.child_env(**{auth_launch.MANAGED_DIR_ENV: "x"})[auth_launch.MANAGED_DIR_ENV], "x")
 
 
 class NoRealManagedDir(unittest.TestCase):
