@@ -365,6 +365,7 @@ fix-in:
   go: true
   no_fix: false
   stop_reason: ''
+  reason: ''
   received: null
   policy: ''
   answer: null
