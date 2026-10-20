@@ -143,6 +143,7 @@ nodes:
       test_cmd: "$start.output.ports.test_cmd"
       tdd_suite: "$start.output.ports.tdd_suite"
       base: "$start.output.ports.base_rev"
+      entry_base: "$start.output.ports.base"
       request: "$start.output.ports.request"
       request_scope: "$start.output.ports.request_scope"
       reuse_dir: "$start.output.ports.reuse_dir"
@@ -165,7 +166,7 @@ nodes:
     depends_on: [test-gate-base]
     with:
       got: "$test-gate-base.output"
-      names: "mode ok green red_cause ran_steps baseline fingerprint test_outcomes evidence by suites_line log baseline_line reason suite suite_note report"
+      names: "mode ok green red_cause ran_steps baseline fingerprint test_outcomes evidence by suites_line log baseline_line reason suite suite_note related report"
   # 4 判定のまとめ（docs/design/judge-eyes.md の 1 節）
   - id: judge
     include: works-factory-judge
@@ -1075,6 +1076,7 @@ nodes:
       test_cmd: "$start.output.ports.test_cmd"
       tdd_suite: "$fix-in.output.suite"
       base: "$start.output.ports.base_rev"
+      entry_base: "$start.output.ports.base"
       request: "$start.output.ports.request"
       request_scope: "$start.output.ports.request_scope"
       baseline: "$fix-in.output.baseline"
@@ -1087,7 +1089,7 @@ nodes:
     depends_on: [test-gate-final]
     with:
       got: "$test-gate-final.output"
-      names: "mode ok green red_cause ran_steps baseline fingerprint test_outcomes evidence by suites_line log baseline_line reason suite suite_note report"
+      names: "mode ok green red_cause ran_steps baseline fingerprint test_outcomes evidence by suites_line log baseline_line reason suite suite_note related report"
   # 21 独立の目のまとめ（docs/design/judge-eyes.md の 2 節）。回すか・まとめるかは eyes-in が組む（docs/design/line.md の 5.4）
   - id: eyes-in
     script: eyes_in

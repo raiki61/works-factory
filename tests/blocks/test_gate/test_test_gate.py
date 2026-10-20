@@ -1,10 +1,10 @@
 """試験の関門の block（workflows/test-gate/）の YAML の形と、script を子のプロセスで走らせる振る舞いの試験（docs/design/test-gate.md の 12 節）。
 
-- YAML: block の名・入力（port 11 個）・返す node の output_format（今の 15 欄に suite・suite_note・report を足した 18 欄）・任せ先の CI の役の node の形・
-  輪の上限と受け付けの諦める回数・script の INPUTS_<名> と with: の鍵（INPUTS_ を読むのは intake.py だけ）・読むだけの node
+- YAML: block の名・入力（port 12 個）・返す node の output_format（今の 15 欄に suite・suite_note・related・report を足した 18 欄）・
+  TDD の実行器の書き手の node の形・script の INPUTS_<名> と with: の鍵（INPUTS_ を読むのは intake.py だけ）・読むだけの node
 - script（始めの記録の無い使い捨ての run directory と、tests/e2e/target-seed/ の写しの git のリポジトリで、port の値だけを渡す）:
-  止められた run・JUnit の報告の後始末・任せ先の受け付けの拒みと諦め・返す node の赤の原因と認証・壊れた入力でも落ちない返す node・
-  TDD の実行器の輪・出力の欄 suite・suite_note・report
+  止められた run・JUnit の報告の後始末・返す node の赤の原因と認証・壊れた入力でも落ちない返す node・TDD の実行器の輪・
+  走らせ方が決まらない道の関わる試験だけの走らせ方（RelatedCase）・出力の欄 suite・suite_note・related・report
 - 筋書きを Archon の workflow test で回すのは tests/layers/test_block_shape.py
 """
 import datetime
@@ -41,7 +41,6 @@ import baseline_red  # noqa: E402
 import declared_checks  # noqa: E402
 import green_cert  # noqa: E402
 import launchgroups  # noqa: E402
-import rolekit  # noqa: E402
 import suitewrite  # noqa: E402
 import tree_run  # noqa: E402
 import userenv  # noqa: E402
@@ -50,7 +49,7 @@ from engine.schema import validate_schema  # noqa: E402  （declared_checks が 
 RUN_ID = "run-1"
 PY = sys.executable
 WAIT = 30   # 子のプロセスを待つ上限（秒）。試験の枠で、script の中には期限を置かない
-PORTS = ("mode", "test_cmd", "tdd_suite", "base", "request", "request_scope", "baseline", "reuse_dir", "reuse_key", "user_env_dir", "lang")
+PORTS = ("mode", "test_cmd", "tdd_suite", "base", "entry_base", "request", "request_scope", "baseline", "reuse_dir", "reuse_key", "user_env_dir", "lang")
 
 
 def workflow() -> dict:
@@ -100,8 +99,7 @@ class YamlCase(unittest.TestCase):
         self.assertEqual((self.y["inputs"]["request"]["default"], self.y["inputs"]["request_scope"]["default"]), ("[]", "false"))
         self.assertEqual((self.y["returns"], self.y["outcome_field"]), ("result", "ok"))
         self.assertEqual([n["id"] for n in walk(self.y["nodes"])],
-                         ["intake", "run", "ci-loop", "ci-prep", "ci", "ci-fix-prep", "ci-fix", "ci-accept", "suite-loop", "suite-prep",
-                          "suite-write", "suite-place", "suite-try", "result"])
+                         ["intake", "run", "suite-loop", "suite-prep", "suite-write", "suite-place", "suite-try", "result"])
 
     def test_intake_gates_the_run(self):
         self.assertEqual((node("run")["depends_on"], node("run")["when"]), (["intake"], "$intake.output.ok == true"))
@@ -111,8 +109,8 @@ class YamlCase(unittest.TestCase):
         result = node("result")
         fmt = result["output_format"]
         self.assertEqual(sorted(fmt["required"]), sorted(set(fmt["properties"]) - {"optional"}))
-        self.assertEqual(len(fmt["required"]), 17)
-        self.assertTrue({"suite", "suite_note", "report"} <= set(fmt["required"]))
+        self.assertEqual(len(fmt["required"]), 18)
+        self.assertTrue({"suite", "suite_note", "related", "report"} <= set(fmt["required"]))
         self.assertEqual(fmt["properties"]["report"], {"type": "array", "items": {"type": "string"}})
         self.assertIs(fmt["additionalProperties"], False)
         self.assertEqual(fmt["properties"]["mode"]["enum"], ["base", "final"])
@@ -122,28 +120,26 @@ class YamlCase(unittest.TestCase):
             self.assertEqual(compared["properties"]["rows"]["items"]["properties"][side]["enum"], [*baseline_red.OUTCOMES, ""])
         self.assertEqual(fmt["properties"]["ok"]["type"], "boolean")
         self.assertEqual(result["output_type"], "green-cert")
-        self.assertEqual((result["trigger_rule"], result["depends_on"]), ("all_done", ["run", "ci-loop", "suite-loop"]))
+        self.assertEqual((result["trigger_rule"], result["depends_on"]), ("all_done", ["run", "suite-loop"]))
         self.assertEqual(set(result["with"]), {"optional"})
 
-    def test_role_node_reads_only(self):
-        ci = node("ci")
-        self.assertIs(ci["mutates_checkout"], False)
-        self.assertEqual(ci["allowed_tools"], ["Read", "Grep", "Glob", "Bash", "WebSearch", "WebFetch"])
-        self.assertFalse({"Edit", "Write"} & set(ci["allowed_tools"]))
-        self.assertEqual(launchgroups.default_of(ci["model"]), ("sonnet", "medium"))
-        self.assertEqual(ci["prompt"], "$ci-prep.output.prompt")
-        self.assertNotIn("command", ci)
-        self.assertTrue((BLOCK / "prompts" / "ci.md").is_file())
-
-    def test_runner_writer_is_launched_like_the_ci_role_and_its_fall_is_declared(self):
-        """#516: TDD の実行器の書き手は CI の役と同じ群・道具・砂場で起き（試験の関門の読むだけの役の起こし方は 1 組）、書き手と輪が
-        落ちても線が先へ進める（返す node の宣言 optional。落ちれば実行器の無い run の道を通る）"""
-        ci = node("ci")
-        for name in ("suite-write", "ci-fix"):
-            for key in ("model", "allowed_tools", "sandbox", "settingSources", "mutates_checkout", "idle_timeout", "retry"):
-                with self.subTest(name, key=key):
-                    self.assertEqual(node(name)[key], ci[key])
+    def test_runner_writer_is_a_read_only_role_and_its_fall_is_declared(self):
+        """#516: TDD の実行器の書き手は読むだけの役の起こし方（軽い群・道具・砂場の 1 組）で起き、書き手と輪が落ちても線が先へ進める
+        （返す node の宣言 optional。落ちれば実行器の無い run の道を通る）。役の砂場は run の作業ツリーを含む Archon の家ごと書き込みを塞ぎ
+        （相対のパス '.' は cwd でなく設定の一時ファイルのフォルダに解かれ、作業ツリーを塞がない。実測 2026-10-13）、読むだけの node の印
+        mutates_checkout: false も外さない"""
         writer = node("suite-write")
+        self.assertEqual(writer["allowed_tools"], ["Read", "Grep", "Glob", "Bash", "WebSearch", "WebFetch"])
+        self.assertFalse({"Edit", "Write"} & set(writer["allowed_tools"]))
+        self.assertEqual(launchgroups.default_of(writer["model"]), ("sonnet", "medium"))
+        self.assertEqual(writer["settingSources"], ["user"])
+        self.assertNotIn("context", writer)
+        self.assertEqual(writer["sandbox"], {"enabled": True, "allowUnsandboxedCommands": False, "failIfUnavailable": True,
+                                             "enableWeakerNetworkIsolation": True,
+                                             "network": {"allowedDomains": ["*"], "allowLocalBinding": True},
+                                             "filesystem": {"allowWrite": ["/"], "denyWrite": [scan.NO_TREE_WRITE]}})
+        self.assertIs(writer["mutates_checkout"], False)
+        self.assertEqual((writer["idle_timeout"], writer["retry"]), (1728000000, {"max_attempts": 2, "on_error": "all"}))
         self.assertEqual((writer["prompt"], writer["when"]), ("$suite-prep.output.prompt", "$suite-prep.output.write == true"))
         self.assertTrue((BLOCK / "prompts" / "suite-write.md").is_file())
         self.assertEqual(json.loads(node("result")["with"]["optional"]),
@@ -153,61 +149,20 @@ class YamlCase(unittest.TestCase):
         """#516: 輪は修正前のテストの後に、用意が要る時（run の返り suite_owed）だけ回る。2 周目は取り置きが照らしを通らなかった時の
         書き直しだけ。照らしの 1 回（suite-try）は書き手が飛んでも落ちても走る"""
         loop = node("suite-loop")
-        self.assertEqual((loop["when"], loop["depends_on"]), ("$run.output.suite_owed == true", ["run", "ci-loop"]))
+        self.assertEqual((loop["when"], loop["depends_on"]), ("$run.output.suite_owed == true", ["run"]))
         self.assertEqual(loop["loop_group"]["max_iterations"], 2)
         self.assertIn("$suite-try.output.done", loop["loop_group"]["until_bash"])
         self.assertEqual([n["id"] for n in loop["loop_group"]["nodes"]], ["suite-prep", "suite-write", "suite-place", "suite-try"])
         self.assertEqual(node("suite-try")["trigger_rule"], "all_done")
         self.assertNotIn("suite_owed", node("run")["output_format"]["required"])
 
-    def test_role_cannot_write_the_checkout(self):
-        """役の砂場は run の作業ツリーを含む Archon の家ごと書き込みを塞ぎ（相対のパス '.' は cwd でなく設定の一時ファイルのフォルダに
-        解かれ、作業ツリーを塞がない。実測 2026-10-13）、写しの置き場（TMPDIR の下）は書けるまま。読むだけの node の印
-        mutates_checkout: false も外さない。役の起こし方（settingSources・砂場）は読む役の 1 組"""
-        ci = node("ci")
-        self.assertEqual(ci["settingSources"], ["user"])
-        self.assertNotIn("context", ci)
-        self.assertEqual(ci["sandbox"], {"enabled": True, "allowUnsandboxedCommands": False, "failIfUnavailable": True,
-                                         "enableWeakerNetworkIsolation": True,
-                                         "network": {"allowedDomains": ["*"], "allowLocalBinding": True},
-                                         "filesystem": {"allowWrite": ["/"], "denyWrite": [scan.NO_TREE_WRITE]}})
-        self.assertIs(ci["mutates_checkout"], False)
-        self.assertEqual(ci["output_format"]["properties"]["material"], declared_checks.MATERIAL_SCHEMA)
-
     def test_run_material_is_the_material_schema_or_null(self):
         material = node("run")["output_format"]["properties"]["material"]
         self.assertEqual(material["type"], ["object", "null"])
         self.assertEqual({**material, "type": "object"}, declared_checks.MATERIAL_SCHEMA)
 
-    def test_loop_matches_give_up(self):
-        """fresh_context は false（拒まれた後の出し直しは同じ会話の続き）"""
-        loop = node("ci-loop")
-        self.assertEqual(loop["when"], "$run.output.by == 'role_needed'")
-        self.assertIs(loop["loop_group"]["fresh_context"], False)
-        self.assertIn("$ci-accept.output.done", loop["loop_group"]["until_bash"])
-        self.assertEqual(loop["loop_group"]["max_iterations"], rolekit.GIVE_UP_AFTER)
-
-    def test_resubmit_role_is_routed_by_ci_prep(self):
-        """出し直しの役 ci-fix は ci-prep の resubmit が真の周だけ起き、指示は専用の prep ci-fix-prep が組む。1 回目の役 ci は飛ぶ"""
-        fix, prep = node("ci-fix"), node("ci-fix-prep")
-        self.assertEqual((fix["when"], fix["prompt"], fix["trigger_rule"]),
-                         ("$ci-prep.output.resubmit == true", "$ci-fix-prep.output.prompt", "none_failed_min_one_success"))
-        self.assertEqual((prep["when"], prep["depends_on"], prep["trigger_rule"]),
-                         ("$ci-prep.output.resubmit == true", ["ci-prep", "ci"], "none_failed_min_one_success"))
-        self.assertEqual(node("ci")["when"], "$ci-prep.output.resubmit != true")
-        self.assertEqual(fix["output_format"]["required"], [])
-
-    def test_loop_does_not_paste_previous_reject_by_loop_prev(self):
-        """前の回の拒否の文は $LOOP_PREV で with: に貼らない（元の裁定 R44）: Archon は with: の値を $LOOP_PREV で置き換えた後に
-        もう 1 度 $<node>.output.<欄> を置き換えるので、拒否の文に node の参照の字が在ると輪が落ちる。ci-prep が拒否の控えから読む。
-        $LOOP_PREV で結ぶのは前の周の受け付けの ok（真偽。出し直しの役を起こすかの振り分け）だけ"""
-        for n in node("ci-loop")["loop_group"]["nodes"]:
-            with self.subTest(n["id"]):
-                pasted = [v for v in (n.get("with") or {}).values() if "$LOOP_PREV" in json.dumps(v)]
-                self.assertEqual(pasted, ["$LOOP_PREV.ci-accept.output.ok"] if n["id"] == "ci-prep" else [])
-
     def test_script_inputs_match_with(self):
-        """INPUTS_ を読むのは intake.py だけ（port の 11 個）。ほかの script は with: に結んだ鍵だけを読む"""
+        """INPUTS_ を読むのは intake.py だけ（port の 12 個）。ほかの script は with: に結んだ鍵だけを読む"""
         self.assertEqual(script_inputs("intake"), {f"INPUTS_{k.upper()}" for k in PORTS})
         for n in walk(self.y["nodes"]):
             if "script" not in n or n["script"] == "intake":
@@ -220,8 +175,7 @@ class YamlCase(unittest.TestCase):
             self.assertNotIn("$INPUTS", json.dumps(n.get("with") or {}), "port は intake だけが読む")
 
     def test_readonly_nodes(self):
-        for nid in ("intake", "ci-prep", "ci", "ci-fix-prep", "ci-fix", "ci-accept", "suite-prep", "suite-write", "suite-place",
-                    "suite-try", "result"):
+        for nid in ("intake", "suite-prep", "suite-write", "suite-place", "suite-try", "result"):
             with self.subTest(nid):
                 self.assertIs(node(nid)["mutates_checkout"], False)
 
@@ -363,12 +317,12 @@ class IntakeCase(ScriptCase):
         request.write_text(json.dumps({"findings": [{"where": "stats.py:4", "text": "x"}]}), encoding="utf-8")
         baseline = self.tmp / "base.json"
         baseline.write_text("{}", encoding="utf-8")
-        self.write_start(test_cmd=" make test ", tdd_suite=" run.sh ", base=self.head, request=str(request), request_scope="true",
+        self.write_start(test_cmd=" make test ", tdd_suite=" run.sh ", base=self.head, entry_base=" origin/main ", request=str(request), request_scope="true",
                          baseline=str(baseline), reuse_key="k", lang="Japanese")
         self.assertEqual(self.intake("final"), {"ok": True, "reason": ""})
         doc = json.loads((self.place("final") / "intake.json").read_text(encoding="utf-8"))
         self.assertEqual(doc, {"mode": "final", "test_cmd": " make test ", "tdd_suite": "run.sh", "base": self.head,
-                               "request": [{"where": "stats.py:4", "text": "x"}], "request_scope": True, "baseline": str(baseline),
+                               "entry_base": "origin/main", "request": [{"where": "stats.py:4", "text": "x"}], "request_scope": True, "baseline": str(baseline),
                                "reuse_dir": str(self.artifacts / "test-reuse"), "reuse_key": "k", "user_env_dir": str(self.artifacts),
                                "lang": "Japanese"})
         state = json.loads((self.place("final") / "suite-state.json").read_text(encoding="utf-8"))
@@ -380,8 +334,8 @@ class IntakeCase(ScriptCase):
     def test_defaults_are_empty(self):
         self.assertEqual(self.intake("base"), {"ok": True, "reason": ""})
         doc = json.loads((self.place("base") / "intake.json").read_text(encoding="utf-8"))
-        self.assertEqual((doc["test_cmd"], doc["tdd_suite"], doc["base"], doc["request"], doc["request_scope"], doc["baseline"], doc["lang"]),
-                         ("", "", "", [], False, "", ""))
+        self.assertEqual((doc["test_cmd"], doc["tdd_suite"], doc["base"], doc["entry_base"], doc["request"], doc["request_scope"],
+                          doc["baseline"], doc["lang"]), ("", "", "", "", [], False, "", ""))
 
     def test_mode_outside_the_words_is_not_ok(self):
         self.write_start(mode="middle")
@@ -421,14 +375,14 @@ class IntakeCase(ScriptCase):
         (self.artifacts / "junit" / "1.xml").write_text("x", encoding="utf-8")
         (self.artifacts / "logs" / "a1").mkdir(parents=True)
         (self.artifacts / "logs" / "a1" / "1.out").write_text("old", encoding="utf-8")
-        (self.artifacts / "ci-prompt-1.md").write_text("old", encoding="utf-8")
+        (self.artifacts / "suite-write-prompt-1.md").write_text("old", encoding="utf-8")
         for k in range(3):
             (self.artifacts / f"keep-{k}.txt").write_text("x", encoding="utf-8")
         rc, out, err = self.run_script("intake", "base", {}, with_ports=True, include=False)
         self.assertEqual((rc, out), (0, {"ok": True, "reason": ""}), err)
         self.assertTrue(other.is_file() and all((self.artifacts / f"keep-{k}.txt").is_file() for k in range(3)))
         self.assertTrue((self.artifacts / "logs" / "a1" / "1.out").is_file())
-        self.assertFalse((self.artifacts / "junit").exists() or (self.artifacts / "ci-prompt-1.md").exists())
+        self.assertFalse((self.artifacts / "junit").exists() or (self.artifacts / "suite-write-prompt-1.md").exists())
         self.assertTrue((self.artifacts / "intake.json").is_file())
 
 
@@ -551,15 +505,15 @@ class RunScriptCase(ScriptCase):
         self.decl([{"name": "suite", "argv": [PY, "-c", "print('ran')"]}])
         gate = self.place("base")
         first = self.ok("run", "base")
-        for name in ("ci-material.json", "rejects-ci.json"):
+        for name in ("baseline.json", "evidence.md"):
             (gate / name).write_text("{}", encoding="utf-8")
         self.intake("base")
         second = self.ok("run", "base")
         self.assertEqual((gate / "logs" / "a1" / "1.out").read_text(encoding="utf-8"), "ran\n")
         self.assertEqual((gate / "logs" / "a2" / "1.out").read_text(encoding="utf-8"), "ran\n")
         self.assertEqual((pathlib.Path(first["log"]).parent.name, pathlib.Path(second["log"]).parent.name), ("a1", "a2"))
-        self.assertFalse((gate / "ci-material.json").exists())
-        self.assertFalse((gate / "rejects-ci.json").exists())
+        self.assertFalse((gate / "baseline.json").exists())
+        self.assertFalse((gate / "evidence.md").exists())
 
     def test_base_rerun_reuses_the_green_suite_and_final_does_not(self):
         """同じ run（reuse_key）の base をもう 1 度呼べば、同じ木の緑の一式は控えから使って子を起こさない。final は引かず置かない
@@ -609,268 +563,6 @@ class RunScriptCase(ScriptCase):
         self.assertEqual(err.count("\n"), 1, err)
         self.assertIn(declared_checks.TEST_CMD_STEP, err)
         self.assertFalse(ran.exists())
-
-
-class CiRoleCase(ScriptCase):
-    """任せ先の CI の役の支度と受け付け"""
-    GOOD = json.dumps({"material": {"status": "found", "count": 1, "detail": "1 件落ちた"}})
-    BAD = json.dumps({"material": {"status": "not_run", "reason": "走らせなかった"}})   # base では awaiting_human を求める
-
-    def prep(self, reject="", mode="base", prev=None):
-        """ci_prep を回す。reject が在れば、前の回の受け付けが拒んだ控え（ci_accept が積む物）に先に積む"""
-        if mode not in self.fresh:
-            self.intake(mode)
-        if reject:
-            rolekit.with_done(self.place(mode), declared_checks.CI_ROLE, {"ok": False, "reason": reject})
-        out = self.ok("ci_prep", mode, **({} if prev is None else {"prev": prev}))
-        snap = json.loads((self.place(mode) / "ci-snapshot.json").read_text(encoding="utf-8"))
-        top = pathlib.Path(snap["copy_dir"]).parent
-        self.addCleanup(lambda: top.exists() and shutil.rmtree(top, ignore_errors=True))
-        return out
-
-    def snapshot(self, mode="base") -> dict:
-        return json.loads((self.place(mode) / "ci-snapshot.json").read_text(encoding="utf-8"))
-
-    def prompt_text(self, out) -> str:
-        return out["prompt"]
-
-    def test_prep_copies_tree_and_passes_reject(self):
-        (self.repo / "new.txt").write_text("未追跡\n", encoding="utf-8")
-        out = self.prep(reject="前の理由")
-        snap = self.snapshot()
-        self.assertEqual((out["attempt"], out["resubmit"]), (2, False))
-        self.assertEqual((pathlib.Path(snap["copy_dir"]) / "new.txt").read_text(encoding="utf-8"), "未追跡\n")
-        self.assertTrue(pathlib.Path(snap["tmp_dir"]).is_dir())
-        text = self.prompt_text(out)
-        self.assertIn(rolekit.rejects_text(["前の理由"]), text)
-        self.assertIn(str(self.repo.resolve()), text)
-        self.assertIn(snap["copy_dir"], text)
-        self.assertEqual((self.place("base") / "ci-prompt-1.md").read_text(encoding="utf-8"), text)
-
-    def test_prep_marks_each_attempt_with_its_time(self):
-        """ci-prep は回ごとに役を起こす前の時刻を書く（受け付けがこの後の包みの起動の記録を探す）"""
-        times = []
-        for _ in range(2):
-            self.prep()
-            times.append(datetime.datetime.fromisoformat(self.snapshot()["prepared_at"]))
-        self.assertTrue(times[0].tzinfo)
-        self.assertLess(times[0], times[1])
-
-    def declare(self) -> pathlib.Path:
-        records = self.tmp / "launches.jsonl"
-        self.declared = {launcher.FENCE_RECORDS_ENV: str(records)}
-        return records
-
-    def launched(self, records: pathlib.Path, cwd) -> None:
-        with records.open("a", encoding="utf-8") as f:
-            f.write(json.dumps({"at": datetime.datetime.now(datetime.timezone.utc).isoformat(), "cwd": os.path.realpath(cwd)}) + "\n")
-
-    def assert_stopped_unfenced(self, got):
-        self.assertEqual((got["ok"], got["done"], got["give_up"]), (False, True, True))
-        self.assertIn("包みの柵が CI の任せ先の役の起動に掛かっていない", got["reason"])
-        self.assertFalse((self.place("base") / "ci-material.json").exists())
-
-    def test_declared_run_without_a_fenced_launch_stops_at_once(self):
-        """包みを通ると宣言した run で、ci-prep の後にこの作業ツリーで柵の掛かった起動の記録が無ければ、変わらない木と良い返答でも
-        受けずに 1 回目で諦める（T49。今の works の ci_role.take の包みの起動の照らし）"""
-        records = self.declare()
-        cases = (("記録が無い", lambda: None),
-                 ("ほかの木の起動", lambda: self.launched(records, self.tmp)))
-        for name, before_accept in cases:
-            with self.subTest(name):
-                records.unlink(missing_ok=True)
-                self.prep()
-                before_accept()
-                self.assert_stopped_unfenced(self.ok("ci_accept", "base", reply=self.GOOD))
-                rolekit.rejects_path(self.place("base"), declared_checks.CI_ROLE).unlink()
-
-    def test_declared_run_ignores_launches_before_prep(self):
-        records = self.declare()
-        self.launched(records, self.repo)
-        self.prep()
-        self.assert_stopped_unfenced(self.ok("ci_accept", "base", reply=self.GOOD))
-
-    def test_declared_run_with_a_relative_record_path_stops_before_the_role(self):
-        """宣言が読めない（絶対パスでない）run は、ci-prep が落ちて役を起こさず、出し直さずに諦めた拒否を控えに積む（T49）"""
-        self.declared = {launcher.FENCE_RECORDS_ENV: "launches.jsonl"}
-        rc, out, err = self.script("ci_prep", "base")
-        self.assertNotEqual(rc, 0)
-        self.assertIn(launcher.FENCE_RECORDS_ENV, err)
-        gate = self.place("base")
-        self.assertFalse((gate / "ci-snapshot.json").exists())
-        self.assertIn("役を起こさずに止める", rolekit.given_up_reason(gate, declared_checks.CI_ROLE))
-
-    def test_declared_run_with_a_fenced_launch_is_accepted(self):
-        records = self.declare()
-        self.prep()
-        self.launched(records, self.repo)
-        got = self.ok("ci_accept", "base", reply=self.GOOD)
-        self.assertEqual((got["ok"], got["done"]), (True, True), got["reason"])
-
-    def test_reject_with_a_reference_reaches_the_prompt_verbatim(self):
-        """前の回の拒否の文は、node の参照の字（$ci.output.material・$INPUTS.mode）を含んでも字のまま次の回の指示に載る。
-        1 回目は拒否の文が無い"""
-        first = self.prep()
-        self.assertEqual(first["attempt"], 1)
-        self.assertNotIn("受け付けがこれまでに拒んだ理由", first["prompt"])
-        reason = "欄を直せ: $ci.output.material と $INPUTS.mode"
-        again = self.prep(reject=reason)
-        self.assertEqual(again["attempt"], 2)
-        self.assertIn(rolekit.rejects_text([reason]), again["prompt"])
-
-    def test_resubmit_returns_only_the_rejected_fields(self):
-        """#571: 拒まれた周の次（prev が前の周の受け付けの ok の false）は、ci-prep が resubmit: true を返し（1 回目の役の指示は空）、
-        ci-fix-prep が最後の拒否と控えのパスを入れた出し直しの指示を組み、受け付けは出し直しの返答（直す欄だけ）を前の答えの控えと
-        合わせてから照らす。resume で輪が 1 周目から回り直した時（prev が空）は 1 回目の役"""
-        self.prep()
-        first = self.ok("ci_accept", "base", reply=self.BAD)
-        self.assertFalse(first["ok"])
-        again = self.ok("ci_prep", "base", prev="false")
-        self.assertEqual((again["resubmit"], again["prompt"]), (True, ""))
-        fix = self.ok("ci_fix_prep", "base")
-        self.assertIn(first["reason"], fix["prompt"])
-        self.assertIn(str(self.place("base") / "candidate-ci.json"), fix["prompt"])
-        self.assertEqual((self.place("base") / "ci-fix-prompt-1.md").read_text(encoding="utf-8"), fix["prompt"])
-        resumed = self.ok("ci_prep", "base", prev="")
-        self.assertIs(resumed["resubmit"], False)
-        self.assertTrue(resumed["prompt"])
-        material = {"status": "awaiting_human", "reason": "CI の定義が実機を要る"}
-        got = self.ok("ci_accept", "base", reply="null", fix_reply=json.dumps({"material": material}, ensure_ascii=False))
-        self.assertEqual((got["ok"], got["done"]), (True, True), got["reason"])
-        written = json.loads((self.place("base") / "ci-material.json").read_text(encoding="utf-8"))
-        self.assertEqual(written, {"material": material})
-
-    def test_unreadable_reply_is_a_reject(self):
-        """読めない返答（JSON でない・オブジェクトでない）は受け付けの拒否として数え、理由を次の回へ渡す"""
-        for raw, word in (("not json", "JSON"), ("[1]", "オブジェクトでない")):
-            with self.subTest(raw):
-                self.prep()
-                got = self.ok("ci_accept", "base", reply=raw)
-                self.assertEqual((got["ok"], got["done"]), (False, False))
-                self.assertIn(word, got["reason"])
-                self.assertIn(word, self.prep()["prompt"])
-                rolekit.rejects_path(self.place("base"), declared_checks.CI_ROLE).unlink()
-
-    def test_gives_up_after_three_rejections(self):
-        """3 回目の拒否で done・give_up（輪を max_iterations で落とさない）。写しを消す"""
-        rounds = []
-        for _ in range(3):
-            p = self.prep()
-            rounds.append((p["attempt"], self.ok("ci_accept", "base", reply=self.BAD)))
-        self.assertEqual([a for a, _ in rounds], [1, 2, 3])
-        self.assertEqual([(r["ok"], r["done"], r["give_up"]) for _, r in rounds],
-                         [(False, False, False), (False, False, False), (False, True, True)])
-        self.assertIn("awaiting_human", rounds[-1][1]["reason"])
-        self.assertFalse(pathlib.Path(self.snapshot()["copy_dir"]).exists())
-        self.assertFalse((self.place("base") / "ci-material.json").exists())
-
-    def test_tree_change_rejected(self):
-        """役を起こした後に未追跡のファイル・git が無視するパスが増えたら拒む。元に戻せば通る"""
-        (self.repo / ".git" / "info" / "exclude").write_text("build/\n", encoding="utf-8")
-        self.prep()
-
-        def untracked():
-            (self.repo / "new.txt").write_text("x\n", encoding="utf-8")
-            return lambda: (self.repo / "new.txt").unlink()
-
-        def ignored():
-            (self.repo / "build").mkdir()
-            (self.repo / "build" / "out.o").write_text("x\n", encoding="utf-8")
-            return lambda: shutil.rmtree(self.repo / "build")
-
-        for change, word in ((untracked, "new.txt"), (ignored, "build/")):
-            with self.subTest(word):
-                undo = change()
-                got = self.ok("ci_accept", "base", reply=self.GOOD)
-                self.assertEqual((got["ok"], got["done"]), (False, False))
-                self.assertIn("作業ツリーを変えた", got["reason"])
-                self.assertIn(word, got["reason"])
-                undo()
-        got = self.ok("ci_accept", "base", reply=self.GOOD)
-        self.assertEqual((got["ok"], got["done"], got["give_up"]), (True, True, False))
-        saved = json.loads((self.place("base") / "ci-material.json").read_text(encoding="utf-8"))
-        self.assertEqual(saved, json.loads(self.GOOD))
-
-    def test_retry_keeps_the_first_snapshot(self):
-        """出し直しの回の ci-prep は役を起こす前の姿を置き換えない: 1 回目の役が変えた作業ツリーは 2 回目も拒む"""
-        self.prep()
-        (self.repo / "new.txt").write_text("x\n", encoding="utf-8")
-        self.assertFalse(self.ok("ci_accept", "base", reply=self.GOOD)["ok"])
-        self.ok("ci_prep", "base")
-        got = self.ok("ci_accept", "base", reply=self.GOOD)
-        self.assertFalse(got["ok"])
-        self.assertIn("new.txt", got["reason"])
-
-    def test_status_guarded_leaves_index_only_change_to_the_status_check(self):
-        """with: の status_guarded が真の受け付けは、Archon の状態の照らし（git status の行の違い）が見る index だけの変化では
-        拒まない。印が無ければ今どおり全部の欄を比べて拒む"""
-        with open(self.repo / "stats.py", "a", encoding="utf-8") as f:
-            f.write("# 前から在った変更\n")
-        self.prep()
-        git(self.repo, "add", "stats.py")
-        got = self.ok("ci_accept", "base", reply=self.GOOD)
-        self.assertFalse(got["ok"])
-        self.assertIn("git status --porcelain", got["reason"])
-        got = self.ok("ci_accept", "base", reply=self.GOOD, status_guarded="true")
-        self.assertEqual((got["ok"], got["done"]), (True, True), got)
-
-    def test_status_guarded_still_sees_rewrite_of_dirty_file(self):
-        """status_guarded でも、git status の行が同じままの既に変わっていたファイルの書き換えは拒む（照らしが見ない所）"""
-        with open(self.repo / "stats.py", "a", encoding="utf-8") as f:
-            f.write("# 前から在った変更\n")
-        self.prep()
-        with open(self.repo / "stats.py", "a", encoding="utf-8") as f:
-            f.write("# 役が書いた\n")
-        got = self.ok("ci_accept", "base", reply=self.GOOD, status_guarded="true")
-        self.assertFalse(got["ok"])
-        self.assertIn("中身が変わった", got["reason"])
-
-    def test_done_removes_only_its_own_copy_folder(self):
-        """終わった時に消すのは一時の置き場の直下の写しの頭のフォルダだけ（symlink は辿らない）。役が書ける snapshot の top が
-        別の所を指しても消さない"""
-        self.prep()
-        top = pathlib.Path(self.snapshot()["copy_dir"]).parent
-        elsewhere = self.tmp / top.name                                   # 写しと同じ名で、一時の置き場の直下でない
-        elsewhere.mkdir()
-        (elsewhere / "keep.txt").write_text("x\n", encoding="utf-8")
-        link = pathlib.Path(tempfile.gettempdir()) / f"{top.name}-link"  # 一時の置き場の直下の、写しを指す symlink
-        link.symlink_to(top)
-        self.addCleanup(link.unlink)
-        snap_path = self.place("base") / "ci-snapshot.json"
-        for pointed, kept in ((elsewhere, elsewhere / "keep.txt"), (link, top / "work")):
-            with self.subTest(str(pointed)):
-                snap = json.loads(snap_path.read_text(encoding="utf-8"))
-                snap_path.write_text(json.dumps({**snap, "top": str(pointed)}), encoding="utf-8")
-                self.assertTrue(self.ok("ci_accept", "base", reply=self.GOOD)["done"])
-                self.assertTrue(kept.exists())
-
-    def test_final_not_run_without_systems_is_rejected(self):
-        """#514: final の not_run は、走らせた系統と走らせられなかった系統の名の分け（systems）が無ければ受けない（冒頭の句が一部の
-        系統だけ走らせた run を「走っていない」と言わない）。在れば受ける"""
-        self.prep(mode="final")
-        bare = {"status": "not_run", "reason": "e2e は実機が要る"}
-        got = self.ok("ci_accept", "final", reply=json.dumps({"material": bare}))
-        self.assertFalse(got["ok"])
-        self.assertIn("systems", got["reason"])
-        reply = {"material": {**bare, "systems": {"ran": ["unit"], "unran": ["e2e"]}}}
-        self.assertTrue(self.ok("ci_accept", "final", reply=json.dumps(reply))["ok"])
-        saved = json.loads((self.place("final") / "ci-material.json").read_text(encoding="utf-8"))
-        self.assertEqual(saved, reply)
-
-    def test_rejected_reply_leaves_no_material_the_role_wrote(self):
-        """拒んだ回は、役が run の置き場に自分で置いた ci-material.json を消す（返す node が受け付けていない素材を読まない）"""
-        self.prep()
-        material = self.place("base") / "ci-material.json"
-        material.write_text(json.dumps({"material": {"status": "clean", "checked": "x"}}), encoding="utf-8")
-        self.assertFalse(self.ok("ci_accept", "base", reply=self.BAD)["ok"])
-        self.assertFalse(material.exists())
-
-    def test_branch_switch_rejected(self):
-        self.prep()
-        git(self.repo, "checkout", "-q", "--detach", "HEAD")
-        got = self.ok("ci_accept", "base", reply=self.GOOD)
-        self.assertFalse(got["ok"])
-        self.assertIn("ref", got["reason"])
 
 
 class ResultScriptCase(ScriptCase):
@@ -1037,83 +729,10 @@ class ResultScriptCase(ScriptCase):
                 self.assertEqual(run["suite"], {"exe": suite.name, "exit": 0, "problems": []})
                 self.assertEqual(baseline_red.outcomes(run["cases"]), {"s::x": "passed"})
 
-    def test_base_without_material_is_not_ok(self):
-        """宣言も test_cmd も無い base で任せ先の役が素材を渡さなかった: 緑を仮定せず、控えもしない"""
-        self.assertEqual(self.ok("run", "base")["by"], "role_needed")
-        out = self.result("base")
-        self.assertEqual((out["ok"], out["green"], out["red_cause"]), (False, False, "incomplete"))
-
-    def test_base_that_cannot_run_is_kept_and_names_why(self):
-        """#495: 任せ先の役が一部（か全部）の系統を走らせられず awaiting_human を返した base は、緑を仮定しない（incomplete）が直す前の
-        結末を控え（ok 真）、鎖を judge へ進める。走らせられなかった系統は控えの素材の reason が名指す"""
-        self.assertEqual(self.ok("run", "base")["by"], "role_needed")
-        (self.place("base") / "ci-material.json").write_text(
-            json.dumps({"material": {"status": "awaiting_human", "reason": "実機が要る"}}), encoding="utf-8")
-        out = self.result("base")
-        self.assertEqual((out["ok"], out["green"], out["red_cause"]), (True, False, "incomplete"))
-        self.assertEqual(baseline_red.read_baseline(self.pointed(out["baseline"]))["material"]["reason"], "実機が要る")
-        self.assertIn("実機が要る", out["report"][0])
-
-    def test_given_up_role_names_last_reject(self):
-        """T45: 任せ先の CI の役が 3 回とも拒まれて素材が無い時、証拠の文に最後の拒否の文を出す（人に見える所）。拒否が 3 回に
-        届いていなければ前の固定の文"""
-        self.assertEqual(self.ok("run", "base")["by"], declared_checks.ROLE_NEEDED)
-        gate = self.place("base")
-        out = self.result("base")
-        self.assertIn("任せ先の CI の役が素材を渡さなかった", self.pointed(out["evidence"]).read_text(encoding="utf-8"))
-        for k in (1, 2, 3):
-            rolekit.with_done(gate, declared_checks.CI_ROLE, {"ok": False, "reason": f"素材の欄が足りない {k}"})
-        out = self.result("base")
-        self.assertEqual((out["ok"], out["red_cause"]), (False, "incomplete"))
-        self.assertIn(f"{declared_checks.CI_ROLE} の返答が 3 回とも受け付けで拒まれた（最後の拒否: 素材の欄が足りない 3）",
-                      self.pointed(out["evidence"]).read_text(encoding="utf-8"))
-
-    def test_role_run_without_the_fence_declaration_carries_the_note(self):
-        """任せ先の役で走らせた run が包みを通ると宣言していなければ、証拠に包み無しの知らせ（NO_ADAPTER_NOTE）を出す。宣言が
-        在れば出さない（T49）"""
-        self.assertEqual(self.ok("run", "base")["by"], declared_checks.ROLE_NEEDED)
-        line = f"- 包み: {declared_checks.NO_ADAPTER_NOTE}"
-        self.assertIn(line, self.pointed(self.result("base")["evidence"]).read_text(encoding="utf-8").splitlines())
-        self.declared = {launcher.FENCE_RECORDS_ENV: str(self.tmp / "launches.jsonl")}
-        self.assertNotIn("- 包み:", self.pointed(self.result("base")["evidence"]).read_text(encoding="utf-8"))
-
     def test_final_not_run_is_incomplete(self):
         self.ok("run", "final")
-        (self.place("final") / "ci-material.json").write_text(
-            json.dumps({"material": {"status": "not_run", "reason": "依存が入らない"}}), encoding="utf-8")
         out = self.result("final")
         self.assertEqual((out["ok"], out["red_cause"]), (False, "incomplete"))
-
-    def test_given_up_role_is_named_unverified_not_not_ran(self):
-        """#538: 任せ先の CI の役が素材を渡さずに諦めた final は、判定はそのまま（incomplete・認証しない）で、冒頭の句は「走ったと
-        確かめられていない」。一部の系統を回してから諦めた役もここに入るので「走っていない」と言わない"""
-        self.assertEqual(self.ok("run", "final")["by"], declared_checks.ROLE_NEEDED)
-        for k in (1, 2, 3):
-            rolekit.with_done(self.place("final"), declared_checks.CI_ROLE,
-                              {"ok": False, "reason": f"unit 系統は回したが素材の欄が足りない {k}"})
-        out = self.result("final")
-        self.assertEqual((out["ok"], out["green"], out["red_cause"]), (False, False, green_cert.INCOMPLETE))
-        note = green_cert.ran_note(green=out["green"], red_cause=out["red_cause"], by=out["by"], steps=out["ran_steps"])
-        self.assertTrue(note.startswith(green_cert.UNVERIFIED_RUN), note)
-        self.assertNotIn(green_cert.NOT_RAN, note)
-
-    def test_role_partly_run_systems_are_named_not_not_ran(self):
-        """#514: 任せ先の CI の役が一部の系統だけ走らせた final の not_run は、判定はそのまま（incomplete・認証しない）で、冒頭の句は
-        素材の systems の走らせた系統と走らせられなかった系統を名指し、「走っていない」と言わない。全部の系統を走らせられなければ
-        今どおり「走っていない」"""
-        self.assertEqual(self.ok("run", "final")["by"], declared_checks.ROLE_NEEDED)
-        gate = self.place("final")
-        for systems, phrase in (({"ran": ["unit"], "unran": ["e2e"]}, green_cert.PARTLY_RAN),
-                                ({"ran": [], "unran": ["unit", "e2e"]}, green_cert.NOT_RAN)):
-            with self.subTest(systems=systems):
-                material = {"status": "not_run", "reason": "unit 系統は緑。e2e 系統は実機が要り走らせられない", "systems": systems}
-                (gate / "ci-material.json").write_text(json.dumps({"material": material}), encoding="utf-8")
-                out = self.result("final")
-                self.assertEqual((out["ok"], out["green"], out["red_cause"]), (False, False, green_cert.INCOMPLETE))
-                self.assertEqual(out["ran_steps"], systems)
-                note = green_cert.ran_note(green=out["green"], red_cause=out["red_cause"], by=out["by"], steps=out["ran_steps"])
-                self.assertTrue(note.startswith(phrase), note)
-                self.assertEqual(green_cert.NOT_RAN in note, phrase == green_cert.NOT_RAN)
 
     def test_command_that_fails_before_its_tests_is_named_not_ran(self):
         """#492: JUnit の報告を宣言した段が試験に入る前に落ちた（利用者の設定が無い）final は incomplete で、冒頭の句は「走っていない」"""
@@ -1265,50 +884,6 @@ class ResultScriptCase(ScriptCase):
                          "<failure/></testcase></testsuite>\")\nsys.exit(1)\n", encoding="utf-8")
         out = self.final(str(self.pointed(out["baseline"])))
         self.assertEqual((out["ok"], out["red_cause"]), (False, ""))
-
-    def test_role_clean_material_written_by_ci_accept_is_read(self):
-        """任せ先の役の素材は ci-accept が書いた所から result が読む: 受け付けた clean の base は ok"""
-        self.assertEqual(self.ok("run", "base")["by"], "role_needed")
-        prep = self.ok("ci_prep", "base")
-        self.addCleanup(shutil.rmtree, pathlib.Path(self.snapshot_top("base")), True)
-        self.assertTrue(prep["prompt"])
-        clean = json.dumps({"material": {"status": "clean", "checked": "make test: exit 0"}})
-        self.assertTrue(self.ok("ci_accept", "base", reply=clean)["ok"])
-        out = self.result("base")
-        self.assertEqual((out["ok"], out["green"], out["red_cause"]), (True, True, ""))
-
-    def snapshot_top(self, mode: str) -> str:
-        return json.loads((self.place(mode) / "ci-snapshot.json").read_text(encoding="utf-8"))["top"]
-
-    def test_final_role_green_is_self_reported_and_not_certified(self):
-        """final で任せ先の役が書いた緑は、機械が走らせていない自己申告として認証しない"""
-        self.assertEqual(self.ok("run", "final")["by"], "role_needed")
-        (self.place("final") / "ci-material.json").write_text(
-            json.dumps({"material": {"status": "clean", "checked": "make test: exit 0"}}), encoding="utf-8")
-        out = self.result("final")
-        self.assertEqual((out["ok"], out["green"], out["red_cause"]), (False, True, ""))
-        self.assertIn(green_cert.SELF_REPORTED, self.pointed(out["evidence"]).read_text(encoding="utf-8"))
-        self.assertIn(declared_checks.SELF_REPORTED_NOTE, out["report"])
-
-    def test_copy_left_by_a_fallen_role_is_removed(self):
-        """役の node が落ちて ci-accept が回らなくても、返す node が ci-snapshot.json の写しの置き場を消す"""
-        self.ok("run", "final")
-        self.ok("ci_prep", "final")
-        top = pathlib.Path(self.snapshot_top("final"))
-        self.addCleanup(shutil.rmtree, top, True)
-        self.result("final")
-        self.assertFalse(top.exists())
-
-    def test_rerun_in_the_same_run_does_not_read_the_earlier_material(self):
-        """同じ run で同じ形をもう 1 度差し込んだ時、前の回の任せ先の素材で今の木を認証しない（intake がこの block のファイルを消す）"""
-        self.ok("run", "final")
-        (self.place("final") / "ci-material.json").write_text(
-            json.dumps({"material": {"status": "clean", "checked": "x"}}), encoding="utf-8")
-        (self.repo / "later.txt").write_text("x\n", encoding="utf-8")
-        self.intake("final")
-        self.ok("run", "final")
-        out = self.result("final")
-        self.assertEqual((out["ok"], out["green"], out["red_cause"]), (False, False, "incomplete"))
 
     def test_shell_test_cmd_names_how_it_was_launched(self):
         """宣言が無く test_cmd だけを走らせた回の証拠は、test_cmd の起こし方（shell）を書く"""
@@ -1536,60 +1111,175 @@ class SuiteLoopCase(ScriptCase):
         self.assertEqual((out["suite"], out["suite_note"]), (str(suite), ""))
 
 
+class RelatedCase(ScriptCase):
+    """持ち主の決め related-tests-only（docs/design/test-gate.md の 14 節）: test_cmd も宣言も無い対象（by role_needed）では、
+    TDD の実行器に変更に関わる試験のファイルだけを渡す。test_cmd の道と宣言の道は絞らない"""
+    # 第 1 引数の書き先の隣に、環境の合図と後ろの引数を控え、対象の根に fail.flag が在れば 1 件が failure の JUnit XML を書く実行器
+    RUNNER = ("#!/bin/sh\nout=$1\nshift\nprintf '%s\\n' \"only=${TDD_SUITE_ONLY:-}\" \"$@\" > \"$(dirname \"$out\")/runner-args.txt\"\n"
+              "if [ -f fail.flag ]; then body=\"<failure message='x'/>\"; code=1; else body=''; code=0; fi\n"
+              "printf '%s' \"<testsuite><testcase classname='test_stats.TestStats' name='test_mean_of_three'>$body</testcase></testsuite>\" "
+              "> \"$out\"\nexit $code\n")
+
+    def setUp(self):
+        super().setUp()
+        self.runner = self.tmp / "runner.sh"
+        self.runner.write_text(self.RUNNER, encoding="utf-8")
+        self.runner.chmod(0o755)
+        self.write_start(base=self.head, tdd_suite=str(self.runner))
+
+    def touch(self, rel: str = "stats.py") -> None:
+        with open(self.repo / rel, "a", encoding="utf-8") as f:
+            f.write("\n# touched\n")
+
+    def args(self, mode: str) -> list:
+        path = self.place(mode) / "runner-args.txt"
+        return path.read_text(encoding="utf-8").splitlines() if path.is_file() else None
+
+    def run_doc(self, mode: str) -> dict:
+        return json.loads((self.place(mode) / declared_checks.RUN_FILE).read_text(encoding="utf-8"))
+
+    def test_the_given_runner_gets_only_the_related_test_files(self):
+        self.touch()
+        out = self.ok("run", "final")
+        self.assertEqual(out["by"], declared_checks.ROLE_NEEDED)
+        self.assertEqual(self.args("final"), ["only=1", str((self.repo / "test_stats.py").resolve())])
+        got = self.run_doc("final")
+        self.assertEqual(got["related"]["files"], ["test_stats.py"])
+        self.assertTrue(got["related"]["applied"] and not got["related"]["whole"])
+        self.assertEqual(got["related"]["ran"], "related")
+        self.assertEqual(got["suite"]["exit"], 0)
+
+    def test_the_base_picks_from_the_entry_base_when_it_is_given(self):
+        """入口の差分は修正前の版に入っているので、base でも入口の差分の根から触った所が起点になり、final の選びが base の選びを含む"""
+        self.touch()
+        git(self.repo, "add", "-A")
+        git(self.repo, "commit", "-qm", "entry diff")
+        head = git(self.repo, "rev-parse", "HEAD")
+        self.write_start(base=head, entry_base=self.head)
+        self.ok("run", "base")
+        self.assertEqual(self.run_doc("base")["related"]["files"], ["test_stats.py"])
+        self.write_start(entry_base="")
+        self.ok("run", "base")
+        self.assertEqual(self.run_doc("base")["related"]["files"], [], "入口の差分の根が無ければ修正前の版からで、何も触っていない")
+
+    def test_a_change_no_test_depends_on_runs_no_test(self):
+        (self.repo / "NOTES.md").write_text("notes\n", encoding="utf-8")
+        self.ok("run", "final")
+        self.assertIsNone(self.args("final"), "走らせる試験が無いのに実行器を起こした")
+        got = self.run_doc("final")
+        self.assertEqual((got["suite"], got["related"]["files"], got["related"]["ran"]), (None, [], "none"))
+
+    def test_something_unreadable_near_the_change_runs_the_whole_runner_as_before(self):
+        self.touch()
+        (self.repo / "widget.js").write_text("export function widget() { return 1 }\n", encoding="utf-8")
+        self.ok("run", "final")
+        self.assertEqual(self.args("final"), ["only="])
+        got = self.run_doc("final")
+        self.assertTrue(got["related"]["whole"] and got["related"]["reasons"])
+        self.assertEqual(got["related"]["ran"], "whole")
+
+    def test_a_given_test_command_is_the_users_way_and_the_runner_runs_whole(self):
+        self.touch()
+        self.write_start(test_cmd="true")
+        self.assertEqual(self.ok("run", "final")["by"], declared_checks.ROLE)
+        self.assertEqual(self.args("final"), ["only="])
+        self.assertFalse(self.run_doc("final")["related"]["applied"])
+
+    def test_a_declaration_is_the_users_way_and_the_runner_runs_whole(self):
+        self.touch()
+        self.decl([{"name": "suite", "argv": [PY, "-c", "print('1 passed')"]}])
+        self.write_start(base=self.head, tdd_suite=str(self.runner))
+        self.assertEqual(self.ok("run", "final")["by"], declared_checks.ENGINE)
+        self.assertEqual(self.args("final"), ["only="])
+        self.assertFalse(self.run_doc("final")["related"]["applied"])
+
+    def test_the_writers_runner_is_checked_on_the_related_tests(self):
+        """実行器を用意する輪の照らしの回（suite-try）も、関わる試験だけ。書き手の返りは SuiteLoopCase と同じ"""
+        self.write_start(tdd_suite="")
+        self.touch()
+        self.assertIs(self.ok("run", "base")["suite_owed"], True)
+        prep = self.ok("suite_prep", "base")
+        self.assertTrue(prep["write"])
+        self.ok("suite_place", "base", reply=json.dumps({"made": True, "body": self.RUNNER, "why": ""}))
+        self.assertEqual(self.ok("suite_try", "base"), {"done": True, "ok": True, "why": ""})
+        self.assertEqual(self.args("base"), ["only=1", str((self.repo / "test_stats.py").resolve())])
+        self.assertEqual(self.run_doc("base")["related"]["ran"], "related")
+
+    def test_the_writers_runner_with_nothing_related_is_checked_by_one_whole_run(self):
+        """関わる試験が無いと、実行器が JUnit XML を書く事は走らせないと確かめられない。この時だけ一式を 1 回走らせる"""
+        self.write_start(tdd_suite="")
+        self.ok("run", "base")
+        self.ok("suite_prep", "base")
+        self.ok("suite_place", "base", reply=json.dumps({"made": True, "body": self.RUNNER, "why": ""}))
+        self.assertEqual(self.ok("suite_try", "base"), {"done": True, "ok": True, "why": ""})
+        self.assertEqual(self.args("base"), ["only="])
+        self.assertEqual(self.run_doc("base")["related"]["ran"], "whole")
+
+    def base_and_final(self, base_fails=False, final_fails=False) -> dict:
+        self.touch()
+        if base_fails:
+            (self.repo / "fail.flag").write_text("", encoding="utf-8")
+        self.ok("run", "base")
+        base = self.ok("result", "base")
+        (self.repo / "fail.flag").unlink(missing_ok=True)
+        if final_fails:
+            (self.repo / "fail.flag").write_text("", encoding="utf-8")
+        self.write_start(baseline=str(self.pointed(base["baseline"])))
+        self.ok("run", "final")
+        return self.ok("result", "final")
+
+    def test_a_green_from_the_related_run_is_machine_measured_but_not_certified(self):
+        out = self.base_and_final()
+        self.assertEqual((out["by"], out["green"], out["ok"], out["red_cause"]), (declared_checks.ROLE_NEEDED, True, False, ""))
+        self.assertEqual(out["reason"], green_cert.RUNNER_HELD)
+        self.assertEqual(out["ran_steps"], {"ran": ["関わる試験の実行器"], "unran": []})
+        self.assertEqual(out["related"]["files"], ["test_stats.py"])
+        self.assertIn(declared_checks.SELF_REPORTED_NOTE, out["report"])
+
+    def test_a_red_that_was_already_red_is_inherited(self):
+        out = self.base_and_final(base_fails=True, final_fails=True)
+        self.assertEqual((out["green"], out["ok"], out["red_cause"]), (False, False, green_cert.INHERITED), "赤は原因が何でも認証しない")
+
+    def test_a_red_the_fix_made_is_introduced_and_not_certified(self):
+        out = self.base_and_final(final_fails=True)
+        self.assertEqual((out["green"], out["ok"], out["red_cause"]), (False, False, green_cert.INTRODUCED))
+        self.assertEqual([r["key"] for r in out["test_outcomes"]["rows"]], ["test_stats.TestStats::test_mean_of_three"])
+
+    def test_nothing_related_in_the_final_is_not_a_green(self):
+        self.write_start(tdd_suite=str(self.runner))
+        self.ok("run", "base")
+        base = self.ok("result", "base")
+        self.write_start(baseline=str(self.pointed(base["baseline"])))
+        self.ok("run", "final")
+        out = self.ok("result", "final")
+        self.assertEqual((out["green"], out["ok"], out["red_cause"]), (False, False, green_cert.INCOMPLETE))
+        self.assertTrue(out["related"]["applied"] and out["related"]["files"] == [])
+
+    def test_a_base_without_a_runner_goes_on_as_awaiting_a_person(self):
+        """任せ先の CI の役を外した後の base: 実行器が作れなかった (3) の道は、試験を走らせず、緑を仮定せずに鎖を止めない"""
+        self.write_start(tdd_suite="")
+        self.touch()
+        self.ok("run", "base")
+        self.ok("suite_prep", "base")
+        self.ok("suite_try", "base")
+        out = self.ok("result", "base")
+        self.assertEqual((out["ok"], out["green"], out["red_cause"]), (True, False, green_cert.INCOMPLETE))
+        doc = baseline_red.read_baseline(self.pointed(out["baseline"]))
+        self.assertEqual(doc["material"]["status"], "awaiting_human")
+        self.assertTrue(doc["material"]["reason"])
+        self.assertFalse((self.place("base") / "ci-material.json").exists())
+
+    def test_a_final_without_a_runner_is_not_run(self):
+        self.write_start(tdd_suite="")
+        self.touch()
+        self.ok("run", "final")
+        out = self.ok("result", "final")
+        self.assertEqual((out["ok"], out["green"], out["red_cause"]), (False, False, green_cert.INCOMPLETE))
+        self.assertEqual(out["ran_steps"], {"ran": [], "unran": ["関わる試験の実行器"]})
+
+
 class PromptCase(ScriptCase):
-    """3 つの指示（prompts/*.md）に prep が入れる値と、段落の選び（docs/design/test-gate.md の 2.3・3.3・4.3）"""
-    LANG_DEFAULT = "the language of the request (the user's language)"   # workflows/.shared/prompts/lang-default.md
-    OTHER_SLOTS = {"root", "base", "copy_dir", "tmp_dir", "mode", "attempt", "decl_name", "lang"}
-
-    def test_status_slots_are_the_declared_statuses(self):
-        """ci.md の素材の語の差し込み口は declared_checks.STATUSES と同じ（受け付けの role_material_problems と同じ字）"""
-        text = (BLOCK / "prompts" / "ci.md").read_text(encoding="utf-8")
-        slots = set(re.findall(r"\{([a-z_]+)\}", text.replace("{shared:rejected}", "")))
-        self.assertEqual(slots, set(declared_checks.STATUSES) | self.OTHER_SLOTS)
-        out = self.prep_ci()
-        for status in declared_checks.STATUSES:
-            self.assertIn(f"`{status}`", out["prompt"])
-
-    def prep_ci(self, reject="", **ports):
-        self.write_start(**ports)
-        self.intake("base")
-        if reject:
-            rolekit.with_done(self.place("base"), declared_checks.CI_ROLE, {"ok": False, "reason": reject})
-        out = self.ok("ci_prep", "base")
-        self.addCleanup(shutil.rmtree, pathlib.Path(json.loads((self.place("base") / "ci-snapshot.json").read_text(encoding="utf-8"))["top"]), True)
-        return out
-
-    def test_ci_prompt_values(self):
-        out = self.prep_ci()
-        text = out["prompt"]
-        self.assertIn(f"BASE: {kit_none()}", text)
-        self.assertIn(str(self.repo.resolve()), text)
-        self.assertIn(f"`{declared_checks.DECL_NAME}`", text)
-        self.assertIn("Form: base (", text)
-        self.assertIn("Attempt: 1", text)
-        self.assertIn(self.LANG_DEFAULT, text)
-        self.assertNotIn("Undoing means", text, "拒否が無い回は戻し方の段落を入れない")
-        self.assertNotIn("Why your previous answer was rejected", text)
-
-    def test_ci_prompt_with_base_lang_and_a_rejection(self):
-        out = self.prep_ci(reject="reason with ``` fence", base=self.head, lang="Japanese")
-        text = out["prompt"]
-        self.assertIn(f"BASE: {self.head}", text)
-        self.assertIn("in Japanese.", text)
-        self.assertNotIn(self.LANG_DEFAULT, text)
-        self.assertIn("Undoing means", text)
-        self.assertIn("reason with ``` fence", text)
-        self.assertIn("Attempt: 2", text)
-
-    def test_ci_fix_prompt_fences_the_rejection_and_names_the_candidate(self):
-        self.prep_ci(reject="reason with ``` fence")
-        (self.place("base") / "candidate-ci.json").write_text('{"material": {}}', encoding="utf-8")
-        self.ok("ci_prep", "base", prev="false")
-        text = self.ok("ci_fix_prep", "base")["prompt"]
-        self.assertIn("~~~text\nreason with ``` fence\n~~~", text)
-        self.assertIn(str(self.place("base") / "candidate-ci.json"), text)
-        self.assertIn(self.LANG_DEFAULT, text)
-
+    """TDD の実行器の書き手の指示（prompts/suite-write.md）に prep が入れる値と、段落の選び（docs/design/test-gate.md の 4.3）"""
     def write_prompt(self, **ports) -> str:
         self.write_start(**ports)
         self.ok("run", "base")
@@ -1614,10 +1304,6 @@ class PromptCase(ScriptCase):
 
     def test_suite_write_lang(self):
         self.assertIn("in Japanese.", self.write_prompt(lang="Japanese"))
-
-
-def kit_none() -> str:
-    return kit.load("test-gate", "prompts").NO_BASE
 
 
 if __name__ == "__main__":

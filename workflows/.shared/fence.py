@@ -11,7 +11,7 @@ CLAUDE_BIN_PATH で替えられる（packages/providers/src/claude/binary-resolv
 「旗 no-tree-write の起動に denyWrite を足す」を採り、旗の代わりに、YAML が読むだけの役に書く固定の値
 （tests/layers/scan.py の NO_TREE_WRITE。~ を HOME で解くと Archon の家）を印に読む。印の無い起動は argv を変えずに起こす。
 印の在る起動は、起こす前に起動の記録（--records。起動の殻が env の RECORDS_ENV でも script のノードに名指す）へ時刻と cwd の 1 行を
-足し、書けなければ起こさない。記録は --own の下に置かれ、柵の中の役は書き換えられない。受け付け（test-gate の ci-accept）は
+足し、書けなければ起こさない。記録は --own の下に置かれ、柵の中の役は書き換えられない。受け付け（以前は test-gate の ci-accept。今の使い手は無い）は
 fenced_since で、役を起こす前の時刻より後にその作業ツリーで柵の掛かった起動が在ったかを見る（今の works の ci_role.take の
 「包みの起動の記録を見て止める」と同じ所。棚卸しの T49）。
 起こす claude の PATH の頭には、起動の殻が --path-head で名指した置き場（読むだけの gh の口 works-gh の置き場）を足す。Archon は

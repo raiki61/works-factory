@@ -1,5 +1,5 @@
 name: works-factory-test-gate
-description: '試験の関門の block（docs/design/test-gate.md）。対象のテストの走らせ方を機械で決めて走らせ（対象の宣言 .review-checks.json の段と test_cmd）、決められなければ任せ先の CI の役に作業ツリーの写しの上で CI の定義を読んで走らせさせる。base は直す前の結末（段ごとの結末と、JUnit の報告が在れば 1 件ごとの結末）を控え、TDD の実行器を人が渡していなければ用意する（取り置きから使うか、書き手の役が書く）。final は一式を走らせ、赤の原因を機械が分け、緑を作業ツリーの指紋（HEAD と差分の hash）つきで認証する。赤は原因が何でも認証せず、任せ先の自己申告の緑も認証しない。単独の run でも、graph から include されても回る'
+description: '試験の関門の block（docs/design/test-gate.md）。対象のテストの走らせ方を機械で決めて走らせ（対象の宣言 .review-checks.json の段と test_cmd）、決められなければ（宣言も test_cmd も無い）AI が書く TDD の実行器で、変更に関わる試験だけを走らせる（全体の試験は CI と人に任せる）。base は直す前の結末（段ごとの結末と、JUnit の報告が在れば 1 件ごとの結末）を控え、TDD の実行器を人が渡していなければ用意する（取り置きから使うか、書き手の役が書く）。final は一式を走らせ、赤の原因を機械が分け、緑を作業ツリーの指紋（HEAD と差分の hash）つきで認証する。赤は原因が何でも認証せず、AI が書いた実行器の緑も認証しない。単独の run でも、graph から include されても回る'
 inputs:
   mode:
     required: true
@@ -12,7 +12,10 @@ inputs:
     description: 'text: TDD の実行器のパス（人が渡した物か、base の出力の suite）。空は無い（base では用意する）'
   base:
     default: ''
-    description: 'text: 修正前の版（範囲の照らしの起点。任せ先の役に BASE として見せる）。空は起点なし（範囲の照らしは依頼の where だけ）'
+    description: 'text: 修正前の版（範囲の照らしの起点。関わる試験の選びの起点の版にもなる）。空は起点なし（範囲の照らしは依頼の where だけ）'
+  entry_base:
+    default: ''
+    description: 'text: 入口の差分の根（変更の起点の版）。関わる試験の選びが、ここから今の作業ツリーまでに触ったファイルを起点にする。空は修正前の版（base）'
   request:
     default: '[]'
     description: 'json(shared:request.schema.json): 依頼の行の配列か、それを findings の欄に持つオブジェクト（where だけを読む）。空の配列は無い'
@@ -33,7 +36,7 @@ inputs:
     description: 'text: 利用者の HOME・XDG に戻して起こした印を置く置き場の絶対パス。空は置き場が無い（戻す run では止まる）'
   lang:
     default: ''
-    description: 'text: 人に見せる欄（任せ先の役の素材の reason・detail・checked と、実行器の書き手の why）の言語。空は依頼の言語'
+    description: 'text: 人に見せる欄（実行器の書き手の why）の言語。空は依頼の言語'
 
 returns: result
 outcome_field: ok
@@ -64,7 +67,7 @@ nodes:
       properties:
         by: &run_by {type: string, enum: [engine, role, role_needed]}
         material:
-          type: [object, "null"]   # null は role_needed（任せ先の CI の役が渡す）
+          type: [object, "null"]   # null は role_needed（機械が走らせず、返す node が実行器の結果から組む）
           additionalProperties: false
           required: [status]
           properties:
@@ -73,7 +76,7 @@ nodes:
             detail: {type: string}
             checked: {type: string}
             reason: {type: string}
-            systems: &systems   # 系統の名の分け（走らせた ran・走らせられなかった unran）。任せ先の役が final の not_run で書き、冒頭の句が読む
+            systems: &systems   # 系統の名の分け（走らせた ran・走らせられなかった unran）。冒頭の句が読む
               type: object
               additionalProperties: false
               required: [ran, unran]
@@ -130,121 +133,11 @@ nodes:
             diff_hash: {type: string}
         suite_owed: {type: boolean}   # TDD の実行器を用意するか（required に入れない。無ければ用意しない）
 
-  # 任せ先の CI の役の出し直しの輪。諦めは ci-accept の done・give_up で抜け、max_iterations で落とさない。
-  # 役は 1 回目は新しい会話で起き、拒まれた後は出し直しの役 ci-fix が同じ会話の続きで拒まれた欄だけを返し、受け付けが前の答えと
-  # 合わせる（振り分けは ci-prep の resubmit。並んだ層は会話を切るので ci-fix は ci の後ろの層に置く）
-  - id: ci-loop
-    depends_on: [run]
-    when: "$run.output.by == 'role_needed'"
-    loop_group:
-      max_iterations: 3
-      fresh_context: false
-      until_bash: accepted=$ci-accept.output.done; test "$accepted" = true
-      nodes:
-        - id: ci-prep
-          script: ci_prep
-          runtime: uv
-          mutates_checkout: false
-          with:
-            prev: "$LOOP_PREV.ci-accept.output.ok"
-          output_format:
-            type: object
-            additionalProperties: false
-            required: [prompt, resubmit, attempt]
-            properties:
-              prompt: {type: string}   # 1 回目の役の指示（出し直しの周は ""。出し直しの役の指示は ci-fix-prep が組む）
-              resubmit: {type: boolean}
-              attempt: {type: integer, minimum: 1}
-        - id: ci
-          description: 'CI の任せ先: 対象の CI の定義を読み、作業ツリーの写しの上でテスト・lint を走らせて素材を返す'
-          prompt: "$ci-prep.output.prompt"
-          depends_on: [ci-prep]
-          when: "$ci-prep.output.resubmit != true"
-          <<: &ci_launch
-            model: '@wf-test-gate'   # 既定の値は lib/launchgroups.py の群の表
-            mutates_checkout: false
-            settingSources: [user]
-            allowed_tools: [Read, Grep, Glob, Bash, WebSearch, WebFetch]   # Bash はテストを走らせるため
-            # 依存の導入（~/.cache・網）と localhost のテストを通す。本物の作業ツリーへの書き込みは denyWrite で Archon の家
-            # （~/../archon-home。~ は起動が隔離した HOME）ごと塞ぐ。相対のパスは cwd でなく設定の一時ファイルのフォルダに解かれるので
-            # '.' は効かない。写し（ci-prep の mkdtemp。TMPDIR の下）は書ける。その上に mutates_checkout: false と ci-accept の
-            # 作業ツリーの比べ
-            sandbox:
-              enabled: true
-              allowUnsandboxedCommands: false
-              failIfUnavailable: true
-              enableWeakerNetworkIsolation: true
-              network: {allowedDomains: ['*'], allowLocalBinding: true}
-              filesystem: {allowWrite: ['/'], denyWrite: ['~/../archon-home']}
-            idle_timeout: 1728000000
-            retry: {max_attempts: 2, on_error: all}
-          output_format: &ci_reply
-            type: object
-            additionalProperties: false
-            required: [material]
-            properties:
-              material:
-                type: object
-                additionalProperties: false
-                required: [status]
-                properties:
-                  status: {type: string, enum: [found, clean, not_applicable, awaiting_human, not_run]}
-                  count: {type: integer, minimum: 0}
-                  detail: {type: string}
-                  checked: {type: string}
-                  reason: {type: string}
-                  systems: *systems
-        # 出し直しの役の指示は ci-prep と別の prep が組む（出し直しの周だけ回る）。筋書きは ci-prep を差し替えて出し直しの周を作り、
-        # この prep が本当に指示を組むことを見る（輪の 2 周目は dry-run で回らない）
-        - id: ci-fix-prep
-          script: ci_fix_prep
-          runtime: uv
-          mutates_checkout: false
-          # ci の後ろの層に置く（ci-prep だけに依ると ci と同じ層に並び、Archon は並んだ層で会話を切るので ci-fix が新しい会話で起きる）
-          depends_on: [ci-prep, ci]
-          trigger_rule: none_failed_min_one_success
-          when: "$ci-prep.output.resubmit == true"
-          output_format:
-            type: object
-            additionalProperties: false
-            required: [prompt]
-            properties:
-              prompt: {type: string, minLength: 1}
-        - id: ci-fix
-          prompt: "$ci-fix-prep.output.prompt"
-          depends_on: [ci-prep, ci, ci-fix-prep]
-          trigger_rule: none_failed_min_one_success
-          when: "$ci-prep.output.resubmit == true"
-          <<: *ci_launch
-          output_format:
-            <<: *ci_reply
-            required: []
-        - id: ci-accept
-          script: ci_accept
-          runtime: uv
-          mutates_checkout: false
-          depends_on: [ci, ci-fix]
-          trigger_rule: none_failed_min_one_success
-          with:
-            status_guarded: true
-            reply: {from: "$ci.output", if_skipped: null}
-            fix_reply: {from: "$ci-fix.output", if_skipped: null}
-          output_format:
-            type: object
-            additionalProperties: false
-            required: [ok, done, give_up, reason]
-            properties:
-              ok: {type: boolean}
-              done: {type: boolean}
-              give_up: {type: boolean}
-              reason: {type: string}
-
   # TDD の実行器を用意する輪。1 周目は取り置きを使うか書き、取り置きが照らしを通らなかった時だけ 2 周目で書き直す（書いた物の周は
-  # 照らしの結末に依らず終わる）。走らせるのは輪の終わりの suite-try の 1 回で、修正前のテストの一式の回を兼ねる。任せ先の CI の役が
-  # 本物の作業ツリーの外でテストを走らせ終えてから回す
+  # 照らしの結末に依らず終わる）。走らせるのは輪の終わりの suite-try の 1 回で、修正前のテストの一式の回を兼ねる（走らせ方が決まらない
+  # 道は、変更に関わる試験だけ）
   - id: suite-loop
-    depends_on: [run, ci-loop]
-    trigger_rule: none_failed_min_one_success
+    depends_on: [run]
     when: "$run.output.suite_owed == true"
     loop_group:
       max_iterations: 2
@@ -267,7 +160,22 @@ nodes:
           prompt: "$suite-prep.output.prompt"
           depends_on: [suite-prep]
           when: "$suite-prep.output.write == true"
-          <<: *ci_launch
+          model: '@wf-test-gate'   # 既定の値は lib/launchgroups.py の群の表
+          mutates_checkout: false
+          settingSources: [user]
+          allowed_tools: [Read, Grep, Glob, Bash, WebSearch, WebFetch]   # Bash は実行器の使い方の表示を見るため
+          # 依存の導入（~/.cache・網）と localhost のテストを通す。本物の作業ツリーへの書き込みは denyWrite で Archon の家
+          # （~/../archon-home。~ は起動が隔離した HOME）ごと塞ぐ。相対のパスは cwd でなく設定の一時ファイルのフォルダに解かれるので
+          # '.' は効かない。その上に mutates_checkout: false
+          sandbox:
+            enabled: true
+            allowUnsandboxedCommands: false
+            failIfUnavailable: true
+            enableWeakerNetworkIsolation: true
+            network: {allowedDomains: ['*'], allowLocalBinding: true}
+            filesystem: {allowWrite: ['/'], denyWrite: ['~/../archon-home']}
+          idle_timeout: 1728000000
+          retry: {max_attempts: 2, on_error: all}
           output_format:
             type: object
             additionalProperties: false
@@ -306,7 +214,7 @@ nodes:
               ok: {type: boolean}
               why: {type: string}
 
-  # 返す node。前の node の結果は place のファイル（intake.json・run.json・ci-material.json）で読み、$run.output・$ci-accept.output を束ねない
+  # 返す node。前の node の結果は place のファイル（intake.json・run.json・suite-state.json）で読み、$run.output を束ねない
   # （落ちた node への束ねは if_skipped が在っても誤りになる）。run が落ちても届くように all_done。
   # with: の optional は、落ちても線が先へ進めてよい node の宣言（TDD の実行器の輪と書き手。落ちれば実行器の無い run の道を通る）。
   # [{node, bare}] の JSON の字で、bare は輪の中の node で、記録の step に include の前付けの無い素の id で載るか
@@ -314,7 +222,7 @@ nodes:
     script: result
     runtime: uv
     mutates_checkout: false
-    depends_on: [run, ci-loop, suite-loop]
+    depends_on: [run, suite-loop]
     trigger_rule: all_done
     output_type: green-cert
     with:
@@ -322,13 +230,13 @@ nodes:
     output_format:
       type: object
       additionalProperties: false
-      required: [mode, ok, green, red_cause, ran_steps, baseline, fingerprint, test_outcomes, evidence, by, suites_line, log, baseline_line, reason, suite, suite_note, report]
+      required: [mode, ok, green, red_cause, ran_steps, baseline, fingerprint, test_outcomes, evidence, by, suites_line, log, baseline_line, reason, suite, suite_note, related, report]
       properties:
         mode: {type: string, enum: [base, final]}
         ok: {type: boolean}
         green: {type: boolean}
         red_cause: {type: string, enum: [introduced, inherited, environment, interaction, incomplete, ""]}
-        # 起こした段と、起こせない・試験を走らせなかった段の名（green_cert.ran_steps。任せ先の役の run は素材の systems）。
+        # 起こした段と、起こせない・試験を走らせなかった段の名（green_cert.ran_steps。by role_needed の run は実行器の 1 段）。
         # 報告と最後の関所の冒頭の句が読む
         ran_steps: *systems
         baseline:
@@ -384,5 +292,18 @@ nodes:
         reason: {type: string}
         suite: {type: string}        # この後の段が使う TDD の実行器のパス（base: 人が渡した物か、照らしを通った物か ""。final: port tdd_suite のまま）
         suite_note: {type: string}   # 実行器を取り置きから使った・書いた・作れなかったの 1 行（用意しなかった run は ""）
+        # 関わる試験の選び（docs/design/test-gate.md の 14 節）。applied が偽は絞らない道。ran は related（選んだ試験だけ）・whole（一式）・none（走らせていない）
+        related:
+          type: object
+          additionalProperties: false
+          required: [applied, whole, files, left, far, reasons, ran]
+          properties:
+            applied: {type: boolean}
+            whole: {type: boolean}
+            files: &names {type: array, items: {type: string}}
+            left: *names
+            far: *names
+            reasons: *names
+            ran: {type: string, enum: [related, whole, none]}
         report: {type: array, items: {type: string}}   # 報告に載せる日本語の行
         optional: {type: array}

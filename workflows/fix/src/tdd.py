@@ -108,6 +108,7 @@ from src import files as fixnames  # noqa: E402
 from src import rules as fixrules  # noqa: E402  （同じブロックの lib。指示書の組み立て）
 from src import runvals  # noqa: E402  （依頼のファイル。values.json）
 import impact  # noqa: E402  （.shared/core。変更に当たる試験の選び）
+import related  # noqa: E402  （lib。走らせ方が決まらない対象の、関わる試験だけの選び）
 import planbrief  # noqa: E402  （同じブロックの lib。承認済みの修正案の項目ごとの brief の凍結）
 import planmarks  # noqa: E402  （.shared/core。修正案の項目の works の欄。単位の約束）
 from planmarks import test_functions  # noqa: E402,F401  （.shared/core。テストの関数の id（pytest の node id の形）→ 源の引き。fixgates・fixboard が tddloop.test_functions の名で読む）
@@ -481,7 +482,7 @@ def _light_units(raw: str) -> list:
 
 
 def start(board_dir, repo, suite: str, open_units: str, test_cmd: str = "", unit_depths: str = "", *,
-          owed=None, withheld_by=None, returned=(), round_: int = 1, reuse: dict | None = None) -> dict:
+          owed=None, withheld_by=None, returned=(), round_: int = 1, reuse: dict | None = None, narrow: bool = False) -> dict:
     """節 tdd-start。{go, reason, suite, state_file, summary_file}。実行器が無ければ何も書かずに go: false（置き場を読まない）。
     board_dir は fix の run の置き場（状態は board_dir/tdd-<k>/）。owed・withheld_by・returned は直す義務の値（_duty）、round_ は
     凍結した欄の周（plan_contract）。
@@ -489,7 +490,10 @@ def start(board_dir, repo, suite: str, open_units: str, test_cmd: str = "", unit
     返り）を渡せば、元の結末の一式と関門を決める test_cmd は同じ run の中の控え（前の輪の頭・入口の確かめが置いた緑）から使い回し、
     元の結末を使い回した回はその出どころの句を状態の reused.suite に置く。
     unit_depths は単位ごとの深さ（_light_units）。LIGHT の単位は関門が on でも緑の後の test_cmd を走らせない（状態の light）。
-    ほかの単位と空は今どおり"""
+    ほかの単位と空は今どおり。
+    narrow が真（走らせ方が決まらない対象。related.applies）なら、元の結末の一式を、修正案が触る所（凍結した欄の files の path）に関わる試験
+    だけにする（持ち主の決め related-tests-only。docs/design/fix.md の 17 節）。起点が無い・選べない時は今までどおり一式、関わる試験が
+    無ければ走らせずに空の結末で輪を始める。選びは状態の related と出口の欄 related に置く"""
     suite = (suite or "").strip()
     off = {"go": False, "reason": NO_SUITE, "suite": suite, "state_file": "", "summary_file": ""}
     if not suite:
@@ -512,7 +516,13 @@ def start(board_dir, repo, suite: str, open_units: str, test_cmd: str = "", unit
     work = board_dir / f"tdd-{k}"
     work.mkdir()
     suite_note = {}
-    cases, code, why = run_suite(str(exe), repo, work, 0, reuse=reuse, note=suite_note)
+    picked = _related_pick(board_dir, repo, keys, round_, work) if narrow else None
+    if picked is None or picked["whole"]:
+        cases, code, why = run_suite(str(exe), repo, work, 0, reuse=reuse, note=suite_note)
+    elif picked["files"]:
+        cases, code, why = run_suite(str(exe), repo, work, 0, args=related.args(repo, picked), only=True, reuse=reuse, note=suite_note)
+    else:
+        cases, code, why = [], 0, []   # 関わる試験が無い: 元の結末は空（緑の確かめは受け付けと最後のテストの段が持つ）
     if cases is None:
         return {**off, "reason": f"元の結末が取れない（{'; '.join(why)}）——全部の単位を今どおり直す"}
     test_cmd = (test_cmd or "").strip()
@@ -523,10 +533,22 @@ def start(board_dir, repo, suite: str, open_units: str, test_cmd: str = "", unit
           "runs": 1, "order": [], "units": {}, "queue": [], "cur": 0, "unit_head": "", "green_tree": "",
           "done": False, "note": "", "frozen": {}, "parked": [], "parked_why": {}, "contract": contract,
           "test_cmd": test_cmd, "test_cmd_gate": gate, "test_cmd_note": note, "light": light, "calls": [],
-          "reused": {"suite": t} if (t := tree_run.reused_text(suite_note)) else {}}
+          "reused": {"suite": t} if (t := tree_run.reused_text(suite_note)) else {},
+          "related": {"applied": True, **picked} if picked is not None else {"applied": False}}
     state_file = work / STATE
     _save(state_file, st)
     return {"go": True, "reason": "", "suite": suite, "state_file": str(state_file), "summary_file": str(work / SUMMARY)}
+
+
+def _related_pick(board_dir, repo, keys, round_: int, work: pathlib.Path) -> dict:
+    """輪の頭の元の結末を絞る選び（related.pick）。起点は、開いた単位 keys を持つ凍結した欄の files の path。欄の控えが無い run
+    （平の run）や起点が 1 つも無い時は、選べない（whole）として今までどおり一式"""
+    fields = conflict.frozen_fields(pathlib.Path(board_dir), round_) or []
+    seeds = sorted({str(row["path"]).strip() for f in fields if isinstance(f, dict) and set(f.get("unit_keys") or []) & set(keys)
+                    for row in planmarks.file_rows(f) if isinstance(row.get("path"), str) and row["path"].strip()})
+    if not seeds:
+        return {"whole": True, "reasons": ["修正案が触る所（欄の files）の起点が無い"], "files": [], "left": [], "far": []}
+    return related.pick(repo, rev="HEAD", seeds=seeds, cache_dir=work / "impact")
 
 
 def _test_cmd_gate(exe: pathlib.Path, cmd: str, repo, log: pathlib.Path, *, reuse: dict | None = None) -> tuple[str, str, list]:
@@ -2146,6 +2168,8 @@ def exit_fields(start_out: dict) -> dict:
            "calls": st.get("calls", [])}
     if st.get("reused"):
         out["reused"] = st["reused"]
+    if st.get("related", {}).get("applied"):
+        out["related"] = st["related"]
     return out
 
 

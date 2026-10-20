@@ -5,7 +5,7 @@
 
 - INTAKE: port を読んだ値。SUITE_STATE: TDD の実行器の控え（lib/suitewrite が start_file として読み書く）
 - RUN: 走らせた結果（lib/declared_checks.RUN_FILE）。LOGS/a<k>/: 走りごとのログ。JUNIT/: 宣言の段の JUnit の報告
-- SNAPSHOT・MATERIAL: 任せ先の CI の役の前の作業ツリーの姿と、受け付けを通った素材。拒否の控えと合わせた答えの控えの名は lib/rolekit が組む
+- IMPACT/: 関わる試験の選びの地図の控え（lib/related.pick の cache_dir）
 - SUITE/: 実行器（runner）と書き手の材料の文。SUITE_LOGS: 実行器を走らせたログと JUnit XML
 - BASELINE（base だけ）・EVIDENCE・FAILURE（証拠の文が書けない時だけ）
 """
@@ -23,33 +23,20 @@ SUITE_STATE = "suite-state.json"
 RUN = "run.json"   # lib/declared_checks.RUN_FILE と同じ字（試験が突き合わせる）
 LOGS = "logs"
 JUNIT = "junit"
-SNAPSHOT = "ci-snapshot.json"
-MATERIAL = "ci-material.json"
+IMPACT = "impact"
 SUITE = "suite"
 SUITE_LOGS = ("suite-suite.log", "suite-suite-again.log", "junit-suite.xml")
 BASELINE = "baseline.json"
 EVIDENCE = "evidence.md"
 FAILURE = "failure.txt"
-PROMPT_GLOBS = ("ci-prompt-*.md", "ci-fix-prompt-*.md", "suite-write-prompt-*.md")
-
-
-def rejects(place) -> pathlib.Path:
-    import declared_checks
-    import rolekit
-    return rolekit.rejects_path(pathlib.Path(place), declared_checks.CI_ROLE)
-
-
-def candidate(place) -> pathlib.Path:
-    import declared_checks
-    import rolekit
-    return rolekit.candidate_path(pathlib.Path(place), declared_checks.CI_ROLE)
+PROMPT_GLOBS = ("suite-write-prompt-*.md",)
 
 
 def own_files(place) -> list[pathlib.Path]:
     """place の中のこの block のファイルとフォルダ（logs/ は含めない。走りごとのログは上書きせず残す）"""
     place = pathlib.Path(place)
-    names = [INTAKE, SUITE_STATE, RUN, JUNIT, SNAPSHOT, MATERIAL, SUITE, *SUITE_LOGS, BASELINE, EVIDENCE, FAILURE]
-    found = [place / name for name in names] + [rejects(place), candidate(place)]
+    names = [INTAKE, SUITE_STATE, RUN, JUNIT, IMPACT, SUITE, *SUITE_LOGS, BASELINE, EVIDENCE, FAILURE]
+    found = [place / name for name in names]
     for pattern in PROMPT_GLOBS:
         found += place.glob(pattern)
     return found
@@ -89,3 +76,15 @@ def intake(place) -> dict:
     if doc.get("failed"):
         raise ValueError(doc["failed"])
     return doc
+
+
+NOT_PICKED = {"applied": False, "whole": False, "files": [], "left": [], "far": [], "reasons": [], "ran": "none"}
+
+
+def related_record(picked, ran) -> dict:
+    """run.json の related: 関わる試験の選び（lib/related.pick）と、走らせたか ran（related: 選んだ試験だけ・whole: 一式・none: 走らせていない）。
+    絞らない道（by が role_needed でない）は applied が偽。ran は実行器を走らせた回（run・suite-try）が決める"""
+    if picked is None:
+        return {**NOT_PICKED, "ran": "whole" if ran else "none"}
+    how = "none" if ran is None else ("whole" if picked["whole"] else "related")
+    return {"applied": True, **picked, "ran": how}

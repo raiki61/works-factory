@@ -45,6 +45,7 @@ test-gate-base__result:
   reason: ''
   suite: ''
   suite_note: ''
+  related: {applied: false, whole: false, files: [], left: [], far: [], reasons: [], ran: none}
   report: ['試験の関門（base）: 緑']
 judge__ins: {spec: false, world: false, web: 'on'}
 judge__head-depth-run__intake: {due: false, reason: ''}

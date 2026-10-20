@@ -184,9 +184,11 @@ def _not_ran(steps, by) -> str:
 
 
 SELF_REPORTED = "任せ先の自己申告の緑（機械が走らせていない）"
+# 走らせ方が決まらない道（by role_needed）の final の緑: 機械が走らせたが、実行器は AI が書き、関わる試験だけを走らせた
+RUNNER_HELD = "AI が書いた実行器の緑（変更に関わる試験だけを走らせた。実行器の中身は機械が照らしていない）"
 
 
-def certify(*, mode, material_status, green, before, after, now, self_reported=False, material_reason="") -> tuple:
+def certify(*, mode, material_status, green, before, after, now, self_reported=False, material_reason="", held_reason=SELF_REPORTED) -> tuple:
     """認証してよいか ——（ok, reason）。
     - base: material_status が clean・found・not_applicable・awaiting_human なら (True, "")。awaiting_human は一部の系統だけ走らせられた
       base・宣言の書式の誤り・任せ先の役が走らせられなかった base で、系統は素材の reason が名指し、判定の台帳の awaiting の問いと
@@ -194,7 +196,8 @@ def certify(*, mode, material_status, green, before, after, now, self_reported=F
       carried_over・素材が無いなら偽（緑を仮定しない）。理由は『素材が <status>——緑を仮定しない（<material_reason>）。<RAN_GUIDE>』
     - final: before・after・now の指紋が揃わなければ偽（どれが違ったかを reason に）→ green が True（bool）でなければ (False, "緑でない")
       （原因は呼び手が red_cause と証拠で別に返す）→ self_reported（素材を機械でなく任せ先の役が書いた）なら (False, SELF_REPORTED)
-      → ほかは (True, "")。赤は原因が何でも認証しない。任せ先の緑は走り切る前に読んだ緑と見分けられない（今の works の
+      → ほかは (True, "")。赤は原因が何でも認証しない。self_reported の理由は held_reason（既定 SELF_REPORTED。走らせ方が決まらない道は
+      RUNNER_HELD）。任せ先の緑は走り切る前に読んだ緑と見分けられない（今の works の
       review-loop.py の _ci_by_engine。実測 2026-09-25: 572 件の途中の 537 件で clean と書いた）"""
     if mode == "base":
         if material_status in BASE_OK:
@@ -213,5 +216,5 @@ def certify(*, mode, material_status, green, before, after, now, self_reported=F
     if green is not True:
         return False, "緑でない"
     if self_reported:
-        return False, SELF_REPORTED
+        return False, held_reason
     return True, ""

@@ -43,6 +43,7 @@ test-gate-base__result:
   reason: ''
   suite: ''
   suite_note: ''
+  related: {applied: false, whole: false, files: [], left: [], far: [], reasons: [], ran: none}
   report: ['試験の関門（base）: 緑']
 judge__ins: {spec: false, world: false, web: 'on'}
 judge__head-depth-run__intake: {due: false, reason: ''}
@@ -311,6 +312,7 @@ test-gate-final__result:
   reason: ''
   suite: ''
   suite_note: ''
+  related: {applied: false, whole: false, files: [], left: [], far: [], reasons: [], ran: none}
   report: ['試験の関門（final）: 緑']
 eyes__ins: {run: true, merge: false, head: hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh}
 eyes__structure-after__measure: {eye: false, reason: ''}
