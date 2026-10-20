@@ -181,7 +181,7 @@ You may read only this material, the root's `{decl_name}` (if it exists), the CI
 - It is started with the target root as its working directory.
 - Its first argument is where to write the JUnit XML (an absolute path). It writes each test's outcome there as JUnit XML.
 - It exits with the test tool's exit code as it is (non-zero if any test is red).
-- Arguments may follow the first argument (test files, test names, filter expressions), and the environment variable `{only_env}=1` may be set. If the test tool can take them as they are, pass them to the tool; if it cannot, drop them and run the whole suite (running the whole suite checks the same thing).
+- Arguments may follow the first argument (test files, test names, filter expressions), and the environment variable `{only_env}=1` may be set. When the person gave no test command and the root has no run declaration, the machine runs only the tests related to the change by passing their file paths here, so pass them to the tool as they are whenever it can take them (that is what keeps the run short). If the tool cannot take them, drop them and run the whole suite (running the whole suite checks the same thing).
 
 ## How to write it
 

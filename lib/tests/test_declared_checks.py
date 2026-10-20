@@ -147,7 +147,7 @@ class RunHowCase(RepoCase):
         self.assertTrue(rows[1].startswith("test_cmd: `echo 走った`"), rows)
         role = {"by": dc.ROLE_NEEDED, "runs": []}
         rows = dc.run_how(self.repo, role, test_cmd="", material={"status": "clean", "checked": "make test（終了コード 0）"})
-        self.assertEqual(rows[1], "任せ先の CI の役が走らせた物: make test（終了コード 0）")
+        self.assertEqual(rows[1], "AI が書いた実行器が走らせた物: make test（終了コード 0）")
 
 
 class LaunchHowRecordedCase(RepoCase):
@@ -225,11 +225,11 @@ class SuitesLineCase(unittest.TestCase):
         無い・役がまだ渡していない回は走らせなかった側に書く。宣言が読めない engine と、test_cmd の段が無い engine も名指す"""
         role = {"by": "role_needed", "suites": []}
         for status, ran, unran in (
-                ("clean", "任せ先の CI の役 blk-ci が選んだ一式（素材の status clean）", "無い"),
-                ("found", "任せ先の CI の役 blk-ci が選んだ一式（素材の status found）", "無い"),
-                ("not_run", "無い", f"宣言の段・{dc.TEST_CMD_STEP}（任せ先の CI の役 blk-ci が走らせなかった: 素材の status not_run）"),
-                ("", "無い", f"宣言の段・{dc.TEST_CMD_STEP}（任せ先の CI の役 blk-ci が走らせなかった: 素材の status 無い）"),
-                (None, "無い", f"宣言の段・{dc.TEST_CMD_STEP}（任せ先の CI の役 blk-ci が走らせる）")):
+                ("clean", "AI が書いた実行器が選んだ、変更に関わる試験（素材の status clean）", f"宣言の段・{dc.TEST_CMD_STEP}（渡されていない）・全体の試験（CI と人に任せた）"),
+                ("found", "AI が書いた実行器が選んだ、変更に関わる試験（素材の status found）", f"宣言の段・{dc.TEST_CMD_STEP}（渡されていない）・全体の試験（CI と人に任せた）"),
+                ("not_run", "無い", f"宣言の段・{dc.TEST_CMD_STEP}（渡されていない）・変更に関わる試験（実行器が走らせなかった: 素材の status not_run）"),
+                ("", "無い", f"宣言の段・{dc.TEST_CMD_STEP}（渡されていない）・変更に関わる試験（実行器が走らせなかった: 素材の status 無い）"),
+                (None, "無い", f"宣言の段・{dc.TEST_CMD_STEP}（渡されていない）・変更に関わる試験（実行器が走らせる）")):
             with self.subTest(status=status):
                 self.assertEqual(dc.suites_line(role, role_status=status), f"走らせた: {ran}／走らせなかった: {unran}")
         self.assertIn(f"宣言の段・{dc.TEST_CMD_STEP}（宣言が読めないので engine が走らせなかった）",
