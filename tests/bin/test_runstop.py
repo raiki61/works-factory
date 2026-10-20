@@ -174,6 +174,25 @@ class CancelStopsTheRunTreeTest(unittest.TestCase):
         self.assertGone(found, "hosts", "claude", "kids", "shell")
         self.assertEqual(self.get(run_id)["status"], "failed")
 
+    def test_cancel_of_a_foreground_run_leaves_no_child_run_running(self):
+        """前で起こした run の持ち主を止めると、Archon は子の run を running のまま残す。殻は持ち主が抜けた後、子の run を abandon で
+        cancelled にする。同じ機械で並べて走る別の run（と、その子の run）は running のまま"""
+        other = self.detach()
+        untouched = self.tree(other)
+        owner, run_id = self.foreground()
+        self.tree(run_id)
+        kids = [r["id"] for r in self.runs() if r.get("parent_run_id") == run_id]
+        self.assertEqual(len(kids), 1)
+        code, err = self.cancel(run_id)
+        self.assertEqual(code, 0, err)
+        owner.wait()
+        self.assertEqual([self.get(kid)["status"] for kid in kids], ["cancelled"], err)
+        self.assertEqual(self.get(other)["status"], "running")
+        self.assertEqual([kid["status"] for kid in self.runs() if kid.get("parent_run_id") == other], ["running"])
+        self.assertEqual([pid for pids in untouched.values() for pid in pids if not alive(pid)], [])
+        code, err = self.cancel(other)
+        self.assertEqual(code, 0, err)
+
     def test_ai_processes_left_by_an_interrupted_foreground_run_are_stopped(self):
         """前の命令を Ctrl-C で止めた run（failed）は持ち主の木を数えない訳を出し、残った AI のノードのプロセスを WORKFLOW_ID で
         見つけて止める"""
