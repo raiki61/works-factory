@@ -477,7 +477,13 @@
 
 - 持ち主の言葉: 「次に回すやつはどうぞ！」（2026-10-20。工場窓口が #795 に推した 3 つの案への答え）
 - 推した案: 1. 認証が無い時の案内 `HOWTO` と README に API キーの道（`ANTHROPIC_API_KEY`。ゲートウェイなら `ANTHROPIC_BASE_URL` も環境に置いて起動する。ゲートウェイの値は子に運ばない）を書く。2. 利用者の `settings.json` に `apiKeyHelper` が在れば、殻が利用者の HOME で起こしてキーを得て、`ANTHROPIC_API_KEY` として子に渡す（値は表示も保存もしない）。3. `apiKeyHelper` が在る時は Claude Code 自身のログインへ落ちず、失敗したら黙って別の段へ移らず、`apiKeyHelper` を名指して止まる。
-- 決め: 上の 1〜3 のとおり。`apiKeyHelper` を子の設定に写す道は採らない（柵 `bin/_lib/toolset.py` の許す鍵を増やさない）。段の順は、名指し → 受け継いだ認証 → `CLAUDE_KEYCHAIN_SERVICE` → `apiKeyHelper` → Claude Code 自身のログイン（Claude Code 自身の優先順でも環境の `ANTHROPIC_API_KEY` は `apiKeyHelper` より上）。読む設定は利用者の `<CLAUDE_CONFIG_DIR>/settings.json`（無ければ `<HOME>/.claude`）だけで、読めない・`apiKeyHelper` が字でない設定は「無い」と同じに扱う。コマンドの待ちに期限は付けない（`no-timeouts`。止めるのは起動した人）。
+- 決め: 上の 1〜3 のとおり。`apiKeyHelper` を子の設定に写す道は採らない（柵 `bin/_lib/toolset.py` の許す鍵を増やさない）。後の PR #798 のレビューで工場窓口が次を足した（2026-10-20）。
+  - 段の順は Claude Code 自身の優先順に合わせる: 名指し → 親の環境の認証（Bedrock・Vertex・`ANTHROPIC_AUTH_TOKEN`・`ANTHROPIC_API_KEY`）→ `CLAUDE_KEYCHAIN_SERVICE` → `apiKeyHelper` → 親の環境の `CLAUDE_CODE_OAUTH_TOKEN` だけの認証 → Claude Code 自身のログイン。出典は https://code.claude.com/docs/en/authentication#authentication-precedence の 4. `apiKeyHelper`・5. `CLAUDE_CODE_OAUTH_TOKEN`。
+  - 読む設定は、会社が配る設定のファイル（macOS `/Library/Application Support/ClaudeCode/`・Linux と WSL `/etc/claude-code/`・Windows `C:\Program Files\ClaudeCode\` の `managed-settings.json` の後に `managed-settings.d/*.json` を名前順に重ね、単一の値は後が勝つ。https://code.claude.com/docs/en/managed-settings）に `apiKeyHelper` が在ればそれ、無ければ利用者の `<CLAUDE_CONFIG_DIR>/settings.json`（無ければ `<HOME>/.claude`）。MDM（構成プロファイル・レジストリ）は読まない（README に「MDM で配った `apiKeyHelper` は読まないので `ANTHROPIC_API_KEY` を環境に置いて起動する」と書く）。対象のリポジトリの `.claude/settings.json` は読まない。
+  - 設定が JSON として壊れている・読めない・`apiKeyHelper` が字でない時は、保存済みのログインへ落ちず、そのファイルを名指して止まる。キーが無い・空の字は「無い」。
+  - `apiKeyHelper` は利用者の HOME・`XDG_*`（殻が隔離の前に控えた値）で起こし、標準エラーは捕まえずに端末へ流す。殻は認証の確かめ（check）と起動（exec）を別のプロセスで走らせ、キーを渡すにはファイルか引数に置くしかない（採らない）ので、`apiKeyHelper` は起動ごとに 2 回起こされる。
+  - キーは起動の時に 1 回取り、run の間ずっと同じ値を子に渡す（Claude Code 自身は 5 分ごとと 401/403 の時に起こし直すが、工場の子はそうしない）。期限の短いキーを出す `apiKeyHelper` では、長い run が途中で認証落ちになりうる。その時は期限の長いキーを `ANTHROPIC_API_KEY` に置いて起動する。
+  - コマンドの待ちに期限は付けない（`no-timeouts`。止めるのは起動した人）。
 - 訳: `others-may-use` と E14。`apiKeyHelper` だけで Claude Code を使う人は子に認証が届かず止まり、案内も OAuth の道しか言わなかった。`apiKeyHelper` の設定から起動しても既定の `~/.claude` にサブスクのログインが在れば黙ってそのアカウントで子を起こす形は、`claude_auth.py` の「利用者が選んだ経路を黙って別の口に差し替えない」に反した。
 - 当て方: `bin/_lib/auth_launch.py`（`api_key_helper`・`resolve`）と `tests/bin/test_auth_launch.py`・README の環境変数の項。
 

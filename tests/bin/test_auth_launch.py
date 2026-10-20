@@ -107,10 +107,18 @@ class ApiKeyHelper(unittest.TestCase):
         self.tmp = hermetic.tmpdir(self)
         self.home = str(self.tmp)
         write_settings(self.tmp / ".claude", {"apiKeyHelper": "print-key"})
+        self.managed = self.tmp / "managed"   # 会社が配る設定の置き場（空。本物の置き場は読まない）
+        self.managed.mkdir()
 
     def resolve(self, env=None, helper_runner=None, platform="linux", cfg="", sec=None):
         return auth_launch.resolve(env or {}, self.home, cfg, platform=platform, runner=sec or keychain({}),
-                                   helper_runner=helper_runner)
+                                   helper_runner=helper_runner, managed_dir=self.managed)
+
+    def write_managed(self, name, body):
+        path = self.managed / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(body if isinstance(body, str) else json.dumps(body), encoding="utf-8")
+        return path
 
     def test_helper_key_goes_to_the_child_as_anthropic_api_key(self):
         h = helper()
@@ -167,7 +175,7 @@ class ApiKeyHelper(unittest.TestCase):
 
     def test_settings_without_a_usable_helper_fall_through_as_before(self):
         write_credentials(self.tmp / ".claude")
-        for body in ({"env": {}}, {"apiKeyHelper": ""}, {"apiKeyHelper": 3}, "not json", "[]"):
+        for body in ({"env": {}}, {"apiKeyHelper": ""}, {"apiKeyHelper": None}):
             with self.subTest(body=body):
                 write_settings(self.tmp / ".claude", body)
                 h = helper()
@@ -175,6 +183,161 @@ class ApiKeyHelper(unittest.TestCase):
                 self.assertIsNone(why)
                 self.assertEqual(got, {"CLAUDE_CODE_OAUTH_TOKEN": TOKEN})
                 self.assertEqual(h.calls, [])
+
+    def test_unusable_user_settings_stop_naming_the_file_without_falling_to_the_login(self):
+        """JSON として壊れている・object でない・apiKeyHelper が文字列でない設定は、保存済みのログインへ落ちずに壊れたファイルを名指して止まる"""
+        write_credentials(self.tmp / ".claude")
+        path = self.tmp / ".claude" / "settings.json"
+        for body in ("not json", "[]", {"apiKeyHelper": 3}, {"apiKeyHelper": ["x"]}):
+            for platform in ("darwin", "linux"):
+                with self.subTest(body=body, platform=platform):
+                    write_settings(self.tmp / ".claude", body)
+                    h = helper()
+                    sec = keychain({"Claude Code-credentials": TOKEN})
+                    got, _name, why = self.resolve(helper_runner=h, platform=platform, sec=sec)
+                    self.assertIsNone(got)
+                    self.assertIn(str(path), why)
+                    self.assertEqual((h.calls, sec.calls), ([], []))
+
+    def test_unusable_settings_do_not_stop_a_launch_a_higher_stage_decides(self):
+        write_settings(self.tmp / ".claude", "not json")
+        got, name, _ = self.resolve({"ANTHROPIC_API_KEY": "env-key"}, helper_runner=helper())
+        self.assertEqual((got, name), ({"ANTHROPIC_API_KEY": "env-key"}, "ANTHROPIC_API_KEY"))
+
+    def test_inherited_oauth_token_sits_below_the_helper(self):
+        """Claude Code 自身の優先順は apiKeyHelper が CLAUDE_CODE_OAUTH_TOKEN より上。親の環境の OAuth トークンだけが在る時は helper のキーを採る"""
+        h = helper()
+        got, name, why = self.resolve({"CLAUDE_CODE_OAUTH_TOKEN": TOKEN}, helper_runner=h)
+        self.assertIsNone(why)
+        self.assertEqual(got, {"ANTHROPIC_API_KEY": KEY})
+        self.assertIn("apiKeyHelper", name)
+        self.assertEqual(len(h.calls), 1)
+
+    def test_oauth_token_without_a_helper_is_inherited_as_before(self):
+        write_settings(self.tmp / ".claude", {})
+        h = helper()
+        got, name, _ = self.resolve({"CLAUDE_CODE_OAUTH_TOKEN": TOKEN}, helper_runner=h)
+        self.assertEqual((got, name, h.calls), ({"CLAUDE_CODE_OAUTH_TOKEN": TOKEN}, "CLAUDE_CODE_OAUTH_TOKEN", []))
+
+    def test_other_inherited_credentials_stay_above_the_helper_even_with_an_oauth_token(self):
+        for other in ("ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "CLAUDE_CODE_USE_BEDROCK", "CLAUDE_CODE_USE_VERTEX"):
+            with self.subTest(other=other):
+                h = helper()
+                got, _name, _ = self.resolve({"CLAUDE_CODE_OAUTH_TOKEN": TOKEN, other: "1"}, helper_runner=h)
+                self.assertEqual(got, {"CLAUDE_CODE_OAUTH_TOKEN": TOKEN, other: "1"})
+                self.assertEqual(h.calls, [])
+
+    def test_helper_failure_with_an_inherited_oauth_token_stops(self):
+        got, _name, why = self.resolve({"CLAUDE_CODE_OAUTH_TOKEN": TOKEN}, helper_runner=helper(returncode=1))
+        self.assertIsNone(got)
+        self.assertIn("apiKeyHelper", why)
+
+    def test_managed_settings_helper_is_read_when_the_user_has_none(self):
+        """会社が配る managed-settings.json にだけ apiKeyHelper が在っても、保存済みのログインへ落ちずに採る"""
+        write_settings(self.tmp / ".claude", {})
+        write_credentials(self.tmp / ".claude")
+        path = self.write_managed("managed-settings.json", {"apiKeyHelper": "managed-cmd"})
+        h = helper()
+        got, name, why = self.resolve(helper_runner=h)
+        self.assertIsNone(why)
+        self.assertEqual(got, {"ANTHROPIC_API_KEY": KEY})
+        self.assertEqual([c[0] for c in h.calls], ["managed-cmd"])
+        self.assertIn(str(path), name)
+
+    def test_managed_settings_win_over_the_users(self):
+        self.write_managed("managed-settings.json", {"apiKeyHelper": "managed-cmd"})
+        h = helper()
+        self.resolve(helper_runner=h)
+        self.assertEqual([c[0] for c in h.calls], ["managed-cmd"])
+
+    def test_managed_drop_ins_follow_alphabetical_order_and_the_later_one_wins(self):
+        """managed-settings.json の後に managed-settings.d/*.json を名前順に重ね、単一の値は後が勝つ。隠しファイルと .json でない物は読まない"""
+        self.write_managed("managed-settings.json", {"apiKeyHelper": "base"})
+        self.write_managed("managed-settings.d/20-b.json", {"apiKeyHelper": "second"})
+        self.write_managed("managed-settings.d/10-a.json", {"apiKeyHelper": "first"})
+        self.write_managed("managed-settings.d/30-other.json", {"env": {}})
+        self.write_managed("managed-settings.d/.40-hidden.json", {"apiKeyHelper": "hidden"})
+        self.write_managed("managed-settings.d/50-note.txt", {"apiKeyHelper": "text"})
+        h = helper()
+        self.resolve(helper_runner=h)
+        self.assertEqual([c[0] for c in h.calls], ["second"])
+
+    def test_managed_drop_in_alone_is_read(self):
+        write_settings(self.tmp / ".claude", {})
+        self.write_managed("managed-settings.d/10-a.json", {"apiKeyHelper": "dropin"})
+        h = helper()
+        self.resolve(helper_runner=h)
+        self.assertEqual([c[0] for c in h.calls], ["dropin"])
+
+    def test_unusable_managed_settings_stop_naming_the_file(self):
+        for name, body in (("managed-settings.json", "not json"), ("managed-settings.d/10-a.json", {"apiKeyHelper": 3})):
+            with self.subTest(name=name):
+                path = self.write_managed(name, body)
+                h = helper()
+                got, _name, why = self.resolve(helper_runner=h)
+                self.assertIsNone(got)
+                self.assertIn(str(path), why)
+                self.assertEqual(h.calls, [])
+                path.unlink()
+
+    def test_managed_dir_per_platform(self):
+        self.assertEqual(str(auth_launch.default_managed_dir("darwin")), "/Library/Application Support/ClaudeCode")
+        self.assertEqual(str(auth_launch.default_managed_dir("linux")), "/etc/claude-code")
+        self.assertEqual(str(auth_launch.default_managed_dir("win32")), "C:\\Program Files\\ClaudeCode")
+
+    def test_default_runner_does_not_capture_stderr(self):
+        """標準エラーは捕まえずに端末へ流す（期限が無いので、helper の問いが見えないまま待ち続けない）"""
+        with mock.patch.object(auth_launch.subprocess, "run") as run, mock.patch.object(sys, "stderr", io.StringIO()):
+            auth_launch.user_helper_runner("cmd", "/users-home", "/users-home/.claude")
+        kw = run.call_args.kwargs
+        self.assertNotIn("capture_output", kw)
+        self.assertNotIn("stderr", kw)
+        self.assertEqual(kw["stdout"], subprocess.PIPE)
+
+    def test_default_runner_restores_the_recorded_user_env(self):
+        """exec の時（子の環境は隔離済み）は、殻が控えた隔離の前の XDG_* を戻す。控えに無い名（null）は外す"""
+        record = json.dumps({"HOME": "/u", "XDG_CONFIG_HOME": "/u/.config", "XDG_DATA_HOME": None,
+                             "XDG_CACHE_HOME": "/u/.cache", "XDG_STATE_HOME": None})
+        env = {"HOME": "/iso", "XDG_CONFIG_HOME": "/iso/c", "XDG_DATA_HOME": "/iso/d", "XDG_STATE_HOME": "/iso/s",
+               "WORKS_FACTORY_USER_ENV": record}
+        with mock.patch.object(auth_launch.os, "environ", env), mock.patch.object(auth_launch.subprocess, "run") as run, \
+                mock.patch.object(sys, "stderr", io.StringIO()):
+            auth_launch.user_helper_runner("cmd", "/u", "/u/.claude")
+        got = run.call_args.kwargs["env"]
+        self.assertEqual((got["HOME"], got["XDG_CONFIG_HOME"], got["XDG_CACHE_HOME"]), ("/u", "/u/.config", "/u/.cache"))
+        self.assertNotIn("XDG_DATA_HOME", got)
+        self.assertNotIn("XDG_STATE_HOME", got)
+
+    def test_default_runner_leaves_the_env_alone_without_a_record(self):
+        """控えが無い時（check は利用者の環境で起こされる）は、環境の XDG_* をそのまま渡す"""
+        env = {"HOME": "/u", "XDG_CONFIG_HOME": "/u/.config"}
+        with mock.patch.object(auth_launch.os, "environ", env), mock.patch.object(auth_launch.subprocess, "run") as run, \
+                mock.patch.object(sys, "stderr", io.StringIO()):
+            auth_launch.user_helper_runner("cmd", "/u", "/u/.claude")
+        self.assertEqual(run.call_args.kwargs["env"]["XDG_CONFIG_HOME"], "/u/.config")
+
+    @unittest.skipIf(sys.platform == "win32", "SKIP windows: sh の 1 行")
+    def test_a_launch_runs_the_helper_twice_once_per_check_and_exec(self):
+        """起動の殻は認証の確かめ（check）と起動（exec）を別のプロセスで走らせ、キーを渡すにはファイルか引数に置くしか無い
+        （採らない）ので、helper は起動ごとに 2 回起こされる。README と決め api-key-helper-relay に書いた回数を縛る。
+        exec の helper は隔離の前の XDG_CONFIG_HOME で起こされる"""
+        tmp = hermetic.tmpdir(self)
+        count = tmp / "count"
+        script = tmp / "helper.sh"
+        script.write_text('#!/bin/sh\necho "$XDG_CONFIG_HOME" >> "%s"\necho %s\n' % (count, KEY))
+        script.chmod(0o755)
+        write_settings(tmp / "user" / ".claude", {"apiKeyHelper": str(script)})
+        record = json.dumps({"HOME": str(tmp / "user"), "XDG_CONFIG_HOME": "/user-xdg", "XDG_DATA_HOME": None,
+                             "XDG_CACHE_HOME": None, "XDG_STATE_HOME": None})
+        base = ["--user-home", str(tmp / "user"), "--managed-dir", str(tmp / "managed")]
+        run = lambda args, env: subprocess.run([sys.executable, "-I", str(CORE / "auth_launch.py"), *args],
+                                               env=env, capture_output=True, text=True, encoding="utf-8", timeout=60)
+        r = run(["check", *base], hermetic.child_env(HOME=str(tmp / "user"), XDG_CONFIG_HOME="/checker"))
+        self.assertEqual(r.returncode, 0, r.stderr)
+        r = run(["exec", *base, "--", sys.executable, "-I", "-c", "pass"],
+                hermetic.child_env(HOME=str(tmp / "iso"), XDG_CONFIG_HOME="/iso-xdg", WORKS_FACTORY_USER_ENV=record))
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(count.read_text().split(), ["/checker", "/user-xdg"])
 
     def test_default_runner_uses_the_users_home_and_config_dir(self):
         err = io.StringIO()
@@ -194,7 +357,7 @@ class ApiKeyHelper(unittest.TestCase):
         env = hermetic.child_env(HOME=str(tmp / "iso"), CLAUDE_CONFIG_DIR=str(tmp / "iso-config"))
         probe = "import os; print(os.environ.get('ANTHROPIC_API_KEY') == %r, os.environ['HOME'])" % KEY
         r = subprocess.run([sys.executable, "-I", str(CORE / "auth_launch.py"), "exec", "--user-home", str(tmp / "user"),
-                            "--", sys.executable, "-I", "-c", probe],
+                            "--managed-dir", str(tmp / "managed"), "--", sys.executable, "-I", "-c", probe],
                            env=env, capture_output=True, text=True, encoding="utf-8", timeout=60)
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertEqual(r.stdout.split(), ["True", str(tmp / "iso")])
@@ -207,7 +370,8 @@ class ApiKeyHelper(unittest.TestCase):
         write_credentials(tmp / ".claude")
         env = hermetic.child_env(HOME=str(tmp))
         r = subprocess.run([sys.executable, "-I", str(CORE / "auth_launch.py"), "exec", "--for", "bin/start",
-                            "--user-home", str(tmp), "--", sys.executable, "-c", "print('started')"],
+                            "--user-home", str(tmp), "--managed-dir", str(tmp / "managed"), "--", sys.executable, "-c",
+                            "print('started')"],
                            env=env, capture_output=True, text=True, encoding="utf-8", timeout=60)
         self.assertEqual((r.returncode, r.stdout), (2, ""))
         self.assertTrue(r.stderr.splitlines()[-1].startswith("bin/start: " + auth_launch.HOWTO), r.stderr)
@@ -443,8 +607,10 @@ class IsolatedLaunch(unittest.TestCase):
         tmp = hermetic.tmpdir(self)
         # 共有の作業ツリーを見ると別の実行が残した __pycache__ を拾うので、この試験だけが持つ写しで起こす。
         # symlink は不可（auth_launch.py は __file__.resolve() の親を sys.path に入れ、本物の CORE に書く）
-        core = tmp / "core"
+        core = tmp / "pack" / "bin" / "_lib"   # auth_launch.py は ../../lib の userenv を import する
         shutil.copytree(CORE, core, ignore=shutil.ignore_patterns("__pycache__"))
+        (tmp / "pack" / "lib").mkdir()
+        shutil.copy(ROOT / "lib" / "userenv.py", tmp / "pack" / "lib" / "userenv.py")
         home = tmp / "home"
         home.mkdir()
         env = hermetic.child_env(CLAUDE_CODE_OAUTH_TOKEN=TOKEN, HOME=str(home))
