@@ -216,7 +216,7 @@ def allowed_test_rows(place, results=()) -> list:
     return sorted(rows, key=lambda r: (r["path"], r["permit"]))
 
 
-HANDOFF_HEAD = "修正役が人に回した物（壊すと分かって通した理由 breaks.accepted。役だけで決めた代償なので人が確かめる）"
+HANDOFF_HEAD = "修正役が人に回した物（壊すと分かって通した理由。役だけで決めた代償なので人が確かめる）"
 
 
 def run_diff(repo, base: str = "HEAD", skip=()) -> str:

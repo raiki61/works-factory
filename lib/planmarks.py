@@ -757,10 +757,34 @@ def _files_gaps(i: int, it: dict, roots: set[str]) -> list[str]:
     return out + _removal_gaps(i, it)
 
 
+def _added_test_gaps(plan: list) -> list[str]:
+    """files の symbols に足すテスト（案のどれかの項目の tests・rewrite_tests が名指すファイルの change=add の symbol で、名前が test で
+    始まる）が、案のどれかの項目の tests（まだ無いテストの宣言）の id の最後の名に無い行。改名（旧名を消し新名を足す）で新名を tests に
+    書かない案は、修正役が範囲の相談で新名を頼むことになる（足してよい新しいテストは tests と範囲の相談の合意だけ）ので、案の受け付けで
+    出し直させる。純な関数"""
+    items = [it for it in plan if isinstance(it, dict)]
+    files = {p for it in items for p in test_paths(it)}
+    declared = {(posixpath.normpath(got[0]), got[1][-1]) for it in items for row in _rows(it, "tests")
+                if (got := _parse_id(_id_of(row)))}
+    out = []
+    for i, it in enumerate(plan):
+        for j, row in enumerate(file_rows(it) if isinstance(it, dict) else []):
+            path = row.get("path")
+            if not (isinstance(path, str) and posixpath.normpath(path) in files):
+                continue
+            for k, sym in enumerate(symbol_rows(row)):
+                name = sym.get("name")
+                if (sym.get("change") == "add" and isinstance(name, str) and name.startswith("test")
+                        and (posixpath.normpath(path), name) not in declared):
+                    out.append(f"plan[{i}].files[{j}].symbols[{k}]（{path}::{name}）: 足すテストなのに、案のどの項目の tests にも無い"
+                               "（改名なら新しい名も tests に書け。tests に無いテストは修正役が足せず、範囲の相談になる）")
+    return out
+
+
 def gaps(reply: dict, repo: pathlib.Path, *, exists=None) -> list[str]:
     """修正案の返答の works の欄の欠けと誤りの行と、files の行の誤り（symbols の name がパスの形か行の path の拡張子で終わる・
     同じ (path, name, change) の重なり・considered の path の誤り（_considered_gaps。対象の根の名は repo の根を 1 度だけ引く）・
-    消す側の訳 why の欠けと足す側の訳の書き間違い。_files_gaps）（"plan[<i>].<欄>…: <理由>"）。案の全体を見る home.concept の重なりは
+    消す側の訳 why の欠けと足す側の訳の書き間違い。_files_gaps）・files の symbols に足すテストが案のどの項目の tests にも無い行（_added_test_gaps）（"plan[<i>].<欄>…: <理由>"）。案の全体を見る home.concept の重なりは
     home_gaps に在り、ここには入れない。
     空なら通る。項目の間の依存 depends_on の照らしは案の全体を見る depends_gaps に在り、ここでは型（FIELD_SCHEMA）だけを見る
     （案の直しの返答は直した項目だけなので、直さない項目を指す行をここでは照らせない）。返答や plan が形を成さなければ空
@@ -823,6 +847,7 @@ def gaps(reply: dict, repo: pathlib.Path, *, exists=None) -> list[str]:
             if not (isinstance(rwhy, str) and len(rwhy.strip()) >= MIN_WHY):
                 out.append(f"plan[{i}].refactor.why: declared が true なら、整えの理由を {MIN_WHY} 字以上で書く")
     out += _scope_overlaps(plan)
+    out += _added_test_gaps(plan)
     for i, it in enumerate(plan):
         for j, row in enumerate(_rows(it, "rewrite_tests") if isinstance(it, dict) else []):
             tid = _id_of(row)

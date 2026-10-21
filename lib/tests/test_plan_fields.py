@@ -282,6 +282,24 @@ class TestGaps(PlanFieldsCase):
             with self.subTest(torn=torn):
                 self.assertEqual(self.gaps(item(files=[frow("lib/x.py", **torn)])), [])   # 形の崩れは型が見る
 
+    def test_gaps_added_test_symbol_must_be_a_new_test_of_the_plan(self):
+        """files の symbols に足すテスト（テストのファイルの change=add で名前が test で始まる）は、案のどれかの項目の tests（まだ無い
+        テストの宣言）にも書く。改名（旧名を消し新名を足す）で新名を tests に書かない案は、修正役が範囲の相談で新名を頼むことになる
+        （run 9744721f の 3 回目）ので、案の受け付けで出し直させる。tests に在る名・テストでない名（助け）・テストのファイルでない行は通す"""
+        renamed = item(rewrite_tests=[REWRITE], files=[frow("test_stats.py", fadd("test_clamp_inside_range_is_kept"),
+                                                             frm("test_clamp_within_range"))])
+        got = self.gaps(renamed)
+        self.assertEqual(len(got), 1, got)
+        self.assertTrue(got[0].startswith("plan[0].files[0].symbols[0]") and "test_clamp_inside_range_is_kept" in got[0]
+                        and "tests" in got[0], got)
+        ok_name = item(files=[frow("test_stats.py", fadd("test_mean_of_two"))])   # tests の id の名と同じ
+        self.assertEqual(self.gaps(ok_name), [])
+        other_item = item(files=[frow("test_stats.py", fadd("test_from_other"))])
+        declared = item(tests=[{**item()["tests"][0], "id": "test_stats.py::TestStats::test_from_other"}])
+        self.assertEqual(self.gaps(other_item, declared), [], "案のほかの項目の tests に在ってもよい")
+        self.assertEqual(self.gaps(item(rewrite_tests=[REWRITE], files=[frow("test_stats.py", fadd("helper_for_clamp"))])), [], "テストでない名")
+        self.assertEqual(self.gaps(item(files=[frow("stats.py", fadd("test_like_name_in_code"))])), [], "テストのファイルでない行")
+
     def test_home_gaps_concept_once_across_the_plan(self):
         """home_gaps(items) は、案の全部の行で home.concept（前後の空白を落として casefold）が 2 度出たら、2 度目の行の home.concept を
         名指し、1 度目の行も文に載せて拒む。2 つの項目でも同じ項目の 2 行でもよい。2 度目の行の path が 1 度目の行の considered に在れば

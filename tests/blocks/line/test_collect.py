@@ -126,13 +126,15 @@ class FactsCase(unittest.TestCase):
         self.assertEqual(got["head"]["notices"], ["注意（test_cmd）: x"])
         self.assertEqual(got["left"], [])
 
-    def test_inner_node_ids_in_the_machine_lines_come_with_a_plain_name(self):
-        """報告の最初の 3 行に出る承認ノード・段の名（gate-before-fix・ask-final など）は、名の前に人が読む言葉が付く（初見の読み手が
-        止まった型）。名は残す（グラフの名で探せるように）"""
-        stop = self.f.stop_words([{"at": "ask-final", "word": "works:needs-human"}])
-        self.assertTrue(stop[0].startswith("最後の承認ノードを開ける所（ask-final） が works:needs-human"), stop)
+    def test_inner_node_ids_stay_out_of_the_head_lines_and_in_the_named_ones(self):
+        """報告の頭の行には、人が読む言葉だけを出す（id・止めの語は出さない。tests/blocks/line/test_head_plain.py）。頭の外の節の行は
+        「訳（id）」で名を残す（グラフの名で探せるように）"""
+        stops = [{"at": "ask-final", "word": "works:needs-human"}]
+        self.assertTrue(self.f.stop_words(stops)[0].startswith("最後の承認ノードを開ける所が止めた: "), self.f.stop_words(stops))
+        self.assertTrue(self.f.stop_words_full(stops)[0].startswith("最後の承認ノードを開ける所（ask-final） が works:needs-human"))
         said = self.f.pushed_said({"gate-before-fix": {"pushed": [{"item": "x", "answer": "continue", "note": "n", "why": "w"}]}})
-        self.assertIn("修正前の承認ノード（gate-before-fix）", said)
+        self.assertIn("通した承認ノード: 修正前の承認ノード（推し", said)
+        self.assertNotIn("gate-before-fix", said)
         lines = self.f.pushed_lines({"gate-before-fix": {"pushed": [{"item": "x", "answer": "continue", "note": "n", "why": "w"}]}})
         self.assertIn("承認ノード 修正前の承認ノード（gate-before-fix）", lines[0])
 
@@ -186,7 +188,7 @@ class FactsCase(unittest.TestCase):
         got = self.build(v)
         self.assertEqual(got["left"][0]["where"], "独立の目 R2")
         self.assertIn({"at": "eyes", "word": "r4-ask"}, got["waits"]["others"])
-        self.assertIn("独立の目 R4 の問い", [a["kind"] for a in got["asks"]])
+        self.assertIn(self.f.EYE_ASK_HEAD, [a["kind"] for a in got["asks"]])
 
     def test_cut_when_the_final_test_is_missing(self):
         v = passing()
