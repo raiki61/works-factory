@@ -84,6 +84,9 @@ conflict.owed_units_but_asked が withheld で行う。写しの _owed_units は
 （柵の印が無く、行が修正案の単位の外を名指さない）。揃わない訳は人に回す行の尾「（人に聞く訳: …）」に載る。
 - axes(b, mark, units) -> [揃わない軸の訳]: 4 つの軸の確かめ（空ならグラフの中で決める）
 - axis_reasons(b, mark, units) -> {軸: [訳]}: 軸（AXES）ごとの揃わない訳。axes と関所の軸ごとの分け（gate_axes）の 1 つの持ち主
+- AxisFacts・axis_why(facts, mark, units)・narrow_asks(plan, marks, facts)・ask_row(facts, kind, text, mark, node, units)・mark_of(row)・
+  at(doc, *idx)・joined(row, mark): 軸の材料を値で受ける形（place も port も読まない）。narrow_asks は修正案の narrows を承認ノードに回しうる行
+  {kind, node, text, units, mark, decided, why} にする芯で、計画の審査の block と本線の仕様駆動の道（docs/design/spec-driven.md の 6.2）が使う
 世界の解の外れ（計画 2026-10-09-world-solution の W9）: 修正案の欄 structure の世界の解の答えのうち外れ（deviation）は、worldmark.world_ok
 が揃わなければ修正前の関所の項目（種類 WORLD_KIND。文は worldmark.gate_line と人に聞く訳）になり、揃えば聞かずに通して通した行に残す。
 依頼そのもの（依頼のファイル・依頼の引用・依頼の解き方）を出どころにした外れと、web で確かめていない行からの外れは人に回る。人がいる run も
@@ -630,33 +633,99 @@ FENCED = "柵の印が在る（{fences}）"
 NO_WORLD = "世界の解を当たった結果（world）が無い"
 
 
-def axis_reasons(b, mark: dict, units) -> dict:
-    """4 つの軸（AXES）ごとの揃わない訳の並び {軸: [訳]}。軸の決まりの持ち主（axes と gate_axes がこれを読む）"""
+MARK_KEYS = (*FIELDS, NO_NARROW)   # 行の欄のうち決め手と狭めない案（承認ノードの行の mark）
+NARROW_NODE = planmarks.NODE      # narrows の行の節（修正案の札）
+
+
+class AxisFacts(NamedTuple):
+    """4 つの軸の材料（値だけ。place も block の入力の口も読まない。docs/design/spec-driven.md の 6.2 の足す node の 8）"""
+    cite_ok: object         # 決め手の文 → 出どころの誤りの 1 文（無ければ ""）の口（cite.sources_problem を根と依頼の引用で包んだ物）
+    world_rows: bool        # 世界の解の段の行の在る run か（在れば軸 world を行で見ない。外れは世界の解の項目が聞く）
+    ups: frozenset          # 構造の目が人に上げた単位
+    dirty: frozenset        # 構造の目が汚れると見た単位
+    answered: frozenset | None   # 修正案の欄 structure に答えのある行の単位（None は照らさない）
+    planned: frozenset      # 修正案の単位（converge.planned_units）
+
+
+def axis_why(facts: AxisFacts, mark: dict, units) -> dict:
+    """4 つの軸（AXES）ごとの揃わない訳の並び {軸: [訳]}（全部の軸を持つ）。軸の決まりの持ち主はここ 1 か所で、計画の審査の block・
+    仕様駆動の道・盤面の axis_reasons が材料を集めて呼ぶ"""
     out = {axis: [] for axis in AXES}
     decided_by = str(mark.get("decided_by") or "").strip()
     if not decided_by or str(mark.get("undecided_because") or "").strip():
         out["obvious"].append(NOT_DECIDED)
-    elif problem := _cite_check(b)[0](decided_by):
+    elif problem := facts.cite_ok(decided_by):
         out["obvious"].append(problem)
     if mark.get("fences"):
         out["not_overkill"].append(FENCED.format(fences="・".join(map(str, mark["fences"]))))
-    # 世界の解の段の行の在る run の世界の解の外れは world_items の項目が聞く（ここでは見ない）
-    if _world_rows(b) is None and not str(mark.get("world") or "").strip() and not cite.URL.search(decided_by):
+    if not facts.world_rows and not str(mark.get("world") or "").strip() and not cite.URL.search(decided_by):
         out["world"].append(NO_WORLD)
-    ups = {r.get("unit_id") for r in _design_rows(b) if r.get("route") == structmark.ROUTE_UP}
-    hit = sorted(set(units) & ups)
+    hit = sorted(set(units) & set(facts.ups))
     if hit:
         out["clean"].append(f"構造の目が人に上げた単位（{'・'.join(hit)}）に当たる")
-    dirty = structmark.dirty(b.dir / structmark.COPY_FILE)
-    answered = _answered_rows(b)
-    if answered is not None:
-        miss = sorted(k for k in units if k in dirty and k not in answered)
+    if facts.answered is not None:
+        miss = sorted(k for k in units if k in facts.dirty and k not in facts.answered)
         if miss:
             out["clean"].append(f"構造の目が汚れると見た単位（{'・'.join(miss)}）に修正案の答えが無い")
-    outside = sorted(set(units) - converge.planned_units((b.output_of_round("p2.fix_plan", b.round) or {}).get("plan")))
+    outside = sorted(set(units) - set(facts.planned))
     if outside:
         out["not_overkill"].append(f"修正案の単位の外を名指す（{'・'.join(outside)}）")
     return out
+
+
+def mark_of(row) -> dict:
+    """行の決め手と狭めない案（行が持つ欄だけ）"""
+    return {k: row[k] for k in MARK_KEYS if k in row} if isinstance(row, dict) else {}
+
+
+def at(doc, *idx):
+    """doc の idx の位置の値（並びは番号、dict は番号の字で引く。無ければ None）"""
+    for i in idx:
+        if isinstance(doc, list) and isinstance(i, int) and 0 <= i < len(doc):
+            doc = doc[i]
+        elif isinstance(doc, dict):
+            doc = doc.get(str(i), doc.get(i))
+        else:
+            return None
+    return doc
+
+
+def joined(row: dict, mark) -> dict:
+    """行に、外した決め手の欄 mark を重ねた物"""
+    return {**row, **(mark if isinstance(mark, dict) else {})}
+
+
+def ask_row(facts: AxisFacts, kind: str, text: str, mark: dict, node: str, units) -> dict:
+    """承認ノードに回しうる行 1 つ {kind, node, text, units, mark, decided, why}（why は揃わない軸だけ）"""
+    why = {axis: got for axis, got in axis_why(facts, mark, units).items() if got}
+    return {"kind": kind, "node": node, "text": text, "units": list(units), "mark": mark, "decided": decided(mark), "why": why}
+
+
+def narrow_asks(plan, marks, facts: AxisFacts) -> list:
+    """修正案の項目の並び plan の narrows を、承認ノードに回しうる行にする（項目ごと・narrows ごとに 1 行）。marks は入口が外した
+    決め手の欄（項目の番号 → narrows の番号の並び。無ければ None で、行の欄を読む）"""
+    out = []
+    for i, p in enumerate(plan if isinstance(plan, list) else []):
+        if not isinstance(p, dict):
+            continue
+        keys = [k for k in p.get("unit_keys") or [] if isinstance(k, str)]
+        for j, n in enumerate(p.get("narrows") or []):
+            if not isinstance(n, dict):
+                continue
+            row = joined(n, at(marks, i, j))
+            out.append(ask_row(facts, "regression", f"修正案 {i + 1} が狭める能力: {row.get('what')}——{row.get('why')}", mark_of(row),
+                               NARROW_NODE, keys))
+    return out
+
+
+def axis_reasons(b, mark: dict, units) -> dict:
+    """4 つの軸（AXES）ごとの揃わない訳の並び {軸: [訳]}。盤面 b から材料を集めて axis_why に渡す（axes と gate_axes がこれを読む）"""
+    facts = AxisFacts(cite_ok=_cite_check(b)[0], world_rows=_world_rows(b) is not None,
+                      ups=frozenset(r.get("unit_id") for r in _design_rows(b) if r.get("route") == structmark.ROUTE_UP),
+                      dirty=frozenset(structmark.dirty(b.dir / structmark.COPY_FILE)),
+                      answered=None if (got := _answered_rows(b)) is None else frozenset(got),
+                      planned=frozenset(converge.planned_units((b.output_of_round("p2.fix_plan", b.round) or {}).get("plan"))))
+    return axis_why(facts, mark, units)
 
 
 def axes(b, mark: dict, units) -> list:
