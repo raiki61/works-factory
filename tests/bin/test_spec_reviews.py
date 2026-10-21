@@ -12,11 +12,16 @@ import pathlib
 import tempfile
 import unittest
 
+import sys
+
 from bin._lib import specreviews
 from tests.blocks import kit
-from lib import spectable
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
+if str(ROOT / "lib") not in sys.path:
+    sys.path.append(str(ROOT / "lib"))   # lib のモジュールは互いを名で import する（lib/tests と同じ足し方）
+
+import spectable  # noqa: E402
 _spec = importlib.util.spec_from_file_location("spec_inputs", ROOT / "bin" / "_lib" / "spec-inputs.py")
 spec_inputs = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(spec_inputs)

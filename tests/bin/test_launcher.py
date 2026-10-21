@@ -933,7 +933,9 @@ class LauncherTest(unittest.TestCase):
 
     def put_spec(self) -> dict:
         """対象に表と設計書を置き、部品ごとの記録（workflow get の形）を偽の bun が返す置き場に置く。返りは記録の置き場の env"""
-        from lib import spectable
+        if str(self.repo / "lib") not in sys.path:
+            sys.path.append(str(self.repo / "lib"))
+        import spectable
         (self.target / "docs").mkdir(exist_ok=True)
         (self.target / "docs" / "d.md").write_text(self.SPEC_DESIGN, encoding="utf-8")
         (self.target / "t.yaml").write_text(
