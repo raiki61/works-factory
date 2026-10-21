@@ -3,7 +3,7 @@
 
 - ENTRY・CHECK: 形 entry と形 check の結果の控え（finish が読んで返す）
 - REQUEST・PURPOSE・SPEC: 形 entry が表と設計書から組み、判定の役と計画の部品に渡すファイル
-- REVIEWS_ENV: 起動の殻が、会話で回した審査の記録を照らした結果のファイルを渡す環境変数（bin/_lib/launcher.py の SPEC_REVIEWS_ENV と
+- REVIEWS_ENV: 起動の殻が、会話で回した審査の記録を照らした結果のファイルを渡す環境変数（bin/_lib/specreviews.py の RESULT_ENV と
   同じ字。tests/bin/test_spec_reviews.py が突き合わせる）
 """
 import stopby   # lib/

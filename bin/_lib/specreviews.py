@@ -87,11 +87,19 @@ def _same(recorded, built) -> bool:
 
 
 def _pointed(record: dict, ptr) -> Path | None:
-    """返す値の pointer の先のファイル（terminal_record.artifacts.root の下）"""
-    root = ((record.get("terminal_record") or {}).get("artifacts") or {}).get("root")
-    if not root or not isinstance(ptr, dict) or not isinstance(ptr.get("path"), str):
+    """返す値の pointer の先のファイル（terminal_record.artifacts.root の下）。pointer が無ければ None（指摘のファイルを返さない部品の
+    run）。pointer が在るのに置き場の根が記録に無い・空か、pointer が根の外を指せば ValueError（指摘を 0 件と読んで黙って通さない。
+    bin/_lib/apply.py の同じ場面と同じ照らし）"""
+    if not isinstance(ptr, dict) or not isinstance(ptr.get("path"), str):
         return None
-    return Path(root) / ptr["path"]
+    root = ((record.get("terminal_record") or {}).get("artifacts") or {}).get("root")
+    if not isinstance(root, str) or not root:
+        raise ValueError("run の置き場の根（artifacts.root）が記録に無い")
+    real_root = os.path.realpath(root)
+    real = os.path.realpath(os.path.join(root, ptr["path"]))
+    if os.path.commonpath([real_root, real]) != real_root:
+        raise ValueError(f"pointer の path {ptr['path']} が run の置き場の外を指す")
+    return Path(real)
 
 
 def _keys(record: dict, part: str, value: dict) -> tuple[set, str]:
@@ -110,7 +118,7 @@ def _keys(record: dict, part: str, value: dict) -> tuple[set, str]:
             rows = [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
             return {str(r.get("class_id")) for r in rows if isinstance(r, dict) and (r.get("versus") or {}).get("verdict") == "differs"}, ""
     except (OSError, ValueError, AttributeError) as error:
-        return set(), f"返す値の指摘のファイルを読めない（{type(error).__name__}）"
+        return set(), f"返す値の指摘のファイルを読めない（{type(error).__name__}: {error}）"
     return set(), ""
 
 

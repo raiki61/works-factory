@@ -145,6 +145,22 @@ class CheckCase(Base):
         self.assertEqual(len(got), 1, "findings を書き足しても組む入力は変わらない（reviews は組む字に入れない）。残るのは世界の解の c1")
         self.assertIn("c1", got[0])
 
+    def test_e_pointer_without_a_root_or_outside_it_is_unreadable(self):
+        """e: 返す値に指摘のファイルの pointer が在るのに、記録の置き場の根（terminal_record.artifacts.root）が無い・空か、pointer が根の
+        外を指す時は、指摘を 0 件と読まずに読めない訳で止める（bin/_lib/apply.py の同じ場面と同じ向き）"""
+        ptr = {"type": "archon_artifact", "run_id": "x", "path": "pr/review.json"}
+        rootless = self.record(spectable.PLAN_REVIEW, value={"holes": ptr})
+        rootless["terminal_record"]["artifacts"]["root"] = None
+        got = specreviews.problems(self.check(self.records(**{spectable.PLAN_REVIEW: rootless})))
+        self.assertEqual(len(got), 1, got)
+        self.assertIn("e: 返す値の指摘のファイルを読めない", got[0])
+        self.assertIn("artifacts.root", got[0])
+        (self.root / "outside.json").write_text(json.dumps({"faces": []}), encoding="utf-8")
+        outside = self.record(spectable.PLAN_REVIEW, value={"holes": {**ptr, "path": "../outside.json"}})
+        got = specreviews.problems(self.check(self.records(**{spectable.PLAN_REVIEW: outside})))
+        self.assertEqual(len(got), 1, got)
+        self.assertIn("置き場の外", got[0])
+
     def test_table_problems_stop_without_reading_records(self):
         (self.root / "t.yaml").write_text("purpose: x\n", encoding="utf-8")
         doc = specreviews.check(self.root, "t.yaml", lambda root, table: spec_inputs.build(root, table), lambda run: self.fail(run))
