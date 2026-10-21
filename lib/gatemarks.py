@@ -703,7 +703,7 @@ def ask_row(facts: AxisFacts, kind: str, text: str, mark: dict, node: str, units
 
 def narrow_asks(plan, marks, facts: AxisFacts) -> list:
     """修正案の項目の並び plan の narrows を、承認ノードに回しうる行にする（項目ごと・narrows ごとに 1 行）。marks は入口が外した
-    決め手の欄（項目の番号 → narrows の番号の並び。無ければ None で、行の欄を読む）"""
+    決め手の欄（2 重の並びで、marks[i][j] が項目 i の narrows の j 番目の行から外した欄の dict。無ければ None で、行の欄を読む）"""
     out = []
     for i, p in enumerate(plan if isinstance(plan, list) else []):
         if not isinstance(p, dict):

@@ -1,0 +1,87 @@
+name: works-factory-spec-driven
+description: '仕様駆動の道の block（docs/design/spec-driven.md の 2・6 章）。AI を持たない。形 entry は、人と固めた仕様の表（YAML）を入口で確かめ（表の形・設計書が在る・設計書の見出しに表の欄の名が無い・会話で回した 5 つの部品の審査の記録と、それを起動の殻が Archon の run の記録と照らした結果）、判定の役と計画の部品に渡す値を表と設計書から組む。形 check は、判定の役と計画の部品の後に、仕様とリポジトリの食い違い（ファイルの行・触らない物・TDD の印・目的の外）を照らす。どれも yes/no で、欠ければ欠けた物を名指して止めを返す。単独の run でも、graph から include されても回る'
+inputs:
+  mode: {required: true, description: 'choice(entry|check): 形。entry は入口の確かめと値の組み立て、check は判定と計画の後の食い違いの照らし'}
+  table: {default: '', description: 'file: 仕様駆動の道の表（YAML。docs/design/spec-driven.md の 2.3）。相対なら対象の根から。形 entry が読む'}
+  base: {default: '', description: 'text: ファイルの行の在る・無いを引く版。空は HEAD。形 check が読む'}
+  tdd: {default: 'false', description: 'flag: 設計書に「TDD で直す所」の見出しが在るか。形 check が読む'}
+  out_of_scope: {default: '[]', description: 'json(out-of-scope.schema.json): 表の触らない物の写しの行の配列 [{glob, why}]。空の配列は無い。形 check が読む'}
+  ready: {default: '', description: 'text: 判定が直す単位を返したか（true だけが真。空は判定が回らなかった）。形 check が読む'}
+  plan: {default: '', description: 'file: 計画の項目ごとの欄の控え（{round, fields}。fields の行は files・out_of_scope・route を持つ）。空は計画が無い。形 check が読む'}
+  plan_ok: {default: '', description: 'text: 計画が落ちずに返ったか（true だけが真。空は計画が回らなかった）。形 check が読む'}
+  out_of_purpose: {default: '', description: 'file: 判定が目的の外とした行の控え（{rounds: {周: [行]}}）。空は控えが無い。形 check が読む'}
+returns: finish
+outcome_field: ok
+nodes:
+  - id: pick
+    script: pick
+    runtime: uv
+    mutates_checkout: false
+    output_format:
+      type: object
+      additionalProperties: false
+      required: [entry, check, reason]
+      properties:
+        entry: {type: boolean}
+        check: {type: boolean}
+        reason: {type: string}
+  # 表を読むのはこの script だけ（PyYAML を宣言する。lib/AGENTS.md の E3 の外し）
+  - id: intake
+    script: intake
+    runtime: uv
+    mutates_checkout: false
+    depends_on: [pick]
+    when: "$pick.output.entry == true"
+    output_format: &ran
+      type: object
+      additionalProperties: false
+      required: [done, reason]
+      properties:
+        done: {type: boolean}
+        reason: {type: string}
+  - id: check
+    script: check
+    runtime: uv
+    mutates_checkout: false
+    depends_on: [pick]
+    when: "$pick.output.check == true"
+    output_format: *ran
+  - id: finish
+    script: finish
+    runtime: uv
+    mutates_checkout: false
+    depends_on: [pick, intake, check]
+    trigger_rule: all_done
+    with:
+      pick: {from: "$pick.output", if_skipped: null}
+      entry_run: {from: "$intake.output", if_skipped: null}
+      check_run: {from: "$check.output", if_skipped: null}
+      mode: "$INPUTS.mode"
+    output_format:
+      type: object
+      additionalProperties: false
+      required: [ok, stop_reason, reason, request, origin, purpose, spec, spec_files, tdd, out_of_scope, mismatches, report]
+      properties:
+        ok: {type: boolean}
+        stop_reason: {type: string}
+        reason: {type: string}
+        request: &pointer
+          type: [object, 'null']
+          properties:
+            type: {type: string, enum: [archon_artifact]}
+            run_id: {type: string}
+            path: {type: string}
+        origin: {type: string}
+        purpose: *pointer
+        spec: *pointer
+        spec_files: {type: array, items: {type: string}}
+        tdd: {type: boolean}
+        out_of_scope:
+          type: array
+          items:
+            type: object
+            properties:
+              glob: {type: string}
+              why: {type: string}
+        mismatches: {type: array, items: {type: string}}
+        report: {type: array, items: {type: string}}

@@ -1,0 +1,10 @@
+# 単独の run（形 entry）: 見本の表を読み、表の形・設計書・見出し・審査の記録 5 つの確かめを通り、起動の殻が照らした結果を持たないので
+# 入口の確かめの 5 で止めを返して最後まで届く（落ちない。docs/design/spec-driven.md の 2.6 の 2 の「block の単独の run」）。
+# script は本当に走る（表を読む intake は PyYAML を uv の宣言で入れる）
+fixture:
+  expect: completed
+  reached: [pick, intake, finish]
+  inputs:
+    mode: entry
+    table: .archon/workflows/works-factory/spec-driven/fixtures/table.yaml
+exec-code: true

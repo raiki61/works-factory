@@ -1,6 +1,7 @@
-"""人に回しうる行と外れの事実（docs/design/plan-review.md の 10 節）。今の lib/gatemarks.py の行の照らし（_gate_rows・_mark・
-axis_reasons・_cite_check・_design_rows・_world_rows・_world_answers・_answered_rows・world_items、lib/gatemarks.py:483-711）と、
-今の lib/boardview.py の replan_asks の事実の部分（_faces_of・replan_asks、lib/boardview.py:1118-1154）の写し。
+"""人に回しうる行と外れの事実（docs/design/plan-review.md の 10 節）。#765 で lib/gatemarks.py の盤面を読む行の照らし（_gate_rows・
+_mark・axis_reasons・_cite_check・_design_rows・_world_rows・_world_answers・_answered_rows・world_items）と、lib/boardview.py の
+replan_asks の事実の部分（_faces_of・replan_asks）を写した物。このうち narrows の行の組み立て（元の _gate_rows の前半と _mark）と
+軸の訳の決まり（元の axis_reasons）は、#802 で lib/gatemarks.py の narrow_asks・ask_row・axis_why に戻した（下の段落）。
 
 承認ノードを開くか・聞き直すか（今の gatemarks._continued）・無人の推しで通すか・軸ごとにまとめるか（今の gate_axes.gather）・
 形 replan の行を聞くか（ask）は line が決める。この block は行の事実と、4 つの軸ごとの揃わない訳だけを返す。
