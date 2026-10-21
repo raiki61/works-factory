@@ -12,7 +12,7 @@
 - 源と bun: 試験が Archon を起こすのに要る、止めた版の Archon のソース（`bin/_lib/place.archon_source` が取る）と JavaScript の実行環境 bun。無い手元では、その試験を名前つきで見送る（`tests/AGENTS.md`）。
 - keep-essence: 元の works が守る 12 の仕組み（README の 10 節）。9 は「独立設計と R1〜R4」で、R1〜R4 は修正の後に別の目が見る 4 つの確かめ（R1 最小性・R2 独立設計との比べ・R3 全体の整合・R4 見えていない範囲）。12 は「世界の解に照らす」。
 - 1 つ目の commit・2 つ目の commit: この block の PR の中の 2 つの commit（README の 11.4）。1 つ目は指示の md を日本語のまま置いて今の指示と同じ字かを試験で照らし、2 つ目で英語にする。2.3 の md の本文は 2 つ目の物。
-- 実測役（premises）: 依頼の主張を作業ツリーでコマンドを走らせて測り、制約の行 `{text, measured_how, kind, measured_output?}` を返す AI の役。道具は Read・Grep・Glob・Bash・WebSearch・WebFetch。Bash は sandbox の中。
+- 実測役（premises）: 依頼の主張を作業ツリーでコマンドを走らせて測り、制約の行 `{text, measured_how, kind, measured_output?, contradicts?}` を返す AI の役。任意の `contradicts` は、その行が食い違う依頼の行の `where`（字のまま。受け付けが依頼の行に在るかを照らす。仕様駆動の道の入口の確かめが指摘として数える。[spec-driven.md](spec-driven.md) の 2.5 の詰まった所の 4）。道具は Read・Grep・Glob・Bash・WebSearch・WebFetch。Bash は sandbox の中。
 - 制約の行の `kind`: `実測`（コマンドと出力を示せる）か `仮説`（示せない）の 2 語。
 - 依頼の実測: 依頼の行の `measured` の欄（依頼者が「測った」と書いた値）。この行の `where` を字のまま `text` に含む制約が要る。
 - 運ばれた実測: 前の run の報告が次の依頼に書いた制約の行（`lib/carry.py` の `carried_constraints`。今の `judge/carried-constraints.json`）。受け付けを通った返答に足して返す。

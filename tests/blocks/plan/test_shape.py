@@ -25,7 +25,7 @@ import rolekit  # noqa: E402
 BLOCK = base.BLOCK
 NO_DEADLINE = 1728000000
 PORTS = ["judgment", "units", "answer_ties", "materials", "answers", "takes_push", "verify", "excluded", "depth_record", "decisions",
-         "world_rows", "structure", "spec", "policy", "prior_failures", "prior", "ruling", "conflicts", "base", "review_rev", "diff_base", "lang"]
+         "world_rows", "structure", "spec", "policy", "prior_failures", "prior", "ruling", "conflicts", "base", "review_rev", "diff_base", "routes", "lang"]
 RETURNED = ["ok", "status", "reason", "mode", "round", "owed", "plan", "fix_plan", "reply", "handoff", "replan", "ripple", "rejects",
             "gave_up", "report"]
 
@@ -39,7 +39,7 @@ class ShapeCase(unittest.TestCase):
     def test_name_inputs_and_return(self):
         self.assertEqual(self.doc["name"], "works-factory-plan")
         self.assertEqual(sorted(self.doc["inputs"]), sorted(PORTS))
-        self.assertEqual(len(PORTS), 22)
+        self.assertEqual(len(PORTS), 23)
         self.assertEqual((self.doc["returns"], self.doc["outcome_field"]), ("finish", "ok"))
 
     def test_return_node_carries_exactly_the_contract(self):

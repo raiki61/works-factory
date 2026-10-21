@@ -12,8 +12,9 @@
   同じ。比べるのは組んだ鍵だけ（ほかに名指した入力〔web・lang など〕と、部品に後で足した入力の既定は比べない）。値が JSON なら
   JSON の値で比べる。計画の審査は方針の文を proposal_file で受けた記録で、そのファイルの名（spec-inputs.py が中身の sha256 で付ける）
   が今の設計書と表から組んだ方針の文の sha256 を持つ（ファイルが残っていれば中身も照らす）
-- e. 計画の審査と世界の解は、返す値から数えられる指摘（計画の審査の holes の先の faces[].key の全部・世界の解の rows の先の行で
-  versus.verdict が differs の class_id）が、どれもその行の findings の key に在る
+- e. 返す値から数えられる指摘が、どれもその行の findings の key に在る。計画の審査は holes の先の faces[].key の全部、世界の解は
+  rows の先の行で versus.verdict が differs の class_id、前提の実測は constraints の先の行で contradicts の在る行（key は
+  premises-<行の番号>）、前の決めの確かめは material の先の reply.conflicts の行（key は prior-<行の番号>）。独立設計は指摘の形を持たない
 
 結果は家の spec-reviews/<中身の hash>.json に書き、パスを run の設定の層の env（RESULT_ENV）で run に渡す（resume しても同じ値）。
 block の形 entry は、そのファイルが今の表と設計書の物で、全部の行が合っていることだけを照らす。
@@ -35,6 +36,7 @@ TABLE_INPUT = {LINE: "spec_table", BLOCK: "table"}
 RESULT_ENV = "WORKS_FACTORY_SPEC_REVIEWS"   # workflows/spec-driven/src/files.py の REVIEWS_ENV と同じ名
 READER = Path(__file__).with_name("spec-inputs.py")
 PLAN_REVIEW, WORLD = "works-factory-plan-review", "works-factory-world"
+PREMISES, PRIOR_DECISIONS = "works-factory-premises", "works-factory-prior-decisions"
 
 
 def named_table(workflow: str | None, inputs: list[str]) -> str | None:
@@ -111,6 +113,18 @@ def _keys(record: dict, part: str, value: dict) -> tuple[set, str]:
                 return set(), ""
             doc = json.loads(path.read_text(encoding="utf-8"))
             return {str(f.get("key")) for f in doc.get("faces") or [] if isinstance(f, dict)}, ""
+        if part == PREMISES:   # 前提の実測の行のうち contradicts（食い違う依頼の行の where）の在る行。key は premises-<行の番号>
+            path = _pointed(record, value.get("constraints"))
+            if path is None:
+                return set(), ""
+            rows = json.loads(path.read_text(encoding="utf-8")).get("constraints") or []
+            return {f"premises-{n}" for n, r in enumerate(rows, 1) if isinstance(r, dict) and r.get("contradicts")}, ""
+        if part == PRIOR_DECISIONS:   # 前の決めの確かめの conflicts の行。key は prior-<行の番号>
+            path = _pointed(record, value.get("material"))
+            if path is None:
+                return set(), ""
+            rows = (json.loads(path.read_text(encoding="utf-8")).get("reply") or {}).get("conflicts") or []
+            return {f"prior-{n}" for n, r in enumerate(rows, 1) if isinstance(r, dict)}, ""
         if part == WORLD:
             path = _pointed(record, value.get("rows"))
             if path is None:

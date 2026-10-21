@@ -53,6 +53,7 @@ PRESCRIPTION_HEAD = "## Prescriptions of the judgment"
 EXCLUDED = "Range of parallel pull requests. Do not touch it, and do not put it in a unit: "
 SPEC_HEAD = "## Spec (requirements and acceptance tests."
 UNREAD_HEAD = "## Inputs that could not be read"
+ROUTES_SPEC_HEAD = "## Route of each item (decided by the spec)"
 LANG_LINE = "Write the fields that people read ("
 LAST_LINE = "Return only JSON that matches the output schema."
 
@@ -718,6 +719,23 @@ class BriefCase(unittest.TestCase):
         prompt = self.prompt(run)
         self.assertIn(SPEC_HEAD, prompt)
         self.assertIn("test_stats.py::TestStats::test_mean_of_empty", prompt.split(SPEC_HEAD, 1)[1])
+
+    def test_routes_spec_puts_the_route_paragraph(self):
+        """入力 routes（docs/design/spec-driven.md の 7 章の 2）: spec の時だけ、固めた仕様の「TDD で直す所」が名指す行だけを tdd にする
+        段落が出る。既定の auto は今の指示のまま"""
+        run = PlanRun(self)
+        run.include()
+        self.assertNotIn(ROUTES_SPEC_HEAD, self.prompt(run))
+        run = PlanRun(self)
+        run.include(routes="spec")
+        self.assertIn(ROUTES_SPEC_HEAD, self.prompt(run))
+
+    def test_unknown_routes_word_is_an_unread_input(self):
+        run = PlanRun(self)
+        run.include(routes="tdd")
+        prompt = self.prompt(run)
+        self.assertNotIn(ROUTES_SPEC_HEAD, prompt)
+        self.assertIn("routes:", prompt.split(UNREAD_HEAD, 1)[1])
 
     def test_units_ripple_reaches_the_prompt(self):
         """元 tests/test_blk_plan.py の test_units_ripple_reaches_plan_prompt"""

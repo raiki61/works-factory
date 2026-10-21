@@ -190,6 +190,7 @@ def _judge_prep(place: pathlib.Path, repo, raw: dict) -> tuple:
     port_answers = _port("answers", lambda: ports.json(raw.get("answers"), "answer-rows.schema.json"))
     port_prior = _port("prior_failures", lambda: ports.json(raw.get("prior_failures"), "shared:prior-failures.schema.json"))
     policy_path = _port("policy", lambda: ports.file(raw.get("policy")))
+    request_files = _port("request_files", lambda: ports.json(raw.get("request_files") or "[]", "request-files.schema.json"))
     answers = port_answers or request[carry.ANSWERS]
     spec_rows = _port("spec_rows", lambda: _spec_rows(spec_path, spec_origin))
     world = _port("world_rows", lambda: worldmark.rows(world_path) if world_path else None)
@@ -221,6 +222,7 @@ def _judge_prep(place: pathlib.Path, repo, raw: dict) -> tuple:
         "lang": ports.text(raw.get("lang")).strip(), "row_asks": row_asks, "depth_why": ports.text(raw.get("depth_why")),
         "prior_rows": [r for r in prior if not carry.is_redesign(r)], "redesign": [r for r in prior if carry.is_redesign(r)],
         "recorded": policy.recorded(start, decisions), "material_rows": material_rows(by_role, batches),
+        "request_files": request_files,
     }
     gave = [str(doc.get("reason") or "") for _, doc in docs if doc.get("status") == "gave_up"]
     return values, "／".join(gave)
@@ -348,8 +350,9 @@ def diagnose_values(place) -> tuple:
         "recorded_rows": recorded, "kind_none": headdepth.NONE, "kind_cause": headdepth.CAUSE, "kind_shape": headdepth.SHAPE,
         "kind_scope": headdepth.SCOPE, "unknown_rows": "\n".join(unknown),
         "unknown_why": v["depth_why"].strip() or headdepth.NO_RECORD, "lang": prompt.lang(v["lang"]),
+        "request_files": ", ".join(f"`{f}`" for f in v.get("request_files") or []),
     }
-    when = {"rejected": bool(rejected), "spawns": False, "purpose": bool(purpose_text), "repo_review": bool(repo_review_md),
+    when = {"rejected": bool(rejected), "request_files": bool(v.get("request_files")), "spawns": False, "purpose": bool(purpose_text), "repo_review": bool(repo_review_md),
             "pr_text": bool(v["pr_text"].strip()), "policy": bool(v["policy"]), "prior_notes": bool(v["prior_rows"]),
             "prior_redesign": bool(v["redesign"]), "recorded_none": not any(r.get("name") for r in v["recorded"]),
             "unknown_rows": bool(unknown), "unknown_none": not unknown}
@@ -438,7 +441,7 @@ def accept_diagnose(place, raw: str, repo) -> dict:
     place = pathlib.Path(place)
     doc, v = _need(place, files.INPUT_FILE), _need(place, files.INTAKE_FILE)["values"]
     got = judge.accept_reply(place, raw, repo, doc["world_rows"] or [], doc["answers"], v["redesign"], v["recorded"],
-                             doc["materials"], v["material_rows"])
+                             doc["materials"], v["material_rows"], v.get("request_files") or [])
     return {"ok": bool(got["ok"]), "done": bool(got["done"]), "reason": str(got["reason"])}
 
 

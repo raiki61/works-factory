@@ -73,7 +73,7 @@ def main() -> dict:
         ports.drop_runner_env(values["user_env_dir"])   # 対象のテストに Archon の変数を継がせない（place・repo・reuse は先に取った）
         out = tdd.start(place, repo, suite, json.dumps(keys, ensure_ascii=False),
                         test_cmd=str(values["test_cmd"] or ""), unit_depths=depths, owed=set(keys), reuse=reuse,
-                        narrow=related.applies(repo, str(values["test_cmd"] or "")))
+                        narrow=related.applies(repo, str(values["test_cmd"] or "")), routes=str(values["routes"] or "auto"))
     board.write_json(place / board.TDD_START_FILE, out)
     return {"tdd": bool(out["go"]), "units": len(keys), "reason": str(out.get("reason") or "")}
 

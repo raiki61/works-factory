@@ -225,9 +225,26 @@ def _awaiting_origins(questions, materials, where):
     return errs
 
 
-def judge_output(out, place, root, rev, materials):
+def _norm(path) -> str:
+    """対象の根からの相対のパスの字の形（頭の ./ と終わりの / を外す）"""
+    text = str(path or "").strip()
+    while text.startswith("./"):
+        text = text[2:]
+    return text.rstrip("/")
+
+
+def _only_request_files(paths, request_files) -> bool:
+    """探し方の paths が 1 つ以上在り、どれも依頼そのものを書いたファイルか（正規化した字の一致。ディレクトリ・glob・空の paths は
+    当たらないとして拒まない）"""
+    wanted = {_norm(p) for p in request_files or ()}
+    got = [_norm(p) for p in paths or []]
+    return bool(wanted) and bool(got) and all(p in wanted for p in got)
+
+
+def judge_output(out, place, root, rev, materials, request_files=()):
     """判定の返答を、検証器の語彙で先に見る。落ちるなら判定役に返させ直す（Reject）。あわせて 1 行の欄を 1 行に正規化し、class_query の
-    件数を機械が数えた値に置き換える（out を書き換える）。返りは置き換えの注記（無ければ ""）"""
+    件数を機械が数えた値に置き換える（out を書き換える）。返りは置き換えの注記（無ければ ""）。request_files（依頼そのものを書いたファイルの
+    パス。空は照らさない）が在れば、探し方の paths がどれもその中の単位を拒む（docs/design/spec-driven.md の 9 章）"""
     errs = []
     # 役の自由文から改行を落とす（key / reason の中の改行が台帳の字下げの行頭を作らない）
     for row in list(out.get("units", [])) + list(out.get("questions", [])):
@@ -253,6 +270,10 @@ def judge_output(out, place, root, rev, materials):
             if not cq.get("how") or not isinstance(cq.get("total"), int) or isinstance(cq.get("total"), bool):
                 errs.append(f"units[{i}]（今の周に直す単位）に class_query（how＝同じ形を全部引ける機械の問い・total＝その件数）が無い"
                             "——1 site しか無いなら total: 1 でそう示せ")
+            elif _only_request_files(cq["how"].get("paths"), request_files):
+                errs.append(f"units[{i}].class_query.how.paths がどれも依頼そのものを書いたファイル（{'・'.join(sorted(request_files))}）を指す"
+                            "——数えるのは直す所で、依頼の文ではない。直す所を数える問いにするか、前の形が無い足すだけの単位なら"
+                            " examples_unavailable にその訳を書け")
             else:
                 # 判定役が読んだのと同じ版（この周に固定した版）で数える。修正役の after は作業ツリーで数える
                 got, why = _run_query(place, f"units[{i}].class_query", cq["how"], root, rev=rev)
@@ -333,7 +354,7 @@ def world_ref_problems(reply, rows) -> list:
     return [p for s in sources for p in cite.ref_problem(s, worldmark.SOURCE_PREFIX, known)]
 
 
-def _judged(reply, place, repo, world_rows, materials):
+def _judged(reply, place, repo, world_rows, materials, request_files=()):
     """作業ツリーと HEAD → class_query の例 → 先例の出どころ → judge_output → awaiting の出どころ。返り (正規化した返答, 例, 注記)。
     拒否は Reject"""
     repo_p = pathlib.Path(repo)
@@ -348,7 +369,7 @@ def _judged(reply, place, repo, world_rows, materials):
         if errs:
             raise Reject("precedents の出どころが世界の解の行に無い: " + "; ".join(errs))
         out, examples = querytest.split(reply, is_open)   # 例を外した写し（返答の元は触らない）
-        note = judge_output(out, place, repo_root(_git) or "", rev, materials)
+        note = judge_output(out, place, repo_root(_git) or "", rev, materials, request_files)
         errs = _awaiting_origins(out["questions"], materials, "questions")
         if errs:
             raise Reject("判定の問いの台帳が素材の状態と合わない: " + "; ".join(errs))
@@ -432,7 +453,7 @@ def recorded_question_problems(out, rows) -> list:
 
 
 # ---------------------------------------------------------------- 受け付け
-def take(place, reply, repo, world_rows, answers, redesign, recorded, materials, material_rows) -> dict:
+def take(place, reply, repo, world_rows, answers, redesign, recorded, materials, material_rows, request_files=()) -> dict:
     """判定役の返答の受け付け（順は docs/design/diagnose.md の 2.8）。返り {ok, reason, open_units, judgment_file}。拒否の時は
     judgment.json を書かない"""
     def run():
@@ -440,7 +461,7 @@ def take(place, reply, repo, world_rows, answers, redesign, recorded, materials,
             raise Reject(f"判定の返答が JSON のオブジェクトでない（{type(reply).__name__}）")
         body, outside = outpurpose.split(reply)
         body, tie_rows = gatemarks.split_answer_ties(body)
-        out, examples, note = _judged(body, place, repo, world_rows, materials)
+        out, examples, note = _judged(body, place, repo, world_rows, materials, request_files)
         errs = outpurpose.problems(outside, material_rows)
         if errs:
             raise Reject(f"{outpurpose.FIELD} の行が材料の行と合わない: " + "; ".join(errs))
@@ -460,11 +481,11 @@ def take(place, reply, repo, world_rows, answers, redesign, recorded, materials,
     return accept.guard(run, open_units=[], judgment_file="")
 
 
-def accept_reply(place, raw: str, repo, world_rows, answers, redesign, recorded, materials, material_rows) -> dict:
+def accept_reply(place, raw: str, repo, world_rows, answers, redesign, recorded, materials, material_rows, request_files=()) -> dict:
     """判定役の返答の受け付けの輪の 1 回（rolekit.accept_round）。3 回目の拒否で done。諦めても止めの控えは書かない（出口が理由を返す）。
     返り {ok, done, reason, open_units, judgment_file}"""
     return rolekit.accept_round(place, files.DIAGNOSE_ROLE, raw, lambda reply: take(
-        place, reply, repo, world_rows, answers, redesign, recorded, materials, material_rows))
+        place, reply, repo, world_rows, answers, redesign, recorded, materials, material_rows, request_files))
 
 
 # ---------------------------------------------------------------- 単位の目録

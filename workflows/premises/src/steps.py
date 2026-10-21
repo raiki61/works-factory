@@ -126,6 +126,15 @@ def measured_needs_output(reply) -> None:
         raise Reject(f"p0.premises: kind={MEASURED} なのに measured_output（実行したコマンドと出力）が無い制約がある: {bad}")
 
 
+def contradicts_unknown(reply, findings: list) -> None:
+    """任意の欄 contradicts（行が食い違う依頼の行の where）は、依頼の行の where のどれかと字のまま同じ。違えば Reject"""
+    wheres = {f.get("where") for f in findings if isinstance(f, dict)}
+    bad = [c["contradicts"] for c in reply.get("constraints") or []
+           if isinstance(c, dict) and "contradicts" in c and c["contradicts"] not in wheres]
+    if bad:
+        raise Reject(f"contradicts が依頼の行の where に無い（依頼の行の where を字のまま書く）: {bad}")
+
+
 def with_carried(reply: dict, carried: list) -> dict:
     """返答の制約に、運ばれた実測（前の run の前提の検算の実測）を足した物。返答に同じ text の行が在れば足さない（2 度足さない）"""
     have = {c.get("text") for c in reply.get("constraints") or [] if isinstance(c, dict)}
@@ -141,7 +150,8 @@ def _tree_unchanged(out, repo) -> None:
 
 
 def check(reply, out, repo, findings: list, carried: list) -> dict:
-    """実測役の返答を受け付ける。依頼の実測を測り直したか → 作業ツリーが変わっていないか → 実測の行が出力を持つか。通れば
+    """実測役の返答を受け付ける。依頼の実測を測り直したか → 作業ツリーが変わっていないか → 実測の行が出力を持つか →
+    contradicts が依頼の行を名指すか。通れば
     premises.json に運ばれた実測を足した返答を書く。返り {ok, reason}"""
     def run():
         missing = check_claims(reply, findings)
@@ -151,6 +161,7 @@ def check(reply, out, repo, findings: list, carried: list) -> dict:
         with accept.in_repo(repo_p):
             _tree_unchanged(out, repo_p)
         measured_needs_output(reply)
+        contradicts_unknown(reply, findings)
         jsonfile.write(pathlib.Path(out) / PREMISES_FILE, with_carried(reply, carried))
         return {"ok": True, "reason": ""}
     return accept.guard(run)

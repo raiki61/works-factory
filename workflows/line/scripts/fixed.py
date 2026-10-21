@@ -5,7 +5,7 @@
 """2 つの修正の段（fix と refix-run）と、段ごとの差分の審査（lens・delta-review）を合わせて後の段へ渡す node fixed
 （docs/design/line.md の 4.3。決まりは src/stages.py の fixed）。
 
-入力（with:）: fix_in（fix-in の出力まるごと）と、受け皿の got（fix・lens・delta・replan・refix・lens_2・delta_2）・after_fix・raise の出力。
+入力（with:）: from_spec（start の from_spec。仕様駆動の run は異議を止めにする）・fix_in（fix-in の出力まるごと）と、受け皿の got（fix・lens・delta・replan・refix・lens_2・delta_2）・after_fix・raise の出力。
 走らなかった物は `{from, if_skipped: null}` で null。受け皿の got と出力は要る欄を全部名指して読む（欄の欠けた前の版の返りを resume で
 受けたら空と読まずに止める。integration.md 4.3-12）。例外の時は止めの語 works:line-script を返し、試験の関門から先へ進めない
 """
@@ -48,6 +48,7 @@ def compute():
         "refix": picked(os.environ.get("INPUTS_REFIX"), FIX),
         "lens_2": picked(os.environ.get("INPUTS_LENS_2"), LENS),
         "delta_2": picked(os.environ.get("INPUTS_DELTA_2"), DELTA),
+        "from_spec": ports.text(os.environ.get("INPUTS_FROM_SPEC")).strip() == "true",
     }
     return stages.fixed(values)
 

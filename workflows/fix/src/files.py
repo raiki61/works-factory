@@ -9,6 +9,7 @@ from __future__ import annotations
 import pathlib
 
 MODES = ("whole", "group")   # port mode の語（docs/design/fix.md の 13.1 の 1）
+ROUTES = ("auto", "plan")    # port routes の語（auto は TDD の役が振り分ける。plan は承認済みの案の route をそのまま使う。docs/design/spec-driven.md の 7 章）
 
 # 入口（intake が書く）
 INTAKE = "intake.json"   # port を読んだ値

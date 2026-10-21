@@ -148,6 +148,12 @@ The notes file {verify_file} cannot be read (read the units as the judgment has 
 {spec}
 <!-- end spec -->
 
+<!-- if routes_spec -->
+## Route of each item (decided by the spec)
+
+The person who wrote the spec decided which places are fixed test-first: they are named in the spec's section "TDD で直す所" (places to fix with TDD). Give `route: tdd` only to an item that fixes a place named there, and `route: direct` to every other item, with a `route_why` that says the spec does not name it as a place to fix test-first. If the spec has no such section, every item is `direct`. Do not choose the route by your own judgment beyond this; the fix step follows these routes as they are.
+<!-- end routes_spec -->
+
 <!-- if prior -->
 ## The previous round's plan and the review's findings (pasted by the machine)
 

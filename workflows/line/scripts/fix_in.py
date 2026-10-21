@@ -18,7 +18,8 @@
 返りの reason に載せる（collect が報告の problems に出す）。落ちない時の reason は空。
 
 入力（with:）: fixture（start の fixture）・start_go・ports・test_gate_base・judge・tiers・structure・design・rounds・before_fix_go・
-before_fix_answer・before_fix_policy・deferred・passes・recorded（どれも飛ばされうるので {from, if_skipped: null}）
+before_fix_answer・before_fix_policy・deferred・passes・recorded（どれも飛ばされうるので {from, if_skipped: null}）と、仕様駆動の run だけが
+渡す spec（spec-rounds の返り）・spec_before_fix_go・spec_before_fix_answer・spec_before_fix_policy・spec_deferred・spec_passes（spec_raw）
 """
 import json
 import os
@@ -118,8 +119,28 @@ def flat(received: dict, dealt: dict, record) -> dict:
     return out
 
 
+SPEC_GATE = {"before_fix_go": "spec_before_fix_go", "before_fix_answer": "spec_before_fix_answer",
+             "before_fix_policy": "spec_before_fix_policy", "deferred": "spec_deferred", "passes": "spec_passes"}
+
+
+def spec_raw(raw: dict) -> dict:
+    """仕様駆動の run（入力 spec が在る）の運ぶ値の元: 判定の部と往復の部は spec-rounds の返り {judge, rounds}（今の judge-out と
+    plan-rounds-out の受け皿の got と同じ形）、修正前の承認の答えは spec- の付いた入力から取る。段の表・構造の目・独立設計・記録された
+    方針は仕様駆動の run では回らないので null（docs/design/spec-driven.md の 6.2 の変える node の 4・6.8 の 1）。ほかの run は raw のまま"""
+    spec = ports.parsed(raw.get("spec"))
+    if spec is None:
+        return raw
+    if not isinstance(spec, dict):
+        raise ValueError(f"spec（spec-rounds の返す値）が object でない（{type(spec).__name__}）")
+    out = {**raw, "judge": json.dumps(spec.get("judge"), ensure_ascii=False), "rounds": json.dumps(spec.get("rounds"), ensure_ascii=False),
+           "tiers": "null", "structure": "null", "design": "null", "recorded": "null"}
+    out.update({name: raw.get(spec_name) for name, spec_name in SPEC_GATE.items()})
+    return out
+
+
 def fix_in(raw: dict, place: Path, repo: Path, run_id: str) -> dict:
     from src import fixture
+    raw = spec_raw(raw)
     dealt = ports.parsed(raw["ports"]) or {}
     record = ports.json(raw["record"]) if ports.parsed(raw.get("record")) is not None else None
     carried = ports.file(raw["fixture"]) if ports.parsed(raw["fixture"]) is not None else None
@@ -142,7 +163,11 @@ def compute() -> dict:
            "rounds": os.environ.get("INPUTS_ROUNDS"), "before_fix_go": os.environ.get("INPUTS_BEFORE_FIX_GO"),
            "before_fix_answer": os.environ.get("INPUTS_BEFORE_FIX_ANSWER"), "before_fix_policy": os.environ.get("INPUTS_BEFORE_FIX_POLICY"),
            "deferred": os.environ.get("INPUTS_DEFERRED"), "passes": os.environ.get("INPUTS_PASSES"),
-           "recorded": os.environ.get("INPUTS_RECORDED"), "record": os.environ.get("INPUTS_RECORD")}
+           "recorded": os.environ.get("INPUTS_RECORDED"), "record": os.environ.get("INPUTS_RECORD"),
+           "spec": os.environ.get("INPUTS_SPEC"), "spec_before_fix_go": os.environ.get("INPUTS_SPEC_BEFORE_FIX_GO"),
+           "spec_before_fix_answer": os.environ.get("INPUTS_SPEC_BEFORE_FIX_ANSWER"),
+           "spec_before_fix_policy": os.environ.get("INPUTS_SPEC_BEFORE_FIX_POLICY"),
+           "spec_deferred": os.environ.get("INPUTS_SPEC_DEFERRED"), "spec_passes": os.environ.get("INPUTS_SPEC_PASSES")}
     return fix_in(raw, ports.place(), Path.cwd(), os.environ.get("WORKFLOW_ID", ""))
 
 

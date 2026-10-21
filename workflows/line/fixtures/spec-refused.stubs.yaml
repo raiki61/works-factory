@@ -1,0 +1,47 @@
+# 仕様駆動の道の入口の確かめで止まる筋書き（docs/design/spec-driven.md の 6.5 の 7）。spec-entry の script は本当に走り、起動の殻が
+# 審査の記録を照らした結果を持たない（殻を通さない筋書き）ので入口の確かめの 5 で止めを返す。試験の段も判定の役も計画の部品も
+# 走らない（AI を起こさない）
+fixture:
+  expect: completed
+  inputs:
+    spec_table: .archon/workflows/works-factory/spec-driven/fixtures/table.yaml
+  reached:
+  - start
+  - gate-start
+  - answer-start
+  - spec-entry__intake
+  - spec-entry__finish
+  - collect
+  - report__finish
+  - sweep-children
+  - result
+exec-code: true
+gate-start:
+  decision: approve
+  text: ''
+report__facts:
+  outcome: stopped_by_line
+  ok: false
+  stop_reason: spec-entry:works:spec-entry
+  machine: null
+  next_request: null
+  prior_failures: null
+  ai_go: false
+  stamp: ''
+report__finish:
+  ok: false
+  outcome: stopped_by_line
+  stop_reason: spec-entry:works:spec-entry
+  machine:
+    type: archon_artifact
+    run_id: dry-run
+    path: report/report.machine.json
+  human:
+    type: archon_artifact
+    run_id: dry-run
+    path: report/report.md
+  detail: null
+  next_request: null
+  prior_failures: null
+  report:
+  - '- 報告'

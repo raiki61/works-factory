@@ -27,7 +27,7 @@ LINE = kit.BLOCKS / "line"
 SEED = ROOT / "tests" / "e2e" / "target-seed"
 RUN = kit.RUN_ID
 INPUTS = ("request", "base", "pr", "spec", "test_cmd", "tdd_suite", "final_gate", "unattended", "design_only", "thickness",
-          "features_off", "features_on", "policy_md", "fix_fixture", "lang", "deliver")
+          "features_off", "features_on", "policy_md", "fix_fixture", "lang", "deliver", "spec_table")
 
 
 def script(name: str):
@@ -115,6 +115,46 @@ class Seeded(Artifacts):
             return reads
         with mock.patch.object(ghreads, "read_named", read_named):
             return self.start(**kw), calls
+
+
+class SpecTableCase(Seeded):
+    """入力 spec_table（仕様駆動の道の表。docs/design/spec-driven.md の 6.2 の変える node の 1 と 6.5 の 4）。start は表のファイルが在る
+    ことと組めない入力だけを照らし、表の中身は読まない（PyYAML を持たない）"""
+
+    def put_table(self) -> pathlib.Path:
+        return self.outside("spec.yaml", "design: docs/d.md\n")
+
+    def test_request_run_is_not_a_spec_run(self):
+        """表を名指さない run: from_spec は偽、ports の spec_table は空、routes は修正の部品の既定と同じ auto"""
+        got = self.start(request="request_ok.json")
+        self.assertTrue(got["ok"], got)
+        self.assertIs(got["from_spec"], False)
+        self.assertEqual((got["ports"]["spec_table"], got["ports"]["routes"]), ("", "auto"))
+        self.assertNotIn("spec_table", self.record(got))
+
+    def test_spec_table_alone_is_an_entry(self):
+        """表だけの run は依頼の行も差分も要らない。from_spec は真、ports の spec_table は表の絶対パス、routes は plan"""
+        table = self.put_table()
+        got = self.start(spec_table=str(table))
+        self.assertTrue(got["ok"], got)
+        self.assertIs(got["from_spec"], True)
+        self.assertEqual((got["ports"]["spec_table"], got["ports"]["routes"]), (str(table.resolve()), "plan"))
+        self.assertEqual(self.record(got)["spec_table"], str(table.resolve()))
+        self.assertIn(f"仕様駆動の道: 表 {table.resolve()}", got["gate_text"])
+
+    def test_missing_table_and_clashing_inputs_are_refused(self):
+        self.assertIn("spec_table", self.refused(spec_table="nope.yaml"))
+        table = str(self.put_table())
+        for kw in ({"request": "request_ok.json"}, {"base": "base"}, {"pr": "7"}, {"spec": "on"}):
+            with self.subTest(kw):
+                self.assertIn("spec_table", self.refused(spec_table=table, **kw))
+        fixture_dir = self.tmp / "fixture"
+        fixture_dir.mkdir()
+        self.assertIn("spec_table", self.refused(spec_table=table, fix_fixture=str(fixture_dir)))
+
+    def test_refused_and_fallen_runs_are_not_spec_runs(self):
+        self.assertIs(self.start(spec_table="nope.yaml")["from_spec"], False)
+        self.assertIs(start.fallback("x")["from_spec"], False)
 
 
 class StartCase(Seeded):
@@ -635,7 +675,7 @@ class ScriptCase(unittest.TestCase):
         got = self.run.script("start", request="request_ok.json")
         self.assertTrue(got["ok"], got)
         self.assertEqual(set(got), {"ok", "stop_reason", "reason", "record", "prior_failures", "ask", "gate_text", "unattended",
-                                    "design_only", "final_gate", "from_fixture", "fixture", "ports"})
+                                    "design_only", "final_gate", "from_fixture", "fixture", "from_spec", "ports"})
         self.assertEqual(got["record"]["path"], "r1/start.json")
         self.assertTrue((self.run.artifacts / "r1" / "start.json").is_file())
 

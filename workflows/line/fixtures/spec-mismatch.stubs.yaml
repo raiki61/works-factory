@@ -1,0 +1,226 @@
+# 仕様駆動の道の形 check が仕様とリポジトリの食い違いを見て止まる筋書き（docs/design/spec-driven.md の 6.5 の 7）。spec-rounds・
+# 修正前の承認ノード・修正は走らず、報告へ進む
+fixture:
+  expect: completed
+  inputs:
+    spec_table: .archon/workflows/works-factory/spec-driven/fixtures/table.yaml
+  reached:
+  - spec-entry__finish
+  - test-gate-base__result
+  - spec-diagnose__finish
+  - spec-plan__finish
+  - spec-check__finish
+  - fix-in
+  - collect
+  - report__finish
+  - result
+exec-code: true
+gate-start:
+  decision: approve
+  text: ''
+test-gate-base__intake:
+  ok: true
+  reason: ''
+test-gate-base__run:
+  by: engine
+  material:
+    status: clean
+    checked: 'suite: exit 0'
+  runs:
+  - name: suite
+    exit: 0
+    how: direct
+  skipped_steps: []
+  same_as: null
+  log: test-gate-base/logs/checks.log
+  junit_steps: []
+  fingerprint_before:
+    head: hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh
+    diff_hash: dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd
+  fingerprint_after:
+    head: hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh
+    diff_hash: dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd
+test-gate-base__result:
+  mode: base
+  ok: true
+  green: true
+  red_cause: ''
+  ran_steps:
+    ran:
+    - suite
+    unran: []
+  baseline:
+    type: archon_artifact
+    run_id: dry-run
+    path: test-gate-base/baseline.json
+  fingerprint: null
+  test_outcomes: null
+  evidence:
+    type: archon_artifact
+    run_id: dry-run
+    path: test-gate-base/evidence.json
+  by: engine
+  suites_line: '走らせた: suite（exit 0・direct）／走らせなかった: 無い'
+  log: test-gate-base/logs/checks.log
+  baseline_line: ''
+  reason: ''
+  suite: ''
+  suite_note: ''
+  related:
+    applied: false
+    whole: false
+    files: []
+    left: []
+    far: []
+    reasons: []
+    ran: none
+  report:
+  - '試験の関門（base）: 緑'
+report__facts:
+  outcome: stopped_by_line
+  ok: false
+  stop_reason: spec-check:works:spec-mismatch
+  machine: null
+  next_request: null
+  prior_failures: null
+  ai_go: false
+  stamp: ''
+report__finish:
+  ok: false
+  outcome: stopped_by_line
+  stop_reason: spec-check:works:spec-mismatch
+  machine:
+    type: archon_artifact
+    run_id: dry-run
+    path: report/report.machine.json
+  human:
+    type: archon_artifact
+    run_id: dry-run
+    path: report/report.md
+  detail: null
+  next_request: null
+  prior_failures: null
+  report:
+  - '- 報告'
+spec-entry__pick:
+  entry: true
+  check: false
+  reason: ''
+spec-entry__intake:
+  done: true
+  reason: ''
+spec-entry__finish:
+  ok: true
+  stop_reason: ''
+  reason: ''
+  request:
+    type: archon_artifact
+    run_id: dry-run
+    path: spec-entry/request.json
+  origin: 人と固めた仕様（.archon/workflows/works-factory/spec-driven/fixtures/table.yaml）
+  purpose:
+    type: archon_artifact
+    run_id: dry-run
+    path: spec-entry/purpose.json
+  spec:
+    type: archon_artifact
+    run_id: dry-run
+    path: spec-entry/spec.md
+  spec_files:
+  - .archon/workflows/works-factory/spec-driven/fixtures/table.yaml
+  - .archon/workflows/works-factory/spec-driven/fixtures/design.md
+  tdd: false
+  out_of_scope:
+  - glob: docs/**
+    why: 文書は直さない
+  mismatches: []
+  report:
+  - '- 仕様駆動の道の入口: 表と設計書を確かめた（筋書きの stub）'
+spec-diagnose__intake:
+  due: false
+  mode: judge
+  reason: ''
+spec-diagnose__finish:
+  ok: true
+  status: ok
+  mode: judge
+  stop_reason: ''
+  reason: ''
+  ready: true
+  judgment:
+    type: archon_artifact
+    run_id: dry-run
+    path: spec-diagnose/judgment.json
+  units:
+  - id: u1
+    paths:
+    - stats.py
+    summary: 空の列の mean が 0 割りで落ちる
+  questions: []
+  inputs: null
+  brief: null
+  materials: null
+  out_of_purpose: null
+  answer_ties: null
+  rejudge_verdict: null
+  rejudge_exit: null
+  rejudge_diff: null
+  downgrades: []
+  report:
+  - '- 判定の役: 開いた単位 1（筋書きの stub）'
+spec-plan__intake:
+  go: false
+  mode: plan
+  round: 1
+  reason: ''
+spec-plan__ripple-items:
+  ok: true
+spec-plan__finish:
+  ok: true
+  status: ok
+  reason: ''
+  mode: plan
+  round: 1
+  owed:
+  - u1
+  plan:
+    type: archon_artifact
+    run_id: dry-run
+    path: plan/plan-fields.json
+  fix_plan:
+    type: archon_artifact
+    run_id: dry-run
+    path: plan/fix-plan.json
+  reply: null
+  handoff: null
+  replan: null
+  ripple:
+    type: archon_artifact
+    run_id: dry-run
+    path: plan/ripple.json
+  rejects: []
+  gave_up: null
+  report:
+  - '- 計画: 1 項目'
+spec-check__pick:
+  entry: false
+  check: true
+  reason: ''
+spec-check__check:
+  done: true
+  reason: ''
+spec-check__finish:
+  ok: false
+  stop_reason: works:spec-mismatch
+  reason: 表の触らない物 docs/** が、計画の行のどれの out_of_scope にも無い
+  request: null
+  origin: ''
+  purpose: null
+  spec: null
+  spec_files: []
+  tdd: false
+  out_of_scope: []
+  mismatches:
+  - 表の触らない物 docs/** が、計画の行のどれの out_of_scope にも無い
+  report:
+  - '- 止めた（works:spec-mismatch）: 仕様とリポジトリが食い違う'

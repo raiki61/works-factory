@@ -21,6 +21,7 @@ INCLUDED = ("head-depth", "spec", "parallel-pr", "premises", "purpose", "world",
 NOT_PASSED = {
     ("spec", "spec"): "check の時だけ読む（判定の道は write）",
     ("diagnose", "objection"): "再審の道の入力（再審は line が diagnose を直に include する）",
+    ("diagnose", "request_files"): "仕様駆動の道の入力（依頼そのものを書いたファイル。line の spec-diagnose が渡す。依頼の文の run は既定の空）",
     ("diagnose", "prior"): "再審の道の入力", ("diagnose", "prior_brief"): "再審の道の入力",
     ("diagnose", "prior_inputs"): "再審の道の入力", ("diagnose", "spec"): "再審の道の入力",
     ("diagnose", "verify"): "再審の道の入力", ("diagnose", "excluded"): "再審の道の入力",

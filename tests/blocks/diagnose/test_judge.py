@@ -253,6 +253,22 @@ class JudgeTakeCase(_Base):
         got = self.take(reply)
         self.assertIn("units[2] の defer に構造的理由が無い", got["reason"])
 
+    def test_query_that_counts_only_the_request_files_is_rejected(self):
+        """入力 request_files（依頼そのものを書いたファイル。docs/design/spec-driven.md の 9 章）: 探し方の paths がどれもその中の単位は
+        拒む（数えるのは直す所で、依頼の文ではない）。paths が 1 つでも外を指せば通す。空の配列（既定）は照らさない"""
+        reply = judge_ok()
+        self.assertIs(self.take(reply)["ok"], True)
+        got = self.take(reply, request_files=["stats.py"])
+        self.assertIs(got["ok"], False)
+        self.assertIn("units[0].class_query.how.paths がどれも依頼そのものを書いたファイル", got["reason"])
+        self.assertIs(self.take(reply, request_files=["./stats.py/"])["ok"], False, "正規化して比べる")
+        self.assertIs(self.take(reply, request_files=["docs/spec.yaml"])["ok"], True)
+        both = judge_ok()
+        for u in both["units"]:
+            if "class_query" in u:
+                u["class_query"]["how"]["paths"] = ["stats.py", "other.py"]
+        self.assertNotIn("依頼そのものを書いたファイル", self.take(both, request_files=["stats.py"])["reason"])
+
     def test_engine_recounts_the_class_query_total(self):
         reply = judge_ok()
         reply["units"][1]["class_query"]["total"] = 5

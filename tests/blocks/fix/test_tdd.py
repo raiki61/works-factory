@@ -841,6 +841,42 @@ class TestPlanContract(ContractCase):
         self.assertTrue(self.st()["units"][MEAN]["red_tree"])
 
 
+class TestRoutesPlan(LoopCase):
+    """入力 routes: plan（docs/design/spec-driven.md の 7 章の 1）: 振り分けの段の AI を起こさず、承認済みの案の route をそのまま使う。
+    単位を持つ行のどれかが tdd なら tdd、ほかは direct（訳は行の route_why）。tdd の単位が 0 なら輪を回さない。既定の auto は今のまま"""
+
+    def start_plan(self, contract, whys=None):
+        with mock.patch.object(tdd, "plan_contract", return_value=contract), \
+                mock.patch.object(tdd, "plan_route_whys", return_value=whys or {}):
+            return tdd.start(self.board, self.repo, str(self.suite), OPEN, routes="plan")
+
+    def test_plan_routes_skip_the_routing_turn(self):
+        got = self.start_plan({MEAN: {"items": [1], "route": "tdd", "tests": [], "rewrites": [], "refactor": []},
+                               CLAMP: {"items": [2], "route": "direct", "tests": [], "rewrites": [], "refactor": []}},
+                              {CLAMP: "文書だけの直しで先にテストを書けない"})
+        self.assertTrue(got["go"], got)
+        self.state = got["state_file"]
+        st = self.st()
+        self.assertEqual(st["phase"], "test", "振り分けの段を回さない")
+        self.assertEqual((st["queue"], st["units"][MEAN]["route"], st["units"][CLAMP]["route"]), ([MEAN], "tdd", "direct"))
+        self.assertEqual(st["units"][CLAMP]["why"], "文書だけの直しで先にテストを書けない")
+
+    def test_unit_without_a_plan_row_or_why_is_direct_with_a_reason(self):
+        got = self.start_plan({MEAN: {"items": [1], "route": "tdd", "tests": [], "rewrites": [], "refactor": []}})
+        self.state = got["state_file"]
+        why = self.st()["units"][CLAMP]["why"]
+        self.assertGreaterEqual(len(why), tdd.MIN_WHY)
+        self.assertIn("routes: plan", why)
+
+    def test_no_tdd_unit_does_not_start_the_loop(self):
+        got = self.start_plan({MEAN: {"items": [1], "route": "direct", "tests": [], "rewrites": [], "refactor": []}})
+        self.assertEqual((got["go"], got["reason"]), (False, tdd.PLAN_NO_TDD))
+
+    def test_unknown_routes_word_is_broken(self):
+        with self.assertRaises(tdd.Broken):
+            tdd.start(self.board, self.repo, str(self.suite), OPEN, routes="spec")
+
+
 class TestNoContract(LoopCase):
     def test_no_contract_same_as_before(self):
         """約束の無い run（LoopCase）は、名指しの名前を見ず、red_quotes も求めない。引用を照らす先の無い名指しは quote_unchecked に残る"""

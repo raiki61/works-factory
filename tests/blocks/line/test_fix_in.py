@@ -16,6 +16,8 @@ BLOCK = "line"
 U1 = "u1"
 # 仕様駆動の道の配線（docs/design/spec-driven.md の 6.2）を足す前の fix-in の返り（場面の名 → 返りの全部の欄）
 BEFORE_SPEC = pathlib.Path(__file__).with_name("fix_in_before_spec.json")
+# 仕様駆動の run だけが渡す入力（docs/design/spec-driven.md の 6.2 の変える node の 4。ほかの run では null）
+SPEC_INPUTS = ("spec", "spec_before_fix_go", "spec_before_fix_answer", "spec_before_fix_policy", "spec_deferred", "spec_passes")
 
 
 def line_node(node_id: str) -> dict:
@@ -55,7 +57,8 @@ class FixInCase(unittest.TestCase):
                 "structure": {"structure": self.ptr("structure/structure.json")},
                 "design": {"design": self.ptr("independent-design/design.json"), "reason": "", "premises": None, "stop_reason": ""},
                 "rounds": self.rounds(), "before_fix_go": True, "before_fix_answer": {"decision": "approve", "text": "", "asked": []},
-                "before_fix_policy": None, "deferred": [], "passes": ["通した行"], "recorded": [{"source": "answer", "name": "q", "text": "a"}]}
+                "before_fix_policy": None, "deferred": [], "passes": ["通した行"], "recorded": [{"source": "answer", "name": "q", "text": "a"}],
+                **dict.fromkeys(SPEC_INPUTS, "null")}
         base.update(kw)
         return {k: v if isinstance(v, str) else json.dumps(v, ensure_ascii=False) for k, v in base.items()}
 
@@ -144,6 +147,31 @@ class FixInCase(unittest.TestCase):
                 "no_fix_judge": {"judge": self.judge(ready=False), "rounds": "null", "before_fix_go": "null"},
                 "nothing_owed": {"rounds": self.rounds(ok=False, status="nothing_owed")},
                 "refrozen": {"before_fix_policy": "/p/refrozen.md"}}
+
+    def spec_rounds(self, **judge):
+        """spec-rounds の返り {judge, rounds}（判定の部は spec-driven.md の 6.8 の 1 の値）"""
+        j = {"ok": True, "stop_reason": "", "ready": True, "units": [{"id": U1, "paths": ["a.py"], "summary": "s"}],
+             "questions": [], "judgment": self.ptr("spec-diagnose/judgment.json"), "answer_ties": None, "out_of_purpose": None,
+             "materials": None, "brief": None, "inputs": None, "purpose": self.ptr("spec-entry/purpose.json"), "purpose_text": "P",
+             "means": [], "constraints": None, "world": None, "spec": None, "excluded": None, "decisions": None, "tier": "標準",
+             "tier_record": None, "verify": None, **judge}
+        return {"judge": j, "rounds": {**self.rounds(round=1, record=None, review=None, handoffs=[]), "done": True}}
+
+    def test_spec_run_reads_the_spec_rounds_and_the_spec_gate(self):
+        """仕様駆動の run（spec が在る）: 判定の部と往復の部は spec-rounds の返りから、修正前の承認の答えは spec- の付いた 4 つから取り、
+        段の表（tiers）は無いので判定の部の tier で引き直す（段の表に在る語なので「段の語が表に無い」の行は出ない）"""
+        skipped = dict.fromkeys(("judge", "tiers", "structure", "design", "rounds", "before_fix_go", "before_fix_answer",
+                                 "before_fix_policy", "deferred", "passes", "recorded"), "null")
+        got = self.fix_in(**skipped, spec=self.spec_rounds(), spec_before_fix_go=True,
+                          spec_before_fix_answer={"decision": "approve", "text": "", "asked": []}, spec_before_fix_policy=None,
+                          spec_deferred=[], spec_passes=["通した narrows"])
+        self.assertEqual((got["go"], got["no_fix"], got["stop_reason"]), (True, False, ""), got)
+        self.assertEqual((got["judgment"], got["purpose_text"], got["round"], got["review"]),
+                         (self.ptr("spec-diagnose/judgment.json"), "P", 1, None))
+        self.assertEqual((got["answer"]["decision"], got["passes"]), ("approve", ["通した narrows"]))
+        self.assertEqual(got["switches"]["tier"], "標準")
+        self.assertFalse(any("表に無い" in line for line in got["switches"]["lines"]), got["switches"]["lines"])
+        self.assertIs(self.fix_in(**skipped, spec=self.spec_rounds(), spec_before_fix_go="null")["go"], False)
 
     def test_returns_are_the_same_as_before_the_spec_driven_wiring(self):
         """依頼の文の run の返りは、仕様駆動の道の配線を足す前と全部の欄で同じ（docs/design/spec-driven.md の 6.5 の 3）。足す前の返りは
