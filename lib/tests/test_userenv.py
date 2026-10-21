@@ -71,5 +71,12 @@ class RecordCase(unittest.TestCase):
         self.assertTrue(userenv.ran(self.top))
 
 
+class NoteCase(unittest.TestCase):
+    def test_note_says_whose_environment_and_that_no_action_is_needed(self):
+        """報告の頭の知らせの行（#812）: 誰の環境で走ったかと、読み手の操作が要らないこと（毎回の決まりの動き）を言う"""
+        self.assertIn("あなたの", userenv.NOTE)
+        self.assertIn("操作は要らない", userenv.NOTE)
+
+
 if __name__ == "__main__":
     unittest.main()

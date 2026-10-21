@@ -536,6 +536,7 @@ nodes:
                         how: {type: string, minLength: 1}
                         result: {type: string, minLength: 1}
                         accepted: {type: string}
+                        accepted_title: {type: string}
                     precedent:
                       type: object
                       required: [verdict, reason]
@@ -1118,7 +1119,7 @@ nodes:
       type: object
       additionalProperties: false
       required: [ok, reason, units, groups, conflicts, carry, replan_items, objection, diff, start_tree, reply, ruled_reply, scope,
-                 checked, allowed_test_changes, changed, x_scalars, handoffs, mismatched, plan_declared, stop_reason, allowed_tests,
+                 checked, allowed_test_changes, changed, x_scalars, handoffs, handoff_titles, mismatched, plan_declared, stop_reason, allowed_tests,
                  accept_trace, closure, tdd_unit, tdd, frozen, removed, tdd_refused, item_claims, freeze_off, report]
       properties:
         ok: {type: boolean}
@@ -1200,6 +1201,8 @@ nodes:
         x_scalars: {type: object}
         # 最後の承認ノードを開ける理由の 2 欄（修正役が人に回した物・申告と数え直しが合わない単位）
         handoffs: {type: array, items: {type: string}}
+        # handoffs の行 → 修正役が添えた短い題（無い行は入れない。報告の頭が使う）
+        handoff_titles: {type: object, additionalProperties: {type: string}}
         mismatched: {type: array, items: {type: string}}
         # 修正役が直さずに残すと答えた（plan_faces の declared）事前審査の block の行
         plan_declared: {type: array, items: {type: string}}

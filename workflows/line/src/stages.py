@@ -400,7 +400,7 @@ def empty() -> dict:
     return {"go": False, "done": False, "held": False, "no_fix": False, "diffed": False, "checks": False, "eyes_due": False,
             "skip_why": "", "rejudge": False, "refixed": False, "stages": [], "carry": [], "tdd": [], "units": [], "groups": [],
             "conflicts": [], "replan_items": [], "objection": "", "diff": None, "item_claims": None, "allowed_test_changes": [],
-            "changed": None, "x_scalars": {}, "handoffs": [], "mismatched": [], "plan_declared": [], "plan": None, "ripple": None,
+            "changed": None, "x_scalars": {}, "handoffs": [], "handoff_titles": {}, "mismatched": [], "plan_declared": [], "plan": None, "ripple": None,
             "left": [], "stop_reason": ""}
 
 
@@ -457,6 +457,7 @@ def fixed(values: dict) -> dict:
         "changed": last.get("changed"),
         "x_scalars": scalars,
         "handoffs": union(fix.get("handoffs"), _d(refix).get("handoffs")),
+        "handoff_titles": {**_d(_d(refix).get("handoff_titles")), **_d(fix.get("handoff_titles"))},
         "mismatched": union(fix.get("mismatched"), _d(refix).get("mismatched")),
         "plan_declared": union(fix.get("plan_declared"), _d(refix).get("plan_declared")),
         "plan": (again or fix_in).get("plan"),
