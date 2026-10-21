@@ -57,6 +57,7 @@ import unittest
 import yaml
 
 from tests import archon
+from tests.workflows import test_uv_scripts as uv_scripts
 from tests.blocks import kit
 from tests.layers import scan
 from tests.layers.trees import tree
@@ -496,7 +497,8 @@ class RealTreeCase(unittest.TestCase):
         for folder in folders(BLOCKS):
             for py in sorted((folder / "scripts").glob("*.py")):
                 with self.subTest(script=str(py.relative_to(BLOCKS))):
-                    self.assertEqual(py.read_text(encoding="utf-8").splitlines()[:4], UV_HEAD)
+                    # 表（YAML）を読む script の外しの持ち主は tests/workflows/test_uv_scripts.py の header_of（lib/AGENTS.md の E3）
+                    self.assertEqual(py.read_text(encoding="utf-8").splitlines()[:4], uv_scripts.header_of(py, BLOCKS))
             for node in nodes(load(folder)):
                 if "script" in node:
                     with self.subTest(node=f"{folder.name}:{node['id']}"):
