@@ -9,8 +9,9 @@ run の記録を読んで照らす所（2.6 の 2 の a〜e）は殻の側に在
 - problems(spec) -> [訳]: 入口の確かめの 1〜4（2.3。どれも yes/no で、1 件 1 文）
 - heading_hits(md) -> [名]: 設計書の見出しのうち表の欄の名に当たる物（2.6 の 1）
 - design_rows(spec)・acceptance_rows(spec): 依頼の行（頭の行と節の行・受け入れの行。2.5）
-- proposal_text(spec): 設計書の本文と、表から reviews を除いた字（計画の審査の方針の文と、計画の部品の固めた仕様）
-- part_inputs(spec) -> {部品: {入力: 値}}: 部品ごとに組む入力（計画の審査の方針の文は proposal_text とその sha256 で照らす）
+- proposal_text(spec): 設計書の本文と、表から reviews を除いた字（計画の審査の方針の文と、計画の部品の固めた仕様）・
+  proposal_name(text): その字を置くファイルの名（中身の sha256 を名に持つ）
+- part_inputs(spec) -> {部品: {入力: 値}}: 部品ごとに組む入力（計画の審査の方針の文は proposal_name のファイルで渡し、名の sha256 で照らす）
 """
 from __future__ import annotations
 
@@ -212,9 +213,14 @@ def sha256(text: str) -> str:
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
 
+def proposal_name(text: str) -> str:
+    """方針の文を置くファイルの名（中身の sha256 を名に持つ。計画の審査の run の記録に残る proposal_file の名で、審査した版を照らす）"""
+    return f"spec-proposal-{sha256(text)}.md"
+
+
 def part_inputs(spec: Spec) -> dict:
     """部品ごとに組む入力（値は JSON の値。--input に渡す時は字にする〔input_args〕）。計画の審査の方針の文は proposal_file で渡すので
-    ここに入れず、proposal_text の sha256 で照らす"""
+    ここに入れず、proposal_name のファイルの名で照らす"""
     purpose = str(spec.table["purpose"]).strip()
     rows = design_rows(spec)
     return {

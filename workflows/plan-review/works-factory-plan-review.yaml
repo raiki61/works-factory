@@ -643,7 +643,6 @@ nodes:
               why: {type: string}
               ruling: {type: string}
         reads: *pointer
-        proposal_sha256: {type: string}   # 形 text で審査した方針の文の sha256（ほかの形は空）。必須にしない（前からの筋書きの stub はこの欄を持たない）
         report:
           type: array
           items: {type: string}

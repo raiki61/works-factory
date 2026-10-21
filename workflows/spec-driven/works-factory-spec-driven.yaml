@@ -4,13 +4,12 @@ inputs:
   mode: {required: true, description: 'choice(entry|check): 形。entry は入口の確かめと値の組み立て、check は判定と計画の後の食い違いの照らし'}
   table: {default: '', description: 'file: 仕様駆動の道の表（YAML。docs/design/spec-driven.md の 2.3）。相対なら対象の根から。形 entry が読む'}
   base: {default: '', description: 'text: ファイルの行の在る・無いを引く版。空は HEAD。形 check が読む'}
-  tdd: {default: 'false', description: 'flag: 設計書に「TDD で直す所」の節が在るか。形 check が読む'}
+  tdd: {default: 'false', description: 'flag: 設計書に「TDD で直す所」の見出しが在るか。形 check が読む'}
   out_of_scope: {default: '[]', description: 'json(out-of-scope.schema.json): 表の触らない物の写しの行の配列 [{glob, why}]。空の配列は無い。形 check が読む'}
   ready: {default: '', description: 'text: 判定が直す単位を返したか（true だけが真。空は判定が回らなかった）。形 check が読む'}
   plan: {default: '', description: 'file: 計画の項目ごとの欄の控え（{round, fields}。fields の行は files・out_of_scope・route を持つ）。空は計画が無い。形 check が読む'}
   plan_ok: {default: '', description: 'text: 計画が落ちずに返ったか（true だけが真。空は計画が回らなかった）。形 check が読む'}
   out_of_purpose: {default: '', description: 'file: 判定が目的の外とした行の控え（{rounds: {周: [行]}}）。空は控えが無い。形 check が読む'}
-  lang: {default: '', description: 'text: 報告の行の言語。空は日本語（この block は AI を持たず、行は決まった字）'}
 returns: finish
 outcome_field: ok
 nodes:

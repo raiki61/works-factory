@@ -33,7 +33,6 @@ place に写す物は docs/design/plan-review.md の 1.4（名は src/files.py�
 from __future__ import annotations
 
 import copy
-import hashlib
 import json
 import pathlib
 import shutil
@@ -569,7 +568,5 @@ def finish(out) -> dict:
         got = _finish_text(d, doc)
     else:
         got = _finish_plan(d, doc)
-    text = doc.get("proposal_text") if isinstance(doc, dict) and doc.get("form") == "text" else None
-    got["proposal_sha256"] = hashlib.sha256(text.encode("utf-8")).hexdigest() if isinstance(text, str) else ""
     jsonfile.write(d / files.FINISH, got)
     return got

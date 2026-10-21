@@ -48,8 +48,8 @@ class Base(unittest.TestCase):
         got = self.built()
         named = {name: spectable.input_text(v) for name, v in got["inputs"][part].items()}
         if part == spectable.PLAN_REVIEW:
-            named["proposal_file"] = "/tmp/p.md"
-        ret = {"ok": True, **({"proposal_sha256": got["proposal_sha256"]} if part == spectable.PLAN_REVIEW else {}), **(value or {})}
+            named["proposal_file"] = str(self.root / "gone" / f"spec-proposal-{got['proposal_sha256']}.md")   # 会話の後に消えた一時のファイル
+        ret = {"ok": True, **(value or {})}
         return {"workflow_name": part, "status": "completed", "outcome": "succeeded",
                 "metadata": {"inputs": named if inputs is None else inputs},
                 "terminal_record": {"returns": {"availability": "available", "node_id": "finish", "value": ret},
@@ -97,12 +97,24 @@ class CheckCase(Base):
         spaced = self.record(part, inputs={"request": json.dumps(rows, ensure_ascii=False, indent=2)})
         self.assertEqual(specreviews.problems(self.check(self.records(**{part: spaced}))), [])
 
-    def test_d_plan_review_needs_the_proposal_file_and_its_sha(self):
+    def test_d_plan_review_needs_the_proposal_file_of_this_version(self):
+        """計画の審査は、方針の文を spec-inputs.py が書いたファイル（中身の sha256 を名に持つ）で受けた記録だけを通す。ファイルが
+        残っていれば中身も照らす。字の proposal で受けた記録は通さない"""
         part = spectable.PLAN_REVIEW
-        bad = self.record(part, value={"proposal_sha256": "0" * 64})
-        self.assertIn("d: 方針の文が", specreviews.problems(self.check(self.records(**{part: bad})))[0])
-        inline = self.record(part, inputs={"purpose": self.built()["inputs"][part]["purpose"], "proposal": "字"})
+        purpose = self.built()["inputs"][part]["purpose"]
+        sha = self.built()["proposal_sha256"]
+        for named, why in ((f"/x/spec-proposal-{'0' * 64}.md", "前の版の名"), ("/x/proposal.md", "名に sha256 が無い")):
+            bad = self.record(part, inputs={"purpose": purpose, "proposal_file": named})
+            with self.subTest(why):
+                self.assertIn("d: 方針の文が", specreviews.problems(self.check(self.records(**{part: bad})))[0])
+        kept = spec_inputs.build(self.root, "t.yaml", str(self.root))["args"][part][-1].split("=", 1)[1]
+        ok = self.record(part, inputs={"purpose": purpose, "proposal_file": kept})
+        self.assertEqual(specreviews.problems(self.check(self.records(**{part: ok}))), [])
+        pathlib.Path(kept).write_text("書き換えた字", encoding="utf-8")
+        self.assertIn("d: 方針の文が", specreviews.problems(self.check(self.records(**{part: ok})))[0])
+        inline = self.record(part, inputs={"purpose": purpose, "proposal": "字"})
         self.assertIn("d: 方針の文が", specreviews.problems(self.check(self.records(**{part: inline})))[0])
+        self.assertTrue(sha)
 
     def test_e_findings_must_hold_every_counted_finding(self):
         """e: 計画の審査の faces の key と、世界の解の differs の class_id は、どれも findings に在る"""
@@ -118,8 +130,8 @@ class CheckCase(Base):
             spectable.WORLD: self.record(spectable.WORLD, value={"rows": {**ptr, "path": "w/world.jsonl"}})})
         got = specreviews.problems(self.check(records))
         self.assertEqual(len(got), 2, got)
-        self.assertIn("返りの指摘 k1・k2 が findings に無い", got[0])
-        self.assertIn("返りの指摘 c1 が findings に無い", got[1])
+        self.assertIn("返す値の指摘 k1・k2 が findings に無い", got[0])
+        self.assertIn("返す値の指摘 c1 が findings に無い", got[1])
         accepted = TABLE.replace("{part: works-factory-plan-review, run: r0, findings: []}",
                                  "{part: works-factory-plan-review, run: r0, findings: [{key: k1, text: t, handling: accepted, owner_words: よい},"
                                  " {key: k2, text: t, handling: accepted, owner_words: よい}]}")
@@ -154,8 +166,8 @@ class PlumbingCase(Base):
         self.assertEqual(specreviews.write(self.root / "home", doc), path)
 
     def test_inputs_script_writes_the_proposal_and_its_args(self):
-        out = self.root / "proposal.md"
-        got = spec_inputs.build(self.root, "t.yaml", str(out))
+        got = spec_inputs.build(self.root, "t.yaml", str(self.root))
+        out = self.root / f"spec-proposal-{got['proposal_sha256']}.md"
         self.assertEqual(spectable.sha256(out.read_text(encoding="utf-8")), got["proposal_sha256"])
         self.assertIn(f"proposal_file={out}", got["args"][spectable.PLAN_REVIEW])
         self.assertIn("entry=仕様を固める会話（docs/d.md と t.yaml）", got["args"][spectable.PRIOR_DECISIONS])

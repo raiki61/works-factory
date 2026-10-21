@@ -949,8 +949,7 @@ class LauncherTest(unittest.TestCase):
             named = {k: spectable.input_text(v) for k, v in built["inputs"][part].items()}
             value = {"ok": True}
             if part == spectable.PLAN_REVIEW:
-                named["proposal_file"] = "/tmp/p.md"
-                value["proposal_sha256"] = built["proposal_sha256"]
+                named["proposal_file"] = f"/gone/spec-proposal-{built['proposal_sha256']}.md"
             (records / f"r{n}.json").write_text(json.dumps({
                 "workflow_name": part, "status": "completed", "outcome": "succeeded", "metadata": {"inputs": named},
                 "terminal_record": {"returns": {"availability": "available", "value": value}, "artifacts": {"root": None}}},

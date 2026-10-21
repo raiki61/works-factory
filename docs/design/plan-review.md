@@ -71,7 +71,6 @@
 - `replan`: 形 replan の直した項目ごとの事実の配列 `[{item, units, contract_changed, human, widened}]`（10.3）。ほかの形は空の配列。
 - `gave_up`: 形 replan で受け付けが諦めた時の、裁かれた項目ごとの諦めの行 `[{item, why, ruling}]`。ほかは null。
 - `reads`: pointer（この include の読んだ証拠 `reads-<役>.json`）か null（証拠を集めていない・集める node が落ちた）。受け付けの条件にしない（14 節の 36）。
-- `proposal_sha256`: 形 text で審査した方針の文（入口が前後の空白を除いた字）の sha256 の 16 進。ほかの形と入口が落ちた run は空。起動の殻（Archon の外から工場を起こす `bin/works-factory` とその部品 `bin/_lib/`）が、会話で回した審査の記録が今の仕様を審査した物かを照らす（[spec-driven.md](spec-driven.md) の 2.6 の 2 の d）。前からの筋書き（dry-run で block を通しで回す `fixtures/*.stubs.yaml`）が AI や script の node の返りを差し替える値（stub）にはこの鍵が無いので、必須にするとそれらの筋書きが落ちる。そのため `output_format` の必須には入れない。
 - `report`: 報告に載せる日本語の行の配列（12 節）。
 
 今との違い:

@@ -240,7 +240,7 @@ def run_env(home: Path, target: Path) -> dict[str, str]:
 
 def spec_reviews(workflow: str, flags: list[str], user: Mapping[str, str], child: dict, head: list[str], home: Path,
                  target: Path) -> dict[str, str]:
-    """仕様駆動の道の表を名指した起動（本線の spec_table・block の table）だけ、会話で回した審査の記録を Archon の run の記録と照らし
+    """仕様駆動の道の表を名指した起動（メイングラフの spec_table・block の table）だけ、会話で回した審査の記録を Archon の run の記録と照らし
     （bin/_lib/specreviews.py。docs/design/spec-driven.md の 2.6 の 2）、結果のファイルを run の設定の層の env で渡す。合わなければ
     Archon を起こさずに止める。表を名指さない起動は表も記録も読まず、uv も起こさず、{} を返す"""
     table = specreviews.named_table(workflow, flag_values(flags, "--input"))

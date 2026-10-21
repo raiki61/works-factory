@@ -21,7 +21,7 @@ from tests.blocks.plan_review import values as v
 
 BLOCK = kit.BLOCKS / "plan-review"
 YAML = BLOCK / "works-factory-plan-review.yaml"
-PORTS = ["proposal", "fields", "judgment", "purpose", "design", "design_why", "world_rows", "means", "structure", "ripple", "prior",
+PORTS = ["proposal", "proposal_file", "fields", "judgment", "purpose", "design", "design_why", "world_rows", "means", "structure", "ripple", "prior",
          "tree", "excluded", "policy", "recorded", "request", "review_rev", "diff_base", "ruling", "conflicts", "lang"]
 RETURNS = ["ok", "status", "form", "round", "reason", "holes", "blocks", "pass", "asks", "deviations", "replan", "gave_up", "reads",
            "report"]

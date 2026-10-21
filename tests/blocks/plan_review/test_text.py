@@ -179,8 +179,7 @@ class TextAcceptCase(_Case):
 
 
 class ProposalFileCase(_Case):
-    """入力 proposal_file（方針の文のファイル。docs/design/spec-driven.md の 2.5 の詰まった所の 2 の行き先）と、返りの proposal_sha256
-    （形 text で審査した方針の文の sha256。起動の殻が、会話で回した審査の記録が今の仕様を審査した物かを照らす。2.6 の 2 の d）"""
+    """入力 proposal_file（方針の文のファイル。docs/design/spec-driven.md の 2.5 の詰まった所の 2 の行き先）"""
 
     def put(self, text: str) -> str:
         path = self.r.artifacts / "proposal.md"
@@ -203,11 +202,3 @@ class ProposalFileCase(_Case):
         got = self.r.intake(purpose=V.PURPOSE)
         self.assertFalse(got["due"])
         self.assertIn("審査する物が空", got["reason"])
-
-    def test_finish_returns_the_sha256_of_the_policy_text(self):
-        import hashlib
-        text = "設計書の本文\n\n---\n機械が確かめる表\n"
-        self.r.intake(proposal_file=self.put(text), purpose=V.PURPOSE)
-        self.assertEqual(self.r.script("finish")["proposal_sha256"], hashlib.sha256(text.strip().encode("utf-8")).hexdigest())
-        self.r.intake(proposal=V.POLICY_TEXT, purpose=V.PURPOSE)
-        self.assertEqual(self.r.script("finish")["proposal_sha256"], hashlib.sha256(V.POLICY_TEXT.encode("utf-8")).hexdigest())
