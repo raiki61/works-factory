@@ -39,7 +39,7 @@ class HeadCase(Base):
         _, text = self.build(asks=asks, tallied={"許したテストの変更": 5})
         lines = text.splitlines()
         self.assertEqual(lines[0], f"# 報告（run {RUN_ID}）")
-        self.assertEqual(lines[2], "起きたこと: 直して、最後のテストまで通った（fixed）。人が決めること 7 件が残っている")
+        self.assertEqual(lines[2], "起きたこと: 直して、最後のテストまで通った。人が決めること 7 件が残っている")
         self.assertTrue(lines[3].startswith("差分を当ててよいか: "))
         self.assertTrue(lines[4].startswith("急ぎ: "))
         self.assertEqual(lines[5], "人が決めること: 7 件（下の行は種類ごと。1 件ずつの本文は見出しに「人が決めること」を持つセクション）")
@@ -54,12 +54,12 @@ class HeadCase(Base):
     def test_head_parts_go_to_the_stop_section_not_the_happened_line(self):
         head = {"before": ["半分直した"], "stopped": ["止めた訳 X"], "after": [], "notices": ["起こす前の注意 N"]}
         _, text = self.build(head=head)
-        self.assertEqual(text.splitlines()[2], "起きたこと: 直して、最後のテストまで通った（fixed）")
+        self.assertEqual(text.splitlines()[2], "起きたこと: 直して、最後のテストまで通った")
         self.assertIn("\n\n起こす前の注意 N\n\n## 1.", text)
         self.assertIn("- 半分直した", self.section(text, "## 2. 止めたか"))
         self.assertNotIn("止めた訳 X", text, "止まった run でなければ止めた訳は出さない")
         _, text = self.build(head=head, outcome="stopped_by_human", stop="start-answer:reject")
-        self.assertEqual(text.splitlines()[2], "起きたこと: 人が承認ノードで止めた（stopped_by_human）")
+        self.assertEqual(text.splitlines()[2], "起きたこと: 人が承認ノードで止めた")
         stop = self.section(text, "## 2. 止めたか").splitlines()
         self.assertEqual(stop[2:4], ["- 半分直した", "- 止めた訳 X"])
 
@@ -114,8 +114,10 @@ class HeadFor19b99137Case(Base):
     def test_the_happened_line_is_one_short_sentence_without_inner_names(self):
         _, top = self.top()
         line = next(x for x in top.splitlines() if x.startswith("起きたこと: "))
-        self.assertEqual(line, "起きたこと: 人の判断を待ったまま止まった（needs_human）。人が決めること 1 件が残っている")
+        self.assertEqual(line, "起きたこと: 人の判断を待ったまま止まった。人が決めること 1 件が残っている")
         self.assertNotIn("承認ノード", top)
+        self.assertNotIn("needs_human", top, "結末の英字の語は頭に出さない")
+        self.assertNotIn("封じ", top)
 
     def test_the_long_text_and_inner_names_stay_below_the_head(self):
         text, top = self.top()
@@ -132,6 +134,21 @@ class HeadFor19b99137Case(Base):
         _, top = self.top()
         self.assertIn(f"知らせ（決めることではない）: {self.ENV}", top.splitlines())
         self.assertNotIn(self.ENV, next(x for x in top.splitlines() if x.startswith("起きたこと: ")))
+
+    def test_urgent_line_of_a_pr_run_says_the_default_branch_was_not_touched(self):
+        for act, said in (("pr", "PR を作っただけで、対象の既定の枝には当てていない"), ("stopped", "PR は作らず、対象の既定の枝には当てていない"),
+                          ("unconfirmed", "PR を作ったかは確かめられていないが、対象の既定の枝には当てていない")):
+            with self.subTest(act=act):
+                _, top = self.top(apply={"sealed": True, "placed": True, "pr": {"act": act, "url": "u", "number": 1, "reason": "訳"}})
+                self.assertIn(f"急ぎ: 急ぎでない——壊れた所は無く、{said}", top.splitlines())
+        _, top = self.top(apply={"sealed": True, "placed": True})
+        self.assertIn("対象のリポジトリには何も当てていない", top)
+
+    def test_apply_command_is_said_with_what_it_does_in_the_same_line(self):
+        _, top = self.top(apply={"sealed": True, "placed": False})
+        line = next(x for x in top.splitlines() if x.startswith("差分を当ててよいか: "))
+        self.assertIn("保存した差分を対象に当てる命令: bin/apply", line)
+        self.assertIn("--allow-stopped は止まった run の差分を当てる指定", line)
 
     def test_urgency_comes_only_from_facts_the_machine_holds(self):
         _, top = self.top()
@@ -153,17 +170,17 @@ class HeadFor19b99137Case(Base):
     def test_apply_answers(self):
         sealed = {"sealed": True, "placed": True}
         _, text = self.build(apply=sealed)
-        self.assertIn(f"差分を当ててよいか: 当ててよい（bin/apply {RUN_ID}）", text)
+        self.assertIn(f"差分を当ててよいか: 当ててよい（保存した差分を対象に当てる命令: bin/apply {RUN_ID}）", text)
         _, text = self.build(apply=sealed, outcome="round_limit", proved=False)
-        self.assertIn(f"確かめてから当てる（結末が「決めた周の数のうちに直しきれずに止まった」。bin/apply {RUN_ID}）", text)
+        self.assertIn(f"確かめてから当てる（結末が「決めた周の数のうちに直しきれずに止まった」。保存した差分を対象に当てる命令: bin/apply {RUN_ID}）", text)
         _, text = self.build(apply={"sealed": True, "placed": False, "redesign": "redesign-needed"})
-        self.assertIn("差分を当ててよいか: 当てない（R2 が redesign-needed を言った run の差分は bin/apply も当てない）", text)
+        self.assertIn("差分を当ててよいか: 当てない（独立の目が redesign-needed を言った run の差分は、保存した差分を対象に当てる命令: bin/apply も当てない）", text)
         _, text = self.build(apply={"sealed": True, "placed": False}, asks=[{"kind": "k", "text": "t"}])
-        self.assertIn(f"人が決めること 1 件を決めてから当てる（bin/apply {RUN_ID} --allow-stopped）", text)
+        self.assertIn(f"人が決めること 1 件を決めてから当てる（保存した差分を対象に当てる命令: bin/apply {RUN_ID} --allow-stopped（--allow-stopped は止まった run の差分を当てる指定））", text)
         _, text = self.build(apply={**sealed, "pr": {"act": "pr", "url": "https://example.test/pr/1", "number": 1, "is_draft": True}})
         self.assertIn("差分を当ててよいか: PR を作った: https://example.test/pr/1（下書きの PR #1。merge は対象のレビューと決まりに任せる）", text)
         _, text = self.build(apply={**sealed, "pr": {"act": "stopped", "reason": "push が拒まれた"}})
-        self.assertIn(f"PR を作らずに止めた: push が拒まれた。当ててよい（bin/apply {RUN_ID}）", text)
+        self.assertIn(f"PR を作らずに止めた: push が拒まれた。当ててよい（保存した差分を対象に当てる命令: bin/apply {RUN_ID}）", text)
 
     def test_apply_lines_for_a_stopped_run(self):
         _, text = self.build(outcome="stopped_by_human", stop="start-answer:reject", apply={"sealed": True, "placed": False, "said": "やめる\n理由"})
@@ -284,7 +301,7 @@ class FallbackCase(Base):
         path = M.machine.fallback_report(self.place, "思わぬ誤り")
         self.assertEqual(path.name, "report-unwritten.md")
         text = path.read_text(encoding="utf-8")
-        self.assertIn("起きたこと: 記録が検証器を通らない（結果を名乗れない）（record_invalid）", text)
+        self.assertIn("起きたこと: 記録が検証器を通らない（結果を名乗れない）。", text)
         self.assertIn("結果を名乗れない訳: 思わぬ誤り", text)
         self.assertIn("直して、最後のテストまで通った", built["report"].read_text(encoding="utf-8"), "facts の report.md を上書きしない")
 

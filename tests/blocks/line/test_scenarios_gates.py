@@ -149,6 +149,11 @@ class ReplanCase(unittest.TestCase):
         self.assertIn("直しの途中で AI が自分で決めずに人に回した物が在る（2 件）", got["text"].splitlines()[0])
         self.assertIn("- u1: 壊すと分かって通した——段 1 で既定が変わる\n- u1: 壊すと分かって通した——段 2 で既定が変わる", got["text"])
 
+    def test_refix_handoff_titles_of_both_stages_reach_the_merged_fix(self):
+        """facts は artifact の指す先で dry-run の後に読めない。題が facts の asks.title になる所は test_head_plain の HandoffTitleCase が縛る"""
+        titles = out(self.t["refix-handoff"], "fixed")["handoff_titles"]
+        self.assertEqual(sorted(titles.values()), ["1 回目の直しで既定の値が変わってよいか", "2 度目の直しで既定の値が変わってよいか"])
+
 
 class ParallelAfterCase(unittest.TestCase):
     """line.md の 8 節の 1: 修正の後の並行 PR の確かめ直しが found を返したら、最後の承認ノードの開ける理由に入り、冒頭の 1 行目に出る。

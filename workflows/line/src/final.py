@@ -23,6 +23,7 @@ import answer
 import conflict
 import declared_checks
 import entry
+import fixboard
 import gatemarks
 import green_cert
 import oneline
@@ -44,7 +45,7 @@ CONFLICT_UNREAD = "食い違いの申し出の控えを読めない"
 BESIDE_UNREAD = "修正の段の控えを読めない"
 MISSING_HEAD = "控えの指す先が無いか読めない（読めないまま置かないので人に見せる）"
 RECORD = "run の置き場の gates/gate-final.json"
-HANDOFF_HEAD = "直しの途中で AI が自分で決めずに人に回した物（壊すと分かって通した理由。役だけで決めた代償なので人が確かめる）"   # 元 fixboard
+HANDOFF_HEAD = fixboard.HANDOFF_HEAD   # 字は lib/fixboard.py の 1 か所
 HANDOFF_REASON = "直しの途中で AI が自分で決めずに人に回した物が在る"
 MISMATCH_REASON = "直したという申告と機械の数え直しが合わない単位が在る"
 NO_AFTER = "直した後の構造の実測: 無い（独立の目の after が無い——実測のノードが落ちたか走らなかった。メイングラフは止めずに進めた）"

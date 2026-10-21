@@ -23,6 +23,9 @@ DECIDE_HEAD = "人が決めること: "
 URGENT_HEAD = "急ぎ: "
 INFO_HEAD = "知らせ（決めることではない）: "
 APPLY_HEAD = "差分を対象に当てる"
+NO_DIFF = "当てる差分が無い（この run は差分を確定していない）"
+APPLY_COMMAND = "保存した差分を対象に当てる命令"
+STOPPED_FLAG = "（--allow-stopped は止まった run の差分を当てる指定）"
 PR_MADE = "PR を作った: "
 PR_STOPPED = "PR を作らずに止めた: "
 PR_UNCONFIRMED = "PR を作ったと確かめられなかった: "
@@ -82,12 +85,16 @@ def ask_counts(asks: list, tallied: dict) -> dict:
     return counts
 
 
+UNTOUCHED = {"pr": "PR を作っただけで、対象の既定の枝には当てていない", "stopped": "PR は作らず、対象の既定の枝には当てていない",
+             "unconfirmed": "PR を作ったかは確かめられていないが、対象の既定の枝には当てていない"}
+
+
 def urgent_said(apply: dict, outcome: str, run: dict) -> str:
-    """冒頭の「急ぎ」の句。機械が持つ事実（落ちたノードが在るか・結末が記録の誤りか途中の終わりか。対象には run が何も当てない）だけで書く。
-    run の記録が読めない時は事実が無いので空の字"""
+    """冒頭の「急ぎ」の句。機械が持つ事実（落ちたノードが在るか・結末が記録の誤りか途中の終わりか・出口の語 pr の道の渡しの結果。
+    run は対象に差分を当てない）だけで書く。run の記録が読めない時は事実が無いので空の字"""
     if not run.get("ok"):
         return ""
-    untouched = "対象のリポジトリには何も当てていない"
+    untouched = UNTOUCHED.get(_dict(apply["pr"]).get("act"), "対象のリポジトリには何も当てていない")
     if run.get("failed") or run.get("absorbed"):
         return f"壊れた所がある——落ちたノードが在る。{untouched}"
     if outcome in ("record_invalid", "interrupted"):
@@ -121,10 +128,10 @@ def head_lines(happened: str, apply: str, urgent: str, counts: dict, other: str,
 
 def _apply_answer(apply: dict, outcome: str, run_id: str, decisions: int) -> str:
     if not apply["sealed"]:
-        return "当てる差分が無い（差分を封じていない）"
+        return NO_DIFF
     if not apply["placed"] and apply["redesign"]:
-        return f"当てない（R2 が {apply['redesign']} を言った run の差分は bin/apply も当てない）"
-    command = f"bin/apply {run_id}" + ("" if apply["placed"] else " --allow-stopped")
+        return f"当てない（独立の目が {apply['redesign']} を言った run の差分は、{APPLY_COMMAND}: bin/apply も当てない）"
+    command = f"{APPLY_COMMAND}: bin/apply {run_id}" + ("" if apply["placed"] else f" --allow-stopped{STOPPED_FLAG}")
     if decisions:
         return f"人が決めること {decisions} 件を決めてから当てる（{command}）"
     if not apply["placed"]:
@@ -229,7 +236,7 @@ def build(sections: list, facts: dict, outcome: str, stop_reason: str, run: dict
     head = facts["head"]
     said = [*head["before"], *(head["stopped"] if outcome in STOP_OUTCOMES else [])]
     decisions = sum(counts.values())
-    happened = "。".join([f"{report.OUTCOME_WORDS.get(outcome, '結末が決まらない')}（{outcome}）",
+    happened = "。".join([report.OUTCOME_WORDS.get(outcome, "結末が決まらない"),
                           *([f"人が決めること {decisions} 件が残っている"] if decisions else [])])
     top = head_lines(happened, apply_said(facts["apply"], outcome, run_id or "—", decisions), urgent_said(facts["apply"], outcome, run), counts,
                      other=f"次の run に渡す物: {n_carried} 件", info=head["after"], rows=ask_rows(titles, counts))
