@@ -44,6 +44,10 @@ REPAIRED_HEAD = "合わせ役が直して当てた組"
 UNRESTORED_GROUP_HEAD = "戻せず親の作業ツリーに当たったままの組（人が確かめる）"
 PR_COMMITS = "PR の commit: "
 POLICY_CHANGED_HEAD = "方針の文書が始めに固定した版から変わったまま終わった"
+UNNAMED_NODE = "名の訳が無いノード"
+UNKNOWN_STOP = "語の意味の記録が無い"
+UNPASSED_WHERE = "指摘の全文は報告の「2. 止めたか」の節"
+EYE_ASK_HEAD = "依頼の範囲を超えていないかを見る目の問い"   # gatemarks.EYES["R4"] の問い。頭の行に目の印 R4 を出さない
 NO_EYES = "独立の目のサブグラフの出力が無い（飛ばされた・落ちた）"
 DATA_PLACES = "固定のデータの在り処: run の頭の深さの控え {head}"
 NO_HEAD_AT = "（控えが無い）"
@@ -508,7 +512,7 @@ def pushed_lines(gates: dict, taken=()) -> list:
 def pushed_said(gates: dict, taken=()) -> str:
     got = _pushed(gates)
     where = "中身は「1. 人が決めること」のセクション"
-    said = [f"無人の run で推しを採って通した承認ノード: {'・'.join(dict.fromkeys(named(at) for at, _ in got))}（推し {len(got)} 件。{where}）"] if got else []
+    said = [f"無人の run で推しを採って通した承認ノード: {'・'.join(dict.fromkeys(plain(at) for at, _ in got))}（推し {len(got)} 件。{where}）"] if got else []
     if taken:
         said.append(f"無人の run で推しを採って答えた台帳の問い: {'・'.join(str(q.get('key')) for q, _, _ in taken)}（推し {len(taken)} 件。{where}）")
     return "。".join(said)
@@ -534,26 +538,63 @@ def node_names() -> dict:
 
 
 def named(at: str) -> str:
-    """node の id に人が読む言葉を前に付ける（「訳（id）」。表に無い id はそのまま）"""
+    """node の id に人が読む言葉を前に付ける（「訳（id）」。表に無い id はそのまま）。頭の外の節の行に使う（頭には plain を使う）"""
     plain = node_names().get(at)
     return f"{plain}（{at}）" if plain else at
 
 
+def plain(at: str) -> str:
+    """node の id の人が読む言葉（id は付けない）。報告の頭の行に使う。表に無い id も字で出さない（試験が全部の id に行が在ることを縛る）"""
+    return node_names().get(at) or UNNAMED_NODE
+
+
 def stop_words(stops: list) -> list:
+    """止めの語ごとの 1 行（頭の行）: 人が読む言葉の node の名を並べ、語の意味を言う。node の id と止めの語の字は出さない（頭の外の
+    stop_words_full の行に残る）"""
     import stopby
-    return [f"{named(s['at'])} が {s['word']}（{stopby.REASONS.get(str(s['word']).removeprefix(stopby.HEAD), '語の意味の記録が無い')}）" for s in stops]
+    by_word = {}
+    for s in stops:
+        by_word.setdefault(str(s["word"]), []).append(plain(s["at"]))
+    return [f"{'・'.join(dict.fromkeys(ats))}が止めた: {stopby.REASONS.get(word.removeprefix(stopby.HEAD), UNKNOWN_STOP)}"
+            for word, ats in by_word.items()]
+
+
+def stop_words_full(stops: list) -> list:
+    """止めの語の行の全部（頭の外の節の行）: 「訳（node の id） が 止めの語（意味）」"""
+    import stopby
+    return [f"{named(s['at'])} が {s['word']}（{stopby.REASONS.get(str(s['word']).removeprefix(stopby.HEAD), UNKNOWN_STOP)}）" for s in stops]
+
+
+def _unpassed(returns: dict) -> list:
+    import seal
+    eyes = as_dict(returns.get("eyes"))
+    return [(name.upper(), e) for name in EYE_NAMES if isinstance(e := eyes.get(name), dict) and e.get("status") != seal.PASSED]
+
+
+def unpassed_full(returns: dict) -> list:
+    """通さなかった目の行の全部（頭の外の節の行）: 目の印・状態の語・理由の全文"""
+    import gatemarks
+    import oneline
+    return [f"独立の目が通さなかった理由の全文: {gatemarks.eye_named(label, e.get('status'))}——{oneline.one_line(e.get('reason') or '理由なし')}"
+            for label, e in _unpassed(returns)]
+
+
+def plain_reasons(reasons: list) -> list:
+    """最後の承認ノードを開ける理由の文の、目の印（R1 など）を何を見る目かの言葉に（頭の行に出す形）"""
+    import gatemarks
+    import re
+    return [re.sub(r"\b(R[1-4])\b", lambda m: gatemarks.EYES[m.group(1)], str(x)) for x in reasons]
 
 
 def stopped_why(returns: dict, stops: list, final_reasons: list) -> list:
-    """止まった run の冒頭 1 行目に足す訳: 止めの語・最後の承認ノードを開ける理由・通さなかった目"""
+    """止まった run の冒頭 1 行目に足す訳: 止めの語・最後の承認ノードを開ける理由・通さなかった目。名前は人の言葉で言い、目の指摘の長い文は
+    1 行の要約（何を見る目がどの状態か）にして、全文は頭の外の節に置く（unpassed_full）"""
     import gatemarks
-    import oneline
-    import seal
-    eyes = as_dict(returns.get("eyes"))
-    unpassed = [f"{gatemarks.eye_named(name.upper(), e.get('status'))}——{oneline.one_line(e.get('reason') or '理由なし')}"
-                for name in EYE_NAMES if isinstance(e := eyes.get(name), dict) and e.get("status") != seal.PASSED]
-    reasons = [str(x) for x in final_reasons]
-    return [*stop_words(stops), *(["開けた理由: " + "・".join(reasons)] if reasons else []), *unpassed]
+    unpassed = [f"{gatemarks.EYES.get(label, '独立の目')}が通さなかった（{gatemarks.REVIEW_WORDS.get(str(e.get('status')), '状態の語を読めない')}）"
+                for label, e in _unpassed(returns)]
+    reasons = plain_reasons(final_reasons)
+    return [*stop_words(stops), *(["開けた理由: " + "・".join(reasons)] if reasons else []),
+            *unpassed, *([UNPASSED_WHERE] if unpassed else [])]
 
 
 def ran_notes(returns: dict) -> list:
@@ -816,7 +857,7 @@ def decisions(values: dict, returns: dict, gates: dict, record: dict, *, unatten
     hit_count = seal.get("protected_count") if isinstance(seal.get("protected_count"), int) else len(hits)
     tallied = {PROTECTED_HITS_HEAD: hit_count} if hit_count else {}
     spec_head = gatemarks.spec_words(bool(spec_qs) and as_dict(values.get("spec_check")).get("unchecked") is not False).head
-    questions = [(spec_head, spec_qs), ("修正前の問い", plan_qs), ("独立の目 R4 の問い", eye_qs), ("保留にしたままの問い", held_rows)]
+    questions = [(spec_head, spec_qs), ("修正前の問い", plan_qs), (EYE_ASK_HEAD, eye_qs), ("保留にしたままの問い", held_rows)]
     parts = [("人に回した食い違いの申し出", asked), (fixboard.HANDOFF_HEAD, handoffs), (PROTECTED_HITS_HEAD, hits[:5]),
              ("直す義務に戻せなかった単位", unreturned), ("前提の検算が人に上げた物", escalate)]
     before = [*pushed_lines(gates, taken), *unrestored_lines(returns), *backed_out_lines(returns)]
@@ -940,8 +981,9 @@ def apply_of(returns: dict, gates: dict) -> dict:
 def stop_lines(returns: dict, gates: dict, stops: list) -> dict:
     """節「2. 止めたか」の line の行: line の止めの語・承認ノードの行・封じと置きの ok でない行（before）と、続きの切れ目（after）"""
     import oneline
-    before = [f"メイングラフのノードの止め: {x}" for x in stop_words(stops)]
+    before = [f"メイングラフのノードの止め: {x}" for x in stop_words_full(stops)]
     before += [f"承認ノード {named(at)}: {gate_line(g)}" for at, g in gates.items()]
+    before += unpassed_full(returns)
     for rid in ("sealed-diff", "applied-diff"):
         m = returns.get(rid)
         if isinstance(m, dict) and m.get("ok") is not True:

@@ -427,6 +427,22 @@ class FlowCase(Base):
         self.assertEqual([row["id"] for row in merged["tests"]], [tid], "合意した新しいテストは項目の tests と同じに読まれる")
         self.assertEqual(consult.gate_asks(self.b, ITEMS, human), [], "同じ周の同じ条件は 2 度聞かない")
 
+    def test_pushed_gate_condition_is_not_asked_again_after_a_grant_of_the_item(self):
+        """無人の run が推しで通した関所の条件（人の言葉でない。機械が採った推しの再掲）は、その周にその項目で許しの行（合意）が
+        既に在れば、答えの役を起こして聞き直さない（run 9744721f の 2 回目: 求める物が 0 の相談に、前の許しをそのまま当てた）。
+        人の条件は許しの有る項目でも聞く。許しの無い項目の推しの条件は今までどおり聞く"""
+        note = "区切りの単独行だけを数えから外す範囲で通す"
+        pushed = [{"round": 1, "node": GATE, "kinds": ["final"], "answer": "continue", "note": note,
+                   consult.answer.PUSHED: [{"item": "x", "answer": "continue", "note": note, "why": "y"}]}]
+        human = [{"round": 1, "node": GATE, "kinds": ["final"], "answer": "continue", "note": note}]
+        self.assertEqual([a["item"] for a in consult.gate_asks(self.b, ITEMS, pushed)], ["3", "4"], "許しが無ければ聞く")
+        first = {"item": 3, "paths": ["works/CHANGELOG.md"], "tests": [], "why": WHY}
+        put_asked(self.b, [first])
+        consult.settle(self.b, {"answers": [{"ask": 1, "decision": "allow", "paths": ["works/CHANGELOG.md"], "tests": [], "spec": "",
+                                              "reason": "変更の記録を足してよい"}]}, "first", NODE)
+        self.assertEqual([a["item"] for a in consult.gate_asks(self.b, ITEMS, pushed)], ["4"], "項目 3 は許し済みなので聞き直さない")
+        self.assertEqual([a["item"] for a in consult.gate_asks(self.b, ITEMS, human)], ["3", "4"], "人の条件は許し済みの項目でも聞く")
+
     def test_out_of_scope_reconsidered(self):
         """out_of_scope に当たる頼みは答えの役に聞く。allow の行は、その項目の out_of_scope を外した印（overrode_out_of_scope。
         パス・glob・外した理由）を持ち、合意（conflict.agreed）になる。deny の行は何も外さない。ほかの項目の out_of_scope の当たりは

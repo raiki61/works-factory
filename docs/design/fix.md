@@ -804,6 +804,8 @@ node ごとの場面は 2〜6 節の 7。block 全体では:
 - 住処は lib の `conflict`（1.5.2）・`src/ruling.py`・`src/consult.py`・`src/board.py`（`take_conflicts`・`gate_view`・`gate_asks`・`write_notes`・`consult_ask`）。
 - 違う行: F216（2 回目の段が 1 回目の申し出と裁定を見る）と F018・F023・F044 の読み口は、前の段の place のフォルダの代わりに port `prior`（出力 `carry`）から写す（13.1 の 5）。F218・F222（裁定の後の修正役と相談の答えの役が前の会話を継がない）は今のまま（Archon で不可）。相談の答えの役が同じ周の修正役の会話から分かれて起きる事は 13.3 の 1。F224・F225 の関所の答えは port `answers`・`request_answers`・`unattended` から（`asked` を付けるのは line）。F232（相談の番号の錠）は今も無い。
 
+- 範囲の相談を減らす 2 つ（#687。run 9744721f・a170202f の相談 4 回の数えから）: 無人の run が推しで通した関所の条件（人の言葉でない再掲）は、その周にその項目で許しの行が既に在れば、答えの役に聞き直さない（`src/consult.py` の `gate_asks`・`_pushed_only`。人の条件は今までどおり聞く）。修正案の files の symbols に足すテスト（テストのファイルの change=add で名前が test で始まる）は、案のどれかの項目の `tests` にも書く（`lib/planmarks.py` の `gaps` の `_added_test_gaps`。案の受け付けで拒む。改名の新名が `tests` に無いと、修正役が相談で新名を頼むことになる）。symbols の add を足してよい新しいテストに機械が数える案は、TDD の赤の確かめを通らない試験が入る道になるので採らない。
+
 ### 12.4 D（差分の審査・レンズ・手直し）
 
 - F300〜F330 は全部 delta-review と lens の block へ（1.5.3）。fix に残るのは、差分の審査の材料になる事実を出力で返すことだけ（`start_tree`・`reply`・`ruled_reply`・`scope`・`conflicts`・`checked`）。
