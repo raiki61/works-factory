@@ -364,7 +364,8 @@ run の id は頭の 8 字（全部の id と記録の置き場は PR #809 の�
    - c. `status` が `completed`・`outcome` が `succeeded` で、返り（`terminal_record.returns.value`）の `ok` が真。
    - d. `metadata.inputs` が、今の設計書と表から入力の組み立て〔6.7〕が組む、その部品の入力と同じ（2.5 の呼び方の組み方。表の `reviews` は組む字に入れない）。これで審査した版と渡した版が同じことも照らせるので、前の版の `spec_sha256` は要らない。
    - e. 計画の審査と世界の解は、返りから機械が数えられる指摘（計画の審査の `faces[].key` の全部・世界の解の `versus.verdict` が `differs` の行の `class_id`。返りの形と `findings` への写し方は 2.5 の「部品の返りと、それを表の `findings` に写す形」）が、どれもその行の `findings` の `key` に在る。独立設計・前提の実測・前の決めの確かめは返りに指摘の形が無い（2.5）ので、a〜d だけを照らし、指摘は会話の AI が選んで書く。
-   照らす所: 起動の殻（`bin/works-factory`。置き場は `bin/_lib/` の新しいモジュール）。`spec_table` を名指した起動の時に、表を読み（表の読みと入力の組み立ては `lib/spectable.py`。6.7）、`reviews` の run の記録を `workflow get <run> --json` で読んで a〜e を照らし、結果（行ごとの a〜e の yes/no と、合わなかった物の名）をファイルに書いて、そのパスを env で run に渡す。どれかが合わなければ、殻は Archon を起こさずに止まる（AI を起こさずに止まる）。run の中の script と `lib/` は Archon の命令を呼ばず、Archon の run の記録の欄も読まない（E3。E22 の「殻の事実は殻が組んで env で渡す」）。block の形 entry は、env の結果ファイルが在り、全部の行が合っていることだけを yes/no で照らす。殻を通さない単独の run では結果ファイルが無いので、入口の確かめの 5 で止まる（黙って通さない）。会話から部品を回す時は、工場の run と同じ対象のパスで回す（2.5 の詰まった所の 6）。
+   照らす所: 起動の殻（`bin/works-factory`。置き場は `bin/_lib/` の新しいモジュール）。照らすのは、本線を `spec_table` を名指して起動した時と、block `works-factory-spec-driven` を単独で `table` を名指して起動した時の 2 つ（下の「block の単独の run」）。殻は表を読み（表の読みと入力の組み立ては `lib/spectable.py`。6.7。殻がどの Python で読むかは 6.7 の「殻の側の読み」）、`reviews` の run の記録を `workflow get <run> --json` で読んで a〜e を照らし、結果（行ごとの a〜e の yes/no と、合わなかった物の名）をファイルに書いて、そのパスを env で run に渡す。どれかが合わなければ、殻は Archon を起こさずに止まる（AI を起こさずに止まる）。run の中の script と `lib/` は Archon の命令を呼ばず、Archon の run の記録の欄も読まない（E3。E22 の「殻の事実は殻が組んで env で渡す」）。block の形 entry は、env の結果ファイルが在り、全部の行が合っていることだけを yes/no で照らす。会話から部品を回す時は、工場の run と同じ対象のパスで回す（2.5 の詰まった所の 6）。
+   block の単独の run（憲法の 5）: block を単独で回す正の入口は、ほかの block と同じく殻を通す `bin/works-factory workflow run works-factory-spec-driven --cwd <対象> --input mode=entry --input table=<表>`（`workflows/AGENTS.md` の「始め方」）。殻は本線の時と同じに照らすので、block は文とリポジトリ（と同じ対象の Archon の記録）だけで最後まで回る。殻を通さずに Archon の命令をそのまま打った run と、Archon の筋書き（`workflow test` の dry-run）は結果ファイルを持たないので、入口の確かめの 5 で `ok: false` を返して最後の段まで回り切る（落ちずに `status` で止めを返す。world の諦めの筋書きと同じ形）。止めの訳の字は「審査の記録を照らした結果が渡されていない（起動の殻を通して起動する）」。照らせない run を黙って通さないための形で、憲法の 5 の「単独で回る」は殻を通した run で満たす。照らしが通る道の試験は、block の試験（`tests/blocks/spec_driven/`）が一時フォルダに結果ファイルを置き、env で渡して script を回して照らす。
 3. keep-essence の 7 の形: 9 章。
 
 ## 3 持ち主の答え
@@ -433,12 +434,12 @@ run の id は頭の 8 字（全部の id と記録の置き場は PR #809 の�
 変える node（依頼の文の run も通る node。6.5 で振る舞いが変わらないことを縛る）:
 
 1. `start`: 出力に `from_spec`（boolean。`spec_table` を名指した run か）と `ports.spec_table`（字。表のパス。空は無い）と `ports.routes`（字。仕様駆動の run は `plan`、ほかは修正の部品の既定と同じ `auto`）を足す。`spec_table` を名指した run では、表のファイルが在ることと、組めない入力との組み合わせだけを照らして拒む（固定材料の拒みと同じ所）。表の中身（YAML）は読まない。訳: `start` はどの run でも回るので、ここで PyYAML を持つと依頼の文の run まで外のパッケージを入れることになる（6.7）。表の中身の確かめ（2.3 の 1〜5）は `spec-entry` が試験の段より前にする。「依頼の行か差分の少なくとも 1 つが要る」の照らしは、`spec_table` を入口の 1 つに数える。
-2. `test-gate-base`: `depends_on` に `spec-entry` を足して `trigger_rule: none_failed_min_one_success` にし、`when:` を `"$answer-start.output.go == true && $start.output.from_fixture == false && ($start.output.from_spec == false || $spec-entry.output.ok == true)"` にする。訳: 試験の段の中には AI の段（テストの実行器を書く `suite-loop`）が在るので、表の確かめが欠けた run はその前に止める（「欠ければ AI を起こさずに止まる」）。依頼の文の run では `spec-entry` が飛ぶので、`answer-start` だけで今と同じに回る。飛ばされた node の出力を `when:` の `||` の右に置いた時の Archon の読みは未確認（未確認の一覧）。読めなければ、`spec-entry` をどの run でも回し、表の無い run では何もせず `ok: true` を返す形に替える。
+2. `test-gate-base`: `depends_on` に `spec-entry` を足して `trigger_rule: none_failed_min_one_success` にし、`when:` を `"$answer-start.output.go == true && $start.output.from_fixture == false && $start.output.from_spec == false || $answer-start.output.go == true && $start.output.from_fixture == false && $spec-entry.output.ok == true"` にする。訳: 試験の段の中には AI の段（テストの実行器を書く `suite-loop`）が在るので、表の確かめが欠けた run はその前に止める（「欠ければ AI を起こさずに止まる」）。書き方の決まり（止めた Archon a972888a の源で確かめた）: `when:` は括弧を持てない（`packages/workflows/src/loader.ts` の `unsupportedConditionSyntax` が「Grouping parentheses are not supported」で読み込みを拒む。`condition-evaluator.ts` の頭「AND has higher precedence than OR. No parentheses.」）ので、OR-of-AND に展開して書く。評価は左から進み、`&&` も `||` も途中で打ち切る（`evaluateCondition`）。飛ばされた node の欄を実際に読むと、偽にならずに node を落とす（`output-ref.ts` の `producer-not-run`）。そのため、飛ばされうる `spec-entry` の出力を読む節は必ず `||` の後ろに置き、前の節を `from_spec == false` で終える。依頼の文の run では前の節が真になった所で打ち切り、`$spec-entry.output.ok` を読まないので、`answer-start` だけで今と同じに回る。仕様駆動の run では前の節が `from_spec == false` で偽になり、後ろの節で `spec-entry` の答えを読む。
 3. `judge`: `when:` を `"$test-gate-base.output.ok == true"` から `"$test-gate-base.output.ok == true && $start.output.from_spec == false"` にする。判定の後ろの node（`judge-out`・`tiers`・`owed`・`structure`・`structure-in`・`independent-design`・`design-in`・`plan-rounds`・`plan-rounds-out`・`ask-before-fix`・`gate-before-fix`・`answer-before-fix`）は、`judge` が飛ばされると依る物が欠けて飛ぶ（今の `depends_on` と `trigger_rule` のまま。`when:` は足さない）。飛ぶことは 6.5 の筋書きで確かめる。
-4. `fix-in`: `depends_on` に `spec-check`・`spec-diagnose-out`・`spec-plan-out` を足し、`with:` に `spec_check: {from: "$spec-check.output", if_skipped: null}`・`spec_judgment: {from: "$spec-diagnose-out.output.got", if_skipped: null}`・`spec_plan: {from: "$spec-plan-out.output.got", if_skipped: null}` を足す。`workflows/line/scripts/fix_in.py` は、`spec_check` が在る時だけ、判定の部を判定の役の返り（`units`・`judgment`・`answer_ties`・`materials`・`out_of_purpose`。目的の文は表の `purpose`）から、往復の部を計画の部品の返り（`plan`・`fix_plan`・`ripple`・`reply`・`owed`・`status`。`round` は 1、`review` は null）から組み、`go` を `spec_check.ok` と起動の承認の答えで決める（固定材料の run の組み方 `_carried` と同じ形の 3 つ目の道）。ほかの run では 3 つとも null で、今の組み方のまま。
+4. `fix-in`: `depends_on` に `spec-rounds`・`spec-answer-before-fix` を足し、`with:` に `spec: {from: "$spec-rounds.output", if_skipped: null}`・`spec_before_fix_go: {from: "$spec-answer-before-fix.output.go", if_skipped: null}`・`spec_before_fix_answer: {from: "$spec-answer-before-fix.output.answer", if_skipped: null}`・`spec_before_fix_policy: {from: "$spec-answer-before-fix.output.policy", if_skipped: null}`・`spec_deferred: {from: "$spec-ask-before-fix.output.deferred", if_skipped: null}`・`spec_passes: {from: "$spec-ask-before-fix.output.passes", if_skipped: null}` を足す。`workflows/line/scripts/fix_in.py` は、`spec` が在る時だけ、判定の部と往復の部を `spec-rounds` の返り（`judge`・`rounds`。今の `judge-out` と `plan-rounds-out` の受け皿の `got` と同じ形）から取り、修正前の承認の答えを `spec-` の付いた 4 つから取って、今と同じ式で平らな欄にする（`go` は修正前の承認を通ったか。今の通常の run と同じ）。ほかの run ではどれも null で、今の組み方のまま。
 5. `fix`・`refix-run`: `with:` に `routes: "$start.output.ports.routes"` を足す（7 章）。
 6. `after-fix`・`fixed`: 仕様駆動の run（`start` の `from_spec`）では、修正の段の異議から案の直し（`replan`）と再審（`rejudge-run`）へ進まず、異議を名指して止めて人に返す。訳: 案の直しは run の中で計画の審査を回す（`replan-review`）。持ち主の決め `spec-driven-shape` は run の中で計画の審査の往復をしない・食い違えば仕様を書き換えずに止まる、と決めた。
-7. `collect`: `depends_on` に足す node を全部足し、block `works-factory-spec-driven` の `report` を報告の節に渡す。
+7. `collect`: `depends_on` に足す node を全部足し（修正前の承認ノードの記録は、`spec-` の付いた 3 つが在ればそちらを読む）、block `works-factory-spec-driven` の `report` を報告の節に渡す。
 
 足す node（どれも仕様駆動の run だけで回る）:
 
@@ -449,6 +450,12 @@ run の id は頭の 8 字（全部の id と記録の置き場は PR #809 の�
 5. `spec-plan`（`include: works-factory-plan`。`depends_on: [spec-entry, spec-diagnose]`・`when: "$spec-diagnose.output.ready == true"`）: `with: {judgment: "$spec-diagnose.output.judgment", units: "$spec-diagnose.output.units", answer_ties: "$spec-diagnose.output.answer_ties", materials: "$spec-diagnose.output.materials", spec: "$spec-entry.output.spec", routes: "spec", policy: "$start.output.ports.policy", base: "$start.output.ports.base_rev", review_rev: "$start.output.ports.review_rev", diff_base: "$start.output.ports.base", lang: "$start.output.ports.lang"}`（`prior` は空、`ruling` は `[]`。入力 `routes` は 7 章で足す）。
 6. `spec-plan-out`（受け皿）。
 7. `spec-check`（`include: works-factory-spec-driven`。`depends_on: [spec-entry, spec-diagnose, spec-plan]`・`trigger_rule: none_failed_min_one_success`・`when: "$spec-entry.output.ok == true"`）: `with: {mode: "check", table: "$start.output.ports.spec_table", tdd: "$spec-entry.output.tdd", questions: {from: "$spec-diagnose.output.questions", if_skipped: null}, out_of_purpose: {from: "$spec-diagnose.output.out_of_purpose", if_skipped: null}, ready: {from: "$spec-diagnose.output.ready", if_skipped: null}, plan: {from: "$spec-plan.output.plan", if_skipped: null}, plan_ok: {from: "$spec-plan.output.ok", if_skipped: null}, base: "$start.output.ports.base_rev", lang: "$start.output.ports.lang"}`。返り `{ok, stop_reason, reason, mismatches, report}`。
+8. `spec-rounds`（script `spec_rounds`。line の `scripts/`。`depends_on: [spec-check, spec-diagnose-out, spec-plan-out]`・`when: "$spec-check.output.ok == true"`・`mutates_checkout: false`）: 判定の役と計画の部品の返りを、今の `judge-out` と `plan-rounds-out` の受け皿の `got` と同じ形に組み直す（判定の部は `units`・`judgment`・`answer_ties`・`materials`・`out_of_purpose`・`questions` と、目的の文は表の `purpose`。往復の部は `plan`・`fix_plan`・`ripple`・`reply`・`owed`・`status`・`asks`。`round` は 1、`review` は null）。返り `{judge, rounds}`。組み直しを 1 か所に置き、修正前の承認ノードの前の段と `fix-in` が同じ値を読む。
+9. `spec-ask-before-fix`（今の `ask-before-fix` と同じ script `ask_before_fix`・同じ `output_format`。YAML の錨で本体を 1 か所にする。`depends_on: [spec-rounds]`）: `with: {rounds: "$spec-rounds.output.rounds", structure: null, judge: "$spec-rounds.output.judge", record: "$start.output.record", ports: "$start.output.ports"}`。
+10. `spec-gate-before-fix`（今の `gate-before-fix` と同じ `wait:`。`depends_on: [spec-ask-before-fix]`・`when: "$spec-ask-before-fix.output.open == true"`）。
+11. `spec-answer-before-fix`（今の `answer-before-fix` と同じ script `before_fix_answer`。`depends_on: [spec-ask-before-fix, spec-gate-before-fix]`・`trigger_rule: none_failed_min_one_success`）: `with:` は今の `answer-before-fix` の `ask-before-fix`・`gate-before-fix` を `spec-` の付いた物に替えた物。
+
+修正前の承認ノードの扱い（工場窓口の答え。2026-10-21、受付 20261021-025739-b542bf）: 仕様駆動の run でも、今の本線と同じ条件で修正前の承認ノードを出す。開くかを決めるのは今と同じ script `ask_before_fix`（能力を狭める物 `narrows`・人に決めてほしい点・方針の変わり・無人の run の扱い）で、仕様駆動の run だけ、渡す値の出どころが `spec-rounds` になる。条件に当たらなければ出さない（今の本線と同じ）。依頼の文の run の `ask-before-fix`・`gate-before-fix`・`answer-before-fix` は変えない（`spec-` の付いた 3 つを別に置くのは、今の 3 つの `depends_on` と `trigger_rule` を変えずに済ませ、依頼の文の run の振る舞いを動かさないため）。訳: 元と同じにそろえる。持ち主の言葉「１と２のサイクルの中にはいればいいからどこでもいいと思うよ」は、計画の往復に人が入る場所を問わないという意味で、修正前の承認ノードを外す話ではない。計画の AI が工場の中で書いたファイルの行に狭める物や決めてほしい点が出れば、今の本線と同じに人に見せる。
 
 ### 6.3 計画の部品に渡す物
 
@@ -460,19 +467,19 @@ run の id は頭の 8 字（全部の id と記録の置き場は PR #809 の�
 
 どれも yes/no。1 つでも当たれば `ok: false` で、当たった物を `mismatches` に名指して止める（人が仕様を直したら新しい run）。
 
-1. 判定の役が問い（`questions`）を返した: 仕様が決めていない点が在る。
+1. （前の版の「判定の役が問いを返した」は外した。問いは今の本線と同じく修正前の承認ノードで人に見せる。6.2 の修正前の承認ノードの扱い）
 2. 判定の役が直す単位を返さなかった（`ready` が偽）、か計画の部品が落ちた（`plan_ok` が偽）。
 3. 計画の行のファイルの行で、`op` が `modify`・`delete` なのにパスが作業ツリー（`base` の版）に無い、`create` なのに在る、`rename` で `from` が無いか `path` が在る。
 4. 表の `out_of_scope` の glob が、計画の行のどれの `out_of_scope` にも無い。
-5. 計画の行の `narrows` に、`decided_by` が設計書（表の `design` のパス）を引かない行が在る（能力を狭める行が設計書で決まっていない。持ち主の決め `no-narrow`）。
+5. （前の版の「設計書で決まっていない `narrows`」は外した。能力を狭める行は今の本線と同じく修正前の承認ノードで人に見せる。持ち主の決め `no-narrow` の当て方と同じ）
 6. 設計書に「TDD で直す所」の項目が無いのに `route` が `tdd` の行が在る、か項目が在るのに `tdd` の行が 1 つも無い（7 章）。
 7. 判定の役が目的の外とした行（`out_of_purpose`）が在る: 設計書が表の目的と受け入れの条件の外の物を書いている（2.5 の判定の役の試しで、設計書 9 節の入口の workflow が当たった）。
 
-今の本線の修正前の承認ノード（`ask-before-fix`）は仕様駆動の run では回らない（6.2 の変える node の 3）。人に聞くはずの物（判定の問い・設計書で決まっていない `narrows`）は、上の 1 と 5 で止めて返す。
+人に聞くはずの物（判定の役の問い・能力を狭める行）は止めずに、今の本線と同じ条件で修正前の承認ノードに出す（6.2 の足す node の 9〜11）。形 check が止めるのは、仕様とリポジトリが食い違う物（2・3・4・6・7）だけ。番号は前の版のまま残した（2.5 と 8 章が番号で指すため）。
 
 ### 6.5 依頼の文の run の振る舞いが変わらないことの縛り
 
-issue #802 の受け入れ「本線の振る舞いは変わらない」は、依頼の文（`request`）・差分（`base`・`pr`）・固定材料で入る run の振る舞いが変わらないことで守る。変えた node は `start`・`test-gate-base`・`judge`・`fix-in`・`fix`・`refix-run`・`after-fix`・`fixed`・`collect` の 9 つで、どれも `spec_table` が空なら今と同じ値で動く。縛る試験（実装の PR で足す）:
+issue #802 の受け入れ「本線の振る舞いは変わらない」は、依頼の文（`request`）・差分（`base`・`pr`）・固定材料で入る run の振る舞いが変わらないことで守る。変えた node は `start`・`test-gate-base`・`judge`・`fix-in`・`fix`・`refix-run`・`after-fix`・`fixed`・`collect` の 9 つ（今の `ask-before-fix`・`gate-before-fix`・`answer-before-fix` は変えない）で、どれも `spec_table` が空なら今と同じ値で動く。縛る試験（実装の PR で足す）:
 
 1. 今の本線の筋書き（`workflows/line/fixtures/*.stubs.yaml` の全部。`tests/blocks/line/test_scenarios.py`・`test_scenarios_gates.py`）を、期待（`reached`・`expect`・出力の値）を 1 字も変えずに通す。
 2. `tests/blocks/line/test_scenarios.py` に、依頼の文の筋書きのどの dry-run の trace にも `spec-` で始まる node が走らず、`judge` が走ることを照らす試験を足す（今の `ran` の助けで）。
@@ -481,6 +488,7 @@ issue #802 の受け入れ「本線の振る舞いは変わらない」は、依
 5. `tests/blocks/line/test_wiring.py` に、足す node（`spec-` で始まる物）の `when:` がどれも `from_spec == true` か `spec-entry` の出力を読む句を持つこと、`judge` の `when:` が `from_spec == false` を持つことを照らす試験を足す（yes/no。憲法の 6）。
 6. 部品に足す入力（修正の部品の `routes`・計画の部品の `routes`・判定の役の `request_files`）は、どれも既定値で今の振る舞いのまま。それぞれの block の試験（`tests/blocks/fix/`・`tests/blocks/plan/`・`tests/blocks/diagnose/`）に、既定値の時に今と同じ返りになることと、名指した値の時の振る舞いを照らす試験を足す。本線の依頼の文の run は既定値しか渡さない（6.2 の変える node の 5 は `ports.routes` が `auto`）。
 7. 仕様駆動の道の筋書き `workflows/line/fixtures/spec-driven.stubs.yaml`（通って修正まで届く）・`spec-refused.stubs.yaml`（入口の確かめで止まり、AI の node に届かない）・`spec-mismatch.stubs.yaml`（形 check で止まる）を足す。
+8. 修正前の承認ノードが依頼の文の run と同じ条件で開くこと: `tests/blocks/line/test_wiring.py` に、`spec-ask-before-fix`・`spec-gate-before-fix`・`spec-answer-before-fix` が今の 3 つと同じ script・同じ `wait:`・同じ `output_format` を持つ（YAML の錨で本体が 1 つ）ことを照らす試験を足す。筋書き `workflows/line/fixtures/spec-gate.stubs.yaml`（計画の部品が能力を狭める行を返し、`spec-gate-before-fix` が開く）と `spec-unattended.stubs.yaml`（無人の run で、今の本線の無人の筋書きと同じに推しで進むか止まる）を足す。`tests/blocks/line/test_rounds.py` か新しい `test_spec_rounds.py` に、`spec-rounds` の返りが今の受け皿の `got` と同じ鍵を持つことを照らす試験を足す。
 
 ### 6.6 足す仕組みの E11 の 3 つの確かめ
 
@@ -494,10 +502,11 @@ issue #802 の受け入れ「本線の振る舞いは変わらない」は、依
 
 - 読む所: block `works-factory-spec-driven` の形 entry の入口の script 1 本（`workflows/spec-driven/scripts/intake.py`）。頭の宣言を `# dependencies = ["PyYAML==6.0.3"]` にする。表を読んで照らした後、中身を JSON にして place に置き、後ろ（形 check・判定の役・計画の部品・本線の `fix-in`）は JSON か出力の欄だけを読む。形 check の script は表を読み直さず、形 entry の出力（`tdd`・表の `out_of_scope` の写し）を受ける。
 - 読む所を本線の `start` に置かない訳: `start` はどの run でも回るので、依頼の文の run まで uv が PyYAML を入れることになる（初めての run で取りに行き、取れない環境では落ちる）。表を読む所を仕様駆動の run だけで回る node に寄せる方が、外しが小さい。
-- 起動の殻に置かない訳: 殻を通さずに block を単独で回す（Archon の命令をそのまま打つ）と表が読めず、block が文とリポジトリだけで回らない（憲法の 5）。
-- 版の縛り: script の頭の `PyYAML==6.0.3` は、根の `pyproject.toml` の `PyYAML==6.0.3` と同じ字にする。2 か所の版が同じことを `tests/workflows/test_uv_scripts.py` に試験を足して縛る（依存の宣言を 1 か所に置く E3 の向きを、2 か所目を試験で 1 か所に結び直して崩さない）。
+- 表の中身の確かめ（2.3 の 1〜4）を起動の殻だけに置かない訳: 殻を通さない run（Archon の命令をそのまま打つ・筋書きの dry-run）で表の形が照らされず、block の入口の確かめが殻に頼ることになる。1〜4 は block の入口が自分で照らし、殻が要るのは Archon の記録を読む 5 だけにする（5 の扱いは 2.6 の 2 の「block の単独の run」）。
+- 殻の側の読み（E14）: 殻（`bin/works-factory`）は `#!/usr/bin/env python3` の素の Python で動き、標準ライブラリと `bin/`・`lib/` だけを使う（今の `bin/` と `lib/` に `import yaml` は無い）。根の `pyproject.toml` の PyYAML は試験のための物で、殻を起こす時には入らない。普通の利用者（`claude /login` しただけの人など。持ち主の決め `others-may-use`）の環境に PyYAML は無いので、殻の Python で `lib/spectable.py` を import すると落ちる。そこで、殻は表を読む所だけを uv で起こす: `bin/_lib/` に PEP 723 の頭（`# dependencies = ["PyYAML==6.0.3"]`）を持つ小さな script を 1 本置き、殻が `uv run --script <その script> <表のパス>` で起こす。その script は `lib/spectable.py` で表を読み、`reviews` の run の id と、部品ごとに組んだ入力を JSON で標準出力に返すだけ。Archon の記録を読んで a〜e を照らすのは、殻の素の Python のまま（標準ライブラリだけ）。選んだ訳: uv は Archon の `runtime: uv` の script のノードを回すのに要るので、Archon を使う人は既に持つ（`others-may-use` の当て方）。殻のほかの起動（`spec_table` も `table` も名指さない起動）は uv を起こさず、今と何も変わらない。退けた案: 表の読みを殻の外へ出す（殻より前に表を読める所は無い。run の中の script は Archon の記録を読めない）。殻は PyYAML に頼らない（YAML の読みを自前で書くことになり、既製を先に当たる決め `reuse-first` に反する）。
+- 版の縛り: PyYAML の版は、根の `pyproject.toml`・block の入口の script の頭・殻の表を読む script の頭の 3 か所に同じ字 `PyYAML==6.0.3` で書く。3 か所が同じことを、`tests/workflows/test_uv_scripts.py` に試験を足して縛る（殻の script は `workflows/` の外なので、その試験の照らす先に `bin/_lib/` のこの 1 本を名指して足す）。依存の宣言を 1 か所に置く E3 の向きは、2 か所目と 3 か所目を試験で 1 か所に結び直して崩さない。
 - 決まりの直し（実装の PR）: E3 の上の 1 文に「外し: `workflows/spec-driven/scripts/intake.py` は表の YAML を読むため PyYAML を持つ」を足し、試験の `HEADER` の照らしにこの 1 本の外しを名指して足す（ほかの script の頭は今のまま `dependencies = []`）。[archon.md](archon.md) の「層の E3 の `deps:`」は「`deps:` を持つ script のノードは無い」と書いているので、同じ PR で直し、uv の宣言で PyYAML が入ることを通しで確かめる（今は未確かめ）。
-- 表の読みと入力の組み立てのコードの置き場: block と起動の殻（2.6 の 2）の 2 か所が使うので `lib/spectable.py` に置く（憲法の 4）。Archon を知らない物（表の YAML を読み、schema で照らし、部品ごとの入力の字を組む）だけを置く。Archon の run の記録を読んで a〜e を照らす所は、Archon を知る殻の `bin/_lib/` に置く（E3）。`lib/` は根の `pyproject.toml` の PyYAML を使う（外のパッケージは使ってよい。E3）。block の入口の script が `lib/spectable.py` を import するので、その script の頭に PyYAML を宣言する外し（上の 2 つ）はそのまま要る。
+- 表の読みと入力の組み立てのコードの置き場: block と起動の殻（2.6 の 2）の 2 か所が使うので `lib/spectable.py` に置く（憲法の 4）。Archon を知らない物（表の YAML を読み、schema で照らし、部品ごとの入力の字を組む）だけを置く。Archon の run の記録を読んで a〜e を照らす所は、Archon を知る殻の `bin/_lib/` に置く（E3）。`lib/spectable.py` は PyYAML を import する（外のパッケージは使ってよい。E3）。import する側はどれも PyYAML を宣言した uv の script（block の入口の script と、殻の表を読む script）で、殻の素の Python からは import しない。
 
 ## 7 修正の部品に direct の道をまとめて選ぶ入力（進め方の 4）
 
@@ -522,8 +531,8 @@ PR #807 で決めた形（計画と計画の審査の往復を run の前の会�
 
 持ち主の決めの「仕様とリポジトリの食い違いの照らし（食い違えば仕様を書き換えずに止まって人に返す）」は、run の中の次の 3 か所がする:
 
-1. 判定の役の問い（6.4 の 1）: 仕様が決めていない点。
-2. 形 check の機械の照らし（6.4 の 3〜6）: ファイルの行と作業ツリーの食い違い・触らない物の写し漏れ・設計書で決まっていない `narrows`・TDD の印の食い違い。計画の AI の返りに新しい欄は足さない（今の `narrows` の `decided_by`・`undecided_because` を読む）。
+1. 判定の役の問いと能力を狭める行: 止めずに、今の本線と同じ条件で修正前の承認ノードに出す（6.2）。人が答えれば進み、仕様を直すと答えれば止める。
+2. 形 check の機械の照らし（6.4 の 2〜4・6・7）: 単位が無い・計画が落ちた・ファイルの行と作業ツリーの食い違い・触らない物の写し漏れ・TDD の印の食い違い・設計書が目的の外を書いている。計画の AI の返りに新しい欄は足さない（今の計画の行を読む）。
 3. 修正の段の異議（6.2 の変える node の 6）: 直す役が「案と作業ツリーが合わない」と申し出たら、案の直しへ進まず止める。
 
 計画の審査の部品は、仕様を固める会話の中で、形 text（方針の文だけ）で単独で回す（2.5）。
@@ -563,7 +572,13 @@ PR #807 で決めた形（計画と計画の審査の往復を run の前の会�
 - EARS の元の論文（1.1）。
 - `judge` を飛ばした時に、その後ろの node（`structure-in`・`design-in` のように `trigger_rule: none_failed_min_one_success` と `when:` を持つ物を含む）が全部飛ぶか（6.2 の変える node の 3）。実装の PR で、仕様駆動の筋書きの dry-run の trace で確かめる。
 - 判定の役の入力 `request_files` の照らし（9 章）を足した後に、足すだけの単位で判定の役が `examples_unavailable` の道に寄るか、出し直しを繰り返すか。実装の PR の本物の run で見る。
-- 飛ばされた node（依頼の文の run の `spec-entry`）の出力を `when:` の `||` の右に置いた時に、Archon が句を偽と読まずに左の真で通すか（6.2 の変える node の 2）。実装の PR で、依頼の文の筋書きの dry-run が `test-gate-base` を通ることで確かめる。
 - 起動の殻が照らした結果のファイルの形と env の名（2.6 の 2）。実装の PR で、`bin/AGENTS.md` の E15 に沿って決める。
+- 実装の PR で決める事（PR #809 のレビューの「後でよい物」）:
+  - 2.6 の 2 の d の比べ方: Archon は `metadata.inputs` に名指さなかった入力の既定値も詰めて残す（`workflow-inputs.ts`）ので、部品に入力を後で足すと前の版の記録が合わなくなる。比べる鍵の範囲（組んだ鍵だけか、既定も含めるか）・`proposal_file` の一時のパス（中身の sha256 で比べる）・表と設計書のパスと `entry` の字を対象の根からの相対で組むこと・「表から `reviews` を除いた字」の作り方と、会話の AI が同じ字を組む手段（`lib/spectable.py` を呼ぶ命令を工場の側に置くか）を決める。
+  - 9 章の `request_files` の照らしで、`class_query.how.paths`（git の pathspec。ディレクトリ・glob・絶対パスも来る）をどう正規化して比べるか。`paths` が空（根の全部を探す）の単位を「どれも中」と数えない。
+  - 7 章の `routes: plan` でも、テストの実行器が無い run では TDD の loop が回らず（`tdd.py` の `NO_SUITE`）、設計書の「TDD で直す所」が黙って direct になりうる。形 check の 6 で止めるか、報告で人に見せるか。
+  - 6.5 に、殻（`bin/works-factory`）が `spec_table` も `table` も無い起動で審査の記録を読まず、uv も起こさず、振る舞いが変わらないことを縛る試験を `tests/bin/` に 1 つ足す。
+  - `bin/AGENTS.md` の E15 は「殻は `--input test_cmd=` を照らさない」と書き、#678 で入力の照らしを殻から本線へ移した。殻が `--input spec_table=`・`--input table=` を読んで照らすのはこの向きの外しなので、E15 の文に外しを書く（持ち主の決め `spec-driven-shape` に殻で照らすと書いてあるので、E10 は満たしている）。
+  - 新しい block を `docs/layers.json` の block の `names` に足す。
 - 計画の部品の指示に足す `routes` の段落（7 章）で、計画の AI が「TDD で直す所」を行に正しく写すか。実装の後の本物の run（進め方の 7）で見る。
 - 2.5 の 2 周目（指摘を受けて直した版で回し直す）と、工場の run の入口の照らしの本物の通し。
