@@ -1,9 +1,9 @@
 # 設計書（下書き）: spec-driven（仕様駆動の道）
 
 - 何の話か: 人と固めた仕様を渡して実装させる道（仕様駆動の道。issue #802）の設計書の下書き。1〜3 章は issue の「進め方」の 1 と 2（世の中の仕様駆動の 5 つの形との比べ・仕様に入れる物・持ち主の答え）。6〜9 章は進め方の 4〜6 の設計（本線への差し込み・修正の部品への入力・入口の確かめの細目・keep-essence の 7 の形）と、仕様を固める会話から部品を単独で呼ぶ形を本物の run で試した結果（2.5）。block のフォルダと試験のコードは、この設計書が main に入った後に書く。読む人は持ち主と実装の役。持ち主への問いは全部答えが出た（10 章）。
-- 決めたこと: 仕様は #765 の組み直しの設計書くらいの粒度で、設計書（Markdown）と機械が確かめる表（目的・受け入れの条件・試験のコマンド・触らない物の 4 つだけ）の 2 つにする。ファイルごとの行は仕様に書かず、run の中で計画の AI が 1 回だけ起こす。計画と計画の審査の往復は、仕様を固める会話の中で部品を単独で必ず回し、その記録を表に添える。run の入口で機械が形と記録を yes/no で確かめ（記録は起動の殻が Archon の run の記録と照らす）、欠ければ AI を起こさずに止まる。この道は判定と計画の往復を飛ばす道ではなく、その繰り返しに人を混ぜる道で、工場の中では同じ事を 2 度回さない（持ち主の決め `spec-driven-shape`）。道は別の graph にせず、本線 `works-factory-line` に入口を 1 つ足し、今の判定と計画の往復の代わりに、AI を持たない block `works-factory-spec-driven`・判定の役 diagnose・計画の部品 plan を 1 回ずつ通して修正の入口 `fix-in` へつなぐ（6 章）。新しい AI の役は作らない。直し 1 件ごとの差分の仕様（OpenSpec の ADDED/MODIFIED/REMOVED）は採らない。
+- 決めたこと: 仕様は #765 の組み直しの設計書くらいの粒度で、設計書（Markdown）と機械が確かめる表（目的・受け入れの条件・試験のコマンド・触らない物の 4 つだけ）の 2 つにする。ファイルごとの行は仕様に書かず、run の中で計画の AI が 1 回だけ起こす。計画と計画の審査の往復は、仕様を固める会話の中で部品を単独で必ず回し、その記録を表に添える。run の入口で機械が形と記録を yes/no で確かめ（記録は起動の殻が Archon の run の記録と照らす）、欠ければ AI を起こさずに止まる。この道は判定と計画の往復を飛ばす道ではなく、その繰り返しに人を混ぜる道で、会話の中で回した往復を工場の中で回し直さない（持ち主の決め `spec-driven-shape`）。道は別の graph にせず、本線 `works-factory-line` に入口を 1 つ足す。工場の中では、今の本線の判定と計画の往復（何周も回す形）を回さず、その代わりに、AI を持たない block `works-factory-spec-driven`・判定の役 diagnose・計画の部品 plan を 1 回ずつ通して修正の入口 `fix-in` へつなぐ（6 章）。新しい AI の役は作らない。直し 1 件ごとの差分の仕様（OpenSpec の ADDED/MODIFIED/REMOVED）は採らない。
 - 持ち主に求めること: なし。前の版で聞いた 3 つは答えが出た。表の書式と block の形は工場窓口の答え（2026-10-21、受付 20261020-224412-ca616a）、審査の記録を本物の run の記録と照らすかは持ち主の答え（2026-10-21、案 A〔照らす〕。持ち主の決め `spec-driven-shape`）で決まった（10 章）。
-- 読む人: 持ち主と、進め方の 4〜7 を進める設計と実装の役。
+- 読む人: 持ち主と、進め方の 4〜7 を進める設計と実装の役。設計と実装の役は、6〜9 章に沿って実装の PR を書き、末尾の未確認の一覧の物をその PR で決める。持ち主は、自分の答えがどう写ったかを 10 章で引く（求めることは無い）。
 
 この文書の語は [README.md](README.md) の頭の物を使う。ほかに:
 
@@ -492,7 +492,7 @@ issue #802 の受け入れ「本線の振る舞いは変わらない」は、依
 5. `tests/blocks/line/test_wiring.py` に、足す node（`spec-` で始まる物）の `when:` がどれも `from_spec == true` か `spec-entry` の出力を読む句を持つこと、`judge` の `when:` が `from_spec == false` を持つことを照らす試験を足す（yes/no。憲法の 6）。
 6. 部品に足す入力（修正の部品の `routes`・計画の部品の `routes`・判定の役の `request_files`）は、どれも既定値で今の振る舞いのまま。それぞれの block の試験（`tests/blocks/fix/`・`tests/blocks/plan/`・`tests/blocks/diagnose/`）に、既定値の時に今と同じ返りになることと、名指した値の時の振る舞いを照らす試験を足す。本線の依頼の文の run は既定値しか渡さない（6.2 の変える node の 5 は `ports.routes` が `auto`）。
 7. 仕様駆動の道の筋書き `workflows/line/fixtures/spec-driven.stubs.yaml`（通って修正まで届く）・`spec-refused.stubs.yaml`（入口の確かめで止まり、AI の node に届かない）・`spec-mismatch.stubs.yaml`（形 check で止まる）を足す。
-8. 修正前の承認ノードが依頼の文の run と同じ条件で開くこと: `tests/blocks/line/test_wiring.py` に、`spec-ask-before-fix`・`spec-gate-before-fix`・`spec-answer-before-fix` が今の 3 つと同じ script・同じ `output_format`・同じ `wait:` の `form` と `options` を持ち（YAML の錨で本体が 1 つ）、`spec-gate-before-fix` の `attention` だけが `spec-ask-before-fix` を読むことを照らす試験を足す。筋書き `workflows/line/fixtures/spec-gate.stubs.yaml`（計画の部品が `decided_by` の無い能力を狭める行を返し、`spec-rounds` が `lib/gatemarks.py` の `narrow_asks` でそれを項目にし、`spec-ask-before-fix` の `open` が真になって `spec-gate-before-fix` が開く）と `spec-unattended.stubs.yaml`（無人の run で、今の本線の無人の筋書きと同じに推しで進むか止まる）を足す。`tests/blocks/line/test_rounds.py` か新しい `test_spec_rounds.py` に、`spec-rounds` の返りが今の受け皿の `got` と同じ鍵を持ち、値が上の決め（`ok` が真・`status` が `nothing_owed` でない・`review_status` が `REVIEW_FELL` に当たらない・`deviations` が空）どおりで、`decided_by` の無い narrows が `asks` の行になることを照らす試験を足す。
+8. 修正前の承認ノードが依頼の文の run と同じ条件で開くこと: `tests/blocks/line/test_wiring.py` に、`spec-ask-before-fix`・`spec-gate-before-fix`・`spec-answer-before-fix` が今の 3 つと同じ script・同じ `output_format`・同じ `wait:` の `form` と `options` を持ち（YAML の錨で本体が 1 つ）、`spec-gate-before-fix` の `attention` だけが `spec-ask-before-fix` を読むことを照らす試験を足す。筋書き `workflows/line/fixtures/spec-gate.stubs.yaml`（計画の部品が `decided_by` の無い能力を狭める行を返し、`spec-rounds` が `lib/gatemarks.py` の `narrow_asks` でそれを項目にし、`spec-ask-before-fix` の `open` が真になって `spec-gate-before-fix` が開く）と `spec-unattended.stubs.yaml`（無人の run で、今の本線の無人の筋書きと同じ結果になる。項目の全部が推しの尾を持てば推しで進み、そうでなければ開かずに止まる。[line.md](line.md) の 6 節）を足す。`tests/blocks/line/test_rounds.py` か新しい `test_spec_rounds.py` に、`spec-rounds` の返りが今の受け皿の `got` と同じ鍵を持ち、値が上の決め（`ok` が真・`status` が `nothing_owed` でない・`review_status` が `REVIEW_FELL` に当たらない・`deviations` が空）どおりで、`decided_by` の無い narrows が `asks` の行になることを照らす試験を足す。
 
 ### 6.6 足す仕組みの E11 の 3 つの確かめ
 
@@ -573,13 +573,13 @@ PR #807 で決めた形（計画と計画の審査の往復を run の前の会�
 
 ## 未確認の一覧
 
-- EARS の元の論文（1.1）。
+- EARS の元の論文（Mavin ほか、RE'09）を読んでいない。EARS の型は著者のページから引いたので、論文の型と同じかは確かめていない（1.1）。
 - `judge` を飛ばした時に、その後ろの node（`structure-in`・`design-in` のように `trigger_rule: none_failed_min_one_success` と `when:` を持つ物を含む）が全部飛ぶか（6.2 の変える node の 3）。実装の PR で、仕様駆動の筋書きの dry-run の trace で確かめる。
-- 判定の役の入力 `request_files` の照らし（9 章）を足した後に、足すだけの単位で判定の役が `examples_unavailable` の道に寄るか、出し直しを繰り返すか。実装の PR の本物の run で見る。
+- 判定の役の入力 `request_files` の照らし（9 章）を足した後に、足すだけの単位（直す前の形が無く、新しく足すだけの単位。9 章）で判定の役が `examples_unavailable` の道に寄るか、出し直しを繰り返すか。実装の PR の本物の run で見る。
 - 起動の殻が照らした結果のファイルの形と env の名（2.6 の 2）。実装の PR で、`bin/AGENTS.md` の E15 に沿って決める。
 - 実装の PR で決める事（PR #809 のレビューの「後でよい物」）:
   - 2.6 の 2 の d の比べ方: Archon は `metadata.inputs` に名指さなかった入力の既定値も詰めて残す（`workflow-inputs.ts`）ので、部品に入力を後で足すと前の版の記録が合わなくなる。比べる鍵の範囲（組んだ鍵だけか、既定も含めるか）・`proposal_file` の一時のパス（中身の sha256 で比べる）・表と設計書のパスと `entry` の字を対象の根からの相対で組むこと・「表から `reviews` を除いた字」の作り方と、会話の AI が同じ字を組む手段（`lib/spectable.py` を呼ぶ命令を工場の側に置くか）を決める。
-  - 9 章の `request_files` の照らしで、`class_query.how.paths`（git の pathspec。ディレクトリ・glob・絶対パスも来る）をどう正規化して比べるか。`paths` が空（根の全部を探す）の単位を「どれも中」と数えない。
+  - 9 章の `request_files` の照らしで、`class_query.how.paths`（git の pathspec。ディレクトリ・glob・絶対パスも来る）をどう正規化して比べるか。`paths` が空（根の全部を探す）の単位は、「`paths` がどれも `request_files` の中」には当たらないとして拒まない。
   - 7 章の `routes: plan` でも、テストの実行器が無い run では TDD の loop が回らず（`tdd.py` の `NO_SUITE`）、設計書の「TDD で直す所」が黙って direct になりうる。形 check の 6 で止めるか、報告で人に見せるか。
   - 6.5 に、殻（`bin/works-factory`）が `spec_table` も `table` も無い起動で審査の記録を読まず、uv も起こさず、振る舞いが変わらないことを縛る試験を `tests/bin/` に 1 つ足す。
   - `bin/AGENTS.md` の E15 は「殻は `--input test_cmd=` を照らさない」と書き、#678 で入力の照らしを殻から本線へ移した。殻が `--input spec_table=`・`--input table=` を読んで照らすのはこの向きの外しなので、E15 の文に外しを書く（持ち主の決め `spec-driven-shape` に殻で照らすと書いてあるので、E10 は満たしている）。
