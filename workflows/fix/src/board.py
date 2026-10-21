@@ -575,17 +575,26 @@ def objection(results) -> str:
     return "\n".join(out)
 
 
+def _handoffs(replies):
+    for reply in replies:
+        for c in (reply or {}).get("changes") or [] if isinstance(reply, dict) else []:
+            breaks = c.get("breaks") if isinstance(c, dict) and isinstance(c.get("breaks"), dict) else {}
+            got = breaks.get("accepted")
+            if isinstance(got, str) and got.strip():
+                title = breaks.get("accepted_title")
+                yield f"{c.get('unit_key')}: 壊すと分かって通した——{oneline.one_line(got)}", oneline.one_line(title) if isinstance(title, str) else ""
+
+
 def handoff_lines(replies) -> list:
     """修正役が人に回した物（1 件 1 行）: 受け付けた返答（replies。dict の並び）の changes[].breaks.accepted（壊すと分かっていて
     通す理由。空白だけの行は除く）。元 works/.shared/core/report.py:304 の handoff_lines（今の周の修正の返答を盤面から読んだ所を
     返答の値で受ける）"""
-    out = []
-    for reply in replies:
-        for c in (reply or {}).get("changes") or [] if isinstance(reply, dict) else []:
-            got = (c.get("breaks") or {}).get("accepted") if isinstance(c, dict) and isinstance(c.get("breaks"), dict) else None
-            if isinstance(got, str) and got.strip():
-                out.append(f"{c.get('unit_key')}: 壊すと分かって通した——{oneline.one_line(got)}")
-    return out
+    return [line for line, _ in _handoffs(replies)]
+
+
+def handoff_titles(replies) -> dict:
+    """handoff_lines の行 → 修正役が同じ breaks に添えた短い題（accepted_title）。題の無い・空白だけの行は入れない（報告の頭は種の名に戻す）"""
+    return {line: title for line, title in _handoffs(replies) if title}
 
 
 def mismatched_lines(place) -> list:
@@ -619,6 +628,16 @@ def declared_lines(place) -> list:
         a = said.get(f.get("key")) if isinstance(f, dict) and f.get("severity") == "block" else None
         if a is not None and a.get("handled") == "declared":
             out.append(f"{f['key']}: {oneline.one_line(f.get('why') or '')}（直す側の答え: {oneline.one_line(a.get('how') or '')}）")
+    return out
+
+
+def final_titles(results, more=None) -> dict:
+    """組の子の結果 results の handoff_titles と more（裁定の後の返答の handoff_titles）をつないだ表（同じ行は先に現れた題）"""
+    out: dict = {}
+    for titles in [*((r or {}).get("handoff_titles") for r in results), more]:
+        for line, title in (titles or {}).items():
+            if isinstance(line, str) and isinstance(title, str) and title.strip():
+                out.setdefault(line, title)
     return out
 
 
@@ -898,7 +917,7 @@ def group_result(group, *, start_tree: str, end_tree: str, tdd, tdd_state: str =
                  accept_trace=(), closure=(), place: str = "") -> dict:
     """組の子の結果（out_dir/<group_id>/result.json の中身。join・collect・tdd-unit・conflict-check が読む）:
     {group_id, unit_ids, end_tree, start_tree, units: [{unit_id, status, reason}], tdd, conflicts, objection, changed, x_scalars,
-    allowed_tests, verified, reply_file, tdd_state, worktree, handoffs, mismatched, accept_trace, closure,
+    allowed_tests, verified, reply_file, tdd_state, worktree, handoffs, handoff_titles, mismatched, accept_trace, closure,
     claimed, place}。allowed_rows は許しの訳（allowed_test_rows の行）、handoffs は reply の handoff_lines、mismatched は子の置き場の
     mismatched_lines（最後の関所を開ける理由）、accept_trace は子の置き場の accept_trace_rows の行（group_id を足す。親の collect が
     diff の隣に集める）、closure は子の置き場の閉鎖の表の行（表を読めなければ None。fixbeside.closure_rows）と claimed は reply の
@@ -924,7 +943,7 @@ def group_result(group, *, start_tree: str, end_tree: str, tdd, tdd_state: str =
             "changed": changed_marks([{"changed": reply}] if reply else []), X_SCALARS: x_scalars([reply] if reply else []),
             "allowed_tests": permits,
             "verified": verified_tests(tdd), "reply_file": str(reply_file or ""), "tdd_state": str(tdd_state or ""),
-            "worktree": str(worktree or ""), "handoffs": handoff_lines([reply] if reply else []),
+            "worktree": str(worktree or ""), "handoffs": handoff_lines([reply] if reply else []), "handoff_titles": handoff_titles([reply] if reply else []),
             "mismatched": list(mismatched),
             "accept_trace": [{**r, "group_id": gid} for r in accept_trace or [] if isinstance(r, dict)],
             "closure": None if closure is None else [r for r in closure if isinstance(r, dict)],

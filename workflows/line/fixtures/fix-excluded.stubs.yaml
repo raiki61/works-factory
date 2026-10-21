@@ -222,6 +222,7 @@ fix__finish:
   changed: {mechanism_changed: false, premise_drift: false, gates_changed: false, seams_changed: false, security_surface_changed: false, path_changed: false, premise_drift_note: ''}
   x_scalars: {x_moved_lines: 3}
   handoffs: []
+  handoff_titles: {}
   mismatched: []
   plan_declared: []
   stop_reason: ''

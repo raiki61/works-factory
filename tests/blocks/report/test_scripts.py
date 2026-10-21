@@ -29,13 +29,13 @@ class FactsCase(Flow):
         self.assertEqual(got["stop_reason"], "start:record-invalid")
         text = self.machine()
         self.assertIn("結果を名乗れない訳: 入力 sections: json の入力が空", text)
-        self.assertIn("起きたこと: 記録が検証器を通らない（結果を名乗れない）（record_invalid）", text)
+        self.assertIn("起きたこと: 記録が検証器を通らない（結果を名乗れない）。", text)
         self.assertEqual(base.read(self.place / "facts.json")["ai_go"], False)
 
     def test_no_facts_is_record_invalid_from_the_start(self):
         got = self.facts(facts="{}")
         self.assertEqual((got["outcome"], got["stop_reason"], got["ai_go"]), ("record_invalid", "start:record-invalid", False))
-        self.assertIn("人が決めること: 1 件——記録が通らないこと 1 件", self.machine())
+        self.assertIn("人が決めること: 1 件（下の行は種類ごと", self.machine())
 
     def test_broken_inputs_are_named_and_do_not_fall(self):
         got = self.facts(sections="[壊れた", facts='{"nope": 1}')

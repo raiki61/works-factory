@@ -513,6 +513,22 @@ class CollectCase(FinishPlace):
             out = self.finish()
             self.assertEqual((out["ok"], out["handoffs"], out["mismatched"]), (False, [], []))
 
+    def test_collect_returns_the_titles_the_fixer_wrote_for_handoffs(self):
+        """修正役が breaks.accepted_title に書いた短い題は、handoffs の行をキーに handoff_titles で返る（組の子の結果と、裁定の後の返答を
+        つなぐ）。題の無い・空白だけの行は入れない（報告の頭は種の名に戻す）"""
+        reply = {"changes": [{"unit_key": "A", "breaks": {"accepted": "古い呼び手の戻り値が変わる", "accepted_title": "古い呼び手の戻り値を変える"}}]}
+        child = self.board.group_result({"group_id": "g1", "unit_ids": ["A"]}, start_tree="t", end_tree="t", tdd=None, reply=reply)
+        self.assertEqual(child["handoff_titles"], {"A: 壊すと分かって通した——古い呼び手の戻り値が変わる": "古い呼び手の戻り値を変える"})
+        self.collect_place(result_extra={"handoffs": child["handoffs"], "handoff_titles": child["handoff_titles"]})
+        write(self.place / "fix-ruled-reply.json", {"changes": [
+            {"unit_key": "B", "breaks": {"accepted": "設定の既定が変わる", "accepted_title": "設定の既定を変える"}},
+            {"unit_key": "C", "breaks": {"accepted": "外の利用者に効く", "accepted_title": "  "}},
+            {"unit_key": "D", "breaks": {"accepted": "題を書かなかった"}}]})
+        out = self.finish()
+        self.assertEqual(out["handoff_titles"], {"A: 壊すと分かって通した——古い呼び手の戻り値が変わる": "古い呼び手の戻り値を変える",
+                                                  "B: 壊すと分かって通した——設定の既定が変わる": "設定の既定を変える"})
+        self.assertEqual(len(out["handoffs"]), 4)
+
     def test_collect_returns_declared_plan_blocks(self):
         """修正役が直さずに残すと答えた（plan_faces の declared）事前審査の block は、key・why・修正役の答えの 1 行で plan_declared に
         載る。取り込んだ block と suggest は載らず、裁定の後の返答の答えが組の答えに勝つ"""

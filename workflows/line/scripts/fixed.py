@@ -18,7 +18,7 @@ sys.path[:0] = [str(Path(__file__).resolve().parents[2] / ".shared"), str(Path(_
 import ports  # noqa: E402
 
 FIX = ("ok", "reason", "units", "groups", "conflicts", "carry", "replan_items", "objection", "diff", "start_tree", "reply",
-       "ruled_reply", "scope", "checked", "allowed_test_changes", "changed", "x_scalars", "handoffs", "mismatched", "plan_declared",
+       "ruled_reply", "scope", "checked", "allowed_test_changes", "changed", "x_scalars", "handoffs", "handoff_titles", "mismatched", "plan_declared",
        "stop_reason", "allowed_tests", "accept_trace", "closure", "tdd_unit", "tdd", "frozen", "removed", "tdd_refused",
        "item_claims", "freeze_off", "report")
 LENS = ("ok", "status", "reason", "rows", "ran", "failed", "not_routed", "carry", "report")
@@ -57,7 +57,7 @@ def fallback(reason: str) -> dict:
     return {"go": False, "done": False, "held": True, "no_fix": False, "diffed": False, "checks": False, "eyes_due": False,
             "skip_why": "", "rejudge": False, "refixed": False, "stages": [], "carry": [], "tdd": [], "units": [], "groups": [],
             "conflicts": [], "replan_items": [], "objection": "", "diff": None, "item_claims": None, "allowed_test_changes": [],
-            "changed": None, "x_scalars": {}, "handoffs": [], "mismatched": [], "plan_declared": [], "plan": None, "ripple": None,
+            "changed": None, "x_scalars": {}, "handoffs": [], "handoff_titles": {}, "mismatched": [], "plan_declared": [], "plan": None, "ripple": None,
             "left": [], "stop_reason": guard.LINE_SCRIPT}
 
 

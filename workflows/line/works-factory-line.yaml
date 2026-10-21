@@ -593,7 +593,7 @@ nodes:
     with:
       got: "$fix.output"
       names: "ok reason units groups conflicts carry replan_items objection diff start_tree reply ruled_reply scope checked allowed_test_changes
-        changed x_scalars handoffs mismatched plan_declared stop_reason allowed_tests accept_trace closure tdd_unit tdd frozen removed
+        changed x_scalars handoffs handoff_titles mismatched plan_declared stop_reason allowed_tests accept_trace closure tdd_unit tdd frozen removed
         tdd_refused item_claims freeze_off report"
   # 12 案の直しを差し込むか（run に 1 度）と、案の直しの plan に渡す前の周（docs/design/line.md の 4.2）
   - id: after-fix
@@ -872,7 +872,7 @@ nodes:
     with:
       got: "$refix-run.output"
       names: "ok reason units groups conflicts carry replan_items objection diff start_tree reply ruled_reply scope checked allowed_test_changes
-        changed x_scalars handoffs mismatched plan_declared stop_reason allowed_tests accept_trace closure tdd_unit tdd frozen removed
+        changed x_scalars handoffs handoff_titles mismatched plan_declared stop_reason allowed_tests accept_trace closure tdd_unit tdd frozen removed
         tdd_refused item_claims freeze_off report"
   # 16 2 度目の段の差分の審査（2 度目の修正が走った時だけ）。形と when: の決めは 14 と同じで、値は 2 度目の fix から。上げ直しはしない
   - id: lens-2
@@ -944,7 +944,7 @@ nodes:
       type: object
       additionalProperties: false
       required: [go, done, held, no_fix, diffed, checks, eyes_due, skip_why, rejudge, refixed, stages, carry, tdd, units, groups, conflicts,
-                 replan_items, objection, diff, item_claims, allowed_test_changes, changed, x_scalars, handoffs, mismatched, plan_declared,
+                 replan_items, objection, diff, item_claims, allowed_test_changes, changed, x_scalars, handoffs, handoff_titles, mismatched, plan_declared,
                  plan, ripple, left, stop_reason]
       properties:
         go: {type: boolean}
@@ -971,6 +971,7 @@ nodes:
         changed: {type: [object, 'null']}
         x_scalars: {type: object}
         handoffs: {type: array}
+        handoff_titles: {type: object}
         mismatched: {type: array}
         plan_declared: {type: array}
         plan: {type: [object, 'null']}
