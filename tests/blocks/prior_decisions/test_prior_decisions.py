@@ -76,6 +76,22 @@ class FlowCase(unittest.TestCase):
         rows = policy.recorded({}, self.run.artifacts / "material.json")
         self.assertEqual([r["name"] for r in rows if r["source"] == "settled"], ["docs/adr/0002.md"])
 
+    def test_conflicts_are_kept_in_the_reply(self):
+        """任意の欄 conflicts（依頼の行とぶつかる決めの行 [{decision, where, why}]。docs/design/spec-driven.md の 2.5 の詰まった所の 4）は
+        返答のまま material.json の reply に残る。役の型は任意の欄として持つ（書かない返答は今どおり）"""
+        import yaml
+        doc = yaml.safe_load((kit.BLOCKS / NAME / f"works-factory-{NAME}.yaml").read_text(encoding="utf-8"))
+        role = next(n for top in doc["nodes"] for n in (top.get("loop_group") or {}).get("nodes") or [] if n["id"] == NAME)
+        shape = role["output_format"]
+        self.assertNotIn("conflicts", shape["required"])
+        self.assertEqual(shape["properties"]["conflicts"]["items"]["required"], ["decision", "where", "why"])
+        self.intake()
+        self.prep()
+        rows = [{"decision": "公開の口は増やさない", "where": "README.md の頭", "why": "依頼は公開の口を 1 つ足す"}]
+        self.assertTrue(self.accept({**GOOD, "settled": SETTLED, "conflicts": rows})["ok"])
+        self.finish()
+        self.assertEqual(self.material()["reply"]["conflicts"], rows)
+
     def test_three_rejections_give_up(self):
         self.intake()
         bad = {**GOOD, "material": {"status": "not_applicable", "reason": "無い"}}

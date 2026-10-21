@@ -165,6 +165,17 @@ class AcceptCase(_RepoCase):
         self.assertTrue(self.check(GOOD)["ok"])
         self.assertEqual(self.read("premises.json"), GOOD)
 
+    def test_contradicts_names_a_request_line(self):
+        """任意の欄 contradicts（docs/design/spec-driven.md の 2.5 の詰まった所の 4）: 行が食い違う依頼の行の where。依頼の行に無い
+        where は拒む。書かない行は今どおり"""
+        self.snap()
+        row = {**GOOD["constraints"][0], "contradicts": "stats.py:4"}
+        self.assertTrue(self.check({"constraints": [row]})["ok"])
+        self.assertEqual(self.read("premises.json")["constraints"][0]["contradicts"], "stats.py:4")
+        got = self.check({"constraints": [{**row, "contradicts": "nope.py:1"}]})
+        self.assertFalse(got["ok"])
+        self.assertIn("contradicts", got["reason"])
+
     def test_request_claim_must_be_measured_again(self):
         self.snap()
         other = {"constraints": [{"text": "README.md の件数は 3", "measured_how": "grep", "kind": "仮説"}]}

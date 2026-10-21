@@ -27,6 +27,7 @@ Search the decision records of the area the target diff touches: ADRs, the ledge
 - Each `settled` row reaches later roles as a row of the "recorded policy" section, and its `where` becomes the name of that row. A row without `where` cannot be named.
 - Read the area the diff touches first. This is advice on order, not a boundary.
 - Return the range you looked at and the range you did not look at in `searched`.
+- If a request line goes against a settled point (following the request would overturn a decision you found), return it in `conflicts`: one entry per pair, with `decision` (the settled decision), `where` (the `where` of the request line, copied exactly), and `why` (how the line goes against it). Return an empty array if none does.
 - If you could not search the records, set `checked` to false and `material.status` to `awaiting_human`, with the reason in `material.reason`, and put what you did read in `searched`. Do not write an unchecked area as "no settled points" (`clean`). The top-level `checked` is a boolean that says whether you could search the decision records; it is not the string `checked` inside `material`.
 
 {shared:material-status}
@@ -39,6 +40,6 @@ Search the decision records of the area the target diff touches: ADRs, the ledge
 
 {shared:material-where}
 
-Write `material.detail`, `material.checked`, `material.reason`, the entries of `searched`, and the `topic`, `decision`, `reason`, and `revisit` of each `settled` row in {lang}. Keep keys, enum values, identifiers, paths, commands, and quoted text as they are.
+Write `material.detail`, `material.checked`, `material.reason`, the entries of `searched`, the `topic`, `decision`, `reason`, and `revisit` of each `settled` row, and the `decision` and `why` of each `conflicts` row in {lang}. Keep keys, enum values, identifiers, paths, commands, and quoted text as they are.
 
 Return only JSON that matches the output schema.

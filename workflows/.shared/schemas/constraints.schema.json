@@ -1,5 +1,5 @@
 {
-  "description": "前提の実測の行の配列か、それを constraints の欄に持つオブジェクト（前提の実測の block の出力の pointer の先の形。constraints のほかの欄は読まない）。kind が 実測 の行の measured_output（実行したコマンドとその出力）は、役の返りには在り、前の run から持ち越した行には無い（在る時は空白だけでない字）",
+  "description": "前提の実測の行の配列か、それを constraints の欄に持つオブジェクト（前提の実測の block の出力の pointer の先の形。constraints のほかの欄は読まない）。kind が 実測 の行の measured_output（実行したコマンドとその出力）は、役の返りには在り、前の run から持ち越した行には無い（在る時は空白だけでない字）。任意の contradicts は、その行が食い違う依頼の行の where",
   "type": ["array", "object"],
   "items": {
     "type": "object",
@@ -9,7 +9,8 @@
       "text": {"type": "string"},
       "measured_how": {"type": "string"},
       "kind": {"type": "string", "enum": ["実測", "仮説"]},
-      "measured_output": {"type": "string", "minLength": 1, "pattern": "\\S"}
+      "measured_output": {"type": "string", "minLength": 1, "pattern": "\\S"},
+      "contradicts": {"type": "string", "minLength": 1}
     }
   },
   "required": ["constraints"],
@@ -24,7 +25,8 @@
           "text": {"type": "string"},
           "measured_how": {"type": "string"},
           "kind": {"type": "string", "enum": ["実測", "仮説"]},
-          "measured_output": {"type": "string", "minLength": 1, "pattern": "\\S"}
+          "measured_output": {"type": "string", "minLength": 1, "pattern": "\\S"},
+          "contradicts": {"type": "string", "minLength": 1}
         }
       }
     }
