@@ -378,14 +378,24 @@ def gate_notes(b, human_items=(), round_: int = 1) -> str:
                      and h.get("node") == gatemarks.GATE_NODE and isinstance(h.get("note"), str) and h["note"].strip())
 
 
+def _pushed_only(human_items, round_: int) -> bool:
+    """今の周の直す前の関所の一言（gate_notes の行）が全部、無人の run が採った推し（人の言葉でない）か。推しの条件は、修正案を書いた
+    役が見た推しの再掲で、その項目に許し（合意）が既に在れば聞き直す新しい物が無い"""
+    rows = [h for h in human_items or [] if isinstance(h, dict) and h.get("round") == round_ and h.get("answer") == CONTINUE
+            and h.get("node") == gatemarks.GATE_NODE and isinstance(h.get("note"), str) and h["note"].strip()]
+    return bool(rows) and all(answer.by_push(h) for h in rows)
+
+
 def gate_asks(b, items: dict, human_items=(), round_: int = 1) -> list:
     """人の関所の条件（gate_notes）の頼み。今の周の条件がまだ相談に出ていなければ（置き場 b の trace.jsonl の確かめの行を見る）、
     承認済みの項目ごとに 1 件 {item, paths, tests, new_tests, why, origin: gate}。条件が無い・出し済み（この置き場の役が聞いた確かめの行が
-    1 件でも在る。戻せた組の子から写した行（group_id つき）は数えない）・項目が無ければ []"""
+    1 件でも在る。戻せた組の子から写した行（group_id つき）は数えない）・項目が無ければ []。条件が全部無人の run の推しなら、今の周に許しの
+    行が在る項目は頼みにしない（_pushed_only）"""
     notes = gate_notes(b, human_items, round_)
     if not notes or not items or any(r.get("origin") == ORIGIN_GATE and r.get("round") == round_ for r in conflict.plan_asks(b)):
         return []
-    return [{"item": n, "paths": [], "tests": [], "new_tests": [], "why": notes, "origin": ORIGIN_GATE} for n in items]
+    granted = {str(r.get("item")) for r in conflict.agreed(b) if r.get("round") == round_} if _pushed_only(human_items, round_) else set()
+    return [{"item": n, "paths": [], "tests": [], "new_tests": [], "why": notes, "origin": ORIGIN_GATE} for n in items if n not in granted]
 
 
 def queue(b, pass_: str, asks: list) -> bool:
