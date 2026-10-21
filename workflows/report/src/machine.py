@@ -20,6 +20,8 @@ STOP_OUTCOMES = ("stopped_by_request", "stopped_by_human", "stopped_by_line", "n
 HAPPENED = "起きたこと: "
 APPLY_ASK = "差分を当ててよいか: "
 DECIDE_HEAD = "人が決めること: "
+URGENT_HEAD = "急ぎ: "
+INFO_HEAD = "知らせ（決めることではない）: "
 APPLY_HEAD = "差分を対象に当てる"
 PR_MADE = "PR を作った: "
 PR_STOPPED = "PR を作らずに止めた: "
@@ -67,17 +69,40 @@ def _where_lines(sections: list) -> list:
 
 
 # ---------------------------------------------------------------- 冒頭
+def ask_label(kind: str) -> str:
+    """人が決める物の種の頭の言い方（括弧の中の訳は、頭の下の節の種の行に在る）"""
+    return kind.partition("（")[0]
+
+
 def ask_counts(asks: list, tallied: dict) -> dict:
-    """人が決める物の種ごとの件数（冒頭に並べる順）。tallied に在る種は行の数でなくその件数"""
-    return {w: tallied.get(w, sum(1 for x, _ in asks if x == w)) for w in dict.fromkeys(w for w, _ in asks)}
+    """人が決める物の種（頭の言い方）ごとの件数（冒頭に並べる順）。tallied に在る種は行の数でなくその件数"""
+    counts = {}
+    for kind in dict.fromkeys(k for k, _ in asks):
+        counts[ask_label(kind)] = counts.get(ask_label(kind), 0) + tallied.get(kind, sum(1 for x, _ in asks if x == kind))
+    return counts
 
 
-def head_lines(happened: str, apply: str, asks: list, counts: dict, other: str) -> list:
-    """報告の冒頭（機械が組む）: 起きたこと・差分を当ててよいか・人が決めること（件数と種ごとの内訳）の 3 行と、その下に人が決める物を
-    1 件 1 行。決める物が無ければ 3 行目に other（次に大事な事実）を置く（「無い」と断る決まり文句は書かない）"""
-    decide = (DECIDE_HEAD + f"{sum(counts.values())} 件——" + "・".join(f"{w} {n} 件" for w, n in counts.items())
-              + f"（1 件ずつ下の行。詳しくは見出しに「{writer.DECISIONS_HEAD}」を持つセクション）" if asks else other)
-    return [HAPPENED + happened, APPLY_ASK + apply, decide, *[f"- {w}: {text}" for w, text in asks]]
+def urgent_said(apply: dict, outcome: str, run: dict) -> str:
+    """冒頭の「急ぎ」の句。機械が持つ事実（落ちたノードが在るか・結末が記録の誤りか途中の終わりか。対象には run が何も当てない）だけで書く。
+    run の記録が読めない時は事実が無いので空の字"""
+    if not run.get("ok"):
+        return ""
+    untouched = "対象のリポジトリには何も当てていない"
+    if run.get("failed") or run.get("absorbed"):
+        return f"壊れた所がある——落ちたノードが在る。{untouched}"
+    if outcome in ("record_invalid", "interrupted"):
+        return f"壊れた所がある——結末が{report.OUTCOME_WORDS.get(outcome, outcome)}。{untouched}"
+    return f"急ぎでない——壊れた所は無く、{untouched}"
+
+
+def head_lines(happened: str, apply: str, urgent: str, counts: dict, other: str, info: list) -> list:
+    """報告の冒頭（機械が組む）: 起きたこと・差分を当ててよいか・急ぎ（事実が在れば）・人が決めること（件数は和の 1 つ）の行と、その下に種ごとの行、
+    最後に知らせだけの行。決める物が無ければ「人が決めること」の行に other（次に大事な事実）を置く（「無い」と断る決まり文句は書かない）。
+    決める物の本文と種の訳は頭に出さない（見出しに「人が決めること」を持つセクションに在る）"""
+    decide = (DECIDE_HEAD + f"{sum(counts.values())} 件（下の行は種類ごと。1 件ずつの本文は見出しに「{writer.DECISIONS_HEAD}」を持つセクション）"
+              if counts else other)
+    rows = [f"- {w}" + (f"（{n} 件）" if n > 1 else "") for w, n in counts.items()]
+    return [HAPPENED + happened, APPLY_ASK + apply, *([URGENT_HEAD + urgent] if urgent else []), decide, *rows, *[INFO_HEAD + x for x in info]]
 
 
 def _apply_answer(apply: dict, outcome: str, run_id: str, decisions: int) -> str:
@@ -146,9 +171,9 @@ def _asks_block(rows: list) -> list:
 
 
 # ---------------------------------------------------------------- 機械の報告
-def _stop_section(facts: dict, outcome: str, stop_reason: str, run: dict) -> list:
+def _stop_section(facts: dict, outcome: str, stop_reason: str, run: dict, said: list) -> list:
     out = [f"結末: {report.OUTCOME_WORDS.get(outcome, '結末が決まらない')}（{outcome}）", f"止めた段と理由の語: {stop_reason or '止めていない'}",
-           *facts["stop_lines"]["before"]]
+           *said, *facts["stop_lines"]["before"]]
     if run.get("ok"):
         out += [f"{report.INTERRUPTED_HEAD}: ノード {s} が落ちた（誤り: {report._first_error({'error': (run.get('errors') or {}).get(s)})}）"
                 for s in run.get("failed") or []]
@@ -187,11 +212,12 @@ def build(sections: list, facts: dict, outcome: str, stop_reason: str, run: dict
         if errs:
             raise ValueError(f"前の失敗が約束の Schema に合わない: {errs}")
     head = facts["head"]
-    happened = "。".join([f"{report.OUTCOME_WORDS.get(outcome, '結末が決まらない')}（{outcome}）", *head["before"],
-                          *(head["stopped"] if outcome in STOP_OUTCOMES else []), *head["after"]])
+    said = [*head["before"], *(head["stopped"] if outcome in STOP_OUTCOMES else [])]
     decisions = sum(counts.values())
-    top = head_lines(happened, apply_said(facts["apply"], outcome, run_id or "—", decisions), asks, counts,
-                     other=f"次の run に渡す物: {n_carried} 件")
+    happened = "。".join([f"{report.OUTCOME_WORDS.get(outcome, '結末が決まらない')}（{outcome}）",
+                          *([f"人が決めること {decisions} 件が残っている"] if decisions else [])])
+    top = head_lines(happened, apply_said(facts["apply"], outcome, run_id or "—", decisions), urgent_said(facts["apply"], outcome, run), counts,
+                     other=f"次の run に渡す物: {n_carried} 件", info=head["after"])
     parts = facts["outcome_parts"]
     model_end = "／".join(x for x in (f"結末: {report.OUTCOME_WORDS.get(outcome, '結末が決まらない')}（{outcome}）", parts["gate"], parts["eyes"],
                                        f"次の run に渡す物: {n_carried} 件", f"持ち越した失敗: {len(prior)} 件", parts["data"]) if x)
@@ -204,7 +230,7 @@ def build(sections: list, facts: dict, outcome: str, stop_reason: str, run: dict
                                    *[f"次の run の制約に足す実測（前提の検算）: {c['text']}" for c in constraints],
                                    *([draft] if draft else []), *apply_lines(facts["apply"], outcome, stop_reason, run_id or "—"),
                                    *facts["apply"]["commits"]]),
-        (files.STOP_HEADING, _stop_section(facts, outcome, stop_reason, run)),
+        (files.STOP_HEADING, _stop_section(facts, outcome, stop_reason, run, said)),
         (files.WHERE_HEADING, _where_lines(sections)),
         (files.CALLS_HEADING, transcript.calls_lines(run, run_why, repo)),
         *[(f"## {s['title']}", s["lines"] or [NO_LINES]) for s in sections],

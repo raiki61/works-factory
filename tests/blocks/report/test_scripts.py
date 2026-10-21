@@ -35,7 +35,7 @@ class FactsCase(Flow):
     def test_no_facts_is_record_invalid_from_the_start(self):
         got = self.facts(facts="{}")
         self.assertEqual((got["outcome"], got["stop_reason"], got["ai_go"]), ("record_invalid", "start:record-invalid", False))
-        self.assertIn("人が決めること: 1 件——記録が通らないこと 1 件", self.machine())
+        self.assertIn("人が決めること: 1 件（下の行は種類ごと", self.machine())
 
     def test_broken_inputs_are_named_and_do_not_fall(self):
         got = self.facts(sections="[壊れた", facts='{"nope": 1}')

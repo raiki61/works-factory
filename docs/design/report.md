@@ -200,14 +200,16 @@ node の名の今との違い: `write-reject` → `write-prep`（指示を組む
 `run_id` は環境の `WORKFLOW_ID`（単独の run では自分の run、include された時は line の run）。上から:
 
 1. `# 報告（run {run_id}）` と空行。
-2. 冒頭の 3 行（今 `head_lines`）:
-   - `起きたこと: ` + `"。".join([f"{report.OUTCOME_WORDS[outcome]}（{outcome}）", *head.before, *(head.stopped if outcome in STOP_OUTCOMES else []), *head.after])`。`STOP_OUTCOMES` は `stopped_by_request`・`stopped_by_human`・`stopped_by_line`・`needs_human`（今 `runreport.STOP_OUTCOMES`）。空の句は飛ばす。
+2. 冒頭の行（今 `head_lines`。#812 で、初見の読み手が止まる 5 つの型を直した形）:
+   - `起きたこと: ` + `"。".join([f"{report.OUTCOME_WORDS[outcome]}（{outcome}）", 人が決める物が在れば f"人が決めること {和} 件が残っている"])`。`STOP_OUTCOMES` は `stopped_by_request`・`stopped_by_human`・`stopped_by_line`・`needs_human`（今 `runreport.STOP_OUTCOMES`）。`head.before`・`head.stopped` の字は頭に出さず（頭の読み手は頭しか読まないので、頭の外の節を指す句も置かない）、5 節の先頭（`stop_lines.before` の前）に置く（承認ノードの名・推しの件数・開けた理由は工場の内側の言葉で、頭の読み手には要らない）。
    - `差分を当ててよいか: ` + `apply_said`（今 `apply_said`・`_apply_answer` を `apply` の欄で書き直した物。今の `_seal_state` は `apply.sealed`・`apply.placed`、`eyes.r2.status == seal.REDESIGN` は `apply.redesign` が空でないか、文の中の語は `apply.redesign` の字。人が決める物の件数は下の `counts` の和）。
-   - 人が決める物（`asks` = `facts.asks` + `outcome_asks`）が在れば `人が決めること: {和} 件——{種} {n} 件・…（1 件ずつ下の行。詳しくは見出しに「人が決めること」を持つセクション）`、無ければ `次の run に渡す物: {carried} 件`（`carried` = `carry.findings`・`drafts`・`constraints` の数の和）。種ごとの件数は `ask_counts`（`tallied` に在る種はその数）。
-   - その下に人が決める物を 1 件 1 行 `- {kind}: {text}`。
+   - `急ぎ: ` + `urgent_said`。機械が持つ事実だけで書く: run の記録が読めて落ちたノード（`failed`・`absorbed`）が在れば「壊れた所がある」、結末が `record_invalid`・`interrupted` でも同じ、どちらでもなければ「急ぎでない——壊れた所は無く、対象のリポジトリには何も当てていない」（run は対象に差分を当てない。E17）。run の記録が読めない時は事実が無いので行を出さない（推して書かない）。
+   - 人が決める物（`asks` = `facts.asks` + `outcome_asks`）が在れば `人が決めること: {和} 件（下の行は種類ごと。1 件ずつの本文は見出しに「人が決めること」を持つセクション）`、無ければ `次の run に渡す物: {carried} 件`（`carried` = `carry.findings`・`drafts`・`constraints` の数の和）。数は和の 1 つだけを頭に出す（1 つの決めには 1 つの数）。種ごとの件数は `ask_counts`（`tallied` に在る種はその数。種の名は括弧の前の頭の言い方で、同じ頭の種は合わせる）。
+   - その下に種ごとに 1 行 `- {種の頭の言い方}`（2 件以上なら `（{n} 件）`）。決める物の本文は頭に出さず、4 節の `## 1. 人が決めること` に在る。
+   - 最後に `head.after` を 1 行ずつ `知らせ（決めることではない）: {行}`。
 3. `head.notices` が在れば、空行の後に 1 行ずつ。
 4. `## 1. 人が決めること`: `decisions.before` → 結末で決まる人が決める物の塊（種ごとに `{kind}: {n} 件` と `  - {text}`）→ `decisions.after` → `次の run に渡す物: {carried} 件` に、書いた時だけ `（next-request.json）` → `decisions.outside` → 前提の検算の制約の行（`carry.constraints` ごとに `次の run の制約に足す実測（前提の検算）: {text}`）→ 下書きの行（`draft_line(carry.drafts, next_file)`。下書きが無ければ出さない）→ 差分を当てる行（今 `_apply_lines`）→ `apply.commits`。
-5. `## 2. 止めたか`: `結末: {平易な言い方}（{outcome}）`・`止めた段と理由の語: {stop_reason か「止めていない」}` → `stop_lines.before` → run の記録が読めれば、`run.failed` ごとに `{report.INTERRUPTED_HEAD}: ノード {s} が落ちた（誤り: …）`、`run.retried` ごとに `{report.RETRIED_HEAD}: …`、`run.absorbed` ごとに `{report.ABSORBED_HEAD}: …`（今 `_stop_lines` の字）→ 落ちた node の誤りが fan_out の子の run の名乗り（`child N (run <id の先頭 8 字>)`）を持てば、子の run の記録（親の記録と同じ置き場の `<子の run の id>.jsonl`）の落ちた node ごとに `子の run {先頭 8 字} のノード {node} が落ちた（誤り: …）`、記録が読めなければ `子の run {先頭 8 字} の記録が読めない（…）`（Archon が親の node の誤りに書くのは子の失敗の総括だけで、provider の 429 などの訳は子の記録にだけ在る。`transcript.child_falls`）→ `stop_lines.after` → `problems` ごとに `結果を名乗れない訳: {p}`。
+5. `## 2. 止めたか`: `結末: {平易な言い方}（{outcome}）`・`止めた段と理由の語: {stop_reason か「止めていない」}` → `head.before`・（止まった結末の）`head.stopped` → `stop_lines.before` → run の記録が読めれば、`run.failed` ごとに `{report.INTERRUPTED_HEAD}: ノード {s} が落ちた（誤り: …）`、`run.retried` ごとに `{report.RETRIED_HEAD}: …`、`run.absorbed` ごとに `{report.ABSORBED_HEAD}: …`（今 `_stop_lines` の字）→ 落ちた node の誤りが fan_out の子の run の名乗り（`child N (run <id の先頭 8 字>)`）を持てば、子の run の記録（親の記録と同じ置き場の `<子の run の id>.jsonl`）の落ちた node ごとに `子の run {先頭 8 字} のノード {node} が落ちた（誤り: …）`、記録が読めなければ `子の run {先頭 8 字} の記録が読めない（…）`（Archon が親の node の誤りに書くのは子の失敗の総括だけで、provider の 429 などの訳は子の記録にだけ在る。`transcript.child_falls`）→ `stop_lines.after` → `problems` ごとに `結果を名乗れない訳: {p}`。
 6. `## 3. 見る所`: `sections` の `files` を節の順に `{label}（{title}）: {パス}`。1 つも無ければ `出力にポインタが無い`（今の字）。
 7. `## 4. 役が呼んだ道具`: `transcript.calls_lines`。今の `CHILD_RUNS`「fix の組の子の run の道具の呼びは…」は「子の run の道具の呼びは子の run の記録に在り、上のノードごとの行に入らない」にする（block の名を持たない字）。`CHILD_LOOPS` も同じく「子の run のループの回り直しは子の run の記録に在り、この行に入らない」にする。
 8. `sections` を並びのまま 1 節ずつ: `## {title}` と、行に `_bullets` を当てた物。`lines` が空の節は `- この段は報告の行を返していない` の 1 行を置く（自分で決めた。9 節）。

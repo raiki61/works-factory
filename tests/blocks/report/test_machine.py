@@ -2,6 +2,7 @@
 （冒頭 3 行・止めたか・見る所・模型・費用・注意）・DraftsCase・CarryCase・StampCase。節の中身を返りから組む試験は作り手の block と graph の試験の物"""
 import json
 import pathlib
+import re
 import unittest
 
 from tests.blocks import kit
@@ -32,37 +33,95 @@ class Base(unittest.TestCase):
 
 
 class HeadCase(Base):
-    def test_three_lines_and_one_line_per_item(self):
+    def test_three_lines_and_one_line_per_kind(self):
         asks = [{"kind": "保留にしたままの問い", "text": "A を決める"}, {"kind": "保留にしたままの問い", "text": "B を決める"},
                 {"kind": "許したテストの変更", "text": "t.py"}]
         _, text = self.build(asks=asks, tallied={"許したテストの変更": 5})
         lines = text.splitlines()
         self.assertEqual(lines[0], f"# 報告（run {RUN_ID}）")
-        self.assertEqual(lines[2], "起きたこと: 直して、最後のテストまで通った（fixed）")
+        self.assertEqual(lines[2], "起きたこと: 直して、最後のテストまで通った（fixed）。人が決めること 7 件が残っている")
         self.assertTrue(lines[3].startswith("差分を当ててよいか: "))
-        self.assertEqual(lines[4], "人が決めること: 7 件——保留にしたままの問い 2 件・許したテストの変更 5 件（1 件ずつ下の行。"
-                                   "詳しくは見出しに「人が決めること」を持つセクション）")
-        self.assertEqual(lines[5:8], ["- 保留にしたままの問い: A を決める", "- 保留にしたままの問い: B を決める", "- 許したテストの変更: t.py"])
+        self.assertTrue(lines[4].startswith("急ぎ: "))
+        self.assertEqual(lines[5], "人が決めること: 7 件（下の行は種類ごと。1 件ずつの本文は見出しに「人が決めること」を持つセクション）")
+        self.assertEqual(lines[6:8], ["- 保留にしたままの問い（2 件）", "- 許したテストの変更（5 件）"])
 
     def test_nothing_to_decide_names_what_is_carried_instead(self):
         carry = {"findings": [{"where": "a", "text": "b"}], "prior": [], "drafts": [], "constraints": []}
         _, text = self.build(carry=carry)
-        self.assertEqual(text.splitlines()[4], "次の run に渡す物: 1 件")
+        self.assertEqual(text.splitlines()[5], "次の run に渡す物: 1 件")
         self.assertNotIn("人が決めること:", text.split("\n## ", 1)[0], "無いと断る決まり文句は書かない")
 
-    def test_happened_joins_parts_and_stopped_part_only_for_a_stop(self):
-        head = {"before": ["半分直した"], "stopped": ["止めた訳 X"], "after": ["試験は走っていない"], "notices": ["起こす前の注意 N"]}
+    def test_head_parts_go_to_the_stop_section_not_the_happened_line(self):
+        head = {"before": ["半分直した"], "stopped": ["止めた訳 X"], "after": [], "notices": ["起こす前の注意 N"]}
         _, text = self.build(head=head)
-        self.assertEqual(text.splitlines()[2], "起きたこと: 直して、最後のテストまで通った（fixed）。半分直した。試験は走っていない")
+        self.assertEqual(text.splitlines()[2], "起きたこと: 直して、最後のテストまで通った（fixed）")
         self.assertIn("\n\n起こす前の注意 N\n\n## 1.", text)
+        self.assertIn("- 半分直した", self.section(text, "## 2. 止めたか"))
+        self.assertNotIn("止めた訳 X", text, "止まった run でなければ止めた訳は出さない")
         _, text = self.build(head=head, outcome="stopped_by_human", stop="start-answer:reject")
-        self.assertEqual(text.splitlines()[2], "起きたこと: 人が承認ノードで止めた（stopped_by_human）。半分直した。止めた訳 X。試験は走っていない")
+        self.assertEqual(text.splitlines()[2], "起きたこと: 人が承認ノードで止めた（stopped_by_human）")
+        stop = self.section(text, "## 2. 止めたか").splitlines()
+        self.assertEqual(stop[2:4], ["- 半分直した", "- 止めた訳 X"])
+
+
+class HeadFor19b99137Case(Base):
+    """run 19b99137 の頭（初見の読み手が 3 回とも通さなかった）の止まる所 5 つを、yes/no で縛る。入力の形は記録の facts と同じ"""
+    KIND = "修正役が人に回した物（壊すと分かって通した理由。役だけで決めた代償なので人が確かめる）"
+    LONG = "lib/x.py fn_name: 単独の行を残った印と数え、正当なファイルを拒む: 壊すと分かって通した——（以下、修正役の返りの長い文）"
+    ENV = "AI が書いた試験のコードを、利用者の資格に届く環境（利用者の HOME・XDG）で走らせた"
+    HEAD = {"before": ["無人の run で推しを採って通した承認ノード: 修正前の承認ノード（推し 3 件。中身は「1. 人が決めること」のセクション）"],
+            "stopped": ["最後の承認ノードを開ける所が止めた: 無人の run で承認ノードを開くはずだった（開かずに止めた）",
+                        "開けた理由: 書き換えを許したテストを触った（1 件）・修正役が人に回した物が在る（1 件）"],
+            "after": [ENV], "notices": []}
+
+    def top(self, **over):
+        _, text = self.build(outcome="needs_human", stop="gate-final:needs_human", asks=[{"kind": self.KIND, "text": self.LONG}],
+                             head=self.HEAD, decisions={"before": [f"{self.KIND}: 1 件", f"  - {self.LONG}"], "after": [], "outside": []}, **over)
+        return text, text.split("\n## ", 1)[0]
+
+    def test_one_decision_is_counted_once_in_the_head(self):
+        _, top = self.top()
+        self.assertIn("人が決めること: 1 件", top)
+        self.assertNotIn("推し", top, "推しと開けた理由は別の件数として頭に並べない")
+        self.assertNotIn("開けた理由", top)
+        counted = [x for x in top.splitlines() if re.search(r"\d+ 件", x)]
+        self.assertEqual(len(counted), 2, "数は「起きたこと」と「人が決めること」の同じ 1 つだけ: " + top)
+        self.assertTrue(all("1 件" in x for x in counted))
+
+    def test_the_happened_line_is_one_short_sentence_without_inner_names(self):
+        _, top = self.top()
+        line = next(x for x in top.splitlines() if x.startswith("起きたこと: "))
+        self.assertEqual(line, "起きたこと: 人の判断を待ったまま止まった（needs_human）。人が決めること 1 件が残っている")
+        self.assertNotIn("承認ノード", top)
+
+    def test_the_long_text_and_inner_names_stay_below_the_head(self):
+        text, top = self.top()
+        self.assertNotIn("fn_name", top)
+        self.assertNotIn("壊すと分かって通した", top)
+        self.assertIn("- 修正役が人に回した物", top.splitlines())
+        self.assertIn(self.LONG, self.section(text, "## 1. 人が決めること"))
+        stop = self.section(text, "## 2. 止めたか")
+        self.assertIn("推し 3 件", stop)
+        self.assertIn("開けた理由", stop)
+
+    def test_notice_only_line_starts_with_a_word_that_says_so(self):
+        _, top = self.top()
+        self.assertIn(f"知らせ（決めることではない）: {self.ENV}", top.splitlines())
+        self.assertNotIn(self.ENV, next(x for x in top.splitlines() if x.startswith("起きたこと: ")))
+
+    def test_urgency_comes_only_from_facts_the_machine_holds(self):
+        _, top = self.top()
+        self.assertIn("急ぎ: 急ぎでない——壊れた所は無く、対象のリポジトリには何も当てていない", top.splitlines())
+        _, top = self.top(run={**OK_RUN, "failed": ["fix__tdd"], "errors": {"fix__tdd": "x"}})
+        self.assertIn("急ぎ: 壊れた所がある——落ちたノードが在る。対象のリポジトリには何も当てていない", top.splitlines())
+        _, top = self.top(run={**OK_RUN, "ok": False})
+        self.assertFalse([x for x in top.splitlines() if x.startswith("急ぎ: ")], "run の記録が読めない時は急ぎを推して書かない")
 
     def test_outcome_asks_join_the_head_and_the_decisions_section(self):
         left = [{"where": "素材 a", "text": "測れていない", "unmeasured": True}]
         _, text = self.build(outcome="fixed_needs_check", left=left, decisions={"before": ["前の行"], "after": ["後の行"], "outside": ["外の行"]})
-        self.assertIn("人が決めること: 1 件——人が確かめる物 1 件", text)
-        self.assertIn("- 人が確かめる物: 素材 a: 測れていない", text.split("\n## ", 1)[0])
+        self.assertIn("人が決めること: 1 件", text)
+        self.assertIn("- 人が確かめる物", text.split("\n## ", 1)[0].splitlines())
         body = self.section(text, "## 1. 人が決めること").splitlines()
         self.assertEqual(body[:5], ["- 前の行", "- 人が確かめる物: 1 件", "  - 素材 a: 測れていない", "- 後の行", "- 次の run に渡す物: 0 件"])
         self.assertIn("- 外の行", body)
