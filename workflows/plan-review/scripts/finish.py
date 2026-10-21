@@ -20,7 +20,7 @@ def compute():
 def fallback(why: str) -> dict:
     reason = f"出口が落ちた（{why}）"
     return {"ok": False, "status": "failed", "form": "", "round": 0, "reason": reason, "holes": None, "blocks": [], "pass": None,
-            "asks": [], "deviations": [], "replan": [], "gave_up": None, "reads": None, "report": [f"事前審査: {reason}"]}
+            "asks": [], "deviations": [], "replan": [], "gave_up": None, "reads": None, "proposal_sha256": "", "report": [f"事前審査: {reason}"]}
 
 
 ports.run(compute, fallback)

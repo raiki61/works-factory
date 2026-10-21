@@ -33,7 +33,8 @@
 
 入力（YAML の `inputs:`）。README の 8.2 の行（`proposal`・`purpose`・`design`・`world_rows`・`structure`・`policy`・`tree`・`prior`）を、今の役が読んでいる物に合わせて広げた（14 節の 1）:
 
-- `proposal`（必須）: `text: 審査する物。修正案の役の返答（項目の行の plan と、前の往復の穴への答え block_answers を持つ。ファイルの pointer か、そのパスか、その JSON の値。形は 1.5 の PROPOSAL_SHAPE）か、方針の文だけ（字）。どちらかは入口が決める（8 節の intake）`
+- `proposal`: `text: 審査する物。修正案の役の返答（項目の行の plan と、前の往復の穴への答え block_answers を持つ。ファイルの pointer か、そのパスか、その JSON の値。形は 1.5 の PROPOSAL_SHAPE）か、方針の文だけ（字）。どちらかは入口が決める（8 節の intake）。proposal_file と一緒には名指さない。どちらも空なら入口が止める`。既定 `""`（前は必須。`proposal_file` を足したので、空の時は入口が「審査する物が空」で止める）。
+- `proposal_file`: `file: 方針の文のファイル。在れば中身を形 text の方針の文として読む（JSON の形でも方針の文）。proposal と一緒には名指さない。空は proposal を読む`。既定 `""`。仕様を固める会話が設計書と表から組んだ方針の文を渡す口（[spec-driven.md](spec-driven.md) の 2.5 の詰まった所の 2。`proposal` の「在るファイルは JSON として読む」読みは変えず、入力を分けた）。
 - `fields`: `json(review-fields.schema.json): 修正案の項目ごとの works の欄（{round, fields, amended?}）。pointer・パス・値のどれか。proposal が修正案の時は要る。空の字は渡されていない（形 text では読まない）`。既定 `""`。
 - `judgment`: `json(shared:judgment.schema.json): 判定の返り（units・questions・precedents・framing・one_shot を読む）。pointer・パス・値のどれか。形 plan と replan では要る。空の字は渡されていない（形 text では読まない）`。既定 `""`。
 - `purpose`: `text: 元の目的の 1 文。空は渡されていない`。既定 `""`。
@@ -70,6 +71,7 @@
 - `replan`: 形 replan の直した項目ごとの事実の配列 `[{item, units, contract_changed, human, widened}]`（10.3）。ほかの形は空の配列。
 - `gave_up`: 形 replan で受け付けが諦めた時の、裁かれた項目ごとの諦めの行 `[{item, why, ruling}]`。ほかは null。
 - `reads`: pointer（この include の読んだ証拠 `reads-<役>.json`）か null（証拠を集めていない・集める node が落ちた）。受け付けの条件にしない（14 節の 36）。
+- `proposal_sha256`: 形 text で審査した方針の文（入口が前後の空白を除いた字）の sha256 の 16 進。ほかの形と入口が落ちた run は空。起動の殻（Archon の外から工場を起こす `bin/works-factory` とその部品 `bin/_lib/`）が、会話で回した審査の記録が今の仕様を審査した物かを照らす（[spec-driven.md](spec-driven.md) の 2.6 の 2 の d）。前からの筋書き（dry-run で block を通しで回す `fixtures/*.stubs.yaml`）が AI や script の node の返りを差し替える値（stub）にはこの鍵が無いので、必須にするとそれらの筋書きが落ちる。そのため `output_format` の必須には入れない。
 - `report`: 報告に載せる日本語の行の配列（12 節）。
 
 今との違い:
@@ -721,7 +723,7 @@ Return only JSON that matches the output schema.
 
 1. 入口の前の材料を先に消す（`pass_open.py:94-95`）→ intake の 1。消すのは名で引ける物だけ（README 13 章）。
 2. 入口の誤りを全部捕まえて訳を置き `ok: false`（`pass_open.py:98-106`）→ intake の誤りは `intake-error.json` と `due: false`、出口が `failed`。
-3. `fix_plan` が null なら名を挙げて落ちる・先が無ければ落ちる（:74-76）→ `proposal` は必須。読めない pointer は failed（intake の 2）。
+3. 今の入力 `fix_plan`（修正案の役の返答のファイルを指す pointer）が null なら名を挙げて落ちる・pointer の指すファイルが無ければ落ちる（`pass_open.py:74-76`）→ `proposal` は必須（`proposal_file` を足した後は、どちらかが要る。空なら入口が止める）。読めない pointer は failed（intake の 2）。
 4. 読めない入力を無いとして読み訳を積む（`port`、:57-63）→ `excluded`・`request`・`means` は同じ。`decisions`・`materials`・`pr_excluded`・`purpose_means` の名は port の名が変わった（`recorded` は line が組む・`materials` は読まない）。
 5. 形 design（直す物が無い周）（:71-73・`open_design`）→ この block に無い。line が独立設計の block だけを回す（1.6）。
 6. 始めの記録の取り込み（`startrec.adopt`）・読む版と BASE（`read_rev`・`diff_base`）・依頼のファイル（`request_file`）→ port `review_rev`・`diff_base`・`request`。

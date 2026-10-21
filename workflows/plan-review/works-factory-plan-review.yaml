@@ -2,8 +2,9 @@ name: works-factory-plan-review
 description: '事前審査の block（docs/design/plan-review.md）。書く前の修正案（か方針の文だけ）を、判定をした役とは別の目が 8 種の確かめ（写し・入口・契約のずれ・死んだ道・範囲の膨張と最小性・後退・方針・先行例の出典）で叩き、直しが作る穴を書かれる前に予測して別案を挙げさせる。独立設計が立てば案を設計と構造で突き合わせ、2 往復目からは前の往復の穴の行き先と変わった文だけを見る。返答を機械が照らし、通らなければ理由つきで出し直させる。往復を続けるか・承認ノードで聞くかは決めず、1 往復分の事実（穴・往復の記録に足す行の材料・人に回しうる行とその決め手の照らし・定石からの外れ）を返す。単独の run でも、graph から include されても回る'
 inputs:
   proposal:
-    required: true
-    description: 'text: 審査する物。修正案の役の返答（項目の行の plan と、前の往復の穴への答え block_answers を持つ。ファイルの pointer か、そのパスか、その JSON の値）か、方針の文だけ（字）。どちらかは入口が決める'
+    default: ''
+    description: 'text: 審査する物。修正案の役の返答（項目の行の plan と、前の往復の穴への答え block_answers を持つ。ファイルの pointer か、そのパスか、その JSON の値）か、方針の文だけ（字）。どちらかは入口が決める。proposal_file と一緒には名指さない。どちらも空なら入口が止める'
+  proposal_file: {default: '', description: 'file: 方針の文のファイル。在れば中身を形 text の方針の文として読む（JSON の形でも方針の文）。proposal と一緒には名指さない。空は proposal を読む'}
   fields: {default: '', description: 'json(review-fields.schema.json): 修正案の項目ごとの works の欄（{round, fields, amended?}）。pointer・パス・値のどれか。proposal が修正案の時は要る。空の字は渡されていない（形 text では読まない）'}
   judgment: {default: '', description: 'json(shared:judgment.schema.json): 判定の出力（units・questions・precedents・framing・one_shot を読む）。pointer・パス・値のどれか。形 plan と replan では要る。空の字は渡されていない（形 text では読まない）'}
   purpose: {default: '', description: 'text: 元の目的の 1 文。空は渡されていない'}
@@ -642,6 +643,7 @@ nodes:
               why: {type: string}
               ruling: {type: string}
         reads: *pointer
+        proposal_sha256: {type: string}   # 形 text で審査した方針の文の sha256（ほかの形は空）。必須にしない（前からの筋書きの stub はこの欄を持たない）
         report:
           type: array
           items: {type: string}
