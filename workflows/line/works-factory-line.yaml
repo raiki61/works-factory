@@ -16,6 +16,7 @@ inputs:
   policy_md: {default: '', description: 'text: 人の方針の文書のパス（空なら既定の置き場）。相対なら対象の根から。名指した文書が無ければ start が止める'}
   fix_fixture: {default: '', description: 'text: 固定材料のフォルダ（前の run の報告の「固定材料」の行。前の run の修正の前の写し）。名指すと判定と修正案を作り直さずに修正から始める。相対なら対象の根から。無いフォルダ・写しと違う木や依頼や入力は start が AI の前で止める。spec と周の鎖とは組めない'}
   lang: {default: '', description: 'text: 報告と、承認ノード・報告に載る役の文の言語。空は依頼文の言語'}
+  spec_table: {default: '', description: 'file: 仕様駆動の道の表（docs/design/spec-driven.md の 2.3）。相対なら対象の根から。名指すと、人と会話で回した計画の往復を工場の中で回し直さず、判定の役を 1 回回して表と設計書から修正へ進む。request・pr・base・spec・fix_fixture とは組めず、周の鎖の子では使えない'}
   deliver: {default: '', description: 'text: 出口の語（lib/entry.py の DELIVERS）。空は封じた差分を run の置き場に置くだけ（既定）。pr は最後の承認ノードの後に、照らした差分を run の枝に修正案の項目ごとの commit で積み（分けられなければ 1 つの commit）、push して対象の既定の枝へ向けた PR を作る（merge はしない）。知らない語は start が止める'}
 returns: result
 outcome_field: fixed
@@ -47,7 +48,7 @@ nodes:
       type: object
       additionalProperties: false
       required: [ok, stop_reason, reason, record, prior_failures, ask, gate_text, unattended, design_only, final_gate, from_fixture, fixture,
-                 ports]
+                 from_spec, ports]
       properties:
         ok: {type: boolean}
         stop_reason: {type: string}
@@ -61,13 +62,14 @@ nodes:
         final_gate: {type: string}
         from_fixture: {type: boolean}
         fixture: {type: [object, 'null']}
+        from_spec: {type: boolean}
         ports:
           type: object
           additionalProperties: false
           required: [request, request_file, pr_text, carried, carried_measured, base, base_rev, request_origin, base_label, review_rev, entry,
                      lang, web, world, spec, has_checks, thickness, forced, design_only, unattended, policy, test_cmd, tdd_suite, reuse_dir,
                      user_env_dir, run_id, deliver, parallel, verify_by_tier, tree_named, takes_push, request_scope, prior_rows,
-                     request_answers]
+                     request_answers, spec_table, routes]
           properties:
             request: {type: string}
             request_file: {type: string}
@@ -103,6 +105,8 @@ nodes:
             request_scope: {type: boolean}
             prior_rows: {type: array}
             request_answers: {type: array}
+            spec_table: {type: string}
+            routes: {type: string, enum: [auto, plan]}
   # 2 起動の承認ノード（docs/design/line.md の 2 節の 1）
   - id: gate-start
     wait:

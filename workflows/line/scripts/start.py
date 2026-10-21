@@ -61,6 +61,7 @@ def raw_inputs() -> dict:
         "fix_fixture": os.environ.get("INPUTS_FIX_FIXTURE", ""),
         "lang": os.environ.get("INPUTS_LANG", ""),
         "deliver": os.environ.get("INPUTS_DELIVER", ""),
+        "spec_table": os.environ.get("INPUTS_SPEC_TABLE", ""),
     }
 
 
@@ -89,11 +90,31 @@ def words(raw: dict, repo: Path) -> dict:
     if clash:
         raise Refused(f"thickness={thickness} が足す機能 {', '.join(clash)} を features_off で切った（段を変えるか、切りを外す）")
     fix_fixture = fixture_dir(raw["fix_fixture"], repo)
+    table = spec_table(raw, repo, fix_fixture)
     if fix_fixture and spec:
         raise Refused("仕様の段（spec=on）は固定材料（fix_fixture）と組めない（固定材料は判定と修正案が済んだ所の写しで、仕様の段は"
                       "判定の中に在る）")
     return {**gate, "spec": spec, "design_only": design_only, "thickness": thickness, "features_off": off, "features_on": on,
-            "policy_md": policy_md(raw["policy_md"], repo), "fix_fixture": fix_fixture}
+            "policy_md": policy_md(raw["policy_md"], repo), "fix_fixture": fix_fixture, "spec_table": table}
+
+
+SPEC_CLASH = ("request", "base", "pr", "spec")   # 仕様駆動の道の表と組めない入力（表が依頼と差分の代わり。仕様の段は判定の中に在る）
+
+
+def spec_table(raw: dict, repo: Path, fix_fixture: str) -> str:
+    """仕様駆動の道の表の絶対パス（名指しが無ければ空。docs/design/spec-driven.md の 6.2 の変える node の 1）。相対なら対象の根から。
+    在るファイルでない・組めない入力（依頼・差分の根・PR・仕様の段・固定材料）と一緒なら Refused。表の中身（YAML）は読まない
+    （PyYAML を持たない。中身の確かめは block works-factory-spec-driven の形 entry）。周の鎖は spec_table を渡さないので、鎖の子では使えない"""
+    rel = raw.get("spec_table", "").strip()
+    if not rel:
+        return ""
+    clash = [name for name in SPEC_CLASH if raw[name].strip()] + (["fix_fixture"] if fix_fixture else [])
+    if clash:
+        raise Refused(f"仕様駆動の道の表（spec_table）は {'・'.join(clash)} と組めない（表が依頼の代わりで、差分の根は HEAD）")
+    path = Path(rel) if Path(rel).is_absolute() else repo / rel
+    if not path.is_file():
+        raise Refused(f"名指した仕様駆動の道の表 {rel} が無い（spec_table。表は対象の根からの相対か絶対パスで名指す）")
+    return str(path.resolve())
 
 
 def fixture_dir(rel: str, repo: Path) -> str:
@@ -170,7 +191,8 @@ def test_notes(raw: dict, repo: Path) -> list:
 
 def gate_text(shape: dict, record: dict, run_id: str, notes: list) -> str:
     happened = f"run を始める前で止まった。入口: {startrec.words(shape)}"
-    rest = [*fixture.lines(record), depth_words(record["inputs"], record),
+    rest = [*fixture.lines(record), *([f"仕様駆動の道: 表 {record['spec_table']}"] if record.get("spec_table") else []),
+            depth_words(record["inputs"], record),
             entry.features_part(record["features_off"], record["features_on"], adds(record),
                                 tiers.tier_auto(tiers.named(record.get("thickness")))), gates.head_words(record),
             entry.deliver_line(entry.deliver_word(record["inputs"]["deliver"])), *notes]
@@ -220,7 +242,7 @@ def begun(record: dict, shape: dict, prior, raw: dict, repo: Path, artifacts: Pa
             "ask": not unattended, "gate_text": gate_text(shape, record, run_id, test_notes(raw, repo)),
             "unattended": unattended, "design_only": record["design_only"] == gatemarks.DESIGN_ONLY,
             "final_gate": record[gates.FINAL_KEY], "from_fixture": carried is not None, "fixture": carried,
-            "ports": deal.ports_of(record, artifacts)}
+            "from_spec": bool(record.get("spec_table")), "ports": deal.ports_of(record, artifacts)}
 
 
 def place_carried(artifacts: Path, rows: list) -> None:
@@ -240,7 +262,8 @@ def start(raw: dict, repo: Path, artifacts: Path, run_id: str) -> dict:
         if reads is not None:
             ghreads.place(artifacts, reads)
         change = entryshape.change_base(raw, repo, reads)
-        entryshape.refuse_empty(asked["items"], change, repo)
+        if not checked["spec_table"]:   # 仕様駆動の道の表は依頼の代わりの入口（依頼の行も差分も要らない）
+            entryshape.refuse_empty(asked["items"], change, repo)
         inp = {"items": asked["items"], "request_file": asked["request_file"], "request_text": asked["request_text"],
                "base": change["base"] if change else None, "pr": change["pr"] if change else None,
                "spec": bool(checked["spec"])}
@@ -254,7 +277,7 @@ def start(raw: dict, repo: Path, artifacts: Path, run_id: str) -> dict:
         return {"ok": False, "stop_reason": stopby.START_REFUSED, "reason": str(error),
                 "record": write(artifacts, record), "prior_failures": None, "ask": False, "gate_text": "",
                 "unattended": False, "design_only": False, "final_gate": "", "from_fixture": False, "fixture": None,
-                "ports": deal.empty()}
+                "from_spec": False, "ports": deal.empty()}
     parts = asked["parts"]
     record.update({
         "input": shape, "base_rev": shape["head_rev"], "review_rev": shape["head_rev"], "request_file": asked["request_file"],
@@ -265,6 +288,7 @@ def start(raw: dict, repo: Path, artifacts: Path, run_id: str) -> dict:
         **features(checked),
         "answers": parts[carry.ANSWERS], "request_text": entryshape.request_text(inp),
         "pr_file": entryshape.write_pr_file(artifacts, inp),
+        **({"spec_table": checked["spec_table"]} if checked["spec_table"] else {}),
     })
     place_carried(artifacts, parts[carry.CONSTRAINTS])
     prior = None
@@ -294,7 +318,7 @@ def fallback(reason: str) -> dict:
 
     return {"ok": False, "stop_reason": guard.LINE_SCRIPT, "reason": reason, "record": None, "prior_failures": None,
             "ask": False, "gate_text": "", "unattended": False, "design_only": False, "final_gate": "", "from_fixture": False,
-            "fixture": None, "ports": deal.empty()}
+            "fixture": None, "from_spec": False, "ports": deal.empty()}
 
 
 if __name__ == "__main__":   # 試験は名で読み、load の後に start を直に呼ぶ
