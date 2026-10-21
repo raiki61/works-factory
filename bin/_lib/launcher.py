@@ -16,7 +16,7 @@ import sys
 from collections.abc import Mapping
 from pathlib import Path
 
-from bin._lib import hostgh, isolate, pack, place, runstop, startpoint
+from bin._lib import hostgh, isolate, pack, place, runstop, specreviews, startpoint
 from lib import answer, launchgroups, reads, userenv, writelog
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -176,7 +176,8 @@ def launch(argv: list[str], user: dict[str, str], here: Path) -> int:
         except RuntimeError as error:
             raise Stop(str(error)) from None
         rest = without_flag(without_flag(argv[3:], "--cwd"), "--config")
-        config = run_config(bun, source, cache, home, target, flags)
+        config = run_config(bun, source, cache, home, target, flags,
+                            spec_reviews(workflow, flags, user, child, place.archon(bun, source), home, target))
         try:
             start, said = startpoint.choose(flags, workflow, target, f"{NAME}-")
         except RuntimeError as error:
@@ -237,12 +238,38 @@ def run_env(home: Path, target: Path) -> dict[str, str]:
     return {ROOT_ENV: str(ROOT), answer.ENV: answer_head(home, target)}
 
 
-def run_config(bun: str, source: Path, cache: Path, home: Path, target: Path, flags: list[str]) -> Path:
+def spec_reviews(workflow: str, flags: list[str], user: Mapping[str, str], child: dict, head: list[str], home: Path,
+                 target: Path) -> dict[str, str]:
+    """仕様駆動の道の表を名指した起動（本線の spec_table・block の table）だけ、会話で回した審査の記録を Archon の run の記録と照らし
+    （bin/_lib/specreviews.py。docs/design/spec-driven.md の 2.6 の 2）、結果のファイルを run の設定の層の env で渡す。合わなければ
+    Archon を起こさずに止める。表を名指さない起動は表も記録も読まず、uv も起こさず、{} を返す"""
+    table = specreviews.named_table(workflow, flag_values(flags, "--input"))
+    if table is None:
+        return {}
+    uv = shutil.which("uv", path=user.get("PATH"))
+    if not uv:
+        raise Stop("仕様駆動の道の表（YAML）を読むのに uv が要る（Archon の script のノードを回すのと同じ uv）。uv を PATH に置く")
+    try:
+        doc = specreviews.check(target, table, lambda t, name: specreviews.read_table(uv, t, name, dict(user)),
+                                specreviews.archon_get(head, target, child))
+    except RuntimeError as error:
+        raise Stop(str(error)) from None
+    bad = specreviews.problems(doc)
+    if bad:
+        raise Stop("仕様駆動の道の表か、会話で回した審査の記録が照らしに合わない（Archon を起こさずに止めた）:\n"
+                   + "\n".join(f"- {line}" for line in bad))
+    path = specreviews.write(home, doc)
+    print(f"{NAME}: 会話で回した審査の記録 {len(doc['rows'])} 件を run の記録と照らした（{path}）", file=sys.stderr)
+    return {specreviews.RESULT_ENV: str(path)}
+
+
+def run_config(bun: str, source: Path, cache: Path, home: Path, target: Path, flags: list[str],
+               extra: Mapping[str, str] | None = None) -> Path:
     """新しい run に渡す設定の層（place.run_config。--adopt の時は群の別名を除く）。利用者の --config があれば合わせる。Archon は
     --config を 1 つしか読まず後ろの物を採り、相対のパスは対象（--cwd）から引くので、ここも同じに読む。工場の値だけの層は秘密を
     持たないので取り置き cache に、利用者の層を合わせた物（env の秘密が入りうる）は対象の家 home（run_home。Archon の DB と封じた層を
     解く鍵の置き場）に置き、家と一緒に消える"""
-    env, aliases = run_env(home, target), not adopting(flags)
+    env, aliases = {**run_env(home, target), **(extra or {})}, not adopting(flags)
     mine = (flag_values(flags, "--config") or [None])[-1]
     if not mine:
         return place.run_config(cache, env, aliases=aliases)

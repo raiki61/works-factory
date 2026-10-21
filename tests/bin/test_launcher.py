@@ -5,6 +5,7 @@ security と、python3・git だけを置く。偽の bun は受けた引数と�
 試験の出力に出さない）。
 """
 import hashlib
+import importlib.util
 import json
 import os
 import pathlib
@@ -15,7 +16,7 @@ import sys
 import tempfile
 import unittest
 
-from bin._lib import auth_launch, launcher, place, toolset
+from bin._lib import auth_launch, launcher, place, specreviews, toolset
 from lib import answer, launchgroups, reads, userenv, writelog
 from tests import archon
 from tests.bin import fakelaunch, hermetic
@@ -926,6 +927,71 @@ class LauncherTest(unittest.TestCase):
         make_user_config(self.home / ".claude", only=("superpowers",))
         err = self.stopped(self.launch("workflow", "run", "works-factory-line"))
         self.assertIn("pr-review-toolkit", err)
+
+    # ---------------------------------------------------------------- 仕様駆動の道（docs/design/spec-driven.md の 2.6 の 2・6.7）
+    SPEC_DESIGN = "# 設計書\n\n- 何の話か: 置き場。\n- 決めたこと: 1 つ読む。\n\n## 背景\n\n今はホーム。\n"
+
+    def put_spec(self) -> dict:
+        """対象に表と設計書を置き、部品ごとの記録（workflow get の形）を偽の bun が返す置き場に置く。返りは記録の置き場の env"""
+        from lib import spectable
+        (self.target / "docs").mkdir(exist_ok=True)
+        (self.target / "docs" / "d.md").write_text(self.SPEC_DESIGN, encoding="utf-8")
+        (self.target / "t.yaml").write_text(
+            "design: docs/d.md\npurpose: 置き場が思う所\nacceptance:\n  - {key: a1, when: 起こす, then: 置く}\nreviews:\n"
+            + "".join(f"  - {{part: {p}, run: r{n}, findings: []}}\n" for n, p in enumerate(spectable.PARTS)), encoding="utf-8")
+        reader = importlib.util.spec_from_file_location("spec_inputs", self.repo / "bin" / "_lib" / "spec-inputs.py")
+        mod = importlib.util.module_from_spec(reader)
+        reader.loader.exec_module(mod)
+        built = mod.build(self.target, "t.yaml")
+        records = self.tmp / "records"
+        records.mkdir()
+        for n, part in enumerate(spectable.PARTS):
+            named = {k: spectable.input_text(v) for k, v in built["inputs"][part].items()}
+            value = {"ok": True}
+            if part == spectable.PLAN_REVIEW:
+                named["proposal_file"] = "/tmp/p.md"
+                value["proposal_sha256"] = built["proposal_sha256"]
+            (records / f"r{n}.json").write_text(json.dumps({
+                "workflow_name": part, "status": "completed", "outcome": "succeeded", "metadata": {"inputs": named},
+                "terminal_record": {"returns": {"availability": "available", "value": value}, "artifacts": {"root": None}}},
+                ensure_ascii=False), encoding="utf-8")
+        put(self.fake / "bun", "#!/usr/bin/env python3\nimport json, os, pathlib, sys\n"
+            "if 'get' in sys.argv:\n"
+            "    p = pathlib.Path(os.environ['FAKE_RECORDS']) / (sys.argv[sys.argv.index('get') + 1] + '.json')\n"
+            "    print(p.read_text() if p.is_file() else json.dumps({'ok': False, 'error': 'not_found'}))\n"
+            "    sys.exit(0 if p.is_file() else 1)\n" + FAKE_BUN.split("\n", 2)[2])
+        # 偽の uv は、この試験の Python（PyYAML を持つ）で script を回す（本物の uv は script の宣言から PyYAML を入れる）
+        put(self.fake / "uv", "#!/usr/bin/env python3\nimport os, sys\nargs = sys.argv[1:]\n"
+            f"assert args[:2] == ['run', '--script'], args\nos.execv({sys.executable!r}, [{sys.executable!r}, *args[2:]])\n")
+        return {"FAKE_RECORDS": str(records)}
+
+    def test_runs_without_a_spec_table_read_no_table_and_need_no_uv(self):
+        """表を名指さない起動は表も審査の記録も読まず、uv も起こさない（PATH に uv が無くても今どおり起こす）。run の層も今のまま"""
+        argv = self.reached(self.launch("workflow", "run", "works-factory-line", "--input", "request=x"))["argv"]
+        self.assertEqual(self.layer(argv), self.factory_layer())
+
+    def test_spec_table_without_uv_stops_before_archon(self):
+        err = self.stopped(self.launch("workflow", "run", "works-factory-line", "--input", "spec_table=t.yaml"))
+        self.assertIn("uv が要る", err)
+
+    def test_spec_table_records_reach_the_run_layer(self):
+        """表を名指す起動は、審査の記録 5 件を照らした結果のファイルを run の設定の層の env で渡す（resume しても同じ値）。block の
+        単独の run（table）も同じ"""
+        env = self.put_spec()
+        for workflow, name in (("works-factory-line", "spec_table"), ("works-factory-spec-driven", "table")):
+            with self.subTest(workflow):
+                got = self.reached(self.launch("workflow", "run", workflow, "--input", "mode=entry", "--input", f"{name}=t.yaml", **env))
+                layer = self.layer(got["argv"])
+                result = json.loads(pathlib.Path(layer["env"][specreviews.RESULT_ENV]).read_text(encoding="utf-8"))
+                self.assertEqual([r["ok"] for r in result["rows"]], [True] * 5, result)
+                self.assertEqual({k: v for k, v in layer["env"].items() if k != specreviews.RESULT_ENV}, self.factory_layer()["env"])
+
+    def test_spec_records_that_do_not_match_stop_before_archon(self):
+        env = self.put_spec()
+        (pathlib.Path(env["FAKE_RECORDS"]) / "r2.json").unlink()
+        err = self.stopped(self.launch("workflow", "run", "works-factory-line", "--input", "spec_table=t.yaml", **env))
+        self.assertIn("照らしに合わない", err)
+        self.assertIn("a: run r2 の記録が無い", err)
 
     def test_missing_auth_stops_before_archon(self):
         err = self.stopped(self.launch("workflow", "run", "works-factory-line", ANTHROPIC_API_KEY=None))
