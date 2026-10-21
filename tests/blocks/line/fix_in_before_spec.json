@@ -1,0 +1,880 @@
+{
+ "approved": {
+  "judgment": {
+   "type": "archon_artifact",
+   "run_id": "run-test",
+   "path": "judge/judgment.json"
+  },
+  "units": [
+   {
+    "id": "u1",
+    "paths": [
+     "a.py"
+    ],
+    "summary": "s"
+   }
+  ],
+  "answer_ties": {
+   "type": "archon_artifact",
+   "run_id": "run-test",
+   "path": "judge/answer_ties.json"
+  },
+  "materials": {
+   "type": "archon_artifact",
+   "run_id": "run-test",
+   "path": "judge/materials.json"
+  },
+  "out_of_purpose": {
+   "type": "archon_artifact",
+   "run_id": "run-test",
+   "path": "judge/out_of_purpose.json"
+  },
+  "verify": {
+   "type": "archon_artifact",
+   "run_id": "run-test",
+   "path": "judge/verify.json"
+  },
+  "excluded": {
+   "type": "archon_artifact",
+   "run_id": "run-test",
+   "path": "judge/excluded.json"
+  },
+  "tier_record": {
+   "type": "archon_artifact",
+   "run_id": "run-test",
+   "path": "judge/tier_record.json"
+  },
+  "decisions": {
+   "type": "archon_artifact",
+   "run_id": "run-test",
+   "path": "judge/decisions.json"
+  },
+  "world": {
+   "type": "archon_artifact",
+   "run_id": "run-test",
+   "path": "judge/world.json"
+  },
+  "spec": {
+   "type": "archon_artifact",
+   "run_id": "run-test",
+   "path": "judge/spec.json"
+  },
+  "purpose": {
+   "type": "archon_artifact",
+   "run_id": "run-test",
+   "path": "judge/purpose.json"
+  },
+  "purpose_text": "P",
+  "means": [
+   "m"
+  ],
+  "constraints": {
+   "type": "archon_artifact",
+   "run_id": "run-test",
+   "path": "judge/constraints.json"
+  },
+  "brief": {
+   "type": "archon_artifact",
+   "run_id": "run-test",
+   "path": "judge/brief.json"
+  },
+  "inputs": {
+   "type": "archon_artifact",
+   "run_id": "run-test",
+   "path": "judge/inputs.json"
+  },
+  "plan": {
+   "type": "archon_artifact",
+   "run_id": "run-test",
+   "path": "plan/plan-fields.json"
+  },
+  "fix_plan": {
+   "type": "archon_artifact",
+   "run_id": "run-test",
+   "path": "plan/fix-plan.json"
+  },
+  "ripple": {
+   "type": "archon_artifact",
+   "run_id": "run-test",
+   "path": "plan/ripple.json"
+  },
+  "reply": {
+   "type": "archon_artifact",
+   "run_id": "run-test",
+   "path": "plan/reply.json"
+  },
+  "review": {
+   "type": "archon_artifact",
+   "run_id": "run-test",
+   "path": "plan-review/review.json"
+  },
+  "record": {
+   "type": "archon_artifact",
+   "run_id": "run-test",
+   "path": "plan-converge.json"
+  },
+  "handoffs": [
+   {
+    "round": 1
+   }
+  ],
+  "owed": [
+   "u1"
+  ],
+  "round": 2,
+  "baseline": {
+   "type": "archon_artifact",
+   "run_id": "run-test",
+   "path": "test-gate/baseline.json"
+  },
+  "suite": "/s/run.sh",
+  "structure": {
+   "type": "archon_artifact",
+   "run_id": "run-test",
+   "path": "structure/structure.json"
+  },
+  "design": {
+   "type": "archon_artifact",
+   "run_id": "run-test",
+   "path": "independent-design/design.json"
+  },
+  "design_reason": "",
+  "design_premises": null,
+  "answer": {
+   "decision": "approve",
+   "text": "",
+   "asked": []
+  },
+  "deferred": [],
+  "passes": [
+   "通した行"
+  ],
+  "recorded": [
+   {
+    "source": "answer",
+    "name": "q",
+    "text": "a"
+   }
+  ],
+  "policy": "/p/frozen.md",
+  "units_tier": [
+   {
+    "unit_id": "u1",
+    "depth": "軽量",
+    "why": "触るファイル 1 個・テスト 0 本・約束の形のファイルなし・機械の確かめあり"
+   }
+  ],
+  "skip_rerun": [
+   "u1"
+  ],
+  "switches": {
+   "tier": "軽量",
+   "omits": true,
+   "merge": true,
+   "tree": "off",
+   "adds": [],
+   "lines": [
+    "l"
+   ]
+  },
+  "no_fix": false,
+  "go": true,
+  "received": null,
+  "stop_reason": "",
+  "reason": ""
+ },
+ "not_approved": {
+  "judgment": {
+   "type": "archon_artifact",
+   "run_id": "run-test",
+   "path": "judge/judgment.json"
+  },
+  "units": [
+   {
+    "id": "u1",
+    "paths": [
+     "a.py"
+    ],
+    "summary": "s"
+   }
+  ],
+  "answer_ties": {
+   "type": "archon_artifact",
+   "run_id": "run-test",
+   "path": "judge/answer_ties.json"
+  },
+  "materials": {
+   "type": "archon_artifact",
+   "run_id": "run-test",
+   "path": "judge/materials.json"
+  },
+  "out_of_purpose": {
+   "type": "archon_artifact",
+   "run_id": "run-test",
+   "path": "judge/out_of_purpose.json"
+  },
+  "verify": {
+   "type": "archon_artifact",
+   "run_id": "run-test",
+   "path": "judge/verify.json"
+  },
+  "excluded": {
+   "type": "archon_artifact",
+   "run_id": "run-test",
+   "path": "judge/excluded.json"
+  },
+  "tier_record": {
+   "type": "archon_artifact",
+   "run_id": "run-test",
+   "path": "judge/tier_record.json"
+  },
+  "decisions": {
+   "type": "archon_artifact",
+   "run_id": "run-test",
+   "path": "judge/decisions.json"
+  },
+  "world": {
+   "type": "archon_artifact",
+   "run_id": "run-test",
+   "path": "judge/world.json"
+  },
+  "spec": {
+   "type": "archon_artifact",
+   "run_id": "run-test",
+   "path": "judge/spec.json"
+  },
+  "purpose": {
+   "type": "archon_artifact",
+   "run_id": "run-test",
+   "path": "judge/purpose.json"
+  },
+  "purpose_text": "P",
+  "means": [
+   "m"
+  ],
+  "constraints": {
+   "type": "archon_artifact",
+   "run_id": "run-test",
+   "path": "judge/constraints.json"
+  },
+  "brief": {
+   "type": "archon_artifact",
+   "run_id": "run-test",
+   "path": "judge/brief.json"
+  },
+  "inputs": {
+   "type": "archon_artifact",
+   "run_id": "run-test",
+   "path": "judge/inputs.json"
+  },
+  "plan": {
+   "type": "archon_artifact",
+   "run_id": "run-test",
+   "path": "plan/plan-fields.json"
+  },
+  "fix_plan": {
+   "type": "archon_artifact",
+   "run_id": "run-test",
+   "path": "plan/fix-plan.json"
+  },
+  "ripple": {
+   "type": "archon_artifact",
+   "run_id": "run-test",
+   "path": "plan/ripple.json"
+  },
+  "reply": {
+   "type": "archon_artifact",
+   "run_id": "run-test",
+   "path": "plan/reply.json"
+  },
+  "review": {
+   "type": "archon_artifact",
+   "run_id": "run-test",
+   "path": "plan-review/review.json"
+  },
+  "record": {
+   "type": "archon_artifact",
+   "run_id": "run-test",
+   "path": "plan-converge.json"
+  },
+  "handoffs": [
+   {
+    "round": 1
+   }
+  ],
+  "owed": [
+   "u1"
+  ],
+  "round": 2,
+  "baseline": {
+   "type": "archon_artifact",
+   "run_id": "run-test",
+   "path": "test-gate/baseline.json"
+  },
+  "suite": "/s/run.sh",
+  "structure": {
+   "type": "archon_artifact",
+   "run_id": "run-test",
+   "path": "structure/structure.json"
+  },
+  "design": {
+   "type": "archon_artifact",
+   "run_id": "run-test",
+   "path": "independent-design/design.json"
+  },
+  "design_reason": "",
+  "design_premises": null,
+  "answer": null,
+  "deferred": [],
+  "passes": [
+   "通した行"
+  ],
+  "recorded": [
+   {
+    "source": "answer",
+    "name": "q",
+    "text": "a"
+   }
+  ],
+  "policy": "/p/frozen.md",
+  "units_tier": [
+   {
+    "unit_id": "u1",
+    "depth": "軽量",
+    "why": "触るファイル 1 個・テスト 0 本・約束の形のファイルなし・機械の確かめあり"
+   }
+  ],
+  "skip_rerun": [
+   "u1"
+  ],
+  "switches": {
+   "tier": "軽量",
+   "omits": true,
+   "merge": true,
+   "tree": "off",
+   "adds": [],
+   "lines": [
+    "l"
+   ]
+  },
+  "no_fix": false,
+  "go": false,
+  "received": null,
+  "stop_reason": "",
+  "reason": ""
+ },
+ "no_fix_judge": {
+  "judgment": {
+   "type": "archon_artifact",
+   "run_id": "run-test",
+   "path": "judge/judgment.json"
+  },
+  "units": [
+   {
+    "id": "u1",
+    "paths": [
+     "a.py"
+    ],
+    "summary": "s"
+   }
+  ],
+  "answer_ties": {
+   "type": "archon_artifact",
+   "run_id": "run-test",
+   "path": "judge/answer_ties.json"
+  },
+  "materials": {
+   "type": "archon_artifact",
+   "run_id": "run-test",
+   "path": "judge/materials.json"
+  },
+  "out_of_purpose": {
+   "type": "archon_artifact",
+   "run_id": "run-test",
+   "path": "judge/out_of_purpose.json"
+  },
+  "verify": {
+   "type": "archon_artifact",
+   "run_id": "run-test",
+   "path": "judge/verify.json"
+  },
+  "excluded": {
+   "type": "archon_artifact",
+   "run_id": "run-test",
+   "path": "judge/excluded.json"
+  },
+  "tier_record": {
+   "type": "archon_artifact",
+   "run_id": "run-test",
+   "path": "judge/tier_record.json"
+  },
+  "decisions": {
+   "type": "archon_artifact",
+   "run_id": "run-test",
+   "path": "judge/decisions.json"
+  },
+  "world": {
+   "type": "archon_artifact",
+   "run_id": "run-test",
+   "path": "judge/world.json"
+  },
+  "spec": {
+   "type": "archon_artifact",
+   "run_id": "run-test",
+   "path": "judge/spec.json"
+  },
+  "purpose": {
+   "type": "archon_artifact",
+   "run_id": "run-test",
+   "path": "judge/purpose.json"
+  },
+  "purpose_text": "P",
+  "means": [
+   "m"
+  ],
+  "constraints": {
+   "type": "archon_artifact",
+   "run_id": "run-test",
+   "path": "judge/constraints.json"
+  },
+  "brief": {
+   "type": "archon_artifact",
+   "run_id": "run-test",
+   "path": "judge/brief.json"
+  },
+  "inputs": {
+   "type": "archon_artifact",
+   "run_id": "run-test",
+   "path": "judge/inputs.json"
+  },
+  "plan": null,
+  "fix_plan": null,
+  "ripple": null,
+  "reply": null,
+  "review": null,
+  "record": null,
+  "handoffs": [],
+  "owed": [],
+  "round": null,
+  "baseline": {
+   "type": "archon_artifact",
+   "run_id": "run-test",
+   "path": "test-gate/baseline.json"
+  },
+  "suite": "/s/run.sh",
+  "structure": {
+   "type": "archon_artifact",
+   "run_id": "run-test",
+   "path": "structure/structure.json"
+  },
+  "design": {
+   "type": "archon_artifact",
+   "run_id": "run-test",
+   "path": "independent-design/design.json"
+  },
+  "design_reason": "",
+  "design_premises": null,
+  "answer": {
+   "decision": "approve",
+   "text": "",
+   "asked": []
+  },
+  "deferred": [],
+  "passes": [
+   "通した行"
+  ],
+  "recorded": [
+   {
+    "source": "answer",
+    "name": "q",
+    "text": "a"
+   }
+  ],
+  "policy": "/p/frozen.md",
+  "units_tier": [],
+  "skip_rerun": [],
+  "switches": {
+   "tier": "軽量",
+   "omits": true,
+   "merge": true,
+   "tree": "off",
+   "adds": [],
+   "lines": [
+    "l"
+   ]
+  },
+  "no_fix": true,
+  "go": false,
+  "received": null,
+  "stop_reason": "",
+  "reason": ""
+ },
+ "nothing_owed": {
+  "judgment": {
+   "type": "archon_artifact",
+   "run_id": "run-test",
+   "path": "judge/judgment.json"
+  },
+  "units": [
+   {
+    "id": "u1",
+    "paths": [
+     "a.py"
+    ],
+    "summary": "s"
+   }
+  ],
+  "answer_ties": {
+   "type": "archon_artifact",
+   "run_id": "run-test",
+   "path": "judge/answer_ties.json"
+  },
+  "materials": {
+   "type": "archon_artifact",
+   "run_id": "run-test",
+   "path": "judge/materials.json"
+  },
+  "out_of_purpose": {
+   "type": "archon_artifact",
+   "run_id": "run-test",
+   "path": "judge/out_of_purpose.json"
+  },
+  "verify": {
+   "type": "archon_artifact",
+   "run_id": "run-test",
+   "path": "judge/verify.json"
+  },
+  "excluded": {
+   "type": "archon_artifact",
+   "run_id": "run-test",
+   "path": "judge/excluded.json"
+  },
+  "tier_record": {
+   "type": "archon_artifact",
+   "run_id": "run-test",
+   "path": "judge/tier_record.json"
+  },
+  "decisions": {
+   "type": "archon_artifact",
+   "run_id": "run-test",
+   "path": "judge/decisions.json"
+  },
+  "world": {
+   "type": "archon_artifact",
+   "run_id": "run-test",
+   "path": "judge/world.json"
+  },
+  "spec": {
+   "type": "archon_artifact",
+   "run_id": "run-test",
+   "path": "judge/spec.json"
+  },
+  "purpose": {
+   "type": "archon_artifact",
+   "run_id": "run-test",
+   "path": "judge/purpose.json"
+  },
+  "purpose_text": "P",
+  "means": [
+   "m"
+  ],
+  "constraints": {
+   "type": "archon_artifact",
+   "run_id": "run-test",
+   "path": "judge/constraints.json"
+  },
+  "brief": {
+   "type": "archon_artifact",
+   "run_id": "run-test",
+   "path": "judge/brief.json"
+  },
+  "inputs": {
+   "type": "archon_artifact",
+   "run_id": "run-test",
+   "path": "judge/inputs.json"
+  },
+  "plan": {
+   "type": "archon_artifact",
+   "run_id": "run-test",
+   "path": "plan/plan-fields.json"
+  },
+  "fix_plan": {
+   "type": "archon_artifact",
+   "run_id": "run-test",
+   "path": "plan/fix-plan.json"
+  },
+  "ripple": {
+   "type": "archon_artifact",
+   "run_id": "run-test",
+   "path": "plan/ripple.json"
+  },
+  "reply": {
+   "type": "archon_artifact",
+   "run_id": "run-test",
+   "path": "plan/reply.json"
+  },
+  "review": {
+   "type": "archon_artifact",
+   "run_id": "run-test",
+   "path": "plan-review/review.json"
+  },
+  "record": {
+   "type": "archon_artifact",
+   "run_id": "run-test",
+   "path": "plan-converge.json"
+  },
+  "handoffs": [
+   {
+    "round": 1
+   }
+  ],
+  "owed": [
+   "u1"
+  ],
+  "round": 2,
+  "baseline": {
+   "type": "archon_artifact",
+   "run_id": "run-test",
+   "path": "test-gate/baseline.json"
+  },
+  "suite": "/s/run.sh",
+  "structure": {
+   "type": "archon_artifact",
+   "run_id": "run-test",
+   "path": "structure/structure.json"
+  },
+  "design": {
+   "type": "archon_artifact",
+   "run_id": "run-test",
+   "path": "independent-design/design.json"
+  },
+  "design_reason": "",
+  "design_premises": null,
+  "answer": {
+   "decision": "approve",
+   "text": "",
+   "asked": []
+  },
+  "deferred": [],
+  "passes": [
+   "通した行"
+  ],
+  "recorded": [
+   {
+    "source": "answer",
+    "name": "q",
+    "text": "a"
+   }
+  ],
+  "policy": "/p/frozen.md",
+  "units_tier": [
+   {
+    "unit_id": "u1",
+    "depth": "軽量",
+    "why": "触るファイル 1 個・テスト 0 本・約束の形のファイルなし・機械の確かめあり"
+   }
+  ],
+  "skip_rerun": [
+   "u1"
+  ],
+  "switches": {
+   "tier": "軽量",
+   "omits": true,
+   "merge": true,
+   "tree": "off",
+   "adds": [],
+   "lines": [
+    "l"
+   ]
+  },
+  "no_fix": true,
+  "go": true,
+  "received": null,
+  "stop_reason": "",
+  "reason": ""
+ },
+ "refrozen": {
+  "judgment": {
+   "type": "archon_artifact",
+   "run_id": "run-test",
+   "path": "judge/judgment.json"
+  },
+  "units": [
+   {
+    "id": "u1",
+    "paths": [
+     "a.py"
+    ],
+    "summary": "s"
+   }
+  ],
+  "answer_ties": {
+   "type": "archon_artifact",
+   "run_id": "run-test",
+   "path": "judge/answer_ties.json"
+  },
+  "materials": {
+   "type": "archon_artifact",
+   "run_id": "run-test",
+   "path": "judge/materials.json"
+  },
+  "out_of_purpose": {
+   "type": "archon_artifact",
+   "run_id": "run-test",
+   "path": "judge/out_of_purpose.json"
+  },
+  "verify": {
+   "type": "archon_artifact",
+   "run_id": "run-test",
+   "path": "judge/verify.json"
+  },
+  "excluded": {
+   "type": "archon_artifact",
+   "run_id": "run-test",
+   "path": "judge/excluded.json"
+  },
+  "tier_record": {
+   "type": "archon_artifact",
+   "run_id": "run-test",
+   "path": "judge/tier_record.json"
+  },
+  "decisions": {
+   "type": "archon_artifact",
+   "run_id": "run-test",
+   "path": "judge/decisions.json"
+  },
+  "world": {
+   "type": "archon_artifact",
+   "run_id": "run-test",
+   "path": "judge/world.json"
+  },
+  "spec": {
+   "type": "archon_artifact",
+   "run_id": "run-test",
+   "path": "judge/spec.json"
+  },
+  "purpose": {
+   "type": "archon_artifact",
+   "run_id": "run-test",
+   "path": "judge/purpose.json"
+  },
+  "purpose_text": "P",
+  "means": [
+   "m"
+  ],
+  "constraints": {
+   "type": "archon_artifact",
+   "run_id": "run-test",
+   "path": "judge/constraints.json"
+  },
+  "brief": {
+   "type": "archon_artifact",
+   "run_id": "run-test",
+   "path": "judge/brief.json"
+  },
+  "inputs": {
+   "type": "archon_artifact",
+   "run_id": "run-test",
+   "path": "judge/inputs.json"
+  },
+  "plan": {
+   "type": "archon_artifact",
+   "run_id": "run-test",
+   "path": "plan/plan-fields.json"
+  },
+  "fix_plan": {
+   "type": "archon_artifact",
+   "run_id": "run-test",
+   "path": "plan/fix-plan.json"
+  },
+  "ripple": {
+   "type": "archon_artifact",
+   "run_id": "run-test",
+   "path": "plan/ripple.json"
+  },
+  "reply": {
+   "type": "archon_artifact",
+   "run_id": "run-test",
+   "path": "plan/reply.json"
+  },
+  "review": {
+   "type": "archon_artifact",
+   "run_id": "run-test",
+   "path": "plan-review/review.json"
+  },
+  "record": {
+   "type": "archon_artifact",
+   "run_id": "run-test",
+   "path": "plan-converge.json"
+  },
+  "handoffs": [
+   {
+    "round": 1
+   }
+  ],
+  "owed": [
+   "u1"
+  ],
+  "round": 2,
+  "baseline": {
+   "type": "archon_artifact",
+   "run_id": "run-test",
+   "path": "test-gate/baseline.json"
+  },
+  "suite": "/s/run.sh",
+  "structure": {
+   "type": "archon_artifact",
+   "run_id": "run-test",
+   "path": "structure/structure.json"
+  },
+  "design": {
+   "type": "archon_artifact",
+   "run_id": "run-test",
+   "path": "independent-design/design.json"
+  },
+  "design_reason": "",
+  "design_premises": null,
+  "answer": {
+   "decision": "approve",
+   "text": "",
+   "asked": []
+  },
+  "deferred": [],
+  "passes": [
+   "通した行"
+  ],
+  "recorded": [
+   {
+    "source": "answer",
+    "name": "q",
+    "text": "a"
+   }
+  ],
+  "policy": "/p/refrozen.md",
+  "units_tier": [
+   {
+    "unit_id": "u1",
+    "depth": "軽量",
+    "why": "触るファイル 1 個・テスト 0 本・約束の形のファイルなし・機械の確かめあり"
+   }
+  ],
+  "skip_rerun": [
+   "u1"
+  ],
+  "switches": {
+   "tier": "軽量",
+   "omits": true,
+   "merge": true,
+   "tree": "off",
+   "adds": [],
+   "lines": [
+    "l"
+   ]
+  },
+  "no_fix": false,
+  "go": true,
+  "received": null,
+  "stop_reason": "",
+  "reason": ""
+ }
+}

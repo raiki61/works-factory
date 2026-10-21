@@ -177,6 +177,30 @@ class LineReturnsTest(unittest.TestCase):
             self.assertTrue(ran(trace, node), node)
 
 
+# 仕様駆動の道だけで回る node（docs/design/spec-driven.md の 6.2 の足す node）。include の中の node は `<id>__<中の id>`。前からの
+# spec-check-run（仕様の段の照らし）は仕様駆動の道の node でないので、頭の字でなく id で名指す
+SPEC_DRIVEN_NODES = ("spec-entry", "spec-entry-out", "spec-diagnose", "spec-diagnose-out", "spec-plan", "spec-plan-out", "spec-check",
+                     "spec-rounds", "spec-ask-before-fix", "spec-gate-before-fix", "spec-answer-before-fix")
+
+
+def spec_driven_ran(trace: dict) -> list:
+    """trace で走った仕様駆動の道の node"""
+    return sorted(n for n in trace if ran(trace, n) and any(n == s or n.startswith(f"{s}__") for s in SPEC_DRIVEN_NODES))
+
+
+class RequestRunsStayTest(unittest.TestCase):
+    """依頼の文・差分・固定材料で入る筋書き（組 A の全部）は、仕様駆動の道の node を 1 つも走らせず、直す前の結末が通った run では
+    今の判定（graph judge）を回す（docs/design/spec-driven.md の 6.5 の 2。仕様駆動の道を足しても本線の振る舞いが変わらない縛り）"""
+
+    def test_no_spec_driven_node_runs_and_the_judge_runs(self):
+        for name, trace in line_traces(SCENARIOS).items():
+            with self.subTest(scenario=name):
+                self.assertEqual(spec_driven_ran(trace), [])
+                base_ok = (got(trace, "test-gate-base") or {}).get("ok") is True
+                started = trace.get("judge__ins", {}).get("state") not in (None, "skipped")   # 判定の graph の頭の node（落ちる筋書きも在る）
+                self.assertEqual(started, base_ok)
+
+
 class DefaultDeliverTest(unittest.TestCase):
     """#555: 出口の語を名指さない（既定の空の）run は、差分を置いて止まり、run の枝に積む node と PR を作る子の run の node が走らない"""
 
