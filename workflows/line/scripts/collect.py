@@ -78,6 +78,10 @@ def raw_inputs() -> dict:
         "eyes": os.environ.get("INPUTS_EYES"), "merge_seal": os.environ.get("INPUTS_MERGE_SEAL"),
         "ask_final": os.environ.get("INPUTS_ASK_FINAL"), "answer_final": os.environ.get("INPUTS_ANSWER_FINAL"),
         "merge_apply": os.environ.get("INPUTS_MERGE_APPLY"), "optional": os.environ.get("INPUTS_OPTIONAL"),
+        "spec_entry": os.environ.get("INPUTS_SPEC_ENTRY"), "spec_diagnose": os.environ.get("INPUTS_SPEC_DIAGNOSE"),
+        "spec_driven_check": os.environ.get("INPUTS_SPEC_DRIVEN_CHECK"), "spec_rounds": os.environ.get("INPUTS_SPEC_ROUNDS"),
+        "spec_ask_before_fix": os.environ.get("INPUTS_SPEC_ASK_BEFORE_FIX"),
+        "spec_answer_before_fix": os.environ.get("INPUTS_SPEC_ANSWER_BEFORE_FIX"),
     }
 
 
@@ -119,7 +123,8 @@ def write(name: str, doc) -> dict:
 def compute():
     raw = raw_inputs()
     from src import facts, files, sections
-    values = values_of(raw)
+    from src import specrounds
+    values = specrounds.collect_values(values_of(raw))   # 仕様駆動の run の値を今の欄の名に重ねる（依頼の文の run は values のまま）
     record, why = record_of(values.get("start"))
     built = facts.build(values, record, why, cwd=Path.cwd())
     secs = sections.build(values, record or {}, cwd=Path.cwd(), folder=ports.place())

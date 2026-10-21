@@ -406,3 +406,69 @@ class CollectScriptCase(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class SpecRunCase(unittest.TestCase):
+    """仕様駆動の run の collect（docs/design/spec-driven.md の 6.2 の変える node の 7）: 判定の graph と計画の往復は回らないので、
+    spec-rounds の判定の部と往復の部、spec- の付いた承認ノードの答えを今の欄の名で読み（src/specrounds.collect_values）、入口と形 check の
+    報告の行を「仕様駆動の道」の節に載せ、止めの語は spec の node の名で数える"""
+
+    def setUp(self):
+        self.f = kit.load(BLOCK, "facts")
+        self.s = kit.load(BLOCK, "sections")
+        self.r = kit.load(BLOCK, "specrounds")
+        self.run = kit.Run(self, BLOCK)
+        seed(self.run)
+
+    def spec_values(self, **over) -> dict:
+        v = passing()
+        judge = {k: v["judge"][k] for k in ("ok", "stop_reason", "ready", "units", "judgment", "answer_ties", "out_of_purpose", "materials",
+                                            "brief", "inputs", "purpose", "purpose_text", "means", "constraints", "world", "spec", "excluded",
+                                            "decisions", "tier", "tier_record", "verify")}
+        report = ["- 仕様駆動の道の入口: 表 t.yaml と設計書 d.md を確かめた"]
+        v.update({"judge": None, "rounds": None, "ask_before_fix": None, "answer_before_fix": None,
+                  "spec_entry": {"ok": True, "stop_reason": "", "report": report},
+                  "spec_diagnose": {"downgrades": [], "report": ["- 判定の役: 単位 1"]},
+                  "spec_driven_check": {"ok": True, "stop_reason": "", "report": ["- 仕様とリポジトリの食い違いの照らし: 当たり無し"]},
+                  "spec_rounds": {"judge": {**judge, "questions": []}, "rounds": passing()["rounds"], "stop_reason": "", "reason": ""},
+                  "spec_ask_before_fix": passing()["ask_before_fix"], "spec_answer_before_fix": passing()["answer_before_fix"]})
+        v.update(over)
+        return self.r.collect_values(v)
+
+    def rec(self) -> dict:
+        return {**record(), "spec_table": "/x/t.yaml"}
+
+    def test_spec_values_fill_the_current_fields(self):
+        v = self.spec_values()
+        self.assertEqual((v["rounds"]["status"], v["judge"]["tier"], v["answer_before_fix"]["answer"]["decision"]), ("ok", "標準", "approve"))
+        with self.run.env(), mock.patch.object(__import__("report"), "CMD_LIGHT", "light", create=True):
+            got = self.f.build(v, self.rec())
+            secs = self.s.build(v, self.rec(), cwd=self.run.repo, folder=self.run.artifacts)
+        self.assertEqual((got["stops"], got["cut"], got["no_fix"], got["proved"]), ([], None, False, True))
+        spec = next(s for s in secs if s["title"] == "仕様駆動の道")
+        self.assertEqual(spec["lines"][:2], ["- 仕様駆動の道の入口: 表 t.yaml と設計書 d.md を確かめた",
+                                             "- 仕様とリポジトリの食い違いの照らし: 当たり無し"])
+        self.assertIn("- 判定の役: 単位 1", next(s for s in secs if s["title"] == self.s.JUDGMENT)["lines"])
+
+    def test_entry_stop_is_named_without_a_chain_cut(self):
+        """入口の確かめで止まった run: 止めの語は spec-entry の名で数え、判定の graph が回らないことを続きの切れ目にしない"""
+        v = passing()
+        v.update({k: None for k in ("judge", "rounds", "ask_before_fix", "answer_before_fix", "fix_in", "fix", "after_fix", "raise", "fixed",
+                                    "judged", "test_gate_final", "eyes", "merge_seal", "ask_final", "answer_final", "test_gate_base")})
+        v.update({"spec_entry": {"ok": False, "stop_reason": "works:spec-entry", "report": ["- 止めた（works:spec-entry）: 表が無い"]},
+                  "spec_diagnose": None, "spec_driven_check": None, "spec_rounds": None, "spec_ask_before_fix": None,
+                  "spec_answer_before_fix": None})
+        v = self.r.collect_values(v)
+        with self.run.env(), mock.patch.object(__import__("report"), "CMD_LIGHT", "light", create=True):
+            got = self.f.build(v, self.rec())
+        self.assertIn({"at": "spec-entry", "word": "works:spec-entry"}, got["stops"])
+        self.assertIsNone(got["cut"])
+        names = self.f.node_names()
+        for node in ("spec-entry", "spec-check", "spec-rounds"):
+            self.assertTrue(names.get(node), node)
+
+    def test_request_run_values_are_left_as_they_are(self):
+        v = passing()
+        v.update(dict.fromkeys(("spec_entry", "spec_diagnose", "spec_driven_check", "spec_rounds", "spec_ask_before_fix",
+                                "spec_answer_before_fix")))
+        self.assertEqual(self.r.collect_values(v), v)
