@@ -1,0 +1,7 @@
+# 形 check: 判定の役が直す単位を返さなかった run（ready が空）は、食い違いの照らしの 2 で止めを返して最後まで届く
+fixture:
+  expect: completed
+  reached: [pick, check, finish]
+  inputs:
+    mode: check
+exec-code: true
