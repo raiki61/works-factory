@@ -48,6 +48,7 @@ CLOSED_REJECT = "閉じた・開いた項目の行が合わない:"
 READONLY_MOVED = "読むだけの役が作業ツリーを変えた: "
 NO_TREE = "役を起こす前の作業ツリーの控え {name} が無い（支度のノードが走っていない）"
 PLAN_GAVE_UP_WHY = f"修正案の役の直しが受け付けの網 {rolekit.NET_AFTER} 回まで拒まれ続けた: {{reason}}"
+ROUTES = ("auto", "spec")   # 入力 routes の語（auto は今の指示のまま。spec は固めた仕様の「TDD で直す所」から行の route を決める）
 
 
 def _git(repo, *args) -> str:
@@ -202,6 +203,11 @@ def intake(place, repo, k: int, raw: dict) -> dict:
         ctx["takes_push"] = False
     for name in ("base", "review_rev", "diff_base", "lang"):
         ctx[name] = ports.text(raw[name]).strip()
+    try:
+        ctx["routes"] = ports.choice(ports.text(raw.get("routes")).strip() or "auto", ROUTES)
+    except ValueError as e:
+        unread.append(f"routes: {e}")
+        ctx["routes"] = "auto"
     try:
         carry.place_prior(folder, ctx["prior_failures"])
     except ValueError as e:

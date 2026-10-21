@@ -24,9 +24,9 @@ LINE_STOPS = (("start", "start"), ("answer-start", "answer_start"), ("tiers", "t
               ("design-in", "design_in"), ("ask-before-fix", "ask_before_fix"), ("answer-before-fix", "answer_before_fix"),
               ("fix-in", "fix_in"), ("after-fix", "after_fix"), ("raise", "raise"), ("lens-in", "lens_in"), ("ask-replan", "ask_replan"),
               ("answer-replan", "answer_replan"), ("lens-2-in", "lens_2_in"), ("fixed", "fixed"), ("judged", "judged"),
-              ("ask-final", "ask_final"), ("answer-final", "answer_final"))
+              ("ask-final", "ask_final"), ("answer-final", "answer_final"), ("spec-rounds", "spec_rounds"))
 # block の返りの止めの語（node の id → collect の入力の名）。修正後の並行 PR の確かめ直しは run を止めない（docs/design/line.md の 8.1）
-BLOCK_STOPS = (("judge", "judge"), ("spec-check-run", "spec_check"))
+BLOCK_STOPS = (("judge", "judge"), ("spec-check-run", "spec_check"), ("spec-entry", "spec_entry"), ("spec-check", "spec_driven_check"))
 GIVE_UP = "give-up"
 NOT_OK = "not-ok"
 CHAIN_CUT = "chain-cut"
@@ -408,8 +408,9 @@ def _chain_cuts(returns: dict) -> list:
 def cut_row(returns: dict) -> dict | None:
     """段の表の続きの切れ目（最初の段の返りが無い run はそこで切れている）"""
     first = STAGES[0]["before"]
+    spec_run = bool(as_dict(returns.get("start")).get("spec_table"))   # 仕様駆動の run は判定の graph を回さない（止めは spec の node が名乗る）
     if returns.get("start") and as_dict(returns.get("start")).get("input") is not None and latest(returns, first) is None \
-            and returns.get("fix") is None and returns.get("before-tests") is not None:
+            and returns.get("fix") is None and returns.get("before-tests") is not None and not spec_run:
         return {"at": NODE_OF[first], "word": CHAIN_CUT}
     cuts = _chain_cuts(returns)
     return {"at": NODE_OF.get(cuts[0][0], cuts[0][0]), "word": CHAIN_CUT} if cuts else None

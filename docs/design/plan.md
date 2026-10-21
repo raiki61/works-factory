@@ -55,6 +55,7 @@
 - `base`: `text: 修正前の HEAD の版（受け入れテストの定義と修正前のテストの中身を引く版）。空は HEAD`。既定 `""`。
 - `review_rev`: `text: 役が読む版。空は base、それも空なら HEAD`。既定 `""`。
 - `diff_base`: `text: 材料の BASE（入口の差分の根）。空は base、それも空なら読む版`。既定 `""`。
+- `routes`: `choice(auto|spec): 行の route の決め方。auto は今の指示のまま。spec は固めた仕様（入力 spec）の「TDD で直す所」が名指す行だけを tdd にし、ほかを direct にする`。既定 `auto`。spec の時だけ、修正案の役の指示に段落 `routes_spec` が出る（[spec-driven.md](spec-driven.md) の 7 章の 2）。知らない語は読めない入力として指示に名指し、auto で読む。
 - `lang`: `text: 人に見せる欄（approach・shrink_first・各 why・why_not・no_narrow・undecided_because・world・deviation・narrows の what・recommend の note と why・block_answers の how・handoff）の言語。空は依頼の言語`。既定 `""`。
 
 形のファイル:

@@ -43,13 +43,23 @@ class RenderCase(_Base):
         values, when = self.mod["inputs"].diagnose_values(self.run.artifacts)
         names = sorted(when)
         self.assertEqual(set(names), {"rejected", "spawns", "purpose", "repo_review", "pr_text", "policy", "prior_notes", "prior_redesign",
-                                      "recorded_none", "unknown_rows", "unknown_none"})
+                                      "recorded_none", "unknown_rows", "unknown_none", "request_files"})
         for combo in itertools.product([False, True], repeat=len(names)):
             with self.subTest(dict(zip(names, combo))):
                 text = self.compose("diagnose", values, dict(zip(names, combo)))
                 self.assertIn("You are the judgment role of this run.", text)
                 self.assertNotIn("{shared:", text)
                 self.assertNotRegex(text, r"\{[a-z0-9_]+\}")
+
+    def test_request_files_paragraph_only_when_named(self):
+        """入力 request_files の段落は、名指した run だけに出る（既定の空の配列の run の指示は変わらない。docs/design/spec-driven.md の 9 章）"""
+        self.run.script("intake", **PORTS)
+        values, when = self.mod["inputs"].diagnose_values(self.run.artifacts)
+        self.assertFalse(when["request_files"])
+        self.assertNotIn("Do not count the request itself.", self.compose("diagnose", values, when))
+        self.run.script("intake", **{**PORTS, "request_files": json.dumps(["docs/spec.yaml", "docs/design.md"])})
+        values, when = self.mod["inputs"].diagnose_values(self.run.artifacts)
+        self.assertIn("files of the target: `docs/spec.yaml`, `docs/design.md`.", self.compose("diagnose", values, when))
 
     def test_rejudge_renders_for_every_combination_of_paragraphs(self):
         self.run.script("intake", **{**PORTS, "objection": "異議", "prior": json.dumps({"units": []})})

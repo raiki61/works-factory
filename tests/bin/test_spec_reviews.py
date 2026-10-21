@@ -161,6 +161,25 @@ class CheckCase(Base):
         self.assertEqual(len(got), 1, got)
         self.assertIn("置き場の外", got[0])
 
+    def test_e_premises_contradicts_and_prior_conflicts_are_findings(self):
+        """e: 前提の実測の contradicts の在る行（premises-<行の番号>）と前の決めの確かめの conflicts の行（prior-<行の番号>）も、
+        findings に在る key でなければ合わない"""
+        (self.artifacts / "p").mkdir(parents=True)
+        (self.artifacts / "p" / "premises.json").write_text(json.dumps({"constraints": [
+            {"text": "a", "measured_how": "b", "kind": "仮説"}, {"text": "c", "measured_how": "d", "kind": "仮説", "contradicts": "docs/d.md"}]},
+            ensure_ascii=False), encoding="utf-8")
+        (self.artifacts / "d").mkdir()
+        (self.artifacts / "d" / "material.json").write_text(json.dumps({"reply": {"conflicts": [
+            {"decision": "x", "where": "docs/d.md", "why": "y"}]}}, ensure_ascii=False), encoding="utf-8")
+        ptr = {"type": "archon_artifact", "run_id": "x"}
+        records = self.records(**{
+            spectable.PREMISES: self.record(spectable.PREMISES, value={"constraints": {**ptr, "path": "p/premises.json"}}),
+            spectable.PRIOR_DECISIONS: self.record(spectable.PRIOR_DECISIONS, value={"material": {**ptr, "path": "d/material.json"}})})
+        got = specreviews.problems(self.check(records))
+        self.assertEqual(len(got), 2, got)
+        self.assertIn("返す値の指摘 premises-2 が findings に無い", got[0])
+        self.assertIn("返す値の指摘 prior-1 が findings に無い", got[1])
+
     def test_table_problems_stop_without_reading_records(self):
         (self.root / "t.yaml").write_text("purpose: x\n", encoding="utf-8")
         doc = specreviews.check(self.root, "t.yaml", lambda root, table: spec_inputs.build(root, table), lambda run: self.fail(run))

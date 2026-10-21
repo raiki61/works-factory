@@ -1,0 +1,5 @@
+{
+  "description": "依頼そのものを書いたファイルのパスの配列（対象のリポジトリの根からの相対パス）。空の配列は照らさない",
+  "type": "array",
+  "items": {"type": "string", "minLength": 1}
+}

@@ -124,6 +124,17 @@ class FixedCase(unittest.TestCase):
         held = self.s.fixed(values(fix=fix(objection="判定が違う", stop_reason="works:unrestored")))
         self.assertFalse(held["rejudge"], "held の時は再審しない")
 
+    def test_spec_run_stops_on_an_objection(self):
+        """仕様駆動の run（from_spec）: 修正の段の異議（判定への異議か、案の直しが要る項目）は、案の直しと再審へ進まず止めて人に返す
+        （docs/design/spec-driven.md の 6.2 の変える node の 6）。異議の無い run は今どおり"""
+        for kw in ({"objection": "判定が違う"}, {"replan_items": ["1"]}):
+            with self.subTest(kw):
+                got = self.s.fixed(values(fix=fix(**kw), from_spec=True))
+                self.assertEqual((got["held"], got["go"], got["rejudge"], got["stop_reason"]), (True, False, False, self.s.SPEC_OBJECTION))
+        got = self.s.fixed(values(fix=fix(replan_items=[]), from_spec=True))
+        self.assertEqual((got["held"], got["go"], got["stop_reason"]), (False, True, ""))
+        self.assertTrue(self.s.fixed(values(fix=fix(objection="判定が違う"), from_spec=False))["rejudge"])
+
     def test_item_claims_take_the_later_items_and_all_claims(self):
         def claims(approach, unit, files):
             return {"items": [{"item": 1, "unit_keys": ["u1"], "approach": approach, "after": []}],

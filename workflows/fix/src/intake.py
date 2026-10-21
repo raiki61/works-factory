@@ -24,7 +24,7 @@ TEXTS = ("notes", "test_cmd", "tdd_suite", "reuse_dir", "reuse_key", "user_env_d
 DEFAULTS = {"judgment": None, "plan": None, "fix_plan": None, "answer_ties": None, "materials": None, "skip_rerun": [],
             "answers": None, "request_answers": [], "plan_review": None, "prior": None, "only_items": [], "group": None,
             "excluded": None}
-NAMES = ("mode", *SCHEMAS, *FILES, *FLAGS, *TEXTS)
+NAMES = ("mode", "routes", *SCHEMAS, *FILES, *FLAGS, *TEXTS)
 NEEDED = "入力 {name}: {mode} の形には要る"
 
 
@@ -43,7 +43,8 @@ def read(raw: dict) -> dict:
     """読んだ値: json の port は値（空は DEFAULTS）、file の port は字のパス（空は ""）、flag は真偽、text は字（前後の空白を
     落とす。test_cmd と notes は字のまま）"""
     mode = "group" if _blank(raw.get("mode")) else _port("mode", raw.get("mode"), lambda r: ports.choice(r, files.MODES))
-    out = {"mode": mode}
+    routes = "auto" if _blank(raw.get("routes")) else _port("routes", raw.get("routes"), lambda r: ports.choice(r, files.ROUTES))
+    out = {"mode": mode, "routes": routes}
     for name, schema in SCHEMAS.items():
         out[name] = DEFAULTS[name] if _blank(raw.get(name)) else _port(name, raw.get(name), lambda r, s=schema: ports.json(r, s))
     for name in FILES:
@@ -88,7 +89,8 @@ def run_values(doc: dict, run_id: str) -> dict:
     return {"tdd_suite": doc["tdd_suite"], "test_cmd": doc["test_cmd"], "reuse_key": doc["reuse_key"] or run_id,
             "reuse_dir": doc["reuse_dir"], "user_env_dir": doc["user_env_dir"], "lang": doc["lang"], "policy": doc["policy"],
             "request_file": doc["request"], "answers": doc["request_answers"], "unattended": doc["unattended"],
-            "parallel": doc["parallel"], "skip_rerun": doc["skip_rerun"], "excluded": excluded_rows(doc.get("excluded"))}
+            "parallel": doc["parallel"], "skip_rerun": doc["skip_rerun"], "excluded": excluded_rows(doc.get("excluded")),
+            "routes": doc.get("routes") or "auto"}
 
 
 def excluded_rows(got) -> list:

@@ -35,6 +35,7 @@
 入力（YAML の `inputs:`。どれも既定値を持ち、形ごとに要る物は intake が確かめる。1.3 の 1）:
 
 - `mode`: `choice(whole|group): 形。whole は graph から include された親（組ごとに自分を子の run として起こす。単独の run では Archon が先祖と同じ名の子を拒むので回らない）。group は組 1 つを直す（単独の run・子の run）`。既定 `group`。
+- `routes`: `choice(auto|plan): 単位ごとの道の決め方。auto は TDD の役が振り分ける（承認済みの案が tdd の単位は tdd に縛る）。plan は承認済みの案の route をそのまま使い、振り分けの段の AI を起こさない（承認済みの案の項目〔行〕のうち、その単位を持つ行のどれかが route: tdd なら tdd、ほかは direct で訳は行の route_why）。tdd の単位が 0 なら TDD のループを回さない`。既定 `auto`。値は `values.json` で組の子へ運ぶ。plan の時、`tdd.start` は約束（`plan_contract`）と行の `route_why`（`plan_route_whys`）で単位を振り、test の段から輪を始める。tdd の単位が無ければ元の結末（輪の頭で試験の一式を 1 回走らせて取る、直す前の結果。17 節）も取らずに輪を回さない（[spec-driven.md](spec-driven.md) の 7 章の 1）。
 - `judgment`: `json(shared:judgment.schema.json): 判定（units・questions・precedents・framing などを持つ object）。whole と、out_dir の無い group では必須。out_dir の在る group（子の run）は親の写しを読むので空でよい`。既定 `""`。
 - `plan`: `json(plan-fields.schema.json): 承認済みの修正案の欄の控え {fields}（今の plan-fields.json。凍結の印を付けて置く）。空は修正案の無い run`。既定 `""`。
 - `fix_plan`: `json(fix-plan.schema.json): 承認済みの修正案の返り（項目の並びを持つ object。項目の unit_keys が承認済みの項目の出どころ）。空は修正案の無い run`。既定 `""`。

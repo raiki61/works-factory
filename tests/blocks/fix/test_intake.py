@@ -111,6 +111,10 @@ class UnreadableCase(IntakeCase):
         self.assert_refused("mode", out, "whole|group")
         self.assertFalse(out["whole"])
 
+    def test_unknown_routes(self):
+        out = self.intake(mode="whole", judgment=_j(JUDGMENT), routes="spec")
+        self.assert_refused("routes", out, "auto|plan")
+
     def test_broken_json(self):
         out = self.intake(mode="whole", judgment='{"units": [')
         self.assert_refused("judgment", out)
@@ -176,7 +180,12 @@ class ValuesCase(IntakeCase):
             "tdd_suite": "/x/suite.py", "test_cmd": " python3 -m unittest ", "reuse_key": "run-first", "reuse_dir": "/x/reuse",
             "user_env_dir": "/x/env", "lang": "ja", "policy": str(self.policy), "request_file": str(self.request),
             "answers": [{"q": "分母は", "a": "len(xs)"}], "unattended": True, "parallel": False, "skip_rerun": ["A"],
-            "excluded": []})
+            "excluded": [], "routes": "auto"})
+
+    def test_routes_reach_the_values(self):
+        """入力 routes（docs/design/spec-driven.md の 7 章の 1）: 空は auto、plan は values.json に運ばれ、組の子も同じ値を読む"""
+        self.intake(mode="whole", judgment=_j(JUDGMENT), routes="plan")
+        self.assertEqual((self.read("intake.json")["routes"], self.read("values.json")["routes"]), ("plan", "plan"))
 
     def test_no_start_record_copy_is_written(self):
         """lib の conflict は依頼のファイルを値で受けるので、始めの記録の形の写し r1/start.json は置かない"""

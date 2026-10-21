@@ -59,6 +59,9 @@ inputs:
   fix_fixture:
     default: ""
     description: 'text: メイングラフの同じ名の入力。鎖とは組めず、空でなければ chain-start が拒む（子には空のまま渡る）'
+  spec_table:
+    default: ""
+    description: 'file: メイングラフの同じ名の入力（仕様駆動の道の表）。鎖とは組めず、空でなければ chain-start が拒む（子には空のまま渡る）'
   lang:
     default: ""
     description: 'text: どの周の子にも渡すメイングラフの同じ名の入力'
@@ -125,6 +128,7 @@ nodes:
         features_on: "$INPUTS.features_on"
         policy_md: "$INPUTS.policy_md"
         fix_fixture: "$INPUTS.fix_fixture"
+        spec_table: "$INPUTS.spec_table"
         lang: "$INPUTS.lang"
         deliver: ""
       request: "$chain-start.output.request"

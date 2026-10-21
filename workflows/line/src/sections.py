@@ -40,6 +40,7 @@ LENS_NOT_DUE = "差分の審査を回さないのでレンズは起こさない�
 JUDGE_WORLD = "世界の解"
 JUDGE_LOCAL = "素材: 局所レビュー"
 JUDGE_DIAGNOSE = "根本の診断"
+SPEC_DRIVEN = "仕様駆動の道"
 JUDGE_LATER = ("run の頭の深さ", "仕様", "並行 PR", "前提の実測", "目的の固定")
 JUDGE_VERIFY = "判定の単位の裏取り"
 EYES_AFTER = "直した後の構造の実測"
@@ -266,6 +267,9 @@ def build(values: dict, record: dict, *, cwd, folder) -> list:
     judge_s, eyes_s = _by_title(judge), _by_title(eyes)
     used = set()
     out = [_section(ENTRY, entry_lines(values, record, cwd=cwd, folder=folder))]
+    spec_lines = [*_lines(v.get("spec_entry")), *_lines(v.get("spec_driven_check"))]
+    if spec_lines:   # 仕様駆動の run の入口の確かめと、仕様とリポジトリの食い違いの照らし（docs/design/spec-driven.md の 6.2 の変える node の 7）
+        out.append(_section(SPEC_DRIVEN, spec_lines))
     if v.get("fix"):
         out.append(_section(TDD, _lines(v["fix"]), _files(("差分", fixed.get("diff")), *(("申し出と裁定", c) for c in _l(fixed.get("conflicts"))))))
     if v.get("refix"):

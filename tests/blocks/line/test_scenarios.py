@@ -180,12 +180,19 @@ class LineReturnsTest(unittest.TestCase):
 # 仕様駆動の道だけで回る node（docs/design/spec-driven.md の 6.2 の足す node）。include の中の node は `<id>__<中の id>`。前からの
 # spec-check-run（仕様の段の照らし）は仕様駆動の道の node でないので、頭の字でなく id で名指す
 SPEC_DRIVEN_NODES = ("spec-entry", "spec-entry-out", "spec-diagnose", "spec-diagnose-out", "spec-plan", "spec-plan-out", "spec-check",
-                     "spec-rounds", "spec-ask-before-fix", "spec-gate-before-fix", "spec-answer-before-fix")
+                     "spec-check-out", "spec-rounds", "spec-ask-before-fix", "spec-gate-before-fix", "spec-answer-before-fix")
+# 仕様駆動の道の筋書き（docs/design/spec-driven.md の 6.5 の 7 と 8）
+SPEC_SCENARIOS = ("spec-driven", "spec-refused", "spec-mismatch", "spec-gate", "spec-unattended")
+
+
+def touched(trace: dict, node: str) -> bool:
+    """node が走りかけた（trace に在り、飛ばされていない）か。落ちた node も走ったと読む（走っていないのは state が無いか skipped だけ）"""
+    return node in trace and trace[node]["state"] != "skipped"
 
 
 def spec_driven_ran(trace: dict) -> list:
-    """trace で走った仕様駆動の道の node"""
-    return sorted(n for n in trace if ran(trace, n) and any(n == s or n.startswith(f"{s}__") for s in SPEC_DRIVEN_NODES))
+    """trace で走りかけた仕様駆動の道の node（落ちた node も数える）"""
+    return sorted(n for n in trace if touched(trace, n) and any(n == s or n.startswith(f"{s}__") for s in SPEC_DRIVEN_NODES))
 
 
 class RequestRunsStayTest(unittest.TestCase):
@@ -197,8 +204,45 @@ class RequestRunsStayTest(unittest.TestCase):
             with self.subTest(scenario=name):
                 self.assertEqual(spec_driven_ran(trace), [])
                 base_ok = (got(trace, "test-gate-base") or {}).get("ok") is True
-                started = trace.get("judge__ins", {}).get("state") not in (None, "skipped")   # 判定の graph の頭の node（落ちる筋書きも在る）
-                self.assertEqual(started, base_ok)
+                self.assertEqual(touched(trace, "judge__ins"), base_ok)   # 判定の graph の頭の node（落ちる筋書きも在る）
+
+
+class SpecDrivenScenariosTest(unittest.TestCase):
+    """仕様駆動の道の筋書き（SPEC_SCENARIOS）。宣言（reached など）は ScenariosCase と同じく workflow test で照らし、ここは trace で
+    走らなかった node と値を照らす"""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.results = line_results()
+        cls.traces = line_traces(SPEC_SCENARIOS)
+
+    def test_every_spec_scenario_passes(self):
+        for name in SPEC_SCENARIOS:
+            with self.subTest(scenario=name):
+                got_ = self.results.get(name)
+                self.assertIsNotNone(got_, f"筋書き {name} が無い")
+                self.assertTrue(got_["pass"], json.dumps(got_, ensure_ascii=False))
+
+    def test_spec_runs_skip_the_judge_graph_and_the_plan_rounds(self):
+        for name, trace in self.traces.items():
+            with self.subTest(scenario=name):
+                for node in ("judge__ins", "plan-rounds", "ask-before-fix", "gate-before-fix", "answer-before-fix", "owed"):
+                    self.assertFalse(touched(trace, node), node)
+
+    def test_refused_spec_run_wakes_no_ai(self):
+        """入口の確かめで止まった run は試験の段（中に AI の段を持つ）・判定の役・計画の部品へ届かない"""
+        trace = self.traces["spec-refused"]
+        for node in ("test-gate-base__intake", "spec-diagnose__intake", "spec-plan__intake", "fix__intake"):
+            self.assertFalse(ran(trace, node), node)
+        self.assertIs(out(trace, "fix-in")["go"], False, "fix-in はどの run でも回り、修正へ進まない値を返す")
+        self.assertEqual(out(trace, "result")["stop_reason"], "spec-entry:works:spec-entry")
+
+    def test_spec_run_carries_the_spec_values_to_the_fix(self):
+        trace = self.traces["spec-driven"]
+        fix_in = out(trace, "fix-in")
+        self.assertEqual((fix_in["go"], fix_in["switches"]["tier"], fix_in["purpose_text"]), (True, "標準", "空の列でも mean が落ちない"))
+        self.assertEqual(nodes()["fix"]["with"]["routes"], "$start.output.ports.routes")
+        self.assertEqual(out(trace, "start")["ports"]["routes"], "plan")
 
 
 class DefaultDeliverTest(unittest.TestCase):

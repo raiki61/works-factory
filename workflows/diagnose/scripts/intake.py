@@ -27,7 +27,7 @@ def compute():
         "pr_text": os.environ.get("INPUTS_PR_TEXT"), "policy": os.environ.get("INPUTS_POLICY"), "prior": os.environ.get("INPUTS_PRIOR"),
         "prior_brief": os.environ.get("INPUTS_PRIOR_BRIEF"), "prior_inputs": os.environ.get("INPUTS_PRIOR_INPUTS"),
         "spec": os.environ.get("INPUTS_SPEC"), "verify": os.environ.get("INPUTS_VERIFY"), "excluded": os.environ.get("INPUTS_EXCLUDED"),
-        "lang": os.environ.get("INPUTS_LANG"),
+        "request_files": os.environ.get("INPUTS_REQUEST_FILES"), "lang": os.environ.get("INPUTS_LANG"),
     }
     return inputs.intake(ports.place(), Path.cwd(), raw)
 

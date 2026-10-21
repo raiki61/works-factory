@@ -60,6 +60,7 @@
 - `spec`（再審）: `file: 固めた仕様（spec.json）。空は仕様の段が無い`。既定 `""`。
 - `verify`（再審）: `file: 判定の裏取りの結果。空は裏取りが無い`。既定 `""`。
 - `excluded`（再審）: `file: 並行 PR の外す範囲（pr-excluded.json）。空は渡されていない`。既定 `""`。
+- `request_files`（判定）: `json(request-files.schema.json): 依頼そのものを書いたファイルのパスの配列（対象のリポジトリの根からの相対パス）。単位の数える問いの探す所（`how.paths`）が全部この配列のファイルに当たる単位は、判定の返答の受け付けが拒む（数える問いが数えるのは直す所で、依頼の文ではない）。空の配列は照らさない`。既定 `"[]"`。仕様駆動の道が表と設計書のパスを渡す（[spec-driven.md](spec-driven.md) の 9 章）。比べ方は、`how.paths` の各項の頭の `./` と終わりの `/` を外した字が、依頼のファイルのどれかと同じか。paths が空・ディレクトリ・glob の単位は当たらないとして拒まない。名指した run だけ、判定役の指示に「依頼そのものを数えない」の段落が出る。
 - `lang`（両方）: `text: 人に見せる欄の言語（2.4・3.4 が名指す欄）。空は依頼の行の言語`。既定 `""`。
 
 出力（`returns: finish`、`outcome_field: ok`）。`finish` の `output_format` は `additionalProperties: false` で、下の欄を全部 `required` にする。pointer は `{type: archon_artifact, run_id, path}`、null を取る欄は `type: [object, 'null']`（`anyOf` は使わない。`workflows/.shared/AGENTS.md`）。

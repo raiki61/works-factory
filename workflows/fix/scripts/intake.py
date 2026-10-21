@@ -15,6 +15,7 @@ import ports  # noqa: E402
 # env の名は字のまま書く（Archon は読み込みの時に script の字から INPUTS_ の名を拾う。組んだ名は拾われない）
 RAW = {
     "mode": os.environ.get("INPUTS_MODE"),
+    "routes": os.environ.get("INPUTS_ROUTES"),
     "judgment": os.environ.get("INPUTS_JUDGMENT"),
     "plan": os.environ.get("INPUTS_PLAN"),
     "fix_plan": os.environ.get("INPUTS_FIX_PLAN"),

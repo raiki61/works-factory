@@ -70,7 +70,7 @@
 - `deviations`: 外れの行の配列（10.2）。`{source: "world", item, text, mark, why}`（修正案の欄 `structure` が世界の解の行から外れると答えた行と、その決め手の照らし）と `{source: "design", key, kind, why}`（独立設計との構造の食い違い・対の無い仕組みの穴）。
 - `replan`: 形 replan の直した項目ごとの事実の配列 `[{item, units, contract_changed, human, widened}]`（10.3）。ほかの形は空の配列。
 - `gave_up`: 形 replan で受け付けが諦めた時の、裁かれた項目ごとの諦めの行 `[{item, why, ruling}]`。ほかは null。
-- `reads`: pointer（この include の読んだ証拠 `reads-<役>.json`）か null（証拠を集めていない・集める node が落ちた）。受け付けの条件にしない（14 節の 36）。
+- `reads`: pointer（この回の審査〔line などがこの block を `include:` で 1 回呼んだ分〕で、審査の役が渡された材料のファイルを読んだ証拠 `reads-<役>.json`）か null（証拠を集めていない・集める node が落ちた）。審査の返答を受け付けるかの条件にしない（14 節の 36「読んだ証拠を残す」）。
 - `report`: 報告に載せる日本語の行の配列（12 節）。
 
 今との違い:

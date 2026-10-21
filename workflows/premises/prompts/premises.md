@@ -48,6 +48,7 @@ Return one JSON object that matches the output schema. Its only field is `constr
 - `measured_how`: how you measured it
 - `kind`: `{measured}` (you can show the command and its output) or `{hypothesis}` (you cannot)
 - `measured_output`: required for `kind: {measured}`. The command you ran and its output itself
+- `contradicts`: only for a row that contradicts a request line (what you measured differs from what that line claims or assumes): the `where` of that request line, copied exactly. Leave the field out for every other row.
 
 A search you did not run because it needs the target's names (under the rules for queries at the top) is returned as one `kind: {hypothesis}` constraint row: in `text`, write "a search not run because it needs the target's names" and what you wanted to confirm (the `where` of the request line), and in `measured_how` write "not run (needs the target's names)". This reply has no field for "missing" or "unverifiable", so this row is the mark that sends it to a person.
 
