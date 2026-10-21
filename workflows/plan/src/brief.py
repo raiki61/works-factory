@@ -40,7 +40,8 @@ WHEN_NAMES = ("rejected", "replan", "excluded", "prior_notes", "prior_redesign",
               "filled", "skipped", "questions", "view", "precedents", "prescriptions", "structure_missing", "structure_dirty",
               "structure_clean_only", "structure_clean", "world", "ripple_units", "ripple_units_error", "verify", "verify_unreadable",
               "unknown_rows", "unknown_none", "spec", "prior", "prior_review", "no_prior_review", "revise", "owed_suggests", "revise_notes",
-              "revise_keys", "closed_items", "held_items", "prior_ripple", "prior_ripple_error", "policy", "unread", "prior_fix_plan", "prior_fields_only")
+              "revise_keys", "closed_items", "held_items", "prior_ripple", "prior_ripple_error", "policy", "unread", "prior_fix_plan", "prior_fields_only",
+              "routes_spec")
 
 
 def _dump(doc) -> str:
@@ -404,6 +405,7 @@ def values(place, repo) -> tuple:
             except ValueError:
                 pass
             v["spec"], w["spec"] = spec, True
+        w["routes_spec"] = ctx.get("routes") == "spec"
         if prior:
             w["prior"] = True
             v["prior_fix_plan"], v["prior_fields"] = prior.get("fix_plan") or "", prior["fields"]

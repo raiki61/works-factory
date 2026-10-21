@@ -50,6 +50,7 @@ def compute():
         "base": os.environ.get("INPUTS_BASE"),
         "review_rev": os.environ.get("INPUTS_REVIEW_REV"),
         "diff_base": os.environ.get("INPUTS_DIFF_BASE"),
+        "routes": os.environ.get("INPUTS_ROUTES"),
         "lang": os.environ.get("INPUTS_LANG")})
 
 
