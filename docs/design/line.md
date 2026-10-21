@@ -308,7 +308,7 @@ line は一番上の graph なので、place は run directory の根（README 4
 
 欄と意味は report の設計書の 1.2 の表。line の `src/facts.py` が、表の「今」の計算（`lib/outcome.py`・`lib/runreport.py` の同じ名の関数）を、受け皿の got を今の `returns` の形に詰め直して呼ぶ（作り直しの間は lib のまま。組み込みで、`outcome` の読み分けの部分は `facts.py` に入り、結末の 10 語と決める順は report の `src/outcome.py` へ。README 9.2）。line だけが知る値の出どころ:
 
-報告の最初の 3 行に出る承認ノード・段の名（`gate-before-fix`・`ask-final` など。止めの語の行・推しを採った承認ノードの行）は、名の前に人が読む言葉を付けた「訳（id）」で書く。表は `src/nodenames.json`（node の id → 言葉。止めの語を読む node・block の止め・承認ノードの全部に行が在る）で、Python は訳の文を持たない。初見の読み手が名の訳が無いところで止まった（run a170202f）ため。
+報告の頭（機械が書く最初の 3 行と、その下の人が決める物の 1 件 1 行）には、工場の内側の名前（node の id・止めの語・記録の欄の名・独立の目の印 R1〜R4）を訳なしで出さない。頭の行は人の言葉を先に出す: 止めの語の行は止めの語ごとに 1 行にして、node は人が読む言葉で並べ、語の意味を言う（`stop_words`。id と語の字は出さない）。独立の目が通さなかった事は、何を見る目がどの状態かの 1 行にし、指摘の長い文は頭に貼らない。名（id・語・印）と指摘の全文は、報告の「2. 止めたか」の節の行に残す（`stop_words_full`・`unpassed_full`。「訳（id）」の形）。node の言葉の表は `src/nodenames.json`（node の id → 言葉。止めの語を読む node・block の止め・承認ノードの全部に行が在る）で、Python は訳の文を持たない。初見の読み手が、頭の訳なしの名と長い指摘の文で止まった（run a170202f・9744721f。#687）ため。機械: `tests/blocks/line/test_head_plain.py`。
 
 - `start_ok`・`problems`・`notes`: 始めの記録の読めなさと `outcome.record_problems`。
 - `gates`: 4 つの承認ノードの答え（承認ノードの順。開かなかった物は `decision: null`）。仕様の承認ノードの答えは spec の block の出力の止めの語で届く。
