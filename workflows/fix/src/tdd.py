@@ -125,6 +125,10 @@ from leftovers import Unreadable, git, git_names  # noqa: E402
 PHASES = ("route", "test", "fix", "refactor")
 MAX_ITERATIONS = 40   # YAML の tdd-loop の max_iterations と同じ値（試験が縛る）。この周に届いたら残りを direct にして抜ける
 MIN_WHY = 10
+ROUTES = fixnames.ROUTES   # 入力 routes の語（src/files.py の 1 か所）
+PLAN_NO_TDD = "承認済みの修正案に route が tdd の単位が無い（入力 routes: plan）——全部の単位を direct で直す"
+PLAN_DIRECT = "承認済みの修正案の route が direct（入力 routes: plan。行の route_why が無い）"
+PLAN_NO_ROW = "承認済みの修正案にこの単位を持つ行が無い（入力 routes: plan は案の route に従い、行の無い単位は direct）"
 MIN_QUOTE = 3   # 赤の引用の下限（寄せた字数。1〜2 字の引用はどの失敗の文にも当たるので、照らす先が短くなければ拒む）
 QUOTES_FIELD = "red_quotes"   # test の段の返答の欄と単位の記録の欄の名: {名指しの id: {quote: 失敗の文, why: なぜ期待どおりの理由か}}
 UNSENT = "unsent"   # 状態の欄: 盤面へまだ積んでいない止めた申し出の並び（行 {source, item}）
@@ -447,6 +451,33 @@ def plan_contract(board_dir: pathlib.Path, keys: list[str], round_: int = 1) -> 
     return {k: c for k in keys if (c := planmarks.unit_contract(fields, k)) is not None}
 
 
+def plan_route_whys(board_dir: pathlib.Path, keys: list[str], round_: int = 1) -> dict[str, str]:
+    """単位 → 承認済みの修正案で route が direct の行の route_why（単位を持つ行のうち最初の物。書いていなければ載せない）。欄の控えの
+    無い run は {}。控えが凍結の印と食い違えば Broken（plan_contract と同じ読み）"""
+    try:
+        fields = conflict.frozen_fields(pathlib.Path(board_dir), round_)
+    except ValueError as e:
+        raise Broken(str(e)) from None
+    out: dict[str, str] = {}
+    for f in fields or []:
+        why = str(f.get("route_why") or "").strip() if isinstance(f, dict) and f.get("route") == "direct" else ""
+        for k in (f.get("unit_keys") or []) if why else []:
+            if k in keys:
+                out.setdefault(k, why)
+    return out
+
+
+def _plan_routes(st, whys: dict) -> None:
+    """入力 routes: plan の振り分け: 振り分けの段の AI を起こさず、約束の route（単位を持つ行のどれかが tdd なら tdd）で
+    _route と同じ状態を組む。direct の訳は行の route_why（無ければ機械の訳）"""
+    keys = _owed(st)
+    st["order"] = keys
+    st["units"] = {k: _unit(k, "tdd") if (_contract(st, k) or {}).get("route") == "tdd"
+                   else _unit(k, "direct", whys.get(k) or (PLAN_DIRECT if _contract(st, k) else PLAN_NO_ROW)) for k in keys}
+    st["queue"] = [k for k in keys if st["units"][k]["route"] == "tdd"]
+    st["cur"] = 0
+
+
 def _owed(st) -> list:
     """TDD の直す義務: start が conflict.fix_duty から組んだ単位（open_units）から、外れた単位（excused）と食い違いで止めた
     単位（parked）を除いた物"""
@@ -482,7 +513,8 @@ def _light_units(raw: str) -> list:
 
 
 def start(board_dir, repo, suite: str, open_units: str, test_cmd: str = "", unit_depths: str = "", *,
-          owed=None, withheld_by=None, returned=(), round_: int = 1, reuse: dict | None = None, narrow: bool = False) -> dict:
+          owed=None, withheld_by=None, returned=(), round_: int = 1, reuse: dict | None = None, narrow: bool = False,
+          routes: str = "auto") -> dict:
     """節 tdd-start。{go, reason, suite, state_file, summary_file}。実行器が無ければ何も書かずに go: false（置き場を読まない）。
     board_dir は fix の run の置き場（状態は board_dir/tdd-<k>/）。owed・withheld_by・returned は直す義務の値（_duty）、round_ は
     凍結した欄の周（plan_contract）。
@@ -493,7 +525,11 @@ def start(board_dir, repo, suite: str, open_units: str, test_cmd: str = "", unit
     ほかの単位と空は今どおり。
     narrow が真（走らせ方が決まらない対象。related.applies）なら、元の結末の一式を、修正案が触る所（凍結した欄の files の path）に関わる試験
     だけにする（持ち主の決め related-tests-only。docs/design/fix.md の 17 節）。起点が無い・選べない時は今までどおり一式、関わる試験が
-    無ければ走らせずに空の結末で輪を始める。選びは状態の related と出口の欄 related に置く"""
+    無ければ走らせずに空の結末で輪を始める。選びは状態の related と出口の欄 related に置く。
+    routes が plan（入力 routes。docs/design/spec-driven.md の 7 章の 1）なら振り分けの段の AI を起こさず、承認済みの案の route で
+    単位を振って test の段から始める（_plan_routes）。tdd の単位が 1 つも無ければ、元の結末も取らずに go: false（PLAN_NO_TDD）"""
+    if routes not in ROUTES:
+        raise Broken(f"入力 routes は {'・'.join(ROUTES)} のどれか（{routes!r}）")
     suite = (suite or "").strip()
     off = {"go": False, "reason": NO_SUITE, "suite": suite, "state_file": "", "summary_file": ""}
     if not suite:
@@ -509,6 +545,9 @@ def start(board_dir, repo, suite: str, open_units: str, test_cmd: str = "", unit
         keys = [k for k in keys if k in owed or k in excused] + sorted(owed - set(keys))   # is_open の並び順を保つ
     excused = {k: why for k, why in excused.items() if k in keys}
     contract = plan_contract(board_dir, keys, round_)   # 輪の頭で 1 回だけ（欄の控えの食い違いは conflict の 1 か所で止める）
+    whys = plan_route_whys(board_dir, keys, round_) if routes == "plan" else {}
+    if routes == "plan" and not any((contract.get(k) or {}).get("route") == "tdd" for k in keys if k not in excused):
+        return {**off, "reason": PLAN_NO_TDD}
     board_dir.mkdir(parents=True, exist_ok=True)
     k = 1
     while (board_dir / f"tdd-{k}").exists():
@@ -535,6 +574,9 @@ def start(board_dir, repo, suite: str, open_units: str, test_cmd: str = "", unit
           "test_cmd": test_cmd, "test_cmd_gate": gate, "test_cmd_note": note, "light": light, "calls": [],
           "reused": {"suite": t} if (t := tree_run.reused_text(suite_note)) else {},
           "related": {"applied": True, **picked} if picked is not None else {"applied": False}}
+    if routes == "plan":
+        _plan_routes(st, whys)
+        _next_unit(st, repo)
     state_file = work / STATE
     _save(state_file, st)
     return {"go": True, "reason": "", "suite": suite, "state_file": str(state_file), "summary_file": str(work / SUMMARY)}

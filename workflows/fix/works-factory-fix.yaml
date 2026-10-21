@@ -4,6 +4,9 @@ inputs:
   mode:
     default: group
     description: 'choice(whole|group): 形。whole は graph から include された親（組ごとに自分を子の run として起こす。単独の run では Archon が先祖と同じ名の子を拒むので回らない）。group は組 1 つを直す（単独の run・子の run）'
+  routes:
+    default: auto
+    description: 'choice(auto|plan): 単位ごとの道の決め方。auto は TDD の役が振り分ける（承認済みの案が tdd の単位は tdd に縛る）。plan は承認済みの案の route をそのまま使い、振り分けの段の AI を起こさない（単位を持つ行のどれかが tdd なら tdd、ほかは direct で訳は行の route_why）。tdd の単位が 0 なら TDD の輪を回さない'
   judgment:
     default: ''
     description: 'json(shared:judgment.schema.json): 判定（units・questions・precedents・framing などを持つ object）。whole と、out_dir の無い group では必須。out_dir の在る group（子の run）は親の写しを読むので空でよい'
