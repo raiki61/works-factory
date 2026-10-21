@@ -131,7 +131,7 @@ def spec_raw(raw: dict) -> dict:
     if spec is None:
         return raw
     if not isinstance(spec, dict):
-        raise ValueError(f"spec（spec-rounds の返り）が object でない（{type(spec).__name__}）")
+        raise ValueError(f"spec（spec-rounds の返す値）が object でない（{type(spec).__name__}）")
     out = {**raw, "judge": json.dumps(spec.get("judge"), ensure_ascii=False), "rounds": json.dumps(spec.get("rounds"), ensure_ascii=False),
            "tiers": "null", "structure": "null", "design": "null", "recorded": "null"}
     out.update({name: raw.get(spec_name) for name, spec_name in SPEC_GATE.items()})

@@ -569,7 +569,7 @@ PR の分け（頼みの 4。1 本ずつレビューに通せる大きさにす�
 8. 7 章の `routes: plan` でテストの実行器が無い run: TDD の輪は今どおり回らず（`tdd.py` の `NO_SUITE`）、その訳は修正の段の報告に出る。形 check では止めない（実行器の有無は試験の段が決め、形 check の後に分かる物ではないため）。`routes: plan` で `tdd` の単位が 1 つも無い run は、元の結末も取らずに輪を回さない。
 9. 9 章の `request_files` の比べ方: `class_query.how.paths` の各項の頭の `./` と終わりの `/` を外した字が、依頼のファイルのどれかと同じかで比べる。paths が空・ディレクトリ・glob の単位は「どれも依頼のファイルの中」に当たらないとして拒まない。
 10. 6.5 の 8 の筋書き `spec-gate` は、`spec-rounds` の返りを stub で差す（dry-run の置き場に計画の部品の控えのファイルが無く、script が読めないため）。`narrow_asks` が決め手の無い narrows を `asks` の行にすることは `tests/blocks/line/test_spec_rounds.py` が照らす。
-11. 周の鎖（`works-factory-chain`）は入力 `spec_table` を渡さない。鎖の子で使えないことは、この配線で決まる（`start` は照らさない）。
+11. 周の鎖（`works-factory-chain`）は本線の入力を全部持つ決まり（`tests/blocks/chain/test_chain.py`）なので `spec_table` も持ち、鎖の入口 `chain-start` が名指しを拒む（固定材料 `fix_fixture` と同じ形）。鎖の子で使えないことは、この拒みで決まる。
 
 ## 7 修正の部品に direct の道をまとめて選ぶ入力（進め方の 4）
 

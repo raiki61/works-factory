@@ -34,7 +34,7 @@ def compute():
     plan = dict(ports.picked(raw["plan"], PLAN) or {})
     entry = dict(ports.picked(raw["entry"], ENTRY) or {})
     if not (diagnose and plan and entry):
-        raise ValueError("判定の役・計画の部品・入口の返りのどれかが無い（spec-rounds は 3 つが揃った run だけで回る）")
+        raise ValueError("判定の役・計画の部品・入口の返す値のどれかが無い（spec-rounds は 3 つが揃った run だけで回る）")
     given = ports.parsed(raw["ports"]) or {}
     purpose = _doc(entry["purpose"]) or {}
     asks = specrounds.narrow_rows(_doc(plan["fix_plan"]), Path.cwd(), entry["spec_files"] or [])

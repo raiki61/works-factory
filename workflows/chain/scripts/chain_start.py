@@ -6,7 +6,8 @@
 
 入力の周の数 rounds と費用の上限 budget_usd を lib/chain.limits で確かめ、範囲の外なら act: refused で返して AI の前で止める。
 設計だけの run（design_only）は差分を作らず次の周の基が無いので、design_only を名指した鎖も同じく拒む。固定材料（fix_fixture）は
-1 つの run の修正の前の写しで、2 周目からの依頼と木はそれと違うので、fix_fixture を名指した鎖も同じく拒む。
+1 つの run の修正の前の写しで、2 周目からの依頼と木はそれと違うので、fix_fixture を名指した鎖も同じく拒む。仕様駆動の道の表（spec_table）も
+1 つの run の入口で、2 周目からの依頼（前の周の残り）とは組めないので、名指した鎖を拒む（docs/design/spec-driven.md の 6.2）。
 受けた時は 0 周目の決めと同じ形（act: launch・1 周目の子の入力 request・base・pr・spec・前までの周の行 rows: []）を返すので、
 5 組の周のノードは番号と前の決めのほかは同じ形になる。後ろの決めが読む rounds・budget と、2 周目から運ぶ 1 周目の依頼の絶対パス
 first_request・1 周目に名指した PR の番号 first_pr（メイングラフの入口と同じ entryshape.named_pr の読み。無ければ 0）と、
@@ -17,7 +18,7 @@ first_request・1 周目に名指した PR の番号 first_pr（メイングラ�
 （殻の起動の 1 行が告げる。chain.md は hand より前に書かれる）。
 出力ノード result が結ぶので落ちない: ports か lib を読めない時も標準ライブラリだけで act: refused を返す。
 
-入力: rounds・budget_usd・request・base・pr・spec・design_only・fix_fixture・deliver（鎖の入力）
+入力: rounds・budget_usd・request・base・pr・spec・design_only・fix_fixture・spec_table・deliver（鎖の入力）
 """
 import json
 import os
@@ -40,6 +41,8 @@ except Exception as error:   # 出力ノードが結ぶので落ちない（上�
 DESIGN_ONLY_REFUSED = "周の鎖は design_only と組めない（設計だけの run は差分を作らず、次の周の基が無い）"
 FIX_FIXTURE_REFUSED = ("周の鎖は fix_fixture と組めない（固定材料は 1 つの run の修正の前の写しで、2 周目からの依頼と木はそれと違う。"
                        "固定材料はメイングラフの run 1 つに名指す）")
+SPEC_TABLE_REFUSED = ("周の鎖は spec_table と組めない（仕様駆動の道の表は 1 つの run の入口で、2 周目からの依頼は前の周の残り。"
+                      "表はメイングラフの run 1 つに名指す）")
 
 
 def refused(reason: str) -> dict:
@@ -53,6 +56,8 @@ def start() -> dict:
         return refused(DESIGN_ONLY_REFUSED)
     if reads.text(os.environ.get("INPUTS_FIX_FIXTURE")):
         return refused(FIX_FIXTURE_REFUSED)
+    if reads.text(os.environ.get("INPUTS_SPEC_TABLE")):
+        return refused(SPEC_TABLE_REFUSED)
     request = reads.text(os.environ.get("INPUTS_REQUEST"))
     pr = reads.text(os.environ.get("INPUTS_PR"))
     try:

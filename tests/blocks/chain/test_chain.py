@@ -260,6 +260,13 @@ class ChainStartCase(Tree):
         self.assertEqual((got["ok"], got["act"]), (False, "refused"), got)
         self.assertIn("fix_fixture", got["text"])
 
+    def test_spec_table_is_refused_before_any_round(self):
+        """仕様駆動の道の表は 1 つの run の入口で、2 周目からの依頼（前の周の残り）とは組めないので、鎖は AI の前で拒む
+        （docs/design/spec-driven.md の 6.2 の「周の鎖の子では使えない」）"""
+        got = self.start(rounds="2", spec_table="docs/spec.yaml")
+        self.assertEqual((got["ok"], got["act"]), (False, "refused"), got)
+        self.assertIn("spec_table", got["text"])
+
     def test_user_env_dir_is_the_chain_run_place(self):
         """hand の pr-commit が印を置く置き場は、鎖の run の置き場（ARTIFACTS_DIR）。拒んだ時は空"""
         self.assertEqual(self.start(rounds="2").get("user_env_dir"), str(self.tmp))

@@ -104,7 +104,7 @@ SPEC_CLASH = ("request", "base", "pr", "spec")   # 仕様駆動の道の表と�
 def spec_table(raw: dict, repo: Path, fix_fixture: str) -> str:
     """仕様駆動の道の表の絶対パス（名指しが無ければ空。docs/design/spec-driven.md の 6.2 の変える node の 1）。相対なら対象の根から。
     在るファイルでない・組めない入力（依頼・差分の根・PR・仕様の段・固定材料）と一緒なら Refused。表の中身（YAML）は読まない
-    （PyYAML を持たない。中身の確かめは block works-factory-spec-driven の形 entry）。周の鎖は spec_table を渡さないので、鎖の子では使えない"""
+    （PyYAML を持たない。中身の確かめは block works-factory-spec-driven の形 entry）。周の鎖の入口は spec_table を拒むので、鎖の子では使えない"""
     rel = raw.get("spec_table", "").strip()
     if not rel:
         return ""
