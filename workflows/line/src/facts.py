@@ -39,9 +39,9 @@ PLAN_GAVE_UP_WHERE = "受け付け 計画"
 STOPPED_WHERE = "止めた段"
 GROUP_WHERE = "組"
 PROTECTED_HITS_HEAD = "守りのパスに当たった差分"
-BACKED_OUT_HEAD = "当ててから確かめ直しが赤か落ちて戻した組"
+BACKED_OUT_HEAD = "当ててから確かめ直しが赤か落ちて戻した修正のまとまり"
 REPAIRED_HEAD = "合わせ役が直して当てた組"
-UNRESTORED_GROUP_HEAD = "戻せず親の作業ツリーに当たったままの組（人が確かめる）"
+UNRESTORED_GROUP_HEAD = "戻せずに作業フォルダへ当たったままの修正のまとまり（人が確かめる）"
 PR_COMMITS = "PR の commit: "
 POLICY_CHANGED_HEAD = "方針の文書が始めに固定した版から変わったまま終わった"
 UNNAMED_NODE = "名の訳が無いノード"
@@ -860,7 +860,7 @@ def decisions(values: dict, returns: dict, gates: dict, record: dict, *, unatten
     spec_head = gatemarks.spec_words(bool(spec_qs) and as_dict(values.get("spec_check")).get("unchecked") is not False).head
     questions = [(spec_head, spec_qs), ("修正前の問い", plan_qs), (EYE_ASK_HEAD, eye_qs), ("保留にしたままの問い", held_rows)]
     parts = [("人に回した食い違いの申し出", asked), (fixboard.HANDOFF_HEAD, handoffs), (PROTECTED_HITS_HEAD, hits[:5]),
-             ("直す義務に戻せなかった単位", unreturned), ("前提の検算が人に上げた物", escalate)]
+             ("直しの対象に戻せなかった項目", unreturned), ("前提の検算が人に上げた物", escalate)]
     before = [*pushed_lines(gates, taken), *unrestored_lines(returns), *backed_out_lines(returns)]
     asks = [{"kind": head, "text": x.removeprefix(f"{head}: ")} for head, rows in ((UNRESTORED_GROUP_HEAD, unrestored_lines(returns)),
                                                                               (BACKED_OUT_HEAD, backed_out_lines(returns)))

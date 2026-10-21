@@ -68,10 +68,10 @@ class TitleCase(Base):
     """決める物の題（facts.asks の title。それを書く所が本文と一緒に書く）。頭の種ごとの行は、題が在れば 1 件 1 行で題を出し、
     無ければ今の種の名に戻して件数でまとめる（黙って行を落とさない）"""
     def test_titled_ask_is_one_row_with_its_title_and_kind(self):
-        asks = [{"kind": "修正役が人に回した物（訳）", "text": "長い本文", "title": "検査を緩めてよいか"}]
+        asks = [{"kind": "直しの途中で AI が自分で決めずに人に回した物（訳）", "text": "長い本文", "title": "検査を緩めてよいか"}]
         _, text = self.build(asks=asks)
         top = text.split("\n## ", 1)[0].splitlines()
-        self.assertIn("- 検査を緩めてよいか（修正役が人に回した物）", top)
+        self.assertIn("- 検査を緩めてよいか（直しの途中で AI が自分で決めずに人に回した物）", top)
         self.assertNotIn("長い本文", "\n".join(top))
         self.assertIn("人が決めること: 1 件（", text)
 
@@ -89,12 +89,12 @@ class TitleCase(Base):
 
 class HeadFor19b99137Case(Base):
     """run 19b99137 の頭（初見の読み手が 3 回とも通さなかった）の止まる所 5 つを、yes/no で縛る。入力の形は記録の facts と同じ"""
-    KIND = "修正役が人に回した物（壊すと分かって通した理由。役だけで決めた代償なので人が確かめる）"
+    KIND = "直しの途中で AI が自分で決めずに人に回した物（壊すと分かって通した理由。役だけで決めた代償なので人が確かめる）"
     LONG = "lib/x.py fn_name: 単独の行を残った印と数え、正当なファイルを拒む: 壊すと分かって通した——（以下、修正役の返りの長い文）"
     ENV = "AI が書いた試験のコードを、利用者の資格に届く環境（利用者の HOME・XDG）で走らせた"
     HEAD = {"before": ["無人の run で推しを採って通した承認ノード: 修正前の承認ノード（推し 3 件。中身は「1. 人が決めること」のセクション）"],
             "stopped": ["最後の承認ノードを開ける所が止めた: 無人の run で承認ノードを開くはずだった（開かずに止めた）",
-                        "開けた理由: 書き換えを許したテストを触った（1 件）・修正役が人に回した物が在る（1 件）"],
+                        "開けた理由: 書き換えを許したテストを触った（1 件）・直しの途中で AI が自分で決めずに人に回した物が在る（1 件）"],
             "after": [ENV], "notices": []}
 
     def top(self, **over):
@@ -120,8 +120,9 @@ class HeadFor19b99137Case(Base):
     def test_the_long_text_and_inner_names_stay_below_the_head(self):
         text, top = self.top()
         self.assertNotIn("fn_name", top)
+        self.assertNotIn("修正役", top, "AI の役名は頭に出さない")
         self.assertNotIn("壊すと分かって通した", top)
-        self.assertIn("- 修正役が人に回した物", top.splitlines())
+        self.assertIn("- 直しの途中で AI が自分で決めずに人に回した物", top.splitlines())
         self.assertIn(self.LONG, self.section(text, "## 1. 人が決めること"))
         stop = self.section(text, "## 2. 止めたか")
         self.assertIn("推し 3 件", stop)

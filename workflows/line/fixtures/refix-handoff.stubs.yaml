@@ -1,10 +1,10 @@
-# 1 回目と 2 度目の修正の段の修正役が人に回した物（壊すと分かって通した理由。fix の出力 handoffs）を fixed が合わせて渡すと、開き方 when_needed でも最後の承認ノードが開き、
+# 1 回目と 2 度目の修正の段の直しの途中で AI が自分で決めずに人に回した物（壊すと分かって通した理由。fix の出力 handoffs）を fixed が合わせて渡すと、開き方 when_needed でも最後の承認ノードが開き、
 # 1 行目に件数、節に 1 件 1 行で出る。
 fixture:
   expect: "completed"
   inputs: {"request": ".archon/workflows/works-factory/line/fixtures/request.json", "final_gate": "when_needed"}
   reached: ["refix-run__finish", "fixed", "ask-final", "gate-final", "answer-final", "merge-apply__merge", "report__finish"]
-  resolved-text-contains: {"gate-final": "修正役が人に回した物が在る（2 件）"}
+  resolved-text-contains: {"gate-final": "直しの途中で AI が自分で決めずに人に回した物が在る（2 件）"}
 exec-code: true
 delta-review-2__cut-2: {"due": false, "reason": ""}
 delta-review-2__finish: {"ok": true, "status": "ok", "reason": "", "rounds": 1, "pass": true, "holes": null, "diff": {"type": "archon_artifact", "run_id": "dry-run", "path": "delta/diff.patch"}, "carry": [], "report": []}
