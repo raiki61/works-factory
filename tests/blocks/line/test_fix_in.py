@@ -5,6 +5,7 @@ integration.md 4.1-5 の line の側）・units_tier・skip_rerun・switches・�
 （要る欄の欠けた got）を空と読まずに止めること（integration.md 4.3-12）を見る。
 """
 import json
+import pathlib
 import unittest
 
 import yaml
@@ -13,6 +14,8 @@ from tests.blocks import kit
 
 BLOCK = "line"
 U1 = "u1"
+# 仕様駆動の道の配線（docs/design/spec-driven.md の 6.2）を足す前の fix-in の返り（場面の名 → 返りの全部の欄）
+BEFORE_SPEC = pathlib.Path(__file__).with_name("fix_in_before_spec.json")
 
 
 def line_node(node_id: str) -> dict:
@@ -134,6 +137,23 @@ class FixInCase(unittest.TestCase):
         self.assertEqual((got["go"], got["stop_reason"]), (False, "works:line-script"))
         self.assertIn("start.json", got["reason"])
         self.assertIn("JSON として読めない", got["reason"])
+
+    def before_spec_cases(self) -> dict:
+        return {"approved": {},
+                "not_approved": {"before_fix_go": "null", "before_fix_answer": "null"},
+                "no_fix_judge": {"judge": self.judge(ready=False), "rounds": "null", "before_fix_go": "null"},
+                "nothing_owed": {"rounds": self.rounds(ok=False, status="nothing_owed")},
+                "refrozen": {"before_fix_policy": "/p/refrozen.md"}}
+
+    def test_returns_are_the_same_as_before_the_spec_driven_wiring(self):
+        """依頼の文の run の返りは、仕様駆動の道の配線を足す前と全部の欄で同じ（docs/design/spec-driven.md の 6.5 の 3）。足す前の返りは
+        BEFORE_SPEC に控えた。配線を足す PR は、仕様駆動の道の入力（spec_ で始まる with:）を null で渡した返りを、この控えと照らす
+        （控えは書き替えない。依頼の文の run の振る舞いを変える直しの時だけ、訳を commit に書いて取り直す）"""
+        before = json.loads(BEFORE_SPEC.read_text(encoding="utf-8"))
+        self.assertEqual(set(before), set(self.before_spec_cases()))
+        for name, kw in self.before_spec_cases().items():
+            with self.subTest(name):
+                self.assertEqual(self.fix_in(**kw), before[name])
 
 
 if __name__ == "__main__":

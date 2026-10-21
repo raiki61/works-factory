@@ -4,6 +4,9 @@ axis_reasons・_cite_check・_design_rows・_world_rows・_world_answers・_answ
 
 承認ノードを開くか・聞き直すか（今の gatemarks._continued）・無人の推しで通すか・軸ごとにまとめるか（今の gate_axes.gather）・
 形 replan の行を聞くか（ask）は line が決める。この block は行の事実と、4 つの軸ごとの揃わない訳だけを返す。
+narrows の行を作る芯と軸の訳の決まり（gatemarks.narrow_asks・ask_row・axis_why）は、本線の仕様駆動の道も使うので lib/gatemarks.py に
+在る（docs/design/spec-driven.md の 6.2 の足す node の 8）。この block は place と intake から軸の材料（axis_facts）を集めて渡し、
+事前審査の穴の行（_face_rows）と外れの行（deviations）を持つ。
 
 - asks(place, intake, review) -> [{kind, node, text, units, mark, decided, why}]: 修正案の narrows の行と、事前審査の穴のうち人に回す
   種類（files.HUMAN_FACE_KINDS）の行。why は {軸: [揃わない訳]}（揃う軸は載せない。空の dict は 4 つの軸が揃う）
@@ -23,7 +26,7 @@ import pathlib
 import cite        # lib/。決め手の出どころが現物に在るか
 import converge    # lib/。HELD_MARK・planned_units
 import design      # lib/。DRIFT_HEAD・UNPAIRED_HEAD
-import gatemarks   # lib/。FIELDS・NO_NARROW・decided・AXES と訳の字
+import gatemarks   # lib/。narrow_asks・ask_row・AxisFacts・mark_of・AXES と訳の字
 import jsonfile    # lib/
 import planmarks   # lib/。read・contract_diff・widened
 import policy      # lib/。unrecorded・RECORDED_KEY
@@ -35,33 +38,11 @@ from src import files, take, view
 
 PLAN_NODE = files.PLAN_NODE
 REVIEW_NODE = files.REVIEW_NODE
-MARK_KEYS = (*gatemarks.FIELDS, gatemarks.NO_NARROW)
 FACE_MARKS = take.FACE_MARKS   # 受け付けが穴の行から外した決め手の欄（review.json の faces と同じ並び。src/take.py が書く）
 AXES = gatemarks.AXES
 
 
 # ---------------------------------------------------------------- 決め手の欄
-def _at(doc, *idx):
-    """doc の idx の位置の値（並びは番号、dict は番号の字で引く。無ければ None）"""
-    for i in idx:
-        if isinstance(doc, list) and isinstance(i, int) and 0 <= i < len(doc):
-            doc = doc[i]
-        elif isinstance(doc, dict):
-            doc = doc.get(str(i), doc.get(i))
-        else:
-            return None
-    return doc
-
-
-def _mark(row: dict) -> dict:
-    """行の決め手と狭めない案（行が持つ欄だけ。今の gatemarks._mark の行の欄の道）"""
-    return {k: row[k] for k in MARK_KEYS if k in row} if isinstance(row, dict) else {}
-
-
-def _joined(row: dict, mark) -> dict:
-    return {**row, **(mark if isinstance(mark, dict) else {})}
-
-
 def face_marks(place) -> list:
     """受け付けが外した穴の行の決め手の欄（無い・読めなければ []）"""
     doc = jsonfile.read_or(pathlib.Path(place) / FACE_MARKS)
@@ -73,27 +54,17 @@ def _board(place, intake: dict, review: dict | None):
 
 
 # ---------------------------------------------------------------- 行
-def _gate_rows(place, intake: dict, review: dict) -> list:
-    """承認ノードの決め手の濾しに掛ける行 [(kind, 文, 決め手, 節, 単位の key の並び)]（修正案の narrows と事前審査の人に回す種類の穴。
+def _face_rows(place, intake: dict, review: dict) -> list:
+    """承認ノードの決め手の濾しに掛ける事前審査の穴の行 [(kind, 文, 決め手, 節, 単位の key の並び)]（人に回す種類の穴だけ。
     記録された方針の行を名指さない kind policy の穴（policy.unrecorded）と、機械が足した保留の block（converge.HELD_MARK）は行にしない。
-    narrows の単位はその項目の unit_keys、穴の単位は穴の unit_keys）"""
+    単位は穴の unit_keys）。修正案の narrows の行は lib の gatemarks.narrow_asks が作る"""
     rows = []
-    marks = intake.get("plan_marks")
-    for i, p in enumerate((intake.get("plan") or {}).get("plan") or []):
-        if not isinstance(p, dict):
-            continue
-        keys = [k for k in p.get("unit_keys") or [] if isinstance(k, str)]
-        for j, n in enumerate(p.get("narrows") or []):
-            if not isinstance(n, dict):
-                continue
-            row = _joined(n, _at(marks, i, j))
-            rows.append(("regression", f"修正案 {i + 1} が狭める能力: {row.get('what')}——{row.get('why')}", _mark(row), PLAN_NODE, keys))
     saved = face_marks(place)
     recorded = intake.get(policy.RECORDED_KEY) or []
     for j, f in enumerate((review or {}).get("faces") or []):
         if not isinstance(f, dict) or f.get(converge.HELD_MARK):
             continue
-        m = _mark(_joined(f, _at(saved, j)))
+        m = gatemarks.mark_of(gatemarks.joined(f, gatemarks.at(saved, j)))
         if f.get("kind") in files.HUMAN_FACE_KINDS and not policy.unrecorded(f, m, recorded):
             rows.append((f["kind"], f"事前審査の穴 [{f['kind']}] {f.get('key')}: {f.get('why')}", m, REVIEW_NODE,
                          [k for k in f.get("unit_keys") or [] if isinstance(k, str)]))
@@ -161,33 +132,15 @@ def _answered_rows(b) -> set | None:
     return {r.get("row") for f in fields if isinstance(f, dict) for r in f.get("structure") or [] if isinstance(r, dict)}
 
 
-def axis_reasons(place, intake: dict, b, mark: dict, units) -> dict:
-    """4 つの軸（AXES）ごとの揃わない訳の並び {軸: [訳]}（全部の軸を持つ。今の gatemarks.axis_reasons）"""
-    out = {axis: [] for axis in AXES}
-    decided_by = str(mark.get("decided_by") or "").strip()
-    if not decided_by or str(mark.get("undecided_because") or "").strip():
-        out["obvious"].append(gatemarks.NOT_DECIDED)
-    elif problem := _cite_check(place, intake)[0](decided_by):
-        out["obvious"].append(problem)
-    if mark.get("fences"):
-        out["not_overkill"].append(gatemarks.FENCED.format(fences="・".join(map(str, mark["fences"]))))
-    # 世界の解の段の行の在る run の世界の解の外れは world_items の行が聞く（ここでは見ない）
-    if _world_rows(place) is None and not str(mark.get("world") or "").strip() and not cite.URL.search(decided_by):
-        out["world"].append(gatemarks.NO_WORLD)
-    ups = {r.get("unit_id") for r in _design_rows(place) if r.get("route") == structmark.ROUTE_UP}
-    hit = sorted(set(units) & ups)
-    if hit:
-        out["clean"].append(f"構造の目が人に上げた単位（{'・'.join(hit)}）に当たる")
-    dirty = structmark.dirty(pathlib.Path(place) / structmark.COPY_FILE)
+def axis_facts(place, intake: dict, b) -> gatemarks.AxisFacts:
+    """4 つの軸の材料を place と intake から集める（軸の決まりは lib の gatemarks.axis_why）"""
     answered = _answered_rows(b)
-    if answered is not None:
-        miss = sorted(k for k in units if k in dirty and k not in answered)
-        if miss:
-            out["clean"].append(f"構造の目が汚れると見た単位（{'・'.join(miss)}）に修正案の答えが無い")
-    outside = sorted(set(units) - converge.planned_units((intake.get("plan") or {}).get("plan")))
-    if outside:
-        out["not_overkill"].append(f"修正案の単位の外を名指す（{'・'.join(outside)}）")
-    return out
+    return gatemarks.AxisFacts(
+        cite_ok=_cite_check(place, intake)[0], world_rows=_world_rows(place) is not None,
+        ups=frozenset(r.get("unit_id") for r in _design_rows(place) if r.get("route") == structmark.ROUTE_UP),
+        dirty=frozenset(structmark.dirty(pathlib.Path(place) / structmark.COPY_FILE)),
+        answered=None if answered is None else frozenset(answered),
+        planned=frozenset(converge.planned_units((intake.get("plan") or {}).get("plan"))))
 
 
 def world_items(place, intake: dict, b) -> list:
@@ -211,14 +164,11 @@ def world_items(place, intake: dict, b) -> list:
 
 # ---------------------------------------------------------------- 返す事実
 def asks(place, intake: dict, review: dict) -> list:
-    """人に回しうる行（10.1）。形 plan も replan も同じ行を返す（使うかは line が決める）"""
-    b = _board(place, intake, review)
-    out = []
-    for kind, text, mark, node, units in _gate_rows(place, intake, review):
-        why = {axis: got for axis, got in axis_reasons(place, intake, b, mark, units).items() if got}
-        out.append({"kind": kind, "node": node, "text": text, "units": units, "mark": mark,
-                    "decided": gatemarks.decided(mark), "why": why})
-    return out
+    """人に回しうる行（10.1）。修正案の narrows の行（lib の gatemarks.narrow_asks）と事前審査の人に回す種類の穴の行。形 plan も replan も
+    同じ行を返す（使うかは line が決める）"""
+    facts = axis_facts(place, intake, _board(place, intake, review))
+    out = gatemarks.narrow_asks((intake.get("plan") or {}).get("plan"), intake.get("plan_marks"), facts)
+    return out + [gatemarks.ask_row(facts, kind, text, mark, node, units) for kind, text, mark, node, units in _face_rows(place, intake, review)]
 
 
 def deviations(place, intake: dict, review: dict) -> list:
