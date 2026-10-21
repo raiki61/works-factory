@@ -74,7 +74,7 @@ class ColdPrepCase(Flow):
         self.facts()
         reply = base.reply("承認ノードで止めた。\n\n## 人が決めること\n\n- A\n\n## 経緯\n\n長い経緯")
         prompt = self.cold_prep(reply)
-        self.assertIn("==== text begins ====\n# 報告（run run-test）\n\n起きたこと: 直して、最後のテストまで通った（fixed）", prompt)
+        self.assertIn("==== text begins ====\n# 報告（run run-test）\n\n起きたこと: 直して、最後のテストまで通った", prompt)
         self.assertIn("先へ進めるかを決める所で止めた。", prompt)
         self.assertNotIn("長い経緯", prompt)
         self.assertIn('under the heading "機械が各段の出力と run の記録から組んだ事実（AI は書き換えていない）"', prompt)

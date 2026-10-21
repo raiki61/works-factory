@@ -188,7 +188,7 @@ def _common(place, repo, rows_groups, groups, extras, results, *, ok, reason, fi
             "checked": checked or {"ok": True, "reason": ""},
             "allowed_test_changes": board.allowed_tests(place, extras),
             "changed": board.changed_marks(extras), "x_scalars": board.x_scalars(extras),
-            "handoffs": final[0], "mismatched": final[1], "plan_declared": list(declared), "stop_reason": stop,
+            "handoffs": final[0], "handoff_titles": final[2], "mismatched": final[1], "plan_declared": list(declared), "stop_reason": stop,
             "item_claims": claims,
             "allowed_tests": _ptr(place / files.ALLOWED_TESTS_FILE), "accept_trace": _ptr(place / files.ACCEPT_TRACE_FILE),
             "closure": _ptr(place / CLOSURE_FILE), "tdd_unit": ports.pointer(unit_file), "tdd": tdd_rows,
@@ -227,7 +227,8 @@ def whole(place, repo) -> dict:
     reply = board.group_fix_reply(place)
     write_closure(place, results, ruled)
     final = (board.final_lines(results, "handoffs", board.handoff_lines([ruled])),
-             board.final_lines(results, "mismatched", board.mismatched_lines(place)))
+             board.final_lines(results, "mismatched", board.mismatched_lines(place)),
+             board.final_titles(results, board.handoff_titles([ruled])))
     tdd_rows = board.tdd_units(plan["groups"], {g["group_id"]: board.usable_result(pathlib.Path(plan["out_dir"]) / g["group_id"])
                                                 for g in plan["groups"]})
     carried = carry.write(place)
@@ -249,7 +250,7 @@ def group(place, repo, doc: dict) -> dict:
     rows_groups = board.join_rows([g], {gid: (result, result is not None, "" if result else board.NO_RESULT)})
     extras = [result] if result else []
     write_closure(place, extras)
-    final = (board.final_lines(extras, "handoffs"), board.final_lines(extras, "mismatched"))
+    final = (board.final_lines(extras, "handoffs"), board.final_lines(extras, "mismatched"), board.final_titles(extras))
     tdd_rows = board.tdd_units([g], {gid: result})
     reply = place / board.FIX_REPLY_FILE
     return _common(place, repo, rows_groups, [g], extras, [], ok=result is not None,
@@ -309,7 +310,7 @@ def fallback(place, why: str) -> dict:
             "replan_items": [], "objection": "", "diff": diff, "start_tree": "", "reply": None, "ruled_reply": None, "scope": None,
             "checked": {"ok": False, "reason": why}, "allowed_test_changes": [],
             "changed": {**{k: False for k in CHANGED_MARKS}, DRIFT_NOTE: ""}, "x_scalars": {},
-            "handoffs": [], "mismatched": [], "plan_declared": [], "stop_reason": stop, "item_claims": None,
+            "handoffs": [], "handoff_titles": {}, "mismatched": [], "plan_declared": [], "stop_reason": stop, "item_claims": None,
             "allowed_tests": ptr(files.ALLOWED_TESTS_FILE), "accept_trace": ptr(files.ACCEPT_TRACE_FILE), "closure": None,
             "tdd_unit": None, "tdd": [], "frozen": None, "removed": None, "tdd_refused": {"refused": [], "unread": [why]},
             "freeze_off": [], "report": [f"修正の出力を組めない: {why}"]}

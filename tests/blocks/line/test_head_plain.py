@@ -1,7 +1,7 @@
 """報告の頭（機械が書く行）に、工場の内側の名前が訳なしで出ない（issue #687 の求め 6）。
 
 材料は本物の run 2 本（無人で最後の承認ノードを開けずに止まった軽量の run）の記録の形: 修正前の承認ノードを推しで通し、最後の承認ノードの
-2 つのノードが止めの語で止まり、独立の目 R1 が長い指摘の文つきで直しが要ると言い、修正役が人に回した物が在る。初見の読み手は報告の頭
+2 つのノードが止めの語で止まり、独立の目 R1 が長い指摘の文つきで直しが要ると言い、直しの途中で AI が自分で決めずに人に回した物が在る。初見の読み手は報告の頭
 だけを読むので、頭の行に出る内側の名前（ノードの id・止めの語・記録の欄の名・審査役の印）は、頭の中で人の言葉に訳されている形だけを許す。
 訳なしの名前を 1 つずつ足して直すのでなく、頭の行の作り方（人の言葉を先に出し、名前と長い文は頭の外の節に置く）で縛る。
 """
@@ -30,7 +30,7 @@ def unattended_stop() -> dict:
     v["answer_before_fix"] = {"go": True, "stop_reason": "", "policy": "",
                               "answer": {"decision": "continue", "text": "推しで通す", "pushed": [PUSH]}}
     v["ask_final"] = {"open": False, "go": False, "stop_reason": "works:needs-human", "text": "",
-                      "reasons": ["書き換えを許したテストを触った（1 件。人の確かめが要る）", "修正役が人に回した物が在る（1 件）",
+                      "reasons": ["書き換えを許したテストを触った（1 件。人の確かめが要る）", "直しの途中で AI が自分で決めずに人に回した物が在る（1 件）",
                                   "独立の目が通さなかった（R1: 直しが要る）"]}
     v["answer_final"] = {"go": False, "answer": None, "stop_reason": "works:needs-human"}
     v["eyes"] = {**v["eyes"], "r1": {"status": "fix-needed", "reason": R1_REASON}}
@@ -70,3 +70,26 @@ class HeadPlainCase(unittest.TestCase):
             self.assertTrue(names.get(node), node)
         for node in ("fix", "refix-run", "spec-check-run"):
             self.assertTrue(names.get(node), node)
+
+
+class HandoffTitleCase(unittest.TestCase):
+    """修正役が添えた題（fix の出力 handoff_titles。行 → 題）が、人が決める物の題（asks の title）として報告へ渡る。題が無い行は題なしのまま"""
+    TITLE = "区切りの行だけが残ったファイルを、拒まずに通す検査へ緩める"
+
+    def asks(self, titles):
+        f = kit.load(BLOCK, "facts")
+        run = kit.Run(self, BLOCK)
+        base.seed(run)
+        v = unattended_stop()
+        v["fixed"] = {**v["fixed"], "handoffs": [HANDOFF], "handoff_titles": titles}
+        with run.env(), mock.patch.object(__import__("report"), "CMD_LIGHT", "light", create=True):
+            return [a for a in f.build(v, base.record())["asks"] if a["kind"].startswith("直しの途中で AI が自分で決めずに人に回した物")]
+
+    def test_the_title_the_fixer_wrote_rides_on_the_ask(self):
+        (ask,) = self.asks({HANDOFF: self.TITLE})
+        self.assertEqual(ask["title"], self.TITLE)
+        self.assertIn("markers_left", ask["text"], "本文は字のまま")
+
+    def test_a_line_without_a_title_has_no_title_key(self):
+        (ask,) = self.asks({})
+        self.assertNotIn("title", ask)
