@@ -64,8 +64,8 @@ materials.md の 1.3 の雛形の `<観点>` を `prior-decisions` にした物�
   - `fill(view, values, due)`: `raise NotImplementedError`（`due` がいつも真なので呼ばれない）。materials.md の 5.1 の「全部の名を定義する」を守り、呼ばれないことを試験が見る。
   - `applies(view, values)`: `raise NotImplementedError`。
   - `judged_na(view, values)`: `return False`。
-  - `values(view, values)`: `{"repo": str(view.repo), "base": view.base, "changed_files": dump(list(view.changed_files)), "request_wheres": dump(request_wheres(view, values))}`。`dump` は `json.dumps(x, ensure_ascii=False, indent=1)`（materials.md の 3.3）。
-  - `request_wheres(view, values) -> list[str]`: 判定から入る run の周（`materialkit.is_entry_run`: `values["entry"]` が在り、`view.empty`）でなければ `[]`。その周なら、依頼の行のうち `where` が字の物の `where` を順に並べた物（今の `request_wheres`、`:1913-1918`。今も入口の印〔差分が空で依頼が在る〕の周だけ）。依頼の行は `values["request"]`（`requestrows.findings` が読んだ配列）。
+  - `values(view, values)`: `{"repo": str(view.repo), "base": view.base, "changed_files": dump(list(view.changed_files)), "request_lines": dump(request_lines(view, values))}`。`dump` は `json.dumps(x, ensure_ascii=False, indent=1)`（materials.md の 3.3）。
+  - `request_lines(view, values) -> list[dict]`: 判定から入る run の周（`materialkit.is_entry_run`: `values["entry"]` が在り、`view.empty`）でなければ `[]`。その周なら、依頼の行のうち `where` が字の物の `{where, text}` を順に並べた物（`text` が字でなければ空の字）。`where` は探す場所、`text` は `conflicts` で前の決めと比べる本文。同じ `where` で本文の違う行（同じ場所に逆のことを頼む 2 行など）を役が見分けられるよう、本文も渡す。前の版は今の `request_wheres`〔`:1913-1918`〕と同じく `where` だけを並べていて、その 2 行を見分けられなかった（#802 のレビューの指摘で替えた）。依頼の行は `values["request"]`（`requestrows.findings` が読んだ配列）。
   - `when(view, values)`: `{"spawns": False}`（外への検索の決まりの断片の段落。この役は Agent の道具を持たない）。
   - `before(view, values, reply, place)`: `return None, reply, False`。
   - `after(view, values, reply, place)`: `return None`。
@@ -103,7 +103,7 @@ materials.md の 3.1 の並び。
 3. （置かない。7 節）外への検索の決まりは 2 の `{shared:role-investigator}` の中に `{shared:query-rule}` で入る。その断片の中の `<!-- if spawns -->` には `spawns: false`。
 4. 役の 1 段落（決まった文）: 新しい会話で起きていること・突合だけをすること・局所の所見もほかの素材も渡していないこと。
 5. 道具の段落（決まった文）、`{shared:works-gh}`、`{shared:material-readonly}`。
-6. `## Materials` と 4 つの差し込み口: `{repo}` ← `view.repo`（作業ツリーの絶対パス）、`{base}` ← `view.base`（引いた commit）、`{changed_files}` ← `view.changed_files`（JSON の配列の字）、`{request_wheres}` ← `request_wheres(values)`（JSON の配列の字）。
+6. `## Materials` と 4 つの差し込み口: `{repo}` ← `view.repo`（作業ツリーの絶対パス）、`{base}` ← `view.base`（引いた commit）、`{changed_files}` ← `view.changed_files`（JSON の配列の字）、`{request_lines}` ← `request_lines(values)`（JSON の配列の字）。
 7. `## What to do`（決まった文）: 今の graphloops の指示の段（`material-prior-decisions.md:42-48`）を英語にした物。
 8. `{shared:material-status}`。
 9. `## Whether you may write not_applicable` と `{shared:material-na}` — 扱いは `never`（`na_never` だけが真。`{na_why}` には空の字を渡す。選ばれない段落の中の口も値が要る。materials.md の 2.11）。
@@ -120,7 +120,7 @@ md の本文（英語。この block の 2 つ目の commit でこのまま置�
 
 {shared:role-investigator}
 
-You are the prior-decisions role. Your only job is to check the target against earlier decisions. You are given neither the local findings nor any other material.
+You are the prior-decisions role. Your only job is to check the target against earlier decisions. Apart from the request lines under Materials, you are given neither the local findings nor any other material.
 
 Your tools are Read, Grep, Glob, Bash, WebSearch, and WebFetch. Bash runs inside a sandbox, and its network is closed: it cannot reach any destination.
 
@@ -133,11 +133,11 @@ Your tools are Read, Grep, Glob, Bash, WebSearch, and WebFetch. Bash runs inside
 - Repository: {repo}
 - Base commit: {base}
 - Files the target diff touches: {changed_files}
-- Places the request points to (in a run that enters at the judgment; `[]` in a run with a diff): {request_wheres}
+- Request lines, each with `where` (the place it points to) and `text` (what it asks for) (in a run that enters at the judgment; `[]` in a run with a diff): {request_lines}
 
 ## What to do
 
-Search the decision records of the area the target diff touches: ADRs, the ledger of deliberate deferrals, the lists of rejected issues and pull requests, and closed issues. **If the diff is empty, search the places the request points to.** In the first round of a run that enters at the judgment, the request aims at existing code, so an empty diff is normal, and what is about to change is the place the request points to. From the records, make the list of settled points and return it in `settled`: one entry per point, with `topic`, `decision`, `reason`, `revisit` (the condition for revisiting it), and `where` (where it is written).
+Search the decision records of the area the target diff touches: ADRs, the ledger of deliberate deferrals, the lists of rejected issues and pull requests, and closed issues. **If the diff is empty, search the places the request lines point to (their `where`).** In the first round of a run that enters at the judgment, the request aims at existing code, so an empty diff is normal, and what is about to change is the place the request points to. From the records, make the list of settled points and return it in `settled`: one entry per point, with `topic`, `decision`, `reason`, `revisit` (the condition for revisiting it), and `where` (where it is written).
 
 - Comments, docstrings, and test descriptions in the target code are not decision records. If one of them names an issue or an ADR, read what it names, and list that in `settled` with `where` pointing there.
 - Each `settled` row reaches later roles as a row of the "recorded policy" section, and its `where` becomes the name of that row. A row without `where` cannot be named.
@@ -221,7 +221,7 @@ Write `material.detail`, `material.checked`, … in the language of the request 
 Return only JSON that matches the output schema.
 ```
 
-例の run は 1 回目で通ったので、却下の段落は入らない（`rejects-prior-decisions.json` が無い）。`lang` は空で、`{lang}` に既定の文が入った形。値の字（`changed_files` の `[]` と `request_wheres` の字下げ 1 つの配列）は、今の材料のファイルの「## 材料: loop.changed_files」「## 材料: loop.request_wheres」の節の字と同じ。
+例の run は 1 回目で通ったので、却下の段落は入らない（`rejects-prior-decisions.json` が無い）。`lang` は空で、`{lang}` に既定の文が入った形。値の字（`changed_files` の `[]` と `request_wheres` の字下げ 1 つの配列）は、今の材料のファイルの「## 材料: loop.changed_files」「## 材料: loop.request_wheres」の節の字と同じ。この例は値を `request_wheres` から `request_lines` に替える前の run の字。今の指示では、この行は `Request lines` で始まり、値は `where` と `text` の組の配列になる。
 
 ### 2.6 今の指示との差
 
@@ -272,7 +272,7 @@ materials.md の 4 節の順のまま。観点の前の照らしと後の照ら�
 - `tests/blocks/prior_decisions/test_prior_decisions.py`: materials.md の 8 節の block の試験。始めの記録の無い使い捨ての `ARTIFACTS_DIR` と git のリポジトリで、port の値だけを渡す。
   - 写す元 `lib/tests/test_judge_accept.py::MaterialCase.test_prior_decisions_reply_is_taken_or_refused`: 見た返答は `material.json` の `materials` に `{"prior_decisions": <返答の material>}` で載り、`not_applicable` は拒まれ、`settled` の `where` が `policy.recorded(start, <material.json のパス>)` の `source: settled` の行の `name` に出る（読み手の口が新しいファイルの形のまま読めることの照らし）。
   - 写す元 `DueCase.test_empty_diff_run_with_requests_runs_only_prior_decisions` のうち prior-decisions の部分: 差分が空で `entry` の在る run でも `intake` の `due` が真。
-  - 足す: `entry` が空なら `request_wheres` の値が `[]`、在れば依頼の行の `where` の並び（`findings` の欄に持つオブジェクトの形でも）。依頼が読めない字なら `finish` の `status` が `failed` で、`reason` が入力の名を言う。
+  - 足す: `entry` が空なら `request_lines` の値が `[]`、在れば依頼の行の `where` と `text` の組の並び（`findings` の欄に持つオブジェクトの形でも）。同じ `where` で本文だけが逆の 2 つの依頼が、組んだ指示で見分けられる。依頼が読めない字なら `finish` の `status` が `failed` で、`reason` が入力の名を言う。
   - 足す（起こし方の照らし）: block の YAML の AI の node の `model`・`allowed_tools`・`sandbox`・`idle_timeout`・`retry` が、今の `tests/workflows/test_judge.py:87` の表の prior-decisions の行（`"sonnet", "medium", INVESTIGATE, CLOSED, …`）が照らす物と同じ。
 - 指示の比べ（README の 11.4）: 済み。1 つ目の commit（`d05a8711`）に `tests/blocks/prior_decisions/test_prompts.py` を置いて下の (a)・(b) を照らし、通した。2 つ目の commit（`f7f7e91b`）で消した。
   - 1 つ目の commit: `prompts/prior-decisions.md` を、今の `workflows/judge/commands/material-prior-decisions.md` の `$prior-decisions-prep.output.lang_line` を `{lang_line}` に、`.reason` を `{reason}` に、`.brief_file` を `{brief_file}` に替えた日本語の字で置く。prep は 1 つ目の commit だけ `lang_line`（`rolekit.lang_line({"lang": values["lang"]})`）・`reason`（最後の拒否の文。無ければ空）・`brief_file`（`src/oldbrief.py` が書いた `material-prior-decisions-brief.md` の絶対パス）を値に入れる。試験は例の run の値（`base`・`changed_files: []`・`request_wheres` の 1 行・リポジトリのパス）で、(a) 組んだ指示が今の md に同じ 3 つの値を入れた字と同じ、(b) `oldbrief.brief` の字が例の run の `judge/material-prior-decisions-brief.md` と同じ（リポジトリのパスは試験のリポジトリのパスに置き換えて比べる）ことを照らす。

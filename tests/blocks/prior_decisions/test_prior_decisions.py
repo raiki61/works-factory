@@ -111,17 +111,30 @@ class FlowCase(unittest.TestCase):
         self.assertTrue(got["due"])
         self.assertEqual(json.loads((self.run.artifacts / "view.json").read_text(encoding="utf-8"))["changed_files"], [])
 
-    def test_request_wheres_follow_the_entry(self):
-        """entry が空か差分が在れば request_wheres は []、差分が空で entry が在れば依頼の行の where の並び（findings の欄に持つオブジェクトの形でも）"""
+    def test_request_lines_follow_the_entry(self):
+        """entry が空か差分が在れば request_lines は []、差分が空で entry が在れば依頼の行の where と text の組の並び（findings の欄に持つオブジェクトの形でも）"""
         self.intake(entry="")
         self.assertIn("(in a run that enters at the judgment; `[]` in a run with a diff): []", self.prep()["prompt"])
         self.setUp()
         self.intake(request=json.dumps({"findings": [{"where": "a.py:1", "text": "x"}, {"where": "b.py", "text": "y"}]}))
-        self.assertIn('[\n "a.py:1",\n "b.py"\n]', self.prep()["prompt"])
+        self.assertIn('"where": "a.py:1",\n  "text": "x"', self.prep()["prompt"])
         self.setUp()
         (self.run.repo / "README.md").write_text("直した\n", encoding="utf-8")
         self.intake()
         self.assertIn("in a run with a diff): []", self.prep()["prompt"], "差分の在る run は entry が在っても入口の周でない")
+
+    def test_same_place_with_opposite_text_reaches_the_role_apart(self):
+        """conflicts は依頼の行の本文と前の決めを比べる。同じ where で本文だけが逆の 2 つの依頼を、組んだ指示で見分けられる"""
+        keep = json.dumps([{"where": "lib/api.py", "text": "公開の口を減らさずに残す"}], ensure_ascii=False)
+        drop = json.dumps([{"where": "lib/api.py", "text": "公開の口を減らして消す"}], ensure_ascii=False)
+        self.intake(request=keep)
+        kept = self.prep()["prompt"]
+        self.setUp()
+        self.intake(request=drop)
+        dropped = self.prep()["prompt"]
+        self.assertNotEqual(kept, dropped)
+        self.assertIn("公開の口を減らさずに残す", kept)
+        self.assertIn("公開の口を減らして消す", dropped)
 
     def test_unreadable_request_fails_with_the_port_name(self):
         got = self.intake(request="{not json")

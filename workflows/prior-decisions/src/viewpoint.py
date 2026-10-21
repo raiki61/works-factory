@@ -44,16 +44,18 @@ def _request_rows(values) -> list:
     return [r for r in rows if isinstance(r, dict)] if isinstance(rows, list) else []
 
 
-def request_wheres(view, values) -> list:
-    """判定から入る run の周（materialkit.is_entry_run: 対象差分が空で entry が在る）の、依頼の行の where の並び。そうでない run は []"""
+def request_lines(view, values) -> list:
+    """判定から入る run の周（materialkit.is_entry_run: 対象差分が空で entry が在る）の、依頼の行の where と text の組の並び。
+    where が探す場所を、text が conflicts で前の決めと比べる本文を役に渡す（同じ where で本文の違う行を見分ける）。そうでない run は []"""
     if not materialkit.is_entry_run(view, values):
         return []
-    return [r["where"] for r in _request_rows(values) if isinstance(r.get("where"), str)]
+    return [{"where": r["where"], "text": r.get("text") if isinstance(r.get("text"), str) else ""}
+            for r in _request_rows(values) if isinstance(r.get("where"), str)]
 
 
 def values(view, values) -> dict:
     return {"repo": str(view.repo), "base": view.base, "changed_files": _dump(list(view.changed_files)),
-            "request_wheres": _dump(request_wheres(view, values))}
+            "request_lines": _dump(request_lines(view, values))}
 
 
 def when(view, values) -> dict:
