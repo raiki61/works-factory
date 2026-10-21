@@ -43,6 +43,15 @@ NOT_PASSED = {
     ("lens", "lenses"): "block の既定の表（docs/design/line.md の 4.5）",
     ("lens-2", "lenses"): "block の既定の表",
     ("plan", "conflicts"): "形 replan だけが読む（往復の中は形 plan）",
+    # 仕様駆動の道の include（docs/design/spec-driven.md の 6.2）。block works-factory-spec-driven は形ごとに読む入力が違う
+    **{("spec-entry", name): "形 check の入力（形 entry は表だけを読む）" for name in
+       ("base", "tdd", "out_of_scope", "ready", "plan", "plan_ok", "out_of_purpose")},
+    ("spec-check", "table"): "形 entry の入力（形 check は表を読み直さず、形 entry の返りの写しを受ける）",
+    **{("spec-diagnose", name): "仕様駆動の run の中で回らない段の値か、再審の道の入力（素材・世界の解・頭の深さ・仕様の段は会話の中か回さない）"
+       for name in ("constraints", "materials", "pr_material", "world_rows", "row_asks", "depth_why", "spec_rows", "spec_origin", "answers",
+                    "prior_failures", "pr_text", "objection", "prior", "prior_brief", "prior_inputs", "spec", "verify", "excluded")},
+    **{("spec-plan", name): "仕様駆動の run の中で回らない段の値（裏取り・並行 PR・頭の深さ・前の決め・世界の解・構造の目・前の周・申し出）"
+       for name in ("verify", "excluded", "depth_record", "decisions", "world_rows", "structure", "prior_failures", "prior", "conflicts")},
     ("plan", "routes"): "計画の往復は依頼の文の run だけで回る（既定の auto）。仕様駆動の run は spec-plan が spec を渡す",
     ("replan", "routes"): "案の直しは仕様駆動の run では回らない（既定の auto）",
     ("rejudge-run", "request_files"): "再審の道は読まない（判定の道だけの入力）",
@@ -164,9 +173,9 @@ class IncludeInputsCase(unittest.TestCase):
                 self.assertIn(key, TOP)
                 self.assertNotIn("loop_group", TOP[key])
         self.assertEqual(named.count("works-factory-fix"), 2)
-        self.assertEqual(named.count("works-factory-plan"), 2)
+        self.assertEqual(named.count("works-factory-plan"), 3, "往復の中・案の直し・仕様駆動の run の spec-plan")
         self.assertEqual(named.count("works-factory-plan-review"), 2)
-        self.assertEqual(named.count("works-factory-diagnose"), 1)
+        self.assertEqual(named.count("works-factory-diagnose"), 2, "再審と、仕様駆動の run の spec-diagnose")
         self.assertEqual(named.count("works-factory-parallel-pr"), 1)
         self.assertEqual(named.count("works-factory-judge"), 1, "再審は判定のまとめを 2 度 include せず diagnose を直に include する")
         self.assertEqual(named.count("works-factory-eyes"), 1)
@@ -263,7 +272,7 @@ class FlowCase(unittest.TestCase):
 
     def test_four_gates_have_the_same_options(self):
         gates = [k for k, n in TOP.items() if "wait" in n]
-        self.assertEqual(gates, ["gate-start", "gate-before-fix", "gate-replan", "gate-final"])
+        self.assertEqual(gates, ["gate-start", "gate-before-fix", "spec-gate-before-fix", "gate-replan", "gate-final"])   # spec- は仕様駆動の run の修正前
         for key in gates:
             self.assertEqual([o["id"] for o in TOP[key]["wait"]["options"]], ["approve", "continue", "stop", "reject"], key)
         self.assertFalse([k for k in LOOP if "wait" in LOOP[k]], "往復の本体に承認ノードを置かない（E16）")
@@ -283,7 +292,7 @@ class FlowCase(unittest.TestCase):
     def test_line_inputs_are_the_current_sixteen(self):
         self.assertEqual(sorted(DOC["inputs"]), sorted(
             ("request", "base", "pr", "spec", "test_cmd", "tdd_suite", "final_gate", "unattended", "design_only", "thickness",
-             "features_off", "features_on", "policy_md", "fix_fixture", "lang", "deliver")))
+             "features_off", "features_on", "policy_md", "fix_fixture", "lang", "deliver", "spec_table")))
         self.assertEqual((DOC["returns"], DOC["outcome_field"]), ("result", "fixed"))
 
 
@@ -325,3 +334,54 @@ class ScriptReadsCase(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class SpecDrivenWiringCase(unittest.TestCase):
+    """仕様駆動の道の配線（docs/design/spec-driven.md の 6.2・6.5 の 5 と 8）。足す node は id の並び SPEC_DRIVEN_NODES で名指す
+    （前からの spec-check-run を頭の字で巻き込まない）"""
+
+    def setUp(self):
+        from tests.blocks.line.test_scenarios import SPEC_DRIVEN_NODES
+        self.names = SPEC_DRIVEN_NODES
+
+    def test_every_named_node_is_in_the_yaml(self):
+        """名がずれた時に、筋書きの試験が何も照らさないまま通らない"""
+        self.assertEqual([n for n in self.names if n not in TOP], [])
+
+    def test_spec_nodes_run_only_in_a_spec_run(self):
+        """when: を持つ足す node はどれも from_spec == true か spec-entry の出力を読む句を持つ。受け皿と答えの node は when: を持たず、
+        依る node（足す node）が飛ぶと飛ぶ"""
+        for name in self.names:
+            node = TOP[name]
+            with self.subTest(name):
+                if "when" in node:
+                    self.assertTrue("$start.output.from_spec == true" in node["when"] or "$spec-" in node["when"], node["when"])
+                else:
+                    self.assertTrue(any(d in self.names for d in node["depends_on"]), node["depends_on"])
+
+    def test_request_run_gates(self):
+        """依頼の文の run の判定は from_spec == false の時だけ回り、直す前の結末は spec-entry を読む節を || の後ろに置く（前の節で
+        打ち切るので、依頼の文の run は飛ばされた spec-entry の出力を読まない）"""
+        self.assertEqual(TOP["judge"]["when"], "$test-gate-base.output.ok == true && $start.output.from_spec == false")
+        when = TOP["test-gate-base"]["when"]
+        head, tail = when.split(" || ")
+        self.assertEqual(head, "$answer-start.output.go == true && $start.output.from_fixture == false && $start.output.from_spec == false")
+        self.assertIn("$spec-entry.output.ok == true", tail)
+        self.assertNotIn("$spec-entry", head)
+
+    def test_fix_gets_the_routes(self):
+        for name in ("fix", "refix-run"):
+            with self.subTest(name):
+                self.assertEqual(TOP[name]["with"]["routes"], "$start.output.ports.routes")
+        self.assertEqual(TOP["spec-plan"]["with"]["routes"], "spec")
+
+    def test_before_fix_gate_is_shared(self):
+        """6.5 の 8: spec- の付いた 3 つは今の 3 つと同じ script・output_format・wait: の form と options（錨で本体が 1 つ）を持ち、
+        spec-gate-before-fix の attention だけが spec-ask-before-fix を読む"""
+        for old, new in (("ask-before-fix", "spec-ask-before-fix"), ("answer-before-fix", "spec-answer-before-fix")):
+            with self.subTest(new):
+                self.assertEqual((TOP[new]["script"], TOP[new]["output_format"]), (TOP[old]["script"], TOP[old]["output_format"]))
+        old, new = TOP["gate-before-fix"]["wait"], TOP["spec-gate-before-fix"]["wait"]
+        self.assertEqual((new["form"], new["options"]), (old["form"], old["options"]))
+        self.assertEqual(new["attention"], "$spec-ask-before-fix.output.text")
+        self.assertIn("&before_fix_wait", TEXT)

@@ -243,6 +243,7 @@ start:
   final_gate: ''
   from_fixture: true
   fixture: {type: archon_artifact, run_id: dry-run, path: fixture-carried.json}
+  from_spec: false
   ports:
     request: .archon/workflows/works-factory/line/fixtures/request.json
     request_file: .archon/workflows/works-factory/line/fixtures/request.json
@@ -278,6 +279,8 @@ start:
     request_scope: false
     prior_rows: []
     request_answers: []
+    spec_table: ''
+    routes: auto
 fix-in:
   go: true
   no_fix: false

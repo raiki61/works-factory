@@ -137,11 +137,22 @@ nodes:
       stop_reason: "$start.output.stop_reason"
       place: "gate-start"
       final: "false"
-  # 3 直す前の結末（固定材料の run は飛ぶ）
+  # 2.5 仕様駆動の道の入口（docs/design/spec-driven.md の 6.2 の足す node の 1）。表の中身の確かめ（2.3 の 1〜5）を、AI の段を中に持つ
+  # 試験の段より前にする。依頼の文の run は飛ぶ
+  - id: spec-entry
+    include: works-factory-spec-driven
+    depends_on: [answer-start]
+    when: "$answer-start.output.go == true && $start.output.from_spec == true"
+    with:
+      mode: "entry"
+      table: "$start.output.ports.spec_table"
+  # 3 直す前の結末（固定材料の run は飛ぶ）。仕様駆動の run は入口の確かめが通った時だけ。when: は括弧を持てないので OR-of-AND で書き、
+  # 飛ばされうる spec-entry を読む節は || の後ろに置く（依頼の文の run は前の節で打ち切り、spec-entry を読まない）
   - id: test-gate-base
     include: works-factory-test-gate
-    depends_on: [answer-start]
-    when: "$answer-start.output.go == true && $start.output.from_fixture == false"
+    depends_on: [answer-start, spec-entry]
+    trigger_rule: none_failed_min_one_success
+    when: "$answer-start.output.go == true && $start.output.from_fixture == false && $start.output.from_spec == false || $answer-start.output.go == true && $start.output.from_fixture == false && $spec-entry.output.ok == true"
     with:
       mode: "base"
       test_cmd: "$start.output.ports.test_cmd"
@@ -171,11 +182,17 @@ nodes:
     with:
       got: "$test-gate-base.output"
       names: "mode ok green red_cause ran_steps baseline fingerprint test_outcomes evidence by suites_line log baseline_line reason suite suite_note related report"
-  # 4 判定のまとめ（docs/design/judge-eyes.md の 1 節）
+  - id: spec-entry-out
+    <<: *receiver
+    depends_on: [spec-entry]
+    with:
+      got: "$spec-entry.output"
+      names: "ok stop_reason reason request origin purpose spec spec_files tdd out_of_scope mismatches report"
+  # 4 判定のまとめ（docs/design/judge-eyes.md の 1 節）。仕様駆動の run では回さない（判定の役だけを spec-diagnose で 1 回）
   - id: judge
     include: works-factory-judge
     depends_on: [test-gate-base]
-    when: "$test-gate-base.output.ok == true"
+    when: "$test-gate-base.output.ok == true && $start.output.from_spec == false"
     with:
       request: "$start.output.ports.request"
       pr_text: "$start.output.ports.pr_text"
@@ -427,9 +444,26 @@ nodes:
         review_status review_reason stop_reason"
   # 9 修正前の承認ノード（docs/design/line.md の 2 節の 2）。軸・項目・聞かずに通した行は line が組む
   - id: ask-before-fix
-    script: ask_before_fix
-    runtime: uv
-    mutates_checkout: false
+    # 本体はここ 1 か所。仕様駆動の run の spec-ask-before-fix は <<: *ask_before_fix で受ける
+    <<: &ask_before_fix
+      script: ask_before_fix
+      runtime: uv
+      mutates_checkout: false
+      output_format:
+        type: object
+        additionalProperties: false
+        required: [open, go, stop_reason, text, deferred, asked, pushed, passes, policy_changed]
+        properties:
+          open: {type: boolean}
+          go: {type: boolean}
+          stop_reason: {type: string}
+          reason: {type: string}
+          text: {type: string}
+          deferred: {type: array}
+          asked: {type: array}
+          pushed: {type: [object, 'null']}
+          passes: {type: array}
+          policy_changed: {type: boolean}
     depends_on: [plan-rounds-out, judge-out, structure-in]
     with:
       rounds: "$plan-rounds-out.output.got"
@@ -437,32 +471,30 @@ nodes:
       judge: "$judge-out.output.got"
       record: "$start.output.record"
       ports: "$start.output.ports"
-    output_format:
-      type: object
-      additionalProperties: false
-      required: [open, go, stop_reason, text, deferred, asked, pushed, passes, policy_changed]
-      properties:
-        open: {type: boolean}
-        go: {type: boolean}
-        stop_reason: {type: string}
-        reason: {type: string}
-        text: {type: string}
-        deferred: {type: array}
-        asked: {type: array}
-        pushed: {type: [object, 'null']}
-        passes: {type: array}
-        policy_changed: {type: boolean}
   - id: gate-before-fix
     wait:
+      # form と options の本体はここ 1 か所。spec-gate-before-fix は attention だけを替えて受ける
+      <<: &before_fix_wait
+        form: select
+        options: [{id: approve}, {id: continue}, {id: stop}, {id: reject}]
       attention: "$ask-before-fix.output.text"
-      form: select
-      options: [{id: approve}, {id: continue}, {id: stop}, {id: reject}]
     depends_on: [ask-before-fix]
     when: "$ask-before-fix.output.open == true"
   - id: answer-before-fix
-    script: before_fix_answer
-    runtime: uv
-    mutates_checkout: false
+    # 本体はここ 1 か所。spec-answer-before-fix は <<: *before_fix_answer で受ける
+    <<: &before_fix_answer
+      script: before_fix_answer
+      runtime: uv
+      mutates_checkout: false
+      output_format:
+        type: object
+        additionalProperties: false
+        required: [go, answer, stop_reason, policy]
+        properties:
+          go: {type: boolean}
+          answer: {type: [object, 'null']}
+          stop_reason: {type: string}
+          policy: {type: string}
     depends_on: [ask-before-fix, gate-before-fix]
     trigger_rule: none_failed_min_one_success
     with:
@@ -475,22 +507,133 @@ nodes:
       policy_changed: "$ask-before-fix.output.policy_changed"
       record: "$start.output.record"
       ports: "$start.output.ports"
+  # 9.5 仕様駆動の道（docs/design/spec-driven.md の 6.2 の足す node の 3〜11）。判定の役と計画の部品を 1 回ずつ通し、仕様とリポジトリの
+  # 食い違いを照らし、今の受け皿の形に組み直して、今と同じ条件で修正前の承認ノードを出す。依頼の文の run は全部飛ぶ
+  - id: spec-diagnose
+    include: works-factory-diagnose
+    depends_on: [spec-entry, test-gate-base]
+    when: "$spec-entry.output.ok == true && $test-gate-base.output.ok == true"
+    with:
+      request: "$spec-entry.output.request"
+      request_origin: "$spec-entry.output.origin"
+      base: "$start.output.ports.base"
+      purpose: "$spec-entry.output.purpose"
+      request_files: "$spec-entry.output.spec_files"
+      baseline: "$test-gate-base.output.baseline"
+      policy: "$start.output.ports.policy"
+      lang: "$start.output.ports.lang"
+  - id: spec-diagnose-out
+    <<: *receiver
+    depends_on: [spec-diagnose]
+    with:
+      got: "$spec-diagnose.output"
+      names: "ok status mode stop_reason reason ready judgment units questions inputs brief materials out_of_purpose answer_ties rejudge_verdict
+        rejudge_exit rejudge_diff downgrades report"
+  - id: spec-plan
+    include: works-factory-plan
+    depends_on: [spec-entry, spec-diagnose]
+    when: "$spec-diagnose.output.ready == true"
+    with:
+      judgment: "$spec-diagnose.output.judgment"
+      units: "$spec-diagnose.output.units"
+      answer_ties: "$spec-diagnose.output.answer_ties"
+      materials: "$spec-diagnose.output.materials"
+      answers: "$start.output.ports.request_answers"
+      takes_push: "$start.output.ports.takes_push"
+      spec: "$spec-entry.output.spec"
+      routes: "spec"
+      policy: "$start.output.ports.policy"
+      ruling: "[]"
+      base: "$start.output.ports.base_rev"
+      review_rev: "$start.output.ports.review_rev"
+      diff_base: "$start.output.ports.base"
+      lang: "$start.output.ports.lang"
+  - id: spec-plan-out
+    <<: *receiver
+    depends_on: [spec-plan]
+    with:
+      got: "$spec-plan.output"
+      names: "ok status reason mode round owed plan fix_plan reply handoff replan ripple rejects gave_up report"
+  - id: spec-check
+    include: works-factory-spec-driven
+    depends_on: [spec-entry, test-gate-base, spec-diagnose, spec-plan]
+    trigger_rule: none_failed_min_one_success
+    # trigger_rule が緩いので、依頼の文の run は when: の頭の from_spec == false で打ち切る（飛ばされた spec-entry を読まない）
+    when: "$start.output.from_spec == true && $spec-entry.output.ok == true && $test-gate-base.output.ok == true"
+    with:
+      mode: "check"
+      tdd: "$spec-entry.output.tdd"
+      out_of_scope: "$spec-entry.output.out_of_scope"
+      out_of_purpose: {from: "$spec-diagnose.output.out_of_purpose", if_skipped: null}
+      ready: {from: "$spec-diagnose.output.ready", if_skipped: null}
+      plan: {from: "$spec-plan.output.plan", if_skipped: null}
+      plan_ok: {from: "$spec-plan.output.ok", if_skipped: null}
+      base: "$start.output.ports.base_rev"
+  - id: spec-check-out
+    <<: *receiver
+    depends_on: [spec-check]
+    with:
+      got: "$spec-check.output"
+      names: "ok stop_reason reason request origin purpose spec spec_files tdd out_of_scope mismatches report"
+  - id: spec-rounds
+    script: spec_rounds
+    runtime: uv
+    mutates_checkout: false
+    depends_on: [spec-check, spec-diagnose-out, spec-plan-out, spec-entry-out]
+    when: "$spec-check.output.ok == true"
+    with:
+      diagnose: "$spec-diagnose-out.output.got"
+      plan: "$spec-plan-out.output.got"
+      entry: "$spec-entry-out.output.got"
+      ports: "$start.output.ports"
     output_format:
       type: object
       additionalProperties: false
-      required: [go, answer, stop_reason, policy]
+      required: [judge, rounds, stop_reason, reason]
       properties:
-        go: {type: boolean}
-        answer: {type: [object, 'null']}
+        judge: {type: [object, 'null']}
+        rounds: {type: [object, 'null']}
         stop_reason: {type: string}
-        policy: {type: string}
+        reason: {type: string}
+  - id: spec-ask-before-fix
+    <<: *ask_before_fix
+    depends_on: [spec-rounds]
+    with:
+      rounds: "$spec-rounds.output.rounds"
+      structure: ""
+      judge: "$spec-rounds.output.judge"
+      record: "$start.output.record"
+      ports: "$start.output.ports"
+  - id: spec-gate-before-fix
+    wait:
+      <<: *before_fix_wait
+      attention: "$spec-ask-before-fix.output.text"
+    # 待つ node が 2 つ同時に走らないよう、今の gate-before-fix の後ろに並べる（Archon の読み込みの決まり）。依頼の文の run は when: の頭の
+    # from_spec == false で打ち切り、飛ばされた spec-ask-before-fix の出力を読まない
+    depends_on: [spec-ask-before-fix, gate-before-fix]
+    trigger_rule: none_failed_min_one_success
+    when: "$start.output.from_spec == true && $spec-ask-before-fix.output.open == true"
+  - id: spec-answer-before-fix
+    <<: *before_fix_answer
+    depends_on: [spec-ask-before-fix, spec-gate-before-fix]
+    trigger_rule: none_failed_min_one_success
+    with:
+      gate: {from: "$spec-gate-before-fix.output", if_skipped: null}
+      go: "$spec-ask-before-fix.output.go"
+      stop_reason: "$spec-ask-before-fix.output.stop_reason"
+      place: "gate-before-fix"
+      asked: "$spec-ask-before-fix.output.asked"
+      pushed: "$spec-ask-before-fix.output.pushed"
+      policy_changed: "$spec-ask-before-fix.output.policy_changed"
+      record: "$start.output.record"
+      ports: "$start.output.ports"
   # 10 修正の段へ運ぶ値を 1 か所に集める（docs/design/line.md の 4.1・5.2）。修正から後ろの node は判定・構造の目・独立設計・計画の値をここから読む
   - id: fix-in
     script: fix_in
     runtime: uv
     mutates_checkout: false
     depends_on: [answer-start, test-gate-base-out, judge-out, tiers, owed, structure-out, design-in, plan-rounds-out, ask-before-fix,
-                 answer-before-fix]
+                 answer-before-fix, spec-rounds, spec-ask-before-fix, spec-answer-before-fix]
     trigger_rule: none_failed_min_one_success
     with:
       fixture: "$start.output.fixture"
@@ -509,6 +652,13 @@ nodes:
       deferred: {from: "$ask-before-fix.output.deferred", if_skipped: null}
       passes: {from: "$ask-before-fix.output.passes", if_skipped: null}
       recorded: {from: "$owed.output.recorded", if_skipped: null}
+      # 仕様駆動の run だけ（ほかの run は null）。判定の部と往復の部は spec-rounds、修正前の承認の答えは spec- の付いた 3 つから
+      spec: {from: "$spec-rounds.output", if_skipped: null}
+      spec_before_fix_go: {from: "$spec-answer-before-fix.output.go", if_skipped: null}
+      spec_before_fix_answer: {from: "$spec-answer-before-fix.output.answer", if_skipped: null}
+      spec_before_fix_policy: {from: "$spec-answer-before-fix.output.policy", if_skipped: null}
+      spec_deferred: {from: "$spec-ask-before-fix.output.deferred", if_skipped: null}
+      spec_passes: {from: "$spec-ask-before-fix.output.passes", if_skipped: null}
     output_format:
       type: object
       additionalProperties: false
@@ -569,6 +719,7 @@ nodes:
     when: "$fix-in.output.go == true && $fix-in.output.no_fix == false"
     with:
       mode: "whole"
+      routes: "$start.output.ports.routes"
       judgment: "$fix-in.output.judgment"
       answer_ties: "$fix-in.output.answer_ties"
       materials: "$fix-in.output.materials"
@@ -606,6 +757,7 @@ nodes:
     mutates_checkout: false
     depends_on: [fix]
     with:
+      from_spec: "$start.output.from_spec"
       replan_items: "$fix.output.replan_items"
       rounds: "$fix-in.output.record"
       plan: "$fix-in.output.plan"
@@ -845,6 +997,7 @@ nodes:
     when: "$answer-replan.output.go == true"
     with:
       mode: "whole"
+      routes: "$start.output.ports.routes"
       judgment: "$fix-in.output.judgment"
       answer_ties: "$fix-in.output.answer_ties"
       materials: "$fix-in.output.materials"
@@ -934,6 +1087,7 @@ nodes:
     depends_on: [fix-in, after-fix, raise, fix-out, lens-out, delta-review-out, replan-out, refix-run-out, lens-2-out, delta-review-2-out]
     trigger_rule: none_failed_min_one_success
     with:
+      from_spec: "$start.output.from_spec"
       fix_in: "$fix-in.output"
       fix: {from: "$fix-out.output.got", if_skipped: null}
       after_fix: {from: "$after-fix.output", if_skipped: null}
@@ -1273,7 +1427,8 @@ nodes:
                  design-in, plan-rounds-out, ask-before-fix, answer-before-fix, fix-in, fix-out, after-fix, raise, lens-out, lens-in,
                  delta-review-out, replan-out, replan-review-out, ask-replan, answer-replan, refix-run-out, lens-2-out, lens-2-in,
                  delta-review-2-out, fixed, parallel-pr-after-out, rejudge-run-out, spec-check-run-out, judged, test-gate-final-out, eyes-in,
-                 eyes-out, merge-seal-out, ask-final, answer-final, merge-apply-out]
+                 eyes-out, merge-seal-out, ask-final, answer-final, merge-apply-out, spec-entry-out, spec-diagnose-out, spec-plan-out,
+                 spec-check-out, spec-rounds, spec-ask-before-fix, spec-answer-before-fix]
     trigger_rule: all_done
     always_run: true
     with:
@@ -1318,6 +1473,13 @@ nodes:
       ask_final: {from: "$ask-final.output", if_skipped: null}
       answer_final: {from: "$answer-final.output", if_skipped: null}
       merge_apply: {from: "$merge-apply-out.output.got", if_skipped: null}
+      # 仕様駆動の run だけ（ほかの run は null。docs/design/spec-driven.md の 6.2 の変える node の 7）
+      spec_entry: {from: "$spec-entry-out.output.got", if_skipped: null}
+      spec_diagnose: {from: "$spec-diagnose-out.output.got", if_skipped: null}
+      spec_driven_check: {from: "$spec-check-out.output.got", if_skipped: null}
+      spec_rounds: {from: "$spec-rounds.output", if_skipped: null}
+      spec_ask_before_fix: {from: "$spec-ask-before-fix.output", if_skipped: null}
+      spec_answer_before_fix: {from: "$spec-answer-before-fix.output", if_skipped: null}
       # 受け止める段の宣言: include 丸ごと受け止める段だけをここに書く（docs/design/line.md の 7.2 の optional）。block の中の node は
       # 各 block が返りの欄 optional で宣言し、collect が include の頭を付けて合わせる
       optional: '["eyes__", "lens__", "lens-2__"]'
