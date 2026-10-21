@@ -12,6 +12,7 @@ import pathlib
 import carry     # lib/
 import oneline   # lib/
 import report    # lib/
+import seal      # lib/
 
 import ports
 from src import facts_in, files, outcome as outcomelib, transcript, writer
@@ -130,7 +131,7 @@ def _apply_answer(apply: dict, outcome: str, run_id: str, decisions: int) -> str
     if not apply["sealed"]:
         return NO_DIFF
     if not apply["placed"] and apply["redesign"]:
-        return f"当てない（独立の目が {apply['redesign']} を言った run の差分は、{APPLY_COMMAND}: bin/apply も当てない）"
+        return f"当てない（独立の目が「{seal.STATUS_WORDS.get(apply['redesign'], apply['redesign'])}」と言った run の差分は、{APPLY_COMMAND}: bin/apply も当てない）"
     command = f"{APPLY_COMMAND}: bin/apply {run_id}" + ("" if apply["placed"] else f" --allow-stopped{STOPPED_FLAG}")
     if decisions:
         return f"人が決めること {decisions} 件を決めてから当てる（{command}）"
