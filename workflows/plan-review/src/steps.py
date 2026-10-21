@@ -132,9 +132,9 @@ def proposal_of(raw: dict) -> str:
     named = ports.text(raw.get("proposal_file")).strip()
     if not named:
         return ports.text(raw.get("proposal"))
+    path = _port("proposal_file", lambda: ports.file(named))   # 読めないファイルは入力の名つきで名指す
     if ports.text(raw.get("proposal")).strip():
         raise ValueError("入力 proposal と proposal_file は一緒に名指さない（方針の文のファイルは proposal_file だけで渡す）")
-    path = _port("proposal_file", lambda: ports.file(named))
     text = path.read_text(encoding="utf-8").strip()
     if not text:
         raise ValueError(f"入力 proposal_file: 審査する物が空（{path}）")

@@ -78,8 +78,15 @@ def entry(place, repo, table, reviews_file: str) -> dict:
     place, repo = pathlib.Path(place), pathlib.Path(repo)
     for name in files.OWN_FILES:
         (place / name).unlink(missing_ok=True)
-    path = ports.file(table)
-    if path is None:
+    try:
+        path = ports.file(table)
+    except ValueError as error:
+        path, unread = None, f"入力 table を読めない: {error}"
+    else:
+        unread = ""
+    if unread:
+        got = stopped([unread], "仕様駆動の道の表を読めない")
+    elif path is None:
         got = stopped(["入力 table が空（仕様駆動の道の表のパスを渡す）"], "仕様駆動の道の表が渡されていない")
     else:
         spec = spectable.read(repo, path)

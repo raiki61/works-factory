@@ -24,6 +24,8 @@ from typing import NamedTuple
 
 import yaml
 
+import oneline
+
 _HERE = pathlib.Path(__file__).resolve().parent
 if str(_HERE / "graphloops") not in sys.path:
     sys.path.insert(0, str(_HERE / "graphloops"))   # 写しの engine（entry と同じ足し方）
@@ -95,7 +97,7 @@ def read(root, table) -> Spec:
     except (OSError, UnicodeDecodeError) as error:
         return Spec(root, table_rel, "", None, None, (f"表 {table_rel} を読めない（{error}）",))
     except yaml.YAMLError as error:
-        return Spec(root, table_rel, "", None, None, (f"表 {table_rel} を YAML として読めない（{' '.join(str(error).split())}）",))
+        return Spec(root, table_rel, "", None, None, (f"表 {table_rel} を YAML として読めない（{oneline.one_line(error)}）",))
     if not isinstance(doc, dict):
         return Spec(root, table_rel, "", None, None, (f"表 {table_rel} が欄の並び（YAML の mapping）でない",))
     design = doc.get("design")
