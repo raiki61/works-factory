@@ -4,7 +4,7 @@
     {"id": "shell", "what": "起動の殻", "paths": ["bin/"], "may_use": ["shared", "lib"]},
     {"id": "top", "what": "メイングラフと周の鎖", "paths": ["workflows/line/", "workflows/chain/"], "may_use": ["shared", "lib"]},
     {"id": "shared", "what": "pack の共通の部品（口・共通の断片と形・埋め）", "paths": ["workflows/.shared/"], "may_use": ["lib"]},
-    {"id": "block", "what": "block と、メイングラフと周の鎖のほかの graph", "paths": ["workflows/*/"], "may_use": ["shared", "lib"], "independent": true, "names": ["judge", "structure", "plan", "plan-review", "fix", "test-gate", "eyes", "report", "merge"]},
+    {"id": "block", "what": "block と、メイングラフと周の鎖のほかの graph", "paths": ["workflows/*/"], "may_use": ["shared", "lib"], "independent": true, "names": ["judge", "structure", "plan", "plan-review", "fix", "test-gate", "eyes", "report", "merge", "spec-driven"]},
     {"id": "lib", "what": "共通の lib", "paths": ["lib/"], "may_use": []}
   ],
   "outside": ["lib/tests/", "workflows/*/fixtures/", "bin/AGENTS.md", "workflows/AGENTS.md", "lib/AGENTS.md"]

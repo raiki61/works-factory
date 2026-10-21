@@ -1,0 +1,19 @@
+# 筋書きの見本の表（docs/design/spec-driven.md の 2.3）。審査の記録の run の id は見本の字で、起動の殻を通らない筋書きは照らした結果を
+# 持たないので、入口の確かめの 5 で止まる
+design: .archon/workflows/works-factory/spec-driven/fixtures/design.md
+purpose: キャッシュが利用者の思う所に置かれる
+acceptance:
+  - key: a1
+    given: XDG_CACHE_HOME が在る
+    when: ツールを起こす
+    then: その下に置く
+test_cmd: ""
+out_of_scope:
+  - glob: docs/**
+    why: 文書は直さない
+reviews:
+  - {part: works-factory-plan-review, run: example-plan-review, findings: []}
+  - {part: works-factory-independent-design, run: example-independent-design, findings: []}
+  - {part: works-factory-premises, run: example-premises, findings: []}
+  - {part: works-factory-prior-decisions, run: example-prior-decisions, findings: []}
+  - {part: works-factory-world, run: example-world, findings: []}

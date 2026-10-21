@@ -4,7 +4,8 @@ _role_item・replan_items〔:588-612〕・_tree_on〔:692-696〕の写し）。
 
 - intake(out, repo, **raw): port の字を読み、形を決め、place のこの block のファイルを名で消して材料を写し、intake.json を書く。
   返り {due, form, tree, k, reason}。落ちない（誤りは intake-error.json の {why, form} と due: false）
-- proposal_form(raw) -> ("plan", 修正案の役の返答) か ("text", 方針の文): 審査する物の形の決め（8 節の intake の 2）
+- proposal_of(raw) -> 審査する物の字（入力 proposal か proposal_file の中身）・proposal_form(raw) -> ("plan", 修正案の役の返答) か
+  ("text", 方針の文): 審査する物の形の決め（8 節の intake の 2。proposal_file の中身はいつも方針の文）
 - recorded_rows(recorded, policy_path) -> 記録された方針の行（port recorded が空で方針が在れば、方針の文書の行だけ）
 - replan_items(b, approved, marked_rows, ruled, conflicts): 形 replan の裁かれた項目ごとの材料
 - read_intake(out) -> intake.json の中身（無い・読めなければ Missing）・record_crash(out, step, why): prep・accept が落ちた訳（crash.json）
@@ -123,6 +124,21 @@ def _shaped(name: str, value, shape: dict, what: str):
     if errors:
         raise ValueError(f"入力 {name}: {what}の形に合わない: {' / '.join(errors[:5])}")
     return value
+
+
+def proposal_of(raw: dict) -> str:
+    """審査する物の字: 入力 proposal か、入力 proposal_file（方針の文のファイル。在れば中身を形 text の方針の文として読む）。
+    2 つを一緒に名指せば ValueError（どちらで読んだかを黙って決めない）"""
+    named = ports.text(raw.get("proposal_file")).strip()
+    if not named:
+        return ports.text(raw.get("proposal"))
+    path = _port("proposal_file", lambda: ports.file(named))   # 読めないファイルは入力の名つきで名指す
+    if ports.text(raw.get("proposal")).strip():
+        raise ValueError("入力 proposal と proposal_file は一緒に名指さない（方針の文のファイルは proposal_file だけで渡す）")
+    text = path.read_text(encoding="utf-8").strip()
+    if not text:
+        raise ValueError(f"入力 proposal_file: 審査する物が空（{path}）")
+    return text
 
 
 def proposal_form(raw) -> tuple[str, object]:
@@ -440,7 +456,10 @@ def intake(out, repo, **raw) -> dict:
     try:
         _clean(d)
         defaults: list = []
-        form, proposal = proposal_form(raw.get("proposal"))
+        if ports.text(raw.get("proposal_file")).strip():
+            form, proposal = "text", proposal_of(raw)
+        else:
+            form, proposal = proposal_form(proposal_of(raw))
         form = "replan" if form == "plan" and not _blank(raw.get("ruling")) else form
         common = _texts(d, raw, defaults)
         if form == "text":

@@ -176,3 +176,29 @@ class TextAcceptCase(_Case):
         self.assertEqual((out["ok"], out["status"]), (False, "gave_up"))
         self.assertIn("no_add", out["reason"])
         self.assertTrue(out["report"][0].startswith("事前審査: "), out["report"])
+
+
+class ProposalFileCase(_Case):
+    """入力 proposal_file（方針の文のファイル。docs/design/spec-driven.md の 2.5 の詰まった所の 2 の行き先）"""
+
+    def put(self, text: str) -> str:
+        path = self.r.artifacts / "proposal.md"
+        path.write_text(text, encoding="utf-8")
+        return str(path)
+
+    def test_file_is_read_as_the_policy_text(self):
+        """在るファイルの中身を、JSON の形でも方針の文として読む（入力 proposal の「在るファイルは JSON」の読みは変えない）"""
+        text = '{"plan": []}\n\n設計書の本文\n'
+        got = self.r.intake(proposal_file=self.put(text), purpose=V.PURPOSE)
+        self.assertEqual((got["due"], got["form"]), (True, "text"), got)
+        self.assertEqual(self.r.read(files.INTAKE)["proposal_text"], text.strip())
+
+    def test_proposal_and_proposal_file_together_are_refused(self):
+        got = self.r.intake(proposal=V.POLICY_TEXT, proposal_file=self.put("x"), purpose=V.PURPOSE)
+        self.assertFalse(got["due"])
+        self.assertIn("proposal_file", got["reason"])
+
+    def test_neither_is_refused(self):
+        got = self.r.intake(purpose=V.PURPOSE)
+        self.assertFalse(got["due"])
+        self.assertIn("審査する物が空", got["reason"])

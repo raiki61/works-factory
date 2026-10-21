@@ -15,5 +15,6 @@
 - `lib/` は Python の助け手だけを持つ。流れ（どの確かめを・どの順で・どこで人に聞くか）・指示の文・block の間で渡す物の型は持たない。それは graph と block（`workflows/`）と `docs/design/` が持つ。
 - `lib/` は Archon の名（`archon`・`$ARTIFACTS_DIR`・`$TYPED_ARTIFACTS_FILE`・`ARCHON_` で始まる環境変数・`INPUTS_<名>`・`WORKFLOW_ID`・`$LOOP_PREV`・`loop_group`・`$<ノード>.output`・ノードの id・`output_type` の語）を書かない。入力は引数とファイルのパス、出力は返り値と JSON。`workflows/`・`bin/` の物を import しない（層の地図 `docs/layers.json`。根の `AGENTS.md` の E22）。
 - 外のパッケージは使ってよい（持ち主の決め `outside-packages-ok`）。版を止め、依存の宣言は根の `pyproject.toml` の `[project] dependencies` の 1 か所に置く。Archon の `runtime: uv` の script のノードは `deps:` を持たず、標準ライブラリと `lib/` だけで書く（`workflows/AGENTS.md` の E7 の `dependencies = []`）。
+- 外し: 仕様駆動の道の表（YAML）を読む script の 2 本、block の入口の `workflows/spec-driven/scripts/intake.py` と、起動の殻が表を読む `bin/_lib/spec-inputs.py` は、PyYAML を PEP 723 の頭で宣言する（`dependencies = ["PyYAML==<根の pyproject.toml と同じ版>"]`）。どちらも表の読みは `lib/spectable.py` を import する（docs/design/spec-driven.md の 6.7。機械: `tests/workflows/test_uv_scripts.py` の `YAML_READERS` と版の縛り）。
 - 外し: `lib/runlog.py`（Archon の run の記録 `$LOG_DIR/<WORKFLOW_ID>.jsonl` を読む口）とその試験 `lib/tests/test_runlog.py`。report と chain の 2 つの block が使うので lib に上げた（`docs/design/integration.md` の 4.5-2 の決め）。機械の許しの表 `tests/layers/scan.py` の `ALLOWED["E3"]` に同じ 2 行が在る。
 - 機械: `tests/layers/test_lib_blind.py`。

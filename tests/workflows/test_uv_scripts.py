@@ -41,6 +41,23 @@ if str(ROOT / "lib") not in sys.path:
 import tree_run  # noqa: E402
 
 HEADER = ["# /// script", '# requires-python = ">=3.12"', "# dependencies = []", "# ///"]
+# 外し（lib/AGENTS.md の E3）: 仕様駆動の道の表（YAML）を読む script は PyYAML を宣言する。pack の中は block の入口の 1 本だけで、
+# 起動の殻の側の 1 本（YAML_READER_BIN）と根の pyproject.toml と同じ版の字を持つ（docs/design/spec-driven.md の 6.7）
+YAML_READERS = ("spec-driven/scripts/intake.py",)
+YAML_READER_BIN = ROOT / "bin" / "_lib" / "spec-inputs.py"
+PIN = re.compile(r'"(PyYAML==[^"]+)"')
+
+
+def header_of(script: pathlib.Path, workflows: pathlib.Path) -> list[str]:
+    """script の頭に要る 4 行（表を読む script だけ、PyYAML を根の pyproject.toml と同じ版で宣言する）"""
+    if script.relative_to(workflows).as_posix() not in YAML_READERS:
+        return HEADER
+    return [HEADER[0], HEADER[1], f'# dependencies = ["{root_pin()}"]', HEADER[3]]
+
+
+def root_pin() -> str:
+    """根の pyproject.toml の PyYAML の版の字（PyYAML==x.y.z）"""
+    return PIN.search((ROOT / "pyproject.toml").read_text(encoding="utf-8")).group(1)
 PYPROJECT = '[project]\nname = "target"\nversion = "0"\nrequires-python = ">=3.12"\n'
 DEPTH = 1   # Archon の MAX_SCRIPT_DISCOVERY_DEPTH
 RUNTIMES = {".py": "uv", ".ts": "bun", ".js": "bun"}
@@ -83,7 +100,7 @@ def script_faults(workflows: pathlib.Path) -> list[str]:
             if len(paths) > 1:
                 faults.append(f"{folder.name}: 同じ名の script が 2 つ: {name}")
             for path in paths:
-                if path.suffix == ".py" and path.read_text(encoding="utf-8").splitlines()[:4] != HEADER:
+                if path.suffix == ".py" and path.read_text(encoding="utf-8").splitlines()[:4] != header_of(path, workflows):
                     faults.append(f"{folder.name}: 頭の宣言が無い: {path.relative_to(workflows)}")
         for spec in sorted(folder.glob("*.yaml")):
             doc = yaml.safe_load(spec.read_text(encoding="utf-8")) or {}
@@ -111,7 +128,14 @@ class HeaderTest(unittest.TestCase):
     def test_every_script_declares_itself(self):
         for script in SCRIPTS:
             with self.subTest(script=str(script.relative_to(ROOT))):
-                self.assertEqual(script.read_text(encoding="utf-8").splitlines()[:4], HEADER)
+                self.assertEqual(script.read_text(encoding="utf-8").splitlines()[:4], header_of(script, WORKFLOWS))
+
+    def test_yaml_readers_pin_the_same_pyyaml(self):
+        """表を読む 2 本（block の入口の script と起動の殻の script）の PyYAML の版は、根の pyproject.toml と同じ字（6.7 の版の縛り）"""
+        for script in [WORKFLOWS / rel for rel in YAML_READERS] + [YAML_READER_BIN]:
+            with self.subTest(script=str(script.relative_to(ROOT))):
+                self.assertEqual(script.read_text(encoding="utf-8").splitlines()[:4],
+                                 [HEADER[0], HEADER[1], f'# dependencies = ["{root_pin()}"]', HEADER[3]])
 
     def test_every_named_script_archon_can_find_declares_itself(self):
         self.assertEqual(script_faults(WORKFLOWS), [])
