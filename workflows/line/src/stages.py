@@ -32,6 +32,14 @@ HELD_STOP = "修正の段が止めの語を返した"
 HELD_UNRETURNED = "修正の段が返らなかった"
 
 
+def _spec_objection() -> str:
+    import stopby   # lib/（呼ぶ時に読む。src を lib なしで読む試験の道を残す）
+    return stopby.declare("spec-objection", "仕様駆動の run で、修正の段が案と作業ツリーの食い違いを申し出た（案の直しと再審へ進まず止めた）")
+
+
+SPEC_OBJECTION = "works:spec-objection"   # _spec_objection が declare する語（docs/design/spec-driven.md の 6.2 の変える node の 6）
+
+
 def resolve(ptr) -> pathlib.Path:
     """pointer（{type, run_id, path}）かパスの字を、place の中のファイルのパスに戻す（ports.file。在らなければ ValueError）"""
     import ports
@@ -428,6 +436,9 @@ def fixed(values: dict) -> dict:
             units[unit.get("unit_id")] = unit
     said = [str(r.get("objection") or "").strip() for r in (fix, _d(refix))]
     objection = "\n".join(dict.fromkeys(o for o in said if o))
+    spec_stop = values.get("from_spec") is True and bool(objection or fix.get("replan_items"))
+    if spec_stop:   # 仕様駆動の run: 案の直し（run の中の計画の審査）と再審へ進まず、異議を名指して止める
+        held, go, done = True, False, False
     scalars = {**_d(fix.get("x_scalars")), **_d(_d(refix).get("x_scalars"))}
     again = values.get("replan") if refix is not None and isinstance(values.get("replan"), dict) else None
     stages = [{"stage": 1, "fix": values.get("fix"), "lens": values.get("lens"), "delta": values.get("delta")}]
@@ -442,7 +453,7 @@ def fixed(values: dict) -> dict:
         **empty(),
         "go": go, "done": done, "held": held, "diffed": diff is not None,
         "checks": checks, "eyes_due": eyes_due, "skip_why": skip_why,
-        "rejudge": bool(objection) and not held,
+        "rejudge": bool(objection) and not held and not spec_stop,
         "refixed": refix is not None,
         "stages": stages, "carry": carry,
         "tdd": [s["fix"].get("tdd") if isinstance(s["fix"].get("tdd"), list) else [] for s in stages if isinstance(s.get("fix"), dict)],
@@ -463,7 +474,7 @@ def fixed(values: dict) -> dict:
         "plan": (again or fix_in).get("plan"),
         "ripple": (again or fix_in).get("ripple"),
         "left": left_rows(values),
-        "stop_reason": own,
+        "stop_reason": _spec_objection() if spec_stop else own,
     }
 
 

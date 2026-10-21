@@ -9,7 +9,10 @@ when: は配列が空かを比べられないので、ここで数える。fix �
 fix_plan・ripple と、全部の周の handoff。review と record は null。plan の設計書の 1.6 の plan-prior.schema.json の形）を place の
 src.files.REPLAN_PRIOR に書いて pointer を返す。例外の時は止めの語 works:line-script を返し、fixed が held にして試験の関門から先へ進めない。
 
-入力（with:）: replan_items（fix の出力）・rounds（計画の往復の記録の pointer。読まない。往復の外の周であることの控え）・plan・fix_plan・
+仕様駆動の run（from_spec が真）は、案の直し（run の中で計画の審査を回す）へ進まない（docs/design/spec-driven.md の 6.2 の
+変える node の 6。異議は fixed が止めにして人に返す）。
+
+入力（with:）: from_spec（start の from_spec）・replan_items（fix の出力）・rounds（計画の往復の記録の pointer。読まない。往復の外の周であることの控え）・plan・fix_plan・
 ripple・reply（承認済みの案の最後の周の出力の pointer か null）・handoffs（全部の周の handoff の pointer の並び）・round（周の番号）
 """
 import json
@@ -36,11 +39,12 @@ def compute():
     env = {"INPUTS_REPLAN_ITEMS": os.environ.get("INPUTS_REPLAN_ITEMS"), "INPUTS_ROUND": os.environ.get("INPUTS_ROUND"),
            "INPUTS_REPLY": os.environ.get("INPUTS_REPLY"), "INPUTS_PLAN": os.environ.get("INPUTS_PLAN"),
            "INPUTS_FIX_PLAN": os.environ.get("INPUTS_FIX_PLAN"), "INPUTS_RIPPLE": os.environ.get("INPUTS_RIPPLE"),
-           "INPUTS_HANDOFFS": os.environ.get("INPUTS_HANDOFFS"), "INPUTS_ROUNDS": os.environ.get("INPUTS_ROUNDS")}
+           "INPUTS_HANDOFFS": os.environ.get("INPUTS_HANDOFFS"), "INPUTS_ROUNDS": os.environ.get("INPUTS_ROUNDS"),
+           "INPUTS_FROM_SPEC": os.environ.get("INPUTS_FROM_SPEC")}
     items = ports.parsed(env["INPUTS_REPLAN_ITEMS"]) or []
     if not isinstance(items, list):
         raise ValueError(f"replan_items が配列でない（{type(items).__name__}）")
-    if not items:
+    if not items or ports.text(env["INPUTS_FROM_SPEC"]).strip() == "true":   # 仕様駆動の run は案の直しへ進まない
         return {"replan": False, "prior": None, "stop_reason": ""}
     path = ports.place() / files.REPLAN_PRIOR
     path.write_text(json.dumps(prior_doc(env), ensure_ascii=False, indent=1) + "\n", encoding="utf-8")

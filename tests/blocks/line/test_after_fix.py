@@ -22,6 +22,13 @@ class AfterFixCase(unittest.TestCase):
         self.assertEqual(doc, {"round": 2, "reply": {"path": "reply.json"}, "fields": {"path": "p.json"}, "fix_plan": {"path": "fp.json"},
                                "ripple": None, "review": None, "record": None, "handoffs": [{"round": 1, "handoff": None}]})
 
+    def test_spec_run_does_not_replan(self):
+        """仕様駆動の run（from_spec が真）は案の直しへ進まない（run の中で計画の審査を回さない。異議は fixed が止めにする。
+        docs/design/spec-driven.md の 6.2 の変える node の 6）。from_spec が偽か無い run は今どおり"""
+        got = kit.Run(self, BLOCK).script("after_fix", replan_items='["1"]', from_spec="true", **INPUTS)
+        self.assertEqual(got, {"replan": False, "prior": None, "stop_reason": ""})
+        self.assertTrue(kit.Run(self, BLOCK).script("after_fix", replan_items='["1"]', from_spec="false", **INPUTS)["replan"])
+
     def test_unreadable_items_stop(self):
         got = kit.Run(self, BLOCK).script("after_fix", replan_items='{"x": 1}', **INPUTS)
         self.assertEqual((got["replan"], got["stop_reason"]), (False, "works:line-script"))
