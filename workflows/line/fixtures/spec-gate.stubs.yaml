@@ -132,6 +132,7 @@ fix__finish:
   x_scalars:
     x_moved_lines: 3
   handoffs: []
+  handoff_titles: {}
   mismatched: []
   plan_declared: []
   stop_reason: ''
