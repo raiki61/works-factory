@@ -27,7 +27,7 @@ RAN_FILE = "user-env-ran"
 MARK = "WORKS_FACTORY_USER_ENV_MARK"   # 戻した env にだけ在る、印のパス。子には渡さない
 READ_GH_ENV = "WORKS_FACTORY_READ_GH"   # 読むだけの gh の置き場（起動の殻が置く）
 CONTROL = (RECORD, RAN_DIR_ENV, MARK)   # 工場が置く制御の変数。継いだ値は起動の殻（bin/_lib/isolate.py）と restore が外す
-NOTE = "AI が書いた試験のコードを、利用者の資格に届く環境（利用者の HOME・XDG）で走らせた"
+NOTE = "AI が書いた試験のコードを、あなたの HOME・XDG（設定・認証の置き場）で走らせた。毎回の決まりで、あなたの操作は要らない"
 
 
 def record(env) -> str:

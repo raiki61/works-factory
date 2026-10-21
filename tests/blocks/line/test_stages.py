@@ -16,7 +16,7 @@ def fix(**kw) -> dict:
     got = {"ok": True, "reason": "", "units": [{"unit_id": "u1", "status": "given_up"}], "groups": [{"group_id": "g1"}],
            "conflicts": {"path": "fix/conflicts.json"}, "carry": None, "replan_items": ["1"], "objection": "", "diff": {"path": "fix/diff"},
            "start_tree": "t1", "reply": None, "ruled_reply": None, "scope": None, "checked": {"ok": True, "reason": ""},
-           "allowed_test_changes": ["tests/a.py"], "changed": {"path_changed": False}, "x_scalars": {}, "handoffs": [], "mismatched": [],
+           "allowed_test_changes": ["tests/a.py"], "changed": {"path_changed": False}, "x_scalars": {}, "handoffs": [], "handoff_titles": {}, "mismatched": [],
            "plan_declared": [], "stop_reason": "", "allowed_tests": {"path": "fix/allowed.json"}, "accept_trace": {"path": "fix/trace.json"},
            "closure": {"path": "fix/closure.json"}, "tdd_unit": {"path": "fix/tdd.json"}, "tdd": [{"units": []}], "frozen": None,
            "removed": [], "tdd_refused": {"refused": [], "unread": []}, "item_claims": None, "freeze_off": [], "report": ["- 修正"]}
@@ -189,6 +189,16 @@ class FixedScriptCase(unittest.TestCase):
         old = {k: x for k, x in fix().items() if k != "checked"}
         stopped = run.script("fixed", **{**args, "fix": json.dumps(old)}, **{"raise": json.dumps(v["raise"])})
         self.assertEqual((stopped["go"], stopped["held"], stopped["stop_reason"]), (False, True, "works:line-script"))
+
+    def test_handoff_titles_of_both_fix_stages_reach_the_merged_fix(self):
+        """修正役が添えた題（行 → 題）は、1 度目と 2 度目の修正の分をつなぐ。同じ行は先の修正の題"""
+        run = kit.Run(self, BLOCK)
+        v = values()
+        first = fix(handoffs=["A"], handoff_titles={"A": "題 A", "B": "先の題 B"})
+        again = fix(handoffs=["B", "C"], handoff_titles={"B": "後の題 B", "C": "題 C"})
+        args = {k: json.dumps(x) for k, x in v.items() if k not in ("raise", "fix", "refix")}
+        got = run.script("fixed", **args, fix=json.dumps(first), refix=json.dumps(again), **{"raise": json.dumps(v["raise"])})
+        self.assertEqual(got["handoff_titles"], {"A": "題 A", "B": "先の題 B", "C": "題 C"})
 
 
 if __name__ == "__main__":

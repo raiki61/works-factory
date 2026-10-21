@@ -95,13 +95,27 @@ def urgent_said(apply: dict, outcome: str, run: dict) -> str:
     return f"急ぎでない——壊れた所は無く、{untouched}"
 
 
-def head_lines(happened: str, apply: str, urgent: str, counts: dict, other: str, info: list) -> list:
+def ask_rows(asks: list, counts: dict) -> list:
+    """頭の種ごとの行。asks は [(種, 題)]（題は書いた所が本文と一緒に書いた短い題。無ければ空）。題の在る物は 1 件 1 行 `題（種の頭の言い方）`、
+    題の無い物（古い記録・題を返さなかった役）は今の種の名に戻し、種ごとにまとめて `種`（2 件以上は `（n 件）`）。黙って行を落とさない"""
+    rows, seen = [], set()
+    for kind, title in asks:
+        label = ask_label(kind)
+        if title.strip():
+            rows.append(f"- {title.strip()}（{label}）")
+        elif label not in seen:
+            seen.add(label)
+            n = counts[label] - sum(1 for k, t in asks if ask_label(k) == label and t.strip())
+            rows.append(f"- {label}" + (f"（{n} 件）" if n > 1 else ""))
+    return rows
+
+
+def head_lines(happened: str, apply: str, urgent: str, counts: dict, other: str, info: list, rows: list) -> list:
     """報告の冒頭（機械が組む）: 起きたこと・差分を当ててよいか・急ぎ（事実が在れば）・人が決めること（件数は和の 1 つ）の行と、その下に種ごとの行、
     最後に知らせだけの行。決める物が無ければ「人が決めること」の行に other（次に大事な事実）を置く（「無い」と断る決まり文句は書かない）。
     決める物の本文と種の訳は頭に出さない（見出しに「人が決めること」を持つセクションに在る）"""
     decide = (DECIDE_HEAD + f"{sum(counts.values())} 件（下の行は種類ごと。1 件ずつの本文は見出しに「{writer.DECISIONS_HEAD}」を持つセクション）"
               if counts else other)
-    rows = [f"- {w}" + (f"（{n} 件）" if n > 1 else "") for w, n in counts.items()]
     return [HAPPENED + happened, APPLY_ASK + apply, *([URGENT_HEAD + urgent] if urgent else []), decide, *rows, *[INFO_HEAD + x for x in info]]
 
 
@@ -196,6 +210,7 @@ def build(sections: list, facts: dict, outcome: str, stop_reason: str, run: dict
     left = outcomelib.left_all(facts, run)
     own = outcomelib.outcome_asks(outcome, facts, left)
     asks = [(a["kind"], a["text"]) for a in facts["asks"]] + own
+    titles = [(a["kind"], a.get("title") or "") for a in facts["asks"]] + [(k, "") for k, _ in own]
     counts = ask_counts(asks, facts["tallied"])
     carried = facts["carry"]
     findings, prior, drafts, constraints = carried["findings"], carried["prior"], carried["drafts"], carried["constraints"]
@@ -217,7 +232,7 @@ def build(sections: list, facts: dict, outcome: str, stop_reason: str, run: dict
     happened = "。".join([f"{report.OUTCOME_WORDS.get(outcome, '結末が決まらない')}（{outcome}）",
                           *([f"人が決めること {decisions} 件が残っている"] if decisions else [])])
     top = head_lines(happened, apply_said(facts["apply"], outcome, run_id or "—", decisions), urgent_said(facts["apply"], outcome, run), counts,
-                     other=f"次の run に渡す物: {n_carried} 件", info=head["after"])
+                     other=f"次の run に渡す物: {n_carried} 件", info=head["after"], rows=ask_rows(titles, counts))
     parts = facts["outcome_parts"]
     model_end = "／".join(x for x in (f"結末: {report.OUTCOME_WORDS.get(outcome, '結末が決まらない')}（{outcome}）", parts["gate"], parts["eyes"],
                                        f"次の run に渡す物: {n_carried} 件", f"持ち越した失敗: {len(prior)} 件", parts["data"]) if x)

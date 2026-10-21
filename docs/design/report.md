@@ -86,7 +86,7 @@ run の結末の語（10 語のどれか）と止めた段の語を、line が�
 - `left`: `[{where, text, unmeasured}]`。既定 []。fixed を名乗らせない残りの行（今 `residue` から受け止めた落ちの行を除いた物。`unmeasured` は測れていない素材の行か。今 `_is_material_row`）。
 - `proved`: boolean。既定 false。最後のテストの ok と green と封じの ok が真か（今 `_proved`）。
 - `head`: `{before, stopped, after, notices}`（どれも字の配列。既定 []）。冒頭 1 行目の結末の語の後ろに `。` でつなぐ句。`before` は今の `split_line`・`_pushed_said`、`stopped` は今の `_stopped_why`（止まった結末の時だけ使う）、`after` は今の `_ran_notes`・`suitewrite.head_note`・`userenv.NOTE`。`notices` は冒頭の下に 1 行ずつ載る起こす前の注意（今の line の `notices`）。
-- `asks`: `[{kind, text}]`。既定 []。人が決める物のうち、結末に依らない物（今 `_decisions` の `asks` から、種 `report.CHECKS_LEFT`・「直しきれずに残った物」・「記録が通らないこと」の 3 つを除いた物。問いの種の推しの尾は付けた後の字）。
+- `asks`: `[{kind, text, title?}]`。既定 []。`title` は決める中身を言う短い平易な題で、本文を書いた所が一緒に書く（#812。AI の役が本文を書く項目はその役の返りの形に題の欄を持ち、機械が組む項目は組むコードが決まった字で出す）。無い（古い記録・題を返さなかった役）時は種の名に戻す。人が決める物のうち、結末に依らない物（今 `_decisions` の `asks` から、種 `report.CHECKS_LEFT`・「直しきれずに残った物」・「記録が通らないこと」の 3 つを除いた物。問いの種の推しの尾は付けた後の字）。
 - `tallied`: `{<種>: 整数}`。既定 {}。行の数でなく全件の数で数える種（今の `tallied`。守りのパスに当たった差分）。
 - `counted_left`: 字の配列。既定 []。結末が round_limit の時に「直しきれずに残った物」から外す `where`（今 `counted_units`。直す義務に戻せなかった単位）。
 - `decisions`: `{before, after, outside}`（どれも字の配列。既定 []）。節「1. 人が決めること」の line の行。`before` は今の `_pushed_lines`・`unrestored_lines`・`backed_out_lines` と、`_decisions` の行のうち問いと種の塊（結末に依らない種だけ）、`after` は `_decisions` の残りの行（保留の答え方の行から後の全部）、`outside` は目的の外の所見の件数の行（今 `_outside` の 3 つ目。次の run の依頼の下書きのファイルの名を持たない字にする）。
@@ -205,7 +205,7 @@ node の名の今との違い: `write-reject` → `write-prep`（指示を組む
    - `差分を当ててよいか: ` + `apply_said`（今 `apply_said`・`_apply_answer` を `apply` の欄で書き直した物。今の `_seal_state` は `apply.sealed`・`apply.placed`、`eyes.r2.status == seal.REDESIGN` は `apply.redesign` が空でないか、文の中の語は `apply.redesign` の字。人が決める物の件数は下の `counts` の和）。
    - `急ぎ: ` + `urgent_said`。機械が持つ事実だけで書く: run の記録が読めて落ちたノード（`failed`・`absorbed`）が在れば「壊れた所がある」、結末が `record_invalid`・`interrupted` でも同じ、どちらでもなければ「急ぎでない——壊れた所は無く、対象のリポジトリには何も当てていない」（run は対象に差分を当てない。E17）。run の記録が読めない時は事実が無いので行を出さない（推して書かない）。
    - 人が決める物（`asks` = `facts.asks` + `outcome_asks`）が在れば `人が決めること: {和} 件（下の行は種類ごと。1 件ずつの本文は見出しに「人が決めること」を持つセクション）`、無ければ `次の run に渡す物: {carried} 件`（`carried` = `carry.findings`・`drafts`・`constraints` の数の和）。数は和の 1 つだけを頭に出す（1 つの決めには 1 つの数）。種ごとの件数は `ask_counts`（`tallied` に在る種はその数。種の名は括弧の前の頭の言い方で、同じ頭の種は合わせる）。
-   - その下に種ごとに 1 行 `- {種の頭の言い方}`（2 件以上なら `（{n} 件）`）。決める物の本文は頭に出さず、4 節の `## 1. 人が決めること` に在る。
+   - その下に 1 行ずつ: 題（`asks[].title`）が在る物は 1 件 1 行 `- {題}（{種の頭の言い方}）`、題の無い物は種ごとにまとめて `- {種の頭の言い方}`（2 件以上なら `（{n} 件）`。黙って行を落とさない）。決める物の本文は頭に出さず、4 節の `## 1. 人が決めること` に在る。
    - 最後に `head.after` を 1 行ずつ `知らせ（決めることではない）: {行}`。
 3. `head.notices` が在れば、空行の後に 1 行ずつ。
 4. `## 1. 人が決めること`: `decisions.before` → 結末で決まる人が決める物の塊（種ごとに `{kind}: {n} 件` と `  - {text}`）→ `decisions.after` → `次の run に渡す物: {carried} 件` に、書いた時だけ `（next-request.json）` → `decisions.outside` → 前提の検算の制約の行（`carry.constraints` ごとに `次の run の制約に足す実測（前提の検算）: {text}`）→ 下書きの行（`draft_line(carry.drafts, next_file)`。下書きが無ければ出さない）→ 差分を当てる行（今 `_apply_lines`）→ `apply.commits`。

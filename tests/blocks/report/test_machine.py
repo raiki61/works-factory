@@ -64,6 +64,29 @@ class HeadCase(Base):
         self.assertEqual(stop[2:4], ["- 半分直した", "- 止めた訳 X"])
 
 
+class TitleCase(Base):
+    """決める物の題（facts.asks の title。それを書く所が本文と一緒に書く）。頭の種ごとの行は、題が在れば 1 件 1 行で題を出し、
+    無ければ今の種の名に戻して件数でまとめる（黙って行を落とさない）"""
+    def test_titled_ask_is_one_row_with_its_title_and_kind(self):
+        asks = [{"kind": "修正役が人に回した物（訳）", "text": "長い本文", "title": "検査を緩めてよいか"}]
+        _, text = self.build(asks=asks)
+        top = text.split("\n## ", 1)[0].splitlines()
+        self.assertIn("- 検査を緩めてよいか（修正役が人に回した物）", top)
+        self.assertNotIn("長い本文", "\n".join(top))
+        self.assertIn("人が決めること: 1 件（", text)
+
+    def test_untitled_asks_fall_back_to_the_kind_and_are_still_counted(self):
+        asks = [{"kind": "k", "text": "a", "title": "題 A"}, {"kind": "k", "text": "b"}, {"kind": "k", "text": "c"}]
+        _, text = self.build(asks=asks)
+        top = text.split("\n## ", 1)[0].splitlines()
+        self.assertIn("人が決めること: 3 件（下の行は種類ごと。1 件ずつの本文は見出しに「人が決めること」を持つセクション）", top)
+        self.assertEqual([x for x in top if x.startswith("- ")], ["- 題 A（k）", "- k（2 件）"])
+
+    def test_blank_title_is_untitled(self):
+        _, text = self.build(asks=[{"kind": "k", "text": "a", "title": "  "}])
+        self.assertIn("- k", text.split("\n## ", 1)[0].splitlines())
+
+
 class HeadFor19b99137Case(Base):
     """run 19b99137 の頭（初見の読み手が 3 回とも通さなかった）の止まる所 5 つを、yes/no で縛る。入力の形は記録の facts と同じ"""
     KIND = "修正役が人に回した物（壊すと分かって通した理由。役だけで決めた代償なので人が確かめる）"

@@ -852,6 +852,7 @@ def decisions(values: dict, returns: dict, gates: dict, record: dict, *, unatten
     premise = as_dict(as_dict(returns.get("eyes")).get("premise_check"))
     escalate = [premise] if premise.get("verdict") == "escalate" else []
     handoffs = [x for x in _list(fix.get("handoffs")) if isinstance(x, str)]
+    titles = as_dict(fix.get("handoff_titles"))
     seal = as_dict(returns.get("sealed-diff"))
     hits = [str(h) for h in _list(seal.get("protected_hits"))]
     hit_count = seal.get("protected_count") if isinstance(seal.get("protected_count"), int) else len(hits)
@@ -873,7 +874,8 @@ def decisions(values: dict, returns: dict, gates: dict, record: dict, *, unatten
             before.append(f"  - {text}")
             if n < len(questions):
                 text += "" if gatemarks.PUSH_IN.search(text) else f"——{gatemarks.PUSH}{gatemarks.NO_PUSH}"
-            asks.append({"kind": word, "text": text})
+            title = titles.get(x) if word == fixboard.HANDOFF_HEAD and isinstance(x, str) else None
+            asks.append({"kind": word, "text": text, **({"title": title} if isinstance(title, str) and title.strip() else {})})
     if held_rows:
         before.append(f"  {gatemarks.ANSWER_HOW}")
     after = []

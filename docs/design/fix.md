@@ -82,6 +82,7 @@
 - `ruled_reply`: pointer（`fix-ruled-reply.json`）か null。
 - `scope`: pointer（`scope.json`。`{plan_items, ruled_paths, agreed}`。今の `fixboard.scope_brief`。delta-review が手直しの範囲を照らす）か null（修正案の無い run）。
 - `checked`: `{ok, reason}`。変更の確かめ（今の `assert-changed.json`）。組の形は `{ok: true, reason: ""}`。
+- `handoff_titles`（#812）: `{handoffs の行: 修正役が同じ `breaks` に書いた `accepted_title`}`。題の無い・空白だけの行は入れない。報告の頭が「人が決めること」の題に使う（line の facts が `asks[].title` に写す）。
 - `allowed_test_changes`・`changed`・`x_scalars`・`handoffs`・`mismatched`・`plan_declared`・`stop_reason`・`item_claims`・`tdd_refused`: 今のまま（`stop_reason` は当たったままの組が在れば `stopby.UNRESTORED`、ほかは `""`）。
 - `allowed_tests`・`accept_trace`・`closure`・`tdd_unit`: pointer（`type: ["object","null"]`。今は `anyOf` で書いていた）。README 8.3 の `permits` は `allowed_tests` のこと。
 - `tdd`: 配列。この段の組ごとの TDD の記録（`tdd-unit.json` の中身 `[{group_id, ran, reason, suite, reused, units}]` を値で。組の形は自分の組の 1 行）。r2 の port `tdd`（段ごとの記録の配列）に line が段の順に並べて渡す（今の `fixbeside.tdd` が pointer の先を読んでいた所。r2 の設計書の 10 節の 1）。

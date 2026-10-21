@@ -70,3 +70,26 @@ class HeadPlainCase(unittest.TestCase):
             self.assertTrue(names.get(node), node)
         for node in ("fix", "refix-run", "spec-check-run"):
             self.assertTrue(names.get(node), node)
+
+
+class HandoffTitleCase(unittest.TestCase):
+    """修正役が添えた題（fix の出力 handoff_titles。行 → 題）が、人が決める物の題（asks の title）として報告へ渡る。題が無い行は題なしのまま"""
+    TITLE = "区切りの行だけが残ったファイルを、拒まずに通す検査へ緩める"
+
+    def asks(self, titles):
+        f = kit.load(BLOCK, "facts")
+        run = kit.Run(self, BLOCK)
+        base.seed(run)
+        v = unattended_stop()
+        v["fixed"] = {**v["fixed"], "handoffs": [HANDOFF], "handoff_titles": titles}
+        with run.env(), mock.patch.object(__import__("report"), "CMD_LIGHT", "light", create=True):
+            return [a for a in f.build(v, base.record())["asks"] if a["kind"].startswith("修正役が人に回した物")]
+
+    def test_the_title_the_fixer_wrote_rides_on_the_ask(self):
+        (ask,) = self.asks({HANDOFF: self.TITLE})
+        self.assertEqual(ask["title"], self.TITLE)
+        self.assertIn("markers_left", ask["text"], "本文は字のまま")
+
+    def test_a_line_without_a_title_has_no_title_key(self):
+        (ask,) = self.asks({})
+        self.assertNotIn("title", ask)

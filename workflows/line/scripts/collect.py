@@ -36,7 +36,7 @@ GOT = {
     "independent_design": "ok status stands design premises reason downgrades report",
     "rounds": "done ok status round plan_prior record plan fix_plan reply handoffs ripple owed gave_up stalled capped review asks deviations review_status review_reason stop_reason",
     "fix": "ok reason units groups conflicts carry replan_items objection diff start_tree reply ruled_reply scope checked allowed_test_changes "
-           "changed x_scalars handoffs mismatched plan_declared stop_reason allowed_tests accept_trace closure tdd_unit tdd frozen removed "
+           "changed x_scalars handoffs handoff_titles mismatched plan_declared stop_reason allowed_tests accept_trace closure tdd_unit tdd frozen removed "
            "tdd_refused item_claims freeze_off report",
     "lens": "ok status reason rows ran failed not_routed carry report",
     "delta": "ok status reason rounds pass holes diff carry report",
