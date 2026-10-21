@@ -146,10 +146,12 @@ line は一番上の graph なので、place は run directory の根（README 4
 - `request_scope`（flag）: 入口の差分が空か（`startrec.diff_empty`）。読み手: test-gate の `request_scope`。
 - `prior_rows`: 依頼の容器の `prior_failures` の行の配列（`start` が `prior-failures-in.json` に置いた物の値）。読み手: plan の `prior_failures`。diagnose は依頼の容器から自分で読むので渡さない（diagnose の設計書の 1.2）。
 - `request_answers`: 始めの記録の `answers`（依頼が先に持っていた答え）の配列。読み手: fix の `request_answers`・plan の `answers`・`eyes-in`（記録された方針の行）。
+- `spec_table`: 仕様駆動の道の表の絶対パス（入力 `spec_table`。名指さない run は空）。読み手: `spec-entry`。
+- `routes`: 修正の部品の入力 `routes` の語（仕様駆動の run は `plan`、ほかは `auto`）。読み手: `fix`・`refix-run`。仕様駆動の道の node と配線は [spec-driven.md](spec-driven.md) の 6.2・6.10（start の返りの `from_spec` も同じ）。
 
 `start` のほかの出力は今のまま（`ok`・`stop_reason`・`reason`・`record`〔始めの記録の pointer。line の script だけが読む〕・`prior_failures`・`ask`・`gate_text`・`unattended`・`design_only`・`final_gate`・`from_fixture`・`fixture`）。`spec` と `reuse_dir`・`user_env_dir` は `ports` へ移す。
 
-## 2 承認ノード（4 つ。どれも `wait:` の `attention`・`form: select`・`options` は `approve`・`continue`・`stop`・`reject`）
+## 2 承認ノード（4 つ。仕様駆動の run の修正前の承認ノードは `spec-gate-before-fix`。形は今の `gate-before-fix` と同じ。[spec-driven.md](spec-driven.md) の 6.2。どれも `wait:` の `attention`・`form: select`・`options` は `approve`・`continue`・`stop`・`reject`）
 
 仕様の承認ノードは spec の block の中に在り、line は持たない（README 8.1）。答えの受け方は 4 つとも `lib/answer.py` の `taken`（承認ノードが飛ばされたら前の node の決めをそのまま渡し、answer は null。通す語なら go、ほかの語は `human:<承認ノード>` で止める。一言が空なら既定の文。答えを `gates/<承認ノード>.json` に書く）。
 

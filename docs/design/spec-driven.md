@@ -557,6 +557,20 @@ PR の分け（頼みの 4。1 本ずつレビューに通せる大きさにす�
 7. block の筋書き（未確認の一覧の最後の 1 つ）: 単独の run の筋書きは形 entry で見本の表を読み、照らした結果を持たないので入口の確かめの 5 で止めを返して最後まで届く物（`standalone.stubs.yaml`）と、形 check で判定が回らなかった物（`check.stubs.yaml`）の 2 本。照らしが通る道は block の試験（`tests/blocks/spec_driven/`）だけが照らす。筋書きは exec-code で intake を本当に走らせるので、uv の宣言で PyYAML が入ることも確かめる（[archon.md](archon.md) の「層の E3 の `deps:`」）。
 8. 計画の審査の入力 `proposal` は必須を外し、既定 `""` にした（`proposal_file` と片方だけを名指すため。どちらも空なら入口が「審査する物が空」で止める）。変更の種類は `workflows/AGENTS.md` の P。
 
+### 6.10 3 本目の PR で決めた事（部品の入力と本線の配線）
+
+1. 足す node の並び（6.2）に `spec-check-out`（形 check の受け皿）を足した。`collect` は all_done で集めるので、include の返りを直に読まず受け皿を読む（`tests/blocks/line/test_wiring.py` の決まり）。足す node の id の並びは `tests/blocks/line/test_scenarios.py` の `SPEC_DRIVEN_NODES`。
+2. `trigger_rule` を緩めた足す node（`spec-check`・`spec-gate-before-fix`）の `when:` は、頭を `$start.output.from_spec == true &&` にした。訳: 依頼の文の run でも依る node のどれかが通ると `when:` が評価され、飛ばされた `spec-entry`・`spec-ask-before-fix` の出力を読むと node が落ちる（6.2 の変える node の 2 と同じ打ち切りの形）。
+3. `spec-gate-before-fix` は `depends_on` に今の `gate-before-fix` を足した（`trigger_rule: none_failed_min_one_success`）。訳: Archon は待つ node が 2 つ同時に走りうるグラフを読み込みで拒む（「Suspending nodes … can run concurrently」）。今の `gate-before-fix` の `depends_on` と `trigger_rule` は変えていない。
+4. `spec-check` は `test-gate-base` にも依り、直す前の結末が通った時だけ回る。訳: 直す前の結末が落ちた run で、判定の役が回らなかったことを「直す単位を返さなかった」と読み違えないため。
+5. `spec-plan` には、往復の中の `plan` と同じく `answers`（依頼の answers。仕様駆動の run は空）と `takes_push`（無人の run の方針）も渡す。
+6. `after-fix` と `fixed` に入力 `from_spec` を足した。仕様駆動の run では `after-fix` は案の直しへ進まず、`fixed` は修正の段の異議（判定への異議か、案の直しが要る項目）を `held` にして止めの語 `works:spec-objection`（`workflows/line/src/stages.py` で足す）を返す。再審へも進まない。
+7. `collect` は、仕様駆動の run の値（`spec-rounds` の判定の部と往復の部、`spec-` の付いた承認ノードの返り）を今の欄の名（`judge`・`rounds`・`ask_before_fix`・`answer_before_fix`）に重ねてから報告の材料を組む（`workflows/line/src/specrounds.py` の `collect_values`）。入口の確かめと形 check の報告の行は、報告の節「仕様駆動の道」に載る。止めの語は `spec-entry`・`spec-check`・`spec-rounds` の名で数え、判定の graph が回らないことを続きの切れ目にしない。報告の名の表（`nodenames.json`）に 3 つの名を足した。
+8. 7 章の `routes: plan` でテストの実行器が無い run: TDD の輪は今どおり回らず（`tdd.py` の `NO_SUITE`）、その訳は修正の段の報告に出る。形 check では止めない（実行器の有無は試験の段が決め、形 check の後に分かる物ではないため）。`routes: plan` で `tdd` の単位が 1 つも無い run は、元の結末も取らずに輪を回さない。
+9. 9 章の `request_files` の比べ方: `class_query.how.paths` の各項の頭の `./` と終わりの `/` を外した字が、依頼のファイルのどれかと同じかで比べる。paths が空・ディレクトリ・glob の単位は「どれも依頼のファイルの中」に当たらないとして拒まない。
+10. 6.5 の 8 の筋書き `spec-gate` は、`spec-rounds` の返りを stub で差す（dry-run の置き場に計画の部品の控えのファイルが無く、script が読めないため）。`narrow_asks` が決め手の無い narrows を `asks` の行にすることは `tests/blocks/line/test_spec_rounds.py` が照らす。
+11. 周の鎖（`works-factory-chain`）は入力 `spec_table` を渡さない。鎖の子で使えないことは、この配線で決まる（`start` は照らさない）。
+
 ## 7 修正の部品に direct の道をまとめて選ぶ入力（進め方の 4）
 
 今のコードで確かめた事:
@@ -624,12 +638,12 @@ PR #807 で決めた形（計画と計画の審査の往復を run の前の会�
 - （6.9 の 5 で決めた）起動の殻が照らした結果のファイルの形と env の名（2.6 の 2）。
 - 実装の PR で決める事（PR #809 のレビューの「後でよい物」）:
   - （6.9 の 4 で決めた）2.6 の 2 の d の比べ方: 前の版のこの行は「Archon は `metadata.inputs` に名指さなかった入力の既定値も詰めて残す」と書いたが、止めた Archon の源で確かめると、既定値を詰めて残すのは `workflow:` で起こした子の run だけで、直に起こした run は名指した入力だけを残す（6.9 の 4）。比べる鍵の範囲（組んだ鍵だけか、既定も含めるか）・`proposal_file` の一時のパス（中身の sha256 で比べる）・表と設計書のパスと `entry` の字を対象の根からの相対で組むこと・「表から `reviews` を除いた字」の作り方と、会話の AI が同じ字を組む手段（`lib/spectable.py` を呼ぶ命令を工場の側に置くか）を決める。
-  - 9 章の `request_files` の照らしで、`class_query.how.paths`（git の pathspec。ディレクトリ・glob・絶対パスも来る）をどう正規化して比べるか。`paths` が空（根の全部を探す）の単位は、「`paths` がどれも `request_files` の中」には当たらないとして拒まない。
-  - 7 章の `routes: plan` でも、テストの実行器が無い run では TDD の loop が回らず（`tdd.py` の `NO_SUITE`）、設計書の「TDD で直す所」が黙って direct になりうる。形 check の 6 で止めるか、報告で人に見せるか。
+  - （6.10 の 9 で決めた）9 章の `request_files` の照らしで、`class_query.how.paths`（git の pathspec。ディレクトリ・glob・絶対パスも来る）をどう正規化して比べるか。`paths` が空（根の全部を探す）の単位は、「`paths` がどれも `request_files` の中」には当たらないとして拒まない。
+  - （6.10 の 8 で決めた）7 章の `routes: plan` でも、テストの実行器が無い run では TDD の loop が回らず（`tdd.py` の `NO_SUITE`）、設計書の「TDD で直す所」が黙って direct になりうる。形 check の 6 で止めるか、報告で人に見せるか。
   - （6.9 の 6 で足した）6.5 に、殻（`bin/works-factory`）が `spec_table` も `table` も無い起動で審査の記録を読まず、uv も起こさず、振る舞いが変わらないことを縛る試験を `tests/bin/` に 1 つ足す。
   - （2 本目で書いた）`bin/AGENTS.md` の E15 は「殻は `--input test_cmd=` を照らさない」と書き、#678 で入力の照らしを殻から本線へ移した。殻が `--input spec_table=`・`--input table=` を読んで照らすのはこの向きの外しなので、E15 の文に外しを書く（持ち主の決め `spec-driven-shape` に殻で照らすと書いてあるので、E10 は満たしている）。
   - （2 本目で足した）新しい block を `docs/layers.json` の block の `names` に足す。
-  - 報告の名の表 `workflows/line/src/nodenames.json` に `spec-` の 3 つの node の名を足し、`collect` が「`spec-` の 3 つが在ればそちらを読む」とした所と合わせる。
+  - （6.10 の 7 で足した）報告の名の表 `workflows/line/src/nodenames.json` に `spec-` の 3 つの node の名を足し、`collect` が「`spec-` の 3 つが在ればそちらを読む」とした所と合わせる。
   - （6.9 の 7 で決めた）block `works-factory-spec-driven` の standalone の筋書きで、照らしが通る道も 1 本見せるか（筋書きは script の node を stub にできる。[archon.md](archon.md) の U3）。見せないなら、照らしが通る道は block の試験（`tests/blocks/spec_driven/`）だけが照らす。
 - 計画の部品の指示に足す `routes` の段落（7 章）で、計画の AI が「TDD で直す所」を行に正しく写すか。実装の後の本物の run（進め方の 7）で見る。
 - 2.5 の 2 周目（指摘を受けて直した版で回し直す）と、工場の run の入口の照らしの本物の通し。
