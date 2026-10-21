@@ -42,7 +42,7 @@ DESIGN_ONLY_REFUSED = "周の鎖は design_only と組めない（設計だけ�
 FIX_FIXTURE_REFUSED = ("周の鎖は fix_fixture と組めない（固定材料は 1 つの run の修正の前の写しで、2 周目からの依頼と木はそれと違う。"
                        "固定材料はメイングラフの run 1 つに名指す）")
 SPEC_TABLE_REFUSED = ("周の鎖は spec_table と組めない（仕様駆動の道の表は 1 つの run の入口で、2 周目からの依頼は前の周の残り。"
-                      "表はメイングラフの run 1 つに名指す）")
+                      "鎖の入口は表を読めない〔PyYAML を持たない〕ので、中身を見ずに拒む。表はメイングラフの run 1 つに名指す）")
 
 
 def refused(reason: str) -> dict:

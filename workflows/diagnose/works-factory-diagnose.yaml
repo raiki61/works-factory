@@ -25,7 +25,7 @@ inputs:
   spec: {default: '', description: 'file: 固めた仕様（spec.json）。空は仕様の段が無い。再審の道だけが読む'}
   verify: {default: '', description: 'file: 判定の裏取りの結果。空は裏取りが無い。再審の道だけが読む'}
   excluded: {default: '', description: 'file: 並行 PR の外す範囲（pr-excluded.json）。空は渡されていない。再審の道だけが読む'}
-  request_files: {default: '[]', description: 'json(request-files.schema.json): 依頼そのものを書いたファイルのパスの配列（対象の根から）。探し方の paths がどれもこの中の単位は受け付けが拒む（数えるのは直す所で、依頼の文ではない）。空の配列は照らさない。判定の道だけが読む'}
+  request_files: {default: '[]', description: 'json(request-files.schema.json): 依頼そのものを書いたファイルのパスの配列（対象のリポジトリの根からの相対パス）。単位の数える問いの探す所（how.paths）が全部この配列のファイルに当たる単位は、判定の返答の受け付けが拒む（数える問いが数えるのは直す所で、依頼の文ではない）。空の配列は照らさない。判定の道だけが読む'}
   lang: {default: '', description: 'text: 人に見せる欄（判定役の reason・origin_analysis・why_chain・prescriptions・framing・one_shot・問いの reason・resolution・options・先行例の problem・reason・searched・undecided_because・目的の外の why_outside・結びの none・class_query の note ほか、再審の役の new_facts・reason）の言語。空は依頼の行の言語'}
 returns: finish
 outcome_field: ok

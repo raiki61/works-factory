@@ -232,15 +232,17 @@ class SpecDrivenScenariosTest(unittest.TestCase):
     def test_refused_spec_run_wakes_no_ai(self):
         """入口の確かめで止まった run は試験の段（中に AI の段を持つ）・判定の役・計画の部品へ届かない"""
         trace = self.traces["spec-refused"]
-        for node in ("test-gate-base__intake", "spec-diagnose__intake", "spec-plan__intake", "fix-in"):
+        for node in ("test-gate-base__intake", "spec-diagnose__intake", "spec-plan__intake", "fix__intake"):
             self.assertFalse(ran(trace, node), node)
+        self.assertIs(out(trace, "fix-in")["go"], False, "fix-in はどの run でも回り、修正へ進まない値を返す")
         self.assertEqual(out(trace, "result")["stop_reason"], "spec-entry:works:spec-entry")
 
     def test_spec_run_carries_the_spec_values_to_the_fix(self):
         trace = self.traces["spec-driven"]
         fix_in = out(trace, "fix-in")
         self.assertEqual((fix_in["go"], fix_in["switches"]["tier"], fix_in["purpose_text"]), (True, "標準", "空の列でも mean が落ちない"))
-        self.assertEqual(bound(trace, nodes()["fix"]["with"]["routes"]), "plan")
+        self.assertEqual(nodes()["fix"]["with"]["routes"], "$start.output.ports.routes")
+        self.assertEqual(out(trace, "start")["ports"]["routes"], "plan")
 
 
 class DefaultDeliverTest(unittest.TestCase):

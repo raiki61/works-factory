@@ -1,7 +1,7 @@
 # block の設計書: prior-decisions（先行議論の突合）
 
 - 何の話か: 対象差分が触れる領域（差分が空なら依頼が指す場所）の決定記録を洗い、決着済みの論点を集める素材の観点「先行議論の突合」を、単独で呼べる block `workflows/prior-decisions/` にする設計。素材の観点の族の 1 本目で、族の共通の形は [materials.md](materials.md) に従う。型は [README.md](README.md)、手本は [world.md](world.md)。
-- 決めたこと: 今の judge の `material-route` の 1 列と `prior-decisions-loop`（prep・役・accept の 3 つの node）を、5 つの node（intake・prep・役・accept・finish）の block にする。入力は差分の根・依頼の行・判定から入る run の出どころ・言語の 4 つの port だけで、run の記録を読まない。指示は 1 本の英語の md（`prompts/prior-decisions.md`）にし、今は別のファイル（`material-prior-decisions-brief.md`）に描いて役に Read させた材料を、指示の中に直に入れる。決着済みの論点の行（`settled`）は今と同じ形で `material.json` に残り、記録された方針の読み手（`policy.recorded`）が今の読み方のまま読む。振る舞いは変えない。
+- 決めたこと: 今の判定の工程（judge。1 つの YAML で、素材を集める役 11 本をまとめて回す）の中で、この観点を回すかを決める node `material-route` の 1 列と `prior-decisions-loop`（prep・役・accept の 3 つの node。役は、指示を読んで前の決めの記録を探す AI の node）を、5 つの node（intake・prep・役・accept・finish）の block にする。入力は 4 つの port だけで（1. 差分の根、2. 依頼の行、3. 出どころの文、4. 言語）、run の記録を読まない。3 の出どころの文は、判定から入る run（差分を作らず、今のコードへの依頼を判定の段から始める run）でだけ渡す、その依頼がどこから来たかを書いた文（例「人の依頼（req.json）」）。指示は 1 本の英語の md（`prompts/prior-decisions.md`）にし、今は別のファイル（`material-prior-decisions-brief.md`）に描いて役に Read させた材料を、指示の中に直に入れる。決着済みの論点の行（`settled`）は今と同じ形で `material.json` に残り、記録された方針の読み手（`policy.recorded`）が今の読み方のまま読む。振る舞いは変えない。
 - 持ち主に求めること: なし。
 - 読む人と使い方: この block を作る実装者（1〜3 節の名と順をそのまま作る）と、残りの 10 本の観点の設計書の書き手（写す手本）。素材の観点の族の共通の部品と同じ PR に入る（README の 11.1 の 1 波目）。
 
@@ -10,7 +10,7 @@
 - 所見の場所: 返答の中の、`where`（字）と `text`（字）を両方持つ行の `where` に書いた `<パス>:<行>`（`materialkit.where_rows` が拾う物）。この役の返答では `settled` の行は `text` を持たないので当たらない。今の受け付けの照らしと同じ（`lib/judge_accept.py:2463-2487`）。
 
 - 突合の役（prior-decisions）: 決定記録（ADR・意図的保留の台帳・issue や PR の棄却済み一覧・closed issue）を洗い、決着済みの論点を返す AI の役。道具は Read・Grep・Glob・Bash・WebSearch・WebFetch。Bash は網の閉じた sandbox の中で走る。
-- 依頼の行とぶつかる決め: 返答の任意の欄 `conflicts` の 1 行 `{decision, where, why}`（`where` は依頼の行の where。無ければ空の配列）。返答のまま `material.json` の `reply` に残り、今の読み手は読まない。仕様駆動の道の入口の確かめが指摘として数える（[spec-driven.md](spec-driven.md) の 2.5 の詰まった所の 4）。
+- 依頼の行とぶつかる決め: 返答の任意の欄 `conflicts` の 1 行 `{decision, where, why}`（`where` は依頼の行の where。ぶつかる決めが無ければ `conflicts` は空の配列）。返答のまま `material.json` の `reply` に残り、今の読み手は読まない。仕様駆動の道（仕様の表から run を始める道）の入口で機械が表を照らす時、`conflicts` の各行を指摘の 1 つとして数え、表の `findings` に、その行を指す key が在るかを確かめる。`conflicts` の行は key の欄を持たないので、機械が探す key は `prior-<行の番号>`（行の番号は `conflicts` の配列の中でのその行の番号）と決めてある（[spec-driven.md](spec-driven.md) の 2.6 の 2 の e。`conflicts` の欄そのものを返答に足すと決めたのは同じ文書の 2.5 の詰まった所の 4）。
 - 決着済みの論点: 返答の `settled` の 1 行 `{topic, decision, reason, revisit, where}`。後の役（判定・修正案・事前審査・修正・R3・R4）に「記録された方針」の行として渡り、`where` がその行の名指しになる（`lib/policy.py:186-208`）。
 - 例の run: 本物の run `df5e111f-ea97-409b-8066-2245d32746ab`（対象 raiki61/works-factory。置き場 `~/.local/state/works-factory/targets/6c76444e/archon-home/workspaces/raiki61/works-factory/artifacts/runs/df5e111f-…/judge/`）。判定から入る run で、差分は空、依頼の行は 1 件。突合の役は 1 回目で受け付けを通った（`material-prior-decisions.json` の `materials.prior_decisions.status` が `found`、`settled` が 3 行）。骨組みの値はここから取った。world.md と同じ run。
 

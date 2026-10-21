@@ -229,26 +229,6 @@ delta-review__finish:
   carry: []
   report:
   - '- 差分の審査: 通った'
-parallel-pr-after__scan:
-  go_role: false
-  reason: ''
-parallel-pr-after__finish:
-  ok: true
-  status: clean
-  stop_reason: ''
-  reason: ''
-  material:
-    status: clean
-    checked: 開いている PR は無い
-  excluded:
-    type: archon_artifact
-    run_id: dry-run
-    path: parallel-pr/pr-excluded.json
-  drafts: null
-  reads: null
-  downgrades: []
-  report:
-  - '- 並行 PR: clean'
 test-gate-final__intake:
   ok: true
   reason: ''
