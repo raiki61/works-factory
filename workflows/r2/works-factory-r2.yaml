@@ -12,7 +12,7 @@ inputs:
   request: {default: '', description: 'file: 依頼のファイル（工場の依頼の JSON。本文の名指しの章を読む）。空は依頼のファイルが無い'}
   changed: {default: '{}', description: 'json(shared:fix-marks.schema.json): 修正の印（真偽の欄と前提のずれの申告の文 premise_drift_note）。空のオブジェクトは渡されていない'}
   constraints: {default: '[]', description: 'json(shared:constraints.schema.json): 記録の制約の配列 [{text, measured_how, kind, measured_output?}]（それを constraints の欄に持つオブジェクトでもよい）。空の配列は無い'}
-  test_outcomes: {default: 'null', description: 'json(r2-outcomes.schema.json): テストごとの base と最後の結末 {rows, unmeasured}。null は渡されていない'}
+  test_outcomes: {default: 'null', description: 'json(r2-outcomes.schema.json): 全件の機械集計と完全な結果の参照 {summary, details, unmeasured}。null は渡されていない'}
   tdd: {default: 'null', description: 'json(r2-tdd.schema.json): 修正の段ごとの TDD の記録（段ごとに、組ごとの記録の配列か、読めない訳の字）。null は渡されていない'}
   lang: {default: '', description: 'text: 人に見せる欄（reason・differences の text・key・assumption・evidence・resolution・facts_to_add）の言語。空は依頼の言語'}
 returns: finish
