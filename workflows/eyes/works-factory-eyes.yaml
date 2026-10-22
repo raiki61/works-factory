@@ -26,7 +26,7 @@ inputs:
   design_reason: {default: '', description: 'text: 独立設計が無い訳（独立設計の block の出力 reason）。空は訳が無い'}
   design_premises: {default: 'null', description: 'json(eyes-design-premises.schema.json): 独立設計の控え（独立設計の block の出力 premises の先）。null は控えが無い'}
   constraints: {default: '[]', description: 'json(shared:constraints.schema.json): 記録の制約（前提の実測の出力 constraints）。空の配列は無い'}
-  test_outcomes: {default: 'null', description: 'json(eyes-outcomes.schema.json): テストごとの base と最後の結末 {rows, unmeasured}。null は渡されていない'}
+  test_outcomes: {default: 'null', description: 'json(eyes-outcomes.schema.json): 全件の機械集計と完全な結果の参照 {summary, details, unmeasured}。null は渡されていない'}
   tdd: {default: 'null', description: 'json(eyes-tdd.schema.json): 修正の段ごとの TDD の記録。null は渡されていない'}
   ripple: {default: '', description: 'file: 波及の一覧（修正案の出力 ripple の先）。空は渡されていない'}
   world_rows: {default: '', description: 'file: 定石の行（world の block の出力 rows の先）。空は渡されていない'}

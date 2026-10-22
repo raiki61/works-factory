@@ -20,28 +20,25 @@ TRANSITIONS = {"赤→緑": "base で赤・最後に緑", "緑→緑": "base で
 def outcome_side(outcome: str) -> str:
     if outcome in baseline_red.FAILED:
         return "赤"
-    return {"passed": "緑", "skipped": "飛ばし", "": "測っていない"}.get(outcome, outcome)
+    return {"passed": "緑", "skipped": "飛ばし", "": "片側に居ない"}.get(outcome, outcome)
 
 
 def outcome_lines(test_outcomes) -> list[str]:
-    """テストを移り方ごとにまとめ、移り方の行の下に全部のテストを名指す（緑→緑も省かない。赤の側は結末と落ちた文を添える）"""
+    """機械の集計と読める全件ファイルのパスだけを渡す。全件を再展開しない。"""
     if not isinstance(test_outcomes, dict):
         return ["- 試験の関門がテストごとに base と最後を比べた結果（test_outcomes）が渡っていない。どのテストが base と最後に緑か赤かは分からない"]
+    out = [f"- 全件の結果ファイル: `{test_outcomes['details']}`"] if test_outcomes.get("details") else []
     if test_outcomes.get("unmeasured"):
-        return [f"- 比べていない（{oneline.one_line(test_outcomes['unmeasured'])}）。テストごとの base と最後の結末は測っていない"]
-    groups: dict[str, list[str]] = {t: [] for t in TRANSITIONS}
-    for r in test_outcomes.get("rows") or []:
-        base, final = r.get("base") or "", r.get("final") or ""
-        notes = [f"{side} {o}" for side, o in (("base", base), ("最後", final)) if o in baseline_red.FAILED]
-        if notes and (why := oneline.one_line(r.get("fail_message") or "")[:200]):
-            notes[-1] += f": {why}"
-        groups.setdefault(f"{outcome_side(base)}→{outcome_side(final)}", []).append(
-            f"  - `{r.get('key')}`" + (f"（{'・'.join(notes)}）" if notes else ""))
-    out = []
-    for move, rows in groups.items():
-        if rows:
-            out += [f"- {move}{f'（{TRANSITIONS[move]}）' if move in TRANSITIONS else ''}: {len(rows)} 件", *rows]
-    return out or ["- 無い（base と最後のどちらの一式にもテストが居ない）"]
+        return out + [f"- 比べていない（{oneline.one_line(test_outcomes['unmeasured'])}）。テストごとの base と最後の結末は測っていない"]
+    summary = test_outcomes["summary"]
+    out += [f"- 比較: {summary['total']} 件（base の絞り: {str(summary['baseline_narrow']).lower()}）",
+            f"- 新規失敗: {summary['introduced']} 件・元からの失敗: {summary['inherited']} 件・原因未分類の失敗: {summary['unclassified']} 件"]
+    for side in ("base", "final"):
+        out.append(f"- {side}: " + "・".join(f"{k}: {v}" for k, v in summary[side].items()))
+    for row in summary["transitions"]:
+        move = f"{outcome_side(row['base'])}→{outcome_side(row['final'])}"
+        out.append(f"- {move}{f'（{TRANSITIONS[move]}）' if move in TRANSITIONS else ''}: {row['count']} 件")
+    return out
 
 
 def tdd_record_lines(stages) -> list[str]:

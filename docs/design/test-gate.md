@@ -55,6 +55,18 @@ port でない環境（起動の殻が渡す。今と同じ）: 取り置きの�
 - `related`: 関わる試験の選び `{applied, whole, files, left, far, reasons, ran}`（14 節）。道 (1)(2) は `applied: false`。
 - `report`: 報告に載せる日本語の行の配列（10 節）。
 
+`test_outcomes` は base で null、final で `{summary, details, unmeasured}`。
+
+- 全件の従来の `{rows, unmeasured}` は `src/files.py` の `OUTCOMES`（`test-outcomes.json`）に保存し、`details` はその既存の Archon pointer。順・重複鍵の先勝ち・片側に居ない `""`・完全な `fail_message` は `baseline_red.test_outcomes` のまま。入口の掃除で自分の全件ファイルも消す。
+- `summary` は全件から機械で作る `{total, base, final, transitions, introduced, inherited, unclassified, baseline_narrow}`。両側の件数は `passed`・`failure`・`error`・`skipped`・`absent`（片側欠落）、移り方は `{base, final, count}`。
+- 新規失敗は元で passed、または絞っていない base に居ない赤。元からの失敗は両側の赤、それ以外の赤は未分類。これは赤の行の集計で、合否は従来の `green_cert.classify`・`certify` が決める。
+- 未計測なら summary は null、従来の訳を unmeasured に保つ。内部の失敗では details も null とし、緑扱いしない。
+
+受け渡しの変更の E11 の答え:
+1. Archon は同じ run のファイルの pointer を持つ（`docs/design/archon.md`、`artifact-pointer.ts`）。解決も既存の `ports.file` を使い、運搬・上限変更・独自 resolver は足さない。
+2. ASF もファイルの参照と認証の記録を使う（`docs/asf-notes.md` A3・A4、固定版の `.archon/workflows/sdlc/.shared/io.ts` の stdout 契約・`.shared/typed.ts` の `readTyped`）。工場の修正前後の全件比較を代行する物ではないので、コードは写さない。
+3. 必要なのは機械の全件比較と証拠を受信上限で失わずに渡す変更だけ。9 節の keep-essence 1・2・6 と元から赤の区別を保ち、R2 が全件を再展開せず必要詳細を読む。入力・費用への効果は未測定。
+
 `ok` の意味は今のまま: base は直す前の結末を控えて鎖を進めてよいか、final は緑を認証したか。`baseline`・`evidence` の pointer の `path` は place の中の相対のパス（`<include の道>/baseline.json` など）。
 
 今との違い: 今は入力を `start`（始めの記録の pointer。`test_cmd`・`tdd_suite`・`base_rev`・`run_id`・入口の差分が空か・依頼のファイルを読む）・`mode`・`baseline`・`reuse_dir`・`user_env_dir` で受け、TDD の実行器を始めの記録の `tdd_suite` に書き込んで後ろの段に渡していた（`lib/suitewrite.py` の `settle`）。block は始めの記録を読まず書かない（README 4.2・4.3）。実行器は出力の `suite` で返し、line が fix と final の test-gate の `tdd_suite` に配る。

@@ -1,0 +1,19 @@
+{
+  "description": "完全な修正前後の試験結果ファイル。機械検査だけに使い、全件を指示へ展開しない",
+  "type": "object", "additionalProperties": false, "required": ["rows", "unmeasured"],
+  "properties": {
+    "rows": {
+      "type": "array",
+      "items": {
+        "type": "object", "additionalProperties": false, "required": ["key", "base", "final", "fail_message"],
+        "properties": {
+          "key": {"type": "string"},
+          "base": {"type": "string", "enum": ["passed", "failure", "error", "skipped", ""]},
+          "final": {"type": "string", "enum": ["passed", "failure", "error", "skipped", ""]},
+          "fail_message": {"type": "string"}
+        }
+      }
+    },
+    "unmeasured": {"type": "string"}
+  }
+}

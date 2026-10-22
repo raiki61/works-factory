@@ -67,6 +67,34 @@ def test_outcomes(base, run: dict) -> tuple:
     return None, {"rows": [], "unmeasured": why}
 
 
+def outcome_summary(compared: dict, narrow: bool) -> dict | None:
+    """全件の比較から件数だけを取る。飛ばしと片側欠落は別に数え、絞った base に無い赤は新規失敗に数えない。"""
+    import baseline_red
+    if compared["unmeasured"]:
+        return None
+    sides = {s: {o: 0 for o in (*baseline_red.OUTCOMES, "absent")} for s in ("base", "final")}
+    moves = {}
+    reds = {"introduced": 0, "inherited": 0, "unclassified": 0}
+    for row in compared["rows"]:
+        b, f = row["base"], row["final"]
+        for side, outcome in (("base", b), ("final", f)):
+            sides[side][outcome or "absent"] += 1
+        moves[b, f] = moves.get((b, f), 0) + 1
+        if f in baseline_red.FAILED:
+            kind = ("inherited" if b in baseline_red.FAILED else
+                    "introduced" if b == "passed" or (not b and not narrow) else "unclassified")
+            reds[kind] += 1
+    return {"total": len(compared["rows"]), **sides,
+            "transitions": [{"base": b, "final": f, "count": n} for (b, f), n in moves.items()],
+            **reds, "baseline_narrow": narrow}
+
+
+def outcome_record(place, compared: dict, narrow: bool) -> dict:
+    """従来の全件 {rows, unmeasured} を保存し、出力には要約と既存の pointer だけを載せる。"""
+    path = write(place, files.OUTCOMES, json.dumps(compared, ensure_ascii=False, indent=1) + "\n")
+    return {"summary": outcome_summary(compared, narrow), "details": ports.pointer(path), "unmeasured": compared["unmeasured"]}
+
+
 def gate_fields(run: dict, suites: str, base_line: str, why: str) -> dict:
     """返りの欄 by・suites_line・log・baseline_line・reason（字の値は 1 行に畳む）"""
     import oneline
@@ -182,7 +210,8 @@ def certified(place, optional_raw) -> dict:
                                  material_reason=(material or {}).get("reason"))
     out = {"mode": mode, "ok": ok, "green": green, "red_cause": red_cause,
            "ran_steps": runner_steps(run) if role else green_cert.ran_steps(run["runs"], run["junit_unran"]),
-           "baseline": None, "fingerprint": None, "test_outcomes": rows}
+           "baseline": None, "fingerprint": None,
+           "test_outcomes": outcome_record(place, rows, bool(base and base.get("narrow"))) if mode == "final" else None}
     state = suite.load(place)
     if mode == "base":
         baseline_red.write_baseline(place / files.BASELINE, suite=state.get("tdd_suite") or "", test_cmd=doc["test_cmd"],
@@ -231,7 +260,7 @@ def failed(place, error: BaseException) -> dict:
     pointer = _pointer(place, name)
     return {"mode": mode, "ok": False, "green": False, "red_cause": "incomplete", "ran_steps": {"ran": [], "unran": []},
             "baseline": None, "fingerprint": None,
-            "test_outcomes": {"rows": [], "unmeasured": INNER_ERROR} if mode == "final" else None,
+            "test_outcomes": {"summary": None, "details": None, "unmeasured": INNER_ERROR} if mode == "final" else None,
             "evidence": pointer, "by": "", "suites_line": "", "log": "", "baseline_line": "", "reason": INNER_ERROR,
             "optional": [], "suite": _port_suite(place), "suite_note": "", "related": files.NOT_PICKED,
             "report": [f"試験の関門（{mode}）: {INNER_ERROR}（工場の不具合）——{pointer['path']}"]}

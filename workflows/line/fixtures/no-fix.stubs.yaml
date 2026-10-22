@@ -128,9 +128,7 @@ test-gate-final__result:
     unran: []
   baseline: null
   fingerprint: {head: hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh, diff_hash: dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd}
-  test_outcomes:
-    rows: []
-    unmeasured: ''
+  test_outcomes: {"summary": {"total": 0, "base": {"passed": 0, "failure": 0, "error": 0, "skipped": 0, "absent": 0}, "final": {"passed": 0, "failure": 0, "error": 0, "skipped": 0, "absent": 0}, "transitions": [], "introduced": 0, "inherited": 0, "unclassified": 0, "baseline_narrow": false}, "details": {"type": "archon_artifact", "run_id": "dry-run", "path": "test-gate-final/test-outcomes.json"}, "unmeasured": ""}
   evidence: {type: archon_artifact, run_id: dry-run, path: test-gate-final/evidence.json}
   by: engine
   suites_line: '走らせた: suite（exit 0・direct）／走らせなかった: 無い'

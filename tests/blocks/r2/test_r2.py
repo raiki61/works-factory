@@ -55,6 +55,14 @@ class _RepoCase(unittest.TestCase):
         path.write_text(text, encoding="utf-8")
         return path
 
+    def outcomes(self, summary) -> str:
+        path = self.run.artifacts / "complete-tests.json"
+        rows = [{"key": f"test_{n}", "base": r["base"], "final": r["final"], "fail_message": ""}
+                for r in summary["transitions"] for n in range(r["count"])]
+        path.write_text(dump({"rows": rows, "unmeasured": ""}), encoding="utf-8")
+        return dump({"summary": summary, "details": {"type": "archon_artifact", "run_id": kit.RUN_ID,
+                                                     "path": path.relative_to(self.run.artifacts).as_posix()}, "unmeasured": ""})
+
     def intake_json(self) -> dict:
         return json.loads((self.place / "intake.json").read_text(encoding="utf-8"))
 
@@ -89,27 +97,88 @@ class CompareRoadCase(_RepoCase):
         none = self.compare()["prompt"]
         self.assertIn("test_outcomes）が渡っていない", none)
         self.assertIn("修正の段が走っていない", none)
-        outcomes = {"rows": [{"key": "tests.test_stats.TestStats::test_clamp_above_range", "base": "failure", "final": "passed",
-                              "fail_message": "AssertionError: 0 != 10"}], "unmeasured": ""}
+        outcomes = self.outcomes({"total": 1, "base": {"passed": 0, "failure": 1, "error": 0, "skipped": 0, "absent": 0},
+                                  "final": {"passed": 1, "failure": 0, "error": 0, "skipped": 0, "absent": 0},
+                                  "transitions": [{"base": "failure", "final": "passed", "count": 1}],
+                                  "introduced": 0, "inherited": 0, "unclassified": 0, "baseline_narrow": False})
         tdd = [[{"group_id": "g1", "ran": True, "reason": "", "suite": "", "reused": {},
                  "units": [{"unit_key": "u1", "route": "tdd", "red": "ok", "green": "ok",
                             "tests": ["tests/test_stats.py::TestStats::test_clamp_above_range"]}]}]]
-        self.intake(test_outcomes=dump(outcomes), tdd=dump(tdd))
+        self.intake(test_outcomes=outcomes, tdd=dump(tdd))
         got = self.compare()["prompt"]
-        self.assertIn("  - `tests.test_stats.TestStats::test_clamp_above_range`（base failure: AssertionError: 0 != 10）", got)
+        self.assertIn("- 赤→緑（base で赤・最後に緑）: 1 件", got)
+        self.assertIn(str(self.run.artifacts / "complete-tests.json"), got)
+        self.assertIn("Read only the details needed", got)
         self.assertIn("u1: 赤 ok・緑 ok", got)
         self.assertIn("名指しのテスト tests/test_stats.py::TestStats::test_clamp_above_range", got)
 
     def test_green_to_green_tests_are_named_in_the_compare_prompt(self):
         """test_rename_without_red_puts_the_green_tests_in_the_compare_prompt（issue #384）"""
         names = [f"tests.test_stats.TestMedian::test_{n}" for n in ("odd", "even", "single")]
-        outcomes = {"rows": [{"key": k, "base": "passed", "final": "passed", "fail_message": ""} for k in names], "unmeasured": ""}
-        self.intake(test_outcomes=dump(outcomes))
+        outcomes = self.outcomes({"total": 3, "base": {"passed": 3, "failure": 0, "error": 0, "skipped": 0, "absent": 0},
+                                  "final": {"passed": 3, "failure": 0, "error": 0, "skipped": 0, "absent": 0},
+                                  "transitions": [{"base": "passed", "final": "passed", "count": 3}],
+                                  "introduced": 0, "inherited": 0, "unclassified": 0, "baseline_narrow": False})
+        self.intake(test_outcomes=outcomes)
         text = self.compare()["prompt"]
         self.assertIn("- 緑→緑（base でも最後でも緑）: 3 件", text)
         for k in names:
-            self.assertIn(f"  - `{k}`\n", text)
-        self.assertLess(text.index(names[-1]), text.index("Before you write that something is missing"))
+            self.assertNotIn(f"  - `{k}`\n", text)
+        self.assertLess(text.index("- 緑→緑"), text.index("Before you write that something is missing"))
+
+    def test_large_outcomes_are_referenced_and_missing_reference_is_not_pass(self):
+        """読める pointer は ports.file でパスにするだけ。全件を指示に貼らず、欠損・別 run・null の参照は通さない。"""
+        summary = {"total": 1, "base": {"passed": 1, "failure": 0, "error": 0, "skipped": 0, "absent": 0},
+                   "final": {"passed": 0, "failure": 1, "error": 0, "skipped": 0, "absent": 0},
+                   "transitions": [{"base": "passed", "final": "failure", "count": 1}],
+                   "introduced": 1, "inherited": 0, "unclassified": 0, "baseline_narrow": False}
+        value = json.loads(self.outcomes(summary))
+        path = self.run.artifacts / "complete-tests.json"
+        path.write_text(dump({"rows": [{"key": "tail", "base": "passed", "final": "failure", "fail_message": "x" * 1100000}],
+                              "unmeasured": ""}), encoding="utf-8")
+        self.assertTrue(self.intake(test_outcomes=dump(value))["compare"])
+        prompt = self.compare()["prompt"]
+        self.assertLess(len(prompt.encode()), 30000)
+        self.assertNotIn("x" * 1000, prompt)
+        self.assertIn(str(path), prompt)
+        for details in ({**value["details"], "path": "missing.json"}, {**value["details"], "run_id": "another-run"}, None):
+            with self.subTest(details=details):
+                out = self.intake(test_outcomes=dump({**value, "details": details}))
+                self.assertFalse(out["compare"])
+                self.assertIn("test_outcomes", out["reason"])
+                self.assertFalse(self.finish()["ok"])
+
+    def test_summary_side_counts_reject_wrong_types_and_negative_values(self):
+        """既存の検査器が処理する properties で、両側の全種類の件数を非負整数として照らす。"""
+        summary = {"total": 0, "base": {"passed": 0, "failure": 0, "error": 0, "skipped": 0, "absent": 0},
+                   "final": {"passed": 0, "failure": 0, "error": 0, "skipped": 0, "absent": 0}, "transitions": [],
+                   "introduced": 0, "inherited": 0, "unclassified": 0, "baseline_narrow": False}
+        good = json.loads(self.outcomes(summary))
+        for side in ("base", "final"):
+            for outcome in summary[side]:
+                for wrong in ("0", -1, {}):
+                    with self.subTest(side=side, outcome=outcome, wrong=wrong):
+                        value = json.loads(dump(good))
+                        value["summary"][side][outcome] = wrong
+                        out = self.intake(test_outcomes=dump(value))
+                        self.assertFalse(out["compare"])
+                        self.assertIn("test_outcomes", out["reason"])
+                        self.assertFalse(self.finish()["ok"])
+
+    def test_existing_broken_details_are_not_accepted_as_measured_evidence(self):
+        """E23: 正しい集計でも全件ファイルが空・切れた JSON・形違いなら比較も finish の緑も許さない。"""
+        summary = {"total": 0, "base": {"passed": 0, "failure": 0, "error": 0, "skipped": 0, "absent": 0},
+                   "final": {"passed": 0, "failure": 0, "error": 0, "skipped": 0, "absent": 0}, "transitions": [],
+                   "introduced": 0, "inherited": 0, "unclassified": 0, "baseline_narrow": False}
+        value = self.outcomes(summary)
+        for broken in ("", '{"rows": [', '[]', '{"rows": [{}], "unmeasured": ""}',
+                       '{"rows": [], "unmeasured": 1}'):
+            with self.subTest(broken=broken):
+                (self.run.artifacts / "complete-tests.json").write_text(broken, encoding="utf-8")
+                out = self.intake(test_outcomes=value)
+                self.assertFalse(out["compare"])
+                self.assertIn("test_outcomes", out["reason"])
+                self.assertFalse(self.finish()["ok"])
 
     def test_origin_names_the_pr_diff_and_the_fix_diff_apart(self):
         """test_prep_names_the_pr_diff_and_the_fix_diff_apart（issue #384）: head の port で"""

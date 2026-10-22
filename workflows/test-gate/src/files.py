@@ -27,6 +27,7 @@ IMPACT = "impact"
 SUITE = "suite"
 SUITE_LOGS = ("suite-suite.log", "suite-suite-again.log", "junit-suite.xml")
 BASELINE = "baseline.json"
+OUTCOMES = "test-outcomes.json"
 EVIDENCE = "evidence.md"
 FAILURE = "failure.txt"
 PROMPT_GLOBS = ("suite-write-prompt-*.md",)
@@ -35,7 +36,7 @@ PROMPT_GLOBS = ("suite-write-prompt-*.md",)
 def own_files(place) -> list[pathlib.Path]:
     """place の中のこの block のファイルとフォルダ（logs/ は含めない。走りごとのログは上書きせず残す）"""
     place = pathlib.Path(place)
-    names = [INTAKE, SUITE_STATE, RUN, JUNIT, IMPACT, SUITE, *SUITE_LOGS, BASELINE, EVIDENCE, FAILURE]
+    names = [INTAKE, SUITE_STATE, RUN, JUNIT, IMPACT, SUITE, *SUITE_LOGS, BASELINE, OUTCOMES, EVIDENCE, FAILURE]
     found = [place / name for name in names]
     for pattern in PROMPT_GLOBS:
         found += place.glob(pattern)

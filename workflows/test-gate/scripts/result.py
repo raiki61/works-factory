@@ -28,7 +28,7 @@ def main() -> int:
         print(line, file=sys.stderr)
         print(json.dumps({"mode": "final", "ok": False, "green": False, "red_cause": "incomplete",
                           "ran_steps": {"ran": [], "unran": []}, "baseline": None, "fingerprint": None,
-                          "test_outcomes": {"rows": [], "unmeasured": "出力ノードの中の誤り"},
+                          "test_outcomes": {"summary": None, "details": None, "unmeasured": "出力ノードの中の誤り"},
                           "evidence": {"type": "archon_artifact", "run_id": os.environ.get("WORKFLOW_ID", ""), "path": "failure.txt"},
                           "by": "", "suites_line": "", "log": "", "baseline_line": "", "reason": "出力ノードの中の誤り",
                           "optional": [], "suite": None, "suite_note": "",

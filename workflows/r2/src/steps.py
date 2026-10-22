@@ -45,6 +45,24 @@ def _request(raw) -> tuple[str, bool]:
         return "", False
 
 
+def _outcomes(raw):
+    if _blank(raw):
+        return None
+    got = ports.json(raw, "r2-outcomes.schema.json")
+    if got is not None:
+        path = ports.file(json.dumps(got["details"]))
+        if not got["unmeasured"] and (path is None or got["summary"] is None):
+            raise ValueError("全件の試験結果の参照か機械集計が無い")
+        if path is not None:
+            details = ports.json(str(path), "r2-outcome-details.schema.json")
+            if details["unmeasured"] != got["unmeasured"]:
+                raise ValueError("全件の試験結果と未計測の訳が違う")
+            if got["summary"] is not None and len(details["rows"]) != got["summary"]["total"]:
+                raise ValueError("全件の試験結果と機械集計の件数が違う")
+        got["details"] = str(path) if path else None
+    return got
+
+
 def _read_ports(raw: dict) -> tuple[dict, list]:
     """port の値と、読めない port の訳の並び（「入力 <名>: <訳>」）"""
     optional_json = lambda schema, empty: (lambda v: empty if _blank(v) else ports.json(v, schema))   # noqa: E731
@@ -59,7 +77,7 @@ def _read_ports(raw: dict) -> tuple[dict, list]:
         "answers": optional_json("shared:gate-answers.schema.json", {}),
         "changed": optional_json("shared:fix-marks.schema.json", {}),
         "constraints": optional_json("shared:constraints.schema.json", []),
-        "test_outcomes": optional_json("r2-outcomes.schema.json", None),
+        "test_outcomes": _outcomes,
         "tdd": optional_json("r2-tdd.schema.json", None),
         "lang": lambda v: ports.text(v).strip(),
     }
