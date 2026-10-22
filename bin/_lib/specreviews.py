@@ -15,6 +15,9 @@
 - e. 返す値から数えられる指摘が、どれもその行の findings の key に在る。計画の審査は holes の先の faces[].key の全部、世界の解は
   rows の先の行で versus.verdict が differs の class_id、前提の実測は constraints の先の行で contradicts の在る行（key は
   premises-<行の番号>）、前の決めの確かめは material の先の reply.conflicts の行（key は prior-<行の番号>）。独立設計は指摘の形を持たない
+- f. 世界の解は、rows の先の行が、今の表と設計書から組んだ依頼の行（d の request）の行ごとに 1 つずつ在る: finding が 1〜行の数の
+  どれも 1 回だけ・ほかの番号が無い・where がその依頼の行の where・versus.verdict が same・differs・none のどれか（評価済み）。行の
+  ファイルを返さない記録も合わない。e の指摘の照らしは書かれた行の指摘しか数えないので、書かれなかった行（未評価の行）を通さないためにここで照らす
 
 結果は家の spec-reviews/<中身の hash>.json に書き、パスを run の設定の層の env（RESULT_ENV）で run に渡す（resume しても同じ値）。
 block の形 entry は、そのファイルが今の表と設計書の物で、全部の行が合っていることだけを照らす。
@@ -37,6 +40,7 @@ RESULT_ENV = "WORKS_FACTORY_SPEC_REVIEWS"   # workflows/spec-driven/src/files.py
 READER = Path(__file__).with_name("spec-inputs.py")
 PLAN_REVIEW, WORLD = "works-factory-plan-review", "works-factory-world"
 PREMISES, PRIOR_DECISIONS = "works-factory-premises", "works-factory-prior-decisions"
+VERDICTS = ("same", "differs", "none")   # 世界の解の行の versus.verdict（lib/worldmark.py の VERDICTS と同じ語）
 
 
 def named_table(workflow: str | None, inputs: list[str]) -> str | None:
@@ -149,7 +153,7 @@ def _same_proposal(named: str, sha: str) -> bool:
 
 
 def check_row(row: dict, record, built: dict, proposal_sha: str) -> list:
-    """表の reviews の 1 行の照らし（a〜e）。合わない訳の並び（空は合う）"""
+    """表の reviews の 1 行の照らし（a〜f）。合わない訳の並び（空は合う）"""
     part, run = str(row.get("part") or ""), str(row.get("run") or "")
     if record is None:
         return [f"a: run {run} の記録が無い（同じ対象のパスで部品を回したか）"]
@@ -175,7 +179,39 @@ def check_row(row: dict, record, built: dict, proposal_sha: str) -> list:
     missing = sorted(keys - accepted)
     if missing:
         why.append(f"e: 返す値の指摘 {'・'.join(missing)} が findings に無い（持ち主が受け入れた指摘だけを残す）")
+    if part == WORLD and not unread:
+        why += [f"f: {w}" for w in _world_cover(record, value, built.get(part, {}).get("request"))]
     return why
+
+
+def _world_cover(record: dict, value: dict, request) -> list:
+    """世界の解の行が、組んだ依頼の行 request の行ごとに 1 つずつ在り、評価済みか（f）。合わない訳の並び（空は合う）"""
+    if not isinstance(request, list):
+        return ["今の表と設計書から依頼の行を組めない"]
+    try:
+        path = _pointed(record, value.get("rows"))
+        if path is None:
+            return ["世界の解の返す値に行のファイルが無い（依頼の行ごとに 1 行が要る）"]
+        rows = [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
+    except (OSError, ValueError) as error:
+        return [f"世界の解の行のファイルを読めない（{type(error).__name__}: {error}）"]
+    found: dict = {}
+    for r in rows:
+        n = r.get("finding") if isinstance(r, dict) else None
+        found.setdefault(n if isinstance(n, int) and not isinstance(n, bool) else repr(n), []).append(r)
+    out = []
+    for n, want in enumerate(request, 1):
+        got = found.pop(n, [])
+        if not got:
+            out.append(f"依頼の行 {n} に世界の解の行が無い（{want.get('where')}。審査していない行）")
+        elif len(got) > 1:
+            out.append(f"依頼の行 {n} に世界の解の行が {len(got)} つ在る")
+        elif got[0].get("where") != want.get("where"):
+            out.append(f"依頼の行 {n} の世界の解の行の where が {got[0].get('where')}（依頼の行は {want.get('where')}）")
+        elif (got[0].get("versus") or {}).get("verdict") not in VERDICTS:
+            out.append(f"依頼の行 {n} の世界の解の行が評価されていない（versus.verdict が {'・'.join(VERDICTS)} のどれでもない）")
+    out += [f"依頼の行に無い番号 {n} の世界の解の行が在る" for n in found]
+    return out
 
 
 def check(target: Path, table: str, read, get) -> dict:

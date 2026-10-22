@@ -949,12 +949,19 @@ class LauncherTest(unittest.TestCase):
         records.mkdir()
         for n, part in enumerate(spectable.PARTS):
             named = {k: spectable.input_text(v) for k, v in built["inputs"][part].items()}
-            value = {"ok": True}
+            value, root = {"ok": True}, None
             if part == spectable.PLAN_REVIEW:
                 named["proposal_file"] = f"/gone/spec-proposal-{built['proposal_sha256']}.md"
+            if part == spectable.WORLD:   # 世界の解は依頼の行ごとに 1 行の行のファイルを返す（2.6 の 2 の f）
+                root = str(records / "world-run")
+                (records / "world-run").mkdir()
+                (records / "world-run" / "world.jsonl").write_text("".join(
+                    json.dumps({"finding": i, "where": r["where"], "versus": {"verdict": "same"}}, ensure_ascii=False) + "\n"
+                    for i, r in enumerate(built["inputs"][part]["request"], 1)), encoding="utf-8")
+                value["rows"] = {"type": "archon_artifact", "run_id": "w", "path": "world.jsonl"}
             (records / f"r{n}.json").write_text(json.dumps({
                 "workflow_name": part, "status": "completed", "outcome": "succeeded", "metadata": {"inputs": named},
-                "terminal_record": {"returns": {"availability": "available", "value": value}, "artifacts": {"root": None}}},
+                "terminal_record": {"returns": {"availability": "available", "value": value}, "artifacts": {"root": root}}},
                 ensure_ascii=False), encoding="utf-8")
         put(self.fake / "bun", "#!/usr/bin/env python3\nimport json, os, pathlib, sys\n"
             "if 'get' in sys.argv:\n"

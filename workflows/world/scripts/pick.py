@@ -2,7 +2,7 @@
 # requires-python = ">=3.12"
 # dependencies = []
 # ///
-"""取る問題の類を上限まで決めて plan.json に書く。返り {due, reason}（due は web の役を起こすか）。落ちない"""
+"""言い直しの行に出た問題の類を全部 plan.json に書く。返り {due, web, reason}（due は web の役を起こすか）。落ちない"""
 import sys
 from pathlib import Path
 
