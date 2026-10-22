@@ -8,15 +8,16 @@ prompts/ の md が持ち、ここは材料の行と値だけを組む。
 place のファイル（名はこのモジュールだけが持つ。world.md の 1.4）:
 - intake.json: {findings, purpose_text, means, web, lang, reason}
 - classes.json（言い直す役の受け付けが通した行）: [{finding, where, class_id, problem, activity, proposed, queries}]
-- plan.json（類を決めた後）: {over, taken}
+- plan.json（類を決めた後）: {taken}（言い直しの行に出た類の全部。上限で落とす類は無い）
 - judge-input.json・judged.json（web の役の材料と、受け付けが通した行）
 - verified.json（web の役の受け付けが抜き書きを照らした結果）: {kept, dropped, offline, over_excerpts}
 - rejects-classes.json・rejects-judge.json: 出し直しの輪の拒否の控え（lib/rolekit の accept_round が積む）。拒めば同じ会話で出し直させ、
   rolekit.GIVE_UP_AFTER 回目の拒否で輪を抜ける（run は止めない。出口の status: failed と reason に残す）
 - world-classes-prompt-<n>.md・world-judge-prompt-<n>.md（prompt.emit が書く）・WORLD_FILE（行）・state.json（段の控え）
 
-上限（元の計画の 5.4 節）: 類は MAX_CLASSES・検索語は類ごとに MAX_QUERIES（全部の行に 1 本以上）・抜き書きは返答の全部で
-MAX_EXCERPTS × 取った類の数（越えた分は頭から取り、取らなかった数を残す）。類の id は問題の類の文を正規化した字の hash で、対象の名を
+上限（元の計画の 5.4 節）: 検索語は類ごとに MAX_QUERIES（全部の行に 1 本以上）・抜き書きは返答の全部で MAX_EXCERPTS × 取った類の
+数（越えた分は頭から取り、取らなかった数を残す）。類の数に上限は置かない: 依頼の行は全部 web の役に渡り、出口の行は依頼の行と
+1 つずつ対応する（欠け・重なりが在れば status: failed。元の計画の類 5 つの上限は、越えた類の行を書かずに ok を返していた）。類の id は問題の類の文を正規化した字の hash で、対象の名を
 持たない。web の役の返答の根拠（sources）と印（basis）は機械だけが決める: 取り直した本文に字のまま在る抜き書きを指す根拠だけ残し、
 残れば basis: web、残りが無い行は basis: knowledge。web に出ない run（web が off・取り直しが全部網に届かない）も止めない。
 """
@@ -47,7 +48,7 @@ PROMPT_ERROR = "prompt-error.json"   # 指示が組めなかった node と理�
 OWN_FILES = (INTAKE, CLASSES, PLAN, VERIFIED, JUDGE_INPUT, JUDGED, STATE, WORLD_FILE, PROMPT_ERROR,
              *(rolekit.rejects_path(pathlib.Path(), r).name for r in (CLASSES_ROLE, JUDGE_ROLE)))
 OWN_PROMPTS = tuple(f"{node}-prompt-*.md" for node in (CLASSES_NODE, JUDGE_NODE, OFFLINE_NODE))
-MAX_CLASSES, MAX_QUERIES, MAX_EXCERPTS = 5, 3, 6
+MAX_QUERIES, MAX_EXCERPTS = 3, 6
 MIN_CHALLENGE = 20   # differs の challenge の字の下限
 MAX_BODY = 2 * 1024 * 1024
 HEADERS = {"User-Agent": "works-world/1", "Accept": "text/html, text/plain;q=0.9, */*;q=0.5"}
@@ -205,23 +206,18 @@ def _take_classes(out, reply) -> dict:
 
 # ---------------------------------------------------------------- 類を決める
 def pick(out) -> dict:
-    """言い直しの行から、取る類（MAX_CLASSES まで）を決めて plan.json に書く。返り {due, reason}（due は web の役を起こすか）"""
+    """言い直しの行に出た類を全部、出た順に plan.json に書く。返り {due, web, reason}（due は web の役を起こすか）"""
     out = pathlib.Path(out)
     doc = _read(out / INTAKE)
     if doc is None:
         return {"due": False, "web": False, "reason": "入口の控えが無い（入口の node が落ちた）"}
     rows = _read(out / CLASSES)
     if not isinstance(rows, list):
-        _write(out / PLAN, {"over": [], "taken": []})
+        _write(out / PLAN, {"taken": []})
         return {"due": False, "web": bool(doc.get("web", True)),
                 "reason": doc.get("reason") or (EMPTY if not doc.get("findings") else _why_failed(out, CLASSES_ROLE))}
-    taken, over = [], []
-    for r in rows:
-        if r["class_id"] not in taken and len(taken) >= MAX_CLASSES:
-            over.append(r["finding"])
-        elif r["class_id"] not in taken:
-            taken.append(r["class_id"])
-    _write(out / PLAN, {"over": over, "taken": taken})
+    taken = list(dict.fromkeys(r["class_id"] for r in rows))
+    _write(out / PLAN, {"taken": taken})
     return {"due": bool(taken), "web": bool(doc.get("web", True)), "reason": "" if taken else "取る類が無い"}
 
 
@@ -395,9 +391,18 @@ def _rows(out) -> list:
     return rows
 
 
+def _uncovered(count: int, rows: list) -> list:
+    """書く行が依頼の行 1〜count と 1 つずつ対応しない訳（欠け・重なり。空は対応する）"""
+    seen = [r["finding"] for r in rows]
+    missing = [n for n in range(1, count + 1) if n not in seen]
+    twice = sorted({n for n in seen if seen.count(n) > 1})
+    return ([f"行の無い依頼の行 {missing}"] if missing else []) + ([f"行が 2 つ在る依頼の行 {twice}"] if twice else [])
+
+
 def finish(out) -> dict:
     """行を WORLD_FILE に、段の控えを state.json に書き、block の返り {ok, status, reason, rows, classes, dropped, report} を返す。
-    落ちた段が在っても落ちない（status: failed と reason）。行は書いた後に lib/worldmark の行の形で読み戻して確かめる"""
+    落ちた段が在っても落ちない（status: failed と reason）。行が依頼の行と 1 つずつ対応しなければ（_uncovered）行を書かずに
+    status: failed。行は書いた後に lib/worldmark の行の形で読み戻して確かめる"""
     out = pathlib.Path(out)
     intake_doc = _read(out / INTAKE) or {}
     pl = _read(out / PLAN) or {}
@@ -419,6 +424,10 @@ def finish(out) -> dict:
             status = "failed"
             reasons.append(f"集めて判断する役の返答が受け付けを通らなかった: {_why_failed(out, JUDGE_ROLE)}")
     rows = _rows(out) if status == "ok" else []
+    gaps = _uncovered(len(intake_doc.get("findings") or []), rows) if status == "ok" else []
+    if gaps:
+        status, rows = "failed", []
+        reasons += gaps
     world.write_text("".join(json.dumps(r, ensure_ascii=False) + "\n" for r in rows), encoding="utf-8")
     try:
         worldmark.rows(world)
@@ -432,8 +441,6 @@ def finish(out) -> dict:
         reasons.append(f"web が off（{worldmark.NOT_WEB}）")
     elif ver.get("offline"):
         reasons.append(f"網に届かなかった（{worldmark.NOT_WEB}）")
-    if pl.get("over"):
-        reasons.append(f"類の上限 {MAX_CLASSES} を越えた依頼の行 {pl['over']} は行を書いていない")
     reason = "／".join(reasons)
     classes = len(pl.get("taken") or [])
     dropped = len(ver.get("dropped") or []) + int(ver.get("over_excerpts") or 0)

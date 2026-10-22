@@ -31,8 +31,8 @@
 
 - `ok`: boolean。`status` が `ok` か。
 - `status`: `ok` か `failed`。どこかの段が落ちた・役が受け付けを通らなかった時は `failed`。空の依頼（行が 0）は飛ばした結果として `status: ok`・`rows: null`・`reason` は「依頼の行が無い」（飛ばしたことは新しい status の値でなく、この形。9.1 の 1）。
-- `reason`: 日本語の 1 行（人に見せる）。落ちた段・web に出られなかった・類の上限を越えた行など。
-- `rows`: pointer（`world.jsonl`。1 行が依頼の 1 行）か null。行の欄は今の `lib/worldmark.py` の `FIELDS`（finding・where・class_id・problem・activity・practice・sources・applies・not_applies・versus・basis）のまま。
+- `reason`: 日本語の 1 行（人に見せる）。落ちた段・web に出られなかった・依頼の行と 1 つずつ対応しなかった行など。
+- `rows`: pointer（`world.jsonl`。依頼の行ごとに 1 行。欠け・重なりが在れば行を返さず `status: failed`）か null。行の欄は今の `lib/worldmark.py` の `FIELDS`（finding・where・class_id・problem・activity・practice・sources・applies・not_applies・versus・basis）のまま。
 - `classes`: 取った問題の類の数。`dropped`: 照らしで落とした抜き書きと、上限を越えて取らなかった抜き書きの数。
 - `report`: 報告の節「世界の解」の日本語の行の配列（今の `worldmark.report_lines` が組む物と同じ中身）。
 
@@ -45,7 +45,7 @@
    - `world-classes-prep`（script `restate_prep.py`。`with:` を持たない。前の回までの却下は place の控えから読む。9.1 の 6）: 指示を組む。返り `{prompt}`。
    - `world-classes`（AI。`prompt: "$world-classes-prep.output.prompt"`・`allowed_tools: []`・`mutates_checkout: false`・model `@wf-judge-core`・閉じた sandbox・`retry`・`idle_timeout: 1728000000`。`output_format` は今の `classes` のまま）
    - `world-classes-accept`（script `restate_accept.py`。`with: {reply: $world-classes.output}`）: 返り `{ok, done, reason}`。
-3. `pick`（script `pick.py`。`trigger_rule: all_done`）: 取る類を `MAX_CLASSES`（5）まで決めて `plan.json` に書く。返り `{due, web, reason}`（`web` は入口が読んだ port `web` が on か。下の 2 つの輪のどちらを回すかを決める）。
+3. `pick`（script `pick.py`。`trigger_rule: all_done`）: 言い直しの行に出た類を全部、出た順に `plan.json` に書く（類の数に上限を置かない。9.1 の 12）。返り `{due, web, reason}`（`web` は入口が読んだ port `web` が on か。下の 2 つの輪のどちらを回すかを決める）。
 4. `world-judge-loop`（同じ形。`when: $pick.output.due == true && $pick.output.web == true`）と `world-judge-offline-loop`（`when: … && $pick.output.web == false`。本体は `world-judge-offline-prep`〔script `offline_prep.py`〕・`world-judge-offline`〔AI。`allowed_tools: []`。返す形は `world-judge` と同じ〕・`world-judge-offline-accept`〔script `web_accept.py`〕）。web が off の run は道具を持たない役の輪だけが回る（9.1 の 7）
    - `world-judge-prep`（script `web_prep.py`）・`world-judge`（AI。`allowed_tools: [WebSearch, WebFetch]`・model `@wf-judge-materials`。`output_format` は今の `rows`・`excerpts` のまま）・`world-judge-accept`（script `web_accept.py`。抜き書きを取り直して照らす）。
 5. `finish`（script `finish.py`。`trigger_rule: all_done`）: 行を `world.jsonl` に、段の控えを `state.json` に書き、出力を返す。どの段が落ちても落ちない（今の落とし穴 K1・K13 の決まり）。
@@ -325,6 +325,8 @@ node:
 9. 依頼の容器は共通の口 `workflows/.shared/requestrows.py` で読む（形の照らしの後に `lib/carry.parts`）。今の `worldblk._findings` が拒んでいた知らない最上位の鍵と下書きの行を、ここでも拒む（下書きの行は行の配列の形でも拒む）。
 10. 指示が組めない prep は `prompt-error.json` に node と訳を書いてから落ち、出口の `reason` がその訳を名指す。
 11. 指示の比べ（8 節・README の 11.4 の 1 つ目の commit の日本語の md の字の一致）は、この PR では作らない。md は 2.3・3.3 の英語の本文をそのまま置いた。古い指示と新しい指示を同じ値で並べた物は、PR の審査に出す時に作る。
+
+12. 類の数の上限（元の計画の 5.4 節の「類は 5 つ」。費用の抑え）を外した（#802 の仕様審査で、異なる類が 5 つを越えた依頼の 6〜18 行目を書かずに `status: ok` を返した run `c457bab74d0ad07f458b17bff790e174` を受けて）。依頼の行は全部 web の役に渡り、web の役の受け付けは今どおり渡した行の全部に 1 つずつを求め、`finish` は書く行が依頼の行と 1 つずつ対応しなければ `status: failed` にする。類の数で費用は増える（検索語は類ごとに `MAX_QUERIES`、抜き書きは `MAX_EXCERPTS` × 類の数のまま）。上限を大きな数に替える形と、行を分けた補助の run を束ねる形は採らない: 前者は越えた行をまた黙って落とし、後者は公式の全入力の審査にならない（spec-driven.md の 2.6 の 2 の f）。run の中で類を組に分けて並べる形（`fan_out:`）は、block が `include:` を持たない決まり（README の頭の語）と、単独の run が自分を子として起こせない（Archon が循環として拒む。README の 8 章の fix）ために、world を graph と block に割らないと書けない。割るかは持ち主が決める。
 
 ## 10 未確認
 

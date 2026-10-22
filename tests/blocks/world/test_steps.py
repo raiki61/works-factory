@@ -2,7 +2,7 @@
 port の値で受ける形に写した物。docs/design/world.md の 8 節。写さない試験は同じ節に名指してある）。
 
 - 言い直す役の受け付け（依頼の全部の行に 1 つ・対象の識別子を、web の役に渡る proposed も含めて拒む・全部の行に検索語）・取る類を
-  決める（類の上限）・web の役の受け付け（differs の challenge・sources が返答の excerpts を指す・依頼の解き方の無い行の verdict・
+  決める（類は全部取る・出口は依頼の行ごとに 1 行）・web の役の受け付け（differs の challenge・sources が返答の excerpts を指す・依頼の解き方の無い行の verdict・
   抜き書きを取り直した本文で照らし、字のまま無い抜き書きを指す根拠を外して、印 basis を機械が付ける・web が off の run は取り直さない）・
   出口（行を書く）。出し直しの輪の拒否は lib/rolekit の控えに積む
 - 一時の置き場のファイルだけ（網・子のプロセスなし。取り直しの口は偽の get を渡す）
@@ -150,11 +150,11 @@ class Classes(Base):
 
 
 class Plan(Base):
-    def test_plan_holds_only_taken_and_over(self):
+    def test_plan_holds_only_taken(self):
         self.intake()
         self.assertTrue(self.classes({"classes": [klass(1), doc_class()]})["ok"])
         self.assertEqual(self.plan(), {"due": True, "web": True, "reason": ""})
-        self.assertEqual(set(self.read(steps.PLAN)), {"over", "taken"})
+        self.assertEqual(self.read(steps.PLAN), {"taken": [steps.class_id(PROBLEM), steps.class_id(DOC_PROBLEM)]})
 
     def test_doc_only_rows_still_go_to_judge(self):
         self.intake(findings=[FINDINGS[1]])
@@ -192,15 +192,41 @@ class Plan(Base):
         self.assertEqual((doc["kept"], doc["dropped"], doc["offline"]), ([], [], False))
         self.assertNotIn("網に届かなかった", self.finish()["reason"])
 
-    def test_class_cap_counts_over(self):
-        many = [{"where": f"src/m{i}.py", "text": f"直し {i}"} for i in range(steps.MAX_CLASSES + 2)]
+    def test_every_class_is_taken_and_every_line_gets_one_row(self):
+        """類の数に上限は無い: 異なる類が 5 つを越えても、前の類と同じ類の後ろの行も、全部の依頼の行が web の役に渡り、出口の行は
+        依頼の行ごとに 1 つずつ（類を頭から 5 つだけ取って残りを書かない形に戻すと、ここが落ちる）"""
+        many = [{"where": f"src/m{i}.py", "text": f"直し {i}"} for i in range(1, 22)]
         self.intake(findings=many)
-        reply = {"classes": [klass(i + 1, problem=f"類の文 その{i}", queries=[f"問い {i}"]) for i in range(len(many))]}
+        kind = {n: n if n <= 18 else {19: 2, 20: 7, 21: 18}[n] for n in range(1, 22)}   # 19〜21 は前の類と同じ類の後ろの行
+        reply = {"classes": [klass(n, problem=f"類の文 その{kind[n]}", queries=[f"問い {kind[n]}"]) for n in range(1, 22)]}
         self.assertTrue(self.classes(reply)["ok"])
+        self.assertTrue(self.plan()["due"])
+        self.assertEqual(self.read(steps.PLAN), {"taken": [steps.class_id(f"類の文 その{k}") for k in range(1, 19)]})
+        prompt = steps.judge_prompt(self.out)["prompt"]
+        self.assertEqual(prompt.count("### Class "), 18)
+        self.assertIn("Means of request line 21", prompt)
+        self.assertEqual([r["finding"] for r in self.read(steps.JUDGE_INPUT)], list(range(1, 22)))
+        self.assertTrue(self.judge([judged(n) for n in range(1, 22)])["ok"])
+        got = self.finish()
+        self.assertEqual((got["ok"], got["status"], got["classes"]), (True, "ok", 18), got["reason"])
+        self.assertEqual([(r["finding"], r["where"]) for r in self.final_rows(got)], [(n, f"src/m{n}.py") for n in range(1, 22)])
+        self.assertNotIn("行を書いていない", got["reason"])
+
+    def test_exit_refuses_rows_that_miss_or_repeat_a_line(self):
+        """出口は、書く行が依頼の行と 1 つずつ対応しない時（欠け・重なり）は status: failed にして行を返さない（未評価の行を残した
+        まま ok を返さない）。受け付けを通らずに控えが書かれた時の守り"""
+        self.intake()
+        self.assertTrue(self.classes({"classes": [klass(1), doc_class()]})["ok"])
         self.plan()
-        pl = self.read(steps.PLAN)
-        self.assertEqual(len(pl["taken"]), steps.MAX_CLASSES)
-        self.assertEqual(pl["over"], [steps.MAX_CLASSES + 1, steps.MAX_CLASSES + 2])
+        steps.judge_prompt(self.out)
+        for rows, why in (([judged(1)], "行の無い依頼の行 [2]"), ([judged(1), judged(1), judged(2, verdict="none", challenge="")],
+                                                              "行が 2 つ在る依頼の行 [1]")):
+            with self.subTest(why):
+                judged_rows = [{**r, "sources": [], "basis": worldmark.KNOWLEDGE} for r in rows]
+                (self.out / steps.JUDGED).write_text(json.dumps(judged_rows, ensure_ascii=False), encoding="utf-8")
+                got = self.finish()
+                self.assertEqual((got["ok"], got["status"], got["rows"]), (False, "failed", None))
+                self.assertIn(why, got["reason"])
 
     def test_missing_plan_reports_failed(self):
         self.intake()

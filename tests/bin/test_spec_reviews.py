@@ -1,5 +1,5 @@
 """起動の殻が、会話で回した審査の記録を Archon の run の記録と照らす所（bin/_lib/specreviews.py と、表を読む bin/_lib/spec-inputs.py。
-docs/design/spec-driven.md の 2.6 の 2 の a〜e）。
+docs/design/spec-driven.md の 2.6 の 2 の a〜f）。
 
 Archon の記録は、`workflow get <run> --json` の形（workflow_name・status・outcome・metadata.inputs・terminal_record の returns と
 artifacts.root）を試験が組んで渡す。表は一時のフォルダに置き、spec-inputs.py はこの過程の Python で読む（殻は uv で起こす）。
@@ -48,12 +48,24 @@ class Base(unittest.TestCase):
     def built(self) -> dict:
         return spec_inputs.build(self.root, "t.yaml")
 
+    def world_rows(self, request=None, edit=None, name="world") -> dict:
+        """世界の解の行のファイルを置き、それを指す返す値 {rows: pointer}。行は request（既定は今の表から組んだ依頼の行）の行ごとに
+        1 つで、edit(rows) が返す並びに差し替えられる"""
+        request = self.built()["inputs"][spectable.WORLD]["request"] if request is None else request
+        rows = [{"finding": n, "where": r["where"], "class_id": f"c{n}", "versus": {"verdict": "same"}} for n, r in enumerate(request, 1)]
+        rows = edit(rows) if edit else rows
+        (self.artifacts / name).mkdir(parents=True, exist_ok=True)
+        (self.artifacts / name / "world.jsonl").write_text("".join(json.dumps(r, ensure_ascii=False) + "\n" for r in rows), encoding="utf-8")
+        return {"rows": {"type": "archon_artifact", "run_id": "x", "path": f"{name}/world.jsonl"}}
+
     def record(self, part, *, inputs=None, value=None, **over) -> dict:
-        """部品の run の記録（workflow get の形）。入力は今の表から組んだ物、返りは ok"""
+        """部品の run の記録（workflow get の形）。入力は今の表から組んだ物、返りは ok（世界の解は依頼の行ごとに 1 行の行のファイル）"""
         got = self.built()
         named = {name: spectable.input_text(v) for name, v in got["inputs"][part].items()}
         if part == spectable.PLAN_REVIEW:
             named["proposal_file"] = str(self.root / "gone" / f"spec-proposal-{got['proposal_sha256']}.md")   # 会話の後に消えた一時のファイル
+        if part == spectable.WORLD and value is None:
+            value = self.world_rows()
         ret = {"ok": True, **(value or {})}
         return {"workflow_name": part, "status": "completed", "outcome": "succeeded",
                 "metadata": {"inputs": named if inputs is None else inputs},
@@ -61,7 +73,7 @@ class Base(unittest.TestCase):
                                     "artifacts": {"root": str(self.artifacts)}}, **over}
 
     def records(self, **over) -> dict:
-        return {f"r{n}": over.get(p, self.record(p)) for n, p in enumerate(spectable.PARTS)}
+        return {f"r{n}": over[p] if p in over else self.record(p) for n, p in enumerate(spectable.PARTS)}
 
     def check(self, records) -> dict:
         return specreviews.check(self.root, "t.yaml", lambda root, table: spec_inputs.build(root, table), records.get)
@@ -125,14 +137,11 @@ class CheckCase(Base):
         """e: 計画の審査の faces の key と、世界の解の differs の class_id は、どれも findings に在る"""
         (self.artifacts / "pr").mkdir(parents=True)
         (self.artifacts / "pr" / "review.json").write_text(json.dumps({"faces": [{"key": "k1"}, {"key": "k2"}]}), encoding="utf-8")
-        (self.artifacts / "w").mkdir()
-        (self.artifacts / "w" / "world.jsonl").write_text(
-            json.dumps({"class_id": "c1", "versus": {"verdict": "differs"}}) + "\n"
-            + json.dumps({"class_id": "c2", "versus": {"verdict": "same"}}) + "\n", encoding="utf-8")
         ptr = {"type": "archon_artifact", "run_id": "x"}
+        differs = self.world_rows(edit=lambda rows: [{**rows[0], "versus": {"verdict": "differs"}}, *rows[1:]])
         records = self.records(**{
             spectable.PLAN_REVIEW: self.record(spectable.PLAN_REVIEW, value={"holes": {**ptr, "path": "pr/review.json"}}),
-            spectable.WORLD: self.record(spectable.WORLD, value={"rows": {**ptr, "path": "w/world.jsonl"}})})
+            spectable.WORLD: self.record(spectable.WORLD, value=differs)})
         got = specreviews.problems(self.check(records))
         self.assertEqual(len(got), 2, got)
         self.assertIn("返す値の指摘 k1・k2 が findings に無い", got[0])
@@ -179,6 +188,42 @@ class CheckCase(Base):
         self.assertEqual(len(got), 2, got)
         self.assertIn("返す値の指摘 premises-2 が findings に無い", got[0])
         self.assertIn("返す値の指摘 prior-1 が findings に無い", got[1])
+
+    def test_f_world_rows_answer_every_request_line_once(self):
+        """f: 世界の解の行は、今の表から組んだ依頼の行（頭の設計の行と全部の受け入れの行）の行ごとに 1 つずつ在り、where がその行の
+        where で、どの行も評価済み（versus.verdict が same・differs・none）。欠け・重なり・余分な行・違う where・未評価・行のファイルの
+        無い返りは、ok の記録でも合わない（入力が合い指摘が全部受け入れ済みでも、全部の行を審査した証拠にならない）"""
+        part = spectable.WORLD
+        self.assertEqual(len(self.built()["inputs"][part]["request"]), 2, "頭の設計の行と受け入れの行 a1")
+        cases = (
+            ("欠け", lambda rows: rows[:1], "f: 依頼の行 2 に世界の解の行が無い"),
+            ("重なり", lambda rows: [*rows, rows[1]], "f: 依頼の行 2 に世界の解の行が 2 つ在る"),
+            ("余分な行", lambda rows: [*rows, {**rows[1], "finding": 3}], "f: 依頼の行に無い番号 3 の世界の解の行が在る"),
+            ("違う where", lambda rows: [rows[0], {**rows[1], "where": "t.yaml#zz"}], "f: 依頼の行 2 の世界の解の行の where が t.yaml#zz"),
+            ("未評価", lambda rows: [rows[0], {**rows[1], "versus": {"verdict": ""}}], "f: 依頼の行 2 の世界の解の行が評価されていない"),
+        )
+        for why, edit, want in cases:
+            with self.subTest(why):
+                bad = self.record(part, value=self.world_rows(edit=edit, name=why))
+                got = specreviews.problems(self.check(self.records(**{part: bad})))
+                self.assertEqual(len(got), 1, got)
+                self.assertIn(want, got[0])
+        rowless = self.record(part, value={"rows": None})
+        self.assertIn("f: 世界の解の返す値に行のファイルが無い", specreviews.problems(self.check(self.records(**{part: rowless})))[0])
+        self.assertEqual(specreviews.problems(self.check(self.records())), [], "依頼の行ごとに 1 行の記録は通る")
+
+    def test_f_a_split_helper_run_is_not_the_official_review(self):
+        """依頼の行の一部だけを入力に回した補助の run（分けた run）は、その一部の行に全部答えていても、公式の全入力の審査として
+        通らない（d で入力が違い、f で残りの行が欠ける）"""
+        part = spectable.WORLD
+        built = self.built()["inputs"][part]
+        head = built["request"][:1]
+        helper = self.record(part, inputs={"request": spectable.input_text(head), "purpose": built["purpose"]},
+                             value=self.world_rows(request=head, name="helper"))
+        got = specreviews.problems(self.check(self.records(**{part: helper})))
+        self.assertEqual(len(got), 1, got)
+        self.assertIn("d: 入力 request が", got[0])
+        self.assertIn("f: 依頼の行 2 に世界の解の行が無い", got[0])
 
     def test_table_problems_stop_without_reading_records(self):
         (self.root / "t.yaml").write_text("purpose: x\n", encoding="utf-8")
