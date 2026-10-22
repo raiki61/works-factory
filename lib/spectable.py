@@ -2,7 +2,7 @@
 
 表を読むのは 2 か所: block works-factory-spec-driven の入口の script と、起動の殻が表を読む script（bin/_lib/spec-inputs.py）。
 どちらも PyYAML を宣言した uv の script で、このモジュールを import する（外のパッケージは使ってよい。持ち主の決め outside-packages-ok）。
-run の記録を読んで照らす所（2.6 の 2 の a〜e）は殻の側に在り、ここは表・設計書・組んだ入力の値だけを扱う。
+run の記録を読んで照らす所（2.6 の 2 の a〜f）は殻の側に在り、ここは表・設計書・組んだ入力の値だけを扱う。
 
 - PARTS: 仕様を固める会話の中で必ず回す 5 つの部品の名（表の reviews の part）
 - read(root, table) -> Spec: 表と設計書を読む（読めない物は Spec.unread に訳を置き、落ちない）
