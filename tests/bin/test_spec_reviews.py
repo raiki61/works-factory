@@ -212,6 +212,21 @@ class CheckCase(Base):
         self.assertIn("f: 世界の解の返す値に行のファイルが無い", specreviews.problems(self.check(self.records(**{part: rowless})))[0])
         self.assertEqual(specreviews.problems(self.check(self.records())), [], "依頼の行ごとに 1 行の記録は通る")
 
+    def test_f_unreadable_world_rows_stop_once_in_e(self):
+        """世界の解の行のファイルが読めない時は e の読めない訳 1 つで止まり、f は同じ訳を重ねない（黙って通る道は無い）"""
+        part = spectable.WORLD
+        broken = self.world_rows(name="broken")
+        (self.artifacts / "broken" / "world.jsonl").write_text("{読めない\n", encoding="utf-8")
+        got = specreviews.problems(self.check(self.records(**{part: self.record(part, value=broken)})))
+        self.assertEqual(len(got), 1, got)
+        self.assertIn("e: 返す値の指摘のファイルを読めない", got[0])
+        self.assertNotIn("f:", got[0])
+
+    def test_f_verdict_words_are_the_world_rows_words(self):
+        """f が評価済みと読む語は、世界の解の行の語（lib/worldmark.py の VERDICTS）と同じ（殻は worldmark を import しないので写す）"""
+        import worldmark
+        self.assertEqual(specreviews.VERDICTS, worldmark.VERDICTS)
+
     def test_f_a_split_helper_run_is_not_the_official_review(self):
         """依頼の行の一部だけを入力に回した補助の run（分けた run）は、その一部の行に全部答えていても、公式の全入力の審査として
         通らない（d で入力が違い、f で残りの行が欠ける）"""

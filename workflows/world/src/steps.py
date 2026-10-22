@@ -391,12 +391,14 @@ def _rows(out) -> list:
     return rows
 
 
-def _uncovered(count: int, rows: list) -> list:
-    """書く行が依頼の行 1〜count と 1 つずつ対応しない訳（欠け・重なり。空は対応する）"""
-    seen = [r["finding"] for r in rows]
+def _uncovered(count: int, judged: list) -> list:
+    """受け付けが通した行（judged.json）が依頼の行 1〜count と 1 つずつ対応しない訳（欠け・重なり・依頼の行に無い番号。空は対応する）"""
+    seen = [j.get("finding") if isinstance(j, dict) else None for j in judged]
     missing = [n for n in range(1, count + 1) if n not in seen]
-    twice = sorted({n for n in seen if seen.count(n) > 1})
-    return ([f"行の無い依頼の行 {missing}"] if missing else []) + ([f"行が 2 つ在る依頼の行 {twice}"] if twice else [])
+    twice = sorted({n for n in seen if n in range(1, count + 1) and seen.count(n) > 1})
+    stray = [n for n in seen if n not in range(1, count + 1)]
+    return ([f"行の無い依頼の行 {missing}"] if missing else []) + ([f"行が 2 つ在る依頼の行 {twice}"] if twice else []) + (
+        [f"依頼の行に無い番号の行 {stray}"] if stray else [])
 
 
 def finish(out) -> dict:
@@ -423,11 +425,11 @@ def finish(out) -> dict:
         elif pl.get("taken") and not (out / JUDGED).is_file():
             status = "failed"
             reasons.append(f"集めて判断する役の返答が受け付けを通らなかった: {_why_failed(out, JUDGE_ROLE)}")
-    rows = _rows(out) if status == "ok" else []
-    gaps = _uncovered(len(intake_doc.get("findings") or []), rows) if status == "ok" else []
+    gaps = _uncovered(len(intake_doc.get("findings") or []), _read(out / JUDGED) or []) if status == "ok" else []
     if gaps:
-        status, rows = "failed", []
+        status = "failed"
         reasons += gaps
+    rows = _rows(out) if status == "ok" else []
     world.write_text("".join(json.dumps(r, ensure_ascii=False) + "\n" for r in rows), encoding="utf-8")
     try:
         worldmark.rows(world)

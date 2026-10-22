@@ -213,14 +213,15 @@ class Plan(Base):
         self.assertNotIn("行を書いていない", got["reason"])
 
     def test_exit_refuses_rows_that_miss_or_repeat_a_line(self):
-        """出口は、書く行が依頼の行と 1 つずつ対応しない時（欠け・重なり）は status: failed にして行を返さない（未評価の行を残した
+        """出口は、書く行が依頼の行と 1 つずつ対応しない時（欠け・重なり・依頼の行に無い番号）は status: failed にして行を返さない（未評価の行を残した
         まま ok を返さない）。受け付けを通らずに控えが書かれた時の守り"""
         self.intake()
         self.assertTrue(self.classes({"classes": [klass(1), doc_class()]})["ok"])
         self.plan()
         steps.judge_prompt(self.out)
         for rows, why in (([judged(1)], "行の無い依頼の行 [2]"), ([judged(1), judged(1), judged(2, verdict="none", challenge="")],
-                                                              "行が 2 つ在る依頼の行 [1]")):
+                                                              "行が 2 つ在る依頼の行 [1]"),
+                          ([judged(1), judged(2, verdict="none", challenge=""), judged(99)], "依頼の行に無い番号の行 [99]")):
             with self.subTest(why):
                 judged_rows = [{**r, "sources": [], "basis": worldmark.KNOWLEDGE} for r in rows]
                 (self.out / steps.JUDGED).write_text(json.dumps(judged_rows, ensure_ascii=False), encoding="utf-8")
