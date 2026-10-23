@@ -6,10 +6,13 @@
 頭が無いので、打つ前に置き換える穴 HOLE で書く（直に打てない実行基盤の行は書かない）。
 
 - head(env=None) -> str: 答えの行の頭
-- line(run_id, verb, note, env=None) -> str: 打つ行 1 本（verb は continue か stop）
+- line(run_id, verb, note, env=None, *, verbs=VERBS) -> str: 打つ行 1 本（verb は verbs のどれか。既定は continue か stop。設計の相談の
+  承認ノードの文だけが (*VERBS, REVISE) を渡す。選び肢に無い語の行を関所の文に書かせない）
 - resume(run_id, env=None) -> str: 落ちた run を別のアカウントで続ける行 1 本（答えの行の頭の respond を resume に替え、殻が認証に読む
   keychain の項目名 KEYCHAIN_ENV を前に置く。項目名は穴のまま）
 - GO_WORDS・STOP_WORDS・REJECT: 関所の決めの語。通す語でない答えは止める語と読む
+- REVISE: 設計の相談の承認ノード（対話モードの run の計画の往復の末尾。line の src/talk.py）だけが選び肢に足す、設計し直しを求める語。通す語でも
+  止める語でもなく、答えた後の周が一言を設計へ戻して事前審査をやり直す。ほかの関所はこの語を選び肢に持たない
 - decision(got) -> dict: 関所の出力の値を {decision, text} に
 - taken(got, *, go, stop_reason, place, folder, asked=(), pushed=None, final=False) -> dict: 関所の答えの行 {go, answer, stop_reason}。関所が開かなかった
   （got が None か空の字）時は前の決め go・stop_reason をそのまま返す。ただし無人の run が推しで進んだ（pushed が
@@ -44,6 +47,7 @@ VERBS = ("continue", "stop")
 GO_WORDS = ("approve", VERBS[0])   # approve は関所の選び肢に要る語
 REJECT = "reject"   # 今の works の関所の語で、stop と同じ。関所の選び肢に無いと、実行基盤がこの答えを拒む
 STOP_WORDS = (VERBS[1], REJECT)
+REVISE = "revise"   # 設計の相談の承認ノードだけの語（設計し直しを求める）
 ANSWERS = "gates"
 STOP_NOTE = "承認ノードで止めた"
 FINAL_STOP_NOTE = "最後の承認ノードで止めた"
@@ -56,9 +60,9 @@ def head(env=None) -> str:
     return got or HOLE
 
 
-def line(run_id: str, verb: str, note: str, env=None) -> str:
-    if verb not in VERBS:
-        raise ValueError(f"答えの語は {VERBS} のどれか: {verb!r}")
+def line(run_id: str, verb: str, note: str, env=None, *, verbs=VERBS) -> str:
+    if verb not in verbs:
+        raise ValueError(f"答えの語は {verbs} のどれか: {verb!r}")
     return f'{head(env)} {run_id} {verb} "{note}"'
 
 

@@ -102,8 +102,10 @@ class PlanOutCase(unittest.TestCase):
         self.assertEqual((got["done"], got["ok"]), (True, True))
 
     def test_cap_matches_the_loop_and_marks_the_stop(self):
-        """上限 LIMIT は YAML の plan-rounds の max_iterations と同じ数。上限の周で AGAIN なら capped で止まる（工場の不具合として人に見せる）"""
-        self.assertEqual(line_nodes()["plan-rounds"]["loop_group"]["max_iterations"], rounds.LIMIT)
+        """YAML の plan-rounds の max_iterations は上限 LIMIT と、設計の相談で一言の空の revise に聞き直す周（talk.EMPTY_LIMIT。計画を回さずに
+        ループの周を使う）の和。上限の周で AGAIN なら capped で止まる（工場の不具合として人に見せる）"""
+        talk = kit.load(BLOCK, "talk")
+        self.assertEqual(line_nodes()["plan-rounds"]["loop_group"]["max_iterations"], rounds.LIMIT + talk.EMPTY_LIMIT)
         got = self.out(self.plan(rounds.LIMIT), self.review(rounds.LIMIT, [face("key-z1")]))
         self.assertEqual((got["done"], got["ok"], got["stalled"], got["capped"]), (True, False, True, True))
 

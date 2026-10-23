@@ -83,7 +83,7 @@ block と graph の YAML・AI のノードへの指示の md・script・`src/`�
 
 ## E16 承認ノードと並べは最新の ASF の形で書く
 
-- 承認ノードは `wait:` の `attention` を `form: select` で書き、`options` に答えの語（`lib/answer.py` の `GO_WORDS`・`STOP_WORDS`）を全部並べる。後ろのノードは答え `{decision, text}` を `{ from: "$<承認ノード>.output", if_skipped: null }` で受ける。`approval:` とグラフの頭の `interactive:` は書かない。ループの本体に承認ノードを置かない。持ち主の決め `asf-way-gates-fanout`。
+- 承認ノードは `wait:` の `attention` を `form: select` で書き、`options` に答えの語（`lib/answer.py` の `GO_WORDS`・`STOP_WORDS`）を全部並べる。後ろのノードは答え `{decision, text}` を `{ from: "$<承認ノード>.output", if_skipped: null }` で受ける。`approval:` とグラフの頭の `interactive:` は書かない。ループ（`loop_group`）の本体に置く承認ノードは本体の唯一の終わり（本体のどのノードもそれを待たず、ほかの本体のノードはどれもほかの本体のノードに待たれる）だけで、答えは次の周の頭が `$LOOP_PREV.<承認ノード>.output` で読み、ループの `until_bash` は承認ノードの出力を読まない（止めた Archon の正式な形。`when:` で飛んだ承認ノードは出力を持たない）。持ち主の決め `asf-way-gates-fanout`・`dialogue-gate-in-loop`。
 - 筋書きが承認ノードを通る時は、その承認ノードの答えを stub に書く。
 - 並べは `fan_out:` で書く。作業ツリーに書く並べ（fix の組）は組ごとに子の run を起こして作業ツリーを分ける。待ちの列・固定の枝の数・錠は持たない（持ち主の決め `no-queue`）。
 - 機械: `tests/layers/test_gates.py`。並べの形は人が見る。

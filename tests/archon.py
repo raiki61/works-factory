@@ -14,6 +14,8 @@
   pack のフォルダは pack.json の ours.folder（WORKFLOWS。組み込みの入れ替えの前も後も同じ口）。blocks_tree は block の筋書き用に
   TARGET_FILES を 2 つ目の commit に置く木。
   `archon validate` は --workflow-source を受けず、--cwd は git の木しか受けないので、確かめる時はこの木を --cwd に渡す。
+- 筋書きの木（blocks_tree）: 輪の本体の唯一の終わりの関所を外して置く（dry_run_bodies。止めた Archon の dry-run が輪の出力を本体の終わりの
+  節から取り、飛んだ関所で空にするため。本物は関所が依る節の出力）。validate と本物の回しの木（tree）は外さない。
 - validate の数えない警告: Claude Code に同梱の skill（BUILTIN_SKILLS）と、借りる superpowers の skill（BORROWED_SKILLS。
   lib/borrow/borrow.json の superpowers.skills）を節が名指した時の「ディスクに無い」の警告だけ。同梱の skill は SKILL.md を
   持たず、借りる skill は起動の時に run の隔離した設定へ入るので使い捨ての木には無い。止めた Archon（packages/workflows/src/
@@ -28,7 +30,9 @@ import shutil
 import subprocess
 import tempfile
 import unittest
-from collections.abc import Iterable, Iterator
+from collections.abc import Callable, Iterable, Iterator
+
+import yaml
 
 from bin._lib import pack, place
 from tests.bin import hermetic
@@ -96,10 +100,12 @@ def source() -> pathlib.Path:
 
 @contextlib.contextmanager
 def tree(names: Iterable[str], workflows: pathlib.Path = WORKFLOWS, shared: pathlib.Path = WORKFLOWS / SHARED,
-         files: dict[str, str] | None = None, later: dict[str, str] | None = None) -> Iterator[pathlib.Path]:
+         files: dict[str, str] | None = None, later: dict[str, str] | None = None,
+         shape: Callable[[pathlib.Path], object] | None = None) -> Iterator[pathlib.Path]:
     """workflows の names のフォルダと shared（既定はこのリポジトリの workflows/.shared/）を pack の形で置いて commit した使い捨ての git の木。
     files（根からのパス → 中身）は対象のリポジトリの側のファイルとして一緒に commit する（exec-code の筋書きの作業ツリーに入る）。
-    later は 2 つ目の commit に置く（筋書きが base: HEAD~1 を渡すと、これが対象差分になる）"""
+    later は 2 つ目の commit に置く（筋書きが base: HEAD~1 を渡すと、これが対象差分になる）。shape は置いた pack のフォルダを
+    1 つ目の commit の前に書き直す口（commit を増やさず、later の対象差分を変えない）"""
     with tempfile.TemporaryDirectory() as tmp:
         root = pathlib.Path(tmp) / "tree"
         placed = place.pack_folder(PACK, root)
@@ -110,6 +116,8 @@ def tree(names: Iterable[str], workflows: pathlib.Path = WORKFLOWS, shared: path
         for rel, body in (files or {}).items():
             (root / rel).parent.mkdir(parents=True, exist_ok=True)
             (root / rel).write_text(body, encoding="utf-8")
+        if shape is not None:
+            shape(placed)
         git(root, "init", "-q")
         git(root, "add", "-A")
         git(root, "commit", "-q", "-m", "seed")
@@ -126,10 +134,39 @@ def tree(names: Iterable[str], workflows: pathlib.Path = WORKFLOWS, shared: path
 TARGET_FILES = {"README.md": "# Fixture target\n\nSee AGENTS.md.\n", "AGENTS.md": "# Rules\n\nNew review viewpoints are blocks.\n"}
 
 
-def blocks_tree(names: Iterable[str]) -> contextlib.AbstractContextManager[pathlib.Path]:
+@contextlib.contextmanager
+def blocks_tree(names: Iterable[str]) -> Iterator[pathlib.Path]:
     """pack の names の block と pack の .shared/ を置き、TARGET_FILES を 2 つ目の commit に置いた使い捨ての git の木
-    （tree と同じ形。条件つきの観点の筋書きは base: HEAD~1 で TARGET_FILES を対象差分にできる）"""
-    return tree(names, WORKFLOWS, WORKFLOWS / SHARED, later=TARGET_FILES)
+    （tree と同じ形。条件つきの観点の筋書きは base: HEAD~1 で TARGET_FILES を対象差分にできる）。筋書き（workflow test と
+    workflow run --dry-run）だけが使う木なので、輪の本体の唯一の終わりの関所を外す（dry_run_bodies）"""
+    with tree(names, WORKFLOWS, WORKFLOWS / SHARED, later=TARGET_FILES, shape=dry_run_bodies) as root:
+        yield root
+
+
+def dry_run_bodies(placed: pathlib.Path) -> list[str]:
+    """木の工程の YAML の輪（loop_group）の本体から、本体の唯一の終わりの人の関所（wait: の attention）を外して書き直し、外した関所の
+    id を返す。訳: 止めた Archon の dry-run（packages/workflows/src/dry-run.ts の simulateLoopGroup）は輪の 1 周の出力を本体の終わりの節
+    から取るので、when: で飛んだ関所が終わりだと輪の出力が空になる。本物の run（dag-executor.ts の loopGroupIterationOutput）は、終わりの
+    関所が依る節の出力を輪の出力にする。関所を外せば、その依る節が本体の終わりになり、dry-run の輪の出力が本物と同じになる。dry-run は
+    until_bash の輪を 1 周で終えたことにし、関所の答えで次の周を回さないので、関所が開く・答える・再開する所は本物の Archon の試験
+    （tests/e2e/test_design_talk_real.py）が照らす。docs/design/archon.md のループの行"""
+    out = []
+    for path in sorted(placed.glob("*/*.yaml")):
+        doc = yaml.safe_load(path.read_text(encoding="utf-8"))
+        changed = False
+        for node in (doc or {}).get("nodes") or []:
+            body = (node.get("loop_group") or {}).get("nodes") if isinstance(node, dict) else None
+            if not body:
+                continue
+            depended = {d for n in body for d in n.get("depends_on") or []}
+            sinks = [n for n in body if n["id"] not in depended]
+            if len(sinks) == 1 and isinstance(sinks[0].get("wait"), dict) and "attention" in sinks[0]["wait"]:
+                body.remove(sinks[0])
+                out.append(sinks[0]["id"])
+                changed = True
+        if changed:
+            path.write_text(yaml.safe_dump(doc, allow_unicode=True, sort_keys=False), encoding="utf-8")
+    return out
 
 
 def archon(cwd: pathlib.Path, *args: str, aliases: bool = True, **env: str | None) -> subprocess.CompletedProcess:
