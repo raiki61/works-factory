@@ -1,5 +1,5 @@
 """問いの台帳の承認ノードの決めの部分（元 lib/tests/test_gatemarks.py の PushRecCase のうち、line の src/gates.py へ移った row_push・
-passage・design_only・request_answers の部分。integration.md の 4.5-4 (a)(b)）。推しの尾の字の形（push_rec・_push）と問いの行の形は
+passage・design_talk・request_answers の部分。integration.md の 4.5-4 (a)(b)）。推しの尾の字の形（push_rec・_push）と問いの行の形は
 KEEP の lib/gatemarks.py に残り、その試験は lib/tests/test_gatemarks.py が持つ。"""
 import unittest
 
@@ -45,9 +45,9 @@ class RecordReadsCase(unittest.TestCase):
     """4.5-4 (b): 設計だけの run か・依頼が先に持っていた答えは、始めの記録の dict の値で読む（KEEP の lib に記録を読ませない）"""
 
     def test_design_only_and_request_answers(self):
-        self.assertTrue(gates.design_only({"design_only": gatemarks.DESIGN_ONLY}))
-        self.assertFalse(gates.design_only({}))
-        self.assertFalse(gates.design_only(None))
+        self.assertTrue(gates.design_talk({"design_talk": gatemarks.DESIGN_ONLY}))
+        self.assertFalse(gates.design_talk({}))
+        self.assertFalse(gates.design_talk(None))
         self.assertEqual(gates.request_answers({"answers": [{"question": "q", "text": "a"}, "x"]}), [{"question": "q", "text": "a"}])
         self.assertEqual(gates.request_answers({"answers": "x"}), [])
 

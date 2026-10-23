@@ -9,7 +9,7 @@ inputs:
   tdd_suite: {default: '', description: 'text: テストの実行器（JUnit XML の書き先を第 1 引数に受ける実行ファイル。対象の根から）。空なら直す前のテストの後に、同じ test_cmd で前に照らしを通った取り置きを使い、無ければ AI の手番 1 回が test_cmd と CI の定義から書く。走らせて JUnit XML が出て試験が 1 件以上の時だけ修正の段の TDD のループを回す'}
   final_gate: {default: '', description: 'text: 最後の承認ノードの開き方。always（空の既定。無人の run の空の既定は when_needed）・when_needed・protected_only。守りのパスの当たりと申し出はどれでも開く'}
   unattended: {default: '', description: 'text: 無人の run か（空か true）。true は人が答えない run で、台帳の問いは承認ノードに載せず（判定の推しつきの分かれ道の問いは推しを答えに採って直す義務に戻し）、承認ノードを開くはずの時は項目の全部の推しが通すならその推しで進み、そうでなければ開かずに止める（needs-human）'}
-  design_only: {default: '', description: 'text: 対話モード（設計を人と相談する run）か（空か true）。true で無人でない run は、計画の往復が止まる周ごとに設計案と事前審査の結果を設計の相談の承認ノードで見せ、修正要望（revise と一言）なら設計し直して事前審査をやり直し、合意なら修正前の承認ノードで聞き直さずに修正へ進む。無人の run の true は修正前の承認ノードを必ず開く（開けずに止まる）'}
+  design_talk: {default: '', description: 'text: 対話モード（設計を人と相談する run）か（空か true）。true で無人でない run は、計画の往復が止まる周ごとに設計案と事前審査の結果を設計の相談の承認ノードで見せ、修正要望（revise と一言）なら設計し直して事前審査をやり直し、合意なら修正前の承認ノードで聞き直さずに修正へ進む。無人の run の true は修正前の承認ノードを必ず開く（開けずに止まる）'}
   thickness: {default: '', description: 'text: 手厚さ（深さ）。空・自動は機械が単位ごとに決める。軽量・標準は全部の単位をその深さに固定する。重厚は単位を標準に固定する。段ごとに省く物・足す物は docs/design/line.md の 5.1 の表'}
   features_off: {default: '', description: 'text: 切る機能（語をカンマか空白で区切った 1 行。語と既定は lib/entry.py の FEATURES・FEATURE_DEFAULTS）。知らない語は start が止める'}
   features_on: {default: '', description: 'text: 入れる機能（features_off と同じ語）。features_off と同じ語を名指せば start が止める'}
@@ -47,7 +47,7 @@ nodes:
     output_format:
       type: object
       additionalProperties: false
-      required: [ok, stop_reason, reason, record, prior_failures, ask, gate_text, unattended, design_only, final_gate, from_fixture, fixture,
+      required: [ok, stop_reason, reason, record, prior_failures, ask, gate_text, unattended, design_talk, final_gate, from_fixture, fixture,
                  from_spec, ports]
       properties:
         ok: {type: boolean}
@@ -58,7 +58,7 @@ nodes:
         ask: {type: boolean}
         gate_text: {type: string}
         unattended: {type: boolean}
-        design_only: {type: boolean}
+        design_talk: {type: boolean}
         final_gate: {type: string}
         from_fixture: {type: boolean}
         fixture: {type: [object, 'null']}
@@ -67,7 +67,7 @@ nodes:
           type: object
           additionalProperties: false
           required: [request, request_file, pr_text, carried, carried_measured, base, base_rev, request_origin, base_label, review_rev, entry,
-                     lang, web, world, spec, has_checks, thickness, forced, design_only, unattended, policy, test_cmd, tdd_suite, reuse_dir,
+                     lang, web, world, spec, has_checks, thickness, forced, design_talk, unattended, policy, test_cmd, tdd_suite, reuse_dir,
                      user_env_dir, run_id, deliver, parallel, verify_by_tier, tree_named, takes_push, request_scope, prior_rows,
                      request_answers, spec_table, routes]
           properties:
@@ -89,7 +89,7 @@ nodes:
             has_checks: {type: boolean}
             thickness: {type: string}
             forced: {type: string}
-            design_only: {type: boolean}
+            design_talk: {type: boolean}
             unattended: {type: boolean}
             policy: {type: string}
             test_cmd: {type: string}
@@ -204,7 +204,7 @@ nodes:
       spec: "$start.output.ports.spec"
       has_checks: "$start.output.ports.has_checks"
       thickness: "$start.output.ports.thickness"
-      design_only: "$start.output.ports.design_only"
+      design_only: "$start.output.ports.design_talk"
       verify_by_tier: "$start.output.ports.verify_by_tier"
       user_env_dir: "$start.output.ports.user_env_dir"
       request_origin: "$start.output.ports.request_origin"
@@ -342,7 +342,7 @@ nodes:
         premises: {type: [object, 'null']}
         stop_reason: {type: string}
   # 8 計画の往復（docs/design/line.md の 3 節）。本体に AI の node を直に置かない。止め時は plan-out が決め、往復の返りは design-talk。
-  # 対話モードの run（design_only で無人でない）だけ、止まる周に本体の唯一の終わりの関所 gate-design で設計を相談する（3.1 節。答えは
+  # 対話モードの run（design_talk で無人でない）だけ、止まる周に本体の唯一の終わりの関所 gate-design で設計を相談する（3.1 節。答えは
   # 次の周の頭の design-turn が読む。until_bash は飛びうる関所の出力を読まない）。通常の run は関所がいつも飛び、往復は今と同じ
   - id: plan-rounds
     depends_on: [judge, judge-out, owed, structure-in, design-in, tiers]

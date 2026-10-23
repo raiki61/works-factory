@@ -53,7 +53,7 @@ def raw_inputs() -> dict:
         "tdd_suite": os.environ.get("INPUTS_TDD_SUITE", ""),
         "final_gate": os.environ.get("INPUTS_FINAL_GATE", ""),
         "unattended": os.environ.get("INPUTS_UNATTENDED", ""),
-        "design_only": os.environ.get("INPUTS_DESIGN_ONLY", ""),
+        "design_talk": os.environ.get("INPUTS_DESIGN_TALK", ""),
         "thickness": os.environ.get("INPUTS_THICKNESS", ""),
         "features_off": os.environ.get("INPUTS_FEATURES_OFF", ""),
         "features_on": os.environ.get("INPUTS_FEATURES_ON", ""),
@@ -79,9 +79,9 @@ def words(raw: dict, repo: Path) -> dict:
     both = sorted(set(off) & set(on))
     if both:
         raise Refused(f"features_on と features_off の両方に {', '.join(both)} を名指した（片方だけ）")
-    design_only = raw["design_only"].strip()
-    if design_only not in ("", gatemarks.DESIGN_ONLY):
-        raise Refused(f"design_only={raw['design_only']!r} は知らない値（空か {gatemarks.DESIGN_ONLY}）")
+    design_talk = raw["design_talk"].strip()
+    if design_talk not in ("", gatemarks.DESIGN_ONLY):
+        raise Refused(f"design_talk={raw['design_talk']!r} は知らない値（空か {gatemarks.DESIGN_ONLY}）")
     thickness = raw["thickness"].strip()
     words_ok = ("", AUTO, *tiers.HEADS)
     if thickness not in words_ok:
@@ -94,7 +94,7 @@ def words(raw: dict, repo: Path) -> dict:
     if fix_fixture and spec:
         raise Refused("仕様の段（spec=on）は固定材料（fix_fixture）と組めない（固定材料は判定と修正案が済んだ所の写しで、仕様の段は"
                       "判定の中に在る）")
-    return {**gate, "spec": spec, "design_only": design_only, "thickness": thickness, "features_off": off, "features_on": on,
+    return {**gate, "spec": spec, "design_talk": design_talk, "thickness": thickness, "features_off": off, "features_on": on,
             "policy_md": policy_md(raw["policy_md"], repo), "fix_fixture": fix_fixture, "spec_table": table}
 
 
@@ -240,7 +240,7 @@ def begun(record: dict, shape: dict, prior, raw: dict, repo: Path, artifacts: Pa
     pointer = write(artifacts, record)
     return {"ok": True, "stop_reason": "", "reason": "", "record": pointer, "prior_failures": prior,
             "ask": not unattended, "gate_text": gate_text(shape, record, run_id, test_notes(raw, repo)),
-            "unattended": unattended, "design_only": record["design_only"] == gatemarks.DESIGN_ONLY,
+            "unattended": unattended, "design_talk": record["design_talk"] == gatemarks.DESIGN_ONLY,
             "final_gate": record[gates.FINAL_KEY], "from_fixture": carried is not None, "fixture": carried,
             "from_spec": bool(record.get("spec_table")), "ports": deal.ports_of(record, artifacts)}
 
@@ -276,14 +276,14 @@ def start(raw: dict, repo: Path, artifacts: Path, run_id: str) -> dict:
         record["refused"] = str(error)
         return {"ok": False, "stop_reason": stopby.START_REFUSED, "reason": str(error),
                 "record": write(artifacts, record), "prior_failures": None, "ask": False, "gate_text": "",
-                "unattended": False, "design_only": False, "final_gate": "", "from_fixture": False, "fixture": None,
+                "unattended": False, "design_talk": False, "final_gate": "", "from_fixture": False, "fixture": None,
                 "from_spec": False, "ports": deal.empty()}
     parts = asked["parts"]
     record.update({
         "input": shape, "base_rev": shape["head_rev"], "review_rev": shape["head_rev"], "request_file": asked["request_file"],
         "test_cmd": raw["test_cmd"], "tdd_suite": raw["tdd_suite"],
         gates.FINAL_KEY: checked[gates.FINAL_KEY], gates.UNATTENDED_KEY: checked[gates.UNATTENDED_KEY],
-        "design_only": checked["design_only"], "thickness": checked["thickness"], "spec": checked["spec"],
+        "design_talk": checked["design_talk"], "thickness": checked["thickness"], "spec": checked["spec"],
         "policy_md": checked["policy_md"], "policy": policy.freeze(artifacts, repo, checked["policy_md"]), "lang": raw["lang"],
         **features(checked),
         "answers": parts[carry.ANSWERS], "request_text": entryshape.request_text(inp),
@@ -317,7 +317,7 @@ def fallback(reason: str) -> dict:
     from src import deal, guard
 
     return {"ok": False, "stop_reason": guard.LINE_SCRIPT, "reason": reason, "record": None, "prior_failures": None,
-            "ask": False, "gate_text": "", "unattended": False, "design_only": False, "final_gate": "", "from_fixture": False,
+            "ask": False, "gate_text": "", "unattended": False, "design_talk": False, "final_gate": "", "from_fixture": False,
             "fixture": None, "from_spec": False, "ports": deal.empty()}
 
 

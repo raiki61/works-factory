@@ -263,6 +263,18 @@ class LauncherTest(unittest.TestCase):
                                             "--model", "large=opus"))["argv"]
             self.assertEqual(argv[-3:], ["--model=@wf-judge-core=haiku", "--model", "large=opus"])
 
+    def test_old_design_only_input_is_refused_with_the_new_name(self):
+        """#827: 対話モードの入力は design_only から design_talk に名が替わった。古い名は Archon を起こさずに止め、新しい名を案内する"""
+        for workflow in ("works-factory-line", "works-factory-chain"):
+            for args in (["--input", "design_only=true"], ["--input=design_only=true"]):
+                with self.subTest(workflow=workflow, args=args):
+                    err = self.stopped(self.launch("workflow", "run", workflow, *args))
+                    self.assertIn("design_only", err)
+                    self.assertIn("--input design_talk=true", err)
+        with self.subTest("新しい名と、名の替わっていない block の同じ名の入力は通す"):
+            self.reached(self.launch("workflow", "run", "works-factory-line", "--input", "design_talk=true"))
+            self.reached(self.launch("workflow", "run", "works-factory-judge", "--input", "design_only=true"))
+
     def test_home_is_stable_per_target(self):
         def home_of(**kw):
             return self.reached(self.launch("workflow", "status", **kw))["env"]["HOME"]

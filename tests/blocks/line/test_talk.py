@@ -56,19 +56,19 @@ class TalkCase(unittest.TestCase):
         fields = self.put("plan/r1/plan-fields.json", {"fields": [{"unit_keys": ["u1"], "allowed_paths": ["a.py"], "route": "tdd"}]})
         return {**rounds(record=record, plan_prior=prior, fix_plan=fix_plan, plan=fields), **over}
 
-    def turn(self, answer="", previous=None, last=None, design_only=True, **given):
+    def turn(self, answer="", previous=None, last=None, design_talk=True, **given):
         with self.run.env():
             return self.t.turn(answer_raw=answer if isinstance(answer, str) else json.dumps(answer),
                                previous_raw=json.dumps(previous) if previous is not None else "",
                                last_raw=json.dumps(last) if last is not None else "",
-                               given={"design_only": design_only, "unattended": False, "request_answers": [{"question": "q", "text": "a"}],
+                               given={"design_talk": design_talk, "unattended": False, "request_answers": [{"question": "q", "text": "a"}],
                                       **given},
                                recorded=[{"source": "doc", "name": "p.md", "text": ""}], place=self.run.artifacts)
 
-    def settle(self, turn_got, plan_out=None, previous=None, design_only=True):
+    def settle(self, turn_got, plan_out=None, previous=None, design_talk=True):
         with self.run.env():
             return self.t.settle(turn_got=turn_got, plan_out=plan_out, previous=previous,
-                                 given={"design_only": design_only, "unattended": False}, materials=no_materials, run_id=kit.RUN_ID)
+                                 given={"design_talk": design_talk, "unattended": False}, materials=no_materials, run_id=kit.RUN_ID)
 
     def opened(self, **over) -> dict:
         """対話モードで往復が止まった周の design-talk の返り（関所が開いた）"""
@@ -76,24 +76,24 @@ class TalkCase(unittest.TestCase):
 
     # ------------------------------------------------------------------ 通常の run は変わらない
     def test_normal_run_carries_the_previous_round_as_it_was(self):
-        first = self.turn(design_only=False)
+        first = self.turn(design_talk=False)
         self.assertEqual((first["plan"], first["plan_prior"], first["record"]), (True, "", ""))
         self.assertEqual(first["answers"], [{"question": "q", "text": "a"}], "依頼の答えのまま（今の request_answers）")
         self.assertEqual(first["recorded"], [{"source": "doc", "name": "p.md", "text": ""}], "owed の recorded のまま")
         po = self.plan_out(done=False)
-        later = self.turn(previous={**po, "open": False, "text": "", "asked": [], "agreed": None, "talks": []}, design_only=False)
+        later = self.turn(previous={**po, "open": False, "text": "", "asked": [], "agreed": None, "talks": []}, design_talk=False)
         self.assertEqual((later["plan"], later["plan_prior"], later["record"]), (True, po["plan_prior"], po["record"]))
 
     def test_normal_run_settles_to_the_plan_out_return(self):
         po = self.plan_out()
-        got = self.settle(self.turn(design_only=False), po, design_only=False)
+        got = self.settle(self.turn(design_talk=False), po, design_talk=False)
         self.assertEqual({k: got[k] for k in po}, po)
         self.assertEqual((got["open"], got["text"], got["agreed"]), (False, "", None))
 
     def test_unattended_design_only_run_does_not_talk(self):
         """無人の run は人がいないので、設計だけでも相談の関所を開かない（修正前の承認ノードの今の止め方のまま）"""
-        self.assertFalse(self.t.dialogue({"design_only": True, "unattended": True}))
-        self.assertTrue(self.t.dialogue({"design_only": True, "unattended": False}))
+        self.assertFalse(self.t.dialogue({"design_talk": True, "unattended": True}))
+        self.assertTrue(self.t.dialogue({"design_talk": True, "unattended": False}))
 
     # ------------------------------------------------------------------ 設計と審査を見せる
     def test_dialogue_opens_on_the_round_that_stops_with_the_design_and_the_review(self):
@@ -195,7 +195,7 @@ class TalkCase(unittest.TestCase):
     def test_a_failed_turn_does_not_make_up_an_answer(self):
         """周の頭が落ちた（答えの無い止め）周は、人が答えたことにしない（agreed は null）"""
         got = self.settle({"plan": False, "answer": None, "talks": [], "stop_reason": "works:line-script", "reason": "落ちた"}, None,
-                          design_only=False)
+                          design_talk=False)
         self.assertEqual((got["done"], got["agreed"]), (True, None))
 
     def test_ask_names_do_not_overlap(self):
@@ -366,7 +366,7 @@ class ScriptCase(unittest.TestCase):
         out = self.run.script("ask_before_fix", rounds=json.dumps(got, ensure_ascii=False), structure="null",
                               judge=json.dumps({"judgment": None, "answer_ties": None, "materials": None}),
                               record=self.run.pointer("r1/start.json"),
-                              ports=json.dumps({"unattended": False, "design_only": True, "policy": ""}))
+                              ports=json.dumps({"unattended": False, "design_talk": True, "policy": ""}))
         self.assertEqual((out["open"], out["go"], out["agreed"]), (False, True, agreed), out)
 
 

@@ -774,15 +774,15 @@ class PushableCase(unittest.TestCase):
 
     def test_every_condition_is_needed(self):
         push = {"go": True, "note": "key-a1 は端なので進める"}
-        self.assertTrue(rounds.stuck_pushable(self.doc(), push, unattended=True, design_only=False))
-        for kw, why in (({"unattended": False, "design_only": False}, "人の居る run"), ({"unattended": True, "design_only": True}, "設計だけ")):
+        self.assertTrue(rounds.stuck_pushable(self.doc(), push, unattended=True, design_talk=False))
+        for kw, why in (({"unattended": False, "design_talk": False}, "人の居る run"), ({"unattended": True, "design_talk": True}, "設計だけ")):
             with self.subTest(why=why):
                 self.assertFalse(rounds.stuck_pushable(self.doc(), push, **kw))
-        self.assertFalse(rounds.stuck_pushable(self.doc(capped=True), push, unattended=True, design_only=False), "上限の止まりは人が見る")
-        self.assertFalse(rounds.stuck_pushable(self.doc(outcome=C.AGAIN), push, unattended=True, design_only=False))
-        self.assertFalse(rounds.stuck_pushable(self.doc(), {"go": False, "note": "key-a1"}, unattended=True, design_only=False))
-        self.assertFalse(rounds.stuck_pushable(self.doc(), {"go": True, "note": "引いていない"}, unattended=True, design_only=False))
-        self.assertFalse(rounds.stuck_pushable(self.doc(), None, unattended=True, design_only=False))
+        self.assertFalse(rounds.stuck_pushable(self.doc(capped=True), push, unattended=True, design_talk=False), "上限の止まりは人が見る")
+        self.assertFalse(rounds.stuck_pushable(self.doc(outcome=C.AGAIN), push, unattended=True, design_talk=False))
+        self.assertFalse(rounds.stuck_pushable(self.doc(), {"go": False, "note": "key-a1"}, unattended=True, design_talk=False))
+        self.assertFalse(rounds.stuck_pushable(self.doc(), {"go": True, "note": "引いていない"}, unattended=True, design_talk=False))
+        self.assertFalse(rounds.stuck_pushable(self.doc(), None, unattended=True, design_talk=False))
 
 
 if __name__ == "__main__":

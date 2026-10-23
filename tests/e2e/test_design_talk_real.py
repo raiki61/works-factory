@@ -7,7 +7,7 @@ loopIterationCompletes）。ここでは line の YAML の plan-rounds の node 
 （start・判定・owed など）は値を返すだけの script。AI も認証も要らないので CI でも走る。本物の AI の役（計画・事前審査）は回していない。
 
 照らす事（#822 の受入確認のうち、本物の Archon の止め・答え・再開・周の数が要る物）:
-- 通常の run（design_only が空）: 止まらずに終わり、関所は飛び、往復の返りは plan-out の返りのまま
+- 通常の run（design_talk が空）: 止まらずに終わり、関所は飛び、往復の返りは plan-out の返りのまま
 - 対話モードの run: 1 周目の止まる周で関所が開いて run が待つ（答えるまで進まない）→ revise と一言で 2 周目の plan が人の block を
   差し込んだ記録と一言を受け、事前審査が照らし直して関所がもう一度開く → approve で輪を終え、修正前の承認ノードは聞き直さずに
   修正へ進む（go 真・合意を agreed に運ぶ）
@@ -138,7 +138,7 @@ def _stub(node: dict, script: str, inputs: dict, keys) -> dict:
             "output_format": {"type": "object", "required": list(keys), "properties": {k: {} for k in keys}}}
 
 
-def probe(design_only: bool) -> dict:
+def probe(design_talk: bool) -> dict:
     line = yaml.safe_load((LINE / "works-factory-line.yaml").read_text(encoding="utf-8"))
     top = {n["id"]: n for n in line["nodes"]}
     rounds = copy.deepcopy(top["plan-rounds"])
@@ -150,7 +150,7 @@ def probe(design_only: bool) -> dict:
         elif node["id"] == "plan-review-run":
             body[i] = _stub(node, "review_probe", {"prior": "$design-turn.output.record", "recorded": "$design-turn.output.recorded"},
                             REVIEW_KEYS)
-    ports = {"design_only": design_only, "unattended": False, "request_answers": [{"question": "q", "text": "依頼の答え"}],
+    ports = {"design_talk": design_talk, "unattended": False, "request_answers": [{"question": "q", "text": "依頼の答え"}],
              "policy": "", "takes_push": False}
     head = [
         _emit("start", {"ok": True, "record": "@ptr:r1/start.json", "ports": ports}, files={"r1/start.json": {"answers": []}}),
@@ -166,14 +166,14 @@ def probe(design_only: bool) -> dict:
             "nodes": [*head, rounds, *tail]}
 
 
-def place_probe(folder: pathlib.Path, design_only: bool) -> None:
+def place_probe(folder: pathlib.Path, design_talk: bool) -> None:
     (folder / "scripts").mkdir(parents=True)
     shutil.copytree(LINE / "src", folder / "src", ignore=shutil.ignore_patterns("__pycache__"))
     for name in REAL_SCRIPTS:
         shutil.copyfile(LINE / "scripts" / f"{name}.py", folder / "scripts" / f"{name}.py")
     for name, body in (("emit", EMIT), ("plan_probe", PLAN), ("review_probe", REVIEW)):
         (folder / "scripts" / f"{name}.py").write_text(body, encoding="utf-8")
-    (folder / f"{WORKFLOW}.yaml").write_text(yaml.safe_dump(probe(design_only), allow_unicode=True, sort_keys=False), encoding="utf-8")
+    (folder / f"{WORKFLOW}.yaml").write_text(yaml.safe_dump(probe(design_talk), allow_unicode=True, sort_keys=False), encoding="utf-8")
 
 
 def body_outputs(events: list, node: str) -> list:
@@ -189,10 +189,10 @@ def top_output(events: list, node: str):
 class TalkRoundsCase(unittest.TestCase):
     maxDiff = None
 
-    def tree(self, design_only: bool):
+    def tree(self, design_talk: bool):
         work = pathlib.Path(tempfile.mkdtemp())
         self.addCleanup(shutil.rmtree, work, True)
-        place_probe(work / FOLDER, design_only)
+        place_probe(work / FOLDER, design_talk)
         return archon.tree([FOLDER], workflows=work)
 
     def runs(self, root) -> list:
@@ -207,8 +207,8 @@ class TalkRoundsCase(unittest.TestCase):
         self.assertEqual(done.returncode, 0, done.stdout + done.stderr)
 
     def test_probe_validates(self):
-        for design_only in (False, True):
-            with self.subTest(design_only=design_only), self.tree(design_only) as root:
+        for design_talk in (False, True):
+            with self.subTest(design_talk=design_talk), self.tree(design_talk) as root:
                 self.assertEqual(validate(root), {WORKFLOW: []})
 
     def test_normal_run_does_not_stop_and_returns_the_plan_out(self):

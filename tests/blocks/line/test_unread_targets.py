@@ -62,7 +62,7 @@ class AskBeforeFixCase(unittest.TestCase):
 
     def ask(self, judge, *, unattended=False, structure="null"):
         return self.run.script("ask_before_fix", rounds=json.dumps(rounds()), structure=structure, judge=json.dumps(judge),
-                               record="null", ports=json.dumps({"unattended": unattended, "design_only": False, "policy": ""}))
+                               record="null", ports=json.dumps({"unattended": unattended, "design_talk": False, "policy": ""}))
 
     def test_missing_judgment_opens_with_its_name(self):
         out = self.ask({"judgment": ptr("judge/judgment.json"), "answer_ties": ptr("judge/ties.json"), "materials": None})

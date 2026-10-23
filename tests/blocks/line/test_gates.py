@@ -424,7 +424,7 @@ class ScriptCase(unittest.TestCase):
         return self.run.pointer(rel)
 
     def ports(self, **over) -> str:
-        return json.dumps({"unattended": False, "design_only": False, "policy": "", "base_rev": "abc", "deliver": "", **over})
+        return json.dumps({"unattended": False, "design_talk": False, "policy": "", "base_rev": "abc", "deliver": "", **over})
 
     def test_ask_before_fix_opens_with_the_gate_text(self):
         record = self.put("r1/start.json", {"answers": []})
