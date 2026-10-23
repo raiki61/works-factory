@@ -1,8 +1,8 @@
-"""範囲の宣言と照らす変更の決め（今の workflows/test-gate/scripts/run.py の changed と request_wheres を port の値で受ける形に写した物）。
+"""範囲の宣言と照らす変更の決めと、関わる試験の選びの起点（元の workflows/test-gate/scripts/run.py の changed を port の値で受ける形に写した物）。
 
 範囲の宣言 .works-checks.json の段ごとの paths_ignore は、変更が全部その下に在る段を回さないために、変更のパスと照らす。
-変更は base から今の作業ツリーまでに触ったファイルと、判定から入る run（request_scope が真）の base で依頼の行の where が
-名指す追跡中のパスの和から、Archon が作業ツリーに置く工程の写しを除いた物。
+変更は base から今の作業ツリーまでに触ったファイルから、Archon が作業ツリーに置く工程の写しを除いた物（範囲の宣言と照らすのは
+最後のテストだけ。直す前は段を走らせない。持ち主の決め base-selfcheck-only）。依頼の行の where は関わる試験の選びの起点に足す（related_wheres）。
 """
 from __future__ import annotations
 
@@ -14,18 +14,9 @@ import accept       # lib/
 import checkscope   # lib/
 
 
-def request_wheres(request, mode: str, request_scope: bool) -> list:
-    """判定から入る run（入口の差分が空。request_scope が真）の base で、依頼の行の where の並び。修正の前の入口の確かめは、
-    変更を依頼が名指す所で決める（修正が where の外へ広がれば final がその変更で照らす）。final・request_scope が偽・依頼が無い時は
-    []（足さない）"""
-    if mode != "base" or request_scope is not True or not isinstance(request, list):
-        return []
-    return [row["where"] for row in request if isinstance(row, dict) and isinstance(row.get("where"), str)]
-
-
 def related_wheres(request, request_scope: bool) -> list:
-    """関わる試験の選びの起点に足す依頼の行の where の並び。範囲の宣言に使う request_wheres と違い、base と final の両方に足す
-    （final の選びが base の選びを含むように。docs/design/test-gate.md の 14.3）。request_scope が偽・依頼が無い時は []"""
+    """関わる試験の選びの起点に足す依頼の行の where の並び。base と final の両方に足す（final の選びが base の選びを含むように。
+    docs/design/test-gate.md の 14.3）。request_scope が偽・依頼が無い時は []"""
     if request_scope is not True or not isinstance(request, list):
         return []
     return [row["where"] for row in request if isinstance(row, dict) and isinstance(row.get("where"), str)]

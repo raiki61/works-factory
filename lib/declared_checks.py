@@ -9,7 +9,7 @@
   _reused_material・_reused_note
 - 書き直し: tree_runner・_engine_log・checks_plan・checks_reply・_skipped_note・run_ci・baseline_line
 - 元の盤面の部分を盤面なしで組み直した物: _planned_run・_declaration_moved（宣言の照合）・_fall_back（任せ先へ落とす）
-- 新しい関数: material_problems・role_material_problems・drop_copy
+- 新しい関数: material_problems・role_material_problems・drop_copy・plan_by（走らせる前の止めは _refuse_scope_alone・_refuse_step_name で run_ci と分け合う）
 """
 import contextlib
 import json
@@ -471,9 +471,7 @@ def run_ci(root, *, test_cmd: str, log_dir, changed, after_judge: bool, report_d
     （checkscope.request_files））"""
     root = pathlib.Path(root)
     log_dir = pathlib.Path(log_dir)
-    if (root / checkscope.SCOPE_DECL).is_file() and not (root / DECL_NAME).is_file():
-        raise CiRefused(f"範囲の宣言 {checkscope.SCOPE_DECL} が在るのに、それが段を名指す対象の宣言 {DECL_NAME} が無い"
-                        "——範囲の宣言が効かない（宣言を置くか、範囲の宣言を消す）")
+    _refuse_scope_alone(root)
     got, ran, moved = _planned_run(root, test_cmd, log_dir, changed, after_judge, report_dir, reuse)
     if moved:
         got, ran, again = _planned_run(root, test_cmd, log_dir / "replan", changed, after_judge, report_dir, reuse)
@@ -488,6 +486,32 @@ def run_ci(root, *, test_cmd: str, log_dir, changed, after_judge: bool, report_d
     return _fall_back(root, test_cmd, log_dir, ran, got["same_as"], why, reuse)
 
 
+def plan_by(root, test_cmd: str) -> str:
+    """走らせずに決める走らせ方の語（run_ci と同じ決め: 宣言が在れば ENGINE、無くて test_cmd が在れば ROLE、どちらも無ければ ROLE_NEEDED）。
+    範囲の宣言だけが在る・宣言の段の名が TEST_CMD_STEP なら、run_ci と同じ CiRefused（走らせる前に止める）。宣言の書式の誤りは ENGINE
+    （run_ci は走らせずに走らせられない素材を組む。呼び手は走らせないので語だけ返す）。直す前の試験の関門の自己点検（全部の試験を回さない。
+    持ち主の決め base-selfcheck-only）が使う（新しい関数）"""
+    root = pathlib.Path(root)
+    _refuse_scope_alone(root)
+    plan = checks_plan(root)
+    if "fallback" in plan:
+        return ROLE if (test_cmd or "").strip() else ROLE_NEEDED
+    _refuse_step_name(plan.get("steps") or [])
+    return ENGINE
+
+
+def _refuse_scope_alone(root: pathlib.Path) -> None:
+    if (root / checkscope.SCOPE_DECL).is_file() and not (root / DECL_NAME).is_file():
+        raise CiRefused(f"範囲の宣言 {checkscope.SCOPE_DECL} が在るのに、それが段を名指す対象の宣言 {DECL_NAME} が無い"
+                        "——範囲の宣言が効かない（宣言を置くか、範囲の宣言を消す）")
+
+
+def _refuse_step_name(steps: list) -> None:
+    if any(s["name"] == TEST_CMD_STEP for s in steps):
+        raise CiRefused(f"宣言 {DECL_NAME} の段の名 {TEST_CMD_STEP} は工場が test_cmd を走らせる段の名で、宣言の段には使えない"
+                        "（段の名を変える）")
+
+
 def _planned_run(root: pathlib.Path, test_cmd: str, log_dir: pathlib.Path, changed, after_judge: bool, report_dir, reuse) -> tuple:
     """計画から走らせて素材を組むまでの 1 回 ——（返り, 走った段の行（tree_runner の形）, 宣言が計画の後に変わった訳か ""）"""
     out = _no_runs()
@@ -500,9 +524,7 @@ def _planned_run(root: pathlib.Path, test_cmd: str, log_dir: pathlib.Path, chang
         material = local_checks_material(root, test_cmd, log, launched=launched, reuse=reuse)["material"]
         return {**out, "by": ROLE, "material": material, "log": str(log), "test_cmd_how": launched.get("how")}, [], ""
     steps = plan.get("steps") or []
-    if any(s["name"] == TEST_CMD_STEP for s in steps):
-        raise CiRefused(f"宣言 {DECL_NAME} の段の名 {TEST_CMD_STEP} は工場が test_cmd を走らせる段の名で、宣言の段には使えない"
-                        "（段の名を変える）")
+    _refuse_step_name(steps)
     launch = {"steps": steps, "sha": plan.get("sha"), "blocked": plan.get("blocked")}
     runs, skipped, note, todo = [], [], {}, []
     if not launch["blocked"]:

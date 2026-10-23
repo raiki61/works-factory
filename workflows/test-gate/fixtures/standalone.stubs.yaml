@@ -1,6 +1,6 @@
 # 単独の run: mode だけで最後まで届く（script は本当に走り、AI の役の返答だけを差し替える）。宣言も test_cmd も無い作業ツリーなので、機械は
 # 何も走らせられず（by role_needed）、tdd_suite を省いた base なので実行器の輪が回る（書き手の返答の本文を suite-place が置き、suite-try が
-# 1 回走らせて照らす。関わる試験が無いので、照らしのために一式を 1 回走らせる）
+# 1 回走らせて照らす。直す前は全部の試験を回さないので、関わる試験か見本の試験のファイル 1 つだけを渡す。docs/design/test-gate.md の 15 節）
 fixture:
   expect: completed
   reached: [intake, run, suite-prep, suite-write, suite-place, suite-try, result]

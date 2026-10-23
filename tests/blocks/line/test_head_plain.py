@@ -93,3 +93,31 @@ class HandoffTitleCase(unittest.TestCase):
     def test_a_line_without_a_title_has_no_title_key(self):
         (ask,) = self.asks({})
         self.assertNotIn("title", ask)
+
+
+class BaseStopHeadCase(unittest.TestCase):
+    """#836（持ち主の決め base-selfcheck-only）: 直す前の試験の関門が止めた run（返りの ok が偽。自己点検が試験の起動スクリプトの
+    壊れを見つけた）は、報告の冒頭の知らせの行に止めた訳を出す。訳はログのパスを持つ。止めていない run には出さない"""
+    WHY = "試験の起動スクリプトが壊れている——test_cmd を単体で走らせると緑（ログ /r/logs/a2/test_cmd-alone.log）なのに、起動スクリプト越しだけが赤"
+
+    def setUp(self):
+        self.f = kit.load(BLOCK, "facts")
+        self.run = kit.Run(self, BLOCK)
+        base.seed(self.run)
+
+    def after(self, values: dict) -> list:
+        with self.run.env(), mock.patch.object(__import__("report"), "CMD_LIGHT", "light", create=True):
+            return self.f.build(values, base.record())["head"]["after"]
+
+    def test_the_stop_reason_of_the_base_gate_heads_the_report(self):
+        v = base.passing()
+        v["test_gate_base"] = {**v["test_gate_base"], "ok": False, "green": False, "reason": self.WHY}
+        for name in ("judge", "fix_in", "fixed", "eyes", "merge_seal", "merge_apply", "test_gate_final"):
+            v[name] = None
+        lines = self.after(v)
+        self.assertTrue(lines and lines[0].startswith("直す前の試験の関門が止めた"), lines)
+        self.assertIn("/r/logs/a2/test_cmd-alone.log", lines[0])
+        self.assertIn("起動スクリプトが壊れている", lines[0])
+
+    def test_a_base_gate_that_went_on_says_nothing(self):
+        self.assertFalse([x for x in self.after(base.passing()) if x.startswith("直す前の試験の関門が止めた")])

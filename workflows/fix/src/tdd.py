@@ -81,7 +81,6 @@
 （本物の index・HEAD・枝は動かさない。.gitignore に当たる物は載らない）。期限は持たない。
 """
 import ast
-import contextlib
 import difflib
 import hashlib
 import json
@@ -89,7 +88,6 @@ import os
 import pathlib
 import posixpath
 import re
-import shutil
 import subprocess
 import sys
 import tempfile
@@ -2123,35 +2121,7 @@ def load_json(path: pathlib.Path, default):
     return got if isinstance(got, type(default)) else default
 
 
-@contextlib.contextmanager
-def temp_tree(repo: pathlib.Path, rev: str):
-    """(版 rev を出した一時の git worktree（--detach。フックは切る）か None, 作れない理由の並び)。写しに .git が在るので git を読む
-    試験も今の木と同じ条件で走る。成否に関わらず消す（この worktree だけを外し、外せなければ置き場を消して prune する。
-    作業ツリー・index・枝は動かさず、git の控え .git/worktrees/ の行を残さない）。置き場の根は実のパスに解く（実行器の起こし場所と
-    引数の綴りをそろえる。test_base_copy_args_lie_under_real_cwd）"""
-    try:
-        td = pathlib.Path(tempfile.mkdtemp(prefix="works-tdd-rev-")).resolve()
-    except OSError as e:
-        yield None, [f"{type(e).__name__}: {e}"]
-        return
-    wt = td / "repo"
-    try:
-        try:
-            git(repo, "-c", "core.hooksPath=/dev/null", "worktree", "add", "--detach", "--quiet", str(wt), rev)
-        except Unreadable as e:
-            yield None, [str(e)]
-            return
-        yield wt, []
-    finally:
-        try:
-            git(repo, "worktree", "remove", "--force", str(wt))
-        except Unreadable:
-            shutil.rmtree(wt, ignore_errors=True)
-            try:
-                git(repo, "worktree", "prune")
-            except Unreadable:
-                pass
-        shutil.rmtree(td, ignore_errors=True)
+temp_tree = baseline_red.temp_tree   # 版の一時の worktree（lib に上げた。試験の関門の最後のテストも使う）
 
 
 def _base_reds(st, repo, rev, files, kexpr) -> tuple:

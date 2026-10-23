@@ -4,6 +4,10 @@
 - 走らせ方が決まらない道（by role_needed。持ち主の決め related-tests-only）の素材は、機械が実行器の結果から組む（runner_material）。
   実行器の緑は認証しない（green_cert.RUNNER_HELD）。任せ先の CI の役は外した（docs/design/test-gate.md の 14 節）
 
+- base は直す前の自己点検（持ち主の決め base-selfcheck-only・docs/design/test-gate.md の 15 節）: 素材は run.json の selfcheck（実行器を
+  小さな試験の組で 1 回走らせた結末）だけから組む（base_material）。起動スクリプトが壊れている（test_cmd の単体は緑なのに実行器越しだけが
+  赤。#836）なら ok を偽にして判定の前で止め、訳を reason に置く
+- final は、落ちた試験のうち元の結末に無い物を修正前の版で走らせ直した結末（run.json の base_rerun）を元の結末に足してから比べる（with_rerun）
 - base は直す前の結末のファイル baseline.json を書く（baseline_red.write_baseline。suite は suite-state.json の tdd_suite、test_cmd は
   intake.json から）。final は port baseline のファイルを baseline_red.read_baseline で読み、修正前のテストの行を証拠に足し、
   テストごとの修正前と今の結末（test_outcomes）を返す
@@ -95,8 +99,23 @@ def evidence(mode: str, out: dict, run: dict, material, summary: str) -> str:
              f"- JUnit の報告を宣言した段: {'・'.join(run['junit_steps']) or '無い'}"
              + (f"（試験を走らせなかった段: {'・'.join(run['junit_unran'])}）" if run["junit_unran"] else ""),
              f"- 一式（tdd_suite）: {json.dumps(run['suite'], ensure_ascii=False) if run.get('suite') else '無い'}",
+             *([f"- 直す前の自己点検: {json.dumps(_brief_check(run['selfcheck']), ensure_ascii=False)}"] if run.get("selfcheck") else []),
+             *([f"- 修正前の版で走らせ直した: {json.dumps(_brief_rerun(run['base_rerun']), ensure_ascii=False)}"]
+               if run.get("base_rerun") else []),
              f"- 指紋: 走らせる前 {json.dumps(run['fingerprint_before'])}・後 {json.dumps(run['fingerprint_after'])}"]
     return "\n".join(lines) + "\n"
+
+
+def _brief_check(check: dict) -> dict:
+    """証拠の文の自己点検の行（1 件ごとの結末は件数だけ）"""
+    cases = check.get("cases")
+    return {**{k: v for k, v in check.items() if k != "cases"}, "cases": None if cases is None else len(cases)}
+
+
+def _brief_rerun(rerun: dict) -> dict:
+    """証拠の文の走らせ直しの行（1 件ごとの結末は件数だけ）"""
+    cases = rerun.get("cases")
+    return {**{k: v for k, v in rerun.items() if k != "cases"}, "cases": None if cases is None else len(cases)}
 
 
 def runner_material(mode: str, run: dict) -> dict:
@@ -119,15 +138,88 @@ def runner_material(mode: str, run: dict) -> dict:
     return {"status": "awaiting_human" if mode == "base" else "not_run", "reason": why}
 
 
+NO_BASE_TESTS = ("直す前の版では全部の試験を回さない（自己点検だけ）。自己点検に使う実行器が無いので、直す前の試験は走らせていない"
+                 "——試験は修正の後の最後のテストで走らせる")
+HOW_WORDS = {"related": "変更に関わる試験", "sample": "見本の試験のファイル 1 つ", "whole": "一式"}
+
+
+def base_material(run: dict, doc: dict) -> dict:
+    """直す前の素材（自己点検の結末だけから）。宣言の準備（setup）が落ちたら not_run（判定の前で止める）。実行器が結末を返したら、終了コード 0 で落ちた試験が無ければ clean、ほかは found。
+    結末が無い時: 人が渡した実行器（port tdd_suite）が走らなかったなら not_run（試験が 1 つも走らない——判定の前で止めて準備を案内する）。
+    走らせ方が決まらない道（by role_needed）は awaiting_human（今までどおり鎖を止めない）。ほか（実行器を作れなかった）は not_applicable"""
+    import baseline_red
+    import declared_checks
+    check = run.get("selfcheck") or {}
+    ran, cases = check.get("ran") or {}, check.get("cases")
+    how = HOW_WORDS.get((check.get("plan") or {}).get("how"), "")
+    if check.get("setup"):
+        return {"status": "not_run", "reason": f"直す前の自己点検: {check['setup']}"}
+    if ran and not ran.get("problems") and cases is not None and ran.get("exit") is not None:
+        failed = sum(1 for c in cases if c.get("outcome") in baseline_red.FAILED)
+        said = f"直す前の自己点検: 実行器が{how}の試験 {len(cases)} 件を走らせた（終了コード {ran['exit']}）"
+        if ran["exit"] == 0 and not failed:
+            return {"status": "clean", "checked": said}
+        return {"status": "found", "count": max(failed, 1), "detail": said}
+    if doc.get("tdd_suite"):
+        why = "；".join(ran.get("problems") or []) or "人が渡した実行器が走らなかった"
+        return {"status": "not_run", "reason": f"直す前の自己点検: {why}"}
+    if run["by"] == declared_checks.ROLE_NEEDED:
+        return {"status": "awaiting_human",
+                "reason": "TDD の実行器が無いか、走らなかった（実行器を作れなかった訳は suite_note）。全体の試験は CI と人に任せる"}
+    return {"status": "not_applicable", "reason": NO_BASE_TESTS}
+
+
+def base_suites(run: dict) -> str:
+    """直す前の走らせ方の 1 行"""
+    check = run.get("selfcheck") or {}
+    ran = check.get("ran") or {}
+    how = HOW_WORDS.get((check.get("plan") or {}).get("how"), "")
+    if ran.get("count") is not None and not ran.get("problems"):
+        return f"直す前は自己点検だけ（全部の試験は回さない）: 実行器を{how}の試験 {ran['count']} 件で走らせた（終了コード {ran.get('exit')}）"
+    return "直す前は自己点検だけ（全部の試験は回さない）: 自己点検に使う実行器が無いか、走らなかった"
+
+
+def base_steps(run: dict, doc: dict) -> dict:
+    """直す前の ran_steps: 自己点検の実行器が結末を返したら走らせた段、人が渡した実行器が走らなければ走らせられなかった段"""
+    from src import selfcheck
+    check = run.get("selfcheck") or {}
+    ran = check.get("ran") or {}
+    if ran.get("count") is not None and not ran.get("problems"):
+        return {"ran": [selfcheck.STEP], "unran": []}
+    return {"ran": [], "unran": [selfcheck.STEP] if doc.get("tdd_suite") else []}
+
+
+def planned_run(root, run: dict, test_cmd: str) -> dict:
+    """直す前の結末の how（修正役がテストを回す環境を探さないよう材料に貼る行。declared_checks.run_how）に渡す、走らせる計画の段の行。
+    直す前は走らせないので、宣言の段と test_cmd を計画から並べる"""
+    import declared_checks
+    steps = [{"name": st["name"]} for st in declared_checks.checks_plan(root).get("steps") or []]
+    if (test_cmd or "").strip():
+        steps.append({"name": declared_checks.TEST_CMD_STEP})
+    return {**run, "runs": steps}
+
+
+def with_rerun(base, run: dict):
+    """元の結末 base（read_baseline の返りか None）に、最後のテストが修正前の版で走らせ直した結末（run.json の base_rerun）を足した物。
+    走らせ直した試験は、その結末で元の結末の行を置き換える。走らせ直しは最後と同じ走らせ方なので、落ちた試験のうち走らせ直しの結末にも
+    元の結末にも居ない物は修正前の版に無かった試験で、元に無かった物として introduced と読んでよい（narrow を偽にする）。
+    走らせ直していない・結末が取れなかった時は base のまま"""
+    rerun = run.get("base_rerun") or {}
+    cases = rerun.get("cases")
+    if cases is None:
+        return base
+    import baseline_red
+    got = set(baseline_red.outcomes(cases))
+    old = [c for c in (base or {}).get("cases") or [] if baseline_red._key(c) not in got]
+    exit_ = (base or {}).get("exit")
+    return {**(base or {"suite": "", "test_cmd": "", "rev": rerun.get("rev") or "", "material": None}),
+            "cases": [*old, *cases], "exit": exit_ if exit_ is not None else (rerun.get("exit") if rerun.get("exit") is not None else 0),
+            "narrow": False}
+
+
 def runner_steps(run: dict) -> dict:
     """by role_needed の run の ran_steps: 実行器が結末を取れたら走らせた段、取れなければ走らせられなかった段"""
     return {"ran": [RUNNER_STEP], "unran": []} if suite_exit(run) is not None else {"ran": [], "unran": [RUNNER_STEP]}
-
-
-def _narrow(run: dict) -> bool:
-    """この run の結末が関わる試験だけか（絞る道で、選べて（whole でなく）、走らせた or 関わる試験が無い）"""
-    got = run.get("related") or {}
-    return bool(got.get("applied")) and got.get("ran") in ("related", "none")
 
 
 def related_lines(run: dict) -> list:
@@ -165,38 +257,55 @@ def certified(place, optional_raw) -> dict:
         raise ValueError(f"{files.RUN} が無い——node run が落ちたか飛ばされた")
     run = read_json(run_path)
     role = run["by"] == declared_checks.ROLE_NEEDED
-    material = runner_material(mode, run) if role else run["material"]
+    check = run.get("selfcheck") or {}
+    if mode == "base":
+        material = base_material(run, doc)
+        cases_now = check.get("cases") or []
+    else:
+        material = runner_material(mode, run) if role else run["material"]
+        cases_now = run["cases"]
     status = (material or {}).get("status")
     green = status == "clean"
     root = pathlib.Path(util.repo_root() or os.getcwd())
     now = green_cert.fingerprint(root)
-    base = None
-    if mode == "final" and doc.get("baseline"):
-        base = baseline_red.read_baseline(pathlib.Path(doc["baseline"]))
+    base = given = None   # given は port baseline の元の結末（修正前のテストの行はこれを言う）。base は走らせ直しを足した物
+    if mode == "final":
+        given = baseline_red.read_baseline(pathlib.Path(doc["baseline"])) if doc.get("baseline") else None
+        base = with_rerun(given, run)
     cases, rows = test_outcomes(base, run) if mode == "final" else (None, None)
-    red_cause, summary = green_cert.classify(material=material, runs=run["runs"], cases=run["cases"], baseline_cases=cases,
+    red_cause, summary = green_cert.classify(material=material, runs=run["runs"], cases=cases_now, baseline_cases=cases,
                                              junit_steps=run["junit_steps"], junit_unran=run["junit_unran"],
                                              baseline_narrow=bool(base and base.get("narrow")))
     ok, why = green_cert.certify(mode=mode, material_status=status, green=green, before=run["fingerprint_before"],
                                  after=run["fingerprint_after"], now=now, self_reported=role, held_reason=green_cert.RUNNER_HELD,
                                  material_reason=(material or {}).get("reason"))
-    out = {"mode": mode, "ok": ok, "green": green, "red_cause": red_cause,
-           "ran_steps": runner_steps(run) if role else green_cert.ran_steps(run["runs"], run["junit_unran"]),
+    if mode == "base" and check.get("broken"):
+        from src import selfcheck
+        ok, why = False, selfcheck.broken_line(check)
+    if mode == "base":
+        steps = base_steps(run, doc)
+    else:
+        steps = runner_steps(run) if role else green_cert.ran_steps(run["runs"], run["junit_unran"])
+    out = {"mode": mode, "ok": ok, "green": green, "red_cause": red_cause, "ran_steps": steps,
            "baseline": None, "fingerprint": None, "test_outcomes": rows}
     state = suite.load(place)
     if mode == "base":
+        ran = check.get("ran") or {}
+        exit_ = ran.get("exit") if check.get("cases") is not None and not ran.get("problems") else None
         baseline_red.write_baseline(place / files.BASELINE, suite=state.get("tdd_suite") or "", test_cmd=doc["test_cmd"],
-                                    rev=now["head"], exit=suite_exit(run), cases=run["cases"], by=run["by"], material=material,
-                                    runs=run["runs"], skipped_steps=run["skipped_steps"], narrow=_narrow(run),
-                                    exit_codes={r["name"]: r["exit"] for r in run["runs"]}, junit_steps=run["junit_steps"],
-                                    fingerprint=now, how=declared_checks.run_how(root, run, test_cmd=doc["test_cmd"], material=material))
+                                    rev=now["head"], exit=exit_, cases=cases_now, by=run["by"], material=material,
+                                    runs=[], skipped_steps=[], narrow=(check.get("plan") or {}).get("how") != "whole",
+                                    exit_codes={}, junit_steps=[], fingerprint=now, selfcheck=check,
+                                    how=declared_checks.run_how(root, planned_run(root, run, doc["test_cmd"]), test_cmd=doc["test_cmd"],
+                                                                material=material))
         out["baseline"] = ports.pointer(place / files.BASELINE)
+        suites = base_suites(run)
     else:
         out["fingerprint"] = now
-    tests = {"by": run["by"], "suites": run["runs"], "test_cmd_same_as": run["same_as"], "test_cmd_how": run["test_cmd_how"],
-             "skipped_steps": run["skipped_steps"]}
-    suites = declared_checks.suites_line(tests, role_status=(status or "") if role else None)
-    out.update(gate_fields(run, suites, declared_checks.baseline_line(base) if mode == "final" else "", why))
+        tests = {"by": run["by"], "suites": run["runs"], "test_cmd_same_as": run["same_as"], "test_cmd_how": run["test_cmd_how"],
+                 "skipped_steps": run["skipped_steps"]}
+        suites = declared_checks.suites_line(tests, role_status=(status or "") if role else None)
+    out.update(gate_fields(run, suites, declared_checks.baseline_line(given) if mode == "final" else "", why))
     write(place, files.EVIDENCE, evidence(mode, out, run, material, summary))
     out["evidence"] = ports.pointer(place / files.EVIDENCE)
     out["optional"] = optional_items(optional_raw)

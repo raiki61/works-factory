@@ -1,9 +1,9 @@
 name: works-factory-test-gate
-description: '試験の関門の block（docs/design/test-gate.md）。対象のテストの走らせ方を機械で決めて走らせ（対象の宣言 .review-checks.json の段と test_cmd）、決められなければ（宣言も test_cmd も無い）AI が書く TDD の実行器で、変更に関わる試験だけを走らせる（全体の試験は CI と人に任せる）。base は直す前の結末（段ごとの結末と、JUnit の報告が在れば 1 件ごとの結末）を控え、TDD の実行器を人が渡していなければ用意する（取り置きから使うか、書き手の役が書く）。final は一式を走らせ、赤の原因を機械が分け、緑を作業ツリーの指紋（HEAD と差分の hash）つきで認証する。赤は原因が何でも認証せず、AI が書いた実行器の緑も認証しない。単独の run でも、graph から include されても回る'
+description: '試験の関門の block（docs/design/test-gate.md）。対象のテストの走らせ方を機械で決めて走らせ（対象の宣言 .review-checks.json の段と test_cmd）、決められなければ（宣言も test_cmd も無い）AI が書く TDD の実行器で、変更に関わる試験だけを走らせる（全体の試験は CI と人に任せる）。base は直す前の版で全部の試験を回さず、TDD の実行器を人が渡していなければ用意し（取り置きから使うか、書き手の役が書く）、その実行器を小さな試験の組で 1 回走らせる自己点検だけをする（試験の起動スクリプトが test_cmd の単体と食い違って赤なら止める）。final は一式を走らせ、元の結末に無い赤は修正前の版で走らせ直して赤の原因を機械が分け、緑を作業ツリーの指紋（HEAD と差分の hash）つきで認証する。赤は原因が何でも認証せず、AI が書いた実行器の緑も認証しない。単独の run でも、graph から include されても回る'
 inputs:
   mode:
     required: true
-    description: 'choice(base|final): 形。base は直す前の結末を控える（判定の前）。final は修正の後に一式を走らせ、赤の原因を分けて緑を認証する'
+    description: 'choice(base|final): 形。base は直す前の自己点検（判定の前。全部の試験は回さない）。final は修正の後に一式を走らせ、赤の原因を分けて緑を認証する'
   test_cmd:
     default: ''
     description: 'text: 人が渡したテストのコマンド（対象の根で走らせる 1 行。字のまま）。空は渡されていない'
@@ -27,10 +27,10 @@ inputs:
     description: 'file: final の時、base の出力の baseline のファイル。空は無い（1 件ごとの比べをしない）'
   reuse_dir:
     default: ''
-    description: 'text: 同じ run の中の試験の結果の控えの置き場の絶対パス。base の時だけ引いて置く。空は使い回さない'
+    description: 'text: 同じ run の中の試験の結果の控えの置き場の絶対パス。今は読まない（直す前は全部の試験を回さず、控えを引かず置かない。docs/design/test-gate.md の 15.5）。空は使い回さない'
   reuse_key:
     default: ''
-    description: 'text: 控えに書いて引く時に照らす run の名。空はこの run の id'
+    description: 'text: 控えに書いて引く時に照らす run の名。今は読まない（reuse_dir と同じ）。空はこの run の id'
   user_env_dir:
     default: ''
     description: 'text: 利用者の HOME・XDG に戻して起こした印を置く置き場の絶対パス。空は置き場が無い（戻す run では止まる）'
@@ -134,8 +134,8 @@ nodes:
         suite_owed: {type: boolean}   # TDD の実行器を用意するか（required に入れない。無ければ用意しない）
 
   # TDD の実行器を用意する輪。1 周目は取り置きを使うか書き、取り置きが照らしを通らなかった時だけ 2 周目で書き直す（書いた物の周は
-  # 照らしの結末に依らず終わる）。走らせるのは輪の終わりの suite-try の 1 回で、修正前のテストの一式の回を兼ねる（走らせ方が決まらない
-  # 道は、変更に関わる試験だけ）
+  # 照らしの結末に依らず終わる）。走らせるのは輪の終わりの suite-try の 1 回で、直す前の自己点検の回を兼ねる（node run が決めた小さな
+  # 試験の組だけ。docs/design/test-gate.md の 15 節）
   - id: suite-loop
     depends_on: [run]
     when: "$run.output.suite_owed == true"

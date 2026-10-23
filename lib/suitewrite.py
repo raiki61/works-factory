@@ -24,6 +24,9 @@
 - settle(start_file, ran, keep): 実行器を 1 回走らせた結末 ran（{exe, exit, problems, count} か None）を照らす。終了コードは見ない
   （修正前に赤の試験が在るのは普通）。通れば tdd_suite に結び、書いた物なら取り置く。取り置きが通らなければ捨てる。
   {done, ok, why}（done が偽なら書き直す周が要る）
+- distrust(start_file, keep, why): 照らしを通った実行器を後から退ける（直す前の自己点検で、test_cmd の単体は緑なのに実行器越しだけが赤。
+  持ち主の決め base-selfcheck-only）。tdd_suite を空に戻し、印を ok false・why に替え、書いた物を取り置いていれば同じバイトの取り置きを捨てる。
+  取り置きから使った物も捨てる（次の run が同じ壊れた実行器を使わない）
 - head_note(start): 報告の冒頭の句。取り置きを使った・書いた・作れなかったのどれか（欄の無い run は空の字）
 - GATE_NOTE: 起動の承認ノードの文の 1 行
 """
@@ -142,6 +145,15 @@ def settle(start_file, ran, keep) -> dict:
         _drop(keep, start, mark["path"])
     _save(start_file, start, {**mark, "ok": False, "why": why})
     return {"done": mark.get("from") != FROM_KEEP, "ok": False, "why": why}
+
+
+def distrust(start_file, keep, why: str) -> None:
+    start = jsonfile.read_dict(start_file)
+    mark = _mark(start)
+    if mark.get("ok") is not True or not mark.get("path"):
+        return
+    _drop(keep, start, mark["path"])
+    _save(start_file, {**start, "tdd_suite": ""}, {**mark, "ok": False, "why": oneline.one_line(why), "stored": False})
 
 
 def _fault(ran) -> str:

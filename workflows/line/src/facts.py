@@ -613,6 +613,16 @@ def ran_notes(returns: dict) -> list:
     return [note] if note else []
 
 
+def base_stop_notes(returns: dict) -> list:
+    """直す前の試験の関門が止めた（返りの ok が偽）時の冒頭の句: 止めた訳（返りの reason。直す前の自己点検が起動スクリプトの壊れを
+    見つけた回は、その訳とログのパス。#836）。止めていなければ空"""
+    import oneline
+    base = as_dict(returns.get("before-tests"))
+    if base.get("ok") is not False or not base.get("reason"):
+        return []
+    return [f"直す前の試験の関門が止めた（判定は起こしていない）: {oneline.one_line(base['reason'])}"]
+
+
 def gate_line(g) -> str:
     import answer
     import oneline
@@ -1099,7 +1109,8 @@ def build(values: dict, record: dict | None, record_why: str = "", cwd=None) -> 
     notes += [f"修正の控え: {x}" for x in got["unread"]]
     before = [x for x in (part("修正の段の分け", lambda: split_line(returns), "", outcome=False),
                           part("推しの句", lambda: pushed_said(gates, taken), "", outcome=False)) if x]
-    after = [*part("最後のテストの句", lambda: ran_notes(returns), [], outcome=False),
+    after = [*part("直す前のテストの止めの句", lambda: base_stop_notes(returns), [], outcome=False),
+             *part("最後のテストの句", lambda: ran_notes(returns), [], outcome=False),
              *part("TDD の実行器の句", lambda: _suite_note(record), [], outcome=False),
              *part("利用者の環境の句", lambda: _user_env_note(ports_), [], outcome=False)]
     notices = [line for line in str(values.get("notices") or "").splitlines() if line.strip()]
