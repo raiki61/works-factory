@@ -8,16 +8,18 @@ place の分かれと前の周のフォルダの残り・status の 5 つの語�
 start が無くなったので読めない prior に替えた。
 """
 import copy
+import importlib
 import json
 import pathlib
 import unittest
 
 from tests.blocks import kit
 from tests.blocks.plan import base
-from tests.blocks.plan.base import (CLAMP, DIRTY_ROW, HANDOFF_NOTE, LOOSE, MEAN, NIT, RUN_ID, PlanRun, catalog, item, judgment, unit,
-                                    writer_of)
+from tests.blocks.plan.base import (CLAMP, DIRTY_ROW, HANDOFF_NOTE, LOOSE, MEAN, NIT, RUN_ID, PlanRun, catalog, item, judgment, narrow,
+                                    unit, writer_of)
 
 steps = kit.load("plan", "steps")
+take = importlib.import_module("src.take")   # kit.load が置いた src の package から
 brief = kit.load("plan", "brief")
 files = kit.load("plan", "files")
 
@@ -61,6 +63,11 @@ FACE_MEAN = {"key": "key-a1-mean", "kind": "regression", "where": "stats.py", "w
              "unit_keys": [MEAN]}
 FACE_CLAMP = {"key": "key-b1-clamp", "kind": "regression", "where": "stats.py", "why": "下限の枝が抜ける", "severity": "block",
               "unit_keys": [CLAMP]}
+NO_NARROW = "狭めない案として空の列に 0 を返す形を当たったが、呼び手が例外を捕まえている"
+MARKED = narrow(no_narrow=NO_NARROW, undecided_because="空の列を渡す呼び手が在るかは依頼に書いていない",
+                recommend={"answer": "continue", "note": "空の列は例外のまま残す", "why": "呼び手が例外を捕まえている"})
+REWRITE = {"id": "test_stats.py::TestStats::test_clamp_above_range", "behavior": "上限を超えた値に上限を返す",
+           "old": "lo を返す", "new": "上限を超えたら hi を返す"}
 FIXED_MEAN = {"key": "key-a1-mean", "handled": "fixed", "how": "空の列を先に返す枝を足した"}
 CHANGED_APPROACH = "空の列も直す形にした案の手順をここに書いた"
 
@@ -83,24 +90,34 @@ def writer_prompts(run) -> list:
     return [p for nid, p in run.prompts if nid == "plan-writer"]
 
 
+def review_rows(run, out) -> list:
+    """事前審査が往復の記録の plan に置く行（plan-review の intake の 5 と 8 と同じ道）: 出口 out の受けた案 fix_plan から narrows の
+    行の決め手の欄を外し、欄の行（plan-fields.json）を planmarks.joined で重ね、外した欄を converge.plan_rows で項目ごとに添える"""
+    bare, marks = gatemarks.split(planmarks.NODE, run.json(out["fix_plan"]))
+    fields = run.json(out["plan"])["fields"]
+    return converge.plan_rows([planmarks.joined(r, f) for r, f in zip(bare["plan"], fields)], marks=marks)
+
+
 def converge_record(rounds) -> dict:
     """往復の記録（line が prior.record に渡す物。今の planfile.converge_record の中身）。rounds は周ごとの
-    (その周を開いた時に受けた事前審査, その周の受けた案)。最後は今開く周で、案は None"""
+    (その周を開いた時に受けた事前審査, その周の受けた案[, 記録の plan に置く行])。最後は今開く周で、案は None。行を渡さなければ
+    受けた案の項目そのものから組む"""
     doc = {"round": 0, "passes": [], "outcome": None, "open": {}}
     answers: list = []
-    for k, (review, reply) in enumerate(rounds, 1):
+    for k, (review, reply, *rows) in enumerate(rounds, 1):
         doc["round"] = k
         if isinstance(review, dict) and doc.get("plan"):
             resolved = review.get(converge.RESOLVED)
             converge.add_pass(doc, review, answers=copy.deepcopy(answers), resolved=resolved if isinstance(resolved, list) else [])
         if isinstance(reply, dict) and isinstance(reply.get("plan"), list):
-            doc["plan"] = converge.plan_rows(reply["plan"])
+            doc["plan"] = rows[0] if rows else converge.plan_rows(reply["plan"])
             answers = [r for r in reply.get(converge.ANSWERS) or [] if isinstance(r, dict)]
     return doc
 
 
 class Line:
-    """line の計画の往復の側: 周ごとに block を include し、前の周の出口から port prior を組む（docs/design/plan.md の 1.6）"""
+    """line の計画の往復の側: 周ごとに block を include し、前の周の出口から port prior を組む（docs/design/plan.md の 1.6）。往復の記録の
+    案の行は事前審査が置くのと同じ道（review_rows）で組む"""
 
     def __init__(self, run: PlanRun):
         self.run = run
@@ -108,7 +125,8 @@ class Line:
 
     def prior(self, review, *, review_form=None) -> dict:
         last = self.history[-1][1]
-        rounds = [(rv, self.run.json(o["reply"]) if o["reply"] else None) for rv, o in self.history] + [(review, None)]
+        rounds = [(rv, self.run.json(o["reply"]), review_rows(self.run, o)) if o["reply"] else (rv, None)
+                  for rv, o in self.history] + [(review, None)]
         return {"round": last["round"], "reply": last["reply"], "fields": last["plan"], "fix_plan": last["fix_plan"],
                 "ripple": last["ripple"], "review": review if review_form is None else review_form,
                 "record": converge_record(rounds),
@@ -366,6 +384,44 @@ class CollectCase(unittest.TestCase):
                 self.assertNotIn("plan[1]", why[0])
                 self.assertNotIn(steps.CLOSED_REJECT, why[0])
                 self.assertEqual(run.json(out["reply"])["plan"][1]["rewrite_tests"], [rewrite], "受けた案の閉じた項目は役の書く形")
+
+    def test_record_rows_return_to_the_accepted_items(self):
+        """#849: 事前審査が往復の記録の plan に置く行（narrows の決め手の欄を外し、機械が足した limit を持つ欄の行を重ねた物）を
+        bare_record で戻すと、受けた案の全部の項目と字のまま同じになり、hash も受けた項目の物と同じ（欄が欠ける向きも余る向きも無い）"""
+        run = PlanRun(self)
+        first = run.include(writer=writer_of({"plan": [item(1, narrows=[MARKED]),
+                                                       item(2, rewrite_tests=[REWRITE], narrows=[MARKED, narrow(no_narrow=NO_NARROW)])]}))
+        self.assertIs(first["ok"], True, first)
+        rows = review_rows(run, first)
+        self.assertNotIn(gatemarks.NO_NARROW, rows[1]["row"]["narrows"][0], "事前審査の行は決め手の欄を外した形")
+        self.assertIn("limit", rows[1]["row"]["rewrite_tests"][0], "事前審査の行は機械の欄 limit を持つ")
+        got = take.bare_record({"round": 1, "passes": [], "outcome": None, "open": {}, "plan": rows})["plan"]
+        want = run.json(first["reply"])["plan"]
+        self.assertEqual([it["row"] for it in got], want)
+        self.assertEqual([it["hash"] for it in got], [converge.item_hash(r) for r in want])
+
+    def test_closed_item_with_marked_narrows_is_not_rejected(self):
+        """#849: 閉じた項目の narrows の行の決め手の欄（no_narrow など）は、往復の記録から差し込んでも、前のまま書いても欠けず、
+        欠けを理由に拒まない。受けた案の閉じた項目は役の書いた形のまま。役が自分で書いた項目の no_narrow の欠けは今と同じに拒む"""
+        two = item(2, rewrite_tests=[REWRITE], narrows=[MARKED])
+        for name, closed in (("差し込む", []), ("前のまま書く", [two])):
+            with self.subTest(name):
+                run = PlanRun(self)
+                line = Line(run)
+                first = line.round(writer=writer_of({"plan": [item(1, narrows=[MARKED]), two]}))
+                self.assertIs(first["ok"], True, first)
+                bare = narrow()   # 役が no_narrow を書かなかった行
+                role = seq({"plan": [item(1, approach=CHANGED_APPROACH, narrows=[bare]), *closed], "block_answers": [FIXED_MEAN]},
+                           {"plan": [item(1, approach=CHANGED_APPROACH, narrows=[MARKED]), *closed]})
+                out = line.round({"faces": [FACE_MEAN]}, writer=role, fixer=role, typed=False)   # 欠けを受け付けまで通す
+                self.assertIs(out["ok"], True, out)
+                why = rolekit.rejected(run.art / "r2", "plan")
+                self.assertEqual(len(why), 1, why)
+                self.assertIn(steps.NO_NARROW_REJECT, why[0])
+                self.assertIn("plan[0].narrows[0]", why[0], "役の書いた行の no_narrow の欠けは拒む")
+                self.assertNotIn("plan[1]", why[0])
+                self.assertNotIn(steps.CLOSED_REJECT, why[0])
+                self.assertEqual(run.json(out["reply"])["plan"][1], run.json(first["reply"])["plan"][1], "閉じた項目は役の書いた形のまま")
 
     def test_second_round_returns_only_changed_items(self):
         """#571: 2 往復目の修正案の役は変えた項目だけを返す。返さない開いた項目は機械が前の往復の行を差し込み、受けた案は全部の

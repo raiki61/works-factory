@@ -396,18 +396,31 @@ def note_answers(b, answers: list) -> None:
     _write(b, doc)
 
 
-def note_plan(b, rows: list) -> None:
+def note_plan(b, rows: list, *, marks: list | None = None) -> None:
     """受けた案の項目（名前に戻した行の並び）を控えの plan に置く（次の record_pass が項目ごとに読む。行そのものも row に置き、
-    次の往復の下請けが前の往復からの差分を見る元にする）"""
+    次の往復の下請けが前の往復からの差分を見る元にする）。marks は plan_rows と同じ"""
     doc = read(b)
-    doc["plan"] = plan_rows(rows)
+    doc["plan"] = plan_rows(rows, marks=marks)
     _write(b, doc)
 
 
-def plan_rows(rows: list) -> list[dict]:
-    """控えの plan の行 [{id, unit_keys, hash, row}]（受けた案の項目の行の並びから）"""
-    return [{"id": item_id(r.get("unit_keys")), "unit_keys": [str(k) for k in r.get("unit_keys") or []],
-             "hash": item_hash(r), "row": copy.deepcopy(r)} for r in rows if isinstance(r, dict)]
+PLAN_MARKS = "marks"   # 控えの plan の行に添える、row の narrows の行から外した関所の決め手の欄（#849）
+
+
+def plan_rows(rows: list, *, marks: list | None = None) -> list[dict]:
+    """控えの plan の行 [{id, unit_keys, hash, row}]（受けた案の項目の行の並びから）。marks（rows と同じ並びの、項目ごとの narrows の
+    行から外した決め手の欄の並び [[{…}…]…]。gatemarks.split の形）を渡せば、行ごとに PLAN_MARKS に添える（row は決め手の欄を
+    持たない審査の形のまま。修正案の受け付けが役の書く形に戻す元）"""
+    out = []
+    for i, r in enumerate(rows):
+        if not isinstance(r, dict):
+            continue
+        it = {"id": item_id(r.get("unit_keys")), "unit_keys": [str(k) for k in r.get("unit_keys") or []],
+              "hash": item_hash(r), "row": copy.deepcopy(r)}
+        if isinstance(marks, list) and i < len(marks):
+            it[PLAN_MARKS] = copy.deepcopy(marks[i])
+        out.append(it)
+    return out
 
 
 def plan_keys(plan) -> list:
