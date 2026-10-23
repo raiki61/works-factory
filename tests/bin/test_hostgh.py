@@ -31,7 +31,7 @@ sys.path.insert(0, str(DEV))
 sys.path.insert(0, str(TESTS))
 
 import hostgh  # noqa: E402
-import hermetic  # noqa: E402
+from tests.bin import hermetic  # noqa: E402
 
 NO_POST_BIN = DEV / "no-post-bin"
 GITHUB_TOKENS = ("GH_TOKEN", "GITHUB_TOKEN", "GH_ENTERPRISE_TOKEN", "GITHUB_ENTERPRISE_TOKEN")

@@ -22,7 +22,7 @@ WORKS_GH = TESTS.parents[1] / "bin" / "_lib" / "no-post-bin" / "works-gh"
 sys.dont_write_bytecode = True
 sys.path.insert(0, str(TESTS))
 
-import hermetic  # noqa: E402
+from tests.bin import hermetic  # noqa: E402
 
 COMMENTS = "repos/o/r/pulls/7/comments"
 ALLOWED = (["pr", "list", "-R", "o/r"], ["pr", "view", "1", "-R", "o/r"], ["pr", "diff", "br", "--repo=o/r"],
