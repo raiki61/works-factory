@@ -461,7 +461,7 @@ test-gate と fix の 2 つの block が使うので `lib/` に置く（憲法�
 ### 15.2 自己点検（base）
 
 - 走らせ方の語 `by` は計画だけで決める（`declared_checks.plan_by`。`run_ci` と同じ決めで、範囲の宣言だけが在る・宣言の段の名が工場の段の名なら、走らせる前に `CiRefused` で止めるのも同じ）。
-- 宣言の準備（`.review-checks.json` の `setup`）だけは base で走らせる（`tree_run.prepare`。試験は起こさない）。落ちたら素材は `not_run` で `ok` が偽、判定の前で止まり、実行器も用意しない。根拠: 準備が落ちた base は止めるという前の持ち主の答え（`docs/asf-notes.md` の setup の置き場の訳の（1））を、全部の試験をやめても保つため。準備は作業ツリーごとに 1 度で、final と修正の段は同じ印で走らせ直さない。
+- 宣言の準備（`.review-checks.json` の `setup`）だけは base で走らせる（`tree_run.prepare`。試験は起こさない）。落ちたら素材は `not_run` で `ok` が偽、判定の前で止まり、実行器も用意しない。根拠: 準備が落ちた base は止めるという前の持ち主の答え（`docs/asf-notes.md` の setup の置き場の訳の（1））を、全部の試験をやめても保つため。準備は作業ツリーごとに 1 度で、済むと git の置き場に済んだ印のファイル（`tree_run.SETUP_DONE`。準備のコマンドの並びの sha を書く）を置くので、final と修正の段はその印を見て走らせ直さない。
 - 組（`src/selfcheck.plan`）: 変更に関わる試験（`related.pick`。起点は 14.3 と同じ。道 (1)(2) でも引く）が在ればそれ。選べない・関わる試験が無い時は、作業ツリーの試験のファイル（`impact.is_test` が `module`）のうち名に `test` の字を持つ物の名の順の最初の 1 つ（見本。無ければ試験のファイルの名の順の最初。`-suite.sh` のような実行器の台本も試験の名の形に入るため）。試験のファイルが 1 つも無ければ一式（試験の無い対象の一式は軽い）。組は実行器の約束の後ろの引数と合図 `TDD_SUITE_ONLY=1` で渡す（4.3。解かない実行器は一式を走らせる——遅いが壊れない）。
 - 走らせる所: 人が `tdd_suite` を渡した run は `run` が 1 回。渡していない run は、実行器を用意する輪の `suite-try` の 1 回（照らしの回を兼ねる。照らしの基準「JUnit XML が出て試験が 1 件以上」は変えない）。結果は `run.json` の `selfcheck {plan, ran, cases, test_cmd, broken}`。
 - 直す前の素材（判定の素材 `local_checks` に写る。`src/certify.py` の `base_material`）:
