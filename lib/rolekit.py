@@ -37,7 +37,9 @@
 - merge_fields:   前の答えに出し直しの欄を合わせる（出し直しに在る欄が前の欄を置き換え、無い欄は前のまま）
 - resubmitting・write_resubmit・RESUBMIT_ASK: 輪の前の周が拒まれた時に、出し直しの役の短い指示書（拒否の文・控えのパス・役ごとの
                   返し方）を書く。resubmit_brief・FIELD_RULES は、欄ごとに置き換える（merge_fields の）輪の頭の節がそれを 1 行で呼ぶ口
-- resubmitted:    受け付けが照らす答えの全体（1 回目の役の返答か、控えの前の答えと出し直しを合わせた物）を控えに書いて返す
+- resubmitted:    受け付けが照らす答えの全体（1 回目の役の返答か、控えの前の答えと出し直しを合わせた物）を控えに書いて返す。
+                  役の形が根の欄を要ると書かない（出し直しの役の形を 1 回目と同じにする。#832）ので、要る欄の欠けと、1 回目の答えの
+                  出し直しの役だけの欄をここで拒む（MISSING_FIELDS・FIX_ONLY_FIELDS）
 - LANG_RULE・LANG_DEFAULT・lang_line(start): 役の文の頭に足す言語の 1 行（元 rolekit.py 67-68 行・147-150 行。言語は始めの記録の
                   lang。空なら依頼文の言語。元 board.py 96 行）。判定・計画・修正・独立の目・報告の書き手の役が同じ口で読む
 - record_lang_line(path): 始めの記録のファイル path から lang_line（読めなければ既定の言語の 1 行に読めない訳を添える）
@@ -438,14 +440,27 @@ def _reply_object(got, what: str) -> tuple:
     return (None, why) if why else (got, "")
 
 
-def resubmitted(board, name: str, reply, part, merge) -> tuple:
+MISSING_FIELDS = "答えに要る欄 {keys} が無い（返していない欄を足して返せ）"
+FIX_ONLY_FIELDS = "1 回目の答えに、出し直しの役だけが書く欄 {keys} が在る（この欄は書かない）"
+
+
+def resubmitted(board, name: str, reply, part, merge, *, required=(), fix_only=()) -> tuple:
     """(受け付け name が照らす答えの全体, 拒否の文)。reply は 1 回目の役の返答、part は拒まれた後の出し直しの役の返答で、どちらも
     JSON に戻した値（起きなかった役は None）。part が在れば控え candidate_path の前の答えと merge(前の答え, part) で合わせ、無ければ
     reply。空の出し直しは前の答えのまま（拒否が作業ツリーのファイルだけを名指せば、役はファイルを直して欄を返さない）。合わせた答えは
-    控えに書く（次の出し直しを合わせる元）。返答が object でない・控えが読めない・書けなければ (None, 訳)"""
+    控えに書く（次の出し直しを合わせる元）。返答が object でない・控えが読めない・書けなければ (None, 訳)。
+    出し直しの役の形（output_format）は 1 回目の役と同じにする（形が違うと会話の続きの最初の要求でキャッシュが効かない。#832）ので、
+    形は根の欄を要ると書かない。要る欄 required は、合わせた答えに無ければここで拒む（MISSING_FIELDS）。出し直しの役だけが書く欄
+    fix_only は、1 回目の答えに在れば外して控えに書き、拒む（FIX_ONLY_FIELDS）。どちらの拒みも控えは書くので、次の周の出し直しの役が
+    欠けた欄だけを返せる"""
     path = candidate_path(board, name)
+    late = []
     if part is None:
         got, why = _reply_object(reply, "返答")
+        extra = [k for k in fix_only if got is not None and k in got]
+        if extra:
+            got = {k: v for k, v in got.items() if k not in extra}
+            late.append(FIX_ONLY_FIELDS.format(keys=", ".join(extra)))
     else:
         part, why = _reply_object(part, "出し直しの返答")
         if why:
@@ -462,4 +477,7 @@ def resubmitted(board, name: str, reply, part, merge) -> tuple:
         jsonfile.write(path, got, indent=2)
     except OSError as e:
         return None, f"合わせた答えを控え {path} に書けない（{type(e).__name__}: {e}）"
-    return got, ""
+    missing = [k for k in required if k not in got]
+    if missing:
+        late.append(MISSING_FIELDS.format(keys=", ".join(missing)))
+    return (None, "\n\n".join(late)) if late else (got, "")

@@ -16,6 +16,9 @@ import pathlib
 import ports
 
 ROLE = "plan"                       # 受け付けの拒否の控えの名（rolekit.rejects_path）
+# 修正案の役の答えに要る根の欄。役の型（YAML の output_format）は出し直しの役と同じ形にするので根の欄を要ると書かず、受け付けが
+# rolekit.resubmitted で確かめる（#832。出し直しの役だけが書く欄 steps.WHOLE_PLAN も同じ所で 1 回目の答えから拒む）
+REQUIRED = ("plan",)
 CURRENT_ROUND = "current-round.json"
 INTAKE = "intake.json"
 ROUND = "round.json"

@@ -143,6 +143,16 @@ class RejudgeCase(_Base):
         self.assertEqual((got["ok"], got["done"]), (True, True), got)
         self.assertEqual(self.saved("rejudge-reply.json")[0]["units"], reply()["units"], "返さなかった欄は前のまま")
 
+    def test_missing_root_field_is_refused_then_resubmitted_alone(self):
+        """#832: 再審の役の型は根の欄を要ると書かない（出し直しの役と同じ形）。units の欠けた答えは受け付けが拒み、出し直しの units で通る"""
+        self.intake()
+        bare = reply()
+        bare.pop("units")
+        first = self.rejudge.accept_reply(self.place, bare, None, self.repo)
+        self.assertEqual((first["ok"], first["reason"]), (False, self.rejudge.rolekit.MISSING_FIELDS.format(keys="units")))
+        got = self.rejudge.accept_reply(self.place, None, {"units": reply()["units"]}, self.repo)
+        self.assertEqual((got["ok"], got["done"]), (True, True), got)
+
     def test_resubmit_with_a_non_object_part_is_rejected(self):
         self.intake()
         self.rejudge.accept_reply(self.place, reply(new_facts="確かめた"), None, self.repo)
