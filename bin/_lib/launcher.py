@@ -61,6 +61,16 @@ TARGET_ENV_NOTICE = ("AI が書いた試験のコードを、あなたの権限�
                      "守りが要るなら工場ごとコンテナか VM の中で回す")
 
 
+# 役の claude の会話のキャッシュの寿命の既定（cache_ttl が run の設定の層の env で運ぶ）と、寿命を選ぶ名。CLAUDE_CODE_PROMPT_CACHE_TTL は
+# 値で選び、ほかの 3 つは立てるだけで選ぶ（Claude Code の Choose the TTL yourself。順は FORCE_PROMPT_CACHING_5M、
+# CLAUDE_CODE_PROMPT_CACHE_TTL、promptCacheTtl の設定、ENABLE_PROMPT_CACHING_1H）
+PROMPT_CACHE_TTL = ("CLAUDE_CODE_PROMPT_CACHE_TTL", "5m")
+CHOSEN_TTL_ENVS = (PROMPT_CACHE_TTL[0], "FORCE_PROMPT_CACHING_5M", "ENABLE_PROMPT_CACHING_1H", "ENABLE_PROMPT_CACHING_1H_BEDROCK")
+# 対象の下の Archon の repo 設定の置き場（対象からの相対。packages/core/src/config/config-loader.ts の loadRepoConfig が読む場所の写しで、
+# tests/shared/test_archon_contract.py が照らす）
+REPO_CONFIG = (".archon", "config.yaml")
+
+
 class Stop(Exception):
     """Archon を起こさずに止まる（終了の値つき）。文が空なら、部品が自分の文を出し終えている"""
 
@@ -177,7 +187,7 @@ def launch(argv: list[str], user: dict[str, str], here: Path) -> int:
         except RuntimeError as error:
             raise Stop(str(error)) from None
         rest = without_flag(without_flag(argv[3:], "--cwd"), "--config")
-        config = run_config(bun, source, cache, home, target, flags,
+        config = run_config(bun, source, cache, home, target, flags, user,
                             spec_reviews(workflow, flags, user, child, place.archon(bun, source), home, target))
         try:
             start, said = startpoint.choose(flags, workflow, target, f"{NAME}-")
@@ -267,25 +277,90 @@ def spec_reviews(workflow: str, flags: list[str], user: Mapping[str, str], child
     return {specreviews.RESULT_ENV: str(path)}
 
 
-def run_config(bun: str, source: Path, cache: Path, home: Path, target: Path, flags: list[str],
+def cache_ttl(user: Mapping[str, str], *carried: Mapping) -> dict[str, str]:
+    """役の claude の会話のキャッシュの寿命の既定（PROMPT_CACHE_TTL の 5 分）を、run の設定の層の env に載せる {名: 値}。誰かが寿命を
+    選んでいれば、その選びを潰さないよう {} を返す。carried は Archon が自分で役に運ぶ env（利用者の --config の層の env と、対象の
+    .archon/config.yaml の env）、user は利用者の shell の env。
+    (a) carried のどれかが CHOSEN_TTL_ENVS の名を持てば {}（その選びは Archon が運ぶ）。
+    (b) そうでなく user が CLAUDE_CODE_PROMPT_CACHE_TTL を持てば、その値を載せる（Archon は起動の最初に認証の 3 つを除く CLAUDE_CODE_* を
+    process.env から消すので、shell の選びは層で運ばないと届かない）。
+    (c) user がほかの 3 つの名のどれかを持てば {}（それらは CLAUDE_CODE_ で始まらず、Archon を通って届く）。
+    (d) どれも無ければ {PROMPT_CACHE_TTL}。
+
+    訳: 加入の利用者では、Claude Code が会話のキャッシュの寿命を既定で 1 時間にし、書き込みの単価が 5 分の 2 倍になる。工場の役の会話は
+    ノードをまたいだキャッシュの読みが無く、5 分を超える間も少ないので、書き直しを減らす向きで 5 分を既定にする（持ち主の決め。1 時間に
+    戻す道は --config の env: か対象の .archon/config.yaml の env: の ENABLE_PROMPT_CACHING_1H=1）。出典: https://code.claude.com/docs/en/prompt-caching
+    の Choose the TTL yourself（寿命の選びの順は FORCE_PROMPT_CACHING_5M、CLAUDE_CODE_PROMPT_CACHE_TTL、promptCacheTtl の設定、
+    ENABLE_PROMPT_CACHING_1H）。
+
+    運び方: 役の claude は Archon が起こすので、子の env に置いても CLAUDE_CODE_* の掃除で消える。Archon が AI のノードの env に重ねる層は下から
+    対象の .archon/config.yaml の env:、Archon の DB の codebase の env、run の設定の層の env で、どれも掃除の後に重なり、workflow: の子の
+    run も受け継ぐ（docs/design/archon.md）。だから run の層の env に載せる。run の層の 5m は、上の順で下の層の同じ名と
+    ENABLE_PROMPT_CACHING_1H に勝つので、選びが有る時は載せない。
+
+    見られない選び: Archon の DB の codebase の env（Archon の server の API だけが書き、殻から読む口が無い）と、管理の設定（managed
+    settings）の promptCacheTtl と、対象の .archon/.env が入れる ENABLE_PROMPT_CACHING_1H は、載せた 5m に負けて上書きされる。前に始めた run を続ける起動は、封じた層を戻すので、この既定を載せる前に
+    始めた run は 1 時間のまま。
+
+    対象の .archon/config.yaml は殻が --cwd の対象から読む（repo_env）。新しい run では Archon も同じ --cwd の config.yaml を、commit して
+    いない変更や git の無視に入れた変更も含めて読むので、殻と Archon は同じ物を見る。--adopt の起動では、この既定を載せない（run_config が
+    呼ばない）: 引き継ぐ run は repo の config を、枝を取り出して作った写し（task branch の commit）か、既に在る作業ツリーから読み、--cwd の
+    物とは別なので、殻はそこに寿命の選びが在るか見られず、載せると repo の選び（.archon/config.yaml の env:）を潰しうる"""
+    if any(name in env for env in carried for name in CHOSEN_TTL_ENVS):
+        return {}
+    name, value = PROMPT_CACHE_TTL
+    if name in user:
+        return {name: user[name]}
+    if any(other in user for other in CHOSEN_TTL_ENVS):
+        return {}
+    return {name: value}
+
+
+def repo_env(bun: str, source: Path, target: Path) -> Mapping | None:
+    """対象の .archon/config.yaml の env:（Archon が AI のノードの env の一番下の層に重ねる物）。ファイルが無ければ bun を起こさず {}、env: が
+    無い・object でなければ {}。読めなければ（Archon もこのファイルを読めずに止まる）訳を標準エラーに 1 行言って None"""
+    path = target.joinpath(*REPO_CONFIG)   # 対象の根（--cwd。git の木の中なら git の根）
+    if not path.is_file():
+        return {}
+    try:
+        doc = place.read_yaml(bun, source, path)
+    except RuntimeError as error:
+        print(f"{NAME}: {error}。対象の .archon/config.yaml が読めないので寿命の既定を載せない（Archon もこのファイルを読めずに止まる）",
+              file=sys.stderr)
+        return None
+    env = doc.get("env") if isinstance(doc, dict) else None
+    return env if isinstance(env, dict) else {}
+
+
+def run_config(bun: str, source: Path, cache: Path, home: Path, target: Path, flags: list[str], user: Mapping[str, str],
                extra: Mapping[str, str] | None = None) -> Path:
     """新しい run に渡す設定の層（place.run_config。--adopt の時は群の別名を除く）。利用者の --config があれば合わせる。Archon は
     --config を 1 つしか読まず後ろの物を採り、相対のパスは対象（--cwd）から引くので、ここも同じに読む。工場の値だけの層は秘密を
     持たないので取り置き cache に、利用者の層を合わせた物（env の秘密が入りうる）は対象の家 home（run_home。Archon の DB と封じた層を
-    解く鍵の置き場）に置き、家と一緒に消える"""
-    env, aliases = {**run_env(home, target), **(extra or {})}, not adopting(flags)
+    解く鍵の置き場）に置き、家と一緒に消える。
+
+    層の env には run のノードに渡す環境変数（run_env）に加え、役の claude の会話のキャッシュの寿命の既定（cache_ttl）も載る。選びを
+    潰さないため、利用者の --config の env: と対象の .archon/config.yaml の env:（repo_env）を読んで cache_ttl に渡す。対象の config.yaml が
+    読めなければ寿命の既定を載せない。--adopt の起動は寿命の既定を載せず、対象の config.yaml も読まない: 引き継ぐ run は repo の config を
+    --cwd の物でなく、枝の写しか既存の作業ツリーから読むので、殻はそこに寿命の選びが在るか見られない（cache_ttl の docstring）"""
+    adopt = adopting(flags)
+    env, aliases = {**run_env(home, target), **(extra or {})}, not adopt
     mine = (flag_values(flags, "--config") or [None])[-1]
+    layer = {}
+    if mine:
+        try:
+            layer = place.read_run_config(bun, source, target / mine)
+        except RuntimeError as error:
+            raise Stop(str(error)) from None
+    repo = {} if adopt else repo_env(bun, source, target)
+    ttl = {} if adopt or repo is None else cache_ttl(user, layer.get("env", {}), repo)
     if not mine:
-        return place.run_config(cache, env, aliases=aliases)
-    try:
-        layer = place.read_run_config(bun, source, target / mine)
-    except RuntimeError as error:
-        raise Stop(str(error)) from None
+        return place.run_config(cache, {**ttl, **env}, aliases=aliases)
     replaced = sorted(set(layer.get("aliases", {})) & set(launchgroups.GROUPS)) if aliases else []
     if replaced:
         print(f"{NAME}: --config の群の別名 {'・'.join(replaced)} は工場の値で上書きした。群の値の付け替えは --model @wf-<群>=<模型>",
               file=sys.stderr)
-    return place.run_config(home, env, layer, aliases=aliases)
+    return place.run_config(home, {**ttl, **env}, layer, aliases=aliases)
 
 
 def refuse_unknown_groups(flags: list[str]) -> None:

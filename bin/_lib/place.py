@@ -10,7 +10,8 @@
 
 Archon の家（$ARCHON_HOME）には、利用者が provider の同時数の上限を渡した時の $ARCHON_HOME/config.yaml の上限の鍵（write_provider_cap）のほかは
 何も書かない（$ARCHON_HOME/workflows など）。工場が決める値は、
-run のノードに渡す環境変数（launcher.run_env）・AI ノードの群の別名（'@wf-<群>'）・使用枠の方針（QUOTA_POLICY）を新しい run に run 1 本ぶんの
+run のノードに渡す環境変数（launcher.run_env）・役の claude の会話のキャッシュの寿命の既定（launcher.cache_ttl。--adopt の起動と、
+寿命が選ばれている起動では載せない）・AI ノードの群の別名（'@wf-<群>'）・使用枠の方針（QUOTA_POLICY）を新しい run に run 1 本ぶんの
 設定の層（run_config）で、既定の provider を Archon の環境変数（PROVIDER_ENV）で渡す。
 """
 import hashlib
@@ -70,20 +71,30 @@ def group_presets() -> dict[str, dict[str, str]]:
 
 # 利用者の --config の層に工場が値を重ねる鍵（run_config）
 MERGED_KEYS = ("aliases", "env", "workflows")
-# 利用者の --config のファイルを Archon と同じ Bun.YAML.parse で読み、JSON で出す（packages/core/src/config/run-config.ts の
-# loadWorkflowRunConfigFile。空のファイルは {}）
+# YAML のファイルを Archon と同じ Bun.YAML.parse で読み、JSON で出す（read_yaml）。空のファイルは {}。読み手は 2 つで、Archon 側の読み手と
+# 同じ読み方をする: 利用者の --config（Archon 側は packages/core/src/config/run-config.ts の loadWorkflowRunConfigFile）と、対象の
+# .archon/config.yaml（launcher.repo_env。Archon 側は packages/core/src/config/config-loader.ts の readRepoConfig・parseConfigMapping）
 READ_YAML = ("try { console.log(JSON.stringify(Bun.YAML.parse(await Bun.file(process.argv.at(-1)).text()) ?? {})) }"
              " catch (error) { console.error(error.message); process.exit(1) }")
+
+
+def read_yaml(bun: str, source: Path, path: Path):
+    """YAML のファイル path を Archon と同じ Bun.YAML.parse で読んだ値（object とは限らない。空のファイルは {}）。読めなければ
+    RuntimeError(f"{path} が読めない: …")。値の形の照らしは呼ぶ人（read_run_config・launcher.repo_env）がする"""
+    done = subprocess.run([bun, f"--config={source / 'bunfig.toml'}", "-e", READ_YAML, str(path)], cwd=source,
+                          capture_output=True, text=True, encoding="utf-8")
+    if done.returncode != 0:
+        raise RuntimeError(f"{path} が読めない: {' '.join(done.stderr.split())}")
+    return json.loads(done.stdout)
 
 
 def read_run_config(bun: str, source: Path, path: Path) -> dict:
     """利用者の --config のファイル（YAML）を読む。読めない・object でない・工場が値を重ねる鍵（aliases・env・workflows）が object で
     ない時は RuntimeError。鍵の照らしは Archon に任せる"""
-    done = subprocess.run([bun, f"--config={source / 'bunfig.toml'}", "-e", READ_YAML, str(path)], cwd=source,
-                          capture_output=True, text=True, encoding="utf-8")
-    if done.returncode != 0:
-        raise RuntimeError(f"--config の {path} が読めない: {' '.join(done.stderr.split())}")
-    layer = json.loads(done.stdout)
+    try:
+        layer = read_yaml(bun, source, path)
+    except RuntimeError as error:
+        raise RuntimeError(f"--config の {error}") from None
     if not isinstance(layer, dict) or not all(isinstance(layer.get(key, {}), dict) for key in MERGED_KEYS):
         raise RuntimeError(f"--config の {path} は object にし、{'・'.join(MERGED_KEYS)} も object にする")
     return layer
@@ -91,9 +102,11 @@ def read_run_config(bun: str, source: Path, path: Path) -> dict:
 
 def run_config(where: Path, env: Mapping[str, str], mine: dict | None = None, aliases: bool = True) -> Path:
     """新しい run に --config で渡す、run 1 本ぶんの設定の層のファイル <where>/run-config/<中身の hash>.json を書いて返す。中身は利用者の
-    --config の層 mine（read_run_config）に、run のノードに渡す環境変数 env を env: で、群の別名を aliases: で（aliases が偽なら
-    足さない）、使用枠の方針 QUOTA_POLICY を workflows: で重ねた物。env と群の別名は同じ名なら工場の値が勝ち（run の中の script が
-    頼る値で、群の付け替えは --model だけ）、使用枠の方針は利用者の値が勝つ。起動の後はファイルは要らない。
+    --config の層 mine（read_run_config）に、環境変数 env を env: で、群の別名を aliases: で（aliases が偽なら足さない）、使用枠の方針
+    QUOTA_POLICY を workflows: で重ねた物。env は script・bash のノードにも AI のノードの claude にも届く: script・bash のノードには
+    run の中の script が頼る値（launcher.run_env）、AI のノードの claude には会話のキャッシュの寿命の値（launcher.cache_ttl。Archon は
+    起動の最初に CLAUDE_CODE_* を消し、この層はその後に重なるので、役に届くのはこの層だけ）として効く。env と群の別名は同じ名なら
+    工場の値が勝ち（群の付け替えは --model だけ）、使用枠の方針は利用者の値が勝つ。起動の後はファイルは要らない。
 
     この層は対象のリポジトリの .archon/config.yaml を含む持続の設定と起こした Archon の環境より強く、呼ぶ人の --model だけがその上に
     立つ。Archon は起動の時に層を封じて run に記録し、workflow: の子の run が受け継ぎ、resume はその記録を戻す（止めた Archon の
