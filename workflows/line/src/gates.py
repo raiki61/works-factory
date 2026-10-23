@@ -2,7 +2,7 @@
 
 元 lib/gatepolicy.py の全部（最後の承認ノードの開き方と無人の方針）・元 lib/gate_axes.py（4 つの軸を軸ごとにまとめる。材料は事前審査の
 返りの行に替えた）・元 lib/gatemarks.py の承認ノードの決めの部分（開くか・項目の行・通した行・無人の抜け方・row_push・_as_push・
-design_only・request_answers・design_item・stuck_push・design_items・_continued・_item。integration.md の 4.5-4 (a)(b)）と、元
+design_talk・request_answers・design_item・stuck_push・design_items・_continued・_item。integration.md の 4.5-4 (a)(b)）と、元
 lib/boardview.py の方針の文書の変化（policy_change・change_row）と HUMAN_FACE_KINDS・replan_asks の「聞くか」の決め。
 問いの行の形（ASKING・asks_human・ask_text・推しの尾の字の形 push_rec・_push・recommend_of・decided・gate_text・head3・pass_lines）
 と問いの台帳の値の見え方（ledger・ledger_files・answered）は KEEP の lib/gatemarks.py を引く（README 9.3）。
@@ -13,7 +13,7 @@ lib/boardview.py の方針の文書の変化（policy_change・change_row）と 
   UNATTENDED・UNATTENDED_WORDS・FINAL_KIND・Refused・check・unattended_of・opens・head_words・Push・Passage・
   passage（stuck_pushable は往復の記録の住処 src.rounds が持つ）
 - row_push(text)・_as_push(rec, note): 項目の推しの尾の、無人の方針の読み（元 gatemarks）
-- design_only(doc)・request_answers(doc): 始めの記録の dict から、設計だけの run か・依頼が先に持っていた答え（元 gatemarks の
+- design_talk(doc)・request_answers(doc): 始めの記録の dict から、設計だけの run か・依頼が先に持っていた答え（元 gatemarks の
   startrec.read の道）
 - AXES・gather(asks, deviations, design_rows) -> {軸: {ok, note}}: 4 つの軸（元 gate_axes.gather。軸ごとの訳は事前審査の返りの行の why）
 - before_fix(...): 修正前の承認ノード（2 節の 2）の決め（返り {open, go, stop_reason, items, deferred, asked, pushed, passes, policy_changed}）。
@@ -128,9 +128,9 @@ def _as_push(rec: dict, note: str) -> Push:
     return Push(rec[gatemarks.RECOMMEND_KEYS[0]] == gatemarks.RECOMMEND_ANSWERS[0], note, rec)
 
 
-def design_only(doc) -> bool:
-    """run が設計だけの run（始めの記録の dict の design_only。読めなければ今どおりの run）"""
-    return isinstance(doc, dict) and doc.get("design_only") == DESIGN_ONLY
+def design_talk(doc) -> bool:
+    """run が設計だけの run（始めの記録の dict の design_talk。読めなければ今どおりの run）"""
+    return isinstance(doc, dict) and doc.get("design_talk") == DESIGN_ONLY
 
 
 def request_answers(doc) -> list:
@@ -187,13 +187,13 @@ def stuck_push(doc: dict, *, unattended_run: bool, design: bool) -> str:
     src.rounds の stuck_push_due（元 gatepolicy.stuck_pushable。往復の記録の住処が持つ）。ほかは空（推しが無い・止める・崩れた・引用が
     欠ける時は passage が今どおり止める）"""
     from src import rounds
-    if not rounds.stuck_push_due(doc, unattended=unattended_run, design_only=design):
+    if not rounds.stuck_push_due(doc, unattended=unattended_run, design_talk=design):
         return ""
     return gatemarks._push({gatemarks.RECOMMEND: doc["passes"][-1].get("push")})
 
 
 def design_item(*, design: bool, reason: str, tail: str = "") -> str:
-    """関所に載せる設計だけの行。入力 design_only だけなら DESIGN_ONLY_ITEM のまま、事前審査の壁打ちが止まっていれば（reason が
+    """関所に載せる設計だけの行。入力 design_talk だけなら DESIGN_ONLY_ITEM のまま、事前審査の壁打ちが止まっていれば（reason が
     止まった理由。入力と重なっても 1 行で）尾に止まった理由を付ける。設計だけでない run の止まりは頭を STUCK_ITEM にし、事前審査の
     役の推しの尾 tail（stuck_push）も付けうる。どちらも無ければ空"""
     if reason:

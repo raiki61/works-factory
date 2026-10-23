@@ -50,7 +50,7 @@ def plan_out(plan, review, prior_raw, *, unattended: bool, place: Path) -> dict:
     stalled = outcome in rounds.STUCK
     reviewed = review is not None and review["ok"] is True
     pointer_of_holes = review["holes"] if reviewed else None
-    if stalled and rounds.stuck_push_due(doc, unattended=unattended, design_only=False) and pointer_of_holes is not None:
+    if stalled and rounds.stuck_push_due(doc, unattended=unattended, design_talk=False) and pointer_of_holes is not None:
         held = rounds.stuck_faces(doc)
         if held:
             holes = _json_at(pointer_of_holes)

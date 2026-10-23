@@ -1,4 +1,4 @@
-# 対話モード（design_only が true で無人でない run）の設計の相談の筋書き（docs/design/line.md の 3.1 節。issue #822）。標準の筋書きと同じ
+# 対話モード（design_talk が true で無人でない run）の設計の相談の筋書き（docs/design/line.md の 3.1 節。issue #822）。標準の筋書きと同じ
 # stub で、計画の往復の止まる周に design-talk が関所を開く返り（設計案と事前審査の結果と revise の答え方の文）を出す。筋書きの木は
 # 本体の唯一の終わりの関所 gate-design を外して置く（tests/archon.py の dry_run_bodies。止めた Archon の dry-run は飛んだ関所で輪の出力を
 # 空にするため）。dry-run は until_bash の輪を 1 周で終えたことにするので、答えた後の周（合意して往復を終える周）は回らず、往復の返りは
@@ -6,7 +6,7 @@
 # 止める答えは本物の Archon の試験 tests/e2e/test_design_talk_real.py と tests/blocks/line/test_talk.py が照らす。
 fixture:
   expect: completed
-  inputs: {request: .archon/workflows/works-factory/line/fixtures/request.json, design_only: 'true'}
+  inputs: {request: .archon/workflows/works-factory/line/fixtures/request.json, design_talk: 'true'}
   reached: [start, gate-start, answer-start, test-gate-base__result, judge__verdict, tiers, owed, structure__finish, independent-design__finish, design-turn, plan__finish, plan-review-run__finish, plan-out, design-talk, ask-before-fix, gate-before-fix, answer-before-fix, fix-in, fix__finish, after-fix, raise, fixed, judged, test-gate-final__result, eyes-in, eyes__verdict, merge-seal__merge, ask-final, gate-final, answer-final, merge-apply__merge, collect, report__finish, sweep-children, result]
   resolved-text-contains: {gate-before-fix: 設計だけの run, gate-final: 修正の段の控えを読めない}
 exec-code: true

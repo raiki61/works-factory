@@ -88,6 +88,7 @@ def launch(argv: list[str], user: dict[str, str], here: Path) -> int:
     workflow = fresh_run_workflow(argv, flags)
     if workflow is not None:
         refuse_unknown_groups(flags)
+        refuse_renamed_inputs(workflow, flags)
     no_auth = user.get(NO_AUTH_ENV) == "1"
     user_home = user.get("HOME")
     if not user_home:
@@ -293,6 +294,21 @@ def refuse_unknown_groups(flags: list[str]) -> None:
     unknown = [name for name in named if name.startswith("@wf-") and name not in launchgroups.GROUPS]
     if unknown:
         raise Stop(f"--model の群 {'・'.join(unknown)} は群の表（lib/launchgroups.py）に無い。知っている群: {'・'.join(launchgroups.GROUPS)}")
+
+
+RENAMED_INPUTS = {"design_only": "design_talk"}   # 名の替わった入力（古い名 → 新しい名。#827）
+RENAMED_FOR = ("works-factory-line", "works-factory-chain")   # 名を替えたグラフ（ほかの block の同じ名の port は替えていない）
+
+
+def refuse_renamed_inputs(workflow: str, flags: list[str]) -> None:
+    """メイングラフと周の鎖に古い名の --input を渡したら止め、新しい名を案内する（Archon も知らない入力として拒むが、新しい名は言わない）"""
+    if workflow not in RENAMED_FOR:
+        return
+    named = [value.split("=", 1) for value in flag_values(flags, "--input")]
+    old = [(name, rest[0] if rest else "") for name, *rest in named if name in RENAMED_INPUTS]
+    if old:
+        raise Stop("\n".join(f"--input {name}=… は名が替わった。--input {RENAMED_INPUTS[name]}={value or 'true'} で渡す"
+                             for name, value in old))
 
 
 def absolute(value: str, here: Path) -> str:

@@ -24,7 +24,7 @@
 {"id": "L-E23", "kind": "scenario-only", "why": "筋書きでのみ"},
 {"id": "L-E24", "kind": "scenario-only", "why": "本物の通しの照らしの外（#261 の決め直し）: 置き場 r1/start.json は何も働かなかった run の 2 つの形のどちらでも start が書く（入力を受けない start もこだまと版の控えを書く）ので、在ることは働いた証にならない"},
 {"id": "L-E25", "kind": "seed-cannot", "why": "inputs.thickness が 標準 で受ける側だけを通り、知らない値を拒む道を通らない（c0e26106・a1b08bc8）"},
-{"id": "L-E26", "kind": "seed-cannot", "why": "種は design_only を渡さず、空の既定は入力を読まなくても同じ値になる（true で修正前の関所を必ず開く道を通らない）"},
+{"id": "L-E26", "kind": "seed-cannot", "why": "種は design_talk を渡さず、空の既定は入力を読まなくても同じ値になる（true で修正前の関所を必ず開く道を通らない）"},
 {"id": "L-E27", "kind": "seed-cannot", "why": "inputs.spec が空で start.json の input.spec が false（c0e26106・a1b08bc8）", "check": "json-equals", "where": "parent/r1/start.json", "path": "input.spec", "value": true},
 {"id": "L-E28", "kind": "scenario-only", "why": "筋書きでのみ"},
 {"id": "L-E29", "kind": "scenario-only", "why": "筋書きでのみ"},

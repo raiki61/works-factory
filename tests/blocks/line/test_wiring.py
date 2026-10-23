@@ -303,7 +303,7 @@ class FlowCase(unittest.TestCase):
 
     def test_line_inputs_are_the_current_sixteen(self):
         self.assertEqual(sorted(DOC["inputs"]), sorted(
-            ("request", "base", "pr", "spec", "test_cmd", "tdd_suite", "final_gate", "unattended", "design_only", "thickness",
+            ("request", "base", "pr", "spec", "test_cmd", "tdd_suite", "final_gate", "unattended", "design_talk", "thickness",
              "features_off", "features_on", "policy_md", "fix_fixture", "lang", "deliver", "spec_table")))
         self.assertEqual((DOC["returns"], DOC["outcome_field"]), ("result", "fixed"))
 
