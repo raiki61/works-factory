@@ -645,6 +645,7 @@ class YamlCase(unittest.TestCase):
 
     def test_role_formats_are_mainline_plus_marks(self):
         converge, gatemarks, _ = libs()
+        files = kit.load("plan-review", "files")
         got = nodes()
         fmt = got["review"]["output_format"]
         row = fmt["properties"]["faces"]["items"]["properties"]
@@ -659,7 +660,13 @@ class YamlCase(unittest.TestCase):
         self.assertEqual(trimmed.without_trimmed(fmt["properties"]["design_map"]), converge.DESIGN_MAP_SCHEMA)
         self.assertEqual(trimmed.without_trimmed(fmt["properties"]["origins"]), converge.ORIGIN_SCHEMA)
         self.assertEqual(trimmed.without_trimmed(got["review-tree"]["output_format"]["properties"]["items"]), converge.ITEMS_SCHEMA)
-        self.assertEqual(sorted(fmt["required"]), ["faces", "reason", "shrink"])
+        self.assertEqual(fmt["required"], [], "根の欄は受け付けが確かめる（#832）")
+        self.assertEqual(files.REVIEW_REQUIRED, ("faces", "shrink", "reason"))
+        self.assertLessEqual(set(files.REVIEW_REQUIRED), set(fmt["properties"]))
+        tree = got["review-tree"]["output_format"]
+        self.assertEqual(tree["required"], [])
+        self.assertEqual(files.TREE_REQUIRED, ("reason", "items"))
+        self.assertLessEqual(set(files.TREE_REQUIRED), set(tree["properties"]))
         self.assertNotIn("items", fmt["properties"])
 
     def test_face_reach_and_stuck_recommend(self):
@@ -671,17 +678,18 @@ class YamlCase(unittest.TestCase):
         self.assertIn(converge.REACH, row["required"])
         schema = gatemarks.MARK_SCHEMA[gatemarks.RECOMMEND]
         self.assertEqual(trimmed.without_trimmed(fmt["properties"][converge.STUCK_PUSH]), {k: x for k, x in schema.items() if k != "note"})
-        self.assertNotIn(converge.STUCK_PUSH, fmt["required"])
+        self.assertNotIn(converge.STUCK_PUSH, kit.load("plan-review", "files").REVIEW_REQUIRED)
         self.assertNotIn(gatemarks.RECOMMEND, row["required"])
         tree = got["review-tree"]["output_format"]["properties"]
         for name in ("reason", converge.STUCK_PUSH):
             self.assertEqual(tree[name], fmt["properties"][name], "束ね役の型の reason と推しは単独の役の型と同じ")
 
-    def test_resubmit_formats_drop_only_required(self):
+    def test_resubmit_formats_equal_the_first_role(self):
+        """#832: 出し直しの役の型は 1 回目の役の型と同じ（違うと会話の続きの最初の要求でキャッシュが効かない）"""
         got = nodes()
         for base, fix in (("review", "review-fix"), ("review-tree", "review-tree-fix")):
             with self.subTest(fix):
-                self.assertEqual(got[fix]["output_format"], {**got[base]["output_format"], "required": []})
+                self.assertEqual(got[fix]["output_format"], got[base]["output_format"])
                 launch = lambda node: {k: x for k, x in node.items()  # noqa: E731
                                        if k not in ("id", "depends_on", "when", "output_format", "context", "trigger_rule", "prompt")}
                 self.assertEqual(launch(got[fix]), launch(got[base]), "起こし方の鍵は 1 回目の役と同じ")

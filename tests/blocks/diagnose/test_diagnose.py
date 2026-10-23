@@ -345,7 +345,8 @@ class YamlCase(unittest.TestCase):
                 self.assertEqual(by[acc]["trigger_rule"], "none_failed_min_one_success")
                 self.assertEqual(by[role]["when"], "$rejudge-prep.output.resubmit != true")
                 self.assertEqual(by["rejudge-fix"]["when"], "$rejudge-prep.output.resubmit == true")
-                self.assertEqual(by["rejudge-fix"]["output_format"]["required"], [])
+                self.assertEqual(by["rejudge-fix"]["output_format"], by[role]["output_format"], "出し直しの型は 1 回目と同じ（#832）")
+                self.assertEqual(by[role]["output_format"]["required"], [])
                 continue
             self.assertEqual(list(by), [prep, role, acc])
             self.assertEqual(by[role]["depends_on"], [prep])

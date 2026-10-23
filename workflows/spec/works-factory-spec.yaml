@@ -55,37 +55,41 @@ nodes:
             sandbox: {enabled: true, allowUnsandboxedCommands: false}
             idle_timeout: 1728000000
             retry: {max_attempts: 2, on_error: all}
-          output_format: &spec_reply
-            type: object
-            additionalProperties: false
-            required: [requirements, acceptance, out_of_scope]
-            properties:
-              requirements:
-                type: array
-                minItems: 1
-                items:
-                  type: object
-                  additionalProperties: false
-                  required: [key, text]
-                  properties:
-                    key: {type: string, minLength: 1}
-                    text: {type: string, minLength: 4}
-              acceptance:
-                type: array
-                minItems: 1
-                items:
-                  type: object
-                  additionalProperties: false
-                  required: [key, requirement, file, name, run]
-                  properties:
-                    key: {type: string, minLength: 1}
-                    requirement: {type: string, minLength: 1}
-                    file: {type: string, minLength: 1}
-                    name: {type: string, minLength: 1}
-                    run: {type: string, minLength: 1}
-              out_of_scope:
-                type: array
-                items: {type: string}
+          output_format: &write_reply
+            # 根の欄は要ると書かない（出し直しの役と同じ形にして、会話の続きの最初の要求でキャッシュを効かせる。#832）。要る欄は受け付けが
+            # 確かめる（src/files.py の REPLY_REQUIRED）。spec_reply は要る欄を書いたまま直しの役の spec に入れる
+            <<: &spec_reply
+              type: object
+              additionalProperties: false
+              required: [requirements, acceptance, out_of_scope]
+              properties:
+                requirements:
+                  type: array
+                  minItems: 1
+                  items:
+                    type: object
+                    additionalProperties: false
+                    required: [key, text]
+                    properties:
+                      key: {type: string, minLength: 1}
+                      text: {type: string, minLength: 4}
+                acceptance:
+                  type: array
+                  minItems: 1
+                  items:
+                    type: object
+                    additionalProperties: false
+                    required: [key, requirement, file, name, run]
+                    properties:
+                      key: {type: string, minLength: 1}
+                      requirement: {type: string, minLength: 1}
+                      file: {type: string, minLength: 1}
+                      name: {type: string, minLength: 1}
+                      run: {type: string, minLength: 1}
+                out_of_scope:
+                  type: array
+                  items: {type: string}
+            required: []
         - id: spec-write-fix-prep
           script: fix_prep
           runtime: uv
@@ -105,9 +109,7 @@ nodes:
           trigger_rule: none_failed_min_one_success
           when: "$spec-write-prep.output.resubmit == true"
           <<: *write_launch
-          output_format:
-            <<: *spec_reply
-            required: []
+          output_format: *write_reply
         - id: spec-write-accept
           script: take
           runtime: uv
@@ -155,9 +157,10 @@ nodes:
             idle_timeout: 1728000000
             retry: {max_attempts: 2, on_error: all}
           output_format: &review_reply
+            # 根の欄は要ると書かない（出し直しの役と同じ形にして、会話の続きの最初の要求でキャッシュを効かせる。#832）。要る欄は受け付けが確かめる（REPLY_REQUIRED）
             type: object
             additionalProperties: false
-            required: [faces, reason]
+            required: []
             properties:
               faces:
                 type: array
@@ -189,9 +192,7 @@ nodes:
           trigger_rule: none_failed_min_one_success
           when: "$spec-review-prep.output.resubmit == true"
           <<: *review_launch
-          output_format:
-            <<: *review_reply
-            required: []
+          output_format: *review_reply
         - id: spec-review-accept
           script: take
           runtime: uv
@@ -224,9 +225,10 @@ nodes:
           when: "$spec-revise-prep.output.resubmit != true"
           <<: *write_launch
           output_format: &revise_reply
+            # 根の欄は要ると書かない（出し直しの役と同じ形にして、会話の続きの最初の要求でキャッシュを効かせる。#832）。要る欄は受け付けが確かめる（REPLY_REQUIRED）
             type: object
             additionalProperties: false
-            required: [spec, handled]
+            required: []
             properties:
               spec: *spec_reply
               handled:
@@ -256,9 +258,7 @@ nodes:
           trigger_rule: none_failed_min_one_success
           when: "$spec-revise-prep.output.resubmit == true"
           <<: *write_launch
-          output_format:
-            <<: *revise_reply
-            required: []
+          output_format: *revise_reply
         - id: spec-revise-accept
           script: take
           runtime: uv

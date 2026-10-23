@@ -30,7 +30,7 @@ import worldmark  # lib/
 from src import files, ripple
 
 RUNTIME_COPY_DIRS = ((ports.RUNTIME_COPY,),)   # 波及の一覧が飛ぶ、Archon が作業ツリーに写す置き場（lib/ の boundary.RUNTIME_COPY_DIRS と同じ値）
-WHOLE_PLAN = "whole_plan"          # 出し直しの役の型だけが持つ欄。真なら plan が前の案を丸ごと置き換える（合わせた後も控えに残す）
+WHOLE_PLAN = "whole_plan"          # 出し直しの役だけが書く欄（型は 1 回目の役と同じなので受け付けが 1 回目の答えから拒む。#832）。真なら plan が前の案を丸ごと置き換える（合わせた後も控えに残す）
 BASE_TESTS_UNREAD_OP = "writes_base_tests_unread"   # 修正前の版のテストを読み損ねた trace の行 {rev, unread}
 
 # 受け付けと出口の文。拒否の理由は日本語のまま（網の回まで拒まれた時に reason を通って報告に載り、出し直しの役の指示に字のまま入る）

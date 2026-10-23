@@ -443,6 +443,18 @@ class CoherenceCase(_RepoCase):
         self.assertTrue(self.accept({**PASS, "r3": {"status": "bogus"}})["ok"])
         self.assertIsNone(self.finish()["coherence"])
 
+    def test_missing_root_field_is_refused_then_resubmitted_alone(self):
+        """#832: 範囲の役の型は根の欄を要ると書かない（出し直しの役と同じ形）。seen の欠けた答えは受け付けが拒み、出し直しの seen で通る"""
+        self.intake()
+        self.prep()
+        bare = {k: v for k, v in PASS.items() if k != "seen"}
+        first = self.accept(bare)
+        self.assertEqual((first["ok"], first["done"]), (False, False))
+        self.assertIn(kit.load("r4", "steps").rolekit.MISSING_FIELDS.format(keys="seen"), first["reason"])
+        self.assertTrue(self.prep(prev="false")["resubmit"])
+        got = self.accept("null", {"seen": PASS["seen"]})
+        self.assertEqual((got["ok"], got["done"]), (True, True), got["reason"])
+
     def test_missing_r3_is_rejected_and_resubmitted_with_r3_only(self):
         self.intake(coherence="true")
         self.prep()

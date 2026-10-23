@@ -74,8 +74,9 @@ nodes:
             retry: {max_attempts: 2, on_error: all}
           # r3 は coherence が真の run だけ受け付けが要る（必須にしない）。if/then は棚卸しが発火したら lost を明示させる
           output_format: &r4_reply
+            # 根の欄は要ると書かない（出し直しの役と同じ形にして、会話の続きの最初の要求でキャッシュを効かせる。#832）。要る欄は受け付けが確かめる（src/files.py の R4_REQUIRED）
             type: object
-            required: [status, reason, capability_inventory, policy_conflicts, surfaced, seen, unseen]
+            required: []
             additionalProperties: false
             properties:
               status: {type: string, enum: [pass, redesign-needed, unverifiable]}
@@ -136,9 +137,7 @@ nodes:
           trigger_rule: none_failed_min_one_success
           when: "$r4-scope-prep.output.resubmit == true"
           <<: *r4_launch
-          output_format:
-            <<: *r4_reply
-            required: []
+          output_format: *r4_reply
         - id: r4-scope-accept
           script: scope_accept
           runtime: uv

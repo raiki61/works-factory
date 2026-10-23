@@ -29,6 +29,9 @@ ROLES = {"write": "spec-write", "review": "spec-review", "revise": "spec-revise"
 # 役の名 → 拒否の文の頭の節の名（今の字のまま）
 NODES = {"write": "spec.write", "review": "spec.review", "revise": "spec.revise"}
 FIX_SUFFIX = "-fix"          # 出し直しの役の node の id は <ROLES の名>-fix
+# 役の名 → 答えに要る根の欄。役の型（YAML の output_format）は出し直しの役と同じ形にするので根の欄を要ると書かず、受け付けが
+# rolekit.resubmitted で確かめる（#832）
+REPLY_REQUIRED = {"write": ("requirements", "acceptance", "out_of_scope"), "review": ("faces", "reason"), "revise": ("spec", "handled")}
 GWT = ("Given", "When", "Then")
 STOP = stopby.declare("spec", "仕様のループが諦めた・固まらなかった")
 GATE = "spec-gate"
