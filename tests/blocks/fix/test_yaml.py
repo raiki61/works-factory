@@ -1,5 +1,5 @@
 """修正の block（workflows/fix/works-factory-fix.yaml）の形（docs/design/fix.md の 14.2 の test_yaml.py）: loop の上限が定数と同じ・柵 nodes-ok の
-結び・all_done の node・会話を継ぐ役の直前の層・役の起こし方が今の YAML と同じ・自分を起こす組の node・指示の受け渡し"""
+結び・all_done の node・会話を継ぐ役の直前の層・修正役の会話の続きと答えの役の切り離し・役の起こし方が今の YAML と同じ・自分を起こす組の node・指示の受け渡し"""
 import pathlib
 import sys
 import unittest
@@ -26,12 +26,20 @@ def top(doc=DOC) -> dict:
 
 
 def every(doc=DOC) -> dict:
+    """node を loop_group の中まで（入れ子の輪も。id → node）"""
     out = {}
-    for n in doc["nodes"]:
-        out[n["id"]] = n
-        for m in (n.get("loop_group") or {}).get("nodes") or []:
-            out[m["id"]] = m
+
+    def walk(nodes):
+        for n in nodes:
+            out[n["id"]] = n
+            walk((n.get("loop_group") or {}).get("nodes") or [])
+    walk(doc["nodes"])
     return out
+
+
+def inner(loop) -> dict:
+    """輪の本体の node を入れ子の輪の中まで（id → node）"""
+    return every({"nodes": loop["loop_group"]["nodes"]})
 
 
 def is_ai(node) -> bool:
@@ -72,7 +80,7 @@ class WiringCase(unittest.TestCase):
 
     def test_every_role_prompt_is_its_loop_prep_output(self):
         for loop in (n for n in DOC["nodes"] if "loop_group" in n):
-            body = {m["id"]: m for m in loop["loop_group"]["nodes"]}
+            body = inner(loop)
             for nid, m in body.items():
                 if not is_ai(m):
                     continue
@@ -103,6 +111,33 @@ class ConversationCase(unittest.TestCase):
 
     def test_only_tdd_new_starts_fresh(self):
         self.assertEqual({nid for nid, n in every().items() if n.get("context") == "fresh"}, {"tdd-new"})
+
+    def test_fixers_continue_their_own_conversation(self):
+        """13.3 の 1（#833）: 修正の輪の次の周の修正役は、前の周の修正役の会話を継ぐ。止めた Archon は輪の周の最後に走った AI の node の
+        会話を次の周へ渡すので、修正の輪の本体に直に置く AI の node は修正役 1 つだけ。相談の答えの役を本体に直に置くと（context: fresh
+        でも）、次の周の修正役は答えの役の会話を継ぐ"""
+        for loop, fixer in (("fix-loop", "fixer"), ("fix-ruled-loop", "fix-ruled")):
+            with self.subTest(loop=loop):
+                group = top()[loop]["loop_group"]
+                self.assertIs(group["fresh_context"], False)
+                self.assertEqual([m["id"] for m in group["nodes"] if is_ai(m)], [fixer])
+                self.assertNotIn("context", every()[fixer])
+
+    def test_answerers_start_fresh_in_their_own_loop(self):
+        """13.3 の 1（#833）: 相談の答えの役は修正役の会話を継がず、新しい会話で起きる。答えの役は修正の輪の本体の中の、答えの役
+        1 つだけを置いた 1 周の輪（fresh_context: true）の中に在る。止めた Archon は輪の 1 周目の AI の node を新しい会話で起こし、
+        輪の node の返りは会話を持たないので、外の輪の会話の続きは輪の前の修正役の物のまま（dag-executor.ts の executeLoopGroupNode が
+        lastSequentialSession を i === 1 で空にし、runLayers が返りの sessionId の在る node だけで続きを替える）"""
+        rules = kit.load("fix", "rules")
+        for loop, answerer in (("fix-loop", rules.answer_node("first")), ("fix-ruled-loop", rules.answer_node("ruled"))):
+            with self.subTest(loop=loop):
+                holders = [m for m in top()[loop]["loop_group"]["nodes"]
+                           if answerer in [x["id"] for x in (m.get("loop_group") or {}).get("nodes") or []]]
+                self.assertEqual(len(holders), 1, "答えの役は修正の輪の本体の輪の中")
+                group = holders[0]["loop_group"]
+                self.assertEqual([x["id"] for x in group["nodes"]], [answerer])
+                self.assertEqual((group["max_iterations"], group["fresh_context"]), (1, True))
+                self.assertNotIn("context", every()[answerer])
 
 
 class RolesCase(unittest.TestCase):

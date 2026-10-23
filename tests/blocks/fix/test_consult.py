@@ -544,7 +544,7 @@ class ConsultWiringCase(unittest.TestCase):
 
     def test_answer_nodes_are_keyed_by_passes_and_name_nodes_here(self):
         """#385: 段 → 範囲の相談に答える役の node は rules.PASSES を鍵にした表 1 つ。値はどれもこの YAML の node で、段ごとの組みは
-        YAML の配線（consult_accept の pass: と answer.from、答える役が待つ同じ段の consult_check）と一致する。表に無い段は例外"""
+        YAML の配線（consult_accept の pass: と answer.from の輪、その輪が待つ同じ段の consult_check）と一致する。表に無い段は例外"""
         rules = self.rules
         self.assertEqual(tuple(rules.ANSWER_NODES), rules.PASSES)
         for pass_, nid in rules.ANSWER_NODES.items():
@@ -555,11 +555,11 @@ class ConsultWiringCase(unittest.TestCase):
         self.assertEqual(set(checks), set(rules.PASSES))
         self.assertEqual(set(accepts), set(rules.PASSES))
         for pass_, accept in accepts.items():
-            answer = accept["with"]["answer"]["from"].removeprefix("$").removesuffix(".output")
-            self.assertEqual(rules.answer_node(pass_), answer, pass_)
-            self.assertEqual(self.nodes[answer]["depends_on"], [checks[pass_]], pass_)
-            self.assertEqual(self.nodes[answer]["prompt"], f"${checks[pass_]}.output.prompt", pass_)
-            self.assertEqual(self.nodes[answer]["when"], f"${checks[pass_]}.output.go == true", pass_)
+            ask = accept["with"]["answer"]["from"].removeprefix("$").removesuffix(".output")   # 答えの役 1 つだけを置いた輪（13.3 の 1）
+            self.assertEqual([m["id"] for m in self.nodes[ask]["loop_group"]["nodes"]], [rules.answer_node(pass_)], pass_)
+            self.assertEqual(self.nodes[ask]["depends_on"], [checks[pass_]], pass_)
+            self.assertEqual(self.nodes[rules.answer_node(pass_)]["prompt"], f"${checks[pass_]}.output.prompt", pass_)
+            self.assertEqual(self.nodes[ask]["when"], f"${checks[pass_]}.output.go == true", pass_)
         with self.assertRaises(ValueError):
             self.rules.answer_node("refix")
 

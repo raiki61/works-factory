@@ -732,65 +732,72 @@ nodes:
               go: {type: boolean}
               prompt: {type: string}
 
-        # 相談の答えの役は context を持たないので、同じ周の修正役の会話から分かれて起きる（今のまま。docs/design/fix.md の 13.3 の 1）
-        - id: ruled-consult-answer
-          description: '範囲の相談に答える（修正案と波及を読む。読むだけ）'
-          <<: &consult_launch
-            model: '@wf-fix-consult'
-            settingSources: [user]
-            allowed_tools: [Read, Grep, Glob, WebSearch, WebFetch]
-            sandbox: {enabled: true, allowUnsandboxedCommands: false}
-            idle_timeout: 1728000000
-            retry: {max_attempts: 2, on_error: all}
-          prompt: "$ruled-consult-check.output.prompt"
+        # 相談の答えの役は、中に答えの役 1 つだけを置いた 1 周の輪の中で起きる（docs/design/fix.md の 13.3 の 1）。輪の 1 周目は新しい会話で、
+        # 輪の節は会話を外へ渡さないので、次の周の修正役は前の周の修正役の会話を継ぐ（答えの役の会話を継がない）
+        - id: ruled-consult-ask
           depends_on: [ruled-consult-check]
           when: "$ruled-consult-check.output.go == true"
-          mutates_checkout: false
-          output_format: &consult_answer
-            type: object
-            additionalProperties: false
-            required: [answers]
-            properties:
-              answers:
-                type: array
-                minItems: 1
-                items:
+          loop_group:
+            max_iterations: 1
+            fresh_context: true
+            until_bash: "true"
+            nodes:
+              - id: ruled-consult-answer
+                description: '範囲の相談に答える（修正案と波及を読む。読むだけ）'
+                <<: &consult_launch
+                  model: '@wf-fix-consult'
+                  settingSources: [user]
+                  allowed_tools: [Read, Grep, Glob, WebSearch, WebFetch]
+                  sandbox: {enabled: true, allowUnsandboxedCommands: false}
+                  idle_timeout: 1728000000
+                  retry: {max_attempts: 2, on_error: all}
+                prompt: "$ruled-consult-check.output.prompt"
+                mutates_checkout: false
+                output_format: &consult_answer
                   type: object
                   additionalProperties: false
-                  required: [ask, decision, paths, tests, spec, reason]
+                  required: [answers]
                   properties:
-                    ask: {type: integer, minimum: 1}
-                    decision:
-                      type: string
-                      enum: [allow, deny, defer]
-                    new_tests:
+                    answers:
                       type: array
+                      minItems: 1
                       items:
                         type: object
                         additionalProperties: false
-                        required: [id, red_kind]
+                        required: [ask, decision, paths, tests, spec, reason]
                         properties:
-                          id: {type: string, minLength: 1}
-                          red_kind:
+                          ask: {type: integer, minimum: 1}
+                          decision:
                             type: string
-                            enum: [red, guard]
-                    paths:
-                      type: array
-                      items: {type: string, minLength: 1}
-                    tests:
-                      type: array
-                      items: {type: string, minLength: 1}
-                    spec: {type: string}
-                    reason: {type: string, minLength: 10}
+                            enum: [allow, deny, defer]
+                          new_tests:
+                            type: array
+                            items:
+                              type: object
+                              additionalProperties: false
+                              required: [id, red_kind]
+                              properties:
+                                id: {type: string, minLength: 1}
+                                red_kind:
+                                  type: string
+                                  enum: [red, guard]
+                          paths:
+                            type: array
+                            items: {type: string, minLength: 1}
+                          tests:
+                            type: array
+                            items: {type: string, minLength: 1}
+                          spec: {type: string}
+                          reason: {type: string, minLength: 10}
 
         - id: ruled-consult-accept
           script: consult_accept
           runtime: uv
           mutates_checkout: false
-          depends_on: [ruled-consult-check, ruled-consult-answer]
+          depends_on: [ruled-consult-check, ruled-consult-ask]
           trigger_rule: none_failed_min_one_success
           with:
-            answer: {from: "$ruled-consult-answer.output", if_skipped: null}
+            answer: {from: "$ruled-consult-ask.output", if_skipped: null}
             pass: ruled
           output_format: &consult_accept_out
             type: object
@@ -1035,23 +1042,30 @@ nodes:
             pass: first
           output_format: *consult_check_out
 
-        - id: consult-answer
-          description: '範囲の相談に答える（修正案と波及を読む。読むだけ）'
-          <<: *consult_launch
-          prompt: "$consult-check.output.prompt"
+        # 相談の答えの役は 1 周の輪の中で起きる（ruled-consult-ask と同じ形。docs/design/fix.md の 13.3 の 1）
+        - id: consult-ask
           depends_on: [consult-check]
           when: "$consult-check.output.go == true"
-          mutates_checkout: false
-          output_format: *consult_answer
+          loop_group:
+            max_iterations: 1
+            fresh_context: true
+            until_bash: "true"
+            nodes:
+              - id: consult-answer
+                description: '範囲の相談に答える（修正案と波及を読む。読むだけ）'
+                <<: *consult_launch
+                prompt: "$consult-check.output.prompt"
+                mutates_checkout: false
+                output_format: *consult_answer
 
         - id: consult-accept
           script: consult_accept
           runtime: uv
           mutates_checkout: false
-          depends_on: [consult-check, consult-answer]
+          depends_on: [consult-check, consult-ask]
           trigger_rule: none_failed_min_one_success
           with:
-            answer: {from: "$consult-answer.output", if_skipped: null}
+            answer: {from: "$consult-ask.output", if_skipped: null}
             pass: first
           output_format: *consult_accept_out
 
