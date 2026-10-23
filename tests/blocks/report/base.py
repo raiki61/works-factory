@@ -18,8 +18,9 @@ def src() -> types.SimpleNamespace:
 
 
 READY = {"start_ok": True, "proved": True}
-GOOD_COLD = {"verdict": "pass", "stops": [], "guessed": [], "decidable": True}
-BAD_COLD = {"verdict": "redesign-needed", "stops": ["何の話か分からない"], "guessed": ["PR だと推測した"], "decidable": False}
+GOOD_COLD = {"verdict": "pass", "stops": [], "guessed": [], "machine_lines": [], "decidable": True}
+BAD_COLD = {"verdict": "redesign-needed", "stops": ["何の話か分からない"], "guessed": ["PR だと推測した"], "machine_lines": [],
+            "decidable": False}
 NOTE = {"read": [], "kept": [], "set_aside": [], "open": []}
 
 

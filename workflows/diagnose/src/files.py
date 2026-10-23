@@ -14,6 +14,9 @@ import stopby    # lib/。止めの語
 # ---------------------------------------------------------------- 役と節の名
 DIAGNOSE_ROLE = "diagnose"          # 拒否の控え rejects-diagnose.json の名・AI の node の id
 REJUDGE_ROLE = "rejudge"
+# 再審の役の答えに要る根の欄。役の型（YAML の output_format）は出し直しの役と同じ形にするので根の欄を要ると書かず、受け付けが
+# rolekit.resubmitted で確かめる（#832）
+REJUDGE_REQUIRED = ("verdict", "new_facts", "units")
 REJUDGE_NODE = "p2.rejudge"         # units-before.json と差の行の node に書く今の字
 GUARDED = True                      # 受け付けが作業ツリーの写しと比べる欄（accept.status_keys の引数。役は読むだけ）
 HYPOTHESIS = "仮説"                 # 前提の実測の kind の語（lib/runreport.py の HYPOTHESIS と同じ字。作り直しの間はここに置く）

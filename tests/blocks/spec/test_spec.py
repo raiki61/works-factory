@@ -431,6 +431,20 @@ class ResubmitCase(_Case):
         self.assertTrue(got["ok"], got)
         self.assertEqual(self.read("spec-write.json"), write_reply())
 
+    def test_missing_root_field_is_refused_then_resubmitted_alone(self):
+        """#832: 役の型は根の欄を要ると書かない（出し直しの役と同じ形）。要る欄の欠けた 1 回目の答えは受け付けが拒み、出し直しの役が
+        欠けた欄だけを返せば通る"""
+        rolekit = kit.load("spec", "steps").rolekit
+        self.intake()
+        self.write_tests()
+        bare = write_reply()
+        bare.pop("out_of_scope")
+        got = self.take("write", bare)
+        self.assertEqual((got["ok"], got["reason"]), (False, rolekit.MISSING_FIELDS.format(keys="out_of_scope")))
+        got = self.run.script("take", role="write", status_guarded="false", reply="null", fix_reply=json.dumps({"out_of_scope": []}))
+        self.assertTrue(got["ok"], got)
+        self.assertEqual(self.read("spec-write.json"), write_reply())
+
     def test_fix_reply_after_fixing_only_the_file_returns_nothing(self):
         """テストのファイルだけを直した出し直しは欄を返さない（{}）。前の答えのまま照らし直して通る"""
         self.intake()
@@ -777,11 +791,18 @@ class ShapeCase(unittest.TestCase):
         self.assertEqual(tuple(handled["handled"]["enum"]), files.HANDLED)
         self.assertEqual(handled["how"]["minLength"], files.MIN_HOW)
 
-    def test_fix_roles_return_only_what_they_fix(self):
-        ns = nodes()
+    def test_fix_roles_share_the_first_role_shape(self):
+        """#832: 出し直しの役の型は 1 回目の役と同じで根の欄を要ると書かず、要る根の欄は受け付けの表 REPLY_REQUIRED が持つ"""
+        ns, files = nodes(), kit.load("spec", "files")
         for role in ("write", "review", "revise"):
-            self.assertEqual(ns[f"spec-{role}-fix"]["output_format"]["required"], [])
-            self.assertTrue(ns[f"spec-{role}"]["output_format"]["required"])
+            with self.subTest(role):
+                shape = ns[f"spec-{role}"]["output_format"]
+                self.assertEqual(ns[f"spec-{role}-fix"]["output_format"], shape)
+                self.assertEqual(shape["required"], [])
+                self.assertTrue(files.REPLY_REQUIRED[role])
+                self.assertLessEqual(set(files.REPLY_REQUIRED[role]), set(shape["properties"]))
+        self.assertEqual(ns["spec-revise"]["output_format"]["properties"]["spec"]["required"], list(files.REPLY_REQUIRED["write"]),
+                         "直しの役の spec は書きの役の要る欄を型で要る（spec は丸ごと置き換える欄）")
 
     def test_no_parallel_layer_before_a_conversation_continuing_role(self):
         """出し直しの役の前に並んだ層が在ると会話が切れる（#571）"""

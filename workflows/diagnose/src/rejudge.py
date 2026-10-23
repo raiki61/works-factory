@@ -187,10 +187,12 @@ def value(raw):
 
 def accept_reply(place, reply, fix_reply, repo) -> dict:
     """再審の役の返答の受け付けの輪の 1 回。reply は 1 回目の役の返答、fix_reply は拒まれた後の出し直しの役の返答（拒まれた欄だけ。
-    どちらも JSON に戻した値で、起きなかった役は None）。出し直しは前の答えの控え candidate-rejudge.json と欄ごとに合わせてから照らす。
+    どちらも JSON に戻した値で、起きなかった役は None）。出し直しは前の答えの控え candidate-rejudge.json と欄ごとに合わせてから照らす
+    （要る根の欄 files.REJUDGE_REQUIRED の欠けもそこで拒む）。
     3 回目の拒否で done。輪を抜ける時（done）は出口 rejudge-exit.json を書く（書けなくても落ちない。finish が書き直す）。
     返り {ok, done, reason}"""
-    got = rolekit.resubmitted(place, files.REJUDGE_ROLE, reply, fix_reply, rolekit.merge_fields)
+    got = rolekit.resubmitted(place, files.REJUDGE_ROLE, reply, fix_reply, rolekit.merge_fields,
+                              required=files.REJUDGE_REQUIRED)
     out = rolekit.accept_parsed(place, files.REJUDGE_ROLE, got, lambda r: take(place, r, repo))
     if out.get("done"):
         try:

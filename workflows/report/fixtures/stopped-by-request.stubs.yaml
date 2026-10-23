@@ -13,4 +13,4 @@ write:
   text: "止め札で止めた。\n最後の承認ノードの前で止めた。\n続けるなら新しい run を始める。"
   terms: []
   handoff: {read: [], kept: [], set_aside: [], open: []}
-cold: {verdict: pass, stops: [], guessed: [], decidable: true}
+cold: {verdict: pass, stops: [], guessed: [], machine_lines: [], decidable: true}

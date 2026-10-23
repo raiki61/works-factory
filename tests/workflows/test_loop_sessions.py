@@ -12,7 +12,9 @@ fresh_context: false の輪は前の周の最後の会話を次の周へ渡し 1
 - 周をまたぐ時の新しい会話は、輪の 1 周目がいつも新しい会話であること（上の契約の行）で決まり、この試験では縛らない
 - 拒まれた所だけを出し直す輪（RESUBMIT）は、頭の節の resubmit で 1 回目の役と出し直しの役（<役>-fix）を振り分ける。出し直しの役の
   指示は、出し直しの周にだけ走る出し直しの支度の節（<…>-fix-prep）が md から組み（docs/design/README.md の 7.1 の 1。指示の字は
-  YAML に置かない）、出し直しの役は 1 回目の役の後ろの層で、同じ起こし方・同じ型（required を外し、欄を足すだけ）で起きる。
+  YAML に置かない）、出し直しの役は 1 回目の役の後ろの層で、同じ起こし方・同じ型で起きる（型が違うと、Claude Code が型を道具の
+  定義として指示の頭に置くので、会話の続きの最初の要求でキャッシュが効かない。#832）。型は根の欄を要ると書かない（要る欄は受け付けが
+  rolekit.resubmitted で確かめる）。
   受け付けは両方の返答を if_skipped: null で受ける。plan-review の輪は単独の組（review／review-fix）と束ね役の組（review-tree／
   review-tree-fix）の 2 組で、組ごとに頭の節の tree の条件が when に重なり、出し直しの支度の節は 2 組で 1 つ、受け付けは 4 つの返答を
   if_skipped: null で受ける。頭が resubmit を返す輪は全部 RESUBMIT に在る
@@ -140,7 +142,7 @@ class LoopSessionsTest(unittest.TestCase):
         """#571: 拒まれた周の次は、頭の節の resubmit が真なら 1 回目の役を飛ばし、出し直しの役が 1 回目の役の会話の続きで拒まれた所
         だけを返す。出し直しの役の指示は出し直しの支度の節が組む。受け付けはどの組の返答も受ける（起きなかった役は null）。plan-review の
         輪は単独と束ね役の 2 組を持ち、組ごとに when に tree の条件が重なる。組の出し直しは、同じ組の 1 回目の後ろの層で、同じ起こし方・
-        同じ型（required を外し、欄を足すだけ）で起きる"""
+        同じ型（#832。根の欄は要ると書かない）で起きる"""
         found = {(block, n["id"]): n for block, n in loops()}
         for (block, lid), (head, again_prep, pairs, accept) in RESUBMIT.items():
             with self.subTest(block=block, loop=lid):
@@ -164,11 +166,8 @@ class LoopSessionsTest(unittest.TestCase):
                     self.assertNotIn("context", again)
                     self.assertEqual(again["prompt"], f"${again_prep}.output.prompt")
                     self.assertEqual({k: again.get(k) for k in LAUNCH}, {k: first.get(k) for k in LAUNCH})
-                    shape, fixed = first["output_format"], dict(again["output_format"])
-                    self.assertEqual(fixed.pop("required"), [])
-                    extra = set(fixed["properties"]) - set(shape["properties"])
-                    self.assertEqual({**fixed, "properties": {k: v for k, v in fixed["properties"].items() if k not in extra}},
-                                     {k: v for k, v in shape.items() if k != "required"})
+                    self.assertEqual(again["output_format"], first["output_format"], f"{fix} の型が {role} の型と違う")
+                    self.assertEqual(first["output_format"]["required"], [], f"{role} の型が根の欄を要ると書く")
                     self.assertEqual((body[accept]["with"][reply_name], body[accept]["with"][fix_name]),
                                      ({"from": f"${role}.output", "if_skipped": None}, {"from": f"${fix}.output", "if_skipped": None}))
                 self.assertEqual((body[accept]["depends_on"], body[accept]["trigger_rule"]),

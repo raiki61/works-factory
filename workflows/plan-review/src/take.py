@@ -156,7 +156,8 @@ def _material_file(place: pathlib.Path) -> dict:
 def take(place, reply, repo, *, keys=accept.TREE_KEYS, fix_reply=None, tree_reply=None, tree_fix_reply=None) -> dict:
     """事前審査の受け付け（9.1）。reply・fix_reply は単独の組（review・review-fix）、tree_reply・tree_fix_reply は束ね役の組
     （review-tree・review-tree-fix）の返答で、どれも JSON に戻した値（起きなかった node は None）。出し直しは前の答えの控えと
-    rolekit.merge_fields で合わせ（rolekit.resubmitted）、合わせた答えの全体を照らす。拒みは place の控えに積み、受け付けの網
+    rolekit.merge_fields で合わせ（rolekit.resubmitted）、合わせた答えの全体を照らす（要る根の欄 files.REVIEW_REQUIRED・
+    files.TREE_REQUIRED の欠けもそこで拒む）。拒みは place の控えに積み、受け付けの網
     rolekit.NET_AFTER 回目で done・give_up（工場の不具合。その時は最後の拒みの訳を reason に置いた空の返答を review.json に書き、
     pass.json は書かない）。返り {ok, done, give_up, reason}。頭で前の回の review.json・review-marks.json・pass.json を消し、
     review.json は最後に書く（今の boardview._take の順。途中で落ちた回の物を出口が受けた返答と読まない）"""
@@ -166,8 +167,9 @@ def take(place, reply, repo, *, keys=accept.TREE_KEYS, fix_reply=None, tree_repl
     intake = steps.read_intake(place)
     first = reply if reply is not None else tree_reply
     part = fix_reply if fix_reply is not None else tree_fix_reply
+    required = files.TREE_REQUIRED if tree_reply is not None or tree_fix_reply is not None else files.REVIEW_REQUIRED
     got = rolekit.round_outcome(rolekit.accept_parsed(
-        place, REVIEW_NODE, rolekit.resubmitted(place, REVIEW_NODE, first, part, rolekit.merge_fields),
+        place, REVIEW_NODE, rolekit.resubmitted(place, REVIEW_NODE, first, part, rolekit.merge_fields, required=required),
         lambda merged: accept.guard(lambda: _take(place, intake, merged, repo, keys)), net=True))
     if got["give_up"]:
         jsonfile.write(place / files.REVIEW, {"faces": [], "shrink": [], "reason": GIVEN_UP_FACES + got["reason"]}, indent=2)

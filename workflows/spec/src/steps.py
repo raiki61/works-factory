@@ -95,9 +95,10 @@ def fix_prompt(place, role: str) -> dict:
 # ---------------------------------------------------------------- 受け付け
 def take_reply(place, role: str, status_guarded: bool, reply, fix_reply, repo) -> dict:
     """役の返答の受け付けの 1 回。出し直しの役の返答 fix_reply（直す欄だけ）は、前の答えの控えと欄ごとに合わせてから照らす。
+    要る根の欄 files.REPLY_REQUIRED の欠けは合わせた後に拒む。
     返り {ok, done, reason, revise}"""
     name = files.ROLES[role]
-    got = rolekit.resubmitted(place, name, reply, fix_reply, rolekit.merge_fields)
+    got = rolekit.resubmitted(place, name, reply, fix_reply, rolekit.merge_fields, required=files.REPLY_REQUIRED[role])
     keys = accept.status_keys(status_guarded)
     out = rolekit.accept_parsed(place, name, got, lambda r: take.take(place, role, r, repo, keys=keys))
     return {"ok": bool(out["ok"]), "done": bool(out["done"]), "reason": str(out["reason"]), "revise": bool(out.get("revise"))}

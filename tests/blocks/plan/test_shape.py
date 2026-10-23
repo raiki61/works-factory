@@ -98,11 +98,13 @@ class ShapeCase(unittest.TestCase):
         readers = {p.stem for p in (BLOCK / "scripts").glob("*.py") if "INPUTS_" in p.read_text(encoding="utf-8")}
         self.assertEqual(readers, {"intake", "plan_prep", "plan_accept"})
 
-    def test_resubmit_schema_is_the_writer_schema_without_required_plus_whole_plan(self):
+    def test_resubmit_schema_is_the_writer_schema(self):
+        """#832: 出し直しの役の型は 1 回目の役と同じ。根の欄 plan は型でなく受け付けが要り、出し直しの役だけの whole_plan も型に在る"""
         first, fix = base.node("plan-writer")["output_format"], base.node("plan-writer-fix")["output_format"]
-        self.assertEqual(fix["required"], [])
-        self.assertEqual(fix["properties"].pop(self.steps.WHOLE_PLAN), {"type": "boolean"})
-        self.assertEqual({**fix, "required": first["required"]}, first)
+        self.assertEqual(fix, first)
+        self.assertEqual(first["required"], [])
+        self.assertEqual(self.files.REQUIRED, ("plan",))
+        self.assertEqual(first["properties"][self.steps.WHOLE_PLAN], {"type": "boolean"})
 
     def test_ai_deadlines_are_twenty_days_and_others_have_none(self):
         for n in base.nodes():
@@ -153,7 +155,7 @@ class ShapeCase(unittest.TestCase):
         self.assertEqual(marks[gatemarks.NO_NARROW], bare(gatemarks.NO_NARROW_SCHEMA))
         self.assertEqual(fmt[converge.ANSWERS], converge.ANSWER_SCHEMA)
         self.assertEqual(fmt[handoff.FIELD], handoff.SCHEMA)
-        self.assertNotIn(handoff.FIELD, base.node("plan-writer")["output_format"]["required"], "引き継ぎのメモは任意の欄")
+        self.assertNotIn(handoff.FIELD, self.files.REQUIRED, "引き継ぎのメモは任意の欄")
         self.assertEqual(base.node("plan-writer-fix")["output_format"]["properties"][handoff.FIELD], handoff.SCHEMA)
 
     def test_scripts_are_read_only_uv_scripts(self):

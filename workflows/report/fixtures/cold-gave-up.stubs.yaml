@@ -14,4 +14,4 @@ write:
   text: "平均の関数を直した。\n\n## 人が決めること\n\n- 決める物は無い"
   terms: []
   handoff: {read: [], kept: [], set_aside: [], open: []}
-cold: {verdict: redesign-needed, stops: [何の話か分からない], guessed: [], decidable: false}
+cold: {verdict: redesign-needed, stops: [何の話か分からない], guessed: [], machine_lines: [], decidable: false}

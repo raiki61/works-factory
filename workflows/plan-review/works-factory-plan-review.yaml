@@ -72,7 +72,8 @@ nodes:
               prompt: {type: string}   # 1 回目の役の指示（出し直しの周は ""。出し直しの役の指示は review-fix-prep が組む）
               resubmit: {type: boolean}
               tree: {type: boolean}
-        # output_format は src/files.py の node_schema が読むので JSON の流れの書き方で書く
+        # output_format は src/files.py の node_schema が読むので JSON の流れの書き方で書く。根の欄は要ると書かない（出し直しの役と同じ形にして、
+        # 会話の続きの最初の要求でキャッシュを効かせる。#832）。要る欄は受け付けが確かめる（src/files.py の REVIEW_REQUIRED）
         - id: review
           prompt: "$review-prep.output.prompt"
           depends_on: [review-prep]
@@ -89,7 +90,7 @@ nodes:
           output_format: {
                 "type": "object",
                 "additionalProperties": false,
-                "required": ["faces", "shrink", "reason"],
+                "required": [],
                 "properties": {
                   "faces": {
                     "type": "array",
@@ -212,7 +213,7 @@ nodes:
             required: [prompt]
             properties:
               prompt: {type: string, minLength: 1}
-        # review の会話の続きの出し直しの役。型は review の型から required を外した物
+        # review の会話の続きの出し直しの役。型は review の型と同じ（#832）
         - id: review-fix
           prompt: "$review-fix-prep.output.prompt"
           depends_on: [review-prep, review-fix-prep, review]
@@ -330,7 +331,8 @@ nodes:
                   }
                 }
               }
-        # 束ね役（intake の tree が真の往復）。型は束ね役が書く欄だけ（faces・shrink・origins は受け付けが下請けの答えのファイルから組む）
+        # 束ね役（intake の tree が真の往復）。型は束ね役が書く欄だけ（faces・shrink・origins は受け付けが下請けの答えのファイルから組む）。
+        # review と同じく根の欄は要ると書かず、受け付けが確かめる（src/files.py の TREE_REQUIRED）。review-tree-fix の型はこれと同じ
         - id: review-tree
           prompt: "$review-prep.output.prompt"
           depends_on: [review-prep, review-fix]
@@ -341,7 +343,7 @@ nodes:
           output_format: {
                 "type": "object",
                 "additionalProperties": false,
-                "required": ["reason", "items"],
+                "required": [],
                 "properties": {
                   "reason": {"type": "string", "minLength": 20, "pattern": "\\S[\\s\\S]{18,}\\S"},
                   "items": {
