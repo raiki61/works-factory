@@ -4,7 +4,10 @@ workflows/report/src/transcript.py の写し）。報告の行の組み立て（
 
 - read() -> (行の並び, 読めなかった訳): 読めなければ (None, 訳)
 - own_prefix() -> 自分の include の node の id の頭（無ければ ""）
-- facts(rows, *, exclude_prefix, optional) -> {ok, failed, absorbed, errors, retried, cost, uncosted, minutes, models, efforts, calls, resubmits}
+- facts(rows, *, exclude_prefix, optional) -> {ok, failed, absorbed, errors, retried, cost, uncosted, tokens, untokened, minutes, models, efforts, calls, resubmits}
+- measurement(spend, key, accept) -> (値, 無い訳): Archon の spend の測り（{source, value} か {source: unavailable, reason}）を読む
+- number(v) -> 数（bool でない int・float）か None
+- tokens(value) -> 1 回の起動のトークンの dict か None。add_tokens(total, got) で node ごとの和に足す
 """
 import json
 import os
@@ -27,10 +30,61 @@ ITERATION_MARK = "-iteration-"
 COST_ROWS = ("node_complete", "node_error")
 DONE_ROWS = ("node_complete", "node_skipped")
 OWN_SPEND = "node"
+# Archon の tokenUsageSchema（packages/provider-contract/src/result.ts）の欄。input は cacheRead・cacheWrite を含む総量で、足し直さない。
+# cachePartial は束ねた値にだけ立ち、キャッシュの欄が下限であることを言う
+TOKEN_FIELDS = ("input", "output", "cacheRead", "cacheWrite")
+CACHE_PARTIAL = "cachePartial"
+CACHE_FIELDS = ("cacheRead", "cacheWrite")
+# 和の欄: input − cacheRead − cacheWrite（キャッシュの内訳が全部知れた時だけ）と、内訳が不明な起動の件数
+UNCACHED = "uncached"
+UNKNOWN_CACHE = "cacheUnknown"
 
 
 def _dict(v) -> dict:
     return v if isinstance(v, dict) else {}
+
+
+def number(v):
+    """bool でない数ならその値、ほかは None"""
+    return v if isinstance(v, (int, float)) and not isinstance(v, bool) else None
+
+
+def measurement(spend, key: str, accept=number) -> tuple:
+    """Archon の spend の測り spend[key]（{source: provider, value} か {source: unavailable, reason}）の (値, 無い訳)。値は source が
+    provider で accept(value) が None でない時だけ返し、ほかは (None, 訳)。訳は unavailable の reason、無ければ欄の名"""
+    got = _dict(spend).get(key)
+    if isinstance(got, dict) and got.get("source") == "provider":
+        value = accept(got.get("value"))
+        if value is not None:
+            return value, None
+        return None, f"spend.{key} の値が読めない"
+    reason = _dict(got).get("reason")
+    return None, reason if isinstance(reason, str) and reason else f"spend.{key} が無い"
+
+
+def tokens(value):
+    """1 回の起動の tokens の値（{input, output, cacheRead?, cacheWrite?, cachePartial?}）から、数の欄だけの dict。input・output が数でなければ None"""
+    value = _dict(value)
+    if number(value.get("input")) is None or number(value.get("output")) is None:
+        return None
+    got = {field: value[field] for field in TOKEN_FIELDS if number(value.get(field)) is not None}
+    if value.get(CACHE_PARTIAL) is True:
+        got[CACHE_PARTIAL] = True
+    return got
+
+
+def add_tokens(total: dict, got: dict) -> None:
+    """起動 1 回の tokens（tokens() の返り）を和 total に足す。input は cacheRead・cacheWrite を含むので足し直さず、キャッシュ外
+    （UNCACHED）は input − cacheRead − cacheWrite。キャッシュの欄が欠けた起動と cachePartial の起動は UNKNOWN_CACHE に数え、一度でも
+    在れば UNCACHED を出さない（cacheRead・cacheWrite の和は下限）"""
+    for field in TOKEN_FIELDS:
+        total[field] = total.get(field, 0) + got.get(field, 0)
+    if got.get(CACHE_PARTIAL) is True or any(field not in got for field in CACHE_FIELDS):
+        total[UNKNOWN_CACHE] = total.get(UNKNOWN_CACHE, 0) + 1
+    if total.get(UNKNOWN_CACHE):
+        total.pop(UNCACHED, None)
+    else:
+        total[UNCACHED] = total["input"] - total["cacheRead"] - total["cacheWrite"]
 
 
 def read() -> tuple:
@@ -75,16 +129,18 @@ def _declared(step: str, optional) -> bool:
 def facts(rows, *, exclude_prefix: str = "", optional=()) -> dict:
     """run の記録の行から node ごとの事実。rows が None なら ok: False。最後の行が node_error の node は、宣言（optional）の中なら受け止めた落ち
     （absorbed）、外なら run を途中で終わらせた落ち（failed）。retried は node_error の後に済んだ node。exclude_prefix で始まる node（この block
-    自身）は数えない。費用は自分の費用を言う行の cost_usd の和（無い行は uncosted に件数）。時間は node_start から最後の完了・失敗まで（分）。
+    自身）は数えない。費用は自分の費用を言う行の cost_usd の和（無い行は uncosted に件数）。トークンも自分の費用を言う行の
+    execution.spend.tokens の欄ごとの和（add_tokens。無い行は untokened に件数）。時間は node_start から最後の完了・失敗まで（分）。
     calls は役が呼んだ道具の node ごとの {Read・Edit・Write: ファイル, Bash: 回数}。resubmits はループごとの {count, minutes}"""
     if rows is None:
-        return {"ok": False, "failed": [], "absorbed": [], "errors": {}, "retried": [], "cost": {}, "uncosted": {}, "minutes": {},
-                "models": {}, "efforts": {}, "calls": {}, "resubmits": {}}
+        return {"ok": False, "failed": [], "absorbed": [], "errors": {}, "retried": [], "cost": {}, "uncosted": {}, "tokens": {},
+                "untokened": {}, "minutes": {}, "models": {}, "efforts": {}, "calls": {}, "resubmits": {}}
 
     def ours(step):
         return bool(exclude_prefix) and step.startswith(exclude_prefix)
     last, falls, errors, began, ended = {}, {}, {}, {}, {}
     cost, uncosted, models, efforts, calls = {}, {}, {}, {}, {}
+    spent, untokened = {}, {}
     untils = {}
     for r in rows:
         if not isinstance(r, dict) or not isinstance(r.get("step"), str):
@@ -108,10 +164,15 @@ def facts(rows, *, exclude_prefix: str = "", optional=()) -> dict:
             execution = _dict(r.get("execution"))
             if execution.get("accounting", OWN_SPEND) != OWN_SPEND:
                 continue
-            if isinstance(r.get("cost_usd"), (int, float)) and not isinstance(r.get("cost_usd"), bool):
+            if number(r.get("cost_usd")) is not None:
                 cost[step] = cost.get(step, 0.0) + float(r["cost_usd"])
             else:
                 uncosted[step] = uncosted.get(step, 0) + 1
+            got, _ = measurement(execution.get("spend"), "tokens", tokens)
+            if got is None:
+                untokened[step] = untokened.get(step, 0) + 1
+            else:
+                add_tokens(spent.setdefault(step, {}), got)
             binding = _dict(execution.get("binding"))
             model = _dict(_dict(binding.get("model")).get("resolved")).get("value") or _dict(binding.get("model")).get("requested")
             if isinstance(model, str) and model and model not in models.setdefault(step, []):
@@ -128,7 +189,7 @@ def facts(rows, *, exclude_prefix: str = "", optional=()) -> dict:
             "errors": {s: errors.get(s, "") for s in fell},
             "retried": [{"node": s, "failures": n, "error": errors.get(s, "")} for s, n in falls.items()
                         if last.get(s) in DONE_ROWS and not ours(s)],
-            "cost": cost, "uncosted": uncosted, "minutes": minutes, "models": models, "efforts": efforts, "calls": calls,
+            "cost": cost, "uncosted": uncosted, "tokens": spent, "untokened": untokened, "minutes": minutes, "models": models, "efforts": efforts, "calls": calls,
             "resubmits": {loop: _resubmit(got) for loop, got in untils.items()}}
 
 

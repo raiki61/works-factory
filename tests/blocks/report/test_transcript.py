@@ -39,6 +39,14 @@ def until(loop, n, ts, code):
     return {"type": "exec_output", "step": f"{loop}-iteration-{n}", "content": "<until_bash>", "exit_code": code, "ts": ts, "workflow_id": RUN}
 
 
+def spend(step, tokens, accounting="node"):
+    """Archon の本物の行の形（execution.spend.tokens が {source: provider, value}）の済んだ行。tokens が None なら spend の欄が無い行"""
+    row = done(step, "2026-10-12T00:00:00Z", accounting=accounting)
+    if tokens is not None:
+        row["execution"]["spend"] = {"tokens": {"source": "provider", "value": tokens}}
+    return row
+
+
 def fell(step, error, failure_class=None):
     row = {**done(step, "2026-10-18T00:01:00Z", kind="node_error"), "error": error}
     lifecycle = {"status": "failed", "error": error}
@@ -120,6 +128,34 @@ class FactsCase(unittest.TestCase):
         self.assertEqual(lines[2], "b: 費用の記録なし・費用の欄が無い行 1 件（AI ノードでないノードか、提供元が費用を返さなかった）・時間を測れない")
         self.assertEqual(M.transcript.head_cost(M.transcript.facts(None), ""), ["費用: 取れない（run の記録が読めない）"])
         self.assertEqual(M.transcript.head_cost(M.transcript.facts(None), "訳 W"), ["費用: 取れない（訳 W）"])
+
+    def test_cost_section_shows_tokens(self):
+        known = {"input": 1000, "output": 200, "cacheRead": 700, "cacheWrite": 100}
+        rows = [spend("a", known), spend("a", {"input": 500, "output": 50, "cacheRead": 300, "cacheWrite": 0}),
+                spend("script", None), spend("loop", known, accounting="aggregate")]
+        lines = M.transcript.head_cost(M.transcript.facts(rows), "")
+        self.assertIn("トークンの合計: 入力 1500（うちキャッシュの読み 1000・書き 100・キャッシュ外 400）・出力 250", lines)
+        self.assertIn("a: 入力 1500（うちキャッシュの読み 1000・書き 100・キャッシュ外 400）・出力 250", lines)
+        self.assertIn("script: トークンの記録なし（記録の無い行 1 件）", lines)
+        self.assertFalse([line for line in lines if line.startswith("loop")], "言い直しの行は数えない")
+        last_cost = max(i for i, line in enumerate(lines) if line.startswith(("a: 費用", "script: 費用")))
+        self.assertLess(last_cost, min(i for i, line in enumerate(lines) if line.startswith("トークンの合計")), "費用の行の後に並べる")
+        with self.subTest("cacheRead の欠けた起動と cachePartial の起動は内訳が不明な起動に数え、キャッシュ外を出さない"):
+            unknown = [spend("a", known), spend("b", {"input": 100, "output": 10, "cacheWrite": 20}),
+                       spend("c", {"input": 300, "output": 30, "cacheRead": 100, "cacheWrite": 50, "cachePartial": True})]
+            lines = M.transcript.head_cost(M.transcript.facts(unknown), "")
+            self.assertIn("トークンの合計: 入力 1400・出力 240・キャッシュの内訳が不明な起動 2 件", lines)
+            self.assertIn("b: 入力 100・出力 10・キャッシュの内訳が不明な起動 1 件", lines)
+            self.assertIn("a: 入力 1000（うちキャッシュの読み 700・書き 100・キャッシュ外 200）・出力 200", lines)
+            self.assertNotIn("キャッシュ外", "\n".join(line for line in lines if line.startswith(("トークンの合計", "b:", "c:"))))
+        with self.subTest("トークンを持たない行が混じる node は、その件数も言う"):
+            lines = M.transcript.head_cost(M.transcript.facts([spend("a", known), spend("a", None)]), "")
+            self.assertIn("a: 入力 1000（うちキャッシュの読み 700・書き 100・キャッシュ外 200）・出力 200・記録の無い行 1 件", lines)
+        with self.subTest("トークンの行が 1 本も無い記録"):
+            lines = M.transcript.head_cost(M.transcript.facts([done("a", "t", cost=0.5)]), "")
+            self.assertIn("トークンの合計: 記録なし", lines)
+            self.assertEqual(M.transcript.token_rows({"ok": True}), ["トークンの合計: 記録なし"])
+        self.assertEqual(M.transcript.head_cost(M.transcript.facts(None), ""), ["費用: 取れない（run の記録が読めない）"])
 
 
 class CallsCase(unittest.TestCase):

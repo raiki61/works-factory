@@ -390,6 +390,30 @@ ARCHON_ROWS = (
         lambda m: m.groups()),
     Row("記録の出力の読みの鍵（型つきの出力・切り詰めの印・素の出力）", lambda: apply.OUTPUT_KEYS, "packages/workflows/src/terminal-record.ts",
         r"Object\.hasOwn\(data, '(\w+)'\).*?data\?\.(\w+) === true.*?typeof data\?\.(\w+) === 'string'", lambda m: m.groups()),
+    Row("tokens の欄の名（tokenUsageSchema。run の記録と出来事の spend.tokens の value）", lambda: sorted([*runlog.TOKEN_FIELDS, runlog.CACHE_PARTIAL]),
+        "packages/provider-contract/src/result.ts", r"export const tokenUsageSchema = z\.object\(\{\n(.*?)\n\}\);",
+        lambda m: sorted(name for name in re.findall(r"^  (\w+)\??:", m[1], re.M) if name in (*runlog.TOKEN_FIELDS, runlog.CACHE_PARTIAL))),
+    Row("tokens の input は cacheRead・cacheWrite を含む総量で、足し直さない", lambda: None, "packages/provider-contract/src/result.ts",
+        r"/\*\* Gross prompt input, including cache reads and writes reported separately\. \*/\n\s*input: z\.number\(\),", lambda m: None),
+    Row("tokens の cacheRead・cacheWrite の欠けは未知で、0 は知れた値", lambda: None, "packages/provider-contract/src/result.ts",
+        r"Provider-reported cached input\. Absent means unsupported or unknown; zero is known\. \*/\n\s*cacheRead: z\.number\(\)\.optional\(\),\n"
+        r"\s*/\*\* Provider-reported cache-creation input\. Absent means unsupported or unknown; zero is known\. \*/\n"
+        r"\s*cacheWrite: z\.number\(\)\.optional\(\),", lambda m: None),
+    Row("tokens の cachePartial は束ねた値にだけ立ち、キャッシュの欄が下限であることを言う", lambda: runlog.CACHE_PARTIAL,
+        "packages/provider-contract/src/result.ts",
+        r"Set only by aggregation .*?cache axes on this usage are a FLOOR.*?^\s*(cachePartial): z\.literal\(true\)\.optional\(\),"),
+    Row("AI の節の env は設定の層の env（config.envVars）を節の起動の env に渡す", lambda: None, "packages/workflows/src/dag-executor.ts",
+        r"^\s*baseOptions\.env = config\.envVars;$", lambda m: None),
+    Row("役の過程の env は process.env の上に節の起動の env を重ねる（起動の最初の CLAUDE_CODE_* の掃除の後に層が重なる）", lambda: None,
+        "packages/provider-contract/src/agent-provider.ts",
+        r"export function buildProviderSubprocessEnv\(.*?\.\.\.\(requestOptions\?\.execContext\?\.kind === 'container' \? \{ TERM: 'dumb' \} : process\.env\),\n"
+        r"\s*\.\.\.requestOptions\?\.env,\n", lambda m: None),
+    Row("対象の .archon/config.yaml は repoPath の下から読む（殻が寿命の選びを読む場所の写し）", lambda: launcher.REPO_CONFIG,
+        "packages/core/src/config/config-loader.ts",
+        r"export async function loadRepoConfig\(repoPath: string\).*?const configPath = join\(repoPath, '([^']+)', '([^']+)'\);",
+        lambda m: m.groups()),
+    Row("対象の .archon/config.yaml の env: は AI の節の env の層に入る", lambda: None, "packages/core/src/config/config-loader.ts",
+        r"^\s*result\.envVars = \{ \.\.\.result\.envVars, \.\.\.repo\.env \};$", lambda m: None),
 )
 
 
