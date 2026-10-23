@@ -86,6 +86,7 @@ AI ノードは全部 settingSources: [user] で、bin/ の起動が隔離した
   1 つでも在れば『新しい版が無い』とは締めない（登録の無い marketplace は読む物が無いだけで、確かめられなかった所に数えない）。
   何も書かず、終了コードは 0（使い方の誤りだけ 2）。
 """
+import contextlib
 import datetime
 import hashlib
 import json
@@ -96,6 +97,11 @@ import shlex
 import shutil
 import subprocess
 import sys
+
+try:
+    import fcntl
+except ImportError:   # Windows には無い。錠を取らずに組む（同じ置き場への同時の起動は避ける）
+    fcntl = None
 
 sys.dont_write_bytecode = True
 sys.path.append(str(pathlib.Path(__file__).resolve().parents[2] / "lib"))   # 借りた物の置き場と継ぎ目は lib/ が持つ
@@ -659,10 +665,34 @@ def install(config_dir: pathlib.Path, chosen: dict, borrow: dict, *, claude_bin,
     hooked の物はフックの行を、記録のフックの行と一緒に settings.json の hooks に置く（_place_hooks）。
     settings.json の permissions はいつも DENY_PUSH を拒み、deny_web なら DENY_WEB も拒む（permissions()。同じ家を普段の run に使い回しても
     web の拒みを残さない）。
-    出力と <置き場>/.works-toolset.json は {名: {version, source, sha256, loaded[, commit][, source_enabled][, hooks]}}"""
+    出力と <置き場>/.works-toolset.json は {名: {version, source, sha256, loaded[, commit][, source_enabled][, hooks]}}
+    同じ置き場への同時の起動（同じ対象に 2 本以上の run）は、置き場の錠（_config_lock）を取った順に 1 本ずつ組む（#810）"""
+    cfg = pathlib.Path(config_dir)
+    with _config_lock(cfg):
+        return _install(cfg, chosen, borrow, claude_bin=claude_bin, plugins=plugins, versions=versions, enabled=enabled,
+                        deny_web=deny_web)
+
+
+@contextlib.contextmanager
+def _config_lock(cfg: pathlib.Path):
+    """設定の置き場そのもの（フォルダ）に排他の flock を取る。置き場の中に錠のファイルを作らない（柵と Claude Code に見せる物を
+    増やさない）。錠はプロセスが終われば OS が外すので、落ちた起動が残す物は無い。待ちに期限は付けない（no-timeouts）"""
+    cfg.mkdir(parents=True, exist_ok=True)
+    if fcntl is None:
+        yield
+        return
+    fd = os.open(cfg, os.O_RDONLY)
+    try:
+        fcntl.flock(fd, fcntl.LOCK_EX)
+        yield
+    finally:
+        os.close(fd)   # 閉じると錠も外れる
+
+
+def _install(cfg: pathlib.Path, chosen: dict, borrow: dict, *, claude_bin, plugins: bool, versions, enabled,
+             deny_web: bool) -> dict:
     versions = versions or {}
     enabled_src = enabled or {}
-    cfg = pathlib.Path(config_dir)
     _clean_tmp(cfg)
     _prune_parts(cfg, borrow)
     bad = guard(cfg, borrow)

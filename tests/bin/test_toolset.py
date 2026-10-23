@@ -1200,6 +1200,52 @@ class CliCase(Base):
         self.assertEqual(r.returncode, 2, r.stderr)
         self.assertIn(f"coldwrite@{COLDWRITE_MP}", r.stderr)
 
+    def test_concurrent_installs_on_a_fresh_config_all_succeed(self):
+        """まだ組んでいない置き場に同時に起動しても（#810 の 1）、全部が 0 で終わり、一時の置き場を残さず、柵を通る。
+        錠が無いと、写しの名前の付け替えが取り合って Errno 66 で落ちるか、ほかの起動の一時の置き場を一覧の外と数えて止まる"""
+        shutil.rmtree(self.cfg)
+        env = hermetic.child_env(**{"CLAUDE_CONFIG_DIR": str(self.user), **COLDWRITE_ENV})
+        kids = [subprocess.Popen([sys.executable, str(TOOLSET), "install", "--claude", str(self.claude), str(self.cfg)],
+                                 stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, encoding="utf-8", env=env)
+                for _ in range(6)]
+        said = [k.communicate() for k in kids]
+        self.assertEqual([k.returncode for k in kids], [0] * len(kids), [err for _, err in said])
+        self.assertEqual([f for f in files_under(self.cfg) if toolset.TMP_MARK in f], [])
+        self.assertEqual(toolset.guard(self.cfg, self.borrow), [])
+        self.assertEqual(sorted(p.name for p in (self.cfg / "skills").iterdir()), sorted(BORROW_SKILLS))
+        self.assertEqual(json.loads((self.cfg / "settings.json").read_text())["enabledPlugins"],
+                         {f"{n}@{MP}": True for n in PLUGINS})
+
+    def test_install_writes_while_holding_the_config_lock(self):
+        """写す・入れる間は、設定の置き場の錠を取っている（ほかの起動は錠が空くまで待つ。待ちに期限は付けない: no-timeouts）。
+        置き場の中に錠のファイルは作らない"""
+        import fcntl
+        seen = []
+
+        def probe(*_a, **_k):
+            fd = os.open(self.cfg, os.O_RDONLY)
+            try:
+                fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                seen.append("free")
+            except BlockingIOError:
+                seen.append("held")
+            finally:
+                os.close(fd)
+
+        real_sync = toolset._sync
+
+        def sync(src, dest):
+            probe()
+            return real_sync(src, dest)
+
+        with mock.patch.object(toolset, "_sync", sync):
+            self.install()
+        self.assertTrue(seen)
+        self.assertEqual(set(seen), {"held"})
+        probe()
+        self.assertEqual(seen[-1], "free", "終わったら錠を返す")
+        self.assertFalse([f for f in os.listdir(self.cfg) if "lock" in f])
+
     def test_cli_install_skips_coldwrite_without_its_marketplace(self):
         """利用者の設定に coldwrite の marketplace が無い（普通の利用者）: 止めずに 1 行で名指して見送り、ほかは組む"""
         r = self.cli("install", "--claude", str(self.claude), str(self.cfg), WORKS_FACTORY_COLDWRITE_MARKETPLACE="")
