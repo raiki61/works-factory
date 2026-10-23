@@ -1,6 +1,6 @@
 """設計の相談（対話モードの run の計画の往復の末尾。docs/design/line.md の 3.1 節。issue #822）。
 
-対話モードは入力 design_only が true で無人でない run（新しい旗は足さない）。計画の往復 plan-rounds の本体を
+対話モードは入力 design_talk が true で無人でない run（新しい旗は足さない）。計画の往復 plan-rounds の本体を
 design-turn → plan → plan-review-run → plan-out → design-talk → gate-design（wait。本体の唯一の終わり）にし、往復が止まる周
 （plan-out の done）で設計案と事前審査の結果を人に見せる。答えは止めた Archon（a972888a）の形のまま、次の周の頭の design-turn が
 $LOOP_PREV.gate-design.output で読む（ASF の archon-plan・archon-attention と同じ。until_bash は飛びうる関所の出力を読まず、
@@ -46,7 +46,7 @@ NO_ITEMS = "- （無し）"
 
 
 def dialogue(given: dict) -> bool:
-    return bool(given.get("design_only")) and not bool(given.get("unattended"))
+    return bool(given.get("design_talk")) and not bool(given.get("unattended"))
 
 
 def _obj(raw):

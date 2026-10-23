@@ -26,7 +26,7 @@ ROOT = pathlib.Path(__file__).resolve().parents[3]
 LINE = kit.BLOCKS / "line"
 SEED = ROOT / "tests" / "e2e" / "target-seed"
 RUN = kit.RUN_ID
-INPUTS = ("request", "base", "pr", "spec", "test_cmd", "tdd_suite", "final_gate", "unattended", "design_only", "thickness",
+INPUTS = ("request", "base", "pr", "spec", "test_cmd", "tdd_suite", "final_gate", "unattended", "design_talk", "thickness",
           "features_off", "features_on", "policy_md", "fix_fixture", "lang", "deliver", "spec_table")
 
 
@@ -161,7 +161,7 @@ class StartCase(Seeded):
     def test_request_builds_the_entry_shape_and_the_record(self):
         got = self.start(request="request_ok.json", final_gate="when_needed", features_off="tdd_lanes")
         self.assertTrue(got["ok"], got)
-        self.assertEqual((got["ask"], got["unattended"], got["design_only"], got["final_gate"]), (True, False, False, "when_needed"))
+        self.assertEqual((got["ask"], got["unattended"], got["design_talk"], got["final_gate"]), (True, False, False, "when_needed"))
         doc = self.record(got)
         head = git(self.repo, "rev-parse", "HEAD")
         self.assertEqual(doc["input"]["base"], {"rev": head, "from": "head", "name": "", "label": "HEAD"})
@@ -260,7 +260,7 @@ class StartCase(Seeded):
                           ({"request": "request_ok.json", "deliver": "merge"}, "deliver='merge' は知らない語"),
                           ({"request": "request_ok.json", "features_off": "judge_verify", "features_on": "judge_verify"}, "両方"),
                           ({"request": "no-such.json"}, "no-such.json"),
-                          ({"request": "request_ok.json", "design_only": "yes"}, "design_only"),
+                          ({"request": "request_ok.json", "design_talk": "yes"}, "design_talk"),
                           ({"request": "request_ok.json", "policy_md": "no-such.md"}, "no-such.md"),
                           ({"request": "request_ok.json", "fix_fixture": "fx"}, "固定材料のフォルダ fx が無い"),
                           ({"request": "request_ok.json", "spec": "on", "fix_fixture": str(self.tmp)}, "固定材料（fix_fixture）と組めない"),
@@ -623,8 +623,8 @@ class PortsCase(Seeded):
                 self.assertEqual((got["thickness"], got["forced"]), (thickness, forced))
 
     def test_parallel_and_design_only_and_web(self):
-        got = self.start(request="request_ok.json", design_only="true")["ports"]
-        self.assertEqual((got["parallel"], got["design_only"], got["web"], got["has_checks"]), (True, True, "on", False))
+        got = self.start(request="request_ok.json", design_talk="true")["ports"]
+        self.assertEqual((got["parallel"], got["design_talk"], got["web"], got["has_checks"]), (True, True, "on", False))
         for off in ("fix_lanes", "tdd_lanes"):
             with self.subTest(off=off):
                 self.assertIs(self.start(request="request_ok.json", features_off=off)["ports"]["parallel"], False)
@@ -675,7 +675,7 @@ class ScriptCase(unittest.TestCase):
         got = self.run.script("start", request="request_ok.json")
         self.assertTrue(got["ok"], got)
         self.assertEqual(set(got), {"ok", "stop_reason", "reason", "record", "prior_failures", "ask", "gate_text", "unattended",
-                                    "design_only", "final_gate", "from_fixture", "fixture", "from_spec", "ports"})
+                                    "design_talk", "final_gate", "from_fixture", "fixture", "from_spec", "ports"})
         self.assertEqual(got["record"]["path"], "r1/start.json")
         self.assertTrue((self.run.artifacts / "r1" / "start.json").is_file())
 

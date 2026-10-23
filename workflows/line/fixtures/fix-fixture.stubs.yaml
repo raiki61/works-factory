@@ -239,7 +239,7 @@ start:
 
     '
   unattended: false
-  design_only: false
+  design_talk: false
   final_gate: ''
   from_fixture: true
   fixture: {type: archon_artifact, run_id: dry-run, path: fixture-carried.json}
@@ -263,7 +263,7 @@ start:
     has_checks: true
     thickness: auto
     forced: ''
-    design_only: false
+    design_talk: false
     unattended: false
     policy: ''
     test_cmd: 'true'

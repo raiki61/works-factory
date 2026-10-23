@@ -41,7 +41,7 @@ inputs:
   unattended:
     default: ""
     description: 'text: どの周の子にも渡すメイングラフの同じ名の入力'
-  design_only:
+  design_talk:
     default: ""
     description: 'text: メイングラフの同じ名の入力。鎖とは組めず、空でなければ chain-start が拒む（子には空のまま渡る）'
   thickness:
@@ -122,7 +122,7 @@ nodes:
         tdd_suite: "$INPUTS.tdd_suite"
         final_gate: "$INPUTS.final_gate"
         unattended: "$INPUTS.unattended"
-        design_only: "$INPUTS.design_only"
+        design_talk: "$INPUTS.design_talk"
         thickness: "$INPUTS.thickness"
         features_off: "$INPUTS.features_off"
         features_on: "$INPUTS.features_on"

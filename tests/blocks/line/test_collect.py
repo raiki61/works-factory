@@ -70,7 +70,7 @@ def passing() -> dict:
     return {name: None for name in INPUTS} | {
         "notices": "注意（test_cmd）: x",
         "start": {"ok": True, "stop_reason": "", "reason": "", "record": ptr("r1/start.json"), "prior_failures": None, "ask": False,
-                  "gate_text": "", "unattended": False, "design_only": False, "final_gate": "always", "from_fixture": False, "fixture": None,
+                  "gate_text": "", "unattended": False, "design_talk": False, "final_gate": "always", "from_fixture": False, "fixture": None,
                   "ports": {"run_id": kit.RUN_ID, "user_env_dir": ""}},
         "answer_start": {"go": True, "answer": None, "stop_reason": ""},
         "test_gate_base": {**tests, "mode": "base", "report": ["- 直す前: 緑"]},

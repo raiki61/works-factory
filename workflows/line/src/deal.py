@@ -30,10 +30,10 @@ JUDGE_VERIFY = "judge_verify"
 LANES = ("fix_lanes", "tdd_lanes")
 ROUTES_AUTO, ROUTES_PLAN = "auto", "plan"   # 修正の部品の入力 routes の語（仕様駆動の run だけ plan。docs/design/spec-driven.md の 7 章）
 NAMES = ("request", "request_file", "pr_text", "carried", "carried_measured", "base", "base_rev", "request_origin", "base_label",
-         "review_rev", "entry", "lang", "web", "world", "spec", "has_checks", "thickness", "forced", "design_only", "unattended", "policy",
+         "review_rev", "entry", "lang", "web", "world", "spec", "has_checks", "thickness", "forced", "design_talk", "unattended", "policy",
          "test_cmd", "tdd_suite", "reuse_dir", "user_env_dir", "run_id", "deliver", "parallel", "verify_by_tier", "tree_named",
          "takes_push", "request_scope", "prior_rows", "request_answers", "spec_table", "routes")
-FLAGS = ("carried_measured", "world", "spec", "has_checks", "design_only", "unattended", "parallel", "takes_push", "request_scope")
+FLAGS = ("carried_measured", "world", "spec", "has_checks", "design_talk", "unattended", "parallel", "takes_push", "request_scope")
 
 
 def empty() -> dict:
@@ -141,7 +141,7 @@ def ports_of(record: dict, artifacts) -> dict:
         "has_checks": tiers.has_checks(record),
         "thickness": thickness_word(thickness),
         "forced": "" if thickness == AUTO else tiers.named(thickness),
-        "design_only": bool(record.get("design_only")),
+        "design_talk": bool(record.get("design_talk")),
         "unattended": gates.unattended_of(record),
         "policy": policy.frozen_copy(record),
         "test_cmd": _text(record, "test_cmd"),
