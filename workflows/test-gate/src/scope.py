@@ -2,7 +2,7 @@
 
 範囲の宣言 .works-checks.json の段ごとの paths_ignore は、変更が全部その下に在る段を回さないために、変更のパスと照らす。
 変更は base から今の作業ツリーまでに触ったファイルから、Archon が作業ツリーに置く工程の写しを除いた物（範囲の宣言と照らすのは
-最後のテストだけ。直す前は段を走らせない。持ち主の決め base-selfcheck-only）。依頼の行の where は関わる試験の選びの起点に足す（related_wheres）。
+最後のテストだけ。直す前は試験を走らせない。持ち主の決め base-runs-nothing）。依頼の行の where は関わる試験の選びの起点に足す（related_wheres）。
 """
 from __future__ import annotations
 

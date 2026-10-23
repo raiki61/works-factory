@@ -79,13 +79,13 @@ def _section(title: str, lines: list, files=()) -> dict:
 def not_run_lines(base, final) -> list:
     """節「走らせなかった範囲」の行（持ち主の決め related-tests-only）: 試験の関門の base と final の返りの related から、走らせた試験・走らせ
     なかった試験・全体の試験を CI と人に任せた事・一式を走らせた理由を並べる。関わる試験に絞らない道（利用者の宣言か test_cmd）は
-    走らせ方の行（suites_line。範囲の宣言で回さなかった段を含む）を並べる。直す前（base）は自己点検だけなので、その走らせ方の行だけ
-    （持ち主の決め base-selfcheck-only）。走らなかった block（返りが無い）は載せない"""
+    走らせ方の行（suites_line。範囲の宣言で回さなかった段を含む）を並べる。直す前（base）は試験を走らせないので、その走らせ方の行だけ
+    （持ち主の決め base-runs-nothing）。走らなかった block（返りが無い）は載せない"""
     import related   # lib/
     out = []
     for label, got in (("直す前のテスト", _d(base)), ("最後のテスト", _d(final))):
         rel = _d(got.get("related"))
-        if got.get("mode") == "base" and got.get("suites_line"):   # 直す前は自己点検だけ（持ち主の決め base-selfcheck-only）
+        if got.get("mode") == "base" and got.get("suites_line"):   # 直す前は試験を走らせない（持ち主の決め base-runs-nothing）
             out.append(f"{label}: {got['suites_line']}")
         elif rel.get("applied") is True:
             out += [f"{label}:", *[x if x.startswith(" ") else f"  {x}" for x in related.lines(rel)]]

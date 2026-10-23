@@ -423,7 +423,7 @@ class GroupChildScriptsCase(unittest.TestCase):
     def test_tdd_head_reuses_a_green_test_cmd_within_the_run(self):
         """fix の組の子の run の TDD の輪の頭は、同じ run の控え（親の values.json の reuse_dir・reuse_key）から test_cmd の緑を引き、
         同じ run の中で 2 度走らせない。組の子に reuse_dir が届かなければ、自分の place へ黙って倒さずに使い回さない。
-        test-gate の base は直す前の版で test_cmd を走らせない（持ち主の決め base-selfcheck-only）ので、控えを置くのは最初の組の子"""
+        test-gate の base は直す前の版で test_cmd を走らせない（持ち主の決め base-runs-nothing）ので、控えを置くのは最初の組の子"""
         import tree_run
         count = self.tmp / "test-cmd-count"
         test_cmd = f"{sys.executable} -c \"open({str(count)!r}, 'a').write('1\\n')\""

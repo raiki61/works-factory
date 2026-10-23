@@ -584,7 +584,7 @@ class ScopedStepsCase(RepoCase):
         self.assertNotIn("\n", str(cm.exception))
 
     def test_plan_by_decides_the_word_without_running_and_stops_like_run_ci(self):
-        """直す前の自己点検の口 plan_by は、何も走らせずに run_ci と同じ語を決め、範囲の宣言だけ・工場の段の名は同じ CiRefused で止める"""
+        """直す前の試験の関門の口 plan_by は、何も走らせずに run_ci と同じ語を決め、範囲の宣言だけ・工場の段の名は同じ CiRefused で止める"""
         with mock.patch.object(tree_run, "run", never), mock.patch.object(dc, "tree_runner", never):
             self.assertEqual(dc.plan_by(self.repo, ""), dc.ROLE_NEEDED)
             self.assertEqual(dc.plan_by(self.repo, " true "), dc.ROLE)

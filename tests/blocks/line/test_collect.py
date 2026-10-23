@@ -475,11 +475,11 @@ class SpecRunCase(unittest.TestCase):
 
 
 class BaseSelfCheckLineCase(unittest.TestCase):
-    """持ち主の決め base-selfcheck-only: 節「走らせなかった範囲」の直す前の行は、自己点検の走らせ方の行だけ。利用者の走らせ方を絞らない
+    """持ち主の決め base-runs-nothing: 節「走らせなかった範囲」の直す前の行は、直す前の走らせ方の行だけ。利用者の走らせ方を絞らない
     という添え書き（最後のテストの道 (1)(2) の物）は付けない"""
 
     def test_the_base_line_is_the_self_check_way_only(self):
         s = kit.load(BLOCK, "sections")
-        way = "直す前は自己点検だけ（全部の試験は回さない）: 実行器を見本の試験のファイル 1 つの試験 1 件で走らせた（終了コード 0）"
+        way = "直す前の版では試験を走らせない（全部の試験も自己点検も置かない）"
         base = {"mode": "base", "suites_line": way, "related": {"applied": False}}
         self.assertEqual(s.not_run_lines(base, None), [f"直す前のテスト: {way}"])

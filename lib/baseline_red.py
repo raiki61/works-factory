@@ -5,7 +5,7 @@
 run_suite だけは元の試験の枠（tree_run.slotted_run の枠）を外し、tree_run.reuse_run で走らせる（優先度は lowered が 1 か所で下げる）。
 元の結末のファイルの口（write_baseline・read_baseline・outcomes・test_outcomes）は新しい関数。
 temp_tree（版の姿を一時の git worktree に出す）は fix の TDD の輪から上げた物で、fix の受け付けと試験の関門の最後のテストが、元の結末に
-無い赤を版の姿で走らせ直すのに使う（持ち主の決め base-selfcheck-only）。
+無い赤を版の姿で走らせ直すのに使う（持ち主の決め base-runs-nothing）。
 
 元の結末のファイルの必須の欄: {"suite": str, "test_cmd": str, "rev": str, "exit": int | None, "cases": [{classname, name, outcome（OUTCOMES の語）, …}]}。
 ほかの欄は呼び手だけが読む（extra）。

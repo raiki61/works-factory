@@ -3,7 +3,6 @@
 今の lib/runreport.py が試験の関門の返りから組む行（_base_word・_evidence_lines・_green_lines・_tests_head_lines）を、この block の返りの値
 だけで組む。字は今と同じ。line の中の名（node の id）は block が知らないので、行の頭の札は外す。どの行を報告のどの節に載せるかは
 この後の段が決め、ここは行を返すだけ。出力の node の中の誤り（by が空）は、試験が走らなかったとは言わず、誤りの 1 行だけを返す。
-base の自己点検が起動スクリプトの壊れを見つけた回（#836）は、その訳とログのパスを base の行の頭に置く。
 """
 from __future__ import annotations
 
@@ -24,9 +23,7 @@ def lines(mode: str, out: dict, place) -> list:
     """block の返り out（report 以外の欄）から、報告の行の並び（by が空の誤りの回は certify.failed が 1 行だけ返す）"""
     v = declared_checks.gate_values(out)
     if mode == "base":
-        broken = _broken(place)
-        rows = [*([f"直す前の自己点検: {broken}"] if broken else []),
-                f"直す前のテスト: {_base_word(out, place)}",
+        rows = [f"直す前のテスト: {_base_word(out, place)}",
                 f"直す前のテストの走らせ方: {v['suites']}",
                 f"直す前のテストのログ: {v['log']}",
                 _green_line(mode, out)]
@@ -76,12 +73,3 @@ def _base_material(place) -> dict:
         return {}
     return material if isinstance(material, dict) else {}
 
-
-def _broken(place) -> str:
-    """直す前の自己点検が見つけた起動スクリプトの壊れの訳（src/selfcheck.broken_line。無ければ ""）"""
-    from src import selfcheck
-    try:
-        check = files.read(place, files.RUN).get("selfcheck") or {}
-    except (OSError, ValueError, AttributeError):
-        return ""
-    return selfcheck.broken_line(check)

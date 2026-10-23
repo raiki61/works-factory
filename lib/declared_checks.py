@@ -490,7 +490,7 @@ def plan_by(root, test_cmd: str) -> str:
     """走らせずに決める走らせ方の語（run_ci と同じ決め: 宣言が在れば ENGINE、無くて test_cmd が在れば ROLE、どちらも無ければ ROLE_NEEDED）。
     範囲の宣言だけが在る・宣言の段の名が TEST_CMD_STEP なら、run_ci と同じ CiRefused（走らせる前に止める）。宣言の書式の誤りは ENGINE
     （run_ci は走らせずに走らせられない素材を組む。呼び手は走らせないので語だけ返す）。直す前の試験の関門の自己点検（全部の試験を回さない。
-    持ち主の決め base-selfcheck-only）が使う（新しい関数）"""
+    持ち主の決め base-runs-nothing）が使う（新しい関数）"""
     root = pathlib.Path(root)
     _refuse_scope_alone(root)
     plan = checks_plan(root)

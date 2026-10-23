@@ -61,20 +61,20 @@ class SuiteWriteCase(unittest.TestCase):
         self.assertTrue(self.prepare()["write"])
         self.assertEqual(suitewrite.place(self.file, self.folder, {"made": True, "body": BODY, "why": ""}), {"made": True, "why": ""})
 
-    def test_distrust_unbinds_a_checked_runner_and_drops_its_kept_copy(self):
-        """直す前の自己点検で起動スクリプトが壊れていると分かった実行器は、tdd_suite を空に戻し、取り置きからも捨てる（持ち主の決め
-        base-selfcheck-only）。照らしを通っていない印には何もしない"""
+    def test_adopt_binds_a_runner_without_running_it_and_keeps_it_only_later(self):
+        """直す前の版では試験を走らせない（持ち主の決め base-runs-nothing）: 照らす前の実行器を走らせずに tdd_suite に結び、印は
+        checked が偽。取り置きは TDD の輪が走らせて結末が取れた時に keep_runner で置き、壊れていれば drop_runner で捨てる"""
         self.written()
-        self.assertTrue(suitewrite.settle(self.file, {"exe": "x", "exit": 1, "problems": [], "count": 2}, self.keep)["ok"])
-        self.assertTrue(self.kept().is_file() and self.record()["tdd_suite"])
-        suitewrite.distrust(self.file, self.keep, "起動スクリプト越しだけが赤")
-        self.assertEqual(self.record()["tdd_suite"], "")
+        self.assertEqual(suitewrite.adopt(self.file), {"done": True, "ok": True, "why": ""})
+        runner = self.record()["tdd_suite"]
+        self.assertTrue(runner)
+        self.assertEqual((self.mark()["ok"], self.mark()["checked"], self.mark()["stored"]), (True, False, False))
         self.assertFalse(self.kept().exists())
-        self.assertEqual((self.mark()["ok"], self.mark()["why"]), (False, "起動スクリプト越しだけが赤"))
-        self.assertTrue(suitewrite.head_note(self.record()).startswith(suitewrite.NOT_MADE))
-        before = self.record()
-        suitewrite.distrust(self.file, self.keep, "もう 1 度")
-        self.assertEqual(self.record(), before)
+        self.assertIn(suitewrite.UNCHECKED, suitewrite.head_note(self.record()))
+        self.assertTrue(suitewrite.keep_runner(self.keep, f"  {CMD}\n", runner))
+        self.assertTrue(self.kept().is_file())
+        suitewrite.drop_runner(self.keep, CMD, runner)
+        self.assertFalse(self.kept().exists())
 
     def test_need_only_for_base_without_suite_and_without_mark(self):
         for mode, suite, marked, want in (("base", "", False, True), ("final", "", False, False), ("base", "x.sh", False, False),

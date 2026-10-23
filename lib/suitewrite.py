@@ -24,9 +24,11 @@
 - settle(start_file, ran, keep): 実行器を 1 回走らせた結末 ran（{exe, exit, problems, count} か None）を照らす。終了コードは見ない
   （修正前に赤の試験が在るのは普通）。通れば tdd_suite に結び、書いた物なら取り置く。取り置きが通らなければ捨てる。
   {done, ok, why}（done が偽なら書き直す周が要る）
-- distrust(start_file, keep, why): 照らしを通った実行器を後から退ける（直す前の自己点検で、test_cmd の単体は緑なのに実行器越しだけが赤。
-  持ち主の決め base-selfcheck-only）。tdd_suite を空に戻し、印を ok false・why に替え、書いた物を取り置いていれば同じバイトの取り置きを捨てる。
-  取り置きから使った物も捨てる（次の run が同じ壊れた実行器を使わない）
+- adopt(start_file): 照らす前の実行器を走らせずに tdd_suite に結ぶ（印 ok true・checked false）。直す前の版では試験を何も走らせない
+  （持ち主の決め base-runs-nothing）ので、照らすのは修正の段の TDD の輪が最初に走らせた所。照らす前の実行器が無ければ印のまま
+  {done: true, ok: <結んだか>, why}
+- keep_runner(keep, test_cmd, runner): 走らせて結末が取れた実行器を test_cmd の字で取り置く（TDD の輪の頭が呼ぶ。取り置けたか）
+- drop_runner(keep, test_cmd, runner): 壊れていた実行器と同じバイトの取り置きを捨てる（TDD の輪の頭が書き直させる前に呼ぶ）
 - head_note(start): 報告の冒頭の句。取り置きを使った・書いた・作れなかったのどれか（欄の無い run は空の字）
 - GATE_NOTE: 起動の承認ノードの文の 1 行
 """
@@ -59,8 +61,10 @@ NO_CASES = "JUnit XML に試験が 1 件も無い"
 NOT_RUN = "実行器が走らなかった"
 NO_SHEBANG = "実行器の本文の頭に #! の行が無い"
 NO_WHY = "実行器を書く役が作らなかった（訳を書いていない）"
-GATE_NOTE = ("TDD の実行器: 入力 tdd_suite が無い——修正前のテストの後に、同じ test_cmd で前に照らしを通った取り置きを使い、無ければ "
-             "AI の手番 1 回が test_cmd と CI の定義から書く。走らせて JUnit XML が出て試験が 1 件以上なら TDD のループを回し、出なければ飛ばす")
+UNCHECKED = "直す前には走らせていない——修正の段の TDD の輪が最初に走らせて確かめ、壊れていれば書き直させる"
+GATE_NOTE = ("TDD の実行器: 入力 tdd_suite が無い——判定の前に、同じ test_cmd で前に照らしを通った取り置きを使い、無ければ "
+             "AI の手番 1 回が test_cmd と CI の定義から書く（直す前には走らせない）。修正の段の TDD のループが最初に走らせて確かめ、"
+             "起動スクリプト越しにだけ落ちれば書き直させ、直らなければ止めて人に聞く")
 
 
 def need(start: dict, mode: str) -> bool:
@@ -147,13 +151,21 @@ def settle(start_file, ran, keep) -> dict:
     return {"done": mark.get("from") != FROM_KEEP, "ok": False, "why": why}
 
 
-def distrust(start_file, keep, why: str) -> None:
+def adopt(start_file) -> dict:
     start = jsonfile.read_dict(start_file)
     mark = _mark(start)
-    if mark.get("ok") is not True or not mark.get("path"):
-        return
-    _drop(keep, start, mark["path"])
-    _save(start_file, {**start, "tdd_suite": ""}, {**mark, "ok": False, "why": oneline.one_line(why), "stored": False})
+    if mark.get("ok", False) is not None or not mark.get("path"):
+        return {"done": True, "ok": mark.get("ok") is True, "why": str(mark.get("why") or "")}
+    _save(start_file, {**start, "tdd_suite": mark["path"]}, {**mark, "ok": True, "checked": False, "why": "", "stored": False})
+    return {"done": True, "ok": True, "why": ""}
+
+
+def keep_runner(keep, test_cmd: str, runner) -> bool:
+    return _store(keep, {"test_cmd": test_cmd}, str(runner))
+
+
+def drop_runner(keep, test_cmd: str, runner) -> None:
+    _drop(keep, {"test_cmd": test_cmd}, str(runner))
 
 
 def _fault(ran) -> str:
@@ -228,6 +240,9 @@ def head_note(start) -> str:
     if not mark:
         return ""
     dropped = f"（取り置きは照らしを通らず捨てた: {mark['dropped']}）" if mark.get("dropped") else ""
+    if mark.get("ok") is True and mark.get("checked") is False:
+        made = USED if mark.get("from") == FROM_KEEP else WROTE
+        return f"{made}（{UNCHECKED}）{dropped}"
     if mark.get("ok") is True:
         if mark.get("from") == FROM_KEEP:
             return f"{USED}（同じ test_cmd で前の run が照らしを通した物。書く AI の手番は起こしていない）"

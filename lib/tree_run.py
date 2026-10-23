@@ -472,13 +472,6 @@ def _prepare(cwd, popen_kw):
         raise OSError(f"{SETUP_FAILED}: 済んだ印 {done} を書けない: {e}") from e
 
 
-def prepare(cwd, **popen_kw) -> None:
-    """cwd の作業ツリーの宣言の setup だけを、作業ツリーごとに 1 度走らせる（対象のコマンドは起こさない。決まりと落ちた時の OSError は
-    _prepare）。直す前の試験の関門は全部の試験を回さないので、準備が落ちた base を止める確かめ（docs/asf-notes.md の setup の置き場の訳）
-    だけをこの口で行う"""
-    _prepare(cwd, {**popen_kw, "cwd": cwd})
-
-
 def run(argv, **popen_kw):
     """cwd（Popen の引数）が渡された時は、argv の前に _prepare で、その作業ツリーの宣言の setup を作業ツリーごとに 1 度走らせる
     （対象のコマンドの呼び手は全部 cwd を渡す。落ちたら SETUP_FAILED を頭にした OSError で、argv は起こさない。cwd が無い呼び出し
