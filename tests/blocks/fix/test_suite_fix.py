@@ -125,9 +125,9 @@ class SuiteFixCase(tg.GroupChildScriptsCase):
         self.assertEqual(NODES["tdd-loop"]["when"], "$tdd-go.output.tdd == true")
         self.assertEqual(NODES["fix-loop"]["when"], "$tdd-go.output.stop == false")
         self.assertIn("tdd-go", NODES["fix-loop"]["depends_on"])
-        self.assertEqual(NODES["suite-fix-try"]["trigger_rule"], "all_done")
+        self.assertEqual(NODES["suite-fix-try"]["trigger_rule"], "none_failed_min_one_success")
         self.assertEqual(NODES["suite-fix-try"]["when"], "$group-start.output.suite_broken == true",
-                         "all_done は前が全部飛んでも走る: 壊れていない組で書き直せなかったと読んで止めない")
+                         "前が飛んでも走る: 壊れていない組で書き直せなかったと読んで止めない")
         self.assertEqual(NODES["suite-fix"]["model"], "@wf-test-gate")
 
 

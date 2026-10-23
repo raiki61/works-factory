@@ -42,3 +42,33 @@ def changed(root, base: str, wheres=()):
         except accept.Reject:
             return None
     return sorted(f for f in files if not f.startswith(ports.RUNTIME_COPY_PREFIX)) or None
+
+
+def cannot_launch(root, test_cmd: str) -> str:
+    """直す前の確かめ（持ち主の決め base-runs-nothing の足し。試験は走らせない）: test_cmd の最初の語が作業ツリーで起こせるか。起こせれば
+    ""、起こせなければ訳の 1 行。shell で起こす形は lib/tree_run.prove_launchable（bash の command -v）、直に起こす形は最初の語を
+    PATH（対象のテストと同じ tree_run.outside_env の環境）か作業ツリーからのパスで引く。展開を含むなど字面から引けない語は確かめずに
+    起こせると読む（prove_launchable と同じ限界）。test_cmd が空なら ""（確かめる物が無い）"""
+    import os
+    import shutil
+    import tree_run   # lib/
+    cmd = (test_cmd or "").strip()
+    if not cmd:
+        return ""
+    root = pathlib.Path(root)
+    argv, how = tree_run.command_argv(cmd)
+    env = tree_run.outside_env(os.environ)
+    try:
+        if how == "shell":
+            tree_run.prove_launchable(argv, cwd=str(root), env=env)
+        else:
+            word = argv[0]
+            if "/" in word:
+                path = pathlib.Path(word) if pathlib.Path(word).is_absolute() else root / word
+                if not (path.is_file() and os.access(path, os.X_OK)):
+                    raise FileNotFoundError(f"作業ツリーから引いた {path} が無いか実行できない")
+            elif shutil.which(word, path=env.get("PATH")) is None:
+                raise FileNotFoundError(f"PATH に {word} が無い")
+    except OSError as e:
+        return f"試験のコマンド（{cmd}）の最初の語を起こせない（{e}）。試験は走らせずに確かめた"
+    return ""

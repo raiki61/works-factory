@@ -296,7 +296,7 @@ final は `--input mode=final --input baseline=<base の run の baseline.json �
 README 10 節の割り当てのうち、この block が担う物と読む物:
 
 - 1 赤緑の機械の判定（担うのは fix。この block は材料を出す）: TDD の輪が赤緑を JUnit の結末で判じるための実行器（`suite`）を用意し、機械が「JUnit XML が出て試験が 1 件以上」を照らしてから渡す。役が書いた実行器を照らさずに渡す道は無い（`suitewrite.settle`）。final の緑も JUnit と終了コードから機械が決め、役の自己申告の緑は認証しない。守りの試験: `SuiteLoopCase.test_written_runner_feeds_the_red_green_check`（書いた実行器が 1 件ごとの結末を元の結末に入れ、`suite` が実行器の絶対パス）・`ResultScriptCase.test_final_role_green_is_self_reported_and_not_certified`。
-- 2 元から赤のテストの区別（この block が担う。2026-10-23 から、base は試験を走らせず元の結末に 1 件ごとの結末を持たないので、元の結末に無い赤は final が修正前の版で走らせ直して分ける。15.3。守りの試験に `BaseRunsNothingCase` の `test_a_red_outside_the_base_that_the_fix_made_is_introduced`・`test_a_red_outside_the_base_that_was_already_red_is_inherited` を足した）: base が 1 件ごとの結末を `baseline.json` に控え（`baseline_red.write_baseline`）、final がそれと今の結末を 1 件ずつ突き合わせて、元から赤（`inherited`）と直しが起こした赤（`introduced`）を機械が分ける（`green_cert.classify`）。どちらの赤も認証しない。守りの試験: `ResultScriptCase` の `test_final_inherited_red_is_not_certified`・`test_final_introduced_red_is_not_certified`・`test_final_returns_every_test_with_its_base_and_final_outcome`・`test_test_outcomes_are_not_compared_when_either_side_has_no_per_test_results`・`test_tdd_suite_cases_go_into_the_baseline`（`tests/blocks/test_gate/` へ作り直す）と `lib/tests/test_baseline_red.py`（KEEP）。
+- 2 元から赤のテストの区別（この block が担う。2026-10-23 から、base は試験を走らせず元の結末に 1 件ごとの結末を持たないので、元の結末に無い赤は final が修正前の版で走らせ直して分ける。15.3。守りの試験に `BaseRunsNothingCase` の `test_a_red_outside_the_base_that_the_fix_made_is_introduced`・`test_a_red_outside_the_base_that_was_already_red_is_inherited` を足した。コロンの後の文は 15 節より前の形）: base が 1 件ごとの結末を `baseline.json` に控え（`baseline_red.write_baseline`）、final がそれと今の結末を 1 件ずつ突き合わせて、元から赤（`inherited`）と直しが起こした赤（`introduced`）を機械が分ける（`green_cert.classify`）。どちらの赤も認証しない。守りの試験: `ResultScriptCase` の `test_final_inherited_red_is_not_certified`・`test_final_introduced_red_is_not_certified`・`test_final_returns_every_test_with_its_base_and_final_outcome`・`test_test_outcomes_are_not_compared_when_either_side_has_no_per_test_results`・`test_tdd_suite_cases_go_into_the_baseline`（`tests/blocks/test_gate/` へ作り直す）と `lib/tests/test_baseline_red.py`（KEEP）。
 - 6 当たる試験を選んで回し、回さなかった試験を名で残す（担うのは fix。この block は読み手）: 範囲の宣言の `paths_ignore` で回さなかった段を `skipped_steps` に、走らせられなかった段を `ran_steps.unran` に名で返す。最後の承認ノードと報告がそれを並べる。守りの試験: `RunScriptCase.test_final_does_not_read_request_where_as_change`（2026-10-23 から直す前は試験を走らせないので、範囲の宣言と照らすのは final だけ。15 節）・`test_scope_declaration_without_review_declaration_stops`・`ResultScriptCase.test_partly_startable_steps_are_named_not_not_ran`。
 - 封じた差分（merge の設計書の 8 節）の土台: final の緑の認証の指紋 `fingerprint` を返す。merge は封じる時と置く時に、この指紋が今の作業ツリーと合うかを照らす（試験の後に木が変われば封じない・置かない）。守りの試験: `ResultScriptCase.test_final_green_is_certified_with_fingerprint_and_tree_change_voids_it`。
 
@@ -452,23 +452,24 @@ test-gate と fix の 2 つの block が使うので `lib/` に置く（憲法�
 - 持ち主の言葉: 「試験を最初に回すのは消します。」（#828）。同じ日の後の決めで「ただ最初にふるてすとはテストは重いでしょ」「TDDでは自分の関係ないとこのテストを走らせないのでは」「自分に関係のあるところの試験が壊れてたらついでに直してあげるとかでいいのでは」と、#836 を 2 つに分けた直し方への「はい」。前の追記の「起動スクリプトの軽い自己点検を始めに残す」は取り下げた。
 - 困っていた事: base が直す前の版で全部の試験を回し、終わるまで判定・計画・設計の相談のどれも始まらなかった（run cf5ab096。12 分たっても判定が始まらない）。
 - 変える物:
-  1. base で試験を何も走らせない: 宣言の段・`test_cmd`・宣言の準備（`setup`）・実行器（人が渡した物も、用意した物も）のどれも（`run` は `declared_checks.run_ci` を呼ばず、走らせ方の語だけを `declared_checks.plan_by` で計画から決める。範囲の宣言だけが在る・宣言の段の名が工場の段の名なら、今までどおり走らせる前に止める）。
-  2. 実行器は今までどおり用意する（取り置きを使うか、書き手の役が書く）が、`suite-try` は走らせずに結ぶ（`suitewrite.adopt`。印は `checked: false`）。取り置くのは、修正の段の TDD の輪が走らせて結末が取れた時（`suitewrite.keep_runner`）。
-  3. final は、落ちた試験のうち元の結末に無い物が在れば、同じ走らせ方を修正前の版で 1 回走らせて、元から赤か直しが起こした赤かを分ける（15.3）。
-  4. 書き手の指示 `prompts/suite-write.md` の頭の段落を「機械は直す前には走らせない。修正の段の TDD の輪が最初に走らせ、壊れていれば書き直させる」に替え、`## The runner's contract`・`## How to write it`・`## How to answer` の 3 つの節を共通の断片 `workflows/.shared/prompts/runner-writer.md` に移した（修正の段の書き直しの役 `suite-fix` と同じ文を使う。4.3 の md の本文は移す前の形）。
+  1. base で試験を何も走らせない: 宣言の段・`test_cmd`・宣言の準備（`setup`）・実行器（人が渡した物も、用意した物も）のどれも（`run` は `declared_checks.run_ci` を呼ばず、走らせ方の語だけを `declared_checks.plan_by` で計画から決める。範囲の宣言だけが在るか、宣言の段の名が工場の段の名（工場が `test_cmd` を走らせる段に付ける名 `declared_checks.TEST_CMD_STEP`）と同じなら、どちらか 1 つでも今までどおり走らせる前に止める）。
+  2. 試験のコマンドの最初の語が作業ツリーで起こせるかだけを、走らせずに確かめる（`src/scope.py` の `cannot_launch`。shell の形は `tree_run.prove_launchable`〔bash の `command -v`〕、直に起こす形は最初の語を対象のテストと同じ環境の PATH か作業ツリーからのパスで引く）。起こせなければ `run.json` の `launch` に訳を置き、素材は `not_run`・`ok` は偽で判定の前で止め、実行器も用意しない。この止めの道を足すかの問いへの持ち主の答え「おしで」（2026-10-23）。展開を含むなど字面から引けない語は確かめずに起こせると読む（`prove_launchable` と同じ限界）。宣言の段は確かめない（宣言の準備 `setup` が道具を入れることがあり、準備は走らせないため）。
+  3. 実行器は今までどおり用意する（取り置きを使うか、書き手の役が書く）が、`suite-try` は走らせずに結ぶ（`suitewrite.adopt`。印は `checked: false`）。取り置くのは、修正の段の TDD の輪が走らせて結末が取れた時（`suitewrite.keep_runner`）。
+  4. final は、落ちた試験のうち元の結末に無い物が在れば、同じ走らせ方を修正前の版で 1 回走らせて、元から赤か直しが起こした赤かを分ける（15.3）。
+  5. 書き手の指示 `prompts/suite-write.md` の頭の段落を「機械は直す前には走らせない。修正の段の TDD の輪が最初に走らせ、壊れていれば書き直させる」に替え、`## The runner's contract`・`## How to write it`・`## How to answer` の 3 つの節を共通の断片 `workflows/.shared/prompts/runner-writer.md` に移した（修正の段の書き直しの役 `suite-fix` と同じ文を使う。4.3 の md の本文は移す前の形）。
 - 変えない物: final の走らせ方・赤は認証しない・機械でない者の緑は認証しない・出力の欄と line の配線。
 
 ### 15.2 base の返り
 
-- 素材はいつも `not_applicable`（「直す前の版では試験を走らせない……試験は修正の段と最後のテストで走らせる」。判定の素材 `local_checks` に写る。人への問いを増やさない）。`ok` は真で、判定へ進む。
+- 素材は `not_applicable`（「直す前の版では試験を走らせない……試験は修正の段と最後のテストで走らせる」。判定の素材 `local_checks` に写る。人への問いを増やさない）。`ok` は真で、判定へ進む。試験のコマンドの最初の語を起こせなかった run だけ `not_run` で `ok` が偽（`reason` に訳と準備の案 `RAN_GUIDE`。line は報告の冒頭の知らせの行に出す〔`src/facts.py` の `base_stop_notes`〕）。
 - `runs` は空、`suites_line` は「直す前の版では試験を走らせない（全部の試験も自己点検も置かない）」、`ran_steps` は空。
-- 元の結末のファイル `baseline.json`: `cases` は空・`exit` は null・`narrow` は真。`how`（修正役に貼る走らせ方の行。`declared_checks.run_how`）は計画の段と `test_cmd` から並べる。
+- 元の結末のファイル `baseline.json`: `cases` は空・`exit` は null・`narrow` は真（元の結末に無い試験の赤を、すぐには直しが起こした赤と読まない印。14.5）。`how`（修正役に貼る走らせ方の行。`declared_checks.run_how`）は計画の段と `test_cmd` から並べる。
 - `suite`: 人が渡した実行器か、用意した実行器（走らせていない）。`suite_note` は「…（直す前には走らせていない——修正の段の TDD の輪が最初に走らせて確かめ、壊れていれば書き直させる）」。line は `suite_note` が在る（用意した実行器）時だけ、修正の段に書き直してよいと伝える（`fix-in` の `suite_made`）。
 
 ### 15.3 直した後の赤の分け（final）
 
 - final の `run` は、落ちた試験のうち元の結末（port `baseline` の `cases`）に無い物が在れば、同じ走らせ方（JUnit の報告を持つ宣言の段と実行器。引数も合図も final と同じ）を修正前の版（port `base`）の一時の git worktree（`baseline_red.temp_tree`。fix の受け付けの `_base_reds` と同じ部品を `lib/` に上げた）で 1 回走らせ、1 件ごとの結末を `run.json` の `base_rerun` に置く。赤が無い・元の結末に在る赤だけなら走らせ直さない。
-- 返す node は、走らせ直した試験の行を元の結末の行と置き換えてから比べる（`src/certify.py` の `with_rerun`）。修正前の版でも赤なら `inherited`、通るか修正前の版に無かった試験なら `introduced`。写せない・結末が取れない時は比べる事実が無い赤（14.5）。
+- 返す node は、走らせ直した試験の行を元の結末の行と置き換えてから比べる（`src/certify.py` の `with_rerun`）。修正前の版でも赤なら `inherited`、修正前の版では通るか、修正前の版に無かった試験なら `introduced`。写せない・結末が取れない時は比べる事実が無い赤（14.5）。
 - 業界の定石との照らし: 落ちた試験だけを元の版で回し直して、直しのせいかを分ける。全部の試験を前もって回さずに、今の `baseline` と同じ区別が得られる。
 - 限界: 写しは版の追跡中のファイルだけで、無視されたファイル（依存の置き場・ビルドの出力）を持たない。依存を作業ツリーに置く対象では、写しで試験が環境のせいで落ち、元から赤と読まれうる（fix の `_base_reds` と同じ限界）。赤は原因が何でも認証しないので、合格の誤りにはならない。
 
@@ -476,7 +477,7 @@ test-gate と fix の 2 つの block が使うので `lib/` に置く（憲法�
 
 - `baseline` の読み手: 判定（judge・仕様駆動の道の `spec-diagnose`）は素材の語と訳しか読まない（`not_applicable` が入る）。修正の段は TDD の輪の頭で元の結末を自分で取る。最後の試験は 15.3。
 - 試験の環境の壊れ（起動スクリプトの壊れ・関わる試験の直す前からの壊れ）: 修正の段の TDD の輪が関わる試験を最初に走らせた所で見つけて直す（`docs/design/fix.md` の 19 節）。
-- 試験が 1 つも走らない時の止め: 直す前には分からない。修正の段の TDD の輪の頭で実行器が結末を返さなければ、起動スクリプトの壊れなら書き直させ（19 節）、そうでなければ今までどおり TDD の輪を回さずに直す。最後の試験の `not_run`→`incomplete` で認証せず、最後の承認ノードが人に回す。
+- 試験が 1 つも走らない時の止め: 試験のコマンドの最初の語を起こせない run は直す前に止める（15.1 の 2）。ほかは直す前には分からない。修正の段の TDD の輪の頭で実行器が結末を返さなければ、起動スクリプトの壊れなら書き直させ（19 節）、そうでなければ今までどおり TDD の輪を回さずに直す。最後の試験の `not_run`→`incomplete` で認証せず、最後の承認ノードが人に回す。
 - 同じ run の中の試験の結果の控え（`reuse_dir`・`reuse_key`）: base は試験を走らせないので引かず置かない。port は line の配線を変えないため残す（掃除は別の変更）。
 
 ### 15.5 E11 の 3 つの確かめ
@@ -487,6 +488,6 @@ test-gate と fix の 2 つの block が使うので `lib/` に置く（憲法�
 
 ### 15.6 試験
 
-- `tests/blocks/test_gate/test_test_gate.py` の `BaseRunsNothingCase`: base は宣言の段・`test_cmd`・準備・人が渡した実行器のどれも走らせず、final は走らせる（#828 の終わりの条件 1）・元の結末に無い赤は修正前の版で走らせ直して `introduced`／`inherited` に分ける・赤の無い final は走らせ直さない（終わりの条件 2）。`SuiteLoopCase` の `test_written_runner_feeds_the_red_green_check`・`test_a_runner_is_bound_without_running_it_before_the_fix`（用意した実行器は走らせずに結び、取り置かない）。
+- `tests/blocks/test_gate/test_test_gate.py` の `ResultScriptCase.test_a_test_cmd_that_cannot_start_stops_the_base_without_running_tests`（起こせない test_cmd は直す形も shell の形も試験を走らせずに止め、起こせる物は走らせない）・`BaseRunsNothingCase`: base は宣言の段・`test_cmd`・準備・人が渡した実行器のどれも走らせず、final は走らせる（#828 の終わりの条件 1）・元の結末に無い赤は修正前の版で走らせ直して `introduced`／`inherited` に分ける・赤の無い final は走らせ直さない（終わりの条件 2）。`SuiteLoopCase` の `test_written_runner_feeds_the_red_green_check`・`test_a_runner_is_bound_without_running_it_before_the_fix`（用意した実行器は走らせずに結び、取り置かない）。
 - `lib/tests/test_suitewrite.py` の `test_adopt_binds_a_runner_without_running_it_and_keeps_it_only_later`・`lib/tests/test_declared_checks.py` の `test_plan_by_decides_the_word_without_running_and_stops_like_run_ci`。
 - 振る舞いを変えたので直した既存の試験: 直す前に段・`test_cmd`・準備・実行器を走らせる前提の試験（JUnit の報告の後始末・範囲の宣言・ログの番号・道具を起こせない対象・場所ごとに信頼する道具・shell の起こし方・準備の落ち）は、同じ事を最後のテストで照らす形にした。同じ run の中の控えを直す前が使い回す試験 2 つと、直す前の照らしの回の試験（取り置きの捨て直し・関わる試験だけの照らし）は、その動きが無くなったので外した（取り置きの捨て直しは fix の 19 節の試験に移った）。

@@ -788,10 +788,30 @@ class ResultScriptCase(ScriptCase):
         run = self.ok("run", "final")
         self.assertEqual(([r["exit"] for r in run["runs"]], run["material"]["status"]), ([0], "clean"))
 
+    def test_a_test_cmd_that_cannot_start_stops_the_base_without_running_tests(self):
+        """持ち主の決め base-runs-nothing の足し: 宣言が無く test_cmd の最初の語を起こせない（無いコマンド）対象は、試験を走らせずに確かめて
+        base の ok が偽（判定の前で止める）。直に起こす形も shell の形も同じ。訳に起こせない事と準備の案（SETUP_HINT）が載り、実行器は用意しない。
+        起こせる test_cmd は止めない（試験も走らせない）"""
+        for cmd in (str(self.tmp / "no-such-tool"), "no-such-tool-xyz --x", "no-such-tool-xyz && echo tests"):
+            with self.subTest(cmd=cmd):
+                self.write_start(test_cmd=cmd)
+                run, out = self.stopped_base()
+                self.assertEqual((run["by"], run["runs"], run["suite_owed"]), (declared_checks.ROLE, [], False))
+                self.assertIn("最初の語を起こせない", out["reason"])
+                self.assertIn(declared_checks.declared.SETUP_HINT, out["reason"])
+                self.assertTrue(out["report"][0].startswith("直す前のテスト: 走らせられなかった"), out["report"])
+        ran = self.tmp / "ran"
+        self.write_start(test_cmd=f"{PY} -c \"open({str(ran)!r}, 'w')\"")
+        self.assertIs(self.ok("run", "base")["suite_owed"], True)
+        self.assertIs(self.result("base")["ok"], True)
+        self.assertFalse(ran.exists(), "起こせるかの確かめで試験のコマンドを走らせた")
+
     def test_a_test_cmd_that_cannot_start_is_named_at_the_final(self):
-        """宣言が無く test_cmd を起こせない（無いコマンド）対象は、最後のテストの by が role・素材が not_run で認証しない"""
+        """直す前に止めずに最後のテストまで来た（試験のコマンドが後から起こせなくなった）対象は、最後のテストの by が role・素材が not_run で認証しない"""
         self.write_start(test_cmd=str(self.tmp / "no-such-tool"))
-        base, run, out, text = self.unrun_final()
+        run = self.ok("run", "final")
+        out = self.result("final")
+        self.assertEqual((out["ok"], out["green"]), (False, False))
         self.assertEqual((run["by"], run["material"]["status"]), (declared_checks.ROLE, "not_run"))
         self.assertIn(declared_checks.declared.SETUP_HINT, self.note(out))
 

@@ -5,7 +5,8 @@
 """node run: 走らせる前の指紋を取り、形ごとに走らせ、走らせた後の指紋を取る。結果の全部は place の run.json に書き、node の返りは
 output_format の欄だけ。返りの suite_owed は、この後に TDD の実行器を用意するか（suitewrite.need。tdd_suite を省いた run の base）。
 - base（持ち主の決め base-runs-nothing・docs/design/test-gate.md の 15 節）: 直す前の版では試験を何も走らせない（宣言の段・test_cmd・
-  実行器のどれも）。走らせ方の語は計画だけで決める（declared_checks.plan_by。範囲の宣言の誤りは走らせる前に止める）。試験の環境の壊れは
+  実行器のどれも）。走らせ方の語は計画だけで決める（declared_checks.plan_by。範囲の宣言の誤りは走らせる前に止める）。test_cmd の最初の語が
+  作業ツリーで起こせるかだけを走らせずに確かめ（scope.cannot_launch）、起こせなければ run.json の launch に訳を置く。試験の環境の壊れは
   修正の段の TDD の輪が関わる試験を走らせた所で見つけて直す（docs/design/fix.md の 19 節）
 - final: 走らせ方を機械で決めて走らせ（declared_checks.run_ci）、tdd_suite が在れば一式を 1 回走らせて 1 件ごとの結末を足す。
   走らせ方が決まらない道（by role_needed）は、変更に関わる試験だけを選び（lib/related.pick。持ち主の決め related-tests-only）、その試験の
@@ -52,6 +53,7 @@ def main() -> int:
         before = green_cert.fingerprint(root)
         record = base_run(root, doc) if mode == "base" else final_run(root, place, doc, log_dir)
         after = green_cert.fingerprint(root)
+        owed = owed and not record.get("launch")   # 試験のコマンドを起こせない base は止まるので、実行器を書かせない
     except tree_run.Stopped as e:
         print(f"止められた（信号 {e.signum}）。テストは木ごと止めた", file=sys.stderr)
         return 128 + e.signum
@@ -65,9 +67,10 @@ def main() -> int:
 
 
 def base_run(root: Path, doc: dict) -> dict:
-    """直す前の記録（試験は何も走らせない）。走らせ方の語だけを計画から決める"""
+    """直す前の記録（試験は何も走らせない）。走らせ方の語だけを計画から決め、test_cmd の最初の語が起こせるかだけを走らせずに確かめる
+    （scope.cannot_launch。起こせなければ launch に訳を置き、返す node が判定の前で止める）"""
     return {**NONE_RUN, "by": declared_checks.plan_by(root, doc["test_cmd"]), "suite": None,
-            "related": files.related_record(None, None)}
+            "related": files.related_record(None, None), "launch": scope.cannot_launch(root, doc["test_cmd"])}
 
 
 def final_run(root: Path, place: Path, doc: dict, log_dir: Path) -> dict:

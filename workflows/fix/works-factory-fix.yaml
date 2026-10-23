@@ -903,13 +903,14 @@ nodes:
         made: {type: boolean}
         body: {type: string}
         why: {type: string}
-  # 書き手が落ちても走る（その時は書き直せなかったとして組を止める）
+  # 書き手が飛ばされた（指示を組めなかった）周も走る（書き直せなかったとして組を止める）。書き手が落ちた run は走らないが、tdd-go が
+  # 輪の頭の返りの suite_broken を読んで同じく止める
   - id: suite-fix-try
     script: suite_fix_try
     runtime: uv
     depends_on: [group-start, suite-fix-prep, suite-fix]
-    trigger_rule: all_done
-    when: "$group-start.output.suite_broken == true"   # all_done は前が全部飛んでも走るので、壊れていた組だけに絞る
+    trigger_rule: none_failed_min_one_success
+    when: "$group-start.output.suite_broken == true"   # 前が飛んでも走るので、壊れていた組だけに絞る
     with:
       reply: {from: "$suite-fix.output", if_skipped: null}
     output_format:

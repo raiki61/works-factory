@@ -613,6 +613,16 @@ def ran_notes(returns: dict) -> list:
     return [note] if note else []
 
 
+def base_stop_notes(returns: dict) -> list:
+    """直す前の試験の関門が止めた（返りの ok が偽。試験のコマンドの最初の語を起こせない run など。持ち主の決め base-runs-nothing）時の
+    冒頭の句: 止めた訳（返りの reason）。止めていなければ空"""
+    import oneline
+    base = as_dict(returns.get("before-tests"))
+    if base.get("ok") is not False or not base.get("reason"):
+        return []
+    return [f"直す前の試験の関門が止めた（判定は起こしていない）: {oneline.one_line(base['reason'])}"]
+
+
 def suite_broken_notes(values: dict) -> list:
     """修正の段が、工場の書いた試験の起動スクリプトが書き直しても壊れたままで止めた組の冒頭の句（訳とログのパス。#836・
     docs/design/fix.md の 19 節）。fixed の tdd（段ごとの組ごとの TDD の記録）の suite_broken の行から。無ければ空"""
@@ -1119,7 +1129,8 @@ def build(values: dict, record: dict | None, record_why: str = "", cwd=None) -> 
     notes += [f"修正の控え: {x}" for x in got["unread"]]
     before = [x for x in (part("修正の段の分け", lambda: split_line(returns), "", outcome=False),
                           part("推しの句", lambda: pushed_said(gates, taken), "", outcome=False)) if x]
-    after = [*part("起動スクリプトの壊れの句", lambda: suite_broken_notes(values), [], outcome=False),
+    after = [*part("直す前のテストの止めの句", lambda: base_stop_notes(returns), [], outcome=False),
+             *part("起動スクリプトの壊れの句", lambda: suite_broken_notes(values), [], outcome=False),
              *part("最後のテストの句", lambda: ran_notes(returns), [], outcome=False),
              *part("TDD の実行器の句", lambda: _suite_note(record), [], outcome=False),
              *part("利用者の環境の句", lambda: _user_env_note(ports_), [], outcome=False)]

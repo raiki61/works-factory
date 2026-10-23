@@ -998,13 +998,13 @@ bin/works-factory workflow run works-factory-fix --cwd <対象> \
 ## 19 試験の環境の壊れを TDD の輪の頭で見つけて直す（2026-10-23。#836・持ち主の決め `base-runs-nothing`）
 
 - 出どころ: #836（書き直した本文）と #828。持ち主の言葉: 「ただ最初にふるてすとはテストは重いでしょ」「TDDでは自分の関係ないとこのテストを走らせないのでは」「自分に関係ないとこの試験はしないでしょ。で、自分に関係のあるところの試験が壊れてたらついでに直してあげるとかでいいのでは」と、下の 2 つに分けた直し方への「はい」。
-- 前提: test-gate は直す前の版で試験を何も走らせない（`docs/design/test-gate.md` の 15 節）。工場が書いた実行器（試験の起動スクリプト）は走らせずに結ばれて届く。試験の環境の壊れは、TDD の輪が関わる試験を最初に走らせる所（輪の頭 `tdd.start` の元の結末の回）で見つける。
+- 前提: test-gate は直す前の版で試験を何も走らせない（`docs/design/test-gate.md` の 15 節）。工場が書いた実行器（試験の起動スクリプト）は、走らせずに test-gate の出力の欄 `suite` に結ばれて修正の段に届く。試験の環境の壊れは、TDD の輪が関わる試験を最初に走らせる所（輪の頭 `tdd.start` の元の結末の回）で見つける。
 - この節の語: 起動スクリプトは TDD の実行器（第 1 引数の書き先に JUnit XML を書く物）。工場が書いた実行器は、test-gate が取り置きから使ったか書き手の役が書いた物（line の `fix-in` が test-gate の返りの `suite_note` から決め、入力 `suite_made` で渡す。人が `tdd_suite` で渡した実行器は偽）。関わる試験は、輪の頭の元の結末が走らせた試験（走らせ方が決まらない道は 17 節の選び、ほかは一式）。
 
 ### 19.1 壊れているのが工場の物の時（起動スクリプトの書き直し）
 
-- 決まり（はい・いいえ。`tdd._suite_broken`）: `suite_made` が真で `test_cmd` が在り、輪の頭の元の結末の回が結末を返さないか、試験が 1 件でも `error`（中身に届く前に落ちた）で、`test_cmd` を単体で走らせると緑なら、壊れているのは起動スクリプト。関わる試験だけを渡した回は、実行器を一式でも 1 回走らせ、それも同じく落ちる時だけはい（渡した試験が `test_cmd` の外の元からの `error` だった時に書き直させない。実行器は `test_cmd` を字のまま含む約束なので同じ物を比べる）。
-- はいの時: `group-start` は輪を回さず（`tdd: false`・`suite_broken: true`）、同じバイトの取り置きを捨てる（`suitewrite.drop_runner`）。`suite-fix-prep` が書き直す役の指示（`prompts/suite-fix.md`。壊れた本文・壊れた回のログの末尾・`test_cmd` の単体のログ。契約と書き方は test-gate の書き手と同じ共通の断片 `.shared/prompts/runner-writer.md`）を組み、`suite-fix`（AI。test-gate の `suite-write` と同じ群 `@wf-test-gate`・道具・砂場）が本文を返し、`suite-fix-try` が実行器のファイルを置き換えて（`suitewrite.put_runner`。一時のファイルから入れ替える）輪の頭をやり直す（`suitefix.retry`）。
+- 決まり（はい・いいえ。`tdd._suite_broken`）: `suite_made` が真で `test_cmd` が在り、輪の頭の元の結末の回が結末を返さないか、試験が 1 件でも `error`（中身に届く前に落ちた）で、`test_cmd` を単体で走らせると緑なら、壊れているのは起動スクリプト。関わる試験だけを渡した回は、実行器を一式でも 1 回走らせ、それも同じく落ちる時だけはい（`test_cmd` の単体の回は一式を走らせるので、関わる試験だけを渡した回の `error` とは走らせ方が違い、起動スクリプトのせいとは言えない。実行器は `test_cmd` を字のまま含む約束なので、一式どうしなら同じ走らせ方を比べられる）。
+- はいの時: `group-start` は輪を回さず（`tdd: false`・`suite_broken: true`）、同じバイトの取り置き（test-gate が照らしを通った実行器を run をまたいで置く所。`docs/design/test-gate.md` の頭の語）を捨てる（`suitewrite.drop_runner`）。`suite-fix-prep` が書き直す役の指示（`prompts/suite-fix.md`。壊れた本文・壊れた回のログの末尾・`test_cmd` の単体のログ。契約と書き方は test-gate の書き手と同じ共通の断片 `.shared/prompts/runner-writer.md`）を組み、`suite-fix`（AI。test-gate の `suite-write` と同じ群 `@wf-test-gate`・道具・砂場）が本文を返し、`suite-fix-try` が実行器のファイルを置き換えて（`suitewrite.put_runner`。一時のファイルから入れ替える）輪の頭をやり直す（`suitefix.retry`）。
   - 直れば輪が続き、直した実行器を取り置く（`suitewrite.keep_runner`）。実行器のファイルは test-gate の place の物を置き換えるので、最後の試験の関門も直した実行器を使う。
   - 書き直しても壊れたまま・書き手が作れない・返答が無い時は組を止める: `tdd-go` の `stop` が真で修正役の輪を回さない（確かめていない直しを書き進めない）。組の結果の `tdd` に `suite_broken`・`runner_log`・`cmd_log` が載り、出口の `stop_reason` が `stopby.SUITE_BROKEN`（line は今の止めの道で後ろの段へ進めない）。報告の冒頭の知らせの行に訳とログのパスが出る（line の `src/facts.py` の `suite_broken_notes`）。
 - 書き直しは 1 回だけ（`max_iterations` の輪にしない。数の上限でなく「書き直しても直らない時だけ止める」のはい・いいえ）。
@@ -1014,9 +1014,9 @@ bin/works-factory workflow run works-factory-fix --cwd <対象> \
 ### 19.2 壊れているのが対象のリポジトリの試験の時（ついでに直す）
 
 - 輪の頭の元の結末で落ちた（`failure`・`error`）試験のファイルのうち、修正案が触る所に直に関わる試験（`tdd._related_pick`。17 節の選びと同じ）に在る物を、置き場の `conflict.BROKEN_TESTS_FILE`（`{tests: [{path, ids}]}`）に書く（`tdd.broken_related`）。関わるかを選べない（`whole`）時は書かない（相談で許しを取る今の道）。
-- 許しの 6 つ目の元: `conflict.test_permits` がこのファイルの行を許しの行（出どころ `broken`〔`fixboard.ALLOWED_SOURCES` の 4 つ目〕・`id` の頭 `broken-before`・範囲はファイル全部）にする。受け付けの事後の関門（`edit_permits` の `limits`）・凍結の照らし・最後の関所は今の許しと同じ口で読む。
+- 許し（修正役が書き換えてよい試験の行）の 6 つ目の元: `conflict.test_permits` がこのファイルの行を許しの行（出どころ `broken`〔`fixboard.ALLOWED_SOURCES` の 4 つ目〕・`id` の頭 `broken-before`・範囲はファイル全部）にする。受け付けの事後の関門（`edit_permits` の `limits`）・凍結の照らし・最後の関所は今の許しと同じ口で読む。
 - 修正役の指示のテストの節に「直す前から壊れていた関わる試験（ついでに直してよい。最後の承認ノードに出る）」の行と、試験が確かめる中身を弱めずに直してよいという 1 段落（`tests_broken`）が入る。
-- 最後の承認ノード: 封じた差分が触った許しの行のうち出どころ `broken` の物を「ついでに直した試験」として、書き換えを許したテストと分けた節と開ける理由（守りの扱い。開き方に依らず開く）に出す（line の `src/final.py`）。
+- 最後の承認ノード: 封じた差分が触った許しの行のうち出どころ `broken` の物を「ついでに直した試験」として、書き換えを許したテストと分けた節に出し、承認ノードを開ける（止めて人の答えを待つ）理由にも足す（守りの扱い。開き方の入力 `final_gate` に依らず開く）（line の `src/final.py`）。
 - 計画で認めた試験しか書き換えられない今の決まりは、ほかの試験には変えない。
 
 ### 19.3 E11 の 3 つの確かめ

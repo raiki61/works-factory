@@ -135,8 +135,11 @@ NO_BASE_TESTS = ("直す前の版では試験を走らせない（試験の環�
 BASE_SUITES = "直す前の版では試験を走らせない（全部の試験も自己点検も置かない）"
 
 
-def base_material() -> dict:
-    """直す前の素材。直す前の版では試験を走らせないので、いつも not_applicable（判定の素材 local_checks に写る。人への問いを増やさない）"""
+def base_material(run: dict) -> dict:
+    """直す前の素材。直す前の版では試験を走らせないので not_applicable（判定の素材 local_checks に写る。人への問いを増やさない）。
+    test_cmd の最初の語を起こせなかった（run.json の launch）なら not_run（判定の前で止めて準備を案内する）"""
+    if run.get("launch"):
+        return {"status": "not_run", "reason": run["launch"]}
     return {"status": "not_applicable", "reason": NO_BASE_TESTS}
 
 
@@ -209,7 +212,7 @@ def certified(place, optional_raw) -> dict:
     run = read_json(run_path)
     role = run["by"] == declared_checks.ROLE_NEEDED
     if mode == "base":
-        material = base_material()
+        material = base_material(run)
         cases_now = []
     else:
         material = runner_material(mode, run) if role else run["material"]

@@ -122,3 +122,30 @@ class SuiteBrokenHeadCase(unittest.TestCase):
 
     def test_a_fix_that_did_not_stop_says_nothing(self):
         self.assertFalse([x for x in self.after(base.passing()) if x.startswith("修正の段が止めた")])
+
+
+class BaseStopHeadCase(unittest.TestCase):
+    """持ち主の決め base-runs-nothing の足し: 直す前の試験の関門が止めた run（試験のコマンドの最初の語を起こせない）は、報告の冒頭の
+    知らせの行に止めた訳を出す。止めていない run には出さない"""
+    WHY = "素材が not_run——緑を仮定しない（試験のコマンド（no-such-tool）の最初の語を起こせない（PATH に no-such-tool が無い）。試験は走らせずに確かめた）"
+
+    def setUp(self):
+        self.f = kit.load(BLOCK, "facts")
+        self.run = kit.Run(self, BLOCK)
+        base.seed(self.run)
+
+    def after(self, values: dict) -> list:
+        with self.run.env(), mock.patch.object(__import__("report"), "CMD_LIGHT", "light", create=True):
+            return self.f.build(values, base.record())["head"]["after"]
+
+    def test_the_stop_reason_of_the_base_gate_heads_the_report(self):
+        v = base.passing()
+        v["test_gate_base"] = {**v["test_gate_base"], "ok": False, "green": False, "reason": self.WHY}
+        for name in ("judge", "fix_in", "fixed", "eyes", "merge_seal", "merge_apply", "test_gate_final"):
+            v[name] = None
+        lines = [x for x in self.after(v) if x.startswith("直す前の試験の関門が止めた")]
+        self.assertEqual(len(lines), 1, lines)
+        self.assertIn("起こせない", lines[0])
+
+    def test_a_base_gate_that_went_on_says_nothing(self):
+        self.assertFalse([x for x in self.after(base.passing()) if x.startswith("直す前の試験の関門が止めた")])
