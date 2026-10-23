@@ -4,7 +4,7 @@
 # ///
 """node join（全体の形）: 子が out_dir/<group_id>/result.json に書いた結果を組の順に読み、並べた run は子の差分を決めた順に親の
 作業ツリーへ当てて確かめ直す（board.join_group・lanes.merge_in_order）。確かめ直しの赤で戻した組と字で当たらなかった組は合わせの
-控えに積む（clash.record）。当たったままの組が在れば後の組を当てない。戻せた組の子から書き込みの記録・TDD の輪の状態・範囲の相談の
+控えに積む（clash.record）。直す前から同じ形で赤だった名指しは戻す理由にせず、組の行の old_red に名指す（board.same_red。#837）。当たったままの組が在れば後の組を当てない。戻せた組の子から書き込みの記録・TDD の輪の状態・範囲の相談の
 合意を親の place へ写す（board.adopt_returned）。走らせ直しの test_cmd は board.rerun_cmd が port skip_rerun で決める。今のまま。
 返り {groups, returned}。結果の無い組・git が効かない: 標準エラーに 1 行で 1"""
 import os
@@ -32,7 +32,7 @@ def main() -> dict:
     missing = [gid for gid, r in results.items() if r is None]
     if missing:
         raise ValueError(f"組の子の結果のファイルが無いか読めない（{'・'.join(missing)}）")
-    outcomes, backed_out, unrestored = {}, {}, {}
+    outcomes, backed_out, unrestored, old_red = {}, {}, {}, {}
     applied, log = [], None   # 戻せた組の子の書き込みの記録の (子の作業ツリー, 子の記録, 当てたパス) と、親の作業ツリーの記録
     if plan["par"]:
         repo = Path.cwd()
@@ -50,12 +50,13 @@ def main() -> dict:
             tdd_rows = board.child_tdd_units(r)
             union = sorted({f for u in tdd_rows for f in board.unit_test_files(u)} | {t["path"] for t in board.child_allowed_rows(r)})
             named = [*verified, *board.child_verified(r)]
+            old = []   # 確かめ直しで前から同じ形で赤だった名指し（戻す理由にしない。#837）
 
             def check(names):
                 shared = set(names) & earlier
                 red[g["group_id"]] = board.tests_moved(repo, r["end_tree"], tdd_rows, shared) or board.rerun_problem(
                     place, repo, start["tdd_suite"], cases, named, name=f"rerun-{g['group_id']}", shared=shared,
-                    test_cmd=board.rerun_cmd(place, r, start["test_cmd"]))
+                    test_cmd=board.rerun_cmd(place, r, start["test_cmd"]), old_red=old)
                 return red[g["group_id"]]
             try:
                 got = board.join_group(
@@ -66,6 +67,8 @@ def main() -> dict:
                                      "", [], [], False)
             if not got.why:
                 verified.extend(t for t in board.child_verified(r) if t not in verified)
+                if old:
+                    old_red[g["group_id"]] = old
             if got.unrestored:
                 unrestored[g["group_id"]] = got.unrestored
             elif got.backed_out and got.why == red.get(g["group_id"]):
@@ -85,7 +88,7 @@ def main() -> dict:
         outcomes = {gid: (r, True, "") for gid, r in results.items()}
     if plan["par"]:
         clash.record(place, clashes)
-    rows, units = board.join_rows(plan["groups"], outcomes, backed_out, unrestored)
+    rows, units = board.join_rows(plan["groups"], outcomes, backed_out, unrestored, old_red)
     joined = {"par": bool(plan["par"]), "groups": rows, "units": units}
     if unrestored:   # 後の写しが落ちても、当たったままの組を後の節（board.held）が読めるように先に書く
         board.write_json(place / board.JOIN_FILE, joined)
