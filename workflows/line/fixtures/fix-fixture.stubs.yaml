@@ -293,6 +293,7 @@ fix-in:
   passes: []
   baseline: {type: archon_artifact, run_id: dry-run, path: test-gate-base/baseline.json}
   suite: ''
+  suite_made: false
   judgment: {type: archon_artifact, run_id: dry-run, path: judge/judgment.json}
   units:
   - id: u1
