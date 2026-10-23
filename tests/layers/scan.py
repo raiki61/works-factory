@@ -119,6 +119,8 @@ ALLOWED = {
         # 仕様駆動の道の表を読み、会話で回した審査の記録を照らす入口の部品（docs/design/spec-driven.md の 2.6 の 2。bin/AGENTS.md の E15 の外し）
         "bin/_lib/spec-inputs.py",
         "bin/_lib/specreviews.py",
+        # run が終わった後に、その run の記録の置き場を 1 行で告げる入口の部品（issue #810 の 2。bin/AGENTS.md の E15）
+        "bin/_lib/recordroot.py",
     ),
     "E3": (
         "lib/AGENTS.md",
