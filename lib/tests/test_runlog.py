@@ -40,6 +40,16 @@ def until(loop, n, ts, code):
     return {"type": "exec_output", "step": f"{loop}-iteration-{n}", "content": "<until_bash>", "exit_code": code, "ts": ts, "workflow_id": RUN}
 
 
+def spend(step, tokens, kind="node_complete", accounting="node"):
+    """Archon の本物の行の形（execution.spend.tokens が {source: provider, value} か {source: unavailable, reason}。費用の欄は unavailable）の
+    済んだ行。tokens が None なら spend の欄が無い行"""
+    row = done(step, "2026-10-12T00:00:00Z", kind=kind, accounting=accounting)
+    if tokens is not None:
+        got = {"source": "provider", "value": tokens} if isinstance(tokens, dict) else tokens
+        row["execution"]["spend"] = {"tokens": got, "costUsd": {"source": "unavailable", "reason": "not_applicable"}}
+    return row
+
+
 
 class FactsCase(unittest.TestCase):
     def test_rows_give_cost_time_failed_and_retried(self):
@@ -96,6 +106,58 @@ class FactsCase(unittest.TestCase):
         got = runlog.facts(rows, exclude_prefix="report__")
         self.assertEqual(got["resubmits"], {"judge__loop": {"count": 1, "minutes": 2.0}, "fix__tdd": {"count": 0, "minutes": 0.0},
                                             "fix__kill": {"count": 0, "minutes": 0.0}, "fix__flag": {"count": 0, "minutes": 0.0}})
+
+
+    def test_spend_tokens_are_summed_per_node_without_double_counting(self):
+        full = {"input": 1000, "output": 200, "cacheRead": 700, "cacheWrite": 100}
+        rows = [spend("a", full, kind="node_error"), spend("a", {"input": 500, "output": 50, "cacheRead": 300, "cacheWrite": 0}),
+                spend("loop", full, accounting="aggregate"),
+                spend("script", {"source": "unavailable", "reason": "not_applicable"}), spend("bare", None),
+                spend("flag", {"source": "provider", "value": {"input": True, "output": 1}}),
+                spend("nocr", {"input": 100, "output": 10, "cacheWrite": 20}),
+                spend("partial", {"input": 300, "output": 30, "cacheRead": 100, "cacheWrite": 50, "cachePartial": True}),
+                spend("mix", {"input": 100, "output": 10, "cacheWrite": 20}), spend("mix", full)]
+        got = runlog.facts(rows)
+        self.assertEqual(got["tokens"]["a"], {"input": 1500, "output": 250, "cacheRead": 1000, "cacheWrite": 100, "uncached": 400},
+                         "input は cacheRead・cacheWrite を含む総量なので足し直さず、キャッシュ外は input − cacheRead − cacheWrite")
+        self.assertNotIn("loop", got["tokens"], "言い直しの行（aggregate）は数えない")
+        self.assertNotIn("loop", got["untokened"])
+        self.assertEqual(got["untokened"], {"script": 1, "bare": 1, "flag": 1})
+        self.assertEqual(got["tokens"]["nocr"], {"input": 100, "output": 10, "cacheRead": 0, "cacheWrite": 20, "cacheUnknown": 1},
+                         "cacheRead の欠けた行はキャッシュ外を出さず、内訳が不明な起動に数える")
+        self.assertEqual(got["tokens"]["partial"], {"input": 300, "output": 30, "cacheRead": 100, "cacheWrite": 50, "cacheUnknown": 1},
+                         "cachePartial の行は cacheRead・cacheWrite が数でも内訳が不明な起動に数える")
+        self.assertEqual(got["tokens"]["mix"], {"input": 1100, "output": 210, "cacheRead": 700, "cacheWrite": 120, "cacheUnknown": 1},
+                         "後の行が全部知れていても、不明な起動が一度在ればキャッシュ外を出さない")
+        self.assertEqual({k: sorted(v) for k, v in {"tokens": got["tokens"], "untokened": got["untokened"]}.items()},
+                         {"tokens": ["a", "mix", "nocr", "partial"], "untokened": ["bare", "flag", "script"]})
+        self.assertEqual(sorted(runlog.facts(None)["tokens"]) + sorted(runlog.facts(None)["untokened"]), [])
+
+    def test_measurement_takes_only_numeric_provider_value(self):
+        def cost(entry):
+            return runlog.measurement({"costUsd": entry}, "costUsd", runlog.number)
+
+        self.assertEqual(cost({"source": "provider", "value": 0.5}), (0.5, None))
+        self.assertEqual(cost({"source": "provider", "value": 0}), (0, None), "0 は知れた値")
+        self.assertEqual(cost({"source": "unavailable", "reason": "not_applicable"}), (None, "not_applicable"))
+        for entry in ({"source": "provider", "value": "0.5"}, {"source": "provider", "value": True}, {"source": "provider"},
+                      {"source": "estimate", "value": 1}, "0.5"):
+            with self.subTest(entry=entry):
+                value, why = cost(entry)
+                self.assertIsNone(value)
+                self.assertTrue(why, "値が無い訳を残す")
+        self.assertEqual(runlog.measurement({}, "costUsd", runlog.number), (None, "spend.costUsd が無い"))
+        self.assertEqual(runlog.measurement(None, "costUsd", runlog.number), (None, "spend.costUsd が無い"))
+        value = {"input": 10, "output": 2, "cacheRead": 4, "extra": "x"}
+        self.assertEqual(runlog.measurement({"tokens": {"source": "provider", "value": value}}, "tokens", runlog.tokens),
+                         ({"input": 10, "output": 2, "cacheRead": 4}, None), "dict を受ける accept なら tokens の dict が返る")
+        self.assertEqual(runlog.measurement({"tokens": {"source": "provider", "value": value}}, "tokens", dict),
+                         (value, None))
+        for bad in ({"output": 2}, {"input": 10}, {"input": "10", "output": 2}, [], None):
+            with self.subTest(tokens=bad):
+                self.assertIsNone(runlog.measurement({"tokens": {"source": "provider", "value": bad}}, "tokens", runlog.tokens)[0])
+        self.assertEqual(runlog.number(True), None)
+        self.assertEqual((runlog.number(3), runlog.number(1.5), runlog.number("1")), (3, 1.5, None))
 
 
 class CallsCase(unittest.TestCase):

@@ -87,7 +87,7 @@ class LauncherTest(unittest.TestCase):
             HOME=str(self.home), PATH=f"{self.fake}{os.pathsep}{self.tools}", XDG_CACHE_HOME=str(self.cache_home),
             FAKE_BUN_LOG=str(self.bun_log), FAKE_CLAUDE_LOG=str(self.tmp / "claude.jsonl"),
             FAKE_SECURITY_LOG=str(self.security_log), ANTHROPIC_API_KEY=API_KEY)
-        for name in USER_SPECIFIC:
+        for name in (*USER_SPECIFIC, *launcher.CHOSEN_TTL_ENVS):
             self.env.pop(name, None)
 
     def launch(self, *args, cwd=None, **env):
@@ -118,7 +118,7 @@ class LauncherTest(unittest.TestCase):
         """利用者の --config の無い新しい run に殻が渡す層"""
         head = ["env", f"WORKS_FACTORY_HOME={home or self.default_home(self.target)}", str(self.repo / "bin" / "works-factory"),
                 "workflow", "respond", "--cwd", str(self.target)]
-        return {"env": {"WORKS_FACTORY_ROOT": str(self.repo), answer.ENV: shlex.join(head)},
+        return {"env": {"WORKS_FACTORY_ROOT": str(self.repo), answer.ENV: shlex.join(head), "CLAUDE_CODE_PROMPT_CACHE_TTL": "5m"},
                 "workflows": {"autoResumeOnQuotaReset": False}, "aliases": place.group_presets()}
 
     def test_run_gets_cwd_and_workflow_source_before_user_args(self):
@@ -243,6 +243,7 @@ class LauncherTest(unittest.TestCase):
         self.bun.write_text(read_with_real_bun(shutil.which("bun")), encoding="utf-8")
         (self.target / "mine.yaml").write_text("env:\n  MINE: '1'\n", encoding="utf-8")
         factory = {k: v for k, v in self.factory_layer().items() if k != "aliases"}
+        factory["env"] = {k: v for k, v in factory["env"].items() if k != "CLAUDE_CODE_PROMPT_CACHE_TTL"}
         for args, rest, layer in ((["--adopt", "run-1"], ["--adopt", "run-1"], factory),
                                   (["--adopt=run-1", "--config", "mine.yaml"], ["--adopt=run-1"],
                                    {**factory, "env": {"MINE": "1", **factory["env"]}})):
@@ -252,6 +253,71 @@ class LauncherTest(unittest.TestCase):
                 self.assertEqual(argv[9], "--config")
                 self.assertEqual(self.layer(argv), layer)
                 self.assertEqual(argv[11:], ["works-factory-line", *rest])
+
+    def test_run_layer_carries_the_prompt_cache_ttl(self):
+        """役の claude の会話のキャッシュの寿命の既定（5 分）は、新しい run の設定の層の env で運ぶ（Archon は起動の最初に CLAUDE_CODE_* を消すので、
+        子の env に置いても役に届かない）。誰かが寿命を選んでいれば工場は載せない: 利用者の shell の env・利用者の --config の env:・
+        対象の .archon/config.yaml の env:。--adopt の起動では、その選びを殻が見られないので載せない"""
+        name = "CLAUDE_CODE_PROMPT_CACHE_TTL"
+        real = shutil.which("bun")
+
+        def env_of(*args, **env) -> dict:
+            return self.layer(self.reached(self.launch("workflow", "run", "works-factory-line", *args, **env))["argv"])["env"]
+
+        def repo_config(text):
+            (self.target / ".archon").mkdir(exist_ok=True)
+            (self.target / ".archon" / "config.yaml").write_text(text, encoding="utf-8")
+
+        with self.subTest("選びが無ければ 5 分（対象に .archon/config.yaml が無ければ、殻は bun も起こさない）"):
+            self.assertEqual(env_of()[name], "5m")
+        with self.subTest("利用者の shell の寿命の選びは、Archon が消すのでそのまま運ぶ"):
+            self.assertEqual(env_of(**{name: "1h"})[name], "1h")
+        for chosen in launcher.CHOSEN_TTL_ENVS[1:]:
+            with self.subTest(f"利用者の shell の {chosen} は Archon を通って届くので、工場は名を足さない"):
+                self.assertNotIn(name, env_of(**{chosen: "1"}))
+        with self.subTest("続ける命令（--resume）は層を足さない"):
+            self.assertNotIn("--config", self.reached(self.launch("workflow", "run", "works-factory-line", "--resume"))["argv"])
+        with self.subTest("--adopt は repo の選びを殻が見られないので、名を載せない（repo の config.yaml があっても読まない）"):
+            repo_config("env:\n  MINE: '1'\n")
+            for args in (["--adopt", "run-1"], ["--adopt=run-1"]):
+                self.assertNotIn(name, env_of(*args))
+                self.assertNotIn(name, env_of(*args, **{name: "1h"}))
+            (self.target / ".archon" / "config.yaml").unlink()
+        if real is None:
+            self.skipTest("bun が無い（利用者の --config と対象の .archon/config.yaml は Archon と同じ Bun.YAML.parse で読む）")
+        self.bun.write_text(read_with_real_bun(real), encoding="utf-8")
+        (self.target / "mine.yaml").write_text("env:\n  MINE: '1'\n", encoding="utf-8")
+        (self.target / "chosen.yaml").write_text("env:\n  ENABLE_PROMPT_CACHING_1H: '1'\n", encoding="utf-8")
+        (self.target / "named.yaml").write_text(f"env:\n  {name}: 1h\n", encoding="utf-8")
+        with self.subTest("利用者の --config の env: に寿命の選びが無ければ 5 分"):
+            self.assertEqual(env_of("--config", "mine.yaml")[name], "5m")
+        with self.subTest("利用者の --config の env: に ENABLE_PROMPT_CACHING_1H が在れば、工場は名を足さない"):
+            got = env_of("--config", "chosen.yaml")
+            self.assertNotIn(name, got)
+            self.assertEqual(got["ENABLE_PROMPT_CACHING_1H"], "1")
+        with self.subTest("利用者の --config の env: の寿命はそのまま運ぶ。利用者の shell の寿命では上書きしない"):
+            self.assertEqual(env_of("--config", "named.yaml", **{name: "5m"})[name], "1h")
+        for text, why in ((f"env:\n  {name}: 1h\n", "寿命の名"), ("env:\n  ENABLE_PROMPT_CACHING_1H: '1'\n", "ENABLE_PROMPT_CACHING_1H")):
+            with self.subTest(f"対象の .archon/config.yaml の env: の {why}は、工場の 5 分で潰さない"):
+                repo_config(text)
+                got = env_of()
+                self.assertNotIn(name, got)
+                self.assertEqual(self.layer(self.reached(self.launch("workflow", "run", "works-factory-line"))["argv"]), {
+                    **self.factory_layer(), "env": {k: v for k, v in self.factory_layer()["env"].items() if k != name}})
+        for text in ("", "env:\n  MINE: '1'\n", "assistant: claude\n", "env: {}\n"):
+            with self.subTest(f"対象の .archon/config.yaml に寿命の選びが無ければ 5 分: {text!r}"):
+                repo_config(text)
+                self.assertEqual(env_of()[name], "5m")
+        with self.subTest("対象の .archon/config.yaml の選びは、利用者の shell の寿命にも勝つ（Archon が重ねるのは run の層より下）"):
+            repo_config(f"env:\n  {name}: 1h\n")
+            self.assertNotIn(name, env_of(**{name: "5m"}))
+        with self.subTest("対象の .archon/config.yaml が読めなければ名を足さず、その訳を 1 行で言う"):
+            repo_config("env: [unclosed\n")
+            done = self.launch("workflow", "run", "works-factory-line")
+            self.assertNotIn(name, self.layer(self.reached(done)["argv"])["env"])
+            said = [line for line in done.stderr.splitlines() if ".archon/config.yaml" in line]
+            self.assertEqual(len(said), 1, done.stderr)
+            self.assertIn("読めない", said[0])
 
     def test_unknown_group_in_model_is_refused_with_the_known_groups(self):
         err = self.stopped(self.launch("workflow", "run", "works-factory-line", "--model", "@wf-judge-cor=haiku"))

@@ -15,6 +15,10 @@
      "durationMs": 524
     },
     "spend": {
+     "tokens": {
+      "source": "unavailable",
+      "reason": "not_applicable"
+     },
      "costUsd": {
       "source": "unavailable",
       "reason": "not_applicable"
@@ -47,6 +51,15 @@
      "durationMs": 86143
     },
     "spend": {
+     "tokens": {
+      "source": "provider",
+      "value": {
+       "input": 1000,
+       "output": 200,
+       "cacheRead": 700,
+       "cacheWrite": 100
+      }
+     },
      "costUsd": {
       "source": "provider",
       "value": 0.5843329
@@ -65,6 +78,16 @@
      "durationMs": 14333
     },
     "spend": {
+     "tokens": {
+      "source": "provider",
+      "value": {
+       "input": 400,
+       "output": 40,
+       "cacheRead": 300,
+       "cacheWrite": 50,
+       "cachePartial": true
+      }
+     },
      "costUsd": {
       "source": "provider",
       "value": 0.10897219999999999
