@@ -16,7 +16,7 @@ import sys
 import tempfile
 import unittest
 
-from bin._lib import auth_launch, launcher, place, specreviews, toolset
+from bin._lib import auth_launch, launcher, place, recordroot, specreviews, toolset
 from lib import answer, launchgroups, reads, userenv, writelog
 from tests import archon
 from tests.bin import fakelaunch, hermetic
@@ -583,6 +583,38 @@ class LauncherTest(unittest.TestCase):
         section = readme.split("### test_cmd and worktrees\n", 1)[1].split("\n#", 1)[0]
         for word in ("`setup`", ".review-checks.json", "`suite`", ".gitignore", "target with only `test_cmd`"):
             self.assertIn(word, section)
+
+    def test_run_says_where_its_record_is_after_it_ends(self):
+        """workflow run が終わったら、Archon の記録（その run の番号を持ち主にする run の置き場）の置き場を標準エラーに 1 行で告げる。
+        命令は殻が入れ替わらず子で走らせるので、子の終了の値は殻の終了の値になる"""
+        root = self.tmp / "runs" / "run-fake"
+        done = self.launch("workflow", "run", "works-factory-line", FAKE_BUN_RUN_ROOT=str(root))
+        self.reached(done)
+        self.assertIn(f"{launcher.NAME}: 記録の置き場: {root}\n", done.stderr)
+        reads = [json.loads(line) for line in pathlib.Path(f"{self.bun_log}.reads").read_text(encoding="utf-8").splitlines()]
+        self.assertEqual([r[3:5] for r in reads], [["workflow", "runs"], ["workflow", "get"]])
+        self.assertEqual(reads[1][5], "run-fake")
+        self.assertEqual(reads[1][reads[1].index("--cwd") + 1], str(self.target))
+
+    def test_record_place_of_a_paused_run_comes_from_the_project_root(self):
+        """承認ノードで止まった run は終わりの記録が無い。run の行の output_root の下の artifacts/runs/<id> を告げる。どちらも無ければ読めない"""
+        self.assertEqual(recordroot.root_of({"id": "r1", "output_root": "/h/ws/p", "terminal_record": None}), "/h/ws/p/artifacts/runs/r1")
+        self.assertEqual(recordroot.root_of({"id": "r1", "output_root": "/h/ws/p", "terminal_record": {"artifacts": {"root": "/x/r1"}}}),
+                         "/x/r1")
+        self.assertIsNone(recordroot.root_of({"id": "r1", "terminal_record": None}))
+        self.assertIsNone(recordroot.root_of("not a record"))
+
+    def test_run_that_cannot_be_found_in_the_record_says_so(self):
+        done = self.launch("workflow", "run", "works-factory-line")
+        self.reached(done)
+        self.assertIn(f"{launcher.NAME}: 記録の置き場を特定できない", done.stderr)
+
+    def test_detached_run_and_other_commands_say_no_record_place(self):
+        for args in (["workflow", "run", "works-factory-line", "--detach"], ["workflow", "approve", "run-1"]):
+            with self.subTest(args=args):
+                done = self.launch(*args, FAKE_BUN_RUN_ROOT=str(self.tmp / "x"))
+                self.reached(done)
+                self.assertNotIn("記録の置き場", done.stderr)
 
     def test_run_layer_carries_answer_head(self):
         """関所の答えの行の頭は家を名指して殻を通す respond。新しい run の層で渡り、利用者の値より殻の値"""
