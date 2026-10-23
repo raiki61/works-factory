@@ -195,24 +195,17 @@ class RecordCase(BoardCase):
         C.stash_rejects(self.b, ["拒否 2"])
         self.assertEqual(C.read(self.b)["passes"][-1]["rejects"], ["拒否 1", "拒否 2"])
 
-    def test_new_central_blocks_stop_to_ask_at_three_passes(self):
-        """中央の新しい block が出る往復は 2 往復目まで AGAIN（直しの役に返す行は最後の往復）。閉じないまま 3 往復目に届いたら、怪しいと
-        見て止まる（issue #838。UNSETTLED・行に suspect の long。held が None で 4 往復目を始めない。上限の止まり capped ではない）"""
-        for k, keys in enumerate((["a1", "a2", "a3"], ["b1", "b2"]), 1):
+    def test_new_central_blocks_go_on_past_three_passes(self):
+        """中央の新しい block が出る限り、往復の数では止めない（3 往復目も 5 往復目も AGAIN。直しの役に返す行は最後の往復）"""
+        for k, keys in enumerate((["a1", "a2", "a3", "a4", "a5"], ["b1", "b2", "b3", "b4"], ["c1", "c2", "c3"], ["d1", "d2"], ["e1"]), 1):
             with self.subTest(pass_=k):
                 self.assertEqual(self.record(keys)["outcome"], C.AGAIN)
                 self.assertEqual(C.held(C.read(self.b))["pass"], k)
-        row = self.record(["c1"])
-        self.assertEqual((row["outcome"], row["suspect"], row.get("capped", False)), (C.UNSETTLED, [C.SUSPECT_LONG], False))
-        self.assertIsNone(C.held(C.read(self.b)))
-        doc = C.read(self.b)
-        self.assertTrue(C.suspected(doc))
-        self.assertIn(C.SUSPECT_WHY[C.SUSPECT_LONG].format(n=3), C.stuck_reason(self.b))
-        self.assertIn(C.SUSPECT_WHY[C.SUSPECT_LONG].format(n=3), "\n".join(C.lines(self.b)), "報告の往復の行にも訳を出す")
 
     def test_decreasing_pass_stops_only_at_loop_cap(self):
-        """中央の新しい block が出る 2 往復目は、輪の安全の上限の周（at_cap）として記録した時だけ止まる（UNSETTLED・capped。held が None）"""
+        """中央の新しい block が出る 3 往復目は、輪の安全の上限の周（at_cap）として記録した時だけ止まる（UNSETTLED・capped。held が None）"""
         self.record(["a", "b", "c"])
+        self.record(["d", "e"])
         row = self.record(["f"], at_cap=True)
         self.assertEqual((row["outcome"], row["capped"]), (C.UNSETTLED, True))
         self.assertIsNone(C.held(C.read(self.b)))
@@ -414,15 +407,15 @@ class ItemsCase(BoardCase):
         self.assertEqual(got["outcome"], C.PERSISTED)
 
     def test_loop_cap_with_held_item_is_persisted_and_without_is_unsettled(self):
-        """中央の新しい block が出る 3 往復目は、怪しい印（3 往復で閉じない。issue #838）か輪の安全の上限の周（at_cap）で止まる。止まる時の
-        抜け方は、保留の項目が在れば PERSISTED・無ければ UNSETTLED。capped は at_cap の時だけ、suspect はどちらでも立つ"""
+        """中央の新しい block が出る 3 往復目は、輪の安全の上限の周（at_cap）として記録した時だけ止まる。止まる時の抜け方は、保留の項目が
+        在れば PERSISTED・無ければ UNSETTLED（at_cap でなければ AGAIN）"""
         held_passes = ([face("key-a1", units=["u1"]), *[face(f"key-b{n}", units=["u2"]) for n in (1, 2, 3)]],
                        [face("key-a1", units=["u1"]), face("key-b4", units=["u2"]), face("key-b5", units=["u2"])],
                        [face("key-b6", units=["u2"])])
         plain_passes = tuple([face(k, units=["u1"]) for k in keys]
                              for keys in (("key-c1", "key-c2", "key-c3"), ("key-c4", "key-c5"), ("key-c6",)))
-        for rnd, passes, at_cap, want in ((2, held_passes, False, C.PERSISTED), (3, held_passes, True, C.PERSISTED),
-                                          (4, plain_passes, False, C.UNSETTLED), (5, plain_passes, True, C.UNSETTLED)):
+        for rnd, passes, at_cap, want in ((2, held_passes, False, C.AGAIN), (3, held_passes, True, C.PERSISTED),
+                                          (4, plain_passes, False, C.AGAIN), (5, plain_passes, True, C.UNSETTLED)):
             with self.subTest(held=passes is held_passes, at_cap=at_cap):
                 b = self.board(rnd)
                 C.note_plan(b, [row("u1"), row("u2")])
@@ -430,19 +423,19 @@ class ItemsCase(BoardCase):
                     got = C.record_pass(b, {"faces": faces}, resolved=[], files={}, at_cap=at_cap and n == len(passes))
                 self.assertEqual(got["outcome"], want)
                 self.assertIs(got.get("capped", False), at_cap)
-                self.assertEqual(got["suspect"], [C.SUSPECT_LONG])
 
     def test_held_item_beside_new_central_goes_again(self):
         """保留の項目のほかに中央の新しい block の出た開いた項目が在れば、開いた block の数が減らなくても AGAIN: 1 往復目は u1・u2・u3
-        に 1 件ずつ、2 往復目は u1 が同じ block（保留）で u2・u3 が新しい block。block の数では止めず、関所の理由も無い。閉じないまま
-        3 往復目に届くと怪しい印で止まる（保留の項目が在るので PERSISTED。issue #838）"""
+        に 1 件ずつ、2 往復目は u1 が同じ block（保留）で u2・u3 が新しい block、3 往復目は u2 だけ。数で止めず、関所の理由も無い"""
         C.note_plan(self.b, [row("u1"), row("u2"), row("u3")])
         self.review([face("key-a1", units=["u1"]), face("key-b1", units=["u2"]), face("key-c1", units=["u3"])])
         got = self.review([face("key-a1", units=["u1"]), face("key-b2", units=["u2"]), face("key-c2", units=["u3"])])
         self.assertEqual((self.states(got), got["outcome"]), ([C.HELD, C.OPEN, C.OPEN], C.AGAIN))
-        self.assertEqual(C.stuck_reason(self.b), "")
         got = self.review([face("key-b3", units=["u2"])], resolved=["key-b2", "key-c2"])
-        self.assertEqual((self.states(got), got["outcome"], got["suspect"]), ([C.HELD, C.OPEN, C.CLOSED], C.PERSISTED, [C.SUSPECT_LONG]))
+        self.assertEqual((self.states(got), got["outcome"]), ([C.HELD, C.OPEN, C.CLOSED], C.AGAIN))
+        got = self.review([face("key-b4", units=["u2"])], resolved=["key-b3"])
+        self.assertEqual((self.states(got), got["outcome"]), ([C.HELD, C.OPEN, C.CLOSED], C.AGAIN))
+        self.assertEqual(C.stuck_reason(self.b), "")
 
     def test_stuck_keys_uncited_and_stuck_faces_of_a_held_item(self):
         """元 test_review_section_names_held_cites_for_the_stuck_push の止めた key の部分（src.rounds の stuck_keys・uncited・stuck_faces）:
@@ -471,13 +464,12 @@ class ItemsCase(BoardCase):
         self.assertEqual(converge.block_faces({"faces": held}), [])
 
     def test_items_go_again_while_new_central_blocks_come(self):
-        """開いた項目に中央の新しい block が出続ける間は、開いた数が減らなくても AGAIN（3 往復目に届くまで。届けば怪しい印で止まる）。
-        端だけになった往復で SETTLED（怪しい印は AGAIN の往復だけに当てる）"""
-        for k in range(1, 3):
+        """開いた項目に中央の新しい block が出続ける間は、開いた数が減らなくても往復の数に依らず AGAIN。端だけになった往復で SETTLED"""
+        for k in range(1, 6):
             got = self.review([face(f"key-a{k}", units=["u1"]), face(f"key-b{k}", units=["u2"])],
                               resolved=[f"key-a{k - 1}", f"key-b{k - 1}"] if k > 1 else [])
             self.assertEqual(got["outcome"], C.AGAIN, k)
-        got = self.review([edge("key-a3", units=["u1"])], resolved=["key-a2", "key-b2"])
+        got = self.review([edge("key-a6", units=["u1"])], resolved=["key-a5", "key-b5"])
         self.assertEqual((self.states(got), got["outcome"]), ([C.OPEN, C.CLOSED], C.SETTLED))
         self.assertIsNone(C.held(C.read(self.b)), "SETTLED の往復は修正案の役に返さない")
 
@@ -772,74 +764,13 @@ class PlaceRecordCase(BoardCase):
         self.assertEqual((line["items"][0]["hits"], line["items"][0]["refs"]), ([{"hit": "h"}], ["e1"]))
 
 
-class SuspectCase(BoardCase):
-    """往復が怪しいと見る印（issue #838。src.rounds の suspicion・suspected・suspect_text）。どちらの印も yes/no の決まりで、数えるのは
-    人の答え（設計の相談の修正要望 ask_again）の後の往復だけ。印は抜け方が AGAIN の往復だけに当て、止まりにして人に聞く"""
-
-    def setUp(self):
-        super().setUp()
-        C.note_plan(self.b, [row("u1"), row("u2")])
-
-    def test_drift_stops_at_the_second_pass(self):
-        """前の往復の中央の block が全部消え、この往復の新しい中央の block が全部、直しが持ち込んだ物（introduced）なら、2 往復目でも止まる"""
-        C.record_pass(self.b, {"faces": [face("key-a1", units=["u1"])]}, resolved=[], files={})
-        C.note_plan(self.b, [row("u1"), row("u3")])   # 組み直した新しい項目だけに当たる block は introduced
-        got = C.record_pass(self.b, {"faces": [face("key-n1", units=["u3"])]}, resolved=["key-a1"], files={})
-        self.assertEqual(got["origins"], {"key-n1": C.ORIGIN_INTRODUCED})
-        self.assertEqual((got["outcome"], got["suspect"]), (C.UNSETTLED, [C.SUSPECT_DRIFT]))
-        self.assertIn(C.SUSPECT_WHY[C.SUSPECT_DRIFT].format(gone="key-a1", came="key-n1"), C.stuck_reason(self.b))
-
-    def test_no_drift_unless_every_new_central_block_is_introduced(self):
-        """新しい中央の block に見落とし（missed）や分けられない（unsplit）が混じれば移ったと見ない（2 往復目は AGAIN のまま）"""
-        C.record_pass(self.b, {"faces": [face("key-a1", units=["u1"])]}, resolved=[], files={})
-        missed = C.record_pass(self.b, {"faces": [face("key-a2", units=["u1"])]}, resolved=["key-a1"], files={})
-        self.assertEqual((missed["origins"], missed["outcome"], "suspect" in missed), ({"key-a2": C.ORIGIN_MISSED}, C.AGAIN, False))
-        b = self.board(2)
-        C.note_plan(b, [row("u1"), row("u2")])
-        C.record_pass(b, {"faces": [face("key-a1", units=["u1"])]}, resolved=[], files={})
-        C.note_plan(b, [row("u1"), row("u2", approach="直した")])
-        mixed = C.record_pass(b, {"faces": [face("key-b1", units=["u2"]), face("key-b2", units=["u2"])]}, resolved=["key-a1"], files={},
-                              origins=[{"key": "key-b1", "origin": C.ORIGIN_INTRODUCED}])
-        self.assertEqual(mixed["origins"], {"key-b1": C.ORIGIN_INTRODUCED, "key-b2": C.ORIGIN_UNSPLIT})
-        self.assertEqual((mixed["outcome"], "suspect" in mixed), (C.AGAIN, False))
-
-    def test_a_human_revise_restarts_the_count(self):
-        """人が設計の相談で設計し直しを求めた往復（ask_again の person）より後だけを数える: その後の 1・2 往復目は AGAIN、3 往復目で止まる。
-        人の答えの直後の往復は、前の往復（人の求めを差し込んだ往復）と比べて移ったと見ない"""
-        self.record(["key-a1"])
-        stopped = self.record(["key-b1"])
-        self.assertEqual(stopped["outcome"], C.AGAIN)
-        doc = C.ask_again(C.read(self.b), key="person-1", text="b.py にも直しを入れる")
-        rounds.write(self.b.dir / rounds_files.PLAN_CONVERGE, doc)
-        C.note_plan(self.b, [row("u1"), row("u3")])
-        first = C.record_pass(self.b, {"faces": [face("key-n1", units=["u3"])]}, resolved=["key-b1", "person-1"], files={})
-        self.assertEqual(first["origins"], {"key-n1": C.ORIGIN_INTRODUCED})
-        self.assertEqual((first["outcome"], "suspect" in first), (C.AGAIN, False), "人の答えの直後の往復は移ったと見ない・3 往復目でもない")
-        self.assertEqual(self.record(["key-c1"], resolved=["key-n1"])["outcome"], C.AGAIN)
-        third = self.record(["key-d1"], resolved=["key-c1"])
-        self.assertEqual((third["outcome"], third["suspect"]), (C.UNSETTLED, [C.SUSPECT_LONG]))
-        self.assertIn(C.SUSPECT_WHY[C.SUSPECT_LONG].format(n=3), C.stuck_reason(self.b))
-
-    def test_the_signal_does_not_touch_clean_or_settled_passes(self):
-        """3 往復目でも、閉じた（CLEAN）・端だけになった（SETTLED）往復は印を付けずにそのまま進む"""
-        self.record(["key-a1"])
-        self.record(["key-b1"], resolved=["key-a1"])
-        got = self.record([], resolved=["key-b1"])
-        self.assertEqual((got["outcome"], "suspect" in got), (C.CLEAN, False))
-        self.assertFalse(C.suspected(C.read(self.b)))
-
-    def record(self, keys, *, resolved=(), **kw):
-        return C.record_pass(self.b, {"faces": [face(k, units=["u1"]) for k in keys]}, resolved=list(resolved), files={}, **kw)
-
-
 class PushableCase(unittest.TestCase):
     """止まった案を推しで越えてよいか（元 lib/gatepolicy.py の stuck_pushable。無人の印を引数で受ける形）"""
 
-    def doc(self, *, outcome=C.PERSISTED, capped=False, blocks=("key-a1",), suspect=()):
+    def doc(self, *, outcome=C.PERSISTED, capped=False, blocks=("key-a1",)):
         return {"outcome": outcome, "passes": [{"pass": 1, "blocks": ["key-a1"], "faces": [face("key-a1")], "persists": []},
                                                {"pass": 2, "blocks": list(blocks), "faces": [face(k) for k in blocks],
-                                                "persists": list(blocks), **({"capped": True} if capped else {}),
-                                                **({"suspect": list(suspect)} if suspect else {})}]}
+                                                "persists": list(blocks), **({"capped": True} if capped else {})}]}
 
     def test_every_condition_is_needed(self):
         push = {"go": True, "note": "key-a1 は端なので進める"}
@@ -848,8 +779,6 @@ class PushableCase(unittest.TestCase):
             with self.subTest(why=why):
                 self.assertFalse(rounds.stuck_pushable(self.doc(), push, **kw))
         self.assertFalse(rounds.stuck_pushable(self.doc(capped=True), push, unattended=True, design_talk=False), "上限の止まりは人が見る")
-        self.assertFalse(rounds.stuck_pushable(self.doc(suspect=[C.SUSPECT_LONG]), push, unattended=True, design_talk=False),
-                         "怪しいと見た止まりは人に聞く合図なので、無人の run は推しで越えずに止まる（issue #838）")
         self.assertFalse(rounds.stuck_pushable(self.doc(outcome=C.AGAIN), push, unattended=True, design_talk=False))
         self.assertFalse(rounds.stuck_pushable(self.doc(), {"go": False, "note": "key-a1"}, unattended=True, design_talk=False))
         self.assertFalse(rounds.stuck_pushable(self.doc(), {"go": True, "note": "引いていない"}, unattended=True, design_talk=False))

@@ -18,7 +18,6 @@ design-talk の done だけを読む）。
   所見・段・判定の問い）を見せて方向を聞く（early_text）。合意か一言つきの revise なら次の周から計画を回し、一言は依頼の答えの行
   （EARLY_NAME）として plan と事前審査に渡す（agreed にはしない。設計への合意は計画と事前審査の後の相談で聞く）。止めれば計画を
   回さずに止める。一言の空の revise は同じ文で聞き直す（EMPTY_LIMIT を後の相談と分け合う）。輪の周を 1 つ使う（EARLY_TURNS）
-- 怪しいと見て止めた往復（src.rounds.suspected。issue #838）も往復が止まる周なので、同じ関所で訳を見せて聞く（関所の文の止まりの行）
 
 通常の run（対話モードでない）は design-turn が前の周の値をそのまま運び、design-talk が plan-out の返りをそのまま写す（関所はいつも
 飛ぶ。往復の返りの欄は今と同じ値で、足した欄 open・text・asked・agreed・talks は空）。

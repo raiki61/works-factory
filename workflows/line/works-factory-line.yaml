@@ -344,7 +344,7 @@ nodes:
   # 8 計画の往復（docs/design/line.md の 3 節）。本体に AI の node を直に置かない。止め時は plan-out が決め、往復の返りは design-talk。
   # 対話モードの run（design_talk で無人でない）だけ、止まる周に本体の唯一の終わりの関所 gate-design で設計を相談する（3.1 節。答えは
   # 次の周の頭の design-turn が読む。until_bash は飛びうる関所の出力を読まない）。対話モードの 1 周目は計画を回さず、同じ関所で判定の読みを
-  # 見せて方向を聞く（早い相談。3.1 節・#830）。怪しいと見た往復（3.2 節・#838）も止まる周なので同じ関所で聞く。通常の run は関所がいつも飛ぶ
+  # 見せて方向を聞く（早い相談。3.1 節・#830）。通常の run は関所がいつも飛ぶ
   - id: plan-rounds
     depends_on: [judge, judge-out, owed, structure-in, design-in, tiers]
     when: "$judge.output.ready == true && $owed.output.stop_reason == '' && $structure-in.output.stop_reason == '' && $tiers.output.stop_reason == ''"

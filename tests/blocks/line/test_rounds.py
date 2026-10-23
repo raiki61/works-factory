@@ -95,17 +95,6 @@ class PlanOutCase(unittest.TestCase):
         prior = json.loads((self.run.artifacts / third["plan_prior"]["path"]).read_text(encoding="utf-8"))
         self.assertEqual([h["round"] for h in prior["handoffs"]], [1, 2, 3], "全部の周の handoff")
 
-    def test_three_open_rounds_stop_before_the_fourth(self):
-        """閉じないまま 3 往復目に届いた往復は done（4 往復目を始めない）で、止まり（stalled）として修正前の承認ノードか設計の相談で人に聞く。
-        上限の止まり（capped）ではない（issue #838）"""
-        first = self.out(self.plan(1), self.review(1, [face("key-a1")]))
-        second = self.out(self.plan(2), self.review(2, [face("key-b1")]), prior=first["record"])
-        self.assertEqual((second["done"], second["stalled"]), (False, False))
-        third = self.out(self.plan(3), self.review(3, [face("key-c1")]), prior=second["record"])
-        self.assertEqual((third["done"], third["ok"], third["stalled"], third["capped"]), (True, False, True, False))
-        record = json.loads((self.run.artifacts / third["record"]["path"]).read_text(encoding="utf-8"))
-        self.assertEqual(record["passes"][-1]["suspect"], [rounds.SUSPECT_LONG])
-
     def test_settled_proceeds(self):
         first = self.out(self.plan(1), self.review(1, [face("key-a1")]))
         edge = {**face("key-e1"), converge.REACH: converge.PERIPHERAL}
@@ -203,33 +192,6 @@ class OwedCase(unittest.TestCase):
         got = self.run.script("owed", judgment="null", answer_ties="null", materials="null", world="null", decisions="null",
                               answer="null", ports="{壊れた")
         self.assertEqual((got["owed"], got["stop_reason"]), (False, "works:line-script"))
-
-
-class SuspectStopCase(unittest.TestCase):
-    """怪しいと見て止めた往復（issue #838）は、無人の run では事前審査の役の推しで越えず、修正前の承認ノードが人待ちで止める（報告に訳）。
-    同じ記録から印だけを外すと推しで進む（印が止めの訳であることを照らす）"""
-
-    def test_unattended_run_stops_instead_of_pushing_past(self):
-        from tests.blocks.line.test_gates import rounds as got_of
-        gates = kit.load(BLOCK, "gates")
-        push = {"answer": "continue", "note": "key-c1 は項目の修正の中で片付ける", "why": "直しの中で足りる"}
-
-        def doc(suspect: bool) -> dict:
-            last = {"pass": 3, "blocks": ["key-c1"], "faces": [face("key-c1")], "persists": [], "push": push,
-                    **({"suspect": [rounds.SUSPECT_LONG]} if suspect else {})}
-            return {"outcome": converge.UNSETTLED, "passes": [{"pass": 1, "blocks": ["key-a1"], "faces": [face("key-a1")], "persists": []},
-                                                              {"pass": 2, "blocks": ["key-b1"], "faces": [face("key-b1")], "persists": []},
-                                                              last]}
-        for suspect, go in ((False, True), (True, False)):
-            with self.subTest(suspect=suspect):
-                d = doc(suspect)
-                out = gates.before_fix(got_of(ok=False, stalled=True), unattended_run=True, design=False,
-                                       stuck_reason=rounds.stuck_reason(d), record_doc=d)
-                self.assertEqual(out["go"], go, out)
-                if not go:
-                    self.assertEqual(out["stop_reason"], "works:needs-human")
-                    self.assertTrue(any(rounds.SUSPECT_WHY[rounds.SUSPECT_LONG].format(n=3) in t for t in out["deferred"]),
-                                    "止めた訳は報告と次の依頼の下書きへ運ぶ行に載る")
 
 
 if __name__ == "__main__":
