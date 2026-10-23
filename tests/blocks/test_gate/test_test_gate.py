@@ -1030,7 +1030,7 @@ class SuiteLoopCase(ScriptCase):
 
     def test_a_runner_is_bound_without_running_it_before_the_fix(self):
         """直す前の版では試験を走らせない（持ち主の決め base-runs-nothing）: 試験を 1 件も書かない実行器も、直す前は走らせずに結ぶ。
-        照らすのは修正の段の TDD の輪（docs/design/fix.md の 18 節）"""
+        照らすのは修正の段の TDD の輪（docs/design/fix.md の 19 節）"""
         self.ok("run", "base")
         _, tried = self.round(self.EMPTY)
         self.assertEqual(tried, {"done": True, "ok": True, "why": ""})

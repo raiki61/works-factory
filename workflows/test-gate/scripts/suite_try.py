@@ -4,7 +4,7 @@
 # ///
 """node suite-try: 輪の 1 周の終わり。照らす前の実行器（suitewrite.pending）が在れば、走らせずに実行器の控えの tdd_suite に結ぶ
 （suitewrite.adopt。持ち主の決め base-runs-nothing: 直す前の版では試験を何も走らせない）。実行器が JUnit XML を書くか・壊れていないかは、
-修正の段の TDD の輪が関わる試験を最初に走らせた所で確かめ、壊れていれば書き直させる（docs/design/fix.md の 18 節）。照らした実行器を
+修正の段の TDD の輪が関わる試験を最初に走らせた所で確かめ、壊れていれば書き直させる（docs/design/fix.md の 19 節）。照らした実行器を
 取り置くのもそこ。{done, ok, why}（done はいつも真。書き手が作れなかった周は ok が偽と訳）"""
 import sys
 from pathlib import Path

@@ -1018,6 +1018,7 @@ CHANGE_CHECKOUT = {
     ("fix", "clash-ruled-accept"): "裁定の後の合わせ役の直しが通らなければ当て直す前の木へ戻す（clash.settle_parked の段 ruled）",
     ("fix", "clean"): "修正役が残した git の無視するファイルを消す（leftovers.remove_new_ignored）",
     ("fix", "tdd-step"): "諦めた単位を単位の頭の木に戻す（tddloop.step）",
+    ("fix", "suite-fix-try"): "書き直した起動スクリプトで TDD のループの頭をやり直し、対象のテストを作業ツリーで走らせる（suitefix.retry・tddloop.start）",
     ("fix", "fix-accept"): "3 回目の拒否で名指しの単位を戻す（fixboard.accept_reply）",
     ("fix", "fix-ruled-accept"): "3 回目の拒否で名指しの単位を戻す（fixboard.accept_reply の ruled）",
     ("test-gate", "run"): "対象のテストを作業ツリーで走らせる（declared_checks.run_ci）",

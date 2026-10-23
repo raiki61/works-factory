@@ -470,7 +470,8 @@ def child_verified(result) -> list:
 
 def tdd_units(groups, results) -> list:
     """型つきの成果物 tdd-unit の本文: 組ごとの TDD の輪の結果 [{group_id, ran, reason, suite, reused, related, units}]（子の結果の欄 tdd。
-    tddloop.exit_fields の形）。結果の無い組・実行器の無い組は ran: false・units: []。results は {group_id: 子の結果の dict}"""
+    tddloop.exit_fields の形）。起動スクリプトが書き直しても壊れたままで止めた組は suite_broken・runner_log・cmd_log も載る（報告の冒頭が
+    読む。docs/design/fix.md の 19 節）。結果の無い組・実行器の無い組は ran: false・units: []。results は {group_id: 子の結果の dict}"""
     out = []
     for g in groups:
         result = results.get(g["group_id"])
@@ -480,7 +481,9 @@ def tdd_units(groups, results) -> list:
                     "reason": str(tdd.get("reason") or ("" if result else NO_RESULT)), "suite": str(tdd.get("suite") or ""),
                     "reused": tdd.get("reused") if isinstance(tdd.get("reused"), dict) else {},
                     "related": tdd.get("related") if isinstance(tdd.get("related"), dict) else {},
-                    "units": child_tdd_units(result) if ran else []})
+                    "units": child_tdd_units(result) if ran else [],
+                    **({"suite_broken": True, "runner_log": str(tdd.get("runner_log") or ""), "cmd_log": str(tdd.get("cmd_log") or "")}
+                       if tdd.get("suite_broken") is True else {})})
     return out
 
 
@@ -1814,6 +1817,23 @@ def consult_ask(place, reply, pass_: str, items, *, node: str, human_items=(), r
 def ruled_reply_line(reply_file) -> str:
     """裁定の後の修正役の指示の段落 ruled_reply に入れる、1 回目の修正役の返答の保存したファイル（文は md。無ければ空）"""
     return str(reply_file or "")
+def before_cases(place) -> list:
+    """確かめ直し（rerun_problem の「前から同じ形で赤」。docs/design/fix.md の 18 節）が照らす直す前の結末の行: 置き場の BASELINE_FILE の
+    cases（試験の関門の元の結末）に、組の子の TDD の輪の頭が取った結末（輪の状態の baseline_cases。失敗の文つき）を組の順に足した物（同じ鍵は
+    先の行）。直す前の版では試験の関門が試験を走らせない（持ち主の決め base-runs-nothing）ので、ふつうは子の輪の頭の結末だけ"""
+    import baseline_red
+    place = pathlib.Path(place)
+    rows = list((read_json(place / BASELINE_FILE, {}) or {}).get("cases") or [])
+    plan = read_json(place / GROUPS_FILE, {}) or {}
+    for g in plan.get("groups") or []:
+        result = usable_result(pathlib.Path(plan.get("out_dir") or place / "groups") / str(g.get("group_id")))
+        state = str((result or {}).get("tdd_state") or "")
+        doc = jsonfile.read_or(pathlib.Path(state)) if state else None   # 読めない状態は足さない（join は後で輪の状態を写す時に名指して落ちる）
+        if isinstance(doc, dict):
+            rows += [c for c in doc.get("baseline_cases") or [] if isinstance(c, dict)]
+    return baseline_red._unique([c for c in rows if all(isinstance(c.get(k), str) for k in ("classname", "name", "outcome"))])
+
+
 TDD_START_FILE = "tdd-start.json"   # TDD の輪の頭の返り（tddloop.start の {go, state_file, summary_file, …}。group-start が書く）
 JOIN_FILE = "join.json"             # 組を親の木へ戻した結果 {groups, units}（join が書く）
 

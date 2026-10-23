@@ -512,7 +512,7 @@ def _light_units(raw: str) -> list:
 
 def start(board_dir, repo, suite: str, open_units: str, test_cmd: str = "", unit_depths: str = "", *,
           owed=None, withheld_by=None, returned=(), round_: int = 1, reuse: dict | None = None, narrow: bool = False,
-          routes: str = "auto") -> dict:
+          routes: str = "auto", suite_made: bool = False) -> dict:
     """節 tdd-start。{go, reason, suite, state_file, summary_file}。実行器が無ければ何も書かずに go: false（置き場を読まない）。
     board_dir は fix の run の置き場（状態は board_dir/tdd-<k>/）。owed・withheld_by・returned は直す義務の値（_duty）、round_ は
     凍結した欄の周（plan_contract）。
@@ -525,7 +525,10 @@ def start(board_dir, repo, suite: str, open_units: str, test_cmd: str = "", unit
     だけにする（持ち主の決め related-tests-only。docs/design/fix.md の 17 節）。起点が無い・選べない時は今までどおり一式、関わる試験が
     無ければ走らせずに空の結末で輪を始める。選びは状態の related と出口の欄 related に置く。
     routes が plan（入力 routes。docs/design/spec-driven.md の 7 章の 1）なら振り分けの段の AI を起こさず、承認済みの案の route で
-    単位を振って test の段から始める（_plan_routes）。tdd の単位が 1 つも無ければ、元の結末も取らずに go: false（PLAN_NO_TDD）"""
+    単位を振って test の段から始める（_plan_routes）。tdd の単位が 1 つも無ければ、元の結末も取らずに go: false（PLAN_NO_TDD）。
+    suite_made が真（実行器は工場が書いた物で、書き直してよい。入力 suite_made）で test_cmd が在れば、元の結末の回で起動スクリプトの壊れを
+    確かめる（_suite_broken。docs/design/fix.md の 19 節）。壊れていれば go: false と {suite_broken: true, runner_log, cmd_log} を返し、
+    呼び手が書き直させる"""
     if routes not in ROUTES:
         raise Broken(f"入力 routes は {'・'.join(ROUTES)} のどれか（{routes!r}）")
     suite = (suite or "").strip()
@@ -560,12 +563,18 @@ def start(board_dir, repo, suite: str, open_units: str, test_cmd: str = "", unit
         cases, code, why = run_suite(str(exe), repo, work, 0, args=related.args(repo, picked), only=True, reuse=reuse, note=suite_note)
     else:
         cases, code, why = [], 0, []   # 関わる試験が無い: 元の結末は空（緑の確かめは受け付けと最後のテストの段が持つ）
+    test_cmd = (test_cmd or "").strip()
+    if suite_made and test_cmd:
+        broke = _suite_broken(exe, repo, work, test_cmd, cases, why, narrow=picked is not None and not picked["whole"])
+        if broke:
+            return {**off, **broke}
     if cases is None:
         return {**off, "reason": f"元の結末が取れない（{'; '.join(why)}）——全部の単位を今どおり直す"}
-    test_cmd = (test_cmd or "").strip()
+    jsonfile.write(board_dir / conflict.BROKEN_TESTS_FILE, {"tests": broken_related(board_dir, repo, keys, round_, work, cases, picked)})
     gate, note, made = _test_cmd_gate(exe, test_cmd, repo, work / "test-cmd-0.log", reuse=reuse)
     st = {"suite": suite, "exe": str(exe), "work": str(work), "open_units": keys, "excused": excused,
           "baseline": {_key(c): c["outcome"] for c in cases}, "baseline_exit": code,
+          "baseline_cases": cases,   # 失敗の文つきの行（確かめ直しの「前から同じ形で赤」が読む。board.before_cases）
           "handoff": snapshot(repo), "suite_made": made, "phase": "route", "tries": 0, "reason": "", "iterations": 0,
           "runs": 1, "order": [], "units": {}, "queue": [], "cur": 0, "unit_head": "", "green_tree": "",
           "done": False, "note": "", "frozen": {}, "parked": [], "parked_why": {}, "contract": contract,
@@ -578,6 +587,68 @@ def start(board_dir, repo, suite: str, open_units: str, test_cmd: str = "", unit
     state_file = work / STATE
     _save(state_file, st)
     return {"go": True, "reason": "", "suite": suite, "state_file": str(state_file), "summary_file": str(work / SUMMARY)}
+
+
+SUITE_BROKEN = ("工場が書いた試験の起動スクリプトが壊れている——関わる試験が起動スクリプト越しにだけ中身に届く前に落ちた（{what}。ログ {log}）"
+                "のに、test_cmd を単体で走らせると通る（ログ {cmd_log}）")
+
+
+def broken_related(board_dir, repo, keys, round_: int, work: pathlib.Path, cases, picked=None) -> list:
+    """関わる試験で直す前から壊れていた物のファイル [{path, ids}]（#836。docs/design/fix.md の 19 節）: 輪の頭の元の結末で落ちた（failure・
+    error）試験のファイルのうち、修正案が触る所に直に関わる試験（_related_pick。走らせ方が決まらない道で元の結末を絞った回は、その選び
+    picked）に在る物。関わるかを選べない（whole）・落ちた試験が無ければ空。修正役はこのファイルをついでに直してよい（conflict.test_permits の
+    6 つ目の許し）"""
+    failed = [c for c in cases or [] if c.get("outcome") in ("failure", "error")]
+    if not failed:
+        return []
+    picked = picked if picked is not None else _related_pick(board_dir, repo, keys, round_, work)
+    if picked.get("whole"):
+        return []
+    near = set(picked.get("files") or [])
+    found = {}
+    for path, ids in _case_files(repo, failed).items():
+        if path in near:
+            found[path] = ids
+    return [{"path": path, "ids": ids} for path, ids in sorted(found.items())]
+
+
+def _case_files(repo, cases) -> dict:
+    """結末の行 cases → {テストのファイル（根からの相対）: [鍵]}。ファイルは行のモジュール（impact._junit_module）が impact._mod に等しい
+    テストのファイル（_by_test_file と同じ引き方）。引けない行は載せない"""
+    files = {}
+    for p in impact.tree_files(repo) or []:
+        if impact.is_test(p) == "module":
+            files.setdefault(impact._mod(p), []).append(p)
+    out = {}
+    for c in cases:
+        for path in files.get(impact._junit_module(c) or "", []):
+            out.setdefault(path, []).append(_key(c))
+    return out
+
+
+def _suite_broken(exe, repo, work: pathlib.Path, test_cmd: str, cases, why, *, narrow: bool) -> dict | None:
+    """起動スクリプトが壊れているか（yes/no。#836）: 元の結末の回が結末を返さないか、試験が 1 件でも error（中身に届く前に落ちた）で、
+    test_cmd を単体で走らせると緑なら壊れている。関わる試験だけを渡した回（narrow）は、渡した試験が test_cmd の外の元からの error で
+    ないかを、実行器を一式でも 1 回走らせて確かめ、それも同じく落ちる時だけ壊れていると読む（実行器は test_cmd を字のまま含む約束なので、
+    同じ物を比べる）。壊れていれば {suite_broken, reason, runner_log, cmd_log}、でなければ None"""
+    def fell(got) -> bool:
+        return got is None or any(c.get("outcome") == "error" for c in got)
+    if not fell(cases):
+        return None
+    log = work / "suite-0.log"
+    what = "; ".join(why) if cases is None else f"error {sum(1 for c in cases if c.get('outcome') == 'error')} 件"
+    cmd_log = work / "test-cmd-alone.log"
+    mat, _ = _cmd_run(repo, test_cmd, cmd_log)
+    if mat["status"] != "clean":
+        return None
+    if narrow:
+        whole, _, whole_why = run_suite(str(exe), repo, work, "whole")
+        if not fell(whole):
+            return None
+        log = work / "suite-whole.log"
+        what = "; ".join(whole_why) if whole is None else f"error {sum(1 for c in whole if c.get('outcome') == 'error')} 件"
+    return {"suite_broken": True, "reason": SUITE_BROKEN.format(what=what, log=log, cmd_log=cmd_log),
+            "runner_log": str(log), "cmd_log": str(cmd_log)}
 
 
 def _related_pick(board_dir, repo, keys, round_: int, work: pathlib.Path) -> dict:
@@ -2171,7 +2242,10 @@ def exit_fields(start_out: dict) -> dict:
     状態の reused（輪の頭で元の結末を控えから使い回した出どころの句 {suite}）が空でなければ載せる"""
     if not isinstance(start_out, dict) or not start_out.get("go"):
         so = start_out if isinstance(start_out, dict) else {}
-        return {"ran": False, "suite": so.get("suite", ""), "reason": so.get("reason", ""), "units": []}
+        out = {"ran": False, "suite": so.get("suite", ""), "reason": so.get("reason", ""), "units": []}
+        if so.get("suite_broken") is True:   # 起動スクリプトが書き直しても壊れたまま（docs/design/fix.md の 19 節）。組の結末が止めを名乗る
+            out.update(suite_broken=True, runner_log=so.get("runner_log", ""), cmd_log=so.get("cmd_log", ""))
+        return out
     st = _load(start_out["state_file"])
     if not st["done"]:
         raise Broken("TDD のループが済んでいない（done の印が無い）")

@@ -6,7 +6,7 @@
 output_format の欄だけ。返りの suite_owed は、この後に TDD の実行器を用意するか（suitewrite.need。tdd_suite を省いた run の base）。
 - base（持ち主の決め base-runs-nothing・docs/design/test-gate.md の 15 節）: 直す前の版では試験を何も走らせない（宣言の段・test_cmd・
   実行器のどれも）。走らせ方の語は計画だけで決める（declared_checks.plan_by。範囲の宣言の誤りは走らせる前に止める）。試験の環境の壊れは
-  修正の段の TDD の輪が関わる試験を走らせた所で見つけて直す（docs/design/fix.md の 18 節）
+  修正の段の TDD の輪が関わる試験を走らせた所で見つけて直す（docs/design/fix.md の 19 節）
 - final: 走らせ方を機械で決めて走らせ（declared_checks.run_ci）、tdd_suite が在れば一式を 1 回走らせて 1 件ごとの結末を足す。
   走らせ方が決まらない道（by role_needed）は、変更に関わる試験だけを選び（lib/related.pick。持ち主の決め related-tests-only）、その試験の
   ファイルだけを実行器に渡す。選べなければ一式、関わる試験が無ければ走らせない（run.json の related に選びと、走らせたかの ran）。

@@ -29,7 +29,7 @@ GROUPS = {
     "@wf-plan-writer": {"model": "opus", "effort": "medium", "what": "計画を書く役"},
     "@wf-plan-review": {"model": "opus", "effort": "high", "what": "計画の設計の審査の役"},
     "@wf-report": {"model": "sonnet", "effort": "medium", "what": "報告の書き手と冷えた読み手"},
-    "@wf-test-gate": {"model": "sonnet", "effort": "medium", "what": "試験の関門の CI の役"},
+    "@wf-test-gate": {"model": "sonnet", "effort": "medium", "what": "試験の起動スクリプトの書き手（試験の関門の用意と、修正の段の書き直し）"},
 }
 
 
