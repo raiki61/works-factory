@@ -339,6 +339,34 @@ class CollectCase(unittest.TestCase):
         why = rolekit.rejected(run.art / "r2", "plan")[0]
         self.assertTrue(why.startswith(steps.CLOSED_REJECT), why)
 
+    def test_closed_item_with_machine_limit_is_not_rejected(self):
+        """#845: line の往復の記録の案の行は、事前審査が planmarks.joined で欄の行を重ねた物で、rewrite_tests の行に機械が足した範囲
+        limit を持つ。閉じた項目をその行で差し込んでも、前のまま書いた閉じた項目も、limit を理由に拒まない。役が自分で書いた limit は拒む"""
+        rewrite = {"id": "test_stats.py::TestStats::test_clamp_above_range", "behavior": "上限を超えた値に上限を返す",
+                   "old": "lo を返す", "new": "上限を超えたら hi を返す"}
+        for name, closed in (("差し込む", []), ("前のまま書く", [item(2, rewrite_tests=[rewrite])])):
+            with self.subTest(name):
+                run = PlanRun(self)
+                line = Line(run)
+                first = line.round(writer=writer_of({"plan": [item(1), item(2, rewrite_tests=[rewrite])]}))
+                self.assertIs(first["ok"], True, first)
+                prior = line.prior({"faces": [FACE_MEAN]})
+                fields = run.json(first["plan"])["fields"]
+                self.assertEqual(fields[1]["rewrite_tests"][0]["limit"], "test_stats.py:14")
+                joined = [planmarks.joined(r, f) for r, f in zip(run.json(first["reply"])["plan"], fields)]
+                prior["record"]["plan"] = converge.plan_rows(joined)   # plan-review の note_plan と同じ行
+                own = item(1, approach=CHANGED_APPROACH, rewrite_tests=[{**rewrite, "limit": "test_stats.py:14"}])
+                role = seq({"plan": [own, *closed], "block_answers": [FIXED_MEAN]},
+                           {"plan": [item(1, approach=CHANGED_APPROACH), *closed]})
+                out = run.include(prior=prior, writer=role, fixer=role, typed=False)   # 役の書いた limit を受け付けまで通す
+                self.assertIs(out["ok"], True, out)
+                why = rolekit.rejected(run.art / "r2", "plan")
+                self.assertEqual(len(why), 1, why)
+                self.assertIn("plan[0].rewrite_tests[0]: 知らない欄 'limit'", why[0], "役の書いた limit は拒む")
+                self.assertNotIn("plan[1]", why[0])
+                self.assertNotIn(steps.CLOSED_REJECT, why[0])
+                self.assertEqual(run.json(out["reply"])["plan"][1]["rewrite_tests"], [rewrite], "受けた案の閉じた項目は役の書く形")
+
     def test_second_round_returns_only_changed_items(self):
         """#571: 2 往復目の修正案の役は変えた項目だけを返す。返さない開いた項目は機械が前の往復の行を差し込み、受けた案は全部の
         項目を持つ。fixed と答えた block の項目を変えていない答えは拒む"""
