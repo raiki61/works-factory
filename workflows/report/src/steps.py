@@ -111,9 +111,10 @@ def write_prompt(place, *, run_id: str) -> dict:
 
 
 def cold_prompt(place, raw) -> dict:
-    """初見の読み手の指示を組んで place に書く（本文は人に向けた報告の頭と同じ物）。返り {prompt}"""
+    """初見の読み手の指示を組んで place に書く（本文は人に向けた報告の頭と同じ物を、機械が組んだ行と書き手の頭に分けて貼る）。返り {prompt}"""
     place = pathlib.Path(place)
-    values = {"body": writer.cold_body(raw, place=place), "machine_heading": files.bare(writer.MACHINE_HEADING)}
+    machine, body = writer.cold_parts(raw, place=place)
+    values = {"machine": machine, "body": body, "machine_heading": files.bare(writer.MACHINE_HEADING)}
     out = prompt.emit(files.COLD_NODE, values, {}, prompt.round_of(files.COLD_NODE))
     return {"prompt": out["prompt"]}
 

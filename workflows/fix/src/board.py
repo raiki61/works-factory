@@ -271,13 +271,26 @@ SEMANTIC_CLASH = ("意味の食い違い: 前に戻した組と同じファイ�
                   "後の組だけを戻す")   # 元 works/blk-fix/lib/tddlanes.py:684-685 の back の理由
 
 
+def same_red(test_id: str, before, after) -> bool:
+    """名指し test_id が当てた後に「前から同じ形で赤」か（docs/design/fix.md の 18 節。#837）: 直す前の結末 before と当てた後の
+    結末 after の両方に名指しに当たる行（baseline_red.match_case）が在り、どちらの行も error（読み込み・準備で落ちた。TDD の赤の
+    failure でない）で、失敗の文（fail_message）が空でなく字のまま同じ時だけ真。failure は数えない: 名指しは直す前に failure で
+    赤だったテストなので、後の組が直しを壊して元の赤に戻した物と見分けられない。形の崩れた直す前の行は見ない"""
+    import baseline_red
+    rows = [c for c in before or [] if isinstance(c, dict) and isinstance(c.get("classname"), str) and isinstance(c.get("name"), str)]
+    b, a = baseline_red.match_case(test_id, rows), baseline_red.match_case(test_id, after or [])
+    return (a is not None and b is not None and a["outcome"] == b.get("outcome") == "error"
+            and bool(a.get("fail_message")) and b.get("fail_message") == a.get("fail_message"))
+
+
 def rerun_problem(place, repo, suite: str, cases, named, *, name: str = "rerun", rev: str = "HEAD", shared=(),
-                  test_cmd: str = "") -> str:
+                  test_cmd: str = "", old_red=None) -> str:
     """組を親の作業ツリー repo へ当てた後の確かめ直しの問題の文（空なら通った。実行器 suite の無い run も空）。元
     works/blk-fix/lib/tddlanes.py:688-711 の _green_after（当てた単位の名指し全部と変更に直に関わる試験を 1 回走らせ、重なりの
     ファイルが在れば地図が届く試験の全部も足し、test_cmd の関門が on なら test_cmd も 1 回）を、組ごとの確かめにした物。
     1. 名指し named（前に戻せた組とこの組が赤 → 緑を確かめた名指し）が在れば先にそれだけを走らせ、実行器が走らない・名指しが結末に
-       居ない（0 件を含む）・緑でなければその文（_RunnerDown を戻す理由にした所）。
+       居ない（0 件を含む）・緑でなければその文（_RunnerDown を戻す理由にした所）。ただし直す前の結末 cases と照らして前から同じ形で
+       赤の名指し（same_red）は戻す理由にせず、「名指し（結末の語: 失敗の文）」の文を old_red（呼び手が渡した並び）に足す（#837）。
     2. 名指しの無い組（修正役だけが直した組）も、変えたファイルに当たる試験の新しい赤を tddloop.selected_problems で見る（元の
        結末 cases に無い赤は版 rev の写しで確かめる）。前に戻した組とも重なったファイル shared が在れば、それを起点に地図が届く
        試験の全部（tddloop._reached の direct_only 偽。地図が一式を求める時は足さない）を選びに足す（元 tddlanes.py:695-698）。
@@ -298,8 +311,14 @@ def rerun_problem(place, repo, suite: str, cases, named, *, name: str = "rerun",
         ran, _, why = baseline_red.run_suite(str(exe), repo, work, "named", tddloop._abs_ids(repo, named), only=True)
         if ran is None:
             return f"当てた後の木で名指しのテストを走らせられない（{'; '.join(why)}）"
-        hit = [c for t in named if (c := baseline_red.match_case(t, ran)) is not None]
-        probs = baseline_red.green_problems(named, hit, 0)
+        old = [t for t in named if same_red(t, cases, ran)]
+        for t in old if old_red is not None else ():
+            c = baseline_red.match_case(t, ran)
+            why = oneline.one_line(c.get("fail_message") or "")[:200]
+            old_red.append(f"{t}（{c['outcome']}{f': {why}' if why else ''}）")
+        rest = [t for t in named if t not in old]
+        hit = [c for t in rest if (c := baseline_red.match_case(t, ran)) is not None]
+        probs = baseline_red.green_problems(rest, hit, 0)
         if probs:
             probs = ["当てた後の木で名指しのテストが緑でない: " + "；".join(probs)]
     if not probs:
@@ -378,17 +397,20 @@ def join_group(repo, from_tree: str, end_tree: str, kept, *, union=(), check=Non
     return lanekit.Merge(why, str(kept), [], [], False, names)
 
 
-def join_rows(groups, outcomes, backed_out=None, unrestored=None) -> tuple:
+def join_rows(groups, outcomes, backed_out=None, unrestored=None, old_red=None) -> tuple:
     """(組の行 [{group_id, unit_ids, returned, reason, backed_out?, unrestored?}], 単位の行 [{unit_id, group_id, status, reason}])
     （返す節の約束の形）。outcomes は {group_id: (子の結果の dict か None, 戻せたか, 理由)}。戻せた組の単位は子の結果の status・reason
     （結果に無い単位・知らない status は not_done）、戻せなかった組・結果の無い組の単位は not_done と組の理由。backed_out は
     {group_id: 当ててから確かめ直しが赤か落ちて戻したパス}、unrestored は {group_id: 戻せず当たったままのパス}（lanekit.Merge の
-    同じ名の欄）で、在る組の行にだけ同じ名の欄を置く（報告と後の節が当てなかった組と分ける）。新しい（元の締めの結末の並べ。p3.lane_merge）"""
+    同じ名の欄）で、在る組の行にだけ同じ名の欄を置く（報告と後の節が当てなかった組と分ける）。old_red は {group_id: 確かめ直しで
+    前から同じ形で赤だったので戻す理由にしなかった名指しの文}（rerun_problem の old_red。#837）で、在る組の行にだけ同じ名の欄を置く。
+    新しい（元の締めの結末の並べ。p3.lane_merge）"""
     rows, units = [], []
     for g in groups:
         gid = g["group_id"]
         result, back, why = outcomes.get(gid, (None, False, NO_RESULT))
-        marks = {k: list(v) for k, given in (("backed_out", backed_out), ("unrestored", unrestored)) if (v := (given or {}).get(gid))}
+        marks = {k: list(v) for k, given in (("backed_out", backed_out), ("unrestored", unrestored), ("old_red", old_red))
+                 if (v := (given or {}).get(gid))}
         rows.append({"group_id": gid, "unit_ids": list(g["unit_ids"]), "returned": bool(back), "reason": str(why or ""), **marks})
         got = {u.get("unit_id"): u for u in (result or {}).get("units") or [] if isinstance(u, dict)} if back else {}
         for k in g["unit_ids"]:

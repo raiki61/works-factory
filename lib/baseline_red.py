@@ -207,12 +207,14 @@ NO_FAILURE = {"fail_message": "", "fail_text": ""}
 
 
 def _failure_attrs(text: str) -> dict:
-    """JUnit XML の testcase の鍵（_key）→ {fail_message, fail_text}（failure の子の message の属性と本文。同じ鍵は最初の行。
-    failure の子の無い行は載せない）。写しの parse_junit は属性を返さないので、同じ XML を ElementTree で読み直す（failure の
-    文を読む所はここ 1 か所）（元 works/blk-fix/lib/tddloop.py:339-349）"""
+    """JUnit XML の testcase の鍵（_key）→ {fail_message, fail_text}（結末の語の子——error の子が在ればそれ、無ければ failure の子——の
+    message の属性と本文。同じ鍵は最初の行。どちらの子も無い行は載せない）。写しの parse_junit は属性を返さないので、同じ XML を
+    ElementTree で読み直す（失敗の文を読む所はここ 1 か所）（元 works/blk-fix/lib/tddloop.py:339-349。error の子を読むのは #837 で
+    足した: 読み込めない試験の失敗の文を、直す前と当てた後で比べる）"""
     out = {}
     for tc in ET.fromstring(text).iter("testcase"):
-        f = tc.find("failure")
+        f = tc.find("error")
+        f = tc.find("failure") if f is None else f
         if f is not None:
             out.setdefault(_key({"classname": tc.get("classname") or "", "name": tc.get("name") or ""}),
                            {"fail_message": f.get("message") or "", "fail_text": f.text or ""})

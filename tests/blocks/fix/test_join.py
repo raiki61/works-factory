@@ -140,9 +140,9 @@ class Whole(unittest.TestCase):
                                            "start_tree": start_tree, "out_dir": str(out_dir)})
         return out_dir
 
-    def rerun_seed(self, files_, *, test_cmd=""):
-        """走らせ直しの種: files を commit し、実行器（tests/blocks/fix/support.py の SUITE）を values.json に置き、その実行器で
-        取った直す前の結末を place に置く。返りは始めの木"""
+    def rerun_seed(self, files_, *, test_cmd="", suite_text=None):
+        """走らせ直しの種: files を commit し、実行器（suite_text。既定は tests/blocks/fix/support.py の SUITE）を values.json に置き、
+        その実行器で取った直す前の結末を place に置く。返りは始めの木"""
         import baseline_red
         from tests.blocks.fix.support import SUITE
         for name, text in files_.items():
@@ -151,7 +151,7 @@ class Whole(unittest.TestCase):
         git(self.repo, "add", "-A")
         git(self.repo, "commit", "-qm", "走らせ直しの種")
         suite = self.tmp / "suite.py"
-        suite.write_text(SUITE, encoding="utf-8")
+        suite.write_text(suite_text or SUITE, encoding="utf-8")
         runvals.write(self.place, {"tdd_suite": str(suite), "test_cmd": test_cmd})
         cases, code, why = baseline_red.run_suite(str(suite), self.repo, self.tmp, "base")
         self.assertIsNotNone(cases, why)
@@ -493,6 +493,52 @@ class JoinCase(Whole):
                          "#382: 赤で戻した組は合わせのループの直し待ちに控える")
         self.assertEqual((sorted(row["names"]), row["shared"], row["why"]), (["b.py", "e.py"], ["e.py"], g2["reason"]))
         self.assertEqual(pathlib.Path(row["patch"]), self.place / "join" / "g2.diff")
+
+    def test_join_keeps_a_group_whose_named_test_was_red_the_same_way_before(self):
+        """#837: 名指しのテストが当てた後に error でも、直す前の結末で同じテストが同じ失敗の文の error だったなら
+        （board.same_red）、組を戻さず、組の行の old_red に「前から赤」として名指す。直す前に緑だった名指しが赤なら今と同じに戻す"""
+        from tests.blocks.fix.support import SUITE_WITH_MESSAGE
+        start = self.rerun_seed({
+            "a.py": "def cap(x):\n    return min(x, 11)\n",
+            "test_a.py": "import unittest\n\nfrom a import cap\n\n\nclass TestA(unittest.TestCase):\n"
+                         "    def test_cap(self):\n        self.assertEqual(cap(15), 10)\n\n"
+                         "    def test_env(self):\n        import no_such_module_837  # noqa: F401\n"},
+            suite_text=SUITE_WITH_MESSAGE)
+        base = json.loads((self.place / "baseline.json").read_text(encoding="utf-8"))["cases"]
+        env_row = next(c for c in base if c["name"] == "test_env")
+        self.assertEqual((env_row["outcome"], env_row["fail_message"]), ("error", "No module named 'no_such_module_837'"),
+                         "直す前から読み込めずに error")
+        t1 = self.tree_with({"a.py": "def cap(x):\n    return min(x, 10)\n"})
+        out_dir = self.groups_file([{"group_id": "g1", "unit_ids": ["A"], "items": [1]}], start)
+        write(out_dir / "g1" / "result.json", result("g1", ["A"], t1, start,
+                                                     verified=["test_a.py::TestA::test_cap", "test_a.py::TestA::test_env"]))
+        code, out, err = self.go("join")
+        self.assertEqual(code, 0, err)
+        self.assertEqual(out, {"groups": 1, "returned": 1}, self.joined())
+        g1, = self.joined()["groups"]
+        self.assertEqual(g1["reason"], "")
+        self.assertEqual(len(g1["old_red"]), 1, g1)
+        self.assertIn("test_env", g1["old_red"][0])
+        self.assertIn("min(x, 10)", (self.repo / "a.py").read_text(encoding="utf-8"), "組の直しは親の木に残る")
+
+    def test_join_still_backs_out_a_named_test_that_was_green_before(self):
+        """#837: 直す前に緑だった名指しが当てた後に赤なら、今と同じに組を戻す（old_red は持たない）"""
+        from tests.blocks.fix.support import SUITE_WITH_MESSAGE
+        start = self.rerun_seed({
+            "a.py": "def cap(x):\n    return min(x, 10)\n",
+            "test_a.py": "import unittest\n\nfrom a import cap\n\n\nclass TestA(unittest.TestCase):\n"
+                         "    def test_cap(self):\n        self.assertEqual(cap(15), 10)\n"},
+            suite_text=SUITE_WITH_MESSAGE)
+        t1 = self.tree_with({"a.py": "def cap(x):\n    return min(x, 12)\n"})
+        out_dir = self.groups_file([{"group_id": "g1", "unit_ids": ["A"], "items": [1]}], start)
+        write(out_dir / "g1" / "result.json", result("g1", ["A"], t1, start, verified=["test_a.py::TestA::test_cap"]))
+        code, out, err = self.go("join")
+        self.assertEqual(code, 0, err)
+        g1, = self.joined()["groups"]
+        self.assertFalse(g1["returned"], g1)
+        self.assertIn("test_cap", g1["reason"])
+        self.assertNotIn("old_red", g1)
+        self.assertIn("min(x, 10)", (self.repo / "a.py").read_text(encoding="utf-8"), "組の直しは戻す")
 
     def test_join_does_not_record_a_group_whose_recheck_raised(self):
         """#382: 確かめ直しそのものが落ちた組（board.CHECK_RAISED）は戻すが、合わせのループの直し待ちには控えない"""
@@ -1095,6 +1141,50 @@ class GroupBoardCase(unittest.TestCase):
                 self.assertEqual((got.names, got.backed_out, got.unrestored), ([], [], ["extra.py"]))
                 self.assertIn(board.UNRESTORED_HEAD, got.why)
                 self.assertIn("OSError: 書けない", got.why)
+
+    def test_same_red_is_one_yes_no_rule(self):
+        """#837（docs/design/fix.md の 18 節）: 名指しが「前から同じ形で赤」なのは、直す前と当てた後の両方の結末に名指しに当たる行が在り、
+        どちらも error で、失敗の文（fail_message）が空でなく同じ時だけ。failure は同じ文でも数えない（後の組が直しを壊して元の赤に
+        戻した物と見分けられない）"""
+        def row(outcome, message=""):
+            return {"classname": "test_a.TestA", "name": "test_x", "outcome": outcome, "fail_message": message}
+        t = "test_a.py::TestA::test_x"
+        y = "No module named 'yaml'"
+        self.assertTrue(board.same_red(t, [row("error", y)], [row("error", y)]))
+        no = [(row("failure", "m"), row("failure", "m")), (row("error"), row("error")), (row("passed"), row("error", y)),
+              (None, row("error", y)), (row("error", y), None), (row("error", y), row("error", "other")),
+              (row("failure", y), row("error", y)), (row("error", y), row("failure", y)), (row("skipped"), row("error", y)),
+              (row("error", y), row("passed"))]
+        for before, after in no:
+            with self.subTest(no=(before, after)):
+                self.assertFalse(board.same_red(t, [before] if before else [], [after] if after else []))
+        self.assertFalse(board.same_red(t, [{"outcome": "error", "fail_message": y}, "x"], [row("error", y)]), "形の崩れた元の行は当たらない")
+
+    def test_rerun_problem_does_not_blame_named_tests_red_the_same_way_before(self):
+        """#837: 確かめ直しで名指しが赤でも、直す前の結末 cases で同じ形の赤（same_red）なら戻す理由にせず old_red に名指す。
+        失敗の文が違う・直す前に緑・居ないなら、今と同じに戻す理由"""
+        exe = self.tmp / "fixed.py"
+        named = ["test_stats.py::TestStats::test_mean_of_three"]
+
+        def suite(message):
+            exe.write_text("import sys\nopen(sys.argv[1], 'w').write('<testsuite><testcase classname=\"test_stats.TestStats\" "
+                           f"name=\"test_mean_of_three\"><error message=\"{message}\">t</error></testcase></testsuite>')\n"
+                           "sys.exit(1)\n", encoding="utf-8")
+        base = [{"classname": "test_stats.TestStats", "name": "test_mean_of_three", "outcome": "error", "fail_message": "env"}]
+        suite("env")
+        kept = []
+        self.assertEqual(board.rerun_problem(self.place, self.repo, str(exe), base, named, name="same", old_red=kept), "")
+        self.assertEqual(len(kept), 1)
+        self.assertIn("test_mean_of_three", kept[0])
+        for label, cases, message in (("失敗の文が違う", base, "other"), ("直す前に緑", [{**base[0], "outcome": "passed"}], "env"),
+                                      ("直す前は failure", [{**base[0], "outcome": "failure"}], "env"),
+                                      ("直す前に居ない", [], "env")):
+            with self.subTest(label):
+                suite(message)
+                kept = []
+                got = board.rerun_problem(self.place, self.repo, str(exe), cases, named, name="other", old_red=kept)
+                self.assertIn("test_mean_of_three", got)
+                self.assertEqual(kept, [])
 
     def test_rerun_problem_is_empty_without_suite_or_names(self):
         self.assertEqual(board.rerun_problem(self.place, self.repo, "", [], ["t.py::x"]), "")

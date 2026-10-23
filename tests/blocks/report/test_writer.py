@@ -17,7 +17,12 @@ import rolekit  # noqa: E402  lib/
 W = M.writer
 REPLY = json.dumps({"text": "直した。\n\n## 1. 人が決めること\n\n無い", "terms": []}, ensure_ascii=False)
 PASS = json.dumps(base.GOOD_COLD)
-REDESIGN = json.dumps({"verdict": "redesign-needed", "stops": ["冒頭の 2 行目"], "guessed": [], "decidable": False}, ensure_ascii=False)
+REDESIGN = json.dumps({"verdict": "redesign-needed", "stops": ["冒頭の 2 行目"], "guessed": [], "machine_lines": [], "decidable": False},
+                      ensure_ascii=False)
+MACHINE_ONLY = json.dumps({"verdict": "redesign-needed", "stops": [], "guessed": [], "machine_lines": ["起きたこと の gate-before-fix"],
+                           "decidable": False}, ensure_ascii=False)
+MIXED = json.dumps({"verdict": "redesign-needed", "stops": ["要約の 1 行目"], "guessed": [], "machine_lines": ["起きたこと の gate-before-fix"],
+                    "decidable": False}, ensure_ascii=False)
 NODE = "report"
 
 
@@ -152,6 +157,17 @@ class ColdBodyCase(Base):
         self.assertIn("書き手の返答を読めない", W.cold_body("壊れた", place=self.out))
         self.assertIn("機械の報告の冒頭を読めない", W.cold_body(json.dumps({"text": "本文"}, ensure_ascii=False), place=self.out))
 
+    def test_parts_split_the_machine_lines_from_the_writer_text(self):
+        """初見の読み手に貼る本文は、機械が組んだ行と書き手の頭に分かれ、つなげると人に向けた報告の頭と同じ字"""
+        self.out.mkdir(parents=True)
+        (self.out / "report.md").write_text("# 報告\n\n起きたこと: 赤\n\n## 1. 人が決めること\n\n- 機械の行\n", encoding="utf-8")
+        reply = json.dumps({"text": "要約。\n\n## 1. 人が決めること\n\n- A"}, ensure_ascii=False)
+        machine, writer = W.cold_parts(reply, place=self.out)
+        self.assertEqual(machine, "# 報告\n\n起きたこと: 赤")
+        self.assertTrue(writer.startswith("要約。"), writer)
+        self.assertNotIn("起きたこと", writer)
+        self.assertEqual(W.cold_body(reply, place=self.out), f"{machine}\n\n{writer}\n")
+
     def test_handoff_never_reaches_the_cold_reader(self):
         self.out.mkdir(parents=True)
         (self.out / "report.md").write_text("# 報告\n", encoding="utf-8")
@@ -174,6 +190,26 @@ class AcceptCase(Base):
         self.assertIn(W.NOT_PASSED, third["reason"])
         self.assertTrue(self.ai()["not_passed"])
         self.assertEqual(self.ai()["rejects"]["report"]["cold"], 2)
+
+    def test_machine_lines_only_is_taken_without_a_rewrite(self):
+        """初見の読み手が止まったのが機械が組んだ行だけなら、1 回目でも書き手に書き直させずに受け取り、通さなかった印を残す"""
+        got = self.accept(cold=MACHINE_ONLY)
+        self.assertEqual((got["done"], got["ok"]), (True, True))
+        self.assertIn(W.MACHINE_ONLY, got["reason"])
+        self.assertIn("gate-before-fix", self.ai()["not_passed"])
+        self.assertTrue(self.ai()["machine_only"])
+        self.assertEqual(self.ai()["rejects"]["report"]["cold"], 0)
+
+    def test_writer_text_stop_with_machine_lines_still_rejects(self):
+        """書き手の本文にも止まった所が在れば書き直させ、機械が組んだ行の所は書き手に直せない物として分けて言う"""
+        got = self.accept(cold=MIXED)
+        self.assertEqual((got["done"], got["kind"]), (False, "cold"))
+        reason = (self.out / "rejects-report.md").read_text(encoding="utf-8")
+        self.assertIn("止まった所: 要約の 1 行目", reason)
+        self.assertIn(f"{W.MACHINE_LINE}: 起きたこと の gate-before-fix", reason)
+
+    def test_unreadable_verdict_is_not_machine_only(self):
+        self.assertEqual((self.accept(cold="壊れた")["done"]), False)
 
     def test_format_and_terms_rejected_first(self):
         bad_cell = json.dumps({"text": "| 項目 |\n|---|\n| 説明の文である。 |"}, ensure_ascii=False)
@@ -400,6 +436,14 @@ class CollectCase(Base):
         self.assertNotIn("出し直せ", human)
         [line] = [ln for ln in self.detail().splitlines() if W.NOT_PASSED in ln]
         self.assertTrue(line.startswith(f"{W.COLD_REJECTS_LINE} 2 回。{W.NOT_PASSED}"), line)
+
+    def test_machine_only_note_says_why_it_was_not_rewritten(self):
+        self.accept(cold=MACHINE_ONLY)
+        human = W.collect("# 報告\n\n起きたこと: 赤\n", place=self.out, stamp="run x").read_text(encoding="utf-8")
+        line = human.splitlines()[3]
+        self.assertTrue(line.startswith(W.plain_words(W.NOT_PASSED)[0]), human)
+        self.assertIn(W.plain_words(W.MACHINE_ONLY)[0], line)
+        self.assertNotIn("上限の", line)
 
     def test_not_passed_line_keeps_guesses_and_unreadable_verdict(self):
         guessed = json.dumps({"verdict": "redesign-needed", "stops": [], "guessed": ["語 X を推測"]}, ensure_ascii=False)
