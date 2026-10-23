@@ -38,7 +38,7 @@ sys.path.insert(0, str(TESTS))
 
 import auth_launch  # noqa: E402
 import claude_auth  # noqa: E402
-import hermetic  # noqa: E402
+from tests.bin import hermetic  # noqa: E402
 
 
 def _forbid_the_real_managed_dir(platform=None):

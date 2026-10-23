@@ -44,8 +44,8 @@ sys.dont_write_bytecode = True
 sys.path.insert(0, str(LIB))
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 import toolset  # noqa: E402
-import gitkit  # noqa: E402
-import hermetic  # noqa: E402
+from tests.bin import gitkit  # noqa: E402
+from tests.bin import hermetic  # noqa: E402
 import spseam  # noqa: E402
 from tests import archon  # noqa: E402
 from tests.bin import copyledger  # noqa: E402

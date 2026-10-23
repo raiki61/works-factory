@@ -140,7 +140,7 @@ class SameAsDiscoverTest(unittest.TestCase):
             tree(root, pkg, {"base.py": TEST_CASE.replace("class T", "class Base"), "test_one.py": reexport, "test_two.py": reexport})
             found = shard.suites(root)
             self.assertEqual(sorted(found), [f"{pkg}.test_one", f"{pkg}.test_two"])
-            self.assertEqual(sum(s.countTestCases() for s in found.values()), 2)
+            self.assertEqual(sum(s["count"] for s in found.values()), 2)
 
     def test_module_level_skip_is_a_skip(self):
         pkg = "shard_skip_pkg"
@@ -159,8 +159,52 @@ class SameAsDiscoverTest(unittest.TestCase):
             found = shard.suites(root)
             self.assertEqual(sorted(found), [f"{pkg}.test_import", f"{pkg}.test_ok", f"{pkg}.test_syntax"])
             record = root / "seconds.json"
-            self.assertEqual(run_quietly(found, record), 1)
+            stream = io.StringIO()
+            with contextlib.redirect_stderr(stream):
+                self.assertEqual(shard.run(found, record, 2), 1)
+            for name in (f"{pkg}.test_import", f"{pkg}.test_syntax"):
+                self.assertIn(f"ERROR: {name} (unittest.loader._FailedTest.{name})", stream.getvalue())
             self.assertEqual(sorted(json.loads(record.read_text(encoding="utf-8"))), sorted(found))
+
+
+class IsolationTest(unittest.TestCase):
+    def test_each_module_has_its_own_src_even_with_one_worker(self):
+        """同名の src と遅延 import は、収集の順にも子の再利用にも左右されない。"""
+        with tempfile.TemporaryDirectory() as tmp:
+            root = pathlib.Path(tmp)
+            for label in ("one", "two"):
+                src = root / label / "src"
+                src.mkdir(parents=True)
+                (src / "__init__.py").write_text("", encoding="utf-8")
+                (src / "value.py").write_text(f"VALUE = {label!r}\n", encoding="utf-8")
+            pkg = "shard_src_pkg"
+            files = {}
+            for label in ("one", "two"):
+                files[f"test_{label}.py"] = (
+                    "import sys, unittest\n"
+                    f"sys.path.insert(0, {str(root / label)!r})\n"
+                    "from src import value\n"
+                    "class T(unittest.TestCase):\n"
+                    "    def test_late(self):\n"
+                    "        from src.value import VALUE\n"
+                    f"        self.assertEqual(VALUE, {label!r})\n")
+            tree(root, pkg, files)
+            found = shard.suites(root)
+            for n in (1, 2):
+                with self.subTest(workers=n), contextlib.redirect_stderr(io.StringIO()):
+                    self.assertEqual(shard.run(found, None, n), 0)
+
+    def test_collection_does_not_import_tests_into_parent(self):
+        pkg = "shard_pollution_pkg"
+        with tempfile.TemporaryDirectory() as tmp:
+            root = pathlib.Path(tmp)
+            tree(root, pkg, {"test_unselected.py": "import builtins\nbuiltins.shard_polluted = True\n" + TEST_CASE,
+                            "test_selected.py": "import builtins\n" + TEST_CASE.replace("pass", "self.assertFalse(hasattr(builtins, 'shard_polluted'))")})
+            found = shard.suites(root)
+            self.assertNotIn(f"{pkg}.test_unselected", sys.modules)
+            self.assertFalse(hasattr(__import__("builtins"), "shard_polluted"))
+            selected = shard.pick(sorted(found), [f"{pkg}/test_selected.py"])
+            self.assertEqual(run_quietly({name: found[name] for name in selected}), 0)
 
 
 class RunExitTest(unittest.TestCase):
@@ -240,7 +284,7 @@ class WorkerTest(unittest.TestCase):
                 self.assertEqual(shard.run(found, None, 2), 1)
         out = stream.getvalue()
         self.assertIn(f"{pkg}.test_dies {shard.BROKEN}", out)
-        self.assertIn("BrokenProcessPool", out)
+        self.assertIn("ChildProcessError", out)
         self.assertRegex(out, r"Ran \d+ tests?")
         self.assertIn("FAILED", out)
 
@@ -286,7 +330,7 @@ class ScrubTest(unittest.TestCase):
         parent = {"WORKS_ANSWER_CMD": "sh respond", "CLAUDE_CONFIG_DIR": "/parent/config", "INPUTS_REPLY": "{}",
                   hermetic.ARCHON_CACHE_ENV: "/cache", hermetic.ARCHON_REQUIRED_ENV: "1"}
         with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()), \
-                mock.patch.dict(os.environ, parent), mock.patch.dict(hermetic._SCRUBBED):
+                mock.patch.dict(os.environ, parent), mock.patch.dict(hermetic._SCRUBBED, clear=True):
             shard.main(["--paths", "no/such/dir"])
             left = {k: os.environ.get(k) for k in parent}
             named = hermetic.inherited("CLAUDE_CONFIG_DIR", "WORKS_ANSWER_CMD", hermetic.ARCHON_CACHE_ENV)
@@ -295,11 +339,24 @@ class ScrubTest(unittest.TestCase):
         self.assertEqual(named, {"CLAUDE_CONFIG_DIR": "/parent/config", "WORKS_ANSWER_CMD": "sh respond",
                                  hermetic.ARCHON_CACHE_ENV: "/cache"})
 
+    def test_a_fresh_child_keeps_only_explicitly_inherited_scrubbed_values(self):
+        """別解釈系でも scrub の控えは同じ helper から読め、子の環境へは漏れない。"""
+        pkg = "shard_scrubbed_pkg"
+        with tempfile.TemporaryDirectory() as tmp:
+            root = pathlib.Path(tmp)
+            tree(root, pkg, {"test_env.py":
+                "import os, unittest\nfrom tests.bin import hermetic\nclass T(unittest.TestCase):\n"
+                "    def test_env(self):\n"
+                "        self.assertEqual(hermetic.inherited('ANTHROPIC_'), {'ANTHROPIC_API_KEY': 'fake'})\n"
+                "        self.assertNotIn('ANTHROPIC_API_KEY', os.environ)\n"})
+            with mock.patch.dict(hermetic._SCRUBBED, {"ANTHROPIC_API_KEY": "fake"}, clear=True):
+                self.assertEqual(run_quietly(shard.suites(root)), 0)
+
     def test_a_real_run_still_sees_its_flag_and_auth_by_name(self):
         """本物の役で回す試験の旗と認証は、過程の環境から外れても、その試験が名指しで引ける（子の環境には入らない）"""
         parent = {"WORKS_FACTORY_REAL_RUN": "1", "ANTHROPIC_API_KEY": "key"}
         with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()), \
-                mock.patch.dict(os.environ, parent), mock.patch.dict(hermetic._SCRUBBED):
+                mock.patch.dict(os.environ, parent), mock.patch.dict(hermetic._SCRUBBED, clear=True):
             shard.main(["--paths", "no/such/dir"])
             self.assertEqual(hermetic.inherited("WORKS_FACTORY_REAL_RUN", "ANTHROPIC_"), parent)
             self.assertFalse(set(parent) & set(hermetic.child_env()))
