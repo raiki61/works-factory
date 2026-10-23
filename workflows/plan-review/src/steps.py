@@ -384,6 +384,7 @@ def _plan_doc(d: pathlib.Path, repo, raw: dict, proposal: dict, defaults: list, 
     marked = copy.deepcopy(bare)
     bare, plan_marks = marks.split_plan(bare)
     rows = [r for r in bare.get("plan") or [] if isinstance(r, dict)]
+    row_marks = [m for r, m in zip(bare.get("plan") or [], plan_marks) if isinstance(r, dict)]
     # 6. 形 replan: 裁かれた項目と承認済みの案
     ruled, approved = [], None
     if form == "replan":
@@ -405,7 +406,7 @@ def _plan_doc(d: pathlib.Path, repo, raw: dict, proposal: dict, defaults: list, 
     if isinstance((prior or {}).get("plan"), list):
         record["plan"] = copy.deepcopy(prior["plan"])
     jsonfile.write(d / files.CONVERGE, record)
-    converge.note_plan(out, [planmarks.joined(r, f) for r, f in pairs])
+    converge.note_plan(out, [planmarks.joined(r, f) for r, f in pairs], marks=row_marks)   # 外した決め手の欄も添える（#849）
     if form == "plan" and answered:
         converge.note_answers(out, answered)
     jsonfile.write(d / files.PRECEDENT_CHECKS, copy.deepcopy((prior or {}).get("precedent_checks") or {}))

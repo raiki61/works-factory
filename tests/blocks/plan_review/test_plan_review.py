@@ -170,6 +170,20 @@ class IntakeCopyCase(_Case):
         self.assertTrue((self.run.artifacts / "plan-fields.json").is_file())
         self.assertIn('"op": "plan_fields_saved"', (self.run.artifacts / "trace.jsonl").read_text(encoding="utf-8"))
 
+    def test_record_rows_carry_the_split_marks(self):
+        """#849: 往復の記録の作業の写しの案の行 row は決め手の欄を外した審査の形のまま、外した欄を項目ごとに lib の converge.PLAN_MARKS に
+        添える（欄の名 "marks"。narrows の行と同じ並び。行に重ねると役の書いた narrows の行に戻る。修正案の受け付けが閉じた項目を役の書く形に戻す元）"""
+        narrow = {"what": "空の列の平均", "why": "例外にする", "decided_by": "依頼の引用", "no_narrow": "n" * 20}
+        items = [v.item(v.UNIT_MEAN, 1, narrows=[narrow, {"what": "負の値", "why": "弾く", "no_narrow": "m" * 20}]),
+                 v.item(v.UNIT_CLAMP, 2)]
+        got = self.run.intake(**self.run.plan_inputs(items))
+        self.assertTrue(got["due"], got)
+        plan = self.doc("plan-converge.json")["plan"]
+        self.assertEqual(plan[0]["row"]["narrows"], [{"what": "空の列の平均", "why": "例外にする"}, {"what": "負の値", "why": "弾く"}])
+        self.assertEqual([p.get("marks") for p in plan],
+                         [[{"decided_by": "依頼の引用", "no_narrow": "n" * 20}, {"no_narrow": "m" * 20}], []])
+        self.assertEqual([{**n, **m} for n, m in zip(plan[0]["row"]["narrows"], plan[0]["marks"])], items[0]["narrows"])
+
     def test_fields_count_apart_from_plan_rows_fails(self):
         inputs = self.run.plan_inputs()
         inputs["fields"] = v.dump(v.fields_doc(v.item(v.UNIT_MEAN)))

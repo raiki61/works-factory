@@ -151,9 +151,10 @@ def save(folder, k: int, plan: dict, fields: list, bare: dict, *, amended=None, 
 
 # ---------------------------------------------------------------- 往復の記録
 def bare_record(record: dict) -> dict:
-    """往復の記録 record の写しで、案の行 row から機械が足した欄（rewrite_tests の各行の範囲 limit。planmarks.split が欄の行に足し、
-    事前審査が planmarks.joined で row に重ねた物）を外し、hash を外した row で付け直した物（#845）。閉じた項目を差し込む・前のまま
-    書いた閉じた項目を見分ける・出し直しの控えに書く行を、役が書く形に揃える（役の書いた欄の照らしは緩めない）"""
+    """往復の記録 record の写しで、案の行 row を役が書く形に戻し、hash を戻した row で付け直した物。閉じた項目を差し込む・前のまま
+    書いた閉じた項目を見分ける・出し直しの控えに書く行を、役が書く形に揃える（役の書いた欄の照らしは緩めない）。row は事前審査が
+    planmarks.joined で欄の行を重ね、narrows の行の決め手の欄を外した物なので、機械が足した欄（rewrite_tests の各行の範囲 limit。
+    planmarks.split が欄の行に足す。#845）を外し、事前審査が converge.PLAN_MARKS に添えた決め手の欄を narrows の行に戻す（#849）"""
     out = copy.deepcopy(record)
     for it in out.get("plan") or []:
         row = it.get("row") if isinstance(it, dict) else None
@@ -163,6 +164,9 @@ def bare_record(record: dict) -> dict:
         for r in rewrites if isinstance(rewrites, list) else []:
             if isinstance(r, dict):
                 r.pop("limit", None)
+        narrows, marks = row.get("narrows"), it.get(converge.PLAN_MARKS)
+        if isinstance(narrows, list) and isinstance(marks, list):
+            row["narrows"] = [gatemarks.joined(n, m) if isinstance(n, dict) else n for n, m in zip(narrows, marks)] + narrows[len(marks):]
         it["hash"] = converge.item_hash(row)
     return out
 
