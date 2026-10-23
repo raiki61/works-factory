@@ -110,10 +110,8 @@ def compute() -> dict:
 
 
 def fallback(reason: str) -> dict:
-    from src import guard
-    return {"done": True, "ok": False, "status": "failed", "round": 0, "plan_prior": None, "record": None, "plan": None, "fix_plan": None,
-            "reply": None, "handoffs": [], "ripple": None, "owed": [], "gave_up": None, "stalled": False, "capped": False, "review": None,
-            "asks": [], "deviations": [], "review_status": "", "review_reason": "", "stop_reason": guard.LINE_SCRIPT}
+    from src import talk
+    return talk.failed()   # 計画ができなかった形（設計の相談の design-talk も plan-out が飛んだ周にこの形を返す。1 か所）
 
 
 ports.run(compute, fallback)

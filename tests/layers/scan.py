@@ -1186,7 +1186,10 @@ def _gate_words(root: Path) -> list[str]:
     """関所は wait: の attention を form: select で書き、options に答えの語（lib/answer.py の GO_WORDS・STOP_WORDS。STOP_WORDS は
     REJECT を含む）を全部持つ（K10。止めた Archon は options に無い答えを拒み、run は関所で止まったまま。実測 2026-10-16）。
     approval: は書かない（止めた Archon が非推奨にした。packages/workflows/src/loader.ts の LEGACY_PAUSE_REPLACEMENTS）。
-    輪（loop_group）の本体に関所を置かない（K18。本体が関所で終わる輪の再開は会話を引き継がない。元 works/tests/test_yaml_rules.py 43-45 行）"""
+    輪（loop_group）の本体に置く関所は、本体の唯一の終わり（本体のどの節もその関所に依らず、ほかの本体の節はどれもほかの本体の節に
+    依られる）だけで、輪の until_bash はその関所の出力（`$<関所>.output`）を読まない（K18。止めた Archon a972888a の正式な形
+    「Pausing to ask inside the body」: 答えは次の周の頭が $LOOP_PREV で読み、when: で飛んだ関所は出力を持たないので、until_bash が読むと
+    輪が落ちる。ほかの置き場は止めた Archon が読み込みで誤りにする。持ち主の決め dialogue-gate-in-loop。元は本体に関所を置かない決まり）"""
     out = []
     for path in _workflow_yamls(root):
         rel = _rel(root, path)
@@ -1194,9 +1197,11 @@ def _gate_words(root: Path) -> list[str]:
         out += broken
         for document in documents:
             for node in _nodes(document):
-                for inner in getattr(_top(_top(node, "loop_group"), "nodes"), "value", []):
+                group = _top(node, "loop_group")
+                body = getattr(_top(group, "nodes"), "value", [])
+                for inner in body:
                     if _human_gate(inner):
-                        out.append(f"{rel}:{_line(inner)}: 輪の本体に関所 {getattr(_top(inner, 'id'), 'value', '?')} を置いた")
+                        out += _gate_in_body(rel, inner, body, getattr(_top(group, "until_bash"), "value", "") or "")
                 ident = getattr(_top(node, "id"), "value", "?")
                 if _top(node, "approval") is not None:
                     out.append(f"{rel}:{_line(node)}: 関所 {ident} を非推奨の approval: で書く（wait: の attention で書く）")
@@ -1210,6 +1215,20 @@ def _gate_words(root: Path) -> list[str]:
                 for word in answer.GO_WORDS + answer.STOP_WORDS:
                     if word not in words:
                         out.append(f"{rel}:{_line(node)}: 関所 {ident} の options に {word} が無い")
+    return out
+
+
+def _gate_in_body(rel: str, gate, body: list, until: str) -> list[str]:
+    """輪の本体の関所 gate の置き場の問題の行（本体の唯一の終わりでない・until_bash がその出力を読む）"""
+    ident = getattr(_top(gate, "id"), "value", "?")
+    ids = [getattr(_top(n, "id"), "value", None) for n in body]
+    depended = {getattr(d, "value", None) for n in body for d in getattr(_top(n, "depends_on"), "value", []) or []}
+    sinks = [i for i in ids if i not in depended]
+    out = []
+    if sinks != [ident]:
+        out.append(f"{rel}:{_line(gate)}: 輪の本体の関所 {ident} が本体の唯一の終わりでない（依られない節: {', '.join(map(str, sinks))}）")
+    if f"${ident}.output" in until:
+        out.append(f"{rel}:{_line(gate)}: 輪の until_bash が本体の関所 {ident} の出力を読む（when: で飛んだ関所は出力を持たず、輪が落ちる）")
     return out
 
 

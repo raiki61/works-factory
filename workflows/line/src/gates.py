@@ -16,7 +16,8 @@ lib/boardview.py の方針の文書の変化（policy_change・change_row）と 
 - design_only(doc)・request_answers(doc): 始めの記録の dict から、設計だけの run か・依頼が先に持っていた答え（元 gatemarks の
   startrec.read の道）
 - AXES・gather(asks, deviations, design_rows) -> {軸: {ok, note}}: 4 つの軸（元 gate_axes.gather。軸ごとの訳は事前審査の返りの行の why）
-- before_fix(...): 修正前の承認ノード（2 節の 2）の決め（返り {open, go, stop_reason, items, deferred, asked, pushed, passes, policy_changed}）
+- before_fix(...): 修正前の承認ノード（2 節の 2）の決め（返り {open, go, stop_reason, items, deferred, asked, pushed, passes, policy_changed}）。
+  対話モードの run は設計の相談の承認ノード（TALK_GATE）の合意 agreed を受け、合意した行を聞き直さない
 - replan_rows(...)・replan(...): 案の直しの承認ノード（2 節の 3）の「聞くか」と項目の行
 - policy_change(record, cwd, folder)・change_row(ch): 固めた方針の文書と今の文書の版の比べ（元 boardview）
 - path_of(value)・read_json(path): pointer かパスの値をファイルのパスに・ファイルの JSON
@@ -288,16 +289,30 @@ def _ask_kind(q) -> str:
     return gatemarks.ASK_KINDS[0] if q.get("kind") == "fork" else gatemarks.ASK_KINDS[1]
 
 
+TALK_GATE = "gate-design"   # 設計の相談の承認ノードの id（対話モードの run の計画の往復の末尾。src/talk.py）。人がそこで止めた止めの理由の後ろ
+
+
 def before_fix(rounds: dict | None, *, unattended_run: bool, design: bool, ledger=None, design_rows_=(), policy_row: str = "",
-               stuck_reason: str = "", record_doc: dict | None = None, answered=(), unread=()) -> dict:
+               stuck_reason: str = "", record_doc: dict | None = None, answered=(), unread=(), agreed: dict | None = None) -> dict:
     """修正前の承認ノードの決め。rounds は計画の往復の受け皿の got（plan-out の返りの欄）、ledger は問いの台帳の値の見え方
     （gatemarks.ledger。判定が無ければ None）、design_rows_ は構造の目の設計の行、policy_row は方針の文書の変化の行（変わっていなければ
     空）、stuck_reason は止まった往復の理由（止まっていなければ空）、record_doc は往復の記録（止まりの行の推しの尾を読む）、answered は
     同じ承認ノードの前の答え（resume で回し直した時に、continue で通した同じ文を聞き直さない）、unread は指す先が無いか読めない控えの訳
     （判定・結び・素材の状態・構造の目・往復の記録。読めないまま修正へ進めず、UNREAD_KIND の行で開く）。
+    agreed は対話モードの run で人が設計の相談の承認ノード（TALK_GATE）に返した最後の答え {decision, text, asked}（ほかの run は None）:
+    止める語なら開かずに止め（止めの理由 human:gate-design）、通す語なら、その関所で見せた行（asked）を通した答えとして読み、設計だけの
+    行を足さない（必ず開く役目は設計の相談の承認ノードが果たした。合意した同じ承認を聞き直さない）。止まった往復と方針の文書の変化に合意した
+    答えは、修正へ進めて方針を固め直す（policy_changed）。合意の後に新しく出た行（読めない控え・変わった方針の文書など）は今どおり開く。
     返り {open, go, stop_reason, items: [(種類, 文)], deferred, asked, pushed, passes, policy_changed}"""
     closed = {"open": False, "go": False, "stop_reason": "", "items": [], "deferred": [], "asked": [], "pushed": None, "passes": [],
               "policy_changed": False}
+    if isinstance(agreed, dict) and agreed.get("decision") not in answer.GO_WORDS:   # 止めた（往復の上限で設計し直せなかった時は往復の止めの語）
+        capped = agreed.get("decision") == answer.REVISE and (rounds or {}).get("stop_reason")
+        return {**closed, "stop_reason": str(capped) if capped else stopby.HUMAN + TALK_GATE}
+    agreed = agreed if isinstance(agreed, dict) else None
+    if agreed is not None:
+        design, answered = False, [*answered, agreed]
+    agreed_policy = bool(agreed and policy_row and _continued([agreed], policy_row))
     if not isinstance(rounds, dict) or rounds.get("status") == "nothing_owed":
         return closed   # 計画ができていない・直す義務 0 件の周は開かず、修正へも進まない（直す物が無い周の印は fix-in が持つ）
     stalled = bool(rounds.get("stalled"))
@@ -357,10 +372,12 @@ def before_fix(rounds: dict | None, *, unattended_run: bool, design: bool, ledge
         for key, axis in gather(kept_asks, kept_devs, ups).items():
             if not axis["ok"]:
                 items.append((AXIS_KIND, f"{AXIS_WORDS[key]}（{key}）の軸が通らない: {axis['note'] or '（訳が無い）'}"))
-    changed = any(kind == POLICY_CHANGED for kind, _ in items)
+    changed = any(kind == POLICY_CHANGED for kind, _ in items) or agreed_policy
     if not items:
-        # 諦めた・落ちた事前審査の行を前に continue で通した run（resume）は、計画のまま修正へ進む
-        return {**closed, "go": rounds.get("ok") is True or bool(fell), "deferred": deferred, "passes": passes}
+        # 諦めた・落ちた事前審査の行を前に continue で通した run（resume）は、計画のまま修正へ進む。設計の相談で止まった往復に合意した
+        # run も、計画のまま修正へ進む
+        go = rounds.get("ok") is True or bool(fell) or (agreed is not None and stalled)
+        return {**closed, "go": go, "deferred": deferred, "passes": passes, "policy_changed": changed}
     texts = [text for _, text in items]
     if unattended_run:
         got = passage(texts, row_push)

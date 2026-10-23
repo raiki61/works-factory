@@ -5,7 +5,7 @@ fixture:
   inputs: {"request": ".archon/workflows/works-factory/line/fixtures/request.json", "unattended": "true"}
   reached: ["ask-before-fix", "answer-before-fix", "report__finish"]
 exec-code: true
-ask-before-fix: {"open": false, "go": false, "stop_reason": "works:needs-human", "text": "", "deferred": [], "asked": [], "pushed": null, "passes": [], "policy_changed": true}
+ask-before-fix: {"open": false, "go": false, "stop_reason": "works:needs-human", "text": "", "deferred": [], "asked": [], "pushed": null, "passes": [], "policy_changed": true, "agreed": null}
 independent-design__finish: {"ok": true, "status": "ok", "stands": true, "design": {"type": "archon_artifact", "run_id": "dry-run", "path": "plan-review/design.json"}, "premises": null, "reason": "", "downgrades": [], "report": []}
 independent-design__intake: {"due": false, "status": "", "reason": ""}
 judge__consistency-bypass-run__finish: {"ok": true, "status": "skipped", "reason": "", "material": {"type": "archon_artifact", "run_id": "dry-run", "path": "consistency-bypass-run/material.json"}, "report": ["観点 consistency-bypass: skipped"]}

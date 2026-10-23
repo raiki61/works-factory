@@ -1,5 +1,5 @@
 name: works-factory-line
-description: '工場のメイングラフ（docs/design/line.md の 1〜11 章）。修正依頼か差分を受け、block を include で並べて直しを作り、承認ノード 4 つで人に見せ、差分を封じて置き、どの道でも報告を出す。判定と独立の目はそれぞれ 1 つの include（judge と eyes の graph）で呼ぶ。line が持つのは流れだけ: どの block をいつ回すか・承認ノードと無人の方針・計画の往復の記録と止め・一度だけの include（案の直し・2 度目の修正・再審・修正の後の並行 PR の確かめ直し）・深さの表と 1 回の上げ直し・始めの記録（block には port の値で配る）・報告への受け渡し。AI の node は持たない'
+description: '工場のメイングラフ（docs/design/line.md の 1〜11 章）。修正依頼か差分を受け、block を include で並べて直しを作り、承認ノード 4 つ（対話モードの run は計画の往復の末尾の設計の相談の承認ノードも）で人に見せ、差分を封じて置き、どの道でも報告を出す。判定と独立の目はそれぞれ 1 つの include（judge と eyes の graph）で呼ぶ。line が持つのは流れだけ: どの block をいつ回すか・承認ノードと無人の方針・計画の往復の記録と止め・一度だけの include（案の直し・2 度目の修正・再審・修正の後の並行 PR の確かめ直し）・深さの表と 1 回の上げ直し・始めの記録（block には port の値で配る）・報告への受け渡し。AI の node は持たない'
 inputs:
   request: {default: '', description: 'file: 修正依頼のファイル（findings の JSON の配列か {findings, pr, issue, answers, prior_failures, constraints} の形）。相対なら対象の根から。依頼の行か差分の少なくとも 1 つが要る'}
   base: {default: '', description: 'text: 差分の根を名指す版（枝・タグ・commit）。差分の根は base と HEAD の merge-base。pr と一緒には名指さない'}
@@ -9,7 +9,7 @@ inputs:
   tdd_suite: {default: '', description: 'text: テストの実行器（JUnit XML の書き先を第 1 引数に受ける実行ファイル。対象の根から）。空なら直す前のテストの後に、同じ test_cmd で前に照らしを通った取り置きを使い、無ければ AI の手番 1 回が test_cmd と CI の定義から書く。走らせて JUnit XML が出て試験が 1 件以上の時だけ修正の段の TDD のループを回す'}
   final_gate: {default: '', description: 'text: 最後の承認ノードの開き方。always（空の既定。無人の run の空の既定は when_needed）・when_needed・protected_only。守りのパスの当たりと申し出はどれでも開く'}
   unattended: {default: '', description: 'text: 無人の run か（空か true）。true は人が答えない run で、台帳の問いは承認ノードに載せず（判定の推しつきの分かれ道の問いは推しを答えに採って直す義務に戻し）、承認ノードを開くはずの時は項目の全部の推しが通すならその推しで進み、そうでなければ開かずに止める（needs-human）'}
-  design_only: {default: '', description: 'text: 設計だけの run か（空か true）。true は修正前の承認ノードを必ず開く'}
+  design_only: {default: '', description: 'text: 対話モード（設計を人と相談する run）か（空か true）。true で無人でない run は、計画の往復が止まる周ごとに設計案と事前審査の結果を設計の相談の承認ノードで見せ、修正要望（revise と一言）なら設計し直して事前審査をやり直し、合意なら修正前の承認ノードで聞き直さずに修正へ進む。無人の run の true は修正前の承認ノードを必ず開く（開けずに止まる）'}
   thickness: {default: '', description: 'text: 手厚さ（深さ）。空・自動は機械が単位ごとに決める。軽量・標準は全部の単位をその深さに固定する。重厚は単位を標準に固定する。段ごとに省く物・足す物は docs/design/line.md の 5.1 の表'}
   features_off: {default: '', description: 'text: 切る機能（語をカンマか空白で区切った 1 行。語と既定は lib/entry.py の FEATURES・FEATURE_DEFAULTS）。知らない語は start が止める'}
   features_on: {default: '', description: 'text: 入れる機能（features_off と同じ語）。features_off と同じ語を名指せば start が止める'}
@@ -341,22 +341,51 @@ nodes:
         reason: {type: [string, 'null']}
         premises: {type: [object, 'null']}
         stop_reason: {type: string}
-  # 8 計画の往復（docs/design/line.md の 3 節）。本体に承認ノードと AI の node を直に置かない。止め時は plan-out が決める
+  # 8 計画の往復（docs/design/line.md の 3 節）。本体に AI の node を直に置かない。止め時は plan-out が決め、往復の返りは design-talk。
+  # 対話モードの run（design_only で無人でない）だけ、止まる周に本体の唯一の終わりの関所 gate-design で設計を相談する（3.1 節。答えは
+  # 次の周の頭の design-turn が読む。until_bash は飛びうる関所の出力を読まない）。通常の run は関所がいつも飛び、往復は今と同じ
   - id: plan-rounds
-    depends_on: [judge, owed, structure-in, design-in, tiers]
+    depends_on: [judge, judge-out, owed, structure-in, design-in, tiers]
     when: "$judge.output.ready == true && $owed.output.stop_reason == '' && $structure-in.output.stop_reason == '' && $tiers.output.stop_reason == ''"
     loop_group:
-      max_iterations: 20
-      until_bash: 'done=$plan-out.output.done; [ "$done" = "true" ]'
+      max_iterations: 22   # 往復の安全の上限 rounds.LIMIT（20）と、一言の空の revise で聞き直す周 talk.EMPTY_LIMIT（2）
+      until_bash: 'done=$design-talk.output.done; [ "$done" = "true" ]'
       nodes:
+        - id: design-turn
+          script: design_turn
+          runtime: uv
+          mutates_checkout: false
+          with:
+            answer: "$LOOP_PREV.gate-design.output"
+            previous: "$LOOP_PREV.design-talk.output"
+            last: "$LOOP_PREV.design-turn.output"
+            ports: "$start.output.ports"
+            recorded: "$owed.output.recorded"
+          output_format:
+            type: object
+            additionalProperties: false
+            required: [plan, answer, plan_prior, record, answers, recorded, asks, talks, stop_reason, reason]
+            properties:
+              plan: {type: boolean}
+              answer: {type: [object, 'null']}
+              plan_prior: {type: [object, string]}
+              record: {type: [object, string]}
+              answers: {type: array}
+              recorded: {type: array}
+              asks: {type: array}
+              talks: {type: array}
+              stop_reason: {type: string}
+              reason: {type: string}
         - id: plan
           include: works-factory-plan
+          depends_on: [design-turn]
+          when: "$design-turn.output.plan == true"
           with:
             judgment: "$judge.output.judgment"
             units: "$judge.output.units"
             answer_ties: "$judge.output.answer_ties"
             materials: "$judge.output.materials"
-            answers: "$start.output.ports.request_answers"
+            answers: "$design-turn.output.answers"
             takes_push: "$start.output.ports.takes_push"
             verify: "$judge.output.verify"
             excluded: "$judge.output.excluded"
@@ -367,7 +396,7 @@ nodes:
             spec: "$judge.output.spec"
             policy: "$start.output.ports.policy"
             prior_failures: "$start.output.ports.prior_rows"
-            prior: "$LOOP_PREV.plan-out.output.plan_prior"
+            prior: "$design-turn.output.plan_prior"
             ruling: "[]"
             base: "$start.output.ports.base_rev"
             review_rev: "$start.output.ports.review_rev"
@@ -388,11 +417,11 @@ nodes:
             means: "$judge.output.means"
             structure: "$structure-in.output.structure"
             ripple: "$plan.output.ripple"
-            prior: "$LOOP_PREV.plan-out.output.record"
+            prior: "$design-turn.output.record"
             tree: "$tiers.output.tree"
             excluded: "$judge.output.excluded"
             policy: "$start.output.ports.policy"
-            recorded: "$owed.output.recorded"
+            recorded: "$design-turn.output.recorded"
             request: "$start.output.ports.request_file"
             review_rev: "$start.output.ports.review_rev"
             diff_base: "$start.output.ports.base"
@@ -406,14 +435,14 @@ nodes:
           with:
             plan: "$plan.output"
             review: {from: "$plan-review-run.output", if_skipped: null}
-            prior: "$LOOP_PREV.plan-out.output.record"
+            prior: "$design-turn.output.record"
             unattended: "$start.output.ports.unattended"
           output_format:
             type: object
             additionalProperties: false
             required: [done, ok, status, round, plan_prior, record, plan, fix_plan, reply, handoffs, ripple, owed, gave_up, stalled, capped,
                        review, asks, deviations, review_status, review_reason, stop_reason]
-            properties:
+            properties: &plan_out_props
               done: {type: boolean}
               ok: {type: boolean}
               status: {type: string}
@@ -435,13 +464,48 @@ nodes:
               review_status: {type: string}
               review_reason: {type: string}
               stop_reason: {type: string}
+        # 往復の返り（本体の唯一の終わりの関所が依る node）。plan-out の欄と設計の相談の欄。plan-out が飛ぶ周（答えた後の周）も走る
+        - id: design-talk
+          script: design_talk
+          runtime: uv
+          mutates_checkout: false
+          depends_on: [design-turn, plan-out]
+          trigger_rule: none_failed_min_one_success
+          with:
+            turn: "$design-turn.output"
+            plan_out: {from: "$plan-out.output", if_skipped: null}
+            previous: "$LOOP_PREV.design-talk.output"
+            structure: "$structure-in.output.structure"
+            judge: "$judge-out.output.got"
+            record: "$start.output.record"
+            ports: "$start.output.ports"
+          output_format:
+            type: object
+            additionalProperties: false
+            required: [done, ok, status, round, plan_prior, record, plan, fix_plan, reply, handoffs, ripple, owed, gave_up, stalled, capped,
+                       review, asks, deviations, review_status, review_reason, stop_reason, open, text, asked, agreed, talks]
+            properties:
+              <<: *plan_out_props
+              open: {type: boolean}
+              text: {type: string}
+              asked: {type: array, items: {type: string}}
+              agreed: {type: [object, 'null']}
+              talks: {type: array}
+        # 設計の相談の関所（本体の唯一の終わり。docs/design/line.md の 3.1 節）。対話モードの run の止まる周だけ開く。revise は設計し直し
+        - id: gate-design
+          depends_on: [design-talk]
+          when: "$design-talk.output.open == true"
+          wait:
+            attention: "$design-talk.output.text"
+            form: select
+            options: [{id: approve}, {id: continue}, {id: stop}, {id: reject}, {id: revise}]
   - id: plan-rounds-out
     <<: *receiver
     depends_on: [plan-rounds]
     with:
       got: "$plan-rounds.output"
       names: "done ok status round plan_prior record plan fix_plan reply handoffs ripple owed gave_up stalled capped review asks deviations
-        review_status review_reason stop_reason"
+        review_status review_reason stop_reason open text asked agreed talks"
   # 9 修正前の承認ノード（docs/design/line.md の 2 節の 2）。軸・項目・聞かずに通した行は line が組む
   - id: ask-before-fix
     # 本体はここ 1 か所。仕様駆動の run の spec-ask-before-fix は <<: *ask_before_fix で受ける
@@ -452,7 +516,7 @@ nodes:
       output_format:
         type: object
         additionalProperties: false
-        required: [open, go, stop_reason, text, deferred, asked, pushed, passes, policy_changed]
+        required: [open, go, stop_reason, text, deferred, asked, pushed, passes, policy_changed, agreed]
         properties:
           open: {type: boolean}
           go: {type: boolean}
@@ -464,6 +528,7 @@ nodes:
           pushed: {type: [object, 'null']}
           passes: {type: array}
           policy_changed: {type: boolean}
+          agreed: {type: [object, 'null']}
     depends_on: [plan-rounds-out, judge-out, structure-in]
     with:
       rounds: "$plan-rounds-out.output.got"
@@ -505,6 +570,7 @@ nodes:
       asked: "$ask-before-fix.output.asked"
       pushed: "$ask-before-fix.output.pushed"
       policy_changed: "$ask-before-fix.output.policy_changed"
+      agreed: "$ask-before-fix.output.agreed"
       record: "$start.output.record"
       ports: "$start.output.ports"
   # 9.5 仕様駆動の道（docs/design/spec-driven.md の 6.2 の足す node の 3〜11）。判定の役と計画の部品を 1 回ずつ通し、仕様とリポジトリの
@@ -625,6 +691,7 @@ nodes:
       asked: "$spec-ask-before-fix.output.asked"
       pushed: "$spec-ask-before-fix.output.pushed"
       policy_changed: "$spec-ask-before-fix.output.policy_changed"
+      agreed: "$spec-ask-before-fix.output.agreed"
       record: "$start.output.record"
       ports: "$start.output.ports"
   # 10 修正の段へ運ぶ値を 1 か所に集める（docs/design/line.md の 4.1・5.2）。修正から後ろの node は判定・構造の目・独立設計・計画の値をここから読む

@@ -2,7 +2,8 @@
 
 - 全部の graph と block の承認ノードが `wait:` の `attention` で `form: select` を持ち、`options` に `lib/answer.py` の答えの語（`GO_WORDS`・`STOP_WORDS`。`STOP_WORDS` は `REJECT` を含む）を全部持つ（止めた Archon は `options` に無い答えを拒み、run は承認ノードで止まったまま）。
 - `approval:` のノードが無い。どのグラフも頭に `interactive` を書かない（止めた Archon は読み込みで非推奨の警告を出し、効かない）。
-- ループ（`loop_group`）の本体に承認ノードが無い（本体が承認ノードで終わるループの再開は会話を引き継がない）。
+- ループ（`loop_group`）の本体の承認ノードは本体の唯一の終わりだけで、ループの `until_bash` はその出力を読まない（止めた Archon の正式な形。
+  ほかの置き場は読み込みの誤り、飛んだ関所の出力を読む `until_bash` は輪を落とす。持ち主の決め `dialogue-gate-in-loop`）。
 - include されるグラフ（block と、メイングラフと周の鎖のほかの graph）は頭に `worktree`・`container`・`evidence_policy`・`mutates_checkout` を書かない（一番上のグラフ〔メイングラフ・周の鎖〕は書いてよい）。
 - 筋書きの stub は `workflow test` が照らす（答えの stub の無い承認ノードで止まると赤）。並べ（`fan_out:`）の形は人が見る。
 """
@@ -91,10 +92,29 @@ class GatesTest(unittest.TestCase):
         self.assertEqual(len(got), 1, got)
         self.assertIn("approval:", got[0])
 
+    def test_gate_as_the_sole_end_of_a_loop_body_is_green(self):
+        """止めた Archon の正式な形: 本体の唯一の終わりの関所（答えは次の周の頭が $LOOP_PREV で読む）"""
+        head = "  - id: head\n    bash: 'true'\n"
+        gate = GATE.replace("    wait:", "    depends_on: [head]\n    when: \"$head.output == 'x'\"\n    wait:", 1)
+        self.assertEqual(self.problems({LINE: "name: works-factory-line\nnodes:\n" + in_loop(head + gate)}), [])
+
     def test_gate_inside_a_loop_body_is_red(self):
-        got = self.problems({LINE: "name: works-factory-line\nnodes:\n" + in_loop(GATE)})
+        """関所の後ろに節が在る・関所のほかにも終わりの節が在る本体は赤"""
+        after = "  - id: after\n    bash: 'true'\n    depends_on: [g]\n"
+        got = self.problems({LINE: "name: works-factory-line\nnodes:\n" + in_loop(GATE + after)})
         self.assertEqual(len(got), 1, got)
-        self.assertIn("輪の本体に関所 g", got[0])
+        self.assertIn("輪の本体の関所 g が本体の唯一の終わりでない", got[0])
+        beside = "  - id: beside\n    bash: 'true'\n"
+        got = self.problems({LINE: "name: works-factory-line\nnodes:\n" + in_loop(beside + GATE)})
+        self.assertEqual(len(got), 1, got)
+        self.assertIn("依られない節: beside, g", got[0])
+
+    def test_until_bash_reading_the_body_gate_is_red(self):
+        """when: で飛んだ関所は出力を持たないので、until_bash が読むと輪が落ちる（止めた Archon の説明書 loop-nodes.md）"""
+        loop = in_loop(GATE).replace("      nodes:\n", "      until_bash: 'd=$g.output.decision; [ \"$d\" = approve ]'\n      nodes:\n", 1)
+        got = self.problems({LINE: "name: works-factory-line\nnodes:\n" + loop})
+        self.assertEqual(len(got), 1, got)
+        self.assertIn("until_bash が本体の関所 g の出力を読む", got[0])
 
     def test_gate_seeds_are_one_violation_each(self):
         """違反の見本（tests/layers/seeds/k10・k18）は 1 本 1 違反"""

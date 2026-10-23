@@ -293,8 +293,14 @@ def residue(returns: dict, facts: dict) -> list:
 # ---------------------------------------------------------------- 止め・人待ち・切れ目・証
 def gates_of(values: dict) -> dict:
     """承認ノードの答え {承認ノード: {decision, text, …} | None}"""
-    return {at: as_dict(values.get(name)).get("answer") if isinstance(as_dict(values.get(name)).get("answer"), dict) else None
-            for at, name in GATES}
+    out = {at: as_dict(values.get(name)).get("answer") if isinstance(as_dict(values.get(name)).get("answer"), dict) else None
+           for at, name in GATES}
+    import answer
+    talked = as_dict(values.get("ask_before_fix")).get("agreed")   # 対話モードの run の設計の相談の最後の答え（docs/design/line.md の 3.1 節）
+    # 通す語の合意は answer-before-fix が修正前の答えとして書くので、そこに答えが在れば 2 度数えない（止めた答えと、修正前に答えが無い合意だけ出す）
+    if isinstance(talked, dict) and (talked.get("decision") not in answer.GO_WORDS or out.get("gate-before-fix") is None):
+        out = {"gate-design": talked, **out}
+    return out
 
 
 def gate_rows(gates: dict) -> list:
