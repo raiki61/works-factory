@@ -16,7 +16,7 @@ import sys
 from collections.abc import Mapping
 from pathlib import Path
 
-from bin._lib import hostgh, isolate, pack, place, runstop, specreviews, startpoint
+from bin._lib import hostgh, isolate, pack, place, recordroot, runstop, specreviews, startpoint
 from lib import answer, launchgroups, reads, userenv, writelog
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -192,6 +192,9 @@ def launch(argv: list[str], user: dict[str, str], here: Path) -> int:
     command = [*place.archon(bun, source), *args]
     if not reads_only(argv):
         command = [*auth, "exec", *auth_user, "--", *command]
+    if argv[:2] == ["workflow", "run"] and "--detach" not in flags:
+        # 殻が入れ替わらず子で走らせ、終わった所で run の記録の置き場を告げる（切り離す run は殻が待たないので告げない）
+        return recordroot.run_and_say(command, child, place.archon(bun, source), str(target), NAME)
     os.execve(command[0], command, child)
 
 
