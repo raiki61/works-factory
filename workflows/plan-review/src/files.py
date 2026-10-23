@@ -20,6 +20,10 @@ import worldmark    # lib/
 
 REVIEW_NODE = "p2.plan_review"          # 審査の受け付けの名（却下の控えの名）
 TEXT_NODE = "p2.plan_review.text"       # 形 text の受け付けの名
+# 審査の役（review）と束ね役（review-tree）の答えに要る根の欄。役の型（YAML の output_format）は出し直しの役と同じ形にするので
+# 根の欄を要ると書かず、受け付けが rolekit.resubmitted で確かめる（#832）
+REVIEW_REQUIRED = ("faces", "shrink", "reason")
+TREE_REQUIRED = ("reason", "items")
 PLAN_NODE = planmarks.NODE
 HUMAN_FACE_KINDS = ("regression", "policy")   # 人に回しうる穴の kind（今の fixboard.HUMAN_FACE_KINDS の値。fix へ移るので写す）
 REVIEW_MD = ports.SHARED / "prompts" / "REVIEW.md"    # 観点の正本（工場の物。lib は経由しない）

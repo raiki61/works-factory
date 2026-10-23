@@ -475,6 +475,18 @@ class ReviewAcceptCase(FlowCase):
         got = f.accept(None, fix={})
         self.assertEqual((got["ok"], got["reason"]), (False, first["reason"]))
 
+    def test_missing_root_field_is_refused_and_resubmitted_alone(self):
+        """#832: 役の型は根の欄を要ると書かない（出し直しの役と同じ形）。要る欄 shrink の欠けた 1 回目の答えは受け付けが拒み、出し直しの
+        役が shrink だけを返せば通る"""
+        f = self.flow
+        self.prepped()
+        bare = review()
+        bare.pop("shrink")
+        got = f.accept(bare)
+        self.assertEqual((got["ok"], got["reason"]), (False, self.take.rolekit.MISSING_FIELDS.format(keys="shrink")))
+        got = f.accept(None, fix={"shrink": []})
+        self.assertTrue(got["ok"], got["reason"])
+
     def test_policy_face_must_name_a_recorded_row(self):
         """元 ReviewAcceptCase.test_policy_face_must_name_a_recorded_row（#427）: kind policy の穴は記録された方針の行を名指す時だけ
         受ける。対象のテストの docstring を名指す穴と、方針の文書の無い run の fences の policy_doc は拒み、記録された方針の行

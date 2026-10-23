@@ -60,7 +60,7 @@ AI の node の起動の鍵（今の YAML の錨のまま写す）:
 2. `spec-write-loop`（`loop_group`、`max_iterations: 3`、`fresh_context: false`、`until_bash: 'done=$spec-write-accept.output.done; test "$done" = true'`。`depends_on: [intake]`・`when: "$intake.output.go == true && $intake.output.mode == 'write'"`）
    - `spec-write-prep`（script `write_prep.py`。`with: {prev: "$LOOP_PREV.spec-write-accept.output.ok"}`）: 返り `{prompt, resubmit}`。
    - `spec-write`（AI。`prompt: "$spec-write-prep.output.prompt"`・`depends_on: [spec-write-prep]`・`when: "$spec-write-prep.output.resubmit != true"`・書く系の鍵。`output_format` は 2.4 の形）。
-   - `spec-write-fix`（AI。`prompt: "$spec-write-prep.output.prompt"`・`depends_on: [spec-write-prep, spec-write]`・`trigger_rule: none_failed_min_one_success`・`when: "$spec-write-prep.output.resubmit == true"`・書く系の鍵。`output_format` は 2.4 の形で `required: []`）。
+   - `spec-write-fix`（AI。`prompt: "$spec-write-prep.output.prompt"`・`depends_on: [spec-write-prep, spec-write]`・`trigger_rule: none_failed_min_one_success`・`when: "$spec-write-prep.output.resubmit == true"`・書く系の鍵。`output_format` は 2.4 と同じ物（#832。型が違うと会話の続きの最初の要求でキャッシュが効かない。型の根（一番外の object）は `required: []` で、根の要る欄は受け付けが `rolekit.resubmitted` で確かめ、欠ければ拒む））。
    - `spec-write-accept`（script `take.py`。`depends_on: [spec-write, spec-write-fix]`・`trigger_rule: none_failed_min_one_success`・`with: {role: write, status_guarded: false, reply: {from: "$spec-write.output", if_skipped: null}, fix_reply: {from: "$spec-write-fix.output", if_skipped: null}}`）: 返り `{ok, done, reason, revise}`（4 つとも required）。
 3. `spec-review-loop`（同じ形。`depends_on: [spec-write-loop]`・`when: "$spec-write-loop.output.ok == true"`。中は `spec-review-prep`〔`review_prep.py`〕・`spec-review`・`spec-review-fix`〔審査系の鍵〕・`spec-review-accept`〔`take.py`、`role: review`・`status_guarded: true`〕）。
 4. `spec-revise-loop`（同じ形。`depends_on: [spec-review-loop]`・`when: "$spec-review-loop.output.revise == true"`。中は `spec-revise-prep`〔`revise_prep.py`〕・`spec-revise`・`spec-revise-fix`〔書く系の鍵〕・`spec-revise-accept`〔`take.py`、`role: revise`・`status_guarded: false`〕）。
@@ -171,7 +171,7 @@ Return only JSON that matches the output schema.
 
 ### 2.4 返す形
 
-今の `output_format` のまま（錨 `&spec_reply`）: `{requirements: [{key (1 字以上), text (4 字以上)}] (1 件以上), acceptance: [{key, requirement, file, name, run}（どれも 1 字以上）] (1 件以上), out_of_scope: [字]}`（3 つとも required。出し直しの役は同じ形で `required: []`）。人に見せる欄は `requirements[].text`・`out_of_scope`（承認ノードと報告に載る）で、言語は `{lang}`。
+今の `output_format` のまま（錨 `&spec_reply`）: `{requirements: [{key (1 字以上), text (4 字以上)}] (1 件以上), acceptance: [{key, requirement, file, name, run}（どれも 1 字以上）] (1 件以上), out_of_scope: [字]}`（3 つとも要る。ただし型の根は `required: []` で、3 つ（`src/files.py` の `REPLY_REQUIRED`）は受け付けが確かめる。出し直しの役は同じ型。#832。錨 `&spec_reply` 自体は 3 つを `required` に書いたまま持ち、この役の型が根で `required: []` に上書きする。直す役（4.4）の欄 `spec` は錨をそのまま入れるので、そこでは型が 3 つを求める）。人に見せる欄は `requirements[].text`・`out_of_scope`（承認ノードと報告に載る）で、言語は `{lang}`。
 
 ### 2.5 描いた骨組み（例の値）
 
@@ -293,7 +293,7 @@ Return only JSON that matches the output schema.
 
 ### 3.4 返す形
 
-今の `output_format` のまま（錨 `&spec_review_reply`）: `{faces: [{key (2 字以上), kind (missing|ambiguous|out_of_scope), where (1 字以上), why (20 字以上)}], faces_none?: 字, reason (20 字以上)}`（required は `faces`・`reason`。出し直しは `required: []`）。人に見せる欄は `faces[].why`・`faces_none`・`reason`（承認ノードに `why` の頭 200 字が載る）で、言語は `{lang}`。
+今の `output_format` のまま（錨 `&spec_review_reply`）: `{faces: [{key (2 字以上), kind (missing|ambiguous|out_of_scope), where (1 字以上), why (20 字以上)}], faces_none?: 字, reason (20 字以上)}`（要る欄は `faces`・`reason`。型の根は `required: []` で受け付けが確かめ、出し直しは同じ型。#832）。人に見せる欄は `faces[].why`・`faces_none`・`reason`（承認ノードに `why` の頭 200 字が載る）で、言語は `{lang}`。
 
 ### 3.5 描いた骨組み（例の値）
 
@@ -406,7 +406,7 @@ Return only JSON that matches the output schema.
 
 ### 4.4 返す形
 
-今の `output_format` のまま（錨 `&spec_revise_reply`）: `{spec: <2.4 の形>, handled: [{key (2 字以上), handled (absorbed|declared), how (20 字以上)}]}`（required は 2 つ。出し直しは `required: []`）。人に見せる欄は `spec.requirements[].text`・`spec.out_of_scope`・`handled[].how`（承認ノードに `how` の頭 200 字が載る）で、言語は `{lang}`。
+今の `output_format` のまま（錨 `&spec_revise_reply`）: `{spec: <2.4 の形>, handled: [{key (2 字以上), handled (absorbed|declared), how (20 字以上)}]}`（要る欄は 2 つ。型の根は `required: []` で受け付けが確かめ、出し直しは同じ型。#832）。人に見せる欄は `spec.requirements[].text`・`spec.out_of_scope`・`handled[].how`（承認ノードに `how` の頭 200 字が載る）で、言語は `{lang}`。
 
 ### 4.5 描いた骨組み（例の値）
 
@@ -494,7 +494,7 @@ How to answer:
 
 ### 5.4 返す形
 
-1 回目の役の `output_format` の `required: []` の形（2.4・3.4・4.4）。人に見せる欄と言語は 1 回目の役と同じ（言語の文は会話の頭の指示に在る）。
+1 回目の役と同じ `output_format`（2.4・3.4・4.4。#832）。人に見せる欄と言語は 1 回目の役と同じ（言語の文は会話の頭の指示に在る）。
 
 ### 5.5 描いた骨組み
 

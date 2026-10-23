@@ -266,6 +266,23 @@ class AcceptCase(unittest.TestCase):
         first, again = reasons(run)
         self.assertEqual(again, first)
 
+    def test_missing_plan_is_refused_then_resubmitted_alone(self):
+        """#832: 修正案の役の型は根の欄 plan を要ると書かない（出し直しの役と同じ形）。plan の欠けた答えは受け付けが拒み、出し直しの
+        plan で通る"""
+        run = PlanRun(self)
+        out, _ = go(run, {}, {"plan": [item(1), item(2)]})
+        self.assertIs(out["ok"], True, out)
+        self.assertEqual(reasons(run), [rolekit.MISSING_FIELDS.format(keys="plan")])
+
+    def test_whole_plan_in_the_first_reply_is_refused(self):
+        """#832: whole_plan は出し直しの役だけが書く欄（型は 1 回目の役と同じなので型は拒まない）。1 回目の答えに在れば受け付けが拒み、
+        控えには残さない"""
+        run = PlanRun(self)
+        out, _ = go(run, {"plan": [item(1), item(2)], steps.WHOLE_PLAN: False}, {})
+        self.assertIs(out["ok"], True, out)
+        self.assertEqual(reasons(run), [rolekit.FIX_ONLY_FIELDS.format(keys=steps.WHOLE_PLAN)])
+        self.assertNotIn(steps.WHOLE_PLAN, json.loads(rolekit.candidate_path(run.round_dir(1), ROLE).read_text(encoding="utf-8")))
+
     def test_whole_plan_resubmit_drops_items(self):
         """項目を消す出し直しは whole_plan: true と案の全部（plan が丸ごと置き換わる。whole_plan は控えに残り、受けた案には残らない）"""
         run = PlanRun(self)

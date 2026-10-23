@@ -187,6 +187,16 @@ class TreeCase(TreeBase):
         self.assertEqual([it["state"] for it in row["items"]], [self.converge.CLOSED, self.converge.CLOSED])
         self.assertEqual([h["id"] for h in row["items"][1]["hits"]], ["h1"])
 
+    def test_summary_without_items_is_refused(self):
+        """#832: 束ね役の型も根の欄を要ると書かない。items の欠けた束ね役の答えは受け付けが拒み、出し直しの items で通る"""
+        f = self.flow
+        self.prepped()
+        self.write_answers({1: answer(1), 2: answer(2)}, syn=synergy())
+        whole = summary({1: [], 2: []})
+        got = f.accept(tree={"reason": whole["reason"]})
+        self.assertEqual((got["ok"], got["reason"]), (False, self.take.rolekit.MISSING_FIELDS.format(keys="items")))
+        self.ok(f.accept(tree_fix={"items": whole["items"]}))
+
     def test_invalid_answer_goes_back_to_its_item_only(self):
         """元 test_invalid_answer_goes_back_to_its_item_only"""
         f = self.flow

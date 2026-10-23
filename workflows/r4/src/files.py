@@ -11,6 +11,9 @@
 import pathlib
 
 R4_NODE = "r4-scope"             # 範囲の役の AI の node の id（prompts/r4-scope.md）。受け付けの控えの名もこれ
+# 範囲の役の答えに要る根の欄。役の型（YAML の output_format）は出し直しの役と同じ形にするので根の欄を要ると書かず、受け付けが
+# rolekit.resubmitted で確かめる（#832）
+R4_REQUIRED = ("status", "reason", "capability_inventory", "policy_conflicts", "surfaced", "seen", "unseen")
 FIX_NODE = "r4-scope-fix"        # 出し直しの役の AI の node の id（prompts/r4-scope-fix.md）
 INTAKE = "intake.json"
 DIFF = "run.diff"

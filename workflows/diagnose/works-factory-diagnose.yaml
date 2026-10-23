@@ -291,8 +291,9 @@ nodes:
           mutates_checkout: false
           retry: {max_attempts: 2, on_error: all}
           output_format: &rejudge_reply
+            # 根の欄は要ると書かない（出し直しの役と同じ形にして、会話の続きの最初の要求でキャッシュを効かせる。#832）。要る欄は受け付けが確かめる（src/files.py の REJUDGE_REQUIRED）
             type: object
-            required: [verdict, new_facts, units]
+            required: []
             additionalProperties: false
             properties:
               verdict:
@@ -390,9 +391,7 @@ nodes:
           idle_timeout: 1728000000
           mutates_checkout: false
           retry: {max_attempts: 2, on_error: all}
-          output_format:
-            <<: *rejudge_reply
-            required: []
+          output_format: *rejudge_reply
         - id: rejudge-accept
           script: rejudge_accept
           runtime: uv

@@ -104,13 +104,14 @@ nodes:
             retry: {max_attempts: 2, on_error: all}
           # 修正案の役の型（plan[] の項目の欄と works の欄、narrows の行の決め手の欄）。2 往復目からの答えの要る穴への答え block_answers は任意の欄
           # （converge.ANSWER_SCHEMA の写し）。次の周の自分へ運ぶ引き継ぎのメモ handoff も任意の欄（handoff.SCHEMA の写し）。欄の型は
-          # planmarks.FIELD_SCHEMA（depends_on を含む）・FILES_SCHEMA・gatemarks.MARK_SCHEMA・NO_NARROW_SCHEMA の写しで、持ち主との一致は試験が見る
+          # planmarks.FIELD_SCHEMA（depends_on を含む）・FILES_SCHEMA・gatemarks.MARK_SCHEMA・NO_NARROW_SCHEMA の写しで、持ち主との一致は試験が見る。
+          # 型は出し直しの役 plan-writer-fix と同じ（違うと会話の続きの最初の要求でキャッシュが効かない。#832）。そのため根の欄 plan を
+          # 要ると書かず、出し直しの役だけが書く whole_plan も持つ。plan の欠けと 1 回目の whole_plan は受け付けが拒む（src/files.py の REQUIRED・src/take.py の accept）
           output_format: &plan_reply
             type: object
             additionalProperties: false
-            required:
-            - plan
-            properties: &plan_reply_props
+            required: []
+            properties:
               plan:
                 type: array
                 minItems: 1
@@ -453,6 +454,7 @@ nodes:
                   open:
                     type: array
                     items: {type: string, minLength: 1}
+              whole_plan: {type: boolean}
         - id: plan-fix-prep
           script: fix_prep
           runtime: uv
@@ -466,18 +468,13 @@ nodes:
             required: [prompt]
             properties:
               prompt: {type: string, minLength: 1}
-        # 拒まれた後の出し直しの役（plan-writer の会話の続き）。型は plan-writer の型から required を外し、whole_plan を足した物
+        # 拒まれた後の出し直しの役（plan-writer の会話の続き）。型は plan-writer の型と同じ（#832）
         - id: plan-writer-fix
           prompt: "$plan-fix-prep.output.prompt"
           depends_on: [plan-prep, plan-fix-prep]
           when: "$plan-prep.output.resubmit == true"
           <<: *writer_launch
-          output_format:
-            <<: *plan_reply
-            required: []
-            properties:
-              <<: *plan_reply_props
-              whole_plan: {type: boolean}
+          output_format: *plan_reply
         - id: plan-accept
           script: plan_accept
           runtime: uv

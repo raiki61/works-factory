@@ -311,7 +311,8 @@ def accept(place, repo, reply, fix_reply) -> dict:
     else:
         judgment = steps.read_judgment(ctx)
         merge = lambda prev, part: merge_resubmit(prev, part, steps.round_slots(folder, judgment))   # noqa: E731
-    got_reply, why = rolekit.resubmitted(folder, files.ROLE, reply, fix_reply, merge)
+    got_reply, why = rolekit.resubmitted(folder, files.ROLE, reply, fix_reply, merge, required=files.REQUIRED,
+                                         fix_only=(steps.WHOLE_PLAN,))
     if got_reply is None:
         out = {"ok": False, "reason": why}
     elif mode == "replan":

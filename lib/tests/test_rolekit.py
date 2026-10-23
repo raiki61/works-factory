@@ -334,6 +334,32 @@ class ResubmitCase(Base):
         self.assertIsNone(got)
         self.assertIn("書けない", why)
 
+    def test_first_reply_without_a_required_field_is_refused_but_kept(self):
+        """#832: 出し直しの役の形を 1 回目の役と同じにしたので、要る欄の欠けは形でなく受け付けが拒む。控えは書くので、次の周の
+        出し直しの役は欠けた欄だけを返せる"""
+        got, why = rolekit.resubmitted(self.tmp, "r", {"a": 1}, None, rolekit.merge_fields, required=("a", "b", "c"))
+        self.assertIsNone(got)
+        self.assertEqual(why, rolekit.MISSING_FIELDS.format(keys="b, c"))
+        self.assertEqual(json.loads(rolekit.candidate_path(self.tmp, "r").read_text(encoding="utf-8")), {"a": 1})
+        got, why = rolekit.resubmitted(self.tmp, "r", None, {"b": 2, "c": 3}, rolekit.merge_fields, required=("a", "b", "c"))
+        self.assertEqual((got, why), ({"a": 1, "b": 2, "c": 3}, ""))
+
+    def test_merged_answer_without_a_required_field_is_refused(self):
+        rolekit.resubmitted(self.tmp, "r", {"a": 1}, None, rolekit.merge_fields, required=("a", "b"))
+        got, why = rolekit.resubmitted(self.tmp, "r", None, {}, rolekit.merge_fields, required=("a", "b"))
+        self.assertIsNone(got)
+        self.assertEqual(why, rolekit.MISSING_FIELDS.format(keys="b"))
+
+    def test_fix_only_field_in_the_first_reply_is_refused(self):
+        """#832: 出し直しの役だけが書く欄（形は 1 回目の役と同じなので形が拒まない）は、1 回目の答えに在れば拒み、控えには残さない。
+        出し直しの答えに在るのは通す"""
+        got, why = rolekit.resubmitted(self.tmp, "r", {"a": 1, "w": True}, None, rolekit.merge_fields, fix_only=("w",))
+        self.assertIsNone(got)
+        self.assertEqual(why, rolekit.FIX_ONLY_FIELDS.format(keys="w"))
+        self.assertEqual(json.loads(rolekit.candidate_path(self.tmp, "r").read_text(encoding="utf-8")), {"a": 1})
+        got, why = rolekit.resubmitted(self.tmp, "r", None, {"w": True}, rolekit.merge_fields, fix_only=("w",))
+        self.assertEqual((got, why), ({"a": 1, "w": True}, ""))
+
     def test_merged_answer_goes_through_the_one_accept_round(self):
         """#557: 合わせは take の前段。合わせた答えも合わせられない出し直しも、拒否は accept_parsed が同じ控えに数える"""
         seen = []
