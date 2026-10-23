@@ -10,8 +10,9 @@
   置いた後で、どの分けにも入らないモジュールと 2 つの分けに入ったモジュールが 0 かを確かめ、0 でなければ落ちる。
   表が古くても分けが偏るだけで、試験は漏れない。
 - 試験を集める前に、この過程の環境から試験の子へ渡さない名（tests/bin/hermetic.dropped）を外す（hermetic.scrub）。
-- 並べ方: 選んだモジュールを fork した子 WORKERS_ENV（既定は SHARING の注記）個に 1 つずつ配って並べる。子は集めた試験と
-  scrub の後の環境を受け継ぐ。出力は unittest のまま（進みの印・落ちた試験の名と traceback をモジュールの名の順に・最後の Ran N tests と
+- 集め方: 別の解釈系で discover し、親にはモジュールの名・数・置き場だけを戻す。親は試験本体を import しない。
+- 並べ方: モジュールごとに新しい解釈系を起こし、同時に WORKERS_ENV（既定は SHARING の注記）本まで並べる。
+  scrub の控えも子へ渡す。出力は unittest のまま（進みの印・落ちた試験の名と traceback をモジュールの名の順に・最後の Ran N tests と
   OK / FAILED）。1 つのモジュールの試験は同じ子で順に走るので、モジュールの中で置き場を分け合う試験はそのまま走る。
   子は直下の親が替わったら（親だけが止められた）終わり、子が途中で落ちたら、終わらなかったモジュールを赤にして最後の数えまで出す。
 - 名指しのパスだけを走らせる: `python3 -m tests.shard --paths PATH...`（tests/changed.py が使う）。
@@ -23,8 +24,10 @@
 """
 import argparse
 import io
+import importlib
 import json
-import multiprocessing
+import subprocess
+import tempfile
 import os
 import pathlib
 import statistics
@@ -32,8 +35,7 @@ import sys
 import threading
 import time
 import unittest
-from concurrent.futures import ProcessPoolExecutor, as_completed
-from concurrent.futures.process import BrokenProcessPool
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from tests.bin import hermetic
 
@@ -56,14 +58,35 @@ class ModuleLoader(unittest.TestLoader):
         return suite
 
 
-def suites(root: pathlib.Path) -> dict[str, unittest.TestSuite]:
+def collect(root: pathlib.Path) -> dict[str, dict]:
     found = {}
     for suite in ModuleLoader().discover(str(root), pattern=PATTERN, top_level_dir=str(root)):
-        # 読み込めない・モジュールの頭で見送ったモジュールは、discover がモジュール名をメソッド名に持つ 1 件の suite にする
+        # 読み込めない・モジュールの頭で見送ったモジュールも discover の名と数を保つ
         name = getattr(suite, "module", None) or next(iter(suite))._testMethodName
-        if suite.countTestCases():
-            found[name] = suite
+        if count := suite.countTestCases():
+            found[name] = {"root": str(root), "count": count}
     return found
+
+
+def isolated(action: str, root: pathlib.Path, name: str = "") -> dict:
+    """試験の import と実行を使い捨ての解釈系に閉じ込め、字と数だけを持ち帰る。"""
+    with tempfile.TemporaryDirectory(prefix="shard-result-") as tmp:
+        output = pathlib.Path(tmp) / "result.json"
+        request = {"action": action, "root": str(root), "name": name, "output": str(output),
+                   "parent": os.getpid(), "scrubbed": hermetic._SCRUBBED}
+        env = hermetic.child_env(**hermetic.inherited(hermetic.ARCHON_CACHE_ENV, hermetic.ARCHON_REQUIRED_ENV))
+        done = subprocess.run([sys.executable, "-m", "tests.shard", "--child"], cwd=ROOT, env=env,
+                              input=json.dumps(request), text=True)
+        if done.returncode or not output.exists():
+            raise ChildProcessError(f"{name or 'collect'} {BROKEN}: exit {done.returncode}")
+        outcome = json.loads(output.read_text(encoding="utf-8"))
+        if outcome.get("interrupted"):
+            raise KeyboardInterrupt
+        return outcome
+
+
+def suites(root: pathlib.Path) -> dict[str, dict]:
+    return isolated("collect", root.resolve())
 
 
 def modules(root: pathlib.Path) -> list[str]:
@@ -137,12 +160,8 @@ class Recorded:
         return None   # 説明の 2 行目は子の getDescription が description に入れ済み
 
 
-_FOUND: dict[str, unittest.TestSuite] = {}   # fork した子が親から受け継ぐ、集めた試験
-
-
 def watch_parent(ppid: int) -> None:
-    """子の起こし（initializer）。直下の親が替わったら（親だけが SIGKILL・OOM で消え、子が pid 1 の下に移った）子を終える。
-    ProcessPoolExecutor の子は仕事の待ちで止まったまま残り、親が消えても気づかない"""
+    """直下の親が替わったら（親だけが SIGKILL・OOM で消えた）試験の子を終える。"""
     def watch() -> None:
         while os.getppid() == ppid:
             time.sleep(POLL)
@@ -151,12 +170,20 @@ def watch_parent(ppid: int) -> None:
     threading.Thread(target=watch, daemon=True).start()
 
 
-def run_module(name: str) -> dict:
+def run_module(name: str, root: pathlib.Path) -> dict:
     """子の中で 1 モジュールを走らせ、結果を親へ渡せる形（字と数）で返す"""
     stream = io.StringIO()
     result = unittest.TextTestResult(stream, descriptions=True, verbosity=1)
     start = time.perf_counter()
-    _FOUND[name].run(result)
+    sys.path.insert(0, str(root))
+    loader = ModuleLoader()
+    try:
+        suite = loader.loadTestsFromModule(importlib.import_module(name))
+    except unittest.SkipTest as e:
+        suite = unittest.loader._make_skipped_test(name, e, loader.suiteClass)
+    except Exception:
+        suite, _ = unittest.loader._make_failed_import_test(name, loader.suiteClass)
+    suite.run(result)
 
     def described(pairs):
         return [(result.getDescription(test), text) for test, text in pairs]
@@ -168,29 +195,22 @@ def run_module(name: str) -> dict:
 
 
 class Parallel:
-    """TextTestRunner に渡す試験（呼ぶと結果へ足す）。モジュールを fork した子 n 個に 1 つずつ配り、終わった順に進みの印を出し、
-    結末はモジュールの名の順に親の結果へ写す（落ちた試験の名と traceback・最後の数えの形は unittest のまま）。
-    子は fork で集めた試験と hermetic.scrub の後の環境（外した値の inherited も）を受け継ぎ、親が替わったら終わる（watch_parent）。
-    子が途中で落ちたら、終わらなかったモジュールを BROKEN の名で errors に入れて赤にし、最後の数えまで出す。
-    止められたら（Ctrl-C など）待ち行列のモジュールは回さずに終える。子へ渡す管に既に入った物（走っている物と次の 1 件）は
-    cancel_futures では取り消せず、回り切ってから終わる（tests/changed.py から回す時は、子過程ごと止められ親の替わりで子が終わる）"""
+    """同時に n 本まで、モジュールごとに新しい解釈系で走らせる。集計は名前順、進みの印は終了順。
+    中断時は待ち行列を取り消し、実行中の子だけを待つ。親が消えた子は watch_parent が止める。"""
 
-    def __init__(self, found: dict[str, unittest.TestSuite], n: int, seconds: dict[str, float]):
+    def __init__(self, found: dict[str, dict], n: int, seconds: dict[str, float]):
         self.found, self.n, self.seconds = found, n, seconds
 
     def __call__(self, result: unittest.TextTestResult) -> unittest.TextTestResult:
-        _FOUND.update(self.found)
-        sys.stdout.flush()
-        sys.stderr.flush()   # fork の前に吐く（子が受け継いだ書きかけを二度出さない）
         done, broken = {}, {}
-        with ProcessPoolExecutor(self.n, mp_context=multiprocessing.get_context("fork"),
-                                 initializer=watch_parent, initargs=(os.getpid(),)) as pool:
-            futures = {pool.submit(run_module, name): name for name in self.found}
+        with ThreadPoolExecutor(self.n) as pool:
+            futures = {pool.submit(isolated, "run", pathlib.Path(info["root"]), name): name
+                       for name, info in self.found.items()}
             try:
                 for future in as_completed(futures):
                     try:
                         done[futures[future]] = outcome = future.result()
-                    except BrokenProcessPool as e:
+                    except ChildProcessError as e:
                         broken[futures[future]] = f"{type(e).__name__}: {e}\n"
                         continue
                     result.stream.write(outcome["dots"])
@@ -209,7 +229,7 @@ class Parallel:
         return result
 
 
-def run(found: dict[str, unittest.TestSuite], record: pathlib.Path | None, n: int) -> int:
+def run(found: dict[str, dict], record: pathlib.Path | None, n: int) -> int:
     seconds: dict[str, float] = {}
     result = unittest.TextTestRunner().run(Parallel(found, n, seconds))
     if record is not None:
@@ -264,5 +284,21 @@ def main(argv: list[str]) -> int:
     return run({name: found[name] for name in shards[index - 1]}, args.record, n)
 
 
+def child() -> None:
+    request = json.load(sys.stdin)
+    watch_parent(request["parent"])
+    hermetic.scrub()
+    hermetic._SCRUBBED.update(request["scrubbed"])
+    root = pathlib.Path(request["root"])
+    try:
+        outcome = collect(root) if request["action"] == "collect" else run_module(request["name"], root)
+    except KeyboardInterrupt:
+        outcome = {"interrupted": True}
+    pathlib.Path(request["output"]).write_text(json.dumps(outcome), encoding="utf-8")
+
+
 if __name__ == "__main__":
-    sys.exit(main(sys.argv[1:]))
+    if sys.argv[1:] == ["--child"]:
+        child()
+    else:
+        sys.exit(main(sys.argv[1:]))

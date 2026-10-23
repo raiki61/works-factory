@@ -159,6 +159,19 @@ class ChangedTest(unittest.TestCase):
         self.assertEqual(self.ran(out), 1, out)
         self.assertIn("tests.layers.test_fence", stdout)
 
+    def test_unselected_import_cannot_change_the_selected_test(self):
+        """選ばない試験の import は、選んだ試験の遅延 import に混ざらない。"""
+        self.write("lib/tests/test_beta.py", "import sys\nsys.modules['lib.alpha'].value = lambda: 99\n" + TWO_TESTS)
+        git(self.repo, "commit", "-q", "-am", "polluting unselected module")
+        git(self.repo, "update-ref", "refs/remotes/origin/main", "HEAD")
+        self.write("lib/alpha.py", "def value():\n    return 1  # changed\n")
+        for workers in ("1", "2"):
+            with self.subTest(workers=workers):
+                rc, stdout, out = self.run_changed(WORKS_FACTORY_TEST_WORKERS=workers)
+                self.assertEqual(rc, 0, out)
+                self.assertEqual(self.ran(out), 2, out)
+                self.assertNotIn("  lib.tests.test_beta\n", stdout)
+
     def test_red_selected_test_is_red(self):
         self.write("lib/alpha.py", "def value():\n    return 2\n")
         rc, _stdout, out = self.run_changed()
