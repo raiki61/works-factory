@@ -115,9 +115,12 @@ class YamlCase(unittest.TestCase):
         self.assertIs(fmt["additionalProperties"], False)
         self.assertEqual(fmt["properties"]["mode"]["enum"], ["base", "final"])
         self.assertEqual(fmt["properties"]["red_cause"]["enum"], list(green_cert.RED_CAUSES))
-        compared = next(b for b in fmt["properties"]["test_outcomes"]["anyOf"] if b["type"] == "object")
+        compared = fmt["properties"]["test_outcomes"]
+        self.assertEqual(compared["required"], ["summary", "details", "unmeasured"])
+        for block, name in (("r2", "r2-outcomes"), ("eyes", "eyes-outcomes")):
+            self.assertEqual(compared, json.loads((kit.BLOCKS / block / "schemas" / f"{name}.schema.json").read_text(encoding="utf-8")))
         for side in ("base", "final"):
-            self.assertEqual(compared["properties"]["rows"]["items"]["properties"][side]["enum"], [*baseline_red.OUTCOMES, ""])
+            self.assertEqual(compared["properties"]["summary"]["properties"]["transitions"]["items"]["properties"][side]["enum"], [*baseline_red.OUTCOMES, ""])
         self.assertEqual(fmt["properties"]["ok"]["type"], "boolean")
         self.assertEqual(result["output_type"], "green-cert")
         self.assertEqual((result["trigger_rule"], result["depends_on"]), ("all_done", ["run", "suite-loop"]))
@@ -305,6 +308,9 @@ class ScriptCase(unittest.TestCase):
             git(self.repo, "commit", "-qm", "decl")
             self.head = git(self.repo, "rev-parse", "HEAD")
             self.write_start()
+
+    def outcomes(self, out) -> dict:
+        return json.loads(self.pointed(out["test_outcomes"]["details"]).read_text(encoding="utf-8"))
 
     def pointed(self, ptr: dict) -> pathlib.Path:
         self.assertEqual((ptr["type"], ptr["run_id"]), ("archon_artifact", RUN_ID))
@@ -694,24 +700,66 @@ class ResultScriptCase(ScriptCase):
         (self.repo / "fixed.flag").write_text("x\n", encoding="utf-8")
         self.write_start(baseline=str(self.pointed(base["baseline"])))
         self.ok("run", "final")
-        self.assertEqual(self.result("final")["test_outcomes"],
+        self.assertEqual(self.outcomes(self.result("final")),
                          {"rows": [{"key": "s::y", "base": "passed", "final": "passed", "fail_message": ""},
                                    {"key": "s::x", "base": "failure", "final": "passed", "fail_message": "0 != 10"}], "unmeasured": ""})
         self.write_start(baseline="")
         self.ok("run", "final")
-        self.assertEqual(self.result("final")["test_outcomes"],
+        self.assertEqual(self.outcomes(self.result("final")),
                          {"rows": [], "unmeasured": "base の実測（baseline）が無い（実行器の無い run か、base のテストが走っていない）"})
+
+    def test_large_complete_outcomes_stay_in_file_and_tail_failure_is_classified(self):
+        """1 MiB を超す全件の順・重複鍵の先勝ち・長文・末尾の赤を従来比較と完全一致で残す。stdout は全件を持たない。"""
+        baseline = self.base()
+        self.write_start(baseline=baseline)
+        self.ok("run", "final")
+        place = self.place("final")
+        run = json.loads((place / "run.json").read_text(encoding="utf-8"))
+        cases = [{"classname": "many", "name": f"test_{n}", "outcome": "passed"} for n in range(12000)]
+        tail = {"classname": "many", "name": "tail", "outcome": "passed"}
+        base_cases = [*cases, tail, {**tail, "outcome": "failure", "fail_message": "duplicate loses"}]
+        final_cases = [*cases, {**tail, "outcome": "failure", "fail_message": "長い失敗\n" * 30000}]
+        baseline_red.write_baseline(pathlib.Path(baseline), suite="", test_cmd="", rev=self.head, exit=0, cases=base_cases)
+        run["cases"] = final_cases
+        (place / "run.json").write_text(json.dumps(run, ensure_ascii=False), encoding="utf-8")
+        out = self.result("final")
+        expected = {"rows": baseline_red.test_outcomes(base_cases, final_cases), "unmeasured": ""}
+        self.assertEqual(self.outcomes(out), expected)
+        self.assertGreater(self.pointed(out["test_outcomes"]["details"]).stat().st_size, 1024 * 1024)
+        self.assertLess(len(json.dumps(out, ensure_ascii=False).encode()), 16000)
+        self.assertEqual((out["ok"], out["green"], out["red_cause"]), (False, False, "introduced"))
+        summary = out["test_outcomes"]["summary"]
+        self.assertEqual((summary["total"], summary["introduced"], summary["final"]["failure"]), (12001, 1, 1))
+        self.assertEqual(out["ran_steps"], {"ran": ["suite"], "unran": []})
+        # 同じ入口を起こし直すと自分の全件ファイルだけを掃除する。
+        path = self.pointed(out["test_outcomes"]["details"])
+        self.intake("final")
+        self.assertFalse(path.exists())
+
+    def test_summary_separates_skips_absence_and_narrow_unknown_red(self):
+        """全件の欠落と飛ばしを未計測に混ぜず、絞った base に居ない赤を新規失敗と言わない。"""
+        certify = kit.load("test-gate", "certify")
+        rows = [{"key": "skip", "base": "skipped", "final": "failure", "fail_message": ""},
+                {"key": "gone", "base": "passed", "final": "", "fail_message": ""},
+                {"key": "new", "base": "", "final": "error", "fail_message": ""},
+                {"key": "old", "base": "error", "final": "failure", "fail_message": ""},
+                {"key": "broken", "base": "passed", "final": "failure", "fail_message": ""}]
+        got = certify.outcome_summary({"rows": rows, "unmeasured": ""}, True)
+        self.assertEqual((got["introduced"], got["inherited"], got["unclassified"]), (1, 1, 2))
+        self.assertEqual((got["base"]["skipped"], got["base"]["absent"], got["final"]["absent"]), (1, 1, 1))
+        self.assertEqual(certify.outcome_summary({"rows": rows, "unmeasured": ""}, False)["introduced"], 2)
+        self.assertIsNone(certify.outcome_summary({"rows": [], "unmeasured": "走っていない"}, False))
 
     def test_test_outcomes_are_not_compared_when_either_side_has_no_per_test_results(self):
         """1 件ごとの結末を取っていない側が在れば、rows を空にして比べない訳を書く（「無い」と読ませない）"""
         tallied = self.base()
         self.decl([{"name": "suite", "argv": [PY, "-c", "pass"]}])
-        self.assertEqual(self.final(tallied)["test_outcomes"],
+        self.assertEqual(self.outcomes(self.final(tallied)),
                          {"rows": [], "unmeasured": "最後のテストは 1 件ごとの結末を取っていない"})
         self.ok("run", "base")
         untallied = str(self.pointed(self.result("base")["baseline"]))
         self.decl([{"name": "suite", "argv": [PY, "-c", self.STEP_BODY], "junit": "out/r.xml"}])
-        self.assertEqual(self.final(untallied)["test_outcomes"],
+        self.assertEqual(self.outcomes(self.final(untallied)),
                          {"rows": [], "unmeasured": "base のテストは 1 件ごとの結末を取っていない"})
 
     def test_bare_name_tdd_suite_runs_from_the_target_root(self):
@@ -1243,7 +1291,7 @@ class RelatedCase(ScriptCase):
     def test_a_red_the_fix_made_is_introduced_and_not_certified(self):
         out = self.base_and_final(final_fails=True)
         self.assertEqual((out["green"], out["ok"], out["red_cause"]), (False, False, green_cert.INTRODUCED))
-        self.assertEqual([r["key"] for r in out["test_outcomes"]["rows"]], ["test_stats.TestStats::test_mean_of_three"])
+        self.assertEqual([r["key"] for r in self.outcomes(out)["rows"]], ["test_stats.TestStats::test_mean_of_three"])
 
     def test_a_red_outside_the_narrow_base_is_not_called_introduced(self):
         """修正前の確かめが関わる試験だけ（1 件）で、最後の確かめが全部の試験（選べなかった）の時、修正前の結果に無い試験の赤は、直しが
@@ -1262,6 +1310,8 @@ class RelatedCase(ScriptCase):
         out = self.ok("result", "final")
         self.assertTrue(out["related"]["whole"])
         self.assertEqual((out["ok"], out["red_cause"]), (False, ""))
+        summary = out["test_outcomes"]["summary"]
+        self.assertEqual((summary["baseline_narrow"], summary["introduced"], summary["unclassified"]), (True, 0, 1))
 
     def test_nothing_related_in_the_final_is_not_a_green(self):
         self.write_start(tdd_suite=str(self.runner))

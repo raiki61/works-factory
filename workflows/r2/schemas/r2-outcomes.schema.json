@@ -1,17 +1,66 @@
 {
-  "description": "テストごとの base と最後の結末。null は渡されていない",
+  "description": "機械の全件集計と完全な結果ファイルへの参照。null は渡されていない",
   "type": ["object", "null"],
+  "additionalProperties": false,
+  "required": ["summary", "details", "unmeasured"],
   "properties": {
-    "rows": {
-      "type": "array",
-      "items": {
-        "type": "object",
-        "properties": {
-          "key": {"type": "string"},
-          "base": {"type": "string"},
-          "final": {"type": "string"},
-          "fail_message": {"type": "string"}
-        }
+    "summary": {
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "required": ["total", "base", "final", "transitions", "introduced", "inherited", "unclassified", "baseline_narrow"],
+      "properties": {
+        "total": {"type": "integer", "minimum": 0},
+        "base": {
+          "type": "object",
+          "required": ["passed", "failure", "error", "skipped", "absent"],
+          "additionalProperties": false,
+          "properties": {
+            "passed": {"type": "integer", "minimum": 0},
+            "failure": {"type": "integer", "minimum": 0},
+            "error": {"type": "integer", "minimum": 0},
+            "skipped": {"type": "integer", "minimum": 0},
+            "absent": {"type": "integer", "minimum": 0}
+          }
+        },
+        "final": {
+          "type": "object",
+          "required": ["passed", "failure", "error", "skipped", "absent"],
+          "additionalProperties": false,
+          "properties": {
+            "passed": {"type": "integer", "minimum": 0},
+            "failure": {"type": "integer", "minimum": 0},
+            "error": {"type": "integer", "minimum": 0},
+            "skipped": {"type": "integer", "minimum": 0},
+            "absent": {"type": "integer", "minimum": 0}
+          }
+        },
+        "transitions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["base", "final", "count"],
+            "properties": {
+              "base": {"type": "string", "enum": ["passed", "failure", "error", "skipped", ""]},
+              "final": {"type": "string", "enum": ["passed", "failure", "error", "skipped", ""]},
+              "count": {"type": "integer", "minimum": 0}
+            }
+          }
+        },
+        "introduced": {"type": "integer", "minimum": 0},
+        "inherited": {"type": "integer", "minimum": 0},
+        "unclassified": {"type": "integer", "minimum": 0},
+        "baseline_narrow": {"type": "boolean"}
+      }
+    },
+    "details": {
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "required": ["type", "run_id", "path"],
+      "properties": {
+        "type": {"type": "string", "enum": ["archon_artifact"]},
+        "run_id": {"type": "string"},
+        "path": {"type": "string"}
       }
     },
     "unmeasured": {"type": "string"}
