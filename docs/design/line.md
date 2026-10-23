@@ -37,7 +37,7 @@
 - `base`: `text: 差分の根を名指す版（枝・タグ・commit）。差分の根は base と HEAD の merge-base。pr と一緒には名指さない`。既定 `""`。
 - `pr`: `text: PR の番号。base の版と head は run の中で gh で読む。base と一緒には名指さない`。既定 `""`。
 - `spec`: `text: 仕様の段を挟むか（空か on）。依頼の文が要り、無人の run・固定材料とは組めない`。既定 `""`。
-- `test_cmd`・`tdd_suite`・`final_gate`・`unattended`・`design_only`・`thickness`・`features_off`・`features_on`・`policy_md`・`fix_fixture`・`lang`・`deliver`: 今の説明のまま（form は `text`）。`design_only` は対話モードの印で、`true` で無人でない run は計画の往復の末尾で設計を相談する（3.1 節）。無人の run の `true` は今どおり修正前の承認ノードを必ず開く（開けずに止まる）。
+- `test_cmd`・`tdd_suite`・`final_gate`・`unattended`・`design_talk`・`thickness`・`features_off`・`features_on`・`policy_md`・`fix_fixture`・`lang`・`deliver`: 今の説明のまま（form は `text`）。`design_talk` は対話モードの印で（初めの名は `design_only`。#827 で替え、古い名は起動の殻が止めて新しい名を案内する）、`true` で無人でない run は計画の往復の末尾で設計を相談する（3.1 節）。無人の run の `true` は今どおり修正前の承認ノードを必ず開く（開けずに止まる）。
 
 出力（`returns: result`・`outcome_field: fixed`）。欄の名は今のまま（`bin/apply`・chain・通しの試験が今の名で読む。report の設計書の 1.6）:
 
@@ -137,7 +137,7 @@ line は一番上の graph なので、place は run directory の根（README 4
 - `spec`（flag）: `input.spec`。読み手: judge の graph（spec write）・head-depth の `spec`・`spec-check-run` の `when:`。
 - `has_checks`（flag）: `test_cmd` か `tdd_suite` が空でない（今の `depth.has_checks`）。読み手: head-depth・`fix-in`。
 - `thickness`: head-depth の `choice(auto|light|standard|heavy)` に写した語（空・自動 → auto、軽量 → light、標準 → standard、重厚 → heavy）。`forced`: 単位の深さを固定する語（空・自動 → 空、軽量・標準・重厚 → その語。`fix-in` が `decide_doc` に渡す）。
-- `design_only`（flag）・`unattended`（flag）: 読み手: head-depth・fix の `unattended`・承認ノードの script。
+- `design_talk`（flag）・`unattended`（flag）: 読み手: head-depth・fix の `unattended`・承認ノードの script。
 - `policy`: 固めた方針の写しのパス（`policy.frozen_copy`）か `""`。読み手: structure・independent-design・plan・plan-review・fix・eyes の graph。`answer-before-fix` が固め直した時は、その後ろの読み手に固め直した写しを渡す（2 節の 2。修正から後ろは `$fix-in.output.policy` で読む。`fix-in` が `{from: "$answer-before-fix.output.policy", if_skipped: null}` で受け、飛んだ run は `P.policy`）。
 - `test_cmd`・`tdd_suite`・`reuse_dir`（`tree_run.reuse_dir`）・`user_env_dir`（run directory の根）・`run_id`（test-gate と fix の `reuse_key`）・`deliver`。
 - `parallel`（flag）: `features_cut` に `fix_lanes` も `tdd_lanes` も無い。読み手: fix の `parallel`。
@@ -150,7 +150,7 @@ line は一番上の graph なので、place は run directory の根（README 4
 - `spec_table`: 仕様駆動の道の表の絶対パス（入力 `spec_table`。名指さない run は空）。読み手: `spec-entry`。
 - `routes`: 修正の部品の入力 `routes` の語（仕様駆動の run は `plan`、ほかは `auto`）。読み手: `fix`・`refix-run`。仕様駆動の道の node と配線は [spec-driven.md](spec-driven.md) の 6.2・6.10（start の返りの `from_spec` も同じ）。
 
-`start` のほかの出力は今のまま（`ok`・`stop_reason`・`reason`・`record`〔始めの記録の pointer。line の script だけが読む〕・`prior_failures`・`ask`・`gate_text`・`unattended`・`design_only`・`final_gate`・`from_fixture`・`fixture`）。`spec` と `reuse_dir`・`user_env_dir` は `ports` へ移す。
+`start` のほかの出力は今のまま（`ok`・`stop_reason`・`reason`・`record`〔始めの記録の pointer。line の script だけが読む〕・`prior_failures`・`ask`・`gate_text`・`unattended`・`design_talk`・`final_gate`・`from_fixture`・`fixture`）。`spec` と `reuse_dir`・`user_env_dir` は `ports` へ移す。
 
 ## 2 承認ノード（4 つ。仕様駆動の run の修正前の承認ノードは `spec-gate-before-fix`。形は今の `gate-before-fix` と同じ。[spec-driven.md](spec-driven.md) の 6.2。どれも `wait:` の `attention`・`form: select`・`options` は `approve`・`continue`・`stop`・`reject`）
 
@@ -194,7 +194,7 @@ line は一番上の graph なので、place は run directory の根（README 4
 
 ### 3.1 設計の相談（対話モードの run。issue #822・持ち主の決め `dialogue-gate-in-loop`）
 
-対話モードは入力 `design_only` が `true` で無人でない run（`src/talk.py` の `dialogue`）。自動実行と同じ本線を回し、計画の往復の止まる周に、往復の本体の唯一の終わりの関所 `gate-design` で設計を相談する。答えは止めた Archon（a972888a）の正式な形のまま、次の周の頭の `design-turn` が `$LOOP_PREV.gate-design.output` で読む（`docs/design/archon.md`・`docs/asf-notes.md` の A14）。`until_bash` は飛びうる関所の出力を読まず、`design-talk` の `done` だけを読む。
+対話モードは入力 `design_talk` が `true` で無人でない run（`src/talk.py` の `dialogue`）。自動実行と同じ本線を回し、計画の往復の止まる周に、往復の本体の唯一の終わりの関所 `gate-design` で設計を相談する。答えは止めた Archon（a972888a）の正式な形のまま、次の周の頭の `design-turn` が `$LOOP_PREV.gate-design.output` で読む（`docs/design/archon.md`・`docs/asf-notes.md` の A14）。`until_bash` は飛びうる関所の出力を読まず、`design-talk` の `done` だけを読む。
 
 - 開く: `plan-out` の `done`（往復が止まる周。修正へ進む抜け方・止まり・計画や事前審査の失敗・直す義務が無い・上限）の周。`done` でない周（AGAIN）は今どおり次の周を自動で回す。見せる物: 設計案（修正案の項目ごとの単位・やり方・書く所）・事前審査の結果（往復の記録の報告の行と最後の往復の block）・人が決める項目（修正前の承認ノードと同じ材料と決め。`src/asking.py`・`src.gates.before_fix` を設計だけの行なしで）・答え方。直す義務が無い周と計画ができなかった周は「相談の結果」の行を 1 つ見せる（合意すると修正へ進まずに報告を出す。黙って終わらない）。
 - 答え（選び肢は `approve`・`continue`・`stop`・`reject` と `lib/answer.py` の `REVISE`〔`revise`〕）:
@@ -369,7 +369,7 @@ line は一番上の graph なので、place は run directory の根（README 4
 今の node ごとに、持つ決まりと、新しい形の在りか。棚卸しの行（L-E・L-G・L-W・L-D）は行き先の所に名指す。
 
 - `testcmd`・`testcmd-stop`: test_cmd が対象の手元（run の作業ツリーと同じ git の作業ツリーのうち外の全部）を走らせる形なら AI の前で止める・`WORKS_FACTORY_ALLOW_TESTCMD=1` で止めずに注意・確かめが落ちたら止める・止めない時の注意の行を報告の冒頭へ。→ line（今のまま。`src/testcmd_check.py`）。
-- `start`: 入力の語の確かめ（spec・final_gate・unattended・features の知らない語と両方への名指し・design_only・thickness・段が足す機能を features_off で切る組・deliver）・固定材料のフォルダと方針の文書の在りか・spec と固定材料の組みの拒み・依頼のファイルの読めない／JSON でない／形が違うの 3 つの拒み・findings の型（L-E01〜L-E04）・PR と issue の gh の読み（L-E11〜L-E15）・差分の根（L-E07〜L-E10・L-E20・L-E21）・依頼も差分も無い入力の拒み（L-E07）・spec=on で依頼の文が無い時の拒み（L-E29）・入口の形 `input`（L-E19）・版の控え（L-E44〜L-E46。拒む run でも書く）・方針の固め（L-E35・S24）・prior_failures の置き（L-E05）・固定材料の取り込み（L-E42）・起動の承認ノードの文（L-E47〜L-E49）・落ちない（L-E53）。→ line の `start`（今のまま）と、配る値（1.6。L-E33 の「機能の切り替えがブロックに届く」は、block が記録を読む形から line が値で配る形に替わる）。
+- `start`: 入力の語の確かめ（spec・final_gate・unattended・features の知らない語と両方への名指し・design_talk・thickness・段が足す機能を features_off で切る組・deliver）・固定材料のフォルダと方針の文書の在りか・spec と固定材料の組みの拒み・依頼のファイルの読めない／JSON でない／形が違うの 3 つの拒み・findings の型（L-E01〜L-E04）・PR と issue の gh の読み（L-E11〜L-E15）・差分の根（L-E07〜L-E10・L-E20・L-E21）・依頼も差分も無い入力の拒み（L-E07）・spec=on で依頼の文が無い時の拒み（L-E29）・入口の形 `input`（L-E19）・版の控え（L-E44〜L-E46。拒む run でも書く）・方針の固め（L-E35・S24）・prior_failures の置き（L-E05）・固定材料の取り込み（L-E42）・起動の承認ノードの文（L-E47〜L-E49）・落ちない（L-E53）。→ line の `start`（今のまま）と、配る値（1.6。L-E33 の「機能の切り替えがブロックに届く」は、block が記録を読む形から line が値で配る形に替わる）。
 - `gate-start`・`answer-start`: 2 節の 1（L-G01〜L-G10）。
 - `test-gate-base`(-out): 今のまま。判定の前に走り、固定材料の run は飛ぶ。
 - `judge`(-out): judge の graph（judge-eyes.md）。返りの欄の名は変わる（1.6・4.5 が新しい名で読む）。今の `judge_accept.require_ports`（前の版の返りを resume で受けたら止める）は、新しい graph の返りの形で同じ照らしを `fix-in`・`fixed`・`collect` に置く（欄の欠けた got を空と読まない。L-W67 の能力）。判定のまとめだけでなく、plan と fix の返りも同じ: 読む script が `ports.picked(raw, names)` を要る欄の全部で呼び、欄の欠けた返りは `KeyError` で止める（今の `fixbeside.require_ports`・`planfile.require_ports` の替わり。integration.md の 4.3-12）。
@@ -428,7 +428,7 @@ graph は AI の node を持たないので、README 6 節の node ごとの 9 �
 - `hand`（include `works-factory-merge`、`mode: check`）の `with:` の `base_rev` を、merge の port の名 `base` に改める（merge の設計書の 1.6）。ほかの欄（`sealed_hash`・`deliver`・`request`・`user_env_dir`）は今のまま。
 - script（`chain_start`・`round_commit`・`round_facts`・`decide`・`final_diff`・`result`）は `boundary` の代わりに `ports` の口で入力を読む。読む lib（`chain`・`entry`・`entryshape`・`runbranch`・`carry`・`report`・`seal`）は KEEP（README 9.3）。子の費用の読み（今の `runreport.transcript_facts`）は、`lib/runreport.py` を消す時に新しい `lib/runlog.py`（README 9.3 の KEEP の一覧に在る）へ移る（integration.md の 4.5-2）。埋め（Archon に無い物を外から補う部品。名簿は `docs/polyfills.md`）の `child_pointer`（子の run が返した pointer〔ファイルを指す値。README 4.1〕を読む口）は `workflows/.shared/` に移り、`ports` の公開の口 `inside(rel, root)` で、pointer のパスが子の place の中に在るかを確かめる形に直して、chain が直に import する（integration.md の 4.5-1）。chain の place のファイル（`chain/final.diff`・`chain/round-<k>.diff`・`chain.md`・`chain/<子>/next-request.json`）の名は `workflows/chain/src/files.py` が持つ。
 - 子の line の返りの欄（`outcome`・`apply`・`r2_status`・`spec_questions`・`next_request`）は line が今の名で返す（1.2）ので、`decide` と `round_facts` は変わらない。
-- 守る能力（L-D55〜L-D57）: 周の数 1〜5 と費用の上限の確かめ・design_only と fix_fixture の拒み・止めの語の順（周の数 → 結末の種〔周の run の結末を閉じた・止まった・人が要る・途中で落ちた・残りが在るの 5 つに分けた物。`lib/chain.py` の `KIND_*`〕→ 人が要る → 進みが無い → 費用）・周の commit を run の枝にだけ積む（`worktree.enabled: true`）・次の依頼に 1 周目の answers・pr・issue を足し下書きの行は運ばない・止まった周を採らずに最後の差分を封じる・出口の語 pr の時だけ親が PR を 1 本作る。試験は組み込みの前の `tests/workflows/test_chain.py` と筋書き 8 本を `tests/blocks/chain/` と `workflows/chain/fixtures/` へ移した。
+- 守る能力（L-D55〜L-D57）: 周の数 1〜5 と費用の上限の確かめ・design_talk と fix_fixture の拒み・止めの語の順（周の数 → 結末の種〔周の run の結末を閉じた・止まった・人が要る・途中で落ちた・残りが在るの 5 つに分けた物。`lib/chain.py` の `KIND_*`〕→ 人が要る → 進みが無い → 費用）・周の commit を run の枝にだけ積む（`worktree.enabled: true`）・次の依頼に 1 周目の answers・pr・issue を足し下書きの行は運ばない・止まった周を採らずに最後の差分を封じる・出口の語 pr の時だけ親が PR を 1 本作る。試験は組み込みの前の `tests/workflows/test_chain.py` と筋書き 8 本を `tests/blocks/chain/` と `workflows/chain/fixtures/` へ移した。
 
 ## 13 自分で決めた事
 

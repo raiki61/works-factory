@@ -118,4 +118,4 @@ ASF の版を進めた時は、各セクションの行を新しい版で読み�
 - ASF: a972888a の `.archon/workflows/sdlc/plan-entry/archon-plan.yaml`（ループ `cycle` の本体の頭 `go` が `$LOOP_PREV.attend__ask.output.decision` で前の周の答えを読み、`rerun` か 1 周目だけ計画を回す）と `sdlc/attention/archon-attention.yaml`（本体の唯一の終わりの `wait:` 承認ノード `ask` と、その前でループの終わりを決める `settle`。`until_bash` は `settle` の `done` だけを読む）。説明書は同じ版の `guides/loop-nodes.md` の「Pausing to ask inside the body」。
 - なぜその形か: 人の答えで同じ実行の中の次の周を回せ、繰り返しを起こし直さない（直す前の試験と判定をやり直さない）。`when:` で飛んだ承認ノードは出力を持たないので、ループの終わりは承認ノードの前のノードが決める。
 - 採った先: line の計画の往復 `plan-rounds` の設計の相談（周の頭 `design-turn`・終わり `design-talk`・承認ノード `gate-design`。`docs/design/line.md` の 3.1（設計の相談）。持ち主の決め `dialogue-gate-in-loop`）。
-- 違い: 承認ノードを開くのは対話モード（`design_only`）の run の、往復が止まる周だけ。答えの語は今の 4 つに `revise` を足した 5 つ（`rerun`・`finish` は使わない）。修正要望は一言を往復の記録の人の block に書き足し、計画の役の答えと事前審査の照らしを求める（止め時の決まりは今のまま）。合意の後は修正前の承認ノードで聞き直さない。
+- 違い: 承認ノードを開くのは対話モード（`design_talk`）の run の、往復が止まる周だけ。答えの語は今の 4 つに `revise` を足した 5 つ（`rerun`・`finish` は使わない）。修正要望は一言を往復の記録の人の block に書き足し、計画の役の答えと事前審査の照らしを求める（止め時の決まりは今のまま）。合意の後は修正前の承認ノードで聞き直さない。

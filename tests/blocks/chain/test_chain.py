@@ -249,9 +249,9 @@ class ChainStartCase(Tree):
 
     def test_design_only_is_refused_before_any_round(self):
         """#505: 設計だけの run は差分を作らず次の周の基が無いので、鎖は AI の前で拒む（元 works の dev/use.sh 214 行）"""
-        got = self.start(rounds="2", design_only="design_only")
+        got = self.start(rounds="2", design_talk="design_talk")
         self.assertEqual((got["ok"], got["act"]), (False, "refused"), got)
-        self.assertIn("design_only", got["text"])
+        self.assertIn("design_talk", got["text"])
 
     def test_fix_fixture_is_refused_before_any_round(self):
         """#509: 固定材料は 1 つの run の修正の前の写しで、2 周目からの依頼と木はそれと違うので、鎖は AI の前で拒む（元 works の

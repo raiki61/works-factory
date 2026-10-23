@@ -43,7 +43,7 @@ def compute() -> dict:
     from src.asking import materials
 
     given = ports.parsed(raw["ports"]) or {}
-    unattended, design = bool(given.get("unattended")), bool(given.get("design_only"))
+    unattended, design = bool(given.get("unattended")), bool(given.get("design_talk"))
     rounds = ports.picked(raw["rounds"], ROUNDS + TALKED, optional=TALKED)
     agreed = rounds["agreed"] if rounds is not None and isinstance(rounds["agreed"], dict) else None
     kw = materials(dict(rounds) if rounds is not None else None, structure_raw=raw["structure"], judge_raw=raw["judge"],
