@@ -3,7 +3,8 @@ description: |
   報告の block（docs/design/report.md）。run の最後に、graph が渡した事実から結末の 10 語と止めた段の語を決め、機械の報告（冒頭 3 行・人が決める物・
   止めたか・見る所・役が呼んだ道具・graph が渡したセクションの全部・次の run に引き継ぐ落ちた理由・模型・費用・注意）と、次の run の依頼の下書き・
   前の失敗の行を place に書く（facts）。結果を名乗れる run では、書き手が平易な要約・人が決めること・本文を書き、道具を持たない初見の読み手が
-  頭だけを読んで確かめる（write-loop。3 回目は通らなくても受け取って印を付け、人に向けた報告の冒頭で言う）。
+  頭だけを読んで確かめる（write-loop。3 回目は通らなくても受け取って印を付け、人に向けた報告の冒頭で言う。読み手が止まったのが
+  機械が組んだ行だけなら、書き手には直せないので、その回に書き直させずに受け取って同じ印を付ける）。
   出口 finish は落ちない: 人に向けた報告（report-ai.md。詳しい中身は隣の report-detail.md）が無くても機械の報告を返す。書き手のループが落ちた
   run は failed で終わり、finish は機械の報告の冒頭に本文が無い訳を置く（使用枠の切れなら、別のアカウントで resume すると write-loop と finish が
   走り直して本文が載る）。単独の run でも、graph から include されても回る
@@ -141,12 +142,13 @@ nodes:
           retry: {max_attempts: 2, on_error: all}
           output_format:
             type: object
-            required: [verdict, stops, guessed, decidable]
+            required: [verdict, stops, guessed, machine_lines, decidable]
             additionalProperties: false
             properties:
               verdict: {type: string, enum: [pass, redesign-needed]}
               stops: {type: array, items: {type: string}}
               guessed: {type: array, items: {type: string}}
+              machine_lines: {type: array, items: {type: string}}
               decidable: {type: boolean}
 
         - id: write-accept

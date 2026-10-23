@@ -273,7 +273,7 @@ if not cold and os.environ.get("CLAUDE_CODE_OAUTH_TOKEN") == "SPENT":
     say({"type": "result", "subtype": "success", "is_error": True, "session_id": session, "result": words,
          "terminal_reason": "api_error", "num_turns": 1})
     sys.exit(1)
-answer = ({"verdict": "pass", "stops": [], "guessed": [], "decidable": True} if cold else
+answer = ({"verdict": "pass", "stops": [], "guessed": [], "machine_lines": [], "decidable": True} if cold else
           {"text": "依頼で止めた。\\n直した物は無い。\\n次の run に渡す物は無い。", "terms": [],
            "handoff": {"read": [], "kept": [], "set_aside": [], "open": []}})
 say({"type": "result", "subtype": "success", "is_error": False, "session_id": session, "num_turns": 1, "total_cost_usd": 0,

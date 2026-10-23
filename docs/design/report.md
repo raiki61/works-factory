@@ -431,9 +431,9 @@ Notes that earlier rounds of you wrote, named by the machine, oldest first. …
 1. 返答を読む（JSON のオブジェクトでない・本文 `text` が空なら拒む。種 `answer`）。
 2. `terms` の型（`TERM_SCHEMA`。種 `answer`）。
 3. 表のセルの書式（`format_problems`。「。」を含むか `CELL_LIMIT` 字を超えるセル。`` `code` `` とコードの囲みの中は数えない。種 `format`）。
-4. 初見の読み手の判定が `pass` でなければ拒む（種 `cold`。理由は `_cold_reason` の字。止まった所と推測した所を全部並べる）。ただし `rolekit.is_last_attempt` の回は受け取り、`not_passed` に止まった所と推測した所を残す。
+4. 初見の読み手の判定が `pass` でなければ拒む（種 `cold`。理由は `_cold_reason` の字。止まった所と推測した所を全部並べ、機械が組んだ行の所は書き手には直せない物として分けて言う）。ただし次の 2 つは受け取り、`not_passed` に止まった所と推測した所を残す: (a) 読み手が通さなかった所が機械が組んだ行（`machine_lines`）だけの時（`machine_only`。書き手には直せないので、どの回でも書き直させない。`ai.json` の `machine_only` が真。#834）、(b) `rolekit.is_last_attempt` の回。
 - 拒んだ回は、本文と `terms` を前の答えの控え（`candidate-report.json`）に、`handoff` を `r<n>/handoff.json` に置く（今の `_carry_rejected`）。前の周のメモが読めない・控えに書けない時は、出し直させても直らないので 1 回目で諦める（`give_up`）。
-- 3 回目の拒否でループを抜ける（`rolekit.GIVE_UP_AFTER`）。諦めた時・控えが扱えない時は `ai.json` に `{accepted: false, reason, cold, rejects}` を書く。受け取った時は `{accepted: true, text, terms, cold, not_passed, rejects}`。
+- 3 回目の拒否でループを抜ける（`rolekit.GIVE_UP_AFTER`）。諦めた時・控えが扱えない時は `ai.json` に `{accepted: false, reason, cold, rejects}` を書く。受け取った時は `{accepted: true, text, terms, cold, not_passed, machine_only, rejects}`。
 - 返り `{done, ok, reason, kind, prev_file}`。`prev_file` はまだ諦めていない拒否の回で前の答えの控えが在る時だけ、その絶対パス（今は run directory からの相対だった。prep が読むだけになったので絶対パスにした）。今の `reason_file` は返さない（却下の段落の中身は prep が控えから組む）。
 - 却下の理由の文（日本語）は、返答の中身で変わる所（セルの字数・止まった所と推測した所・型の拒み）を Python に残す（`CELL_REASON`・`_cold_reason`・型の拒みの文）。毎回同じ字の直し方の段落（初見の読み手が通さなかった時の書き直し方・表のセルの直し方）は `prompts/write.md` の `rejected` の段落が持つ（#764）。ループを諦めた時に `ai.json` の `reason` を通って人に向けた報告の頭に載るので、人に見せる文として日本語のまま（README の 5.3）。
 
@@ -474,41 +474,17 @@ Notes that earlier rounds of you wrote, named by the machine, oldest first. …
 1. `{shared:role-cold-reader}`（役の定義。決まった文）。
 2〜3. `{shared:report-head-check}`（報告の頭の確かめの 2 段落。下の md の 2・3 段落目をこの断片に置く。この block の PR が足す。使うのは report の block の初見の読み手だけで、cold-read の block は使わない）。断片の中の差し込み口 `{machine_heading}` ← `report_roles.MACHINE_HEADING` の `## ` を外した字（「機械が各段の出力と run の記録から組んだ事実（AI は書き換えていない）」。詳細のファイルの見出しと同じ字）。
 4. 渡した物だけを読めの 1 文（決まった文）。
-5. 区切りの行と `{body}` ← `writer.cold_body(writer, place=place)`（機械の報告の冒頭・書き手の頭・その頭に現れる語の定義の節を、語の表で言い換えた物。人に向けた報告の頭と同じ字）。
-6. 返す物と判定の決まり（決まった文）。
+5. 区切りの行で分けた 2 つ: `{machine}`（機械が組んだ行。機械の報告の冒頭）と `{body}`（書き手の頭とその頭に現れる語の定義の節）。どちらも `writer.cold_parts(writer, place=place)` が語の表で言い換えた物で、この順につなぐと人に向けた報告の頭と同じ字（`writer.cold_body`）。分けるのは、読み手が止まった所が書き手の書いた所か機械が組んだ行かを返せるようにするため（#834）。
+6. 返す物と判定の決まり（決まった文）。止まった所と推測した所は、書き手の書いた所なら `stops`・`guessed`、機械が組んだ行なら `machine_lines` に置く。どれかに 1 つでも在れば `redesign-needed`（基準は変えない）。
 7. 結びの 1 文。
 
 却下の段落は持たない（初見の読み手は周ごとに新しい会話で、拒まれる側でない。今も持たない）。
 
-md の本文（英語）:
-
-```markdown
-{shared:role-cold-reader}
-
-{shared:report-head-check}
-
-You have no context: you are given none of the history, the record, or the diff. Read only the text below, which is the part of the final report that asks a person to decide.
-
-==== text begins ====
-{body}
-==== text ends ====
-
-Return (1) where you could not follow the meaning and stopped (`stops`), (2) what you filled in by guessing (`guessed`), and (3) whether this text alone lets a person decide (`decidable`). If there is at least one stop or one guess, set `verdict` to `redesign-needed`; otherwise set it to `pass`.
-
-Return only JSON that matches the output schema.
-```
-
-共通の断片 `workflows/.shared/prompts/report-head-check.md`（この block の PR が足す。使うのは report の block の初見の読み手だけ。cold-read の block は使わず、その設計書はこの名を使って断片を足さない）:
-
-```markdown
-The reader of this text switches between several tasks while reading. Check whether the first 3 lines alone let a reader say what it is about, whether it concerns them, and whether it is urgent. If they do not, write in `stops` where that stopped working. Also write in `stops`, as places where you stopped, any reference that relies on context outside the text or before or after it (such as "the one mentioned earlier"), and any place that shows only a symbol, an abbreviation, or a path without saying what it is.
-
-You read only the head of the report. In the report a person receives, this head is followed by one line pointing to a file with the details, and by a provenance line. That file holds sections with headings and a section that the machine built (lists of numbers, places, and states, under the heading "{machine_heading}"). Where the head names those sections by heading and leaves detailed numbers, paths, and history to them, do not count it as a stop. Count as stops only the places where the head alone does not let you say what it is about, whether it concerns you, whether it is urgent, or what to decide. The first 3 lines and the one line per item to decide under them are built by the machine from the record, and the writer cannot rewrite them. When you stop there, write in `stops` what the writer should add in the summary right after them so that a person can decide.
-```
+md の本文（英語）の正本は `prompts/cold.md` と共通の断片 `workflows/.shared/prompts/report-head-check.md`（使うのは report の block の初見の読み手だけ。cold-read の block は使わず、その設計書はこの名を使って断片を足さない）。設計書は本文を写さない（#834 で写しを外した）。
 
 ### 3.4 返す形
 
-今の `output_format` のまま（`workflows/report/works-factory-report.yaml:284-293`）: `verdict`（`pass`・`redesign-needed`）・`stops`（字の配列）・`guessed`（字の配列）・`decidable`（boolean）。`required` は 4 つ全部・`additionalProperties: false`。人に見せる欄は `stops`・`guessed`（拒んだ回は書き手への拒否の理由に、上限の回は人に向けた報告の冒頭の印と詳細のファイルに載る）。言語の 1 文は持たない（今も持たない。返す字は読んだ本文の言語に倣う）。
+`output_format`（`workflows/report/works-factory-report.yaml` の cold）: `verdict`（`pass`・`redesign-needed`）・`stops`（字の配列。書き手の書いた所で止まった所）・`guessed`（字の配列。書き手の書いた所で推測した所）・`machine_lines`（字の配列。機械が組んだ行で止まったか推測した所。#834 で足した）・`decidable`（boolean）。`required` は 5 つ全部・`additionalProperties: false`。人に見せる欄は `stops`・`guessed`・`machine_lines`（拒んだ回は書き手への拒否の理由に、受け取った回は人に向けた報告の冒頭の印と詳細のファイルに載る。`machine_lines` の行は「機械が組んだ行で止まった所（書き手には直せない）」と分けて言う）。言語の 1 文は持たない（今も持たない。返す字は読んだ本文の言語に倣う）。
 
 ### 3.5 描いた骨組み（例の run の値。3 回目の回）
 
@@ -521,7 +497,7 @@ You read only the head of the report. … under the heading "機械が各段の�
 
 You have no context: …
 
-==== text begins ====
+==== lines the machine built begin ====
 # 報告（run df5e111f-ea97-409b-8066-2245d32746ab）
 
 起きたこと: 決めた周の数のうちに直しきれずに止まった（round_limit）。TDD の実行器を作れなかった（…）——TDD のループは回さない。…
@@ -529,7 +505,9 @@ You have no context: …
 人が決めること: 15 件——許したテストの変更 13 件・直しきれずに残った物 2 件（1 件ずつ下の行。…）
 - 許したテストの変更: lib/tests/test_runreport.py
 …
+==== lines the machine built end ====
 
+==== text the writer wrote begins ====
 この run の変更は一つです。PR を作る段（pr-commit）が commit 時のフック（pre-commit など）を走らせる環境を、…
 
 ## 人が決めること
@@ -537,9 +515,9 @@ You have no context: …
 
 ## 語の定義（機械が付けた。本文の外）
 …
-==== text ends ====
+==== text the writer wrote ends ====
 
-Return (1) where you could not follow the meaning and stopped (`stops`), …
+Return (1) where you could not follow the meaning in the text the writer wrote and stopped (`stops`), …
 
 Return only JSON that matches the output schema.
 ```
@@ -582,7 +560,7 @@ graphloops の `prompts/review-loop/report.cold_check.md` は書き手の前の�
 ## 5 受け付けの文と諦め
 
 - 却下の理由の文は Python（`src/writer.py`）が組む日本語の文。中身は今のまま（本文が無い・`terms` の型・表のセル・初見の読み手の止まった所と推測）。
-- 3 回目の拒否でループを抜ける。初見の読み手だけが通さない時は、3 回目に受け取って印を残す（`NOT_PASSED` の字を人に向けた報告の冒頭と詳細のファイルの拒みの数の行に）。ほかの拒みで 3 回目に届いた時は受け取らず、人に向けた報告の頭の所に「報告（AI の報告を最後まで作れなかった）」と訳を置く（今の `collect` の `FAILED_TITLE`）。
+- 3 回目の拒否でループを抜ける。初見の読み手だけが通さない時は、3 回目に受け取って印を残す（`NOT_PASSED` の字を人に向けた報告の冒頭と詳細のファイルの拒みの数の行に）。初見の読み手が通さなかった所が機械が組んだ行だけの時は、その回に書き直させずに受け取り、同じ印に `MACHINE_ONLY` の訳を添える（#834。初見の読み手の基準も回数も変えず、書き手に直せない所で輪を回さない）。ほかの拒みで 3 回目に届いた時は受け取らず、人に向けた報告の頭の所に「報告（AI の報告を最後まで作れなかった）」と訳を置く（今の `collect` の `FAILED_TITLE`）。
 - 書き手のループが落ちた時（使用枠の切れなど）は、run を failed で終え（Archon が落ちた node で run を落とす）、finish が機械の報告の冒頭に訳と resume の道を置いて返る（#702）。
 
 ## 6 単独で呼ぶ
