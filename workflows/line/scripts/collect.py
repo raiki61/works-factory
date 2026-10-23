@@ -26,7 +26,8 @@ sys.dont_write_bytecode = True
 sys.path[:0] = [str(Path(__file__).resolve().parents[2] / ".shared"), str(Path(__file__).resolve().parents[1])]
 import ports  # noqa: E402
 
-# 受け皿の got の欄（YAML の受け皿の names と同じ並び）
+# 受け皿の got の欄（YAML の受け皿の names と同じ並び。往復の受け皿の設計の相談の欄 open・text・asked・agreed・talks は読まない——
+# 設計の相談の答えは ask-before-fix の agreed と gates/gate-design.json から報告に出る）
 GOT = {
     "test_gate_base": "mode ok green red_cause ran_steps baseline fingerprint test_outcomes evidence by suites_line log baseline_line reason suite suite_note related report",
     "judge": "ok stop_reason reason ready units judgment answer_ties out_of_purpose materials brief inputs purpose purpose_text purpose_source "

@@ -85,10 +85,10 @@ From Claude Code, the same will be possible with `/works` (the works plugin of r
 
 ### Choosing the approval nodes
 
-You choose the approval nodes with run inputs (`--input <name>=<value>` on `workflow run`). The main graph has 4 approval nodes:
+You choose the approval nodes with run inputs (`--input <name>=<value>` on `workflow run`). The main graph has 4 approval nodes (dialogue mode adds a design-talk gate, see 2):
 
 1. Start: before any AI work, it shows what the run will do. It opens in every run that a human answers.
-2. Before fixing: after plan review. It opens only when there is something to ask: the plan reviewer left a question for you, one of its 4 checks failed, or the plan review got stuck. `--input design_only=true` always opens it (use it to see the plan before any fix is made).
+2. Before fixing: after plan review. It opens only when there is something to ask: the plan reviewer left a question for you, one of its 4 checks failed, or the plan review got stuck. `--input design_only=true` turns on dialogue mode: each time plan review settles, the run pauses at a design-talk gate inside the plan loop that shows the plan and the review. Answer `revise "<what to change>"` to have it re-planned and re-reviewed, `approve` or `continue` to go on to the fix without being asked again here, or `stop`. In an unattended run `design_only=true` still stops here instead.
 3. Plan change: during fixing, when a unit's plan has to change. It opens when the change alters what you approved (such as the files the unit may touch or its acceptance tests) or the reviewer of the new plan asks you. In an unattended run (below), a change that only lets the unit touch more files goes ahead without asking.
 4. Last: after the test gate and the independent eyes, once the diff is sealed (and before the run places it for `bin/apply`). `--input final_gate=<value>` sets when it opens:
    - `always` (the default when a human answers the run): every time.

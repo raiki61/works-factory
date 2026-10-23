@@ -10,3 +10,6 @@ nodes:
             attention: m
             form: select
             options: [{ id: approve }, { id: continue }, { id: stop }, { id: reject }]
+        - id: after
+          bash: 'true'
+          depends_on: [gate]

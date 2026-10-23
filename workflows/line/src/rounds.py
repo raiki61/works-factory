@@ -14,6 +14,8 @@ import する（plan と plan-review も使う。README 9.3）。
 - fresh() / read(raw) / write(path, doc): 記録の読み書き（raw は pointer かパスか空。読めない・形が違えば往復の無い記録）
 - record_pass(doc, got, *, at_cap, dest, plan_rejects): pass.json の中身 got を往復の行として足し、files を dest へ写し、拒否の行を積む
 - stuck_push_due(doc, *, unattended, design_only): 止まった案を推しで修正へ進めるか（今の gatemarks.stuck_push の条件）
+- ask_again(doc, *, key, text): 設計の相談の承認ノードで人が設計し直しを求めた時、その求めを最後の往復の中央の block に差し込み、全部の項目を
+  開き直して抜け方を AGAIN にする（次の周の plan が答え、事前審査が消えたか残ったかを照らす。src/talk.py が呼ぶ）
 - LIMIT: 往復の安全の上限（YAML の plan-rounds の max_iterations と同じ数。試験が突き合わせる）
 """
 from __future__ import annotations
@@ -239,6 +241,34 @@ def add_pass(doc: dict, review: dict, *, answers: list, resolved: list, synergy:
     return row
 
 
+PERSON_KIND = "person"   # 人が設計の相談の承認ノードで求めた直しの穴の kind（審査役の穴の kind と分ける）
+PERSON_WHERE = "設計の相談の承認ノード（gate-design）"
+PERSON_REACH = "forces_redesign"   # converge.CENTRAL の 1 つ。人の求めは中央の block として数える（端へ下げて素通りさせない）
+
+
+def ask_again(doc: dict, *, key: str, text: str) -> dict:
+    """人が設計の相談の承認ノードで設計し直しを求めた（答え revise と一言 text）時に、記録 doc の最後の往復の行へ、その求めを中央の block の穴
+    {key, kind: PERSON_KIND, where, why: text, reach} として足し、全部の項目を開き直して（保留も開く。人が直せと言った）、抜け方を AGAIN に
+    する。穴は face_units を持たないので全部の項目の物（converge._touches）になり、次の周の plan は block_answers でこの key に答え、
+    事前審査は resolved に入れるか同じ key で挙げ直す（converge.answer_gaps・resolved_gaps）。挙げ直せば前の往復の中央の block と重なり、
+    止め時の決まりのまま PERSISTED で止まる（人の求めを消えたことにしない）。往復の無い記録は変えずに返す（呼び手は一言を依頼の答えの
+    行として plan に渡す）。行の person に {key, text} を積む（報告と照らしの控え）。返りは doc"""
+    if not doc.get("passes"):
+        return doc
+    last = doc["passes"][-1]
+    face = {"key": key, "kind": PERSON_KIND, "where": PERSON_WHERE, "why": text, REACH: PERSON_REACH}
+    last["blocks"] = [*[k for k in last.get("blocks") or [] if k != key], key]
+    last["faces"] = [*[f for f in last.get("faces") or [] if f.get("key") != key], face]
+    last.setdefault("person", []).append({"key": key, "text": text})
+    for it in last.get("items") or []:
+        it["reopened"] = it.get("reopened") or it.get("state") == CLOSED
+        it["state"] = OPEN
+        it["blocks"] = [*[k for k in it.get("blocks") or [] if k != key], key]
+    last["outcome"] = AGAIN
+    doc["outcome"] = AGAIN
+    return doc
+
+
 def held(doc: dict) -> dict | None:
     """抜け方が AGAIN（修正案の役に返す）時の最後の往復の行"""
     return doc["passes"][-1] if doc.get("outcome") == AGAIN and doc.get("passes") else None
@@ -332,7 +362,8 @@ def _share_text(passes: list) -> str:
     1 回目に出た割合の分母は 1 回目・見落とし・分けられない（持ち込みと言い換えは入れない）、止めた全部のうちの割合の分母は
     それに持ち込みを足した数。止めた block が 0 件なら割らない。見落としは後の往復が審査した所の物だけなので、閉じて後の往復が
     見ない項目の取りこぼしは分母に入らず、1 回目に出た割合は実際より高く出うる（上限）。run の後で見つかった穴も割合に入らない"""
-    first = len(passes[0].get("blocks", []))
+    people = {str(r.get("key")) for r in passes[0].get("person") or [] if isinstance(r, dict)}   # 人の求め（ask_again）は審査役の block でない
+    first = len([k for k in passes[0].get("blocks", []) if k not in people])
     made = [w for p in passes[1:] for w in (p.get("origins") or {}).values()]
     n = {w: made.count(w) for w in ORIGIN_WORDS}
     seen = first + n[ORIGIN_MISSED] + n[ORIGIN_UNSPLIT]

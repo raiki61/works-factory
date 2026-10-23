@@ -110,10 +110,14 @@ class ReceiverCase(unittest.TestCase):
                 self.assertEqual(sorted(receiver["with"]["names"].split()), sorted(props))
 
     def test_plan_rounds_have_one_receiver_with_the_plan_out_fields(self):
-        """今の 2 つの受け皿（plan-rounds-out・plan-rounds-review-out）を 1 つにした（docs/design/line.md の 9 節）"""
+        """今の 2 つの受け皿（plan-rounds-out・plan-rounds-review-out）を 1 つにした（docs/design/line.md の 9 節）。往復の返りは本体の唯一の
+        終わりの関所が依る design-talk の返りで、plan-out の欄の全部と設計の相談の欄（3.1 節）を持つ"""
         receiver = TOP["plan-rounds-out"]
         self.assertEqual(receiver["with"]["got"], "$plan-rounds.output")
-        self.assertEqual(sorted(receiver["with"]["names"].split()), sorted(LOOP["plan-out"]["output_format"]["properties"]))
+        talk = LOOP["design-talk"]["output_format"]["properties"]
+        self.assertEqual(sorted(receiver["with"]["names"].split()), sorted(talk))
+        self.assertLessEqual(set(LOOP["plan-out"]["output_format"]["properties"]), set(talk))
+        self.assertEqual(LOOP["gate-design"]["depends_on"], ["design-talk"])
         self.assertNotIn("plan-rounds-review-out", TOP)
 
     def test_plan_rounds_wait_on_every_stage_that_can_stop(self):
@@ -275,15 +279,23 @@ class FlowCase(unittest.TestCase):
         self.assertEqual(gates, ["gate-start", "gate-before-fix", "spec-gate-before-fix", "gate-replan", "gate-final"])   # spec- は仕様駆動の run の修正前
         for key in gates:
             self.assertEqual([o["id"] for o in TOP[key]["wait"]["options"]], ["approve", "continue", "stop", "reject"], key)
-        self.assertFalse([k for k in LOOP if "wait" in LOOP[k]], "往復の本体に承認ノードを置かない（E16）")
+        # 往復の本体の関所は設計の相談の gate-design 1 つだけ（本体の唯一の終わり。E16・3.1 節）。選び肢は 4 つの語と revise
+        self.assertEqual([k for k in LOOP if "wait" in LOOP[k]], ["gate-design"])
+        self.assertEqual([o["id"] for o in LOOP["gate-design"]["wait"]["options"]], ["approve", "continue", "stop", "reject", "revise"])
+        self.assertFalse([k for k, n in LOOP.items() if "gate-design" in (n.get("depends_on") or [])], "関所の後ろに本体の節を置かない")
 
     def test_plan_rounds_carry_two_priors(self):
-        """3 節: plan の prior は plan の形、plan-review の prior は往復の記録の形で、1 周目はどちらも空"""
-        self.assertEqual(LOOP["plan"]["with"]["prior"], "$LOOP_PREV.plan-out.output.plan_prior")
-        self.assertEqual(LOOP["plan-review-run"]["with"]["prior"], "$LOOP_PREV.plan-out.output.record")
+        """3 節: plan の prior は plan の形、plan-review の prior は往復の記録の形で、1 周目はどちらも空。どちらも周の頭の design-turn が
+        前の周の design-talk の返りから運ぶ（修正要望の周は人の block を差し込んだ写し。3.1 節）。plan-out も同じ記録を受ける"""
+        self.assertEqual(LOOP["plan"]["with"]["prior"], "$design-turn.output.plan_prior")
+        self.assertEqual(LOOP["plan-review-run"]["with"]["prior"], "$design-turn.output.record")
+        self.assertEqual(LOOP["plan-out"]["with"]["prior"], "$design-turn.output.record")
+        self.assertEqual(LOOP["design-turn"]["with"]["previous"], "$LOOP_PREV.design-talk.output")
+        self.assertEqual(LOOP["design-turn"]["with"]["answer"], "$LOOP_PREV.gate-design.output")
+        self.assertEqual(TOP["plan-rounds"]["loop_group"]["until_bash"], 'done=$design-talk.output.done; [ "$done" = "true" ]')
         self.assertEqual(LOOP["plan-review-run"]["with"]["tree"], "$tiers.output.tree")
         self.assertNotIn("round_limit", LOOP["plan-review-run"]["with"])
-        self.assertEqual(TOP["plan-rounds"]["loop_group"]["max_iterations"], 20)
+        self.assertEqual(TOP["plan-rounds"]["loop_group"]["max_iterations"], 22)   # 往復の上限 20 と空の revise の聞き直し 2（test_rounds が和を照らす）
         self.assertNotIn("fresh_context", TOP["plan-rounds"]["loop_group"])
 
     def test_line_has_no_ai_node(self):

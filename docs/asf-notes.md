@@ -112,3 +112,10 @@ ASF の版を進めた時は、各セクションの行を新しい版で読み�
 - なぜその形か: 対象ごとの道具の知識は役の判断に置き、走らせと事実の照らしは機械が持つ。役の申告を走らせた結末で確かめられる。
 - 採った先: test-gate の `suite-loop`（tdd_suite を省いた run の base で、`suite-write` が TDD の実行器の本文を返し、`suite-place` が置き、`suite-try` が走らせて照らす）。
 - 違い: argv でなく実行器の本文を返す（JUnit XML の 1 件ごとの結末を第 1 引数の書き先に書く約束が要るため）。照らしは別に走らせず、修正前のテストの一式の回を兼ねる 1 回の結末（JUnit XML が出たか・試験が 1 件以上か）を読む。照らしを通った本文は test_cmd の字を鍵に利用者ごとの取り置きに置き、次の run は役を起こさずに使う（使う時も同じ照らしを通す。持ち主の決め `suite-by-ai`）。
+
+### A14 繰り返しの末尾で人に聞き、答えは次の周の頭で読む
+
+- ASF: a972888a の `.archon/workflows/sdlc/plan-entry/archon-plan.yaml`（ループ `cycle` の本体の頭 `go` が `$LOOP_PREV.attend__ask.output.decision` で前の周の答えを読み、`rerun` か 1 周目だけ計画を回す）と `sdlc/attention/archon-attention.yaml`（本体の唯一の終わりの `wait:` 承認ノード `ask` と、その前でループの終わりを決める `settle`。`until_bash` は `settle` の `done` だけを読む）。説明書は同じ版の `guides/loop-nodes.md` の「Pausing to ask inside the body」。
+- なぜその形か: 人の答えで同じ実行の中の次の周を回せ、繰り返しを起こし直さない（直す前の試験と判定をやり直さない）。`when:` で飛んだ承認ノードは出力を持たないので、ループの終わりは承認ノードの前のノードが決める。
+- 採った先: line の計画の往復 `plan-rounds` の設計の相談（周の頭 `design-turn`・終わり `design-talk`・承認ノード `gate-design`。`docs/design/line.md` の 3.1（設計の相談）。持ち主の決め `dialogue-gate-in-loop`）。
+- 違い: 承認ノードを開くのは対話モード（`design_only`）の run の、往復が止まる周だけ。答えの語は今の 4 つに `revise` を足した 5 つ（`rerun`・`finish` は使わない）。修正要望は一言を往復の記録の人の block に書き足し、計画の役の答えと事前審査の照らしを求める（止め時の決まりは今のまま）。合意の後は修正前の承認ノードで聞き直さない。
