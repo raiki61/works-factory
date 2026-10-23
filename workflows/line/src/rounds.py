@@ -17,6 +17,9 @@ import する（plan と plan-review も使う。README 9.3）。
 - ask_again(doc, *, key, text): 設計の相談の承認ノードで人が設計し直しを求めた時、その求めを最後の往復の中央の block に差し込み、全部の項目を
   開き直して抜け方を AGAIN にする（次の周の plan が答え、事前審査が消えたか残ったかを照らす。src/talk.py が呼ぶ）
 - LIMIT: 往復の安全の上限（YAML の plan-rounds の max_iterations と同じ数。試験が突き合わせる）
+- suspicion(passes) / suspected(doc): 往復が長引いた・審査の穴の中身が移ったと見る印（issue #838。打ち切りでなく、人に聞く合図。
+  add_pass が AGAIN の往復を止まりに替え、行に suspect を置く。対話モードは設計の相談で、ほかの run は修正前の承認ノードで人に聞き、
+  無人の run は推しで越えずに止まる）
 """
 from __future__ import annotations
 
@@ -33,6 +36,16 @@ from converge import (AGAIN, CLEAN, CLOSED, FACE_KEYS, HELD, HELD_MARK, KEY_CHAR
                       block_faces, central, central_keys, sentence_diff, sentences)
 
 LIMIT = 20
+# 怪しいと見る往復の数（issue #838・持ち主の言葉「3回往復すれば怪しいとみる」）。人の答えの後（無ければ往復の頭）から数えて、閉じない
+# まま回した往復がこの数に届いたら、次の往復を始める前に人に聞く（対話モード）か止まる（無人の run）。打ち切りの上限ではない: 人が
+# 設計し直しを求めれば数え直して往復を続ける（docs/design/line.md の 3.2 節。憲法 6 との関係もそこ）
+SUSPECT_ROUNDS = 3
+SUSPECT_LONG = "long"     # 印の語: 閉じないまま SUSPECT_ROUNDS 往復を回した
+SUSPECT_DRIFT = "drift"   # 印の語: 審査の穴の中身が移った（前の往復の中央の block が全部消え、新しい中央の block が全部、直しが持ち込んだ物）
+SUSPECT_WHY = {SUSPECT_LONG: "人の答えの後（無ければ往復の頭）から {n} 往復しても閉じない",
+               SUSPECT_DRIFT: "審査の穴の中身が移った（前の往復の中央の block {gone} が全部消え、この往復の新しい中央の block {came} が全部、"
+                              "直しが持ち込んだ物）"}
+SUSPECT_HEAD = ("怪しいと見て往復を止めた（打ち切りでなく人に聞く合図。人が設計し直しを求めれば数え直して往復を続ける）: {why}")
 PLAN_ROLE = "plan"   # 修正案の役の拒否の行の role（元 lib/planfile.py の ROLE）
 
 PERSISTED_WHY = ("事前審査（記録の名 p2.plan_review）の同じ block が、案を直した後も残った（{keys}。壁打ち {n} 往復。"
@@ -199,7 +212,8 @@ def add_pass(doc: dict, review: dict, *, answers: list, resolved: list, synergy:
     """控え doc に事前審査の返答 1 つを往復の行として足し、decide で抜け方を決めて doc と行の outcome に置く（ファイルの写し・
     書き込み・trace はしない）。at_cap（呼び手が渡す、輪がもう 1 周回せない事実）が真で decide が AGAIN の往復は、行に
     capped: true を立てて UNSETTLED（保留の項目が在れば PERSISTED）で止める（決まりは decide のまま。CLEAN と止める往復は
-    変えない）。origins（審査の出自の申告の行。型は節の output_format か、受け付けが答えのファイルの型（ORIGIN_SCHEMA の写し）で照らし済み）は
+    変えない）。抜け方が AGAIN の往復で怪しい印（suspicion。人の答えの後から SUSPECT_ROUNDS 往復・審査の穴の中身が移った）が立てば、
+    行に suspect を置いて同じく止まりにする（人に聞く合図。数の上限で打ち切るのでなく、人の答えで数え直す）。origins（審査の出自の申告の行。型は節の output_format か、受け付けが答えのファイルの型（ORIGIN_SCHEMA の写し）で照らし済み）は
     _origins が照らして、2 往復目からの新しい block の出自を行の origins に置く（採らなかった申告は origins_claimed）。refs（{項目の番号:
     その項目の答えの対応表の design_ref の並び}）は審査した項目の items の行に置く（carried_refs が、閉じた項目が受けた要素を後の往復の
     網羅に数える。carried_refs）。push（返答の一番上の止まった時の推し STUCK_PUSH の値。形は照らさず、読む gatemarks が照らす）は、
@@ -234,11 +248,64 @@ def add_pass(doc: dict, review: dict, *, answers: list, resolved: list, synergy:
         resolved=list(resolved))
     passes.append(row)
     row["outcome"] = decide(passes)
-    if at_cap and row["outcome"] == AGAIN:   # 輪がもう 1 周回せない: 抜けないと輪が尽きて節が落ちるので、ここで止める
-        row["capped"] = True
-        row["outcome"] = PERSISTED if HELD in [it.get("state") for it in row.get("items") or []] else UNSETTLED
+    if row["outcome"] == AGAIN:
+        suspect = suspicion(passes)
+        if suspect:   # 怪しいと見た: 次の往復を始めず、止まりにして人に聞く（決まり decide は変えない。印は行の suspect）
+            row["suspect"] = suspect
+        if at_cap:   # 輪がもう 1 周回せない: 抜けないと輪が尽きて節が落ちるので、ここで止める
+            row["capped"] = True
+        if suspect or at_cap:
+            row["outcome"] = PERSISTED if HELD in [it.get("state") for it in row.get("items") or []] else UNSETTLED
     doc["outcome"] = row["outcome"]
     return row
+
+
+def since_person(passes: list[dict]) -> list[dict]:
+    """人の答えの後の往復（最後に人の求め person を差し込んだ往復より後の行。差し込みが無ければ全部）。怪しいと見る印はこの中だけで数える
+    （人が設計し直しを求めた所から数え直す）"""
+    marked = [i for i, p in enumerate(passes) if p.get("person")]
+    return passes[marked[-1] + 1:] if marked else list(passes)
+
+
+def _drift(passes: list[dict], seg: list[dict]) -> tuple[list, list]:
+    """（前の往復の中央の block, この往復の新しい中央の block）。審査の穴の中身が移った時だけ両方が空でない: 人の答えの後の往復が 2 つ以上・
+    前の往復の中央の block が 1 つ以上在り、そのどれもこの往復の block に無い・この往復の新しい（前のどの往復にも無い）中央の block が
+    1 つ以上在り、その出自（origins）が全部 ORIGIN_INTRODUCED。ほかは ([], [])"""
+    if len(seg) < 2:
+        return [], []
+    prev, last = seg[-2], seg[-1]
+    gone = central_keys(passes[:-1], prev.get("blocks") or [])
+    earlier = {k for p in passes[:-1] for k in p.get("blocks") or []}
+    came = [k for k in central_keys(passes, last.get("blocks") or []) if k not in earlier]
+    origins = last.get("origins") or {}
+    if gone and came and not set(gone) & set(last.get("blocks") or []) and all(origins.get(k) == ORIGIN_INTRODUCED for k in came):
+        return gone, came
+    return [], []
+
+
+def suspicion(passes: list[dict]) -> list[str]:
+    """往復が怪しいと見る印の語の並び（issue #838。どちらも yes/no の決まり。無ければ []）。数えるのは人の答えの後の往復（since_person）:
+    SUSPECT_LONG はその数が SUSPECT_ROUNDS 以上、SUSPECT_DRIFT は最後の往復で穴の中身が移った（_drift）。呼び手 add_pass は抜け方が
+    AGAIN の往復だけに当てる（CLEAN・SETTLED・止まりは変えない）"""
+    seg = since_person(passes)
+    out = [SUSPECT_LONG] if len(seg) >= SUSPECT_ROUNDS else []
+    return out + ([SUSPECT_DRIFT] if _drift(passes, seg)[1] else [])
+
+
+def suspected(doc: dict) -> bool:
+    """往復の記録が、怪しいと見て止めた物か（最後の往復の行に suspect が在り、抜け方が止まり。人が設計し直しを求めれば AGAIN に戻る）"""
+    return bool(doc.get("outcome") in STUCK and doc.get("passes") and doc["passes"][-1].get("suspect"))
+
+
+def suspect_text(doc: dict) -> str:
+    """怪しいと見て止めた訳の 1 文（SUSPECT_HEAD。止めていなければ空）"""
+    if not suspected(doc):
+        return ""
+    passes = doc["passes"]
+    seg = since_person(passes)
+    gone, came = _drift(passes, seg)
+    why = [SUSPECT_WHY[w].format(n=len(seg), gone=_keys(gone), came=_keys(came)) for w in passes[-1]["suspect"] if w in SUSPECT_WHY]
+    return SUSPECT_HEAD.format(why="・".join(why))
 
 
 PERSON_KIND = "person"   # 人が設計の相談の承認ノードで求めた直しの穴の kind（審査役の穴の kind と分ける）
@@ -452,6 +519,8 @@ def stuck_reason(doc: dict, path="") -> str:
     text = PERSISTED_WHY if doc["outcome"] == PERSISTED else UNSETTLED_WHY
     why = text.format(keys=_keys(stuck_keys(doc)), n=len(passes), path=path)
     why += "。" + _items_text(last["items"]) if last.get("items") is not None else ""
+    if suspected(doc):
+        why += "。" + suspect_text(doc)
     if capped(doc):
         why += "。" + CAP_WHY.format(n=len(passes), counts=" → ".join(f"{p['pass']} 往復目 {len(_open_blocks(p))}" for p in passes))
     return why
@@ -465,6 +534,7 @@ def lines(doc: dict, path="") -> list[str]:
     persists = list(dict.fromkeys(key for p in passes for key in p.get("persists", [])))
     out = [LINE_HEAD.format(n=len(passes), word=WORDS.get(doc["outcome"], doc["outcome"]), outcome=doc["outcome"],
                             persists=_keys(persists), share=_share_text(passes), path=path)]
+    out += [f"  - {suspect_text(doc)}"] if suspected(doc) else []
     earlier, hard = set(), set()
     for p in passes:
         handled = [a.get("handled") for a in p.get("answers", []) if isinstance(a, dict)]
@@ -487,11 +557,11 @@ def lines(doc: dict, path="") -> list[str]:
 def stuck_pushable(doc: dict, push, *, unattended: bool, design_talk: bool) -> bool:
     """止まった事前審査の壁打ち（記録 doc）の行に、事前審査の役の推し push（{go, note}。無ければ None）の尾を付けてよいか。全部が
     揃う時だけ: 無人の run・設計だけの run でない・抜け方が止まり・最後の往復が輪の安全の上限の周で止めた物でない（上限での止まりは
-    工場の不具合 CAP_WHY で、人が見る）・通す推しで、その note が止まった key と保留・開いた項目の番号の全部を字のまま引く
+    工場の不具合 CAP_WHY で、人が見る）・怪しいと見て止めた物でない（suspected。人に聞く合図なので、無人の run は推しで越えずに止まる）・通す推しで、その note が止まった key と保留・開いた項目の番号の全部を字のまま引く
     （uncited が空。修正役に届くのは note だけ）。元 lib/gatepolicy.py の stuck_pushable（無人の印を始めの記録でなく引数で受ける）"""
     go = getattr(push, "go", None) if not isinstance(push, dict) else push.get("go")
     note = getattr(push, "note", None) if not isinstance(push, dict) else push.get("note")
-    return (unattended and not design_talk and doc.get("outcome") in STUCK and not capped(doc)
+    return (unattended and not design_talk and doc.get("outcome") in STUCK and not capped(doc) and not suspected(doc)
             and push is not None and go is True and not uncited(note, doc))
 
 

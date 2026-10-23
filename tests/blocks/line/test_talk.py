@@ -65,14 +65,21 @@ class TalkCase(unittest.TestCase):
                                       **given},
                                recorded=[{"source": "doc", "name": "p.md", "text": ""}], place=self.run.artifacts)
 
-    def settle(self, turn_got, plan_out=None, previous=None, design_talk=True):
+    def settle(self, turn_got, plan_out=None, previous=None, design_talk=True, judge=None):
         with self.run.env():
             return self.t.settle(turn_got=turn_got, plan_out=plan_out, previous=previous,
-                                 given={"design_talk": design_talk, "unattended": False}, materials=no_materials, run_id=kit.RUN_ID)
+                                 given={"design_talk": design_talk, "unattended": False}, materials=no_materials, run_id=kit.RUN_ID,
+                                 judge=judge)
+
+    def planned(self) -> dict:
+        """対話モードで、1 周目の早い相談に approve と答えた後の周の頭（計画を回す周）"""
+        first = self.turn()
+        early = self.settle(first, None)
+        return self.turn({"decision": "approve", "text": ""}, previous=early, last=first)
 
     def opened(self, **over) -> dict:
         """対話モードで往復が止まった周の design-talk の返り（関所が開いた）"""
-        return self.settle(self.turn(), self.plan_out(**over))
+        return self.settle(self.planned(), self.plan_out(**over))
 
     # ------------------------------------------------------------------ 通常の run は変わらない
     def test_normal_run_carries_the_previous_round_as_it_was(self):
@@ -107,7 +114,7 @@ class TalkCase(unittest.TestCase):
         self.assertEqual(got["asked"], [NARROW], "人が決める項目は修正前の承認ノードと同じ決めで組む")
 
     def test_dialogue_keeps_going_while_the_rounds_go_on(self):
-        got = self.settle(self.turn(), self.plan_out(done=False, ok=False))
+        got = self.settle(self.planned(), self.plan_out(done=False, ok=False))
         self.assertEqual((got["open"], got["done"]), (False, False))
 
     def test_nothing_owed_and_a_failed_plan_return_the_result_of_the_talk(self):
@@ -118,6 +125,71 @@ class TalkCase(unittest.TestCase):
                 self.assertTrue(got["open"])
                 self.assertIn(word, got["text"])
                 self.assertIn("修正へ進まずに報告を出す", got["asked"][0])
+
+    # ------------------------------------------------------------------ 判定の後の早い相談（issue #830）
+    def judge(self) -> dict:
+        outside = self.put("judge/out-of-purpose.json", {"rounds": {"1": [{"source": "P1", "where": "b.py:3", "why_outside": "目的の外の読みの所見"}]}})
+        return {"purpose_text": "空の列でも mean が落ちない", "units": [{"id": "u1", "paths": ["stats.py"], "summary": "空の列の mean が 0 割りで落ちる"}],
+                "out_of_purpose": outside, "tier": "標準", "tier_why": "単位 1 つ",
+                "questions": [{"key": "q-a", "kind": "fork", "reason": "0 か None かで割れる"}]}
+
+    def early(self) -> tuple:
+        """対話モードの 1 周目の (周の頭, 周の終わり)"""
+        first = self.turn()
+        return first, self.settle(first, None, judge=self.judge())
+
+    def test_dialogue_asks_after_the_judge_before_planning(self):
+        """対話モードの run の 1 周目は計画を回さず、判定の読み（目的・直す単位・目的の外・段・判定の問い）を見せる関所を開く"""
+        first, got = self.early()
+        self.assertEqual((first["plan"], first["early"]), (False, True), "計画を書く前に聞く")
+        self.assertEqual((got["open"], got["done"], got["asked"], got["agreed"]), (True, False, [], None))
+        for word in ("判定が済んだ所で開いた", "空の列でも mean が落ちない", "u1: 空の列の mean が 0 割りで落ちる（stats.py）",
+                     "b.py:3: 目的の外の読みの所見", "深さの段: 標準（単位 1 つ）", "q-a: 0 か None かで割れる", f'{kit.RUN_ID} revise "<違う所'):
+            self.assertIn(word, got["text"])
+
+    def test_normal_and_unattended_runs_do_not_ask_early(self):
+        """対話モードでない run と無人の run は 1 周目から計画を回す（早い相談の関所を開かない）"""
+        for given in ({"design_talk": False}, {"design_talk": True, "unattended": True}):
+            with self.subTest(**given):
+                got = self.turn(**given)
+                self.assertEqual((got["plan"], got["early"]), (True, False))
+
+    def test_the_early_word_reaches_the_plan_and_the_review(self):
+        """早い相談の「ここが違う」（revise と一言）と通す一言（continue と一言）は、次の周の plan の answers と事前審査の recorded に
+        依頼の答えの行で届き、後の周にも運ぶ。一言の無い approve は依頼の答えを変えない。どれも設計への合意（agreed）にしない"""
+        for decision, text, want in (("revise", "a.py は触らず b.py で直す", True), ("continue", "a.py だけ", True), ("approve", "", False)):
+            with self.subTest(decision=decision):
+                first, early = self.early()
+                nxt = self.turn({"decision": decision, "text": text}, previous=early, last=first)
+                self.assertEqual((nxt["plan"], nxt["early"], nxt["plan_prior"], nxt["record"]), (True, False, "", ""))
+                name = self.t.EARLY_NAME.format(n=1)
+                self.assertEqual(nxt["answers"][-1] == {"question": name, "text": text}, want, nxt["answers"])
+                self.assertEqual(nxt["recorded"][-1].get("name") == name, want)
+                po = self.plan_out()
+                talk = self.settle(nxt, po)
+                self.assertEqual((talk["open"], talk["agreed"]), (True, None), "設計案と事前審査の後に、改めて設計の相談で聞く")
+                later = self.turn("", previous={**po, **{k: talk[k] for k in self.t.TALK_FIELDS}}, last=nxt)
+                self.assertEqual(later["answers"][-1] == {"question": name, "text": text}, want, "後の周にも運ぶ")
+
+    def test_stop_at_the_early_talk_stops_before_planning(self):
+        first, early = self.early()
+        nxt = self.turn({"decision": "stop", "text": "読みが違う"}, previous=early, last=first)
+        self.assertFalse(nxt["plan"])
+        got = self.settle(nxt, None, previous=early)
+        self.assertEqual((got["done"], got["agreed"]["decision"], got["stop_reason"]), (True, "stop", ""))
+        out = self.g.before_fix(got, unattended_run=False, design=True, agreed=got["agreed"])
+        self.assertEqual((out["go"], out["stop_reason"]), (False, "human:gate-design"))
+
+    def test_empty_revise_at_the_early_talk_asks_again(self):
+        first, early = self.early()
+        nxt = self.turn({"decision": "revise", "text": ""}, previous=early, last=first)
+        self.assertEqual((nxt["plan"], nxt["early"]), (False, True), "早い相談のまま聞き直す")
+        again = self.settle(nxt, None, previous=early)
+        self.assertEqual((again["open"], again["done"]), (True, False))
+        self.assertTrue(again["text"].startswith(self.t.EMPTY_REVISE))
+        self.assertIn("空の列でも mean が落ちない", again["text"])
+        go = self.turn({"decision": "approve", "text": ""}, previous=again, last=nxt)
+        self.assertEqual((go["plan"], go["early"]), (True, False))
 
     # ------------------------------------------------------------------ 答え
     def shown(self) -> dict:
@@ -132,7 +204,8 @@ class TalkCase(unittest.TestCase):
         self.assertEqual(got["agreed"], {"round": 1, "decision": "continue", "text": "a.py だけ", "asked": [NARROW]})
         self.assertEqual({k: got[k] for k in ("ok", "status", "record", "fix_plan")}, {k: shown[k] for k in ("ok", "status", "record", "fix_plan")})
         kept = json.loads((self.run.artifacts / "gates" / "gate-design.json").read_text(encoding="utf-8"))
-        self.assertEqual([k["decision"] for k in kept], ["continue"])
+        self.assertEqual([k["decision"] for k in kept], ["approve", "continue"], "早い相談の答えと設計への合意を並べる")
+        self.assertEqual([bool(k.get("early")) for k in kept], [True, False])
 
     def test_stop_ends_the_rounds_with_the_answer(self):
         shown = self.shown()
@@ -209,7 +282,7 @@ class TalkCase(unittest.TestCase):
         self.assertEqual(got["plan_prior"], prior)
 
     def test_a_missing_plan_out_fails_the_round_without_breaking_the_loop(self):
-        got = self.settle(self.turn(), None)
+        got = self.settle(self.planned(), None)
         self.assertEqual((got["done"], got["ok"], got["stop_reason"]), (True, False, "works:line-script"))
 
 
@@ -412,12 +485,16 @@ class DryRunCase(unittest.TestCase):
         turn = self.sc.out(trace, "design-turn")
         self.assertEqual((turn["plan"], turn["plan_prior"], turn["record"], turn["recorded"]), (True, "", "", []))
 
-    def test_dialogue_run_shows_the_design_and_the_review(self):
+    def test_dialogue_run_asks_after_the_judge_first(self):
+        """対話モードの run の 1 周目は計画を回さず、判定の読みで早い相談の関所を開く（issue #830。計画と事前審査の後の相談の文は、
+        答えた後の周が要るので test_talk の TalkCase と本物の Archon の tests/e2e/test_design_talk_real.py が照らす）"""
         trace = self.traces["design-talk"]
         self.assertEqual(self.sc.got(trace, "plan-rounds")["open"], True, "往復の返りは design-talk の返り（本物と同じ）")
-        talk = self.sc.out(trace, "design-talk")
+        turn, talk = self.sc.out(trace, "design-turn"), self.sc.out(trace, "design-talk")
+        self.assertEqual((turn["plan"], turn["early"]), (False, True))
+        self.assertFalse(self.sc.ran(trace, "plan-out"), "計画を書く前に聞く")
         self.assertEqual((talk["open"], talk["done"]), (True, False))
-        for word in ("設計案（計画の周 1）", "事前審査の結果", " revise ", "人が決める項目"):
+        for word in ("判定が済んだ所で開いた", "空の列でも mean が落ちない", "u1: 空の列の mean が 0 割りで落ちる", " revise "):
             self.assertIn(word, talk["text"])
 
 
