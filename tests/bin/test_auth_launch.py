@@ -74,6 +74,165 @@ def keychain(items):
     return run
 
 
+class ConnectionProfile(unittest.TestCase):
+    """必要な接続設定だけを抽出し、秘密は env、alias だけを inline に運ぶ。資格・隔離の競合を縛る。"""
+
+    def setUp(self):
+        self.tmp = hermetic.tmpdir(self)
+
+    def profile(self, body, env=None):
+        write_settings(self.tmp, body)
+        return auth_launch.connection_profile(self.tmp, env or {})
+
+    def test_direct_credentials_replace_parent_without_copying_user_behaviour(self):
+        secret = "dummy-selected-secret"
+        p, deferred = self.profile({"env": {"ANTHROPIC_API_KEY": secret,
+                                            "ANTHROPIC_BASE_URL": "https://dummy.invalid",
+                                            "ANTHROPIC_DEFAULT_SONNET_MODEL": "dummy-model",
+                                            "HOME": "/user", "XDG_CACHE_HOME": "/user-cache", "UNNEEDED": "no"},
+                                    "hooks": {"Stop": []}, "permissions": {"allow": ["Bash(*)"]},
+                                    "sandbox": {"enabled": False}, "enabledPlugins": {"unneeded": True},
+                                    "apiKeyHelper": "never-executed"})
+        self.assertFalse(deferred)
+        out = auth_launch.profile_env({"HOME": "/factory", "ANTHROPIC_AUTH_TOKEN": "parent",
+                                       "CLAUDE_CODE_OAUTH_TOKEN": "parent-oauth", "CLAUDE_API_KEY": "other"}, p)
+        self.assertEqual(out, {"HOME": "/factory", "ANTHROPIC_API_KEY": secret,
+                               "ANTHROPIC_BASE_URL": "https://dummy.invalid"})
+        self.assertEqual(p["settings"], {"env": {"ANTHROPIC_DEFAULT_SONNET_MODEL": "dummy-model"}})
+        self.assertNotIn(secret, json.dumps(p["settings"]))
+        self.assertNotIn("apiKeyHelper", p["settings"])
+
+    def test_provider_settings_are_deferred_not_silently_changed_to_direct(self):
+        for flag in auth_launch.PROVIDER_FLAGS:
+            p, deferred = self.profile({"env": {flag: "1", "ANTHROPIC_API_KEY": "not-direct"}})
+            self.assertTrue(deferred)
+            self.assertEqual(p["env"], {})
+            self.assertEqual(p["drop"], [])
+            parent = {flag: "1", "ANTHROPIC_API_KEY": "parent", "HOME": "/factory"}
+            p, deferred = self.profile({"env": {"ANTHROPIC_API_KEY": "not-direct"}}, parent)
+            self.assertTrue(deferred)
+            self.assertEqual(auth_launch.profile_env(parent, p), parent)
+
+    def test_foundry_parent_values_are_restored_without_fetching_credentials(self):
+        parent = {"CLAUDE_CODE_USE_FOUNDRY": "1", "ANTHROPIC_FOUNDRY_API_KEY": "dummy",
+                  "ANTHROPIC_FOUNDRY_RESOURCE": "dummy-resource"}
+        p, _ = self.profile({}, parent)
+        self.assertEqual(p["env"], parent)
+        got, name, why = auth_launch.resolve(parent, str(self.tmp), "", platform="linux", runner=keychain({}))
+        self.assertEqual((got, name, why), (parent, "CLAUDE_CODE_USE_FOUNDRY", None))
+
+    def test_named_item_remains_above_settings_credentials(self):
+        p, deferred = self.profile({"env": {"ANTHROPIC_API_KEY": "selected"}}, {auth_launch.ITEM_ENV: "named"})
+        self.assertEqual(p, {"settings": {}, "env": {}, "drop": []})
+
+    def test_managed_connection_fields_override_user_in_existing_file_order(self):
+        managed = self.tmp / "managed"
+        (managed / "managed-settings.d").mkdir(parents=True)
+        write_settings(self.tmp, {"env": {"ANTHROPIC_API_KEY": "user", "ANTHROPIC_BASE_URL": "https://user.invalid"}})
+        (managed / "managed-settings.json").write_text(json.dumps({"env": {"ANTHROPIC_API_KEY": "managed"},
+                                                                    "hooks": {"Stop": []}}))
+        (managed / "managed-settings.d" / "20.json").write_text(json.dumps({"env": {"ANTHROPIC_API_KEY": "last"}}))
+        (managed / "managed-settings.d" / "10.json").write_text(json.dumps({"env": {"ANTHROPIC_API_KEY": "first"}}))
+        p, deferred = auth_launch.connection_profile(self.tmp, {}, managed)
+        self.assertFalse(deferred)
+        self.assertEqual(p["env"], {"ANTHROPIC_API_KEY": "last", "ANTHROPIC_BASE_URL": "https://user.invalid"})
+        self.assertNotIn("hooks", p["settings"])
+
+    def test_helper_dependencies_only_enter_the_helper_process(self):
+        source = self.tmp / "settings.json"
+        write_settings(self.tmp, {"apiKeyHelper": "NEVER_RUN", "env": {"HELPER_INPUT": "dummy-secret",
+                                                                       "HOME": "/unsafe", "UNNEEDED": "helper-only"}})
+        ai = {"HOME": "/factory", "CLAUDE_CONFIG_DIR": "/factory/config", "ARCHON_HOME": "/factory/archon",
+              auth_launch.userenv.RECORD: json.dumps({"HOME": "/user", "XDG_CONFIG_HOME": "/user/xdg"})}
+        env = auth_launch.helper_settings_env(ai, "/user", str(self.tmp), str(source))
+        self.assertEqual(env["HELPER_INPUT"], "dummy-secret")
+        self.assertEqual(env["HOME"], "/user")
+        self.assertEqual(env["CLAUDE_CONFIG_DIR"], str(self.tmp))
+        self.assertEqual(env["XDG_CONFIG_HOME"], "/user/xdg")
+        self.assertNotIn("HELPER_INPUT", ai)
+        self.assertEqual(ai["HOME"], "/factory")
+        self.assertNotIn(auth_launch.userenv.RECORD, env)
+
+    def test_actual_helper_spawn_receives_dependencies_without_mutating_ai_env(self):
+        source = self.tmp / "settings.json"
+        write_settings(self.tmp, {"apiKeyHelper": "NEVER_RUN", "env": {"HELPER_INPUT": "dummy-private-input"}})
+        ai = {"HOME": "/factory", "CLAUDE_CONFIG_DIR": "/factory/config"}
+        with mock.patch.object(auth_launch.os, "environ", ai), mock.patch.object(auth_launch.subprocess, "run") as run, \
+                mock.patch.object(sys, "stderr", io.StringIO()):
+            auth_launch.user_helper_runner("NEVER_RUN", "/user", str(self.tmp), str(source))
+        self.assertEqual(run.call_args.kwargs["env"]["HELPER_INPUT"], "dummy-private-input")
+        self.assertEqual(run.call_args.kwargs["env"]["HOME"], "/user")
+        self.assertEqual(ai, {"HOME": "/factory", "CLAUDE_CONFIG_DIR": "/factory/config"})
+        self.assertEqual(run.call_args.args, ("NEVER_RUN",))
+        self.assertNotIn("dummy-private-input", str(run.call_args.args))
+
+    def test_managed_helper_receives_split_env_in_file_order_only_in_its_child(self):
+        """E15・E24: 管理者の helper は同じ層の分割 env を継ぐ。user 設定・AI の家・argv へ秘密を混ぜない。"""
+        managed = self.tmp / "managed"
+        parts = managed / "managed-settings.d"
+        parts.mkdir(parents=True)
+        write_settings(self.tmp, {"env": {"USER_ONLY": "not-for-managed-helper"}})
+        (managed / "managed-settings.json").write_text(json.dumps({"env": {"HELPER_INPUT": "first"}}))
+        source = parts / "10.json"
+        source.write_text(json.dumps({"apiKeyHelper": "NEVER_RUN", "env": {"HELPER_INPUT": "middle"}}))
+        (parts / "20.json").write_text(json.dumps({"env": {"HELPER_INPUT": "dummy-last-secret", "ARCHON_HOME": "/unsafe"}}))
+        ai = {"HOME": "/factory", "CLAUDE_CONFIG_DIR": "/factory/config", "ARCHON_HOME": "/factory/archon",
+              auth_launch.userenv.RECORD: json.dumps({"HOME": str(self.tmp), "XDG_CONFIG_HOME": "/user/xdg"})}
+        with mock.patch.object(auth_launch.os, "environ", ai), mock.patch.object(auth_launch.subprocess, "run") as run, \
+                mock.patch.object(sys, "stderr", io.StringIO()):
+            run.return_value = types.SimpleNamespace(stdout="dummy-key", returncode=0)
+            got, name, why = auth_launch.resolve(ai, str(self.tmp), str(self.tmp), platform="linux",
+                                                runner=keychain({}), managed_dir=managed)
+        self.assertEqual(got, {"ANTHROPIC_API_KEY": "dummy-key"})
+        self.assertIsNone(why)
+        self.assertIn(str(source), name)
+        child = run.call_args.kwargs["env"]
+        self.assertEqual(child["HELPER_INPUT"], "dummy-last-secret")
+        self.assertEqual(child["HOME"], str(self.tmp))
+        self.assertEqual(child["CLAUDE_CONFIG_DIR"], str(self.tmp))
+        self.assertEqual(child["ARCHON_HOME"], "/factory/archon")
+        self.assertEqual(child["XDG_CONFIG_HOME"], "/user/xdg")
+        self.assertNotIn("USER_ONLY", child)
+        self.assertNotIn("HELPER_INPUT", ai)
+        self.assertEqual(ai["HOME"], "/factory")
+        self.assertNotIn("dummy-last-secret", str(run.call_args.args))
+        self.assertEqual(run.call_count, 1)
+
+    def test_split_helper_skips_absent_siblings_but_not_its_selected_source(self):
+        source = self.tmp / "managed-settings.json"
+        source.write_text(json.dumps({"apiKeyHelper": "NEVER_RUN", "env": {"HELPER_INPUT": "dummy"}}))
+        absent = self.tmp / "absent.json"
+        env = auth_launch.helper_settings_env({}, "/user", "/config", str(source), [absent, source])
+        self.assertEqual(env["HELPER_INPUT"], "dummy")
+        source.unlink()
+        with self.assertRaises(ValueError):
+            auth_launch.helper_settings_env({}, "/user", "/config", str(source), [absent, source])
+        with self.assertRaises(ValueError):
+            auth_launch.helper_settings_env({}, "/user", "/config", str(source), [absent])
+
+    def test_bad_split_helper_env_stops_without_spawn_or_login_fallback(self):
+        managed = self.tmp / "managed"
+        parts = managed / "managed-settings.d"
+        parts.mkdir(parents=True)
+        (managed / "managed-settings.json").write_text(json.dumps({"apiKeyHelper": "NEVER_RUN"}))
+        (parts / "20.json").write_text(json.dumps({"env": {"HELPER_INPUT": ["dummy-secret"]}}))
+        write_credentials(self.tmp)
+        with mock.patch.object(auth_launch.os, "environ", {}), mock.patch.object(auth_launch.subprocess, "run") as run, \
+                mock.patch.object(sys, "stderr", io.StringIO()):
+            got, name, why = auth_launch.resolve({}, str(self.tmp), str(self.tmp), platform="linux",
+                                                runner=keychain({}), managed_dir=managed)
+        self.assertIsNone(got)
+        self.assertIn("apiKeyHelper", name)
+        self.assertIn("ValueError", why)
+        self.assertNotIn("dummy-secret", why)
+        run.assert_not_called()
+
+    def test_invalid_needed_value_fails_without_printing_values(self):
+        with self.assertRaises(ValueError) as error:
+            self.profile({"env": {"ANTHROPIC_API_KEY": ["dummy-secret"]}})
+        self.assertNotIn("dummy-secret", str(error.exception))
+
+
 class Howto(unittest.TestCase):
     """案内は名を毎回付けずに済ます道（Claude Code の settings.json の env）と、値を出さずに項目の在りかを確かめる命令を言う。
     持ち主の項目の名は書かず、置き場の字で言う"""

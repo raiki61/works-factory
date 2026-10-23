@@ -16,7 +16,7 @@ import sys
 from collections.abc import Mapping
 from pathlib import Path
 
-from bin._lib import hostgh, isolate, pack, place, recordroot, runstop, specreviews, startpoint
+from bin._lib import auth_launch, hostgh, isolate, pack, place, recordroot, runstop, specreviews, startpoint
 from lib import answer, launchgroups, reads, userenv, writelog
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -118,7 +118,20 @@ def launch(argv: list[str], user: dict[str, str], here: Path) -> int:
     except (RuntimeError, ValueError) as error:
         raise Stop(str(error)) from None
 
+    profile = {"settings": {}, "env": {}, "drop": []}
+    executing = len(argv) > 1 and argv[0] == "workflow" and argv[1] in EXECUTING
+    if executing and not no_auth:
+        try:
+            managed = Path(user[auth_launch.MANAGED_DIR_ENV]) if user.get(auth_launch.MANAGED_DIR_ENV) else auth_launch.default_managed_dir()
+            profile, deferred = auth_launch.connection_profile(filled_config, user, managed)
+        except ValueError as error:
+            raise Stop(str(error)) from None
+        if deferred:
+            print(f"{NAME}: provider の追加 settings 方式は未対応。親 env の既存認証は維持する", file=sys.stderr)
+        user = auth_launch.profile_env(user, profile)
     child = isolate.isolate(user, home)
+    # 名の持ち主は最終起動の包み。秘密をファイルや引数へ焼かず、env でだけ渡す。
+    child[place.shared("fence").PROFILE_ENV] = json.dumps(profile)
     # GitHub の資格は AI の役に渡さない（持ち主の決め auth-middleware）。run の中の gh は、利用者の gh 自身の置き場のログインを
     # hostgh の口が継ぐ。script のノード（出口の語 pr の時に push と PR の作成をする archon-pr の publish も）は PATH の頭の
     # この口を打つ。役の claude には書き込みの柵の包みが PATH の頭に読むだけの口 works-gh（no-post-bin/）を足し（write_fence の

@@ -42,10 +42,14 @@ import pathlib  # noqa: E402
 import subprocess  # noqa: E402
 import unicodedata  # noqa: E402
 
-sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))   # -I はスクリプトのフォルダを sys.path に入れない
-import claude_auth  # noqa: E402
-sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[2] / "lib"))   # 隔離の前の HOME・XDG の控えの名は lib/userenv.py が持つ
-import userenv  # noqa: E402
+if __package__:
+    from bin._lib import claude_auth
+    from lib import userenv
+else:
+    sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))   # -I はスクリプトのフォルダを sys.path に入れない
+    import claude_auth
+    sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[2] / "lib"))
+    import userenv
 
 OAUTH = "CLAUDE_CODE_OAUTH_TOKEN"
 ITEM_ENV = "WORKS_FACTORY_KEYCHAIN_ITEM"   # 前の段で名指す keychain の項目名の置き場
@@ -127,6 +131,81 @@ def default_managed_dir(platform=sys.platform):
     return pathlib.Path("/etc/claude-code")
 
 
+# 直接 API / gateway の接続・資格と alias だけ。仕様: code.claude.com/docs/en/env-vars
+# provider の資格チェーン・任意 helper の依存 env は機械抽出できないので設定からは運ばない。
+DIRECT_ENV = ("ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "ANTHROPIC_BASE_URL", "ANTHROPIC_CUSTOM_HEADERS",
+              "HTTP_PROXY", "HTTPS_PROXY", "NO_PROXY", "NODE_EXTRA_CA_CERTS", "CLAUDE_CODE_CERT_STORE",
+              "CLAUDE_CODE_CLIENT_CERT", "CLAUDE_CODE_CLIENT_KEY", "CLAUDE_CODE_CLIENT_KEY_PASSPHRASE")
+ALIAS_ENV = tuple("ANTHROPIC_DEFAULT_%s_MODEL" % name for name in ("OPUS", "SONNET", "HAIKU", "FABLE"))
+PROVIDER_FLAGS = ("CLAUDE_CODE_USE_BEDROCK", "CLAUDE_CODE_USE_VERTEX", "CLAUDE_CODE_USE_FOUNDRY")
+# Foundry は既に親 env にある値だけを復元する。設定の ADC / Azure 資格チェーンは未対応。
+FOUNDRY_ENV = ("CLAUDE_CODE_USE_FOUNDRY", "ANTHROPIC_FOUNDRY_API_KEY", "ANTHROPIC_FOUNDRY_AUTH_TOKEN",
+               "ANTHROPIC_FOUNDRY_BASE_URL", "ANTHROPIC_FOUNDRY_RESOURCE")
+
+
+def connection_profile(config_dir, env, managed_dir=None):
+    """隔離前の選ばれた user settings から必要値だけを返す。親 provider は維持、追加 provider 設定は保留。
+    戻り値の秘密は env だけに運び、ファイル・inline settings に置かない。helper は既存の道のまま。"""
+    empty = {"settings": {}, "env": {}, "drop": []}
+    if env.get(ITEM_ENV):
+        return empty, False
+    provider = any(env.get(k) and env[k] not in claude_auth.OFF for k in PROVIDER_FLAGS)
+    if provider:
+        if env.get("CLAUDE_CODE_USE_FOUNDRY") and env["CLAUDE_CODE_USE_FOUNDRY"] not in claude_auth.OFF:
+            empty["env"] = {k: env[k] for k in FOUNDRY_ENV if k in env}
+        return empty, True
+    path = pathlib.Path(config_dir) / "settings.json"
+    try:
+        body = json.loads(path.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        body = {}
+    except (OSError, UnicodeDecodeError, ValueError) as error:
+        if claude_auth.inherited(env):
+            return empty, False
+        raise ValueError("%s の接続設定を読めない(%s)" % (path, type(error).__name__)) from None
+    if not isinstance(body, dict) or not isinstance(body.get("env", {}), dict):
+        if claude_auth.inherited(env):
+            return empty, False
+        raise ValueError("%s の接続設定が object でない" % path)
+    # 既存 helper と同じ管理者ファイルの優先順。user の不要なキーは写さず、env の鍵単位だけを重ねる。
+    if managed_dir is not None:
+        for source in managed_files(managed_dir):
+            try:
+                managed = json.loads(source.read_text(encoding="utf-8"))
+            except (FileNotFoundError, PermissionError):
+                continue
+            except (OSError, UnicodeDecodeError, ValueError) as error:
+                if claude_auth.inherited(env):
+                    return empty, False
+                raise ValueError("%s の接続設定を読めない(%s)" % (source, type(error).__name__)) from None
+            if not isinstance(managed, dict) or not isinstance(managed.get("env", {}), dict):
+                if claude_auth.inherited(env):
+                    return empty, False
+                raise ValueError("%s の接続設定が object でない" % source)
+            body["env"] = {**body.get("env", {}), **managed.get("env", {})}
+    values = body.get("env", {})
+    deferred = provider or any(values.get(k) and values[k] not in claude_auth.OFF for k in PROVIDER_FLAGS)
+    names = () if deferred else (*DIRECT_ENV, *ALIAS_ENV)
+    kept = {k: values[k] for k in names if k in values}
+    if not all(isinstance(v, str) for v in kept.values()):
+        raise ValueError("%s の接続 env が文字列でない" % path)
+    explicit = any(kept.get(k) for k in ("ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN"))
+    drop = list(ABOVE_TOKEN) + ["CLAUDE_API_KEY", "ANTHROPIC_CUSTOM_HEADERS",
+                               "CLAUDE_CODE_API_KEY_HELPER_FD", "CLAUDE_CODE_OAUTH_TOKEN_FILE_DESCRIPTOR",
+                               "CLAUDE_CODE_PROVIDER_MANAGED_BY_HOST"] if explicit else []
+    process = {k: v for k, v in kept.items() if k not in ALIAS_ENV}
+    settings = {"env": {k: v for k, v in kept.items() if k in ALIAS_ENV}}
+    if env.get("CLAUDE_CODE_USE_FOUNDRY") and env["CLAUDE_CODE_USE_FOUNDRY"] not in claude_auth.OFF:
+        process.update({k: env[k] for k in FOUNDRY_ENV if k in env})
+    return {"settings": settings, "env": process, "drop": drop}, deferred
+
+
+def profile_env(env, profile):
+    out = {k: v for k, v in env.items() if k not in profile["drop"]}
+    out.update(profile["env"])
+    return out
+
+
 def settings_helper(path, denied_is_absent=False):
     """(apiKeyHelper のコマンドの字か None, 使えない理由か None)。ファイルが無い・キーが無い・空の字は「無い」。
     読めない・JSON として壊れている・object でない・字でない値は、黙って「無い」にせず理由を返す。ただし denied_is_absent なら、
@@ -156,18 +235,23 @@ def settings_helper(path, denied_is_absent=False):
     return (cmd, None) if cmd.strip() else (None, None)
 
 
-def find_helper(config_dir, managed_dir):
-    """(コマンド, 出どころのパス, 使えない理由)。会社の設定（managed-settings.json の後に managed-settings.d/*.json を名前順。
-    単一の値は後が勝つ）に apiKeyHelper が在ればそれ、無ければ利用者の <CLAUDE_CONFIG_DIR>/settings.json。Claude Code と同じく、
-    最上位の出どころの物だけを採る。対象のリポジトリの .claude/settings.json は対象の持ち物なので読まない"""
+def managed_files(managed_dir):
+    """既存の管理者ファイル探索の1か所。apiKeyHelper と接続設定で順序を分けない。"""
     files = [managed_dir / "managed-settings.json"]
     try:
         files += sorted(f for f in (managed_dir / "managed-settings.d").iterdir()
                         if f.suffix == ".json" and not f.name.startswith(".") and f.is_file())
     except OSError:
         pass
+    return files
+
+
+def find_helper(config_dir, managed_dir):
+    """(コマンド, 出どころのパス, 使えない理由)。会社の設定（managed-settings.json の後に managed-settings.d/*.json を名前順。
+    単一の値は後が勝つ）に apiKeyHelper が在ればそれ、無ければ利用者の <CLAUDE_CONFIG_DIR>/settings.json。Claude Code と同じく、
+    最上位の出どころの物だけを採る。対象のリポジトリの .claude/settings.json は対象の持ち物なので読まない"""
     found = (None, None)
-    for f in files:
+    for f in managed_files(managed_dir):
         cmd, why = settings_helper(f, denied_is_absent=True)
         if why:
             return None, f, why
@@ -198,14 +282,36 @@ def helper_base_env(environ):
     return out
 
 
-def user_helper_runner(command, home, config, source=""):
+def helper_settings_env(environ, home, config, source="", sources=None):
+    """helper 子だけに元設定の env を渡す。管理者の分割設定は既存の探索順に重ね、AI の環境は変えない。"""
+    out = helper_base_env(environ)
+    if sources is not None and pathlib.Path(source) not in sources:
+        raise ValueError("apiKeyHelper の元設定 %s が無い" % source)
+    for path in sources if sources is not None else ([pathlib.Path(source)] if source else []):
+        try:
+            body = json.loads(path.read_text(encoding="utf-8"))
+        except (FileNotFoundError, PermissionError) as error:
+            if sources is not None and str(path) != source:
+                continue   # 選んだ helper の元ファイル自体が消えた時は別経路へ落ちない
+            raise ValueError("apiKeyHelper の元設定 %s を読めない(%s)" % (path, type(error).__name__)) from None
+        except (OSError, UnicodeDecodeError, ValueError) as error:
+            raise ValueError("apiKeyHelper の元設定 %s を読めない(%s)" % (path, type(error).__name__)) from None
+        values = body.get("env", {}) if isinstance(body, dict) else None
+        if not isinstance(values, dict) or not all(isinstance(v, str) for v in values.values()):
+            raise ValueError("apiKeyHelper の元設定 %s の env が文字列の表でない" % path)
+        out.update({k: v for k, v in values.items() if k not in (*userenv.CONTROL, "ARCHON_HOME")})
+    out.update(HOME=home, CLAUDE_CONFIG_DIR=config)
+    return out
+
+
+def user_helper_runner(command, home, config, source="", sources=None):
     """apiKeyHelper を利用者の HOME・XDG・設定の置き場で起こす（Claude Code と同じくシェルで）。終わるまで待つ（期限を足さない。
     止めるのは起動した人。持ち主の決め no-timeouts）。標準エラーは捕まえずに端末へ流す（helper の問いが見えないまま待ち続けない。
     キーは標準出力にしか出ない）。何を待っているかが分かる 1 行を標準エラーに出す（キーの値は出さない）"""
     print("auth_launch.py: apiKeyHelper%s のコマンドを起こしてキーを得る（終わるまで待つ）" % (source and "（%s）" % source),
           file=sys.stderr)
     return subprocess.run(command, shell=True, stdout=subprocess.PIPE, encoding="utf-8",
-                          env={**helper_base_env(os.environ), "HOME": home, "CLAUDE_CONFIG_DIR": config})
+                          env=helper_settings_env(os.environ, home, config, source, sources))
 
 
 def run_helper(command, home, config, helper_runner):
@@ -230,6 +336,9 @@ def resolve(env, user_home, user_config, platform=sys.platform, runner=None, hel
         if not tok:
             return None, "keychain の項目 " + named, "keychain の項目 %s を読めない: %s" % (named, note)
         return {"CLAUDE_CODE_OAUTH_TOKEN": tok}, "keychain の項目 %s（%s）" % (named, ITEM_ENV), None
+    if (env.get("CLAUDE_CODE_USE_FOUNDRY") and env["CLAUDE_CODE_USE_FOUNDRY"] not in claude_auth.OFF
+            and not any(claude_auth.active(k, env.get(k)) for k in claude_auth.FLAGS)):
+        return {k: env[k] for k in FOUNDRY_ENV if k in env}, "CLAUDE_CODE_USE_FOUNDRY", None
     menv = dict(env, HOME=user_home, CLAUDE_CONFIG_DIR=user_config or str(pathlib.Path(user_home) / ".claude"))
     out, note = claude_auth.auth_env(menv, platform=platform, runner=runner)
     # Claude Code 自身の優先順は apiKeyHelper が CLAUDE_CODE_OAUTH_TOKEN より上。親の環境に CLAUDE_CODE_OAUTH_TOKEN しか認証が無い時は、
@@ -245,13 +354,15 @@ def resolve(env, user_home, user_config, platform=sys.platform, runner=None, hel
             return got, name, None
         return got, "keychain の項目 %s（CLAUDE_KEYCHAIN_SERVICE）" % note[len("keychain("):-1], None
     config = menv["CLAUDE_CONFIG_DIR"]
-    command, source, bad = find_helper(pathlib.Path(config), managed_dir or default_managed_dir(platform))
+    managed = managed_dir or default_managed_dir(platform)
+    command, source, bad = find_helper(pathlib.Path(config), managed)
     if bad:
         return None, "apiKeyHelper", "apiKeyHelper の設定が使えない: %s" % bad
     if command and not fetch:
         return {}, "apiKeyHelper（%s）" % source, None
     if command:
-        run = helper_runner or (lambda c, h, d: user_helper_runner(c, h, d, str(source)))
+        sources = None if source == pathlib.Path(config) / "settings.json" else managed_files(managed)
+        run = helper_runner or (lambda c, h, d: user_helper_runner(c, h, d, str(source), sources))
         key, miss = run_helper(command, user_home, config, run)
         if not key:
             return None, "apiKeyHelper", "apiKeyHelper（%s）が失敗した: %s" % (source, miss)

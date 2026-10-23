@@ -34,6 +34,39 @@ DENY_WRITE = ("sandbox", "filesystem", "denyWrite")
 REFUSED_EXIT = 3
 RECORDS_ENV = "WORKS_FACTORY_FENCE_RECORDS"   # 起動の記録のパス。在れば run は包みを通ると宣言した
 ENGINE_CHILD_ENV = "GRAPHLOOPS_ENGINE_CHILD"
+PROFILE_ENV = "WORKS_FACTORY_CONNECTION_PROFILE"   # 殻が組む必要設定。探索と認証判断は殻だけが持つ
+
+
+def connection(environ):
+    """殻の env 契約を読み、保持値と除去名を返す。設定元を探さず資格を取得しない。"""
+    raw = environ.pop(PROFILE_ENV, None)
+    if raw is None:
+        return {"settings": {}, "env": {}, "drop": []}
+    try:
+        profile = json.loads(raw)
+        valid = (isinstance(profile, dict) and set(profile) == {"settings", "env", "drop"}
+                 and isinstance(profile["settings"], dict) and set(profile["settings"]) <= {"env"}
+                 and isinstance(profile["settings"].get("env", {}), dict)
+                 and isinstance(profile["env"], dict) and isinstance(profile["drop"], list))
+        if not valid:
+            raise ValueError()
+        bags = (profile["env"], profile["settings"].get("env", {}))
+        if not all(isinstance(k, str) and isinstance(v, str) for bag in bags for k, v in bag.items()):
+            raise ValueError()
+        names = [*profile["env"], *profile["settings"].get("env", {}), *profile["drop"]]
+        if not all(isinstance(k, str) and k not in {"HOME", "CLAUDE_CONFIG_DIR", "ARCHON_HOME", "PATH"}
+                   and not k.startswith(("XDG_", "WORKS_FACTORY_", "GRAPHLOOPS_")) for k in names):
+            raise ValueError()
+    except (ValueError, TypeError):
+        raise Refused("殻の接続設定の契約が読めない（値は表示しない）") from None
+    return profile
+
+
+def connection_env(environ, profile):
+    for k in profile["drop"]:
+        environ.pop(k, None)
+    environ.update(profile["env"])
+
 
 
 class Refused(Exception):
@@ -86,7 +119,7 @@ def protected_paths(cwd, board_dir=None):
     return sorted(paths)
 
 
-def fenced_argv(argv: list[str], archon_home: str, paths: Callable[[], list[str]]) -> list[str]:
+def fenced_argv(argv: list[str], archon_home: str, paths: Callable[[], list[str]], extra=None) -> list[str]:
     """argv の --settings の sandbox.filesystem.denyWrite が印（~ を解くと archon_home）を持つ時だけ、paths() の一覧のうち無い物を
     後ろに足した argv。印が無ければ argv のまま。--settings の値が JSON の object でなければ（設定のファイルのパスを含む）、印を
     見落としうるので Refused"""
@@ -94,6 +127,8 @@ def fenced_argv(argv: list[str], archon_home: str, paths: Callable[[], list[str]
     if len(at) > 1:
         raise Refused(f"{SETTINGS} が {len(at)} 個ある。印が在るかを決められない")
     if not at:
+        if extra and extra.get("env"):
+            return [*argv, SETTINGS, json.dumps(extra, ensure_ascii=False)]
         return argv
     i = at[0]
     joined = argv[i] != SETTINGS
@@ -109,9 +144,16 @@ def fenced_argv(argv: list[str], archon_home: str, paths: Callable[[], list[str]
     deny = settings
     for key in DENY_WRITE:
         deny = deny.get(key) if isinstance(deny, dict) else None
-    if not (isinstance(deny, list) and any(marks(item, archon_home) for item in deny)):
+    marked = isinstance(deny, list) and any(marks(item, archon_home) for item in deny)
+    if marked:
+        deny += [p for p in paths() if p not in deny]
+    if extra and extra.get("env"):
+        env = settings.get("env", {})
+        if not isinstance(env, dict):
+            raise Refused("既存 settings の env が object でない")
+        settings["env"] = {**env, **extra["env"]}
+    elif not marked:
         return argv
-    deny += [p for p in paths() if p not in deny]
     value = json.dumps(settings, ensure_ascii=False)
     return [*argv[:i], f"{SETTINGS}={value}", *argv[i + 1:]] if joined else [*argv[:i + 1], value, *argv[i + 2:]]
 
@@ -187,7 +229,9 @@ def main(argv: list[str]) -> int:
         return listed
 
     try:
-        rest = fenced_argv(rest, opts.archon_home, paths)
+        profile = connection(os.environ)
+        connection_env(os.environ, profile)
+        rest = fenced_argv(rest, opts.archon_home, paths, profile["settings"])
     except Refused as refused:
         print(f"works-factory fence: {refused}", file=sys.stderr)
         return REFUSED_EXIT

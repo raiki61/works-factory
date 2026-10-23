@@ -63,6 +63,59 @@ def settings_with(deny: list) -> str:
     return json.dumps({"sandbox": {"enabled": True, "filesystem": {"allowWrite": ["/"], "denyWrite": deny}}})
 
 
+class ConnectionTest(unittest.TestCase):
+    """殻で組んだ値だけを最終 hop に適用。秘密を inline に置かず、柵と工場の設定を落とさない。"""
+
+    def profile(self):
+        return {"settings": {"env": {"ANTHROPIC_DEFAULT_SONNET_MODEL": "dummy-model"}},
+                "env": {"ANTHROPIC_API_KEY": "dummy-secret", "ANTHROPIC_BASE_URL": "https://dummy.invalid"},
+                "drop": ["ANTHROPIC_AUTH_TOKEN", "CLAUDE_CODE_OAUTH_TOKEN"]}
+
+    def test_single_settings_preserves_sandbox_plugins_hooks_permissions(self):
+        original = {"sandbox": {"enabled": True, "filesystem": {"denyWrite": ["/factory/archon"]}},
+                    "enabledPlugins": {"factory-dummy": False}, "hooks": {"Stop": []},
+                    "permissions": {"deny": ["Bash(unsafe)"]}, "env": {"FACTORY_DUMMY": "1"}}
+        for argv in (["--settings", json.dumps(original)], ["--settings=" + json.dumps(original)]):
+            out = fence.fenced_argv(argv, "/factory/archon", lambda: ["/protected"], self.profile()["settings"])
+            raw = out[1] if out[0] == "--settings" else out[0].split("=", 1)[1]
+            got = json.loads(raw)
+            self.assertEqual(sum(x == "--settings" or x.startswith("--settings=") for x in out), 1)
+            for name in ("enabledPlugins", "hooks", "permissions"):
+                self.assertEqual(got[name], original[name])
+            self.assertEqual(got["sandbox"]["filesystem"]["denyWrite"], ["/factory/archon", "/protected"])
+            self.assertNotIn("dummy-secret", raw)
+            self.assertEqual(got["env"], {"FACTORY_DUMMY": "1", "ANTHROPIC_DEFAULT_SONNET_MODEL": "dummy-model"})
+
+    def test_final_environment_drops_parent_credentials_but_not_factory_directories(self):
+        env = {fence.PROFILE_ENV: json.dumps(self.profile()), "HOME": "/factory/home",
+               "CLAUDE_CONFIG_DIR": "/factory/config", "ARCHON_HOME": "/factory/archon",
+               "XDG_CONFIG_HOME": "/factory/xdg", "ANTHROPIC_AUTH_TOKEN": "dummy-parent",
+               "CLAUDE_CODE_OAUTH_TOKEN": "dummy-oauth"}
+        p = fence.connection(env)
+        fence.connection_env(env, p)
+        self.assertNotIn(fence.PROFILE_ENV, env)
+        self.assertNotIn("ANTHROPIC_AUTH_TOKEN", env)
+        self.assertNotIn("CLAUDE_CODE_OAUTH_TOKEN", env)
+        self.assertEqual(env["ANTHROPIC_API_KEY"], "dummy-secret")
+        for name in ("HOME", "CLAUDE_CONFIG_DIR", "ARCHON_HOME", "XDG_CONFIG_HOME"):
+            self.assertTrue(env[name].startswith("/factory/"))
+
+    def test_bad_contract_does_not_echo_secret_or_restore_user_directories(self):
+        for body in ("dummy-secret", {"settings": {"hooks": {}}, "env": {}, "drop": []},
+                     {"settings": {}, "env": {"HOME": "/dummy-secret"}, "drop": []},
+                     {"settings": {}, "env": {}, "drop": ["XDG_CACHE_HOME"]}):
+            with self.assertRaises(fence.Refused) as error:
+                fence.connection({fence.PROFILE_ENV: json.dumps(body)})
+            self.assertNotIn("dummy-secret", str(error.exception))
+
+    def test_unmarked_and_missing_settings_still_compose(self):
+        for argv in (["--version"], ["--settings", "{}"]):
+            out = fence.fenced_argv(argv, "/factory", lambda: self.fail("must not compute protective paths"),
+                                    self.profile()["settings"])
+            raw = out[out.index("--settings") + 1]
+            self.assertEqual(json.loads(raw), self.profile()["settings"])
+
+
 class ProtectedTest(unittest.TestCase):
     def setUp(self):
         self.tmp = hermetic.tmpdir(self)

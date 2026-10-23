@@ -496,6 +496,14 @@
 - 訳: `others-may-use` と E14。`apiKeyHelper` だけで Claude Code を使う人は子に認証が届かず止まり、案内も OAuth の道しか言わなかった。`apiKeyHelper` の設定から起動しても既定の `~/.claude` にサブスクのログインが在れば黙ってそのアカウントで子を起こす形は、`claude_auth.py` の「利用者が選んだ経路を黙って別の口に差し替えない」に反した。
 - 当て方: `bin/_lib/auth_launch.py`（`api_key_helper`・`resolve`）と `tests/bin/test_auth_launch.py`・README の環境変数の項。
 
+## 2026-10-22 の決め（必要な接続設定だけを合成する）
+
+### `connection-settings-only` 普段の設定を丸ごと継がず、工場の家と権限を維持する
+
+- 持ち主の言葉: 「必要な設定だけ」「工場HOME権限維持」「進めれるとこまで」（設定合成の設計壁打ちと自律継続の承認）。
+- 決め: 接続先・model alias・apiKeyHelper と必要 env だけを対象にする。普段の hooks・permissions・sandbox・plugins・MCP・指示・不要 env は継がない。AI・Archon・工場の HOME・CLAUDE_CONFIG_DIR・ARCHON_HOME・XDG と既存の柵の印・denyWrite は維持し、対象コマンドだけを元環境に戻す道は変えない。helper の元環境は helper のプロセスにだけ与え、AI の環境を戻さない。runtime の名から任意 shell 関数の設定を推す機構・二重登録一覧・専用 pipe・新層・常駐機構は足さない。
+- 当て方: `docs/design/archon.md` の「接続設定の合成」の段階実装。直接 API/gateway と alias の追加方式を実装し、helper の更新委譲と provider の設定方式は未成立として保留する。既存の普通の login・API・helper・gateway の道を保つ。helper の実更新の安全性は未検証で保証しない。実資格を取らず、実 settings を読まず、本体・有料通信・新規工場 run・commit/push・外部投稿を行わない。
+
 ## 2026-10-20 の決め（試験の段の絞り）
 
 ### `related-tests-only` 工場が走らせる試験は、変更に関わる試験だけにする

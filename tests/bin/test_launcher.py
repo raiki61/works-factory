@@ -121,6 +121,52 @@ class LauncherTest(unittest.TestCase):
         return {"env": {"WORKS_FACTORY_ROOT": str(self.repo), answer.ENV: shlex.join(head), "CLAUDE_CODE_PROMPT_CACHE_TTL": "5m"},
                 "workflows": {"autoResumeOnQuotaReset": False}, "aliases": place.group_presets()}
 
+    def test_selected_connection_credentials_reach_auth_without_persisting_secrets(self):
+        """fake Archon で設定資格の親競合と秘密の非保存を確かめる。本物の資格・helper・Claude は起こさない。"""
+        selected = "dummy-selected-settings-key"
+        path = self.home / ".claude" / "settings.json"
+        body = {}
+        body["env"] = {"ANTHROPIC_API_KEY": selected, "ANTHROPIC_BASE_URL": "https://dummy.invalid",
+                       "ANTHROPIC_DEFAULT_SONNET_MODEL": "dummy-model", "HOME": "/must-not-restore",
+                       "UNNEEDED": "must-not-copy"}
+        path.write_text(json.dumps(body), encoding="utf-8")
+        done = self.launch("workflow", "run", "works-factory-line", ANTHROPIC_AUTH_TOKEN="dummy-parent")
+        got = self.reached(done)
+        env = got["env"]
+        self.assertEqual(env["ANTHROPIC_API_KEY"], selected)
+        self.assertNotIn("ANTHROPIC_AUTH_TOKEN", env)
+        self.assertEqual(env["ANTHROPIC_BASE_URL"], "https://dummy.invalid")
+        self.assertNotIn("UNNEEDED", env)
+        self.assertNotEqual(env["HOME"], "/must-not-restore")
+        self.assertNotIn(selected, done.stdout + done.stderr + json.dumps(got["argv"]))
+        for file in self.default_home(self.target).rglob("*"):
+            if file.is_file():
+                self.assertNotIn(selected, file.read_text(encoding="utf-8", errors="replace"), str(file))
+
+    def test_parent_auth_survives_unreadable_connection_settings(self):
+        """上位認証が決まる時、壊れた不要 settings の追加合成で既存の起動を止めない（E14）。"""
+        (self.home / ".claude" / "settings.json").write_text("broken-json", encoding="utf-8")
+        done = self.launch("workflow", "run", "works-factory-line")
+        self.assertEqual(self.reached(done)["env"]["ANTHROPIC_API_KEY"], API_KEY)
+
+    def test_parent_auth_survives_unreadable_managed_connection_settings(self):
+        managed = self.tmp / "managed"
+        managed.mkdir()
+        (managed / "managed-settings.json").write_text("broken-json", encoding="utf-8")
+        done = self.launch("workflow", "run", "works-factory-line", WORKS_FACTORY_MANAGED_DIR=str(managed))
+        self.assertEqual(self.reached(done)["env"]["ANTHROPIC_API_KEY"], API_KEY)
+
+    def test_managed_credentials_override_user_credentials_without_copying_policy(self):
+        managed = self.tmp / "managed"
+        managed.mkdir()
+        (managed / "managed-settings.json").write_text(json.dumps({"env": {"ANTHROPIC_API_KEY": "dummy-managed"},
+                                                                    "permissions": {"allow": ["Bash(*)"]},
+                                                                    "sandbox": {"enabled": False}}), encoding="utf-8")
+        done = self.launch("workflow", "run", "works-factory-line", WORKS_FACTORY_MANAGED_DIR=str(managed))
+        env = self.reached(done)["env"]
+        self.assertEqual(env["ANTHROPIC_API_KEY"], "dummy-managed")
+        self.assertNotIn("dummy-managed", done.stdout + done.stderr)
+
     def test_run_gets_cwd_and_workflow_source_before_user_args(self):
         got = self.reached(self.launch("workflow", "run", "works-factory-line", "--input", "request=x", cwd=self.target / "sub"))
         argv = got["argv"]
