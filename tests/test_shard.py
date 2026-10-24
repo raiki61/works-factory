@@ -352,6 +352,39 @@ class ScrubTest(unittest.TestCase):
             with mock.patch.dict(hermetic._SCRUBBED, {"ANTHROPIC_API_KEY": "fake"}, clear=True):
                 self.assertEqual(run_quietly(shard.suites(root)), 0)
 
+    def test_named_paths_defer_archon_and_the_children_see_it(self):
+        """--paths（手元の確かめ）は Archon を起こす試験を見送る旗を立て、子へ渡す（CI の分けで見送らないのは、CI が立てる
+        REQUIRED_ENV を tests/archon.py の runner が先に見るから。tests/shared/test_archon_contract.py の DeferTest）"""
+        with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()), \
+                mock.patch.dict(os.environ, {}), mock.patch.dict(hermetic._SCRUBBED, clear=True):
+            os.environ.pop(hermetic.ARCHON_DEFER_ENV, None)
+            shard.main(["--paths", "no/such/dir"])
+            self.assertEqual(os.environ.get(hermetic.ARCHON_DEFER_ENV), "1")
+            pkg = "shard_defer_env_pkg"
+            with tempfile.TemporaryDirectory() as tmp:
+                root = pathlib.Path(tmp)
+                tree(root, pkg, {"test_env.py": "import os, unittest\nclass T(unittest.TestCase):\n    def test_env(self):\n"
+                                 f"        self.assertEqual(os.environ.get({hermetic.ARCHON_DEFER_ENV!r}), '1')\n"})
+                self.assertEqual(run_quietly(shard.suites(root)), 0)
+
+    def test_deferred_archon_tests_are_named_before_the_count(self):
+        """手元で見送った Archon を起こす試験は、名を並べてから最後の数えを出す（unittest の数えでは s の印だけで名が出ない）"""
+        pkg = "shard_deferred_pkg"
+        body = ("import unittest\nfrom tests.bin import hermetic\nclass T(unittest.TestCase):\n"
+                "    def test_archon(self):\n        self.skipTest(hermetic.ARCHON_DEFERRED + '（例）')\n"
+                "    def test_other(self):\n        self.skipTest('別の訳')\n")
+        with tempfile.TemporaryDirectory() as tmp:
+            root = pathlib.Path(tmp)
+            tree(root, pkg, {"test_deferred.py": body})
+            stream = io.StringIO()
+            with contextlib.redirect_stderr(stream):
+                self.assertEqual(shard.run(shard.suites(root), None, 2), 0)
+        out = stream.getvalue()
+        self.assertIn(hermetic.ARCHON_DEFERRED, out)
+        self.assertIn(f"test_archon ({pkg}.test_deferred.T.test_archon)", out)
+        self.assertNotIn("test_other (", out)
+        self.assertLess(out.index("test_archon ("), out.index("Ran 2 tests"))
+
     def test_a_real_run_still_sees_its_flag_and_auth_by_name(self):
         """本物の役で回す試験の旗と認証は、過程の環境から外れても、その試験が名指しで引ける（子の環境には入らない）"""
         parent = {"WORKS_FACTORY_REAL_RUN": "1", "ANTHROPIC_API_KEY": "key"}
