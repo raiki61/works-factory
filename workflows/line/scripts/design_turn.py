@@ -36,7 +36,7 @@ def compute() -> dict:
 def fallback(reason: str) -> dict:
     """読めない時は計画を回さずに止める形（design-talk が往復を止める。設計し直しを黙って飛ばさない）"""
     from src import guard
-    return {"plan": False, "answer": None, "plan_prior": "", "record": "", "answers": [], "recorded": [], "asks": [], "talks": [], "notes": [], "approved": None,
+    return {"plan": False, "answer": None, "plan_prior": "", "record": "", "answers": [], "recorded": [], "asks": [], "talks": [], "notes": [], "timeline": [],
             "stop_reason": guard.LINE_SCRIPT, "reason": reason}
 
 
