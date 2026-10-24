@@ -78,8 +78,8 @@ HOWTO = ("認証が無いか、確かめられない。API キーで使うなら
          "無ければ claude にログインするか、"
          "claude setup-token で作ったトークンを CLAUDE_CODE_OAUTH_TOKEN に置く。"
          "Bedrock・Mantle・Vertex を使うなら、公式の旗（CLAUDE_CODE_USE_BEDROCK など）を環境か設定の env に置く。"
-         "ラッパーを CLAUDE_BIN_PATH で渡せる。CLAUDE_BIN_PATH を置いた時は保存済みのログインを使わないので、"
-         "ラッパーに鍵を環境変数で置かせるか、CLAUDE_CODE_OAUTH_TOKEN を置くか、CLAUDE_BIN_PATH を外す") % (ITEM_ENV, ITEM_ENV)
+         "ラッパーを CLAUDE_BIN_PATH で渡せる") % (ITEM_ENV, ITEM_ENV)
+# CLAUDE_BIN_PATH を置いた時の逃げ道の住処。起動方法の門で止める 1 行は HOWTO（理由）の形で、理由がこれを持つ
 RUNTIME_ESCAPES = ("逃げ道は、ラッパーに鍵を環境変数で置かせる・CLAUDE_CODE_OAUTH_TOKEN を置く・"
                    "CLAUDE_BIN_PATH を外して PATH の claude を使う（CLAUDE_BIN_PATH を置いた時は保存済みのログインへ切り替えない）")
 CLAUDE_AI_NOTE = ("注意: ラッパーが CLAUDE_CONFIG_DIR か HOME を替えている見込み。役は利用者の設定（hooks・permissions・plugins）で走りうる。"

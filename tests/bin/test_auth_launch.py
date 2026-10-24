@@ -1224,7 +1224,7 @@ class IsolatedLaunch(unittest.TestCase):
 
     def test_runtime_without_auth_stops_instead_of_the_saved_login(self):
         """起動方法が none を言う・JSON でない・終了コードが 0 でない時は、保存済みのログインが在っても check は HOWTO で 2。
-        理由は起動方法のパスと逃げ道を名指し、HOWTO は CLAUDE_BIN_PATH を置くと保存済みのログインを使わないことを言う。exec も子を起こさない"""
+        理由は起動方法のパスと逃げ道を名指す。逃げ道は RUNTIME_ESCAPES の 1 か所だけが言い、止める 1 行に 1 度だけ出る。exec も子を起こさない"""
         cases = (('{"authMethod":"none"}', 0), ("not json", 0), ('{"loggedIn":true}', 0), ('{"authMethod":"api_key"}', 1))
         for status, code in cases:
             with self.subTest(status=status, code=code):
@@ -1240,9 +1240,11 @@ class IsolatedLaunch(unittest.TestCase):
                     self.assertEqual(len(lines), 2, done.stderr)   # 起動方法を待つ 1 行と、止める 1 行
                     for word in (str(runtime), "CLAUDE_CODE_OAUTH_TOKEN", "CLAUDE_BIN_PATH"):
                         self.assertIn(word, lines[-1])
+                    self.assertEqual(lines[-1].count(auth_launch.RUNTIME_ESCAPES), 1, done.stderr)
+                    self.assertEqual(lines[-1].count("保存済みのログイン"), 1, done.stderr)
                     self.assertNotIn(TOKEN, done.stderr)
         self.assertTrue(auth_launch.HOWTO.startswith("認証が無いか、確かめられない"))
-        self.assertIn("保存済みのログインを使わない", auth_launch.HOWTO)
+        self.assertIn("ラッパーを CLAUDE_BIN_PATH で渡せる", auth_launch.HOWTO)
 
     def test_runtime_probe_shows_its_stderr_and_gets_no_stdin(self):
         """起動方法の確かめは標準エラーを捕まえず端末へ流し（問いが見える）、起動方法を待つ 1 行を出し、標準入力は渡さない
