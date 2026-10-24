@@ -345,7 +345,7 @@ class ScrubTest(unittest.TestCase):
                 mock.patch.dict(os.environ, {hermetic.ARCHON_DEFER_ENV: "1"}), mock.patch.dict(hermetic._SCRUBBED, clear=True), \
                 mock.patch.object(shard, "run", return_value=0), mock.patch.object(shard, "check"):
             shard.main(["--shard", "1/1"])
-            self.assertNotIn(hermetic.ARCHON_DEFER_ENV, os.environ)
+            self.assertIsNone(os.environ.get(hermetic.ARCHON_DEFER_ENV))
 
     def test_a_fresh_child_keeps_only_explicitly_inherited_scrubbed_values(self):
         """別解釈系でも scrub の控えは同じ helper から読め、子の環境へは漏れない。"""
