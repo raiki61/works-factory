@@ -29,9 +29,14 @@ PORTS = ROOT / json.loads((ROOT / "pack.json").read_text(encoding="utf-8"))["our
 # WORKS_ANSWER_CMD は起動の殻が run に置く答えの行の頭（lib/answer.ENV）で、関所の文が既定で読む
 DROPPED_PREFIXES = ("WORKS_FACTORY_", "CLAUDE_", "ARCHON_", "ANTHROPIC_", "HERDR_")
 DROPPED = frozenset({"CLAUDECODE", "GRAPHLOOPS_ENGINE_CHILD", "WORKS_ANSWER_CMD"})
-# 試験の用意が過程の中で読む名（Archon の源の置き場と、見送りを赤にする旗。読むのは tests/archon.py）。scrub はこれを残す
+# 試験の用意が過程の中で読む名（Archon の源の置き場と、見送りを赤にする旗と、手元の確かめで Archon を起こさない旗。読むのは
+# tests/archon.py。手元の旗は tests/shard.py の --paths が立てる）。scrub はこれを残す。ARCHON_DEFERRED は手元の旗で見送る時の訳の頭で、
+# tests/shard.py が見送った試験の名を並べる時に引く
 ARCHON_CACHE_ENV = "WORKS_FACTORY_ARCHON_CACHE"
 ARCHON_REQUIRED_ENV = "WORKS_FACTORY_ARCHON_REQUIRED"
+ARCHON_DEFER_ENV = "WORKS_FACTORY_ARCHON_DEFER"
+ARCHON_SETUP = (ARCHON_CACHE_ENV, ARCHON_REQUIRED_ENV, ARCHON_DEFER_ENV)
+ARCHON_DEFERRED = "Archon を起こす試験は手元では回さず CI に任せる"
 _SCRUBBED: dict = {}
 
 
@@ -73,9 +78,9 @@ def child_env(**overrides) -> dict:
 
 
 def scrub() -> None:
-    """この過程の os.environ から dropped の名を外す（試験の用意の名 ARCHON_CACHE_ENV・ARCHON_REQUIRED_ENV は残す）。
+    """この過程の os.environ から dropped の名を外す（試験の用意の名 ARCHON_SETUP は残す）。
     試験が過程の中で読む既定の環境も走らせた場に依らなくなる。外した名と値は inherited が引く"""
-    for name in [k for k in os.environ if dropped(k) and k not in (ARCHON_CACHE_ENV, ARCHON_REQUIRED_ENV)]:
+    for name in [k for k in os.environ if dropped(k) and k not in ARCHON_SETUP]:
         _SCRUBBED[name] = os.environ.pop(name)
 
 

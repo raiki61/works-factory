@@ -6,7 +6,6 @@
 import json
 import os
 import pathlib
-import shutil
 import subprocess
 import sys
 import tempfile
@@ -108,10 +107,7 @@ class ParallelWorktreeGrantCase(unittest.TestCase):
     """
 
     def setUp(self):
-        source = archon.source()
-        self.bun = shutil.which("bun")
-        if self.bun is None:
-            raise archon.absent("bun が無い")
+        source, self.bun = archon.runner()
         tmp = tempfile.TemporaryDirectory()
         self.addCleanup(tmp.cleanup)
         base = pathlib.Path(tmp.name).resolve()

@@ -1868,8 +1868,7 @@ def consult_ask(place, reply, pass_: str, items, *, node: str, human_items=(), r
     rows = []
     for n, a in enumerate(asks, 1):
         new_tests = a.get("new_tests") or []
-        why = consult.screen(table, a["item"], a["paths"], a["tests"], a["why"], new_tests,
-                             gate=a.get("origin") == consult.ORIGIN_GATE)
+        why = consult.screen_ask(table, a)
         hits = consult.oos_hits(table, a["item"], a["paths"] + [consult._test_file(x) for x in new_tests], a["tests"]) \
             if a["item"] in table else []
         rows.append({**a, "n": n, "out_of_scope": hits,

@@ -48,6 +48,7 @@ def _load():
 
 
 consult, conflict, gatemarks, jsonfile, planrange = _load()
+from engine.schema import validate_schema  # noqa: E402  （kit.load が lib を sys.path に足した）
 GATE = gatemarks.GATE_NODE
 
 
@@ -55,8 +56,14 @@ def reply(*asks):
     return {"changes": [], conflict.CONSULT_FIELD: list(asks)}
 
 
-def ask_row(item=3, paths=("works/CHANGELOG.md",), tests=(), why=WHY):
-    return {"item": item, "paths": list(paths), "tests": list(tests), "why": why}
+# 修正役の頼みが必ず持つ 3 つの欄（試したこと・範囲の中で直せない訳・根拠のファイルと行。#833）
+SUMMARY = {"tried": ["lens.py の count_line の数え方を直した"],
+           "blocked": "数えは直ったが、変更の記録が範囲の外の CHANGELOG にしか無い",
+           "evidence": [{"path": "works/.shared/core/lens.py", "line": 12}]}
+
+
+def ask_row(item=3, paths=("works/CHANGELOG.md",), tests=(), why=WHY, **summary):
+    return {"item": item, "paths": list(paths), "tests": list(tests), "why": why, **(summary or SUMMARY)}
 
 
 def put_asked(place, asks, pass_="first", node=NODE, items=ITEMS, unavailable=""):
@@ -67,7 +74,7 @@ def put_asked(place, asks, pass_="first", node=NODE, items=ITEMS, unavailable=""
     rows = []
     for n, a in enumerate(asks, 1):
         new_tests = a.get("new_tests") or []
-        why = consult.screen(items, a["item"], a["paths"], a["tests"], a["why"], new_tests, gate=a.get("origin") == consult.ORIGIN_GATE)
+        why = consult.screen_ask(items, a)
         hits = consult.oos_hits(items, a["item"], a["paths"] + [consult._test_file(x) for x in new_tests], a["tests"]) \
             if a["item"] in items else []
         rows.append({**a, "n": n, "out_of_scope": hits, **({"status": consult.REFUSED, "why_refused": why} if why else {"status": consult.ASKED})})
@@ -140,6 +147,88 @@ class ScreenCase(unittest.TestCase):
         self.assertIn("範囲の中", consult.screen(items, "3", ["works/CHANGELOG.md"], [], WHY))
 
 
+class SummaryCase(unittest.TestCase):
+    """#833: 修正役の頼み（origin の無い行）は、試したこと・範囲の中で直せない訳・根拠のファイルと行の 3 つを持たないと、答えの役に
+    聞かずに断る（差し戻し）。受け付けが積んだ頼みと人の関所の条件の頼みは修正役が書いた物でないので照らさない"""
+
+    def ask(self, **over):
+        return {**ask_row(), **over}
+
+    def test_full_summary_passes(self):
+        self.assertIsNone(consult.screen_ask(ITEMS, consult.requests(reply(ask_row()))[0]))
+
+    def test_missing_parts_are_refused(self):
+        cases = {"試したこと": {"tried": [" "]}, "直せない訳": {"blocked": "短い" + " " * 10}}   # 欄の欠け・空の配列は型（ConsultTypeCase）
+        for word, over in cases.items():
+            with self.subTest(word=word):
+                (a,) = consult.requests(reply(self.ask(**over)))
+                self.assertIn(word, consult.screen_ask(ITEMS, a) or "")
+        for bad in ([{"path": "../x.py", "line": 3}], [{"path": "/abs/x.py", "line": 3}], [{"path": " ", "line": 3}]):
+            with self.subTest(evidence=bad):
+                (a,) = consult.requests(reply(self.ask(evidence=bad)))
+                self.assertIn("根拠", consult.screen_ask(ITEMS, a) or "")
+        (a,) = consult.requests(reply({"item": 3, "paths": ["works/CHANGELOG.md"], "tests": [], "why": WHY}))
+        self.assertIn("試したこと", consult.screen_ask(ITEMS, a) or "", "3 つの欄の無い頼みも断る")
+
+    def test_machine_asks_are_not_checked(self):
+        for origin in (consult.ORIGIN_ACCEPT, consult.ORIGIN_GATE):
+            with self.subTest(origin=origin):
+                a = {"item": "3", "paths": ["works/CHANGELOG.md"], "tests": [], "new_tests": [], "why": WHY, "origin": origin}
+                self.assertIsNone(consult.screen_ask(ITEMS, a))
+
+    def test_summary_reaches_the_answerer(self):
+        (a,) = consult.requests(reply(ask_row()))
+        text = consult.asks_text(ITEMS, [{**a, "n": 1}])
+        for w in ("試したこと", SUMMARY["tried"][0], "範囲の中で直せない訳", SUMMARY["blocked"], "works/.shared/core/lens.py:12"):
+            self.assertIn(w, text)
+
+
+class ConsultTypeCase(unittest.TestCase):
+    """修正役の頼みの型の正本は修正役の節（fixer・fix-ruled）の output_format の consult だけ（受け付けの summary_problem は型より厳しい
+    所だけを見る。#844 の指摘）。理由の字の下限は受け付けの MIN_WHY と同じ字"""
+
+    def fmt(self) -> dict:
+        nodes = _nodes()
+        self.assertEqual(nodes["fixer"]["output_format"], nodes["fix-ruled"]["output_format"])
+        return nodes["fix-ruled"]["output_format"]
+
+    def check(self, ask) -> list:
+        """output_format の consult の欄の型に、ask 1 行の並びを当てた誤り"""
+        return validate_schema([ask], self.fmt()["properties"][conflict.CONSULT_FIELD])
+
+    def test_min_why_matches_output_format(self):
+        row = self.fmt()["properties"][conflict.CONSULT_FIELD]["items"]["properties"]
+        self.assertEqual((row["why"]["minLength"], row["blocked"]["minLength"]), (consult.MIN_WHY, consult.MIN_WHY))
+
+    def test_ask_outside_the_type_is_rejected(self):
+        good = ask_row()
+        self.assertEqual(self.check(good), [])
+        cases = {**{f"{k} が無い": {x: v for x, v in good.items() if x != k}
+                    for k in ("item", "paths", "tests", "why", "tried", "blocked", "evidence")},
+                 "試したことが空": {**good, "tried": []}, "根拠が空": {**good, "evidence": []},
+                 "根拠の行が 0": {**good, "evidence": [{"path": "a.py", "line": 0}]},
+                 "根拠が字": {**good, "evidence": ["a.py:3"]}, "根拠に行が無い": {**good, "evidence": [{"path": "a.py"}]},
+                 "知らない欄": {**good, "note": "x"}}
+        for name, ask in cases.items():
+            with self.subTest(name):
+                self.assertTrue(self.check(ask))
+
+
+class HistoryCase(Base):
+    """#833: 答えの役は新しい会話なので、同じ run の前の相談と答えの一覧（place の trace の相談の行）を指示で受け取る"""
+
+    def test_empty_without_earlier_rows(self):
+        self.assertEqual(consult.history_text(self.b), "")
+
+    def test_earlier_rows_are_listed_with_their_answers(self):
+        self.ask(reply(ask_row(), ask_row(paths=["../outside.md"])))
+        consult.settle(self.b, {"answers": [{"ask": 1, "decision": "deny", "paths": [], "tests": [], "spec": "",
+                                             "reason": "変更の記録は別の依頼で足す"}]}, "first", NODE)
+        text = consult.history_text(self.b)
+        for w in ("相談 1", "first", "works/CHANGELOG.md", "deny", "変更の記録は別の依頼で足す", "相談 2", "refused", "根の外"):
+            self.assertIn(w, text)
+
+
 class QuestionCase(unittest.TestCase):
     def test_own_out_of_scope_is_named_with_its_reason(self):
         """頼みの節は、頼んだパスがあなた自身がこの項目の out_of_scope に書いた物だと言い、外した理由を字のまま引く。考え直させる決まりの文は
@@ -199,15 +288,30 @@ class ConsultPromptCase(unittest.TestCase):
     def test_values_and_paragraphs(self):
         with self.run.env():
             vals, when = self.prompts.consult_values(self.run.artifacts, ITEMS, [self.PLAIN], plan_file="/p/plan.json", ripple_file="")
-            self.assertEqual(when, {"ripple": False, "gate": False, "plain": True})
+            self.assertEqual(when, {"ripple": False, "gate": False, "plain": True, "history": False})
             self.assertEqual((vals["plan_file"], vals["count"], vals["min_why"]), ("/p/plan.json", 1, consult.MIN_WHY))
             self.assertEqual(vals["asks"], consult.asks_text(ITEMS, [self.PLAIN]))
             _, when = self.prompts.consult_values(self.run.artifacts, ITEMS, [self.GATE_ASK], plan_file="", ripple_file="/p/r.json")
-            self.assertEqual(when, {"ripple": True, "gate": True, "plain": False})
+            self.assertEqual(when, {"ripple": True, "gate": True, "plain": False, "history": False})
             vals, when = self.prompts.consult_values(self.run.artifacts, ITEMS, [self.PLAIN, self.GATE_ASK], plan_file="",
                                                      ripple_file="")
             self.assertEqual((when["gate"], when["plain"]), (True, True))
             self.assertEqual(vals["plan_file"], "（修正案のファイルは無い）")
+
+    def test_history_paragraph_carries_earlier_answers(self):
+        """#833: 前の相談の行が place に在れば、段落 history に一覧が入る。無ければ段落ごと出ない"""
+        with self.run.env():
+            vals, when = self.prompts.consult_values(self.run.artifacts, ITEMS, [self.PLAIN], plan_file="", ripple_file="")
+            self.assertEqual((when["history"], vals["history"]), (False, ""))
+            put_asked(self.run.artifacts, consult.requests(reply(ask_row())) or [])
+            consult.settle(self.run.artifacts, {"answers": [{"ask": 1, "decision": "deny", "paths": [], "tests": [], "spec": "",
+                                                             "reason": "変更の記録は別の依頼で足す"}]}, "first", NODE)
+            vals, when = self.prompts.consult_values(self.run.artifacts, ITEMS, [self.PLAIN], plan_file="", ripple_file="")
+            self.assertTrue(when["history"])
+            self.assertEqual(vals["history"], consult.history_text(self.run.artifacts))
+            text = self.prompts.consult_render(self.run.artifacts, "first", plan_file="", ripple_file="")(ITEMS, [self.PLAIN])
+        self.assertIn("Earlier consultations in this run", text)
+        self.assertIn("変更の記録は別の依頼で足す", text)
 
     def test_render_builds_the_answer_prompt_from_the_md(self):
         with self.run.env():
@@ -265,9 +369,10 @@ class RequestsCase(unittest.TestCase):
         self.assertIsNone(consult.requests({conflict.CONSULT_FIELD: []}))
         self.assertIsNone(consult.requests(None))
         got = consult.requests(reply(ask_row(paths=["a.md", " "], tests=["t.py:3"])))
-        self.assertEqual(got, [{"item": "3", "paths": ["a.md"], "tests": ["t.py:3"], "why": WHY}])
-        self.assertEqual(consult.requests({conflict.CONSULT_FIELD: ["x"]}), [{"item": "", "paths": [], "tests": [], "why": ""}],
-                         "形の崩れた頼みは欄を空にして残す（screen が断る）")
+        self.assertEqual(got, [{"item": "3", "paths": ["a.md"], "tests": ["t.py:3"], "why": WHY, **SUMMARY}])
+        self.assertEqual(consult.requests({conflict.CONSULT_FIELD: ["x"]}),
+                         [{"item": "", "paths": [], "tests": [], "why": "", "tried": [], "blocked": "", "evidence": []}],
+                         "形の崩れた頼みは欄を空にして残す（screen_ask が断る）")
 
 
 class FlowCase(Base):
@@ -436,7 +541,7 @@ class FlowCase(Base):
                    consult.answer.PUSHED: [{"item": "x", "answer": "continue", "note": note, "why": "y"}]}]
         human = [{"round": 1, "node": GATE, "kinds": ["final"], "answer": "continue", "note": note}]
         self.assertEqual([a["item"] for a in consult.gate_asks(self.b, ITEMS, pushed)], ["3", "4"], "許しが無ければ聞く")
-        first = {"item": 3, "paths": ["works/CHANGELOG.md"], "tests": [], "why": WHY}
+        first = {"item": 3, "paths": ["works/CHANGELOG.md"], "tests": [], "why": WHY, **SUMMARY}
         put_asked(self.b, [first])
         consult.settle(self.b, {"answers": [{"ask": 1, "decision": "allow", "paths": ["works/CHANGELOG.md"], "tests": [], "spec": "",
                                               "reason": "変更の記録を足してよい"}]}, "first", NODE)
@@ -544,7 +649,7 @@ class ConsultWiringCase(unittest.TestCase):
 
     def test_answer_nodes_are_keyed_by_passes_and_name_nodes_here(self):
         """#385: 段 → 範囲の相談に答える役の node は rules.PASSES を鍵にした表 1 つ。値はどれもこの YAML の node で、段ごとの組みは
-        YAML の配線（consult_accept の pass: と answer.from、答える役が待つ同じ段の consult_check）と一致する。表に無い段は例外"""
+        YAML の配線（consult_accept の pass: と answer.from の輪、その輪が待つ同じ段の consult_check）と一致する。表に無い段は例外"""
         rules = self.rules
         self.assertEqual(tuple(rules.ANSWER_NODES), rules.PASSES)
         for pass_, nid in rules.ANSWER_NODES.items():
@@ -555,11 +660,11 @@ class ConsultWiringCase(unittest.TestCase):
         self.assertEqual(set(checks), set(rules.PASSES))
         self.assertEqual(set(accepts), set(rules.PASSES))
         for pass_, accept in accepts.items():
-            answer = accept["with"]["answer"]["from"].removeprefix("$").removesuffix(".output")
-            self.assertEqual(rules.answer_node(pass_), answer, pass_)
-            self.assertEqual(self.nodes[answer]["depends_on"], [checks[pass_]], pass_)
-            self.assertEqual(self.nodes[answer]["prompt"], f"${checks[pass_]}.output.prompt", pass_)
-            self.assertEqual(self.nodes[answer]["when"], f"${checks[pass_]}.output.go == true", pass_)
+            ask = accept["with"]["answer"]["from"].removeprefix("$").removesuffix(".output")   # 答えの役 1 つだけを置いた輪（13.3 の 1）
+            self.assertEqual([m["id"] for m in self.nodes[ask]["loop_group"]["nodes"]], [rules.answer_node(pass_)], pass_)
+            self.assertEqual(self.nodes[ask]["depends_on"], [checks[pass_]], pass_)
+            self.assertEqual(self.nodes[rules.answer_node(pass_)]["prompt"], f"${checks[pass_]}.output.prompt", pass_)
+            self.assertEqual(self.nodes[ask]["when"], f"${checks[pass_]}.output.go == true", pass_)
         with self.assertRaises(ValueError):
             self.rules.answer_node("refix")
 
@@ -600,7 +705,7 @@ class ConsultScriptsCase(unittest.TestCase):
     def test_consult_check_launches_the_answer_on_an_ask(self):
         """返答の consult の頼みで答えの役の指示を組んで go: true、答えを受けて答えのファイルを書く"""
         reply_ = {"changes": [], "consult": [{"item": 1, "paths": ["docs/notes.md"], "tests": [],
-                                              "why": "直しに伴う変更の記録を docs に残す要がある（範囲の外）"}]}
+                                              "why": "直しに伴う変更の記録を docs に残す要がある（範囲の外）", **SUMMARY}]}
         out = self.run.script("consult_check", reply=json.dumps(reply_, ensure_ascii=False), **{"pass": "first"})
         self.assertEqual(set(out), {"consulted", "go", "prompt"})
         self.assertEqual((out["consulted"], out["go"]), (True, True), out)
@@ -622,7 +727,7 @@ class ConsultScriptsCase(unittest.TestCase):
         """段 ruled の頼みは ruled-consult-answer の指示を組み、段 first の状態と別に数える。答えの役が飛ばされた周（answer が null）は
         頼みの行を unavailable で残す"""
         reply_ = {"changes": [], "consult": [{"item": 1, "paths": ["docs/notes.md"], "tests": [],
-                                              "why": "直しに伴う変更の記録を docs に残す要がある（範囲の外）"}]}
+                                              "why": "直しに伴う変更の記録を docs に残す要がある（範囲の外）", **SUMMARY}]}
         out = self.run.script("consult_check", reply=json.dumps(reply_, ensure_ascii=False), **{"pass": "ruled"})
         self.assertEqual((out["consulted"], out["go"]), (True, True), out)
         self.assertTrue((self.place / "ruled-consult-answer-prompt-1.md").is_file())
@@ -636,7 +741,7 @@ class ConsultScriptsCase(unittest.TestCase):
 
     def test_refused_only_ask_does_not_launch(self):
         """先の確かめで全部断った頼みは答えの役を起こさない（consulted: true・go: false・prompt は空）"""
-        reply_ = {"changes": [], "consult": [{"item": 1, "paths": ["../outside.md"], "tests": [], "why": WHY}]}
+        reply_ = {"changes": [], "consult": [{"item": 1, "paths": ["../outside.md"], "tests": [], "why": WHY, **SUMMARY}]}
         out = self.run.script("consult_check", reply=json.dumps(reply_, ensure_ascii=False), **{"pass": "first"})
         self.assertEqual((out["consulted"], out["go"], out["prompt"]), (True, False, ""))
         out = self.run.script("consult_accept", answer="null", **{"pass": "first"})
