@@ -216,9 +216,9 @@ def consult_values(place, table: dict, asked: list, *, plan_file: str, ripple_fi
     import planmarks
     vals = {"plan_file": plan_file or "（修正案のファイルは無い）", "ripple_file": ripple_file, "count": len(asked),
             "asks": consult.asks_text(table, asked), "red": planmarks.AGREED_RED, "guard": planmarks.GUARD_KIND,
-            "min_why": consult.MIN_WHY, "lang": prompt.lang(runvals.read(place)["lang"])}
+            "min_why": consult.MIN_WHY, "lang": prompt.lang(runvals.read(place)["lang"]), "history": consult.history_text(place)}
     gate = [a for a in asked if a.get("origin") == consult.ORIGIN_GATE]
-    when = {"ripple": bool(ripple_file), "gate": bool(gate), "plain": len(gate) < len(asked)}
+    when = {"ripple": bool(ripple_file), "gate": bool(gate), "plain": len(gate) < len(asked), "history": bool(vals["history"])}
     return vals, when
 
 
