@@ -3,6 +3,7 @@
 
 `tests/` に試験を書く時に読む。リポジトリ全体の決まりは根の `AGENTS.md`。
 
+- 試験を足す前に、仕組みで照らせないかを見る。受け渡しの形・写しの一致など、仕組み（形の宣言と、それを全体に当てる 1 つの検査）で照らせる物は仕組みの側を直し、場面ごとの自前の試験を継ぎ足さない。仕組みが同じ物を照らすようになった試験は消す（持ち主の決め `mechanism-over-tests`）。人が見る。
 - run の中の確かめの全体の命令は、リポジトリの根からの `uv run --isolated python3 tests/changed.py` の 1 つ。実装・修正・見直しなど run の中の役は、作業中も最後の確かめもこれだけを回して先へ進む。変更に直に当たる試験（`lib/impact.py` の選び）と層の柵（`tests/layers/`）だけを回す。`uv run --isolated` が使い捨ての環境に `pyproject.toml` の宣言（PyYAML など）を入れてから走らせる。`tests/archon.py`・この文書・`pyproject.toml`・`.github/` が変わった時や、起点（`origin/main` との merge-base）が取れない時など、変更から試験を選べない時も全部は回さず、選べた範囲と層の柵だけを回し、全部の試験は CI に寄せると訳を出す（持ち主の決め `full-suite-in-ci`）。選んだモジュールは子に並べて回す（並べる数の既定と、上書きする環境変数 `WORKS_FACTORY_TEST_WORKERS` は `tests/shard.py`）。並べても結果が順で変わらないように、試験はほかのモジュールと置き場を分け合わない（一時の置き場は `tempfile` で取る）。
 - 全部の試験（`uv run --isolated python3 -m unittest discover -s . -t .`）は CI が回す物。run の中・役の作業中には回さない（最後の確かめのためにも回さない）。main へのマージは CI の緑を待つ。CI（`.github/workflows/tests.yml`）は全部の試験を `tests/shard.py` で 4 つに分けて並べて走らせ、集めの check の `tests` を 4 つが全部緑の時だけ緑にする。分けは秒数の表 `tests/shard-seconds.json` で釣り合わせ、表に無いモジュールも必ずどれかの分けに入る（表の直し方は `tests/shard.py`）。機械: `tests/layers/test_test_commands.py`。どちらが run の中の命令と読めるかは人が見る。
 - 試験を置くフォルダには全部 `__init__.py` を置く。無いと Python 3.12 の unittest は黙って見つけない。1 件も走らない時は終了の値 5 で落ちる。試験の無い木を緑にしない。
