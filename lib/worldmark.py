@@ -2,8 +2,9 @@
 
 世界の解の段のブロックが、依頼の行ごとに「問題の類・世の中の定石・依頼の解き方との比べ」を 1 行に書いた JSON Lines（WORLD_FILE）と、
 線がその出口を盤面の根に写した控え（STATE_FILE）を読む口の 1 か所。判定・構造の目・修正案・事前審査・関所・報告はここから読み、
-行の欄の名と語を自分で持たない。実行基盤を知らない関数だけを出す。行の形の約束はブロックの行の型（world-row.schema.json）で、
-欄と語が FIELDS・VERDICTS・BASES と揃うことは試験 tests/test_worldmark.py が縛る。
+行の欄の名と語を自分で持たない。実行基盤を知らない関数だけを出す。行の形の約束はこの置き場の JSON Schema（world-row.schema.json。
+port の宣言は jsonl(lib:world-row.schema.json)）の 1 つで、欄 FIELDS・語 VERDICTS・BASES・VERSUS_FIELDS はそこから引き、行の照らしは
+形の照らし（engine.schema.validate_schema）で当てる。
 
 行: {finding（依頼の行の番号。1 始まり）, where（その行の where の字のまま）, class_id（問題の類の id。対象の名を持たない）,
 problem（問題の類の 1 文）, activity（作業の種類の名）, practice（定石）, sources（[{id, url, excerpt}]。照らして残った抜き書き）,
@@ -42,6 +43,13 @@ knowledge の行は、頭の節・関所の行に NOT_WEB と名指して並べ�
 import json
 import pathlib
 import shutil
+import sys
+
+_HERE = pathlib.Path(__file__).resolve().parent
+if str(_HERE / "graphloops") not in sys.path:
+    sys.path.append(str(_HERE / "graphloops"))   # 写しの engine（carry と同じ足し方）
+
+from engine.schema import validate_schema  # noqa: E402
 
 import cite   # 依頼の引用「…」の形と語（決め手の出どころの照らしの住処）
 import jsonfile
@@ -49,14 +57,16 @@ import planmarks  # 修正案の欄 structure の答えの仕組み（答えの�
 
 WORLD_FILE = "world.jsonl"
 STATE_FILE = "world-state.json"
-VERDICTS = ("same", "differs", "none")
+ROW_SCHEMA_FILE = "world-row.schema.json"   # 行の形（この置き場。port の宣言は jsonl(lib:world-row.schema.json)）
+ROW_SCHEMA = json.loads((_HERE / ROW_SCHEMA_FILE).read_text(encoding="utf-8"))
+FIELDS = tuple(ROW_SCHEMA["required"])
+_VERSUS = ROW_SCHEMA["properties"]["versus"]
+VERSUS_FIELDS = tuple(_VERSUS["required"])
+VERDICTS = tuple(_VERSUS["properties"]["verdict"]["enum"])
 SAME, DIFFERS, NONE = VERDICTS
-BASES = ("web", "knowledge")
+BASES = tuple(ROW_SCHEMA["properties"]["basis"]["enum"])
 WEB, KNOWLEDGE = BASES
 NOT_WEB = "web で確かめていない"
-FIELDS = ("finding", "where", "class_id", "problem", "activity", "practice", "sources", "applies", "not_applies", "versus",
-          "basis")
-VERSUS_FIELDS = ("proposed", "verdict", "challenge")
 ANSWER_KEY = "world"   # 修正案の項目の欄 structure の答えの行で類の id を持つ鍵
 SOURCE_PREFIX = "world:"   # 判定の先例の出どころで世界の行を指す頭の字（world:<類の id>）。ANSWER_KEY とは別の約束
 VERDICT_WORDS = {SAME: "定石と同じ", DIFFERS: "定石と違う", NONE: "依頼は解き方を示していない"}
@@ -70,19 +80,7 @@ COPY_MEANS = f"judge-{MEANS_FILE}"
 
 # ---------------------------------------------------------------- 読む
 def _row_problem(r) -> str:
-    if not isinstance(r, dict):
-        return "JSON のオブジェクトでない"
-    missing = [k for k in FIELDS if k not in r]
-    if missing:
-        return f"欄が無い {missing}"
-    if r["basis"] not in BASES:
-        return f"basis が {'・'.join(BASES)} のどれでもない（{r['basis']!r}）"
-    v = r["versus"]
-    if not isinstance(v, dict) or any(k not in v for k in VERSUS_FIELDS) or v["verdict"] not in VERDICTS:
-        return f"versus が {{{', '.join(VERSUS_FIELDS)}}}（verdict は {'・'.join(VERDICTS)}）の形でない"
-    if not isinstance(r["sources"], list):
-        return "sources が配列でない"
-    return ""
+    return " / ".join(validate_schema(r, ROW_SCHEMA)[:5])
 
 
 def rows(path) -> list:

@@ -473,8 +473,8 @@ class ScriptCase(unittest.TestCase):
         self.assertTrue(pathlib.Path(out["policy"]).is_file())
 
     def plans(self):
-        old = self.put("plan-fields.json", {"fields": [{"unit_keys": ["u1"], "allowed_paths": ["a.py"]}]})
-        new = self.put("replan/plan-fields.json", {"fields": [{"unit_keys": ["u1"], "allowed_paths": ["a.py", "b.py"]}]})
+        old = self.put("plan-fields.json", {"round": 1, "fields": [{"unit_keys": ["u1"], "allowed_paths": ["a.py"]}]})
+        new = self.put("replan/plan-fields.json", {"round": 1, "fields": [{"unit_keys": ["u1"], "allowed_paths": ["a.py", "b.py"]}]})
         return old, new
 
     def replan_got(self, new):

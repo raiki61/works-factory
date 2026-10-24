@@ -24,35 +24,45 @@ class LocatedCase(unittest.TestCase):
     def setUp(self):
         self.run = kit.Run(self, BLOCK)
         self.g = kit.load(BLOCK, "gates")
+        ports = __import__("ports")
+        self.opened = lambda raw: ports.file(raw, "json(shared:fix-marks.schema.json)")   # 読み手が宣言の form で照らす読み（形は何でもよい）
 
     def test_missing_target_is_named_and_empty(self):
         unread = []
         with self.run.env():
-            self.assertEqual(self.g.located(ptr("judge/judgment.json"), "判定", unread), "")
-            self.assertEqual(self.g.located(None, "判定", unread), "")
-            self.assertEqual(self.g.located("null", "判定", unread), "")
+            self.assertEqual(self.g.located(ptr("judge/judgment.json"), "判定", unread, self.opened), "")
+            self.assertEqual(self.g.located(None, "判定", unread, self.opened), "")
+            self.assertEqual(self.g.located("null", "判定", unread, self.opened), "")
         self.assertEqual(unread, ["判定 の judge/judgment.json が無い"])
 
     def test_present_target_is_its_path(self):
         (self.run.artifacts / "a.json").write_text("{}", encoding="utf-8")
         unread = []
         with self.run.env():
-            self.assertTrue(self.g.located(ptr("a.json"), "x", unread).endswith("a.json"))
-            self.assertEqual(self.g.read_located(json.dumps(ptr("a.json")), "x", unread), {})
+            self.assertTrue(self.g.located(ptr("a.json"), "x", unread, self.opened).endswith("a.json"))
+            self.assertEqual(self.g.read_located(json.dumps(ptr("a.json")), "x", unread, self.opened), {})
         self.assertEqual(unread, [])
 
     def test_unreadable_json_is_named(self):
         (self.run.artifacts / "bad.json").write_text("{", encoding="utf-8")
         unread = []
         with self.run.env():
-            self.assertIsNone(self.g.read_located(ptr("bad.json"), "判定", unread))
+            self.assertIsNone(self.g.read_located(ptr("bad.json"), "判定", unread, self.opened))
         self.assertTrue(unread and "JSON として読めない" in unread[0], unread)
+
+    def test_off_shape_target_is_named_and_empty(self):
+        """形に合わない控えも読めない控え（E23）: 落ちず、形の外れを名指して聞く側に倒す"""
+        (self.run.artifacts / "odd.json").write_text('{"premise_drift": "yes"}', encoding="utf-8")
+        unread = []
+        with self.run.env():
+            self.assertEqual(self.g.located(ptr("odd.json"), "修正の印", unread, self.opened), "")
+        self.assertTrue(unread and "形に合わない" in unread[0] and "premise_drift" in unread[0], unread)
 
     def test_malformed_pointers_still_raise(self):
         with self.run.env():
             for bad in (ptr("a.json", run_id="other-run"), ptr("../a.json"), {"type": "file", "path": "a.json"}, 3):
                 with self.subTest(bad=bad), self.assertRaises(ValueError):
-                    self.g.located(bad, "判定", [])
+                    self.g.located(bad, "判定", [], self.opened)
 
 
 class AskBeforeFixCase(unittest.TestCase):
@@ -116,7 +126,7 @@ class ReplanCase(unittest.TestCase):
         return ptr(rel)
 
     def test_missing_replanned_fields_open_the_replan_gate(self):
-        old = self.put("plan-fields.json", {"fields": [{"unit_keys": ["u1"]}]})
+        old = self.put("plan-fields.json", {"round": 1, "fields": [{"unit_keys": ["u1"]}]})
         replan = {"ok": True, "status": "ok", "reason": "", "plan": ptr("replan/plan-fields.json"), "fix_plan": None, "ripple": None,
                   "round": 1}
         review = {"ok": True, "status": "ok", "reason": "", "round": 1, "holes": None, "blocks": [],

@@ -1,8 +1,7 @@
 """計画の往復の記録と止め（docs/design/line.md の 3 節。形の直し 6: 往復の記録と止め時は line が持つ）。
 
-往復の記録 plan-converge.json（src.files.PLAN_CONVERGE）の形は今の lib/converge.py の控えのまま
-（{round, passes, outcome, plan?, precedent_checks?}。往復の行の形は converge の docstring）。plan-review は前の往復までの記録を
-port prior（PRIOR_SHAPE）で受け、1 往復分の材料を pass.json（plan-review の設計書の 9.3）で返す。line はそれを add_pass で記録に足す。
+往復の記録 plan-converge.json（src.files.PLAN_CONVERGE）の形は .shared/schemas/plan-converge.schema.json の 1 つ（書き手のここと
+plan-review の作業の写し lib/converge.py と、どの読み手も同じ形で照らす）。plan-review は前の往復までの記録を port prior で受け、1 往復分の材料を pass.json（plan-review の設計書の 9.3）で返す。line はそれを add_pass で記録に足す。
 
 写した物（元 lib/converge.py。名は元のまま。往復の記録と止め時の部分。盤面 b を受けていた口は、記録の dict と place のパスを
 受ける形にした）: decide・proceeds・add_pass（と _item_states・_origins・_quoted・_attributed）・held・capped・stuck_keys・uncited・
@@ -11,7 +10,7 @@ stuck_faces・stuck_reason・lines・open_items と、文の定数（PERSISTED_W
 読み口（block_faces・central・central_keys・sentences・sentence_diff・plan_rows・planned_units と語の定数）は KEEP の lib/converge を
 import する（plan と plan-review も使う。README 9.3）。
 
-- fresh() / read(raw) / write(path, doc): 記録の読み書き（raw は pointer かパスか空。読めない・形が違えば往復の無い記録）
+- fresh() / read(path) / write(path, doc): 記録の読み書き（path が None・無ければ往復の無い記録。読めない・形 shared:plan-converge.schema.json に合わなければ ValueError）
 - record_pass(doc, got, *, at_cap, dest, plan_rejects): pass.json の中身 got を往復の行として足し、files を dest へ写し、拒否の行を積む
 - stuck_push_due(doc, *, unattended, design_talk): 止まった案を推しで修正へ進めるか（今の gatemarks.stuck_push の条件）
 - ask_again(doc, *, key, text): 設計の相談の承認ノードで人が設計し直しを求めた時、その求めを最後の往復の中央の block に差し込み、全部の項目を
@@ -252,7 +251,7 @@ def ask_again(doc: dict, *, key: str, text: str, reach: str = PERSON_REACH, wher
     する。穴は face_units を持たないので全部の項目の物（converge._touches）になり、次の周の plan は block_answers でこの key に答え、
     事前審査は resolved に入れるか同じ key で挙げ直す（converge.answer_gaps・resolved_gaps）。挙げ直せば前の往復の中央の block と重なり、
     止め時の決まりのまま PERSISTED で止まる（人の求めを消えたことにしない）。往復の無い記録は変えずに返す（呼び手は一言を依頼の答えの
-    行として plan に渡す）。行の person に {key, text} を積む（報告と照らしの控え）。返りは doc
+    行として plan に渡す）。人の求めは同じ行の faces の kind PERSON_KIND の穴として残り、別の欄を足さない（_share_text が faces から引く）。返りは doc
     reach（既定は中央 PERSON_REACH）と where（既定は PERSON_WHERE）は、対話モードの人の指摘の受け箱から入った指摘（src/talk.py）が渡す:
     人が端と書いた指摘だけ端 PERIPHERAL にする"""
     if not doc.get("passes"):
@@ -261,7 +260,6 @@ def ask_again(doc: dict, *, key: str, text: str, reach: str = PERSON_REACH, wher
     face = {"key": key, "kind": PERSON_KIND, "where": where or PERSON_WHERE, "why": text, REACH: reach}
     last["blocks"] = [*[k for k in last.get("blocks") or [] if k != key], key]
     last["faces"] = [*[f for f in last.get("faces") or [] if f.get("key") != key], face]
-    last.setdefault("person", []).append({"key": key, "text": text})
     for it in last.get("items") or []:
         it["reopened"] = it.get("reopened") or it.get("state") == CLOSED
         it["state"] = OPEN
@@ -364,7 +362,7 @@ def _share_text(passes: list) -> str:
     1 回目に出た割合の分母は 1 回目・見落とし・分けられない（持ち込みと言い換えは入れない）、止めた全部のうちの割合の分母は
     それに持ち込みを足した数。止めた block が 0 件なら割らない。見落としは後の往復が審査した所の物だけなので、閉じて後の往復が
     見ない項目の取りこぼしは分母に入らず、1 回目に出た割合は実際より高く出うる（上限）。run の後で見つかった穴も割合に入らない"""
-    people = {str(r.get("key")) for r in passes[0].get("person") or [] if isinstance(r, dict)}   # 人の求め（ask_again）は審査役の block でない
+    people = {str(f.get("key")) for f in passes[0].get("faces") or [] if isinstance(f, dict) and f.get("kind") == PERSON_KIND}   # 人の求め（ask_again）は審査役の block でない
     first = len([k for k in passes[0].get("blocks", []) if k not in people])
     made = [w for p in passes[1:] for w in (p.get("origins") or {}).values()]
     n = {w: made.count(w) for w in ORIGIN_WORDS}
@@ -383,13 +381,12 @@ def fresh() -> dict:
 
 
 def read(path) -> dict:
-    """記録のファイル path（None・無い・読めない・形が違うなら往復の無い記録）。plan と precedent_checks は在れば残す"""
-    try:
-        doc = json.loads(pathlib.Path(path).read_text(encoding="utf-8")) if path else None
-    except (OSError, UnicodeDecodeError, ValueError):
+    """記録のファイル path（None・無いなら往復の無い記録）。読めない・形が違う記録は、往復の無い記録にすり替えず理由を名指して ValueError
+    （形の外れを 1 往復目に読むと、書き手の欄のずれが記録の消えとして通る。#845・#849・#851）。plan と precedent_checks は在れば残す"""
+    import ports
+    if not path or not pathlib.Path(path).is_file():
         return fresh()
-    if not isinstance(doc, dict) or not isinstance(doc.get("passes"), list) or not all(isinstance(p, dict) for p in doc["passes"]):
-        return fresh()
+    doc = ports.json(str(path), "shared:plan-converge.schema.json")   # 書き手 fresh・record_pass・ask_again と、どの読み手も同じ形
     out = {"round": 1, "passes": doc["passes"], "outcome": doc.get("outcome")}
     for key, kind in (("plan", list), ("precedent_checks", dict)):
         if isinstance(doc.get(key), kind):
@@ -517,36 +514,30 @@ def stuck_push_due(doc: dict, *, unattended: bool, design_talk: bool) -> bool:
 # の held_why（plan・diagnose・verify と共に使う。使い手 2 つ以上は lib）。line の stuck_reason（往復の記録）とは別物
 
 
-def _pointed(raw):
-    """pointer かパスの字の先のパス（null・空は None）。読めなければ ValueError"""
-    import ports
-    return None if ports.parsed(raw) is None else ports.file(raw)
-
-
-def owed_why(judgment_raw, ties_raw, materials_raw, world_raw, *, answers, takes_push: bool) -> str:
-    """計画の 1 回目の周が修正案の役を起こさない訳（起こすなら空）。入力が読めない（判定・世界の解の行）なら「<名>が読めない（<訳>）」を
-    「。」で繋いだ訳、読めれば judgmark.held_why（問いの台帳の見え方は、依頼の answers と結びと素材の状態と無人の推し。judgmark.with_ledger）"""
+def owed_why(judgment, ties, materials, world, *, answers, takes_push: bool) -> str:
+    """計画の 1 回目の周が修正案の役を起こさない訳（起こすなら空）。judgment・ties・materials・world は、宣言の form で照らしてパスを返す
+    読み（呼び手の ports.file。null・空は None）。判定・世界の解の行が読めないなら「<名>が読めない（<訳>）」を「。」で繋いだ訳、読めれば
+    judgmark.held_why（問いの台帳の見え方は、依頼の answers と結びと素材の状態と無人の推し。judgmark.with_ledger）"""
     import judgmark
     import worldmark
     bad, doc = [], None
     try:
-        path = _pointed(judgment_raw)
+        path = judgment()
         doc = json.loads(path.read_text(encoding="utf-8")) if path is not None else None
         if path is None:
             bad.append("判定が読めない（空）")
     except (OSError, ValueError) as e:
         bad.append(f"判定が読めない（{e}）")
     try:
-        world = _pointed(world_raw)
-        if world is not None:
-            worldmark.rows(str(world))
+        rows = world()
+        if rows is not None:
+            worldmark.rows(str(rows))
     except (OSError, ValueError) as e:
         bad.append(f"world が読めない（{e}）")
     if bad:
         return "。".join(bad)
-    judgment = judgmark.with_ledger(doc, ties_file=_pointed(ties_raw), materials_file=_pointed(materials_raw), answers=answers,
-                                    takes_push=takes_push)
-    return judgmark.held_why(judgment)
+    judged = judgmark.with_ledger(doc, ties_file=ties(), materials_file=materials(), answers=answers, takes_push=takes_push)
+    return judgmark.held_why(judged)
 
 
 def start_items(answer) -> list:

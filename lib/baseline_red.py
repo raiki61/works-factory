@@ -7,8 +7,8 @@ run_suite だけは元の試験の枠（tree_run.slotted_run の枠）を外し�
 temp_tree（版の姿を一時の git worktree に出す）は fix の TDD の輪から上げた物で、fix の受け付けと試験の関門の最後のテストが、元の結末に
 無い赤を版の姿で走らせ直すのに使う（持ち主の決め base-runs-nothing）。
 
-元の結末のファイルの必須の欄: {"suite": str, "test_cmd": str, "rev": str, "exit": int | None, "cases": [{classname, name, outcome（OUTCOMES の語）, …}]}。
-ほかの欄は呼び手だけが読む（extra）。
+元の結末のファイルの形の住処は lib/baseline.schema.json（必須の欄 suite・test_cmd・rev・exit・cases と型、cases の行の outcome の語）。
+REQUIRED・OUTCOMES はそこから引き、照らしは形の照らし（engine.schema.validate_schema）で当てる。ほかの欄は呼び手だけが読む（extra）。
 """
 import contextlib
 import json
@@ -23,6 +23,9 @@ import xml.etree.ElementTree as ET
 import tree_run
 from leftovers import Unreadable, git
 
+if str(pathlib.Path(__file__).resolve().parent / "graphloops") not in sys.path:   # 写しの engine（形の照らし）
+    sys.path.append(str(pathlib.Path(__file__).resolve().parent / "graphloops"))
+
 # 実行器への合図（env）: 1 なら後ろに足した試験（ファイル・node id）だけを走らせてよい（既定の一式を集めない）。輪の赤・緑の回だけが
 # 付ける（元の結末・受け付け・版の写しは付けない）。解かない実行器は無視してよい（一式に足して走らせても確かめは同じ）
 # 元 works/blk-fix/lib/tddloop.py:142-144
@@ -34,10 +37,13 @@ ONLY_ENV = "TDD_SUITE_ONLY"
 NICENESS = 19
 NO_NICE = "（この環境では優先度を下げられない——nice -n 19 と同じだけ下げずに起こした）"   # 下げずに起こした回にログへ書く 1 行
 
-REQUIRED = ("suite", "test_cmd", "rev", "exit", "cases")
+SCHEMA_FILE = "baseline.schema.json"
+SCHEMA = json.loads((pathlib.Path(__file__).resolve().parent / SCHEMA_FILE).read_text(encoding="utf-8"))
+REQUIRED = tuple(SCHEMA["required"])
 # cases の行の outcome の語（parse_junit の出す 4 つ）と、そのうちの落ちた物。元の結末のファイルはこの語だけを持つ
-OUTCOMES = ("passed", "failure", "error", "skipped")
-FAILED = ("failure", "error")
+OUTCOMES = tuple(SCHEMA["properties"]["cases"]["items"]["properties"]["outcome"]["enum"])
+_, FAILURE, ERROR, _ = OUTCOMES
+FAILED = (FAILURE, ERROR)
 
 
 # ---------------------------------------------------------------- テスト一式を走らせて結末を読む
@@ -289,29 +295,9 @@ def test_outcomes(baseline_cases, cases) -> list:
 
 
 def _problems(doc) -> list:
-    """元の結末の dict の必須の欄の欠けと型の違い（欄の名を載せた文の並び。無ければ空）"""
-    if not isinstance(doc, dict):
-        return [f"JSON の object でない（{type(doc).__name__}）"]
-    probs = [f"欄 {k} が無い" for k in REQUIRED if k not in doc]
-    for k in ("suite", "test_cmd", "rev"):
-        if k in doc and not isinstance(doc[k], str):
-            probs.append(f"欄 {k} が文字列でない（{type(doc[k]).__name__}）")
-    if "exit" in doc and doc["exit"] is not None and (isinstance(doc["exit"], bool) or not isinstance(doc["exit"], int)):
-        probs.append(f"欄 exit が整数か null でない（{type(doc['exit']).__name__}）")
-    if "cases" in doc:
-        rows = doc["cases"]
-        if not isinstance(rows, list):
-            probs.append(f"欄 cases が並びでない（{type(rows).__name__}）")
-        else:
-            bad = [i for i, c in enumerate(rows)
-                   if not isinstance(c, dict) or not all(isinstance(c.get(f), str) for f in ("classname", "name", "outcome"))]
-            if bad:
-                probs.append(f"欄 cases の行 {bad[:5]} に classname・name・outcome の文字列が揃わない")
-            unknown = [i for i, c in enumerate(rows)
-                       if i not in bad and c["outcome"] not in OUTCOMES]
-            if unknown:
-                probs.append(f"欄 cases の行 {unknown[:5]} の outcome が {'・'.join(OUTCOMES)} のどれでもない")
-    return probs
+    """元の結末の dict の、形（SCHEMA）に合わない所（欄の道を載せた文の並び。無ければ空）"""
+    from engine.schema import validate_schema
+    return validate_schema(doc, SCHEMA)
 
 
 def write_baseline(path, *, suite, test_cmd, rev, exit, cases, **extra) -> None:

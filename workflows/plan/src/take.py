@@ -123,11 +123,23 @@ def revised_fields(fields, rows, repo, *, base_tests=None) -> list:
     return out
 
 
-# ---------------------------------------------------------------- 控えを置く
+# ---------------------------------------------------------------- 控えを置く・止める
+MACHINE_ROWS_HALT = "往復の記録から差し込んだ閉じた項目の行が受け付けの形に合わない（機械の誤りなので役へ返さず止める）:"
+
+
+def halt(folder, why: str) -> dict:
+    """輪を止める返り {ok: False, halt: True, count: False, give_up: True, reason}（拒否ではない。役に出し直させず、回数に数えない）。
+    止める訳を round.json の why に残す（出口は halt の周を failed と読む）。書けなくても止める訳は返す"""
+    try:
+        files.write_json(pathlib.Path(folder) / files.ROUND, {**files.read_round(folder), "why": why, "halt": True})
+    except OSError as again:
+        why += f"（止めの控えも書けなかった: {again}）"
+    return {"ok": False, "halt": True, "count": False, "give_up": True, "reason": why}
+
+
 def save(folder, k: int, plan: dict, fields: list, bare: dict, *, amended=None, memo=None) -> dict:
     """受けた案の控えを置く（案の控えの後に、引き継ぎのメモ memo を handoff.save で置く。memo が空なら周のフォルダに残る前のメモを消す）。
-    置けなければ置いた控えを消し、置けなかった控えの名を round.json の why に残して、輪を止める返り
-    {ok: False, halt: True, count: False, give_up: True, reason}（拒否ではない。役に出し直させず、欄の無い案で進ませない）"""
+    置けなければ置いた控えを消し、置けなかった控えの名を round.json の why に残して、輪を止める（halt。欄の無い案で進ませない）"""
     folder = pathlib.Path(folder)
     note = handoff.path_of(folder)
     steps_ = [(files.FIX_PLAN, lambda: jsonfile.write(folder / files.FIX_PLAN, bare, parents=True)),
@@ -142,11 +154,37 @@ def save(folder, k: int, plan: dict, fields: list, bare: dict, *, amended=None, 
             try:
                 for done, _ in steps_:
                     (folder / done).unlink(missing_ok=True)
-                files.write_json(folder / files.ROUND, {**files.read_round(folder), "why": why, "halt": True})   # 機械の故障。出口は failed と読む
             except OSError as again:   # 巻き戻しも書けなくても、止める訳は返す（出口は round.json に無ければ rejects の訳で failed を返す）
                 why += f"（巻き戻しも書けなかった: {again}）"
-            return {"ok": False, "halt": True, "count": False, "give_up": True, "reason": why}
+            return halt(folder, why)
     return {"ok": True, "reason": ""}
+
+
+def machine_row_errors(record: dict, whole: list, plan: dict, repo) -> list[str]:
+    """往復の記録から機械が差し込んだ閉じた項目の行（役が直せない行）に帰る受け付けの誤り。行を 1 本ずつ、受け付けの形（planmarks.gaps）・
+    narrows の決め手と狭めない案（gatemarks.narrow_gaps）・推し（gatemarks.recommend_gaps）に当て、同じ照らしを案の全体 plan に当てた誤りと
+    交わる（1 本の誤りの文の位置 plan[0] は、その行の whole の中の位置に読み替える）。項目の間の照らし（足すテストの宣言・範囲の重なり）を
+    同じ 1 本に当てた分は引く（役の行の変化が生む誤りなので、今どおり役へ拒む）。返りは「閉じた項目 <控えの番号>: <誤り>」の行"""
+    closed = converge.closed_ids(record)
+    rows = [(n, it["id"], it["row"]) for n, it in enumerate(record.get("plan") or [], 1)
+            if isinstance(it, dict) and it.get("id") in closed and "row" in it]
+    if not rows:
+        return []
+    at = {converge.item_id(w.get("unit_keys")): i for i, w in enumerate(whole) if isinstance(w, dict)}
+    shape = set(planmarks.gaps(plan, pathlib.Path(repo)))
+    narrow = set(gatemarks.narrow_gaps(planmarks.NODE, plan))
+    recommend = set(gatemarks.recommend_gaps(planmarks.NODE, plan))
+    out = []
+    for n, item_id, row in rows:
+        if item_id not in at:
+            continue
+        one = {"plan": [row]}
+        alone = set(planmarks.gaps(one, pathlib.Path(repo))) - set(planmarks._added_test_gaps([row])) - set(planmarks._scope_overlaps([row]))
+        here = f"plan[{at[item_id]}]"
+        for got, whole_errors in ((alone, shape), (set(gatemarks.narrow_gaps(planmarks.NODE, one)), narrow),
+                                  (set(gatemarks.recommend_gaps(planmarks.NODE, one)), recommend)):
+            out += [f"閉じた項目 {n}: {e}" for e in sorted(e.replace("plan[0]", here) for e in got) if e in whole_errors]
+    return out
 
 
 # ---------------------------------------------------------------- 往復の記録
@@ -212,6 +250,9 @@ def take_plan(folder, ctx: dict, *, judgment, reply, repo, tables, base_rev: str
         _section(planmarks.DEPENDS_REJECT, planmarks.depends_gaps(whole)),
         _section(planmarks.STRUCTURE_REJECT, planmarks.structure_gaps(whole, tables)),
     ]
+    machine = machine_row_errors(record, whole, plan, repo)
+    if machine:
+        return halt(folder, _section(MACHINE_ROWS_HALT, machine))
     reason = "\n".join(r for r in reasons if r)
     if reason:
         return {"ok": False, "reason": reason}

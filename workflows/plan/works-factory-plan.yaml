@@ -8,27 +8,28 @@ description: |
 
 inputs:
   judgment: {default: '', description: 'json(shared:judgment.schema.json): 受け付けた判定（欄 units・questions・framing・one_shot・one_shot_closes・precedents を読む）。pointer・パス・値のどれか。空の字は判定が無い（形 plan では役を起こさない。形 replan では処方とライブラリの文書と項目の brief だけに使う）'}
-  units: {default: '[]', description: 'json(unit-catalog.schema.json): 直しの単位の目録の配列 [{id, paths, summary}]。空の配列は目録が無い'}
-  answer_ties: {default: '', description: 'file: 依頼の答えを判定の問いと単位に結んだ行のファイル（answer-ties.json の形）。空は結びが無い（答えを字の一致だけで数える）'}
-  materials: {default: '', description: 'file: 判定の素材の状態のファイル（素材の名 → {status, …}）。空は素材の状態が無い'}
-  answers: {default: '[]', description: 'json(request-answers.schema.json): 依頼の answers の行の配列 [{question, text, …}]。空の配列は答えが無い'}
+  units: {default: '[]', description: 'json(shared:units.schema.json): 直しの単位の目録の配列 [{id, paths, summary}]。空の配列は目録が無い'}
+  answer_ties: {default: '', description: 'json(shared:answer-ties.schema.json): 依頼の答えを判定の問いと単位に結んだ行のファイル（answer-ties.json の形）。空は結びが無い（答えを字の一致だけで数える）'}
+  materials: {default: '', description: 'json(shared:materials-state.schema.json): 判定の素材の状態のファイル（素材の名 → {status, …}）。空は素材の状態が無い'}
+  answers: {default: '[]', description: 'json(shared:request-answers.schema.json): 依頼の answers の行の配列 [{question, text, …}]。空の配列は答えが無い'}
   takes_push: {default: 'false', description: 'flag: 判定が保留にした分かれ道の問いの推しを、答えとして数えるか（無人の run の方針。直す義務の数えに効く）'}
-  verify: {default: '', description: 'file: 判定の単位の裏取りの申し送り（{units: [...], synergy: {...}}）。空は申し送りが無い'}
-  excluded: {default: '', description: 'file: 並行 PR と重なるので外した範囲のファイル。空は外した範囲が無い'}
-  depth_record: {default: '', description: 'file: run の頭の深さの控え（行ごとの未知の種類と引用）。空は控えが無い'}
-  decisions: {default: '', description: 'file: 決定記録の突合の返答（reply.settled が決着済みの論点）。空は突合が無い'}
-  world_rows: {default: '', description: 'file: 世界の解の行の JSON Lines。空は行が無い'}
-  structure: {default: '', description: 'file: 構造の目の控え（{status, reason, design_file, skipped, …}）。空は構造の目の行が無い'}
-  spec: {default: '', description: 'file: 固めた仕様（requirements・acceptance を持つ JSON。JSON でなければ字のまま貼る）。空は仕様が無い'}
+  verify: {default: '', description: 'json(shared:verify.schema.json): 判定の単位の裏取りの申し送り（{units: [...], synergy: {...}}）。空は申し送りが無い'}
+  excluded: {default: '', description: 'json(shared:excluded.schema.json): 並行 PR と重なるので外した範囲のファイル。空は外した範囲が無い'}
+  depth_record: {default: '', description: 'json(shared:depth-record.schema.json): run の頭の深さの控え（行ごとの未知の種類と引用）。空は控えが無い'}
+  decisions: {default: '', description: 'json(shared:material.schema.json): 決定記録の突合の返答（reply.settled が決着済みの論点）。空は突合が無い'}
+  world_rows: {default: '', description: 'jsonl(lib:world-row.schema.json): 世界の解の行の JSON Lines（world.jsonl）。空は行が無い'}
+  structure: {default: '', description: 'json(shared:structure-state.schema.json): 構造の目の控え（{status, reason, design_file, skipped, …}）。空は構造の目の行が無い'}
+  spec: {default: '', description: 'json(shared:spec.schema.json): 固めた仕様（requirements・acceptance を持つ spec.json）。空は仕様が無い'}
+  spec_doc: {default: '', description: 'file: 人と固めた仕様の本文（設計書の本文と表の md。字のまま貼る）。空は渡されていない'}
   policy: {default: '', description: 'file: 人の方針の文書の固めた写し。空は方針の文書が無い'}
   prior_failures: {default: '[]', description: 'json(shared:prior-failures.schema.json): 前の run で最後まで通らなかった物の行の配列 [{where, text}]。空の配列は無い'}
-  prior: {default: '', description: 'json(plan-prior.schema.json): 前の周（形 plan では直前の計画の周と、それへの事前審査。形 replan では直す元の承認済みの案の周）。pointer・パス・値のどれか。空の字は前の周が無い（1 周目）'}
-  ruling: {default: '[]', description: 'json(replan-items.schema.json): 案の直しで直す項目の番号（1 始まり。整数か数字の字）の配列。空の配列は案の直しでない（形 plan）'}
-  conflicts: {default: '', description: 'file: 項目の誤りの申し出と、その裁定の行のファイル（{items: [...]}）。形 replan だけが読む。空は行が無い'}
+  prior: {default: '', description: 'json(shared:plan-prior.schema.json): 前の周（形 plan では直前の計画の周と、それへの事前審査。形 replan では直す元の承認済みの案の周）。pointer・パス・値のどれか。空の字は前の周が無い（1 周目）'}
+  ruling: {default: '[]', description: 'json(shared:replan-items.schema.json): 案の直しで直す項目の番号（1 始まり。整数か数字の字）の配列。空の配列は案の直しでない（形 plan）'}
+  conflicts: {default: '', description: 'json(lib:conflicts.schema.json): 項目の誤りの申し出と、その裁定の行のファイル（{items: [...]}）。形 replan だけが読む。空は行が無い'}
   base: {default: '', description: 'text: 修正前の HEAD の版（受け入れテストの定義と修正前のテストの中身を引く版）。空は HEAD'}
   review_rev: {default: '', description: 'text: 役が読む版。空は base、それも空なら HEAD'}
   diff_base: {default: '', description: 'text: 材料の BASE（入口の差分の根）。空は base、それも空なら読む版'}
-  routes: {default: 'auto', description: 'choice(auto|spec): 行の route の決め方。auto は今の指示のまま。spec は固めた仕様（入力 spec）の「TDD で直す所」が名指す行だけを tdd にし、ほかを direct にする'}
+  routes: {default: 'auto', description: 'choice(auto|spec): 行の route の決め方。auto は今の指示のまま。spec は固めた仕様（入力 spec の JSON か spec_doc の本文）の「TDD で直す所」が名指す行だけを tdd にし、ほかを direct にする'}
   lang: {default: '', description: 'text: 人に見せる欄（approach・shrink_first・各 why・why_not・no_narrow・undecided_because・world・deviation・narrows の what・recommend の note と why・block_answers の how・handoff）の言語。空は依頼の言語'}
 returns: finish
 outcome_field: ok
@@ -531,31 +532,38 @@ nodes:
         owed:
           type: array
           items: {type: string}
-        plan: &pointer
-          type: object
-          additionalProperties: false
-          required: [type, run_id, path]
-          properties:
-            type: {type: string, enum: [archon_artifact]}
-            run_id: {type: string}
-            path: {type: string}
-        fix_plan: &pointer_or_null
-          type: [object, 'null']
-          properties:
-            type: {type: string, enum: [archon_artifact]}
-            run_id: {type: string}
-            path: {type: string}
-        reply: *pointer_or_null
-        handoff: *pointer_or_null
-        replan: *pointer_or_null
-        ripple: *pointer
+        plan:
+          <<: &pointer_or_null
+            type: [object, 'null']
+            additionalProperties: false
+            required: [type, run_id, path]
+            properties: &pointer_fields
+              type: {type: string, enum: [archon_artifact]}
+              run_id: {type: string}
+              path: {type: string}
+          description: 'json(shared:plan-fields.schema.json): 修正案の欄の控え（plan-fields.json。案が無い周は fields が空）。lib が読めず照らせない出口は null'
+        fix_plan:
+          <<: *pointer_or_null
+          description: 'json(shared:fix-plan.schema.json): 承認する修正案の出力（p2.fix_plan.json）。受けた案が無ければ null'
+        reply:
+          <<: *pointer_or_null
+          description: 'json(shared:plan-reply.schema.json): 受け付けた修正案（reply.json。事前審査が審査する物）。受けた案が無ければ null'
+        handoff:
+          <<: *pointer_or_null
+          description: 'json(shared:handoff.schema.json): 引き継ぎのメモ（handoff.json）。無ければ null'
+        replan:
+          <<: *pointer_or_null
+          description: 'json(shared:replan.schema.json): 案の直しの行（replan.json。形 replan の時だけ）。無ければ null'
+        ripple:
+          <<: *pointer_or_null
+          description: 'json(shared:ripple.schema.json): 項目ごとの波及の一覧（ripple.json。案が無い周は items が空で error に訳）。lib が読めず照らせない出口は null'
         rejects:
           type: array
           items:
             type: object
             required: [at, reason]
             properties:
-              at: {}
+              at: {type: [string, 'null'], description: '拒んだ時刻（ISO 8601。前の版の控えから読み替えた行は null。rolekit.reject_rows）'}
               reason: {type: string}
               kind: {type: string}
         gave_up:

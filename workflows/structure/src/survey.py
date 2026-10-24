@@ -187,10 +187,10 @@ def run(place, *, mode, units, intent_paths, policy, base, plan) -> dict:
     kind = "before"
     try:
         kind = _port("mode", lambda: ports.choice(mode or "before", files.MODES))
-        given = _port("intent", lambda: ports.json(intent_paths or "[]", "intent.schema.json"))
-        policy_file = _port("policy", lambda: ports.file(policy))
+        given = _port("intent", lambda: ports.json(intent_paths or "[]", "shared:intent.schema.json"))
+        policy_file = _port("policy", lambda: ports.file(policy, "file"))
         rows = _port("units", lambda: ports.json(units or "[]", "shared:units.schema.json"))
-        plan_file = _port("plan", lambda: ports.file(plan)) if kind == "after" else None
+        plan_file = _port("plan", lambda: ports.file(plan, "json(shared:plan-fields.schema.json)")) if kind == "after" else None
     except ValueError as e:
         why = str(e)
         jsonfile.write(out / files.SKIPPED_FILE, [])

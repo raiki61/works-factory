@@ -34,7 +34,7 @@ seal は、今の作業ツリーと差分の根の間の差分を封じ、守り
 - `answer`: `json(answer.schema.json): 最後の承認ノードで人が返した答え {decision, text}。null は承認ノードが開かなかった（apply だけ）`。既定 `null`。
 - `r2`: `json(r2.schema.json): 独立設計との比べ（R2）の {status, reason}。null は省いた・走らなかった（apply だけ）`。既定 `null`。
 - `deliver`: `text: 出口の語。空は差分を place に置くだけ、pr は照らした差分を run の枝に積んで PR を作る（apply と check だけ）。ほかの語は ok: false`。既定 `""`。
-- `request`: `file: 依頼のファイル（pr の時に、依頼が名指した issue を commit の文に閉じない参照で書く）。空は無い`。既定 `""`。
+- `request`: `json(shared:request.schema.json): 依頼のファイル（pr の時に、依頼が名指した issue を commit の文に閉じない参照で書く）。空は無い`。既定 `""`。
 - `items`: `json(items.schema.json): 差分のパスを修正案の項目に決める記録 {items, claims, unread}（fix の出力。lib/itemcommits.py の merged の形）。null は無い（pr の時に 1 つの commit に倒す）`。既定 `null`。
 - `user_env_dir`: `text: 利用者の HOME・XDG に戻して起こした印を置く置き場の絶対パス。空は置き場が無い（戻す run では pr の commit を積まずに止める）。pr の commit の hooks だけが読む`。既定 `""`。起動の殻は Archon を隔離した HOME で起こすが、対象のコマンド（ここでは commit の hooks）だけは利用者の HOME・XDG に戻して走らせ、戻した事の印のファイル `user-env-ran` をこの置き場に置く（`lib/userenv.py`・`tree_run.split_mark`）。報告がその印で「利用者の環境で走らせた」と言う。
 

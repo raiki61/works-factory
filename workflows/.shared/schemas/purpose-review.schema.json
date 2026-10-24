@@ -1,0 +1,12 @@
+{
+  "description": "目的の監査の受けた返答 {verdict, reason, findings}（judge の verdict が purpose-review.json に写し、independent-design が読む）。受けていなければ {}。ほかの欄は許す",
+  "type": "object",
+  "properties": {
+    "verdict": {"type": "string"},
+    "reason": {"type": "string"},
+    "findings": {
+      "type": "array",
+      "items": {"type": "object", "properties": {"text": {"type": "string"}, "cite": {"type": "string"}, "hits": {"type": "integer"}}}
+    }
+  }
+}

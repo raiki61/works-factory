@@ -279,7 +279,7 @@
     },
     {
      "what": "足し欄の控えの名の定数を住処を通さずにパスへ組む形",
-     "pattern": "(/\\s*|\\.work\\()(gatemarks\\.MARKS_FILE|planmarks\\.FIELDS_FILE|deltamarks\\.VERDICTS_FILE|querytest\\.EXAMPLES_FILE|outpurpose\\.FILE|prcheck\\.EXCLUDED)\\b",
+     "pattern": "(/\\s*|\\.work\\()(planmarks\\.FIELDS_FILE|deltamarks\\.VERDICTS_FILE|querytest\\.EXAMPLES_FILE|outpurpose\\.FILE|prcheck\\.EXCLUDED)\\b",
      "allowed": [
       "lib/marks.py"
      ],

@@ -54,7 +54,7 @@ class SpecRoundsCase(unittest.TestCase):
                 "handoff": None, "replan": None, "ripple": self.ptr("spec-plan/ripple.json", {"items": []}), "rejects": [],
                 "gave_up": None, "report": []}
         entry = {"ok": True, "stop_reason": "", "reason": "", "request": self.ptr("spec-entry/request.json", []), "origin": "o",
-                 "purpose": self.ptr("spec-entry/purpose.json", {"purpose_text": "目的の文"}), "spec": self.ptr("spec-entry/spec.md", "x"),
+                 "purpose": self.ptr("spec-entry/purpose.json", {"purpose_text": "目的の文", "source": "②計画・タスク記述", "known_weaknesses": [], "source_files": []}), "spec": self.ptr("spec-entry/spec.md", "x"),
                  "spec_files": ["docs/t.yaml", "docs/d.md"], "tdd": False, "out_of_scope": [], "mismatches": [], "report": []}
         ports = {"forced": forced, "policy": "", "unattended": False}
         return {k: json.dumps(v, ensure_ascii=False) for k, v in

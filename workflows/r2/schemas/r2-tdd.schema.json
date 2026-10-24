@@ -1,5 +1,0 @@
-{
-  "description": "修正の段ごとの TDD の記録（段ごとに、組ごとの記録の配列か、読めない訳の字）。null は渡されていない",
-  "type": ["array", "null"],
-  "items": {"type": ["array", "string"]}
-}

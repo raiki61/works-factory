@@ -12,10 +12,10 @@ description: |
 inputs:
   sections:
     required: true
-    description: 'json(sections.schema.json): 報告のセクションの配列 [{title, lines, files?}]。機械の報告に、この並びのまま 1 セクションずつ載る。各 block の出力の report の欄を graph が並べた物。files は書き手が読むファイル [{label, ref}]（ref は Archon の pointer かファイルの絶対パスの字）'
+    description: 'json(shared:sections.schema.json): 報告のセクションの配列 [{title, lines, files?}]。機械の報告に、この並びのまま 1 セクションずつ載る。各 block の出力の report の欄を graph が並べた物。files は書き手が読むファイル [{label, ref}]（ref は Archon の pointer かファイルの絶対パスの字）'
   facts:
     default: '{}'
-    description: 'json(facts.schema.json): 結末と冒頭 3 行を決める事実のオブジェクト（欄は設計書の 1.2）。空のオブジェクトは事実が渡されていない（結末は record_invalid）'
+    description: 'json(shared:facts.schema.json): 結末と冒頭 3 行を決める事実のオブジェクト（欄は設計書の 1.2）。空のオブジェクトは事実が渡されていない（結末は record_invalid）'
   lang:
     default: ''
     description: 'text: 書き手が書く本文の言語。空は依頼の言語'
@@ -36,9 +36,17 @@ nodes:
         outcome: {type: string}
         ok: {type: boolean}
         stop_reason: {type: string}
-        machine: {type: [object, "null"]}
-        next_request: {type: [object, "null"]}
-        prior_failures: {type: [object, "null"]}
+        machine: &pointer_or_null
+          description: 'file: 機械の報告（md）'
+          type: [object, "null"]
+          additionalProperties: false
+          required: [type, run_id, path]
+          properties: &pointer_fields
+            type: {type: string, enum: [archon_artifact]}
+            run_id: {type: string}
+            path: {type: string}
+        next_request: {<<: *pointer_or_null, description: 'json(lib:next-request.schema.json): 次の run の依頼の下書き'}
+        prior_failures: {<<: *pointer_or_null, description: 'json(lib:prior-failures.schema.json): この run で最後まで通らなかった物の行'}
         ai_go: {type: boolean}
         stamp: {type: string}
 
@@ -188,6 +196,7 @@ nodes:
                  needs_human, record_invalid, interrupted]
         stop_reason: {type: string}
         machine:
+          description: 'file: 機械の報告（md）'
           type: object
           required: [type, run_id, path]
           properties:
@@ -195,6 +204,7 @@ nodes:
             run_id: {type: string}
             path: {type: string}
         human:
+          description: 'file: 人に向けた報告（md）。書き手が書かなければ null'
           type: [object, "null"]
           required: [type, run_id, path]
           properties:
@@ -202,6 +212,7 @@ nodes:
             run_id: {type: string}
             path: {type: string}
         detail:
+          description: 'file: 人に向けた報告の詳しい中身（md）'
           type: [object, "null"]
           required: [type, run_id, path]
           properties:
@@ -209,6 +220,7 @@ nodes:
             run_id: {type: string}
             path: {type: string}
         next_request:
+          description: 'json(lib:next-request.schema.json): 次の run の依頼の下書き'
           type: [object, "null"]
           required: [type, run_id, path]
           properties:
@@ -216,6 +228,7 @@ nodes:
             run_id: {type: string}
             path: {type: string}
         prior_failures:
+          description: 'json(lib:prior-failures.schema.json): この run で最後まで通らなかった物の行'
           type: [object, "null"]
           required: [type, run_id, path]
           properties:

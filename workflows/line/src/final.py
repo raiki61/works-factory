@@ -27,6 +27,7 @@ import fixboard
 import gatemarks
 import green_cert
 import oneline
+import ports
 import protect
 import querytest
 import replan
@@ -395,7 +396,7 @@ def asked_conflicts(pointers) -> tuple:
     rows, unread = [], []
     for ptr in pointers or []:
         try:
-            folder = Path(gates.path_of(ptr)).parent
+            folder = Path(gates.path_of(ptr, lambda raw: ports.file(raw, "json(lib:conflicts.schema.json)"))).parent
             if not (folder / conflict.FILE).is_file():
                 raise ValueError(f"{conflict.FILE} が無い")
             rows += conflict.human_lines(folder)
@@ -414,9 +415,9 @@ def ledger_rows(judged: dict | None, record: dict, before_fix, *, unattended: bo
     if judged is None or judged.get("judgment") is None:
         return empty, []
     try:
-        doc = gates.read_json(gates.path_of(judged["judgment"])) or {}
-        b = gatemarks.ledger_files(doc, ties_file=gates.path_of(judged.get("answer_ties")) or None,
-                                   materials_file=gates.path_of(judged.get("materials")) or None,
+        doc = gates.read_json(gates.path_of(judged["judgment"], lambda raw: ports.file(raw, "json(shared:judgment.schema.json)"))) or {}
+        b = gatemarks.ledger_files(doc, ties_file=gates.path_of(judged.get("answer_ties"), lambda raw: ports.file(raw, "json(shared:answer-ties.schema.json)")) or None,
+                                   materials_file=gates.path_of(judged.get("materials"), lambda raw: ports.file(raw, "json(shared:materials-state.schema.json)")) or None,
                                    answers=gates.request_answers(record), gate=before_fix, takes_push=unattended)
     except (OSError, ValueError, TypeError, AttributeError, KeyError) as error:
         return empty, [f"判定の問いの控えか始めの記録を読めない（保留の問いを数えていない。{type(error).__name__}: {error}）"]
@@ -431,7 +432,7 @@ def after_rows(after) -> tuple:
     if after is None:
         return [], [NO_AFTER], ""
     try:
-        folder = Path(gates.path_of(after)).parent
+        folder = Path(gates.path_of(after, lambda raw: ports.file(raw, "json(shared:structure-after.schema.json)"))).parent
     except (ValueError, TypeError, AttributeError, KeyError) as error:
         return [], [], f"直した後の実測のポインタを読めない（柵の増えを数えていない。{type(error).__name__}: {error}）"
     if structmark.read_after(folder) is None:
@@ -444,7 +445,7 @@ def structure_missing(structure) -> str:
     if structure is None:
         return ""
     try:
-        state = Path(gates.path_of(structure))
+        state = Path(gates.path_of(structure, lambda raw: ports.file(raw, "json(shared:structure-state.schema.json)")))
     except (ValueError, TypeError, AttributeError, KeyError) as error:
         return f"構造の目の控えのポインタを読めない（{type(error).__name__}: {error}）"
     return structmark.note(structmark.read(state))
@@ -455,7 +456,7 @@ def sealed_files(diff) -> tuple:
     if diff is None:
         return [], None, ""
     try:
-        text = Path(gates.path_of(diff)).read_text(encoding="utf-8", errors="replace")
+        text = Path(gates.path_of(diff, lambda raw: ports.file(raw, "file"))).read_text(encoding="utf-8", errors="replace")
     except (OSError, ValueError, TypeError, AttributeError, KeyError) as error:
         return [], None, (f"封じた差分を読めない（取り込むと消えるファイルと、許したテストのうち触った物を数えていない。"
                           f"{type(error).__name__}: {error}）")
@@ -502,7 +503,7 @@ def unproven_lines(judgment) -> list:
     """例で試していない単位の行（元 runreport.unproven_lines。判定の judgment の units から querytest.unproven で出し直す。開いた単位は
     元の検証器の is_open と同じ式 gatemarks._fix_duty）。判定が無ければ []、判定の pointer を開けなければ訳の 1 行（黙って 0 件にしない）"""
     try:
-        doc = gates.read_json(gates.path_of(judgment)) if judgment is not None else None
+        doc = gates.read_json(gates.path_of(judgment, lambda raw: ports.file(raw, "json(shared:judgment.schema.json)"))) if judgment is not None else None
     except (OSError, ValueError, TypeError) as error:
         return [f"判定を読めないので、例で試していない単位を数えていない（{type(error).__name__}: {error}）"]
     units = [u for u in (doc or {}).get("units") or [] if isinstance(u, dict) and isinstance(u.get("key"), str)] \
@@ -561,7 +562,7 @@ def gather(*, fix_in: dict, fixed: dict, judged: dict | None, tests: dict | None
         **beside, "allowed_tests": allowed, "allowed_untouched": untouched,
         "structure_missing": structure_missing(fix_in.get("structure")),
         "sealed": closing.get("ok") is True, "seal_reason": str(closing.get("reason") or ""), "hash": str(closing.get("hash") or ""),
-        "deleted": deleted, "sealed_diff": gates.located(closing.get("diff"), "封じた差分", missing),
+        "deleted": deleted, "sealed_diff": gates.located(closing.get("diff"), "封じた差分", missing, lambda raw: ports.file(raw, "file")),
         "fenced": after_fenced, "after": after, "passes": passes,
         "r2_inputs": [x for x in eye.get("notes") or [] if isinstance(x, str)],
         "converge": rounds_lines, "parallel_after": parallel_after,

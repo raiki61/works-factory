@@ -198,7 +198,7 @@ Write `why` and `findings_none` in the language of the request (the user's langu
    1. `intake.json` が無い・`failed` → `status: failed`・`rows: null`・数えは 0・`report` は「レンズ: 落ちた（<訳>）」の 1 行。
    2. ほかは `lens.collect(place, {<lens>: <reply-<key>.json の値か None>…})` で `pending` の行を埋めて `lens.json` を書き直す。控えが無い・読めない（`ValueError`）・書けない時は `status: failed`・`reason`「レンズの集め役が終わらなかった: <訳>」（今の `fixboard.LENS_NOT_DONE` の字）。
    3. `errors.json` に prep の行が在れば `status: failed`（行は `failed` のまま控えに残る）。
-   4. 数え `ran`・`failed`・`not_routed`・`carry`・`report`（5 節）を組み、`{ok, status, reason, rows: ports.pointer(lens.json), ran, failed, not_routed, carry, report, optional}` を返す。`optional` は `src/steps.py` の `OPTIONAL`（表の行ごとに `{node: <lens>, bare: false}` と `{node: <lens>-take, bare: false}`）。
+   4. 数え `ran`・`failed`・`not_routed`・`carry`・`report`（5 節）を組み、`{ok, status, reason, rows: ports.pointer(lens.json, "json(shared:lens-rows.schema.json)"), ran, failed, not_routed, carry, report, optional}` を返す。`optional` は `src/steps.py` の `OPTIONAL`（表の行ごとに `{node: <lens>, bare: false}` と `{node: <lens>-take, bare: false}`）。
    5. 例外は全部捕まえ、標準ライブラリだけで `{ok: false, status: failed, reason, rows: null, ran: 0, failed: 0, not_routed: 0, carry: [], report: [<訳の 1 行>], optional: OPTIONAL}` を返す。
 
 `finish` の `output_format`: 全部の欄を `required`。`status` は `enum: [ok, failed]`、`rows` は `type: [object, "null"]` に pointer の 3 つの欄、数えは `minimum: 0` の整数、`carry` は `{where, text}` の object の配列、`report` は字の配列、`optional` は `{node, bare}` の object の配列。`intake` の返りは `additionalProperties: false` で `due`・`reason`・表の行ごとの `<key>_go` を全部 `required`。

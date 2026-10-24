@@ -278,12 +278,14 @@ class CollectCase(FinishPlace):
         self.assertIn("fix の出力を組めない", (self.place / self.files.COLLECT_ERROR).read_text(encoding="utf-8"))
 
     def test_collect_fallback_still_points_at_the_beside_files_that_exist(self):
-        """#681: lib の読めない finish も、自分が置いた控え（許したテストの変更・受け付けの行）は pointer の欄で返し、ほかの欄は
-        null・removed は null・tdd_refused は訳つきの空"""
+        """#681: lib の読めない finish も落ちずに約束の形を返し、自分が置いた控え（許したテストの変更・受け付けの行）を place に書く。
+        形を照らす口（lib の engine）が無いので、その pointer は照らさずに流さず null にし、指せない訳を tdd_refused.unread に名指す（#851）。
+        ほかの欄は null・removed は null"""
         out = self.without_lib()
         for field, name in (("allowed_tests", "allowed-tests.json"), ("accept_trace", "accept-trace.json")):
-            self.assertEqual(out[field], {"type": "archon_artifact", "run_id": kit.RUN_ID, "path": name}, field)
+            self.assertIsNone(out[field], field)
             self.assertTrue((self.place / name).is_file(), name)
+            self.assertTrue(any(name in line for line in out["tdd_refused"]["unread"]), out["tdd_refused"])
         self.assertEqual({k: out[k] for k in ("closure", "tdd_unit", "removed", "frozen", "carry")},
                          dict.fromkeys(("closure", "tdd_unit", "removed", "frozen", "carry")))
         self.assertEqual(out["tdd_refused"]["refused"], [])
@@ -452,7 +454,7 @@ class CollectCase(FinishPlace):
         """F429: 許したテストの変更（裁定 fix_test_scope の範囲・組の子が許した物）を allowed_test_changes にパスで並べ、訳を diff の
         隣の allowed-tests.json に [{path, permit, source}] で置く。止めの道と lib の無い道でも、diff の隣に空の [] を置く"""
         ruled = {"id": "c1-1", "round": 1, "source": "fix", "unit_key": "A", "between": ["stats.py:9", "test_stats.py:8"],
-                 "why_both_cannot_hold": "テストの期待が判定と食い違う", "which_is_right": "request", "kind": "test_vs_request",
+                 "why_both_cannot_hold": "テストの期待が判定と食い違う", "which_is_right": "request", "kind": "unnamed_test_broke",
                  "status": "ruled", "ruling": {"decision": "fix_test_scope", "text": "期待を直してよい",
                                                "limits": ["test_stats.py:8-9"]}}
         child = {"path": "test_extra.py", "permit": "plan-agreed-2", "source": "consult"}
@@ -474,8 +476,8 @@ class CollectCase(FinishPlace):
         with self.subTest("lib の無い道"):
             (self.place / "allowed-tests.json").write_text('[{"path": "x"}]', encoding="utf-8")
             (self.place / "accept-trace.json").unlink()
-            out = self.without_lib()
-            beside = self.beside(out) / self.files.ALLOWED_TESTS_FILE
+            self.without_lib()
+            beside = self.place / self.files.ALLOWED_TESTS_FILE   # lib が無いと形を照らせないので pointer は null（控えは place に書く）
             self.assertEqual(json.loads(beside.read_text(encoding="utf-8")), [])
             self.assertEqual(json.loads((beside.parent / self.files.ACCEPT_TRACE_FILE).read_text(encoding="utf-8")), [])
 

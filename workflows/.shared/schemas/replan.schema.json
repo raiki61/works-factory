@@ -1,0 +1,30 @@
+{
+  "description": "案の直しの行（replan.json。書き手は修正案の block の形 replan の受け付けと事前審査の形 replan）{round, items: [lib/replan.py の TRIP_KEYS の行]}。old・new は修正案の項目の行",
+  "type": "object",
+  "properties": {
+    "round": {"type": "integer"},
+    "items": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "item": {"type": "integer"},
+          "units": {"type": "array", "items": {"type": ["string", "integer"]}},
+          "rows": {"type": "null", "description": "待つ行の id の欄（lib/replan.py の TRIP_KEYS）。書き手の修正案の受け付けは置かず、いつも null"},
+          "old": {"type": ["object", "null"], "description": "json(shared:plan-reply-item.schema.json): 直す前の項目の行"},
+          "brief": {"type": "null", "description": "TRIP_KEYS の欄。書き手は置かず、いつも null"},
+          "new": {"type": ["object", "null"], "description": "json(shared:plan-reply-item.schema.json): 直した項目の行"},
+          "new_marks": {"type": ["array", "null"], "description": "new の narrows の行と同じ並びの、外した決め手の欄（gatemarks.FIELDS と no_narrow。lib/replan.py の new_item が戻す）", "items": {"type": "object", "properties": {"decided_by": {"type": "string"}, "undecided_because": {"type": "string"}, "fences": {"type": "array", "items": {"type": "string"}}, "world": {"type": "string"}, "recommend": {"type": "object", "properties": {"answer": {"type": "string"}, "note": {"type": "string"}, "why": {"type": "string"}}}, "no_narrow": {"type": "string"}}}},
+          "review": {"type": "null", "description": "TRIP_KEYS の欄。書き手は置かず、いつも null"},
+          "contract_changed": {"type": ["array", "null"], "description": "違う約束の欄の名（planmarks.contract_diff）", "items": {"type": "string"}},
+          "human_faces": {"type": "null", "description": "TRIP_KEYS の欄。書き手は置かず、いつも null"},
+          "widened": {"type": ["object", "null"], "description": "範囲を広げるだけの直しの足した・外した glob（planmarks.widened）。約束が変わらない・広げるだけでなければ null", "properties": {"allowed_paths": {"type": "array", "items": {"type": "string"}}, "out_of_scope": {"type": "array", "items": {"type": "string"}}}},
+          "ask": {"type": "null", "description": "TRIP_KEYS の欄。書き手は置かず、いつも null"},
+          "answer": {"type": "null", "description": "TRIP_KEYS の欄。書き手は置かず、いつも null"},
+          "result": {"type": "null", "description": "TRIP_KEYS の欄。書き手は置かず、いつも null"},
+          "why": {"type": "null", "description": "TRIP_KEYS の欄。書き手は置かず、いつも null"}
+        }
+      }
+    }
+  }
+}

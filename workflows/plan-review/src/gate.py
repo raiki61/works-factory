@@ -10,7 +10,7 @@ narrows の行を作る芯と軸の訳の決まり（gatemarks.narrow_asks・ask
 事前審査の穴の行（_face_rows）と外れの行（deviations）を持つ。
 
 - asks(place, intake, review) -> [{kind, node, text, units, mark, decided, why}]: 修正案の narrows の行と、事前審査の穴のうち人に回す
-  種類（files.HUMAN_FACE_KINDS）の行。why は {軸: [揃わない訳]}（揃う軸は載せない。空の dict は 4 つの軸が揃う）
+  種類（policy.HUMAN_FACE_KINDS）の行。why は {軸: [揃わない訳]}（揃う軸は載せない。空の dict は 4 つの軸が揃う）
 - deviations(place, intake, review) -> [{source: "world", item, text, mark, why} | {source: "design", key, kind, why}]
 - replan(place, intake, review) -> [{item, units, contract_changed, human, widened}]（files.REPLAN にも同じ行を書く）
 
@@ -66,7 +66,7 @@ def _face_rows(place, intake: dict, review: dict) -> list:
         if not isinstance(f, dict) or f.get(converge.HELD_MARK):
             continue
         m = gatemarks.mark_of(gatemarks.joined(f, gatemarks.at(saved, j)))
-        if f.get("kind") in files.HUMAN_FACE_KINDS and not policy.unrecorded(f, m, recorded):
+        if f.get("kind") in policy.HUMAN_FACE_KINDS and not policy.unrecorded(f, m, recorded):
             rows.append((f["kind"], f"事前審査の穴 [{f['kind']}] {f.get('key')}: {f.get('why')}", m, REVIEW_NODE,
                          [k for k in f.get("unit_keys") or [] if isinstance(k, str)]))
     return rows
@@ -205,7 +205,7 @@ def replan(place, intake: dict, review: dict) -> list:
     out = []
     for row in rows:
         human = [{"key": f.get("key"), "kind": f.get("kind"), "why": f.get("why")}
-                 for f in _faces_of(row, review, rows) if isinstance(f, dict) and f.get("kind") in files.HUMAN_FACE_KINDS]
+                 for f in _faces_of(row, review, rows) if isinstance(f, dict) and f.get("kind") in policy.HUMAN_FACE_KINDS]
         old, new = replanlib.bare(row["old"]), replanlib.bare(row["new"])
         changed = planmarks.contract_diff(old, new)
         out.append({"item": row["item"], "units": list(row.get("units") or []), "contract_changed": changed, "human": human,

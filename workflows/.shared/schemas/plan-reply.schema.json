@@ -1,0 +1,34 @@
+{
+  "description": "修正案の役の返答を受け付けた修正案（reply.json。書き手は修正案の block の受け付け。事前審査が審査する物）{plan: [項目の行（works の欄つき）], block_answers?: [前の往復の答えの要る穴への答え]}。項目の行の型の住処は修正案の役の output_format と lib/planmarks.py（受け付けが照らす）で、ここは読み手が読む欄の型だけを書く",
+  "type": "object",
+  "required": [
+    "plan"
+  ],
+  "properties": {
+    "plan": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "description": "json(shared:plan-reply-item.schema.json): 項目の行"
+      }
+    },
+    "block_answers": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "handled": {
+            "type": "string"
+          },
+          "how": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}

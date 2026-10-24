@@ -14,15 +14,16 @@ sys.dont_write_bytecode = True
 sys.path[:0] = [str(Path(__file__).resolve().parents[2] / ".shared"), str(Path(__file__).resolve().parents[1])]
 
 
+RECEIVED = ("got", "why")   # 受け皿の返りの欄（受け皿の output_format の required の全部）
+
+
 def _got(ports, raw):
-    raw = ports.text(raw).strip()
-    whole = None if raw in ("", "null") else ports.json(raw)
-    return whole.get("got") if isinstance(whole, dict) else None
+    whole = ports.picked(raw, RECEIVED)
+    return whole["got"] if whole is not None else None
 
 
 def _value(ports, raw):
-    raw = ports.text(raw).strip()
-    return None if raw in ("", "null") else ports.json(raw)
+    return ports.parsed(raw)   # 返し spec-in・diagnose-in の返りまるごと（Archon が output_format で照らした値）
 
 
 def _has_rows(ports, ptr) -> tuple:
@@ -30,7 +31,7 @@ def _has_rows(ports, ptr) -> tuple:
     if not isinstance(ptr, dict):
         return False, ""
     try:
-        text = ports.file(json.dumps(ptr)).read_text(encoding="utf-8")
+        text = ports.file(json.dumps(ptr), "jsonl(lib:world-row.schema.json)").read_text(encoding="utf-8")
     except (OSError, ValueError) as error:
         return False, f"世界の解の行のファイルが読めない（{error}）"
     return any(line.strip() for line in text.splitlines()), ""
@@ -42,7 +43,7 @@ def _review_reply(ports, got) -> tuple:
     if not isinstance(got, dict) or not got.get("material"):
         return {}, ""
     try:
-        reply = materialkit.read(ports.file(json.dumps(got["material"]))).get("reply")
+        reply = materialkit.read(ports.file(json.dumps(got["material"]), "json(shared:material.schema.json)")).get("reply")
     except ValueError as error:
         return {}, f"目的の監査の素材が読めない（{error}）"
     return (reply if isinstance(reply, dict) else {}), ""
@@ -79,7 +80,7 @@ def compute(ports):
     out = verdict.build(received, world_on=ports.flag(os.environ.get("INPUTS_WORLD")), world_has_rows=rows,
                         notes=tuple(n for n in (unrows, unread) if n))
     place = ports.place()
-    out["purpose_review"] = ports.pointer(jsonfile.write(place / files.PURPOSE_REVIEW, reply))
+    out["purpose_review"] = ports.pointer(jsonfile.write(place / files.PURPOSE_REVIEW, reply), "json(shared:purpose-review.schema.json)")
     json.dumps(out, allow_nan=False)
     jsonfile.write(place / files.VERDICT, out)
     return out

@@ -12,7 +12,6 @@ LIB = pathlib.Path(__file__).resolve().parents[1]
 sys.dont_write_bytecode = True
 if str(LIB) not in sys.path:
     sys.path.append(str(LIB))
-import fixboard  # noqa: E402
 import gatemarks  # noqa: E402
 import policy  # noqa: E402
 import listcut  # noqa: E402
@@ -97,7 +96,7 @@ class NameOwnerCase(unittest.TestCase):
         self.assertEqual(len(policy.face_gaps([face], [])), 1)
 
     def test_policy_kind_is_a_human_face_kind(self):
-        self.assertIn(policy.POLICY_KIND, fixboard.HUMAN_FACE_KINDS)
+        self.assertIn(policy.POLICY_KIND, policy.HUMAN_FACE_KINDS)
         self.assertIn(policy.POLICY_KIND, gatemarks.KIND_WORDS)
 
 

@@ -1,0 +1,11 @@
+{
+  "description": "独立設計を作る役に渡した前提の控え design-premises.json。given は貼った入力・withheld は貼らなかった入力と訳・seen は見た人の答えの数と最後の周・claims は渡されていないと書いた文と当たる入力。null は控えが無い",
+  "type": ["object", "null"],
+  "properties": {
+    "node": {"type": "string"},
+    "given": {"type": "array", "items": {"type": "object", "properties": {"kind": {"type": "string"}, "what": {"type": "string"}}}},
+    "withheld": {"type": "array", "items": {"type": "object", "properties": {"kind": {"type": "string"}, "what": {"type": "string"}, "why": {"type": "string"}}}},
+    "seen": {"type": "object", "properties": {"count": {"type": "integer"}, "last_round": {"type": ["integer", "string", "null"]}}},
+    "claims": {"type": "array", "items": {"type": "object", "properties": {"claim": {"type": "string"}, "kind": {"type": ["string", "null"]}, "what": {"type": ["string", "null"]}}}}
+  }
+}

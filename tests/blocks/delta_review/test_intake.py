@@ -24,8 +24,9 @@ class IntakeCase(s.Case):
                 self.assertIn(f"入力 {port}", fin["reason"])
 
     def test_a_plan_of_the_wrong_shape_fails_the_intake_naming_the_field(self):
-        for doc, said in (("text", "object でも配列でもない"), ({"plan_items": {}}, "plan_items が配列でない"),
-                          ([{"item": 0}], "plan_items[0]"), ([{"item": True}], "plan_items[0]"), (["x"], "plan_items[0]"),
+        # 型の外れは範囲の欄の形（shared:scope-fields.schema.json）が欄の道で名指し、型の中の下限（item が 1 以上の整数）は受け付けが名指す
+        for doc, said in (("text", "$: 型が object/array"), ({"plan_items": {}}, "$.plan_items"),
+                          ([{"item": 0}], "plan_items[0]"), ([{"item": True}], "$[0].item"), (["x"], "$[0]"),
                           ({"plan_items": [], "ruled_paths": [1]}, "ruled_paths"), ({"plan_items": [], "agreed": ["x"]}, "agreed")):
             with self.subTest(doc=doc):
                 got = self.intake(plan=self.file("plan.json", doc))
@@ -143,7 +144,7 @@ class IntakeCase(s.Case):
         self.assertTrue(got["due"])
         brief = self.read("review-1-brief.json")
         self.assertEqual(brief["lens"], [])
-        self.assertIn("レンズの控え", brief["lens_error"])
+        self.assertIn("lens-rows.schema.json", brief["lens_error"])
         self.assertFalse(self.exists("lens.json"), "読めない写しは残さない")
 
     def test_protected_files_come_from_own_list_and_the_target_declaration(self):

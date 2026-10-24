@@ -18,14 +18,11 @@ from src import files
 def scope(raw) -> dict:
     """port plan（範囲の欄のファイル）。object なら plan_items・ruled_paths・agreed、配列なら項目の並びだけ（合意と裁定が無い）。
     空は修正案の無い run。範囲の欄の無い項目の並び（planmarks.scoped が偽）は修正案の無い run と同じに扱う"""
-    path = ports.file(raw)
-    if path is None:
+    if ports.text(raw).strip() in ("", "null"):
         return {"plan_items": [], "ruled_paths": [], "agreed": []}
-    doc = ports.json(str(path))
+    doc = ports.json(raw, "shared:scope-fields.schema.json")
     if isinstance(doc, list):
         doc = {"plan_items": doc}
-    if not isinstance(doc, dict):
-        raise ValueError(f"範囲の欄のファイル {path} が object でも配列でもない")
     items = doc.get("plan_items", [])
     if not isinstance(items, list):
         raise ValueError("範囲の欄の plan_items が配列でない")
@@ -42,13 +39,13 @@ def scope(raw) -> dict:
 
 def fix_reply(raw):
     """port fix_reply（修正役の受け付けられた返答）。null は直す返答が無い"""
-    return ports.json(raw, "fix-reply.schema.json")
+    return None if ports.text(raw).strip() in ("", "null") else ports.json(raw, "shared:fix-reply.schema.json")
 
 
 def permit_paths(raw) -> list:
     """port permits（テストの変更の許しの行 [{path, permit, source}]、またはパスの字の配列）のパス。重ねずに現れた順"""
     out = []
-    for i, row in enumerate(ports.json(raw, "permits.schema.json")):
+    for i, row in enumerate(ports.json(raw, "shared:allowed-tests.schema.json")):
         path = row.get("path") if isinstance(row, dict) else row
         if not isinstance(path, str) or not path.strip():
             raise ValueError(f"permits[{i}] からパスの字が取れない")
@@ -59,7 +56,7 @@ def permit_paths(raw) -> list:
 
 def plan_review(raw):
     """port plan_review（事前審査の返答 {faces, shrink}）。null は事前審査の無い run"""
-    return ports.json(raw, "plan-review.schema.json")
+    return None if ports.text(raw).strip() in ("", "null") else ports.json(raw, "shared:plan-review-reply.schema.json")
 
 
 def policy_body(path) -> str:
@@ -73,16 +70,12 @@ def policy_body(path) -> str:
 def lens_copy(place, raw) -> str:
     """port lens_rows（レンズの控えのファイル）を place の lens.json に写し、形を lens.read で照らす。空は写さない。
     読めない・形が違えば写しを消して訳の字（lens_error）を返す。読めれば空の字"""
-    try:
-        path = ports.file(raw)
-    except ValueError as error:
-        return str(error)
     target = pathlib.Path(place) / files.LENS
     target.unlink(missing_ok=True)
-    if path is None:
+    if ports.text(raw).strip() in ("", "null"):
         return ""
     try:
-        doc = ports.json(str(path))
+        doc = ports.json(raw, "shared:lens-rows.schema.json")   # 形の外れも訳の字 lens_error で名指す（黙って空にしない）
         jsonfile.write(target, doc)
         lens.read(place)
     except ValueError as error:
@@ -95,7 +88,7 @@ def request_copy(place, raw) -> str:
     """port request を requestrows で照らし、行が在れば place の request.json に書いてパスを返す。行が 0 なら書かずに空の字"""
     if not requestrows.findings(raw):
         return ""
-    return str(jsonfile.write(pathlib.Path(place) / files.REQUEST, ports.json(raw)))
+    return str(jsonfile.write(pathlib.Path(place) / files.REQUEST, ports.json(raw, "shared:request.schema.json")))
 
 
 # ---------------------------------------------------------------- 凍結の印（lib/planmarks.py の凍結の印と同じ形）

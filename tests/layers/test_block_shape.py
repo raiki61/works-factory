@@ -15,8 +15,9 @@
    Archon の源が無ければ見送り、CI は赤）
 4. どの workflow にも fixtures/standalone.stubs.yaml が在り、その fixture.inputs の鍵は workflow の inputs: の中にあって pointer の
    値を持たず、必須の入力を全部持つ
-5. どの入力の description も `<form>: ` で始まり（form は text・file・flag・json(<schema>)・choice(a|b|…)）、json の <schema> が
-   その workflow の schemas/ に在る（shared:<schema> は pack の .shared/schemas/ に在る）。形のファイルの名は pack の中で 1 か所に
+5. どの入力の description も `<form>: ` で始まり（form の語の住処は workflows/.shared/ports.py の form_of: text・file・flag・
+   choice(a|b|…)・json(<名>)・jsonl(<名>)）、json・jsonl の <名> の形のファイルが在る（頭の無い名はその workflow の schemas/、
+   shared:<名> は pack の .shared/schemas/、lib:<名> は lib/ の下。引き方は ports._shape_path）。形のファイルの名は pack の中で 1 か所に
    しか無い（2 つ以上の block が使う形は .shared/schemas/ に 1 つ。憲法の 4）
 6. ほかの workflow を名指す workflow（include:、自分の外を指す workflow: を持つ物。graph）は AI の node を持たない。block（AI の
    node を持つ物）が起こしてよい workflow は自分だけ
@@ -26,7 +27,9 @@
 9. src/ が在れば __init__.py を持つ package。scripts/ の名は lib/ のモジュールの名・pack の共通の口（.shared/*.py）の名・src と
    重ならない。.shared/*.py の名も lib/ のモジュールの名と重ならない（script のフォルダと .shared が sys.path の頭に来るため）
 11. YAML に指示の文を置く鍵が無い: loop: の node（loop_group と prep で書く）・agents:・on_reject の prompt・decisions の rework の
-   prompt。形のファイル（block の schemas/ と .shared/schemas/）は照らしの知らない語を持たない（ports.unknown_keywords）
+   prompt。形のファイル（block の schemas/ と .shared/schemas/）は照らしの知らない語を持たず（ports.unknown_keywords）、中身を
+   宣言しない所を持たない（ports.open_shapes。properties の無い object・items の無い array・型の無い所。節の output_format の開きは
+   tests/layers/scan.py の E5 が同じ関数で照らす）
 10. どの workflow にも試験のフォルダ tests/blocks/<名の - を _ にした物>/ が在り、__init__.py と test_*.py を持つ（Python の
    package の名は - を持てない）
 12. AI の node の md（と system の md。{shared:…}・{part:…} を入れた後）に `"欄":` の形で書いた欄が、その node の output_format の
@@ -66,7 +69,6 @@ ROOT = pathlib.Path(__file__).resolve().parents[2]
 BLOCKS = archon.WORKFLOWS   # pack のフォルダ workflows/（pack.json の ours.folder から読む。docs/design/integration.md の 4.5-11）
 SHARED = ".shared"
 LIB = ROOT / "lib"
-FORM = re.compile(r"^(text|file|flag|json\((shared:)?([A-Za-z0-9_.-]+)\)|choice\([a-z0-9_-]+(?:\|[a-z0-9_-]+)+\)): ")
 SYSTEM_REF = re.compile(r"^\$([a-z0-9][a-z0-9_-]*)\.output\.system$")
 PROMPT_REF = re.compile(r"^\$([a-z0-9][a-z0-9_-]*)\.output\.prompt$")
 FRAGMENT = re.compile(r"\{(shared|part):([a-z0-9][a-z0-9_-]*)\}")
@@ -282,7 +284,7 @@ def _text_keys(value, at: str) -> list[str]:
 
 
 def check_no_text_in_yaml(pack: pathlib.Path) -> list[str]:
-    from_ports = _ports().unknown_keywords
+    gate = scan.ports()
     out = []
     for folder in folders(pack):
         for node in nodes(load(folder)):
@@ -292,19 +294,18 @@ def check_no_text_in_yaml(pack: pathlib.Path) -> list[str]:
                     for hit in _text_keys({k: v for k, v in node.items() if k not in ("output_format",)}, node["id"])]
     for path in sorted([*(pack / SHARED / "schemas").glob("*.json"), *[p for f in folders(pack) for p in (f / "schemas").glob("*.json")]]):
         try:
-            unknown = from_ports(json.loads(path.read_text(encoding="utf-8")))
+            shape = json.loads(path.read_text(encoding="utf-8"))
         except ValueError as error:
-            unknown = [f"JSON でない: {error}"]
+            out.append(f"{path.relative_to(pack)}: JSON でない: {error}")
+            continue
+        unknown = gate.unknown_keywords(shape)
         if unknown:
             out.append(f"{path.relative_to(pack)}: 照らしの知らない語 {unknown}")
+            continue
+        holes = gate.open_shapes(shape, path.parents[1], shared=pack / SHARED, lib=pack.parent / "lib")
+        if holes:
+            out.append(f"{path.relative_to(pack)}: 中身を宣言しない所 {holes}（object は properties か patternProperties、array は items）")
     return out
-
-
-def _ports():
-    import importlib
-    if str(BLOCKS / SHARED) not in sys.path:
-        sys.path.append(str(BLOCKS / SHARED))
-    return importlib.import_module("ports")
 
 
 def check_standalone_inputs(pack: pathlib.Path) -> list[str]:
@@ -326,16 +327,17 @@ def check_standalone_inputs(pack: pathlib.Path) -> list[str]:
 
 
 def check_input_forms(pack: pathlib.Path) -> list[str]:
-    out = []
+    gate, out = scan.ports(), []
     for folder in folders(pack):
         for name, spec in sorted((load(folder).get("inputs") or {}).items()):
-            text = (spec or {}).get("description")
-            match = FORM.match(text) if isinstance(text, str) else None
-            if not match:
+            form = gate.form_of((spec or {}).get("description"))
+            if form is None:
                 out.append(f"{folder.name}: 入力 {name} の description が `<form>: ` で始まらない")
-            elif match.group(3) and not ((pack / SHARED if match.group(2) else folder) / "schemas" / match.group(3)).is_file():
-                where = f"{SHARED}/schemas" if match.group(2) else f"{folder.name}/schemas"
-                out.append(f"{folder.name}: 入力 {name} の形 {where}/{match.group(3)} が無い")
+            elif form[0] in gate.JSON_FORMS:
+                path = gate._shape_path(form[1], folder, shared=pack / SHARED, lib=pack.parent / "lib")
+                if not path.is_file():
+                    shown = path.relative_to(pack) if path.is_relative_to(pack) else path.relative_to(pack.parent)
+                    out.append(f"{folder.name}: 入力 {name} の形 {shown.as_posix()} が無い")
     homes = {}
     for folder in [pack / SHARED, *folders(pack)]:
         for path in (folder / "schemas").glob("*.json"):
@@ -521,7 +523,7 @@ class SeedCase(unittest.TestCase):
                                          "properties": {"ok": {"type": "boolean"}, "report": {"type": "array"}}}}]}),
         "demo/prompts/role.md": "{shared:rejected}\n{part:rules}\n",
         "demo/prompts/parts/rules.md": "rules\n",
-        "demo/schemas/doc.schema.json": "{}",
+        "demo/schemas/doc.schema.json": '{"type": "object", "properties": {"text": {"type": "string"}}}',
         "demo/scripts/prep.py": "import ports\n",
         "demo/scripts/finish.py": "import ports\n",
         "demo/src/__init__.py": "",
@@ -644,6 +646,9 @@ class SeedCase(unittest.TestCase):
             (check_no_text_in_yaml, {"demo/works-factory-demo.yaml": yaml.safe_dump(with_rework)}, "rework.prompt"),
             (check_no_text_in_yaml, {"demo/schemas/doc.schema.json": '{"anyOf": [], "format": "uri"}'}, "$.anyOf"),
             (check_no_text_in_yaml, {".shared/schemas/x.schema.json": '{"oneOf": []}'}, "$.oneOf"),
+            (check_no_text_in_yaml, {"demo/schemas/doc.schema.json": '{"type": "object", "properties": {"rows": {"type": "array"}}}'},
+             "中身を宣言しない所 ['$.properties.rows']"),
+            (check_no_text_in_yaml, {".shared/schemas/x.schema.json": '{"type": "object"}'}, "中身を宣言しない所 ['$']"),
             (check_reply_fields, {"demo/prompts/role.md": '{shared:rejected}\n{part:rules}\nReturn {{"ok": true}}.\n'}, "['ok']"),
             (check_reply_fields, {"demo/prompts/parts/rules.md": 'rules\n"field": x\n'}, "['field']"),
             (check_include_ids_unique, {"other/works-factory-other.yaml": yaml.safe_dump(

@@ -1,0 +1,81 @@
+{
+  "description": "承認ノードに回しうる問いの行（作り手 plan-review の finish。行を組むのは lib/gatemarks.py の ask_row・narrow_asks。line の plan-out が写して運ぶ）",
+  "type": "object",
+  "required": [
+    "kind",
+    "node",
+    "text",
+    "units",
+    "mark",
+    "decided",
+    "why"
+  ],
+  "properties": {
+    "kind": {
+      "type": "string"
+    },
+    "node": {
+      "type": "string"
+    },
+    "text": {
+      "type": "string"
+    },
+    "units": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "mark": {
+      "type": "object",
+      "properties": {
+        "decided_by": {
+          "type": "string"
+        },
+        "undecided_because": {
+          "type": "string"
+        },
+        "fences": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "world": {
+          "type": "string"
+        },
+        "recommend": {
+          "type": "object",
+          "properties": {
+            "answer": {
+              "type": "string"
+            },
+            "note": {
+              "type": "string"
+            },
+            "why": {
+              "type": "string"
+            }
+          }
+        },
+        "no_narrow": {
+          "type": "string"
+        }
+      }
+    },
+    "decided": {
+      "type": "boolean"
+    },
+    "why": {
+      "type": "object",
+      "patternProperties": {
+        "^.+$": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}

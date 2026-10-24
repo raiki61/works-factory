@@ -1,0 +1,23 @@
+{
+  "description": "直す前の結末のファイル baseline.json の形（書くのは lib/baseline_red.py の write_baseline、読むのは read_baseline と port baseline の口）。必須の欄と型はここだけが持ち、ほかの欄は呼び手だけが読む（extra）",
+  "type": "object",
+  "required": ["suite", "test_cmd", "rev", "exit", "cases"],
+  "properties": {
+    "suite": {"type": "string"},
+    "test_cmd": {"type": "string"},
+    "rev": {"type": "string"},
+    "exit": {"type": ["integer", "null"]},
+    "cases": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["classname", "name", "outcome"],
+        "properties": {
+          "classname": {"type": "string"},
+          "name": {"type": "string"},
+          "outcome": {"type": "string", "enum": ["passed", "failure", "error", "skipped"]}
+        }
+      }
+    }
+  }
+}

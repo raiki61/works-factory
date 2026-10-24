@@ -101,7 +101,7 @@ def cumulative_diff(place, repo, base: str):
         return None
     target = pathlib.Path(place) / files.DIFF
     target.write_bytes(raw)
-    return ports.pointer(target)
+    return ports.pointer(target, "file")
 
 
 # ---------------------------------------------------------------- 報告の行と次の run の依頼の行
@@ -213,6 +213,6 @@ def finish(place, repo) -> dict:
             else f"- 差分の審査: 落ちた（{reason}）")
     gave = [f"- {'差分の審査' if role.startswith('review') else '手直し'}（{n} 回目）が {rolekit.GIVE_UP_AFTER} 回拒まれて諦めた: {why}"
             for role, n, why in got["gave_up"]]
-    return _out(status, reason, got["rounds"], got["pass"] and not got["gave_up"] and status != "failed", ports.pointer(holes),
+    return _out(status, reason, got["rounds"], got["pass"] and not got["gave_up"] and status != "failed", ports.pointer(holes, "json(shared:delta-holes.schema.json)"),
                 cumulative_diff(place, repo, intake["base"]), carry_items(ties, handled, state),
                 [head, *branch_lines(ties, handled), *gave, *lens_lines(state)])

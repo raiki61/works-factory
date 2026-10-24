@@ -353,7 +353,7 @@ class RejudgeValuesCase(_Base):
              "units": [{"key": "k1", "label": "block", "disposition": "do-now", "reason": "r", "class_query": {"how": {}}}]}
 
     def test_values_and_paragraphs(self):
-        purpose = self.write("purpose/purpose.json", {"purpose_text": "p"})
+        purpose = self.write("purpose/purpose.json", {"purpose_text": "p", "source": "目的不明", "known_weaknesses": [], "source_files": []})
         self.run.script("intake", **{**PORTS, "objection": "異議の文", "prior": json.dumps(self.FIRST), "purpose": purpose,
                                     "world_rows": self.write("world.jsonl", ""), "lang": "English"})
         values, when = self.mod["inputs"].rejudge_values(self.art)

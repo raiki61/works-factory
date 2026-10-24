@@ -46,15 +46,14 @@ def bullets(lines: list) -> list:
 
 # ---------------------------------------------------------------- 節の files
 def open_files(sections: list) -> tuple[list, list]:
-    """節の files の ref（Archon の pointer か、ファイルの絶対パスの字）を ports の読み方で開ける。{label, path} の path は開けたファイルの
+    """節の files の ref（Archon の pointer か、ファイルの絶対パスの字）を、行の form で中身を照らして開ける（ports.carried_file）。{label, path} の path は開けたファイルの
     パスの字、開けなければ None と訳 why。返りは (files を開いた形にした節の並び, 開けない物の行 `ラベル（節の見出し）: 開けない（訳）`)"""
     out, unopened = [], []
     for section in sections:
         opened = []
         for item in section.get("files") or []:
-            ref = item["ref"]
             try:
-                path = ports.file(json.dumps(ref) if isinstance(ref, dict) else ref)
+                path = ports.carried_file(item)
                 if path is None:
                     raise ValueError("ref が空")
                 opened.append({"label": item["label"], "path": str(path), "why": ""})

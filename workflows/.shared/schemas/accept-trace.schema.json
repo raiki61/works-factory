@@ -1,0 +1,2 @@
+{"description": "修正の受け付けが選んだ試験を走らせた回の行の並び accept-trace.json（fix の board.accept_trace_rows。行は trace の行の形で、op の語で種類を分ける）",
+ "type": "array", "items": {"type": "object", "properties": {"op": {"type": "string"}, "group_id": {"type": "string"}, "note": {"type": "string"}}}}

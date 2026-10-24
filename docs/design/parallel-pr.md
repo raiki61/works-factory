@@ -257,7 +257,7 @@ Return only JSON that matches the output schema.
   - 素材の控えが無い（scan が落ちて役も起きなかった・役の輪が再試行の後に落ちた）: `status: failed`・`stop_reason: works:pr`・`ok` は偽・`material` は `{status: not_run, reason: "並行 PR の確かめが走らなかった（<訳>）"}`。元の工場では役の輪が落ちると下流の判定が止まった（再開できる止め）ので、同じく止める語を返す。素材の欄を空のまま判定に進めると、diagnose が「明示返答を欠く」と見るだけになる。block の出口で not_run と名指して止める（10 節の 6）。
   - ほか: `status` は素材の札、`reason` は scan の `reason`（機械が決めた時も、役に任せた時も入る）。
   - 読んだ証拠を集める node が落ちた記録（`reads-pr-check-failed-*.json`）が在れば、その訳を報告の 1 行に出す（8 節）。止めはしない。
-  - pointer は `ports.pointer(<ファイル>)`。在らないファイルは null。
+  - pointer は `ports.pointer(<ファイル>, <form>)`（excluded は `json(shared:excluded.schema.json)`・drafts は `json(shared:pr-drafts.schema.json)`・reads は `json(shared:reads.schema.json)`）。在らないファイルは null。
 
 ## 4 受け付け（pr-check）
 

@@ -6,17 +6,17 @@ inputs:
   purpose: {default: '', description: 'text: 元の目的の 1 文。空は渡されていない'}
   green: {default: 'true', description: 'flag: 修正の後の試験の緑が認証されたか。偽なら目の指示に「最後のテストの認証が通っていない」の 1 文を足す'}
   policy: {default: '', description: 'file: 人の方針の文書の写し。空は方針の文書が無い'}
-  after: {default: '', description: 'file: 直した後の構造の実測の控え。空は測っていない。coherence が真の時だけ読む'}
+  after: {default: '', description: 'json(shared:structure-after.schema.json): 直した後の構造の実測の控え。空は測っていない。coherence が真の時だけ読む'}
   review: {default: '{}', description: 'json(shared:plan-verdict.schema.json): 修正が使った修正案を審査した事前審査の最後の往復の結論 {round, verdict, blocks, why}。空のオブジェクトは渡されていない。coherence が真の時だけ読む'}
   answers: {default: '{}', description: 'json(shared:gate-answers.schema.json): 承認ノードの人の答え {start, before_fix}（始めの承認ノードと修正前の承認ノード。どちらも {decision, text?, asked?, pushed?} か null）。空のオブジェクトは答えが無い'}
-  request: {default: '', description: 'file: 依頼のファイル（工場の依頼の JSON。欄 answers を読む）。空は依頼のファイルが無い'}
+  request: {default: '', description: 'json(shared:request.schema.json): 依頼のファイル（工場の依頼の JSON。欄 answers を読む）。空は依頼のファイルが無い'}
   changed: {default: '{}', description: 'json(shared:fix-marks.schema.json): 修正の印（真偽の欄と前提のずれの申告の文 premise_drift_note）。空のオブジェクトは渡されていない'}
   pushes: {default: '[]', description: 'json(shared:pushes.schema.json): 無人の run が判定の保留の問いに採った推しの文の配列（「問い <key>: <推し>」）。空の配列は無い'}
-  decisions: {default: '', description: 'file: 先行議論の突合の素材（欄 reply.settled を読む material.json）。空は突合が無い'}
-  ripple: {default: '', description: 'file: 波及の一覧（役が Read する）。空は渡されていない'}
-  world_rows: {default: '', description: 'file: 定石の行（役が Read する）。空は渡されていない'}
-  asked: {default: '[]', description: 'json(r4-asked.schema.json): 修正前の承認ノードで聞いた項目 [{kind, text}]（狭める能力と事前審査の穴の行）。空の配列は聞いていない'}
-  declared: {default: '[]', description: 'json(r4-declared.schema.json): 直す側が直さずに残すと答えた事前審査の行（「key: 穴の訳（直す側の答え: …）」）の配列。空の配列は無い'}
+  decisions: {default: '', description: 'json(shared:material.schema.json): 先行議論の突合の素材（欄 reply.settled を読む material.json）。空は突合が無い'}
+  ripple: {default: '', description: 'json(shared:ripple.schema.json): 波及の一覧（役が Read する）。空は渡されていない'}
+  world_rows: {default: '', description: 'jsonl(lib:world-row.schema.json): 定石の行（役が Read する）。空は渡されていない'}
+  asked: {default: '[]', description: 'json(shared:asked.schema.json): 修正前の承認ノードで聞いた項目 [{kind, text}]（狭める能力と事前審査の穴の行）。空の配列は聞いていない'}
+  declared: {default: '[]', description: 'json(shared:declared.schema.json): 直す側が直さずに残すと答えた事前審査の行（「key: 穴の訳（直す側の答え: …）」）の配列。空の配列は無い'}
   coherence: {default: 'false', description: 'flag: 真なら、同じ会話で R3 全体の整合も見て、その答えを返答の欄 r3 に書かせる'}
 returns: finish
 outcome_field: ok

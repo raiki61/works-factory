@@ -19,12 +19,18 @@ SCHEMA = "shared:request.schema.json"
 
 
 def parts(raw) -> dict:
-    value = ports.json(raw)
     # 行の配列も容器に包んでから読む（carry.parts は配列の形では下書きの行を見ないので、2 つの形で拒む物を揃える）。
-    # carry の読みを先にして、下書きの行を「知らない欄」でなく名指して拒む。行の知らない欄は後の形の照らしが拒む（元の judge の REQUEST_SCHEMA）
-    got = carry.parts({carry.FINDINGS: value} if isinstance(value, list) else value)
-    ports.json(raw, SCHEMA)
-    return got
+    # 形に合わない値でも carry の読みを先にして、下書きの行を「知らない欄」でなく名指して拒む（元の judge の REQUEST_SCHEMA）
+    try:
+        value = ports.json(raw, SCHEMA)
+    except ports.ShapeError as error:
+        _container(error.value)
+        raise
+    return _container(value)
+
+
+def _container(value) -> dict:
+    return carry.parts({carry.FINDINGS: value} if isinstance(value, list) else value)
 
 
 def findings(raw) -> list:
