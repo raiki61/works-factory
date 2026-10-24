@@ -12,6 +12,8 @@ carry の prior-failures-in.json・answer の gates/<承認ノード>.json・pol
 - PLAN_TALK: 設計の相談の承認ノードで人が設計し直しを求めた周の、次の plan の port prior の先（design-turn が書く。前の周の prior の
   記録を、人の求めを block に差し込んだ記録に替えた写し。n は求めの通し番号）
 - TALK_ANSWERS: 設計の相談の承認ノードの答えの並び（design-turn が答えごとに書き直す。人が読む控え）
+- NOTES: 対話モードの run の人の指摘の受け箱（人が 1 行に 1 つ足していく字のファイル。line は読むだけで書かない。design-turn が周の頭で、
+  前の周までに取った数より後の行を拾う）。TALK_ROUND: 往復ごとの設計の控え（design-talk が周の終わりに書き、在りかを告げる。人が読む）
 - REPLAN_PRIOR: 案の直しの plan の port prior の先（after-fix が書く）
 - FINAL_GATE_MD: 開いた最後の承認ノードの文の控え
 - SECTIONS・FACTS: report に pointer で渡す 2 つの形（collect が書く。docs/design/line.md の 7 節）
@@ -25,6 +27,8 @@ PLAN_PRIOR = "plan-rounds/prior-{k}.json"
 PLAN_REVIEW = "plan-rounds/review-{k}.json"
 PLAN_TALK = "plan-rounds/talk-{n}.json"
 TALK_ANSWERS = "gates/gate-design.json"
+NOTES = "talk/notes.txt"
+TALK_ROUND = "talk/round-{k}.md"
 REPLAN_PRIOR = "replan-prior.json"
 FINAL_GATE_MD = "gates/final-gate.md"
 SECTIONS = "report-in/sections.json"

@@ -12,6 +12,8 @@ loopIterationCompletes）。ここでは line の YAML の plan-rounds の node 
   差し込んだ記録と一言を受け、事前審査が照らし直して関所がもう一度開く → approve で輪を終え、修正前の承認ノードは聞き直さずに
   修正へ進む（go 真・合意を agreed に運ぶ）
 - stop で輪を終え、修正前の承認ノードは人の止め human:gate-design で止める
+- 人の指摘の受け箱（issue #830）: run の置き場の talk/notes.txt に入った指摘は、待たずに 1 周目の plan に依頼の答えの行で届き、
+  周の設計の控え talk/round-1.md が書かれ、受け箱に承認の行（承認:）が在るので関所は開かずに、承認を合意として修正前の承認ノードへ運ぶ
 """
 import copy
 import json
@@ -34,13 +36,13 @@ REAL_SCRIPTS = ("design_turn", "design_talk", "plan_out", "returned", "ask_befor
 UV_HEAD = "# /// script\n# requires-python = \">=3.12\"\n# dependencies = []\n# ///\n"
 
 # 値を返すだけの script（輪の外の前の段）。INPUTS_VALUE の JSON の中の "@ptr:<相対>" を run directory のファイルの pointer に替え、
-# INPUTS_FILES（{相対: 中身}）を run directory に書いてから返す
+# INPUTS_FILES（{相対: 中身}。字の中身はそのまま、ほかは JSON で）を run directory に書いてから返す
 EMIT = UV_HEAD + textwrap.dedent('''\
     import json, os, pathlib
     root = pathlib.Path(os.environ["ARTIFACTS_DIR"])
     for rel, body in json.loads(os.environ.get("INPUTS_FILES") or "{}").items():
         (root / rel).parent.mkdir(parents=True, exist_ok=True)
-        (root / rel).write_text(json.dumps(body, ensure_ascii=False), encoding="utf-8")
+        (root / rel).write_text(body if isinstance(body, str) else json.dumps(body, ensure_ascii=False), encoding="utf-8")
     def walk(v):
         if isinstance(v, str) and v.startswith("@ptr:"):
             return {"type": "archon_artifact", "run_id": os.environ["WORKFLOW_ID"], "path": v[5:]}
@@ -138,7 +140,7 @@ def _stub(node: dict, script: str, inputs: dict, keys) -> dict:
             "output_format": {"type": "object", "required": list(keys), "properties": {k: {} for k in keys}}}
 
 
-def probe(design_talk: bool) -> dict:
+def probe(design_talk: bool, notes: str = "") -> dict:
     line = yaml.safe_load((LINE / "works-factory-line.yaml").read_text(encoding="utf-8"))
     top = {n["id"]: n for n in line["nodes"]}
     rounds = copy.deepcopy(top["plan-rounds"])
@@ -153,7 +155,8 @@ def probe(design_talk: bool) -> dict:
     ports = {"design_talk": design_talk, "unattended": False, "request_answers": [{"question": "q", "text": "依頼の答え"}],
              "policy": "", "takes_push": False}
     head = [
-        _emit("start", {"ok": True, "record": "@ptr:r1/start.json", "ports": ports}, files={"r1/start.json": {"answers": []}}),
+        _emit("start", {"ok": True, "record": "@ptr:r1/start.json", "ports": ports},
+              files={"r1/start.json": {"answers": []}, **({"talk/notes.txt": notes} if notes else {})}),
         _emit("judge", {"ok": True, "ready": True}, depends=["start"]),
         _emit("judge-out", {"got": {"judgment": None, "answer_ties": None, "materials": None}}, depends=["judge"]),
         _emit("owed", {"owed": True, "recorded": [{"source": "doc", "name": "p.md", "text": ""}], "stop_reason": ""}, depends=["judge"]),
@@ -166,14 +169,14 @@ def probe(design_talk: bool) -> dict:
             "nodes": [*head, rounds, *tail]}
 
 
-def place_probe(folder: pathlib.Path, design_talk: bool) -> None:
+def place_probe(folder: pathlib.Path, design_talk: bool, notes: str = "") -> None:
     (folder / "scripts").mkdir(parents=True)
     shutil.copytree(LINE / "src", folder / "src", ignore=shutil.ignore_patterns("__pycache__"))
     for name in REAL_SCRIPTS:
         shutil.copyfile(LINE / "scripts" / f"{name}.py", folder / "scripts" / f"{name}.py")
     for name, body in (("emit", EMIT), ("plan_probe", PLAN), ("review_probe", REVIEW)):
         (folder / "scripts" / f"{name}.py").write_text(body, encoding="utf-8")
-    (folder / f"{WORKFLOW}.yaml").write_text(yaml.safe_dump(probe(design_talk), allow_unicode=True, sort_keys=False), encoding="utf-8")
+    (folder / f"{WORKFLOW}.yaml").write_text(yaml.safe_dump(probe(design_talk, notes), allow_unicode=True, sort_keys=False), encoding="utf-8")
 
 
 def body_outputs(events: list, node: str) -> list:
@@ -189,10 +192,10 @@ def top_output(events: list, node: str):
 class TalkRoundsCase(unittest.TestCase):
     maxDiff = None
 
-    def tree(self, design_talk: bool):
+    def tree(self, design_talk: bool, notes: str = ""):
         work = pathlib.Path(tempfile.mkdtemp())
         self.addCleanup(shutil.rmtree, work, True)
-        place_probe(work / FOLDER, design_talk)
+        place_probe(work / FOLDER, design_talk, notes)
         return archon.tree([FOLDER], workflows=work)
 
     def runs(self, root) -> list:
@@ -266,6 +269,22 @@ class TalkRoundsCase(unittest.TestCase):
         self.assertEqual(detail["status"], "completed")
         before = top_output(detail["events"], "ask-before-fix")
         self.assertEqual((before["open"], before["go"], before["stop_reason"]), (False, False, "human:gate-design"))
+
+
+    def test_a_note_reaches_the_plan_without_waiting(self):
+        with self.tree(True, notes="b.py は触らない\n承認: このまま進めてよい\n") as root:
+            done = archon.archon(root, "workflow", "run", WORKFLOW, "--no-worktree")
+            [run] = self.runs(root)
+            detail = self.detail(root, run["id"])
+            plan1 = json.loads(next(root.parent.glob("**/probe/plan-1.json")).read_text(encoding="utf-8"))
+            shown = list(root.parent.glob("**/talk/round-1.md"))
+        self.assertEqual((done.returncode, detail["status"]), (0, "completed"), "受け箱で承認した run は関所で待たない")
+        self.assertEqual(plan1["answers"][-1], {"question": "設計の相談で人が入れた 1 番目の指摘", "text": "b.py は触らない"})
+        self.assertFalse(body_outputs(detail["events"], "gate-design"))
+        talk = body_outputs(detail["events"], "design-talk")[-1]
+        self.assertEqual((talk["done"], talk["open"], talk["notes"]), (True, False, ["b.py は触らない", "承認: このまま進めてよい"]))
+        self.assertEqual(top_output(detail["events"], "ask-before-fix")["agreed"]["text"], "このまま進めてよい", "承認を合意として運ぶ")
+        self.assertEqual(len(shown), 1, "周の設計の控えを書いた")
 
 
 if __name__ == "__main__":
