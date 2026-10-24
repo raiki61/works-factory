@@ -25,6 +25,8 @@ Earlier consultations in this run and their answers (oldest first; the machine w
 
 {asks}
 
+{shared:query-rule}
+
 Return only this JSON (`answers`, one row per consultation number; the number is "相談 <number>" above):
 - ask: the consultation number
 - decision: allow (may be added to the scope), deny (not added; fix within the scope), or defer (not fixed in this run; work for the next run)

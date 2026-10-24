@@ -82,7 +82,7 @@ def prompt_values(place, repo, values: dict, started: dict) -> tuple[dict, dict]
             "cmd_log": str(started.get("cmd_log") or ""), "old_body": old.rstrip("\n"), "body_fence": suitewrite.fence(old),
             "runner_log": str(started.get("runner_log") or ""), "log_tail": log_tail.rstrip("\n"), "log_fence": suitewrite.fence(log_tail),
             "only_env": baseline_red.ONLY_ENV, "lang": prompt.lang(values["lang"])}
-    return vals, {"declared": (root / declared_checks.DECL_NAME).is_file()}
+    return vals, {"declared": (root / declared_checks.DECL_NAME).is_file(), "spawns": False}
 
 
 def retry(place, repo, values: dict, keys: list, reply) -> dict:
