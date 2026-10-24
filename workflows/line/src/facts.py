@@ -42,6 +42,7 @@ PROTECTED_HITS_HEAD = "守りのパスに当たった差分"
 BACKED_OUT_HEAD = "当ててから確かめ直しが赤か落ちて戻した修正のまとまり"
 REPAIRED_HEAD = "合わせ役が直して当てた組"
 UNRESTORED_GROUP_HEAD = "戻せずに作業フォルダへ当たったままの修正のまとまり（人が確かめる）"
+UNCOMPARED_HEAD = "当てた後の確かめ直しで直す前の版と比べられなかった赤（組は戻さずに当てた。直しが壊したかを人が確かめる）"
 PR_COMMITS = "PR の commit: "
 POLICY_CHANGED_HEAD = "方針の文書が始めに固定した版から変わったまま終わった"
 UNNAMED_NODE = "名の訳が無いノード"
@@ -474,6 +475,14 @@ def split_line(returns: dict) -> str:
             + (f"。{repaired}" if repaired else ""))
 
 
+def uncompared_rows(returns: dict) -> list:
+    """当てたままの組の行の uncompared（確かめ直しで直す前の版と比べられなかったので組を戻す理由にしなかった赤の鍵。fix の #846）を
+    1 件 1 行「<鍵>（組 <group_id>・単位 <unit_ids>）」に（人が決めること）"""
+    return [f"{k}（組 {g.get('group_id')}・単位 {'・'.join(str(u) for u in _list(g.get('unit_ids'))) or 'なし'}）"
+            for g in _list(as_dict(returns.get("fix")).get("groups")) if isinstance(g, dict) and g.get("returned") is True
+            for k in _list(g.get("uncompared")) if isinstance(k, str)]
+
+
 def unrestored_lines(returns: dict) -> list:
     import oneline
     out = []
@@ -897,7 +906,8 @@ def decisions(values: dict, returns: dict, gates: dict, record: dict, *, unatten
     spec_head = gatemarks.spec_words(bool(spec_qs) and as_dict(values.get("spec_check")).get("unchecked") is not False).head
     questions = [(spec_head, spec_qs), ("修正前の問い", plan_qs), (EYE_ASK_HEAD, eye_qs), ("保留にしたままの問い", held_rows)]
     parts = [("人に回した食い違いの申し出", asked), (fixboard.HANDOFF_HEAD, handoffs), (PROTECTED_HITS_HEAD, hits[:5]),
-             ("直しの対象に戻せなかった項目", unreturned), ("前提の検算が人に上げた物", escalate)]
+             ("直しの対象に戻せなかった項目", unreturned), (UNCOMPARED_HEAD, uncompared_rows(returns)),
+             ("前提の検算が人に上げた物", escalate)]
     before = [*pushed_lines(gates, taken), *unrestored_lines(returns), *backed_out_lines(returns)]
     asks = [{"kind": head, "text": x.removeprefix(f"{head}: ")} for head, rows in ((UNRESTORED_GROUP_HEAD, unrestored_lines(returns)),
                                                                               (BACKED_OUT_HEAD, backed_out_lines(returns)))

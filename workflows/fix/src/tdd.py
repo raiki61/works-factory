@@ -614,11 +614,8 @@ def broken_related(board_dir, repo, keys, round_: int, work: pathlib.Path, cases
 
 def _case_files(repo, cases) -> dict:
     """結末の行 cases → {テストのファイル（根からの相対）: [鍵]}。ファイルは行のモジュール（impact._junit_module）が impact._mod に等しい
-    テストのファイル（_by_test_file と同じ引き方）。引けない行は載せない"""
-    files = {}
-    for p in impact.tree_files(repo) or []:
-        if impact.is_test(p) == "module":
-            files.setdefault(impact._mod(p), []).append(p)
+    テストのファイル（_module_files）。引けない行は載せない"""
+    files = _module_files(repo)
     out = {}
     for c in cases:
         for path in files.get(impact._junit_module(c) or "", []):
@@ -2053,13 +2050,16 @@ def _args(root, files, kexpr) -> list:
     return [*_abs_paths(root, py), *(["-k", kexpr] if kexpr else [])]
 
 
-def selected_problems(state_file, repo, rev) -> tuple:
+def selected_problems(state_file, repo, rev, uncompared=None) -> tuple:
     """(赤の文の一覧, 知らせ)。選ぶのは変更に直に関わる試験と名指しの試験（_named_files）だけで、届くだけの先の試験は
     final_left に残す。実行器の後ろに足すのは、選んだ試験のうちこの run で変えた・足したファイルだけ（ADR 0071 の
     3 の 1。届いただけの段の外の試験は手元で走らせない）。実行器の既定の一式の中は -k で選んだ全部のモジュールに絞る。
     実行器の無い run（状態が無い）・当たる試験が無い・実行器が走らない・選んだ試験が 1 件も走らなかった時は赤にせず知らせだけ。
-    元の結末に無い試験の赤は、版の写しで同じ試験を回して、版でも赤なら外す（版の写しの結末は _base_reds が盤面の根に控え、
-    受け付けの回をまたいで使い回す）。外した鍵は黙って捨てず、件数と名（頭の 20 件）を赤の行か知らせに出す"""
+    元の結末に無い試験の赤は、版の写しでその試験を名指しで回して、版でも赤なら外す（版の写しの結末は _base_reds が盤面の根に控え、
+    受け付けの回をまたいで使い回す）。版の写しの結末に出ない（走らせられない・名指しを聞かない実行器）試験は比べられない:
+    受け口 uncompared（並び）を渡す呼び（組を当てた後の確かめ直し。#846）は赤に数えずその鍵を足し、渡さない呼びは赤のまま。
+    版に試験のファイルが無い試験（この直しで足した）は比べるまでもなく新しい赤。
+    外した鍵と比べられなかった鍵は黙って捨てず、件数と名（頭の 20 件）を赤の行か知らせに出す"""
     if not state_file:
         return [], NO_SUITE
     st = _load(state_file)
@@ -2099,14 +2099,21 @@ def selected_problems(state_file, repo, rev) -> tuple:
     fresh = [k for k in red if k not in st["baseline"]]
     tail = ""
     if fresh:
-        old, why = _base_reds(st, repo, rev, files, kexpr)
-        if old is None:
-            tail = f"。元の結末に無い {len(fresh)} 件は版の姿で比べられず赤のまま（{'; '.join(why)}）"
-        else:
-            left_out = [k for k in red if k in old]
-            red = [k for k in red if k not in old]
-            if left_out:
-                tail = f"。版の写しでも赤だったので外した {len(left_out)} 件: {', '.join(left_out[:20])}"
+        base, why = _base_reds(st, repo, rev, [reds[k] for k in fresh])
+        left_out = [k for k in fresh if (base or {}).get(k) in ("failure", "error")]
+        unknown = [k for k in fresh if (base or {}).get(k) is None]
+        red = [k for k in red if k not in left_out]
+        if left_out:
+            tail = f"。版の写しでも赤だったので外した {len(left_out)} 件: {', '.join(left_out[:20])}"
+        if unknown:
+            cause = "; ".join(why) or "名指しで走らせても版の写しの結末に出ない"
+            if uncompared is None:
+                tail += f"。元の結末に無い {len(unknown)} 件は版の姿で比べられず赤のまま（{cause}）: {', '.join(unknown[:20])}"
+            else:
+                red = [k for k in red if k not in unknown]
+                uncompared.extend(unknown)
+                tail += (f"。版の姿と比べられなかった {len(unknown)} 件（{cause}。新しい赤に数えず人に聞く）: "
+                         f"{', '.join(unknown[:20])}")
     if not red:
         return [], f"{what}: {len(cases)} 件で新しい赤なし{ci}{tail}"
     # 行はテストのファイルごと（修正の受け付けが最後の回にパスで単位に結ぶ）。頭に選んだファイルの一覧を置かない（ほかの
@@ -2121,15 +2128,21 @@ def _by_test_file(repo, cases) -> dict:
     """赤の case をテストのファイルごとに分けた {「（ファイル <根からのパス>）」: [id]}（現れた順）。ファイルは case のモジュール
     （impact._junit_module）が impact._mod に等しいテストのファイル（impact.tree_files と impact.is_test）で、同じ名のモジュールが
     2 つ以上在れば全部を名指す。見つからない case の鍵は ""（パスを名指さない）"""
-    files = {}
-    for p in impact.tree_files(repo) or []:
-        if impact.is_test(p) == "module":
-            files.setdefault(impact._mod(p), []).append(p)
+    files = _module_files(repo)
     out = {}
     for c in cases:
         hit = files.get(impact._junit_module(c) or "", [])
         out.setdefault(f"（ファイル {', '.join(hit)}）" if hit else "", []).append(_key(c))
     return out
+
+
+def _module_files(repo) -> dict:
+    """{モジュールの名（impact._mod）: [その名のテストのファイル（根からの相対。impact.tree_files と impact.is_test）]}"""
+    files = {}
+    for p in impact.tree_files(repo) or []:
+        if impact.is_test(p) == "module":
+            files.setdefault(impact._mod(p), []).append(p)
+    return files
 
 
 def _left_to_ci(selected, run_files, cases) -> list:
@@ -2195,35 +2208,66 @@ def load_json(path: pathlib.Path, default):
 temp_tree = baseline_red.temp_tree   # 版の一時の worktree（lib に上げた。試験の関門の最後のテストも使う）
 
 
-def _base_reds(st, repo, rev, files, kexpr) -> tuple:
-    """(版 rev の姿で同じ試験を回して赤だった鍵の集合か None, 問題)。版の姿は一時の git worktree（--detach）に出して走らせ、
-    作業ツリー・index・枝は動かさない（写しに .git が在るので、git を読む試験も今の木と同じ条件で走る）。実行器が repo の中に
-    在れば写しの中の同じ物を走らせる（自分の置き場から根を引く実行器が写しの根で走るように）。
-    写しは版の姿だけ（今の木から何も写さない）なので、結末は版・実行器・後ろの引数（ファイルと -k）で決まる。走らせた結末は
-    盤面の根の REV_CACHE に残し、同じ版・同じ実行器・同じ -k で、名指したファイルが前に走らせた回のファイルに含まれれば
-    走らせずに使う（run の中で版は動かないので、受け付けの回・2 回目の修正の段をまたいで 1 回で足りる。195g は回ごとに 3 分半）。
-    結末が取れなかった回は残さない"""
+BASE_ABSENT = "absent"   # 版の写しの結末の語の外: 版にその試験のファイルが無い（この直しで足した試験。比べるまでもなく新しい赤）
+
+
+def _case_ids(repo, cases) -> dict:
+    """結末の行 cases → {鍵: [名指しの id『<根からの相対パス>::<クラス>::<名前>』]}。ファイルは行のモジュール（impact._junit_module）が
+    impact._mod に等しいテストのファイル（_module_files。同じ名のモジュールが 2 つ以上在れば全部）、クラスは classname の
+    モジュールの後ろの部分。ファイルが引けない行は載せない"""
+    files = _module_files(repo)
+    out = {}
+    for c in cases:
+        mod = impact._junit_module(c) or ""
+        parts = [x for x in c["classname"].split(".") if x]
+        tail = parts[len(parts) - parts[::-1].index(mod):] if mod in parts else []
+        for path in files.get(mod, []):
+            out.setdefault(_key(c), []).append("::".join([path, *tail, c["name"]]))
+    return out
+
+
+def _base_reds(st, repo, rev, cases) -> tuple:
+    """(版 rev の姿で結末の行 cases の試験を名指しで回した {鍵: 結末の語か BASE_ABSENT か None（結末に出ない・名指しを引けない）}
+    か None（写せない・実行器が走らない）, 問題)。比べたい試験は名指し（_case_ids）で ONLY_ENV を付けて走らせる（走らせる試験を差分から
+    自分で選ぶ実行器は、差分の無い版の写しでは既定の一式に比べたい試験を選ばない。#846）。版の姿は一時の git worktree（--detach）に
+    出して走らせ、作業ツリー・index・枝は動かさない（写しに .git が在るので、git を読む試験も今の木と同じ条件で走る）。実行器が repo の
+    中に在れば写しの中の同じ物を走らせる（自分の置き場から根を引く実行器が写しの根で走るように）。
+    写しは版の姿だけ（今の木から何も写さない）なので、結末は版・実行器・名指しで決まる。走らせた結末は盤面の根の REV_CACHE に残し、
+    同じ版・同じ実行器で、比べたい鍵が全部前の回の結末に在れば走らせずに使う（run の中で版は動かないので、受け付けの回・2 回目の
+    修正の段をまたいで 1 回で足りる。195g は回ごとに 3 分半）。結末が取れなかった回は残さない"""
     cache = pathlib.Path(st["work"]).parent / REV_CACHE
-    key = {"rev": rev_id(repo, rev), "exe": exe_id(repo, st["exe"]), "kexpr": kexpr}
+    key = {"rev": rev_id(repo, rev), "exe": exe_id(repo, st["exe"])}
     rows = load_json(cache, [])
+    seen = {}
     for r in rows:
-        if isinstance(r, dict) and {k: r.get(k) for k in key} == key and set(files) <= set(r.get("files") or []):
-            return set(r.get("reds") or []), []
+        if isinstance(r, dict) and {k: r.get(k) for k in key} == key and isinstance(r.get("outcomes"), dict):
+            seen.update(r["outcomes"])
+    wanted = [_key(c) for c in cases]
+    if all(k in seen for k in wanted):
+        return {k: seen[k] for k in wanted}, []
+    ids = _case_ids(repo, cases)
     with temp_tree(repo, rev) as (copy, cant):
         if copy is None:
             return None, [f"版 {rev} を写せない（{'; '.join(cant)}）"]
-        exe = pathlib.Path(st["exe"])
-        try:
-            inner = copy / exe.absolute().relative_to(pathlib.Path(repo).absolute())
-            exe = inner if inner.is_file() else exe
-        except ValueError:
-            pass
-        cases, _, why = run_suite(str(exe), copy, pathlib.Path(st["work"]), f"{ACCEPT_RUN}-rev", _args(copy, files, kexpr))
-    if cases is None:
-        return None, why
-    reds = {_key(c) for c in cases if c["outcome"] in ("failure", "error")}
-    jsonfile.write(cache, [*rows, {**key, "files": sorted(set(files)), "reds": sorted(reds)}])
-    return reds, []
+        got = {k: None for k in wanted}
+        for k in wanted:
+            if ids.get(k) and not any((copy / i.partition("::")[0]).is_file() for i in ids[k]):
+                got[k] = BASE_ABSENT
+        named = sorted({i for k in wanted if got[k] is None for i in ids.get(k, []) if (copy / i.partition("::")[0]).is_file()})
+        if named:
+            exe = pathlib.Path(st["exe"])
+            try:
+                inner = copy / exe.absolute().relative_to(pathlib.Path(repo).absolute())
+                exe = inner if inner.is_file() else exe
+            except ValueError:
+                pass
+            ran, _, why = run_suite(str(exe), copy, pathlib.Path(st["work"]), f"{ACCEPT_RUN}-rev", _abs_ids(copy, named), only=True)
+            if ran is None:
+                return None, why
+            outcome = {_key(c): c["outcome"] for c in ran}
+            got.update({k: outcome[k] for k in wanted if got[k] is None and k in outcome})
+    jsonfile.write(cache, [*rows, {**key, "outcomes": got}])
+    return got, []
 
 
 FIELDS = ("unit_key", "route", "why", "tests", "test_files", "red", "green", "refactor", "gave_up", "problems", QUOTES_FIELD,

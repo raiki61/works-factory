@@ -2452,6 +2452,25 @@ class TestOutside(unittest.TestCase):
 '''
 
 
+ENV_RED_TEST = '''import unittest
+
+from stats import mean
+
+
+class TestOutside(unittest.TestCase):
+    def test_env(self):
+        raise RuntimeError("環境の壊れ")
+'''
+
+# 走らせる試験を差分から自分で選ぶ実行器（tests/changed.py の形）: 作業ツリーに HEAD からの差が無ければ既定の一式は空
+DIFF_RUNNER = RUNNER.replace(
+    'TIER = ["test_stats.py"]',
+    'import subprocess\nTIER = ["test_stats.py", "heavy/test_outside.py"] if subprocess.run(["git", "diff", "--quiet", "HEAD"]).returncode else []')
+# 差分が無ければ後ろの名指しも聞かない実行器（名指しで走らせても結末に出ない）
+DIFF_ONLY_RUNNER = DIFF_RUNNER.replace("out, rest = sys.argv[1], sys.argv[2:]",
+                                       "out, rest = sys.argv[1], (sys.argv[2:] if TIER else [])")
+
+
 class OutsideCase(Case):
     def setUp(self):
         self._tmp = tempfile.TemporaryDirectory()
@@ -2715,6 +2734,46 @@ class TestAcceptOutsideTier(OutsideCase):
         self.assertIn(OUTSIDE, note)
         self.assertNotIn("test_stats.py", note.split("手元で回さなかった", 1)[1], "手元で走った試験を回さなかったと言う")
         self.assertEqual(tdd.load_state(state).get("ci_left"), [OUTSIDE])
+
+    def env_red_case(self, runner):
+        """直す前も後も同じ環境の壊れで赤の、stats を直に読む段の外の試験（版に在る）を置き、stats を直してから比べる準備"""
+        self.write(OUTSIDE, ENV_RED_TEST)
+        git(self.repo, "add", "-A")
+        git(self.repo, "commit", "-q", "-m", "直す前から環境の壊れで赤の試験")
+        state = self.begin(runner)
+        p = self.repo / "stats.py"
+        p.write_text(p.read_text(encoding="utf-8").replace("(len(xs) - 1)", "len(xs)"), encoding="utf-8")
+        return state
+
+    def test_base_copy_runs_the_compared_tests_by_name(self):
+        """#846: 実行器が走らせる試験を差分から自分で選ぶ形でも、版の写しでは比べたい試験（元の結末に無い赤）を名指しで走らせる。
+        版でも同じく赤なら新しい赤に数えない（差分の無い版の写しで比べたい試験が走らず、新しい赤と数えて組を戻した。run 96f35545）"""
+        state = self.env_red_case(DIFF_RUNNER)
+        probs, note = tdd.selected_problems(state, self.repo, "HEAD")
+        self.assertEqual(probs, [], f"版の写しで比べたい試験を走らせず、前から赤の試験を新しい赤と数えた（知らせ: {note}）")
+        self.assertIn("版の写しでも赤だったので外した", note)
+        self.assertIn("test_env", note)
+
+    def test_tests_the_base_copy_does_not_report_are_not_compared(self):
+        """#846: 名指しで走らせても版の写しの結末に出ない試験は比べられない。比べられなかった物の受け口 uncompared を渡す呼び
+        （組を当てた後の確かめ直し）は新しい赤に数えず受け口に名指し、渡さない呼び（修正の受け付け）は今どおり赤のまま。
+        版に試験のファイルが無い試験（この直しで足した）は比べるまでもなく新しい赤"""
+        state = self.env_red_case(DIFF_ONLY_RUNNER)
+        probs, note = tdd.selected_problems(state, self.repo, "HEAD")
+        self.assertTrue(probs, "受け口の無い呼びが比べられなかった赤を黙って外した")
+        self.assertIn("比べられず", probs[0])
+        left = []
+        probs, note = tdd.selected_problems(state, self.repo, "HEAD", uncompared=left)
+        self.assertEqual(probs, [], note)
+        self.assertIn("test_outside.TestOutside::test_env", left)
+        self.assertIn(f"比べられなかった {len(left)} 件", note)
+        added = "heavy/test_added.py"
+        self.write(added, ENV_RED_TEST.replace("TestOutside", "TestAdded"))
+        left = []
+        probs, note = tdd.selected_problems(state, self.repo, "HEAD", uncompared=left)
+        self.assertEqual(len(probs), 1, probs)
+        self.assertIn("TestAdded", probs[0], "版に無いファイルの試験の赤を比べられなかったと数えた")
+        self.assertNotIn("TestAdded", " ".join(left))
 
     def test_accept_args_name_only_pytest_modules(self):
         # impact がテストと呼ぶ物のうち、pytest の試験のモジュールでない物（conftest・実行器の台本・シェルの試験）は足さない

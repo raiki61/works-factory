@@ -521,6 +521,35 @@ class JoinCase(Whole):
         self.assertIn("test_env", g1["old_red"][0])
         self.assertIn("min(x, 10)", (self.repo / "a.py").read_text(encoding="utf-8"), "組の直しは親の木に残る")
 
+    def test_join_compares_new_reds_by_name_on_the_base_even_when_the_suite_picks_by_diff(self):
+        """#846: 実行器が走らせる試験を差分から選ぶ形（差分の無い直す前の版の写しでは既定で何も回さない）でも、確かめ直しの 2 段目は
+        直す前の結末に無い赤を直す前の版で名指しで走らせて比べる。名指しを聞く実行器なら、直す前も同じく赤の試験で組を戻さない。
+        名指しを聞かない実行器なら比べられないので、組を戻さず、組の行の uncompared に名指す（報告が人に聞く）"""
+        from tests.blocks.fix.support import DIFF_SUITE
+        for heed in (True, False):
+            with self.subTest(heed_named=heed):
+                self.setUp()
+                start = self.rerun_seed({
+                    "a.py": "def cap(x):\n    return min(x, 11)\n",
+                    "test_a.py": "import unittest\n\nfrom a import cap\n\n\nclass TestA(unittest.TestCase):\n"
+                                 "    def test_cap(self):\n        self.assertEqual(cap(15), 10)\n\n"
+                                 "    def test_env(self):\n        import no_such_module_846  # noqa: F401\n"},
+                    suite_text=DIFF_SUITE.replace("{heed}", str(heed)))
+                self.assertEqual(json.loads((self.place / "baseline.json").read_text(encoding="utf-8"))["cases"], [],
+                                 "差分の無い直す前の結末は空（run 96f35545 の小さな直す前の結末と同じく、test_env を持たない）")
+                t1 = self.tree_with({"a.py": "def cap(x):\n    return min(x, 10)\n"})
+                out_dir = self.groups_file([{"group_id": "g1", "unit_ids": ["A"], "items": [1]}], start)
+                write(out_dir / "g1" / "result.json", result("g1", ["A"], t1, start))
+                code, out, err = self.go("join")
+                self.assertEqual(code, 0, err)
+                g1, = self.joined()["groups"]
+                self.assertTrue(g1["returned"], f"直す前から赤の test_env を理由に組を戻した: {g1}")
+                self.assertIn("min(x, 10)", (self.repo / "a.py").read_text(encoding="utf-8"), "組の直しは親の木に残る")
+                if heed:
+                    self.assertNotIn("uncompared", g1, "名指しで比べられた赤を比べられなかったと言う")
+                else:
+                    self.assertEqual(g1["uncompared"], ["test_a.TestA::test_env"], g1)
+
     def test_join_still_backs_out_a_named_test_that_was_green_before(self):
         """#837: 直す前に緑だった名指しが当てた後に赤なら、今と同じに組を戻す（old_red は持たない）"""
         from tests.blocks.fix.support import SUITE_WITH_MESSAGE
