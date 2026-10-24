@@ -17,6 +17,7 @@ if str(ROOT / "lib") not in sys.path:
 import rolekit  # noqa: E402
 
 AI_NODES = ("fixer", "fix-ruled", "consult-answer", "ruled-consult-answer", "tdd", "tdd-new", "ruler", "clash-fix", "clash-ruled")
+ADDED_AI_NODES = ("suite-fix",)   # 作り直しの後に足した役（壊れた起動スクリプトの書き直し。#836・docs/design/fix.md の 19）
 WRITE_TOOLS = {"Edit", "Write", "Bash", "NotebookEdit", "Agent"}
 LAUNCH = ("model", "settingSources", "allowed_tools", "sandbox", "skills", "idle_timeout", "retry", "mutates_checkout", "context")
 
@@ -88,7 +89,7 @@ class WiringCase(unittest.TestCase):
                     ref = m["prompt"]
                     self.assertRegex(ref, r"^\$[a-z-]+\.output\.prompt$")
                     self.assertIn(ref[1:].split(".")[0], body, "同じ loop の prep")
-        self.assertEqual({nid for nid, n in every().items() if is_ai(n)}, set(AI_NODES))
+        self.assertEqual({nid for nid, n in every().items() if is_ai(n)}, set(AI_NODES) | set(ADDED_AI_NODES))
 
 
 class ConversationCase(unittest.TestCase):
@@ -149,6 +150,17 @@ class RolesCase(unittest.TestCase):
             with self.subTest(node=nid):
                 self.assertEqual({k: new[nid].get(k) for k in LAUNCH}, {k: old[nid].get(k) for k in LAUNCH})
                 self.assertEqual(new[nid]["output_format"], old[nid]["output_format"])
+
+    def test_the_runner_rewriter_is_launched_like_the_gate_runner_writer(self):
+        """起動スクリプトの書き直し役 suite-fix は、試験の関門の書き手 suite-write と同じ群・道具・砂場・期限・返す形で起こす（読むだけの
+        印は持たない。Bash を持ち、denyWrite が Archon の家を塞ぐ）"""
+        doc = yaml.safe_load((kit.BLOCKS / "test-gate" / "works-factory-test-gate.yaml").read_text(encoding="utf-8"))
+        writer = next(m for n in doc["nodes"] for m in [n, *((n.get("loop_group") or {}).get("nodes") or [])] if m["id"] == "suite-write")
+        new = every()["suite-fix"]
+        for k in ("model", "settingSources", "allowed_tools", "sandbox", "idle_timeout", "retry", "output_format"):
+            with self.subTest(key=k):
+                self.assertEqual(new.get(k), writer.get(k))
+        self.assertNotIn("mutates_checkout", new)
 
     def test_readers_do_not_write(self):
         for nid in ("ruler", "consult-answer", "ruled-consult-answer"):

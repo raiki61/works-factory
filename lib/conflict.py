@@ -144,6 +144,8 @@ RULED_TEST_ID = "conflict-ruling"       # 裁定が許したテストの変更�
 PLAN_TEST_ID = "plan-rewrite"           # 承認済みの修正案が名指した既存テストの書き換えを守りのファイルの行にする時の id の頭
 REMOVES_TEST_ID = "plan-removes"        # 承認済みの修正案の項目の files の change=remove の symbol（消す名）を本体で名指す既存テストの書き換え・消しの許しの行の id の頭
 AGREED_TEST_ID = "plan-agreed"         # 範囲の相談で修正案を書いた役が許したテストの書き換えを守りのファイルの行にする時の id の頭
+BROKEN_TEST_ID = "broken-before"       # 関わる試験で直す前から壊れていた物（修正役がついでに直してよい。#836）の許しの行の id の頭
+BROKEN_TESTS_FILE = "broken-tests.json"  # 置き場のその試験の控え {tests: [{path, ids}]}（fix の TDD の輪の頭が書く。test_permits が読む）
 AMENDED_TEST_ID = "plan-amended"        # 案の直しで直した項目の単位の前の輪の受け入れのテストの許しの行の id の頭（範囲の文字列を持たない）
 # 範囲の相談（修正役が返答の欄 consult で頼み、修正の輪の答えの節が修正案を書いた役の会話の続きで答える。設計
 # docs/plans/2026-10-06-ask-planner.md）の 1 問 1 答の trace の行の語。書くのは修正の輪の確かめの節（sandbox の外の機械）、
@@ -790,7 +792,8 @@ def agreed_permits(rows, *, source=None, base=None) -> list[dict]:
 def test_permits(b, *, rulings: bool = True, source=None, skip_ids=(), agreed_rows=None, base=None,
                  round_: int = 1) -> list[dict]:
     """既存のテストの変更の許しの唯一の元（keep-essence の 3。許す元を読むのはここだけで、凍結の検査・事後の関門・範囲の照らし・
-    最後の関所はこの行を読む）。許す元は 5 つ: 承認済みの修正案の rewrite_tests（いつも。planmarks.rewrites の順）・範囲の相談の
+    最後の関所はこの行を読む）。許す元は 6 つ（6 つ目は関わる試験で直す前から壊れていた物のファイル〔broken_tests。行は broken: true〕。
+    docs/design/fix.md の 19 節）。ほかの 5 つ: 承認済みの修正案の rewrite_tests（いつも。planmarks.rewrites の順）・範囲の相談の
     合意（agreed_permits）・承認済みの修正案の項目の files の change=remove の symbol（消す名）と op=delete の path・op=rename の元のパス from の .py のモジュールの名をコードで使う既存テスト（planmarks.removes_permits。書き換えも関数の
     丸ごとの消しも許す）・rulings が真なら裁定 fix_test_scope の範囲（ruled_fix の順）・案の直しで直した項目の単位（amended_keys。
     前の輪の受け入れのテストの関数を、直した案で書き直してよい）。
@@ -804,7 +807,7 @@ def test_permits(b, *, rulings: bool = True, source=None, skip_ids=(), agreed_ro
     合意の範囲の行は修正前の版の行で、source を渡す読み手には base（パス → 修正前の版の中身）も渡して、その木の行へ移す（_in_tree。
     移せない範囲は捨てる）。裁定の範囲は書いた木のまま。
     修正案の欄の控えが凍結の印と食い違えば、ValueError（止めるのは呼び手）（_plan_rewrites）"""
-    plan, consult, ruling = fixboard.ALLOWED_SOURCES
+    plan, consult, ruling, broken = fixboard.ALLOWED_SOURCES
     out = []
     skip = set(skip_ids)
     for r in _plan_rewrites(b, round_):
@@ -823,6 +826,10 @@ def test_permits(b, *, rulings: bool = True, source=None, skip_ids=(), agreed_ro
         out += [{"limit": lim, "id": f"{RULED_TEST_ID}-{r['id']}", "source": ruling,
                  "why": f"{HEAD}の裁定 {r['id']}（{r['unit_key']}）が許したテストの変更: {r['ruling']['text']}"}
                 for r, lim in ruled_limits(b, decisions=("fix_test_scope",))]
+    out += [{"limit": r["path"], "id": f"{BROKEN_TEST_ID}-{n}", "source": broken, "broken": True,
+             "why": f"関わる試験で直す前から壊れていた（TDD のループの頭の元の結末で {'・'.join(r['ids'][:5])} が落ちていた）: 修正役が"
+                    "直しと一緒に直してよい。最後の承認ノードに「ついでに直した試験」として出る"}
+            for n, r in enumerate(broken_tests(b), 1)]
     out += [{"units": sorted(ruled_units(i)), "id": f"{AMENDED_TEST_ID}-{i['id']}",
              "why": f"案の直し {i['id']} で直した項目の単位の、前のループの受け入れのテスト（直した案で書き直してよい）"}
             for i in items(b) if replan_state(i) == AMENDED and ruled_units(i)]
@@ -866,14 +873,28 @@ def edit_rulings(b, pass_: str) -> bool:
     return pass_ == "ruled" or second_pass(b)
 
 
+def broken_tests(b) -> list:
+    """置き場 b の BROKEN_TESTS_FILE の行 [{path, ids}]（関わる試験で直す前から壊れていた物のファイルと落ちていた試験の鍵。fix の TDD の
+    輪の頭が書く）。無い・読めない・形の違う行は捨てる"""
+    try:
+        doc = json.loads((pathlib.Path(b) / BROKEN_TESTS_FILE).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return []
+    rows = doc.get("tests") if isinstance(doc, dict) else None
+    return [{"path": r["path"], "ids": [str(i) for i in r.get("ids") or []]} for r in rows or []
+            if isinstance(r, dict) and isinstance(r.get("path"), str) and r["path"].strip()]
+
+
 def edit_permits(b, pass_: str, *, round_: int = 1) -> dict:
     """修正の段の受け付けの事後の関門（fixgates の test_edits）が、既存のテストの関数の本体の変更・消しを許す物
     {tests: 名指しの id（承認済みの修正案の rewrite_tests と、消す名を名指すテスト。test_permits の行の test）,
-     limits: 範囲の文字列（範囲の相談の合意と、裁定 fix_test_scope の範囲。test を持たない行の limit）}。
+     limits: 範囲の文字列（範囲の相談の合意と、裁定 fix_test_scope の範囲と、直す前から壊れていた関わる試験のファイル。test を持たない行の limit）,
+     broken: limits のうち直す前から壊れていた関わる試験のファイル（指示書が別の行に出す）}。
     裁定の範囲は edit_rulings で入る。修正役の指示書の「テストの行」（fix の rules.tests_rows）も同じ値を貼る"""
     permits = test_permits(b, rulings=edit_rulings(b, pass_), round_=round_)
     return {"tests": [p["test"] for p in permits if isinstance(p.get("test"), str)],
-            "limits": [p["limit"] for p in permits if "limit" in p and "test" not in p]}
+            "limits": [p["limit"] for p in permits if "limit" in p and "test" not in p],
+            "broken": [p["limit"] for p in permits if p.get("broken") is True]}
 
 
 def ruled_test_doc(b) -> dict | None:

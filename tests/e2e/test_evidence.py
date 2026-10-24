@@ -65,7 +65,7 @@ NAMED_BY_PATTERN = {
     "parent/eyes/r2/r2-premises.json": "workflows/r2/src/files.py::PREMISES",
     "parent/eyes/structure-after/structure-after.json": "workflows/structure/src/files.py::AFTER_FILE",
     "parent/delta-review/review-1-brief.json": "workflows/delta-review/src/files.py::review_brief",
-    "parent/test-gate-base/logs/*/test_cmd.log": "lib/declared_checks.py::_planned_run",
+    "parent/test-gate-final/logs/*/test_cmd.log": "lib/declared_checks.py::_planned_run",
     "parent/report/report.md": "workflows/report/src/files.py::REPORT_FILE",
 }
 

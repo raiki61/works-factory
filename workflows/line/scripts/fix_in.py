@@ -32,7 +32,7 @@ import ports  # noqa: E402
 
 # 運ぶ値の部ごとに読む欄（received の鍵 → 欄の名）。欄を変える時は src.fixture.FORMAT を上げる
 NAMES = {
-    "test_gate_base": ("baseline", "suite"),
+    "test_gate_base": ("baseline", "suite", "suite_note"),
     "judge": ("ok", "stop_reason", "ready", "units", "judgment", "answer_ties", "out_of_purpose", "materials", "brief", "inputs", "purpose",
               "purpose_text", "means", "constraints", "world", "spec", "excluded", "decisions", "tier", "tier_record", "verify"),
     "tiers": ("tier", "omits", "merge", "tree", "adds", "lines"),
@@ -103,7 +103,9 @@ def flat(received: dict, dealt: dict, record) -> dict:
     out["round"] = out["round"] if isinstance(out["round"], int) else None
     base = received.get("test_gate_base") or {}
     design = received.get("design") or {}
+    # 実行器が試験の関門の用意した物（取り置き・AI が書いた物。人が渡した実行器は suite_note が空）なら、修正の段が壊れを書き直させてよい
     out.update({"baseline": base.get("baseline"), "suite": base.get("suite") or "",
+                "suite_made": bool(base.get("suite")) and bool(base.get("suite_note")),
                 "structure": (received.get("structure") or {}).get("structure"),
                 "design": design.get("design"), "design_reason": design.get("reason") or "", "design_premises": design.get("premises"),
                 "answer": received.get("gate_before_fix"), "deferred": received.get("deferred") or [],
@@ -179,7 +181,7 @@ FALLBACK_KEYS = ("baseline", "judgment", "answer_ties", "materials", "out_of_pur
 def fallback(reason: str) -> dict:
     from src import guard
     return {**dict.fromkeys(FALLBACK_KEYS), "go": False, "no_fix": False, "stop_reason": guard.LINE_SCRIPT, "reason": reason, "policy": "", "deferred": [],
-            "passes": [], "suite": "", "units": [], "purpose_text": "", "means": [], "recorded": [], "design_reason": "", "handoffs": [],
+            "passes": [], "suite": "", "suite_made": False, "units": [], "purpose_text": "", "means": [], "recorded": [], "design_reason": "", "handoffs": [],
             "owed": [], "units_tier": [], "skip_rerun": [], "switches": {}}
 
 

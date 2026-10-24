@@ -91,7 +91,7 @@ def fixer_values(place, repo, pass_: str, values: dict, *, owed, items=None, sou
              "judgment_file open_units plan_file summary_file notes_file budget draft check_cmd ripple_file libdocs_rows g1_items "
              "seat_file seat_body unattended overlay_file first_prompt answer_file left lang").split()
     vals = {k: "" for k in slots}
-    when = {k: False for k in ("rejected rulings_first ruled_reply briefs faces scope tests tests_new tests_tail frozen_files frozen_verified frozen_unruled tests_how rules ask ask_ripple libdocs g1 "
+    when = {k: False for k in ("rejected rulings_first ruled_reply briefs faces scope tests tests_new tests_tail tests_broken frozen_files frozen_verified frozen_unruled tests_how rules ask ask_ripple libdocs g1 "
                                "seat_one resume queued overflow_answer conflict docs prompts_kind config code evidence where_fixer where_tdd where_rework").split()}
     when["conflict"] = True
     start_vals, start_when = _starts(values)
@@ -136,6 +136,7 @@ def fixer_values(place, repo, pass_: str, values: dict, *, owed, items=None, sou
     vals["tests_rows"] = rules.tests_rows(got_scope, edits, frozen)
     when["scope"] = got_scope is not None
     when["tests_new"] = got_scope is not None
+    when["tests_broken"] = bool(edits.get("broken"))
     when["frozen_files"] = bool((frozen or {}).get("files"))
     when["frozen_verified"] = bool(when["frozen_files"] and (frozen or {}).get("verified"))
     when["frozen_unruled"] = bool(when["frozen_files"] and (frozen or {}).get("unruled"))

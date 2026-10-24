@@ -93,3 +93,59 @@ class HandoffTitleCase(unittest.TestCase):
     def test_a_line_without_a_title_has_no_title_key(self):
         (ask,) = self.asks({})
         self.assertNotIn("title", ask)
+
+
+class SuiteBrokenHeadCase(unittest.TestCase):
+    """#836（docs/design/fix.md の 19 節）: 修正の段が、工場の書いた試験の起動スクリプトが書き直しても壊れたままで組を止めた run は、
+    報告の冒頭の知らせの行に訳とログのパスを出す。止めていない run には出さない"""
+    WHY = ("書き直した起動スクリプトも壊れている——工場が書いた試験の起動スクリプトが壊れている——関わる試験が起動スクリプト越しにだけ中身に"
+           "届く前に落ちた（error 1 件。ログ /r/fix/tdd-2/suite-0.log）のに、test_cmd を単体で走らせると通る（ログ /r/fix/tdd-2/test-cmd-alone.log）")
+
+    def setUp(self):
+        self.f = kit.load(BLOCK, "facts")
+        self.run = kit.Run(self, BLOCK)
+        base.seed(self.run)
+
+    def after(self, values: dict) -> list:
+        with self.run.env(), mock.patch.object(__import__("report"), "CMD_LIGHT", "light", create=True):
+            return self.f.build(values, base.record())["head"]["after"]
+
+    def test_the_stop_reason_with_the_log_paths_heads_the_report(self):
+        v = base.passing()
+        v["fixed"] = {**v["fixed"], "tdd": [[{"group_id": "g1", "ran": False, "reason": self.WHY, "suite": "/r/runner", "units": [],
+                                              "suite_broken": True, "runner_log": "/r/fix/tdd-2/suite-0.log",
+                                              "cmd_log": "/r/fix/tdd-2/test-cmd-alone.log"}]]}
+        lines = [x for x in self.after(v) if x.startswith("修正の段が止めた")]
+        self.assertEqual(len(lines), 1, lines)
+        self.assertIn("/r/fix/tdd-2/suite-0.log", lines[0])
+        self.assertIn("/r/fix/tdd-2/test-cmd-alone.log", lines[0])
+
+    def test_a_fix_that_did_not_stop_says_nothing(self):
+        self.assertFalse([x for x in self.after(base.passing()) if x.startswith("修正の段が止めた")])
+
+
+class BaseStopHeadCase(unittest.TestCase):
+    """持ち主の決め base-runs-nothing の足し: 直す前の試験の関門が止めた run（試験のコマンドの最初の語を起こせない）は、報告の冒頭の
+    知らせの行に止めた訳を出す。止めていない run には出さない"""
+    WHY = "素材が not_run——緑を仮定しない（試験のコマンド（no-such-tool）の最初の語を起こせない（PATH に no-such-tool が無い）。試験は走らせずに確かめた）"
+
+    def setUp(self):
+        self.f = kit.load(BLOCK, "facts")
+        self.run = kit.Run(self, BLOCK)
+        base.seed(self.run)
+
+    def after(self, values: dict) -> list:
+        with self.run.env(), mock.patch.object(__import__("report"), "CMD_LIGHT", "light", create=True):
+            return self.f.build(values, base.record())["head"]["after"]
+
+    def test_the_stop_reason_of_the_base_gate_heads_the_report(self):
+        v = base.passing()
+        v["test_gate_base"] = {**v["test_gate_base"], "ok": False, "green": False, "reason": self.WHY}
+        for name in ("judge", "fix_in", "fixed", "eyes", "merge_seal", "merge_apply", "test_gate_final"):
+            v[name] = None
+        lines = [x for x in self.after(v) if x.startswith("直す前の試験の関門が止めた")]
+        self.assertEqual(len(lines), 1, lines)
+        self.assertIn("起こせない", lines[0])
+
+    def test_a_base_gate_that_went_on_says_nothing(self):
+        self.assertFalse([x for x in self.after(base.passing()) if x.startswith("直す前の試験の関門が止めた")])

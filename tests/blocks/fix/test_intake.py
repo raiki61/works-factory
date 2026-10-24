@@ -180,7 +180,7 @@ class ValuesCase(IntakeCase):
             "tdd_suite": "/x/suite.py", "test_cmd": " python3 -m unittest ", "reuse_key": "run-first", "reuse_dir": "/x/reuse",
             "user_env_dir": "/x/env", "lang": "ja", "policy": str(self.policy), "request_file": str(self.request),
             "answers": [{"q": "分母は", "a": "len(xs)"}], "unattended": True, "parallel": False, "skip_rerun": ["A"],
-            "excluded": [], "routes": "auto"})
+            "excluded": [], "routes": "auto", "suite_made": False})
 
     def test_routes_reach_the_values(self):
         """入力 routes（docs/design/spec-driven.md の 7 章の 1）: 空は auto、plan は values.json に運ばれ、組の子も同じ値を読む"""

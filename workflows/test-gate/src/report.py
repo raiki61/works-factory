@@ -72,3 +72,4 @@ def _base_material(place) -> dict:
     except ValueError:
         return {}
     return material if isinstance(material, dict) else {}
+

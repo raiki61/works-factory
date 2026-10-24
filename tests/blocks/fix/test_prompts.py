@@ -1,7 +1,7 @@
 """修正の block（workflows/fix/）の 9 つの AI の node の指示を、その prep（か prep が呼ぶ src/prompts.py の口）を回して md から組み、
 決まった文が入ることを見る（docs/design/fix.md の 14.2 の test_prompts.py）。
 
-表 RENDERED は、筋書き（fixtures/）で届かない 6 つの node（全体の形は fan_out で dry-run が落ち、tdd は同じ単位の 2 周目にだけ回る）の
+表 RENDERED は、筋書き（fixtures/）で届かない 7 つの node（全体の形は fan_out で dry-run が落ち、tdd は同じ単位の 2 周目にだけ回り、suite-fix は起動スクリプトが壊れた組だけ）の
 md の決まった文。tests/layers/test_block_shape.py の 7.1 の 3 の照らしは、この表の在りと字だけを見る（14.3）。表の行は下の試験が
 本当に組んだ指示の中に在ることを照らす。
 """
@@ -27,6 +27,7 @@ RENDERED = {
     "fix-ruled": "# Fixing (the writer's job)",
     "ruled-consult-answer": "# Scope consultation (from the fixing stage)",
     "tdd": "## What this role does",
+    "suite-fix": "## What to look for",   # 起動スクリプトが壊れた組だけ（試験は tests/blocks/fix/test_suite_fix.py が組んで照らす）
 }
 KEY = "stats.py:4 mean"
 JUDGMENT = json.dumps({"units": [{"key": KEY, "label": "block", "reason": "空の並びで 0 除算する"}], "questions": []})
@@ -183,6 +184,21 @@ class FixerParagraphsCase(unittest.TestCase):
         text = planned.script("fix_prep")["prompt"]
         self.assertIn("## Paths you may change and what you must not touch", text)
         self.assertIn("## Tests you may add or change, and frozen tests", text)
+
+    def test_tests_broken_before_the_fix_are_named_as_fixable_along_the_way(self):
+        """#836: 関わる試験で直す前から壊れていた物（置き場の conflict.BROKEN_TESTS_FILE。TDD の輪の頭が書く）は、テストの節に別の行で
+        名指され、ついでに直してよいと書かれる。無い run には出ない"""
+        run = seeded(self)
+        run.script("intake", mode="group", group=GROUP, judgment=JUDGMENT)
+        run.script("group_start")
+        self.assertNotIn("直す前から壊れていた関わる試験", run.script("fix_prep")["prompt"])
+        (run.artifacts / conflict.BROKEN_TESTS_FILE).write_text(
+            json.dumps({"tests": [{"path": "test_stats.py", "ids": ["test_stats.TestStats::test_mean"]}]}), encoding="utf-8")
+        for name in list(run.artifacts.glob("fixer-prompt-*.md")) + list(run.artifacts.glob("fix-first*.json")):
+            name.unlink()
+        text = run.script("fix_prep")["prompt"]
+        self.assertIn("- 直す前から壊れていた関わる試験（ついでに直してよい。最後の承認ノードに出る）: `test_stats.py`", text)
+        self.assertIn("You may fix them along with your fix", text)
 
     def test_the_first_prompt_names_the_borrowed_reading_file_and_the_resumed_one_the_first_prompt(self):
         """下請けを起こす時に Read させる読み替えのファイルを 1 回目の指示が名指し、続きの周は読み落とした時の逃げ道として 1 回目の

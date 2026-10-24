@@ -284,7 +284,7 @@ def same_red(test_id: str, before, after) -> bool:
 
 
 def rerun_problem(place, repo, suite: str, cases, named, *, name: str = "rerun", rev: str = "HEAD", shared=(),
-                  test_cmd: str = "", old_red=None) -> str:
+                  test_cmd: str = "", old_red=None, uncompared=None) -> str:
     """組を親の作業ツリー repo へ当てた後の確かめ直しの問題の文（空なら通った。実行器 suite の無い run も空）。元
     works/blk-fix/lib/tddlanes.py:688-711 の _green_after（当てた単位の名指し全部と変更に直に関わる試験を 1 回走らせ、重なりの
     ファイルが在れば地図が届く試験の全部も足し、test_cmd の関門が on なら test_cmd も 1 回）を、組ごとの確かめにした物。
@@ -292,7 +292,8 @@ def rerun_problem(place, repo, suite: str, cases, named, *, name: str = "rerun",
        居ない（0 件を含む）・緑でなければその文（_RunnerDown を戻す理由にした所）。ただし直す前の結末 cases と照らして前から同じ形で
        赤の名指し（same_red）は戻す理由にせず、「名指し（結末の語: 失敗の文）」の文を old_red（呼び手が渡した並び）に足す（#837）。
     2. 名指しの無い組（修正役だけが直した組）も、変えたファイルに当たる試験の新しい赤を tddloop.selected_problems で見る（元の
-       結末 cases に無い赤は版 rev の写しで確かめる）。前に戻した組とも重なったファイル shared が在れば、それを起点に地図が届く
+       結末 cases に無い赤は版 rev の写しでその試験を名指しで走らせて確かめる）。写しの結末に出ず比べられなかった赤は、uncompared
+       （呼び手が渡した並び）が在れば戻す理由にせずその鍵を足す（呼び手が報告で人に聞く。#846）。前に戻した組とも重なったファイル shared が在れば、それを起点に地図が届く
        試験の全部（tddloop._reached の direct_only 偽。地図が一式を求める時は足さない）を選びに足す（元 tddlanes.py:695-698）。
     3. 赤が無く test_cmd（関門が on の時だけ呼び手が渡す。rerun_cmd）が在れば 1 回走らせ、緑でなければその文。
     shared の在る組の赤は意味の食い違い（SEMANTIC_CLASH）と名指す。走らせ直しの状態とログは置き場の <name>/ に置く"""
@@ -330,7 +331,7 @@ def rerun_problem(place, repo, suite: str, cases, named, *, name: str = "rerun",
             if not everything:
                 st["units"][name]["test_files"] = wide
         state = write_json(work / tddloop.STATE, st)
-        probs, _ = tddloop.selected_problems(str(state), repo, rev)
+        probs, _ = tddloop.selected_problems(str(state), repo, rev, uncompared=uncompared)
     if not probs and (test_cmd or "").strip():
         log = work / "test-cmd.log"
         mat, _ = tddloop._cmd_run(repo, test_cmd.strip(), log)
@@ -397,19 +398,21 @@ def join_group(repo, from_tree: str, end_tree: str, kept, *, union=(), check=Non
     return lanekit.Merge(why, str(kept), [], [], False, names)
 
 
-def join_rows(groups, outcomes, backed_out=None, unrestored=None, old_red=None) -> tuple:
+def join_rows(groups, outcomes, backed_out=None, unrestored=None, old_red=None, uncompared=None) -> tuple:
     """(組の行 [{group_id, unit_ids, returned, reason, backed_out?, unrestored?}], 単位の行 [{unit_id, group_id, status, reason}])
     （返す節の約束の形）。outcomes は {group_id: (子の結果の dict か None, 戻せたか, 理由)}。戻せた組の単位は子の結果の status・reason
     （結果に無い単位・知らない status は not_done）、戻せなかった組・結果の無い組の単位は not_done と組の理由。backed_out は
     {group_id: 当ててから確かめ直しが赤か落ちて戻したパス}、unrestored は {group_id: 戻せず当たったままのパス}（lanekit.Merge の
     同じ名の欄）で、在る組の行にだけ同じ名の欄を置く（報告と後の節が当てなかった組と分ける）。old_red は {group_id: 確かめ直しで
-    前から同じ形で赤だったので戻す理由にしなかった名指しの文}（rerun_problem の old_red。#837）で、在る組の行にだけ同じ名の欄を置く。
+    前から同じ形で赤だったので戻す理由にしなかった名指しの文}（rerun_problem の old_red。#837）、uncompared は {group_id: 確かめ直しで
+    直す前の版と比べられなかったので戻す理由にしなかった赤の鍵}（rerun_problem の uncompared。#846）で、在る組の行にだけ同じ名の欄を置く。
     新しい（元の締めの結末の並べ。p3.lane_merge）"""
     rows, units = [], []
     for g in groups:
         gid = g["group_id"]
         result, back, why = outcomes.get(gid, (None, False, NO_RESULT))
-        marks = {k: list(v) for k, given in (("backed_out", backed_out), ("unrestored", unrestored), ("old_red", old_red))
+        marks = {k: list(v) for k, given in (("backed_out", backed_out), ("unrestored", unrestored), ("old_red", old_red),
+                                                    ("uncompared", uncompared))
                  if (v := (given or {}).get(gid))}
         rows.append({"group_id": gid, "unit_ids": list(g["unit_ids"]), "returned": bool(back), "reason": str(why or ""), **marks})
         got = {u.get("unit_id"): u for u in (result or {}).get("units") or [] if isinstance(u, dict)} if back else {}
@@ -470,7 +473,8 @@ def child_verified(result) -> list:
 
 def tdd_units(groups, results) -> list:
     """型つきの成果物 tdd-unit の本文: 組ごとの TDD の輪の結果 [{group_id, ran, reason, suite, reused, related, units}]（子の結果の欄 tdd。
-    tddloop.exit_fields の形）。結果の無い組・実行器の無い組は ran: false・units: []。results は {group_id: 子の結果の dict}"""
+    tddloop.exit_fields の形）。起動スクリプトが書き直しても壊れたままで止めた組は suite_broken・runner_log・cmd_log も載る（報告の冒頭が
+    読む。docs/design/fix.md の 19 節）。結果の無い組・実行器の無い組は ran: false・units: []。results は {group_id: 子の結果の dict}"""
     out = []
     for g in groups:
         result = results.get(g["group_id"])
@@ -480,7 +484,9 @@ def tdd_units(groups, results) -> list:
                     "reason": str(tdd.get("reason") or ("" if result else NO_RESULT)), "suite": str(tdd.get("suite") or ""),
                     "reused": tdd.get("reused") if isinstance(tdd.get("reused"), dict) else {},
                     "related": tdd.get("related") if isinstance(tdd.get("related"), dict) else {},
-                    "units": child_tdd_units(result) if ran else []})
+                    "units": child_tdd_units(result) if ran else [],
+                    **({"suite_broken": True, "runner_log": str(tdd.get("runner_log") or ""), "cmd_log": str(tdd.get("cmd_log") or "")}
+                       if tdd.get("suite_broken") is True else {})})
     return out
 
 
@@ -1813,6 +1819,23 @@ def consult_ask(place, reply, pass_: str, items, *, node: str, human_items=(), r
 def ruled_reply_line(reply_file) -> str:
     """裁定の後の修正役の指示の段落 ruled_reply に入れる、1 回目の修正役の返答の保存したファイル（文は md。無ければ空）"""
     return str(reply_file or "")
+def before_cases(place) -> list:
+    """確かめ直し（rerun_problem の「前から同じ形で赤」。docs/design/fix.md の 18 節）が照らす直す前の結末の行: 置き場の BASELINE_FILE の
+    cases（試験の関門の元の結末）に、組の子の TDD の輪の頭が取った結末（輪の状態の baseline_cases。失敗の文つき）を組の順に足した物（同じ鍵は
+    先の行）。直す前の版では試験の関門が試験を走らせない（持ち主の決め base-runs-nothing）ので、ふつうは子の輪の頭の結末だけ"""
+    import baseline_red
+    place = pathlib.Path(place)
+    rows = list((read_json(place / BASELINE_FILE, {}) or {}).get("cases") or [])
+    plan = read_json(place / GROUPS_FILE, {}) or {}
+    for g in plan.get("groups") or []:
+        result = usable_result(pathlib.Path(plan.get("out_dir") or place / "groups") / str(g.get("group_id")))
+        state = str((result or {}).get("tdd_state") or "")
+        doc = jsonfile.read_or(pathlib.Path(state)) if state else None   # 読めない状態は足さない（join は後で輪の状態を写す時に名指して落ちる）
+        if isinstance(doc, dict):
+            rows += [c for c in doc.get("baseline_cases") or [] if isinstance(c, dict)]
+    return baseline_red._unique([c for c in rows if all(isinstance(c.get(k), str) for k in ("classname", "name", "outcome"))])
+
+
 TDD_START_FILE = "tdd-start.json"   # TDD の輪の頭の返り（tddloop.start の {go, state_file, summary_file, …}。group-start が書く）
 JOIN_FILE = "join.json"             # 組を親の木へ戻した結果 {groups, units}（join が書く）
 

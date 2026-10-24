@@ -24,6 +24,14 @@
 - settle(start_file, ran, keep): 実行器を 1 回走らせた結末 ran（{exe, exit, problems, count} か None）を照らす。終了コードは見ない
   （修正前に赤の試験が在るのは普通）。通れば tdd_suite に結び、書いた物なら取り置く。取り置きが通らなければ捨てる。
   {done, ok, why}（done が偽なら書き直す周が要る）
+- adopt(start_file): 照らす前の実行器を走らせずに tdd_suite に結ぶ（印 ok true・checked false）。直す前の版では試験を何も走らせない
+  （持ち主の決め base-runs-nothing）ので、照らすのは修正の段の TDD のループが最初に走らせた所。照らす前の実行器が無ければ印のまま
+  {done: true, ok: <結んだか>, why}
+- keep_runner(keep, test_cmd, runner): 走らせて結末が取れた実行器を test_cmd の字で取り置く（TDD のループの頭が呼ぶ。取り置けたか）
+- drop_runner(keep, test_cmd, runner): 壊れていた実行器と同じバイトの取り置きを捨てる（TDD のループの頭が書き直させる前に呼ぶ）
+- fence(text): text を囲むバッククォートの柵（3 つ以上で、text の中の最長の並びより 1 つ長い。書き手の指示に test_cmd や本文を貼る口）
+- put_runner(path, body): 書き直した実行器の本文を path に実行の印つきで置き換える（一時のファイルから入れ替えるので、走っている
+  ほかの組の子は前の本文か新しい本文のどちらかを読む）。本文の頭が #! でなければ置かずに ValueError（place と同じ照らし）
 - head_note(start): 報告の冒頭の句。取り置きを使った・書いた・作れなかったのどれか（欄の無い run は空の字）
 - GATE_NOTE: 起動の承認ノードの文の 1 行
 """
@@ -56,8 +64,10 @@ NO_CASES = "JUnit XML に試験が 1 件も無い"
 NOT_RUN = "実行器が走らなかった"
 NO_SHEBANG = "実行器の本文の頭に #! の行が無い"
 NO_WHY = "実行器を書く役が作らなかった（訳を書いていない）"
-GATE_NOTE = ("TDD の実行器: 入力 tdd_suite が無い——修正前のテストの後に、同じ test_cmd で前に照らしを通った取り置きを使い、無ければ "
-             "AI の手番 1 回が test_cmd と CI の定義から書く。走らせて JUnit XML が出て試験が 1 件以上なら TDD のループを回し、出なければ飛ばす")
+UNCHECKED = "直す前には走らせていない——修正の段の TDD のループが最初に走らせて確かめ、壊れていれば書き直させる"
+GATE_NOTE = ("TDD の実行器: 入力 tdd_suite が無い——判定の前に、同じ test_cmd で前に照らしを通った取り置きを使い、無ければ "
+             "AI の手番 1 回が test_cmd と CI の定義から書く（直す前には走らせない）。修正の段の TDD のループが最初に走らせて確かめ、"
+             "起動スクリプト越しにだけ落ちれば書き直させ、直らなければ止めて人に聞く")
 
 
 def need(start: dict, mode: str) -> bool:
@@ -94,6 +104,10 @@ def _brief(test_cmd: str, root: pathlib.Path) -> str:
     decl = "在る" if (root / declared_checks.DECL_NAME).is_file() else "無い"
     return "\n".join(["# 実行器を書く材料", "", f"- 対象の根: {root.resolve()}", f"- 対象の根の宣言 {declared_checks.DECL_NAME}: {decl}",
                       "", "## test_cmd（人が渡したテストのコマンド。字のまま）", "", cmd, ""])
+
+
+def fence(text: str) -> str:
+    return "`" * max(3, _longest_tick_run(text) + 1)
 
 
 def _longest_tick_run(text: str) -> int:
@@ -142,6 +156,29 @@ def settle(start_file, ran, keep) -> dict:
         _drop(keep, start, mark["path"])
     _save(start_file, start, {**mark, "ok": False, "why": why})
     return {"done": mark.get("from") != FROM_KEEP, "ok": False, "why": why}
+
+
+def adopt(start_file) -> dict:
+    start = jsonfile.read_dict(start_file)
+    mark = _mark(start)
+    if mark.get("ok", False) is not None or not mark.get("path"):
+        return {"done": True, "ok": mark.get("ok") is True, "why": str(mark.get("why") or "")}
+    _save(start_file, {**start, "tdd_suite": mark["path"]}, {**mark, "ok": True, "checked": False, "why": "", "stored": False})
+    return {"done": True, "ok": True, "why": ""}
+
+
+def keep_runner(keep, test_cmd: str, runner) -> bool:
+    return _store(keep, {"test_cmd": test_cmd}, str(runner))
+
+
+def drop_runner(keep, test_cmd: str, runner) -> None:
+    _drop(keep, {"test_cmd": test_cmd}, str(runner))
+
+
+def put_runner(path, body: str) -> str:
+    if not isinstance(body, str) or not body.startswith("#!"):
+        raise ValueError(NO_SHEBANG)
+    return _put(pathlib.Path(path), (body if body.endswith("\n") else body + "\n").encode("utf-8"))
 
 
 def _fault(ran) -> str:
@@ -216,6 +253,9 @@ def head_note(start) -> str:
     if not mark:
         return ""
     dropped = f"（取り置きは照らしを通らず捨てた: {mark['dropped']}）" if mark.get("dropped") else ""
+    if mark.get("ok") is True and mark.get("checked") is False:
+        made = USED if mark.get("from") == FROM_KEEP else WROTE
+        return f"{made}（{UNCHECKED}）{dropped}"
     if mark.get("ok") is True:
         if mark.get("from") == FROM_KEEP:
             return f"{USED}（同じ test_cmd で前の run が照らしを通した物。書く AI の手番は起こしていない）"

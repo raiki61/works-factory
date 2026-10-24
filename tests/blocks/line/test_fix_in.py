@@ -51,7 +51,7 @@ class FixInCase(unittest.TestCase):
     def inputs(self, **kw):
         base = {"fixture": "null", "start_go": "true",
                 "ports": {"policy": "/p/frozen.md", "forced": "", "has_checks": True, "tree_named": ""},
-                "test_gate_base": {"baseline": self.ptr("test-gate/baseline.json"), "suite": "/s/run.sh"},
+                "test_gate_base": {"baseline": self.ptr("test-gate/baseline.json"), "suite": "/s/run.sh", "suite_note": ""},
                 "judge": self.judge(), "tiers": {"tier": "軽量", "omits": True, "merge": True, "tree": "off", "adds": [], "lines": ["l"],
                                                  "stop_reason": ""},
                 "structure": {"structure": self.ptr("structure/structure.json")},
@@ -65,12 +65,19 @@ class FixInCase(unittest.TestCase):
     def fix_in(self, **kw):
         return self.run.script("fix_in", **self.inputs(**kw))
 
+    def test_a_runner_the_gate_made_may_be_rewritten_by_the_fix(self):
+        """試験の関門が用意した実行器（suite_note が在る）だけ suite_made が真（修正の段が壊れた起動スクリプトを書き直させてよい。
+        docs/design/fix.md の 19 節）。人が渡した実行器（suite_note が空）と実行器の無い run は偽"""
+        made = {"baseline": self.ptr("test-gate/baseline.json"), "suite": "/a/test-gate-base/suite/runner", "suite_note": "TDD の実行器は AI が書いた"}
+        self.assertIs(self.fix_in(test_gate_base=made)["suite_made"], True)
+        self.assertIs(self.fix_in(test_gate_base={**made, "suite": ""})["suite_made"], False)
+
     def test_every_carried_field_is_flat(self):
         got = self.fix_in()
         self.assertEqual(set(got), set(line_node("fix-in")["output_format"]["required"]))
         self.assertEqual((got["go"], got["no_fix"], got["stop_reason"]), (True, False, ""))
         self.assertEqual(got["excluded"], self.ptr("judge/excluded.json"), "外した hunk は判定のまとめの excluded（8.2）")
-        self.assertEqual((got["baseline"], got["suite"]), (self.ptr("test-gate/baseline.json"), "/s/run.sh"))
+        self.assertEqual((got["baseline"], got["suite"], got["suite_made"]), (self.ptr("test-gate/baseline.json"), "/s/run.sh", False))
         self.assertEqual((got["structure"], got["design"], got["design_reason"]),
                          (self.ptr("structure/structure.json"), self.ptr("independent-design/design.json"), ""))
         self.assertEqual((got["plan"], got["review"], got["round"], got["owed"]), (self.rounds()["plan"], self.rounds()["review"], 2, [U1]))

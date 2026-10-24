@@ -81,7 +81,6 @@
 （本物の index・HEAD・枝は動かさない。.gitignore に当たる物は載らない）。期限は持たない。
 """
 import ast
-import contextlib
 import difflib
 import hashlib
 import json
@@ -89,7 +88,6 @@ import os
 import pathlib
 import posixpath
 import re
-import shutil
 import subprocess
 import sys
 import tempfile
@@ -514,7 +512,7 @@ def _light_units(raw: str) -> list:
 
 def start(board_dir, repo, suite: str, open_units: str, test_cmd: str = "", unit_depths: str = "", *,
           owed=None, withheld_by=None, returned=(), round_: int = 1, reuse: dict | None = None, narrow: bool = False,
-          routes: str = "auto") -> dict:
+          routes: str = "auto", suite_made: bool = False) -> dict:
     """節 tdd-start。{go, reason, suite, state_file, summary_file}。実行器が無ければ何も書かずに go: false（置き場を読まない）。
     board_dir は fix の run の置き場（状態は board_dir/tdd-<k>/）。owed・withheld_by・returned は直す義務の値（_duty）、round_ は
     凍結した欄の周（plan_contract）。
@@ -527,7 +525,10 @@ def start(board_dir, repo, suite: str, open_units: str, test_cmd: str = "", unit
     だけにする（持ち主の決め related-tests-only。docs/design/fix.md の 17 節）。起点が無い・選べない時は今までどおり一式、関わる試験が
     無ければ走らせずに空の結末で輪を始める。選びは状態の related と出口の欄 related に置く。
     routes が plan（入力 routes。docs/design/spec-driven.md の 7 章の 1）なら振り分けの段の AI を起こさず、承認済みの案の route で
-    単位を振って test の段から始める（_plan_routes）。tdd の単位が 1 つも無ければ、元の結末も取らずに go: false（PLAN_NO_TDD）"""
+    単位を振って test の段から始める（_plan_routes）。tdd の単位が 1 つも無ければ、元の結末も取らずに go: false（PLAN_NO_TDD）。
+    suite_made が真（実行器は工場が書いた物で、書き直してよい。入力 suite_made）で test_cmd が在れば、元の結末の回で起動スクリプトの壊れを
+    確かめる（_suite_broken。docs/design/fix.md の 19 節）。壊れていれば go: false と {suite_broken: true, runner_log, cmd_log} を返し、
+    呼び手が書き直させる"""
     if routes not in ROUTES:
         raise Broken(f"入力 routes は {'・'.join(ROUTES)} のどれか（{routes!r}）")
     suite = (suite or "").strip()
@@ -562,12 +563,18 @@ def start(board_dir, repo, suite: str, open_units: str, test_cmd: str = "", unit
         cases, code, why = run_suite(str(exe), repo, work, 0, args=related.args(repo, picked), only=True, reuse=reuse, note=suite_note)
     else:
         cases, code, why = [], 0, []   # 関わる試験が無い: 元の結末は空（緑の確かめは受け付けと最後のテストの段が持つ）
+    test_cmd = (test_cmd or "").strip()
+    if suite_made and test_cmd:
+        broke = _suite_broken(exe, repo, work, test_cmd, cases, why, narrow=picked is not None and not picked["whole"])
+        if broke:
+            return {**off, **broke}
     if cases is None:
         return {**off, "reason": f"元の結末が取れない（{'; '.join(why)}）——全部の単位を今どおり直す"}
-    test_cmd = (test_cmd or "").strip()
+    jsonfile.write(board_dir / conflict.BROKEN_TESTS_FILE, {"tests": broken_related(board_dir, repo, keys, round_, work, cases, picked)})
     gate, note, made = _test_cmd_gate(exe, test_cmd, repo, work / "test-cmd-0.log", reuse=reuse)
     st = {"suite": suite, "exe": str(exe), "work": str(work), "open_units": keys, "excused": excused,
           "baseline": {_key(c): c["outcome"] for c in cases}, "baseline_exit": code,
+          "baseline_cases": cases,   # 失敗の文つきの行（確かめ直しの「前から同じ形で赤」が読む。board.before_cases）
           "handoff": snapshot(repo), "suite_made": made, "phase": "route", "tries": 0, "reason": "", "iterations": 0,
           "runs": 1, "order": [], "units": {}, "queue": [], "cur": 0, "unit_head": "", "green_tree": "",
           "done": False, "note": "", "frozen": {}, "parked": [], "parked_why": {}, "contract": contract,
@@ -580,6 +587,65 @@ def start(board_dir, repo, suite: str, open_units: str, test_cmd: str = "", unit
     state_file = work / STATE
     _save(state_file, st)
     return {"go": True, "reason": "", "suite": suite, "state_file": str(state_file), "summary_file": str(work / SUMMARY)}
+
+
+SUITE_BROKEN = ("工場が書いた試験の起動スクリプトが壊れている——関わる試験が起動スクリプト越しにだけ中身に届く前に落ちた（{what}。ログ {log}）"
+                "のに、test_cmd を単体で走らせると通る（ログ {cmd_log}）")
+
+
+def broken_related(board_dir, repo, keys, round_: int, work: pathlib.Path, cases, picked=None) -> list:
+    """関わる試験で直す前から壊れていた物のファイル [{path, ids}]（#836。docs/design/fix.md の 19 節）: 輪の頭の元の結末で落ちた（failure・
+    error）試験のファイルのうち、修正案が触る所に直に関わる試験（_related_pick。走らせ方が決まらない道で元の結末を絞った回は、その選び
+    picked）に在る物。関わるかを選べない（whole）・落ちた試験が無ければ空。修正役はこのファイルをついでに直してよい（conflict.test_permits の
+    6 つ目の許し）"""
+    failed = [c for c in cases or [] if c.get("outcome") in ("failure", "error")]
+    if not failed:
+        return []
+    picked = picked if picked is not None else _related_pick(board_dir, repo, keys, round_, work)
+    if picked.get("whole"):
+        return []
+    near = set(picked.get("files") or [])
+    found = {}
+    for path, ids in _case_files(repo, failed).items():
+        if path in near:
+            found[path] = ids
+    return [{"path": path, "ids": ids} for path, ids in sorted(found.items())]
+
+
+def _case_files(repo, cases) -> dict:
+    """結末の行 cases → {テストのファイル（根からの相対）: [鍵]}。ファイルは行のモジュール（impact._junit_module）が impact._mod に等しい
+    テストのファイル（_module_files）。引けない行は載せない"""
+    files = _module_files(repo)
+    out = {}
+    for c in cases:
+        for path in files.get(impact._junit_module(c) or "", []):
+            out.setdefault(path, []).append(_key(c))
+    return out
+
+
+def _suite_broken(exe, repo, work: pathlib.Path, test_cmd: str, cases, why, *, narrow: bool) -> dict | None:
+    """起動スクリプトが壊れているか（yes/no。#836）: 元の結末の回が結末を返さないか、試験が 1 件でも error（中身に届く前に落ちた）で、
+    test_cmd を単体で走らせると緑なら壊れている。関わる試験だけを渡した回（narrow）は、渡した試験が test_cmd の外の元からの error で
+    ないかを、実行器を一式でも 1 回走らせて確かめ、それも同じく落ちる時だけ壊れていると読む（実行器は test_cmd を字のまま含む約束なので、
+    同じ物を比べる）。壊れていれば {suite_broken, reason, runner_log, cmd_log}、でなければ None"""
+    def fell(got) -> bool:
+        return got is None or any(c.get("outcome") == "error" for c in got)
+    if not fell(cases):
+        return None
+    log = work / "suite-0.log"
+    what = "; ".join(why) if cases is None else f"error {sum(1 for c in cases if c.get('outcome') == 'error')} 件"
+    cmd_log = work / "test-cmd-alone.log"
+    mat, _ = _cmd_run(repo, test_cmd, cmd_log)
+    if mat["status"] != "clean":
+        return None
+    if narrow:
+        whole, _, whole_why = run_suite(str(exe), repo, work, "whole")
+        if not fell(whole):
+            return None
+        log = work / "suite-whole.log"
+        what = "; ".join(whole_why) if whole is None else f"error {sum(1 for c in whole if c.get('outcome') == 'error')} 件"
+    return {"suite_broken": True, "reason": SUITE_BROKEN.format(what=what, log=log, cmd_log=cmd_log),
+            "runner_log": str(log), "cmd_log": str(cmd_log)}
 
 
 def _related_pick(board_dir, repo, keys, round_: int, work: pathlib.Path) -> dict:
@@ -1984,13 +2050,16 @@ def _args(root, files, kexpr) -> list:
     return [*_abs_paths(root, py), *(["-k", kexpr] if kexpr else [])]
 
 
-def selected_problems(state_file, repo, rev) -> tuple:
+def selected_problems(state_file, repo, rev, uncompared=None) -> tuple:
     """(赤の文の一覧, 知らせ)。選ぶのは変更に直に関わる試験と名指しの試験（_named_files）だけで、届くだけの先の試験は
     final_left に残す。実行器の後ろに足すのは、選んだ試験のうちこの run で変えた・足したファイルだけ（ADR 0071 の
     3 の 1。届いただけの段の外の試験は手元で走らせない）。実行器の既定の一式の中は -k で選んだ全部のモジュールに絞る。
     実行器の無い run（状態が無い）・当たる試験が無い・実行器が走らない・選んだ試験が 1 件も走らなかった時は赤にせず知らせだけ。
-    元の結末に無い試験の赤は、版の写しで同じ試験を回して、版でも赤なら外す（版の写しの結末は _base_reds が盤面の根に控え、
-    受け付けの回をまたいで使い回す）。外した鍵は黙って捨てず、件数と名（頭の 20 件）を赤の行か知らせに出す"""
+    元の結末に無い試験の赤は、版の写しでその試験を名指しで回して、版でも赤なら外す（版の写しの結末は _base_reds が盤面の根に控え、
+    受け付けの回をまたいで使い回す）。版の写しの結末に出ない（走らせられない・名指しを聞かない実行器）試験は比べられない:
+    受け口 uncompared（並び）を渡す呼び（組を当てた後の確かめ直し。#846）は赤に数えずその鍵を足し、渡さない呼びは赤のまま。
+    版に試験のファイルが無い試験（この直しで足した）は比べるまでもなく新しい赤。
+    外した鍵と比べられなかった鍵は黙って捨てず、件数と名（頭の 20 件）を赤の行か知らせに出す"""
     if not state_file:
         return [], NO_SUITE
     st = _load(state_file)
@@ -2030,14 +2099,21 @@ def selected_problems(state_file, repo, rev) -> tuple:
     fresh = [k for k in red if k not in st["baseline"]]
     tail = ""
     if fresh:
-        old, why = _base_reds(st, repo, rev, files, kexpr)
-        if old is None:
-            tail = f"。元の結末に無い {len(fresh)} 件は版の姿で比べられず赤のまま（{'; '.join(why)}）"
-        else:
-            left_out = [k for k in red if k in old]
-            red = [k for k in red if k not in old]
-            if left_out:
-                tail = f"。版の写しでも赤だったので外した {len(left_out)} 件: {', '.join(left_out[:20])}"
+        base, why = _base_reds(st, repo, rev, [reds[k] for k in fresh])
+        left_out = [k for k in fresh if (base or {}).get(k) in ("failure", "error")]
+        unknown = [k for k in fresh if (base or {}).get(k) is None]
+        red = [k for k in red if k not in left_out]
+        if left_out:
+            tail = f"。版の写しでも赤だったので外した {len(left_out)} 件: {', '.join(left_out[:20])}"
+        if unknown:
+            cause = "; ".join(why) or "名指しで走らせても版の写しの結末に出ない"
+            if uncompared is None:
+                tail += f"。元の結末に無い {len(unknown)} 件は版の姿で比べられず赤のまま（{cause}）: {', '.join(unknown[:20])}"
+            else:
+                red = [k for k in red if k not in unknown]
+                uncompared.extend(unknown)
+                tail += (f"。版の姿と比べられなかった {len(unknown)} 件（{cause}。新しい赤に数えず人に聞く）: "
+                         f"{', '.join(unknown[:20])}")
     if not red:
         return [], f"{what}: {len(cases)} 件で新しい赤なし{ci}{tail}"
     # 行はテストのファイルごと（修正の受け付けが最後の回にパスで単位に結ぶ）。頭に選んだファイルの一覧を置かない（ほかの
@@ -2052,15 +2128,21 @@ def _by_test_file(repo, cases) -> dict:
     """赤の case をテストのファイルごとに分けた {「（ファイル <根からのパス>）」: [id]}（現れた順）。ファイルは case のモジュール
     （impact._junit_module）が impact._mod に等しいテストのファイル（impact.tree_files と impact.is_test）で、同じ名のモジュールが
     2 つ以上在れば全部を名指す。見つからない case の鍵は ""（パスを名指さない）"""
-    files = {}
-    for p in impact.tree_files(repo) or []:
-        if impact.is_test(p) == "module":
-            files.setdefault(impact._mod(p), []).append(p)
+    files = _module_files(repo)
     out = {}
     for c in cases:
         hit = files.get(impact._junit_module(c) or "", [])
         out.setdefault(f"（ファイル {', '.join(hit)}）" if hit else "", []).append(_key(c))
     return out
+
+
+def _module_files(repo) -> dict:
+    """{モジュールの名（impact._mod）: [その名のテストのファイル（根からの相対。impact.tree_files と impact.is_test）]}"""
+    files = {}
+    for p in impact.tree_files(repo) or []:
+        if impact.is_test(p) == "module":
+            files.setdefault(impact._mod(p), []).append(p)
+    return files
 
 
 def _left_to_ci(selected, run_files, cases) -> list:
@@ -2123,66 +2205,69 @@ def load_json(path: pathlib.Path, default):
     return got if isinstance(got, type(default)) else default
 
 
-@contextlib.contextmanager
-def temp_tree(repo: pathlib.Path, rev: str):
-    """(版 rev を出した一時の git worktree（--detach。フックは切る）か None, 作れない理由の並び)。写しに .git が在るので git を読む
-    試験も今の木と同じ条件で走る。成否に関わらず消す（この worktree だけを外し、外せなければ置き場を消して prune する。
-    作業ツリー・index・枝は動かさず、git の控え .git/worktrees/ の行を残さない）。置き場の根は実のパスに解く（実行器の起こし場所と
-    引数の綴りをそろえる。test_base_copy_args_lie_under_real_cwd）"""
-    try:
-        td = pathlib.Path(tempfile.mkdtemp(prefix="works-tdd-rev-")).resolve()
-    except OSError as e:
-        yield None, [f"{type(e).__name__}: {e}"]
-        return
-    wt = td / "repo"
-    try:
-        try:
-            git(repo, "-c", "core.hooksPath=/dev/null", "worktree", "add", "--detach", "--quiet", str(wt), rev)
-        except Unreadable as e:
-            yield None, [str(e)]
-            return
-        yield wt, []
-    finally:
-        try:
-            git(repo, "worktree", "remove", "--force", str(wt))
-        except Unreadable:
-            shutil.rmtree(wt, ignore_errors=True)
-            try:
-                git(repo, "worktree", "prune")
-            except Unreadable:
-                pass
-        shutil.rmtree(td, ignore_errors=True)
+temp_tree = baseline_red.temp_tree   # 版の一時の worktree（lib に上げた。試験の関門の最後のテストも使う）
 
 
-def _base_reds(st, repo, rev, files, kexpr) -> tuple:
-    """(版 rev の姿で同じ試験を回して赤だった鍵の集合か None, 問題)。版の姿は一時の git worktree（--detach）に出して走らせ、
-    作業ツリー・index・枝は動かさない（写しに .git が在るので、git を読む試験も今の木と同じ条件で走る）。実行器が repo の中に
-    在れば写しの中の同じ物を走らせる（自分の置き場から根を引く実行器が写しの根で走るように）。
-    写しは版の姿だけ（今の木から何も写さない）なので、結末は版・実行器・後ろの引数（ファイルと -k）で決まる。走らせた結末は
-    盤面の根の REV_CACHE に残し、同じ版・同じ実行器・同じ -k で、名指したファイルが前に走らせた回のファイルに含まれれば
-    走らせずに使う（run の中で版は動かないので、受け付けの回・2 回目の修正の段をまたいで 1 回で足りる。195g は回ごとに 3 分半）。
-    結末が取れなかった回は残さない"""
+BASE_ABSENT = "absent"   # 版の写しの結末の語の外: 版にその試験のファイルが無い（この直しで足した試験。比べるまでもなく新しい赤）
+
+
+def _case_ids(repo, cases) -> dict:
+    """結末の行 cases → {鍵: [名指しの id『<根からの相対パス>::<クラス>::<名前>』]}。ファイルは行のモジュール（impact._junit_module）が
+    impact._mod に等しいテストのファイル（_module_files。同じ名のモジュールが 2 つ以上在れば全部）、クラスは classname の
+    モジュールの後ろの部分。ファイルが引けない行は載せない"""
+    files = _module_files(repo)
+    out = {}
+    for c in cases:
+        mod = impact._junit_module(c) or ""
+        parts = [x for x in c["classname"].split(".") if x]
+        tail = parts[len(parts) - parts[::-1].index(mod):] if mod in parts else []
+        for path in files.get(mod, []):
+            out.setdefault(_key(c), []).append("::".join([path, *tail, c["name"]]))
+    return out
+
+
+def _base_reds(st, repo, rev, cases) -> tuple:
+    """(版 rev の姿で結末の行 cases の試験を名指しで回した {鍵: 結末の語か BASE_ABSENT か None（結末に出ない・名指しを引けない）}
+    か None（写せない・実行器が走らない）, 問題)。比べたい試験は名指し（_case_ids）で ONLY_ENV を付けて走らせる（走らせる試験を差分から
+    自分で選ぶ実行器は、差分の無い版の写しでは既定の一式に比べたい試験を選ばない。#846）。版の姿は一時の git worktree（--detach）に
+    出して走らせ、作業ツリー・index・枝は動かさない（写しに .git が在るので、git を読む試験も今の木と同じ条件で走る）。実行器が repo の
+    中に在れば写しの中の同じ物を走らせる（自分の置き場から根を引く実行器が写しの根で走るように）。
+    写しは版の姿だけ（今の木から何も写さない）なので、結末は版・実行器・名指しで決まる。走らせた結末は盤面の根の REV_CACHE に残し、
+    同じ版・同じ実行器で、比べたい鍵が全部前の回の結末に在れば走らせずに使う（run の中で版は動かないので、受け付けの回・2 回目の
+    修正の段をまたいで 1 回で足りる。195g は回ごとに 3 分半）。結末が取れなかった回は残さない"""
     cache = pathlib.Path(st["work"]).parent / REV_CACHE
-    key = {"rev": rev_id(repo, rev), "exe": exe_id(repo, st["exe"]), "kexpr": kexpr}
+    key = {"rev": rev_id(repo, rev), "exe": exe_id(repo, st["exe"])}
     rows = load_json(cache, [])
+    seen = {}
     for r in rows:
-        if isinstance(r, dict) and {k: r.get(k) for k in key} == key and set(files) <= set(r.get("files") or []):
-            return set(r.get("reds") or []), []
+        if isinstance(r, dict) and {k: r.get(k) for k in key} == key and isinstance(r.get("outcomes"), dict):
+            seen.update(r["outcomes"])
+    wanted = [_key(c) for c in cases]
+    if all(k in seen for k in wanted):
+        return {k: seen[k] for k in wanted}, []
+    ids = _case_ids(repo, cases)
     with temp_tree(repo, rev) as (copy, cant):
         if copy is None:
             return None, [f"版 {rev} を写せない（{'; '.join(cant)}）"]
-        exe = pathlib.Path(st["exe"])
-        try:
-            inner = copy / exe.absolute().relative_to(pathlib.Path(repo).absolute())
-            exe = inner if inner.is_file() else exe
-        except ValueError:
-            pass
-        cases, _, why = run_suite(str(exe), copy, pathlib.Path(st["work"]), f"{ACCEPT_RUN}-rev", _args(copy, files, kexpr))
-    if cases is None:
-        return None, why
-    reds = {_key(c) for c in cases if c["outcome"] in ("failure", "error")}
-    jsonfile.write(cache, [*rows, {**key, "files": sorted(set(files)), "reds": sorted(reds)}])
-    return reds, []
+        got = {k: None for k in wanted}
+        for k in wanted:
+            if ids.get(k) and not any((copy / i.partition("::")[0]).is_file() for i in ids[k]):
+                got[k] = BASE_ABSENT
+        named = sorted({i for k in wanted if got[k] is None for i in ids.get(k, []) if (copy / i.partition("::")[0]).is_file()})
+        if named:
+            exe = pathlib.Path(st["exe"])
+            try:
+                inner = copy / exe.absolute().relative_to(pathlib.Path(repo).absolute())
+                exe = inner if inner.is_file() else exe
+            except ValueError:
+                pass
+            ran, _, why = run_suite(str(exe), copy, pathlib.Path(st["work"]), f"{ACCEPT_RUN}-rev", _abs_ids(copy, named), only=True)
+            if ran is None:
+                return None, why
+            outcome = {_key(c): c["outcome"] for c in ran}
+            got.update({k: outcome[k] for k in wanted if got[k] is None and k in outcome})
+    jsonfile.write(cache, [*rows, {**key, "outcomes": got}])
+    return got, []
 
 
 FIELDS = ("unit_key", "route", "why", "tests", "test_files", "red", "green", "refactor", "gave_up", "problems", QUOTES_FIELD,
@@ -2201,7 +2286,10 @@ def exit_fields(start_out: dict) -> dict:
     状態の reused（輪の頭で元の結末を控えから使い回した出どころの句 {suite}）が空でなければ載せる"""
     if not isinstance(start_out, dict) or not start_out.get("go"):
         so = start_out if isinstance(start_out, dict) else {}
-        return {"ran": False, "suite": so.get("suite", ""), "reason": so.get("reason", ""), "units": []}
+        out = {"ran": False, "suite": so.get("suite", ""), "reason": so.get("reason", ""), "units": []}
+        if so.get("suite_broken") is True:   # 起動スクリプトが書き直しても壊れたまま（docs/design/fix.md の 19 節）。組の結末が止めを名乗る
+            out.update(suite_broken=True, runner_log=so.get("runner_log", ""), cmd_log=so.get("cmd_log", ""))
+        return out
     st = _load(start_out["state_file"])
     if not st["done"]:
         raise Broken("TDD のループが済んでいない（done の印が無い）")
