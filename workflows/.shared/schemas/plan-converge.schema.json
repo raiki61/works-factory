@@ -56,16 +56,15 @@
             "type": "array",
             "items": {
               "type": "object",
-              "patternProperties": {
-                "^.+$": {
-                  "type": [
-                    "object",
-                    "array",
-                    "string",
-                    "number",
-                    "boolean",
-                    "null"
-                  ]
+              "properties": {
+                "key": {
+                  "type": "string"
+                },
+                "handled": {
+                  "type": "string"
+                },
+                "how": {
+                  "type": "string"
                 }
               }
             }
@@ -74,16 +73,36 @@
             "type": "array",
             "items": {
               "type": "object",
-              "patternProperties": {
-                "^.+$": {
-                  "type": [
-                    "object",
-                    "array",
-                    "string",
-                    "number",
-                    "boolean",
-                    "null"
-                  ]
+              "properties": {
+                "key": {
+                  "type": "string"
+                },
+                "unit_keys": {
+                  "type": "array",
+                  "items": {
+                    "type": [
+                      "integer",
+                      "string"
+                    ]
+                  }
+                },
+                "kind": {
+                  "type": "string"
+                },
+                "where": {
+                  "type": "string"
+                },
+                "why": {
+                  "type": "string"
+                },
+                "severity": {
+                  "type": "string"
+                },
+                "reach": {
+                  "type": "string"
+                },
+                "no_add": {
+                  "type": "string"
                 }
               }
             }
@@ -118,16 +137,18 @@
             "type": "array",
             "items": {
               "type": "object",
-              "patternProperties": {
-                "^.+$": {
-                  "type": [
-                    "object",
-                    "array",
-                    "string",
-                    "number",
-                    "boolean",
-                    "null"
-                  ]
+              "properties": {
+                "key": {
+                  "type": "string"
+                },
+                "origin": {
+                  "type": "string"
+                },
+                "of": {
+                  "type": "string"
+                },
+                "quote": {
+                  "type": "string"
                 }
               }
             }
@@ -144,32 +165,37 @@
             "type": "array",
             "items": {
               "type": "object",
-              "patternProperties": {
-                "^.+$": {
+              "properties": {
+                "role": {
+                  "type": "string"
+                },
+                "at": {
                   "type": [
-                    "object",
-                    "array",
                     "string",
-                    "number",
-                    "boolean",
                     "null"
-                  ]
+                  ],
+                  "description": "拒んだ時刻（ISO 8601。前の版の控えから読み替えた行は null）"
+                },
+                "reason": {
+                  "type": "string"
+                },
+                "kind": {
+                  "type": "string"
                 }
               }
             }
           },
           "push": {
             "type": "object",
-            "patternProperties": {
-              "^.+$": {
-                "type": [
-                  "object",
-                  "array",
-                  "string",
-                  "number",
-                  "boolean",
-                  "null"
-                ]
+            "properties": {
+              "answer": {
+                "type": "string"
+              },
+              "note": {
+                "type": "string"
+              },
+              "why": {
+                "type": "string"
               }
             }
           },
@@ -218,40 +244,42 @@
                 },
                 "row": {
                   "type": "object",
-                  "patternProperties": {
-                    "^.+$": {
-                      "type": [
-                        "object",
-                        "array",
-                        "string",
-                        "number",
-                        "boolean",
-                        "null"
-                      ]
-                    }
-                  }
+                  "description": "json(shared:plan-reply-item.schema.json): 受けた案の項目の行（決め手の欄を外した審査の形に、plan-fields.json の同じ番号の欄の行の works の欄〔lib/planmarks.py の KEYS〕を重ねた物。planmarks.joined）"
                 },
                 "hits": {
-                  "type": [
-                    "object",
-                    "array",
-                    "string",
-                    "number",
-                    "boolean",
-                    "null"
-                  ]
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "answer": {
+                        "type": "string"
+                      },
+                      "why": {
+                        "type": "string"
+                      },
+                      "kind": {
+                        "type": "string"
+                      },
+                      "at": {
+                        "type": "string"
+                      },
+                      "name": {
+                        "type": "string"
+                      },
+                      "carried": {
+                        "type": "integer",
+                        "description": "前の往復の答えを引き継いだ時の、答えた往復の番号"
+                      }
+                    }
+                  }
                 },
                 "refs": {
                   "type": "array",
                   "items": {
-                    "type": [
-                      "object",
-                      "array",
-                      "string",
-                      "number",
-                      "boolean",
-                      "null"
-                    ]
+                    "type": "string"
                   }
                 }
               }
@@ -277,16 +305,23 @@
     },
     "open": {
       "type": "object",
-      "patternProperties": {
-        "^.+$": {
-          "type": [
-            "object",
-            "array",
-            "string",
-            "number",
-            "boolean",
-            "null"
-          ]
+      "properties": {
+        "answers": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "key": {
+                "type": "string"
+              },
+              "handled": {
+                "type": "string"
+              },
+              "how": {
+                "type": "string"
+              }
+            }
+          }
         }
       }
     },
@@ -309,28 +344,48 @@
           },
           "row": {
             "type": "object",
-            "patternProperties": {
-              "^.+$": {
-                "type": [
-                  "object",
-                  "array",
-                  "string",
-                  "number",
-                  "boolean",
-                  "null"
-                ]
-              }
-            }
+            "description": "json(shared:plan-reply-item.schema.json): 受けた案の項目の行（決め手の欄を外した審査の形に、plan-fields.json の同じ番号の欄の行の works の欄〔lib/planmarks.py の KEYS〕を重ねた物。planmarks.joined）"
           },
           "marks": {
-            "type": [
-              "object",
-              "array",
-              "string",
-              "number",
-              "boolean",
-              "null"
-            ]
+            "type": "array",
+            "description": "row の narrows の行と同じ並びの、外した決め手の欄（gatemarks.FIELDS と no_narrow）",
+            "items": {
+              "type": "object",
+              "properties": {
+                "decided_by": {
+                  "type": "string"
+                },
+                "undecided_because": {
+                  "type": "string"
+                },
+                "fences": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "world": {
+                  "type": "string"
+                },
+                "recommend": {
+                  "type": "object",
+                  "properties": {
+                    "answer": {
+                      "type": "string"
+                    },
+                    "note": {
+                      "type": "string"
+                    },
+                    "why": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "no_narrow": {
+                  "type": "string"
+                }
+              }
+            }
           }
         }
       }
@@ -339,14 +394,24 @@
       "type": "object",
       "patternProperties": {
         "^.+$": {
-          "type": [
-            "object",
-            "array",
-            "string",
-            "number",
-            "boolean",
-            "null"
-          ]
+          "type": "object",
+          "properties": {
+            "found": {
+              "type": "boolean"
+            },
+            "quote": {
+              "type": "string"
+            },
+            "round": {
+              "type": "integer"
+            },
+            "pass": {
+              "type": "integer"
+            },
+            "item": {
+              "type": "integer"
+            }
+          }
         }
       }
     }

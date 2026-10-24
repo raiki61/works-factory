@@ -1,5 +1,5 @@
 {
-  "description": "判定役が読んだ材料のファイル diagnose-input.json（diagnose の src/inputs.py の input_doc。鍵の意味は prompts/diagnose.md の Inputs）。素材の観点の返答の鍵（local_findings など）は観点の返答かその欄で、形は観点の役ごとなので何でも受ける",
+  "description": "判定役が読んだ材料のファイル diagnose-input.json（diagnose の src/inputs.py の input_doc。鍵の意味は prompts/diagnose.md の Inputs）。素材の観点の返答の鍵（local_findings など。どの観点のどの欄かは src/files.py の REPLY_KEYS）は観点の返答かその欄で、欄の型の正本は観点ごとの役の output_format。ここは判定役と src/inputs.py の material_rows が読む欄だけを書く",
   "type": "object",
   "properties": {
     "materials": {
@@ -8,103 +8,302 @@
     },
     "local_findings": {
       "type": [
-        "object",
         "array",
-        "string",
-        "number",
-        "boolean",
         "null"
-      ]
+      ],
+      "description": "local-review の返答の findings（レンズごとの所見の束）。観点が回っていなければ null",
+      "items": {
+        "type": "object",
+        "description": "レンズ（skill）ごとの所見の束",
+        "properties": {
+          "skill": {
+            "type": "string"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "description": "json(shared:finding-row.schema.json): 所見の行"
+            }
+          },
+          "invoked": {
+            "type": "boolean"
+          },
+          "failed": {
+            "type": "string"
+          }
+        }
+      }
     },
     "consistency_findings": {
       "type": [
-        "object",
         "array",
-        "string",
-        "number",
-        "boolean",
         "null"
-      ]
+      ],
+      "description": "consistency-bypass の返答の findings。観点が回っていなければ null",
+      "items": {
+        "type": "object",
+        "description": "json(shared:finding-row.schema.json): 所見の行"
+      }
     },
     "bypass_findings": {
       "type": [
-        "object",
         "array",
-        "string",
-        "number",
-        "boolean",
         "null"
-      ]
+      ],
+      "description": "consistency-bypass の返答の bypass_findings。観点が回っていなければ null",
+      "items": {
+        "type": "object",
+        "description": "json(shared:finding-row.schema.json): 所見の行"
+      }
     },
     "external_findings": {
       "type": [
-        "object",
         "array",
-        "string",
-        "number",
-        "boolean",
         "null"
-      ]
+      ],
+      "description": "external-standards の返答の findings。観点が回っていなければ null",
+      "items": {
+        "type": "object",
+        "description": "json(shared:finding-row.schema.json): 所見の行"
+      }
     },
     "procedure_findings": {
       "type": [
-        "object",
         "array",
-        "string",
-        "number",
-        "boolean",
         "null"
-      ]
+      ],
+      "description": "procedure-trace の返答の findings。観点が回っていなければ null",
+      "items": {
+        "type": "object",
+        "description": "json(shared:finding-row.schema.json): 所見の行"
+      }
     },
     "test_double_fidelity": {
       "type": [
         "object",
-        "array",
-        "string",
-        "number",
-        "boolean",
         "null"
-      ]
+      ],
+      "description": "test-double-fidelity の返答まるごと。観点が回っていなければ null",
+      "properties": {
+        "material": {
+          "type": "object",
+          "description": "素材の状態（status ごとの要る欄は lib/materialkit.py の STATUS）",
+          "properties": {
+            "status": {
+              "type": "string"
+            },
+            "count": {
+              "type": "integer"
+            },
+            "detail": {
+              "type": "string"
+            },
+            "checked": {
+              "type": "string"
+            },
+            "reason": {
+              "type": "string"
+            },
+            "from_round": {
+              "type": "integer"
+            }
+          }
+        },
+        "mismatches": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "description": "json(shared:finding-row.schema.json): 所見の行"
+          }
+        }
+      }
     },
     "main_path_observation": {
       "type": [
         "object",
-        "array",
-        "string",
-        "number",
-        "boolean",
         "null"
-      ]
+      ],
+      "description": "main-path-observation の返答まるごと。観点が回っていなければ null",
+      "properties": {
+        "material": {
+          "type": "object",
+          "description": "素材の状態（status ごとの要る欄は lib/materialkit.py の STATUS）",
+          "properties": {
+            "status": {
+              "type": "string"
+            },
+            "count": {
+              "type": "integer"
+            },
+            "detail": {
+              "type": "string"
+            },
+            "checked": {
+              "type": "string"
+            },
+            "reason": {
+              "type": "string"
+            },
+            "from_round": {
+              "type": "integer"
+            }
+          }
+        },
+        "observed": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "path": {
+                "type": "string"
+              },
+              "value": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      }
     },
     "provenance": {
       "type": [
         "object",
-        "array",
-        "string",
-        "number",
-        "boolean",
         "null"
-      ]
+      ],
+      "description": "provenance の返答まるごと。観点が回っていなければ null",
+      "properties": {
+        "material": {
+          "type": "object",
+          "description": "素材の状態（status ごとの要る欄は lib/materialkit.py の STATUS）",
+          "properties": {
+            "status": {
+              "type": "string"
+            },
+            "count": {
+              "type": "integer"
+            },
+            "detail": {
+              "type": "string"
+            },
+            "checked": {
+              "type": "string"
+            },
+            "reason": {
+              "type": "string"
+            },
+            "from_round": {
+              "type": "integer"
+            }
+          }
+        },
+        "claims": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "claim": {
+                "type": "string"
+              },
+              "exists_at_base": {
+                "type": "boolean"
+              },
+              "evidence": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      }
     },
     "prior_decisions": {
       "type": [
         "object",
-        "array",
-        "string",
-        "number",
-        "boolean",
         "null"
-      ]
+      ],
+      "description": "prior-decisions の返答まるごと。観点が回っていなければ null",
+      "properties": {
+        "material": {
+          "type": "object",
+          "description": "素材の状態（status ごとの要る欄は lib/materialkit.py の STATUS）",
+          "properties": {
+            "status": {
+              "type": "string"
+            },
+            "count": {
+              "type": "integer"
+            },
+            "detail": {
+              "type": "string"
+            },
+            "checked": {
+              "type": "string"
+            },
+            "reason": {
+              "type": "string"
+            },
+            "from_round": {
+              "type": "integer"
+            }
+          }
+        },
+        "checked": {
+          "type": "boolean"
+        },
+        "searched": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "settled": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "topic": {
+                "type": "string"
+              },
+              "decision": {
+                "type": "string"
+              },
+              "reason": {
+                "type": "string"
+              },
+              "revisit": {
+                "type": "string"
+              },
+              "where": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "conflicts": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "decision": {
+                "type": "string"
+              },
+              "where": {
+                "type": "string"
+              },
+              "why": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      }
     },
     "purpose_review": {
       "type": [
         "object",
-        "array",
-        "string",
-        "number",
-        "boolean",
         "null"
-      ]
+      ],
+      "description": "json(shared:purpose-review.schema.json): purpose-review の返答まるごと。観点が回っていなければ null"
     },
     "request_findings": {
       "type": "array",

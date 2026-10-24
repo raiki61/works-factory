@@ -2,27 +2,313 @@
   "description": "素材の観点の block（と先行議論の突合）の出口が書く素材の状態のファイル material.json（lib/materialkit.py の finish が書き、read が読む）",
   "type": "object",
   "properties": {
-    "role": {"type": "string"},
-    "status": {"type": "string", "enum": ["ran", "skipped", "gave_up", "failed"]},
-    "reason": {"type": "string"},
-    "reply": {"type": ["object", "null"], "description": "観点の役の受けた返答（形は観点ごとの役の output_format）。受けていなければ null",
-              "patternProperties": {"^.+$": {"type": ["object", "array", "string", "number", "boolean", "null"]}}},
+    "role": {
+      "type": "string"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "ran",
+        "skipped",
+        "gave_up",
+        "failed"
+      ]
+    },
+    "reason": {
+      "type": "string"
+    },
+    "reply": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "description": "観点の役の受けた返答（lib/materialkit.py の accept が受け付けた写し。欄の型の正本は観点ごとの役の output_format）。受けていなければ null。ここは読み手（diagnose の src/inputs.py・judge の scripts/verdict.py・lib/policy.py の _settled_rows）が読む欄だけを書き、読み手の無い欄（rankings・arms・unmeasured など）は書かない",
+      "properties": {
+        "material": {
+          "type": "object",
+          "description": "素材の状態（status ごとの要る欄は lib/materialkit.py の STATUS）",
+          "properties": {
+            "status": {
+              "type": "string"
+            },
+            "count": {
+              "type": "integer"
+            },
+            "detail": {
+              "type": "string"
+            },
+            "checked": {
+              "type": "string"
+            },
+            "reason": {
+              "type": "string"
+            },
+            "from_round": {
+              "type": "integer"
+            }
+          }
+        },
+        "consistency": {
+          "type": "object",
+          "description": "素材の状態（status ごとの要る欄は lib/materialkit.py の STATUS）",
+          "properties": {
+            "status": {
+              "type": "string"
+            },
+            "count": {
+              "type": "integer"
+            },
+            "detail": {
+              "type": "string"
+            },
+            "checked": {
+              "type": "string"
+            },
+            "reason": {
+              "type": "string"
+            },
+            "from_round": {
+              "type": "integer"
+            }
+          }
+        },
+        "bypass": {
+          "type": "object",
+          "description": "素材の状態（status ごとの要る欄は lib/materialkit.py の STATUS）",
+          "properties": {
+            "status": {
+              "type": "string"
+            },
+            "count": {
+              "type": "integer"
+            },
+            "detail": {
+              "type": "string"
+            },
+            "checked": {
+              "type": "string"
+            },
+            "reason": {
+              "type": "string"
+            },
+            "from_round": {
+              "type": "integer"
+            }
+          }
+        },
+        "findings": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "description": "findings の行。観点ごとに形が違う: 所見の行 {where, text, …}（多くの観点）・レンズの束 {skill, items, invoked, failed}（local-review）・目的の監査の行 {text, cite, hits}（purpose-review）",
+            "properties": {
+              "where": {
+                "type": "string"
+              },
+              "text": {
+                "type": "string"
+              },
+              "mechanism": {
+                "type": "string"
+              },
+              "measured": {
+                "type": "string"
+              },
+              "false_positive_if": {
+                "type": "string"
+              },
+              "skill": {
+                "type": "string"
+              },
+              "items": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "description": "json(shared:finding-row.schema.json): 所見の行"
+                }
+              },
+              "invoked": {
+                "type": "boolean"
+              },
+              "failed": {
+                "type": "string"
+              },
+              "cite": {
+                "type": "string"
+              },
+              "hits": {
+                "type": "integer"
+              }
+            }
+          }
+        },
+        "bypass_findings": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "description": "json(shared:finding-row.schema.json): 所見の行"
+          }
+        },
+        "mismatches": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "description": "json(shared:finding-row.schema.json): 所見の行"
+          }
+        },
+        "observed": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "path": {
+                "type": "string"
+              },
+              "value": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "claims": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "claim": {
+                "type": "string"
+              },
+              "exists_at_base": {
+                "type": "boolean"
+              },
+              "evidence": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "searched": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "settled": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "topic": {
+                "type": "string"
+              },
+              "decision": {
+                "type": "string"
+              },
+              "reason": {
+                "type": "string"
+              },
+              "revisit": {
+                "type": "string"
+              },
+              "where": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "conflicts": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "decision": {
+                "type": "string"
+              },
+              "where": {
+                "type": "string"
+              },
+              "why": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "verdict": {
+          "type": "string"
+        },
+        "reason": {
+          "type": "string"
+        },
+        "seen": {
+          "type": "string"
+        },
+        "unseen": {
+          "type": "string"
+        }
+      }
+    },
     "materials": {
       "type": "object",
       "description": "素材の名 → 素材の状態（欄は lib/materialkit.py の STATUS の status ごとの要る欄）",
-      "patternProperties": {"^.+$": {
-        "type": "object",
-        "properties": {
-          "status": {"type": "string", "enum": ["found", "clean", "carried_over", "not_applicable", "awaiting_human", "not_run"]},
-          "count": {"type": "integer"},
-          "from_round": {"type": "integer"},
-          "detail": {"type": ["string", "array"], "items": {"type": ["object", "array", "string", "number", "boolean", "null"]}},
-          "checked": {"type": ["string", "array"], "items": {"type": ["object", "array", "string", "number", "boolean", "null"]}},
-          "reason": {"type": "string"}
+      "patternProperties": {
+        "^.+$": {
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "enum": [
+                "found",
+                "clean",
+                "carried_over",
+                "not_applicable",
+                "awaiting_human",
+                "not_run"
+              ]
+            },
+            "count": {
+              "type": "integer"
+            },
+            "from_round": {
+              "type": "integer"
+            },
+            "detail": {
+              "type": [
+                "string",
+                "array"
+              ],
+              "description": "見つけた物の文（書き手はどれも字。lib/materialkit.py の check_record と報告の行は字の並びも受ける）",
+              "items": {
+                "type": "string"
+              }
+            },
+            "checked": {
+              "type": [
+                "string",
+                "array"
+              ],
+              "description": "見た所の文（書き手はどれも字。lib/materialkit.py の check_record と報告の行は字の並びも受ける）",
+              "items": {
+                "type": "string"
+              }
+            },
+            "reason": {
+              "type": "string"
+            }
+          }
         }
-      }}
+      }
     },
-    "base": {"type": ["string", "null"]},
-    "commits": {"type": ["integer", "null"]}
+    "base": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "commits": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    }
   }
 }

@@ -601,32 +601,7 @@ nodes:
         pass:
           <<: *pointer
           description: 'json(shared:plan-review-pass.schema.json): この往復の控え（pass.json。形 plan で受けた時だけ）。無ければ null'
-        asks:
-          type: array
-          items:
-            type: object
-            required: [kind, node, text, units, mark, decided, why]
-            properties:
-              kind: {type: string}
-              node: {type: string}
-              text: {type: string}
-              units:
-                type: array
-                items: {type: string}
-              mark:
-                type: object
-                properties:
-                  decided_by: {type: string}
-                  undecided_because: {type: string}
-                  fences: {type: array, items: {type: string}}
-                  world: {type: string}
-                  recommend: {type: object, properties: {answer: {type: string}, note: {type: string}, why: {type: string}}}
-                  no_narrow: {type: string}
-              decided: {type: boolean}
-              why:
-                type: object
-                patternProperties:
-                  '^.+$': {type: array, items: {type: string}}
+        asks: {type: array, items: {type: object, description: 'json(lib:ask-row.schema.json): 承認ノードに回しうる問いの行'}}
         deviations:
           type: array
           items:

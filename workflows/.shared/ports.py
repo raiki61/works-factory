@@ -14,13 +14,15 @@
   ファイルは拒む（JSON は形を名指して運ぶ）
 - carried_file(row) -> Path | None: form を値と一緒に運ぶ行 {ref, form}（報告の節の files のように、種類の違うファイルを 1 つの欄で
   中継する値）の ref を、行の form で file と同じに照らしてパスを返す。form は書き手が出どころの宣言の form を字で書く
-- 形の名: block の schemas/ のファイル名・shared:<名>（pack の .shared/schemas/）・lib:<名>（lib/ の下。lib に住処の在る形）。
+- 形の名: block の schemas/ のファイル名・shared:<名>（pack の .shared/schemas/）・lib:<名>（lib/ の下。lib に住処の在る形）・
+  returns:<workflow の名>（include した workflow の返す節の output_format。graph の受け皿の節の output_format だけが書け、口は読まない）。
   引き方は _shape_path の 1 か所
 - form_of(description) -> (form, 名) | None: form の語（text・file・flag・choice(a|b)・json(<名>)・jsonl(<名>)）の住処。入力の
   description・形の中の description・口の呼びの form の字が使う
-- open_shapes(shape, block_folder=None, *, shared=None, lib=None): 形の中の、中身を宣言しない所の在りか（object に properties も
-  patternProperties も無い・array に items が無い・型の無い所）。形の照らしは、知らない語（unknown_keywords）を先に、この開きを後に見て、
-  どちらかが在れば形のファイルを拒む。静的な照らし（tests/layers）は木の根の shared と lib を渡して同じ関数を使う
+- open_shapes(shape, block_folder=None, *, shared=None, lib=None, returned=None): 形の中の、中身を宣言しない所の在りか（object に properties も
+  patternProperties も無い・array に items が無い・型の無い所・type に 6 つの型を全部並べた所）。形の照らしは、知らない語（unknown_keywords）を先に、この開きを後に見て、
+  どちらかが在れば形のファイルを拒む。静的な照らし（tests/layers）は木の根の shared と lib と、returns:<workflow の名> の引き returned を
+  渡して同じ関数を使う
 - is_pointer_shape(shape): 形が pointer の欄か（properties.type が const か 1 語の enum で archon_artifact）。pointer の判別の住処
 - carries_file(shape): 所がファイルを運ぶか（pointer の欄か、型が string だけのパスの字）。その所の description の form は指す先の
   ファイルの form（値の形でない）
@@ -215,10 +217,12 @@ class ShapeError(ValueError):
 
 
 # form の語の住処（入力の description・形の中の description・口の呼びの form の字）。json(<名>)・jsonl(<名>) の名は block の schemas/
-# のファイル名か、2 つ以上の block が使う shared:<名>（.shared/schemas/）か、lib に住処の在る lib:<名>（lib/ の下）
-FORM = re.compile(r"(text|file|flag|choice\(([a-z0-9_-]+(?:\|[a-z0-9_-]+)+)\)|(json|jsonl)\(((?:shared:|lib:)?[A-Za-z0-9_.-]+)\))(?=: |$)")
+# のファイル名か、2 つ以上の block が使う shared:<名>（.shared/schemas/）か、lib に住処の在る lib:<名>（lib/ の下）か、include した
+# workflow の返りの returns:<workflow の名>（返す節の output_format。ファイルでないので静的な照らしだけが読む。RETURNS_HEAD）
+FORM = re.compile(r"(text|file|flag|choice\(([a-z0-9_-]+(?:\|[a-z0-9_-]+)+)\)|(json|jsonl)\(((?:shared:|lib:|returns:)?[A-Za-z0-9_.-]+)\))(?=: |$)")
 JSON_FORMS = ("json", "jsonl")
 ANY_TYPES = frozenset({"object", "array", "string", "number", "boolean", "null"})
+RETURNS_HEAD = "returns"
 
 
 def form_of(description) -> tuple[str, str | None] | None:
@@ -243,7 +247,9 @@ def _shape_path(name: str, block_folder=None, *, shared=None, lib=None) -> Path:
         return Path(shared if shared is not None else SHARED) / "schemas" / rest
     if head == "lib":
         return Path(lib if lib is not None else lib_root()) / rest
-    raise ValueError(f"形の名は <ファイル名>・shared:<ファイル名>・lib:<ファイル名>: {name!r}")
+    if head == RETURNS_HEAD:
+        raise ValueError(f"{name!r} は include した workflow の返す node の形で、ファイルでない（口は YAML を読まない。静的な照らしだけが読む）")
+    raise ValueError(f"形の名は <ファイル名>・shared:<ファイル名>・lib:<ファイル名>・returns:<workflow の名>: {name!r}")
 
 
 def _load_shape(name: str, block_folder=None, *, shared=None, lib=None):
@@ -272,26 +278,27 @@ def _named(shape):
     return form if form and form[0] in JSON_FORMS else None
 
 
-def open_shapes(shape, block_folder=None, *, shared=None, lib=None, at: str = "$", _seen: tuple = ()) -> list[str]:
+def open_shapes(shape, block_folder=None, *, shared=None, lib=None, returned=None, at: str = "$", _seen: tuple = ()) -> list[str]:
     """形の中の、中身を宣言していない所の在りか。閉じと数えるのは照らし（engine.schema.validate_schema）が読む語だけ:
     object は空でない properties か空でない patternProperties か additionalProperties: false、array は items（中も同じに見る）。
     type・enum・const のどれも無い所と、形を書いた additionalProperties（照らしが読まない）は開き。type に JSON の 6 つの型を全部
-    書いた所は「何でも受ける」の明示で閉じ。description が json(<名>)・jsonl(<名>) の所は名の形を引き、無い・読めない・開いている
-    時は開き（名の形が中身を宣言する）"""
+    並べた所も「何でも受ける」で開き（properties・items を添えても。値の型は書き手が決めるので書ける。#861）。description が
+    json(<名>)・jsonl(<名>) の所は名の形を引き、無い・読めない・開いている時は開き（名の形が中身を宣言する）。returns:<workflow の名> は
+    returned(<名>) が返す (返す節の output_format, その workflow のフォルダ) を引く（静的な照らしが渡す。無ければ読めない）"""
     if not isinstance(shape, dict):
         return [at]
     named = _named(shape)
     if named is not None and not carries_file(shape):
-        return _open_named(named[1], block_folder, shared, lib, at, _seen)
+        return _open_named(named[1], block_folder, shared, lib, returned, at, _seen)
     out = []
     if named is not None:
-        out += _open_named(named[1], block_folder, shared, lib, at, _seen)
+        out += _open_named(named[1], block_folder, shared, lib, returned, at, _seen)
     types = shape.get("type")
     types = {types} if isinstance(types, str) else set(types or ())
     if not types and "enum" not in shape and "const" not in shape:
         return out + [at]
     if ANY_TYPES <= types:
-        return out
+        return out + [f"{at}(6 つの型を全部並べた)"]
     extra = shape.get("additionalProperties")
     if isinstance(extra, dict):
         out.append(f"{at}.additionalProperties")
@@ -301,23 +308,29 @@ def open_shapes(shape, block_folder=None, *, shared=None, lib=None, at: str = "$
         out.append(at)
     for key, part in (("properties", props), ("patternProperties", pats)):
         for name, sub in part.items():
-            out += open_shapes(sub, block_folder, shared=shared, lib=lib, at=f"{at}.{key}.{name}", _seen=_seen)
+            out += open_shapes(sub, block_folder, shared=shared, lib=lib, returned=returned, at=f"{at}.{key}.{name}", _seen=_seen)
     if "array" in types:
         if "items" not in shape:
             out.append(at)
         else:
-            out += open_shapes(shape["items"], block_folder, shared=shared, lib=lib, at=f"{at}.items", _seen=_seen)
+            out += open_shapes(shape["items"], block_folder, shared=shared, lib=lib, returned=returned, at=f"{at}.items", _seen=_seen)
     return out
 
 
-def _open_named(name, block_folder, shared, lib, at, seen) -> list[str]:
+def _open_named(name, block_folder, shared, lib, returned, at, seen) -> list[str]:
     if name in seen:
         return []
+    head, _, rest = name.partition(":")
     try:
-        _, sub = _load_shape(name, block_folder, shared=shared, lib=lib)
+        if head == RETURNS_HEAD:
+            sub, block_folder = returned(rest) if returned is not None else (None, None)
+            if sub is None:
+                raise ValueError(name)
+        else:
+            _, sub = _load_shape(name, block_folder, shared=shared, lib=lib)
     except ValueError:
         return [f"{at}({name} が無いか読めない)"]
-    return open_shapes(sub, block_folder, shared=shared, lib=lib, at=f"{at}({name})", _seen=(*seen, name))
+    return open_shapes(sub, block_folder, shared=shared, lib=lib, returned=returned, at=f"{at}({name})", _seen=(*seen, name))
 
 
 def _expanded(shape, block_folder=None, seen: tuple = ()):
@@ -360,7 +373,7 @@ def shape_errors(value, schema: str, block_folder=None) -> list[str]:
     holes = open_shapes(shape, block_folder)
     if holes:
         raise ValueError(f"形のファイル {path} が中身を宣言しない所 {holes} を持つ（object は properties か patternProperties、array は "
-                         "items を書く。何でも受ける所は type に 6 つの型を全部書く）")
+                         "items を書き、type に 6 つの型を全部並べない）")
     return validate_schema(value, _expanded(shape, block_folder))
 
 

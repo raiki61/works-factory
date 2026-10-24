@@ -25,30 +25,72 @@
               "type": "string"
             },
             "kind": {
-              "type": "string"
+              "type": "string",
+              "enum": [
+                "changed",
+                "added",
+                "removed"
+              ]
             },
             "field": {
-              "type": "string"
+              "type": "string",
+              "enum": [
+                "label",
+                "disposition",
+                "reason",
+                "reopen_evidence"
+              ],
+              "description": "kind が changed の時だけ在る。変わった欄の名"
             },
             "before": {
               "type": [
                 "object",
-                "array",
                 "string",
-                "number",
-                "boolean",
                 "null"
-              ]
+              ],
+              "description": "kind が removed・added の時は前の単位の比べる欄（key と REJUDGE_UNIT_FIELDS の欄）の object、changed の時は field の欄の前の値（どの欄も字。単位に欄が無ければ null）",
+              "properties": {
+                "key": {
+                  "type": "string"
+                },
+                "label": {
+                  "type": "string"
+                },
+                "disposition": {
+                  "type": "string"
+                },
+                "reason": {
+                  "type": "string"
+                },
+                "reopen_evidence": {
+                  "type": "string"
+                }
+              }
             },
             "after": {
               "type": [
                 "object",
-                "array",
                 "string",
-                "number",
-                "boolean",
                 "null"
-              ]
+              ],
+              "description": "kind が removed・added の時は後の単位の比べる欄（key と REJUDGE_UNIT_FIELDS の欄）の object、changed の時は field の欄の後の値（どの欄も字。単位に欄が無ければ null）",
+              "properties": {
+                "key": {
+                  "type": "string"
+                },
+                "label": {
+                  "type": "string"
+                },
+                "disposition": {
+                  "type": "string"
+                },
+                "reason": {
+                  "type": "string"
+                },
+                "reopen_evidence": {
+                  "type": "string"
+                }
+              }
             },
             "named": {
               "type": "boolean"

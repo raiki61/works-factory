@@ -186,20 +186,9 @@
     "amended": {
       "type": "object",
       "patternProperties": {
-        "^.+$": {
+        "^[0-9]+$": {
           "type": "object",
-          "patternProperties": {
-            "^.+$": {
-              "type": [
-                "object",
-                "array",
-                "string",
-                "number",
-                "boolean",
-                "null"
-              ]
-            }
-          }
+          "description": "json(shared:plan-reply-item.schema.json): 差し替えた項目の核の欄（lib/planmarks.py の CORE_KEYS）"
         }
       }
     }

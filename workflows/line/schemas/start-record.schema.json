@@ -15,16 +15,140 @@
     },
     "versions": {
       "type": "object",
-      "patternProperties": {
-        "^.+$": {
+      "description": "版の控え（src/versions.py の snapshot）。引けない値は null で、unknown に鍵ごとの訳",
+      "properties": {
+        "schema": {
+          "type": "integer"
+        },
+        "run_id": {
+          "type": "string"
+        },
+        "at": {
+          "type": "string"
+        },
+        "works": {
+          "type": "object",
+          "properties": {
+            "rev": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "dirty": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            }
+          }
+        },
+        "claude_code": {
           "type": [
-            "object",
-            "array",
             "string",
-            "number",
-            "boolean",
             "null"
           ]
+        },
+        "borrowed": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "description": "起動の殻が隔離した設定の置き場に書いた借りた物の記録（bin/_lib/toolset.py の RECORD の中身。借りる物の名ごとの行）",
+          "patternProperties": {
+            "^.+$": {
+              "type": "object",
+              "properties": {
+                "version": {
+                  "type": "string"
+                },
+                "source": {
+                  "type": "string"
+                },
+                "sha256": {
+                  "type": "string"
+                },
+                "loaded": {
+                  "type": "boolean"
+                },
+                "commit": {
+                  "type": "string"
+                },
+                "hooks": {
+                  "type": "object",
+                  "patternProperties": {
+                    "^.+$": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "matcher": {
+                            "type": "string"
+                          },
+                          "hooks": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "type": {
+                                  "type": "string"
+                                },
+                                "command": {
+                                  "type": "string"
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                },
+                "source_enabled": {
+                  "type": [
+                    "boolean",
+                    "null"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "settings": {
+          "type": "object",
+          "description": "run の設定の写し（start が渡す入力の字 features_off・features_on）",
+          "patternProperties": {
+            "^.+$": {
+              "type": "string"
+            }
+          }
+        },
+        "python": {
+          "type": "string"
+        },
+        "platform": {
+          "type": "string"
+        },
+        "archon": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "model": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "unknown": {
+          "type": "object",
+          "description": "引けなかった値の鍵ごとの訳",
+          "patternProperties": {
+            "^.+$": {
+              "type": "string"
+            }
+          }
         }
       }
     },
@@ -33,16 +157,67 @@
         "object",
         "null"
       ],
-      "patternProperties": {
-        "^.+$": {
+      "description": "入口の入力の形（lib/entryshape.py の build。固定材料の run は写しの物に request_file を足した物）",
+      "properties": {
+        "base": {
+          "type": "object",
+          "properties": {
+            "rev": {
+              "type": "string"
+            },
+            "from": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            },
+            "label": {
+              "type": "string"
+            }
+          }
+        },
+        "head_rev": {
+          "type": "string"
+        },
+        "diff": {
+          "type": "object",
+          "properties": {
+            "empty": {
+              "type": "boolean"
+            },
+            "files": {
+              "type": "integer"
+            },
+            "stat": {
+              "type": "string"
+            }
+          }
+        },
+        "requests": {
+          "type": "integer"
+        },
+        "request_file": {
+          "type": "string"
+        },
+        "pr": {
           "type": [
             "object",
-            "array",
-            "string",
-            "number",
-            "boolean",
             "null"
-          ]
+          ],
+          "properties": {
+            "number": {
+              "type": "string"
+            },
+            "title": {
+              "type": "string"
+            },
+            "body": {
+              "type": "string"
+            }
+          }
+        },
+        "spec": {
+          "type": "boolean"
         }
       }
     },
@@ -89,30 +264,35 @@
       "type": "string"
     },
     "policy": {
-      "type": [
-        "object",
-        "array",
-        "string",
-        "number",
-        "boolean",
-        "null"
-      ]
+      "type": "object",
+      "description": "方針の文書の固めた版（lib/policy.py の freeze）。文書が無ければ path は空、sha256 と copy は null",
+      "properties": {
+        "named": {
+          "type": "string"
+        },
+        "path": {
+          "type": "string"
+        },
+        "sha256": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "copy": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
     },
     "lang": {
       "type": "string"
     },
     "answers": {
       "type": "array",
-      "items": {
-        "type": [
-          "object",
-          "array",
-          "string",
-          "number",
-          "boolean",
-          "null"
-        ]
-      }
+      "description": "json(shared:request-answers.schema.json): 依頼の answers の行（lib/carry.py の parts が確かめた物）"
     },
     "request_text": {
       "type": "string"
@@ -127,14 +307,18 @@
       "type": "string"
     },
     "features": {
-      "type": [
-        "object",
-        "array",
-        "string",
-        "number",
-        "boolean",
-        "null"
-      ]
+      "type": "object",
+      "description": "機能ごとの切り替えの語（lib/entry.py の feature_words）",
+      "patternProperties": {
+        "^.+$": {
+          "type": "string",
+          "enum": [
+            "on",
+            "off",
+            "auto"
+          ]
+        }
+      }
     }
   }
 }

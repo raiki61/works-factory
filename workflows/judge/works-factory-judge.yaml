@@ -49,15 +49,12 @@ nodes:
       script: returned
       runtime: uv
       mutates_checkout: false
-      output_format:
+      output_format: &received
         type: object
         additionalProperties: false
         required: [got, why]
         properties:
-          # 返りまるごとの中継（受け手が ports.picked で名を選ぶ）
-          got: &whole
-            type: [object, 'null']
-            patternProperties: {'^.+$': {type: [object, array, string, number, boolean, 'null']}}
+          got: {type: [object, 'null'], description: 'json(returns:works-factory-head-depth): 受けた block の出力の、names の欄を選んだ物（受け手が ports.picked で名を選ぶ）。飛ばされた block は null'}
           why: {type: string}
     depends_on: [head-depth-run]
     with:
@@ -75,6 +72,7 @@ nodes:
       lang: "$INPUTS.lang"
   - id: spec-out
     <<: *receiver
+    output_format: {<<: *received, properties: {got: {type: [object, 'null'], description: 'json(returns:works-factory-spec): 出力の names の欄。飛ばされた block は null'}, why: {type: string}}}
     depends_on: [spec]
     with:
       got: "$spec.output"
@@ -119,6 +117,7 @@ nodes:
       lang: "$INPUTS.lang"
   - id: parallel-pr-out
     <<: *receiver
+    output_format: {<<: *received, properties: {got: {type: [object, 'null'], description: 'json(returns:works-factory-parallel-pr): 出力の names の欄。飛ばされた block は null'}, why: {type: string}}}
     depends_on: [parallel-pr]
     with:
       got: "$parallel-pr.output"
@@ -133,6 +132,7 @@ nodes:
       lang: "$INPUTS.lang"
   - id: premises-run-out
     <<: *receiver
+    output_format: {<<: *received, properties: {got: {type: [object, 'null'], description: 'json(returns:works-factory-premises): 出力の names の欄。飛ばされた block は null'}, why: {type: string}}}
     depends_on: [premises-run]
     with:
       got: "$premises-run.output"
@@ -148,6 +148,7 @@ nodes:
       lang: "$INPUTS.lang"
   - id: purpose-run-out
     <<: *receiver
+    output_format: {<<: *received, properties: {got: {type: [object, 'null'], description: 'json(returns:works-factory-purpose): 出力の names の欄。飛ばされた block は null'}, why: {type: string}}}
     depends_on: [purpose-run]
     with:
       got: "$purpose-run.output"
@@ -164,6 +165,7 @@ nodes:
       lang: "$INPUTS.lang"
   - id: world-out
     <<: *receiver
+    output_format: {<<: *received, properties: {got: {type: [object, 'null'], description: 'json(returns:works-factory-world): 出力の names の欄。飛ばされた block は null'}, why: {type: string}}}
     depends_on: [world]
     with:
       got: "$world.output"
@@ -181,6 +183,7 @@ nodes:
       lang: "$INPUTS.lang"
   - id: prior-decisions-run-out
     <<: *receiver
+    output_format: {<<: *received, properties: {got: {type: [object, 'null'], description: 'json(returns:works-factory-prior-decisions): 出力の names の欄。飛ばされた block は null'}, why: {type: string}}}
     depends_on: [prior-decisions-run]
     with:
       got: "$prior-decisions-run.output"
@@ -197,6 +200,7 @@ nodes:
       lang: "$INPUTS.lang"
   - id: purpose-review-run-out
     <<: *receiver
+    output_format: {<<: *received, properties: {got: {type: [object, 'null'], description: 'json(returns:works-factory-purpose-review): 出力の names の欄。飛ばされた block は null'}, why: {type: string}}}
     depends_on: [purpose-review-run]
     with:
       got: "$purpose-review-run.output"
@@ -212,6 +216,7 @@ nodes:
       lang: "$INPUTS.lang"
   - id: local-review-run-out
     <<: *receiver
+    output_format: {<<: *received, properties: {got: {type: [object, 'null'], description: 'json(returns:works-factory-local-review): 出力の names の欄。飛ばされた block は null'}, why: {type: string}}}
     depends_on: [local-review-run]
     with:
       got: "$local-review-run.output"
@@ -227,6 +232,7 @@ nodes:
       lang: "$INPUTS.lang"
   - id: consistency-bypass-run-out
     <<: *receiver
+    output_format: {<<: *received, properties: {got: {type: [object, 'null'], description: 'json(returns:works-factory-consistency-bypass): 出力の names の欄。飛ばされた block は null'}, why: {type: string}}}
     depends_on: [consistency-bypass-run]
     with:
       got: "$consistency-bypass-run.output"
@@ -242,6 +248,7 @@ nodes:
       lang: "$INPUTS.lang"
   - id: hygiene-run-out
     <<: *receiver
+    output_format: {<<: *received, properties: {got: {type: [object, 'null'], description: 'json(returns:works-factory-hygiene): 出力の names の欄。飛ばされた block は null'}, why: {type: string}}}
     depends_on: [hygiene-run]
     with:
       got: "$hygiene-run.output"
@@ -258,6 +265,7 @@ nodes:
       lang: "$INPUTS.lang"
   - id: external-standards-run-out
     <<: *receiver
+    output_format: {<<: *received, properties: {got: {type: [object, 'null'], description: 'json(returns:works-factory-external-standards): 出力の names の欄。飛ばされた block は null'}, why: {type: string}}}
     depends_on: [external-standards-run]
     with:
       got: "$external-standards-run.output"
@@ -273,6 +281,7 @@ nodes:
       lang: "$INPUTS.lang"
   - id: procedure-trace-run-out
     <<: *receiver
+    output_format: {<<: *received, properties: {got: {type: [object, 'null'], description: 'json(returns:works-factory-procedure-trace): 出力の names の欄。飛ばされた block は null'}, why: {type: string}}}
     depends_on: [procedure-trace-run]
     with:
       got: "$procedure-trace-run.output"
@@ -288,6 +297,7 @@ nodes:
       lang: "$INPUTS.lang"
   - id: test-double-fidelity-run-out
     <<: *receiver
+    output_format: {<<: *received, properties: {got: {type: [object, 'null'], description: 'json(returns:works-factory-test-double-fidelity): 出力の names の欄。飛ばされた block は null'}, why: {type: string}}}
     depends_on: [test-double-fidelity-run]
     with:
       got: "$test-double-fidelity-run.output"
@@ -303,6 +313,7 @@ nodes:
       lang: "$INPUTS.lang"
   - id: main-path-observation-run-out
     <<: *receiver
+    output_format: {<<: *received, properties: {got: {type: [object, 'null'], description: 'json(returns:works-factory-main-path-observation): 出力の names の欄。飛ばされた block は null'}, why: {type: string}}}
     depends_on: [main-path-observation-run]
     with:
       got: "$main-path-observation-run.output"
@@ -318,6 +329,7 @@ nodes:
       lang: "$INPUTS.lang"
   - id: provenance-run-out
     <<: *receiver
+    output_format: {<<: *received, properties: {got: {type: [object, 'null'], description: 'json(returns:works-factory-provenance): 出力の names の欄。飛ばされた block は null'}, why: {type: string}}}
     depends_on: [provenance-run]
     with:
       got: "$provenance-run.output"
@@ -408,6 +420,7 @@ nodes:
       lang: "$INPUTS.lang"
   - id: diagnose-run-out
     <<: *receiver
+    output_format: {<<: *received, properties: {got: {type: [object, 'null'], description: 'json(returns:works-factory-diagnose): 出力の names の欄。飛ばされた block は null'}, why: {type: string}}}
     depends_on: [diagnose-run]
     with:
       got: "$diagnose-run.output"
@@ -421,6 +434,7 @@ nodes:
       lang: "$INPUTS.lang"
   - id: verify-out
     <<: *receiver
+    output_format: {<<: *received, properties: {got: {type: [object, 'null'], description: 'json(returns:works-factory-verify): 出力の names の欄。飛ばされた block は null'}, why: {type: string}}}
     depends_on: [verify]
     with:
       got: "$verify.output"

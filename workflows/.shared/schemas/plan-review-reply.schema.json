@@ -1,5 +1,5 @@
 {
-  "description": "事前審査の返答（review.json。書き手は事前審査の block の受け付け）{reason, faces: [穴], shrink: [別案], faces_none?, resolved?, stuck_recommend?, design_map?, origins?}。穴の行の型の住処は事前審査の役の output_format（受け付けが照らす）で、ここは読み手（修正の段・差分の審査・line）が読む欄の型だけを書く",
+  "description": "事前審査の返答（review.json。書き手は事前審査の block の受け付け）{reason, faces: [穴], shrink: [別案], faces_none?, resolved?, stuck_recommend?}。対応表 design_map と出自の申告 origins は受け付けが外して往復の控え（pass.json）に置き、review.json には書かない。穴の行の型の住処は事前審査の役の output_format（受け付けが照らす）で、ここは読み手（修正の段・差分の審査・line）が読む欄の型だけを書く",
   "type": "object",
   "properties": {
     "reason": {"type": "string"},
@@ -39,8 +39,6 @@
     },
     "faces_none": {"type": "string"},
     "resolved": {"type": "array", "items": {"type": "string"}},
-    "stuck_recommend": {"type": "object", "properties": {"answer": {"type": "string"}, "note": {"type": "string"}, "why": {"type": "string"}}},
-    "design_map": {"type": "array", "items": {"type": ["object", "array", "string", "number", "boolean", "null"]}},
-    "origins": {"type": "array", "items": {"type": ["object", "array", "string", "number", "boolean", "null"]}}
+    "stuck_recommend": {"type": "object", "properties": {"answer": {"type": "string"}, "note": {"type": "string"}, "why": {"type": "string"}}}
   }
 }

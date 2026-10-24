@@ -12,7 +12,7 @@
           "names": {"type": "array", "items": {"type": "object", "properties": {
             "name": {"type": "string"}, "files": {"type": "integer"}, "common": {"type": "boolean"},
             "code": {"type": "array", "items": {"type": "string"}}, "tests": {"type": "array", "items": {"type": ["string", "null"]}}}}},
-          "uncovered": {"type": "array", "items": {"type": ["object", "array", "string", "number", "boolean", "null"]}}
+          "uncovered": {"type": "array", "items": {"type": "object", "properties": {"id": {"type": "string"}, "name": {"type": "string"}, "kind": {"type": "string"}, "at": {"type": "string"}}}}
         }
       }
     },

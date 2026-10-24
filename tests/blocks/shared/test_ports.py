@@ -108,18 +108,31 @@ class JsonCase(Base):
                 with self.assertRaisesRegex(ValueError, "中身を宣言しない"):
                     ports.json("{}", f"shared:{name}.schema.json")
 
-    def test_declared_any_is_not_open(self):
-        """閉じは照らしが読む語だけ: properties・空でない patternProperties・additionalProperties: false・items・enum・const。
-        6 つの型を全部書いた所は「何でも受ける」の明示"""
+    def test_declared_shape_is_not_open(self):
+        """閉じは照らしが読む語だけ: properties・空でない patternProperties・additionalProperties: false・items・enum・const"""
         closed = [{"type": "object", "properties": {"a": {"type": "string"}}},
                   {"type": "object", "patternProperties": {"^.+$": {"type": "integer"}}},
                   {"type": "object", "additionalProperties": False},
                   {"type": "array", "items": {"type": "string"}},
                   {"enum": ["a", "b"]}, {"const": 1},
-                  {"type": ["object", "array", "string", "number", "boolean", "null"]}]
+                  {"type": ["string", "integer", "boolean", "null"]}]
         for shape in closed:
             with self.subTest(shape):
                 self.assertEqual(ports.open_shapes(shape), [])
+
+    def test_every_type_is_open(self):
+        """type に JSON の 6 つの型を全部並べた所は「何でも受ける」で、中身を宣言しない（#861。持ち主の答え: 型は決まる）。
+        properties・items を添えても同じ"""
+        every = ["object", "array", "string", "number", "boolean", "null"]
+        for shape in ({"type": every},
+                      {"type": [*every, "integer"]},
+                      {"type": every, "properties": {"a": {"type": "string"}}, "items": {"type": "string"}},
+                      {"type": "object", "properties": {"x": {"type": every}}}):
+            with self.subTest(shape):
+                self.assertTrue(ports.open_shapes(shape))
+        self.shape("any.schema.json", {"type": every})
+        with self.assertRaisesRegex(ValueError, "中身を宣言しない"):
+            ports.json("1", "shared:any.schema.json")
 
     def test_named_sub_shape_is_checked(self):
         """description の json(<名>) は所が運ぶ値の形: 照らしは名の形に置き換えてから 1 度で当てる。pointer の所の名は先のファイルの形で、

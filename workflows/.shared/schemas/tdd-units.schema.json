@@ -2,7 +2,7 @@
  "type": "array",
  "items": {"type": "object", "properties": {
   "group_id": {"type": "string"}, "ran": {"type": "boolean"}, "reason": {"type": "string"}, "suite": {"type": "string"},
-  "reused": {"type": "object", "patternProperties": {"^.+$": {"type": ["object", "array", "string", "number", "boolean", "null"]}}},
-  "related": {"type": "object", "patternProperties": {"^.+$": {"type": ["object", "array", "string", "number", "boolean", "null"]}}},
+  "reused": {"type": "object", "description": "同じ run の控えから使い回した一式の結果の出どころ（fix の src/tdd.py の輪の頭。使い回していなければ {}）", "properties": {"suite": {"type": "string", "description": "出どころの句（lib/tree_run.py の reused_text）"}}},
+  "related": {"type": "object", "description": "輪の頭の元の結末を変更に関わる試験に絞った選び（fix の src/tdd.py の輪の頭の applied と lib/related.py の pick の返り。絞っていなければ {}）", "properties": {"applied": {"type": "boolean"}, "whole": {"type": "boolean", "description": "選べず一式を走らせた"}, "reasons": {"type": "array", "items": {"type": "string"}}, "files": {"type": "array", "items": {"type": "string"}}, "left": {"type": "array", "items": {"type": "string"}}, "far": {"type": "array", "items": {"type": "string"}}}},
   "units": {"type": "array", "items": {"type": "object", "properties": {"unit_key": {"type": "string"}}}},
   "suite_broken": {"type": "boolean"}, "runner_log": {"type": "string"}, "cmd_log": {"type": "string"}}}}

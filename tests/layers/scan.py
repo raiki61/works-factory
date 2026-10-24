@@ -1056,7 +1056,9 @@ class _Pack:
 
 def _shapes(root: Path) -> list[str]:
     """block と graph の受け渡しの形（#851）。どれも yes/no:
-    1. どの節の output_format にも中身を宣言しない所が無い（ports.open_shapes。形のファイルは test_block_shape の決まり 11）
+    1. どの節の output_format にも中身を宣言しない所が無い（ports.open_shapes。type に 6 つの型を全部並べた所も開き。形のファイルは
+       test_block_shape の決まり 11）。include の返りを受ける所は返りの形を returns:<workflow の名> で名指し、名指せるのはその workflow を
+       include する workflow の節の output_format だけ（形のファイル・入力の description には書かない。口は YAML を読まない）
     2. pointer の欄（ports.is_pointer_shape）は description に指す先の form（file・json(<名>)・jsonl(<名>)）を書く
     3. graph の配線の 1 本ごと（include・workflow の節の with:<鍵> の字が欄つきの参照 $<id>.output.<欄> か $INPUTS.<名> そのもの）に、
        書き手の宣言（その YAML の節の output_format の欄か、include した workflow の返す節の欄か、YAML の入力）と読み手の入力の form を
@@ -1071,17 +1073,29 @@ def _shapes(root: Path) -> list[str]:
        の類は form を呼びの外で選び、字の照らしを抜ける）"""
     pack, out = _Pack(root), []
     gate = pack.gate
+    returns_name = re.compile(r"\bjsonl?\(%s:" % gate.RETURNS_HEAD)
+    for path in sorted((root / "workflows").glob("**/schemas/*.json")):
+        if returns_name.search(path.read_text(encoding="utf-8")):
+            out.append(f"{_rel(root, path)}: 形のファイルが returns:<workflow の名> を名指す（口は YAML を読まないので、返りの名指しは"
+                       " include する workflow の節の output_format にだけ書く）")
     for workflow, (folder, path, doc) in pack.docs.items():
         rel = _rel(root, path)
+        out += [f"{rel}: 入力 {name} が returns:<workflow の名> を名指す（口は YAML を読まない）"
+                for name, spec in (doc.get("inputs") or {}).items()
+                if isinstance(spec, dict) and returns_name.search(str(spec.get("description") or ""))]
         nodes = _all_nodes(doc.get("nodes"))
         by_id = {n.get("id"): n for n in nodes}
         for node in nodes:
             shape = node.get("output_format")
             if shape is None:
                 continue
-            holes = gate.open_shapes(shape, folder, shared=pack.shared, lib=pack.lib)
+            holes = gate.open_shapes(shape, folder, shared=pack.shared, lib=pack.lib, returned=pack.returned)
+            included = {n.get("include") for n in nodes}
+            out += [f"{rel}: 節 {node.get('id')} の output_format の {at} が include していない {form[1].partition(':')[2]} の返りを名指す"
+                    for at, sub in _sub_shapes(shape) for form in [gate.form_of(sub.get("description"))]
+                    if form and form[1] and form[1].partition(":")[0] == gate.RETURNS_HEAD and form[1].partition(":")[2] not in included]
             out += [f"{rel}: 節 {node.get('id')} の output_format の {hole} が中身を宣言しない（object は properties か "
-                    "patternProperties、array は items、何でも受ける所は type に 6 つの型を全部書く）" for hole in holes]
+                    "patternProperties、array は items を書き、type に 6 つの型を全部並べない）" for hole in holes]
             for at, sub in _sub_shapes(shape):
                 form = gate.form_of(sub.get("description"))
                 if gate.is_pointer_shape(sub) and (form is None or form[0] not in ("file", *gate.JSON_FORMS)):

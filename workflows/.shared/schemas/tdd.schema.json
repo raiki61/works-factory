@@ -1,8 +1,11 @@
 {
-  "description": "修正の段ごとの TDD の記録（段ごとに、組ごとの記録 tdd-unit の配列か、読めない訳の字）。null は渡されていない",
-  "type": ["array", "null"],
+  "description": "修正の段ごとの TDD の記録（段ごとに、組ごとの記録 tdd-unit の配列。line の src/stages.py が fix の返りの tdd を段ごとに並べる）。null は渡されていない",
+  "type": [
+    "array",
+    "null"
+  ],
   "items": {
-    "type": ["array", "string"],
-    "items": {"type": ["object", "null"], "patternProperties": {"^.+$": {"type": ["object", "array", "string", "number", "boolean", "null"]}}}
+    "type": "array",
+    "description": "json(shared:tdd-units.schema.json): その段の組ごとの TDD の記録"
   }
 }

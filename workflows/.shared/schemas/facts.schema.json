@@ -361,58 +361,69 @@
       "properties": {
         "findings": {
           "type": "array",
+          "description": "次の run の依頼の findings の行（行の形の住処は lib/next-request.schema.json の findings）",
           "items": {
-            "type": [
-              "object",
-              "array",
-              "string",
-              "number",
-              "boolean",
-              "null"
-            ]
+            "type": "object",
+            "properties": {
+              "where": {
+                "type": "string"
+              },
+              "text": {
+                "type": "string"
+              }
+            }
           }
         },
         "prior": {
           "type": "array",
+          "description": "この run で最後まで通らなかった物の行（行の形の住処は lib/prior-failures.schema.json。名指すと入口で落ちるので名指さず、report の後に lib/carry.py が照らす）",
           "items": {
-            "type": [
-              "object",
-              "array",
-              "string",
-              "number",
-              "boolean",
-              "null"
-            ]
+            "type": "object",
+            "properties": {
+              "where": {
+                "type": "string"
+              },
+              "text": {
+                "type": "string"
+              }
+            }
           }
         },
         "drafts": {
           "type": "array",
+          "description": "次の run の依頼の answers の下書きの行（行の形の住処は lib/next-request.schema.json の answers）",
           "items": {
-            "type": [
-              "object",
-              "array",
-              "string",
-              "number",
-              "boolean",
-              "null"
-            ]
+            "type": "object",
+            "properties": {
+              "question": {
+                "type": "string"
+              },
+              "text": {
+                "type": "string"
+              }
+            }
           }
         },
         "constraints": {
           "type": "array",
+          "description": "次の run の制約に足す実測の行（行の形の住処は lib/next-request.schema.json の constraints。report が text を読む）",
           "items": {
-            "type": [
-              "object",
-              "array",
-              "string",
-              "number",
-              "boolean",
-              "null"
-            ]
+            "type": "object",
+            "properties": {
+              "text": {
+                "type": "string"
+              },
+              "measured_how": {
+                "type": "string"
+              },
+              "kind": {
+                "type": "string"
+              }
+            }
           }
         }
       },
-      "description": "次の run に運ぶ行。report は中身を読まずに lib/carry.py の compose へ渡し、行の形は carry が住処の形（lib の next-request・prior-failures の形）で照らすので、ここは行の欄の名を写さず何でも受ける"
+      "description": "次の run に運ぶ行（書き手は line の src/facts.py の build。report の src/machine.py が lib/carry.py の compose へ渡し、compose の後の依頼の下書きを carry が lib/next-request.schema.json で、prior を lib/prior-failures.schema.json で照らす）。行の形の住処は lib/next-request.schema.json の findings・answers・constraints の items と lib/prior-failures.schema.json で、ここは report が読む欄だけを書く"
     },
     "stop_lines": {
       "type": "object",

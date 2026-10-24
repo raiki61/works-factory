@@ -221,14 +221,15 @@ class MaterialCase(_RepoCase):
         self.assertIn("Scalars: now 足した行 1・消した行 1・文書の足した行 0・変わったファイル 1 本・x_endpoints 2 / no previous round", text)
         self.assertIn("Frozen purpose: (not given)", text)
 
-    def test_malformed_x_scalars_are_named_not_refused(self):
-        """今の E17 の寛い読み: object でない値・形の外の欄は入口を止めず、規模の数値の文の「測れなかった」に名指す"""
-        self.assertTrue(self.intake(x_scalars="[1]")["due"])
-        self.assertIn("修正役の x_scalars が object でない", self.minimality())
-        self.assertTrue(self.intake(x_scalars=dump({"endpoints": 2, "x_ok": 1}))["due"])
-        text = self.minimality()
-        self.assertIn("x_ok 1", text)
-        self.assertIn("修正役の x_scalars の形でない欄: endpoints", text)
+    def test_malformed_x_scalars_are_refused_at_the_port(self):
+        """規模の数値の形は名 x_<小文字> と数の値を宣言する（#861。持ち主の答え「型は決まるでしょ」）。object でない値・形の外の欄・
+        数でない値は入口 ports.json が落とし、R1 の目は回らない（due: false と訳）"""
+        for raw in ("[1]", dump({"endpoints": 2, "x_ok": 1}), dump({"x_ok": "2"})):
+            with self.subTest(raw):
+                got = self.intake(x_scalars=raw)
+                self.assertFalse(got["due"])
+                self.assertIn("入力 x_scalars", got["reason"])
+        self.assertTrue(self.intake(x_scalars=dump({"x_ok": 1}))["due"])
 
     def test_missing_units_and_fixes_say_so(self):
         self.intake()

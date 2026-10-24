@@ -26,7 +26,7 @@
             }
           }
         },
-        "new_names": {"type": "array", "items": {"type": ["object", "array", "string", "number", "boolean", "null"]}},
+        "new_names": {"type": "array", "description": "差分が足した新しい名の行（structure の src/stage_b.py の summarize）", "items": {"type": "object", "properties": {"name": {"type": "string"}, "sites": {"type": "integer", "description": "名が現れる所の数"}}}},
         "dup_blocks_added": {"type": "integer"},
         "timing": {"type": "object", "patternProperties": {"^.+$": {"type": ["number", "string", "boolean", "null"]}}}
       }

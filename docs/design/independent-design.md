@@ -88,7 +88,7 @@ script の node はどれも `runtime: uv`・`mutates_checkout: false`。YAML �
 - `workflows/independent-design/src/premises.py`: 人が決めた前提の材料を、見出しと頼みの文を除いた形で返す（2.3 の 3）。`lib/design.py` の `human_answers`・`named_sections`・`repo_map` を呼び、返りの本文から頭（見出しと頼みの 2 段落）を外した物を材料にする。lib は頭の字を持たなくなった（#764 で `design.HUMAN_HEAD` などを消し、見出しと頼みの文は md `design-premises.md` が持つ）ので、頭の形（# が 3 つの見出しで始まる）の本文が来た時だけ 3 つ目の段落から後ろを取り、頭が無い本文はそのまま使う。控え `{given, withheld, seen}` は `PREMISE_KINDS` の外の種類を `rolekit.BoardGap` で落として、この module の `material` が組む。頭だけで材料が無い本文は `ValueError`（黙って頭を貼り直さない）。
 - `workflows/independent-design/src/report.py`: 報告の行（10 節）。
 - 目的の監査の返答の形は共通の `workflows/.shared/schemas/purpose-review.schema.json`（judge が写し、この block が読む。findings の行は {text, cite, hits}。ほかの欄は許す）。
-- `workflows/independent-design/schemas/answers.schema.json`: `{decision, text}` の object かその配列（`anyOf` は照らしの語に無いので、型の並び `[object, array, null]` と properties・items で書く。行は何でも受ける。11 節の 11）。`{decision, text}` かその配列かの選びは `src/steps.py` の `answer_rows` が読む。
+- `workflows/independent-design/schemas/answers.schema.json`: `{decision, text}` の object かその配列（形の検査が知る語〔`KNOWN_KEYWORDS`〕に `anyOf` が無いので、型の並び `[object, array, null]` と properties・items で書く。null は答えが無い時。配列の行も `{decision, text}` の字の object。11 節の 11）。`{decision, text}` かその配列かの選びは `src/steps.py` の `answer_rows` が読む。
 - `constraints` の形はこの block に置かず、共通の `workflows/.shared/schemas/constraints.schema.json`（`json(shared:constraints.schema.json)`。11 節の 10）を使う。
 - `workflows/independent-design/fixtures/standalone.stubs.yaml`・`unusable.stubs.yaml`・`gave-up.stubs.yaml`（12 節）。
 - `tests/blocks/independent_design/__init__.py`・`test_independent_design.py`・`values.py`（12 節）。

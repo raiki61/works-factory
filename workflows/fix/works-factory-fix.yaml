@@ -1339,8 +1339,8 @@ nodes:
             security_surface_changed: {type: boolean}
             path_changed: {type: boolean}
             premise_drift_note: {type: string}
-        # 修正役が足した規模の数値（x_ で始まる名 → 数。数でない値もそのまま運び、独立の目が名指して落とす）
-        x_scalars: {type: object, patternProperties: {'^.+$': {type: [object, array, string, number, boolean, 'null']}}}
+        # 修正役が足した規模の数値（x_ で始まる名 → 数。修正役の output_format の x_scalars が数だけを許し、src/board.py の x_scalars が名ごとに足す）
+        x_scalars: {type: object, description: 'json(shared:scalars.schema.json): 修正役が足した規模の数値の欄の組ごとの和'}
         # 最後の承認ノードを開ける理由の 2 欄（修正役が人に回した物・申告と数え直しが合わない単位）
         handoffs: {type: array, items: {type: string}}
         # handoffs の行 → 修正役が添えた短い題（無い行は入れない。報告の頭が使う）

@@ -67,15 +67,12 @@ nodes:
       script: returned
       runtime: uv
       mutates_checkout: false
-      output_format:
+      output_format: &received
         type: object
         additionalProperties: false
         required: [got, why]
         properties:
-          got:
-            type: [object, 'null']
-            description: '受けた block の返す値まるごと（受け手が ports.picked で名を選ぶ）。飛ばされた block は null'
-            patternProperties: {'^.+$': {type: [object, array, string, number, boolean, 'null']}}
+          got: {type: [object, 'null'], description: 'json(returns:works-factory-structure): 受けた block の出力の、names の欄を選んだ物（受け手が ports.picked で名を選ぶ）。飛ばされた block は null'}
           why: {type: string}
     depends_on: [structure-after]
     with:
@@ -123,6 +120,7 @@ nodes:
       lang: "$INPUTS.lang"
   - id: r1-out
     <<: *receiver
+    output_format: {<<: *received, properties: {got: {type: [object, 'null'], description: 'json(returns:works-factory-r1): 出力の names の欄。飛ばされた block は null'}, why: {type: string}}}
     depends_on: [r1]
     with:
       got: "$r1.output"
@@ -149,6 +147,7 @@ nodes:
       lang: "$INPUTS.lang"
   - id: r2-out
     <<: *receiver
+    output_format: {<<: *received, properties: {got: {type: [object, 'null'], description: 'json(returns:works-factory-r2): 出力の names の欄。飛ばされた block は null'}, why: {type: string}}}
     depends_on: [r2]
     with:
       got: "$r2.output"
@@ -170,6 +169,7 @@ nodes:
       lang: "$INPUTS.lang"
   - id: r3-out
     <<: *receiver
+    output_format: {<<: *received, properties: {got: {type: [object, 'null'], description: 'json(returns:works-factory-r3): 出力の names の欄。飛ばされた block は null'}, why: {type: string}}}
     depends_on: [r3]
     with:
       got: "$r3.output"
@@ -200,6 +200,7 @@ nodes:
       lang: "$INPUTS.lang"
   - id: r4-out
     <<: *receiver
+    output_format: {<<: *received, properties: {got: {type: [object, 'null'], description: 'json(returns:works-factory-r4): 出力の names の欄。飛ばされた block は null'}, why: {type: string}}}
     depends_on: [r4]
     with:
       got: "$r4.output"

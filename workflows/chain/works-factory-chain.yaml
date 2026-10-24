@@ -171,7 +171,7 @@ nodes:
           keys: { type: array, items: { type: string } }
           # 運ばなかった下書きの行（依頼の行か答えの行。下書きの印 draft・source を持つ）
           held_rows: { type: array, items: { type: object, properties: { where: { type: string }, text: { type: string },
-                                                                        draft: { type: [object, array, string, number, boolean, "null"] },
+                                                                        draft: { type: boolean, const: true },
                                                                         source: { type: string } } } }
           request: { type: string }
           source: { type: string }
@@ -457,7 +457,8 @@ nodes:
           properties:
             act: { type: string }
             pr: { type: [object, "null"], properties: { number: { type: integer }, url: { type: string }, is_draft: { type: boolean } } }
-            commits: { type: [object, array, string, number, boolean, "null"] }
+            # merge の返りの deliver の commits（PR に積んだ項目ごとの commit。hand の返りが無い時の訳の行には無い）
+            commits: { type: array, items: { type: object, properties: { item: { type: integer }, subject: { type: string }, head: { type: string } } } }
             split: { type: string }
             reason: { type: string }
       required: [closed, ok, reason, act, word, text, request, rounds, apply, sealed, report, outcome, r2_status, spec_questions,

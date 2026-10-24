@@ -563,7 +563,7 @@ nodes:
             type: object
             required: [at, reason]
             properties:
-              at: {type: [object, array, string, number, boolean, 'null']}
+              at: {type: [string, 'null'], description: '拒んだ時刻（ISO 8601。前の版の控えから読み替えた行は null。rolekit.reject_rows）'}
               reason: {type: string}
               kind: {type: string}
         gave_up:

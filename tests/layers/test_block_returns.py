@@ -492,6 +492,40 @@ class ShapesTest(unittest.TestCase):
                 self.assertIn("JSON を入れた string", got[0])
         self.assertEqual(self.wired("units: {type: string}", "text"), [], "字の欄を text で受けるのは赤にしない")
 
+    def test_every_type_in_an_output_format_is_red(self):
+        """type に 6 つの型を全部並べた所は「何でも受ける」で、中身を宣言しない（#861）"""
+        got = self.wired("units: {type: array, items: {type: [object, array, string, number, boolean, 'null']}}", "text")
+        self.assertTrue(any("$.properties.units.items(6 つの型を全部並べた)" in line for line in got), got)
+
+    def receiving(self, description: str, include: str = "works-factory-judge") -> list[str]:
+        line = (LINE_TOP + f"  - id: judge\n    include: {include}\n  - id: judge-out\n    script: returned\n"
+                "    output_format:\n      type: object\n"
+                "      required: [got]\n      properties:\n"
+                f"        got: {{type: [object, 'null'], description: '{description}'}}\n")
+        return self.problems({BLOCK: judge_returning("units: {type: array, items: {type: string}}"), LINE: line,
+                              "workflows/other/works-factory-other.yaml": judge_returning("x: {type: string}").replace("judge", "other")})
+
+    def test_receiver_names_the_return_of_what_it_includes(self):
+        """include の返りの受け皿は、返りの形を returns:<workflow の名> で名指す（返りの形は返す節の output_format の 1 か所で、
+        ファイルに出すと写しが 2 つになる）。名指す先の開きは名指した所の開き"""
+        self.assertEqual(self.receiving("json(returns:works-factory-judge): 選んだ欄"), [])
+        line = (LINE_TOP + "  - id: judge\n    include: works-factory-judge\n  - id: judge-out\n    script: returned\n"
+                "    output_format: {type: object, required: [got], properties: {got: {type: object, description: "
+                "'json(returns:works-factory-judge): 選んだ欄'}}}\n")
+        got = self.problems({BLOCK: judge_returning("units: {type: array}"), LINE: line})
+        self.assertTrue(any("judge-out" in g and "(returns:works-factory-judge).properties.units" in g for g in got), got)
+
+    def test_returns_name_only_where_the_workflow_is_included(self):
+        """returns:<名> は、その workflow を include する workflow の節の output_format にだけ書ける（block はほかの block を
+        名指さない。形のファイルと入力は実行の時に口が読むが、口は YAML を読まない）"""
+        got = self.receiving("json(returns:works-factory-other): 選んだ欄")
+        self.assertTrue(any("include していない works-factory-other" in g for g in got), got)
+        files = {BLOCK: judge_returning("units: {type: array, items: {type: string}}"), LINE: LINE_TOP,
+                 "workflows/.shared/schemas/a.schema.json":
+                     '{"type": "object", "properties": {"x": {"type": "object", "description": "json(returns:works-factory-judge): x"}}}'}
+        got = self.problems(files)
+        self.assertTrue(any("a.schema.json" in g and "returns:" in g for g in got), got)
+
     def test_pointer_field_without_a_form_is_red(self):
         got = self.wired("units: " + POINTER % "置き場のファイル", "file")
         self.assertEqual(len(got), 1, got)

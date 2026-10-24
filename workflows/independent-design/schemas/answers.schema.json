@@ -1,6 +1,6 @@
 {
-  "description": "人が承認ノードで返した答え {decision, text} か、その配列。null と空の配列は答えが無い。decision を持たない行は src/steps.py の answer_rows が無い物として読むので、行は何でも受ける",
+  "description": "人が承認ノードで返した答え {decision, text}（decision と text は承認の画面で返した字）か、その配列。null と空の配列は答えが無い。decision を持たない行は src/steps.py の answer_rows が無い物として読む",
   "type": ["object", "array", "null"],
   "properties": {"decision": {"type": "string"}, "text": {"type": "string"}},
-  "items": {"type": ["object", "array", "string", "number", "boolean", "null"], "properties": {"decision": {"type": "string"}, "text": {"type": "string"}}}
+  "items": {"type": "object", "properties": {"decision": {"type": "string"}, "text": {"type": "string"}}}
 }
