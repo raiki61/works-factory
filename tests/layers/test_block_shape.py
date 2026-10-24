@@ -89,12 +89,8 @@ def load(folder: pathlib.Path) -> dict:
 
 
 def nodes(doc: dict) -> list[dict]:
-    """workflow の node の全部（loop_group の本体も）"""
-    out = []
-    for node in doc.get("nodes") or []:
-        out.append(node)
-        out += (node.get("loop_group") or {}).get("nodes") or []
-    return out
+    """workflow の node の全部（どの深さの loop_group の本体も。fix の相談の答えの役は修正の輪の中の輪に在る）"""
+    return all_nodes(doc.get("nodes"))
 
 
 def all_nodes(listed) -> list[dict]:
@@ -700,6 +696,16 @@ class SeedCase(unittest.TestCase):
         got = self.broken(check_prompt_files, {"demo/prompts/parts/my_brief.md": "x\n",
                                                "demo/src/x.py": "prompt.render_part('my_brief', {})\n"})
         self.assertTrue(any("{part:my_brief} で差し込まれない" in line for line in got), got)
+
+    def test_role_in_a_nested_loop_owns_its_prompt(self):
+        """入れ子の輪（loop_group の本体の loop_group）の中の AI の node も、自分の prompts/<id>.md を持つ役に数える"""
+        demo = yaml.safe_load(self.GOOD["demo/works-factory-demo.yaml"])
+        deep = {"id": "outer", "loop_group": {"nodes": [{"id": "inner", "loop_group": {"nodes": [
+            {"id": "deep-role", "prompt": "$prep.output.prompt"}]}}]}}
+        doc = yaml.safe_dump({**demo, "nodes": [*demo["nodes"], deep]})
+        self.assertEqual(self.broken(check_prompt_files, {"demo/works-factory-demo.yaml": doc, "demo/prompts/deep-role.md": "x\n"}), [])
+        got = self.broken(check_prompt_files, {"demo/works-factory-demo.yaml": doc})
+        self.assertTrue(any("prompts/deep-role.md が無い" in line for line in got), got)
 
     def test_self_workflow_is_allowed_in_a_block(self):
         """block が起こしてよい workflow は自分（直しの組ごとに自分を子の run として起こす形）"""
