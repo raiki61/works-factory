@@ -315,8 +315,9 @@ class NotesCase(TalkBase):
                           {"blocks": ["a1"], "faces": [face("a1")]},
                           {"blocks": ["person-1"], "faces": [face("person-1")]}]}
         got = t.review_events(doc, [])
-        self.assertEqual([e["key"] for e in got], ["a1", "b1"],
-                         "端の e1・人の block・2 往復前の a1 の挙げ直し・2 往復前の人の block を審査役が挙げ直した物は並ばない")
+        relapse = ["a1", "person-1"] if t.REVIVED_CANCELS else []   # ぶり返しを並べるかは REVIVED_CANCELS の 1 か所で替わる
+        self.assertEqual([e["key"] for e in got], ["a1", "b1", *relapse],
+                         "端の e1・人の block・2 往復前の a1 の挙げ直し・2 往復前の人の block を審査役が挙げ直した物は並ばない（ぶり返しを並べない時）")
         self.assertEqual(t.review_events(doc, got), [], "並んだ block は 2 度並ばない")
 
     def passes_out(self, blocks: list, **over) -> dict:
@@ -344,7 +345,9 @@ class NotesCase(TalkBase):
         consults = {"計画ができなかった", "上限で計画ができなかった", "直す義務が無い"}
         inboxes = {"無し": (), "中央": ("b.py も直す",), "端": ("端: 名前を揃える",), "承認": ("承認: 進めて",),
                    "中央と承認": ("b.py も直す", "承認: 進めて"), "端と承認": ("端: 名前を揃える", "承認: 進めて")}
-        befores = ("無し", "承認より前", "承認より後")   # 前の周（1 周目）の審査役の中央の block b1 と、受け箱の行の前後
+        # 前の周の審査役の中央の block と、受け箱の行の前後。審査の前: 2 周目の頭が読んだ後・2 周目の審査の前に行が入り、2 周目の審査が新しい
+        # 中央の block b2 を出す（行はその周の審査を見ずに書かれた物なので、b2 より前に並ぶ）
+        befores = ("無し", "承認より前", "承認より後", "審査の前")
         answers = (None, {"decision": "approve", "text": ""}, {"decision": "revise", "text": "c.py も"}, {"decision": "revise", "text": ""},
                    {"decision": "stop", "text": "やめる"})
         combos = [(k, n, w, a, d) for k in kinds for n in inboxes for w in befores for a in answers for d in ((), ("d.py も",))]
@@ -358,6 +361,13 @@ class NotesCase(TalkBase):
                     self.note(*lines)
                     turn = self.turn("", previous=one, last=first)
                     po = self.passes_out([["b1"], []], **over)
+                elif before == "審査の前":   # 1 周目 b0 → 2 周目の頭の後に受け箱 → 2 周目の審査が b2 → 3 周目で b2 が消える
+                    one = self.settle(first, self.passes_out([["b0"]], done=False, ok=False))
+                    turn = self.turn("", previous=one, last=first)
+                    self.note(*lines)
+                    two = self.settle(turn, self.passes_out([["b0"], ["b2"]], done=False, ok=False))
+                    turn = self.turn("", previous=two, last=turn)
+                    po = self.passes_out([["b0"], ["b2"], []], **over)
                 elif before == "承認より後":   # 受け箱 → 1 周目の審査が b1 を出して次の周へ → 2 周目で b1 が消える
                     self.note(*lines)
                     turn = self.turn()
@@ -401,11 +411,11 @@ class NotesCase(TalkBase):
                     reached.append(got["agreed"]["text"])
                 skipped = bool(got["agreed"] and got["agreed"].get("by") == "notes")
                 order = list(lines)   # 承認の行より後に中央の行が無いか（受け箱の行の順）
-                alive = ("承認: 進めて" in order and before != "承認より後"
+                alive = ("承認: 進めて" in order and before not in ("承認より後", "審査の前")
                          and all(order.index(ln) < order.index("承認: 進めて") for ln in order if ln == "b.py も直す"))
                 if skipped:   # 2: 承認で飛ぶのは、生きた承認が在り、相談の結果の周でない時だけ
                     self.assertTrue(alive and kind not in consults, got)
-                if name == "承認" and before != "承認より後":   # 2: 承認だけなら（前の周の block が承認より前でも）相談の結果の周を除いて飛ぶ
+                if name == "承認" and before not in ("承認より後", "審査の前"):   # 2: 承認だけなら（前の周の block が承認より前でも）相談の結果の周を除いて飛ぶ
                     self.assertEqual(skipped, kind not in consults, (kind, before))
                 if got["open"] and said is None:
                     continue   # 答えの無い関所は待つ
@@ -416,16 +426,18 @@ class NotesCase(TalkBase):
 
     def test_the_relapse_rule_is_one_switch(self):
         """承認の後に、前の往復で消えた審査役の中央の block がぶり返した時に承認を取り消すかは、REVIVED_CANCELS の 1 か所で決まる（持ち主の
-        答え待ち。今は取り消さない）"""
+        答え待ち。今は取り消さない）。旗をどちらにしても、この試験と並びの試験は旗に合わせて通る（ほかを書き直さずに替わり切る）"""
         t = self.t
         face = lambda key: {"key": key, "kind": "x"}
         doc = {"passes": [{"blocks": ["b1"], "faces": [face("b1")]}, {"blocks": [], "faces": []}, {"blocks": ["b1"], "faces": [face("b1")]}]}
-        self.assertFalse(t.REVIVED_CANCELS)
-        self.assertEqual([e["pass"] for e in t.review_events(doc, [])], [0], "ぶり返しは並ばない（今の作り）")
         original = t.REVIVED_CANCELS
         try:
-            t.REVIVED_CANCELS = True
-            self.assertEqual([e["pass"] for e in t.review_events(doc, [])], [0, 2], "替えれば、ぶり返しが新しい中央の出来事として並ぶ")
+            for flag, want in ((False, [0]), (True, [0, 2])):
+                t.REVIVED_CANCELS = flag
+                self.assertEqual([e["pass"] for e in t.review_events(doc, [])], want, flag)
+                said = t.approval([{"kind": t.APPROVE, "by": "notes", "line": "承認: 進めて"},
+                                   *[e for e in t.review_events(doc, []) if e["pass"] == 2]])
+                self.assertEqual(said is None, flag, "ぶり返しを並べる時だけ承認を取り消す")
         finally:
             t.REVIVED_CANCELS = original
 

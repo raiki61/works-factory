@@ -114,8 +114,9 @@ def turn(*, answer_raw, previous_raw, last_raw, given: dict, recorded, place: Pa
     taken = [str(t) for t in (last or {}).get("notes") or []]
     timeline = [e for e in ((prev or {}).get("timeline") or (last or {}).get("timeline") or []) if isinstance(e, dict)]
     new = read_new(place, taken) if dialogue(given) else []   # 受け箱の新しい行は、どの周でもここで全部読む（読まない道を作らない）
+    events = [event_of(line, n) for n, line in enumerate(new, len(taken))]
     taken += new
-    events = [event_of(line) for line in new]
+    placed = {e.get("n") for e in timeline if e.get("by") == "notes"}   # 前の周の終わりが、審査の前に並べ済みの行（2 度並べない）
     notes = [e for e in events if e["kind"] != APPROVE]   # 承認でない行（中央と端の指摘）
     got = ports.parsed(answer_raw)
     if got not in (None, "") and prev is not None:
@@ -129,7 +130,7 @@ def turn(*, answer_raw, previous_raw, last_raw, given: dict, recorded, place: Pa
         out["answer"] = entry
         out["plan"] = False
         jsonfile.write(place / files.TALK_ANSWERS, talks, parents=True)
-        timeline += events
+        timeline += [e for e in events if e["n"] not in placed]
         if said["decision"] == answer.REVISE:
             if not said["text"].strip() and not notes and _empties(talks[:-1]) >= EMPTY_LIMIT:
                 out.update(stop_reason=stopby.HUMAN + gates.TALK_GATE, reason=EMPTY_CAPPED.format(n=EMPTY_LIMIT + 1))
@@ -146,7 +147,7 @@ def turn(*, answer_raw, previous_raw, last_raw, given: dict, recorded, place: Pa
                     timeline.append({"kind": CENTRAL, "by": "revise", "line": said["text"]})
                 _put_notes(out, notes, asks=asks, place=place, record=record, plan_prior=plan_prior, round_=prev.get("round"))
     else:
-        timeline += events
+        timeline += [e for e in events if e["n"] not in placed]
         if out["plan"]:
             _put_notes(out, notes, asks=asks, place=place, record=record, plan_prior=plan_prior, round_=(prev or {}).get("round"))
     out["notes"] = taken
@@ -163,10 +164,11 @@ def _ask_name(a: dict) -> str:
 APPROVE, CENTRAL, EDGE = "approve", "central", "edge"   # 並び（timeline）の出来事の種類
 
 
-def event_of(line: str) -> dict:
-    """受け箱の 1 行を並びの出来事 {kind, by: notes, line} に（頭が APPROVE_HEADS なら承認、EDGE_HEAD なら端、ほかは中央）"""
+def event_of(line: str, n: int | None = None) -> dict:
+    """受け箱の 1 行を並びの出来事 {kind, by: notes, line, n} に（頭が APPROVE_HEADS なら承認、EDGE_HEAD なら端、ほかは中央。n は受け箱の
+    行の位置で、同じ行を並びに 2 度足さないための印）"""
     kind = APPROVE if line.startswith(APPROVE_HEADS) else EDGE if line.startswith(EDGE_HEAD) else CENTRAL
-    return {"kind": kind, "by": "notes", "line": line}
+    return {"kind": kind, "by": "notes", "line": line, "n": n}
 
 
 def review_events(doc: dict, timeline: list) -> list:
@@ -280,18 +282,22 @@ def settle(*, turn_got: dict, plan_out: dict | None, previous: dict | None, give
         out = {**plan_out, **talk_fields(turn_got)}
         if not dialogue(given):
             return out
-        timeline = [*out["timeline"], *review_events(_record(plan_out), out["timeline"])]   # この周の審査役の block を、出た周に並べる
+        # 並べる順: まず、この周の計画が回っている間に受け箱へ入った行（この周の審査を見ずに書かれた物）、その後にこの周の審査役の block
+        start = len(turn_got.get("notes") or [])
+        fresh = [event_of(line, n) for n, line in enumerate(read_new(place, turn_got.get("notes") or []) if place is not None else [], start)]
+        placed = {e.get("n") for e in out["timeline"] if e.get("by") == "notes"}
+        timeline = [*out["timeline"], *(e for e in fresh if e["n"] not in placed)]
+        timeline += review_events(_record(plan_out), timeline)
         out["timeline"] = timeline
         if place is not None:
             out["shown"] = show_round(plan_out, place=place)
         if not plan_out.get("done"):
             return out
-        fresh = [event_of(line) for line in (read_new(place, turn_got.get("notes") or []) if place is not None else [])]
         held = [e for e in fresh if e["kind"] != APPROVE]   # まだ計画の役に回していない指摘
         if held and (plan_out.get("ok") or plan_out.get("stalled")) and not _capped(plan_out):
             return {**out, "done": False}   # 収まる周でも新しい人の指摘が在れば、次の周の頭が拾って計画の役に答えさせる
         consult = _consult_row(plan_out)
-        said = approval([*timeline, *fresh])
+        said = approval(timeline)
         # 承認は往復が収まった周にだけ当てる（相談の結果を見せる周と、回せない中央の指摘が在る周は関所を開く。黙って終わらない）
         if not consult and not any(e["kind"] == CENTRAL for e in fresh) and said is not None:
             if held:   # 承認で進む周に入った端の行は、承認の一言の後ろに付けて修正役に届ける（黙って落とさない）
