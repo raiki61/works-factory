@@ -1,6 +1,6 @@
 name: works-factory-judge
 inputs:
-  request: {default: '[]', description: 'json: 依頼の行'}
+  request: {default: '[]', description: 'json(request.schema.json): 依頼の行'}
   base: {default: '', description: 'text: 差分の根'}
   lang: {default: '', description: 'text: 人に見せる欄の言語'}
 returns: verdict

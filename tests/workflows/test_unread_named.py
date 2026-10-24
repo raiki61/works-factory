@@ -30,13 +30,14 @@ import yaml
 from tests.archon import ROOT, WORKFLOWS
 from tests.bin import hermetic
 from tests.bin.gitkit import committed_copy
+from tests.layers import scan
 
 SEED = ROOT / "tests" / "e2e" / "target-seed"
 RUN_ID = "run-unread"
 GONE = "gone/x9.json"
 BROKEN = json.dumps({"type": "archon_artifact", "run_id": RUN_ID, "path": GONE})
 SKIP = ("line",)   # 入力 request は起動の殻が渡すファイルのパス（pointer は来ない）
-POINTER_FORM = re.compile(r"(?:json\([^)]*\)|file)\s*:")
+POINTER_FORMS = ("json", "jsonl", "file")   # pointer かファイルのパスを受ける form（語の住処は workflows/.shared/ports.py の form_of）
 UNREAD = re.compile(r"読めな|読めず|読み損|無い|壊れ|unread|missing|not found|No such file")
 
 
@@ -64,7 +65,7 @@ def flat(nodes) -> list[dict]:
 
 def pointer_inputs(doc: dict) -> list[str]:
     return [name for name, spec in (doc.get("inputs") or {}).items()
-            if isinstance(spec, dict) and POINTER_FORM.match(spec.get("description") or "")]
+            if isinstance(spec, dict) and (scan.ports().form_of(spec.get("description")) or ("",))[0] in POINTER_FORMS]
 
 
 def readers(block: pathlib.Path, doc: dict, name: str) -> list[dict]:

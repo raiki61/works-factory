@@ -1065,7 +1065,8 @@ def _shapes(root: Path) -> list[str]:
        （prompt・when・until_bash・承認ノード）は port でないので結ばない。script の節の with: の読みは 4 が照らす
     4. block の scripts/・src/ の ports.json の形の名と ports.file・ports.pointer の form は字のままで、その block の宣言の form の組
        （入力の description・その YAML のどの節の output_format の pointer の欄・include した workflow の返す節の pointer の欄と、
-       それらが名指す形の中の pointer の欄）に在る。宣言の外の形で読み書きしない（持ち主の決め declared-io）"""
+       それらが名指す形の中の pointer の欄）に在る。宣言の外の形で読み書きしない（持ち主の決め declared-io）。pointer の札を手で
+       組まない（鍵 type が pointer の型の dict の字。中身を照らさずに指す道になる）"""
     pack, out = _Pack(root), []
     gate = pack.gate
     for workflow, (folder, path, doc) in pack.docs.items():
@@ -1173,6 +1174,18 @@ def _fits(have, want, at: str) -> list[str]:
 PORT_FORMS = {"json": 1, "file": 1, "pointer": 1}
 
 
+def _hand_pointer(node, kind: str) -> bool:
+    """dict の字の鍵 "type" の値が pointer の型の字か ports.POINTER_TYPE（pointer の札を手で組む所）"""
+    if not isinstance(node, ast.Dict):
+        return False
+    for key, value in zip(node.keys, node.values):
+        if _is_text(key) and key.value == "type" and (
+                isinstance(value, ast.Constant) and value.value == kind
+                or isinstance(value, ast.Attribute) and value.attr == "POINTER_TYPE"):
+            return True
+    return False
+
+
 def _port_reads(pack: "_Pack") -> list[str]:
     out = []
     gate = pack.gate
@@ -1200,6 +1213,8 @@ def _port_reads(pack: "_Pack") -> list[str]:
                     tree = ast.parse(py.read_text(encoding="utf-8"))
                 except (SyntaxError, UnicodeDecodeError, ValueError):
                     continue
+                out += [f"{_rel(pack.root, py)}:{n.lineno}: pointer の札を手で組む（ports.pointer(path, form) を通す。手の札は中身を照らさない）"
+                        for n in ast.walk(tree) if _hand_pointer(n, gate.POINTER_TYPE)]
                 for call in ast.walk(tree):
                     attr = next((a for a in PORT_FORMS if _port_call(call, a)), None)
                     if attr is None:
