@@ -250,7 +250,7 @@ Allowed efforts (weakest first): low, medium, high, max
 - `@wf-judge-materials`: 判定の素材集めと、読むだけで結論を返す判定の役 (default sonnet, medium)
 - `@wf-judge-spec`: 判定の仕様の役 (default opus, medium)
 - …（群 15 行）
-- `@wf-test-gate`: 試験の関門の CI の役 (default sonnet, medium)
+- `@wf-test-gate`: 試験の起動スクリプトの書き手（試験の関門の用意と、修正の段の書き直し） (default sonnet, medium)
 
 Whether a choice raises or lowers, it is only kept in the record. …
 

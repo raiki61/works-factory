@@ -313,6 +313,20 @@ class AskFinalCase(unittest.TestCase):
                 with self.subTest(over=over, mode=mode):
                     self.assertTrue(self.ask(final_got(self.f, **over), mode=mode)["open"])
 
+    def test_tests_fixed_along_the_way_are_their_own_must_reason_and_section(self):
+        """#836: 関わる試験で直す前から壊れていた物を修正役が直した行（許しの出どころ broken）は「ついでに直した試験」として、
+        書き換えを許したテストと分けて開ける理由（must）と節に出す"""
+        along = {"path": "tests/test_a.py", "permit": "broken-before-1", "source": "broken"}
+        got = final_got(self.f, allowed_tests=[along])
+        why = self.f.needs(got)
+        self.assertIn((f"{self.f.ALONG_HEAD}が在る（1 件。人の確かめが要る）", True), why)
+        self.assertFalse(any(self.f.ALLOWED_TESTS_HEAD in w for w, _ in why), why)
+        self.assertTrue(self.ask(got, mode="protected_only")["open"])
+        text = self.f.final_text(got, self.f.final_needs(got), RUN)
+        self.assertIn(f"## {self.f.ALONG_HEAD}（1 件。", text)
+        self.assertIn("- tests/test_a.py（許し broken-before-1）", text)
+        self.assertNotIn(f"## {self.f.ALLOWED_TESTS_HEAD}", text)
+
     def test_protected_only_ignores_other_reasons(self):
         self.assertFalse(self.ask(final_got(self.f, tests_ok=False), mode="protected_only")["open"])
         self.assertTrue(self.ask(final_got(self.f, tests_ok=False), mode="when_needed")["open"])

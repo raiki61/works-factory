@@ -10,9 +10,11 @@ TDD の輪の状態を置く（src/tdd.start）。今の group_start と同じ�
 - 軽量の単位（port skip_rerun）は緑の後に test_cmd を走らせない（tdd.start の unit_depths に {key: "軽量"} で渡す）
 - 走らせ方が決まらない対象（test_cmd が空で、対象の根に走らせる段の宣言が無い。related.applies）は、輪の頭の元の結末を関わる試験だけにする
   （tdd.start の narrow。持ち主の決め related-tests-only）
-返り {tdd, units, reason}。入力が読めない・前の組が止まっている・git が効かない・輪の頭が壊れた: 標準エラーに 1 行で 1"""
-import json
-import os
+- 実行器が工場の書いた物（values の suite_made）なら、輪の頭の元の結末の回で起動スクリプトの壊れを確かめる（tdd.start の suite_made。
+  docs/design/fix.md の 19 節）。壊れていれば取り置きから捨て（suitewrite.drop_runner）、返りの suite_broken を真にして、後ろの
+  suite-fix-prep・suite-fix・suite-fix-try が書き直させる。壊れていなければ、走らせて結末が取れた実行器を test_cmd の字で取り置く
+  （suitewrite.keep_runner。直す前には走らせないので、取り置くのはここ）
+返り {tdd, units, reason, suite_broken}。入力が読めない・前の組が止まっている・git が効かない・輪の頭が壊れた: 標準エラーに 1 行で 1"""
 import sys
 from pathlib import Path
 
@@ -23,11 +25,9 @@ import ports  # noqa: E402
 import groups  # noqa: E402
 import leftovers  # noqa: E402
 import oneline  # noqa: E402
-import related  # noqa: E402
-import tree_run  # noqa: E402
 import writelog  # noqa: E402
 
-from src import board, intake, runvals, tdd  # noqa: E402
+from src import board, intake, runvals, suitefix  # noqa: E402
 
 NO_UNITS = "組に単位が無い——TDD のループを回さない"
 HALTED = "前の組 {groups} の子の run が結果を書かずに止まっている——親を resume すればその子が続きから回る"
@@ -63,19 +63,16 @@ def main() -> dict:
     values = runvals.read(place)
     keys = [str(k) for k in group["unit_ids"]]
     suite = str(values["tdd_suite"] or "")
-    light = {k: tdd.LIGHT for k in values["skip_rerun"] if k in keys}   # 今の fixboard.unit_depths の形（省く単位だけ）
-    depths = json.dumps(light, ensure_ascii=False) if light else ""
     if not keys:
         out = {"go": False, "reason": NO_UNITS, "suite": suite, "state_file": "", "summary_file": ""}
     else:
-        reuse = tree_run.reuse_place(values["reuse_dir"], str(values["reuse_key"] or ""),
-                                     rerun=bool(os.environ.get(tree_run.RERUN_ENV)))
+        reuse = suitefix.reuse_of(values)
         ports.drop_runner_env(values["user_env_dir"])   # 対象のテストに Archon の変数を継がせない（place・repo・reuse は先に取った）
-        out = tdd.start(place, repo, suite, json.dumps(keys, ensure_ascii=False),
-                        test_cmd=str(values["test_cmd"] or ""), unit_depths=depths, owed=set(keys), reuse=reuse,
-                        narrow=related.applies(repo, str(values["test_cmd"] or "")), routes=str(values["routes"] or "auto"))
+        out = suitefix.begin(place, repo, values, keys, reuse)
+        suitefix.settle_kept(values, repo, out)
     board.write_json(place / board.TDD_START_FILE, out)
-    return {"tdd": bool(out["go"]), "units": len(keys), "reason": str(out.get("reason") or "")}
+    return {"tdd": bool(out["go"]), "units": len(keys), "reason": str(out.get("reason") or ""),
+            "suite_broken": out.get("suite_broken") is True}
 
 
 if __name__ == "__main__":

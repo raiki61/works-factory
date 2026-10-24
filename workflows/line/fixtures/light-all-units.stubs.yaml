@@ -375,6 +375,7 @@ fix-in:
   passes: []
   baseline: null
   suite: ''
+  suite_made: false
   judgment: null
   units:
   - id: u1

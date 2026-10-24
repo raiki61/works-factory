@@ -583,6 +583,23 @@ class ScopedStepsCase(RepoCase):
         self.assertIn(dc.TEST_CMD_STEP, str(cm.exception))
         self.assertNotIn("\n", str(cm.exception))
 
+    def test_plan_by_decides_the_word_without_running_and_stops_like_run_ci(self):
+        """直す前の試験の関門の口 plan_by は、何も走らせずに run_ci と同じ語を決め、範囲の宣言だけ・工場の段の名は同じ CiRefused で止める"""
+        with mock.patch.object(tree_run, "run", never), mock.patch.object(dc, "tree_runner", never):
+            self.assertEqual(dc.plan_by(self.repo, ""), dc.ROLE_NEEDED)
+            self.assertEqual(dc.plan_by(self.repo, " true "), dc.ROLE)
+            self.decl([{"name": "suite", "argv": [PY, "-c", "pass"]}])
+            self.assertEqual(dc.plan_by(self.repo, ""), dc.ENGINE)
+            self.decl([{"name": dc.TEST_CMD_STEP, "argv": [PY, "-c", "pass"]}])
+            with self.assertRaises(dc.CiRefused) as cm:
+                dc.plan_by(self.repo, "")
+            self.assertIn(dc.TEST_CMD_STEP, str(cm.exception))
+            (self.repo / dc.DECL_NAME).unlink()
+            self.scope(SCOPE)
+            with self.assertRaises(dc.CiRefused) as cm:
+                dc.plan_by(self.repo, "true")
+            self.assertIn(checkscope.SCOPE_DECL, str(cm.exception))
+
     def test_scope_naming_an_undeclared_step_stops_before_running(self):
         """元 test_scope_naming_an_undeclared_step_stops_before_running"""
         self.decl(SCOPED)

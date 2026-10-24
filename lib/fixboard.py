@@ -312,7 +312,7 @@ def round_number(place, name: str) -> tuple:
     return n, stopped and {**stopped, "reason_file": ""}
 
 
-ALLOWED_SOURCES = ("plan", "consult", "ruling")   # ALLOWED_TESTS_FILE の source の語: 承認済みの修正案・範囲の相談の合意・裁定
+ALLOWED_SOURCES = ("plan", "consult", "ruling", "broken")   # ALLOWED_TESTS_FILE の source の語: 承認済みの修正案・範囲の相談の合意・裁定・直す前から壊れていた関わる試験（#836）
 UNIT_STATUSES = (FIXED, GIVEN_UP, NOT_DONE) = ("fixed", "given_up", "not_done")
 UNIT_LEFT = (GIVEN_UP, NOT_DONE)   # 直し終えなかった単位の状態
 FIX_ACCEPT_BY = "fix-accept"                # 受け付けが単位を人に回した裁定の by（元 accept.py:140 の stopby の名）

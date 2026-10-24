@@ -39,6 +39,7 @@ if str(ROOT / "lib") not in sys.path:
 
 import baseline_red  # noqa: E402
 import declared_checks  # noqa: E402
+import gatemarks  # noqa: E402
 import green_cert  # noqa: E402
 import launchgroups  # noqa: E402
 import suitewrite  # noqa: E402
@@ -426,9 +427,9 @@ class RunScriptCase(ScriptCase):
         body = f"import os; os.makedirs('out', exist_ok=True); open('out/r.xml', 'w').write({report!r})"
         self.decl([{"name": "suite", "argv": [PY, "-c", body], "junit": "out/r.xml"}])
         before = green_cert.fingerprint(self.repo)
-        out = self.ok("run", "base")
+        out = self.ok("run", "final")
         self.assertFalse((self.repo / "out" / "r.xml").exists())
-        self.assertEqual((self.place("base") / "junit" / "1.xml").read_text(encoding="utf-8"), report)
+        self.assertEqual((self.place("final") / "junit" / "1.xml").read_text(encoding="utf-8"), report)
         self.assertEqual((out["fingerprint_before"], out["fingerprint_after"]), (before, before))
         self.assertEqual(green_cert.fingerprint(self.repo), before)
         self.assertEqual((out["by"], out["material"]["status"], out["junit_steps"]), ("engine", "clean", ["suite"]))
@@ -474,77 +475,36 @@ class RunScriptCase(ScriptCase):
         (self.repo / ".archon").mkdir()
         (self.repo / ".archon" / "x.yaml").write_text("x: 1\n", encoding="utf-8")
         self.write_start(base=self.head)
-        out = self.ok("run", "base")
+        out = self.ok("run", "final")
         self.assertEqual(out["skipped_steps"], [{"name": "far", "paths_ignore": ["works/"]}])
 
-    def test_base_reads_request_where_as_change(self):
-        """判定から入る run（request_scope が真）の base は、依頼の where が名指す追跡中のパスも変更に足す。where が全部 far の見ない所
-        なら base で far を回さない。final は where を足さない（変更の無い final は絞らない）"""
+    def test_final_does_not_read_request_where_as_change(self):
+        """最後のテストは依頼の where を範囲と照らす変更に足さない（変更の無い final は絞らない）。直す前は段を走らせないので照らさない
+        （持ち主の決め base-runs-nothing）"""
         (self.repo / "works").mkdir()
         (self.repo / "works" / "a.py").write_text("x\n", encoding="utf-8")
         self.scoped()
         request = self.tmp / "request.json"
         request.write_text(json.dumps({"findings": [{"where": "works/a.py:1", "text": "x"}]}), encoding="utf-8")
         self.write_start(request=str(request), request_scope="true")
-        self.assertEqual(self.ok("run", "base")["skipped_steps"], [{"name": "far", "paths_ignore": ["works/"]}])
         self.assertEqual(self.ok("run", "final")["skipped_steps"], [])
-        self.write_start(request=str(request), request_scope="false")
-        self.assertEqual(self.ok("run", "base")["skipped_steps"], [])
-
-    def test_request_scope_helper_adds_where_only_for_base(self):
-        scope = kit.load("test-gate", "scope")
-        rows = [{"where": "a.py:1", "text": "x"}, {"where": "b.py", "text": "y"}]
-        self.assertEqual(scope.request_wheres(rows, "base", True), ["a.py:1", "b.py"])
-        self.assertEqual(scope.request_wheres(rows, "final", True), [])
-        self.assertEqual(scope.request_wheres(rows, "base", False), [])
-        self.assertEqual(scope.request_wheres([], "base", True), [])
+        self.assertEqual(self.ok("run", "base")["runs"], [])
 
     def test_rerun_keeps_earlier_logs(self):
         """同じ run で同じ形を呼び直しても前の走りのログを上書きしない（空いた番号の置き場 logs/a<k>/）。前の回の素材・拒否・記録は
         intake が消す（今回の物として読まない）"""
         self.decl([{"name": "suite", "argv": [PY, "-c", "print('ran')"]}])
-        gate = self.place("base")
-        first = self.ok("run", "base")
+        gate = self.place("final")
+        first = self.ok("run", "final")
         for name in ("baseline.json", "evidence.md"):
             (gate / name).write_text("{}", encoding="utf-8")
-        self.intake("base")
-        second = self.ok("run", "base")
+        self.intake("final")
+        second = self.ok("run", "final")
         self.assertEqual((gate / "logs" / "a1" / "1.out").read_text(encoding="utf-8"), "ran\n")
         self.assertEqual((gate / "logs" / "a2" / "1.out").read_text(encoding="utf-8"), "ran\n")
         self.assertEqual((pathlib.Path(first["log"]).parent.name, pathlib.Path(second["log"]).parent.name), ("a1", "a2"))
         self.assertFalse((gate / "baseline.json").exists())
         self.assertFalse((gate / "evidence.md").exists())
-
-    def test_base_rerun_reuses_the_green_suite_and_final_does_not(self):
-        """同じ run（reuse_key）の base をもう 1 度呼べば、同じ木の緑の一式は控えから使って子を起こさない。final は引かず置かない
-        （最後のテストは省かない）"""
-        count = self.tmp / "count"
-        self.decl([{"name": "suite", "argv": [PY, "-c", f"open({str(count)!r}, 'a').write('1\\n')"]}])
-        self.write_start(reuse_key=RUN_ID)
-        launched = lambda: len(count.read_text(encoding="utf-8").split())   # noqa: E731
-        self.ok("run", "base")
-        self.intake("base")
-        again = self.ok("run", "base")
-        self.assertEqual(launched(), 1)
-        self.assertEqual(again["runs"][0]["reused"]["from"], RUN_ID)
-        self.assertEqual(schema_problems({"runs": again["runs"]}, {"required": ["runs"], "properties": {
-            "runs": node("run")["output_format"]["properties"]["runs"]}}), [])
-        for _ in range(2):
-            self.ok("run", "final")
-            self.intake("final")
-        self.assertEqual(launched(), 3)
-        self.write_start(reuse_dir=" ")
-        self.ok("run", "base")
-        self.assertEqual(launched(), 4, "#681: 控えの置き場の入力が無い base は自分の置き場へ黙って倒さず、使い回さない")
-
-    def test_reuse_key_defaults_to_the_run_id(self):
-        count = self.tmp / "count"
-        self.decl([{"name": "suite", "argv": [PY, "-c", f"open({str(count)!r}, 'a').write('1\\n')"]}])
-        self.ok("run", "base")
-        self.intake("base")
-        again = self.ok("run", "base")
-        self.assertEqual(len(count.read_text(encoding="utf-8").split()), 1)
-        self.assertEqual(again["runs"][0]["reused"]["from"], RUN_ID)
 
     def test_scope_declaration_without_review_declaration_stops(self):
         """範囲の宣言だけが在れば走らせずに 1 で止め、理由を標準エラーに出す"""
@@ -588,14 +548,16 @@ class ResultScriptCase(ScriptCase):
         return out
 
     def base(self) -> str:
-        """base を通し、base の出力の baseline のファイルのパス（final の port baseline）を返す"""
+        """base を通し、base の出力の baseline のファイルのパス（final の port baseline）を返す。直す前は段を走らせない（持ち主の決め
+        base-runs-nothing）ので、元の結末に 1 件ごとの結末は無く、final の赤は修正前の版（port base）で段を走らせ直して分ける"""
         self.decl([{"name": "suite", "argv": [PY, "-c", self.STEP_BODY], "junit": "out/r.xml"}])
+        self.write_start(base=self.head)
         self.ok("run", "base")
         out = self.result("base")
         self.assertEqual((out["mode"], out["ok"], out["green"], out["fingerprint"]), ("base", True, False, None))
         doc = baseline_red.read_baseline(self.pointed(out["baseline"]))
-        self.assertEqual((doc["rev"], doc["exit"], doc["junit_steps"], doc["exit_codes"]), (self.head, 1, ["suite"], {"suite": 1}))
-        self.assertEqual(baseline_red.outcomes(doc["cases"]), {"m::a": "passed", "m::b": "failure"})
+        self.assertEqual((doc["rev"], doc["exit"], doc["junit_steps"], doc["exit_codes"], doc["cases"]), (self.head, None, [], {}, []))
+        self.assertEqual(doc["material"]["status"], "not_applicable")
         self.baseline_path = str(self.pointed(out["baseline"]))
         return self.baseline_path
 
@@ -621,24 +583,24 @@ class ResultScriptCase(ScriptCase):
                 self.assertEqual(out["by"], "engine")
                 self.assertFalse([r for r in rows if r.startswith("- 包み:")])
                 self.assertIn(f"{certify.RUN_ROW}engine・{out['suites_line']}", rows)
-                self.assertIn(f"{certify.LOG_ROW}{out['log']}", rows)
-                self.assertTrue(out["log"] and "\n" not in out["suites_line"] + out["log"] + out["baseline_line"], out)
+                self.assertIn(f"{certify.LOG_ROW}{declared_checks.gate_values(out)['log']}", rows)
+                self.assertTrue((out["log"] or out["mode"] == "base") and "\n" not in out["suites_line"] + out["log"] + out["baseline_line"], out)
                 self.assertIn(f"- ok: {str(out['ok']).lower()}" + (f"（{out['reason']}）" if out["reason"] else ""), rows)
                 if out["mode"] == "final":
-                    self.assertTrue(out["baseline_line"].startswith(f"{declared_checks.BASELINE_HEAD}: 赤"), out)
+                    self.assertTrue(out["baseline_line"].startswith(f"{declared_checks.BASELINE_HEAD}: {gatemarks.MATERIAL_WORDS['not_applicable']}"), out)
                     self.assertIn(f"- {out['baseline_line']}", rows)
                 else:
                     self.assertEqual(out["baseline_line"], "")
                     self.assertFalse([r for r in rows if declared_checks.BASELINE_HEAD in r])
 
     def test_final_evidence_names_the_tests_before_the_fix(self):
-        """final の証拠は修正前のテストの行を出す: 修正前は赤で、段ごとの終了コードと、最後の赤は修正前から在りうること。
-        元の結末が無い final は記録が無いと書く"""
+        """final の証拠は修正前のテストの行を出す: 直す前は試験を回さなかった（持ち主の決め base-runs-nothing）ことと、元の結末に無い
+        赤を修正前の版で走らせ直した行。元の結末が無い final は記録が無いと書く"""
         text = self.pointed(self.final(self.base())["evidence"]).read_text(encoding="utf-8")
         line = next(l for l in text.splitlines() if "修正前のテスト" in l)
-        self.assertIn("修正前のテスト: 赤", line)
-        self.assertIn('{"suite": 1}', line)
-        self.assertIn("最後のテストの赤は修正前から在りうる", line)
+        self.assertIn(f"修正前のテスト: {gatemarks.MATERIAL_WORDS['not_applicable']}", line)
+        self.assertIn("直す前の版では試験を走らせない", line)
+        self.assertIn("- 修正前の版で走らせ直した: ", text)
         self.write_start(baseline="")
         self.intake("final")
         self.ok("run", "final")
@@ -665,69 +627,64 @@ class ResultScriptCase(ScriptCase):
         self.assertEqual((out["ok"], out["green"]), (False, True))
         self.assertIn("指紋が before と違う", self.pointed(out["evidence"]).read_text(encoding="utf-8"))
 
-    def test_tdd_suite_cases_go_into_the_baseline(self):
-        """port の tdd_suite は一式を 1 回走らせ、その 1 件ごとの結末と終了コードを元の結末に置く（suite は実行ファイルのパス）"""
+    def test_the_given_suite_goes_into_the_baseline_without_running(self):
+        """port の tdd_suite は直す前には走らせず（持ち主の決め base-runs-nothing）、元の結末に実行ファイルのパスと走らせ方の行だけを置く"""
         suite = self.tmp / "suite.py"
-        suite.write_text("import sys\nopen(sys.argv[1], 'w').write(\"<testsuite><testcase classname='s' name='x'>"
-                         "<failure/></testcase></testsuite>\")\nsys.exit(1)\n", encoding="utf-8")
+        ran = self.tmp / "suite-ran"
+        suite.write_text(f"import sys\nopen({str(ran)!r}, 'w')\nsys.exit(1)\n", encoding="utf-8")
         self.write_start(tdd_suite=str(suite), test_cmd="true")
         self.ok("run", "base")
         out = self.result("base")
         doc = baseline_red.read_baseline(self.pointed(out["baseline"]))
-        self.assertEqual((doc["suite"], doc["test_cmd"], doc["exit"]), (str(suite), "true", 1))
-        self.assertEqual(baseline_red.outcomes(doc["cases"]), {"s::x": "failure"})
+        self.assertFalse(ran.exists())
+        self.assertEqual((doc["suite"], doc["test_cmd"], doc["exit"], doc["cases"]), (str(suite), "true", None, []))
         self.assertTrue(doc["how"][0].startswith(f"作業ツリーの根: `{self.repo.resolve()}`"), doc["how"])
         self.assertTrue(any(r.startswith("test_cmd: `true`") for r in doc["how"]), doc["how"])
         self.assertEqual((out["suite"], out["suite_note"]), (str(suite), ""))
 
     def test_final_returns_every_test_with_its_base_and_final_outcome(self):
-        """final はテストごとの元の結末と今の結末を test_outcomes で返す（独立の目の比較役が読む）。base は null、
-        元の結末が無い final は rows を空にして比べない訳を書く"""
+        """final はテストごとの元の結末と今の結末を test_outcomes で返す（独立の目の比較役が読む）。base は null。直す前は試験を
+        走らせないので、元の結末に無い赤を修正前の版で走らせ直した結末が元の側に入る。元の結末も修正前の版も無い final は rows を空にして
+        比べない訳を書く"""
         suite = self.tmp / "suite.py"
-        suite.write_text("import os, sys\nok = os.path.exists('fixed.flag')\nopen(sys.argv[1], 'w').write("
-                         "\"<testsuite><testcase classname='s' name='y'/>\" + (\"<testcase classname='s' name='x'/>\" if ok else \"<testcase classname='s' name='x'><failure message='0 != 10'/>"
-                         "</testcase>\") + \"</testsuite>\")\nsys.exit(0 if ok else 1)\n", encoding="utf-8")
-        self.write_start(tdd_suite=str(suite), test_cmd="true")
+        suite.write_text("import os, sys\nbad = os.path.exists('broken.flag')\nopen(sys.argv[1], 'w').write("
+                         "\"<testsuite><testcase classname='s' name='y'/>\" + (\"<testcase classname='s' name='x'><failure message='0 != 10'/>"
+                         "</testcase>\" if bad else \"<testcase classname='s' name='x'/>\") + \"</testsuite>\")\nsys.exit(1 if bad else 0)\n", encoding="utf-8")
+        self.write_start(tdd_suite=str(suite), test_cmd="true", base=self.head)
         self.ok("run", "base")
         base = self.result("base")
         self.assertIsNone(base["test_outcomes"])
-        (self.repo / "fixed.flag").write_text("x\n", encoding="utf-8")
+        (self.repo / "broken.flag").write_text("x\n", encoding="utf-8")
         self.write_start(baseline=str(self.pointed(base["baseline"])))
         self.ok("run", "final")
         self.assertEqual(self.result("final")["test_outcomes"],
                          {"rows": [{"key": "s::y", "base": "passed", "final": "passed", "fail_message": ""},
-                                   {"key": "s::x", "base": "failure", "final": "passed", "fail_message": "0 != 10"}], "unmeasured": ""})
-        self.write_start(baseline="")
+                                   {"key": "s::x", "base": "passed", "final": "failure", "fail_message": "0 != 10"}], "unmeasured": ""})
+        self.write_start(baseline="", base="")
         self.ok("run", "final")
         self.assertEqual(self.result("final")["test_outcomes"],
                          {"rows": [], "unmeasured": "base の実測（baseline）が無い（実行器の無い run か、base のテストが走っていない）"})
 
     def test_test_outcomes_are_not_compared_when_either_side_has_no_per_test_results(self):
-        """1 件ごとの結末を取っていない側が在れば、rows を空にして比べない訳を書く（「無い」と読ませない）"""
-        tallied = self.base()
-        self.decl([{"name": "suite", "argv": [PY, "-c", "pass"]}])
-        self.assertEqual(self.final(tallied)["test_outcomes"],
-                         {"rows": [], "unmeasured": "最後のテストは 1 件ごとの結末を取っていない"})
-        self.ok("run", "base")
-        untallied = str(self.pointed(self.result("base")["baseline"]))
-        self.decl([{"name": "suite", "argv": [PY, "-c", self.STEP_BODY], "junit": "out/r.xml"}])
+        """1 件ごとの結末を取っていない側が在れば、rows を空にして比べない訳を書く（「無い」と読ませない）。直す前は試験を走らせない
+        （持ち主の決め base-runs-nothing）ので元の結末は 1 件ごとの結末を持たず、最後のテストに赤が無ければ修正前の版でも走らせ直さない"""
+        untallied = self.base()
+        (self.repo / "fixed.flag").write_text("x\n", encoding="utf-8")
         self.assertEqual(self.final(untallied)["test_outcomes"],
                          {"rows": [], "unmeasured": "base のテストは 1 件ごとの結末を取っていない"})
 
     def test_bare_name_tdd_suite_runs_from_the_target_root(self):
         """#340: 種の tdd_suite のようにファイル名だけ（junit-suite.sh）の実行器は、PATH でなく対象の根から起こす（TDD の輪の
-        tddloop.exe_path と同じ解き方）。base も final も"""
+        tddloop.exe_path と同じ解き方）。直す前は走らせない（持ち主の決め base-runs-nothing）ので final で見る"""
         suite = self.repo / "bare-suite.sh"
         suite.write_text("#!/bin/sh\nprintf '%s' \"<testsuite><testcase classname='s' name='x'/></testsuite>\" > \"$1\"\n",
                          encoding="utf-8")
         suite.chmod(0o755)
         self.write_start(tdd_suite=suite.name, test_cmd="true")
-        for mode in declared_checks.MODES:
-            with self.subTest(mode):
-                self.ok("run", mode)
-                run = json.loads((self.place(mode) / "run.json").read_text(encoding="utf-8"))
-                self.assertEqual(run["suite"], {"exe": suite.name, "exit": 0, "problems": []})
-                self.assertEqual(baseline_red.outcomes(run["cases"]), {"s::x": "passed"})
+        self.ok("run", "final")
+        run = json.loads((self.place("final") / "run.json").read_text(encoding="utf-8"))
+        self.assertEqual(run["suite"], {"exe": suite.name, "exit": 0, "problems": []})
+        self.assertEqual(baseline_red.outcomes(run["cases"]), {"s::x": "passed"})
 
     def test_final_not_run_is_incomplete(self):
         self.ok("run", "final")
@@ -750,7 +707,7 @@ class ResultScriptCase(ScriptCase):
         self.write_start(test_cmd=f"{tool} && echo tests")
         self.ok("run", "base")
         base = self.result("base")
-        self.assertEqual((base["by"], base["red_cause"]), (declared_checks.ROLE, ""))
+        self.assertEqual((base["by"], base["red_cause"]), (declared_checks.ROLE, green_cert.INCOMPLETE), "直す前は試験を走らせない")
         self.write_start(baseline=str(self.pointed(base["baseline"])))
         self.ok("run", "final")
         out = self.result("final")
@@ -783,23 +740,36 @@ class ResultScriptCase(ScriptCase):
         self.assertEqual((out["ok"], out["green"]), (False, False), out)
         return run, out
 
-    def test_base_whose_declared_steps_all_fail_to_start_stops(self):
-        """宣言の段が全部起こせない（無いコマンド）base は、返す node の ok が false。reason に起こせない誤りの文と準備の案（SETUP_HINT）が載り、
-        報告の行も走らせられなかったと言う"""
+    def unrun_final(self):
+        """試験の道具を起こせない対象の (base の返り, final の run の返り, final の result の返り, final の証拠の文)。直す前は試験を
+        走らせない（持ち主の決め base-runs-nothing）ので base は止まらず、最後のテストが走らせられなかったと言い、認証しない"""
+        self.ok("run", "base")
+        base = self.result("base")
+        self.assertIs(base["ok"], True, base)
+        run = self.ok("run", "final")
+        out = self.result("final")
+        self.assertEqual((out["ok"], out["green"]), (False, False), out)
+        return base, run, out, self.pointed(out["evidence"]).read_text(encoding="utf-8")
+
+    def note(self, out) -> str:
+        """最後のテストの冒頭の句（green_cert.ran_note。走っていない句には準備の案 RAN_GUIDE が付く）"""
+        return green_cert.ran_note(green=out["green"], red_cause=out["red_cause"], by=out["by"], steps=out["ran_steps"])
+
+    def test_declared_steps_that_all_fail_to_start_are_named_at_the_final(self):
+        """宣言の段が全部起こせない（無いコマンド）対象は、最後のテストの素材が not_run で environment。証拠の素材の訳に起こせない
+        誤りの文が載り、冒頭の句に準備の案（SETUP_HINT）が付く"""
         self.decl([{"name": "a", "argv": [str(self.tmp / "no-such-tool")]}, {"name": "b", "argv": [str(self.tmp / "no-such-tool-b")]}])
-        run, out = self.stopped_base()
+        _, run, out, text = self.unrun_final()
         self.assertEqual((run["by"], run["material"]["status"]), ("engine", "not_run"))
         self.assertEqual(out["red_cause"], green_cert.ENVIRONMENT)
-        self.assertIn("宣言の語を起こせない", out["reason"])
-        self.assertIn("no-such-tool", out["reason"])
-        self.assertIn(declared_checks.declared.SETUP_HINT, out["reason"])
-        self.assertIn(declared_checks.declared.SETUP_HINT, self.pointed(out["evidence"]).read_text(encoding="utf-8"))
-        self.assertIn("走らせられなかった（environment）", out["report"][0])
+        for said in ("宣言の語を起こせない", "no-such-tool"):
+            self.assertIn(said, text)
+        self.assertIn(declared_checks.declared.SETUP_HINT, self.note(out))
 
-    def test_place_trusting_tool_stops_the_base_until_setup_trusts_the_place(self):
+    def test_place_trusting_tool_runs_at_the_final_once_setup_trusts_the_place(self):
         """場所ごとに信頼する道具（利用者の HOME の下の信頼の一覧に cwd の実パスが在る時だけ試験の報告を書いて 0 で抜ける）は、準備を
-        宣言しなければ試験に入る前に 3 で落ち、base は ok が false で止まる。reason に道具の誤りの文と準備の案（SETUP_HINT）が載る。
-        宣言の setup が一覧に cwd を書けば、殻の隔離を通した base の段が 0 で走り、ok が true"""
+        宣言しなければ試験に入る前に 3 で落ち、最後のテストは not_run で認証しない。証拠に道具の誤りの文と準備の案が載る。
+        宣言の setup が一覧に cwd を書けば、殻の隔離を通した最後のテストの段が 0 で走る"""
         self.as_user()
         tool = self.tmp / "bin" / "trusting"
         tool.write_text('#!/bin/sh\nif grep -qxF "$(pwd -P)" "$HOME/.config/trust/list" 2>/dev/null; then\n'
@@ -810,44 +780,61 @@ class ResultScriptCase(ScriptCase):
                            "p.parent.mkdir(parents=True, exist_ok=True); open(p, 'a').write(os.path.realpath(os.getcwd()) + chr(10))"]
         step = {"name": "suite", "argv": [str(tool)], "junit": "out/r.xml"}
         self.decl([step])
-        run, out = self.stopped_base()
+        _, run, out, text = self.unrun_final()
         self.assertEqual(([r["exit"] for r in run["runs"]], run["material"]["status"]), ([3], "not_run"))
-        self.assertIn("untrusted: ", out["reason"])
-        self.assertIn(declared_checks.declared.SETUP_HINT, out["reason"])
+        self.assertIn("untrusted: ", text)
+        self.assertIn(declared_checks.declared.SETUP_HINT, self.note(out))
         self.decl([step], setup=[trust])
-        run = self.ok("run", "base")
+        run = self.ok("run", "final")
         self.assertEqual(([r["exit"] for r in run["runs"]], run["material"]["status"]), ([0], "clean"))
-        self.assertTrue(self.result("base")["ok"])
 
-    def test_base_whose_test_cmd_cannot_start_stops(self):
-        """宣言が無く test_cmd を起こせない（無いコマンド）base は、by が role・素材が not_run で、返す node の ok が false"""
+    def test_a_test_cmd_that_cannot_start_stops_the_base_without_running_tests(self):
+        """持ち主の決め base-runs-nothing の足し: 宣言が無く test_cmd の最初の語を起こせない（無いコマンド）対象は、試験を走らせずに確かめて
+        base の ok が偽（判定の前で止める）。直に起こす形も shell の形も同じ。訳に起こせない事と準備の案（SETUP_HINT）が載り、実行器は用意しない。
+        起こせる test_cmd は止めない（試験も走らせない）"""
+        for cmd in (str(self.tmp / "no-such-tool"), "no-such-tool-xyz --x", "no-such-tool-xyz && echo tests"):
+            with self.subTest(cmd=cmd):
+                self.write_start(test_cmd=cmd)
+                run, out = self.stopped_base()
+                self.assertEqual((run["by"], run["runs"], run["suite_owed"]), (declared_checks.ROLE, [], False))
+                self.assertIn("最初の語を起こせない", out["reason"])
+                self.assertIn(declared_checks.declared.SETUP_HINT, out["reason"])
+                self.assertTrue(out["report"][0].startswith("直す前のテスト: 走らせられなかった"), out["report"])
+        ran = self.tmp / "ran"
+        self.write_start(test_cmd=f"{PY} -c \"open({str(ran)!r}, 'w')\"")
+        self.assertIs(self.ok("run", "base")["suite_owed"], True)
+        self.assertIs(self.result("base")["ok"], True)
+        self.assertFalse(ran.exists(), "起こせるかの確かめで試験のコマンドを走らせた")
+
+    def test_a_test_cmd_that_cannot_start_is_named_at_the_final(self):
+        """直す前に止めずに最後のテストまで来た（試験のコマンドが後から起こせなくなった）対象は、最後のテストの by が role・素材が not_run で認証しない"""
         self.write_start(test_cmd=str(self.tmp / "no-such-tool"))
-        run, out = self.stopped_base()
+        run = self.ok("run", "final")
+        out = self.result("final")
+        self.assertEqual((out["ok"], out["green"]), (False, False))
         self.assertEqual((run["by"], run["material"]["status"]), (declared_checks.ROLE, "not_run"))
-        self.assertIn("素材が not_run", out["reason"])
-        self.assertIn(declared_checks.declared.SETUP_HINT, out["reason"])
+        self.assertIn(declared_checks.declared.SETUP_HINT, self.note(out))
 
-    def test_base_where_junit_steps_ran_no_tests_stops_with_the_tools_error(self):
-        """JUnit を宣言した唯一の段が、試験に入る前に道具の誤り（config missing）で落ちた base は、ok が false。reason に道具が出した誤りの
-        文が載る"""
+    def test_junit_steps_that_ran_no_tests_name_the_tools_error_at_the_final(self):
+        """JUnit を宣言した唯一の段が、試験に入る前に道具の誤り（config missing）で落ちた対象は、最後のテストの素材が not_run。証拠に
+        道具が出した誤りの文が載る"""
         tool = self.as_user()
         self.decl([{"name": "suite", "argv": [str(tool)], "junit": "out/r.xml"}])
-        run, out = self.stopped_base()
+        _, run, out, text = self.unrun_final()
         self.assertEqual(run["material"]["status"], "not_run")
-        self.assertIn("config missing", out["reason"])
+        self.assertIn("config missing", text)
 
-    def test_failing_setup_stops_the_base_with_its_error(self):
-        """suite の横に宣言した setup が非 0 で終わる（標準エラーに『準備が落ちた』）base は、suite の段が起こされず、ok が false。reason に
-        setup の誤りの文が載る"""
+    def test_failing_setup_is_named_at_the_final_with_its_error(self):
+        """suite の横に宣言した setup が非 0 で終わる（標準エラーに『準備が落ちた』）対象は、直す前は準備も走らせない（持ち主の決め
+        base-runs-nothing）ので base は止まらず、最後のテストで suite の段が起こされず not_run。証拠に setup の誤りの文が載る"""
         ran = self.tmp / "suite-ran"
         self.decl([{"name": "suite", "argv": [PY, "-c", f"open({str(ran)!r}, 'w')"]}],
                   setup=[[PY, "-c", "import sys; print('準備が落ちた', file=sys.stderr); sys.exit(4)"]])
-        run, out = self.stopped_base()
+        _, run, out, text = self.unrun_final()
         self.assertEqual(run["material"]["status"], "not_run")
         self.assertFalse(ran.exists())
-        self.assertIn(tree_run.SETUP_FAILED, out["reason"])
-        self.assertIn("準備が落ちた", out["reason"])
-        self.assertIn(declared_checks.declared.SETUP_HINT, out["reason"])
+        self.assertIn(tree_run.SETUP_FAILED, text)
+        self.assertIn("準備が落ちた", text)
 
     def test_partly_startable_steps_are_named_not_not_ran(self):
         """#514: 宣言の段の一部だけ起こせた final は、判定はそのまま（赤で認証しない）で、冒頭の句は起こした段と起こせなかった段を
@@ -888,8 +875,8 @@ class ResultScriptCase(ScriptCase):
     def test_shell_test_cmd_names_how_it_was_launched(self):
         """宣言が無く test_cmd だけを走らせた回の証拠は、test_cmd の起こし方（shell）を書く"""
         self.write_start(test_cmd="echo a | cat")
-        self.assertEqual(self.ok("run", "base")["by"], "role")
-        out = self.result("base")
+        self.assertEqual(self.ok("run", "final")["by"], "role")
+        out = self.result("final")
         self.assertIn("走らせた: test_cmd（shell）", self.pointed(out["evidence"]).read_text(encoding="utf-8"))
 
     def test_fell_back_reason_is_in_the_evidence(self):
@@ -959,14 +946,15 @@ class ResultScriptCase(ScriptCase):
         """報告の行（10 節）: base と final と、出力 node の中の誤り"""
         baseline = self.base()
         base = self.result("base")
-        self.assertEqual(base["report"][0], "直す前のテスト: 赤")
-        self.assertTrue(base["report"][1].startswith("直す前のテストの走らせ方: engine・"), base["report"])
+        word = gatemarks.MATERIAL_WORDS["not_applicable"]
+        self.assertEqual(base["report"][0], f"直す前のテスト: {word}（not_applicable）")
+        self.assertTrue(base["report"][1].startswith("直す前のテストの走らせ方: engine・直す前の版では試験を走らせない"), base["report"])
         self.assertTrue(base["report"][2].startswith("直す前のテストのログ: "), base["report"])
-        self.assertEqual(base["report"][3], "試験の関門（base）: 緑でない・ok True")
+        self.assertEqual(base["report"][3], "試験の関門（base）: 緑でない・ok True・赤の原因 incomplete")
         self.assertEqual(len(base["report"]), 4)
         out = self.final(baseline)
         self.assertTrue(out["report"][0].startswith("最後のテストの走らせ方: engine・"), out["report"])
-        self.assertTrue(out["report"][2].startswith("最後のテストの修正前のテスト: 赤"), out["report"])
+        self.assertTrue(out["report"][2].startswith(f"最後のテストの修正前のテスト: {word}"), out["report"])
         self.assertTrue(out["report"][3].startswith("最後のテストの一式: engine・"), out["report"])
         self.assertEqual(out["report"][-1], "試験の関門（final）: 緑でない・ok False・赤の原因 inherited")
         (self.repo / "fixed.flag").write_text("x\n", encoding="utf-8")
@@ -1020,9 +1008,9 @@ class SuiteLoopCase(ScriptCase):
         self.assertIs(self.ok("run", "base")["suite_owed"], False)
 
     def test_written_runner_feeds_the_red_green_check(self):
-        """keep-essence 1（赤緑の機械の判定）は tdd_suite を省いた run でも効く: 書いた実行器を 1 回走らせた結末が照らしを通れば
-        実行器の控えの tdd_suite に結び、元の結末に 1 件ごとの結末が載り、出力の suite が実行器の絶対パスで、修正の段の TDD の輪が
-        その実行器で名指しの赤を判じる。照らしを通った実行器は test_cmd の字で取り置く"""
+        """keep-essence 1（赤緑の機械の判定）は tdd_suite を省いた run でも効く: 書いた実行器は直す前には走らせずに実行器の控えの
+        tdd_suite に結び（持ち主の決め base-runs-nothing）、出力の suite が実行器の絶対パスで、修正の段の TDD の輪がその実行器で
+        名指しの赤を判じる。取り置くのは TDD の輪が走らせて結末が取れた時（直す前には取り置かない）"""
         tddloop = kit.load("fix", "tdd")   # keep-essence 1 の継ぎ目: 修正の段の TDD の輪（integration.md 4.3-3）
         self.assertEqual(tddloop.start(self.tmp / "fix", self.repo, "", "[]")["reason"], tddloop.NO_SUITE)
         self.ok("run", "base")
@@ -1031,14 +1019,14 @@ class SuiteLoopCase(ScriptCase):
         self.assertEqual(tried, {"done": True, "ok": True, "why": ""})
         suite = self.state()["tdd_suite"]
         self.assertTrue(pathlib.Path(suite).is_absolute())
-        self.assertEqual(self.kept().read_text(encoding="utf-8"), self.RED)
-        self.assertEqual((self.run_doc()["suite"]["exe"], self.run_doc()["suite"]["count"]), (suite, 2))
+        self.assertFalse(self.kept().exists(), "直す前に走らせていない実行器を取り置いた")
+        self.assertFalse((self.place("base") / "suite-suite.log").exists(), "直す前に実行器を走らせた")
         out = self.ok("result", "base")
         doc = baseline_red.read_baseline(self.pointed(out["baseline"]))
-        self.assertEqual((doc["suite"], doc["exit"]), (suite, 1))
-        self.assertEqual(baseline_red.outcomes(doc["cases"]), {"test_a.TestA::test_x": "failure", "test_a.TestA::test_y": "passed"})
+        self.assertEqual((doc["suite"], doc["exit"], doc["cases"]), (suite, None, []))
         self.assertEqual(out["suite"], suite)
         self.assertIn(suitewrite.WROTE, out["suite_note"])
+        self.assertIn(suitewrite.UNCHECKED, out["suite_note"])
         self.assertEqual(out["report"][-1], suitewrite.head_note(self.state()))
         self.assertTrue(tddloop.start(self.tmp / "fix", self.repo, suite, "[]")["go"])
         work = self.tmp / "tdd"
@@ -1060,34 +1048,18 @@ class SuiteLoopCase(ScriptCase):
         self.assertEqual(out["suite"], self.state()["tdd_suite"])
         self.assertIn(suitewrite.USED, out["suite_note"])
 
-    def test_kept_runner_that_fails_the_check_is_dropped_and_rewritten(self):
-        """取り置きが照らしを通らなければ捨てて 2 周目で書き直し、書き直した物が通った時だけ取り置き直す。捨てた取り置きのログは残す"""
-        self.put_kept(self.EMPTY)
-        self.ok("run", "base")
-        prep, tried = self.round()
-        self.assertEqual((prep["write"], tried), (False, {"done": False, "ok": False, "why": suitewrite.NO_CASES}))
-        self.assertFalse(self.kept().exists())
-        prep, tried = self.round(self.RED)
-        self.assertEqual((prep["write"], tried["ok"]), (True, True))
-        self.assertEqual(self.kept().read_text(encoding="utf-8"), self.RED)
-        self.assertEqual(self.state()[suitewrite.KEY]["dropped"], suitewrite.NO_CASES)
-        gate = self.place("base")
-        self.assertTrue((gate / "suite-suite.log").is_file() and (gate / "suite-suite-again.log").is_file())
-
-    def test_runner_without_cases_is_not_bound_and_the_base_has_no_suite(self):
-        """照らしが落ちた実行器は結ばず取り置かず、元の結末は実行器の無い run と同じ形（suite が空・1 件ごとの結末を取らない）"""
+    def test_a_runner_is_bound_without_running_it_before_the_fix(self):
+        """直す前の版では試験を走らせない（持ち主の決め base-runs-nothing）: 試験を 1 件も書かない実行器も、直す前は走らせずに結ぶ。
+        照らすのは修正の段の TDD の輪（docs/design/fix.md の 19 節）"""
         self.ok("run", "base")
         _, tried = self.round(self.EMPTY)
-        self.assertEqual(tried, {"done": True, "ok": False, "why": suitewrite.NO_CASES})
-        self.assertEqual(self.state()["tdd_suite"], "")
+        self.assertEqual(tried, {"done": True, "ok": True, "why": ""})
+        self.assertTrue(self.state()["tdd_suite"])
+        self.assertIs(self.state()[suitewrite.KEY]["checked"], False)
         self.assertFalse(self.kept().exists())
-        self.assertIsNone(self.run_doc()["suite"])
         out = self.ok("result", "base")
         self.assertTrue(out["ok"])
-        self.assertEqual(baseline_red.read_baseline(self.pointed(out["baseline"]))["suite"], "")
-        self.assertEqual(out["suite"], "")
-        self.assertTrue(out["suite_note"].startswith(suitewrite.NOT_MADE))
-        self.assertIn(out["suite_note"], out["report"])
+        self.assertEqual(out["suite"], self.state()["tdd_suite"])
 
     def test_fallen_writer_leaves_the_not_made_mark(self):
         self.ok("run", "base")
@@ -1149,18 +1121,18 @@ class RelatedCase(ScriptCase):
         self.assertEqual(got["related"]["ran"], "related")
         self.assertEqual(got["suite"]["exit"], 0)
 
-    def test_the_base_picks_from_the_entry_base_when_it_is_given(self):
-        """入口の差分は修正前の版に入っているので、base でも入口の差分の根から触った所が起点になり、final の選びが base の選びを含む"""
+    def test_the_final_picks_from_the_entry_base_when_it_is_given(self):
+        """入口の差分は修正前の版に入っているので、入口の差分の根から触った所も関わる試験の起点になる"""
         self.touch()
         git(self.repo, "add", "-A")
         git(self.repo, "commit", "-qm", "entry diff")
         head = git(self.repo, "rev-parse", "HEAD")
         self.write_start(base=head, entry_base=self.head)
-        self.ok("run", "base")
-        self.assertEqual(self.run_doc("base")["related"]["files"], ["test_stats.py"])
+        self.ok("run", "final")
+        self.assertEqual(self.run_doc("final")["related"]["files"], ["test_stats.py"])
         self.write_start(entry_base="")
-        self.ok("run", "base")
-        self.assertEqual(self.run_doc("base")["related"]["files"], [], "入口の差分の根が無ければ修正前の版からで、何も触っていない")
+        self.ok("run", "final")
+        self.assertEqual(self.run_doc("final")["related"]["files"], [], "入口の差分の根が無ければ修正前の版からで、何も触っていない")
 
     def test_a_change_no_test_depends_on_runs_no_test(self):
         (self.repo / "NOTES.md").write_text("notes\n", encoding="utf-8")
@@ -1193,32 +1165,15 @@ class RelatedCase(ScriptCase):
         self.assertEqual(self.args("final"), ["only="])
         self.assertFalse(self.run_doc("final")["related"]["applied"])
 
-    def test_the_writers_runner_is_checked_on_the_related_tests(self):
-        """実行器を用意する輪の照らしの回（suite-try）も、関わる試験だけ。書き手の返りは SuiteLoopCase と同じ"""
-        self.write_start(tdd_suite="")
-        self.touch()
-        self.assertIs(self.ok("run", "base")["suite_owed"], True)
-        prep = self.ok("suite_prep", "base")
-        self.assertTrue(prep["write"])
-        self.ok("suite_place", "base", reply=json.dumps({"made": True, "body": self.RUNNER, "why": ""}))
-        self.assertEqual(self.ok("suite_try", "base"), {"done": True, "ok": True, "why": ""})
-        self.assertEqual(self.args("base"), ["only=1", str((self.repo / "test_stats.py").resolve())])
-        self.assertEqual(self.run_doc("base")["related"]["ran"], "related")
-
-    def test_the_writers_runner_with_nothing_related_is_checked_by_one_whole_run(self):
-        """関わる試験が無いと、実行器が JUnit XML を書く事は走らせないと確かめられない。この時だけ一式を 1 回走らせる"""
-        self.write_start(tdd_suite="")
-        self.ok("run", "base")
-        self.ok("suite_prep", "base")
-        self.ok("suite_place", "base", reply=json.dumps({"made": True, "body": self.RUNNER, "why": ""}))
-        self.assertEqual(self.ok("suite_try", "base"), {"done": True, "ok": True, "why": ""})
-        self.assertEqual(self.args("base"), ["only="])
-        self.assertEqual(self.run_doc("base")["related"]["ran"], "whole")
-
     def base_and_final(self, base_fails=False, final_fails=False) -> dict:
+        """直す前は試験を走らせないので、元から赤は修正前の版に fail.flag を commit して作る（最後のテストが版の写しで走らせ直して見る）"""
         self.touch()
         if base_fails:
             (self.repo / "fail.flag").write_text("", encoding="utf-8")
+            git(self.repo, "add", "fail.flag")
+            git(self.repo, "commit", "-qm", "red before the fix")
+            self.head = git(self.repo, "rev-parse", "HEAD")
+            self.write_start(base=self.head)
         self.ok("run", "base")
         base = self.ok("result", "base")
         (self.repo / "fail.flag").unlink(missing_ok=True)
@@ -1257,7 +1212,8 @@ class RelatedCase(ScriptCase):
                          encoding="utf-8")
         other.chmod(0o755)
         (self.repo / "widget.js").write_text("export function widget() { return 1 }\n", encoding="utf-8")
-        self.write_start(baseline=str(self.pointed(base["baseline"])), tdd_suite=str(other))
+        # 修正前の版（port base）が無いので走らせ直せない（走らせ直す道は BaseRunsNothingCase）
+        self.write_start(baseline=str(self.pointed(base["baseline"])), tdd_suite=str(other), base="")
         self.ok("run", "final")
         out = self.ok("result", "final")
         self.assertTrue(out["related"]["whole"])
@@ -1273,8 +1229,8 @@ class RelatedCase(ScriptCase):
         self.assertEqual((out["green"], out["ok"], out["red_cause"]), (False, False, green_cert.INCOMPLETE))
         self.assertTrue(out["related"]["applied"] and out["related"]["files"] == [])
 
-    def test_a_base_without_a_runner_goes_on_as_awaiting_a_person(self):
-        """任せ先の CI の役を外した後の base: 実行器が作れなかった (3) の道は、試験を走らせず、緑を仮定せずに鎖を止めない"""
+    def test_a_base_without_a_runner_goes_on(self):
+        """直す前は試験を走らせないので、実行器が作れなかった (3) の道も緑を仮定せずに鎖を止めない（素材は not_applicable）"""
         self.write_start(tdd_suite="")
         self.touch()
         self.ok("run", "base")
@@ -1283,9 +1239,8 @@ class RelatedCase(ScriptCase):
         out = self.ok("result", "base")
         self.assertEqual((out["ok"], out["green"], out["red_cause"]), (True, False, green_cert.INCOMPLETE))
         doc = baseline_red.read_baseline(self.pointed(out["baseline"]))
-        self.assertEqual(doc["material"]["status"], "awaiting_human")
+        self.assertEqual(doc["material"]["status"], "not_applicable")
         self.assertTrue(doc["material"]["reason"])
-        self.assertFalse((self.place("base") / "ci-material.json").exists())
 
     def test_a_final_without_a_runner_is_not_run(self):
         self.write_start(tdd_suite="")
@@ -1294,6 +1249,80 @@ class RelatedCase(ScriptCase):
         out = self.ok("result", "final")
         self.assertEqual((out["ok"], out["green"], out["red_cause"]), (False, False, green_cert.INCOMPLETE))
         self.assertEqual(out["ran_steps"], {"ran": [], "unran": ["関わる試験の実行器"]})
+
+
+class BaseRunsNothingCase(ScriptCase):
+    """#828（持ち主の決め base-runs-nothing。docs/design/test-gate.md の 15 節）: 直す前の版では試験を何も走らせない（宣言の段・
+    test_cmd・宣言の準備・人が渡した実行器のどれも）。最後のテストの赤で元の結末に無い物は、修正前の版で同じ走らせ方を 1 回して、
+    元から赤か直しが壊したかを分ける"""
+    # 第 1 引数の書き先の隣に呼ばれた印を書き足し、test_stats を通し、test_far は対象の根に far.flag が在れば failure にする
+    RUNNER = ("#!/bin/sh\nout=$1\nshift\necho called >> \"$(dirname \"$out\")/runner-calls.txt\"\n"
+              "code=0; fb=''\nif [ -f far.flag ]; then fb=\"<failure message='far'/>\"; code=1; fi\n"
+              "printf '%s' \"<testsuite><testcase classname='test_stats.TestStats' name='test_mean_of_three'/>"
+              "<testcase classname='test_far.TestFar' name='test_far'>$fb</testcase></testsuite>\" > \"$out\"\nexit $code\n")
+    FLAGS_CMD = "test ! -f far.flag"   # 実行器と同じ旗で赤になる test_cmd（最後のテストの素材は test_cmd の結果）
+
+    def setUp(self):
+        super().setUp()
+        self.runner = self.tmp / "runner.sh"
+        self.runner.write_text(self.RUNNER, encoding="utf-8")
+        self.runner.chmod(0o755)
+        self.write_start(base=self.head)
+
+    def run_doc(self, mode: str = "base") -> dict:
+        return json.loads((self.place(mode) / declared_checks.RUN_FILE).read_text(encoding="utf-8"))
+
+    def test_the_base_runs_no_test_at_all(self):
+        """宣言の段・test_cmd・宣言の準備・人が渡した実行器のどれも走らせない。最後のテストは今までどおり走らせる"""
+        steps, cmd, setup = self.tmp / "steps-ran", self.tmp / "cmd-ran", self.tmp / "setup-ran"
+        self.decl([{"name": "suite", "argv": [PY, "-c", f"open({str(steps)!r}, 'a').write('1')"]}],
+                  setup=[[PY, "-c", f"open({str(setup)!r}, 'a').write('1')"]])
+        self.write_start(base=self.head, test_cmd=f"{PY} -c \"open({str(cmd)!r}, 'a').write('1')\"", tdd_suite=str(self.runner))
+        run = self.ok("run", "base")
+        out = self.ok("result", "base")
+        self.assertFalse(steps.exists() or cmd.exists() or setup.exists(), "直す前に宣言の段・test_cmd・準備のどれかを走らせた")
+        self.assertFalse((self.place("base") / "runner-calls.txt").exists(), "直す前に実行器を走らせた")
+        self.assertEqual((run["by"], run["runs"], run["suite_owed"]), (declared_checks.ENGINE, [], False))
+        self.assertEqual((out["ok"], out["green"], out["suite"]), (True, False, str(self.runner)))
+        doc = baseline_red.read_baseline(self.pointed(out["baseline"]))
+        self.assertEqual((doc["material"]["status"], doc["cases"], doc["exit"]), ("not_applicable", [], None))
+        self.intake("final")
+        self.ok("run", "final")
+        self.assertTrue(steps.exists() and cmd.exists() and setup.exists(), "最後のテストは準備・宣言の段・test_cmd を走らせる")
+
+    def base_then_final(self) -> dict:
+        self.write_start(base=self.head, test_cmd=self.FLAGS_CMD, tdd_suite=str(self.runner))
+        self.ok("run", "base")
+        base = self.ok("result", "base")
+        self.write_start(base=self.head, test_cmd=self.FLAGS_CMD, tdd_suite=str(self.runner), baseline=str(self.pointed(base["baseline"])))
+        self.ok("run", "final")
+        return self.ok("result", "final")
+
+    def test_a_red_outside_the_base_that_the_fix_made_is_introduced(self):
+        """#828: 直す前の結末に無い試験が最後に赤なら、同じ走らせ方を修正前の版で 1 回走らせ、そこで通れば直しが起こした赤"""
+        (self.repo / "far.flag").write_text("", encoding="utf-8")   # 追跡していない: 修正前の版の写しには無い
+        out = self.base_then_final()
+        self.assertEqual((out["ok"], out["green"], out["red_cause"]), (False, False, green_cert.INTRODUCED))
+        rows = {r["key"]: (r["base"], r["final"]) for r in out["test_outcomes"]["rows"]}
+        self.assertEqual(rows["test_far.TestFar::test_far"], ("passed", "failure"))
+        self.assertEqual(self.run_doc("final")["base_rerun"]["rev"], self.head)
+
+    def test_a_red_outside_the_base_that_was_already_red_is_inherited(self):
+        """#828: 修正前の版でも同じ試験が赤なら、元から赤（認証はしない）"""
+        (self.repo / "far.flag").write_text("", encoding="utf-8")
+        git(self.repo, "add", "-A")
+        git(self.repo, "commit", "-qm", "far is red before the fix")
+        self.head = git(self.repo, "rev-parse", "HEAD")
+        out = self.base_then_final()
+        self.assertEqual((out["ok"], out["green"], out["red_cause"]), (False, False, green_cert.INHERITED))
+        rows = {r["key"]: (r["base"], r["final"]) for r in out["test_outcomes"]["rows"]}
+        self.assertEqual(rows["test_far.TestFar::test_far"], ("failure", "failure"))
+
+    def test_a_green_final_is_not_run_again_at_the_base_version(self):
+        """最後のテストに赤が無ければ、修正前の版で走らせ直さない"""
+        out = self.base_then_final()
+        self.assertEqual((out["green"], out["red_cause"]), (True, ""))
+        self.assertNotIn("base_rerun", self.run_doc("final"))
 
 
 class PromptCase(ScriptCase):

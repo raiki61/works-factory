@@ -128,6 +128,7 @@
    "path": "test-gate/baseline.json"
   },
   "suite": "/s/run.sh",
+  "suite_made": false,
   "structure": {
    "type": "archon_artifact",
    "run_id": "run-test",
@@ -312,6 +313,7 @@
    "path": "test-gate/baseline.json"
   },
   "suite": "/s/run.sh",
+  "suite_made": false,
   "structure": {
    "type": "archon_artifact",
    "run_id": "run-test",
@@ -462,6 +464,7 @@
    "path": "test-gate/baseline.json"
   },
   "suite": "/s/run.sh",
+  "suite_made": false,
   "structure": {
    "type": "archon_artifact",
    "run_id": "run-test",
@@ -638,6 +641,7 @@
    "path": "test-gate/baseline.json"
   },
   "suite": "/s/run.sh",
+  "suite_made": false,
   "structure": {
    "type": "archon_artifact",
    "run_id": "run-test",
@@ -822,6 +826,7 @@
    "path": "test-gate/baseline.json"
   },
   "suite": "/s/run.sh",
+  "suite_made": false,
   "structure": {
    "type": "archon_artifact",
    "run_id": "run-test",

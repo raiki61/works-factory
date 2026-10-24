@@ -47,6 +47,9 @@ The acceptance checks the tests you added, the existing tests whose bodies you c
 <!-- if tests_tail -->
 - The ranges in "本体を変えてよい既存のテストの範囲": `<path>` is the whole file, `<path>:<line>` is the whole function that contains the line, and `<path>:<line>-<line>` is the lines as written.
 <!-- end tests_tail -->
+<!-- if tests_broken -->
+- The files under "直す前から壊れていた関わる試験" hold tests related to your fix that were already failing before the fix (in the TDD loop's first run). You may fix them along with your fix, so that they test what they were meant to test; do not weaken or remove what they check. They are shown to a person at the final approval as tests fixed along the way.
+<!-- end tests_broken -->
 <!-- if frozen_files -->
 - Rewriting a frozen test file outside the names and ranges above is rejected. The functions of new tests you only added do not count as frozen; they are checked against "足してよい新しいテスト" above.
 <!-- end frozen_files -->
