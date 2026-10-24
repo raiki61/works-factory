@@ -4,6 +4,10 @@
   在れば place._verify を当て、壊れていれば赤にする。環境変数か置き場が無い時だけ見送る。試験の中では取りに行かない。
 - 見送らない: 環境変数 WORKS_FACTORY_ARCHON_REQUIRED が在れば（CI が立てる）、見送る所で同じ文の赤にする。
   CI の用意が崩れて Archon の要る試験が黙って見送られ、CI が緑のままになるのを防ぐ。
+- 手元の確かめでは起こさない: 環境変数 WORKS_FACTORY_ARCHON_DEFER（tests/shard.py の --paths が立てる。tests/changed.py の道）が在り、
+  REQUIRED が無ければ、Archon を起こす口 runner が源を見る前に hermetic.ARCHON_DEFERRED の訳で見送る（持ち主の決め light-in-loop・
+  full-suite-in-ci。起こす試験は CI が回す）。どの試験が起こすかを表に並べず、起こす口のここ 1 か所で見分ける。源の字を読むだけの
+  試験（source・pinned_source）は軽いので見送らない。
 - 起こす: 源の Archon を bun で、使い捨ての ARCHON_HOME と、殻と同じ既定の provider（place.PROVIDER_ENV）と、このリポジトリを指す
   WORKS_FACTORY_ROOT（呼ぶ側が env で替え、None で外せる）をつけて起こす。家の config.yaml には群の別名（place.group_presets）を書く。殻は群の
   別名と run のノードへの環境変数を新しい run の --config で渡すが、止めた Archon の validate と workflow test は --config を受けない
@@ -41,6 +45,7 @@ from tests.bin.gitkit import git
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 CACHE_ENV = hermetic.ARCHON_CACHE_ENV
 REQUIRED_ENV = hermetic.ARCHON_REQUIRED_ENV
+DEFER_ENV = hermetic.ARCHON_DEFER_ENV
 PACK = pack.load(ROOT)
 BUILTIN_SKILLS = frozenset({"code-review", "simplify", "security-review"})
 BORROWED_SKILLS = frozenset(json.loads((ROOT / "lib" / "borrow" / "borrow.json").read_text(encoding="utf-8"))
@@ -96,6 +101,18 @@ def pinned_source(cache: str | None, commit: str) -> pathlib.Path:
 
 def source() -> pathlib.Path:
     return pinned_source(os.environ.get(CACHE_ENV), PACK["archon"]["commit"])
+
+
+def runner() -> tuple[pathlib.Path, str]:
+    """Archon を起こす元（源と bun のパス）。Archon を起こす試験はここを通る。手元の確かめ（DEFER_ENV が在り REQUIRED_ENV が無い）では
+    源を見る前に見送る。源か bun が無ければ absent"""
+    if os.environ.get(DEFER_ENV) and not os.environ.get(REQUIRED_ENV):
+        raise unittest.SkipTest(f"{hermetic.ARCHON_DEFERRED}（tests/changed.py の手元の確かめ。CI は回す）")
+    found = source()
+    bun = shutil.which("bun")
+    if bun is None:
+        raise absent("bun が無い")
+    return found, bun
 
 
 @contextlib.contextmanager
@@ -179,10 +196,8 @@ def archon(cwd: pathlib.Path, *args: str, aliases: bool = True, **env: str | Non
 
 def command(cwd: pathlib.Path, aliases: bool = True, **env: str | None) -> tuple[list[str], dict]:
     """archon が cwd で起こす命令の頭と子の環境（試験が自分で Popen する時や、頭を受ける部品に渡す時に使う）"""
-    entry = source() / place.ENTRY
-    bun = shutil.which("bun")
-    if bun is None:
-        raise absent("bun が無い")
+    found, bun = runner()
+    entry = found / place.ENTRY
     home = cwd.parent / ("archon-home" if aliases else "archon-home-bare")
     if aliases and not home.exists():
         home.mkdir()

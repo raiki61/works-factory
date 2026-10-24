@@ -563,5 +563,26 @@ class PinnedSourceTest(unittest.TestCase):
         self.assert_absent_raises({archon.REQUIRED_ENV: "1"}, AssertionError)
 
 
+class DeferTest(unittest.TestCase):
+    """手元の確かめ（tests/shard.py の --paths が DEFER_ENV を立てる）では、Archon を起こす口 runner が源を見る前に名前つきで見送る。
+    CI（REQUIRED_ENV）は見送らない: 旗が両方在っても源と bun を探し、無ければ absent の赤"""
+
+    def test_local_check_defers_before_looking_for_the_source(self):
+        with mock.patch.dict(os.environ, {archon.DEFER_ENV: "1"}):
+            os.environ.pop(archon.REQUIRED_ENV, None)
+            with mock.patch.object(archon, "source", side_effect=AssertionError("源を見た")), \
+                    self.assertRaises(unittest.SkipTest) as caught:
+                archon.runner()
+        self.assertTrue(str(caught.exception).startswith(hermetic.ARCHON_DEFERRED), caught.exception)
+
+    def test_required_is_never_deferred(self):
+        with mock.patch.dict(os.environ, {archon.DEFER_ENV: "1", archon.REQUIRED_ENV: "1"}):
+            os.environ.pop(archon.CACHE_ENV, None)
+            with self.assertRaises(BaseException) as caught:
+                archon.runner()
+        self.assertIs(type(caught.exception), AssertionError)
+        self.assertRegex(str(caught.exception), "Archon の源が無い")
+
+
 if __name__ == "__main__":
     unittest.main()
