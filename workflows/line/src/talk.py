@@ -48,7 +48,10 @@ TALK_FIELDS = ("open", "text", "asked", "agreed", "talks", "notes", "shown")   #
 NOTE_NAME = "設計の相談で人が入れた {n} 番目の指摘"   # 受け箱の指摘の依頼の答えの行の question（ASK_NAME と番号を分け合う）
 NOTE_WHERE = "人の指摘の受け箱"   # 受け箱の指摘を差し込む人の block の where
 EDGE_HEAD = "端:"   # 受け箱の行の頭がこの字なら、端（修正の段へ申し送れば済む細かい調整）の指摘として差し込む
-UNPICKED_HEAD = "受け箱に入ったが計画の役に回せなかった指摘（往復の安全の上限の周か、往復が収まらずに終わった周に入った。直すなら revise の一言に書く）:"
+UNPICKED_HEAD = "受け箱に入ったが計画の役に回せなかった指摘（{why}）:"   # 関所の文の末尾に、回せなかった受け箱の行の前に置く
+UNPICKED_WHY = "往復が収まらずに終わった周に入った。直すなら revise の一言に書く"
+UNPICKED_CAPPED = ("往復の安全の上限の周に入った。この周は設計し直せない（revise も止める答えになる）。合意するとこの指摘は計画に入らずに"
+                   "修正へ進み、入れたいなら stop で止めて新しい run で頼み直す")
 APPROVE_HEADS = ("承認:", "もういいよ")   # 受け箱の行の頭がこのどれかなら、設計への承認（指摘でない。block にしない）
 EMPTY_REVISE = "前の答え revise の一言が空だった（直してほしい所が分からないので設計し直していない）。直してほしい所を一言に書いて答え直す"
 CAPPED_REVISE = "往復の安全の上限 {n} 周に届いたので設計し直せない（revise は止める答えと同じに扱う）"
@@ -254,7 +257,8 @@ def settle(*, turn_got: dict, plan_out: dict | None, previous: dict | None, give
             items = gates.before_fix(plan_out, unattended_run=False, design=False, **kw)["items"]
         text = talk_text(plan_out, items, run_id=run_id, consult=bool(consult), doc=doc)
         if fresh:   # 受け箱に入ったが計画の役に回せなかった行を見せる（往復の安全の上限の周・往復が収まらなかった周）
-            text += "\n" + "\n".join([UNPICKED_HEAD, *(f"- {line}" for line in fresh)]) + "\n"
+            head = UNPICKED_HEAD.format(why=UNPICKED_CAPPED if _capped(plan_out) else UNPICKED_WHY)
+            text += "\n" + "\n".join([head, *(f"- {line}" for line in fresh)]) + "\n"
         return {**out, "done": False, "open": True, "text": text, "asked": [t for _, t in items]}
     base = {k: v for k, v in (previous or failed()).items() if k not in TALK_FIELDS}
     said = turn_got.get("answer") or {}

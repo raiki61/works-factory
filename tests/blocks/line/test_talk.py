@@ -319,15 +319,20 @@ class NotesCase(TalkBase):
         """承認は往復が収まった周（修正へ進む抜け方か止まり）にだけ当てる。直す義務が無い周・計画ができなかった周は、承認が生きていても
         関所を開いて相談の結果を見せる（黙って終わらない）。最後の周に中央の指摘と承認が続けて入り、その指摘を次の周に回せない時
         （その周が収まらなかった・往復の安全の上限の周）も関所を開き、回せなかった指摘を見せる（指摘を落として承認だけを通さない）。
-        止まった周と、事前審査が諦めた周（計画は通った）には承認を当てる（修正前の承認ノードが今どおり諦めた訳で開く）"""
-        approve, both = ("承認: 進めて",), ("b.py も直す", "承認: 進めて")
+        止まった周と、事前審査が諦めた周（計画は通った）には承認を当てる（修正前の承認ノードが今どおり諦めた訳で開く）。上限の周でも、
+        受け箱が承認だけか端の行と承認だけなら承認を当てる。回せなかった行の案内は、上限の周では設計し直せない旨にし、収まらなかった周は
+        revise に書く旨にする（上限の周の revise は止める答えになるので、revise を勧めない）"""
+        approve, both, edge = ("承認: 進めて",), ("b.py も直す", "承認: 進めて"), ("端: 名前を揃える", "承認: 進めて")
         gave_up = {"status": "gave_up", "ok": False, "review_status": "", "review_reason": "受け付けを通らない"}
         rows = (  # (plan-out の欄, 受け箱の行, 関所を開くか, 文に在るべき字)
             ({"status": "nothing_owed", "ok": False}, approve, True, "相談の結果"),
             (gave_up, approve, True, "相談の結果"),
             ({"status": "failed", "ok": False, "review_status": "", "review_reason": "落ちた"}, approve, True, "相談の結果"),
             (gave_up, both, True, "- b.py も直す"),
-            ({"round": 20}, both, True, "- b.py も直す"),
+            ({"round": 20}, both, True, "この周は設計し直せない"),
+            ({"round": 20}, approve, False, None),
+            ({"round": 20}, edge, False, None),
+            (gave_up, both, True, "直すなら revise の一言に書く"),
             ({"capped": True}, both, True, "- b.py も直す"),
             ({"capped": True, "ok": False, "stalled": True}, both, True, "- b.py も直す"),
             ({"ok": False, "stalled": True}, approve, False, None),
