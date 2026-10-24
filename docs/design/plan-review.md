@@ -53,7 +53,7 @@
 - `request`: `json(shared:request.schema.json): 依頼のファイル（決め手の出どころの「依頼の引用」を照らす元。依頼のファイルそのものは世界の解からの外れの決め手にならない）。空は無い`。既定 `""`。
 - `review_rev`: `text: 役が読む版（固めた版の commit）。空は HEAD`。既定 `""`。
 - `diff_base`: `text: 材料の BASE（入口の差分の根。この run が直し始める前の版で、後退の比べの基準）。空は review_rev と同じ`。既定 `""`。
-- `ruling`: `text: 裁かれた修正案の項目の番号（JSON の配列か、, で区切った番号の字。承認済みの案の 1 から数える）。空は形 replan でない`。既定 `""`。
+- `ruling`: `json(shared:replan-items.schema.json): 裁かれた修正案の項目の番号（整数か数字の字）の配列。承認済みの案の 1 から数える。空の配列は形 replan でない`。既定 `[]`。
 - `conflicts`: `json(lib:conflicts.schema.json): 修正の段の申し出と裁定（{items: [...]}）。形 replan の時だけ読む。空は無い`。既定 `""`。
 - `lang`: `text: 人に見せる欄（3.4・7.4 に名指す）の言語。空は依頼の言語`。既定 `""`。
 

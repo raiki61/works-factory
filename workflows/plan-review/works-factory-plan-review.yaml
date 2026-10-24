@@ -23,7 +23,7 @@ inputs:
   request: {default: '', description: 'json(shared:request.schema.json): 依頼のファイル（決め手の出どころの依頼の引用を照らす元）。空は無い'}
   review_rev: {default: '', description: 'text: 役が読む版（固めた版の commit）。空は HEAD'}
   diff_base: {default: '', description: 'text: 材料の BASE（入口の差分の根。後退の比べの基準）。空は review_rev と同じ'}
-  ruling: {default: '', description: 'text: 裁かれた修正案の項目の番号（JSON の配列か、, で区切った番号の字。承認済みの案の 1 から数える）。空は形 replan でない'}
+  ruling: {default: '[]', description: 'json(shared:replan-items.schema.json): 裁かれた修正案の項目の番号（整数か数字の字）の配列。承認済みの案の 1 から数える。空の配列は形 replan でない'}
   conflicts: {default: '', description: 'json(lib:conflicts.schema.json): 修正の段の申し出と裁定（{items: [...]}）。形 replan の時だけ読む。空は無い'}
   lang: {default: '', description: 'text: 人に見せる欄の言語。空は依頼の言語'}
 returns: finish

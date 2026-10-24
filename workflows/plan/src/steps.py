@@ -152,7 +152,7 @@ def intake(place, repo, k: int, raw: dict) -> dict:
     unread: list[str] = []
     ruling: list = []
     try:
-        ruling = ports.json(_text_of(raw["ruling"]) or "[]", "replan-items.schema.json")
+        ruling = ports.json(_text_of(raw["ruling"]) or "[]", "shared:replan-items.schema.json")
     except ValueError as e:
         why.append(f"ruling が読めない（{e}）")
     mode = "replan" if ruling else "plan"

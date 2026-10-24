@@ -173,16 +173,8 @@ def recorded_rows(recorded, policy_path) -> list:
 
 
 def _ruling(raw) -> list:
-    """port ruling の字（JSON の配列か、, で区切った番号の字）を planmarks.handed が読む並びに。空は []"""
-    text = ports.text(raw).strip()
-    if not text or text in ("null", "[]"):
-        return []
-    if text.startswith("["):
-        got = json.loads(text)
-        if not isinstance(got, list):
-            raise ValueError("ruling が JSON の配列でない")
-        return got
-    return [part.strip() for part in text.split(",") if part.strip()]
+    """port ruling（番号の配列。形 shared:replan-items.schema.json）を planmarks.handed が読む並びに。空・null は []"""
+    return [] if _blank(raw) else ports.json(raw, "shared:replan-items.schema.json")
 
 
 # ---------------------------------------------------------------- 写し

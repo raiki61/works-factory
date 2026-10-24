@@ -419,10 +419,6 @@ class BlockReturnsTest(unittest.TestCase):
         self.assertIn("節 take", got[0])
         self.assertIn("呼びが 0 個", got[0])
 
-if __name__ == "__main__":
-    unittest.main()
-
-
 # #851 の受け渡しの形の照らし（scan._shapes）。書き手 judge の返りを graph line が plan の入力へ結ぶ木
 PLAN = "workflows/plan/works-factory-plan.yaml"
 UNITS = "workflows/plan/schemas/units.schema.json"
@@ -486,6 +482,16 @@ class ShapesTest(unittest.TestCase):
         got = self.wired("units: {type: string}", "json(units.schema.json)", shape=shape)
         self.assertTrue(any("書き手の型 ['string']" in line for line in got), got)
 
+    def test_json_value_read_as_text_is_red(self):
+        """JSON を入れた string（issue #851 の仕組み 2）: 書き手の欄が object・array の値で、読み手の form が json・jsonl でない辺は赤。
+        Archon は値を JSON の字にして渡すので、読み手は形を名指さずに JSON を読むことになる"""
+        for fields in ("units: {type: array, items: {type: string}}", "units: {type: [object, 'null'], properties: {x: {type: string}}}"):
+            with self.subTest(fields=fields):
+                got = self.wired(fields, "text")
+                self.assertEqual(len(got), 1, got)
+                self.assertIn("JSON を入れた string", got[0])
+        self.assertEqual(self.wired("units: {type: string}", "text"), [], "字の欄を text で受けるのは赤にしない")
+
     def test_pointer_field_without_a_form_is_red(self):
         got = self.wired("units: " + POINTER % "置き場のファイル", "file")
         self.assertEqual(len(got), 1, got)
@@ -543,3 +549,7 @@ class ShapesTest(unittest.TestCase):
                 self.assertEqual(len(got), len(words), got)
                 for word, line in zip(words, got):
                     self.assertIn(word, line)
+
+
+if __name__ == "__main__":
+    unittest.main()

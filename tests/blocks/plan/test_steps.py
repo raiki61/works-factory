@@ -1011,9 +1011,39 @@ class FilesCase(PlaceCase):
         self.assertEqual((got["status"], got["plan"]["path"], got["ripple"]["path"]), ("failed", "r2/plan-fields.json", "r2/ripple.json"))
         self.assertEqual(self.read(self.place / "r2" / files.FIELDS), {"round": 2, "fields": []})
         self.assertEqual(self.read(self.place / "r2" / files.RIPPLE), {"items": [], "error": "出口が落ちた"})
-        self.assertEqual(self.read(self.place / "r2" / files.RIPPLE), {"items": [], "error": "出口が落ちた"})
         self.assertEqual((self.place / "r2" / files.FINISH_ERROR).read_text(encoding="utf-8"), "出口が落ちた\n")
-        self.assertEqual(got["report"], ["修正案: 周 2・修正案を出せなかった（failed）: 出口が落ちた"])
+        kept = {name: files.OFF_SHAPE.format(name=name) for name in (files.FIELDS, files.RIPPLE)}
+        self.assertEqual(self.read(self.place / "r2" / kept[files.FIELDS]), {"round": 2, "fields": "列でない"}, "書き直す前の中身を別の名で残す")
+        self.assertEqual(self.read(self.place / "r2" / kept[files.RIPPLE]), {"items": "列でない"})
+        for name in kept.values():
+            self.assertIn(name, got["reason"], "残した名を訳に名指す")
+            self.assertIn(name, files.OWN_FILES, "周を開き直す時に名で消す")
+        self.assertTrue(got["reason"].startswith("出口が落ちた"))
+        self.assertEqual(got["report"], [f"修正案: 周 2・修正案を出せなかった（failed）: {got['reason']}"])
+
+    def test_crash_finish_keeps_sound_files_when_the_shape_check_cannot_load(self):
+        """lib（形の照らし）が読めない時は、形の合った控えを書き直さず、指さずに null と訳を返す（照らせない事を形の外れと取り違えない）"""
+        files.write_json(self.place / files.CURRENT_ROUND, {"round": 2})
+        files.write_json(self.place / "r2" / files.FIELDS, {"round": 2, "fields": [{"x": 1}]})
+        files.write_json(self.place / "r2" / files.RIPPLE, {"items": []})
+        with mock.patch.object(ports, "shape_errors", side_effect=ImportError("No module named 'engine'")):
+            got = files.crash_finish(self.place, "出口が落ちた")
+        self.assertEqual((got["status"], got["plan"], got["ripple"]), ("failed", None, None))
+        self.assertEqual(self.read(self.place / "r2" / files.FIELDS), {"round": 2, "fields": [{"x": 1}]}, "照らせない控えは上書きしない")
+        self.assertEqual(self.read(self.place / "r2" / files.RIPPLE), {"items": []})
+        self.assertEqual(sorted(p.name for p in (self.place / "r2").iterdir()), sorted([files.FIELDS, files.RIPPLE, files.FINISH_ERROR]))
+        self.assertIn("照らせない", got["reason"])
+        self.assertIn(files.FIELDS, got["reason"])
+
+    def test_crash_finish_returns_null_with_a_reason_when_it_cannot_write(self):
+        """控えを書けない時も、出口は投げずに null と訳を返す（finish の JSON が出ないまま落ちない）"""
+        files.write_json(self.place / files.CURRENT_ROUND, {"round": 2})
+        (self.place / "r2").mkdir()
+        with mock.patch.object(files, "write_json", side_effect=OSError("書けない場所")):
+            got = files.crash_finish(self.place, "出口が落ちた")
+        self.assertEqual((got["status"], got["plan"], got["ripple"]), ("failed", None, None))
+        self.assertIn("書けない場所", got["reason"])
+        self.assertFalse((self.place / "r2" / files.FIELDS).exists())
 
 
 class NestedFileCase(PlaceCase):

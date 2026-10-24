@@ -51,12 +51,12 @@
 - `policy`: `file: 人の方針の文書の固めた写し。空は方針の文書が無い`。既定 `""`。
 - `prior_failures`: `json(shared:prior-failures.schema.json): 前の run で最後まで通らなかった物の行の配列 [{where, text}]。空の配列は無い`。既定 `[]`。
 - `prior`: `json(shared:plan-prior.schema.json): 前の周（形 plan では直前の計画の周と、それへの事前審査。形 replan では直す元の承認済みの案の周）。pointer・パス・値のどれか。空の字は前の周が無い（1 周目）`。既定 `""`。
-- `ruling`: `json(replan-items.schema.json): 案の直しで直す項目の番号（1 始まり。整数か数字の字）の配列。空の配列は案の直しでない（形 plan）`。既定 `[]`。
+- `ruling`: `json(shared:replan-items.schema.json): 案の直しで直す項目の番号（1 始まり。整数か数字の字）の配列。空の配列は案の直しでない（形 plan）`。既定 `[]`。
 - `conflicts`: `json(lib:conflicts.schema.json): 修正の段の申し出と裁定の行のファイル（{items: [...]}）。形 replan だけが読む。空は行が無い`。既定 `""`。
 - `base`: `text: 修正前の HEAD の版（受け入れテストの定義と修正前のテストの中身を引く版）。空は HEAD`。既定 `""`。
 - `review_rev`: `text: 役が読む版。空は base、それも空なら HEAD`。既定 `""`。
 - `diff_base`: `text: 材料の BASE（入口の差分の根）。空は base、それも空なら読む版`。既定 `""`。
-- `routes`: `choice(auto|spec): 行の route の決め方。auto は今の指示のまま。spec は固めた仕様（入力 spec）の「TDD で直す所」が名指す行だけを tdd にし、ほかを direct にする`。既定 `auto`。spec の時だけ、修正案の役の指示に段落 `routes_spec` が出る（[spec-driven.md](spec-driven.md) の 7 章の 2）。知らない語は読めない入力として指示に名指し、auto で読む。
+- `routes`: `choice(auto|spec): 行の route の決め方。auto は今の指示のまま。spec は固めた仕様（入力 spec の JSON か spec_doc の本文）の「TDD で直す所」が名指す行だけを tdd にし、ほかを direct にする`。既定 `auto`。spec の時だけ、修正案の役の指示に段落 `routes_spec` が出る（[spec-driven.md](spec-driven.md) の 7 章の 2）。知らない語は読めない入力として指示に名指し、auto で読む。
 - `lang`: `text: 人に見せる欄（approach・shrink_first・各 why・why_not・no_narrow・undecided_because・world・deviation・narrows の what・recommend の note と why・block_answers の how・handoff）の言語。空は依頼の言語`。既定 `""`。
 
 形のファイル:
@@ -65,7 +65,7 @@
 - `workflows/.shared/schemas/units.schema.json`（#851 で plan の写し unit-catalog.schema.json を消して寄せた）: 直しの単位の目録の形。今はこの 1 つだけで、plan の側に写しは無い（作った時は名を替えて plan の側に unit-catalog.schema.json として写していた。10 節の 6）。
 - `workflows/.shared/schemas/prior-failures.schema.json`（新しく足す。読み手は plan と diagnose）: `{"type": "array", "items": {"type": "object", "required": ["where", "text"], "properties": {"where": {"type": "string"}, "text": {"type": "string"}}}}`。同じ名の形が在れば使う。
 - `workflows/.shared/schemas/request-answers.schema.json`（#851 で .shared へ移した）: 依頼の answers の行 `[{question, text, command?, output?}]`（必須は縛らない。形を確かめる住処は `lib/carry.py`）。
-- `workflows/plan/schemas/replan-items.schema.json`: `{"type": "array", "items": {"type": ["integer", "string"]}}`（番号の照らしは `planmarks.handed` のまま）。
+- `workflows/.shared/schemas/replan-items.schema.json`（plan-review の入力 `ruling` と同じ形）: `{"type": "array", "items": {"type": ["integer", "string"]}}`（番号の照らしは `planmarks.handed` のまま）。
 - `workflows/.shared/schemas/plan-prior.schema.json`（#851 で line と plan が同じ名を指すよう .shared へ移した。欄の description が指す先の形を名指す。下は移す前の形）:
 
 ```json
@@ -139,7 +139,7 @@ script の名は `lib/` のモジュールの名と重ねない（README の 7.1
 `ports.place()`（単独の run では `$ARTIFACTS_DIR/`。line の往復の輪から include された時は、輪の回をまたいで同じ `$ARTIFACTS_DIR/<include の id>/`）の下に書く。周ごとのファイルは周のフォルダ `r<k>/`（k は `round`）に置き、前の周のファイル（`prior` の pointer の先）を消さない。
 
 - place の直下: `current-round.json`（`{round}`。intake が書き、後ろの script が今の周のフォルダを引く）・`plan-writer-prompt-<n>.md`・`plan-writer-fix-prompt-<n>.md`（`prompt.emit`。`n` は `prompt.round_of` で、周をまたいで数え続ける）・`libdocs/` と `libdocs.json`（ライブラリの文書の控え。今の `plan/libdocs/`）。
-- `r<k>/`: `intake.json`（読んだ port の値と、値で受けた物の写しのパス）・`round.json`（`{round, mode, go, why, items}`）・`slots.json`（案に入れてよい単位の key の並び）・`judgment.json`（`judgment` を値で受けた時だけの写し）・`prior-reply.json`・`prior-fields.json`・`prior-fix-plan.json`・`prior-ripple.json`・`prior-review.json`（`prior` の欄を値で受けた時だけの写し）・`prior-failures-in.json`（`carry.PRIOR_IN_FILE`）・`ripple-units.json`・`tree.json`・`rejects-plan.json`・`candidate-plan.json`・`reply.json`・`p2.fix_plan.json`・`plan-fields.json`・`handoff.json`（`handoff.path_of` の名）・`replan.json`（`replan.TRIP_FILE`）・`replan-gave-up.json`・`item-brief-<no>.md`・`ripple.json`・`trace.jsonl`（`planmarks.append_trace`）・`prompt-error.json`（指示が組めなかった node と訳）・`finish-error.txt`（出口の中の誤りの訳）。
+- `r<k>/`: `intake.json`（読んだ port の値と、値で受けた物の写しのパス）・`round.json`（`{round, mode, go, why, items}`）・`slots.json`（案に入れてよい単位の key の並び）・`judgment.json`（`judgment` を値で受けた時だけの写し）・`prior-reply.json`・`prior-fields.json`・`prior-fix-plan.json`・`prior-ripple.json`・`prior-review.json`（`prior` の欄を値で受けた時だけの写し）・`prior-failures-in.json`（`carry.PRIOR_IN_FILE`）・`ripple-units.json`・`tree.json`・`rejects-plan.json`・`candidate-plan.json`・`reply.json`・`p2.fix_plan.json`・`plan-fields.json`・`handoff.json`（`handoff.path_of` の名）・`replan.json`（`replan.TRIP_FILE`）・`replan-gave-up.json`・`item-brief-<no>.md`・`ripple.json`・`trace.jsonl`（`planmarks.append_trace`）・`prompt-error.json`（指示が組めなかった node と訳）・`finish-error.txt`（出口の中の誤りの訳）・`off-shape-plan-fields.json`・`off-shape-ripple.json`（出口が落ちた時に、形の外れた控えの元の中身）。
 
 名は `src/steps.py` だけが持つ（`p2.fix_plan.json`・`plan-fields.json`・`trace.jsonl`・`handoff.json`・`replan.json` は今の lib の字と同じで、`planmarks.FIELDS_FILE`・`handoff.path_of`・`replan.TRIP_FILE` が書く物はその口を通す）。intake は、今の周のフォルダが既に在れば（同じ周を開き直した時）、その中の上の名のファイルだけを名で引いて消す。place の直下の指示のファイルと、ほかの周のフォルダは消さない（往復の輪の回をまたいで place が同じなので、前の周の指示の記録と `prior` の先を残す。10 節の 3）。
 
@@ -479,7 +479,7 @@ For `plan`, the rule above does not apply. Return in `plan` only the items the r
 - `fix_prep.py`: 最後の却下の理由と控えのパスで `prompt.emit("plan-writer-fix", …, {"replan": mode == "replan"}, prompt.round_of("plan-writer-fix"))`。誤りの扱いは `plan_prep.py` と同じ。
 - `plan_accept.py`: 今の `plan_accept.py` の順のまま: 周を読む → `rolekit.current_round` が拒否の控えを読めなければ照らさずに `done` の拒否（`attempt: 0`）→ `rolekit.resubmitted`（形 plan は `merge_resubmit`〔`slot_list` は `round_slots`〕、形 replan は `merge_replan_resubmit`）→ `take`（形 plan は `take_plan`、形 replan は `take_replan`。`keys = accept.status_keys("true")`〔今の `with: status_guarded: true`〕・`base_rev = port base`・`tables = planmarks.design_need(structmark.dirty(structure)), worldmark.need(world_rows)`）→ `rolekit.accept_round(round_dir, "plan", None, lambda _: out, net=True)` → `attempt = n - (1 if out.get("halt") else 0)`。返り `{**rolekit.round_outcome(got), attempt}`。誤りは `ports.run` の fallback で `{ok: false, done: true, give_up: true, reason: "受け付けが落ちた（<訳>）", attempt: 0}`。
 - `ripple_items.py`: 今の `planfile.ripple_items`（受け付けた案の欄が在れば `ripple.build`、無ければ `{items: [], error: why_not_ready}`）。
-- `finish.py`: 今の `plan_collect.py` の中身を 1 つにした物。受けた案の有無（`accepted_fields`）・形 replan で諦めた時の `note_gave_up`（項目ごとの行を `replan-gave-up.json` に置く）・`why_not_ready`・`placeholders`（`plan-fields.json`・`ripple.json` を在って空でない形に）・`returned`（`fix_plan`・`reply`・`handoff`・`replan` の pointer と `rejects`）・`owed`（`owed_order`）・`status`（1.2）・`report`（下の報告の行）を組んで返す。誤りは `ports.run` の fallback が標準ライブラリだけで `finish-error.txt` に訳を書き、`plan-fields.json`（`{round, fields: []}`）と `ripple.json`（`{items: [], error}`）を空でない形で置いて、`{ok: false, status: failed, reason, mode: "plan", round, owed: [], plan, ripple, fix_plan: null, reply: null, handoff: null, replan: null, rejects: [], gave_up: null, report: [<訳の 1 行>]}` を返す（今の `plan_collect.failed`）。周の番号は `current-round.json` から読み、読めなければ 1。
+- `finish.py`: 今の `plan_collect.py` の中身を 1 つにした物。受けた案の有無（`accepted_fields`）・形 replan で諦めた時の `note_gave_up`（項目ごとの行を `replan-gave-up.json` に置く）・`why_not_ready`・`placeholders`（`plan-fields.json`・`ripple.json` を在って空でない形に）・`returned`（`fix_plan`・`reply`・`handoff`・`replan` の pointer と `rejects`）・`owed`（`owed_order`）・`status`（1.2）・`report`（下の報告の行）を組んで返す。誤りは `ports.run` の fallback（`files.crash_finish`）が `finish-error.txt` に訳を書き、`plan-fields.json`・`ripple.json` を形で照らして指す。無い・空の物は「無い」を表す形（`{round, fields: []}`・`{items: [], error}`）を書いてから指し、形に合わない物は元の中身を `off-shape-<名>` に移してから書き直し、移した名を `reason` に書く。形の照らし（lib）が読めない時と書けない時は、在る控えに手を付けずにその欄を null にし、訳を `reason` に書く。返りは `{ok: false, status: failed, reason, mode: "plan", round, owed: [], plan, ripple, fix_plan: null, reply: null, handoff: null, replan: null, rejects: [], gave_up: null, report: [<訳の 1 行>]}` を返す（今の `plan_collect.failed`）。周の番号は `current-round.json` から読み、読めなければ 1。
 - `finish.py` の報告の行（`report`。報告の節「修正案」に並ぶ日本語の行。`src/steps.py` の `report_lines` が値から組む）:
   - `ok`: `修正案: 周 <round>（<案を書く|案の直し>）・項目 <n> 件・受け付けの拒否 <m> 回`。形 replan では続けて `案の直しで直した項目: <番号の並び>`。
   - `nothing_owed`: `修正案: 周 <round>・直す義務の単位が無いので修正案の役を起こさなかった（<reason>）`。

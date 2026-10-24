@@ -1061,7 +1061,8 @@ def _shapes(root: Path) -> list[str]:
     3. graph の配線の 1 本ごと（include・workflow の節の with:<鍵> の字が欄つきの参照 $<id>.output.<欄> か $INPUTS.<名> そのもの）に、
        書き手の宣言（その YAML の節の output_format の欄か、include した workflow の返す節の欄か、YAML の入力）と読み手の入力の form を
        結ぶ。どちらかが json・jsonl なら両端の form は字のまま同じ（名を変えた写しは名が違うのでここで赤）。書き手が値の欄で読み手が
-       json(X) なら、X の required の欄が書き手の欄の properties に在り、型が書き手の型を受ける（_fits）。form を持たない受け手
+       json(X) なら、X の required の欄が書き手の欄の properties に在り、型が書き手の型を受ける（_fits）。書き手が object・array の値の欄で
+       読み手が json・jsonl でない（text など）なら赤（JSON を入れた string。issue #851 の仕組み 2）。form を持たない受け手
        （prompt・when・until_bash・承認ノード）は port でないので結ばない。script の節の with: の読みは 4 が照らす
     4. block の scripts/・src/ の ports.json の形の名と ports.file・ports.pointer の form は字のままで、その block の宣言の form の組
        （入力の description・その YAML のどの節の output_format の pointer の欄・include した workflow の返す節の pointer の欄と、
@@ -1137,7 +1138,9 @@ def _wire(pack: "_Pack", writer, wfolder: Path, reader, rfolder: Path) -> list[s
                 return [f"書き手の form {pack.form_text(held)} と読み手の form {pack.form_text(reader)} が違う"]
         return []
     if reader[0] not in gate.JSON_FORMS:
-        return []
+        carried = sorted(_types(held) & {"object", "array"})
+        return [f"書き手の欄は JSON の値（{carried}）で、読み手の form {pack.form_text(reader)} は JSON を字として受ける"
+                "（JSON を入れた string。読み手は json(<名>) で受ける）"] if carried else []
     named = gate.form_of(held.get("description"))
     if named and named[0] in gate.JSON_FORMS:
         return [] if named == reader else [f"書き手の欄の形 {pack.form_text(named)} と読み手の form {pack.form_text(reader)} が違う"]

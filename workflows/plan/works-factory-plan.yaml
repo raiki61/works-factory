@@ -24,12 +24,12 @@ inputs:
   policy: {default: '', description: 'file: 人の方針の文書の固めた写し。空は方針の文書が無い'}
   prior_failures: {default: '[]', description: 'json(shared:prior-failures.schema.json): 前の run で最後まで通らなかった物の行の配列 [{where, text}]。空の配列は無い'}
   prior: {default: '', description: 'json(shared:plan-prior.schema.json): 前の周（形 plan では直前の計画の周と、それへの事前審査。形 replan では直す元の承認済みの案の周）。pointer・パス・値のどれか。空の字は前の周が無い（1 周目）'}
-  ruling: {default: '[]', description: 'json(replan-items.schema.json): 案の直しで直す項目の番号（1 始まり。整数か数字の字）の配列。空の配列は案の直しでない（形 plan）'}
+  ruling: {default: '[]', description: 'json(shared:replan-items.schema.json): 案の直しで直す項目の番号（1 始まり。整数か数字の字）の配列。空の配列は案の直しでない（形 plan）'}
   conflicts: {default: '', description: 'json(lib:conflicts.schema.json): 項目の誤りの申し出と、その裁定の行のファイル（{items: [...]}）。形 replan だけが読む。空は行が無い'}
   base: {default: '', description: 'text: 修正前の HEAD の版（受け入れテストの定義と修正前のテストの中身を引く版）。空は HEAD'}
   review_rev: {default: '', description: 'text: 役が読む版。空は base、それも空なら HEAD'}
   diff_base: {default: '', description: 'text: 材料の BASE（入口の差分の根）。空は base、それも空なら読む版'}
-  routes: {default: 'auto', description: 'choice(auto|spec): 行の route の決め方。auto は今の指示のまま。spec は固めた仕様（入力 spec）の「TDD で直す所」が名指す行だけを tdd にし、ほかを direct にする'}
+  routes: {default: 'auto', description: 'choice(auto|spec): 行の route の決め方。auto は今の指示のまま。spec は固めた仕様（入力 spec の JSON か spec_doc の本文）の「TDD で直す所」が名指す行だけを tdd にし、ほかを direct にする'}
   lang: {default: '', description: 'text: 人に見せる欄（approach・shrink_first・各 why・why_not・no_narrow・undecided_because・world・deviation・narrows の what・recommend の note と why・block_answers の how・handoff）の言語。空は依頼の言語'}
 returns: finish
 outcome_field: ok

@@ -295,7 +295,7 @@ class ReplanIntakeCase(_Case):
         conflicts = {"items": [{"id": "c1", "unit_key": v.UNIT_CLAMP, "between": ["a", "b"], "why_both_cannot_hold": "w",
                                 "kind": "brief_vs_judgment", "which_is_right": "code",
                                 "ruling": {"decision": "fix_plan_item", "text": "項目 2 を直す", "plan_items": [2]}}]}
-        got = self.run.intake(**self.run.plan_inputs(new, ruling="2", prior=self.prior(old),
+        got = self.run.intake(**self.run.plan_inputs(new, ruling='["2"]', prior=self.prior(old),
                                                      conflicts=self.run.put("fix/conflicts.json", conflicts)))
         self.assertEqual(got, {"due": True, "form": "replan", "tree": False, "k": 0, "reason": ""})
         doc = self.doc()
@@ -308,13 +308,15 @@ class ReplanIntakeCase(_Case):
         self.assertEqual(self.run.intake(**self.run.plan_inputs(new, ruling="[2]", prior=self.prior(old)))["form"], "replan")
 
     def test_no_approved_plan_or_stray_item_fails(self):
-        got = self.run.intake(**self.run.plan_inputs(ruling="1"))
+        got = self.run.intake(**self.run.plan_inputs(ruling='["1"]'))
         self.assertEqual((got["due"], got["form"]), (False, "replan"))
         self.assertIn("承認済みの修正案", got["reason"])
-        got = self.run.intake(**self.run.plan_inputs(ruling="3", prior=self.prior([v.item(v.UNIT_MEAN), v.item(v.UNIT_CLAMP)])))
+        got = self.run.intake(**self.run.plan_inputs(ruling='["3"]', prior=self.prior([v.item(v.UNIT_MEAN), v.item(v.UNIT_CLAMP)])))
         self.assertIn("入力 ruling", got["reason"])
-        got = self.run.intake(**self.run.plan_inputs(ruling="x", prior=self.prior([v.item(v.UNIT_MEAN), v.item(v.UNIT_CLAMP)])))
-        self.assertIn("入力 ruling", got["reason"])
+        for bad in ('["x"]', "2", "1,2"):   # 番号でない行と、番号の配列の形（shared:replan-items.schema.json）でない字
+            with self.subTest(bad=bad):
+                got = self.run.intake(**self.run.plan_inputs(ruling=bad, prior=self.prior([v.item(v.UNIT_MEAN), v.item(v.UNIT_CLAMP)])))
+                self.assertIn("入力 ruling", got["reason"])
 
 
 # ---------------------------------------------------------------- 出口
@@ -467,7 +469,7 @@ class FlowCase(_Case):
         old = [v.item(v.UNIT_MEAN, 1), v.item(v.UNIT_CLAMP, 2)]
         prior = line_record(self.run, old)
         new = [old[0], v.item(v.UNIT_CLAMP, 2, approach="直した形")]
-        got = self.one_pass(self.run.plan_inputs(new, ruling="2", prior=prior), v.review())
+        got = self.one_pass(self.run.plan_inputs(new, ruling='["2"]', prior=prior), v.review())
         self.assertEqual((got["status"], got["form"], got["round"], got["pass"]), ("ok", "replan", 0, None))
         self.assertEqual([r["item"] for r in got["replan"]], [2])
         self.assertEqual(sorted(got["replan"][0]), ["contract_changed", "human", "item", "units", "widened"])
@@ -477,7 +479,7 @@ class FlowCase(_Case):
     def test_replan_give_up_names_each_item(self):
         old = [v.item(v.UNIT_MEAN, 1), v.item(v.UNIT_CLAMP, 2)]
         prior = line_record(self.run, old)
-        self.run.intake(**self.run.plan_inputs(old, ruling="1,2", prior=prior))
+        self.run.intake(**self.run.plan_inputs(old, ruling='["1", "2"]', prior=prior))
         _, _, rolekit = libs()
         given = [{"at": "t", "reason": f"拒否 {n}", "after": rolekit.NET_AFTER} for n in range(1, rolekit.NET_AFTER + 1)]
         (self.run.artifacts / "rejects-p2.plan_review.json").write_text(v.dump(given), encoding="utf-8")
@@ -593,7 +595,7 @@ class ReadsCase(_Case):
     def test_replan_and_text_forms_use_their_own_names(self):
         old = [v.item(v.UNIT_MEAN, 1), v.item(v.UNIT_CLAMP, 2)]
         prior = line_record(self.run, old)
-        self.hook("Read", file_path=self.material(ruling="2", prior=prior))
+        self.hook("Read", file_path=self.material(ruling='["2"]', prior=prior))
         got, index = self.collect()
         self.assertEqual((pathlib.Path(got["index_file"]).name, list(index)), ("reads-replan-block.json", ["replan-plan-review"]))
         self.run.intake(proposal=v.POLICY_TEXT)
