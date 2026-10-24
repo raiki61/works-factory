@@ -138,7 +138,9 @@ class FixerParagraphsCase(unittest.TestCase):
         self.assertIn("## Scope consultation and the pre-check", first["prompt"])
         self.assertIn("If the write to ", first["prompt"])   # 下書きの置き場が拒まれた時の逃げ道（temporary directory）
         self.assertIn("pass that path to `--reply`", first["prompt"])
-        reply = {**REPLY, "consult": [{"item": 1, "paths": ["README.md"], "tests": [], "why": "直しに伴う記録を README に足す要がある"}]}
+        reply = {**REPLY, "consult": [{"item": 1, "paths": ["README.md"], "tests": [], "why": "直しに伴う記録を README に足す要がある",
+                                       "tried": ["stats.py の分母を直した"], "blocked": "直しは済んだが記録の置き場が範囲の外",
+                                       "evidence": [{"path": "stats.py", "line": 4}]}]}
         asked = run.script("consult_check", reply=json.dumps(reply), **{"pass": "first"})
         self.assertTrue(asked["go"], asked)
         self.assertIn("Answer as the author of the fix plan.", asked["prompt"])
@@ -191,7 +193,9 @@ class FixerParagraphsCase(unittest.TestCase):
         run.script("group_start")
         first = run.script("fix_prep")
         self.assertRegex(first["prompt"], r"write in its prompt to Read this file: \S+unattended\.md")
-        reply = {**REPLY, "consult": [{"item": 1, "paths": ["README.md"], "tests": [], "why": "直しに伴う記録を README に足す要がある"}]}
+        reply = {**REPLY, "consult": [{"item": 1, "paths": ["README.md"], "tests": [], "why": "直しに伴う記録を README に足す要がある",
+                                       "tried": ["stats.py の分母を直した"], "blocked": "直しは済んだが記録の置き場が範囲の外",
+                                       "evidence": [{"path": "stats.py", "line": 4}]}]}
         run.script("consult_check", reply=json.dumps(reply), **{"pass": "first"})
         answer = {"answers": [{"ask": 1, "decision": "allow", "paths": ["README.md"], "tests": [], "spec": "",
                                "reason": "直しの記録は範囲に入れてよい"}]}

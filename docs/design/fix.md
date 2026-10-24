@@ -413,7 +413,7 @@ fix-ruled の 2 周目は、頭の 1 の後に 3（`<place>/fix-reply.json`）�
 
 ### 3.2 port
 
-相談の頼み（← `consult-check` が `consult.screen` で確かめた行。修正役の返答の `consult` と、受け付けが積んだはみ出し、`answers` の続けの一言）・修正案（`fix-plan-reply.json`。無ければ `plan-fields.json`）・波及の一覧（← `ripple`）・`lang`。
+相談の頼み（← `consult-check` が `consult.screen_ask` で確かめた行。修正役の返答の `consult`〔試したこと・範囲の中で直せない訳・根拠のファイルと行を持つ。13.3 の 1〕と、受け付けが積んだはみ出し、`answers` の続けの一言）・同じ run の前の相談と答え（← place の `trace.jsonl`）・修正案（`fix-plan-reply.json`。無ければ `plan-fields.json`）・波及の一覧（← `ripple`）・`lang`。
 
 ### 3.3 組み立ての順（`prompts/parts/consult.md`。2 つの node の md は `{part:consult}` の 1 行）
 
@@ -421,7 +421,8 @@ fix-ruled の 2 周目は、頭の 1 の後に 3（`<place>/fix-reply.json`）�
 2. `<!-- if ripple -->` 波及の一覧の 1 文と `{ripple_file}`（今の `RIPPLE_READ`）。
 3. `# Scope consultation (from the fixing stage)` と今の `consult.QUESTION` の決まり（決めるのはあなた・out_of_scope の考え直し方・ほかの項目の out_of_scope を allow した時の効き方）と `{count}`（頼みの件数）。
 4. `<!-- if plain -->` 頼みの答え方の段落（今の `ASK_TEXT` の「答え方」の部分。頼まれた物の中からだけ許す）。`<!-- if gate -->` 承認ノードの条件の頼みの答え方の段落（今の `ASK_GATE_TEXT` の「答え方」の部分。条件が求める物を自分で挙げてよい・関わらない条件なら deny）。
-5. `{asks}`（← `consult.asks_text` の頼みごとの節 `## 相談 <n>: 項目 <m>（単位: …）` と行〔今の範囲・out_of_scope と当たった glob と外した理由・足したいパス・テストの範囲・新しいテスト・当たり・理由・承認ノードの条件の字〕。決まった文を除いた材料だけ）。
+5. `<!-- if history -->` 同じ run の前の相談と答えの一覧の段落と `{history}`（← `consult.history_text`。#833）。
+   `{asks}`（← `consult.asks_text` の頼みごとの節 `## 相談 <n>: 項目 <m>（単位: …）` と行〔今の範囲・out_of_scope と当たった glob と外した理由・足したいパス・テストの範囲・新しいテスト・当たり・理由・修正役の試したこと・範囲の中で直せない訳・根拠のファイルと行・承認ノードの条件の字〕。決まった文を除いた材料だけ）。
 6. 答えの JSON の欄の決まり（今の `QUESTION` の後半: ask・decision・paths・tests・new_tests〔red と guard〕・spec・reason、期待を実装に合わせる許しを出すな）。
 7. 人に見せる欄の言語の 1 文と `{lang}`（`reason`・`spec`）。
 
@@ -860,15 +861,23 @@ node ごとの場面は 2〜6 節の 7。block 全体では:
 
 ### 13.3 見つけた今の不具合（作り直しでは直さない。作り直しの後に別に扱う）
 
-どれも今壊れていると本物の run で確かめた物ではない。1 は #833 で直した（直した形は 1 の下）。今の YAML とコードから、壊れる余地が在ると読めた物。作り直しは振る舞いを写すので、ここでは直さない。
+どれも今壊れていると本物の run で確かめた物ではない。今の YAML とコードから、壊れる余地が在ると読めた物。作り直しは振る舞いを写すので、ここでは直さない。ただし 1 は、作り直しの後に #833 で直した（1 の本文は直す前の記録で、直した形は 1 の下の「直した形」。1 の費用は、後で本物の run の記録から数えた）。
 
 1. （#833 で直した）相談の答えの役（`consult-answer`・`ruled-consult-answer`）が、同じ周の修正役の会話から分かれて起きる。YAML に `context` が無く、止めた Archon は順に並んだ AI の node に直前の会話を継がせ（`dag-executor.ts:10230-10248` の `isFreshSequential`）、名指しの無い継ぎは会話を分ける（`:2405` の `forkSession`）。答えの役は修正役の会話の全部を見たまま修正案の側として答え、次の周の修正役は答えの役の会話の分かれを継ぐ。指示の文は新しい会話のつもりで書かれている（今の `CONSULT_HEAD`）。直し方の候補: 答えの役に `context: fresh` を置くと、次の周の修正役が答えの役の会話を継ぐ（修正役の会話が切れる）。loop の外の node の `context: {resume: …}` も同じ loop の中では使えない。直し方は別に決める。
    - 費用: 修正役（群 `@wf-fix-writers`）と答えの役（群 `@wf-fix-consult`）は模型が違うので、答えの役は修正役の会話の履歴（1 回 13.6 万トークン前後）をキャッシュに当てられず、丸ごと書き直していた（#833。10-14〜10-23 の run で API の定価で約 $11.7）。
    - 直した形: 答えの役（`consult-answer`・`ruled-consult-answer`）を、修正の輪の本体の中の、答えの役 1 つだけを置いた 1 周の輪（`consult-ask`・`ruled-consult-ask`。`loop_group: {max_iterations: 1, fresh_context: true, until_bash: "true"}`）の中に置く。`when:` と `depends_on:` は輪に置き、受け付け（`consult-accept`・`ruled-consult-accept`）は輪の返り `$consult-ask.output`（本体の唯一の終わりの答えの役の返りの字。`dag-executor.ts` の `loopGroupIterationOutput`）を受ける。答えの役の指示・道具・模型・返りの形は変えない。
-   - 効き方（止めた Archon の `dag-executor.ts`）: 輪の 1 周目は外の続きを持たずに起きる（`executeLoopGroupNode` の「lastSequentialSession: group.fresh_context || i === 1 ? undefined」）ので、答えの役は新しい会話。外の層の続きは返りに `sessionId` の在る node だけが替え（`runLayers` の「output.state === 'completed' && !isParallelLayer && output.sessionId !== undefined」）、輪の node の返りは止まった時のほかに会話を持たないので、輪の後も外の続きは修正役の会話のまま。周の終わりの続き（`loopLastSequentialSession`）も修正役の会話で、次の周の修正役はそれを継ぐ。答えの役が飛んだ周（`when:` が偽）は今と同じ。入れ子の輪は止めた Archon の試験（`dag-executor.test.ts` の「EDGE H: nested loop_group」）が回す形。
+   - 効き方（止めた Archon の `dag-executor.ts`）: 輪の 1 周目は外の続き（輪の外で、直前の node の会話を次の node が継ぐ線）を持たずに起きる（`executeLoopGroupNode` の「lastSequentialSession: group.fresh_context || i === 1 ? undefined」）ので、答えの役は新しい会話。外の層の続きは返りに `sessionId` の在る node だけが替え（`runLayers` の「output.state === 'completed' && !isParallelLayer && output.sessionId !== undefined」）、輪の node の返りは人の答えを待って止まった時（`interactive_loop`）のほかに会話を持たないので、輪の後も外の続きは修正役の会話のまま。周の終わりの続き（`loopLastSequentialSession`）も修正役の会話で、次の周の修正役はそれを継ぐ。答えの役が飛んだ周（`when:` が偽）は今と同じ。入れ子の輪は止めた Archon の試験（`dag-executor.test.ts` の「EDGE H: nested loop_group」）が回す形。
    - 採らなかった形: 答えの役に `context: fresh` を置く（完了した節の会話が外の続きになり、次の周の修正役が答えの役の会話を継ぐ）。答えの役を並んだ層に置く（並んだ層は外の続きを空にし、次の周の修正役が新しい会話になる）。修正役に `context: {resume: …}` を置く（同じ輪の本体の節を名指せず〔`loader.ts` の「context.resume cannot name a source inside the same loop_group body」〕、輪の前の AI の node を名指すと 1 周目の修正役がその会話を継ぐ）。答えの役を `workflow:` の子の run にする（輪の本体に `workflow:` は置けない。`loader.ts` の「'workflow' (sub-run) is not supported inside a loop_group body」）。
    - E11: (1) Archon は「新しい会話で起き、外の続きを替えない節」の鍵を持たない（`context` は `fresh`・`shared`・`resume` だけ。`schemas/dag-node.ts` の `nodeContextSchema`）が、入れ子の輪は持つので、それを使う。部品を足さないので埋めの名簿（`docs/polyfills.md`）には載せない。(2) ASF の `.archon/workflows/sdlc/` に同じ場面（輪の中で別の模型の役を挟む形）は無い。(3) 要る: 2.7 と 3.7 の元の works は、範囲の相談を修正案を書いた役の会話の続きで答え、修正役は自分の会話を続けた。工場は修正案の役の会話を名指せない（3.7）ので答えの役は新しい会話で修正案を読み、修正役の会話のつながりは元のまま保つ（keep-essence の会話の続き。README 13 章の決め）。
    - 試験: `tests/blocks/fix/test_yaml.py` の `ConversationCase`（修正の輪の本体に直に置く AI の node は修正役 1 つだけ・答えの役は答えの役 1 つだけの 1 周の `fresh_context: true` の輪の中）と、`tests/blocks/fix/test_consult.py` の `ConsultWiringCase`（受け付けが答えの役を置いた輪の返りを受ける）。
+   - 経緯の渡し方（持ち主の決め 2026-10-24。新しい会話の答えの役に、修正役の経緯を届ける）:
+     - 修正役は範囲の相談の行に、`why` のほかに 3 つの欄を必ず書く: `tried`（範囲の中で試したこと。1 行 1 件）・`blocked`（範囲の中で直せない訳。どこまで直して何に当たったか。10 字以上）・`evidence`（根拠のファイルと行 `{path, line}`。1 つ以上）。返りの形（YAML の `&fix_reply` の `consult`）が必須にし、書き方は `prompts/parts/fixer.md` の「Scope consultation and the pre-check」が持つ。
+     - 頼みの節（`consult_check`）の先の確かめ `consult.screen_ask` が、修正役の頼み（`origin` の無い行）の 3 つの欄を照らし、欠け・空・根の外のパス・1 未満の行が在れば答えの役に聞かずに断る（`consult.summary_problem`。断った訳は答えのファイルで修正役に戻る）。受け付けが積んだはみ出しの頼み（`origin: accept`）と人の関所の条件の頼み（`origin: gate`）は機械が立てた物なので照らさない。
+     - 答えの役の指示は、頼みごとの節に 3 つの欄を載せ（`consult.asks_text`）、同じ run の前の相談と答えの一覧（place の `trace.jsonl` の相談の行。組の子の place から親へ写した行も。`consult.history_text`）を段落 `history` に載せる。修正案とリポジトリは今までどおり自分で読む。
+     - 採らなかった形（どれも PR #844 のコメントに経緯）: 修正役の会話の写しを同じ模型の別の手番が引き継いで要約を作る形は、手番の返りの形が修正役と違うと Claude Code の道具の一覧（返りの形は道具 `StructuredOutput` として送られる）が変わってキャッシュが外れる（run `96f35545` の `review-fix` は、直前の `review` と同じ模型・同じ道具で返りの形だけ違い、2 秒後でもキャッシュの読み 0・書き込み 156,274）。修正役の中で `/compact` を掛ける形は、compact の呼び出しが節の道具の一覧で頭（キャッシュに当てる、送る中身の先頭）を組むので同じ訳でキャッシュが外れ、同じ返りの形を持たせると `/compact` が構造化の出力を返さず Archon が節を落とす。
+   - 費用の見込み（相談 1 回あたり。式は持ち主の覚え書き〔LLM のワークフローの費用の設計の手引き〕、値は実測と仮置き。持ち主の決め 2026-10-24）: 今の形（答えの役が修正役の会話を引き継ぐ。会話のキャッシュの寿命 5 分）約 $0.79、この形 約 $0.29。実測の材料: run 11 本の相談 17 回で、答えの役の平均は手番 4.2・キャッシュの書き込み 141,275・読み 254,580・出力 1,680 トークン。
+   - 次の run の記録で確かめること: 答えの役の書き込みの量（`node_complete` の `execution.spend.tokens` の `cacheWrite`。新しい会話なので、指示と読んだファイルの分だけに減るはず）と、答えの誤り（経緯を知らずに答えたために、修正役が同じ相談を出し直した・許すべき物を deny した・前の答えと食い違った）。
+   - 試験（経緯の渡し方）: `tests/blocks/fix/test_consult.py` の `SummaryCase`（3 つの欄の欠けを断る・機械の頼みは照らさない・3 つの欄が答えの役の指示に入る）・`HistoryCase`（前の相談と答えの一覧）・`ConsultPromptCase.test_history_paragraph_carries_earlier_answers`（段落 `history`）と、`tests/blocks/fix/test_fix_accept.py` の `test_consult_ask_screens_and_writes_the_question`（`board.consult_ask` が 3 つの欄の無い頼みを断る）。
 2. TDD の振り分けの段で役が作業ツリーを変えると拒むが、戻さない。3 回目の諦めでも戻さず、残った変更は修正の段の頭の木に入る（`tddloop._route`・`_abort`）。申し出の周（phase conflict）は書き込みの出どころを照らさない。
 3. `tdd-step` は `tddloop.step` が返す書き込みの照らしの結果（記録の無い run の知らせ）を trace に積まない。修正の受け付けも記録の無い run の印（`writes.NO_RECORD_OP`）を trace に書かない（手直しだけが書く）。
 4. `tdd-step-reject-<n>.md` の n は却下の回でなく呼び出しの総数。
@@ -940,7 +949,7 @@ node ごとの場面は 2〜6 節の 7。block 全体では:
 - 修正役（`fixer` の断片。今の `direct.md` の `fix-head`・`fix-keep`・`fix-ask`・`fix-consult-resume`・`fix-overflow-queued`・`fix-overflow-resume`・`fix-reply`）:
   - 読む物の 6 行（判定は背景で brief が正本・brief の無い run は判定が正本で先に全部読む・直す義務の key の集合は受け付けと同じ・修正案は全体を読まなくてよく plan_faces の key は貼った節に在る・方針の文書は先に全部読む・TDD の loop で直した単位は直し直さず changes に 1 行で red_seen を写し、そのテストのファイルを変えない〔rewrite_tests と fix_test_scope の範囲だけ例外〕・direct の単位はここで直す・承認ノードの答えのファイルは超えて削るな）。
   - 何も変えずに済んだと言うな。
-  - 範囲の相談: 範囲を広げるかは修正案の側が決める・黙って範囲の外を変えるな・申し出で起動を終える前に先に相談せよ・1 件 1 項目の欄（item・paths・tests・new_tests・why）・相談の周は受け付けが回らず作業ツリーの直しは残す・受け付けが見つけたはみ出しも機械が相談に回す・out_of_scope は外した理由が今立たない訳を書く・allow・deny・defer・答えが無い時のそれぞれの振る舞い・枠（9 回）を使い切った後は申し出・期待値を実装に合わせる書き換えを頼むな・下請けは相談できず報告する。事前の確かめ: 下書きを書いてコマンドを走らせ、`rejects` の行を直してから返す。
+  - 範囲の相談: 範囲を広げるかは修正案の側が決める・黙って範囲の外を変えるな・申し出で起動を終える前に先に相談せよ・1 件 1 項目の欄（item・paths・tests・new_tests・why・tried・blocked・evidence。後ろの 3 つが欠けた頼みは機械が断る。#833）・相談の周は受け付けが回らず作業ツリーの直しは残す・受け付けが見つけたはみ出しも機械が相談に回す・out_of_scope は外した理由が今立たない訳を書く・allow・deny・defer・答えが無い時のそれぞれの振る舞い・枠（9 回）を使い切った後は申し出・期待値を実装に合わせる書き換えを頼むな・下請けは相談できず報告する。事前の確かめ: 下書きを書いてコマンドを走らせ、`rejects` の行を直してから返す。
   - 続きの周 3 つ: 答えのファイルを全部読み、続けて直し、前と同じ欄の JSON を丸ごと返す・残りの相談の周・はみ出しの周は作業ツリーを変えずに同じ JSON・allow の外は機械が戻す（自分で戻すな）。
   - 下請けを回す 6 手順（項目の順に実装役を起こし、ファイルの中身を字を変えずに渡し、2 つ目からは引き継ぎの節を足す・差分のコマンドを走らせて審査役を起こし、実装役の最後のメッセージを貼る・審査が ❌ か Needs fixes なら起こし直し、3 回まで・3 回目も通らなければ symptom にして changes に載せる・出し直しと裁定の後は名指しの項目だけ・最後に差分を自分で確かめ、bash_writes を書く）と、loop で直した単位には下請けを起こさない・NEEDS_CONTEXT と BLOCKED は申し出（6 つの場面）・DISPATCH と DELEGATE の読み替えはこの役に効かない・下請けはさらに下請けを起こさない。
   - 返答の欄: changes は単位ごとにちょうど 1 行・unit_key は一字も変えずに・files は版から変わった物だけ・what・closure（sites を先に全部挙げ、1 か所ずつ退行を注入して赤→復元で緑・path の書き方と覆いの数え方）・coverage（class_query の在る単位は書かない・件数は機械が数える・塞いだ数の数え方・残すなら remaining・閉じたかは機械が決める・問いが正しい形に当たるなら申し出）・root_or_symptom・bypass_tried（「試していない」は書かない）・breaks（機械で引け・accepted）・precedent（一次情報を自分で引く・from_judge_row・not_found と searched）。周の全体: not_done・interactions（面ごと・3 つの突き合わせ）・fix_closure（clean は赤を見た時だけ・not_applicable は修正 0 件だけ）・plan_faces（key ごとに absorbed か declared）・wrote_refs（リンクにできない指し・機械が引き直す・Markdown のリンクで書け）・rejudge_requested・conflicts・consult・差分の形の変化の 6 つの申告（security_surface_changed は迷うなら true）・x_scalars。受け付けが見る物の結び。

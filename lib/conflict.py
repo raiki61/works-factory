@@ -194,20 +194,26 @@ ITEM_SCHEMA = {
 CONFLICTS_SCHEMA = {"type": "array", "items": ITEM_SCHEMA}
 # 範囲の相談の頼みの欄（CONSULT_FIELD）。1 回の返答で項目ごとに 1 件ずつ並べてよい。paths は足したいパス（リポジトリの根からの
 # 相対）、tests は書き換えたい既存のテストの範囲（<パス> か <パス>:<行>。行は修正前の版の行）、new_tests（任意）は足したい新しいテストの id
-# （<パス>::<クラス>::<名前>。修正案の tests に無いテスト）、why は相手が仕様として判断できる理由
+# （<パス>::<クラス>::<名前>。修正案の tests に無いテスト）、why は相手が仕様として判断できる理由。tried は試したこと、blocked は範囲の中で
+# 直せない訳（どこまで直して何に当たったか）、evidence は根拠のファイルと行（答えの役は新しい会話なので、修正役の経緯はこの 3 つで渡す。#833）
 CONSULT_SCHEMA = {
     "type": "array",
     "minItems": 1,
     "items": {
         "type": "object",
         "additionalProperties": False,
-        "required": ["item", "paths", "tests", "why"],
+        "required": ["item", "paths", "tests", "why", "tried", "blocked", "evidence"],
         "properties": {
             "item": {"type": "integer", "minimum": 1},
             "paths": {"type": "array", "items": {"type": "string", "minLength": 1}},
             "tests": {"type": "array", "items": {"type": "string", "minLength": 1}},
             "new_tests": {"type": "array", "items": {"type": "string", "minLength": 1}},
             "why": {"type": "string", "minLength": CONSULT_MIN_WHY},
+            "tried": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+            "blocked": {"type": "string", "minLength": CONSULT_MIN_WHY},
+            "evidence": {"type": "array", "minItems": 1, "items": {
+                "type": "object", "additionalProperties": False, "required": ["path", "line"],
+                "properties": {"path": {"type": "string", "minLength": 1}, "line": {"type": "integer", "minimum": 1}}}},
         },
     },
 }

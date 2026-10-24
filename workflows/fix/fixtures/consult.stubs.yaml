@@ -25,6 +25,13 @@ fixer:
   interactions: []
   wrote_refs: []
   plan_faces: []
-  consult: [{item: 1, paths: [README.md], tests: [], why: 直しに伴う記録を README に足す要がある}]
+  consult:
+    - item: 1
+      paths: [README.md]
+      tests: []
+      why: 直しに伴う記録を README に足す要がある
+      tried: [stats.py の平均の分母を直した]
+      blocked: 直しは済んだが、記録の置き場が範囲の外の README にしか無い
+      evidence: [{path: stats.py, line: 4}]
 consult-answer:
   answers: [{ask: 1, decision: allow, paths: [README.md], tests: [], spec: "", reason: 直しの記録は範囲に入れてよい}]
