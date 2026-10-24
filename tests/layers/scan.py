@@ -1121,8 +1121,8 @@ def _writer(pack: "_Pack", workflow: str, doc: dict, by_id: dict, ref: str):
     sub = _field(shape, match[2].split("."))
     if sub is None:
         return None, None, ""
-    if pack.gate.is_pointer_shape(sub):
-        form = pack.gate.form_of(sub.get("description"))
+    form = pack.gate.form_of(sub.get("description"))
+    if pack.gate.is_pointer_shape(sub) or pack.gate.carries_file(sub) and form and form[0] in ("file", *pack.gate.JSON_FORMS):
         return (("form", form) if form else None), wfolder, ref
     return ("value", sub), wfolder, ref
 

@@ -135,6 +135,14 @@ class JsonCase(Base):
         with self.assertRaisesRegex(ports.ShapeError, r"知らない欄 'extra'"):
             ports.json(json.dumps({"record": {"round": 1, "extra": 1}}), "shared:prior.schema.json")
 
+    def test_path_text_names_the_file_it_carries(self):
+        """型が string だけの所の json(<名>) は、パスの字が運ぶファイルの形（値の形に置き換えない。読み手が file で開いて照らす）"""
+        self.shape("record.schema.json", {"type": "object", "properties": {"round": {"type": "integer"}}})
+        self.shape("carry.schema.json", {"type": "object", "properties": {
+            "request": {"type": "string", "description": "json(shared:record.schema.json): 依頼のファイルのパス"}}})
+        self.assertTrue(ports.carries_file({"type": "string"}))
+        self.assertEqual(ports.json('{"request": "/tmp/r.json"}', "shared:carry.schema.json"), {"request": "/tmp/r.json"})
+
     def test_named_shape_missing_or_open_is_open(self):
         self.shape("open.schema.json", {"type": "object"})
         for name in ("shared:absent.schema.json", "shared:open.schema.json"):

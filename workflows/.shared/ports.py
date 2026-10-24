@@ -20,6 +20,8 @@
   patternProperties も無い・array に items が無い・型の無い所）。形の照らしは、知らない語（unknown_keywords）を先に、この開きを後に見て、
   どちらかが在れば形のファイルを拒む。静的な照らし（tests/layers）は木の根の shared と lib を渡して同じ関数を使う
 - is_pointer_shape(shape): 形が pointer の欄か（properties.type が const か 1 語の enum で archon_artifact）。pointer の判別の住処
+- carries_file(shape): 所がファイルを運ぶか（pointer の欄か、型が string だけのパスの字）。その所の description の form は指す先の
+  ファイルの form（値の形でない）
 - shape_errors(value, schema, block_folder=None): 値を形の名で照らした誤りの一覧（試験の作り物を照らす tests/blocks/kit.py も使う）
 - place() -> Path: この node の block の run directory の中のフォルダ（$ARTIFACTS_DIR/<include の道>/。単独の run では
   $ARTIFACTS_DIR/）。無ければ作る。run directory の根は返さない（4.3）
@@ -256,6 +258,12 @@ def is_pointer_shape(shape) -> bool:
     return isinstance(kind, dict) and (kind.get("const") == POINTER_TYPE or kind.get("enum") == [POINTER_TYPE])
 
 
+def carries_file(shape) -> bool:
+    """所が値でなくファイルを運ぶか: pointer の欄か、型が string だけの所（ファイルのパスの字）。その所の description の form は
+    指す先のファイルの form で、値の形でない"""
+    return is_pointer_shape(shape) or isinstance(shape, dict) and shape.get("type") in ("string", ["string"])
+
+
 def _named(shape):
     """形の所の description が名指す json・jsonl の (form, 名)。無ければ None"""
     form = form_of(shape.get("description")) if isinstance(shape, dict) else None
@@ -271,7 +279,7 @@ def open_shapes(shape, block_folder=None, *, shared=None, lib=None, at: str = "$
     if not isinstance(shape, dict):
         return [at]
     named = _named(shape)
-    if named is not None and not is_pointer_shape(shape):
+    if named is not None and not carries_file(shape):
         return _open_named(named[1], block_folder, shared, lib, at, _seen)
     out = []
     if named is not None:
@@ -316,7 +324,7 @@ def _expanded(shape, block_folder=None, seen: tuple = ()):
     if not isinstance(shape, dict):
         return shape
     named = _named(shape)
-    if named is not None and not is_pointer_shape(shape) and named[1] not in seen:
+    if named is not None and not carries_file(shape) and named[1] not in seen:
         _, sub = _load_shape(named[1], block_folder)
         sub = _expanded(sub, block_folder, (*seen, named[1]))
         if named[0] == "jsonl":
