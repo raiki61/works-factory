@@ -22,6 +22,7 @@ block の script と `src/` が Archon と出入りする口と、2 つ以上の
 - `ports.py`: `text(raw)`・`flag(raw)`・`choice(raw, words)`・`json(raw, schema)`（schema は block の `schemas/` の名か `shared:<名>`）・`file(raw)`・`parsed(raw)`・`picked(raw, names, optional=())`（names の欄が作り手の出力に無ければ `KeyError`。無くてよい欄は optional）・`unknown_keywords(shape)`・`place()`・`pointer(path)`・`returns(obj)`・`run(compute, fallback)`・`lib_root()`・`inside(rel, root)`（置き場 root からの相対パスの照らし。`..` と先頭・末尾の `/` を拒む）・`shared_cache()`（run をまたぐ控えの根。`STATE_DIR` の下の `works-factory/`、渡されなければ None）。import すると `lib/` が読めるようになる。
 - `ports.py` の、対象のコマンドを起こす block の口: `RUNTIME_COPY`・`RUNTIME_COPY_PREFIX`・`RUNNER_PREFIXES`・`RUNNER_NAMES`・`drop_runner_env(user_env)`・`suite_keep()`。
 - 埋め: `ports.polyfill(name)`（`fence`・`childsweep`・`skip_value`。`ports.py` の隣のファイルを読む）。`child_pointer` は chain が直に import する。役の書き込みの柵（`fence`）は起動の殻が役の claude を包むので、block が import する物ではない（読むだけの役は YAML の `sandbox.filesystem.denyWrite` に印を書く。根の `workflows/AGENTS.md` の E7）。
+- 道具に結びつく断片の印: `.shared/prompts/<name>.md` の頭の 1 行に `<!-- required-for-tools: <道具> <道具> -->` を置くと、どれかの道具を `allowed_tools` に持つ AI の node の指示がその断片を（段落に頼らずに）入れていることを、形の検査 7.1 の 14（`tests/layers/test_block_shape.py`）が照らす。`prompt.py` が差し込む時に印の行を落とす。別の対応表は置かない。道具に結びつかない断片（`works-gh` は gh を使う役、`lib-docs` は機械が控えを取った役、`writer-rules` は書き手の役だけが入れる）には印を付けない。
 - `prompt.py`: `render(node_id, values, when)`・`render_part(name, values, when)`（AI の node でない物の指示を `prompts/parts/<name>.md` から組む。束ね役が起こす下請けが Read する指示のファイルなど）・`emit(node_id, values, when, n)`・`round_of(node_id)`・`lang(raw)`・`PromptError`。
 - `requestrows.py`: `parts(raw)`・`findings(raw)`。依頼の行の port を読む口。
 
@@ -29,7 +30,7 @@ block の script と `src/` が Archon と出入りする口と、2 つ以上の
 
 - `prompts/<name>.md`: 2 つ以上の block が使う指示の断片。md から `{shared:<name>}` で入れる。今在る名:
   - `rejected`: 前の回の却下（中の口 `{rejection}`）。
-  - `query-rule`: 外への検索と出典の決まりの全部（名を出さない・どの出典を先に読むか）。役が web を引く時の決まりはここに足す。段落 `spawns` の真偽が要る（下請けを起こさない役は `spawns: false`）。役の定義と node の md は検索の決まりを書き直さず `{shared:query-rule}` で受け、断片を変えた時に取り込む md は直さない。断片の文だけを直す依頼は `prompts/query-rule.md` 1 本で閉じる。この一覧の行は断片の名や段落（`spawns`）が変わる時だけ直す。`tests/blocks/` に断片の字を照らす試験は無い。
+  - `query-rule`: 外への検索と出典の決まりの全部（名を出さない・どの出典を先に読むか）。役が web を引く時の決まりはここに足す。段落 `spawns` の真偽が要る（下請けを起こさない役は `spawns: false`）。役の定義と node の md は検索の決まりを書き直さず `{shared:query-rule}` で受け、断片を変えた時に取り込む md は直さない。断片の文だけを直す依頼は `prompts/query-rule.md` 1 本で閉じる。この一覧の行は断片の名や段落（`spawns`）が変わる時だけ直す。頭の 1 行の印 `<!-- required-for-tools: WebSearch WebFetch -->` が、どちらかの道具を `allowed_tools` に持つ AI の node の指示に取り込まれているかを形の検査 7.1 の 14 が照らす（取り込み忘れは赤。出し直し用の `*-fix` の node も別の node なので取り込む）。`spawns` の値は YAML の node が `Agent` を持つ時だけ真（形の検査では照らさない）。断片の字を照らす試験は無い。
   - `lang-default`: `lang` が空の時の言語の文（`prompt.lang` が読む）。
   - `design-premises`: 人が決めた前提（承認ノードの答え・依頼が名指した設計書の部分・対象の地図。中の口 `{answers}`・`{named}`・`{map}`。段落 `answers`・`named` の真偽が要る）。独立設計と r2 の比べの役が共に差し込む。
   - `policy`: 人の方針（中の口 `{policy_body}`）。方針を受ける役の全部が、段落の中で差し込む。

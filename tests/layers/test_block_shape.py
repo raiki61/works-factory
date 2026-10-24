@@ -40,6 +40,10 @@
    繰り返しの中の node の id も同じに数える。
    （筋書きはこれを捕まえない: graph の筋書きは include した block の入口と出口を台本で差し替えて中の loop を回さず、block の筋書きは
    block を単独で回す。dry-run は include の中の loop の本体に include の道を渡さないので、本体の script を本物で回す graph の筋書きも組めない）
+14. .shared/prompts/ の断片が頭の 1 行に `<!-- required-for-tools: <道具> <道具> -->` の印を持つなら、そのどれかの道具を allowed_tools に持つ
+   AI の node の指示（md と system の md。{shared:…}・{part:…} を入れた後）に、その断片が入っている。段落（<!-- if … -->）の中だけに
+   在って段落が外れると消える場合は入っていないと数える（全部の段落を真にした組み立てと全部を偽にした組み立ての両方に在ることを求める。
+   組み立ては workflows/.shared/prompt.py の `_select`）。道具に結びつく断片の印は断片自身が持ち、別の対応表は持たない（憲法の 6）
 
 今ある yes/no の検査も pack（workflows/）に当てる（ExistingRulesCase）: E6（外への書き込み）・E7（読むだけの node の印）・E12（期限を
 置かない）・E16（承認ノードの形）・E19（AI の node の retry）は tests/layers/scan.py の照らしを、pack を一時の木の workflows/ に写して
@@ -72,6 +76,7 @@ PROMPT_REF = re.compile(r"^\$([a-z0-9][a-z0-9_-]*)\.output\.prompt$")
 FRAGMENT = re.compile(r"\{(shared|part):([a-z0-9][a-z0-9_-]*)\}")
 RENDER_PART_NAME = re.compile(r"[a-z0-9][a-z0-9-]*")   # workflows/.shared/prompt.py の NODE_ID と同じ字（render_part はほかの名を拒む）
 MARK = re.compile(r"^<!-- (if|if not|end) ([a-z0-9_]+) -->$")
+REQUIRED_FOR_TOOLS = re.compile(r"\A<!-- required-for-tools: ([A-Za-z]+(?: [A-Za-z]+)*) -->\n")   # workflows/.shared/prompt.py の同名と同じ形
 JSON_KEY = re.compile(r'"([A-Za-z_]\w*)"\s*:', re.ASCII)
 UV_HEAD = ["# /// script", '# requires-python = ">=3.12"', "# dependencies = []", "# ///"]
 STANDALONE = "standalone"
@@ -429,6 +434,34 @@ def shape_names(shape) -> set:
     return names
 
 
+def _prompt():
+    _ports()
+    import importlib
+    return importlib.import_module("prompt")
+
+
+def check_tool_fragments(pack: pathlib.Path) -> list[str]:
+    select = _prompt()._select
+    marked = {}   # 断片の名 → (印の行, 道具の集合)
+    for path in sorted((pack / SHARED / "prompts").glob("*.md")):
+        if m := REQUIRED_FOR_TOOLS.match(path.read_text(encoding="utf-8")):
+            marked[path.stem] = (m.group(0).strip(), set(m.group(1).split()))
+    out = []
+    for folder in folders(pack):
+        for node in ai_nodes(load(folder)):
+            tools = set(node.get("allowed_tools") or [])
+            texts = [_expand(path.read_text(encoding="utf-8"), pack, folder)
+                     for path in (folder / "prompts" / f"{node['id']}.md", folder / "prompts" / f"{node['id']}.system.md") if path.is_file()]
+            for name, (line, needs) in sorted(marked.items()):
+                if not tools & needs:
+                    continue
+                names = {m.group(2) for text in texts for row in text.split("\n") if (m := MARK.match(row.strip()))}
+                if not any(all(line in select(text, dict.fromkeys(names, state))[0] for state in (True, False)) for text in texts):
+                    out.append(f"{folder.name}: AI の node {node['id']} は道具 {sorted(tools & needs)} を持つが、指示（md）に {{shared:{name}}} が"
+                               f"（段落に頼らずには）入っていない")
+    return out
+
+
 def check_reply_fields(pack: pathlib.Path) -> list[str]:
     out = []
     for folder in folders(pack):
@@ -480,7 +513,7 @@ def check_include_ids_unique(pack: pathlib.Path) -> list[str]:
 
 CHECKS = (check_prompt_from_prep, check_prompt_files, check_standalone_renders, check_standalone_inputs, check_input_forms,
           check_graphs_have_no_roles, check_no_run_root_or_other_folders, check_returns_carry_outcome_and_report, check_module_names,
-          check_block_tests, check_no_text_in_yaml, check_reply_fields, check_include_ids_unique)
+          check_block_tests, check_no_text_in_yaml, check_reply_fields, check_include_ids_unique, check_tool_fragments)
 
 
 class RealTreeCase(unittest.TestCase):
@@ -571,6 +604,21 @@ class SeedCase(unittest.TestCase):
         return {"demo/works-factory-demo.yaml": yaml.safe_dump(demo), "other/works-factory-other.yaml": yaml.safe_dump(other),
                 "mid/works-factory-mid.yaml": yaml.safe_dump(mid)}
 
+    def tool_fragment(self, role_md, tools=("Read", "WebSearch")):
+        """道具に結びつく断片 tooly（印 WebSearch・WebFetch のどれか）を足し、demo の role が道具 tools を持ち md が role_md の木の変更"""
+        demo = yaml.safe_load(self.GOOD["demo/works-factory-demo.yaml"])
+        demo["nodes"][1]["allowed_tools"] = list(tools)
+        return {".shared/prompts/tooly.md": "<!-- required-for-tools: WebSearch WebFetch -->\ntooly\n",
+                "demo/works-factory-demo.yaml": yaml.safe_dump(demo), "demo/prompts/role.md": role_md}
+
+    def test_tool_fragment_is_taken_without_depending_on_a_paragraph(self):
+        """印の道具を持つ node の md が断片を段落の外で入れる（part の中でもよい）か、印の道具を持たない node なら赤にならない"""
+        for role_md, tools in (("{shared:tooly}\n", ("WebFetch",)), ("{part:rules}\n", ("WebFetch",)), ("rules\n", ("Read", "Bash"))):
+            with self.subTest(role_md=role_md, tools=tools):
+                changes = self.tool_fragment(role_md, tools)
+                changes["demo/prompts/parts/rules.md"] = "{shared:tooly}\n"
+                self.assertEqual(self.broken(check_tool_fragments, changes), [])
+
     def yaml_with(self, **top):
         doc = yaml.safe_load(self.GOOD["demo/works-factory-demo.yaml"])
         doc.update(top)
@@ -656,6 +704,9 @@ class SeedCase(unittest.TestCase):
                 "demo/works-factory-demo.yaml": yaml.safe_dump({**demo, "nodes": [*demo["nodes"], {"id": "outer", "loop_group": {
                     "nodes": [{"id": "inner", "loop_group": {"nodes": [{"id": "deep", "script": "prep"}]}}]}}]})},
              "include の node deep"),
+            (check_tool_fragments, self.tool_fragment("rules\n"), "{shared:tooly} が"),
+            (check_tool_fragments, self.tool_fragment("{shared:rejected}\n<!-- if on -->\n{shared:tooly}\n<!-- end on -->\n"), "{shared:tooly} が"),
+            (check_tool_fragments, self.tool_fragment("<!-- if not on -->\n{shared:tooly}\n<!-- end on -->\n"), "{shared:tooly} が"),
             (check_include_ids_unique, self.nested_include("deep2", "mid-inner", sibling=False), "include の node deep2"),
             (check_include_ids_unique, self.nested_include("deep2", "other-inner", sibling=True), "別の include other-inner"),
         ]

@@ -24,4 +24,6 @@ You may read only this material, the root's `{decl_name}` (if it exists), the CI
 
 {shared:runner-writer}
 
+{shared:query-rule}
+
 Return only JSON that matches the output schema.

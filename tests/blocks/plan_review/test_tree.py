@@ -1032,7 +1032,7 @@ class BriefCase(TreeBase):
         指示も spawns を持たない（決まりは下請けの指示に在る）"""
         text = self.prepped()
         brief = self.brief()
-        rule = (kit.SHARED / "prompts" / "query-rule.md").read_text(encoding="utf-8")
+        rule = (kit.SHARED / "prompts" / "query-rule.md").read_text(encoding="utf-8").split("\n", 1)[1]   # 1 行目は道具の印（指示には出ない）
         head = rule.split("\n<!-- if spawns -->", 1)[0].rstrip("\n")
         self.assertIn(head, brief)
         self.assertNotIn(SPAWNS, brief)
