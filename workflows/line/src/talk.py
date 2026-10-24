@@ -235,12 +235,13 @@ def settle(*, turn_got: dict, plan_out: dict | None, previous: dict | None, give
         fresh = [line for line in inbox[len(turn_got.get("notes") or []):] if not line.startswith(APPROVE_HEADS)]
         if fresh and (plan_out.get("ok") or plan_out.get("stalled")) and not _capped(plan_out):
             return {**out, "done": False}   # 収まる周でも新しい人の指摘が在れば、次の周の頭が拾って計画の役に答えさせる
-        doc = _record(plan_out)
-        said = approval(fold_approval(turn_got.get("approved"), inbox[len(turn_got.get("notes") or []):], passes=len(doc["passes"])), doc)
-        if said is not None:   # 往復の途中に人が承認していた: 関所を開かず、承認を合意として修正へ進む（持ち主の決め human-notes-in-rounds）
-            agreed = {"round": plan_out.get("round"), "decision": "approve", "text": said, "asked": [], "by": "notes"}
-            return {**out, "agreed": agreed, "talks": [*out["talks"], agreed]}
         consult = _consult_row(plan_out)
+        if not consult:   # 承認は往復が収まった周にだけ当てる（直す義務が無い・計画ができなかった周は相談の結果を見せる。黙って終わらない）
+            rec = _record(plan_out)
+            said = approval(fold_approval(turn_got.get("approved"), inbox[len(turn_got.get("notes") or []):], passes=len(rec["passes"])), rec)
+            if said is not None:   # 往復の途中に人が承認していた: 関所を開かず、承認を合意として修正へ進む（持ち主の決め human-notes-in-rounds）
+                agreed = {"round": plan_out.get("round"), "decision": "approve", "text": said, "asked": [], "by": "notes"}
+                return {**out, "agreed": agreed, "talks": [*out["talks"], agreed]}
         doc = None
         if consult:
             items = [(gatemarks.DESIGN_ONLY_KIND, consult)]
@@ -380,7 +381,8 @@ def round_text(po: dict, doc: dict, *, inbox: Path) -> str:
              f"事前審査の抜け方: {word}。指摘は下の入れ方でいつでも入れられ、次の周の頭で拾われる。", "",
              f"設計案（計画の周 {k}）:", *plan_lines(po), "", "事前審査の結果（審査の穴と人の指摘の block）:", *review_lines(po, doc), "",
              "人の指摘への計画の役の答え:", *(person_answer_lines(doc) or [NO_ITEMS]), "",
-             "指摘の入れ方（1 行に 1 つ。設計のやり直しが要る指摘として扱う。端の細かい調整なら頭に「端:」を付ける）:",
+             "指摘の入れ方（1 行に 1 つ。設計のやり直しが要る指摘として扱う。端の細かい調整なら頭に「端:」を付ける。受け箱は足すだけで、"
+             "前の行を消さない・直さない。工場は取った行の数で読み進めるので、消すと新しい行を飛ばし、直すと読み直さない）:",
              f"- printf '%s\\n' '<指摘>' >> {inbox}",
              "設計を承認して最後に待たずに修正へ進ませる（もういいよ）: 同じ受け箱に頭が「承認:」の行を足す。承認の後に中央の指摘を足すと"
              "承認は取り消され、往復が収まった所で聞いて待つ",

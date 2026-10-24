@@ -310,6 +310,26 @@ class NotesCase(TalkBase):
         self.assertEqual(t.approval({"text": "進めて", "passes": 3}, doc), "進めて", "承認の後に往復が無い")
         self.assertIsNone(t.approval({"text": "進めて", "passes": 2}, doc), "承認の後の往復で審査役が新しい中央の block b1 を出した")
         self.assertEqual(t.approval({"text": "x", "passes": 1}, {"passes": doc["passes"][:2]}), "x", "続いた a1 と端の e1 は新しい中央でない")
+        back = {"passes": [{"blocks": ["a1"], "faces": [face("a1")]}, {"blocks": ["b1"], "faces": [face("b1")]},
+                           {"blocks": ["a1"], "faces": [face("a1")]}]}
+        self.assertEqual(t.approval({"text": "x", "passes": 2}, back), "x",
+                         "2 往復前に在った a1 の挙げ直しは新しい中央でない（承認より前の全部の往復と比べる。直前の往復だけと比べない）")
+
+    def test_the_approval_does_not_skip_the_result_of_the_talk(self):
+        """承認は往復が収まった周にだけ当てる。直す義務が無い周・計画ができなかった周は、承認が生きていても関所を開いて相談の結果を見せる
+        （黙って終わらない）。最後の周の間に中央の指摘と承認が続けて入り、その周が収まらなかった時も同じ（指摘を落として承認だけを通さない）"""
+        rows = (({"status": "nothing_owed", "ok": False}, ("承認: 進めて",)),
+                ({"status": "gave_up", "ok": False, "review_status": "", "review_reason": "受け付けを通らない"}, ("承認: 進めて",)),
+                ({"status": "failed", "ok": False, "review_status": "", "review_reason": "落ちた"}, ("承認: 進めて",)),
+                ({"status": "gave_up", "ok": False, "review_status": "", "review_reason": "受け付けを通らない"}, ("b.py も直す", "承認: 進めて")))
+        for over, lines in rows:
+            with self.subTest(status=over["status"], lines=lines):
+                self.run = kit.Run(self, BLOCK)
+                taken = self.turn()
+                self.note(*lines)
+                got = self.settle(taken, self.plan_out(**over))
+                self.assertEqual((got["open"], got["done"], got["agreed"]), (True, False, None))
+                self.assertIn("相談の結果", got["text"])
 
     def test_a_review_finding_after_the_approval_makes_the_last_gate_wait(self):
         """承認を拾った周の後の往復で、審査役が新しい中央の block を出せば、収まった周に関所を開いて待つ"""
