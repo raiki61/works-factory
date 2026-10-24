@@ -48,6 +48,7 @@ def _load():
 
 
 consult, conflict, gatemarks, jsonfile, planrange = _load()
+from engine.schema import validate_schema  # noqa: E402  （kit.load が lib を sys.path に足した）
 GATE = gatemarks.GATE_NODE
 
 
@@ -157,13 +158,12 @@ class SummaryCase(unittest.TestCase):
         self.assertIsNone(consult.screen_ask(ITEMS, consult.requests(reply(ask_row()))[0]))
 
     def test_missing_parts_are_refused(self):
-        cases = {"試したこと": {"tried": []}, "直せない訳": {"blocked": "短い"},
-                 "根拠": {"evidence": []}}
+        cases = {"試したこと": {"tried": [" "]}, "直せない訳": {"blocked": "短い" + " " * 10}}   # 欄の欠け・空の配列は型（ConsultTypeCase）
         for word, over in cases.items():
             with self.subTest(word=word):
                 (a,) = consult.requests(reply(self.ask(**over)))
                 self.assertIn(word, consult.screen_ask(ITEMS, a) or "")
-        for bad in ([{"path": "../x.py", "line": 3}], [{"path": "a.py", "line": 0}], [{"path": "", "line": 3}], ["a.py:3"]):
+        for bad in ([{"path": "../x.py", "line": 3}], [{"path": "/abs/x.py", "line": 3}], [{"path": " ", "line": 3}]):
             with self.subTest(evidence=bad):
                 (a,) = consult.requests(reply(self.ask(evidence=bad)))
                 self.assertIn("根拠", consult.screen_ask(ITEMS, a) or "")
@@ -181,6 +181,37 @@ class SummaryCase(unittest.TestCase):
         text = consult.asks_text(ITEMS, [{**a, "n": 1}])
         for w in ("試したこと", SUMMARY["tried"][0], "範囲の中で直せない訳", SUMMARY["blocked"], "works/.shared/core/lens.py:12"):
             self.assertIn(w, text)
+
+
+class ConsultTypeCase(unittest.TestCase):
+    """修正役の頼みの型の正本は修正役の節（fixer・fix-ruled）の output_format の consult だけ（受け付けの summary_problem は型より厳しい
+    所だけを見る。#844 の指摘）。理由の字の下限は受け付けの MIN_WHY と同じ字"""
+
+    def fmt(self) -> dict:
+        nodes = _nodes()
+        self.assertEqual(nodes["fixer"]["output_format"], nodes["fix-ruled"]["output_format"])
+        return nodes["fix-ruled"]["output_format"]
+
+    def check(self, ask) -> list:
+        """output_format の consult の欄の型に、ask 1 行の並びを当てた誤り"""
+        return validate_schema([ask], self.fmt()["properties"][conflict.CONSULT_FIELD])
+
+    def test_min_why_matches_output_format(self):
+        row = self.fmt()["properties"][conflict.CONSULT_FIELD]["items"]["properties"]
+        self.assertEqual((row["why"]["minLength"], row["blocked"]["minLength"]), (consult.MIN_WHY, consult.MIN_WHY))
+
+    def test_ask_outside_the_type_is_rejected(self):
+        good = ask_row()
+        self.assertEqual(self.check(good), [])
+        cases = {**{f"{k} が無い": {x: v for x, v in good.items() if x != k}
+                    for k in ("item", "paths", "tests", "why", "tried", "blocked", "evidence")},
+                 "試したことが空": {**good, "tried": []}, "根拠が空": {**good, "evidence": []},
+                 "根拠の行が 0": {**good, "evidence": [{"path": "a.py", "line": 0}]},
+                 "根拠が字": {**good, "evidence": ["a.py:3"]}, "根拠に行が無い": {**good, "evidence": [{"path": "a.py"}]},
+                 "知らない欄": {**good, "note": "x"}}
+        for name, ask in cases.items():
+            with self.subTest(name):
+                self.assertTrue(self.check(ask))
 
 
 class HistoryCase(Base):

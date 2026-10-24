@@ -150,7 +150,7 @@ AMENDED_TEST_ID = "plan-amended"        # 案の直しで直した項目の単�
 # 読むのは agreed（範囲とテストの許し）と報告
 ASKED_OP = "plan_scope_asked"
 CONSULT_FIELD = "consult"   # 修正役の返答の任意の欄: 範囲の相談の頼み（在れば受け付けはその周を回さず、答えの節が答える）
-CONSULT_MIN_WHY = 10        # 頼みの理由の下限の字数
+CONSULT_MIN_WHY = 10        # 頼みの理由（why・blocked）の下限の字数（修正役の返りの形 &fix_reply の consult の minLength と同じ字。試験が結ぶ）
 FIELDS_TAMPERED = f"承認済みの修正案の欄の控え（共有ボードの {planmarks.FIELDS_FILE}）が受け付けの後に書き換えられた。"
 FIELDS_BROKEN = FIELDS_TAMPERED + "テストの変更の許しを引かずに止めた"   # 修正の段（by stopby.FIX）の止めの文
 FIX_SOURCE = "fix"                       # 盤面の行の出どころの欄 source の値: 修正役の申し出（受け付けと修正役の並べが積む）
@@ -192,31 +192,6 @@ ITEM_SCHEMA = {
     },
 }
 CONFLICTS_SCHEMA = {"type": "array", "items": ITEM_SCHEMA}
-# 範囲の相談の頼みの欄（CONSULT_FIELD）。1 回の返答で項目ごとに 1 件ずつ並べてよい。paths は足したいパス（リポジトリの根からの
-# 相対）、tests は書き換えたい既存のテストの範囲（<パス> か <パス>:<行>。行は修正前の版の行）、new_tests（任意）は足したい新しいテストの id
-# （<パス>::<クラス>::<名前>。修正案の tests に無いテスト）、why は相手が仕様として判断できる理由。tried は試したこと、blocked は範囲の中で
-# 直せない訳（どこまで直して何に当たったか）、evidence は根拠のファイルと行（答えの役は新しい会話なので、修正役の経緯はこの 3 つで渡す。#833）
-CONSULT_SCHEMA = {
-    "type": "array",
-    "minItems": 1,
-    "items": {
-        "type": "object",
-        "additionalProperties": False,
-        "required": ["item", "paths", "tests", "why", "tried", "blocked", "evidence"],
-        "properties": {
-            "item": {"type": "integer", "minimum": 1},
-            "paths": {"type": "array", "items": {"type": "string", "minLength": 1}},
-            "tests": {"type": "array", "items": {"type": "string", "minLength": 1}},
-            "new_tests": {"type": "array", "items": {"type": "string", "minLength": 1}},
-            "why": {"type": "string", "minLength": CONSULT_MIN_WHY},
-            "tried": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
-            "blocked": {"type": "string", "minLength": CONSULT_MIN_WHY},
-            "evidence": {"type": "array", "minItems": 1, "items": {
-                "type": "object", "additionalProperties": False, "required": ["path", "line"],
-                "properties": {"path": {"type": "string", "minLength": 1}, "line": {"type": "integer", "minimum": 1}}}},
-        },
-    },
-}
 
 
 # ---------------------------------------------------------------- 名指しの確かめ

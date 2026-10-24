@@ -1,8 +1,8 @@
 """範囲の相談の機械（blk-fix。持ち主 2026-10-06・2026-10-07。設計 docs/plans/2026-10-06-ask-planner.md）。
 
 修正役（1 回目の fix と裁定の後の fix-ruled）は、承認済みの修正案の項目の範囲（allowed_paths）の外のファイルや、凍ったテストの
-書き換えが要る時、返答の任意の欄 consult（conflict.CONSULT_SCHEMA。項目ごとに 1 件）に頼みを書いて周を終える。修正の輪は、
-その周の受け付けを回さずに次の 3 つの節で答える（節を組むのはブロックの script。ここは部品だけを持つ）:
+書き換えが要る時、返答の任意の欄 consult（型の正本は修正役の節の output_format &fix_reply の consult。項目ごとに 1 件）に頼みを
+書いて周を終える。修正の輪は、その周の受け付けを回さずに次の 3 つの節で答える（節を組むのはブロックの script。ここは部品だけを持つ）:
 
 1. 頼みの節（script consult_check）: 機械の先の確かめ（screen・oos_hits）で断る頼みを断り、残りを状態（STATE）に積み、
    答えの役への指示書（render が md から組む）を書く。
@@ -199,9 +199,7 @@ def requests(reply):
         if strs(r.get("new_tests")):
             row["new_tests"] = strs(r.get("new_tests"))
         row.update(tried=strs(r.get("tried")), blocked=r.get("blocked").strip() if isinstance(r.get("blocked"), str) else "",
-                   evidence=[e for e in r.get("evidence") or [] if isinstance(e, dict)] if isinstance(r.get("evidence"), list) else [])
-        if isinstance(r.get("evidence"), list) and len(row["evidence"]) < len(r["evidence"]):
-            row["evidence"].append({})   # 形の崩れた根拠の行は空の行で残す（summary_problem が断る）
+                   evidence=list(r.get("evidence") or []))   # 根拠の行の形は output_format が縛る
         out.append(row)
     return out
 
@@ -243,19 +241,17 @@ def screen(items: dict, item: str, paths: list, tests: list, why: str = "x" * MI
 
 def summary_problem(ask: dict):
     """修正役の頼みの経緯の 3 つの欄（試したこと tried・範囲の中で直せない訳 blocked・根拠のファイルと行 evidence）を断る文（揃って
-    いれば None）。答えの役は修正役の会話を引き継がない新しい会話なので、経緯はこの 3 つだけで渡る（#833）"""
-    if not [t for t in ask.get("tried") or [] if isinstance(t, str) and t.strip()]:
-        return "試したこと（tried）が無い（範囲の中で何を試したかを 1 行以上書け）"
+    いれば None）。答えの役は修正役の会話を引き継がない新しい会話なので、経緯はこの 3 つだけで渡る（#833）。
+    欄の在る無し・空の配列・行の形（1 以上の整数）は型の正本の output_format（&fix_reply の consult）が縛るので、ここは型より厳しい
+    所（前後の空白を除いた字・根の外や絶対のパス）だけを見る"""
+    if not ask.get("tried"):
+        return "試したこと（tried）が空白だけ（範囲の中で何を試したかを 1 行以上書け）"   # requests が空白だけの行を落とす
     if len((ask.get("blocked") or "").strip()) < MIN_WHY:
         return f"範囲の中で直せない訳（blocked）が無いか {MIN_WHY} 字に満たない（どこまで直して何に当たったかを書け）"
-    rows = ask.get("evidence") or []
-    for e in rows:
-        path, line = (e.get("path"), e.get("line")) if isinstance(e, dict) else (None, None)
-        p = _norm(path) if isinstance(path, str) and path.strip() else ""
-        if not p or globs.climbs(p) or p.startswith("/") or not isinstance(line, int) or isinstance(line, bool) or line < 1:
-            return f"根拠（evidence）の行 {e!r} が、リポジトリの根からの相対パスと 1 以上の行を持たない"
-    if not rows:
-        return "根拠（evidence）が無い（当たった所のファイルと行を 1 つ以上書け）"
+    for e in ask.get("evidence") or []:
+        p = _norm(e["path"]) if e["path"].strip() else ""
+        if not p or globs.climbs(p) or p.startswith("/"):
+            return f"根拠（evidence）の行 {e!r} のパスが、リポジトリの根からの相対パスでない"
     return None
 
 
