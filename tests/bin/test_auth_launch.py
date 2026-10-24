@@ -103,7 +103,9 @@ class ConnectionProfile(unittest.TestCase):
                                     "hooks": {"Stop": []}, "permissions": {"allow": ["Bash(*)"]},
                                     "sandbox": {"enabled": False}, "enabledPlugins": {"unneeded": True},
                                     "apiKeyHelper": "never-executed"})
-        self.assertFalse(deferred)
+        self.assertIn(str(self.tmp / "settings.json"), deferred)   # 親の資格を外すことと、その出どころのファイルを言う
+        self.assertIn("ANTHROPIC_API_KEY", deferred)
+        self.assertNotIn(secret, deferred)
         out = auth_launch.profile_env({"HOME": "/factory", "ANTHROPIC_AUTH_TOKEN": "parent",
                                        "CLAUDE_CODE_OAUTH_TOKEN": "parent-oauth", "CLAUDE_API_KEY": "other"}, p)
         self.assertEqual(out, {"HOME": "/factory", "ANTHROPIC_API_KEY": secret,
@@ -111,6 +113,24 @@ class ConnectionProfile(unittest.TestCase):
         self.assertEqual(p["settings"], {"env": {"ANTHROPIC_DEFAULT_SONNET_MODEL": "dummy-model"}})
         self.assertNotIn(secret, json.dumps(p["settings"]))
         self.assertNotIn("apiKeyHelper", p["settings"])
+
+    def test_notice_names_the_file_of_each_explicit_credential_that_drops_the_parent_ones(self):
+        """設定の env が直接の資格を明示して親の資格を外す時、告知は資格の名と出どころのファイル（利用者のか管理者の）を言い、値は言わない。
+        明示が無い時（alias だけ）は何も告げない"""
+        managed = self.tmp / "managed"
+        managed.mkdir()
+        write_settings(self.tmp, {"env": {"ANTHROPIC_API_KEY": "user-secret"}})
+        (managed / "managed-settings.json").write_text(json.dumps({"env": {"ANTHROPIC_AUTH_TOKEN": "managed-secret"}}), encoding="utf-8")
+        p, notice = auth_launch.connection_profile(self.tmp, {}, managed)
+        self.assertTrue(p["drop"])
+        for word in ("ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", str(self.tmp / "settings.json"), str(managed / "managed-settings.json")):
+            self.assertIn(word, notice)
+        for secret in ("user-secret", "managed-secret"):
+            self.assertNotIn(secret, notice)
+        write_settings(self.tmp, {"env": {"ANTHROPIC_DEFAULT_SONNET_MODEL": "dummy-model"}})
+        (managed / "managed-settings.json").unlink()
+        p, notice = auth_launch.connection_profile(self.tmp, {}, managed)
+        self.assertEqual((p["drop"], notice), ([], ""))
 
     def cloud_world(self):
         """選ばれた provider の試験の場: 偽の本当の HOME（空白を含む）・PATH に置く空のフォルダ・管理者の置き場・包みの置き口"""
@@ -404,7 +424,7 @@ class ConnectionProfile(unittest.TestCase):
         (managed / "managed-settings.d" / "20.json").write_text(json.dumps({"env": {"ANTHROPIC_API_KEY": "last"}}))
         (managed / "managed-settings.d" / "10.json").write_text(json.dumps({"env": {"ANTHROPIC_API_KEY": "first"}}))
         p, deferred = auth_launch.connection_profile(self.tmp, {}, managed)
-        self.assertFalse(deferred)
+        self.assertIn("20.json", deferred)   # 外す資格の出どころは、最後に効く管理者のファイル
         self.assertEqual(p["env"], {"ANTHROPIC_API_KEY": "last", "ANTHROPIC_BASE_URL": "https://user.invalid"})
         self.assertNotIn("hooks", p["settings"])
 
