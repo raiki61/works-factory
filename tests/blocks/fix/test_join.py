@@ -524,31 +524,43 @@ class JoinCase(Whole):
     def test_join_compares_new_reds_by_name_on_the_base_even_when_the_suite_picks_by_diff(self):
         """#846: 実行器が走らせる試験を差分から選ぶ形（差分の無い直す前の版の写しでは既定で何も回さない）でも、確かめ直しの 2 段目は
         直す前の結末に無い赤を直す前の版で名指しで走らせて比べる。名指しを聞く実行器なら、直す前も同じく赤の試験で組を戻さない。
-        名指しを聞かない実行器なら比べられないので、組を戻さず、組の行の uncompared に名指す（報告が人に聞く）"""
+        名指しを聞かない実行器なら比べられないので、組を戻さず、組の行の uncompared に名指す（報告が人に聞く）。
+        #855: 関門が on の test_cmd が組を外した木でも赤なら、組を戻さず、組の行の test_cmd_notes に「前から赤」と書き、finish の
+        report に同じ行を出す"""
         from tests.blocks.fix.support import DIFF_SUITE
         for heed in (True, False):
             with self.subTest(heed_named=heed):
                 self.setUp()
+                red_cmd = self.tmp / "red_cmd.py"
+                red_cmd.write_text("raise SystemExit(1)\n", encoding="utf-8")
                 start = self.rerun_seed({
                     "a.py": "def cap(x):\n    return min(x, 11)\n",
                     "test_a.py": "import unittest\n\nfrom a import cap\n\n\nclass TestA(unittest.TestCase):\n"
                                  "    def test_cap(self):\n        self.assertEqual(cap(15), 10)\n\n"
                                  "    def test_env(self):\n        import no_such_module_846  # noqa: F401\n"},
-                    suite_text=DIFF_SUITE.replace("{heed}", str(heed)))
+                    suite_text=DIFF_SUITE.replace("{heed}", str(heed)), test_cmd=f"{sys.executable} {red_cmd}")
                 self.assertEqual(json.loads((self.place / "baseline.json").read_text(encoding="utf-8"))["cases"], [],
                                  "差分の無い直す前の結末は空（run 96f35545 の小さな直す前の結末と同じく、test_env を持たない）")
                 t1 = self.tree_with({"a.py": "def cap(x):\n    return min(x, 10)\n"})
                 out_dir = self.groups_file([{"group_id": "g1", "unit_ids": ["A"], "items": [1]}], start)
-                write(out_dir / "g1" / "result.json", result("g1", ["A"], t1, start))
+                write(out_dir / "g1" / "result.json", result("g1", ["A"], t1, start, tdd={
+                    "ran": False, "reason": "実行器が無い", "suite": "", "units": [], "test_cmd": {"gate": "on"}}))
                 code, out, err = self.go("join")
                 self.assertEqual(code, 0, err)
                 g1, = self.joined()["groups"]
-                self.assertTrue(g1["returned"], f"直す前から赤の test_env を理由に組を戻した: {g1}")
+                self.assertTrue(g1["returned"], f"直す前から赤の test_env か test_cmd を理由に組を戻した: {g1}")
                 self.assertIn("min(x, 10)", (self.repo / "a.py").read_text(encoding="utf-8"), "組の直しは親の木に残る")
                 if heed:
                     self.assertNotIn("uncompared", g1, "名指しで比べられた赤を比べられなかったと言う")
                 else:
                     self.assertEqual(g1["uncompared"], ["test_a.TestA::test_env"], g1)
+                notes = g1.get("test_cmd_notes") or []
+                self.assertEqual([n.startswith("前から赤") for n in notes], [True], g1)
+                write(self.place / "assert-changed.json", {"ok": True, "reason": ""})
+                self.intake()
+                code, out, err = self.go("finish")
+                self.assertEqual(code, 0, err)
+                self.assertIn(f"組 g1: {notes[0]}", out["report"], out["report"])
 
     def test_join_still_backs_out_a_named_test_that_was_green_before(self):
         """#837: 直す前に緑だった名指しが当てた後に赤なら、今と同じに組を戻す（old_red は持たない）"""
@@ -1276,6 +1288,63 @@ class GroupBoardCase(unittest.TestCase):
             green = f"{sys.executable} -c \"import sys; sys.exit(0)\""
             self.assertEqual(board.rerun_problem(self.place, self.repo, str(suite), cases, named, name="cmd-green",
                                                  test_cmd=green), "")
+
+    def test_rerun_problem_tells_test_cmd_red_apart_on_the_tree_without_the_group(self):
+        """#855: 当てた後の test_cmd の赤は、組を当てる前の木 base を渡す呼びでは 1 回で戻さない。組を外した木でも赤なら前から赤、
+        外すと緑で走らせ直しに緑が在れば揺れとして cmd_notes に書いて戻さず、3 回とも赤の時だけ戻す。外した木で走らない時は
+        uncompared が在れば人に聞き、無ければ戻す。base の無い呼びは今どおり 1 回の赤で戻す。外した木で走らせた後の作業ツリーは
+        当てた姿のまま（外した木で出来たファイルも残さない）"""
+        from src import tdd
+        from tests.blocks.fix.support import SUITE
+        suite = self.tmp / "suite.py"
+        suite.write_text(SUITE, encoding="utf-8")
+        named = ["test_stats.py::TestStats::test_mean_of_three"]
+        stats = self.repo / "stats.py"
+        stats.write_text(stats.read_text(encoding="utf-8").replace("(len(xs) - 1)", "len(xs)"), encoding="utf-8")
+        base = tdd.snapshot(self.repo)
+        (self.repo / "applied.txt").write_text("組の直し\n", encoding="utf-8")
+        (self.repo / "run.sh").write_text("#!/bin/sh\nexit 1\n", encoding="utf-8")
+        (self.repo / "run.sh").chmod(0o755)
+        applied = tdd.snapshot(self.repo)
+        script = self.tmp / "cmd.py"
+        script.write_text(
+            "import pathlib, sys\n"
+            "mode, count = sys.argv[1], pathlib.Path(sys.argv[2])\n"
+            "on = pathlib.Path('applied.txt').exists()\n"
+            "n = int(count.read_text()) + 1 if count.exists() else 1\n"
+            "if on:\n    count.write_text(str(n))\n"
+            "else:\n    pathlib.Path('made-on-base.txt').write_text('x')\n"
+            "sys.exit({'always': 1, 'group': int(on), 'flaky': int(on and n == 1)}[mode])\n", encoding="utf-8")
+        rows = (   # (訳, mode か命令, base を渡すか, uncompared の受け口を渡すか, 戻すか, cmd_notes の頭, uncompared の件数)
+            ("外しても赤なら前から赤として戻さない", "always", True, True, False, "前から赤", 0),
+            ("外すと緑で走らせ直しに緑が在れば揺れとして戻さない", "flaky", True, True, False, "揺れ", 0),
+            ("外すと緑で 3 回とも赤なら戻す", "group", True, True, True, None, 0),
+            ("外した木で走らなければ人に聞く", "./run.sh", True, True, False, None, 1),
+            ("外した木で走らず受け口も無ければ戻す", "./run.sh", True, False, True, None, 0),
+            ("base の無い呼びは 1 回の赤で戻す", "flaky", False, True, True, None, 0),
+        )
+        for i, (label, mode, with_base, ask, back, note, asked) in enumerate(rows):
+            with self.subTest(label):
+                count = self.tmp / f"count-{i}"
+                cmd = mode if mode.startswith("./") else f"{sys.executable} {script} {mode} {count}"
+                notes, unknown = [], []
+                got = board.rerun_problem(self.place, self.repo, str(suite), [], named, name=f"cmd-{i}", test_cmd=cmd,
+                                          base=base if with_base else "", cmd_notes=notes, uncompared=unknown if ask else None)
+                self.assertEqual(bool(got), back, got)
+                if back:
+                    self.assertIn("test_cmd", got)
+                self.assertEqual([n.startswith(note) for n in notes] if note else notes, [True] if note else [], notes)
+                self.assertEqual(len(unknown), asked, unknown)
+                if mode == "group":
+                    self.assertEqual(count.read_text(), "3", "当てた木で 3 回走らせた")
+                    self.assertIn("3 回とも赤", got)
+                self.assertEqual(tdd.touched(self.repo, applied, tdd.snapshot(self.repo)), [], "作業ツリーは当てた姿のまま")
+        with self.subTest("戻さなかった文は組の行の test_cmd_notes に置き、修正の報告に 1 件 1 行で出す"):
+            from src import report
+            rows, _ = board.join_rows([{"group_id": "g1", "unit_ids": []}, {"group_id": "g2", "unit_ids": []}],
+                                      {"g1": (None, True, ""), "g2": (None, True, "")}, test_cmd_notes={"g1": ["揺れ: x"]})
+            self.assertEqual([g.get("test_cmd_notes") for g in rows], [["揺れ: x"], None])
+            self.assertEqual(report.test_cmd_lines(rows), ["組 g1: 揺れ: x"])
 
 
 

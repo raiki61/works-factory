@@ -193,7 +193,7 @@ def _common(place, repo, rows_groups, groups, extras, results, *, ok, reason, fi
             "allowed_tests": _ptr(place / files.ALLOWED_TESTS_FILE), "accept_trace": _ptr(place / files.ACCEPT_TRACE_FILE),
             "closure": _ptr(place / CLOSURE_FILE), "tdd_unit": ports.pointer(unit_file), "tdd": tdd_rows,
             "frozen": ports.pointer(frozen) if frozen else None, "removed": _removed(place), "tdd_refused": _tdd_refused(place),
-            "freeze_off": report.freeze_off(tdd_rows), "report": report.lines(place, tdd_rows, units_rows, repo)}
+            "freeze_off": report.freeze_off(tdd_rows), "report": report.lines(place, tdd_rows, units_rows, repo, groups_rows)}
 
 
 def suite_broken(results) -> list:

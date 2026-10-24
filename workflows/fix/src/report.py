@@ -63,5 +63,12 @@ def evidence_lines(place, repo=None) -> list:
     return out
 
 
-def lines(place, tdd_rows: list, units: list, repo=None) -> list:
-    return [*tdd_lines(tdd_rows, units), *evidence_lines(place, repo)]
+def test_cmd_lines(groups) -> list:
+    """当てたままの組の行の test_cmd_notes（確かめ直しの test_cmd の赤を前から赤か揺れと見て組を戻さなかった文。#855）を
+    1 件 1 行「組 <group_id>: <文>」に"""
+    return [f"組 {g.get('group_id')}: {oneline.one_line(x)}" for g in groups or [] if isinstance(g, dict) and g.get("returned") is True
+            for x in g.get("test_cmd_notes") or [] if isinstance(x, str)]
+
+
+def lines(place, tdd_rows: list, units: list, repo=None, groups=()) -> list:
+    return [*tdd_lines(tdd_rows, units), *test_cmd_lines(groups), *evidence_lines(place, repo)]
