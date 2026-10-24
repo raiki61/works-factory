@@ -343,7 +343,8 @@ nodes:
         stop_reason: {type: string}
   # 8 計画の往復（docs/design/line.md の 3 節）。本体に AI の node を直に置かない。止め時は plan-out が決め、往復の返りは design-talk。
   # 対話モードの run（design_talk で無人でない）だけ、止まる周に本体の唯一の終わりの関所 gate-design で設計を相談する（3.1 節。答えは
-  # 次の周の頭の design-turn が読む。until_bash は飛びうる関所の出力を読まない）。通常の run は関所がいつも飛び、往復は今と同じ
+  # 次の周の頭の design-turn が読む。until_bash は飛びうる関所の出力を読まない）。対話モードは人の指摘の受け箱を周の頭で拾い、周ごとの設計を
+  # 控えに書いて告げ、指摘が 1 つも入らなかった run だけ関所で待つ（3.1 節・#830）。通常の run は関所がいつも飛び、往復は今と同じ
   - id: plan-rounds
     depends_on: [judge, judge-out, owed, structure-in, design-in, tiers]
     when: "$judge.output.ready == true && $owed.output.stop_reason == '' && $structure-in.output.stop_reason == '' && $tiers.output.stop_reason == ''"
@@ -364,9 +365,11 @@ nodes:
           output_format:
             type: object
             additionalProperties: false
-            required: [plan, answer, plan_prior, record, answers, recorded, asks, talks, stop_reason, reason]
+            required: [plan, answer, plan_prior, record, answers, recorded, asks, talks, notes, timeline, stop_reason, reason]
             properties:
               plan: {type: boolean}
+              notes: {type: array, items: {type: string}}
+              timeline: {type: array, items: {type: object}}
               answer: {type: [object, 'null']}
               plan_prior: {type: [object, string]}
               record: {type: [object, string]}
@@ -483,7 +486,8 @@ nodes:
             type: object
             additionalProperties: false
             required: [done, ok, status, round, plan_prior, record, plan, fix_plan, reply, handoffs, ripple, owed, gave_up, stalled, capped,
-                       review, asks, deviations, review_status, review_reason, stop_reason, open, text, asked, agreed, talks]
+                       review, asks, deviations, review_status, review_reason, stop_reason, open, text, asked, agreed, talks, notes, shown,
+                       timeline]
             properties:
               <<: *plan_out_props
               open: {type: boolean}
@@ -491,6 +495,9 @@ nodes:
               asked: {type: array, items: {type: string}}
               agreed: {type: [object, 'null']}
               talks: {type: array}
+              notes: {type: array, items: {type: string}}
+              shown: {type: string}
+              timeline: {type: array, items: {type: object}}
         # 設計の相談の関所（本体の唯一の終わり。docs/design/line.md の 3.1 節）。対話モードの run の止まる周だけ開く。revise は設計し直し
         - id: gate-design
           depends_on: [design-talk]
@@ -505,7 +512,7 @@ nodes:
     with:
       got: "$plan-rounds.output"
       names: "done ok status round plan_prior record plan fix_plan reply handoffs ripple owed gave_up stalled capped review asks deviations
-        review_status review_reason stop_reason open text asked agreed talks"
+        review_status review_reason stop_reason open text asked agreed talks notes shown timeline"
   # 9 修正前の承認ノード（docs/design/line.md の 2 節の 2）。軸・項目・聞かずに通した行は line が組む
   - id: ask-before-fix
     # 本体はここ 1 か所。仕様駆動の run の spec-ask-before-fix は <<: *ask_before_fix で受ける
