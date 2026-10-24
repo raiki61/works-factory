@@ -66,7 +66,6 @@ ROOT = pathlib.Path(__file__).resolve().parents[2]
 BLOCKS = archon.WORKFLOWS   # pack のフォルダ workflows/（pack.json の ours.folder から読む。docs/design/integration.md の 4.5-11）
 SHARED = ".shared"
 LIB = ROOT / "lib"
-FORM = re.compile(r"^(text|file|flag|json\((shared:)?([A-Za-z0-9_.-]+)\)|choice\([a-z0-9_-]+(?:\|[a-z0-9_-]+)+\)): ")
 SYSTEM_REF = re.compile(r"^\$([a-z0-9][a-z0-9_-]*)\.output\.system$")
 PROMPT_REF = re.compile(r"^\$([a-z0-9][a-z0-9_-]*)\.output\.prompt$")
 FRAGMENT = re.compile(r"\{(shared|part):([a-z0-9][a-z0-9_-]*)\}")
@@ -282,7 +281,7 @@ def _text_keys(value, at: str) -> list[str]:
 
 
 def check_no_text_in_yaml(pack: pathlib.Path) -> list[str]:
-    from_ports = _ports().unknown_keywords
+    gate = scan.ports()
     out = []
     for folder in folders(pack):
         for node in nodes(load(folder)):
@@ -292,19 +291,18 @@ def check_no_text_in_yaml(pack: pathlib.Path) -> list[str]:
                     for hit in _text_keys({k: v for k, v in node.items() if k not in ("output_format",)}, node["id"])]
     for path in sorted([*(pack / SHARED / "schemas").glob("*.json"), *[p for f in folders(pack) for p in (f / "schemas").glob("*.json")]]):
         try:
-            unknown = from_ports(json.loads(path.read_text(encoding="utf-8")))
+            shape = json.loads(path.read_text(encoding="utf-8"))
         except ValueError as error:
-            unknown = [f"JSON でない: {error}"]
+            out.append(f"{path.relative_to(pack)}: JSON でない: {error}")
+            continue
+        unknown = gate.unknown_keywords(shape)
         if unknown:
             out.append(f"{path.relative_to(pack)}: 照らしの知らない語 {unknown}")
+            continue
+        holes = gate.open_shapes(shape, path.parents[1], shared=pack / SHARED, lib=pack.parent / "lib")
+        if holes:
+            out.append(f"{path.relative_to(pack)}: 中身を宣言しない所 {holes}（object は properties か patternProperties、array は items）")
     return out
-
-
-def _ports():
-    import importlib
-    if str(BLOCKS / SHARED) not in sys.path:
-        sys.path.append(str(BLOCKS / SHARED))
-    return importlib.import_module("ports")
 
 
 def check_standalone_inputs(pack: pathlib.Path) -> list[str]:
@@ -326,16 +324,16 @@ def check_standalone_inputs(pack: pathlib.Path) -> list[str]:
 
 
 def check_input_forms(pack: pathlib.Path) -> list[str]:
-    out = []
+    gate, out = scan.ports(), []
     for folder in folders(pack):
         for name, spec in sorted((load(folder).get("inputs") or {}).items()):
-            text = (spec or {}).get("description")
-            match = FORM.match(text) if isinstance(text, str) else None
-            if not match:
+            form = gate.form_of((spec or {}).get("description"))
+            if form is None:
                 out.append(f"{folder.name}: 入力 {name} の description が `<form>: ` で始まらない")
-            elif match.group(3) and not ((pack / SHARED if match.group(2) else folder) / "schemas" / match.group(3)).is_file():
-                where = f"{SHARED}/schemas" if match.group(2) else f"{folder.name}/schemas"
-                out.append(f"{folder.name}: 入力 {name} の形 {where}/{match.group(3)} が無い")
+            elif form[0] in gate.JSON_FORMS:
+                path = gate._shape_path(form[1], folder, shared=pack / SHARED, lib=pack.parent / "lib")
+                if not path.is_file():
+                    out.append(f"{folder.name}: 入力 {name} の形 {form[1]} が無い")
     homes = {}
     for folder in [pack / SHARED, *folders(pack)]:
         for path in (folder / "schemas").glob("*.json"):
