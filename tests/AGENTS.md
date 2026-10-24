@@ -16,7 +16,7 @@
 - `tests/` と `lib/tests/` の試験が起こす子（`subprocess` の `env=`）の環境は、`tests/bin/hermetic.child_env(**overrides)` で作る。子を起こす時はいつも `env=` を渡し、`os.environ` を写して渡さない（写す形の一覧は `tests/layers/scan.py` の `COPIED_ENVIRON`、子を起こす呼び出しの一覧は同じく `SPAWNS`）。`env=` の無い子は親の環境を丸ごと受け継ぐ。親（開発者のシェルや run の中の Claude Code・Archon）が立てた名と、Archon が script のノードに立てる変数（pack の口 `workflows/.shared/ports.py` の `RUNNER_PREFIXES`・`RUNNER_NAMES`）が子へ漏れ、同じ試験が場で違う結果を返す。
 - 外す名は `child_env` の 1 か所が決める（`tests/bin/hermetic.py` の `DROPPED_PREFIXES`・`DROPPED` と、pack の口から `hermetic.runner_vars()` が字で引く Archon の変数の名）。試験が意図して子へ渡す名は `child_env` の overrides で名指しする。口が自分の意図で外す名は `child_env` が作った環境から外す。
 - 試験の過程そのものが読む既定の環境（`lib/` の関数が `os.environ` から引く既定）も場に依らない: 試験を回す口 `tests/shard.py` は、試験を集める前に `hermetic.scrub` で同じ名を自分の過程から外す（残すのは試験の用意の名 `hermetic.ARCHON_SETUP`。源の置き場・見送りを赤にする旗・手元の確かめで Archon を起こさない旗）。利用者の環境を継ぐのが用途の試験（本物の役で回す試験の旗 `WORKS_FACTORY_REAL_RUN` と認証）は、外す前の値を `hermetic.inherited(*prefixes)` で名指しして引き、Archon へは overrides で渡す。
-- assert に環境の辞書（`os.environ`・名が `env`・`*_env` の変数）を丸ごと渡さない（assertIn・assertNotIn の入れ物の側と、`os.environ` はどの assert の引数でも）。落ちると資格（`GH_TOKEN` など）を含む中身が公開の CI のログに出る。`assertNotIn(鍵, set(env))`・`assertIsNone(env.get(鍵))` で比べる。
+- assert に環境の辞書（名が `environ`・`env`・`*_env` の変数）を丸ごと渡さない（位置の引数でも `msg=`・`container=` などのキーワードの引数でも、どの assert でも。assertIn・assertNotIn の 1 つ目の鍵だけ外す）。名前で見分けるので、`e` のような別の名の辞書は機械が見逃す。落ちると資格（`GH_TOKEN` など）を含む中身が公開の CI のログに出る。`assertNotIn(鍵, set(env))`・`assertIsNone(env.get(鍵))` で比べる。
 - 外し: 子の環境を作る道具でなく利用者の環境を継ぐのが用途の物（本物の run・較正の命令の道具・試験を回す口 `tests/changed.py`）や、子の環境を組む口でない物（偽の script の字）は `tests/layers/scan.py` の `ALLOWED["E21"]` に訳つきで置く。
 - 機械: `tests/layers/test_hermetic_env.py`・`tests/test_shard.py` の `ScrubTest`。
 

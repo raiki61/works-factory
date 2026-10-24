@@ -536,15 +536,15 @@ class OutsideEnvCase(unittest.TestCase):
         ours = os.path.dirname(sys.executable)
         env = tree_run.outside_env({"PATH": os.pathsep.join([ours, "/usr/bin", ours]), "UV_RUN_RECURSION_DEPTH": "1",
                                     "VIRTUAL_ENV": sys.prefix, "UV_NO_CONFIG": "1", "HOME": "/h"})
-        self.assertEqual(env, {"PATH": os.pathsep.join(["/usr/bin", ours]), "PYTHONDONTWRITEBYTECODE": "1", "HOME": "/h"})
+        self.assertTrue(env == {"PATH": os.pathsep.join(["/usr/bin", ours]), "PYTHONDONTWRITEBYTECODE": "1", "HOME": "/h"})
 
     def test_keeps_foreign_venv_and_outside_uv(self):
         """sys.prefix でない VIRTUAL_ENV（利用者の物）は残す。uv run の外なら PATH も VIRTUAL_ENV も触らない（UV_NO_CONFIG は外す）"""
         ours = os.path.dirname(sys.executable)
         env = tree_run.outside_env({"PATH": ours, "UV_RUN_RECURSION_DEPTH": "1", "VIRTUAL_ENV": "/elsewhere"})
-        self.assertEqual(env, {"PATH": "", "VIRTUAL_ENV": "/elsewhere", "PYTHONDONTWRITEBYTECODE": "1"})
+        self.assertTrue(env == {"PATH": "", "VIRTUAL_ENV": "/elsewhere", "PYTHONDONTWRITEBYTECODE": "1"})
         env = tree_run.outside_env({"PATH": ours, "VIRTUAL_ENV": sys.prefix, "UV_NO_CONFIG": "1"})
-        self.assertEqual(env, {"PATH": ours, "VIRTUAL_ENV": sys.prefix, "PYTHONDONTWRITEBYTECODE": "1"})
+        self.assertTrue(env == {"PATH": ours, "VIRTUAL_ENV": sys.prefix, "PYTHONDONTWRITEBYTECODE": "1"})
 
     def test_read_only_gh_heads_the_path(self):
         """起動の殻が渡した読むだけの gh の置き場（userenv.READ_GH_ENV）は、uv の物を外した後の PATH の頭に置く（script のノードの
