@@ -319,11 +319,22 @@ class NotesCase(TalkBase):
                          "端の e1・人の block・2 往復前の a1 の挙げ直し・2 往復前の人の block を審査役が挙げ直した物は並ばない")
         self.assertEqual(t.review_events(doc, got), [], "並んだ block は 2 度並ばない")
 
+    def passes_out(self, blocks: list, **over) -> dict:
+        """往復の記録を、往復ごとの block の並び blocks（中央の block の key の並びの並び）で書き直した plan-out の返り"""
+        po = self.plan_out(**over)
+        doc = self.record()
+        doc["passes"] = [{**doc["passes"][0], "pass": n, "blocks": list(keys),
+                          "faces": [{"key": k, "kind": "x", "where": "", "why": "w"} for k in keys]} for n, keys in enumerate(blocks, 1)]
+        self.put("plan-converge.json", doc)
+        return {**po, "round": over.get("round", len(blocks))}
+
     def test_rounds_inboxes_and_answers_keep_three_promises(self):
-        """周の種類 × 受け箱の中身 × 関所への答えの組で、3 つの約束を照らす（docs/design/line.md の 3.1 節）。
-        1 黙って落とさない: 受け箱の指摘は、計画の役（依頼の答えの行）・関所の文・答えの一言のどれかに必ず届く
-        2 承認: 関所を飛んで合意で進むのは、承認の行が在り、その後に中央の物が無く、相談の結果を見せる周でない時だけ。承認だけなら飛ぶ
-        3 案内どおり: 関所の文が言う答えの結末（outcomes）と、答えた後に実際に起きることが同じ"""
+        """周の種類 × 受け箱の中身 × 前の周の審査役の中央の block × 関所への答え × 関所の間の指摘の組で、3 つの約束を照らす
+        （docs/design/line.md の 3.1 節。見直しの A・B・C・1 もこの表で照らす）。
+        1 黙って落とさない: 受け箱の指摘は、計画の役（依頼の答えの行）・関所の文・答えの一言・承認の一言のどれかに必ず届く
+        2 承認: 関所を飛んで合意で進むのは、承認の後に中央の物（人の中央の行・revise の一言・審査役が初めて出した中央の block）が無く、
+          相談の結果を見せる周でなく、回していない中央の指摘が無い時だけ。承認より前の周に出た審査役の block は承認を取り消さない
+        3 案内どおり: 関所の文が言う答えの結末（outcomes）と、答えた後に実際に起きることが同じ。revise の後の次の周の終わりまで見る"""
         t = self.t
         gave_up = {"status": "gave_up", "ok": False, "review_status": "", "review_reason": "受け付けを通らない"}
         kinds = {"収まった": {}, "上限": {"round": 20}, "上限で止まった": {"capped": True, "ok": False, "stalled": True},
@@ -332,89 +343,91 @@ class NotesCase(TalkBase):
                  "審査が諦めた": {"ok": False, "review_status": "gave_up", "review_reason": "諦めた"}, "止まった": {"ok": False, "stalled": True}}
         consults = {"計画ができなかった", "上限で計画ができなかった", "直す義務が無い"}
         inboxes = {"無し": (), "中央": ("b.py も直す",), "端": ("端: 名前を揃える",), "承認": ("承認: 進めて",),
-                   "中央と承認": ("b.py も直す", "承認: 進めて")}
-        answers = (None, {"decision": "approve", "text": ""}, {"decision": "revise", "text": "c.py も"}, {"decision": "stop", "text": "やめる"})
-        combos = [(k, n, a, d) for k in kinds for n in inboxes for a in answers for d in ((), ("d.py も",))]
-        for kind, name, said, during in combos:
-                    over, lines = kinds[kind], inboxes[name]
-                    with self.subTest(kind=kind, inbox=name, answer=(said or {}).get("decision"), during=during):
-                        self.run = kit.Run(self, BLOCK)
-                        first = self.turn()
-                        self.note(*lines)
-                        po = self.plan_out(**over)
-                        got = self.settle(first, po)
-                        reached = [got["text"]]
-                        if not got["open"] and not got["done"]:   # 収まる周に新しい指摘: 次の周の頭が拾う
-                            nxt = self.turn("", previous=got, last=first)
-                            reached += [a["text"] for a in nxt["answers"]]
-                        elif got["open"] and said is not None:
-                            self.note(*during)   # 関所が開いている間に足した指摘
-                            lines = (*lines, *during)
-                            nxt = self.turn(said, previous=got, last=first)
-                            reached += [a["text"] for a in nxt["answers"]] + [t_["text"] for t_ in nxt["talks"]]
-                            ways = t.outcomes(po)
-                            if said["decision"] == "revise":   # 3: revise の結末は案内どおり（上限なら止める・ほかは設計し直す）
-                                self.assertEqual(bool(nxt["stop_reason"]), ways["capped"], ways["revise"])
-                                self.assertIn(ways["revise"], got["text"])
-                            if said["decision"] == "approve":   # 3: 合意の結末は案内どおり（相談の結果の周は修正へ進まない）
-                                end = self.settle(nxt, None, previous=got)
-                                out = self.g.before_fix(end, unattended_run=False, design=True, agreed=end["agreed"])
-                                self.assertEqual(out["stop_reason"] == "" and not out["go"], kind in consults)
-                                self.assertIn(ways["agree"], got["text"])
-                        elif got["agreed"]:
-                            reached.append(got["agreed"]["text"])
-                        skipped = bool(got["agreed"] and got["agreed"].get("by") == "notes")
-                        alive = "承認: 進めて" in lines and "b.py も直す" not in lines
-                        if skipped:   # 2: 承認で飛ぶのは、生きた承認が在り、相談の結果の周でない時だけ
-                            self.assertTrue(alive and kind not in consults, got)
-                        if name == "承認":   # 2: 承認だけなら、相談の結果の周を除いて飛ぶ
-                            self.assertEqual(skipped, kind not in consults)
-                        if got["open"] and said is None:
-                            continue   # 答えの無い関所は待つ（受け箱の行は関所の文に在ることを下で照らす）
-                        for line in lines:   # 1: 黙って落とさない
-                            if not line.startswith(t.APPROVE_HEADS) and not (skipped and line.startswith(t.EDGE_HEAD)):
-                                bare = line.removeprefix(t.EDGE_HEAD).strip()
-                                self.assertTrue(any(bare in r for r in reached), (line, reached))
-
-    def test_a_revise_after_the_approval_cancels_it(self):
-        """関所で revise と答えた一言も中央の出来事として並ぶので、前に受け箱で入れた承認は取り消され、次の周に関所を飛ばない（見直しの A）"""
-        first = self.turn()
-        self.note("承認: 進めて")
-        shown = self.settle(first, self.plan_out(capped=False, ok=False, stalled=False, status="nothing_owed"))
-        self.assertTrue(shown["open"])
-        nxt = self.turn({"decision": "revise", "text": "c.py も"}, previous=shown, last=first)
-        self.assertIsNone(self.t.approval(nxt["timeline"]))
-        again = self.settle(nxt, self.plan_out())
-        self.assertEqual((again["open"], again["agreed"]), (True, None))
-
-    def test_notes_added_while_the_gate_is_open_are_not_dropped(self):
-        """関所が開いている間に足した指摘は、合意なら答えの一言に付いて修正役に届き、一言の空の revise でも計画の役に回る（見直しの B）。
-        revise の案内は一言に書き写さなくてよいと言い、書き写さなければ同じ指摘は 1 つの block だけになる（D）"""
-        for said, plans in (({"decision": "approve", "text": "進めて"}, False), ({"decision": "revise", "text": ""}, True)):
-            with self.subTest(answer=said["decision"]):
+                   "中央と承認": ("b.py も直す", "承認: 進めて"), "端と承認": ("端: 名前を揃える", "承認: 進めて")}
+        befores = ("無し", "承認より前", "承認より後")   # 前の周（1 周目）の審査役の中央の block b1 と、受け箱の行の前後
+        answers = (None, {"decision": "approve", "text": ""}, {"decision": "revise", "text": "c.py も"}, {"decision": "revise", "text": ""},
+                   {"decision": "stop", "text": "やめる"})
+        combos = [(k, n, w, a, d) for k in kinds for n in inboxes for w in befores for a in answers for d in ((), ("d.py も",))]
+        for kind, name, before, said, during in combos:
+            with self.subTest(kind=kind, inbox=name, before=before, answer=said, during=during):
+                over, lines = kinds[kind], inboxes[name]
                 self.run = kit.Run(self, BLOCK)
                 first = self.turn()
-                shown = self.settle(first, self.plan_out())
-                self.note("d.py も")
-                nxt = self.turn(said, previous=shown, last=first)
-                self.assertEqual(nxt["plan"], plans)
-                if plans:
-                    self.assertEqual([a["text"] for a in nxt["answers"]].count("d.py も"), 1)
+                if before == "承認より前":   # 1 周目の審査が b1 を出して次の周へ → 受け箱 → 2 周目で b1 が消える
+                    one = self.settle(first, self.passes_out([["b1"]], done=False, ok=False))
+                    self.note(*lines)
+                    turn = self.turn("", previous=one, last=first)
+                    po = self.passes_out([["b1"], []], **over)
+                elif before == "承認より後":   # 受け箱 → 1 周目の審査が b1 を出して次の周へ → 2 周目で b1 が消える
+                    self.note(*lines)
+                    turn = self.turn()
+                    one = self.settle(turn, self.passes_out([["b1"]], done=False, ok=False))
+                    turn = self.turn("", previous=one, last=turn)
+                    po = self.passes_out([["b1"], []], **over)
                 else:
-                    self.assertIn("d.py も", nxt["answer"]["text"])
-                    end = self.settle(nxt, None, previous=shown)
-                    self.assertIn("d.py も", end["agreed"]["text"])
-        held = self.t.outcomes(self.plan_out(**{"status": "gave_up", "ok": False}), notes=True)["held"]
-        self.assertIn("一言に書き写さなくてよい", held)
+                    self.note(*lines)
+                    turn = first
+                    po = self.plan_out(**over)
+                got = self.settle(turn, po)
+                reached = [got["text"], *(a["text"] for a in turn["answers"])]   # 周の頭が計画の役に回した行も届いた先
+                ways = t.outcomes(po, notes=True)
+                if not got["open"] and not got["done"]:   # 収まる周に新しい指摘: 次の周の頭が拾う
+                    nxt = self.turn("", previous=got, last=turn)
+                    reached += [a["text"] for a in nxt["answers"]]
+                elif got["open"] and said is not None:
+                    self.note(*during)   # 関所が開いている間に足した指摘
+                    lines = (*lines, *during)
+                    self.assertIn(t.outcomes(po)["revise"], got["text"])   # 3: 答え方の句は outcomes から
+                    if "held" in got["text"] or t.UNPICKED_HEAD.split("（")[0] in got["text"]:
+                        self.assertIn(ways["held"], got["text"])
+                    nxt = self.turn(said, previous=got, last=turn)
+                    reached += [a["text"] for a in nxt["answers"]] + [t_["text"] for t_ in nxt["talks"]]
+                    picked = [ln for ln in nxt["notes"][len(got["notes"]):] if not ln.startswith(t.APPROVE_HEADS)]   # 答えた周の頭が読んだ指摘
+                    if said["decision"] == "revise" and (said["text"] or picked):
+                        self.assertEqual(bool(nxt["stop_reason"]), t.outcomes(po)["capped"])   # 3: 上限なら止める・ほかは設計し直す
+                        if nxt["plan"]:   # 次の周の終わりまで: revise の後は、前の承認で関所を飛ばない（A）
+                            again = self.settle(nxt, self.plan_out())
+                            if said["text"]:
+                                self.assertFalse(again["agreed"] and again["agreed"].get("by") == "notes", again)
+                    if said["decision"] == "approve":   # 3: 合意の結末は案内どおり（相談の結果の周は修正へ進まない）
+                        end = self.settle(nxt, None, previous=got)
+                        out = self.g.before_fix(end, unattended_run=False, design=True, agreed=end["agreed"])
+                        reported = out["stop_reason"] == "" and not out["go"]   # 合意で修正へ進まずに報告で終わった
+                        self.assertEqual(reported, kind in consults)
+                        self.assertEqual(t.outcomes(po)["agree"] == t.CONSULT_AGREE, reported, "合意の句が実際の結末と同じ（C）")
+                        self.assertIn(t.outcomes(po)["agree"], got["text"])
+                        reached.append(end["agreed"]["text"])
+                elif got["agreed"]:
+                    reached.append(got["agreed"]["text"])
+                skipped = bool(got["agreed"] and got["agreed"].get("by") == "notes")
+                order = list(lines)   # 承認の行より後に中央の行が無いか（受け箱の行の順）
+                alive = ("承認: 進めて" in order and before != "承認より後"
+                         and all(order.index(ln) < order.index("承認: 進めて") for ln in order if ln == "b.py も直す"))
+                if skipped:   # 2: 承認で飛ぶのは、生きた承認が在り、相談の結果の周でない時だけ
+                    self.assertTrue(alive and kind not in consults, got)
+                if name == "承認" and before != "承認より後":   # 2: 承認だけなら（前の周の block が承認より前でも）相談の結果の周を除いて飛ぶ
+                    self.assertEqual(skipped, kind not in consults, (kind, before))
+                if got["open"] and said is None:
+                    continue   # 答えの無い関所は待つ
+                for line in lines:   # 1: 黙って落とさない
+                    if not line.startswith(t.APPROVE_HEADS):
+                        bare = line.removeprefix(t.EDGE_HEAD).strip()
+                        self.assertTrue(any(bare in r for r in reached), (line, reached))
 
-    def test_the_guidance_comes_from_one_place(self):
-        """上限の周に計画ができなかった時、相談の結果の行と回していない指摘の案内が同じ結末を言う（見直しの C。字を周ごとに書き分けない）"""
-        po = self.plan_out(status="gave_up", ok=False, round=20, review_status="", review_reason="x")
-        ways = self.t.outcomes(po, notes=True)
-        self.assertEqual(ways["agree"], self.t.CONSULT_AGREE)
-        self.assertIn(self.t.CONSULT_AGREE, self.t._consult_row(po))
-        self.assertIn(self.t.CONSULT_AGREE, ways["held"])
-        self.assertNotIn("修正・試験・レビューへ進む", ways["held"])
+    def test_the_relapse_rule_is_one_switch(self):
+        """承認の後に、前の往復で消えた審査役の中央の block がぶり返した時に承認を取り消すかは、REVIVED_CANCELS の 1 か所で決まる（持ち主の
+        答え待ち。今は取り消さない）"""
+        t = self.t
+        face = lambda key: {"key": key, "kind": "x"}
+        doc = {"passes": [{"blocks": ["b1"], "faces": [face("b1")]}, {"blocks": [], "faces": []}, {"blocks": ["b1"], "faces": [face("b1")]}]}
+        self.assertFalse(t.REVIVED_CANCELS)
+        self.assertEqual([e["pass"] for e in t.review_events(doc, [])], [0], "ぶり返しは並ばない（今の作り）")
+        original = t.REVIVED_CANCELS
+        try:
+            t.REVIVED_CANCELS = True
+            self.assertEqual([e["pass"] for e in t.review_events(doc, [])], [0, 2], "替えれば、ぶり返しが新しい中央の出来事として並ぶ")
+        finally:
+            t.REVIVED_CANCELS = original
 
     def test_an_approval_line_is_not_a_block(self):
         first = self.turn()

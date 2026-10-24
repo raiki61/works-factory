@@ -50,7 +50,10 @@ NOTE_WHERE = "人の指摘の受け箱"   # 受け箱の指摘を差し込む人
 EDGE_HEAD = "端:"   # 受け箱の行の頭がこの字なら、端（修正の段へ申し送れば済む細かい調整）の指摘として差し込む
 UNPICKED_HEAD = "受け箱に入ったが、まだ計画の役に回していない指摘（{what}）:"   # 関所の文の末尾に、回していない受け箱の行の前に置く
 CONSULT_AGREE = "修正へ進まずに報告を出す"   # 相談の結果の周に合意した時の結末の句（outcomes と相談の結果の行が同じ字を使う）
-NOTES_ATTACHED = "受け箱に入った指摘（関所が開いている間に足された。計画の役には回していない）:"   # 答えの一言の後ろに足す見出し
+NOTES_ATTACHED = "受け箱に入った、まだ計画の役に回していない指摘:"   # 答えの一言・受け箱の承認の一言の後ろに足す見出し
+# 承認の後に、前の往復で審査役が出して消えた中央の block が挙げ直された（ぶり返した）時に承認を取り消すか。持ち主の答えを待つ間は今の作り
+# （取り消さない）。替える時はこの 1 か所（review_events が、ぶり返しを新しい中央の出来事として並べる）
+REVIVED_CANCELS = False
 APPROVE_HEADS = ("承認:", "もういいよ")   # 受け箱の行の頭がこのどれかなら、設計への承認（指摘でない。block にしない）
 EMPTY_REVISE = "前の答え revise の一言が空だった（直してほしい所が分からないので設計し直していない）。直してほしい所を一言に書いて答え直す"
 CAPPED_REVISE = "往復の安全の上限 {n} 周に届いたので設計し直せない（revise は止める答えと同じに扱う）"
@@ -168,18 +171,22 @@ def event_of(line: str) -> dict:
 
 def review_events(doc: dict, timeline: list) -> list:
     """往復の記録 doc の往復に初めて出た、審査役の中央の block（人の block は受け箱と revise の出来事で並んでいるので除く）のうち、まだ
-    並び timeline に無い物を、出た順の出来事 {kind: central, by: review, key} にする。前の往復に在った block の挙げ直しは新しくない"""
+    並び timeline に無い物を、出た順の出来事 {kind: central, by: review, key, pass} にする（pass は出た往復の位置）。前の往復に在った block の
+    挙げ直しは新しくない。ただし REVIVED_CANCELS が真なら、直前の往復で消えていた block の挙げ直し（ぶり返し）も出来事にする。
+    呼び手 settle は計画を回した周ごとに、その周の往復が足された所で呼ぶ（往復が出た順に並べる）"""
     from src import rounds
     passes = doc.get("passes") or []
-    have = {e.get("key") for e in timeline if e.get("by") == "review"}
-    seen, out = set(), []
-    for p in passes:
+    have = {(e.get("key"), e.get("pass")) for e in timeline if e.get("by") == "review"}
+    seen, before, out = set(), set(), []
+    for i, p in enumerate(passes):
         people = {f.get("key") for f in p.get("faces") or [] if f.get("kind") == rounds.PERSON_KIND}
         for key in rounds.central_keys(passes, p.get("blocks") or []):
-            if key not in seen and key not in people and key not in have:
-                out.append({"kind": CENTRAL, "by": "review", "key": key})
-                have.add(key)
-        seen.update(p.get("blocks") or [])
+            fresh = key not in seen or (REVIVED_CANCELS and key not in before)
+            if fresh and key not in people and (key, i) not in have:
+                out.append({"kind": CENTRAL, "by": "review", "key": key, "pass": i})
+                have.add((key, i))
+        before = set(p.get("blocks") or [])
+        seen.update(before)
     return out
 
 
@@ -273,12 +280,12 @@ def settle(*, turn_got: dict, plan_out: dict | None, previous: dict | None, give
         out = {**plan_out, **talk_fields(turn_got)}
         if not dialogue(given):
             return out
+        timeline = [*out["timeline"], *review_events(_record(plan_out), out["timeline"])]   # この周の審査役の block を、出た周に並べる
+        out["timeline"] = timeline
         if place is not None:
             out["shown"] = show_round(plan_out, place=place)
         if not plan_out.get("done"):
             return out
-        timeline = [*out["timeline"], *review_events(_record(plan_out), out["timeline"])]
-        out["timeline"] = timeline
         fresh = [event_of(line) for line in (read_new(place, turn_got.get("notes") or []) if place is not None else [])]
         held = [e for e in fresh if e["kind"] != APPROVE]   # まだ計画の役に回していない指摘
         if held and (plan_out.get("ok") or plan_out.get("stalled")) and not _capped(plan_out):
@@ -287,6 +294,8 @@ def settle(*, turn_got: dict, plan_out: dict | None, previous: dict | None, give
         said = approval([*timeline, *fresh])
         # 承認は往復が収まった周にだけ当てる（相談の結果を見せる周と、回せない中央の指摘が在る周は関所を開く。黙って終わらない）
         if not consult and not any(e["kind"] == CENTRAL for e in fresh) and said is not None:
+            if held:   # 承認で進む周に入った端の行は、承認の一言の後ろに付けて修正役に届ける（黙って落とさない）
+                said = "\n".join([t for t in (said, NOTES_ATTACHED, *(f"- {e['line']}" for e in held)) if t])
             agreed = {"round": plan_out.get("round"), "decision": "approve", "text": said, "asked": [], "by": "notes"}
             return {**out, "agreed": agreed, "talks": [*out["talks"], agreed]}
         doc = None
@@ -435,7 +444,7 @@ def round_text(po: dict, doc: dict, *, inbox: Path) -> str:
              "前の行を消さない・直さない。工場は取った行の数で読み進めるので、消すと新しい行を飛ばし、直すと読み直さない）:",
              f"- printf '%s\\n' '<指摘>' >> {inbox}",
              "設計を承認して最後に待たずに修正へ進ませる（もういいよ）: 同じ受け箱に頭が「承認:」の行を足す。承認の後に中央の指摘を足すと"
-             "承認は取り消され、往復が収まった所で聞いて待つ",
+             "承認は取り消され、往復が収まった所で聞いて待つ。往復が終わった後（修正へ進んだ後）に足した行は読まれない",
              f"- printf '%s\\n' '承認: <条件>' >> {inbox}"]
     return "\n".join(lines) + "\n"
 
