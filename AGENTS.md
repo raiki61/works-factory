@@ -21,6 +21,7 @@ works-factory は、修正依頼を受けて確かめ済みの変更と報告を
 - 文書は日本語。ただし根の `README.md` は英語の 1 版（持ち主の決め `readme-english`）。AI のノードへの指示の md は英語（`prompts-english`）。
 - スキル（SKILL.md）やコマンドを書く・直す前に https://github.com/raiki61/claude-plugins/blob/main/docs/standards/skill-authoring.md を読む。
 - 元の works（このリポジトリの前の形。`raiki61/claude-plugins` の `works/`、版は `pack.json` の `works.commit`）は参照するだけで、作り直しの目標ではない。元に在って工場に無い物は、工場の git の履歴で意図して外したかを確かめてから戻すかを決める（持ち主の決め `read-original-works`・`lib-port-ended`）。
+- 止めた Archon の源（`dag-executor.ts` など）は取り置きを読み、`/` やホームの全体から find・Glob で探さない。殻の外の会話から読む時は `${XDG_CACHE_HOME:-$HOME/.cache}/works-factory/archon/<commit>/` を読む。`<commit>` は `factory/pack.json` の `integration_revision_required`。無ければ `bin/works-factory version` を 1 度打つと取る（bun と網が要る。`docs/design/archon.md` の「pack.json」）。run の中では HOME・XDG が隔離されるので（`bin/_lib/isolate.py`）、この式を展開せず、殻を起こさない。源の場所は env の `WORKS_FACTORY_ARCHON_CLI`（命令の頭の JSON の list。最後の要素が `<源>/packages/cli/src/cli.ts`）から読む。
 
 ## 決まりの置き場
 
