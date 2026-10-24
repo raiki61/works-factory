@@ -620,7 +620,7 @@ class OutsideEnvCase(unittest.TestCase):
         with tempfile.TemporaryDirectory() as top:
             mark = pathlib.Path(top) / userenv.RAN_FILE
             env = tree_run.outside_env(hermetic.child_env(**{userenv.MARK: str(mark)}))
-            self.assertNotIn(userenv.MARK, env)
+            self.assertNotIn(userenv.MARK, set(env))
             self.assertEqual(tree_run.run([sys.executable, "-c", "pass"], env=env), 0)
             self.assertFalse(mark.exists())
 
