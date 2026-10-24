@@ -447,7 +447,7 @@ def finish(out) -> dict:
     classes = len(pl.get("taken") or [])
     dropped = len(ver.get("dropped") or []) + int(ver.get("over_excerpts") or 0)
     _write(out / STATE, {"status": status, "reason": reason, "world_file": WORLD_FILE, "classes": classes, "dropped": dropped})
-    return {"ok": status == "ok", "status": status, "reason": reason, "rows": ports.pointer(world) if rows else None,
+    return {"ok": status == "ok", "status": status, "reason": reason, "rows": ports.pointer(world, "jsonl(lib:world-row.schema.json)") if rows else None,
             "classes": classes, "dropped": dropped,
             "report": report.lines(status=status, reason=reason, rows=rows, classes=classes, dropped=dropped)}
 

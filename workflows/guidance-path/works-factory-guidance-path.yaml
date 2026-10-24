@@ -190,17 +190,14 @@ nodes:
           enum: [ok, failed]
         reason: {type: string}
         paths:
-          anyOf:
-            - type: object
-              additionalProperties: false
-              required: [type, run_id, path]
-              properties:
-                type:
-                  type: string
-                  enum: [archon_artifact]
-                run_id: {type: string}
-                path: {type: string}
-            - {type: 'null'}
+          type: [object, 'null']
+          additionalProperties: false
+          required: [type, run_id, path]
+          description: 'json(paths.schema.json): 辿った頼みごとの行。頼みが無ければ null'
+          properties:
+            type: {type: string, enum: [archon_artifact]}
+            run_id: {type: string}
+            path: {type: string}
         fixes:
           type: array
           items:

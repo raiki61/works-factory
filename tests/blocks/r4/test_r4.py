@@ -207,7 +207,7 @@ class FlowCase(_RepoCase):
         for want in ("Ripple list: (not given)", "Rows of established practice: (not given)", "Fix marks: (not given)",
                      "Original purpose: (not given)"):
             self.assertIn(want, text)
-        ripple, world = self.write("plan/ripple.json", "[]"), self.write("judge/world.jsonl", "")
+        ripple, world = self.write("plan/ripple.json", '{"items": [], "overlaps": []}'), self.write("judge/world.jsonl", "")
         self.intake(ripple=str(ripple), world_rows=str(world), purpose="目的",
                     changed=dump({"mechanism_changed": False, "seams_changed": True, "premise_drift_note": "x"}))
         text = self.prep()["prompt"]

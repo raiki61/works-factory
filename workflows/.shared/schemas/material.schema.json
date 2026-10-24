@@ -1,0 +1,28 @@
+{
+  "description": "素材の観点の block（と先行議論の突合）の出口が書く素材の状態のファイル material.json（lib/materialkit.py の finish が書き、read が読む）",
+  "type": "object",
+  "properties": {
+    "role": {"type": "string"},
+    "status": {"type": "string", "enum": ["ran", "skipped", "gave_up", "failed"]},
+    "reason": {"type": "string"},
+    "reply": {"type": ["object", "null"], "description": "観点の役の受けた返答（形は観点ごとの役の output_format）。受けていなければ null",
+              "patternProperties": {"^.+$": {"type": ["object", "array", "string", "number", "boolean", "null"]}}},
+    "materials": {
+      "type": "object",
+      "description": "素材の名 → 素材の状態（欄は lib/materialkit.py の STATUS の status ごとの要る欄）",
+      "patternProperties": {"^.+$": {
+        "type": "object",
+        "properties": {
+          "status": {"type": "string", "enum": ["found", "clean", "carried_over", "not_applicable", "awaiting_human", "not_run"]},
+          "count": {"type": "integer"},
+          "from_round": {"type": "integer"},
+          "detail": {"type": ["string", "array"], "items": {"type": ["object", "array", "string", "number", "boolean", "null"]}},
+          "checked": {"type": ["string", "array"], "items": {"type": ["object", "array", "string", "number", "boolean", "null"]}},
+          "reason": {"type": "string"}
+        }
+      }}
+    },
+    "base": {"type": ["string", "null"]},
+    "commits": {"type": ["integer", "null"]}
+  }
+}

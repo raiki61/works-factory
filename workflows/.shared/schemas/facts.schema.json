@@ -257,7 +257,13 @@
       }
     },
     "tallied": {
-      "type": "object"
+      "type": "object",
+      "description": "人が決める物の種の名ごとの数",
+      "patternProperties": {
+        "^.+$": {
+          "type": "integer"
+        }
+      }
     },
     "counted_left": {
       "type": "array",
@@ -309,7 +315,37 @@
           "type": [
             "object",
             "null"
-          ]
+          ],
+          "properties": {
+            "act": {
+              "type": "string"
+            },
+            "url": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "number": {
+              "type": [
+                "integer",
+                "string",
+                "null"
+              ]
+            },
+            "is_draft": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "reason": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          }
         },
         "commits": {
           "type": "array",
@@ -326,28 +362,57 @@
         "findings": {
           "type": "array",
           "items": {
-            "type": "object"
+            "type": [
+              "object",
+              "array",
+              "string",
+              "number",
+              "boolean",
+              "null"
+            ]
           }
         },
         "prior": {
           "type": "array",
           "items": {
-            "type": "object"
+            "type": [
+              "object",
+              "array",
+              "string",
+              "number",
+              "boolean",
+              "null"
+            ]
           }
         },
         "drafts": {
           "type": "array",
           "items": {
-            "type": "object"
+            "type": [
+              "object",
+              "array",
+              "string",
+              "number",
+              "boolean",
+              "null"
+            ]
           }
         },
         "constraints": {
           "type": "array",
           "items": {
-            "type": "object"
+            "type": [
+              "object",
+              "array",
+              "string",
+              "number",
+              "boolean",
+              "null"
+            ]
           }
         }
-      }
+      },
+      "description": "次の run に運ぶ行。report は中身を読まずに lib/carry.py の compose へ渡し、行の形は carry が住処の形（lib の next-request・prior-failures の形）で照らすので、ここは行の欄の名を写さず何でも受ける"
     },
     "stop_lines": {
       "type": "object",

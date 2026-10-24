@@ -1,0 +1,354 @@
+{
+  "description": "計画の往復の記録 plan-converge.json（書き手は line の src/rounds.py の fresh・record_pass・ask_again と、plan-review の作業の写し lib/converge.py）。外枠と plan の行は書き手が欄を足すので閉じない。往復の行（passes）は閉じ、書き手だけに欄を足すと読み手の照らしが落ちる（#845・#849・#851）",
+  "type": "object",
+  "required": [
+    "passes"
+  ],
+  "properties": {
+    "round": {
+      "type": "integer"
+    },
+    "passes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "pass": {
+            "type": "integer"
+          },
+          "blocks": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "faces": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "key": {
+                  "type": "string"
+                },
+                "kind": {
+                  "type": "string"
+                },
+                "where": {
+                  "type": "string"
+                },
+                "why": {
+                  "type": "string"
+                },
+                "reach": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "suggests": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "answers": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "patternProperties": {
+                "^.+$": {
+                  "type": [
+                    "object",
+                    "array",
+                    "string",
+                    "number",
+                    "boolean",
+                    "null"
+                  ]
+                }
+              }
+            }
+          },
+          "notes": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "patternProperties": {
+                "^.+$": {
+                  "type": [
+                    "object",
+                    "array",
+                    "string",
+                    "number",
+                    "boolean",
+                    "null"
+                  ]
+                }
+              }
+            }
+          },
+          "resolved": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "persists": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "outcome": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "origins": {
+            "type": "object",
+            "patternProperties": {
+              "^.+$": {
+                "type": "string"
+              }
+            }
+          },
+          "origins_claimed": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "patternProperties": {
+                "^.+$": {
+                  "type": [
+                    "object",
+                    "array",
+                    "string",
+                    "number",
+                    "boolean",
+                    "null"
+                  ]
+                }
+              }
+            }
+          },
+          "files": {
+            "type": "object",
+            "patternProperties": {
+              "^.+$": {
+                "type": "string"
+              }
+            }
+          },
+          "rejects": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "patternProperties": {
+                "^.+$": {
+                  "type": [
+                    "object",
+                    "array",
+                    "string",
+                    "number",
+                    "boolean",
+                    "null"
+                  ]
+                }
+              }
+            }
+          },
+          "push": {
+            "type": "object",
+            "patternProperties": {
+              "^.+$": {
+                "type": [
+                  "object",
+                  "array",
+                  "string",
+                  "number",
+                  "boolean",
+                  "null"
+                ]
+              }
+            }
+          },
+          "face_units": {
+            "type": "object",
+            "patternProperties": {
+              "^.+$": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "n": {
+                  "type": "integer"
+                },
+                "id": {
+                  "type": "string"
+                },
+                "unit_keys": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "hash": {
+                  "type": "string"
+                },
+                "state": {
+                  "type": "string"
+                },
+                "blocks": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "reopened": {
+                  "type": "boolean"
+                },
+                "row": {
+                  "type": "object",
+                  "patternProperties": {
+                    "^.+$": {
+                      "type": [
+                        "object",
+                        "array",
+                        "string",
+                        "number",
+                        "boolean",
+                        "null"
+                      ]
+                    }
+                  }
+                },
+                "hits": {
+                  "type": [
+                    "object",
+                    "array",
+                    "string",
+                    "number",
+                    "boolean",
+                    "null"
+                  ]
+                },
+                "refs": {
+                  "type": "array",
+                  "items": {
+                    "type": [
+                      "object",
+                      "array",
+                      "string",
+                      "number",
+                      "boolean",
+                      "null"
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "synergy": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "capped": {
+            "type": "boolean"
+          }
+        }
+      }
+    },
+    "outcome": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "open": {
+      "type": "object",
+      "patternProperties": {
+        "^.+$": {
+          "type": [
+            "object",
+            "array",
+            "string",
+            "number",
+            "boolean",
+            "null"
+          ]
+        }
+      }
+    },
+    "plan": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "unit_keys": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "hash": {
+            "type": "string"
+          },
+          "row": {
+            "type": "object",
+            "patternProperties": {
+              "^.+$": {
+                "type": [
+                  "object",
+                  "array",
+                  "string",
+                  "number",
+                  "boolean",
+                  "null"
+                ]
+              }
+            }
+          },
+          "marks": {
+            "type": [
+              "object",
+              "array",
+              "string",
+              "number",
+              "boolean",
+              "null"
+            ]
+          }
+        }
+      }
+    },
+    "precedent_checks": {
+      "type": "object",
+      "patternProperties": {
+        "^.+$": {
+          "type": [
+            "object",
+            "array",
+            "string",
+            "number",
+            "boolean",
+            "null"
+          ]
+        }
+      }
+    }
+  }
+}

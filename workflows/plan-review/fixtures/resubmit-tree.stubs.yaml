@@ -10,7 +10,7 @@ fixture:
   - review-reads
   - finish
   inputs:
-    proposal: '{"plan": [{"unit_keys": ["stats.py mean: 分母が len(xs) - 1 になっている"], "approach": "項目 1 の直し: stats.py mean: 分母が len(xs) - 1 になっている
+    plan: '{"plan": [{"unit_keys": ["stats.py mean: 分母が len(xs) - 1 になっている"], "approach": "項目 1 の直し: stats.py mean: 分母が len(xs) - 1 になっている
       を直す", "files": [{"path": "stats.py", "op": "modify", "responsibility": "この行の受け持ち", "home": {"concept": "stats.py の考え（helper_1）", "why":
       "この行の path が住処だから"}, "considered": [{"path": "alt_home.py", "why_not": "同じ仕事の助け手が alt_home.py:3 に無かった"}], "symbols": [{"name": "helper_1",
       "change": "add"}]}], "shrink_first": "要らない", "narrows": []}, {"unit_keys": ["stats.py clamp: 上限を超えた値に lo を返す"], "approach": "項目 2 の直し: stats.py

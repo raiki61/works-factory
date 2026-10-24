@@ -6,19 +6,19 @@ inputs:
     description: 'text: 修正の前の作業ツリーの姿の git の版（木か commit の sha）。差分はこの版から今の作業ツリーまでを切る'
   plan:
     default: ''
-    description: 'file: 範囲の欄の JSON のファイル {plan_items, ruled_paths, agreed}（plan_items は承認済みの修正案の項目〔lib/planmarks.py の approved_items の行の形 {item, unit_keys, approach, files, tests, rewrite_tests, allowed_paths, out_of_scope, …}〕に範囲の相談の合意と裁定で外れた印 held・held_units を足した並び）。項目の並びだけの配列でもよい（合意と裁定が無い）。空は修正案の無い run'
+    description: 'json(shared:scope-fields.schema.json): 範囲の欄の JSON のファイル {plan_items, ruled_paths, agreed}（plan_items は承認済みの修正案の項目〔lib/planmarks.py の approved_items の行の形 {item, unit_keys, approach, files, tests, rewrite_tests, allowed_paths, out_of_scope, …}〕に範囲の相談の合意と裁定で外れた印 held・held_units を足した並び）。項目の並びだけの配列でもよい（合意と裁定が無い）。空は修正案の無い run'
   lens_rows:
     default: ''
-    description: 'file: 修正の差分に当てたレンズの行（lib/lens.py の控えの形 {rows: [{lens, agent, go, reason, state, findings, dropped}]}）の JSON のファイル。空はレンズを走らせていない run'
+    description: 'json(shared:lens-rows.schema.json): 修正の差分に当てたレンズの行（lib/lens.py の控えの形 {rows: [{lens, agent, go, reason, state, findings, dropped}]}）の JSON のファイル。空はレンズを走らせていない run'
   fix_reply:
     default: 'null'
-    description: 'json(fix-reply.schema.json): 修正役が受け付けられた返答をまとめた {changes, not_done, plan_faces}。plan_faces の absorbed の行が、審査の検算する穴。null は直す返答が無い'
+    description: 'json(shared:fix-reply.schema.json): 修正役が受け付けられた返答をまとめた {changes, not_done, plan_faces}。plan_faces の absorbed の行が、審査の検算する穴。null は直す返答が無い'
   permits:
     default: '[]'
-    description: 'json(permits.schema.json): テストの変更の許しの行 [{path, permit, source}]（パスの字の配列でもよい）。手直しの範囲の照らしで、項目の範囲の外でも変えてよいパスになる。空の配列は許しが無い'
+    description: 'json(shared:allowed-tests.schema.json): テストの変更の許しの行 [{path, permit, source}]（パスの字の配列でもよい）。手直しの範囲の照らしで、項目の範囲の外でも変えてよいパスになる。空の配列は許しが無い'
   plan_review:
     default: 'null'
-    description: 'json(plan-review.schema.json): 事前審査の返答（faces・shrink を持つ object）。null は事前審査の無い run'
+    description: 'json(shared:plan-review-reply.schema.json): 事前審査の返答（faces・shrink を持つ object）。null は事前審査の無い run'
   policy:
     default: ''
     description: 'file: 人が run に固めた方針の文書。空は方針の文書が無い'
@@ -42,9 +42,9 @@ nodes:
       properties:
         due: {type: boolean}
         reason: {type: string}
-        seal:
+        seal:   # 写しの名 → 中身の sha256
           type: object
-          additionalProperties: {type: string}
+          patternProperties: {'^.+$': {type: string}}
   - id: review-1-loop
     depends_on: [intake]
     when: $intake.output.due == true
@@ -384,19 +384,17 @@ nodes:
         reason: {type: string}
         rounds: {type: integer, minimum: 0, maximum: 2}
         pass: {type: boolean}
-        holes: &pointer_or_null
-          anyOf:
-            - type: object
-              additionalProperties: false
-              required: [type, run_id, path]
-              properties:
-                type:
-                  type: string
-                  enum: [archon_artifact]
-                run_id: {type: string}
-                path: {type: string}
-            - {type: 'null'}
-        diff: *pointer_or_null
+        holes:
+          <<: &pointer_or_null
+            type: [object, "null"]
+            additionalProperties: false
+            required: [type, run_id, path]
+            properties:
+              type: {type: string, enum: [archon_artifact]}
+              run_id: {type: string}
+              path: {type: string}
+          description: 'json(shared:delta-holes.schema.json): 往復ごとの穴の名札と手直しの handled の行'
+        diff: {<<: *pointer_or_null, description: 'file: 手直しの後までの累積の差分（空なら null）'}
         carry:
           type: array
           items:

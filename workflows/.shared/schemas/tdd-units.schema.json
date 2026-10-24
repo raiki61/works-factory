@@ -1,0 +1,8 @@
+{"description": "修正の block の組ごとの TDD の記録 tdd-unit.json [{group_id, ran, reason, suite, reused, related, units}]（fix の board.tdd_units。修正の出力 tdd の値も同じ形）",
+ "type": "array",
+ "items": {"type": "object", "properties": {
+  "group_id": {"type": "string"}, "ran": {"type": "boolean"}, "reason": {"type": "string"}, "suite": {"type": "string"},
+  "reused": {"type": "object", "patternProperties": {"^.+$": {"type": ["object", "array", "string", "number", "boolean", "null"]}}},
+  "related": {"type": "object", "patternProperties": {"^.+$": {"type": ["object", "array", "string", "number", "boolean", "null"]}}},
+  "units": {"type": "array", "items": {"type": "object", "properties": {"unit_key": {"type": "string"}}}},
+  "suite_broken": {"type": "boolean"}, "runner_log": {"type": "string"}, "cmd_log": {"type": "string"}}}}

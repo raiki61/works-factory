@@ -1066,7 +1066,8 @@ def _shapes(root: Path) -> list[str]:
     4. block の scripts/・src/ の ports.json の形の名と ports.file・ports.pointer の form は字のままで、その block の宣言の form の組
        （入力の description・その YAML のどの節の output_format の pointer の欄・include した workflow の返す節の pointer の欄と、
        それらが名指す形の中の pointer の欄）に在る。宣言の外の形で読み書きしない（持ち主の決め declared-io）。pointer の札を手で
-       組まない（鍵 type が pointer の型の dict の字。中身を照らさずに指す道になる）"""
+       組まない（鍵 type が pointer の型の dict の字。中身を照らさずに指す道になる）。口を値として渡さない（`_port(name, raw, ports.file)`
+       の類は form を呼びの外で選び、字の照らしを抜ける）"""
     pack, out = _Pack(root), []
     gate = pack.gate
     for workflow, (folder, path, doc) in pack.docs.items():
@@ -1215,6 +1216,10 @@ def _port_reads(pack: "_Pack") -> list[str]:
                     continue
                 out += [f"{_rel(pack.root, py)}:{n.lineno}: pointer の札を手で組む（ports.pointer(path, form) を通す。手の札は中身を照らさない）"
                         for n in ast.walk(tree) if _hand_pointer(n, gate.POINTER_TYPE)]
+                called = {id(n.func) for n in ast.walk(tree) if isinstance(n, ast.Call)}
+                out += [f"{_rel(pack.root, py)}:{n.lineno}: ports.{n.attr} を値として渡す（呼びの所で form を字で書く）"
+                        for n in ast.walk(tree) if isinstance(n, ast.Attribute) and n.attr in PORT_FORMS
+                        and isinstance(n.value, ast.Name) and n.value.id == GATE_MODULE and id(n) not in called]
                 for call in ast.walk(tree):
                     attr = next((a for a in PORT_FORMS if _port_call(call, a)), None)
                     if attr is None:

@@ -1,7 +1,7 @@
 name: works-factory-line
 description: '工場のメイングラフ（docs/design/line.md の 1〜11 章）。修正依頼か差分を受け、block を include で並べて直しを作り、承認ノード 4 つ（対話モードの run は計画の往復の末尾の設計の相談の承認ノードも）で人に見せ、差分を封じて置き、どの道でも報告を出す。判定と独立の目はそれぞれ 1 つの include（judge と eyes の graph）で呼ぶ。line が持つのは流れだけ: どの block をいつ回すか・承認ノードと無人の方針・計画の往復の記録と止め・一度だけの include（案の直し・2 度目の修正・再審・修正の後の並行 PR の確かめ直し）・深さの表と 1 回の上げ直し・始めの記録（block には port の値で配る）・報告への受け渡し。AI の node は持たない'
 inputs:
-  request: {default: '', description: 'file: 修正依頼のファイル（findings の JSON の配列か {findings, pr, issue, answers, prior_failures, constraints} の形）。相対なら対象の根から。依頼の行か差分の少なくとも 1 つが要る'}
+  request: {default: '', description: 'json(shared:request.schema.json): 修正依頼のファイル（findings の JSON の配列か {findings, pr, issue, answers, prior_failures, constraints} の形）。相対なら対象の根から。依頼の行か差分の少なくとも 1 つが要る'}
   base: {default: '', description: 'text: 差分の根を名指す版（枝・タグ・commit）。差分の根は base と HEAD の merge-base。pr と一緒には名指さない'}
   pr: {default: '', description: 'text: PR の番号。base の版と head は run の中で gh で読む。base と一緒には名指さない'}
   spec: {default: '', description: 'text: 仕様の段を挟むか（空か on）。依頼の文が要り、無人の run・固定材料とは組めない'}
@@ -53,15 +53,25 @@ nodes:
         ok: {type: boolean}
         stop_reason: {type: string}
         reason: {type: string}
-        record: {type: [object, 'null']}
-        prior_failures: {type: [object, 'null']}
+        record:
+          # pointer の欄の書き方の本体はここ 1 か所（ほかは <<: *pointer_or_null で受け、description に指す先の form を書く）
+          <<: &pointer_or_null
+            type: [object, 'null']
+            additionalProperties: false
+            required: [type, run_id, path]
+            properties:
+              type: {type: string, enum: [archon_artifact]}
+              run_id: {type: string}
+              path: {type: string}
+          description: 'json(start-record.schema.json): 始めの記録（run directory の根の r1/start.json）'
+        prior_failures: {<<: *pointer_or_null, description: 'json(shared:prior-failures.schema.json): 依頼の prior_failures の写し。無ければ null'}
         ask: {type: boolean}
         gate_text: {type: string}
         unattended: {type: boolean}
         design_talk: {type: boolean}
         final_gate: {type: string}
         from_fixture: {type: boolean}
-        fixture: {type: [object, 'null']}
+        fixture: {<<: *pointer_or_null, description: 'json(received.schema.json): 固定材料の run の運ぶ値（fixture-carried.json）。ほかの run は null'}
         from_spec: {type: boolean}
         ports:
           type: object
@@ -71,10 +81,10 @@ nodes:
                      user_env_dir, run_id, deliver, parallel, verify_by_tier, tree_named, takes_push, request_scope, prior_rows,
                      request_answers, spec_table, routes]
           properties:
-            request: {type: string}
-            request_file: {type: string}
+            request: {<<: *pointer_or_null, description: 'json(shared:request.schema.json): 依頼の写し（run directory の根の request.json。依頼のファイルが無い run は空の配列）。拒んだ run は null'}
+            request_file: {type: string, description: 'json(shared:request.schema.json): 依頼のファイルの絶対パス（役が Read して <絶対パス>:<行> で名指す）。無い run は空の字'}
             pr_text: {type: string}
-            carried: {type: [object, string]}
+            carried: {<<: *pointer_or_null, description: 'json(shared:constraints.schema.json): 前の run が運んだ前提の実測の行（carried.json。無ければ空の配列）。拒んだ run は null'}
             carried_measured: {type: boolean}
             base: {type: string}
             base_rev: {type: string}
@@ -91,7 +101,7 @@ nodes:
             forced: {type: string}
             design_talk: {type: boolean}
             unattended: {type: boolean}
-            policy: {type: string}
+            policy: {type: string, description: 'file: 人の方針の文書を run の頭で固めた写しのパス。無ければ空の字'}
             test_cmd: {type: string}
             tdd_suite: {type: string}
             reuse_dir: {type: string}
@@ -99,13 +109,15 @@ nodes:
             run_id: {type: string}
             deliver: {type: string}
             parallel: {type: boolean}
-            verify_by_tier: {type: object}
+            verify_by_tier:
+              type: object
+              properties: {軽量: {type: boolean}, 標準: {type: boolean}, 重厚: {type: boolean}}
             tree_named: {type: string}
             takes_push: {type: boolean}
             request_scope: {type: boolean}
-            prior_rows: {type: array}
-            request_answers: {type: array}
-            spec_table: {type: string}
+            prior_rows: {type: array, items: {type: object, properties: {where: {type: string}, text: {type: string}}}}
+            request_answers: {type: array, items: {type: object, properties: {question: {type: string}, text: {type: string}}}}
+            spec_table: {type: string, description: 'file: 仕様駆動の道の表（YAML）のパス。名指していない run は空の字'}
             routes: {type: string, enum: [auto, plan]}
   # 2 起動の承認ノード（docs/design/line.md の 2 節の 1）
   - id: gate-start
@@ -127,7 +139,13 @@ nodes:
         required: [go, answer, stop_reason]
         properties:
           go: {type: boolean}
-          answer: {type: [object, 'null']}
+          answer: &answer
+            type: [object, 'null']
+            properties:
+              decision: {type: string}
+              text: {type: string}
+              asked: {type: array, items: {type: string}}
+              pushed: {type: array, items: &any {type: [object, array, string, number, boolean, 'null']}}
           stop_reason: {type: string}
     depends_on: [start, gate-start]
     trigger_rule: none_failed_min_one_success
@@ -176,7 +194,7 @@ nodes:
         additionalProperties: false
         required: [got, why]
         properties:
-          got: {type: [object, 'null']}
+          got: &whole {type: [object, 'null'], patternProperties: {'^.+$': *any}}   # 返りまるごと（受け手が ports.picked で名を選ぶ）
           why: {type: string}
     depends_on: [test-gate-base]
     with:
@@ -265,7 +283,12 @@ nodes:
       properties:
         owed: {type: boolean}
         why: {type: string}
-        recorded: {type: array, items: {type: object}}
+        recorded: &recorded
+          type: array
+          description: 'json(shared:recorded.schema.json): 記録された方針の行（lib/policy.py の recorded）'
+          items:
+            type: object
+            properties: {source: {type: string}, name: {type: string}, text: {type: string}, lines: {type: integer}, alias: {type: string}}
         stop_reason: {type: string}
   - id: structure
     include: works-factory-structure
@@ -300,7 +323,7 @@ nodes:
       additionalProperties: false
       required: [structure, stop_reason]
       properties:
-        structure: {type: [object, 'null']}
+        structure: {<<: *pointer_or_null, description: 'json(shared:structure-state.schema.json): 構造の目の控え。構造の目が走らなければ null'}
         stop_reason: {type: string}
   # 7 独立設計（判定の後に 1 回。どの周でも。直す物が無い周の R2 も読む）
   - id: independent-design
@@ -337,9 +360,9 @@ nodes:
       additionalProperties: false
       required: [design, reason, premises, stop_reason]
       properties:
-        design: {type: [object, 'null']}
+        design: {<<: *pointer_or_null, description: 'json(shared:design.schema.json): 独立設計の返答。独立設計が走らなければ null'}
         reason: {type: [string, 'null']}
-        premises: {type: [object, 'null']}
+        premises: {<<: *pointer_or_null, description: 'json(shared:design-premises.schema.json): 独立設計が読んだ人の決めた前提。無ければ null'}
         stop_reason: {type: string}
   # 8 計画の往復（docs/design/line.md の 3 節）。本体に AI の node を直に置かない。止め時は plan-out が決め、往復の返りは design-talk。
   # 対話モードの run（design_talk で無人でない）だけ、止まる周に本体の唯一の終わりの関所 gate-design で設計を相談する（3.1 節。答えは
@@ -369,14 +392,14 @@ nodes:
             properties:
               plan: {type: boolean}
               notes: {type: array, items: {type: string}}
-              timeline: {type: array, items: {type: object}}
-              answer: {type: [object, 'null']}
-              plan_prior: {type: [object, string]}
-              record: {type: [object, string]}
-              answers: {type: array}
-              recorded: {type: array}
-              asks: {type: array}
-              talks: {type: array}
+              timeline: {type: array, items: &event {type: object, properties: {kind: {type: string}, by: {type: string}, line: {type: string}, n: {type: [integer, 'null']}, key: {type: string}, pass: {type: integer}}}}
+              answer: &talked {type: [object, 'null'], properties: {round: {type: [integer, 'null']}, decision: {type: string}, text: {type: string}, asked: {type: array, items: {type: string}}, by: {type: string}}}
+              plan_prior: {<<: *pointer_or_null, description: 'json(shared:plan-prior.schema.json): この周の plan の port prior（前の周の値か、修正要望を差し込んだ写し）。1 周目は null'}
+              record: {<<: *pointer_or_null, description: 'json(shared:plan-converge.schema.json): この周の事前審査と plan-out の port prior の往復の記録。1 周目は null'}
+              answers: {type: array, items: {type: object, properties: {question: {type: string}, text: {type: string}}}}
+              recorded: *recorded
+              asks: {type: array, items: &asked_again {type: object, properties: {n: {type: integer}, key: {type: string}, round: {type: [integer, 'null']}, text: {type: string}, note: {type: boolean}}}}
+              talks: {type: array, items: *talked}
               stop_reason: {type: string}
               reason: {type: string}
         - id: plan
@@ -410,7 +433,7 @@ nodes:
           depends_on: [plan]
           when: "$plan.output.ok == true"
           with:
-            proposal: "$plan.output.fix_plan"
+            plan: "$plan.output.fix_plan"
             fields: "$plan.output.plan"
             judgment: "$judge.output.judgment"
             purpose: "$judge.output.purpose_text"
@@ -450,20 +473,20 @@ nodes:
               ok: {type: boolean}
               status: {type: string}
               round: {type: integer}
-              plan_prior: {type: [object, 'null']}
-              record: {type: [object, 'null']}
-              plan: {type: [object, 'null']}
-              fix_plan: {type: [object, 'null']}
-              reply: {type: [object, 'null']}
-              handoffs: {type: array, items: {type: object}}
-              ripple: {type: [object, 'null']}
-              owed: {type: array}
-              gave_up: {type: [array, 'null']}
+              plan_prior: {<<: *pointer_or_null, description: 'json(shared:plan-prior.schema.json): 次の周の plan の port prior。計画ができなかった周は null'}
+              record: {<<: *pointer_or_null, description: 'json(shared:plan-converge.schema.json): 往復の記録 plan-converge.json'}
+              plan: {<<: *pointer_or_null, description: 'json(shared:plan-fields.schema.json): この周の修正案の欄の控え'}
+              fix_plan: {<<: *pointer_or_null, description: 'json(shared:fix-plan.schema.json): この周の修正案の出力'}
+              reply: {<<: *pointer_or_null, description: 'json(shared:plan-reply.schema.json): この周の受け付けた修正案'}
+              handoffs: &handoffs {type: array, items: {type: object, properties: {round: {type: integer}, handoff: {<<: *pointer_or_null, description: 'json(shared:handoff.schema.json): その周の引き継ぎのメモ'}}}}
+              ripple: {<<: *pointer_or_null, description: 'json(shared:ripple.schema.json): この周の波及の一覧'}
+              owed: &owed {type: array, items: {type: string}}
+              gave_up: {type: [array, 'null'], items: {type: object, properties: {item: {type: integer}, why: {type: string}, ruling: {type: string}}}}
               stalled: {type: boolean}
               capped: {type: boolean}
-              review: {type: [object, 'null']}
-              asks: {type: array}
-              deviations: {type: array}
+              review: {<<: *pointer_or_null, description: 'json(shared:plan-review-reply.schema.json): この周の事前審査の返答（止まった案を推しで進める周は保留の穴を足した写し）'}
+              asks: {type: array, items: {type: object, patternProperties: {'^.+$': *any}}}
+              deviations: {type: array, items: {type: object, properties: {source: {type: string}}}}
               review_status: {type: string}
               review_reason: {type: string}
               stop_reason: {type: string}
@@ -493,11 +516,11 @@ nodes:
               open: {type: boolean}
               text: {type: string}
               asked: {type: array, items: {type: string}}
-              agreed: {type: [object, 'null']}
-              talks: {type: array}
+              agreed: *talked
+              talks: {type: array, items: *talked}
               notes: {type: array, items: {type: string}}
               shown: {type: string}
-              timeline: {type: array, items: {type: object}}
+              timeline: {type: array, items: *event}
         # 設計の相談の関所（本体の唯一の終わり。docs/design/line.md の 3.1 節）。対話モードの run の止まる周だけ開く。revise は設計し直し
         - id: gate-design
           depends_on: [design-talk]
@@ -530,12 +553,12 @@ nodes:
           stop_reason: {type: string}
           reason: {type: string}
           text: {type: string}
-          deferred: {type: array}
-          asked: {type: array}
-          pushed: {type: [object, 'null']}
-          passes: {type: array}
+          deferred: {type: array, items: {type: string}}
+          asked: {type: array, items: {type: string}}
+          pushed: &pushed {type: [object, 'null'], properties: {decision: {type: string}, text: {type: string}, pushed: {type: array, items: *any}}}
+          passes: {type: array, items: &passed {type: object, properties: {node: {type: string}, round: {type: [integer, 'null']}, by: {type: string}, item: {type: string}}}}
           policy_changed: {type: boolean}
-          agreed: {type: [object, 'null']}
+          agreed: *talked
     depends_on: [plan-rounds-out, judge-out, structure-in]
     with:
       rounds: "$plan-rounds-out.output.got"
@@ -564,9 +587,9 @@ nodes:
         required: [go, answer, stop_reason, policy]
         properties:
           go: {type: boolean}
-          answer: {type: [object, 'null']}
+          answer: *answer
           stop_reason: {type: string}
-          policy: {type: string}
+          policy: {type: string, description: 'file: 修正前の答えが固め直した方針の写しのパス（固め直さなければ配る値の写し）'}
     depends_on: [ask-before-fix, gate-before-fix]
     trigger_rule: none_failed_min_one_success
     with:
@@ -613,7 +636,7 @@ nodes:
       materials: "$spec-diagnose.output.materials"
       answers: "$start.output.ports.request_answers"
       takes_push: "$start.output.ports.takes_push"
-      spec: "$spec-entry.output.spec"
+      spec_doc: "$spec-entry.output.spec"
       routes: "spec"
       policy: "$start.output.ports.policy"
       ruling: "[]"
@@ -664,8 +687,8 @@ nodes:
       additionalProperties: false
       required: [judge, rounds, stop_reason, reason]
       properties:
-        judge: {type: [object, 'null']}
-        rounds: {type: [object, 'null']}
+        judge: *whole   # judge-out の got と同じ欄の組（src/specrounds.py の judge_part）
+        rounds: *whole  # plan-rounds-out の got と同じ欄の組（rounds_part）
         stop_reason: {type: string}
         reason: {type: string}
   - id: spec-ask-before-fix
@@ -745,48 +768,48 @@ nodes:
         no_fix: {type: boolean}
         stop_reason: {type: string}
         reason: {type: string}
-        received: {type: [object, 'null']}
-        policy: {type: string}
-        answer: {type: [object, 'null']}
-        deferred: {type: array}
-        passes: {type: array}
-        baseline: {}
+        received: {type: [object, 'null'], description: 'json(received.schema.json): 固定材料の run で start が置いた運ぶ値。ほかの run は null'}
+        policy: {type: string, description: 'file: 方針の文書の写しのパス（修正前の答えが固め直した物か、配る値の写し）'}
+        answer: *answer
+        deferred: {type: array, items: {type: string}}
+        passes: {type: array, items: *passed}
+        baseline: {<<: *pointer_or_null, description: 'json(lib:baseline.schema.json): 直す前の試験の結末。試験の関門が書かなかった run は null'}
         suite: {type: string}
         suite_made: {type: boolean}   # suite が試験の関門の用意した実行器（修正の段が壊れを書き直させてよい。docs/design/fix.md の 19 節）
-        judgment: {type: [object, 'null']}
-        units: {type: array}
-        answer_ties: {type: [object, 'null']}
-        materials: {type: [object, 'null']}
-        out_of_purpose: {type: [object, 'null']}
-        verify: {type: [object, 'null']}
-        excluded: {type: [object, 'null']}
-        tier_record: {type: [object, 'null']}
-        decisions: {type: [object, 'null']}
-        world: {type: [object, 'null']}
-        spec: {type: [object, 'null']}
-        purpose: {type: [object, 'null']}
+        judgment: {<<: *pointer_or_null, description: 'json(shared:judgment.schema.json): 判定'}
+        units: {type: array, description: 'json(shared:units.schema.json): 判定が切った根本の単位の目録', items: {type: object, patternProperties: {'^.+$': *any}}}
+        answer_ties: {<<: *pointer_or_null, description: 'json(shared:answer-ties.schema.json): 依頼の答えを判定の問いと単位に結んだ行'}
+        materials: {<<: *pointer_or_null, description: 'json(shared:materials-state.schema.json): 判定の素材の状態'}
+        out_of_purpose: {<<: *pointer_or_null, description: 'json(lib:out-of-purpose.schema.json): 判定が目的の外とした行の控え'}
+        verify: {<<: *pointer_or_null, description: 'json(shared:verify.schema.json): 判定の裏取りの申し送り'}
+        excluded: {<<: *pointer_or_null, description: 'json(shared:excluded.schema.json): 並行 PR と重なるので外した範囲'}
+        tier_record: {<<: *pointer_or_null, description: 'json(shared:depth-record.schema.json): run の頭の深さの控え'}
+        decisions: {<<: *pointer_or_null, description: 'json(shared:material.schema.json): 先行議論の突合の素材'}
+        world: {<<: *pointer_or_null, description: 'jsonl(lib:world-row.schema.json): 世界の解の行'}
+        spec: {<<: *pointer_or_null, description: 'json(shared:spec.schema.json): 固めた仕様'}
+        purpose: {<<: *pointer_or_null, description: 'json(shared:purpose.schema.json): 固めた目的'}
         purpose_text: {type: string}
-        means: {type: array}
-        constraints: {type: [object, 'null']}
-        brief: {type: [object, 'null']}
-        inputs: {type: [object, 'null']}
-        recorded: {type: array, items: {type: object}}
-        structure: {type: [object, 'null']}
-        design: {type: [object, 'null']}
+        means: {type: array, items: {type: string}}
+        constraints: {<<: *pointer_or_null, description: 'json(shared:constraints.schema.json): 前提の実測の行'}
+        brief: {<<: *pointer_or_null, description: 'file: 1 回目の判定役に渡した指示'}
+        inputs: {<<: *pointer_or_null, description: 'json(shared:diagnose-input.schema.json): 1 回目の判定役が読んだ材料'}
+        recorded: *recorded
+        structure: {<<: *pointer_or_null, description: 'json(shared:structure-state.schema.json): 構造の目の控え'}
+        design: {<<: *pointer_or_null, description: 'json(shared:design.schema.json): 独立設計の返答'}
         design_reason: {type: string}
-        design_premises: {type: [object, 'null']}
-        plan: {type: [object, 'null']}
-        fix_plan: {type: [object, 'null']}
-        ripple: {type: [object, 'null']}
-        reply: {type: [object, 'null']}
-        review: {type: [object, 'null']}
-        record: {type: [object, 'null']}
-        handoffs: {type: array}
-        owed: {type: array}
+        design_premises: {<<: *pointer_or_null, description: 'json(shared:design-premises.schema.json): 独立設計が読んだ人の決めた前提'}
+        plan: {<<: *pointer_or_null, description: 'json(shared:plan-fields.schema.json): 承認済みの修正案の欄の控え'}
+        fix_plan: {<<: *pointer_or_null, description: 'json(shared:fix-plan.schema.json): 承認済みの修正案の出力'}
+        ripple: {<<: *pointer_or_null, description: 'json(shared:ripple.schema.json): 波及の一覧'}
+        reply: {<<: *pointer_or_null, description: 'json(shared:plan-reply.schema.json): 受け付けた修正案'}
+        review: {<<: *pointer_or_null, description: 'json(shared:plan-review-reply.schema.json): 事前審査の返答'}
+        record: {<<: *pointer_or_null, description: 'json(shared:plan-converge.schema.json): 往復の記録'}
+        handoffs: *handoffs
+        owed: *owed
         round: {type: [integer, 'null']}
-        units_tier: {type: array, items: {type: object}}
+        units_tier: {type: array, items: &unit_tier {type: object, properties: {unit_id: {type: string}, depth: {type: [string, 'null']}, why: {type: string}}}}
         skip_rerun: {type: array, items: {type: string}}
-        switches: {type: object}
+        switches: {type: object, properties: {tier: {type: [string, 'null']}, omits: {type: boolean}, merge: {type: boolean}, tree: {type: string}, adds: {type: array, items: {type: string}}, lines: {type: array, items: {type: string}}}}
   # 11 修正（1 回目）
   - id: fix
     include: works-factory-fix
@@ -848,7 +871,7 @@ nodes:
       required: [replan, prior, stop_reason]
       properties:
         replan: {type: boolean}
-        prior: {type: [object, 'null']}
+        prior: {<<: *pointer_or_null, description: 'json(shared:plan-prior.schema.json): 案の直しの plan の port prior（replan-prior.json）。案の直しへ進まなければ null'}
         stop_reason: {type: string}
   # 13 修正の後の上げ直し。run に 1 回、1 回目の修正の段と差分の審査の間（docs/design/line.md の 5.3）
   - id: raise
@@ -875,11 +898,11 @@ nodes:
       additionalProperties: false
       required: [units, checks, skip_why, eyes_due, raised, counted, lines, stop_reason]
       properties:
-        units: {type: array, items: {type: object}}
+        units: {type: array, items: *unit_tier}
         checks: {type: boolean}
         skip_why: {type: string}
         eyes_due: {type: boolean}
-        raised: {type: array}
+        raised: {type: array, items: {type: string}}
         counted: {type: string}
         lines: {type: array, items: {type: string}}
         stop_reason: {type: string}
@@ -911,7 +934,7 @@ nodes:
       additionalProperties: false
       required: [rows, stop_reason]
       properties:
-        rows: {type: [object, 'null']}
+        rows: {<<: *pointer_or_null, description: 'json(shared:lens-rows.schema.json): レンズの控え。レンズが走らなければ null'}
         stop_reason: {type: string}
   - id: delta-review
     include: works-factory-delta-review
@@ -973,7 +996,7 @@ nodes:
     depends_on: [replan]
     when: "$replan.output.ok == true"
     with:
-      proposal: "$replan.output.fix_plan"
+      plan: "$replan.output.fix_plan"
       fields: "$replan.output.plan"
       judgment: "$fix-in.output.judgment"
       purpose: "$fix-in.output.purpose_text"
@@ -1024,9 +1047,9 @@ nodes:
         go: {type: boolean}
         stop_reason: {type: string}
         text: {type: string}
-        widened: {type: array}
-        asked: {type: array}
-        pushed: {type: [object, 'null']}
+        widened: {type: array, items: {type: string}}
+        asked: {type: array, items: {type: string}}
+        pushed: *pushed
   - id: gate-replan
     wait:
       attention: "$ask-replan.output.text"
@@ -1059,13 +1082,13 @@ nodes:
       required: [go, answer, stop_reason, fix_answers, fix_notes, fix_ripple, plan_review, units_tier, skip_rerun]
       properties:
         go: {type: boolean}
-        answer: {type: [object, 'null']}
+        answer: *answer
         stop_reason: {type: string}
-        fix_answers: {type: [object, 'null']}
+        fix_answers: *answer
         fix_notes: {type: string}
-        fix_ripple: {type: [object, 'null']}
-        plan_review: {type: [object, 'null']}
-        units_tier: {type: array, items: {type: object}}
+        fix_ripple: {<<: *pointer_or_null, description: 'json(shared:ripple.schema.json): 2 度目の修正に渡す波及の一覧（作り直した物か 1 回目の物）'}
+        plan_review: {<<: *pointer_or_null, description: 'json(shared:plan-review-reply.schema.json): 案の直しの事前審査の返答'}
+        units_tier: {type: array, items: *unit_tier}
         skip_rerun: {type: array, items: {type: string}}
   - id: refix-run
     include: works-factory-fix
@@ -1134,7 +1157,7 @@ nodes:
       additionalProperties: false
       required: [rows, stop_reason]
       properties:
-        rows: {type: [object, 'null']}
+        rows: {<<: *pointer_or_null, description: 'json(shared:lens-rows.schema.json): レンズの控え。レンズが走らなければ null'}
         stop_reason: {type: string}
   - id: delta-review-2
     include: works-factory-delta-review
@@ -1192,26 +1215,26 @@ nodes:
         skip_why: {type: string}
         rejudge: {type: boolean}
         refixed: {type: boolean}
-        stages: {type: array, items: {type: object}}
-        carry: {type: array}
-        tdd: {type: array}
-        units: {type: array}
-        groups: {type: array}
-        conflicts: {type: array}
-        replan_items: {type: array}
+        stages: {type: array, items: {type: object, properties: {stage: {type: integer}, fix: *whole, lens: *whole, delta: *whole}}}
+        carry: {type: array, items: &row {type: object, patternProperties: {'^.+$': *any}}}
+        tdd: {type: array, description: 'json(shared:tdd.schema.json): 修正の段ごとの TDD の記録', items: {type: array, items: *row}}
+        units: {type: array, description: 'json(shared:fixes.schema.json): 修正の単位ごとの結末', items: {type: object, properties: {unit_id: {type: string}, group_id: {type: string}, status: {type: string}, reason: {type: string}}}}
+        groups: {type: array, items: {type: object, properties: {group_id: {type: string}, unit_ids: {type: array, items: {type: string}}, returned: {type: boolean}, reason: {type: string}}}}
+        conflicts: {type: array, items: {<<: *pointer_or_null, description: 'json(lib:conflicts.schema.json): 最後の修正の段の申し出と裁定の控え'}}
+        replan_items: {type: array, items: {type: string}}
         objection: {type: string}
-        diff: {type: [object, 'null']}
-        item_claims: {type: [object, 'null']}
-        allowed_test_changes: {type: array}
-        changed: {type: [object, 'null']}
-        x_scalars: {type: object}
-        handoffs: {type: array}
-        handoff_titles: {type: object}
-        mismatched: {type: array}
-        plan_declared: {type: array}
-        plan: {type: [object, 'null']}
-        ripple: {type: [object, 'null']}
-        left: {type: array}
+        diff: {<<: *pointer_or_null, description: 'file: 最後の段の差分（差分の審査が直した差分が在ればそれ）'}
+        item_claims: {type: [object, 'null'], properties: {items: {type: [array, 'null'], items: *row}, claims: {type: array, items: *any}, unread: {type: array, items: {type: string}}}}
+        allowed_test_changes: {type: array, items: {type: string}}
+        changed: {type: [object, 'null'], description: 'json(shared:fix-marks.schema.json): 最後の修正の段の修正の印', patternProperties: {'^.+$': *any}}
+        x_scalars: {type: object, description: 'json(shared:scalars.schema.json): 修正役が足した規模の数値の欄', patternProperties: {'^.+$': *any}}
+        handoffs: {type: array, items: {type: string}}
+        handoff_titles: {type: object, patternProperties: {'^.+$': {type: string}}}
+        mismatched: {type: array, items: {type: string}}
+        plan_declared: {type: array, description: 'json(shared:declared.schema.json): 直さずに残すと答えた事前審査の block の行', items: {type: string}}
+        plan: {<<: *pointer_or_null, description: 'json(shared:plan-fields.schema.json): 修正が使った修正案の欄の控え（案の直しの後はその物）'}
+        ripple: {<<: *pointer_or_null, description: 'json(shared:ripple.schema.json): 修正が使った波及の一覧'}
+        left: {type: array, items: {type: object, properties: {where: {type: string}, text: {type: string}}}}
         stop_reason: {type: string}
   # 18 修正の後の読むだけの 3 つ（互いを待たない。作業ツリーを変える手直しの後に置く）
   - id: parallel-pr-after
@@ -1287,21 +1310,21 @@ nodes:
       required: [units, judgment, answer_ties, materials, out_of_purpose, rejudged, rejudge_verdict, rejudge_exit, rejudge_diff, new_open_units,
                  lowered, unnamed_changed, unread, lines, carry, stop_reason]
       properties:
-        units: {type: array}
-        judgment: {type: [object, 'null']}
-        answer_ties: {type: [object, 'null']}
-        materials: {type: [object, 'null']}
-        out_of_purpose: {type: [object, 'null']}
+        units: {type: array, description: 'json(shared:units.schema.json): 判定（再審が走れば再審）の単位の目録', items: *row}
+        judgment: {<<: *pointer_or_null, description: 'json(shared:judgment.schema.json): 判定（再審が走れば再審の物）'}
+        answer_ties: {<<: *pointer_or_null, description: 'json(shared:answer-ties.schema.json): 依頼の答えの結び'}
+        materials: {<<: *pointer_or_null, description: 'json(shared:materials-state.schema.json): 判定の素材の状態'}
+        out_of_purpose: {<<: *pointer_or_null, description: 'json(lib:out-of-purpose.schema.json): 目的の外の行の控え'}
         rejudged: {type: boolean}
         rejudge_verdict: {type: [string, 'null']}
-        rejudge_exit: {type: [object, 'null']}
-        rejudge_diff: {type: [object, 'null']}
-        new_open_units: {type: array}
-        lowered: {type: array}
-        unnamed_changed: {type: array}
+        rejudge_exit: {<<: *pointer_or_null, description: 'json(shared:rejudge-exit.schema.json): 再審の出口'}
+        rejudge_diff: {<<: *pointer_or_null, description: 'file: 再審が読んだ差分'}
+        new_open_units: {type: array, items: {type: string}}
+        lowered: {type: array, items: *any}
+        unnamed_changed: {type: array, items: *any}
         unread: {type: string}
         lines: {type: array, items: {type: string}}
-        carry: {type: array}
+        carry: {type: array, items: *row}
         stop_reason: {type: string}
   # 20 試験の関門（final）。上げ直しの止めは fixed.go が偽にして運ぶ
   - id: test-gate-final
@@ -1348,11 +1371,11 @@ nodes:
       required: [merge, policy, review, pushes, answers, asked, notes]
       properties:
         merge: {type: boolean}
-        policy: {type: string}
-        review: {type: object}
-        pushes: {type: array, items: {type: string}}
-        answers: {type: object}
-        asked: {type: array, items: {type: object}}
+        policy: {type: string, description: 'file: 方針の文書の写しのパス（無ければ空の字）'}
+        review: {type: object, description: 'json(shared:plan-verdict.schema.json): 修正が使った修正案の事前審査の最後の往復の結論', patternProperties: {'^.+$': *any}}
+        pushes: {type: array, description: 'json(shared:pushes.schema.json): 無人の run が採った推しの文', items: {type: string}}
+        answers: {type: object, description: 'json(shared:gate-answers.schema.json): 承認ノードの人の答え {start, before_fix}', properties: {start: *answer, before_fix: *answer}}
+        asked: {type: array, description: 'json(shared:asked.schema.json): 修正前の承認ノードで聞いた項目', items: {type: object, properties: {kind: {type: string}, text: {type: string}}}}
         notes: {type: array, items: {type: string}}
   - id: eyes
     include: works-factory-eyes
@@ -1447,12 +1470,12 @@ nodes:
         go: {type: boolean}
         stop_reason: {type: string}
         text: {type: string}
-        reasons: {type: array}
+        reasons: {type: array, items: {type: string}}
         sealed_hash: {type: string}
-        fingerprint: {type: [object, 'null']}
+        fingerprint: {type: [object, 'null'], properties: {head: {type: string}, diff_hash: {type: string}}}
         green_ok: {type: boolean}
         eyes_ok: {type: boolean}
-        r2: {type: [object, 'null']}
+        r2: {type: [object, 'null'], properties: {status: {type: string}, reason: {type: string}}}
   - id: gate-final
     wait:
       attention: "$ask-final.output.text"
@@ -1565,8 +1588,14 @@ nodes:
       additionalProperties: false
       required: [sections, facts]
       properties:
-        sections: {type: object}
-        facts: {type: object}
+        sections:
+          <<: *pointer_or_null
+          type: object
+          description: 'json(shared:sections.schema.json): 報告のセクションの並び（report-in/sections.json）'
+        facts:
+          <<: *pointer_or_null
+          type: object
+          description: 'json(shared:facts.schema.json): 結末と冒頭 3 行を決める事実（report-in/facts.json）'
   # 26 報告（どの道でも走る）
   - id: report
     include: works-factory-report
@@ -1589,8 +1618,8 @@ nodes:
       additionalProperties: false
       required: [cleaned, left, error]
       properties:
-        cleaned: {type: array, items: {type: object}}
-        left: {type: array, items: {type: object}}
+        cleaned: {type: array, items: *row}
+        left: {type: array, items: *row}
         error: {type: string}
   # 28 line の返す node（docs/design/line.md の 1.2 の出力。欄の名は今のまま）
   - id: result
@@ -1618,15 +1647,15 @@ nodes:
         ok: {type: boolean}
         outcome: {type: string}
         stop_reason: {type: string}
-        report: {type: [object, 'null']}
-        report_ai: {type: [object, 'null']}
-        report_detail: {type: [object, 'null']}
+        report: {<<: *pointer_or_null, description: 'file: 機械の報告（md）。報告が書けなければ null'}
+        report_ai: {<<: *pointer_or_null, description: 'file: 人に向けた報告（md）'}
+        report_detail: {<<: *pointer_or_null, description: 'file: 人に向けた報告の詳しい中身（md）'}
         report_lines: {type: array, items: {type: string}}
-        next_request: {type: [object, 'null']}
-        prior_failures: {type: [object, 'null']}
-        apply: {type: [object, 'null']}
-        sealed: {type: [object, 'null']}
+        next_request: {<<: *pointer_or_null, description: 'json(lib:next-request.schema.json): 次の run の依頼の下書き'}
+        prior_failures: {<<: *pointer_or_null, description: 'json(lib:prior-failures.schema.json): この run で最後まで通らなかった物の行'}
+        apply: {type: [object, 'null'], properties: {ok: {type: [boolean, 'null']}, hash: {type: [string, 'null']}, diff: {<<: *pointer_or_null, description: 'file: 封じた差分'}, reason: {type: [string, 'null']}}}
+        sealed: {type: [object, 'null'], properties: {ok: {type: [boolean, 'null']}, hash: {type: [string, 'null']}, diff: {<<: *pointer_or_null, description: 'file: 封じた差分'}}}
         r2_status: {type: [string, 'null']}
-        final_answer: {type: [object, 'null']}
+        final_answer: *answer
         spec_questions: {type: integer}
-        children: {type: [object, 'null']}
+        children: {type: [object, 'null'], properties: {cleaned: {type: array, items: *row}, left: {type: array, items: *row}, error: {type: string}}}

@@ -1,0 +1,5 @@
+{"description": "差分の審査の穴の控え holes.json {ties, handled}（delta-review の finish が書く。往復の番号ごとに、穴の名札の並び〔組めなければ訳の字〕と手直しの handled の行）",
+ "type": "object",
+ "properties": {
+  "ties": {"type": "object", "patternProperties": {"^.+$": {"type": ["array", "string"], "items": {"type": ["object", "array", "string", "number", "boolean", "null"]}}}},
+  "handled": {"type": "object", "patternProperties": {"^.+$": {"type": "array", "items": {"type": "object", "patternProperties": {"^.+$": {"type": ["object", "array", "string", "number", "boolean", "null"]}}}}}}}}

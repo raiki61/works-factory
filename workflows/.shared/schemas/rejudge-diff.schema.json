@@ -1,0 +1,73 @@
+{
+  "description": "再審の差の行 rejudge-diff.json（diagnose の src/rejudge.py の take が回ごとに 1 行足す）。行は回の答えの語と、前後の単位の比べ（changed の行は key・kind・field・before・after・named）",
+  "type": "array",
+  "items": {
+    "type": "object",
+    "properties": {
+      "round": {
+        "type": "integer"
+      },
+      "pass": {
+        "type": "string"
+      },
+      "node": {
+        "type": "string"
+      },
+      "verdict": {
+        "type": "string"
+      },
+      "changed": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "key": {
+              "type": "string"
+            },
+            "kind": {
+              "type": "string"
+            },
+            "field": {
+              "type": "string"
+            },
+            "before": {
+              "type": [
+                "object",
+                "array",
+                "string",
+                "number",
+                "boolean",
+                "null"
+              ]
+            },
+            "after": {
+              "type": [
+                "object",
+                "array",
+                "string",
+                "number",
+                "boolean",
+                "null"
+              ]
+            },
+            "named": {
+              "type": "boolean"
+            }
+          }
+        }
+      },
+      "unnamed_changed": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "lowered": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      }
+    }
+  }
+}

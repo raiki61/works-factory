@@ -1,0 +1,167 @@
+{
+  "description": "plan の入力 prior（前の周）。形 plan では直前の計画の周と、それへの事前審査、形 replan では直す元の承認済みの案の周。欄の pointer・パスは指す先のファイルを、値の object はその中身を運ぶ",
+  "type": "object",
+  "required": [
+    "round",
+    "reply",
+    "fields"
+  ],
+  "properties": {
+    "round": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "reply": {
+      "type": [
+        "object",
+        "string"
+      ],
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": [
+            "archon_artifact"
+          ]
+        },
+        "run_id": {
+          "type": "string"
+        },
+        "path": {
+          "type": "string"
+        }
+      },
+      "description": "json(shared:plan-reply.schema.json): 前の周の受け付けた修正案（pointer かファイルのパス。値そのものの object なら周のフォルダに写す）"
+    },
+    "fields": {
+      "type": [
+        "object",
+        "string"
+      ],
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": [
+            "archon_artifact"
+          ]
+        },
+        "run_id": {
+          "type": "string"
+        },
+        "path": {
+          "type": "string"
+        }
+      },
+      "description": "json(shared:plan-fields.schema.json): 前の周の盤面の控え（pointer かファイルのパス。値そのものの object なら周のフォルダに写す）"
+    },
+    "fix_plan": {
+      "type": [
+        "object",
+        "string",
+        "null"
+      ],
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": [
+            "archon_artifact"
+          ]
+        },
+        "run_id": {
+          "type": "string"
+        },
+        "path": {
+          "type": "string"
+        }
+      },
+      "description": "json(shared:fix-plan.schema.json): 前の周の承認する修正案の出力（pointer かファイルのパス。値そのものの object なら周のフォルダに写す）"
+    },
+    "ripple": {
+      "type": [
+        "object",
+        "string",
+        "null"
+      ],
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": [
+            "archon_artifact"
+          ]
+        },
+        "run_id": {
+          "type": "string"
+        },
+        "path": {
+          "type": "string"
+        }
+      },
+      "description": "json(shared:ripple.schema.json): 前の周の波及の一覧（pointer かファイルのパス。値そのものの object なら周のフォルダに写す）"
+    },
+    "review": {
+      "type": [
+        "object",
+        "string",
+        "null"
+      ],
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": [
+            "archon_artifact"
+          ]
+        },
+        "run_id": {
+          "type": "string"
+        },
+        "path": {
+          "type": "string"
+        }
+      },
+      "description": "json(shared:plan-review-reply.schema.json): 前の周への事前審査の返答（pointer かファイルのパス。値そのものの object なら周のフォルダに写す）"
+    },
+    "record": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "description": "json(shared:plan-converge.schema.json): 前の往復までの往復の記録。null は往復の無い周"
+    },
+    "handoffs": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "round"
+        ],
+        "properties": {
+          "round": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "handoff": {
+            "type": [
+              "object",
+              "string",
+              "null"
+            ],
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": [
+                  "archon_artifact"
+                ]
+              },
+              "run_id": {
+                "type": "string"
+              },
+              "path": {
+                "type": "string"
+              }
+            },
+            "description": "json(shared:handoff.schema.json): その周の引き継ぎのメモ（pointer かファイルのパス。値そのものの object なら周のフォルダに写す）"
+          }
+        }
+      }
+    }
+  }
+}

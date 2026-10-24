@@ -18,6 +18,17 @@ BLOCK = "line"
 APPROACH = "空の列で 0 を返す形に変える"
 
 
+def written_record(rounds_mod, dest, *, passes=((),)) -> dict:
+    """line の書き手の道で作った往復の記録: 項目 1 つの案に、passes の往復ごとの block の key の組で事前審査の返答を足す"""
+    doc = rounds_mod.fresh()
+    for k, keys in enumerate(passes, 1):
+        rounds_mod.record_pass(doc, {"plan": [{"id": "u1", "unit_keys": ["u1"], "hash": "h1"}],
+                                     "review": {"faces": [{"key": key, "kind": "x", "where": "", "why": "w", "severity": "block",
+                                                           "unit_keys": ["u1"]} for key in keys]},
+                                     "answers": [], "resolved": []}, at_cap=False, dest=pathlib.Path(dest) / str(k))
+    return doc
+
+
 def no_materials(_rounds) -> dict:
     """設計の相談の行の材料（判定・構造の目・方針の文書の変化・前の答えの無い run）"""
     return {"ledger": None, "design_rows_": [], "policy_row": "", "stuck_reason": "", "record_doc": None, "answered": [],
@@ -41,21 +52,17 @@ class TalkBase(unittest.TestCase):
         path.write_text(json.dumps(doc, ensure_ascii=False), encoding="utf-8")
         return json.loads(self.run.pointer(rel))
 
-    def record(self, *, outcome="clean", state="closed", blocks=()) -> dict:
-        """往復が 1 つで、項目 1 つの記録（plan-converge.json）"""
-        plan = [{"id": "u1", "unit_keys": ["u1"], "hash": "h1"}]
-        p = {"pass": 1, "blocks": list(blocks), "faces": [{"key": b, "kind": "x", "where": "", "why": "w"} for b in blocks],
-             "suggests": [], "answers": [], "notes": [], "resolved": [], "persists": [], "outcome": outcome, "origins": {},
-             "origins_claimed": [], "files": {}, "rejects": [], "face_units": {},
-             "items": [{"n": 1, "id": "u1", "unit_keys": ["u1"], "hash": "h1", "state": state, "blocks": list(blocks), "reopened": False}]}
-        return {"round": 1, "passes": [p], "outcome": outcome, "plan": plan}
+    def record(self) -> dict:
+        """往復が 1 つで、項目 1 つの閉じた記録（plan-converge.json）。line の書き手（rounds.fresh・record_pass）で作る"""
+        return written_record(self.r, self.run.artifacts / "plan-converge")
 
     def plan_out(self, **over) -> dict:
         """plan-out の返り（往復の記録と案の控えの pointer つき）"""
         record = self.put("plan-converge.json", self.record())
-        prior = self.put("plan-rounds/prior-1.json", {"round": 1, "reply": None, "fields": None, "record": self.record()})
         fix_plan = self.put("plan/r1/p2.fix_plan.json", {"plan": [{"unit_keys": ["u1"], "approach": APPROACH}]})
-        fields = self.put("plan/r1/plan-fields.json", {"fields": [{"unit_keys": ["u1"], "allowed_paths": ["a.py"], "route": "tdd"}]})
+        fields = self.put("plan/r1/plan-fields.json", {"round": 1, "fields": [{"unit_keys": ["u1"], "allowed_paths": ["a.py"], "route": "tdd"}]})
+        reply = self.put("plan/r1/reply.json", {"plan": [{"unit_keys": ["u1"], "approach": APPROACH}]})
+        prior = self.put("plan-rounds/prior-1.json", {"round": 1, "reply": reply, "fields": fields, "record": self.record()})
         return {**rounds(record=record, plan_prior=prior, fix_plan=fix_plan, plan=fields), **over}
 
     def turn(self, answer="", previous=None, last=None, design_talk=True, **given):
@@ -67,10 +74,14 @@ class TalkBase(unittest.TestCase):
                                       **given},
                                recorded=[{"source": "doc", "name": "p.md", "text": ""}], place=self.run.artifacts)
 
+    def materials(self, po) -> dict:
+        """材料の読み（asking.materials と同じく往復の記録を 1 つの読み口で読む。ほかの材料は無い run）"""
+        return {**no_materials(po), "record_doc": self.t._record_of(po.get("record"))}
+
     def settle(self, turn_got, plan_out=None, previous=None, design_talk=True):
         with self.run.env():
             return self.t.settle(turn_got=turn_got, plan_out=plan_out, previous=previous,
-                                 given={"design_talk": design_talk, "unattended": False}, materials=no_materials, run_id=kit.RUN_ID)
+                                 given={"design_talk": design_talk, "unattended": False}, materials=self.materials, run_id=kit.RUN_ID)
 
     def opened(self, **over) -> dict:
         """対話モードで往復が止まった周の design-talk の返り（関所が開いた）"""
@@ -82,7 +93,7 @@ class TalkCase(TalkBase):
     # ------------------------------------------------------------------ 通常の run は変わらない
     def test_normal_run_carries_the_previous_round_as_it_was(self):
         first = self.turn(design_talk=False)
-        self.assertEqual((first["plan"], first["plan_prior"], first["record"]), (True, "", ""))
+        self.assertEqual((first["plan"], first["plan_prior"], first["record"]), (True, None, None))
         self.assertEqual(first["answers"], [{"question": "q", "text": "a"}], "依頼の答えのまま（今の request_answers）")
         self.assertEqual(first["recorded"], [{"source": "doc", "name": "p.md", "text": ""}], "owed の recorded のまま")
         po = self.plan_out(done=False)
@@ -236,7 +247,7 @@ class NotesCase(TalkBase):
     def settle(self, turn_got, plan_out=None, previous=None, design_talk=True):
         with self.run.env():
             return self.t.settle(turn_got=turn_got, plan_out=plan_out, previous=previous,
-                                 given={"design_talk": design_talk, "unattended": False}, materials=no_materials, run_id=kit.RUN_ID,
+                                 given={"design_talk": design_talk, "unattended": False}, materials=self.materials, run_id=kit.RUN_ID,
                                  place=self.run.artifacts)
 
     def test_a_note_before_the_first_round_reaches_the_plan(self):
@@ -462,14 +473,15 @@ class AskAgainCase(unittest.TestCase):
     def setUp(self):
         self.r = kit.load(BLOCK, "rounds")
 
-    def doc(self, state="closed"):
-        return {"round": 1, "outcome": "clean", "plan": [{"id": "u1", "unit_keys": ["u1"], "hash": "h1"}],
-                "passes": [{"pass": 1, "blocks": [], "faces": [], "suggests": [], "answers": [], "resolved": [], "persists": [],
-                            "outcome": "clean", "face_units": {},
-                            "items": [{"n": 1, "id": "u1", "unit_keys": ["u1"], "hash": "h1", "state": state, "blocks": [], "reopened": False}]}]}
+    def doc(self, held=False):
+        """line の書き手の道で作った記録。held なら同じ中央の block が 2 往復続いて項目が保留になった記録"""
+        doc = written_record(self.r, pathlib.Path(self.enterContext(__import__("tempfile").TemporaryDirectory())),
+                             passes=(("b1",), ("b1",)) if held else ((),))
+        self.assertEqual(doc["passes"][-1]["items"][0]["state"], "held" if held else "closed")
+        return doc
 
     def test_held_items_open_too(self):
-        doc = self.r.ask_again(self.doc("held"), key="person-1", text="直す")
+        doc = self.r.ask_again(self.doc(held=True), key="person-1", text="直す")
         self.assertEqual(doc["passes"][-1]["items"][0]["state"], "open")
 
     def test_no_passes_is_left_as_it_is(self):

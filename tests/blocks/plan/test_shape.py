@@ -25,7 +25,7 @@ import rolekit  # noqa: E402
 BLOCK = base.BLOCK
 NO_DEADLINE = 1728000000
 PORTS = ["judgment", "units", "answer_ties", "materials", "answers", "takes_push", "verify", "excluded", "depth_record", "decisions",
-         "world_rows", "structure", "spec", "policy", "prior_failures", "prior", "ruling", "conflicts", "base", "review_rev", "diff_base", "routes", "lang"]
+         "world_rows", "structure", "spec", "spec_doc", "policy", "prior_failures", "prior", "ruling", "conflicts", "base", "review_rev", "diff_base", "routes", "lang"]
 RETURNED = ["ok", "status", "reason", "mode", "round", "owed", "plan", "fix_plan", "reply", "handoff", "replan", "ripple", "rejects",
             "gave_up", "report"]
 
@@ -39,7 +39,7 @@ class ShapeCase(unittest.TestCase):
     def test_name_inputs_and_return(self):
         self.assertEqual(self.doc["name"], "works-factory-plan")
         self.assertEqual(sorted(self.doc["inputs"]), sorted(PORTS))
-        self.assertEqual(len(PORTS), 23)
+        self.assertEqual(len(PORTS), 24)
         self.assertEqual((self.doc["returns"], self.doc["outcome_field"]), ("finish", "ok"))
 
     def test_return_node_carries_exactly_the_contract(self):
@@ -51,7 +51,7 @@ class ShapeCase(unittest.TestCase):
         self.assertEqual(fmt["properties"]["mode"]["enum"], ["plan", "replan"])
         for key in ("plan", "ripple"):
             ptr = fmt["properties"][key]
-            self.assertEqual((ptr["type"], sorted(ptr["required"])), ("object", ["path", "run_id", "type"]), key)
+            self.assertEqual((ptr["type"], sorted(ptr["required"])), (["object", "null"], ["path", "run_id", "type"]), key)
         self.assertNotIn("anyOf", repr(fmt))
 
     def test_ai_roles_are_read_only_and_isolated(self):

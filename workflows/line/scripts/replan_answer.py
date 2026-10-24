@@ -9,7 +9,7 @@ workflows/line/scripts/replan_answer.py の決まりのまま）。
 run が推しで進んだ時は pushed を答えとして記録する）。加えて 2 度目の修正に渡す物:
 - fix_answers: 修正前の承認ノードの条件が先・案の直しの一言が後の文（元 works の replan._notes の頭の 2 つ）と、修正前の承認ノードで
   見せた問いの行 asked（人が通した問いの単位を 2 度目の修正も直す）。どちらかが推しで通した答えなら answer.PUSHED を合わせて持つ
-- fix_notes: 採った項目ごとの、案の直しの事前審査の穴のうち人に聞く種類（gates.HUMAN_FACE_KINDS）でない物（replan.fix_notes）。
+- fix_notes: 採った項目ごとの、案の直しの事前審査の穴のうち人に聞く種類（policy.HUMAN_FACE_KINDS）でない物（replan.fix_notes）。
   事前審査が飛んだ・読めない時は訳の 1 行。止める答えの時は ""
 - fix_ripple: 案の直しが作り直した波及の一覧の pointer。作り直せなかった時だけ 1 回目の物（replan.remade_ripple）。止める答えは null
 - plan_review: 2 度目の修正と 2 度目の差分の審査に渡す事前審査の返答（案の直しの事前審査の holes）。飛んだ時は null
@@ -61,18 +61,20 @@ def fix_notes(review, fix_plan, items: list) -> str:
     """2 度目の修正に渡す機械の申し送り（replan.fix_notes）。事前審査の返りが無い・指す先が無い・読めない時は訳の 1 行（2 度目の修正の
     notes に載る）。pointer の形の違い（型・ほかの run・run directory の外）は約束の誤りなので落ちる（src.gates.located）"""
     import oneline
+    import policy
     import replan
     from src import gates
     if review is None or review["holes"] is None:
         return replan.NO_REVIEW_WHY.format(why="案の直しの事前審査が飛ばされた（出力が無い）")
     unread: list = []
-    doc = gates.read_located(review["holes"], "案の直しの事前審査の返答", unread)
-    plan = gates.read_located(fix_plan, "案の直しの修正案", unread)
+    doc = gates.read_located(review["holes"], "案の直しの事前審査の返答", unread,
+                             lambda raw: ports.file(raw, "json(shared:plan-review-reply.schema.json)"))
+    plan = gates.read_located(fix_plan, "案の直しの修正案", unread, lambda raw: ports.file(raw, "json(shared:fix-plan.schema.json)"))
     if unread or not isinstance(doc, dict):
         why = "・".join(unread) or "案の直しの事前審査の返答が JSON の object でない"
         return replan.NO_REVIEW_WHY.format(why=oneline.one_line(why))
     try:
-        return replan.fix_notes(doc, plan, items, gates.HUMAN_FACE_KINDS)
+        return replan.fix_notes(doc, plan, items, policy.HUMAN_FACE_KINDS)
     except (ValueError, TypeError, AttributeError, KeyError) as error:
         return replan.NO_REVIEW_WHY.format(why=oneline.one_line(f"{type(error).__name__}: {error}"))
 
@@ -81,7 +83,8 @@ def fix_ripple(again, first):
     """2 度目の修正に渡す波及の一覧の pointer（replan.remade_ripple。作り直せなかった時だけ 1 回目の物）"""
     import replan
     from src import gates
-    doc = gates.read_located(again, "作り直した波及の一覧", []) if again is not None else None
+    doc = (gates.read_located(again, "作り直した波及の一覧", [], lambda raw: ports.file(raw, "json(shared:ripple.schema.json)"))
+           if again is not None else None)
     return again if replan.remade_ripple(doc) else first
 
 

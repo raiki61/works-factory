@@ -13,4 +13,4 @@ import ports  # noqa: E402
 import materialkit  # noqa: E402  （lib/。ports を読むと lib/ が sys.path に入る）
 from src import viewpoint  # noqa: E402
 
-ports.returns(materialkit.finish(viewpoint, ports.place(), ports.pointer))
+ports.returns(materialkit.finish(viewpoint, ports.place(), lambda path: ports.pointer(path, "json(shared:material.schema.json)")))

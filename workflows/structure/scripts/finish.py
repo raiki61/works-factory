@@ -28,7 +28,7 @@ def fallback(why: str) -> dict:
             design.write_bytes(b"")
         doc = {"status": "failed", "reason": f"出口の中で誤りが起きた: {why}", "design_file": str(design), "skipped": []}
         (place / files.STATE_FILE).write_text(json.dumps(doc, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
-        pointer = ports.pointer(place / files.STATE_FILE)
+        pointer = ports.pointer(place / files.STATE_FILE, "json(shared:structure-state.schema.json)")
     except Exception as error:  # noqa: BLE001 — 出口は落ちない
         pointer, why = None, f"{why} / 控えを書けない: {error}"
     return {"ok": False, "status": "failed", "reason": f"出口の中で誤りが起きた: {why}", "structure": pointer, "after": None, "dirty": 0, "escalate": 0,

@@ -1,1 +1,1 @@
-{"type": ["object", "null"]}
+{"type": ["object", "null"], "properties": {"decision": {"type": "string"}, "text": {"type": "string"}, "asked": {"type": ["object", "array", "string", "number", "boolean", "null"]}}}

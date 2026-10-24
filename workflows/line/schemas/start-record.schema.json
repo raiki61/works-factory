@@ -1,0 +1,140 @@
+{
+  "description": "始めの記録（run directory の根の r1/start.json。書き手は start と固定材料の取り込みと修正前の答えの方針の固め直し。src/startrec.py）。欄は書き手が足していくので閉じない",
+  "type": "object",
+  "properties": {
+    "run_id": {
+      "type": "string"
+    },
+    "inputs": {
+      "type": "object",
+      "patternProperties": {
+        "^.+$": {
+          "type": "string"
+        }
+      }
+    },
+    "versions": {
+      "type": "object",
+      "patternProperties": {
+        "^.+$": {
+          "type": [
+            "object",
+            "array",
+            "string",
+            "number",
+            "boolean",
+            "null"
+          ]
+        }
+      }
+    },
+    "input": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "patternProperties": {
+        "^.+$": {
+          "type": [
+            "object",
+            "array",
+            "string",
+            "number",
+            "boolean",
+            "null"
+          ]
+        }
+      }
+    },
+    "refused": {
+      "type": "string"
+    },
+    "base_rev": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "review_rev": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "request_file": {
+      "type": "string"
+    },
+    "test_cmd": {
+      "type": "string"
+    },
+    "tdd_suite": {
+      "type": "string"
+    },
+    "design_talk": {
+      "type": [
+        "string",
+        "boolean"
+      ]
+    },
+    "thickness": {
+      "type": "string"
+    },
+    "spec": {
+      "type": [
+        "boolean",
+        "string"
+      ]
+    },
+    "policy_md": {
+      "type": "string"
+    },
+    "policy": {
+      "type": [
+        "object",
+        "array",
+        "string",
+        "number",
+        "boolean",
+        "null"
+      ]
+    },
+    "lang": {
+      "type": "string"
+    },
+    "answers": {
+      "type": "array",
+      "items": {
+        "type": [
+          "object",
+          "array",
+          "string",
+          "number",
+          "boolean",
+          "null"
+        ]
+      }
+    },
+    "request_text": {
+      "type": "string"
+    },
+    "pr_file": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "spec_table": {
+      "type": "string"
+    },
+    "features": {
+      "type": [
+        "object",
+        "array",
+        "string",
+        "number",
+        "boolean",
+        "null"
+      ]
+    }
+  }
+}

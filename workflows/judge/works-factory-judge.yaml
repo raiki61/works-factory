@@ -15,7 +15,7 @@ inputs:
   verify_by_tier: {default: '{}', description: 'json(verify-by-tier.schema.json): 段ごとに判定の裏取りを回すか {軽量, 標準, 重厚}（真偽）。空の object はどの段でも回さない'}
   user_env_dir: {default: '', description: 'text: 利用者の HOME・XDG に戻して起こした印を置く置き場の絶対パス。空は place'}
   request_origin: {default: '', description: 'text: 依頼の行の出どころの名（判定役に見せる依頼のバッチの origin）。空は「人の依頼（依頼の行）」'}
-  baseline: {default: '', description: 'file: 直す前の試験の結末（試験の関門が直す前に書いた baseline.json）。空は local_checks を not_run にする'}
+  baseline: {default: '', description: 'json(lib:baseline.schema.json): 直す前の試験の結末（試験の関門が直す前に書いた baseline.json の pointer）。空は local_checks を not_run にする'}
   policy: {default: '', description: 'file: 人の方針の文書を run の頭で固めた写し。空は方針が無い'}
   lang: {default: '', description: 'text: 人に見せる欄の言語（include する block のどれにも渡す）。空は依頼の行の言語'}
 returns: verdict
@@ -54,7 +54,10 @@ nodes:
         additionalProperties: false
         required: [got, why]
         properties:
-          got: {type: [object, 'null']}
+          # 返りまるごとの中継（受け手が ports.picked で名を選ぶ）
+          got: &whole
+            type: [object, 'null']
+            patternProperties: {'^.+$': {type: [object, array, string, number, boolean, 'null']}}
           why: {type: string}
     depends_on: [head-depth-run]
     with:
@@ -92,9 +95,18 @@ nodes:
         go: {type: boolean}
         stop_reason: {type: string}
         reason: {type: string}
-        request: {type: [object, 'null']}
-        spec: {type: [object, 'null']}
-        added_rows: {type: [object, 'null']}
+        request:
+          <<: &pointer_or_null
+            type: [object, 'null']
+            additionalProperties: false
+            required: [type, run_id, path]
+            properties: &pointer_fields
+              type: {type: string, enum: [archon_artifact]}
+              run_id: {type: string}
+              path: {type: string}
+          description: 'json(shared:request.schema.json): 仕様が足した行を依頼の行の後ろに積んだ依頼。落ちた時は null'
+        spec: {<<: *pointer_or_null, description: 'json(shared:spec.schema.json): 固めた仕様。仕様の段が無いか止めたら null'}
+        added_rows: {<<: *pointer_or_null, description: 'json(shared:request.schema.json): 仕様が足した受け入れ条件の行。無ければ null'}
         added_origin: {type: string}
   - id: parallel-pr
     include: works-factory-parallel-pr
@@ -341,15 +353,34 @@ nodes:
         ok: {type: boolean}
         reason: {type: string}
         go: {type: boolean}
-        purpose: {type: [object, 'null']}
-        constraints: {type: [object, 'null']}
-        materials: {type: array, items: {type: object}}
+        purpose: {<<: *pointer_or_null, description: 'json(shared:purpose.schema.json): 固めた目的。目的の固定が返らなければ null'}
+        constraints: {<<: *pointer_or_null, description: 'json(shared:constraints.schema.json): 前提の実測の控え。返らなければ null'}
+        materials:
+          type: array
+          items: {<<: *pointer_or_null, type: object, description: 'json(shared:material.schema.json): 素材の観点の素材の状態のファイル'}
         missing: {type: array, items: {type: string}}
-        pr_material: {type: [object, 'null']}
-        world_rows: {type: [object, string]}
-        row_asks: {type: array, items: {type: object}}
+        # 並行 PR の素材の札（並行 PR の返りの material をそのまま運ぶ）
+        pr_material:
+          type: [object, 'null']
+          properties:
+            status: {type: string}
+            count: {type: integer}
+            detail: {type: string}
+            checked: {type: string}
+            reason: {type: string}
+        world_rows: {<<: *pointer_or_null, description: 'jsonl(lib:world-row.schema.json): 世界の解の行。無ければ null'}
+        row_asks:
+          type: array
+          items: &row_ask
+            type: object
+            properties:
+              item: {type: integer}
+              unknown: {type: string}
+              cause_quote: {type: string}
+              where: {type: string}
+              code_quote: {type: string}
         depth_why: {type: string}
-        spec_rows: {type: [object, string]}
+        spec_rows: {<<: *pointer_or_null, description: 'json(shared:request.schema.json): 仕様が足した受け入れ条件の行。無ければ null'}
         spec_origin: {type: string}
         tier: {type: string}
         verify: {type: boolean}
@@ -433,21 +464,41 @@ nodes:
         stop_reason: {type: string}
         reason: {type: string}
         ready: {type: boolean}
-        units: {type: array, items: {type: object}}
-        questions: {type: array, items: {type: object}}
-        judgment: {type: [object, 'null']}
-        answer_ties: {type: [object, 'null']}
-        out_of_purpose: {type: [object, 'null']}
-        materials: {type: [object, 'null']}
-        brief: {type: [object, 'null']}
-        inputs: {type: [object, 'null']}
-        purpose: {type: [object, 'null']}
+        # 判定が切った根本の単位と問い（diagnose の返りの units・questions をそのまま運ぶ）
+        units:
+          type: array
+          items:
+            type: object
+            properties:
+              id: {type: string}
+              paths: {type: array, items: {type: string}}
+              summary: {type: string}
+        questions:
+          type: array
+          items:
+            type: object
+            properties:
+              key: {type: string}
+              kind: {type: string}
+              status: {type: string}
+              reason: {type: string}
+              resolution: {type: string}
+              options: {type: array, items: {type: string}}
+              depends: {type: array, items: {type: string}}
+              origin: {type: string}
+        judgment: {<<: *pointer_or_null, description: 'json(shared:judgment.schema.json): 受け付けた判定。止めたら null'}
+        answer_ties: {<<: *pointer_or_null, description: 'json(shared:answer-ties.schema.json): 依頼の答えを判定の問いと単位に結んだ行'}
+        out_of_purpose: {<<: *pointer_or_null, description: 'json(lib:out-of-purpose.schema.json): 判定が目的の外とした行の控え'}
+        materials: {<<: *pointer_or_null, description: 'json(shared:materials-state.schema.json): 判定の素材の状態'}
+        brief: {<<: *pointer_or_null, description: 'file: 判定役に渡した指示'}
+        inputs: {<<: *pointer_or_null, description: 'json(shared:diagnose-input.schema.json): 判定役が読んだ材料'}
+        purpose: {<<: *pointer_or_null, description: 'json(shared:purpose.schema.json): 固めた目的'}
         purpose_text: {type: string}
         purpose_source: {type: string}
         means: {type: array, items: {type: string}}
-        purpose_review: {type: [object, 'null']}
-        constraints: {type: [object, 'null']}
-        world: {type: [object, 'null']}
+        purpose_review: {<<: *pointer_or_null, description: 'json(shared:purpose-review.schema.json): 目的の監査の受けた返答の写し（受けていなければ {}）'}
+        constraints: {<<: *pointer_or_null, description: 'json(shared:constraints.schema.json): 前提の実測の控え'}
+        world: {<<: *pointer_or_null, description: 'jsonl(lib:world-row.schema.json): 世界の解の行。行が無ければ null'}
         world_state:
           type: object
           required: [status, reason]
@@ -456,18 +507,18 @@ nodes:
             reason: {type: string}
             classes: {type: integer}
             dropped: {type: integer}
-        spec: {type: [object, 'null']}
-        spec_rows: {type: [object, 'null']}
+        spec: {<<: *pointer_or_null, description: 'json(shared:spec.schema.json): 固めた仕様'}
+        spec_rows: {<<: *pointer_or_null, description: 'json(shared:request.schema.json): 仕様が足した受け入れ条件の行'}
         spec_origin: {type: string}
-        excluded: {type: [object, 'null']}
-        pr_drafts: {type: [object, 'null']}
-        downgrades: {type: array, items: {type: object}}
-        decisions: {type: [object, 'null']}
+        excluded: {<<: *pointer_or_null, description: 'json(shared:excluded.schema.json): 並行 PR と重なるので外した範囲'}
+        pr_drafts: {<<: *pointer_or_null, description: 'json(shared:pr-drafts.schema.json): 並行 PR の申し送りの下書き'}
+        downgrades: {type: array, items: {type: object, properties: {what: {type: string}, versus: {type: string}}}}
+        decisions: {<<: *pointer_or_null, description: 'json(shared:material.schema.json): 先行議論の突合の素材'}
         tier: {type: string}
         tier_why: {type: string}
-        row_asks: {type: array, items: {type: object}}
-        tier_record: {type: [object, 'null']}
-        verify: {type: [object, 'null']}
+        row_asks: {type: array, items: *row_ask}
+        tier_record: {<<: *pointer_or_null, description: 'json(shared:depth-record.schema.json): run の頭の深さの控え'}
+        verify: {<<: *pointer_or_null, description: 'json(shared:verify.schema.json): 判定の裏取りの結果'}
         verify_why: {type: string}
         report: {type: array, items: {type: string}}
         sections:

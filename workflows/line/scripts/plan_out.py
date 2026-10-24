@@ -32,18 +32,19 @@ PLAN = ("ok", "status", "reason", "round", "owed", "plan", "fix_plan", "reply", 
 REVIEW = ("ok", "status", "round", "holes", "blocks", "pass", "asks", "deviations", "reason")
 
 
-def _json_at(ptr):
-    return json.loads(ports.file(json.dumps(ptr)).read_text(encoding="utf-8"))
+def _json_at(ptr, opened):
+    """pointer の先の JSON。opened は宣言の form で照らしてパスを返す読み（ports.file）"""
+    return json.loads(opened(json.dumps(ptr)).read_text(encoding="utf-8"))
 
 
 def plan_out(plan, review, prior_raw, *, unattended: bool, place: Path) -> dict:
     from src import files, rounds
     k = plan["round"] if isinstance(plan["round"], int) else 1
-    prior = ports.file(prior_raw) if ports.parsed(prior_raw) is not None else None
+    prior = ports.file(prior_raw, "json(shared:plan-converge.schema.json)") if ports.parsed(prior_raw) is not None else None
     doc = rounds.read(prior)
     passed = plan["ok"] is True and review is not None and review["ok"] is True and review["pass"] is not None
     if passed:
-        rounds.record_pass(doc, _json_at(review["pass"]), at_cap=k >= rounds.LIMIT,
+        rounds.record_pass(doc, _json_at(review["pass"], lambda raw: ports.file(raw, "json(shared:plan-review-pass.schema.json)")), at_cap=k >= rounds.LIMIT,
                            dest=place / files.PLAN_CONVERGE_FILES.format(k=len(doc["passes"]) + 1), plan_rejects=plan["rejects"])
     record = rounds.write(place / files.PLAN_CONVERGE, doc)
     outcome = doc["outcome"] if passed else None
@@ -53,15 +54,15 @@ def plan_out(plan, review, prior_raw, *, unattended: bool, place: Path) -> dict:
     if stalled and rounds.stuck_push_due(doc, unattended=unattended, design_talk=False) and pointer_of_holes is not None:
         held = rounds.stuck_faces(doc)
         if held:
-            holes = _json_at(pointer_of_holes)
+            holes = _json_at(pointer_of_holes, lambda raw: ports.file(raw, "json(shared:plan-review-reply.schema.json)"))
             written = place / files.PLAN_REVIEW.format(k=k)
             written.parent.mkdir(parents=True, exist_ok=True)
             written.write_text(json.dumps({**holes, "faces": list(holes.get("faces") or []) + held}, ensure_ascii=False, indent=1) + "\n",
                                encoding="utf-8")
-            pointer_of_holes = ports.pointer(written)
+            pointer_of_holes = ports.pointer(written, "json(shared:plan-review-reply.schema.json)")
     handoffs = [*_prior_handoffs(place, files, k), {"round": k, "handoff": plan["handoff"]}]
     prior_file = None
-    if plan["ok"] is True:
+    if plan["ok"] is True and plan["reply"] is not None:   # 受けた案の在る周だけが次の周の prior（plan-prior の形は受けた案を要る）
         prior_file = place / files.PLAN_PRIOR.format(k=k)
         prior_file.parent.mkdir(parents=True, exist_ok=True)
         prior_file.write_text(json.dumps({"round": k, "reply": plan["reply"], "fields": plan["plan"], "fix_plan": plan["fix_plan"],
@@ -70,7 +71,8 @@ def plan_out(plan, review, prior_raw, *, unattended: bool, place: Path) -> dict:
     proceeds = rounds.proceeds(outcome)
     done = (plan["ok"] is not True or not reviewed or proceeds or stalled or k >= rounds.LIMIT)
     return {"done": done, "ok": plan["ok"] is True and reviewed and proceeds, "status": plan["status"] or "", "round": k,
-            "plan_prior": ports.pointer(prior_file) if prior_file else None, "record": ports.pointer(record),
+            "plan_prior": ports.pointer(prior_file, "json(shared:plan-prior.schema.json)") if prior_file else None,
+            "record": ports.pointer(record, "json(shared:plan-converge.schema.json)"),
             "plan": plan["plan"], "fix_plan": plan["fix_plan"], "reply": plan["reply"],
             "handoffs": [h for h in handoffs if isinstance(h.get("handoff"), dict)], "ripple": plan["ripple"],
             "owed": plan["owed"] if isinstance(plan["owed"], list) else [], "gave_up": plan["gave_up"] or (review or {}).get("gave_up"),

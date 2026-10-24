@@ -1,0 +1,169 @@
+{
+  "description": "修正の段へ運ぶ値（fix_in の received_live。固定材料の run では start が置いた写し fixture-carried.json）。部ごとの値は作り手の返りの欄を名で選んだ物",
+  "type": "object",
+  "properties": {
+    "test_gate_base": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "patternProperties": {
+        "^.+$": {
+          "type": [
+            "object",
+            "array",
+            "string",
+            "number",
+            "boolean",
+            "null"
+          ]
+        }
+      }
+    },
+    "judge": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "patternProperties": {
+        "^.+$": {
+          "type": [
+            "object",
+            "array",
+            "string",
+            "number",
+            "boolean",
+            "null"
+          ]
+        }
+      }
+    },
+    "tiers": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "patternProperties": {
+        "^.+$": {
+          "type": [
+            "object",
+            "array",
+            "string",
+            "number",
+            "boolean",
+            "null"
+          ]
+        }
+      }
+    },
+    "structure": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "patternProperties": {
+        "^.+$": {
+          "type": [
+            "object",
+            "array",
+            "string",
+            "number",
+            "boolean",
+            "null"
+          ]
+        }
+      }
+    },
+    "design": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "patternProperties": {
+        "^.+$": {
+          "type": [
+            "object",
+            "array",
+            "string",
+            "number",
+            "boolean",
+            "null"
+          ]
+        }
+      }
+    },
+    "rounds": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "patternProperties": {
+        "^.+$": {
+          "type": [
+            "object",
+            "array",
+            "string",
+            "number",
+            "boolean",
+            "null"
+          ]
+        }
+      }
+    },
+    "gate_before_fix": {
+      "type": [
+        "object",
+        "array",
+        "string",
+        "number",
+        "boolean",
+        "null"
+      ]
+    },
+    "before_fix_policy": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "deferred": {
+      "type": "array",
+      "items": {
+        "type": [
+          "object",
+          "array",
+          "string",
+          "number",
+          "boolean",
+          "null"
+        ]
+      }
+    },
+    "passes": {
+      "type": "array",
+      "items": {
+        "type": [
+          "object",
+          "array",
+          "string",
+          "number",
+          "boolean",
+          "null"
+        ]
+      }
+    },
+    "recorded": {
+      "type": "array",
+      "items": {
+        "type": [
+          "object",
+          "array",
+          "string",
+          "number",
+          "boolean",
+          "null"
+        ]
+      }
+    }
+  }
+}

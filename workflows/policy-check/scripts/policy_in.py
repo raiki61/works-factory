@@ -17,5 +17,5 @@ policy = ports.text(os.environ.get("INPUTS_POLICY"))
 path = ports.place() / steps.REQUEST_FILE
 path.write_text(json.dumps(steps.request(policy, ports.text(os.environ.get("INPUTS_PROBLEM"))), ensure_ascii=False, indent=1) + "\n",
                 encoding="utf-8")
-ports.returns({"request": ports.pointer(path), "policy": policy, "means": steps.means(policy), "purpose": ports.text(os.environ.get("INPUTS_PURPOSE")),
+ports.returns({"request": ports.pointer(path, "json(shared:request.schema.json)"), "policy": policy, "means": steps.means(policy), "purpose": ports.text(os.environ.get("INPUTS_PURPOSE")),
                "web": ports.choice(os.environ.get("INPUTS_WEB"), ("on", "off")), "lang": ports.text(os.environ.get("INPUTS_LANG"))})

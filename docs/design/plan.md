@@ -2,7 +2,7 @@
 
 - 何の話か: 判定が切った直す単位を、直す前に設計として固める観点「修正案」を、単独で呼べる block `workflows/plan/` にする設計。修正案の役が項目ごとに書いてよい範囲・受け入れテスト・定石と構造の目の行への答えを書き、機械が受け付けで照らし、波及の一覧（変える名の呼び出し元と試験）を機械が出す。承認済みの案の一部の項目を直す「案の直し」も同じ block の形 replan で書く。型は [README.md](README.md)、手本は [world.md](world.md)。
 - 決めたこと: 今の `workflows/plan/` の 8 つの node（round・ripple-units・plan-loop〔plan-prep・plan-writer・plan-writer-fix・plan-accept〕・ripple-items・plan-reads・plan）を、頂の 5 つ（intake・ripple-units・plan-loop・ripple-items・finish）の block にする。輪の本体は prep 2 つ・AI の役 2 つ・受け付け 1 つ。AI の node は 2 つ（`plan-writer`・`plan-writer-fix`）。事前審査との往復の記録と止めは line が持ち、この block は前の周を port `prior` で受けて 1 周分の案を作って返す（README の 1.3 の形の直し 6）。始めの記録は読まず、要る値は 22 の port で受ける。指示は英語の md 2 本（`prompts/plan-writer.md`・`prompts/plan-writer-fix.md`）と、2 つ以上の block が使う共通の断片（今在る `rejected`、1 波目の PR が足す `policy`・`resubmit`・`handoff`、取り置いた `unknown-asks`、この設計書で名を決める `recorded-policy`・`concept-map`・`prior-failures`）に置き、`lib/planfile.py`・`lib/planblk.py`・`workflows/plan/commands/fix-plan.md` と KEEP の lib の文の定数に散っていた指示の文を md に 1 回だけ書く。単位ごとの深さ（今の返りの `depth`）は line へ移す。振る舞いは変えない（変えた所は 10 節に名指す）。
-- 読む人と使い方: この block を作る実装者（1〜5 節の名と順をそのまま作る）と、新旧の指示を比べる審査役（2.6・3.6・9.3）。
+- 読む人と使い方: この block を作る実装者（1〜5 節の名と順をそのまま作る）と、新旧の指示を比べる審査役（2.6・3.6・9.3）。どちらでもない読み手は、何の話か・決めたことの 2 行で足りる。
 
 この文書の語は README の頭の物を使う（block・graph・port・place・prep・accept・pointer・Archon、`loop_group` などの Archon の YAML の鍵、form の書き方）。keep-essence の番号は README の 10 章。ほかに:
 
@@ -32,26 +32,27 @@
 
 ### 1.2 port
 
-入力（YAML の `inputs:`。22 個。どれも run の記録を読まない）:
+入力（YAML の `inputs:`。24 個。どれも run の記録を読まない）:
 
 - `judgment`: `json(shared:judgment.schema.json): 受け付けた判定（欄 units・questions・framing・one_shot・one_shot_closes・precedents を読む）。pointer・パス・値のどれか。空の字は判定が無い（形 plan では役を起こさない。形 replan では処方とライブラリの文書と項目の brief だけに使う）`。既定 `""`。
-- `units`: `json(unit-catalog.schema.json): 直しの単位の目録の配列 [{id, paths, summary}]。空の配列は目録が無い`。既定 `[]`。
-- `answer_ties`: `file: 依頼の答えを判定の問いと単位に結んだ行のファイル（answer-ties.json の形）。空は結びが無い（答えを字の一致だけで数える）`。既定 `""`。
-- `materials`: `file: 判定の素材の状態のファイル（素材の名 → {status, …}）。空は素材の状態が無い`。既定 `""`。
+- `units`: `json(shared:units.schema.json): 直しの単位の目録の配列 [{id, paths, summary}]。空の配列は目録が無い`。既定 `[]`。
+- `answer_ties`: `json(shared:answer-ties.schema.json): 依頼の答えを判定の問いと単位に結んだ行のファイル（answer-ties.json の形）。空は結びが無い（答えを字の一致だけで数える）`。既定 `""`。
+- `materials`: `json(shared:materials-state.schema.json): 判定の素材の状態のファイル（素材の名 → {status, …}）。空は素材の状態が無い`。既定 `""`。
 - `answers`: `json(request-answers.schema.json): 依頼の answers の行の配列 [{question, text, …}]。空の配列は答えが無い`。既定 `[]`。
 - `takes_push`: `flag: 判定が保留にした分かれ道の問いの推しを、答えとして数えるか（無人の run の方針。直す義務の数えに効く）`。既定 `false`。
-- `verify`: `file: 判定の単位の裏取りの申し送り（{units: [...], synergy: {...}}）。空は申し送りが無い`。既定 `""`。
-- `excluded`: `file: 並行 PR と重なるので外した範囲のファイル。空は外した範囲が無い`。既定 `""`。
-- `depth_record`: `file: run の頭の深さの控え（行ごとの未知の種類と引用。lib/headdepth.py の read_file が読む形）。空は控えが無い`。既定 `""`。
-- `decisions`: `file: 決定記録の突合の返答（reply.settled が決着済みの論点）。空は突合が無い`。既定 `""`。
-- `world_rows`: `file: 世界の解の行の JSON Lines（lib/worldmark.py の行の形）。空は行が無い`。既定 `""`。
-- `structure`: `file: 構造の目の控え（{status, reason, design_file, skipped, …}。lib/structmark.py が読む形）。空は構造の目の行が無い`。既定 `""`。
-- `spec`: `file: 固めた仕様（requirements・acceptance を持つ JSON。JSON でなければ字のまま貼る）。空は仕様が無い`。既定 `""`。
+- `verify`: `json(shared:verify.schema.json): 判定の単位の裏取りの申し送り（{units: [...], synergy: {...}}）。空は申し送りが無い`。既定 `""`。
+- `excluded`: `json(shared:excluded.schema.json): 並行 PR と重なるので外した範囲のファイル。空は外した範囲が無い`。既定 `""`。
+- `depth_record`: `json(shared:depth-record.schema.json): run の頭の深さの控え（行ごとの未知の種類と引用。lib/headdepth.py の read_file が読む形）。空は控えが無い`。既定 `""`。
+- `decisions`: `json(shared:material.schema.json): 決定記録の突合の返答（reply.settled が決着済みの論点）。空は突合が無い`。既定 `""`。
+- `world_rows`: `jsonl(lib:world-row.schema.json): 世界の解の行の JSON Lines（world.jsonl）。空は行が無い`。既定 `""`。
+- `structure`: `json(shared:structure-state.schema.json): 構造の目の控え（{status, reason, design_file, skipped, …}。lib/structmark.py が読む形）。空は構造の目の行が無い`。既定 `""`。
+- `spec`: `json(shared:spec.schema.json): 固めた仕様（requirements・acceptance を持つ spec.json）。空は仕様が無い`。既定 `""`。
+- `spec_doc`: `file: 人と固めた仕様の本文（設計書の本文と表の md。字のまま貼る）。空は渡されていない`。既定 `""`（#851: 1 つの入力が JSON と字の文書の 2 つの形を運ばないよう、仕様駆動の道の本文を `spec` から分けた）。
 - `policy`: `file: 人の方針の文書の固めた写し。空は方針の文書が無い`。既定 `""`。
 - `prior_failures`: `json(shared:prior-failures.schema.json): 前の run で最後まで通らなかった物の行の配列 [{where, text}]。空の配列は無い`。既定 `[]`。
-- `prior`: `json(plan-prior.schema.json): 前の周（形 plan では直前の計画の周と、それへの事前審査。形 replan では直す元の承認済みの案の周）。pointer・パス・値のどれか。空の字は前の周が無い（1 周目）`。既定 `""`。
+- `prior`: `json(shared:plan-prior.schema.json): 前の周（形 plan では直前の計画の周と、それへの事前審査。形 replan では直す元の承認済みの案の周）。pointer・パス・値のどれか。空の字は前の周が無い（1 周目）`。既定 `""`。
 - `ruling`: `json(replan-items.schema.json): 案の直しで直す項目の番号（1 始まり。整数か数字の字）の配列。空の配列は案の直しでない（形 plan）`。既定 `[]`。
-- `conflicts`: `file: 修正の段の申し出と裁定の行のファイル（{items: [...]}）。形 replan だけが読む。空は行が無い`。既定 `""`。
+- `conflicts`: `json(lib:conflicts.schema.json): 修正の段の申し出と裁定の行のファイル（{items: [...]}）。形 replan だけが読む。空は行が無い`。既定 `""`。
 - `base`: `text: 修正前の HEAD の版（受け入れテストの定義と修正前のテストの中身を引く版）。空は HEAD`。既定 `""`。
 - `review_rev`: `text: 役が読む版。空は base、それも空なら HEAD`。既定 `""`。
 - `diff_base`: `text: 材料の BASE（入口の差分の根）。空は base、それも空なら読む版`。既定 `""`。
@@ -61,11 +62,11 @@
 形のファイル:
 
 - `workflows/.shared/schemas/judgment.schema.json`（新しく足す。判定を読む block は plan のほかに plan-review・verify・fix が在る）: `{"type": "object", "required": ["units"], "properties": {"units": {"type": "array", "items": {"type": "object", "required": ["key"], "properties": {"key": {"type": "string", "minLength": 1}, "label": {"type": "string"}, "disposition": {"type": "string"}, "prescriptions": {"type": "array", "items": {"type": "string"}}}}}, "questions": {"type": "array", "items": {"type": "object"}}}}`。作る時に同じ名の形が `.shared/schemas/` に在れば、それを使い、足さない。
-- `workflows/plan/schemas/unit-catalog.schema.json`: structure の block の `schemas/units.schema.json`（structure.md の 1.5）と同じ形。作った時の決め: structure の側のファイルと YAML を直さず（block は自分の名のファイルしか消さない）、名を替えて plan の側に置いた。`.shared/schemas/` へ寄せるのは組み込みの時（10 節の 6）。
+- `workflows/.shared/schemas/units.schema.json`（#851 で plan の写し unit-catalog.schema.json を消して寄せた）: 直しの単位の目録の形。今はこの 1 つだけで、plan の側に写しは無い（作った時は名を替えて plan の側に unit-catalog.schema.json として写していた。10 節の 6）。
 - `workflows/.shared/schemas/prior-failures.schema.json`（新しく足す。読み手は plan と diagnose）: `{"type": "array", "items": {"type": "object", "required": ["where", "text"], "properties": {"where": {"type": "string"}, "text": {"type": "string"}}}}`。同じ名の形が在れば使う。
-- `workflows/plan/schemas/request-answers.schema.json`: `{"type": "array", "items": {"type": "object"}}`（行の欄は `policy.recorded` と `gatemarks.ledger` が読む物だけを使い、ここでは縛らない。今と同じ）。
+- `workflows/.shared/schemas/request-answers.schema.json`（#851 で .shared へ移した）: 依頼の answers の行 `[{question, text, command?, output?}]`（必須は縛らない。形を確かめる住処は `lib/carry.py`）。
 - `workflows/plan/schemas/replan-items.schema.json`: `{"type": "array", "items": {"type": ["integer", "string"]}}`（番号の照らしは `planmarks.handed` のまま）。
-- `workflows/plan/schemas/plan-prior.schema.json`:
+- `workflows/.shared/schemas/plan-prior.schema.json`（#851 で line と plan が同じ名を指すよう .shared へ移した。欄の description が指す先の形を名指す。下は移す前の形）:
 
 ```json
 {
@@ -85,7 +86,7 @@
 }
 ```
 
-`prior` の欄の意味（`reply`・`fields`・`fix_plan`・`ripple`・`review`・`handoffs[].handoff` は、どれも pointer か、パスの字か、中身の値そのもの〔`archon_artifact` の `type` を持たない object〕）:
+`prior` の欄の意味（`reply`・`fields`・`fix_plan`・`ripple`・`review`・`handoffs[].handoff` は、どれも pointer〔Archon が出力のファイルを指す `{type: archon_artifact, run_id, path}` の object〕か、パスの字か、中身の値そのもの〔`type` が `archon_artifact` でない object〕。欄ごとの形は `shared:plan-prior.schema.json` の欄の description が名指す。pointer とパスの欄は指す先のファイルを、値の欄は周のフォルダに写したファイルを、plan の入口の node（intake）が `ports.file(<欄>, "json(<その名>)")` でその形で照らす。`record` は `json(shared:plan-converge.schema.json)` で、往復の記録の値そのものを形で照らす〔#851〕）:
 
 - `round`: 前の周の番号。この周の番号は `round + 1`。
 - `reply`: 前の周の受け付けた案の全体（この block の出力 `reply` の先。`plan` の欄を持つ）。形 replan では直す元の承認済みの案。
@@ -99,13 +100,13 @@
 出力（`returns: finish`、`outcome_field: ok`）:
 
 - `ok`: boolean。`status` が `ok` か（今の `ready`）。
-- `status`: `ok`（受け付けを通った案が在る）・`nothing_owed`（直す義務の単位が 0 件で役を起こさなかった。諦めでない）・`held`（役を起こさなかった: 判定・前の周・世界の解の行が読めない、行き止まりの単位が在る、直す元の案が無い、ruling の番号が案に無い）・`gave_up`（役が回数を使い切った: 受け付けが網の回まで拒み続けた）・`failed`（機械の故障と node の誤り: 拒否の控えが扱えない〔rolekit が読めない・書けない〕、受けた案の控えを置けなかった〔書き込みが失敗し続ける。`round.json` に `halt: true` と訳を残す〕、node の中の誤り、指示が組めない、輪が回らなかった）。`gave_up` は役の側の使い切りだけで、機械の側の書き込みの失敗は `failed`。
+- `status`: `ok`（受け付けを通った案が在る）・`nothing_owed`（直す義務の単位が 0 件で役を起こさなかった。諦めでない）・`held`（役を起こさなかった: 判定・前の周・世界の解の行が読めない、行き止まりの単位が在る、直す元の案が無い、ruling の番号が案に無い）・`gave_up`（役が回数を使い切った: 受け付けが網の回まで拒み続けた）・`failed`（機械の故障と node の誤り: 拒否の控えが扱えない〔rolekit が読めない・書けない〕、受けた案の控えを置けなかった〔書き込みが失敗し続ける。`round.json` に `halt: true` と訳を残す〕、往復の記録から差し込んだ閉じた項目の行が受け付けの形に合わない〔同じく halt〕、node の中の誤り、指示が組めない、輪が回らなかった）。`gave_up` は役の側の使い切りだけで、機械の側の書き込みの失敗は `failed`。
 - `reason`: 日本語の 1 行。`ok` でない訳（今の `why_not_ready`）。`ok` なら空。
 - `mode`: `plan` か `replan`。`round`: この周の番号。
 - `owed`: 直す義務の単位の key を判定の順に（今の `planfile.owed_order`。line が単位ごとの深さを決める）。形 replan と判定の無い周は空。
-- `plan`: pointer（`r<k>/plan-fields.json`）。いつも在って空でない（案が無ければ `{round, fields: []}`）。
-- `fix_plan`: pointer（`r<k>/p2.fix_plan.json`）か null。`reply`: pointer（`r<k>/reply.json`）か null。`handoff`: pointer（`r<k>/handoff.json`）か null。`replan`: pointer（`r<k>/replan.json`。形 replan で受けた時）か null。
-- `ripple`: pointer（`r<k>/ripple.json`）。いつも在って空でない（案が無ければ `{items: [], error: <訳>}`）。
+- `plan`: pointer（`r<k>/plan-fields.json`。form `json(shared:plan-fields.schema.json)`）。いつも在って空でない（案が無ければ `{round, fields: []}`）。
+- `fix_plan`: pointer（`r<k>/p2.fix_plan.json`。`json(shared:fix-plan.schema.json)`）か null。`reply`: pointer（`r<k>/reply.json`。`json(shared:plan-reply.schema.json)`）か null。`handoff`: pointer（`r<k>/handoff.json`。`json(shared:handoff.schema.json)`）か null。`replan`: pointer（`r<k>/replan.json`。`json(shared:replan.schema.json)`。形 replan で受けた時）か null。どの pointer も、この block の出口（finish の node）が `ports.pointer(path, form)` で作る。この呼びは、指す先のファイルの中身を form が名指す形で照らし、合わなければ pointer を作らずに落ちる（読み手と同じ形で、書いた側が先に照らす。#851）。
+- `ripple`: pointer（`r<k>/ripple.json`。`json(shared:ripple.schema.json)`）。いつも在って空でない（案が無ければ `{items: [], error: <訳>}`）。
 - `rejects`: この周の受け付けの拒否の行 `[{at, reason, kind?}]`（`rolekit.reject_rows`）。
 - `gave_up`: 形 replan で役が諦めた時の項目ごとの行 `[{item, why, ruling}]`。ほかは null。
 - `report`: 報告の節「修正案」の日本語の行の配列（4 節の `finish.py` の報告の行）。
@@ -144,7 +145,7 @@ script の名は `lib/` のモジュールの名と重ねない（README の 7.1
 
 ### 1.5 コードの置き場
 
-- `workflows/plan/src/steps.py`: ファイルの名・周を開く（今の `planfile.read_round`・`open_round` の周の部分・`round_inputs`）・直す義務と案に入れてよい単位（`is_open`・`_owed_units`・`slots`・`plan_slots`・`held_why`・`stuck_reason`〔どれも `lib/judgmark.py` の名の受け直し。下の項〕・`_shut`・`not_allowed`・`named`・`fix_plan_covers_units`・`owed_order`・`round_slots`）・判定の処方（`prescriptions`）・入れ子の値の解き（`nested_file(v)`: pointer の object は `ports.file(json.dumps(v))`、字は `ports.file(v)`、ほかの値は周のフォルダに写しを書いてそのパス）・出口（`collect` の受けた案の有無・`note_gave_up`・`why_not_ready`・`placeholders`・`returned`・`nothing_owed`）。`planblk` の修正案の役の部分のうち受け付けと出口の文と名（`NO_NARROW_REJECT`・`RECOMMEND_REJECT`・`NOT_OWED_REJECT`・`ANSWERS_REJECT`・`CLOSED_REJECT`・`READONLY_MOVED`・`NO_TREE`・`PLAN_GAVE_UP_WHY`・`unit_name`）と、`planfile` の `COVERS_REJECT`・`MALFORMED_REJECT`・`REPLAN_REJECT`（`lib/replan.py` と同じ字。案の直しの拒否の頭）・`NO_PLAN`・`NO_ROWS`・`WHOLE_PLAN`・`ROLE = "plan"`・`BASE_TESTS_UNREAD_OP` もここに写す。
+- `workflows/plan/src/steps.py`: ファイルの名・周を開く（今の `planfile.read_round`・`open_round` の周の部分・`round_inputs`）・直す義務と案に入れてよい単位（`is_open`・`_owed_units`・`slots`・`plan_slots`・`held_why`・`stuck_reason`〔どれも `lib/judgmark.py` の名の受け直し。下の項〕・`_shut`・`not_allowed`・`named`・`fix_plan_covers_units`・`owed_order`・`round_slots`）・判定の処方（`prescriptions`）・入れ子の値の解き（`nested_file(v)`: pointer の object とパスの字はそのまま、ほかの値は周のフォルダに写しを書いてそのパスを、口の呼び `ports.file(v, "<form>")` に渡す。`<form>` はその欄の宣言の form〔`json(shared:plan-reply.schema.json)` など〕を呼び手が字のまま書き、口が先の中身をその形で照らす）・出口（`collect` の受けた案の有無・`note_gave_up`・`why_not_ready`・`placeholders`・`returned`・`nothing_owed`）。`planblk` の修正案の役の部分のうち受け付けと出口の文と名（`NO_NARROW_REJECT`・`RECOMMEND_REJECT`・`NOT_OWED_REJECT`・`ANSWERS_REJECT`・`CLOSED_REJECT`・`READONLY_MOVED`・`NO_TREE`・`PLAN_GAVE_UP_WHY`・`unit_name`）と、`planfile` の `COVERS_REJECT`・`MALFORMED_REJECT`・`REPLAN_REJECT`（`lib/replan.py` と同じ字。案の直しの拒否の頭）・`NO_PLAN`・`NO_ROWS`・`WHOLE_PLAN`・`ROLE = "plan"`・`BASE_TESTS_UNREAD_OP` もここに写す。
 - `workflows/plan/src/take.py`: 受け付け（今の `planfile.take_plan`・`take_replan`・`take.plan_errors`・`_replaced`・`revised_fields`・`conflict_rows`・`ruling_text`・`_save`・`moved`・`snap_tree`・`base_test_texts`・`exists_at`・`merge_plan_items`・`merge_resubmit`・`merge_replan_resubmit`）。今の `marks.split`（README の 9.1 で消える部品）は使わず、返答から欄 `whole_plan` と `handoff` を外す小さな関数を置く（中身は「鍵が在れば pop して `{鍵: 値}` を返す」で、今の `marks.split` の返りと同じ形）。
 - `workflows/plan/src/brief.py`: 修正案の役の md に入れる値と段落の真偽を組む（2.3 の 1〜29 の値と真偽の全部）。今の `planfile.write_brief`・`units_section`・`prescription_section`・`repo_line`・`replan_section`・`item_brief`・`_prior_section`・`prior_section`、`planblk.verify_part`・`_verify_row`・`_relation_label`、`converge.revise_section`・`_face_text`・`_owed_suggest_text`、`structmark.plan_section`・`_state_rows`・`_bullets`・`_row_line`、`worldmark.section`・`_mark`・`_versus`、`headdepth.section`・`_row`、`concepthome.section`、`policy._section`、`carry.prior_section`、`handoff.section`、`ripple.units_section`・`section`・`item_text`・`_names_text` のうち、材料の行を組む部分だけを写す。決まった文（見出し・頼み・決まり）は持たず md に置く。材料の中で項目ごとに繰り返す短い札は英語にして Python に残す（README の 5.3。札の英語は 2.3 の終わりの札の一覧）。`converge.held`・`owed_faces`・`planned_units` など文を持たない読み口は import して使う。
 - 直す義務と周が役を起こすかの決め（`LEDGER`・`NOTHING_OWED`・`PLAN_STUCK`・`STUCK_WHY`・`is_open`・`with_ledger`・`owed_units`・`units_of`・`slots`・`plan_slots`・`plan_stuck_reason`・`held_why`）は plan と line（node `owed`）が共に引くので、写さず `lib/judgmark.py` に置いた（統合の設計書の持ち主の決め。`converge` は `gatemarks` を import しない決まりで、`gatemarks.duty` を呼ぶ決めは置けない）。`steps.py` は名を受け直し、`with_ledger(ctx, doc)` だけが port の値を渡す薄い包み。line の `src/rounds.py` の写しは組み込みで消して同じ名を import する。
@@ -492,6 +493,11 @@ For `plan`, the rule above does not apply. Return in `plan` only the items the r
 - 形 replan（今の `take_replan` のまま）: 作業ツリー → `handoff` を外す → 直す元の案が無ければ `REPLAN_REJECT` と訳 → 渡した項目の行（`replan.TRIP_KEYS`）→ `take.plan_errors`（項目の数・`unit_keys` の字・項目の欄〔修正前の版の木の `exists_at`。版が引けなければその訳〕・直した番号の所に返答を差し替えた並びに当てる依存と考えの住処・構造と世界の解・狭めない案・推し）→ 通れば `new`・`new_marks`・`contract_changed`・`widened`（事実だけ）→ 修正前の版のテスト → `revised_fields`・`amended` → 案の全体を置く（`_save` の順と halt は形 plan と同じ）→ trace に `planmarks.AMEND_OP` → `replan.json`。
 - 輪は拒否の回数では諦めない。受け付けの網 `rolekit.NET_AFTER`（20。輪の `max_iterations` と同じ。届けば工場の不具合）の回の拒否で `done`・`give_up` にして輪を抜ける（`max_iterations` で落とさない）。拒否の控えが読めない・書けない時は、落ちずに `done`・`give_up` の拒否（理由「拒否の控えが扱えない」。読めない時は返答を照らさず、案のファイルを書かない）。
 - 受けた案の控えを置けない周（halt）は役の諦めでなく機械の故障なので、出口は `status: failed` と、置けなかった控えの名を含む訳を返す（`round.json` の `halt: true`）。
+- 往復の記録から差し込んだ閉じた項目の行が受け付けの形に合わない時は、拒みとして役へ返さず、1 回目で止める（halt。#851）。
+  - 閉じた項目: 前の往復の事前審査が直しへ進めない穴（severity が block の指摘）を付けず、閉じた項目（`converge.closed_ids` の集合）。役はこの項目を書き換えられない。役の返答に無ければ、機械（`converge.splice`）が往復の記録の行をそのまま差し込み、書き換えた行は拒む。だからこの行の誤りは役には直せない。
+  - 止める誤り: 差し込んだ閉じた項目の行 1 本だけを照らして出た誤りのうち、案の全体を照らした時にもその行の位置に同じ字で出る物。照らしは 3 つで、受け付けが役の返答に当てている物と同じ（欄の形 `planmarks.gaps`、項目の欄 narrows〔その直しで今の振る舞いのうちできなくなる物を、案が 1 行ずつ申告した行〕の行ごとに、それを決めた出どころ〔decided_by など〕か、狭めずに済む案を当たった訳〔no_narrow〕を書いたか `gatemarks.narrow_gaps`、推しの答えの形 `gatemarks.recommend_gaps`）。例: 閉じた項目 2 の行の route が許す語（tdd・direct）の外なら、行 1 本でも全体でも `plan[1].route`（位置は 0 から数える）の誤りが出るので止める。
+  - 止めない誤り: 項目の間の照らし（ある項目の files が足すテストを、どれかの項目の tests が宣言するか・範囲の重なり）。行 1 本だけでは誤りに見えても、ほかの項目と合わせて通るなら案の全体には出ないので止めない。全体にも出るなら、役の行を直せば通せるので今どおり役へ拒む。
+  - 止めた時は `take.halt` が round.json に `halt: true` と訳（`MACHINE_ROWS_HALT` の頭と「閉じた項目 <n>: <誤り>」の行）を書き、出口は `status: failed` を返す。
 - 諦めた時に出口へ書く物: `status: gave_up`・`reason` は `rolekit.given_up_reason`（網の回なら `NET_WHY` を添えた最後の理由）か `round.json` の `why`。形 replan では項目ごとの `gave_up` の行（`PLAN_GAVE_UP_WHY` と裁定の文を字のまま）。
 - 拒否を足す道: 返答の形で決まる拒否は `src/take.py` の `take_plan`・`take.plan_errors` の理由の並びに 1 行足す。md には同じ変更で 1 段落を足す。理由は `rolekit.accept_round` が控えに積み、次の回の出し直しの指示（最後の理由）と、resume の回の `{shared:rejected}`（全部）に載る。試験は `tests/blocks/plan/test_accept.py`。
 
@@ -535,7 +541,7 @@ For `plan`, the rule above does not apply. Return in `plan` only the items the r
 
 ### 6.4 受け付け（今の `plan-accept`）
 
-5 節に全部を並べた（作業ツリーの比べを先に・形の崩れ・往復の答え・閉じた項目・狭めない案・推し・義務の無い単位・網羅・欄・依存・構造と世界の解・修正前の版のテスト・置く順と巻き戻し・halt・捨てた項目の trace・形 replan の照らしと事実の欄・網の回で諦める・控えが扱えない時）。どれも今のまま。
+5 節に全部を並べた（作業ツリーの比べを先に・形の崩れ・往復の答え・閉じた項目・差し込んだ閉じた項目の行の誤りの止め・狭めない案・推し・義務の無い単位・網羅・欄・依存・構造と世界の解・修正前の版のテスト・置く順と巻き戻し・halt・捨てた項目の trace・形 replan の照らしと事実の欄・網の回で諦める・控えが扱えない時）。どれも今のまま。
 
 - `with: status_guarded: true`（Archon の状態の照らしと重なる git status の行は比べない）→ 受け付けの中の定数 `accept.status_keys("true")`。入力でなくした（いつも同じ値だった）。
 - 出し直しの答えを前の答えと合わせる（形 plan は項目を unit_keys で、形 replan は丸ごと。`whole_plan` は一度立てば控えに残る）→ `src/take.py` の写し。
@@ -593,7 +599,7 @@ bin/works-factory workflow run works-factory-plan --cwd <対象> \
 
 script を子のプロセスで回す。始めの記録の無い使い捨ての `ARTIFACTS_DIR` と git のリポジトリ（`stats.py` と `test_stats.py` を持つ）で、port の値だけを渡す。
 
-- `test_shape.py`（今の `tests/workflows/test_plan.py::ShapeCase` から）: 入力の鍵がちょうど 1.2 の 22 個・`finish` の `output_format` がちょうど 1.2 の 15 欄で `anyOf` を持たない・AI の node が読むだけで隔離されている（`test_role_nodes_are_read_only_and_isolated`）・出し直しの役が修正案の役の後ろの層で、層がどれも node 1 つ（`test_resubmit_role_continues_the_writer_conversation`）・出し直しの役の型が修正案の役の型と同じ物（`test_resubmit_schema_is_the_writer_schema`）・役の型が lib の持ち主と同じ（`test_role_schemas_match_their_lib_owners`・`test_writer_files_schema_is_the_planmarks_owner`・`test_writer_output_carries_works_fields_and_gate_marks`）・輪の `max_iterations` が `rolekit.NET_AFTER`（`test_loops_give_up_in_the_body_before_max_iterations`）・AI の node の期限が 20 日で ほかに期限が無い・`$LOOP_PREV` を書く `with:` は `plan-prep` の `prev` だけ・`INPUTS_` を読む script は intake・prep（`prev`）・accept（`reply`・`fix_reply`）だけ・script が uv の読むだけの script（`test_scripts_are_read_only_uv_scripts`）・script の名が lib と重ならない・2 つの md の本文（断片を入れる前の `prompts/plan-writer.md`・`prompts/plan-writer-fix.md` の字）に「started in a new conversation」の字が無い（断片 `handoff` の「次の周の自分は新しい会話で起きる」と、事前審査が新しい会話で掛かるという文は、この役の会話のことでないので数えない）。
+- `test_shape.py`（今の `tests/workflows/test_plan.py::ShapeCase` から）: 入力の鍵がちょうど 1.2 の 24 個・`finish` の `output_format` がちょうど 1.2 の 15 欄で `anyOf` を持たない・AI の node が読むだけで隔離されている（`test_role_nodes_are_read_only_and_isolated`）・出し直しの役が修正案の役の後ろの層で、層がどれも node 1 つ（`test_resubmit_role_continues_the_writer_conversation`）・出し直しの役の型が修正案の役の型と同じ物（`test_resubmit_schema_is_the_writer_schema`）・役の型が lib の持ち主と同じ（`test_role_schemas_match_their_lib_owners`・`test_writer_files_schema_is_the_planmarks_owner`・`test_writer_output_carries_works_fields_and_gate_marks`）・輪の `max_iterations` が `rolekit.NET_AFTER`（`test_loops_give_up_in_the_body_before_max_iterations`）・AI の node の期限が 20 日で ほかに期限が無い・`$LOOP_PREV` を書く `with:` は `plan-prep` の `prev` だけ・`INPUTS_` を読む script は intake・prep（`prev`）・accept（`reply`・`fix_reply`）だけ・script が uv の読むだけの script（`test_scripts_are_read_only_uv_scripts`）・script の名が lib と重ならない・2 つの md の本文（断片を入れる前の `prompts/plan-writer.md`・`prompts/plan-writer-fix.md` の字）に「started in a new conversation」の字が無い（断片 `handoff` の「次の周の自分は新しい会話で起きる」と、事前審査が新しい会話で掛かるという文は、この役の会話のことでないので数えない）。
 - `test_accept.py`（今の `tests/workflows/test_plan.py` の `AcceptCase`・`ReplanCase`・`ReplanWithoutPlanCase`・`OwedAnswersCase`）と `test_rounds.py`（`CollectCase`・`SurvivesCase`・`BriefCase`）。次の・`SurvivesCase`・`BriefCase` を、`start` の pointer を port に、`plan/r<k>/` を place の `r<k>/` に、`brief-<n>.md` を `plan-writer-prompt-<n>.md` に替えて写す）: 案の受け付け（受けた案のファイル・依存・網羅・義務の無い単位・欄の欠け・構造と世界の解の答え・狭めない案・推し・作業ツリーの動き・status_guarded の行・置けない時の halt・メモを置けない時の halt・控えが扱えない時・網の回の諦め・波及の一覧）・出し直し（最後の拒否と合わせた答えのパスが指示に入る・resume の回は全部の拒否が `{shared:rejected}` で入る・部分の出し直しが 1 回の形に合わさる・空の出し直しは前の答えを照らし直す・`whole_plan` が項目を消す）・形 replan（余分の項目と変えた key を拒んで直す・網の回の諦めで直さない・作業ツリーの動き・項目の brief を名指す・作業ツリーが動いた後も同じ構造の控えを読む・直す元の案のメモを名指す・案の外の ruling は役を起こさない・直す元が無い）・周（2 周目が前の周を受ける〔`prior` で〕・前の周のメモを古い順に全部名指す・メモの無い周を名指す・出し直しでメモを保つ・メモの無い返答が古いメモを消す・2 周目に独立設計が入らない・閉じた項目を変えたら拒む・変えた項目だけを返す・2 周目の拒否を数える・人に上げる構造の行でも ok・構造の目が落ちた印が指示に入る・`status` と `rejects`・0 件で役を起こさない・行き止まりで役を起こさない・読めない pointer を「無い」と読まない）・直す義務（答えた fork の出どころが義務に戻る・開いていない答えの出どころは行き止まり・無人の推しが唯一の単位を義務にする・保留の出どころの推しは保留のまま。`takes_push` の port で）・落ちない（lib が読めない時も intake と finish が約束の形を返す・半ば開いた周を使う・depends が配列でない問い）・指示（方針・地図・前の失敗が入る・方針の写しのパス・控えの根を渡す・方針も前の失敗も無い時はどちらの節も無い・構造の行・処方・役の頭・目録と台帳と見立て・リポジトリの行・外した範囲・ライブラリの文書・言語の 1 文が最後・仕様・単位の波及・paths の無い単位・形の違う前の失敗）。
 - `test_steps.py`（今の `lib/tests/test_planfile.py` から、`src/steps.py`・`src/take.py`・`src/brief.py` に向けて写す）: `OwedCase`・`SlotsCase`・`CoversCase`・`ReplanErrorsCase`・`PrescriptionCase`・`RepoLineCase`（値の組み方に）・`BaseTestsCase`・`ConvergeCase`（`filled_units`・`splice`・`answer_gaps`・`revise_section` の値。`converge_record` の照らしは line へ）・`UnitsSectionCase`・`ReplanInputsCase`・`WorldRowsCase`・`PriorFailuresCase`・`VerifyNeighborCase`・`HeadDepthNeighborCase`・`RevisedFieldsCase`・`TakePlanCase`・`WholePlanTakeCase`・`ReplanModuleCase`・`ResubmitMergeCase`（`test_rules_name_the_whole_plan_field` は md の字 `{whole_plan}` と `WHOLE_PLAN` の照らしに）・`RippleItemsCase`。`RoundCase`（周のフォルダを数える）は `prior.round + 1` の照らしに替える。
 - `test_ripple.py`: 今の `lib/tests/test_ripple.py` の全部を `src/ripple.py` に向けて写す（`test_section_names_uncovered_and_asks_scope` は行の値の照らしに替え、頼みの文は md の照らしで見る）。
@@ -648,12 +654,12 @@ script を子のプロセスで回す。始めの記録の無い使い捨ての 
 
 ## 10 根拠を書いて自分で決めた事
 
-1. port を 22 個にする（README の 8.2 は `judgment`・`purpose`・`structure`・`world_rows`・`spec`・`policy`・`prior`・`ruling`）。根拠: 今の計画は目録・結び・素材の状態・依頼の答え・無人の方針・裏取り・外した範囲・頭の深さ・決着済みの論点・前の失敗・申し出と裁定・3 つの版・言語を読んでいて、どれかを外すと材料の節か直す義務の数えが落ちる（6 節）。`purpose` は持たない: 今の計画の役は目的の文を受けていない（`write_brief` に無い）。足すのは振る舞いの変更になる。README の 4.2（作り手の欄を 3 つ以上読むなら pointer 1 つ）には当てない: 作り手が根本の診断・判定のまとめ・裏取り・並行 PR・頭の深さ・突合・世界の解・構造の目・仕様・修正・line に散っていて、1 つの作り手の欄を 3 つ以上読む所が無い（根本の診断の出力の形がまだ決まっていない。決まって 3 つ以上を読むなら、その時に 1 つの pointer に寄せる。11 節）。
+1. port は 24 個（作った時の決めは 22 個で、後の PR が 1 個、#851 が `spec_doc` を足した）（README の 8.2 は `judgment`・`purpose`・`structure`・`world_rows`・`spec`・`policy`・`prior`・`ruling`）。根拠: 今の計画は目録・結び・素材の状態・依頼の答え・無人の方針・裏取り・外した範囲・頭の深さ・決着済みの論点・前の失敗・申し出と裁定・3 つの版（base・review_rev・diff_base）・言語（lang）を読んでいて、どれかを外すと材料の節か直す義務の数えが落ちる（6 節）。`purpose` は持たない: 今の計画の役は目的の文を受けていない（`write_brief` に無い）。足すのは振る舞いの変更になる。README の 4.2（作り手の欄を 3 つ以上読むなら pointer 1 つ）には当てない: 作り手が根本の診断・判定のまとめ・裏取り・並行 PR・頭の深さ・突合・世界の解・構造の目・仕様・修正・line に散っていて、1 つの作り手の欄を 3 つ以上読む所が無い（根本の診断の出力の形がまだ決まっていない。決まって 3 つ以上を読むなら、その時に 1 つの pointer に寄せる。11 節）。
 2. 前の周は port `prior` 1 つで、往復の記録 `record` を line が組んで渡す。根拠: README の形の直し 6（往復の記録は line、block は前の周を port で受ける）。今の `planfile.converge_record` は周のフォルダを数えて組んでいたが、include ごとに place が分かれるので、案の直しの周（別の include）は承認済みの案を名で開けない。前の周の pointer を port で受ければ、どちらの形も同じ道になる。
 3. 周のファイルを place の中の `r<k>/` に分け、前の周のファイルと指示の記録を消さない。根拠: 往復の輪の回をまたいで place が同じ（include の道は輪の id を含まない。README の 13 章）。前の周の `prior` の pointer の先を消すと、次の周が読めない。README の 13 章の「入口は自分が名を持つファイルを消す」は、今の周のフォルダの中だけに当てる。
 4. ライブラリの文書の節（`libdocs.section`）は材料の行だけを lib が返し、見出しと指示の文は md `prompts/parts/lib-docs.md` が持つ（#764 で出した）。案の直しの項目の brief（`planbrief.render`）の行は lib が組む材料のまま入れる（brief ファイルの見出しと行から指示の語尾を外し、読み方は fix の `brief.md` が持つ。#764）。
 5. 方針の文書は共通の断片 `{shared:policy}` で本文を貼る（今は置き場を名指して「先に全部読め」）。根拠: 方針を受ける全部の block が同じ断片を使う（independent-design.md の 2.3）。今の役も全部を読めと言われていたので、受け取る中身は同じ。上限を越えた分は続きのパスを名指す（`policy.brief`）。記録された方針の行の「元の置き場」は port に無いので `none` と書く（名指しの字は写しのパスで、受け付けの照らしは今と同じ）。
-6. 単位の目録の形は plan の `schemas/unit-catalog.schema.json` に置く（structure の `units.schema.json` と同じ形）。根拠: 作る時の main の決まりは、block が消してよいのは自分の名のファイルだけ（形のファイルの名は pack の中で 1 か所、README の 7.1 の 5 なので、同じ名を `.shared/` に置くには structure の側のファイルと YAML と src を直す要る）。2 つの block が同じ形を持つ状態は組み込みで `.shared/schemas/` の 1 つに寄せる。
+6. 単位の目録の形は `.shared/schemas/units.schema.json` の 1 つ（#851 で plan の写しを消した。作った時は plan の `schemas/unit-catalog.schema.json` に写していた）。根拠: 作る時の main の決まりは、block が消してよいのは自分の名のファイルだけ（形のファイルの名は pack の中で 1 か所、README の 7.1 の 5 なので、同じ名を `.shared/` に置くには structure の側のファイルと YAML と src を直す要る）。2 つの block が同じ形を持つ状態は組み込みで `.shared/schemas/` の 1 つに寄せる。
 7. `ports.shared_cache()` を共通の口に足す。根拠: Archon の `STATE_DIR` を解く所は `.shared` の口に置く決まり（`workflows/.shared/AGENTS.md` の「`.shared` と `lib/` の分け」）。今の `boundary.shared_cache` の写しで、ライブラリの文書の run をまたぐ控えを今と同じに使う。
 8. 下流の node の名と振る舞いの名指しを md から外し、役が書く欄の効き目は名を出さずに残す。根拠: README の憲法の 3（block はほかの block を名指さない）と world の 3.6 の同じ決め。ただし `decided_by`・`recommend`・`narrows` を書く理由は効き目（人に聞かれる・聞かずに通る・拒まれる）なので、それを消すと役が欄を書く手掛かりが落ちる。world は効き目を変えない 1 文だけを消した。
 9. 出し直しの役の指示を組む prep を `plan-fix-prep` として分け、その md を照らす筋書きだけ `plan-prep` を差し替える。根拠: 形の検査（README の 13 章「どの AI の node も、prep を差し替えない筋書きのどれかで reached に在る」）は node ごとに prep を見る。dry-run の輪は 1 周で `until_bash` を走らせず（`dry-run.ts` の `simulateLoopGroup`）、`$LOOP_PREV` は 1 周目に空なので、本当の `plan-prep` が出し直しを選ぶ筋書きは書けない。出し直しの役の prep（`plan-fix-prep`）は本当に走るので、その md を組めることは照らせる。1 波目の学び「筋書きは AI の node だけを差し替える」の外し。層は全部 node 1 つのまま（1 波目の学び 2）。
@@ -671,7 +677,7 @@ script を子のプロセスで回す。始めの記録の無い使い捨ての 
 21. 読めない `world_rows` は、形 plan でも形 replan でも役を起こさない（今の `planfile.round_inputs` と同じ）。
 22. `prior.review` と `prior.handoffs[].handoff` のファイルが無い時は、読めない `prior` にせず「指摘を受けていない」「メモ無し」と読んで進む（今と同じ）。`reply`・`fields` が無い時は `prior` が読めない。
 23. 前の周の修正案の役の返答 `prior.fix_plan` が null の時は、指示の「前の周の案」の行を出す段落 `prior_fix_plan` を偽にし、欄 `prior_fields` の行だけを出す。
-24. 受けた案の控えを置けない周（halt）は、機械の故障として出口が `failed` を返す。`gave_up` は役が回数を使い切った時だけ。
+24. 受けた案の控えを置けない周と、往復の記録から差し込んだ閉じた項目の行が受け付けの形に合わない周（項目の間の照らしは除く）（どちらも halt）は、機械の故障として出口が `failed` を返す。`gave_up` は役が回数を使い切った時だけ。
 25. 拒否の控えが扱えない周（rolekit が読めない・書けない）も機械の故障として出口が `failed` を返し、訳に「拒否の控えが扱えない」を含める。24 と同じ決めで、`gave_up` に残っていた最後の 1 件。
 
 ## 11 未確認

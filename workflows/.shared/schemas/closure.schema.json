@@ -1,0 +1,26 @@
+{
+ "description": "修正の block の閉鎖の表 closure.json {rows, claimed}（組めない時は {error}）。行は lib/querytest.py の save_closure の形",
+ "type": "object",
+ "properties": {
+  "rows": {
+   "type": "array",
+   "items": {
+    "type": "object",
+    "properties": {
+     "unit_key": {
+      "type": "string"
+     }
+    }
+   }
+  },
+  "claimed": {
+   "type": "array",
+   "items": {
+    "type": "string"
+   }
+  },
+  "error": {
+   "type": "string"
+  }
+ }
+}

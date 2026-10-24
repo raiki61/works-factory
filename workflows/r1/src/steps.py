@@ -46,7 +46,7 @@ def _checks(raw) -> tuple[str, str]:
     if _blank(raw):
         return "", NO_CHECKS
     try:
-        return str(ports.file(raw)), ""
+        return str(ports.file(raw, "file")), ""
     except ValueError as e:
         return "", CHECKS_UNREAD.format(why=oneline.one_line(e))
 
@@ -58,13 +58,13 @@ def _read_ports(raw: dict) -> tuple[dict, list]:
         "base": lambda v: ports.text(v).strip(),
         "purpose": lambda v: ports.text(v).strip(),
         "units": lambda v: [] if _blank(v) else ports.json(v, "shared:units.schema.json"),
-        "judgment": lambda v: _path(ports.file(v)),
-        "fixes": lambda v: [] if _blank(v) else ports.json(v, "r1-fixes.schema.json"),
-        "x_scalars": lambda v: {} if _blank(v) else ports.json(v, "r1-scalars.schema.json"),
+        "judgment": lambda v: _path(ports.file(v, "json(shared:judgment.schema.json)")),
+        "fixes": lambda v: [] if _blank(v) else ports.json(v, "shared:fixes.schema.json"),
+        "x_scalars": lambda v: {} if _blank(v) else ports.json(v, "shared:scalars.schema.json"),
         "green": lambda v: True if _blank(v) else ports.flag(v),
-        "after": lambda v: _path(ports.file(v)),
+        "after": lambda v: _path(ports.file(v, "json(shared:structure-after.schema.json)")),
         "review": lambda v: {} if _blank(v) else ports.json(v, "shared:plan-verdict.schema.json"),
-        "policy": lambda v: _path(ports.file(v)),
+        "policy": lambda v: _path(ports.file(v, "file")),
         "lang": lambda v: ports.text(v).strip(),
     }
     for name, read in readers.items():

@@ -3,27 +3,28 @@ description: '事前審査の block（docs/design/plan-review.md）。書く前�
 inputs:
   proposal:
     default: ''
-    description: 'text: 審査する物。修正案の役の返答（項目の行の plan と、前の往復の穴への答え block_answers を持つ。ファイルの pointer か、そのパスか、その JSON の値）か、方針の文だけ（字）。どちらかは入口が決める。proposal_file と一緒には名指さない。どちらも空なら入口が止める'
+    description: 'text: 審査する方針の文（字）。修正案を審査する時は入力 plan に渡す（ここに修正案の JSON の値・pointer・パスを渡しても修正案として読む）。plan・proposal_file と一緒には名指さない。どれも空なら入口が止める'
+  plan: {default: '', description: 'json(shared:fix-plan.schema.json): 審査する修正案（項目の行の plan と、前の往復の穴への答え block_answers を持つ）。pointer・パス・値のどれか。空の字は方針の文を審査する（proposal か proposal_file）'}
   proposal_file: {default: '', description: 'file: 方針の文のファイル。在れば中身を形 text の方針の文として読む（JSON の形でも方針の文）。proposal と一緒には名指さない。空は proposal を読む'}
-  fields: {default: '', description: 'json(review-fields.schema.json): 修正案の項目ごとの works の欄（{round, fields, amended?}）。pointer・パス・値のどれか。proposal が修正案の時は要る。空の字は渡されていない（形 text では読まない）'}
+  fields: {default: '', description: 'json(shared:plan-fields.schema.json): 修正案の項目ごとの works の欄（{round, fields, amended?}）。pointer・パス・値のどれか。proposal が修正案の時は要る。空の字は渡されていない（形 text では読まない）'}
   judgment: {default: '', description: 'json(shared:judgment.schema.json): 判定の出力（units・questions・precedents・framing・one_shot を読む）。pointer・パス・値のどれか。形 plan と replan では要る。空の字は渡されていない（形 text では読まない）'}
   purpose: {default: '', description: 'text: 元の目的の 1 文。空は渡されていない'}
-  design: {default: '', description: 'json(review-design.schema.json): 独立設計の返答 {question_stands, reason, premise_invalid_reason?, design, elements?}。pointer・パス・値のどれか。空の字は設計が無い'}
+  design: {default: '', description: 'json(shared:design.schema.json): 独立設計の返答 {question_stands, reason, premise_invalid_reason?, design, elements?}。pointer・パス・値のどれか。空の字は設計が無い'}
   design_why: {default: '', description: 'text: 設計が無い訳の 1 行（設計を作る側が返した訳）。空で設計も無ければ「独立設計の出力が渡されていない」と読む'}
-  world_rows: {default: '', description: 'file: 世界の解の行（world.jsonl）。空は世界の解の行が無い run（人に回しうる行の世界の軸は今どおりの決まり）'}
+  world_rows: {default: '', description: 'jsonl(lib:world-row.schema.json): 世界の解の行（world.jsonl）。空は世界の解の行が無い run（人に回しうる行の世界の軸は今どおりの決まり）'}
   means: {default: '[]', description: 'json(stated-means.schema.json): 依頼が示した解き方の文の配列（世界の解からの外れの決め手にならない物）。空の配列は示していない'}
-  structure: {default: '', description: 'file: 構造の目の控え（{status, reason, design_file, …}。design_file が設計の行の jsonl を指す）。空は構造の目が走っていない（控えを failed として写す）'}
-  ripple: {default: '', description: 'file: 修正案の項目ごとの波及の一覧（{items, overlaps, error?}）。空は一覧が無い（材料に一覧が無い訳を書く）'}
-  prior: {default: '', description: 'file: 前の往復までの往復の記録（往復の記録の形に、先行例の出典の確かめの控え precedent_checks を足した物）。空は 1 往復目（形 replan では承認済みの案が無いので failed）'}
+  structure: {default: '', description: 'json(shared:structure-state.schema.json): 構造の目の控え（{status, reason, design_file, …}。design_file が設計の行の jsonl を指す）。空は構造の目が走っていない（控えを failed として写す）'}
+  ripple: {default: '', description: 'json(shared:ripple.schema.json): 修正案の項目ごとの波及の一覧（{items, overlaps, error?}）。空は一覧が無い（材料に一覧が無い訳を書く）'}
+  prior: {default: '', description: 'json(shared:plan-converge.schema.json): 前の往復までの往復の記録（往復の記録の形に、先行例の出典の確かめの控え precedent_checks を足した物）。空は 1 往復目（形 replan では承認済みの案が無いので failed）'}
   tree: {default: 'auto', description: 'choice(on|off|auto): 項目ごとの下請けで木にするか。auto は開いた項目が 2 つ以上なら木。形 plan の時だけ効く'}
-  excluded: {default: '', description: 'file: 並行 PR と重なるので外した範囲。在れば役の頭に名指す。空は無い'}
+  excluded: {default: '', description: 'json(shared:excluded.schema.json): 並行 PR と重なるので外した範囲。在れば役の頭に名指す。空は無い'}
   policy: {default: '', description: 'file: 人の方針の文書を run の頭で固めた写し。空は方針が無い'}
-  recorded: {default: '[]', description: 'json(recorded.schema.json): 記録された方針の行の配列 [{source, name, text, lines?, alias?}]（承認ノードの人の答えの行を含めて組んだ物）。空の配列で policy が在れば、方針の文書の行だけを入口が組む'}
-  request: {default: '', description: 'file: 依頼のファイル（決め手の出どころの依頼の引用を照らす元）。空は無い'}
+  recorded: {default: '[]', description: 'json(shared:recorded.schema.json): 記録された方針の行の配列 [{source, name, text, lines?, alias?}]（承認ノードの人の答えの行を含めて組んだ物）。空の配列で policy が在れば、方針の文書の行だけを入口が組む'}
+  request: {default: '', description: 'json(shared:request.schema.json): 依頼のファイル（決め手の出どころの依頼の引用を照らす元）。空は無い'}
   review_rev: {default: '', description: 'text: 役が読む版（固めた版の commit）。空は HEAD'}
   diff_base: {default: '', description: 'text: 材料の BASE（入口の差分の根。後退の比べの基準）。空は review_rev と同じ'}
   ruling: {default: '', description: 'text: 裁かれた修正案の項目の番号（JSON の配列か、, で区切った番号の字。承認済みの案の 1 から数える）。空は形 replan でない'}
-  conflicts: {default: '', description: 'file: 修正の段の申し出と裁定（{items: [...]}）。形 replan の時だけ読む。空は無い'}
+  conflicts: {default: '', description: 'json(lib:conflicts.schema.json): 修正の段の申し出と裁定（{items: [...]}）。形 replan の時だけ読む。空は無い'}
   lang: {default: '', description: 'text: 人に見せる欄の言語。空は依頼の言語'}
 returns: finish
 outcome_field: ok
@@ -582,18 +583,24 @@ nodes:
           enum: ['', plan, replan, text]
         round: {type: integer, minimum: 0}
         reason: {type: string}
-        holes: &pointer
-          type: [object, 'null']
-          properties:
-            type:
-              type: string
-              enum: [archon_artifact]
-            run_id: {type: string}
-            path: {type: string}
+        holes:
+          <<: &pointer
+            type: [object, 'null']
+            additionalProperties: false
+            required: [type, run_id, path]
+            properties:
+              type:
+                type: string
+                enum: [archon_artifact]
+              run_id: {type: string}
+              path: {type: string}
+          description: 'json(shared:plan-review-reply.schema.json): 事前審査の返答（review.json）。返答が無ければ null'
         blocks:
           type: array
           items: {type: string}
-        pass: *pointer
+        pass:
+          <<: *pointer
+          description: 'json(shared:plan-review-pass.schema.json): この往復の控え（pass.json。形 plan で受けた時だけ）。無ければ null'
         asks:
           type: array
           items:
@@ -606,9 +613,20 @@ nodes:
               units:
                 type: array
                 items: {type: string}
-              mark: {type: object}
+              mark:
+                type: object
+                properties:
+                  decided_by: {type: string}
+                  undecided_because: {type: string}
+                  fences: {type: array, items: {type: string}}
+                  world: {type: string}
+                  recommend: {type: object, properties: {answer: {type: string}, note: {type: string}, why: {type: string}}}
+                  no_narrow: {type: string}
               decided: {type: boolean}
-              why: {type: object}
+              why:
+                type: object
+                patternProperties:
+                  '^.+$': {type: array, items: {type: string}}
         deviations:
           type: array
           items:
@@ -633,8 +651,17 @@ nodes:
                 items: {type: string}
               human:
                 type: array
-                items: {type: object}
-              widened: {type: [object, 'null']}
+                items:
+                  type: object
+                  properties:
+                    key: {type: string}
+                    kind: {type: string}
+                    why: {type: string}
+              widened:
+                type: [object, 'null']
+                properties:
+                  allowed_paths: {type: array, items: {type: string}}
+                  out_of_scope: {type: array, items: {type: string}}
         gave_up:
           type: [array, 'null']
           items:
@@ -644,7 +671,9 @@ nodes:
               item: {type: integer}
               why: {type: string}
               ruling: {type: string}
-        reads: *pointer
+        reads:
+          <<: *pointer
+          description: 'json(shared:reads.schema.json): 役が渡し物を読んだ証拠（reads-<役>.json）。無ければ null'
         report:
           type: array
           items: {type: string}

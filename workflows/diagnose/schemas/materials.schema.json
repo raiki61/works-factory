@@ -1,4 +1,9 @@
 {
-  "description": "素材の観点の block が返した material.json の pointer（かファイルのパス）の配列。要素の形（dict の pointer か空でない字）は src/inputs.py が 1 つずつ照らす",
-  "type": "array"
+  "description": "素材の観点の block が返した material.json の pointer（かファイルのパス）の配列",
+  "type": "array",
+  "items": {
+    "type": ["object", "string"],
+    "description": "json(shared:material.schema.json): 素材の観点の block の出口が書く素材の状態のファイル",
+    "properties": {"type": {"type": "string", "enum": ["archon_artifact"]}, "run_id": {"type": "string"}, "path": {"type": "string"}}
+  }
 }

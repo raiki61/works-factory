@@ -1,0 +1,30 @@
+{
+  "description": "案の直しの行（replan.json。書き手は修正案の block の形 replan の受け付けと事前審査の形 replan）{round, items: [lib/replan.py の TRIP_KEYS の行]}。old・new は修正案の項目の行",
+  "type": "object",
+  "properties": {
+    "round": {"type": "integer"},
+    "items": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "item": {"type": "integer"},
+          "units": {"type": "array", "items": {"type": ["string", "integer"]}},
+          "rows": {"type": ["object", "array", "string", "number", "boolean", "null"]},
+          "old": {"type": ["object", "null"], "description": "json(shared:plan-reply-item.schema.json): 直す前の項目の行"},
+          "brief": {"type": ["object", "array", "string", "number", "boolean", "null"]},
+          "new": {"type": ["object", "null"], "description": "json(shared:plan-reply-item.schema.json): 直した項目の行"},
+          "new_marks": {"type": ["object", "array", "string", "number", "boolean", "null"]},
+          "review": {"type": ["object", "array", "string", "number", "boolean", "null"]},
+          "contract_changed": {"type": ["object", "array", "string", "number", "boolean", "null"]},
+          "human_faces": {"type": ["object", "array", "string", "number", "boolean", "null"]},
+          "widened": {"type": ["object", "array", "string", "number", "boolean", "null"]},
+          "ask": {"type": ["object", "array", "string", "number", "boolean", "null"]},
+          "answer": {"type": ["object", "array", "string", "number", "boolean", "null"]},
+          "result": {"type": ["object", "array", "string", "number", "boolean", "null"]},
+          "why": {"type": ["object", "array", "string", "number", "boolean", "null"]}
+        }
+      }
+    }
+  }
+}

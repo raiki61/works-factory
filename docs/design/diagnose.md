@@ -40,15 +40,15 @@
 - `request_origin`（判定）: `text: 依頼の行の出どころの名（判定役に見せる依頼のバッチの origin。例「人の依頼（/path/req.json）」）。空は「人の依頼（依頼の行）」`。既定 `""`。
 - `objection`（両方）: `text: 修正役が判定に出した異議の文。空は判定の道、空でなければ再審の道`。既定 `""`。
 - `base`（判定）: `text: 対象差分の根の commit（この commit から作業ツリーの今の姿まで。未追跡の新しいファイルも入る）。空は HEAD`。既定 `""`。
-- `purpose`（両方）: `file: 固めた目的のファイル（purpose.json。{purpose_text, source, known_weaknesses, source_files}）。空は目的の文がこの run に無い`。既定 `""`。
+- `purpose`（両方）: `json(shared:purpose.schema.json): 固めた目的のファイル（purpose.json。{purpose_text, source, known_weaknesses, source_files}）。空は目的の文がこの run に無い`。既定 `""`。
 - `constraints`（判定）: `json(shared:constraints.schema.json): 前提の実測の行の配列か、それを constraints の欄に持つオブジェクト。空の配列は実測が無い`。既定 `[]`。
 - `materials`（判定）: `json(materials.schema.json): 素材の観点の block が返した material.json の pointer（かファイルのパス）の配列。空の配列は素材の観点が 1 つも回っていない`。既定 `[]`。
 - `pr_material`（判定）: `json(pr-material.schema.json): 並行 PR の素材の札 {status, count?, detail?, checked?, reason?}。null か空は並行 PR の確かめが回っていない`。既定 `"null"`。
-- `baseline`（判定）: `file: 直す前の試験の結末（試験の関門が直す前に書いた baseline.json）。素材 local_checks をここから写す。空は local_checks を not_run にする`。既定 `""`。
-- `world_rows`（両方）: `file: 世界の解の行のファイル（world.jsonl。1 行が依頼の 1 行）。空は世界の解の行が無い`。既定 `""`。
+- `baseline`（判定）: `json(lib:baseline.schema.json): 直す前の試験の結末（試験の関門が直す前に書いた baseline.json）。素材 local_checks をここから写す。空は local_checks を not_run にする`。既定 `""`。
+- `world_rows`（両方）: `jsonl(lib:world-row.schema.json): 世界の解の行のファイル（world.jsonl。1 行が依頼の 1 行）。空は世界の解の行が無い`。既定 `""`。
 - `row_asks`（判定）: `json(row-asks.schema.json): 頭の深さが依頼の行ごとに返した未知の種類の行 [{item, unknown, cause_quote, where?, code_quote?}]。空の配列は種類が決まっていない`。既定 `[]`。
 - `depth_why`（判定）: `text: 頭の深さの段の根拠の文（行ごとの種類が決まっていない run で、その訳として役に見せる）。空は「run の頭の深さの控えが無い」`。既定 `""`。
-- `spec_rows`（判定）: `file: 仕様が足した受け入れ条件の行のファイル（added-rows.json。依頼の行の配列）。空は足した行が無い`。既定 `""`。
+- `spec_rows`（判定）: `json(shared:request.schema.json): 仕様が足した受け入れ条件の行のファイル（added-rows.json。依頼の行の配列）。空は足した行が無い`。既定 `""`。
 - `spec_origin`（判定）: `text: 仕様が足した行の出どころの名（判定役に見せるバッチの origin）。spec_rows が在る時に要る`。既定 `""`。
 - `answers`（判定）: `json(answer-rows.schema.json): 依頼者が前の run の問いに答えた行 [{question, text, command?, output?}]。空の配列は request の容器の answers を使う`。既定 `[]`。
 - `prior_failures`（判定）: `json(shared:prior-failures.schema.json): 前の run が運んだ行 [{where, text}]（最後まで通らなかった物と、独立の目 R2 の作り直しの行）。request の容器の prior_failures の後ろに足す。空の配列は足す物が無い`。既定 `[]`。
@@ -56,10 +56,10 @@
 - `policy`（両方）: `file: 人の方針の文書を run の頭で固めた写し。空は方針が無い`。既定 `""`。
 - `prior`（再審）: `json(shared:judgment.schema.json): 考え直す 1 回目の判定（judgment.json の中身か、その pointer）。null か空は 1 回目の判定が無い（再審せずに止める）`。既定 `"null"`。
 - `prior_brief`（再審）: `file: 1 回目の判定役に渡した指示（組んだ指示のファイル。記録された方針・前の run の行・頭の深さの行・人の方針の本文を含む）。空は渡されていない`。既定 `""`。
-- `prior_inputs`（再審）: `file: 1 回目の判定役が読んだ材料のファイル（diagnose-input.json）。空は渡されていない`。既定 `""`。
-- `spec`（再審）: `file: 固めた仕様（spec.json）。空は仕様の段が無い`。既定 `""`。
-- `verify`（再審）: `file: 判定の裏取りの結果。空は裏取りが無い`。既定 `""`。
-- `excluded`（再審）: `file: 並行 PR の外す範囲（pr-excluded.json）。空は渡されていない`。既定 `""`。
+- `prior_inputs`（再審）: `json(shared:diagnose-input.schema.json): 1 回目の判定役が読んだ材料のファイル（diagnose-input.json）。空は渡されていない`。既定 `""`。
+- `spec`（再審）: `json(shared:spec.schema.json): 固めた仕様（spec.json）。空は仕様の段が無い`。既定 `""`。
+- `verify`（再審）: `json(shared:verify.schema.json): 判定の裏取りの結果。空は裏取りが無い`。既定 `""`。
+- `excluded`（再審）: `json(shared:excluded.schema.json): 並行 PR の外す範囲（pr-excluded.json）。空は渡されていない`。既定 `""`。
 - `request_files`（判定）: `json(request-files.schema.json): 依頼そのものを書いたファイルのパスの配列（対象のリポジトリの根からの相対パス）。単位の数える問いの探す所（`how.paths`）が全部この配列のファイルに当たる単位は、判定の返答の受け付けが拒む（数える問いが数えるのは直す所で、依頼の文ではない）。空の配列は照らさない`。既定 `"[]"`。仕様駆動の道が表と設計書のパスを渡す（[spec-driven.md](spec-driven.md) の 9 章）。比べ方は、`how.paths` の各項の頭の `./` と終わりの `/` を外した字が、依頼のファイルのどれかと同じか。paths が空・ディレクトリ・glob の単位は当たらないとして拒まない。名指した run だけ、判定役の指示に「依頼そのものを数えない」の段落が出る。
 - `lang`（両方）: `text: 人に見せる欄の言語（2.4・3.4 が名指す欄）。空は依頼の行の言語`。既定 `""`。
 
@@ -465,7 +465,7 @@ Return only JSON that matches the output schema.
 判定の道（読む順。どれかが読めなければそこで止め、`status: failed`・`due: false`。理由は「入力 <名>: <訳>」）:
 
 3. `request` を `requestrows.parts`（知らない鍵・下書きの行も拒む）で読む。字のままの空の配列 `[]` でない（ファイル・pointer・容器の形で渡した）のに行が空なら「入力 request: 依頼を渡したのに行が空…」で拒む（今の `check_request` の `minItems` 1。11 節の 29）。落ちれば `stop_reason: works:request`。ほかの入力の落ちは `works:judge`。
-4. 素材をそろえる（`assemble_materials`）: `materials` を `ports.json(raw, "materials.schema.json")` で読み、要素ごとに `ports.file`（dict は `json.dumps` してから）で解き、`materialkit.read` で読む。`pr_material` が空か `null` の字でなければ `ports.json(raw, "pr-material.schema.json")` で読み、 `{"role": "parallel-pr", "status": "ran", "reply": null, "materials": {"parallel_pr": <札>}, "base": null, "commits": null}` を並びの後ろに足す。`baseline` が在れば `baseline_local_checks(path)`（読めない・形が違えば `not_run` と訳。今のまま）、無ければ `local_checks` を足さない（`materialkit.assemble` が `not_run`「走っていない…」で埋める）。`materialkit.assemble(docs, local_checks=…)` の 15 欄を `materials.json` に書く。
+4. 素材をそろえる（`assemble_materials`）: `materials` を `ports.json(raw, "materials.schema.json")` で読み、要素ごとに `ports.file(…, "json(shared:material.schema.json)")`（dict は `json.dumps` してから）で中身を照らして解き、`materialkit.read` で読む。`pr_material` が空か `null` の字でなければ `ports.json(raw, "pr-material.schema.json")` で読み、 `{"role": "parallel-pr", "status": "ran", "reply": null, "materials": {"parallel_pr": <札>}, "base": null, "commits": null}` を並びの後ろに足す。`baseline` が在れば `baseline_local_checks(path)`（読めない・形が違えば `not_run` と訳。今のまま）、無ければ `local_checks` を足さない（`materialkit.assemble` が `not_run`「走っていない…」で埋める）。`materialkit.assemble(docs, local_checks=…)` の 15 欄を `materials.json` に書く。
 5. `view = materialkit.take_view(place, repo, base)`。`Reject` なら `works:judge`・「対象差分が取れない（<訳>）——判定役を起こさない」（今の字、`:2858`）。素材の `base_determination` が `not_run`（根を持つ素材の doc が 1 本も無い run）なら、今のとおり見方の根と commit の数で `{status: found, count: view.commits, detail: "<view.base>（始めの記録の差分の根。空なら HEAD）"}` に埋めてから `materials.json` に書く（`base_determination`。今の `lib/judge_accept.py` の素材の束ね）。
 6. 依頼のバッチ（`request_batches`）: 人の依頼の行（`request` の行）を `{round: 1, origin: request_origin か「人の依頼（依頼の行）」, findings}`、仕様の行（`spec_rows` を `ports.file` → JSON の配列）を `{round: 1, origin: spec_origin, findings}`。行の無いバッチは置かない（今の `request_batches`、`:1901-1910`）。`spec_rows` が在って `spec_origin` が空なら「入力 spec_origin: spec_rows の出どころの名が要る」で落とす。
 7. 材料のファイル（`input_doc`）を `diagnose-input.json` に書く。鍵と値:
@@ -522,7 +522,7 @@ prep は `prompt.PromptError` と値の読み落ち（`intake.json` が読めな
 4. 再審の道で `rejudge-exit.json` が無ければ `src/rejudge.py` の `collect(place)` で書く。出口の `ok` が真で `judgment.json` が在れば `status: ok`・`rejudge_verdict` は出口の最後の `verdicts`（`verdict_of`）。ほかは `status: failed`・`stop_reason: works:rejudge`・`reason` は出口の `reason`（無ければ 3 と同じ順の字で、役の名は `rejudge`）。
 5. `judgment.json` が無ければ `EMPTY_JUDGMENT`（`{units: [], questions: [], framing: "", one_shot: "", materials_missing: [], carried_r1: [], one_shot_closes: [], precedents: []}`）を書く。
 6. `status` が `ok` なら `units = judge.structure_units(judgment, repo, record=place / "structure-units-dropped.json")`・`questions` は台帳の `gatemarks.asks_human` の行・`ready = bool(units)`。ほかは `[]`・`[]`・`false`。
-7. pointer は `ports.pointer(path)` で、1.2 の条件のとおりファイルが在る時だけ（`judgment` はいつも）。`downgrades` は 1.2 の 1 行。`report` は 5.7。
+7. pointer は `ports.pointer(path, <欄の description の form>)` で（書く時に読み手と同じ形で照らす）、1.2 の条件のとおりファイルが在る時だけ（`judgment` はいつも。出口の fallback は形に合わない judgment.json を空の形に書き直してから指す）。`downgrades` は 1.2 の 1 行。`report` は 5.7。
 - 落ちない: 1〜7 の外の例外も捕まえ、`status: failed`・`stop_reason: works:judge`（再審なら `works:rejudge`）・`reason: "判定の出口が落ちた（<型>: <訳>）"`・`judgment` は place に `EMPTY_JUDGMENT` を書けた時だけ pointer（書けなければ fallback の返りの `judgment` は `{type: archon_artifact, run_id: <WORKFLOW_ID>, path: "judgment.json"}`）。今の `verdict.py` の `fallen`・`verdict_fallback` と同じ決まり（Archon は pointer の先が在るかを照らす）。出力が JSON に書けない（`allow_nan=False` で落ちる値）時も同じ fallback（今の `verdict.py` の終わり）。
 
 ### 5.7 報告の行（`src/report.py`）

@@ -12,7 +12,7 @@ independent-design の src/。fix だけが使う物は fix の src/board.py、�
 - run_diff・DIFF_EMPTY・diff_file・FIX_IN_DIFF_CORE: 直しの差分とその置き場
 - pr_revs(repo, base, head)・pr_diff(repo, base_sha, head_sha, skip, *opts)・pr_added_lines(repo, base_sha, head_sha, skip):
   審査する変更（起点 → 修正前の HEAD）の差分と、それが足した行（目の起点の訳と独立設計の制約の印が引く）
-- HUMAN_FACE_KINDS・UNIT_STATUSES・FIXED・GIVEN_UP・NOT_DONE・UNIT_LEFT・HANDOFF_HEAD: 単位の状態の語と人に回す穴の種類
+- UNIT_STATUSES・FIXED・GIVEN_UP・NOT_DONE・UNIT_LEFT・HANDOFF_HEAD: 単位の状態の語
 - accept_out・round_number・snapshot・touched_since・undeclared_writes・UNDECLARED: 受け付けの出口の形・輪の回・作業ツリーの木と
   そこからの変更・申告の無い書き込みの拒否の文
 
@@ -25,7 +25,6 @@ import types
 
 import jsonfile
 import oneline
-import policy
 import rolekit
 
 TRACE_FILE = "trace.jsonl"
@@ -277,9 +276,6 @@ def diff_file(repo, base, place, name: str, none_name: str, skip=()) -> tuple[pa
     (place / none_name).write_text((why or DIFF_EMPTY.format(base=rev)) + "\n", encoding="utf-8")
     return place / none_name, "", why
 
-
-# 差分の審査の受け付けが拒む穴の語（元 works/.shared/core/graphloops/rules/review-loop.py:4084-4087）
-HUMAN_FACE_KINDS = ("regression", policy.POLICY_KIND)
 
 
 def write_text(path, text: str) -> pathlib.Path:

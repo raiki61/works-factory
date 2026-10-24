@@ -127,7 +127,7 @@ class CompareRoadCase(_RepoCase):
     def test_premises_are_pasted_and_the_late_answers_are_split(self):
         """test_prep_pastes_the_premises_and_names_the_target_review_md の前提の半分・test_prep_reads_constraints_from_the_premises_input:
         独立設計が見た数より後の答えは「後に来た答え」に分かれ、前提のずれ・記録の制約が載る"""
-        request = self.write("request.md", "`docs/d.md` の 2 節のとおりに入口を直す")
+        request = self.write("request.json", json.dumps([{"where": "依頼", "text": "`docs/d.md` の 2 節のとおりに入口を直す"}], ensure_ascii=False))
         answers = {"start": {"decision": "continue", "text": "入口は 1 つに絞る"}, "before_fix": {"decision": "continue", "text": "古い入口は消してよい"}}
         constraints = [{"kind": "実測", "text": "1 デプロイは 2 リポジトリ", "measured_how": "grep"}]
         self.intake(answers=dump(answers), request=str(request), constraints=dump(constraints), lang="English",
@@ -162,7 +162,7 @@ class CompareRoadCase(_RepoCase):
         self.assertIn("The request file could not be read", text)
         ledger = json.loads((self.place / "r2-premises.json").read_text(encoding="utf-8"))
         self.assertIn({"kind": "named_section", "what": "依頼", "why": "依頼のファイルが渡っていない"}, ledger["withheld"])
-        self.intake(request=str(self.write("request.md", "依頼")))
+        self.intake(request=str(self.write("request.json", json.dumps([{"where": "依頼", "text": "依頼"}], ensure_ascii=False))))
         self.assertNotIn("The request file could not be read", self.compare()["prompt"])
 
     def test_notes_carry_the_unpassed_claims_and_what_was_given(self):
@@ -253,7 +253,7 @@ class PremiseSectionCase(_RepoCase):
         return json.loads((self.place / "r2-premises.json").read_text(encoding="utf-8"))
 
     def named(self, request: str) -> tuple:
-        self.intake(request=str(self.write("request.md", request)))
+        self.intake(request=str(self.write("request.json", json.dumps([{"where": "依頼", "text": request}], ensure_ascii=False))))
         text = self.compare()["prompt"]
         return text, self.ledger()
 
@@ -430,18 +430,16 @@ class SkippedRoadCase(_RepoCase):
         done = self.finish()
         self.assertEqual((done["status"], done["verdict"]["reason"]), ("skipped", "独立設計と比べなかった: 目的の文が空"))
 
-    def test_design_without_the_stands_field_is_not_compared(self):
-        self.intake(design=dump({"reason": "x"}))
-        done = self.finish()
-        self.assertEqual(done["verdict"]["reason"], "独立設計と比べなかった: 独立設計の返答に問いが立つかの欄（question_stands）が無い")
-        self.assertEqual(done["status"], "skipped")
-
-    def test_a_design_with_a_missing_field_is_not_due(self):
-        """design の値が missing の欄を持つ時は、問いが立つ・立たないと言っていても役を起こさない（形の照らしは余分な欄を通す）"""
-        for stands in (True, False):
-            with self.subTest(stands):
-                out = self.intake(design=dump({**STANDS, "question_stands": stands, "missing": "x"}))
+    def test_design_off_the_shared_shape_is_an_unreadable_port(self):
+        """独立設計の返答の形の正本は shared:design.schema.json の 1 つ（作り手の output_format の字のまま）: 問いが立つかの欄の無い値・
+        宣言の外の欄（missing など）を持つ値は skipped でなく、読めない port の failed（#851）"""
+        for value in ({"reason": "x", "design": ""}, {**STANDS, "missing": "x"}):
+            with self.subTest(value):
+                out = self.intake(design=dump(value))
                 self.assertEqual((out["compare"], out["premise"]), (False, False))
+                done = self.finish()
+                self.assertEqual((done["ok"], done["status"]), (False, "failed"))
+                self.assertIn("入力が読めない: 入力 design:", done["verdict"]["reason"])
 
 
 class FailureCase(_RepoCase):

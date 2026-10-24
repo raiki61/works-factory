@@ -13,7 +13,7 @@ import ports  # noqa: E402
 
 def compute():
     from src import finish
-    return finish.build(ports.place(), ports.pointer)
+    return finish.build(ports.place())
 
 
 def fallback(why):

@@ -198,7 +198,7 @@ class PrepCase(Whole):
     def test_prep_writes_only_copies_the_children_adopt(self):
         """prep（と intake）が place に書く入力の写しは、組の子が親から写す一覧 board.ADOPTED に全部載る（載らない写しは子で黙って
         空になる）"""
-        write(self.tmp / "in" / "ripple.json", [{"path": "stats.py"}])
+        write(self.tmp / "in" / "ripple.json", {"items": [{"item": 1, "unit_keys": ["A"]}], "overlaps": []})
         write(self.tmp / "in" / "baseline.json", {"cases": [], "exit": 0, "suite": "", "test_cmd": "", "rev": "HEAD"})
         inputs = self.prep_inputs(only='["1"]',
                                   answer_ties=json.dumps({"rounds": {"1": []}}), materials=json.dumps({"ci": {"status": "not_run"}}),

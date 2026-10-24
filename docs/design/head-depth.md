@@ -366,7 +366,7 @@ graphloops と元の works には、この役の受け付けに当たる物（�
 
 1. `intake.json` と、`headdepth.read_file(place / "depth-head.json")` の控えを読む。控えか `intake.json` が無い時（入口が落ちて何も書けなかった）は、標準の控えを書いてから、下の 4 の形（`status: failed`）で pointer を返す。
 2. `status` を決める: `intake.json` の `failed` が真 → `failed`（`reason` は `intake.json` の `reason`）。`due` が真で控えの `items` が空 → `failed`（`reason` は `rolekit.given_up_reason(place, "head-depth")`、それが空なら控えの `why`。役が 3 回拒まれたか、役が走らず返答が受け付けに届かなかった）。ほかは `ok`（`reason` は空）。
-3. 返り: `{ok: status == "ok", status, reason, tier: doc["depth"], why: doc["why"], rows: doc["items"], record: ports.pointer(place / "depth-head.json"), report: [report.report_line(doc["depth"], doc["why"])]}` を `ports.returns` で返す。
+3. 返り: `{ok: status == "ok", status, reason, tier: doc["depth"], why: doc["why"], rows: doc["items"], record: ports.pointer(place / "depth-head.json", "json(shared:depth-record.schema.json)"), report: [report.report_line(doc["depth"], doc["why"])]}` を `ports.returns` で返す。
 4. 控えが無い時も、どこで例外が出ても落ちず、`{ok: false, status: failed, reason: "<型>: <訳>", tier: 標準, why: <同じ訳>, rows: [], record: <控えを標準で書いた（無ければ書き直した）pointer>, report: [同じ形の 1 行]}` を返す。
 
 `finish` の `output_format`:

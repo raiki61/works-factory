@@ -240,7 +240,7 @@ def take(out, raw, repo) -> dict:
 # ---------------------------------------------------------------- 出口
 def _result(out, *, status: str, reason: str, doc: dict) -> dict:
     return {"ok": status == "ok", "status": status, "reason": reason, "tier": doc["depth"], "why": doc["why"],
-            "rows": doc["items"], "record": ports.pointer(pathlib.Path(out) / RECORD_FILE),
+            "rows": doc["items"], "record": ports.pointer(pathlib.Path(out) / RECORD_FILE, "json(shared:depth-record.schema.json)"),
             "report": [report.report_line(doc["depth"], doc["why"])]}
 
 

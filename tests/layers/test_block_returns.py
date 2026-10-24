@@ -524,7 +524,7 @@ class ShapesTest(unittest.TestCase):
         self.assertEqual(len(got), 1, got)
 
     def test_port_calls_name_a_declared_form_literally(self):
-        """block の口の呼びの形の名と form は字のままで、その block の宣言の form の組に在る"""
+        """block の口の呼びの形の名と form は字のままで、その block の宣言の form の組に在る。口を値として渡さない"""
         base = {PLAN: plan_reading("units", "json(shared:a.schema.json)"), LINE: LINE_TOP,
                 "workflows/.shared/schemas/a.schema.json": '{"type": "object", "properties": {"x": {"type": "string"}}}'}
         script = "workflows/plan/scripts/finish.py"
@@ -535,7 +535,8 @@ class ShapesTest(unittest.TestCase):
                  'ports.json(os.environ.get("INPUTS_UNITS"), "shared:b.schema.json")\n': ["宣言の form の組に無い"],
                  'ports.returns({"p": {"type": "archon_artifact", "run_id": "r", "path": "x.json"}})\n': ["札を手で組む"],
                  'ports.returns({"p": {"type": ports.POINTER_TYPE, "run_id": "r", "path": "x.json"}})\n': ["札を手で組む"],
-                 'ok = got.get("type") == ports.POINTER_TYPE\n': []}
+                 'ok = got.get("type") == ports.POINTER_TYPE\n': [],
+                 'read = ports.file\n': ["値として渡す"]}
         for code, words in cases.items():
             with self.subTest(code):
                 got = [p for p in self.problems({**base, script: code}) if "finish.py" in p]

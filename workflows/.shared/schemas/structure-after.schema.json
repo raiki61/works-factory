@@ -1,0 +1,48 @@
+{
+  "description": "直した後の構造の実測の控え（structure-after.json。書き手は構造の目の block の after の段 B。読み口は lib/structmark.py の read_after）",
+  "type": "object",
+  "properties": {
+    "status": {"type": "string", "enum": ["ok", "failed"]},
+    "reason": {"type": "string"},
+    "after": {
+      "type": "object",
+      "properties": {
+        "status": {"type": "string"},
+        "reason": {"type": "string"},
+        "base_rev": {"type": "string"},
+        "changed": {"type": "array", "items": {"type": "string"}},
+        "tables": {"type": "array", "items": {"type": "string"}},
+        "tables_changed": {"type": "array", "items": {"type": "string"}},
+        "fence_up": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "concept": {"type": "string"},
+              "what": {"type": "string"},
+              "path": {"type": "string"},
+              "before": {"type": "integer"},
+              "after": {"type": "integer"}
+            }
+          }
+        },
+        "new_names": {"type": "array", "items": {"type": ["object", "array", "string", "number", "boolean", "null"]}},
+        "dup_blocks_added": {"type": "integer"},
+        "timing": {"type": "object", "patternProperties": {"^.+$": {"type": ["number", "string", "boolean", "null"]}}}
+      }
+    },
+    "deviations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "item": {"type": "integer"},
+          "row": {"type": ["string", "number", "null"]},
+          "prescription": {"type": ["string", "number", "null"]},
+          "world": {"type": ["string", "number", "null"]},
+          "deviation": {"type": "string"}
+        }
+      }
+    }
+  }
+}

@@ -25,7 +25,6 @@ import jsonfile   # lib/
 import planmarks  # lib/
 import rolekit    # lib/
 import structmark  # lib/
-import worldmark  # lib/
 
 from src import files, ripple
 
@@ -67,67 +66,68 @@ def rows_of(doc, key: str) -> list:
 
 
 # ---------------------------------------------------------------- port の値を解く
-def nested_file(value, folder, name: str):
-    """入れ子の値（prior の欄）のパス。pointer の object と字（パス）は解き、ほかの値は周のフォルダ folder に name で写しを書いてそのパス。
-    null は None"""
+def nested_file(value, folder, name: str, read):
+    """入れ子の値（prior の欄）のパス。pointer の object と字（パス）はそのまま、ほかの値は周のフォルダ folder に name で写しを書いて、
+    口の呼び read（`lambda raw: ports.file(raw, "<宣言の form>")`）に渡す。先のファイルの中身は read が宣言の形で照らす。null は None"""
     if value is None:
         return None
-    if isinstance(value, dict) and value.get("type") == ports.POINTER_TYPE:
-        return ports.file(json.dumps(value))
     if isinstance(value, str):
-        return ports.file(value)
-    return files.write_json(pathlib.Path(folder) / name, value)
+        return read(value)
+    if isinstance(value, dict) and value.get("type") == ports.POINTER_TYPE:
+        return read(json.dumps(value))
+    return read(str(files.write_json(pathlib.Path(folder) / name, value)))
 
 
-def _located(raw: str, schema: str, folder, name: str):
-    """pointer・パス・値のどれかで渡された JSON の入力を (値, パス) に。値で渡された物は周のフォルダに name で写しを書く"""
-    value = ports.json(raw, schema)
+def _optional(name: str, unread: list, read, default=""):
+    """入力を口の呼び read で読む。読めない・形の違う入力は unread に名指して default（黙って空にせず、役に読めなかったと渡す）"""
     try:
-        path = ports.file(raw)
-    except ValueError:   # 値そのもの
-        path = None
-    return value, path if path is not None else files.write_json(pathlib.Path(folder) / name, value)
-
-
-def _optional_file(raw, name: str, unread: list):
-    try:
-        path = ports.file(raw)
-    except ValueError as e:
-        unread.append(f"{name}: {e}")
-        return ""
-    return str(path) if path else ""
-
-
-def _optional_json(raw, schema: str, name: str, unread: list, default):
-    try:
-        text = ports.text(raw)
-        return ports.json(text, schema) if text.strip() else default
+        got = read()
     except ValueError as e:
         unread.append(f"{name}: {e}")
         return default
+    return default if got is None else got
+
+
+def _text_of(raw) -> str | None:
+    """空の字なら None（json の口は空を拒むので、飛ばされうる入力の空を先に見分ける）"""
+    text = ports.text(raw)
+    return text if text.strip() else None
 
 
 def _prior(raw, folder) -> dict | None:
-    """port prior を値に。空は None（前の周が無い）。欄はパスにそろえる（pointer・パス・値のどれでも受ける）。読めなければ ValueError"""
+    """port prior を値に。空は None（前の周が無い）。欄はパスにそろえる（pointer・パス・値のどれでも受け、指す先を宣言の形で照らす）。
+    読めなければ ValueError"""
     text = ports.text(raw)
     if not text.strip():
         return None
-    doc = ports.json(text, "plan-prior.schema.json")
+    doc = ports.json(text, "shared:plan-prior.schema.json")
     out = {"round": doc["round"], "record": doc.get("record")}
-    for field, name in files.PRIOR_COPIES.items():
-        try:
-            out[field] = nested_file(doc.get(field), folder, name)
-        except ValueError:
-            if field in ("reply", "fields"):
-                raise
-            out[field] = None   # 無い指摘・前の周の控えは『受けていない』と読んで進む（今と同じ）
-        out[field] = str(out[field]) if out[field] is not None else None
+    copies = files.PRIOR_COPIES
+    out["reply"] = nested_file(doc.get("reply"), folder, copies["reply"], lambda v: ports.file(v, "json(shared:plan-reply.schema.json)"))
+    out["fields"] = nested_file(doc.get("fields"), folder, copies["fields"],
+                                lambda v: ports.file(v, "json(shared:plan-fields.schema.json)"))
     if out["reply"] is None or out["fields"] is None:
         raise ValueError("prior の reply・fields が無い")
+    # 無い指摘・前の周の控えは『受けていない』と読んで進む（今と同じ）。形の違う控えは読めないと名指して止める
+    optional = {"fix_plan": lambda v: ports.file(v, "json(shared:fix-plan.schema.json)"),
+                "ripple": lambda v: ports.file(v, "json(shared:ripple.schema.json)"),
+                "review": lambda v: ports.file(v, "json(shared:plan-review-reply.schema.json)")}
+    for field, read in optional.items():
+        try:
+            out[field] = nested_file(doc.get(field), folder, copies[field], read)
+        except ports.ShapeError:
+            raise
+        except ValueError:
+            out[field] = None
+    for field in ("reply", "fields", *optional):
+        out[field] = str(out[field]) if out[field] is not None else None
     out["handoffs"] = []
     for row in doc.get("handoffs") or []:
         try:
-            path = nested_file(row.get("handoff"), folder, f"prior-handoff-r{row['round']}.json")
+            path = nested_file(row.get("handoff"), folder, f"prior-handoff-r{row['round']}.json",
+                               lambda v: ports.file(v, "json(shared:handoff.schema.json)"))
+        except ports.ShapeError:
+            raise
         except ValueError:
             path = None   # 控えが無い周は『メモ無し』と名指す（今と同じ）
         out["handoffs"].append({"round": row["round"], "handoff": str(path) if path else None})
@@ -152,8 +152,7 @@ def intake(place, repo, k: int, raw: dict) -> dict:
     unread: list[str] = []
     ruling: list = []
     try:
-        text = ports.text(raw["ruling"])
-        ruling = ports.json(text, "replan-items.schema.json") if text.strip() else []
+        ruling = ports.json(_text_of(raw["ruling"]) or "[]", "replan-items.schema.json")
     except ValueError as e:
         why.append(f"ruling が読めない（{e}）")
     mode = "replan" if ruling else "plan"
@@ -177,25 +176,42 @@ def intake(place, repo, k: int, raw: dict) -> dict:
     ctx["judgment"] = ""
     if judgment_text.strip():
         try:
-            judgment_doc, path = _located(judgment_text, "shared:judgment.schema.json", folder, files.JUDGMENT_COPY)
+            judgment_doc = ports.json(judgment_text, "shared:judgment.schema.json")
+            try:
+                path = ports.file(judgment_text, "json(shared:judgment.schema.json)")
+            except ValueError:   # 値そのもの
+                path = files.write_json(folder / files.JUDGMENT_COPY, judgment_doc)
             ctx["judgment"] = str(path)
         except ValueError as e:
             _unreadable(mode, why, unread, "judgment", e)
     elif mode == "plan":
         why.append("judgment が読めない（空）")
-    for name in ("answer_ties", "materials", "verify", "excluded", "depth_record", "decisions", "structure", "spec", "policy", "conflicts"):
-        ctx[name] = _optional_file(raw[name], name, unread)
+    path_of = lambda got: str(got) if got else ""   # noqa: E731
+    ctx["answer_ties"] = path_of(_optional("answer_ties", unread, lambda: ports.file(raw["answer_ties"],
+                                                                                    "json(shared:answer-ties.schema.json)")))
+    ctx["materials"] = path_of(_optional("materials", unread, lambda: ports.file(raw["materials"], "json(shared:materials-state.schema.json)")))
+    ctx["verify"] = path_of(_optional("verify", unread, lambda: ports.file(raw["verify"], "json(shared:verify.schema.json)")))
+    ctx["excluded"] = path_of(_optional("excluded", unread, lambda: ports.file(raw["excluded"], "json(shared:excluded.schema.json)")))
+    ctx["depth_record"] = path_of(_optional("depth_record", unread, lambda: ports.file(raw["depth_record"],
+                                                                                      "json(shared:depth-record.schema.json)")))
+    ctx["decisions"] = path_of(_optional("decisions", unread, lambda: ports.file(raw["decisions"], "json(shared:material.schema.json)")))
+    ctx["structure"] = path_of(_optional("structure", unread, lambda: ports.file(raw["structure"],
+                                                                                "json(shared:structure-state.schema.json)")))
+    ctx["spec"] = path_of(_optional("spec", unread, lambda: ports.file(raw["spec"], "json(shared:spec.schema.json)")))
+    ctx["spec_doc"] = path_of(_optional("spec_doc", unread, lambda: ports.file(raw.get("spec_doc"), "file")))
+    ctx["policy"] = path_of(_optional("policy", unread, lambda: ports.file(raw["policy"], "file")))
+    ctx["conflicts"] = path_of(_optional("conflicts", unread, lambda: ports.file(raw["conflicts"], "json(lib:conflicts.schema.json)")))
     ctx["world_rows"] = ""
     try:
-        path = ports.file(raw["world_rows"])
+        path = ports.file(raw["world_rows"], "jsonl(lib:world-row.schema.json)")
         if path:
-            worldmark.rows(str(path))   # 行の形を先に照らす（読めなければ ValueError）
             ctx["world_rows"] = str(path)
     except ValueError as e:
         _unreadable(mode, why, unread, "world_rows", e, holds=True)
-    ctx["units"] = _optional_json(raw["units"], "unit-catalog.schema.json", "units", unread, [])
-    ctx["answers"] = _optional_json(raw["answers"], "request-answers.schema.json", "answers", unread, [])
-    ctx["prior_failures"] = _optional_json(raw["prior_failures"], "shared:prior-failures.schema.json", "prior_failures", unread, [])
+    ctx["units"] = _optional("units", unread, lambda: ports.json(_text_of(raw["units"]) or "[]", "shared:units.schema.json"), [])
+    ctx["answers"] = _optional("answers", unread, lambda: ports.json(_text_of(raw["answers"]) or "[]", "shared:request-answers.schema.json"), [])
+    ctx["prior_failures"] = _optional("prior_failures", unread, lambda: ports.json(_text_of(raw["prior_failures"]) or "[]",
+                                                                                    "shared:prior-failures.schema.json"), [])
     try:
         ctx["takes_push"] = ports.flag(raw["takes_push"])
     except ValueError as e:
@@ -435,11 +451,6 @@ def placeholders(folder, reason: str) -> dict:
     return {"plan": plan, "ripple": rip}
 
 
-def _pointer(folder, name: str):
-    path = pathlib.Path(folder) / name
-    return ports.pointer(path) if path.is_file() else None
-
-
 def status_of(folder, rnd: dict, fields) -> tuple:
     """(status, reason)。status は ok・nothing_owed・held・gave_up・failed（docs/design/plan.md の 1.2）"""
     folder = pathlib.Path(folder)
@@ -454,7 +465,7 @@ def status_of(folder, rnd: dict, fields) -> tuple:
     error = files.read_json(folder / files.PROMPT_ERROR)
     if isinstance(error, dict):
         return "failed", f"指示が組めない（{error.get('node')}: {error.get('why')}）"
-    if rnd.get("halt"):   # 受けた案の控えを置けない機械の故障。役が回数を使い切った gave_up ではない
+    if rnd.get("halt"):   # 受けた案の控えを置けない・差し込んだ閉じた項目の行が形に合わない機械の故障。役が回数を使い切った gave_up ではない
         return "failed", str(rnd["why"])
     try:
         given = rolekit.given_up_reason(folder, files.ROLE)
@@ -501,8 +512,12 @@ def finish(place) -> dict:
     judgment = read_judgment(ctx) if ctx and rnd["mode"] == "plan" else None
     owed = owed_order(judgment) if isinstance(judgment, dict) else []
     return {"ok": status == "ok", "status": status, "reason": reason, "mode": rnd["mode"], "round": rnd["round"], "owed": owed,
-            "plan": ports.pointer(paths["plan"]), "fix_plan": _pointer(folder, files.FIX_PLAN), "reply": _pointer(folder, files.REPLY),
-            "handoff": _pointer(folder, files.HANDOFF), "replan": _pointer(folder, files.REPLAN), "ripple": ports.pointer(paths["ripple"]),
+            "plan": ports.pointer(paths["plan"], "json(shared:plan-fields.schema.json)"),
+            "fix_plan": ports.pointer(folder / files.FIX_PLAN, "json(shared:fix-plan.schema.json)") if (folder / files.FIX_PLAN).is_file() else None,
+            "reply": ports.pointer(folder / files.REPLY, "json(shared:plan-reply.schema.json)") if (folder / files.REPLY).is_file() else None,
+            "handoff": ports.pointer(folder / files.HANDOFF, "json(shared:handoff.schema.json)") if (folder / files.HANDOFF).is_file() else None,
+            "replan": ports.pointer(folder / files.REPLAN, "json(shared:replan.schema.json)") if (folder / files.REPLAN).is_file() else None,
+            "ripple": ports.pointer(paths["ripple"], "json(shared:ripple.schema.json)"),
             "rejects": rejects, "gave_up": gave_up, "report": report_lines(status, reason, rnd, fields, rejects, gave_up)}
 
 

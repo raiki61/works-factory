@@ -89,14 +89,22 @@ nodes:
         act: { type: string }
         word: { type: string }
         text: { type: string }
-        request: { type: string }
+        request: { type: string, description: 'json(shared:request.schema.json): この周の依頼のファイル' }
         base: { type: string }
         pr: { type: string }
         spec: { type: string }
-        rows: { type: array, items: { type: object } }
+        # 前までの周の行（周の決めのノード decide が組み、final-diff が files・diff を足す）
+        rows: { type: array, items: &round_row
+                  { type: object, properties: { n: { type: integer }, run: { type: string }, outcome: { type: string }, kind: { type: [string, "null"] },
+                    keys: { type: array, items: { type: string } }, held: { type: integer }, same_tree: { type: boolean },
+                    cost: { type: [number, "null"] }, cost_read: { type: boolean }, minutes: { type: [number, "null"] },
+                    head: { type: string }, placed: { type: boolean }, r2_status: { type: [string, "null"] },
+                    spec_questions: { type: integer }, request: { type: string }, source: { type: string },
+                    act: { type: string }, word: { type: string }, text: { type: string }, files: { type: integer },
+                    diff: { type: string } } } }
         rounds: { type: integer }
         budget: { type: [number, "null"] }
-        first_request: { type: string }
+        first_request: { type: string, description: 'json(shared:request.schema.json): 最初の周の依頼のファイル' }
         first_pr: { type: integer }
         origin: { type: string }
         deliver: { type: string }
@@ -161,7 +169,10 @@ nodes:
           error: { type: string }
           run: { type: string }
           keys: { type: array, items: { type: string } }
-          held_rows: { type: array, items: { type: object } }
+          # 運ばなかった下書きの行（依頼の行か答えの行。下書きの印 draft・source を持つ）
+          held_rows: { type: array, items: { type: object, properties: { where: { type: string }, text: { type: string },
+                                                                        draft: { type: [object, array, string, number, boolean, "null"] },
+                                                                        source: { type: string } } } }
           request: { type: string }
           source: { type: string }
           cost: { type: [number, "null"] }
@@ -187,11 +198,11 @@ nodes:
           act: { type: string }
           word: { type: string }
           text: { type: string }
-          request: { type: string }
+          request: { type: string, description: 'json(shared:request.schema.json): 次の周の依頼のファイル（止める時は空の字）' }
           base: { type: string }
           pr: { type: string }
           spec: { type: string }
-          rows: { type: array, items: { type: object } }
+          rows: { type: array, items: *round_row }
         required: [act, word, text, request, base, pr, spec, rows]
       mutates_checkout: false
     depends_on: [round-1-facts]
@@ -360,9 +371,31 @@ nodes:
       properties:
         ok: { type: boolean }
         reason: { type: string }
-        apply: { type: [object, "null"] }
-        sealed: { type: [object, "null"], properties: { hash: { type: string } } }
-        report: { type: [object, "null"] }
+        # 封じた最後の差分（sealed）に、最後の差分に入る周の子がどれも差分を置いたか（ok・reason）を重ねた物
+        apply: &final_apply
+          type: [object, "null"]
+          properties:
+            ok: { type: boolean }
+            hash: { type: string }
+            diff: &diff_pointer
+              type: object
+              additionalProperties: false
+              required: [type, run_id, path]
+              description: 'file: 元の基から採る周までの封じた最後の差分'
+              properties: &pointer_fields
+                type: { type: string, enum: [archon_artifact] }
+                run_id: { type: string }
+                path: { type: string }
+            reason: { type: string }
+        sealed: &final_sealed
+          type: [object, "null"]
+          properties: { ok: { type: boolean }, hash: { type: string }, diff: *diff_pointer }
+        report: &chain_report
+          type: [object, "null"]
+          additionalProperties: false
+          required: [type, run_id, path]
+          description: 'file: 周ごとの表（chain.md）'
+          properties: *pointer_fields
         kept: { type: integer }
         skipped: { type: array, items: { type: integer } }
         outcome: { type: string }
@@ -409,16 +442,24 @@ nodes:
         act: { type: string }
         word: { type: string }
         text: { type: string }
-        request: { type: string }
-        rounds: { type: array, items: { type: object } }
-        apply: { type: [object, "null"] }
-        sealed: { type: [object, "null"] }
-        report: { type: [object, "null"] }
+        request: { type: string, description: 'json(shared:request.schema.json): 次の周の依頼のファイル' }
+        rounds: { type: array, items: *round_row }
+        apply: *final_apply
+        sealed: *final_sealed
+        report: *chain_report
         outcome: { type: string }
         r2_status: { type: [string, "null"] }
         spec_questions: { type: integer }
         stop_reason: { type: string }
-        deliver: { type: [object, "null"] }
+        # 出口の語 pr の時の渡しの結末（merge の返りの deliver か、渡しが走らなかった訳）。pr でなければ null
+        deliver:
+          type: [object, "null"]
+          properties:
+            act: { type: string }
+            pr: { type: [object, "null"], properties: { number: { type: integer }, url: { type: string }, is_draft: { type: boolean } } }
+            commits: { type: [object, array, string, number, boolean, "null"] }
+            split: { type: string }
+            reason: { type: string }
       required: [closed, ok, reason, act, word, text, request, rounds, apply, sealed, report, outcome, r2_status, spec_questions,
                  stop_reason, deliver]
     mutates_checkout: false

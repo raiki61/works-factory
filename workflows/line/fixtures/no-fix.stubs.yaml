@@ -62,10 +62,10 @@ judge__diagnose-in:
   materials: []
   missing: []
   pr_material: null
-  world_rows: ''
+  world_rows: null
   row_asks: []
   depth_why: ''
-  spec_rows: ''
+  spec_rows: null
   spec_origin: ''
   tier: 標準
   verify: false

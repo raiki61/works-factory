@@ -127,7 +127,7 @@ def assemble_materials(raw_items, raw_card):
     for i, item in enumerate(raw_items):
         if not (isinstance(item, dict) or (isinstance(item, str) and item.strip())):
             raise ValueError(f"materials[{i}] が pointer でもパスでもない（{item!r:.60}）")
-        path = ports.file(json.dumps(item) if isinstance(item, dict) else item)
+        path = ports.file(json.dumps(item) if isinstance(item, dict) else item, "json(shared:material.schema.json)")
         if path is None:
             raise ValueError(f"materials[{i}] が空")
         docs.append((path, materialkit.read(path)))
@@ -179,24 +179,27 @@ def _judge_prep(place: pathlib.Path, repo, raw: dict) -> tuple:
     rows = request[carry.FINDINGS]
     request_origin = ports.text(raw.get("request_origin")).strip()
     base = ports.text(raw.get("base")).strip()
-    purpose = _port("purpose", lambda: ports.file(raw.get("purpose")))
+    purpose = _port("purpose", lambda: ports.file(raw.get("purpose"), "json(shared:purpose.schema.json)"))
     constraints = _port("constraints", lambda: _constraint_rows(ports.json(raw.get("constraints"), "shared:constraints.schema.json")))
     raw_items = _port("materials", lambda: ports.json(raw.get("materials"), "materials.schema.json"))
-    baseline = _port("baseline", lambda: ports.file(raw.get("baseline")))
-    world_path = _port("world_rows", lambda: ports.file(raw.get("world_rows")))
+    try:   # 読めない・形の違う結末は判定を止めず、素材 local_checks を not_run にして訳を名指す（baseline_local_checks と同じ扱い）
+        baseline, baseline_why = ports.file(raw.get("baseline"), "json(lib:baseline.schema.json)"), ""
+    except ValueError as e:
+        baseline, baseline_why = None, f"直す前の結末が読めない: {oneline.one_line(e)}"
+    world_path = _port("world_rows", lambda: ports.file(raw.get("world_rows"), "jsonl(lib:world-row.schema.json)"))
     row_asks = _port("row_asks", lambda: ports.json(raw.get("row_asks"), "row-asks.schema.json"))
-    spec_path = _port("spec_rows", lambda: ports.file(raw.get("spec_rows")))
+    spec_path = _port("spec_rows", lambda: ports.file(raw.get("spec_rows"), "json(shared:request.schema.json)"))
     spec_origin = ports.text(raw.get("spec_origin")).strip()
     port_answers = _port("answers", lambda: ports.json(raw.get("answers"), "answer-rows.schema.json"))
     port_prior = _port("prior_failures", lambda: ports.json(raw.get("prior_failures"), "shared:prior-failures.schema.json"))
-    policy_path = _port("policy", lambda: ports.file(raw.get("policy")))
+    policy_path = _port("policy", lambda: ports.file(raw.get("policy"), "file"))
     request_files = _port("request_files", lambda: ports.json(raw.get("request_files") or "[]", "request-files.schema.json"))
     answers = port_answers or request[carry.ANSWERS]
     spec_rows = _port("spec_rows", lambda: _spec_rows(spec_path, spec_origin))
     world = _port("world_rows", lambda: worldmark.rows(world_path) if world_path else None)
     docs = _port("materials", lambda: assemble_materials(raw_items, raw.get("pr_material")))
     by_role = {str(doc.get("role") or ""): doc for _, doc in docs}
-    local = baseline_local_checks(baseline) if baseline else None
+    local = baseline_local_checks(baseline) if baseline else {"status": "not_run", "reason": baseline_why} if baseline_why else None
     mats = materialkit.assemble([doc for _, doc in docs], local_checks=local)
     mats = {name: mats[name] for name in files.MATERIALS}   # この block が読む素材の欄だけ（files.MATERIALS。gate_efficacy は含めない）
     try:
@@ -273,8 +276,15 @@ def _rejudge_prep(place: pathlib.Path, repo, raw: dict, objection: str) -> tuple
     if _blank(prior_raw):
         raise Stop("failed", files.REJUDGE_SESSION_STOP, "1 回目の判定（judgment.json）が無い——判定の道を通っていない run。再審せずに止めた")
     judgment = _port("prior", lambda: ports.json(prior_raw, "shared:judgment.schema.json"), files.REJUDGE_STOP)
-    paths = {name: _port(name, lambda name=name: ports.file(raw.get(name)), files.REJUDGE_STOP)
-             for name in ("prior_brief", "prior_inputs", "world_rows", "purpose", "spec", "verify", "excluded", "policy")}
+    readers = {"prior_brief": lambda v: ports.file(v, "file"),
+               "prior_inputs": lambda v: ports.file(v, "json(shared:diagnose-input.schema.json)"),
+               "world_rows": lambda v: ports.file(v, "jsonl(lib:world-row.schema.json)"),
+               "purpose": lambda v: ports.file(v, "json(shared:purpose.schema.json)"),
+               "spec": lambda v: ports.file(v, "json(shared:spec.schema.json)"),
+               "verify": lambda v: ports.file(v, "json(shared:verify.schema.json)"),
+               "excluded": lambda v: ports.file(v, "json(shared:excluded.schema.json)"),
+               "policy": lambda v: ports.file(v, "file")}
+    paths = {name: _port(name, lambda name=name, read=read: read(raw.get(name)), files.REJUDGE_STOP) for name, read in readers.items()}
     try:
         _write(place / files.TREE_FILE, accept.tree_state(pathlib.Path(repo)))
     except Reject as e:

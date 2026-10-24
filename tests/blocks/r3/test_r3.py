@@ -381,8 +381,9 @@ class RecordedPolicyCase(_RepoCase):
         self.assertIn("  - name `docs/d.md:3`: 入口——1 つ", self.prompt())
 
     def test_unreadable_request_content_does_not_stop_the_role(self):
-        """依頼のファイルの中身が読めなくても止めない: answers は空にして、訳を intake.json の unread に残す。finish は落ちない"""
-        request = self.write("request.json", "{")
+        """依頼のファイルの中身が依頼の形に合わなくても止めない: answers は空にして、訳を intake.json の unread に残す。finish は落ちない
+        （JSON として読めないファイルは port の誤り。#851 で ports.file が形を照らすようになった）"""
+        request = self.write("request.json", '{"findings": 3}')
         self.assertEqual(self.intake(request=str(request)), {"due": True, "reason": ""})
         doc = self.intake_json()
         self.assertTrue(doc["unread"], doc)

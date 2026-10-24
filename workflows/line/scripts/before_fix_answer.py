@@ -54,7 +54,7 @@ def compute() -> dict:
                        pushed=ports.parsed(raw["pushed"]))
     frozen = str(given.get("policy") or "")
     if got["go"] and got["answer"] is not None and ports.flag(raw["policy_changed"]):
-        frozen = refreeze(ports.file(raw["record"]), startrec, policy)
+        frozen = refreeze(ports.file(raw["record"], "json(start-record.schema.json)"), startrec, policy)
     return {**got, "policy": frozen}
 
 

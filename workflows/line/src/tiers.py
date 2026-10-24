@@ -322,7 +322,7 @@ def consulted_units(rows) -> list:
 def late_records(fix, resolve) -> dict:
     """fix の返り（欄 tdd_refused {refused, unread} と accept_trace の pointer）の、修正の後に深さを上げる信号の元
     {refused, trace, missing, unread}（元 lib/fixbeside.py の late_records。fix の出力の欄を直に読む）。accept_trace が null なら
-    missing に名を、在るのに読めない・{"error"}・行の配列でない時は unread に訳を足す。resolve は pointer → パス"""
+    missing に名を、在るのに読めない・{"error"}・行の配列でない時は unread に訳を足す。resolve は (pointer, 欄の名) → パス（stages.resolve）"""
     got: dict = {"refused": [], "trace": None, "missing": [], "unread": []}
     if not isinstance(fix, dict):
         got["unread"].append("修正の段の出力が dict でない")
@@ -337,7 +337,7 @@ def late_records(fix, resolve) -> dict:
         got["missing"].append(ACCEPT_TRACE)
         return got
     try:
-        path = pathlib.Path(resolve(fix["accept_trace"]))
+        path = pathlib.Path(resolve(fix["accept_trace"], "accept_trace"))
         doc = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, ValueError, TypeError, KeyError) as e:
         got["unread"].append(f"修正の控え accept_trace が読めない（{type(e).__name__}: {e}）")

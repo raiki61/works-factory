@@ -59,8 +59,8 @@ def diagnose_values(received: dict, verify_by_tier: dict) -> dict:
     return {"ok": True, "reason": "", "go": premises.get("ok") is True and purpose.get("ok") is True,
             "purpose": purpose.get("purpose"), "constraints": premises.get("constraints"), "materials": materials, "missing": missing,
             "pr_material": pr.get("material") if isinstance(pr, dict) else None,
-            "world_rows": (world.get("rows") or "") if isinstance(world, dict) else "",
+            "world_rows": world.get("rows") if isinstance(world, dict) else None,
             "row_asks": (head.get("rows") or []) if head else [],
             "depth_why": str(head.get("why") or "") if head else "",
-            "spec_rows": spec.get("added_rows") or "", "spec_origin": str(spec.get("added_origin") or ""),
+            "spec_rows": spec.get("added_rows"), "spec_origin": str(spec.get("added_origin") or ""),
             "tier": tier, "verify": verify}

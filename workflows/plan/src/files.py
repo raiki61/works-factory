@@ -106,8 +106,8 @@ def next_round(place, raw_prior) -> int:
     if not text.strip():
         return 1
     try:
-        return int(ports.json(text)["round"]) + 1
-    except (ValueError, KeyError, TypeError, OSError):
+        return int(ports.json(text, "shared:plan-prior.schema.json")["round"]) + 1
+    except (ValueError, KeyError, TypeError, OSError, ImportError):   # lib（形の照らし）が読めない入口の fallback も同じ式で決める
         return highest_round(place) + 1
 
 
@@ -129,21 +129,38 @@ def filled(path) -> bool:
     return path.is_file() and path.stat().st_size > 0
 
 
+def _sound(point, path, minimal):
+    """point（字のままの form で指す ports.pointer の呼び）で指す。無い・空・形に合わないファイルは minimal に書き直してから指し直す
+    （落ちない出口の中で、形の照らしの誤りを投げ直さない）。lib（形の照らし）が読めず照らせない時は、照らさずに指さず None（訳は返りの
+    reason が持つ）"""
+    try:
+        if filled(path):
+            return point()
+    except Exception:  # noqa: BLE001 — 出口は落ちない。形の外れた控えは下で書き直す
+        pass
+    try:
+        write_json(path, minimal)
+    except OSError:   # 一時のファイルを置けない時も、出口は約束の形で返す（中身を直に書く）
+        pathlib.Path(path).write_text(json.dumps(minimal, ensure_ascii=False) + "\n", encoding="utf-8")
+    try:
+        return point()
+    except ImportError:
+        return None
+
+
 def crash_finish(place, why: str) -> dict:
-    """出口の中で落ちた時の返り。標準ライブラリだけで、在って空でない plan-fields.json・ripple.json を置き、訳を finish-error.txt に書いて
-    status failed の約束の形を返す"""
+    """出口の中で落ちた時の返り。在って空でなく形に合う plan-fields.json・ripple.json を置き（形に合わない物は「無い」を表す形に書き直す）、
+    訳を finish-error.txt に書いて status failed の約束の形を返す"""
     place = pathlib.Path(place)
     k = round_no(place)
     d = round_dir(place, k)
     try:
         d.mkdir(parents=True, exist_ok=True)
         (d / FINISH_ERROR).write_text(why + "\n", encoding="utf-8")
-        if not filled(d / FIELDS):
-            write_json(d / FIELDS, {"round": k, "fields": []})
-        if not filled(d / RIPPLE):
-            write_json(d / RIPPLE, {"items": [], "error": why})
     except OSError:
         pass
-    return {"ok": False, "status": "failed", "reason": why, "mode": "plan", "round": k, "owed": [], "plan": ports.pointer(d / FIELDS),
-            "fix_plan": None, "reply": None, "handoff": None, "replan": None, "ripple": ports.pointer(d / RIPPLE), "rejects": [],
+    plan = _sound(lambda: ports.pointer(d / FIELDS, "json(shared:plan-fields.schema.json)"), d / FIELDS, {"round": k, "fields": []})
+    ripple = _sound(lambda: ports.pointer(d / RIPPLE, "json(shared:ripple.schema.json)"), d / RIPPLE, {"items": [], "error": why})
+    return {"ok": False, "status": "failed", "reason": why, "mode": "plan", "round": k, "owed": [], "plan": plan,
+            "fix_plan": None, "reply": None, "handoff": None, "replan": None, "ripple": ripple, "rejects": [],
             "gave_up": None, "report": [f"修正案: 周 {k}・修正案を出せなかった（failed）: {why}"]}

@@ -38,7 +38,7 @@ def read(modes) -> dict:
     mode = ports.text(RAW["mode"]).strip()
     if mode not in modes:
         raise ValueError(f"mode は {'・'.join(modes)} のどれか: {mode}")
-    baseline = port("baseline", ports.file, None) if mode == "final" else None   # base では渡されても読まない
+    baseline = port("baseline", lambda r: ports.file(r, "json(lib:baseline.schema.json)"), None) if mode == "final" else None   # base では渡されても読まない
     text = lambda name: ports.text(RAW[name]).strip()   # noqa: E731
     scope = port("request_scope", ports.flag, False)
     # 依頼の行を要るのは、範囲を依頼で絞る base だけ。ほかは読めない依頼で関門を落とさず [] にする（今の工場は where を足さないだけ）

@@ -48,7 +48,6 @@ import policy      # lib/。RECORDED_KEY
 import rolekit     # lib/。却下の控えと合わせた答えの控えの名
 import structmark  # lib/
 import worldmark   # lib/
-from engine.schema import validate_schema   # lib/graphloops/engine/schema.py
 
 from src import files, marks, proof, report, view
 
@@ -119,22 +118,23 @@ def _port(name: str, read):
         raise ValueError(f"入力 {name}: {oneline.one_line(str(e))}") from None
 
 
-def _shaped(name: str, value, shape: dict, what: str):
-    errors = validate_schema(value, shape)
-    if errors:
-        raise ValueError(f"入力 {name}: {what}の形に合わない: {' / '.join(errors[:5])}")
-    return value
+PLAN_SCHEMA = "shared:fix-plan.schema.json"   # 審査する修正案の形（入力 plan の宣言と同じ名）
 
 
-def proposal_of(raw: dict) -> str:
-    """審査する物の字: 入力 proposal か、入力 proposal_file（方針の文のファイル。在れば中身を形 text の方針の文として読む）。
-    2 つを一緒に名指せば ValueError（どちらで読んだかを黙って決めない）"""
+def proposal_of(raw: dict):
+    """審査する物: 入力 plan（修正案。宣言の形で照らした値）か、入力 proposal の字か、入力 proposal_file（方針の文のファイル。在れば中身を
+    形 text の方針の文として読む）。2 つ以上を一緒に名指せば ValueError（どれで読んだかを黙って決めない）。読めない先は、一緒に名指した
+    ことより先に入力の名つきで名指す。返りは修正案の dict か字"""
     named = ports.text(raw.get("proposal_file")).strip()
+    given = [name for name in ("plan", "proposal", "proposal_file") if ports.text(raw.get(name)).strip()]
+    plan = _port("plan", lambda: ports.json(raw.get("plan"), "shared:fix-plan.schema.json")) if "plan" in given else None
+    path = _port("proposal_file", lambda: ports.file(named, "file")) if named else None   # 読めないファイルは入力の名つきで名指す
+    if len(given) > 1:
+        raise ValueError(f"入力 {' と '.join(given)} は一緒に名指さない（修正案は plan、方針の文は proposal か proposal_file の 1 つで渡す）")
+    if given == ["plan"]:
+        return plan
     if not named:
         return ports.text(raw.get("proposal"))
-    path = _port("proposal_file", lambda: ports.file(named))   # 読めないファイルは入力の名つきで名指す
-    if ports.text(raw.get("proposal")).strip():
-        raise ValueError("入力 proposal と proposal_file は一緒に名指さない（方針の文のファイルは proposal_file だけで渡す）")
     text = path.read_text(encoding="utf-8").strip()
     if not text:
         raise ValueError(f"入力 proposal_file: 審査する物が空（{path}）")
@@ -142,11 +142,12 @@ def proposal_of(raw: dict) -> str:
 
 
 def proposal_form(raw) -> tuple[str, object]:
-    """審査する物の形: ("plan", 修正案の役の返答の dict) か ("text", 方針の文)。字の前後の空白を除き、(a) この run の pointer なら
-    その先の JSON（読めなければ ValueError。黙って方針の文にしない。K15）・(b) { で始まり JSON の object として読めればその値・
-    (c) 改行を持たず在るファイルに解ければ、その JSON——の 3 つは構造で、中身を files.PROPOSAL_SHAPE で照らす（合わなければ ValueError）。
-    どれでもなければ方針の文。(b) は plan の配列を持たない object も構造と読んで照らしで拒む（設計書の字は「plan の配列を持てば」だが、
-    JSON の object を方針の文として審査するのは黙った緩め。docs/design/plan-review.md の 14 節）"""
+    """審査する物の形: ("plan", 修正案の dict) か ("text", 方針の文)。raw が入力 plan の値（dict）ならそのまま。字の前後の空白を除き、
+    (a) この run の pointer・(b) { で始まる JSON の object・(c) 改行を持たず在るファイルに解ける字——の 3 つは修正案で、中身を入力 plan と
+    同じ形（shared:fix-plan.schema.json）で照らす（合わなければ ValueError。黙って方針の文にしない。K15）。どれでもなければ方針の文。
+    (b) は plan の配列を持たない object も構造と読んで照らしで拒む（docs/design/plan-review.md の 14 節）"""
+    if isinstance(raw, dict):
+        return "plan", raw
     text = ports.text(raw).strip()
     if not text:
         raise ValueError("入力 proposal: 審査する物が空")
@@ -154,21 +155,11 @@ def proposal_form(raw) -> tuple[str, object]:
         parsed = json.loads(text)
     except ValueError:
         parsed = None
-    value = None
-    if isinstance(parsed, dict) and parsed.get("type") == ports.POINTER_TYPE:
-        value = _port("proposal", lambda: ports.json(text))
-    elif text.startswith("{") and isinstance(parsed, dict):
-        value = parsed
-    elif "\n" not in text:
-        try:
-            path = ports.file(text)
-        except ValueError:
-            path = None
-        if path is not None:
-            value = _port("proposal", lambda: ports.json(str(path)))
-    if value is None:
-        return "text", text
-    return "plan", _shaped("proposal", value, files.PROPOSAL_SHAPE, "修正案の役の返答")
+    located = "\n" not in text and parsed is None and (pathlib.Path(text) if pathlib.Path(text).is_absolute()
+                                                       else pathlib.Path.cwd() / text).is_file()
+    if isinstance(parsed, dict) and (parsed.get("type") == ports.POINTER_TYPE or text.startswith("{")) or located:
+        return "plan", _port("proposal", lambda: ports.json(text, "shared:fix-plan.schema.json"))
+    return "text", text
 
 
 def recorded_rows(recorded, policy_path) -> list:
@@ -295,20 +286,9 @@ def _tree_on(b, word: str) -> bool:
 
 
 # ---------------------------------------------------------------- 入口
-def _file(name: str, raw):
-    """file の port（空は None。在らなければ ValueError）"""
-    return None if _blank(raw) else _port(name, lambda: ports.file(raw))
-
-
-def _json(name: str, raw, schema=None):
-    return None if _blank(raw) else _port(name, lambda: ports.json(raw, schema))
-
-
-def _json_file(name: str, raw):
-    """file と宣言した port のうち JSON のファイルを渡す物（structure・ripple・prior・conflicts）。ports.file を通してから JSON に読む
-    （値を直に渡すと file の誤りで落ちる。空は None）"""
-    path = _file(name, raw)
-    return None if path is None else _port(name, lambda: ports.json(str(path)))
+def _read(name: str, raw, read):
+    """port の値を口の呼び read（字のままの form で読む lambda）で読む。空は None。読めなければ入力の名つきの ValueError"""
+    return None if _blank(raw) else _port(name, lambda: read(raw))
 
 
 def _soft(name: str, read, defaults: list):
@@ -326,7 +306,7 @@ def _request(raw, defaults: list) -> tuple[str, str]:
         return "", ""
     given = ports.text(raw).strip()[:200]
     try:
-        path = ports.file(raw)
+        path = ports.file(raw, "json(shared:request.schema.json)")
         return str(path), path.read_text(encoding="utf-8")
     except (ValueError, OSError, UnicodeDecodeError) as e:
         defaults.append(REQUEST_UNREAD.format(path=given, why=oneline.one_line(str(e)) or type(e).__name__))
@@ -335,10 +315,10 @@ def _request(raw, defaults: list) -> tuple[str, str]:
 
 def _texts(d: pathlib.Path, raw: dict, defaults: list) -> dict:
     """3 つの形が共に読む物: 目的・世界の解の行・方針・記録された方針・読む版と BASE・言語"""
-    world = _file("world_rows", raw.get("world_rows"))
+    world = _read("world_rows", raw.get("world_rows"), lambda v: ports.file(v, "jsonl(lib:world-row.schema.json)"))
     rows = _port("world_rows", lambda: _copy_world(d, world))
-    policy_path = _file("policy", raw.get("policy"))
-    recorded = _json("recorded", raw.get("recorded"), "recorded.schema.json") or []
+    policy_path = _read("policy", raw.get("policy"), lambda v: ports.file(v, "file"))
+    recorded = _read("recorded", raw.get("recorded"), lambda v: ports.json(v, "shared:recorded.schema.json")) or []
     rev = ports.text(raw.get("review_rev")).strip() or "HEAD"
     return {"purpose": ports.text(raw.get("purpose")).strip(), "world": rows,
             "policy_copy": str(policy_path) if policy_path is not None else "",
@@ -353,29 +333,26 @@ def _plan_doc(d: pathlib.Path, repo, raw: dict, proposal: dict, defaults: list, 
     form = "replan" if ruling else "plan"
     if _blank(raw.get("judgment")):
         raise ValueError(NO_JUDGMENT)
-    judged = _json("judgment", raw.get("judgment"), "shared:judgment.schema.json")
+    judged = _read("judgment", raw.get("judgment"), lambda v: ports.json(v, "shared:judgment.schema.json"))
     jsonfile.write(d / files.JUDGMENT, judged)
     if _blank(raw.get("fields")):
         raise ValueError(NO_FIELDS)
-    fields = _json("fields", raw.get("fields"), "review-fields.schema.json")
-    excluded = _soft("excluded", lambda: _file("excluded", raw.get("excluded")), defaults)
-    if excluded is not None and _soft("excluded", lambda: json.loads(excluded.read_text(encoding="utf-8")), defaults) is not None:
+    fields = _read("fields", raw.get("fields"), lambda v: ports.json(v, "shared:plan-fields.schema.json"))
+    excluded = _soft("excluded", lambda: _read("excluded", raw.get("excluded"), lambda v: ports.file(v, "json(shared:excluded.schema.json)")),
+                     defaults)
+    if excluded is not None:
         shutil.copyfile(excluded, d / files.EXCLUDED)
-    else:
-        excluded = None
     request_file, request = _request(raw.get("request"), defaults)
-    means = _soft("means", lambda: _json("means", raw.get("means"), "stated-means.schema.json"), defaults) or []
-    design_doc = _json("design", raw.get("design"), "review-design.schema.json")
-    structure_doc = _json_file("structure", raw.get("structure"))
+    means = _soft("means", lambda: _read("means", raw.get("means"), lambda v: ports.json(v, "stated-means.schema.json")), defaults) or []
+    design_doc = _read("design", raw.get("design"), lambda v: ports.json(v, "shared:design.schema.json"))
+    structure_doc = _read("structure", raw.get("structure"), lambda v: ports.json(v, "shared:structure-state.schema.json"))
     if structure_doc is None:
         defaults.append(EMPTY_STRUCTURE)
-    ripple_doc = _json_file("ripple", raw.get("ripple"))
+    ripple_doc = _read("ripple", raw.get("ripple"), lambda v: ports.json(v, "shared:ripple.schema.json"))
     if ripple_doc is None:
         defaults.append(EMPTY_RIPPLE)
-    prior = _json_file("prior", raw.get("prior"))
-    if prior is not None:
-        _shaped("prior", prior, files.PRIOR_SHAPE, "往復の記録")
-    conflicts = _json_file("conflicts", raw.get("conflicts")) if form == "replan" else None
+    prior = _read("prior", raw.get("prior"), lambda v: ports.json(v, "shared:plan-converge.schema.json"))
+    conflicts = _read("conflicts", raw.get("conflicts"), lambda v: ports.json(v, "lib:conflicts.schema.json")) if form == "replan" else None
     tree_word = ports.text(raw.get("tree")).strip() or "auto"
     _port("tree", lambda: ports.choice(tree_word, TREE_WORDS))
 
@@ -430,7 +407,7 @@ def _plan_doc(d: pathlib.Path, repo, raw: dict, proposal: dict, defaults: list, 
         "purpose": common["purpose"], "plan": bare, "plan_marks": plan_marks,
         policy.RECORDED_KEY: common[policy.RECORDED_KEY],
         "review_schema": files.node_schema("review"),
-        "design_schema": json.loads((files.YAML.parent / "schemas" / "review-design.schema.json").read_text(encoding="utf-8")),
+        "design_schema": json.loads((ports.SHARED / "schemas" / "design.schema.json").read_text(encoding="utf-8")),
         "design_why": ports.text(raw.get("design_why")).strip() or ("" if design_doc is not None else DESIGN_NOT_GIVEN),
         "defaults": defaults, "replan_items": [], "tree": False, "tree_word": tree_word, "means": means, "lang": common["lang"],
         "human_items": [], "materials": {}, "purpose_review": {},
@@ -489,20 +466,17 @@ def ruling_text(rows: list) -> str:
     return "／".join(str((c.get("ruling") or {}).get("text") or "") for c in rows if isinstance(c, dict)) or NO_ROWS
 
 
-def _pointer(path: pathlib.Path):
-    return ports.pointer(path) if path.is_file() else None
-
-
 def result(status: str, reason: str, *, form: str = "", k: int = 0, review_file=None, pass_file=None, review=None, asks=(),
            deviations=(), replan=(), gave_up=None, ruled=(), tree_items: int = 0, out=None) -> dict:
     """block の返り（docs/design/plan-review.md の 1.2）。ok は status が ok か。out（place）が在れば読んだ証拠の pointer と欠けの行を足す"""
     found, missing, failed = proof.evidence(out) if out is not None else (None, [], "")
     return {"ok": status == "ok", "status": status, "form": form, "round": k if form == "plan" else 0, "reason": reason,
-            "holes": _pointer(review_file) if review_file is not None else None,
+            "holes": ports.pointer(review_file, "json(shared:plan-review-reply.schema.json)")
+            if review_file is not None and review_file.is_file() else None,
             "blocks": [str(f.get("key")) for f in converge.block_faces(review)] if status == "ok" and isinstance(review, dict) else [],
-            "pass": _pointer(pass_file) if pass_file is not None else None,
+            "pass": ports.pointer(pass_file, "json(shared:plan-review-pass.schema.json)") if pass_file is not None and pass_file.is_file() else None,
             "asks": list(asks), "deviations": list(deviations), "replan": list(replan), "gave_up": gave_up,
-            "reads": ports.pointer(found) if found is not None else None,
+            "reads": ports.pointer(found, "json(shared:reads.schema.json)") if found is not None else None,
             "report": report.lines(status=status, form=form, reason=reason, review=review, k=k, ruled=ruled, tree_items=tree_items,
                                    missing=missing, proof_failed=failed)}
 

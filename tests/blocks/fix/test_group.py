@@ -792,7 +792,7 @@ class GroupChildSeamCase(unittest.TestCase):
         parent.mkdir()
         runvals.write(parent, {"tdd_suite": ""})
         (parent / "judgment.json").write_text('{"units": []}\n', encoding="utf-8")
-        fields = [{"route": "direct", "tests": [], "rewrite_tests": [], "refactor": "", "allowed_paths": ["stats.py"],
+        fields = [{"route": "direct", "tests": [], "rewrite_tests": [], "refactor": {"declared": False, "why": ""}, "allowed_paths": ["stats.py"],
                    "out_of_scope": []}]
         planmarks.save(parent, 1, fields)
         got = self.board.adopt_inputs(parent, self.place)

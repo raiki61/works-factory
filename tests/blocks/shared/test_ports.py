@@ -189,6 +189,18 @@ class FileCase(JsonCase):
             with self.subTest(name), self.assertRaisesRegex(ValueError, "form file で運ばない"):
                 ports.pointer(self.art / name, "file")
 
+    def test_carried_file_reads_with_the_form_of_the_row(self):
+        """form を値と一緒に運ぶ行 {ref, form} は、行の form で照らす（pointer の dict もパスの字も）"""
+        (self.art / "rows.json").write_text('[{"where": "a"}]', encoding="utf-8")
+        form = "json(shared:rows.schema.json)"
+        self.assertEqual(ports.carried_file({"ref": json.loads(self.ptr("rows.json")), "form": form}), self.art / "rows.json")
+        self.assertEqual(ports.carried_file({"ref": str(self.art / "rows.json"), "form": form}), self.art / "rows.json")
+        with self.assertRaisesRegex(ValueError, "form file で運ばない"):
+            ports.carried_file({"ref": str(self.art / "rows.json"), "form": "file"})
+        (self.art / "bad.json").write_text('[{"where": 1}]', encoding="utf-8")
+        with self.assertRaises(ports.ShapeError):
+            ports.carried_file({"ref": str(self.art / "bad.json"), "form": form})
+
     def test_jsonl_rows_are_checked_one_by_one(self):
         self.shape("row.schema.json", {"type": "object", "properties": {"n": {"type": "integer"}}})
         (self.art / "rows.jsonl").write_text('{"n": 1}\n\n{"n": "x"}\n', encoding="utf-8")

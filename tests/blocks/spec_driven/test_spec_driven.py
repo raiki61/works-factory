@@ -191,10 +191,11 @@ class CheckCase(Base):
 
     def test_out_of_purpose_rows_stop(self):
         oop = self.r.artifacts / "out-of-purpose.json"
-        oop.write_text(json.dumps({"rounds": {"1": [{"where": "docs/cache.md#9", "why_outside": "目的に無い入口"}]}},
+        oop.write_text(json.dumps({"rounds": {"1": [{"source": "依頼の行", "where": "docs/cache.md#9",
+                                                             "why_outside": "目的に無い入口の行を設計書が書いている"}]}},
                                   ensure_ascii=False), encoding="utf-8")
         got = self.check(self.row(), out_of_purpose=str(oop))
-        self.assertEqual(got["mismatches"], ["判定の役が目的の外とした行: docs/cache.md#9——目的に無い入口（設計書が表の目的と受け入れの条件の外を書いている）"])
+        self.assertEqual(got["mismatches"], ["判定の役が目的の外とした行: docs/cache.md#9——目的に無い入口の行を設計書が書いている（設計書が表の目的と受け入れの条件の外を書いている）"])
 
     def test_no_units_or_no_plan_stop(self):
         self.assertIn("直す単位を返さなかった", self.check(ready="false")["reason"])

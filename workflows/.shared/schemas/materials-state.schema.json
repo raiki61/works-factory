@@ -1,0 +1,5 @@
+{
+  "description": "判定の素材の状態（diagnose の materials.json。lib/materialkit.py の assemble の返り）。素材の名 → {status, count?, detail?, checked?, from_round?, reason?}（status ごとの要る欄は materialkit の STATUS）。null は素材の状態が無い",
+  "type": ["object", "null"],
+  "patternProperties": {"^.+$": {"type": "object", "properties": {"status": {"type": "string", "enum": ["found", "clean", "carried_over", "not_applicable", "awaiting_human", "not_run"]}, "count": {"type": "integer"}, "from_round": {"type": "integer"}, "detail": {"type": ["string", "array"], "items": {"type": ["object", "array", "string", "number", "boolean", "null"]}}, "checked": {"type": ["string", "array"], "items": {"type": ["object", "array", "string", "number", "boolean", "null"]}}, "reason": {"type": "string"}}}}
+}

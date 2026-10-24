@@ -1,0 +1,151 @@
+{
+  "description": "事前審査の 1 往復の控え（pass.json。書き手は事前審査の block の受け付け、読み手は往復の記録に往復の行を足す line の rounds.record_pass）。review は決め手の欄を外した事前審査の返答",
+  "type": "object",
+  "properties": {
+    "pass": {
+      "type": "integer"
+    },
+    "plan": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "patternProperties": {
+          "^.+$": {
+            "type": [
+              "object",
+              "array",
+              "string",
+              "number",
+              "boolean",
+              "null"
+            ]
+          }
+        }
+      }
+    },
+    "answers": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "handled": {
+            "type": "string"
+          },
+          "how": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "review": {
+      "type": "object",
+      "description": "json(shared:plan-review-reply.schema.json): 決め手の欄を外した事前審査の返答"
+    },
+    "resolved": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "synergy": {
+      "type": [
+        "object",
+        "array",
+        "string",
+        "number",
+        "boolean",
+        "null"
+      ]
+    },
+    "hits": {
+      "type": [
+        "object",
+        "array",
+        "string",
+        "number",
+        "boolean",
+        "null"
+      ]
+    },
+    "origins": {
+      "type": [
+        "object",
+        "array",
+        "string",
+        "number",
+        "boolean",
+        "null"
+      ]
+    },
+    "refs": {
+      "type": [
+        "object",
+        "array",
+        "string",
+        "number",
+        "boolean",
+        "null"
+      ]
+    },
+    "push": {
+      "type": [
+        "object",
+        "array",
+        "string",
+        "number",
+        "boolean",
+        "null"
+      ]
+    },
+    "files": {
+      "type": "object",
+      "patternProperties": {
+        "^.+$": {
+          "type": "string"
+        }
+      }
+    },
+    "rejects": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "role": {
+            "type": "string"
+          },
+          "at": {
+            "type": [
+              "object",
+              "array",
+              "string",
+              "number",
+              "boolean",
+              "null"
+            ]
+          },
+          "reason": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "precedent_checks": {
+      "type": "object",
+      "patternProperties": {
+        "^.+$": {
+          "type": [
+            "object",
+            "array",
+            "string",
+            "number",
+            "boolean",
+            "null"
+          ]
+        }
+      }
+    }
+  }
+}

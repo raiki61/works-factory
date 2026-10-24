@@ -10,30 +10,30 @@ inputs:
   policy: {default: '', description: 'file: 人の方針の文書を run の頭で固めた写し。空は方針の文書が無い'}
   review: {default: '{}', description: 'json(shared:plan-verdict.schema.json): 修正が使った修正案を審査した事前審査の最後の往復の結論 {round, verdict, blocks, why}。空のオブジェクトは渡されていない'}
   answers: {default: '{}', description: 'json(shared:gate-answers.schema.json): 承認ノードの人の答え {start, before_fix}。空のオブジェクトは答えが無い'}
-  request: {default: '', description: 'file: 依頼のファイル（工場の依頼の JSON）。空は依頼のファイルが無い'}
+  request: {default: '', description: 'json(shared:request.schema.json): 依頼のファイル（工場の依頼の JSON）。空は依頼のファイルが無い'}
   changed: {default: '{}', description: 'json(shared:fix-marks.schema.json): 修正の印（修正の出力の changed）。空のオブジェクトは渡されていない'}
   pushes: {default: '[]', description: 'json(shared:pushes.schema.json): 無人の run が判定の保留の問いに採った推しの文の配列。空の配列は無い'}
-  decisions: {default: '', description: 'file: 先行議論の突合の素材（prior-decisions の block の出力 material の先）。空は突合が無い'}
+  decisions: {default: '', description: 'json(shared:material.schema.json): 先行議論の突合の素材（prior-decisions の block の出力 material の先）。空は突合が無い'}
   purpose: {default: '', description: 'text: 元の目的の 1 文（目的の固定の purpose_text）。空は渡されていない'}
   units: {default: '[]', description: 'json(shared:units.schema.json): 判定が切った根本の単位の目録 [{id, summary, paths}]。空の配列は渡されていない（直した後の実測は差分の全体を 1 つの単位として見る）'}
-  judgment: {default: '', description: 'file: 判定の出力（judgment.json）。空は渡されていない'}
-  fixes: {default: '[]', description: 'json(eyes-fixes.schema.json): この run の修正の単位ごとの結末 [{unit_id, group_id, status, reason}]。空の配列は渡されていない'}
-  x_scalars: {default: '{}', description: 'json(eyes-scalars.schema.json): 修正役が足した規模の数値の欄（名は x_ で始まる）の object。空の object は無い'}
+  judgment: {default: '', description: 'json(shared:judgment.schema.json): 判定の出力（judgment.json）。空は渡されていない'}
+  fixes: {default: '[]', description: 'json(shared:fixes.schema.json): この run の修正の単位ごとの結末 [{unit_id, group_id, status, reason}]。空の配列は渡されていない'}
+  x_scalars: {default: '{}', description: 'json(shared:scalars.schema.json): 修正役が足した規模の数値の欄（名は x_ で始まる）の object。空の object は無い'}
   checks: {default: '', description: 'file: 最後の試験の関門の証拠の文（試験の関門 final の出力 evidence の先）。空は渡されていない'}
   head: {default: '', description: 'text: 修正前の HEAD（審査する変更の先の版。直した後の実測の直す前の版にも使う）。空は HEAD'}
   base_label: {default: '', description: 'text: 累積差分の起点の出どころの文（例「PR #12 の根」）。空は書かない'}
-  design: {default: 'null', description: 'json(eyes-design.schema.json): 独立設計の役の返答（独立設計の block の出力 design の先）。null は独立設計が無い'}
+  design: {default: 'null', description: 'json(shared:design.schema.json): 独立設計の役の返答（独立設計の block の出力 design の先）。null は独立設計が無い'}
   design_reason: {default: '', description: 'text: 独立設計が無い訳（独立設計の block の出力 reason）。空は訳が無い'}
-  design_premises: {default: 'null', description: 'json(eyes-design-premises.schema.json): 独立設計の控え（独立設計の block の出力 premises の先）。null は控えが無い'}
+  design_premises: {default: 'null', description: 'json(shared:design-premises.schema.json): 独立設計の控え（独立設計の block の出力 premises の先）。null は控えが無い'}
   constraints: {default: '[]', description: 'json(shared:constraints.schema.json): 記録の制約（前提の実測の出力 constraints）。空の配列は無い'}
-  test_outcomes: {default: 'null', description: 'json(eyes-outcomes.schema.json): テストごとの base と最後の結末 {rows, unmeasured}。null は渡されていない'}
-  tdd: {default: 'null', description: 'json(eyes-tdd.schema.json): 修正の段ごとの TDD の記録。null は渡されていない'}
-  ripple: {default: '', description: 'file: 波及の一覧（修正案の出力 ripple の先）。空は渡されていない'}
-  world_rows: {default: '', description: 'file: 定石の行（world の block の出力 rows の先）。空は渡されていない'}
-  asked: {default: '[]', description: 'json(eyes-asked.schema.json): 修正前の承認ノードで聞いた項目 [{kind, text}]。空の配列は聞いていない'}
-  declared: {default: '[]', description: 'json(eyes-declared.schema.json): 直す側が直さずに残すと答えた事前審査の block の行。空の配列は無い'}
-  plan: {default: '', description: 'file: 修正が使った修正案の欄のファイル（plan-fields.json）。直した後の実測が構造の目の避け方から外れた訳を読む。空は渡されていない'}
-  intent: {default: '[]', description: 'json(eyes-intent.schema.json): 対象の書いた意図の文書のパスの配列。空の配列なら直した後の実測が決まった名で探す'}
+  test_outcomes: {default: 'null', description: 'json(shared:outcomes.schema.json): テストごとの base と最後の結末 {rows, unmeasured}。null は渡されていない'}
+  tdd: {default: 'null', description: 'json(shared:tdd.schema.json): 修正の段ごとの TDD の記録。null は渡されていない'}
+  ripple: {default: '', description: 'json(shared:ripple.schema.json): 波及の一覧（修正案の出力 ripple の先）。空は渡されていない'}
+  world_rows: {default: '', description: 'jsonl(lib:world-row.schema.json): 定石の行（world の block の出力 rows の先）。空は渡されていない'}
+  asked: {default: '[]', description: 'json(shared:asked.schema.json): 修正前の承認ノードで聞いた項目 [{kind, text}]。空の配列は聞いていない'}
+  declared: {default: '[]', description: 'json(shared:declared.schema.json): 直す側が直さずに残すと答えた事前審査の block の行。空の配列は無い'}
+  plan: {default: '', description: 'json(shared:plan-fields.schema.json): 修正が使った修正案の欄のファイル（plan-fields.json）。直した後の実測が構造の目の避け方から外れた訳を読む。空は渡されていない'}
+  intent: {default: '[]', description: 'json(shared:intent.schema.json): 対象の書いた意図の文書のパスの配列。空の配列なら直した後の実測が決まった名で探す'}
 returns: verdict
 outcome_field: ok
 nodes:
@@ -72,7 +72,10 @@ nodes:
         additionalProperties: false
         required: [got, why]
         properties:
-          got: {type: [object, 'null']}
+          got:
+            type: [object, 'null']
+            description: '受けた block の返す値まるごと（受け手が ports.picked で名を選ぶ）。飛ばされた block は null'
+            patternProperties: {'^.+$': {type: [object, array, string, number, boolean, 'null']}}
           why: {type: string}
     depends_on: [structure-after]
     with:
@@ -91,7 +94,15 @@ nodes:
       additionalProperties: false
       required: [after, why]
       properties:
-        after: {type: [object, string]}
+        after: &after_pointer
+          type: [object, 'null']
+          description: 'json(shared:structure-after.schema.json): 直した後の構造の実測の控え（structure-after.json）。測っていなければ null'
+          additionalProperties: false
+          required: [type, run_id, path]
+          properties:
+            type: {type: string, enum: [archon_artifact]}
+            run_id: {type: string}
+            path: {type: string}
         why: {type: string}
   - id: r1
     include: works-factory-r1
@@ -220,10 +231,26 @@ nodes:
         r3: *row
         r4: *row
         questions: {type: array, items: {type: string}}
-        passes: {type: array, items: {type: object}}
-        premise_check: {type: [object, 'null']}
+        passes:
+          type: array
+          items:
+            type: object
+            properties:
+              node: {type: string}
+              round: {type: integer}
+              by: {type: string, enum: [human, push]}
+              item: {type: string}
+              passed_at: {type: object, properties: {node: {type: string}, round: {type: integer}}}
+        premise_check:
+          type: [object, 'null']
+          properties:
+            verdict: {type: string, enum: [resolved, escalate]}
+            reason: {type: string}
+            key: {type: string}
+            resolution: {type: string}
+            facts: {type: array, items: {type: string}}
         notes: {type: array, items: {type: string}}
-        after: {type: [object, 'null']}
+        after: *after_pointer
         dirty: {type: integer}
         escalate: {type: integer}
         after_ok: {type: boolean}

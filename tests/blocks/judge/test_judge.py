@@ -49,7 +49,8 @@ def passing() -> dict:
                     "means": ["m"], "report": ["- 目的"]},
         "world": {"ok": True, "status": "ok", "reason": "", "rows": ptr("w.jsonl"), "classes": 1, "dropped": 0, "report": ["- 世界"]},
         "diagnose-in": {"ok": True, "reason": "", "go": True, "materials": [], "missing": [], "tier": "標準", "verify": True},
-        "diagnose": {"ok": True, "status": "ok", "stop_reason": "", "reason": "", "ready": True, "judgment": ptr("j.json"),
+        "diagnose": {"ok": True, "status": "ok", "mode": "judge", "stop_reason": "", "reason": "", "ready": True, "judgment": ptr("j.json"),
+                     "rejudge_verdict": None, "rejudge_exit": None, "rejudge_diff": None,
                      "units": [{"id": "u1", "paths": ["a.py"], "summary": "s"}], "questions": [{"id": "q1", "text": "t"}], "inputs": None,
                      "brief": None, "materials": ptr("m.json"), "out_of_purpose": None, "answer_ties": None,
                      "downgrades": [{"what": "rejudge", "versus": "rg"}], "report": ["- 判定"]},
@@ -57,7 +58,11 @@ def passing() -> dict:
     }
     for name in MATERIALS:
         got[name] = {"ok": True, "status": "skipped", "reason": "", "material": ptr(f"{name}/material.json"), "report": [f"観点 {name}"]}
-    return got
+    # 手で書いたほかの block の返りは、その block の返す節の形で照らしてから使う（試験の作り物を本物の書き手の形に縛る）
+    return {name: value if name in OWN_NODES else kit.returned(name, value) for name, value in got.items()}
+
+
+OWN_NODES = ("spec-in", "diagnose-in")   # judge の返しの node（include した block の返りでない）
 
 
 class FeedCase(unittest.TestCase):
@@ -117,7 +122,7 @@ class FeedCase(unittest.TestCase):
         for name in ("parallel-pr", "world", "spec-in"):
             got[name] = None
         values = self.feed.diagnose_values(got, {})
-        self.assertEqual((values["pr_material"], values["world_rows"], values["spec_rows"], values["spec_origin"]), (None, "", "", ""))
+        self.assertEqual((values["pr_material"], values["world_rows"], values["spec_rows"], values["spec_origin"]), (None, None, None, ""), "無い行のファイルは pointer の欄の null（空の字で塞がない）")
 
 
 class VerdictCase(unittest.TestCase):

@@ -12,6 +12,8 @@
 - file(raw, form) -> Path | None: ファイル 1 つ（pointer かパス）。空・null は None。在らなければ ValueError。form（必須）は入力の
   宣言と同じ字で、json(<名>)・jsonl(<名>) は中身をその形で照らしてからパスを返す。file は字の文書で照らさないが、.json・.jsonl の
   ファイルは拒む（JSON は形を名指して運ぶ）
+- carried_file(row) -> Path | None: form を値と一緒に運ぶ行 {ref, form}（報告の節の files のように、種類の違うファイルを 1 つの欄で
+  中継する値）の ref を、行の form で file と同じに照らしてパスを返す。form は書き手が出どころの宣言の form を字で書く
 - 形の名: block の schemas/ のファイル名・shared:<名>（pack の .shared/schemas/）・lib:<名>（lib/ の下。lib に住処の在る形）。
   引き方は _shape_path の 1 か所
 - form_of(description) -> (form, 名) | None: form の語（text・file・flag・choice(a|b)・json(<名>)・jsonl(<名>)）の住処。入力の
@@ -395,6 +397,11 @@ def file(raw, form: str) -> Path | None:
         raise ValueError(f"file の入力のファイル {path} が無い")
     _check_file(path, form)
     return path
+
+
+def carried_file(row: dict) -> Path | None:
+    ref = row["ref"]
+    return file(_json.dumps(ref) if isinstance(ref, dict) else ref, row["form"])
 
 
 # ---------------------------------------------------------------- place と出力

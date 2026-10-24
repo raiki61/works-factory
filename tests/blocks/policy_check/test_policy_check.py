@@ -50,22 +50,24 @@ class ResultCase(unittest.TestCase):
     def review(self, faces, ok=True) -> dict:
         """事前審査の block（形 text）の返り: holes は place の review.json の pointer"""
         (self.run.artifacts / "review-run").mkdir(exist_ok=True)
-        (self.run.artifacts / "review-run" / "review.json").write_text(json.dumps({"faces": faces, "shrink": [], "reason": "r"}),
-                                                                     encoding="utf-8")
+        reply = kit.shaped("shared:plan-review-reply.schema.json", {"faces": faces, "shrink": [], "reason": "r"})
+        (self.run.artifacts / "review-run" / "review.json").write_text(json.dumps(reply), encoding="utf-8")
         head = "事前審査（方針の文）: 穴 1 件（block 1）・別案 0 件"
-        return {"ok": ok, "status": "ok" if ok else "failed", "form": "text", "round": 0, "reason": "",
-                "holes": json.loads(self.run.pointer("review-run/review.json")), "blocks": [f["key"] for f in faces], "pass": None,
-                "asks": [], "deviations": [], "replan": [], "gave_up": None,
-                "report": [head, *(f"- [{f['kind']}] {f['key']}: {f['why']}" for f in faces)]}
+        return kit.returned("plan-review", {
+            "ok": ok, "status": "ok" if ok else "failed", "form": "text", "round": 0, "reason": "",
+            "holes": json.loads(self.run.pointer("review-run/review.json")), "blocks": [f["key"] for f in faces], "pass": None,
+            "asks": [], "deviations": [], "replan": [], "gave_up": None, "reads": None,
+            "report": [head, *(f"- [{f['kind']}] {f['key']}: {f['why']}" for f in faces)]})
 
     def test_differs_rows_come_first(self):
         row = {"finding": 1, "where": "方針", "class_id": "w-1", "problem": "p", "activity": "a", "practice": "backoff",
                "sources": [], "applies": "x", "not_applies": "", "basis": "knowledge",
                "versus": {"proposed": "fixed wait", "verdict": "differs", "challenge": "The request waits a fixed time; use backoff."}}
         (self.run.artifacts / "world").mkdir()
-        (self.run.artifacts / "world" / "world.jsonl").write_text(json.dumps(row) + "\n", encoding="utf-8")
-        world = {"ok": True, "status": "ok", "reason": "", "rows": json.loads(self.run.pointer("world/world.jsonl")), "classes": 1,
-                 "dropped": 0, "report": ["- 類 w-1（依頼の行 1）: backoff"]}
+        (self.run.artifacts / "world" / "world.jsonl").write_text(json.dumps(kit.shaped("lib:world-row.schema.json", row)) + "\n",
+                                                                  encoding="utf-8")
+        world = kit.returned("world", {"ok": True, "status": "ok", "reason": "", "rows": json.loads(self.run.pointer("world/world.jsonl")),
+                                       "classes": 1, "dropped": 0, "report": ["- 類 w-1（依頼の行 1）: backoff"]})
         face = {"key": "fixed-wait-overloads-server", "kind": "regression", "where": "the policy", "why": "w" * 20,
                 "severity": "block", "reach": "breaks_fix"}
         got = self.run.script("result", "result", world=json.dumps(world), review=json.dumps(self.review([face])))
@@ -94,12 +96,6 @@ class ResultCase(unittest.TestCase):
         got = self.run.script("result", "result", world="null", review=json.dumps(review))
         self.assertEqual((got["ok"], got["world"], got["holes"]), (False, None, [face]))
         self.assertEqual(got["report"], [*review["report"], "- 世界の解の段が走らなかった"])
-
-    def test_review_report_not_a_list_adds_no_lines(self):
-        """足す: review の report が配列でなければ、事前審査の行を足さない（字を 1 字ずつの行にしない）"""
-        world = {"ok": True, "status": "ok", "reason": "", "rows": None, "classes": 0, "dropped": 0, "report": ["- 世界の行"]}
-        got = self.run.script("result", "result", world=json.dumps(world), review=json.dumps({**self.review([]), "report": "一行"}))
-        self.assertEqual(got["report"], ["- 世界の行"])
 
 
 if __name__ == "__main__":

@@ -168,7 +168,8 @@ class PromptCase(_RepoCase):
         self.assertIn(values.AGENTS_MD.splitlines()[2], text)
 
     def test_human_answers_and_named_sections_are_pasted(self):
-        request = self.write("request.md", "`docs/design.md` 2 節 の通りに直す\n")
+        request = self.write("request.json", json.dumps([{"where": "docs/design.md", "text": "`docs/design.md` 2 節 の通りに直す"}],
+                                                        ensure_ascii=False))
         text = self.to_prompt(answers=dump(values.ANSWERS), request=request)
         self.assertIn("continue（一言: 始める（main の確かめの run））", text)
         self.assertIn("フックの環境を試験で縛る。", text)
@@ -242,7 +243,7 @@ class PromptCase(_RepoCase):
         self.assertIn("The request file could not be read", text)
 
     def test_readable_request_file_does_not_say_it_was_unread(self):
-        request = self.write("request.md", "依頼の本文\n")
+        request = self.write("request.json", json.dumps([{"where": "README.md", "text": "依頼の本文"}], ensure_ascii=False))
         self.assertNotIn("The request file could not be read", self.to_prompt(request=request))
         self.assertNotIn("The request file could not be read", self.to_prompt())
 

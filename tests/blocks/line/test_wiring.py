@@ -55,8 +55,10 @@ NOT_PASSED = {
     ("plan", "routes"): "計画の往復は依頼の文の run だけで回る（既定の auto）。仕様駆動の run は spec-plan が spec を渡す",
     ("replan", "routes"): "案の直しは仕様駆動の run では回らない（既定の auto）",
     ("rejudge-run", "request_files"): "再審の道は読まない（判定の道だけの入力）",
-    ("plan-review-run", "proposal_file"): "方針の文のファイル。仕様を固める会話から単独で回す時だけ使う（line は修正案を proposal で渡す）",
-    ("replan-review", "proposal_file"): "方針の文のファイル。仕様を固める会話から単独で回す時だけ使う（line は修正案を proposal で渡す）",
+    **{(review, name): "方針の文と方針の文のファイル。仕様を固める会話から単独で回す時だけ使う（line は修正案を plan で渡す）"
+       for review in ("plan-review-run", "replan-review") for name in ("proposal", "proposal_file")},
+    **{(plan, "spec_doc"): "仕様駆動の run だけが渡す人と固めた仕様の本文（依頼の文の run の固めた仕様は spec）" for plan in ("plan", "replan")},
+    ("spec-plan", "spec"): "仕様駆動の run は仕様の段の spec.json を作らない（固めた本文は spec_doc）",
     ("plan-review-run", "ruling"): "形 replan だけが読む",
     ("plan-review-run", "conflicts"): "形 replan だけが読む",
     **{("rejudge-run", name): "判定の道だけが読む（再審の道は prior と objection で考え直す。docs/design/diagnose.md の 1.2）"
