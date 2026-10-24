@@ -93,9 +93,9 @@ class ConnectionTest(unittest.TestCase):
                "CLAUDE_CODE_OAUTH_TOKEN": "dummy-oauth"}
         p = fence.connection(env)
         fence.connection_env(env, p)
-        self.assertNotIn(fence.PROFILE_ENV, env)
-        self.assertNotIn("ANTHROPIC_AUTH_TOKEN", env)
-        self.assertNotIn("CLAUDE_CODE_OAUTH_TOKEN", env)
+        self.assertNotIn(fence.PROFILE_ENV, set(env))
+        self.assertNotIn("ANTHROPIC_AUTH_TOKEN", set(env))
+        self.assertNotIn("CLAUDE_CODE_OAUTH_TOKEN", set(env))
         self.assertEqual(env["ANTHROPIC_API_KEY"], "dummy-secret")
         for name in ("HOME", "CLAUDE_CONFIG_DIR", "ARCHON_HOME", "XDG_CONFIG_HOME"):
             self.assertTrue(env[name].startswith("/factory/"))

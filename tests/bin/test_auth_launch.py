@@ -421,7 +421,7 @@ class ConnectionProfile(unittest.TestCase):
         self.assertEqual(env["XDG_CONFIG_HOME"], "/user/xdg")
         self.assertNotIn("HELPER_INPUT", ai)
         self.assertEqual(ai["HOME"], "/factory")
-        self.assertNotIn(auth_launch.userenv.RECORD, env)
+        self.assertNotIn(auth_launch.userenv.RECORD, set(env))
 
     def test_actual_helper_spawn_receives_dependencies_without_mutating_ai_env(self):
         source = self.tmp / "settings.json"

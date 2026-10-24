@@ -134,9 +134,9 @@ class LauncherTest(unittest.TestCase):
         got = self.reached(done)
         env = got["env"]
         self.assertEqual(env["ANTHROPIC_API_KEY"], selected)
-        self.assertNotIn("ANTHROPIC_AUTH_TOKEN", env)
+        self.assertNotIn("ANTHROPIC_AUTH_TOKEN", set(env))
         self.assertEqual(env["ANTHROPIC_BASE_URL"], "https://dummy.invalid")
-        self.assertNotIn("UNNEEDED", env)
+        self.assertNotIn("UNNEEDED", set(env))
         self.assertNotEqual(env["HOME"], "/must-not-restore")
         self.assertNotIn(selected, done.stdout + done.stderr + json.dumps(got["argv"]))
         for file in self.default_home(self.target).rglob("*"):
