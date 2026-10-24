@@ -74,14 +74,14 @@ def _env_read_by(call: Callable[[], Any], env: dict) -> str:
 
 def _pointer_fields() -> list[str]:
     with mock.patch.dict(os.environ, {"WORKFLOW_ID": "run-1", "ARTIFACTS_DIR": ARTIFACTS}, clear=True):
-        return sorted(ports.pointer(f"{ARTIFACTS}/p"))
+        return sorted(ports.pointer(f"{ARTIFACTS}/p", "file"))
 
 
 def _same_run_fields() -> list[str]:
     """札のどの欄を別の値に変えると、ほかの run の札として拒まれるか"""
     env = {"WORKFLOW_ID": "run-1", "ARTIFACTS_DIR": ARTIFACTS}
     with mock.patch.dict(os.environ, env, clear=True):
-        ptr = ports.pointer(f"{ARTIFACTS}/p")
+        ptr = ports.pointer(f"{ARTIFACTS}/p", "file")
         refused = []
         for key in ptr:
             try:
@@ -230,7 +230,7 @@ ARCHON_ROWS = (
     Row("末尾の / を拒む（stat が ENOTDIR で拒む）", lambda: _rejects("a/"), POINTER,
         r"if \(code === 'ENOENT' \|\| code === 'ENOTDIR'\) \{\n\s*return `\$\{where\} refers to a file that does not exist",
         lambda m: True),
-    Row("run の id の環境変数", lambda: _env_read_by(lambda: ports.pointer(f"{ARTIFACTS}/p"), {"ARTIFACTS_DIR": ARTIFACTS}),
+    Row("run の id の環境変数", lambda: _env_read_by(lambda: ports.pointer(f"{ARTIFACTS}/p", "file"), {"ARTIFACTS_DIR": ARTIFACTS}),
         "packages/workflows/src/exec-environment.ts", r"^\s*(\w+): context\.workflowId,$"),
     Row("run の成果物の置き場の環境変数",
         lambda: _env_read_by(lambda: ports._pointer_path({"type": ports.POINTER_TYPE, "run_id": "r", "path": "p"}),

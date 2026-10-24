@@ -665,7 +665,7 @@ class DryRunCase(unittest.TestCase):
         self.assertEqual({k: talk[k] for k in po}, po)
         self.assertEqual((talk["open"], talk["agreed"], talk["talks"]), (False, None, []))
         turn = self.sc.out(trace, "design-turn")
-        self.assertEqual((turn["plan"], turn["plan_prior"], turn["record"], turn["recorded"]), (True, "", "", []))
+        self.assertEqual((turn["plan"], turn["plan_prior"], turn["record"], turn["recorded"]), (True, None, None, []))
 
     def test_dialogue_run_shows_the_design_and_the_review(self):
         trace = self.traces["design-talk"]

@@ -16,7 +16,7 @@ fixture:
       を直す", "files": [{"path": "stats.py", "op": "modify", "responsibility": "この行の受け持ち", "home": {"concept": "stats.py の考え（helper_1）", "why":
       "この行の path が住処だから"}, "considered": [{"path": "alt_home.py", "why_not": "同じ仕事の助け手が alt_home.py:3 に無かった"}], "symbols": [{"name": "helper_1",
       "change": "add"}]}], "shrink_first": "要らない", "narrows": []}]}'
-    fields: '{"round": 1, "fields": [{"route": "direct", "route_why": "1 行の直しで済む", "tests": [], "rewrite_tests": [], "refactor": "無い", "allowed_paths":
+    fields: '{"round": 1, "fields": [{"route": "direct", "route_why": "1 行の直しで済む", "tests": [], "rewrite_tests": [], "refactor": {"declared": false, "why": ""}, "allowed_paths":
       ["stats.py"], "out_of_scope": [], "structure": []}]}'
     judgment: '{"units": [{"key": "stats.py mean: 分母が len(xs) - 1 になっている", "label": "block", "disposition": "fix", "reason": "分母が 1 少ない"}], "framing":
       "分母と上限の 2 つの誤り", "one_shot": "2 か所を直す"}'
