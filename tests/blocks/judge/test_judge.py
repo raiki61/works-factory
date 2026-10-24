@@ -85,6 +85,12 @@ class FeedCase(unittest.TestCase):
         self.assertEqual(self.feed.merged(box, added), {**box, "findings": [*REQUEST, *added]})
         self.assertIs(self.feed.merged(box, []), box)
 
+    def test_reply_sources_name_the_included_materials(self):
+        """diagnose へ渡す返答の引き方は形に合い、名指す素材の role はこの graph が include する素材の観点だけ（観点の役の名は graph が持つ）"""
+        sources = kit.shaped("shared:reply-sources.schema.json", self.feed.diagnose_values(passing(), {})["reply_sources"], "judge")
+        roles = {row["role"] for row in sources["replies"]} | set(sources["trail"]) | {sources["decisions"]}
+        self.assertLessEqual(roles, set(self.feed.MATERIAL_IDS))
+
     def test_materials_keep_the_order_and_name_the_missing(self):
         got = passing()
         got["hygiene"] = None

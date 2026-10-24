@@ -56,7 +56,7 @@ def compute():
 
 def fallback(why: str) -> dict:
     return {"ok": False, "reason": f"判定へ渡す値をそろえられない（{why}）", "go": False, "purpose": None, "constraints": None, "materials": [], "missing": [], "pr_material": None,
-            "world_rows": None, "row_asks": [], "depth_why": "", "spec_rows": None, "spec_origin": "", "tier": "標準", "verify": False}
+            "world_rows": None, "row_asks": [], "depth_why": "", "spec_rows": None, "spec_origin": "", "tier": "標準", "verify": False, "reply_sources": None}
 
 
 ports.run(compute, fallback)

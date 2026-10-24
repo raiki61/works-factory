@@ -133,14 +133,28 @@ def assemble_materials(raw_items, raw_card):
         docs.append((path, materialkit.read(path)))
     if not _blank(raw_card):
         card = ports.json(raw_card, "pr-material.schema.json")
-        docs.append((None, {"role": files.PARALLEL_PR_ROLE, "status": "ran", "reason": "", "reply": None,
+        docs.append((None, {"role": files.CARD_ROLE, "status": "ran", "reason": "", "reply": None,
                             "materials": {"parallel_pr": card}, "base": None, "commits": None}))
     return docs
 
 
-def _reply_of(by_role: dict, role: str):
-    doc = by_role.get(role)
+def _reply_of(by_role: dict, role):
+    doc = by_role.get(role) if role is not None else None
     return doc.get("reply") if isinstance(doc, dict) else None
+
+
+def reply_sources(raw) -> dict:
+    """入力 reply_sources（素材の観点の返答の引き方）を読む。返り {replies: {鍵: (role, 欄か None)}, trail: [role…], decisions: role か
+    None}。null・空は何も引かない。鍵が 2 度出れば ValueError"""
+    got = None if _blank(raw) else ports.json(raw, "shared:reply-sources.schema.json")
+    if got is None:
+        return {"replies": {}, "trail": [], "decisions": None}
+    replies = {}
+    for row in got["replies"]:
+        if row["key"] in replies:
+            raise ValueError(f"鍵 {row['key']} が 2 度出る")
+        replies[row["key"]] = (row["role"], row["field"])
+    return {"replies": replies, "trail": list(got["trail"]), "decisions": got["decisions"]}
 
 
 def request_batches(rows: list, origin: str, spec_rows: list, spec_origin: str) -> list:
@@ -148,11 +162,11 @@ def request_batches(rows: list, origin: str, spec_rows: list, spec_origin: str) 
     return [{"round": 1, "origin": o, "findings": got} for o, got in ((origin or HUMAN_ORIGIN, rows), (spec_origin, spec_rows)) if got]
 
 
-def material_rows(by_role: dict, batches: list) -> list:
-    """材料の行: P1 の目の素材の観点が受けた返答の中の where・text を持つ行の全部と、依頼のバッチの行。受け付けが目的の外の行を当てる。
-    出どころの節の名は p1.<役の名の - を _ にした物>（prior-decisions と purpose-review は辿らない）"""
+def material_rows(by_role: dict, batches: list, trail: list) -> list:
+    """材料の行: 辿る素材（入力 reply_sources の trail）が受けた返答の中の where・text を持つ行の全部と、依頼のバッチの行。受け付けが
+    目的の外の行を当てる。出どころの節の名は p1.<role の - を _ にした物>"""
     out, replies = [], {}
-    for role in files.P1_ROLES:
+    for role in trail:
         if role in by_role:
             replies[f"p1.{role.replace('-', '_')}"] = by_role[role].get("reply")
     for nid in sorted(replies):
@@ -162,11 +176,13 @@ def material_rows(by_role: dict, batches: list) -> list:
     return out
 
 
-def input_doc(materials: dict, by_role: dict, batches: list, constraints: list, world_rows, answers: list, changed_files,
-              diff_file: str) -> dict:
-    """材料のファイル diagnose-input.json の中身（値だけ。鍵の意味は prompts/diagnose.md の Inputs が持つ）"""
+def input_doc(materials: dict, by_role: dict, sources: dict, batches: list, constraints: list, world_rows, answers: list,
+              changed_files, diff_file: str) -> dict:
+    """材料のファイル diagnose-input.json の中身（値だけ。鍵の意味は prompts/diagnose.md の Inputs が持つ）。素材の観点の返答の鍵は
+    files.REPLY_FIELDS の全部を並べ、引き方（sources の replies）に無い鍵・素材の doc が無い・reply が null・欄が無ければ null"""
     doc = {"materials": materials}
-    for key, (role, field) in files.REPLY_KEYS.items():
+    for key in files.REPLY_FIELDS:
+        role, field = sources["replies"].get(key, (None, None))
         reply = _reply_of(by_role, role)
         doc[key] = reply if field is None else (reply.get(field) if isinstance(reply, dict) else None)
     doc.update(request_findings=batches, constraints=constraints, world_rows=world_rows, answers=answers,
@@ -197,6 +213,7 @@ def _judge_prep(place: pathlib.Path, repo, raw: dict) -> tuple:
     answers = port_answers or request[carry.ANSWERS]
     spec_rows = _port("spec_rows", lambda: _spec_rows(spec_path, spec_origin))
     world = _port("world_rows", lambda: worldmark.rows(world_path) if world_path else None)
+    sources = _port("reply_sources", lambda: reply_sources(raw.get("reply_sources")))
     docs = _port("materials", lambda: assemble_materials(raw_items, raw.get("pr_material")))
     by_role = {str(doc.get("role") or ""): doc for _, doc in docs}
     local = baseline_local_checks(baseline) if baseline else {"status": "not_run", "reason": baseline_why} if baseline_why else None
@@ -210,8 +227,9 @@ def _judge_prep(place: pathlib.Path, repo, raw: dict) -> tuple:
         mats["base_determination"] = base_determination(view)   # 根を持つ素材の doc が無い（単独の run など）時は、見方の根で埋める
     batches = request_batches(rows, request_origin, spec_rows, spec_origin)
     _write(place / files.MATERIALS_FILE, mats)
-    _write(place / files.INPUT_FILE, input_doc(mats, by_role, batches, constraints, world, answers, view.changed_files, view.diff_file))
-    decisions = next((path for path, doc in docs if doc.get("role") == files.PRIOR_DECISIONS_ROLE and path is not None), None)
+    _write(place / files.INPUT_FILE, input_doc(mats, by_role, sources, batches, constraints, world, answers, view.changed_files, view.diff_file))
+    decisions = next((path for path, doc in docs if sources["decisions"] is not None and doc.get("role") == sources["decisions"]
+                      and path is not None), None)
     start = {"policy": {"named": "", "path": "", "sha256": None, "copy": str(policy_path) if policy_path else None},
              "answers": answers}
     prior = [*request[carry.PRIOR], *port_prior]
@@ -224,7 +242,7 @@ def _judge_prep(place: pathlib.Path, repo, raw: dict) -> tuple:
         "pr_text": ports.text(raw.get("pr_text")), "policy": str(policy_path) if policy_path else "",
         "lang": ports.text(raw.get("lang")).strip(), "row_asks": row_asks, "depth_why": ports.text(raw.get("depth_why")),
         "prior_rows": [r for r in prior if not carry.is_redesign(r)], "redesign": [r for r in prior if carry.is_redesign(r)],
-        "recorded": policy.recorded(start, decisions), "material_rows": material_rows(by_role, batches),
+        "recorded": policy.recorded(start, decisions), "material_rows": material_rows(by_role, batches, sources["trail"]),
         "request_files": request_files,
     }
     gave = [str(doc.get("reason") or "") for _, doc in docs if doc.get("status") == "gave_up"]

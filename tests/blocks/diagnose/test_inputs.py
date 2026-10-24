@@ -9,9 +9,22 @@ from tests.blocks.diagnose import support
 from tests.blocks.diagnose.support import REQUEST
 
 PORTS = {"request": json.dumps(REQUEST, ensure_ascii=False), "request_origin": "", "objection": "", "base": "", "purpose": "",
-         "constraints": "[]", "materials": "[]", "pr_material": "null", "baseline": "", "world_rows": "", "row_asks": "[]",
+         "constraints": "[]", "materials": "[]", "reply_sources": "null", "pr_material": "null", "baseline": "", "world_rows": "", "row_asks": "[]",
          "depth_why": "", "spec_rows": "", "spec_origin": "", "answers": "[]", "prior_failures": "[]", "pr_text": "", "policy": "",
          "prior": "null", "prior_brief": "", "prior_inputs": "", "spec": "", "verify": "", "excluded": "", "lang": ""}
+
+
+# 素材の観点の返答の引き方（入力 reply_sources。graph の judge が渡す表と同じ並び。試験の作り物なので形で照らしてから使う）
+SOURCES = kit.shaped("shared:reply-sources.schema.json", {
+    "replies": [{"key": key, "role": role, "field": field} for key, role, field in (
+        ("local_findings", "local-review", "findings"), ("consistency_findings", "consistency-bypass", "findings"),
+        ("bypass_findings", "consistency-bypass", "bypass_findings"), ("external_findings", "external-standards", "findings"),
+        ("procedure_findings", "procedure-trace", "findings"), ("test_double_fidelity", "test-double-fidelity", None),
+        ("main_path_observation", "main-path-observation", None), ("provenance", "provenance", None),
+        ("prior_decisions", "prior-decisions", None), ("purpose_review", "purpose-review", None))],
+    "trail": ["local-review", "consistency-bypass", "hygiene", "external-standards", "procedure-trace", "test-double-fidelity",
+              "main-path-observation", "provenance"],
+    "decisions": "prior-decisions"}, "diagnose")
 
 
 def dump(value):
@@ -98,7 +111,7 @@ class JudgeIntakeCase(_Base):
             self.material("prior-decisions", {"settled": [{"where": "docs/d.md:3", "topic": "t", "decision": "d"}]}),
             self.material("purpose-review", {"verdict": "narrows"}),
             self.material("provenance", {"checked": 1})]
-        self.assertTrue(self.intake(materials=json.dumps(pointers))["due"])
+        self.assertTrue(self.intake(materials=json.dumps(pointers), reply_sources=dump(SOURCES))["due"])
         doc = self.doc("diagnose-input.json")
         self.assertEqual(doc["local_findings"], [{"where": "stats.py:2", "text": "分母"}])
         self.assertEqual(doc["consistency_findings"], [{"where": "a", "text": "整合"}])
@@ -114,12 +127,42 @@ class JudgeIntakeCase(_Base):
         pointers = [self.material("local-review", {"lenses": [{"skill": "code-review", "findings": [{"where": "stats.py:9", "text": "分母", "mechanism": "m"}]}]}),
                     self.material("prior-decisions", {"decisions": [{"where": "x", "text": "y"}]}),
                     self.material("hygiene", {"findings": [{"where": "h.py", "text": "衛生"}]})]
-        self.intake(materials=json.dumps(pointers))
+        self.intake(materials=json.dumps(pointers), reply_sources=dump(SOURCES))
         rows = self.values()["material_rows"]
         self.assertIn({"where": "stats.py:9", "text": "分母", "mechanism": "m", "from": "p1.local_review / code-review"}, rows)
         self.assertIn("p1.hygiene", [r["from"] for r in rows])
         self.assertNotIn("x", [r["where"] for r in rows], "P0 の素材は材料の行に入らない")
         self.assertEqual([r["where"] for r in rows if r["from"].startswith("依頼")], ["stats.py", "stats.py"])
+
+    def test_replies_follow_the_sources_the_graph_gives(self):
+        """どの素材のどの欄を写すか・辿る素材・記録された方針の素材は入力 reply_sources だけが決める（block は観点の役の名を持たない。
+        #851）。引き方が無ければ、素材が在っても返答の鍵は null で、材料の行は依頼の行だけ"""
+        pointers = [self.material("viewpoint-a", {"notes": [{"where": "stats.py:7", "text": "注"}]}),
+                    self.material("viewpoint-b", {"settled": [{"where": "docs/d.md:1", "topic": "t", "decision": "d"}]})]
+        sources = kit.shaped("shared:reply-sources.schema.json", {
+            "replies": [{"key": "local_findings", "role": "viewpoint-a", "field": "notes"},
+                        {"key": "provenance", "role": "viewpoint-b", "field": None}],
+            "trail": ["viewpoint-a"], "decisions": "viewpoint-b"}, "diagnose")
+        self.assertTrue(self.intake(materials=json.dumps(pointers), reply_sources=dump(sources))["due"])
+        doc = self.doc("diagnose-input.json")
+        self.assertEqual(doc["local_findings"], [{"where": "stats.py:7", "text": "注"}])
+        self.assertEqual(doc["provenance"]["settled"][0]["where"], "docs/d.md:1")
+        self.assertIsNone(doc["consistency_findings"])
+        self.assertIn("p1.viewpoint_a", [r["from"] for r in self.values()["material_rows"]])
+        self.assertEqual([r["source"] for r in self.values()["recorded"]].count("settled"), 1)
+        self.assertTrue(self.intake(materials=json.dumps(pointers))["due"])
+        doc = self.doc("diagnose-input.json")
+        self.assertEqual({doc[k] for k in self.mod["files"].REPLY_FIELDS}, {None})
+        self.assertTrue(all(r["from"].startswith("依頼") for r in self.values()["material_rows"]))
+        self.assertNotIn("settled", [r["source"] for r in self.values()["recorded"]])
+
+    def test_reply_sources_off_the_shape_stop_the_judge(self):
+        bad = dump({"replies": [{"key": "local_findings", "role": "a", "field": None}] * 2, "trail": [], "decisions": None})
+        for raw in (bad, dump({"replies": [{"key": "unknown_key", "role": "a", "field": None}], "trail": [], "decisions": None})):
+            with self.subTest(raw):
+                got = self.intake(reply_sources=raw)
+                self.assertFalse(got["due"])
+                self.assertIn("入力 reply_sources", got["reason"])
 
     def test_parallel_pr_card_joins_the_materials(self):
         card = {"status": "found", "count": 1, "detail": "PR #12 が stats.py を触る"}
@@ -244,7 +287,7 @@ class JudgeIntakeCase(_Base):
         decisions = self.material("prior-decisions", {"settled": [{"where": "docs/d.md:3", "topic": "出荷", "decision": "タグは作らない"},
                                                                   {"topic": "場所の無い論点", "decision": "決めた"}]})
         container = json.dumps({"findings": REQUEST, "answers": [{"question": "どれを採るか", "text": "A を採る"}]}, ensure_ascii=False)
-        self.intake(request=container, policy=policy, materials=json.dumps([decisions]))
+        self.intake(request=container, policy=policy, materials=json.dumps([decisions]), reply_sources=dump(SOURCES))
         rows = self.values()["recorded"]
         self.assertEqual([r["source"] for r in rows], ["doc", "answer", "settled", "settled"])
         self.assertEqual(rows[0]["name"], str(self.art / "policy-copy.md"))

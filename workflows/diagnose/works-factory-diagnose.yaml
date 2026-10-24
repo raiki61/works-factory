@@ -8,6 +8,7 @@ inputs:
   purpose: {default: '', description: 'json(shared:purpose.schema.json): 固めた目的のファイル（purpose.json。{purpose_text, source, known_weaknesses, source_files}）。空は目的の文がこの run に無い'}
   constraints: {default: '[]', description: 'json(shared:constraints.schema.json): 前提の実測の行の配列か、それを constraints の欄に持つオブジェクト。空の配列は実測が無い。判定の道だけが読む'}
   materials: {default: '[]', description: 'json(materials.schema.json): 素材の観点の block が返した material.json の pointer（かファイルのパス）の配列。空の配列は素材の観点が 1 つも回っていない。判定の道だけが読む'}
+  reply_sources: {default: 'null', description: 'json(shared:reply-sources.schema.json): 素材の観点の返答の引き方 {replies: [{key, role, field}], trail, decisions}（材料の鍵ごとにどの素材の role の返答のどの欄を写すか・出どころを辿る素材・記録された方針を持つ素材）。graph が渡す。null か空は引かない（返答の鍵は全部 null、材料の行は依頼の行だけ、記録された方針は無い）。判定の道だけが読む'}
   pr_material: {default: 'null', description: 'json(pr-material.schema.json): 並行 PR の素材の札 {status, count?, detail?, checked?, reason?}。null か空は並行 PR の確かめが回っていない。判定の道だけが読む'}
   baseline: {default: '', description: 'json(lib:baseline.schema.json): 直す前の試験の結末（試験の関門が直す前に書いた baseline.json）。素材 local_checks をここから写す。空は local_checks を not_run にする。判定の道だけが読む'}
   world_rows: {default: '', description: 'jsonl(lib:world-row.schema.json): 世界の解の行のファイル（world.jsonl。1 行が依頼の 1 行）。空は世界の解の行が無い'}

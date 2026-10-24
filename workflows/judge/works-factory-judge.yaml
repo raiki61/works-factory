@@ -360,7 +360,7 @@ nodes:
     output_format:
       type: object
       additionalProperties: false
-      required: [ok, reason, go, purpose, constraints, materials, missing, pr_material, world_rows, row_asks, depth_why, spec_rows, spec_origin, tier, verify]
+      required: [ok, reason, go, purpose, constraints, materials, missing, pr_material, world_rows, row_asks, depth_why, spec_rows, spec_origin, tier, verify, reply_sources]
       properties:
         ok: {type: boolean}
         reason: {type: string}
@@ -396,6 +396,7 @@ nodes:
         spec_origin: {type: string}
         tier: {type: string}
         verify: {type: boolean}
+        reply_sources: {type: [object, 'null'], description: 'json(shared:reply-sources.schema.json): 素材の観点の返答の引き方（src/feed.py の REPLY_SOURCES）。落ちた時は null'}
   # 判定の道だけ（objection・prior は渡さない。再審は line が diagnose を直に include する）
   - id: diagnose-run
     include: works-factory-diagnose
@@ -409,6 +410,7 @@ nodes:
       constraints: "$diagnose-in.output.constraints"
       materials: "$diagnose-in.output.materials"
       pr_material: "$diagnose-in.output.pr_material"
+      reply_sources: "$diagnose-in.output.reply_sources"
       world_rows: "$diagnose-in.output.world_rows"
       row_asks: "$diagnose-in.output.row_asks"
       depth_why: "$diagnose-in.output.depth_why"

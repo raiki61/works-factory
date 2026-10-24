@@ -1,5 +1,5 @@
 {
-  "description": "判定役が読んだ材料のファイル diagnose-input.json（diagnose の src/inputs.py の input_doc。鍵の意味は prompts/diagnose.md の Inputs）。素材の観点の返答の鍵（local_findings など。どの観点のどの欄かは src/files.py の REPLY_KEYS）は観点の返答かその欄で、欄の型の正本は観点ごとの役の output_format。ここは判定役と src/inputs.py の material_rows が読む欄だけを書く",
+  "description": "判定役が読んだ材料のファイル diagnose-input.json（diagnose の src/inputs.py の input_doc。鍵の意味は prompts/diagnose.md の Inputs）。素材の観点の返答の鍵（local_findings など。鍵の語は shared:reply-sources.schema.json の key の enum、どの観点のどの欄かは graph が入口 reply_sources で渡す）は観点の返答かその欄で、欄の型の正本は観点ごとの役の output_format。ここは判定役と src/inputs.py の material_rows が読む欄だけを書く",
   "type": "object",
   "properties": {
     "materials": {
