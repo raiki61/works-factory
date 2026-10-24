@@ -496,6 +496,45 @@
 - 訳: `others-may-use` と E14。`apiKeyHelper` だけで Claude Code を使う人は子に認証が届かず止まり、案内も OAuth の道しか言わなかった。`apiKeyHelper` の設定から起動しても既定の `~/.claude` にサブスクのログインが在れば黙ってそのアカウントで子を起こす形は、`claude_auth.py` の「利用者が選んだ経路を黙って別の口に差し替えない」に反した。
 - 当て方: `bin/_lib/auth_launch.py`（`api_key_helper`・`resolve`）と `tests/bin/test_auth_launch.py`・README の環境変数の項。
 
+## 2026-10-22 の決め（必要な接続設定だけを合成する）
+
+### `connection-settings-only` 普段の設定を丸ごと継がず、工場の家と権限を維持する
+
+- 持ち主の言葉: 「必要な設定だけ」「工場HOME権限維持」「進めれるとこまで」（設定合成の設計壁打ちと自律継続の承認）。
+- 決め: 接続先・model alias・apiKeyHelper と必要 env だけを対象にする。普段の hooks・permissions・sandbox・plugins・MCP・指示・不要 env は継がない。AI・Archon・工場の HOME・CLAUDE_CONFIG_DIR・ARCHON_HOME・XDG と既存の柵の印・denyWrite は維持し、対象コマンドだけを元環境に戻す道は変えない。helper の元環境は helper のプロセスにだけ与え、AI の環境を戻さない。runtime の名から任意 shell 関数の設定を推す機構・二重登録一覧・専用 pipe・新層・常駐機構は足さない。
+- 当て方: `docs/design/archon.md` の「接続設定の合成」の段階実装。直接 API/gateway と alias の追加方式を実装し、helper の更新委譲と provider の設定方式は未成立として保留する。既存の普通の login・API・helper・gateway の道を保つ。helper の実更新の安全性は未検証で保証しない。実資格を取らず、実 settings を読まず、本体・有料通信・新規工場 run・commit/push・外部投稿を行わない。
+
+## 2026-10-23・24 の決め（選ばれた provider の運び）
+
+### `provider-settings-allowlist` 選ばれた Bedrock・Mantle・Vertex は公式の名の許可リストで運び、HOME 基準の資格は本当のホームで渡す
+
+- 持ち主の言葉: 2026-10-23 の 2 つの答えは、下の「決め（2026-10-23）」のとおり。2026-10-24 の答えは「両方でok」（下の答え (2)）。利用者の `awsCredentialExport` を走らせ直す範囲（2026-10-24 の決めの 2 つ目の項目）は、計画の承認の答え。
+- 決め（2026-10-23。問い「設定の env が選んだクラウド接続（Bedrock・Vertex）の追加設定を、公式の名の許可リストで運ぶか、保留のままにするか」への答え）:
+  - provider は公式の名の許可リストで運ぶ (b)。親の env か設定の env（親が先）が選んだ Bedrock・Mantle・Vertex の、公式の名（`bin/_lib/auth_launch.py` の `AWS_ENV`・`VERTEX_ENV`。出典は https://code.claude.com/docs/en/amazon-bedrock と https://code.claude.com/docs/en/google-vertex-ai）を最終 process env へ運び、既定のログインや direct の資格へ黙って替えない。起動で止めて名指すのは、設定の env が Foundry を選んだ時と、設定の資格のファイル（`AWS_CONFIG_FILE`・`AWS_SHARED_CREDENTIALS_FILE`・`GOOGLE_APPLICATION_CREDENTIALS`）が相対パスの時だけ。名と出どころのファイルを言い、値は言わない。
+  - apiKeyHelper は起動ごとに 1 回のまま (a)。Claude Code に更新を任せる道は足さない（`api-key-helper-relay`・`connection-settings-only` のとおり）。
+- 決め（2026-10-24。問い「親の env が選んだ Bedrock・Vertex の資格が HOME 基準の時に、起動で止めるか・告げて進むか・今のままか」への答え「両方でok」の (2)）:
+  - 本当のホームの資格は、隔離した HOME に戻さず、本当のホームで資格を出す包みで渡す。AWS（Bedrock・Mantle）は、`~/.aws/config`・`~/.aws/credentials` のパス（中身は読まない）を `AWS_CONFIG_FILE`・`AWS_SHARED_CREDENTIALS_FILE` で渡し、HOME に頼らない資格が無く、`AWS_PROFILE` か `~/.aws` のファイルが在り、利用者の PATH に `aws` が在れば、`aws configure export-credentials --format process` を本当の HOME・XDG で走らせる包みを、run の置き場（`write_fence` の `--own` の top の下で、役は書けない）に書いて `awsCredentialExport` に置く。Vertex は ADC のファイルの絶対パスを `GOOGLE_APPLICATION_CREDENTIALS` で渡す（パスだけ）。
+  - 利用者の `settings.json` の `awsCredentialExport`（利用者が自分で選んだ AWS の資格の源。公式の設定の鍵）は、旗を親の env で立てても設定の env で立てても、限定した包みにくるんで運ぶ。包みの子は apiKeyHelper と同じ `helper_settings_env` で元の環境（隔離前の HOME・XDG と、元の `settings.json` の env）を組み、走るたびに `settings.json` からコマンドの字を読み直して走らせる。包みのファイルにはコマンドの字も資格の出力も残さない。役の Claude Code が run の間、期限の前ごとに走らせ直す（AI の環境は変えない）。包みを走らせる範囲は aws の包みと同じ境: 役の sandbox の外で、`aws` の CLI の実行ファイル、利用者の `settings.json`（走るたびに読み直す）、`AWS_CONFIG_FILE`・`AWS_SHARED_CREDENTIALS_FILE` が指す本当の `~/.aws` のファイルを、走らせるか読む。読むだけの役（`allowWrite` が `/`）はそれらを書き換えられ、`--own` には入れない。
+  - 殻は MDM を読まない（`connection-settings-only`）ので、MDM・管理者が配る `awsCredentialExport` が資格を出すかは数えられない。解けない `AWS_PROFILE`（殻に見える資格のファイルも利用者の `awsCredentialExport` も無い）は、止めずに名指す（`AWS_PROFILE` の名、MDM・管理者が配る物は殻から見えないこと、渡す道）。管理者の `awsCredentialExport`・`awsAuthRefresh`・`gcpAuthRefresh`（ファイルでも MDM でも）は Claude Code 自身が走らせ、実効の管理者の出どころが同じ鍵を配る時は `--settings` より勝つ（https://code.claude.com/docs/en/settings#settings-precedence）。殻は運ばず、止めず、包みを置く判断にも数えない。利用者の `awsAuthRefresh`・`gcpAuthRefresh`（対話の更新のコマンド）は運ばず止めず、鍵の名と出どころを名指す。
+  - 答え (1)（`CLAUDE_BIN_PATH` のラッパーの道が公式の道）は、決め `runtime-auth-gate` に記す。
+- この決めで替えた決め: `api-key-helper-relay` の「ゲートウェイの値は子に運ばない」（`connection-settings-only` が先に決め直した。その本文は記録として書き換えない）と、`connection-settings-only` の「provider の設定方式は未成立として保留」（この決めが覆した。本文は記録として書き換えない）。見直しの条件「公式の env 名の原典で確かめられた時」は、公式文書で名を確かめられて満たした。
+- 当て方: `bin/_lib/auth_launch.py`（`connection_profile`・`cloud_credentials`・`credential_export`）・`bin/_lib/claude_auth.py`（`FLAGS`）・`bin/_lib/launcher.py`・`workflows/.shared/fence.py`（`PROFILE_SETTINGS`）。`docs/design/archon.md` の「接続設定の合成」・README の環境変数の項。
+
+## 2026-10-24 の決め（起動方法の認証）
+
+### `runtime-auth-gate` 利用者が CLAUDE_BIN_PATH で置いた起動方法の認証を確かめ、成り立たなければ保存済みのログインへ切り替えずに止める
+
+- 持ち主の言葉: 2026-10-24 の答え (1)「`CLAUDE_BIN_PATH` のラッパー（利用者がふだん Claude を起こすスクリプト）を渡す道が公式の道。鍵そのものを環境変数に置く形はこれで動く」（決め `provider-settings-allowlist` の問いへの 2 つ目の答え。そちらの決めはここを指すだけ）。止める決め（成り立たない時に保存済みのログインへ落とさず、逃げ道を名指して止める）は、計画の承認の答え。
+- 決め:
+  - 段の順: 2026-10-20 の決め `api-key-helper-relay` の段の順（名指し → 親の環境の認証 → `CLAUDE_KEYCHAIN_SERVICE` → `apiKeyHelper` → 環境の `CLAUDE_CODE_OAUTH_TOKEN` → Claude Code 自身のログイン。本文はそのまま）の、最後の段の直前に「起動方法の門」を置く。利用者が `CLAUDE_BIN_PATH` を置いた時だけ、殻（`bin/_lib/launcher.py`）が起動方法を check より前に求め、check・exec の両方に `--runtime <その値>` を渡す（`CLAUDE_BIN_PATH` を読むのは殻のまま）。門は `<起動方法> auth status`（公式。JSON の `authMethod`。https://code.claude.com/docs/en/cli-reference）を起こす。終了コードが 0 で `authMethod` が `none` 以外なら、起動方法が自分の認証を持つとみなし、子に何も足さずに進む（既定のログインのトークンは足さない）。上の段（名指し・受け継いだ認証〔provider の旗を含む〕・`CLAUDE_KEYCHAIN_SERVICE`・`apiKeyHelper`・環境の OAuth）は今のまま門より先に効く。
+  - 成り立たない時（終了コードが 0 でない・JSON が読めない・`authMethod` が無いか `none`）は、保存済みのログインへ進まず止める。止める 1 行は起動方法のパス・成り立たない訳・逃げ道（ラッパーに鍵を環境変数で置かせる・`CLAUDE_CODE_OAUTH_TOKEN` を置く・`CLAUDE_BIN_PATH` を外して PATH の `claude` を使う）を言い、値・email・組織名は出さず、訳の部分で `claude` へのログインを直し方として案内しない（案内文 `HOWTO` の一般の文は変わらない）。理由: ラッパーと本物の `claude` は `auth status` からは見分けられず、ラッパーが鍵を置けなかった時（取り出しの失敗で空の値など）に役が黙って既定のアカウントで走るのを止めるには、成り立たない時を一律に止めるしかない。`api-key-helper-relay` の「選んだ経路を黙って別の口に差し替えない」の向きと同じ。`CLAUDE_BIN_PATH` が無い既定の道は門を通らず、今のまま。
+  - 狭まる能力: `CLAUDE_BIN_PATH` に本物の `claude` を置き、保存済みのログイン（macOS の keychain の項目・`.credentials.json`）だけで動いていた人と、`auth status` を持たない古い `claude` を置いた人は、起動で止まって起動方法を名指される。逃げ道は `CLAUDE_BIN_PATH` を外す・`CLAUDE_CODE_OAUTH_TOKEN`（`claude setup-token`）を置く。
+  - check は隔離した子の env で起こす。`api-key-helper-relay` の「check（利用者の環境で認証を確かめる段階）」は、この決めで「隔離した子の env（役と同じ見え方）で認証を確かめる段階」に替わる（`apiKeyHelper` を check で起こさない決めは変わらない）。起動方法の確かめも同じ env で起こすので、ラッパーが起こす時に置く鍵が見える。確かめの標準入力は渡さず、標準エラーは端末へ流し、待つ物を 1 行出し、期限は付けない（`no-timeouts`）。
+  - PATH の上の `claude` を `--own` で守る: 殻が書く包み（`write_fence`）の `--own` に、child の PATH の絶対の置き場にある `claude` を全部、実パスで足す（相対の置き場を退ける決まりは `on_absolute_path` の 1 か所のまま）。包みが守るのは、ラッパーのファイルと PATH の上の `claude`（ラッパー自身を除く）だけ。ラッパーはその `claude` を起こし、鍵は環境変数に置く。ほかのパスの `claude` と、ラッパーが読む鍵のファイルは、読むだけの役が書き換えうる。
+  - `authMethod` が `claude.ai` の時の告知: 止めず、門も口も足さず、出どころの字に注意を添える（殻の「認証は … から拾う（値は出さない）」の 1 行に出る）。ラッパーが `CLAUDE_CONFIG_DIR` か `HOME` を替えている見込みで、そうなら役は利用者の設定（hooks・permissions・plugins）で走りうる。鍵を環境変数に置く形にする。
+- 訳: `others-may-use` と E14。ラッパーで認証する人は、check が利用者の env だけを見るため、既定のログインが無ければ止まり、在れば既定のアカウントのトークンがラッパーの下に足されて、ラッパーが鍵を置けなかった時に役が黙って既定のアカウントで走った。
+- 当て方: `bin/_lib/auth_launch.py`（`runtime_auth`・`user_command`・`resolve`）・`bin/_lib/launcher.py`（`launch` の順・`write_fence`）・`docs/design/archon.md` の「接続設定の合成」・README の `CLAUDE_BIN_PATH` の項。
+
 ## 2026-10-20 の決め（試験の段の絞り）
 
 ### `related-tests-only` 工場が走らせる試験は、変更に関わる試験だけにする

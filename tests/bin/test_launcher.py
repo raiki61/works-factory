@@ -121,6 +121,69 @@ class LauncherTest(unittest.TestCase):
         return {"env": {"WORKS_FACTORY_ROOT": str(self.repo), answer.ENV: shlex.join(head), "CLAUDE_CODE_PROMPT_CACHE_TTL": "5m"},
                 "workflows": {"autoResumeOnQuotaReset": False}, "aliases": place.group_presets()}
 
+    def test_selected_connection_credentials_reach_auth_without_persisting_secrets(self):
+        """fake Archon で設定資格の親競合と秘密の非保存を確かめる。本物の資格・helper・Claude は起こさない。"""
+        selected = "dummy-selected-settings-key"
+        path = self.home / ".claude" / "settings.json"
+        body = {}
+        body["env"] = {"ANTHROPIC_API_KEY": selected, "ANTHROPIC_BASE_URL": "https://dummy.invalid",
+                       "ANTHROPIC_DEFAULT_SONNET_MODEL": "dummy-model", "HOME": "/must-not-restore",
+                       "UNNEEDED": "must-not-copy"}
+        path.write_text(json.dumps(body), encoding="utf-8")
+        done = self.launch("workflow", "run", "works-factory-line", ANTHROPIC_AUTH_TOKEN="dummy-parent")
+        got = self.reached(done)
+        env = got["env"]
+        self.assertEqual(env["ANTHROPIC_API_KEY"], selected)
+        self.assertNotIn("ANTHROPIC_AUTH_TOKEN", set(env))
+        self.assertEqual(env["ANTHROPIC_BASE_URL"], "https://dummy.invalid")
+        self.assertNotIn("UNNEEDED", set(env))
+        self.assertNotEqual(env["HOME"], "/must-not-restore")
+        self.assertNotIn(selected, done.stdout + done.stderr + json.dumps(got["argv"]))
+        for file in self.default_home(self.target).rglob("*"):
+            if file.is_file():
+                self.assertNotIn(selected, file.read_text(encoding="utf-8", errors="replace"), str(file))
+
+    def test_settings_provider_is_named_and_carried_to_the_roles(self):
+        """設定の env が Bedrock を選び、起動の env に API キーが無い時は、殻が止まらず Archon まで届き、接続の契約の env に旗と値が入る。
+        標準エラーは provider の名と設定のパスを言い、「未対応」と言わない。トークンの値は出さない"""
+        token = "dummy-bedrock-bearer-token"
+        path = self.home / ".claude" / "settings.json"
+        path.write_text(json.dumps({"env": {"CLAUDE_CODE_USE_BEDROCK": "1", "AWS_BEARER_TOKEN_BEDROCK": token,
+                                            "AWS_REGION": "us-east-1", "UNNEEDED": "must-not-copy"}}), encoding="utf-8")
+        done = self.launch("workflow", "run", "works-factory-line", ANTHROPIC_API_KEY=None)
+        got = self.reached(done)
+        contract = json.loads(got["env"][place.shared("fence").PROFILE_ENV])
+        self.assertEqual(contract["env"], {"CLAUDE_CODE_USE_BEDROCK": "1", "AWS_BEARER_TOKEN_BEDROCK": token, "AWS_REGION": "us-east-1"})
+        self.assertEqual(contract["drop"], [])   # 設定の明示の direct の資格は無いので、親の資格を外す物も無い
+        self.assertIn("CLAUDE_CODE_USE_BEDROCK", done.stderr)
+        self.assertIn(str(path), done.stderr)
+        self.assertNotIn("未対応", done.stderr)
+        self.assertNotIn(token, done.stdout + done.stderr + json.dumps(got["argv"]))
+
+    def test_parent_auth_survives_unreadable_connection_settings(self):
+        """上位認証が決まる時、壊れた不要 settings の追加合成で既存の起動を止めない（E14）。"""
+        (self.home / ".claude" / "settings.json").write_text("broken-json", encoding="utf-8")
+        done = self.launch("workflow", "run", "works-factory-line")
+        self.assertEqual(self.reached(done)["env"]["ANTHROPIC_API_KEY"], API_KEY)
+
+    def test_parent_auth_survives_unreadable_managed_connection_settings(self):
+        managed = self.tmp / "managed"
+        managed.mkdir()
+        (managed / "managed-settings.json").write_text("broken-json", encoding="utf-8")
+        done = self.launch("workflow", "run", "works-factory-line", WORKS_FACTORY_MANAGED_DIR=str(managed))
+        self.assertEqual(self.reached(done)["env"]["ANTHROPIC_API_KEY"], API_KEY)
+
+    def test_managed_credentials_override_user_credentials_without_copying_policy(self):
+        managed = self.tmp / "managed"
+        managed.mkdir()
+        (managed / "managed-settings.json").write_text(json.dumps({"env": {"ANTHROPIC_API_KEY": "dummy-managed"},
+                                                                    "permissions": {"allow": ["Bash(*)"]},
+                                                                    "sandbox": {"enabled": False}}), encoding="utf-8")
+        done = self.launch("workflow", "run", "works-factory-line", WORKS_FACTORY_MANAGED_DIR=str(managed))
+        env = self.reached(done)["env"]
+        self.assertEqual(env["ANTHROPIC_API_KEY"], "dummy-managed")
+        self.assertNotIn("dummy-managed", done.stdout + done.stderr)
+
     def test_run_gets_cwd_and_workflow_source_before_user_args(self):
         got = self.reached(self.launch("workflow", "run", "works-factory-line", "--input", "request=x", cwd=self.target / "sub"))
         argv = got["argv"]
@@ -1016,6 +1079,66 @@ class LauncherTest(unittest.TestCase):
         self.assertNotEqual(env["CLAUDE_BIN_PATH"], str(real))
         argv = self.fence_of(env)
         self.assertEqual(argv[argv.index("--real") + 1], str(real))
+
+    def wrapper(self, where, status):
+        """CLAUDE_BIN_PATH に置くラッパーの偽。auth status には status を返し、ほかの引数は偽の claude へ渡す"""
+        return put(where / "wrapper", f"#!/bin/sh\nif [ \"$1\" = auth ]; then echo '{status}'; exit 0; fi\n"
+                                     f"exec {shlex.quote(str(self.fake / 'claude'))} \"$@\"\n")
+
+    def test_claude_bin_path_wrapper_auth_is_checked_with_the_runtime(self):
+        """CLAUDE_BIN_PATH のラッパーが auth status で認証を言えば、起動の env に API キーもログインも無くても殻は Archon まで届く。
+        標準エラーは起動方法のパスで認証を拾ったと言い、値は出さない。起動方法が認証を言えない時（none）は、保存済みのログインが在っても止まり、
+        起動方法のパスを名指す。CLAUDE_BIN_PATH を置かない道は今のまま"""
+        wrapper = self.wrapper(self.tmp / "wrap", '{"authMethod":"api_key"}')
+        done = self.launch("workflow", "run", "works-factory-line", ANTHROPIC_API_KEY=None, CLAUDE_BIN_PATH=str(wrapper))
+        env = self.reached(done)["env"]
+        self.assertIn(f"認証は 起動方法 {wrapper} の認証（api_key） から拾う（値は出さない）", done.stderr)
+        self.assertNotIn("CLAUDE_CODE_OAUTH_TOKEN", list(env), "起動方法を置いたのに既定のログインのトークンを足した")
+        self.assertNotIn(API_KEY, done.stdout + done.stderr)
+        silent = self.wrapper(self.tmp / "silent", '{"authMethod":"none"}')
+        (self.home / ".claude" / ".credentials.json").write_text(
+            json.dumps({"claudeAiOauth": {"accessToken": TOKEN, "refreshToken": "r"}}), encoding="utf-8")
+        err = self.stopped(self.launch("workflow", "run", "works-factory-line", ANTHROPIC_API_KEY=None, CLAUDE_BIN_PATH=str(silent)))
+        self.assertIn(str(silent), err)
+        self.assertIn("認証が無いか、確かめられない", err)
+        self.assertNotIn(TOKEN, err)
+
+    def own_of(self, real, path_dirs, relative=()):
+        """本物の write_fence が書いた包みの殻の --own の一覧（real は包みが起こす claude、path_dirs は child の PATH の絶対の置き場）"""
+        home = self.tmp / "fence-home"
+        child = {"ARCHON_HOME": str(self.tmp / "archon"), "CLAUDE_CONFIG_DIR": str(self.tmp / "config"),
+                 "PATH": os.pathsep.join([*relative, *map(str, path_dirs)])}
+        shell = pathlib.Path(launcher.write_fence(home, str(real), child, self.tmp / "cache", self.tmp / "keep", []))
+        line = next(l for l in shell.read_text(encoding="utf-8").splitlines() if l.startswith("exec "))
+        argv = shlex.split(line)[1:]
+        return {argv[i + 1] for i, a in enumerate(argv) if a == "--own"}
+
+    def test_fence_owns_the_path_claude_behind_a_wrapper(self):
+        """包みの --own は、PATH の絶対の置き場にある claude を全部、実パスで持つ: (a) real がラッパーなら、ラッパーと PATH の上の claude の両方
+        （ラッパーが起こす claude も読むだけの役から守る）、(b) ラッパー自身が PATH の先頭の claude で本物が 2 つ目の置き場に在る時も、
+        本物を持つ、(c) PATH の相対の置き場の claude は入らない（打った場所の下の物を拾わない）"""
+        first, second, rel = self.tmp / "first", self.tmp / "second", self.tmp / "rel-bin"
+        for where in (first, second, rel):
+            write_fake_claude(where)
+        wrapper = self.wrapper(self.tmp / "wrap", '{"authMethod":"api_key"}')
+        link = self.tmp / "link-dir"
+        link.mkdir()
+        (link / "claude").symlink_to(second / "claude")
+        cwd = os.getcwd()
+        os.chdir(self.tmp)
+        self.addCleanup(os.chdir, cwd)
+        fence = self.own_of(wrapper, [first], relative=["rel-bin"])
+        with self.subTest("(a) ラッパーと PATH の上の claude"):
+            self.assertLessEqual({os.path.realpath(wrapper), os.path.realpath(first / "claude")}, fence)
+        with self.subTest("(c) 相対の置き場の claude は入らない"):
+            self.assertNotIn(os.path.realpath(rel / "claude"), fence)
+        with self.subTest("(b) ラッパーが先頭、本物が 2 つ目"):
+            fence = self.own_of(first / "claude", [first, second])
+            self.assertLessEqual({os.path.realpath(first / "claude"), os.path.realpath(second / "claude")}, fence)
+        with self.subTest("symlink は実パスで持つ"):
+            fence = self.own_of(wrapper, [link])
+            self.assertIn(os.path.realpath(second / "claude"), fence)
+            self.assertNotIn(str(link / "claude"), fence)
 
     def test_reading_commands_get_no_fence(self):
         for args in (["workflow", "get", "run-1"], ["workflow", "status"], ["validate", "workflows"]):
