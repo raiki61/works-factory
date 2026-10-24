@@ -16,7 +16,7 @@ import sys
 from collections.abc import Mapping
 from pathlib import Path
 
-from bin._lib import hostgh, isolate, pack, place, recordroot, runstop, specreviews, startpoint
+from bin._lib import auth_launch, hostgh, isolate, pack, place, recordroot, runstop, specreviews, startpoint
 from lib import answer, launchgroups, reads, userenv, writelog
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -118,7 +118,22 @@ def launch(argv: list[str], user: dict[str, str], here: Path) -> int:
     except (RuntimeError, ValueError) as error:
         raise Stop(str(error)) from None
 
+    profile = {"settings": {}, "env": {}, "drop": []}
+    executing = len(argv) > 1 and argv[0] == "workflow" and argv[1] in EXECUTING
+    if executing and not no_auth:
+        try:
+            managed = Path(user[auth_launch.MANAGED_DIR_ENV]) if user.get(auth_launch.MANAGED_DIR_ENV) else auth_launch.default_managed_dir()
+            # 包み（HOME 基準の AWS の資格を本当の HOME で出す物）は、write_fence の --own の top の下に置く（役は書き換えられない）
+            profile, notice = auth_launch.connection_profile(
+                filled_config, user, managed, lambda name, body: hostgh.place_shim(home / FENCE_DIR, name, body))
+        except ValueError as error:
+            raise Stop(str(error)) from None
+        if notice:   # 運んだ provider・出どころ・渡したファイル・名指す物の 1 行（値は出さない。無ければ告げない）
+            print(f"{NAME}: {notice}", file=sys.stderr)
+        user = auth_launch.profile_env(user, profile)
     child = isolate.isolate(user, home)
+    # 名の持ち主は最終起動の包み。秘密をファイルや引数へ焼かず、env でだけ渡す。
+    child[place.shared("fence").PROFILE_ENV] = json.dumps(profile)
     # GitHub の資格は AI の役に渡さない（持ち主の決め auth-middleware）。run の中の gh は、利用者の gh 自身の置き場のログインを
     # hostgh の口が継ぐ。script のノード（出口の語 pr の時に push と PR の作成をする archon-pr の publish も）は PATH の頭の
     # この口を打つ。役の claude には書き込みの柵の包みが PATH の頭に読むだけの口 works-gh（no-post-bin/）を足し（write_fence の
@@ -158,17 +173,20 @@ def launch(argv: list[str], user: dict[str, str], here: Path) -> int:
         elif place.flow_cap_unread(Path(child["ARCHON_HOME"])):
             print(f"{NAME}: 上限の設定が 1 行の形で在るかもしれず、殻は値を読めない（{Path(child['ARCHON_HOME']) / place.CAP_FILE}）",
                   file=sys.stderr)
-    if executing and not no_auth:
-        check = subprocess.run([*auth, "check", *auth_user], env=user, stdout=subprocess.PIPE, text=True,
-                               encoding="utf-8")
-        if check.returncode != 0:
-            raise Stop(code=check.returncode)
-        print(f"{NAME}: 認証は {check.stdout.strip()} から拾う（値は出さない）", file=sys.stderr)
     real = None
     if executing:
         real = real_claude(user)
         if not real:
             raise Stop("本物の claude（隔離した設定にプラグインを入れ、役を起こす）が見つからない。CLAUDE_BIN_PATH に絶対パスを設定する")
+        if user.get(CLAUDE_BIN_ENV):   # 利用者が起動方法（ラッパー）を置いた時だけ、その認証を check・exec が確かめる（読むのは殻のまま）
+            auth_user += ["--runtime", user[CLAUDE_BIN_ENV]]
+    if executing and not no_auth:
+        # 隔離した子の環境で確かめる（exec と同じ見え方。役と同じ環境で起動方法の認証を確かめる）
+        check = subprocess.run([*auth, "check", *auth_user], env=dict(child), stdout=subprocess.PIPE, text=True,
+                               encoding="utf-8")
+        if check.returncode != 0:
+            raise Stop(code=check.returncode)
+        print(f"{NAME}: 認証は {check.stdout.strip()} から拾う（値は出さない）", file=sys.stderr)
     if executing or argv[:1] == ["validate"]:
         install_toolset(child, target, filled_config, claude=real if not no_auth else None)
     if executing:
@@ -527,7 +545,9 @@ def names_key(path: Path, key: str) -> bool:
 def write_fence(home: Path, real: str, child: Mapping[str, str], cache: Path, keep: Path, path_heads: list[str]) -> str:
     """Archon が役を起こす claude の前に置く包み（埋め P5。workflows/.shared/fence.py）の殻を書き、そのパスを返す。値は env でなく
     殻に焼く（Archon は claude に渡す env を掃除する）。-B は Archon がバイトで照らす workflows/ に __pycache__ を作らないため。
-    --own は、同じ run の後の役の起動が sandbox の外で走らせる物（この殻・gh の口・包みを起こす解釈系〔sys.prefix と sys.base_prefix〕・本物の claude）と、
+    --own は、同じ run の後の役の起動が sandbox の外で走らせる物（この殻・gh の口・包みを起こす解釈系〔sys.prefix と sys.base_prefix〕・本物の claude・
+    child の PATH の絶対の置き場にある claude を全部〔real がラッパーの時にラッパーが起こす claude も、ラッパー自身が PATH の先頭で本物が後ろの
+    置き場に在る時の本物も守る。相対の置き場を退ける決まりは on_absolute_path の 1 か所〕）と、
     次の起動が sandbox の外で走らせる物（取り置き cache〔Archon の源〕・TDD の実行器の取り置き keep・工場の checkout の根 ROOT 全体）。根は丸ごと禁じる。bin/works-factory は
     ROOT を import の先頭に置くので、根に新しく置いた shlex.py や bin.py が次の起動の import に勝つ。
     本物の claude は実パスで起こす（包みは --own を実パスに解いて禁じるので、symlink を通して起こすと symlink 自身は書ける）。
@@ -535,7 +555,8 @@ def write_fence(home: Path, real: str, child: Mapping[str, str], cache: Path, ke
     --path-head は役の claude の PATH の頭に足す置き場（path_heads。読むだけの gh の口の置き場）"""
     top = home / FENCE_DIR
     real = os.path.realpath(real)
-    own = [top, home / HOST_GH_DIR, sys.prefix, sys.base_prefix, real, cache, keep, ROOT]
+    on_path = [found for folder in child.get("PATH", "").split(os.pathsep) if (found := on_absolute_path("claude", folder))]
+    own = [top, home / HOST_GH_DIR, sys.prefix, sys.base_prefix, real, *map(os.path.realpath, on_path), cache, keep, ROOT]
     body = ("#!/bin/sh\n"
             "# works-factory の起動（bin/_lib/launcher.py）が書いた包み: 読むだけの役の claude の sandbox に、起こす直前に組んだ\n"
             "# 書き込みを禁じるパスの一覧を足す\n"

@@ -31,11 +31,11 @@ import subprocess
 import sys
 
 # 親の環境に在れば認証は足さない。子（claude）が読む経路——サブスクの OAuth・API キー・
-# 企業のゲートウェイ・Bedrock / Vertex。**旗の 2 つは値も見る**（`=0` は「使わない」の意味で、
-# 在るだけで認証が在ることにはならない）。
-INHERITED = ("CLAUDE_CODE_OAUTH_TOKEN", "ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN",
-             "CLAUDE_CODE_USE_BEDROCK", "CLAUDE_CODE_USE_VERTEX")
-FLAGS = ("CLAUDE_CODE_USE_BEDROCK", "CLAUDE_CODE_USE_VERTEX")
+# 企業のゲートウェイ・Bedrock / Vertex / Mantle。**旗の 3 つは値も見る**（`=0` は「使わない」の意味で、
+# 在るだけで認証が在ることにはならない）。provider の旗の一覧は FLAGS の 1 か所にだけ置く
+# （bin/_lib/auth_launch.py の PROVIDER_FLAGS は、ここに Foundry の旗を足して組む）。
+FLAGS = ("CLAUDE_CODE_USE_BEDROCK", "CLAUDE_CODE_USE_VERTEX", "CLAUDE_CODE_USE_MANTLE")
+INHERITED = ("CLAUDE_CODE_OAUTH_TOKEN", "ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", *FLAGS)
 OFF = ("", "0", "false", "False", "no")
 TOKEN_PREFIX = "sk-ant-oat01-"
 
