@@ -344,8 +344,8 @@ def rerun_problem(place, repo, suite: str, cases, named, *, name: str = "rerun",
 CMD_RED = "run の test_cmd（{cmd}）が当てた後の木で緑でない（{said}）"
 CMD_STILL_RED = "（走らせ直しも 3 回とも赤で、組を外した木では緑）"
 CMD_OLD_RED = "前から赤（または環境）: run の test_cmd（{cmd}）は当てた後の木で赤だが、組を外した木でも赤なので組のせいにしない（{said}）"
-CMD_FLAKY = ("揺れ: run の test_cmd（{cmd}）は当てた後の木で赤、組を外した木で緑、当てた木での走らせ直し {runs} 回のうちに緑が在ったので"
-             "組を戻さない（赤の回: {said}）")
+CMD_FLAKY = ("揺れ: run の test_cmd（{cmd}）は当てた後の木で赤、組を外した木で緑、当てた木で走らせた {runs} 回（1 回目を含む）のうちに"
+             "緑が在ったので組を戻さない（赤の回: {said}）")
 CMD_UNCOMPARED = "test_cmd（{cmd}）: 当てた後の木で赤で、組を外した木で走らせた結果が取れず比べられない（{said}）"
 CMD_TRIES = 3   # 外すと緑の時に当てた木で走らせる回の数（1 回目を含む。#855）
 
@@ -363,7 +363,8 @@ def _cmd_said(mat: dict, log) -> str:
 
 def _cmd_without(repo, base: str, cmd: str, log, skip=()) -> dict:
     """組を外した木（当てる前の木 base）の姿で test_cmd を 1 回走らせた素材。走らせる前に今の木を控え、走らせた後は控えの姿へ
-    戻す（外した木で test_cmd が作ったファイルも残さない）。戻せなければ落ちる（呼び手の join_group が組を戻す）"""
+    戻す（外した木で test_cmd が作ったファイルも残さない）。戻せなければ落ちる（join の道は呼び手の join_group が組を戻し、合わせ役の道は
+    受け付けの node が落ちる）。.gitignore に当たるファイルは木の姿に入らないので戻さない"""
     from src import tdd as tddloop
     now = tddloop.snapshot(repo)
     paths = [p for p in tddloop.touched(repo, base, now) if not p.startswith(tuple(skip))]

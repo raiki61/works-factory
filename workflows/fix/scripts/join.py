@@ -53,13 +53,14 @@ def main() -> dict:
             old = []   # 確かめ直しで前から同じ形で赤だった名指し（戻す理由にしない。#837）
             unknown = []   # 確かめ直しで直す前の版と比べられなかった赤の鍵（戻す理由にせず報告で人に聞く。#846）
             notes = []   # 確かめ直しの test_cmd の赤を前から赤か揺れと見た文（戻す理由にせず報告に書く。#855）
-            base = tdd.snapshot(repo)   # 組を当てる前の木（test_cmd の赤を組を外した木で見分ける）
+            cmd = board.rerun_cmd(place, r, start["test_cmd"])
+            base = tdd.snapshot(repo) if cmd else ""   # 組を当てる前の木（test_cmd の赤を組を外した木で見分ける）
 
             def check(names):
                 shared = set(names) & earlier
                 red[g["group_id"]] = board.tests_moved(repo, r["end_tree"], tdd_rows, shared) or board.rerun_problem(
                     place, repo, start["tdd_suite"], cases, named, name=f"rerun-{g['group_id']}", shared=shared,
-                    test_cmd=board.rerun_cmd(place, r, start["test_cmd"]), old_red=old, uncompared=unknown,
+                    test_cmd=cmd, old_red=old, uncompared=unknown,
                     base=base, cmd_notes=notes)
                 return red[g["group_id"]]
             try:
