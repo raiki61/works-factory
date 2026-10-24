@@ -81,7 +81,7 @@ class RunEnvCase(unittest.TestCase):
         self.assertEqual(env["WORKS_FACTORY_ROOT"], str(launcher.ROOT))
         for node in ("fresh", "child", "resumed"):
             with self.subTest(node):
-                self.assertEqual(got.get(node), env)
+                self.assertTrue(got.get(node) == env)
         self.assertIn("workflows.autoResumeOnQuotaReset", sealed, "使用枠の方針も同じ層で封じる")
 
 

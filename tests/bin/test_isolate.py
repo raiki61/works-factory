@@ -44,14 +44,14 @@ class IsolateCase(unittest.TestCase):
     def test_users_home_and_claude_config_stay_in_the_given_env(self):
         env = {"HOME": "/u", "CLAUDE_CONFIG_DIR": "/u/.claude-x"}
         child = isolate.isolate(env, self.run_home)
-        self.assertEqual(env, {"HOME": "/u", "CLAUDE_CONFIG_DIR": "/u/.claude-x"})
+        self.assertTrue(env == {"HOME": "/u", "CLAUDE_CONFIG_DIR": "/u/.claude-x"})
         self.assertTrue(pathlib.Path(child["CLAUDE_CONFIG_DIR"]).is_relative_to(self.run_home))
 
     def test_other_names_pass_through_and_the_given_env_is_not_changed(self):
         env = {"HOME": "/u", "PATH": "/usr/bin", "LANG": "ja_JP.UTF-8"}
         child = isolate.isolate(env, self.run_home)
         self.assertEqual((child["PATH"], child["LANG"]), ("/usr/bin", "ja_JP.UTF-8"))
-        self.assertEqual(env, {"HOME": "/u", "PATH": "/usr/bin", "LANG": "ja_JP.UTF-8"})
+        self.assertTrue(env == {"HOME": "/u", "PATH": "/usr/bin", "LANG": "ja_JP.UTF-8"})
 
     def test_users_home_and_xdg_are_always_recorded(self):
         """隔離の前の HOME・XDG_* の新しい控えをいつも置く（利用者の env から継いだ古い控え・印の置き場・印のパスは落とす）。
