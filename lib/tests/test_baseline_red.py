@@ -39,6 +39,21 @@ class TestRedKind(unittest.TestCase):
         self.assertEqual([(c["name"], c["fail_message"], c["fail_text"]) for c in cases], [("t1", "m", "trace\nm"), ("t2", "", "")])
         self.assertTrue(all("fail_type" not in c for c in cases))
 
+    def test_run_suite_rows_carry_error_attrs(self):
+        """#837: error の行も error の子の message と本文を持つ（読み込めない試験の失敗の文を直す前と当てた後で比べる）。
+        failure と error の両方を持つ行は、結末の語（error）の子の物"""
+        with tempfile.TemporaryDirectory() as td:
+            work = pathlib.Path(td)
+            exe = work / "suite.py"
+            exe.write_text("import sys\nopen(sys.argv[1], 'w').write('<testsuite>"
+                           "<testcase classname=\"a\" name=\"t1\"><error message=\"No module named yaml\">tb</error></testcase>"
+                           "<testcase classname=\"a\" name=\"t2\"><failure message=\"f\">x</failure><error message=\"e\">y</error></testcase>"
+                           "</testsuite>')\nsys.exit(1)\n", encoding="utf-8")
+            cases, _, why = baseline_red.run_suite(str(exe), work, work, "attrs")
+        self.assertEqual(why, [])
+        self.assertEqual([(c["name"], c["outcome"], c["fail_message"], c["fail_text"]) for c in cases],
+                         [("t1", "error", "No module named yaml", "tb"), ("t2", "error", "e", "y")])
+
 
 JUNIT = ('<testsuite><testcase classname="test_stats.TestStats" name="test_mean_of_three">'
          '<failure message="AssertionError: 3.0 != 2">trace</failure></testcase>'

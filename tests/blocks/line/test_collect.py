@@ -212,6 +212,22 @@ class FactsCase(unittest.TestCase):
         got = self.build(v)
         self.assertEqual(got["tallied"], {"守りのパスに当たった差分": 7})
 
+    def test_uncompared_reds_are_asked(self):
+        """fix の #846: 確かめ直しで直す前の版と比べられなかったので組を戻さなかった赤（当てたままの組の行の uncompared）は、黙って
+        通さず、人が決めることに 1 件 1 行で載せて聞く。戻した組の行の uncompared は聞かない（組を当てていない）"""
+        v = passing()
+        v["fixed"] = {**v["fixed"], "groups": [
+            {"group_id": "g1", "unit_ids": ["u1"], "returned": True, "reason": "", "uncompared": ["test_a.TestA::test_env"]},
+            {"group_id": "g2", "unit_ids": ["u2"], "returned": False, "reason": "赤", "uncompared": ["test_b.TestB::test_x"]}]}
+        got = self.build(v)
+        asked = [a["text"] for a in got["asks"] if a["kind"] == self.f.UNCOMPARED_HEAD]
+        self.assertEqual(len(asked), 1, got["asks"])
+        self.assertIn("test_a.TestA::test_env", asked[0])
+        self.assertIn("g1", asked[0])
+        self.assertIn("比べられなかった", self.f.UNCOMPARED_HEAD)
+        self.assertIn(f"{self.f.UNCOMPARED_HEAD}: 1 件", got["decisions"]["before"])
+        self.assertEqual(check(got, FACTS_SCHEMA), [])
+
     def test_record_unreadable_is_not_start_ok(self):
         got = self.build(passing(), rec={})
         self.assertFalse(got["start_ok"])
@@ -472,3 +488,14 @@ class SpecRunCase(unittest.TestCase):
         v.update(dict.fromkeys(("spec_entry", "spec_diagnose", "spec_driven_check", "spec_rounds", "spec_ask_before_fix",
                                 "spec_answer_before_fix")))
         self.assertEqual(self.r.collect_values(v), v)
+
+
+class BaseSelfCheckLineCase(unittest.TestCase):
+    """持ち主の決め base-runs-nothing: 節「走らせなかった範囲」の直す前の行は、直す前の走らせ方の行だけ。利用者の走らせ方を絞らない
+    という添え書き（最後のテストの道 (1)(2) の物）は付けない"""
+
+    def test_the_base_line_is_the_self_check_way_only(self):
+        s = kit.load(BLOCK, "sections")
+        way = "直す前の版では試験を走らせない（全部の試験も自己点検も置かない）"
+        base = {"mode": "base", "suites_line": way, "related": {"applied": False}}
+        self.assertEqual(s.not_run_lines(base, None), [f"直す前のテスト: {way}"])

@@ -46,7 +46,7 @@ def main(pass_: str, limit: int) -> dict:
         gave_up = out["reason"]
     else:
         start = runvals.read(place)
-        cases = (board.read_json(place / board.BASELINE_FILE, {}) or {}).get("cases") or []
+        cases = board.before_cases(place)   # 試験の関門の元の結末と、組の子の TDD の輪の頭の結末（直す前は試験の関門が走らせない）
         k, out = board.round_number(place, name)   # 控えが読めなければ out が done 真の拒否（照らさずに抜ける）
         if out is None:
             bad = clash.problems(place, repo, gid, reply, start=start, cases=cases, skip=SKIP, name=ACCEPT[pass_], k=k)

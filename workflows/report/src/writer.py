@@ -3,7 +3,7 @@ lib/report_roles.py の全部を、block の place で受ける形に写した�
 
 - pack_terms()・plain_words(text)・swapped_line(counts)・glossary_section(text, terms): 語の表（glossary.json）による言い換えと語の定義
 - accept(reply, cold, *, place) -> {done, ok, reason, kind, prev_file}: 書き手の返答と初見の読み手の判定の受け付け
-- cold_body(raw, *, place): 初見の読み手に貼る本文
+- cold_parts(raw, *, place)・cold_body(raw, *, place): 初見の読み手に貼る本文（機械が組んだ行と書き手の頭に分けた物と、つないだ物）
 - handoff_rounds(place): 前の周の引き継ぎのメモのパスの行
 - collect(machine_text, *, place, stamp): 人に向けた報告と詳細のファイル
 - stamp(run_id, workflow_file, rnd, line_rev, start_ok): 来歴の 1 行
@@ -30,6 +30,8 @@ PACK_TERMS = pathlib.Path(__file__).resolve().parent / "glossary.json"
 # ---------------------------------------------------------------- 定数
 DECISIONS_HEAD = "人が決めること"
 NOT_PASSED = "報告サブグラフの初見の読み手のノード cold が、この報告の頭を通さなかった"
+MACHINE_ONLY = "初見の読み手が止まったのは機械が組んだ頭の行だけで、書き手には直せないので、書き直させずに受け取った"
+MACHINE_LINE = "機械が組んだ行で止まった所（書き手には直せない）"
 CELL_LIMIT = 50   # 表のセルの字数の上限（`コード` の部分を除く）。持ち主の決まり「セルには数語だけ」
 MACHINE_HEADING = "## 機械が各段の出力と run の記録から組んだ事実（AI は書き換えていない）"
 MACHINE_DECISIONS = "## 1. 人の判断を待つ物の機械の数え（判断の本文は報告の頭）"
@@ -60,10 +62,12 @@ TEXT_SCHEMA = {"type": "object", "required": ["text", handoff.FIELD], "additiona
                               "terms": {"type": "array", "items": TERM_SCHEMA},
                               handoff.FIELD: handoff.SCHEMA}}
 # 初見の読み手の返答の型。型の正本は YAML の cold の output_format で、これと同じかを試験が縛る
-COLD_SCHEMA = {"type": "object", "required": ["verdict", "stops", "guessed", "decidable"], "additionalProperties": False,
+# stops・guessed は書き手の頭の所、machine_lines は機械が組んだ行の所（書き手には直せない）
+COLD_SCHEMA = {"type": "object", "required": ["verdict", "stops", "guessed", "machine_lines", "decidable"], "additionalProperties": False,
                "properties": {"verdict": {"type": "string", "enum": ["pass", "redesign-needed"]},
                               "stops": {"type": "array", "items": {"type": "string"}},
                               "guessed": {"type": "array", "items": {"type": "string"}},
+                              "machine_lines": {"type": "array", "items": {"type": "string"}},
                               "decidable": {"type": "boolean"}}}
 
 
@@ -229,14 +233,21 @@ def _cold_of(cold) -> dict:
     got = got or {}
     verdict = got.get("verdict") if got.get("verdict") in COLD_SCHEMA["properties"]["verdict"]["enum"] else ""
     return {"verdict": verdict, "stops": [str(s) for s in _list(got.get("stops"))],
-            "guessed": [str(g) for g in _list(got.get("guessed"))], "decidable": got.get("decidable") is True}
+            "guessed": [str(g) for g in _list(got.get("guessed"))],
+            "machine_lines": [str(m) for m in _list(got.get("machine_lines"))], "decidable": got.get("decidable") is True}
+
+
+def machine_only(c: dict) -> bool:
+    """初見の読み手が通さなかった所が、機械が組んだ行だけか（書き手の頭に止まった所も推測も無い）。判定を読めなければ偽"""
+    return c["verdict"] == "redesign-needed" and bool(c["machine_lines"]) and not (c["stops"] or c["guessed"])
 
 
 def _cold_lines(c: dict) -> list[str]:
     """初見の読み手が通さなかった所（止まった所・推測で埋めた所）。判定を読めなければその事実の 1 つ"""
     if not c["verdict"]:
         return [COLD_UNREADABLE]
-    return [f"止まった所: {s}" for s in c["stops"]] + [f"推測で埋めた所: {g}" for g in c["guessed"]]
+    return ([f"止まった所: {s}" for s in c["stops"]] + [f"推測で埋めた所: {g}" for g in c["guessed"]]
+            + [f"{MACHINE_LINE}: {m}" for m in c["machine_lines"]])
 
 
 def _cold_facts(c: dict) -> str:
@@ -257,13 +268,14 @@ def machine_head(machine_text: str) -> str:
     return str(machine_text or "").split("\n## ", 1)[0].strip()
 
 
-def cold_body(raw, *, place) -> str:
-    """初見の読み手に貼る本文: 人に向けた報告の頭と同じ物——機械の報告（place の report.md）の冒頭・書き手の返答の頭（head_of）・その後ろに付く
-    語の定義のセクションを、語の表で言い換えた物。書き手の返答を読めなければ読めない事実"""
+def cold_parts(raw, *, place) -> tuple[str, str]:
+    """初見の読み手に貼る本文を (機械が組んだ行, 書き手の頭) に分けた物。機械が組んだ行は機械の報告（place の report.md）の冒頭、書き手の頭は
+    書き手の返答の頭（head_of）とその後ろに付く語の定義のセクション。どちらも語の表で言い換える。書き手の返答を読めなければ、機械が組んだ行は
+    空で、書き手の頭の所に読めない事実"""
     got, why = _parse(raw)
     text = got.get("text") if got else None
     if not (isinstance(text, str) and text.strip()):
-        return f"（書き手の返答を読めない: {why or '本文が無い'}）"
+        return "", f"（書き手の返答を読めない: {why or '本文が無い'}）"
     terms = _list(got.get("terms")) if not terms_problems(got) else []
     try:
         machine = machine_head((pathlib.Path(place) / files.REPORT_FILE).read_text(encoding="utf-8"))
@@ -271,7 +283,13 @@ def cold_body(raw, *, place) -> str:
         machine = f"（機械の報告の冒頭を読めない: {type(e).__name__}）"
     head = head_of(text)
     sec = glossary_section(head, terms)
-    return plain_words("\n\n".join(x.strip() for x in (machine, head, sec) if x.strip()) + "\n")[0]
+    writer = "\n\n".join(x.strip() for x in (head, sec) if x.strip())
+    return plain_words(machine.strip())[0], plain_words(writer)[0]
+
+
+def cold_body(raw, *, place) -> str:
+    """初見の読み手に貼る本文をつないだ物（人に向けた報告の頭と同じ物）"""
+    return "\n\n".join(x for x in cold_parts(raw, place=place) if x) + "\n"
 
 
 # ---------------------------------------------------------------- 受け付け
@@ -344,7 +362,8 @@ def accept(reply, cold, *, place) -> dict:
     place/r<n> に handoff.save で置く。handoff は ai.json にも初見の読み手に貼る本文にも載らない。前の周のメモが読めない時・控えに
     書けない時は、拒否に give_up を付けて1 回目で諦めさせる。順: 読む（読めない返答・本文の無い返答は kind answer）→ terms の型 →
     表のセルの書式 → 初見の読み手の判定。拒否が rolekit.GIVE_UP_AFTER 回に達した時か、控えが扱えない時は ai.json に受け取れなかった訳
-    （accepted: False）を書く。初見の読み手だけが通さない時は rolekit.is_last_attempt の回に受け取り、NOT_PASSED の印を ai.json に残す"""
+    （accepted: False）を書く。初見の読み手だけが通さない時は rolekit.is_last_attempt の回に受け取り、NOT_PASSED の印を ai.json に残す。
+    初見の読み手が止まったのが機械が組んだ行だけ（machine_only）なら、書き手には直せないので、どの回でも書き直させずに受け取って印を残す"""
     place = pathlib.Path(place)
     place.mkdir(parents=True, exist_ok=True)
     c = _cold_of(cold)
@@ -359,13 +378,18 @@ def accept(reply, cold, *, place) -> dict:
         bad = format_problems(got["text"])
         if bad:
             return _refused(CELL_REASON + "\n".join(f"- {x}" for x in bad), "format")
-        not_passed = ""
+        not_passed, why = "", ""
         if c["verdict"] != "pass":
-            if not rolekit.is_last_attempt(rolekit.attempt(place, files.ROLE)):
+            if machine_only(c):
+                why = MACHINE_ONLY
+            elif rolekit.is_last_attempt(rolekit.attempt(place, files.ROLE)):
+                why = "上限の回なので受け取った"
+            else:
                 return _refused(_cold_reason(c), "cold")
             not_passed = _cold_facts(c)
-        reason = f"上限の回なので受け取った。ただし{NOT_PASSED}（機械の事実の拒みの数の行に出す）" if not_passed else ""
-        return {"ok": True, "reason": reason, "text": got["text"], "terms": _list(got.get("terms")), "not_passed": not_passed}
+        reason = f"{why}。ただし{NOT_PASSED}（機械の事実の拒みの数の行に出す）" if not_passed else ""
+        return {"ok": True, "reason": reason, "text": got["text"], "terms": _list(got.get("terms")), "not_passed": not_passed,
+                "machine_only": machine_only(c)}
 
     def kept(got: dict) -> dict:
         out = take(got)
@@ -374,7 +398,8 @@ def accept(reply, cold, *, place) -> dict:
     out = rolekit.accept_round(place, files.ROLE, reply, kept, reject=lambda why: _refused(why, "answer"))
     if out["ok"]:
         carry.write(place / files.AI_FILE, {"accepted": True, "text": out["text"], "terms": out["terms"], "cold": c,
-                                            "not_passed": out["not_passed"], "rejects": _reject_count(place)})
+                                            "not_passed": out["not_passed"], "machine_only": out["machine_only"],
+                                            "rejects": _reject_count(place)})
         return {"done": True, "ok": True, "reason": out["reason"], "kind": "", "prev_file": ""}
     if out["done"]:   # 諦めた時も、控えが扱えない時も、受け取れなかった訳を残す（出口が輪が落ちたと読まない）
         try:
@@ -436,7 +461,8 @@ def _not_passed_note(ai: dict) -> str:
     通っていれば空）"""
     if ai.get("accepted") is not True or not ai.get("not_passed"):
         return ""
-    return f"。{NOT_PASSED}（上限の {rolekit.GIVE_UP_AFTER} 回目で受け取った。{oneline.one_line(ai['not_passed'])}）"
+    why = MACHINE_ONLY if ai.get("machine_only") is True else f"上限の {rolekit.GIVE_UP_AFTER} 回目で受け取った"
+    return f"。{NOT_PASSED}（{why}。{oneline.one_line(ai['not_passed'])}）"
 
 
 def line_budget(decisions: int) -> int:

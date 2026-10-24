@@ -45,6 +45,7 @@ REASONS = {
     "replan": "同じ run の中の案の直しで止めた（その答えの行の node も同じ語）",
     "scope-check": "窓の照らし（部品の置き場と宣言）が誤りを見て止めた",
     "spec-changed": "修正の後に、承認済みの受け入れ条件のテストのファイルが承認の版から変わったか、変わったかを照らせなかった（承認し直すかを人に諮る）",
+    "suite-broken": "工場が書いた試験の起動スクリプトが壊れていて（関わる試験が起動スクリプト越しにだけ中身に届く前に落ち、試験のコマンドを単体で走らせると通る）、書き直しても直らなかった（TDD のループを回さず、確かめていない直しを書き進めずに止めた）",
     "start-refused": "入口が入力を受けなかった（AI を起こす前に止めた）",
     "tdd-repeat": "同じ単位がまた TDD の確認の上限まで落ちたので、機械が裁定に回さず人に回した（裁定の by）",
     "unrestored": "組を当ててから戻そうとして戻せず、差分が親の作業ツリーに当たったまま止めた（作業ツリーを人が確かめるまで、後の組を当てず先へ進めない）",
@@ -103,6 +104,7 @@ REPLAN = word("replan")
 SCOPE_CHECK = word("scope-check")
 SPEC_CHANGED = word("spec-changed")
 START_REFUSED = word("start-refused")
+SUITE_BROKEN = word("suite-broken")
 TDD_REPEAT = word("tdd-repeat")
 UNRESTORED = word("unrestored")
 WAITING = frozenset({CONFLICT, NEEDS_HUMAN, REPLAN, SPEC_CHANGED, TDD_REPEAT, UNRESTORED})

@@ -4,18 +4,24 @@
 と `works/blk-fix/lib/tddloop.py` の関数を、元の名のまま字のとおり写した物（各関数の docstring の末尾に元の `<パス>:<行>`）。
 run_suite だけは元の試験の枠（tree_run.slotted_run の枠）を外し、tree_run.reuse_run で走らせる（優先度は lowered が 1 か所で下げる）。
 元の結末のファイルの口（write_baseline・read_baseline・outcomes・test_outcomes）は新しい関数。
+temp_tree（版の姿を一時の git worktree に出す）は fix の TDD の輪から上げた物で、fix の受け付けと試験の関門の最後のテストが、元の結末に
+無い赤を版の姿で走らせ直すのに使う（持ち主の決め base-runs-nothing）。
 
 元の結末のファイルの必須の欄: {"suite": str, "test_cmd": str, "rev": str, "exit": int | None, "cases": [{classname, name, outcome（OUTCOMES の語）, …}]}。
 ほかの欄は呼び手だけが読む（extra）。
 """
+import contextlib
 import json
 import os
 import pathlib
+import shutil
 import subprocess
 import sys
+import tempfile
 import xml.etree.ElementTree as ET
 
 import tree_run
+from leftovers import Unreadable, git
 
 # 実行器への合図（env）: 1 なら後ろに足した試験（ファイル・node id）だけを走らせてよい（既定の一式を集めない）。輪の赤・緑の回だけが
 # 付ける（元の結末・受け付け・版の写しは付けない）。解かない実行器は無視してよい（一式に足して走らせても確かめは同じ）
@@ -207,12 +213,14 @@ NO_FAILURE = {"fail_message": "", "fail_text": ""}
 
 
 def _failure_attrs(text: str) -> dict:
-    """JUnit XML の testcase の鍵（_key）→ {fail_message, fail_text}（failure の子の message の属性と本文。同じ鍵は最初の行。
-    failure の子の無い行は載せない）。写しの parse_junit は属性を返さないので、同じ XML を ElementTree で読み直す（failure の
-    文を読む所はここ 1 か所）（元 works/blk-fix/lib/tddloop.py:339-349）"""
+    """JUnit XML の testcase の鍵（_key）→ {fail_message, fail_text}（結末の語の子——error の子が在ればそれ、無ければ failure の子——の
+    message の属性と本文。同じ鍵は最初の行。どちらの子も無い行は載せない）。写しの parse_junit は属性を返さないので、同じ XML を
+    ElementTree で読み直す（失敗の文を読む所はここ 1 か所）（元 works/blk-fix/lib/tddloop.py:339-349。error の子を読むのは #837 で
+    足した: 読み込めない試験の失敗の文を、直す前と当てた後で比べる）"""
     out = {}
     for tc in ET.fromstring(text).iter("testcase"):
-        f = tc.find("failure")
+        f = tc.find("error")
+        f = tc.find("failure") if f is None else f
         if f is not None:
             out.setdefault(_key({"classname": tc.get("classname") or "", "name": tc.get("name") or ""}),
                            {"fail_message": f.get("message") or "", "fail_text": f.text or ""})
@@ -223,6 +231,38 @@ def _unique(cases) -> list:
     """同じ鍵の行を最初の 1 つにまとめる（名指しの写しを red_problems が名指しの外と数えない）（元 works/blk-fix/lib/tddloop.py:449-452）"""
     seen = set()
     return [c for c in cases if not (_key(c) in seen or seen.add(_key(c)))]
+
+
+@contextlib.contextmanager
+def temp_tree(repo, rev: str):
+    """(版 rev を出した一時の git worktree（--detach。フックは切る）か None, 作れない理由の並び)。写しに .git が在るので git を読む
+    試験も今の木と同じ条件で走る。成否に関わらず消す（この worktree だけを外し、外せなければ置き場を消して prune する。
+    作業ツリー・index・枝は動かさず、git の控え .git/worktrees/ の行を残さない）。置き場の根は実のパスに解く（実行器の起こし場所と
+    引数の綴りをそろえる。test_base_copy_args_lie_under_real_cwd）。写しは版の追跡中のファイルだけで、無視されたファイル（依存の置き場・
+    ビルドの出力）は持たない（fix の TDD の輪から上げた。元 workflows/fix/src/tdd.py の temp_tree）"""
+    try:
+        td = pathlib.Path(tempfile.mkdtemp(prefix="works-tdd-rev-")).resolve()
+    except OSError as e:
+        yield None, [f"{type(e).__name__}: {e}"]
+        return
+    wt = td / "repo"
+    try:
+        try:
+            git(repo, "-c", "core.hooksPath=/dev/null", "worktree", "add", "--detach", "--quiet", str(wt), rev)
+        except Unreadable as e:
+            yield None, [str(e)]
+            return
+        yield wt, []
+    finally:
+        try:
+            git(repo, "worktree", "remove", "--force", str(wt))
+        except Unreadable:
+            shutil.rmtree(wt, ignore_errors=True)
+            try:
+                git(repo, "worktree", "prune")
+            except Unreadable:
+                pass
+        shutil.rmtree(td, ignore_errors=True)
 
 
 # ---------------------------------------------------------------- 元の結末のファイル

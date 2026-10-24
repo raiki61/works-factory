@@ -426,6 +426,7 @@ def values(place, repo) -> tuple:
         v["replan_items"] = replan_rows(folder, ctx, judgment, repo)
     v["unread"], w["unread"] = "\n".join(f"- {u}" for u in ctx.get("unread") or []), bool(ctx.get("unread"))
     v["lang"] = prompt.lang(ctx.get("lang"))
+    v["whole_plan"] = steps.WHOLE_PLAN
     return v, w
 
 

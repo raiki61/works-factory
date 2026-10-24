@@ -149,6 +149,28 @@ def save(folder, k: int, plan: dict, fields: list, bare: dict, *, amended=None, 
     return {"ok": True, "reason": ""}
 
 
+# ---------------------------------------------------------------- 往復の記録
+def bare_record(record: dict) -> dict:
+    """往復の記録 record の写しで、案の行 row を役が書く形に戻し、hash を戻した row で付け直した物。閉じた項目を差し込む・前のまま
+    書いた閉じた項目を見分ける・出し直しの控えに書く行を、役が書く形に揃える（役の書いた欄の照らしは緩めない）。row は事前審査が
+    planmarks.joined で欄の行を重ね、narrows の行の決め手の欄を外した物なので、機械が足した欄（rewrite_tests の各行の範囲 limit。
+    planmarks.split が欄の行に足す。#845）を外し、事前審査が converge.PLAN_MARKS に添えた決め手の欄を narrows の行に戻す（#849）"""
+    out = copy.deepcopy(record)
+    for it in out.get("plan") or []:
+        row = it.get("row") if isinstance(it, dict) else None
+        if not isinstance(row, dict):
+            continue
+        rewrites = row.get("rewrite_tests")
+        for r in rewrites if isinstance(rewrites, list) else []:
+            if isinstance(r, dict):
+                r.pop("limit", None)
+        narrows, marks = row.get("narrows"), it.get(converge.PLAN_MARKS)
+        if isinstance(narrows, list) and isinstance(marks, list):
+            row["narrows"] = [gatemarks.joined(n, m) if isinstance(n, dict) else n for n, m in zip(narrows, marks)] + narrows[len(marks):]
+        it["hash"] = converge.item_hash(row)
+    return out
+
+
 # ---------------------------------------------------------------- 受け付け
 def take_plan(folder, ctx: dict, *, judgment, reply, repo, tables, base_rev: str, keys=accept_.TREE_KEYS) -> dict:
     """修正案の役の返答（形 plan）を受け付ける。役が作業ツリーを動かしていれば先にそれだけで拒む。拒否は理由を全部 1 回で並べて
@@ -167,7 +189,7 @@ def take_plan(folder, ctx: dict, *, judgment, reply, repo, tables, base_rev: str
     memo = note.get(handoff.FIELD)
     if replan._malformed(reply):
         return {"ok": False, "reason": steps.MALFORMED_REJECT}
-    record = (ctx.get("prior") or {}).get("record") or EMPTY_RECORD
+    record = bare_record((ctx.get("prior") or {}).get("record") or EMPTY_RECORD)
     bare, answers = converge.split("plan-revise", reply)
     got = steps.named(bare, steps.round_slots(folder, judgment))
     whole, closed, dropped = converge.splice(record, got["plan"], fill=not whole_plan)
@@ -311,7 +333,8 @@ def accept(place, repo, reply, fix_reply) -> dict:
     else:
         judgment = steps.read_judgment(ctx)
         merge = lambda prev, part: merge_resubmit(prev, part, steps.round_slots(folder, judgment))   # noqa: E731
-    got_reply, why = rolekit.resubmitted(folder, files.ROLE, reply, fix_reply, merge)
+    got_reply, why = rolekit.resubmitted(folder, files.ROLE, reply, fix_reply, merge, required=files.REQUIRED,
+                                         fix_only=(steps.WHOLE_PLAN,))
     if got_reply is None:
         out = {"ok": False, "reason": why}
     elif mode == "replan":

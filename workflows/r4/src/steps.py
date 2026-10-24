@@ -185,11 +185,12 @@ def scope_fix_prompt(out) -> dict:
 # ---------------------------------------------------------------- 受け付け
 def accept(out, reply, fix_reply) -> dict:
     """範囲の役の返答を受け付ける（docs/design/r4.md の 4 節）。reply は 1 回目の役の返答、fix_reply は出し直しの役の返答（直す欄だけ。
-    どちらも JSON に戻した値で、起きなかった役は None）。出し直しは前の答えの控えと欄ごとに合わせてから照らす。読めた最後の答えは
+    どちらも JSON に戻した値で、起きなかった役は None）。出し直しは前の答えの控えと欄ごとに合わせてから照らす（要る根の欄
+    files.R4_REQUIRED の欠けもそこで拒む）。読めた最後の答えは
     r4-scope.json に毎回書く。返り {ok, done, give_up, reason}"""
     out = pathlib.Path(out)
     doc = _intake(out)
-    got = rolekit.resubmitted(out, files.R4_NODE, reply, fix_reply, rolekit.merge_fields)
+    got = rolekit.resubmitted(out, files.R4_NODE, reply, fix_reply, rolekit.merge_fields, required=files.R4_REQUIRED)
     if got[0] is not None:
         jsonfile.write(out / files.REPLY, got[0])
     return take.scope(out, got, doc)

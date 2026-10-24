@@ -6,7 +6,8 @@
 - INTAKE: port を読んだ値。SUITE_STATE: TDD の実行器の控え（lib/suitewrite が start_file として読み書く）
 - RUN: 走らせた結果（lib/declared_checks.RUN_FILE）。LOGS/a<k>/: 走りごとのログ。JUNIT/: 宣言の段の JUnit の報告
 - IMPACT/: 関わる試験の選びの地図の控え（lib/related.pick の cache_dir）
-- SUITE/: 実行器（runner）と書き手の材料の文。SUITE_LOGS: 実行器を走らせたログと JUnit XML
+- SUITE/: 実行器（runner）と書き手の材料の文。SUITE_LOGS: 実行器を走らせたログと JUnit XML（修正前の版で走らせ直した回を含む）
+- JUNIT_BASE_REV/: 最後のテストが修正前の版で宣言の段を走らせ直した時の JUnit の報告
 - BASELINE（base だけ）・EVIDENCE・FAILURE（証拠の文が書けない時だけ）
 """
 from __future__ import annotations
@@ -25,7 +26,9 @@ LOGS = "logs"
 JUNIT = "junit"
 IMPACT = "impact"
 SUITE = "suite"
-SUITE_LOGS = ("suite-suite.log", "suite-suite-again.log", "junit-suite.xml")
+SUITE_LOGS = ("suite-suite.log", "suite-suite-again.log", "junit-suite.xml", "suite-suite-base-rev.log", "junit-suite-base-rev.xml",
+              "suite-suite-whole.log", "junit-suite-whole.xml")
+JUNIT_BASE_REV = "junit-base-rev"   # 最後のテストが修正前の版で宣言の段を走らせ直した時の JUnit の報告（scripts/run.py の base_rerun）
 BASELINE = "baseline.json"
 EVIDENCE = "evidence.md"
 FAILURE = "failure.txt"
@@ -35,7 +38,7 @@ PROMPT_GLOBS = ("suite-write-prompt-*.md",)
 def own_files(place) -> list[pathlib.Path]:
     """place の中のこの block のファイルとフォルダ（logs/ は含めない。走りごとのログは上書きせず残す）"""
     place = pathlib.Path(place)
-    names = [INTAKE, SUITE_STATE, RUN, JUNIT, IMPACT, SUITE, *SUITE_LOGS, BASELINE, EVIDENCE, FAILURE]
+    names = [INTAKE, SUITE_STATE, RUN, JUNIT, JUNIT_BASE_REV, IMPACT, SUITE, *SUITE_LOGS, BASELINE, EVIDENCE, FAILURE]
     found = [place / name for name in names]
     for pattern in PROMPT_GLOBS:
         found += place.glob(pattern)

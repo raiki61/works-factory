@@ -42,6 +42,7 @@ PROTECTED_HITS_HEAD = "守りのパスに当たった差分"
 BACKED_OUT_HEAD = "当ててから確かめ直しが赤か落ちて戻した修正のまとまり"
 REPAIRED_HEAD = "合わせ役が直して当てた組"
 UNRESTORED_GROUP_HEAD = "戻せずに作業フォルダへ当たったままの修正のまとまり（人が確かめる）"
+UNCOMPARED_HEAD = "当てた後の確かめ直しで直す前の版と比べられなかった赤（組は戻さずに当てた。直しが壊したかを人が確かめる）"
 PR_COMMITS = "PR の commit: "
 POLICY_CHANGED_HEAD = "方針の文書が始めに固定した版から変わったまま終わった"
 UNNAMED_NODE = "名の訳が無いノード"
@@ -474,6 +475,14 @@ def split_line(returns: dict) -> str:
             + (f"。{repaired}" if repaired else ""))
 
 
+def uncompared_rows(returns: dict) -> list:
+    """当てたままの組の行の uncompared（確かめ直しで直す前の版と比べられなかったので組を戻す理由にしなかった赤の鍵。fix の #846）を
+    1 件 1 行「<鍵>（組 <group_id>・単位 <unit_ids>）」に（人が決めること）"""
+    return [f"{k}（組 {g.get('group_id')}・単位 {'・'.join(str(u) for u in _list(g.get('unit_ids'))) or 'なし'}）"
+            for g in _list(as_dict(returns.get("fix")).get("groups")) if isinstance(g, dict) and g.get("returned") is True
+            for k in _list(g.get("uncompared")) if isinstance(k, str)]
+
+
 def unrestored_lines(returns: dict) -> list:
     import oneline
     out = []
@@ -611,6 +620,36 @@ def ran_notes(returns: dict) -> list:
     note = (green_cert.ran_note(green=fin.get("green") is True, red_cause=fin.get("red_cause") or "", by=fin.get("by") or "",
                                 steps=fin.get("ran_steps")) if fin else "")
     return [note] if note else []
+
+
+def base_stop_notes(returns: dict) -> list:
+    """直す前の試験の関門が止めた（返りの ok が偽。試験のコマンドの最初の語を起こせない run など。持ち主の決め base-runs-nothing）時の
+    冒頭の句: 止めた訳（返りの reason）。止めていなければ空"""
+    import oneline
+    base = as_dict(returns.get("before-tests"))
+    if base.get("ok") is not False or not base.get("reason"):
+        return []
+    return [f"直す前の試験の関門が止めた（判定は起こしていない）: {oneline.one_line(base['reason'])}"]
+
+
+def suite_broken_notes(values: dict) -> list:
+    """修正の段が、工場の書いた試験の起動スクリプトが書き直しても壊れたままで止めた組の冒頭の句（訳とログのパス。#836・
+    docs/design/fix.md の 19 節）。fixed の tdd（段ごとの組ごとの TDD の記録）の suite_broken の行から。無ければ空"""
+    import oneline
+
+    def rows(v):
+        if isinstance(v, list):
+            for x in v:
+                yield from rows(x)
+        elif isinstance(v, dict):
+            yield v
+    out = []
+    for r in rows(as_dict(values.get("fixed")).get("tdd")):
+        if r.get("suite_broken") is True:
+            line = f"修正の段が止めた（試験の起動スクリプトが書き直しても壊れたまま。組 {r.get('group_id') or '—'}）: {oneline.one_line(r.get('reason') or '')}"
+            if line not in out:
+                out.append(line)
+    return out
 
 
 def gate_line(g) -> str:
@@ -867,7 +906,8 @@ def decisions(values: dict, returns: dict, gates: dict, record: dict, *, unatten
     spec_head = gatemarks.spec_words(bool(spec_qs) and as_dict(values.get("spec_check")).get("unchecked") is not False).head
     questions = [(spec_head, spec_qs), ("修正前の問い", plan_qs), (EYE_ASK_HEAD, eye_qs), ("保留にしたままの問い", held_rows)]
     parts = [("人に回した食い違いの申し出", asked), (fixboard.HANDOFF_HEAD, handoffs), (PROTECTED_HITS_HEAD, hits[:5]),
-             ("直しの対象に戻せなかった項目", unreturned), ("前提の検算が人に上げた物", escalate)]
+             ("直しの対象に戻せなかった項目", unreturned), (UNCOMPARED_HEAD, uncompared_rows(returns)),
+             ("前提の検算が人に上げた物", escalate)]
     before = [*pushed_lines(gates, taken), *unrestored_lines(returns), *backed_out_lines(returns)]
     asks = [{"kind": head, "text": x.removeprefix(f"{head}: ")} for head, rows in ((UNRESTORED_GROUP_HEAD, unrestored_lines(returns)),
                                                                               (BACKED_OUT_HEAD, backed_out_lines(returns)))
@@ -1099,7 +1139,9 @@ def build(values: dict, record: dict | None, record_why: str = "", cwd=None) -> 
     notes += [f"修正の控え: {x}" for x in got["unread"]]
     before = [x for x in (part("修正の段の分け", lambda: split_line(returns), "", outcome=False),
                           part("推しの句", lambda: pushed_said(gates, taken), "", outcome=False)) if x]
-    after = [*part("最後のテストの句", lambda: ran_notes(returns), [], outcome=False),
+    after = [*part("直す前のテストの止めの句", lambda: base_stop_notes(returns), [], outcome=False),
+             *part("起動スクリプトの壊れの句", lambda: suite_broken_notes(values), [], outcome=False),
+             *part("最後のテストの句", lambda: ran_notes(returns), [], outcome=False),
              *part("TDD の実行器の句", lambda: _suite_note(record), [], outcome=False),
              *part("利用者の環境の句", lambda: _user_env_note(ports_), [], outcome=False)]
     notices = [line for line in str(values.get("notices") or "").splitlines() if line.strip()]

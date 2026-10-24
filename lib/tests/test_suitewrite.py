@@ -61,6 +61,21 @@ class SuiteWriteCase(unittest.TestCase):
         self.assertTrue(self.prepare()["write"])
         self.assertEqual(suitewrite.place(self.file, self.folder, {"made": True, "body": BODY, "why": ""}), {"made": True, "why": ""})
 
+    def test_adopt_binds_a_runner_without_running_it_and_keeps_it_only_later(self):
+        """直す前の版では試験を走らせない（持ち主の決め base-runs-nothing）: 照らす前の実行器を走らせずに tdd_suite に結び、印は
+        checked が偽。取り置きは TDD の輪が走らせて結末が取れた時に keep_runner で置き、壊れていれば drop_runner で捨てる"""
+        self.written()
+        self.assertEqual(suitewrite.adopt(self.file), {"done": True, "ok": True, "why": ""})
+        runner = self.record()["tdd_suite"]
+        self.assertTrue(runner)
+        self.assertEqual((self.mark()["ok"], self.mark()["checked"], self.mark()["stored"]), (True, False, False))
+        self.assertFalse(self.kept().exists())
+        self.assertIn(suitewrite.UNCHECKED, suitewrite.head_note(self.record()))
+        self.assertTrue(suitewrite.keep_runner(self.keep, f"  {CMD}\n", runner))
+        self.assertTrue(self.kept().is_file())
+        suitewrite.drop_runner(self.keep, CMD, runner)
+        self.assertFalse(self.kept().exists())
+
     def test_need_only_for_base_without_suite_and_without_mark(self):
         for mode, suite, marked, want in (("base", "", False, True), ("final", "", False, False), ("base", "x.sh", False, False),
                                           ("base", "", True, False)):

@@ -734,7 +734,7 @@ nodes:
     output_format:
       type: object
       additionalProperties: false
-      required: [go, no_fix, stop_reason, reason, received, policy, answer, deferred, passes, baseline, suite, judgment, units, answer_ties, materials,
+      required: [go, no_fix, stop_reason, reason, received, policy, answer, deferred, passes, baseline, suite, suite_made, judgment, units, answer_ties, materials,
                  out_of_purpose, verify, excluded, tier_record, decisions, world, spec, purpose, purpose_text, means, constraints, brief,
                  inputs, recorded, structure, design, design_reason, design_premises, plan, fix_plan, ripple, reply, review, record, handoffs, owed,
                  round, units_tier, skip_rerun, switches]
@@ -750,6 +750,7 @@ nodes:
         passes: {type: array}
         baseline: {}
         suite: {type: string}
+        suite_made: {type: boolean}   # suite が試験の関門の用意した実行器（修正の段が壊れを書き直させてよい。docs/design/fix.md の 19 節）
         judgment: {type: [object, 'null']}
         units: {type: array}
         answer_ties: {type: [object, 'null']}
@@ -812,6 +813,7 @@ nodes:
       request: "$start.output.ports.request_file"
       baseline: "$fix-in.output.baseline"
       tdd_suite: "$fix-in.output.suite"
+      suite_made: "$fix-in.output.suite_made"
       skip_rerun: "$fix-in.output.skip_rerun"
       excluded: "$fix-in.output.excluded"
   - id: fix-out
@@ -1093,6 +1095,7 @@ nodes:
       request: "$start.output.ports.request_file"
       baseline: "$fix-in.output.baseline"
       tdd_suite: "$fix-in.output.suite"
+      suite_made: "$fix-in.output.suite_made"
       skip_rerun: "$answer-replan.output.skip_rerun"
       excluded: "$fix-in.output.excluded"
   - id: refix-run-out

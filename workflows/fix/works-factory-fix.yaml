@@ -58,6 +58,9 @@ inputs:
   tdd_suite:
     default: ''
     description: 'text: TDD の実行器のパス（第 1 引数の書き先に JUnit XML を書く物）。空は TDD のループを回さない'
+  suite_made:
+    default: 'false'
+    description: 'flag: 真なら tdd_suite は工場が書いた実行器（試験の関門が用意した物）で、TDD のループの頭で起動スクリプトの壊れを確かめ、壊れていれば書き直させてよい（docs/design/fix.md の 19）。偽は人が渡した実行器か実行器が無い'
   reuse_dir:
     default: ''
     description: 'text: 同じ run の中の試験の結果の控えの置き場の絶対パス。空は使い回さない'
@@ -844,7 +847,7 @@ nodes:
 
   # ---- 組の形（組ごとの子の run。単独の run でも回る） ----
 
-  # 親の姿の木を自分の作業ツリーに写し（from_tree が在る時）、控えと始めの木を取り、TDD の輪の状態を置く
+  # 親の姿の木を自分の作業ツリーに写し（from_tree が在る時）、控えと始めの木を取り、TDD のループの状態を置く
   - id: group-start
     script: group_start
     runtime: uv
@@ -853,20 +856,94 @@ nodes:
     output_format:
       type: object
       additionalProperties: false
-      required: [tdd, units, reason]
+      required: [tdd, units, reason, suite_broken]
       properties:
         tdd: {type: boolean}
         units: {type: integer, minimum: 0}
         reason: {type: string}
+        suite_broken: {type: boolean}   # 工場の書いた起動スクリプトが壊れている（suite-fix-* が書き直させる。docs/design/fix.md の 19）
 
-  # 単位ごとの TDD の輪（route → 単位ごとに test（赤）→ fix（緑）→ refactor）。赤・緑は tdd-step が JUnit XML で機械が決める。
+  # 起動スクリプトの書き直し（工場の書いた実行器が、関わる試験を中身に届く前に落とし、test_cmd の単体は通る時だけ。1 回だけ書き直させ、
+  # 直らなければ組を止める。docs/design/fix.md の 19）
+  - id: suite-fix-prep
+    script: suite_fix_prep
+    runtime: uv
+    mutates_checkout: false
+    depends_on: [group-start]
+    when: "$group-start.output.suite_broken == true"
+    output_format:
+      type: object
+      additionalProperties: false
+      required: [write, prompt]
+      properties:
+        write: {type: boolean}
+        prompt: {type: string}
+  - id: suite-fix
+    description: '起動スクリプトの書き直し役: 壊れた実行器の本文とログを読み、JUnit XML を第 1 引数に書く新しい実行器の本文を返す（置くのも走らせるのも機械）'
+    prompt: "$suite-fix-prep.output.prompt"
+    depends_on: [suite-fix-prep]
+    when: "$suite-fix-prep.output.write == true"
+    model: '@wf-test-gate'   # 試験の関門の実行器の書き手と同じ群（既定の値は lib/launchgroups.py の群の表）
+    settingSources: [user]
+    allowed_tools: [Read, Grep, Glob, Bash, WebSearch, WebFetch]   # Bash は実行器の使い方の表示を見るため
+    sandbox:
+      enabled: true
+      allowUnsandboxedCommands: false
+      failIfUnavailable: true
+      enableWeakerNetworkIsolation: true
+      network: {allowedDomains: ['*'], allowLocalBinding: true}
+      filesystem: {allowWrite: ['/'], denyWrite: ['~/../archon-home']}
+    idle_timeout: 1728000000
+    retry: {max_attempts: 2, on_error: all}
+    output_format:
+      type: object
+      additionalProperties: false
+      required: [made, body, why]
+      properties:
+        made: {type: boolean}
+        body: {type: string}
+        why: {type: string}
+  # 書き手が飛ばされた（指示を組めなかった）周も走る（書き直せなかったとして組を止める）。書き手が落ちた run は走らないが、tdd-go が
+  # 輪の頭の返りの suite_broken を読んで同じく止める
+  - id: suite-fix-try
+    script: suite_fix_try
+    runtime: uv
+    depends_on: [group-start, suite-fix-prep, suite-fix]
+    trigger_rule: none_failed_min_one_success
+    when: "$group-start.output.suite_broken == true"   # 前が飛んでも走るので、壊れていた組だけに絞る
+    with:
+      reply: {from: "$suite-fix.output", if_skipped: null}
+    output_format:
+      type: object
+      additionalProperties: false
+      required: [tdd, stop, reason]
+      properties:
+        tdd: {type: boolean}
+        stop: {type: boolean}
+        reason: {type: string}
+  # TDD のループと修正役の輪を回すかの合わせ（書き直しの node が飛んだ組も、走った組も、輪の状態のファイルから読む）
+  - id: tdd-go
+    script: tdd_go
+    runtime: uv
+    mutates_checkout: false
+    depends_on: [group-start, suite-fix-try]
+    trigger_rule: none_failed_min_one_success
+    output_format:
+      type: object
+      additionalProperties: false
+      required: [tdd, stop]
+      properties:
+        tdd: {type: boolean}
+        stop: {type: boolean}   # 起動スクリプトが書き直しても壊れたまま: 修正役の輪を回さない（確かめていない直しを書き進めない）
+
+  # 単位ごとの TDD のループ（route → 単位ごとに test（赤）→ fix（緑）→ refactor）。赤・緑は tdd-step が JUnit XML で機械が決める。
   # 同じ単位の段は 1 つの会話で続け、単位が替わる周だけ新しい会話にする。Archon は fresh_context: false の輪で前の周の最後の会話を
   # 次の周の体の AI の node へ渡し、node の context: fresh だけがそれを切る（止めた Archon の dag-executor.ts の lastSequentialSession）。
   # tdd-prep が単位が替わったかを new_unit で返し、続きの役 tdd と新しい単位の役 tdd-new を when: で振り分ける。並んだ層（2 つ以上の
   # node の層）は会話を渡さないので、tdd-new は tdd の後ろの層に置く。前の単位の物は指示の引き継ぎの段落でも渡す
   - id: tdd-loop
-    depends_on: [group-start]
-    when: "$group-start.output.tdd == true"
+    depends_on: [tdd-go]
+    when: "$tdd-go.output.tdd == true"
     loop_group:
       max_iterations: 40
       fresh_context: false
@@ -1004,8 +1081,9 @@ nodes:
   # 修正役の輪。範囲の外が要る時は返答の欄 consult で頼み、相談の 3 node が答える（その周は受け付けを回さない）。
   # 3 回目の拒否で、名指しの単位だけを段の頭の木に戻して諦め、ほかは先へ。max_iterations 12 は拒否 3 回 + 相談の枠 9
   - id: fix-loop
-    depends_on: [group-start, tdd-loop]
+    depends_on: [group-start, tdd-go, tdd-loop]
     trigger_rule: none_failed_min_one_success
+    when: "$tdd-go.output.stop == false"
     loop_group:
       max_iterations: 12
       fresh_context: false
@@ -1065,7 +1143,7 @@ nodes:
             consulted: {from: "$consult-accept.output.consulted", if_skipped: false}
           output_format: *accept_out
 
-  # 終わりの木・単位ごとの結末・TDD の輪の結果・申し出・異議・修正役の印・許したテストの変更を out_dir/<group_id>/result.json に書く
+  # 終わりの木・単位ごとの結末・TDD のループの結果・申し出・異議・修正役の印・許したテストの変更を out_dir/<group_id>/result.json に書く
   - id: group-end
     script: group_end
     runtime: uv
@@ -1087,7 +1165,7 @@ nodes:
   - id: nodes-ok
     bash: "true"
     depends_on: [intake, prep, groups-par, groups-seq, join, clash-loop, conflict-check, rule-loop, clash-ruled-loop, fix-ruled-loop, clean,
-                 assert-changed, group-start, tdd-loop, fix-loop, group-end]
+                 assert-changed, group-start, suite-fix-prep, suite-fix, suite-fix-try, tdd-go, tdd-loop, fix-loop, group-end]
     trigger_rule: none_failed_min_one_success
     mutates_checkout: false
 
@@ -1116,7 +1194,7 @@ nodes:
     runtime: uv
     mutates_checkout: false
     depends_on: [intake, prep, groups-par, groups-seq, join, clash-loop, conflict-check, rule-loop, clash-ruled-loop, fix-ruled-loop, clean,
-                 assert-changed, group-start, tdd-loop, fix-loop, group-end, fix-reads]
+                 assert-changed, group-start, suite-fix-prep, suite-fix, suite-fix-try, tdd-go, tdd-loop, fix-loop, group-end, fix-reads]
     trigger_rule: all_done
     output_format:
       type: object
@@ -1151,6 +1229,10 @@ nodes:
               reason: {type: string}
               backed_out: {type: array, items: {type: string}}
               unrestored: {type: array, items: {type: string}}
+              # 確かめ直しで直す前から同じ形で赤だったので、戻す理由にしなかった名指し（戻せた組だけ。#837）
+              old_red: {type: array, items: {type: string}}
+              # 確かめ直しで直す前の版と比べられなかったので、戻す理由にしなかった赤の鍵（戻せた組だけ。報告が人に聞く。#846）
+              uncompared: {type: array, items: {type: string}}
               # 合わせのループの結末（join が確かめ直しの赤で戻した組と字で当たらなかった組だけ。後者は backed_out を持たない）: 合わせ役が直して当てた（repaired）か、申し出へ回した（parked）か
               clash:
                 type: object

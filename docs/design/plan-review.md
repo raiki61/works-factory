@@ -87,9 +87,9 @@ script の node はどれも `runtime: uv`・`mutates_checkout: false`。AI の 
    - `review-prep`（script `review_prep.py`。`with: {prev: "$LOOP_PREV.review-accept.output.ok"}`）: 返り `{prompt, resubmit, tree}`。`prev` は出し直しの役を起こすか（`rolekit.resubmitting`）の判じにだけ使い、却下の文は運ばない（却下の文は place の控えから読む。README 13 章）。出し直しの周の `prompt` は `""`（出し直しの役の指示は次の `review-fix-prep` が組む。14 節の 26）。
    - `review`（AI。`depends_on: [review-prep]`・`when: "$review-prep.output.resubmit != true && $review-prep.output.tree != true"`・`context: fresh`・`prompt: "$review-prep.output.prompt"`・`allowed_tools: [Read, Grep, Glob, WebSearch, WebFetch, Agent, Write]`・起こし方の鍵・`output_format` は 3.4）
    - `review-fix-prep`（script `review_fix_prep.py`。`depends_on: [review-prep, review]`・`trigger_rule: none_failed_min_one_success`・`when: "$review-prep.output.resubmit == true"`）: 返り `{prompt}`。出し直しの役（木なら `review-tree-fix`、ほかは `review-fix`）の指示を組み、作業ツリーの姿を置き直す（14 節の 26）。
-   - `review-fix`（AI。`depends_on: [review-prep, review-fix-prep, review]`・`trigger_rule: none_failed_min_one_success`・`when: "$review-prep.output.resubmit == true && $review-prep.output.tree != true"`・`context` を書かない（`review` の会話の続き）・`prompt: "$review-fix-prep.output.prompt"`・道具と起こし方は `review` と同じ・`output_format` は `review` の物で `required: []`）
+   - `review-fix`（AI。`depends_on: [review-prep, review-fix-prep, review]`・`trigger_rule: none_failed_min_one_success`・`when: "$review-prep.output.resubmit == true && $review-prep.output.tree != true"`・`context` を書かない（`review` の会話の続き）・`prompt: "$review-fix-prep.output.prompt"`・道具と起こし方は `review` と同じ・`output_format` は `review` と同じ物（#832。型が違うと会話の続きの最初の要求でキャッシュが効かない。型の根（一番外の object）は `required: []` で、根の要る欄は受け付けが `rolekit.resubmitted` で確かめ、欠ければ拒む））
    - `review-tree`（AI。`depends_on: [review-prep, review-fix]`・`trigger_rule: none_failed_min_one_success`・`when: "$review-prep.output.resubmit != true && $review-prep.output.tree == true"`・`context: fresh`・`prompt: "$review-prep.output.prompt"`・道具と起こし方は `review` と同じ・`output_format` は 5.4）
-   - `review-tree-fix`（AI。`depends_on: [review-prep, review-fix-prep, review-tree]`・`trigger_rule: none_failed_min_one_success`・`when: "$review-prep.output.resubmit == true && $review-prep.output.tree == true"`・`context` を書かない・`prompt: "$review-fix-prep.output.prompt"`・`output_format` は `review-tree` の物で `required: []`）
+   - `review-tree-fix`（AI。`depends_on: [review-prep, review-fix-prep, review-tree]`・`trigger_rule: none_failed_min_one_success`・`when: "$review-prep.output.resubmit == true && $review-prep.output.tree == true"`・`context` を書かない・`prompt: "$review-fix-prep.output.prompt"`・`output_format` は `review-tree` と同じ物）
    - `review-accept`（script `review_accept.py`。`depends_on: [review, review-fix, review-tree, review-tree-fix]`・`trigger_rule: none_failed_min_one_success`・`with: {status_guarded: true, reply: {from: "$review.output", if_skipped: null}, fix_reply: {from: "$review-fix.output", if_skipped: null}, tree_reply: {from: "$review-tree.output", if_skipped: null}, tree_fix_reply: {from: "$review-tree-fix.output", if_skipped: null}}`）: 返り `{ok, done, give_up, reason}`。
 3. `text-loop`（`depends_on: [intake]`・`when: "$intake.output.due == true && $intake.output.form == 'text'"`・`loop_group`・`max_iterations: 3`（`rolekit.GIVE_UP_AFTER`）・`fresh_context: false`・`until_bash: done=$text-accept.output.done; test "$done" = true`）:
    - `text-prep`（script `text_prep.py`。`with:` を持たない）: 返り `{prompt}`。
@@ -430,7 +430,7 @@ Repository: <run の作業ツリー>（read version: `4428f368…`） BASE: `442
 
 ### 4.4 返す形
 
-`review` の `output_format` で `required: []`（今のまま）。
+`review` と同じ `output_format`（型の根は `required: []`。根の要る欄 `src/files.py` の `REVIEW_REQUIRED`・`TREE_REQUIRED` は受け付けが `rolekit.resubmitted` で確かめる。#832）。
 
 ### 4.5 描いた骨組み（例の run df5e111f の 1 往復目の 2 回目。今の `pass-1/resubmit-2.md` の値）
 
@@ -552,7 +552,7 @@ Return only JSON that matches the output schema.
 
 ## 6 node の設計シート: review-tree-fix（束ね役の出し直し）
 
-4 節と同じ。違いは: `prompts/review-tree-fix.md` の言語の 1 文が名指す欄（`reason`・`items[].blocks[].why`・`stuck_recommend`）・返す形は `review-tree` の型で `required: []`・`{candidate}` は同じ受け付けの名 `p2.plan_review` の控え（単独の組と束ね役の組は同じ控えを使う。今のまま）。今の指示は YAML の `prompt: *review_fix_prompt`（`works-factory-plan-review.yaml:406`）と同じ指示書。持つべき今の指示は 4.6 と同じ。拒否の理由が下請けの答えのファイルを名指す時、束ね役はその項目の下請けを起こし直して直させる（`AGG_MERGE` の最後の文。出し直しでも同じ会話の頭に在る）。
+4 節と同じ。違いは: `prompts/review-tree-fix.md` の言語の 1 文が名指す欄（`reason`・`items[].blocks[].why`・`stuck_recommend`）・返す形は `review-tree` の型と同じ・`{candidate}` は同じ受け付けの名 `p2.plan_review` の控え（単独の組と束ね役の組は同じ控えを使う。今のまま）。今の指示は YAML の `prompt: *review_fix_prompt`（`works-factory-plan-review.yaml:406`）と同じ指示書。持つべき今の指示は 4.6 と同じ。拒否の理由が下請けの答えのファイルを名指す時、束ね役はその項目の下請けを起こし直して直させる（`AGG_MERGE` の最後の文。出し直しでも同じ会話の頭に在る）。
 
 ## 7 node の設計シート: review-text（方針の文だけの審査役）
 
@@ -635,7 +635,7 @@ Return only JSON that matches the output schema.
   5. 修正案の役の返答を割る: `block_answers` を外し（`converge.split("plan-revise", …)` と同じ欄）、決め手の欄を持ったままの写し（形 replan の直した項目の `narrows` に使う）を取ってから、`narrows` の行の決め手の欄を `src/marks.split_marks` で外す（外した欄は `intake.json` の `plan_marks` に項目と行の番号で置く。`asks` の `narrows` の行が読む）。
   6. 形 replan: 裁かれた項目を `planmarks.handed(ruling, <案の項目の数>)` で読む（番号でない行・案の外の番号は訳つきで failed）。承認済みの案を `prior` の `plan` の行から組む（`[{"item": n, **r["row"]} for n, r in enumerate(prior.plan, 1)]`。`prior` が空か `plan` が無ければ `NO_APPROVED` の訳で failed）。
   7. `planmarks.save(place, 1, <fields の fields>, <fields の amended>)`（凍結の印を `trace.jsonl` に）・`planmarks.paired(rows, <fields の fields>, <fields の在りか>)`（数が違えば `FieldsBroken` の訳で failed）。
-  8. 往復の記録の作業の写し: `prior` の `passes`・`outcome`（と在れば `plan`）を `{"round": 1, "passes": …, "outcome": …, "open": {}}` にして `plan-converge.json` に書き、`converge.note_plan(view, [planmarks.joined(r, f) for r, f in pairs])`、形 plan で `block_answers` が在れば `converge.note_answers(view, answers)`。`precedent-checks.json` に `prior.precedent_checks`（無ければ `{}`）。`k = converge.pass_no(view)`（形 plan。形 replan は 0）。
+  8. 往復の記録の作業の写し: `prior` の `passes`・`outcome`（と在れば `plan`）を `{"round": 1, "passes": …, "outcome": …, "open": {}}` にして `plan-converge.json` に書き、`converge.note_plan(view, [planmarks.joined(r, f) for r, f in pairs], marks=<5 で外した決め手の欄の、行と同じ並び>)`（行 `row` は 5 で決め手の欄〔頭の「人に回しうる行」の `decided_by`・`no_narrow` ほか 6 つ〕を外した審査の形のまま残し、外した欄は項目ごとに別の欄 `converge.PLAN_MARKS`〔名は `marks`〕に添える。理由: 次の周の修正案の受け付け〔plan の block の `src/take.py` の `bare_record`〕は、閉じた項目〔事前審査で直す所が無くなった項目。次の周の修正案の役は書かない〕をこの記録の行から案へ差し込む。行が決め手の欄を欠いたままだと、差し込んだ項目の `narrows` の行が `no_narrow` の欠けで拒まれ続ける〔#849〕。受け付けは `marks` を `narrows` の行に戻し、修正案の役が返した時の形〔決め手の欄つき〕にしてから差し込む）、形 plan で `block_answers` が在れば `converge.note_answers(view, answers)`。`precedent-checks.json` に `prior.precedent_checks`（無ければ `{}`）。`k = converge.pass_no(view)`（形 plan。形 replan は 0）。
   9. 写し: `world/`（`_copy_world`。空なら `worldmark.COPY_STATE` を消す）・`_copy_means`（`src/steps.py`。`worldmark.copy_means` の写しの名と形）・`structure/`（`_copy_structure`。空なら status failed・reason「構造の目の控えが渡されていない」で `structmark.write`）・`design.json`（空でなければ）・`ripple.json`（空なら `{"items": [], "overlaps": [], "error": "波及の一覧が渡されていない"}`）。
   10. 記録された方針の行: port `recorded` が空でなければそれ、空で `policy` が在れば `[{"source": "doc", "name": <policy のパス>, "text": "", "lines": <行数>, "alias": ""}]`（`src/steps.recorded_rows`。今の `policy.recorded` の文書の行と同じ形）。
   11. 形 replan: `replan_items(view, approved, <決め手つきの行>, ruled, <conflicts の items>)`（今の写し）。
@@ -819,7 +819,7 @@ Return only JSON that matches the output schema.
 
 26. 出し直しの役の指示を組む prep を別の node `review-fix-prep`（`review_fix_prep.py`）にした（1.3 の字は `review-prep` が組む形だった）。根拠: 形の検査（`tests/layers/test_block_shape.py` の 3）は AI の node ごとに「prep を差し替えない筋書きで reached に在り、md の決まった文を照らす」ことを求めるが、筋書きの輪は 1 周しか回らず、1 周目の `review-prep` が出し直しの道へ進むことは無い。同じ branch の spec（`spec-*-fix-prep`）と test-gate（`ci-fix-prep`）と同じ形にし、`review-prep` を差し替えた筋書き 2 本（`resubmit`・`resubmit-tree`）で本物の fix-prep が md から組むことを見る。層は `review-prep`・`review`・`review-fix-prep`・`review-fix`・`review-tree`・`review-tree-fix`・`review-accept` の 1 層 1 node の鎖のまま（Archon の落とし穴を踏まない。試験が層を数える）。
 27. 入口の形の決めの (b) は、`{` で始まり JSON の object として読めれば構造と読み、`PROPOSAL_SHAPE` で照らして合わなければ failed（設計書の字は「`plan` の配列を持てば値」で、持たない object は方針の文に落ちていた）。根拠: JSON の object を方針の文として審査するのは黙った緩め（K15・`no-silent-loosen`）。`plan` が空の配列の物も `minItems` で failed。
-28. 役の `output_format` の JSON の流れの書き方は、鍵の字下げより深く字下げする（閉じの `}` も鍵より右）。根拠: 止めた Archon の YAML の読み（Bun）は、鍵と同じ字下げの閉じを読めずに workflow の読み込みが落ちる（PyYAML は通す。実測）。出し直しの役の型は錨を使わずに同じ JSON を写す（`src/files.py` の `node_schema` は値の頭の錨を飛ばさない）。等しさは試験が縛る（`test_resubmit_formats_drop_only_required`）。
+28. 役の `output_format` の JSON の流れの書き方は、鍵の字下げより深く字下げする（閉じの `}` も鍵より右）。根拠: 止めた Archon の YAML の読み（Bun）は、鍵と同じ字下げの閉じを読めずに workflow の読み込みが落ちる（PyYAML は通す。実測）。出し直しの役の型は錨を使わずに同じ JSON を写す（`src/files.py` の `node_schema` は値の頭の錨を飛ばさない）。等しさは試験が縛る（`test_resubmit_formats_equal_the_first_role`）。
 29. 形 text で受け付けが諦めた時は、出口が空の返答の `review.json` を書いて `holes` に指す（9.4 は受け付けが書かないと決めた）。根拠: 1.2 の「諦めた時も pointer」を形によらず保つ（policy-check の `result` が `holes` の先を同じ道で読む）。
 30. 報告の行の「形の語」は形 plan で「修正案」（12 節の `<形の語>`）。木の往復の「項目 <n> 本」は下請けの項目の材料のファイル（`items/item-<n>.md`）の数。
 31. `intake.json` の欄に `lang`（両方の形）と、形 text の `k: 0`・`round: 0` を足し、形 text の記録された方針の鍵を `recorded_policy`（`policy.RECORDED_KEY`）にそろえた（8 節の字は `recorded`）。根拠: 3 つの prep が `prompt.lang` に渡す値と、出口の `round` が要る。欄の一覧の正本は `src/steps.py` の docstring。

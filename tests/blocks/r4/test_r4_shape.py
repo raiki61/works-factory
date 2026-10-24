@@ -88,7 +88,7 @@ class RoleCase(unittest.TestCase):
         self.assertEqual((prep["when"], prep["depends_on"], prep["trigger_rule"]),
                          ("$r4-scope-prep.output.resubmit == true", ["r4-scope-prep", "r4-scope"], "none_failed_min_one_success"))
         self.assertEqual((first["when"], first["depends_on"]), ("$r4-scope-prep.output.resubmit != true", ["r4-scope-prep"]))
-        self.assertEqual(fix["output_format"]["required"], [])
+        self.assertEqual(fix["output_format"], first["output_format"])
         self.assertEqual(NODES["r4-scope-accept"]["trigger_rule"], "none_failed_min_one_success")
 
     def test_loop_does_not_paste_previous_reject_by_loop_prev(self):
@@ -99,9 +99,11 @@ class RoleCase(unittest.TestCase):
                 self.assertEqual(pasted, ["$LOOP_PREV.r4-scope-accept.output.ok"] if n["id"] == "r4-scope-prep" else [])
 
     def test_role_schemas_match_graph(self):
-        """test_role_schemas_match_graph の R4（seen・unseen と必須でない r3 を足した物）と、出し直しの型は required: [] の同じ物"""
-        self.assertEqual(json.loads(json.dumps(NODES["r4-scope"]["output_format"])), R4_REPLY)
+        """test_role_schemas_match_graph の R4（seen・unseen と必須でない r3 を足した物）。根の欄は型でなく受け付けが要る
+        （files.R4_REQUIRED。出し直しの型は 1 回目と同じ物。#832）"""
+        self.assertEqual(json.loads(json.dumps(NODES["r4-scope"]["output_format"])), {**R4_REPLY, "required": []})
         self.assertEqual(json.loads(json.dumps(NODES["r4-scope-fix"]["output_format"])), {**R4_REPLY, "required": []})
+        self.assertEqual(list(kit.load("r4", "files").R4_REQUIRED), R4_REPLY["required"])
 
     def test_inventory_requires_lost(self):
         """test_r4_inventory_requires_lost: 棚卸しが発火した返答（fired: true）は lost が要る。if/then は Archon の Ajv が照らす（lib の
