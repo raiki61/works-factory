@@ -11,7 +11,7 @@
 
 このモジュールが持つ物（place は fix の run の置き場、repo は親の作業ツリー、skip は除くパスの頭）:
 - FILE（置き場の控え {clashes: [{group_id, unit_ids, patch, names, shared, why, kind?, state, pass?, before?, staged?, marked?,
-  requests?}]}。kind は KINDS（RED は確かめ直しが赤で戻した組、TEXT は字で当たらなかった組。無い行は RED）、state は PENDING・
+  requests?, uncompared?, test_cmd_notes?}]}。uncompared・test_cmd_notes は受け付けを通った確かめ直しが戻す理由にしなかった物（problems）。kind は KINDS（RED は確かめ直しが赤で戻した組、TEXT は字で当たらなかった組。無い行は RED）、state は PENDING・
   STAGED・REPAIRED・PARKED、pass は最後に扱った段、marked は当て直しで食い違いの印を書いたパス→印の長さの dict。長さは
   unittrees.apply が積んだ値のまま）と new_row(...)・record(place, rows)・load(place)
 - todo(place, pass_): その段で扱う組の id（控えの順。FIRST は直し待ちと当て直し中、RULED は FIRST で回した組のうち、その組の
@@ -221,7 +221,10 @@ def problems(place, repo, gid: str, reply: dict, *, start: dict, cases, skip=(),
        承認済みの修正案・範囲の相談の合意・裁定 fix_test_scope・子の結果の許し）に在る（組自身のテストであることは許しにならない）
     3. 返答の files か bash_writes に在る（fixboard.undeclared_writes）
     の 3 つが通れば、4. 組の名指しのテストの中身が子の終わりの木と同じ（許しの在るテストのファイルは見ない）で、確かめ直し
-    （fixboard.rerun_problem。名指しは named_tests、走らせ直しの置き場は <name>-<k>）が緑。start は始めの記録、cases は直す前の結末"""
+    （fixboard.rerun_problem。名指しは named_tests、走らせ直しの置き場は <name>-<k>）が緑。start は始めの記録、cases は直す前の結末。
+    確かめ直しは組を当てるノードと同じに、直す前の版と比べられなかった赤（uncompared。#846）と、当て直す前の木 before で見分けた
+    test_cmd の前から赤・揺れ（test_cmd_notes。#855）を戻す理由にせず、控えの行の同じ名の欄に置く（通れば settle_repaired が
+    join.json の組の行へ写す。報告が人に聞く・書く）"""
     row = _row(load(place), gid)
     r = result(place, gid)
     staged = row.get("staged") or ""
@@ -245,10 +248,17 @@ def problems(place, repo, gid: str, reply: dict, *, start: dict, cases, skip=(),
                                        "bash_writes": reply.get("bash_writes") or []}, repo, staged, skip=skip)
     if out:
         return out
+    unknown, notes = [], []
     red = fixboard.tests_moved(repo, r["end_tree"], tdd_rows, set(row["names"]) - permits) or fixboard.rerun_problem(
         place, repo, start.get("tdd_suite", ""), cases, named_tests(place, gid), name=f"{name or 'clash'}-{gid}-{k}",
-        shared=row.get("shared") or [], test_cmd=fixboard.rerun_cmd(place, r, start.get("test_cmd", "")))
-    return [f"直した後の確かめ直しが赤のまま: {red}"] if red else []
+        shared=row.get("shared") or [], test_cmd=fixboard.rerun_cmd(place, r, start.get("test_cmd", "")),
+        uncompared=unknown, base=row.get("before") or "", cmd_notes=notes, skip=skip)
+    if red:
+        return [f"直した後の確かめ直しが赤のまま: {red}"]
+    rows = load(place)
+    _row(rows, gid).update(uncompared=sorted(set(unknown)), test_cmd_notes=notes)
+    _save(place, rows)
+    return []
 
 
 # ---------------------------------------------------------------- 片付け
@@ -256,14 +266,15 @@ def _rel(place, patch: str) -> str:
     return os.path.relpath(patch, place)
 
 
-def _settle_join(place, gid: str, *, returned: bool, reason: str, mark: dict, extra=None) -> None:
+def _settle_join(place, gid: str, *, returned: bool, reason: str, mark: dict, extra=None, row=None) -> None:
     """join.json の組 gid の行と単位を置き直す（単位は fixboard.join_rows の決まりで組み直す。当ててから戻したパス backed_out は
-    残す）"""
+    残す）。戻せた組は控えの行 row の uncompared・test_cmd_notes（problems が置いた物）を組の行の同じ名の欄に写す"""
     doc = _joined(place)
     old = next(g for g in doc["groups"] if g.get("group_id") == gid)
     got = (result(place, gid) if returned else None, returned, reason)
+    kept = {k: {gid: (row or {}).get(k) or []} for k in ("uncompared", "test_cmd_notes")} if returned else {}
     rows, units = fixboard.join_rows([{"group_id": gid, "unit_ids": old["unit_ids"]}], {gid: got},
-                                     {gid: old.get("backed_out") or []}, extra)
+                                     {gid: old.get("backed_out") or []}, extra, **kept)
     doc["groups"] = [{**rows[0], "clash": mark} if g.get("group_id") == gid else g for g in doc["groups"]]
     doc["units"] = [u for u in doc.get("units") or [] if u.get("group_id") != gid] + units
     fixboard.write_json(pathlib.Path(place) / fixboard.JOIN_FILE, doc)
@@ -277,7 +288,7 @@ def settle_repaired(place, repo, gid: str, *, log=None) -> None:
     row = _row(rows, gid)
     r = result(place, gid)
     _settle_join(place, gid, returned=True, reason="",
-                 mark={"outcome": REPAIRED, "requests": list(row.get("requests") or []), "patch": _rel(place, row["patch"])})
+                 mark={"outcome": REPAIRED, "requests": list(row.get("requests") or []), "patch": _rel(place, row["patch"])}, row=row)
     fixboard.adopt_returned(place, repo, [r], log=log,
                             applied=[(r["worktree"], writelog.log_here(r["worktree"]), row["names"])] if r.get("worktree") else ())
     row.update(state=REPAIRED, staged="", before="", marked={})
