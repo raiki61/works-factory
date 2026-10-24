@@ -108,6 +108,43 @@ class ConnectionTest(unittest.TestCase):
                 fence.connection({fence.PROFILE_ENV: json.dumps(body)})
             self.assertNotIn("dummy-secret", str(error.exception))
 
+    def test_aws_credential_export_is_composed_into_the_single_settings(self):
+        """殻の settings の awsCredentialExport（空白を含むパスを shlex でくくった字）は、既存の 1 個の --settings（無ければ足した 1 個）に
+        重なる。sandbox・hooks・権限は保つ。connection は 1 語の絶対パスにならない値を Refused で断る"""
+        self.assertEqual(fence.PROFILE_SETTINGS, ("env", "awsCredentialExport"))   # 契約が許す鍵（toolset の SETTINGS_KEYS とは別）
+        command = shlex.quote("/factory home/claude-fence/abc/aws-credential-export")
+        extra = {"awsCredentialExport": command}
+        original = {"sandbox": {"enabled": True, "filesystem": {"denyWrite": ["/factory/archon"]}},
+                    "enabledPlugins": {"factory-dummy": False}, "hooks": {"Stop": []}, "permissions": {"deny": ["Bash(unsafe)"]}}
+        for argv in (["--settings", json.dumps(original)], ["--settings=" + json.dumps(original)]):
+            out = fence.fenced_argv(argv, "/factory/archon", lambda: ["/protected"], extra)
+            raw = out[1] if out[0] == "--settings" else out[0].split("=", 1)[1]
+            got = json.loads(raw)
+            self.assertEqual(sum(x == "--settings" or x.startswith("--settings=") for x in out), 1)
+            self.assertEqual(got["awsCredentialExport"], command)
+            self.assertEqual(shlex.split(got["awsCredentialExport"]), ["/factory home/claude-fence/abc/aws-credential-export"])
+            self.assertEqual(got["sandbox"]["filesystem"]["denyWrite"], ["/factory/archon", "/protected"])
+            for name in ("enabledPlugins", "hooks", "permissions"):
+                self.assertEqual(got[name], original[name])
+        both = fence.fenced_argv(["--settings", json.dumps({"env": {"KEEP": "1"}})], "/factory/archon", lambda: [],
+                                 {**extra, "env": {"ANTHROPIC_DEFAULT_SONNET_MODEL": "dummy-model"}})
+        self.assertEqual(json.loads(both[1]), {"env": {"KEEP": "1", "ANTHROPIC_DEFAULT_SONNET_MODEL": "dummy-model"},
+                                               "awsCredentialExport": command})
+        for argv in ([], ["--version"]):   # --settings が無い時は、1 個を足す
+            out = fence.fenced_argv(argv, "/factory", lambda: self.fail("must not compute protective paths"), extra)
+            self.assertEqual(out, [*argv, "--settings", json.dumps(extra)])
+        self.assertEqual(fence.fenced_argv(["--version"], "/factory", lambda: [], {"env": {}}), ["--version"])
+        profile = {"settings": extra, "env": {}, "drop": []}
+        self.assertEqual(fence.connection({fence.PROFILE_ENV: json.dumps(profile)}), profile)
+        plain = {"settings": {"awsCredentialExport": shlex.quote("/factory/plain")}, "env": {}, "drop": []}
+        self.assertEqual(fence.connection({fence.PROFILE_ENV: json.dumps(plain)}), plain)
+        for bad in ("relative/export", "/factory home/export", "'/factory'", "/a b' c", "", 3, ["/x"], "/x; rm -rf /",
+                    shlex.quote("/x") + " --flag"):
+            with self.subTest(bad=bad):
+                with self.assertRaises(fence.Refused) as error:
+                    fence.connection({fence.PROFILE_ENV: json.dumps({"settings": {"awsCredentialExport": bad}, "env": {}, "drop": []})})
+                self.assertNotIn("rm -rf", str(error.exception))
+
     def test_unmarked_and_missing_settings_still_compose(self):
         for argv in (["--version"], ["--settings", "{}"]):
             out = fence.fenced_argv(argv, "/factory", lambda: self.fail("must not compute protective paths"),

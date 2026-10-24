@@ -12,7 +12,12 @@
 - 利用者の settings.json に apiKeyHelper が在れば、利用者の HOME で起こしてキーを得て ANTHROPIC_API_KEY として子に渡す。
   受け継いだ認証・名指し・CLAUDE_KEYCHAIN_SERVICE の項目の後、Claude Code 自身のログインの前に効く。失敗したら黙って
   ほかの段へ移らず、apiKeyHelper を名指して止まる。キーの値は出さない（#795）
-- 認証が無い時の案内は API キーの道（ANTHROPIC_API_KEY・ゲートウェイの値は子に運ばないこと）も言う
+- 認証が無い時の案内は API キーの道（ANTHROPIC_API_KEY）と、設定の env の接続の値（接続先・資格・proxy・証明書・alias と、選んだ
+  Bedrock・Mantle・Vertex の公式の名）は子に運び、フック・権限・プラグインは運ばないことも言う（動きは ConnectionProfile が照らす）
+- 設定の env（親の env でも同じ）が選んだ Bedrock・Mantle・Vertex は、公式の名の許可リストで子に運ぶ。既定のログインへ黙って替えない。
+  運べない物（設定の Foundry・相対パスの資格ファイル）だけ止めて名指す。HOME 基準の AWS の資格は、本当の HOME で資格を出す包み
+  （awsCredentialExport）にくるんで運び、渡せない物は止めずに告知で名指す。管理者の awsCredentialExport・awsAuthRefresh・gcpAuthRefresh は
+  Claude Code 自身が走らせるので、殻は運ばず止めず、包みを置くかの判断にも数えない
 - 会社が配る設定の置き場は、環境変数 WORKS_FACTORY_MANAGED_DIR で替えられる（殻の既定は OS ごとの本物の置き場のまま。この口は変えない）。
   試験の子の環境（hermetic.child_env）は、この口を空の一時フォルダへ向ける（会社が apiKeyHelper を配った機械でも、殻を通る試験が
   本物の設定を読まない）
@@ -22,6 +27,7 @@ import io
 import json
 import os
 import pathlib
+import shlex
 import shutil
 import subprocess
 import sys
@@ -38,6 +44,8 @@ sys.path.insert(0, str(TESTS))
 
 import auth_launch  # noqa: E402
 import claude_auth  # noqa: E402
+import hostgh  # noqa: E402
+import place  # noqa: E402
 from tests.bin import hermetic  # noqa: E402
 
 
@@ -50,6 +58,8 @@ auth_launch.default_managed_dir_real = auth_launch.default_managed_dir
 auth_launch.default_managed_dir = _forbid_the_real_managed_dir
 
 TOKEN = "sk-ant-oat01-fake-for-test"
+# 偽の aws。包みが本当の HOME と --profile で起こしたことを、標準出力で見せる
+FAKE_AWS = '#!/bin/sh\necho "home=$HOME xdg=$XDG_CONFIG_HOME args=$*"\n'
 
 
 def write_credentials(config_dir, body='{"claudeAiOauth": {"accessToken": "%s", "refreshToken": "r"}}' % TOKEN):
@@ -102,16 +112,276 @@ class ConnectionProfile(unittest.TestCase):
         self.assertNotIn(secret, json.dumps(p["settings"]))
         self.assertNotIn("apiKeyHelper", p["settings"])
 
-    def test_provider_settings_are_deferred_not_silently_changed_to_direct(self):
-        for flag in auth_launch.PROVIDER_FLAGS:
-            p, deferred = self.profile({"env": {flag: "1", "ANTHROPIC_API_KEY": "not-direct"}})
-            self.assertTrue(deferred)
-            self.assertEqual(p["env"], {})
-            self.assertEqual(p["drop"], [])
-            parent = {flag: "1", "ANTHROPIC_API_KEY": "parent", "HOME": "/factory"}
-            p, deferred = self.profile({"env": {"ANTHROPIC_API_KEY": "not-direct"}}, parent)
-            self.assertTrue(deferred)
-            self.assertEqual(auth_launch.profile_env(parent, p), parent)
+    def cloud_world(self):
+        """選ばれた provider の試験の場: 偽の本当の HOME（空白を含む）・PATH に置く空のフォルダ・管理者の置き場・包みの置き口"""
+        self.real = self.tmp / "real home"
+        self.config = self.real / ".claude"
+        self.config.mkdir(parents=True)
+        self.bin = self.tmp / "bin"
+        self.bin.mkdir()
+        self.managed = self.tmp / "managed"
+        self.managed.mkdir()
+        self.put = lambda name, body: hostgh.place_shim(self.tmp / "fence dir", name, body)
+
+    def fake_aws(self):
+        aws = self.bin / "aws"
+        aws.write_text(FAKE_AWS, encoding="utf-8")
+        aws.chmod(0o755)
+
+    def connect(self, parent=None, settings=None):
+        """親の env（本当の HOME と PATH つき）と利用者の settings.json で、本物の connection_profile を呼ぶ"""
+        if settings is not None:
+            write_settings(self.config, settings)
+        env = {"HOME": str(self.real), "PATH": str(self.bin), **(parent or {})}
+        return auth_launch.connection_profile(self.config, env, self.managed, self.put)
+
+    def run_wrapper(self, command, **env):
+        """置いた包みを、隔離した HOME・XDG の env で走らせる（役の Claude Code が起こす形）"""
+        (path,) = shlex.split(command)
+        env = hermetic.child_env(PATH="/usr/bin:/bin", HOME=str(self.tmp / "iso"), XDG_CONFIG_HOME="/iso-xdg", **env)
+        return subprocess.run([path], env=env, capture_output=True, text=True, encoding="utf-8", timeout=60)
+
+    def test_provider_settings_are_carried_not_silently_changed_to_direct(self):
+        """設定の env が選んだ Bedrock・Mantle・Vertex は、旗と公式の名の許可リストの名が profile['env'] に入る。direct の資格は運ばず
+        drop は空。許可リストの外の名は入らない。設定の Foundry と、相対パスの資格ファイルは、名とファイルを言って止まる（値は言わない）"""
+        self.cloud_world()
+        region = {"CLAUDE_CODE_USE_BEDROCK": ("AWS_REGION", "us-east-1"), "CLAUDE_CODE_USE_MANTLE": ("AWS_REGION", "us-east-1"),
+                  "CLAUDE_CODE_USE_VERTEX": ("CLOUD_ML_REGION", "us-east5")}
+        for flag in claude_auth.FLAGS:
+            with self.subTest(flag=flag):
+                name, value = region[flag]
+                p, notice = self.connect(settings={"env": {flag: "1", name: value, "VERTEX_REGION_CLAUDE_HAIKU": "global",
+                                                           "ANTHROPIC_API_KEY": "not-direct", "ANTHROPIC_BASE_URL": "https://gw.invalid",
+                                                           "ANTHROPIC_DEFAULT_SONNET_MODEL": "dummy-model", "UNNEEDED": "no",
+                                                           "HOME": "/must-not-restore"}})
+                want = {flag: "1", name: value, "ANTHROPIC_BASE_URL": "https://gw.invalid"}
+                if flag == "CLAUDE_CODE_USE_VERTEX":
+                    want["VERTEX_REGION_CLAUDE_HAIKU"] = "global"
+                self.assertEqual(p["env"], want)
+                self.assertEqual(p["drop"], [])
+                self.assertEqual(p["settings"], {"env": {"ANTHROPIC_DEFAULT_SONNET_MODEL": "dummy-model"}})
+                self.assertIn(flag, notice)
+                self.assertIn(str(self.config / "settings.json"), notice)
+                self.assertNotIn("未対応", notice)
+        parent = {"CLAUDE_CODE_USE_BEDROCK": "1", "ANTHROPIC_API_KEY": "parent", "HOME": "/factory"}
+        p, _ = auth_launch.connection_profile(self.config, parent, self.managed)
+        self.assertEqual(auth_launch.profile_env(parent, p), parent)
+        for body, word in (({"CLAUDE_CODE_USE_FOUNDRY": "1", "ANTHROPIC_FOUNDRY_API_KEY": "dummy-foundry-secret"}, "CLAUDE_CODE_USE_FOUNDRY"),
+                           ({"CLAUDE_CODE_USE_BEDROCK": "1", "AWS_SHARED_CREDENTIALS_FILE": "rel/creds-secret"}, "AWS_SHARED_CREDENTIALS_FILE"),
+                           ({"CLAUDE_CODE_USE_BEDROCK": "1", "AWS_CONFIG_FILE": "rel/config-secret"}, "AWS_CONFIG_FILE"),
+                           ({"CLAUDE_CODE_USE_VERTEX": "1", "GOOGLE_APPLICATION_CREDENTIALS": "rel/adc-secret"}, "GOOGLE_APPLICATION_CREDENTIALS")):
+            with self.subTest(stops=word):
+                with self.assertRaises(ValueError) as error:
+                    self.connect(settings={"env": body})
+                self.assertIn(word, str(error.exception))
+                self.assertIn(str(self.config / "settings.json"), str(error.exception))
+                self.assertNotIn("secret", str(error.exception))
+        managed = self.managed / "managed-settings.json"
+        managed.write_text(json.dumps({"env": {"CLAUDE_CODE_USE_FOUNDRY": "1"}}), encoding="utf-8")
+        with self.assertRaises(ValueError) as error:
+            self.connect(settings={"env": {}})
+        self.assertIn(str(managed), str(error.exception))
+
+    def test_settings_provider_is_resolved_before_the_saved_login(self):
+        """設定で Bedrock を選び、保存済みのログインも在る時、resolve は旗を出どころに採り、既定のログインのトークンを足さない"""
+        self.cloud_world()
+        write_credentials(self.config)
+        p, _ = self.connect(settings={"env": {"CLAUDE_CODE_USE_BEDROCK": "1", "AWS_REGION": "us-east-1"}})
+        env = auth_launch.profile_env({"HOME": str(self.real)}, p)
+        got, name, why = auth_launch.resolve(env, str(self.real), "", platform="linux", runner=keychain({}), managed_dir=self.managed)
+        self.assertIsNone(why)
+        self.assertEqual(name, "CLAUDE_CODE_USE_BEDROCK")
+        self.assertNotIn("CLAUDE_CODE_OAUTH_TOKEN", got)
+        self.assertEqual(got["CLAUDE_CODE_USE_BEDROCK"], "1")
+
+    def test_parent_cloud_values_are_carried_through_the_profile(self):
+        """親の env の Mantle・Bedrock の旗と SKIP_*_AUTH と地域は profile['env'] に入り、Archon が CLAUDE_CODE_* を消した後も
+        fence の connection_env で戻る。許可リストの外の名は入らない"""
+        self.cloud_world()
+        fence = place.shared("fence")
+        for flag, skip in (("CLAUDE_CODE_USE_MANTLE", "CLAUDE_CODE_SKIP_MANTLE_AUTH"),
+                           ("CLAUDE_CODE_USE_BEDROCK", "CLAUDE_CODE_SKIP_BEDROCK_AUTH")):
+            with self.subTest(flag=flag):
+                p, _ = self.connect({flag: "1", skip: "1", "AWS_REGION": "us-west-2", "UNRELATED": "no", "ANTHROPIC_API_KEY": "k"})
+                self.assertEqual(p["env"], {flag: "1", skip: "1", "AWS_REGION": "us-west-2"})
+                after_archon = {"HOME": "/factory/home", "UNRELATED": "no"}   # Archon の掃除の後（CLAUDE_CODE_* は無い）
+                profile = fence.connection({fence.PROFILE_ENV: json.dumps(p)})
+                fence.connection_env(after_archon, profile)
+                self.assertEqual((after_archon[flag], after_archon[skip], after_archon["AWS_REGION"]), ("1", "1", "us-west-2"))
+        p, _ = self.connect({"CLAUDE_CODE_USE_FOUNDRY": "1", "ANTHROPIC_FOUNDRY_API_KEY": "dummy", "UNRELATED": "no"})
+        self.assertEqual(p["env"], {"CLAUDE_CODE_USE_FOUNDRY": "1", "ANTHROPIC_FOUNDRY_API_KEY": "dummy"})
+
+    def test_parent_flag_names_the_settings_connection_values_it_does_not_carry(self):
+        """旗を親の env で立てた道は、設定の env の接続先・alias・proxy を運ばない。黙らず、名だけを告知に言う（値は言わない）。
+        設定の direct の資格は provider が勝つので名指さない。名指す物が無ければ告知に足さない"""
+        self.cloud_world()
+        settings = {"env": {"ANTHROPIC_BASE_URL": "https://gw.invalid", "ANTHROPIC_DEFAULT_SONNET_MODEL": "alias-sonnet",
+                            "HTTPS_PROXY": "http://proxy.invalid", "ANTHROPIC_API_KEY": "settings-key"}}
+        p, notice = self.connect({"CLAUDE_CODE_USE_BEDROCK": "1", "AWS_REGION": "us-west-2"}, settings)
+        self.assertEqual(p["env"], {"CLAUDE_CODE_USE_BEDROCK": "1", "AWS_REGION": "us-west-2"})
+        self.assertEqual(p["settings"], {})
+        for name in ("ANTHROPIC_BASE_URL", "ANTHROPIC_DEFAULT_SONNET_MODEL", "HTTPS_PROXY"):
+            self.assertIn(name, notice)
+        self.assertNotIn("ANTHROPIC_API_KEY", notice)
+        for value in ("gw.invalid", "alias-sonnet", "proxy.invalid", "settings-key"):
+            self.assertNotIn(value, notice)
+        _, quiet = self.connect({"CLAUDE_CODE_USE_BEDROCK": "1"}, {"env": {"ANTHROPIC_API_KEY": "settings-key"}})
+        self.assertNotIn("運ばない", quiet)
+
+    @unittest.skipIf(sys.platform == "win32", "SKIP windows: sh の包み")
+    def test_home_based_aws_profile_gets_an_export_wrapper(self):
+        """AWS_PROFILE と本当の HOME の ~/.aws/config と PATH の aws が在れば、置き口に包みが書かれ、settings の awsCredentialExport がその
+        パスを shlex でくくった字（HOME が空白を含んでも 1 語）になる。包みは本当の HOME・XDG と --profile で aws を起こす"""
+        self.cloud_world()
+        self.fake_aws()
+        (self.real / ".aws").mkdir()
+        (self.real / ".aws" / "config").write_text("[profile dev]\n", encoding="utf-8")
+        p, notice = self.connect({"CLAUDE_CODE_USE_BEDROCK": "1", "AWS_PROFILE": "dev", "AWS_SESSION_TOKEN": "dummy-session-token",
+                                  "XDG_CONFIG_HOME": "/real-xdg"})
+        command = p["settings"]["awsCredentialExport"]
+        (path,) = shlex.split(command)
+        self.assertEqual(command, shlex.quote(path))
+        self.assertTrue(path.startswith(str(self.tmp / "fence dir")) and os.access(path, os.X_OK))
+        self.assertEqual(p["env"]["AWS_CONFIG_FILE"], str(self.real / ".aws" / "config"))
+        self.assertNotIn("AWS_SHARED_CREDENTIALS_FILE", p["env"])
+        done = self.run_wrapper(command)
+        self.assertEqual(done.returncode, 0, done.stderr)
+        self.assertEqual(done.stdout.strip(),
+                         "home=%s xdg=/real-xdg args=configure export-credentials --format process --profile dev" % self.real)
+        for text in (pathlib.Path(path).read_text(encoding="utf-8"), json.dumps(p["settings"]), notice):
+            self.assertNotIn("dummy-session-token", text)
+        self.assertIn("既定の aws の包み", notice)
+
+    def test_aws_without_the_cli_passes_files_and_names_an_unresolvable_profile(self):
+        """aws が無くても止まらない。渡せる物は渡し、渡せない物は告知で名指す（値は言わない）"""
+        self.cloud_world()
+        (self.real / ".aws").mkdir()
+        (self.real / ".aws" / "credentials").write_text("dummy-credentials-body", encoding="utf-8")
+        with self.subTest("a: aws が無い"):
+            p, notice = self.connect({"CLAUDE_CODE_USE_BEDROCK": "1"})
+            self.assertEqual(p["env"]["AWS_SHARED_CREDENTIALS_FILE"], str(self.real / ".aws" / "credentials"))
+            self.assertNotIn("awsCredentialExport", p["settings"])
+            self.assertIn("aws の CLI が無い", notice)
+            self.assertNotIn("dummy-credentials-body", notice)
+        (self.real / ".aws" / "credentials").unlink()
+        (self.real / ".aws").rmdir()
+        elsewhere = self.tmp / "elsewhere-credentials"
+        with self.subTest("b: 親が絶対パスで置いた"):
+            p, notice = self.connect({"CLAUDE_CODE_USE_BEDROCK": "1", "AWS_PROFILE": "dev", "AWS_SHARED_CREDENTIALS_FILE": str(elsewhere)})
+            self.assertEqual(p["env"]["AWS_SHARED_CREDENTIALS_FILE"], str(elsewhere))
+            self.assertNotIn("MDM", notice)
+        self.fake_aws()
+        with self.subTest("c: HOME に頼らない資格が在れば包みは書かない"):
+            p, _ = self.connect({"CLAUDE_CODE_USE_BEDROCK": "1", "AWS_PROFILE": "dev", "AWS_CONTAINER_CREDENTIALS_RELATIVE_URI": "/v2/credentials/x"})
+            self.assertNotIn("awsCredentialExport", p["settings"])
+            self.assertFalse((self.tmp / "fence dir").exists())
+        with self.subTest("d: 解けない AWS_PROFILE は止めずに名指す"):
+            p, notice = self.connect({"CLAUDE_CODE_USE_BEDROCK": "1", "AWS_PROFILE": "prod-profile"})
+            self.assertEqual(p["env"], {"CLAUDE_CODE_USE_BEDROCK": "1", "AWS_PROFILE": "prod-profile"})
+            for word in ("prod-profile", "MDM", "awsCredentialExport", "~/.aws", "AWS_CONFIG_FILE", "AWS_SHARED_CREDENTIALS_FILE", "settings.json"):
+                self.assertIn(word, notice)
+        managed = self.managed / "managed-settings.json"
+        managed.write_text(json.dumps({"awsCredentialExport": "managed-secret-command"}), encoding="utf-8")
+        (self.real / ".aws").mkdir()
+        (self.real / ".aws" / "config").write_text("[default]\n", encoding="utf-8")
+        with self.subTest("e: 管理者の awsCredentialExport は包みを置くかの判断に使わない"):
+            p, notice = self.connect({"CLAUDE_CODE_USE_BEDROCK": "1"})
+            self.assertIn("awsCredentialExport", p["settings"])
+            self.assertIn(str(managed), notice)
+            self.assertIn("Claude Code 自身が管理者の設定", notice)
+            self.assertIn("から走らせる", notice)
+            self.assertIn("remote や MDM", notice)
+            self.assertNotIn("AWS_PROFILE は解かない", notice)
+            self.assertNotIn("managed-secret-command", notice)
+
+    @unittest.skipIf(sys.platform == "win32", "SKIP windows: sh の包み")
+    def test_user_credential_export_is_wrapped_with_the_real_home(self):
+        """利用者の settings.json の awsCredentialExport は、旗を設定の env で立てても親の env で立てても、包みにくるまれる。包みはコマンドの字を
+        持たず、走るたびに元ファイルから読み直し、本当の HOME と元ファイルの env で走る。管理者も同じ鍵を持てば告知で名指す"""
+        self.cloud_world()
+        user = {"awsCredentialExport": "echo \"$MY_SSO_URL home=$HOME\"", "env": {"MY_SSO_URL": "https://sso.invalid"}}
+        for where in ("設定の env", "親の env"):
+            with self.subTest(flag=where):
+                settings = {**user, "env": {**user["env"], **({"CLAUDE_CODE_USE_BEDROCK": "1"} if where == "設定の env" else {})}}
+                p, notice = self.connect({} if where == "設定の env" else {"CLAUDE_CODE_USE_BEDROCK": "1"}, settings)
+                self.assertNotIn("MY_SSO_URL", p["env"])
+                command = p["settings"]["awsCredentialExport"]
+                (path,) = shlex.split(command)
+                self.assertNotIn("MY_SSO_URL", pathlib.Path(path).read_text(encoding="utf-8"))
+                done = self.run_wrapper(command)
+                self.assertEqual((done.returncode, done.stdout.strip()), (0, "https://sso.invalid home=%s" % self.real), done.stderr)
+                self.assertIn("利用者の設定", notice)
+        write_settings(self.config, {**user, "awsCredentialExport": "echo changed"})
+        self.assertEqual(self.run_wrapper(command).stdout.strip(), "changed")
+        managed = self.managed / "managed-settings.json"
+        managed.write_text(json.dumps({"awsCredentialExport": "managed-secret-command"}), encoding="utf-8")
+        p, notice = self.connect({"CLAUDE_CODE_USE_BEDROCK": "1"}, user)
+        self.assertEqual(p["settings"]["awsCredentialExport"], command)   # 管理者が同じ鍵を持っても、包みと settings は同じに置く
+        self.assertIn(str(managed), notice)
+        self.assertIn("Claude Code 自身が管理者の設定", notice)
+        self.assertNotIn("managed-secret-command", notice)
+        managed.unlink()
+        broken = self.config / "settings.json"
+        broken.write_text("not json", encoding="utf-8")
+        p, notice = auth_launch.connection_profile(self.config, {"HOME": str(self.real), "PATH": str(self.bin), "CLAUDE_CODE_USE_BEDROCK": "1"},
+                                                   self.managed, self.put)
+        self.assertEqual(p["env"], {"CLAUDE_CODE_USE_BEDROCK": "1"})
+        self.assertNotIn("awsCredentialExport", p["settings"])
+        self.assertEqual(notice.count(str(broken)), 1)
+        # 包みの子は、元ファイルに awsCredentialExport が無い・aws を起こせない時、標準エラーに 1 行（コマンドの字・資格は言わない）で 2。
+        # --source と --aws のどちらも無い起動は使い方の誤りで 2
+        write_settings(self.config, {"env": {"MY_SECRET": "dummy-secret-env"}})
+        base = [sys.executable, "-I", str(CORE / "auth_launch.py"), "credential-export", "--user-home", str(self.real),
+                "--user-config", str(self.config)]
+        for extra in (["--source", str(self.config / "settings.json")], ["--aws", str(self.bin / "no-such-aws")], []):
+            with self.subTest(extra=extra):
+                done = subprocess.run([*base, *extra], env=hermetic.child_env(PATH="/usr/bin:/bin"), capture_output=True, text=True,
+                                      encoding="utf-8", timeout=60)
+                self.assertEqual((done.returncode, done.stdout), (2, ""), done.stderr)
+                self.assertTrue(done.stderr.strip())
+                self.assertNotIn("dummy-secret-env", done.stderr)
+
+    def test_vertex_adc_file_is_passed_by_absolute_path(self):
+        """Vertex で GOOGLE_APPLICATION_CREDENTIALS も SKIP も無く、本当の HOME（か CLOUDSDK_CONFIG）の ADC ファイルが在れば、その絶対パスを渡す。
+        中身は読まない。無ければ止めずに名指す"""
+        self.cloud_world()
+        adc = self.real / ".config" / "gcloud" / "application_default_credentials.json"
+        p, notice = self.connect({"CLAUDE_CODE_USE_VERTEX": "1"})
+        self.assertNotIn("GOOGLE_APPLICATION_CREDENTIALS", p["env"])
+        self.assertIn("ADC", notice)
+        adc.parent.mkdir(parents=True)
+        adc.write_text("dummy-adc-body", encoding="utf-8")
+        p, notice = self.connect({"CLAUDE_CODE_USE_VERTEX": "1"})
+        self.assertEqual(p["env"]["GOOGLE_APPLICATION_CREDENTIALS"], str(adc))
+        self.assertNotIn("dummy-adc-body", json.dumps(p) + notice)
+        p, _ = self.connect({"CLAUDE_CODE_USE_VERTEX": "1", "GOOGLE_APPLICATION_CREDENTIALS": "/own/adc.json"})
+        self.assertEqual(p["env"]["GOOGLE_APPLICATION_CREDENTIALS"], "/own/adc.json")
+        other = self.tmp / "gcloud-config"
+        other.mkdir()
+        (other / "application_default_credentials.json").write_text("{}", encoding="utf-8")
+        p, _ = self.connect({"CLAUDE_CODE_USE_VERTEX": "1", "CLOUDSDK_CONFIG": str(other)})
+        self.assertEqual(p["env"]["GOOGLE_APPLICATION_CREDENTIALS"], str(other / "application_default_credentials.json"))
+
+    def test_auth_refresh_settings_are_named_not_carried(self):
+        """利用者の awsAuthRefresh は運ばず止めず、鍵の名と出どころを言って「工場では走らせない」と言う。管理者の物（gcpAuthRefresh も）は
+        Claude Code 自身が走らせる（工場は止めない）と言う。どちらもコマンドの字は言わない"""
+        self.cloud_world()
+        p, notice = self.connect(settings={"env": {"CLAUDE_CODE_USE_BEDROCK": "1"}, "awsAuthRefresh": "aws sso login secret-user-command"})
+        self.assertEqual(p["env"], {"CLAUDE_CODE_USE_BEDROCK": "1"})
+        self.assertNotIn("awsAuthRefresh", json.dumps(p))
+        for word in ("awsAuthRefresh", str(self.config / "settings.json"), "工場では走らせない"):
+            self.assertIn(word, notice)
+        self.assertNotIn("secret-user-command", notice)
+        managed = self.managed / "managed-settings.json"
+        managed.write_text(json.dumps({"awsAuthRefresh": "secret-managed-aws", "gcpAuthRefresh": "secret-managed-gcp"}), encoding="utf-8")
+        p, notice = self.connect(settings={"env": {"CLAUDE_CODE_USE_BEDROCK": "1"}, "awsAuthRefresh": "secret-user-command"})
+        self.assertNotIn("Refresh", json.dumps(p))
+        for word in ("awsAuthRefresh", "gcpAuthRefresh", str(managed), "Claude Code 自身が管理者の設定", "工場は止めない"):
+            self.assertIn(word, notice)
+        self.assertNotIn("工場では走らせない", notice)
+        self.assertNotIn("AWS_PROFILE は解かない", notice)
+        for secret in ("secret-managed-aws", "secret-managed-gcp", "secret-user-command"):
+            self.assertNotIn(secret, notice)
 
     def test_foundry_parent_values_are_restored_without_fetching_credentials(self):
         parent = {"CLAUDE_CODE_USE_FOUNDRY": "1", "ANTHROPIC_FOUNDRY_API_KEY": "dummy",
@@ -241,10 +511,12 @@ class Howto(unittest.TestCase):
         self.assertIn('settings.json の env に "%s": "<項目の名>"' % auth_launch.ITEM_ENV, auth_launch.HOWTO)
 
     def test_names_the_api_key_route(self):
-        """API キーの道（ANTHROPIC_API_KEY）と、ゲートウェイの値は子に運ばないこと、apiKeyHelper の道を言う"""
+        """API キーの道（ANTHROPIC_API_KEY）と、apiKeyHelper の道を言い、設定の env の接続の値は子に運ぶことを言う（運ばないとは言わない）"""
         for word in ("ANTHROPIC_API_KEY", "ANTHROPIC_BASE_URL", "apiKeyHelper"):
             self.assertIn(word, auth_launch.HOWTO)
-        self.assertIn("子には運ばない", auth_launch.HOWTO)
+        self.assertNotIn("子には運ばない", auth_launch.HOWTO)
+        for word in ("設定の env に書いた接続の値", "Bedrock・Mantle・Vertex", "は子に運ぶ", "フック・権限・プラグインは運ばない"):
+            self.assertIn(word, auth_launch.HOWTO)
 
     def test_check_command_does_not_print_the_value(self):
         self.assertIn("security find-generic-password -s <項目の名> で", auth_launch.HOWTO)
@@ -480,7 +752,7 @@ class ApiKeyHelper(unittest.TestCase):
         self.assertNotIn("XDG_STATE_HOME", got)
 
     def test_default_runner_leaves_the_env_alone_without_a_record(self):
-        """控えが無い時（check は利用者の環境で起こされる）は、環境の XDG_* をそのまま渡す"""
+        """控えが無い時（殻を通らない単独の check など）は、環境の XDG_* をそのまま渡す"""
         env = {"HOME": "/u", "XDG_CONFIG_HOME": "/u/.config"}
         with mock.patch.object(auth_launch.os, "environ", env), mock.patch.object(auth_launch.subprocess, "run") as run, \
                 mock.patch.object(sys, "stderr", io.StringIO()):
@@ -901,6 +1173,101 @@ class IsolatedLaunch(unittest.TestCase):
         self.assertEqual((r.returncode, r.stdout.strip()), (0, "CLAUDE_CODE_OAUTH_TOKEN"), r.stderr)
         self.assertNotIn(TOKEN, r.stdout + r.stderr)
         self.assertEqual(list(core.rglob("__pycache__")), [])
+
+    def fake_runtime(self, tmp, status, code=0, ask=False):
+        """auth status に status（字）を返す起動方法の偽（sh のファイル）。ask なら標準エラーに問いの 1 行を書き、標準入力を読み切ってから返す。
+        auth status 以外で呼ばれたら 9 で終わる"""
+        runtime = tmp / "wrapper"
+        runtime.write_text("#!/bin/sh\nif [ \"$1\" = auth ] && [ \"$2\" = status ]; then\n"
+                           + ("  echo FAKE-ASK >&2\n  cat >/dev/null\n" if ask else "")
+                           + "  printf '%s\\n' '" + status + "'\n  exit " + str(code) + "\nfi\nexit 9\n", encoding="utf-8")
+        runtime.chmod(0o755)
+        return runtime
+
+    def with_saved_login(self, tmp):
+        """Claude Code の保存済みのログインを偽で置く（macOS は keychain の項目、ほかは .credentials.json）。返すのは PATH の頭の置き場"""
+        write_credentials(tmp / "user-config")
+        return self.fake_security(tmp, "Claude Code-credentials")
+
+    def start(self, cmd, tmp, runtime, bin_dir, *rest, **env):
+        args = [sys.executable, "-I", str(CORE / "auth_launch.py"), cmd, "--for", "bin/start", "--user-home", str(tmp / "user"),
+                "--user-config", str(tmp / "user-config"), "--managed-dir", str(tmp / "managed"), "--runtime", str(runtime), *rest]
+        env = hermetic.child_env(HOME=str(tmp / "iso"), PATH=str(bin_dir) + os.pathsep + os.environ.get("PATH", ""), **env)
+        return subprocess.run(args, env=env, capture_output=True, text=True, encoding="utf-8", timeout=60)
+
+    def test_runtime_with_its_own_auth_starts_without_the_saved_login(self):
+        """起動方法が auth status で自分の認証を言えば、他の出どころが無くても check は 0 で、出どころに起動方法のパスを言う。
+        exec は、保存済みのログインが在っても子に CLAUDE_CODE_OAUTH_TOKEN を足さない。claude.ai の時は、ラッパーが設定の置き場を替えている見込みと
+        役が利用者の設定で走りうることを、出どころの字に添える（止めない）。email は出さない"""
+        probe = "import os; print(os.environ.get('CLAUDE_CODE_OAUTH_TOKEN'))"
+        for method in ("api_key", "claude.ai"):
+            with self.subTest(method=method):
+                tmp = hermetic.tmpdir(self)
+                bin_dir = self.with_saved_login(tmp)
+                runtime = self.fake_runtime(tmp, '{"authMethod":"%s","email":"someone@example.invalid"}' % method)
+                checked = self.start("check", tmp, runtime, bin_dir)
+                self.assertEqual(checked.returncode, 0, checked.stderr)
+                line = checked.stdout.strip()
+                self.assertIn(str(runtime), line)
+                self.assertIn(method, line)
+                self.assertNotIn("someone@example.invalid", checked.stdout + checked.stderr)
+                if method == "claude.ai":
+                    self.assertIn("CLAUDE_CONFIG_DIR か HOME を替えている見込み", line)
+                    self.assertIn("hooks・permissions・plugins", line)
+                    self.assertEqual(line, "起動方法 %s の認証（claude.ai。注意: ラッパーが CLAUDE_CONFIG_DIR か HOME を替えている見込み。"
+                                           "役は利用者の設定（hooks・permissions・plugins）で走りうる。鍵を環境変数に置く形にする）" % runtime)
+                else:
+                    self.assertNotIn("見込み", line)
+                started = self.start("exec", tmp, runtime, bin_dir, "--", sys.executable, "-I", "-c", probe)
+                self.assertEqual((started.returncode, started.stdout.strip()), (0, "None"), started.stderr)
+                self.assertNotIn(TOKEN, started.stdout + started.stderr)
+
+    def test_runtime_without_auth_stops_instead_of_the_saved_login(self):
+        """起動方法が none を言う・JSON でない・終了コードが 0 でない時は、保存済みのログインが在っても check は HOWTO で 2。
+        理由は起動方法のパスと逃げ道を名指し、HOWTO は CLAUDE_BIN_PATH を置くと保存済みのログインを使わないことを言う。exec も子を起こさない"""
+        cases = (('{"authMethod":"none"}', 0), ("not json", 0), ('{"loggedIn":true}', 0), ('{"authMethod":"api_key"}', 1))
+        for status, code in cases:
+            with self.subTest(status=status, code=code):
+                tmp = hermetic.tmpdir(self)
+                bin_dir = self.with_saved_login(tmp)
+                runtime = self.fake_runtime(tmp, status, code)
+                for cmd, rest in (("check", ()), ("exec", ("--", sys.executable, "-c", "print('started')"))):
+                    done = self.start(cmd, tmp, runtime, bin_dir, *rest)
+                    self.assertEqual(done.returncode, 2, done.stderr)
+                    self.assertEqual(done.stdout, "")
+                    lines = done.stderr.strip().splitlines()
+                    self.assertTrue(lines[-1].startswith("bin/start: " + auth_launch.HOWTO), done.stderr)
+                    self.assertEqual(len(lines), 2, done.stderr)   # 起動方法を待つ 1 行と、止める 1 行
+                    for word in (str(runtime), "CLAUDE_CODE_OAUTH_TOKEN", "CLAUDE_BIN_PATH"):
+                        self.assertIn(word, lines[-1])
+                    self.assertNotIn(TOKEN, done.stderr)
+        self.assertTrue(auth_launch.HOWTO.startswith("認証が無いか、確かめられない"))
+        self.assertIn("保存済みのログインを使わない", auth_launch.HOWTO)
+
+    def test_runtime_probe_shows_its_stderr_and_gets_no_stdin(self):
+        """起動方法の確かめは標準エラーを捕まえず端末へ流し（問いが見える）、起動方法を待つ 1 行を出し、標準入力は渡さない
+        （閉じない管を渡されても待たずに終わる）"""
+        tmp = hermetic.tmpdir(self)
+        bin_dir = self.with_saved_login(tmp)
+        runtime = self.fake_runtime(tmp, '{"authMethod":"api_key"}', ask=True)
+        args = [sys.executable, "-I", str(CORE / "auth_launch.py"), "check", "--user-home", str(tmp / "user"),
+                "--managed-dir", str(tmp / "managed"), "--runtime", str(runtime)]
+        env = hermetic.child_env(HOME=str(tmp / "iso"), PATH=str(bin_dir) + os.pathsep + os.environ.get("PATH", ""))
+        proc = subprocess.Popen(args, env=env, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                                text=True, encoding="utf-8")
+        try:
+            proc.wait(timeout=30)
+            out, err = proc.stdout.read(), proc.stderr.read()
+        finally:
+            proc.kill()
+            proc.wait()
+            for pipe in (proc.stdin, proc.stdout, proc.stderr):
+                pipe.close()
+        self.assertEqual(proc.returncode, 0, err)
+        self.assertIn(str(runtime), out)
+        self.assertIn("FAKE-ASK", err)
+        self.assertIn(str(runtime), err)
+        self.assertIn("終わるまで待つ", err)
 
 
 if __name__ == "__main__":

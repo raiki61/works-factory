@@ -25,6 +25,7 @@ import argparse
 import datetime
 import json
 import os
+import shlex
 import subprocess
 import sys
 from collections.abc import Callable, Sequence
@@ -35,6 +36,9 @@ REFUSED_EXIT = 3
 RECORDS_ENV = "WORKS_FACTORY_FENCE_RECORDS"   # 起動の記録のパス。在れば run は包みを通ると宣言した
 ENGINE_CHILD_ENV = "GRAPHLOOPS_ENGINE_CHILD"
 PROFILE_ENV = "WORKS_FACTORY_CONNECTION_PROFILE"   # 殻が組む必要設定。探索と認証判断は殻だけが持つ
+# 殻の接続設定の契約が settings に許す鍵（toolset の SETTINGS_KEYS とは別）。awsCredentialExport は、殻が run の置き場に書いた包みのパスを
+# shlex でくくった字（1 語の絶対パス。書く側の shlex.quote と同じ約束）に限る
+PROFILE_SETTINGS = ("env", "awsCredentialExport")
 
 
 def connection(environ):
@@ -45,8 +49,9 @@ def connection(environ):
     try:
         profile = json.loads(raw)
         valid = (isinstance(profile, dict) and set(profile) == {"settings", "env", "drop"}
-                 and isinstance(profile["settings"], dict) and set(profile["settings"]) <= {"env"}
+                 and isinstance(profile["settings"], dict) and set(profile["settings"]) <= set(PROFILE_SETTINGS)
                  and isinstance(profile["settings"].get("env", {}), dict)
+                 and ("awsCredentialExport" not in profile["settings"] or quoted_path(profile["settings"]["awsCredentialExport"]))
                  and isinstance(profile["env"], dict) and isinstance(profile["drop"], list))
         if not valid:
             raise ValueError()
@@ -60,6 +65,17 @@ def connection(environ):
     except (ValueError, TypeError):
         raise Refused("殻の接続設定の契約が読めない（値は表示しない）") from None
     return profile
+
+
+def quoted_path(value):
+    """shlex.quote が絶対パスから作る字（shlex.split で 1 語の絶対パスになり、くくり直しても同じ）か"""
+    if not isinstance(value, str):
+        return False
+    try:
+        words = shlex.split(value)
+    except ValueError:
+        return False
+    return len(words) == 1 and os.path.isabs(words[0]) and shlex.quote(words[0]) == value
 
 
 def connection_env(environ, profile):
@@ -122,13 +138,15 @@ def protected_paths(cwd, board_dir=None):
 def fenced_argv(argv: list[str], archon_home: str, paths: Callable[[], list[str]], extra=None) -> list[str]:
     """argv の --settings の sandbox.filesystem.denyWrite が印（~ を解くと archon_home）を持つ時だけ、paths() の一覧のうち無い物を
     後ろに足した argv。印が無ければ argv のまま。--settings の値が JSON の object でなければ（設定のファイルのパスを含む）、印を
-    見落としうるので Refused"""
+    見落としうるので Refused。extra は殻の settings（PROFILE_SETTINGS の env と awsCredentialExport）で、既存の 1 個の --settings に
+    重ねる（--settings が無ければ 1 個を足す）"""
     at = [i for i, a in enumerate(argv) if a == SETTINGS or a.startswith(SETTINGS + "=")]
     if len(at) > 1:
         raise Refused(f"{SETTINGS} が {len(at)} 個ある。印が在るかを決められない")
+    added = {k: extra[k] for k in PROFILE_SETTINGS if extra and extra.get(k)}   # 殻の settings の鍵（空の物は足さない）
     if not at:
-        if extra and extra.get("env"):
-            return [*argv, SETTINGS, json.dumps(extra, ensure_ascii=False)]
+        if added:
+            return [*argv, SETTINGS, json.dumps(added, ensure_ascii=False)]
         return argv
     i = at[0]
     joined = argv[i] != SETTINGS
@@ -147,11 +165,13 @@ def fenced_argv(argv: list[str], archon_home: str, paths: Callable[[], list[str]
     marked = isinstance(deny, list) and any(marks(item, archon_home) for item in deny)
     if marked:
         deny += [p for p in paths() if p not in deny]
-    if extra and extra.get("env"):
-        env = settings.get("env", {})
-        if not isinstance(env, dict):
-            raise Refused("既存 settings の env が object でない")
-        settings["env"] = {**env, **extra["env"]}
+    if added:
+        if "env" in added:
+            env = settings.get("env", {})
+            if not isinstance(env, dict):
+                raise Refused("既存 settings の env が object でない")
+            settings["env"] = {**env, **added["env"]}
+        settings.update({k: v for k, v in added.items() if k != "env"})
     elif not marked:
         return argv
     value = json.dumps(settings, ensure_ascii=False)
