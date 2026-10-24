@@ -4,7 +4,6 @@
 # ///
 """計画の往復（loop_group の plan-rounds）の本体の頭の node design-turn（docs/design/line.md の 3.1 節。決めは src.talk.turn）。
 
-対話モードの 1 周目は計画を回さず、早い相談の印 early を返す（design-talk が判定の読みで関所を開く。issue #830）。ほかの周は
 前の周の設計の相談の承認ノード gate-design の答え（$LOOP_PREV。1 周目と関所が飛んだ周は空）を読み、この周に plan と事前審査を回すかと、
 この周の plan・事前審査・plan-out に渡す前の周の値（prior の 2 本・依頼の答え・記録された方針の行）を返す。通常の run は答えが無いので
 前の周の値をそのまま運ぶ（今の $LOOP_PREV.plan-out.output.plan_prior・record と、配る値の request_answers・owed の recorded と同じ値）。
@@ -37,7 +36,7 @@ def compute() -> dict:
 def fallback(reason: str) -> dict:
     """読めない時は計画を回さずに止める形（design-talk が往復を止める。設計し直しを黙って飛ばさない）"""
     from src import guard
-    return {"plan": False, "early": False, "answer": None, "plan_prior": "", "record": "", "answers": [], "recorded": [], "asks": [], "talks": [],
+    return {"plan": False, "answer": None, "plan_prior": "", "record": "", "answers": [], "recorded": [], "asks": [], "talks": [], "notes": [], "approved": None,
             "stop_reason": guard.LINE_SCRIPT, "reason": reason}
 
 

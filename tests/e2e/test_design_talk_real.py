@@ -8,11 +8,12 @@ loopIterationCompletes）。ここでは line の YAML の plan-rounds の node 
 
 照らす事（#822 の受入確認のうち、本物の Archon の止め・答え・再開・周の数が要る物）:
 - 通常の run（design_talk が空）: 止まらずに終わり、関所は飛び、往復の返りは plan-out の返りのまま
-- 対話モードの run: 輪の 1 周目は計画を回さず、判定の読みで関所が開いて run が待つ（早い相談。issue #830）→ continue と一言で
-  計画の 1 周目が回り、plan は一言を依頼の答えの行で受ける → 止まる周で関所が開いて待つ → revise と一言で 2 周目の plan が人の
-  block を差し込んだ記録と一言を受け、事前審査が照らし直して関所がもう一度開く → approve で輪を終え、修正前の承認ノードは
-  聞き直さずに修正へ進む（go 真・合意を agreed に運ぶ）
-- 早い相談か設計の相談で stop なら輪を終え、修正前の承認ノードは人の止め human:gate-design で止める（早い相談の stop は計画を回さない）
+- 対話モードの run: 1 周目の止まる周で関所が開いて run が待つ（答えるまで進まない）→ revise と一言で 2 周目の plan が人の block を
+  差し込んだ記録と一言を受け、事前審査が照らし直して関所がもう一度開く → approve で輪を終え、修正前の承認ノードは聞き直さずに
+  修正へ進む（go 真・合意を agreed に運ぶ）
+- stop で輪を終え、修正前の承認ノードは人の止め human:gate-design で止める
+- 人の指摘の受け箱（issue #830）: run の置き場の talk/notes.txt に入った指摘は、待たずに 1 周目の plan に依頼の答えの行で届き、
+  周の設計の控え talk/round-1.md が書かれ、受け箱に承認の行（承認:）が在るので関所は開かずに、承認を合意として修正前の承認ノードへ運ぶ
 """
 import copy
 import json
@@ -35,13 +36,13 @@ REAL_SCRIPTS = ("design_turn", "design_talk", "plan_out", "returned", "ask_befor
 UV_HEAD = "# /// script\n# requires-python = \">=3.12\"\n# dependencies = []\n# ///\n"
 
 # 値を返すだけの script（輪の外の前の段）。INPUTS_VALUE の JSON の中の "@ptr:<相対>" を run directory のファイルの pointer に替え、
-# INPUTS_FILES（{相対: 中身}）を run directory に書いてから返す
+# INPUTS_FILES（{相対: 中身}。字の中身はそのまま、ほかは JSON で）を run directory に書いてから返す
 EMIT = UV_HEAD + textwrap.dedent('''\
     import json, os, pathlib
     root = pathlib.Path(os.environ["ARTIFACTS_DIR"])
     for rel, body in json.loads(os.environ.get("INPUTS_FILES") or "{}").items():
         (root / rel).parent.mkdir(parents=True, exist_ok=True)
-        (root / rel).write_text(json.dumps(body, ensure_ascii=False), encoding="utf-8")
+        (root / rel).write_text(body if isinstance(body, str) else json.dumps(body, ensure_ascii=False), encoding="utf-8")
     def walk(v):
         if isinstance(v, str) and v.startswith("@ptr:"):
             return {"type": "archon_artifact", "run_id": os.environ["WORKFLOW_ID"], "path": v[5:]}
@@ -139,7 +140,7 @@ def _stub(node: dict, script: str, inputs: dict, keys) -> dict:
             "output_format": {"type": "object", "required": list(keys), "properties": {k: {} for k in keys}}}
 
 
-def probe(design_talk: bool) -> dict:
+def probe(design_talk: bool, notes: str = "") -> dict:
     line = yaml.safe_load((LINE / "works-factory-line.yaml").read_text(encoding="utf-8"))
     top = {n["id"]: n for n in line["nodes"]}
     rounds = copy.deepcopy(top["plan-rounds"])
@@ -154,11 +155,10 @@ def probe(design_talk: bool) -> dict:
     ports = {"design_talk": design_talk, "unattended": False, "request_answers": [{"question": "q", "text": "依頼の答え"}],
              "policy": "", "takes_push": False}
     head = [
-        _emit("start", {"ok": True, "record": "@ptr:r1/start.json", "ports": ports}, files={"r1/start.json": {"answers": []}}),
+        _emit("start", {"ok": True, "record": "@ptr:r1/start.json", "ports": ports},
+              files={"r1/start.json": {"answers": []}, **({"talk/notes.txt": notes} if notes else {})}),
         _emit("judge", {"ok": True, "ready": True}, depends=["start"]),
-        _emit("judge-out", {"got": {"judgment": None, "answer_ties": None, "materials": None, "purpose_text": "空の列でも mean が落ちない",
-                                    "units": [{"id": "u1", "paths": ["stats.py"], "summary": "0 割りで落ちる"}], "out_of_purpose": None,
-                                    "tier": "標準", "tier_why": "単位 1 つ", "questions": []}}, depends=["judge"]),
+        _emit("judge-out", {"got": {"judgment": None, "answer_ties": None, "materials": None}}, depends=["judge"]),
         _emit("owed", {"owed": True, "recorded": [{"source": "doc", "name": "p.md", "text": ""}], "stop_reason": ""}, depends=["judge"]),
         _emit("structure-in", {"structure": None, "stop_reason": ""}, depends=["judge"]),
         _emit("design-in", {"design": None, "reason": "", "stop_reason": ""}, depends=["judge"]),
@@ -169,14 +169,14 @@ def probe(design_talk: bool) -> dict:
             "nodes": [*head, rounds, *tail]}
 
 
-def place_probe(folder: pathlib.Path, design_talk: bool) -> None:
+def place_probe(folder: pathlib.Path, design_talk: bool, notes: str = "") -> None:
     (folder / "scripts").mkdir(parents=True)
     shutil.copytree(LINE / "src", folder / "src", ignore=shutil.ignore_patterns("__pycache__"))
     for name in REAL_SCRIPTS:
         shutil.copyfile(LINE / "scripts" / f"{name}.py", folder / "scripts" / f"{name}.py")
     for name, body in (("emit", EMIT), ("plan_probe", PLAN), ("review_probe", REVIEW)):
         (folder / "scripts" / f"{name}.py").write_text(body, encoding="utf-8")
-    (folder / f"{WORKFLOW}.yaml").write_text(yaml.safe_dump(probe(design_talk), allow_unicode=True, sort_keys=False), encoding="utf-8")
+    (folder / f"{WORKFLOW}.yaml").write_text(yaml.safe_dump(probe(design_talk, notes), allow_unicode=True, sort_keys=False), encoding="utf-8")
 
 
 def body_outputs(events: list, node: str) -> list:
@@ -192,10 +192,10 @@ def top_output(events: list, node: str):
 class TalkRoundsCase(unittest.TestCase):
     maxDiff = None
 
-    def tree(self, design_talk: bool):
+    def tree(self, design_talk: bool, notes: str = ""):
         work = pathlib.Path(tempfile.mkdtemp())
         self.addCleanup(shutil.rmtree, work, True)
-        place_probe(work / FOLDER, design_talk)
+        place_probe(work / FOLDER, design_talk, notes)
         return archon.tree([FOLDER], workflows=work)
 
     def runs(self, root) -> list:
@@ -228,29 +228,14 @@ class TalkRoundsCase(unittest.TestCase):
         before = top_output(events, "ask-before-fix")
         self.assertEqual((before["open"], before["agreed"]), (True, None), "通常の run の修正前の承認ノードは今のまま（人に回す行で開く）")
 
-    def early(self, root) -> dict:
-        """起こした run が早い相談の関所で待つことを照らし、その run の行を返す"""
-        archon.archon(root, "workflow", "run", WORKFLOW, "--no-worktree")
-        [run] = self.runs(root)
-        self.assertEqual(run["status"], "paused", "輪の 1 周目は計画を回さず、判定の読みで関所が開いて待つ")
-        events = self.detail(root, run["id"])["events"]
-        early = body_outputs(events, "design-talk")
-        self.assertEqual((early[-1]["open"], early[-1]["done"]), (True, False))
-        self.assertIn("判定が済んだ所で開いた", early[-1]["text"])
-        self.assertIn("u1: 0 割りで落ちる（stats.py）", early[-1]["text"])
-        self.assertFalse(body_outputs(events, "plan-out"), "計画を書く前に聞く")
-        return run
-
     def test_dialogue_revises_then_agrees_without_asking_again(self):
         with self.tree(True) as root:
-            run = self.early(root)
-            self.respond(root, run["id"], "continue", "a.py だけ直す")
+            archon.archon(root, "workflow", "run", WORKFLOW, "--no-worktree")
             [run] = self.runs(root)
-            self.assertEqual(run["status"], "paused", "計画の 1 周目の止まる周で設計の相談の承認ノードが開いて待つ")
+            self.assertEqual(run["status"], "paused", "1 周目の止まる周で設計の相談の承認ノードが開いて待つ")
             first = body_outputs(self.detail(root, run["id"])["events"], "design-talk")
             self.assertEqual((first[-1]["open"], first[-1]["done"]), (True, False))
             self.assertIn("周 1 の案", first[-1]["text"])
-            plan1 = json.loads(next(root.parent.glob("**/probe/plan-1.json")).read_text(encoding="utf-8"))
             self.respond(root, run["id"], "revise", "b.py にも直しを入れる")
             [run] = self.runs(root)
             self.assertEqual(run["status"], "paused", "設計し直して事前審査をやり直し、もう一度関所が開いて待つ")
@@ -259,36 +244,47 @@ class TalkRoundsCase(unittest.TestCase):
             self.respond(root, run["id"], "approve")
             [run] = self.runs(root)
             detail = self.detail(root, run["id"])
-        early_word = {"question": "判定の後の相談で人が言った 1 番目の方向", "text": "a.py だけ直す"}
-        self.assertEqual(plan1["answers"][-1], early_word, "早い相談の一言は計画の 1 周目に届く")
-        self.assertEqual(plan2["blocks"], ["person-2"], "2 周目の plan は人の block を差し込んだ記録を受けた")
-        self.assertEqual(plan2["answers"][-2:], [early_word, {"question": "設計の相談で人が求めた 2 番目の直し", "text": "b.py にも直しを入れる"}])
-        self.assertEqual(review2["person"], ["person-2"], "事前審査は人の block を照らし直した")
-        self.assertIn("設計の相談で人が求めた 2 番目の直し", review2["recorded"])
+        self.assertEqual(plan2["blocks"], ["person-1"], "2 周目の plan は人の block を差し込んだ記録を受けた")
+        self.assertEqual(plan2["answers"][-1], {"question": "設計の相談で人が求めた 1 番目の直し", "text": "b.py にも直しを入れる"})
+        self.assertEqual(review2["person"], ["person-1"], "事前審査は人の block を照らし直した")
+        self.assertIn("設計の相談で人が求めた 1 番目の直し", review2["recorded"])
         self.assertEqual(detail["status"], "completed", json.dumps(detail.get("events", [])[-3:], ensure_ascii=False))
         events = detail["events"]
         talks = body_outputs(events, "design-talk")
-        self.assertEqual([(t["open"], t["done"]) for t in talks], [(True, False), (True, False), (True, False), (False, True)])
-        self.assertEqual(len(body_outputs(events, "plan-out")), 2, "早い相談の周と合意の周は plan も事前審査も回さない")
-        self.assertEqual([t["decision"] for t in talks[-1]["talks"]], ["continue", "revise", "approve"])
+        self.assertEqual([(t["open"], t["done"]) for t in talks], [(True, False), (True, False), (False, True)])
+        self.assertEqual(len(body_outputs(events, "plan-out")), 2, "合意の周は plan も事前審査も回さない")
+        self.assertEqual([t["decision"] for t in talks[-1]["talks"]], ["revise", "approve"])
         before = top_output(events, "ask-before-fix")
         self.assertEqual((before["open"], before["go"]), (False, True), "合意した承認を修正前の承認ノードで聞き直さない")
         self.assertEqual(before["agreed"]["decision"], "approve")
-        self.assertEqual(before["agreed"]["asked"], talks[2]["asked"], "合意は 2 周目（新しい設計）で見せた行の物")
+        self.assertEqual(before["agreed"]["asked"], talks[1]["asked"], "合意は 2 周目（新しい設計）で見せた行の物")
 
     def test_dialogue_stop_stops_before_fix(self):
-        for early in (True, False):
-            with self.subTest(early=early), self.tree(True) as root:
-                run = self.early(root)
-                if not early:
-                    self.respond(root, run["id"], "approve")
-                self.respond(root, run["id"], "stop", "やめる")
-                [run] = self.runs(root)
-                detail = self.detail(root, run["id"])
-                self.assertEqual(detail["status"], "completed")
-                before = top_output(detail["events"], "ask-before-fix")
-                self.assertEqual((before["open"], before["go"], before["stop_reason"]), (False, False, "human:gate-design"))
-                self.assertEqual(len(body_outputs(detail["events"], "plan-out")), 0 if early else 1, "早い相談の stop は計画を回さない")
+        with self.tree(True) as root:
+            archon.archon(root, "workflow", "run", WORKFLOW, "--no-worktree")
+            [run] = self.runs(root)
+            self.respond(root, run["id"], "stop", "やめる")
+            [run] = self.runs(root)
+            detail = self.detail(root, run["id"])
+        self.assertEqual(detail["status"], "completed")
+        before = top_output(detail["events"], "ask-before-fix")
+        self.assertEqual((before["open"], before["go"], before["stop_reason"]), (False, False, "human:gate-design"))
+
+
+    def test_a_note_reaches_the_plan_without_waiting(self):
+        with self.tree(True, notes="b.py は触らない\n承認: このまま進めてよい\n") as root:
+            done = archon.archon(root, "workflow", "run", WORKFLOW, "--no-worktree")
+            [run] = self.runs(root)
+            detail = self.detail(root, run["id"])
+            plan1 = json.loads(next(root.parent.glob("**/probe/plan-1.json")).read_text(encoding="utf-8"))
+            shown = list(root.parent.glob("**/talk/round-1.md"))
+        self.assertEqual((done.returncode, detail["status"]), (0, "completed"), "受け箱で承認した run は関所で待たない")
+        self.assertEqual(plan1["answers"][-1], {"question": "設計の相談で人が入れた 1 番目の指摘", "text": "b.py は触らない"})
+        self.assertFalse(body_outputs(detail["events"], "gate-design"))
+        talk = body_outputs(detail["events"], "design-talk")[-1]
+        self.assertEqual((talk["done"], talk["open"], talk["notes"]), (True, False, ["b.py は触らない", "承認: このまま進めてよい"]))
+        self.assertEqual(top_output(detail["events"], "ask-before-fix")["agreed"]["text"], "このまま進めてよい", "承認を合意として運ぶ")
+        self.assertEqual(len(shown), 1, "周の設計の控えを書いた")
 
 
 if __name__ == "__main__":

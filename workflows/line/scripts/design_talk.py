@@ -10,7 +10,8 @@
 - 通常の run: plan-out の返りをそのまま写す（関所は飛ぶ）
 - 対話モードの run で往復が止まる周（plan-out の done）: 設計案・事前審査の結果・人が決める項目（修正前の承認ノードと同じ材料と決め。
   src.asking.materials・src.gates.before_fix）を関所の文にして open にし、done を偽にする（答えを次の周の頭が読む）
-- 対話モードの run の 1 周目（周の頭の early）: 計画を回さず、判定の読み（judge の got）を早い相談の文にして関所を開く（issue #830）
+- 対話モードの run は周ごとに、その周の設計の控えを書いて在りかを告げる。受け箱に生きている承認が在れば止まる周でも関所を開かず、承認を
+  合意として返す。収まる周に新しい指摘が在れば終えずに次の周へ回す（issue #830）
 - 答えた後の周（plan を回さない周）: 前の周の返りを写し、合意か止めなら done にして答えを agreed に置く。一言の空の修正要望は聞き直す
 until_bash はこの node の done だけを読む（飛びうる関所の出力を読まない。止めた Archon の決まり）。
 
@@ -43,10 +44,9 @@ def compute() -> dict:
         return asking.materials(rounds, structure_raw=raw["structure"], judge_raw=raw["judge"], record_raw=raw["record"],
                                 unattended=False, place=place)
 
-    judge = ports.picked(raw["judge"], (), optional=talk.JUDGE_FIELDS) if turn_got.get("early") else None
     return talk.settle(turn_got=turn_got, plan_out=dict(plan_out) if plan_out is not None else None,
                        previous=previous if isinstance(previous, dict) else None, given=given, materials=materials,
-                       run_id=os.environ["WORKFLOW_ID"], judge=dict(judge) if judge is not None else None)
+                       run_id=os.environ["WORKFLOW_ID"], place=place)
 
 
 def fallback(reason: str) -> dict:

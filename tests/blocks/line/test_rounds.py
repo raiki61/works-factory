@@ -103,9 +103,9 @@ class PlanOutCase(unittest.TestCase):
 
     def test_cap_matches_the_loop_and_marks_the_stop(self):
         """YAML の plan-rounds の max_iterations は上限 LIMIT と、設計の相談で一言の空の revise に聞き直す周（talk.EMPTY_LIMIT。計画を回さずに
-        ループの周を使う）と、対話モードの 1 周目の早い相談の周（talk.EARLY_TURNS）の和。上限の周で AGAIN なら capped で止まる（工場の不具合として人に見せる）"""
+        ループの周を使う）の和。上限の周で AGAIN なら capped で止まる（工場の不具合として人に見せる）"""
         talk = kit.load(BLOCK, "talk")
-        self.assertEqual(line_nodes()["plan-rounds"]["loop_group"]["max_iterations"], rounds.LIMIT + talk.EMPTY_LIMIT + talk.EARLY_TURNS)
+        self.assertEqual(line_nodes()["plan-rounds"]["loop_group"]["max_iterations"], rounds.LIMIT + talk.EMPTY_LIMIT)
         got = self.out(self.plan(rounds.LIMIT), self.review(rounds.LIMIT, [face("key-z1")]))
         self.assertEqual((got["done"], got["ok"], got["stalled"], got["capped"]), (True, False, True, True))
 

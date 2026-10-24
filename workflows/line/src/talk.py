@@ -14,10 +14,13 @@ design-talk の done だけを読む）。
   同じ文で聞き直す（未回答を承認と読まない。計画を回さずにループの周を使うので EMPTY_LIMIT 回まで。その次は止める）。往復の安全の上限（rounds.LIMIT）の周の修正要望は、設計し直さずに止める（plan-converge）
 - 止める（STOP_WORDS と知らない語）: 次の周は回さず done にし、答えを agreed に置く（修正前の承認ノードが human:gate-design で止める）
 - 相談の結果を返す: 直す義務が無い（nothing_owed）・計画ができなかった周も、done の周なら関所を開いて訳を見せる（黙って終わらない）
-- 判定の後の早い相談（issue #830）: 対話モードの run の輪の 1 周目は計画を回さず、同じ関所で判定の読み（目的・直す単位・目的の外とした
-  所見・段・判定の問い）を見せて方向を聞く（early_text）。合意か一言つきの revise なら次の周から計画を回し、一言は依頼の答えの行
-  （EARLY_NAME）として plan と事前審査に渡す（agreed にはしない。設計への合意は計画と事前審査の後の相談で聞く）。止めれば計画を
-  回さずに止める。一言の空の revise は同じ文で聞き直す（EMPTY_LIMIT を後の相談と分け合う）。輪の周を 1 つ使う（EARLY_TURNS）
+- 人の指摘の受け箱（issue #830。持ち主の決め `human-notes-in-rounds`）: 人は往復の間いつでも、受け箱（files.NOTES）に 1 行 1 つの指摘を
+  足せる（待たない）。周の頭の design-turn が、前の周までに取った数より後の行を拾い、人の block（中央。頭が EDGE_HEAD の行だけ端）として
+  往復の記録の最後の往復に差し込み（往復が無ければ依頼の答えの行だけ）、計画の役に答えさせ、事前審査に照らし直させる。往復が収まる周
+  でも新しい指摘が在れば終えずに次の周で拾う。周の終わりの design-talk は、その周の設計（案・事前審査の穴と人の block・人の指摘への計画の
+  役の答え）を files.TALK_ROUND に書いて在りかを告げる。受け箱の承認の行（頭が APPROVE_HEADS。指摘とは別の印）が在り、その後に新しい
+  中央の指摘（人の行でも、審査役が後の往復で出した中央の block でも。端は数えない）が無ければ（approval）、止まる周に関所を開かず、承認を
+  合意（agreed）として修正へ進む。ほかは止まる周に関所を開いて待つ
 
 通常の run（対話モードでない）は design-turn が前の周の値をそのまま運び、design-talk が plan-out の返りをそのまま写す（関所はいつも
 飛ぶ。往復の返りの欄は今と同じ値で、足した欄 open・text・asked・agreed・talks は空）。
@@ -40,10 +43,12 @@ import ports
 import stopby
 
 ASK_NAME = "設計の相談で人が求めた {n} 番目の直し"   # 依頼の答えの行の question（記録された方針の行の名指し）
-EARLY_NAME = "判定の後の相談で人が言った {n} 番目の方向"   # 早い相談の一言の question（ASK_NAME と番号を分け合う）
-EARLY_TURNS = 1   # 早い相談が使うループの周（計画を回さない 1 周目。plan-rounds の max_iterations は rounds.LIMIT・EMPTY_LIMIT にこの数を足す）
 KEY = "person-{n}"   # 往復の記録に差し込む人の block の key（converge.KEY_CHAR の字だけ）
-TALK_FIELDS = ("open", "text", "asked", "agreed", "talks")   # plan-out の返りに足す欄
+TALK_FIELDS = ("open", "text", "asked", "agreed", "talks", "notes", "shown")   # plan-out の返りに足す欄
+NOTE_NAME = "設計の相談で人が入れた {n} 番目の指摘"   # 受け箱の指摘の依頼の答えの行の question（ASK_NAME と番号を分け合う）
+NOTE_WHERE = "人の指摘の受け箱"   # 受け箱の指摘を差し込む人の block の where
+EDGE_HEAD = "端:"   # 受け箱の行の頭がこの字なら、端（修正の段へ申し送れば済む細かい調整）の指摘として差し込む
+APPROVE_HEADS = ("承認:", "もういいよ")   # 受け箱の行の頭がこのどれかなら、設計への承認（指摘でない。block にしない）
 EMPTY_REVISE = "前の答え revise の一言が空だった（直してほしい所が分からないので設計し直していない）。直してほしい所を一言に書いて答え直す"
 CAPPED_REVISE = "往復の安全の上限 {n} 周に届いたので設計し直せない（revise は止める答えと同じに扱う）"
 EMPTY_LIMIT = 2   # 一言の空の revise で聞き直す回数の上限（計画を回さずにループの周を 1 つ使う。plan-rounds の max_iterations は rounds.LIMIT にこの数を足す）
@@ -84,10 +89,9 @@ def _pointer_or_empty(value):
 
 
 def turn(*, answer_raw, previous_raw, last_raw, given: dict, recorded, place: Path) -> dict:
-    """周の頭 design-turn。対話モードの 1 周目（前の周が無い）は計画を回さず早い相談の印 early を立てる（design-talk が判定の読みで関所を
-    開く）。answer_raw は前の周の関所の出力（$LOOP_PREV.gate-design.output。1 周目と飛んだ周は空）、previous_raw は前の周の
-    design-talk の返り、last_raw は前の周の自分の返り。返り {plan, early, answer, plan_prior, record, answers, recorded, asks, talks,
-    stop_reason, reason}: plan はこの周に plan と事前審査を回すか、early はこの周の関所が早い相談か（次の周の頭が last で読む）、plan_prior・record はこの周の plan と事前審査と plan-out の port prior（前の周の値。
+    """周の頭 design-turn。answer_raw は前の周の関所の出力（$LOOP_PREV.gate-design.output。1 周目と飛んだ周は空）、previous_raw は前の周の
+    design-talk の返り、last_raw は前の周の自分の返り。返り {plan, answer, plan_prior, record, answers, recorded, asks, talks, stop_reason,
+    reason}: plan はこの周に plan と事前審査を回すか、plan_prior・record はこの周の plan と事前審査と plan-out の port prior（前の周の値。
     修正要望なら差し込んだ写し）、answers・recorded は依頼の答えと記録された方針の行に人の修正要望を足した物"""
     from src import files, gates, rounds
 
@@ -98,45 +102,96 @@ def turn(*, answer_raw, previous_raw, last_raw, given: dict, recorded, place: Pa
     if prev is not None and not isinstance(plan_prior, dict):   # 計画ができなかった周は prior を書かないので、その周が受けた prior を使い直す
         plan_prior = (last or {}).get("plan_prior")
     record = (prev or {}).get("record")
-    out = {"plan": True, "early": False, "answer": None, "plan_prior": _pointer_or_empty(plan_prior), "record": _pointer_or_empty(record),
-           "asks": asks, "talks": talks, "stop_reason": "", "reason": ""}
-    early = bool((last or {}).get("early"))   # 前の周が早い相談の関所を開いた
+    out = {"plan": True, "answer": None, "plan_prior": _pointer_or_empty(plan_prior), "record": _pointer_or_empty(record), "asks": asks,
+           "talks": talks, "stop_reason": "", "reason": ""}
     got = ports.parsed(answer_raw)
-    if prev is None and dialogue(given):   # 1 周目: 計画の前に判定の読みで方向を聞く（#830）
-        out.update(plan=False, early=True)
-    elif got not in (None, "") and prev is not None:
+    if got not in (None, "") and prev is not None:
         said = answer.decision(got)
         entry = {"round": prev.get("round"), "decision": said["decision"], "text": said["text"],
-                 "asked": [t for t in prev.get("asked") or [] if isinstance(t, str)], **({"early": True} if early else {})}
+                 "asked": [t for t in prev.get("asked") or [] if isinstance(t, str)]}
         talks.append(entry)
         out["answer"] = entry
         out["plan"] = False
         jsonfile.write(place / files.TALK_ANSWERS, talks, parents=True)
-        empty = said["decision"] == answer.REVISE and not said["text"].strip()
-        if early and not empty:
-            if said["decision"] in answer.GO_WORDS or said["decision"] == answer.REVISE:   # この方向で計画を書く（一言は依頼の答えの行で届く）
-                out["plan"] = True
-                if said["text"].strip():
-                    n = len(asks) + 1
-                    asks.append({"n": n, "key": KEY.format(n=n), "round": 0, "text": said["text"], "early": True})
-        elif empty and _empties(talks[:-1]) >= EMPTY_LIMIT:
-            out.update(stop_reason=stopby.HUMAN + gates.TALK_GATE, reason=EMPTY_CAPPED.format(n=EMPTY_LIMIT + 1))
-        elif empty:
-            out.update(reason=EMPTY_REVISE, early=early)
-        elif said["decision"] == answer.REVISE:
-            if _capped(prev):
+        if said["decision"] == answer.REVISE:
+            if not said["text"].strip() and _empties(talks[:-1]) >= EMPTY_LIMIT:
+                out.update(stop_reason=stopby.HUMAN + gates.TALK_GATE, reason=EMPTY_CAPPED.format(n=EMPTY_LIMIT + 1))
+            elif not said["text"].strip():
+                out["reason"] = EMPTY_REVISE
+            elif _capped(prev):
                 out.update(stop_reason=stopby.word("plan-converge"), reason=CAPPED_REVISE.format(n=rounds.LIMIT))
             else:
                 n = len(asks) + 1
                 asks.append({"n": n, "key": KEY.format(n=n), "round": prev.get("round"), "text": said["text"]})
                 out.update(plan=True, **_ask_again(place, key=KEY.format(n=n), text=said["text"], n=n, record=record, plan_prior=plan_prior))
+    taken = [str(t) for t in (last or {}).get("notes") or []]
+    approved = (last or {}).get("approved")
+    if dialogue(given) and out["plan"]:   # 人の指摘の受け箱から、前の周までに取った数より後の行を拾って差し込む（待たない）
+        for line in read_notes(place)[len(taken):]:
+            taken.append(line)
+            approved = fold_approval(approved, [line], passes=len(_record_of(out["record"] or record)["passes"]))
+            if line.startswith(APPROVE_HEADS):   # 承認の行は指摘でないので差し込まない（収まった周に design-talk が読む）
+                continue
+            edge = line.startswith(EDGE_HEAD)
+            text = line.removeprefix(EDGE_HEAD).strip() if edge else line
+            n = len(asks) + 1
+            asks.append({"n": n, "key": KEY.format(n=n), "round": (prev or {}).get("round"), "text": text, "note": True})
+            out.update(_ask_again(place, key=KEY.format(n=n), text=text, n=n, record=out["record"] or record,
+                                  plan_prior=out["plan_prior"] or plan_prior, reach=rounds.PERIPHERAL if edge else rounds.PERSON_REACH,
+                                  where=NOTE_WHERE))
+    out["notes"] = taken
+    out["approved"] = approved if isinstance(approved, dict) else None
     out["answers"] = [*_list(given.get("request_answers")), *({"question": _ask_name(a), "text": a["text"]} for a in asks)]
     out["recorded"] = [*_list(recorded), *({"source": "answer", "name": _ask_name(a), "text": a["text"]} for a in asks)]
     return out
 
 
 def _ask_name(a: dict) -> str:
-    return (EARLY_NAME if a.get("early") else ASK_NAME).format(n=a["n"])
+    return (NOTE_NAME if a.get("note") else ASK_NAME).format(n=a["n"])
+
+
+def fold_approval(state, lines: list, *, passes: int):
+    """受け箱の行 lines を前から読み、承認の状態 state（{text, passes} か None）を進めた物を返す。承認の行（頭が APPROVE_HEADS）は
+    {text: 頭を除いた一言, passes: その時の往復の記録の行の数} にし、中央の指摘の行（承認でも「端:」でもない行）は None にする（承認の
+    取り消し）。端の指摘は変えない"""
+    for line in lines:
+        head = next((h for h in APPROVE_HEADS if line.startswith(h)), None)
+        if head is not None:
+            state = {"text": line.removeprefix(head).strip(), "passes": passes}
+        elif not line.startswith(EDGE_HEAD):
+            state = None
+    return state
+
+
+def new_central_after(doc: dict, k: int) -> list:
+    """往復の記録 doc の k 行目より後の往復に、それより前のどの往復にも無い中央の block が在れば、その key の並び（出し手を問わない。
+    審査役の指摘も人の block も。端の block は数えない）"""
+    from src import rounds
+    passes = doc.get("passes") or []
+    earlier = {key for p in passes[:k] for key in p.get("blocks") or []}
+    out = []
+    for p in passes[k:]:
+        out += [key for key in rounds.central_keys(passes, p.get("blocks") or []) if key not in earlier and key not in out]
+        earlier.update(p.get("blocks") or [])
+    return out
+
+
+def approval(state, doc: dict) -> str | None:
+    """生きている承認の一言（無い・取り消されたら None）。承認の後の往復に新しい中央の block が出たら取り消されたと見る
+    （持ち主の決め human-notes-in-rounds）"""
+    if not isinstance(state, dict) or new_central_after(doc, int(state.get("passes") or 0)):
+        return None
+    return str(state.get("text") or "")
+
+
+def read_notes(place: Path) -> list:
+    """人の指摘の受け箱（files.NOTES）の空でない行（無い・読めなければ []。人が書く字のファイルなので形は照らさない）"""
+    from src import files
+    try:
+        text = (place / files.NOTES).read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError):
+        return []
+    return [line.strip() for line in text.splitlines() if line.strip()]
 
 
 def _list(value) -> list:
@@ -144,12 +199,13 @@ def _list(value) -> list:
     return [r for r in got if isinstance(r, dict)] if isinstance(got, list) else []
 
 
-def _ask_again(place: Path, *, key: str, text: str, n: int, record, plan_prior) -> dict:
+def _ask_again(place: Path, *, key: str, text: str, n: int, record, plan_prior, reach: str = "", where: str = "") -> dict:
     """人の修正要望を往復の記録に差し込み（往復が在れば）、記録と plan の prior の写しを書いて {record, plan_prior} の pointer を返す"""
     from src import files, rounds
     out = {}
     if isinstance(record, dict):
-        doc = rounds.ask_again(rounds.read(ports.file(json.dumps(record))), key=key, text=text)
+        doc = rounds.ask_again(rounds.read(ports.file(json.dumps(record))), key=key, text=text, reach=reach or rounds.PERSON_REACH,
+                               where=where)
         out["record"] = ports.pointer(rounds.write(place / files.PLAN_CONVERGE, doc))
         if isinstance(plan_prior, dict):
             prior = json.loads(ports.file(json.dumps(plan_prior)).read_text(encoding="utf-8"))
@@ -159,21 +215,31 @@ def _ask_again(place: Path, *, key: str, text: str, n: int, record, plan_prior) 
 
 
 def settle(*, turn_got: dict, plan_out: dict | None, previous: dict | None, given: dict, materials, run_id: str,
-           judge: dict | None = None) -> dict:
-    """周の終わり design-talk。judge は判定の返り（judge-out の got。早い相談の文の材料。読めなければ None）、turn_got は design-turn の返り、plan_out は plan-out の返り（回さなかった周は None）、previous は前の周の
+           place: Path | None = None) -> dict:
+    """周の終わり design-talk。turn_got は design-turn の返り、plan_out は plan-out の返り（回さなかった周は None）、previous は前の周の
     design-talk の返り、materials は修正前の承認ノードの材料を読む口（rounds → before_fix の材料。src.asking.materials を包んだ物）。
     返りは plan-out の返りの欄と TALK_FIELDS"""
     from src import gates
 
-    if turn_got.get("early") and turn_got.get("answer") is None:   # 早い相談の関所を開く（判定の読み。往復はまだ無い）
-        base = {**failed(), "done": False, "status": "", "stop_reason": ""}
-        return {**base, **talk_fields(turn_got), "open": True, "text": early_text(judge, run_id=run_id)}
     if turn_got.get("plan"):
         if plan_out is None:   # plan の include が落ちて plan-out が飛んだ: 計画ができなかった形で止める（輪を落とさない）
             return {**failed(), **talk_fields(turn_got)}
         out = {**plan_out, **talk_fields(turn_got)}
-        if not dialogue(given) or not plan_out.get("done"):
+        if not dialogue(given):
             return out
+        if place is not None:
+            out["shown"] = show_round(plan_out, place=place)
+        if not plan_out.get("done"):
+            return out
+        inbox = read_notes(place) if place is not None else []
+        fresh = [line for line in inbox[len(turn_got.get("notes") or []):] if not line.startswith(APPROVE_HEADS)]
+        if fresh and (plan_out.get("ok") or plan_out.get("stalled")) and not _capped(plan_out):
+            return {**out, "done": False}   # 収まる周でも新しい人の指摘が在れば、次の周の頭が拾って計画の役に答えさせる
+        doc = _record(plan_out)
+        said = approval(fold_approval(turn_got.get("approved"), inbox[len(turn_got.get("notes") or []):], passes=len(doc["passes"])), doc)
+        if said is not None:   # 往復の途中に人が承認していた: 関所を開かず、承認を合意として修正へ進む（持ち主の決め human-notes-in-rounds）
+            agreed = {"round": plan_out.get("round"), "decision": "approve", "text": said, "asked": [], "by": "notes"}
+            return {**out, "agreed": agreed, "talks": [*out["talks"], agreed]}
         consult = _consult_row(plan_out)
         doc = None
         if consult:
@@ -199,7 +265,8 @@ def settle(*, turn_got: dict, plan_out: dict | None, previous: dict | None, give
 
 def talk_fields(turn_got: dict) -> dict:
     """TALK_FIELDS の閉じた値（関所を開かない周の欄。talks は周の頭が運んだ物）"""
-    return {"open": False, "text": "", "asked": [], "agreed": None, "talks": list(turn_got.get("talks") or [])}
+    return {"open": False, "text": "", "asked": [], "agreed": None, "talks": list(turn_got.get("talks") or []),
+            "notes": [str(t) for t in turn_got.get("notes") or []], "shown": ""}
 
 
 def failed() -> dict:
@@ -239,12 +306,17 @@ def plan_lines(po: dict) -> list:
     return out
 
 
-def _record(po: dict) -> dict:
+def _record_of(ptr) -> dict:
+    """往復の記録の pointer の中身（pointer でない・読めなければ往復の無い記録）"""
     from src import rounds
     try:
-        return rounds.read(ports.file(json.dumps(po["record"]))) if isinstance(po.get("record"), dict) else rounds.fresh()
+        return rounds.read(ports.file(json.dumps(ptr))) if isinstance(ptr, dict) else rounds.fresh()
     except ValueError:
         return rounds.fresh()
+
+
+def _record(po: dict) -> dict:
+    return _record_of(po.get("record"))
 
 
 def review_lines(po: dict, doc: dict) -> list:
@@ -285,56 +357,46 @@ def talk_text(po: dict, items: list, *, run_id: str, consult: bool, doc: dict | 
     return "\n".join(lines) + "\n"
 
 
-# ---------------------------------------------------------------- 判定の後の早い相談（issue #830）
-JUDGE_FIELDS = ("purpose_text", "units", "out_of_purpose", "tier", "tier_why", "questions")   # 早い相談の文が読む判定の返りの欄
-
-
-def judge_lines(judge: dict | None) -> list:
-    """判定の読みの行（何が困っているか・どの方向で直すか・直さない物・段・判定の問い）。judge は判定の返り（JUDGE_FIELDS。無い欄は空と読む）"""
-    j = judge if isinstance(judge, dict) else {}
-    units = [u for u in j.get("units") or [] if isinstance(u, dict)] if isinstance(j.get("units"), list) else []
-    out = ["何が困っているか（判定が凍結した目的）:", f"- {oneline.one_line(str(j.get('purpose_text') or '（目的が返っていない）'))}", "",
-           f"どの方向で直すか（判定が開いた単位 {len(units)} 件）:"]
-    for u in units:
-        paths = "・".join(str(p) for p in u.get("paths") or []) if isinstance(u.get("paths"), list) else ""
-        out.append(f"- {u.get('id') or u.get('key') or '（名が無い）'}: {oneline.one_line(str(u.get('summary') or u.get('label') or ''))}"
-                   + (f"（{paths}）" if paths else ""))
-    out += [] if units else [NO_ITEMS]
-    out += ["", "直さない物（判定が目的の外とした所見）:", *(_outside(j.get("out_of_purpose")) or [NO_ITEMS])]
-    out += ["", f"深さの段: {j.get('tier') or '（返っていない）'}" + (f"（{oneline.one_line(str(j['tier_why']))}）" if j.get("tier_why") else "")]
-    questions = [q for q in j.get("questions") or [] if isinstance(q, dict)] if isinstance(j.get("questions"), list) else []
-    if questions:
-        out += ["", f"判定が人に聞くと保留にした問い {len(questions)} 件（計画と事前審査の後の相談か修正前の承認ノードで聞く）:"]
-        out += [f"- {q.get('key') or '（key が無い）'}: {oneline.one_line(str(q.get('reason') or q.get('text') or ''))}" for q in questions]
+# ---------------------------------------------------------------- 往復ごとの設計の控え（issue #830）
+def person_answer_lines(doc: dict) -> list:
+    """人の block（設計の相談の修正要望と受け箱の指摘）への計画の役の答えの行（往復の行の answers のうち key が人の block の物）"""
+    from src import rounds
+    people = {str(f.get("key")): f for p in doc.get("passes") or [] for f in p.get("faces") or [] if f.get("kind") == rounds.PERSON_KIND}
+    out = []
+    for p in doc.get("passes") or []:
+        for a in p.get("answers") or []:
+            if isinstance(a, dict) and str(a.get("key")) in people:
+                why = oneline.one_line(str(people[str(a["key"])].get("why") or ""))
+                out.append(f"- {a['key']}（{why}）: {a.get('handled') or '答えが無い'}——{oneline.one_line(str(a.get('how') or ''))}")
     return out
 
 
-def _outside(ptr) -> list:
-    """目的の外の所見の控え（out-of-purpose.json。{rounds: {周: [{source, where, why_outside}]}}）の最後の周の行。控えが無ければ []、
-    読めなければその訳の 1 行（読めない物を 0 件に見せない）"""
-    if ptr is None:
-        return []
-    doc = _read(ptr)
-    rows = doc.get("rounds") if isinstance(doc, dict) else None
-    if not isinstance(rows, dict):
-        return ["- （目的の外の所見の控えを読めない）"]
-    last = max(rows, key=lambda k: int(k) if str(k).isdigit() else 0, default=None)
-    got = rows.get(last) if last is not None else []
-    return [f"- {r.get('where')}: {oneline.one_line(str(r.get('why_outside') or ''))}" for r in got or [] if isinstance(r, dict)]
-
-
-def early_text(judge: dict | None, *, run_id: str) -> str:
-    """早い相談の承認ノードの文: 冒頭 3 行 → 判定の読み → 答え方。往復はまだ無く、設計への合意は計画と事前審査の後に同じ関所でもう一度聞く"""
-    from src import gates
-    lines = gatemarks.head3(
-        f"設計の相談の承認ノード（{gates.TALK_GATE}）が、判定が済んだ所で開いた（計画を書く前の 1 回目）。工場の読みを見せる",
-        "この読みの方向で計画を書いてよいか、違う所を一言で直させるか、止めるか（打つ行は末尾の答え方）",
-        "読みが依頼の意図と合えば合意する（計画と事前審査の後に、設計案をもう一度ここで見せて聞く）") + [""]
-    lines += [*judge_lines(judge), ""]
-    lines += ["答え方（依頼者に聞いて、その言葉で答える。答えるまで run は待つ）:",
-              f"- この方向で計画を書く: {answer.line(run_id, 'continue', '<条件>')}（一言は依頼の答えの行として計画の役と事前審査に届く。"
-              "条件が無ければ approve でもよい）",
-              f"- 違う所を直させる: {answer.line(run_id, answer.REVISE, '<違う所と向けたい方向>', verbs=(*answer.VERBS, answer.REVISE))}"
-              "（一言を依頼の答えの行として計画の役と事前審査に渡して計画を書く。一言が空なら聞き直す）",
-              f"- 止める: {answer.line(run_id, 'stop', '<理由>')}（計画を書かずに報告を出す）"]
+def round_text(po: dict, doc: dict, *, inbox: Path) -> str:
+    """往復ごとの設計の控えの文: 頭 → 設計案 → 事前審査の結果（審査の穴と人の block）→ 人の指摘への答え → 指摘の入れ方"""
+    from src import rounds
+    k = po.get("round")
+    word = rounds.WORDS.get(doc.get("outcome"), "まだ無い")
+    lines = [f"# 計画の周 {k} の設計（対話モード。待たずに進んでいる）", "",
+             f"事前審査の抜け方: {word}。指摘は下の入れ方でいつでも入れられ、次の周の頭で拾われる。", "",
+             f"設計案（計画の周 {k}）:", *plan_lines(po), "", "事前審査の結果（審査の穴と人の指摘の block）:", *review_lines(po, doc), "",
+             "人の指摘への計画の役の答え:", *(person_answer_lines(doc) or [NO_ITEMS]), "",
+             "指摘の入れ方（1 行に 1 つ。設計のやり直しが要る指摘として扱う。端の細かい調整なら頭に「端:」を付ける）:",
+             f"- printf '%s\\n' '<指摘>' >> {inbox}",
+             "設計を承認して最後に待たずに修正へ進ませる（もういいよ）: 同じ受け箱に頭が「承認:」の行を足す。承認の後に中央の指摘を足すと"
+             "承認は取り消され、往復が収まった所で聞いて待つ",
+             f"- printf '%s\\n' '承認: <条件>' >> {inbox}"]
     return "\n".join(lines) + "\n"
+
+
+def show_round(po: dict, *, place: Path) -> str:
+    """その周の設計の控えを files.TALK_ROUND に書き、在りかを標準エラーに 1 行告げて、パスの字を返す（書けなければ空。往復は止めない）"""
+    import sys
+    from src import files
+    path = place / files.TALK_ROUND.format(k=po.get("round") or 0)
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(round_text(po, _record(po), inbox=place / files.NOTES), encoding="utf-8")
+    except OSError:
+        return ""
+    print(f"設計の相談: 計画の周 {po.get('round')} の設計を {path} に書いた。指摘は {place / files.NOTES} に 1 行ずつ足す", file=sys.stderr)
+    return str(path)

@@ -246,17 +246,19 @@ PERSON_WHERE = "設計の相談の承認ノード（gate-design）"
 PERSON_REACH = "forces_redesign"   # converge.CENTRAL の 1 つ。人の求めは中央の block として数える（端へ下げて素通りさせない）
 
 
-def ask_again(doc: dict, *, key: str, text: str) -> dict:
+def ask_again(doc: dict, *, key: str, text: str, reach: str = PERSON_REACH, where: str = "") -> dict:
     """人が設計の相談の承認ノードで設計し直しを求めた（答え revise と一言 text）時に、記録 doc の最後の往復の行へ、その求めを中央の block の穴
     {key, kind: PERSON_KIND, where, why: text, reach} として足し、全部の項目を開き直して（保留も開く。人が直せと言った）、抜け方を AGAIN に
     する。穴は face_units を持たないので全部の項目の物（converge._touches）になり、次の周の plan は block_answers でこの key に答え、
     事前審査は resolved に入れるか同じ key で挙げ直す（converge.answer_gaps・resolved_gaps）。挙げ直せば前の往復の中央の block と重なり、
     止め時の決まりのまま PERSISTED で止まる（人の求めを消えたことにしない）。往復の無い記録は変えずに返す（呼び手は一言を依頼の答えの
-    行として plan に渡す）。行の person に {key, text} を積む（報告と照らしの控え）。返りは doc"""
+    行として plan に渡す）。行の person に {key, text} を積む（報告と照らしの控え）。返りは doc
+    reach（既定は中央 PERSON_REACH）と where（既定は PERSON_WHERE）は、対話モードの人の指摘の受け箱から入った指摘（src/talk.py）が渡す:
+    人が端と書いた指摘だけ端 PERIPHERAL にする"""
     if not doc.get("passes"):
         return doc
     last = doc["passes"][-1]
-    face = {"key": key, "kind": PERSON_KIND, "where": PERSON_WHERE, "why": text, REACH: PERSON_REACH}
+    face = {"key": key, "kind": PERSON_KIND, "where": where or PERSON_WHERE, "why": text, REACH: reach}
     last["blocks"] = [*[k for k in last.get("blocks") or [] if k != key], key]
     last["faces"] = [*[f for f in last.get("faces") or [] if f.get("key") != key], face]
     last.setdefault("person", []).append({"key": key, "text": text})

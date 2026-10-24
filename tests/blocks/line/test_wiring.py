@@ -295,7 +295,7 @@ class FlowCase(unittest.TestCase):
         self.assertEqual(TOP["plan-rounds"]["loop_group"]["until_bash"], 'done=$design-talk.output.done; [ "$done" = "true" ]')
         self.assertEqual(LOOP["plan-review-run"]["with"]["tree"], "$tiers.output.tree")
         self.assertNotIn("round_limit", LOOP["plan-review-run"]["with"])
-        self.assertEqual(TOP["plan-rounds"]["loop_group"]["max_iterations"], 23)   # 往復の上限 20 と空の revise の聞き直し 2 と早い相談 1（test_rounds が和を照らす）
+        self.assertEqual(TOP["plan-rounds"]["loop_group"]["max_iterations"], 22)   # 往復の上限 20 と空の revise の聞き直し 2（test_rounds が和を照らす）
         self.assertNotIn("fresh_context", TOP["plan-rounds"]["loop_group"])
 
     def test_line_has_no_ai_node(self):
