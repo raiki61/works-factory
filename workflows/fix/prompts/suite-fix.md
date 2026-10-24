@@ -29,6 +29,8 @@ You are the TDD runner writer, called again by the fixing stage in a new convers
 
 You may read only this material, the two logs named above, the root's `{decl_name}` (if it exists), the CI definitions (files such as `.github/workflows`), and the test configuration files they name. Do not search further. Use Bash only for short commands that print a test tool's usage, to check whether it has an option to write JUnit XML. Do not run the tests, do not install dependencies, and do not write files.
 
+{shared:query-rule}
+
 ## What to look for
 
 Find, from the log, what the old runner does that the test command alone does not: for example, it changes the environment the tests start in (variables such as the module search path, the working directory, or the interpreter) so that something the tests need is no longer found. Keep what the runner must do (write JUnit XML to the first argument, pass the arguments after it, keep the exit code) and stop doing the thing that broke the tests. If you cannot tell what broke them, set `made` to false and say what you read.

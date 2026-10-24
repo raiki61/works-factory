@@ -105,6 +105,8 @@ You are the fixer. You read the judgment, cut into root units (unit) and passed 
 
 {shared:writer-rules}
 
+{shared:query-rule}
+
 <!-- if rules -->
 - Do not say "done" without changing anything. A fixed check later finds the empty diff and fails the run.
 <!-- end rules -->

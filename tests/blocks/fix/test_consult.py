@@ -288,11 +288,11 @@ class ConsultPromptCase(unittest.TestCase):
     def test_values_and_paragraphs(self):
         with self.run.env():
             vals, when = self.prompts.consult_values(self.run.artifacts, ITEMS, [self.PLAIN], plan_file="/p/plan.json", ripple_file="")
-            self.assertEqual(when, {"ripple": False, "gate": False, "plain": True, "history": False})
+            self.assertEqual(when, {"ripple": False, "gate": False, "plain": True, "history": False, "spawns": False})
             self.assertEqual((vals["plan_file"], vals["count"], vals["min_why"]), ("/p/plan.json", 1, consult.MIN_WHY))
             self.assertEqual(vals["asks"], consult.asks_text(ITEMS, [self.PLAIN]))
             _, when = self.prompts.consult_values(self.run.artifacts, ITEMS, [self.GATE_ASK], plan_file="", ripple_file="/p/r.json")
-            self.assertEqual(when, {"ripple": True, "gate": True, "plain": False, "history": False})
+            self.assertEqual(when, {"ripple": True, "gate": True, "plain": False, "history": False, "spawns": False})
             vals, when = self.prompts.consult_values(self.run.artifacts, ITEMS, [self.PLAIN, self.GATE_ASK], plan_file="",
                                                      ripple_file="")
             self.assertEqual((when["gate"], when["plain"]), (True, True))
