@@ -48,6 +48,7 @@ TALK_FIELDS = ("open", "text", "asked", "agreed", "talks", "notes", "shown")   #
 NOTE_NAME = "設計の相談で人が入れた {n} 番目の指摘"   # 受け箱の指摘の依頼の答えの行の question（ASK_NAME と番号を分け合う）
 NOTE_WHERE = "人の指摘の受け箱"   # 受け箱の指摘を差し込む人の block の where
 EDGE_HEAD = "端:"   # 受け箱の行の頭がこの字なら、端（修正の段へ申し送れば済む細かい調整）の指摘として差し込む
+UNPICKED_HEAD = "受け箱に入ったが計画の役に回せなかった指摘（往復の安全の上限の周か、往復が収まらずに終わった周に入った。直すなら revise の一言に書く）:"
 APPROVE_HEADS = ("承認:", "もういいよ")   # 受け箱の行の頭がこのどれかなら、設計への承認（指摘でない。block にしない）
 EMPTY_REVISE = "前の答え revise の一言が空だった（直してほしい所が分からないので設計し直していない）。直してほしい所を一言に書いて答え直す"
 CAPPED_REVISE = "往復の安全の上限 {n} 周に届いたので設計し直せない（revise は止める答えと同じに扱う）"
@@ -236,7 +237,9 @@ def settle(*, turn_got: dict, plan_out: dict | None, previous: dict | None, give
         if fresh and (plan_out.get("ok") or plan_out.get("stalled")) and not _capped(plan_out):
             return {**out, "done": False}   # 収まる周でも新しい人の指摘が在れば、次の周の頭が拾って計画の役に答えさせる
         consult = _consult_row(plan_out)
-        if not consult:   # 承認は往復が収まった周にだけ当てる（直す義務が無い・計画ができなかった周は相談の結果を見せる。黙って終わらない）
+        dropped = [line for line in fresh if not line.startswith(EDGE_HEAD)]   # 次の周に回せなかった中央の指摘（上限の周・収まらない周）
+        if not consult and not dropped:   # 承認は往復が収まった周にだけ当てる（直す義務が無い・計画ができなかった周は相談の結果を見せる。
+            # 黙って終わらない。次の周に回せない中央の指摘が在る周は、指摘を落として承認だけを通さない）
             rec = _record(plan_out)
             said = approval(fold_approval(turn_got.get("approved"), inbox[len(turn_got.get("notes") or []):], passes=len(rec["passes"])), rec)
             if said is not None:   # 往復の途中に人が承認していた: 関所を開かず、承認を合意として修正へ進む（持ち主の決め human-notes-in-rounds）
@@ -250,6 +253,8 @@ def settle(*, turn_got: dict, plan_out: dict | None, previous: dict | None, give
             doc = kw["record_doc"]
             items = gates.before_fix(plan_out, unattended_run=False, design=False, **kw)["items"]
         text = talk_text(plan_out, items, run_id=run_id, consult=bool(consult), doc=doc)
+        if fresh:   # 受け箱に入ったが計画の役に回せなかった行を見せる（往復の安全の上限の周・往復が収まらなかった周）
+            text += "\n" + "\n".join([UNPICKED_HEAD, *(f"- {line}" for line in fresh)]) + "\n"
         return {**out, "done": False, "open": True, "text": text, "asked": [t for _, t in items]}
     base = {k: v for k, v in (previous or failed()).items() if k not in TALK_FIELDS}
     said = turn_got.get("answer") or {}

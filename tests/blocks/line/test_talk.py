@@ -316,20 +316,34 @@ class NotesCase(TalkBase):
                          "2 往復前に在った a1 の挙げ直しは新しい中央でない（承認より前の全部の往復と比べる。直前の往復だけと比べない）")
 
     def test_the_approval_does_not_skip_the_result_of_the_talk(self):
-        """承認は往復が収まった周にだけ当てる。直す義務が無い周・計画ができなかった周は、承認が生きていても関所を開いて相談の結果を見せる
-        （黙って終わらない）。最後の周の間に中央の指摘と承認が続けて入り、その周が収まらなかった時も同じ（指摘を落として承認だけを通さない）"""
-        rows = (({"status": "nothing_owed", "ok": False}, ("承認: 進めて",)),
-                ({"status": "gave_up", "ok": False, "review_status": "", "review_reason": "受け付けを通らない"}, ("承認: 進めて",)),
-                ({"status": "failed", "ok": False, "review_status": "", "review_reason": "落ちた"}, ("承認: 進めて",)),
-                ({"status": "gave_up", "ok": False, "review_status": "", "review_reason": "受け付けを通らない"}, ("b.py も直す", "承認: 進めて")))
-        for over, lines in rows:
-            with self.subTest(status=over["status"], lines=lines):
+        """承認は往復が収まった周（修正へ進む抜け方か止まり）にだけ当てる。直す義務が無い周・計画ができなかった周は、承認が生きていても
+        関所を開いて相談の結果を見せる（黙って終わらない）。最後の周に中央の指摘と承認が続けて入り、その指摘を次の周に回せない時
+        （その周が収まらなかった・往復の安全の上限の周）も関所を開き、回せなかった指摘を見せる（指摘を落として承認だけを通さない）。
+        止まった周と、事前審査が諦めた周（計画は通った）には承認を当てる（修正前の承認ノードが今どおり諦めた訳で開く）"""
+        approve, both = ("承認: 進めて",), ("b.py も直す", "承認: 進めて")
+        gave_up = {"status": "gave_up", "ok": False, "review_status": "", "review_reason": "受け付けを通らない"}
+        rows = (  # (plan-out の欄, 受け箱の行, 関所を開くか, 文に在るべき字)
+            ({"status": "nothing_owed", "ok": False}, approve, True, "相談の結果"),
+            (gave_up, approve, True, "相談の結果"),
+            ({"status": "failed", "ok": False, "review_status": "", "review_reason": "落ちた"}, approve, True, "相談の結果"),
+            (gave_up, both, True, "- b.py も直す"),
+            ({"round": 20}, both, True, "- b.py も直す"),
+            ({"capped": True}, both, True, "- b.py も直す"),
+            ({"capped": True, "ok": False, "stalled": True}, both, True, "- b.py も直す"),
+            ({"ok": False, "stalled": True}, approve, False, None),
+            ({"ok": False, "review_status": "gave_up", "review_reason": "諦めた"}, approve, False, None),
+        )
+        for over, lines, opens, word in rows:
+            with self.subTest(over=over, lines=lines):
                 self.run = kit.Run(self, BLOCK)
                 taken = self.turn()
                 self.note(*lines)
                 got = self.settle(taken, self.plan_out(**over))
-                self.assertEqual((got["open"], got["done"], got["agreed"]), (True, False, None))
-                self.assertIn("相談の結果", got["text"])
+                if opens:
+                    self.assertEqual((got["open"], got["done"], got["agreed"]), (True, False, None))
+                    self.assertIn(word, got["text"])
+                else:
+                    self.assertEqual((got["open"], got["done"], got["agreed"]["decision"]), (False, True, "approve"))
 
     def test_a_review_finding_after_the_approval_makes_the_last_gate_wait(self):
         """承認を拾った周の後の往復で、審査役が新しい中央の block を出せば、収まった周に関所を開いて待つ"""
