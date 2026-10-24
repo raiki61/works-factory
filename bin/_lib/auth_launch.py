@@ -253,7 +253,7 @@ def connection_profile(config_dir, env, managed_dir=None, place=None):
     （direct の資格を除く）も運び、alias は inline settings の env に置く。設定の Foundry と、相対パスの資格ファイルは運ばず ValueError で止める
     （名とファイルだけを言い、値は言わない）。HOME 基準の資格は cloud_credentials が運ぶか名指す。
     親の道（旗を親の env で立てた時）は設定の env の接続値（direct の資格を除く DIRECT_ENV の名・alias）を運ばず、あれば名を告知で言う。
-    provider が無ければ direct の資格と alias を運び、設定に明示の資格があれば親の資格を外す。
+    provider が無ければ direct の資格と alias を運び、設定に明示の資格があれば親の資格を外し、その資格の名と出どころのファイルを告知で言う。
     戻り値の秘密は env だけに運び、ファイル・inline settings に置かない（資格を出すコマンドの包みも、コマンドの字も出力も持たない）。
     helper は既存の道のまま。place(名, 中身) は run の置き場に包みを書いてパスを返す口（launcher が渡す）"""
     empty = {"settings": {}, "env": {}, "drop": []}
@@ -287,7 +287,12 @@ def connection_profile(config_dir, env, managed_dir=None, place=None):
                                "CLAUDE_CODE_PROVIDER_MANAGED_BY_HOST"] if explicit else []
     process = {k: v for k, v in kept.items() if k not in ALIAS_ENV}
     settings = {"env": {k: v for k, v in kept.items() if k in ALIAS_ENV}}
-    return {"settings": settings, "env": process, "drop": drop}, ""
+    notice = ""
+    if explicit:   # 親の資格を外すことと、その資格を置いたファイルを言う（名とパスだけ。値は言わない）
+        named = [k for k in DIRECT_CREDENTIALS if kept.get(k)]
+        notice = "設定の env が直接の資格 %s を明示しているので、親の env の資格を外す（出どころ: %s）" % (
+            "・".join(named), "・".join(dict.fromkeys(str(origin[k]) for k in named)))
+    return {"settings": settings, "env": process, "drop": drop}, notice
 
 
 def provider_profile(config_dir, env, managed_dir, place, flags, source, origin, parent, unread):
