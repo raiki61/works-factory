@@ -276,6 +276,7 @@ def main(argv: list[str]) -> int:
         return 0
     n = workers()   # 名は WORKS_FACTORY_ で始まり scrub が外すので、外す前に読む
     hermetic.scrub()
+    os.environ.pop(hermetic.ARCHON_DEFER_ENV, None)   # scrub は残す名なので、親のシェルの旗が --shard の道に漏れないよう外す。立てるのは --paths だけ
     found = suites(ROOT)
     if args.paths:
         names = pick(sorted(found), args.paths)
