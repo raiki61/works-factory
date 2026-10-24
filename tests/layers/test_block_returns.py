@@ -526,6 +526,34 @@ class ShapesTest(unittest.TestCase):
         got = self.problems(files)
         self.assertTrue(any("a.schema.json" in g and "returns:" in g for g in got), got)
 
+    FACES_SHAPE = ('{"type": "object", "properties": {"faces": {"type": "array", "items": {"type": "object", '
+                   '"properties": {"key": {"type": "string"}}}}}}')
+
+    def shell_reading(self, table: str) -> list[str]:
+        """返す節の欄 units が pointer（json(faces.schema.json)）の judge と、その返す値を読む殻の表 RETURN_READS（table）の小さな木の赤"""
+        return self.problems({BLOCK: judge_returning("units: " + POINTER % "json(faces.schema.json): 読む物"),
+                              "workflows/judge/schemas/faces.schema.json": self.FACES_SHAPE,
+                              "bin/_lib/reads.py": 'JUDGE = "works-factory-judge"\nRETURN_READS = {' + table + "}\n"})
+
+    def test_shell_reads_name_the_declared_return(self):
+        """殻（bin/）が部品の返す値を読む表 RETURN_READS は、返す節の欄とその form を字のまま名指し、読む欄の道はその form の形に
+        在る（#851 の落ちるはずの所の 10 番。殻は workflows/ の外で、ports.json の照らしが届かない）"""
+        self.assertEqual(self.shell_reading('JUDGE: ("units", "json(faces.schema.json)", ("faces[].key",))'), [])
+        cases = (
+            ('JUDGE: ("units", "json(other.schema.json)", ("faces[].key",))',
+             "の form json(other.schema.json) が返す節の宣言 json(faces.schema.json) と違う"),
+            ('JUDGE: ("units", "json(faces.schema.json)", ("faces[].name",))', "の読む欄 faces[].name が json(faces.schema.json) の形に無い"),
+            ('JUDGE: ("units", "json(faces.schema.json)", ("faces.key",))', "の読む欄 faces.key が json(faces.schema.json) の形に無い"),
+            ('JUDGE: ("verdicts", "json(faces.schema.json)", ("faces[].key",))', "の欄 verdicts が works-factory-judge の返す節の output_format に無い"),
+            ('"works-factory-gone": ("units", "json(faces.schema.json)", ())', "の欄 units が works-factory-gone の返す節の output_format に無い"),
+        )
+        for table, want in cases:
+            with self.subTest(table=table):
+                got = self.shell_reading(table)
+                self.assertEqual(len(got), 1, got)
+                self.assertIn("bin/_lib/reads.py:2: RETURN_READS の ", got[0])
+                self.assertIn(want, got[0])
+
     def test_pointer_field_without_a_form_is_red(self):
         got = self.wired("units: " + POINTER % "置き場のファイル", "file")
         self.assertEqual(len(got), 1, got)
