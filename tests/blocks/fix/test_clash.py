@@ -163,12 +163,12 @@ class ClashScenarioCase(Whole):
         write(self.place / "judgment.json", {"units": [{"key": "A", "label": "block"}, {"key": "B", "label": "block"}],
                                              "questions": []})
 
-    def joined_with_clash(self, g2_extra=None, g2_result=None):
-        """種を組んで join を回し、g2 を赤で戻して直し待ちに控えた所まで進める"""
+    def joined_with_clash(self, g2_extra=None, g2_result=None, *, test_b=None, suite_text=None):
+        """種を組んで join を回し、g2 を赤で戻して直し待ちに控えた所まで進める（test_b は種の test_b.py、suite_text は実行器）"""
         start = self.rerun_seed({
             "e.py": f"E1 = 1\n{self.FILLER}E8 = 8\n",
             "b.py": "def triple(x):\n    return x * 3 + 1\n",
-            "test_b.py": self.TEST_B})
+            "test_b.py": test_b or self.TEST_B}, suite_text=suite_text)
         self.judgment()
         t1 = self.tree_with({"e.py": f"E1 = 10\n{self.FILLER}E8 = 8\n"})
         t2 = self.tree_with({"e.py": f"E1 = 1\n{self.FILLER}E8 = 80\n",
@@ -244,6 +244,26 @@ class ClashScenarioCase(Whole):
         self.assertIn("E8 = 80\n", e, "後の組の直しも残る")
         code, out, err = self.go("conflict_check")
         self.assertEqual((code, out), (0, {"go": False, "count": 0}), err)
+
+    def test_join_clash_repaired_with_an_uncompared_red_asks_a_human(self):
+        """#855: 合わせ役の受け付けの確かめ直しも、組を当てるノードと同じに直す前の版と比べられなかった赤（実行器が名指しを聞かず、
+        直す前の版で走らせても結末に出ない test_env）を戻す理由にしない。組は戻せた組になり、組の行の uncompared に名指す（報告が
+        人に聞く）。名指しの赤は今どおり拒む"""
+        from tests.blocks.fix.support import DIFF_SUITE
+        env = self.TEST_B + "\n    def test_env(self):\n        import no_such_module_855  # noqa: F401\n"
+        self.joined_with_clash(test_b=env, suite_text=DIFF_SUITE.replace("{heed}", "False"))
+        out = self.prep()
+        self.assertTrue(out["go"], out)
+        got = self.accept(self.fixed_reply(), out["iteration"])
+        self.assertFalse(got["ok"], "名指しの test_triple が赤のままなら拒む")
+        self.assertIn("test_triple", got["reason"])
+        out = self.prep()
+        (self.repo / "b.py").write_text(self.FIXED_B, encoding="utf-8")
+        got = self.accept(self.fixed_reply(), out["iteration"])
+        self.assertEqual((got["ok"], got["done"]), (True, True), got)
+        g2 = self.group_row()
+        self.assertEqual((g2["returned"], g2["clash"]["outcome"]), (True, "repaired"), g2)
+        self.assertEqual(g2["uncompared"], ["test_b.TestB::test_env"], g2)
 
     def test_join_clash_repaired_carries_the_childs_agreed_scope(self):
         """合わせ役の直しが通って戻せた組になった組の子の place の allow の相談の行は、親の conflict.agreed に group_id つきで

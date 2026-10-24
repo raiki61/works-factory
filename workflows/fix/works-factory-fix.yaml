@@ -1233,6 +1233,8 @@ nodes:
               old_red: {type: array, items: {type: string}}
               # 確かめ直しで直す前の版と比べられなかったので、戻す理由にしなかった赤の鍵（戻せた組だけ。報告が人に聞く。#846）
               uncompared: {type: array, items: {type: string}}
+              # 確かめ直しの test_cmd の赤を、組を外した木でも赤（前から赤か環境）か走らせ直しで緑（揺れ）と見て戻す理由にしなかった文（戻せた組だけ。report に 1 行ずつ。#855）
+              test_cmd_notes: {type: array, items: {type: string}}
               # 合わせのループの結末（join が確かめ直しの赤で戻した組と字で当たらなかった組だけ。後者は backed_out を持たない）: 合わせ役が直して当てた（repaired）か、申し出へ回した（parked）か
               clash:
                 type: object

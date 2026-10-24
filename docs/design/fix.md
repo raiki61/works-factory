@@ -72,7 +72,7 @@
 - `ok`: boolean。組の形: 組の結果を書いた。全体の形: 戻しの記録（`join.json`）が在り、変更の確かめが通り、当たったままの組が無い（今の `done` から差分の審査の `pass` を外した物）。
 - `reason`: 日本語の 1 行。ok でない訳（落ちた段・読めない port・変更の確かめの訳）。
 - `units`: `[{unit_id, group_id, status (fixed|given_up|not_done), reason}]`（今のまま）。
-- `groups`: `[{group_id, unit_ids, returned, reason, backed_out?, unrestored?, old_red?, uncompared?, clash?}]`（今のまま。`clash` は `{outcome (repaired|parked), requests, patch}`。`old_red` は確かめ直しで前から同じ形で赤だったので戻す理由にしなかった名指しの文の並びで、確かめ直しを通って親の作業ツリーに当てたままにした組の行にだけ在る。18 節。`uncompared` は確かめ直しで直す前の版と比べられなかったので戻す理由にしなかった赤の鍵 `classname::name` の並びで、同じく当てたままにした組の行にだけ在る。報告が人に聞く。20 節）。
+- `groups`: `[{group_id, unit_ids, returned, reason, backed_out?, unrestored?, old_red?, uncompared?, test_cmd_notes?, clash?}]`（今のまま。`clash` は `{outcome (repaired|parked), requests, patch}`。`old_red` は確かめ直しで前から同じ形で赤だったので戻す理由にしなかった名指しの文の並びで、確かめ直しを通って親の作業ツリーに当てたままにした組の行にだけ在る。18 節。`uncompared` は確かめ直しで直す前の版と比べられなかったので戻す理由にしなかった赤の鍵 `classname::name` の並びで、同じく当てたままにした組の行にだけ在る。報告が人に聞く。20 節。`test_cmd` の行〔外した木で走らせた結果が取れない〕も入る。21 節。`test_cmd_notes` は確かめ直しの `test_cmd` の赤を、組を外した木でも赤（前から赤か環境）か走らせ直しで緑（揺れ）と見て戻す理由にしなかった文の並びで、同じく当てたままにした組の行にだけ在る。`report` に 1 件 1 行で出す。21 節）。
 - `conflicts`: pointer（`conflicts.json`）か null。
 - `carry`: pointer（`carry.json`。次の修正の段の port `prior` に渡す申し出と輪の状態の束。1.4）か null（組の形）。
 - `replan_items`: 字の配列。fix_plan_item の裁定が誤りとした項目の番号。
@@ -783,7 +783,8 @@ node ごとの場面は 2〜6 節の 7。block 全体では:
 `report` は次の順の日本語の行（どれも今の lib が組む字のまま）:
 
 1. TDD のループの単位ごとの結末: `report.tdd_lines([(f"組 {g['group_id']}", g) for g in <tdd-unit.json の組>])`（今の `runreport._tdd_lines` の中身。段の名「修正の段」「案を直した後の修正の段」は line が節の見出しで付ける）。組の結果が無く `units` だけが在れば、今の `_tdd_lines` の代わりの行（「型つきの成果物 tdd-unit が一覧に無い」）は「組の TDD の記録が無い。修正の出力の単位の行で出す:」と単位の行に替える（成果物の名を持たない字）。
-2. 読んだ証拠: `reads-fix-block.json` の索引と `reads-<役>.json` ごとに、今の `runreport._evidence_line`・`_index_lines` と同じ字の 1 行（「<役>（<place の中の相対のパス>）: 渡した <n>・読んだ跡の無い <m>（…）」・測れない・落ちた）。README の report の設計書の 1.6 の「読んだ証拠の node を持つ block が自分の report の欄に組む」。
+2. 確かめ直しの `test_cmd` の赤を戻さなかった文: 当てたままにした組の行の `test_cmd_notes` ごとに「組 <group_id>: <文>」（`report.test_cmd_lines`。21 節）。
+3. 読んだ証拠: `reads-fix-block.json` の索引と `reads-<役>.json` ごとに、今の `runreport._evidence_line`・`_index_lines` と同じ字の 1 行（「<役>（<place の中の相対のパス>）: 渡した <n>・読んだ跡の無い <m>（…）」・測れない・落ちた）。README の report の設計書の 1.6 の「読んだ証拠の node を持つ block が自分の report の欄に組む」。
 
 `freeze_off` は `report.freeze_lines(<1 と同じ組>)`。最後の承認ノードと報告の冒頭が今 `fixbeside` で組む行（閉鎖の数え直し・回さなかった試験・確かめずに受けた関門・範囲の相談・clean が消したファイル・許したテストの変更）は、1 回目と 2 回目の段を合わせて読むので line が出力の pointer から組む（line の設計書。`fixbeside.read`・`closure_lines`・`tests_left_lines`・`gates_lines`・`plan_ask_lines`・`always_rows` の行き先）。
 
@@ -1040,6 +1041,22 @@ bin/works-factory workflow run works-factory-fix --cwd <対象> \
   2. 写しで `passed` か `skipped` → 新しい赤。
   3. 版にその試験のファイルが無い（この直しで足した試験）→ 比べるまでもなく新しい赤。
   4. ほか（写しを作れない・実行器が走らない・名指しを引けない・名指しで走らせても写しの結末に出ない）→ 比べられなかった。
-- 比べられなかった赤: 組を当てた後の確かめ直し（`board.rerun_problem` に受け口 `uncompared` を渡す `join`）は、新しい赤に数えず組を戻す理由にしない。黙って前から赤として通さず、組の行の `uncompared` に鍵を名指し、run の報告の「人が決めること」の欄に「当てた後の確かめ直しで直す前の版と比べられなかった赤」として 1 件 1 行で載せて聞く（line の `facts.uncompared_rows`）。受け口を渡さない呼び（修正の受け付けと、合わせ役の受け付け `clash.problems`）は今どおり赤のまま（修正役が直して出し直す。知らせに「比べられず赤のまま」）。
+- 比べられなかった赤: 組を当てた後の確かめ直し（`board.rerun_problem` に受け口 `uncompared` を渡す `join`）は、新しい赤に数えず組を戻す理由にしない。黙って前から赤として通さず、組の行の `uncompared` に鍵を名指し、run の報告の「人が決めること」の欄に「当てた後の確かめ直しで直す前の版と比べられなかった赤」として 1 件 1 行で載せて聞く（line の `facts.uncompared_rows`）。受け口を渡さない呼び（修正の受け付け）は今どおり赤のまま（修正役が直して出し直す。知らせに「比べられず赤のまま」）。合わせ役の受け付け `clash.problems` も 21 節から受け口を渡す。
 - 写しの結末の控え（`REV_CACHE`）は、版と実行器の組ごとに行を持ち、行にテストの鍵ごとの結末 `outcomes` を持つ。同じ版と実行器の行に、比べたいテストの鍵が全部在れば走らせない。
 - E11（根の `AGENTS.md`。仕組みを足す前に確かめる 3 つ）: (1) Archon（工場が上で動く道具）は、直す前の版と名指しで比べる仕組みを持たない（確かめ直しは工場の `join` の中の事）。(2) ASF も持たない（ASF の修正の流れは組を当てて確かめ直す段を持たない。18 節と同じ）。(3) 要る: README 10 節の keep-essence の 2（元から赤のテストの区別）を、走らせる試験を差分で選ぶ実行器でも保つ。比べられなかった赤を人に聞くのは、keep-essence の 1（直しで壊した赤を見逃さない）を、組を戻して費用を捨てずに保つため。元の works の `_green_after` は直す前の版と比べていなかった。
+
+## 21 確かめ直しの test_cmd の 1 回の赤と、合わせ役の道の比べられなかった赤で、正しい組を戻さない（2026-10-24。#855）
+
+- 出どころ: issue #855（#846 の続き）。持ち主の言葉は「まあようは、人間がＴＤＤするときどうするか？ってことだよ」「superpowerならどうするのよとか」、3 段目と合わせ役の道を 1 つの issue にまとめる案に「おｋ」（どれも 2026-10-24）。
+- この節の語: 組を外した木は、組を当てる前の親の作業ツリー（`join` は当てる前に取った `tdd.snapshot`、合わせ役の受け付けは控えの行の当て直す前の木 `before`）。
+- 3 段目（`board.cmd_verdict`）: 呼び手が組を外した木 `base` を渡す時、当てた後の木で `test_cmd` が緑でなければ、次の順に見る（はい・いいえ）。
+  1. 組を外した木の姿で `test_cmd` を 1 回走らせる（`board._cmd_without`。走らせた後は当てた姿へ戻し、外した木で出来たファイルも残さない）。
+  2. 外しても赤 → 組のせいでない。組を戻さず、人にも聞かず、「前から赤（または環境）」の文（コマンドとログの末尾）を組の行の `test_cmd_notes` に置く。
+  3. 外した木の結果が取れない（コマンドを起こせない）→ 受け口 `uncompared` が在れば戻さず、その並びに `test_cmd` の行を足して人に聞く（20 節の欄）。無ければ戻す。
+  4. 外すと緑 → 当てた木であと 2 回走らせる。1 回でも緑なら揺れと見て戻さず「揺れ」の文を `test_cmd_notes` に置く。3 回とも赤の時だけ戻す理由（文に「3 回とも赤」）。
+- `base` を渡さない呼びは今どおり 1 回の赤で戻す。`join` と合わせ役の受け付けは `base` を渡す。
+- 合わせ役の道: `clash.problems` も `rerun_problem` に受け口 `uncompared` と `base` を渡す。比べられなかった赤と `test_cmd` の前から赤・揺れは戻す理由にせず、控えの行の `uncompared`・`test_cmd_notes` に置き、受け付けを通れば `settle_repaired` が `join.json` の組の行の同じ名の欄に写す（line の `facts.uncompared_rows` が人に聞く）。合わせ役が自分で直せない赤のために 3 回合わせ直して裁定役まで回る事が無くなる。
+- 今までどおり止める物: 直しで足した新しい試験の赤（`tdd.selected_problems` の「版にその試験のファイルが無い」と `board.tests_moved`）と、名指しの試験の赤（1 段目）。どちらの道も変えない。
+- 根拠（my_notes の調べ）: 自分が起こしていない赤も名を挙げて報告する（superpowers 7.0.0 の test-driven-development）。揺れる赤はバグと見分けられないので走らせ直して見分ける（Fowler「Eradicating Non-Determinism in Tests」・Google の Flake Aware Culprit Finding、ICST 2023）。自分の直しが壊したなら戻す（Fowler「Continuous Integration」）。試せない版は良し悪しに数えない（git bisect の 125）。
+- E11（根の `AGENTS.md`）: (1) Archon は持たない（確かめ直しは工場の `join` の中の事）。(2) ASF も持たない（18 節と同じ）。(3) 要る: keep-essence の 1（直しで壊した赤を見逃さない）を、外すと緑で 3 回とも赤の組を戻すことで保ったまま、試験の 1 回の揺れや前からの赤で正しい組を戻して出し直しの費用を捨てる事（run 96f35545 で約 $122）を無くす。元の works の `_green_after` は `test_cmd` を 1 回だけ走らせていた。
+- 試験: `tests/blocks/fix/test_join.py` の `test_rerun_problem_tells_test_cmd_red_apart_on_the_tree_without_the_group`（3 段目の見分けの表と、`test_cmd_notes` と報告の行）・`tests/blocks/fix/test_clash.py` の `test_join_clash_repaired_with_an_uncompared_red_asks_a_human`（合わせ役の道）。

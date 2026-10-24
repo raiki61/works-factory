@@ -4,7 +4,7 @@
 # ///
 """node join（全体の形）: 子が out_dir/<group_id>/result.json に書いた結果を組の順に読み、並べた run は子の差分を決めた順に親の
 作業ツリーへ当てて確かめ直す（board.join_group・lanes.merge_in_order）。確かめ直しの赤で戻した組と字で当たらなかった組は合わせの
-控えに積む（clash.record）。直す前から同じ形で赤だった名指しは戻す理由にせず、組の行の old_red に名指す（board.same_red。#837）。直す前の版と比べられなかった赤も戻す理由にせず、組の行の uncompared に名指す（#846）。当たったままの組が在れば後の組を当てない。戻せた組の子から書き込みの記録・TDD の輪の状態・範囲の相談の
+控えに積む（clash.record）。直す前から同じ形で赤だった名指しは戻す理由にせず、組の行の old_red に名指す（board.same_red。#837）。直す前の版と比べられなかった赤も戻す理由にせず、組の行の uncompared に名指す（#846）。走らせ直しの test_cmd の赤は組を外した木で走らせて見分け、前から赤か揺れなら戻さず組の行の test_cmd_notes に書く（#855）。当たったままの組が在れば後の組を当てない。戻せた組の子から書き込みの記録・TDD の輪の状態・範囲の相談の
 合意を親の place へ写す（board.adopt_returned）。走らせ直しの test_cmd は board.rerun_cmd が port skip_rerun で決める。今のまま。
 返り {groups, returned}。結果の無い組・git が効かない: 標準エラーに 1 行で 1"""
 import os
@@ -19,7 +19,7 @@ import oneline  # noqa: E402
 import unittrees  # noqa: E402
 import writelog  # noqa: E402
 
-from src import board, clash, lanes, runvals  # noqa: E402
+from src import board, clash, lanes, runvals, tdd  # noqa: E402
 
 
 def main() -> dict:
@@ -32,7 +32,7 @@ def main() -> dict:
     missing = [gid for gid, r in results.items() if r is None]
     if missing:
         raise ValueError(f"組の子の結果のファイルが無いか読めない（{'・'.join(missing)}）")
-    outcomes, backed_out, unrestored, old_red, uncompared = {}, {}, {}, {}, {}
+    outcomes, backed_out, unrestored, old_red, uncompared, cmd_notes = {}, {}, {}, {}, {}, {}
     applied, log = [], None   # 戻せた組の子の書き込みの記録の (子の作業ツリー, 子の記録, 当てたパス) と、親の作業ツリーの記録
     if plan["par"]:
         repo = Path.cwd()
@@ -52,12 +52,15 @@ def main() -> dict:
             named = [*verified, *board.child_verified(r)]
             old = []   # 確かめ直しで前から同じ形で赤だった名指し（戻す理由にしない。#837）
             unknown = []   # 確かめ直しで直す前の版と比べられなかった赤の鍵（戻す理由にせず報告で人に聞く。#846）
+            notes = []   # 確かめ直しの test_cmd の赤を前から赤か揺れと見た文（戻す理由にせず報告に書く。#855）
+            base = tdd.snapshot(repo)   # 組を当てる前の木（test_cmd の赤を組を外した木で見分ける）
 
             def check(names):
                 shared = set(names) & earlier
                 red[g["group_id"]] = board.tests_moved(repo, r["end_tree"], tdd_rows, shared) or board.rerun_problem(
                     place, repo, start["tdd_suite"], cases, named, name=f"rerun-{g['group_id']}", shared=shared,
-                    test_cmd=board.rerun_cmd(place, r, start["test_cmd"]), old_red=old, uncompared=unknown)
+                    test_cmd=board.rerun_cmd(place, r, start["test_cmd"]), old_red=old, uncompared=unknown,
+                    base=base, cmd_notes=notes)
                 return red[g["group_id"]]
             try:
                 got = board.join_group(
@@ -72,6 +75,8 @@ def main() -> dict:
                     old_red[g["group_id"]] = old
                 if unknown:
                     uncompared[g["group_id"]] = sorted(set(unknown))
+                if notes:
+                    cmd_notes[g["group_id"]] = notes
             if got.unrestored:
                 unrestored[g["group_id"]] = got.unrestored
             elif got.backed_out and got.why == red.get(g["group_id"]):
@@ -91,7 +96,7 @@ def main() -> dict:
         outcomes = {gid: (r, True, "") for gid, r in results.items()}
     if plan["par"]:
         clash.record(place, clashes)
-    rows, units = board.join_rows(plan["groups"], outcomes, backed_out, unrestored, old_red, uncompared)
+    rows, units = board.join_rows(plan["groups"], outcomes, backed_out, unrestored, old_red, uncompared, cmd_notes)
     joined = {"par": bool(plan["par"]), "groups": rows, "units": units}
     if unrestored:   # 後の写しが落ちても、当たったままの組を後の節（board.held）が読めるように先に書く
         board.write_json(place / board.JOIN_FILE, joined)

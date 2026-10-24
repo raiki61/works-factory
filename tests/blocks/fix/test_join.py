@@ -1277,6 +1277,63 @@ class GroupBoardCase(unittest.TestCase):
             self.assertEqual(board.rerun_problem(self.place, self.repo, str(suite), cases, named, name="cmd-green",
                                                  test_cmd=green), "")
 
+    def test_rerun_problem_tells_test_cmd_red_apart_on_the_tree_without_the_group(self):
+        """#855: 当てた後の test_cmd の赤は、組を当てる前の木 base を渡す呼びでは 1 回で戻さない。組を外した木でも赤なら前から赤、
+        外すと緑で走らせ直しに緑が在れば揺れとして cmd_notes に書いて戻さず、3 回とも赤の時だけ戻す。外した木で走らない時は
+        uncompared が在れば人に聞き、無ければ戻す。base の無い呼びは今どおり 1 回の赤で戻す。外した木で走らせた後の作業ツリーは
+        当てた姿のまま（外した木で出来たファイルも残さない）"""
+        from src import tdd
+        from tests.blocks.fix.support import SUITE
+        suite = self.tmp / "suite.py"
+        suite.write_text(SUITE, encoding="utf-8")
+        named = ["test_stats.py::TestStats::test_mean_of_three"]
+        stats = self.repo / "stats.py"
+        stats.write_text(stats.read_text(encoding="utf-8").replace("(len(xs) - 1)", "len(xs)"), encoding="utf-8")
+        base = tdd.snapshot(self.repo)
+        (self.repo / "applied.txt").write_text("組の直し\n", encoding="utf-8")
+        (self.repo / "run.sh").write_text("#!/bin/sh\nexit 1\n", encoding="utf-8")
+        (self.repo / "run.sh").chmod(0o755)
+        applied = tdd.snapshot(self.repo)
+        script = self.tmp / "cmd.py"
+        script.write_text(
+            "import pathlib, sys\n"
+            "mode, count = sys.argv[1], pathlib.Path(sys.argv[2])\n"
+            "on = pathlib.Path('applied.txt').exists()\n"
+            "n = int(count.read_text()) + 1 if count.exists() else 1\n"
+            "if on:\n    count.write_text(str(n))\n"
+            "else:\n    pathlib.Path('made-on-base.txt').write_text('x')\n"
+            "sys.exit({'always': 1, 'group': int(on), 'flaky': int(on and n == 1)}[mode])\n", encoding="utf-8")
+        rows = (   # (訳, mode か命令, base を渡すか, uncompared の受け口を渡すか, 戻すか, cmd_notes の頭, uncompared の件数)
+            ("外しても赤なら前から赤として戻さない", "always", True, True, False, "前から赤", 0),
+            ("外すと緑で走らせ直しに緑が在れば揺れとして戻さない", "flaky", True, True, False, "揺れ", 0),
+            ("外すと緑で 3 回とも赤なら戻す", "group", True, True, True, None, 0),
+            ("外した木で走らなければ人に聞く", "./run.sh", True, True, False, None, 1),
+            ("外した木で走らず受け口も無ければ戻す", "./run.sh", True, False, True, None, 0),
+            ("base の無い呼びは 1 回の赤で戻す", "flaky", False, True, True, None, 0),
+        )
+        for i, (label, mode, with_base, ask, back, note, asked) in enumerate(rows):
+            with self.subTest(label):
+                count = self.tmp / f"count-{i}"
+                cmd = mode if mode.startswith("./") else f"{sys.executable} {script} {mode} {count}"
+                notes, unknown = [], []
+                got = board.rerun_problem(self.place, self.repo, str(suite), [], named, name=f"cmd-{i}", test_cmd=cmd,
+                                          base=base if with_base else "", cmd_notes=notes, uncompared=unknown if ask else None)
+                self.assertEqual(bool(got), back, got)
+                if back:
+                    self.assertIn("test_cmd", got)
+                self.assertEqual([n.startswith(note) for n in notes] if note else notes, [True] if note else [], notes)
+                self.assertEqual(len(unknown), asked, unknown)
+                if mode == "group":
+                    self.assertEqual(count.read_text(), "3", "当てた木で 3 回走らせた")
+                    self.assertIn("3 回とも赤", got)
+                self.assertEqual(tdd.touched(self.repo, applied, tdd.snapshot(self.repo)), [], "作業ツリーは当てた姿のまま")
+        with self.subTest("戻さなかった文は組の行の test_cmd_notes に置き、修正の報告に 1 件 1 行で出す"):
+            from src import report
+            rows, _ = board.join_rows([{"group_id": "g1", "unit_ids": []}, {"group_id": "g2", "unit_ids": []}],
+                                      {"g1": (None, True, ""), "g2": (None, True, "")}, test_cmd_notes={"g1": ["揺れ: x"]})
+            self.assertEqual([g.get("test_cmd_notes") for g in rows], [["揺れ: x"], None])
+            self.assertEqual(report.test_cmd_lines(rows), ["組 g1: 揺れ: x"])
+
 
 
 class LanekitSeamCase(unittest.TestCase):
