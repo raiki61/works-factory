@@ -339,6 +339,14 @@ class ScrubTest(unittest.TestCase):
         self.assertEqual(named, {"CLAUDE_CONFIG_DIR": "/parent/config", "WORKS_ANSWER_CMD": "sh respond",
                                  hermetic.ARCHON_CACHE_ENV: "/cache"})
 
+    def test_a_stray_defer_flag_does_not_leak_into_the_shard_path(self):
+        """利用者のシェルに見送りの旗が残っていても、--shard（CI の分け）の道では外す。立てるのは --paths だけ"""
+        with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()), \
+                mock.patch.dict(os.environ, {hermetic.ARCHON_DEFER_ENV: "1"}), mock.patch.dict(hermetic._SCRUBBED, clear=True), \
+                mock.patch.object(shard, "run", return_value=0), mock.patch.object(shard, "check"):
+            shard.main(["--shard", "1/1"])
+            self.assertNotIn(hermetic.ARCHON_DEFER_ENV, os.environ)
+
     def test_a_fresh_child_keeps_only_explicitly_inherited_scrubbed_values(self):
         """別解釈系でも scrub の控えは同じ helper から読め、子の環境へは漏れない。"""
         pkg = "shard_scrubbed_pkg"
