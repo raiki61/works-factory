@@ -1,5 +1,5 @@
 {
-  "description": "修正案の項目の行 1 つ（修正案の役の返答の plan の行）。型の住処は修正案の役の output_format と lib/planmarks.py（受け付けが照らす）で、ここは読み手が読む欄の型だけを書く",
+  "description": "修正案の項目の行 1 つ（修正案の役の返答の plan の行）。型の住処は修正案の役の output_format（files の行の型は lib/plan-item-fields.schema.json の写し）と lib/planmarks.py（受け付けが照らす）で、ここは読み手が読む欄の型だけを書く",
   "type": "object",
   "properties": {
     "unit_keys": {

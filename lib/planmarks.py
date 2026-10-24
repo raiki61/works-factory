@@ -102,79 +102,30 @@ AMENDED_KEY = "amended"            # 控えの鍵 {"<項目の番号>": {CORE_KE
 AMEND_OP = "plan_amended"          # 差し替えの trace の行（planfile が書く） {round, items: [番号…]}（SAVED_OP の行の直後）
 # route_why は route が direct の時だけ要る（gaps が見る）
 REQUIRED = ("route", "tests", "rewrite_tests", "refactor", "allowed_paths", "out_of_scope")
-ROUTES = ("tdd", "direct")
-RED_KINDS = ("assertion", "exception")
 # 範囲の相談の合意で入る新しいテストだけが使う赤の種類: 守りのテスト（base で緑でよい。人の条件「X を壊さないことを確かめよ」の型）。
 # 修正案の役の tests は今どおり赤を求めるので RED_KINDS には入れない
 GUARD_KIND = "guard"
 AGREED_RED = "red"   # 合意の新しいテストの赤の種類のもう 1 つ: base で赤（failure）を求める（落ち方は機械が照らさない。red_check の事実だけ）
 AGREED_KINDS = (AGREED_RED, GUARD_KIND)   # 範囲の相談の答えの new_tests の red_kind（赤か守りか）
-MIN_WHY = 10
-_WHY = {"type": "string", "minLength": MIN_WHY}
 MIN_DEVIATION = 20   # 構造の目の避け方・処方から外れる訳の字の下限
-# ファイル構成の行 files（足す物・消す物を、1 ファイルごとの path・操作・受け持ちと、そのファイルの symbols の行にした物）。行の型
-# FILES_SCHEMA の住処はここ 1 か所（workflows/plan/works-factory-plan.yaml の plan_reply の files はその写しで、一致を試験が縛る）
-FILE_OPS = ("create", "modify", "delete", "rename")       # 行の操作。rename は元のパス from を持つ
-SYMBOL_CHANGES = ("add", "remove")                       # symbols の行の変え方
-FILES_SCHEMA = {"type": "array", "minItems": 1, "items": {
-    "type": "object", "additionalProperties": False,
-    "required": ["path", "op", "responsibility", "symbols", "home", "considered"],
-    "properties": {
-        "path": {"type": "string", "minLength": 1},
-        "op": {"type": "string", "enum": list(FILE_OPS)},
-        "from": {"type": "string", "minLength": 1},
-        "responsibility": {"type": "string", "minLength": 4},
-        "symbols": {"type": "array", "items": {
-            "type": "object", "additionalProperties": False, "required": ["name", "change"],
-            "properties": {"name": {"type": "string", "minLength": 1},
-                           "change": {"type": "string", "enum": list(SYMBOL_CHANGES)},
-                           "why": _WHY, "replaced_by": {"type": "string", "minLength": 1}}}},
-        # 考えの住処（home）と退けた置き場（considered）。置き場のパスは行の path が持つので home に書かない
-        "home": {"type": "object", "additionalProperties": False, "required": ["concept", "why"],
-                 "properties": {"concept": {"type": "string", "minLength": 1}, "why": {"type": "string", "minLength": 1}}},
-        "considered": {"type": "array", "minItems": 1, "items": {
-            "type": "object", "additionalProperties": False, "required": ["path", "why_not"],
-            "properties": {"path": {"type": "string", "minLength": 1}, "why_not": _WHY}}},
-        "why": _WHY,
-        "replaced_by": {"type": "string", "minLength": 1}}}}
+# 項目の works の欄の行の型の住処は lib/plan-item-fields.schema.json の 1 か所（盤面の控え plan-fields.json の fields の行の形。
+# port の宣言 shared:plan-fields.schema.json もそれを名指す）。返答の欄の型 FIELD_SCHEMA と、ファイル構成の行 files（足す物・消す物を、
+# 1 ファイルごとの path・操作・受け持ちと、そのファイルの symbols の行にした物）の型 FILES_SCHEMA はそこから引き、写しを持たない
+# （workflows/plan/works-factory-plan.yaml の plan_reply の同じ欄は、グラフの output_format が形を字でしか持てないための写しで、一致を試験が縛る）
+ROW_SCHEMA_FILE = "plan-item-fields.schema.json"
+_ROW = json.loads((pathlib.Path(__file__).resolve().parent / ROW_SCHEMA_FILE).read_text(encoding="utf-8"))["properties"]
+FILES_SCHEMA = _ROW["files"]
+MIN_WHY = FILES_SCHEMA["items"]["properties"]["why"]["minLength"]   # 訳の欄（消す訳 why・route_why など）の字の下限
+FILE_OPS = tuple(FILES_SCHEMA["items"]["properties"]["op"]["enum"])          # 行の操作。rename は元のパス from を持つ
+SYMBOL_CHANGES = tuple(FILES_SCHEMA["items"]["properties"]["symbols"]["items"]["properties"]["change"]["enum"])   # symbols の行の変え方
+ROUTES = tuple(_ROW["route"]["enum"])
+RED_KINDS = tuple(_ROW["tests"]["items"]["properties"]["red_kind"]["enum"])
 # 項目の欄のうち単位の no（か単位の字）を持つ欄の表 (欄の名, 行の中の鍵)。鍵が None の欄は単位の並びそのもの、鍵が在る欄は
 # その鍵に単位を持つ object の並び。renumber が回す
 UNIT_REFS = (("unit_keys", None), (DEPENDS_KEY, "unit"))
-FIELD_SCHEMA = {
-    "route": {"type": "string", "enum": list(ROUTES)},
-    "route_why": {"type": "string"},
-    "tests": {"type": "array", "items": {
-        "type": "object", "additionalProperties": False, "required": ["id", "behavior", "path", "red_kind", "red_why"],
-        "properties": {"id": {"type": "string", "pattern": "::"}, "behavior": _WHY, "path": _WHY,
-                       "red_kind": {"type": "string", "enum": list(RED_KINDS)}, "red_why": _WHY}}},
-    "rewrite_tests": {"type": "array", "items": {
-        "type": "object", "additionalProperties": False, "required": ["id", "behavior", "old", "new"],
-        "properties": {"id": {"type": "string", "pattern": "::"}, "behavior": _WHY,
-                       "old": {"type": "string", "minLength": 4}, "new": _WHY}}},
-    # 整えは直しの項目の中の申告で持ち、別の項目に分けない: 項目は単位を 1 つ以上持つ（unit_keys の minItems 1）ので単位の無い整えの項目は
-    # 作れず、整えは緑の後に同じ単位の輪の整えの段が、今の直しの所だけに回すため
-    "refactor": {"type": "object", "additionalProperties": False, "required": ["declared", "why"],
-                 "properties": {"declared": {"type": "boolean"}, "why": {"type": "string"}}},
-    # 範囲の欄（依頼 218）: 書いてよいパスの glob と、範囲の中でも触らない物 {glob, why}
-    "allowed_paths": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
-    "out_of_scope": {"type": "array", "items": {
-        "type": "object", "additionalProperties": False, "required": ["glob", "why"],
-        "properties": {"glob": {"type": "string", "minLength": 1}, "why": _WHY}}},
-    # 構造の欄（計画 clean-whole の Task 2.4・計画 world-solution の W8）: 構造の目の汚れる行（row＝単位の id）か判定の処方
-    # （prescription＝単位の key）か世界の解の行（world＝類の id）ごとに、従う（follows: true）か外れの訳（deviation）のどちらか 1 つ。
-    # 要るのは答えの要る行の表の行だけ（structure_gaps が見る）
-    "structure": {"type": "array", "items": {
-        "type": "object", "additionalProperties": False,
-        "properties": {"row": {"type": "string", "minLength": 1}, "prescription": {"type": "string", "minLength": 1},
-                       "world": {"type": "string", "minLength": 1},
-                       "follows": {"type": "boolean"}, "deviation": {"type": "string"}}}},
-    # 項目の間の依存の欄: 前の項目を位置でなく単位（前の項目の unit_keys のどれか）で指し、前の項目の files から受ける物を
-    # <パス>::<名前>（symbol）か <パス>（行）の字で書く。単位は unit_keys と同じ型（no か字。受け付けが字に戻す）
-    DEPENDS_KEY: {"type": "array", "items": {
-        "type": "object", "additionalProperties": False, "required": ["unit", "receives"],
-        "properties": {"unit": {"type": ["integer", "string"], "minLength": 1, "minimum": 1},
-                       "receives": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}}}}},
-}
+# 返答の欄の型（KEYS の欄）。控えの行の rewrite_tests の limit は split が足す欄で、修正案の役は書かない
+FIELD_SCHEMA = {k: copy.deepcopy(_ROW[k]) for k in KEYS}
+del FIELD_SCHEMA["rewrite_tests"]["items"]["properties"]["limit"]
 
 STRUCTURE_REJECT = ("修正案の項目の works の欄 structure に欠けか誤りが在る（構造の目が汚れると見た単位を持つ項目は、その行ごとに"
                     "避け方に従うか外れの訳を書く。世界の解の答えの要る行は、行ごとにどれかの項目が定石に従うか外れの訳を"

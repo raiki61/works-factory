@@ -161,8 +161,11 @@ class CheckCase(Base):
         path.write_text(json.dumps({"round": 1, "fields": list(rows)}, ensure_ascii=False), encoding="utf-8")
         return str(path)
 
-    def row(self, files_=(), out_of_scope=({"glob": "docs/**", "why": "x"},), route="tdd"):
-        return {"unit_keys": ["u1"], "files": list(files_), "out_of_scope": list(out_of_scope), "route": route}
+    def row(self, files_=({"path": "cache.py", "op": "modify"},), out_of_scope=({"glob": "docs/**", "why": "設計書は表の持ち物で計画が触らない"},), route="tdd"):
+        """files_ の行は path・op（rename は from）だけを書き、ほかの必須の欄（lib:plan-item-fields.schema.json の files の行）を埋める"""
+        filled = [{"responsibility": "受け持ちの物", "symbols": [], "home": {"concept": "cache", "why": "同じ考えの住処"},
+                   "considered": [{"path": "other.py", "why_not": "受け持ちの違うファイル"}], **f} for f in files_]
+        return {"unit_keys": ["u1"], "files": filled, "out_of_scope": list(out_of_scope), "route": route}
 
     def check(self, *rows, **inputs) -> dict:
         base = {"ready": "true", "plan_ok": "true", "plan": self.plan(*rows), "tdd": "true",

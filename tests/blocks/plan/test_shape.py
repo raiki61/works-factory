@@ -1,5 +1,6 @@
 """plan の block の形（docs/design/plan.md の 1.2・1.3・9.2）: 入力と出口の約束・AI の node の起こし方・輪の並び・型が lib の持ち主と同じ・
 md に旧い言い回しが残らない・script の名と fallback の字が揃う。今の tests/workflows/test_plan.py の ShapeCase から。"""
+import json
 import pathlib
 import re
 import sys
@@ -136,6 +137,20 @@ class ShapeCase(unittest.TestCase):
         self.assertNotIn(planmarks.DEPENDS_KEY, row["required"], "依存は任意の欄")
         fix = base.node("plan-writer-fix")["output_format"]["properties"]["plan"]["items"]
         self.assertEqual(fix["properties"]["files"], planmarks.FILES_SCHEMA)
+
+    def test_plan_fields_port_names_the_planmarks_row_shape(self):
+        """盤面の控えの port の宣言 shared:plan-fields.schema.json の fields の行は、planmarks が型を引く形のファイル 1 つを名指す
+        （#851 の落ちるはずの所の 4 番。写しを 2 つ置かない）。型に外れた行は読み手の照らしで落ちる"""
+        gate = kit._gate()
+        shape = json.loads((kit.SHARED / "schemas" / "plan-fields.schema.json").read_text(encoding="utf-8"))
+        self.assertEqual(gate.form_of(shape["properties"]["fields"]["items"].get("description")),
+                         ("json", f"lib:{planmarks.ROW_SCHEMA_FILE}"))
+        row = {"route": "tdd", "tests": [], "rewrite_tests": [], "refactor": {"declared": False, "why": ""},
+               "allowed_paths": ["src/a.py"], "out_of_scope": []}
+        self.assertEqual(gate.shape_errors({"round": 1, "fields": [row]}, "shared:plan-fields.schema.json"), [])
+        for key, bad in (("route", "maybe"), ("allowed_paths", []), ("tests", [{"id": "t.py::x"}])):
+            with self.subTest(key=key):
+                self.assertNotEqual(gate.shape_errors({"round": 1, "fields": [{**row, key: bad}]}, "shared:plan-fields.schema.json"), [])
 
     def test_role_schemas_match_their_lib_owners(self):
         def bare(schema):

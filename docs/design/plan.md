@@ -250,7 +250,7 @@ The unknowns per line are not decided (why: {unknown_why}).
 
 ### 2.4 返す形
 
-今の `output_format`（`&plan_reply`）のまま。必須は `plan`（項目 1 つ以上。項目の必須は `unit_keys`・`approach`・`files`・`shrink_first`・`narrows`・`route`・`tests`・`rewrite_tests`・`refactor`・`allowed_paths`・`out_of_scope`。任意は `route_why`・`structure`・`depends_on`）。任意の頭の欄は `block_answers`（`converge.ANSWER_SCHEMA` の写し）と `handoff`（`handoff.SCHEMA` の写し）。欄の型は `planmarks.FIELD_SCHEMA`・`FILES_SCHEMA`・`gatemarks.MARK_SCHEMA`・`NO_NARROW_SCHEMA` の写しで、型の元のモジュールとの一致は試験が見る（今の `test_role_schemas_match_their_lib_owners`）。人に見せる欄は 1.2 の `lang` の説明に並べた欄（承認ノード・報告・事前審査に載る）で、言語は `{lang}`。
+今の `output_format`（`&plan_reply`）のまま。必須は `plan`（項目 1 つ以上。項目の必須は `unit_keys`・`approach`・`files`・`shrink_first`・`narrows`・`route`・`tests`・`rewrite_tests`・`refactor`・`allowed_paths`・`out_of_scope`。任意は `route_why`・`structure`・`depends_on`）。任意の頭の欄は `block_answers`（`converge.ANSWER_SCHEMA` の写し）と `handoff`（`handoff.SCHEMA` の写し）。欄の型は `planmarks.FIELD_SCHEMA`・`FILES_SCHEMA`（住処は `lib/plan-item-fields.schema.json` の 1 か所。盤面の控えの port の宣言 `shared:plan-fields.schema.json` の `fields` の行も `json(lib:plan-item-fields.schema.json)` で同じ物を名指す。#851）・`gatemarks.MARK_SCHEMA`・`NO_NARROW_SCHEMA` の写しで、型の元のモジュールとの一致は試験が見る（今の `test_role_schemas_match_their_lib_owners`）。人に見せる欄は 1.2 の `lang` の説明に並べた欄（承認ノード・報告・事前審査に載る）で、言語は `{lang}`。
 
 ### 2.5 描いた骨組み（例の run の値。2 周目の 1 回目）
 

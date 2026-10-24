@@ -1,0 +1,341 @@
+{
+  "description": "修正案の項目 1 つの works の欄の行（plan-fields.json の fields の行。書き手は修正案の block の受け付け〔lib/planmarks.py の split・save〕）。欄の型の住処はこの 1 か所で、lib/planmarks.py の FIELD_SCHEMA（修正案の役の返答の欄。rewrite_tests の行の limit を外した物）・FILES_SCHEMA（files の行）はここから引く。修正案の役の output_format（workflows/plan/works-factory-plan.yaml の plan_reply）の同じ欄は写しで、一致を試験が縛る。split が足す欄: unit_keys（項目の写し）・files（項目の写し）・rewrite_tests の行の limit（書き換えてよい範囲 <パス>:<定義の行>）・removes_tests（消す名を使うテストの行の許し {id, limit}）。route_why は route が direct の時だけ要り、files の行の考えの住処 home と退けた置き場 considered は置き場のパスを持たない（行の path が持つ）。どの欄も必須でない（前の版の控えは範囲の欄を持たない）",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "route": {
+      "type": "string",
+      "enum": [
+        "tdd",
+        "direct"
+      ]
+    },
+    "route_why": {
+      "type": "string"
+    },
+    "tests": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "behavior",
+          "path",
+          "red_kind",
+          "red_why"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "::"
+          },
+          "behavior": {
+            "type": "string",
+            "minLength": 10
+          },
+          "path": {
+            "type": "string",
+            "minLength": 10
+          },
+          "red_kind": {
+            "type": "string",
+            "enum": [
+              "assertion",
+              "exception"
+            ]
+          },
+          "red_why": {
+            "type": "string",
+            "minLength": 10
+          }
+        }
+      }
+    },
+    "rewrite_tests": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "behavior",
+          "old",
+          "new"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "::"
+          },
+          "behavior": {
+            "type": "string",
+            "minLength": 10
+          },
+          "old": {
+            "type": "string",
+            "minLength": 4
+          },
+          "new": {
+            "type": "string",
+            "minLength": 10
+          },
+          "limit": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    },
+    "refactor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "declared",
+        "why"
+      ],
+      "properties": {
+        "declared": {
+          "type": "boolean"
+        },
+        "why": {
+          "type": "string"
+        }
+      }
+    },
+    "allowed_paths": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "out_of_scope": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "glob",
+          "why"
+        ],
+        "properties": {
+          "glob": {
+            "type": "string",
+            "minLength": 1
+          },
+          "why": {
+            "type": "string",
+            "minLength": 10
+          }
+        }
+      }
+    },
+    "structure": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "row": {
+            "type": "string",
+            "minLength": 1
+          },
+          "prescription": {
+            "type": "string",
+            "minLength": 1
+          },
+          "world": {
+            "type": "string",
+            "minLength": 1
+          },
+          "follows": {
+            "type": "boolean"
+          },
+          "deviation": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "depends_on": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "unit",
+          "receives"
+        ],
+        "properties": {
+          "unit": {
+            "type": [
+              "integer",
+              "string"
+            ],
+            "minLength": 1,
+            "minimum": 1
+          },
+          "receives": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        }
+      }
+    },
+    "unit_keys": {
+      "type": "array",
+      "items": {
+        "type": [
+          "integer",
+          "string"
+        ]
+      }
+    },
+    "files": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "path",
+          "op",
+          "responsibility",
+          "symbols",
+          "home",
+          "considered"
+        ],
+        "properties": {
+          "path": {
+            "type": "string",
+            "minLength": 1
+          },
+          "op": {
+            "type": "string",
+            "enum": [
+              "create",
+              "modify",
+              "delete",
+              "rename"
+            ]
+          },
+          "from": {
+            "type": "string",
+            "minLength": 1
+          },
+          "responsibility": {
+            "type": "string",
+            "minLength": 4
+          },
+          "symbols": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "name",
+                "change"
+              ],
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "change": {
+                  "type": "string",
+                  "enum": [
+                    "add",
+                    "remove"
+                  ]
+                },
+                "why": {
+                  "type": "string",
+                  "minLength": 10
+                },
+                "replaced_by": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              }
+            }
+          },
+          "home": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "concept",
+              "why"
+            ],
+            "properties": {
+              "concept": {
+                "type": "string",
+                "minLength": 1
+              },
+              "why": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          },
+          "considered": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "path",
+                "why_not"
+              ],
+              "properties": {
+                "path": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "why_not": {
+                  "type": "string",
+                  "minLength": 10
+                }
+              }
+            }
+          },
+          "why": {
+            "type": "string",
+            "minLength": 10
+          },
+          "replaced_by": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    },
+    "removes_tests": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "limit"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "limit": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    }
+  }
+}

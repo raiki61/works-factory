@@ -69,7 +69,8 @@ def judgment(*, questions=()):
 
 def item(*keys, **more):
     """修正案の項目の見本（works の欄つき。stats.py の 2 単位を直す形）"""
-    return {"unit_keys": list(keys), "approach": "mean の分母を len(xs) に、clamp の上限の枝を hi に直す", "files": [],
+    return {"unit_keys": list(keys), "approach": "mean の分母を len(xs) に、clamp の上限の枝を hi に直す",
+            "files": base.item(*keys)["files"],
             "shrink_first": "足す物は無い。式と戻り値を 1 か所ずつ直すだけで足りる", "narrows": [],
             "route": "tdd",
             "tests": [{"id": "test_stats.py::TestStats::test_mean_of_two", "behavior": "2 つの値の平均がその真ん中の値になる",
@@ -994,12 +995,12 @@ class FilesCase(PlaceCase):
 
     def test_crash_finish_fills_pointers_and_keeps_a_kept_plan(self):
         files.write_json(self.place / files.CURRENT_ROUND, {"round": 2})
-        files.write_json(self.place / "r2" / files.FIELDS, {"round": 2, "fields": [{"x": 1}]})
+        files.write_json(self.place / "r2" / files.FIELDS, {"round": 2, "fields": [{"allowed_paths": ["stats.py"]}]})
         got = files.crash_finish(self.place, "出口が落ちた")
         self.assertEqual((got["ok"], got["status"], got["round"], got["reason"]), (False, "failed", 2, "出口が落ちた"))
         self.assertEqual(got["plan"], {"type": ports.POINTER_TYPE, "run_id": kit.RUN_ID, "path": "r2/plan-fields.json"})
         self.assertEqual(got["ripple"]["path"], "r2/ripple.json")
-        self.assertEqual(self.read(self.place / "r2" / files.FIELDS)["fields"], [{"x": 1}], "在って空でない控えは上書きしない")
+        self.assertEqual(self.read(self.place / "r2" / files.FIELDS)["fields"], [{"allowed_paths": ["stats.py"]}], "在って空でない控えは上書きしない")
 
     def test_crash_finish_does_not_raise_on_an_off_shape_file(self):
         """落ちない出口: 形の外れた控え（出口が落ちた訳そのものになりうる）を指す時に形の照らしで投げ直さず、「無い」を表す形に

@@ -142,7 +142,7 @@ class MaterialCase(_Case):
     def test_material_carries_plan_fields(self):
         """元 ReviewAcceptCase.test_material_carries_plan_fields: 項目ごとの works の欄を JSON で貼り、指示が見る点を頼む"""
         test = {"id": "test_stats.py::TestStats::test_mean_of_two", "behavior": "2 つの値の平均がその真ん中の値になる",
-                "path": "本物の経路: stats.mean を本物のまま呼ぶ", "red_kind": "assertion", "red_why": "分母が 1 少ない"}
+                "path": "本物の経路: stats.mean を本物のまま呼ぶ", "red_kind": "assertion", "red_why": "分母が 1 少ないので平均が大きく出る"}
         rows = [{**V.fields(V.UNIT_MEAN), "route": "tdd", "tests": [test]}, V.fields(V.UNIT_CLAMP)]
         prompt, mat = self.texts(fields=self.r.put("plan/r1/plan-fields-x.json", {"round": 1, "fields": rows}))
         for want in (material.MAT_HEADS["fields"], material.LABELS["fields_item"].format(n=1), '"route": "tdd"', test["id"],
