@@ -356,7 +356,7 @@ class ScrubTest(unittest.TestCase):
                 "import os, unittest\nfrom tests.bin import hermetic\nclass T(unittest.TestCase):\n"
                 "    def test_env(self):\n"
                 "        self.assertEqual(hermetic.inherited('ANTHROPIC_'), {'ANTHROPIC_API_KEY': 'fake'})\n"
-                "        self.assertNotIn('ANTHROPIC_API_KEY', os.environ)\n"})
+                "        self.assertNotIn('ANTHROPIC_API_KEY', set(os.environ))\n"})
             with mock.patch.dict(hermetic._SCRUBBED, {"ANTHROPIC_API_KEY": "fake"}, clear=True):
                 self.assertEqual(run_quietly(shard.suites(root)), 0)
 
