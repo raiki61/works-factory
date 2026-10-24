@@ -1,8 +1,8 @@
 """範囲の相談の機械（blk-fix。持ち主 2026-10-06・2026-10-07。設計 docs/plans/2026-10-06-ask-planner.md）。
 
 修正役（1 回目の fix と裁定の後の fix-ruled）は、承認済みの修正案の項目の範囲（allowed_paths）の外のファイルや、凍ったテストの
-書き換えが要る時、返答の任意の欄 consult（conflict.CONSULT_SCHEMA。項目ごとに 1 件）に頼みを書いて周を終える。修正の輪は、
-その周の受け付けを回さずに次の 3 つの節で答える（節を組むのはブロックの script。ここは部品だけを持つ）:
+書き換えが要る時、返答の任意の欄 consult（型の正本は修正役の節の output_format &fix_reply の consult。項目ごとに 1 件）に頼みを
+書いて周を終える。修正の輪は、その周の受け付けを回さずに次の 3 つの節で答える（節を組むのはブロックの script。ここは部品だけを持つ）:
 
 1. 頼みの節（script consult_check）: 機械の先の確かめ（screen・oos_hits）で断る頼みを断り、残りを状態（STATE）に積み、
    答えの役への指示書（render が md から組む）を書く。
@@ -33,6 +33,8 @@
   out_of_scope（{glob, why} の並び）, tests}）
 - requests(reply): 返答の consult の頼みの並び（欄が無ければ None）
 - screen(items, item, paths, tests, why): 先の確かめ（断る文か None）
+- screen_ask(items, ask): 頼みの行 1 つの先の確かめ（screen と、修正役の頼みの経緯の 3 つの欄の照らし summary_problem）
+- history_text(b): 答えの役の指示の {history} の材料（同じ run の前の相談と答えの一覧）
 - oos_hits(items, item, paths, tests): 頼んだパスが当たる out_of_scope（その項目の物を先に、ほかの項目の物を後に）
 - overrides(hits, item, granted_paths, granted_tests): 許した物のうち、その項目の out_of_scope を外した物
 - judge(answer, paths, tests): 答えの 1 件の確かめ（(行の欄 | None, 注記)）
@@ -116,7 +118,7 @@ ASK_TEXT = """\
 - 足したい新しいテスト（<パス>::<クラス>::<名前>。修正案の tests に無い物）: {new_tests}
 {oos_hits}- 理由（直している側の文）:
 {why}
-"""
+{summary}"""
 
 ASK_GATE_TEXT = """\
 ## 相談 {n}: 項目 {item}（単位: {units}）
@@ -179,8 +181,8 @@ def items_doc(items) -> dict:
 
 
 def requests(reply):
-    """返答の consult の頼みの並び [{item, paths, tests, why}]（欄が無い・空の配列なら None。new_tests を持つ頼みだけ new_tests も
-    持つ）。形の崩れた行は欄を空にして残す（screen が断る）"""
+    """返答の consult の頼みの並び [{item, paths, tests, why, tried, blocked, evidence}]（欄が無い・空の配列なら None。new_tests を
+    持つ頼みだけ new_tests も持つ）。形の崩れた行は欄を空にして残す（screen_ask が断る）"""
     rows = reply.get(conflict.CONSULT_FIELD) if isinstance(reply, dict) else None
     if rows is None or rows == []:
         return None
@@ -196,6 +198,8 @@ def requests(reply):
                "why": r.get("why").strip() if isinstance(r.get("why"), str) else ""}
         if strs(r.get("new_tests")):
             row["new_tests"] = strs(r.get("new_tests"))
+        row.update(tried=strs(r.get("tried")), blocked=r.get("blocked").strip() if isinstance(r.get("blocked"), str) else "",
+                   evidence=list(r.get("evidence") or []))   # 根拠の行の形は output_format が縛る
         out.append(row)
     return out
 
@@ -233,6 +237,32 @@ def screen(items: dict, item: str, paths: list, tests: list, why: str = "x" * MI
     if inside and not tests and not new_tests and len(inside) == len(paths):
         return f"{inside} はもう項目 {item} の範囲の中（聞かずに直してよい）"
     return None
+
+
+def summary_problem(ask: dict):
+    """修正役の頼みの経緯の 3 つの欄（試したこと tried・範囲の中で直せない訳 blocked・根拠のファイルと行 evidence）を断る文（揃って
+    いれば None）。答えの役は修正役の会話を引き継がない新しい会話なので、経緯はこの 3 つだけで渡る（#833）。
+    欄の在る無し・空の配列・行の形（1 以上の整数）は型の正本の output_format（&fix_reply の consult）が縛るので、ここは型より厳しい
+    所（前後の空白を除いた字・根の外や絶対のパス）だけを見る"""
+    if not ask.get("tried"):
+        return "試したこと（tried）が空白だけ（範囲の中で何を試したかを 1 行以上書け）"   # requests が空白だけの行を落とす
+    if len((ask.get("blocked") or "").strip()) < MIN_WHY:
+        return f"範囲の中で直せない訳（blocked）が無いか {MIN_WHY} 字に満たない（どこまで直して何に当たったかを書け）"
+    for e in ask.get("evidence") or []:
+        p = _norm(e["path"]) if e["path"].strip() else ""
+        if not p or globs.climbs(p) or p.startswith("/"):
+            return f"根拠（evidence）の行 {e!r} のパスが、リポジトリの根からの相対パスでない"
+    return None
+
+
+def screen_ask(items: dict, ask: dict):
+    """頼みの行 ask 1 つの先の確かめ（断る文か None）: screen と、修正役が返答に書いた頼み（origin の無い行）だけ経緯の 3 つの欄
+    （summary_problem）。受け付けが積んだ頼み（ORIGIN_ACCEPT）と人の関所の条件（ORIGIN_GATE）は機械が立てた物なので照らさない"""
+    why = screen(items, ask["item"], ask["paths"], ask["tests"], ask["why"], ask.get("new_tests") or [],
+                 gate=ask.get("origin") == ORIGIN_GATE)
+    if why is None and not ask.get("origin"):
+        why = summary_problem(ask)
+    return why
 
 
 def _asked_paths(paths: list, tests: list) -> list:
@@ -346,8 +376,33 @@ def asks_text(items: dict, asks: list) -> str:
         parts.append(ASK_TEXT.format(n=a["n"], item=a["item"], units=show(it.get("unit_keys") or []),
                                      allowed=show(it.get("allowed_paths") or []), oos=show(oos),
                                      paths=show(a["paths"]), tests=show(a["tests"]), new_tests=show(a.get("new_tests") or []),
-                                     oos_hits=_hits_text(hits, a["item"]), why=why))
+                                     oos_hits=_hits_text(hits, a["item"]), why=why, summary=_summary_text(a)))
     return "\n".join(parts).rstrip("\n")
+
+
+def _summary_text(a: dict) -> str:
+    """頼みの節の経緯の行（修正役が書いた試したこと・範囲の中で直せない訳・根拠のファイルと行）。受け付けが積んだ頼みは空"""
+    if not (a.get("tried") or a.get("blocked") or a.get("evidence")):
+        return ""
+    tried = "\n".join(f"  - {t}" for t in a.get("tried") or [])
+    blocked = "\n".join("  " + line for line in (a.get("blocked") or "").splitlines())
+    evidence = "・".join(f"{e.get('path')}:{e.get('line')}" for e in a.get("evidence") or [] if isinstance(e, dict))
+    return f"- 試したこと（直している側の文）:\n{tried}\n- 範囲の中で直せない訳（直している側の文）:\n{blocked}\n- 根拠のファイルと行: {evidence}\n"
+
+
+def history_text(b) -> str:
+    """答えの役の指示の差し込み口 {history} の材料: 置き場 b の trace の範囲の相談の行（写した組の子の行も。古い順）を 1 行ずつ。
+    答えの役は新しい会話なので、同じ run の前の相談と答えはここからだけ知る（#833）。行が無ければ空"""
+    show = lambda xs: "・".join(xs) if xs else "（無し）"   # noqa: E731
+    lines = []
+    for r in conflict.plan_asks(b, carried=True):
+        asked = f"パス {show(r.get('paths') or [])}・テスト {show(r.get('tests') or [])}・新しいテスト {show(r.get('new_tests') or [])}"
+        if r.get("status") == ANSWERED:
+            got = f"{r.get('decision')}（理由: {r.get('reason') or ''}" + (f"・仕様の足し: {r['spec']}" if r.get("spec") else "") + "）"
+        else:
+            got = f"{r.get('status')}（{r.get('why_refused') or r.get('why_unavailable') or ''}）"
+        lines.append(f"- 相談 {r.get('id')}（段 {r.get('pass')}・{r.get('turn')} 回目の相談・項目 {r.get('item')}）: {asked} → {got}")
+    return "\n".join(lines)
 
 
 # ---------------------------------------------------------------- 状態

@@ -61,6 +61,11 @@ def _l_bind() -> None:
 _l_bind()
 
 
+# 修正役の範囲の相談の頼みが必ず持つ 3 つの欄（#833。docs/design/fix.md の 13.3 の 1）
+SUMMARY = {"tried": ["stats.py の平均の分母を直した"], "blocked": "直しは済んだが、記録の置き場が範囲の外にしか無い",
+           "evidence": [{"path": "stats.py", "line": 4}]}
+
+
 class _LSrc(unittest.TestCase):
     def setUp(self):
         super().setUp()
@@ -2666,8 +2671,9 @@ class FixAcceptSeamCase(SeamTemp):
         consult = self.m.consult
         items = [{"item": 1, "unit_keys": ["a"], "allowed_paths": ["stats.py"], "out_of_scope": [], "tests": []}]
         reply = {consult.conflict.CONSULT_FIELD: [
-            {"item": 1, "paths": ["docs/n.md"], "tests": [], "why": "直しに伴う記録を残す要が在る（範囲の外）"},
-            {"item": 9, "paths": ["x.py"], "tests": [], "why": "知らない項目への頼みの理由の文"}]}
+            {"item": 1, "paths": ["docs/n.md"], "tests": [], "why": "直しに伴う記録を残す要が在る（範囲の外）", **SUMMARY},
+            {"item": 9, "paths": ["x.py"], "tests": [], "why": "知らない項目への頼みの理由の文", **SUMMARY},
+            {"item": 1, "paths": ["docs/m.md"], "tests": [], "why": "経緯の欄を書かなかった頼みの理由の文"}]}
         got = self.b.consult_ask(self.place, reply, "first", items, node="consult-answer",
                                  render=self.render(plan_file="/p/plan.json"))
         self.assertEqual((got["consulted"], got["go"], got["turn"]), (True, True, 1))
@@ -2675,8 +2681,11 @@ class FixAcceptSeamCase(SeamTemp):
         self.assertEqual(text, got["prompt"], "置き場の控えと返りの prompt は同じ字")
         self.assertIn("/p/plan.json", text)
         self.assertNotIn("x.py", text, "断った頼みは聞かない")
+        self.assertNotIn("docs/m.md", text, "試したこと・直せない訳・根拠の無い修正役の頼みは聞かない（#833）")
+        self.assertIn(SUMMARY["blocked"], text, "修正役の経緯は答えの役の指示に入る（#833）")
         st = consult.state(self.place, "first")
-        self.assertEqual([r["status"] for r in st["rows"]], [consult.ASKED, consult.REFUSED])
+        self.assertEqual([r["status"] for r in st["rows"]], [consult.ASKED, consult.REFUSED, consult.REFUSED])
+        self.assertIn("試したこと", st["rows"][2]["why_refused"])
         self.assertEqual(self.b.consult_ask(self.place, {"changes": []}, "first", items, node="x",
                                             render=self.render())["consulted"], False)
         jsonfile.write(consult.state_path(self.place, "first"), {"turns": consult.BUDGET})

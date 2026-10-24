@@ -72,7 +72,7 @@
 - `ok`: boolean。組の形: 組の結果を書いた。全体の形: 戻しの記録（`join.json`）が在り、変更の確かめが通り、当たったままの組が無い（今の `done` から差分の審査の `pass` を外した物）。
 - `reason`: 日本語の 1 行。ok でない訳（落ちた段・読めない port・変更の確かめの訳）。
 - `units`: `[{unit_id, group_id, status (fixed|given_up|not_done), reason}]`（今のまま）。
-- `groups`: `[{group_id, unit_ids, returned, reason, backed_out?, unrestored?, old_red?, clash?}]`（今のまま。`clash` は `{outcome (repaired|parked), requests, patch}`。`old_red` は確かめ直しで前から同じ形で赤だったので戻す理由にしなかった名指しの文の並びで、確かめ直しを通って親の作業ツリーに当てたままにした組の行にだけ在る。18 節）。
+- `groups`: `[{group_id, unit_ids, returned, reason, backed_out?, unrestored?, old_red?, uncompared?, test_cmd_notes?, clash?}]`（今のまま。`clash` は `{outcome (repaired|parked), requests, patch}`。`old_red` は確かめ直しで前から同じ形で赤だったので戻す理由にしなかった名指しの文の並びで、確かめ直しを通って親の作業ツリーに当てたままにした組の行にだけ在る。18 節。`uncompared` は確かめ直しで直す前の版と比べられなかったので戻す理由にしなかった赤の鍵 `classname::name` の並びで、同じく当てたままにした組の行にだけ在る。報告が人に聞く。20 節。`test_cmd` の行〔外した木で走らせた結果が取れない〕も入る。21 節。`test_cmd_notes` は確かめ直しの `test_cmd` の赤を、組を外した木でも赤（前から赤か環境）か走らせ直しで緑（揺れ）と見て戻す理由にしなかった文の並びで、同じく当てたままにした組の行にだけ在る。`report` に 1 件 1 行で出す。21 節）。
 - `conflicts`: pointer（`conflicts.json`）か null。
 - `carry`: pointer（`carry.json`。次の修正の段の port `prior` に渡す申し出と輪の状態の束。1.4）か null（組の形）。
 - `replan_items`: 字の配列。fix_plan_item の裁定が誤りとした項目の番号。
@@ -113,7 +113,7 @@
 7. `conflict-check`（script `conflict_check.py`。`depends_on: [join, clash-loop]`・`trigger_rule: none_failed_min_one_success`・`mutates_checkout: false`）: 返り `{go, count}`。
 8. `rule-loop`（`depends_on: [conflict-check]`・`when: "$conflict-check.output.go == true"`・`loop_group: {max_iterations: 3, fresh_context: false, until_bash: done=$rule-accept.output.done; test "$done" = true}`）: `rule-prep`（script `rule_prep.py`）→ `ruler`（AI。5 節）→ `rule-accept`（script `rule_accept.py`・`with: {status_guarded: true, reply: $ruler.output}`）。
 9. `clash-ruled-loop`（`depends_on: [conflict-check, rule-loop]`・`when: "$conflict-check.output.go == true"`・6 と同じ形で `pass: ruled`・node は `clash-ruled-prep`・`clash-ruled`・`clash-ruled-accept`）。
-10. `fix-ruled-loop`（`depends_on: [conflict-check, rule-loop, clash-ruled-loop]`・`when: "$conflict-check.output.go == true"`・`loop_group: {max_iterations: 12, fresh_context: false, until_bash: done=$fix-ruled-accept.output.done; test "$done" = true}`）: `fix-ruled-prep`（script `fix_ruled_prep.py`）→ `fix-ruled`（AI。2 節）→ `ruled-consult-check`（script `consult_check.py`・`with: {reply: $fix-ruled.output, pass: ruled}`）→ `ruled-consult-answer`（AI。3 節）→ `ruled-consult-accept`（script `consult_accept.py`・`depends_on: [ruled-consult-check, ruled-consult-answer]`・`trigger_rule: none_failed_min_one_success`・`with: {answer: {from: "$ruled-consult-answer.output", if_skipped: null}, pass: ruled}`）→ `fix-ruled-accept`（script `fix_ruled_accept.py`・`depends_on: [fix-ruled-prep, ruled-consult-accept]`・`trigger_rule: none_failed_min_one_success`・`with: {reply: {from: "$fix-ruled.output", if_skipped: null}, consulted: {from: "$ruled-consult-accept.output.consulted", if_skipped: false}}`）。
+10. `fix-ruled-loop`（`depends_on: [conflict-check, rule-loop, clash-ruled-loop]`・`when: "$conflict-check.output.go == true"`・`loop_group: {max_iterations: 12, fresh_context: false, until_bash: done=$fix-ruled-accept.output.done; test "$done" = true}`）: `fix-ruled-prep`（script `fix_ruled_prep.py`）→ `fix-ruled`（AI。2 節）→ `ruled-consult-check`（script `consult_check.py`・`with: {reply: $fix-ruled.output, pass: ruled}`）→ `ruled-consult-ask`（`depends_on: [ruled-consult-check]`・`when: "$ruled-consult-check.output.go == true"`・`loop_group: {max_iterations: 1, fresh_context: true, until_bash: "true"}`。本体は `ruled-consult-answer`〔AI。3 節〕1 つだけ。訳は 13.3 の 1）→ `ruled-consult-accept`（script `consult_accept.py`・`depends_on: [ruled-consult-check, ruled-consult-ask]`・`trigger_rule: none_failed_min_one_success`・`with: {answer: {from: "$ruled-consult-ask.output", if_skipped: null}, pass: ruled}`）→ `fix-ruled-accept`（script `fix_ruled_accept.py`・`depends_on: [fix-ruled-prep, ruled-consult-accept]`・`trigger_rule: none_failed_min_one_success`・`with: {reply: {from: "$fix-ruled.output", if_skipped: null}, consulted: {from: "$ruled-consult-accept.output.consulted", if_skipped: false}}`）。
 11. `clean`（script `clean.py`。`depends_on: [intake, clash-loop, conflict-check, rule-loop, clash-ruled-loop, fix-ruled-loop]`・`trigger_rule: none_failed_min_one_success`・`when: "$intake.output.whole == true"`）。
 12. `assert-changed`（script `assert_changed.py`。`depends_on: [intake, clean]`・`trigger_rule: none_failed_min_one_success`・`when: "$intake.output.whole == true"`・`mutates_checkout: false`）。
 
@@ -121,7 +121,7 @@
 
 13. `group-start`（script `group_start.py`。`depends_on: [intake]`）: 返り `{tdd, units, reason}`（今のまま）。
 14. `tdd-loop`（`depends_on: [group-start]`・`when: "$group-start.output.tdd == true"`・`loop_group: {max_iterations: 40, fresh_context: false, until_bash: done=$tdd-step.output.done; test "$done" = true}`）: `tdd-prep`（script `tdd_prep.py`。返り `{prompt, go, new_unit}`）→ `tdd`（AI。`when: "$tdd-prep.output.go == true && $tdd-prep.output.new_unit == false"`）→ `tdd-new`（AI。`depends_on: [tdd-prep, tdd]`・`trigger_rule: none_failed_min_one_success`・`when: "… new_unit == true"`・`context: fresh`）→ `tdd-step`（script `tdd_step.py`・`depends_on: [tdd-prep, tdd, tdd-new]`・`trigger_rule: none_failed_min_one_success`・`with: {reply: {from: "$tdd.output", if_skipped: null}, reply_new: {from: "$tdd-new.output", if_skipped: null}}`）。tdd-new を tdd の後ろの層に置く訳（同じ層だと Archon が並んだ層として会話を切る）を YAML のコメントに残す。
-15. `fix-loop`（`depends_on: [group-start, tdd-loop]`・`trigger_rule: none_failed_min_one_success`・`loop_group: {max_iterations: 12, fresh_context: false, until_bash: done=$fix-accept.output.done; test "$done" = true}`）: `fix-prep`（script `fix_prep.py`。返り `{prompt, go, iteration}`）→ `fixer`（AI。`when: "$fix-prep.output.go == true"`）→ `consult-check`（`with: {reply: $fixer.output, pass: first}`）→ `consult-answer`（AI）→ `consult-accept`（`pass: first`）→ `fix-accept`（10 と同じ形で `fixer`・`consult-accept` を受ける）。
+15. `fix-loop`（`depends_on: [group-start, tdd-loop]`・`trigger_rule: none_failed_min_one_success`・`loop_group: {max_iterations: 12, fresh_context: false, until_bash: done=$fix-accept.output.done; test "$done" = true}`）: `fix-prep`（script `fix_prep.py`。返り `{prompt, go, iteration}`）→ `fixer`（AI。`when: "$fix-prep.output.go == true"`）→ `consult-check`（`with: {reply: $fixer.output, pass: first}`）→ `consult-ask`（10 の `ruled-consult-ask` と同じ形。本体は `consult-answer`〔AI〕1 つだけ）→ `consult-accept`（`pass: first`・`answer` は `$consult-ask.output`）→ `fix-accept`（10 と同じ形で `fixer`・`consult-accept` を受ける）。
 16. `group-end`（script `group_end.py`。`depends_on: [group-start, tdd-loop, fix-loop]`・`trigger_rule: none_failed_min_one_success`・`mutates_checkout: false`）: 返り `{result_file}`。
 
 両方の形の終わり:
@@ -130,7 +130,7 @@
 18. `fix-reads`（script `fix_reads.py`。`depends_on: [fix-loop, fix-ruled-loop]`・`trigger_rule: all_done`・`mutates_checkout: false`）: 読んだ証拠（7 節）。落ちない。
 19. `finish`（script `finish.py`。`depends_on:` は intake と 2〜16 の全部と `fix-reads`・`trigger_rule: all_done`・`mutates_checkout: false`）: 出力を組む（今の `collect.py` の後継。7 節）。落ちない。
 
-loop の中の会話（README 13 章の決め・今の振る舞いのまま）: `rule-loop`・`fix-ruled-loop`・`tdd-loop`・`fix-loop` は `fresh_context: false` で、2 周目からは前の周の最後の会話を次の周の AI の node が継ぐ（1 周目はいつも新しい会話。止めた Archon の `dag-executor.ts:4830`）。どの loop にも、継ぐ役の直前に 2 つ以上の node の層は無い（どれも 1 本の鎖）。`clash-loop`・`clash-ruled-loop` は `fresh_context: true`。相談の答えの役は `context` を持たないので、同じ周の修正役の会話から分かれて起きる（13.3 の 1。今のまま）。
+loop の中の会話（README 13 章の決め・今の振る舞いのまま）: `rule-loop`・`fix-ruled-loop`・`tdd-loop`・`fix-loop` は `fresh_context: false` で、2 周目からは前の周の最後の会話を次の周の AI の node が継ぐ（1 周目はいつも新しい会話。止めた Archon の `dag-executor.ts:4830`）。どの loop にも、継ぐ役の直前に 2 つ以上の node の層は無い（どれも 1 本の鎖）。`clash-loop`・`clash-ruled-loop` は `fresh_context: true`。相談の答えの役は、修正の輪の本体の中の 1 周の輪（`consult-ask`・`ruled-consult-ask`）の中で新しい会話で起き、次の周の修正役は前の周の修正役の会話を継ぐ（13.3 の 1。#833）。
 
 今との違い（node）: 外した node は `route`（intake が兼ねる）・`tdd-unit`（型つきの成果物 `tdd-unit` の読み手 `runreport` は report の `sections` に替わり、r2 は出力 `tdd` の値を読むので、`tdd-unit.json` は finish が書く）・`delta-cut`・`lens-prep`・`lens`・`lens-reply`・`lens-collect`・`delta-loop`・`refix-loop`・`review2-loop`・`refix2-loop`（delta-review と lens の block へ）。返す node の id は `fix` から `finish` にした（ほかの block と同じ。line は include の id で読むので字は動かない）。
 
@@ -413,15 +413,16 @@ fix-ruled の 2 周目は、頭の 1 の後に 3（`<place>/fix-reply.json`）�
 
 ### 3.2 port
 
-相談の頼み（← `consult-check` が `consult.screen` で確かめた行。修正役の返答の `consult` と、受け付けが積んだはみ出し、`answers` の続けの一言）・修正案（`fix-plan-reply.json`。無ければ `plan-fields.json`）・波及の一覧（← `ripple`）・`lang`。
+相談の頼み（← `consult-check` が `consult.screen_ask` で確かめた行。修正役の返答の `consult`〔試したこと・範囲の中で直せない訳・根拠のファイルと行を持つ。13.3 の 1〕と、受け付けが積んだはみ出し、`answers` の続けの一言）・同じ run の前の相談と答え（← place の `trace.jsonl`）・修正案（`fix-plan-reply.json`。無ければ `plan-fields.json`）・波及の一覧（← `ripple`）・`lang`。
 
 ### 3.3 組み立ての順（`prompts/parts/consult.md`。2 つの node の md は `{part:consult}` の 1 行）
 
-1. 答える立場の 1 段落（今の `fixboard.CONSULT_HEAD`）: 修正案のファイル `{plan_file}` を先に全部読み、自分が書いた修正案として扱え。今の文の「（新しい会話）」は外す（13.3 の 1。同じ周の修正役の会話から分かれて起きるので偽）。
+1. 答える立場の 1 段落（今の `fixboard.CONSULT_HEAD`）: 修正案のファイル `{plan_file}` を先に全部読み、自分が書いた修正案として扱え。今の文の「（新しい会話）」は外す（作り直しの時は、同じ周の修正役の会話から分かれて起きたので偽だった。#833 で新しい会話で起きるようにした後も、修正案を先に全部読めの文で足りるので戻さない。13.3 の 1）。
 2. `<!-- if ripple -->` 波及の一覧の 1 文と `{ripple_file}`（今の `RIPPLE_READ`）。
 3. `# Scope consultation (from the fixing stage)` と今の `consult.QUESTION` の決まり（決めるのはあなた・out_of_scope の考え直し方・ほかの項目の out_of_scope を allow した時の効き方）と `{count}`（頼みの件数）。
 4. `<!-- if plain -->` 頼みの答え方の段落（今の `ASK_TEXT` の「答え方」の部分。頼まれた物の中からだけ許す）。`<!-- if gate -->` 承認ノードの条件の頼みの答え方の段落（今の `ASK_GATE_TEXT` の「答え方」の部分。条件が求める物を自分で挙げてよい・関わらない条件なら deny）。
-5. `{asks}`（← `consult.asks_text` の頼みごとの節 `## 相談 <n>: 項目 <m>（単位: …）` と行〔今の範囲・out_of_scope と当たった glob と外した理由・足したいパス・テストの範囲・新しいテスト・当たり・理由・承認ノードの条件の字〕。決まった文を除いた材料だけ）。
+5. `<!-- if history -->` 同じ run の前の相談と答えの一覧の段落と `{history}`（← `consult.history_text`。#833）。
+   `{asks}`（← `consult.asks_text` の頼みごとの節 `## 相談 <n>: 項目 <m>（単位: …）` と行〔今の範囲・out_of_scope と当たった glob と外した理由・足したいパス・テストの範囲・新しいテスト・当たり・理由・修正役の試したこと・範囲の中で直せない訳・根拠のファイルと行・承認ノードの条件の字〕。決まった文を除いた材料だけ）。
 6. 答えの JSON の欄の決まり（今の `QUESTION` の後半: ask・decision・paths・tests・new_tests〔red と guard〕・spec・reason、期待を実装に合わせる許しを出すな）。
 7. 人に見せる欄の言語の 1 文と `{lang}`（`reason`・`spec`）。
 
@@ -453,7 +454,7 @@ Write `reason` and `spec` in 依頼文の言語（利用者の言語）.
 今の指示は `lib/fixboard.py` の `CONSULT_HEAD`・`RIPPLE_READ`（:2019-2021）と `lib/consult.py` の `QUESTION`・`ASK_TEXT`・`ASK_GATE_TEXT`（:109-157）と `question`（:373）に在る（md は無い）。
 
 - 移した: 全部の決まった文を md へ。頼みごとの節の材料（見出し `## 相談 <n>` と行の札）は Python に残す（README 5.3 の項目ごとの札）。頼みごとに繰り返していた「答え方」の文は、頼みの種類（plain・gate）ごとに 1 回だけ md に置く。
-- 消した: 「（新しい会話）」（偽。13.3 の 1）。
+- 消した: 「（新しい会話）」（作り直しの時は偽。#833 の後も戻さない。13.3 の 1）。
 - 足した: 言語の 1 文と `{lang}`（今は言語の行が無く、`reason`・`spec` の言語を決めていなかった。README 5.3 の決まり）。
 - 英語にした。
 
@@ -783,7 +784,8 @@ node ごとの場面は 2〜6 節の 7。block 全体では:
 `report` は次の順の日本語の行（どれも今の lib が組む字のまま）:
 
 1. TDD のループの単位ごとの結末: `report.tdd_lines([(f"組 {g['group_id']}", g) for g in <tdd-unit.json の組>])`（今の `runreport._tdd_lines` の中身。段の名「修正の段」「案を直した後の修正の段」は line が節の見出しで付ける）。組の結果が無く `units` だけが在れば、今の `_tdd_lines` の代わりの行（「型つきの成果物 tdd-unit が一覧に無い」）は「組の TDD の記録が無い。修正の出力の単位の行で出す:」と単位の行に替える（成果物の名を持たない字）。
-2. 読んだ証拠: `reads-fix-block.json` の索引と `reads-<役>.json` ごとに、今の `runreport._evidence_line`・`_index_lines` と同じ字の 1 行（「<役>（<place の中の相対のパス>）: 渡した <n>・読んだ跡の無い <m>（…）」・測れない・落ちた）。README の report の設計書の 1.6 の「読んだ証拠の node を持つ block が自分の report の欄に組む」。
+2. 確かめ直しの `test_cmd` の赤を戻さなかった文: 当てたままにした組の行の `test_cmd_notes` ごとに「組 <group_id>: <文>」（`report.test_cmd_lines`。21 節）。
+3. 読んだ証拠: `reads-fix-block.json` の索引と `reads-<役>.json` ごとに、今の `runreport._evidence_line`・`_index_lines` と同じ字の 1 行（「<役>（<place の中の相対のパス>）: 渡した <n>・読んだ跡の無い <m>（…）」・測れない・落ちた）。README の report の設計書の 1.6 の「読んだ証拠の node を持つ block が自分の report の欄に組む」。
 
 `freeze_off` は `report.freeze_lines(<1 と同じ組>)`。最後の承認ノードと報告の冒頭が今 `fixbeside` で組む行（閉鎖の数え直し・回さなかった試験・確かめずに受けた関門・範囲の相談・clean が消したファイル・許したテストの変更）は、1 回目と 2 回目の段を合わせて読むので line が出力の pointer から組む（line の設計書。`fixbeside.read`・`closure_lines`・`tests_left_lines`・`gates_lines`・`plan_ask_lines`・`always_rows` の行き先）。
 
@@ -804,7 +806,7 @@ node ごとの場面は 2〜6 節の 7。block 全体では:
 ### 12.3 C（申し出・裁定・範囲の相談・関所の答え）
 
 - 住処は lib の `conflict`（1.5.2）・`src/ruling.py`・`src/consult.py`・`src/board.py`（`take_conflicts`・`gate_view`・`gate_asks`・`write_notes`・`consult_ask`）。
-- 違う行: F216（2 回目の段が 1 回目の申し出と裁定を見る）と F018・F023・F044 の読み口は、前の段の place のフォルダの代わりに port `prior`（出力 `carry`）から写す（13.1 の 5）。F218・F222（裁定の後の修正役と相談の答えの役が前の会話を継がない）は今のまま（Archon で不可）。相談の答えの役が同じ周の修正役の会話から分かれて起きる事は 13.3 の 1。F224・F225 の関所の答えは port `answers`・`request_answers`・`unattended` から（`asked` を付けるのは line）。F232（相談の番号の錠）は今も無い。
+- 違う行: F216（2 回目の段が 1 回目の申し出と裁定を見る）と F018・F023・F044 の読み口は、前の段の place のフォルダの代わりに port `prior`（出力 `carry`）から写す（13.1 の 5）。F218・F222（裁定の後の修正役と相談の答えの役が前の会話を継がない）は今のまま（Archon で不可）。相談の答えの役が同じ周の修正役の会話から分かれて起きていた事は 13.3 の 1（#833 で直した）。F224・F225 の関所の答えは port `answers`・`request_answers`・`unattended` から（`asked` を付けるのは line）。F232（相談の番号の錠）は今も無い。
 
 - 範囲の相談を減らす 2 つ（#687。run 9744721f・a170202f の相談 4 回の数えから）: 無人の run が推しで通した関所の条件（人の言葉でない再掲）は、その周にその項目で許しの行が既に在れば、答えの役に聞き直さない（`src/consult.py` の `gate_asks`・`_pushed_only`。人の条件は今までどおり聞く）。修正案の files の symbols に足すテスト（テストのファイルの change=add で名前が test で始まる）は、案のどれかの項目の `tests` にも書く（`lib/planmarks.py` の `gaps` の `_added_test_gaps`。案の受け付けで拒む。改名の新名が `tests` に無いと、修正役が相談で新名を頼むことになる）。symbols の add を足してよい新しいテストに機械が数える案は、TDD の赤の確かめを通らない試験が入る道になるので採らない。
 
@@ -858,11 +860,25 @@ node ごとの場面は 2〜6 節の 7。block 全体では:
 6. AI の node の `output_format` は今の字のまま写す（修正役の `precedent` の `allOf`・`if`・`then`・`not` も）。根拠: 形の検査の KNOWN_KEYWORDS の決まりは port の形のファイル（`schemas/`）の決まりで、役の返答の型は Archon が役に渡す型。同じ決まりは受け付け（`recount` の `precedent` の照らし。F120）にも在る。返りの node の `output_format` は `anyOf` を使わず `type: ["object","null"]` にする。
 7. 借りた字（superpowers の型・無人の読み替え `lib/borrow/unattended.md`・seams.json の効く所）は md に写さず値で入れる（`{template}`・`{seat_body}`・`{seat_notes}`・`{unattended}`）。根拠: local-review の設計書の決めと同じ（源は `lib/borrow/` の台帳）。
 
-### 13.3 見つけた今の不具合（直さない。作り直しの後に別に扱う）
+### 13.3 見つけた今の不具合（作り直しでは直さない。作り直しの後に別に扱う）
 
-どれも今壊れていると本物の run で確かめた物ではない。今の YAML とコードから、壊れる余地が在ると読めた物。作り直しは振る舞いを写すので、ここでは直さない。
+どれも今壊れていると本物の run で確かめた物ではない。今の YAML とコードから、壊れる余地が在ると読めた物。作り直しは振る舞いを写すので、ここでは直さない。ただし 1 は、作り直しの後に #833 で直した（1 の本文は直す前の記録で、直した形は 1 の下の「直した形」。1 の費用は、後で本物の run の記録から数えた）。
 
-1. 相談の答えの役（`consult-answer`・`ruled-consult-answer`）が、同じ周の修正役の会話から分かれて起きる。YAML に `context` が無く、止めた Archon は順に並んだ AI の node に直前の会話を継がせ（`dag-executor.ts:10230-10248` の `isFreshSequential`）、名指しの無い継ぎは会話を分ける（`:2405` の `forkSession`）。答えの役は修正役の会話の全部を見たまま修正案の側として答え、次の周の修正役は答えの役の会話の分かれを継ぐ。指示の文は新しい会話のつもりで書かれている（今の `CONSULT_HEAD`）。直し方の候補: 答えの役に `context: fresh` を置くと、次の周の修正役が答えの役の会話を継ぐ（修正役の会話が切れる）。loop の外の node の `context: {resume: …}` も同じ loop の中では使えない。直し方は別に決める。
+1. （#833 で直した）相談の答えの役（`consult-answer`・`ruled-consult-answer`）が、同じ周の修正役の会話から分かれて起きる。YAML に `context` が無く、止めた Archon は順に並んだ AI の node に直前の会話を継がせ（`dag-executor.ts:10230-10248` の `isFreshSequential`）、名指しの無い継ぎは会話を分ける（`:2405` の `forkSession`）。答えの役は修正役の会話の全部を見たまま修正案の側として答え、次の周の修正役は答えの役の会話の分かれを継ぐ。指示の文は新しい会話のつもりで書かれている（今の `CONSULT_HEAD`）。直し方の候補: 答えの役に `context: fresh` を置くと、次の周の修正役が答えの役の会話を継ぐ（修正役の会話が切れる）。loop の外の node の `context: {resume: …}` も同じ loop の中では使えない。直し方は別に決める。
+   - 費用: 修正役（群 `@wf-fix-writers`）と答えの役（群 `@wf-fix-consult`）は模型が違うので、答えの役は修正役の会話の履歴（1 回 13.6 万トークン前後）をキャッシュに当てられず、丸ごと書き直していた（#833。10-14〜10-23 の run で API の定価で約 $11.7）。
+   - 直した形: 答えの役（`consult-answer`・`ruled-consult-answer`）を、修正の輪の本体の中の、答えの役 1 つだけを置いた 1 周の輪（`consult-ask`・`ruled-consult-ask`。`loop_group: {max_iterations: 1, fresh_context: true, until_bash: "true"}`）の中に置く。`when:` と `depends_on:` は輪に置き、受け付け（`consult-accept`・`ruled-consult-accept`）は輪の返り `$consult-ask.output`（本体の唯一の終わりの答えの役の返りの字。`dag-executor.ts` の `loopGroupIterationOutput`）を受ける。答えの役の指示・道具・模型・返りの形は変えない。
+   - 効き方（止めた Archon の `dag-executor.ts`）: 輪の 1 周目は外の続き（輪の外で、直前の node の会話を次の node が継ぐ線）を持たずに起きる（`executeLoopGroupNode` の「lastSequentialSession: group.fresh_context || i === 1 ? undefined」）ので、答えの役は新しい会話。外の層の続きは返りに `sessionId` の在る node だけが替え（`runLayers` の「output.state === 'completed' && !isParallelLayer && output.sessionId !== undefined」）、輪の node の返りは人の答えを待って止まった時（`interactive_loop`）のほかに会話を持たないので、輪の後も外の続きは修正役の会話のまま。周の終わりの続き（`loopLastSequentialSession`）も修正役の会話で、次の周の修正役はそれを継ぐ。答えの役が飛んだ周（`when:` が偽）は今と同じ。入れ子の輪は止めた Archon の試験（`dag-executor.test.ts` の「EDGE H: nested loop_group」）が回す形。
+   - 採らなかった形: 答えの役に `context: fresh` を置く（完了した節の会話が外の続きになり、次の周の修正役が答えの役の会話を継ぐ）。答えの役を並んだ層に置く（並んだ層は外の続きを空にし、次の周の修正役が新しい会話になる）。修正役に `context: {resume: …}` を置く（同じ輪の本体の節を名指せず〔`loader.ts` の「context.resume cannot name a source inside the same loop_group body」〕、輪の前の AI の node を名指すと 1 周目の修正役がその会話を継ぐ）。答えの役を `workflow:` の子の run にする（輪の本体に `workflow:` は置けない。`loader.ts` の「'workflow' (sub-run) is not supported inside a loop_group body」）。
+   - E11: (1) Archon は「新しい会話で起き、外の続きを替えない節」の鍵を持たない（`context` は `fresh`・`shared`・`resume` だけ。`schemas/dag-node.ts` の `nodeContextSchema`）が、入れ子の輪は持つので、それを使う。部品を足さないので埋めの名簿（`docs/polyfills.md`）には載せない。(2) ASF の `.archon/workflows/sdlc/` に同じ場面（輪の中で別の模型の役を挟む形）は無い。(3) 要る: 2.7 と 3.7 の元の works は、範囲の相談を修正案を書いた役の会話の続きで答え、修正役は自分の会話を続けた。工場は修正案の役の会話を名指せない（3.7）ので答えの役は新しい会話で修正案を読み、修正役の会話のつながりは元のまま保つ（keep-essence の会話の続き。README 13 章の決め）。
+   - 試験: `tests/blocks/fix/test_yaml.py` の `ConversationCase`（修正の輪の本体に直に置く AI の node は修正役 1 つだけ・答えの役は答えの役 1 つだけの 1 周の `fresh_context: true` の輪の中）と、`tests/blocks/fix/test_consult.py` の `ConsultWiringCase`（受け付けが答えの役を置いた輪の返りを受ける）。
+   - 経緯の渡し方（持ち主の決め 2026-10-24。新しい会話の答えの役に、修正役の経緯を届ける）:
+     - 修正役は範囲の相談の行に、`why` のほかに 3 つの欄を必ず書く: `tried`（範囲の中で試したこと。1 行 1 件）・`blocked`（範囲の中で直せない訳。どこまで直して何に当たったか。10 字以上）・`evidence`（根拠のファイルと行 `{path, line}`。1 つ以上）。返りの形（YAML の `&fix_reply` の `consult`）が必須にし、書き方は `prompts/parts/fixer.md` の「Scope consultation and the pre-check」が持つ。
+     - 頼みの節（`consult_check`）の先の確かめ `consult.screen_ask` が、修正役の頼み（`origin` の無い行）の 3 つの欄を照らし、欠け・空・根の外のパス・1 未満の行が在れば答えの役に聞かずに断る（`consult.summary_problem`。断った訳は答えのファイルで修正役に戻る）。受け付けが積んだはみ出しの頼み（`origin: accept`）と人の関所の条件の頼み（`origin: gate`）は機械が立てた物なので照らさない。
+     - 答えの役の指示は、頼みごとの節に 3 つの欄を載せ（`consult.asks_text`）、同じ run の前の相談と答えの一覧（place の `trace.jsonl` の相談の行。組の子の place から親へ写した行も。`consult.history_text`）を段落 `history` に載せる。修正案とリポジトリは今までどおり自分で読む。
+     - 採らなかった形（どれも PR #844 のコメントに経緯）: 修正役の会話の写しを同じ模型の別の手番が引き継いで要約を作る形は、手番の返りの形が修正役と違うと Claude Code の道具の一覧（返りの形は道具 `StructuredOutput` として送られる）が変わってキャッシュが外れる（run `96f35545` の `review-fix` は、直前の `review` と同じ模型・同じ道具で返りの形だけ違い、2 秒後でもキャッシュの読み 0・書き込み 156,274）。修正役の中で `/compact` を掛ける形は、compact の呼び出しが節の道具の一覧で頭（キャッシュに当てる、送る中身の先頭）を組むので同じ訳でキャッシュが外れ、同じ返りの形を持たせると `/compact` が構造化の出力を返さず Archon が節を落とす。
+   - 費用の見込み（相談 1 回あたり。式は持ち主の覚え書き〔LLM のワークフローの費用の設計の手引き〕、値は実測と仮置き。持ち主の決め 2026-10-24）: 今の形（答えの役が修正役の会話を引き継ぐ。会話のキャッシュの寿命 5 分）約 $0.79、この形 約 $0.29。実測の材料: run 11 本の相談 17 回で、答えの役の平均は手番 4.2・キャッシュの書き込み 141,275・読み 254,580・出力 1,680 トークン。
+   - 次の run の記録で確かめること: 答えの役の書き込みの量（`node_complete` の `execution.spend.tokens` の `cacheWrite`。新しい会話なので、指示と読んだファイルの分だけに減るはず）と、答えの誤り（経緯を知らずに答えたために、修正役が同じ相談を出し直した・許すべき物を deny した・前の答えと食い違った）。
+   - 試験（経緯の渡し方）: `tests/blocks/fix/test_consult.py` の `SummaryCase`（3 つの欄の欠けを断る・機械の頼みは照らさない・3 つの欄が答えの役の指示に入る）・`HistoryCase`（前の相談と答えの一覧）・`ConsultPromptCase.test_history_paragraph_carries_earlier_answers`（段落 `history`）と、`tests/blocks/fix/test_fix_accept.py` の `test_consult_ask_screens_and_writes_the_question`（`board.consult_ask` が 3 つの欄の無い頼みを断る）。
 2. TDD の振り分けの段で役が作業ツリーを変えると拒むが、戻さない。3 回目の諦めでも戻さず、残った変更は修正の段の頭の木に入る（`tddloop._route`・`_abort`）。申し出の周（phase conflict）は書き込みの出どころを照らさない。
 3. `tdd-step` は `tddloop.step` が返す書き込みの照らしの結果（記録の無い run の知らせ）を trace に積まない。修正の受け付けも記録の無い run の印（`writes.NO_RECORD_OP`）を trace に書かない（手直しだけが書く）。
 4. `tdd-step-reject-<n>.md` の n は却下の回でなく呼び出しの総数。
@@ -934,7 +950,7 @@ node ごとの場面は 2〜6 節の 7。block 全体では:
 - 修正役（`fixer` の断片。今の `direct.md` の `fix-head`・`fix-keep`・`fix-ask`・`fix-consult-resume`・`fix-overflow-queued`・`fix-overflow-resume`・`fix-reply`）:
   - 読む物の 6 行（判定は背景で brief が正本・brief の無い run は判定が正本で先に全部読む・直す義務の key の集合は受け付けと同じ・修正案は全体を読まなくてよく plan_faces の key は貼った節に在る・方針の文書は先に全部読む・TDD の loop で直した単位は直し直さず changes に 1 行で red_seen を写し、そのテストのファイルを変えない〔rewrite_tests と fix_test_scope の範囲だけ例外〕・direct の単位はここで直す・承認ノードの答えのファイルは超えて削るな）。
   - 何も変えずに済んだと言うな。
-  - 範囲の相談: 範囲を広げるかは修正案の側が決める・黙って範囲の外を変えるな・申し出で起動を終える前に先に相談せよ・1 件 1 項目の欄（item・paths・tests・new_tests・why）・相談の周は受け付けが回らず作業ツリーの直しは残す・受け付けが見つけたはみ出しも機械が相談に回す・out_of_scope は外した理由が今立たない訳を書く・allow・deny・defer・答えが無い時のそれぞれの振る舞い・枠（9 回）を使い切った後は申し出・期待値を実装に合わせる書き換えを頼むな・下請けは相談できず報告する。事前の確かめ: 下書きを書いてコマンドを走らせ、`rejects` の行を直してから返す。
+  - 範囲の相談: 範囲を広げるかは修正案の側が決める・黙って範囲の外を変えるな・申し出で起動を終える前に先に相談せよ・1 件 1 項目の欄（item・paths・tests・new_tests・why・tried・blocked・evidence。後ろの 3 つが欠けた頼みは機械が断る。#833）・相談の周は受け付けが回らず作業ツリーの直しは残す・受け付けが見つけたはみ出しも機械が相談に回す・out_of_scope は外した理由が今立たない訳を書く・allow・deny・defer・答えが無い時のそれぞれの振る舞い・枠（9 回）を使い切った後は申し出・期待値を実装に合わせる書き換えを頼むな・下請けは相談できず報告する。事前の確かめ: 下書きを書いてコマンドを走らせ、`rejects` の行を直してから返す。
   - 続きの周 3 つ: 答えのファイルを全部読み、続けて直し、前と同じ欄の JSON を丸ごと返す・残りの相談の周・はみ出しの周は作業ツリーを変えずに同じ JSON・allow の外は機械が戻す（自分で戻すな）。
   - 下請けを回す 6 手順（項目の順に実装役を起こし、ファイルの中身を字を変えずに渡し、2 つ目からは引き継ぎの節を足す・差分のコマンドを走らせて審査役を起こし、実装役の最後のメッセージを貼る・審査が ❌ か Needs fixes なら起こし直し、3 回まで・3 回目も通らなければ symptom にして changes に載せる・出し直しと裁定の後は名指しの項目だけ・最後に差分を自分で確かめ、bash_writes を書く）と、loop で直した単位には下請けを起こさない・NEEDS_CONTEXT と BLOCKED は申し出（6 つの場面）・DISPATCH と DELEGATE の読み替えはこの役に効かない・下請けはさらに下請けを起こさない。
   - 返答の欄: changes は単位ごとにちょうど 1 行・unit_key は一字も変えずに・files は版から変わった物だけ・what・closure（sites を先に全部挙げ、1 か所ずつ退行を注入して赤→復元で緑・path の書き方と覆いの数え方）・coverage（class_query の在る単位は書かない・件数は機械が数える・塞いだ数の数え方・残すなら remaining・閉じたかは機械が決める・問いが正しい形に当たるなら申し出）・root_or_symptom・bypass_tried（「試していない」は書かない）・breaks（機械で引け・accepted）・precedent（一次情報を自分で引く・from_judge_row・not_found と searched）。周の全体: not_done・interactions（面ごと・3 つの突き合わせ）・fix_closure（clean は赤を見た時だけ・not_applicable は修正 0 件だけ）・plan_faces（key ごとに absorbed か declared）・wrote_refs（リンクにできない指し・機械が引き直す・Markdown のリンクで書け）・rejudge_requested・conflicts・consult・差分の形の変化の 6 つの申告（security_surface_changed は迷うなら true）・x_scalars。受け付けが見る物の結び。
@@ -964,7 +980,7 @@ bin/works-factory workflow run works-factory-fix --cwd <対象> \
 4. line の上げ直しが、今 fix の中の `redepth` だけが数えた「修正役の異議」（出力 `objection`）を信号に足すか（line の設計書）。
 5. delta-review の設計書が、fix の出力の `start_tree`・`reply`・`ruled_reply`・`scope`・`conflicts`・`checked` で足りるとするか（今の delta-review の材料は fix の place の `fix-reply.json`・`p2.plan_review.json`・`conflicts.json`・`trace.jsonl` の合意・方針を読んでいた）。足りなければ fix の出力の欄を足す（この設計書を直す）。
 6. 材料の行の札を英語にするか（13.2 の 5。組み込みで lib の文を md へ出す時）。
-7. 13.3 の不具合の直し方（とくに 1 の相談の答えの役の会話）。
+7. 13.3 の不具合の直し方（1 の相談の答えの役の会話は #833 で直した。本物の run で、答えの役の会話が新しく、次の周の修正役が修正役の会話を継ぐことは照らしていない）。
 8. 棚卸しで持ち主の確かめ待ちの 6 件（9 節の 2 つ目の項）は、この作り直しで変えない。
 
 ## 17 関わる試験だけで元の結末を取る（2026-10-20。持ち主の決め `related-tests-only`）
@@ -1031,3 +1047,31 @@ bin/works-factory workflow run works-factory-fix --cwd <対象> \
 - `tests/blocks/fix/test_prompts.py`: 修正役の指示の「直す前から壊れていた関わる試験」の行（表 `RENDERED` に `suite-fix`）。
 - `tests/blocks/line/test_gates.py`（「ついでに直した試験」の節と開ける理由）・`tests/blocks/line/test_head_plain.py`（報告の冒頭の止めの行）・`tests/blocks/line/test_fix_in.py`（`suite_made`）。`tests/blocks/line/fix_in_before_spec.json` は `fix-in` に欄 `suite_made` を足したので取り直した（値は全部 `false`）。
 
+## 20 確かめ直しで、直す前の版と比べる試験を名指しで走らせる（2026-10-23。#846）
+
+- 出どころ: issue #846。持ち主は、この直し方を issue にするという推しに「おしで。」と答えた。
+- 何を: 18 節の確かめ直しの 2 段目（`tdd.selected_problems`）は、直す前の結末に無い赤を、直す前の版（`rev`）を写した一時の作業ツリーで走らせて比べる（`tdd._base_reds`）。今までは今の木と同じ引数（変えた試験のファイルと `-k`）で実行器の既定の一式を回していたので、走らせる試験を差分から自分で選ぶ実行器（このリポジトリの `tests/changed.py` の形）では、差分の無い写しで比べたい試験が選ばれず、比べられなかった赤を新しい赤と数えて組を戻した（run 96f35545。18 節の終わり）。この節から、比べたい試験を名指し（`<根からのパス>::<クラス>::<名前>`。結末の行のモジュールからテストのファイルを引く `tdd._case_ids`）で、合図 `TDD_SUITE_ONLY=1` を付けて走らせる。
+- 比べの決まり（はい・いいえ）: 元の結末に無い赤の 1 件ごとに、写しの結末の同じ鍵（テストを 1 件に決める `classname::name`）の行を見る。
+  1. 写しで `failure` か `error` → 前から赤。新しい赤に数えない（今までと同じ。知らせに「版の写しでも赤だったので外した」）。
+  2. 写しで `passed` か `skipped` → 新しい赤。
+  3. 版にその試験のファイルが無い（この直しで足した試験）→ 比べるまでもなく新しい赤。
+  4. ほか（写しを作れない・実行器が走らない・名指しを引けない・名指しで走らせても写しの結末に出ない）→ 比べられなかった。
+- 比べられなかった赤: 組を当てた後の確かめ直し（`board.rerun_problem` に受け口 `uncompared` を渡す `join`）は、新しい赤に数えず組を戻す理由にしない。黙って前から赤として通さず、組の行の `uncompared` に鍵を名指し、run の報告の「人が決めること」の欄に「当てた後の確かめ直しで直す前の版と比べられなかった赤」として 1 件 1 行で載せて聞く（line の `facts.uncompared_rows`）。受け口を渡さない呼び（修正の受け付け）は今どおり赤のまま（修正役が直して出し直す。知らせに「比べられず赤のまま」）。合わせ役の受け付け `clash.problems` も 21 節から受け口を渡す。
+- 写しの結末の控え（`REV_CACHE`）は、版と実行器の組ごとに行を持ち、行にテストの鍵ごとの結末 `outcomes` を持つ。同じ版と実行器の行に、比べたいテストの鍵が全部在れば走らせない。
+- E11（根の `AGENTS.md`。仕組みを足す前に確かめる 3 つ）: (1) Archon（工場が上で動く道具）は、直す前の版と名指しで比べる仕組みを持たない（確かめ直しは工場の `join` の中の事）。(2) ASF も持たない（ASF の修正の流れは組を当てて確かめ直す段を持たない。18 節と同じ）。(3) 要る: README 10 節の keep-essence の 2（元から赤のテストの区別）を、走らせる試験を差分で選ぶ実行器でも保つ。比べられなかった赤を人に聞くのは、keep-essence の 1（直しで壊した赤を見逃さない）を、組を戻して費用を捨てずに保つため。元の works の `_green_after` は直す前の版と比べていなかった。
+
+## 21 確かめ直しの test_cmd の 1 回の赤と、合わせ役の道の比べられなかった赤で、正しい組を戻さない（2026-10-24。#855）
+
+- 出どころ: issue #855（#846 の続き）。持ち主の言葉は「まあようは、人間がＴＤＤするときどうするか？ってことだよ」「superpowerならどうするのよとか」、3 段目と合わせ役の道を 1 つの issue にまとめる案に「おｋ」（どれも 2026-10-24）。
+- この節の語: 組を戻すは、当てた組を親の作業ツリーから外すこと。組を外した木は、組を当てる前の親の作業ツリー（`join` は当てる前に取った `tdd.snapshot`、合わせ役の受け付けは控えの行の当て直す前の木 `before`）。
+- 3 段目（`board.cmd_verdict`）: 呼び手が組を外した木 `base` を渡す時、当てた後の木で `test_cmd` が緑でなければ、次の順に見る（はい・いいえ）。
+  1. 組を外した木の姿で `test_cmd` を 1 回走らせる（`board._cmd_without`。走らせた後は当てた姿へ戻し、外した木で出来たファイルも残さない。ただし `.gitignore` に当たるファイル〔ビルドの出力・キャッシュ〕は木の姿に入らないので戻さない。前からの `test_cmd` の走らせ方と同じ）。外した木へ写す・当てた姿へ戻すのが落ちた時、`join` の道では呼び手の `join_group` が組を戻し、合わせ役の道では `clash.problems` から受け付けの node（`clash_accept.py`）まで落ちる（前からの `rerun_problem` の例外と同じ扱い）。
+  2. 外しても赤 → 組のせいでない。組を戻さず、人にも聞かず、「前から赤（または環境）」の文（コマンドとログの末尾）を組の行の `test_cmd_notes` に置く。
+  3. 外した木の結果が取れない（コマンドを起こせない）→ 呼び手が受け口 `uncompared`（20 節の、比べられなかった赤を足す並び）を渡していれば戻さず、そこへ `test_cmd` の行を足して、run の報告の「人が決めること」の欄で人に聞く（20 節）。無ければ戻す。
+  4. 外すと緑 → 当てた木であと 2 回走らせる。1 回でも緑なら揺れと見て戻さず「揺れ」の文を `test_cmd_notes` に置く。3 回とも赤の時だけ戻す理由（文に「3 回とも赤」）。
+- `base` を渡さない呼びは今どおり 1 回の赤で戻す。`join` と合わせ役の受け付けは `base` を渡す。
+- 合わせ役の道: `clash.problems` も `rerun_problem` に受け口 `uncompared` と `base` を渡す。比べられなかった赤と `test_cmd` の前から赤・揺れは戻す理由にせず、控えの行の `uncompared`・`test_cmd_notes` に置き、受け付けを通れば `settle_repaired` が `join.json` の組の行の同じ名の欄に写す（line の `facts.uncompared_rows` が人に聞く）。合わせ役が自分で直せない赤のために 3 回合わせ直して裁定役まで回る事が無くなる。
+- 今までどおり止める物: 直しで足した新しい試験の赤（`tdd.selected_problems` の「版にその試験のファイルが無い」と `board.tests_moved`）と、名指しの試験の赤（1 段目）。どちらの道も変えない。
+- 根拠（my_notes の調べ）: 自分が起こしていない赤も名を挙げて報告する（superpowers 7.0.0 の test-driven-development）。揺れる赤はバグと見分けられないので走らせ直して見分ける（Fowler「Eradicating Non-Determinism in Tests」・Google の Flake Aware Culprit Finding、ICST 2023）。自分の直しが壊したなら戻す（Fowler「Continuous Integration」）。試せない版は良し悪しに数えない（git bisect の 125）。
+- E11（根の `AGENTS.md`）: (1) Archon は持たない（確かめ直しは工場の `join` の中の事）。(2) ASF も持たない（18 節と同じ）。(3) 要る: keep-essence の 1（直しで壊した赤を見逃さない）を、外すと緑で 3 回とも赤の組を戻すことで保ったまま、試験の 1 回の揺れや前からの赤で正しい組を戻して出し直しの費用を捨てる事（run 96f35545 で約 $122）を無くす。元の works の `_green_after` は `test_cmd` を 1 回だけ走らせていた。
+- 試験: `tests/blocks/fix/test_join.py` の `test_rerun_problem_tells_test_cmd_red_apart_on_the_tree_without_the_group`（3 段目の見分けの表と、`test_cmd_notes` と報告の行）・`tests/blocks/fix/test_clash.py` の `test_join_clash_repaired_with_an_uncompared_red_asks_a_human`（合わせ役の道）。

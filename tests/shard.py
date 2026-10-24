@@ -17,6 +17,8 @@
   子は直下の親が替わったら（親だけが止められた）終わり、子が途中で落ちたら、終わらなかったモジュールを赤にして最後の数えまで出す。
 - 名指しのパスだけを走らせる: `python3 -m tests.shard --paths PATH...`（tests/changed.py が使う）。
   同じ集め方で見つけたモジュールのうち、名指しのファイルか名指しのフォルダの下に在る物だけを走らせる。
+  手元の確かめなので、Archon を起こす試験を見送る旗 hermetic.ARCHON_DEFER_ENV を立てて子へ渡す（見送りの判断は tests/archon.py の
+  runner の 1 か所。CI の旗 REQUIRED が在れば見送らない）。見送った試験は最後の数えの前に名を並べる。
   頭（__init__.py）で読めないパッケージ（discover がパッケージ名の 1 件にする物）は、その下のパスでも選ぶ。
   試験のモジュールの集め方（discover と PATTERN）は suites() の 1 か所に在り、作業中の選びと CI の分けの両方がそこから読む。
 - 表を直す: CI の各分けが上げた秒数（artifact の `shard-seconds-<i>`）を取り、
@@ -74,7 +76,7 @@ def isolated(action: str, root: pathlib.Path, name: str = "") -> dict:
         output = pathlib.Path(tmp) / "result.json"
         request = {"action": action, "root": str(root), "name": name, "output": str(output),
                    "parent": os.getpid(), "scrubbed": hermetic._SCRUBBED}
-        env = hermetic.child_env(**hermetic.inherited(hermetic.ARCHON_CACHE_ENV, hermetic.ARCHON_REQUIRED_ENV))
+        env = hermetic.child_env(**hermetic.inherited(*hermetic.ARCHON_SETUP))
         done = subprocess.run([sys.executable, "-m", "tests.shard", "--child"], cwd=ROOT, env=env,
                               input=json.dumps(request), text=True)
         if done.returncode or not output.exists():
@@ -218,6 +220,11 @@ class Parallel:
             except BaseException:
                 pool.shutdown(cancel_futures=True)
                 raise
+        deferred = sorted({test.split("\n")[0] for name in done for test, why in done[name]["skipped"]
+                           if why.startswith(hermetic.ARCHON_DEFERRED)})   # 1 行目だけ（2 行目は docstring）
+        if deferred:
+            result.stream.write(f"\n{hermetic.ARCHON_DEFERRED}（{len(deferred)} 件）:\n" + "".join(f"  {t}\n" for t in deferred))
+            result.stream.flush()
         result.errors.extend((Recorded(f"{name} {BROKEN}"), text) for name, text in sorted(broken.items()))
         for name in sorted(done):
             outcome = done[name]
@@ -269,9 +276,11 @@ def main(argv: list[str]) -> int:
         return 0
     n = workers()   # 名は WORKS_FACTORY_ で始まり scrub が外すので、外す前に読む
     hermetic.scrub()
+    os.environ.pop(hermetic.ARCHON_DEFER_ENV, None)   # scrub は残す名なので、親のシェルの旗が --shard の道に漏れないよう外す。立てるのは --paths だけ
     found = suites(ROOT)
     if args.paths:
         names = pick(sorted(found), args.paths)
+        os.environ[hermetic.ARCHON_DEFER_ENV] = "1"   # 手元の確かめは Archon を起こさない（tests/archon.py の runner。CI は REQUIRED で回す）
         print(f"名指しのパスに当たる {len(names)} モジュールを回す（回さない: {len(found) - len(names)} モジュール。"
               f"全部は CI が回す）:")
         print("\n".join(f"  {name}" for name in names))

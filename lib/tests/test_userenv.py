@@ -38,7 +38,7 @@ class RecordCase(unittest.TestCase):
                userenv.RECORD: userenv.record({"HOME": "/u"})}
         self.assertFalse(userenv.ran(self.top))
         userenv.restore(env)
-        self.assertEqual(env, {"HOME": "/u", userenv.MARK: str(self.top / userenv.RAN_FILE)})
+        self.assertTrue(env == {"HOME": "/u", userenv.MARK: str(self.top / userenv.RAN_FILE)})
         self.assertFalse(userenv.ran(self.top))   # 印は起こす側が子を起こす直前に置く
         self.assertTrue(userenv.mark(env[userenv.MARK]))
         self.assertTrue(userenv.ran(self.top))
@@ -54,14 +54,14 @@ class RecordCase(unittest.TestCase):
     def test_restore_without_record_leaves_no_marker(self):
         env = {"HOME": "/run/home", userenv.RAN_DIR_ENV: str(self.top)}
         userenv.restore(env)
-        self.assertEqual(env, {"HOME": "/run/home"})
+        self.assertTrue(env == {"HOME": "/run/home"})
         self.assertFalse(userenv.ran(self.top))
 
     def test_restore_drops_every_inherited_control_name(self):
         """#532: 起動の殻と同じ制御の変数の組（CONTROL）を外す。控えが無ければ印のパスも置かない"""
         env = {"HOME": "/run/home", **{name: "stale" for name in userenv.CONTROL if name != userenv.RECORD}}
         userenv.restore(env)
-        self.assertEqual(env, {"HOME": "/run/home"})
+        self.assertTrue(env == {"HOME": "/run/home"})
 
     def test_ran_reads_only_the_marker(self):
         self.assertFalse(userenv.ran(None))

@@ -501,12 +501,42 @@ def _none_default_params(fn) -> frozenset:
     return frozenset(a.arg for a, d in pairs if isinstance(d, ast.Constant) and d.value is None and a.arg not in rebound)
 
 
+def _env_container(node) -> bool:
+    """環境の辞書そのもの: os.environ、か名が env・environ・*_env の変数（env.get(...)・env[...]・set(env) は辞書そのものでない）"""
+    name = node.attr if isinstance(node, ast.Attribute) else node.id if isinstance(node, ast.Name) else ""
+    return name == "environ" or name == "env" or name.endswith("_env")
+
+
+def _env_dumps(root: Path, path: Path) -> list[str]:
+    """assert に環境の辞書を丸ごと渡す形。落ちた時の報告が辞書の中身（資格の GH_TOKEN など）を公開の CI のログへ出す。
+    os.environ と env の変数は、位置の引数でもキーワードの引数（msg=・container=）でも、どの assert でも当てる
+    （assertIn・assertNotIn の 1 つ目の鍵の側だけ外す）。名前で見分けるので、e のような別の名で持つ辞書は見逃す"""
+    try:
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+    except (SyntaxError, UnicodeDecodeError):
+        return []   # 読めない字は _grep が UTF-8 の行で出す。構文の誤りは試験そのものが落ちる
+    out = []
+    for node in ast.walk(tree):
+        func = getattr(node, "func", None)
+        if not (isinstance(node, ast.Call) and isinstance(func, ast.Attribute) and func.attr.startswith("assert")):
+            continue
+        key_side = func.attr in ("assertIn", "assertNotIn")
+        values = [a for i, a in enumerate(node.args) if not (key_side and i == 0)]
+        values += [k.value for k in node.keywords if not (key_side and k.arg == "member")]
+        hit = [a for a in values if _env_container(a)]
+        if hit:
+            out.append(f"{_rel(root, path)}:{node.lineno}: 環境の辞書を {func.attr} に丸ごと渡さない（落ちると中身が CI のログに出る）。"
+                       "set(env) か env.get(鍵) で比べる")
+    return out
+
+
 def _hermetic_env(root: Path) -> list[str]:
     """E21: tests/ と lib/tests/ の試験の子の環境は hermetic.child_env で作る。os.environ を写す形と、env を渡さない子の起こし
-    （開発者のシェルや親の run が立てた名が子へ漏れて、同じ試験が場で違う結果を返す）を赤にする"""
+    （開発者のシェルや親の run が立てた名が子へ漏れて、同じ試験が場で違う結果を返す）と、assert に環境の辞書を丸ごと渡す形
+    （落ちた時に中身が公開の CI のログへ出る）を赤にする"""
     paths = [p for folder in (("tests",), ("lib", "tests")) for p in _files(root, *folder) if p.suffix == ".py"]
     copies = _grep(root, paths, (COPIED_ENVIRON, lambda m: f"子の環境は hermetic.child_env で作る。os.environ を写す {m[0]}"))
-    return copies + [line for path in paths for line in _envless_spawns(root, path)]
+    return copies + [line for path in paths for line in _envless_spawns(root, path) + _env_dumps(root, path)]
 
 
 ORIGIN_NAME = re.compile(r"^(factory|FACTORY|harness|\.factory|archon-)")

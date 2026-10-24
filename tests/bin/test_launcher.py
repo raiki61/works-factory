@@ -523,7 +523,7 @@ class LauncherTest(unittest.TestCase):
         self.assertEqual(env["ARCHON_TELEMETRY_DISABLED"], "1")
         self.assertEqual(env["DO_NOT_TRACK"], "1")
         self.assertEqual(env[place.PROVIDER_ENV], "claude")
-        self.assertNotIn("WORKS_FACTORY_ROOT", env, "run のノードへは --config の層で渡す")
+        self.assertNotIn("WORKS_FACTORY_ROOT", set(env), "run のノードへは --config の層で渡す")
 
     def test_continuing_commands_keep_the_root_for_runs_sealed_without_it(self):
         """#679 より前に始めた run の封じた層には WORKS_FACTORY_ROOT が無い。前の run を続ける命令の時だけ子の環境に置き、そうした run の
@@ -687,7 +687,7 @@ class LauncherTest(unittest.TestCase):
         """旗を置かない起動の子の env に userenv.RECORD が在り、その HOME が利用者の HOME。子の HOME・ARCHON_HOME・CLAUDE_CONFIG_DIR は
         家の下に隔離したまま"""
         env = self.reached(self.launch("workflow", "run", "works-factory-line"))["env"]
-        self.assertIn(userenv.RECORD, env)
+        self.assertIn(userenv.RECORD, set(env))
         self.assertEqual(json.loads(env[userenv.RECORD])["HOME"], str(self.home))
         home = self.default_home(self.target)
         for name in ("HOME", "ARCHON_HOME", "CLAUDE_CONFIG_DIR"):

@@ -1066,7 +1066,7 @@ class ChildEnv(NoRealManagedDir):
                "CLAUDE_CODE_USE_BEDROCK": "1", "CLAUDE_CODE_OAUTH_TOKEN": "old"}
         self.assertEqual(auth_launch.child_env(env, {"CLAUDE_CODE_OAUTH_TOKEN": TOKEN}, True),
                          {"HOME": "/iso", "CLAUDE_CODE_OAUTH_TOKEN": TOKEN})
-        self.assertEqual(auth_launch.child_env(env, {"ANTHROPIC_API_KEY": "k"}, False), env)
+        self.assertTrue(auth_launch.child_env(env, {"ANTHROPIC_API_KEY": "k"}, False) == env)
 
 
 class IsolatedLaunch(unittest.TestCase):

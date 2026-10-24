@@ -6,6 +6,7 @@ Read the ripple list {ripple_file} too (it names hits that are not in the scope)
 # Scope consultation (from the fixing stage)
 
 Another role is fixing the fix plan you wrote. From the fixing side, {count} scope consultation(s) came. Whether to widen the scope is a specification decision, and you decide it. Decide from your thinking when you wrote the plan and from the current repository (you can read it with Read, Grep, and Glob; you have no tools that write).
+Each consultation from the fixing side also carries what it tried, why it cannot fix the unit within the scope (how far it got and what it hit), and the files and lines that ground it. You start in a new conversation and do not see the fixing side's work otherwise, so open those lines yourself before you decide.
 For a consultation whose requested paths hit out_of_scope (things not to touch), the hit globs and the reasons for excluding them are listed. If you wrote it in this item's out_of_scope, reconsider whether the reason for the exclusion still holds, compared with the fixing side's reason: if allow, only that path leaves out_of_scope for this item and enters the scope. If the reason still holds, deny. If you allow something that hits another item's out_of_scope, it passes only as a change of this item's units (that item's out_of_scope does not change).
 <!-- if plain -->
 
@@ -15,6 +16,12 @@ How to answer a request for paths and tests: allow only from what was requested 
 
 How to answer a consultation about a condition given at the approval node (the condition is quoted as is; it is what a person answered before the fix, or the recommendation an unattended run took (marked "無人の run が採った推し" on the line just before it), and it cannot be cut beyond the scope and conditions it lets through): decide the paths to add, the ranges of existing tests to rewrite, and the new tests to add (id and red kind) that this item needs to meet the condition. If the condition does not concern this item, deny.
 <!-- end gate -->
+
+<!-- if history -->
+
+Earlier consultations in this run and their answers (oldest first; the machine wrote them from the record, and the text after each arrow is the answer or why it was not asked). Keep your answers consistent with them; if the repository now shows a reason to answer differently, say so in `reason`:
+{history}
+<!-- end history -->
 
 {asks}
 

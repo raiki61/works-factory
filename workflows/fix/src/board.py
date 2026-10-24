@@ -284,7 +284,7 @@ def same_red(test_id: str, before, after) -> bool:
 
 
 def rerun_problem(place, repo, suite: str, cases, named, *, name: str = "rerun", rev: str = "HEAD", shared=(),
-                  test_cmd: str = "", old_red=None) -> str:
+                  test_cmd: str = "", old_red=None, uncompared=None, base: str = "", cmd_notes=None, skip=()) -> str:
     """組を親の作業ツリー repo へ当てた後の確かめ直しの問題の文（空なら通った。実行器 suite の無い run も空）。元
     works/blk-fix/lib/tddlanes.py:688-711 の _green_after（当てた単位の名指し全部と変更に直に関わる試験を 1 回走らせ、重なりの
     ファイルが在れば地図が届く試験の全部も足し、test_cmd の関門が on なら test_cmd も 1 回）を、組ごとの確かめにした物。
@@ -292,9 +292,13 @@ def rerun_problem(place, repo, suite: str, cases, named, *, name: str = "rerun",
        居ない（0 件を含む）・緑でなければその文（_RunnerDown を戻す理由にした所）。ただし直す前の結末 cases と照らして前から同じ形で
        赤の名指し（same_red）は戻す理由にせず、「名指し（結末の語: 失敗の文）」の文を old_red（呼び手が渡した並び）に足す（#837）。
     2. 名指しの無い組（修正役だけが直した組）も、変えたファイルに当たる試験の新しい赤を tddloop.selected_problems で見る（元の
-       結末 cases に無い赤は版 rev の写しで確かめる）。前に戻した組とも重なったファイル shared が在れば、それを起点に地図が届く
+       結末 cases に無い赤は版 rev の写しでその試験を名指しで走らせて確かめる）。写しの結末に出ず比べられなかった赤は、uncompared
+       （呼び手が渡した並び）が在れば戻す理由にせずその鍵を足す（呼び手が報告で人に聞く。#846）。前に戻した組とも重なったファイル shared が在れば、それを起点に地図が届く
        試験の全部（tddloop._reached の direct_only 偽。地図が一式を求める時は足さない）を選びに足す（元 tddlanes.py:695-698）。
-    3. 赤が無く test_cmd（関門が on の時だけ呼び手が渡す。rerun_cmd）が在れば 1 回走らせ、緑でなければその文。
+    3. 赤が無く test_cmd（関門が on の時だけ呼び手が渡す。rerun_cmd）が在れば 1 回走らせ、緑でなければその文。ただし組を当てる前の
+       木 base（tdd.snapshot。skip の頭の下は数えない）を呼び手が渡せば、赤を 1 回で戻す理由にせず cmd_verdict で見分ける（#855）:
+       外した木でも赤なら前から赤（または環境）、外すと緑で走らせ直しに 1 回でも緑が在れば揺れと見て戻さず、その文を cmd_notes
+       （呼び手が渡した並び）に足す。外した木の結果が取れなければ uncompared（在れば）に足して人に聞く。3 回とも赤の時だけ戻す理由。
     shared の在る組の赤は意味の食い違い（SEMANTIC_CLASH）と名指す。走らせ直しの状態とログは置き場の <name>/ に置く"""
     import baseline_red
     from src import tdd as tddloop
@@ -330,15 +334,82 @@ def rerun_problem(place, repo, suite: str, cases, named, *, name: str = "rerun",
             if not everything:
                 st["units"][name]["test_files"] = wide
         state = write_json(work / tddloop.STATE, st)
-        probs, _ = tddloop.selected_problems(str(state), repo, rev)
+        probs, _ = tddloop.selected_problems(str(state), repo, rev, uncompared=uncompared)
     if not probs and (test_cmd or "").strip():
-        log = work / "test-cmd.log"
-        mat, _ = tddloop._cmd_run(repo, test_cmd.strip(), log)
-        if mat["status"] != "clean":
-            probs = [f"run の test_cmd（{test_cmd.strip()}）が当てた後の木で緑でない（"
-                     f"{mat.get('rewrote') or mat.get('reason') or f'ログ {log}'}）"]
+        probs = cmd_verdict(repo, test_cmd.strip(), work, base=base, notes=cmd_notes, uncompared=uncompared, skip=skip)
     why = "；".join(probs)
     return SEMANTIC_CLASH.format(files="・".join(shared), why=why[:300]) if why and shared else why
+
+
+CMD_RED = "run の test_cmd（{cmd}）が当てた後の木で緑でない（{said}）"
+CMD_STILL_RED = "（走らせ直しも 3 回とも赤で、組を外した木では緑）"
+CMD_OLD_RED = "前から赤（または環境）: run の test_cmd（{cmd}）は当てた後の木で赤だが、組を外した木でも赤なので組のせいにしない（{said}）"
+CMD_FLAKY = ("揺れ: run の test_cmd（{cmd}）は当てた後の木で赤、組を外した木で緑、当てた木で走らせた {runs} 回（1 回目を含む）のうちに"
+             "緑が在ったので組を戻さない（赤の回: {said}）")
+CMD_UNCOMPARED = "test_cmd（{cmd}）: 当てた後の木で赤で、組を外した木で走らせた結果が取れず比べられない（{said}）"
+CMD_TRIES = 3   # 外すと緑の時に当てた木で走らせる回の数（1 回目を含む。#855）
+
+
+def _cmd_said(mat: dict, log) -> str:
+    """test_cmd の 1 回の素材（tdd._cmd_run）の訳: 書き換えの文か起こせない訳か、コマンドの出力（ログ log の末尾）"""
+    if mat.get("rewrote") or mat.get("reason"):
+        return mat.get("rewrote") or mat.get("reason")
+    try:
+        tail = oneline.one_line(pathlib.Path(log).read_text(encoding="utf-8", errors="replace"))[-300:]
+    except OSError:
+        tail = ""
+    return f"ログ {log}" + (f" の末尾: {tail}" if tail else "")
+
+
+def _cmd_without(repo, base: str, cmd: str, log, skip=()) -> dict:
+    """組を外した木（当てる前の木 base）の姿で test_cmd を 1 回走らせた素材。走らせる前に今の木を控え、走らせた後は控えの姿へ
+    戻す（外した木で test_cmd が作ったファイルも残さない）。戻せなければ落ちる（join の道は呼び手の join_group が組を戻し、合わせ役の道は
+    受け付けの node が落ちる）。.gitignore に当たるファイルは木の姿に入らないので戻さない"""
+    from src import tdd as tddloop
+    now = tddloop.snapshot(repo)
+    paths = [p for p in tddloop.touched(repo, base, now) if not p.startswith(tuple(skip))]
+    tddloop.restore_paths(repo, base, paths)
+    try:
+        mat, _ = tddloop._cmd_run(repo, cmd, log)
+    finally:
+        tddloop.restore_paths(repo, now, [p for p in tddloop.touched(repo, now, tddloop.snapshot(repo))
+                                          if not p.startswith(tuple(skip))])
+    return mat
+
+
+def cmd_verdict(repo, cmd: str, work, *, base: str = "", notes=None, uncompared=None, skip=()) -> list:
+    """当てた後の木で test_cmd を走らせた戻す理由（rerun_problem の 3 段目。空なら戻さない）。1 回目が緑なら空。赤で base が無ければ
+    その文（今までの 1 回の決め）。base が在れば組を外した木で走らせて見分ける（#855。人が TDD で自分の直しのせいかを見る順）:
+    1. 外した木でも赤 → 組のせいでない。CMD_OLD_RED を notes に足して空。
+    2. 外すと緑 → 当てた木であと 2 回走らせ、3 回とも赤なら戻す理由（CMD_STILL_RED を添える）。1 回でも緑なら CMD_FLAKY を notes に足して空。
+    3. 外した木の結果が取れない（起こせない）→ uncompared が在れば CMD_UNCOMPARED を足して空（人に聞く）、無ければ戻す理由。
+    ログは work/test-cmd.log（1 回目）・test-cmd-base.log（外した木）・test-cmd-<k>.log（走らせ直し）"""
+    from src import tdd as tddloop
+    work = pathlib.Path(work)
+    log = work / "test-cmd.log"
+    mat, _ = tddloop._cmd_run(repo, cmd, log)
+    if mat["status"] == "clean":
+        return []
+    red = CMD_RED.format(cmd=cmd, said=_cmd_said(mat, log))
+    if not base:
+        return [red]
+    keep = notes if notes is not None else []
+    base_log = work / "test-cmd-base.log"
+    was = _cmd_without(repo, base, cmd, base_log, skip)
+    if was["status"] == "not_run":
+        if uncompared is None:
+            return [red]
+        uncompared.append(CMD_UNCOMPARED.format(cmd=cmd, said=_cmd_said(was, base_log)))
+        return []
+    if was["status"] != "clean":
+        keep.append(CMD_OLD_RED.format(cmd=cmd, said=_cmd_said(was, base_log)))
+        return []
+    for k in range(2, CMD_TRIES + 1):
+        again, _ = tddloop._cmd_run(repo, cmd, work / f"test-cmd-{k}.log")
+        if again["status"] == "clean":
+            keep.append(CMD_FLAKY.format(cmd=cmd, runs=k, said=_cmd_said(mat, log)))
+            return []
+    return [red + CMD_STILL_RED]
 
 
 def rerun_cmd(place, result, test_cmd: str) -> str:
@@ -397,19 +468,22 @@ def join_group(repo, from_tree: str, end_tree: str, kept, *, union=(), check=Non
     return lanekit.Merge(why, str(kept), [], [], False, names)
 
 
-def join_rows(groups, outcomes, backed_out=None, unrestored=None, old_red=None) -> tuple:
+def join_rows(groups, outcomes, backed_out=None, unrestored=None, old_red=None, uncompared=None, test_cmd_notes=None) -> tuple:
     """(組の行 [{group_id, unit_ids, returned, reason, backed_out?, unrestored?}], 単位の行 [{unit_id, group_id, status, reason}])
     （返す節の約束の形）。outcomes は {group_id: (子の結果の dict か None, 戻せたか, 理由)}。戻せた組の単位は子の結果の status・reason
     （結果に無い単位・知らない status は not_done）、戻せなかった組・結果の無い組の単位は not_done と組の理由。backed_out は
     {group_id: 当ててから確かめ直しが赤か落ちて戻したパス}、unrestored は {group_id: 戻せず当たったままのパス}（lanekit.Merge の
     同じ名の欄）で、在る組の行にだけ同じ名の欄を置く（報告と後の節が当てなかった組と分ける）。old_red は {group_id: 確かめ直しで
-    前から同じ形で赤だったので戻す理由にしなかった名指しの文}（rerun_problem の old_red。#837）で、在る組の行にだけ同じ名の欄を置く。
+    前から同じ形で赤だったので戻す理由にしなかった名指しの文}（rerun_problem の old_red。#837）、uncompared は {group_id: 確かめ直しで
+    直す前の版と比べられなかったので戻す理由にしなかった赤の鍵}（rerun_problem の uncompared。#846）、test_cmd_notes は {group_id:
+    確かめ直しの test_cmd の赤を前から赤か揺れと見て戻す理由にしなかった文}（rerun_problem の cmd_notes。#855）で、在る組の行にだけ同じ名の欄を置く。
     新しい（元の締めの結末の並べ。p3.lane_merge）"""
     rows, units = [], []
     for g in groups:
         gid = g["group_id"]
         result, back, why = outcomes.get(gid, (None, False, NO_RESULT))
-        marks = {k: list(v) for k, given in (("backed_out", backed_out), ("unrestored", unrestored), ("old_red", old_red))
+        marks = {k: list(v) for k, given in (("backed_out", backed_out), ("unrestored", unrestored), ("old_red", old_red),
+                                                    ("uncompared", uncompared), ("test_cmd_notes", test_cmd_notes))
                  if (v := (given or {}).get(gid))}
         rows.append({"group_id": gid, "unit_ids": list(g["unit_ids"]), "returned": bool(back), "reason": str(why or ""), **marks})
         got = {u.get("unit_id"): u for u in (result or {}).get("units") or [] if isinstance(u, dict)} if back else {}
@@ -1795,8 +1869,7 @@ def consult_ask(place, reply, pass_: str, items, *, node: str, human_items=(), r
     rows = []
     for n, a in enumerate(asks, 1):
         new_tests = a.get("new_tests") or []
-        why = consult.screen(table, a["item"], a["paths"], a["tests"], a["why"], new_tests,
-                             gate=a.get("origin") == consult.ORIGIN_GATE)
+        why = consult.screen_ask(table, a)
         hits = consult.oos_hits(table, a["item"], a["paths"] + [consult._test_file(x) for x in new_tests], a["tests"]) \
             if a["item"] in table else []
         rows.append({**a, "n": n, "out_of_scope": hits,
