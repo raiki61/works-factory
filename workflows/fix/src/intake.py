@@ -19,7 +19,7 @@ SCHEMAS = {"judgment": "shared:judgment.schema.json", "plan": "plan-fields.schem
            "prior": "carry.schema.json", "only_items": "only-items.schema.json", "group": "group.schema.json",
            "excluded": "excluded.schema.json"}
 FILES = ("ripple", "baseline", "policy", "request")
-FLAGS = {"unattended": False, "parallel": True}
+FLAGS = {"unattended": False, "parallel": True, "suite_made": False}
 TEXTS = ("notes", "test_cmd", "tdd_suite", "reuse_dir", "reuse_key", "user_env_dir", "from_tree", "out_dir", "lang")
 DEFAULTS = {"judgment": None, "plan": None, "fix_plan": None, "answer_ties": None, "materials": None, "skip_rerun": [],
             "answers": None, "request_answers": [], "plan_review": None, "prior": None, "only_items": [], "group": None,
@@ -90,7 +90,7 @@ def run_values(doc: dict, run_id: str) -> dict:
             "reuse_dir": doc["reuse_dir"], "user_env_dir": doc["user_env_dir"], "lang": doc["lang"], "policy": doc["policy"],
             "request_file": doc["request"], "answers": doc["request_answers"], "unattended": doc["unattended"],
             "parallel": doc["parallel"], "skip_rerun": doc["skip_rerun"], "excluded": excluded_rows(doc.get("excluded")),
-            "routes": doc.get("routes") or "auto"}
+            "routes": doc.get("routes") or "auto", "suite_made": doc.get("suite_made") is True}
 
 
 def excluded_rows(got) -> list:

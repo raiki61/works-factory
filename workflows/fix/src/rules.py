@@ -248,7 +248,10 @@ def tests_rows(got, edits: dict, frozen=None) -> str:
     # 凍結の照らしは輪が確かめた書き換えを許しから外すので、事後の関門が id で許しても全体では拒まれる
     lines += [f"- 本体を変えてよい既存のテストの名指し（修正案の rewrite_tests と、修正案が消す名を名指すテスト）: "
               f"{_paths_line([t for t in edits['tests'] if t not in verified])}",
-              f"- 本体を変えてよい既存のテストの範囲（範囲の相談で許された範囲と、裁定 fix_test_scope の範囲）: {_paths_line(edits['limits'])}"]
+              f"- 本体を変えてよい既存のテストの範囲（範囲の相談で許された範囲と、裁定 fix_test_scope の範囲）: "
+              f"{_paths_line([x for x in edits['limits'] if x not in (edits.get('broken') or [])])}"]
+    if edits.get("broken"):
+        lines.append(f"- 直す前から壊れていた関わる試験（ついでに直してよい。最後の承認ノードに出る）: {_paths_line(edits['broken'])}")
     files = (frozen or {}).get("files") or []
     if files:
         lines.append(f"- 凍ったテストのファイル（TDD のループが緑にした単位のテスト）: {_paths_line(files)}")

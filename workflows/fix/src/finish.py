@@ -196,6 +196,12 @@ def _common(place, repo, rows_groups, groups, extras, results, *, ok, reason, fi
             "freeze_off": report.freeze_off(tdd_rows), "report": report.lines(place, tdd_rows, units_rows, repo)}
 
 
+def suite_broken(results) -> list:
+    """起動スクリプトが書き直しても壊れたままで止めた組の id（組の結果の tdd の suite_broken。docs/design/fix.md の 19 節）"""
+    return [str(r.get("group_id")) for r in results
+            if isinstance(r, dict) and isinstance(r.get("tdd"), dict) and r["tdd"].get("suite_broken") is True]
+
+
 def whole(place, repo) -> dict:
     """全体の形の出力（今の collect.block から差分の審査の欄を外した物）"""
     import conflict
@@ -221,7 +227,8 @@ def whole(place, repo) -> dict:
     extras = results + ([ruled] if ruled is not None else [])
     checked = board.read_json(place / board.ASSERT_FILE) or {}
     checked = {"ok": checked.get("ok") is True, "reason": str(checked.get("reason") or ("" if checked else "assert-changed が走らなかった"))}
-    stop = stopby.UNRESTORED if board.held(place) else ""
+    broken = suite_broken([board.usable_result(pathlib.Path(plan["out_dir"]) / g["group_id"]) for g in plan["groups"]])
+    stop = stopby.UNRESTORED if board.held(place) else (stopby.SUITE_BROKEN if broken else "")
     ok = isinstance(joined, dict) and checked["ok"] and not stop
     reason = "" if ok else (JOIN_MISSING if not isinstance(joined, dict) else stop or checked["reason"])
     reply = board.group_fix_reply(place)
@@ -253,8 +260,10 @@ def group(place, repo, doc: dict) -> dict:
     final = (board.final_lines(extras, "handoffs"), board.final_lines(extras, "mismatched"), board.final_titles(extras))
     tdd_rows = board.tdd_units([g], {gid: result})
     reply = place / board.FIX_REPLY_FILE
-    return _common(place, repo, rows_groups, [g], extras, [], ok=result is not None,
-                   reason="" if result is not None else board.NO_RESULT, final=final, tdd_rows=tdd_rows,
+    import stopby
+    stop = stopby.SUITE_BROKEN if suite_broken([result]) else ""
+    return _common(place, repo, rows_groups, [g], extras, [], ok=result is not None and not stop,
+                   reason=(str(result["tdd"].get("reason") or stop) if stop else "") if result is not None else board.NO_RESULT, final=final, tdd_rows=tdd_rows, stop=stop,
                    reply=_ptr(reply), start_tree=board.start_tree(place))
 
 

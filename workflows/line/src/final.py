@@ -40,6 +40,8 @@ from src import files, gates, stages
 PROTECTED_HEAD = "守りのパスを触った"
 PROTECTED_UNKNOWN = "守りのパスを確かめられなかった"   # merge が確かめられなかった行（lib/seal.py の UNKNOWN_HEAD）の見出し
 ALLOWED_TESTS_HEAD = "書き換えを許したテストを触った"
+ALONG_HEAD = "ついでに直した試験"   # 関わる試験で直す前から壊れていた物を修正役が直した（許しの出どころ broken。#836・docs/design/fix.md の 19 節）
+ALONG_SOURCE = fixboard.ALLOWED_SOURCES[3]
 ALLOWED_UNCHECKED = "封じた差分が無い・読めないので、許した行が差分に在るかを照らしていない（許した行をみな並べた）"
 CONFLICT_UNREAD = "食い違いの申し出の控えを読めない"
 BESIDE_UNREAD = "修正の段の控えを読めない"
@@ -85,7 +87,12 @@ def unpassed_eyes(got: dict) -> list:
 
 
 def allowed_count(got: dict) -> int:
-    return len({row.get("path") for row in got["allowed_tests"]})
+    return len({row.get("path") for row in got["allowed_tests"] if row.get("source") != ALONG_SOURCE})
+
+
+def along_rows(got: dict) -> list:
+    """封じた差分が触った許しの行のうち、ついでに直した試験（出どころ broken）の行"""
+    return [row for row in got["allowed_tests"] if row.get("source") == ALONG_SOURCE]
 
 
 def left_objection(got: dict) -> str:
@@ -119,8 +126,10 @@ def needs(got: dict) -> list:
         why.append((f"{PROTECTED_UNKNOWN}（人の確かめが要る）", True))
     if hits:
         why.append((f"{PROTECTED_HEAD}（{got['protected_count']} 件。人の確かめが要る）", True))
-    if got["allowed_tests"]:
+    if allowed_count(got):
         why.append((f"{ALLOWED_TESTS_HEAD}（{allowed_count(got)} 件。人の確かめが要る）", True))
+    if along_rows(got):
+        why.append((f"{ALONG_HEAD}が在る（{len({r.get('path') for r in along_rows(got)})} 件。人の確かめが要る）", True))
     word = tests_word(got)
     if word != "緑":
         why.append((f"最後のテストが{word}", False))
@@ -187,11 +196,17 @@ def protected_section(got: dict) -> list:
                   *[f"- {p}" for p in hits],
                   f"- 差分: git -C {got['worktree']} diff {got['base_rev'][:12] or '<起点の版が記録に無い>'} -- <パス>（未追跡は新しいファイル）",
                   f"- 一覧: {protect.MANIFEST}", ""]
-    if got["allowed_tests"]:
+    if allowed_count(got):
         lines += [f"## {ALLOWED_TESTS_HEAD}（{allowed_count(got)} 件。承認済みの案と範囲の相談と裁定が書き換えを許したテスト。"
                   "通すのは人の答えだけ）", "",
-                  *[f"- {row.get('path')}（許し {row.get('permit')}・{row.get('source')}）" for row in got["allowed_tests"]],
+                  *[f"- {row.get('path')}（許し {row.get('permit')}・{row.get('source')}）" for row in got["allowed_tests"]
+                    if row.get("source") != ALONG_SOURCE],
                   *([ALLOWED_UNCHECKED] if got["allowed_untouched"] is None else []), ""]
+    if along_rows(got):
+        lines += [f"## {ALONG_HEAD}（{len({r.get('path') for r in along_rows(got)})} 件。直しに関わる試験で、直す前から落ちていた物を修正役が"
+                  "直しと一緒に直した。試験が確かめる中身を弱めていないかを人が確かめる。通すのは人の答えだけ）", "",
+                  *[f"- {row.get('path')}（許し {row.get('permit')}）" for row in along_rows(got)],
+                  *([ALLOWED_UNCHECKED] if got["allowed_untouched"] is None and not allowed_count(got) else []), ""]
     if got["allowed_untouched"]:
         lines += [f"- 書き換えを許したが封じた差分が触らなかったテスト: {got['allowed_untouched']} 件（確かめは要らない）", ""]
     return lines

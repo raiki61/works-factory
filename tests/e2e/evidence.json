@@ -36,7 +36,7 @@
 {"id": "L-E35", "kind": "scenario-only", "why": "筋書きでのみ（種は policy_md を名指さない。在れば start.json の policy_md）"},
 {"id": "L-E36", "kind": "scenario-only", "why": "筋書きでのみ"},
 {"id": "L-E37", "kind": "seed-cannot", "why": "inputs.lang が空で start.json の lang が ''（c0e26106・a1b08bc8）", "check": "json-has", "where": "parent/r1/start.json", "path": "lang"},
-{"id": "L-E38", "kind": "seen", "writer": "workflows/test-gate/scripts/run.py::main", "check": "text-contains", "where": "parent/test-gate-base/run.json", "text": "python3 -m unittest -v（起こし方 direct）を対象の根で走らせた"},
+{"id": "L-E38", "kind": "seen", "writer": "workflows/test-gate/scripts/run.py::main", "check": "text-contains", "where": "parent/test-gate-final/run.json", "text": "python3 -m unittest -v（起こし方 direct）を対象の根で走らせた"},
 {"id": "L-E39", "kind": "scenario-only", "why": "筋書きでのみ"},
 {"id": "L-E40", "kind": "scenario-only", "why": "筋書きでのみ"},
 {"id": "L-E41", "kind": "backlog", "why": "決めた物（この文書の PR は触らない。行き先で当てる）"},

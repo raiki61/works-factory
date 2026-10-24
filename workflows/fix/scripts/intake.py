@@ -34,6 +34,7 @@ RAW = {
     "request": os.environ.get("INPUTS_REQUEST"),
     "unattended": os.environ.get("INPUTS_UNATTENDED"),
     "parallel": os.environ.get("INPUTS_PARALLEL"),
+    "suite_made": os.environ.get("INPUTS_SUITE_MADE"),
     "notes": os.environ.get("INPUTS_NOTES"),
     "test_cmd": os.environ.get("INPUTS_TEST_CMD"),
     "tdd_suite": os.environ.get("INPUTS_TDD_SUITE"),

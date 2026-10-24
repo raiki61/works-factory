@@ -2,7 +2,8 @@
 
 欄: tdd_suite・test_cmd・reuse_key・reuse_dir・user_env_dir・lang・policy（人の方針の文書のパス）・request_file（依頼のファイルの
 パス）・answers（依頼のファイルが先に持っていた問いへの答えの行。今の始めの記録の answers）・unattended・parallel・skip_rerun・
-excluded（並行 PR に回した hunk の行 {pr, file, start, end, why}。受け付けが触った返答を拒む）・routes（単位ごとの道の決め方。auto か plan）。
+excluded（並行 PR に回した hunk の行 {pr, file, start, end, why}。受け付けが触った返答を拒む）・routes（単位ごとの道の決め方。auto か plan）・
+suite_made（tdd_suite が工場の書いた実行器で、壊れていれば書き直させてよい。docs/design/fix.md の 19 節）。
 組の子は親の物を写す（adopt。子の with: は mode・from_tree・out_dir・group だけ）。
 """
 from __future__ import annotations
@@ -14,10 +15,10 @@ import pathlib
 from src import files
 
 KEYS = ("tdd_suite", "test_cmd", "reuse_key", "reuse_dir", "user_env_dir", "lang", "policy", "request_file", "answers",
-        "unattended", "parallel", "skip_rerun", "excluded", "routes")
+        "unattended", "parallel", "skip_rerun", "excluded", "routes", "suite_made")
 DEFAULTS = {"tdd_suite": "", "test_cmd": "", "reuse_key": "", "reuse_dir": "", "user_env_dir": "", "lang": "", "policy": "",
             "request_file": "", "answers": [], "unattended": False, "parallel": True, "skip_rerun": [],
-            "excluded": [], "routes": "auto"}
+            "excluded": [], "routes": "auto", "suite_made": False}
 
 
 def _save(path: pathlib.Path, doc) -> None:

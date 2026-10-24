@@ -10,6 +10,7 @@ import prompt
 
 import baseline_red      # lib/
 import declared_checks   # lib/
+import suitewrite        # lib/
 
 from src import suite
 
@@ -25,9 +26,5 @@ def suite_write(place, intake: dict) -> dict:
 
 
 def fence_of(text: str) -> str:
-    """text を囲むバッククォートの柵: 3 つ以上で、text の中のバッククォートの最長の並びより 1 つ長い"""
-    longest = run = 0
-    for ch in text:
-        run = run + 1 if ch == "`" else 0
-        longest = max(longest, run)
-    return "`" * max(3, longest + 1)
+    """text を囲むバッククォートの柵（lib/suitewrite.fence。修正の段の書き直しの指示と同じ口）"""
+    return suitewrite.fence(text)

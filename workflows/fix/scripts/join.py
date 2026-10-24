@@ -38,7 +38,7 @@ def main() -> dict:
         repo = Path.cwd()
         log = writelog.log_here()
         start = runvals.read(place)
-        cases = (board.read_json(place / board.BASELINE_FILE, {}) or {}).get("cases") or []
+        cases = board.before_cases(place)   # 試験の関門の元の結末と、組の子の TDD の輪の頭の結末（直す前は試験の関門が走らせない）
         ports.drop_runner_env(start["user_env_dir"])   # 確かめ直しのテストに Archon の変数を継がせない（置き場のパスは上で取った）
         verified = []   # 戻せた組が赤 → 緑を確かめた名指し（後の組の確かめ直しで一緒に走らせる）
         red, clashes = {}, []   # 組ごとの確かめ直しの赤の文と、赤で戻した組・字で当たらない組（合わせのループが直す。clash.record）

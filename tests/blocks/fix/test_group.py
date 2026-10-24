@@ -420,10 +420,10 @@ class GroupChildScriptsCase(unittest.TestCase):
         got = self.step(reply)
         self.assertEqual((got["ok"], got["phase"]), (True, "fix"), got)
 
-    def test_tdd_head_reuses_the_test_gate_base_test_cmd(self):
-        """test-gate の base が port reuse_dir に控えた test_cmd の緑を、fix の組の子の run の TDD の輪の頭が同じ値（親の values.json
-        の reuse_dir・reuse_key）から引く（同じ run の中で 2 度走らせない）。組の子に reuse_dir が届かなければ、自分の place へ黙って
-        倒さずに使い回さない"""
+    def test_tdd_head_reuses_a_green_test_cmd_within_the_run(self):
+        """fix の組の子の run の TDD の輪の頭は、同じ run の控え（親の values.json の reuse_dir・reuse_key）から test_cmd の緑を引き、
+        同じ run の中で 2 度走らせない。組の子に reuse_dir が届かなければ、自分の place へ黙って倒さずに使い回さない。
+        test-gate の base は直す前の版で test_cmd を走らせない（持ち主の決め base-runs-nothing）ので、控えを置くのは最初の組の子"""
         import tree_run
         count = self.tmp / "test-cmd-count"
         test_cmd = f"{sys.executable} -c \"open({str(count)!r}, 'a').write('1\\n')\""
@@ -440,11 +440,14 @@ class GroupChildScriptsCase(unittest.TestCase):
             gate = subprocess.run([sys.executable, str(kit.BLOCKS / "test-gate" / "scripts" / f"{name}.py")], cwd=self.repo,
                                   env=env, capture_output=True, text=True, encoding="utf-8")
             self.assertEqual(gate.returncode, 0, gate.stderr)
-        self.assertEqual(json.loads(gate.stdout)["material"]["status"], "clean", gate.stdout)
-        self.assertEqual(len(count.read_text(encoding="utf-8").split()), 1)
+        self.assertEqual(json.loads(gate.stdout)["runs"], [], gate.stdout)
+        self.assertFalse(count.exists(), "test-gate の base が test_cmd を走らせた")
         self.parent_inputs(str(self.suite), test_cmd=test_cmd, reuse_dir=reuse, reuse_key="line-run")
         self.assertEqual(self.start()["tdd"], True)
         self.assertEqual(len(count.read_text(encoding="utf-8").split()), 1)
+        self.parent_inputs(str(self.suite), test_cmd=test_cmd, reuse_dir=reuse, reuse_key="line-run")
+        self.assertEqual(self.run_script("group_start")["tdd"], True)
+        self.assertEqual(len(count.read_text(encoding="utf-8").split()), 1, "同じ run の控えから引く")
         self.parent_inputs(str(self.suite), test_cmd=test_cmd, reuse_key="line-run")
         self.assertEqual(self.run_script("group_start")["tdd"], True)
         self.assertEqual(len(count.read_text(encoding="utf-8").split()), 2, "reuse_dir の無い組の子は使い回さずに走らせる")

@@ -2,7 +2,7 @@
 # 新しい単位の役 tdd-new が振り分けの段の指示で起き、tdd-step が振り分けを受けて、修正の輪へ進む
 fixture:
   expect: completed
-  reached: [intake, group-start, tdd-prep, tdd-new, tdd-step, fix-prep, finish]
+  reached: [intake, group-start, tdd-go, tdd-prep, tdd-new, tdd-step, fix-prep, finish]
   inputs:
     mode: group
     group: '{"group_id":"g1","unit_ids":["stats.py:4 mean"],"items":[]}'
