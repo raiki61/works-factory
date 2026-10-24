@@ -24,7 +24,9 @@ def no_materials(_rounds) -> dict:
             "unread": []}
 
 
-class TalkCase(unittest.TestCase):
+class TalkBase(unittest.TestCase):
+    """設計の相談の試験の助け（周の頭と終わりを place の一時のフォルダで回す）"""
+
     def setUp(self):
         self.run = kit.Run(self, BLOCK)
         with self.run.env():
@@ -74,6 +76,9 @@ class TalkCase(unittest.TestCase):
         """対話モードで往復が止まった周の design-talk の返り（関所が開いた）"""
         return self.settle(self.turn(), self.plan_out(**over))
 
+
+
+class TalkCase(TalkBase):
     # ------------------------------------------------------------------ 通常の run は変わらない
     def test_normal_run_carries_the_previous_round_as_it_was(self):
         first = self.turn(design_talk=False)
@@ -168,7 +173,7 @@ class TalkCase(unittest.TestCase):
 
     def test_revise_at_the_cap_stops(self):
         shown = self.opened(round=20)
-        self.assertIn("設計し直させる: できない", shown["text"])
+        self.assertIn("設計し直さずに止める（往復の安全の上限の周", shown["text"])
         turn = self.turn({"decision": "revise", "text": "もう一度"}, previous=shown)
         self.assertEqual((turn["plan"], turn["stop_reason"]), (False, "works:plan-converge"))
         got = self.settle(turn, None, previous=shown)
@@ -211,6 +216,244 @@ class TalkCase(unittest.TestCase):
     def test_a_missing_plan_out_fails_the_round_without_breaking_the_loop(self):
         got = self.settle(self.turn(), None)
         self.assertEqual((got["done"], got["ok"], got["stop_reason"]), (True, False, "works:line-script"))
+
+
+class NotesCase(TalkBase):
+    """人の指摘の受け箱（issue #830。docs/design/line.md の 3.1 節）: 対話モードの run だけ、周の頭で受け箱の新しい行を拾い、人の block
+    として往復の記録に差し込む（往復が無ければ依頼の答えの行だけ）。待たない。周ごとに設計の控えを書く。受け箱の
+    承認（頭が「承認:」か「もういいよ」の行）が生きていれば止まる周に関所を開かない。収まる周に新しい指摘が在れば終えない"""
+
+    def note(self, *lines):
+        inbox = self.run.artifacts / "talk" / "notes.txt"
+        inbox.parent.mkdir(parents=True, exist_ok=True)
+        with inbox.open("a", encoding="utf-8") as f:
+            f.write("".join(f"{line}\n" for line in lines))
+
+    def round_ran(self, **over):
+        """1 周目の計画が回り、往復が続く（done 偽）周の design-talk の返り"""
+        return self.settle(self.turn(), self.plan_out(done=False, ok=False, **over))
+
+    def settle(self, turn_got, plan_out=None, previous=None, design_talk=True):
+        with self.run.env():
+            return self.t.settle(turn_got=turn_got, plan_out=plan_out, previous=previous,
+                                 given={"design_talk": design_talk, "unattended": False}, materials=no_materials, run_id=kit.RUN_ID,
+                                 place=self.run.artifacts)
+
+    def test_a_note_before_the_first_round_reaches_the_plan(self):
+        self.note("a.py は触らない")
+        got = self.turn()
+        self.assertTrue(got["plan"], "待たずに計画を回す")
+        self.assertEqual(got["notes"], ["a.py は触らない"])
+        self.assertEqual(got["answers"][-1], {"question": self.t.NOTE_NAME.format(n=1), "text": "a.py は触らない"})
+        self.assertEqual(got["recorded"][-1]["name"], self.t.NOTE_NAME.format(n=1))
+
+    def test_a_note_goes_into_the_record_as_a_person_block(self):
+        """往復の後に入った指摘は、次の周の頭で人の block（中央）として最後の往復に差し込まれ、往復を AGAIN に戻す。頭が「端:」の行は端"""
+        first = self.turn()
+        talk = self.round_ran()
+        self.note("b.py にも直しを入れる", "端: 名前を揃える")
+        got = self.turn("", previous=talk, last=first)
+        self.assertEqual((got["plan"], got["notes"]), (True, ["b.py にも直しを入れる", "端: 名前を揃える"]))
+        doc = json.loads((self.run.artifacts / "plan-converge.json").read_text(encoding="utf-8"))
+        last = doc["passes"][-1]
+        self.assertEqual((doc["outcome"], last["blocks"][-2:]), ("again", ["person-1", "person-2"]))
+        reach = {f["key"]: f.get("reach") for f in last["faces"]}
+        self.assertEqual((reach["person-1"], reach["person-2"]), ("forces_redesign", "peripheral"))
+        self.assertEqual(last["faces"][-1]["why"], "名前を揃える")
+        self.assertNotEqual(got["plan_prior"], talk["plan_prior"], "人の block を差し込んだ prior の写し")
+        again = self.turn("", previous={**talk, "notes": got["notes"]}, last=got)
+        self.assertEqual(again["notes"], got["notes"], "取った行は 2 度拾わない")
+        self.assertEqual(len([a for a in again["answers"] if a["question"].startswith("設計の相談で人が入れた")]), 2)
+
+    def test_normal_run_ignores_the_inbox(self):
+        self.note("無視される")
+        got = self.turn(design_talk=False)
+        self.assertEqual((got["notes"], got["answers"]), ([], [{"question": "q", "text": "a"}]))
+
+    def test_each_round_writes_the_design_and_tells_where(self):
+        talk = self.round_ran()
+        path = pathlib.Path(talk["shown"])
+        self.assertEqual(path, self.run.artifacts / "talk" / "round-1.md")
+        text = path.read_text(encoding="utf-8")
+        for word in (f"項目 1（u1）: {APPROACH}", "事前審査の結果", str(self.run.artifacts / "talk" / "notes.txt"), "端:"):
+            self.assertIn(word, text)
+
+    def test_the_last_gate_waits_unless_the_human_approved(self):
+        """収まった周に関所を開くかは、受け箱に生きている承認（頭が「承認:」か「もういいよ」の行）が在るかの yes/no（持ち主の決め
+        human-notes-in-rounds）。承認が在れば開かず、承認を合意として修正前の承認ノードへ運ぶ。指摘が入っただけでは承認でない"""
+        noted = self.turn()
+        self.note("b.py も")
+        taken = self.turn("", previous=self.round_ran(), last=noted)
+        waited = self.settle(taken, self.plan_out())
+        self.assertEqual((waited["open"], waited["done"]), (True, False), "指摘が入っただけでは承認でないので最後に聞いて待つ")
+        self.note("承認: a.py だけで進めてよい")
+        got = self.settle(taken, self.plan_out())
+        self.assertEqual((got["open"], got["done"]), (False, True))
+        self.assertEqual((got["agreed"]["decision"], got["agreed"]["text"]), ("approve", "a.py だけで進めてよい"))
+        out = self.g.before_fix(got, unattended_run=False, design=True, agreed=got["agreed"])
+        self.assertEqual((out["open"], out["go"]), (False, True), "設計だけの行で開き直さずに修正へ進む")
+
+    def test_the_approval_lives_on_one_timeline(self):
+        """承認が生きているかは、出来事の並び 1 本（受け箱の行・revise の一言・審査役の中央の block を出た順）の上で、最後の承認より後に
+        中央の出来事が在るかで決まる。端は数えない。審査役の block は初めて出た物だけが並ぶ（前の往復に在った block の挙げ直しは並ばない）"""
+        t = self.t
+        ok = {"kind": t.APPROVE, "by": "notes", "line": "承認: 進めて"}
+        rows = (([ok], "進めて"),
+                ([{"kind": t.APPROVE, "by": "notes", "line": "もういいよ"}], ""),
+                ([t.event_of("b.py も")], None),
+                ([ok, t.event_of("b.py も直す")], None),
+                ([ok, t.event_of("端: 名前を揃える")], "進めて"),
+                ([ok, {"kind": t.CENTRAL, "by": "revise", "line": "c.py も"}], None),
+                ([ok, {"kind": t.CENTRAL, "by": "review", "key": "b1"}], None),
+                ([t.event_of("b.py も"), ok], "進めて"))
+        for timeline, want in rows:
+            with self.subTest(timeline=timeline):
+                self.assertEqual(t.approval(timeline), want)
+        face = lambda key, reach=None, kind="x": {"key": key, "kind": kind, **({"reach": reach} if reach else {})}
+        doc = {"passes": [{"blocks": ["a1"], "faces": [face("a1")]},
+                          {"blocks": ["b1", "e1", "person-1"], "faces": [face("b1"), face("e1", "peripheral"), face("person-1", kind="person")]},
+                          {"blocks": ["a1"], "faces": [face("a1")]},
+                          {"blocks": ["person-1"], "faces": [face("person-1")]}]}
+        got = t.review_events(doc, [])
+        relapse = ["a1", "person-1"] if t.REVIVED_CANCELS else []   # ぶり返しを並べるかは REVIVED_CANCELS の 1 か所で替わる
+        self.assertEqual([e["key"] for e in got], ["a1", "b1", *relapse],
+                         "端の e1・人の block・2 往復前の a1 の挙げ直し・2 往復前の人の block を審査役が挙げ直した物は並ばない（ぶり返しを並べない時）")
+        self.assertEqual(t.review_events(doc, got), [], "並んだ block は 2 度並ばない")
+
+    def passes_out(self, blocks: list, **over) -> dict:
+        """往復の記録を、往復ごとの block の並び blocks（中央の block の key の並びの並び）で書き直した plan-out の返り"""
+        po = self.plan_out(**over)
+        doc = self.record()
+        doc["passes"] = [{**doc["passes"][0], "pass": n, "blocks": list(keys),
+                          "faces": [{"key": k, "kind": "x", "where": "", "why": "w"} for k in keys]} for n, keys in enumerate(blocks, 1)]
+        self.put("plan-converge.json", doc)
+        return {**po, "round": over.get("round", len(blocks))}
+
+    def test_rounds_inboxes_and_answers_keep_three_promises(self):
+        """周の種類 × 受け箱の中身 × 前の周の審査役の中央の block × 関所への答え × 関所の間の指摘の組で、3 つの約束を照らす
+        （docs/design/line.md の 3.1 節。見直しの A・B・C・1 もこの表で照らす）。
+        1 黙って落とさない: 受け箱の指摘は、計画の役（依頼の答えの行）・関所の文・答えの一言・承認の一言のどれかに必ず届く
+        2 承認: 関所を飛んで合意で進むのは、承認の後に中央の物（人の中央の行・revise の一言・審査役が初めて出した中央の block）が無く、
+          相談の結果を見せる周でなく、回していない中央の指摘が無い時だけ。承認より前の周に出た審査役の block は承認を取り消さない
+        3 案内どおり: 関所の文が言う答えの結末（outcomes）と、答えた後に実際に起きることが同じ。revise の後の次の周の終わりまで見る"""
+        t = self.t
+        gave_up = {"status": "gave_up", "ok": False, "review_status": "", "review_reason": "受け付けを通らない"}
+        kinds = {"収まった": {}, "上限": {"round": 20}, "上限で止まった": {"capped": True, "ok": False, "stalled": True},
+                 "計画ができなかった": gave_up, "上限で計画ができなかった": {**gave_up, "round": 20},
+                 "直す義務が無い": {"status": "nothing_owed", "ok": False},
+                 "審査が諦めた": {"ok": False, "review_status": "gave_up", "review_reason": "諦めた"}, "止まった": {"ok": False, "stalled": True}}
+        consults = {"計画ができなかった", "上限で計画ができなかった", "直す義務が無い"}
+        inboxes = {"無し": (), "中央": ("b.py も直す",), "端": ("端: 名前を揃える",), "承認": ("承認: 進めて",),
+                   "中央と承認": ("b.py も直す", "承認: 進めて"), "端と承認": ("端: 名前を揃える", "承認: 進めて")}
+        # 前の周の審査役の中央の block と、受け箱の行の前後。審査の前: 2 周目の頭が読んだ後・2 周目の審査の前に行が入り、2 周目の審査が新しい
+        # 中央の block b2 を出す（行はその周の審査を見ずに書かれた物なので、b2 より前に並ぶ）
+        befores = ("無し", "承認より前", "承認より後", "審査の前")
+        answers = (None, {"decision": "approve", "text": ""}, {"decision": "revise", "text": "c.py も"}, {"decision": "revise", "text": ""},
+                   {"decision": "stop", "text": "やめる"})
+        combos = [(k, n, w, a, d) for k in kinds for n in inboxes for w in befores for a in answers for d in ((), ("d.py も",))]
+        for kind, name, before, said, during in combos:
+            with self.subTest(kind=kind, inbox=name, before=before, answer=said, during=during):
+                over, lines = kinds[kind], inboxes[name]
+                self.run = kit.Run(self, BLOCK)
+                first = self.turn()
+                if before == "承認より前":   # 1 周目の審査が b1 を出して次の周へ → 受け箱 → 2 周目で b1 が消える
+                    one = self.settle(first, self.passes_out([["b1"]], done=False, ok=False))
+                    self.note(*lines)
+                    turn = self.turn("", previous=one, last=first)
+                    po = self.passes_out([["b1"], []], **over)
+                elif before == "審査の前":   # 1 周目 b0 → 2 周目の頭の後に受け箱 → 2 周目の審査が b2 → 3 周目で b2 が消える
+                    one = self.settle(first, self.passes_out([["b0"]], done=False, ok=False))
+                    turn = self.turn("", previous=one, last=first)
+                    self.note(*lines)
+                    two = self.settle(turn, self.passes_out([["b0"], ["b2"]], done=False, ok=False))
+                    turn = self.turn("", previous=two, last=turn)
+                    po = self.passes_out([["b0"], ["b2"], []], **over)
+                elif before == "承認より後":   # 受け箱 → 1 周目の審査が b1 を出して次の周へ → 2 周目で b1 が消える
+                    self.note(*lines)
+                    turn = self.turn()
+                    one = self.settle(turn, self.passes_out([["b1"]], done=False, ok=False))
+                    turn = self.turn("", previous=one, last=turn)
+                    po = self.passes_out([["b1"], []], **over)
+                else:
+                    self.note(*lines)
+                    turn = first
+                    po = self.plan_out(**over)
+                got = self.settle(turn, po)
+                reached = [got["text"], *(a["text"] for a in turn["answers"])]   # 周の頭が計画の役に回した行も届いた先
+                ways = t.outcomes(po, notes=True)
+                if not got["open"] and not got["done"]:   # 収まる周に新しい指摘: 次の周の頭が拾う
+                    nxt = self.turn("", previous=got, last=turn)
+                    reached += [a["text"] for a in nxt["answers"]]
+                elif got["open"] and said is not None:
+                    self.note(*during)   # 関所が開いている間に足した指摘
+                    lines = (*lines, *during)
+                    self.assertIn(t.outcomes(po)["revise"], got["text"])   # 3: 答え方の句は outcomes から
+                    if "held" in got["text"] or t.UNPICKED_HEAD.split("（")[0] in got["text"]:
+                        self.assertIn(ways["held"], got["text"])
+                    nxt = self.turn(said, previous=got, last=turn)
+                    reached += [a["text"] for a in nxt["answers"]] + [t_["text"] for t_ in nxt["talks"]]
+                    picked = [ln for ln in nxt["notes"][len(got["notes"]):] if not ln.startswith(t.APPROVE_HEADS)]   # 答えた周の頭が読んだ指摘
+                    if said["decision"] == "revise" and (said["text"] or picked):
+                        self.assertEqual(bool(nxt["stop_reason"]), t.outcomes(po)["capped"])   # 3: 上限なら止める・ほかは設計し直す
+                        if nxt["plan"]:   # 次の周の終わりまで: revise の後は、前の承認で関所を飛ばない（A）
+                            again = self.settle(nxt, self.plan_out())
+                            if said["text"]:
+                                self.assertFalse(again["agreed"] and again["agreed"].get("by") == "notes", again)
+                    if said["decision"] == "approve":   # 3: 合意の結末は案内どおり（相談の結果の周は修正へ進まない）
+                        end = self.settle(nxt, None, previous=got)
+                        out = self.g.before_fix(end, unattended_run=False, design=True, agreed=end["agreed"])
+                        reported = out["stop_reason"] == "" and not out["go"]   # 合意で修正へ進まずに報告で終わった
+                        self.assertEqual(reported, kind in consults)
+                        self.assertEqual(t.outcomes(po)["agree"] == t.CONSULT_AGREE, reported, "合意の句が実際の結末と同じ（C）")
+                        self.assertIn(t.outcomes(po)["agree"], got["text"])
+                        reached.append(end["agreed"]["text"])
+                elif got["agreed"]:
+                    reached.append(got["agreed"]["text"])
+                skipped = bool(got["agreed"] and got["agreed"].get("by") == "notes")
+                order = list(lines)   # 承認の行より後に中央の行が無いか（受け箱の行の順）
+                alive = ("承認: 進めて" in order and before not in ("承認より後", "審査の前")
+                         and all(order.index(ln) < order.index("承認: 進めて") for ln in order if ln == "b.py も直す"))
+                if skipped:   # 2: 承認で飛ぶのは、生きた承認が在り、相談の結果の周でない時だけ
+                    self.assertTrue(alive and kind not in consults, got)
+                if name == "承認" and before not in ("承認より後", "審査の前"):   # 2: 承認だけなら（前の周の block が承認より前でも）相談の結果の周を除いて飛ぶ
+                    self.assertEqual(skipped, kind not in consults, (kind, before))
+                if got["open"] and said is None:
+                    continue   # 答えの無い関所は待つ
+                for line in lines:   # 1: 黙って落とさない
+                    if not line.startswith(t.APPROVE_HEADS):
+                        bare = line.removeprefix(t.EDGE_HEAD).strip()
+                        self.assertTrue(any(bare in r for r in reached), (line, reached))
+
+    def test_the_relapse_rule_is_one_switch(self):
+        """承認の後に、前の往復で消えた審査役の中央の block がぶり返した時に承認を取り消すかは、REVIVED_CANCELS の 1 か所で決まる（持ち主の
+        答え待ち。今は取り消さない）。旗をどちらにしても、この試験と並びの試験は旗に合わせて通る（ほかを書き直さずに替わり切る）"""
+        t = self.t
+        face = lambda key: {"key": key, "kind": "x"}
+        doc = {"passes": [{"blocks": ["b1"], "faces": [face("b1")]}, {"blocks": [], "faces": []}, {"blocks": ["b1"], "faces": [face("b1")]}]}
+        original = t.REVIVED_CANCELS
+        try:
+            for flag, want in ((False, [0]), (True, [0, 2])):
+                t.REVIVED_CANCELS = flag
+                self.assertEqual([e["pass"] for e in t.review_events(doc, [])], want, flag)
+                said = t.approval([{"kind": t.APPROVE, "by": "notes", "line": "承認: 進めて"},
+                                   *[e for e in t.review_events(doc, []) if e["pass"] == 2]])
+                self.assertEqual(said is None, flag, "ぶり返しを並べる時だけ承認を取り消す")
+        finally:
+            t.REVIVED_CANCELS = original
+
+    def test_an_approval_line_is_not_a_block(self):
+        first = self.turn()
+        talk = self.round_ran()
+        self.note("承認: 進めて")
+        got = self.turn("", previous=talk, last=first)
+        self.assertEqual((got["notes"], got["plan_prior"]), (["承認: 進めて"], talk["plan_prior"]), "承認の行は block にせず、取った行に数える")
+
+    def test_a_new_note_keeps_a_settled_round_going(self):
+        """収まる周でも、まだ拾っていない指摘が在れば終えずに次の周へ回す（次の周の頭が拾う）"""
+        taken = self.turn()
+        self.note("最後に気づいた")
+        got = self.settle(taken, self.plan_out())
+        self.assertEqual((got["done"], got["open"]), (False, False))
 
 
 class AskAgainCase(unittest.TestCase):
