@@ -72,7 +72,7 @@
 - `ok`: boolean。組の形: 組の結果を書いた。全体の形: 戻しの記録（`join.json`）が在り、変更の確かめが通り、当たったままの組が無い（今の `done` から差分の審査の `pass` を外した物）。
 - `reason`: 日本語の 1 行。ok でない訳（落ちた段・読めない port・変更の確かめの訳）。
 - `units`: `[{unit_id, group_id, status (fixed|given_up|not_done), reason}]`（今のまま）。
-- `groups`: `[{group_id, unit_ids, returned, reason, backed_out?, unrestored?, old_red?, clash?}]`（今のまま。`clash` は `{outcome (repaired|parked), requests, patch}`。`old_red` は確かめ直しで前から同じ形で赤だったので戻す理由にしなかった名指しの文の並びで、確かめ直しを通って親の作業ツリーに当てたままにした組の行にだけ在る。18 節）。
+- `groups`: `[{group_id, unit_ids, returned, reason, backed_out?, unrestored?, old_red?, uncompared?, clash?}]`（今のまま。`clash` は `{outcome (repaired|parked), requests, patch}`。`old_red` は確かめ直しで前から同じ形で赤だったので戻す理由にしなかった名指しの文の並びで、確かめ直しを通って親の作業ツリーに当てたままにした組の行にだけ在る。18 節。`uncompared` は確かめ直しで直す前の版と比べられなかったので戻す理由にしなかった赤の鍵 `classname::name` の並びで、同じく当てたままにした組の行にだけ在る。報告が人に聞く。20 節）。
 - `conflicts`: pointer（`conflicts.json`）か null。
 - `carry`: pointer（`carry.json`。次の修正の段の port `prior` に渡す申し出と輪の状態の束。1.4）か null（組の形）。
 - `replan_items`: 字の配列。fix_plan_item の裁定が誤りとした項目の番号。
@@ -1031,3 +1031,15 @@ bin/works-factory workflow run works-factory-fix --cwd <対象> \
 - `tests/blocks/fix/test_prompts.py`: 修正役の指示の「直す前から壊れていた関わる試験」の行（表 `RENDERED` に `suite-fix`）。
 - `tests/blocks/line/test_gates.py`（「ついでに直した試験」の節と開ける理由）・`tests/blocks/line/test_head_plain.py`（報告の冒頭の止めの行）・`tests/blocks/line/test_fix_in.py`（`suite_made`）。`tests/blocks/line/fix_in_before_spec.json` は `fix-in` に欄 `suite_made` を足したので取り直した（値は全部 `false`）。
 
+## 20 確かめ直しで、直す前の版と比べる試験を名指しで走らせる（2026-10-23。#846）
+
+- 出どころ: issue #846。持ち主は、この直し方を issue にするという推しに「おしで。」と答えた。
+- 何を: 18 節の確かめ直しの 2 段目（`tdd.selected_problems`）は、直す前の結末に無い赤を、直す前の版（`rev`）を写した一時の作業ツリーで走らせて比べる（`tdd._base_reds`）。今までは今の木と同じ引数（変えた試験のファイルと `-k`）で実行器の既定の一式を回していたので、走らせる試験を差分から自分で選ぶ実行器（このリポジトリの `tests/changed.py` の形）では、差分の無い写しで比べたい試験が選ばれず、比べられなかった赤を新しい赤と数えて組を戻した（run 96f35545。18 節の終わり）。この節から、比べたい試験を名指し（`<根からのパス>::<クラス>::<名前>`。結末の行のモジュールからテストのファイルを引く `tdd._case_ids`）で、合図 `TDD_SUITE_ONLY=1` を付けて走らせる。
+- 比べの決まり（はい・いいえ）: 元の結末に無い赤の 1 件ごとに、写しの結末の同じ鍵（テストを 1 件に決める `classname::name`）の行を見る。
+  1. 写しで `failure` か `error` → 前から赤。新しい赤に数えない（今までと同じ。知らせに「版の写しでも赤だったので外した」）。
+  2. 写しで `passed` か `skipped` → 新しい赤。
+  3. 版にその試験のファイルが無い（この直しで足した試験）→ 比べるまでもなく新しい赤。
+  4. ほか（写しを作れない・実行器が走らない・名指しを引けない・名指しで走らせても写しの結末に出ない）→ 比べられなかった。
+- 比べられなかった赤: 組を当てた後の確かめ直し（`board.rerun_problem` に受け口 `uncompared` を渡す `join`）は、新しい赤に数えず組を戻す理由にしない。黙って前から赤として通さず、組の行の `uncompared` に鍵を名指し、run の報告の「人が決めること」の欄に「当てた後の確かめ直しで直す前の版と比べられなかった赤」として 1 件 1 行で載せて聞く（line の `facts.uncompared_rows`）。受け口を渡さない呼び（修正の受け付けと、合わせ役の受け付け `clash.problems`）は今どおり赤のまま（修正役が直して出し直す。知らせに「比べられず赤のまま」）。
+- 写しの結末の控え（`REV_CACHE`）は、版と実行器の組ごとに行を持ち、行にテストの鍵ごとの結末 `outcomes` を持つ。同じ版と実行器の行に、比べたいテストの鍵が全部在れば走らせない。
+- E11（根の `AGENTS.md`。仕組みを足す前に確かめる 3 つ）: (1) Archon（工場が上で動く道具）は、直す前の版と名指しで比べる仕組みを持たない（確かめ直しは工場の `join` の中の事）。(2) ASF も持たない（ASF の修正の流れは組を当てて確かめ直す段を持たない。18 節と同じ）。(3) 要る: README 10 節の keep-essence の 2（元から赤のテストの区別）を、走らせる試験を差分で選ぶ実行器でも保つ。比べられなかった赤を人に聞くのは、keep-essence の 1（直しで壊した赤を見逃さない）を、組を戻して費用を捨てずに保つため。元の works の `_green_after` は直す前の版と比べていなかった。
