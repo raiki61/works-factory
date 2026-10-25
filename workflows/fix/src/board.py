@@ -1135,14 +1135,20 @@ def base_dirs(place) -> list:
     return [p for _, p in sorted(got)]
 
 
-def _copy_base(place, src_dir: pathlib.Path, mark: str, prior: bool, base: bool = True) -> str:
+def _copy_base(place, src_dir: pathlib.Path, mark: str, prior: bool, base: bool = True, repo=None) -> str:
     """src_dir の base.json（base が真の時だけ）と accept.json を place の次の bases/<k>/ に写す。印はいつも写した accept.json の鍵
-    （accept.json が無ければ印だけの物を作る。base.json は字のまま写し、印を持たない）。どちらも無ければ写さず ""。写した先のパス"""
+    （accept.json が無ければ印だけの物を作る。base.json は印を持たない）。base.json は字のまま写し、repo を渡せば実行器 exe だけを
+    親の作業ツリー repo で解き直す（adopt_tdd_states と同じ。並べた子の exe は子の作業ツリーの中を指す）。どちらも無ければ写さず ""。
+    写した先のパス"""
     b, a = src_dir / fixnames.BASE_FILE, src_dir / fixnames.ACCEPT_FILE
     if not (base and b.is_file()) and not a.is_file():
         return ""
     dst = _next_slot(pathlib.Path(place) / fixnames.BASES_DIR, "{k}")
-    if base and b.is_file():
+    doc = read_json(b, None) if base and b.is_file() and repo is not None else None
+    if isinstance(doc, dict) and doc.get("suite"):
+        from src import tdd as tddloop
+        write_json(dst / fixnames.BASE_FILE, {**doc, "exe": str(tddloop.exe_path(repo, doc["suite"]))})
+    elif base and b.is_file():
         write_text(dst / fixnames.BASE_FILE, b.read_text(encoding="utf-8"))
     acc = read_json(a, {}) if a.is_file() else {}
     write_json(dst / fixnames.ACCEPT_FILE, {**(acc if isinstance(acc, dict) else {}),
@@ -1150,17 +1156,18 @@ def _copy_base(place, src_dir: pathlib.Path, mark: str, prior: bool, base: bool 
     return str(dst)
 
 
-def adopt_bases(place, results, *, prior: bool = False) -> list:
+def adopt_bases(place, results, *, repo=None, prior: bool = False) -> list:
     """戻せた組の子の結果 results（組の順）が名指す元の結末（欄 base。base.json のパス）と、その隣の受け付けの書き戻し accept.json を、
     親の置き場 place の次の bases/<k>/ に写す（下書き 2.1 の「親へ写す口」。<k> と写し元の印は adopt_tdd_states と同じ。印 ADOPTED_FROM
-    は写し元の base.json のパス）。もう写した子は写し直さない。写した bases/<k>/ のパスを返す"""
+    は写し元の base.json のパス。repo を渡せば実行器 exe を親の作業ツリーで解き直す）。もう写した子は写し直さない。写した bases/<k>/ の
+    パスを返す"""
     have = _adopted(d / fixnames.ACCEPT_FILE for d in base_dirs(place))
     out = []
     for r in results:
         src = str((r or {}).get("base") or "")
         if not src or src in have:
             continue
-        got = _copy_base(place, pathlib.Path(src).parent, src, prior)
+        got = _copy_base(place, pathlib.Path(src).parent, src, prior, repo=repo)
         if got:
             have.add(src)
             out.append(got)
@@ -1231,7 +1238,7 @@ def adopt_returned(place, repo, results, *, log=None, applied=()) -> None:
     if log is not None and pathlib.Path(log).is_file():
         writes.carry_children(log, repo, applied)
     adopt_tdd_states(place, results, repo)
-    adopt_bases(place, results)
+    adopt_bases(place, results, repo=repo)
     adopt_returns(place, [str((r or {}).get("place") or "") for r in results])
     consult.carry_agreed(place, results)
 

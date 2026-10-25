@@ -384,6 +384,8 @@ class GroupChildScriptsCase(unittest.TestCase):
         self.run_script("join", art=self.parent)
         state = json.loads((self.parent / "tdd-1" / "state.json").read_text(encoding="utf-8"))
         self.assertEqual(pathlib.Path(state["exe"]).resolve(), (self.repo / "ci" / "suite.py").resolve())
+        base = json.loads((self.parent / "bases" / "1" / "base.json").read_text(encoding="utf-8"))
+        self.assertEqual(pathlib.Path(base["exe"]).resolve(), (self.repo / "ci" / "suite.py").resolve(), "写した元の結末も親の木で解く")
         stats = self.repo / "stats.py"
         stats.write_text(stats.read_text(encoding="utf-8").replace("    return x\n", "    return lo\n"), encoding="utf-8")
         reply = {"changes": [_change(MEAN, ["stats.py"])]}
