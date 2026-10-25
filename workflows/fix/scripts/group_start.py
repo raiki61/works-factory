@@ -29,7 +29,7 @@ import leftovers  # noqa: E402
 import oneline  # noqa: E402
 import writelog  # noqa: E402
 
-from src import basecase, board, intake, orders, runvals, suitefix  # noqa: E402
+from src import board, intake, runvals, suitefix  # noqa: E402
 
 NO_UNITS = "組に単位が無い——TDD のループを回さない"
 HALTED = "前の組 {groups} の子の run が結果を書かずに止まっている——親を resume すればその子が続きから回る"
@@ -71,14 +71,10 @@ def main() -> dict:
         reuse = suitefix.reuse_of(values)
         ports.drop_runner_env(values["user_env_dir"])   # 対象のテストに Archon の変数を継がせない（place・repo・reuse は先に取った）
         out = suitefix.begin(place, repo, values, keys, reuse)
-        suitefix.settle_kept(values, repo, out)
-    board.write_json(place / board.TDD_START_FILE, out)
-    why = orders.no_suite_why(place) if keys else ""
-    if why:   # 実行器が無い・走らない組で、static でない単位が在る（下書き 3.9 の止め方の 1。route-go と orders が読んで止める）
-        out = {**out, "no_suite": True, "reason": why}
-        board.write_json(place / board.TDD_START_FILE, out)
-    taken = bool((basecase.read(place) or {}).get("taken"))   # 元の結末が取れた（振り分けと TDD の輪を回せる）
-    return {"tdd": taken, "units": len(keys), "reason": str(out.get("reason") or ""),
+        suitefix.settle_kept(place, values, repo, out)
+    # 実行器が無い・走らない組で、static でない単位が在れば no_suite（下書き 3.9 の止め方の 1。route-go と orders が読んで止める）
+    out = suitefix.settle_start(place, out)
+    return {"tdd": suitefix.taken(place), "units": len(keys), "reason": str(out.get("reason") or ""),
             "suite_broken": out.get("suite_broken") is True, "no_suite": out.get("no_suite") is True}
 
 

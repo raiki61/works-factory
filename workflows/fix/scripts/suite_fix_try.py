@@ -3,7 +3,7 @@
 # dependencies = []
 # ///
 """node suite-fix-try（組の形。起動スクリプトが壊れていた組だけ）: 書き手の返り（with: reply。飛ばされた・落ちた時は null）の本文で
-実行器を置き換え、TDD の輪の頭をやり直す（src/suitefix.retry）。直れば {tdd: true, stop: false}、書き直せない・直らなければ
+実行器を置き換え、TDD の輪の頭をやり直す（src/suitefix.retry）。直れば {tdd: true, stop: false}、書き直せない・直らない・結末が取れなければ
 {tdd: false, stop: true, reason}（組を止める。docs/design/fix.md の 19 節）。落ちない: 中の誤りも stop: true と訳"""
 import os
 import sys
