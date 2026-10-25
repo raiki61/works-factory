@@ -150,7 +150,8 @@ class FlowCase(unittest.TestCase):
         self.assertNotIn("no purpose text is given", got)
         self.assertNotIn("Why your previous answer was rejected", got)
         self.assertIn("in the language of the request", got, "lang が空なら既定の言語の文")
-        rule = (kit.BLOCKS / ".shared" / "prompts" / "query-rule.md").read_text(encoding="utf-8").splitlines()[0]
+        rule = (kit.BLOCKS / ".shared" / "prompts" / "query-rule.md").read_text(encoding="utf-8").splitlines()[1]   # 0 行目は道具の印（指示には出ない）
+        self.assertNotIn("required-for-tools", got)
         self.assertEqual(got.count(rule), 1, "外への検索の決まりは role-investigator の断片が持つ 1 回だけ")
         self.setUp()
         self.intake(purpose="null", lang="Japanese")

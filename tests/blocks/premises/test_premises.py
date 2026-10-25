@@ -120,8 +120,9 @@ class PromptCase(_RepoCase):
     def test_query_rule_is_in_without_the_spawns_paragraph(self):
         self.intake()
         text = self.prep()["prompt"]
-        rule = (kit.SHARED / "prompts" / "query-rule.md").read_text(encoding="utf-8").splitlines()
+        rule = (kit.SHARED / "prompts" / "query-rule.md").read_text(encoding="utf-8").splitlines()[1:]   # 0 行目は道具の印（指示には出ない）
         self.assertTrue(text.startswith(rule[0]), text[:80])
+        self.assertNotIn("required-for-tools", text)
         spawns = rule[rule.index("<!-- if spawns -->") + 1:rule.index("<!-- end spawns -->")]
         self.assertTrue(spawns)
         for line in spawns:
