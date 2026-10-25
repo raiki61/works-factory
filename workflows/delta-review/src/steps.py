@@ -199,7 +199,7 @@ def refix_prompt(place, n: int) -> dict:
     when = {"rejected": bool(rejected), "policy": bool(doc["policy"]), "request": request.is_file(), "scope": bool(items),
             "conflict": False, "conflict_change": False, "docs": True, "prompts_kind": True, "config": True, "code": True, "spawns": False,
             # 証拠の頭と、答えを書く場所（今の common.md の節 evidence は手直しの役にもいつも載り、書く場所は handled の how）
-            "evidence": True, "where_fixer": False, "where_tdd": False, "where_rework": True}
+            "evidence": True, "where_writer": False, "where_tdd": False, "where_rework": True}
     return _emit(place, role, values, when)
 
 

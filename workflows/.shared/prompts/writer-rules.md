@@ -16,9 +16,9 @@
 
 For a fix you cannot write a test for first (a fix only to documents, instructions, settings, notes, or types), instead of red-to-green, check the following for each kind of change, and write what you checked (the searches you ran, the commands you ran and their results) in your answer. Do not settle for "I re-read it".
 <!-- end evidence -->
-<!-- if where_fixer -->
-Write it in `closure.verified_how` of that unit's row in `changes`.
-<!-- end where_fixer -->
+<!-- if where_writer -->
+Write it in `evidence.kinds` of your answer: one entry per kind of change you checked, with `kind` (docs, prompts, config, or code) and `did` (what you checked).
+<!-- end where_writer -->
 <!-- if where_tdd -->
 Write it in `what` of your fix-phase answer.
 <!-- end where_tdd -->

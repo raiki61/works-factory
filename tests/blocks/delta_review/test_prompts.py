@@ -126,7 +126,7 @@ class WriterRulesCase(s.Case):
     def test_the_paragraph_names_are_the_ones_the_fragment_list_says(self):
         text = WRITER_RULES.read_text(encoding="utf-8")
         names = set(re.findall(r"<!-- if ([a-z_]+) -->", text))
-        self.assertEqual(names, {"conflict", "conflict_change", "evidence", "docs", "prompts_kind", "config", "code", "where_fixer", "where_tdd", "where_rework"})
+        self.assertEqual(names, {"conflict", "conflict_change", "evidence", "docs", "prompts_kind", "config", "code", "where_writer", "where_tdd", "where_rework"})
         self.assertEqual(sorted(re.findall(r"<!-- end ([a-z_]+) -->", text)), sorted(re.findall(r"<!-- if ([a-z_]+) -->", text)))
         self.assertFalse(re.findall(r"(?<!\{)\{[a-z0-9_]+\}(?!\})", text), "断片は差し込み口を持たない")
         listed = (kit.SHARED / "AGENTS.md").read_text(encoding="utf-8")

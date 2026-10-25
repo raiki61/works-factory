@@ -65,9 +65,9 @@ def _libdocs_rows(text: str) -> str:
 
 
 def _kinds_when(kinds, role: str) -> dict:
-    """writer-rules の証拠の段落の真偽。続きの周は種類が全部偽で、見出しと頭の文ごと落とす。role は答えを書く場所の段落の名（この block は fixer・tdd）"""
+    """writer-rules の証拠の段落の真偽。続きの周は種類が全部偽で、見出しと頭の文ごと落とす。role は答えを書く場所の段落の名（この block は writer・tdd）"""
     got = {name: kind in kinds for kind, name in WRITER_KINDS.items()}
-    return {**got, "evidence": any(got.values()), **{f"where_{r}": r == role for r in ("fixer", "tdd", "rework")}}
+    return {**got, "evidence": any(got.values()), **{f"where_{r}": r == role for r in ("writer", "tdd", "rework")}}
 
 
 def _check_cmd(config: str) -> str:
@@ -112,7 +112,7 @@ def writer_values(place, repo, pass_: str, weapon: str, values: dict, *, owed, i
     slots += ["summary_file"] if weapon == "tdd" else []   # 輪の要約を読むのは tdd の閉じの書き手だけ（付録 A の F26 の前半）
     vals = {k: "" for k in slots}
     when = {k: False for k in ("rejected rulings_first ruled_reply briefs faces scope tests tests_new tests_tail tests_broken frozen_files tests_how rules ask ask_ripple libdocs g1 "
-                               "resume queued overflow_answer conflict docs prompts_kind config code evidence where_fixer where_tdd where_rework "
+                               "resume queued overflow_answer conflict docs prompts_kind config code evidence where_writer where_tdd where_rework "
                                "ask_variant rules_change rules_sites rules_red conflict_change").split()}
     when["conflict"] = True
     when["conflict_change"] = kind["conflict_change"]   # 申し出の種類 not_red は変える段の書き手だけ（付録 A の W24）
@@ -188,7 +188,7 @@ def writer_values(place, repo, pass_: str, weapon: str, values: dict, *, owed, i
     vals["libdocs_rows"] = _libdocs_rows(rules.lib_section(place, repo, values, shared))
     when["libdocs"] = bool(vals["libdocs_rows"])
     kinds = rules.kinds_for(ledger, values, repo)
-    when.update(_kinds_when(kinds, "fixer"))
+    when.update(_kinds_when(kinds, "writer"))
     return vals, when, {"iteration": n, "kinds": kinds, "ledger": ledger}
 
 
@@ -264,7 +264,7 @@ def tdd_values(place, repo, view: dict, values: dict) -> tuple[dict, dict, dict]
                             "notes_file skill seat_applies seat_not_applies unattended overlay_file test_cmd owed_units current_unit "
                             "together_rows named_rows handoff_rows later_rows tests_how runner_cmd lang").split()}
     when = {k: False for k in ("briefs rejected rules conflict docs prompts_kind config code phase_route phase_test phase_fix "
-                               "phase_refactor gate current together named handoff later tests_how evidence where_fixer where_tdd where_rework spawns "
+                               "phase_refactor gate current together named handoff later tests_how evidence where_writer where_tdd where_rework spawns "
                                "rules_change conflict_change").split()}
     when.update(rules=True, conflict=True, rules_change=True, conflict_change=True, **{f"phase_{phase}": True})
     start_vals, start_when = _starts(values)
