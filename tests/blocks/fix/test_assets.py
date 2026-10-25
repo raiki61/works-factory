@@ -7,6 +7,9 @@
 - 表の文の出どころ: 表の各行の文が、付録 A の本文がその行に引く置き場の行（`:4`・`brief.md:2-4` など）の、付録 A の行番号の版
   （PIN。#865 の後で #866 の前の main）の字に在る。表と指示の md を一緒に書き換えても、git の履歴の字は変わらないので赤になる
   （CI は fetch-depth: 0 で全履歴を取る。履歴を引けなければ見送らずに赤）。移す時に字を替えた行は REWORDED に、替えた後と前の字の対で置く。
+  削る向きも照らす: 機械の行（from が machine）でない行の文は空にできず、付録 A が引く置き場の行ごとに、そこを引く行の文を全部
+  抜いた残り（段落の印 <!-- --> と差し込み口 {名} を除き、空白をそろえる）が LEFT に書いた字と等しい（既定は空）。表と md から
+  文の尻・真ん中を一緒に削る、行を一緒に消すと、残りが増えて赤になる。
 - 組み上がった指示: 型ごとの書き手の node の md（prompts/<node>.md）を、差し込みを解き、型が選ぶ段落を src/prompts.writer_paragraphs で
   選び、ほかの段落（却下・裁定・相談・続きの周など）を全部入れて組んだ字。差し込み口の値は {名} の字のまま（表の文と比べるため）、
   借りた型の読み替え {unattended} だけは本物の値（lib/seat.overlay_body）。
@@ -56,6 +59,14 @@ REWORDED = {   # 移す時に字を替えた行: 番号 → (表の字, PIN の�
     "F135": ("`clean` without ever having seen red is rejected.", "clean without ever having seen red is rejected"),   # F135 の文を rules_red の段落へ切り出した
 }
 COUNTS = {"共通": 156, "variant": 29, "変える": 4, "消す": 11}   # 付録 A の A.1・1.4.2 の数（全部で 200）
+LEFT = {   # 置き場の行のうち、引く行の文に移さなかった字（付録 A の行の番号 → 残る字）
+    "F21": "You are the fixer. , and fix the units you owe a fix on the working tree.",   # 型ごとの頭に言い直した（付録 A の F21）
+    "F135": "- `fix_closure`: the result of the round's proof of closure. In a round with fixes, `clean` (in `checked`, what you "
+            "confirmed; ) or `found`. Only a round with 0 fixes may be `not_applicable` (silent values such as not_applicable when "
+            "there are fixes are rejected)",   # F135 の文だけを切り出した。行の残りは返答の欄の行のまま（writer.md の fix_closure）
+    "G13": "The units fixed in the TDD loop are in the loop summary.",   # 3 文目は G14 と一緒に消す（付録 A の G13 の第 8 版）
+}
+MARKUP = re.compile(r"<!--.*?-->|\{[\w:.-]+\}")   # 段落の印と差し込み口（字の観点ではない）
 SPAWN_ONLY = {"Q10"}
 G18 = "Do not write the report to a file. Your reply is the JSON in the \"fields of the reply\" section of the instructions."   # 消した g1-no-report-file.md の字（付録 A の G16〜G19 の G18）
 RED_ROWS = {"F135"}   # 付録 A は variant。PR A が受け付けの照らしを variant・remove・pin に当てたので（PR A の控えの 3 節）、指示も同じ型にそろえる   # 下請けを起こす書き手（Agent を持つ variant）だけに出る段落の行
@@ -192,6 +203,29 @@ class TableCase(unittest.TestCase):
                     places = [flat(" ".join(" ".join(cache.setdefault(p, pinned_lines(p))[a - 1:b]) for p, a, b in refs))
                               for refs in sources[r["id"]]]
                     self.assertTrue(any(want in place for place in places), f"PIN の版の字に無い: {want[:80]}")
+
+    def test_the_table_text_covers_the_text_before_the_move(self):
+        """付録 A が引く置き場の行ごとに、そこを引く行の文を抜いた残りが LEFT の字と等しい（表と md から一緒に削る・行を消すと赤）"""
+        sources = appendix_sources()
+        cache = {}
+        cited = {}
+        for r in ROWS:
+            if r["from"] == "machine":
+                continue
+            with self.subTest(row=r["id"], what="空でない"):
+                self.assertTrue(r["text"] and all(line.strip() for line in r["text"]), "機械の行でない行の文が空")
+            new, old = REWORDED.get(r["id"], ("", ""))
+            texts = r["text"] + ([G18] if r["id"] == "G16〜G19" else [])   # G18 は表の G16〜G19 の行に無い（消す。下の G18）
+            for refs in sources.get(r["id"], []):
+                for ref in refs:
+                    cited.setdefault(ref, []).append((r["id"], [flat(t.replace(new, old) if new else t).strip() for t in texts]))
+        for (path, a, b), rows in cited.items():
+            ids = "・".join(dict.fromkeys(i for i, _ in rows))
+            rest = flat(" ".join(cache.setdefault(path, pinned_lines(path))[a - 1:b]))
+            for want in sorted((t for _, texts in rows for t in texts), key=len, reverse=True):
+                rest = rest.replace(want, "", 1)
+            with self.subTest(row=ids, place=f"{path}:{a}-{b}"):
+                self.assertEqual(flat(MARKUP.sub("", rest)).strip(), LEFT.get(ids, ""), "表の文が置き場の行の字を覆わない")
 
 
 class AssetCase(unittest.TestCase):
