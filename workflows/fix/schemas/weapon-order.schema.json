@@ -1,0 +1,212 @@
+{
+  "type": "object",
+  "required": [
+    "weapon",
+    "group",
+    "stage",
+    "since",
+    "base",
+    "units",
+    "scope",
+    "permits"
+  ],
+  "properties": {
+    "weapon": {
+      "type": "string",
+      "enum": [
+        "tdd",
+        "variant",
+        "remove",
+        "static",
+        "tidy",
+        "rebuild",
+        "pin"
+      ],
+      "description": "型の名か下ごしらえの名 pin。箱はこの名から src/duties.py の表で引く（注文に箱の欄を持たない）"
+    },
+    "group": {
+      "type": "string",
+      "minLength": 1,
+      "description": "組の id"
+    },
+    "stage": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "段の番。修正の block を入れた回 n の 1 回目の段は 2n−1、裁定の後の段は 2n（機械が書く）"
+    },
+    "since": {
+      "type": "string",
+      "minLength": 1,
+      "description": "差分の起点の木。組の最初の型は段の頭の木、後の型は前の型の返しの tree"
+    },
+    "base": {
+      "type": "string",
+      "minLength": 1,
+      "description": "元の結末の控え base.json のパス（版は欄 rev）"
+    },
+    "units": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "key",
+          "removes",
+          "tests"
+        ],
+        "properties": {
+          "key": {
+            "type": "string",
+            "minLength": 1
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          "what": {
+            "type": "string",
+            "description": "何を直すか（判定と brief の該当の行）"
+          },
+          "class_query": {
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "removes": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "description": "消す名やパス（計画の change=remove・op=delete・op=rename の元から機械が引く）"
+          },
+          "tests": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "description": "計画の項目の受け入れの試験と書き換えの試験の id"
+          },
+          "checked_as": {
+            "type": "string",
+            "enum": [
+              "tdd",
+              "variant",
+              "remove",
+              "static",
+              "tidy",
+              "rebuild",
+              "pin"
+            ],
+            "description": "照らしに使う元の型（裁定の後の直しの注文だけ）"
+          },
+          "why": {
+            "type": "string",
+            "description": "型を選んだ訳の 1 行（計画の route_why か振り分けの訳）"
+          }
+        },
+        "additionalProperties": false
+      },
+      "minItems": 1
+    },
+    "scope": {
+      "type": "object",
+      "required": [
+        "allowed_paths",
+        "out_of_scope"
+      ],
+      "properties": {
+        "allowed_paths": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "out_of_scope": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "glob",
+              "why"
+            ],
+            "properties": {
+              "glob": {
+                "type": "string",
+                "minLength": 1
+              },
+              "why": {
+                "type": "string"
+              }
+            },
+            "additionalProperties": false
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "permits": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "kind",
+          "duty",
+          "test"
+        ],
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "rewrite",
+              "remove",
+              "agreed",
+              "ruled",
+              "broken",
+              "replan"
+            ]
+          },
+          "duty": {
+            "type": "boolean"
+          },
+          "test": {
+            "type": "string",
+            "minLength": 1
+          },
+          "unit": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "run": {
+      "type": "object",
+      "description": "試験の走らせ方と当たる試験の選びの結果"
+    },
+    "asks_answered": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "why_untested": {
+      "type": "string",
+      "description": "static の注文だけ: 計画が試験を求めない訳"
+    },
+    "orders": {
+      "type": "object",
+      "description": "型ごとの欄 orders.<weapon>。共通の受け付けは読まない"
+    }
+  },
+  "additionalProperties": false,
+  "description": "型が受け取る注文（docs/plans/2026-10-24-fix-weapons.md の 2.1）。組の子の頭と裁定の後の段の注文を書く役が、型ごとに 1 つ書く"
+}
