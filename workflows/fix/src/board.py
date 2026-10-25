@@ -938,7 +938,8 @@ def adopt_inputs(parent, place, repo=None) -> list:
     （plan-fields.json）は親の凍結の印で確かめてから planmarks.save で置き直す（子の trace に印を書く）。2 回目の修正の段の親が
     adopt_prior_pass で置いた 1 回目の段の申し出と裁定（conflict.FILE）も写し、repo（子の作業ツリー）を渡せば 1 回目の段の輪の状態
     （PRIOR_LOOP の印つき）も子の輪の前の輪として写し、PRIOR_LOOP の元の結末 bases/<k>/ の全部と返しの控え returns/ も写す（子の受け付けの
-    凍結・事後の関門・機械の諦め・suite_made の和が 1 回目の段を見る）。写した名の
+    凍結・事後の関門・機械の諦め・suite_made の和が 1 回目の段を見る）。親に前の段の申し送り prior/ が在れば子にも空の prior/ を置く
+    （子の段の番 orders.stage_of が 2 回目の block の段を数える。束の中身は写さない）。写した名の
     並びを返す。親の欄の控えが印と食い違えば conflict.frozen_fields の ValueError。新しい（元に無い。今の works は 1 つの盤面を枝が
     共に読んだ）"""
     import conflict
@@ -959,6 +960,9 @@ def adopt_inputs(parent, place, repo=None) -> list:
     if (src / conflict.FILE).is_file() and not (dst / conflict.FILE).is_file():
         write_text(dst / conflict.FILE, (src / conflict.FILE).read_text(encoding="utf-8"))
         out.append(conflict.FILE)
+    if (src / fixnames.PRIOR_DIR).is_dir():
+        (dst / fixnames.PRIOR_DIR).mkdir(parents=True, exist_ok=True)
+        out.append(fixnames.PRIOR_DIR)
     if repo is not None:
         from src import common
         prior = [str(p) for p in common.states(src) if read_json(p, {}).get(PRIOR_LOOP)]
@@ -1188,9 +1192,11 @@ RED_WEAPONS = ("variant", "remove", "pin")   # 赤を見ない clean を拒む�
 
 
 def red_units(place):
-    """F135 を当てる単位の集まり: 注文の索引の型が RED_WEAPONS の単位。注文の無い置き場（裁定の後の段の親など）は None（今のとおり
-    返答の全部の行で見る）"""
+    """F135 を当てる単位の集まり: 注文の索引の型が RED_WEAPONS の単位。注文の無い置き場と裁定の後の段の注文（orders.is_ruled）は
+    None（今のとおり返答の全部の行で見る。下書き 4.1 の 6: tdd から来た単位に単位ごとの赤を求めない）"""
     from src import orders
+    if orders.is_ruled(place):
+        return None
     weapons = orders.weapons(place)
     return {k for k, w in weapons.items() if w in RED_WEAPONS} if weapons else None
 

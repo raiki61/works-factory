@@ -77,12 +77,14 @@ def permits_for(place, items: list, *, stage: int, rulings: bool) -> list:
     """注文の permits（下書き 2.1）: conflict.test_permits の行を、この注文の項目で絞った物（修正案の行は項目の番号で絞り、ほかの行は
     run の全体の許しなのでそのまま）から、run の今までの返しの控え returns/ の evidence.added・rewritten の試験と tdd が凍らせた
     ファイルを引く（前の型の物を引く）。案の直しの許し replan は引かない。裁定の行 ruled は、その裁定の段の番以下で返した物を引かない
-    （stage の例外）。行は {kind, duty, test, source}（test は範囲の文字列か名指しの id。replan の行は単位の並び units を source に持つ）"""
+    （stage の例外。裁定の段の番は裁定の控えの欄 stage。欄の無い裁定は 0 と読み、どの返しも引く）。行は {kind, duty, test, source}
+    （test は範囲の文字列か名指しの id。replan の行は単位の並び units を source に持つ）"""
     try:
         rows = conflict.test_permits(pathlib.Path(place), rulings=rulings)
     except ValueError:
         rows = []
     prior = returns_of(place)
+    ruled_at = _ruling_stages(place) if rulings else {}
     out = []
     for r in rows:
         kd = _kind(str(r.get("id") or ""))
@@ -94,10 +96,20 @@ def permits_for(place, items: list, *, stage: int, rulings: bool) -> list:
             if not n.isdigit() or int(n) not in items:
                 continue
         test = str(r.get("test") or r.get("limit") or ",".join(r.get("units") or []))
-        if kind != "replan" and _pulled(test, prior, stage if kind == "ruled" else None):
+        if kind != "replan" and _pulled(test, prior, ruled_at.get(str(r.get("id")), 0) if kind == "ruled" else None):
             continue
         out.append({"kind": kind, "duty": duty, "test": test, "source": str(r.get("source") or "")})
     return out
+
+
+def _ruling_stages(place) -> dict:
+    """裁定の許しの行の id（conflict.RULED_TEST_ID-<申し出の id>）→ その裁定の段の番（裁定の控えの欄 stage。無ければ 0）"""
+    try:
+        rows = conflict.items(pathlib.Path(place))
+    except ValueError:
+        return {}
+    return {f"{conflict.RULED_TEST_ID}-{r.get('id')}": int((r.get("ruling") or {}).get("stage") or 0)
+            for r in rows if isinstance(r, dict) and isinstance(r.get("ruling"), dict)}
 
 
 def _pulled(test: str, prior: list, ruled_stage) -> bool:
@@ -142,7 +154,8 @@ def write_return(place, doc: dict) -> pathlib.Path:
     return jsonfile.write(d / f"{k}.json", doc)
 
 
-def _order(place, weapon, keys, rows, *, group_id, stage, since, base_file, whys, removes, why_untested=False) -> dict:
+def _order(place, weapon, keys, rows, *, group_id, stage, since, base_file, whys, removes, why_untested=False, rulings=False,
+           checked=None) -> dict:
     units = []
     items = []
     allowed, out_scope = [], []
@@ -154,11 +167,13 @@ def _order(place, weapon, keys, rows, *, group_id, stage, since, base_file, whys
         unit = {"key": k, "items": r["items"], "removes": list(removes.get(k) or []), "tests": r["tests"]}
         if whys.get(k):
             unit["why"] = whys[k]
+        if checked and checked.get(k):
+            unit["checked_as"] = checked[k]
         units.append(unit)
     doc = {"weapon": weapon, "group": group_id, "stage": stage, "since": since, "base": base_file, "units": units,
            "scope": {"allowed_paths": allowed, "out_of_scope": [{"glob": str(o.get("glob") or ""), "why": str(o.get("why") or "")}
                                                                 for o in out_scope]},
-           "permits": permits_for(place, items, stage=stage, rulings=False)}
+           "permits": permits_for(place, items, stage=stage, rulings=rulings)}
     if why_untested:
         doc["why_untested"] = "；".join(dict.fromkeys(whys.get(k, "") for k in keys if whys.get(k)))
     return doc
@@ -246,6 +261,73 @@ def regive(place) -> list:
     _write_orders(place, keys, [k for k in keys if k in weapons], weapons, stage=int(idx.get("stage") or stage_of(place)),
                   since=str(idx.get("since") or ""), has_base=basecase.read(place) is not None)
     return moved
+
+
+RULED_WEAPON = {"tdd": "variant"}   # 裁定の後の直しの型: 元の単位と同じ箱の型（tdd の単位は variant。ほかは元の型のまま。下書き 4.1 の 6）
+RULED_PASS = "ruled"                 # 裁定の後の段の注文の索引の欄 pass の値（受け付けが組の子の注文と見分ける）
+
+
+def returned_weapons(place) -> dict:
+    """置き場の返しの控え returns/ の全部から、単位 → その単位を最後に返した型の名（番号の順に読み、後の物が勝つ）"""
+    d = pathlib.Path(place) / files.RETURNS_DIR
+    out = {}
+    for p in sorted(d.glob("*.json"), key=lambda q: (len(q.stem), q.stem)) if d.is_dir() else []:
+        doc = jsonfile.read_or(p)
+        if not isinstance(doc, dict):
+            raise ValueError(f"返しの控え {p} が読めない")
+        for u in doc.get("units") or []:
+            if isinstance(u, dict) and isinstance(u.get("key"), str):
+                out[u["key"]] = str(doc.get("weapon") or "")
+    return out
+
+
+def write_ruled(place, owed: list, *, since: str) -> list:
+    """裁定の後の直しの注文（下書き 4.1 の 6。node fix-ruled-prep が段の頭で 1 度書く）: 直す義務の単位 owed を、親の置き場の返しの
+    控えの元の型から同じ箱の型（RULED_WEAPON）に引いて orders/<w>.json に書き、単位の行に照らしに使う元の型 checked_as を書く（控えに
+    無い単位は variant に引き、checked_as を書かない）。段の番は stage_of の ruled、since は段の頭の木、permits は裁定の範囲を入れて
+    （rulings=True）前の型の物を引く。元の結末は親の受け付けの選び（board.ruled_base）。索引 orders.json は pass ruled を持つ。型の並びを返す"""
+    place = pathlib.Path(place)
+    keys = [str(k) for k in owed]
+    was = returned_weapons(place)
+    weapons = {k: RULED_WEAPON.get(was.get(k, ""), was.get(k) or "variant") for k in keys}
+    checked = {k: was[k] for k in keys if was.get(k)}
+    whys, removes = route.plan_whys(place, keys), route.plan_removes(place, keys)
+    rows = _unit_rows(place, keys)
+    stage = stage_of(place, RULED_PASS)
+    got = board.ruled_base(place)
+    base_file = str(pathlib.Path(got) / files.BASE_FILE) if got else ""
+    by: dict = {}
+    for k in keys:
+        by.setdefault(weapons[k], []).append(k)
+    d = place / files.ORDERS_DIR
+    d.mkdir(parents=True, exist_ok=True)
+    sequence = [w for w in ORDER_SEQUENCE if w in by]
+    for w in ORDER_SEQUENCE:
+        if w not in by:
+            (d / f"{w}.json").unlink(missing_ok=True)
+            continue
+        jsonfile.write(d / f"{w}.json", _order(place, w, by[w], rows, group_id=RULED_PASS, stage=stage, since=since, base_file=base_file,
+                                               whys=whys, removes=removes, why_untested=w == "static", rulings=True,
+                                               checked=checked))
+    jsonfile.write(place / files.ORDERS_FILE, {"sequence": sequence, "weapons": weapons, "stage": stage, "since": since,
+                                               "pass": RULED_PASS, "unsatisfied": []})
+    return sequence
+
+
+def is_ruled(place) -> bool:
+    """置き場の注文の索引が裁定の後の段の物か"""
+    doc = jsonfile.read_or(pathlib.Path(place) / files.ORDERS_FILE)
+    return isinstance(doc, dict) and doc.get("pass") == RULED_PASS
+
+
+def checked_as(place) -> dict:
+    """単位 → 照らしに使う元の型（注文の単位の行の checked_as。在る物だけ）"""
+    out = {}
+    for doc in order_docs(place).values():
+        for u in doc.get("units") or []:
+            if isinstance(u, dict) and u.get("checked_as"):
+                out[str(u.get("key"))] = str(u["checked_as"])
+    return out
 
 
 def answered_why(st, k) -> str:

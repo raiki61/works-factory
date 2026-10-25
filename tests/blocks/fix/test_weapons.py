@@ -386,5 +386,152 @@ class AcceptTableCase(unittest.TestCase):
         self.assertEqual(self.orders.named_tests(self.place), ["t.py::a", "u.py::b"])
 
 
+class RuledOrderCase(unittest.TestCase):
+    """4.4 の 5: 裁定の後の直しの注文（orders.write_ruled）・裁定の控えの段の番・段を越えた凍結の照らし（下書き 2.1・4.1 の 6）"""
+
+    def setUp(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.tmp = pathlib.Path(tmp.name)
+        self.repo = _repo(self.tmp, {"stats.py": "def mean(xs):\n    return sum(xs) / len(xs)\n",
+                                     "test_stats.py": "import os\nLIMIT = 1\n\n\ndef test_mean():\n    assert True\n"})
+        self.rev = git(self.repo, "rev-parse", "HEAD").strip()
+        self.place = self.tmp / "place"
+        self.place.mkdir()
+        kit.load("fix", "duties")
+        from src import board, common, duties, orders, ruling
+        self.board, self.common, self.duties, self.orders, self.ruling = board, common, duties, orders, ruling
+        self.hash = common.hashes(self.repo, ["test_stats.py"])["test_stats.py"]
+
+    def put(self, rel, doc):
+        p = self.place / rel
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text(json.dumps(doc), encoding="utf-8")
+        return p
+
+    def returned(self, k, weapon, keys, *, stage=1, frozen=True, **extra):
+        return self.put(f"returns/{k}.json", {"stage": stage, "weapon": weapon, "group": "g1", "tree": self.rev,
+                                              "units": [{"key": u, "named": []} for u in keys],
+                                              "frozen": {"test_stats.py": self.hash} if frozen else {},
+                                              "frozen_tree": self.rev if frozen else "", "suite_made": [], "added": [],
+                                              "rewritten": [], **extra})
+
+    def ruled(self, limits, stage=1):
+        ruling = {"decision": "fix_test_scope", "text": "期待を直す", "limits": limits, "by": "ruler"}
+        if stage is not None:
+            ruling["stage"] = stage
+        self.put("conflicts.json", {"items": [{"id": "c1", "unit_key": "T", "status": "ruled", "ruling": ruling}]})
+
+    def test_write_ruled_draws_the_same_box_and_writes_checked_as(self):
+        """tdd から来た単位は variant の注文に checked_as tdd で、static は static のまま、控えに無い単位は checked_as 無しの variant。
+        段の番は ruled（2n）、索引は pass ruled、注文は schema の形"""
+        self.returned(1, "tdd", ["T"])
+        self.returned(2, "static", ["S"], frozen=False)
+        self.put("bases/1/base.json", {"taken": True, "baseline_cases": []})
+        self.put("bases/1/accept.json", {})
+        seq = self.orders.write_ruled(self.place, ["T", "S", "X"], since=self.rev)
+        self.assertEqual(seq, ["static", "variant"])
+        idx = json.loads((self.place / "orders.json").read_text(encoding="utf-8"))
+        self.assertEqual((idx["weapons"], idx["pass"], idx["stage"], idx["since"]),
+                         ({"T": "variant", "S": "static", "X": "variant"}, "ruled", 2, self.rev))
+        var = json.loads((self.place / "orders" / "variant.json").read_text(encoding="utf-8"))
+        self.assertEqual([(u["key"], u.get("checked_as")) for u in var["units"]], [("T", "tdd"), ("X", None)])
+        self.assertEqual(self.orders.checked_as(self.place), {"T": "tdd", "S": "static"})
+        schema = json.loads((BLOCK / "schemas" / "weapon-order.schema.json").read_text(encoding="utf-8"))
+        self.assertEqual(validate_schema(var, schema), [])
+        self.assertTrue(self.orders.is_ruled(self.place))
+        (self.place / "prior").mkdir()
+        self.orders.write_ruled(self.place, ["T"], since=self.rev)
+        self.assertEqual(json.loads((self.place / "orders.json").read_text(encoding="utf-8"))["stage"], 4, "2 回目の block の裁定の後は 4")
+
+    def test_a_ruling_records_the_stage_it_saw(self):
+        """裁定の控えの欄 stage は 1 回目の段の番（2n−1）で、機械が書く"""
+        import conflict
+        self.put("conflicts.json", {"items": [{"id": "c1", "unit_key": "T", "status": "parked", "ruling": None}]})
+        conflict.apply_rulings(self.place, {"c1": {"decision": "fix_code_as", "text": "直す", "limits": []}}, by="ruler",
+                               stage=self.ruling.seen_stage(self.place))
+        self.assertEqual(conflict.items(self.place)[0]["ruling"]["stage"], 1)
+        (self.place / "prior").mkdir()
+        self.assertEqual(self.ruling.seen_stage(self.place), 3)
+
+    def test_the_ruling_scope_frees_only_the_returns_it_saw(self):
+        """裁定の範囲の許しは、裁定の段の番以下で返した物を引かず（裁定が見て許した）、後で返した物と、段の番の無い裁定では引く"""
+        self.returned(1, "tdd", ["T"])
+        self.ruled(["test_stats.py"])
+        self.assertEqual([r["kind"] for r in self.orders.permits_for(self.place, [], stage=2, rulings=True)], ["ruled"])
+        self.ruled(["test_stats.py"], stage=None)
+        self.assertEqual(self.orders.permits_for(self.place, [], stage=2, rulings=True), [], "段の番の無い裁定は厳しい側")
+        self.ruled(["test_stats.py"])
+        self.returned(2, "tdd", ["T"], stage=2)
+        self.assertEqual(self.orders.permits_for(self.place, [], stage=2, rulings=True), [], "裁定より後に返した物は引く")
+
+    def test_the_ruled_pass_rejects_rewrites_of_frozen_tests_outside_the_ruling(self):
+        """1 回目の段の輪が凍らせた試験を、裁定の後の段が裁定の範囲の外で書き換えたら拒み、範囲の中は通す"""
+        self.returned(1, "tdd", ["T"])
+        self.ruled(["other_test.py"])
+        self.orders.write_ruled(self.place, ["T"], since=self.rev)
+        (self.repo / "test_stats.py").write_text("import os\nLIMIT = 1\n\n\ndef test_mean():\n    assert 1\n", encoding="utf-8")
+        self.assertTrue(self.duties.frozen_by_returns(self.place, self.repo))
+        self.ruled(["test_stats.py"])
+        self.orders.write_ruled(self.place, ["T"], since=self.rev)
+        self.assertEqual(self.duties.frozen_by_returns(self.place, self.repo), [])
+
+    def child_of_a_second_block(self, since):
+        """2 回目の block の組の子: 親の prior/ を adopt_inputs が子に置き、1 回目の block の tdd の返し（印 prior_pass）を写した物"""
+        parent = self.tmp / "parent"
+        (parent / "prior").mkdir(parents=True)
+        child = self.tmp / "child"
+        self.board.adopt_inputs(parent, child)
+        self.assertEqual(self.orders.stage_of(child), 3)
+        self.place = child
+        self.returned(1, "tdd", ["T"], prior_pass=True)
+        rows = [{"id": "plan-rewrite-1", "test": "test_stats.py::test_mean", "limit": "test_stats.py:5", "source": "plan"}]
+        with unittest.mock.patch.object(self.orders.conflict, "test_permits", return_value=rows):
+            permits = self.orders.permits_for(child, [1], stage=3, rulings=False)
+        self.assertEqual(permits, [], "1 回目の block の輪が凍らせた試験は、2 回目の block の計画の書き換えの許しから引く")
+        self.put("orders.json", {"sequence": ["variant"], "weapons": {"T": "variant"}, "stage": 3, "since": since})
+        self.put("orders/variant.json", {"weapon": "variant", "group": "g1", "stage": 3, "units": [{"key": "T"}], "permits": permits})
+        return child
+
+    def test_a_second_block_rejects_rewrites_of_the_first_block_frozen_tests(self):
+        """1 回目の block の輪が凍らせた試験を、2 回目の block の段で書き換えたら拒む"""
+        child = self.child_of_a_second_block(self.rev)
+        (self.repo / "test_stats.py").write_text("import os\nLIMIT = 1\n\n\ndef test_mean():\n    assert 1\n", encoding="utf-8")
+        self.assertTrue(self.duties.frozen_by_returns(child, self.repo))
+
+    def test_a_second_block_does_not_take_the_first_block_rewrite_as_its_own(self):
+        """指摘 M: 1 回目の block が書き換えた試験の差分（段の頭の木 since に在る）は、2 回目の block の書き換えとして拒まない"""
+        (self.repo / "test_stats.py").write_text("import os\nLIMIT = 1\n\n\ndef test_mean():\n    assert 1\n", encoding="utf-8")
+        child = self.child_of_a_second_block(self.common.snapshot(self.repo))
+        self.assertEqual(self.duties.frozen_by_returns(child, self.repo), [])
+        (self.repo / "test_stats.py").write_text("import os\nLIMIT = 1\n\n\ndef test_mean():\n    assert 2\n", encoding="utf-8")
+        self.assertTrue(self.duties.frozen_by_returns(child, self.repo), "その後の書き換えは拒む")
+
+    def test_rewrites_outside_the_functions_of_a_frozen_file_are_rejected(self):
+        """指摘 N: 凍ったファイルの関数の外（import・モジュールの直下の定数）の書き換えも拒む。新しい名の import を足すだけは通す"""
+        child = self.child_of_a_second_block(self.rev)
+        for text in ("import sys\nLIMIT = 1\n\n\ndef test_mean():\n    assert True\n",
+                     "import os\nLIMIT = 2\n\n\ndef test_mean():\n    assert True\n"):
+            (self.repo / "test_stats.py").write_text(text, encoding="utf-8")
+            self.assertTrue(self.duties.frozen_by_returns(child, self.repo), text)
+        (self.repo / "test_stats.py").write_text("import os\nimport sys\nLIMIT = 1\n\n\ndef test_mean():\n    assert True\n",
+                                                 encoding="utf-8")
+        self.assertEqual(self.duties.frozen_by_returns(child, self.repo), [])
+
+    def test_duties_are_drawn_by_checked_as_and_red_is_not_per_unit_after_a_ruling(self):
+        """受け付けは単位の checked_as の型で義務を引き（tdd から来た単位に variant の義務を当てない）、裁定の後の段の注文では F135 を
+        返答の全部の行で見る（red_units None）"""
+        self.returned(1, "tdd", ["T"], frozen=False)
+        self.orders.write_ruled(self.place, ["T"], since=self.rev)
+        self.assertIsNone(self.board.red_units(self.place))
+        reply = {"changes": [{"unit_key": "T", "files": ["stats.py"]}]}
+        flag = (lambda f: ["輪の赤の記録"],)
+        with unittest.mock.patch.object(self.duties.MODULES["tdd"], "DUTIES", flag):
+            got = self.duties.accept_problems(self.place, self.repo, self.rev, reply)
+        self.assertEqual(got, [("T", "型 tdd の単位 T の義務: 輪の赤の記録")])
+        with unittest.mock.patch.object(self.duties.MODULES["variant"], "DUTIES", flag):
+            self.assertEqual(self.duties.accept_problems(self.place, self.repo, self.rev, reply), [], "variant の義務は当てない")
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -164,12 +164,15 @@ def unit_facts(place, repo, rev: str, key: str, weapon: str, rows: list, *, orde
 
 def accept_problems(place, repo, rev: str, reply, *, cases=None) -> list:
     """共通の受け付けが型の義務の表で照らした問題の [(単位, 文)]（下書き 2.3・2.4。PR A の表は static・tidy・pin・remove の物）。
-    型は注文の索引 orders.json の weapons（注文の無い置き場は照らさない）。cases は受け付けが走らせた回の結末の行（keep の箱の居なくなった試験）"""
+    型は注文の索引 orders.json の weapons（注文の無い置き場は照らさない）で、義務は単位の行の checked_as（裁定の後の直しの注文の、照らしに
+    使う元の型。下書き 4.1 の 6）が在ればその型で引く（tdd から来た単位に variant の義務を当てない）。cases は受け付けが走らせた回の結末の
+    行（keep の箱の居なくなった試験）"""
     from src import basecase, orders
     weapons = orders.weapons(place)
     if not weapons or not isinstance(reply, dict):
         return []
     docs = orders.order_docs(place)
+    checked = orders.checked_as(place)
     base = basecase.read(place)
     keys = list(weapons)
     declared = basecase._declared(place, keys, 1)
@@ -179,10 +182,10 @@ def accept_problems(place, repo, rev: str, reply, *, cases=None) -> list:
             by.setdefault(c["unit_key"], []).append(c)
     out = []
     for k, rows in by.items():
-        w = weapons[k]
+        w = checked.get(k) or weapons[k]
         if not (BOX_DUTIES[box_of(w)] or MODULES[w].DUTIES):
             continue
-        facts = unit_facts(pathlib.Path(place), repo, rev, k, w, rows, order=docs.get(w) or {}, base=base, cases=cases,
+        facts = unit_facts(pathlib.Path(place), repo, rev, k, w, rows, order=docs.get(weapons[k]) or {}, base=base, cases=cases,
                            declared=declared)
         out += [(k, t) for t in dict.fromkeys(check(w, facts))]
     return out

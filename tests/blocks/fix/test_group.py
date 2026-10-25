@@ -601,6 +601,9 @@ class GroupChildScriptsCase(unittest.TestCase):
                       source=conflict.FIX_SOURCE, ruling={"decision": "fix_code_as", "text": "分母を len(xs) にせよ", "limits": []})
         out = self.run_script("fix_ruled_prep")
         self.assertTrue(out["go"], out)
+        idx = json.loads((self.place / "orders.json").read_text(encoding="utf-8"))   # 4.4 の 5: 段の頭で裁定の後の注文を書く
+        self.assertEqual((idx["pass"], idx["weapons"], idx["stage"], idx["since"]),
+                         ("ruled", {MEAN: "variant"}, 2, _src("board").fixer_head(self.place, "ruled")))
         pasted = self.frozen_line(out["prompt"])
         self.assertEqual(pasted, {"test_stats.py"})
         test_file.write_text(test_file.read_text(encoding="utf-8").replace("mean([2, 4]), 3)", "mean([2, 4]), 3.0)"),

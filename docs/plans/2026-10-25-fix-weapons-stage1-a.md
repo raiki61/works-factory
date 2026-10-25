@@ -32,6 +32,7 @@
 | 受け付けの名指し | 注文の `units[].tests`・`permits` の `rewrite` と、輪の状態の今の名指しの和（狭めない） | 返しの `evidence.named`・`added`・`rewritten` は B |
 
 - 4.4 の 4 の「直す所」（修正役の返答の形の YAML の `changes` の `required`・`precedent` の `allOf`・`bypass_tried` と `breaks` の `minLength`・`sites` の行の形、`recount._reply_shape_problems` の差分のパスの引数、`unitrows._unpathed` と `sites` の並べ替え、筋書き `standalone.stubs.yaml:18`、`sites` の行を組む受け付けの試験）は、どれも `na` と `sites` の新しい欄（`at`・`fixed_by`・`test`）を入れるための直しで、上の表の `na` と `sites` の行と一緒に B へ回す。`na` は欄を欠けてよい形にする（緩める向き）ので、PR A は返答の形を変えない。
+- 4.4 の 5 の申し出の種類 `red_at_base` と、その裁定を `fix_plan_item`・`ask_human` に絞る yes/no は B へ回す。訳: 種類を出すのは下ごしらえの書き手で、PR A には居ない（1 の 1）。種類の一覧 `conflict.DIV_KINDS` に足すと、共通の断片 `writer-rules.md` と TDD の役の指示 `tdd.md` が一覧の全部の語を言うことを縛る試験（`tests/blocks/fix/test_prompts.py` の DIV_KINDS の照らし・`tests/blocks/delta_review/test_prompts.py` の 6 つの数え）のために、指示の既存の文（「6 つの場面の語」など）を書き換えることになり、頼みの「足してよい文は 4.4 の 6 が名指す 1 文ずつだけ」の外になる。PR A の 5 で作るのは、裁定の後の注文（`orders.write_ruled`。`checked_as`・段の番 2n・裁定の範囲を入れた `permits`）、裁定の控えの欄 `stage`（`ruling.seen_stage`）、`checked_as` で義務を引く受け付け、裁定の後の段で F135 を返答の全部の行で見ること、2 回目の block の組の子が段の番 3 を数えるための空の `prior/`（`board.adopt_inputs`）。
 - 輪の状態の無い組（static だけの組など。元の結末は取ったが TDD の輪を開かない組）の受け付けは、今は試験を走らせなかった（`selected_problems` に状態が無い）。PR A は元の結末 `base.json` で選んで走らせる（`board.accept_base`。厳しい側）。
 
 ## 4 進み（commit ごと）
@@ -41,7 +42,7 @@
 - [x] 12 宣言の `list` と `tree_run.run` の `setup`（lib の分）: 1257faee。`basecase` の一覧の走らせは 2・3 の commit
 - [x] 1 口の形: b7f90846
 - [x] 2・3 型のモジュール・元の結末・振り分けの輪・注文: 部品の分けと node は f6af387d。組の結果の `base` の欄・`bases/<k>/` と `returns/` の引き継ぎ・諦めた単位の variant の注文への書き直しは cea0f8c1（返しの控えを書くのは 4 の受け付け）
-- [ ] 4 共通の受け付けと義務の表
+- [x] 4 共通の受け付けと義務の表: d6c37bf1
 - [ ] 5 裁定の後の注文
 - [ ] 6 止めの語 `no-suite`
 - [ ] 8 出力の欄と最後の承認の節
