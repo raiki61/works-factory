@@ -4,9 +4,8 @@
 orders/<weapon>.json（schemas/weapon-order.schema.json の形）に書き、索引を orders.json に書く。tdd に引いた単位は輪の状態に
 並べ（tdd.assign）、YAML の when: へは型ごとの輪を回すかの真偽だけを返す（憲法の 1）。
 
-PR A の形（docs/plans/2026-10-25-fix-weapons-stage1-a.md の 1）: 型ごとの書き手の指示は作る物 9（PR B）で作るので、tdd でない型の
-注文は全部、今の修正役の輪（fix-loop）が受ける。修正役は今と同じく tdd の輪が緑にした単位の行も changes に写すので、修正役の輪は
-止めの無い組でいつも回る（writer）。
+型ごとの注文は、tdd の輪の後の書き手の輪（writers-loop）が型ごとの書き手で 1 つずつ受ける（docs/plans/2026-10-25-fix-weapons-stage1-b.md
+の 1。src/writers.py）。tdd の輪が緑にした単位の行は tdd の輪の閉じの書き手 tdd-close が書くので、書き手の輪は止めの無い組でいつも回る（writer）。
 
 - compute(place, repo) -> {tdd, writer, stop, reason}
 - no_suite_why(place) -> 組の頭で止める訳（下書き 3.9 の止め方の 1。止めないなら空）
@@ -203,7 +202,7 @@ def _order(place, weapon, keys, rows, *, group_id, stage, since, base_file, whys
 
 
 def compute(place, repo) -> dict:
-    """node orders の本体。{tdd（tdd の輪を回す）, writer（修正役の輪を回す）, stop（組を止める）, reason}"""
+    """node orders の本体。{tdd（tdd の輪を回す）, writer（書き手の輪を回す）, stop（組を止める）, reason}"""
     place, repo = pathlib.Path(place), pathlib.Path(repo)
     started = _start(place)
     if started.get("suite_broken") is True:   # 起動スクリプトが書き直しても壊れたまま（docs/design/fix.md の 19 節）
@@ -370,6 +369,19 @@ def write_ruled(place, owed: list, *, since: str) -> list:
     return sequence
 
 
+def restart(place, weapon: str, *, since: str) -> None:
+    """型 weapon を回し始める時に、その型の注文と索引の since を今の木にする（型を 1 つずつ順に回すので、後の型の差分の起点は前の型が
+    返した木。下書き 2.1 の since・docs/plans/2026-10-25-fix-weapons-stage1-b.md の 1）"""
+    place = pathlib.Path(place)
+    path = place / files.ORDERS_DIR / f"{weapon}.json"
+    doc = jsonfile.read_or(path)
+    if isinstance(doc, dict):
+        jsonfile.write(path, {**doc, "since": since})
+    idx = jsonfile.read_or(place / files.ORDERS_FILE)
+    if isinstance(idx, dict):
+        jsonfile.write(place / files.ORDERS_FILE, {**idx, "since": since})
+
+
 def is_ruled(place) -> bool:
     """置き場の注文の索引が裁定の後の段の物か"""
     doc = jsonfile.read_or(pathlib.Path(place) / files.ORDERS_FILE)
@@ -406,9 +418,12 @@ def unsatisfied(place, keys, weapons: dict, sequence: list) -> list:
     return out
 
 
+WRITER_ORDER = ("tdd", "pin", "tidy", "static", "variant", "remove")   # 組の子で型の注文が回る順（tdd の輪の後に型の書き手を 1 つずつ。src/writers.SEQUENCE と同じ）
+
+
 def _slot(w: str) -> int:
-    """今の組の子で型の注文が回る順（PR A: 下ごしらえ・tidy・static・variant・remove は修正役の輪が 1 つの返答で受け、tdd の輪が先）"""
-    return 0 if w == "tdd" else 1
+    """今の組の子で型の注文が回る順の番"""
+    return WRITER_ORDER.index(w) if w in WRITER_ORDER else len(WRITER_ORDER)
 
 
 def weapons(place) -> dict:

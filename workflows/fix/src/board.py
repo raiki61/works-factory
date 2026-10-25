@@ -114,12 +114,16 @@ READS_OWNER = "fix"   # 読んだ証拠の索引の持ち主（reads.index_name�
 
 
 def read_stages(place) -> list:
-    """読んだ証拠を集める修正の段 [(役, 段の頭の印のファイル, 指示書)]: 修正役 fix と、裁定の後の修正役 fix-ruled"""
-    from src import rules as fixrules
-    from src import prompts
+    """読んだ証拠を集める修正の段 [(役, 段の頭の印のファイル, 指示書)]: 1 回目の段と裁定の後の段の型ごとの書き手（src/writers.nodes）。
+    型は段の中で順に回り、段の頭の木の控えは型を選ぶたびに書き直すので、印はその書き手の 1 回目の指示書（組んだ時刻から後を集める）"""
+    from src import prompts, writers
     p = pathlib.Path(place)
-    return [(READS_OWNER, p / fixrules.head_file("first"), prompts.round_file(p, "fixer")),
-            ("fix-ruled", p / fixrules.head_file("ruled"), prompts.round_file(p, "fix-ruled"))]
+    out = []
+    for pass_ in writers.SEQUENCE:
+        for node in writers.nodes(pass_):
+            first = prompts.round_file(p, node)
+            out.append((node, first if first is not None else p / f"{node}-prompt-1.md", first))
+    return out
 
 
 def collect_reads(place, log, *, repo) -> dict:
@@ -1539,6 +1543,37 @@ def reply_marks(reply, before=None) -> dict:
     return out
 
 
+REPLY_ROWS = ("changes", "not_done", "plan_faces", "interactions", "wrote_refs", "conflicts", "bash_writes")   # 型ごとに受けた返答をつなぐ行の欄
+
+
+def merge_reply(before, reply) -> dict:
+    """型ごとに受けた返答を 1 つにまとめる（fix-reply.json・fix-ruled-reply.json の中身。型は 1 つずつ順に回る）: 行の欄 REPLY_ROWS は前の型の行の
+    後に今の型の行をつなぎ（同じ単位の行は今の型の物が勝つ）、x_scalars は重ね、閉じの証明の結果 fix_closure は found が clean に勝つ
+    （どちらかの型が見つけた）、6 つの印と異議・前提のずれの文は reply_marks で重ねる"""
+    prev = before if isinstance(before, dict) else {}
+    out = reply_marks(reply, prev)
+    for k in REPLY_ROWS:
+        now = [r for r in (reply or {}).get(k) or [] if isinstance(r, dict)]
+        keys = {r.get("unit_key") for r in now if r.get("unit_key")}
+        old = [r for r in prev.get(k) or [] if isinstance(r, dict) and not (r.get("unit_key") and r.get("unit_key") in keys)]
+        if old or k in (reply or {}) or k in prev:
+            out[k] = old + now
+    scalars = {**(prev.get(X_SCALARS) or {}), **((reply or {}).get(X_SCALARS) or {})}
+    if scalars:
+        out[X_SCALARS] = scalars
+    a, b = prev.get("fix_closure"), (reply or {}).get("fix_closure")
+    if isinstance(a, dict) and (not isinstance(b, dict) or (a.get("status") == "found" and b.get("status") != "found")):
+        out["fix_closure"] = a
+    return out
+
+
+def merge_units(place, name: str, units: dict) -> None:
+    """型ごとの単位の結末 units を、置き場の name（fix-units.json）の前の型の結末に単位で重ねて書く"""
+    path = pathlib.Path(place) / name
+    before = read_json(path)
+    write_json(path, {**(before if isinstance(before, dict) else {}), **(units or {})})
+
+
 def unit_outcomes(owed, reply, *, excused=None, parked=None, conflicted=None) -> dict:
     """単位ごとの結末 {key: {status, reason}}（fix-units.json の中身）: 止めた単位（parked {key: 理由}）は given_up、受けた返答の
     changes の単位は fixed、裁定へ回した単位（conflicted {key: 理由}。parked_reasons）と changes に無い直す義務の単位・外れた単位
@@ -1820,12 +1855,15 @@ def accept_reply(reply: dict, place, repo, *, pass_: str, iteration: int, owed, 
             declared.setdefault(text, set()).add(row["unit_key"])
         commit = not found
         out = recount.accept_fix(shaped, place, rev, repo, judged=judged, owed=set(duty), zero_keys=zero,
-                                 precedents=precedents, commit=commit, red_units=red_units(place))
+                                 precedents=precedents, commit=commit, red_units=red_units(place), merge=True)
         if out.get("ok") is not True:
             note("copy", out.get("problems") or [str(out.get("reason") or "")])
         elif closure and commit:
             import querytest
-            querytest.save_closure(types.SimpleNamespace(scope_root=pathlib.Path(place), round=1), closure)
+            keys = {r.get("unit_key") for r in closure}
+            kept = [r for r in querytest.closure_rows(types.SimpleNamespace(scope_root=pathlib.Path(place), round=1))
+                    if r.get("unit_key") not in keys]   # 前の型の行を残す（型は 1 つずつ順に回り、単位は重ならない）
+            querytest.save_closure(types.SimpleNamespace(scope_root=pathlib.Path(place), round=1), kept + closure)
     check_copy(reply)
     kw = dict(pass_=pass_, iteration=iteration, owed=owed, judged=judged, suite=suite, state=state,
               tests_state=tests_state, base_rev=base_rev, head=head, skip=skip, parked=parked, log=log)
@@ -1851,7 +1889,7 @@ def accept_reply(reply: dict, place, repo, *, pass_: str, iteration: int, owed, 
         gates_trace(place, pass_=pass_, attempt=iteration)
         if absorbed:
             trace(place, ABSORBED_OP, node=FIX_ACCEPT_BY, **absorbed)
-        duties.write_returns(place, repo, rev, reply, state=state)   # 返しの控え returns/<k>.json（下書き 2.1）
+        duties.write_returns(place, repo, rev, reply, state=state, owed=owed)   # 返しの控え returns/<k>.json（下書き 2.1）
         return {"ok": True, "reason": "", "rejects": [], "reply": reply, "units": units, "parked": parked,
                 "conflicted": False}
 
@@ -2133,7 +2171,8 @@ def no_suite_at_accept(place, seen: dict) -> str:
     if undecided:
         out.append(NO_SUITE_LIST.format(why=oneline.one_line(str(listed.get("why") or "")), hint=declared.LIST_HINT))
     rows = []
-    for name in ("fix-accept", "fix-ruled-accept"):   # 修正の輪と裁定の後の輪の受け付けの拒否の控え
+    from src import writers
+    for name in [writers.accept_name(ps, w) for ps in writers.SEQUENCE for w in writers.SEQUENCE[ps]]:   # 型ごとの書き手の受け付けの拒否の控え
         try:
             rows += rolekit.rejected(place, name)
         except rolekit.BoardGap:

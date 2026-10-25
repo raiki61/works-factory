@@ -445,423 +445,509 @@ nodes:
             limit: 9
           output_format: *accept_out
 
-  # 裁定の後の修正の輪。直す裁定（fix_test_scope・fix_code_as）が無ければ支度が go: false を返し、役を起こさずに抜ける。
-  # 役 fix-ruled は修正役の返答と裁定を機械が保存したファイルを読む。2 周目からは前の周の会話を継ぐ（fresh_context: false）
-  - id: fix-ruled-loop
+  # 裁定の後の修正の輪。外の輪 ruled-writers-loop は 1 周に型 1 つ（ruled-writer-pick が注文の在る型を順に選ぶ。docs/plans/2026-10-25-fix-weapons-stage1-b.md の 1）。
+  # 内の輪 fix-ruled-loop は今の修正の輪で、型の書き手を 1 本の鎖に並べ（並んだ層にすると会話が切れる）、fix-ruled-prep が返す型の名で 1 つだけ起こす。
+  # 内の輪の 1 周目はいつも新しい会話で、型の中の出し直しは同じ会話を継ぐ（fresh_context: false）。直す裁定が無ければ型を選ばずに抜ける
+  - id: ruled-writers-loop
     depends_on: [conflict-check, rule-loop, clash-ruled-loop]
     when: "$conflict-check.output.go == true"
     loop_group:
-      max_iterations: 12
-      fresh_context: false
-      until_bash: done=$fix-ruled-accept.output.done; test "$done" = true
+      max_iterations: 5
+      fresh_context: true
+      until_bash: done=$ruled-writer-pick.output.done; test "$done" = true
       nodes:
-        - id: fix-ruled-prep
-          script: fix_ruled_prep
+        - id: ruled-writer-pick
+          script: writer_pick
           runtime: uv
           mutates_checkout: false
-          output_format: &fix_prep_out
-            type: object
-            additionalProperties: false
-            required: [prompt, go, iteration]
-            properties:
-              prompt: {type: string}
-              go: {type: boolean}
-              iteration: {type: integer, minimum: 1}
-
-        - id: fix-ruled
-          description: '裁定の文を読んで直す'
-          <<: &fix_launch
-            model: '@wf-fix-writers'
-            settingSources: [user]
-            allowed_tools: [Read, Grep, Glob, Edit, Write, Bash, WebSearch, WebFetch, Agent]
-            sandbox: {enabled: true, allowUnsandboxedCommands: false}
-            idle_timeout: 1728000000
-            retry: {max_attempts: 2, on_error: all}
-          prompt: "$fix-ruled-prep.output.prompt"
-          depends_on: [fix-ruled-prep]
-          when: "$fix-ruled-prep.output.go == true"
-          output_format: &fix_reply
-            type: object
-            required: [changes, fix_closure, gates_changed, interactions, mechanism_changed, not_done, path_changed, plan_faces, premise_drift, seams_changed, security_surface_changed, wrote_refs]
-            additionalProperties: false
-            properties:
-              changes:
-                type: array
-                items:
-                  type: object
-                  required: [breaks, bypass_tried, closure, files, root_or_symptom, unit_key, what, precedent]
-                  additionalProperties: false
-                  properties:
-                    unit_key: {type: string}
-                    what: {type: string}
-                    closure:
-                      type: object
-                      required: [mechanism, fix_mechanism, verified_how, sites]
-                      additionalProperties: false
-                      properties:
-                        mechanism: {type: string}
-                        fix_mechanism: {type: string}
-                        verified_how: {type: string}
-                        sites:
-                          type: array
-                          items:
-                            type: object
-                            required: [site, red_seen]
-                            additionalProperties: false
-                            properties:
-                              site: {type: string}
-                              red_seen: {type: boolean}
-                              path: {type: string}
-                    files:
-                      type: array
-                      minItems: 1
-                      items: {type: string}
-                    coverage:
-                      type: object
-                      additionalProperties: false
-                      properties:
-                        how:
-                          type: object
-                          required: [patterns, paths, count]
-                          additionalProperties: false
-                          properties:
-                            patterns:
-                              type: array
-                              minItems: 1
-                              maxItems: 20
-                              items: {type: string, minLength: 1, pattern: '^[^\n\r\x00]+$'}
-                            fixed: {type: boolean}
-                            paths:
-                              type: array
-                              minItems: 1
-                              maxItems: 50
-                              items: {type: string, minLength: 1, pattern: '^[^\n\r\x00]+$'}
-                            count:
-                              type: string
-                              enum: [lines, files]
-                            untracked: {type: boolean}
-                            ignore_case: {type: boolean}
-                            word: {type: boolean}
-                        counts:
-                          type: string
-                          enum: [defects, population]
-                        remaining: {type: string}
-                    root_or_symptom:
-                      type: object
-                      required: [kind, why]
-                      additionalProperties: false
-                      properties:
-                        kind:
-                          type: string
-                          enum: [root, symptom]
-                        why: {type: string, minLength: 1}
-                    bypass_tried: {type: string, minLength: 1}
-                    breaks:
-                      type: object
-                      required: [how, result]
-                      additionalProperties: false
-                      properties:
-                        how: {type: string, minLength: 1}
-                        result: {type: string, minLength: 1}
-                        accepted: {type: string}
-                        accepted_title: {type: string}
-                    precedent:
-                      type: object
-                      required: [verdict, reason]
-                      additionalProperties: false
-                      properties:
-                        problem: {type: string}
-                        source: {type: string}
-                        verdict:
-                          type: string
-                          enum: [adopt, adapt, does_not_apply, not_found]
-                        reason: {type: string, minLength: 4}
-                        searched: {type: string}
-                        from_judge_row: {type: boolean}
-                      allOf:
-                      - if:
-                          not:
-                            required: [from_judge_row]
-                            properties:
-                              from_judge_row: {const: true}
-                        then:
-                          required: [problem]
-                          properties:
-                            problem: {type: string, minLength: 4}
-                      - if:
-                          allOf:
-                          - not:
-                              required: [from_judge_row]
-                              properties:
-                                from_judge_row: {const: true}
-                          - required: [verdict]
-                            properties:
-                              verdict: {const: not_found}
-                        then:
-                          required: [searched]
-                          properties:
-                            searched: {type: string, minLength: 4}
-                      - if:
-                          allOf:
-                          - not:
-                              required: [from_judge_row]
-                              properties:
-                                from_judge_row: {const: true}
-                          - required: [verdict]
-                            properties:
-                              verdict:
-                                not: {const: not_found}
-                        then:
-                          required: [source]
-                          properties:
-                            source: {type: string, minLength: 4}
-              not_done:
-                type: array
-                items:
-                  type: object
-                  required: [unit_key, why]
-                  additionalProperties: false
-                  properties:
-                    unit_key: {type: string}
-                    why: {type: string}
-              fix_closure:
-                type: object
-                required: [status]
-                additionalProperties: false
-                properties:
-                  status:
-                    type: string
-                    enum: [found, clean, carried_over, not_applicable, awaiting_human, not_run]
-                  count: {type: integer, minimum: 0}
-                  detail: {type: string}
-                  checked: {type: string}
-                  reason: {type: string}
-                  from_round: {type: integer, minimum: 1}
-              mechanism_changed: {type: boolean}
-              premise_drift: {type: boolean}
-              premise_drift_note: {type: string}
-              gates_changed: {type: boolean}
-              seams_changed: {type: boolean}
-              security_surface_changed: {type: boolean}
-              path_changed: {type: boolean}
-              decision_records_changed: {type: boolean}
-              rejudge_requested: {type: string}
-              interactions:
-                type: array
-                items:
-                  type: object
-                  required: [surface, checked]
-                  additionalProperties: false
-                  properties:
-                    surface: {type: string, minLength: 1}
-                    checked: {type: string, minLength: 1}
-                    combined_effect: {type: string}
-              wrote_refs:
-                type: array
-                maxItems: 50
-                items:
-                  type: object
-                  required: [kind, target, where]
-                  additionalProperties: false
-                  properties:
-                    kind:
-                      type: string
-                      enum: [file, text]
-                    cite: {type: string, minLength: 1, maxLength: 500}
-                    target: {type: string, minLength: 1, maxLength: 300}
-                    where: {type: string, minLength: 1, maxLength: 300}
-              plan_faces:
-                type: array
-                items:
-                  type: object
-                  additionalProperties: false
-                  required: [key, handled, how]
-                  properties:
-                    key: {type: string, minLength: 8}
-                    handled:
-                      type: string
-                      enum: [absorbed, declared]
-                    how: {type: string, minLength: 20}
-              x_scalars:
-                type: object
-                additionalProperties: false
-                patternProperties:
-                  ^x_[a-z0-9_]+$: {type: number}
-              conflicts:
-                type: array
-                items:
-                  type: object
-                  additionalProperties: false
-                  required: [unit_key, between, why_both_cannot_hold, which_is_right, kind]
-                  properties:
-                    unit_key: {type: string, minLength: 1}
-                    between:
-                      type: array
-                      minItems: 2
-                      items: {type: string, minLength: 3}
-                    why_both_cannot_hold: {type: string, minLength: 10}
-                    which_is_right:
-                      type: string
-                      enum: [request, test, code, unknown, query]
-                    correct_lines:
-                      type: array
-                      minItems: 1
-                      maxItems: 20
-                      items: {type: string, minLength: 1}
-                    kind:
-                      type: string
-                      enum: [brief_vs_judgment, unnamed_test_broke, not_red, scope_needed, query_hits_fixed, needs_context]
-              consult:
-                type: array
-                minItems: 1
-                items:
-                  type: object
-                  additionalProperties: false
-                  required: [item, paths, tests, why, tried, blocked, evidence]
-                  properties:
-                    item: {type: integer, minimum: 1}
-                    paths:
-                      type: array
-                      items: {type: string, minLength: 1}
-                    tests:
-                      type: array
-                      items: {type: string, minLength: 1}
-                    new_tests:
-                      type: array
-                      items: {type: string, minLength: 1}
-                    why: {type: string, minLength: 10}
-                    tried:
-                      type: array
-                      minItems: 1
-                      items: {type: string, minLength: 1}
-                    blocked: {type: string, minLength: 10}
-                    evidence:
-                      type: array
-                      minItems: 1
-                      items:
-                        type: object
-                        additionalProperties: false
-                        required: [path, line]
-                        properties:
-                          path: {type: string, minLength: 1}
-                          line: {type: integer, minimum: 1}
-              bash_writes:
-                type: array
-                items:
-                  type: object
-                  additionalProperties: false
-                  required: [path, why]
-                  properties:
-                    path: {type: string, minLength: 1}
-                    why: {type: string, minLength: 10}
-
-        - id: ruled-consult-check
-          script: consult_check
-          runtime: uv
-          mutates_checkout: false
-          depends_on: [fix-ruled]
           with:
-            reply: $fix-ruled.output
             pass: ruled
-          output_format: &consult_check_out
+          output_format: &writer_pick_out
             type: object
             additionalProperties: false
-            required: [consulted, go, prompt]
+            required: [go, writer, done]
             properties:
-              consulted: {type: boolean}
               go: {type: boolean}
-              prompt: {type: string}
+              writer: {type: string}
+              done: {type: boolean}   # この周の型の後に回す型が残らない（外の輪を抜ける）
 
-        # 相談の答えの役は、中に答えの役 1 つだけを置いた 1 周の輪の中で起きる（docs/design/fix.md の 13.3 の 1）。輪の 1 周目は新しい会話で、
-        # 輪の節は会話を外へ渡さないので、次の周の修正役は前の周の修正役の会話を継ぐ（答えの役の会話を継がない）
-        - id: ruled-consult-ask
-          depends_on: [ruled-consult-check]
-          when: "$ruled-consult-check.output.go == true"
+        - id: fix-ruled-loop
+          depends_on: [ruled-writer-pick]
+          when: "$ruled-writer-pick.output.go == true"
           loop_group:
-            max_iterations: 1
-            fresh_context: true
-            until_bash: "true"
+            max_iterations: 12
+            fresh_context: false
+            until_bash: done=$fix-ruled-accept.output.done; test "$done" = true
             nodes:
-              - id: ruled-consult-answer
-                description: '範囲の相談に答える（修正案と波及を読む。読むだけ）'
-                <<: &consult_launch
-                  model: '@wf-fix-consult'
+              - id: fix-ruled-prep
+                script: fix_ruled_prep
+                runtime: uv
+                mutates_checkout: false
+                output_format: &fix_prep_out
+                  type: object
+                  additionalProperties: false
+                  required: [prompt, go, iteration, writer]
+                  properties:
+                    prompt: {type: string}
+                    go: {type: boolean}
+                    iteration: {type: integer, minimum: 1}
+                    writer: {type: string}   # 今の周に起こす書き手の node の名（writer-pick が選んだ型の書き手。go が偽なら空）
+
+              - id: pin-ruled
+                description: '型 pin の書き手（注文 orders/pin.json の単位を受ける）'
+                <<: &writer_launch
+                  model: '@wf-fix-writers'
                   settingSources: [user]
-                  allowed_tools: [Read, Grep, Glob, WebSearch, WebFetch]
+                  allowed_tools: [Read, Grep, Glob, Edit, Write, Bash, WebSearch, WebFetch]
                   sandbox: {enabled: true, allowUnsandboxedCommands: false}
                   idle_timeout: 1728000000
                   retry: {max_attempts: 2, on_error: all}
-                prompt: "$ruled-consult-check.output.prompt"
-                mutates_checkout: false
-                output_format: &consult_answer
+                prompt: "$fix-ruled-prep.output.prompt"
+                depends_on: [fix-ruled-prep]
+                when: "$fix-ruled-prep.output.go == true && $fix-ruled-prep.output.writer == 'pin'"
+                output_format: &fix_reply
                   type: object
+                  required: [changes, fix_closure, gates_changed, interactions, mechanism_changed, not_done, path_changed, plan_faces, premise_drift, seams_changed, security_surface_changed, wrote_refs]
                   additionalProperties: false
-                  required: [answers]
                   properties:
-                    answers:
+                    changes:
+                      type: array
+                      items:
+                        type: object
+                        required: [breaks, bypass_tried, closure, files, root_or_symptom, unit_key, what, precedent]
+                        additionalProperties: false
+                        properties:
+                          unit_key: {type: string}
+                          what: {type: string}
+                          closure:
+                            type: object
+                            required: [mechanism, fix_mechanism, verified_how, sites]
+                            additionalProperties: false
+                            properties:
+                              mechanism: {type: string}
+                              fix_mechanism: {type: string}
+                              verified_how: {type: string}
+                              sites:
+                                type: array
+                                items:
+                                  type: object
+                                  required: [site, red_seen]
+                                  additionalProperties: false
+                                  properties:
+                                    site: {type: string}
+                                    red_seen: {type: boolean}
+                                    path: {type: string}
+                          files:
+                            type: array
+                            minItems: 1
+                            items: {type: string}
+                          coverage:
+                            type: object
+                            additionalProperties: false
+                            properties:
+                              how:
+                                type: object
+                                required: [patterns, paths, count]
+                                additionalProperties: false
+                                properties:
+                                  patterns:
+                                    type: array
+                                    minItems: 1
+                                    maxItems: 20
+                                    items: {type: string, minLength: 1, pattern: '^[^\n\r\x00]+$'}
+                                  fixed: {type: boolean}
+                                  paths:
+                                    type: array
+                                    minItems: 1
+                                    maxItems: 50
+                                    items: {type: string, minLength: 1, pattern: '^[^\n\r\x00]+$'}
+                                  count:
+                                    type: string
+                                    enum: [lines, files]
+                                  untracked: {type: boolean}
+                                  ignore_case: {type: boolean}
+                                  word: {type: boolean}
+                              counts:
+                                type: string
+                                enum: [defects, population]
+                              remaining: {type: string}
+                          root_or_symptom:
+                            type: object
+                            required: [kind, why]
+                            additionalProperties: false
+                            properties:
+                              kind:
+                                type: string
+                                enum: [root, symptom]
+                              why: {type: string, minLength: 1}
+                          bypass_tried: {type: string, minLength: 1}
+                          breaks:
+                            type: object
+                            required: [how, result]
+                            additionalProperties: false
+                            properties:
+                              how: {type: string, minLength: 1}
+                              result: {type: string, minLength: 1}
+                              accepted: {type: string}
+                              accepted_title: {type: string}
+                          precedent:
+                            type: object
+                            required: [verdict, reason]
+                            additionalProperties: false
+                            properties:
+                              problem: {type: string}
+                              source: {type: string}
+                              verdict:
+                                type: string
+                                enum: [adopt, adapt, does_not_apply, not_found]
+                              reason: {type: string, minLength: 4}
+                              searched: {type: string}
+                              from_judge_row: {type: boolean}
+                            allOf:
+                            - if:
+                                not:
+                                  required: [from_judge_row]
+                                  properties:
+                                    from_judge_row: {const: true}
+                              then:
+                                required: [problem]
+                                properties:
+                                  problem: {type: string, minLength: 4}
+                            - if:
+                                allOf:
+                                - not:
+                                    required: [from_judge_row]
+                                    properties:
+                                      from_judge_row: {const: true}
+                                - required: [verdict]
+                                  properties:
+                                    verdict: {const: not_found}
+                              then:
+                                required: [searched]
+                                properties:
+                                  searched: {type: string, minLength: 4}
+                            - if:
+                                allOf:
+                                - not:
+                                    required: [from_judge_row]
+                                    properties:
+                                      from_judge_row: {const: true}
+                                - required: [verdict]
+                                  properties:
+                                    verdict:
+                                      not: {const: not_found}
+                              then:
+                                required: [source]
+                                properties:
+                                  source: {type: string, minLength: 4}
+                    not_done:
+                      type: array
+                      items:
+                        type: object
+                        required: [unit_key, why]
+                        additionalProperties: false
+                        properties:
+                          unit_key: {type: string}
+                          why: {type: string}
+                    fix_closure:
+                      type: object
+                      required: [status]
+                      additionalProperties: false
+                      properties:
+                        status:
+                          type: string
+                          enum: [found, clean, carried_over, not_applicable, awaiting_human, not_run]
+                        count: {type: integer, minimum: 0}
+                        detail: {type: string}
+                        checked: {type: string}
+                        reason: {type: string}
+                        from_round: {type: integer, minimum: 1}
+                    mechanism_changed: {type: boolean}
+                    premise_drift: {type: boolean}
+                    premise_drift_note: {type: string}
+                    gates_changed: {type: boolean}
+                    seams_changed: {type: boolean}
+                    security_surface_changed: {type: boolean}
+                    path_changed: {type: boolean}
+                    decision_records_changed: {type: boolean}
+                    rejudge_requested: {type: string}
+                    interactions:
+                      type: array
+                      items:
+                        type: object
+                        required: [surface, checked]
+                        additionalProperties: false
+                        properties:
+                          surface: {type: string, minLength: 1}
+                          checked: {type: string, minLength: 1}
+                          combined_effect: {type: string}
+                    wrote_refs:
+                      type: array
+                      maxItems: 50
+                      items:
+                        type: object
+                        required: [kind, target, where]
+                        additionalProperties: false
+                        properties:
+                          kind:
+                            type: string
+                            enum: [file, text]
+                          cite: {type: string, minLength: 1, maxLength: 500}
+                          target: {type: string, minLength: 1, maxLength: 300}
+                          where: {type: string, minLength: 1, maxLength: 300}
+                    plan_faces:
+                      type: array
+                      items:
+                        type: object
+                        additionalProperties: false
+                        required: [key, handled, how]
+                        properties:
+                          key: {type: string, minLength: 8}
+                          handled:
+                            type: string
+                            enum: [absorbed, declared]
+                          how: {type: string, minLength: 20}
+                    x_scalars:
+                      type: object
+                      additionalProperties: false
+                      patternProperties:
+                        ^x_[a-z0-9_]+$: {type: number}
+                    conflicts:
+                      type: array
+                      items:
+                        type: object
+                        additionalProperties: false
+                        required: [unit_key, between, why_both_cannot_hold, which_is_right, kind]
+                        properties:
+                          unit_key: {type: string, minLength: 1}
+                          between:
+                            type: array
+                            minItems: 2
+                            items: {type: string, minLength: 3}
+                          why_both_cannot_hold: {type: string, minLength: 10}
+                          which_is_right:
+                            type: string
+                            enum: [request, test, code, unknown, query]
+                          correct_lines:
+                            type: array
+                            minItems: 1
+                            maxItems: 20
+                            items: {type: string, minLength: 1}
+                          kind:
+                            type: string
+                            enum: [brief_vs_judgment, unnamed_test_broke, not_red, scope_needed, query_hits_fixed, needs_context]
+                    consult:
                       type: array
                       minItems: 1
                       items:
                         type: object
                         additionalProperties: false
-                        required: [ask, decision, paths, tests, spec, reason]
+                        required: [item, paths, tests, why, tried, blocked, evidence]
                         properties:
-                          ask: {type: integer, minimum: 1}
-                          decision:
-                            type: string
-                            enum: [allow, deny, defer]
-                          new_tests:
-                            type: array
-                            items:
-                              type: object
-                              additionalProperties: false
-                              required: [id, red_kind]
-                              properties:
-                                id: {type: string, minLength: 1}
-                                red_kind:
-                                  type: string
-                                  enum: [red, guard]
+                          item: {type: integer, minimum: 1}
                           paths:
                             type: array
                             items: {type: string, minLength: 1}
                           tests:
                             type: array
                             items: {type: string, minLength: 1}
-                          spec: {type: string}
-                          reason: {type: string, minLength: 10}
+                          new_tests:
+                            type: array
+                            items: {type: string, minLength: 1}
+                          why: {type: string, minLength: 10}
+                          tried:
+                            type: array
+                            minItems: 1
+                            items: {type: string, minLength: 1}
+                          blocked: {type: string, minLength: 10}
+                          evidence:
+                            type: array
+                            minItems: 1
+                            items:
+                              type: object
+                              additionalProperties: false
+                              required: [path, line]
+                              properties:
+                                path: {type: string, minLength: 1}
+                                line: {type: integer, minimum: 1}
+                    bash_writes:
+                      type: array
+                      items:
+                        type: object
+                        additionalProperties: false
+                        required: [path, why]
+                        properties:
+                          path: {type: string, minLength: 1}
+                          why: {type: string, minLength: 10}
+                    evidence:
+                      type: object
+                      additionalProperties: false
+                      properties:
+                        kinds:
+                          type: array
+                          items:
+                            type: object
+                            required: [kind, did]
+                            additionalProperties: false
+                            properties:
+                              kind:
+                                type: string
+                                enum: [docs, prompts, config, code]
+                              did: {type: string, minLength: 1}
 
-        - id: ruled-consult-accept
-          script: consult_accept
-          runtime: uv
-          mutates_checkout: false
-          depends_on: [ruled-consult-check, ruled-consult-ask]
-          trigger_rule: none_failed_min_one_success
-          with:
-            answer: {from: "$ruled-consult-ask.output", if_skipped: null}
-            pass: ruled
-          output_format: &consult_accept_out
-            type: object
-            additionalProperties: false
-            required: [consulted, answer_file]
-            properties:
-              consulted: {type: boolean}
-              answer_file: {type: string}
+              - id: tidy-ruled
+                description: '型 tidy の書き手（注文 orders/tidy.json の単位を受ける）'
+                <<: *writer_launch
+                prompt: "$fix-ruled-prep.output.prompt"
+                depends_on: [fix-ruled-prep, pin-ruled]
+                trigger_rule: none_failed_min_one_success
+                when: "$fix-ruled-prep.output.go == true && $fix-ruled-prep.output.writer == 'tidy'"
+                output_format: *fix_reply
 
-        - id: fix-ruled-accept
-          script: fix_ruled_accept
-          runtime: uv
-          depends_on: [fix-ruled-prep, ruled-consult-accept]
-          trigger_rule: none_failed_min_one_success
-          with:
-            reply: {from: "$fix-ruled.output", if_skipped: null}
-            consulted: {from: "$ruled-consult-accept.output.consulted", if_skipped: false}
-          output_format: *accept_out
+              - id: static-ruled
+                description: '型 static の書き手（注文 orders/static.json の単位を受ける）'
+                <<: *writer_launch
+                prompt: "$fix-ruled-prep.output.prompt"
+                depends_on: [fix-ruled-prep, tidy-ruled]
+                trigger_rule: none_failed_min_one_success
+                when: "$fix-ruled-prep.output.go == true && $fix-ruled-prep.output.writer == 'static'"
+                output_format: *fix_reply
+
+              - id: variant-ruled
+                description: '型 variant の書き手（注文 orders/variant.json の単位を受ける）'
+                <<: *writer_launch
+                allowed_tools: [Read, Grep, Glob, Edit, Write, Bash, WebSearch, WebFetch, Agent]   # 項目ごとの下請けを起こす（付録 A の F101）
+                prompt: "$fix-ruled-prep.output.prompt"
+                depends_on: [fix-ruled-prep, static-ruled]
+                trigger_rule: none_failed_min_one_success
+                when: "$fix-ruled-prep.output.go == true && $fix-ruled-prep.output.writer == 'variant'"
+                output_format: *fix_reply
+
+              - id: remove-ruled
+                description: '型 remove の書き手（注文 orders/remove.json の単位を受ける）'
+                <<: *writer_launch
+                prompt: "$fix-ruled-prep.output.prompt"
+                depends_on: [fix-ruled-prep, variant-ruled]
+                trigger_rule: none_failed_min_one_success
+                when: "$fix-ruled-prep.output.go == true && $fix-ruled-prep.output.writer == 'remove'"
+                output_format: *fix_reply
+
+              - id: ruled-consult-check
+                script: consult_check
+                runtime: uv
+                mutates_checkout: false
+                depends_on: [pin-ruled, tidy-ruled, static-ruled, variant-ruled, remove-ruled]
+                trigger_rule: none_failed_min_one_success
+                with:
+                  reply_pin: {from: "$pin-ruled.output", if_skipped: null}
+                  reply_tidy: {from: "$tidy-ruled.output", if_skipped: null}
+                  reply_static: {from: "$static-ruled.output", if_skipped: null}
+                  reply_variant: {from: "$variant-ruled.output", if_skipped: null}
+                  reply_remove: {from: "$remove-ruled.output", if_skipped: null}
+                  pass: ruled
+                output_format: &consult_check_out
+                  type: object
+                  additionalProperties: false
+                  required: [consulted, go, prompt]
+                  properties:
+                    consulted: {type: boolean}
+                    go: {type: boolean}
+                    prompt: {type: string}
+
+              # 相談の答えの役は、中に答えの役 1 つだけを置いた 1 周の輪の中で起きる（docs/design/fix.md の 13.3 の 1）。輪の 1 周目は新しい会話で、
+              # 輪の節は会話を外へ渡さないので、次の周の修正役は前の周の修正役の会話を継ぐ（答えの役の会話を継がない）
+              - id: ruled-consult-ask
+                depends_on: [ruled-consult-check]
+                when: "$ruled-consult-check.output.go == true"
+                loop_group:
+                  max_iterations: 1
+                  fresh_context: true
+                  until_bash: "true"
+                  nodes:
+                    - id: ruled-consult-answer
+                      description: '範囲の相談に答える（修正案と波及を読む。読むだけ）'
+                      <<: &consult_launch
+                        model: '@wf-fix-consult'
+                        settingSources: [user]
+                        allowed_tools: [Read, Grep, Glob, WebSearch, WebFetch]
+                        sandbox: {enabled: true, allowUnsandboxedCommands: false}
+                        idle_timeout: 1728000000
+                        retry: {max_attempts: 2, on_error: all}
+                      prompt: "$ruled-consult-check.output.prompt"
+                      mutates_checkout: false
+                      output_format: &consult_answer
+                        type: object
+                        additionalProperties: false
+                        required: [answers]
+                        properties:
+                          answers:
+                            type: array
+                            minItems: 1
+                            items:
+                              type: object
+                              additionalProperties: false
+                              required: [ask, decision, paths, tests, spec, reason]
+                              properties:
+                                ask: {type: integer, minimum: 1}
+                                decision:
+                                  type: string
+                                  enum: [allow, deny, defer]
+                                new_tests:
+                                  type: array
+                                  items:
+                                    type: object
+                                    additionalProperties: false
+                                    required: [id, red_kind]
+                                    properties:
+                                      id: {type: string, minLength: 1}
+                                      red_kind:
+                                        type: string
+                                        enum: [red, guard]
+                                paths:
+                                  type: array
+                                  items: {type: string, minLength: 1}
+                                tests:
+                                  type: array
+                                  items: {type: string, minLength: 1}
+                                spec: {type: string}
+                                reason: {type: string, minLength: 10}
+
+              - id: ruled-consult-accept
+                script: consult_accept
+                runtime: uv
+                mutates_checkout: false
+                depends_on: [ruled-consult-check, ruled-consult-ask]
+                trigger_rule: none_failed_min_one_success
+                with:
+                  answer: {from: "$ruled-consult-ask.output", if_skipped: null}
+                  pass: ruled
+                output_format: &consult_accept_out
+                  type: object
+                  additionalProperties: false
+                  required: [consulted, answer_file]
+                  properties:
+                    consulted: {type: boolean}
+                    answer_file: {type: string}
+
+              - id: fix-ruled-accept
+                script: fix_ruled_accept
+                runtime: uv
+                depends_on: [fix-ruled-prep, ruled-consult-accept]
+                trigger_rule: none_failed_min_one_success
+                with:
+                  reply_pin: {from: "$pin-ruled.output", if_skipped: null}
+                  reply_tidy: {from: "$tidy-ruled.output", if_skipped: null}
+                  reply_static: {from: "$static-ruled.output", if_skipped: null}
+                  reply_variant: {from: "$variant-ruled.output", if_skipped: null}
+                  reply_remove: {from: "$remove-ruled.output", if_skipped: null}
+                  consulted: {from: "$ruled-consult-accept.output.consulted", if_skipped: false}
+                output_format: *accept_out
 
   # 控えに無かった git が無視するファイルだけを消す（Archon の置き場 .archon/ は消さない）。前のどれかの node が落ちた run では飛ぶ
   - id: clean
     script: clean
     runtime: uv
-    depends_on: [intake, clash-loop, conflict-check, rule-loop, clash-ruled-loop, fix-ruled-loop]
+    depends_on: [intake, clash-loop, conflict-check, rule-loop, clash-ruled-loop, ruled-writers-loop]
     trigger_rule: none_failed_min_one_success
     when: "$intake.output.whole == true"
     output_format:
@@ -1192,84 +1278,159 @@ nodes:
               reason_file: {type: string}
               phase: {type: string}
 
-  # 修正役の輪。範囲の外が要る時は返答の欄 consult で頼み、相談の 3 node が答える（その周は受け付けを回さない）。
-  # 3 回目の拒否で、名指しの単位だけを段の頭の木に戻して諦め、ほかは先へ。max_iterations 12 は拒否 3 回 + 相談の枠 9
-  - id: fix-loop
+  # 書き手の輪。外の輪 writers-loop は 1 周に型 1 つ（writer-pick が注文の在る型を tdd-close・pin・tidy・static・variant・remove の順に選ぶ。
+  # docs/plans/2026-10-25-fix-weapons-stage1-b.md の 1）。内の輪 fix-loop は今の修正の輪で、型の書き手を 1 本の鎖に並べ（並んだ層にすると会話が
+  # 切れる）、fix-prep が返す型の名で 1 つだけ起こす。範囲の外が要る時は返答の欄 consult で頼み、相談の 3 node が答える（その周は受け付けを
+  # 回さない）。3 回目の拒否で、名指しの単位だけを型の段の頭の木に戻して諦め、ほかは先へ。max_iterations 12 は拒否 3 回 + 相談の枠 9
+  - id: writers-loop
     depends_on: [group-start, orders, tdd-loop]
     trigger_rule: none_failed_min_one_success
     when: "$orders.output.writer == true && $orders.output.stop == false"
     loop_group:
-      max_iterations: 12
-      fresh_context: false
-      until_bash: done=$fix-accept.output.done; test "$done" = true
+      max_iterations: 6
+      fresh_context: true
+      until_bash: done=$writer-pick.output.done; test "$done" = true
       nodes:
-        - id: fix-prep
-          script: fix_prep
+        - id: writer-pick
+          script: writer_pick
           runtime: uv
           mutates_checkout: false
-          output_format: *fix_prep_out
-
-        - id: fixer
-          description: '修正役: TDD のループで直していない単位を直す'
-          <<: *fix_launch
-          prompt: "$fix-prep.output.prompt"
-          depends_on: [fix-prep]
-          when: "$fix-prep.output.go == true"
-          output_format: *fix_reply
-
-        - id: consult-check
-          script: consult_check
-          runtime: uv
-          mutates_checkout: false
-          depends_on: [fixer]
           with:
-            reply: $fixer.output
             pass: first
-          output_format: *consult_check_out
+          output_format: *writer_pick_out
 
-        # 相談の答えの役は 1 周の輪の中で起きる（ruled-consult-ask と同じ形。docs/design/fix.md の 13.3 の 1）
-        - id: consult-ask
-          depends_on: [consult-check]
-          when: "$consult-check.output.go == true"
+        - id: fix-loop
+          depends_on: [writer-pick]
+          when: "$writer-pick.output.go == true"
           loop_group:
-            max_iterations: 1
-            fresh_context: true
-            until_bash: "true"
+            max_iterations: 12
+            fresh_context: false
+            until_bash: done=$fix-accept.output.done; test "$done" = true
             nodes:
-              - id: consult-answer
-                description: '範囲の相談に答える（修正案と波及を読む。読むだけ）'
-                <<: *consult_launch
-                prompt: "$consult-check.output.prompt"
+              - id: fix-prep
+                script: fix_prep
+                runtime: uv
                 mutates_checkout: false
-                output_format: *consult_answer
+                output_format: *fix_prep_out
 
-        - id: consult-accept
-          script: consult_accept
-          runtime: uv
-          mutates_checkout: false
-          depends_on: [consult-check, consult-ask]
-          trigger_rule: none_failed_min_one_success
-          with:
-            answer: {from: "$consult-ask.output", if_skipped: null}
-            pass: first
-          output_format: *consult_accept_out
+              - id: tdd-close
+                description: '型 tdd-close の書き手（注文 orders/tdd.json の単位を受ける）'
+                <<: *writer_launch
+                prompt: "$fix-prep.output.prompt"
+                depends_on: [fix-prep]
+                when: "$fix-prep.output.go == true && $fix-prep.output.writer == 'tdd-close'"
+                output_format: *fix_reply
 
-        - id: fix-accept
-          script: fix_accept
-          runtime: uv
-          depends_on: [fix-prep, consult-accept]
-          trigger_rule: none_failed_min_one_success
-          with:
-            reply: {from: "$fixer.output", if_skipped: null}
-            consulted: {from: "$consult-accept.output.consulted", if_skipped: false}
-          output_format: *accept_out
+              - id: pin
+                description: '型 pin の書き手（注文 orders/pin.json の単位を受ける）'
+                <<: *writer_launch
+                prompt: "$fix-prep.output.prompt"
+                depends_on: [fix-prep, tdd-close]
+                trigger_rule: none_failed_min_one_success
+                when: "$fix-prep.output.go == true && $fix-prep.output.writer == 'pin'"
+                output_format: *fix_reply
+
+              - id: tidy
+                description: '型 tidy の書き手（注文 orders/tidy.json の単位を受ける）'
+                <<: *writer_launch
+                prompt: "$fix-prep.output.prompt"
+                depends_on: [fix-prep, pin]
+                trigger_rule: none_failed_min_one_success
+                when: "$fix-prep.output.go == true && $fix-prep.output.writer == 'tidy'"
+                output_format: *fix_reply
+
+              - id: static
+                description: '型 static の書き手（注文 orders/static.json の単位を受ける）'
+                <<: *writer_launch
+                prompt: "$fix-prep.output.prompt"
+                depends_on: [fix-prep, tidy]
+                trigger_rule: none_failed_min_one_success
+                when: "$fix-prep.output.go == true && $fix-prep.output.writer == 'static'"
+                output_format: *fix_reply
+
+              - id: variant
+                description: '型 variant の書き手（注文 orders/variant.json の単位を受ける）'
+                <<: *writer_launch
+                allowed_tools: [Read, Grep, Glob, Edit, Write, Bash, WebSearch, WebFetch, Agent]   # 項目ごとの下請けを起こす（付録 A の F101）
+                prompt: "$fix-prep.output.prompt"
+                depends_on: [fix-prep, static]
+                trigger_rule: none_failed_min_one_success
+                when: "$fix-prep.output.go == true && $fix-prep.output.writer == 'variant'"
+                output_format: *fix_reply
+
+              - id: remove
+                description: '型 remove の書き手（注文 orders/remove.json の単位を受ける）'
+                <<: *writer_launch
+                prompt: "$fix-prep.output.prompt"
+                depends_on: [fix-prep, variant]
+                trigger_rule: none_failed_min_one_success
+                when: "$fix-prep.output.go == true && $fix-prep.output.writer == 'remove'"
+                output_format: *fix_reply
+
+              - id: consult-check
+                script: consult_check
+                runtime: uv
+                mutates_checkout: false
+                depends_on: [tdd-close, pin, tidy, static, variant, remove]
+                trigger_rule: none_failed_min_one_success
+                with:
+                  reply_tdd_close: {from: "$tdd-close.output", if_skipped: null}
+                  reply_pin: {from: "$pin.output", if_skipped: null}
+                  reply_tidy: {from: "$tidy.output", if_skipped: null}
+                  reply_static: {from: "$static.output", if_skipped: null}
+                  reply_variant: {from: "$variant.output", if_skipped: null}
+                  reply_remove: {from: "$remove.output", if_skipped: null}
+                  pass: first
+                output_format: *consult_check_out
+
+              # 相談の答えの役は 1 周の輪の中で起きる（ruled-consult-ask と同じ形。docs/design/fix.md の 13.3 の 1）
+              - id: consult-ask
+                depends_on: [consult-check]
+                when: "$consult-check.output.go == true"
+                loop_group:
+                  max_iterations: 1
+                  fresh_context: true
+                  until_bash: "true"
+                  nodes:
+                    - id: consult-answer
+                      description: '範囲の相談に答える（修正案と波及を読む。読むだけ）'
+                      <<: *consult_launch
+                      prompt: "$consult-check.output.prompt"
+                      mutates_checkout: false
+                      output_format: *consult_answer
+
+              - id: consult-accept
+                script: consult_accept
+                runtime: uv
+                mutates_checkout: false
+                depends_on: [consult-check, consult-ask]
+                trigger_rule: none_failed_min_one_success
+                with:
+                  answer: {from: "$consult-ask.output", if_skipped: null}
+                  pass: first
+                output_format: *consult_accept_out
+
+              - id: fix-accept
+                script: fix_accept
+                runtime: uv
+                depends_on: [fix-prep, consult-accept]
+                trigger_rule: none_failed_min_one_success
+                with:
+                  reply_tdd_close: {from: "$tdd-close.output", if_skipped: null}
+                  reply_pin: {from: "$pin.output", if_skipped: null}
+                  reply_tidy: {from: "$tidy.output", if_skipped: null}
+                  reply_static: {from: "$static.output", if_skipped: null}
+                  reply_variant: {from: "$variant.output", if_skipped: null}
+                  reply_remove: {from: "$remove.output", if_skipped: null}
+                  consulted: {from: "$consult-accept.output.consulted", if_skipped: false}
+                output_format: *accept_out
 
   # 終わりの木・単位ごとの結末・TDD のループの結果・申し出・異議・修正役の印・許したテストの変更を out_dir/<group_id>/result.json に書く
   - id: group-end
     script: group_end
     runtime: uv
     mutates_checkout: false
-    depends_on: [group-start, tdd-loop, fix-loop]
+    depends_on: [group-start, tdd-loop, writers-loop]
     trigger_rule: none_failed_min_one_success
     output_format:
       type: object
@@ -1285,8 +1446,8 @@ nodes:
   # 忘れると配線の試験が落ちる）。when を書かない（when で飛ぶ node は落ちと数えない）
   - id: nodes-ok
     bash: "true"
-    depends_on: [intake, prep, groups-par, groups-seq, join, clash-loop, conflict-check, rule-loop, clash-ruled-loop, fix-ruled-loop, clean,
-                 assert-changed, group-start, suite-fix-prep, suite-fix, suite-fix-try, route-go, route-loop, orders, tdd-loop, fix-loop, group-end]
+    depends_on: [intake, prep, groups-par, groups-seq, join, clash-loop, conflict-check, rule-loop, clash-ruled-loop, ruled-writers-loop, clean,
+                 assert-changed, group-start, suite-fix-prep, suite-fix, suite-fix-try, route-go, route-loop, orders, tdd-loop, writers-loop, group-end]
     trigger_rule: none_failed_min_one_success
     mutates_checkout: false
 
@@ -1296,7 +1457,7 @@ nodes:
     script: fix_reads
     runtime: uv
     mutates_checkout: false
-    depends_on: [fix-loop, fix-ruled-loop]
+    depends_on: [writers-loop, ruled-writers-loop]
     trigger_rule: all_done
     output_format:
       type: object
@@ -1314,8 +1475,8 @@ nodes:
     script: finish
     runtime: uv
     mutates_checkout: false
-    depends_on: [intake, prep, groups-par, groups-seq, join, clash-loop, conflict-check, rule-loop, clash-ruled-loop, fix-ruled-loop, clean,
-                 assert-changed, group-start, suite-fix-prep, suite-fix, suite-fix-try, route-go, route-loop, orders, tdd-loop, fix-loop, group-end, fix-reads]
+    depends_on: [intake, prep, groups-par, groups-seq, join, clash-loop, conflict-check, rule-loop, clash-ruled-loop, ruled-writers-loop, clean,
+                 assert-changed, group-start, suite-fix-prep, suite-fix, suite-fix-try, route-go, route-loop, orders, tdd-loop, writers-loop, group-end, fix-reads]
     trigger_rule: all_done
     output_format:
       type: object
@@ -1452,7 +1613,7 @@ nodes:
             required: [group_id, weapon, units, tests, only_removed]
             properties:
               group_id: {type: string}
-              weapon: {type: string}
+              writer: {type: string}
               units: {type: array, items: {type: string}}
               tests: {type: array, minItems: 1, items: {type: string}}
               only_removed: {type: array, items: {type: string}}
@@ -1464,7 +1625,7 @@ nodes:
             required: [group_id, weapon, units, why, files]
             properties:
               group_id: {type: string}
-              weapon: {type: string}
+              writer: {type: string}
               units: {type: array, items: {type: string}}
               why: {type: string, minLength: 1}
               files:

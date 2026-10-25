@@ -197,7 +197,7 @@ def refix_prompt(place, n: int) -> dict:
               "diff_file": cut.read_cut(place, n)["file"], "inner_word": report.INNER_FACE_KIND, "fixed": touchup.HANDLED[0],
               "declared": touchup.HANDLED[1], "min_how": touchup.MIN_HOW, "lang": doc["lang"], **seat}
     when = {"rejected": bool(rejected), "policy": bool(doc["policy"]), "request": request.is_file(), "scope": bool(items),
-            "conflict": False, "docs": True, "prompts_kind": True, "config": True, "code": True, "spawns": False,
+            "conflict": False, "conflict_change": False, "docs": True, "prompts_kind": True, "config": True, "code": True, "spawns": False,
             # 証拠の頭と、答えを書く場所（今の common.md の節 evidence は手直しの役にもいつも載り、書く場所は handled の how）
             "evidence": True, "where_fixer": False, "where_tdd": False, "where_rework": True}
     return _emit(place, role, values, when)

@@ -1,96 +1,4 @@
-<!-- if rejected -->
-{shared:rejected}
-
-The acceptance ran all its checks. Fix every line listed under the headings, all in one resubmission.
-<!-- end rejected -->
-
-<!-- if rulings_first -->
-Read the file with the rulings on the conflict declarations, {rulings_file}, all of it, first. Fix as the rulings say and return the whole answer again (the text of the rulings itself is not pasted here).
-<!-- end rulings_first -->
-
-<!-- if ruled_reply -->
-The first fixer's answer (saved by the machine): {saved_reply}. Read it all first. Learn the earlier fixes and declarations from this file and the rulings file (the fixes in the working tree are still there).
-<!-- end ruled_reply -->
-
-<!-- if briefs -->
-{part:brief-head}
-<!-- end briefs -->
-
-<!-- if faces -->
-## Pre-review keys to answer (plan_faces)
-
-Answer every key below in the answer's `plan_faces`, one row per key (copy the key without changing a single character; do not write keys that are not in this list). The acceptance asks `plan_faces` for an answer to all of them.
-
-{faces_rows}
-<!-- end faces -->
-
-<!-- if scope -->
-## Paths you may change and what you must not touch
-
-The acceptance checks the paths you changed against these values and rejects what is off. If a path you declared in `changes[].files` is explicitly allowed by one of that unit's items (allowed_paths, the test files), it is checked only against the `out_of_scope` of that unit's items (the `out_of_scope` of other items does not apply). For every other path, the `out_of_scope` of every item is stronger than the scope and also wins over the permitted paths (only a path excluded through a scope consultation does not apply for that item). The paths and test permissions allowed by scope consultations are included here too.
-
-{scope_rows}
-
-The permits that apply to all items (the permission to change tests, and the paths added by rulings to fix) do not win over `out_of_scope`.
-<!-- end scope -->
-
-<!-- if tests -->
-## Tests you may add or change, and frozen tests
-
-The acceptance checks the tests you added, the existing tests whose bodies you changed, and the frozen test files against these names, and rejects what is off. If you need something off the list, ask in a scope consultation before you change it.
-
-{tests_rows}
-<!-- end tests -->
-<!-- if tests_new -->
-- A new test that is not in "足してよい新しいテスト" is rejected when you add it.
-<!-- end tests_new -->
-<!-- if tests_tail -->
-- The ranges in "本体を変えてよい既存のテストの範囲": `<path>` is the whole file, `<path>:<line>` is the whole function that contains the line, and `<path>:<line>-<line>` is the lines as written.
-<!-- end tests_tail -->
-<!-- if tests_broken -->
-- The files under "直す前から壊れていた関わる試験" hold tests related to your fix that were already failing before the fix (in the TDD loop's first run). You may fix them along with your fix, so that they test what they were meant to test; do not weaken or remove what they check. They are shown to a person at the final approval as tests fixed along the way.
-<!-- end tests_broken -->
-<!-- if frozen_files -->
-- Rewriting a frozen test file outside the names and ranges above is rejected. The functions of new tests you only added do not count as frozen; they are checked against "足してよい新しいテスト" above.
-<!-- end frozen_files -->
-<!-- if frozen_verified -->
-- Do not change the names under "ループが書き換えて凍らせた名指し" any more, even if they are in the names above.
-<!-- end frozen_verified -->
-<!-- if frozen_unruled -->
-- The ranges of rulings `fix_test_scope` do not lift the freeze in this round: rewriting a file under "今の段の TDD のループが凍らせたファイル" outside the names above and the ranges of scope consultations is rejected.
-<!-- end frozen_unruled -->
-<!-- if tests_tail -->
-- Changing or removing the body of any other existing test function is rejected.
-<!-- end tests_tail -->
-
-<!-- if tests_how -->
-## How the tests were run before the fix
-
-These are the forms the test stage before the fix actually ran.
-
-{tests_how}
-
-Run tests in this form without searching for environments or commands (narrow them as the rules below say).
-<!-- end tests_how -->
-
-<!-- if policy -->
-The policy document: {policy_path} (read it all first).
-<!-- end policy -->
-<!-- if no_policy -->
-There is no policy document.
-<!-- end no_policy -->
-<!-- if request -->
-The request file: {request_file} (read it all first).
-<!-- end request -->
-<!-- if no_request -->
-There is no request file.
-<!-- end no_request -->
-
 <!-- if rules -->
-# Fixing (the writer's job)
-
-You are the fixer. You read the judgment, cut into root units (unit) and passed by the acceptance, and fix the units you owe a fix on the working tree. The machine (the shared board) accepts your answer and recounts before and after the fix with the judgment's way of counting.
-
 ## What to read
 
 - The judgment file: {judgment_file} — background (the source of the requirement is the briefs at the head. If there is no briefs section at the head, the judgment is the source; follow rule 6 of "Brief rules (the source of the requirement and the background)" below. The machine puts that section after these lines, and rule 6 says "in a run without briefs and for a unit without a brief, the judgment file is the source; Read it all first"). Read it with Read when you look up the fields of the briefs' units. Each unit in `units` has `key`, `label`, `disposition`, `reason` (facts and refutation), `origin_analysis` (where it came from), `class_query` (the query that finds every instance of the same shape), and `prescriptions` (prescriptions, listed starting from the zero prescription = withdraw, and from the proposal that makes do with one existing mechanism), and there are `framing`, `one_shot`, `questions` (the question ledger), and `precedents` (the precedent rows).
@@ -125,7 +33,11 @@ Whether to widen the scope is a specification decision, and the fix plan's side 
    - If defer, do not fix it in this run. Write that you did not fix that place, and why, in `what` (per unit) or in `not_done`.
    - If there is no answer (refused, unavailable, invalid), read the reason in the answer file. If it could not be asked, return a conflict declaration (`which_is_right` request, `kind` `scope_needed`) as the rule before consultation says (rule 8 of "Brief rules (the source of the requirement and the background)" above: do not change things outside the scope).
    - Consultation rounds have a budget ({budget} in this stage's loop). A `consult` after the budget is used up is rejected by the acceptance. If you still need something outside the scope after it is used up, do not change things outside the scope, and return that unit as a conflict declaration (`which_is_right` request, `kind` `scope_needed`) (units that close within the scope may be fixed). Do not ask to rewrite tests to fit expectations to the implementation.
+<!-- end ask -->
+<!-- if ask_variant -->
    - A subagent (an implementer started with Agent) cannot consult itself. If a subagent reports that it needs something outside the scope, this role writes it in `consult` and returns (the subagent's fixes may stay as they are in the working tree or the unit's worktree).
+<!-- end ask_variant -->
+<!-- if ask -->
 2. **The pre-check**: before you give your answer, Write a draft identical to the JSON you return to {draft} (do not write it into the working tree), and run the following with Bash. Subagents run it without `--reply`. The sandbox may refuse writes outside the working tree. If the write to {draft} is refused, write the draft under your session's temporary directory instead (for example under `$TMPDIR`) and pass that path to `--reply`; the check reads any path. Never write the draft into the working tree.
    {check_cmd} --reply {draft}
    The rejection lines of the same fact checks as the acceptance (frozen tests, the origin of writes, the approved fix plan's scope, the references you wrote (the answer's `wrote_refs` and the Markdown links the diff added); no tests are run) are listed in `rejects` (exit code 0 passes, 1 means there are lines). If there are lines, fix them or consult before you return.
@@ -172,7 +84,11 @@ The promises of these instructions' stage (the JSON to return, the machine's gat
 When the implementer template's status words NEEDS_CONTEXT or BLOCKED (the works word divergence) apply, do not count that unit as fixed; return it as one entry of the conflict declarations in conflicts. `kind` is the situation that occurred, one of the following (the rules of the fields are in the section "Conflict declarations (do not bend to get green)" of these instructions):
 - `brief_vs_judgment`: the brief disagrees with the judgment, the request, or the conditions answered at the approval node before the fix (put that unit's brief line in `between`)
 - `unnamed_test_broke`: an existing test named neither in the fix plan nor in a ruling fails when you fix, or can only be removed
+<!-- end rules -->
+<!-- if rules_change -->
 - `not_red`: an acceptance test or a named rewrite does not go red even when written as the plan says, or goes red in a different way than the plan says
+<!-- end rules_change -->
+<!-- if rules -->
 - `scope_needed`: it does not go green without touching something outside the brief's or the plan's scope, or the recount with the judge's query does not close (when there is a scope consultation section, only after you consulted first in the answer's consult and were not allowed; a subagent reports to the coordinating role that a consultation is needed)
 - `query_hits_fixed`: the judge's query also hits the correct form after the fix (`which_is_right` is query, and `correct_lines` is needed)
 - `needs_context`: the policy, the intent of the request, or which is right cannot be decided from the materials, and a person's or the request's answer is needed (`which_is_right` is unknown)
@@ -198,7 +114,13 @@ In `changes`, write **exactly one row per unit you fixed**. Do not split the sam
 - `unit_key`: copy the judgment unit's `key` **without changing a single character** (one of the values in "the keys of the units you owe a fix" above)
 - `files`: the files whose content you changed to fix that unit (paths relative to the repository root). The later check looks at whether every file you write here really changed from the version (do not write caches and the like produced by running tests)
 - `what`: what you fixed and how (how you closed the root, how many places of the same shape you fixed, the tests you ran and their results), in 1 to 3 sentences
-- `closure` (proof of closure): `mechanism` (the defect's mechanism), `fix_mechanism` (the mechanism by which the fix closes it), `verified_how` (how you confirmed it closed), and `sites`. For a fix to a check or a guard, first list every place that shares that invariant (`sites`), inject a regression into each place one by one, see red and, after restoring, green, and write it in `red_seen` (do not stop at "I tried one and it was red"). In each row of `sites`, write in `path` the one file where that site is, as a path relative to the target root. The machine ties a site to the files hit by `class_query` through `path`, and compares the number of hits covered, not the number of sites, with the population (listing sites in the same file does not increase the count. Sites in tests and documents become visible to the person as paths "fixed outside the query". A site without `path` is not counted as coverage: coverage is counted by the sites with `path` and, of that row's `files`, the files the fix changed, and the fact that there was a site without `path` appears as a reason in the per-unit table. Only when the count per hit file cannot be looked up, the files the fix changed are counted by the number of sites whose `path` points at them). For a structural fix, a machine check (grep, execution) that the moved destination is actually used; for a wording fix, the real text after the change
+- `closure` (proof of closure): `mechanism` (the defect's mechanism), `fix_mechanism` (the mechanism by which the fix closes it), `verified_how` (how you confirmed it closed), and `sites`.
+<!-- end rules -->
+<!-- if rules_sites -->
+For a fix to a check or a guard, first list every place that shares that invariant (`sites`), inject a regression into each place one by one, see red and, after restoring, green, and write it in `red_seen` (do not stop at "I tried one and it was red").
+<!-- end rules_sites -->
+<!-- if rules -->
+In each row of `sites`, write in `path` the one file where that site is, as a path relative to the target root. The machine ties a site to the files hit by `class_query` through `path`, and compares the number of hits covered, not the number of sites, with the population (listing sites in the same file does not increase the count. Sites in tests and documents become visible to the person as paths "fixed outside the query". A site without `path` is not counted as coverage: coverage is counted by the sites with `path` and, of that row's `files`, the files the fix changed, and the fact that there was a site without `path` appears as a reason in the per-unit table. Only when the count per hit file cannot be looked up, the files the fix changed are counted by the number of sites whose `path` points at them). For a structural fix, a machine check (grep, execution) that the moved destination is actually used; for a wording fix, the real text after the change
 - `coverage` (the population of coverage): for a unit whose judgment has a `class_query`, you need not write it; if you do not, the machine fills in the judgment's how. **The machine counts before and after the fix**: before the fix in the same fixed version the judgment read, after the fix in the current working tree (including untracked files, excluding what .gitignore hits), and the direction (defects/population) uses the judgment's value. For a unit with a `class_query`, do not write counts. **The number closed is counted by the machine from the hit files pointed to by `path` of the `closure` `sites` or in that row's `files` that the fix actually changed** (files named in a site but not changed are not counted). If you think the judgment's query misses targets or counts only the one line at the root, you may rebuild the how (write the rebuilt how; if it is narrower than the judgment's population, `remaining` needs a reason). Only for a unit whose judgment has no `class_query`, the machine has no query to use, so write how (the query that counts) and counts (the direction; the word defects or population, not a number). **Leaving something is not itself forbidden. Leaving it silently is forbidden**: if the sites you proved do not reach the population, write in `remaining` "what you leave and why you do not close it this round". **Whether it closed is decided by the machine with the recount of the judgment's query**: if the declaration (the number of hits the `sites` cover, `remaining`) does not match the recount, the machine records the disagreement in the per-unit table and shows it to the person to decide. If you say you closed everything with a query that counts the defect's shape (defects) but it still counts after the fix, the unit appears in the table as not closed (it counts even if you only left the old expression in a note). If the judgment's query also hits the correct form after the fix, do not silence it by narrowing how; have the query's replacement ruled with a conflict declaration (`which_is_right`: query and `correct_lines`)
 - `root_or_symptom`: has the fields `kind` and `why`. `kind` is whether this fix closed the root the judgment named (root) or closed a symptom (symptom). **If symptom, write in why "why you stop with that now"** (if hitting the root means a new mechanism or a widened shared surface, say so and write it in `rejudge_requested`)
 - `bypass_tried`: **the inputs you tried in order to break the fix while keeping it, and the results**. "It went red when I removed the fix" is detection of absence, not evidence of completeness. If it broke, fix it before you submit. If it did not break, write what you tried; do not write "not tried"
@@ -209,7 +131,12 @@ In `changes`, write **exactly one row per unit you fixed**. Do not split the sam
 
 - `not_done`: the units you did not fix and why (`unit_key`, `why`). A unit you owe a fix ([block] and do-now) must be fixed unless it is the origin of a fork (the origin of a question answered before the fix (a person's answer, or the recommendation an unattended run took) is back in the units you owe a fix, and the acceptance rejects it if you write it in `not_done`. The "origin of a fork" in the rejection message "if it is not the origin of a fork, you owe a fix" means the origin of a question that has no answer yet (a fork, and a question whose status is escalate)). If you leave one out, the acceptance rejects it
 - `interactions`: **when two or more fixes touched the same file, one entry per surface (`surface`)**. The machine derives the list of surfaces from `changes`' `files`, so leaving one out is rejected (do not write the list of fixes that touched it). For each surface, compare: ① does one make the other unneeded (if so, apply only the smaller one) ② does the order of application change the result ③ is there a state that arises only when they are combined. Write the result in `checked`, and if a state arises, what arises in `combined_effect`
-- `fix_closure`: the result of the round's proof of closure. In a round with fixes, `clean` (in `checked`, what you confirmed; clean without ever having seen red is rejected) or `found`. Only a round with 0 fixes may be `not_applicable` (silent values such as not_applicable when there are fixes are rejected)
+- `fix_closure`: the result of the round's proof of closure. In a round with fixes, `clean` (in `checked`, what you confirmed) or `found`. Only a round with 0 fixes may be `not_applicable` (silent values such as not_applicable when there are fixes are rejected)
+<!-- end rules -->
+<!-- if rules_red -->
+  `clean` without ever having seen red is rejected.
+<!-- end rules_red -->
+<!-- if rules -->
 - `plan_faces`: one row per `key` of the pre-review's holes (`faces`) and alternatives (`shrink`): if you took it in, `absorbed` and how you took it in, in how. If you do not take it in, `declared` and the reason you leave it, in how (if it is a false positive, where in the real code you can say it is wrong). If there is a key you do not answer, the machine rejects it. If you leave a block hole as declared, write it on the premise that the next whole review will raise the same hole as [block]. Writing "hand to a person" in how does not reach the person: write what goes to a person in that unit's `breaks.accepted` (the machine puts it in the list shown to the person). A run without a fix plan, or a run where neither holes nor alternatives were raised, is an empty array
 - `wrote_refs`: **references that cannot be links that you newly wrote this round** (section names, headings, file names, quotes of other documents), one by one: `kind` (file if you pointed at the file itself, text if you pointed at a string inside the file), `target` (the file you point at), `where` (the file you wrote it into), and for text, `cite` (the spelling exactly as it is at the target; one per line). The machine looks them up again in the current working tree and rejects what it cannot find; what you fix is the reference you wrote into the document, not the declaration. You may point at files created and headings added this round. A round that wrote no new references is an empty array. Write new references, where you can, as Markdown links (`[name](relative path#heading)`): the machine picks up links in the .md lines the diff added regardless of the declaration, looks them up to the target file and heading, and rejects them if they do not reach
 - `rejudge_requested` (optional): an objection to the judgment's framing or disposition. This round fixes as the judgment says

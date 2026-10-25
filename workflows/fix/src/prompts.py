@@ -27,9 +27,7 @@ EMPTY = "(empty)"
 BLOCK = pathlib.Path(__file__).resolve().parents[1]
 OVERLAY_FILE = str(spseam.BORROW_DIR / spseam.OVERLAY_FILE)   # 下請けに Read させる無人の読み替え（今の seat.OVERLAY_HEAD の後半）
 FACTS = BLOCK / "src" / "facts.py"   # 事前の確かめのコマンド（1.5.5）
-FIXER = {"first": "fixer", "ruled": "fix-ruled"}
-ACCEPT = {"first": "fix-accept", "ruled": "fix-ruled-accept"}
-LEDGER = {"first": files.FIXER_DELIVERED, "ruled": files.RULED_DELIVERED}
+ACCEPT = {"first": "fix-accept", "ruled": "fix-ruled-accept"}   # 合わせ役の受け付けの名の頭（型の書き手の受け付けの名は src/writers.accept_name）
 CLASH = {"first": "clash-fix", "ruled": "clash-ruled"}
 CONSULT = {"first": "consult-answer", "ruled": "ruled-consult-answer"}
 WRITER_KINDS = {"docs": "docs", "prompts": "prompts_kind", "config": "config", "code": "code"}   # 種類 → writer-rules の段落の名
@@ -76,30 +74,53 @@ def _check_cmd(config: str) -> str:
     return f"{sys.executable} {FACTS} {config}" if config else ""
 
 
-# ---------------------------------------------------------------- 修正役（fixer・fix-ruled）
-def fixer_values(place, repo, pass_: str, values: dict, *, owed, items=None, sources=None, green=frozenset(), frozen=None,
-                 shared=None, saved_reply: str = "") -> tuple[dict, dict, dict]:
-    """修正役の指示の (値, 段落, 周の控え {iteration, kinds, ledger})。今の fixrules.prep の組み立ての順のまま。
+# ---------------------------------------------------------------- 型ごとの書き手（tdd-close・pin・tidy・static・variant・remove と <型>-ruled）
+SITES_WEAPONS = ("variant", "pin")   # 同じ決まりを共有する所を 1 か所ずつ壊して赤を見る証明（付録 A の F123）を書き手に言う型
+
+
+def writer_when(weapon: str) -> dict:
+    """型 weapon の書き手の指示で、型が選ぶ段落の真偽（付録 A の行き先: variant だけの手順・変える段の義務・壊して赤の証明・赤を見ない
+    clean の拒否）。箱は duties.BOXES、赤を見ない clean を拒む型は受け付けと同じ board.RED_WEAPONS から引く（指示と照らしをそろえる）"""
+    from src import duties
+    return {"variant": weapon == "variant", "change": duties.box_of(weapon) == "change", "sites": weapon in SITES_WEAPONS,
+            "red": weapon in board.RED_WEAPONS}
+
+
+def writer_paragraphs(weapon: str) -> dict:
+    """型 weapon が選ぶ書き手の md の段落の真偽（writer_when を段落の名に引いた物。決まりの段落 rules・相談の段落 ask・下請けの項目が在る時に
+    だけ効く。writer_values が使い、tests/blocks/fix/test_assets.py が組んだ指示の照らしに使う）"""
+    k = writer_when(weapon)
+    return {"ask_variant": k["variant"], "rules_change": k["change"], "rules_sites": k["sites"], "rules_red": k["red"],
+            "conflict_change": k["change"], "spawns": k["variant"], "g1": k["variant"]}
+
+
+def writer_values(place, repo, pass_: str, weapon: str, values: dict, *, owed, items=None, sources=None, green=frozenset(),
+                  frozen=None, shared=None, saved_reply: str = "") -> tuple[dict, dict, dict]:
+    """型 weapon の書き手の指示の (値, 段落, 周の控え {iteration, kinds, ledger})。今の修正役の組み立ての順のまま（fixrules.prep）。
     範囲の相談の答えの後・はみ出しを相談に積んだ周は続きの段落だけ（回の数え直しをしない）。brief の控えが壊れていれば Broken"""
+    from src import writers
     place = pathlib.Path(place)
+    kind = writer_paragraphs(weapon)
     try:
         briefs = rules.briefs_or_halt(place, **(sources or {}))   # 裁定の文を書くより前に凍結する
     except ValueError as e:
         raise Broken(str(e)) from None
-    ledger = place / LEDGER[pass_]
+    ledger = writers.ledger(place, pass_, weapon)
     slots = ("rejection rulings_file saved_reply brief_rows faces_rows scope_rows tests_rows tests_how policy_path request_file "
              "judgment_file open_units plan_file summary_file notes_file budget draft check_cmd ripple_file libdocs_rows g1_items "
              "seat_file seat_body unattended overlay_file first_prompt answer_file left lang").split()
     vals = {k: "" for k in slots}
     when = {k: False for k in ("rejected rulings_first ruled_reply briefs faces scope tests tests_new tests_tail tests_broken frozen_files frozen_verified frozen_unruled tests_how rules ask ask_ripple libdocs g1 "
-                               "seat_one resume queued overflow_answer conflict docs prompts_kind config code evidence where_fixer where_tdd where_rework").split()}
+                               "seat_one resume queued overflow_answer conflict docs prompts_kind config code evidence where_fixer where_tdd where_rework "
+                               "ask_variant rules_change rules_sites rules_red conflict_change").split()}
     when["conflict"] = True
-    when["spawns"] = True   # 修正役は Agent を持つ（query-rule の下請けへの渡しの段落）
+    when["conflict_change"] = kind["conflict_change"]   # 申し出の種類 not_red は変える段の書き手だけ（付録 A の W24）
+    when["spawns"] = kind["spawns"]   # 下請けを起こすのは variant の書き手だけ（Agent を持つ。query-rule の下請けへの渡しの段落）
     start_vals, start_when = _starts(values)
     vals.update(start_vals, lang=prompt.lang(runvals.read(place)["lang"]))
     when.update({k: False for k in start_when})
     from src import consult
-    vals["first_prompt"] = str(place / f"{FIXER[pass_]}-prompt-1.md")   # 続きの周が読み直す、1 回目に組んだ指示のファイル
+    vals["first_prompt"] = str(place / f"{writers.node(pass_, weapon)}-prompt-1.md")   # 続きの周が読み直す、1 回目に組んだ指示のファイル
     got = consult.take(place, pass_)
     if got is not None:   # 範囲の相談の答えの後の周: 答えのファイルを名指すだけ（受け付けの回は数え直さない）
         rv = rules.resume_values(got)
@@ -111,7 +132,8 @@ def fixer_values(place, repo, pass_: str, values: dict, *, owed, items=None, sou
         return vals, when, {"iteration": max(1, rules.iteration_next(ledger) - 1), "kinds": None, "ledger": ledger}
     n = rules.iteration_next(ledger)
     when.update(start_when, rules=True, tests=True, tests_tail=True)   # テストの節は修正案の有無によらずいつも載る
-    rejects = rolekit.rejected(place, ACCEPT[pass_])
+    when.update({k: kind[k] for k in ("rules_change", "rules_sites", "rules_red")})
+    rejects = rolekit.rejected(place, writers.accept_name(pass_, weapon))
     if pass_ == "ruled" and n == 1:
         rulings = place / conflict.RULINGS_FILE
         if not rulings.is_file():
@@ -149,11 +171,12 @@ def fixer_values(place, repo, pass_: str, values: dict, *, owed, items=None, sou
     if config:
         vals.update(budget=str(consult.BUDGET), draft=str(pathlib.Path(config).parent / rules.ASK_DRAFT), check_cmd=_check_cmd(config))
         when["ask"] = True
+        when["ask_variant"] = kind["ask_variant"]
         ripple = str(values.get("ripple_file") or "").strip()
         if ripple:
             vals["ripple_file"] = ripple
             when["ask_ripple"] = True
-    subs = rules.dispatched(owed_keys, green)
+    subs = rules.dispatched(owed_keys, green) if kind["g1"] else []   # 項目ごとの下請けは variant だけ（付録 A の F101）
     try:
         seat.pinned()   # 写しの照合を、下請けのファイルの書き込みとライブラリの文書の引きより前に
         if subs:
@@ -175,10 +198,11 @@ def fixer_values(place, repo, pass_: str, values: dict, *, owed, items=None, sou
     return vals, when, {"iteration": n, "kinds": kinds, "ledger": ledger}
 
 
-def fixer(place, repo, pass_: str, values: dict, **kw) -> dict:
-    """修正役の指示を組んで place に書く。返り {prompt, iteration}"""
-    vals, when, rnd = fixer_values(place, repo, pass_, values, **kw)
-    node = FIXER[pass_]
+def writer(place, repo, pass_: str, weapon: str, values: dict, **kw) -> dict:
+    """型 weapon の書き手の指示を組んで place に書く。返り {prompt, iteration}"""
+    from src import writers
+    vals, when, rnd = writer_values(place, repo, pass_, weapon, values, **kw)
+    node = writers.node(pass_, weapon)
     try:
         out = prompt.emit(node, vals, when, prompt.round_of(node))
     except prompt.PromptError as e:
@@ -246,8 +270,9 @@ def tdd_values(place, repo, view: dict, values: dict) -> tuple[dict, dict, dict]
                             "notes_file skill seat_applies seat_not_applies unattended overlay_file test_cmd owed_units current_unit "
                             "together_rows named_rows handoff_rows later_rows tests_how runner_cmd lang").split()}
     when = {k: False for k in ("briefs rejected rules conflict docs prompts_kind config code phase_route phase_test phase_fix "
-                               "phase_refactor gate current together named handoff later tests_how evidence where_fixer where_tdd where_rework spawns").split()}
-    when.update(rules=True, conflict=True, **{f"phase_{phase}": True})
+                               "phase_refactor gate current together named handoff later tests_how evidence where_fixer where_tdd where_rework spawns "
+                               "rules_change conflict_change").split()}
+    when.update(rules=True, conflict=True, rules_change=True, conflict_change=True, **{f"phase_{phase}": True})
     start_vals, start_when = _starts(values)
     vals.update(start_vals)
     when.update(start_when)

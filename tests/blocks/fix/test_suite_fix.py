@@ -158,8 +158,8 @@ class SuiteFixCase(tg.GroupChildScriptsCase):
         self.assertEqual(NODES["route-loop"]["when"], "$route-go.output.route == true")
         self.assertIn("suite-fix-try", NODES["route-go"]["depends_on"])
         self.assertEqual(NODES["tdd-loop"]["when"], "$orders.output.tdd == true")
-        self.assertEqual(NODES["fix-loop"]["when"], "$orders.output.writer == true && $orders.output.stop == false")
-        self.assertIn("orders", NODES["fix-loop"]["depends_on"])
+        self.assertEqual(NODES["writers-loop"]["when"], "$orders.output.writer == true && $orders.output.stop == false")
+        self.assertIn("orders", NODES["writers-loop"]["depends_on"])
         self.assertIn("route-loop", NODES["orders"]["depends_on"])
         self.assertEqual(NODES["suite-fix-try"]["trigger_rule"], "none_failed_min_one_success")
         self.assertEqual(NODES["suite-fix-try"]["when"], "$group-start.output.suite_broken == true",
