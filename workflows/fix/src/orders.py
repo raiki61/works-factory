@@ -11,6 +11,7 @@ PR A の形（docs/plans/2026-10-25-fix-weapons-stage1-a.md の 1）: 型ごと�
 - compute(place, repo) -> {tdd, writer, stop, reason}
 - no_suite_why(place) -> 組の頭で止める訳（下書き 3.9 の止め方の 1。止めないなら空）
 - weapons(place) -> {単位: 型の名}: 書いた注文の索引から引く（受け付けが型の義務を引く口）
+- later_agreed(place) -> 段の頭の後に取れた範囲の相談の合意の許しの範囲（凍結の照らし duties.frozen_by_returns が足す）
 - stage_of(place) -> 段の番（1 回目の段 2n−1。n は修正の block を入れた回で、前の段の申し送りが在れば 2）
 """
 from __future__ import annotations
@@ -241,7 +242,7 @@ def compute(place, repo) -> dict:
 ORDER_SEQUENCE = ("pin", "tidy", "static", "tdd", "variant", "remove")
 
 
-def _write_orders(place, keys, owed, weapons: dict, *, stage: int, since: str, has_base: bool) -> list:
+def _write_orders(place, keys, owed, weapons: dict, *, stage: int, since: str, has_base: bool, agreed=None) -> list:
     """型ごとの注文 orders/<w>.json と索引 orders.json を書く（単位の無い型の注文は消す）。型の並びを返す"""
     place = pathlib.Path(place)
     group = intake.load(place).get("group") or {}
@@ -261,14 +262,44 @@ def _write_orders(place, keys, owed, weapons: dict, *, stage: int, since: str, h
                                                since=since, base_file=str(basecase.path(place)) if has_base else "",
                                                whys=whys, removes=removes, why_untested=w == "static"))
     jsonfile.write(place / files.ORDERS_FILE, {"sequence": sequence, "weapons": weapons, "stage": stage, "since": since,
+                                               "agreed": agreed_keys(place) if agreed is None else list(agreed),
                                                "unsatisfied": unsatisfied(place, owed, weapons, sequence)})
     return sequence
+
+
+def agreed_keys(place) -> list:
+    """置き場の範囲の相談の合意（conflict.agreed。写した行も）の見分けの字 <group_id>:<id> の並び（注文の索引の欄 agreed。段の頭に
+    在った合意。permits_for が前の返しに当たる物を引いた合意と、段の途中で取れた合意を見分ける）"""
+    try:
+        rows = conflict.agreed(pathlib.Path(place))
+    except ValueError:
+        rows = []
+    return [_agreed_key(r) for r in rows]
+
+
+def _agreed_key(row: dict) -> str:
+    return f"{row.get('group_id') or ''}:{row.get('id')}"
+
+
+def later_agreed(place) -> list:
+    """段の頭（注文の索引の欄 agreed）の後に取れた範囲の相談の合意の許しの範囲（conflict.agreed_permits の limit）。相談はその時の木の
+    凍結を見て許したので、前の返しの凍ったファイルに当たっても引かない（下書き 2.1 の「後の段で直したい時は、範囲の相談か申し出の
+    道に乗る」）。注文の無い置き場は []"""
+    idx = jsonfile.read_or(pathlib.Path(place) / files.ORDERS_FILE)
+    if not isinstance(idx, dict):
+        return []
+    seen = set(idx.get("agreed") or [])
+    try:
+        rows = [r for r in conflict.agreed(pathlib.Path(place)) if _agreed_key(r) not in seen]
+    except ValueError:
+        return []
+    return [str(r["limit"]) for r in conflict.agreed_permits(rows)]
 
 
 def regive(place) -> list:
     """tdd の輪が諦めた単位（輪の状態の units の gave_up）を、同じ箱の variant の注文に書き直す（下書き 4.1 の 3 の gave_up の
     単位の書き直し。route から型を引く表の 5 と同じ行き先）。注文 orders/tdd.json から外し orders/variant.json に足し、索引の weapons を
-    替える（段の番・since・元の結末は今の注文のまま）。注文の無い組・諦めの無い組は何もしない。何度呼んでも同じ。書き直した単位を返す"""
+    替える（段の番・since・元の結末・段の頭の合意 agreed は今の注文のまま）。注文の無い組・諦めの無い組は何もしない。何度呼んでも同じ。書き直した単位を返す"""
     place = pathlib.Path(place)
     idx = jsonfile.read_or(place / files.ORDERS_FILE)
     if not isinstance(idx, dict) or not isinstance(idx.get("weapons"), dict):
@@ -283,7 +314,7 @@ def regive(place) -> list:
     group = intake.load(place).get("group") or {}
     keys = [str(k) for k in group.get("unit_ids") or []]
     _write_orders(place, keys, [k for k in keys if k in weapons], weapons, stage=int(idx.get("stage") or stage_of(place)),
-                  since=str(idx.get("since") or ""), has_base=basecase.read(place) is not None)
+                  since=str(idx.get("since") or ""), has_base=basecase.read(place) is not None, agreed=idx.get("agreed") or [])
     return moved
 
 
@@ -334,7 +365,7 @@ def write_ruled(place, owed: list, *, since: str) -> list:
                                                whys=whys, removes=removes, why_untested=w == "static", rulings=True,
                                                checked=checked))
     jsonfile.write(place / files.ORDERS_FILE, {"sequence": sequence, "weapons": weapons, "stage": stage, "since": since,
-                                               "pass": RULED_PASS, "unsatisfied": []})
+                                               "pass": RULED_PASS, "agreed": agreed_keys(place), "unsatisfied": []})
     return sequence
 
 

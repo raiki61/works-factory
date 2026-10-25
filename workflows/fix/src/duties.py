@@ -265,7 +265,8 @@ PERMIT_RANGES = ("rewrite", "agreed", "ruled", "broken")   # 凍ったファイ�
 
 def frozen_by_returns(place, repo) -> list:
     """凍ったファイルの照らし（下書き 2.3 の 9）のうち返しの控えの分: 置き場の returns/ の全部の frozen（前の型・前の段の凍結）を、
-    注文の索引の since の木を基準に、注文の permits の範囲（PERMIT_RANGES の行の test）だけを許して照らす（common.frozen_problems の
+    注文の索引の since の木を基準に、注文の permits の範囲（PERMIT_RANGES の行の test）と段の頭の後に取れた範囲の相談の合意
+    （orders.later_agreed。注文は段の頭で 1 度しか書かない）だけを許して照らす（common.frozen_problems の
     同じ式。返しの控えは輪の状態と同じ名の欄 frozen・frozen_tree を持つ）。今の照らし facts.check_frozen は外さずに並べる（両方を
     通る物だけを通す。docs/plans/2026-10-25-fix-weapons-stage1-a.md の 1 の 3）。注文の無い置き場・控えの無い置き場は空"""
     import jsonfile   # lib/
@@ -276,7 +277,7 @@ def frozen_by_returns(place, repo) -> list:
     if not since or not d.is_dir():
         return []
     lims = sorted({str(r.get("test")) for doc in orders.order_docs(place).values() for r in doc.get("permits") or []
-                   if isinstance(r, dict) and r.get("kind") in PERMIT_RANGES and r.get("test")})
+                   if isinstance(r, dict) and r.get("kind") in PERMIT_RANGES and r.get("test")} | set(orders.later_agreed(place)))
     out: list = []
     for p in sorted(d.glob("*.json"), key=lambda q: (len(q.stem), q.stem)):
         doc = jsonfile.read_or(p)

@@ -49,7 +49,7 @@ ACCEPT_FILE = "accept.json"    # 受け付けが書き戻す欄 {final_left, fin
 BASES_DIR = "bases"            # ほかの組・前の段から写した元の結末 bases/<k>/{base.json, accept.json}
 RETURNS_DIR = "returns"        # 共通の受け付けが通した返しの控え returns/<k>.json
 ORDERS_DIR = "orders"          # 型ごとの注文 orders/<weapon>.json（組の子の頭の orders と裁定の後の段の注文を書く役が書く）
-ORDERS_FILE = "orders.json"    # 注文の索引 {sequence, unsatisfied, no_suite, reason, stage, since}
+ORDERS_FILE = "orders.json"    # 注文の索引 {sequence, weapons, stage, since, agreed, unsatisfied[, pass]}
 
 # この block の出力の先（finish が書く）
 FROZEN_FILE = "frozen.json"        # 輪ごとの凍ったテストのファイルの hash {loops: [{state, frozen, frozen_tree}]}（出力 frozen）

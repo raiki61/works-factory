@@ -504,6 +504,28 @@ class RuledOrderCase(unittest.TestCase):
         self.orders.write_ruled(self.place, ["T"], since=self.rev)
         self.assertEqual(self.duties.frozen_by_returns(self.place, self.repo), [])
 
+    def agree(self, n, granted):
+        """範囲の相談の合意の行（conflict.ASKED_OP の答え allow）を置き場の trace に足す"""
+        import conflict
+        with (self.place / "trace.jsonl").open("a", encoding="utf-8") as f:
+            f.write(json.dumps({"op": conflict.ASKED_OP, "id": n, "item": "1", "unit_keys": ["T"], "status": "answered",
+                                "decision": "allow", "granted_tests": granted, "reason": "期待を直してよい"}) + "\n")
+
+    def test_an_agreement_made_after_the_stage_head_frees_the_frozen_file(self):
+        """段の頭（注文を書いた時）の後に範囲の相談で取れた合意は、前の返しの凍ったファイルの書き換えを許す（相談がその時の凍結を見て
+        許した）。段の頭に在った合意は今までどおり前の返しに当たれば引く"""
+        self.returned(1, "tdd", ["T"])
+        self.agree(1, ["test_stats.py"])
+        self.orders.write_ruled(self.place, ["T"], since=self.rev)
+        self.assertEqual([r["kind"] for r in self.orders.permits_for(self.place, [], stage=2, rulings=False)], [],
+                         "段の頭に在る合意は前の返しの凍結に当たれば引く")
+        (self.repo / "test_stats.py").write_text("import os\nLIMIT = 1\n\n\ndef test_mean():\n    assert 1\n", encoding="utf-8")
+        self.assertTrue(self.duties.frozen_by_returns(self.place, self.repo))
+        self.agree(2, ["test_stats.py"])
+        self.assertEqual(self.duties.frozen_by_returns(self.place, self.repo), [], "段の途中で取れた合意は通す")
+        self.orders.write_ruled(self.place, ["T"], since=self.rev)
+        self.assertTrue(self.duties.frozen_by_returns(self.place, self.repo), "次の段の頭からは段の頭に在った合意")
+
     def child_of_a_second_block(self, since):
         """2 回目の block の組の子: 親の prior/ を adopt_inputs が子に置き、1 回目の block の tdd の返し（印 prior_pass）を写した物"""
         parent = self.tmp / "parent"
