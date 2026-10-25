@@ -6,7 +6,7 @@ API に無い。憲法の 6）: check は「箱の義務の問題 + 型の義務
 
 どの関数も単位の事実 facts（受け付けが組む dict。下の FACTS）だけを読み、yes/no で問題の文を返す。表の行に載せた関数だけが受け付けで
 効く。PR A は機械が自分で決められる照らしだけを表に置き、書き手が返す証拠（evidence.named・kinds・sites の at・fixed_by・test）が
-要る照らしは、関数と試験を置いて PR B で表に足す（docs/plans/2026-10-25-fix-weapons-stage1-a.md の 3）。
+要る照らしは、関数と試験を置いて段 2 で表に足す（docs/plans/2026-10-25-fix-weapons-stage1-a.md の 3）。
 
 FACTS（単位ごと）: unit（単位の key）・weapon・files（単位の行の files。根からの相対）・test_files（その中の試験のファイル。
 impact.is_test_file）・kinds（files の rules.kind_of の集まり）・allowed_kinds（static の注文の変えてよい種類）・why_untested・
@@ -55,7 +55,7 @@ def keep_same_result(f: dict) -> list:
         if gone else []
 
 
-BOX_DUTIES = {"change": (), "keep": (keep_same_result,), "outside": ()}   # PR B で change に change_named_or_gone を足す
+BOX_DUTIES = {"change": (), "keep": (keep_same_result,), "outside": ()}   # 段 2 で change に change_named_or_gone を足す
 
 
 def check(weapon: str, facts: dict) -> list:
