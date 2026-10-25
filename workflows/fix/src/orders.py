@@ -282,8 +282,8 @@ def _agreed_key(row: dict) -> str:
 
 
 def later_agreed(place) -> list:
-    """段の頭（注文の索引の欄 agreed）の後に取れた範囲の相談の合意の許しの範囲（conflict.agreed_permits の limit）。相談はその時の木の
-    凍結を見て許したので、前の返しの凍ったファイルに当たっても引かない（下書き 2.1 の「後の段で直したい時は、範囲の相談か申し出の
+    """段の頭（注文の索引の欄 agreed）の後に取れた範囲の相談の合意の許しの範囲（許しの唯一の元 conflict.test_permits の agreed の
+    行の limit）。相談はその時の木の凍結を見て許したので、前の返しの凍ったファイルに当たっても引かない（下書き 2.1 の「後の段で直したい時は、範囲の相談か申し出の
     道に乗る」）。注文の無い置き場は []"""
     idx = jsonfile.read_or(pathlib.Path(place) / files.ORDERS_FILE)
     if not isinstance(idx, dict):
@@ -291,9 +291,10 @@ def later_agreed(place) -> list:
     seen = set(idx.get("agreed") or [])
     try:
         rows = [r for r in conflict.agreed(pathlib.Path(place)) if _agreed_key(r) not in seen]
+        permits = conflict.test_permits(pathlib.Path(place), rulings=False, agreed_rows=rows) if rows else []
     except ValueError:
         return []
-    return [str(r["limit"]) for r in conflict.agreed_permits(rows)]
+    return [str(r["limit"]) for r in permits if _kind(str(r.get("id") or "")) == ("agreed", False) and r.get("limit")]
 
 
 def regive(place) -> list:
