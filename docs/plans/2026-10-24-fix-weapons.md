@@ -165,7 +165,7 @@
 
 ## 範囲
 
-- 描く物（第 10 版で 11 章を足した）: 段 2 の設計（11 章）、今の型の棚卸しと direct の指示文の仕分け（1 章）、箱と型の口の形（2 章）、場面の軸と型ごとの中身（3 章）、切り方（4 章）、定石との比べ（5 章）、憲法の 3 と E11 の確かめ（6 章）、run 19268881 の審査の指摘との照らし（7 章）、keep-essence との照らし（8 章）、持ち主の決めと問い（9 章）、指示の仕分けの表（付録 A）、記録の run との照らし（付録 B）。
+- 描く物（第 10 版で 11 章と付録 C を足した）: 段 2 の設計（11 章）と TDD の輪の状態の読み手の棚卸し（付録 C）、今の型の棚卸しと direct の指示文の仕分け（1 章）、箱と型の口の形（2 章）、場面の軸と型ごとの中身（3 章）、切り方（4 章）、定石との比べ（5 章）、憲法の 3 と E11 の確かめ（6 章）、run 19268881 の審査の指摘との照らし（7 章）、keep-essence との照らし（8 章）、持ち主の決めと問い（9 章）、指示の仕分けの表（付録 A）、記録の run との照らし（付録 B）。
 - 描かない物:
   - どの依頼にどの型を当てるか。今の形（計画の項目の `route` が tdd か direct。計画の入力 `routes` は auto か spec、修正の入力 `routes` は auto か plan）のまま。足すのは static・tidy・pin を名指す語だけで、足し方は持ち主の答え（9.1 の 10）のとおり。場面の軸（3.0）で型を選ぶ決め方は、この設計の外で持ち主と別に詰める（持ち主の答え 2026-10-24 の 4）。
   - 「判定の単位はコードの上の欠陥の形 1 つ」の決め。依頼が挙げた `docs/design/diagnose.md:298` は 2.7 節の「残す物」の行で、決まりそのものは `docs/design/diagnose.md:31`（判定の道）と `:638`（23 番の手順 1 のクラスタリング）、機械の側は `workflows/diagnose/src/judge.py:268-272`（class_query が要る）と `workflows/diagnose/src/exit.py:90`（単位が 0 なら案へ進まない）に在る。
@@ -1100,7 +1100,7 @@ variant の「起点の木で赤」と下ごしらえの「起点の木で 2 回
 
 #### E1 修正の block の中で、TDD の輪の状態を受け付けが読まない形にする
 
-TDD の輪を block に出す前に、修正の block の中で、輪の外が輪の状態のファイル `tdd-<k>/state.json` を読む所を全部、輪が抜ける時に書く「輪の記録」に替える。出す PR（E2）を機械的な移しにするため。読む所の棚卸し（約 30 か所。2026-10-26 の棚卸し）は E1 の頼みに付ける。
+TDD の輪を block に出す前に、修正の block の中で、輪の外が輪の状態のファイル `tdd-<k>/state.json` を読む所を全部、輪が抜ける時に書く「輪の記録」に替える。出す PR（E2）を機械的な移しにするため。読む所の棚卸し（約 30 か所）は付録 C に置き、E1 の頼みに付ける。
 
 - 作る物:
   1. 振り分けの状態を分ける: 振り分け（`route-go`・`route-prep`・`route-step`・`src/route.py`）は、輪の状態の代わりに修正の block の place の `route.json` に書く（欄は今の `phase`〔route・routed〕・`order`・`units`・`tries`・`reason`・`iterations`・`calls`・`parked`・`parked_why`・`handoff`・`unsent`・`note`・`runs`・`work`・`suite_made` のうち振り分けが書く物）。`orders.compute` は `route.json` を読み、TDD の輪の状態はここで初めて `tdd.open_state` で作る（今は `route-go` が作る。`scripts/route_go.py:34-38`）。
@@ -1132,7 +1132,7 @@ TDD の輪を block に出す前に、修正の block の中で、輪の外が�
 
 - 1 つの頼みに 1 つの PR。頼みには、この節のその PR の「作る物・縛る試験・作らない物」と、11.3・11.4 の該当の項をそのまま貼る。
 - D1 は、block 5 つが同じ形なので、まず `weapon-static`（一番小さい）を 1 つ作らせて部署が読み、残り 4 つを写させる。
-- E1 は、棚卸しの行（file:line）を頼みに付け、行ごとに「置き換え先」を書かせてから直させる。
+- E1 は、付録 C の棚卸しの行（file:line）を頼みに付け、行ごとに「置き換え先」を書かせてから直させる。
 
 ### 11.7 E11 の 3 つ・憲法の 3 と 5・keep-essence
 
@@ -1447,3 +1447,61 @@ md の断片でなく、Python が値を組む時に字を足して指示にな�
 4. 振る舞いを変える直しを修正役が直した例（run 6cc154f6・1e5eafbd。route=tdd で、15 件の外）: variant の手本の形のまま（B.2 の 4）。第 5 版で変わらない。
 
 響き: 15 件はどれも段 1 の並びのどれかで通り、新しい型を足さずに済んだ。足したのは route の語 2 つ（`tidy`・`pin`。持ち主の答え 9.1 の 10 で決まった）と、下ごしらえの単独の頼まれ方と、下ごしらえの確かめの合わせ（3.6）だけ。
+
+## 付録 C TDD の輪の状態を輪の外が読む所の棚卸し（第 10 版。11.6 の E1 の頼みに付ける）
+
+- 調べた物: main `f38b9727` の `workflows/fix/src/*.py`・`scripts/*.py` のうち、TDD の輪の中（`src/tdd.py`・`scripts/tdd_prep.py`・`tdd_step.py`）の外で、輪の状態 `tdd-<k>/state.json`・`summary.md` を読み書きする所（2026-10-26。設計の部署が別の作業者に読むだけで洗い出させ、要所を開いて確かめた）。行番号はその版の物で、E1 の頭で引き直す。
+- 組: A は段 1 の置き場（`base.json`・`returns/`・注文）で替えられる。B は輪が抜ける時に書く記録（11.6 の E1 の 2）に欄が要る。C は輪の中の物で、輪と一緒に移せる。
+- 前提: `returns/<k>.json` の tdd の行は、輪が終わった時でなく、tdd の閉じの書き手の返答が受け付けを通った時に `duties.write_returns` が書く（`board.py:1892`）。だから閉じの書き手の支度・事前の確かめ・受け付けの間は、今の輪の `frozen`・`frozen_tree`・`suite_made`・単位の行が状態にしか無い。B はどれも「輪が抜ける時に記録を書く」ことが前提。
+
+### C.1 振り分けと注文が輪の状態に書く所（11.6 の E1 の 1 で分ける）
+
+- `scripts/route_go.py:34-38`: `tdd.open_state` で状態を作り、`route.begin` で `open_units`・`phase=route`・`order`・`units`・`queue`・`cur` を書く。`tdd-start.json` に `state_file`・`summary_file`。`:28` は `phase` を読む。
+- `src/route.py:173-212` の `step`: 読む `phase`・`runs`・`handoff`・`suite_made`・`work`（`_owed` で `open_units`・`excused`・`parked`、`_plan_tdd` で `contract`）。書く `tries`・`reason`・`iterations`・`order`・`units`・`phase=routed`・`note`・`parked`・`parked_why`・`handoff`・`calls`・`unsent`。`iterations` と `calls` は輪がそのまま数え続ける（`tdd.py:935`）。
+- `src/route.py:107` の `prep`: 状態の全体を `prompts.tdd_values`（`prompts.py:253-317`）に渡す。呼び手 `scripts/route_prep.py:39-44`。
+- `scripts/route_step.py:35`（`common.flush_unsent` で `unsent` を流す）・`:38`（`calls` の件数）。
+- `src/orders.py:204-238` の `compute`: 読む `units[].route`・`why`・`gave_up`・`parked`。`:231` で `tdd.open_state`、`:233` で `tdd.assign`（`order`・`units`・`queue`・`cur`・`done`・`tries`・`reason`。tdd の単位が無ければ `_finish` が `frozen`・`frozen_tree`・`summary.md`）。`:234-235` で `tdd-start.json`、`:237` で `done` を読んで出力 `tdd`。
+
+### C.2 修正の block が輪の状態を読む所
+
+- `src/facts.py:80` `_loop_states`（全部の輪の状態の並び）→ B。
+- `src/facts.py:87-128` `check_frozen`: 今の輪と前の輪の `frozen`・`frozen_tree`・`handoff`（`:118` で前の輪の起点の木に今の輪の `handoff`）、`frozen_problems`・`frozen_source`・`frozen_asks` で `units` の鍵、`test_spans` で `units[].route/green/tests`、`verified_rewrites` で `contract[].rewrites`。段 1 の `frozen_by_returns` は横に並べてあるだけで、今の輪の凍結・試験の関数の範囲の免除・確かめた書き換えを許しから外すこと・起点の木を `handoff` にすることを持たない → B。
+- `src/facts.py:131` `_loop_freeze`: 前の輪の分は A（`returns/` の `frozen`・`frozen_tree`）、今の輪の分は B。
+- `src/facts.py:141` `_verified` → `common.verified_rewrites`（`common.py:470`）: `rewrites` は注文の `permits` の `rewrite` の行で A、確かめ済みか（`route`・`green`・`tests`）は B。
+- `src/facts.py:151` `frozen_tests`（書き手の指示の「テストの行」。呼び手 `fix_prep.py:52`・`fix_ruled_prep.py:45`）→ B。
+- `src/facts.py:68`（`check_writes`）・`:179`（`check_plan_scope`）・`board.py:1794` の `suite_made`（`common.suite_made_all`・`basecase.suite_made_all:281`）: `base.json`・`accept.json`・`returns/` の和は段 1 で読む。輪の中で出来たファイルは記録が要る → B。
+- `src/facts.py:212` `precheck`: 相談の控えの `tdd_state`（`fix_prep.py:46` → `board.fix_values:2246` → `rules.ask_config:333` → `consult.write_config`）→ B。
+- `src/board.py:1744` `accept_reply`: `state` を `check_frozen`（`:1792`）・`suite_made`（`:1794`）・`check_writes`（`:1795`）・`check_plan_scope`（`:1820`）・`selected_problems`（`:1825-1827`）・`write_returns`（`:1892`）・`last_settle`（`:1911`・`:1931`）へ渡す。
+- `src/common.py:922-1015` `selected_problems`: 読む `exe`・`work`・`baseline`・`suite_made`・`contract`・`units[].tests/test_files`（`_named_files:1045`）。`:953` の `save()` が `final_left`・`final_far`・`ci_left`・`suite_made` を輪の状態に書き戻す（受け付けが輪の状態に書く所）。`base.json` で選ぶ道（`board.accept_base`）と名指しの `orders.named_tests` は段 1 に在る → A（輪が名指した試験は B）。
+- `src/board.py:1693` `last_settle` → `parking.footprint`（`parking.py:58-73`。`units[].files`・`test_files`）→ B。
+- `src/duties.py:218-265` `write_returns`（`:231` で状態、`:253-260` で `units[k].tests`・`frozen`・`frozen_tree`・`suite_made`）→ B（記録から写す）。
+- `src/gates.py:265-287` `_red_units`（`problems:108` から）: `frozen`・`units[].route/red/gave_up/red_tree/test_files/tests`、`common.red_rerun`（`common.py:257`）が `red_tree`・`tests`・`test_files`・`test_hashes` → B（段 1 に代わりは無い）。
+- `src/board.py:1250` `ruled_states`（呼び手 `fix_ruled_accept.py:51`・`fix_ruled_prep.py:42`）: 試験を走らせる側は `ruled_base`・`accept_base` で A、凍結の側は B。
+- `src/board.py:2192` `no_suite_stop`（`:2200-2203` で `no_suite`・`note`。呼び手 `fix_prep.py:44`・`writers.pick:90`）→ B。
+- `src/board.py:2120` `loop_files`（`tdd-start.json` の `state_file`・`summary_file`。呼び手 `fix_prep.py:46`・`fix_accept.py:58`・`group_end.py:47`）。
+- `scripts/fix_prep.py:46-52`: `summary.md` のパスを閉じの書き手の `summary_file` に、`tdd.green_units(summary)`（`tdd.py:1017`）が `units[].route/green/gave_up` → B。
+- `src/orders.py:299-319` `regive`（`units[].gave_up`）→ B。
+
+### C.3 組の終わり・合わせ・親での写し
+
+- `scripts/group_end.py:22-28` → `tdd.exit_fields`（`tdd.py:1036`）: `done`・`order`・`units[FIELDS]`・`parked`・`parked_why`・`suite`・`note`・`test_cmd_gate`・`test_cmd_note`・`calls`・`reused`・`related`・`no_suite`。組の結果の `tdd` で、今ある輪の返しの形。`:47` は `tdd_state` のパスも結果に入れる。
+- `src/board.py:1050-1087` `group_result`: `tdd`・`tdd_state`、`_unit_row:1038`（`gave_up`・`route=parked`・`why`）、`verified_tests:1028`（`route`・`green`・`tests`）。
+- `src/board.py:1089-1115` `adopt_tdd_states`（`adopt_returned:1244` から。呼び手 `join.py:104`・`clash.py:292`）: 子の状態と要約を親の `tdd-<k>/` へ写し、`work`・`exe`・印 `adopted_from`・`prior_pass` を書く。`adopt_bases`・`adopt_returns` は横で写す → A（B が記録に入れば要らない）。
+- `src/board.py:941`・`:972-974` `adopt_inputs`、`:989`・`:999` `adopt_prior_pass`: 前の段の輪の状態の写し。`bases/`・`returns/` の写しは在る → A。
+- `src/board.py:2109` `before_cases`: 組の結果の `base` が無い時だけ `tdd_state` の `baseline_cases`（古い結果の逃げ道）→ A。
+- `src/carry.py:20-41` `write`: 状態の丸ごとと要約を `carry.json` の `loops` に入れ、line の `prior: "$fix.output.carry"`（`works-factory-line.yaml:1123`）で 2 回目の修正の block に渡る（block の外へ出る port）。`carry.py:56-73` `place_prior` が `prior/tdd-<k>/` に置き直す。`bases`・`returns` は束に在る → A（B の後に `loops` を記録に替える）。
+- 組の結果の `tdd` の写しを読むだけの所（輪の返しが今の形で出れば変わらない）: `join.py:50-52`・`board.rerun_cmd:420`・`board.tests_moved`・`clash.py:165`・`:189`・`:211`・`:242`・`finish._item_claims:186`。
+
+### C.4 修正の block の出力のうち輪の状態から組む物
+
+- `frozen`: `finish._frozen:97-106`（全部の輪の `frozen`・`frozen_tree`・パス `state`）。`returns/` で組めるが `state` の欄の中身が変わる。外で読むのは `line/scripts/fixed.py:22` の素通しだけ（中身を読む所が無いかは未確認）。
+- `tdd_refused`: `finish._tdd_refused:118-137`（全部の輪の `calls`）→ B。外で読む所 `line/scripts/raise_depth.py:30`・`line/src/stages.py:231`・`line/src/tiers.py:330`。
+- `carry`: C.3 のとおり。
+- 組の結果の `tdd` から組む物（`tdd`・`tdd_unit` は `board.tdd_units:550`、`freeze_off` は `report.freeze_off`、`report` は `report.tdd_lines`、`units`、`verified`）は、輪が同じ形を返せば変わらない。
+- `lib/*.py` は輪の状態のパスを受けない（`planscope.check` は `facts._loop_freeze` の値だけ）。
+
+### C.5 記録に要る欄（B の和。11.6 の E1 の 2）
+
+- 輪の全体: `frozen`（`{パス: sha256 の 16 進か null}`）・`frozen_tree`・`handoff`・`suite_made`・`no_suite`・`note`・`done`・`calls`（`[{n, phase, unit_key, ok, runs, secs}]`）・`summary`（`summary.md` の在りか）。
+- 単位ごと（状態では `units: {key: …}`）: 出口の欄に在る `route`・`why`・`tests`・`test_files`・`red`・`green`・`gave_up` と、新しく要る `files`（`footprint`）・`red_tree`（`gates`）・`test_hashes`（`red_rerun`）。
+- C の組（輪と一緒に移せる）: `common.py` の状態の口（`load_state`・`_load`・`_save`〔`:299-316`〕・`_owed`・`_not_owed_why`・`_unit`・`_contract`・`_plan_tdd`・`_reached`・`_verified`・`_mark_parked`・`flush_unsent`・`flush_claims`・`conflict_item`）・`prompts.tdd_values` と `prompts.tdd`（`prompts.py:253-331`）・`tdd.exit_fields`・`green_units`・`refused_units`・`tdd.open_state`・`assign`。`frozen_problems`・`frozen_asks`・`test_spans`・`frozen_source` は、修正の block が記録と `returns/` に当てるので残る。
