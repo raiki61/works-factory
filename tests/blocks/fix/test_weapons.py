@@ -8,6 +8,7 @@
 - 共通の受け付けが型の義務の表を引く口（duties.accept_problems）・赤を見ない clean の照らしを当てる単位（board.red_units・
   recount の red_units）・返しの控えを書く所（duties.write_returns）・返しの控えの凍結の照らし（duties.frozen_by_returns）・
   受け付けの名指しの出どころ（orders.named_tests）（4.4 の 4）
+- 受け付け（fix-accept）を通して、返しの控えの凍結の照らしと注文の名指しが効くこと（AcceptWiringCase。組の子の scripts で回す）
 """
 import json
 import pathlib
@@ -18,6 +19,7 @@ import unittest.mock
 
 from tests.bin.gitkit import git
 from tests.blocks import kit
+from tests.blocks.fix import test_group as tg
 
 route = kit.load("fix", "route")
 basecase = kit.load("fix", "basecase")
@@ -581,6 +583,76 @@ class RuledOrderCase(unittest.TestCase):
         self.assertEqual(got, [("T", "型 tdd の単位 T の義務: 輪の赤の記録")])
         with unittest.mock.patch.object(self.duties.MODULES["variant"], "DUTIES", flag):
             self.assertEqual(self.duties.accept_problems(self.place, self.repo, self.rev, reply), [], "variant の義務は当てない")
+
+
+
+class AcceptWiringCase(tg.GroupChildScriptsCase):
+    """受け付け（fix-accept）を通して、返しの控えの凍結の照らし（duties.frozen_by_returns）と注文の名指し（orders.named_tests）が
+    効くこと。組の子の scripts の道具立て（tg.GroupChildScriptsCase）を借り、借りた元の試験は load_tests で外す"""
+
+    def direct_start(self, suite=None):
+        """実行器の在る組で、mean の単位を direct に振って修正役の輪の頭まで回す（輪の状態は凍ったファイルを持たない）"""
+        self.parent_inputs(str(suite or self.suite))
+        self.start()
+        got = self.step({"phase": "route", "units": [{"unit_key": tg.MEAN, "route": "direct", "why": "期待の書き換えだけで先に書ける試験が無い"}]})
+        self.assertTrue(got["ok"], got)
+        self.assertTrue(self.run_script("fix_prep")["go"])
+
+    def fix_mean(self):
+        stats = self.repo / "stats.py"
+        stats.write_text(stats.read_text(encoding="utf-8").replace("(len(xs) - 1)", "len(xs)"), encoding="utf-8")
+
+    def test_the_accept_rejects_a_rewrite_of_a_file_a_prior_return_froze(self):
+        """前の型の返しの控えが凍らせた試験のファイルを、注文の許しの外で書き換えた返答を拒む（輪の状態の凍結の照らし check_frozen は
+        何も凍らせていないので、返しの控えの照らしだけが拒む）"""
+        import hashlib
+        self.direct_start()
+        rev = git(self.repo, "rev-parse", "HEAD").strip()
+        test_file = self.repo / "test_stats.py"
+        (self.place / "returns").mkdir(exist_ok=True)
+        (self.place / "returns" / "1.json").write_text(json.dumps(
+            {"stage": 1, "weapon": "tdd", "group": "g1", "tree": rev, "units": [{"key": "X", "named": []}],
+             "frozen": {"test_stats.py": hashlib.sha256(test_file.read_bytes()).hexdigest()}, "frozen_tree": rev, "suite_made": [],
+             "added": [], "rewritten": [], "removed": [], "files": [], "why_untested": ""}), encoding="utf-8")
+        self.fix_mean()
+        test_file.write_text(test_file.read_text(encoding="utf-8").replace("clamp(15, 0, 10), 10", "clamp(15, 0, 10), 10.0"),
+                             encoding="utf-8")
+        out = self.accept({"changes": [tg._change(tg.MEAN, ["stats.py", "test_stats.py"])]})
+        self.assertFalse(out["ok"], out)
+        self.assertIn("test_stats.py", self.frozen_reason(out["reason"]))
+
+    def test_the_accept_runs_the_tests_the_order_names(self):
+        """注文の単位の行が名指した試験は、変更から辿れなくても（import で結ばない）受け付けが走らせ、元で緑だった物を赤にする直しを
+        拒む"""
+        (self.repo / "test_source.py").write_text(
+            "import unittest\n\n\nclass TestSource(unittest.TestCase):\n    def test_old_denominator(self):\n"
+            "        with open('sta' + 'ts.py', encoding='utf-8') as f:\n            self.assertIn('(len(xs) - 1)', f.read())\n",
+            encoding="utf-8")
+        git(self.repo, "add", "-A")
+        git(self.repo, "-c", "user.email=t@example.invalid", "-c", "user.name=t", "commit", "-qm", "変更から辿れない試験")
+        from tests.blocks.fix.support import DIFF_SUITE
+        suite = self.tmp / "diff-suite.py"   # -k で選んだ試験だけを回す実行器（一式を回す SUITE では名指しの効きが見えない）
+        suite.write_text(DIFF_SUITE.format(heed="True"), encoding="utf-8")
+        self.direct_start(suite)
+        order = self.place / "orders" / "variant.json"
+        doc = json.loads(order.read_text(encoding="utf-8"))
+        doc["units"][0]["tests"] = ["test_source.py::TestSource::test_old_denominator"]
+        order.write_text(json.dumps(doc, ensure_ascii=False), encoding="utf-8")
+        self.fix_mean()
+        out = self.accept({"changes": [tg._change(tg.MEAN, ["stats.py"])]})
+        self.assertFalse(out["ok"], out)
+        self.assertIn("test_old_denominator", out["reason"])
+
+def load_tests(loader, tests, pattern):
+    """借りた tg.GroupChildScriptsCase の試験を回し直さない（AcceptWiringCase はこのクラスに書いた試験だけ）"""
+    suite = unittest.TestSuite()
+    for case in [v for v in globals().values() if isinstance(v, type) and issubclass(v, unittest.TestCase)
+                 and v.__module__ == __name__]:
+        names = loader.getTestCaseNames(case)
+        if case is AcceptWiringCase:
+            names = [n for n in names if n in case.__dict__]
+        suite.addTests(case(n) for n in names)
+    return suite
 
 
 if __name__ == "__main__":
