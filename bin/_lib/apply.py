@@ -16,6 +16,8 @@ hash の正本は Archon の DB の run の記録で、置き場のファイル�
 result の値から読む欄は表 RETURN_READS の 1 か所に書き（グラフ → (返す値そのもの "", 読む欄の形の form, 読む欄の道)。.shared の形
 apply-result.schema.json）、読む前にその形で照らす（.shared の口 ports.shape_errors）。欄の名がずれた値を、置いた差分が無い・止まった run と
 読み違えず、形の誤りとして終了の値 2 で止まる。form と道が両方のグラフの returns: が名指すノードの出力に合うかは tests/layers/scan.py の E5（_shell_reads）が照らす。
+--allow-failed の道が出来事から読む封じの受け皿・独立の目の受け皿・最後の承認ノードの答えも、同じ表に鍵 (グラフ, ノードの id) の行で書き、
+読む前にその form の形で照らして、合わなければ同じく終了の値 2 で止まる（step_read。ノードの出力が form に合うかも E5 が照らす）。
 """
 import argparse
 import json
@@ -63,7 +65,16 @@ SEALED_OK, SEALED_HASH, SEALED_POINTER = "sealed.ok", "sealed.hash", "sealed.dif
 OUTCOME, STOP_REASON, R2_STATUS, ANSWER_TEXT, SPEC_QUESTIONS = "outcome", "stop_reason", "r2_status", "final_answer.text", "spec_questions"
 RESULT_PATHS = (PLACED_OK, PLACED_HASH, PLACED_POINTER, SEALED_OK, SEALED_HASH, SEALED_POINTER, OUTCOME, STOP_REASON, R2_STATUS,
                 ANSWER_TEXT, SPEC_QUESTIONS)
-RETURN_READS = {LINE: ("", RESULT_FORM, RESULT_PATHS), CHAIN: ("", RESULT_FORM, RESULT_PATHS)}
+# メイングラフの出力が読めない run で出来事から読むノードの出力の欄（行の鍵は (グラフ, ノードの id)。受け皿は欄 got、承認ノードの答えは出力そのもの ""）
+SEAL_FORM, EYES_FORM, ANSWER_FORM = ("json(shared:apply-seal.schema.json)", "json(shared:apply-eyes.schema.json)",
+                                     "json(shared:apply-answer.schema.json)")
+MODE, OK, HASH, DIFF, REASON = "mode", "ok", "hash", "diff", "reason"
+R2_ROW = "r2.status"
+GO, ANSWER_ROW, ANSWER_STOP, ANSWER_SAID = "go", "answer", "stop_reason", "answer.text"
+SEAL_PATHS, EYES_PATHS, ANSWER_PATHS = (MODE, OK, HASH, DIFF, REASON), (R2_ROW,), (GO, ANSWER_ROW, ANSWER_STOP, ANSWER_SAID)
+RETURN_READS = {LINE: ("", RESULT_FORM, RESULT_PATHS), CHAIN: ("", RESULT_FORM, RESULT_PATHS),
+                (LINE, SEAL_STEP): (GOT, SEAL_FORM, SEAL_PATHS), (LINE, EYES_STEP): (GOT, EYES_FORM, EYES_PATHS),
+                (LINE, ANSWER_STEP): ("", ANSWER_FORM, ANSWER_PATHS)}
 
 
 class Get(Protocol):
@@ -137,7 +148,7 @@ def pick(run: dict, target: Path, args: argparse.Namespace, get: Get) -> tuple[P
         diff, sealed_hash, note = from_seal(record, target, args, get, unread)
         return diff, sealed_hash, [note]
     value = record["returns"]["value"]
-    off = result_errors(value)
+    off = shape_off(value, RESULT_FORM)
     if off:
         raise Refuse(f"run {record['run_id']} のメイングラフの出力が {RESULT_FORM} の形に合わない（{' / '.join(off[:3])}）。"
                      "bin/apply の読む欄の名と、run を回した工場の版の欄の名がずれている。当てない", UNREADABLE)
@@ -146,10 +157,10 @@ def pick(run: dict, target: Path, args: argparse.Namespace, get: Get) -> tuple[P
     return diff, sealed_hash, notes + [note for note in [respec_note(value)] if note]
 
 
-def result_errors(value: dict) -> list[str]:
-    """result の値を読む欄の形 RESULT_FORM で照らした誤り（空なら合う）"""
+def shape_off(value, form: str) -> list[str]:
+    """読む値を読む欄の形 form（RETURN_READS の form）で照らした誤り（空なら合う）"""
     ports = place.shared("ports")
-    return ports.shape_errors(value, ports.form_of(RESULT_FORM)[1])
+    return ports.shape_errors(value, ports.form_of(form)[1])
 
 
 def at(value: dict, path: str):
@@ -185,41 +196,54 @@ def from_seal(record: dict, target: Path, args: argparse.Namespace, get: Get, un
         events = read_events(get(record["run_id"], target, *EVENTS_FLAGS), record["run_id"])
     except Refuse as e:
         raise Refuse(f"{unread}。{e}{by_hand}", e.code) from None
-    sealed = got_of(events, SEAL_STEP)
-    if not (isinstance(sealed, dict) and sealed.get("mode") == "seal" and isinstance(sealed.get("hash"), str)):
+    sealed = step_read(events, SEAL_STEP, unread, by_hand)
+    if not (isinstance(sealed, dict) and sealed[MODE] == "seal"):
         raise Refuse(f"{unread}。封じのノード {SEAL_STEP} の出力が読めない{by_hand}", UNREADABLE)
-    if sealed.get("ok") is not True:
-        raise Refuse(f"{unread}。封じのノード {SEAL_STEP} が封じていない（{sealed.get('reason')}）。封じていない差分は当てない{by_hand}")
-    verdict = got_of(events, EYES_STEP) if states.get(EYES_STEP) == COMPLETED else None
+    if sealed[OK] is not True:
+        raise Refuse(f"{unread}。封じのノード {SEAL_STEP} が封じていない（{sealed[REASON]}）。封じていない差分は当てない{by_hand}")
+    verdict = step_read(events, EYES_STEP, unread, by_hand) if states.get(EYES_STEP) == COMPLETED else None
     if not isinstance(verdict, dict):
         raise Refuse(f"{unread}。独立の目 {EYES_STEP} の出力が読めず、R2 が作り直しを言ったかを照らせない{by_hand}", UNREADABLE)
-    r2 = verdict.get("r2")
-    if isinstance(r2, dict) and r2.get("status") == seal.REDESIGN:
+    if at(verdict, R2_ROW) == seal.REDESIGN:
         raise Refuse(f"R2 が {seal.REDESIGN} を言った run の差分は、--allow-failed でも当てない")
     seen, stopped = final_answer(events, states, unread, by_hand)
     needed = ["--allow-failed", *(["--allow-stopped"] if stopped else [])]
     if not args.allow_failed or (stopped and not args.allow_stopped):
         raise Refuse(f"{unread}。{seen}。封じのノードの出力から封じた差分を当てるなら {' と '.join(needed)} を付けて打ち直す")
-    return pointed(record, sealed.get("diff"), SEALED_DIFF), sealed["hash"], f"{unread}。{seen}。{' と '.join(needed)} が在るので封じのノードの出力から当てた"
+    return pointed(record, sealed[DIFF], SEALED_DIFF), sealed[HASH], f"{unread}。{seen}。{' と '.join(needed)} が在るので封じのノードの出力から当てた"
 
 
 def final_answer(events: list, states: dict, unread: str, by_hand: str) -> tuple[str, bool]:
     """最後の承認ノードで人がどう答えたかの文と、止めの答えか（承認ノードの答えが済んでいなければ、人は見ていない）"""
     if states.get(ANSWER_STEP) != COMPLETED:
         return "最後の承認ノードで人が見るはずだった物を人は見ていない", False
-    answer = output_of(events, ANSWER_STEP)
-    if not (isinstance(answer, dict) and isinstance(answer.get("go"), bool)):
+    answer = step_read(events, ANSWER_STEP, unread, by_hand)
+    if not isinstance(answer, dict):
         raise Refuse(f"{unread}。最後の承認ノードの答え {ANSWER_STEP} の出力が読めず、人が止めたかを照らせない{by_hand}", UNREADABLE)
-    if answer["go"]:
-        row = answer.get("answer")
+    if answer[GO]:
+        row = answer[ANSWER_ROW]
         if row is None:
             return "最後の承認ノードは方針で開かず、機械が通した（人は見ていない）", False
         if answers.by_push(row):
             return "無人の run が最後の承認ノードを推しで通した（人の答えではない）", False
         return "最後の承認ノードで人は承認した", False
-    parts = [f"止めた所 {answer['stop_reason']}"] if answer.get("stop_reason") else []
-    said = answer["answer"].get("text") if isinstance(answer.get("answer"), dict) else None
-    return f"最後の承認ノードで止めた run（{'・'.join(parts + human_said(said))}）", True
+    parts = [f"止めた所 {answer[ANSWER_STOP]}"] if answer[ANSWER_STOP] else []
+    return f"最後の承認ノードで止めた run（{'・'.join(parts + human_said(at(answer, ANSWER_SAID)))}）", True
+
+
+def step_read(events: list, step: str, unread: str, by_hand: str):
+    """メイングラフのノード step の出力から表 RETURN_READS の欄を読み、その form の形で照らした値（出力か欄が無ければ None）。
+    形に合わなければ、欄の名のずれとして終了の値 2 で止まる"""
+    field, form, _ = RETURN_READS[(LINE, step)]
+    out = output_of(events, step)
+    value = (out.get(field) if isinstance(out, dict) else None) if field else out
+    if value is None:
+        return None
+    off = shape_off(value, form)
+    if off:
+        raise Refuse(f"{unread}。ノード {step} の出力{f'の {field} ' if field else ''}が {form} の形に合わない（{' / '.join(off[:3])}）。"
+                     f"bin/apply の読む欄の名と、run を回した工場の版の欄の名がずれている。当てない{by_hand}", UNREADABLE)
+    return value
 
 
 def read_events(done: subprocess.CompletedProcess[str], run_id: str) -> list:
@@ -232,12 +256,6 @@ def read_events(done: subprocess.CompletedProcess[str], run_id: str) -> list:
         raise Refuse(f"run {run_id} の記録の出来事を読めない（workflow get {' '.join(EVENTS_FLAGS)} の答えに {EVENTS} の列が無い）",
                      UNREADABLE)
     return events
-
-
-def got_of(events: list, step: str):
-    """受け皿のノード step の出力の got（読めなければ None）"""
-    out = output_of(events, step)
-    return out.get(GOT) if isinstance(out, dict) else None
 
 
 def output_of(events: list, step: str):

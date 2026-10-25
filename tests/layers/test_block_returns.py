@@ -585,6 +585,44 @@ class ShapesTest(unittest.TestCase):
                 self.assertIn("RETURN_READS の works-factory-judge の返す値", got[0])
                 self.assertIn(want, got[0])
 
+    def node_reading(self, fields: str, table: str) -> list[str]:
+        """返す節が fields を返す judge を include して受け皿 judge-out（欄 got が json(returns:works-factory-judge)）で受け、答えのノード
+        ans（出力 {go}）を持つメイングラフと、それらのノードの出力を形 shared:read.schema.json・shared:go.schema.json で読む殻の表
+        RETURN_READS（鍵は (グラフ, ノードの id)）の小さな木の赤。table は表の中の字"""
+        line = (LINE_TOP + "  - id: judge\n    include: works-factory-judge\n  - id: judge-out\n    script: returned\n"
+                "    output_format: {type: object, required: [got], properties: {got: {type: [object, 'null'], "
+                "description: 'json(returns:works-factory-judge): 選んだ欄'}}}\n"
+                "  - id: ans\n    script: ans\n    output_format: {type: object, required: [go], properties: {go: {type: boolean}}}\n")
+        module = 'LINE = "works-factory-line"\nRETURN_READS = {' + table + "}\n"
+        return self.problems({BLOCK: judge_returning(fields), LINE: line, "bin/_lib/reads.py": module,
+                              "workflows/.shared/schemas/read.schema.json": self.READ_SHAPE,
+                              "workflows/.shared/schemas/go.schema.json":
+                                  '{"type": "object", "required": ["go"], "properties": {"go": {"type": "boolean"}}}'})
+
+    def test_shell_reads_of_a_node_fit_the_node_output(self):
+        """殻の表 RETURN_READS の鍵が (グラフ, ノードの id) の行（run の記録の出来事からノードの出力を読む。bin/_lib/apply.py の
+        --allow-failed の道）は、ノードの output_format（欄が "" でなければその欄。欄が json(returns:<名>) なら名の返す節の
+        output_format）が form の形に合い、読む欄の道はその形に在る"""
+        good = "units: {type: [object, 'null'], properties: {key: {type: string}}}"
+        rows = ('(LINE, "judge-out"): ("got", "json(shared:read.schema.json)", ("units.key", "ready")), '
+                '(LINE, "ans"): ("", "json(shared:go.schema.json)", ("go",))')
+        self.assertEqual(self.node_reading(good, rows), [])
+        cases = (
+            ("units: {type: [object, 'null'], properties: {name: {type: string}}}", rows,
+             "works-factory-line のノード judge-out の 欄 got の出力が json(shared:read.schema.json) の形に合わない: $.units: 読み手の要る欄 key"),
+            (good, '(LINE, "ans"): ("", "json(shared:read.schema.json)", ())',
+             "works-factory-line のノード ans の出力が json(shared:read.schema.json) の形に合わない: $: 読み手の要る欄 units"),
+            (good, '(LINE, "ans"): ("", "json(shared:go.schema.json)", ("stop",))', "の読む欄 stop が json(shared:go.schema.json) の形に無い"),
+            (good, '(LINE, "judge-out"): ("why", "json(shared:read.schema.json)", ())', "のノード judge-out: 欄 why が output_format に無い"),
+            (good, '(LINE, "gone"): ("", "json(shared:go.schema.json)", ())', "のノード gone: ノードか、その output_format が works-factory-line に無い"),
+        )
+        for fields, table, want in cases:
+            with self.subTest(table=table, fields=fields):
+                got = self.node_reading(fields, table)
+                self.assertEqual(len(got), 1, got)
+                self.assertIn("bin/_lib/reads.py:2: RETURN_READS の ", got[0])
+                self.assertIn(want, got[0])
+
     def test_pointer_field_without_a_form_is_red(self):
         got = self.wired("units: " + POINTER % "置き場のファイル", "file")
         self.assertEqual(len(got), 1, got)

@@ -1075,7 +1075,9 @@ def _shapes(root: Path) -> list[str]:
        指す先の中身から読む欄の道）に書き、表の部品は pack に在り、欄は返す節の output_format に在り、form はその欄の form と字のまま
        同じで、道はその form の形に在る（#851 の落ちるはずの所の 10 番。殻は workflows/ の外なので 4 の照らしが届かない）。欄が ""
        の行は返す値そのものを読む行で、返す節の output_format（書き手）が form の形（読み手）に合い、道はその形に在る（bin/_lib/apply.py
-       がメイングラフと周の鎖の result を読む所）"""
+       がメイングラフと周の鎖の result を読む所）。鍵が (workflow, ノードの id) の行は run の記録の出来事からノードの出力を読む行で、
+       ノードの output_format（欄が "" でなければその欄。欄が json(returns:<名>) なら名の返す節）が form の形に合い、道はその形に在る
+       （bin/_lib/apply.py が --allow-failed でメイングラフの封じの受け皿・独立の目の受け皿・最後の承認ノードの答えを読む所）"""
     pack, out = _Pack(root), []
     gate = pack.gate
     returns_name = re.compile(r"\bjsonl?\(%s:" % gate.RETURNS_HEAD)
@@ -1335,9 +1337,12 @@ def _shell_reads(pack: "_Pack") -> list[str]:
             out.append(f"{where}: {SHELL_READS} が字の定数の表でない（部品 → (欄, form, 道の並び)）")
             continue
         for workflow, (field, form, paths) in table.items() if isinstance(table, dict) else ():
+            if isinstance(workflow, tuple):
+                out += _node_read(pack, where, workflow, field, form, paths)
+                continue
             shape, folder = pack.returned(workflow)
             if field == "":
-                out += _whole_read(pack, where, workflow, shape, folder, form, paths)
+                out += _whole_read(pack, where, f"{workflow} の返す値", shape, folder, form, paths)
                 continue
             got = _field(shape, [field]) if shape is not None else None
             declared = pack.gate.form_of(got.get("description")) if isinstance(got, dict) else None
@@ -1354,11 +1359,34 @@ def _shell_reads(pack: "_Pack") -> list[str]:
     return out
 
 
-def _whole_read(pack: "_Pack", where: str, workflow: str, shape, folder, form: str, paths) -> list[str]:
-    """RETURN_READS の欄が "" の行（返す値そのものを読む）: 返す節の output_format が form の形に合い、道がその形に在る"""
-    head = f"{where}: {SHELL_READS} の {workflow} の返す値"
+def _node_read(pack: "_Pack", where: str, key, field: str, form: str, paths) -> list[str]:
+    """RETURN_READS の鍵が (workflow, ノードの id) の行（殻が run の記録の出来事からノードの出力を読む。bin/_lib/apply.py の --allow-failed
+    の道）: ノードの output_format（欄が "" でなければその欄。欄が json(returns:<名>) なら名の返す節の output_format）が form の形に合い、
+    道がその形に在る"""
+    workflow, step = key
+    head = f"{where}: {SHELL_READS} の {workflow} のノード {step}"
+    entry = pack.docs.get(workflow)
+    node = next((n for n in _all_nodes(entry[2].get("nodes")) if n.get("id") == step), None) if entry else None
+    if node is None or node.get("output_format") is None:
+        return [f"{head}: ノードか、その output_format が {workflow} に無い"]
+    shape, folder = node["output_format"], entry[0]
+    if field:
+        shape = (shape.get("properties") or {}).get(field)
+        if not isinstance(shape, dict):
+            return [f"{head}: 欄 {field} が output_format に無い"]
+        named = pack.gate.form_of(shape.get("description"))
+        if named and named[0] == "json" and named[1].partition(":")[0] == pack.gate.RETURNS_HEAD:
+            shape, folder = pack.returned(named[1].partition(":")[2])
+        elif named and named[0] == "json":
+            shape = pack.shape_of(named[1], folder)
+    return _whole_read(pack, where, f"{workflow} のノード {step} の{f' 欄 {field} の' if field else ''}出力", shape, folder, form, paths)
+
+
+def _whole_read(pack: "_Pack", where: str, label: str, shape, folder, form: str, paths) -> list[str]:
+    """RETURN_READS の欄が "" の行（返す値そのものを読む）: 返す節の output_format が form の形に合い、道がその形に在る。label は読む物の名"""
+    head = f"{where}: {SHELL_READS} の {label}"
     if shape is None:
-        return [f"{head}: {workflow} の返す節の output_format が無い"]
+        return [f"{head}: 書き手の output_format が無い"]
     declared = pack.gate.form_of(form)
     named = pack.shape_of(declared[1], folder) if declared and declared[0] == "json" else None
     if named is None:
