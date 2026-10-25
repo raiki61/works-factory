@@ -437,7 +437,7 @@ def shape_names(shape) -> set:
 
 
 def _prompt():
-    _ports()
+    scan.ports()   # .shared を sys.path に足す
     import importlib
     return importlib.import_module("prompt")
 
