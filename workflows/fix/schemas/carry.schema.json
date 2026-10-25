@@ -1,1 +1,1 @@
-{"type": ["object", "null"], "properties": {"conflicts": {"type": ["object", "null"]}, "loops": {"type": "array"}}}
+{"type": ["object", "null"], "properties": {"conflicts": {"type": ["object", "null"]}, "loops": {"type": "array"}, "accept": {"type": ["object", "null"]}, "bases": {"type": "array"}, "returns": {"type": "array"}}}

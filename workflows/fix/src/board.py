@@ -936,7 +936,8 @@ def adopt_inputs(parent, place, repo=None) -> list:
     """組の子の置き場 place に、親の置き場 parent の入力の写し（ADOPTED のうち在る物）を写し、凍結した修正案の欄
     （plan-fields.json）は親の凍結の印で確かめてから planmarks.save で置き直す（子の trace に印を書く）。2 回目の修正の段の親が
     adopt_prior_pass で置いた 1 回目の段の申し出と裁定（conflict.FILE）も写し、repo（子の作業ツリー）を渡せば 1 回目の段の輪の状態
-    （PRIOR_LOOP の印つき）も子の輪の前の輪として写す（子の受け付けの凍結・事後の関門・機械の諦めが 1 回目の段を見る）。写した名の
+    （PRIOR_LOOP の印つき）も子の輪の前の輪として写し、PRIOR_LOOP の元の結末 bases/<k>/ の全部と返しの控え returns/ も写す（子の受け付けの
+    凍結・事後の関門・機械の諦め・suite_made の和が 1 回目の段を見る）。写した名の
     並びを返す。親の欄の控えが印と食い違えば conflict.frozen_fields の ValueError。新しい（元に無い。今の works は 1 つの盤面を枝が
     共に読んだ）"""
     import conflict
@@ -961,6 +962,12 @@ def adopt_inputs(parent, place, repo=None) -> list:
         from src import common
         prior = [str(p) for p in common.states(src) if read_json(p, {}).get(PRIOR_LOOP)]
         out += adopt_tdd_states(dst, [{"tdd_state": p} for p in prior], repo, prior=True)
+        have = _adopted(d / fixnames.ACCEPT_FILE for d in base_dirs(dst))
+        for d in base_dirs(src):
+            if read_json(d / fixnames.ACCEPT_FILE, {}).get(PRIOR_LOOP) and str(d) not in have:
+                got = _copy_base(dst, d, str(d), True)
+                out += [got] if got else []
+        out += adopt_returns(dst, [str(src)], only_prior=True)
     if conflict.frozen_fields(src, 1) is not None:
         doc = read_json(marks_path(src))
         amended = doc.get(planmarks.AMENDED_KEY) if isinstance(doc, dict) else None
@@ -975,12 +982,31 @@ def adopt_prior_pass(place, prior, items, repo) -> dict:
     状態（印 PRIOR_LOOP つき。実行器は作業ツリー repo で解き直す）を写す。元は 1 つの盤面に両方の段が在り、conflict.second_pass・
     輪をまたぐ凍結（factchecks.check_frozen）・2 回目の機械の諦め（conflict.park_claims）・事後の関門（fixgates）が 1 回目の段を見た
     （元 works/.shared/core/conflict.py:411・works/blk-fix/lib/fixgates.py:103・works/blk-fix/lib/tddloop.py:1816）。
-    返り {rows: 写した行の id, loops: 写した状態のパス}。新しい"""
+    返り {rows: 写した行の id, loops: 写した状態のパス, bases: 写した元の結末の bases/<k>/, returns: 写した返しの控え}。新しい"""
     import conflict
     from src import common
     rows = conflict.adopt_prior(place, prior, items)
     loops = adopt_tdd_states(place, [{"tdd_state": str(p)} for p in common.states(prior)], repo, prior=True)
-    return {"rows": rows, "loops": loops}
+    bases = adopt_prior_bases(place, prior)
+    returns = adopt_returns(place, [str(prior)], prior=True)
+    return {"rows": rows, "loops": loops, "bases": bases, "returns": returns}
+
+
+def adopt_prior_bases(place, prior) -> list:
+    """2 回目の修正の段の置き場 place に、1 回目の段の置き場 prior の元の結末を PRIOR_LOOP の印つきで写す: prior の bases/<k>/ の全部と、
+    prior の accept.json（親の裁定の後の受け付けが書き戻した物）を accept.json だけの bases/<k>/ として（下書き 2.1。第 9 版の続き 4）。
+    印 ADOPTED_FROM は写し元のフォルダのパス。もう写した物は写し直さない"""
+    prior = pathlib.Path(prior)
+    have = _adopted(d / fixnames.ACCEPT_FILE for d in base_dirs(place))
+    out = []
+    for src, base in [*[(d, True) for d in base_dirs(prior)], (prior, False)]:
+        if str(src) in have:
+            continue
+        got = _copy_base(place, src, str(src), True, base=base)
+        if got:
+            have.add(str(src))
+            out.append(got)
+    return out
 
 
 def marks_path(place) -> pathlib.Path:
@@ -1013,11 +1039,12 @@ def _unit_row(key, fix_units, tdd_rows) -> dict:
 
 def group_result(group, *, start_tree: str, end_tree: str, tdd, tdd_state: str = "", fix_units=None, reply=None,
                  reply_file: str = "", allowed_rows=(), conflicts=(), worktree: str = "", mismatched=(),
-                 accept_trace=(), closure=(), place: str = "") -> dict:
+                 accept_trace=(), closure=(), place: str = "", base: str = "") -> dict:
     """組の子の結果（out_dir/<group_id>/result.json の中身。join・collect・tdd-unit・conflict-check が読む）:
     {group_id, unit_ids, end_tree, start_tree, units: [{unit_id, status, reason}], tdd, conflicts, objection, changed, x_scalars,
     allowed_tests, verified, reply_file, tdd_state, worktree, handoffs, handoff_titles, mismatched, accept_trace, closure,
-    claimed, place}。allowed_rows は許しの訳（allowed_test_rows の行）、handoffs は reply の handoff_lines、mismatched は子の置き場の
+    claimed, place, base}。base は子の置き場の元の結末のファイル base.json のパス（無い組は空。join が親の置き場の bases/<k>/ へ写す。
+    adopt_bases）。allowed_rows は許しの訳（allowed_test_rows の行）、handoffs は reply の handoff_lines、mismatched は子の置き場の
     mismatched_lines（最後の関所を開ける理由）、accept_trace は子の置き場の accept_trace_rows の行（group_id を足す。親の collect が
     diff の隣に集める）、closure は子の置き場の閉鎖の表の行（表を読めなければ None。fixbeside.closure_rows）と claimed は reply の
     changes の単位（親の collect が diff の隣の fixbeside.CLOSURE_FILE に合わせる）。worktree は子の作業ツリーの実パス（join がその書き込みの記録を親の記録へ写す。
@@ -1046,7 +1073,7 @@ def group_result(group, *, start_tree: str, end_tree: str, tdd, tdd_state: str =
             "mismatched": list(mismatched),
             "accept_trace": [{**r, "group_id": gid} for r in accept_trace or [] if isinstance(r, dict)],
             "closure": None if closure is None else [r for r in closure if isinstance(r, dict)],
-            "claimed": fixbeside.claimed_of(reply), "place": str(place or "")}
+            "claimed": fixbeside.claimed_of(reply), "place": str(place or ""), "base": str(base or "")}
 
 
 def adopt_tdd_states(place, results, repo, *, prior: bool = False) -> list:
@@ -1078,16 +1105,105 @@ def adopt_tdd_states(place, results, repo, *, prior: bool = False) -> list:
     return out
 
 
+def _next_slot(d: pathlib.Path, fmt: str) -> pathlib.Path:
+    """d の中で使われていない一番小さい番号の名（fmt は "{k}" か "{k}.json"。tdd-<k> と同じ振り方）"""
+    k = 1
+    while (d / fmt.format(k=k)).exists():
+        k += 1
+    return d / fmt.format(k=k)
+
+
+def _marks(src: str, prior: bool, keep=None) -> dict:
+    """写した物に置く印: 写し元 ADOPTED_FROM と、1 回目の修正の段の物なら PRIOR_LOOP（keep が真なら写し元の PRIOR_LOOP を保つ）"""
+    return {ADOPTED_FROM: src, **({PRIOR_LOOP: True} if prior or keep else {})}
+
+
+def _adopted(paths) -> set:
+    return {str(read_json(p, {}).get(ADOPTED_FROM) or "") for p in paths}
+
+
+def base_dirs(place) -> list:
+    """置き場の bases/<k>/ を番号の順に（写した元の結末。accept.json だけの物も含む）"""
+    d = pathlib.Path(place) / fixnames.BASES_DIR
+    got = [(int(p.name), p) for p in d.glob("*") if p.is_dir() and p.name.isdigit()] if d.is_dir() else []
+    return [p for _, p in sorted(got)]
+
+
+def _copy_base(place, src_dir: pathlib.Path, mark: str, prior: bool, base: bool = True) -> str:
+    """src_dir の base.json（base が真の時だけ）と accept.json を place の次の bases/<k>/ に写す。印はいつも写した accept.json の鍵
+    （accept.json が無ければ印だけの物を作る。base.json は字のまま写し、印を持たない）。どちらも無ければ写さず ""。写した先のパス"""
+    b, a = src_dir / fixnames.BASE_FILE, src_dir / fixnames.ACCEPT_FILE
+    if not (base and b.is_file()) and not a.is_file():
+        return ""
+    dst = _next_slot(pathlib.Path(place) / fixnames.BASES_DIR, "{k}")
+    if base and b.is_file():
+        write_text(dst / fixnames.BASE_FILE, b.read_text(encoding="utf-8"))
+    acc = read_json(a, {}) if a.is_file() else {}
+    write_json(dst / fixnames.ACCEPT_FILE, {**(acc if isinstance(acc, dict) else {}),
+                                         **_marks(mark, prior, isinstance(acc, dict) and acc.get(PRIOR_LOOP))})
+    return str(dst)
+
+
+def adopt_bases(place, results, *, prior: bool = False) -> list:
+    """戻せた組の子の結果 results（組の順）が名指す元の結末（欄 base。base.json のパス）と、その隣の受け付けの書き戻し accept.json を、
+    親の置き場 place の次の bases/<k>/ に写す（下書き 2.1 の「親へ写す口」。<k> と写し元の印は adopt_tdd_states と同じ。印 ADOPTED_FROM
+    は写し元の base.json のパス）。もう写した子は写し直さない。写した bases/<k>/ のパスを返す"""
+    have = _adopted(d / fixnames.ACCEPT_FILE for d in base_dirs(place))
+    out = []
+    for r in results:
+        src = str((r or {}).get("base") or "")
+        if not src or src in have:
+            continue
+        got = _copy_base(place, pathlib.Path(src).parent, src, prior)
+        if got:
+            have.add(src)
+            out.append(got)
+    return out
+
+
+def adopt_returns(place, sources, *, prior: bool = False, only_prior: bool = False) -> list:
+    """置き場 sources（組の子か 1 回目の修正の段の置き場）の返しの控え returns/<k>.json を、place の次の returns/<k>.json に写す（印は
+    adopt_bases と同じ鍵。ADOPTED_FROM は写し元のファイルのパス）。only_prior が真なら印 PRIOR_LOOP の物だけ（2 回目の段の組の子へ）。
+    もう写した物は写し直さない。写した先のパスを返す"""
+    d = pathlib.Path(place) / fixnames.RETURNS_DIR
+    have = _adopted(d.glob("*.json")) if d.is_dir() else set()
+    out = []
+    for s in sources:
+        sd = pathlib.Path(s) / fixnames.RETURNS_DIR if s else None
+        if sd is None or sd.resolve() == d.resolve() or not sd.is_dir():
+            continue
+        for p in sorted(sd.glob("*.json"), key=lambda q: (len(q.stem), q.stem)):
+            doc = read_json(p, None)
+            if not isinstance(doc, dict) or str(p) in have or (only_prior and not doc.get(PRIOR_LOOP)):
+                continue
+            dst = _next_slot(d, "{k}.json")
+            write_json(dst, {**doc, **_marks(str(p), prior, doc.get(PRIOR_LOOP))})
+            have.add(str(p))
+            out.append(str(dst))
+    return out
+
+
+def ruled_base(place) -> str:
+    """親の受け付けが読む元の結末の bases/<k>/（今の ruled_states の「組の順で最後の物」と同じ選び。1 回目の修正の段の物 PRIOR_LOOP と
+    base.json の無い物は外す）。無ければ """""
+    got = [d for d in base_dirs(place) if (d / fixnames.BASE_FILE).is_file()
+           and not read_json(d / fixnames.ACCEPT_FILE, {}).get(PRIOR_LOOP)]
+    return str(got[-1]) if got else ""
+
+
 def adopt_returned(place, repo, results, *, log=None, applied=()) -> None:
     """戻せた組の子の結果 results（組の順）から、親の置き場 place・親の作業ツリー repo へ写す物の全部の 1 つの口（join と
     clash.settle_repaired が呼ぶ）: 子の書き込みの記録（log が在り is_file なら writes.carry_children(log, repo, applied)。applied は
-    [(子の作業ツリー, 子の記録のファイル, 当てたパスの並び)]）→ TDD の輪の状態（adopt_tdd_states）→ 範囲の相談の合意
+    [(子の作業ツリー, 子の記録のファイル, 当てたパスの並び)]）→ TDD の輪の状態（adopt_tdd_states）→ 元の結末と受け付けの書き戻し
+    （adopt_bases）→ 返しの控え（adopt_returns）→ 範囲の相談の合意
     （consult.carry_agreed。group_id つきで親の trace へ。親の範囲とテストの許しにだけ効く）"""
     from src import consult
     import writes
     if log is not None and pathlib.Path(log).is_file():
         writes.carry_children(log, repo, applied)
     adopt_tdd_states(place, results, repo)
+    adopt_bases(place, results)
+    adopt_returns(place, [str((r or {}).get("place") or "") for r in results])
     consult.carry_agreed(place, results)
 
 

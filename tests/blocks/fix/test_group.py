@@ -552,8 +552,17 @@ class GroupChildScriptsCase(unittest.TestCase):
         rows = json.loads((self.place / "conflicts.json").read_text(encoding="utf-8"))["items"]
         self.assertEqual([r["unit_key"] for r in rows], [MEAN])
         self.assertEqual(self.run_script("tdd_prep"), {"prompt": "", "go": False, "new_unit": False})
+        index = self.place / "orders.json"
+        self.assertEqual(json.loads(index.read_text(encoding="utf-8"))["weapons"], {MEAN: "tdd"})
+        for _ in (1, 2):   # 修正の輪の頭が、諦めた単位を variant の注文に書き直す（何度呼んでも同じ。orders.regive）
+            self.run_script("fix_prep")
+            self.assertEqual(json.loads(index.read_text(encoding="utf-8"))["weapons"], {MEAN: "variant"})
+            self.assertFalse((self.place / "orders" / "tdd.json").exists())
+            variant = json.loads((self.place / "orders" / "variant.json").read_text(encoding="utf-8"))
+            self.assertEqual([u["key"] for u in variant["units"]], [MEAN])
         end = self.run_script("group_end")
         result = json.loads(pathlib.Path(end["result_file"]).read_text(encoding="utf-8"))
+        self.assertEqual(result["base"], str(self.place / "base.json"), "元の結末を取った組は base.json の場所を運ぶ")
         self.assertTrue(result["tdd"]["ran"])
         self.assertEqual([(u["unit_key"], u["gave_up"]) for u in result["tdd"]["units"]], [(MEAN, "green")])
         self.assertEqual([(u["unit_id"], u["status"]) for u in result["units"]], [(MEAN, "given_up")])
@@ -664,12 +673,13 @@ class GroupChildScriptsCase(unittest.TestCase):
         self.assertEqual(set(result), {"group_id", "unit_ids", "end_tree", "start_tree", "units", "tdd", "conflicts",
                                        "objection", "changed", "x_scalars", "allowed_tests", "verified",
                                        "reply_file", "tdd_state", "worktree", "handoffs", "handoff_titles", "mismatched", "accept_trace", "closure",
-                                       "claimed", "place"})
+                                       "claimed", "place", "base"})
         # F427・F428・F013: 子の place の受け入れた壊れ・閉鎖の表・受け付けの知らせを、親の finish へ結果で運ぶ
         self.assertEqual((result["handoffs"], result["claimed"], result["closure"]),
                          ([f"{MEAN}: 壊すと分かって通した——空の列の平均の値が変わる"], [MEAN], [closure]))
         self.assertEqual(result["accept_trace"], [{**notice, "group_id": "g1"}, {**agreed, "group_id": "g1"}])
         self.assertEqual(result["tdd_state"], "", "輪の無い組")
+        self.assertEqual(result["base"], "", "実行器の無い組は元の結末を取らない")
         self.assertEqual(result["worktree"], os.path.realpath(self.repo))
         self.assertEqual(result["units"], [{"unit_id": MEAN, "status": "fixed", "reason": ""}])
         self.assertEqual(result["end_tree"], leftovers.snapshot(self.repo))
@@ -844,8 +854,8 @@ class GroupChildSeamCase(unittest.TestCase):
         self.assertEqual(set(got), {"group_id", "unit_ids", "end_tree", "start_tree", "units", "tdd", "conflicts",
                                     "objection", "changed", "x_scalars", "allowed_tests", "verified",
                                     "reply_file", "tdd_state", "worktree", "handoffs", "handoff_titles", "mismatched", "accept_trace", "closure",
-                                    "claimed", "place"})
-        self.assertEqual((got["worktree"], got["place"]), ("", ""), "渡さなければ空")
+                                    "claimed", "place", "base"})
+        self.assertEqual((got["worktree"], got["place"], got["base"]), ("", "", ""), "渡さなければ空")
         self.assertEqual((got["handoffs"], got["claimed"], got["closure"], got["accept_trace"]), ([], [], [], []))
         self.assertEqual([(u["unit_id"], u["status"]) for u in got["units"]],
                          [("a", "fixed"), ("b", "given_up"), ("c", "not_done")])

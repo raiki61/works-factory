@@ -194,23 +194,58 @@ def compute(place, repo) -> dict:
         tdd.assign(state, repo, mark, {k: whys.get(k) or answered_why(st, k) for k in owed})
         started.update(go=True, state_file=state, summary_file=str(pathlib.Path(state).parent / tdd.SUMMARY))
         board.write_json(place / board.TDD_START_FILE, started)
-    stage = stage_of(place)
-    since = groups.end_tree(repo)
+    _write_orders(place, keys, owed, weapons, stage=stage_of(place), since=groups.end_tree(repo), has_base=bool(base))
+    loop = common.load_state(state) if state else {}
+    return {"tdd": bool(loop) and not loop.get("done"), "writer": True, "stop": False, "reason": ""}
+
+
+ORDER_SEQUENCE = ("pin", "tidy", "static", "tdd", "variant", "remove")
+
+
+def _write_orders(place, keys, owed, weapons: dict, *, stage: int, since: str, has_base: bool) -> list:
+    """型ごとの注文 orders/<w>.json と索引 orders.json を書く（単位の無い型の注文は消す）。型の並びを返す"""
+    place = pathlib.Path(place)
+    group = intake.load(place).get("group") or {}
+    whys, removes = route.plan_whys(place, keys), route.plan_removes(place, keys)
     rows = _unit_rows(place, keys)
     by: dict = {}
     for k in owed:
         by.setdefault(weapons[k], []).append(k)
     d = place / files.ORDERS_DIR
     d.mkdir(parents=True, exist_ok=True)
-    sequence = [w for w in ("pin", "tidy", "static", "tdd", "variant", "remove") if w in by]
-    for w in sequence:
+    sequence = [w for w in ORDER_SEQUENCE if w in by]
+    for w in ORDER_SEQUENCE:
+        if w not in by:
+            (d / f"{w}.json").unlink(missing_ok=True)
+            continue
         jsonfile.write(d / f"{w}.json", _order(place, w, by[w], rows, group_id=str(group.get("group_id") or ""), stage=stage,
-                                               since=since, base_file=str(basecase.path(place)) if base else "",
+                                               since=since, base_file=str(basecase.path(place)) if has_base else "",
                                                whys=whys, removes=removes, why_untested=w == "static"))
     jsonfile.write(place / files.ORDERS_FILE, {"sequence": sequence, "weapons": weapons, "stage": stage, "since": since,
                                                "unsatisfied": unsatisfied(place, owed, weapons, sequence)})
-    loop = common.load_state(state) if state else {}
-    return {"tdd": bool(loop) and not loop.get("done"), "writer": True, "stop": False, "reason": ""}
+    return sequence
+
+
+def regive(place) -> list:
+    """tdd の輪が諦めた単位（輪の状態の units の gave_up）を、同じ箱の variant の注文に書き直す（下書き 4.1 の 3 の gave_up の
+    単位の書き直し。route から型を引く表の 5 と同じ行き先）。注文 orders/tdd.json から外し orders/variant.json に足し、索引の weapons を
+    替える（段の番・since・元の結末は今の注文のまま）。注文の無い組・諦めの無い組は何もしない。何度呼んでも同じ。書き直した単位を返す"""
+    place = pathlib.Path(place)
+    idx = jsonfile.read_or(place / files.ORDERS_FILE)
+    if not isinstance(idx, dict) or not isinstance(idx.get("weapons"), dict):
+        return []
+    state = str(_start(place).get("state_file") or "")
+    units = (common.load_state(state).get("units") or {}) if state and pathlib.Path(state).is_file() else {}
+    weapons = dict(idx["weapons"])
+    moved = [k for k, w in weapons.items() if w == "tdd" and (units.get(k) or {}).get("gave_up")]
+    if not moved:
+        return []
+    weapons.update({k: "variant" for k in moved})
+    group = intake.load(place).get("group") or {}
+    keys = [str(k) for k in group.get("unit_ids") or []]
+    _write_orders(place, keys, [k for k in keys if k in weapons], weapons, stage=int(idx.get("stage") or stage_of(place)),
+                  since=str(idx.get("since") or ""), has_base=basecase.read(place) is not None)
+    return moved
 
 
 def answered_why(st, k) -> str:

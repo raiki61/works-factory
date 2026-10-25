@@ -266,3 +266,21 @@ def _test_cmd_gate(exe: pathlib.Path, cmd: str, repo, log: pathlib.Path, *, reus
         return common.GATE_OFF, (f"run の test_cmd（{cmd}）がループの頭で赤（{mat.get('rewrote') or f'元から赤。ログ {log}'}）——"
                                  "単位ごとに確かめると毎単位を拒むのでこのループでは確かめない（一式の緑はメイングラフの最後のテストの段が確かめる）"), made
     return common.GATE_OFF, f"run の test_cmd（{cmd}）をループの頭で走らせられない（{mat.get('reason', '')}）——このループでは確かめない", made
+
+
+def suite_made_all(place) -> set:
+    """run の全体の suite_made の和（下書き 2.1 の「run の全体の suite_made の和」）: 置き場の輪の状態の全部（common.suite_made_all。
+    今の和を外さない）・置き場の base.json と accept.json・写した bases/<k>/ の base.json と accept.json の全部・returns/ の全部"""
+    place = pathlib.Path(place)
+    docs = [place / files.BASE_FILE, place / files.ACCEPT_FILE]
+    bases = place / files.BASES_DIR
+    for d in sorted(bases.glob("*")) if bases.is_dir() else []:
+        docs += [d / files.BASE_FILE, d / files.ACCEPT_FILE]
+    rets = place / files.RETURNS_DIR
+    docs += sorted(rets.glob("*.json")) if rets.is_dir() else []
+    out = set(common.suite_made_all(place))
+    for p in docs:
+        doc = jsonfile.read_or(p) if p.is_file() else None
+        if isinstance(doc, dict):
+            out |= {f for f in doc.get("suite_made") or [] if isinstance(f, str)}
+    return out

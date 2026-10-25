@@ -42,7 +42,7 @@ inputs:
     description: 'json(fix-plan-review.schema.json): 事前審査の返答（faces・shrink）。修正役が plan_faces で穴と別案に答える。null は事前審査の無い run'
   prior:
     default: 'null'
-    description: 'json(carry.schema.json): 前の修正の段の申し送り（前の段の出力 carry の先 {conflicts, loops}）。2 回目の修正の段だけに渡す。null は 1 回目の段'
+    description: 'json(carry.schema.json): 前の修正の段の申し送り（前の段の出力 carry の先 {conflicts, loops, accept, bases, returns}）。2 回目の修正の段だけに渡す。null は 1 回目の段'
   notes:
     default: ''
     description: 'text: 機械の申し送りの文（案の直しの後の 2 回目の修正の段だけ）。修正役と TDD の役の notes に足す。空は無い'
