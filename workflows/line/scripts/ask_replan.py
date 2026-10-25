@@ -116,7 +116,7 @@ def ask(replan_got, review_got, old_plan: str, ids: list, conflicts: str, before
         return closed
     missing = list(missing)   # 指す先が無い・読めない控え（聞く行にする。形の違う pointer は落ちる）
     old_fields = plan_items(old_plan)
-    new_fields = plan_items(gates.located(replan_got["plan"], "案の直しの修正案の欄", missing))
+    new_fields = plan_items(gates.located(replan_got["plan"], "案の直しの修正案の欄", missing, lambda raw: ports.file(raw, "json(shared:plan-fields.schema.json)")))
     ruled, unread = ruled_rows(conflicts)
     rows, widened, sections = [], [], []
     if review_got is None or review_got["status"] != "ok":
@@ -170,14 +170,14 @@ def compute() -> dict:
 
     given = ports.parsed(raw["ports"]) or {}
     ids = ports.parsed(raw["items"]) or []
-    record_path = ports.file(raw["record"])
+    record_path = ports.file(raw["record"], "json(start-record.schema.json)")
     before_fix = ports.parsed(raw["before_fix"])
     previous = gates.read_json(ports.place() / PREVIOUS)
     answered = [a for a in (before_fix, previous) if isinstance(a, dict)]
     row = policy_row(startrec.load(record_path) if record_path else {}, ports.place(), answered)
     missing: list = []
-    old_plan = gates.located(raw["old_plan"], "承認済みの修正案の欄", missing)
-    conflicts = gates.located(raw["conflicts"], "修正の申し出と裁定の控え", missing)
+    old_plan = gates.located(raw["old_plan"], "承認済みの修正案の欄", missing, lambda raw: ports.file(raw, "json(shared:plan-fields.schema.json)"))
+    conflicts = gates.located(raw["conflicts"], "修正の申し出と裁定の控え", missing, lambda raw: ports.file(raw, "json(lib:conflicts.schema.json)"))
     return ask(ports.picked(raw["replan"], REPLAN), ports.picked(raw["review"], REVIEW), old_plan,
                [str(x) for x in ids] if isinstance(ids, list) else [], conflicts, before_fix,
                unattended=bool(given.get("unattended")), run_id=os.environ["WORKFLOW_ID"], policy=row, missing=missing)

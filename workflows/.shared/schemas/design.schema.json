@@ -1,0 +1,15 @@
+{
+  "description": "独立設計の返答（independent-design の design.json。設計の役の output_format の字のまま）。question_stands は問いが立つか、立たなければ premise_invalid_reason に根拠、立てば design と elements（D<番号> の要素）",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["question_stands", "reason", "design"],
+  "properties": {
+    "question_stands": {"type": "boolean"},
+    "reason": {"type": "string", "minLength": 1, "pattern": "\\S"},
+    "premise_invalid_reason": {"type": "string"},
+    "design": {"type": "string"},
+    "elements": {"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["id", "adds", "removes"],
+      "properties": {"id": {"type": "string", "pattern": "^D[0-9]+$"}, "adds": {"type": "array", "items": {"type": "string"}},
+                     "removes": {"type": "array", "items": {"type": "string"}}}}}
+  }
+}

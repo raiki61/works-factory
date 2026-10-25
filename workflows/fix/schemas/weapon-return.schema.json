@@ -56,7 +56,12 @@
     },
     "frozen": {
       "type": "object",
-      "description": "tdd の輪の機械が書く {パス: hash}。ほかの型は空"
+      "description": "tdd の輪の機械が書く {パス: hash}。ほかの型は空",
+      "patternProperties": {
+        "": {
+          "type": "string"
+        }
+      }
     },
     "frozen_tree": {
       "type": "string"
@@ -163,10 +168,22 @@
           }
         },
         "before": {
-          "type": "object"
+          "type": "object",
+          "description": "試験の id → 結末（JUnit の結末から機械が作る。下書き 2.2）",
+          "patternProperties": {
+            "": {
+              "type": "string"
+            }
+          }
         },
         "after": {
-          "type": "object"
+          "type": "object",
+          "description": "試験の id → 結末（JUnit の結末から機械が作る。下書き 2.2）",
+          "patternProperties": {
+            "": {
+              "type": "string"
+            }
+          }
         },
         "added": {
           "type": "array",
@@ -216,7 +233,22 @@
         "compared": {
           "type": "array",
           "items": {
-            "type": "object"
+            "type": "object",
+            "description": "入力の id ごとの新旧の出力の hash と揺れの印（rebuild。下書き 2.2）",
+            "properties": {
+              "input": {
+                "type": "string"
+              },
+              "old": {
+                "type": "string"
+              },
+              "new": {
+                "type": "string"
+              },
+              "jitter": {
+                "type": "boolean"
+              }
+            }
           }
         }
       },
@@ -225,7 +257,37 @@
     "asks": {
       "type": "array",
       "items": {
-        "type": "object"
+        "type": "object",
+        "description": "食い違いの申し出の行（lib/conflicts.schema.json の items の行と同じ欄）",
+        "properties": {
+          "unit_key": {
+            "type": "string"
+          },
+          "between": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "why_both_cannot_hold": {
+            "type": "string"
+          },
+          "which_is_right": {
+            "type": "string"
+          },
+          "kind": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "correct_lines": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
       }
     },
     "report": {

@@ -75,13 +75,13 @@ def _list(v) -> list:
     return v if isinstance(v, list) else []
 
 
-def read_ptr(ptr):
-    """(中身, 読めなかった訳)。pointer が無ければ (None, "")"""
+def read_ptr(ptr, field: str):
+    """(中身, 読めなかった訳)。field は pointer を返した作り手の欄の名（stages.resolve がその宣言の form で照らす）。pointer が無ければ (None, "")"""
     import oneline
     if ptr is None or ptr == "":
         return None, ""
     try:
-        return json.loads(stageslib.resolve(ptr).read_text(encoding="utf-8")), ""
+        return json.loads(stageslib.resolve(ptr, field).read_text(encoding="utf-8")), ""
     except (OSError, *stageslib.READ_ERRORS) as e:
         return None, f"{ptr.get('path') if isinstance(ptr, dict) else ptr} が読めない: {oneline.one_line(e)}"
 
@@ -150,7 +150,7 @@ def conflict_rows(returns: dict) -> tuple[list, list]:
     import oneline
     rows, notes = [], []
     for ptr in _list(as_dict(returns.get("fix")).get("conflicts")):
-        doc, why = read_ptr(ptr)
+        doc, why = read_ptr(ptr, "conflicts")
         items = doc.get(conflict.ITEMS) if isinstance(doc, dict) else None
         if why or not isinstance(items, list):
             notes.append(f"申し出と裁定のファイルが読めない: {oneline.one_line(why or f'欄 {conflict.ITEMS} の配列が無い')}")
@@ -187,7 +187,7 @@ def asked_units(returns: dict, closed: bool = True, rows: list | None = None) ->
 
 def materials(returns: dict) -> tuple[dict, str]:
     """判定（再審が在ればその）の返りの欄 materials の先の素材の状態と、読めなかった訳"""
-    doc, why = read_ptr(as_dict(latest(returns, "judge")).get("materials"))
+    doc, why = read_ptr(as_dict(latest(returns, "judge")).get("materials"), "materials")
     if why:
         return {}, f"素材の状態が読めない（測れていない素材は無いと数えた）: {why}"
     if doc is not None and not isinstance(doc, dict):
@@ -196,14 +196,14 @@ def materials(returns: dict) -> tuple[dict, str]:
 
 
 def judgment_doc(returns: dict) -> dict:
-    doc, _ = read_ptr(as_dict(latest(returns, "judge")).get("judgment"))
+    doc, _ = read_ptr(as_dict(latest(returns, "judge")).get("judgment"), "judgment")
     return as_dict(doc)
 
 
 def ledger(returns: dict, gates: dict, record: dict, unattended: bool):
     """問いの台帳の見え方（元 runreport.ledger。gatemarks.ledger）"""
     import gatemarks
-    ties_doc, _ = read_ptr(as_dict(returns.get("judge")).get("answer_ties"))
+    ties_doc, _ = read_ptr(as_dict(returns.get("judge")).get("answer_ties"), "answer_ties")
     ties = gatemarks.ties_of(ties_doc) if ties_doc is not None else []
     mats, _ = materials(returns)
     return gatemarks.ledger(judgment_doc(returns), answers=_request_answers(record), gate=gates.get("gate-before-fix"), ties=ties,
@@ -251,7 +251,7 @@ def _after_rows(returns: dict) -> list:
     if not ptr:
         return []
     try:
-        return structmark.after_rows(stageslib.resolve(ptr).parent)
+        return structmark.after_rows(stageslib.resolve(ptr, "after").parent)
     except stageslib.READ_ERRORS:
         return []
 
@@ -681,7 +681,7 @@ def _outside(returns: dict) -> tuple[list, list, str]:
     if not ptr:
         return [], [], ""
     try:
-        path = stageslib.resolve(ptr)
+        path = stageslib.resolve(ptr, "out_of_purpose")
     except stageslib.READ_ERRORS as e:
         return [], [f"目的の外の所見の控えを開けない（{e}）"], ""
     if path.name != outpurpose.FILE:
@@ -809,7 +809,7 @@ def unproven_lines(returns: dict) -> list:
 def pr_lines(returns: dict) -> list:
     """並行 PR と重なるので外した範囲（判定の出力の欄 excluded の先。元 runreport.pr_lines。parallel-pr の block の report は外した範囲を
     並べないので line が組む）"""
-    doc, why = read_ptr(as_dict(returns.get("judge")).get("excluded"))
+    doc, why = read_ptr(as_dict(returns.get("judge")).get("excluded"), "excluded")
     if why:
         return [f"並行 PR と重なるので外した範囲: {why}"]
     rows = doc.get("excluded") if isinstance(doc, dict) else doc
@@ -824,7 +824,7 @@ def inner_word_lines(diff_ptr, known) -> list:
     if not diff_ptr:
         return []
     try:
-        text = stageslib.resolve(diff_ptr).read_text(encoding="utf-8", errors="replace")
+        text = stageslib.resolve(diff_ptr, "diff").read_text(encoding="utf-8", errors="replace")
     except (OSError, *stageslib.READ_ERRORS) as e:
         return [f"差分が読めない（{type(e).__name__}）——内側の語を確かめていない"]
     rows = [f"{h['path']}:{h['line']}（{'・'.join(h['words'])}）: {h['text']}" for h in report.inner_word_hits(text, known)]
@@ -1209,7 +1209,7 @@ def _user_env_note(ports_: dict) -> list:
 def _head_at(returns: dict) -> str:
     ptr = as_dict(returns.get("judge")).get("tier_record")
     try:
-        return str(stageslib.resolve(ptr)) if ptr else ""
+        return str(stageslib.resolve(ptr, "tier_record")) if ptr else ""
     except stageslib.READ_ERRORS:
         return ""
 

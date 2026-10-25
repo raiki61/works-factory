@@ -28,7 +28,7 @@ def fallback(why: str) -> dict:
     except Exception:  # noqa: BLE001 — ライブラリを読めない時は標準ライブラリだけで訳だけのファイルを書いて指す
         path = ports.place() / "report-facts-unwritten.md"
         path.write_text(f"# 報告（run {os.environ.get('WORKFLOW_ID', '—')}）\n\n報告を組めなかった: {why}\n", encoding="utf-8")
-        ptr = ports.pointer(path)
+        ptr = ports.pointer(path, "file")
         return {"outcome": "record_invalid", "ok": False, "stop_reason": f"report:{why}", "machine": ptr, "next_request": None, "prior_failures": None, "ai_go": False, "stamp": ""}
 
 

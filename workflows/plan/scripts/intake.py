@@ -42,6 +42,7 @@ def compute():
         "world_rows": os.environ.get("INPUTS_WORLD_ROWS"),
         "structure": os.environ.get("INPUTS_STRUCTURE"),
         "spec": os.environ.get("INPUTS_SPEC"),
+        "spec_doc": os.environ.get("INPUTS_SPEC_DOC"),
         "policy": os.environ.get("INPUTS_POLICY"),
         "prior_failures": os.environ.get("INPUTS_PRIOR_FAILURES"),
         "prior": os.environ.get("INPUTS_PRIOR"),

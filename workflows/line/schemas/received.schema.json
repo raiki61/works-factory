@@ -1,0 +1,915 @@
+{
+  "description": "修正の段へ運ぶ値（fix_in の received_live。固定材料の run では start が置いた写し fixture-carried.json）。部ごとの値は作り手の返りの欄を名で選んだ物",
+  "type": "object",
+  "properties": {
+    "test_gate_base": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "description": "直す前の試験の関門の返りの欄（fix_in の NAMES）。飛ばされた run は null",
+      "properties": {
+        "baseline": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "run_id",
+            "path"
+          ],
+          "properties": {
+            "type": {
+              "type": "string",
+              "enum": [
+                "archon_artifact"
+              ]
+            },
+            "run_id": {
+              "type": "string"
+            },
+            "path": {
+              "type": "string"
+            }
+          },
+          "description": "json(lib:baseline.schema.json): 直す前の結末のファイル"
+        },
+        "suite": {
+          "type": "string"
+        },
+        "suite_note": {
+          "type": "string"
+        }
+      }
+    },
+    "judge": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "description": "判定のまとめの返りの欄（fix_in の NAMES。仕様駆動の run は spec-rounds の judge）。飛ばされた run は null",
+      "properties": {
+        "ok": {
+          "type": "boolean"
+        },
+        "stop_reason": {
+          "type": "string"
+        },
+        "ready": {
+          "type": "boolean"
+        },
+        "units": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "paths": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "summary": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "judgment": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "run_id",
+            "path"
+          ],
+          "properties": {
+            "type": {
+              "type": "string",
+              "enum": [
+                "archon_artifact"
+              ]
+            },
+            "run_id": {
+              "type": "string"
+            },
+            "path": {
+              "type": "string"
+            }
+          },
+          "description": "json(shared:judgment.schema.json): 受け付けた判定。止めたら null"
+        },
+        "answer_ties": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "run_id",
+            "path"
+          ],
+          "properties": {
+            "type": {
+              "type": "string",
+              "enum": [
+                "archon_artifact"
+              ]
+            },
+            "run_id": {
+              "type": "string"
+            },
+            "path": {
+              "type": "string"
+            }
+          },
+          "description": "json(shared:answer-ties.schema.json): 依頼の答えを判定の問いと単位に結んだ行"
+        },
+        "out_of_purpose": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "run_id",
+            "path"
+          ],
+          "properties": {
+            "type": {
+              "type": "string",
+              "enum": [
+                "archon_artifact"
+              ]
+            },
+            "run_id": {
+              "type": "string"
+            },
+            "path": {
+              "type": "string"
+            }
+          },
+          "description": "json(lib:out-of-purpose.schema.json): 判定が目的の外とした行の控え"
+        },
+        "materials": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "run_id",
+            "path"
+          ],
+          "properties": {
+            "type": {
+              "type": "string",
+              "enum": [
+                "archon_artifact"
+              ]
+            },
+            "run_id": {
+              "type": "string"
+            },
+            "path": {
+              "type": "string"
+            }
+          },
+          "description": "json(shared:materials-state.schema.json): 判定の素材の状態"
+        },
+        "brief": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "run_id",
+            "path"
+          ],
+          "properties": {
+            "type": {
+              "type": "string",
+              "enum": [
+                "archon_artifact"
+              ]
+            },
+            "run_id": {
+              "type": "string"
+            },
+            "path": {
+              "type": "string"
+            }
+          },
+          "description": "file: 判定役に渡した指示"
+        },
+        "inputs": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "run_id",
+            "path"
+          ],
+          "properties": {
+            "type": {
+              "type": "string",
+              "enum": [
+                "archon_artifact"
+              ]
+            },
+            "run_id": {
+              "type": "string"
+            },
+            "path": {
+              "type": "string"
+            }
+          },
+          "description": "json(shared:diagnose-input.schema.json): 判定役が読んだ材料"
+        },
+        "purpose": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "run_id",
+            "path"
+          ],
+          "properties": {
+            "type": {
+              "type": "string",
+              "enum": [
+                "archon_artifact"
+              ]
+            },
+            "run_id": {
+              "type": "string"
+            },
+            "path": {
+              "type": "string"
+            }
+          },
+          "description": "json(shared:purpose.schema.json): 固めた目的"
+        },
+        "purpose_text": {
+          "type": "string"
+        },
+        "means": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "constraints": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "run_id",
+            "path"
+          ],
+          "properties": {
+            "type": {
+              "type": "string",
+              "enum": [
+                "archon_artifact"
+              ]
+            },
+            "run_id": {
+              "type": "string"
+            },
+            "path": {
+              "type": "string"
+            }
+          },
+          "description": "json(shared:constraints.schema.json): 前提の実測の控え"
+        },
+        "world": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "run_id",
+            "path"
+          ],
+          "properties": {
+            "type": {
+              "type": "string",
+              "enum": [
+                "archon_artifact"
+              ]
+            },
+            "run_id": {
+              "type": "string"
+            },
+            "path": {
+              "type": "string"
+            }
+          },
+          "description": "jsonl(lib:world-row.schema.json): 世界の解の行。行が無ければ null"
+        },
+        "spec": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "run_id",
+            "path"
+          ],
+          "properties": {
+            "type": {
+              "type": "string",
+              "enum": [
+                "archon_artifact"
+              ]
+            },
+            "run_id": {
+              "type": "string"
+            },
+            "path": {
+              "type": "string"
+            }
+          },
+          "description": "json(shared:spec.schema.json): 固めた仕様"
+        },
+        "excluded": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "run_id",
+            "path"
+          ],
+          "properties": {
+            "type": {
+              "type": "string",
+              "enum": [
+                "archon_artifact"
+              ]
+            },
+            "run_id": {
+              "type": "string"
+            },
+            "path": {
+              "type": "string"
+            }
+          },
+          "description": "json(shared:excluded.schema.json): 並行 PR と重なるので外した範囲"
+        },
+        "decisions": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "run_id",
+            "path"
+          ],
+          "properties": {
+            "type": {
+              "type": "string",
+              "enum": [
+                "archon_artifact"
+              ]
+            },
+            "run_id": {
+              "type": "string"
+            },
+            "path": {
+              "type": "string"
+            }
+          },
+          "description": "json(shared:material.schema.json): 先行議論の突合の素材"
+        },
+        "tier": {
+          "type": "string"
+        },
+        "tier_record": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "run_id",
+            "path"
+          ],
+          "properties": {
+            "type": {
+              "type": "string",
+              "enum": [
+                "archon_artifact"
+              ]
+            },
+            "run_id": {
+              "type": "string"
+            },
+            "path": {
+              "type": "string"
+            }
+          },
+          "description": "json(shared:depth-record.schema.json): run の頭の深さの控え"
+        },
+        "verify": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "run_id",
+            "path"
+          ],
+          "properties": {
+            "type": {
+              "type": "string",
+              "enum": [
+                "archon_artifact"
+              ]
+            },
+            "run_id": {
+              "type": "string"
+            },
+            "path": {
+              "type": "string"
+            }
+          },
+          "description": "json(shared:verify.schema.json): 判定の裏取りの結果"
+        }
+      }
+    },
+    "tiers": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "description": "段 → 回す物の表の返りの欄（fix_in の NAMES）。飛ばされた run・仕様駆動の run は null",
+      "properties": {
+        "tier": {
+          "type": "string"
+        },
+        "omits": {
+          "type": "boolean"
+        },
+        "merge": {
+          "type": "boolean"
+        },
+        "tree": {
+          "type": "string",
+          "enum": [
+            "on",
+            "off",
+            "auto"
+          ]
+        },
+        "adds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "lines": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "structure": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "description": "構造の目の返りの欄（fix_in の NAMES）。飛ばされた run・仕様駆動の run は null",
+      "properties": {
+        "structure": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "run_id",
+            "path"
+          ],
+          "properties": {
+            "type": {
+              "type": "string",
+              "enum": [
+                "archon_artifact"
+              ]
+            },
+            "run_id": {
+              "type": "string"
+            },
+            "path": {
+              "type": "string"
+            }
+          },
+          "description": "json(shared:structure-state.schema.json): 構造の目の控え。書けなければ null"
+        }
+      }
+    },
+    "design": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "description": "独立設計の返しの欄（fix_in の NAMES）。飛ばされた run・仕様駆動の run は null",
+      "properties": {
+        "design": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "run_id",
+            "path"
+          ],
+          "properties": {
+            "type": {
+              "type": "string",
+              "enum": [
+                "archon_artifact"
+              ]
+            },
+            "run_id": {
+              "type": "string"
+            },
+            "path": {
+              "type": "string"
+            }
+          },
+          "description": "json(shared:design.schema.json): 独立設計の返答。独立設計が走らなければ null"
+        },
+        "reason": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "premises": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "run_id",
+            "path"
+          ],
+          "properties": {
+            "type": {
+              "type": "string",
+              "enum": [
+                "archon_artifact"
+              ]
+            },
+            "run_id": {
+              "type": "string"
+            },
+            "path": {
+              "type": "string"
+            }
+          },
+          "description": "json(shared:design-premises.schema.json): 独立設計が読んだ人の決めた前提。無ければ null"
+        }
+      }
+    },
+    "rounds": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "description": "計画の往復の返りの欄（fix_in の NAMES。仕様駆動の run は spec-rounds の rounds）。飛ばされた run は null",
+      "properties": {
+        "ok": {
+          "type": "boolean"
+        },
+        "status": {
+          "type": "string"
+        },
+        "round": {
+          "type": "integer"
+        },
+        "record": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "run_id",
+            "path"
+          ],
+          "properties": {
+            "type": {
+              "type": "string",
+              "enum": [
+                "archon_artifact"
+              ]
+            },
+            "run_id": {
+              "type": "string"
+            },
+            "path": {
+              "type": "string"
+            }
+          },
+          "description": "json(shared:plan-converge.schema.json): 往復の記録 plan-converge.json"
+        },
+        "plan": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "run_id",
+            "path"
+          ],
+          "properties": {
+            "type": {
+              "type": "string",
+              "enum": [
+                "archon_artifact"
+              ]
+            },
+            "run_id": {
+              "type": "string"
+            },
+            "path": {
+              "type": "string"
+            }
+          },
+          "description": "json(shared:plan-fields.schema.json): 修正案の欄の控え"
+        },
+        "fix_plan": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "run_id",
+            "path"
+          ],
+          "properties": {
+            "type": {
+              "type": "string",
+              "enum": [
+                "archon_artifact"
+              ]
+            },
+            "run_id": {
+              "type": "string"
+            },
+            "path": {
+              "type": "string"
+            }
+          },
+          "description": "json(shared:fix-plan.schema.json): 修正案の出力"
+        },
+        "reply": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "run_id",
+            "path"
+          ],
+          "properties": {
+            "type": {
+              "type": "string",
+              "enum": [
+                "archon_artifact"
+              ]
+            },
+            "run_id": {
+              "type": "string"
+            },
+            "path": {
+              "type": "string"
+            }
+          },
+          "description": "json(shared:plan-reply.schema.json): 受け付けた修正案"
+        },
+        "handoffs": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "round": {
+                "type": "integer"
+              },
+              "handoff": {
+                "type": [
+                  "object",
+                  "null"
+                ],
+                "additionalProperties": false,
+                "required": [
+                  "type",
+                  "run_id",
+                  "path"
+                ],
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "archon_artifact"
+                    ]
+                  },
+                  "run_id": {
+                    "type": "string"
+                  },
+                  "path": {
+                    "type": "string"
+                  }
+                },
+                "description": "json(shared:handoff.schema.json): その周の引き継ぎのメモ"
+              }
+            }
+          }
+        },
+        "ripple": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "run_id",
+            "path"
+          ],
+          "properties": {
+            "type": {
+              "type": "string",
+              "enum": [
+                "archon_artifact"
+              ]
+            },
+            "run_id": {
+              "type": "string"
+            },
+            "path": {
+              "type": "string"
+            }
+          },
+          "description": "json(shared:ripple.schema.json): 波及の一覧"
+        },
+        "owed": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "review": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "run_id",
+            "path"
+          ],
+          "properties": {
+            "type": {
+              "type": "string",
+              "enum": [
+                "archon_artifact"
+              ]
+            },
+            "run_id": {
+              "type": "string"
+            },
+            "path": {
+              "type": "string"
+            }
+          },
+          "description": "json(shared:plan-review-reply.schema.json): 事前審査の返答"
+        }
+      }
+    },
+    "gate_before_fix": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "description": "修正前の承認ノードの答え（lib/answer.py の taken の answer）。開かず推しでも進まなかった run は null",
+      "properties": {
+        "decision": {
+          "type": "string"
+        },
+        "text": {
+          "type": "string"
+        },
+        "asked": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "pushed": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "description": "json(lib:push-row.schema.json): 無人の run が採った推しの行"
+          }
+        }
+      }
+    },
+    "before_fix_policy": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "deferred": {
+      "type": "array",
+      "description": "修正前の承認ノードが後に回した項目の文",
+      "items": {
+        "type": "string"
+      }
+    },
+    "passes": {
+      "type": "array",
+      "description": "修正前の承認ノードが聞かずに通した行",
+      "items": {
+        "type": "object",
+        "properties": {
+          "node": {
+            "type": "string"
+          },
+          "round": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "by": {
+            "type": "string"
+          },
+          "item": {
+            "type": "string"
+          },
+          "decided_by": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "recorded": {
+      "type": "array",
+      "description": "json(shared:recorded.schema.json): 記録された方針の行（lib/policy.py の recorded）"
+    }
+  }
+}

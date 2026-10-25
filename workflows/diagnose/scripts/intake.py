@@ -20,6 +20,7 @@ def compute():
         "objection": os.environ.get("INPUTS_OBJECTION"), "base": os.environ.get("INPUTS_BASE"),
         "purpose": os.environ.get("INPUTS_PURPOSE"), "constraints": os.environ.get("INPUTS_CONSTRAINTS"),
         "materials": os.environ.get("INPUTS_MATERIALS"), "pr_material": os.environ.get("INPUTS_PR_MATERIAL"),
+        "reply_sources": os.environ.get("INPUTS_REPLY_SOURCES"),
         "baseline": os.environ.get("INPUTS_BASELINE"), "world_rows": os.environ.get("INPUTS_WORLD_ROWS"),
         "row_asks": os.environ.get("INPUTS_ROW_ASKS"), "depth_why": os.environ.get("INPUTS_DEPTH_WHY"),
         "spec_rows": os.environ.get("INPUTS_SPEC_ROWS"), "spec_origin": os.environ.get("INPUTS_SPEC_ORIGIN"),

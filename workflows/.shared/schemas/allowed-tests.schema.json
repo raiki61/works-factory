@@ -1,0 +1,21 @@
+{
+ "description": "修正の block が許したテストの変更の訳の行の並び allowed-tests.json [{path, permit, source}]（lib/fixboard.py の allowed_test_rows）。差分の審査の入力 permits はパスの字の行も受ける",
+ "type": "array",
+ "items": {
+  "type": [
+   "object",
+   "string"
+  ],
+  "properties": {
+   "path": {
+    "type": "string"
+   },
+   "permit": {
+    "type": "string"
+   },
+   "source": {
+    "type": "string"
+   }
+  }
+ }
+}

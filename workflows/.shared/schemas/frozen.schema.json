@@ -1,0 +1,31 @@
+{
+ "description": "修正の block の輪ごとの凍ったテストのファイルの hash frozen.json {loops: [{state, frozen, frozen_tree}]}",
+ "type": "object",
+ "properties": {
+  "loops": {
+   "type": "array",
+   "items": {
+    "type": "object",
+    "properties": {
+     "state": {
+      "type": "string"
+     },
+     "frozen": {
+      "type": "object",
+      "patternProperties": {
+       "^.+$": {
+        "type": [
+         "string",
+         "null"
+        ]
+       }
+      }
+     },
+     "frozen_tree": {
+      "type": "string"
+     }
+    }
+   }
+  }
+ }
+}

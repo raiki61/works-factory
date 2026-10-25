@@ -48,7 +48,7 @@ def compute():
         return {"replan": False, "prior": None, "stop_reason": ""}
     path = ports.place() / files.REPLAN_PRIOR
     path.write_text(json.dumps(prior_doc(env), ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
-    return {"replan": True, "prior": ports.pointer(path), "stop_reason": ""}
+    return {"replan": True, "prior": ports.pointer(path, "json(shared:plan-prior.schema.json)"), "stop_reason": ""}
 
 
 def fallback(reason: str) -> dict:

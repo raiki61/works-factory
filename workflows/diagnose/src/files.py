@@ -5,9 +5,11 @@
 """
 from __future__ import annotations
 
+import json
 import pathlib
 
 import materialkit   # lib/。素材の欄の全体の表
+import ports         # .shared/。共通の形の置き場
 import rolekit   # lib/。拒否の控えの名
 import stopby    # lib/。止めの語
 
@@ -65,26 +67,13 @@ REJUDGE_FILES = (FIRST_JUDGMENT_FILE, UNITS_BEFORE_FILE, *_reject_names(REJUDGE_
 PROMPT_GLOBS = (PROMPT_GLOB, REJUDGE_PROMPT_GLOB, REJUDGE_FIX_PROMPT_GLOB)
 OWN_FILES = (*COMMON_FILES, *JUDGE_FILES, *REJUDGE_FILES)
 
-# ---------------------------------------------------------------- 素材の観点の返答 → 材料のファイルの鍵（役の名は material.json の role の値）
-# 材料のファイル diagnose-input.json の鍵 → (素材の観点の役の名, その返答の中の欄。None は返答まるごと)。hygiene の findings・
-# procedure-trace の unmeasured・external-standards の rankings は今も判定役に届いていないので載せない
-REPLY_KEYS = {
-    "local_findings": ("local-review", "findings"),
-    "consistency_findings": ("consistency-bypass", "findings"),
-    "bypass_findings": ("consistency-bypass", "bypass_findings"),
-    "external_findings": ("external-standards", "findings"),
-    "procedure_findings": ("procedure-trace", "findings"),
-    "test_double_fidelity": ("test-double-fidelity", None),
-    "main_path_observation": ("main-path-observation", None),
-    "provenance": ("provenance", None),
-    "prior_decisions": ("prior-decisions", None),
-    "purpose_review": ("purpose-review", None),
-}
-PRIOR_DECISIONS_ROLE = "prior-decisions"
-PARALLEL_PR_ROLE = "parallel-pr"
-# 出どころの節の名に使う役（受け付けが目的の外の行を当てる材料の行の出どころ）。P1 の目だけ。prior-decisions と purpose-review は辿らない
-P1_ROLES = ("local-review", "consistency-bypass", "hygiene", "external-standards", "procedure-trace",
-            "test-double-fidelity", "main-path-observation", "provenance")
+# ---------------------------------------------------------------- 素材の観点の返答 → 材料のファイルの鍵
+# 材料のファイル diagnose-input.json の素材の観点の返答の鍵（並びは鍵の並び）。語の正本は形 shared:reply-sources.schema.json の key の
+# enum。どの素材のどの欄を写すか・出どころを辿る素材・記録された方針を持つ素材は、graph が入口 reply_sources で渡す（観点の役の名と返答の
+# 欄の名をこの block に書かない。憲法の 3。#851）
+REPLY_FIELDS = tuple(json.loads((pathlib.Path(ports.SHARED) / "schemas" / "reply-sources.schema.json").read_text(encoding="utf-8"))
+                     ["properties"]["replies"]["items"]["properties"]["key"]["enum"])
+CARD_ROLE = "pr_material"   # 並行 PR の札を包んだ素材の doc の role（入力 pr_material の名。素材の観点の role とは重ならない）
 
 # この block が読む素材の欄。lib/materialkit.MATERIALS から gate_efficacy を外した 14 欄（持ち主の決め 2026-10-19: 重い確かめは判定の種類から
 # 外す）。gate-efficacy の block が返す素材は読まない。lib の表は変えない（gate-efficacy の block は単独で回る）

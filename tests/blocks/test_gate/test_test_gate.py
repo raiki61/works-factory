@@ -72,18 +72,8 @@ def script_inputs(name: str) -> set:
 
 
 def schema_problems(value, schema) -> list:
-    """返す node の output_format に照らした違い。engine.schema の型検査は anyOf を読まないので、欄の anyOf だけここで分ける"""
-    if not isinstance(value, dict):
-        return [f"object でない: {value!r}"]
-    probs = [f"欄 {k} が無い" for k in schema["required"] if k not in value]
-    probs += [f"知らない欄 {k}" for k in value if k not in schema["properties"]]
-    for k, sub in schema["properties"].items():
-        if k not in value:
-            continue
-        branches = sub.get("anyOf") or [sub]
-        if all(validate_schema(value[k], b, f"$.{k}") for b in branches):
-            probs.append(f"欄 {k} が形に合わない: {value[k]!r}")
-    return probs
+    """返す node の output_format に照らした違い（形の照らし engine.schema。output_format は照らしが読む語だけで書く）"""
+    return validate_schema(value, schema)
 
 
 class YamlCase(unittest.TestCase):
@@ -116,7 +106,7 @@ class YamlCase(unittest.TestCase):
         self.assertIs(fmt["additionalProperties"], False)
         self.assertEqual(fmt["properties"]["mode"]["enum"], ["base", "final"])
         self.assertEqual(fmt["properties"]["red_cause"]["enum"], list(green_cert.RED_CAUSES))
-        compared = next(b for b in fmt["properties"]["test_outcomes"]["anyOf"] if b["type"] == "object")
+        compared = fmt["properties"]["test_outcomes"]
         for side in ("base", "final"):
             self.assertEqual(compared["properties"]["rows"]["items"]["properties"][side]["enum"], [*baseline_red.OUTCOMES, ""])
         self.assertEqual(fmt["properties"]["ok"]["type"], "boolean")
@@ -317,7 +307,7 @@ class IntakeCase(ScriptCase):
         request = self.tmp / "request.json"
         request.write_text(json.dumps({"findings": [{"where": "stats.py:4", "text": "x"}]}), encoding="utf-8")
         baseline = self.tmp / "base.json"
-        baseline.write_text("{}", encoding="utf-8")
+        baseline.write_text(json.dumps({"suite": "", "test_cmd": "", "rev": "x", "exit": None, "cases": []}), encoding="utf-8")
         self.write_start(test_cmd=" make test ", tdd_suite=" run.sh ", base=self.head, entry_base=" origin/main ", request=str(request), request_scope="true",
                          baseline=str(baseline), reuse_key="k", lang="Japanese")
         self.assertEqual(self.intake("final"), {"ok": True, "reason": ""})

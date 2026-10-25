@@ -21,8 +21,7 @@ from engine.schema import validate_schema  # lib/graphloops/
 from src import cut, files, materials, touchup, verdicts
 
 FACE_KINDS = ("copy", "entrance", "contract_drift", "dead_path", "scope_creep")   # 穴の語（YAML の kind の enum と同じ並び）
-HUMAN_FACE_KINDS = ("regression", policy.POLICY_KIND)
-PLAN_ONLY_FACE_KINDS = HUMAN_FACE_KINDS + ("precedent",)   # 事前審査だけの語（ここでは受け付けない）
+PLAN_ONLY_FACE_KINDS = policy.HUMAN_FACE_KINDS + ("precedent",)   # 事前審査だけの語（ここでは受け付けない）
 CLAIMED = {1: "absorbed", 2: "fixed"}   # 塞いだと言われた答えの語（1 回目は修正役の plan_faces、2 回目は 1 回目の手直しの handled）
 NONE_MIN = 20   # faces_none の字の下限
 MIN_KEY, MIN_CITE, MIN_WHY = 8, 4, 20   # md の差し込み口の値（YAML の minLength と同じ）
@@ -61,7 +60,7 @@ def problems(place, n: int, reply: dict, repo) -> list:
     errs = _keys_once(faces, "faces")
     for i, f in enumerate(faces):
         kind, where, cite = f.get("kind"), str(f.get("where") or ""), str(f.get("cite") or "")
-        if kind in HUMAN_FACE_KINDS:
+        if kind in policy.HUMAN_FACE_KINDS:
             errs.append(f"faces[{i}] の kind '{kind}' は事前審査だけの語——修正の後の後退・方針とのぶつかりは後の段が人に聞く")
             continue
         if kind in PLAN_ONLY_FACE_KINDS:

@@ -56,6 +56,7 @@ nodes:
         stop_reason: {type: string}
         reason: {type: string}
         verify:
+          description: 'json(shared:verify.schema.json): 判定の裏取りの結果'
           type: [object, 'null']
           properties:
             type:

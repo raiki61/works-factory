@@ -398,13 +398,13 @@ def values(place, repo) -> tuple:
                 v["verify_rows"], w["verify"] = verify_rows(got_verify), True
             else:
                 v["verify_file"], w["verify_unreadable"] = verify, True
-        if ctx.get("spec"):
-            spec = pathlib.Path(ctx["spec"]).read_text(encoding="utf-8", errors="replace")
-            try:
-                spec = "\n".join(_json_block(json.loads(spec)))
-            except ValueError:
-                pass
-            v["spec"], w["spec"] = spec, True
+        texts = []
+        if ctx.get("spec"):   # 固めた仕様（spec.json。入口が形で照らした JSON）
+            texts.append("\n".join(_json_block(json.loads(pathlib.Path(ctx["spec"]).read_text(encoding="utf-8")))))
+        if ctx.get("spec_doc"):   # 人と固めた仕様の本文（字のまま貼る）
+            texts.append(pathlib.Path(ctx["spec_doc"]).read_text(encoding="utf-8", errors="replace"))
+        if texts:
+            v["spec"], w["spec"] = "\n\n".join(texts), True
         w["routes_spec"] = ctx.get("routes") == "spec"
         if prior:
             w["prior"] = True

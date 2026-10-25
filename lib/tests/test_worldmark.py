@@ -1,7 +1,7 @@
 """世界の解の行の住処（.shared/core/worldmark.py。計画 docs/plans/2026-10-09-world-solution.md の W4・5.3 節・5.7 節）。
 
 行のファイル（JSON Lines）の読み・指示書の頭の節・答えの要る行・関所の軸・関所の行と、約束
-（blk-world/world-row.schema.json）の欄と語が住処の定数と揃うことを見る。一時の置き場のファイルだけ（網・git・子のプロセスなし）。
+（lib/world-row.schema.json。欄と語の定数はそこから引く）で行を照らすことを見る。一時の置き場のファイルだけ（網・git・子のプロセスなし）。
 """
 import json
 import pathlib

@@ -67,7 +67,7 @@ def item(unit, n=1, **extra) -> dict:
 
 def fields(unit=UNIT_MEAN) -> dict:
     """修正案の項目の works の欄（plan-fields.json の fields[] の 1 行）"""
-    return {"route": "direct", "route_why": "1 行の直しで済む", "tests": [], "rewrite_tests": [], "refactor": "無い",
+    return {"route": "direct", "route_why": "1 行の直しで済む", "tests": [], "rewrite_tests": [], "refactor": {"declared": False, "why": ""},
             "allowed_paths": ["stats.py"], "out_of_scope": [], "structure": []}
 
 

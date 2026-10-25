@@ -12,24 +12,21 @@ import ports
 
 from src import files
 
-SCHEMAS = {"judgment": "shared:judgment.schema.json", "plan": "plan-fields.schema.json", "fix_plan": "fix-plan.schema.json",
-           "answer_ties": "answer-ties.schema.json", "materials": "fix-materials.schema.json",
-           "skip_rerun": "skip-rerun.schema.json", "answers": "fix-answers.schema.json",
-           "request_answers": "fix-request-answers.schema.json", "plan_review": "fix-plan-review.schema.json",
-           "prior": "carry.schema.json", "only_items": "only-items.schema.json", "group": "group.schema.json",
-           "excluded": "excluded.schema.json"}
+JSONS = ("judgment", "plan", "fix_plan", "answer_ties", "materials", "skip_rerun", "answers", "request_answers", "plan_review",
+         "prior", "only_items", "group", "excluded")
 FILES = ("ripple", "baseline", "policy", "request")
 FLAGS = {"unattended": False, "parallel": True, "suite_made": False}
 TEXTS = ("notes", "test_cmd", "tdd_suite", "reuse_dir", "reuse_key", "user_env_dir", "from_tree", "out_dir", "lang")
 DEFAULTS = {"judgment": None, "plan": None, "fix_plan": None, "answer_ties": None, "materials": None, "skip_rerun": [],
             "answers": None, "request_answers": [], "plan_review": None, "prior": None, "only_items": [], "group": None,
             "excluded": None}
-NAMES = ("mode", "routes", *SCHEMAS, *FILES, *FLAGS, *TEXTS)
+NAMES = ("mode", "routes", *JSONS, *FILES, *FLAGS, *TEXTS)
 NEEDED = "入力 {name}: {mode} の形には要る"
 
 
 def _blank(raw) -> bool:
-    return ports.text(raw).strip() == ""
+    """渡されていない（空の字か null。null の値は形を問わず既定の「無い」）"""
+    return ports.text(raw).strip() in ("", "null")
 
 
 def _port(name: str, raw, form):
@@ -45,10 +42,28 @@ def read(raw: dict) -> dict:
     mode = "group" if _blank(raw.get("mode")) else _port("mode", raw.get("mode"), lambda r: ports.choice(r, files.MODES))
     routes = "auto" if _blank(raw.get("routes")) else _port("routes", raw.get("routes"), lambda r: ports.choice(r, files.ROUTES))
     out = {"mode": mode, "routes": routes}
-    for name, schema in SCHEMAS.items():
-        out[name] = DEFAULTS[name] if _blank(raw.get(name)) else _port(name, raw.get(name), lambda r, s=schema: ports.json(r, s))
+    # 形の名と form は入力の宣言（YAML の description）と同じ字を、呼びの所に書く
+    jsons = {"judgment": lambda r: ports.json(r, "shared:judgment.schema.json"),
+             "plan": lambda r: ports.json(r, "shared:plan-fields.schema.json"),
+             "fix_plan": lambda r: ports.json(r, "shared:fix-plan.schema.json"),
+             "answer_ties": lambda r: ports.json(r, "shared:answer-ties.schema.json"),
+             "materials": lambda r: ports.json(r, "shared:materials-state.schema.json"),
+             "skip_rerun": lambda r: ports.json(r, "skip-rerun.schema.json"),
+             "answers": lambda r: ports.json(r, "fix-answers.schema.json"),
+             "request_answers": lambda r: ports.json(r, "fix-request-answers.schema.json"),
+             "plan_review": lambda r: ports.json(r, "shared:plan-review-reply.schema.json"),
+             "prior": lambda r: ports.json(r, "shared:carry.schema.json"),
+             "only_items": lambda r: ports.json(r, "only-items.schema.json"),
+             "group": lambda r: ports.json(r, "group.schema.json"),
+             "excluded": lambda r: ports.json(r, "shared:excluded.schema.json")}
+    for name in JSONS:
+        out[name] = DEFAULTS[name] if _blank(raw.get(name)) else _port(name, raw.get(name), jsons[name])
+    paths = {"ripple": lambda r: ports.file(r, "json(shared:ripple.schema.json)"),
+             "baseline": lambda r: ports.file(r, "json(lib:baseline.schema.json)"),
+             "policy": lambda r: ports.file(r, "file"),
+             "request": lambda r: ports.file(r, "json(shared:request.schema.json)")}
     for name in FILES:
-        got = None if _blank(raw.get(name)) else _port(name, raw.get(name), ports.file)
+        got = None if _blank(raw.get(name)) else _port(name, raw.get(name), paths[name])
         out[name] = str(got) if got else ""
     for name, default in FLAGS.items():
         out[name] = default if _blank(raw.get(name)) else _port(name, raw.get(name), ports.flag)

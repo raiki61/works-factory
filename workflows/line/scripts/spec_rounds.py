@@ -21,9 +21,9 @@ PLAN = ("status", "plan", "fix_plan", "reply", "ripple", "owed")
 ENTRY = ("purpose", "spec_files")
 
 
-def _doc(ptr):
-    """pointer の先の JSON（null は None）"""
-    return None if ptr is None else json.loads(ports.file(json.dumps(ptr)).read_text(encoding="utf-8"))
+def _doc(ptr, opened):
+    """pointer の先の JSON（null は None）。opened は宣言の form で照らしてパスを返す読み（ports.file）"""
+    return None if ptr is None else json.loads(opened(json.dumps(ptr)).read_text(encoding="utf-8"))
 
 
 def compute():
@@ -36,8 +36,9 @@ def compute():
     if not (diagnose and plan and entry):
         raise ValueError("判定の役・計画の部品・入口の返す値のどれかが無い（spec-rounds は 3 つが揃った run だけで回る）")
     given = ports.parsed(raw["ports"]) or {}
-    purpose = _doc(entry["purpose"]) or {}
-    asks = specrounds.narrow_rows(_doc(plan["fix_plan"]), Path.cwd(), entry["spec_files"] or [])
+    purpose = _doc(entry["purpose"], lambda raw: ports.file(raw, "json(shared:purpose.schema.json)")) or {}
+    asks = specrounds.narrow_rows(_doc(plan["fix_plan"], lambda raw: ports.file(raw, "json(shared:fix-plan.schema.json)")), Path.cwd(),
+                                  entry["spec_files"] or [])
     return {"judge": specrounds.judge_part(diagnose, entry["purpose"], str(purpose.get("purpose_text") or ""), str(given.get("forced") or "")),
             "rounds": specrounds.rounds_part(plan, asks), "stop_reason": "", "reason": ""}
 

@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import functools
 import json
-import os
 import pathlib
 
 import ports
@@ -81,17 +80,18 @@ def _accepted_tests(trace: list) -> list:
 
 
 # ---------------------------------------------------------------- 出力の組み立て
-def _ptr(path) -> dict | None:
-    path = pathlib.Path(path)
-    return ports.pointer(path) if path.is_file() else None
-
-
 def _diff(place, repo) -> dict:
     """累積差分（修正前の版から。未追跡を含み .archon/ の下は除く）の pointer。空なら理由のファイルの pointer"""
     from src import board
     path, _, _ = board.diff_file(repo, lambda: board.base_rev_of(place), place, files.DIFF_FILE, files.DIFF_NONE_FILE,
                                  (ports.RUNTIME_COPY_PREFIX,))
-    return ports.pointer(path)
+    return ports.pointer(path, "file")
+
+
+def _scope_ptr(place) -> dict | None:
+    """範囲の欄の控えの pointer（書けた時か、前に書いた控えが在る時）"""
+    path = _scope(place) or pathlib.Path(place) / files.SCOPE_FILE
+    return ports.pointer(path, "json(shared:scope-fields.schema.json)") if path.is_file() else None
 
 
 def _frozen(place) -> pathlib.Path | None:
@@ -139,7 +139,7 @@ def _tdd_refused(place) -> dict:
 def _removed(place):
     import leftovers
     try:
-        return [ports.pointer(p) for p in leftovers.found(place)]
+        return [ports.pointer(p, "json(shared:removed.schema.json)") for p in leftovers.found(place)]
     except leftovers.Unreadable:
         return None
 
@@ -203,19 +203,22 @@ def _common(place, repo, rows_groups, groups, extras, results, *, ok, reason, fi
     frozen = _frozen(place)
     removed_tests, untested = returned_rows(place)
     return {"ok": ok, "reason": reason, "units": units_rows, "groups": groups_rows,
-            "conflicts": _ptr(place / conflict.FILE) if rows else None,
+            "conflicts": ports.pointer(place / conflict.FILE, "json(lib:conflicts.schema.json)")
+            if rows and (place / conflict.FILE).is_file() else None,
             "carry": carry,
             "replan_items": board.replan_items(conflict.this_pass(place), groups),
             "objection": "\n".join(dict.fromkeys(x for x in objection if x)), "diff": _diff(place, repo),
-            "start_tree": start_tree, "reply": reply, "ruled_reply": ruled_reply, "scope": _ptr(_scope(place) or place / files.SCOPE_FILE),
+            "start_tree": start_tree, "reply": reply, "ruled_reply": ruled_reply, "scope": _scope_ptr(place),
             "checked": checked or {"ok": True, "reason": ""},
             "allowed_test_changes": board.allowed_tests(place, extras),
             "changed": board.changed_marks(extras), "x_scalars": board.x_scalars(extras),
             "handoffs": final[0], "handoff_titles": final[2], "mismatched": final[1], "plan_declared": list(declared), "stop_reason": stop,
             "item_claims": claims,
-            "allowed_tests": _ptr(place / files.ALLOWED_TESTS_FILE), "accept_trace": _ptr(place / files.ACCEPT_TRACE_FILE),
-            "closure": _ptr(place / CLOSURE_FILE), "tdd_unit": ports.pointer(unit_file), "tdd": tdd_rows,
-            "frozen": ports.pointer(frozen) if frozen else None, "removed": _removed(place), "tdd_refused": _tdd_refused(place),
+            "allowed_tests": ports.pointer(place / files.ALLOWED_TESTS_FILE, "json(shared:allowed-tests.schema.json)"),
+            "accept_trace": ports.pointer(place / files.ACCEPT_TRACE_FILE, "json(shared:accept-trace.schema.json)"),
+            "closure": ports.pointer(place / CLOSURE_FILE, "json(shared:closure.schema.json)") if (place / CLOSURE_FILE).is_file() else None,
+            "tdd_unit": ports.pointer(unit_file, "json(shared:tdd-units.schema.json)"), "tdd": tdd_rows,
+            "frozen": ports.pointer(frozen, "json(shared:frozen.schema.json)") if frozen else None, "removed": _removed(place), "tdd_refused": _tdd_refused(place),
             "removed_tests": removed_tests, "untested": untested,
             "freeze_off": report.freeze_off(tdd_rows), "report": report.lines(place, tdd_rows, units_rows, repo, groups_rows)}
 
@@ -282,8 +285,10 @@ def whole(place, repo) -> dict:
     carried = carry.write(place)
     return _common(place, repo, rows_groups, plan["groups"], extras, results, ok=ok, reason=reason, final=final, stop=stop,
                    declared=board.declared_lines(place), claims=_item_claims(place, results, ruled, repo), tdd_rows=tdd_rows,
-                   checked=checked, carry=ports.pointer(carried) if carried else None,
-                   reply=ports.pointer(reply) if reply else None, ruled_reply=_ptr(place / board.RULED_REPLY_FILE),
+                   checked=checked, carry=ports.pointer(carried, "json(shared:carry.schema.json)") if carried else None,
+                   reply=ports.pointer(reply, "json(shared:fix-reply.schema.json)") if reply else None,
+                   ruled_reply=ports.pointer(place / board.RULED_REPLY_FILE, "json(shared:fix-reply.schema.json)")
+                   if (place / board.RULED_REPLY_FILE).is_file() else None,
                    start_tree=board.start_tree(place))
 
 
@@ -304,7 +309,8 @@ def group(place, repo, doc: dict) -> dict:
     stop = stop_of([result])
     return _common(place, repo, rows_groups, [g], extras, [], ok=result is not None and not stop,
                    reason=(str(result["tdd"].get("reason") or stop) if stop else "") if result is not None else board.NO_RESULT, final=final, tdd_rows=tdd_rows, stop=stop,
-                   reply=_ptr(reply), start_tree=board.start_tree(place))
+                   reply=ports.pointer(reply, "json(shared:fix-reply.schema.json)") if reply.is_file() else None,
+                   start_tree=board.start_tree(place))
 
 
 def collect(place, repo) -> dict:
@@ -346,25 +352,34 @@ def fallback(place, why: str) -> dict:
         (place / files.ALLOWED_TESTS_FILE).write_text("[]\n", encoding="utf-8")
         if not (place / files.ACCEPT_TRACE_FILE).exists():
             (place / files.ACCEPT_TRACE_FILE).write_text("[]\n", encoding="utf-8")
-        diff = ports.pointer(place / files.COLLECT_ERROR)
-    except Exception:
-        diff = {"type": ports.POINTER_TYPE, "run_id": os.environ.get("WORKFLOW_ID", ""), "path": files.COLLECT_ERROR}
-
-    def ptr(name):
-        try:
-            return ports.pointer(place / name) if (place / name).is_file() else None
-        except Exception:
-            return None
+    except OSError:
+        pass   # 書けなくても、誤りの文の置き場を指す（読み手は読めない控えとして扱う）
+    diff = ports.pointer(place / files.COLLECT_ERROR, "file")   # file の form は中身を照らさないので、書けなかった時も指せる
+    unread = [why]
+    # 落ちない出口なので、隣のファイルが形に合わない・照らせない時は null にし、黙らずに訳を unread に載せる
+    try:
+        allowed = ports.pointer(place / files.ALLOWED_TESTS_FILE, "json(shared:allowed-tests.schema.json)") \
+            if (place / files.ALLOWED_TESTS_FILE).is_file() else None
+    except Exception as error:  # noqa: BLE001
+        allowed = None
+        unread.append(f"{files.ALLOWED_TESTS_FILE} を指せない（{type(error).__name__}: {error}）")
+    try:
+        trace = ports.pointer(place / files.ACCEPT_TRACE_FILE, "json(shared:accept-trace.schema.json)") \
+            if (place / files.ACCEPT_TRACE_FILE).is_file() else None
+    except Exception as error:  # noqa: BLE001
+        trace = None
+        unread.append(f"{files.ACCEPT_TRACE_FILE} を指せない（{type(error).__name__}: {error}）")
     try:
         removed_tests, untested = returned_rows(place)
-    except Exception:
+    except Exception as error:  # noqa: BLE001
         removed_tests, untested = [], []
+        unread.append(f"返しの控えを読めない（{type(error).__name__}: {error}）")
     return {"ok": False, "reason": why, "units": units_rows, "groups": groups_rows, "conflicts": None, "carry": None,
             "replan_items": [], "objection": "", "diff": diff, "start_tree": "", "reply": None, "ruled_reply": None, "scope": None,
             "checked": {"ok": False, "reason": why}, "allowed_test_changes": [],
             "changed": {**{k: False for k in CHANGED_MARKS}, DRIFT_NOTE: ""}, "x_scalars": {},
             "handoffs": [], "handoff_titles": {}, "mismatched": [], "plan_declared": [], "stop_reason": stop, "item_claims": None,
-            "allowed_tests": ptr(files.ALLOWED_TESTS_FILE), "accept_trace": ptr(files.ACCEPT_TRACE_FILE), "closure": None,
-            "tdd_unit": None, "tdd": [], "frozen": None, "removed": None, "tdd_refused": {"refused": [], "unread": [why]},
+            "allowed_tests": allowed, "accept_trace": trace, "closure": None,
+            "tdd_unit": None, "tdd": [], "frozen": None, "removed": None, "tdd_refused": {"refused": [], "unread": unread},
             "removed_tests": removed_tests, "untested": untested, "freeze_off": [], "report": [f"修正の出力を組めない: {why}"]}
 

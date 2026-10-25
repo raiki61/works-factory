@@ -65,7 +65,7 @@ class SectionsCase(unittest.TestCase):
         self.assertIn("## 行の無い節\n\n- この段は報告の行を返していない\n", text)
 
     def test_unopenable_file_is_named(self):
-        self.facts([section("差分の節", ["x"], [{"label": "差分", "ref": "/no/such/diff.patch"}])])
+        self.facts([section("差分の節", ["x"], [{"label": "差分", "ref": "/no/such/diff.patch", "form": "file"}])])
         text = (self.place / "report.md").read_text(encoding="utf-8")
         line = "差分（差分の節）: 開けない（file の入力のファイル /no/such/diff.patch が無い）"
         self.assertIn(f"## 3. 見る所\n\n- {line}\n", text)
@@ -73,9 +73,9 @@ class SectionsCase(unittest.TestCase):
 
     def test_pointer_ref_is_opened_in_the_same_run(self):
         (self.place).mkdir(parents=True)
-        (self.place / "judgment.json").write_text("{}", encoding="utf-8")
+        (self.place / "judgment.json").write_text('{"units": []}', encoding="utf-8")
         ref = json.loads(self.run.pointer("report/judgment.json"))
-        self.facts([section("判定", ["x"], [{"label": "判定", "ref": ref}])])
+        self.facts([section("判定", ["x"], [{"label": "判定", "ref": ref, "form": "json(shared:judgment.schema.json)"}])])
         text = (self.place / "report.md").read_text(encoding="utf-8")
         self.assertIn(f"- 判定（判定）: {self.place / 'judgment.json'}\n", text)
 

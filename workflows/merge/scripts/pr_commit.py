@@ -135,9 +135,11 @@ def origin_repo(repo: Path):
 
 
 def request_path(raw) -> str:
-    """依頼のファイルのパス。空・読めない・無いファイルは空（依頼が名指した issue を引けなくても止めない）"""
+    """依頼のファイルのパス。空・読めない・無いファイルは空（依頼が名指した issue を引けなくても止めない）。形の違う依頼は ShapeError"""
     try:
-        path = ports.file(raw)
+        path = ports.file(raw, "json(shared:request.schema.json)")
+    except ports.ShapeError:
+        raise   # 形の違う依頼は読めない依頼と分けて名指す（黙って依頼の無い run にしない）
     except ValueError:
         return ""
     return "" if path is None else str(path)
@@ -147,6 +149,8 @@ def item_record(raw):
     """修正の段の記録。空と null は無し。読めない記録は字のまま渡し、itemcommits.split が 1 つの commit に倒す"""
     try:
         return ports.json(raw, "items.schema.json") if ports.text(raw).strip() not in ("", "null") else None
+    except ports.ShapeError:
+        raise   # 機械が組んだ記録の形の外れは工場の不具合（読めない記録の 1 つの commit の道に倒さない）
     except ValueError:
         return ports.text(raw)
 

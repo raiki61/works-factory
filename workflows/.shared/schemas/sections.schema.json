@@ -1,0 +1,65 @@
+{
+  "description": "報告のセクションの配列。機械の報告に、この並びのまま 1 セクションずつ載る。title はセクションの見出し（## を付けずに）、lines はセクションの行、files は書き手が読むファイル（ref は Archon の pointer か、ファイルの絶対パスの字。form は ref の指す先の form）",
+  "type": "array",
+  "items": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "title",
+      "lines"
+    ],
+    "properties": {
+      "title": {
+        "type": "string",
+        "minLength": 1
+      },
+      "lines": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "files": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "label",
+            "ref",
+            "form"
+          ],
+          "properties": {
+            "label": {
+              "type": "string",
+              "minLength": 1
+            },
+            "ref": {
+              "type": [
+                "object",
+                "string"
+              ],
+              "description": "Archon の pointer か、ファイルの絶対パスの字",
+              "properties": {
+                "type": {
+                  "type": "string"
+                },
+                "run_id": {
+                  "type": "string"
+                },
+                "path": {
+                  "type": "string"
+                }
+              }
+            },
+            "form": {
+              "type": "string",
+              "pattern": "^(file|(json|jsonl)\\(((shared:|lib:)?[A-Za-z0-9_.-]+)\\))$",
+              "description": "ref の指す先の form（file・json(<名>)・jsonl(<名>)）。書き手が出どころの宣言の form を字のまま書き、report が ports.carried_file でこの form で照らして開く"
+            }
+          }
+        }
+      }
+    }
+  }
+}

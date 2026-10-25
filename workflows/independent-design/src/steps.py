@@ -153,7 +153,7 @@ def _purpose_review(raw) -> tuple[dict, list]:
     if _blank(raw):
         return {}, []
     try:
-        return ports.json(raw, "purpose-review.schema.json"), []
+        return ports.json(raw, "shared:purpose-review.schema.json"), []
     except ValueError as e:
         why = oneline.one_line(str(e)) or type(e).__name__
         return {}, [{"kind": "purpose_review", "what": "purpose_review", "why": PURPOSE_REVIEW_UNREAD.format(why=why)}]
@@ -166,7 +166,7 @@ def _request(raw) -> tuple[str, str, str]:
         return "", "", ""
     given = ports.text(raw).strip()[:200]
     try:
-        path = ports.file(raw)
+        path = ports.file(raw, "json(shared:request.schema.json)")
         if path is not None:
             path.read_text(encoding="utf-8")
     except (ValueError, OSError, UnicodeDecodeError) as e:
@@ -196,7 +196,7 @@ def intake(out, *, purpose, purpose_source, purpose_review, constraints, answers
             ports.json(constraints, "shared:constraints.schema.json")))
         doc["answers"] = [] if _blank(answers) else _port("answers", lambda: ports.json(answers, "answers.schema.json"))
         doc["request"], doc["request_unread"], doc["request_given"] = _request(request)
-        policy_path = _port("policy", lambda: ports.file(policy_file))
+        policy_path = _port("policy", lambda: ports.file(policy_file, "file"))
         doc["policy"] = str(policy_path) if policy_path is not None else ""
         doc["base"], doc["head"], doc["lang"] = ports.text(base).strip(), ports.text(head).strip(), ports.text(lang).strip()
         why = unusable(doc["purpose_source"], doc["purpose_review"])
@@ -298,8 +298,8 @@ def check_design(out, raw, repo, *, keys=accept.TREE_KEYS) -> dict:
 def result(status: str, reason: str, *, made=None, design_file=None, premises_file=None) -> dict:
     """block の返り。ok は status が failed でないか（unusable は役を起こさないと正しく決めた事なので真）"""
     return {"ok": status != "failed", "status": status, "stands": made.get("question_stands") if made else None,
-            "design": ports.pointer(design_file) if design_file else None,
-            "premises": ports.pointer(premises_file) if premises_file else None, "reason": reason,
+            "design": ports.pointer(design_file, "json(shared:design.schema.json)") if design_file else None,
+            "premises": ports.pointer(premises_file, "json(shared:design-premises.schema.json)") if premises_file else None, "reason": reason,
             "downgrades": report.DOWNGRADES, "report": report.lines(status, reason, made)}
 
 

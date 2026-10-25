@@ -106,7 +106,7 @@ def record_of(start) -> tuple[dict | None, str]:
     ptr = start.get("record") if isinstance(start, dict) else None
     if ptr is None:
         return None, "始めの記録が無い（start が飛んだか、記録を書けなかった）"
-    doc, why = facts.read_ptr(ptr)
+    doc, why = facts.read_ptr(ptr, "start")
     if why:
         return None, f"始めの記録が読めない: {why}"
     if not isinstance(doc, dict):
@@ -114,11 +114,18 @@ def record_of(start) -> tuple[dict | None, str]:
     return doc, ""
 
 
-def write(name: str, doc) -> dict:
+def write(name: str, doc) -> Path:
     path = ports.place() / name
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(doc, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
-    return ports.pointer(path)
+    return path
+
+
+def pointers(secs, doc) -> dict:
+    """report に渡す 2 つの pointer（書いた後に report の port の形で照らす）"""
+    from src import files
+    return {"sections": ports.pointer(write(files.SECTIONS, secs), "json(shared:sections.schema.json)"),
+            "facts": ports.pointer(write(files.FACTS, doc), "json(shared:facts.schema.json)")}
 
 
 def compute():
@@ -129,7 +136,7 @@ def compute():
     record, why = record_of(values.get("start"))
     built = facts.build(values, record, why, cwd=Path.cwd())
     secs = sections.build(values, record or {}, cwd=Path.cwd(), folder=ports.place())
-    return {"sections": write(files.SECTIONS, secs), "facts": write(files.FACTS, built)}
+    return pointers(secs, built)
 
 
 def fallback(reason: str) -> dict:
@@ -137,7 +144,7 @@ def fallback(reason: str) -> dict:
     from src import files, guard
     secs = [{"title": "入口・段・決めた人", "lines": [f"報告の材料を組めなかった（{reason}）"]}]
     doc = {"problems": [f"collect が報告の材料を組めなかった: {reason}"], "stops": [{"at": "collect", "word": guard.LINE_SCRIPT}]}
-    return {"sections": write(files.SECTIONS, secs), "facts": write(files.FACTS, doc)}
+    return pointers(secs, doc)
 
 
 ports.run(compute, fallback)

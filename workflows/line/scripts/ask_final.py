@@ -39,7 +39,7 @@ def compute() -> dict:
            "widened": os.environ.get("INPUTS_WIDENED"), "start_answer": os.environ.get("INPUTS_START_ANSWER"),
            "record": os.environ.get("INPUTS_RECORD"), "final_gate": os.environ.get("INPUTS_FINAL_GATE"),
            "ports": os.environ.get("INPUTS_PORTS")}
-    from src import files, final, gates, rounds, startrec
+    from src import asking, files, final, rounds, startrec
 
     given = ports.parsed(raw["ports"]) or {}
     fix_in = ports.picked(raw["fix_in"], FIX_IN)
@@ -49,13 +49,13 @@ def compute() -> dict:
     tests, eyes, seal = ports.picked(raw["tests"], TESTS), ports.picked(raw["eyes"], EYES), ports.picked(raw["seal"], SEAL)
     parallel_after = ports.picked(raw["parallel_after"], PARALLEL)
     unread = []
-    record_path = ports.file(raw["record"])
+    record_path = ports.file(raw["record"], "json(start-record.schema.json)")
     try:
         record = startrec.load(record_path) if record_path else {}
     except (OSError, ValueError) as error:
         record, unread = {}, [f"始めの記録を読めない（保留の問いと起点の版を読んでいない。{type(error).__name__}: {error}）"]
     missing: list = []   # 指す先が無い・読めない控え（開ける理由にする。形の違う pointer は落ちる）
-    doc = gates.read_located(fix_in["record"], "往復の記録", missing)
+    doc = asking.record_doc(fix_in["record"], missing)
     rounds_lines = rounds.lines(doc, str(ports.place() / files.PLAN_CONVERGE_DIR)) if isinstance(doc, dict) else []
     widened = ports.parsed(raw["widened"])
     got = final.gather(fix_in=dict(fix_in), fixed=dict(fixed), judged=ports.picked(raw["judged"], JUDGED), tests=tests, eyes=eyes,

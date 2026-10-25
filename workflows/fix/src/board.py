@@ -19,7 +19,7 @@ import jsonfile
 import oneline
 import rolekit
 from fixboard import (  # noqa: F401  lib のまま呼ぶ名（docs/design/fix.md の 1.5.2）
-    trace, trace_rows, TRACE_FILE, read_json, write_json, write_text, plan_view, marks_view, allowed_test_rows, _allowed_row, child_allowed_rows, scope_brief, ALLOWED_SOURCES, FIX_IN_DIFF_CORE, run_diff, DIFF_EMPTY, diff_file, pr_revs, pr_diff, pr_added_lines, HUMAN_FACE_KINDS, UNIT_STATUSES, FIXED, GIVEN_UP, NOT_DONE, UNIT_LEFT, HANDOFF_HEAD, accept_out, round_number, snapshot, touched_since, undeclared_writes, UNDECLARED)
+    trace, trace_rows, TRACE_FILE, read_json, write_json, write_text, plan_view, marks_view, allowed_test_rows, _allowed_row, child_allowed_rows, scope_brief, ALLOWED_SOURCES, FIX_IN_DIFF_CORE, run_diff, DIFF_EMPTY, diff_file, pr_revs, pr_diff, pr_added_lines, UNIT_STATUSES, FIXED, GIVEN_UP, NOT_DONE, UNIT_LEFT, HANDOFF_HEAD, accept_out, round_number, snapshot, touched_since, undeclared_writes, UNDECLARED)
 
 from src import files as fixnames
 from src.rulings import write as write_rulings

@@ -247,10 +247,10 @@ start:
   fixture: {type: archon_artifact, run_id: dry-run, path: fixture-carried.json}
   from_spec: false
   ports:
-    request: .archon/workflows/works-factory/line/fixtures/request.json
+    request: {type: archon_artifact, run_id: dry-run, path: request.json}
     request_file: .archon/workflows/works-factory/line/fixtures/request.json
     pr_text: ''
-    carried: '[]'
+    carried: {type: archon_artifact, run_id: dry-run, path: carried.json}
     carried_measured: false
     base: ''
     base_rev: bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb

@@ -1,0 +1,34 @@
+{
+  "description": "承認する修正案の出力（p2.fix_plan.json。書き手は修正案の block の受け付け）{plan: [項目の行（works の欄を外した物）], block_answers?: [前の往復の穴への答え]}。項目の unit_keys が承認済みの項目の出どころ。事前審査が審査する物（項目の行の plan が 1 つ以上・前の往復の穴への答え block_answers）",
+  "type": "object",
+  "properties": {
+    "plan": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "description": "json(shared:plan-reply-item.schema.json): 項目の行"
+      },
+      "minItems": 1
+    },
+    "block_answers": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "handled": {
+            "type": "string"
+          },
+          "how": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  },
+  "required": [
+    "plan"
+  ]
+}

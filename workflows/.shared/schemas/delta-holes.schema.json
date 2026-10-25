@@ -1,0 +1,19 @@
+{"description": "差分の審査の穴の控え holes.json {ties, handled}（delta-review の finish が書く。往復の番号ごとに、穴の名札の並び〔組めなければ訳の字〕と手直しの handled の行）",
+ "type": "object",
+ "properties": {
+  "ties": {"type": "object", "patternProperties": {"^.+$": {"type": ["array", "string"],
+   "description": "穴の名札の並び（lib/holeties.py の tie の行）か、組めなかった訳の字",
+   "items": {"type": "object", "properties": {
+    "key": {"type": "string"},
+    "from": {"type": "string", "description": "穴を出した役の名（.checks で終われば塞いだと言われた穴）"},
+    "where": {"type": "string"},
+    "branches": {"type": "array", "items": {"type": "string"}, "description": "結んだ枝の名（item:<番号>）"},
+    "via": {"type": "array", "items": {"type": "string", "enum": ["compliance", "check", "path", "change", "unit", "earlier"]}},
+    "held": {"type": "string", "description": "枝が全部裁定で外れた項目の時の訳。ほかは空"}}}}}},
+  "handled": {"type": "object", "patternProperties": {"^.+$": {"type": "array",
+   "description": "その往復の手直しの役の受け付けた返答の handled の行",
+   "items": {"type": "object", "properties": {
+    "key": {"type": "string"},
+    "handled": {"type": "string", "enum": ["fixed", "declared"]},
+    "how": {"type": "string"},
+    "files": {"type": "array", "items": {"type": "string"}}}}}}}}}

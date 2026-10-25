@@ -1,0 +1,5 @@
+{
+  "description": "直す側が直さずに残すと答えた事前審査の block の行（「key: 穴の訳（直す側の答え: …）」）の配列",
+  "type": "array",
+  "items": {"type": "string"}
+}

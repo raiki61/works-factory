@@ -16,9 +16,8 @@ sys.path[:0] = [str(Path(__file__).resolve().parents[2] / ".shared"), str(Path(_
 
 
 def _got(ports, raw):
-    raw = ports.text(raw).strip()
-    whole = None if raw in ("", "null") else ports.json(raw)
-    return whole.get("got") if isinstance(whole, dict) else None
+    whole = ports.picked(raw, ("got", "why"))
+    return whole["got"] if whole is not None else None
 
 
 def compute(ports):

@@ -13,7 +13,7 @@ fix_plan_item は承認済みの修正案の項目そのものの誤りで、そ
 裁定 replace_query が新しい問いを例（hits・misses と correct_lines）で機械に試させてから置き換える（Semgrep の規則の試験の ruleid・ok）。
 
 このモジュールが持つ物（b は fix の run の置き場のフォルダのパス。その作業ファイル FILE {"items": [...]} と置き場の trace.jsonl の行（fixboard.trace）。どのブロック・ラインの名も書かない）:
-- ITEM_SCHEMA・CONFLICTS_SCHEMA: 1 件の形（unit_key・between・why_both_cannot_hold・which_is_right・kind。query なら correct_lines も）と、
+- ROW・ITEM_SCHEMA・CONFLICTS_SCHEMA: 控えの行の形（住処は lib/conflicts.schema.json。FIELDS・WHICH・DIV_KINDS もそこから引く）と、1 件の形（unit_key・between・why_both_cannot_hold・which_is_right・kind。query なら correct_lines も）と、
   修正役の返答の欄 conflicts。kind は食い違いの起きた場面の種類で、DIV_KINDS の 6 つ（brief_vs_judgment・unnamed_test_broke・
   not_red・scope_needed・query_hits_fixed・needs_context）のどれか。which_is_right（どちらが正しいか）とは別の軸で、
   query_hits_fixed は which_is_right query と対、needs_context は which_is_right unknown と対
@@ -105,12 +105,13 @@ RULING = "ruling"                       # 行の裁定の欄 {decision, text, li
 DECISION = "decision"                   # 裁定の語の欄（DECISIONS のどれか）
 RULINGS_FILE = "conflict-rulings.md"    # 裁定の文（修正役が 2 回目の起動の 1 行目で Read する。R44）。今の scope の周の置き場（2 回目の修正の段は 1 回目と分かれる）
 PARKED_REPLY = "fix-parked-reply.json"  # 申し出を返した回の修正役の返答（裁定の後の出し直しで読む）。同じく今の scope の周の置き場
-KIND_FIELD = "kind"                      # 申し出の種類の欄（食い違いの起きた場面。which_is_right とは別の軸）
-WHY_FIELD = "why_both_cannot_hold"       # 申し出の理由の欄（なぜ両方は同時に成り立たないか）
-WHICH_FIELD = "which_is_right"           # 正しいと見た側の欄（WHICH のどれか）
-FIELDS = ("unit_key", "between", WHY_FIELD, WHICH_FIELD, KIND_FIELD)
-CORRECT = "correct_lines"               # which_is_right: query の時だけ要る欄（直した後の正しい行の写し）
-QUERY = "query"                         # 判定者の class_query が直した後の正しい形にも当たる
+# 控えの行の形の住処は lib/conflicts.schema.json（欄の名・型・語）。欄の名と語はそこから引く（写しを持たない）
+SCHEMA_FILE = "conflicts.schema.json"
+ROW = json.loads((_CORE / SCHEMA_FILE).read_text(encoding="utf-8"))["properties"][ITEMS]["items"]
+UNIT_FIELD, _, WHY_FIELD, WHICH_FIELD, KIND_FIELD, CORRECT = ROW["properties"]
+# 申し出の種類の欄 KIND_FIELD（食い違いの起きた場面。which_is_right とは別の軸）・理由の欄 WHY_FIELD（なぜ両方は同時に成り立たないか）・
+# 正しいと見た側の欄 WHICH_FIELD（WHICH のどれか）・which_is_right: query の時だけ要る欄 CORRECT（直した後の正しい行の写し）
+FIELDS = tuple(k for k in ROW["properties"] if k != CORRECT)
 REPLACE = "replace_query"               # 問いを置き換える裁定（新しい問いを hits・misses と申し出の correct_lines で試す）
 ASK = "ask_human"
 ASK_WHY = "ask_why"                     # 裁定役の ask_human の欄 {changes, line}: 人の答えで何が変わるか（ASK_CHANGES）と 1 行の訳
@@ -123,19 +124,18 @@ DECISIONS = ("fix_test_scope", "fix_code_as", ASK, REPLACE, REPLAN, REJUDGE)
 FIX_DECISIONS = ("fix_test_scope", "fix_code_as", REPLACE)   # 直す裁定（REPLAN は直さないので入れない）
 PLAN_ITEMS = "plan_items"               # 盤面の裁定の行に機械が足す欄（REPLAN の単位の brief の項目の番号）
 PLAN_UNITS = "plan_units"               # 同じく機械が足す欄（PLAN_ITEMS の項目に載る単位の全部。held_by_rulings が外す）
+# 返答の下限（控えの形には入れない。控えには返答の形を通らない機械の行も積まれる）
 MIN_WHY = 10
 MIN_CITES = 2
 MAX_LINES = 20
-# 申し出の種類（kind の値。設計の 4 つと、今の道を残す 2 つ）
-BRIEF_VS_JUDGMENT = "brief_vs_judgment"     # brief と、判定・依頼・承認ノードで答えた条件が食い違う
-UNNAMED_TEST_BROKE = "unnamed_test_broke"   # 名指していない既存のテストが、直すと落ちる・外すしかない
-NOT_RED = "not_red"                         # 受け入れのテスト・名指しの書き換えが、案どおりに書いても赤にならない
-SCOPE_NEEDED = "scope_needed"               # brief や案の範囲の外を触らないと緑にならない・問いの数え直しが閉じない
-QUERY_HITS_FIXED = "query_hits_fixed"       # 判定の問いが直した後の正しい形にも当たる（which_is_right query と対）
-NEEDS_CONTEXT = "needs_context"             # 材料から決められず人か依頼の答えが要る（which_is_right unknown と対）
-DIV_KINDS = (BRIEF_VS_JUDGMENT, UNNAMED_TEST_BROKE, NOT_RED, SCOPE_NEEDED, QUERY_HITS_FIXED, NEEDS_CONTEXT)
-UNKNOWN = "unknown"                     # which_is_right: どれが正しいか決められない（needs_context の対）
-WHICH = ("request", "test", "code", UNKNOWN, QUERY)
+# 申し出の種類（kind の値。設計の 4 つと、今の道を残す 2 つ）: brief と判定・依頼・承認ノードで答えた条件が食い違う・名指していない既存の
+# テストが直すと落ちる・受け入れのテストが案どおりに書いても赤にならない・範囲の外を触らないと緑にならない・判定の問いが直した後の
+# 正しい形にも当たる（which_is_right query と対）・材料から決められず人か依頼の答えが要る（which_is_right unknown と対）
+DIV_KINDS = tuple(k for k in ROW["properties"][KIND_FIELD]["enum"] if k is not None)
+BRIEF_VS_JUDGMENT, UNNAMED_TEST_BROKE, NOT_RED, SCOPE_NEEDED, QUERY_HITS_FIXED, NEEDS_CONTEXT = DIV_KINDS
+# which_is_right の語。UNKNOWN はどれが正しいか決められない（needs_context の対）、QUERY は判定者の class_query が直した後の正しい形にも当たる
+WHICH = tuple(ROW["properties"][WHICH_FIELD]["enum"])
+_, _, _, UNKNOWN, QUERY = WHICH
 UNSET = "unset"                         # kind_counts の鍵: kind の無い前の形の行
 WORD = "divergence"                     # superpowers の状態の語を読み替える works の語（216 の seams.json の words と同じ綴り）
 KIND = "conflict"                       # process.human_items の行の kinds（申し出の種類 KIND_FIELD とは別物）
@@ -180,17 +180,19 @@ REVERTED_FIELD = "reverted_to"          # 名指したファイルを機械が�
 FILED_IN = "filed_in"                   # 裁定の後の段の受け付けが積んだ行の印（park の pass_ の ruled だけ。mark_reverted が読む）
 PRIOR = "prior_pass"                    # 2 回目の修正の段の置き場に写した 1 回目の段の行の印（adopt_prior が置く。新しい）
 
+# 修正役の返答の 1 件の形: 控えの行の形 ROW に返答の下限を足し、kind を種類の語に限り、閉じた物（コードで組む）
 ITEM_SCHEMA = {
     "type": "object",
     "additionalProperties": False,
     "required": list(FIELDS),
     "properties": {
-        "unit_key": {"type": "string", "minLength": 1},
+        UNIT_FIELD: {**ROW["properties"][UNIT_FIELD], "minLength": 1},
         "between": {"type": "array", "minItems": MIN_CITES, "items": {"type": "string", "minLength": 3}},
-        WHY_FIELD: {"type": "string", "minLength": MIN_WHY},
-        WHICH_FIELD: {"type": "string", "enum": list(WHICH)},
+        WHY_FIELD: {**ROW["properties"][WHY_FIELD], "minLength": MIN_WHY},
+        WHICH_FIELD: ROW["properties"][WHICH_FIELD],
         KIND_FIELD: {"type": "string", "enum": list(DIV_KINDS)},
-        CORRECT: {"type": "array", "minItems": 1, "maxItems": MAX_LINES, "items": {"type": "string", "minLength": 1}},
+        CORRECT: {**ROW["properties"][CORRECT], "minItems": 1, "maxItems": MAX_LINES,
+                  "items": {"type": "string", "minLength": 1}},
     },
 }
 CONFLICTS_SCHEMA = {"type": "array", "items": ITEM_SCHEMA}

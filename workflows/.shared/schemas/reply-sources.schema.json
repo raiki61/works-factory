@@ -1,0 +1,34 @@
+{
+  "description": "判定の材料（diagnose-input.json）に写す素材の観点の返答の引き方。graph が入口で渡し、diagnose は観点の役の名と返答の欄の名を持たない（憲法の 3。#851）。null は引かない（素材の観点の返答の鍵は全部 null、出どころを辿る行と記録された方針も無い）",
+  "type": ["object", "null"],
+  "additionalProperties": false,
+  "required": ["replies", "trail", "decisions"],
+  "properties": {
+    "replies": {
+      "description": "材料の鍵ごとに、どの素材（material.json の role）の返答のどの欄を写すか。field が null は返答まるごと。鍵は 1 つずつ",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["key", "role", "field"],
+        "properties": {
+          "key": {"type": "string", "enum": ["local_findings", "consistency_findings", "bypass_findings", "external_findings",
+                                             "procedure_findings", "test_double_fidelity", "main_path_observation", "provenance",
+                                             "prior_decisions", "purpose_review"]},
+          "role": {"type": "string", "minLength": 1, "pattern": "\\S"},
+          "field": {"type": ["string", "null"], "minLength": 1}
+        }
+      }
+    },
+    "trail": {
+      "description": "返答の中の where・text を持つ行を材料の行（受け付けが目的の外の行を当てる）に辿る素材の role。出どころの節の名は p1.<role の - を _ にした物>",
+      "type": "array",
+      "items": {"type": "string", "minLength": 1, "pattern": "\\S"}
+    },
+    "decisions": {
+      "description": "記録された方針（決着済みの論点）の返答を持つ素材の role。null は無い",
+      "type": ["string", "null"],
+      "minLength": 1
+    }
+  }
+}

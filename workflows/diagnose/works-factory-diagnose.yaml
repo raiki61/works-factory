@@ -5,15 +5,16 @@ inputs:
   request_origin: {default: '', description: 'text: 依頼の行の出どころの名（判定役に見せる依頼のバッチの origin。例「人の依頼（/path/req.json）」）。空は「人の依頼（依頼の行）」。判定の道だけが読む'}
   objection: {default: '', description: 'text: 修正役が判定に出した異議の文。空は判定の道、空でなければ再審の道'}
   base: {default: '', description: 'text: 対象差分の根の commit（この commit から作業ツリーの今の姿まで。未追跡の新しいファイルも入る）。空は HEAD。判定の道だけが読む'}
-  purpose: {default: '', description: 'file: 固めた目的のファイル（purpose.json。{purpose_text, source, known_weaknesses, source_files}）。空は目的の文がこの run に無い'}
+  purpose: {default: '', description: 'json(shared:purpose.schema.json): 固めた目的のファイル（purpose.json。{purpose_text, source, known_weaknesses, source_files}）。空は目的の文がこの run に無い'}
   constraints: {default: '[]', description: 'json(shared:constraints.schema.json): 前提の実測の行の配列か、それを constraints の欄に持つオブジェクト。空の配列は実測が無い。判定の道だけが読む'}
   materials: {default: '[]', description: 'json(materials.schema.json): 素材の観点の block が返した material.json の pointer（かファイルのパス）の配列。空の配列は素材の観点が 1 つも回っていない。判定の道だけが読む'}
+  reply_sources: {default: 'null', description: 'json(shared:reply-sources.schema.json): 素材の観点の返答の引き方 {replies: [{key, role, field}], trail, decisions}（材料の鍵ごとにどの素材の role の返答のどの欄を写すか・出どころを辿る素材・記録された方針を持つ素材）。graph が渡す。null か空は引かない（返答の鍵は全部 null、材料の行は依頼の行だけ、記録された方針は無い）。判定の道だけが読む'}
   pr_material: {default: 'null', description: 'json(pr-material.schema.json): 並行 PR の素材の札 {status, count?, detail?, checked?, reason?}。null か空は並行 PR の確かめが回っていない。判定の道だけが読む'}
-  baseline: {default: '', description: 'file: 直す前の試験の結末（試験の関門が直す前に書いた baseline.json）。素材 local_checks をここから写す。空は local_checks を not_run にする。判定の道だけが読む'}
-  world_rows: {default: '', description: 'file: 世界の解の行のファイル（world.jsonl。1 行が依頼の 1 行）。空は世界の解の行が無い'}
+  baseline: {default: '', description: 'json(lib:baseline.schema.json): 直す前の試験の結末（試験の関門が直す前に書いた baseline.json）。素材 local_checks をここから写す。空は local_checks を not_run にする。判定の道だけが読む'}
+  world_rows: {default: '', description: 'jsonl(lib:world-row.schema.json): 世界の解の行のファイル（world.jsonl。1 行が依頼の 1 行）。空は世界の解の行が無い'}
   row_asks: {default: '[]', description: 'json(row-asks.schema.json): 頭の深さが依頼の行ごとに返した未知の種類の行 [{item, unknown, cause_quote, where?, code_quote?}]。空の配列は種類が決まっていない。判定の道だけが読む'}
   depth_why: {default: '', description: 'text: 頭の深さの段の根拠の文（行ごとの種類が決まっていない run で、その訳として役に見せる）。空は「run の頭の深さの控えが無い」。判定の道だけが読む'}
-  spec_rows: {default: '', description: 'file: 仕様が足した受け入れ条件の行のファイル（added-rows.json。依頼の行の配列）。空は足した行が無い。判定の道だけが読む'}
+  spec_rows: {default: '', description: 'json(shared:request.schema.json): 仕様が足した受け入れ条件の行のファイル（added-rows.json。依頼の行の配列）。空は足した行が無い。判定の道だけが読む'}
   spec_origin: {default: '', description: 'text: 仕様が足した行の出どころの名（判定役に見せるバッチの origin）。spec_rows が在る時に要る。判定の道だけが読む'}
   answers: {default: '[]', description: 'json(answer-rows.schema.json): 依頼者が前の run の問いに答えた行 [{question, text, command?, output?}]。空の配列は request の容器の answers を使う。判定の道だけが読む'}
   prior_failures: {default: '[]', description: 'json(shared:prior-failures.schema.json): 前の run が運んだ行 [{where, text}]（最後まで通らなかった物と、独立の目 R2 の作り直しの行）。request の容器の prior_failures の後ろに足す。空の配列は足す物が無い。判定の道だけが読む'}
@@ -21,10 +22,10 @@ inputs:
   policy: {default: '', description: 'file: 人の方針の文書を run の頭で固めた写し。空は方針が無い'}
   prior: {default: 'null', description: 'json(shared:judgment.schema.json): 考え直す 1 回目の判定（judgment.json の中身か、その pointer）。null か空は 1 回目の判定が無い（再審せずに止める）。再審の道だけが読む'}
   prior_brief: {default: '', description: 'file: 1 回目の判定役に渡した指示（組んだ指示のファイル。記録された方針・前の run の行・頭の深さの行・人の方針の本文を含む）。空は渡されていない。再審の道だけが読む'}
-  prior_inputs: {default: '', description: 'file: 1 回目の判定役が読んだ材料のファイル（diagnose-input.json）。空は渡されていない。再審の道だけが読む'}
-  spec: {default: '', description: 'file: 固めた仕様（spec.json）。空は仕様の段が無い。再審の道だけが読む'}
-  verify: {default: '', description: 'file: 判定の裏取りの結果。空は裏取りが無い。再審の道だけが読む'}
-  excluded: {default: '', description: 'file: 並行 PR の外す範囲（pr-excluded.json）。空は渡されていない。再審の道だけが読む'}
+  prior_inputs: {default: '', description: 'json(shared:diagnose-input.schema.json): 1 回目の判定役が読んだ材料のファイル（diagnose-input.json）。空は渡されていない。再審の道だけが読む'}
+  spec: {default: '', description: 'json(shared:spec.schema.json): 固めた仕様（spec.json）。空は仕様の段が無い。再審の道だけが読む'}
+  verify: {default: '', description: 'json(shared:verify.schema.json): 判定の裏取りの結果。空は裏取りが無い。再審の道だけが読む'}
+  excluded: {default: '', description: 'json(shared:excluded.schema.json): 並行 PR の外す範囲（pr-excluded.json）。空は渡されていない。再審の道だけが読む'}
   request_files: {default: '[]', description: 'json(request-files.schema.json): 依頼そのものを書いたファイルのパスの配列（対象のリポジトリの根からの相対パス）。単位の数える問いの探す所（how.paths）が全部この配列のファイルに当たる単位は、判定の返答の受け付けが拒む（数える問いが数えるのは直す所で、依頼の文ではない）。空の配列は照らさない。判定の道だけが読む'}
   lang: {default: '', description: 'text: 人に見せる欄（判定役の reason・origin_analysis・why_chain・prescriptions・framing・one_shot・問いの reason・resolution・options・先行例の problem・reason・searched・undecided_because・目的の外の why_outside・結びの none・class_query の note ほか、再審の役の new_facts・reason）の言語。空は依頼の行の言語'}
 returns: finish
@@ -431,6 +432,7 @@ nodes:
         reason: {type: string}
         ready: {type: boolean}
         judgment:
+          description: 'json(shared:judgment.schema.json): 受けた判定（受けていなければ空の形）'
           type: object
           properties:
             type: {type: string, enum: [archon_artifact]}
@@ -450,22 +452,33 @@ nodes:
               summary: {type: string}
         questions:
           type: array
-          items: {type: object}
+          items:
+            type: object
+            properties:
+              key: {type: string}
+              kind: {type: string}
+              status: {type: string}
+              reason: {type: string}
+              resolution: {type: string}
+              options: {type: array, items: {type: string}}
+              depends: {type: array, items: {type: string}}
+              origin: {type: string}
         inputs: &pointer_or_null
+          description: 'json(shared:diagnose-input.schema.json): 判定役が読んだ材料のファイル'
           type: [object, 'null']
           properties:
             type: {type: string, enum: [archon_artifact]}
             run_id: {type: string}
             path: {type: string}
-        brief: *pointer_or_null
-        materials: *pointer_or_null
-        out_of_purpose: *pointer_or_null
-        answer_ties: *pointer_or_null
+        brief: {<<: *pointer_or_null, description: 'file: 判定役に渡した指示（md）'}
+        materials: {<<: *pointer_or_null, description: 'json(shared:materials-state.schema.json): 判定の素材の状態'}
+        out_of_purpose: {<<: *pointer_or_null, description: 'json(lib:out-of-purpose.schema.json): 判定が目的の外とした所見の控え'}
+        answer_ties: {<<: *pointer_or_null, description: 'json(shared:answer-ties.schema.json): 依頼の答えを判定の問いと単位に結んだ控え'}
         rejudge_verdict:
           type: [string, 'null']
           enum: [採る, 退ける, 一部採る, null]
-        rejudge_exit: *pointer_or_null
-        rejudge_diff: *pointer_or_null
+        rejudge_exit: {<<: *pointer_or_null, description: 'json(shared:rejudge-exit.schema.json): 再審の出口'}
+        rejudge_diff: {<<: *pointer_or_null, description: 'json(shared:rejudge-diff.schema.json): 再審の差の行'}
         downgrades:
           type: array
           items:

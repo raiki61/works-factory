@@ -6,7 +6,8 @@ always_rows・next_items）。名は元のまま（E18）。差分の審査の�
 block が自分の出力の report・carry で返すので写さない（delta-review の設計書の 1.6）。lib は KEEP の物だけを読む。
 
 - PORTS・FROM: fix の出力の控えの欄（pointer の欄と、中身の欄）。stage(got) は fix の受け皿の got から読み手の口に渡す段
-- resolve(ptr): pointer（か、パスの字）をこの run の place の中のパスに戻す（戻せなければ ValueError）
+- resolve(ptr, field): 作り手の返りの欄 field の pointer（か、パスの字）を、その欄の宣言の form で中身を照らしてこの run の place の
+  中のパスに戻す（戻せない・形に合わなければ ValueError）。resolve を受ける読み手の口は resolve(ptr, 欄の名) で呼ぶ
 - read(stages, resolve)・tdd(stage, resolve)・late_records(stage, resolve): 読み手の口（元 fixbeside の同じ名。delta_holes・lenses を読まない）
 - fixed(values) -> fixed の node の返り（YAML の output_format の欄）。values は fixed.py が受け皿の got から組んだ dict
 - held_of(values) -> (held か, 訳)・go_done(values, held) -> (go, done)
@@ -40,11 +41,38 @@ def _spec_objection() -> str:
 SPEC_OBJECTION = "works:spec-objection"   # _spec_objection が declare する語（docs/design/spec-driven.md の 6.2 の変える node の 6）
 
 
-def resolve(ptr) -> pathlib.Path:
-    """pointer（{type, run_id, path}）かパスの字を、place の中のファイルのパスに戻す（ports.file。在らなければ ValueError）"""
+def _opened():
+    """作り手の返りの欄の名 → その欄の pointer の字を、作り手が宣言した form で照らしてパスに戻す読み（ports.file）"""
     import ports
+    return {
+        "diff": lambda raw: ports.file(raw, "file"),
+        "closure": lambda raw: ports.file(raw, "json(shared:closure.schema.json)"),
+        "accept_trace": lambda raw: ports.file(raw, "json(shared:accept-trace.schema.json)"),
+        "allowed_tests": lambda raw: ports.file(raw, "json(shared:allowed-tests.schema.json)"),
+        "tdd_unit": lambda raw: ports.file(raw, "json(shared:tdd-units.schema.json)"),
+        "removed": lambda raw: ports.file(raw, "json(shared:removed.schema.json)"),
+        "conflicts": lambda raw: ports.file(raw, "json(lib:conflicts.schema.json)"),
+        "judgment": lambda raw: ports.file(raw, "json(shared:judgment.schema.json)"),
+        "answer_ties": lambda raw: ports.file(raw, "json(shared:answer-ties.schema.json)"),
+        "materials": lambda raw: ports.file(raw, "json(shared:materials-state.schema.json)"),
+        "excluded": lambda raw: ports.file(raw, "json(shared:excluded.schema.json)"),
+        "out_of_purpose": lambda raw: ports.file(raw, "json(lib:out-of-purpose.schema.json)"),
+        "tier_record": lambda raw: ports.file(raw, "json(shared:depth-record.schema.json)"),
+        "rejudge_exit": lambda raw: ports.file(raw, "json(shared:rejudge-exit.schema.json)"),
+        "after": lambda raw: ports.file(raw, "json(shared:structure-after.schema.json)"),
+        "baseline": lambda raw: ports.file(raw, "json(lib:baseline.schema.json)"),
+        "record": lambda raw: ports.file(raw, "json(shared:plan-converge.schema.json)"),
+        "plan": lambda raw: ports.file(raw, "json(shared:plan-fields.schema.json)"),
+        "start": lambda raw: ports.file(raw, "json(start-record.schema.json)"),
+        "prior_failures": lambda raw: ports.file(raw, "json(shared:prior-failures.schema.json)"),
+    }
+
+
+def resolve(ptr, field: str) -> pathlib.Path:
+    """作り手の返りの欄 field の pointer（{type, run_id, path}）かパスの字を、place の中のファイルのパスに戻す（その欄の宣言の form で
+    中身を照らす。在らない・形に合わなければ ValueError）"""
     raw = json.dumps(ptr) if isinstance(ptr, dict) else str(ptr)
-    got = ports.file(raw)
+    got = _opened()[field](raw)
     if got is None:
         raise ValueError("pointer が空")
     return got
@@ -83,7 +111,7 @@ def _port(stage: dict, field: str, resolve, unread: list) -> pathlib.Path | None
         unread.append(f"修正の控え {field} が無い")
         return None
     try:
-        return pathlib.Path(resolve(ptr))
+        return pathlib.Path(resolve(ptr, field))
     except READ_ERRORS as e:
         unread.append(f"修正の控え {field} のポインタを読めない（{type(e).__name__}: {oneline.one_line(e)}）")
         return None
@@ -92,7 +120,7 @@ def _port(stage: dict, field: str, resolve, unread: list) -> pathlib.Path | None
 def _place(stage: dict, resolve) -> pathlib.Path | None:
     """段の置き場（diff の先のフォルダ。戻せなければ None）"""
     try:
-        return pathlib.Path(resolve(stage.get("diff"))).parent
+        return pathlib.Path(resolve(stage.get("diff"), "diff")).parent
     except READ_ERRORS:
         return None
 
@@ -108,7 +136,7 @@ def _removed(stage: dict, resolve, place: pathlib.Path | None) -> dict:
     files, bad = [], []
     for ptr in ptrs if isinstance(ptrs, list) else [ptrs]:
         try:
-            files.append(pathlib.Path(resolve(ptr)))
+            files.append(pathlib.Path(resolve(ptr, "removed")))
         except READ_ERRORS as e:
             bad.append(f"{type(e).__name__}: {oneline.one_line(e)}")
     got = leftovers.read_removed(files, place)
@@ -501,7 +529,7 @@ def _exit_keys(doc, field: str) -> list:
 def _judgment_units(ptr) -> dict:
     """判定の judgment の pointer の先の units {key: 単位}。無い・読めなければ空"""
     try:
-        doc = json.loads(resolve(ptr).read_text(encoding="utf-8")) if ptr else {}
+        doc = json.loads(resolve(ptr, "judgment").read_text(encoding="utf-8")) if ptr else {}
     except (OSError, *READ_ERRORS):
         return {}
     return {u["key"]: u for u in _d(doc).get("units") or [] if isinstance(u, dict) and isinstance(u.get("key"), str)}
@@ -517,7 +545,7 @@ def rejudge_exit(rejudge: dict | None) -> tuple:
     if ptr is None:
         return report.rejudge_exit(None)
     try:
-        path = resolve(ptr)
+        path = resolve(ptr, "rejudge_exit")
     except READ_ERRORS as error:
         return None, f"再審の出口の pointer を開けない（{type(error).__name__}: {oneline.one_line(error)}）"
     return report.rejudge_exit(path)

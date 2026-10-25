@@ -73,7 +73,62 @@
             "type": [
               "object",
               "null"
-            ]
+            ],
+            "description": "判定の問い（workflows/diagnose/works-factory-diagnose.yaml の class_query と同じ形。在れば）",
+            "properties": {
+              "how": {
+                "type": "object",
+                "properties": {
+                  "patterns": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  },
+                  "fixed": {
+                    "type": "boolean"
+                  },
+                  "paths": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  },
+                  "count": {
+                    "type": "string",
+                    "enum": [
+                      "lines",
+                      "files"
+                    ]
+                  },
+                  "untracked": {
+                    "type": "boolean"
+                  },
+                  "ignore_case": {
+                    "type": "boolean"
+                  },
+                  "word": {
+                    "type": "boolean"
+                  }
+                }
+              },
+              "counts": {
+                "type": "string",
+                "enum": [
+                  "defects",
+                  "population"
+                ]
+              },
+              "total": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "note": {
+                "type": "string"
+              }
+            }
           },
           "removes": {
             "type": "array",
@@ -188,25 +243,11 @@
         "additionalProperties": false
       }
     },
-    "run": {
-      "type": "object",
-      "description": "試験の走らせ方と当たる試験の選びの結果"
-    },
-    "asks_answered": {
-      "type": "array",
-      "items": {
-        "type": "object"
-      }
-    },
     "why_untested": {
       "type": "string",
       "description": "static の注文だけ: 計画が試験を求めない訳"
-    },
-    "orders": {
-      "type": "object",
-      "description": "型ごとの欄 orders.<weapon>。共通の受け付けは読まない"
     }
   },
   "additionalProperties": false,
-  "description": "型が受け取る注文（docs/plans/2026-10-24-fix-weapons.md の 2.1）。組の子の頭と裁定の後の段の注文を書く役が、型ごとに 1 つ書く"
+  "description": "型が受け取る注文（docs/plans/2026-10-24-fix-weapons.md の 2.1）。組の子の頭と裁定の後の段の注文を書く役が、型ごとに 1 つ書く。下書き 2.1 の run・asks_answered・orders.<weapon> は書き手の型の指示と一緒に PR B で足す（PR A は書き手が無く、中身を宣言できない）"
 }

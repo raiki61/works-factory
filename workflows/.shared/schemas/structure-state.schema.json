@@ -1,0 +1,11 @@
+{
+  "description": "構造の目の控え（structure-state.json。書き手は構造の目の block の出口）。design_file は設計の行の JSON Lines のパス（いつも在るファイル）、skipped は測らなかった単位の id",
+  "type": "object",
+  "properties": {
+    "status": {"type": "string", "enum": ["ok", "failed"]},
+    "reason": {"type": "string"},
+    "design_file": {"type": "string"},
+    "wall_s": {"type": "number"},
+    "skipped": {"type": "array", "items": {"type": ["string", "number", "null"]}}
+  }
+}

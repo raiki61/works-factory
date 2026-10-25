@@ -1189,7 +1189,9 @@ class LauncherTest(unittest.TestCase):
                 root = str(records / "world-run")
                 (records / "world-run").mkdir()
                 (records / "world-run" / "world.jsonl").write_text("".join(
-                    json.dumps({"finding": i, "where": r["where"], "versus": {"verdict": "same"}}, ensure_ascii=False) + "\n"
+                    json.dumps({"finding": i, "where": r["where"], "class_id": f"c{i}", "problem": "置き場", "activity": "設計",
+                                "practice": "1 つ読む", "sources": [], "applies": "置き場の決め", "not_applies": "", "basis": "knowledge",
+                                "versus": {"proposed": "1 つ読む", "verdict": "same", "challenge": ""}}, ensure_ascii=False) + "\n"
                     for i, r in enumerate(built["inputs"][part]["request"], 1)), encoding="utf-8")
                 value["rows"] = {"type": "archon_artifact", "run_id": "w", "path": "world.jsonl"}
             (records / f"r{n}.json").write_text(json.dumps({

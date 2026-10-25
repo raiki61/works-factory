@@ -1,1 +1,1 @@
-{"type": "array"}
+{"type": "array", "items": {"type": "object", "properties": {"question": {"type": "string"}, "text": {"type": "string"}}}}

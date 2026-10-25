@@ -1,1 +1,1 @@
-{"type": "array"}
+{"description": "2 回目の修正の段で直す修正案の項目の番号の並び（番号かその字。修正の出力 replan_items は字）", "type": "array", "items": {"type": ["integer", "string"]}}
