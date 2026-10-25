@@ -30,10 +30,14 @@ def compute() -> dict:
     from src import rounds
     given = ports.parsed(raw_ports)
     dealt = given if isinstance(given, dict) else {}
-    record = ports.json(raw_record) if ports.parsed(raw_record) is not None else None
-    why = rounds.owed_why(raw_judgment, raw_ties, raw_materials, raw_world, answers=dealt.get("request_answers") or [],
-                          takes_push=dealt.get("takes_push") is True)
-    recorded = rounds.recorded_rows(record, dealt, decisions=ports.file(raw_decisions) if ports.parsed(raw_decisions) is not None else None,
+    record = ports.json(raw_record, "start-record.schema.json") if ports.parsed(raw_record) is not None else None
+    why = rounds.owed_why(lambda: ports.file(raw_judgment, "json(shared:judgment.schema.json)"),
+                          lambda: ports.file(raw_ties, "json(shared:answer-ties.schema.json)"),
+                          lambda: ports.file(raw_materials, "json(shared:materials-state.schema.json)"),
+                          lambda: ports.file(raw_world, "jsonl(lib:world-row.schema.json)"),
+                          answers=dealt.get("request_answers") or [], takes_push=dealt.get("takes_push") is True)
+    decisions = ports.file(raw_decisions, "json(shared:material.schema.json)") if ports.parsed(raw_decisions) is not None else None
+    recorded = rounds.recorded_rows(record, dealt, decisions=decisions,
                                     answer=ports.parsed(raw_answer))
     return {"owed": not why, "why": why, "recorded": recorded, "stop_reason": ""}
 

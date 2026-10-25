@@ -16,6 +16,7 @@ import json
 import os
 import pathlib
 import shutil
+import tempfile
 import unittest
 from unittest import mock
 
@@ -23,6 +24,7 @@ from tests.bin.gitkit import committed_copy, git
 from tests.blocks import kit
 from tests.blocks.plan import base
 
+rounds = kit.load("line", "rounds")   # 往復の記録の書き手（line）。plan の src より先に読む（kit.load は前の src を外す）
 brief = kit.load("plan", "brief")
 take = importlib.import_module("src.take")   # kit.load が置いた src の package から（steps・files を brief と同じ物に揃える）
 steps, files = brief.steps, brief.files
@@ -67,7 +69,8 @@ def judgment(*, questions=()):
 
 def item(*keys, **more):
     """修正案の項目の見本（works の欄つき。stats.py の 2 単位を直す形）"""
-    return {"unit_keys": list(keys), "approach": "mean の分母を len(xs) に、clamp の上限の枝を hi に直す", "files": [],
+    return {"unit_keys": list(keys), "approach": "mean の分母を len(xs) に、clamp の上限の枝を hi に直す",
+            "files": base.item(*keys)["files"],
             "shrink_first": "足す物は無い。式と戻り値を 1 か所ずつ直すだけで足りる", "narrows": [],
             "route": "tdd",
             "tests": [{"id": "test_stats.py::TestStats::test_mean_of_two", "behavior": "2 つの値の平均がその真ん中の値になる",
@@ -104,17 +107,25 @@ def review_step(faces, resolved=()):
 
 
 def record(*events) -> dict:
-    """往復の記録（prior.record の形）。line と同じく、受けた事前審査ごとに converge.add_pass を当て、受けた案の行を converge.plan_rows で
-    置く（今の planfile.converge_record の中身）。審査はその前の一番新しい案を審査した物で、答えはその案の返答の block_answers"""
-    doc = {"round": 0, "passes": [], "outcome": None, "open": {}}
+    """往復の記録（prior.record の形）を line の書き手で組む: rounds.fresh() に、受けた事前審査ごとに pass.json の中身（審査はその前の
+    一番新しい案を審査した物で、答えはその案の返答の block_answers）を rounds.record_pass で足す。案の行は converge.plan_rows で置く。
+    往復の無い記録は line が作らないので、往復の無い記録は rounds.fresh() を直に使う"""
+    doc = rounds.fresh()
     answers: list = []
+    rows_now = None
     for kind, rows, extra in events:
         if kind == "plan":
-            doc["plan"] = converge.plan_rows(rows)
+            rows_now = converge.plan_rows(rows)
             answers = list(extra or [])
-        elif doc.get("plan"):
-            converge.add_pass(doc, {"faces": rows, "resolved": extra}, answers=copy.deepcopy(answers), resolved=extra)
-    return doc
+        elif rows_now is not None:
+            with tempfile.TemporaryDirectory() as dest:
+                rounds.record_pass(doc, {"pass": len(doc["passes"]) + 1, "plan": rows_now, "answers": copy.deepcopy(answers),
+                                         "review": {"faces": rows, "resolved": extra}, "resolved": extra},
+                                   at_cap=False, dest=dest)
+    if not doc["passes"]:
+        raise AssertionError("往復の無い記録は rounds.fresh() を使う（line の書き手は往復を足す時だけ案の行を置く）")
+    doc["plan"] = rows_now   # 最後の往復の後に受けた案（line が次の周の記録に置く行）
+    return kit.shaped("shared:plan-converge.schema.json", doc)
 
 
 class PlaceCase(unittest.TestCase):
@@ -503,7 +514,7 @@ class ConvergeCase(unittest.TestCase):
         self.assertIn("block の key key-a1 への答えが無い", converge.answer_gaps(doc, []))
 
     def test_no_answers_asked_on_first_round(self):
-        doc = record(plan_step([item("u1")]))
+        doc = rounds.fresh()
         self.assertEqual(converge.answer_gaps(doc, []), [])
         self.assertEqual(converge.answer_gaps(take.EMPTY_RECORD, [answer("key-x")]),
                          ["key-x は前の往復の答えの要る穴（block と開いた項目の suggest）に無い"])
@@ -527,7 +538,7 @@ class ConvergeCase(unittest.TestCase):
 
     def test_splice_without_passes_takes_reply(self):
         rows = [item("u1"), item("u9")]
-        self.assertEqual(converge.splice(record(plan_step([item("u1")])), rows), (rows, [], []))
+        self.assertEqual(converge.splice(rounds.fresh(), rows), (rows, [], []))
         self.assertEqual(converge.splice(take.EMPTY_RECORD, rows), (rows, [], []))
 
     def test_revise_values_name_blocks_and_closed_items(self):
@@ -556,7 +567,7 @@ class ConvergeCase(unittest.TestCase):
         self.assertNotIn("key-s1", got["values"]["revise_notes"])
 
     def test_no_revise_without_a_returned_pass(self):
-        for doc in (take.EMPTY_RECORD, record(plan_step([item("u1")]))):
+        for doc in (take.EMPTY_RECORD, rounds.fresh()):
             got = brief.revise_values(doc)
             self.assertFalse(any(got[k] for k in ("revise", "owed_suggests", "revise_notes", "revise_keys", "closed_items", "held_items")))
             self.assertEqual(set(got["values"].values()), {""})
@@ -725,12 +736,13 @@ class VerifyNeighborCase(PlaceCase):
         self.assertIn("- Unit 1 `a.py 分母`: ", v["verify_rows"])
 
     def test_unreadable_verify_names_the_file(self):
+        """形の違う申し送りは入口が読めなかった入力として名指す（役に渡すパスにしない）"""
         ptr = self.artifact("judge/judge-verify.json", ["申し送りでない"])
-        self.opened(verify=ptr)
+        _, ctx = self.opened(verify=ptr)
         v, w = brief.values(self.place, self.repo)
-        self.assertTrue(w["verify_unreadable"])
         self.assertFalse(w["verify"])
-        self.assertEqual(v["verify_file"], str(self.place / "judge" / "judge-verify.json"))
+        self.assertEqual(ctx["verify"], "")
+        self.assertTrue(any(u.startswith("verify: ") and "verify.schema.json" in u for u in ctx["unread"]), ctx["unread"])
 
 
 class HeadDepthNeighborCase(PlaceCase):
@@ -976,46 +988,97 @@ class FilesCase(PlaceCase):
         files.write_json(self.place / "r1" / files.ROUND, {"round": 1})
         files.write_json(self.place / "r2" / files.ROUND, {"round": 2})
         self.assertEqual(files.next_round(self.place, ""), 1)
-        self.assertEqual(files.next_round(self.place, dump({"round": 1})), 2)
-        for bad in ("{壊れ", dump({"reply": 1}), dump({"round": "x"})):
+        self.assertEqual(files.next_round(self.place, dump({"round": 1, "reply": "r1/reply.json", "fields": "r1/plan-fields.json"})), 2)
+        for bad in ("{壊れ", dump({"reply": 1}), dump({"round": "x"}), dump({"round": 1})):
             with self.subTest(bad=bad):
                 self.assertEqual(files.next_round(self.place, bad), 3, "読めない prior は在る周の一番大きい番号 + 1")
 
     def test_crash_finish_fills_pointers_and_keeps_a_kept_plan(self):
         files.write_json(self.place / files.CURRENT_ROUND, {"round": 2})
-        files.write_json(self.place / "r2" / files.FIELDS, {"round": 2, "fields": [{"x": 1}]})
+        files.write_json(self.place / "r2" / files.FIELDS, {"round": 2, "fields": [{"allowed_paths": ["stats.py"]}]})
         got = files.crash_finish(self.place, "出口が落ちた")
         self.assertEqual((got["ok"], got["status"], got["round"], got["reason"]), (False, "failed", 2, "出口が落ちた"))
         self.assertEqual(got["plan"], {"type": ports.POINTER_TYPE, "run_id": kit.RUN_ID, "path": "r2/plan-fields.json"})
         self.assertEqual(got["ripple"]["path"], "r2/ripple.json")
-        self.assertEqual(self.read(self.place / "r2" / files.FIELDS)["fields"], [{"x": 1}], "在って空でない控えは上書きしない")
+        self.assertEqual(self.read(self.place / "r2" / files.FIELDS)["fields"], [{"allowed_paths": ["stats.py"]}], "在って空でない控えは上書きしない")
+
+    def test_crash_finish_does_not_raise_on_an_off_shape_file(self):
+        """落ちない出口: 形の外れた控え（出口が落ちた訳そのものになりうる）を指す時に形の照らしで投げ直さず、「無い」を表す形に
+        書き直してから指し、status failed の約束の形を返す（#851 の fallback-pointer-raises）"""
+        files.write_json(self.place / files.CURRENT_ROUND, {"round": 2})
+        files.write_json(self.place / "r2" / files.FIELDS, {"round": 2, "fields": "列でない"})
+        files.write_json(self.place / "r2" / files.RIPPLE, {"items": "列でない"})
+        got = files.crash_finish(self.place, "出口が落ちた")
+        self.assertEqual((got["status"], got["plan"]["path"], got["ripple"]["path"]), ("failed", "r2/plan-fields.json", "r2/ripple.json"))
+        self.assertEqual(self.read(self.place / "r2" / files.FIELDS), {"round": 2, "fields": []})
         self.assertEqual(self.read(self.place / "r2" / files.RIPPLE), {"items": [], "error": "出口が落ちた"})
         self.assertEqual((self.place / "r2" / files.FINISH_ERROR).read_text(encoding="utf-8"), "出口が落ちた\n")
-        self.assertEqual(got["report"], ["修正案: 周 2・修正案を出せなかった（failed）: 出口が落ちた"])
+        kept = {name: files.OFF_SHAPE.format(name=name) for name in (files.FIELDS, files.RIPPLE)}
+        self.assertEqual(self.read(self.place / "r2" / kept[files.FIELDS]), {"round": 2, "fields": "列でない"}, "書き直す前の中身を別の名で残す")
+        self.assertEqual(self.read(self.place / "r2" / kept[files.RIPPLE]), {"items": "列でない"})
+        for name in kept.values():
+            self.assertIn(name, got["reason"], "残した名を訳に名指す")
+            self.assertIn(name, files.OWN_FILES, "周を開き直す時に名で消す")
+        self.assertTrue(got["reason"].startswith("出口が落ちた"))
+        self.assertEqual(got["report"], [f"修正案: 周 2・修正案を出せなかった（failed）: {got['reason']}"])
+
+    def test_crash_finish_keeps_sound_files_when_the_shape_check_cannot_load(self):
+        """lib（形の照らし）が読めない時は、形の合った控えを書き直さず、指さずに null と訳を返す（照らせない事を形の外れと取り違えない）"""
+        files.write_json(self.place / files.CURRENT_ROUND, {"round": 2})
+        files.write_json(self.place / "r2" / files.FIELDS, {"round": 2, "fields": [{"x": 1}]})
+        files.write_json(self.place / "r2" / files.RIPPLE, {"items": []})
+        with mock.patch.object(ports, "shape_errors", side_effect=ImportError("No module named 'engine'")):
+            got = files.crash_finish(self.place, "出口が落ちた")
+        self.assertEqual((got["status"], got["plan"], got["ripple"]), ("failed", None, None))
+        self.assertEqual(self.read(self.place / "r2" / files.FIELDS), {"round": 2, "fields": [{"x": 1}]}, "照らせない控えは上書きしない")
+        self.assertEqual(self.read(self.place / "r2" / files.RIPPLE), {"items": []})
+        self.assertEqual(sorted(p.name for p in (self.place / "r2").iterdir()), sorted([files.FIELDS, files.RIPPLE, files.FINISH_ERROR]))
+        self.assertIn("照らせない", got["reason"])
+        self.assertIn(files.FIELDS, got["reason"])
+
+    def test_crash_finish_returns_null_with_a_reason_when_it_cannot_write(self):
+        """控えを書けない時も、出口は投げずに null と訳を返す（finish の JSON が出ないまま落ちない）"""
+        files.write_json(self.place / files.CURRENT_ROUND, {"round": 2})
+        (self.place / "r2").mkdir()
+        with mock.patch.object(files, "write_json", side_effect=OSError("書けない場所")):
+            got = files.crash_finish(self.place, "出口が落ちた")
+        self.assertEqual((got["status"], got["plan"], got["ripple"]), ("failed", None, None))
+        self.assertIn("書けない場所", got["reason"])
+        self.assertFalse((self.place / "r2" / files.FIELDS).exists())
 
 
 class NestedFileCase(PlaceCase):
-    """steps.nested_file: 入れ子の値（prior の欄）は pointer・パスの字なら解き、ほかの値は周のフォルダに写しを書いてそのパス。null は None"""
+    """steps.nested_file: 入れ子の値（prior の欄）は pointer・パスの字なら解き、ほかの値は周のフォルダに写しを書いてそのパス。どれも口の
+    呼び read が宣言の形で照らす。null は None"""
+    READ = staticmethod(lambda v: ports.file(v, "json(shared:ripple.schema.json)"))
 
     def test_pointer_path_value_and_none(self):
-        ptr = json.loads(self.artifact("r1/reply.json", {"plan": []}))
+        ptr = json.loads(self.artifact("r1/ripple.json", {"items": []}))
         folder = self.place / "r2"
-        self.assertEqual(steps.nested_file(ptr, folder, "copy.json"), self.place / "r1" / "reply.json")
-        self.assertEqual(steps.nested_file(str(self.place / "r1" / "reply.json"), folder, "copy.json"), self.place / "r1" / "reply.json")
-        got = steps.nested_file({"plan": [item(MEAN)]}, folder, "copy.json")
+        self.assertEqual(steps.nested_file(ptr, folder, "copy.json", self.READ), self.place / "r1" / "ripple.json")
+        self.assertEqual(steps.nested_file(str(self.place / "r1" / "ripple.json"), folder, "copy.json", self.READ),
+                         self.place / "r1" / "ripple.json")
+        got = steps.nested_file({"items": [], "error": ""}, folder, "copy.json", self.READ)
         self.assertEqual(got, folder / "copy.json")
-        self.assertEqual(self.read(got), {"plan": [item(MEAN)]})
-        self.assertIsNone(steps.nested_file(None, folder, "copy.json"))
+        self.assertEqual(self.read(got), {"items": [], "error": ""})
+        self.assertIsNone(steps.nested_file(None, folder, "copy.json", self.READ))
 
     def test_missing_path_and_foreign_pointer_raise(self):
         with self.assertRaises(ValueError):
-            steps.nested_file(str(self.place / "無い.json"), self.place, "copy.json")
+            steps.nested_file(str(self.place / "無い.json"), self.place, "copy.json", self.READ)
         with self.assertRaises(ValueError):
-            steps.nested_file({"type": ports.POINTER_TYPE, "run_id": "ほかの run", "path": "x.json"}, self.place, "copy.json")
+            steps.nested_file({"type": ports.POINTER_TYPE, "run_id": "ほかの run", "path": "x.json"}, self.place, "copy.json", self.READ)
 
     def test_value_of_the_pointer_shape_with_another_type_is_copied(self):
-        got = steps.nested_file({"type": "値", "path": "x"}, self.place / "r1", "copy.json")
+        got = steps.nested_file({"type": "値", "path": "x"}, self.place / "r1", "copy.json", self.READ)
         self.assertEqual(self.read(got), {"type": "値", "path": "x"})
+
+    def test_off_shape_file_is_refused(self):
+        """先のファイル（pointer・パス・写した値）が宣言の形に合わなければ、黙ってパスを渡さない"""
+        ptr = json.loads(self.artifact("r1/ripple.json", {"items": "列でない"}))
+        for value in (ptr, {"items": "列でない"}):
+            with self.subTest(value=value), self.assertRaises(ports.ShapeError):
+                steps.nested_file(value, self.place / "r2", "copy.json", self.READ)
 
 
 class TakePlanCase(PlaceCase):

@@ -34,7 +34,7 @@ inputs:
     description: 'text: 出口の語。空は差分を place に置くだけ、pr は照らした差分を run の枝に積んで PR を作る（apply と check だけ）。ほかの語は ok: false'
   request:
     default: ''
-    description: 'file: 依頼のファイル（pr の時に、依頼が名指した issue を commit の文に閉じない参照で書く）。空は無い'
+    description: 'json(shared:request.schema.json): 依頼のファイル（pr の時に、依頼が名指した issue を commit の文に閉じない参照で書く）。空は無い'
   items:
     default: 'null'
     description: 'json(items.schema.json): 差分のパスを修正案の項目に決める記録 {items, claims, unread}（fix の出力。lib/itemcommits.py の merged の形）。null は無い（pr の時に 1 つの commit に倒す）'
@@ -69,6 +69,7 @@ nodes:
         hash:
           type: string
         diff:
+          description: 'file: 封じた差分（sealed.diff・apply.diff・refused.diff）'
           type: [object, "null"]
           properties:
             type: { type: string, enum: [archon_artifact] }
@@ -188,6 +189,7 @@ nodes:
         hash:
           type: string
         diff:
+          description: 'file: 封じた差分（sealed.diff・apply.diff・refused.diff）'
           type: [object, "null"]
           properties:
             type: { type: string, enum: [archon_artifact] }
@@ -217,8 +219,10 @@ nodes:
             split: { type: string }
             reason: { type: string }
           required: [act, pr, reason]
+        # 落ちても線が先へ進めてよい node の宣言（入力 optional を読んだ並び）
         optional:
           type: array
+          items: {type: object, properties: {node: {type: string}, bare: {type: boolean}}}
         report:
           type: array
           items: { type: string }

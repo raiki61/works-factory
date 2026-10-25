@@ -16,7 +16,7 @@ import ports  # noqa: E402
 def compute():
     from src import check, steps
     try:
-        path = ports.file(os.environ.get("INPUTS_SPEC"))
+        path = ports.file(os.environ.get("INPUTS_SPEC"), "json(shared:spec.schema.json)")
     except ValueError as e:
         raise ValueError(f"入力 spec の承認済みの仕様のファイルが読めない（{e}）") from e
     return steps.no_spec() if path is None else check.questions(path, Path.cwd())

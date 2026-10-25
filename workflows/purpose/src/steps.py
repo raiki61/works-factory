@@ -96,7 +96,7 @@ def intake(out, *, request, pr_text, constraints, lang) -> dict:
             jsonfile.write(out / INTAKE_FILE, doc)
             return {"due": False, "reason": FROZEN_REASON}
         _port("request", lambda: requestrows.parts(request))   # 形・知らない鍵・下書きの行の拒み（役に見せる写しは字のまま）
-        doc["request"] = request_copy(_port("request", lambda: ports.json(request, requestrows.SCHEMA)))
+        doc["request"] = request_copy(_port("request", lambda: ports.json(request, "shared:request.schema.json")))
         doc["pr_text"] = ports.text(pr_text)
         doc["constraints"] = _port("constraints", lambda: constraint_rows(
             ports.json(constraints, "shared:constraints.schema.json")))
@@ -212,5 +212,5 @@ def finish(out) -> dict:
     if not isinstance(means, list) or not all(isinstance(m, str) for m in means):
         return failed(MEANS_MISSING)
     return {"ok": True, "status": "ok", "reason": FROZEN_REASON if doc.get("frozen") else "",
-            "purpose": ports.pointer(out / PURPOSE_FILE), "purpose_text": str(got.get("purpose_text") or ""),
+            "purpose": ports.pointer(out / PURPOSE_FILE, "json(shared:purpose.schema.json)"), "purpose_text": str(got.get("purpose_text") or ""),
             "source": str(got.get("source") or ""), "means": means, "report": []}

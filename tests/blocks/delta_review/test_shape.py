@@ -122,12 +122,6 @@ class PortsCase(unittest.TestCase):
         self.assertEqual(sorted(doc["inputs"]), sorted(["base", "plan", "lens_rows", "fix_reply", "permits", "plan_review", "policy", "request", "lang"]))
         self.assertEqual([k for k, v in doc["inputs"].items() if v.get("required")], ["base"])
 
-    def test_the_shape_files_use_only_the_words_the_check_reads(self):
-        ports = kit.load("delta-review", "files").ports
-        for path in sorted((BLOCK / "schemas").glob("*.json")):
-            with self.subTest(file=path.name):
-                self.assertEqual(ports.unknown_keywords(json.loads(path.read_text(encoding="utf-8"))), [])
-
     def test_the_shapes_accept_null_where_the_design_says_null(self):
         materials = kit.load("delta-review", "materials")
         with kit.Run(self, "delta-review").env():

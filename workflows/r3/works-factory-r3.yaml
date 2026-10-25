@@ -4,13 +4,13 @@ inputs:
   base: {default: '', description: 'text: 累積差分の根の commit（入口の差分の根。差分の run では PR の根）。累積差分はここから作業ツリーの今の姿まで（未追跡の新しいファイルも入る）。空は HEAD'}
   lang: {default: '', description: 'text: 人に見せる欄（reason・seen・unseen）の言語。空は依頼の言語'}
   green: {default: 'true', description: 'flag: 修正の後の試験の緑が認証されたか。偽なら目の指示に「最後のテストの認証が通っていない」の 1 文を足す'}
-  after: {default: '', description: 'file: 直した後の構造の実測の控え（structure-after.json）。空は測っていない'}
+  after: {default: '', description: 'json(shared:structure-after.schema.json): 直した後の構造の実測の控え（structure-after.json）。空は測っていない'}
   review: {default: '{}', description: 'json(shared:plan-verdict.schema.json): 修正が使った修正案を審査した事前審査の最後の往復の結論 {round, verdict, blocks, why}。空のオブジェクトは渡されていない'}
   policy: {default: '', description: 'file: 人の方針の文書を run の頭で固めた写し。空は方針の文書が無い'}
   answers: {default: '{}', description: 'json(shared:gate-answers.schema.json): 承認ノードの人の答え {start, before_fix}（始めの承認ノードと修正前の承認ノード。どちらも {decision, text?, asked?, pushed?} か null）。記録された方針の行を組むためだけに読む。空のオブジェクトは答えが無い'}
-  request: {default: '', description: 'file: 依頼のファイル（工場の依頼の JSON）。欄 answers を記録された方針の行の出どころの 1 つとして読む（中身が読めなくても役は止めない）。空は依頼のファイルが無い'}
+  request: {default: '', description: 'json(shared:request.schema.json): 依頼のファイル（工場の依頼の JSON）。欄 answers を記録された方針の行の出どころの 1 つとして読む（中身が読めなくても役は止めない）。空は依頼のファイルが無い'}
   pushes: {default: '[]', description: 'json(shared:pushes.schema.json): 無人の run が判定の保留の問いに採った推しの文の配列（「問い <key>: <推し>」）。記録された方針の行を組むためだけに読む。空の配列は無い'}
-  decisions: {default: '', description: 'file: 先行議論の突合の素材（material.json の形。欄 reply.settled を読む）。記録された方針の行を組むためだけに読む。空は突合が無い'}
+  decisions: {default: '', description: 'json(shared:material.schema.json): 先行議論の突合の素材（material.json の形。欄 reply.settled を読む）。記録された方針の行を組むためだけに読む。空は突合が無い'}
 returns: finish
 outcome_field: ok
 nodes:

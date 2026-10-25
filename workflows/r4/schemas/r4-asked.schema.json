@@ -1,1 +1,0 @@
-{"type": "array", "items": {"type": "object", "properties": {"kind": {"type": "string"}, "text": {"type": "string"}}}}

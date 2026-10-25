@@ -52,7 +52,9 @@ class Base(unittest.TestCase):
         """世界の解の行のファイルを置き、それを指す返す値 {rows: pointer}。行は request（既定は今の表から組んだ依頼の行）の行ごとに
         1 つで、edit(rows) が返す並びに差し替えられる"""
         request = self.built()["inputs"][spectable.WORLD]["request"] if request is None else request
-        rows = [{"finding": n, "where": r["where"], "class_id": f"c{n}", "versus": {"verdict": "same"}} for n, r in enumerate(request, 1)]
+        rows = [{"finding": n, "where": r["where"], "class_id": f"c{n}", "problem": "置き場", "activity": "設計", "practice": "1 つ読む",
+                 "sources": [], "applies": "置き場の決め", "not_applies": "", "basis": "knowledge",
+                 "versus": {"proposed": "1 つ読む", "verdict": "same", "challenge": ""}} for n, r in enumerate(request, 1)]
         rows = edit(rows) if edit else rows
         (self.artifacts / name).mkdir(parents=True, exist_ok=True)
         (self.artifacts / name / "world.jsonl").write_text("".join(json.dumps(r, ensure_ascii=False) + "\n" for r in rows), encoding="utf-8")
@@ -138,7 +140,7 @@ class CheckCase(Base):
         (self.artifacts / "pr").mkdir(parents=True)
         (self.artifacts / "pr" / "review.json").write_text(json.dumps({"faces": [{"key": "k1"}, {"key": "k2"}]}), encoding="utf-8")
         ptr = {"type": "archon_artifact", "run_id": "x"}
-        differs = self.world_rows(edit=lambda rows: [{**rows[0], "versus": {"verdict": "differs"}}, *rows[1:]])
+        differs = self.world_rows(edit=lambda rows: [{**rows[0], "versus": {**rows[0]["versus"], "verdict": "differs"}}, *rows[1:]])
         records = self.records(**{
             spectable.PLAN_REVIEW: self.record(spectable.PLAN_REVIEW, value={"holes": {**ptr, "path": "pr/review.json"}}),
             spectable.WORLD: self.record(spectable.WORLD, value=differs)})
@@ -191,8 +193,8 @@ class CheckCase(Base):
 
     def test_f_world_rows_answer_every_request_line_once(self):
         """f: 世界の解の行は、今の表から組んだ依頼の行（頭の設計の行と全部の受け入れの行）の行ごとに 1 つずつ在り、where がその行の
-        where で、どの行も評価済み（versus.verdict が same・differs・none）。欠け・重なり・余分な行・違う where・未評価・行のファイルの
-        無い返りは、ok の記録でも合わない（入力が合い指摘が全部受け入れ済みでも、全部の行を審査した証拠にならない）"""
+        where。欠け・重なり・余分な行・違う where・行のファイルの無い返りは、ok の記録でも合わない（入力が合い指摘が全部受け入れ済みでも、
+        全部の行を審査した証拠にならない）。未評価の行は形の照らしが e で止める（test_e_returned_files_off_the_declared_shape_are_unreadable）"""
         part = spectable.WORLD
         self.assertEqual(len(self.built()["inputs"][part]["request"]), 2, "頭の設計の行と受け入れの行 a1")
         cases = (
@@ -200,7 +202,6 @@ class CheckCase(Base):
             ("重なり", lambda rows: [*rows, rows[1]], "f: 依頼の行 2 に世界の解の行が 2 つ在る"),
             ("余分な行", lambda rows: [*rows, {**rows[1], "finding": 3}], "f: 依頼の行に無い番号 3 の世界の解の行が在る"),
             ("違う where", lambda rows: [rows[0], {**rows[1], "where": "t.yaml#zz"}], "f: 依頼の行 2 の世界の解の行の where が t.yaml#zz"),
-            ("未評価", lambda rows: [rows[0], {**rows[1], "versus": {"verdict": ""}}], "f: 依頼の行 2 の世界の解の行が評価されていない"),
         )
         for why, edit, want in cases:
             with self.subTest(why):
@@ -222,10 +223,28 @@ class CheckCase(Base):
         self.assertIn("e: 返す値の指摘のファイルを読めない", got[0])
         self.assertNotIn("f:", got[0])
 
-    def test_f_verdict_words_are_the_world_rows_words(self):
-        """f が評価済みと読む語は、世界の解の行の語（lib/worldmark.py の VERDICTS）と同じ（殻は worldmark を import しないので写す）"""
-        import worldmark
-        self.assertEqual(specreviews.VERDICTS, worldmark.VERDICTS)
+    def test_e_returned_files_off_the_declared_shape_are_unreadable(self):
+        """e: 返す値の指す先の中身は、部品の返す節が宣言した form の形（RETURN_READS）で照らしてから読む。形に合わない中身
+        （世界の解の未評価の行・欄の欠けた行・型の違う穴の key）は、指摘を数えずに読めない訳で止める（#851 の落ちるはずの所の 10 番）"""
+        part = spectable.WORLD
+        cases = (
+            ("未評価", lambda rows: [rows[0], {**rows[1], "versus": {**rows[1]["versus"], "verdict": ""}}]),
+            ("欄の欠け", lambda rows: [rows[0], {k: v for k, v in rows[1].items() if k != "class_id"}]),
+        )
+        for why, edit in cases:
+            with self.subTest(why):
+                bad = self.record(part, value=self.world_rows(edit=edit, name=why))
+                got = specreviews.problems(self.check(self.records(**{part: bad})))
+                self.assertEqual(len(got), 1, got)
+                self.assertIn("e: 返す値の指摘のファイルを読めない", got[0])
+                self.assertIn("jsonl(lib:world-row.schema.json) の形に合わない", got[0])
+                self.assertNotIn("f:", got[0])
+        (self.artifacts / "pr").mkdir(parents=True)
+        (self.artifacts / "pr" / "review.json").write_text(json.dumps({"faces": [{"key": 1}]}), encoding="utf-8")
+        holes = self.record(spectable.PLAN_REVIEW, value={"holes": {"type": "archon_artifact", "run_id": "x", "path": "pr/review.json"}})
+        got = specreviews.problems(self.check(self.records(**{spectable.PLAN_REVIEW: holes})))
+        self.assertEqual(len(got), 1, got)
+        self.assertIn("json(shared:plan-review-reply.schema.json) の形に合わない", got[0])
 
     def test_f_a_split_helper_run_is_not_the_official_review(self):
         """依頼の行の一部だけを入力に回した補助の run（分けた run）は、その一部の行に全部答えていても、公式の全入力の審査として

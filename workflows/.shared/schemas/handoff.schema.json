@@ -1,0 +1,10 @@
+{
+  "description": "書き手の役の引き継ぎのメモ（handoff.json。修正案の役が返した欄 handoff を受け付けが置く）{read, kept, set_aside, open}。受け付けの形の住処は lib/handoff.py の SCHEMA で、ここは読み手が読む欄の型だけを書く",
+  "type": "object",
+  "properties": {
+    "read": {"type": "array", "items": {"type": "object", "properties": {"path": {"type": "string"}, "lines": {"type": "string"}, "why": {"type": "string"}}}},
+    "kept": {"type": "array", "items": {"type": "string"}},
+    "set_aside": {"type": "array", "items": {"type": "object", "properties": {"option": {"type": "string"}, "why": {"type": "string"}}}},
+    "open": {"type": "array", "items": {"type": "string"}}
+  }
+}

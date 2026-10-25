@@ -1,0 +1,37 @@
+{
+  "description": "承認ノードで承認して固めた仕様（spec.json。書き手は仕様の block の固め）。要件・受け入れ条件（テストのファイルの承認の版の sha256 と承認の時の終了コード）・範囲の外・承認の記録",
+  "type": "object",
+  "properties": {
+    "requirements": {
+      "type": "array",
+      "items": {"type": "object", "properties": {"key": {"type": "string"}, "text": {"type": "string"}}}
+    },
+    "acceptance": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "key": {"type": "string"},
+          "requirement": {"type": "string"},
+          "file": {"type": "string"},
+          "name": {"type": "string"},
+          "run": {"type": "string"},
+          "sha256": {"type": ["string", "null"]},
+          "exit_at_approval": {"type": ["integer", "null"]},
+          "run_error": {"type": "string"}
+        }
+      }
+    },
+    "out_of_scope": {"type": "array", "items": {"type": "string"}},
+    "approval": {
+      "type": "object",
+      "properties": {
+        "round": {"type": "integer"},
+        "node": {"type": "string"},
+        "kinds": {"type": "array", "items": {"type": "string"}},
+        "answer": {"type": "string"},
+        "note": {"type": "string"}
+      }
+    }
+  }
+}

@@ -25,7 +25,6 @@ TEXT_NODE = "p2.plan_review.text"       # 形 text の受け付けの名
 REVIEW_REQUIRED = ("faces", "shrink", "reason")
 TREE_REQUIRED = ("reason", "items")
 PLAN_NODE = planmarks.NODE
-HUMAN_FACE_KINDS = ("regression", "policy")   # 人に回しうる穴の kind（今の fixboard.HUMAN_FACE_KINDS の値。fix へ移るので写す）
 REVIEW_MD = ports.SHARED / "prompts" / "REVIEW.md"    # 観点の正本（工場の物。lib は経由しない）
 MINIMAL_HEAD = "最小性:"                # 範囲の膨張の穴のうち最小性の穴の why の頭（md と読み手が同じ字を持つ）
 SHORT_HEAD = "足りない: "               # 入力が足りない時の faces_none・reason の頭
@@ -79,13 +78,8 @@ OWN_DIRS = (ITEMS_DIR, ANSWERS_DIR, WORLD_DIR, STRUCTURE_DIR)
 OWN_GLOBS = tuple(f"{node}-prompt-*.md" for node in PROMPT_NODES) + ("review-material-*.md", *READS_FAILED)
 
 # ---------------------------------------------------------------- 型
-# 審査する物の形（修正案の役の返答。項目の行の plan と、前の往復の穴への答え block_answers を持つ。ほかの欄は許す）
-PROPOSAL_SHAPE = {"type": "object", "required": ["plan"], "properties": {"plan": {"type": "array", "minItems": 1},
-                                                                         "block_answers": {"type": "array"}}}
-# 前の往復までの往復の記録（往復の記録の形に、先行例の出典の確かめの控え precedent_checks を足した物。ほかの欄は許す）
-PRIOR_SHAPE = {"type": "object", "required": ["passes"],
-               "properties": {"passes": {"type": "array"}, "plan": {"type": "array"}, "outcome": {"type": ["string", "null"]},
-                              "precedent_checks": {"type": "object"}}}
+# 審査する物の形と往復の記録の形は port の宣言の名（入力 plan の shared:fix-plan.schema.json・入力 prior の shared:plan-converge.schema.json）
+# で口が照らす。ここに写しを置かない
 
 YAML = pathlib.Path(__file__).resolve().parents[1] / "works-factory-plan-review.yaml"
 

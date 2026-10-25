@@ -226,6 +226,13 @@ class RoundFactsCase(Tree):
         got = self.facts(pointer=None)
         self.assertEqual((got["error"], got["request"], got["keys"]), ("", "", []), got)
 
+    def test_off_shape_next_request_is_an_error(self):
+        """子の次の依頼は住処の形（lib/next-request.schema.json）で照らしてから読む。形の外れた控えを運ばず、訳を誤りに出す"""
+        (self.tmp / "runs" / "child" / "report" / carry.NEXT_REQUEST_FILE).write_text(json.dumps({"findings": "x"}), encoding="utf-8")
+        got = self.facts()
+        self.assertIn(carry.NEXT_SCHEMA, got["error"])
+        self.assertEqual(got["request"], "")
+
     def test_pointer_out_of_the_child_run_is_an_error(self):
         got = self.facts(pointer={**self.pointer, "path": "../parent/x.json"})
         self.assertNotEqual(got["error"], "")

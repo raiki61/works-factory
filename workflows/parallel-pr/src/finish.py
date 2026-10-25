@@ -9,6 +9,8 @@
 import json
 import pathlib
 
+import ports
+
 import jsonfile   # lib/
 import rolekit    # lib/
 import stopby     # lib/
@@ -20,13 +22,16 @@ def _read(path):
     return jsonfile.read_or(path, None)
 
 
-def _pointer(place, name, pointer, *, nonempty=False):
+def _path(place, name, *, nonempty=False):
+    """指すファイル（無い・nonempty で空なら None）"""
     path = pathlib.Path(place) / name
-    if not path.is_file():
+    if not path.is_file() or nonempty and not _read(path):
         return None
-    if nonempty and not _read(path):
-        return None
-    return pointer(path)
+    return path
+
+
+def _point(path, point):
+    return None if path is None else point(path)
 
 
 def _proof_failure(place) -> str:
@@ -38,7 +43,7 @@ def _proof_failure(place) -> str:
     return ""
 
 
-def build(place, pointer) -> dict:
+def build(place) -> dict:
     place = pathlib.Path(place)
     scan = _read(place / files.SCAN)
     scan = scan if isinstance(scan, dict) else {}
@@ -59,8 +64,10 @@ def build(place, pointer) -> dict:
     evidence = _read(place / files.READS)
     missing = evidence.get("missing") if isinstance(evidence, dict) and isinstance(evidence.get("missing"), list) else []
     return {"ok": stop == "", "status": status, "stop_reason": stop, "reason": reason, "material": material,
-            "excluded": _pointer(place, files.EXCLUDED, pointer), "drafts": _pointer(place, files.DRAFTS, pointer, nonempty=True),
-            "reads": _pointer(place, files.READS, pointer), "downgrades": files.DOWNGRADES,
+            "excluded": _point(_path(place, files.EXCLUDED), lambda p: ports.pointer(p, "json(shared:excluded.schema.json)")),
+            "drafts": _point(_path(place, files.DRAFTS, nonempty=True), lambda p: ports.pointer(p, "json(shared:pr-drafts.schema.json)")),
+            "reads": _point(_path(place, files.READS), lambda p: ports.pointer(p, "json(shared:reads.schema.json)")),
+            "downgrades": files.DOWNGRADES,
             "report": report.lines(status, reason, material, drafts_file if isinstance(drafts_file, list) else [], missing,
                                   _proof_failure(place))}
 

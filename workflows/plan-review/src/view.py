@@ -7,7 +7,6 @@ place に置き、見え方がそのまま読む。
 
 - view(folder, inputs, review=None): 読むだけの見え方。inputs は入口が書いた intake.json の中身（src/steps.py の docstring の欄）
 - place(folder): 書き先（converge の note_plan・note_answers が書く）
-- rules: 見え方が b.rules で渡す物のうち、この block の部品が読む plan_review_output と HUMAN_FACE_KINDS だけ
 - blank・EMPTY・_keys_once・plan_review_output: 返答の全体の照らし（元の名のまま）
 
 写した元と違う所: record は units・process.precedents・process.diagnosis・process.recorded_policy だけを持つ（questions・materials・
@@ -70,8 +69,6 @@ def plan_review_output(b, nid, out, item):
         raise Reject(f"{nid}: " + "; ".join(errs))
 
 
-rules = types.SimpleNamespace(HUMAN_FACE_KINDS=files.HUMAN_FACE_KINDS, plan_review_output=plan_review_output)
-
 
 # ---------------------------------------------------------------- 見え方と書き先
 def _now() -> str:
@@ -107,7 +104,7 @@ def view(folder, inputs: dict, review: dict | None = None) -> types.SimpleNamesp
                         "policy_md": inputs.get("policy_copy") or "", "review_rev": inputs.get("review_rev") or "HEAD"},
              "works": {}, "outputs": {"p2.diagnose": {"file": files.JUDGMENT}}}   # 判定の写し（lib_section の写しが引く）
     return types.SimpleNamespace(
-        round=1, dir=d, scope="", scope_root=d, record=record, state=state, rules=rules,
+        round=1, dir=d, scope="", scope_root=d, record=record, state=state,
         faces_schema={x: copy.deepcopy(((inputs.get("review_schema") or {}).get("properties") or {}).get(x) or {})
                       for x in ("faces", "shrink")},
         design_schema=copy.deepcopy(inputs.get("design_schema") or {}),

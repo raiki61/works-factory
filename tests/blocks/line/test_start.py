@@ -205,16 +205,20 @@ class StartCase(Seeded):
         self.assertEqual((doc["request_file"], doc["input"]["request_file"]), ("", ""))
 
     def test_blocks_get_the_request_file_by_the_ports(self):
-        """issue #89 の後継: block は始めの記録を読まず、配る値 request・request_file で依頼のファイルを受ける。記録を字のまま写しても
-        line の読む口（src/startrec.py）が同じ値を返す"""
+        """issue #89 の後継: block は始めの記録を読まず、配る値 request（依頼の写しの pointer。block の port request の形で照らした物）・
+        request_file（役が Read する依頼のファイルのパス）で依頼を受ける。記録を字のまま写しても line の読む口（src/startrec.py）が同じ値を返す"""
         got = self.start(request="request_ok.json")
         want = str((self.repo / "request_ok.json").resolve())
-        self.assertEqual((got["ports"]["request"], got["ports"]["request_file"]), (want, want))
+        self.assertEqual((got["ports"]["request"], got["ports"]["request_file"]),
+                         ({"type": "archon_artifact", "run_id": RUN, "path": "request.json"}, want))
+        self.assertEqual(json.loads((self.artifacts / "request.json").read_text(encoding="utf-8")),
+                         json.loads((self.repo / "request_ok.json").read_text(encoding="utf-8")))
         place = self.tmp / "copy"
         self.assertEqual(startrec.adopt(place, self.artifacts / got["record"]["path"]), self.record(got))
         self.assertEqual(startrec.request_file(startrec.read(place)), want)
         bare = self.start(base="base")["ports"]
-        self.assertEqual((bare["request"], bare["request_file"]), ("[]", ""), "依頼の無い run の request は空の配列の字")
+        self.assertEqual((bare["request"]["path"], bare["request_file"]), ("request.json", ""), "依頼の無い run の request は空の配列の写し")
+        self.assertEqual(json.loads((self.artifacts / "request.json").read_text(encoding="utf-8")), [])
 
     def test_unattended_does_not_open_the_start_gate(self):
         got = self.start(request="request_ok.json", unattended="true")
@@ -578,7 +582,7 @@ class PortsCase(Seeded):
         self.assertEqual(list(got), list(shape["properties"]))
         self.assertEqual(list(deal.empty()), list(shape["properties"]))
         self.assertEqual(shape["required"], list(shape["properties"]))
-        names = {"string": str, "boolean": bool, "object": dict, "array": list}
+        names = {"string": str, "boolean": bool, "object": dict, "array": list, "null": type(None)}
         for name, value in (*got.items(), *deal.empty().items()):
             with self.subTest(field=name):
                 want = shape["properties"][name]["type"]
@@ -586,7 +590,7 @@ class PortsCase(Seeded):
 
     def test_empty_has_blank_values(self):
         empty = deal.empty()
-        self.assertEqual((empty["request"], empty["carried"], empty["verify_by_tier"], empty["prior_rows"]), ("[]", "[]", {}, []))
+        self.assertEqual((empty["request"], empty["carried"], empty["verify_by_tier"], empty["prior_rows"]), (None, None, {}, []))
         self.assertEqual({k: v for k, v in empty.items() if isinstance(v, bool)}, dict.fromkeys(deal.FLAGS, False))
 
     def test_entry_needs_an_empty_diff_and_request_rows(self):
@@ -634,7 +638,8 @@ class PortsCase(Seeded):
         （measured_how が carry.CARRIED_HOW_HEAD で始まる）が在れば carried_measured が真（raise が目を省かない）"""
         import carry
         plain = self.start(request="request_ok.json")["ports"]
-        self.assertEqual((plain["carried"], plain["carried_measured"]), ("[]", False))
+        self.assertEqual((plain["carried"]["path"], plain["carried_measured"]), ("carried.json", False), "行が無ければ空の配列を置いて指す")
+        self.assertEqual(json.loads((self.artifacts / "carried.json").read_text(encoding="utf-8")), [])
         rows = [{"text": "API は 1 秒で切れる", "measured_how": carry.CARRIED_HOW, "kind": "実測"}]
         req = self.outside("carried.json", json.dumps({"findings": [{"where": "a", "text": "b"}], "constraints": rows},
                                                       ensure_ascii=False))

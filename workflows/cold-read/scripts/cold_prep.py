@@ -21,7 +21,7 @@ def compute():
         (place / name).unlink(missing_ok=True)
     raw = os.environ.get("INPUTS_TEXT")
     try:
-        path = ports.file(raw)
+        path = ports.file(raw, "file")
         if path is None:
             raise ValueError("本文のファイルが渡されていない")
         body = path.read_text(encoding="utf-8")

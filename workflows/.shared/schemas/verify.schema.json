@@ -1,0 +1,19 @@
+{
+  "description": "判定の裏取りの結果（verify の verify.json）。units は判定の単位ごとの確かめ（state が checked なら verdict・evidence などの答え、ほかは errors）、synergy は単位の相乗りの確かめ（重なり・関わり・順）",
+  "type": "object",
+  "properties": {
+    "units": {"type": "array", "items": {"type": "object", "properties": {
+      "n": {"type": "integer"}, "key": {"type": "string"}, "state": {"type": "string"},
+      "errors": {"type": "array", "items": {"type": "string"}},
+      "verdict": {"type": "string"}, "evidence_found": {"type": "boolean"}, "evidence": {"type": "string"},
+      "location_ok": {"type": "boolean"}, "location": {"type": "string"}, "why": {"type": "string"}, "real_root": {"type": "string"}}}},
+    "synergy": {"type": "object", "properties": {
+      "state": {"type": "string"}, "errors": {"type": "array", "items": {"type": "string"}}, "why": {"type": "string"},
+      "duplicates": {"type": "array", "items": {"type": "object", "properties": {
+        "units": {"type": "array", "items": {"type": "string"}}, "why": {"type": "string"}}}},
+      "relations": {"type": "array", "items": {"type": "object", "properties": {
+        "units": {"type": "array", "items": {"type": "string"}}, "why": {"type": "string"}, "place": {"type": "string"}}}},
+      "order": {"type": "array", "items": {"type": "object", "properties": {
+        "first": {"type": "string"}, "then": {"type": "string"}, "why": {"type": "string"}}}}}}
+  }
+}

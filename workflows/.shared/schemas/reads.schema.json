@@ -1,0 +1,12 @@
+{
+  "description": "役が渡し物を読んだ証拠（lib/reads.py の collect が書く reads-<役>.json）。rows は渡したパスごとのフックの状態、sources は記録の在り方、missing は読んだ証の無いパス、web は役の session の WebFetch の URL と WebSearch の問い（記録が読めなければ null）",
+  "type": "object",
+  "properties": {
+    "role": {"type": "string"}, "since": {"type": "string"},
+    "rows": {"type": "array", "items": {"type": "object", "properties": {"path": {"type": "string"}, "hook": {"type": ["string", "null"]}}}},
+    "sources": {"type": "object", "properties": {"hook": {"type": "string"}, "why": {"type": "string"}}},
+    "missing": {"type": "array", "items": {"type": "string"}},
+    "web": {"type": ["object", "null"], "properties": {"fetches": {"type": "array", "items": {"type": "string"}},
+                                                       "searches": {"type": "array", "items": {"type": "string"}}}}
+  }
+}

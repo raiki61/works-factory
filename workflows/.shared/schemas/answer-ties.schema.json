@@ -1,0 +1,6 @@
+{
+  "description": "依頼の答え（と R2 の作り直しの行）を判定の問いと単位に結んだ行。控えのファイル answer-ties.json {rounds: {周: [行]}}（lib/gatemarks.py の save_answer_ties）か行の配列。行は answer か redesign と、結ぶ先 to か結ばない訳 none。null は結びが無い",
+  "type": ["object", "array", "null"],
+  "properties": {"rounds": {"type": "object", "patternProperties": {"^.+$": {"type": "array", "items": {"type": "object", "properties": {"answer": {"type": "string"}, "redesign": {"type": "string"}, "to": {"type": "string"}, "none": {"type": "string"}}}}}}},
+  "items": {"type": "object", "properties": {"answer": {"type": "string"}, "redesign": {"type": "string"}, "to": {"type": "string"}, "none": {"type": "string"}}}
+}

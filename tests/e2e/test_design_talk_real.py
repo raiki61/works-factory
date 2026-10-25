@@ -172,6 +172,7 @@ def probe(design_talk: bool, notes: str = "") -> dict:
 def place_probe(folder: pathlib.Path, design_talk: bool, notes: str = "") -> None:
     (folder / "scripts").mkdir(parents=True)
     shutil.copytree(LINE / "src", folder / "src", ignore=shutil.ignore_patterns("__pycache__"))
+    shutil.copytree(LINE / "schemas", folder / "schemas")   # 本物の script の口が照らす line の形（頭なしの名）
     for name in REAL_SCRIPTS:
         shutil.copyfile(LINE / "scripts" / f"{name}.py", folder / "scripts" / f"{name}.py")
     for name, body in (("emit", EMIT), ("plan_probe", PLAN), ("review_probe", REVIEW)):

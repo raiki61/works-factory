@@ -1,0 +1,8 @@
+{
+  "description": "起動の殻の bin/apply（bin/_lib/apply.py の RETURN_READS）が、メイングラフの出力が読めない run を --allow-failed で当てる時に、run の記録の出来事から読む独立の目の受け皿 eyes-out の got（eyes の返す節の出力の names の欄）。殻は R2 が作り直しを言ったかを読む前にこの形で照らし、合わなければ当てずに止まる。受け皿の got の宣言がこの形に合うことは tests/layers/scan.py の E5（_shell_reads）が照らす",
+  "type": "object",
+  "required": ["r2"],
+  "properties": {
+    "r2": {"type": ["object", "null"], "required": ["status"], "properties": {"status": {"type": "string"}}}
+  }
+}

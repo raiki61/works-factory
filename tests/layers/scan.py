@@ -910,7 +910,7 @@ def _block_returns(root: Path) -> list[str]:
     口が宣言した名（optional を含む）に在る。入口（一番上のグラフ line・chain と、どの graph も include:・workflow: で呼ばない workflow）の
     返りは人（workflow get）と起動の殻が読むので照らさない。block の入力の読み手（_inputs_read）と、輪の中の役が自分の with: を結ばない
     こと（K5）も照らす"""
-    out, named, reads, called, schemas = _loop_roles(root) + _inputs_read(root), {}, {}, set(), {}
+    out, named, reads, called, schemas = _loop_roles(root) + _inputs_read(root) + _shapes(root), {}, {}, set(), {}
     for folder in _blocks(root):
         path, document = _workflow_doc(folder)
         if document is None:
@@ -952,6 +952,447 @@ def _block_returns(root: Path) -> list[str]:
         out += [f"{rel}:{_line(value)}: 返りの欄 {key} に読み手が無い（どの graph の欄つきの参照 $<id>.output.{key} も、"
                 f"まるごとの参照の口 ports.{GATE_PICKED} の宣言も読まない）" for key, value in fields if key not in read]
     return out
+
+
+def ports():
+    """pack の口 workflows/.shared/ports.py（form の語 form_of・形の名の引き _shape_path・開きの照らし open_shapes・pointer の判別
+    is_pointer_shape の住処）。照らしはこれを引き、写しを持たない"""
+    import importlib
+    shared = str(REPO / "workflows" / ".shared")
+    if shared not in sys.path:
+        sys.path.append(shared)
+    return importlib.import_module("ports")
+
+
+def _plain(path: Path):
+    """YAML を値に戻した物（merge key と anchor を解く）。読めなければ None"""
+    try:
+        return yaml.safe_load(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, yaml.YAMLError):
+        return None
+
+
+def _all_nodes(listed) -> list:
+    out = []
+    for node in listed or []:
+        if isinstance(node, dict):
+            out.append(node)
+            out += _all_nodes((node.get("loop_group") or {}).get("nodes"))
+    return out
+
+
+def _sub_shapes(shape, at="$"):
+    """形の中の所の全部 (道, 所)。properties・patternProperties・items を辿る"""
+    if not isinstance(shape, dict):
+        return
+    yield at, shape
+    for key in ("properties", "patternProperties"):
+        for name, sub in (shape.get(key) or {}).items() if isinstance(shape.get(key), dict) else ():
+            yield from _sub_shapes(sub, f"{at}.{key}.{name}")
+    if isinstance(shape.get("items"), dict):
+        yield from _sub_shapes(shape["items"], f"{at}.items")
+
+
+def _field(shape, steps: list[str]):
+    """形 shape の欄の道 steps の所。無ければ None"""
+    for step in steps:
+        props = shape.get("properties") if isinstance(shape, dict) else None
+        if not isinstance(props, dict) or step not in props:
+            return None
+        shape = props[step]
+    return shape
+
+
+class _Pack:
+    """木 root の pack の workflow と形を、形の照らしの目で読んだ物"""
+
+    def __init__(self, root: Path):
+        self.root, self.gate = root, ports()
+        self.shared, self.lib = root / "workflows" / ".shared", root / "lib"
+        self.docs = {}
+        for folder in _blocks(root):
+            path = folder / f"{OURS_PREFIX}{folder.name}.yaml"
+            doc = _plain(path) if path.is_file() else None
+            if isinstance(doc, dict):
+                self.docs[f"{OURS_PREFIX}{folder.name}"] = (folder, path, doc)
+
+    def shape_of(self, name: str, folder: Path):
+        try:
+            return json.loads(self.gate._shape_path(name, folder, shared=self.shared, lib=self.lib).read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return None
+
+    def returned(self, workflow: str):
+        """workflow の返す節の output_format（と block のフォルダ）。無ければ (None, None)"""
+        entry = self.docs.get(workflow)
+        if entry is None:
+            return None, None
+        folder, _, doc = entry
+        node = next((n for n in _all_nodes(doc.get("nodes")) if n.get("id") == doc.get("returns")), None)
+        return (node or {}).get("output_format"), folder
+
+    def input_form(self, workflow: str, key: str):
+        entry = self.docs.get(workflow)
+        spec = ((entry[2].get("inputs") or {}).get(key) if entry else None) or {}
+        return self.gate.form_of(spec.get("description")) if isinstance(spec, dict) else None
+
+    def form_text(self, form) -> str:
+        return form[0] if form[1] is None else f"{form[0]}({form[1]})"
+
+    def forms_in(self, shape, folder: Path, seen=None) -> set[str]:
+        """形の中の pointer の欄の form と、json(<名>)・jsonl(<名>) が名指す形（の中も）の form の字"""
+        seen = set() if seen is None else seen
+        out = set()
+        for _, sub in _sub_shapes(shape):
+            form = self.gate.form_of(sub.get("description"))
+            if form is None or form[0] not in ("file", *self.gate.JSON_FORMS):
+                continue
+            out.add(self.form_text(form))
+            if form[0] in self.gate.JSON_FORMS and form[1] not in seen:
+                seen.add(form[1])
+                out |= self.forms_in(self.shape_of(form[1], folder), folder, seen)
+        return out
+
+
+def _shapes(root: Path) -> list[str]:
+    """block と graph の受け渡しの形（#851）。どれも yes/no:
+    1. どの節の output_format にも中身を宣言しない所が無い（ports.open_shapes。type に 6 つの型を全部並べた所も開き。形のファイルは
+       test_block_shape の決まり 11）。include の返りを受ける所は返りの形を returns:<workflow の名> で名指し、名指せるのはその workflow を
+       include する workflow の節の output_format だけ（形のファイル・入力の description には書かない。口は YAML を読まない）
+    2. pointer の欄（ports.is_pointer_shape）は description に指す先の form（file・json(<名>)・jsonl(<名>)）を書く
+    3. graph の配線の 1 本ごと（include・workflow の節の with:<鍵> の字が欄つきの参照 $<id>.output.<欄> か $INPUTS.<名> そのもの）に、
+       書き手の宣言（その YAML の節の output_format の欄か、include した workflow の返す節の欄か、YAML の入力）と読み手の入力の form を
+       結ぶ。どちらかが json・jsonl なら両端の form は字のまま同じ（名を変えた写しは名が違うのでここで赤）。書き手が値の欄で読み手が
+       json(X) なら、X の required の欄が書き手の欄の properties に在り、型が書き手の型を受ける（_fits）。書き手が object・array の値の欄で
+       読み手が json・jsonl でない（text など）なら赤（JSON を入れた string。issue #851 の仕組み 2）。form を持たない受け手
+       （prompt・when・until_bash・承認ノード）は port でないので結ばない。script の節の with: の読みは 4 が照らす
+    4. block の scripts/・src/ の ports.json の形の名と ports.file・ports.pointer の form は字のままで、その block の宣言の form の組
+       （入力の description・その YAML のどの節の output_format の pointer の欄・include した workflow の返す節の pointer の欄と、
+       それらが名指す形の中の pointer の欄）に在る。宣言の外の形で読み書きしない（持ち主の決め declared-io）。pointer の札を手で
+       組まない（鍵 type が pointer の型の dict の字。中身を照らさずに指す道になる）。口を値として渡さない（`_port(name, raw, ports.file)`
+       の類は form を呼びの外で選び、字の照らしを抜ける）
+    5. 起動の殻（bin/）が Archon の記録から部品の返す値を読む所は、モジュールの頭の表 RETURN_READS（部品 → 返す節の欄・その欄の form・
+       指す先の中身から読む欄の道）に書き、表の部品は pack に在り、欄は返す節の output_format に在り、form はその欄の form と字のまま
+       同じで、道はその form の形に在る（#851 の落ちるはずの所の 10 番。殻は workflows/ の外なので 4 の照らしが届かない）。欄が ""
+       の行は返す値そのものを読む行で、返す節の output_format（書き手）が form の形（読み手）に合い、道はその形に在る（bin/_lib/apply.py
+       がメイングラフと周の鎖の result を読む所）。鍵が (workflow, ノードの id) の行は run の記録の出来事からノードの出力を読む行で、
+       ノードの output_format（欄が "" でなければその欄。欄が json(returns:<名>) なら名の返す節）が form の形に合い、道はその形に在る
+       （bin/_lib/apply.py が --allow-failed でメイングラフの封じの受け皿・独立の目の受け皿・最後の承認ノードの答えを読む所）"""
+    pack, out = _Pack(root), []
+    gate = pack.gate
+    returns_name = re.compile(r"\bjsonl?\(%s:" % gate.RETURNS_HEAD)
+    for path in sorted((root / "workflows").glob("**/schemas/*.json")):
+        if returns_name.search(path.read_text(encoding="utf-8")):
+            out.append(f"{_rel(root, path)}: 形のファイルが returns:<workflow の名> を名指す（口は YAML を読まないので、返りの名指しは"
+                       " include する workflow の節の output_format にだけ書く）")
+    for workflow, (folder, path, doc) in pack.docs.items():
+        rel = _rel(root, path)
+        out += [f"{rel}: 入力 {name} が returns:<workflow の名> を名指す（口は YAML を読まない）"
+                for name, spec in (doc.get("inputs") or {}).items()
+                if isinstance(spec, dict) and returns_name.search(str(spec.get("description") or ""))]
+        nodes = _all_nodes(doc.get("nodes"))
+        by_id = {n.get("id"): n for n in nodes}
+        for node in nodes:
+            shape = node.get("output_format")
+            if shape is None:
+                continue
+            holes = gate.open_shapes(shape, folder, shared=pack.shared, lib=pack.lib, returned=pack.returned)
+            included = {n.get("include") for n in nodes}
+            out += [f"{rel}: 節 {node.get('id')} の output_format の {at} が include していない {form[1].partition(':')[2]} の返りを名指す"
+                    for at, sub in _sub_shapes(shape) for form in [gate.form_of(sub.get("description"))]
+                    if form and form[1] and form[1].partition(":")[0] == gate.RETURNS_HEAD and form[1].partition(":")[2] not in included]
+            out += [f"{rel}: 節 {node.get('id')} の output_format の {hole} が中身を宣言しない（object は properties か "
+                    "patternProperties、array は items を書き、type に 6 つの型を全部並べない）" for hole in holes]
+            for at, sub in _sub_shapes(shape):
+                form = gate.form_of(sub.get("description"))
+                if gate.is_pointer_shape(sub) and (form is None or form[0] not in ("file", *gate.JSON_FORMS)):
+                    out.append(f"{rel}: 節 {node.get('id')} の output_format の {at} は pointer で、description に指す先の form "
+                               "（file・json(<名>)・jsonl(<名>)）が無い")
+        for node in nodes:
+            called = next((node[k] for k in CALL_KEYS if isinstance(node.get(k), str)), None)
+            if called is None or not isinstance(node.get("with"), dict):
+                continue
+            for key, value in node["with"].items():
+                ref = value.get("from") if isinstance(value, dict) else value
+                if not isinstance(ref, str):
+                    continue
+                reader = pack.input_form(called, key)
+                if reader is None or called not in pack.docs:
+                    continue
+                writer, wfolder, where = _writer(pack, workflow, doc, by_id, ref)
+                if writer is None:
+                    continue
+                out += [f"{rel}: 節 {node.get('id')} の with.{key}（{where} → {called} の入力 {key}）: {p}"
+                        for p in _wire(pack, writer, wfolder, reader, pack.docs[called][0])]
+    out += _port_reads(pack) + _shell_reads(pack)
+    return out
+
+
+def _writer(pack: "_Pack", workflow: str, doc: dict, by_id: dict, ref: str):
+    """配線の字 ref の書き手 (("form", form) か ("value", 形), 形を引く block のフォルダ, 字)。参照そのものでなければ (None, None, "")"""
+    folder = pack.docs[workflow][0]
+    inputs = INPUT_REF.fullmatch(ref)
+    if inputs:
+        form = pack.input_form(workflow, inputs[1])
+        return (("form", form) if form else None), folder, ref
+    match = OUTPUT_REF.fullmatch(ref)
+    if not match or match[2] is None or match[1] not in by_id:
+        return None, None, ""
+    node = by_id[match[1]]
+    called = next((node[k] for k in CALL_KEYS if isinstance(node.get(k), str)), None)
+    shape, wfolder = pack.returned(called) if called else (node.get("output_format"), folder)
+    sub = _field(shape, match[2].split("."))
+    if sub is None:
+        return None, None, ""
+    form = pack.gate.form_of(sub.get("description"))
+    if pack.gate.is_pointer_shape(sub) or pack.gate.carries_file(sub) and form and form[0] in ("file", *pack.gate.JSON_FORMS):
+        return (("form", form) if form else None), wfolder, ref
+    return ("value", sub), wfolder, ref
+
+
+def _wire(pack: "_Pack", writer, wfolder: Path, reader, rfolder: Path) -> list[str]:
+    gate = pack.gate
+    kind, held = writer
+    if kind == "form":
+        if held[0] in gate.JSON_FORMS or reader[0] in gate.JSON_FORMS:
+            if held != reader:
+                return [f"書き手の form {pack.form_text(held)} と読み手の form {pack.form_text(reader)} が違う"]
+        return []
+    if reader[0] not in gate.JSON_FORMS:
+        carried = sorted(_types(held) & {"object", "array"})
+        return [f"書き手の欄は JSON の値（{carried}）で、読み手の form {pack.form_text(reader)} は JSON を字として受ける"
+                "（JSON を入れた string。読み手は json(<名>) で受ける）"] if carried else []
+    named = gate.form_of(held.get("description"))
+    if named and named[0] in gate.JSON_FORMS:
+        return [] if named == reader else [f"書き手の欄の形 {pack.form_text(named)} と読み手の form {pack.form_text(reader)} が違う"]
+    want = pack.shape_of(reader[1], rfolder)
+    return _fits(held, want, "$") if isinstance(want, dict) else []
+
+
+def _types(shape) -> set[str]:
+    types = shape.get("type") if isinstance(shape, dict) else None
+    return {types} if isinstance(types, str) else set(types or ())
+
+
+def _fits(have, want, at: str) -> list[str]:
+    """書き手の形 have が読み手の形 want に合うか: 型（書き手の型が読み手の型に在る。integer は number が受ける）・enum（書き手の語が
+    読み手の語の中）・読み手の required の欄が書き手の properties に在り、その欄も合う"""
+    out = []
+    got, need = _types(have) - {"null"}, _types(want)   # null の欄は Archon が空の字で渡し、読み手の口が空の扱いを決める
+    if need and got and not all(t in need or (t == "integer" and "number" in need) for t in got):
+        return [f"{at}: 書き手の型 {sorted(got)} を読み手の型 {sorted(need)} が受けない"]
+    if "enum" in want and "enum" in have and not set(map(str, have["enum"])) <= set(map(str, want["enum"])):
+        out.append(f"{at}: 書き手の語 {have['enum']} が読み手の語 {want['enum']} の中に無い")
+    props = have.get("properties") if isinstance(have.get("properties"), dict) else {}
+    wprops = want.get("properties") if isinstance(want.get("properties"), dict) else {}
+    if "object" in need and (props or have.get("additionalProperties") is False):
+        for name in want.get("required") or ():
+            if name not in props:
+                out.append(f"{at}: 読み手の要る欄 {name} が書き手の形に無い")
+            elif name in wprops:
+                out += _fits(props[name], wprops[name], f"{at}.{name}")
+    if isinstance(have.get("items"), dict) and isinstance(want.get("items"), dict):
+        out += _fits(have["items"], want["items"], f"{at}[]")
+    return out
+
+
+PORT_FORMS = {"json": 1, "file": 1, "pointer": 1}
+SHELL_READS = "RETURN_READS"   # 殻（bin/）の部品の返す値の読みの表の名（_shapes の 5）
+
+
+def _hand_pointer(node, kind: str) -> bool:
+    """dict の字の鍵 "type" の値が pointer の型の字か ports.POINTER_TYPE（pointer の札を手で組む所）"""
+    if not isinstance(node, ast.Dict):
+        return False
+    for key, value in zip(node.keys, node.values):
+        if _is_text(key) and key.value == "type" and (
+                isinstance(value, ast.Constant) and value.value == kind
+                or isinstance(value, ast.Attribute) and value.attr == "POINTER_TYPE"):
+            return True
+    return False
+
+
+def _port_reads(pack: "_Pack") -> list[str]:
+    out = []
+    gate = pack.gate
+    for workflow, (folder, path, doc) in pack.docs.items():
+        forms = set()
+        for spec in (doc.get("inputs") or {}).values():
+            form = gate.form_of((spec or {}).get("description")) if isinstance(spec, dict) else None
+            if form and form[0] in ("file", *gate.JSON_FORMS):
+                forms.add(pack.form_text(form))
+                if form[0] in gate.JSON_FORMS:
+                    forms |= pack.forms_in(pack.shape_of(form[1], folder), folder)
+        for node in _all_nodes(doc.get("nodes")):
+            if node.get("output_format") is not None:
+                forms |= pack.forms_in(node["output_format"], folder)
+            called = next((node[k] for k in CALL_KEYS if isinstance(node.get(k), str)), None)
+            shape, cfolder = pack.returned(called) if called else (None, None)
+            if shape is not None:
+                forms |= pack.forms_in(shape, cfolder)
+        names = {f[f.index("(") + 1:-1] for f in forms if f.startswith("json(")}
+        for part in ("scripts", "src"):
+            for py in _files(folder, part):
+                if py.suffix != ".py":
+                    continue
+                try:
+                    tree = ast.parse(py.read_text(encoding="utf-8"))
+                except (SyntaxError, UnicodeDecodeError, ValueError):
+                    continue
+                out += [f"{_rel(pack.root, py)}:{n.lineno}: pointer の札を手で組む（ports.pointer(path, form) を通す。手の札は中身を照らさない）"
+                        for n in ast.walk(tree) if _hand_pointer(n, gate.POINTER_TYPE)]
+                called = {id(n.func) for n in ast.walk(tree) if isinstance(n, ast.Call)}
+                out += [f"{_rel(pack.root, py)}:{n.lineno}: ports.{n.attr} を値として渡す（呼びの所で form を字で書く）"
+                        for n in ast.walk(tree) if isinstance(n, ast.Attribute) and n.attr in PORT_FORMS
+                        and isinstance(n.value, ast.Name) and n.value.id == GATE_MODULE and id(n) not in called]
+                for call in ast.walk(tree):
+                    attr = next((a for a in PORT_FORMS if _port_call(call, a)), None)
+                    if attr is None:
+                        continue
+                    where = f"{_rel(pack.root, py)}:{call.lineno}"
+                    arg = call.args[1] if len(call.args) > 1 else next((k.value for k in call.keywords
+                                                                          if k.arg in ("schema", "form")), None)
+                    if not _is_text(arg):
+                        out.append(f"{where}: ports.{attr} の{'形の名' if attr == 'json' else ' form'}が字のままでない")
+                        continue
+                    if attr == "json" and arg.value not in names or attr != "json" and arg.value not in forms:
+                        out.append(f"{where}: ports.{attr} の {arg.value!r} が {workflow} の宣言の form の組に無い（宣言の外の読み書き）")
+    return out
+
+
+
+def _module_strings(tree) -> dict:
+    """モジュールの頭の字の定数（`A = "x"`・`A, B = "x", "y"`）と、字かその名の並び（`P = (A, "y")`）の名 → 値"""
+    env = {}
+    for node in tree.body:
+        if not isinstance(node, ast.Assign) or len(node.targets) != 1:
+            continue
+        target, value = node.targets[0], node.value
+        pairs = (zip(target.elts, value.elts) if isinstance(target, ast.Tuple) and isinstance(value, ast.Tuple)
+                 and len(target.elts) == len(value.elts) else [(target, value)])
+        for name, const in pairs:
+            if isinstance(name, ast.Name) and isinstance(const, ast.Constant) and isinstance(const.value, str):
+                env[name.id] = const.value
+            elif isinstance(name, ast.Name) and isinstance(const, ast.Tuple):
+                texts = [env.get(e.id) if isinstance(e, ast.Name) else e.value if isinstance(e, ast.Constant) else None
+                         for e in const.elts]
+                if all(isinstance(t, str) for t in texts):
+                    env[name.id] = tuple(texts)
+    return env
+
+
+def _literal(node, env: dict):
+    """字の定数の名（と字の名の並びの名）を env で解いた ast.literal_eval"""
+    if isinstance(node, ast.Name) and node.id in env:
+        return env[node.id]
+    if isinstance(node, ast.Dict):
+        return {_literal(k, env): _literal(v, env) for k, v in zip(node.keys, node.values)}
+    if isinstance(node, (ast.Tuple, ast.List)):
+        return tuple(_literal(e, env) for e in node.elts)
+    return ast.literal_eval(node)
+
+
+def _named_shape(pack: "_Pack", shape, folder: Path):
+    """所 shape が pointer でなく json(<名>) を名指すなら名の形、ほかはそのまま"""
+    form = pack.gate.form_of(shape.get("description")) if isinstance(shape, dict) else None
+    if form is None or form[0] not in pack.gate.JSON_FORMS or pack.gate.carries_file(shape):
+        return shape
+    return pack.shape_of(form[1], folder)
+
+
+def _path_in(pack: "_Pack", shape, folder: Path, path: str) -> bool:
+    """形 shape に読む欄の道 path（. で段を分け、段の末の [] は配列の要素）が在るか。json(<名>) の所は名の形を引く"""
+    for step in path.split("."):
+        name, many = step.removesuffix("[]"), step.endswith("[]")
+        shape = _named_shape(pack, shape, folder)
+        props = shape.get("properties") if isinstance(shape, dict) else None
+        if not isinstance(props, dict) or name not in props:
+            return False
+        shape = props[name]
+        if many:
+            shape = _named_shape(pack, shape, folder)
+            if not isinstance(shape, dict) or not isinstance(shape.get("items"), dict):
+                return False
+            shape = shape["items"]
+    return True
+
+
+def _shell_reads(pack: "_Pack") -> list[str]:
+    out = []
+    for py in _files(pack.root, "bin"):
+        if py.suffix != ".py":
+            continue
+        try:
+            tree = ast.parse(py.read_text(encoding="utf-8"))
+        except (SyntaxError, UnicodeDecodeError, ValueError):
+            continue
+        node = next((n for n in tree.body if isinstance(n, ast.Assign) and len(n.targets) == 1
+                     and isinstance(n.targets[0], ast.Name) and n.targets[0].id == SHELL_READS), None)
+        if node is None:
+            continue
+        where = f"{_rel(pack.root, py)}:{node.lineno}"
+        try:
+            table = _literal(node.value, _module_strings(tree))
+        except (ValueError, TypeError, SyntaxError):
+            out.append(f"{where}: {SHELL_READS} が字の定数の表でない（部品 → (欄, form, 道の並び)）")
+            continue
+        for workflow, (field, form, paths) in table.items() if isinstance(table, dict) else ():
+            if isinstance(workflow, tuple):
+                out += _node_read(pack, where, workflow, field, form, paths)
+                continue
+            shape, folder = pack.returned(workflow)
+            if field == "":
+                out += _whole_read(pack, where, f"{workflow} の返す値", shape, folder, form, paths)
+                continue
+            got = _field(shape, [field]) if shape is not None else None
+            declared = pack.gate.form_of(got.get("description")) if isinstance(got, dict) else None
+            if got is None:
+                out.append(f"{where}: {SHELL_READS} の {workflow} の欄 {field} が {workflow} の返す節の output_format に無い")
+                continue
+            if declared is None or pack.form_text(declared) != form:
+                out.append(f"{where}: {SHELL_READS} の {workflow} の欄 {field} の form {form} が返す節の宣言"
+                           f" {pack.form_text(declared) if declared else '（form 無し）'} と違う")
+                continue
+            named = pack.shape_of(declared[1], folder) if declared[0] in pack.gate.JSON_FORMS else None
+            out += [f"{where}: {SHELL_READS} の {workflow} の読む欄 {path} が {form} の形に無い"
+                    for path in paths if named is None or not _path_in(pack, named, folder, path)]
+    return out
+
+
+def _node_read(pack: "_Pack", where: str, key, field: str, form: str, paths) -> list[str]:
+    """RETURN_READS の鍵が (workflow, ノードの id) の行（殻が run の記録の出来事からノードの出力を読む。bin/_lib/apply.py の --allow-failed
+    の道）: ノードの output_format（欄が "" でなければその欄。欄が json(returns:<名>) なら名の返す節の output_format）が form の形に合い、
+    道がその形に在る"""
+    workflow, step = key
+    head = f"{where}: {SHELL_READS} の {workflow} のノード {step}"
+    entry = pack.docs.get(workflow)
+    node = next((n for n in _all_nodes(entry[2].get("nodes")) if n.get("id") == step), None) if entry else None
+    if node is None or node.get("output_format") is None:
+        return [f"{head}: ノードか、その output_format が {workflow} に無い"]
+    shape, folder = node["output_format"], entry[0]
+    if field:
+        shape = (shape.get("properties") or {}).get(field)
+        if not isinstance(shape, dict):
+            return [f"{head}: 欄 {field} が output_format に無い"]
+        named = pack.gate.form_of(shape.get("description"))
+        if named and named[0] == "json" and named[1].partition(":")[0] == pack.gate.RETURNS_HEAD:
+            shape, folder = pack.returned(named[1].partition(":")[2])
+        elif named and named[0] == "json":
+            shape = pack.shape_of(named[1], folder)
+    return _whole_read(pack, where, f"{workflow} のノード {step} の{f' 欄 {field} の' if field else ''}出力", shape, folder, form, paths)
+
+
+def _whole_read(pack: "_Pack", where: str, label: str, shape, folder, form: str, paths) -> list[str]:
+    """RETURN_READS の欄が "" の行（返す値そのものを読む）: 返す節の output_format が form の形に合い、道がその形に在る。label は読む物の名"""
+    head = f"{where}: {SHELL_READS} の {label}"
+    if shape is None:
+        return [f"{head}: 書き手の output_format が無い"]
+    declared = pack.gate.form_of(form)
+    named = pack.shape_of(declared[1], folder) if declared and declared[0] == "json" else None
+    if named is None:
+        return [f"{head}: form {form} が json(<名>) でないか、名の形が読めない"]
+    return ([f"{head}が {form} の形に合わない: {p}" for p in _fits(shape, named, "$")]
+            + [f"{head}の読む欄 {path} が {form} の形に無い" for path in paths if not _path_in(pack, named, folder, path)])
 
 
 def _inputs_read(root: Path) -> list[str]:

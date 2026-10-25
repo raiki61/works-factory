@@ -21,11 +21,25 @@ from tests.blocks.plan_review import values as v
 
 BLOCK = kit.BLOCKS / "plan-review"
 YAML = BLOCK / "works-factory-plan-review.yaml"
-PORTS = ["proposal", "proposal_file", "fields", "judgment", "purpose", "design", "design_why", "world_rows", "means", "structure", "ripple", "prior",
+PORTS = ["proposal", "plan", "proposal_file", "fields", "judgment", "purpose", "design", "design_why", "world_rows", "means", "structure", "ripple", "prior",
          "tree", "excluded", "policy", "recorded", "request", "review_rev", "diff_base", "ruling", "conflicts", "lang"]
 RETURNS = ["ok", "status", "form", "round", "reason", "holes", "blocks", "pass", "asks", "deviations", "replan", "gave_up", "reads",
            "report"]
 RECORDER = kit.ROOT / "bin" / "_lib" / "record-read.py"
+ROUNDS = kit.load("line", "rounds")   # 往復の記録の書き手（line）。plan-review の src を読む前に読む（kit.load は前の src を外す）
+
+
+def line_record(run, items=(), *, precedent_checks=None) -> str:
+    """line の書き手で組んだ往復の記録（rounds.fresh に、items の項目を審査して block の無かった往復 1 つを rounds.record_pass で足した物。
+    items の行は案の行に修正案の欄を重ねた物）を run の置き場に置いた pointer。手で枠を組まない"""
+    import converge   # lib/（kit.load が sys.path に足した後）
+    doc = ROUNDS.fresh()
+    rows = converge.plan_rows([{**it, **v.fields(it["unit_keys"][0])} for it in items])
+    got = {"pass": 1, "plan": rows, "answers": [], "review": {"faces": [], "shrink": [], "reason": "穴は無い"}, "resolved": []}
+    if precedent_checks is not None:
+        got["precedent_checks"] = precedent_checks
+    ROUNDS.record_pass(doc, got, at_cap=False, dest=run.artifacts / "line" / "passes")
+    return run.put("line/plan-converge.json", kit.shaped("shared:plan-converge.schema.json", doc))
 
 
 def workflow() -> dict:
@@ -138,11 +152,14 @@ class IntakeFormCase(_Case):
                 self.assertTrue(got["reason"].startswith(f"入力 {name}: "), got["reason"])
         got = self.run.intake(**self.run.plan_inputs(design=v.dump({"question_stands": True})))
         self.assertIn("入力 design", got["reason"])
-        for name in ("structure", "ripple", "prior"):   # 足す: file と宣言した port に値を直に渡すと file の誤りで落ちる
+        bad_values = {"structure": ("shared:structure-state.schema.json", {"status": 3}),
+                      "ripple": ("shared:ripple.schema.json", {"items": "列でない"}),
+                      "prior": ("shared:plan-converge.schema.json", {"passes": "列でない"})}
+        for name, (shape, value) in bad_values.items():   # 値で渡しても、宣言の形に合わなければ落ちる
             with self.subTest(value=name):
-                got = self.run.intake(**self.run.plan_inputs(**{name: v.dump({"items": [], "overlaps": []})}))
+                got = self.run.intake(**self.run.plan_inputs(**{name: v.dump(value)}))
                 self.assertFalse(got["due"])
-                self.assertTrue(got["reason"].startswith(f"入力 {name}: file の入力は"), got["reason"])
+                self.assertTrue(got["reason"].startswith(f"入力 {name}: 入力が {shape} の形に合わない"), got["reason"])
         got = self.run.intake(**self.run.plan_inputs(tree="maybe"))
         self.assertIn("入力 tree", got["reason"])
 
@@ -192,14 +209,15 @@ class IntakeCopyCase(_Case):
         self.assertIn("入力 fields: 修正案の項目の数 2", got["reason"])
 
     def test_prior_gives_the_pass_number_and_precedent_checks(self):
-        prior = {"round": 1, "passes": [{"pass": 1, "faces": [], "items": []}], "outcome": None,
-                 "precedent_checks": {"https://x.example/a": {"found": True, "quote": "q"}}}
-        got = self.run.intake(**self.run.plan_inputs(prior=self.run.put("line/plan-converge.json", prior)))
+        checks = {"https://x.example/a": {"found": True, "quote": "q"}}
+        got = self.run.intake(**self.run.plan_inputs(prior=line_record(self.run, [v.item(v.UNIT_MEAN, 1)], precedent_checks=checks)))
         self.assertEqual((got["k"], self.doc()["k"]), (2, 2))
-        self.assertEqual(self.doc("precedent-checks.json"), prior["precedent_checks"])
+        self.assertEqual(self.doc("precedent-checks.json"), checks)
         self.assertEqual(len(self.doc("plan-converge.json")["passes"]), 1)
-        got = self.run.intake(**self.run.plan_inputs(prior=self.run.put("line/bad.json", {"plan": []})))
-        self.assertIn("入力 prior: 往復の記録の形に合わない", got["reason"])
+        # 往復の記録の行に書き手だけが欄を足すと、読み手の口が共有の形（shared:plan-converge.schema.json）で落とす（#845・#849・#851）
+        got = self.run.intake(**self.run.plan_inputs(prior=self.run.put("line/bad.json", {"passes": [{"pass": 1, "書き手だけの欄": 1}]})))
+        self.assertIn("入力 prior: 入力が shared:plan-converge.schema.json の形に合わない", got["reason"])
+        self.assertIn("知らない欄 '書き手だけの欄'", got["reason"])
 
     def test_copies_world_structure_design_ripple_and_means(self):
         rows = [{"unit": "u1", "verdict": "汚れる", "route": "人に上げる"}]
@@ -268,18 +286,16 @@ class ReplanIntakeCase(_Case):
     """形 replan の入口（8 節の intake の 6・11）"""
 
     def prior(self, items) -> str:
-        rows = [{"id": f"i{n}", "unit_keys": it["unit_keys"], "hash": "h", "row": {**it, **v.fields(it["unit_keys"][0])}}
-                for n, it in enumerate(items, 1)]
-        return self.run.put("line/plan-converge.json", {"round": 1, "passes": [{"pass": 1}], "outcome": "clean", "plan": rows})
+        return line_record(self.run, items)
 
     def test_ruled_items_and_rows(self):
         old = [v.item(v.UNIT_MEAN, 1), v.item(v.UNIT_CLAMP, 2)]
         new = [v.item(v.UNIT_MEAN, 1), v.item(v.UNIT_CLAMP, 2, approach="直した形",
                                                narrows=[{"what": "x", "why": "y", "decided_by": "依頼の引用"}])]
         conflicts = {"items": [{"id": "c1", "unit_key": v.UNIT_CLAMP, "between": ["a", "b"], "why_both_cannot_hold": "w",
-                                "kind": "contract", "which_is_right": "a",
+                                "kind": "brief_vs_judgment", "which_is_right": "code",
                                 "ruling": {"decision": "fix_plan_item", "text": "項目 2 を直す", "plan_items": [2]}}]}
-        got = self.run.intake(**self.run.plan_inputs(new, ruling="2", prior=self.prior(old),
+        got = self.run.intake(**self.run.plan_inputs(new, ruling='["2"]', prior=self.prior(old),
                                                      conflicts=self.run.put("fix/conflicts.json", conflicts)))
         self.assertEqual(got, {"due": True, "form": "replan", "tree": False, "k": 0, "reason": ""})
         doc = self.doc()
@@ -292,13 +308,15 @@ class ReplanIntakeCase(_Case):
         self.assertEqual(self.run.intake(**self.run.plan_inputs(new, ruling="[2]", prior=self.prior(old)))["form"], "replan")
 
     def test_no_approved_plan_or_stray_item_fails(self):
-        got = self.run.intake(**self.run.plan_inputs(ruling="1"))
+        got = self.run.intake(**self.run.plan_inputs(ruling='["1"]'))
         self.assertEqual((got["due"], got["form"]), (False, "replan"))
         self.assertIn("承認済みの修正案", got["reason"])
-        got = self.run.intake(**self.run.plan_inputs(ruling="3", prior=self.prior([v.item(v.UNIT_MEAN), v.item(v.UNIT_CLAMP)])))
+        got = self.run.intake(**self.run.plan_inputs(ruling='["3"]', prior=self.prior([v.item(v.UNIT_MEAN), v.item(v.UNIT_CLAMP)])))
         self.assertIn("入力 ruling", got["reason"])
-        got = self.run.intake(**self.run.plan_inputs(ruling="x", prior=self.prior([v.item(v.UNIT_MEAN), v.item(v.UNIT_CLAMP)])))
-        self.assertIn("入力 ruling", got["reason"])
+        for bad in ('["x"]', "2", "1,2"):   # 番号でない行と、番号の配列の形（shared:replan-items.schema.json）でない字
+            with self.subTest(bad=bad):
+                got = self.run.intake(**self.run.plan_inputs(ruling=bad, prior=self.prior([v.item(v.UNIT_MEAN), v.item(v.UNIT_CLAMP)])))
+                self.assertIn("入力 ruling", got["reason"])
 
 
 # ---------------------------------------------------------------- 出口
@@ -449,11 +467,9 @@ class FlowCase(_Case):
 
     def test_replan_flow_returns_the_item_facts(self):
         old = [v.item(v.UNIT_MEAN, 1), v.item(v.UNIT_CLAMP, 2)]
-        rows = [{"id": f"i{n}", "unit_keys": it["unit_keys"], "hash": "h", "row": {**it, **v.fields(it["unit_keys"][0])}}
-                for n, it in enumerate(old, 1)]
-        prior = self.run.put("line/plan-converge.json", {"round": 1, "passes": [{"pass": 1}], "outcome": "clean", "plan": rows})
+        prior = line_record(self.run, old)
         new = [old[0], v.item(v.UNIT_CLAMP, 2, approach="直した形")]
-        got = self.one_pass(self.run.plan_inputs(new, ruling="2", prior=prior), v.review())
+        got = self.one_pass(self.run.plan_inputs(new, ruling='["2"]', prior=prior), v.review())
         self.assertEqual((got["status"], got["form"], got["round"], got["pass"]), ("ok", "replan", 0, None))
         self.assertEqual([r["item"] for r in got["replan"]], [2])
         self.assertEqual(sorted(got["replan"][0]), ["contract_changed", "human", "item", "units", "widened"])
@@ -462,10 +478,8 @@ class FlowCase(_Case):
 
     def test_replan_give_up_names_each_item(self):
         old = [v.item(v.UNIT_MEAN, 1), v.item(v.UNIT_CLAMP, 2)]
-        rows = [{"id": f"i{n}", "unit_keys": it["unit_keys"], "hash": "h", "row": {**it, **v.fields(it["unit_keys"][0])}}
-                for n, it in enumerate(old, 1)]
-        prior = self.run.put("line/plan-converge.json", {"round": 1, "passes": [], "plan": rows})
-        self.run.intake(**self.run.plan_inputs(old, ruling="1,2", prior=prior))
+        prior = line_record(self.run, old)
+        self.run.intake(**self.run.plan_inputs(old, ruling='["1", "2"]', prior=prior))
         _, _, rolekit = libs()
         given = [{"at": "t", "reason": f"拒否 {n}", "after": rolekit.NET_AFTER} for n in range(1, rolekit.NET_AFTER + 1)]
         (self.run.artifacts / "rejects-p2.plan_review.json").write_text(v.dump(given), encoding="utf-8")
@@ -580,10 +594,8 @@ class ReadsCase(_Case):
 
     def test_replan_and_text_forms_use_their_own_names(self):
         old = [v.item(v.UNIT_MEAN, 1), v.item(v.UNIT_CLAMP, 2)]
-        rows = [{"id": f"i{n}", "unit_keys": it["unit_keys"], "hash": "h", "row": {**it, **v.fields(it["unit_keys"][0])}}
-                for n, it in enumerate(old, 1)]
-        prior = self.run.put("line/plan-converge.json", {"round": 1, "passes": [], "plan": rows})
-        self.hook("Read", file_path=self.material(ruling="2", prior=prior))
+        prior = line_record(self.run, old)
+        self.hook("Read", file_path=self.material(ruling='["2"]', prior=prior))
         got, index = self.collect()
         self.assertEqual((pathlib.Path(got["index_file"]).name, list(index)), ("reads-replan-block.json", ["replan-plan-review"]))
         self.run.intake(proposal=v.POLICY_TEXT)
@@ -738,8 +750,7 @@ class YamlCase(unittest.TestCase):
             with self.subTest(nid):
                 self.assertEqual(nodes()[nid]["output_format"]["properties"]["faces"]["items"]["properties"]["kind"]["enum"], looked)
         self.assertEqual(len(looked), 8)
-        files = kit.load("plan-review", "files")
-        self.assertLessEqual(set(files.HUMAN_FACE_KINDS), set(looked))
+        self.assertLessEqual(set(kit.load("plan-review", "gate").policy.HUMAN_FACE_KINDS), set(looked))
 
 
 if __name__ == "__main__":

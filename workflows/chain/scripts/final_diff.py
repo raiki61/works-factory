@@ -57,7 +57,7 @@ def decisions() -> list:
 def sealed_at(rel: str, data: bytes) -> tuple:
     """親の置き場の rel に差分を封じて書く。(書いたパス, {ok, hash, diff: pointer})"""
     path = ports.place() / rel
-    return path, {"ok": True, "hash": seal.write_readback(path, data), "diff": ports.pointer(path)}
+    return path, {"ok": True, "hash": seal.write_readback(path, data), "diff": ports.pointer(path, "file")}
 
 
 def with_diffs(repo: Path, origin: str, rows: list) -> list:
@@ -140,7 +140,7 @@ def final() -> dict:
                          "stop": None if last.get("act") == "launch" else {"word": last.get("word"), "text": last.get("text")},
                          "final": final_path, "apply": f"bin/apply {run}", "worktree": str(repo)})
     report_path.write_text(text, encoding="utf-8")
-    return {**got, "report": ports.pointer(report_path)}
+    return {**got, "report": ports.pointer(report_path, "file")}
 
 
 def nothing(reason: str) -> dict:

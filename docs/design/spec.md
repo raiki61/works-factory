@@ -621,7 +621,7 @@ bin/works-factory workflow run works-factory-spec \
 2. 依頼の行の形は `shared:request.schema.json` を使い、block に写しを置かない（1.5 の「`workflows/spec/schemas/request.schema.json`（world と同じ形の写し）」を取り下げ）。形のファイルの名は pack の中で 1 か所にしか置けない（`tests/layers/test_block_shape.py` の 5）。
 3. 出し直しの指示を組む node `spec-<役>-fix-prep` を役ごとに足した（script は 3 つで 1 本 `fix_prep.py`。`with: {role}`）。`spec-<役>-prep` は出し直すかと 1 回目の指示だけを返す（出し直しの時の `prompt` は空）。訳: 筋書きは輪を 1 周しか回さない（`until_bash` を仮定で満たす）ので、出し直しの役は 1 周目に届かない。出し直すかを決める prep の返りだけを筋書きで差し替え、出し直しの指示を組む prep は差し替えずに本物を回せば、出し直しの役の md を筋書きが照らせる（`check_standalone_renders` は、AI の node の prep を差し替えた筋書きを証にしない）。筋書きは `resubmit-write`・`resubmit-review`・`resubmit-revise` の 3 本を足した。
 4. script は prep を 1 本 `prep.py`（`with: {role, prev}`）、受け付けを 1 本 `take.py` にした（設計書は prep 3 本）。違いは `role` だけで、`with:` に結ぶ入力が node ごとに揃う。
-5. 承認ノードの文に入れる run の id は `ports.run_id()` でなく `ports.pointer(<place のファイル>)["run_id"]` で引く（`ports.py` にその口は無い。土台の `ports.py` は変えない）。
+5. 承認ノードの文に入れる run の id は `ports.run_id()` でなく `ports.pointer(<place のファイル>, <form>)["run_id"]` で引く（`ports.py` にその口は無い。土台の `ports.py` は変えない）。
 6. 筋書きの `reached` に AI の node を足した（`check_standalone_renders` は reached に在る AI の node を証にする）。受け入れ条件のテストのファイルは、筋書きの作業ツリーに在る筋書き自身（Given / When / Then の 3 語と、テストの名を中に持つ）にした。check の筋書きの仕様は `fixtures/approved-spec.json`（受け入れ条件のテストは作業ツリーの `README.md`）。
 7. 出力: `stopped` で `stop_reason` が `human:spec-gate` か `request:spec-gate`、`failed` で `works:spec`。check の `ok` は `status` が `checked` の時だけ真（照らせなかった `unchecked` は偽）。照らしの node が返りを返さなかった時は、照らせなかった（問い 1 行・`unchecked`）として返す。
 8. 入口が `mode` を読めない時は `mode` を空にして `go` 偽・`failed`（`works:spec`）で返す。write の止めの控え `stop.json` は、入口が読めなかった時にも書く。

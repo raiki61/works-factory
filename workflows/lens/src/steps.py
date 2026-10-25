@@ -171,5 +171,5 @@ def finish(out) -> dict:
              for r in rows if r["state"] == "failed"]
     status = "failed" if broken else "ok"
     reason = "レンズの指示が組めなかった: " + "・".join(f"{e.get('node')}（{e.get('reason')}）" for e in broken) if broken else ""
-    return {"ok": not broken, "status": status, "reason": reason, "rows": ports.pointer(out / lens.LENS_FILE), **count, "carry": carry,
+    return {"ok": not broken, "status": status, "reason": reason, "rows": ports.pointer(out / lens.LENS_FILE, "json(shared:lens-rows.schema.json)"), **count, "carry": carry,
             "report": [*(left or ["なし（振り分けたレンズは全部走った）"]), *seen], "optional": OPTIONAL}

@@ -7,9 +7,9 @@ inputs:
   tdd: {default: 'false', description: 'flag: 設計書に「TDD で直す所」の見出しが在るか。形 check が読む'}
   out_of_scope: {default: '[]', description: 'json(out-of-scope.schema.json): 表の触らない物の写しの行の配列 [{glob, why}]。空の配列は無い。形 check が読む'}
   ready: {default: '', description: 'text: 判定が直す単位を返したか（true だけが真。空は判定が回らなかった）。形 check が読む'}
-  plan: {default: '', description: 'file: 計画の項目ごとの欄の控え（{round, fields}。fields の行は files・out_of_scope・route を持つ）。空は計画が無い。形 check が読む'}
+  plan: {default: '', description: 'json(shared:plan-fields.schema.json): 計画の項目ごとの欄の控え（{round, fields}。fields の行は files・out_of_scope・route を持つ）。空は計画が無い。形 check が読む'}
   plan_ok: {default: '', description: 'text: 計画が落ちずに返ったか（true だけが真。空は計画が回らなかった）。形 check が読む'}
-  out_of_purpose: {default: '', description: 'file: 判定が目的の外とした行の控え（{rounds: {周: [行]}}）。空は控えが無い。形 check が読む'}
+  out_of_purpose: {default: '', description: 'json(lib:out-of-purpose.schema.json): 判定が目的の外とした行の控え（{rounds: {周: [行]}}）。空は控えが無い。形 check が読む'}
 returns: finish
 outcome_field: ok
 nodes:
@@ -65,15 +65,23 @@ nodes:
         ok: {type: boolean}
         stop_reason: {type: string}
         reason: {type: string}
-        request: &pointer
-          type: [object, 'null']
-          properties:
-            type: {type: string, enum: [archon_artifact]}
-            run_id: {type: string}
-            path: {type: string}
+        request:
+          <<: &pointer
+            type: [object, 'null']
+            additionalProperties: false
+            required: [type, run_id, path]
+            properties:
+              type: {type: string, enum: [archon_artifact]}
+              run_id: {type: string}
+              path: {type: string}
+          description: 'json(shared:request.schema.json): 判定の役に渡す依頼の行（表と設計書から組んだ行の配列）。止めた時は null'
         origin: {type: string}
-        purpose: *pointer
-        spec: *pointer
+        purpose:
+          <<: *pointer
+          description: 'json(shared:purpose.schema.json): 表の目的を固めた目的のファイル。止めた時は null'
+        spec:
+          <<: *pointer
+          description: 'file: 計画の部品に渡す固めた仕様（設計書の本文と表の md）。止めた時は null'
         spec_files: {type: array, items: {type: string}}
         tdd: {type: boolean}
         out_of_scope:

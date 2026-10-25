@@ -42,7 +42,7 @@ class FactsCase(Flow):
         self.assertEqual(got["outcome"], "record_invalid")
         text = self.machine()
         self.assertIn("結果を名乗れない訳: 入力 sections:", text)
-        self.assertIn("結果を名乗れない訳: 入力 facts: 入力が facts.schema.json の形に合わない", text)
+        self.assertIn("結果を名乗れない訳: 入力 facts: 入力が shared:facts.schema.json の形に合わない", text)
         got = self.facts(sections="[壊れた")
         self.assertEqual((got["outcome"], got["stop_reason"]), ("record_invalid", "report:record-invalid"), "始めの記録が読めて入力だけ壊れた時")
 

@@ -31,15 +31,16 @@ FIX = ("units", "conflicts", "objection", "diff", "plan_declared", "tdd_refused"
 READ_ERRORS = (OSError, ValueError, TypeError, AttributeError, KeyError)
 
 
-def _path(raw):
-    """pointer かパスの字・値の先のパス（null・空は None）"""
-    if raw is None:
+def _path(raw, field: str):
+    """作り手の返りの欄 field の pointer かパスの字・値の先のパス（null・空は None。その欄の宣言の form で照らす。src.stages.resolve）"""
+    from src import stages
+    if raw is None or raw == "" or raw == "null":
         return None
-    return ports.file(raw if isinstance(raw, str) else json.dumps(raw))
+    return stages.resolve(raw, field)
 
 
-def _doc(raw):
-    path = _path(raw)
+def _doc(raw, field: str):
+    path = _path(raw, field)
     return None if path is None else json.loads(path.read_text(encoding="utf-8"))
 
 
@@ -50,8 +51,9 @@ def pending_signals(judgment, ports_values: dict, answer, ties, materials) -> li
     if judgment is None:
         return []
     try:
-        doc = _doc(judgment)
-        ledger = gatemarks.ledger_files(doc if isinstance(doc, dict) else {}, ties_file=_path(ties), materials_file=_path(materials),
+        doc = _doc(judgment, "judgment")
+        ledger = gatemarks.ledger_files(doc if isinstance(doc, dict) else {}, ties_file=_path(ties, "answer_ties"),
+                                        materials_file=_path(materials, "materials"),
                                         answers=[a for a in ports_values.get("request_answers") or [] if isinstance(a, dict)],
                                         gate=answer, takes_push=ports_values.get("takes_push") is True)
         return [f"答えていない問い {q.get('key')}" for q in gatemarks.pending(ledger)]
@@ -64,7 +66,7 @@ def _conflict_rows(raw) -> list:
     if raw is None:
         return []
     try:
-        doc = _doc(raw)
+        doc = _doc(raw, "conflicts")
     except READ_ERRORS as error:
         return [{"unread": f"{type(error).__name__}"}]
     rows = doc.get("items") if isinstance(doc, dict) else doc
@@ -73,7 +75,7 @@ def _conflict_rows(raw) -> list:
 
 def _plan_items(plan) -> list:
     try:
-        doc = _doc(plan)
+        doc = _doc(plan, "plan")
     except READ_ERRORS:
         return []
     items = doc.get("fields") if isinstance(doc, dict) else None
@@ -85,7 +87,7 @@ def touched_files(diff) -> tuple:
     import changemap
     from src import tiers
     try:
-        text = _path(diff).read_text(encoding="utf-8", errors="replace")
+        text = _path(diff, "diff").read_text(encoding="utf-8", errors="replace")
         return list(changemap.split_diff(text)[0]), f"修正の差分 {diff['path']}"
     except READ_ERRORS as error:
         return [], f"{tiers.PLAN_ORIGIN}（修正の差分を読めない: {type(error).__name__}）"
@@ -110,10 +112,10 @@ def raise_depth(fix, *, replan: bool, units_tier, switches: dict, judgment, tier
         run.append("修正役の異議が在る")
     touched, origin = touched_files(fix["diff"])
     try:
-        head_record = _path(tier_record)
+        head_record = _path(tier_record, "tier_record")
     except READ_ERRORS:
         head_record = None
-    late = tiers.late_records(dict(fix), lambda ptr: _path(ptr))
+    late = tiers.late_records(dict(fix), _path)
     signals, counted = tiers.signals(_plan_items(plan), keys, touched, origin=origin, head_record=head_record, late=late,
                                      declared=fix["plan_declared"] or [])
     run += signals

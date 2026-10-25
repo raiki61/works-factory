@@ -22,12 +22,12 @@ def compute():
     world = ports.picked(os.environ.get("INPUTS_WORLD"), WORLD)
     world = None if world is None else dict(world)
     if isinstance(world, dict) and world.get("rows"):
-        world = {**world, "rows_file": str(ports.file(json.dumps(world["rows"])))}
+        world = {**world, "rows_file": str(ports.file(json.dumps(world["rows"]), "jsonl(lib:world-row.schema.json)"))}
     review = ports.picked(os.environ.get("INPUTS_REVIEW"), REVIEW)
     review = None if review is None else dict(review)
     faces = []
     if isinstance(review, dict) and review.get("holes"):
-        holes = ports.json(json.dumps(review["holes"]))
+        holes = ports.json(json.dumps(review["holes"]), "shared:plan-review-reply.schema.json")
         faces = [f for f in holes.get("faces") or [] if isinstance(f, dict)] if isinstance(holes, dict) else []
     return steps.result(world, review, faces)
 

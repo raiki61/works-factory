@@ -57,6 +57,9 @@ def facts() -> dict:
     try:
         source = child_pointer.resolve(ptr)
         nxt = json.loads(source.read_text(encoding="utf-8"))
+        wrong = carry.errors(nxt, carry.NEXT_SCHEMA)   # 子の run の札は ports を通らないので、住処の形で読む前に照らす
+        if wrong:
+            raise ValueError(f"{source.name} が {carry.NEXT_SCHEMA} の形に合わない: {' / '.join(wrong[:5])}")
         first = chain.first_of(first_doc(reads.text(os.environ.get("INPUTS_FIRST_REQUEST"))),
                                reads.value(os.environ.get("INPUTS_FIRST_PR")) or 0)
         carried = chain.next_request(nxt, first)

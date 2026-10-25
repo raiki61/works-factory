@@ -1,0 +1,115 @@
+{
+  "description": "再審の差の行 rejudge-diff.json（diagnose の src/rejudge.py の take が回ごとに 1 行足す）。行は回の答えの語と、前後の単位の比べ（changed の行は key・kind・field・before・after・named）",
+  "type": "array",
+  "items": {
+    "type": "object",
+    "properties": {
+      "round": {
+        "type": "integer"
+      },
+      "pass": {
+        "type": "string"
+      },
+      "node": {
+        "type": "string"
+      },
+      "verdict": {
+        "type": "string"
+      },
+      "changed": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "key": {
+              "type": "string"
+            },
+            "kind": {
+              "type": "string",
+              "enum": [
+                "changed",
+                "added",
+                "removed"
+              ]
+            },
+            "field": {
+              "type": "string",
+              "enum": [
+                "label",
+                "disposition",
+                "reason",
+                "reopen_evidence"
+              ],
+              "description": "kind が changed の時だけ在る。変わった欄の名"
+            },
+            "before": {
+              "type": [
+                "object",
+                "string",
+                "null"
+              ],
+              "description": "kind が removed・added の時は前の単位の比べる欄（key と REJUDGE_UNIT_FIELDS の欄）の object、changed の時は field の欄の前の値（どの欄も字。単位に欄が無ければ null）",
+              "properties": {
+                "key": {
+                  "type": "string"
+                },
+                "label": {
+                  "type": "string"
+                },
+                "disposition": {
+                  "type": "string"
+                },
+                "reason": {
+                  "type": "string"
+                },
+                "reopen_evidence": {
+                  "type": "string"
+                }
+              }
+            },
+            "after": {
+              "type": [
+                "object",
+                "string",
+                "null"
+              ],
+              "description": "kind が removed・added の時は後の単位の比べる欄（key と REJUDGE_UNIT_FIELDS の欄）の object、changed の時は field の欄の後の値（どの欄も字。単位に欄が無ければ null）",
+              "properties": {
+                "key": {
+                  "type": "string"
+                },
+                "label": {
+                  "type": "string"
+                },
+                "disposition": {
+                  "type": "string"
+                },
+                "reason": {
+                  "type": "string"
+                },
+                "reopen_evidence": {
+                  "type": "string"
+                }
+              }
+            },
+            "named": {
+              "type": "boolean"
+            }
+          }
+        }
+      },
+      "unnamed_changed": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "lowered": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      }
+    }
+  }
+}

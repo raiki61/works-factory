@@ -65,8 +65,9 @@ def _ref(ptr):
     return ptr if isinstance(ptr, str) and ptr.startswith("/") else None
 
 
-def _files(*pairs) -> list:
-    return [{"label": label, "ref": ref} for label, ptr in pairs if (ref := _ref(ptr)) is not None]
+def _files(*rows) -> list:
+    """(ラベル, pointer かパス, 出どころの宣言の form の字) の並びから、節の files の行（report が form で照らして開く）"""
+    return [{"label": label, "ref": ref, "form": form} for label, ptr, form in rows if (ref := _ref(ptr)) is not None]
 
 
 def _section(title: str, lines: list, files=()) -> dict:
@@ -124,7 +125,7 @@ def entry_lines(values: dict, record: dict, *, cwd, folder) -> list:
     out += depth_lines(raise_, switches, _d(start.get("ports")), _l(_d(values.get("fixed")).get("tdd")))
     prior = start.get("prior_failures")
     if prior:
-        doc, why = factslib.read_ptr(prior)
+        doc, why = factslib.read_ptr(prior, "prior_failures")
         rows = [r for r in _l(doc) if isinstance(r, dict)]
         out.append(f"依頼が運んだ前の run の失敗（prior_failures）: {len(rows)} 件" if not why else f"依頼が運んだ前の run の失敗を読めない（{why}）")
         out += [f"  - {r.get('where')}: {r.get('text')}" for r in rows]
@@ -232,7 +233,7 @@ def base_word(base: dict) -> str:
             ptr = base.get("baseline")
             if ptr:
                 from src import stages
-                material = _d(baseline_red.read_baseline(stages.resolve(ptr)).get("material"))
+                material = _d(baseline_red.read_baseline(stages.resolve(ptr, "baseline")).get("material"))
         except (ValueError, OSError, TypeError, KeyError, AttributeError):
             material = {}
         status = material.get("status")
@@ -274,13 +275,15 @@ def build(values: dict, record: dict, *, cwd, folder) -> list:
     if spec_lines:   # 仕様駆動の run の入口の確かめと、仕様とリポジトリの食い違いの照らし（docs/design/spec-driven.md の 6.2 の変える node の 7）
         out.append(_section(SPEC_DRIVEN, spec_lines))
     if v.get("fix"):
-        out.append(_section(TDD, _lines(v["fix"]), _files(("差分", fixed.get("diff")), *(("申し出と裁定", c) for c in _l(fixed.get("conflicts"))))))
+        out.append(_section(TDD, _lines(v["fix"]), _files(("差分", fixed.get("diff"), "file"),
+                                                          *(("申し出と裁定", c, "json(lib:conflicts.schema.json)") for c in _l(fixed.get("conflicts"))))))
     if v.get("refix"):
         out.append(_section(TDD_2, _lines(v["refix"])))
     if base or v.get("test_gate_final"):
         out.append(_section(GREEN, [*_lines(base), *_lines(v.get("test_gate_final"))],
-                            _files(("直す前の結末", base.get("baseline")), ("試験の記録（直す前）", base.get("evidence")),
-                                   ("試験の記録（最後）", _d(v.get("test_gate_final")).get("evidence")))))
+                            _files(("直す前の結末", base.get("baseline"), "json(lib:baseline.schema.json)"),
+                                   ("試験の記録（直す前）", base.get("evidence"), "file"),
+                                   ("試験の記録（最後）", _d(v.get("test_gate_final")).get("evidence"), "file"))))
         scope_lines = not_run_lines(base, v.get("test_gate_final"))
         if scope_lines:
             out.append(_section(NOT_RUN, scope_lines))
@@ -292,22 +295,26 @@ def build(values: dict, record: dict, *, cwd, folder) -> list:
         out.append(_section(EYES, eye_lines))
     if structure or EYES_AFTER in eyes_s:
         out.append(_section(STRUCTURE, [*_lines(structure), *eyes_s.get(EYES_AFTER, [])],
-                            _files(("構造の目", structure.get("structure")), ("直した後の構造", eyes.get("after")))))
+                            _files(("構造の目", structure.get("structure"), "json(shared:structure-state.schema.json)"),
+                                   ("直した後の構造", eyes.get("after"), "json(shared:structure-after.schema.json)"))))
     if JUDGE_WORLD in judge_s:
         used.add(JUDGE_WORLD)
-        out.append(_section(WORLD, judge_s[JUDGE_WORLD], _files(("定石", judge.get("world")), ("目的", judge.get("purpose")))))
+        out.append(_section(WORLD, judge_s[JUDGE_WORLD], _files(("定石", judge.get("world"), "jsonl(lib:world-row.schema.json)"),
+                                                               ("目的", judge.get("purpose"), "json(shared:purpose.schema.json)"))))
     if JUDGE_LOCAL in judge_s:
         used.add(JUDGE_LOCAL)
         out.append(_section(LENS_LOCAL, judge_s[JUDGE_LOCAL]))
     if JUDGE_DIAGNOSE in judge_s:
         used.add(JUDGE_DIAGNOSE)
         out.append(_section(JUDGMENT, judge_s[JUDGE_DIAGNOSE],
-                            _files(("判定", judge.get("judgment")), ("目的の外の所見", judge.get("out_of_purpose")))))
+                            _files(("判定", judge.get("judgment"), "json(shared:judgment.schema.json)"),
+                                   ("目的の外の所見", judge.get("out_of_purpose"), "json(lib:out-of-purpose.schema.json)"))))
     # 9. 今の報告に無かった節（run の順）
     for title in JUDGE_LATER:
         if title in judge_s:
             used.add(title)
-            files = _files(("仕様", judge.get("spec"))) if title == "仕様" else _files(("目的", judge.get("purpose"))) if title == "目的の固定" else []
+            files = (_files(("仕様", judge.get("spec"), "json(shared:spec.schema.json)")) if title == "仕様"
+                     else _files(("目的", judge.get("purpose"), "json(shared:purpose.schema.json)")) if title == "目的の固定" else [])
             out.append(_section(title, judge_s[title], files))
     for title, lines in judge_s.items():
         if title.startswith("素材: ") and title not in used:
@@ -320,10 +327,12 @@ def build(values: dict, record: dict, *, cwd, folder) -> list:
         if title not in used:
             out.append(_section(title, lines))
     if v.get("independent_design"):
-        out.append(_section(DESIGN, _lines(v["independent_design"]), _files(("独立設計", v["independent_design"].get("design")))))
+        out.append(_section(DESIGN, _lines(v["independent_design"]), _files(("独立設計", v["independent_design"].get("design"), "json(shared:design.schema.json)"))))
     if rounds:
         out.append(_section(ROUNDS, rounds_lines(rounds),
-                            _files(("計画", rounds.get("plan")), ("波及", rounds.get("ripple")), ("事前審査", rounds.get("review")))))
+                            _files(("計画", rounds.get("plan"), "json(shared:plan-fields.schema.json)"),
+                                   ("波及", rounds.get("ripple"), "json(shared:ripple.schema.json)"),
+                                   ("事前審査", rounds.get("review"), "json(shared:plan-review-reply.schema.json)"))))
     ask = v.get("ask_before_fix")
     if ask:
         lines = [f"開いた: {'はい' if ask.get('open') else 'いいえ'}"]
@@ -344,7 +353,7 @@ def build(values: dict, record: dict, *, cwd, folder) -> list:
         out.append(_section(SPEC_CHECK, _lines(v["spec_check"])))
     if v.get("merge_seal") or v.get("merge_apply"):
         out.append(_section(MERGE, [*_lines(v.get("merge_seal")), *_lines(v.get("merge_apply"))],
-                            _files(("封じた差分", v.get("merge_seal", {}).get("diff")), ("置いた差分", v.get("merge_apply", {}).get("diff")))))
+                            _files(("封じた差分", v.get("merge_seal", {}).get("diff"), "file"), ("置いた差分", v.get("merge_apply", {}).get("diff"), "file"))))
     groups = groups_lines(judge)
     if groups:
         out.append(_section(GROUPS, groups))
@@ -367,7 +376,7 @@ def rounds_lines(rounds: dict) -> list:
              + ("（止まった）" if rounds.get("stalled") else "") + ("（安全の上限で止めた。工場の不具合）" if rounds.get("capped") else "")]
     try:
         from src import rounds as roundslib
-        doc, why = factslib.read_ptr(rounds.get("record"))
+        doc, why = factslib.read_ptr(rounds.get("record"), "record")
         if why:
             lines.append(f"往復の記録を読めない（{why}）")
         elif doc is not None:
@@ -381,7 +390,7 @@ def groups_lines(judge: dict) -> list:
     """模型の群の選び（head-depth の record を KEEP の headdepth.groups_lines で組む。report の設計書の 1.6）"""
     try:
         import headdepth
-        doc, why = factslib.read_ptr(_d(judge).get("tier_record"))
+        doc, why = factslib.read_ptr(_d(judge).get("tier_record"), "tier_record")
         if why or doc is None:
             return []
         return [str(x) for x in headdepth.groups_lines(doc)]

@@ -6,20 +6,37 @@
 - text(raw) -> str: 字。無い・空は ""
 - flag(raw) -> bool: "true" か "false"。ほかは ValueError
 - choice(raw, words) -> str: words のどれか。ほかは ValueError
-- json(raw, schema=None): JSON の値。raw は 3 通り: この run の pointer・ファイルのパス（絶対か作業ツリーからの相対）・値そのもの
-  （JSON の字）。schema は呼んだ block の schemas/ のファイル名か、2 つ以上の block が使う形の shared:<ファイル名>（pack の
-  .shared/schemas/）で、値をその形で照らす。読めない pointer・無いファイル・形に合わない
-  値は、空にせず理由を名指して ValueError（落とし穴 K15・持ち主の決め no-silent-loosen）
-- file(raw) -> Path | None: ファイル 1 つ（pointer かパス）。空・null は None。在らなければ ValueError
+- json(raw, schema): JSON の値。raw は 3 通り: この run の pointer・ファイルのパス（絶対か作業ツリーからの相対）・値そのもの
+  （JSON の字）。schema（必須）は形の名で、値をその形で照らす。読めない pointer・無いファイルは理由を名指して ValueError、形に
+  合わない値は ShapeError（ValueError の子。読んだ値を value に持つ）（落とし穴 K15・持ち主の決め no-silent-loosen）
+- file(raw, form) -> Path | None: ファイル 1 つ（pointer かパス）。空・null は None。在らなければ ValueError。form（必須）は入力の
+  宣言と同じ字で、json(<名>)・jsonl(<名>) は中身をその形で照らしてからパスを返す。file は字の文書で照らさないが、.json・.jsonl の
+  ファイルは拒む（JSON は形を名指して運ぶ）
+- carried_file(row) -> Path | None: form を値と一緒に運ぶ行 {ref, form}（報告の節の files のように、種類の違うファイルを 1 つの欄で
+  中継する値）の ref を、行の form で file と同じに照らしてパスを返す。form は書き手が出どころの宣言の form を字で書く
+- 形の名: block の schemas/ のファイル名・shared:<名>（pack の .shared/schemas/）・lib:<名>（lib/ の下。lib に住処の在る形）・
+  returns:<workflow の名>（include した workflow の返す節の output_format。graph の受け皿の節の output_format だけが書け、口は読まない）。
+  引き方は _shape_path の 1 か所
+- form_of(description) -> (form, 名) | None: form の語（text・file・flag・choice(a|b)・json(<名>)・jsonl(<名>)）の住処。入力の
+  description・形の中の description・口の呼びの form の字が使う
+- open_shapes(shape, block_folder=None, *, shared=None, lib=None, returned=None): 形の中の、中身を宣言しない所の在りか（object に properties も
+  patternProperties も無い・array に items が無い・型の無い所・type に 6 つの型を全部並べた所）。形の照らしは、知らない語（unknown_keywords）を先に、この開きを後に見て、
+  どちらかが在れば形のファイルを拒む。静的な照らし（tests/layers）は木の根の shared と lib と、returns:<workflow の名> の引き returned を
+  渡して同じ関数を使う
+- is_pointer_shape(shape): 形が pointer の欄か（properties.type が const か 1 語の enum で archon_artifact）。pointer の判別の住処
+- carries_file(shape): 所がファイルを運ぶか（pointer の欄か、型が string だけのパスの字）。その所の description の form は指す先の
+  ファイルの form（値の形でない）
+- shape_errors(value, schema, block_folder=None): 値を形の名で照らした誤りの一覧（試験の作り物を照らす tests/blocks/kit.py も使う）
 - place() -> Path: この node の block の run directory の中のフォルダ（$ARTIFACTS_DIR/<include の道>/。単独の run では
   $ARTIFACTS_DIR/）。無ければ作る。run directory の根は返さない（4.3）
 - inside(rel, root) -> Path: 置き場 root からの相対パス rel の照らし（.. と先頭・末尾の / を拒む）。pointer の path の照らしと
   child_pointer（ほかの run の置き場の中）が使う
-- pointer(path) -> dict: place の中のファイルを指す Archon の pointer {type: archon_artifact, run_id, path}
+- pointer(path, form) -> dict: place の中のファイルを指す Archon の pointer {type: archon_artifact, run_id, path}。form（必須）は
+  返す節の pointer の欄の description と同じ字で、中身を照らしてから指す（書き手が書いた時に読み手と同じ形で照らす）
 - returns(obj): node の返り（JSON 1 つを標準出力へ）
 - run(compute, fallback): compute() の返りを返す。例外は fallback(理由の 1 行) の返りにする（落ちない node の口）
 - parsed(raw): JSON の値。null・空の字・無い入力は None（読めない JSON は ValueError）。飛ばされうる作り手の欄を受ける時
-- picked(raw, names, optional=()): 作り手の返りまるごと（json の form）から、宣言した欄 names（と optional）だけを持つ dict。
+- picked(raw, names, optional=()): 作り手の返りまるごと（Archon が output_format で照らした値。pointer やパスは開かない）から、宣言した欄 names（と optional）だけを持つ dict。
   宣言の外の名を読むと KeyError、names の欄が返りに無くても KeyError（optional の欄は無ければ None）
 - unknown_keywords(shape): 形の中の、照らしが読まない語の在りか（json の schema はこれが空でないと拒む）
 - 対象のコマンドを起こす block（test-gate・fix など）の口。workflows/.shared/boundary.py と同じ約束の写しで、
@@ -59,6 +76,7 @@ SHARED_CACHE = "works-factory"                         # その下の、この p
 ROOT_ENV = "WORKS_FACTORY_ROOT"
 PACK = Path(__file__).resolve().parents[1]
 SHARED = Path(__file__).resolve().parent
+_HERE = SHARED   # この口の在る .shared（試験が SHARED を替えても、呼び手の見分けはここで飛ばす）
 
 
 def lib_root() -> Path:
@@ -80,7 +98,7 @@ def caller_block() -> Path:
             path = Path(frame.filename).resolve()
         except (OSError, ValueError):
             continue
-        if path.is_relative_to(SHARED) or not path.is_relative_to(PACK):
+        if path.is_relative_to(_HERE) or not path.is_relative_to(PACK):
             continue
         return PACK / path.relative_to(PACK).parts[0]
     raise ValueError(f"呼び手が pack {PACK} の block の中に無い（ports・prompt は block の script と src から呼ぶ）")
@@ -135,42 +153,234 @@ def _located(raw: str) -> Path | None:
     return _pointer_path(value) if _is_pointer(value) else None
 
 
-def json(raw, schema: str | None = None):
+def json(raw, schema: str):
     raw = text(raw)
     if not raw.strip():
         raise ValueError("json の入力が空（値そのもの・ファイルのパス・pointer のどれかを渡す）")
     path = _located(raw)
-    if path is None:
-        value = _json.loads(raw)
-    else:
-        try:
-            value = _json.loads(path.read_text(encoding="utf-8"))
-        except FileNotFoundError:
-            raise ValueError(f"json の入力のファイル {path} が無い") from None
-        except (OSError, UnicodeDecodeError, ValueError) as error:
-            raise ValueError(f"json の入力のファイル {path} が JSON として読めない: {error}") from None
-    if schema is not None:
-        _check(value, schema)
+    value = _json.loads(raw) if path is None else _read_json(path)
+    _check(value, schema)
     return value
 
 
-def _check(value, schema: str) -> None:
-    from engine.schema import validate_schema   # lib/graphloops/engine/schema.py（KEEP。標準ライブラリだけの形の照らし）
-    shared, _, name = schema.rpartition(":")
-    if shared not in ("", "shared"):
-        raise ValueError(f"形の名は <ファイル名> か shared:<ファイル名>: {schema!r}")
-    path = (SHARED if shared else caller_block()) / "schemas" / name
+def _read_json(path: Path):
     try:
-        shape = _json.loads(path.read_text(encoding="utf-8"))
+        return _json.loads(path.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        raise ValueError(f"json の入力のファイル {path} が無い") from None
+    except (OSError, UnicodeDecodeError, ValueError) as error:
+        raise ValueError(f"json の入力のファイル {path} が JSON として読めない: {error}") from None
+
+
+def _read_jsonl(path: Path) -> list:
+    rows = []
+    try:
+        lines = path.read_text(encoding="utf-8").splitlines()
+    except (OSError, UnicodeDecodeError) as error:
+        raise ValueError(f"jsonl のファイル {path} が読めない: {error}") from None
+    for number, line in enumerate(lines, 1):
+        if line.strip():
+            try:
+                rows.append(_json.loads(line))
+            except ValueError as error:
+                raise ValueError(f"jsonl のファイル {path} の {number} 行目が JSON として読めない: {error}") from None
+    return rows
+
+
+def _check_file(path: Path, form: str) -> None:
+    """ファイル path の中身を form（file・json(<名>)・jsonl(<名>)）で照らす。file は字の文書で照らさないが、JSON のファイル（.json・
+    .jsonl）を file で運ぶことは拒む（形を名指さずに受け渡しの JSON を読み書きさせない）"""
+    parsed = form_of(form) if isinstance(form, str) and FORM.fullmatch(form) else None
+    if parsed is None or parsed[0] not in ("file", *JSON_FORMS):
+        raise ValueError(f"ファイルの form は file・json(<名>)・jsonl(<名>) の字: {form!r}")
+    kind, name = parsed
+    if kind == "file":
+        if path.suffix in (".json", ".jsonl"):
+            raise ValueError(f"JSON のファイル {path.name} を form file で運ばない（json(<名>)・jsonl(<名>) で形を名指す）")
+        return
+    if kind == "json":
+        _check(_read_json(path), name)
+        return
+    errors = []
+    for number, row in enumerate(_read_jsonl(path), 1):
+        errors += [f"{number} 行目 {e}" for e in shape_errors(row, name)]
+    if errors:
+        raise ShapeError(f"{path.name} の行が {name} の形に合わない: {' / '.join(errors[:5])}")
+
+
+class ShapeError(ValueError):
+    """値が宣言の形に合わない（読めない入力の ValueError と分ける）。読んだ値を value に持つ"""
+
+    def __init__(self, message: str, value=None):
+        super().__init__(message)
+        self.value = value
+
+
+# form の語の住処（入力の description・形の中の description・口の呼びの form の字）。json(<名>)・jsonl(<名>) の名は block の schemas/
+# のファイル名か、2 つ以上の block が使う shared:<名>（.shared/schemas/）か、lib に住処の在る lib:<名>（lib/ の下）か、include した
+# workflow の返りの returns:<workflow の名>（返す節の output_format。ファイルでないので静的な照らしだけが読む。RETURNS_HEAD）
+FORM = re.compile(r"(text|file|flag|choice\(([a-z0-9_-]+(?:\|[a-z0-9_-]+)+)\)|(json|jsonl)\(((?:shared:|lib:|returns:)?[A-Za-z0-9_.-]+)\))(?=: |$)")
+JSON_FORMS = ("json", "jsonl")
+ANY_TYPES = frozenset({"object", "array", "string", "number", "boolean", "null"})
+RETURNS_HEAD = "returns"
+
+
+def form_of(description) -> tuple[str, str | None] | None:
+    """`<form>: <意味>` の字（か form の字そのもの）の (form の語, 名)。名は json・jsonl の形の名か choice の語の並び、ほかは None。
+    form で始まらなければ None"""
+    match = FORM.match(description) if isinstance(description, str) else None
+    if match is None:
+        return None
+    if match[3]:
+        return match[3], match[4]
+    if match[2]:
+        return "choice", match[2]
+    return match[1], None
+
+
+def _shape_path(name: str, block_folder=None, *, shared=None, lib=None) -> Path:
+    """形の名のファイル。頭の無い名は block の schemas/（block_folder が無ければ呼んだ block）、shared: は .shared/schemas/、lib: は lib/"""
+    head, _, rest = name.partition(":")
+    if not rest:
+        return Path(block_folder if block_folder is not None else caller_block()) / "schemas" / name
+    if head == "shared":
+        return Path(shared if shared is not None else SHARED) / "schemas" / rest
+    if head == "lib":
+        return Path(lib if lib is not None else lib_root()) / rest
+    if head == RETURNS_HEAD:
+        raise ValueError(f"{name!r} は include した workflow の返す node の形で、ファイルでない（口は YAML を読まない。静的な照らしだけが読む）")
+    raise ValueError(f"形の名は <ファイル名>・shared:<ファイル名>・lib:<ファイル名>・returns:<workflow の名>: {name!r}")
+
+
+def _load_shape(name: str, block_folder=None, *, shared=None, lib=None):
+    path = _shape_path(name, block_folder, shared=shared, lib=lib)
+    try:
+        return path, _json.loads(path.read_text(encoding="utf-8"))
     except (OSError, ValueError) as error:
         raise ValueError(f"形のファイル {path} が読めない: {error}") from None
+
+
+def is_pointer_shape(shape) -> bool:
+    """形が Archon の pointer の欄か（properties.type が const か 1 語の enum で archon_artifact）。pointer の判別の住処はここ 1 つ"""
+    kind = shape.get("properties", {}).get("type") if isinstance(shape, dict) and isinstance(shape.get("properties"), dict) else None
+    return isinstance(kind, dict) and (kind.get("const") == POINTER_TYPE or kind.get("enum") == [POINTER_TYPE])
+
+
+def carries_file(shape) -> bool:
+    """所が値でなくファイルを運ぶか: pointer の欄か、型が string だけの所（ファイルのパスの字）。その所の description の form は
+    指す先のファイルの form で、値の形でない"""
+    return is_pointer_shape(shape) or isinstance(shape, dict) and shape.get("type") in ("string", ["string"])
+
+
+def _named(shape):
+    """形の所の description が名指す json・jsonl の (form, 名)。無ければ None"""
+    form = form_of(shape.get("description")) if isinstance(shape, dict) else None
+    return form if form and form[0] in JSON_FORMS else None
+
+
+def open_shapes(shape, block_folder=None, *, shared=None, lib=None, returned=None, at: str = "$", _seen: tuple = ()) -> list[str]:
+    """形の中の、中身を宣言していない所の在りか。閉じと数えるのは照らし（engine.schema.validate_schema）が読む語だけ:
+    object は空でない properties か空でない patternProperties か additionalProperties: false、array は items（中も同じに見る）。
+    type・enum・const のどれも無い所と、形を書いた additionalProperties（照らしが読まない）は開き。type に JSON の 6 つの型を全部
+    並べた所も「何でも受ける」で開き（properties・items を添えても。値の型は書き手が決めるので書ける。#861）。description が
+    json(<名>)・jsonl(<名>) の所は名の形を引き、無い・読めない・開いている時は開き（名の形が中身を宣言する）。returns:<workflow の名> は
+    returned(<名>) が返す (返す節の output_format, その workflow のフォルダ) を引く（静的な照らしが渡す。無ければ読めない）"""
+    if not isinstance(shape, dict):
+        return [at]
+    named = _named(shape)
+    if named is not None and not carries_file(shape):
+        return _open_named(named[1], block_folder, shared, lib, returned, at, _seen)
+    out = []
+    if named is not None:
+        out += _open_named(named[1], block_folder, shared, lib, returned, at, _seen)
+    types = shape.get("type")
+    types = {types} if isinstance(types, str) else set(types or ())
+    if not types and "enum" not in shape and "const" not in shape:
+        return out + [at]
+    if ANY_TYPES <= types:
+        return out + [f"{at}(6 つの型を全部並べた)"]
+    extra = shape.get("additionalProperties")
+    if isinstance(extra, dict):
+        out.append(f"{at}.additionalProperties")
+    props = shape.get("properties") if isinstance(shape.get("properties"), dict) else {}
+    pats = shape.get("patternProperties") if isinstance(shape.get("patternProperties"), dict) else {}
+    if "object" in types and not props and not pats and extra is not False:
+        out.append(at)
+    for key, part in (("properties", props), ("patternProperties", pats)):
+        for name, sub in part.items():
+            out += open_shapes(sub, block_folder, shared=shared, lib=lib, returned=returned, at=f"{at}.{key}.{name}", _seen=_seen)
+    if "array" in types:
+        if "items" not in shape:
+            out.append(at)
+        else:
+            out += open_shapes(shape["items"], block_folder, shared=shared, lib=lib, returned=returned, at=f"{at}.items", _seen=_seen)
+    return out
+
+
+def _open_named(name, block_folder, shared, lib, returned, at, seen) -> list[str]:
+    if name in seen:
+        return []
+    head, _, rest = name.partition(":")
+    try:
+        if head == RETURNS_HEAD:
+            sub, block_folder = returned(rest) if returned is not None else (None, None)
+            if sub is None:
+                raise ValueError(name)
+        else:
+            _, sub = _load_shape(name, block_folder, shared=shared, lib=lib)
+    except ValueError:
+        return [f"{at}({name} が無いか読めない)"]
+    return open_shapes(sub, block_folder, shared=shared, lib=lib, returned=returned, at=f"{at}({name})", _seen=(*seen, name))
+
+
+def _expanded(shape, block_folder=None, seen: tuple = ()):
+    """pointer でない所の json(<名>) を名の形に置き換えた形（照らしを 1 度で済ませる）。jsonl(<名>) は 1 行の形なので、値の所では
+    行の配列として読む。所の type が null を許し名の形が許さなければ null を足す。名の巡りは辿った名の並びで止める"""
+    if not isinstance(shape, dict):
+        return shape
+    named = _named(shape)
+    if named is not None and not carries_file(shape) and named[1] not in seen:
+        _, sub = _load_shape(named[1], block_folder)
+        sub = _expanded(sub, block_folder, (*seen, named[1]))
+        if named[0] == "jsonl":
+            sub = {"type": "array", "items": sub}
+        types = shape.get("type")
+        types = [types] if isinstance(types, str) else list(types or ())
+        sub_types = sub.get("type")
+        sub_types = [sub_types] if isinstance(sub_types, str) else list(sub_types or ())
+        if "null" in types and sub_types and "null" not in sub_types:
+            sub = {**sub, "type": [*sub_types, "null"]}
+        return sub
+    out = dict(shape)
+    for key in ("properties", "patternProperties"):
+        if isinstance(shape.get(key), dict):
+            out[key] = {name: _expanded(sub, block_folder, seen) for name, sub in shape[key].items()}
+    if isinstance(shape.get("items"), dict):
+        out["items"] = _expanded(shape["items"], block_folder, seen)
+    return out
+
+
+def shape_errors(value, schema: str, block_folder=None) -> list[str]:
+    """値を形の名 schema で照らした誤り（空なら合う）。形のファイルが読めない・知らない語を持つ・中身を宣言しない所を持つなら ValueError"""
+    from engine.schema import validate_schema   # lib/graphloops/engine/schema.py（KEEP。標準ライブラリだけの形の照らし）
+    if block_folder is None and ":" not in schema:
+        block_folder = caller_block()
+    path, shape = _load_shape(schema, block_folder)
     unknown = unknown_keywords(shape)
     if unknown:
         raise ValueError(f"形のファイル {path} が照らしの知らない語 {unknown} を持つ（照らしは黙って飛ばすので書かない。"
                          "使える語は lib/graphloops/engine/schema.py の KNOWN_KEYWORDS）")
-    errors = validate_schema(value, shape)
+    holes = open_shapes(shape, block_folder)
+    if holes:
+        raise ValueError(f"形のファイル {path} が中身を宣言しない所 {holes} を持つ（object は properties か patternProperties、array は "
+                         "items を書き、type に 6 つの型を全部並べない）")
+    return validate_schema(value, _expanded(shape, block_folder))
+
+
+def _check(value, schema: str, block_folder=None) -> None:
+    errors = shape_errors(value, schema, block_folder)
     if errors:
-        raise ValueError(f"入力が {schema} の形に合わない: {' / '.join(errors[:5])}")
+        raise ShapeError(f"入力が {schema} の形に合わない: {' / '.join(errors[:5])}", value)
 
 
 def unknown_keywords(shape, at: str = "$") -> list[str]:
@@ -189,7 +399,7 @@ def unknown_keywords(shape, at: str = "$") -> list[str]:
     return out
 
 
-def file(raw) -> Path | None:
+def file(raw, form: str) -> Path | None:
     raw = text(raw)
     if not raw.strip() or raw.strip() == "null":
         return None
@@ -198,7 +408,13 @@ def file(raw) -> Path | None:
         raise ValueError(f"file の入力は pointer かファイルのパス（{raw[:80]!r}）")
     if not path.is_file():
         raise ValueError(f"file の入力のファイル {path} が無い")
+    _check_file(path, form)
     return path
+
+
+def carried_file(row: dict) -> Path | None:
+    ref = row["ref"]
+    return file(_json.dumps(ref) if isinstance(ref, dict) else ref, row["form"])
 
 
 # ---------------------------------------------------------------- place と出力
@@ -224,7 +440,9 @@ def place() -> Path:
     return folder
 
 
-def pointer(path) -> dict:
+def pointer(path, form: str) -> dict:
+    """place の中のファイル path を指す pointer。form（file・json(<名>)・jsonl(<名>)）で中身を照らしてから指し、合わなければ指さない"""
+    _check_file(Path(path), form)
     rel = Path(path).resolve().relative_to(Path(os.environ["ARTIFACTS_DIR"]).resolve()).as_posix()
     return {"type": POINTER_TYPE, "run_id": os.environ["WORKFLOW_ID"], "path": rel}
 
@@ -262,9 +480,12 @@ class Picked(dict):
 
 def picked(raw, names, optional=()) -> Picked | None:
     """names の欄が返りに無ければ KeyError（作り手の欄の名の打ち違い・欄の消えを黙って None にしない）。optional の名だけは、無ければ None"""
-    got = None if not text(raw).strip() or text(raw).strip() == "null" else json(raw)
-    if got is None:
+    raw = text(raw)
+    if not raw.strip() or raw.strip() == "null":
         return None
+    got = _json.loads(raw)   # 返りまるごとは Archon が output_format で照らした値。pointer やパスは開かない（ファイルは json・file で読む）
+    if _is_pointer(got):
+        raise ValueError("まるごとの入力が pointer（ファイルの中身は json(raw, <形>)・file(raw, <form>) で読む）")
     if not isinstance(got, dict):
         raise ValueError(f"まるごとの入力が object でない（{type(got).__name__}）")
     absent = [name for name in names if name not in got and name not in optional]

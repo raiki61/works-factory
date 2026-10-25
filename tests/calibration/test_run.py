@@ -64,6 +64,9 @@ if verb == "run" and "refuse" in plan:
     print(plan["refuse"], file=sys.stderr)
     sys.exit(1)
 
+# 工場の返す値の形（shared:apply-result.schema.json）の要る欄。bin/apply が読む前に照らす
+RESULT = {"stop_reason": "", "apply": None, "sealed": None, "r2_status": None, "spec_questions": 0}
+
 def save():
     state_file.write_text(json.dumps(state), encoding="utf-8")
 
@@ -107,7 +110,7 @@ elif verb == "get":
                       "terminal_record": {"run_id": run["id"], "status": run["status"],
                                           "nodes": plan.get("nodes", []) if parent else [],
                                           "returns": {"availability": "available", "node_id": "result",
-                                                      "value": {"outcome": plan.get("outcome", "fixed"), **plan.get("value", {})}},
+                                                      "value": {**RESULT, "outcome": plan.get("outcome", "fixed"), **plan.get("value", {})}},
                                           "artifacts": {"root": str(home / "art" / run["id"]), "files": [], "limitations": []}}}))
 elif verb == "resume":
     for r in state["runs"]:

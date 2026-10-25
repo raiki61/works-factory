@@ -8,6 +8,7 @@ place のファイルの名は src/files.py だけが持つ。
 """
 from __future__ import annotations
 
+import os
 import pathlib
 
 import ports
@@ -109,7 +110,7 @@ def ask(place, repo) -> dict:
     """承認ノードを開くか・文 {ask, message}。文を組めない誤りは works:spec の止めにして開かない"""
     place = pathlib.Path(place)
     try:
-        return gate.ask(place, repo, ports.pointer(place / files.SPEC_ASK)["run_id"])
+        return gate.ask(place, repo, os.environ.get("WORKFLOW_ID", ""))
     except Exception as e:  # noqa: BLE001
         files.write_stop(place, files.STOP, f"仕様の承認ノードの文を組めない（{type(e).__name__}: {e}）")
         return {"ask": False, "message": ""}
@@ -138,8 +139,12 @@ def check_failed(why: str) -> dict:
 
 
 # ---------------------------------------------------------------- 出口
-def _pointer(place: pathlib.Path, name: str):
-    return ports.pointer(place / name) if (place / name).is_file() else None
+def _spec(place: pathlib.Path):
+    return ports.pointer(place / files.SPEC, "json(shared:spec.schema.json)") if (place / files.SPEC).is_file() else None
+
+
+def _added(place: pathlib.Path):
+    return ports.pointer(place / files.ADDED_ROWS, "json(shared:request.schema.json)") if (place / files.ADDED_ROWS).is_file() else None
 
 
 def failed(reason: str, stop_reason: str = files.STOP) -> dict:
@@ -162,8 +167,8 @@ def finish(place, checked) -> dict:
         return {**failed(reason, stop["stop_reason"]), "status": "stopped", "report": report.stopped(reason)}
     if stop or not isinstance(spec, dict):
         return failed(str((stop or {}).get("reason") or doc.get("reason") or files.NOT_RUN))
-    added = _pointer(place, files.ADDED_ROWS)
-    return {"ok": True, "status": "approved", "stop_reason": "", "reason": "", "spec": _pointer(place, files.SPEC),
+    added = _added(place)
+    return {"ok": True, "status": "approved", "stop_reason": "", "reason": "", "spec": _spec(place),
             "added_rows": added, "added_origin": files.ORIGIN if added else "", "questions": [], "unchecked": False,
             "report": report.approved(spec)}
 

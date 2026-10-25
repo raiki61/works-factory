@@ -16,8 +16,13 @@
   rows の先の行で versus.verdict が differs の class_id、前提の実測は constraints の先の行で contradicts の在る行（key は
   premises-<行の番号>）、前の決めの確かめは material の先の reply.conflicts の行（key は prior-<行の番号>）。独立設計は指摘の形を持たない
 - f. 世界の解は、rows の先の行が、今の表と設計書から組んだ依頼の行（d の request）の行ごとに 1 つずつ在る: finding が 1〜行の数の
-  どれも 1 回だけ・ほかの番号が無い・where がその依頼の行の where・versus.verdict が same・differs・none のどれか（評価済み）。行の
-  ファイルを返さない記録も合わない。e の指摘の照らしは書かれた行の指摘しか数えないので、書かれなかった行（未評価の行）を通さないためにここで照らす
+  どれも 1 回だけ・ほかの番号が無い・where がその依頼の行の where。行のファイルを返さない記録も合わない。e の指摘の照らしは書かれた
+  行の指摘しか数えないので、書かれなかった行（未評価の行）を通さないためにここで照らす
+
+e・f が読む返す値の欄と、その指す先の中身の欄は、表 RETURN_READS の 1 か所に書く（部品 → 返す値の欄・その欄の form・読む欄の道）。
+form は部品の返す値の output_format のその欄の form と字のまま同じで、道はその form の形に在る（静的な照らしは
+tests/layers/scan.py の E5 の _shell_reads）。指す先の中身は、読む前にその form の形で照らす（.shared の口 ports.shape_errors。
+形に合わなければ e の読めない訳で止め、指摘を 0 件と読んで黙って通さない。versus.verdict が評価済みの語かも形の enum が照らす）
 
 結果は家の spec-reviews/<中身の hash>.json に書き、パスを run の設定の層の env（RESULT_ENV）で run に渡す（resume しても同じ値）。
 block の形 entry は、そのファイルが今の表と設計書の物で、全部の行が合っていることだけを照らす。
@@ -34,13 +39,27 @@ import os
 import subprocess
 from pathlib import Path
 
+from bin._lib import place
+
 LINE, BLOCK = "works-factory-line", "works-factory-spec-driven"
 TABLE_INPUT = {LINE: "spec_table", BLOCK: "table"}
 RESULT_ENV = "WORKS_FACTORY_SPEC_REVIEWS"   # workflows/spec-driven/src/files.py の REVIEWS_ENV と同じ名
 READER = Path(__file__).with_name("spec-inputs.py")
 PLAN_REVIEW, WORLD = "works-factory-plan-review", "works-factory-world"
 PREMISES, PRIOR_DECISIONS = "works-factory-premises", "works-factory-prior-decisions"
-VERDICTS = ("same", "differs", "none")   # 世界の解の行の versus.verdict（lib/worldmark.py の VERDICTS と同じ語）
+# 部品の返す値から読む所（e・f）: 部品 → (返す値の欄, その欄の form, 指す先の中身から読む欄の道)。道は . で段を分け、段の末の [] は
+# 配列の要素。jsonl の form の道は 1 行の中の道。form と道は部品の宣言に照らされる（モジュールの docstring）
+RETURN_READS = {
+    PLAN_REVIEW: ("holes", "json(shared:plan-review-reply.schema.json)", ("faces[].key",)),
+    PREMISES: ("constraints", "json(shared:constraints.schema.json)", ("constraints[].contradicts",)),
+    PRIOR_DECISIONS: ("material", "json(shared:material.schema.json)", ("reply.conflicts[]",)),
+    WORLD: ("rows", "jsonl(lib:world-row.schema.json)", ("finding", "where", "class_id", "versus.verdict")),
+}
+FACE_KEYS, = RETURN_READS[PLAN_REVIEW][2]
+CONTRADICTS, = RETURN_READS[PREMISES][2]
+CONFLICTS, = RETURN_READS[PRIOR_DECISIONS][2]
+FINDING, WHERE, CLASS_ID, VERDICT = RETURN_READS[WORLD][2]
+DIFFERS = "differs"   # 世界の解の行の versus.verdict のうち、指摘に数える語（形 lib:world-row.schema.json の enum の 1 つ）
 
 
 def named_table(workflow: str | None, inputs: list[str]) -> str | None:
@@ -108,36 +127,51 @@ def _pointed(record: dict, ptr) -> Path | None:
     return Path(real)
 
 
+def _walk(doc, path: str) -> list:
+    """読む欄の道 path（RETURN_READS の道）の値の並び。[] の段は要素ごとに広げ、欄の無い所は None（並びの位置を保つ）"""
+    got = [doc]
+    for step in path.split("."):
+        name, many = step.removesuffix("[]"), step.endswith("[]")
+        got = [v.get(name) if isinstance(v, dict) else None for v in got]
+        if many:
+            got = [x for v in got for x in (v if isinstance(v, list) else [])]
+    return got
+
+
+def _returned(record: dict, part: str, value: dict):
+    """部品 part の返す値の欄（RETURN_READS）の指す先を、その欄の form の形で照らして読んだ物（json は値、jsonl は行の並び）。
+    pointer が無ければ None（指摘のファイルを返さない部品の run）。読めない・形に合わなければ ValueError（_pointed も同じ）"""
+    field, form, _ = RETURN_READS[part]
+    path = _pointed(record, value.get(field))
+    if path is None:
+        return None
+    ports = place.shared("ports")
+    kind, name = ports.form_of(form)
+    text = path.read_text(encoding="utf-8")
+    docs = [json.loads(line) for line in text.splitlines() if line.strip()] if kind == "jsonl" else [json.loads(text)]
+    errors = [e for doc in docs for e in ports.shape_errors(doc, name)]
+    if errors:
+        raise ValueError(f"{path.name} が {form} の形に合わない: {' / '.join(errors[:3])}")
+    return docs if kind == "jsonl" else docs[0]
+
+
 def _keys(record: dict, part: str, value: dict) -> tuple[set, str]:
     """(返す値から数えられる指摘の key, 読めない訳)。指摘の形を持たない部品は (空, "")"""
+    if part not in RETURN_READS:
+        return set(), ""
     try:
-        if part == PLAN_REVIEW:
-            path = _pointed(record, value.get("holes"))
-            if path is None:
-                return set(), ""
-            doc = json.loads(path.read_text(encoding="utf-8"))
-            return {str(f.get("key")) for f in doc.get("faces") or [] if isinstance(f, dict)}, ""
-        if part == PREMISES:   # 前提の実測の行のうち contradicts（食い違う依頼の行の where）の在る行。key は premises-<行の番号>
-            path = _pointed(record, value.get("constraints"))
-            if path is None:
-                return set(), ""
-            rows = json.loads(path.read_text(encoding="utf-8")).get("constraints") or []
-            return {f"premises-{n}" for n, r in enumerate(rows, 1) if isinstance(r, dict) and r.get("contradicts")}, ""
-        if part == PRIOR_DECISIONS:   # 前の決めの確かめの conflicts の行。key は prior-<行の番号>
-            path = _pointed(record, value.get("material"))
-            if path is None:
-                return set(), ""
-            rows = (json.loads(path.read_text(encoding="utf-8")).get("reply") or {}).get("conflicts") or []
-            return {f"prior-{n}" for n, r in enumerate(rows, 1) if isinstance(r, dict)}, ""
-        if part == WORLD:
-            path = _pointed(record, value.get("rows"))
-            if path is None:
-                return set(), ""
-            rows = [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
-            return {str(r.get("class_id")) for r in rows if isinstance(r, dict) and (r.get("versus") or {}).get("verdict") == "differs"}, ""
-    except (OSError, ValueError, AttributeError) as error:
+        doc = _returned(record, part, value)
+    except (OSError, ValueError) as error:
         return set(), f"返す値の指摘のファイルを読めない（{type(error).__name__}: {error}）"
-    return set(), ""
+    if doc is None:
+        return set(), ""
+    if part == PLAN_REVIEW:
+        return {str(k) for k in _walk(doc, FACE_KEYS)}, ""
+    if part == PREMISES:   # 前提の実測の行のうち contradicts（食い違う依頼の行の where）の在る行。key は premises-<行の番号>
+        return {f"premises-{n}" for n, c in enumerate(_walk(doc, CONTRADICTS), 1) if c}, ""
+    if part == PRIOR_DECISIONS:   # 前の決めの確かめの conflicts の行。key は prior-<行の番号>
+        return {f"prior-{n}" for n, _ in enumerate(_walk(doc, CONFLICTS), 1)}, ""
+    return {str(row[CLASS_ID]) for row in doc if _walk(row, VERDICT) == [DIFFERS]}, ""   # WORLD
 
 
 def _same_proposal(named: str, sha: str) -> bool:
@@ -189,16 +223,15 @@ def _world_cover(record: dict, value: dict, request) -> list:
     if not isinstance(request, list):
         return ["今の表と設計書から依頼の行を組めない"]
     try:
-        path = _pointed(record, value.get("rows"))
-        if path is None:
-            return ["世界の解の返す値に行のファイルが無い（依頼の行ごとに 1 行が要る）"]
-        rows = [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
+        rows = _returned(record, WORLD, value)
     except (OSError, ValueError) as error:
         return [f"世界の解の行のファイルを読めない（{type(error).__name__}: {error}）"]
+    if rows is None:
+        return ["世界の解の返す値に行のファイルが無い（依頼の行ごとに 1 行が要る）"]
     found: dict = {}
-    for r in rows:
-        n = r.get("finding") if isinstance(r, dict) else None
-        found.setdefault(n if isinstance(n, int) and not isinstance(n, bool) else repr(n), []).append(r)
+    for r in rows:   # 行は形で照らした物（finding は整数。真偽は整数に数えない）
+        n = r[FINDING]
+        found.setdefault(repr(n) if isinstance(n, bool) else n, []).append(r)
     out = []
     for n, want in enumerate(request, 1):
         got = found.pop(n, [])
@@ -206,10 +239,8 @@ def _world_cover(record: dict, value: dict, request) -> list:
             out.append(f"依頼の行 {n} に世界の解の行が無い（{want.get('where')}。審査していない行）")
         elif len(got) > 1:
             out.append(f"依頼の行 {n} に世界の解の行が {len(got)} つ在る")
-        elif got[0].get("where") != want.get("where"):
-            out.append(f"依頼の行 {n} の世界の解の行の where が {got[0].get('where')}（依頼の行は {want.get('where')}）")
-        elif (got[0].get("versus") or {}).get("verdict") not in VERDICTS:
-            out.append(f"依頼の行 {n} の世界の解の行が評価されていない（versus.verdict が {'・'.join(VERDICTS)} のどれでもない）")
+        elif got[0][WHERE] != want.get("where"):
+            out.append(f"依頼の行 {n} の世界の解の行の where が {got[0][WHERE]}（依頼の行は {want.get('where')}）")
     out += [f"依頼の行に無い番号 {n} の世界の解の行が在る" for n in found]
     return out
 

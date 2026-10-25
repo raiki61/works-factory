@@ -1,0 +1,60 @@
+{
+  "description": "再審の出口 rejudge-exit.json（diagnose の src/rejudge.py の collect）。ok は受けた再審の判定が在るか、verdicts は回ごとの答えの語、unsettled は降ろしていない異議、new_open_units・lowered・unnamed_changed は再審の前後の単位の比べ、diff_file は差の行のファイルのパス",
+  "type": "object",
+  "properties": {
+    "ok": {
+      "type": "boolean"
+    },
+    "reason": {
+      "type": "string"
+    },
+    "passes": {
+      "type": "integer"
+    },
+    "verdicts": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "unsettled": {
+      "type": "object",
+      "properties": {
+        "text": {
+          "type": "string"
+        },
+        "settled": {
+          "type": "boolean"
+        }
+      }
+    },
+    "objection": {
+      "type": "string"
+    },
+    "new_open_units": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "lowered": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "unnamed_changed": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "diff_file": {
+      "type": "string",
+      "description": "json(shared:rejudge-diff.schema.json): 差の行のファイル（無ければ空の字）"
+    },
+    "reads_file": {
+      "type": "string"
+    }
+  }
+}

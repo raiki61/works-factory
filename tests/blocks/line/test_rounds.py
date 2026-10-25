@@ -1,8 +1,9 @@
 """計画の往復の記録と止め（docs/design/line.md の 3 節。node plan-out と owed。src/rounds.py）。
 
 元は今の tests/workflows/test_line.py の PlanOutCase・PlanOutNothingOwedCase・OwedCase。往復の行・止め時の 5 語・上限 20 と YAML の
-max_iterations の突き合わせ・上限で止めた行の capped・止まった案を推しで進める時の保留の穴の足し・2 本の prior の形（plan の
-plan-prior の形と、plan-review の PRIOR_SHAPE）を見る。往復の記録の行の決まりそのものは test_converge_line.py。
+max_iterations の突き合わせ・上限で止めた行の capped・止まった案を推しで進める時の保留の穴の足し・2 本の prior が共有の形
+（shared:plan-converge.schema.json と shared:plan-prior.schema.json。書き手の plan-out が書いた時に ports.pointer が照らし、ここは写しを
+持たずに同じ形で照らす）に合うかを見る。往復の記録の行の決まりそのものは test_converge_line.py。
 """
 import json
 import pathlib
@@ -19,8 +20,6 @@ import converge  # noqa: E402
 import judgmark  # noqa: E402
 
 U1, U2 = "u1", "u2"
-PRIOR_SHAPE_REQUIRED = ("passes",)                   # plan-review の設計書の 1.5 の PRIOR_SHAPE の required
-PLAN_PRIOR_REQUIRED = ("round", "reply", "fields")   # plan の plan-prior.schema.json の required
 
 
 def face(key, units=(U1,), severity="block"):
@@ -49,7 +48,7 @@ class PlanOutCase(unittest.TestCase):
         return {"type": "archon_artifact", "run_id": kit.RUN_ID, "path": rel}
 
     def plan(self, k, **kw):
-        return {"ok": True, "status": "ok", "reason": "", "round": k, "owed": [U1], "plan": self.put(f"plan/r{k}/plan-fields.json", {"fields": []}),
+        return {"ok": True, "status": "ok", "reason": "", "round": k, "owed": [U1], "plan": self.put(f"plan/r{k}/plan-fields.json", {"round": 1, "fields": []}),
                 "fix_plan": self.put(f"plan/r{k}/fix-plan.json", {}), "reply": self.put(f"plan/r{k}/reply.json", {"plan": []}),
                 "handoff": self.put(f"plan/r{k}/handoff.json", {}), "ripple": self.put(f"plan/r{k}/ripple.json", {}),
                 "rejects": [], "gave_up": None, "mode": "plan", "replan": None, "report": [], **kw}
@@ -72,12 +71,12 @@ class PlanOutCase(unittest.TestCase):
         self.assertEqual((got["done"], got["ok"], got["stalled"], got["capped"], got["round"], got["stop_reason"]),
                          (True, True, False, False, 1, ""))
         record = json.loads((self.run.artifacts / got["record"]["path"]).read_text(encoding="utf-8"))
-        self.assertTrue(all(k in record for k in PRIOR_SHAPE_REQUIRED))
+        kit.shaped("shared:plan-converge.schema.json", record)
         self.assertEqual((record["outcome"], len(record["passes"])), (converge.CLEAN, 1))
         self.assertEqual(got["record"]["path"], files.PLAN_CONVERGE)
         prior = json.loads((self.run.artifacts / got["plan_prior"]["path"]).read_text(encoding="utf-8"))
         self.assertEqual(got["plan_prior"]["path"], files.PLAN_PRIOR.format(k=1))
-        self.assertTrue(all(k in prior for k in PLAN_PRIOR_REQUIRED))
+        kit.shaped("shared:plan-prior.schema.json", prior)
         self.assertEqual(prior["record"], record, "plan の prior.record は plan-converge.json と同じ中身")
         self.assertEqual(prior["review"], got["review"])
         self.assertEqual([h["round"] for h in prior["handoffs"]], [1])

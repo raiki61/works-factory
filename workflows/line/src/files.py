@@ -4,7 +4,8 @@ carry の prior-failures-in.json・answer の gates/<承認ノード>.json・pol
 
 - START: 始めの記録（start が 1 度書く。拒んだ run も版の控えと拒みの訳を書く。起動の殻と包みと bin/ が同じ所を読むので、名と置き場を
   変えない。今の lib/startrec.py の REL）
-- CARRIED: 依頼の容器の constraints（start が書く。premises の port carried に渡す）
+- CARRIED: 依頼の容器の constraints（start が書く。行が無ければ空の配列。premises の port carried に渡す）
+- REQUEST: 依頼の写し（start が書く。依頼のファイルが無い run は空の配列。block の port request に pointer で渡す）
 - PLAN_CONVERGE: 計画の往復の記録（plan-out が周ごとに 1 行足して書き直す。plan-review の port prior の先）。PLAN_CONVERGE_DIR は
   往復の行の files の写しの置き場で、PLAN_CONVERGE_FILES はその中の周ごとのフォルダ（plan-converge/<k>/）
 - PLAN_PRIOR: 次の周の plan の port prior の先（plan-rounds/prior-<k>.json）
@@ -20,6 +21,7 @@ carry の prior-failures-in.json・answer の gates/<承認ノード>.json・pol
 """
 START = "r1/start.json"
 CARRIED = "carried.json"
+REQUEST = "request.json"
 PLAN_CONVERGE = "plan-converge.json"
 PLAN_CONVERGE_DIR = "plan-converge"
 PLAN_CONVERGE_FILES = PLAN_CONVERGE_DIR + "/{k}"
