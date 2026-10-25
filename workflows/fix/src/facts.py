@@ -40,7 +40,7 @@ import conflict  # noqa: E402
 from src import board as fixboard  # noqa: E402  （直す義務・突き合わせの起点の版・承認済みの修正案の項目の読み口）
 from src import scope as planscope  # noqa: E402
 import recount  # noqa: E402  （書いた指しの照らし。受け付けと同じ口）
-from src import common  # noqa: E402
+from src import basecase, common  # noqa: E402
 import writelog  # noqa: E402
 import writes  # noqa: E402
 
@@ -62,10 +62,10 @@ def fix_unit_keys(reply: dict, board: Path, owed, *, withheld_by=None, returned=
 def check_writes(reply: dict, board: Path, base_rev: str, repo: Path, state: str, *, log=None, since=None,
                  skip: tuple = ()) -> dict:
     """書き込みの出どころ（writes.check。欄 bash_writes を外した返答は reply に）。実行器が作ったファイルは run の全部の輪の物を
-    外す（common.suite_made_all）。盤面は書かない（申告の記録は writes.check が足す）。
+    外す（basecase.suite_made_all。元の結末・受け付けの書き戻し・写した物・返しの控えを含む）。盤面は書かない（申告の記録は writes.check が足す）。
     書き込みの記録は log（既定は置き場の writelog.LOG）。skip は除くパスの頭（writes.check）。
     since は見る変更の起点（受け付けと事前の確かめは fixboard.fixer_head の段の頭。前の段が書いた物を修正役に求めない）"""
-    made = set(common.suite_made(state)) | common.suite_made_all(board)
+    made = set(common.suite_made(state)) | basecase.suite_made_all(board)
     rev = fixboard.base_rev(None, base_rev)
     return writes.check(reply, repo, [p for p in _changed(repo, rev, since) if p not in made],
                         Path(board) / writelog.LOG if log is None else Path(log), skip=tuple(skip))
@@ -178,7 +178,7 @@ def check_plan_scope(reply: dict, keys: list, board: Path, base_rev: str, repo: 
     run 97fd532f）"""
     b = board
     rows = [{"unit_key": k, "files": sorted(declared_files([c], repo))} for c, k in zip(reply.get("changes") or [], keys)]
-    made = set(common.suite_made(state)) | common.suite_made_all(board)
+    made = set(common.suite_made(state)) | basecase.suite_made_all(board)
     rev = fixboard.base_rev(None, base_rev)
     after = set(writes.changed_from(repo, since)) if since else None
     paths = sorted(p for p in set(writes.changed(repo, rev)) | (after or set()) if p not in made)

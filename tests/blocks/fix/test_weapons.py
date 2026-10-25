@@ -5,12 +5,16 @@
   走らせない（持ち主の決め base-runs-nothing。走らせるのは試験の一覧のコマンドだけ）
 - 確かめの表（src/duties.py）の形の決まりと、型の義務の関数（static・pin・remove・variant・rebuild）
 - 口の形（schemas/weapon-order.schema.json・weapon-return.schema.json）
+- 共通の受け付けが型の義務の表を引く口（duties.accept_problems）・赤を見ない clean の照らしを当てる単位（board.red_units・
+  recount の red_units）・返しの控えを書く所（duties.write_returns）・返しの控えの凍結の照らし（duties.frozen_by_returns）・
+  受け付けの名指しの出どころ（orders.named_tests）（4.4 の 4）
 """
 import json
 import pathlib
 import sys
 import tempfile
 import unittest
+import unittest.mock
 
 from tests.bin.gitkit import git
 from tests.blocks import kit
@@ -263,6 +267,123 @@ class SchemaCase(unittest.TestCase):
         self.assertEqual(validate_schema(ret, self.load("weapon-return.schema.json")), [])
         self.assertTrue(validate_schema({**ret, "status": [{"unit": "u", "status": "fixed", "why": ""}]},
                                         self.load("weapon-return.schema.json")))
+
+
+class AcceptTableCase(unittest.TestCase):
+    """4.4 の 4: 共通の受け付けが注文の索引の型で義務の表を引き、返しを通した時に returns/<k>.json を書き、その凍結を後で照らす"""
+
+    def setUp(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.tmp = pathlib.Path(tmp.name)
+        self.repo = _repo(self.tmp, {"docs/a.md": "# a\n", "stats.py": "def mean(xs):\n    return sum(xs) / len(xs)\n",
+                                     "test_stats.py": "def test_mean():\n    assert True\n"})
+        self.rev = git(self.repo, "rev-parse", "HEAD").strip()
+        self.place = self.tmp / "place"
+        self.place.mkdir()
+        kit.load("fix", "duties")
+        from src import board, common, duties, orders
+        self.board, self.common, self.duties, self.orders = board, common, duties, orders
+
+    def put(self, rel, doc):
+        p = self.place / rel
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text(json.dumps(doc), encoding="utf-8")
+        return p
+
+    def ordered(self, weapons: dict, docs: dict, since=""):
+        self.put("orders.json", {"sequence": list(docs), "weapons": weapons, "stage": 1, "since": since or self.rev})
+        for w, doc in docs.items():
+            self.put(f"orders/{w}.json", {"weapon": w, "group": "g1", "stage": 1, "permits": [], **doc})
+
+    def test_static_unit_is_checked_by_its_duties(self):
+        """static の単位: 訳が無い・試験のファイルを変えた返答を拒み、文書だけを訳つきで変えた返答は通す"""
+        self.ordered({"S": "static"}, {"static": {"units": [{"key": "S", "removes": [], "tests": []}]}})
+        (self.repo / "test_stats.py").write_text("def test_mean():\n    assert 1\n", encoding="utf-8")
+        reply = {"changes": [{"unit_key": "S", "files": ["docs/a.md", "test_stats.py"]}]}
+        got = self.duties.accept_problems(self.place, self.repo, self.rev, reply)
+        self.assertEqual([k for k, _ in got], ["S", "S"], got)
+        self.assertTrue(any("why_untested" in t for _, t in got) and any("試験のファイル" in t for _, t in got), got)
+        self.ordered({"S": "static"}, {"static": {"units": [{"key": "S", "removes": [], "tests": []}], "why_untested": "文書の言い回し"}})
+        self.assertEqual(self.duties.accept_problems(self.place, self.repo, self.rev,
+                                                     {"changes": [{"unit_key": "S", "files": ["docs/a.md"]}]}), [])
+
+    def test_pin_and_remove_and_keep_duties(self):
+        """pin はコードを変えると拒み試験を足さないと拒む。remove は許しの外で試験を消すと拒む。keep の箱は居なくなった試験を拒む"""
+        self.ordered({"P": "pin", "R": "remove"}, {"pin": {"units": [{"key": "P", "removes": [], "tests": []}]},
+                                                    "remove": {"units": [{"key": "R", "removes": ["x"], "tests": []}]}})
+        (self.repo / "test_stats.py").write_text("", encoding="utf-8")
+        got = self.duties.accept_problems(self.place, self.repo, self.rev, {"changes": [
+            {"unit_key": "P", "files": ["stats.py"]}, {"unit_key": "R", "files": ["test_stats.py"]}]})
+        self.assertEqual(sorted({k for k, _ in got}), ["P", "R"], got)
+        self.assertTrue(any("test_stats.py::test_mean" in t for k, t in got if k == "R"), got)
+        base = {"baseline_cases": [{"classname": "test_stats", "name": "test_mean", "outcome": "passed"}]}
+        cases = [{"classname": "test_stats", "name": "test_other", "outcome": "passed"}]
+        self.assertEqual(self.duties._vanished(base, cases), ["test_stats::test_mean"])
+        self.assertEqual(self.duties.keep_same_result({"vanished": ["test_stats::test_mean"], "permits": []})[:1],
+                         [self.duties.keep_same_result({"vanished": ["test_stats::test_mean"]})[0]])
+
+    def test_units_without_orders_are_not_checked(self):
+        self.assertEqual(self.duties.accept_problems(self.place, self.repo, self.rev,
+                                                     {"changes": [{"unit_key": "S", "files": ["test_stats.py"]}]}), [])
+
+    def test_red_units_follow_the_weapons(self):
+        """F135（赤を見ない clean を拒む）は variant・remove・pin の単位の行だけで見る。注文の無い置き場は今のとおり全部の行"""
+        import recount
+        self.assertIsNone(self.board.red_units(self.place))
+        self.ordered({"S": "static", "V": "variant", "T": "tdd"}, {"static": {"units": [{"key": "S"}]}})
+        self.assertEqual(self.board.red_units(self.place), {"V"})
+        clean = {"fix_closure": {"status": "clean"}, "changes": [
+            {"unit_key": "S", "closure": {"sites": [{"red_seen": ""}]}},
+            {"unit_key": "V", "closure": {"sites": [{"red_seen": ""}]}}]}
+        msg = "閉鎖の実証で赤を一度も見ていない"
+        with unittest.mock.patch.object(recount, "ref_problems", return_value=[]):
+            self.assertTrue(any(msg in e for e in recount._after_problems(clean, self.place, self.rev, self.repo)))
+            self.assertTrue(any(msg in e for e in recount._after_problems(clean, self.place, self.rev, self.repo, {"V"})))
+            self.assertEqual(recount._after_problems(clean, self.place, self.rev, self.repo, {"T"}), [])
+            seen = {**clean, "changes": [*clean["changes"], {"unit_key": "S", "closure": {"sites": [{"red_seen": "赤"}]}}]}
+            self.assertTrue(any(msg in e for e in recount._after_problems(seen, self.place, self.rev, self.repo, {"V"})),
+                            "static の単位の赤は variant の単位の赤に数えない")
+
+    def test_accepted_reply_writes_returns_and_their_frozen_files_are_checked(self):
+        """返しを通した時に型ごとの returns/<k>.json を書き（tdd は輪の状態の frozen・frozen_tree・suite_made を写す）、後の受け付けは
+        その凍ったファイルの、注文の許しの外の書き換えを拒む"""
+        state = self.put("tdd-1/state.json", {"frozen": {"test_stats.py": self.common.hashes(self.repo, ["test_stats.py"])["test_stats.py"]},
+                                              "frozen_tree": self.rev, "suite_made": ["made.log"],
+                                              "units": {"T": {"tests": ["test_stats.py::test_mean"]}}})
+        self.ordered({"T": "tdd", "V": "variant"}, {"tdd": {"units": [{"key": "T", "tests": ["test_stats.py::test_mean"]}]},
+                                                    "variant": {"units": [{"key": "V", "tests": []}]}})
+        (self.repo / "test_new.py").write_text("def test_added():\n    assert True\n", encoding="utf-8")
+        got = self.duties.write_returns(self.place, self.repo, self.rev, {"changes": [
+            {"unit_key": "T", "files": ["stats.py"]}, {"unit_key": "V", "files": ["test_new.py"]}]}, state=str(state))
+        rets = {json.loads(pathlib.Path(p).read_text(encoding="utf-8"))["weapon"]: json.loads(pathlib.Path(p).read_text(encoding="utf-8"))
+                for p in got}
+        self.assertEqual(sorted(rets), ["tdd", "variant"])
+        self.assertEqual((list(rets["tdd"]["frozen"]), rets["tdd"]["suite_made"], rets["tdd"]["added"]),
+                         (["test_stats.py"], ["made.log"], ["test_stats.py::test_mean"]))
+        self.assertEqual((rets["variant"]["frozen"], rets["variant"]["added"]), ({}, ["test_new.py::test_added"]))
+        self.assertEqual(self.duties.frozen_by_returns(self.place, self.repo), [])
+        (self.repo / "test_stats.py").write_text("def test_mean():\n    assert 1 == 1\n", encoding="utf-8")
+        self.assertTrue(self.duties.frozen_by_returns(self.place, self.repo), "凍ったファイルの許しの外の書き換え")
+        self.ordered({"T": "tdd"}, {"tdd": {"units": [{"key": "T", "tests": []}],
+                                            "permits": [{"kind": "rewrite", "duty": True, "test": "test_stats.py"}]}})
+        self.assertEqual(self.duties.frozen_by_returns(self.place, self.repo), [], "注文の許しの範囲の中は通す")
+
+    def test_before_cases_read_the_group_base(self):
+        """確かめ直しが照らす直す前の結末は、組の結果の欄 base の base.json の baseline_cases（輪の状態は読まない）"""
+        row = {"classname": "test_stats", "name": "test_mean", "outcome": "failure"}
+        base = self.put("g1/base.json", {"baseline_cases": [row]})
+        stale = self.put("g1/tdd-1/state.json", {"baseline_cases": [{**row, "outcome": "passed"}]})
+        self.put("groups.json", {"out_dir": str(self.tmp / "out"), "groups": [{"group_id": "g1"}]})
+        (self.tmp / "out" / "g1").mkdir(parents=True)
+        (self.tmp / "out" / "g1" / "result.json").write_text(json.dumps(
+            {"end_tree": "t", "base": str(base), "tdd_state": str(stale)}), encoding="utf-8")
+        self.assertEqual(self.board.before_cases(self.place), [row])
+
+    def test_named_tests_come_from_the_orders(self):
+        self.ordered({"T": "tdd"}, {"tdd": {"units": [{"key": "T", "tests": ["t.py::a", "t.py::a"]}],
+                                            "permits": [{"kind": "rewrite", "test": "u.py::b"}, {"kind": "remove", "test": "v.py"}]}})
+        self.assertEqual(self.orders.named_tests(self.place), ["t.py::a", "u.py::b"])
 
 
 if __name__ == "__main__":

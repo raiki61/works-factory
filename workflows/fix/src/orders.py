@@ -279,3 +279,26 @@ def weapons(place) -> dict:
     got = doc.get("weapons") if isinstance(doc, dict) else None
     return dict(got) if isinstance(got, dict) else {}
 
+
+
+def order_docs(place) -> dict:
+    """置き場の型ごとの注文 {型の名: orders/<w>.json の中身}（無ければ {}。読めない注文は ValueError）"""
+    d = pathlib.Path(place) / files.ORDERS_DIR
+    out = {}
+    for p in sorted(d.glob("*.json")) if d.is_dir() else []:
+        doc = jsonfile.read_or(p)
+        if not isinstance(doc, dict):
+            raise ValueError(f"注文 {p} が読めない")
+        out[p.stem] = doc
+    return out
+
+
+def named_tests(place) -> list:
+    """受け付けの名指しの出どころ（下書き 2.1 の「受け付けの名指しの出どころ」）のうち注文の物: 全部の注文の units[].tests と、
+    permits の rewrite の行の test（現れた順・重ねない）。返しの evidence.named・added・rewritten は書き手が返す PR B で足す"""
+    out: list = []
+    for doc in order_docs(place).values():
+        ids = [t for u in doc.get("units") or [] if isinstance(u, dict) for t in u.get("tests") or []]
+        ids += [r.get("test") for r in doc.get("permits") or [] if isinstance(r, dict) and r.get("kind") == "rewrite"]
+        out += [t for t in dict.fromkeys(ids) if isinstance(t, str) and t.strip() and t not in out]
+    return out

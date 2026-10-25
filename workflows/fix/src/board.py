@@ -40,9 +40,10 @@ def tests_trace(place, state_file, note: str, *, pass_: str, attempt: int) -> No
     rows = read_json(path, [])
     if not isinstance(rows, list):
         raise ValueError(f"{path} が行の並び（JSON の array）でない")
+    acc = common.accept_values(place) if state_file else {}   # 受け付けが書き戻した欄は置き場の accept.json（下書き 2.1）
     rows.append({"op": impact.ACCEPT_TRACE_OP, "node": FIX_ACCEPT_BY, "pass": pass_, "attempt": attempt, "note": note,
-                 "ci_left": common.ci_left(state_file), "final_left": common.final_left(state_file),
-                 "final_far": common.final_far(state_file)})
+                 "ci_left": list(acc.get("ci_left") or []), "final_left": list(acc.get("final_left") or []),
+                 "final_far": list(acc.get("final_far") or [])})
     write_json(path, rows)
 
 
@@ -299,7 +300,7 @@ def rerun_problem(place, repo, suite: str, cases, named, *, name: str = "rerun",
        木 base（common.snapshot。skip の頭の下は数えない）を呼び手が渡せば、赤を 1 回で戻す理由にせず cmd_verdict で見分ける（#855）:
        外した木でも赤なら前から赤（または環境）、外すと緑で走らせ直しに 1 回でも緑が在れば揺れと見て戻さず、その文を cmd_notes
        （呼び手が渡した並び）に足す。外した木の結果が取れなければ uncompared（在れば）に足して人に聞く。3 回とも赤の時だけ戻す理由。
-    shared の在る組の赤は意味の食い違い（SEMANTIC_CLASH）と名指す。走らせ直しの状態とログは置き場の <name>/ に置く"""
+    shared の在る組の赤は意味の食い違い（SEMANTIC_CLASH）と名指す。走らせ直しの仮の base.json・accept.json とログは置き場の <name>/ に置く"""
     import baseline_red
     from src import common, tdd as tddloop
     suite = (suite or "").strip()
@@ -325,16 +326,16 @@ def rerun_problem(place, repo, suite: str, cases, named, *, name: str = "rerun",
         probs = baseline_red.green_problems(rest, hit, 0)
         if probs:
             probs = ["当てた後の木で名指しのテストが緑でない: " + "；".join(probs)]
-    if not probs:
-        st = {"exe": str(exe), "work": str(work), "suite_made": [], "contract": {}, "unit_head": "",
-              "baseline": {common._key(c): c.get("outcome") for c in cases or [] if isinstance(c, dict)},
-              "units": {name: {"tests": named, "test_files": []}}}
+    if not probs:   # 仮の元の結末 base.json（直す前の結末 cases）と名指し named を渡す（下書き 2.1。仮の輪の状態は組まない）
+        st = {"exe": str(exe), "work": str(work), "suite": suite, "suite_made": [], "taken": True, "baseline_cases": [],
+              "baseline": {common._key(c): c.get("outcome") for c in cases or [] if isinstance(c, dict)}}
+        wide = []
         if shared:
             wide, everything = common._reached(st, repo, seeds=shared, direct_only=False)
-            if not everything:
-                st["units"][name]["test_files"] = wide
-        state = write_json(work / tddloop.STATE, st)
-        probs, _ = common.selected_problems(str(state), repo, rev, uncompared=uncompared)
+            wide = [] if everything else wide
+        base_file = write_json(work / fixnames.BASE_FILE, st)
+        probs, _ = common.selected_problems(str(base_file), repo, rev, uncompared=uncompared, named=[*named, *wide],
+                                            accept=work)
     if not probs and (test_cmd or "").strip():
         probs = cmd_verdict(repo, test_cmd.strip(), work, base=base, notes=cmd_notes, uncompared=uncompared, skip=skip)
     why = "；".join(probs)
@@ -1183,6 +1184,27 @@ def adopt_returns(place, sources, *, prior: bool = False, only_prior: bool = Fal
     return out
 
 
+RED_WEAPONS = ("variant", "remove", "pin")   # 赤を見ない clean を拒む照らし（F135）を当てる型（docs/plans/2026-10-25-fix-weapons-stage1-a.md の 3）
+
+
+def red_units(place):
+    """F135 を当てる単位の集まり: 注文の索引の型が RED_WEAPONS の単位。注文の無い置き場（裁定の後の段の親など）は None（今のとおり
+    返答の全部の行で見る）"""
+    from src import orders
+    weapons = orders.weapons(place)
+    return {k for k, w in weapons.items() if w in RED_WEAPONS} if weapons else None
+
+
+def accept_base(place) -> str:
+    """受け付けが輪の状態の無い時に選んで走らせる元の結末のファイル: 置き場の base.json（組の子）、無ければ親の受け付けの選び
+    ruled_base の base.json。どちらも無ければ ""（実行器の無い run。受け付けは試験を走らせない）"""
+    own = pathlib.Path(place) / fixnames.BASE_FILE
+    if own.is_file():
+        return str(own)
+    got = ruled_base(place)
+    return str(pathlib.Path(got) / fixnames.BASE_FILE) if got else ""
+
+
 def ruled_base(place) -> str:
     """親の受け付けが読む元の結末の bases/<k>/（今の ruled_states の「組の順で最後の物」と同じ選び。1 回目の修正の段の物 PRIOR_LOOP と
     base.json の無い物は外す）。無ければ """""
@@ -1276,6 +1298,7 @@ FIX_CHECKS = {
     "excused": "直す義務から外れた単位",
     "scope": "承認済みの修正案の範囲",
     "tests": "変更に当たる試験の赤",
+    "duties": "直し方の型の義務",
     "gates": "事後の関門の束",
     "closure": "閉じない欠陥の数え",
     "copy": "数え直しの受け付け",
@@ -1676,7 +1699,7 @@ def accept_reply(reply: dict, place, repo, *, pass_: str, iteration: int, owed, 
     最後に 1 回だけ拒む。順は 範囲の相談の枠 → 凍ったテスト（factchecks.check_frozen）→ 書き込みの出どころ（factchecks.check_writes。
     記録の無い run は undeclared_writes で段の頭の木 head からの変更を申告に縛る）→ 食い違いの申し出（take_conflicts。first で
     裁かれていない申し出が在れば輪を抜ける {ok: True, conflicted: True}）→ 除くパスの頭の下の変更（check_pack_copy）→
-    単位の行（check_unique_units・check_opened_units・check_excused_units）→ 承認済みの修正案の範囲（factchecks.check_plan_scope）→ 変更に当たる試験（common.selected_problems）→
+    単位の行（check_unique_units・check_opened_units・check_excused_units）→ 承認済みの修正案の範囲（factchecks.check_plan_scope）→ 変更に当たる試験（common.selected_problems）→ 直し方の型の義務（duties.accept_problems）→
     事後の関門の束（fixgates.problems）→ 閉鎖の数え直し（closure_reply。defects の問いが閉じない単位は申し出が無ければ
     戻す。通れば表を querytest.save_closure）→ 数え直し（recount.accept_fix）。積んだ行が範囲の外のはみ出し（gather_overflow）だけなら
     拒まずに settle_overflow を通す（相談に積んだ回は {ok: False, queued: True, count: false}。戻した回は戻した返答で頭から通し直す。reverted・
@@ -1692,7 +1715,7 @@ def accept_reply(reply: dict, place, repo, *, pass_: str, iteration: int, owed, 
     返り {ok, reason, rejects: [{check, text}], reply（受けた返答。bash_writes と conflicts を外した物）, units（unit_outcomes）,
     parked {key: 理由}, conflicted}。元 works/blk-fix/scripts/accept.py:611（盤面の代わりに置き場と値）"""
     import conflict
-    from src import consult
+    from src import basecase, consult, duties, orders
     from src import facts as factchecks
     from src import gates as fixgates
     from src import parking
@@ -1716,7 +1739,8 @@ def accept_reply(reply: dict, place, repo, *, pass_: str, iteration: int, owed, 
     whole = reply
     frozen_over = []   # 相談に回せる凍ったファイルの頼み（check_frozen が足す）
     note("frozen", factchecks.check_frozen(pathlib.Path(place), state, repo, pass_, asks=frozen_over, base_rev=rev))
-    made = set(common.suite_made(state)) | common.suite_made_all(place)
+    note("frozen", duties.frozen_by_returns(place, repo))   # 返しの控えの凍結を注文の許しで（今の照らしと両方を通る物だけを通す）
+    made = set(common.suite_made(state)) | basecase.suite_made_all(place)
     wrote = factchecks.check_writes(reply, pathlib.Path(place), rev, repo, state, log=log, since=head or None,
                                     skip=tuple(skip))
     note("writes", wrote["problems"])
@@ -1747,9 +1771,14 @@ def accept_reply(reply: dict, place, repo, *, pass_: str, iteration: int, owed, 
         note("scope", scope)
     else:
         duty, excused = fix_duty(place, owed)
-    red, tests_note = common.selected_problems(state or tests_state, repo, rev)
+    picked = state or tests_state or accept_base(place)   # 輪の無い組は元の結末 base.json で選んで走らせる（下書き 2.1）
+    seen: dict = {}
+    red, tests_note = common.selected_problems(picked, repo, rev, named=orders.named_tests(place), seen=seen)
     note("tests", red)
-    tests_trace(place, state or tests_state, tests_note, pass_=pass_, attempt=iteration)   # 0 件の知らせも捨てない（F014）
+    for key, text in duties.accept_problems(place, repo, rev, reply, cases=seen.get("cases")):   # 型の義務の表（下書き 2.4）
+        note("duties", text)
+        declared.setdefault(text, set()).add(key)
+    tests_trace(place, picked, tests_note, pass_=pass_, attempt=iteration)   # 0 件の知らせも捨てない（F014）
     note("plan_faces", plan_face_errors(place, reply, face_units(pass_, duty)))
     gates = fixgates.problems(place, repo, rev, suite, iteration, pass_=pass_, owed=set(duty))
     note("gates", fixgates.reject_lines(gates) if gates else [])
@@ -1769,7 +1798,7 @@ def accept_reply(reply: dict, place, repo, *, pass_: str, iteration: int, owed, 
             declared.setdefault(text, set()).add(row["unit_key"])
         commit = not found
         out = recount.accept_fix(shaped, place, rev, repo, judged=judged, owed=set(duty), zero_keys=zero,
-                                 precedents=precedents, commit=commit)
+                                 precedents=precedents, commit=commit, red_units=red_units(place))
         if out.get("ok") is not True:
             note("copy", out.get("problems") or [str(out.get("reason") or "")])
         elif closure and commit:
@@ -1800,6 +1829,7 @@ def accept_reply(reply: dict, place, repo, *, pass_: str, iteration: int, owed, 
         gates_trace(place, pass_=pass_, attempt=iteration)
         if absorbed:
             trace(place, ABSORBED_OP, node=FIX_ACCEPT_BY, **absorbed)
+        duties.write_returns(place, repo, rev, reply, state=state)   # 返しの控え returns/<k>.json（下書き 2.1）
         return {"ok": True, "reason": "", "rejects": [], "reply": reply, "units": units, "parked": parked,
                 "conflicted": False}
 
@@ -2008,7 +2038,7 @@ def ruled_reply_line(reply_file) -> str:
     return str(reply_file or "")
 def before_cases(place) -> list:
     """確かめ直し（rerun_problem の「前から同じ形で赤」。docs/design/fix.md の 18 節）が照らす直す前の結末の行: 置き場の BASELINE_FILE の
-    cases（試験の関門の元の結末）に、組の子の TDD の輪の頭が取った結末（輪の状態の baseline_cases。失敗の文つき）を組の順に足した物（同じ鍵は
+    cases（試験の関門の元の結末）に、組の子の頭が取った結末（組の結果の欄 base の base.json の baseline_cases。失敗の文つき）を組の順に足した物（同じ鍵は
     先の行）。直す前の版では試験の関門が試験を走らせない（持ち主の決め base-runs-nothing）ので、ふつうは子の輪の頭の結末だけ"""
     import baseline_red
     place = pathlib.Path(place)
@@ -2016,8 +2046,8 @@ def before_cases(place) -> list:
     plan = read_json(place / GROUPS_FILE, {}) or {}
     for g in plan.get("groups") or []:
         result = usable_result(pathlib.Path(plan.get("out_dir") or place / "groups") / str(g.get("group_id")))
-        state = str((result or {}).get("tdd_state") or "")
-        doc = jsonfile.read_or(pathlib.Path(state)) if state else None   # 読めない状態は足さない（join は後で輪の状態を写す時に名指して落ちる）
+        state = str((result or {}).get("base") or (result or {}).get("tdd_state") or "")   # 組の元の結末 base.json（古い結果は輪の状態）
+        doc = jsonfile.read_or(pathlib.Path(state)) if state else None   # 読めない物は足さない（join は後で写す時に名指して落ちる）
         if isinstance(doc, dict):
             rows += [c for c in doc.get("baseline_cases") or [] if isinstance(c, dict)]
     return baseline_red._unique([c for c in rows if all(isinstance(c.get(k), str) for k in ("classname", "name", "outcome"))])

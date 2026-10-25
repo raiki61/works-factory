@@ -919,7 +919,7 @@ def _args(root, files, kexpr) -> list:
     return [*_abs_paths(root, py), *(["-k", kexpr] if kexpr else [])]
 
 
-def selected_problems(state_file, repo, rev, uncompared=None) -> tuple:
+def selected_problems(state_file, repo, rev, uncompared=None, *, named=(), accept=None, seen=None) -> tuple:
     """(赤の文の一覧, 知らせ)。選ぶのは変更に直に関わる試験と名指しの試験（_named_files）だけで、届くだけの先の試験は
     final_left に残す。実行器の後ろに足すのは、選んだ試験のうちこの run で変えた・足したファイルだけ（ADR 0071 の
     3 の 1。届いただけの段の外の試験は手元で走らせない）。実行器の既定の一式の中は -k で選んだ全部のモジュールに絞る。
@@ -928,14 +928,32 @@ def selected_problems(state_file, repo, rev, uncompared=None) -> tuple:
     受け付けの回をまたいで使い回す）。版の写しの結末に出ない（走らせられない・名指しを聞かない実行器）試験は比べられない:
     受け口 uncompared（並び）を渡す呼び（組を当てた後の確かめ直し。#846）は赤に数えずその鍵を足し、渡さない呼びは赤のまま。
     版に試験のファイルが無い試験（この直しで足した）は比べるまでもなく新しい赤。
-    外した鍵と比べられなかった鍵は黙って捨てず、件数と名（頭の 20 件）を赤の行か知らせに出す"""
+    外した鍵と比べられなかった鍵は黙って捨てず、件数と名（頭の 20 件）を赤の行か知らせに出す。
+    state_file は輪の状態か元の結末 base.json（下書き docs/plans/2026-10-24-fix-weapons.md の 2.1。同じ名と形の欄を読む）。名指しは
+    named（注文の units[].tests と permits の rewrite の行。orders.named_tests）と、輪の状態なら今の _named_files の和（狭めない）。
+    書き戻す 4 つの欄（final_left・final_far・ci_left・suite_made の足し）は置き場の accept.json に書く（accept はそのフォルダ。None は
+    state_file が base.json ならその隣、輪の状態なら輪のフォルダの親。suite_made は前の回との和）。輪の状態にも今と同じく書く
+    （base.json は書き換えない）。seen（dict）を渡せば走らせた結末の行を seen["cases"] に置く（変えない段の同じ結果の照らし）"""
     if not state_file:
         return [], NO_SUITE
     st = _load(state_file)
+    is_base = pathlib.Path(state_file).name == fixnames.BASE_FILE
+    acc_dir = pathlib.Path(accept) if accept is not None else \
+        (pathlib.Path(state_file).parent if is_base else pathlib.Path(st["work"]).parent)
     work = pathlib.Path(st["work"])
     m = impact.map(repo, rev=rev, diff=True, cache_dir=work / "impact")
-    sel = impact.select_tests(m, direct_only=True, named=_named_files(st))
+    names = sorted(set(_named_files(st)) | {posixpath.normpath(str(i).partition("::")[0]) for i in named or () if str(i).strip()})
+    sel = impact.select_tests(m, direct_only=True, named=names)
     st["final_left"], st["final_far"] = sel["left"], sel["far"]
+    st.setdefault("suite_made", [])
+
+    def save():
+        if not is_base:
+            _save(state_file, st)
+        acc = accept_values(acc_dir)
+        jsonfile.write(acc_dir / fixnames.ACCEPT_FILE, {**acc, "final_left": st["final_left"], "final_far": st["final_far"],
+                                                     "ci_left": st.get("ci_left", []),
+                                                     "suite_made": sorted(set(acc.get("suite_made") or []) | set(st["suite_made"]))})
     final = (f"。最後のテストの段に任せた {len(sel['left'])} 件（変更に直には関わらず届くだけ。受け付けは回さない）: "
              f"{', '.join(sel['left'])[:300]}") if sel["left"] else ""
     if sel["far"]:
@@ -943,7 +961,7 @@ def selected_problems(state_file, repo, rev, uncompared=None) -> tuple:
                   f"{', '.join(sel['far'])[:300]}")
     if not sel["run_all"] and not sel["modules"]:
         st["ci_left"] = []
-        _save(state_file, st)
+        save()
         return [], NO_SELECTED + final
     changed = set(m["seeds"]["from_diff"])
     files = [f for f in sel["selected"] if f in changed]
@@ -952,7 +970,9 @@ def selected_problems(state_file, repo, rev, uncompared=None) -> tuple:
     cases, code, why = run_suite(st["exe"], repo, work, ACCEPT_RUN, _args(repo, files, kexpr))
     st["suite_made"] = sorted(set(st["suite_made"]) | set(touched(repo, pre, snapshot(repo))))
     st["ci_left"] = _left_to_ci(sel["selected"], files, cases)
-    _save(state_file, st)
+    save()
+    if seen is not None:
+        seen["cases"] = cases
     what = "一式（" + "・".join(sel["reasons"])[:200] + "）" if sel["run_all"] else \
         f"選んだ試験（ファイル {', '.join(files)[:300]}・-k {kexpr[:300]}）"
     ci = f"。手元で回さなかった {len(st['ci_left'])} 件（run はその緑を確かめない）: {', '.join(st['ci_left'])[:300]}" if st["ci_left"] else ""
@@ -1029,20 +1049,40 @@ def _named_files(st) -> list:
     return sorted({posixpath.normpath(i.partition("::")[0]) for i in ids if i and i.strip()})
 
 
+def accept_values(place) -> dict:
+    """置き場の accept.json（受け付けが書き戻した final_left・final_far・ci_left・suite_made と、写した物の印。無い・読めなければ {}）"""
+    got = jsonfile.read_or(pathlib.Path(place) / fixnames.ACCEPT_FILE) if (pathlib.Path(place) / fixnames.ACCEPT_FILE).is_file() else None
+    return got if isinstance(got, dict) else {}
+
+
+def accept_dir(state_file) -> pathlib.Path | None:
+    """state_file（輪の状態か base.json）の受け付けが書き戻す accept.json のフォルダ（selected_problems の accept の既定と同じ。
+    無い・読めなければ None）"""
+    if not state_file or not pathlib.Path(state_file).is_file():
+        return None
+    if pathlib.Path(state_file).name == fixnames.BASE_FILE:
+        return pathlib.Path(state_file).parent
+    return pathlib.Path(_load(state_file)["work"]).parent
+
+
+def _accepted(state_file, key: str) -> list:
+    d = accept_dir(state_file)
+    return list(accept_values(d).get(key) or []) if d is not None else []
+
+
 def final_left(state_file) -> list:
-    """受け付けが直に関わらないので回さず、線の最後のテストの段に任せた試験（状態が無い・まだ選んでいなければ空）"""
-    return _load(state_file).get("final_left", []) if state_file and pathlib.Path(state_file).is_file() else []
+    """受け付けが直に関わらないので回さず、線の最後のテストの段に任せた試験（accept.json の欄。無い・まだ選んでいなければ空）"""
+    return _accepted(state_file, "final_left")
 
 
 def final_far(state_file) -> list:
-    """受け付けが一式を回す理由にせず最後のテストの段に任せた、地図の遠く（深さ 2 以上）の分からない物の理由（impact の far）"""
-    return _load(state_file).get("final_far", []) if state_file and pathlib.Path(state_file).is_file() else []
+    """受け付けが一式を回す理由にせず最後のテストの段に任せた、地図の遠く（深さ 2 以上）の分からない物の理由（impact の far。accept.json）"""
+    return _accepted(state_file, "final_far")
 
 
 def ci_left(state_file) -> list:
-    """受け付けが手元で回さず 手元で回さなかった試験（状態が無い・まだ選んでいなければ空）。見せるだけの読み口なので、状態のファイルが
-    無ければ空（受け付けの知らせの文にも同じ名が載る）"""
-    return _load(state_file).get("ci_left", []) if state_file and pathlib.Path(state_file).is_file() else []
+    """受け付けが手元で回さなかった試験（accept.json の欄。無い・まだ選んでいなければ空。受け付けの知らせの文にも同じ名が載る）"""
+    return _accepted(state_file, "ci_left")
 
 
 REV_CACHE = "accept-rev-cache.json"   # 版の写しの結末の控え（盤面の根。run の全部の輪と受け付けの回が使い回す）

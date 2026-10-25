@@ -3902,7 +3902,8 @@ class FixLoopScriptsCase(_XPlace):
 
     def test_accept_traces_tests_left_to_ci_and_final_stage(self):
         """F013: 受け付けの回ごとに accept-trace.json に impact.ACCEPT_TRACE_OP の行（ci_left・final_left・final_far）を積み、
-        読み手は組と段ごとに最後の回＝受けた回の行を読む（fix の finish._accepted_tests）。名は輪の状態から引く"""
+        読み手は組と段ごとに最後の回＝受けた回の行を読む（fix の finish._accepted_tests）。名は受け付けが書き戻した置き場の accept.json
+        から引く（下書き docs/plans/2026-10-24-fix-weapons.md の 2.1。輪の状態の同じ名の欄は読まない）"""
         import impact
         finish = importlib.import_module("src.finish")
         board = self.board
@@ -3913,8 +3914,9 @@ class FixLoopScriptsCase(_XPlace):
         rows = [r for r in board.accept_trace_rows(self.place) if r["op"] == impact.ACCEPT_TRACE_OP]
         self.assertEqual([(r["pass"], r["attempt"]) for r in rows], [("first", 1), ("first", 2)])
         self.assertEqual([(r["attempt"], r["ci_left"], r["final_left"]) for r in finish._accepted_tests(rows)], [(2, [], [])])
-        state = self._x_json("tdd-state.json", {"ci_left": ["tests/test_slow.py"], "final_left": ["tests/test_far.py"],
-                                                "final_far": ["lib/far.py"]})
+        state = self._x_json("tdd-state.json", {"ci_left": ["stale.py"], "final_left": ["stale.py"], "final_far": ["stale.py"]})
+        (self.place / "accept.json").write_text(json.dumps({"ci_left": ["tests/test_slow.py"], "final_left": ["tests/test_far.py"],
+                                                            "final_far": ["lib/far.py"]}), encoding="utf-8")
         board.tests_trace(self.place, str(state), "", pass_="ruled", attempt=1)
         last = [r for r in board.accept_trace_rows(self.place) if r["op"] == impact.ACCEPT_TRACE_OP][-1]
         self.assertEqual((last["ci_left"], last["final_left"], last["final_far"]),

@@ -28,6 +28,11 @@
 | variant の sites の 2 つの照らし | 関数と試験だけ | 受け付けは B |
 | change の箱の義務（名指しの赤緑か gone） | 関数と試験だけ | 受け付けは B |
 | na | 置かない（必須の欄を減らす向き） | B |
+| 返しの控えの凍ったファイル | 効かせる（`duties.frozen_by_returns`。注文の `permits` の範囲だけを許す。今の `facts.check_frozen` と並べる） | なし |
+| 受け付けの名指し | 注文の `units[].tests`・`permits` の `rewrite` と、輪の状態の今の名指しの和（狭めない） | 返しの `evidence.named`・`added`・`rewritten` は B |
+
+- 4.4 の 4 の「直す所」（修正役の返答の形の YAML の `changes` の `required`・`precedent` の `allOf`・`bypass_tried` と `breaks` の `minLength`・`sites` の行の形、`recount._reply_shape_problems` の差分のパスの引数、`unitrows._unpathed` と `sites` の並べ替え、筋書き `standalone.stubs.yaml:18`、`sites` の行を組む受け付けの試験）は、どれも `na` と `sites` の新しい欄（`at`・`fixed_by`・`test`）を入れるための直しで、上の表の `na` と `sites` の行と一緒に B へ回す。`na` は欄を欠けてよい形にする（緩める向き）ので、PR A は返答の形を変えない。
+- 輪の状態の無い組（static だけの組など。元の結末は取ったが TDD の輪を開かない組）の受け付けは、今は試験を走らせなかった（`selected_problems` に状態が無い）。PR A は元の結末 `base.json` で選んで走らせる（`board.accept_base`。厳しい側）。
 
 ## 4 進み（commit ごと）
 
@@ -35,7 +40,7 @@
 - [x] 7 計画の route の語: b6cf2500
 - [x] 12 宣言の `list` と `tree_run.run` の `setup`（lib の分）: 1257faee。`basecase` の一覧の走らせは 2・3 の commit
 - [x] 1 口の形: b7f90846
-- [ ] 2・3 型のモジュール・元の結末・振り分けの輪・注文: 部品の分けと node は f6af387d。残り: 組の結末の `base` の欄と `bases/<k>/` の引き継ぎ・tdd の輪の返し `returns/<k>.json`・諦めた単位の variant の注文への書き直し
+- [x] 2・3 型のモジュール・元の結末・振り分けの輪・注文: 部品の分けと node は f6af387d。組の結果の `base` の欄・`bases/<k>/` と `returns/` の引き継ぎ・諦めた単位の variant の注文への書き直しは cea0f8c1（返しの控えを書くのは 4 の受け付け）
 - [ ] 4 共通の受け付けと義務の表
 - [ ] 5 裁定の後の注文
 - [ ] 6 止めの語 `no-suite`

@@ -1256,10 +1256,15 @@ class GroupBoardCase(unittest.TestCase):
             self.assertIn("test_clamp_within_range", got)
             self.assertEqual(board.rerun_problem(self.place, self.repo, str(suite), cases, [], name="fixer-only-green"), "")
         with self.subTest("前の組と重なったファイルから地図が届く試験を足す（F411 の 2）"):
-            self.assertEqual(board.rerun_problem(self.place, self.repo, str(suite), cases, named, name="wide",
-                                                 shared=["stats.py"]), "")
-            st = json.loads((self.place / "wide" / "state.json").read_text(encoding="utf-8"))
-            self.assertEqual(st["units"]["wide"]["test_files"], ["test_stats.py"])
+            from unittest import mock
+            from src import common
+            with mock.patch.object(common, "selected_problems", wraps=common.selected_problems) as seen:
+                self.assertEqual(board.rerun_problem(self.place, self.repo, str(suite), cases, named, name="wide",
+                                                     shared=["stats.py"]), "")
+            self.assertIn("test_stats.py", seen.call_args.kwargs["named"], "地図が届く試験のファイルを名指しに足す")
+            self.assertEqual(pathlib.Path(seen.call_args.args[0]), self.place / "wide" / "base.json",
+                             "仮の元の結末 base.json を渡す（仮の輪の状態は組まない）")
+            self.assertTrue((self.place / "wide" / "accept.json").is_file(), "書き戻しは <name>/accept.json")
         with self.subTest("重なりの在る組の赤は意味の食い違いと名指す"):
             stats.write_text(src.replace("    return x\n", "    return lo\n"), encoding="utf-8")
             got = board.rerun_problem(self.place, self.repo, str(suite), cases, named, name="clash", shared=["stats.py"])
