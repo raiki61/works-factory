@@ -56,14 +56,16 @@
 
 ## 5 PR #869 のレビューの続き（受付 20261025-074047-6d9c7a）
 
+この節は、PR #869 のレビューで直した物と後に回した物の控え（済んだ事の記録）。読み手に頼む作業は無い。持ち主が覆したい物は「窓口の決め」と「後に回した nit」の行。
+
 レビューの全文は窓口の受け箱（受付 20261025-074021-7ba548 の返し）。止める指摘 6 つと nit のうち PR A のコードの物を直した。
 
 - 窓口の決め（持ち主が覆せる）: 前の返しの問い 1（下ごしらえの指示の md の 1 文）と 2（申し出の種類 `red_at_base`）は PR B に回す（3 節の 3・4 項目の訳のとおり）。問い 3（持ち主の決めの写しの字）はそのままにし、レビューの nit の字だけ直した。
 - 止める指摘:
-  - 1・3（906ce3cf）: 起動スクリプトの書き直しの後のやり直し（`suitefix.retry`）も、組の頭と同じ口 `suitefix.settle_start` で no-suite の止めを当てる。工場の実行器の取り置きは、元の結末が取れた組（`base.json` の `taken`）だけ。`retry` の返りの `tdd` も同じ印で決める。
+  - 1・3（906ce3cf）: 起動スクリプトの書き直しの後のやり直し（`suitefix.retry`）も、組の頭と同じ口 `suitefix.settle_start` で no-suite の止めを当てる。工場（AI）が書いた実行器（試験を走らせる起動スクリプト）を、後の run で使い回すために取り置く（`suitewrite.keep_runner`）のは、元の結末（直す前の試験の結果）が取れた組だけにする。取れたかの印は `base.json` の `taken`。`retry` の返りの `tdd`（TDD の輪を回すか）も、取り置くかと同じこの印 `taken` で決める（`taken` が真なら回し、偽なら回さない。組の頭が書く `tdd-start.json` の `no_suite` の印では決めない）。
   - 2（0ae251fc）: 受け付けの止め `no_suite_at_accept` は、試験を選ぶ側と同じ元の結末（`board.accept_base`。裁定の後の置き場は `bases/<k>/base.json`）を読む。
   - 4（9ae374c1）: 申し送り `carry` と返し `weapon-return` の形の `frozen` の値に null を許す。
-  - 5（340ff1da）: 注文の索引 `orders.json` に段の頭に在った範囲の相談の合意 `agreed`（`<group_id>:<id>` の並び）を書き、その後に取れた合意は、返しの控えの凍結の照らし `frozen_by_returns` で許しに数える（`orders.later_agreed`）。段の頭に在った合意が前の返しの凍結に当たれば引く形（下書き 2.1 の permits）は変えない。諦めた単位の書き直し `regive` は段の頭の `agreed` を引き継ぐ。
+  - 5（340ff1da）: 型ごとの注文（その許し `permits` も）は段の頭で 1 度しか書かないので、段の途中で取れた範囲の相談の合意は注文の許しに入らない（そのままでは、下の凍結の照らしがその合意の範囲を許さない）。直し: 注文の索引 `orders.json` に、段の頭に在った合意の見分けの字 `agreed`（`<group_id>:<id>` の並び）を書く。凍結の照らし `frozen_by_returns`（変更が、前の型・前の段の返しが凍らせたファイル〔`returns/` の `frozen`〕に触れていないかを、注文の `permits` の範囲だけを許して照らす）は、`agreed` に無い合意（段の頭の後に取れた物。`orders.later_agreed` が引く）の範囲も許しに足す。相談はその時の凍結を見て許したので。段の頭に在った合意の扱いは変えない: 注文を書く時、その範囲が前の返しの凍ったファイルに当たれば `permits` から外す（`docs/plans/2026-10-24-fix-weapons.md` の 2.1 の `permits`・`docs/design/fix.md` の「前の型の物を引く」）。諦めた単位を `variant` の注文に書き直す `regive` は、段の頭の `agreed` をそのまま引き継ぐ。
   - 6（e8328f88）: 受け付け（`fix-accept`）を通して、返しの控えの凍結の照らしと注文の名指しが効くことを縛る試験（`tests/blocks/fix/test_weapons.py` の `AcceptWiringCase`）。
 - nit で直した物: 親へ写す `base.json` の `exe` の引き直し（d2d74063）・static の種類の照らしの素通り（aee4b823。計画から種類が引けない時は拒む）・`precheck` の `frozen_by_returns`（3ac40115）・返しの `asks` の語と注文の `base` の空の字（0c66195c）・持ち主の決めの字 3 つ（dda2c259）。
 - 後に回した nit（訳つき）:
