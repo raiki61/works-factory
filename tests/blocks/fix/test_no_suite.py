@@ -107,6 +107,26 @@ class NoSuiteGroupCase(tg.GroupChildScriptsCase):
         self.assertFalse(self.run_script("fix_prep")["go"], "止めた後に修正役を起こし直さない")
         self.assert_stopped("実行器が結末を返さない")
 
+    def test_a_runner_that_gives_no_result_at_the_ruled_accept_stops_the_run(self):
+        """裁定の後の受け付け（fix-ruled-accept。親の置き場）で実行器が結末を返さなければ、出し直させずに輪を抜け、全体の形の出口が
+        stopby.NO_SUITE を名乗る（親の置き場の tdd-start.json の印。finish の ruled_stop）"""
+        import leftovers
+        self.parent_inputs(str(self.marked))
+        self.start()
+        result = json.loads(pathlib.Path(self.run_script("group_end")["result_file"]).read_text(encoding="utf-8"))
+        self.parent_groups(result["start_tree"])
+        leftovers.record_ignored(self.parent, self.repo)
+        self.run_script("join", art=self.parent)
+        stats = self.repo / "stats.py"
+        stats.write_text(stats.read_text(encoding="utf-8").replace("(len(xs) - 1)", "len(xs)") + "# NOXML\n", encoding="utf-8")
+        out = self.run_script("fix_ruled_accept", art=self.parent, reply=json.dumps({"changes": [tg._change(tg.MEAN, ["stats.py"])]}),
+                              consulted="false", iteration="1")
+        self.assertEqual((out["ok"], out["done"]), (False, True), out)
+        self.assertIn("実行器が結末を返さない", out["reason"])
+        got = self.run_script("finish", art=self.parent)
+        self.assertEqual((got["ok"], got["stop_reason"]), (False, stopby.NO_SUITE), got)
+        self.assertIn("実行器が結末を返さない", got["reason"])
+
 
 class AcceptStopCase(unittest.TestCase):
     """受け付けの止め board.no_suite_at_accept の yes/no（seen は common.selected_problems が走らせた回の {cases, why, log}）"""
@@ -142,6 +162,15 @@ class AcceptStopCase(unittest.TestCase):
             with self.subTest(doc=doc):
                 self.based(**doc)
                 self.assertEqual(board.no_suite_at_accept(self.place, seen), "")
+
+    def test_the_ruled_accept_reads_the_base_it_runs_the_tests_from(self):
+        """裁定の後の受け付けの置き場（親）は base.json を持たず、組の子から写した bases/<k>/base.json で試験を選ぶ（board.accept_base）。
+        止めも同じ元の結末を読む（試験の無い対象で工場の書いた実行器が 0 件を返せば止める）"""
+        sub = self.place / "bases" / "1"
+        sub.mkdir(parents=True)
+        board.write_json(sub / "base.json", {"taken": True, "no_tests": True, "suite_by_factory": True})
+        self.assertEqual(board.accept_base(self.place), str(sub / "base.json"))
+        self.assertIn("一覧が 0 件", board.no_suite_at_accept(self.place, self.seen))
 
     def test_an_undecided_list_names_the_hint_and_the_kept_config(self):
         """一覧が試験の有無を決められない時は一覧の訳と宣言の案内を、下ごしらえが起点の版に在る設定のファイルで拒まれていたらそのパスを言う"""

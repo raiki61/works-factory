@@ -2104,7 +2104,7 @@ NO_SUITE_CONFIG = "下ごしらえが起点の版に在る設定のファイル�
 
 def no_suite_at_accept(place, seen: dict) -> str:
     """受け付けの止め no-suite の yes/no（下書き 3.9 の止め方の 2・3）。seen は common.selected_problems が走らせた回の
-    {cases, why, log}（走らせなかった回は空）。(1) 実行器が結末を返さない（cases が None）か、(2) 元の結末 base.json の no_tests が
+    {cases, why, log}（走らせなかった回は空）。(1) 実行器が結末を返さない（cases が None）か、(2) 元の結末（accept_base の base.json）の no_tests が
     真か試験が在るかが決まらない（一覧 test_list が absent・failed）かつ実行器が工場の書いた物（suite_by_factory）かつ走らせた回が
     0 件、なら止める訳。決まらない時は一覧の訳と宣言の案内 LIST_HINT を、下ごしらえが起点の版に在る設定のファイルの書き換えで拒まれて
     いたらそのパスを足す。でなければ空"""
@@ -2114,7 +2114,7 @@ def no_suite_at_accept(place, seen: dict) -> str:
     log = str(seen.get("log") or "")
     if seen["cases"] is None:
         return NO_SUITE_RUNNER.format(why="; ".join(seen.get("why") or [])[:300], log=log)
-    base = basecase.read(place) or {}
+    base = basecase.read_file(accept_base(place)) or {}   # 試験を選ぶ元の結末と同じ物（裁定の後の置き場は bases/<k>/ の物）
     listed = base.get("test_list") if isinstance(base.get("test_list"), dict) else {}
     undecided = listed.get("status") in (basecase.ABSENT, basecase.FAILED)
     if seen["cases"] or base.get("suite_by_factory") is not True or not (base.get("no_tests") is True or undecided):
