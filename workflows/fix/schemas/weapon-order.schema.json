@@ -41,8 +41,7 @@
     },
     "base": {
       "type": "string",
-      "minLength": 1,
-      "description": "元の結末の控え base.json のパス（版は欄 rev）"
+      "description": "元の結末の控え base.json のパス（版は欄 rev）。元の結末の無い組（実行器の無い static だけの組・裁定の後の段で親に写した元の結末が無い時）は空"
     },
     "units": {
       "type": "array",

@@ -271,6 +271,15 @@ class SchemaCase(unittest.TestCase):
         self.assertEqual(validate_schema(ret, self.load("weapon-return.schema.json")), [])
         self.assertTrue(validate_schema({**ret, "status": [{"unit": "u", "status": "fixed", "why": ""}]},
                                         self.load("weapon-return.schema.json")))
+        ask = {"unit_key": "u", "between": ["a", "b"], "why_both_cannot_hold": "両方は立たない", "which_is_right": "test",
+               "kind": "not_red", "correct_lines": []}
+        self.assertEqual(validate_schema({**ret, "asks": [ask]}, self.load("weapon-return.schema.json")), [])
+        for bad in ({"which_is_right": "maybe"}, {"kind": "other"}):
+            with self.subTest(bad=bad):
+                self.assertTrue(validate_schema({**ret, "asks": [{**ask, **bad}]}, self.load("weapon-return.schema.json")),
+                                "申し出の語は lib/conflicts.schema.json と同じ語だけ")
+        self.assertEqual(validate_schema({**order, "base": ""}, self.load("weapon-order.schema.json")), [],
+                         "元の結末の無い組（裁定の後の段で写した元の結末が無い時）の注文は base が空")
 
 
 class AcceptTableCase(unittest.TestCase):

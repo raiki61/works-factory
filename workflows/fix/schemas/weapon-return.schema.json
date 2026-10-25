@@ -276,12 +276,28 @@
             "type": "string"
           },
           "which_is_right": {
-            "type": "string"
+            "type": "string",
+            "enum": [
+              "request",
+              "test",
+              "code",
+              "unknown",
+              "query"
+            ]
           },
           "kind": {
             "type": [
               "string",
               "null"
+            ],
+            "enum": [
+              "brief_vs_judgment",
+              "unnamed_test_broke",
+              "not_red",
+              "scope_needed",
+              "query_hits_fixed",
+              "needs_context",
+              null
             ]
           },
           "correct_lines": {
