@@ -139,7 +139,7 @@ class FixerParagraphsCase(unittest.TestCase):
     def test_consult_resume_round_has_no_rules(self):
         run = seeded(self)
         inp = {"mode": "group", "group": json.dumps({"group_id": "g1", "unit_ids": [KEY], "items": [1]}), "judgment": JUDGMENT,
-               "plan": PLAN, "fix_plan": FIX_PLAN}
+               "plan": PLAN, "fix_plan": FIX_PLAN, "tdd_suite": str(RUNNER)}
         run.script("intake", **inp)
         run.script("group_start")
         first = run.script("fix_prep")
@@ -180,7 +180,7 @@ class FixerParagraphsCase(unittest.TestCase):
     def test_tests_section_is_always_there_and_the_scope_section_needs_a_fix_plan(self):
         """テストの節（変えてよい既存のテストと、それ以外の本体を変えると拒む文）は修正案の有無によらず入る。範囲の節は修正案が在る時だけ"""
         bare = seeded(self)
-        bare.script("intake", mode="group", group=GROUP, judgment=JUDGMENT)
+        bare.script("intake", mode="group", group=GROUP, judgment=JUDGMENT, tdd_suite=str(RUNNER))
         bare.script("group_start")
         text = bare.script("fix_prep")["prompt"]
         self.assertIn("## Tests you may add or change, and frozen tests", text)
@@ -188,7 +188,7 @@ class FixerParagraphsCase(unittest.TestCase):
         self.assertNotIn("## Paths you may change and what you must not touch", text)
         planned = seeded(self)
         planned.script("intake", mode="group", group=json.dumps({"group_id": "g1", "unit_ids": [KEY], "items": [1]}),
-                       judgment=JUDGMENT, plan=PLAN, fix_plan=FIX_PLAN)
+                       judgment=JUDGMENT, plan=PLAN, fix_plan=FIX_PLAN, tdd_suite=str(RUNNER))
         planned.script("group_start")
         text = planned.script("fix_prep")["prompt"]
         self.assertIn("## Paths you may change and what you must not touch", text)
@@ -198,7 +198,7 @@ class FixerParagraphsCase(unittest.TestCase):
         """#836: 関わる試験で直す前から壊れていた物（置き場の conflict.BROKEN_TESTS_FILE。TDD の輪の頭が書く）は、テストの節に別の行で
         名指され、ついでに直してよいと書かれる。無い run には出ない"""
         run = seeded(self)
-        run.script("intake", mode="group", group=GROUP, judgment=JUDGMENT)
+        run.script("intake", mode="group", group=GROUP, judgment=JUDGMENT, tdd_suite=str(RUNNER))
         run.script("group_start")
         self.assertNotIn("直す前から壊れていた関わる試験", run.script("fix_prep")["prompt"])
         (run.artifacts / conflict.BROKEN_TESTS_FILE).write_text(
@@ -214,7 +214,7 @@ class FixerParagraphsCase(unittest.TestCase):
         指示のファイルを名指す"""
         run = seeded(self)
         run.script("intake", mode="group", group=json.dumps({"group_id": "g1", "unit_ids": [KEY], "items": [1]}),
-                   judgment=JUDGMENT, plan=PLAN, fix_plan=FIX_PLAN)
+                   judgment=JUDGMENT, plan=PLAN, fix_plan=FIX_PLAN, tdd_suite=str(RUNNER))
         run.script("group_start")
         first = run.script("fix_prep")
         self.assertRegex(first["prompt"], r"write in its prompt to Read this file: \S+unattended\.md")
@@ -260,7 +260,7 @@ class ConflictWordsCase(unittest.TestCase):
     def planned_fixer(self) -> str:
         run = seeded(self)
         run.script("intake", mode="group", group=json.dumps({"group_id": "g1", "unit_ids": [KEY], "items": [1]}), judgment=JUDGMENT,
-                   plan=PLAN, fix_plan=FIX_PLAN)
+                   plan=PLAN, fix_plan=FIX_PLAN, tdd_suite=str(RUNNER))
         run.script("group_start")
         return run.script("fix_prep")["prompt"]
 
@@ -314,7 +314,7 @@ class SubAgentFilesCase(unittest.TestCase):
 
     def test_g1_files(self):
         run = seeded(self)
-        run.script("intake", mode="group", group=GROUP, judgment=JUDGMENT)
+        run.script("intake", mode="group", group=GROUP, judgment=JUDGMENT, tdd_suite=str(RUNNER))
         run.script("group_start")
         out = run.script("fix_prep")
         self.assertIn("## Running subagents", out["prompt"])

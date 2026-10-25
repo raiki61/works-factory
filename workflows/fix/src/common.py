@@ -57,7 +57,7 @@ QUOTES_FIELD = "red_quotes"   # test の段の返答の欄と単位の記録の�
 UNSENT = "unsent"   # 状態の欄: 盤面へまだ積んでいない止めた申し出の並び（行 {source, item}）
 
 
-NO_SUITE = "テストの実行器（入力 tdd_suite）が無い run——全部の単位を今どおり直す"
+NO_SUITE = "テストの実行器（入力 tdd_suite）が無いか元の結末を取らない組（static だけの組。ほかの組は no-suite で止まる）——受け付けは試験を走らせない"
 
 
 # run の test_cmd の関門（start が 1 回だけ決める）: on＝緑の後に毎回走らせる・same_as_suite＝実行器がそのコマンドを包んだ物で
@@ -933,7 +933,8 @@ def selected_problems(state_file, repo, rev, uncompared=None, *, named=(), accep
     named（注文の units[].tests と permits の rewrite の行。orders.named_tests）と、輪の状態なら今の _named_files の和（狭めない）。
     書き戻す 4 つの欄（final_left・final_far・ci_left・suite_made の足し）は置き場の accept.json に書く（accept はそのフォルダ。None は
     state_file が base.json ならその隣、輪の状態なら輪のフォルダの親。suite_made は前の回との和）。輪の状態にも今と同じく書く
-    （base.json は書き換えない）。seen（dict）を渡せば走らせた結末の行を seen["cases"] に置く（変えない段の同じ結果の照らし）"""
+    （base.json は書き換えない）。seen（dict）を渡せば走らせた回の結末の行（走らなければ None）・訳・ログを seen の cases・why・log に
+    置く（変えない段の同じ結果の照らしと、受け付けの止め board.no_suite_at_accept）"""
     if not state_file:
         return [], NO_SUITE
     st = _load(state_file)
@@ -972,7 +973,7 @@ def selected_problems(state_file, repo, rev, uncompared=None, *, named=(), accep
     st["ci_left"] = _left_to_ci(sel["selected"], files, cases)
     save()
     if seen is not None:
-        seen["cases"] = cases
+        seen.update(cases=cases, why=list(why or []), log=str(work / f"suite-{ACCEPT_RUN}.log"))
     what = "一式（" + "・".join(sel["reasons"])[:200] + "）" if sel["run_all"] else \
         f"選んだ試験（ファイル {', '.join(files)[:300]}・-k {kexpr[:300]}）"
     ci = f"。手元で回さなかった {len(st['ci_left'])} 件（run はその緑を確かめない）: {', '.join(st['ci_left'])[:300]}" if st["ci_left"] else ""

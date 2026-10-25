@@ -14,7 +14,9 @@
   docs/design/fix.md の 19 節）。壊れていれば取り置きから捨て（suitewrite.drop_runner）、返りの suite_broken を真にして、後ろの
   suite-fix-prep・suite-fix・suite-fix-try が書き直させる。壊れていなければ、走らせて結末が取れた実行器を test_cmd の字で取り置く
   （suitewrite.keep_runner。直す前には走らせないので、取り置くのはここ）
-返り {tdd（元の結末が取れた）, units, reason, suite_broken}。入力が読めない・前の組が止まっている・git が効かない・輪の頭が壊れた: 標準エラーに 1 行で 1"""
+- 実行器が無い・走らない組で、計画の語が static でない単位が在れば、返りの no_suite を真にして組を止める（orders.no_suite_why。
+  下書き docs/plans/2026-10-24-fix-weapons.md の 3.9。route-go と orders が tdd-start.json の no_suite を読む。static だけの組は止めない）
+返り {tdd（元の結末が取れた）, units, reason, suite_broken, no_suite}。入力が読めない・前の組が止まっている・git が効かない・輪の頭が壊れた: 標準エラーに 1 行で 1"""
 import sys
 from pathlib import Path
 
@@ -27,7 +29,7 @@ import leftovers  # noqa: E402
 import oneline  # noqa: E402
 import writelog  # noqa: E402
 
-from src import basecase, board, intake, runvals, suitefix  # noqa: E402
+from src import basecase, board, intake, orders, runvals, suitefix  # noqa: E402
 
 NO_UNITS = "組に単位が無い——TDD のループを回さない"
 HALTED = "前の組 {groups} の子の run が結果を書かずに止まっている——親を resume すればその子が続きから回る"
@@ -71,9 +73,13 @@ def main() -> dict:
         out = suitefix.begin(place, repo, values, keys, reuse)
         suitefix.settle_kept(values, repo, out)
     board.write_json(place / board.TDD_START_FILE, out)
+    why = orders.no_suite_why(place) if keys else ""
+    if why:   # 実行器が無い・走らない組で、static でない単位が在る（下書き 3.9 の止め方の 1。route-go と orders が読んで止める）
+        out = {**out, "no_suite": True, "reason": why}
+        board.write_json(place / board.TDD_START_FILE, out)
     taken = bool((basecase.read(place) or {}).get("taken"))   # 元の結末が取れた（振り分けと TDD の輪を回せる）
     return {"tdd": taken, "units": len(keys), "reason": str(out.get("reason") or ""),
-            "suite_broken": out.get("suite_broken") is True}
+            "suite_broken": out.get("suite_broken") is True, "no_suite": out.get("no_suite") is True}
 
 
 if __name__ == "__main__":

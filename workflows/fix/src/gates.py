@@ -72,7 +72,7 @@ from leftovers import Unreadable, git  # noqa: E402
 LEDGER = "fix-gates.json"
 SECTIONS = ("rows", "skipped", "guards")   # 帳面の節（読み込み・組み直し・積み増しの数えは全部これを回る）
 GATES = ("red_green", "test_edits")
-NO_SUITE = "テストの実行器（入力 tdd_suite）が無い run——受け入れのテストの事後の赤緑は確かめない"
+NO_SUITE = "テストの実行器（入力 tdd_suite）が無い組（static だけの組。ほかの組は no-suite で止まる）——受け入れのテストの事後の赤緑は確かめない"
 REJECT = "修正の後の木に、ループの中の関門が通さない物が在る（事後の関門の束）: "
 REDO = ("——red_green の行を全部直してから、返答を丸ごと出し直せ（受け入れのテストは base で failure の赤・今の木で緑。"
         "案の前提が誤りなら conflicts で申し出よ）")   # 出し直しの頼みは成り立たない行（red_green）にだけ。test_edits の行は相談に回る（overflow_asks）

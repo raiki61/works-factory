@@ -633,8 +633,9 @@ def base_stop_notes(returns: dict) -> list:
 
 
 def suite_broken_notes(values: dict) -> list:
-    """修正の段が、工場の書いた試験の起動スクリプトが書き直しても壊れたままで止めた組の冒頭の句（訳とログのパス。#836・
-    docs/design/fix.md の 19 節）。fixed の tdd（段ごとの組ごとの TDD の記録）の suite_broken の行から。無ければ空"""
+    """修正の段が、工場の書いた試験の起動スクリプトが書き直しても壊れたままで止めた組と、試験の実行器が無い・走らないで止めた組の
+    冒頭の句（訳とログのパス。#836・docs/design/fix.md の 19 節・docs/plans/2026-10-24-fix-weapons.md の 3.9 の止め方の 6）。fixed の
+    tdd（段ごとの組ごとの TDD の記録）の suite_broken・no_suite の行から。無ければ空"""
     import oneline
 
     def rows(v):
@@ -647,8 +648,12 @@ def suite_broken_notes(values: dict) -> list:
     for r in rows(as_dict(values.get("fixed")).get("tdd")):
         if r.get("suite_broken") is True:
             line = f"修正の段が止めた（試験の起動スクリプトが書き直しても壊れたまま。組 {r.get('group_id') or '—'}）: {oneline.one_line(r.get('reason') or '')}"
-            if line not in out:
-                out.append(line)
+        elif r.get("no_suite") is True:
+            line = f"修正の段が止めた（試験の実行器が無い・走らない。組 {r.get('group_id') or '—'}）: {oneline.one_line(r.get('reason') or '')}"
+        else:
+            continue
+        if line not in out:
+            out.append(line)
     return out
 
 

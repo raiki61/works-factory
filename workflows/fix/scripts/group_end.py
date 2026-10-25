@@ -20,15 +20,18 @@ from src import basecase, board, finish, intake, common, tdd  # noqa: E402
 
 
 def tdd_exit(started) -> dict:
-    """TDD の輪の出口の欄（tdd.exit_fields）。輪の頭の返りが無い・輪が済んでいなければ ran: false と理由"""
+    """TDD の輪の出口の欄（tdd.exit_fields）。輪の頭の返りが無い・輪が済んでいなければ ran: false と理由（no-suite の印は残す）"""
     if not isinstance(started, dict):
         return {"ran": False, "suite": "", "reason": f"置き場に {board.TDD_START_FILE} が無い（group-start が走らなかった）",
                 "units": []}
     try:
         return tdd.exit_fields(started)
     except common.Broken as e:
-        return {"ran": False, "suite": str(started.get("suite") or ""),
-                "reason": f"TDD のループが済まずに抜けた（{oneline.one_line(e)}）", "units": []}
+        out = {"ran": False, "suite": str(started.get("suite") or ""),
+               "reason": f"TDD のループが済まずに抜けた（{oneline.one_line(e)}）", "units": []}
+        if started.get("no_suite") is True:   # 組の頭か受け付けが no-suite で止めた印は、輪が済まずに抜けても落とさない
+            out.update(no_suite=True, reason=str(started.get("reason") or out["reason"]))
+        return out
 
 
 def main() -> dict:

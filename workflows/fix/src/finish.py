@@ -202,6 +202,18 @@ def suite_broken(results) -> list:
             if isinstance(r, dict) and isinstance(r.get("tdd"), dict) and r["tdd"].get("suite_broken") is True]
 
 
+def no_suite(results) -> list:
+    """実行器が無い・走らないで止めた組の id（組の結果の tdd の no_suite。下書き docs/plans/2026-10-24-fix-weapons.md の 3.9）"""
+    return [str(r.get("group_id")) for r in results
+            if isinstance(r, dict) and isinstance(r.get("tdd"), dict) and r["tdd"].get("no_suite") is True]
+
+
+def stop_of(results) -> str:
+    """組の結果の並びが名乗る止めの語（起動スクリプトの壊れ、実行器が無い・走らない。どちらも無ければ空）"""
+    import stopby
+    return stopby.SUITE_BROKEN if suite_broken(results) else (stopby.NO_SUITE if no_suite(results) else "")
+
+
 def whole(place, repo) -> dict:
     """全体の形の出力（今の collect.block から差分の審査の欄を外した物）"""
     import conflict
@@ -227,10 +239,15 @@ def whole(place, repo) -> dict:
     extras = results + ([ruled] if ruled is not None else [])
     checked = board.read_json(place / board.ASSERT_FILE) or {}
     checked = {"ok": checked.get("ok") is True, "reason": str(checked.get("reason") or ("" if checked else "assert-changed が走らなかった"))}
-    broken = suite_broken([board.usable_result(pathlib.Path(plan["out_dir"]) / g["group_id"]) for g in plan["groups"]])
-    stop = stopby.UNRESTORED if board.held(place) else (stopby.SUITE_BROKEN if broken else "")
+    usable = [board.usable_result(pathlib.Path(plan["out_dir"]) / g["group_id"]) for g in plan["groups"]]
+    ruled_stop = board.no_suite_stop(place)   # 裁定の後の段の受け付けが no-suite で止めた（親の置き場の tdd-start.json）
+    stop = stopby.UNRESTORED if board.held(place) else (stop_of(usable) or (stopby.NO_SUITE if ruled_stop else ""))
     ok = isinstance(joined, dict) and checked["ok"] and not stop
-    reason = "" if ok else (JOIN_MISSING if not isinstance(joined, dict) else stop or checked["reason"])
+    if stop == stopby.NO_SUITE and ruled_stop:
+        stop_why = f"{stop}（{ruled_stop}）"
+    else:
+        stop_why = stop
+    reason = "" if ok else (JOIN_MISSING if not isinstance(joined, dict) else stop_why or checked["reason"])
     reply = board.group_fix_reply(place)
     write_closure(place, results, ruled)
     final = (board.final_lines(results, "handoffs", board.handoff_lines([ruled])),
@@ -260,8 +277,7 @@ def group(place, repo, doc: dict) -> dict:
     final = (board.final_lines(extras, "handoffs"), board.final_lines(extras, "mismatched"), board.final_titles(extras))
     tdd_rows = board.tdd_units([g], {gid: result})
     reply = place / board.FIX_REPLY_FILE
-    import stopby
-    stop = stopby.SUITE_BROKEN if suite_broken([result]) else ""
+    stop = stop_of([result])
     return _common(place, repo, rows_groups, [g], extras, [], ok=result is not None and not stop,
                    reason=(str(result["tdd"].get("reason") or stop) if stop else "") if result is not None else board.NO_RESULT, final=final, tdd_rows=tdd_rows, stop=stop,
                    reply=_ptr(reply), start_tree=board.start_tree(place))

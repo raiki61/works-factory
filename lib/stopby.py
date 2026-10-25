@@ -35,6 +35,7 @@ REASONS = {
     "lens": "レンズの集め役が終わらなかった",
     "line-script": "メイングラフの script の中で例外が起きた（後ろを飛ばして報告へ進めた）",
     "needs-human": "無人の run で承認ノードを開くはずだった（開かずに止めた）",
+    "no-suite": "試験の実行器が無いか走らず（元の結末が取れない・TDD のループか受け付けの途中で結末を返さない・工場が書いた実行器が試験の無い対象で足した試験を 1 件も拾わない）、計画の語が static でない単位の在る組を、確かめていない直しを書き進めずに止めた",
     "plan-converge": "事前審査の壁打ちが収まらずに止めた・案のノードを巻き戻した",
     "pr": "並行 PR の任せ先の役が 3 回とも拒まれてループを抜けた",
     "premises": "前提の実測が共有ボードに無い・実測の役が諦めた",
@@ -93,6 +94,7 @@ FIX = word("fix")
 LENS = word("lens")
 LINE_SCRIPT = word("line-script")
 NEEDS_HUMAN = word("needs-human")
+NO_SUITE = word("no-suite")
 PLAN_CONVERGE = word("plan-converge")
 PR = word("pr")
 PREMISES = word("premises")

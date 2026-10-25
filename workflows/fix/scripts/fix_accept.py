@@ -8,6 +8,8 @@
 - 拒否は rolekit の控え rejects-fix-accept.json に積み（board.accept_out）、最後の回まで done: false。最後の回の拒否は、名指しの
   単位だけを段の頭の木に戻して諦め、ほかの単位を受けて done: true
 - 1 回目で裁かれていない申し出が在れば輪を抜ける（done: true。裁定の後の修正役が受け付け直す）
+- 実行器が結末を返さない・試験の無い対象で足した試験を拾わない時は、出し直させずに輪を抜けて組を止める（done: true。
+  board.no_suite_at_accept。組の結果の tdd に no_suite が載り、組の終わりが stopby の no-suite を名乗る）
 返り {ok, done, reason, reason_file}。回す側の誤り（返答が読めない・判定の写しが無い）は標準エラーに 1 行で非 0"""
 import os
 import sys
@@ -60,6 +62,9 @@ def main() -> dict:
 
 def finish(place: Path, got: dict, iteration: int) -> dict:
     board.write_json(place / board.FIX_UNITS_FILE, got["units"])
+    if got.get("stop"):   # 実行器が結末を返さない・試験を拾わない（board.no_suite_at_accept）: 出し直させずに輪を抜ける
+        board.trace(place, "fix_stopped", node=NAME, iteration=iteration, reason=got["reason"])
+        return {"ok": False, "done": True, "reason": got["reason"], "reason_file": ""}
     if got["ok"]:
         path = place / board.FIX_REPLY_FILE
         board.write_json(path, board.reply_marks(got["reply"], board.read_json(path)))

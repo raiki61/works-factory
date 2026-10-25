@@ -396,6 +396,7 @@ class GroupChildScriptsCase(unittest.TestCase):
     def test_fix_prep_names_the_gate_notes(self):
         """修正役の指示は、親から写した修正前の関所の一言のファイルを notes_file に名指す（board.fix_values）"""
         notes = self.notes()
+        self.parent_inputs(str(self.suite))   # 実行器の無い組は組の頭が no-suite で止める
         self.start()
         prep = self.run_script("fix_prep")
         self.assertTrue(prep["go"], prep)

@@ -9,6 +9,7 @@ PR A の形（docs/plans/2026-10-25-fix-weapons-stage1-a.md の 1）: 型ごと�
 止めの無い組でいつも回る（writer）。
 
 - compute(place, repo) -> {tdd, writer, stop, reason}
+- no_suite_why(place) -> 組の頭で止める訳（下書き 3.9 の止め方の 1。止めないなら空）
 - weapons(place) -> {単位: 型の名}: 書いた注文の索引から引く（受け付けが型の義務を引く口）
 - stage_of(place) -> 段の番（1 回目の段 2n−1。n は修正の block を入れた回で、前の段の申し送りが在れば 2）
 """
@@ -24,6 +25,8 @@ import planmarks  # lib/
 from src import basecase, board, common, files, intake, route, runvals, tdd
 
 GATE_STOP = "起動スクリプトが書き直しても壊れたまま"
+NO_SUITE_STOP = ("試験の実行器が無いか走らない組（{why}）で、計画の語が static でない単位 {keys} が在る——型を回さず、確かめていない"
+                 "直しを書き進めずに止めた（下書き 3.9。static だけの組は止めない）")
 
 
 def stage_of(place, pass_: str = "first") -> int:
@@ -31,6 +34,25 @@ def stage_of(place, pass_: str = "first") -> int:
     裁定の後の段は 2n"""
     n = 2 if (pathlib.Path(place) / files.PRIOR_DIR).is_dir() else 1
     return 2 * n - 1 if pass_ == "first" else 2 * n
+
+
+def no_suite_why(place) -> str:
+    """組の頭の止め no-suite の yes/no（下書き 3.9 の止め方の 1）: 組に計画の語が static でない単位が在り、かつ元の結末が取れていない
+    （実行器が無い・起こせない・結末が取れない）が起動スクリプトの壊れ（suite_broken。書き直しの道が持つ）でもない時の訳。でなければ空。
+    前の半分は振り分けの AI の答え無しで決まるので、止める組では振り分けの AI を起こさない"""
+    place = pathlib.Path(place)
+    started = _start(place)
+    if started.get("suite_broken") is True:
+        return ""
+    base = basecase.read(place)
+    if base and base.get("taken"):
+        return ""
+    keys = [str(k) for k in (intake.load(place).get("group") or {}).get("unit_ids") or []]
+    words = route.plan_words(place, keys)
+    moving = [k for k in keys if words.get(k) != "static"]
+    if not moving:
+        return ""
+    return NO_SUITE_STOP.format(why=str(started.get("reason") or basecase.NO_SUITE), keys=moving[:20])
 
 
 def _start(place) -> dict:
@@ -185,6 +207,8 @@ def compute(place, repo) -> dict:
     started = _start(place)
     if started.get("suite_broken") is True:   # 起動スクリプトが書き直しても壊れたまま（docs/design/fix.md の 19 節）
         return {"tdd": False, "writer": False, "stop": True, "reason": str(started.get("reason") or GATE_STOP)}
+    if started.get("no_suite") is True:   # 組の頭が止めた（no_suite_why。下書き 3.9）
+        return {"tdd": False, "writer": False, "stop": True, "reason": str(started.get("reason") or "")}
     group = intake.load(place).get("group") or {}
     keys = [str(k) for k in group.get("unit_ids") or []]
     words, removes, whys = route.plan_words(place, keys), route.plan_removes(place, keys), route.plan_whys(place, keys)
@@ -198,7 +222,7 @@ def compute(place, repo) -> dict:
     base = basecase.read(place)
     taken = bool(base and base.get("taken"))
     tdd_keys = [k for k in owed if weapons[k] == "tdd"] if taken else []
-    if not taken:   # 実行器が無い・走らない組: tdd の輪を回さず、tdd の単位も修正役が受ける（今の形。止めは作る物 6）
+    if not taken:   # 元の結末を取らない組（static だけの組。ほかは組の頭が no-suite で止めた）: tdd の輪を回さない
         weapons = {k: ("variant" if w == "tdd" else w) for k, w in weapons.items()}
     values = runvals.read(place)
     if tdd_keys or state:

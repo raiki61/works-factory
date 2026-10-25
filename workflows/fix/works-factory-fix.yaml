@@ -878,12 +878,13 @@ nodes:
     output_format:
       type: object
       additionalProperties: false
-      required: [tdd, units, reason, suite_broken]
+      required: [tdd, units, reason, suite_broken, no_suite]
       properties:
         tdd: {type: boolean}
         units: {type: integer, minimum: 0}
         reason: {type: string}
         suite_broken: {type: boolean}   # 工場の書いた起動スクリプトが壊れている（suite-fix-* が書き直させる。docs/design/fix.md の 19）
+        no_suite: {type: boolean}   # 実行器が無い・走らない組で static でない単位が在る（route-go・orders が止める。stopby の no-suite）
 
   # 起動スクリプトの書き直し（工場の書いた実行器が、関わる試験を中身に届く前に落とし、test_cmd の単体は通る時だけ。1 回だけ書き直させ、
   # 直らなければ組を止める。docs/design/fix.md の 19）
@@ -957,7 +958,7 @@ nodes:
       required: [route, stop]
       properties:
         route: {type: boolean}
-        stop: {type: boolean}   # 起動スクリプトが書き直しても壊れたまま
+        stop: {type: boolean}   # 起動スクリプトが書き直しても壊れたまま・実行器が無い・走らない組（no_suite）
 
   # 振り分け（今の TDD の輪の最初の段を輪の外へ出した物。docs/plans/2026-10-24-fix-weapons.md の 4.1 の 3）。拒否 3 回で諦めると、
   # 振る単位は全部 AI の答え無しとして route から型を引く表で variant に引かれる。回数の柵は今の tdd-loop と同じ 40
@@ -1104,7 +1105,7 @@ nodes:
       properties:
         tdd: {type: boolean}
         writer: {type: boolean}
-        stop: {type: boolean}   # 組を止める（起動スクリプトが書き直しても壊れたまま。確かめていない直しを書き進めない）
+        stop: {type: boolean}   # 組を止める（起動スクリプトが書き直しても壊れたまま・実行器が無い・走らない組。確かめていない直しを書き進めない）
         reason: {type: string}
 
   # 単位ごとの TDD のループ（振り分けの後、単位ごとに test（赤）→ fix（緑）→ refactor）。赤・緑は tdd-step が JUnit XML で機械が決める。

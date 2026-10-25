@@ -2,7 +2,7 @@
 
 節と関数:
 - tdd-start → start: 入力 tdd_suite（JUnit XML の書き先を第 1 引数に受け、リポジトリの根で走る実行ファイル。本線と同じ約束）が
-  空なら何もせず go: false（全部の単位を今どおり直す）。在れば一式を 1 回走らせて元の結末を取り、置き場の tdd-<k>/ に状態を置く。
+  空なら何もせず go: false（static でない単位の在る組は組の頭が no-suite で止める。docs/plans/2026-10-24-fix-weapons.md の 3.9）。在れば一式を 1 回走らせて元の結末を取り、置き場の tdd-<k>/ に状態を置く。
   承認済みの修正案の単位ごとの約束（plan_contract → planmarks.unit_contract。道・受け入れのテストと、案が狙う落ち方 red_kind。後者は役に見せるだけで機械は照らさない）もここで 1 回だけ
   組んで状態の contract に置く（欄の控えの無い置き場・平の run は空で、輪は約束の無い今の動きのまま）。
   run のテストのコマンド（線の入力 test_cmd）の関門（test_cmd_gate）もここで 1 回だけ決める: 空なら off、実行器のファイルが
@@ -113,7 +113,7 @@ from src.common import (  # noqa: E402
 PHASES = ("test", "fix", "refactor")   # 振り分けの段は輪の外の route-loop（src/route.py）
 MAX_ITERATIONS = 40   # YAML の tdd-loop の max_iterations と同じ値（試験が縛る）。この周に届いたら残りを direct にして抜ける
 ROUTES = fixnames.ROUTES   # 入力 routes の語（src/files.py の 1 か所）
-PLAN_NO_TDD = "承認済みの修正案に route が tdd の単位が無い（入力 routes: plan）——全部の単位を direct で直す"
+PLAN_NO_TDD = "承認済みの修正案に route が tdd の単位が無い（入力 routes: plan）——TDD の輪を回さず、ほかの型の注文で直す"
 PLAN_DIRECT = "承認済みの修正案の route が direct（入力 routes: plan。行の route_why が無い）"
 PLAN_NO_ROW = "承認済みの修正案にこの単位を持つ行が無い（入力 routes: plan は案の route に従い、行の無い単位は direct）"
 SESSION_KEY = "session_key"   # 状態の欄: 前の周の支度が組んだ単位の鍵（prep の new_unit の元。元 write_key の鍵）
@@ -130,7 +130,7 @@ ROUTE_REFUSED = "振り分けの段（単位の名の無い拒否）"
 
 
 class _RunnerDown(Exception):
-    """実行器が走らない・JUnit が読めない（テストや直しの誤りではない。やり直しの回数を使わずに輪を抜ける）"""
+    """実行器が走らない・JUnit が読めない（テストや直しの誤りではない。やり直しの回数を使わずに輪を抜け、組を no-suite で止める）"""
     head = "テストの実行器が走らない"
 
 
@@ -877,8 +877,12 @@ def _give_up(st, repo, probs):
 
 
 def _abort(st, repo, why, stage) -> None:
-    """残りの tdd の単位を全部 direct にして輪を抜ける（実行器が走らない・回数の上限。振り分けを諦めた時は src/route._abort）"""
+    """残りの tdd の単位を全部 direct にして輪を抜ける（実行器が走らない・回数の上限。振り分けを諦めた時は src/route._abort）。
+    実行器が走らない（stage runner）時は状態に no_suite の印を置き、修正役の輪を起こさずに組を止める（board.no_suite_stop・
+    exit_fields。下書き 3.9 の止め方の 2）"""
     st["note"] = why
+    if stage == "runner":
+        st["no_suite"] = True
     u = _cur(st)
     if st["phase"] == "refactor":
         restore(repo, st["green_tree"])
@@ -1038,12 +1042,15 @@ def exit_fields(start_out: dict) -> dict:
     refactor_why（整えの申告の理由）}]}。refactor は ""・skipped（申告が無く整えの段を飛ばした）・none・ok・reverted。
     ran: true の出口には test_cmd: {gate（GATE_ON・GATE_SAME・GATE_OFF）, note（off の理由）} と calls（step 1 回ごとの
     {n, phase, unit_key, ok, runs, secs}。役の費用は実行基盤の出来事に在り、この行の順（tdd の節の起動の順）で後から結べる）も載る。
-    状態の reused（輪の頭で元の結末を控えから使い回した出どころの句 {suite}）が空でなければ載せる"""
+    状態の reused（輪の頭で元の結末を控えから使い回した出どころの句 {suite}）が空でなければ載せる。組の頭・輪・受け付けが no-suite で
+    止めた組は no_suite: true と、reason にその訳を載せる（下書き 3.9）"""
     if not isinstance(start_out, dict) or not start_out.get("go"):
         so = start_out if isinstance(start_out, dict) else {}
         out = {"ran": False, "suite": so.get("suite", ""), "reason": so.get("reason", ""), "units": []}
         if so.get("suite_broken") is True:   # 起動スクリプトが書き直しても壊れたまま（docs/design/fix.md の 19 節）。組の結末が止めを名乗る
             out.update(suite_broken=True, runner_log=so.get("runner_log", ""), cmd_log=so.get("cmd_log", ""))
+        if so.get("no_suite") is True:   # 実行器が無い・走らない組（下書き 3.9）。組の結末が no-suite を名乗る
+            out["no_suite"] = True
         return out
     st = _load(start_out["state_file"])
     if not st["done"]:
@@ -1058,6 +1065,8 @@ def exit_fields(start_out: dict) -> dict:
         out["reused"] = st["reused"]
     if st.get("related", {}).get("applied"):
         out["related"] = st["related"]
+    if st.get("no_suite") is True or start_out.get("no_suite") is True:   # 輪か受け付けが実行器の止まりで組を止めた（下書き 3.9）
+        out.update(no_suite=True, reason=str(start_out.get("reason") or "") if start_out.get("no_suite") is True else st["note"])
     return out
 
 

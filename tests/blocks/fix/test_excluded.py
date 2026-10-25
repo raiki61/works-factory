@@ -10,6 +10,8 @@ from tests.bin import hermetic
 from tests.bin.gitkit import git
 from tests.blocks import kit
 
+RUNNER = pathlib.Path(__file__).resolve().parents[3] / "workflows" / "fix" / "fixtures" / "tdd-runner.py"
+
 KEY = "stats.py:2 mean"
 JUDGMENT = json.dumps({"units": [{"key": KEY, "label": "block", "reason": "空の並びで 0 除算する"}], "questions": []})
 GROUP = json.dumps({"group_id": "g1", "unit_ids": [KEY], "items": []})
@@ -46,7 +48,7 @@ class ExcludedCase(unittest.TestCase):
         (run.repo / "stats.py").write_text(source, encoding="utf-8")
         git(run.repo, "add", ".")
         git(run.repo, "-c", "user.email=t@example.invalid", "-c", "user.name=t", "commit", "-qm", "seed")
-        self.assertTrue(run.script("intake", mode="group", group=GROUP, judgment=JUDGMENT, excluded=excluded)["ok"])
+        self.assertTrue(run.script("intake", mode="group", group=GROUP, judgment=JUDGMENT, excluded=excluded, tdd_suite=str(RUNNER))["ok"])
         run.script("group_start")
         self.assertTrue(run.script("fix_prep")["go"])
         return run

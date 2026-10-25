@@ -4,7 +4,8 @@
 # ///
 """node route-go（組の形。組の頭の後・振り分けの loop の前）: 振り分けの段の AI を起こすか（src/route と tdd.open_state）。入力 routes が
 auto で、元の結末が取れていて（base.json の taken）、振る単位（計画の語 static・tidy・pin の単位と消す名の在る単位を除いた物）が
-在る時だけ、輪の状態を段 route で置いて tdd-start.json の state_file に書く。起動スクリプトが壊れたままの組は止める。
+在る時だけ、輪の状態を段 route で置いて tdd-start.json の state_file に書く。起動スクリプトが壊れたままの組と、組の頭が実行器の
+無い・走らない組として止めた組（no_suite）は止める。
 返り {route, stop}。輪の状態を置けない時は標準エラーに 1 行で 1（黙って振り分けを飛ばし、tdd の単位を variant に回さない）"""
 import sys
 from pathlib import Path
@@ -18,7 +19,7 @@ def compute() -> dict:
     from src import basecase, board, common, intake, route, runvals, tdd
     place, repo = ports.place(), Path.cwd()
     started = board.read_json(place / board.TDD_START_FILE) or {}
-    if started.get("suite_broken") is True:
+    if started.get("suite_broken") is True or started.get("no_suite") is True:
         return {"route": False, "stop": True}
     values = runvals.read(place)
     base = basecase.read(place)

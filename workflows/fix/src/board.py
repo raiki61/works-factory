@@ -546,7 +546,7 @@ def child_verified(result) -> list:
 def tdd_units(groups, results) -> list:
     """型つきの成果物 tdd-unit の本文: 組ごとの TDD の輪の結果 [{group_id, ran, reason, suite, reused, related, units}]（子の結果の欄 tdd。
     tddloop.exit_fields の形）。起動スクリプトが書き直しても壊れたままで止めた組は suite_broken・runner_log・cmd_log も載る（報告の冒頭が
-    読む。docs/design/fix.md の 19 節）。結果の無い組・実行器の無い組は ran: false・units: []。results は {group_id: 子の結果の dict}"""
+    読む。docs/design/fix.md の 19 節）。実行器が無い・走らないで止めた組は no_suite も載る（下書き 3.9）。結果の無い組・実行器の無い組は ran: false・units: []。results は {group_id: 子の結果の dict}"""
     out = []
     for g in groups:
         result = results.get(g["group_id"])
@@ -558,7 +558,8 @@ def tdd_units(groups, results) -> list:
                     "related": tdd.get("related") if isinstance(tdd.get("related"), dict) else {},
                     "units": child_tdd_units(result) if ran else [],
                     **({"suite_broken": True, "runner_log": str(tdd.get("runner_log") or ""), "cmd_log": str(tdd.get("cmd_log") or "")}
-                       if tdd.get("suite_broken") is True else {})})
+                       if tdd.get("suite_broken") is True else {}),
+                    **({"no_suite": True} if tdd.get("no_suite") is True else {})})
     return out
 
 
@@ -1719,7 +1720,9 @@ def accept_reply(reply: dict, place, repo, *, pass_: str, iteration: int, owed, 
     裁定の後の段で組の輪が幾つも在る時。ruled_states）、base_rev は修正前の版（空なら base_rev_of）、skip は除くパスの頭、log は
     書き込みの記録のファイル（factchecks.check_writes。None なら置き場の既定）。
     返り {ok, reason, rejects: [{check, text}], reply（受けた返答。bash_writes と conflicts を外した物）, units（unit_outcomes）,
-    parked {key: 理由}, conflicted}。元 works/blk-fix/scripts/accept.py:611（盤面の代わりに置き場と値）"""
+    parked {key: 理由}, conflicted}。変更に当たる試験を走らせた回が no_suite_at_accept に当たれば、型の義務より前に
+    {ok: False, stop: True, reason} で組を止める（tdd-start.json に no_suite を書く。呼び手は出し直させずに輪を抜ける）。
+    元 works/blk-fix/scripts/accept.py:611（盤面の代わりに置き場と値）"""
     import conflict
     from src import basecase, consult, duties, orders
     from src import facts as factchecks
@@ -1780,6 +1783,12 @@ def accept_reply(reply: dict, place, repo, *, pass_: str, iteration: int, owed, 
     picked = state or tests_state or accept_base(place)   # 輪の無い組は元の結末 base.json で選んで走らせる（下書き 2.1）
     seen: dict = {}
     red, tests_note = common.selected_problems(picked, repo, rev, named=orders.named_tests(place), seen=seen)
+    stop = no_suite_at_accept(place, seen)   # 型の義務より前に、事実 1 つで止める（下書き 3.9 の止め方の 2・3）
+    if stop:
+        mark_no_suite(place, stop)
+        return {"ok": False, "stop": True, "reason": stop, "rejects": [], "reply": reply,
+                "units": unit_outcomes([k for k in owed if k not in parked], {}, excused=excused, parked=parked),
+                "parked": parked, "conflicted": False}
     note("tests", red)
     for key, text in duties.accept_problems(place, repo, rev, reply, cases=seen.get("cases")):   # 型の義務の表（下書き 2.4）
         note("duties", text)
@@ -2084,6 +2093,69 @@ def stage_head(place, name: str = "") -> str:
         return leftovers.head_tree(place)
     except leftovers.Unreadable:
         return ""
+
+
+NO_SUITE_RUNNER = "受け付けで変更に当たる試験を走らせたが、実行器が結末を返さない（{why}。ログ {log}）"
+NO_SUITE_ZERO = ("試験の無い対象（{decided}）で、工場が書いた実行器が、型が試験を足した後の回も 0 件を返した——実行器が足した試験を"
+                 "拾わない（ログ {log}）")
+NO_SUITE_LIST = "対象の宣言の一覧が試験の有無を決められない（{why}）。{hint}"
+NO_SUITE_CONFIG = "下ごしらえが起点の版に在る設定のファイルの書き換えで拒まれていた: {paths}"
+
+
+def no_suite_at_accept(place, seen: dict) -> str:
+    """受け付けの止め no-suite の yes/no（下書き 3.9 の止め方の 2・3）。seen は common.selected_problems が走らせた回の
+    {cases, why, log}（走らせなかった回は空）。(1) 実行器が結末を返さない（cases が None）か、(2) 元の結末 base.json の no_tests が
+    真か試験が在るかが決まらない（一覧 test_list が absent・failed）かつ実行器が工場の書いた物（suite_by_factory）かつ走らせた回が
+    0 件、なら止める訳。決まらない時は一覧の訳と宣言の案内 LIST_HINT を、下ごしらえが起点の版に在る設定のファイルの書き換えで拒まれて
+    いたらそのパスを足す。でなければ空"""
+    from src import basecase
+    if "cases" not in seen:
+        return ""
+    log = str(seen.get("log") or "")
+    if seen["cases"] is None:
+        return NO_SUITE_RUNNER.format(why="; ".join(seen.get("why") or [])[:300], log=log)
+    base = basecase.read(place) or {}
+    listed = base.get("test_list") if isinstance(base.get("test_list"), dict) else {}
+    undecided = listed.get("status") in (basecase.ABSENT, basecase.FAILED)
+    if seen["cases"] or base.get("suite_by_factory") is not True or not (base.get("no_tests") is True or undecided):
+        return ""
+    import oneline
+    from graphloops.engine import declared
+    from src import pin
+    out = [NO_SUITE_ZERO.format(decided="一覧が 0 件" if base.get("no_tests") is True else "一覧で決まらない", log=log)]
+    if undecided:
+        out.append(NO_SUITE_LIST.format(why=oneline.one_line(str(listed.get("why") or "")), hint=declared.LIST_HINT))
+    rows = []
+    for name in ("fix-accept", "fix-ruled-accept"):   # 修正の輪と裁定の後の輪の受け付けの拒否の控え
+        try:
+            rows += rolekit.rejected(place, name)
+        except rolekit.BoardGap:
+            pass
+    paths = [ln.strip().removeprefix("- ").split(":", 1)[0] for r in rows for ln in str(r or "").splitlines() if pin.KEPT_CONFIG in ln]
+    if paths:
+        out.append(NO_SUITE_CONFIG.format(paths="・".join(dict.fromkeys(paths))))
+    return "。".join(out)
+
+
+def mark_no_suite(place, why: str) -> None:
+    """組を no-suite で止めた印と訳を組の頭の返り tdd-start.json に足す（tdd.exit_fields が組の結果の tdd に写す）"""
+    started = read_json(pathlib.Path(place) / TDD_START_FILE) or {}
+    write_json(pathlib.Path(place) / TDD_START_FILE, {**started, "no_suite": True, "reason": why})
+
+
+def no_suite_stop(place) -> str:
+    """組が no-suite で止まっている訳（組の頭・受け付けが tdd-start.json に書いた印か、TDD のループが実行器の止まりで抜けた輪の状態の
+    no_suite）。止まっていなければ空"""
+    from src import common
+    started = read_json(pathlib.Path(place) / TDD_START_FILE) or {}
+    if started.get("no_suite") is True:
+        return str(started.get("reason") or "no-suite")
+    state = str(started.get("state_file") or "")
+    if state and pathlib.Path(state).is_file():
+        st = common.load_state(state)
+        if st.get("no_suite") is True:
+            return str(st.get("note") or "no-suite")
+    return ""
 
 
 def fixer_head(place, pass_: str) -> str:

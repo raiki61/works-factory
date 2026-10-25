@@ -3842,7 +3842,7 @@ class _XPlace(unittest.TestCase):
     def _x_intake(self, units, *, art=None):
         """組の単位を port group で、判定を port judgment で渡す（組を替える時も intake を回し直す）"""
         out = self._x_ok("intake", art=art, mode="group", judgment=json.dumps(_X_JUDGMENT, ensure_ascii=False),
-                         group=json.dumps({"group_id": "g1", "unit_ids": units, "items": []}))
+                         group=json.dumps({"group_id": "g1", "unit_ids": units, "items": []}), tdd_suite=str(self.repo / "junit-suite.sh"))
         self.assertTrue(out["ok"], out)
 
     def _x_json(self, name, doc):
