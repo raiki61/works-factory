@@ -1,5 +1,5 @@
 """keep-essence の 3（テストの変更の許しは 1 か所。docs/design/fix.md の 10 節）: TDD の輪で凍ったテストのファイルと、裁定
-fix_test_scope の範囲（src/tdd.frozen_problems の allowed）の検査と、許しを読む道が lib の conflict.test_permits の 1 つだけかの検査。
+fix_test_scope の範囲（src/common.frozen_problems の allowed）の検査と、許しを読む道が lib の conflict.test_permits の 1 つだけかの検査。
 
 裁定が範囲（limits。`<パス>` か `<パス>:<行>[-<行>]`）に並べた所の直しは、凍ったファイルでも拒まない。範囲の外の行・
 範囲の無いファイルの変更は今どおり拒む。行は凍った時の木（st["frozen_tree"]。_finish が書く）に対する旧い側で見る。
@@ -21,6 +21,7 @@ from tests.bin.gitkit import committed_copy
 from tests.blocks import kit
 
 tdd = kit.load("fix", "tdd")
+common = kit.load("fix", "common")
 FIX_SRC = {n: m for n, m in sys.modules.items() if n == "src" or n.startswith("src.")}
 SEED = kit.ROOT / "tests" / "e2e" / "target-seed"
 FIX = kit.BLOCKS / "fix"
@@ -50,10 +51,10 @@ class FrozenRuledScopeCase(Case):
         (self.repo / NEW_FILE).write_text("import unittest\n\n\nclass T(unittest.TestCase):\n"
                                           "    def test_one(self):\n        self.assertEqual(1, 1)\n", encoding="utf-8")
         self.state = tmp / "state.json"
-        self.freeze(frozen_tree=tdd.snapshot(self.repo), handoff=EMPTY_TREE)
+        self.freeze(frozen_tree=common.snapshot(self.repo), handoff=EMPTY_TREE)
 
     def freeze(self, **trees):
-        st = {"frozen": tdd.hashes(self.repo, [TEST_FILE, NEW_FILE]), **trees}
+        st = {"frozen": common.hashes(self.repo, [TEST_FILE, NEW_FILE]), **trees}
         self.state.write_text(json.dumps(st, ensure_ascii=False), encoding="utf-8")
 
     def edit(self, old, new, path=TEST_FILE):
@@ -64,7 +65,7 @@ class FrozenRuledScopeCase(Case):
 
     def frozen(self, allowed):
         try:
-            return tdd.frozen_problems(str(self.state), self.repo, allowed=allowed)
+            return common.frozen_problems(str(self.state), self.repo, allowed=allowed)
         except TypeError as e:
             self.fail(f"frozen_problems が裁定の範囲（allowed）を受けない: {e}")
 
@@ -167,7 +168,7 @@ class FrozenRuledScopeCase(Case):
         self.assertTrue(self.frozen([f"{TEST_FILE}:9"]))
 
     def test_old_state_without_frozen_tree_falls_back_to_handoff(self):
-        self.freeze(handoff=tdd.snapshot(self.repo))
+        self.freeze(handoff=common.snapshot(self.repo))
         self.edit("mean([1, 2, 3]), 2)", "mean([1, 2, 3]), 2.0)")
         self.assertEqual(self.frozen([f"{TEST_FILE}:9"]), [])
 

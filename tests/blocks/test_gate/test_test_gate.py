@@ -1002,7 +1002,8 @@ class SuiteLoopCase(ScriptCase):
         tdd_suite に結び（持ち主の決め base-runs-nothing）、出力の suite が実行器の絶対パスで、修正の段の TDD の輪がその実行器で
         名指しの赤を判じる。取り置くのは TDD の輪が走らせて結末が取れた時（直す前には取り置かない）"""
         tddloop = kit.load("fix", "tdd")   # keep-essence 1 の継ぎ目: 修正の段の TDD の輪（integration.md 4.3-3）
-        self.assertEqual(tddloop.start(self.tmp / "fix", self.repo, "", "[]")["reason"], tddloop.NO_SUITE)
+        common, basecase = kit.load("fix", "common"), kit.load("fix", "basecase")
+        self.assertEqual(tddloop.start(self.tmp / "fix", self.repo, "", "[]")["reason"], basecase.NO_SUITE)
         self.ok("run", "base")
         prep, tried = self.round(self.RED)
         self.assertTrue(prep["write"])
@@ -1023,8 +1024,8 @@ class SuiteLoopCase(ScriptCase):
         work.mkdir()
         cases, code, why = tddloop.run_suite(suite, self.repo, work, "red")
         self.assertEqual(why, [])
-        self.assertEqual(tddloop.red_check(["test_a.py::TestA::test_x"], cases, code, {}), ([], []))
-        probs, _ = tddloop.red_check(["test_a.py::TestA::test_y"], cases, code, {})
+        self.assertEqual(common.red_check(["test_a.py::TestA::test_x"], cases, code, {}), ([], []))
+        probs, _ = common.red_check(["test_a.py::TestA::test_y"], cases, code, {})
         self.assertTrue(any("もう通る" in p for p in probs), probs)
 
     def test_kept_runner_is_used_without_the_writer(self):

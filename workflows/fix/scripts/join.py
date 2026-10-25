@@ -19,7 +19,7 @@ import oneline  # noqa: E402
 import unittrees  # noqa: E402
 import writelog  # noqa: E402
 
-from src import board, clash, lanes, runvals, tdd  # noqa: E402
+from src import board, clash, lanes, runvals, common  # noqa: E402
 
 
 def main() -> dict:
@@ -54,7 +54,7 @@ def main() -> dict:
             unknown = []   # 確かめ直しで直す前の版と比べられなかった赤の鍵（戻す理由にせず報告で人に聞く。#846）
             notes = []   # 確かめ直しの test_cmd の赤を前から赤か揺れと見た文（戻す理由にせず報告に書く。#855）
             cmd = board.rerun_cmd(place, r, start["test_cmd"])
-            base = tdd.snapshot(repo) if cmd else ""   # 組を当てる前の木（test_cmd の赤を組を外した木で見分ける）
+            base = common.snapshot(repo) if cmd else ""   # 組を当てる前の木（test_cmd の赤を組を外した木で見分ける）
 
             def check(names):
                 shared = set(names) & earlier

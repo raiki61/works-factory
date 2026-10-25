@@ -7,6 +7,9 @@ lib/tree_run.run で、対象のコマンドを起こす直前に作業ツリー
 （read_setup が読む）。場所ごとに設定を信頼する道具など、新しい作業ツリーで準備が要る対象が、道具の名を工場に持たせずに述べる口。
 setup の語も、suite の語と同じく人が見る前に走る（下の「守られなくなった物」と同じ）。setup が作業ツリーに書いた物は、書き込みを
 前後の木で照らす呼び手からは最初の対象のコマンドが書いた物に見えるので、setup は作業ツリーの外か .gitignore の下にだけ書く。
+任意の list は、テストを走らせずに 1 行 1 テストで列挙するコマンド（setup と同じ形。suite の横にだけ置ける。0 件なら何も出さず 0 で
+終わる）。走らせるのは fix block の src/basecase.py だけ（数えるのは標準出力の空でない行）。engine は走らせず、sha にも結ばない。
+list の書き損じは suite を止めない（mutation と同じ。read が list_error に積む）。読むのは read_list。
 
 **人の承認は要らない。** engine は宣言の語を、走らせる直前に作業ツリーのルートの宣言を読み直して一致を確かめてから、shell を
 通さずに走らせる（engine/commands.py の engine_run_refusal）。以前は direnv の `direnv allow` の形で、人が宣言の中身の sha256 を
@@ -34,13 +37,18 @@ import pathlib
 DECL_NAME = ".review-checks.json"
 DECL_KEYS = ("suite",)   # 宣言の最上位の必須の鍵。知らない鍵は拒む（効かない鍵を書いても黙って無視しない）
 SETUP_KEY = "setup"
-OPTIONAL_KEYS = ("mutation", SETUP_KEY)   # 任意の鍵。engine は走らせない
+LIST_KEY = "list"
+OPTIONAL_KEYS = ("mutation", SETUP_KEY, LIST_KEY)   # 任意の鍵。engine は走らせない
 STEP_KEYS = ("name", "argv")
 STEP_OPTIONAL_KEYS = ("junit",)   # 段の任意の鍵: 段が書く試験の報告（JUnit XML）の、リポジトリのルートからの相対パス。段が走ったかを件数で見る
 MUTATION_KEYS = ("argv", "arms")   # argv＝実行器の呼び方の頭（口の旗は付けない——口の綴りは実行器の --help）・arms＝腕の一覧のパス
 # 準備が要る時の案（止めた理由に添える。道具の名は書かない。<…> は利用者が埋める置き字）
 SETUP_HINT = (f"{DECL_NAME} の suite の横に \"{SETUP_KEY}\": [[\"<準備のコマンド>\", \"<引数>\"]] を足して準備を宣言する"
               "（作業ツリーごとに最初の対象のコマンドの前に 1 度、利用者の HOME・XDG で走る。書く物は作業ツリーの外か .gitignore の下に）")
+
+# テストの一覧が要る時の案（止めた理由に添える。道具の名は書かない）
+LIST_HINT = (f"{DECL_NAME} の suite の横に \"{LIST_KEY}\": [[\"<一覧のコマンド>\", \"<引数>\"]] を足して一覧を宣言する"
+             "（テストを走らせずに 1 行 1 テストで出し、0 件なら何も出さずに 0 で終わる）")
 
 
 def canonical(steps):
@@ -82,29 +90,71 @@ def parse(text):
     return [{k: (list(s[k]) if k == "argv" else s[k]) for k in STEP_KEYS + STEP_OPTIONAL_KEYS if k in s} for s in suite], None
 
 
-def parse_setup(setup):
-    """宣言の setup を読む ——（[argv, …], 誤り）。形は 1 つ以上の argv の配列で、各 argv は 1 語以上の文字列（先頭は空でない。shell を通さずに
-    そのまま起こす）。誤りがあれば argv の並びは []。parse が呼ぶ（宣言の書式の確かめは parse の 1 か所）"""
-    if not isinstance(setup, list) or not setup:
-        return [], f"{SETUP_KEY} は 1 つ以上の argv の配列"
-    for i, argv in enumerate(setup):
+def _argv_list(key, v):
+    """setup と list が共有する形の確かめ ——（[argv, …], 誤り）。1 つ以上の argv の配列で、各 argv は 1 語以上の文字列（先頭は空でない。
+    shell を通さずにそのまま起こす）。誤りがあれば argv の並びは []"""
+    if not isinstance(v, list) or not v:
+        return [], f"{key} は 1 つ以上の argv の配列"
+    for i, argv in enumerate(v):
         if not isinstance(argv, list) or not argv or not all(isinstance(a, str) for a in argv) or not argv[0]:
-            return [], f"{SETUP_KEY}[{i}] は 1 語以上の文字列の配列（shell を通さずにそのまま起こす）"
-    return [list(argv) for argv in setup], ""
+            return [], f"{key}[{i}] は 1 語以上の文字列の配列（shell を通さずにそのまま起こす）"
+    return [list(argv) for argv in v], ""
+
+
+def parse_setup(setup):
+    """宣言の setup を読む ——（[argv, …], 誤り）。形は _argv_list。誤りがあれば argv の並びは []。
+    parse が呼ぶ（宣言の書式の確かめは parse の 1 か所）"""
+    return _argv_list(SETUP_KEY, setup)
+
+
+def parse_list(lst):
+    """宣言の list を読む ——（[argv, …], 誤り）。形は setup と同じ（_argv_list）。**誤りは suite を止めない**——parse は list を見ず、
+    read が list_error に積む（engine が走らせない段の書き損じで、走らせる段まで読めなくしない）"""
+    return _argv_list(LIST_KEY, lst)
+
+
+def _key_of(text, key, parser):
+    """宣言の本文（None は宣言が無い）の任意の鍵 key を parser で読む ——（[argv, …], 誤り）。宣言が無い・読めない・suite が無い・
+    鍵が無い時は ([], "")。形が誤りなら ([], 誤りの文)"""
+    if text is None:
+        return [], ""
+    try:
+        d = json.loads(text)
+    except ValueError:
+        return [], ""
+    if not isinstance(d, dict) or "suite" not in d or key not in d:
+        return [], ""
+    argvs, err = parser(d[key])
+    return argvs, f"{DECL_NAME}: {err}" if err else ""
+
+
+def setup_of(text):
+    """宣言の本文（None は宣言が無い）の setup を読む ——（[argv, …], 誤り）。read_setup の本文版"""
+    return _key_of(text, SETUP_KEY, parse_setup)
+
+
+def list_of(text):
+    """宣言の本文（None は宣言が無い）の list を読む ——（[argv, …], 誤り）。read_list の本文版"""
+    return _key_of(text, LIST_KEY, parse_list)
+
+
+def _text(root):
+    """ルートの宣言の本文。無い・読めない時は None"""
+    try:
+        return (pathlib.Path(root) / DECL_NAME).read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError):
+        return None
 
 
 def read_setup(root):
     """ルートの宣言の setup を読む ——（[argv, …], 誤り）。宣言が無い・読めない・suite が無い・setup の鍵が無い時は ([], "")（準備は無い）。
     setup の形が誤りなら ([], 誤りの文)。宣言を parse しない呼び手（TDD の輪・受け入れ条件の走らせ）が、tree_run.run を通じて読む"""
-    p = pathlib.Path(root) / DECL_NAME
-    try:
-        d = json.loads(p.read_text(encoding="utf-8"))
-    except (OSError, UnicodeDecodeError, ValueError):
-        return [], ""
-    if not isinstance(d, dict) or "suite" not in d or SETUP_KEY not in d:
-        return [], ""
-    argvs, err = parse_setup(d[SETUP_KEY])
-    return argvs, f"{DECL_NAME}: {err}" if err else ""
+    return setup_of(_text(root))
+
+
+def read_list(root):
+    """ルートの宣言の list を読む ——（[argv, …], 誤り）。意味は read_setup と同じ（list_of の薄い包み）"""
+    return list_of(_text(root))
 
 
 def parse_mutation(m, root=None):
@@ -125,7 +175,7 @@ def parse_mutation(m, root=None):
 
 
 def read(root):
-    """ルートの宣言を読む。無ければ None、在れば {steps, sha[, mutation | mutation_error]} か {error}。
+    """ルートの宣言を読む。無ければ None、在れば {steps, sha[, mutation | mutation_error][, list_error]} か {error}。
     sha は suite の段だけで結ぶ——mutation の段を足し書きしても、走っている run の engine_run の突き合わせは外れない"""
     p = pathlib.Path(root) / DECL_NAME
     if not p.is_file():
@@ -138,9 +188,12 @@ def read(root):
     if err:
         return {"error": f"{DECL_NAME}: {err}"}
     out = {"steps": steps, "sha": steps_sha(steps)}
-    mut, merr = parse_mutation(json.loads(text).get("mutation"), root)
+    d = json.loads(text)
+    mut, merr = parse_mutation(d.get("mutation"), root)
     if merr:
         out["mutation_error"] = f"{DECL_NAME}: {merr}"
     elif mut:
         out["mutation"] = mut
+    if LIST_KEY in d and (lerr := parse_list(d[LIST_KEY])[1]):
+        out["list_error"] = f"{DECL_NAME}: {lerr}"
     return out

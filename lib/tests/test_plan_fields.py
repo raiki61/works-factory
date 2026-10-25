@@ -70,6 +70,14 @@ class TestGaps(PlanFieldsCase):
         got = self.gaps(item(tests=[]))
         self.assertTrue(any(g.startswith("plan[0].tests") for g in got), got)
 
+    def test_gaps_static_tidy_pin_items_need_route_why(self):
+        """試験で示す物の無い直し・使われていない物の消し・試験の欠けを埋める直しの語も、語を選んだ訳を MIN_WHY 字以上で書く"""
+        for word in ("static", "tidy", "pin"):
+            got = self.gaps(item(route=word, tests=[], route_why="短い"))
+            self.assertTrue(any(g.startswith("plan[0].route_why") and word in g for g in got), (word, got))
+            self.assertEqual(self.gaps(item(route=word, tests=[], route_why="文書だけの直しで試験で示す物が無い")), [], word)
+        self.assertTrue(any(g.startswith("plan[0].route") for g in self.gaps(item(route="rebuild", tests=[], route_why="z" * 20))))
+
     def test_gaps_direct_item_needs_route_why(self):
         got = self.gaps(item(route="direct", tests=[], route_why="短い"))
         self.assertTrue(any(g.startswith("plan[0].route_why") for g in got), got)

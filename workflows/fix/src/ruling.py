@@ -72,7 +72,7 @@ def limit_problem(lim: str, repo) -> str:
     """範囲の 1 つ（<パス>・<パス>:<行>・<パス>:<行>-<行>。リポジトリの根から）が現物に在るか"""
     if not isinstance(lim, str) or not lim.strip():
         return f"範囲 {lim!r} が空"
-    if conflict.parse_limit(lim) is None:   # 絶対パス・根の外: 凍結の検査（tddloop.frozen_problems）が読めない範囲を受けない
+    if conflict.parse_limit(lim) is None:   # 絶対パス・根の外: 凍結の検査（common.frozen_problems）が読めない範囲を受けない
         return f"範囲 {lim!r} がリポジトリの根からの相対パスでない"
     if cite.CITE.match(lim.strip()):
         return cite.problem(lim, repo)
@@ -219,6 +219,12 @@ def query_problems(r: dict, item: dict) -> list:
     return errs
 
 
+def seen_stage(board) -> int:
+    """裁定の控えに書く段の番（下書き 2.1 の stage）: 裁定は組を当てた後の親で、1 回目の段の返しを見て出る（orders.stage_of の first）"""
+    from src import orders
+    return orders.stage_of(board, "first")
+
+
 def accept_rule(reply, board, base_rev, repo, *, keys=TREE_KEYS) -> dict:
     """節 rule-accept の中身。{ok, done, reason, rulings_file, counts}。裁定の文は置き場に書く。諦めの回は拒否の控え（rolekit）が
     数える。keys は作業ツリーの控えと比べる欄（tree_moved）。作業ツリーの控えが無い・形が違うのは ValueError（rule-prep が先に走る）"""
@@ -237,13 +243,14 @@ def accept_rule(reply, board, base_rev, repo, *, keys=TREE_KEYS) -> dict:
             if r["decision"] == conflict.REPLAN:
                 got[conflict.PLAN_ITEMS], got[conflict.PLAN_UNITS] = plan_item_units(todo[r["id"]]["unit_key"], briefs)
             return got
-        conflict.apply_rulings(b, {r["id"]: stored(r) for r in reply["rulings"]}, by=BY_ROLE)
+        conflict.apply_rulings(b, {r["id"]: stored(r) for r in reply["rulings"]}, by=BY_ROLE, stage=seen_stage(b))
         path = write_rulings(b)
         return {"ok": True, "done": True, "reason": "", "rulings_file": str(path), "counts": conflict.counts(b)}
     handed = {}
 
     def hand_over():   # 諦めた回だけ: 裁かれていない申し出を人に回す
-        conflict.apply_rulings(b, {i: {"decision": conflict.ASK, "text": GIVE_UP_TEXT, "limits": []} for i in todo}, by=BY_GIVE_UP)
+        conflict.apply_rulings(b, {i: {"decision": conflict.ASK, "text": GIVE_UP_TEXT, "limits": []} for i in todo}, by=BY_GIVE_UP,
+                               stage=seen_stage(b))
         path = write_rulings(b)
         handed.update(rulings_file=str(path), counts=conflict.counts(b))
     out = rolekit.accept_round(b, ROLE, None, lambda _: {"ok": False, "reason": " / ".join(errs), "rulings_file": "",

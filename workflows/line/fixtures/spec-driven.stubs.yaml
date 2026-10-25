@@ -177,6 +177,8 @@ fix__finish:
     unread: []
   item_claims: null
   freeze_off: []
+  removed_tests: []
+  untested: []
   report:
   - '- 修正: 1 単位'
 lens__intake:

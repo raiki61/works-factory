@@ -96,9 +96,9 @@ def _scope_ptr(place) -> dict | None:
 
 def _frozen(place) -> pathlib.Path | None:
     """輪ごとの凍ったテストのファイルの hash {loops: [{state, frozen, frozen_tree}]}（輪が無ければ書かない）"""
-    from src import board, tdd
+    from src import board, common
     loops = []
-    for state in tdd.states(place):
+    for state in common.states(place):
         doc = board.read_json(state, {}) or {}
         loops.append({"state": str(state), "frozen": doc.get("frozen") or {}, "frozen_tree": doc.get("frozen_tree") or ""})
     if not loops:
@@ -118,9 +118,9 @@ def _scope(place) -> pathlib.Path | None:
 def _tdd_refused(place) -> dict:
     """TDD の輪の状態の calls から修正役が拒まれた単位と、在るのに読めない状態の訳（今の fixbeside.tdd_refused）"""
     import oneline
-    from src import tdd
+    from src import common, tdd
     refused, unread = [], []
-    for state in tdd.states(place):
+    for state in common.states(place):
         try:
             doc = json.loads(state.read_text(encoding="utf-8"))
         except (OSError, ValueError) as e:
@@ -142,6 +142,28 @@ def _removed(place):
         return [ports.pointer(p, "json(shared:removed.schema.json)") for p in leftovers.found(place)]
     except leftovers.Unreadable:
         return None
+
+
+def returned_rows(place) -> tuple:
+    """(消した試験の並び removed_tests, 試験を求めなかった直しの並び untested)。この段の置き場の返しの控え returns/ から組む（下書き
+    4.1 の 7。line の最後の承認が節に分ける）。only_removed は試験を消しただけで足しも書き換えもしなかった試験のファイル（最後の承認が
+    「書き換えを許したテストを触った」の数えから外す）。1 回目の段から写した控え（board.PRIOR_LOOP の印）は 1 回目の段の出力が持つので数えない。
+    untested は注文に試験を求めない訳（why_untested）が在った返し。控えが読めなければ ValueError（黙って空にしない）"""
+    from src import board, orders, rules
+    removed, untested = [], []
+    for r in orders.returns_of(place):
+        if r.get(board.PRIOR_LOOP):
+            continue
+        head = {"group_id": str(r.get("group") or ""), "weapon": str(r.get("weapon") or ""),
+                "units": [str(u.get("key")) for u in r.get("units") or [] if isinstance(u, dict) and u.get("key")]}
+        if r.get("removed"):
+            kept = {orders.common_path(str(t)) for t in [*(r.get("added") or []), *(r.get("rewritten") or [])]}
+            removed.append({**head, "tests": [str(t) for t in r["removed"]],
+                            "only_removed": sorted({orders.common_path(str(t)) for t in r["removed"]} - kept)})
+        if str(r.get("why_untested") or "").strip():
+            untested.append({**head, "why": str(r["why_untested"]),
+                             "files": [{"path": str(p), "kind": rules.kind_of(p) or ""} for p in r.get("files") or []]})
+    return removed, untested
 
 
 def _item_claims(place, results, ruled, repo) -> dict:
@@ -179,6 +201,7 @@ def _common(place, repo, rows_groups, groups, extras, results, *, ok, reason, fi
     unit_file = board.write_json(place / files.TDD_UNIT_FILE, tdd_rows)
     objection = [board.objection(extras), *conflict.rejudge_texts(conflict.this_pass(place))]
     frozen = _frozen(place)
+    removed_tests, untested = returned_rows(place)
     return {"ok": ok, "reason": reason, "units": units_rows, "groups": groups_rows,
             "conflicts": ports.pointer(place / conflict.FILE, "json(lib:conflicts.schema.json)")
             if rows and (place / conflict.FILE).is_file() else None,
@@ -196,6 +219,7 @@ def _common(place, repo, rows_groups, groups, extras, results, *, ok, reason, fi
             "closure": ports.pointer(place / CLOSURE_FILE, "json(shared:closure.schema.json)") if (place / CLOSURE_FILE).is_file() else None,
             "tdd_unit": ports.pointer(unit_file, "json(shared:tdd-units.schema.json)"), "tdd": tdd_rows,
             "frozen": ports.pointer(frozen, "json(shared:frozen.schema.json)") if frozen else None, "removed": _removed(place), "tdd_refused": _tdd_refused(place),
+            "removed_tests": removed_tests, "untested": untested,
             "freeze_off": report.freeze_off(tdd_rows), "report": report.lines(place, tdd_rows, units_rows, repo, groups_rows)}
 
 
@@ -203,6 +227,18 @@ def suite_broken(results) -> list:
     """起動スクリプトが書き直しても壊れたままで止めた組の id（組の結果の tdd の suite_broken。docs/design/fix.md の 19 節）"""
     return [str(r.get("group_id")) for r in results
             if isinstance(r, dict) and isinstance(r.get("tdd"), dict) and r["tdd"].get("suite_broken") is True]
+
+
+def no_suite(results) -> list:
+    """実行器が無い・走らないで止めた組の id（組の結果の tdd の no_suite。下書き docs/plans/2026-10-24-fix-weapons.md の 3.9）"""
+    return [str(r.get("group_id")) for r in results
+            if isinstance(r, dict) and isinstance(r.get("tdd"), dict) and r["tdd"].get("no_suite") is True]
+
+
+def stop_of(results) -> str:
+    """組の結果の並びが名乗る止めの語（起動スクリプトの壊れ、実行器が無い・走らない。どちらも無ければ空）"""
+    import stopby
+    return stopby.SUITE_BROKEN if suite_broken(results) else (stopby.NO_SUITE if no_suite(results) else "")
 
 
 def whole(place, repo) -> dict:
@@ -230,10 +266,15 @@ def whole(place, repo) -> dict:
     extras = results + ([ruled] if ruled is not None else [])
     checked = board.read_json(place / board.ASSERT_FILE) or {}
     checked = {"ok": checked.get("ok") is True, "reason": str(checked.get("reason") or ("" if checked else "assert-changed が走らなかった"))}
-    broken = suite_broken([board.usable_result(pathlib.Path(plan["out_dir"]) / g["group_id"]) for g in plan["groups"]])
-    stop = stopby.UNRESTORED if board.held(place) else (stopby.SUITE_BROKEN if broken else "")
+    usable = [board.usable_result(pathlib.Path(plan["out_dir"]) / g["group_id"]) for g in plan["groups"]]
+    ruled_stop = board.no_suite_stop(place)   # 裁定の後の段の受け付けが no-suite で止めた（親の置き場の tdd-start.json）
+    stop = stopby.UNRESTORED if board.held(place) else (stop_of(usable) or (stopby.NO_SUITE if ruled_stop else ""))
     ok = isinstance(joined, dict) and checked["ok"] and not stop
-    reason = "" if ok else (JOIN_MISSING if not isinstance(joined, dict) else stop or checked["reason"])
+    if stop == stopby.NO_SUITE and ruled_stop:
+        stop_why = f"{stop}（{ruled_stop}）"
+    else:
+        stop_why = stop
+    reason = "" if ok else (JOIN_MISSING if not isinstance(joined, dict) else stop_why or checked["reason"])
     reply = board.group_fix_reply(place)
     write_closure(place, results, ruled)
     final = (board.final_lines(results, "handoffs", board.handoff_lines([ruled])),
@@ -265,8 +306,7 @@ def group(place, repo, doc: dict) -> dict:
     final = (board.final_lines(extras, "handoffs"), board.final_lines(extras, "mismatched"), board.final_titles(extras))
     tdd_rows = board.tdd_units([g], {gid: result})
     reply = place / board.FIX_REPLY_FILE
-    import stopby
-    stop = stopby.SUITE_BROKEN if suite_broken([result]) else ""
+    stop = stop_of([result])
     return _common(place, repo, rows_groups, [g], extras, [], ok=result is not None and not stop,
                    reason=(str(result["tdd"].get("reason") or stop) if stop else "") if result is not None else board.NO_RESULT, final=final, tdd_rows=tdd_rows, stop=stop,
                    reply=ports.pointer(reply, "json(shared:fix-reply.schema.json)") if reply.is_file() else None,
@@ -329,6 +369,11 @@ def fallback(place, why: str) -> dict:
     except Exception as error:  # noqa: BLE001
         trace = None
         unread.append(f"{files.ACCEPT_TRACE_FILE} を指せない（{type(error).__name__}: {error}）")
+    try:
+        removed_tests, untested = returned_rows(place)
+    except Exception as error:  # noqa: BLE001
+        removed_tests, untested = [], []
+        unread.append(f"返しの控えを読めない（{type(error).__name__}: {error}）")
     return {"ok": False, "reason": why, "units": units_rows, "groups": groups_rows, "conflicts": None, "carry": None,
             "replan_items": [], "objection": "", "diff": diff, "start_tree": "", "reply": None, "ruled_reply": None, "scope": None,
             "checked": {"ok": False, "reason": why}, "allowed_test_changes": [],
@@ -336,5 +381,5 @@ def fallback(place, why: str) -> dict:
             "handoffs": [], "handoff_titles": {}, "mismatched": [], "plan_declared": [], "stop_reason": stop, "item_claims": None,
             "allowed_tests": allowed, "accept_trace": trace, "closure": None,
             "tdd_unit": None, "tdd": [], "frozen": None, "removed": None, "tdd_refused": {"refused": [], "unread": unread},
-            "freeze_off": [], "report": [f"修正の出力を組めない: {why}"]}
+            "removed_tests": removed_tests, "untested": untested, "freeze_off": [], "report": [f"修正の出力を組めない: {why}"]}
 

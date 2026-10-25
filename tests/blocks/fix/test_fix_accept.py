@@ -45,7 +45,7 @@ from tests.blocks import kit
 
 _l_SEED = kit.ROOT / "tests" / "e2e" / "target-seed"
 _L_SRC = {"fixboard": "board", "fixgates": "gates", "planscope": "scope", "unitrows": "unitrows", "parking": "parking",
-          "fixrules": "rules", "tddloop": "tdd", "ruling": "ruling"}
+          "fixrules": "rules", "tddloop": "tdd", "ruling": "ruling", "common": "common", "basecase": "basecase"}
 
 
 def _l_bind() -> None:
@@ -402,7 +402,9 @@ class TestLoopRedTree(FixGatesCase):
         def run(exe, repo, *a, **k):
             calls.append(pathlib.Path(repo).resolve() == self.repo.resolve())
             return real(exe, repo, *a, **k)
-        with mock.patch.object(fixgates.tddloop, "run_suite", side_effect=run):
+        # 赤の木の走らせ直しは common.red_rerun の口（common.run_suite）、base の木は関門の口（tddloop.run_suite）
+        with mock.patch.object(fixgates.tddloop, "run_suite", side_effect=run), \
+                mock.patch.object(common, "run_suite", side_effect=run):
             self.assertEqual(self.problems(attempt=1), [])
             self.assertEqual(self.problems(attempt=2), [])
         self.assertEqual(calls.count(False), 2, "赤の木と base の木は 1 回ずつだけ走らせる")
@@ -2039,13 +2041,13 @@ class DutySets(DutyCase):
     def tdd_owed(self) -> tuple:
         suite = self.tmp / "suite.py"
         suite.write_text("", encoding="utf-8")
-        with mock.patch.object(tddloop, "run_suite", return_value=([], 0, [])), \
-                mock.patch.object(tddloop, "snapshot", return_value=""):
+        with mock.patch.object(basecase, "run_suite", return_value=([], 0, [])), \
+                mock.patch.object(tddloop, "snapshot", return_value=""), mock.patch.object(common, "snapshot", return_value=""):
             got = tddloop.start(self.tmp, self.tmp, str(suite), json.dumps(_l_IS_OPEN, ensure_ascii=False), owed=_l_OWED,
                                 **self.kw())
         self.assertTrue(got["go"], got)
         st = json.loads(pathlib.Path(got["state_file"]).read_text(encoding="utf-8"))
-        return set(tddloop._owed(st)), set(st["excused"])
+        return set(common._owed(st)), set(st["excused"])
 
     def gated_items(self) -> set:
         """事後の関門が見る項目の単位: 単位ごとに 1 項目の tdd の欄を置き、OUT_OF_DUTY で飛ばさなかった項目の単位"""
@@ -2093,7 +2095,7 @@ import writes  # noqa: E402
 SEED = kit.ROOT / "tests" / "e2e" / "target-seed"
 SKIP = ("vendored/",)
 WHY = "整形の道具で 40 ファイルを一度に書き換えた"
-_S_MODS = ("board", "facts", "gates", "scope", "unitrows", "parking", "rules", "consult", "prompts", "runvals", "ruling")
+_S_MODS = ("board", "facts", "gates", "scope", "unitrows", "parking", "rules", "consult", "prompts", "runvals", "ruling", "duties")
 
 
 def _s_load() -> types.SimpleNamespace:
@@ -2376,6 +2378,25 @@ class FactchecksSeamCase(SeamTemp):
         self.assertTrue(any("'def median' は指し先 'stats.py' の中に無い" in t for t in refs), refs)
         reply["wrote_refs"][0]["cite"] = "def mean"
         self.assertEqual([r for r in self.fc.precheck(self.cfg, reply)["rejects"] if r["check"] == "refs"], [])
+        self.assertEqual(self.shas(), before, "置き場を書かない")
+
+    def test_precheck_checks_the_frozen_files_of_the_returns_the_acceptance_checks(self):
+        """事前の確かめは、受け付けと同じく返しの控えの凍ったファイルを注文の許しで照らす（duties.frozen_by_returns）。置き場は書かない"""
+        import hashlib
+        test_file = self.repo / "test_stats.py"
+        (self.place / "returns").mkdir()
+        (self.place / "returns" / "1.json").write_text(json.dumps(
+            {"stage": 1, "weapon": "tdd", "group": "g1", "tree": self.rev, "units": [], "frozen_tree": self.rev,
+             "frozen": {"test_stats.py": hashlib.sha256(test_file.read_bytes()).hexdigest()}}), encoding="utf-8")
+        (self.place / "orders.json").write_text(json.dumps({"sequence": [], "weapons": {}, "stage": 1, "since": self.rev}),
+                                                encoding="utf-8")
+        self.assertEqual([r for r in self.fc.precheck(self.cfg, self.reply)["rejects"] if r["check"] == "frozen"], [])
+        test_file.write_text(test_file.read_text(encoding="utf-8").replace("clamp(15, 0, 10), 10", "clamp(15, 0, 10), 10.0"),
+                             encoding="utf-8")
+        before = self.shas()
+        frozen = [r["text"] for r in self.fc.precheck(self.cfg, self.reply)["rejects"] if r["check"] == "frozen"]
+        self.assertEqual(frozen, self.m.duties.frozen_by_returns(self.place, self.repo))
+        self.assertTrue(frozen)
         self.assertEqual(self.shas(), before, "置き場を書かない")
 
     def test_place_agreement_counts(self):
@@ -3840,7 +3861,7 @@ class _XPlace(unittest.TestCase):
     def _x_intake(self, units, *, art=None):
         """組の単位を port group で、判定を port judgment で渡す（組を替える時も intake を回し直す）"""
         out = self._x_ok("intake", art=art, mode="group", judgment=json.dumps(_X_JUDGMENT, ensure_ascii=False),
-                         group=json.dumps({"group_id": "g1", "unit_ids": units, "items": []}))
+                         group=json.dumps({"group_id": "g1", "unit_ids": units, "items": []}), tdd_suite=str(self.repo / "junit-suite.sh"))
         self.assertTrue(out["ok"], out)
 
     def _x_json(self, name, doc):
@@ -3900,7 +3921,8 @@ class FixLoopScriptsCase(_XPlace):
 
     def test_accept_traces_tests_left_to_ci_and_final_stage(self):
         """F013: 受け付けの回ごとに accept-trace.json に impact.ACCEPT_TRACE_OP の行（ci_left・final_left・final_far）を積み、
-        読み手は組と段ごとに最後の回＝受けた回の行を読む（fix の finish._accepted_tests）。名は輪の状態から引く"""
+        読み手は組と段ごとに最後の回＝受けた回の行を読む（fix の finish._accepted_tests）。名は受け付けが書き戻した置き場の accept.json
+        から引く（下書き docs/plans/2026-10-24-fix-weapons.md の 2.1。輪の状態の同じ名の欄は読まない）"""
         import impact
         finish = importlib.import_module("src.finish")
         board = self.board
@@ -3911,8 +3933,9 @@ class FixLoopScriptsCase(_XPlace):
         rows = [r for r in board.accept_trace_rows(self.place) if r["op"] == impact.ACCEPT_TRACE_OP]
         self.assertEqual([(r["pass"], r["attempt"]) for r in rows], [("first", 1), ("first", 2)])
         self.assertEqual([(r["attempt"], r["ci_left"], r["final_left"]) for r in finish._accepted_tests(rows)], [(2, [], [])])
-        state = self._x_json("tdd-state.json", {"ci_left": ["tests/test_slow.py"], "final_left": ["tests/test_far.py"],
-                                                "final_far": ["lib/far.py"]})
+        state = self._x_json("tdd-state.json", {"ci_left": ["stale.py"], "final_left": ["stale.py"], "final_far": ["stale.py"]})
+        (self.place / "accept.json").write_text(json.dumps({"ci_left": ["tests/test_slow.py"], "final_left": ["tests/test_far.py"],
+                                                            "final_far": ["lib/far.py"]}), encoding="utf-8")
         board.tests_trace(self.place, str(state), "", pass_="ruled", attempt=1)
         last = [r for r in board.accept_trace_rows(self.place) if r["op"] == impact.ACCEPT_TRACE_OP][-1]
         self.assertEqual((last["ci_left"], last["final_left"], last["final_far"]),

@@ -19,7 +19,7 @@ def fix(**kw) -> dict:
            "allowed_test_changes": ["tests/a.py"], "changed": {"path_changed": False}, "x_scalars": {}, "handoffs": [], "handoff_titles": {}, "mismatched": [],
            "plan_declared": [], "stop_reason": "", "allowed_tests": {"path": "fix/allowed.json"}, "accept_trace": {"path": "fix/trace.json"},
            "closure": {"path": "fix/closure.json"}, "tdd_unit": {"path": "fix/tdd.json"}, "tdd": [{"units": []}], "frozen": None,
-           "removed": [], "tdd_refused": {"refused": [], "unread": []}, "item_claims": None, "freeze_off": [], "report": ["- 修正"]}
+           "removed": [], "tdd_refused": {"refused": [], "unread": []}, "item_claims": None, "freeze_off": [], "removed_tests": [], "untested": [], "report": ["- 修正"]}
     got.update(kw)
     return got
 
@@ -176,6 +176,20 @@ class ReadCase(unittest.TestCase):
         self.assertTrue(any("allowed_tests" in x for x in got["unread"]), got["unread"])
         self.assertEqual(self.s.closure_lines(got), self.s.closure_lines(got))   # querytest の行の形は lib の試験が見る
         self.assertIn(self.s.ANOMALY_LINE, self.s.always_rows(got))
+
+    def test_read_carries_removed_tests_and_untested_with_the_stage_name(self):
+        """下書き 4.1 の 7: 段ごとの欄 removed_tests・untested は段の名を付けて段の順に並び、行の並びでない欄は読めなかった訳になる
+        （黙って空にしない）"""
+        gone = {"group_id": "g1", "weapon": "remove", "units": ["u1"], "tests": ["t.py::a"], "only_removed": ["t.py"]}
+        plain = {"group_id": "g2", "weapon": "static", "units": ["u2"], "why": "文書だけ", "files": [{"path": "README.md", "kind": "docs"}]}
+        first = {**self.s.stage(fix()), "removed_tests": [gone], "untested": []}
+        second = {**self.s.stage(fix()), "removed_tests": [], "untested": [plain]}
+        got = self.s.read([first, second], self.s.resolve)
+        self.assertEqual(got["removed_tests"], [{**gone, "stage": self.s.STAGE_NAMES[0]}])
+        self.assertEqual(got["untested"], [{**plain, "stage": self.s.STAGE_NAMES[1]}])
+        bad = self.s.read([{**first, "removed_tests": None}], self.s.resolve)
+        self.assertEqual(bad["removed_tests"], [])
+        self.assertTrue(any("removed_tests" in x for x in bad["unread"]), bad["unread"])
 
     def test_late_records_name_missing_trace(self):
         got = self.s.late_records({"tdd_refused": {"refused": ["u1"], "unread": []}, "accept_trace": None}, self.s.resolve)

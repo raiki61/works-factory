@@ -1,0 +1,321 @@
+{
+  "type": "object",
+  "required": [
+    "weapon",
+    "status",
+    "tree",
+    "changes",
+    "evidence"
+  ],
+  "properties": {
+    "weapon": {
+      "type": "string",
+      "enum": [
+        "tdd",
+        "variant",
+        "remove",
+        "static",
+        "tidy",
+        "rebuild",
+        "pin"
+      ]
+    },
+    "status": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "unit",
+          "status",
+          "why"
+        ],
+        "properties": {
+          "unit": {
+            "type": "string",
+            "minLength": 1
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "done",
+              "parked",
+              "gave_up"
+            ]
+          },
+          "why": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "tree": {
+      "type": "string",
+      "minLength": 1,
+      "description": "返した時の作業ツリーの木。型の差分は注文の since からこの木まで"
+    },
+    "frozen": {
+      "type": "object",
+      "description": "tdd の輪の機械が書く {パス: hash}（凍らせたファイルが無くなれば null。common.hashes）。ほかの型は空",
+      "patternProperties": {
+        "": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "frozen_tree": {
+      "type": "string"
+    },
+    "suite_made": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "changes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "unit",
+          "files",
+          "what"
+        ],
+        "properties": {
+          "unit": {
+            "type": "string",
+            "minLength": 1
+          },
+          "files": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "what": {
+            "type": "string"
+          },
+          "closure": {
+            "type": "object",
+            "required": [],
+            "properties": {
+              "sites": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": [
+                    "site",
+                    "red_seen"
+                  ],
+                  "properties": {
+                    "site": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "path": {
+                      "type": "string"
+                    },
+                    "at": {
+                      "type": "string"
+                    },
+                    "fixed_by": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "test": {
+                      "type": "string"
+                    },
+                    "red_seen": {
+                      "type": "string"
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            },
+            "additionalProperties": true
+          },
+          "na": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "bypass_tried",
+                "breaks",
+                "precedent"
+              ]
+            }
+          }
+        },
+        "additionalProperties": true
+      }
+    },
+    "evidence": {
+      "type": "object",
+      "required": [
+        "named",
+        "added",
+        "rewritten",
+        "removed"
+      ],
+      "properties": {
+        "named": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "before": {
+          "type": "object",
+          "description": "試験の id → 結末（JUnit の結末から機械が作る。下書き 2.2）",
+          "patternProperties": {
+            "": {
+              "type": "string"
+            }
+          }
+        },
+        "after": {
+          "type": "object",
+          "description": "試験の id → 結末（JUnit の結末から機械が作る。下書き 2.2）",
+          "patternProperties": {
+            "": {
+              "type": "string"
+            }
+          }
+        },
+        "added": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "rewritten": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "removed": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "gone": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "kinds": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "kind",
+              "did"
+            ],
+            "properties": {
+              "kind": {
+                "type": "string",
+                "minLength": 1
+              },
+              "did": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "compared": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "description": "入力の id ごとの新旧の出力の hash と揺れの印（rebuild。下書き 2.2）",
+            "properties": {
+              "input": {
+                "type": "string"
+              },
+              "old": {
+                "type": "string"
+              },
+              "new": {
+                "type": "string"
+              },
+              "jitter": {
+                "type": "boolean"
+              }
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "asks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "description": "食い違いの申し出の行（lib/conflicts.schema.json の items の行と同じ欄）",
+        "properties": {
+          "unit_key": {
+            "type": "string"
+          },
+          "between": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "why_both_cannot_hold": {
+            "type": "string"
+          },
+          "which_is_right": {
+            "type": "string",
+            "enum": [
+              "request",
+              "test",
+              "code",
+              "unknown",
+              "query"
+            ]
+          },
+          "kind": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "brief_vs_judgment",
+              "unnamed_test_broke",
+              "not_red",
+              "scope_needed",
+              "query_hits_fixed",
+              "needs_context",
+              null
+            ]
+          },
+          "correct_lines": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    },
+    "report": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  },
+  "additionalProperties": false,
+  "description": "型が返す返し（docs/plans/2026-10-24-fix-weapons.md の 2.2）。共通の受け付けが型の名を問わず同じ順で照らす"
+}

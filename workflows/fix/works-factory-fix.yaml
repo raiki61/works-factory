@@ -42,7 +42,7 @@ inputs:
     description: 'json(shared:plan-review-reply.schema.json): 事前審査の返答（faces・shrink）。修正役が plan_faces で穴と別案に答える。null は事前審査の無い run'
   prior:
     default: 'null'
-    description: 'json(shared:carry.schema.json): 前の修正の段の申し送り（前の段の出力 carry の先 {conflicts, loops}）。2 回目の修正の段だけに渡す。null は 1 回目の段'
+    description: 'json(shared:carry.schema.json): 前の修正の段の申し送り（前の段の出力 carry の先 {conflicts, loops, accept, bases, returns}）。2 回目の修正の段だけに渡す。null は 1 回目の段'
   notes:
     default: ''
     description: 'text: 機械の申し送りの文（案の直しの後の 2 回目の修正の段だけ）。修正役と TDD の役の notes に足す。空は無い'
@@ -900,12 +900,13 @@ nodes:
     output_format:
       type: object
       additionalProperties: false
-      required: [tdd, units, reason, suite_broken]
+      required: [tdd, units, reason, suite_broken, no_suite]
       properties:
         tdd: {type: boolean}
         units: {type: integer, minimum: 0}
         reason: {type: string}
         suite_broken: {type: boolean}   # 工場の書いた起動スクリプトが壊れている（suite-fix-* が書き直させる。docs/design/fix.md の 19）
+        no_suite: {type: boolean}   # 実行器が無い・走らない組で static でない単位が在る（route-go・orders が止める。stopby の no-suite）
 
   # 起動スクリプトの書き直し（工場の書いた実行器が、関わる試験を中身に届く前に落とし、test_cmd の単体は通る時だけ。1 回だけ書き直させ、
   # 直らなければ組を止める。docs/design/fix.md の 19）
@@ -947,7 +948,7 @@ nodes:
         made: {type: boolean}
         body: {type: string}
         why: {type: string}
-  # 書き手が飛ばされた（指示を組めなかった）周も走る（書き直せなかったとして組を止める）。書き手が落ちた run は走らないが、tdd-go が
+  # 書き手が飛ばされた（指示を組めなかった）周も走る（書き直せなかったとして組を止める）。書き手が落ちた run は走らないが、route-go と orders が
   # 輪の頭の返りの suite_broken を読んで同じく止める
   - id: suite-fix-try
     script: suite_fix_try
@@ -965,9 +966,10 @@ nodes:
         tdd: {type: boolean}
         stop: {type: boolean}
         reason: {type: string}
-  # TDD のループと修正役の輪を回すかの合わせ（書き直しの node が飛んだ組も、走った組も、輪の状態のファイルから読む）
-  - id: tdd-go
-    script: tdd_go
+  # 振り分けの段の AI を起こすか（routes が auto で元の結末が取れ、計画の語と消す名の外の単位が在る組だけ、輪の状態を段 route で置く）。
+  # 書き直しの node が飛んだ組も、走った組も、組の頭の返り tdd-start.json から読む
+  - id: route-go
+    script: route_go
     runtime: uv
     mutates_checkout: false
     depends_on: [group-start, suite-fix-try]
@@ -975,40 +977,36 @@ nodes:
     output_format:
       type: object
       additionalProperties: false
-      required: [tdd, stop]
+      required: [route, stop]
       properties:
-        tdd: {type: boolean}
-        stop: {type: boolean}   # 起動スクリプトが書き直しても壊れたまま: 修正役の輪を回さない（確かめていない直しを書き進めない）
+        route: {type: boolean}
+        stop: {type: boolean}   # 起動スクリプトが書き直しても壊れたまま・実行器が無い・走らない組（no_suite）
 
-  # 単位ごとの TDD のループ（route → 単位ごとに test（赤）→ fix（緑）→ refactor）。赤・緑は tdd-step が JUnit XML で機械が決める。
-  # 同じ単位の段は 1 つの会話で続け、単位が替わる周だけ新しい会話にする。Archon は fresh_context: false の輪で前の周の最後の会話を
-  # 次の周の体の AI の node へ渡し、node の context: fresh だけがそれを切る（止めた Archon の dag-executor.ts の lastSequentialSession）。
-  # tdd-prep が単位が替わったかを new_unit で返し、続きの役 tdd と新しい単位の役 tdd-new を when: で振り分ける。並んだ層（2 つ以上の
-  # node の層）は会話を渡さないので、tdd-new は tdd の後ろの層に置く。前の単位の物は指示の引き継ぎの段落でも渡す
-  - id: tdd-loop
-    depends_on: [tdd-go]
-    when: "$tdd-go.output.tdd == true"
+  # 振り分け（今の TDD の輪の最初の段を輪の外へ出した物。docs/plans/2026-10-24-fix-weapons.md の 4.1 の 3）。拒否 3 回で諦めると、
+  # 振る単位は全部 AI の答え無しとして route から型を引く表で variant に引かれる。回数の柵は今の tdd-loop と同じ 40
+  - id: route-loop
+    depends_on: [route-go]
+    when: "$route-go.output.route == true"
     loop_group:
       max_iterations: 40
       fresh_context: false
-      until_bash: done=$tdd-step.output.done; test "$done" = true
+      until_bash: done=$route-step.output.done; test "$done" = true
       nodes:
-        - id: tdd-prep
-          script: tdd_prep
+        - id: route-prep
+          script: route_prep
           runtime: uv
           mutates_checkout: false
           output_format:
             type: object
             additionalProperties: false
-            required: [prompt, go, new_unit]
+            required: [prompt, go]
             properties:
               prompt: {type: string}
               go: {type: boolean}
-              new_unit: {type: boolean}   # 前の周と単位（振り分けの段は route）が替わった周（tdd-new が新しい会話で起きる）
 
-        # 同じ単位の続き（前の周の会話を継ぐ）。道具・skills は tdd-new と同じ（merge key の錨 tdd_launch）
-        - id: tdd
-          description: 'TDD の役（今の単位を直す。同じ単位の続き）'
+        # 振り分けの役（今の TDD の役の振り分けの段と同じ指示・同じ道具。merge key の錨 tdd_launch を tdd・tdd-new が使う）
+        - id: route
+          description: '振り分けの役（直す義務の単位を tdd か direct に振る。前の TDD の役の最初の段）'
           <<: &tdd_launch
             model: '@wf-fix-writers'
             prompt: "$tdd-prep.output.prompt"
@@ -1018,8 +1016,9 @@ nodes:
             sandbox: {enabled: true, allowUnsandboxedCommands: false}
             idle_timeout: 1728000000
             retry: {max_attempts: 2, on_error: all}
-          depends_on: [tdd-prep]
-          when: "$tdd-prep.output.go == true && $tdd-prep.output.new_unit == false"
+          prompt: "$route-prep.output.prompt"
+          depends_on: [route-prep]
+          when: "$route-prep.output.go == true"
           output_format: &tdd_reply
             type: object
             additionalProperties: false
@@ -1093,7 +1092,78 @@ nodes:
                     path: {type: string, minLength: 1}
                     why: {type: string, minLength: 10}
 
-        # 新しい単位（1 周目と単位が替わる周。新しい会話）。tdd の後ろの層（同じ層に置くと Archon は並んだ層として会話を切る）
+        # 振り分けの返答を確かめる（作業ツリーは変えない）
+        - id: route-step
+          script: route_step
+          runtime: uv
+          mutates_checkout: false
+          depends_on: [route-prep, route]
+          trigger_rule: none_failed_min_one_success
+          with:
+            reply: {from: "$route.output", if_skipped: null}
+          output_format:
+            type: object
+            additionalProperties: false
+            required: [ok, done, reason, reason_file, phase]
+            properties:
+              ok: {type: boolean}
+              done: {type: boolean}
+              reason: {type: string}
+              reason_file: {type: string}
+              phase: {type: string}
+
+  # 型ごとの注文（route から型を引く表で単位ごとに型を引き、orders/<型>.json に書く）。型ごとの輪を回すかの真偽だけを返す（PR A の形:
+  # tdd でない型の注文は全部、修正役の輪が受ける。docs/plans/2026-10-25-fix-weapons-stage1-a.md の 1）
+  - id: orders
+    script: orders
+    runtime: uv
+    mutates_checkout: false
+    depends_on: [group-start, route-go, route-loop]
+    trigger_rule: none_failed_min_one_success
+    output_format:
+      type: object
+      additionalProperties: false
+      required: [tdd, writer, stop, reason]
+      properties:
+        tdd: {type: boolean}
+        writer: {type: boolean}
+        stop: {type: boolean}   # 組を止める（起動スクリプトが書き直しても壊れたまま・実行器が無い・走らない組。確かめていない直しを書き進めない）
+        reason: {type: string}
+
+  # 単位ごとの TDD のループ（振り分けの後、単位ごとに test（赤）→ fix（緑）→ refactor）。赤・緑は tdd-step が JUnit XML で機械が決める。
+  # 同じ単位の段は 1 つの会話で続け、単位が替わる周だけ新しい会話にする。Archon は fresh_context: false の輪で前の周の最後の会話を
+  # 次の周の体の AI の node へ渡し、node の context: fresh だけがそれを切る（止めた Archon の dag-executor.ts の lastSequentialSession）。
+  # tdd-prep が単位が替わったかを new_unit で返し、続きの役 tdd と新しい単位の役 tdd-new を when: で振り分ける。並んだ層（2 つ以上の
+  # node の層）は会話を渡さないので、tdd-new は tdd の後ろの層に置く。前の単位の物は指示の引き継ぎの段落でも渡す
+  - id: tdd-loop
+    depends_on: [orders]
+    when: "$orders.output.tdd == true"
+    loop_group:
+      max_iterations: 40
+      fresh_context: false
+      until_bash: done=$tdd-step.output.done; test "$done" = true
+      nodes:
+        - id: tdd-prep
+          script: tdd_prep
+          runtime: uv
+          mutates_checkout: false
+          output_format:
+            type: object
+            additionalProperties: false
+            required: [prompt, go, new_unit]
+            properties:
+              prompt: {type: string}
+              go: {type: boolean}
+              new_unit: {type: boolean}   # 前の周と単位（振り分けの段は route）が替わった周（tdd-new が新しい会話で起きる）
+
+        # 同じ単位の続き（前の周の会話を継ぐ）。道具・skills は tdd-new と同じ（merge key の錨 tdd_launch。route が置く）
+        - id: tdd
+          description: 'TDD の役（今の単位を直す。同じ単位の続き）'
+          <<: *tdd_launch
+          depends_on: [tdd-prep]
+          when: "$tdd-prep.output.go == true && $tdd-prep.output.new_unit == false"
+          output_format: *tdd_reply
+
         - id: tdd-new
           description: 'TDD の役（今の単位を直す。新しい単位）'
           <<: *tdd_launch
@@ -1125,9 +1195,9 @@ nodes:
   # 修正役の輪。範囲の外が要る時は返答の欄 consult で頼み、相談の 3 node が答える（その周は受け付けを回さない）。
   # 3 回目の拒否で、名指しの単位だけを段の頭の木に戻して諦め、ほかは先へ。max_iterations 12 は拒否 3 回 + 相談の枠 9
   - id: fix-loop
-    depends_on: [group-start, tdd-go, tdd-loop]
+    depends_on: [group-start, orders, tdd-loop]
     trigger_rule: none_failed_min_one_success
-    when: "$tdd-go.output.stop == false"
+    when: "$orders.output.writer == true && $orders.output.stop == false"
     loop_group:
       max_iterations: 12
       fresh_context: false
@@ -1216,7 +1286,7 @@ nodes:
   - id: nodes-ok
     bash: "true"
     depends_on: [intake, prep, groups-par, groups-seq, join, clash-loop, conflict-check, rule-loop, clash-ruled-loop, fix-ruled-loop, clean,
-                 assert-changed, group-start, suite-fix-prep, suite-fix, suite-fix-try, tdd-go, tdd-loop, fix-loop, group-end]
+                 assert-changed, group-start, suite-fix-prep, suite-fix, suite-fix-try, route-go, route-loop, orders, tdd-loop, fix-loop, group-end]
     trigger_rule: none_failed_min_one_success
     mutates_checkout: false
 
@@ -1245,14 +1315,14 @@ nodes:
     runtime: uv
     mutates_checkout: false
     depends_on: [intake, prep, groups-par, groups-seq, join, clash-loop, conflict-check, rule-loop, clash-ruled-loop, fix-ruled-loop, clean,
-                 assert-changed, group-start, suite-fix-prep, suite-fix, suite-fix-try, tdd-go, tdd-loop, fix-loop, group-end, fix-reads]
+                 assert-changed, group-start, suite-fix-prep, suite-fix, suite-fix-try, route-go, route-loop, orders, tdd-loop, fix-loop, group-end, fix-reads]
     trigger_rule: all_done
     output_format:
       type: object
       additionalProperties: false
       required: [ok, reason, units, groups, conflicts, carry, replan_items, objection, diff, start_tree, reply, ruled_reply, scope,
                  checked, allowed_test_changes, changed, x_scalars, handoffs, handoff_titles, mismatched, plan_declared, stop_reason, allowed_tests,
-                 accept_trace, closure, tdd_unit, tdd, frozen, removed, tdd_refused, item_claims, freeze_off, report]
+                 accept_trace, closure, tdd_unit, tdd, frozen, removed, tdd_refused, removed_tests, untested, item_claims, freeze_off, report]
       properties:
         ok: {type: boolean}
         reason: {type: string}
@@ -1373,6 +1443,39 @@ nodes:
           properties:
             refused: {type: array, items: {type: string}}
             unread: {type: array, items: {type: string}}
+        # 型の返しの控え returns/ から組む 2 つの並び（line の最後の承認の節「消した試験」「試験を求めなかった直し」。src/finish.returned_rows）
+        removed_tests:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required: [group_id, weapon, units, tests, only_removed]
+            properties:
+              group_id: {type: string}
+              weapon: {type: string}
+              units: {type: array, items: {type: string}}
+              tests: {type: array, minItems: 1, items: {type: string}}
+              only_removed: {type: array, items: {type: string}}
+        untested:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required: [group_id, weapon, units, why, files]
+            properties:
+              group_id: {type: string}
+              weapon: {type: string}
+              units: {type: array, items: {type: string}}
+              why: {type: string, minLength: 1}
+              files:
+                type: array
+                items:
+                  type: object
+                  additionalProperties: false
+                  required: [path, kind]
+                  properties:
+                    path: {type: string}
+                    kind: {type: string}
         item_claims:
           type: [object, "null"]
           additionalProperties: false

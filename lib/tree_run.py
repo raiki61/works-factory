@@ -433,20 +433,23 @@ def place_mark(mark) -> bool:
         raise OSError(f"{MARK_FAILED}: {mark}: {e}") from e
 
 
-def _prepare(cwd, popen_kw):
+def _prepare(cwd, popen_kw, setup=None):
     """cwd の作業ツリーで、対象の宣言の setup を作業ツリーごとに 1 度走らせる。作業ツリーの根とその作業ツリー自身の git dir は
     unittrees._out（script 自身の os.environ から git の置き場の変数を外した、隔離のままの git）で引く。git の木でなければ何もしない。
     setup の argv だけが popen_kw の env（戻した利用者の HOME・XDG と印）で、根を cwd に _launch で起こされ、標準入力は空・出力は
     誤りの文のために控える。全部が 0 で終われば、git dir の SETUP_DONE に argv の並びの sha を書く（同じ sha なら次から走らせない）。
     落ちた・起こせない・宣言の setup の形が誤り（declared.read_setup。宣言を parse しない呼び手の分）なら、SETUP_DONE を書かずに
-    SETUP_FAILED を頭にした OSError"""
+    SETUP_FAILED を頭にした OSError。setup が None でなければ宣言は読まず、渡された argv の並びを走らせる（[] は何も走らせない。run の docstring）"""
     try:
         root, git_dir = unittrees._out(cwd, "rev-parse", "--show-toplevel", "--absolute-git-dir").splitlines()
     except unittrees.UnitTreeError:
         return
-    argvs, bad = declared.read_setup(root)
-    if bad:
-        raise OSError(f"{SETUP_FAILED}: {bad}")
+    if setup is None:
+        argvs, bad = declared.read_setup(root)
+        if bad:
+            raise OSError(f"{SETUP_FAILED}: {bad}")
+    else:
+        argvs = setup
     if not argvs:
         return
     sha = declared.steps_sha(argvs)
@@ -472,7 +475,7 @@ def _prepare(cwd, popen_kw):
         raise OSError(f"{SETUP_FAILED}: 済んだ印 {done} を書けない: {e}") from e
 
 
-def run(argv, **popen_kw):
+def run(argv, *, setup=None, **popen_kw):
     """cwd（Popen の引数）が渡された時は、argv の前に _prepare で、その作業ツリーの宣言の setup を作業ツリーごとに 1 度走らせる
     （対象のコマンドの呼び手は全部 cwd を渡す。落ちたら SETUP_FAILED を頭にした OSError で、argv は起こさない。cwd が無い呼び出し
     ——CLI の main——は走らせない。setup は env の戻した利用者の HOME・XDG と印で、sha に結ばずに走り、作業ツリーに書いた物は
@@ -484,9 +487,13 @@ def run(argv, **popen_kw):
     依らず新しく置いた印を消す（報告が言い過ぎない）。
     待つ間（後始末の間も）に STOP_SIGNALS を受けたか直下の親が替わったら、木ごと止め、LINGER 秒待ってから Stopped を投げる。
     起きた時に既に孤児（親が 1）なら起こさずに Stopped(SIGHUP)。どの道で抜けても木を止めに行き、止め切れなければ
-    標準エラーに名指しする（抜け道はモジュールの説明）"""
+    標準エラーに名指しする（抜け道はモジュールの説明）。
+    setup（キーワードのみ）は準備の 3 値: None（既定）＝上のとおり cwd の作業ツリーの宣言を読む／[]＝準備なし（argv の前に何も走らせない）／
+    argv の並び＝宣言を読まず、その並びをそのまま（作業ツリーごとに 1 度の SETUP_DONE の印・env・控え・誤りの扱いは同じ）。
+    `setup or 既定` と書かない（[] も None も偽）。限定: setup を渡すのは fix block の basecase の一覧の前の 1 か所だけ（起点の木の
+    setup を、一覧を走らせる別の木へ渡す）。ほかの呼び手は渡さず、cwd の木を読む"""
     if popen_kw.get("cwd") is not None:
-        _prepare(popen_kw["cwd"], popen_kw)
+        _prepare(popen_kw["cwd"], popen_kw, setup)
     return _launch(argv, **popen_kw)
 
 

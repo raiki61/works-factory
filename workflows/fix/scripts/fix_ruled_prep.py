@@ -5,6 +5,7 @@
 """node fix-ruled-prep（全体の形の裁定の後の修正の輪の頭）: 裁定の後の修正役の指示を md から組む（src/prompts.fixer の ruled）。
 直す裁定（PRIOR でも join-clash でもない fix_test_scope・fix_code_as）が無ければ go: false。1 周目は裁定の文のファイルを名指し
 （無ければ rulings.write で書く）、毎周、保存した 1 回目の返答（board.group_fix_reply）を名指す。直す義務は board.ruled_owed。
+段の頭で 1 度、裁定の後の直しの注文（orders.write_ruled。since は段の頭の木）を書く。
 返り {prompt, go, iteration}"""
 import functools
 import os
@@ -20,7 +21,7 @@ import groups  # noqa: E402
 import oneline  # noqa: E402
 import writelog  # noqa: E402
 
-from src import board, facts, files, prompts, rules  # noqa: E402
+from src import board, facts, files, orders, prompts, rules  # noqa: E402
 
 NODE = "fix-ruled-prep"
 SKIP = (ports.RUNTIME_COPY_PREFIX,)
@@ -37,6 +38,8 @@ def main() -> dict:
         board.record_skipped(place, repo, SKIP)   # 印より先に（落ちて回し直した prep が控えを飛ばさない）
         board.write_json(head, {"tree": groups.end_tree(repo)})
     owed = board.ruled_owed(place)
+    if not orders.is_ruled(place):
+        orders.write_ruled(place, owed, since=board.fixer_head(place, "ruled"))
     saved = board.group_fix_reply(place)
     values = board.fix_values(place, owed, answer_node=rules.answer_node("ruled"))
     state, _ = board.ruled_states(place)

@@ -49,6 +49,9 @@ def main() -> dict:
                              judged=judgment.get("units"), suite=str(values["tdd_suite"] or ""), state=state,
                              tests_state=tests_state, head=head, skip=SKIP, log=log)
     board.write_json(place / board.FIX_UNITS_FILE, got["units"])
+    if got.get("stop"):   # 実行器が結末を返さない・試験を拾わない（board.no_suite_at_accept）: 出し直させずに輪を抜ける
+        board.trace(place, "fix_ruled_stopped", node=NAME, iteration=iteration, reason=got["reason"])
+        return {"ok": False, "done": True, "reason": got["reason"], "reason_file": ""}
     if got["ok"]:
         path = place / board.RULED_REPLY_FILE
         board.write_json(path, board.reply_marks(got["reply"], board.read_json(path)))

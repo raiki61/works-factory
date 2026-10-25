@@ -1035,7 +1035,7 @@ class GroupBoardCase(unittest.TestCase):
     def test_refused_units_name_the_refused_calls(self):
         """tdd.refused_units は、calls のうち ok が偽で phase が runner でない call の unit_key（振り分けの段の空の key は
         ROUTE_REFUSED）"""
-        from src import tdd
+        from src import common, tdd
         calls = [{"n": 1, "phase": "route", "unit_key": "", "ok": False, "runs": 0, "secs": 0.1},
                  {"n": 2, "phase": "route", "unit_key": "", "ok": True, "runs": 0, "secs": 0.1},
                  {"n": 3, "phase": "test", "unit_key": "A", "ok": False, "runs": 1, "secs": 0.1},
@@ -1166,7 +1166,7 @@ class GroupBoardCase(unittest.TestCase):
 
     def test_join_group_keeps_a_group_it_could_not_restore_as_applied(self):
         """#403: 当てたパスを戻せなければ、組を当てていないと言わず、当たったままのパスと止めの文を返す"""
-        from src import tdd
+        from src import common, tdd
         start = leftovers.snapshot(self.repo)
         (self.repo / "extra.py").write_text("X = 1\n", encoding="utf-8")
         end = leftovers.snapshot(self.repo)
@@ -1176,7 +1176,7 @@ class GroupBoardCase(unittest.TestCase):
         for check in (lambda names: "確かめ直しが赤", broken):
             with self.subTest(check=check):
                 git(self.repo, "clean", "-qfd")
-                with mock.patch.object(tdd, "restore_paths", side_effect=OSError("書けない")):
+                with mock.patch.object(common, "restore_paths", side_effect=OSError("書けない")):
                     got = board.join_group(self.repo, start, end, self.place / "g1.diff", check=check)
                 self.assertTrue((self.repo / "extra.py").is_file())
                 self.assertEqual((got.names, got.backed_out, got.unrestored), ([], [], ["extra.py"]))
@@ -1256,10 +1256,15 @@ class GroupBoardCase(unittest.TestCase):
             self.assertIn("test_clamp_within_range", got)
             self.assertEqual(board.rerun_problem(self.place, self.repo, str(suite), cases, [], name="fixer-only-green"), "")
         with self.subTest("前の組と重なったファイルから地図が届く試験を足す（F411 の 2）"):
-            self.assertEqual(board.rerun_problem(self.place, self.repo, str(suite), cases, named, name="wide",
-                                                 shared=["stats.py"]), "")
-            st = json.loads((self.place / "wide" / "state.json").read_text(encoding="utf-8"))
-            self.assertEqual(st["units"]["wide"]["test_files"], ["test_stats.py"])
+            from unittest import mock
+            from src import common
+            with mock.patch.object(common, "selected_problems", wraps=common.selected_problems) as seen:
+                self.assertEqual(board.rerun_problem(self.place, self.repo, str(suite), cases, named, name="wide",
+                                                     shared=["stats.py"]), "")
+            self.assertIn("test_stats.py", seen.call_args.kwargs["named"], "地図が届く試験のファイルを名指しに足す")
+            self.assertEqual(pathlib.Path(seen.call_args.args[0]), self.place / "wide" / "base.json",
+                             "仮の元の結末 base.json を渡す（仮の輪の状態は組まない）")
+            self.assertTrue((self.place / "wide" / "accept.json").is_file(), "書き戻しは <name>/accept.json")
         with self.subTest("重なりの在る組の赤は意味の食い違いと名指す"):
             stats.write_text(src.replace("    return x\n", "    return lo\n"), encoding="utf-8")
             got = board.rerun_problem(self.place, self.repo, str(suite), cases, named, name="clash", shared=["stats.py"])
@@ -1294,18 +1299,18 @@ class GroupBoardCase(unittest.TestCase):
         外すと緑で走らせ直しに緑が在れば揺れとして cmd_notes に書いて戻さず、3 回とも赤の時だけ戻す。外した木で走らない時は
         uncompared が在れば人に聞き、無ければ戻す。base の無い呼びは今どおり 1 回の赤で戻す。外した木で走らせた後の作業ツリーは
         当てた姿のまま（外した木で出来たファイルも残さない）"""
-        from src import tdd
+        from src import common, tdd
         from tests.blocks.fix.support import SUITE
         suite = self.tmp / "suite.py"
         suite.write_text(SUITE, encoding="utf-8")
         named = ["test_stats.py::TestStats::test_mean_of_three"]
         stats = self.repo / "stats.py"
         stats.write_text(stats.read_text(encoding="utf-8").replace("(len(xs) - 1)", "len(xs)"), encoding="utf-8")
-        base = tdd.snapshot(self.repo)
+        base = common.snapshot(self.repo)
         (self.repo / "applied.txt").write_text("組の直し\n", encoding="utf-8")
         (self.repo / "run.sh").write_text("#!/bin/sh\nexit 1\n", encoding="utf-8")
         (self.repo / "run.sh").chmod(0o755)
-        applied = tdd.snapshot(self.repo)
+        applied = common.snapshot(self.repo)
         script = self.tmp / "cmd.py"
         script.write_text(
             "import pathlib, sys\n"
@@ -1338,7 +1343,7 @@ class GroupBoardCase(unittest.TestCase):
                 if mode == "group":
                     self.assertEqual(count.read_text(), "3", "当てた木で 3 回走らせた")
                     self.assertIn("3 回とも赤", got)
-                self.assertEqual(tdd.touched(self.repo, applied, tdd.snapshot(self.repo)), [], "作業ツリーは当てた姿のまま")
+                self.assertEqual(common.touched(self.repo, applied, common.snapshot(self.repo)), [], "作業ツリーは当てた姿のまま")
         with self.subTest("戻さなかった文は組の行の test_cmd_notes に置き、修正の報告に 1 件 1 行で出す"):
             from src import report
             rows, _ = board.join_rows([{"group_id": "g1", "unit_ids": []}, {"group_id": "g2", "unit_ids": []}],

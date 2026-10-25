@@ -244,6 +244,8 @@ fix__finish:
     unread: []
   item_claims: null
   freeze_off: []
+  removed_tests: []
+  untested: []
   report: ['- 修正: 1 単位']
 lens__intake: {due: false, reason: '', silent_failure_hunter_go: false}
 lens__finish:
