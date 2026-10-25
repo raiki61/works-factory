@@ -382,7 +382,7 @@ class AfterCase(_RepoCase):
 
     def test_plan_deviations_reach_the_eye(self):
         plan = self.run.repo / "plan-fields.json"
-        plan.write_text(json.dumps({"round": 1, "fields": [{"structure": [{"prescription": "p1", "deviation": "従わない訳である"}]}]}),
+        plan.write_text(json.dumps({"round": 1, "fields": [{"structure": [{"prescription": "p1", "deviation": "従わない訳である"}], "allowed_paths": ["a.py"], "out_of_scope": []}]}),
                         encoding="utf-8")   # 修正案の盤面の控えの形（shared:plan-fields.schema.json）
         self.after(plan=str(plan))
         self.assertEqual(self.read("structure-after.json")["deviations"][0]["deviation"], "従わない訳である")

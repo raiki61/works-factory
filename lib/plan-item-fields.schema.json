@@ -1,7 +1,11 @@
 {
-  "description": "修正案の項目 1 つの works の欄の行（plan-fields.json の fields の行。書き手は修正案の block の受け付け〔lib/planmarks.py の split・save〕）。欄の型の住処はこの 1 か所で、lib/planmarks.py の FIELD_SCHEMA（修正案の役の返答の欄。rewrite_tests の行の limit を外した物）・FILES_SCHEMA（files の行）はここから引く。修正案の役の output_format（workflows/plan/works-factory-plan.yaml の plan_reply）の同じ欄は写しで、一致を試験が縛る。split が足す欄: unit_keys（項目の写し）・files（項目の写し）・rewrite_tests の行の limit（書き換えてよい範囲 <パス>:<定義の行>）・removes_tests（消す名を使うテストの行の許し {id, limit}）。route_why は route が tdd でない時だけ要り、files の行の考えの住処 home と退けた置き場 considered は置き場のパスを持たない（行の path が持つ）。どの欄も必須でない（前の版の控えは範囲の欄を持たない）",
+  "description": "修正案の項目 1 つの works の欄の行（plan-fields.json の fields の行。書き手は修正案の block の受け付け〔lib/planmarks.py の split・save〕）。欄の型の住処はこの 1 か所で、lib/planmarks.py の FIELD_SCHEMA（修正案の役の返答の欄。rewrite_tests の行の limit を外した物）・FILES_SCHEMA（files の行）はここから引く。修正案の役の output_format（workflows/plan/works-factory-plan.yaml の plan_reply）の同じ欄は写しで、一致を試験が縛る。split が足す欄: unit_keys（項目の写し）・files（項目の写し）・rewrite_tests の行の limit（書き換えてよい範囲 <パス>:<定義の行>）・removes_tests（消す名を使うテストの行の許し {id, limit}）。route_why は route が tdd でない時だけ要り、files の行の考えの住処 home と退けた置き場 considered は置き場のパスを持たない（行の path が持つ）。範囲の欄 allowed_paths・out_of_scope だけを必須にする（修正案の受け付けの必須の欄 planmarks.REQUIRED に入り、範囲の欄の無い前の版の控えは fix の入口でも拒む。ほかの欄は受け付けの gaps が照らす）",
   "type": "object",
   "additionalProperties": false,
+  "required": [
+    "allowed_paths",
+    "out_of_scope"
+  ],
   "properties": {
     "route": {
       "type": "string",
