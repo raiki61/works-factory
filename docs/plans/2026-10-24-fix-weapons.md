@@ -1,9 +1,13 @@
-# 直し方の型（Weapon）を切り分ける設計の下書き（受付 20261024-104757-e4058d・第 1 版 → 受付 20261024-190133-4eaab8・第 2 版 → 受付 20261024-192726-65ce8b・第 3 版 → 受付 20261024-192743-7ce001・第 4 版 → 受付 20261024-201057-064f84・受付 20261024-201940-d59578・第 5 版 → 受付 20261024-210440-df333e・第 6 版 → 受付 20261024-213356-734220・受付 20261024-221204-c21cf7・第 7 版 → 受付 20261024-222546-4d038e・第 8 版 → 受付 20261024-224744-8687a7・受付 20261024-231019-b3a840・受付 20261024-231316-72dfb7・受付 20261024-232412-857288・受付 20261024-235401-aecc84・第 9 版 → 第 9 版の続き 5）
+# 直し方の型（Weapon）を切り分ける設計の下書き（受付 20261024-104757-e4058d・第 1 版 → 受付 20261024-190133-4eaab8・第 2 版 → 受付 20261024-192726-65ce8b・第 3 版 → 受付 20261024-192743-7ce001・第 4 版 → 受付 20261024-201057-064f84・受付 20261024-201940-d59578・第 5 版 → 受付 20261024-210440-df333e・第 6 版 → 受付 20261024-213356-734220・受付 20261024-221204-c21cf7・第 7 版 → 受付 20261024-222546-4d038e・第 8 版 → 受付 20261024-224744-8687a7・受付 20261024-231019-b3a840・受付 20261024-231316-72dfb7・受付 20261024-232412-857288・受付 20261024-235401-aecc84・第 9 版 → 第 9 版の続き 5 → 受付 20261025-211623-0323e9・第 10 版）
 
 ## 冒頭
 
-- 何の話か: 工場の修正の block（`workflows/fix/`）で、直し方の型（今は TDD と direct の 2 本）が互いの中身に頼り合っている所を棚卸しし、型ごとに切り分ける形を描いた設計の下書き。コードは変えていない。
-- 読み手に求めること: 持ち主に決めてもらうのは、段 1（修正の block の中で、型が受け取る物と返す物の形をそろえる今の一歩。4.1）を実装の部署（段 1 を作る AI の会話。部署は語の節）に頼むかで、頼む時の範囲の案は 4.4。第 9 版で足した確かめ（9.2 の 6。試験のファイルが無い対象で、試験が無いことをどう決めるか）は、持ち主が案 C（試験を走らせず、対象が宣言した一覧のコマンドで数える）で答えた（9.1 の 12）。第 9 版の続きで出た 2 つの問い（9.2 の 7・8）は、窓口（持ち主と部署の間で頼みを受け渡す会話。語の節）が持ち主の前の決めから決めて閉じた（9.1 の 13・14。受付 20261024-232412-857288）。7 は、試験の無い対象で下ごしらえが書ける設定のファイルを、修正前の版に無いファイルを新しく作る物だけに絞る（案 Y。本文に入れた）。8 は、対象の宣言が無い対象では試験が無いと決まらないままにする（案 1。本文は前からこの形）。どちらも持ち主の言葉ではないので、持ち主は覆せる（覆す時は 9.2 の 7・8 の別の案を指せばよい）。第 9 版の続き 4 で直した、試験の一覧の宣言を修正前の版から読む形（レビューの指摘 P）も窓口の決めで、9.1 の 13・14 の訳の項に書いた。急ぎの度合い: 期限の日付は無い。持ち主に残る決めは段 1 を頼むかだけ。持ち主でない読み手が決める物は無い。
+- 何の話か: 工場の修正の block（`workflows/fix/`）で、直し方の型（段 1 の前は TDD と direct の 2 本）が互いの中身に頼り合っている所を棚卸しし、型ごとに切り分ける形を描いた設計の下書き。段 1（4.1・4.4）は PR A #869・PR B #872 で main に入った。第 10 版で、段 2（型を block に上げる。4.2）の設計を 11 章に足した。この下書きはコードを変えていない。
+- 第 10 版の読み手に求めること（受付 20261025-211623-0323e9）:
+  - 持ち主に決めてもらうのは 1 つ: 下請けの実装役と審査役（修正案の項目ごとに書き手が起こす 2 つの AI）を、どの型の書き手に付けるか（11.8。推しは案 B: tdd の閉じの書き手の外の 5 つ全部。#872 のレビューの問いへの持ち主の答え「段 2 で決める」を受けた物）。急ぎは、段 2 の 2 本目の PR（D2）を頼む前まで。
+  - 窓口に頼みたいのは 2 つ: 段 2 の 1 本目の PR（D1。11.6）を実装の部署に頼むか決めることと、その前に、実走の部署へ 11.5 の確かめの頼み（include した型の block の中の AI が、出し直しで前の周の会話を継ぐか）を渡すこと。
+  - 第 10 版で変えた所: 11 章を足した。4.1 の 2（型どうしの import の試験を段 2 で消す）は、型の義務の表が修正の block に残るので消さない形に直した（11.1 の 3）。4.2 の「まだ確かめていない事」は、AI を使わない最小の run で確かめた結果を書いた（11.5）。9.2 に 9 を足した。9.1 は変えていない。段 1 の時の読み手に求めることは、次の行のまま残す（段 1 は入った）。
+- 段 1 の時の読み手に求めること（第 9 版。済んだ）: 持ち主に決めてもらうのは、段 1（修正の block の中で、型が受け取る物と返す物の形をそろえる今の一歩。4.1）を実装の部署（段 1 を作る AI の会話。部署は語の節）に頼むかで、頼む時の範囲の案は 4.4。第 9 版で足した確かめ（9.2 の 6。試験のファイルが無い対象で、試験が無いことをどう決めるか）は、持ち主が案 C（試験を走らせず、対象が宣言した一覧のコマンドで数える）で答えた（9.1 の 12）。第 9 版の続きで出た 2 つの問い（9.2 の 7・8）は、窓口（持ち主と部署の間で頼みを受け渡す会話。語の節）が持ち主の前の決めから決めて閉じた（9.1 の 13・14。受付 20261024-232412-857288）。7 は、試験の無い対象で下ごしらえが書ける設定のファイルを、修正前の版に無いファイルを新しく作る物だけに絞る（案 Y。本文に入れた）。8 は、対象の宣言が無い対象では試験が無いと決まらないままにする（案 1。本文は前からこの形）。どちらも持ち主の言葉ではないので、持ち主は覆せる（覆す時は 9.2 の 7・8 の別の案を指せばよい）。第 9 版の続き 4 で直した、試験の一覧の宣言を修正前の版から読む形（レビューの指摘 P）も窓口の決めで、9.1 の 13・14 の訳の項に書いた。急ぎの度合い: 期限の日付は無い。持ち主に残る決めは段 1 を頼むかだけ。持ち主でない読み手が決める物は無い。
 - 第 9 版の続き 5 は、段 1 の実装の部署が、段 1 の最初の commit で下書きの穴 5 つを直した版（頼みは受付 20261025-023207-a42ccb。直し方は工場の run 642df5d7 の計画の周 2 に沿う）。9.1 は変えていない。変えた所:
   - 写した `accept.json` の印の置き場と組の子への送り: `bases/<k>/` には必ず `accept.json` を置き、印 `ADOPTED_FROM`・`PRIOR_LOOP` はいつも `bases/<k>/accept.json` の鍵に置く（`base.json` には置かない）。読み手 3 つ（写し直さない照合・親の受け付けが読む元の結末の選び・2 回目の block の組の子への送り）はこの鍵だけを読む。2 回目の block の組の子へは、`PRIOR_LOOP` の印を持つ `bases/<k>/` を全部写す（2.1 の「親へ写す口」と運ぶ道の (3)・4.4 の作る物の 3）。
   - `setup` の 3 値: 起点の木の宣言に `setup` が無い時、`basecase` は `setup=[]` を渡す（`None` を渡さない）。`None`・`[]`・argv の 3 値の意味と、起点の木の `setup` を渡すのは `basecase` の一覧の前の 1 か所だけ、の限定を 2.1 の「読み方」の 1 か所に置いた（2.1・4.4 の作る物の 12）。
@@ -151,13 +155,17 @@
 - 憲法・E の番号: 憲法は根の `AGENTS.md` の「憲法」の 6 つの決まりで、番号はそこの番号。E8・E11・E13 などは `AGENTS.md` の決まりの番号（E8 は ASF を横に並べて見るだけ、E11 は仕組みを足す前に 3 つを確かめる、E13 は対象の言語を知らない）。
 - keep-essence: 工場が守る 12 の仕組みの一覧（`docs/design/README.md` の 10 章）。番号はそこの番号。
 - ASF: AI software factory。Archon の作者が Archon のリポジトリの `.archon/workflows/sdlc/` に置く、作業の受け付けから PR までのグラフの束。工場は型だけを採る（`docs/asf-notes.md`）。
+- 型の block（第 10 版）: 段 2 で型ごとに置く block（`workflows/weapon-<型>/`）。書き手の型の block（指示を組む script・書き手の AI・返りを置く script の 3 つの node）と、輪の型の block `weapon-tdd`（TDD の輪）の 2 種類（11.0）。
+- 葉の block（第 10 版）: ほかの workflow を名指さず（include も自分の外を指す `workflow:` も持たない）、入口の node が AI の node でない（script か bash の）block。AI の node を持つ block が include してよいのは、これだけ（11.1 の 1）。
+- slots（第 10 版）: 修正の block が組んで書き手の型の block に渡す、書き手の指示の共通の値と段落の真偽（`.shared/schemas/writer-slots.schema.json`。11.4 の 1）。
+- 輪の記録（第 10 版）: TDD の輪が抜ける時に書く、輪の外が読む欄だけのファイル `tdd-<k>/record.json`（11.6 の E1）。輪の状態 `state.json` は輪の中だけの物になる。
 - 埋め: Archon に無い物を外から補う部品。P2 などの番号は名簿 `docs/polyfills.md` の番号。
 - superpowers: 工場が借りて固定した、AI の作業の手順の束（`lib/borrow/superpowers/`）。
 - 材料のノート: 持ち主のノートのリポジトリ（my_notes）の枝 `work/reference` の調べもの。変更の種類は `reference/secondary/coding/code-change-classification-schemes-overlap-and-feature-removal.md`、場面と直し方は `reference/secondary/migration/code-change-strategy-conditions.md` と、その元の `reference/primary/` の写し。5 章の URL の一部はそこから引いた。
 
 ## 範囲
 
-- 描く物: 今の型の棚卸しと direct の指示文の仕分け（1 章）、箱と型の口の形（2 章）、場面の軸と型ごとの中身（3 章）、切り方（4 章）、定石との比べ（5 章）、憲法の 3 と E11 の確かめ（6 章）、run 19268881 の審査の指摘との照らし（7 章）、keep-essence との照らし（8 章）、持ち主の決めと問い（9 章）、指示の仕分けの表（付録 A）、記録の run との照らし（付録 B）。
+- 描く物（第 10 版で 11 章を足した）: 段 2 の設計（11 章）、今の型の棚卸しと direct の指示文の仕分け（1 章）、箱と型の口の形（2 章）、場面の軸と型ごとの中身（3 章）、切り方（4 章）、定石との比べ（5 章）、憲法の 3 と E11 の確かめ（6 章）、run 19268881 の審査の指摘との照らし（7 章）、keep-essence との照らし（8 章）、持ち主の決めと問い（9 章）、指示の仕分けの表（付録 A）、記録の run との照らし（付録 B）。
 - 描かない物:
   - どの依頼にどの型を当てるか。今の形（計画の項目の `route` が tdd か direct。計画の入力 `routes` は auto か spec、修正の入力 `routes` は auto か plan）のまま。足すのは static・tidy・pin を名指す語だけで、足し方は持ち主の答え（9.1 の 10）のとおり。場面の軸（3.0）で型を選ぶ決め方は、この設計の外で持ち主と別に詰める（持ち主の答え 2026-10-24 の 4）。
   - 「判定の単位はコードの上の欠陥の形 1 つ」の決め。依頼が挙げた `docs/design/diagnose.md:298` は 2.7 節の「残す物」の行で、決まりそのものは `docs/design/diagnose.md:31`（判定の道）と `:638`（23 番の手順 1 のクラスタリング）、機械の側は `workflows/diagnose/src/judge.py:268-272`（class_query が要る）と `workflows/diagnose/src/exit.py:90`（単位が 0 なら案へ進まない）に在る。
@@ -631,7 +639,7 @@ variant の「起点の木で赤」と下ごしらえの「起点の木で 2 回
 ### 4.1 段 1: 修正の block の中で口をそろえる（段 2 への一歩）
 
 1. 注文と返しの形を `workflows/fix/schemas/weapon-order.schema.json`・`weapon-return.schema.json` に置く。段 2 でこれがそのまま型の block の port の形になる。
-2. 型の中身は型ごとのモジュールに分ける。`src/tdd.py` は tdd 型の中身だけを持ち、修正役の受け付けが借りている部品（1.2 の 6）は共通のモジュールへ移す（例: 作業ツリーの写しと戻し・試験の走らせ・版の読み口）。段 1 の時から型のモジュールどうしは import しない（持ち主の答え 2026-10-25 の 3）。段 1 の間は `tests/layers/` に yes/no の試験 1 本（型のモジュールが別の型のモジュールを import していない）を置き、段 2 で型が block になったら、その試験を消して block の形の検査（`tests/layers/test_block_shape.py`）に任せる。
+2. 型の中身は型ごとのモジュールに分ける。`src/tdd.py` は tdd 型の中身だけを持ち、修正役の受け付けが借りている部品（1.2 の 6）は共通のモジュールへ移す（例: 作業ツリーの写しと戻し・試験の走らせ・版の読み口）。段 1 の時から型のモジュールどうしは import しない（持ち主の答え 2026-10-25 の 3）。段 1 の間は `tests/layers/` に yes/no の試験 1 本（型のモジュールが別の型のモジュールを import していない）を置き、段 2 で型が block になったら、その試験を消して block の形の検査（`tests/layers/test_block_shape.py`）に任せる。第 10 版で直した: 段 2 でも型の義務の表のモジュール（`src/<型>.py`）は修正の block に残る（受け付けが書き手から独立した照らしを持つため）ので、この試験は残す（11.1 の 3）。
 3. 組の子の頭（今の `group-start`・`tdd-go`）が、計画の route から型ごとの注文を書く。型の名から YAML の輪の id を引く表と、下の route から型を引く表は、ここに 1 つずつだけ置く。型が `gave_up` で返した単位を同じ箱の別の型の注文に書き直すのもここ（1.2 の 5 を型の外へ）。下ごしらえを別の型の前に挟む注文を書くのもここ（3.6）。組の最初の型の注文の `since` に段の頭の木（今の `fixer_head(place, "first")` に当たる木）を控えて書き、同じ組で型が続く時に、後の型の注文の `since` を前の型の返しの `tree` にするのもここ（2.1 の `since`。第 9 版の続き 2 で最初の型の分を直した）。run の今までの返し（同じ組の前の型と、前の段。置き場の返しの控え `returns/`）の物を `permits` から引くのもここ（2.1。第 5 版。第 9 版で及ぶ先を前の段まで広げた）。
    - 並び（第 7 版。10 章の 1）: `group-start`（木を写し、元の結末を取る。2.1 の `base`）→ 実行器の書き直し `suite-fix-*`（今のまま）→ `route-go`（script。`{route, stop}` を返す）→ 振り分けの loop `route-loop` → `orders`（script。今の `tdd-go` に替わり、注文を書いて型ごとの真偽だけを返す）→ 型の輪。
    - 振り分けの段を TDD の輪から出す（第 7 版。10 章の 1）: 今の振り分けは輪の最初の段（`tdd.py:123`・`:578`）。組の子に loop `route-loop`（`route-prep` の script → `route` の AI → `route-step` の script。done まで回す）を置く。`route` を起こす条件は今と同じ（`routes=auto` で実行器が使える時。`routes=plan` は AI を起こさない。`tdd.py:584`）。指示は変えない: `prompts/route.md` を新しく置き（今は無い）、中身を `{part:tdd}` の 1 行にし、今の `tdd_values` が段 `st["phase"]` が route の時に組む値（`workflows/fix/src/prompts.py:264-266` の枝）で同じ字を組む。返す形も `tdd`・`direct` の語と訳のまま（`tdd.py:1050`）。`_route` と `_give_up` の route の枝・`_plan_routes`・`plan_route_whys` を `src/route.py` に移し、`tdd.py` の段の並び `PHASES` から route を外す（写しの `rules.py:38` の `PHASES` も直す）。route の後の段は今も新しい会話で始まる（`tdd.py:883`・`works-factory-fix.yaml:964-965`）ので、外へ出しても会話の継ぎは失わない。
@@ -675,6 +683,8 @@ variant の「起点の木で赤」と下ごしらえの「起点の木で 2 回
 
 ### 4.2 段 2: 型を block に上げる（行き先。持ち主の答え 2026-10-25 の 3）
 
+- 第 10 版: 段 2 の設計は 11 章。この節の形のうち、形の検査 7.1 の 6 とぶつかる所（修正の block は AI の node を持つので、今の検査のままでは include できない）・返しの形（`weapon-return` は受け付けの控えで、port は書き手の返答）・型ごとの輪の並べ方（段 1 で入った書き手の 2 重の輪の鎖を include に替える）は、11.1 で直した。下の「まだ確かめていない事」は 11.5 で確かめた（AI を使わない形まで）。
+
 - 訳（持ち主の言葉の訳）: どの型を使うかは手前の振り分けで決まり、型は受けた注文をこなす部品にできる。振り分けの設計を型の作りと切り離して進められる。
 - 形: 型ごとに `workflows/<型の block>/` を置き（名は `works-factory-<フォルダの名>`。E9）、修正の組の子が `include:` で型の block を並べる。`include:` は読み込みの時に同じ run の中へ展開されるので（`docs/design/archon.md:33`）、組の子の作業ツリーを分け合える。`loop_group` の中にも書ける（`archon.md:74`）。
 - 得る物: 型どうしが互いの中身を知らないことを、今在る block の形の検査（`tests/layers/test_block_shape.py`。ほかの block のフォルダへのパスを組まない）と憲法の 3 がそのまま照らす。新しい検査を作らなくてよい（持ち主の決め `mechanism-over-tests`）。型を単独で回せる（憲法の 5。注文のファイルと対象のリポジトリだけで回る）。
@@ -691,7 +701,7 @@ variant の「起点の木で赤」と下ごしらえの「起点の木で 2 回
   - 最新の上流（dev の `63a5247f1`）も、源を読んだ限り同じ意味（`include/inline.ts` 150-260 行・`dag/trigger-rule.ts` 49-127 行）。
   - 落とし穴 1: `include:` の `with:` で `if_skipped` は今も使えない（埋め P2）。型の block の入力に「飛ばされた上流の代わりの値」は渡せない。
   - 落とし穴 2: 集めるノードが `when:` 付きのノード 1 つだけに頼ると、読み込みの時に警告が出る。返しを集めるノードは、型の block の出口を 2 つ以上並べて頼むか、`when:` の無い上流（組の子の頭など）も頼みに入れる。
-  - まだ確かめていない事: 型の block の中の承認ノードや `loop:` のノードが飛ばされた時に待ちで止まらないか。最小の YAML は承認ノードと `loop:` を持たなかった。持ち主の決め `real-measure` に沿い、段 2 で承認ノードか `loop:` を持つ型の block を作る前に、それを含む run で確かめる。筋書き（`archon workflow test`）では `loop_group` が 1 周で終わったものとされるので（`archon.md` の U3）、この確かめは筋書きでは足りない。
+  - まだ確かめていない事（第 10 版で確かめた。11.5 の確かめ 1。飛ばされた型の block の中の `loop_group` と承認ノードは待たずに飛ばされ、run は終わった。AI の会話の継ぎは 11.5 の頼み）: 型の block の中の承認ノードや `loop:` のノードが飛ばされた時に待ちで止まらないか。最小の YAML は承認ノードと `loop:` を持たなかった。持ち主の決め `real-measure` に沿い、段 2 で承認ノードか `loop:` を持つ型の block を作る前に、それを含む run で確かめる。筋書き（`archon workflow test`）では `loop_group` が 1 周で終わったものとされるので（`archon.md` の U3）、この確かめは筋書きでは足りない。
 - 動かなかった時の別の呼び方（第 5 版で、上の「まだ確かめていない事」が動かなかった時だけの備えになった）: 型の block を `when:` 無しで全部 `include:` し、各型の block の入口に「注文が在るか」を返す script のノードを置き、block の中の残りのノードが `when:` でその出力を読む（注文の無い型は入口の script だけが走って終わる）。代償は、型ごとに入口の script が 1 つずつ要ることと、走らない型のノードが run の記録に「飛ばされた」として並ぶこと。
 
 ### 4.3 今の読み手への響き
@@ -842,6 +852,8 @@ variant の「起点の木で赤」と下ごしらえの「起点の木で 2 回
 
 ### 9.2 新しく決めてほしいこと
 
+- 第 10 版で足した 9（開いている。11.8）: 下請けの実装役と審査役を、どの型の書き手に付けるか。案 A（variant だけ。今の #872 のまま）・案 B（推し。tdd の閉じの書き手の外の 5 つ全部。段 1 の前の守りに戻す）・案 C（pin を除く 4 つ）。代償と得る物は 11.8。
+
 第 6 版で全部閉じ、第 7 版で足した 5 も第 7 版の続きで閉じた。第 9 版で足した 6 は、第 9 版の続きで持ち主の答え（案 C）で閉じた（9.1 の 12）。第 9 版の続きで足した 7・8 は、第 9 版の続き 3 で窓口が持ち主の前の決めから決めて閉じた（9.1 の 13・14。持ち主が覆せる）。持ち主に残る決めは、段 1 を実装の部署に頼むか（冒頭の「読み手に求めること」）。問いと、採った案:
 
 1. 対象に試験が無い・走らない時の、振る舞いを変える直し → 案 1（工場の AI が走らせ方を作り、作れない・走らない時だけ止めて人に聞く）を採った（9.1 の 8）。案 2（作らずに止める）・案 3（通して最後の承認に節を出す）は採らない。本文は 3.9。
@@ -914,6 +926,242 @@ variant の「起点の木で赤」と下ごしらえの「起点の木で 2 回
    - 報告: 止めた訳の 1 行を、今の `suite_broken_notes`（line の `src/facts.py`）と同じ所に出すか。
    - **決着（第 7 版）** 3.9 の 2 つの前提を直した（test-gate は判定の前に照らさず `checked: false` で渡す・「試験が 1 件以上」はどこでも照らしていない）。止めの語 `no-suite`・止める所・0 件の yes/no・書き手と計画の役への 1 文ずつ・報告の句を 3.9 の止め方に書いた。輪の途中での実行器の書き直しは段 1 の後。第 8 版で、試験の無い対象の最初の試験のために下ごしらえの義務に設定のファイルの例外を足し、keep の型だけの組では下ごしらえを先に挟むとした。static だけの組の `NO_SUITE` の道は消えずに残るので、消える物の列挙を直した（3.9。独立のレビューの指摘 C と後でよい物）。第 9 版で、例外を開く・下ごしらえを挟む・止めの 0 件の 3 つの条件を「元の結末が 0 件」から `base.json` の `no_tests` に直した（2.1・2.4・3.9。レビューの指摘 L）。一式で取る所は持ち主に確かめる（9.2 の 6）とした。第 9 版の続きで、持ち主の答え（案 C。9.1 の 12）に沿い、一式で取るのをやめて対象の宣言の一覧 `list` で決め、一覧が無い・失敗した時は `no_tests` を真にせず（例外を開かず）、下ごしらえを挟んで止めの 0 件の yes/no に入れる形にした（2.1・2.4・3.9）。第 9 版の続き 3 で、例外で書ける設定のファイルを起点の木に無い物を新しく作るだけにした（2.4。窓口の決め 9.1 の 13）。
 18. **後（rebuild を作る時）** rebuild で古い経路を同じ依頼で消すかの決め方（3.5 の 3。持ち主の答え 9.1 の 9 から出た。第 6 版）: 境目が利用者に見えるか（軸 5）と、依頼が古い方を消すことまで範囲に含めるかを、誰がどう決めるか。候補は、計画の項目（`orders.rebuild` に境目の種類と「消すのを依頼が含む」の印を書き、訳を依頼の文から引く）・人の答え（修正の前の承認ノードで聞く）・依頼の文（PR・issue の本文を機械が読む）。5 の比べの入力と、9.1 の 2 の判定の単位の決めの見直しと一緒に詰める。境目で消す時の remove の項目を、計画が rebuild の項目と対で書く形（`depends_on`）もここで描く。
+
+## 11 段 2: 型を block に上げる設計（第 10 版で足した。受付 20261025-211623-0323e9）
+
+段 2 の行き先（4.2。持ち主の答え 2026-10-25 の 3）を、実装の部署（段 2 を作る AI の会話。Sonnet のサブエージェントに書かせ、部署〔Opus〕が面倒を見る。持ち主の決め 2026-10-26）が迷わず頼みを書ける細かさまで決めた章。前提は 9.1 の 1〜14 と段 1 で入った形（PR A #869・PR B #872。控えは `docs/plans/2026-10-25-fix-weapons-stage1-a.md`・`-stage1-b.md`）で、どちらも変えない。指示の観点の文と返答の形の必須の欄は減らさない（持ち主「アセットが損なわないことが重要」）。この章の行番号は main `f38b9727`（#872 の後）の物。
+
+### 11.0 この章で決めた事
+
+1. 形: 修正の block は AI の役（振り分け・裁定役・合わせ役・範囲の相談の答え・実行器の書き直し）を持つ block のまま、型の block を `include:` で並べる。型の block は 2 種類。
+   - 書き手の型の block（6 つ）: `weapon-tdd-close`・`weapon-pin`・`weapon-tidy`・`weapon-static`・`weapon-variant`・`weapon-remove`。中は「指示を組む script → 書き手の AI → 返りを置く script」の 3 つの node だけ（11.3）。
+   - 輪の型の block（1 つ）: `weapon-tdd`。TDD の輪（今の `tdd-loop`）だけを持つ（11.6 の E1・E2）。
+   - 修正の block に残す物: 注文を書く所（`orders`・`fix-ruled-prep`）・共通の受け付けと義務の表（型の義務の表 `src/<型>.py` も）・書き手の輪の頭（`writer-pick`）と内の輪（`fix-loop`・`fix-ruled-loop`）・振り分け・範囲の相談・裁定・合わせ役・元の結末。
+2. 決まりの直し: 形の検査 7.1 の 6（`docs/design/README.md:345`。AI の node を持つ workflow は include を持たない）を、「AI の node を持つ block が include してよいのは、ほかの workflow を名指さず、入口の node が AI の node でない（script か bash の）block（葉の block）だけ」に直す。README 8.3 の「tdd は独立の block にしない」（`:398`）と 1.3 の形の直し 2（`:194`）も直す。訳は 11.1 の 1。
+3. port: 型の block が受けるのは、注文 `order`（今の `weapon-order.schema.json` を `.shared/schemas/` へ移す）と、書き手の指示の値 `slots`（修正の block が組む。新しい形 `writer-slots.schema.json`）。書き手の型の block が返すのは書き手の返答 `reply`（今の修正の block の YAML の `*fix_reply` を形のファイル `writer-reply.schema.json` にした物）。`weapon-return.schema.json` は受け付けの控え（`returns/`）の形として修正の block に残す（11.1 の 2）。
+4. 書き手の型の block の入口の node は script にする。止めた Archon は、合成した block の入口の AI の node をいつも新しい会話で起こす（11.1 の 5）ので、AI が入口だと、拒まれた後の出し直しが前の周の会話を継げない。
+5. 実走で確かめた事（11.5）: AI を使わない最小の run 3 本（止めた Archon `a972888a`）で、選ばれなかった型の block の中の `loop_group` と承認ノードが待たずに飛ばされて run が終わること、今の書き手の 2 重の輪（外の輪 1 周に型 1 つ・内の輪で出し直す）の内の輪の本体に include を鎖で並べられること、飛ばした include の返りを受け付けが `if_skipped: null` で受けられることを確かめた。AI の会話の継ぎ（出し直しで前の周の会話を継ぐか）は、この会話の環境で Claude のログインが切れていて回せなかったので、実走の部署に頼む（11.5 に頼みの下書き）。
+6. PR は 4 本を順に出す（11.6）: D1 書き手の型の block 5 つ（variant の外）→ D2 `weapon-variant`（下請けの扱いは持ち主の答え次第）→ E1 修正の block の中で、TDD の輪の状態を受け付けが読まない形にする → E2 `weapon-tdd`。D1 の前に実走の確かめ（11.5 の頼み）を済ませる。
+7. 持ち主に聞く物は 1 つ（11.8。下請けの実装役と審査役をどの型の書き手に付けるか。推しは案 B: tdd の閉じの書き手の外の 5 つ全部）。ほかは 9.1・決まり・持ち主の答え（4.2）から決めた（各節に根拠）。
+
+### 11.1 段 1 の形と 4.2 の字の食い違い（決めた事と訳）
+
+1. 7.1 の 6 と 4.2 がぶつかる: 4.2 は「修正の組の子が `include:` で型の block を並べる」と書いたが、形の検査 7.1 の 6 は、ほかの workflow を名指す workflow（include を持つ物）に AI の node を持たせない。修正の block は AI の node を持つので、今の検査のままでは型の block を include できない。README 8.3 の「tdd は独立の block にしない」も、この検査を訳にしている。
+   - 決め（設計の部署の決め。持ち主が覆せる）: 7.1 の 6 を葉の block だけ許す形に直す（11.0 の 2）。
+   - 訳 1: 持ち主の答え（4.2。型ごとに block を置き、修正の組の子が include で並べる）がこの形そのもの。7.1 の 6 は土台の時に設計の部署が「根拠を書いて自分で決めた事」（README 13 章 `:632`）で、持ち主の決めではない。
+   - 訳 2: ASF に同じ形の前例が在る。`archon-deliver-block`（止めた Archon の `.archon/workflows/sdlc/deliver/archon-deliver-block.yaml`）は、AI の node（`settle-threads`・`ci`・`update-pr-body` の command）を持ちながら、`loop_group` の `rounds` の本体で `archon-implement`・`archon-review-block` などを include する（79〜199 行）。
+   - 訳 3: 形の直し 2 の 2 つ目の訳「テストの許しの 1 本（keep-essence の 3）も、割れば 2 つの block の間の port になる」は、段 1 で解けている。許しは修正の block が `conflict.test_permits` の 1 つの関数から注文の `permits` に書き、どの型も注文の 1 欄でだけ受ける（2.1）。型の block は許しを計算しない。
+   - 葉に限る訳: include の深さは 3 段まで（`include-expander.ts:200` の `INCLUDE_MAX_DEPTH`）。line → fix → 型の block で 2 段。型の block がさらに include すると、line → fix → 型 → 下で 3 段に届き、余地が無くなる。葉に限れば block の中の判断が下の層に逃げない（graph の定義「観点の判断は block に置く」を、型の block の側で保つ）。
+   - 入口を script に限る訳: 11.1 の 5。
+   - 代案 S2（採らない）: 修正の block を graph にし（AI の node を持たない）、今の修正の block の AI の役を全部（振り分け・裁定役・合わせ役・相談の答え・実行器の書き直し）別の block に出す。7.1 の 6 は今のままで済むが、修正の block の役どうしが共に使う決まりの文（`parts/brief.md`・`clash.md`・`consult.md`・`ruling-*.md` など）が全部 `.shared/prompts/` へ出る。README 1.3 の形の直し 3 が閉じた「fix だけの直しが pack 全体の共通の置き場に及ぶ」形に戻り、作る block の数も倍を越える。持ち主の答えの範囲（型を block に）も越える。
+2. 返しの形: 4.1 の 1 は「注文と返しの形が段 2 でそのまま型の block の port の形になる」と書いた。段 1 で作った `weapon-return.schema.json` は、受け付けが返しを通した後に書く控え（`returns/<k>.json`。`duties.write_returns`）の形で、`gone`・`before`・`after` は受け付けが計算する（2.2 の「型の申告でなく、共通の受け付けが計算する」）。書き手は、この控えを書く前の物しか持たない。
+   - 決め: 書き手の型の block の port の返りは、書き手の返答（今の `*fix_reply`。`evidence.kinds` を含む）にする。`weapon-return` は修正の block の `schemas/` に残し、受け付けの控えの形のまま使う。注文の形 `weapon-order.schema.json` は、修正の block（書く側）と型の block（読む側）の 2 つ以上が使うので `.shared/schemas/` へ移す。
+3. 型の義務の表の置き場: 4.2 の「受け付けは修正の block に残す」のとおり、箱の義務と型の義務の表（`src/duties.py` と型ごとの `src/pin.py`・`tidy.py`・`static.py`・`variant.py`・`remove.py`・`rebuild.py`・`tdd.py` の `DUTIES`）は修正の block に残す。書き手が自分の照らしを持たない（照らす側と照らされる側を分ける）ため。
+   - 響き: 4.1 の 2 は「段 2 で型が block になったら、型どうしの import を縛る `tests/layers/test_weapon_imports.py` を消す」と書いたが、義務の表のモジュールは修正の block に残るので、試験は残す（11.6 の E2 で、TDD の輪の中身が `weapon-tdd` へ出た後の `src/tdd.py` は義務の表だけになり、試験の照らす名は変えない）。型の block の中身どうしは、block の形の検査（7.1 の 7。ほかの block のフォルダへのパスを組まない）と層の地図（E22）が照らす。
+4. 書き手の並べ方: 4.1 の 4 は「型ごとの輪を `when:` で並べる」と書いたが、段 1 で入った形は、外の輪 `writers-loop`（1 周に型 1 つ。`works-factory-fix.yaml:1285`）の中に内の輪 `fix-loop`（`:1302`。型の中の出し直し）を置き、書き手の node を 1 本の鎖に並べて `when:` で 1 つだけ起こす形（控え stage1-b の 1 節の 2。並んだ層にすると会話が切れるため）。裁定の後の段も同じ（`ruled-writers-loop`・`fix-ruled-loop`。`:451`・`:474`）。
+   - 決め: この形を保ち、鎖の書き手の node 1 つずつを、型の block の include 1 つずつに替える（11.4）。外の輪・内の輪・`writer-pick`・`fix-prep`・受け付けの並びは変えない。
+5. 会話の継ぎと入口の node: 止めた Archon は、include で合成した block の入口の node（block の中に上流の無い node）を、いつも新しい会話で起こす（`packages/workflows/src/dag-executor.ts:10232-10235` の `composedBlockEntry`。#1764。「the same file behaving differently depending on who composed it」を避けるため。`context: shared` を書いた node だけが外れる）。内の輪 `fix-loop` は `fresh_context: false` で、2 周目からは前の周の最後の会話を次の AI の node へ渡す（`:4830`）が、入口の AI の node はそれを捨てる。
+   - 決め: 書き手の型の block の入口は、指示を組む script の node にし、AI の node は 2 番目に置く（入口でない AI の node は、渡された会話を継ぐ。同じ所の `isFreshSequential` の 3 つの条件に当たらない）。`context: shared` で外す形は採らない: 単独の run と include の run で同じ node の会話の扱いが変わる、と止めた Archon が避けた形を自分で作ることになる。
+   - 確かめ: 源を読んだ見立てで、AI を使う実走はまだ（11.5 の頼みの 1）。
+6. TDD の閉じの書き手: 段 1 で、tdd の単位の `changes` の行は書き手の輪の頭の `tdd-close`（AI）が書く（控え stage1-b の 1 節の 3）。`tdd-close` は、受け付けで拒まれると同じ会話で出し直す書き手で、形はほかの書き手と同じ（`*fix_reply` を返し、`fix-accept` が受け付ける）。TDD の輪とは別の時に、別の輪（`fix-loop`）で回る。
+   - 決め: `tdd-close` は TDD の輪の block に入れず、ほかの書き手と同じ形の書き手の型の block `weapon-tdd-close` にする。TDD の輪は `weapon-tdd` の 1 つ。型 tdd が block 2 つになる。
+   - 訳: 輪と閉じを 1 つの block にすると、入力 `mode` で 2 つの中身を選ぶ block（今の fix の whole・group の形）になり、同じ block を 2 か所で include して片方の中身をいつも飛ばすことになる。閉じは書き手の型の block の形にそのまま入る（D1 で一緒に作れる）。
+7. 振り分けの指示: 振り分けの AI の指示 `prompts/route.md` は `{part:tdd}` の 1 行で、TDD の役の指示 `parts/tdd.md` を段 `route` の段落で組む（4.1 の 3。指示を変えないため）。TDD の役が `weapon-tdd` へ出ると、`parts/tdd.md` は修正の block（振り分け）と `weapon-tdd`（TDD の役）の 2 つが使う断片になる。
+   - 決め: E2 で `parts/tdd.md` を `.shared/prompts/tdd.md` に移す（字は変えない）。振り分けの文を割り出して修正の block の md に置く形は、指示の並びが変わるので採らない（4.1 の 3 の「指示は変えない」）。
+
+### 11.2 block の一覧と名
+
+- 名の形: フォルダは `weapon-<型>`、グラフの名は `works-factory-weapon-<型>`（E9）。
+  - 訳: `static`・`remove`・`pin` のような語だけのフォルダは、pack の中で何の block かが読めない。この下書きの語「型（Weapon）」を頭に置けば、型の block の並びが名で引ける。E18 の取ってきた物の頭（`factory`・`FACTORY`・`harness`・`.factory`・`archon-`）に当たらない。
+- 書き手の型の block（6 つ）と、修正の block の中の include の id:
+  - `weapon-tdd-close`: 1 回目の段 `w-tdd-close`。裁定の後の段には無い（今の `writers.SEQUENCE["ruled"]` に tdd が無いのと同じ）。
+  - `weapon-pin`: `w-pin`・`wr-pin`。
+  - `weapon-tidy`: `w-tidy`・`wr-tidy`。
+  - `weapon-static`: `w-static`・`wr-static`。
+  - `weapon-variant`: `w-variant`・`wr-variant`。
+  - `weapon-remove`: `w-remove`・`wr-remove`。
+  - 同じ block を 1 回目の段（組の子）と裁定の後の段（親）で別の id で include するので、place（`ports.place()`。include の道ごとのフォルダ）も分かれる（README 4.4）。11.5 の確かめ 3 で、内の輪の本体の include の place が `ARTIFACTS_DIR/<include の id>` になることを見た。
+  - include の id は、取り込む block の中の node の id と重ならない（7.1 の 13）: 書き手の block の中の node は `<型>-prep`・`<型>`・`<型>-out` で、include の id は `w-`・`wr-` で始まる。
+- 輪の型の block: `weapon-tdd`（include の id は `w-tdd`）。
+- rebuild: block を作らない（9.1 の 2。口の形だけ。注文を書く道を開けない今の形のまま）。
+
+### 11.3 書き手の型の block の形（6 つとも同じ）
+
+- フォルダの中身（`<w>` は型の名。`tdd-close` の block は `<w>` が `tdd-close`）:
+  - `works-factory-weapon-<w>.yaml`
+  - `prompts/<w>.md`（AI の node の指示 1 本）
+  - `scripts/writer_prep.py`・`scripts/writer_out.py`（node の `script:` の名。6 つの block で同じ名でよい〔script は block の `scripts/` から名で探す〕。`lib/` のモジュールの名と重ならない。7.1 の 9）
+  - `src/__init__.py`・`src/render.py`（型が持つ段落と値の表。下の「型が持つ物」）。variant だけ `src/subagents.py` も（11.4 の 5）
+  - `fixtures/standalone.stubs.yaml`
+  - `schemas/` は置かない（形は全部 `.shared/schemas/`）
+- `inputs:`:
+  - `order`: `required: true`、`description: 'json(shared:weapon-order.schema.json): 注文（この型の単位・範囲・許し・起点）'`
+  - `slots`: `required: true`、`description: 'json(shared:writer-slots.schema.json): 書き手の指示の共通の値と段落の真偽（材料・却下・裁定・相談の続き・義務から引く段落）'`
+  - 作り手（修正の block）を名指さない（E4）。
+- node（上から順。どれも 1 つの層に 1 つ）:
+  1. `<w>-prep`（`script: writer_prep`・`runtime: uv`・`mutates_checkout: false`）: `ports.json` で `order`・`slots` を読み、`order.weapon` がこの block の型でなければ落ちる（型の名と block の食い違いを書けなくする yes/no）。`slots.values`・`slots.when` に型が持つ値と段落を足し、`prompt.emit("<w>", values, when, prompt.round_of("<w>"))` で組む。返り `{prompt}`。
+  2. `<w>`（AI）: 今の書き手の起こし方（`works-factory-fix.yaml` の錨 `writer_launch`。`model: '@wf-fix-writers'`・`settingSources: [user]`・`allowed_tools`・`sandbox`・`idle_timeout: 1728000000`・`retry`）をそのまま写す。`allowed_tools` は今の書き手のまま（variant だけ `Agent` を足す。11.8 で案 B なら 5 つとも）。`prompt: "$<w>-prep.output.prompt"`。`output_format` は `writer-reply.schema.json` の中身を字のまま写す（11.4 の 3）。
+  3. `<w>-out`（`script: writer_out`・`runtime: uv`・`mutates_checkout: false`）: `with: {reply: "$<w>.output"}` を `ports.json(raw, "shared:writer-reply.schema.json")` で照らし、place の `reply-<n>.json`（`<n>` は `prompt.round_of` と同じ数え）に書き、`ports.pointer(path, "json(shared:writer-reply.schema.json)")` を返す。返り `{ok: true, reply: <pointer>, report: []}`。
+  - `returns: <w>-out`・`outcome_field: ok`（E5・7.1 の 8）。
+- 指示の md `prompts/<w>.md`: 今の `parts/<w>.md` の字のまま、`{part:writer-top}` を `{shared:writer-top}` に、`{part:writer}` を `{shared:writer}` に替えた物。頭の段落（`<!-- if rules -->` の中の役の文）は字を変えない。
+- 型が持つ物（`src/render.py` が足す。slots に入れない）:
+  - 値 `first_prompt`（この block の place の `<w>-prompt-1.md`。続きの周が読み直す 1 回目の指示）・`weapon-tdd-close` だけ `summary_file`（slots の上の段の欄 `summary_file` を写す。11.4 の 1）・`unattended`（`lib/seat.py` の `overlay_body(seat.OVERLAY_KINDS["fix"])`）・`overlay_file`（`spseam.BORROW_DIR / spseam.OVERLAY_FILE`）。
+  - 下請けの段落と値: `spawns`・`g1`・`ask_variant`・`g1_items`（11.4 の 5）。下請けを起こさない型は `spawns`・`g1`・`ask_variant` を偽、`g1_items` を空で足す。
+  - 今の `prompts.writer_paragraphs` のうち、義務の表から引く段落（`rules_change`・`rules_sites`・`rules_red`・`conflict_change`）は型が持たない（11.4 の 2）。
+- 筋書き `fixtures/standalone.stubs.yaml`: `fixture.inputs` に `order`・`slots` を JSON の字で置き（7.1 の 4。pointer を持たない）、`exec-code: true`、`<w>` の返答を stub に書き、`reached: [<w>-prep, <w>, <w>-out]`、`resolved-text-contains` に頭の段落の 1 文（例 static なら「You are the static writer, a fixer.」）。単独の run は `bin/works-factory workflow run works-factory-weapon-<w> --cwd <対象> --input order=<ファイル> --input slots=<ファイル>`（憲法の 5）。
+- 設計書 `docs/design/weapon-<w>.md`: README 6 章の型。block の全体（役・port・node の並び・place のファイル・コードの置き場）と、AI の node 1 つの 9 項。組み立ての順の共通の本文は、修正の block の設計書の slots の節（11.6 の D1 で書く）を指し、型の頭の段落と型が持つ物だけを書く。
+
+### 11.4 修正の block の側（slots・返り・YAML）
+
+1. slots の形 `.shared/schemas/writer-slots.schema.json`:
+   - `values`: object。今の `prompts.writer_values` の値の口のうち、型が持つ物（11.3）を除いた全部を `properties` で名指し、全部を `required` にする（`rejection`・`rulings_file`・`saved_reply`・`brief_rows`・`faces_rows`・`scope_rows`・`tests_rows`・`tests_how`・`policy_path`・`request_file`・`judgment_file`・`open_units`・`plan_file`・`notes_file`・`budget`・`draft`・`check_cmd`・`ripple_file`・`libdocs_rows`・`answer_file`・`left`・`lang`）。TDD の輪の要約のパス `summary_file` は `values` に入れず、slots の上の段の欄 `summary_file`（字。tdd の閉じの書き手の注文の時だけ空でない）に置く。読むのは `weapon-tdd-close` の `src/render.py` だけで、自分の値に足す。訳: `{summary_file}` を持つ md は `weapon-tdd-close` の頭の段落だけで、`prompt.render` は使われない値を拒む（README 5.2）ので、ほかの型に同じ組の `values` を渡せなくなる。
+   - `when`: object。今の段落の真偽のうち、型が持つ物を除いた全部（`rejected`・`rulings_first`・`ruled_reply`・`briefs`・`faces`・`scope`・`tests`・`tests_new`・`tests_tail`・`tests_broken`・`frozen_files`・`tests_how`・`rules`・`ask`・`ask_ripple`・`libdocs`・`resume`・`queued`・`overflow_answer`・`conflict`・`docs`・`prompts_kind`・`config`・`code`・`evidence`・`where_writer`・`where_tdd`・`where_rework`・`rules_change`・`rules_sites`・`rules_red`・`conflict_change`・`policy`・`no_policy`・`request`・`no_request`）を全部 `required` にする。
+   - `subagents`: object（11.4 の 5）。下請けを起こさない型の注文の時も、空の並びで置く。
+   - `summary_file`: 字（上の `values` の項）。
+   - 名の一覧を形に全部書く訳: `prompt.render` は md の全部の `{name}` に値を要り、使われない値も拒む（README 5.2）。形が鍵の組を決めれば、組む側（修正の block）と読む側（型の block）の食い違いは `ports.json` の照らしで落ちる（憲法の 6）。
+2. 組む口: `src/prompts.py` の `writer`・`writer_values` を `writer_slots(place, repo, pass_, weapon, values, **kw) -> dict` に替える。中身は今の `writer_values` の順のまま、型が持つ物を組まない。義務から引く段落は今の `writer_when`（`duties.box_of`・`board.RED_WEAPONS`・`SITES_WEAPONS`）を引いて `when` に入れる（指示と照らしを同じ表から引く今の形を保つ。型の block は義務の表を知らない）。渡した証拠の種類の控え（`rules.remember`）・回の数え（`rules.iteration_next`）・相談の飛ばしの控え（`board.consult_skip`）は今のまま修正の block。
+   - `scripts/fix_prep.py`・`fix_ruled_prep.py`: `prompts.writer` の代わりに `writer_slots` を呼び、place の `slots-<node>-<n>.json` と、注文 `orders/<型>.json` を指す pointer を返す。返りの形 `*fix_prep_out` は `{prompt, go, iteration, writer}` に `order`・`slots` を足し、全部の型が block になった後（D2）に `prompt` を外す（型の block が組むので要らない。D1 の間は fix の中に残る variant の node のためだけに組む）。`order`・`slots` は pointer の形（description は `json(shared:weapon-order.schema.json)`・`json(shared:writer-slots.schema.json)`）で、`go` が偽の周は書かない（`required` に入れない）。`writer` の値は起こす include の id（`writers.node` が返す。1 回目の段 `w-<型>`、裁定の後 `wr-<型>`。今は書き手の node の名）。
+3. 返りの形 `.shared/schemas/writer-reply.schema.json`: 今の `works-factory-fix.yaml` の錨 `fix_reply` の中身を字のまま写した物。型の block の AI の node の `output_format` は、この形のファイルと同じ中身を YAML に書く（Archon は `output_format` を外のファイルから読まない。README 4.1）。写しは 6 つになるので、照らしを 1 つ置く: どの書き手の型の block の AI の node の `output_format` も、この形のファイルと等しい（11.6 の D1 の縛る試験の 2）。
+   - 受け付けの読み: `fix-accept`・`fix-ruled-accept`・`consult-check` の `with:` を、型ごとの `{from: "$w-<型>.output.reply", if_skipped: null}`（裁定の後は `wr-`）に替える。`writers.reply_of` は起きた 1 つの pointer を `ports.json(raw, "shared:writer-reply.schema.json")` で解いて返す形にする。名の組み立て（`INPUTS_REPLY_<型>`）は今のまま、`with:` の鍵の名（`reply_pin` など）を変えない。
+4. YAML の鎖（`fix-loop` の本体。裁定の後の `fix-ruled-loop` も同じ形で `wr-`・`fix-ruled-prep`）:
+   - 並び: `fix-prep` → `w-tdd-close` → `w-pin` → `w-tidy` → `w-static` → `w-variant` → `w-remove` → `consult-check` → `consult-ask` → `consult-accept` → `fix-accept`（今の書き手の node の並びのまま。`writers.SEQUENCE`）。
+   - include の node ごとに: `include: works-factory-weapon-<型>`・`depends_on: [fix-prep, <前の include>]`・`trigger_rule: none_failed_min_one_success`（先頭の `w-tdd-close` は前が無いので書かない）・`when: "$fix-prep.output.go == true && $fix-prep.output.writer == 'w-<型>'"`・`with: {order: "$fix-prep.output.order", slots: "$fix-prep.output.slots"}`。
+   - include の `when:` は展開した block の入口の node（`<型>-prep`）に付き、後ろの 2 つは上流が飛べば飛ぶ（`include-expander.ts` の頭の説明・11.5 の確かめ 1）。鎖の次の include の入口は `trigger_rule` で、前の include が飛んでも走れる（11.5 の確かめ 3）。
+   - `consult-check`・`fix-accept` の `depends_on` は書き手の node の名の代わりに include の id を並べる（include を名指す `depends_on` は block の出口〔sink〕の全部を待つ）。
+   - `nodes-ok` の柵は、loop の node を名指しているので変えない。
+5. 下請け（variant の項目ごとの実装役と審査役）のファイル: 今は `prompts.g1_files` が修正の block の place に `g1-impl-<n>.md`・`g1-review-<n>.md` を書き、修正役の指示の `{g1_items}` に名指す。D2 で `weapon-variant` の `src/subagents.py` に移す（11.8 で案 B か C なら、11.6 の D2 の「11.8 で案 B か C の時に足す物」のとおり `lib/` と `.shared/` に移す）。
+   - 修正の block が slots の `subagents` に入れる物（データだけ。指示の文を持たない）: `owed`（下請けを起こす単位。`rules.dispatched` の結果）・`briefs`（`planbrief.for_units(briefs, owed)` の行。欄 `item`・`file`・`unit_keys`）・`all_items`（項目の番号の最大を引くための、凍結した brief の全部の `item` の並び）・`seat_brief_rows`（`rules.brief_rows` の字）・`judgment_file`・`policy_path`・`base_rev`・`check_cmd`（`prompts._check_cmd(config)`。相談の控えが無ければ空）・`directory`（作業ツリーの根）。
+   - 型の block に移す物: `prompts.g1_files`・`rules.implementer_values`・`g1_items`・`_g1_task`・`unit_note`（下請けだけが使う分）・`review_values`・`g1_row`・`g1_diff_cmd`・定数 `G1_IMPL`・`G1_REVIEW`・`G1_PATCH_FILE`・`G1_PATCH`・`SEAT_BRIEFS`、md の `parts/g1-impl.md`・`g1-review.md`・`g1-impl-report.md`・`g1-report.md`・`g1-head-sha.md`・`g1-scene.md`・`g1-rest.md`。`brief-head` を組む所（今の `render_part("brief-head")`）は、`weapon-variant` の `prompts/parts/seat-briefs.md`（中身は `{shared:brief-head}` の 1 行）を `render_part` する。
+   - 修正の block に残す物: 渡す前の計算（`rules.dispatched`・`rules.brief_rows`・`planbrief.for_units`・`ask_config` と `_check_cmd`）。`unit_note` を修正の block のほかの所も使うなら、両方が使う関数として `lib/` に出す（憲法の 4。実装の時に `grep` で決める）。
+6. 共通の指示の断片を `.shared/prompts/` へ移す（D1。字は変えず、中の `{part:` を `{shared:` に替えるだけ）:
+   - `writer-top.md`（今の `parts/writer-top.md`）・`writer.md`（今の `parts/writer.md`）・`brief-head.md`（今の `parts/brief-head.md`）・`brief.md`（今の `parts/brief.md`）。
+   - 訳: 型の block 6 つが使う（README 5.1 の「2 つ以上の block が使う段落は `.shared/prompts/`」）。`brief-head`・`brief` は、修正の block の TDD の役（`parts/tdd.md`）も使い続ける（`{part:brief-head}` を `{shared:brief-head}` に替える）。
+   - 代償: 修正の系の書き手の決まりの文を直す依頼が、`.shared/prompts/` の 1 本で閉じる形になる（1 か所で閉じることは変わらないが、置き場は pack の共通）。`.shared/AGENTS.md` の断片の一覧に 4 行足す。
+   - 名が今の断片と重ならないこと: `.shared/prompts/` に今在る `writer-rules`・`brief-reading` とは別の名。
+7. 修正の block から消す物（D1・D2）: `prompts/tdd-close.md`・`pin.md`・`tidy.md`・`static.md`・`variant.md`・`remove.md` と `-ruled` の 5 本、`parts/tdd-close.md`・`pin.md`・`tidy.md`・`static.md`・`variant.md`・`remove.md`、`parts/writer-top.md`・`writer.md`・`brief-head.md`・`brief.md`（`.shared` へ）、`parts/g1-*.md`（`weapon-variant` へ）。書き手の起こし方の錨 `writer_launch` と返答の錨 `fix_reply` は、修正の block の YAML に使う node が残らなければ消す。
+
+### 11.5 実走の確かめ（持ち主の決め `real-measure`）
+
+4.2 の「まだ確かめていない事」（型の block の中の承認ノードや `loop:` のノードが飛ばされた時に待ちで止まらないか）と、11.1 で足した形を、止めた Archon で回して確かめた。筋書き（`archon workflow test`）は `loop_group` を 1 周で終え、承認ノードを `approved` の字で通すので（`docs/design/archon.md` の U3）、本物の run で回した。
+
+- 回し方: 止めた Archon `a972888a` を bun で起こし、リポジトリの試験の助け `tests/archon.py` の `tree`（使い捨ての git の木に pack の形で置く）と `archon` で、AI を使わない使い捨ての YAML を回した（2026-10-26。設計の部署が回した。YAML は工場に入れていない）。どの YAML も `archon validate` が誤りも警告も出さなかった。
+- 確かめ 1（飛ばした型の block の中の `loop_group` と承認ノード）: 型の block の代わり 2 つ（`pgated`: 入口の script → `loop_group`〔2 周〕→ 承認ノード〔`wait:` の `attention`・`form: select`〕→ 返す script。`pplain`: script 2 つ）を、選ぶ script の出力を読む `when:` つきの include で並べ、後ろに `trigger_rule: none_failed_min_one_success` の集める node を置いた。`pgated` を選ばない run は、`pgated` の 4 つの node（`ia__g-head`・`ia__g-loop`・`ia__g-gate`・`ia__g-out`）が全部 `node_skipped` で、待ちに入らず、`pplain` と集める node が走って `completed` で終わった（run `a949355b`）。どちらも選ばない run も、集める node だけが走って `completed`（run の記録は使い捨ての家と一緒に消えた。id は控えとして書く）。
+  - 4.2 の「まだ確かめていない事」は、AI の無い形では閉じた。`loop:` のノードは工場が使わない（`workflows/AGENTS.md` の「`loop:` の node を使わない」）ので `loop_group` で確かめた。
+- 確かめ 2（include の place）: 飛ばさなかった include の中の node の実行の記録 `ARCHON_NODE_EXECUTION` の `path` は `ib__p-out` で、`ports.place()` の読み（README 4.4）で `ARTIFACTS_DIR/ib` になる。
+- 確かめ 3（今の書き手の 2 重の輪の内の輪の本体に include の鎖を置く）: 外の輪（`fresh_context: true`。1 周に型 1 つ）の中の内の輪（`fresh_context: false`。同じ型を 2 周）の本体に、`prep`（script）→ include `ia`（`when` で型 a）→ include `ib`（`depends_on: [prep, ia]`・`trigger_rule: none_failed_min_one_success`・`when` で型 b）→ 受け付けの代わりの script（`with:` で `{from: "$ia.output", if_skipped: null}` と `ib` を受ける）を置いた。外の輪の 1 周目は内の輪の 2 周とも `ia` だけが走り、2 周目は `ib` だけが走り、受け付けの代わりは飛んだ方を `null` で受けた。node の道は `outer.inner.ia__p-out` で、place は `ARTIFACTS_DIR/ia`（run `2ad93a8b`）。
+- 未確認（頼みの 1・2）: AI の node を入口でない所に置いた include の中で、内の輪の 2 周目が 1 周目の会話を継ぐか（11.1 の 5 の見立て）と、AI の node が入口の時に新しい会話になるか。使い捨ての YAML（`haiku` の役で、1 周目に覚えさせた語を 2 周目に聞く）を組んで回したが、この会話の環境の Claude のログインが切れていて、役が起きる前に落ちた（`OAuth session expired`）。結果は無い。
+
+実走の部署への頼みの下書き（窓口がそのまま渡せる形）:
+
+> 題: 直し方の型の段 2 の実走の確かめ（include した型の block の中の AI の会話の継ぎ）
+>
+> いきさつ: 設計の下書き `docs/plans/2026-10-24-fix-weapons.md` の 11 章（段 2）は、修正の block の内の輪 `fix-loop`（`fresh_context: false`）の本体に、書き手の型の block を include で並べる。拒まれた書き手は、同じ会話の続きで出し直す（今の形）。止めた Archon は include した block の入口の AI の node をいつも新しい会話で起こす（`dag-executor.ts:10232` の `composedBlockEntry`）ので、型の block の入口は script にし、AI の node は 2 番目に置く（11.1 の 5）。AI を使わない形は設計の部署が確かめた（11.5 の確かめ 1〜3）。AI の会話の継ぎだけが未確認。
+>
+> 頼むこと:
+> 1. 止めた Archon（`factory/pack.json` の `integration_revision_required`）で、次の 3 本の使い捨ての YAML を本物の役で回す。役は `model: haiku`・`allowed_tools: []`（費用は 1 本あたり役 2 回）。回し方は `tests/e2e/test_loop_prev_real.py` の `LoopPrevRealCase`（`tests/archon.py` の `tree`・`archon` に利用者の認証の名を `hermetic.inherited("ANTHROPIC_", "CLAUDE_")` で渡す）と同じ。
+>    - (c) 対照: 内の輪（`max_iterations: 2`・`fresh_context: false`・`until_bash` は受け付けの代わりの `done`）の本体に、`prep`（script。1 周目は「この語を覚えよ: PERSIMMON。heard は OK」、2 周目は「前に覚えよと言った語を heard に大文字で。前の発話が無ければ UNKNOWN」を返す）→ AI の node（`prompt: "$prep.output.ask"`。返り `{heard}`）→ 受け付けの代わり（`heard` を控え、2 周目で `done`）。
+>    - (a) 型の block の形: AI の node の代わりに include を置く。block は入口の script（`{ok: true}` を返すだけ）→ AI の node（`prompt: "$INPUTS.ask"`。入力 `ask` は include の `with: {ask: "$prep.output.ask"}`）の 2 つ。
+>    - (b) 入口が AI の形: block の中が AI の node 1 つだけ。
+> 2. 2 周目の `heard` を 3 本とも控える。見立ては (c) と (a) が `PERSIMMON`、(b) が `UNKNOWN`。(a) が `UNKNOWN` なら、段 2 の D1 を始める前に設計の部署へ返す（11.1 の 5 の形が成り立たない）。
+> 3. 結果を 11.5 の「未確認」の行に書き足す（枝 `work/design-seat` の下書き。書けなければ納品の本文に書けば、設計の部署が写す）。
+>
+> 使い捨ての YAML の写しは、設計の部署の会話の一時の置き場に在った（会話は納品で消える）ので、上の字から組み直す。工場の `workflows/` には入れない。CI の試験にするかは、結果を見て段 2 の D1 の頼みで決める。
+
+### 11.6 PR の切り方（4 本。この順）
+
+どの PR も、振る舞いを変える物は直しを外すと落ちる試験を先に作る。指示の観点の文と返答の形の必須の欄を減らさない縛り（今の `tests/blocks/fix/test_assets.py`）を、各 PR の後も通す。手元の試験は `uv run --isolated python3 tests/changed.py`、全部の試験は CI。
+
+#### D1 書き手の型の block 5 つ（tdd の閉じ・pin・tidy・static・remove）
+
+- 前に済ませる物: 11.5 の実走の頼み。
+- 作る物:
+  1. 決まりの直し: `docs/design/README.md` の 7.1 の 6 を 11.0 の 2 の字に直し、13 章に決め 1 行（11.1 の 1 の訳 1〜3 と葉・入口の訳）。`tests/layers/test_block_shape.py` の 7.1 の 6 の照らしを、「AI の node を持つ workflow が include する先は、include も自分の外を指す `workflow:` も持たず、入口の node（上流の無い node）がどれも script か bash の block」に替える。README 8.3 の「tdd は独立の block にしない」と 1.3 の形の直し 2 は E2 で直す（D1 の時点では tdd の輪は fix の中のまま）。
+  2. `.shared/schemas/`: `weapon-order.schema.json`（`workflows/fix/schemas/` から移す。中身は変えない。`ports.json` を呼ぶ所の形の名を `shared:weapon-order.schema.json` に替える）・`writer-slots.schema.json`（11.4 の 1）・`writer-reply.schema.json`（11.4 の 3）。`.shared/AGENTS.md` の形の一覧に 3 行。
+  3. `.shared/prompts/`: `writer-top.md`・`writer.md`・`brief-head.md`・`brief.md`（11.4 の 6）。`.shared/AGENTS.md` の断片の一覧に 4 行（中の口と段落の名を書く）。修正の block の `parts/tdd.md` の `{part:brief-head}`・`{part:brief}` を `{shared:…}` に。
+  4. block 5 つ: `workflows/weapon-tdd-close/`・`weapon-pin/`・`weapon-tidy/`・`weapon-static/`・`weapon-remove/`（11.3 の形）。
+  5. 修正の block: `src/prompts.py` の `writer_slots`（11.4 の 2）・`scripts/fix_prep.py`・`fix_ruled_prep.py` の返り・`src/writers.py` の `node`（include の id を返す。1 回目の段 `w-<型>`、裁定の後 `wr-<型>`）と `reply_of`（pointer を解く）・YAML の 2 つの鎖（11.4 の 4。D1 では variant は今の node のまま鎖の中に残し、`fix-prep` の `prompt` も variant の周だけ組む）・`fix-accept`・`fix-ruled-accept`・`consult-check` の `with:`。
+  6. 筋書き: 修正の block の `fixtures/*.stubs.yaml` のうち書き手の返答を差す stub を、include の中の node の名（内の輪の本体の include の中の node の id は `<include の id>__<id>`。例 `w-static__static`。11.5 の確かめ 3）に替え、include の中の script（`<型>-prep`・`<型>-out`）も stub にする（筋書きは include の入力を名前の script に渡さない。`docs/design/archon.md` の U3）。
+  7. 設計書: `docs/design/weapon-tdd-close.md`・`weapon-pin.md`・`weapon-tidy.md`・`weapon-static.md`・`weapon-remove.md`。`docs/design/fix.md` の 2 節（修正役の設計シート。段 1 の前の形のまま残っている）を「書き手に渡す slots と型の block の鎖」に書き直す（slots の値と段落の出どころ・鎖の並び・受け付けの読み）。1.2・1.3・1.5 の port と node の並びとコードの置き場を合わせる。
+- 縛る試験:
+  1. `tests/blocks/weapon_<型>/test_prep.py`（5 つ。`__init__.py` も）: (i) 筋書きの `order`・`slots` で指示が組め、頭の段落の 1 文が在る。(ii) `order.weapon` が block の型と違えば prep が落ちる。(iii) `<型>-out` が形に合う返答を pointer で返し、必須の欄を欠いた返答で落ちる。(iv) 型が持つ段落（`spawns`・`g1`・`ask_variant`）が偽で足される。
+  2. `tests/workflows/test_weapon_blocks.py`: (i) どの書き手の型の block の AI の node の `output_format` も `.shared/schemas/writer-reply.schema.json` と等しい。(ii) 修正の block の 2 つの鎖の include の先が全部 `weapon-` の block で、`writers.SEQUENCE` の型ごとに鎖に 1 つずつ在る（鎖に無い block・block の無い型を書けない。D1 の間は variant だけ node のまま除き、D2 でその除きを消す）。
+  3. `tests/layers/test_block_shape.py`: 7.1 の 6 の新しい照らしの赤の場合（AI の node を持つ block が include を持つ block を include する・入口が AI の block を include する）を足す。
+  4. 今の `tests/blocks/fix/test_assets.py` を `tests/workflows/test_weapon_assets.py` に移し（`appendix-a.json`・`fixer-reply-before.json` も）、組み上がった指示を型の block の `prompts/<型>.md` と `.shared/prompts/` から組む形に替える。行き先ごとの数（共通 156・variant 29・変える 4・消す 11）と照らす事は変えない。返答の形の照らしは `writer-reply.schema.json` を読む。
+  5. `tests/blocks/fix/test_prompts.py`: `writer_slots` の `values`・`when` の鍵の組が形の `required` と等しい・義務から引く段落が `duties`・`board.RED_WEAPONS` の表どおり。
+  6. `tests/blocks/fix/test_yaml.py`: 鎖の include の id・`when`・`with`・`trigger_rule`・受け付けの `with:` の鍵。
+- 作らない物: `weapon-variant`（D2）・下請けの移し・TDD の輪の移し（E2）・振り分けの状態の分け（E1）・受け付けと義務の表の変更・指示の文の変更（`{part:` を `{shared:` に替えるのと、md の置き場を移すのだけ）・rebuild の block。
+
+#### D2 `weapon-variant`
+
+- 作る物: `workflows/weapon-variant/`（11.3 の形。`allowed_tools` に `Agent`）・`src/subagents.py` と `prompts/parts/g1-*.md`・`seat-briefs.md`（11.4 の 5）・slots の `subagents` を組む所（修正の block の `writer_slots`）・修正の block の鎖の `w-variant`・`wr-variant`・`docs/design/weapon-variant.md`。修正の block から `parts/g1-*.md` と下請けの関数を消す。
+- 11.8 で案 B か C の時に足す物: 下請けの関数と `parts/g1-*.md` は 2 つ以上の block が使うので、関数は `lib/subagents.py`（Archon を知らない形。place のパスは引数で受ける）、md は `.shared/prompts/g1-*.md` に置く（`weapon-variant` の中には置かない）。付ける型の block に `Agent` と `src/render.py` の `spawns`・`g1` の真を足す。下請けの実装役の型（借りた superpowers の `implementer-prompt.md` の「Write tests (following TDD if task says to)」）と型の決まりがぶつかる型（static は試験を足さない、tidy は振る舞いを変えない、pin はコードを変えない、remove は消えたことだけを確かめる試験を書かない）は、`g1-impl.md` の「works rules」の節に、型の頭の段落の文を値 `{weapon_rule}` で差し込む段落を足す（足すだけ。今の文を減らさない）。付録 A の Q10（下請けを起こすなら規則を字のまま渡す）が付ける型の書き手にも出るので、`test_weapon_assets.py` の `SPAWN_ONLY` の照らしを付ける型に広げる。
+- 縛る試験: `tests/blocks/weapon_variant/test_subagents.py`（今の修正の block の試験のうち `g1_files` を照らす物を移す。項目ごとに 2 つのファイル・審査役の型の `<base>..<head>` の直し・brief の無い run の残りの単位の項目）・D1 の縛る試験の 1・2 に variant を足す。
+- 作らない物: TDD の輪の移し・下請けの回し方の変更（今の F101・G1〜G8 の手順のまま）。
+
+#### E1 修正の block の中で、TDD の輪の状態を受け付けが読まない形にする
+
+TDD の輪を block に出す前に、修正の block の中で、輪の外が輪の状態のファイル `tdd-<k>/state.json` を読む所を全部、輪が抜ける時に書く「輪の記録」に替える。出す PR（E2）を機械的な移しにするため。読む所の棚卸し（約 30 か所。2026-10-26 の棚卸し）は E1 の頼みに付ける。
+
+- 作る物:
+  1. 振り分けの状態を分ける: 振り分け（`route-go`・`route-prep`・`route-step`・`src/route.py`）は、輪の状態の代わりに修正の block の place の `route.json` に書く（欄は今の `phase`〔route・routed〕・`order`・`units`・`tries`・`reason`・`iterations`・`calls`・`parked`・`parked_why`・`handoff`・`unsent`・`note`・`runs`・`work`・`suite_made` のうち振り分けが書く物）。`orders.compute` は `route.json` を読み、TDD の輪の状態はここで初めて `tdd.open_state` で作る（今は `route-go` が作る。`scripts/route_go.py:34-38`）。
+     - 輪が振り分けの数えを続ける所: 今は輪の回数の上限 40（`MAX_ITERATIONS`）と呼びの控え `calls` が振り分けの周を含む（`route.py:173-212`・`tdd.py` の周の数）。注文の型ごとの欄 `orders.tdd`（2.1 の「型ごとの欄」。段 1 は書き手が無く外していた）に `{iterations, calls}`（振り分けが使った周の数と呼びの控え）を足し、輪がそこから数え始める（4.1 の 3 の「使った周の数を `orders.tdd` に渡す」）。最後の承認の `tdd_refused`（`finish._tdd_refused`）は、輪の記録の `calls` に振り分けの `calls` が入るので、読む所を変えない。
+  2. 輪の記録: TDD の輪は、抜ける時（全部の単位が済んだ・40 周・実行器が走らない・諦め）に、`tdd-<k>/record.json` を書く。欄は今の状態の欄の名と形のまま、輪の外が読む物だけ: 輪の全体の `frozen`（`{パス: sha256 か null}`）・`frozen_tree`・`handoff`・`suite_made`・`no_suite`・`note`・`done`・`calls`、組の結果の `tdd` の欄（今の `tdd.exit_fields` の `order`・`parked`・`parked_why`・`suite`・`test_cmd_gate`・`test_cmd_note`・`reused`・`related`）、単位ごとの `route`・`why`・`tests`・`test_files`・`red`・`green`・`gave_up`・`files`・`red_tree`・`test_hashes`、と `summary.md` の在りか。形は `workflows/fix/schemas/tdd-record.schema.json`（E2 で `.shared/schemas/` へ）。
+  3. 輪の外の読み手を記録へ替える（棚卸しの B の組）: `facts.check_frozen`・`_loop_freeze`・`_verified`・`frozen_tests`・`check_writes` と `check_plan_scope` の `suite_made`・`precheck` の相談の控え・`board.accept_reply`・`last_settle` と `parking.footprint`・`duties.write_returns`・`gates._red_units` と `common.red_rerun`・`board.no_suite_stop`・`loop_files` と `tdd.green_units`・`orders.regive`・`finish._frozen`・`_tdd_refused`・`group_end` の `tdd`・`board.group_result`・`adopt_tdd_states`・`adopt_inputs`・`adopt_prior_pass`・`carry`。`common.states(place)` は記録のファイルの並びを返す形にする（輪の状態は名指せない）。
+  4. 段 1 の置き場で替えられる物（棚卸しの A の組）は、そちらへ替える: 試験の選び（`selected_problems` を `board.accept_base`・`ruled_base` に。受け付けが輪の状態に `final_left` などを書き戻す `save()` をやめ、`accept.json` だけに書く）・`before_cases` の古い逃げ道（組の結果の `base` だけを読む）・`contract[].rewrites`（注文の `permits` の `rewrite` の行）。
+  5. 輪の状態のファイルの名（今の `files.TDD_STATE_FILE`）を `src/tdd.py` の中だけの名にする（`files.py` から外す）。
+- 縛る試験:
+  1. 輪がどの抜け方でも `record.json` を書き、形に合う（4 つの抜け方ごと）。
+  2. 今の凍結・事後の関門の赤の木・足跡・no-suite の止め・諦めた単位の書き直し・`tdd_refused` の試験が、記録を読む形で変えずに通る（試験の助けが状態を組む所を記録を組む形に替える。照らす事は変えない）。
+  3. `tests/blocks/fix/`: `src/tdd.py`・`scripts/tdd_prep.py`・`tdd_step.py` の外の `src/`・`scripts/` が輪の状態のファイルの名を名指さない（yes/no。E2 で block の形の検査に替わるので、そこで消す）。
+  4. 振り分けの周と呼びの数えが、今と同じに輪の 40 周と `tdd_refused` に入る。
+- 作らない物: block の分け・申し出の流し方の変更（輪はまだ修正の block の中なので、今のまま輪の中で `conflicts.json` に流す）・照らしの中身の変更（読む置き場だけ替える）。
+- 弱める向きを作らないこと: 照らしの中身を変えず、読む物を同じ名と形の欄の写しに替えるだけ。棚卸しで「今の輪の分は状態にしか無い」とした物（受け付けの間の今の輪の `frozen`・`suite_made`）は、記録が輪の抜けた時に書かれ、書き手の輪（`writers-loop`）は輪の後に回るので、受け付けの時には記録が在る。
+
+#### E2 `weapon-tdd`
+
+- 作る物:
+  1. `workflows/weapon-tdd/`: `inputs:` は `order`（`json(shared:weapon-order.schema.json)`。`orders.tdd` に振り分けの数えと単位の約束〔今の `plan_contract` → `planmarks.unit_contract` の結果。輪が計画の欄を読まないため。3.1 の「許しの読み」〕）・`context`（`json(shared:tdd-context.schema.json)`: 指示の材料〔凍結した brief の行・`judgment_file`・`plan_file`・`notes_file`・`policy_path`・`request_file`・`lang`〕と run の値〔`base_rev`・単位ごとの深さの軽い単位 `light`・`skip_rerun`〕）。node は入口の script `tdd-start`（注文から輪の状態を作る。今の `tdd.open_state`・`assign`）→ `tdd-loop`（今の `tdd-prep`・`tdd`・`tdd-new`・`tdd-step`。中身と会話の扱いは変えない）→ `tdd-out`（`record.json` と `summary.md` の pointer、申し出の行を返す）。`returns: tdd-out`・`outcome_field: ok`。
+  2. 移す物: `src/tdd.py` の輪の中身（義務の表 `DUTIES` は修正の block に残す。11.1 の 3）・`scripts/tdd_prep.py`・`tdd_step.py`・`prompts/tdd.md`・`tdd-new.md`。`parts/tdd.md` は `.shared/prompts/tdd.md` へ（11.1 の 7。修正の block の `route.md` は `{shared:tdd}` に）。`src/common.py` の関数は、輪だけが使う物を `weapon-tdd/src/` へ、輪と修正の block の両方が使う物を `lib/` の新しいモジュール（例 `lib/loopkit.py`。Archon を知らず、place は引数のパスで受ける）へ、修正の block だけが使う物は残す（憲法の 4。棚卸しの C の組が目安で、実装の頭で import を機械で数え直して決める）。
+  3. 申し出の流し: 輪は申し出を自分の状態に積み（今の `unsent`・`parked`）、`conflicts.json` に書かない。`tdd-out` が申し出の行（`lib/conflict.py` の行の形）を返し、修正の block の新しい script `tdd-take` が受けて今の `common.flush_unsent` と同じ口で流す。訳: 輪の外の place（修正の block の盤面）は名指せない（README 4.3）。今も申し出は組の後の親で裁かれ（`works-factory-fix.yaml` の `conflict-check` 以降）、組の中で輪の後に申し出を読むのは書き手の輪の直す義務の引き（`board.fix_duty`）だけなので、輪の後で流せば同じ時に揃う。
+  4. 修正の block: `tdd-loop` の node を include `w-tdd`（`when: "$orders.output.tdd == true"`）と `tdd-take`（記録と要約を place の `tdd-<k>/` に写し、申し出を流し、`tdd-start.json` を今の形で書く）に替える。`orders` が `context` を組んで pointer で返す。
+  5. 決まりと設計書: README 8.3 の tdd の行と 1.3 の形の直し 2 を直す。`docs/design/weapon-tdd.md` を書き、`docs/design/fix.md` の 4 節（TDD の役）を移す。README 10 節の keep-essence の 1・3・4 の新しい守りの試験の名指し（`tests/blocks/fix/test_tdd.py` の物）を移した先に直す（`tests/layers/test_keep_essence.py` が照らす）。
+- 縛る試験: `tests/blocks/weapon_tdd/`（今の `tests/blocks/fix/test_tdd.py` のうち輪の中身を照らす物を移す）・`tdd-take` が記録を写し申し出を流す試験・E1 の縛る試験の 3 を消す（block の形の検査が照らす）。
+- 作らない物: 輪の手順の変更（赤・緑・整えの段・3 回の却下・40 周）・振り分けを `weapon-tdd` に入れること（振り分けは型を選ぶ前の段で、修正の block に残す。4.2 の持ち主の言葉「どの型を使うかは手前の振り分けで決まり」）。
+
+#### 頼みの書き方（Sonnet のサブエージェントに渡す時）
+
+- 1 つの頼みに 1 つの PR。頼みには、この節のその PR の「作る物・縛る試験・作らない物」と、11.3・11.4 の該当の項をそのまま貼る。
+- D1 は、block 5 つが同じ形なので、まず `weapon-static`（一番小さい）を 1 つ作らせて部署が読み、残り 4 つを写させる。
+- E1 は、棚卸しの行（file:line）を頼みに付け、行ごとに「置き換え先」を書かせてから直させる。
+
+### 11.7 E11 の 3 つ・憲法の 3 と 5・keep-essence
+
+- E11 の 1（Archon が持っているか）: include・`loop_group` の本体の include・include の `when:` と `trigger_rule`・飛ばした返りの `if_skipped` は Archon が持つ（11.5 で回して確かめた）。型を部品として差し替える仕組みは Archon に無い。会話の継ぎは Archon の決まり（入口の AI は新しい会話）に合わせて形を決めた（11.1 の 5）。
+- E11 の 2（ASF が持っているか）: AI の node を持つ block が loop の本体で葉の block を include する形は ASF の `archon-deliver-block` が持つ（11.1 の 1 の訳 2）。採るのは型だけで、字は写さない（E8）。`docs/asf-notes.md` に 1 行足す（D1）。
+- E11 の 3（本当に要るか）: 持ち主の答え（4.2。振り分けの設計を型の作りと切り離す）。足すのは block 7 つ（書き手 6・輪 1）と `.shared` の形 4 つ（`weapon-order` は移し）と断片 5 つ（D1 で 4・E2 で 1）と `lib/` のモジュール 1〜2 つ（E2・D2 の案 B）。新しい層・置き場・常駐する仕組みは足さない（block は今の置き場の形のまま。E10 に当たらない）。代償は 4.2 の「代償」に、`.shared` に修正の系の書き手の文が出ること（11.4 の 6）と、返答の形の写しが 6 つになること（照らしを 1 つ置く。11.4 の 3）を足した物。
+- 憲法の 3（宣言した port だけで受け渡す）: 型の block は `order` と `slots`（E2 は `context`）だけを受け、返りの pointer だけを返す。型の block は修正の block の place を読まない（README 4.3）。修正の block は型の block を include で名指すが、型の block は修正の block を名指さない（入力の description も作り手を書かない。E4）。
+- 憲法の 5（単独で回る）: 書き手の型の block は、注文と slots の JSON と対象のリポジトリだけで回る（筋書きと単独の run。11.3）。`weapon-tdd` は注文と context と対象のリポジトリ（と実行器。注文の `base` が指す `base.json` の `exe`）で回る。slots・context を手で書くのは重いので、単独の run の例は筋書きの値を使う（設計書に書く）。
+- keep-essence（README 10 節）:
+  - 1 赤緑の機械の判定・3 テストの凍結と許す道は 1 本・4 3 回拒まれたら諦める: 輪の中身（E2 で移す）と受け付け（修正の block に残る）のどちらも手順を変えない。許しは修正の block が 1 つの関数から注文に書く（11.1 の 1 の訳 3）。E1 で凍結の照らしが読む置き場を記録に替える所は、同じ欄の写しを読むだけにする（E1 の「弱める向きを作らないこと」）。
+  - 5 書き込みの出どころ・6 当たる試験・7 class_query の数え直し・8 食い違いの申し出と読むだけの裁定役・11 単位ごとの記録: 受け付けと裁定は修正の block に残り、変えない。申し出の流しは E2 で輪の後にずらすが、流れる先と裁く時は変えない（E2 の 3）。
+  - 2・9・10・12: 段 2 は触らない。
+
+### 11.8 持ち主への問い: 下請けの実装役と審査役をどの型の書き手に付けるか
+
+- 前提: 書き手（型ごとに直しを書く AI）は、修正案の項目ごとに下請けの AI を 2 つ起こせる。1 つ目は実装役で、借りた superpowers の実装役の手順書を改変せずに渡される。2 つ目は審査役で、実装役の差分を読み、修正案の項目どおりか・抜けが無いかを見て、だめなら実装役に直させる（3 回まで）。段 1 の前（#869 の前の main）は、tdd 以外の単位を 1 つの修正役がまとめて受け、TDD の輪が直した単位の外の全部の項目にこの 2 つを起こしていた。#872 で書き手を型ごとに分け、付録 A の表どおり、これを起こすのは variant の書き手だけになった。remove・pin・tidy・static の書き手は下請けを起こさずに自分で直し、審査役が付かない（#872 のレビューの問いで、持ち主は「段 2 で決める」と答えた。2026-10-26）。
+- 機械の照らしが見ない所（審査役の値打ちが出る所）: 範囲・凍結・同じ結果・種類の確かめの行の在る無しは機械が照らすが、差分が修正案の項目の趣旨に合うか（多く消しすぎていないか・言い回しの意味が合うか）は見ない。型ごとに見ると、static は直しの中身を機械が全く照らさない（種類の確かめの行が在るかだけ。3.7 の確かめの 4）、tidy は同じ結果を関わる試験でしか照らさない、remove は消えたことを名で照らすが残りの直し方は照らさない、pin は差分が試験だけ・2 回通る・壊して赤の申告を照らす。
+- 案 A: variant だけ（今の #872 のまま）。代償: remove・pin・tidy・static の直しに審査役が付かないまま。段 1 の前より守りが減ったまま続く。得る物: 費用と時間が一番少ない。D2 は variant の block だけで閉じる。
+- 案 B（推し）: tdd の閉じの書き手の外の 5 つ全部（variant・remove・pin・tidy・static）。代償: 項目ごとに下請けの会話が 2 つ以上増え、static の文書の直しのような小さな項目にも乗る（費用と時間は段 1 の前と同じ水準に戻る）。下請けの実装役の手順書の「試験を書け」と型の決まりがぶつかる型（static・tidy・pin・remove）に、型の決まりを渡す段落を足す（D2 の「案 B か C の時」）。下請けの部品が `lib/` と `.shared/` に出る。得る物: 段 1 の前の審査の守りに戻る。機械が中身を見ない static と、試験の届かない所がある tidy に、修正案の趣旨の目が付く。
+- 案 C: variant・remove・tidy・static（pin を除く）。代償: 案 B より少し安いが、pin の足した試験が縛る中身（つまらない物を固めていないか）は人の最後の承認だけが見る。得る物: pin は機械の照らし（差分が試験だけ・2 回通る・壊して赤）が一番厚いので、費用を削る所として筋が通る。
+- 推しの訳: 持ち主の「アセットが損なわないことが重要」に一番近いのは、段 1 の前の守りに戻す案 B。費用は段 1 の前と同じ水準で、新しく増えるのではない。案 A は今の減った守りを固定する。
+- 急ぎ: D2 を頼む前までに要る（D1 は答えを待たずに進められる）。答えが無いまま D2 に進む時は、案 A の形で作り、案 B・C は後の PR で足す（D2 の「案 B か C の時」の分だけ増える）。
+
+### 11.9 残る設計の問い（設計の部署が詰める物。持ち主に聞かない）
+
+1. **D1 の前** 11.5 の実走の頼みの結果。(a) が `UNKNOWN` なら、型の block の中で会話を継ぐ別の形（書き手の会話の続きを `context: shared` で受ける・出し直しを新しい会話で回し、前の返答と却下を指示に名指す）を比べて決め直す。後の形は持ち主の決め（再審などは新しい会話で回す。`docs/owner-decisions.md:412`）の形に近いが、今の書き手の出し直しの会話の継ぎを捨てるので、能力の狭め（`no-narrow`）として書く。
+2. **E1 の頭** 棚卸しの B の組の欄のうち `test_hashes`・`red_tree`・`files` は、今の輪の状態に単位ごとに在ることを棚卸しが示したが、どの抜け方でも書かれているか（諦めた単位・振り分けで止めた単位）を、記録を書く所で確かめる。
+3. **E2 の頭** `src/common.py` の関数の行き先（輪だけ・両方・修正の block だけ）を import の数え直しで決める。両方が使う物が多ければ、`lib/` のモジュールを 2 つに分けるか（版の写しと戻し・赤の判定）を決める。
+4. **後（E2 の後）** `tests/blocks/fix/test_carry.py` など、輪の状態を組んで照らす試験の助けが記録を組む形に替わった後、輪の状態そのものを組む試験が `tests/blocks/weapon_tdd/` に揃っているか。
 
 ## 付録 A 修正役の指示の仕分けの表（第 4 版。1.4.2）
 
