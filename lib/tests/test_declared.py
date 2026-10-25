@@ -67,6 +67,56 @@ class ParseCase(unittest.TestCase):
                     (root / declared.DECL_NAME).write_text(text, encoding="utf-8")
                     self.assertEqual(declared.read_setup(root), ([], ""))
 
+    def test_list_beside_suite_and_its_errors_do_not_stop_suite(self):
+        """list（setup と同じ形）は suite の横で誤り無しに読み、sha は結ばない。list だけの宣言は拒む。list の書き損じは parse も read も
+        suite を止めず、read が list_error に積む"""
+        lst = [["enumerate", "--only"]]
+        steps, err = declared.parse(json.dumps({"suite": [STEP], "list": lst}))
+        self.assertIsNone(err)
+        self.assertEqual(steps, [STEP])
+        steps, err = declared.parse(json.dumps({"list": lst}))
+        self.assertIsNone(steps)
+        self.assertIn("最上位", err)
+        with tempfile.TemporaryDirectory() as tmp:
+            root = pathlib.Path(tmp)
+            (root / declared.DECL_NAME).write_text(json.dumps({"suite": [STEP], "list": lst}), encoding="utf-8")
+            got = declared.read(root)
+            self.assertEqual(got, {"steps": [STEP], "sha": declared.steps_sha([STEP])})
+            self.assertEqual(declared.read_list(root), (lst, ""))
+            for bad in ([], "x", [[]], [[""]], [["x", 3]], ["x"], [["x"], 4]):
+                with self.subTest(bad=bad):
+                    (root / declared.DECL_NAME).write_text(json.dumps({"suite": [STEP], "list": bad}), encoding="utf-8")
+                    steps, err = declared.parse(json.dumps({"suite": [STEP], "list": bad}))
+                    self.assertIsNone(err)
+                    self.assertEqual(steps, [STEP])
+                    got = declared.read(root)
+                    self.assertEqual(got["steps"], [STEP])
+                    self.assertEqual(got["sha"], declared.steps_sha([STEP]))
+                    self.assertIn("list", got["list_error"])
+                    self.assertNotIn("error", got)
+                    argvs, read_err = declared.read_list(root)
+                    self.assertEqual(argvs, [])
+                    self.assertIn("list", read_err)
+
+    def test_text_readers_agree_with_file_readers(self):
+        """setup_of・list_of（本文を読む）は、read_setup・read_list（ファイルを読む）と、無い・鍵が無い・正しい・誤り・JSON でない・
+        suite が無いのどれでも同じ答えを返す"""
+        good = [["x", "y"]]
+        bodies = [None, json.dumps({"suite": [STEP]}), json.dumps({"suite": [STEP], "setup": good, "list": good}),
+                  json.dumps({"suite": [STEP], "setup": [[]], "list": [[]]}), "{", "[]",
+                  json.dumps({"setup": good, "list": good})]
+        for body in bodies:
+            with self.subTest(body=body), tempfile.TemporaryDirectory() as tmp:
+                root = pathlib.Path(tmp)
+                if body is not None:
+                    (root / declared.DECL_NAME).write_text(body, encoding="utf-8")
+                self.assertEqual(declared.setup_of(body), declared.read_setup(root))
+                self.assertEqual(declared.list_of(body), declared.read_list(root))
+        self.assertEqual(declared.list_of(bodies[2]), (good, ""))
+        self.assertEqual(declared.list_of(bodies[3])[0], [])
+        self.assertTrue(declared.list_of(bodies[3])[1].startswith(f"{declared.DECL_NAME}: list[0]"))
+        self.assertTrue(declared.setup_of(bodies[3])[1].startswith(f"{declared.DECL_NAME}: setup[0]"))
+
     def test_rejects_top_level_keys(self):
         for doc in ({}, {"suite": [STEP], "extra": 1}, [STEP], {"steps": [STEP]}):
             with self.subTest(doc):

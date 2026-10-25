@@ -727,6 +727,31 @@ class OutsideEnvCase(unittest.TestCase):
             self.assertTrue(str(raised.exception).startswith(tree_run.SETUP_FAILED), str(raised.exception))
             self.assertIn("setup[0]", str(raised.exception))
 
+    def test_passed_setup_replaces_the_declared_one(self):
+        """setup に argv の並びを渡すと、cwd の宣言の setup でなく渡した並びが走る（作業ツリーごとに 1 度の印は同じ）。渡さなければ今までどおり
+        宣言の setup。[] は宣言に setup が在っても何も走らせず、対象のコマンドは走る"""
+        with tempfile.TemporaryDirectory() as tmp:
+            base = pathlib.Path(os.path.realpath(tmp))
+            declared_count, passed_count = base / "declared", base / "passed"
+            repo = self.setup_repo(base, [self.count_line(declared_count)])
+            env = tree_run.outside_env(hermetic.child_env())
+            for _ in range(2):
+                self.assertEqual(tree_run.run(["true"], cwd=str(repo), env=env, setup=[self.count_line(passed_count)]), 0)
+            self.assertFalse(declared_count.exists())
+            self.assertEqual(passed_count.read_text(encoding="utf-8").splitlines(), ["x"])
+            self.assertEqual(tree_run.run(["true"], cwd=str(repo), env=env), 0)   # 渡さない＝宣言の setup（印は渡した並びの sha と別）
+            self.assertEqual(declared_count.read_text(encoding="utf-8").splitlines(), ["x"])
+
+    def test_empty_setup_runs_nothing_before_the_command(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            base = pathlib.Path(os.path.realpath(tmp))
+            count, ran = base / "count", base / "ran"
+            repo = self.setup_repo(base, [self.count_line(count)])
+            env = tree_run.outside_env(hermetic.child_env())
+            self.assertEqual(tree_run.run([sys.executable, "-c", f"open({str(ran)!r}, 'w')"], cwd=str(repo), env=env, setup=[]), 0)
+            self.assertFalse(count.exists())
+            self.assertTrue(ran.exists())
+
     def test_without_user_record_home_stays(self):
         self.assertEqual(tree_run.outside_env({"HOME": "/run/home"}), {"HOME": "/run/home", "PYTHONDONTWRITEBYTECODE": "1"})
 
