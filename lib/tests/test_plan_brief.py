@@ -137,17 +137,12 @@ class BriefCase(PlaceCase):
         self.assertIn(f"{planbrief.DEPENDS_HEAD}\n\n無し", bare)
 
     def test_render_shows_scope(self):
-        """brief に書いてよいパス（allowed_paths）と触らない物（out_of_scope）の節が並ぶ。欄の無い行（217 番の形）は無し"""
+        """brief に書いてよいパス（allowed_paths）と触らない物（out_of_scope）の節が並ぶ。空の欄は無し"""
         item1 = plan_reply()["plan"][0]
         f = {**FIELDS[0], "allowed_paths": ["stats.py"], "out_of_scope": [{"glob": "test_stats.py", "why": "既存の試験は触らない"}]}
         text = planbrief.render(1, item1, f, {}, "", "")
         for w in ("## 書いてよいパス（allowed_paths）", "- stats.py", "## 触らない物（out_of_scope）", "test_stats.py——既存の試験は触らない"):
             self.assertIn(w, text)
-        old = {k: v for k, v in f.items() if k not in ("allowed_paths", "out_of_scope")}
-        self.assertIn("## 書いてよいパス（allowed_paths）\n\n無し", planbrief.render(1, item1, old, {}, "", ""))
-        text_old = planbrief.render(1, item1, old, {}, "", "")
-        for h in ("## 書いてよいパス（allowed_paths）", "## 触らない物（out_of_scope）"):
-            self.assertIn(f"{h}\n\n無し（この案は範囲を決めていない）", text_old)
         self.assertIn("## 触らない物（out_of_scope）\n\n無し\n", planbrief.render(1, item1, {**f, "out_of_scope": []}, {}, "", ""))
 
     def test_cut_is_frozen_and_restores_edited_file(self):

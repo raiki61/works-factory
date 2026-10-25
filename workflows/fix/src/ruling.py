@@ -146,6 +146,7 @@ def problems(reply, todo: dict, repo, request: str = "", roots=(), briefs=None) 
                 and not r.get("grounds")):
             errs.append(f"申し出 {r['id']}: 機械が諦めた単位の申し出（source {conflict.GAVE_UP_SOURCE}）への fix_code_as は、"
                         "コードを直せば済むと示す材料（依頼・判定・テスト・コードの行）を grounds に挙げる")
+        errs += red_at_base_problems(r, todo.get(r["id"]) or {})
         if r["decision"] == conflict.REJUDGE:
             if (todo.get(r["id"]) or {}).get("source") != conflict.JOIN_SOURCE:
                 errs.append(f"申し出 {r['id']}: {conflict.REJUDGE} は組どうしの合わせの申し出（source {conflict.JOIN_SOURCE}）だけに裁ける")
@@ -156,6 +157,15 @@ def problems(reply, todo: dict, repo, request: str = "", roots=(), briefs=None) 
         errs += [f"申し出 {r['id']}: {e}" for e in grounds_problems(r, repo, request, roots) + ask_why_problems(r)]
     errs += plan_item_fix_problems(rows, todo, briefs) + clash_split_problems(rows, todo)
     return errs
+
+
+def red_at_base_problems(r: dict, item: dict) -> list:
+    """種類 red_at_base の申し出（下ごしらえが足した試験が起点の木で落ちる）に許す裁定は conflict.RED_AT_BASE_DECISIONS
+    （fix_plan_item・ask_human）だけ。fix_code_as は変えない段の注文でコードを変えさせるので許さない"""
+    if item.get("kind") != conflict.RED_AT_BASE or r["decision"] in conflict.RED_AT_BASE_DECISIONS:
+        return []
+    return [f"申し出 {r['id']}: 種類 {conflict.RED_AT_BASE} に許す裁定は {' / '.join(conflict.RED_AT_BASE_DECISIONS)} だけ"
+            f"（{r['decision']} は不可）"]
 
 
 def clash_split_problems(rows: list, todo: dict) -> list:

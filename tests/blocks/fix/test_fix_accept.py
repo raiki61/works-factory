@@ -3878,7 +3878,7 @@ class _XPlace(unittest.TestCase):
     def _x_accept(self, script, reply, iteration, *, units=None, art=None, env_extra=None):
         if units is not None:
             self._x_intake(units, art=art)
-        return self._x_ok(script, art=art, env_extra=env_extra, reply=json.dumps(reply, ensure_ascii=False),
+        return self._x_ok(script, art=art, env_extra=env_extra, reply_variant=json.dumps(reply, ensure_ascii=False),
                           consulted="false", iteration=str(iteration))
 
     def _x_park(self, ruling=None, **claim):
@@ -4027,9 +4027,9 @@ class FixLoopScriptsCase(_XPlace):
     def test_consulted_turn_and_skipped_fixer(self):
         out = self._x_accept("fix_accept", {"changes": []}, 1)
         self.assertFalse(out["ok"])
-        code, out, err = self._x_run("fix_accept", reply="{}", consulted="true", iteration="1")
+        code, out, err = self._x_run("fix_accept", reply_variant="{}", consulted="true", iteration="1")
         self.assertEqual((code, out["ok"], out["done"]), (0, False, False), err)
-        code, out, err = self._x_run("fix_accept", reply="null", consulted="false", iteration="1")
+        code, out, err = self._x_run("fix_accept", reply_variant="null", consulted="false", iteration="1")
         self.assertEqual((code, out["ok"], out["done"]), (0, True, True), err)
 
     def test_ruled_pass_allows_ruled_test_scope_and_first_does_not(self):
@@ -4102,7 +4102,7 @@ class FixLoopScriptsCase(_XPlace):
 
     def test_fix_ruled_prep_without_fix_ruling_does_not_launch(self):
         out = self._x_ok("fix_ruled_prep")
-        self.assertEqual(out, {"prompt": "", "go": False, "iteration": 1})
+        self.assertEqual(out, {"prompt": "", "go": False, "iteration": 1, "writer": ""})
         self._x_park({"decision": "ask_human", "text": "人が決める", "limits": []},
                      why_both_cannot_hold="材料から決められない食い違いが在る", which_is_right="unknown", kind="needs_context")
         self.assertFalse(self._x_ok("fix_ruled_prep")["go"])
@@ -4194,7 +4194,7 @@ class FixLoopScriptsCase(_XPlace):
 
     def test_fix_accept_counts_in_the_rolekit_ledger_not_the_prompt_number(self):
         """fix_accept は INPUTS_ITERATION=1 のまま 3 回拒ませても、控えの拒否の数で最後の回が来る。拒否は rolekit の
-        rejects-fix-accept.json に積まれ、reason_file は rejects-fix-accept.md でそれまでの拒否を全部持つ。最後の回は名指しの単位だけを
+        rejects-fix-accept-variant.json に積まれ、reason_file は rejects-fix-accept-variant.md でそれまでの拒否を全部持つ。最後の回は名指しの単位だけを
         諦めて done 真で返る"""
         import rolekit
         self._x_fix_mean()
@@ -4206,8 +4206,8 @@ class FixLoopScriptsCase(_XPlace):
             out = self._x_accept("fix_accept", reply, 1, units=units)
             self.assertEqual((out["ok"], out["done"]), (False, False), out)
             reasons.append(out["reason"])
-            self.assertEqual(out["reason_file"], str(self.place / "rejects-fix-accept.md"))
-            self.assertEqual(rolekit.rejected(self.place, "fix-accept"), reasons)
+            self.assertEqual(out["reason_file"], str(self.place / "rejects-fix-accept-variant.md"))
+            self.assertEqual(rolekit.rejected(self.place, "fix-accept-variant"), reasons)
             text = pathlib.Path(out["reason_file"]).read_text(encoding="utf-8")
             self.assertEqual(text, rolekit.rejects_text(reasons) + "\n", "それまでの拒否を古い順に全部持つ")
         out = self._x_accept("fix_accept", reply, 1, units=units)
@@ -4217,7 +4217,7 @@ class FixLoopScriptsCase(_XPlace):
         self.assertEqual(list(self.place.glob("reject-fix-accept-*.md")), [])
 
     def test_fix_ruled_accept_counts_in_the_rolekit_ledger_not_the_prompt_number(self):
-        """fix_ruled_accept も INPUTS_ITERATION=1 のまま、控え rejects-fix-ruled-accept.json の拒否の数で最後の回が来る"""
+        """fix_ruled_accept も INPUTS_ITERATION=1 のまま、控え rejects-fix-ruled-accept-variant.json の拒否の数で最後の回が来る"""
         import rolekit
         self._x_park(_X_SCOPE_RULING)
         self._x_ok("fix_ruled_prep")
@@ -4228,18 +4228,18 @@ class FixLoopScriptsCase(_XPlace):
             out = self._x_accept("fix_ruled_accept", {"changes": []}, 1)
             self.assertEqual((out["ok"], out["done"]), (False, False), out)
             reasons.append(out["reason"])
-            self.assertEqual(out["reason_file"], str(self.place / "rejects-fix-ruled-accept.md"))
-            self.assertEqual(rolekit.rejected(self.place, "fix-ruled-accept"), reasons)
+            self.assertEqual(out["reason_file"], str(self.place / "rejects-fix-ruled-accept-variant.md"))
+            self.assertEqual(rolekit.rejected(self.place, "fix-ruled-accept-variant"), reasons)
         out = self._x_accept("fix_ruled_accept", {"changes": []}, 1)
         self.assertTrue(out["done"], out)
         self.assertEqual(list(self.place.glob("reject-fix-ruled-accept-*.md")), [])
         # 拒否の控えの名のディレクトリ（読めない控え）でも、script は非 0 で落ちず、done 真の拒否（理由『拒否の控えが扱えない』・
         # reason_file は空）を返す（rule_accept の分は test_ruling.py）
-        for script, name in (("fix_accept", "fix-accept"), ("fix_ruled_accept", "fix-ruled-accept")):
+        for script, name in (("fix_accept", "fix-accept-variant"), ("fix_ruled_accept", "fix-ruled-accept-variant")):
             with self.subTest(script=script):
                 (self.place / f"rejects-{name}.json").unlink(missing_ok=True)
                 (self.place / f"rejects-{name}.json").mkdir()
-                out = self._x_ok(script, reply=json.dumps({"changes": [], "rulings": []}), consulted="false", iteration="1")
+                out = self._x_ok(script, reply_variant=json.dumps({"changes": [], "rulings": []}), consulted="false", iteration="1")
                 self.assertEqual((out["ok"], out["done"], out["reason_file"]), (False, True, ""), out)
                 self.assertIn("拒否の控えが扱えない", out["reason"])
 
@@ -4248,14 +4248,14 @@ class FixLoopScriptsCase(_XPlace):
         consult-check が積んだ頼みで答えの役を起こす"""
         import rolekit
         reply, before = self._x_overflow()
-        for k in (1, 2):   # 最後の回かは指示の番号でなく rolekit の控え rejects-fix-accept.json の拒否の数で決まる
-            rolekit.accept_round(self.place, "fix-accept", None, lambda _, k=k: {"ok": False, "reason": f"{k} 回目の拒否"})
+        for k in (1, 2):   # 最後の回かは指示の番号でなく rolekit の控え rejects-fix-accept-variant.json の拒否の数で決まる
+            rolekit.accept_round(self.place, "fix-accept-variant", None, lambda _, k=k: {"ok": False, "reason": f"{k} 回目の拒否"})
         out = self._x_accept("fix_accept", reply, 1)
         self.assertEqual((out["ok"], out["done"]), (False, False), out)
         self.assertTrue(out["reason"].startswith(self.board.QUEUED), out["reason"])
-        self.assertEqual(len(rolekit.rejected(self.place, "fix-accept")), 2, "積んだ回は控えに数えない")
+        self.assertEqual(len(rolekit.rejected(self.place, "fix-accept-variant")), 2, "積んだ回は控えに数えない")
         self.assertEqual((self.repo / "request_ok.json").read_bytes(), before + b"\n", "積んだ回は作業ツリーを変えない")
-        out = self._x_ok("consult_check", reply=json.dumps(reply, ensure_ascii=False), **{"pass": "first"})
+        out = self._x_ok("consult_check", reply_variant=json.dumps(reply, ensure_ascii=False), **{"pass": "first"})
         self.assertEqual((out["consulted"], out["go"]), (True, True), out)
         self.assertIn("request_ok.json", out["prompt"])
 
@@ -4263,7 +4263,7 @@ class FixLoopScriptsCase(_XPlace):
         """相談で deny された後の同じはみ出しは、機械が段の頭の木に戻して受け付ける"""
         reply, before = self._x_overflow()
         self.assertFalse(self._x_accept("fix_accept", reply, 1)["ok"])
-        out = self._x_ok("consult_check", reply=json.dumps(reply, ensure_ascii=False), **{"pass": "first"})
+        out = self._x_ok("consult_check", reply_variant=json.dumps(reply, ensure_ascii=False), **{"pass": "first"})
         self.assertTrue(out["go"], out)
         answer = {"answers": [{"ask": 1, "decision": "deny", "reason": "見本の入力は直しに要らないので範囲に足さない"}]}
         out = self._x_ok("consult_accept", answer=json.dumps(answer, ensure_ascii=False), **{"pass": "first"})

@@ -163,7 +163,7 @@ class ValuesCase(IntakeCase):
         self.ripple = self.write("in/ripple.json", {"items": [{"item": 1, "unit_keys": ["A"]}], "overlaps": []})
         self.baseline = self.write("in/baseline.json", {"suite": "", "test_cmd": "", "rev": "x", "cases": [], "exit": 0})
         self.write("in/judgment.json", JUDGMENT)
-        return {"mode": "whole", "judgment": self.run.pointer("in/judgment.json"), "plan": _j({"round": 1, "fields": [{}]}),
+        return {"mode": "whole", "judgment": self.run.pointer("in/judgment.json"), "plan": _j({"round": 1, "fields": [{"allowed_paths": ["**"], "out_of_scope": []}]}),
                 "fix_plan": _j({"plan": [{"unit_keys": ["A"]}]}), "answer_ties": _j({"rounds": {}}),
                 "materials": _j({"ci": {"status": "not_run"}}), "skip_rerun": _j(["A"]),
                 "answers": _j({"decision": "continue", "text": "そのまま", "asked": []}),
@@ -198,7 +198,7 @@ class ValuesCase(IntakeCase):
         self.intake(**self.full_inputs())
         doc = self.read("intake.json")
         self.assertEqual(doc["judgment"], JUDGMENT)
-        self.assertEqual((doc["plan"], doc["only_items"], doc["skip_rerun"]), ({"round": 1, "fields": [{}]}, [1], ["A"]))
+        self.assertEqual((doc["plan"], doc["only_items"], doc["skip_rerun"]), ({"round": 1, "fields": [{"allowed_paths": ["**"], "out_of_scope": []}]}, [1], ["A"]))
         self.assertEqual((doc["ripple"], doc["baseline"], doc["policy"], doc["request"]),
                          (str(self.ripple), str(self.place / "in" / "baseline.json"), str(self.policy), str(self.request)))
         self.assertEqual((doc["unattended"], doc["parallel"]), (True, False))

@@ -77,7 +77,7 @@ PLAN = UV_HEAD + textwrap.dedent('''\
         return ptr(rel)
     put(f"probe/plan-{k}.json", {"blocks": blocks, "answers": json.loads(os.environ.get("INPUTS_ANSWERS") or "[]")})
     fix_plan = put(f"plan/r{k}/p2.fix_plan.json", {"plan": [{"unit_keys": ["u1"], "approach": f"周 {k} の案"}]})
-    fields = put(f"plan/r{k}/plan-fields.json", {"round": k, "fields": [{"unit_keys": ["u1"], "allowed_paths": ["a.py"], "route": "direct"}]})
+    fields = put(f"plan/r{k}/plan-fields.json", {"round": k, "fields": [{"unit_keys": ["u1"], "allowed_paths": ["a.py"], "out_of_scope": [], "route": "direct"}]})
     print(json.dumps({"ok": True, "status": "ok", "reason": "", "round": k, "owed": ["u1"], "plan": fields, "fix_plan": fix_plan,
                       "reply": fix_plan, "handoff": None, "ripple": None, "rejects": [], "gave_up": None}, ensure_ascii=False))
 ''')

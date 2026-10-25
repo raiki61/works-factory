@@ -172,7 +172,7 @@ def _items(items):
 
 
 def implementer_values(b, values: dict, repo, owed: list[str], briefs: list) -> dict[str, str]:
-    """修正役の座（節 implementer の型）の 5 つの穴の値。owed は今直す単位の key、briefs は凍結した brief（briefs_or_halt）。
+    """下請けの実装役の座（節 implementer の型）の 4 つの穴の値（[REPORT_FILE] は呼び手 g1_files が g1-impl-report で埋める）。owed は今直す単位の key、briefs は凍結した brief（briefs_or_halt）。
     直す義務の単位の brief を名指す節（brief_rows の行と md の brief-head）を置き場 b の SEAT_BRIEFS に書いて [BRIEF_FILE] にする（brief の無い
     run は判定のファイル）。[directory] は repo。元 works/blk-fix/lib/fixrules.py:421"""
     mine = planbrief.for_units(briefs, owed)
@@ -183,13 +183,10 @@ def implementer_values(b, values: dict, repo, owed: list[str], briefs: list) -> 
         path.write_text(prompt.render_part("brief-head", {"brief_rows": rows}), encoding="utf-8")
         brief_file = str(path)
     items = "、".join(str(r["item"]) for r in mine)
-    summary = values.get("summary_file") or ""
     return {"[task name]": f"直す義務の単位 {len(owed)} 件" + (f"（修正案の項目 {items}）" if items else ""),
             "[BRIEF_FILE]": brief_file,
-            "[Scene-setting: where this fits, dependencies, architectural context]":
-                prompt.render_part("g1-scene", {"summary": summary}, {"summary": bool(summary)}).strip(),
-            "[directory]": "" if repo is None else str(repo),
-            "[REPORT_FILE]": prompt.render_part("g1-no-report-file", {}).strip()}
+            "[Scene-setting: where this fits, dependencies, architectural context]": prompt.render_part("g1-scene", {}).strip(),
+            "[directory]": "" if repo is None else str(repo)}
 
 
 NONE = "無し"   # 行の中の単位や範囲が空の時の字（元 planbrief.NONE）
@@ -255,11 +252,6 @@ def tests_rows(got, edits: dict, frozen=None) -> str:
     files = (frozen or {}).get("files") or []
     if files:
         lines.append(f"- 凍ったテストのファイル（TDD のループが緑にした単位のテスト）: {_paths_line(files)}")
-        if verified:
-            lines.append(f"  - ループが書き換えて凍らせた名指し: {_paths_line(verified)}")
-        unruled = frozen.get("unruled") or []
-        if unruled:
-            lines.append(f"  - 今の段の TDD のループが凍らせたファイル: {_paths_line(unruled)}")
     return "\n".join(lines)
 
 

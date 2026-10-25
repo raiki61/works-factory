@@ -108,8 +108,8 @@ class ReplanPolicyCase(unittest.TestCase):
         return self.put("r1/start.json", {"policy": {"named": str(doc), "path": str(doc), "sha256": "old", "copy": None}})
 
     def ask(self, record, before_fix="null"):
-        old = self.put("plan-fields.json", {"round": 1, "fields": [{"unit_keys": ["u1"]}]})
-        new = self.put("replan/plan-fields.json", {"round": 1, "fields": [{"unit_keys": ["u1"]}]})
+        old = self.put("plan-fields.json", {"round": 1, "fields": [{"unit_keys": ["u1"], "allowed_paths": ["a.py"], "out_of_scope": []}]})
+        new = self.put("replan/plan-fields.json", {"round": 1, "fields": [{"unit_keys": ["u1"], "allowed_paths": ["a.py"], "out_of_scope": []}]})
         replan = {"ok": True, "status": "ok", "reason": "", "plan": json.loads(new), "fix_plan": None, "ripple": None, "round": 1}
         review = {"ok": True, "status": "ok", "reason": "", "round": 1, "holes": None, "blocks": [],
                   "replan": [{"item": 1, "units": ["u1"], "contract_changed": [], "human": [], "widened": None}]}

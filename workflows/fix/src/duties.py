@@ -215,10 +215,11 @@ def _rewritten(path: str, old, new) -> list:
     return sorted(i for i in ids if a.get(i) != b.get(i))
 
 
-def write_returns(place, repo, rev: str, reply, *, state: str = "") -> list:
+def write_returns(place, repo, rev: str, reply, *, state: str = "", owed=None) -> list:
     """共通の受け付けが返答を通した時に、型ごとの返しの控え returns/<k>.json を書く（下書き 2.1 の「返しの控え」。書くのはここ 1 か所）。
     形 {stage, weapon, group, tree, units: [{key, named}], frozen, frozen_tree, suite_made, added, rewritten, removed, files,
-    why_untested}。型は注文の索引の weapons、段の番と組は注文の物、tree は通した時の作業ツリーの木。tdd の返しの機械の欄 frozen・
+    why_untested, kinds}（kinds は書き手の返答の evidence.kinds の行。種類ごとの確かめの記録）。owed（受け付けた書き手の直す義務の単位）を渡せば、その単位を持つ型の注文の分だけを書く（型は 1 つずつ順に回る）。
+    型は注文の索引の weapons、段の番と組は注文の物、tree は通した時の作業ツリーの木。tdd の返しの機械の欄 frozen・
     frozen_tree・suite_made は輪の状態 state から写す（ほかの型は空）。removed は起点の版に在って今の木に無い試験の id、files は返答の
     行のパス、why_untested は注文の物（修正の出力の欄 removed_tests・untested の出どころ。下書き 4.1 の 7）。注文の無い置き場は書かない。
     書いたパスを返す"""
@@ -234,8 +235,11 @@ def write_returns(place, repo, rev: str, reply, *, state: str = "") -> list:
             rows.setdefault(weapons[c["unit_key"]], []).append(c)
     tree = common.snapshot(repo)
     out = []
+    mine = None if owed is None else set(owed)
     for w, doc in docs.items():
         keys = [u.get("key") for u in doc.get("units") or [] if isinstance(u, dict)]
+        if mine is not None and not mine & set(keys):
+            continue
         paths = _rows_files(rows.get(w, []))
         files = [p for p in paths if p.endswith(".py")]
         added, rewritten, removed = [], [], []
@@ -255,7 +259,8 @@ def write_returns(place, repo, rev: str, reply, *, state: str = "") -> list:
                "frozen_tree": str(loop.get("frozen_tree") or "") if w == "tdd" else "",
                "suite_made": list(loop.get("suite_made") or []) if w == "tdd" else [],
                "added": sorted(set(added)), "rewritten": sorted(set(rewritten)), "removed": sorted(set(removed)), "files": paths,
-               "why_untested": str(doc.get("why_untested") or "")}
+               "why_untested": str(doc.get("why_untested") or ""),
+               "kinds": [r for r in ((reply.get("evidence") or {}).get("kinds") or []) if isinstance(r, dict)]}
         out.append(str(orders.write_return(place, ret)))
     return out
 

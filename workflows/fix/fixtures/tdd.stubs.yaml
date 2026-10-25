@@ -3,7 +3,7 @@
 # tdd の単位の無い組として修正の輪へ進める
 fixture:
   expect: completed
-  reached: [intake, group-start, route-go, route-prep, route, route-step, orders, fix-prep, finish]
+  reached: [intake, group-start, route-go, route-prep, route, route-step, orders, writer-pick, fix-prep, finish]
   inputs:
     mode: group
     group: '{"group_id":"g1","unit_ids":["stats.py:4 mean"],"items":[]}'
@@ -15,7 +15,7 @@ exec-code: true
 route:
   phase: route
   units: [{unit_key: "stats.py:4 mean", route: direct, why: 先にテストを書けない単位として直す}]
-fixer:
+variant:
   changes: []
   not_done: []
   fix_closure: {status: not_applicable}

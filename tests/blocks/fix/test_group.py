@@ -49,10 +49,12 @@ def _src(module: str):
 def _nodes() -> dict:
     doc = yaml.safe_load((BLOCK / "works-factory-fix.yaml").read_text(encoding="utf-8"))
     out = {}
-    for node in doc["nodes"]:
-        out[node["id"]] = node
-        for inner in (node.get("loop_group") or {}).get("nodes") or []:
-            out[inner["id"]] = inner
+
+    def walk(nodes):   # 入れ子の輪の中まで（書き手の輪 writers-loop の中の修正の輪 fix-loop）
+        for node in nodes:
+            out[node["id"]] = node
+            walk((node.get("loop_group") or {}).get("nodes") or [])
+    walk(doc["nodes"])
     return out
 
 
@@ -133,8 +135,12 @@ class GroupChildScriptsCase(unittest.TestCase):
 
     def run_script(self, script, *, art=None, ok=True, cwd=None, node=None, **inputs):
         """workflows/fix/scripts/<script>.py を起こす。ok なら返りを JSON で読み、node（既定は script の名の - 綴り）の output_format で
-        照らす。ok が偽なら落ちることを見て標準エラーを返す"""
+        照らす。ok が偽なら落ちることを見て標準エラーを返す。修正の輪の頭（fix_prep・fix_ruled_prep）の前には、YAML の並びどおり外の輪の頭
+        writer_pick を回す（型を選ぶ。済んでいない型の間は何度回しても同じ型）"""
         art = art or self.art
+        if script in ("fix_prep", "fix_ruled_prep") and ok:
+            self.run_script("writer_pick", art=art, cwd=cwd, node="writer-pick" if script == "fix_prep" else "ruled-writer-pick",
+                            **{"pass": "first" if script == "fix_prep" else "ruled"})
         done = subprocess.run([sys.executable, str(BLOCK / "scripts" / f"{script}.py")], cwd=cwd or self.repo,
                               env=self.env(art, inputs), capture_output=True, text=True, encoding="utf-8")
         if not ok:
@@ -212,7 +218,7 @@ class GroupChildScriptsCase(unittest.TestCase):
         return test_file, prep["prompt"]
 
     def accept(self, reply):
-        return self.run_script("fix_accept", reply=json.dumps(reply, ensure_ascii=False), consulted="false", iteration="1")
+        return self.run_script("fix_accept", reply_variant=json.dumps(reply, ensure_ascii=False), consulted="false", iteration="1")
 
     @staticmethod
     def frozen_line(prompt: str) -> set:
@@ -361,7 +367,7 @@ class GroupChildScriptsCase(unittest.TestCase):
         stats.write_text(stats.read_text(encoding="utf-8").replace("(len(xs) - 1)", "len(xs)")
                          .replace("    return x\n", "    return lo\n"), encoding="utf-8")
         reply = {"changes": [_change(MEAN, ["stats.py"])]}
-        out = self.run_script("fix_ruled_accept", art=self.parent, reply=json.dumps(reply, ensure_ascii=False),
+        out = self.run_script("fix_ruled_accept", art=self.parent, reply_variant=json.dumps(reply, ensure_ascii=False),
                               consulted="false", iteration="1")
         self.assertFalse(out["ok"], out)
         self.assertIn("test_clamp_within_range", out["reason"])
@@ -389,7 +395,7 @@ class GroupChildScriptsCase(unittest.TestCase):
         stats = self.repo / "stats.py"
         stats.write_text(stats.read_text(encoding="utf-8").replace("    return x\n", "    return lo\n"), encoding="utf-8")
         reply = {"changes": [_change(MEAN, ["stats.py"])]}
-        out = self.run_script("fix_ruled_accept", art=self.parent, reply=json.dumps(reply, ensure_ascii=False),
+        out = self.run_script("fix_ruled_accept", art=self.parent, reply_variant=json.dumps(reply, ensure_ascii=False),
                               consulted="false", iteration="1")
         self.assertFalse(out["ok"], out)
         self.assertIn("test_clamp_within_range", out["reason"])
@@ -612,7 +618,7 @@ class GroupChildScriptsCase(unittest.TestCase):
         test_file.write_text(test_file.read_text(encoding="utf-8").replace("mean([2, 4]), 3)", "mean([2, 4]), 3.0)"),
                              encoding="utf-8")
         out = self.run_script("fix_ruled_accept", consulted="false", iteration="1",
-                              reply=json.dumps({"changes": [_change(MEAN, ["stats.py", "test_stats.py"])]}, ensure_ascii=False))
+                              reply_variant=json.dumps({"changes": [_change(MEAN, ["stats.py", "test_stats.py"])]}, ensure_ascii=False))
         frozen = self.frozen_reason(out["reason"])
         self.assertTrue(all(p in frozen for p in pasted), frozen)
 

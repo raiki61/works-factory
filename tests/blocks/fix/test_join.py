@@ -171,7 +171,7 @@ class PrepCase(Whole):
 
     def prep_inputs(self, *, only="", **more):
         return {"mode": "whole", "judgment": json.dumps(self.JUDGMENT, ensure_ascii=False),
-                "plan": json.dumps({"round": 1, "fields": [{}, {}]}),
+                "plan": json.dumps({"round": 1, "fields": [{"allowed_paths": ["a.py"], "out_of_scope": []}, {"allowed_paths": ["c.py"], "out_of_scope": []}]}),
                 "fix_plan": json.dumps({"plan": [{"unit_keys": ["A", "B"]}, {"unit_keys": ["C"]}]}),
                 "only_items": only, **more}
 

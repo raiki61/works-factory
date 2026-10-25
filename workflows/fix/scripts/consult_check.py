@@ -4,7 +4,7 @@
 # ///
 """node consult-check・ruled-consult-check（修正の輪の中、修正役の後）: 返答の consult の頼み（と受け付けが積んだ頼み・人の関所の
 条件）を先の確かめに当てて place の相談の状態に積み、聞く頼みが在れば答えの役の指示を md から組んで go: true
-（board.consult_ask・src/prompts.consult_render）。入力 pass は first か ruled。相談の枠を使い切った後の頼みは consulted: false。
+（board.consult_ask・src/prompts.consult_render）。入力 pass は first か ruled、reply_<型> は型の書き手の返答（起きた 1 つだけを読む）。相談の枠を使い切った後の頼みは consulted: false。
 返り {consulted, go, prompt}"""
 import os
 import sys
@@ -18,13 +18,16 @@ import oneline  # noqa: E402
 import planmarks  # noqa: E402
 import rolekit  # noqa: E402
 
-from src import board, prompts, rules  # noqa: E402
+from src import board, prompts, rules, writers  # noqa: E402
 
 
 def main() -> dict:
     pass_ = os.environ["INPUTS_PASS"]
     node = rules.answer_node(pass_)
-    reply, why = rolekit.parse_reply(os.environ["INPUTS_REPLY"])
+    raw = writers.reply_of(os.environ, pass_, lambda v: ports.polyfill("skip_value").value(v) is None)   # 起きた型の書き手の返答
+    if raw is None:
+        raise ValueError("どの型の書き手の返答も無い")
+    reply, why = rolekit.parse_reply(raw)
     if reply is None:
         raise ValueError(why)
     place = ports.place()

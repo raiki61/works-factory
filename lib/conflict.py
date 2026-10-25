@@ -14,9 +14,10 @@ fix_plan_item は承認済みの修正案の項目そのものの誤りで、そ
 
 このモジュールが持つ物（b は fix の run の置き場のフォルダのパス。その作業ファイル FILE {"items": [...]} と置き場の trace.jsonl の行（fixboard.trace）。どのブロック・ラインの名も書かない）:
 - ROW・ITEM_SCHEMA・CONFLICTS_SCHEMA: 控えの行の形（住処は lib/conflicts.schema.json。FIELDS・WHICH・DIV_KINDS もそこから引く）と、1 件の形（unit_key・between・why_both_cannot_hold・which_is_right・kind。query なら correct_lines も）と、
-  修正役の返答の欄 conflicts。kind は食い違いの起きた場面の種類で、DIV_KINDS の 6 つ（brief_vs_judgment・unnamed_test_broke・
-  not_red・scope_needed・query_hits_fixed・needs_context）のどれか。which_is_right（どちらが正しいか）とは別の軸で、
-  query_hits_fixed は which_is_right query と対、needs_context は which_is_right unknown と対
+  修正役の返答の欄 conflicts。kind は食い違いの起きた場面の種類で、DIV_KINDS の 7 つ（brief_vs_judgment・unnamed_test_broke・
+  not_red・scope_needed・query_hits_fixed・needs_context・red_at_base）のどれか。which_is_right（どちらが正しいか）とは別の軸で、
+  query_hits_fixed は which_is_right query と対、needs_context は which_is_right unknown と対、
+  red_at_base（下ごしらえが今の振る舞いを留めるために足した試験が起点の木で落ちる）は which_is_right test か unknown
 - WORD: superpowers の実装役の状態の語（NEEDS_CONTEXT・BLOCKED）を読み替える works の語（216 の seams.json の words の値と同じ綴り）。
   この語に読み替えた出口は conflicts[] の 1 件で、kind は役が DIV_KINDS から選ぶ。機械は状態の語から種類を推さない
 - problems(items, repo=, board_dir=, owed=, try_query=, briefs=): 機械の確かめ。形・義務の単位か・重なり・名指した所が在るか
@@ -132,10 +133,11 @@ MAX_LINES = 20
 # テストが直すと落ちる・受け入れのテストが案どおりに書いても赤にならない・範囲の外を触らないと緑にならない・判定の問いが直した後の
 # 正しい形にも当たる（which_is_right query と対）・材料から決められず人か依頼の答えが要る（which_is_right unknown と対）
 DIV_KINDS = tuple(k for k in ROW["properties"][KIND_FIELD]["enum"] if k is not None)
-BRIEF_VS_JUDGMENT, UNNAMED_TEST_BROKE, NOT_RED, SCOPE_NEEDED, QUERY_HITS_FIXED, NEEDS_CONTEXT = DIV_KINDS
+BRIEF_VS_JUDGMENT, UNNAMED_TEST_BROKE, NOT_RED, SCOPE_NEEDED, QUERY_HITS_FIXED, NEEDS_CONTEXT, RED_AT_BASE = DIV_KINDS
 # which_is_right の語。UNKNOWN はどれが正しいか決められない（needs_context の対）、QUERY は判定者の class_query が直した後の正しい形にも当たる
 WHICH = tuple(ROW["properties"][WHICH_FIELD]["enum"])
-_, _, _, UNKNOWN, QUERY = WHICH
+_, TEST, _, UNKNOWN, QUERY = WHICH
+RED_AT_BASE_DECISIONS = (REPLAN, ASK)   # red_at_base の申し出に許す裁定（fix_code_as は変えない段の注文でコードを変えさせるので許さない）
 UNSET = "unset"                         # kind_counts の鍵: kind の無い前の形の行
 WORD = "divergence"                     # superpowers の状態の語を読み替える works の語（216 の seams.json の words と同じ綴り）
 KIND = "conflict"                       # process.human_items の行の kinds（申し出の種類 KIND_FIELD とは別物）
@@ -238,6 +240,8 @@ def _kind_problem(it, at) -> str:
                 f"（{KIND_FIELD} {kind}・{WHICH_FIELD} {which}）")
     if kind == NEEDS_CONTEXT and which != UNKNOWN:
         return f"{at}: {KIND_FIELD} {NEEDS_CONTEXT} の {WHICH_FIELD} は {UNKNOWN}（{KIND_FIELD} {kind}・{WHICH_FIELD} {which}）"
+    if kind == RED_AT_BASE and which not in (TEST, UNKNOWN):
+        return f"{at}: {KIND_FIELD} {RED_AT_BASE} の {WHICH_FIELD} は {TEST} か {UNKNOWN}（{KIND_FIELD} {kind}・{WHICH_FIELD} {which}）"
     return ""
 
 
