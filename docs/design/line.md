@@ -47,6 +47,7 @@
 - `report`・`report_ai`: report の返りの `machine`・`human` を今の名で写す（report の設計書の 1.6）。
 - `report_detail`（pointer か null）・`report_lines`（字の配列）: report の返りの `detail`（詳しい報告 `report-detail.md` の pointer）と `report`（報告の行）を写す。line の返りを読む人（`workflow get`）が、詳しい報告の置き場と報告の要点を line の返りで見られるようにする。report が届かなければ null と `[]`。返りの欄の読み手の照らし（`tests/layers/test_block_returns.py`。読み手ゼロなら赤）が、report の返りのこの 2 つの欄に読み手を求めたので足した。`report_lines` は、line の返りの欄の名 `report` が既に report の返りの `machine`（機械の報告のファイルの pointer）の写しに使われているので、別の名にした。
 - `apply`（`{ok, hash, diff, reason}` か null）・`sealed`（`{ok, hash, diff}` か null）・`r2_status`（字か null）・`final_answer`（`{decision, text, asked}` か null）・`spec_questions`（整数）・`children`（`{cleaned, left, error}` か null）: 今の `result.py` のまま。
+- `bin/apply` が読む欄（`outcome`・`stop_reason`・`apply`・`sealed`・`r2_status`・`final_answer` の `text`・`spec_questions`）は、殻の `bin/_lib/apply.py` の表 `RETURN_READS` の 1 か所に書き、読み手の形は `.shared` の `apply-result.schema.json`。殻は読む前にその形で照らし、合わなければ当てずに終了の値 2 で止まる（欄の名がずれた run を「置いた差分が無い」と読み違えない。周の鎖の result も同じ表で読む）。line と chain の `returns:` が名指すノードの出力がその形に合うかは `tests/layers/scan.py` の E5（`_shapes` の 5）が照らす。
 - 形の検査（README 7.1 の 8）は返す node に欄 `outcome_field`（`fixed`）と `report` が在るかの yes/no で、今の `report`（機械の報告の pointer）で通る。line は一番上の graph で、line を include する graph は無い（chain は `workflow:` で起こし、`outcome` などを読む）ので、line 自身の報告の行は `report` の欄でなく `sections` の節 1（7.1）に入れる。欄の名は変えない（13 節）。
 
 ### 1.3 node の並び（`workflows/line/works-factory-line.yaml`）

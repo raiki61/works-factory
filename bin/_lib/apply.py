@@ -13,6 +13,9 @@ hash の正本は Archon の DB の run の記録で、置き場のファイル�
 承認し直すかの問い（spec-check の問い。メイングラフと周の鎖の出力の spec_questions。鎖の物は最後の差分に入る周の問いの数の和）を
 残した run は、断らずに当て、当てた後にそう 1 行で知らせる（断った時は断りの 1 行だけ。今の works の apply_checked も断らない。
 人は最後の承認ノードで「承認すると差分は当たる」を読んで答えている）。
+result の値から読む欄は表 RETURN_READS の 1 か所に書き（グラフ → (返す値そのもの "", 読む欄の形の form, 読む欄の道)。.shared の形
+apply-result.schema.json）、読む前にその形で照らす（.shared の口 ports.shape_errors）。欄の名がずれた値を、置いた差分が無い・止まった run と
+読み違えず、形の誤りとして終了の値 2 で止まる。form と道が両方のグラフの returns: が名指すノードの出力に合うかは tests/layers/scan.py の E5（_shell_reads）が照らす。
 """
 import argparse
 import json
@@ -23,7 +26,7 @@ import sys
 from pathlib import Path
 from typing import Protocol
 
-from bin._lib import launcher
+from bin._lib import launcher, place
 
 LIB = Path(__file__).resolve().parents[2] / "lib"
 if str(LIB) not in sys.path:   # lib/ の部品は互いを名だけで import する（merge の script と同じく lib/ を sys.path に置く）
@@ -52,6 +55,15 @@ GOT = "got"
 EVENTS_FLAGS, EVENTS = ("--verbose", "--events"), "events"
 OUTPUT_EVENTS, COMPLETED = ("node_completed", "node_skipped_prior_success"), "completed"
 OUTPUT_KEYS = STRUCTURED, TRUNCATED, RAW = ("structured_output", "node_output_truncated", "node_output")
+# メイングラフと周の鎖の result の値から読む欄の道（. で段を分ける）と、その形（モジュールの docstring）。返す値そのものを読むので欄は ""
+LINE, CHAIN = "works-factory-line", "works-factory-chain"
+RESULT_FORM = "json(shared:apply-result.schema.json)"
+PLACED_OK, PLACED_HASH, PLACED_POINTER = "apply.ok", "apply.hash", "apply.diff"
+SEALED_OK, SEALED_HASH, SEALED_POINTER = "sealed.ok", "sealed.hash", "sealed.diff"
+OUTCOME, STOP_REASON, R2_STATUS, ANSWER_TEXT, SPEC_QUESTIONS = "outcome", "stop_reason", "r2_status", "final_answer.text", "spec_questions"
+RESULT_PATHS = (PLACED_OK, PLACED_HASH, PLACED_POINTER, SEALED_OK, SEALED_HASH, SEALED_POINTER, OUTCOME, STOP_REASON, R2_STATUS,
+                ANSWER_TEXT, SPEC_QUESTIONS)
+RETURN_READS = {LINE: ("", RESULT_FORM, RESULT_PATHS), CHAIN: ("", RESULT_FORM, RESULT_PATHS)}
 
 
 class Get(Protocol):
@@ -125,9 +137,26 @@ def pick(run: dict, target: Path, args: argparse.Namespace, get: Get) -> tuple[P
         diff, sealed_hash, note = from_seal(record, target, args, get, unread)
         return diff, sealed_hash, [note]
     value = record["returns"]["value"]
+    off = result_errors(value)
+    if off:
+        raise Refuse(f"run {record['run_id']} のメイングラフの出力が {RESULT_FORM} の形に合わない（{' / '.join(off[:3])}）。"
+                     "bin/apply の読む欄の名と、run を回した工場の版の欄の名がずれている。当てない", UNREADABLE)
     diff, sealed_hash, stopped = choose(run, target, args.allow_stopped)
     notes = [f"{stopped}で止まった run。--allow-stopped が在るので当てた"] if stopped else []
     return diff, sealed_hash, notes + [note for note in [respec_note(value)] if note]
+
+
+def result_errors(value: dict) -> list[str]:
+    """result の値を読む欄の形 RESULT_FORM で照らした誤り（空なら合う）"""
+    ports = place.shared("ports")
+    return ports.shape_errors(value, ports.form_of(RESULT_FORM)[1])
+
+
+def at(value: dict, path: str):
+    """result の値の読む欄の道 path（RESULT_PATHS）の値。途中が null なら None"""
+    for step in path.split("."):
+        value = value.get(step) if isinstance(value, dict) else None
+    return value
 
 
 def unreadable(record: dict) -> str:
@@ -189,7 +218,8 @@ def final_answer(events: list, states: dict, unread: str, by_hand: str) -> tuple
             return "無人の run が最後の承認ノードを推しで通した（人の答えではない）", False
         return "最後の承認ノードで人は承認した", False
     parts = [f"止めた所 {answer['stop_reason']}"] if answer.get("stop_reason") else []
-    return f"最後の承認ノードで止めた run（{'・'.join(parts + human_said(answer.get('answer')))}）", True
+    said = answer["answer"].get("text") if isinstance(answer.get("answer"), dict) else None
+    return f"最後の承認ノードで止めた run（{'・'.join(parts + human_said(said))}）", True
 
 
 def read_events(done: subprocess.CompletedProcess[str], run_id: str) -> list:
@@ -250,44 +280,43 @@ def choose(run: dict, target: Path, allow_stopped: bool) -> tuple[Path, str, str
     """当てる差分のファイルと、記録の封じた hash と、止まった run を許しで当てるならその訳（ほかは空）"""
     record = run["terminal_record"]
     value = record["returns"]["value"]
-    placed, sealed = value.get("apply"), value.get("sealed")
-    if isinstance(placed, dict) and placed.get("ok") is True:
-        if not isinstance(sealed, dict) or placed.get("hash") != sealed.get("hash"):
-            raise Refuse(f"置いた差分の hash が封じた hash と合わない（apply {placed.get('hash')}・"
-                         f"sealed {sealed.get('hash') if isinstance(sealed, dict) else None}）。当てない")
-        return pointed(record, placed.get("diff"), APPLY_DIFF), placed["hash"], ""
+    if at(value, PLACED_OK) is True:
+        if at(value, SEALED_HASH) is None or at(value, PLACED_HASH) != at(value, SEALED_HASH):
+            raise Refuse(f"置いた差分の hash が封じた hash と合わない（apply {at(value, PLACED_HASH)}・"
+                         f"sealed {at(value, SEALED_HASH)}）。当てない")
+        return pointed(record, at(value, PLACED_POINTER), APPLY_DIFF), at(value, PLACED_HASH), ""
     why = stopped_why(value)
     nothing = f"置いた差分が無い（{why}）"
-    if not (isinstance(sealed, dict) and sealed.get("ok") is True):
-        by_hand = "" if value.get("r2_status") == seal.REDESIGN else from_worktree(run, target)
+    if at(value, SEALED_OK) is not True:
+        by_hand = "" if at(value, R2_STATUS) == seal.REDESIGN else from_worktree(run, target)
         raise Refuse(f"{nothing}。封じていない差分は当てない{by_hand}")
     if not allow_stopped:
         raise Refuse(f"{nothing}。最後の承認ノードで止めた run の封じた差分を当てるなら --allow-stopped を付けて打ち直す")
-    if value.get("r2_status") == seal.REDESIGN:
+    if at(value, R2_STATUS) == seal.REDESIGN:
         raise Refuse(f"R2 が {seal.REDESIGN} を言った run の差分は、--allow-stopped でも当てない")
-    return pointed(record, sealed.get("diff"), SEALED_DIFF), sealed["hash"], why
+    return pointed(record, at(value, SEALED_POINTER), SEALED_DIFF), at(value, SEALED_HASH), why
 
 
 def stopped_why(value: dict) -> str:
     """結末の語と、止めた所と、最後の承認ノードで人が書いた一言"""
-    parts = [f"結末 {value.get('outcome')}"]
-    if value.get("stop_reason"):
-        parts.append(f"止めた所 {value['stop_reason']}")
-    return "・".join(parts + human_said(value.get("final_answer")))
+    parts = [f"結末 {at(value, OUTCOME)}"]
+    if at(value, STOP_REASON):
+        parts.append(f"止めた所 {at(value, STOP_REASON)}")
+    return "・".join(parts + human_said(at(value, ANSWER_TEXT)))
 
 
-def human_said(answer) -> list[str]:
-    """最後の承認ノードの答え（{decision, text, asked}）の人の一言（無ければ空）"""
-    if isinstance(answer, dict) and isinstance(answer.get("text"), str) and answer["text"].strip():
-        return [f"人の一言「{answer['text']}」"]
+def human_said(text) -> list[str]:
+    """最後の承認ノードの答え（{decision, text, asked}）の text の人の一言（無ければ空）"""
+    if isinstance(text, str) and text.strip():
+        return [f"人の一言「{text}」"]
     return []
 
 
 def respec_note(value: dict) -> str:
     """承認し直すかの問いを残した run（メイングラフか周の鎖の出力の spec_questions が 1 以上）なら、承認し直しを待たずに当てたと言う 1 行（ほかは空）。
     止めの語では決めない: 別の待ち（fix の衝突など）が先に立つと、止めの語は spec-changed にならない"""
-    asked = value.get("spec_questions")
-    if not (isinstance(asked, int) and asked > 0):
+    asked = at(value, SPEC_QUESTIONS)
+    if asked <= 0:
         return ""
     return (f"{stopped_why(value)}——承認し直すかの問い（{asked} 件）を残した run。承認し直しを待たずに当てた"
             "（承認し直すかは次の run の仕様の段で答える）")

@@ -31,10 +31,6 @@ from tests.blocks.chain.test_chain import ROUND_FILES, chain, run_final, run_res
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 MERGE = WORKFLOWS / "merge" / "works-factory-merge.yaml"
 LINE = WORKFLOWS / "line" / "works-factory-line.yaml"
-CHAIN = WORKFLOWS / "chain" / "works-factory-chain.yaml"
-# 周の鎖は承認のノードを持たない（最後の承認は周の子 run の中）ので、人の一言 final_answer を鎖の result は運ばない。
-# stopped_why は無い一言を言わないだけで、ほかの読む欄は鎖も線と同じに要る
-CHAIN_OMITS = {"final_answer"}
 
 RUN = "0123456789abcdef0123456789abcdef"
 SHORT = RUN[:8]
@@ -136,7 +132,7 @@ class ApplyTest(TargetCase):
         value = {"outcome": "fixed",
                  "apply": {"ok": True, "hash": h, "diff": pointer("merge/apply.diff"), "reason": ""},
                  "sealed": {"ok": True, "hash": h, "diff": pointer("merge/sealed.diff")},
-                 "r2_status": None, "report": None}
+                 "r2_status": None, "report": None, "stop_reason": "", "spec_questions": 0}
         value.update(over)
         return value
 
@@ -251,6 +247,22 @@ class ApplyTest(TargetCase):
         value = self.value(apply=None, outcome="stopped_by_human", r2_status="redesign-needed")
         self.assert_refused(self.run_apply(self.record(value), "--allow-stopped"), 1, "redesign-needed")
 
+    def test_apply_stops_on_a_result_off_the_declared_shape(self):
+        """メイングラフと周の鎖の result の値は、読む前に読む欄の形（RETURN_READS の form）で照らす。欄の名がずれた値（apply を
+        別の名で返す・sealed の hash の名が違う・spec_questions が字）を、黙って「置いた差分が無い」と読んだり、照らさずに当てたり
+        せず、形の誤りとして終了の値 2 で止まり、ずれた欄を名指す（#851 の外。PR #861 の足した物）"""
+        good = self.value()
+        sealed = {"ok": True, "digest": sha(self.diff), "diff": pointer("merge/sealed.diff")}
+        cases = (
+            ("apply の名がずれた", {**{k: v for k, v in good.items() if k != "apply"}, "placed": good["apply"]}, "'apply'"),
+            ("sealed の hash の名がずれた", self.value(apply=None, sealed=sealed), "$.sealed: 必須の欄 'hash'"),
+            ("spec_questions が字", self.value(spec_questions="2"), "$.spec_questions"),
+        )
+        for name, value, field in cases:
+            with self.subTest(name):
+                err = self.assert_refused(self.run_apply(self.record(value), "--allow-stopped"), 2, "の形に合わない", field)
+                self.assertNotIn("置いた差分が無い", err)
+
     def test_apply_refuses_unreadable_run(self):
         cases = {
             "終わっていない": ({"run": {"id": RUN}, "terminal_record": None}, 0),
@@ -293,12 +305,15 @@ class ApplyTest(TargetCase):
                                 ("symlink", pointer("link/apply.diff"), "外"), ("無いファイル", pointer("none/apply.diff"), "普通のファイル"),
                                 ("フォルダ", pointer("folder/apply.diff"), "普通のファイル"),
                                 ("別の run", pointer("merge/apply.diff", run_id="other"), "別の run"),
-                                ("先の名が違う", pointer("merge/sealed.diff"), "名が apply.diff でない"),
-                                ("指し札でない", "merge/apply.diff", "読めない")):
+                                ("先の名が違う", pointer("merge/sealed.diff"), "名が apply.diff でない")):
             with self.subTest(name):
                 value = self.value()
                 value["apply"]["diff"] = ptr
                 self.assert_refused(self.run_apply(self.record(value)), 1, said)
+        with self.subTest("指し札でない（読む欄の形の照らしが先に止める）"):
+            value = self.value()
+            value["apply"]["diff"] = "merge/apply.diff"
+            self.assert_refused(self.run_apply(self.record(value)), 2, "の形に合わない", "$.apply.diff")
 
     def test_apply_reads_the_place_of_any_include(self):
         """place は include の道で決まる（merge-seal/sealed.diff・merge-apply/apply.diff）。決まったパスでなく名の末尾で照らす（README 11.3 の 7）"""
@@ -389,21 +404,18 @@ class ApplyTest(TargetCase):
                 shape = {"type": "object", "properties": {k: returns[k] for k in member}, "required": list(member)}
                 self.assertEqual(validate_schema(member, shape), [])
 
-    def test_apply_reads_only_line_returns(self):
-        """bin/_lib/apply.py が value から読む欄は、どれも線の result の output_format が要る欄として持つ（名を変えると知らせが黙って消える）。
-        spec_questions は respec_note が数えられる整数で来る。周の鎖の result も同じ口で読むので、CHAIN_OMITS のほかは同じ欄を同じ形で持つ"""
+    def test_apply_reads_the_result_only_through_the_table(self):
+        """bin/_lib/apply.py は result の値を、表 RETURN_READS の道を at で引いて読み（value を字の名で直に読まない）、表の道はどれも
+        読む。表はメイングラフと周の鎖の両方を同じ形と道で名指す（周の鎖の result も同じ口で読む）。form と道が両方の返す節の
+        output_format に合うかは tests/layers/scan.py の E5（_shell_reads）が照らす"""
         tree = ast.parse((ROOT / "bin" / "_lib" / "apply.py").read_text(encoding="utf-8"))
-        read = {key.value for node in ast.walk(tree) for key in value_keys(node)}
-        self.assertIn("spec_questions", read)
-        for graph in (LINE, CHAIN):
-            with self.subTest(graph.name):
-                result = next(n for n in yaml.safe_load(graph.read_text(encoding="utf-8"))["nodes"] if n["id"] == "result")
-                returns = result["output_format"]
-                self.assertLessEqual(read - (CHAIN_OMITS if graph == CHAIN else set()), set(returns["required"]))
-                self.assertIn("spec_questions", returns["required"])
-                self.assertEqual(validate_schema(self.value(spec_questions=2)["spec_questions"],
-                                                 returns["properties"]["spec_questions"]), [])
-                self.assertNotEqual(validate_schema("2", returns["properties"]["spec_questions"]), [])
+        self.assertEqual([key.value for node in ast.walk(tree) for key in value_keys(node)], [])
+        read = {getattr(apply, node.args[1].id) for node in ast.walk(tree)
+                if isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id == "at"
+                and isinstance(node.args[0], ast.Name) and node.args[0].id == "value" and isinstance(node.args[1], ast.Name)}
+        self.assertEqual(read, set(apply.RESULT_PATHS))
+        self.assertEqual(apply.RETURN_READS, {"works-factory-line": ("", apply.RESULT_FORM, apply.RESULT_PATHS),
+                                              "works-factory-chain": ("", apply.RESULT_FORM, apply.RESULT_PATHS)})
 
     def test_apply_sets_no_deadline(self):
         for part in (ROOT / "bin" / "apply", ROOT / "bin" / "_lib" / "apply.py"):
