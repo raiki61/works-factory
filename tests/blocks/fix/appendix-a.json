@@ -1,0 +1,1412 @@
+[
+ {
+  "id": "F1",
+  "to": "共通",
+  "from": "writer",
+  "text": [
+   "The acceptance ran all its checks. Fix every line listed under the headings, all in one resubmission."
+  ]
+ },
+ {
+  "id": "F2",
+  "to": "共通",
+  "from": "writer",
+  "text": [
+   "Read the file with the rulings on the conflict declarations, {rulings_file}, all of it, first. Fix as the rulings say and return the whole answer again (the text of the rulings itself is not pasted here)."
+  ]
+ },
+ {
+  "id": "F3",
+  "to": "共通",
+  "from": "writer",
+  "text": [
+   "The first fixer's answer (saved by the machine): {saved_reply}. Read it all first. Learn the earlier fixes and declarations from this file and the rulings file (the fixes in the working tree are still there)."
+  ]
+ },
+ {
+  "id": "F4",
+  "to": "共通",
+  "from": "writer",
+  "text": [
+   "## Pre-review keys to answer (plan_faces)",
+   "Answer every key below in the answer's `plan_faces`, one row per key (copy the key without changing a single character; do not write keys that are not in this list). The acceptance asks `plan_faces` for an answer to all of them."
+  ]
+ },
+ {
+  "id": "F5",
+  "to": "共通",
+  "from": "writer",
+  "text": [
+   "## Paths you may change and what you must not touch",
+   "The acceptance checks the paths you changed against these values and rejects what is off. If a path you declared in `changes[].files` is explicitly allowed by one of that unit's items (allowed_paths, the test files), it is checked only against the `out_of_scope` of that unit's items (the `out_of_scope` of other items does not apply). For every other path, the `out_of_scope` of every item is stronger than the scope and also wins over the permitted paths (only a path excluded through a scope consultation does not apply for that item). The paths and test permissions allowed by scope consultations are included here too."
+  ]
+ },
+ {
+  "id": "F6",
+  "to": "共通",
+  "from": "writer",
+  "text": [
+   "The permits that apply to all items (the permission to change tests, and the paths added by rulings to fix) do not win over `out_of_scope`."
+  ]
+ },
+ {
+  "id": "F7",
+  "to": "共通",
+  "from": "writer",
+  "text": [
+   "## Tests you may add or change, and frozen tests",
+   "The acceptance checks the tests you added, the existing tests whose bodies you changed, and the frozen test files against these names, and rejects what is off. If you need something off the list, ask in a scope consultation before you change it."
+  ]
+ },
+ {
+  "id": "F8",
+  "to": "共通",
+  "from": "writer",
+  "text": [
+   "- A new test that is not in \"足してよい新しいテスト\" is rejected when you add it."
+  ]
+ },
+ {
+  "id": "F9",
+  "to": "共通",
+  "from": "writer",
+  "text": [
+   "- The ranges in \"本体を変えてよい既存のテストの範囲\": `<path>` is the whole file, `<path>:<line>` is the whole function that contains the line, and `<path>:<line>-<line>` is the lines as written."
+  ]
+ },
+ {
+  "id": "F10",
+  "to": "共通",
+  "from": "writer",
+  "text": [
+   "- The files under \"直す前から壊れていた関わる試験\" hold tests related to your fix that were already failing before the fix (in the TDD loop's first run). You may fix them along with your fix, so that they test what they were meant to test; do not weaken or remove what they check. They are shown to a person at the final approval as tests fixed along the way."
+  ]
+ },
+ {
+  "id": "F11",
+  "to": "共通",
+  "from": "writer",
+  "text": [
+   "- Rewriting a frozen test file outside the names and ranges above is rejected. The functions of new tests you only added do not count as frozen; they are checked against \"足してよい新しいテスト\" above."
+  ]
+ },
+ {
+  "id": "F12",
+  "to": "消す",
+  "from": "writer",
+  "text": [
+   "- Do not change the names under \"ループが書き換えて凍らせた名指し\" any more, even if they are in the names above."
+  ]
+ },
+ {
+  "id": "F13",
+  "to": "消す",
+  "from": "writer",
+  "text": [
+   "- The ranges of rulings `fix_test_scope` do not lift the freeze in this round: rewriting a file under \"今の段の TDD のループが凍らせたファイル\" outside the names above and the ranges of scope consultations is rejected."
+  ]
+ },
+ {
+  "id": "F14",
+  "to": "共通",
+  "from": "writer",
+  "text": [
+   "- Changing or removing the body of any other existing test function is rejected."
+  ]
+ },
+ {
+  "id": "F15",
+  "to": "共通",
+  "from": "writer",
+  "text": [
+   "## How the tests were run before the fix",
+   "These are the forms the test stage before the fix actually ran."
+  ]
+ },
+ {
+  "id": "F16",
+  "to": "共通",
+  "from": "writer",
+  "text": [
+   "Run tests in this form without searching for environments or commands (narrow them as the rules below say)."
+  ]
+ },
+ {
+  "id": "F17〜F20",
+  "to": "共通",
+  "from": "writer",
+  "text": [
+   "The policy document: {policy_path} (read it all first).",
+   "There is no policy document.",
+   "The request file: {request_file} (read it all first).",
+   "There is no request file."
+  ]
+ },
+ {
+  "id": "F21",
+  "to": "共通",
+  "from": "writer",
+  "text": [
+   "# Fixing (the writer's job)",
+   "You read the judgment, cut into root units (unit) and passed by the acceptance",
+   "The machine (the shared board) accepts your answer and recounts before and after the fix with the judgment's way of counting."
+  ]
+ },
+ {
+  "id": "F22",
+  "to": "共通",
+  "from": "writer",
+  "text": [
+   "## What to read",
+   "- The judgment file: {judgment_file} — background (the source of the requirement is the briefs at the head. If there is no briefs section at the head, the judgment is the source; follow rule 6 of \"Brief rules (the source of the requirement and the background)\" below. The machine puts that section after these lines, and rule 6 says \"in a run without briefs and for a unit without a brief, the judgment file is the source; Read it all first\"). Read it with Read when you look up the fields of the briefs' units. Each unit in `units` has `key`, `label`, `disposition`, `reason` (facts and refutation), `origin_analysis` (where it came from), `class_query` (the query that finds every instance of the same shape), and `prescriptions` (prescriptions, listed starting from the zero prescription = withdraw, and from the proposal that makes do with one existing mechanism), and there are `framing`, `one_shot`, `questions` (the question ledger), and `precedents` (the precedent rows)."
+  ]
+ },
+ {
+  "id": "F23",
+  "to": "共通",
+  "from": "writer",
+  "text": [
+   "- The keys of the units you owe a fix (a JSON array; the same set the acceptance reads. The origins of questions waiting for an answer and the units of rulings not to fix (ask_human, fix_plan_item) are not in it, and units a person answered and returned are in it): {open_units}"
+  ]
+ },
+ {
+  "id": "F24",
+  "to": "共通",
+  "from": "writer",
+  "text": [
+   "- The fix plan (written by another role and attacked by another eye in the pre-review): {plan_file} — you need not read the whole fix plan (the requirement is cut out into the briefs; if there is no briefs section at the head and this is not empty, Read it). The keys of the pre-review's holes (`faces`) and alternatives (`shrink`) you answer in `plan_faces` are all in the section \"Pre-review keys to answer (plan_faces)\" the machine pasted into these instructions. If empty, the run has no fix plan and no answer to the pre-review is needed."
+  ]
+ },
+ {
+  "id": "F25",
+  "to": "消す",
+  "from": "writer",
+  "text": [
+   "- The person's policy document: {policy_path} — if not empty, read it all first."
+  ]
+ },
+ {
+  "id": "F26",
+  "to": "消す",
+  "from": "writer",
+  "text": [
+   "- The result of the TDD loop: {summary_file} — if empty, the loop did not run (fix every unit as these instructions say). If not empty, Read it all. The \"units the loop fixed\" are already fixed in the working tree, and the machine confirmed the test's red-to-green. Do not fix those units again; write one row in `changes` (in `files`, the fixed files and the test files; in `closure`'s `red_seen`, the red-to-green the machine saw). Do not change those units' test files (the acceptance rejects it; only what the fix plan names in `rewrite_tests` and the scope of a fix_test_scope ruling are exceptions). The \"direct units\" are fixed here (the units listed under the summary file's heading \"## direct の単位（ここで直せ）\": units the TDD loop did not take, for reasons such as not being able to write a test first, and assigned to be fixed with these instructions)."
+  ]
+ },
+ {
+  "id": "F27",
+  "to": "共通",
+  "from": "writer",
+  "text": [
+   "- The file with what was answered at the approval node (answers to questions about changes that reduce or narrow capability, or changes to the person's policy or the policy document; a person's answer, or the recommendation an unattended run took, and a recommended answer has \"無人の run が採った推し\" on the line just before it): {notes_file} — if empty, nothing was asked. If not empty, Read it all (the body of the comments is only in the file). A comment is a scope and a condition to let through; **do not cut beyond it**."
+  ]
+ },
+ {
+  "id": "F28",
+  "to": "共通",
+  "from": "writer",
+  "text": [
+   "- Do not say \"done\" without changing anything. A fixed check later finds the empty diff and fails the run."
+  ]
+ },
+ {
+  "id": "F29",
+  "to": "共通",
+  "from": "writer",
+  "text": [
+   "## Scope consultation and the pre-check",
+   "Whether to widen the scope is a specification decision, and the fix plan's side decides it (a role that reads the fix plan and answers as its author). Do not change things outside the scope silently. Do not end your start by returning a conflict declaration only because you need something outside the scope. Consult first, and if it is allowed, go on fixing."
+  ]
+ },
+ {
+  "id": "F30",
+  "to": "共通",
+  "from": "writer",
+  "text": [
+   "1. **Scope consultation (the answer field `consult`)**: when you need to change a file outside the brief's `allowed_paths` (a record of changes, documents, and the like that go with the fix; also things that hit the brief's `out_of_scope`), and when you need to rewrite a frozen test (the test files of units the TDD loop made green), write a request in the answer's `consult` field and return before you change it. One entry is one item: `item` (the fix plan's item number), `paths` (the paths you want to add, relative to the repository root), `tests` (the range of existing tests you want to rewrite: `<path>` or `<path>:<line>`; the line is the line in the version before the fix), `new_tests` (optional; the ids of new tests not in the fix plan's `tests` that you want to add, `<path>::<class>::<name>`), `why` (why it is needed and what you will change how; concrete enough for the other side to judge it as a specification), and the three fields below. The side that answers starts in a new conversation and does not see this conversation, so these three fields are all it learns of your work; a request missing any of them is refused by the machine without being asked. `tried` (what you tried within the scope, one line each), `blocked` (why the unit cannot be fixed within the scope: how far you fixed it and what you hit), and `evidence` (the files and lines that ground it, `{{path, line}}` with the path relative to the repository root and the line in the current working tree). List requests for different items one by one."
+  ]
+ },
+ {
+  "id": "F31",
+  "to": "共通",
+  "from": "writer",
+  "text": [
+   "- In a round where you return `consult`, the acceptance does not run. You may fill the other fields in their current, in-progress form (the machine does not look at them). Leave the fixes in the working tree as they are (do not remove them). Even without your asking first, when the acceptance finds a change outside the scope, a test outside the fix plan, or a rewrite of a frozen test or of an existing test function outside the named ones, the machine may send it to the same consultation (in that round an instruction comes to return the same JSON as the previous answer without changing the working tree)."
+  ]
+ },
+ {
+  "id": "F32",
+  "to": "共通",
+  "from": "writer",
+  "text": [
+   "- A role that reads the fix plan answers on behalf of its author, and the machine checks the answer and keeps it on the shared board. In the next round, in the continuation of this conversation, an instruction naming the answer file comes."
+  ]
+ },
+ {
+  "id": "F33",
+  "to": "共通",
+  "from": "writer",
+  "text": [
+   "- What hits `out_of_scope` was excluded by the fix plan's side itself. The machine passes the consultation with the reason for the exclusion, and that side reconsiders and decides. In `why`, write why the reason for the exclusion does not hold for the current fix."
+  ]
+ },
+ {
+  "id": "F34",
+  "to": "共通",
+  "from": "writer",
+  "text": [
+   "- If allow, you may add only \"what entered the scope\" in the answer file and fix (if there is a supplement to the specification, follow it). The acceptance puts it in the scope."
+  ]
+ },
+ {
+  "id": "F35",
+  "to": "共通",
+  "from": "writer",
+  "text": [
+   "- If deny, fix within the scope. Only when you see that the request cannot be met within the scope and that the views of the specification are split, return a conflict declaration (`kind` is `scope_needed`)."
+  ]
+ },
+ {
+  "id": "F36",
+  "to": "共通",
+  "from": "writer",
+  "text": [
+   "- If defer, do not fix it in this run. Write that you did not fix that place, and why, in `what` (per unit) or in `not_done`."
+  ]
+ },
+ {
+  "id": "F37",
+  "to": "共通",
+  "from": "writer",
+  "text": [
+   "- If there is no answer (refused, unavailable, invalid), read the reason in the answer file. If it could not be asked, return a conflict declaration (`which_is_right` request, `kind` `scope_needed`) as the rule before consultation says (rule 8 of \"Brief rules (the source of the requirement and the background)\" above: do not change things outside the scope)."
+  ]
+ },
+ {
+  "id": "F38",
+  "to": "共通",
+  "from": "writer",
+  "text": [
+   "- Consultation rounds have a budget ({budget} in this stage's loop). A `consult` after the budget is used up is rejected by the acceptance. If you still need something outside the scope after it is used up, do not change things outside the scope, and return that unit as a conflict declaration (`which_is_right` request, `kind` `scope_needed`) (units that close within the scope may be fixed). Do not ask to rewrite tests to fit expectations to the implementation."
+  ]
+ },
+ {
+  "id": "F39",
+  "to": "variant",
+  "from": "writer",
+  "text": [
+   "- A subagent (an implementer started with Agent) cannot consult itself. If a subagent reports that it needs something outside the scope, this role writes it in `consult` and returns (the subagent's fixes may stay as they are in the working tree or the unit's worktree)."
+  ]
+ },
+ {
+  "id": "F40",
+  "to": "共通",
+  "from": "writer",
+  "text": [
+   "2. **The pre-check**: before you give your answer, Write a draft identical to the JSON you return to {draft} (do not write it into the working tree), and run the following with Bash. Subagents run it without `--reply`. The sandbox may refuse writes outside the working tree. If the write to {draft} is refused, write the draft under your session's temporary directory instead (for example under `$TMPDIR`) and pass that path to `--reply`; the check reads any path. Never write the draft into the working tree.",
+   "{check_cmd} --reply {draft}"
+  ]
+ },
+ {
+  "id": "F41",
+  "to": "共通",
+  "from": "writer",
+  "text": [
+   "The rejection lines of the same fact checks as the acceptance (frozen tests, the origin of writes, the approved fix plan's scope, the references you wrote (the answer's `wrote_refs` and the Markdown links the diff added); no tests are run) are listed in `rejects` (exit code 0 passes, 1 means there are lines). If there are lines, fix them or consult before you return."
+  ]
+ },
+ {
+  "id": "F100",
+  "to": "共通",
+  "from": "writer",
+  "text": [
+   "The ripple list: {ripple_file} (the callers and tests of the names the approved fix plan's items change. It names hits that are not in the scope. If you find you need to touch such a hit in the fix, ask in the scope consultation above before you write)."
+  ]
+ },
+ {
+  "id": "L1",
+  "to": "共通",
+  "from": "writer",
+  "text": [
+   "The machine fetched the documents of the libraries the files of this unit use from two sources and kept them whole as files on the shared board (the bodies are not pasted here; below, each library has a block with its name, version, source, and file paths): (1) the installed version: signatures and descriptions read, without importing, from the code of the version installed in the run's working tree or in the main working tree of the same repository (the installed code itself); (2) official: the library owner's documents (the README on the package registry, llms.txt in the docs location; matched to the version where possible). When you need an API's signature, arguments, or usage, Read that library's file (you may decide whether to read it by whether you need it; search by the names the unit uses). For the libraries below under \"no document from anywhere\" and for what is missing here, fetch the official documents yourself with WebSearch and WebFetch."
+  ]
+ },
+ {
+  "id": "F101",
+  "to": "variant",
+  "from": "writer",
+  "text": [
+   "1. In the order of the items below, start one implementer subagent with the Agent tool, and give it the whole content of the implementer file in the prompt, without changing a character. The subagent starts in a new conversation for each item (it has no history of the previous item's conversation). From the second item on, add a section with the heading `## Handoff from the previous items (written by the fixer from the earlier implementers' reports)` after the file's content, and write one line per finished item (the item number, and the changed files and tests made green from the implementer's report). The previous items' fixes are in the working tree, so do not have them reverted or redone."
+  ]
+ },
+ {
+  "id": "F102",
+  "to": "variant",
+  "from": "writer",
+  "text": [
+   "2. When you receive the implementer's last message, run that item's diff command with Bash (it writes to an absolute path in the per-run place; new untracked files are included as full diffs), and start a reviewer subagent with a separate Agent. In its prompt, paste the whole content of the reviewer file and, after it, the implementer's last message. The diff is the whole from base and includes the previous items' fixes (the reviewer file says so too)."
+  ]
+ },
+ {
+  "id": "F103",
+  "to": "variant",
+  "from": "writer",
+  "text": [
+   "3. If the review's answer is `❌` or `Needs fixes`, start the same item's implementer again with the findings and start the review once more. At most 3 implementers per item. Even if the third review does not pass, that item's units you owe a fix go in changes like every other form (a unit you owe a fix always has one row in changes). Write the remaining findings in that row's root_or_symptom, with kind symptom and the findings in why. If the acceptance rejects that unit, the acceptance's last round reverts only that unit's fix and stops it (the other units pass). Only when a unit cannot be fixed at all (its way of fixing cannot be decided without a person's answer), and when the implementer returned NEEDS_CONTEXT or BLOCKED, return it as a conflict declaration (conflicts) without fixing it (ASK of the reading rules below)."
+  ]
+ },
+ {
+  "id": "F104",
+  "to": "variant",
+  "from": "writer",
+  "text": [
+   "4. When the acceptance asks you to resubmit (the rejection paragraph at the head names the reasons) and in the second round after a ruling (the rulings file is named), start again only the subagents of the items the rejection reasons or the rulings name (the other items' fixes remain in the working tree)."
+  ]
+ },
+ {
+  "id": "F105",
+  "to": "variant",
+  "from": "writer",
+  "text": [
+   "5. When all items are done, check the working tree's diff yourself (do not trust the subagents' reports; DELEGATE of the reading rules), and return only the JSON of the answer fields. Write the files a subagent reported writing with Bash in the answer's bash_writes with path and reason (writes with Edit and Write appear in the record)."
+  ]
+ },
+ {
+  "id": "F106",
+  "to": "variant",
+  "from": "writer",
+  "text": [
+   "6. The machine's gates are applied after the answer: the acceptance test's red-to-green and the freezing of existing tests by the fix acceptance's bundle, the tests the change reaches by the acceptance, and test_cmd by later stages. For the subagents' \"commit\" and \"ask a person\", the works rules at the end of the subagent file apply."
+  ]
+ },
+ {
+  "id": "F107",
+  "to": "消す",
+  "from": "writer",
+  "text": [
+   "The units the TDD loop fixed (the \"units the loop fixed\" in the loop's summary file) are not in the items below. Do not start subagents for them; write one row in changes as the result of the TDD loop in \"What to read\" says."
+  ]
+ },
+ {
+  "id": "F108",
+  "to": "消す",
+  "from": "writer",
+  "text": [
+   "## The borrowed seat",
+   "The promises of these instructions' stage (the JSON to return, the machine's gates, the order of the stage) and the reading rules below win over the borrowed text.",
+   "### The helper template (superpowers {seat_file}, wrapped in works sections)",
+   "{seat_body}"
+  ]
+ },
+ {
+  "id": "F109",
+  "to": "共通",
+  "from": "writer",
+  "text": [
+   "When the implementer template's status words NEEDS_CONTEXT or BLOCKED (the works word divergence) apply, do not count that unit as fixed; return it as one entry of the conflict declarations in conflicts. `kind` is the situation that occurred, one of the following (the rules of the fields are in the section \"Conflict declarations (do not bend to get green)\" of these instructions):"
+  ]
+ },
+ {
+  "id": "F110",
+  "to": "共通",
+  "from": "writer",
+  "text": [
+   "- `brief_vs_judgment`: the brief disagrees with the judgment, the request, or the conditions answered at the approval node before the fix (put that unit's brief line in `between`)"
+  ]
+ },
+ {
+  "id": "F111",
+  "to": "共通",
+  "from": "writer",
+  "text": [
+   "- `unnamed_test_broke`: an existing test named neither in the fix plan nor in a ruling fails when you fix, or can only be removed"
+  ]
+ },
+ {
+  "id": "F112",
+  "to": "変える",
+  "from": "writer",
+  "text": [
+   "- `not_red`: an acceptance test or a named rewrite does not go red even when written as the plan says, or goes red in a different way than the plan says"
+  ]
+ },
+ {
+  "id": "F113",
+  "to": "共通",
+  "from": "writer",
+  "text": [
+   "- `scope_needed`: it does not go green without touching something outside the brief's or the plan's scope, or the recount with the judge's query does not close (when there is a scope consultation section, only after you consulted first in the answer's consult and were not allowed; a subagent reports to the coordinating role that a consultation is needed)"
+  ]
+ },
+ {
+  "id": "F114",
+  "to": "共通",
+  "from": "writer",
+  "text": [
+   "- `query_hits_fixed`: the judge's query also hits the correct form after the fix (`which_is_right` is query, and `correct_lines` is needed)"
+  ]
+ },
+ {
+  "id": "F115",
+  "to": "共通",
+  "from": "writer",
+  "text": [
+   "- `needs_context`: the policy, the intent of the request, or which is right cannot be decided from the materials, and a person's or the request's answer is needed (`which_is_right` is unknown)"
+  ]
+ },
+ {
+  "id": "F116",
+  "to": "variant",
+  "from": "writer",
+  "text": [
+   "DISPATCH (do not start subagents) and DELEGATE's \"a role never hands work to other agents\" in the reading rules below do not apply to this fixer: start subagents with Agent as the steps of this section say. A subagent never starts further subagents (both templates forbid it). The reading rules' instruction to tell a helper started with Agent to Read a file is not written to subagents either: the works rules at the end of each subagent file carry the subagent's reading rules instead."
+  ]
+ },
+ {
+  "id": "F117",
+  "to": "共通",
+  "from": "writer",
+  "text": [
+   "## Reading borrowed skills",
+   "When you read a borrowed skill (superpowers), follow the reading rules below. They are direct instructions to you and win over the skill's text. If you start a subagent with Agent, write in its prompt to Read this file: {overlay_file}."
+  ]
+ },
+ {
+  "id": "F118",
+  "to": "共通",
+  "from": "writer",
+  "text": [
+   "In `changes`, write **exactly one row per unit you fixed**. Do not split the same `unit_key` into two rows (the acceptance rejects it). If one unit spans several files, list them all in `files`."
+  ]
+ },
+ {
+  "id": "F119",
+  "to": "共通",
+  "from": "writer",
+  "text": [
+   "- `unit_key`: copy the judgment unit's `key` **without changing a single character** (one of the values in \"the keys of the units you owe a fix\" above)"
+  ]
+ },
+ {
+  "id": "F120",
+  "to": "共通",
+  "from": "writer",
+  "text": [
+   "- `files`: the files whose content you changed to fix that unit (paths relative to the repository root). The later check looks at whether every file you write here really changed from the version (do not write caches and the like produced by running tests)"
+  ]
+ },
+ {
+  "id": "F121",
+  "to": "共通",
+  "from": "writer",
+  "text": [
+   "- `what`: what you fixed and how (how you closed the root, how many places of the same shape you fixed, the tests you ran and their results), in 1 to 3 sentences"
+  ]
+ },
+ {
+  "id": "F122",
+  "to": "共通",
+  "from": "writer",
+  "text": [
+   "- `closure` (proof of closure): `mechanism` (the defect's mechanism), `fix_mechanism` (the mechanism by which the fix closes it), `verified_how` (how you confirmed it closed), and `sites`."
+  ]
+ },
+ {
+  "id": "F123",
+  "to": "variant・pin",
+  "from": "writer",
+  "text": [
+   "For a fix to a check or a guard, first list every place that shares that invariant (`sites`), inject a regression into each place one by one, see red and, after restoring, green, and write it in `red_seen` (do not stop at \"I tried one and it was red\")."
+  ]
+ },
+ {
+  "id": "F124",
+  "to": "共通",
+  "from": "writer",
+  "text": [
+   "In each row of `sites`, write in `path` the one file where that site is, as a path relative to the target root. The machine ties a site to the files hit by `class_query` through `path`, and compares the number of hits covered, not the number of sites, with the population (listing sites in the same file does not increase the count. Sites in tests and documents become visible to the person as paths \"fixed outside the query\". A site without `path` is not counted as coverage: coverage is counted by the sites with `path` and, of that row's `files`, the files the fix changed, and the fact that there was a site without `path` appears as a reason in the per-unit table. Only when the count per hit file cannot be looked up, the files the fix changed are counted by the number of sites whose `path` points at them)."
+  ]
+ },
+ {
+  "id": "F125",
+  "to": "共通",
+  "from": "writer",
+  "text": [
+   "For a structural fix, a machine check (grep, execution) that the moved destination is actually used; for a wording fix, the real text after the change"
+  ]
+ },
+ {
+  "id": "F126",
+  "to": "共通",
+  "from": "writer",
+  "text": [
+   "- `coverage` (the population of coverage): for a unit whose judgment has a `class_query`, you need not write it; if you do not, the machine fills in the judgment's how. **The machine counts before and after the fix**: before the fix in the same fixed version the judgment read, after the fix in the current working tree (including untracked files, excluding what .gitignore hits), and the direction (defects/population) uses the judgment's value. For a unit with a `class_query`, do not write counts. **The number closed is counted by the machine from the hit files pointed to by `path` of the `closure` `sites` or in that row's `files` that the fix actually changed** (files named in a site but not changed are not counted). If you think the judgment's query misses targets or counts only the one line at the root, you may rebuild the how (write the rebuilt how; if it is narrower than the judgment's population, `remaining` needs a reason). Only for a unit whose judgment has no `class_query`, the machine has no query to use, so write how (the query that counts) and counts (the direction; the word defects or population, not a number). **Leaving something is not itself forbidden. Leaving it silently is forbidden**: if the sites you proved do not reach the population, write in `remaining` \"what you leave and why you do not close it this round\". **Whether it closed is decided by the machine with the recount of the judgment's query**: if the declaration (the number of hits the `sites` cover, `remaining`) does not match the recount, the machine records the disagreement in the per-unit table and shows it to the person to decide. If you say you closed everything with a query that counts the defect's shape (defects) but it still counts after the fix, the unit appears in the table as not closed (it counts even if you only left the old expression in a note). If the judgment's query also hits the correct form after the fix, do not silence it by narrowing how; have the query's replacement ruled with a conflict declaration (`which_is_right`: query and `correct_lines`)"
+  ]
+ },
+ {
+  "id": "F127",
+  "to": "共通",
+  "from": "writer",
+  "text": [
+   "- `coverage` (the population of coverage): for a unit whose judgment has a `class_query`, you need not write it; if you do not, the machine fills in the judgment's how. **The machine counts before and after the fix**: before the fix in the same fixed version the judgment read, after the fix in the current working tree (including untracked files, excluding what .gitignore hits), and the direction (defects/population) uses the judgment's value. For a unit with a `class_query`, do not write counts. **The number closed is counted by the machine from the hit files pointed to by `path` of the `closure` `sites` or in that row's `files` that the fix actually changed** (files named in a site but not changed are not counted). If you think the judgment's query misses targets or counts only the one line at the root, you may rebuild the how (write the rebuilt how; if it is narrower than the judgment's population, `remaining` needs a reason). Only for a unit whose judgment has no `class_query`, the machine has no query to use, so write how (the query that counts) and counts (the direction; the word defects or population, not a number). **Leaving something is not itself forbidden. Leaving it silently is forbidden**: if the sites you proved do not reach the population, write in `remaining` \"what you leave and why you do not close it this round\". **Whether it closed is decided by the machine with the recount of the judgment's query**: if the declaration (the number of hits the `sites` cover, `remaining`) does not match the recount, the machine records the disagreement in the per-unit table and shows it to the person to decide. If you say you closed everything with a query that counts the defect's shape (defects) but it still counts after the fix, the unit appears in the table as not closed (it counts even if you only left the old expression in a note). If the judgment's query also hits the correct form after the fix, do not silence it by narrowing how; have the query's replacement ruled with a conflict declaration (`which_is_right`: query and `correct_lines`)"
+  ]
+ },
+ {
+  "id": "F128",
+  "to": "共通",
+  "from": "writer",
+  "text": [
+   "- `coverage` (the population of coverage): for a unit whose judgment has a `class_query`, you need not write it; if you do not, the machine fills in the judgment's how. **The machine counts before and after the fix**: before the fix in the same fixed version the judgment read, after the fix in the current working tree (including untracked files, excluding what .gitignore hits), and the direction (defects/population) uses the judgment's value. For a unit with a `class_query`, do not write counts. **The number closed is counted by the machine from the hit files pointed to by `path` of the `closure` `sites` or in that row's `files` that the fix actually changed** (files named in a site but not changed are not counted). If you think the judgment's query misses targets or counts only the one line at the root, you may rebuild the how (write the rebuilt how; if it is narrower than the judgment's population, `remaining` needs a reason). Only for a unit whose judgment has no `class_query`, the machine has no query to use, so write how (the query that counts) and counts (the direction; the word defects or population, not a number). **Leaving something is not itself forbidden. Leaving it silently is forbidden**: if the sites you proved do not reach the population, write in `remaining` \"what you leave and why you do not close it this round\". **Whether it closed is decided by the machine with the recount of the judgment's query**: if the declaration (the number of hits the `sites` cover, `remaining`) does not match the recount, the machine records the disagreement in the per-unit table and shows it to the person to decide. If you say you closed everything with a query that counts the defect's shape (defects) but it still counts after the fix, the unit appears in the table as not closed (it counts even if you only left the old expression in a note). If the judgment's query also hits the correct form after the fix, do not silence it by narrowing how; have the query's replacement ruled with a conflict declaration (`which_is_right`: query and `correct_lines`)"
+  ]
+ },
+ {
+  "id": "F129",
+  "to": "共通",
+  "from": "writer",
+  "text": [
+   "- `root_or_symptom`: has the fields `kind` and `why`. `kind` is whether this fix closed the root the judgment named (root) or closed a symptom (symptom). **If symptom, write in why \"why you stop with that now\"** (if hitting the root means a new mechanism or a widened shared surface, say so and write it in `rejudge_requested`)"
+  ]
+ },
+ {
+  "id": "F130",
+  "to": "共通",
+  "from": "writer",
+  "text": [
+   "- `bypass_tried`: **the inputs you tried in order to break the fix while keeping it, and the results**. \"It went red when I removed the fix\" is detection of absence, not evidence of completeness. If it broke, fix it before you submit. If it did not break, write what you tried; do not write \"not tried\""
+  ]
+ },
+ {
+  "id": "F131",
+  "to": "共通",
+  "from": "writer",
+  "text": [
+   "- `breaks`: **look up with the machine** the surfaces this fix may break (how = the command that finds places sharing the same path, the same invariant, the same calling order). In result, the confirmation that they still work (running the checks, grep results). If you let it through knowing it breaks, the reason in accepted, and in accepted_title one short sentence in plain words saying what a person is being asked to accept (the reader has not seen the code: no function, file, key, or role names; say it as the thing that changes, for example \"stop rejecting a file whose only leftover marker is a separator line\")"
+  ]
+ },
+ {
+  "id": "F132",
+  "to": "共通",
+  "from": "writer",
+  "text": [
+   "- `precedent`: for a fix that adds a mechanism or changes a shape, check with primary sources (standards, well-known open-source projects, official documentation) how the world solves the same problem before you write it: problem, source, verdict (adopt = take as is / adapt = take with changes / does_not_apply = does not apply / not_found = not found), reason. Fetch primary sources yourself with WebSearch and WebFetch (the same tools as the original graphloops writers. The original graphloops leaves web research to an investigator to protect the context, but this role's Agent is the entry for starting per-unit subagents and is not used for research, so limit what you fetch to the pages you need). Write the source of what you fetched (a URL, or a document and section) in source; if you fetched but nothing applies, make it not_found and write in searched what you searched and how. If you took the judgment's `precedents` row for the same unit as is, write from_judge_row: true, verdict is that row's value, and reason says which row (the unit key). If you build your own mechanism, write in reason, with sources, why the world's solution does not exist or cannot be used"
+  ]
+ },
+ {
+  "id": "F133",
+  "to": "共通",
+  "from": "writer",
+  "text": [
+   "- `not_done`: the units you did not fix and why (`unit_key`, `why`). A unit you owe a fix ([block] and do-now) must be fixed unless it is the origin of a fork (the origin of a question answered before the fix (a person's answer, or the recommendation an unattended run took) is back in the units you owe a fix, and the acceptance rejects it if you write it in `not_done`. The \"origin of a fork\" in the rejection message \"if it is not the origin of a fork, you owe a fix\" means the origin of a question that has no answer yet (a fork, and a question whose status is escalate)). If you leave one out, the acceptance rejects it"
+  ]
+ },
+ {
+  "id": "F134",
+  "to": "共通",
+  "from": "writer",
+  "text": [
+   "- `interactions`: **when two or more fixes touched the same file, one entry per surface (`surface`)**. The machine derives the list of surfaces from `changes`' `files`, so leaving one out is rejected (do not write the list of fixes that touched it). For each surface, compare: ① does one make the other unneeded (if so, apply only the smaller one) ② does the order of application change the result ③ is there a state that arises only when they are combined. Write the result in `checked`, and if a state arises, what arises in `combined_effect`"
+  ]
+ },
+ {
+  "id": "F135",
+  "to": "variant",
+  "from": "writer",
+  "text": [
+   "`clean` without ever having seen red is rejected."
+  ]
+ },
+ {
+  "id": "F136",
+  "to": "共通",
+  "from": "writer",
+  "text": [
+   "- `plan_faces`: one row per `key` of the pre-review's holes (`faces`) and alternatives (`shrink`): if you took it in, `absorbed` and how you took it in, in how. If you do not take it in, `declared` and the reason you leave it, in how (if it is a false positive, where in the real code you can say it is wrong). If there is a key you do not answer, the machine rejects it. If you leave a block hole as declared, write it on the premise that the next whole review will raise the same hole as [block]. Writing \"hand to a person\" in how does not reach the person: write what goes to a person in that unit's `breaks.accepted` (the machine puts it in the list shown to the person). A run without a fix plan, or a run where neither holes nor alternatives were raised, is an empty array"
+  ]
+ },
+ {
+  "id": "F137",
+  "to": "共通",
+  "from": "writer",
+  "text": [
+   "- `wrote_refs`: **references that cannot be links that you newly wrote this round** (section names, headings, file names, quotes of other documents), one by one: `kind` (file if you pointed at the file itself, text if you pointed at a string inside the file), `target` (the file you point at), `where` (the file you wrote it into), and for text, `cite` (the spelling exactly as it is at the target; one per line). The machine looks them up again in the current working tree and rejects what it cannot find; what you fix is the reference you wrote into the document, not the declaration. You may point at files created and headings added this round. A round that wrote no new references is an empty array. Write new references, where you can, as Markdown links (`[name](relative path#heading)`): the machine picks up links in the .md lines the diff added regardless of the declaration, looks them up to the target file and heading, and rejects them if they do not reach"
+  ]
+ },
+ {
+  "id": "F138",
+  "to": "共通",
+  "from": "writer",
+  "text": [
+   "- `rejudge_requested` (optional): an objection to the judgment's framing or disposition. This round fixes as the judgment says"
+  ]
+ },
+ {
+  "id": "F139",
+  "to": "共通",
+  "from": "writer",
+  "text": [
+   "- `conflicts` (optional): conflict declarations (the fields `unit_key`, `between`, `why_both_cannot_hold`, `which_is_right`, `kind` of the section above with the heading \"## Conflict declarations (do not bend to get green)\" among the common rules the machine always puts in these instructions, and `correct_lines` too for query; the meanings of the values are in that section too; one per unit). A declared unit is written neither in `changes` nor in `not_done`"
+  ]
+ },
+ {
+  "id": "F140",
+  "to": "共通",
+  "from": "writer",
+  "text": [
+   "- `consult` (optional): requests for scope consultation (only when the section \"Scope consultation and the pre-check\" above is present; if present, the acceptance does not run that round). Do not write it in an answer that needs nothing outside the scope"
+  ]
+ },
+ {
+  "id": "F141",
+  "to": "共通",
+  "from": "writer",
+  "text": [
+   "- Declarations of changes in the diff's shape (used to apply later viewpoints; not scoring): `mechanism_changed` (added or replaced a mechanism), `premise_drift` (removed or replaced the target on which a premise's constraint was measured; if true, in premise_drift_note the constraint measured again and why the previous constraint became false), `gates_changed` (verification gates), `seams_changed` (test doubles and seams with the outside), `security_surface_changed` (touched authentication, authorization, the handling of secrets or personal data, or input and output with the outside; **if in doubt, true**), `path_changed` (paths the user can see). Optionally decision_records_changed (true only in a round that added decision records outside the repository, such as issues)"
+  ]
+ },
+ {
+  "id": "F142",
+  "to": "共通",
+  "from": "writer",
+  "text": [
+   "- The 4 fixed size numbers (added_lines, comment_lines, comment_ratio_pct, doc_lines) are counted by the machine; write only the numbers you want to add on the spot in x_scalars, with names starting with `x_`"
+  ]
+ },
+ {
+  "id": "F143",
+  "to": "共通",
+  "from": "writer",
+  "text": [
+   "The acceptance checks whether every unit you owe a fix appears in `changes` (or in `not_done` as the origin of a fork or escalate question that has not been answered before the fix: no answer from a person and no recommendation an unattended run took), whether the recounted numbers match the proof of closure, whether the references you wrote can be looked up in reality, and whether you answered the pre-review. If even one is off, it rejects, and the reasons are given at the top of the next round."
+  ]
+ },
+ {
+  "id": "F144",
+  "to": "共通",
+  "from": "writer",
+  "text": [
+   "# The answer to your scope consultation (continued)",
+   "An answer came to the `consult` of your previous answer (or to the consultation the machine asked about conditions a person answered beforehand). Read the answer file {answer_file} with Read, all of it (an answer the machine checked; only what was allowed entered the scope).",
+   "Go on fixing as the answer says, and return the whole JSON of the answer fields of the instructions given earlier in this conversation (the rules are as given earlier in this conversation; if you did not read them in full, Read {first_prompt} again).",
+   "If you still need something outside the scope, you may return `consult` again (consultation rounds left in this stage: {left})."
+  ]
+ },
+ {
+  "id": "F145",
+  "to": "共通",
+  "from": "writer",
+  "text": [
+   "# Overflow the acceptance found (sent to consultation)",
+   "In your previous answer, the acceptance found overflow outside the scope (files outside the scope, new tests not in the fix plan's `tests`, rewrites of frozen tests or of existing test functions outside the named ones) and sent it to a consultation with the fix plan's side. The answer comes in the next round.",
+   "Without changing the working tree, return the whole JSON of the answer fields of the instructions given earlier in this conversation, with the same content as your previous answer (the rules are as given earlier in this conversation; if you did not read them in full, Read {first_prompt} again)."
+  ]
+ },
+ {
+  "id": "F146",
+  "to": "共通",
+  "from": "writer",
+  "text": [
+   "# The answer about the overflow (continued)",
+   "An answer came about the overflow the acceptance found. Read the answer file {answer_file} with Read, all of it (an answer the machine checked; only what was allowed entered the scope).",
+   "What was allowed may stay. What was denied, deferred, or got no answer is returned to its original state by the machine at the next acceptance (do not revert it yourself; the machine also removes it from the files of changes).",
+   "Return the whole JSON of the answer fields of the instructions given earlier in this conversation, in the same form as your previous answer (the rules are as given earlier in this conversation; if you did not read them in full, Read {first_prompt} again).",
+   "If you need something else outside the scope, you may return `consult` again (consultation rounds left in this stage: {left})."
+  ]
+ },
+ {
+  "id": "F147",
+  "to": "共通",
+  "from": "writer",
+  "text": [
+   "Write the human-facing fields (`changes[].what`, the text fields of `closure`, `coverage.remaining`, `root_or_symptom.why`, `bypass_tried`, the text fields of `breaks`, `precedent.problem`, `precedent.reason`, `precedent.searched`, `not_done[].why`, `interactions[].checked`, `combined_effect`, `plan_faces[].how`, `rejudge_requested`, `premise_drift_note`, `conflicts[].why_both_cannot_hold`, `consult[].why`, `consult[].tried`, `consult[].blocked`, `bash_writes[].why`) in {lang}. Keep keys, enum values, code identifiers, paths, commands, and error messages as they are (keys are matched across rounds, so do not translate them)."
+  ]
+ },
+ {
+  "id": "F148a",
+  "to": "variant",
+  "from": "writer",
+  "text": [
+   "{g1_items}"
+  ]
+ },
+ {
+  "id": "F148b",
+  "to": "消す",
+  "from": "writer",
+  "text": [
+   "{seat_body}"
+  ]
+ },
+ {
+  "id": "BH1",
+  "to": "共通",
+  "from": "writer",
+  "text": [
+   "## The requirement (briefs)",
+   "{brief_rows}"
+  ]
+ },
+ {
+  "id": "BH2",
+  "to": "共通",
+  "from": "writer",
+  "text": [
+   "Read them all first with Read. Follow \"Brief rules (the source of the requirement and the background)\" in the rules below."
+  ]
+ },
+ {
+  "id": "B1",
+  "to": "共通",
+  "from": "writer",
+  "text": [
+   "## Brief rules (the source of the requirement and the background)",
+   "A brief is a file the machine cut out of one item of the fix plan that passed the pre-review and the person's approval, and froze (even if a role rewrites it, what is read next returns to the text as it was when it passed). They are listed with absolute paths in the section \"The requirement (briefs)\" at the head of these instructions."
+  ]
+ },
+ {
+  "id": "B2",
+  "to": "共通",
+  "from": "writer",
+  "text": [
+   "Words used below: a \"conflict declaration\" is a declaration returned in the form of the later section \"Conflict declarations (do not bend to get green)\" of these instructions (the fields and the values of `which_is_right` and `kind` are in that section). A \"ruling\" is the result of the read-only ruler ruling on that declaration. \"The judgment file\" and \"the request file\" are the judgment file in \"What to read\" of these instructions and the request file named at the head."
+  ]
+ },
+ {
+  "id": "B3",
+  "to": "共通",
+  "from": "writer",
+  "text": [
+   "1. **The briefs listed in the section \"The requirement (briefs)\" at the head are the only source of the requirement.** First Read all the briefs, and fix as they say. You need not read the whole fix plan."
+  ]
+ },
+ {
+  "id": "B4",
+  "to": "共通",
+  "from": "writer",
+  "text": [
+   "2. **The judgment file is background.** Read it to look up the brief's units' `class_query` (the query that finds every instance of the same shape) and `origin_analysis` (where it came from). How the units are cut is as the judgment says. What to fix and how is what the brief says. If the brief and the judgment disagree, the brief wins: do not stop, fix as the brief says (do not reinterpret it to fit the judgment). Only when you see the brief itself as wrong, return the declaration of 3. Even if the reach of \"Fix every instance of the same shape\" in the rules below disagrees with the brief's scope, the brief decides what to fix and how far. But the acceptance's machine checks all apply even with a brief: the recount of the defect's shape with `class_query`, the check of frozen tests, selecting and running the tests the change reaches, and the listing in the list shown to the person at the end (the rewritten tests of 4 are listed too). If the brief's scope is narrower than what the `class_query` recount asks for and it does not close without fixing outside the scope too, do not narrow it silently. If you need something outside the scope, consult first as 8 says (the answer's `consult` field; if allowed, fix it), and when there is no consultation section, you cannot ask, or it is not allowed, return that unit as a conflict declaration saying it needs something outside the scope. `which_is_right` is request if it needs something outside the scope (`kind` is `scope_needed`). If the judgment's query also hits the correct form after the fix (the count does not drop even when fixed correctly, or a `population` query also hits things that need no fix; a `population` query is one whose `class_query` `counts` is population, counting the population of things to fix rather than the defects), return the conflict declaration with `which_is_right` query (with `correct_lines`; copy into the field `correct_lines` the correct lines after the fix that the query still hits), and `kind` is `query_hits_fixed`."
+  ]
+ },
+ {
+  "id": "B5",
+  "to": "共通",
+  "from": "writer",
+  "text": [
+   "3. **If you think the brief is wrong, do not reinterpret it yourself; return a conflict declaration.** In `between`, put the brief file's line (the absolute path listed at the head) and the judgment file's or the request file's line. `which_is_right` is request if you see the judgment or the request as right, unknown if you cannot decide. `kind` is `brief_vs_judgment` (it needs the brief's line in `between`; it cannot be used for a unit without a brief). For a unit that received a ruling, the ruling wins over the brief within the ruling's scope (a unit that received a ruling is a unit whose ruling appears in the file named at the head of the instructions of the second start, \"the file with the rulings on the conflict declarations\". The scope is the place written in the ruling. Outside the ruling, the brief stands)."
+  ]
+ },
+ {
+  "id": "B6",
+  "to": "変える",
+  "from": "writer",
+  "text": [
+   "4. **Only the existing tests named in the brief's `rewrite_tests` may be rewritten.** Each row of `rewrite_tests` has `id` (the test to rewrite), `behavior` (the behavior it binds), `old` (the current expectation), and `new` (the expectation after rewriting); rewrite the test with that `id` to the `new` expectation. This is to rebind the behavior the request changes, not to fit an expectation to the implementation. Do not change tests outside those named, as now. The rewritten tests are listed at the last approval node."
+  ]
+ },
+ {
+  "id": "B7",
+  "to": "変える",
+  "from": "writer",
+  "text": [
+   "5. **The brief's `tests` are the acceptance tests decided beforehand.** Under those names, bind the written behavior through the written real path, and make them red in the written way."
+  ]
+ },
+ {
+  "id": "B8",
+  "to": "共通",
+  "from": "writer",
+  "text": [
+   "6. **In a run without the section \"The requirement (briefs)\" at the head (a run without a fix plan) and for a unit without a brief, the judgment file is the source.** Then Read the whole judgment file first, and do not apply 1–5 above."
+  ]
+ },
+ {
+  "id": "B9",
+  "to": "共通",
+  "from": "writer",
+  "text": [
+   "7. **The conditions answered at the approval node before the fix (notes_file; by a person, or by the recommendation an unattended run took) win over the brief.** Apply them before 1–5. notes_file is \"the file with the answers at the approval node\" in \"What to read\"; if it is empty there are no conditions and 7 does not apply. If the brief goes beyond a condition, fix as the condition says, and return the part beyond it as a conflict declaration (in `between`, put the brief file's line and the notes_file line; `which_is_right` is request (the side of the conditions answered at the approval node is right), `kind` is `brief_vs_judgment`). A condition is a scope to let through; do not cut beyond it."
+  ]
+ },
+ {
+  "id": "B10",
+  "to": "共通",
+  "from": "writer",
+  "text": [
+   "8. **Do not change files outside the brief's `allowed_paths` or in its `out_of_scope`.** The files of the ids in `tests` and `rewrite_tests` are in the scope. If you need something outside the scope or something that hits `out_of_scope`, and these instructions have the section \"Scope consultation and the pre-check\", then before changing it, consult as that section says by writing a request in the answer's `consult` field and returning (what is allowed enters the scope; for something that hits `out_of_scope`, the fix plan's side reconsiders the reason it was excluded and decides, and if allowed, only that path leaves `out_of_scope` for that item. You fix it in the continuation of the same conversation. A subagent does not consult itself; it reports the request to the role that started it). When there is no such section, the consultation cannot be asked (the answer is refused, unavailable, or invalid), or the answer is deny and you see that the request cannot be met inside the scope and that this role's and the fix plan's views of the specification are split, do not change it and return a conflict declaration (`which_is_right` is request, `kind` is `scope_needed`). The acceptance checks the diff against the scope, `files` (rows of things to add and to remove; also creating, removing, and moving files), and `tests`, and anything off comes back with the same brief. After a ruling, the only paths you may add to the scope are those listed in the ruling's \"scope\" (`limits`) (they cannot be added to `out_of_scope`)."
+  ]
+ },
+ {
+  "id": "BR1",
+  "to": "共通",
+  "from": "writer",
+  "text": [
+   "How to read a brief file (the file the machine writes for one item of the fix plan; it is the source of the requirement):",
+   "- The section \"背景\" (background) is reference only. If it disagrees with the brief, the brief wins. If you see the brief itself as wrong, do not reinterpret it: raise it as the instructions say (a conflict declaration in a fix, an objection in a plan)."
+  ]
+ },
+ {
+  "id": "BR2",
+  "to": "共通",
+  "from": "writer",
+  "text": [
+   "- If a `rewrite_tests` row's `limit` says it could not be looked up (\"引けない\"), that rewrite is not allowed."
+  ]
+ },
+ {
+  "id": "BR3",
+  "to": "消す",
+  "from": "writer",
+  "text": [
+   "- If the scope sections say the plan did not decide a scope (\"この案は範囲を決めていない\"), the scope does not bind this item."
+  ]
+ },
+ {
+  "id": "R1",
+  "to": "共通",
+  "from": "writer",
+  "text": [
+   "## Why your previous answer was rejected",
+   "The machine's acceptance check rejected your previous answer. Fix every point below, including the points from earlier rounds, and return the whole answer again, not only the parts you changed."
+  ]
+ },
+ {
+  "id": "R2",
+  "to": "共通",
+  "from": "writer",
+  "text": [
+   "~~~text",
+   "{rejection}",
+   "~~~"
+  ]
+ },
+ {
+  "id": "W1",
+  "to": "共通",
+  "from": "writer",
+  "text": [
+   "- **Fix per root unit.** Do not squash the original findings one by one. Close the root that the judgment's `reason` and `origin_analysis` name. Always fix [block]. Also fix the [suggest] units the judgment marked do-now; do not overrule that by postponing them at your own discretion. Do not fix a dead path (an added entry point or setting that nothing calls and that nothing reaches) with a note: connect the caller, or remove what is unreachable. Remove code and abstractions that become unneeded in the same change."
+  ]
+ },
+ {
+  "id": "W2",
+  "to": "共通",
+  "from": "writer",
+  "text": [
+   "- **Fix every instance of the same shape.** Use the `class_query`'s how (a machine query written as fields) to find every instance of the same shape; do not stop at the one place that was named."
+  ]
+ },
+ {
+  "id": "W3",
+  "to": "共通",
+  "from": "writer",
+  "text": [
+   "- **Before fixing, check whether something ready-made already does it.** First check whether a local dependency (the Python standard library, git, Claude Code, Archon features) or a well-known open-source project already does the same thing; if one does, use it instead of writing your own. If the judgment's `prescriptions` hold a proposal that builds nothing (the zero prescription), take it first. Do not make things more complex than needed, and do not rebuild existing mechanisms."
+  ]
+ },
+ {
+  "id": "W4",
+  "to": "共通",
+  "from": "writer",
+  "text": [
+   "- **Even if you disagree with the judgment's framing, do not re-cut the units yourself.** Write your objection in `rejudge_requested` (it is recorded and read when the judgment is redone). In this round, fix as the judgment says. `rejudge_requested` is only for objections to the judgment's framing (how units are cut, how the root is read, the disposition), and it is read by the redone judgment. Do not write questions for a person there; return them as a conflict declaration below (in the answer field `conflicts`; the form is in the section \"Conflict declarations (do not bend to get green)\" below)."
+  ]
+ },
+ {
+  "id": "W5",
+  "to": "共通",
+  "from": "writer",
+  "text": [
+   "- **Do not implement the units listed as the origin or in depends of a fork in the question ledger (`questions`)** (the same for the origin and depends of a question whose status is escalate). Write the reason \"origin of a fork\" (\"origin of an escalate\" for escalate) in `not_done`. But the origin and depends of a question answered before the fix (by a person, or by the recommendation an unattended run took; the questions the machine listed as \"returned to the units you owe a fix\" in the file with the answers at the approval node, which the head of these instructions names as something to read) are back in the units you owe a fix: fix them with the option the person's comment (the text the person answered at the approval node; the body of the file with the answers at the approval node) chose, and if the comment does not touch the question, with the option the reason of that question in the question ledger recommends. Waiting does not mean stopping the loop. Stop as soon as you notice that the result of your work reaches a new mechanism or a widened shared surface (a mechanism is something like a new module, type, settings key, or common entry point; a shared surface is something that other places also read or call). That is design work, and no mechanism that has not gone through the listing of zero prescriptions may come out of here. For a unit you stopped, put the fix that adds no mechanism in `changes` as \"Where the units you owe go\" below says (`root_or_symptom` is symptom, and why says \"reaching the root needs a new mechanism or a widened shared surface\"), and write the same in `rejudge_requested`. Keep fixing the other units."
+  ]
+ },
+ {
+  "id": "W6",
+  "to": "共通",
+  "from": "writer",
+  "text": [
+   "- **Do not implement the units listed as the origin or in depends of a fork in the question ledger (`questions`)** (the same for the origin and depends of a question whose status is escalate). Write the reason \"origin of a fork\" (\"origin of an escalate\" for escalate) in `not_done`. But the origin and depends of a question answered before the fix (by a person, or by the recommendation an unattended run took; the questions the machine listed as \"returned to the units you owe a fix\" in the file with the answers at the approval node, which the head of these instructions names as something to read) are back in the units you owe a fix: fix them with the option the person's comment (the text the person answered at the approval node; the body of the file with the answers at the approval node) chose, and if the comment does not touch the question, with the option the reason of that question in the question ledger recommends. Waiting does not mean stopping the loop. Stop as soon as you notice that the result of your work reaches a new mechanism or a widened shared surface (a mechanism is something like a new module, type, settings key, or common entry point; a shared surface is something that other places also read or call). That is design work, and no mechanism that has not gone through the listing of zero prescriptions may come out of here. For a unit you stopped, put the fix that adds no mechanism in `changes` as \"Where the units you owe go\" below says (`root_or_symptom` is symptom, and why says \"reaching the root needs a new mechanism or a widened shared surface\"), and write the same in `rejudge_requested`. Keep fixing the other units."
+  ]
+ },
+ {
+  "id": "W7",
+  "to": "共通",
+  "from": "writer",
+  "text": [
+   "- Do not let through, on your own judgment, anything that goes against the person's policy or that only holds if the policy changes; whether to let it through is the person's decision. For a unit you owe a fix, if a fix that stays within the policy closes the unit, put it in `changes` as \"Where the units you owe go\" below says; if it does not close, do not count it as fixed, and hand it to the person with a conflict declaration below (include the line of the policy document in `between`). For a unit outside what you owe, write in `not_done` which rule it collides with. Do not rewrite the policy document."
+  ]
+ },
+ {
+  "id": "W8",
+  "to": "共通",
+  "from": "writer",
+  "text": [
+   "- **Write what goes to a person in `breaks.accepted`.** Things the person checks after you fix them, such as leaving a disagreement with the target repository's policy documents that are not rewritten (ADRs and the like; this is different from \"the person's policy\" in the line above, and a collision with the person's policy is returned as a declaration as that line says), or letting through something you know breaks, go in that unit's `breaks.accepted` with the reason and the place (a unit whose way of fixing cannot be decided without the person's answer is returned as a conflict declaration below, not here). The machine puts them in the list shown to the person (the report's \"what the person decides\"). Writing \"hand to a person\" in other fields does not reach the person."
+  ]
+ },
+ {
+  "id": "W9",
+  "to": "共通",
+  "from": "writer",
+  "text": [
+   "- **Where the units you owe go**: a unit you owe a fix ([block] and do-now) is always fixed and put in `changes` as one row (only a unit whose way of fixing cannot be decided without the person's answer is not fixed and is returned as a conflict declaration). Even if doubts remain about the judgment's premise or way of fixing, put in the best fix that stays within the policy (if you cannot close the root, set `root_or_symptom` to symptom and write the reason in why), and if it is an objection to the judgment's framing, write it in `rejudge_requested` (it is read when the judgment is redone). What you may write in `not_done` is only the units the acceptance excuses (units listed as the origin or in depends of a fork in the question ledger that has not been answered before the fix: no answer from a person and no recommendation an unattended run took; the same for questions whose status is escalate; the origin and depends of an answered question are not excused) and units outside what you owe."
+  ]
+ },
+ {
+  "id": "W10",
+  "to": "共通",
+  "from": "writer",
+  "text": [
+   "- **Do not write works-internal words or the circumstances of this run into the text and names you write into the target** (code notes, docstrings, documents, test names, identifiers, strings, file and folder names, rejection messages). The words of these instructions (unit, unit key, shared board, round, run, and the names these instructions use for other roles; in text they appear as this unit, the unit key, the working tree, the shared board, this round, this run, the independent eye, and so on) and the circumstances of making this fix (\"not in this working tree\", \"could not be measured in this run\", and so on) do not reach the target's readers who read the text after the merge. Write in words the target's readers understand from the target's code and documents alone (if an added line holds a works-internal word, it can come back as a hole to fix in a later review of the diff; what remains is listed with its place at the top of the report). If you give a reason, write it so the target's readers can follow it from the target's code and documents alone; do not use where the decision came from when you made the fix (the instructions, the judgment, a comparison with common practice, a source) as the reason."
+  ]
+ },
+ {
+  "id": "W11a",
+  "to": "共通",
+  "from": "writer",
+  "text": [
+   "- **When you change behavior, fix every sentence that describes that behavior**: search notes, docstrings, test names, rejection messages, and other documents for sentences that still describe the behavior before the change, and fix or remove them (list the searches you ran in the how of `breaks`). Do not add a new note if a test name, rejection message, or name can say it; a note says only \"why\"."
+  ]
+ },
+ {
+  "id": "W11b",
+  "to": "共通",
+  "from": "writer",
+  "text": [
+   "- **When you change behavior, fix every sentence that describes that behavior**: search notes, docstrings, test names, rejection messages, and other documents for sentences that still describe the behavior before the change, and fix or remove them (list the searches you ran in the how of `breaks`). Do not add a new note if a test name, rejection message, or name can say it; a note says only \"why\"."
+  ]
+ },
+ {
+  "id": "W12",
+  "to": "共通",
+  "from": "writer",
+  "text": [
+   "## Evidence for fixes whose red-to-green a test cannot show (by kind of change)",
+   "For a fix you cannot write a test for first (a fix only to documents, instructions, settings, notes, or types), instead of red-to-green, check the following for each kind of change, and write what you checked (the searches you ran, the commands you ran and their results) in your answer. Do not settle for \"I re-read it\"."
+  ]
+ },
+ {
+  "id": "W13",
+  "to": "消す",
+  "from": "writer",
+  "text": [
+   "Write it in `closure.verified_how` of that unit's row in `changes`."
+  ]
+ },
+ {
+  "id": "W16",
+  "to": "共通",
+  "from": "writer",
+  "text": [
+   "- Documents: search to confirm that the names and paths you wrote exist in reality. Links reach their targets (the file and the heading). Re-read from the top as a first-time reader who does not know the premises, and it makes sense on its own (a cold read)."
+  ]
+ },
+ {
+  "id": "W17",
+  "to": "共通",
+  "from": "writer",
+  "text": [
+   "- Instructions (prompts): actually render them (with the rendering mechanism if there is one) and see that every hole is filled and nothing breaks. If copies of the same text exist in other places, all of them match. Write that the changed instructions take effect from the next run and do not reach the roles of the current run."
+  ]
+ },
+ {
+  "id": "W18",
+  "to": "共通",
+  "from": "writer",
+  "text": [
+   "- Settings, YAML, workflows: run Archon's validate and the repository's settings checks (`check.sh` and the like; a later step runs the whole test suite), and they pass."
+  ]
+ },
+ {
+  "id": "W19",
+  "to": "共通",
+  "from": "writer",
+  "text": [
+   "- Notes and types: run the static check stages the repository has (type checks, lint, and so on), and they pass."
+  ]
+ },
+ {
+  "id": "W20",
+  "to": "共通",
+  "from": "writer",
+  "text": [
+   "- **Rather than bend a test, the request, or the code to get green, return it as a conflict.** For a unit where you found that two of the test's expectation, the request (the original text of the judgment's unit and the person's fix request file), and the current code cannot hold at the same time, do not count it as fixed; declare only that unit. Do not loosen a test, fit an expectation to the implementation, reinterpret the request, or add a branch that lets only a particular input through."
+  ]
+ },
+ {
+  "id": "W21",
+  "to": "共通",
+  "from": "writer",
+  "text": [
+   "- Write a declaration in the answer field `conflicts`, one per unit (if your answer has no `conflicts` field, return the same fields below in the form the instructions for your role give). The fields are `unit_key` (the judgment's unit key, not one character changed), `between` (two or more places that disagree, in the form `<path>:<line>` or `<path>:<line>-<line>`; tests and code as paths relative to the repository root, the request as the absolute path of the judgment file or the request file, the policy as the absolute path of the person's policy document that the head of these instructions names as something to read), `why_both_cannot_hold` (why both cannot hold at the same time), `which_is_right` (which of request, test, code, unknown you see as right; query below for an error in the judge's query), and `kind` (the situation of the conflict; one of the kinds below). `kind` is a different axis from `which_is_right` (which is right); it names the situation that occurred:"
+  ]
+ },
+ {
+  "id": "W22",
+  "to": "共通",
+  "from": "writer",
+  "text": [
+   "- `brief_vs_judgment`: the brief (the source of the requirement, cut out of one item of the fix plan) disagrees with the judgment, the request, or the conditions answered at the approval node before the fix (by a person, or by the recommendation an unattended run took). Put that unit's brief line in `between`. Do not use it for a unit without a brief"
+  ]
+ },
+ {
+  "id": "W23",
+  "to": "共通",
+  "from": "writer",
+  "text": [
+   "- `unnamed_test_broke`: an existing test named neither in the fix plan's `rewrite_tests` nor in a ruling's scope fails when you fix, or can only be removed"
+  ]
+ },
+ {
+  "id": "W24",
+  "to": "変える",
+  "from": "writer",
+  "text": [
+   "- `not_red`: an acceptance test or a named rewrite does not go red even when written as the plan says, goes red in a different way than the plan says, or cannot be written first"
+  ]
+ },
+ {
+  "id": "W25",
+  "to": "共通",
+  "from": "writer",
+  "text": [
+   "- `scope_needed`: it does not go green without touching something outside the brief's or the plan's scope, or the recount with the judge's query does not close"
+  ]
+ },
+ {
+  "id": "W26",
+  "to": "共通",
+  "from": "writer",
+  "text": [
+   "- `query_hits_fixed`: the judge's query also hits the correct form after the fix (`which_is_right` is query; see the paragraph below)"
+  ]
+ },
+ {
+  "id": "W27",
+  "to": "共通",
+  "from": "writer",
+  "text": [
+   "- `needs_context`: the policy, the intent of the request, or which is right cannot be decided from the materials, and a person's or the request's answer is needed (`which_is_right` is unknown; see the paragraph \"what you want to ask a person\" below)"
+  ]
+ },
+ {
+  "id": "W28",
+  "to": "共通",
+  "from": "writer",
+  "text": [
+   "- For a unit where the judge's query (`class_query`) also hits the correct form after the fix, so that the count does not drop even when you fix it correctly, set `which_is_right` to query and `kind` to `query_hits_fixed`, copy 1 to 20 correct lines after the fix that the query still hits into the field `correct_lines`, and declare it (in `between`, the `class_query` line of the judgment file and the code line after the fix). The machine checks by running the judge's query on those lines, and when a ruling replaces the query, the machine tests the new query with the lines it must hit, the lines it must not hit, and `correct_lines`. A unit whose `population` query (counting the population of things to fix) also hits things that need no fix (that are already correct) is declared the same way; copy into `correct_lines` the lines of those things that need no fix (not the lines of things you fixed). A population hit does not count as closed unless the fix covers all of it, and writing it in `remaining` does not close it (`remaining` is a field inside the answer's `coverage` where you write what you left unclosed and why)."
+  ]
+ },
+ {
+  "id": "W29",
+  "to": "共通",
+  "from": "writer",
+  "text": [
+   "- The machine checks whether the places you named exist in reality (the file exists and the line is in it). If they do, it does not count as a rejection: only that unit stops, and the other units go on. A declaration that names places that do not exist is an ordinary rejection. A stopped unit is ruled by the read-only ruler under the owner's rules, and one of these arrives in the reason file: allow fixing the test (with a scope), fix the code this way, replace the judge's query, or hand it to a person. For a unit that receives a ruling that replaces the query, the machine does the closure recount with the new query. Fix that unit too and write one row in `changes`."
+  ]
+ },
+ {
+  "id": "W30",
+  "to": "共通",
+  "from": "writer",
+  "text": [
+   "- **What you want to ask a person, and doubts only a person can settle, go here** (not in `rejudge_requested`). A unit that does not get fixed without changing the policy, whose request intent cannot be decided from the materials, or where you cannot decide which of the test, the request, and the code is right, is not counted as fixed: set `which_is_right` to unknown and `kind` to `needs_context` and declare it (for the policy, include the policy document's line in `between`). The ruler rules under the owner's rules (what cannot be decided from the materials goes to a person), and units handed to a person appear at the last approval node and in the next run's request."
+  ]
+ },
+ {
+  "id": "W31",
+  "to": "共通",
+  "from": "writer",
+  "text": [
+   "- If only a doubt remains and both can hold, it is not a declaration. Then fix as \"Where the units you owe go\" above says, and if the doubt is an objection to the judgment's framing, write it in `rejudge_requested`."
+  ]
+ },
+ {
+  "id": "W32",
+  "to": "共通",
+  "from": "writer",
+  "text": [
+   "- **Do not remove or loosen tests.** Do not delete or skip existing tests, rewrite expectations to fit the implementation, or make checks laxer. If there is no test that catches the defect of a unit you fixed, you may add one."
+  ]
+ },
+ {
+  "id": "W33",
+  "to": "共通",
+  "from": "writer",
+  "text": [
+   "- **Run the project's tests.** Run only the tests that the units you fixed reach, narrowed down (with the runner's narrowing: select tests by id or name; find how to narrow in the repository's `run.sh` or where the tests live). In a run that has a test runner, the acceptance (the machine that takes and checks your answer) selects and runs the tests the change from the version reaches, and rejects the answer if a test that was not red in the original goes red. The failed tests are listed in the rejection reasons at the top of the instructions the next time this role starts (this role does not write them). If you run tests yourself, likewise select the tests that the files you changed reach. As a rule, a later step runs the repository's whole test suite, so the role does not run it. There is one exception: only when the repository has no way to narrow (a way to select tests by id or name), run the whole suite once just before you answer. If red remains, fix something in some unit before you return. Run Python with `PYTHONDONTWRITEBYTECODE=1` set. Of the generated files git ignores (`__pycache__` and the like), those that did not exist before this role started are removed by a later step (what was removed is shown to the person)."
+  ]
+ },
+ {
+  "id": "W34",
+  "to": "共通",
+  "from": "writer",
+  "text": [
+   "- When red remains: you need not chase tests that were red in the original version too (the acceptance does not reject them either). An existing test that your change broke and that does not recover when you fix it is not loosened; return it as a declaration of the section \"Conflict declarations (do not bend to get green)\" (`kind` is `unnamed_test_broke`)."
+  ]
+ },
+ {
+  "id": "W35",
+  "to": "共通",
+  "from": "writer",
+  "text": [
+   "- **Write the working tree's files with Edit and Write.** The acceptance compares the change from the version with the answer's declarations (`changes[].files` and `bash_writes`) and rejects undeclared changes. Write with Bash (heredoc `python3 -`, `cat >`, `sed -i`, formatters, and the like) only for execute permissions, binaries, or large mechanical replacements, and then write the path and the reason, one by one, in the answer field `bash_writes`."
+  ]
+ },
+ {
+  "id": "W36",
+  "to": "共通",
+  "from": "writer",
+  "text": [
+   "- **Do not `git commit`.** Do not move the working tree or the history with `git add`, `git commit`, `git stash`, `git reset`, or `git checkout`. Return with the diff left in the working tree (a later step checks it with the diff from the version and the untracked files; new files are counted while untracked)."
+  ]
+ },
+ {
+  "id": "W37",
+  "to": "共通",
+  "from": "writer",
+  "text": [
+   "- Do not rewrite anything outside the working tree (settings in your home or /tmp and the like)."
+  ]
+ },
+ {
+  "id": "Q1",
+  "to": "共通",
+  "from": "writer",
+  "text": [
+   "Rules for queries to outside services and for the sources you use:"
+  ]
+ },
+ {
+  "id": "Q2",
+  "to": "共通",
+  "from": "writer",
+  "text": [
+   "- **Do not put the target's names in queries.** Whatever the tool (web search, web fetch, curl from a shell, a query to a package registry, and so on), a query you send to an outside service that does not hold the target (search words, URLs, command arguments) stays in that service's records. Treat the target (the repository, documents, and diff you were given) as possibly private even when it looks public; do not decide for yourself whether it is public."
+  ]
+ },
+ {
+  "id": "Q3〜Q8",
+  "to": "共通",
+  "from": "writer",
+  "text": [
+   "- Write a query as the general problem you want to look up, restated in a few words (look up the general name of the mechanism, not the name of an internal module).",
+   "- Do not include the target owner's names (company names, product names, internal code names, repository names, branch names, paths, the target's own identifiers) or the target's text (code fragments, diffs, sentences from its documents).",
+   "- Third-party names (things made and published outside the target: the open-source software, standards, and vendor products the target uses, and the general form of public error messages) may be included; primary sources need them. Treat a name you cannot place as the owner's name.",
+   "- To check the meaning of a word that is only used inside the target (in-house jargon), look up its definition restated in general words, and the candidate standard terms, not the word itself.",
+   "- Do not run a lookup that cannot be done without the owner's names. Name it in your answer as \"a lookup not run because it needs the target's names\" and leave it for a person to check (if the answer schema has a field for \"missing\", \"cannot verify\", or \"not found (what was searched)\", write it there).",
+   "- A query to a place that already holds the target (the repository's git, gh against the host that holds the repository, or reading that host's pages with web fetch) is not an outside query, and these rules do not cover it."
+  ]
+ },
+ {
+  "id": "Q9",
+  "to": "共通",
+  "from": "writer",
+  "text": [
+   "- **Go to primary sources first**: standards documents, official documentation and guides, original texts, official repositories, and practitioner documents that are widely cited. Prefer them over blog posts and other secondary sources. Check that a source is not about an old version. If you find only secondary sources, say so."
+  ]
+ },
+ {
+  "id": "Q10",
+  "to": "共通",
+  "from": "writer",
+  "text": [
+   "- If you start a sub-agent, put this whole block of rules, word for word, into its instructions. The rules do not reach it otherwise."
+  ]
+ },
+ {
+  "id": "G1〜G8",
+  "to": "variant",
+  "from": "g1",
+  "text": [
+   "## works rules (for the subagent; they win over the template above and over the reading rules unattended.md)",
+   "- Even when you read the reading rules (unattended.md), these rules win where they collide. The reviewer may also read the git diff with Bash (GIT-RANGE's \"the reviewer has no Bash\" in the reading rules does not apply to this subagent).",
+   "- Do not commit, stash, reset, or checkout. Do not move HEAD, the index, or the branch; leave the diff in the working tree (read the template's \"Commit your work\" accordingly).",
+   "- Do not ask a person (no answer comes even if you ask). Where you do not know, do not stop: write NEEDS_CONTEXT or BLOCKED and what you do not know in your last message.",
+   "- Do not write the report to a file; write it in your last message.",
+   "- Write to the working tree with the Edit and Write tools (they appear in the record of writes). For files you wrote with Bash, write the path and why you wrote it with Bash in your last message.",
+   "- Do not run the whole suite (later stages run the whole suite and test_cmd). Run only the tests the files you changed reach.",
+   "- Do not start subagents."
+  ]
+ },
+ {
+  "id": "G9",
+  "to": "variant",
+  "from": "g1",
+  "text": [
+   "- The main material for the diff is the diff file the fixer wrote (the absolute path of the Diff file above). Read it first. Only when it is missing or unreadable, run `git diff <the Base version>` with the Base version above (the diff between the working tree and base; works does not commit, so no diff appears in a commit range), get the names of new untracked files with `git ls-files --others --exclude-standard`, and Read each of them."
+  ]
+ },
+ {
+  "id": "G10",
+  "to": "variant",
+  "from": "g1",
+  "text": [
+   "- The diff is the whole from base and includes the previous items' fixes. Review what concerns the current item's brief; do not review the previous items' fixes themselves (point it out if the current item's fix breaks them)."
+  ]
+ },
+ {
+  "id": "G11",
+  "to": "variant",
+  "from": "g1",
+  "text": [
+   "## When you need something outside the scope (rules for the subagent)",
+   "The coordinating role that started this subagent does the scope consultation in its answer fields (a subagent cannot consult itself). If you need to rewrite a file outside the brief's `allowed_paths` (including things that hit `out_of_scope`) or a frozen test (the test files of units the TDD loop made green), do not change it; write \"a scope consultation is needed\" in your report, and list the item number, the paths you want to add, the range of tests you want to rewrite (`<path>` or `<path>:<line>`), and the reason (why it is needed and what you will change how). You may go on finishing the fixes inside the scope."
+  ]
+ },
+ {
+  "id": "G12",
+  "to": "variant",
+  "from": "g1",
+  "text": [
+   "Before you report, run the same fact checks as the acceptance (frozen tests, the origin of writes, the approved fix plan's scope, the Markdown links the diff added; no tests are run) with the following, and fix the lines in `rejects` before you return (exit code 0 passes, 1 means there are lines).",
+   "{check_cmd}"
+  ]
+ },
+ {
+  "id": "G13",
+  "to": "variant",
+  "from": "g1",
+  "text": [
+   "This is the fixing stage of works. The main graph owns the flow, the machine gates, and the commit."
+  ]
+ },
+ {
+  "id": "G14",
+  "to": "消す",
+  "from": "g1",
+  "text": [
+   "The loop summary file: {summary}"
+  ]
+ },
+ {
+  "id": "G15",
+  "to": "variant",
+  "from": "g1",
+  "text": [
+   "The owed unit {keys} that no item of the fix plan holds (the judgment file is the source of the request)"
+  ]
+ },
+ {
+  "id": "G16〜G19",
+  "to": "variant",
+  "from": "g1",
+  "text": [
+   "Paste the implementer's last message after this template.",
+   "Do not write the report to a file. Write the whole report in your last message (the fixer passes it to the reviewer as it is).",
+   "The working tree (works does not commit)."
+  ]
+ },
+ {
+  "id": "U1〜U3",
+  "to": "共通",
+  "from": "unattended",
+  "text": [
+   "対象は、works に写した superpowers（`lib/borrow/superpowers/<版>/`。版・commit・ファイルごとの sha256 は `borrow.json` の `pin`）のスキルのうち、借りる 2 本（`lib/borrow/borrow.json` の `skills`。`bin/_lib/toolset.py` が隔離した設定の `skills/` に写す）と、部品（スキルとしては使わず、中の型を役の指示書の骨に使うファイル。`borrow.json` の `parts`）。写しは直さない。版を上げるのは `bin/_lib/toolset.py vendor` だけ。借りた物を役に載せる時の包み方（セクションごとの使い道・錨・穴・出口の語）は、包むセクションの表 `lib/borrow/seams.json` が持つ。スキルの文が人（your human partner）や調整役（下請けの AI を起こす親の会話）を前提にしている所は、works の無人の役ではこのファイルの決まりで読み替える。スキルの文とこのファイルがぶつかったら、このファイルが勝つ。さらに、役の指示書（`workflows/*/commands/*.md` と、支度のノードが組んで役に読ませる指示書）とノードの `output_format` は、このファイルより勝つ。"
+  ]
+ },
+ {
+  "id": "U4〜U5",
+  "to": "共通",
+  "from": "unattended",
+  "text": [
+   "修正の決まりの正本（機械がこの役の指示書に組み込む）と同じ行。受け付け（`fix_covers_open_units`）は、直す義務の単位が `changes` に無ければ、`not_done` に理由を書いても拒む。"
+  ]
+ },
+ {
+  "id": "U6〜U8",
+  "to": "共通",
+  "from": "unattended",
+  "text": [
+   "無人の役には聞く相手が居ない。止まって答えを待たない（待っても答えは来ず、受け付けのループが上限まで回って run が落ちる）。分からない項目があるうちは実装を始めない、という原則（receiving-code-review）はそのまま効く。分からない項目は下のとおり返答に書き、分かった項目だけを直す。"
+  ]
+ },
+ {
+  "id": "U9〜U10",
+  "to": "共通",
+  "from": "unattended",
+  "text": [
+   "自分の判断で通さない。方針の文書は書き換えない。"
+  ]
+ },
+ {
+  "id": "U11〜U12",
+  "to": "共通",
+  "from": "unattended",
+  "text": [
+   "役は commit しない。`git add`・`git commit`・`git stash`・`git reset`・`git checkout` で作業ツリーや履歴を動かさず、差分は作業ツリーに残したまま返す。push・PR・merge は役の仕事ではない（メイングラフの後ろのサブグラフと承認ノードが持つ）。「commit の前に確かめる」は「返答を返す前に確かめる」と読む。"
+  ]
+ },
+ {
+  "id": "U13",
+  "to": "共通",
+  "from": "unattended",
+  "text": [
+   "役は一式を回さない。一式はメイングラフが渡す `test_cmd`（速い段）を機械が関門として回す。重い段・変異テストは CI だけが回す。役が回すのは、変えたファイルに当たる試験だけ（絞る手が無い時だけ、返答の直前に一式を 1 回だけ回す）。"
+  ]
+ },
+ {
+  "id": "U14",
+  "to": "共通",
+  "from": "unattended",
+  "text": [
+   "無視する。Archon はプラグインを読まないので、`superpowers:` の付いた名前では何も読まれない。同じ名前のスキルが隔離した設定に在り、ノードが `skills:` に宣言していれば、`superpowers:` を除いた名前で Skill の道具から読める。宣言されていなければ読まない。"
+  ]
+ },
+ {
+  "id": "U15",
+  "to": "共通",
+  "from": "unattended",
+  "text": [
+   "スキルの文に従って下請けを起こさない。Agent を持つ役が起こすのは、指示書が名指す物だけ。別の目の審査は、メイングラフの別のノードが新しい会話で受け持つ。"
+  ]
+ },
+ {
+  "id": "U16",
+  "to": "共通",
+  "from": "unattended",
+  "text": [
+   "役の返答は、engine（受け付けのノード）が差分と試験を自分で確かめ直す。役は「確かめた」と書くなら、走らせたコマンドとその結果を返答に書く。役がほかのエージェントに仕事を任せることは無い。"
+  ]
+ },
+ {
+  "id": "U17",
+  "to": "共通",
+  "from": "unattended",
+  "text": [
+   "`git worktree add` はしない。Bash を持つ役は git で読む（`git diff`・`git log`・`git show`）のはよいが、HEAD・index・枝は動かさない（決まり COMMIT）。"
+  ]
+ },
+ {
+  "id": "U18",
+  "to": "共通",
+  "from": "unattended",
+  "text": [
+   "部品の審査役の型（`task-reviewer-prompt.md`）の「Do not crawl the broader codebase」と「do not Read a changed file separately」は、役の指示書が読む義務を定める役には効かない（指示書の読む義務が勝つ）。指示書が読む義務を定めない役（下請けの審査役）は型のとおり。"
+  ]
+ },
+ {
+  "id": "U19〜U23",
+  "to": "共通",
+  "from": "unattended",
+  "text": [
+   "しない。返答はノードの `output_format` の JSON だけで、外へ書き込まない。"
+  ]
+ },
+ {
+  "id": "P1",
+  "to": "共通",
+  "from": "machine",
+  "text": []
+ },
+ {
+  "id": "P2",
+  "to": "variant",
+  "from": "machine",
+  "text": []
+ },
+ {
+  "id": "P3",
+  "to": "共通",
+  "from": "machine",
+  "text": []
+ }
+]
