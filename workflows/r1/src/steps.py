@@ -115,7 +115,7 @@ def comments_prompt(out, repo) -> dict:
     """1 段目の役（コメントの削除候補）の指示（docs/design/r1.md の 2.3）"""
     doc = _intake(out)
     values = {**eyekit.diff_values(doc["diff"]), "review_md": eyekit.review_md(repo, REVIEW_MD)[0], "lang": prompt.lang(doc["lang"])}
-    return prompt.emit(files.COMMENTS, values, {}, prompt.round_of(files.COMMENTS))
+    return prompt.emit(files.COMMENTS, values, {"spawns": False}, prompt.round_of(files.COMMENTS))
 
 
 def minimality_prompt(out, repo) -> dict:

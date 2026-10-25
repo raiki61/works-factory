@@ -403,7 +403,7 @@ def rejudge_fix_prompt(place) -> dict:
     place = pathlib.Path(place)
     rejected = rolekit.rejected(place, files.REJUDGE_ROLE)
     values = {"rejection": rejected[-1] if rejected else "", "candidate": str(rolekit.candidate_path(place, files.REJUDGE_ROLE))}
-    return prompt.emit(files.REJUDGE_FIX_NODE, values, {}, prompt.round_of(files.REJUDGE_FIX_NODE))
+    return prompt.emit(files.REJUDGE_FIX_NODE, values, {"spawns": False}, prompt.round_of(files.REJUDGE_FIX_NODE))
 
 
 def prep(place, build, *args) -> dict:

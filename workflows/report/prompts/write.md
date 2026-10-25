@@ -60,4 +60,6 @@ The reader runs several tasks in parallel and reads this report between switches
 
 Return only the JSON `{"text": "<the body of the report in Markdown>", "terms": [{"term": "<word>", "definition": "<definition>"}], "handoff": {<the notes, with the fields the request below names>}}}}`, with no text before or after it. `terms` is optional: list the words used in the body that need a definition for a first-time reader. Do not add definitions inside the body; the machine adds the section of term definitions outside the body. The first-use "content (symbol)" of the format rules is a rewording of a word and does not count as adding a definition; a word that needs a longer explanation goes into `terms`, not into the body.
 
+{shared:query-rule}
+
 {shared:handoff}

@@ -138,7 +138,7 @@ class WordsCase(unittest.TestCase):
         text = expanded("rejudge-fix.md")
         self.assertIn("Your previous answer was rejected by the machine's check.", text)
         self.assertNotRegex(text.lower(), r"new conversation")
-        self.assertEqual((PROMPTS / "rejudge-fix.md").read_text(encoding="utf-8").strip(), "{shared:resubmit}")
+        self.assertEqual((PROMPTS / "rejudge-fix.md").read_text(encoding="utf-8").strip(), "{shared:resubmit}\n\n{shared:query-rule}")
 
     def test_prompts_have_no_dollar_variables(self):
         for text in (self.diagnose, self.rejudge):

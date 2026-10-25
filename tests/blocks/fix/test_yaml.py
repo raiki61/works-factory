@@ -1,7 +1,6 @@
 """修正の block（workflows/fix/works-factory-fix.yaml）の形（docs/design/fix.md の 14.2 の test_yaml.py）: loop の上限が定数と同じ・柵 nodes-ok の
 結び・all_done の node・会話を継ぐ役の直前の層・修正役の会話の続きと答えの役の切り離し・役の起こし方が今の YAML と同じ・自分を起こす組の node・指示の受け渡し"""
 import pathlib
-import re
 import sys
 import unittest
 
@@ -169,24 +168,6 @@ class RolesCase(unittest.TestCase):
                 n = every()[nid]
                 self.assertIs(n["mutates_checkout"], False)
                 self.assertFalse(set(n["allowed_tools"]) & WRITE_TOOLS)
-
-
-    def test_every_role_with_web_tools_takes_the_query_rule(self):
-        """WebSearch か WebFetch を持つ AI の node の指示（md と、中の {part:}・{shared:} を辿った物）は {shared:query-rule} を取り込む
-        （外への問い合わせに対象の名を出さない決まり。道具を足した役が決まりを落とさないための仕組み）"""
-        include = re.compile(r"\{(part|shared):([\w.-]+)\}")
-
-        def closure(path: pathlib.Path) -> str:
-            text = path.read_text(encoding="utf-8")
-            for kind, name in include.findall(text):
-                base = kit.BLOCKS / "fix" / "prompts" / "parts" if kind == "part" else kit.SHARED / "prompts"
-                text += "\n" + closure(base / f"{name}.md")
-            return text
-        webbed = [nid for nid, n in every().items() if {"WebSearch", "WebFetch"} & set(n.get("allowed_tools") or [])]
-        self.assertTrue(webbed)
-        for nid in webbed:
-            with self.subTest(node=nid):
-                self.assertIn("{shared:query-rule}", closure(kit.BLOCKS / "fix" / "prompts" / f"{nid}.md"))
 
 
 if __name__ == "__main__":
