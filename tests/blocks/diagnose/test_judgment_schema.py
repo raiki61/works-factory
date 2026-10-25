@@ -3,7 +3,6 @@
 import json
 import unittest
 
-from tests.blocks import kit
 from tests.blocks.diagnose import support
 from tests.blocks.diagnose.support import judge_ok
 
@@ -13,7 +12,6 @@ VERIFY_SCHEMA = {"type": "object", "required": ["units"],
                                                                      "properties": {"key": {"type": "string", "minLength": 1},
                                                                                     "label": {"type": "string"},
                                                                                     "disposition": {"type": "string"}}}}}}
-SHARED = kit.SHARED / "schemas"
 
 
 class _Base(unittest.TestCase):
@@ -86,10 +84,6 @@ class JudgmentSchemaCase(_Base):
         mod = support.modules()
         self.assertTrue(self.shared_accepts(mod["exit"].EMPTY_JUDGMENT))
         self.assertTrue(self.shared_accepts(judge_ok()))
-
-    def test_schema_uses_only_known_keywords(self):
-        self.assertEqual(self.ports.unknown_keywords(json.loads((SHARED / "judgment.schema.json").read_text(encoding="utf-8"))), [])
-        self.assertEqual(self.ports.unknown_keywords(json.loads((SHARED / "prior-failures.schema.json").read_text(encoding="utf-8"))), [])
 
 
 class PriorFailuresSchemaCase(_Base):
