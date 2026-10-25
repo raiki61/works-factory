@@ -4,6 +4,9 @@
 - 表 appendix-a.json: 付録 A の行（番号・行き先・出どころ）と、その行の英語の文（移す前の指示の行の字。差し込み口は {名} のまま）。番号と
   行き先は付録 A の本文から機械で読み直して照らし（表と付録 A が食い違えば赤）、行き先ごとの数（共通 156・variant 29・変える 4・
   消す 11。範囲の番号 F17〜F20 などは広げて数える）も照らす。
+- 表の文の出どころ: 表の各行の文が、付録 A の本文がその行に引く置き場の行（`:4`・`brief.md:2-4` など）の、付録 A の行番号の版
+  （PIN。#865 の後で #866 の前の main）の字に在る。表と指示の md を一緒に書き換えても、git の履歴の字は変わらないので赤になる
+  （CI は fetch-depth: 0 で全履歴を取る。履歴を引けなければ見送らずに赤）。移す時に字を替えた行は REWORDED に、替えた後と前の字の対で置く。
 - 組み上がった指示: 型ごとの書き手の node の md（prompts/<node>.md）を、差し込みを解き、型が選ぶ段落を src/prompts.writer_paragraphs で
   選び、ほかの段落（却下・裁定・相談・続きの周など）を全部入れて組んだ字。差し込み口の値は {名} の字のまま（表の文と比べるため）、
   借りた型の読み替え {unattended} だけは本物の値（lib/seat.overlay_body）。
@@ -22,11 +25,13 @@
 import json
 import pathlib
 import re
+import subprocess
 import sys
 import unittest
 
 import yaml
 
+from tests.bin import hermetic
 from tests.blocks import kit
 
 ROOT = pathlib.Path(__file__).resolve().parents[3]
@@ -42,6 +47,14 @@ import seat  # noqa: E402
 
 ROWS = json.loads((HERE / "appendix-a.json").read_text(encoding="utf-8"))
 BEFORE = json.loads((HERE / "fixer-reply-before.json").read_text(encoding="utf-8"))
+PIN = "523599ac3b62f9ad7f707c5846c4ba186b38c1f0"   # 付録 A の行番号の版（#865。A.2 の見出し「#865 で 2 行増えた後の行番号」）
+DEFAULT = {"A.2": "workflows/fix/prompts/parts/fixer.md", "A.4": "workflows/.shared/prompts/writer-rules.md",
+           "A.5": "workflows/.shared/prompts/query-rule.md", "A.7": "lib/borrow/unattended.md"}   # 節の頭が名指す、`:行` だけの引きの置き場
+SHARED_PARTS = {"brief-reading.md", "rejected.md"}   # A.3 の .shared/prompts の断片（ほかの名は fix の prompts/parts）
+REWORDED = {   # 移す時に字を替えた行: 番号 → (表の字, PIN の字)
+    "W21": ("one of the kinds below", "one of the 6 below"),   # 申し出の種類に red_at_base を足した（PR B の控え）
+    "F135": ("`clean` without ever having seen red is rejected.", "clean without ever having seen red is rejected"),   # F135 の文を rules_red の段落へ切り出した
+}
 COUNTS = {"共通": 156, "variant": 29, "変える": 4, "消す": 11}   # 付録 A の A.1・1.4.2 の数（全部で 200）
 SPAWN_ONLY = {"Q10"}
 G18 = "Do not write the report to a file. Your reply is the JSON in the \"fields of the reply\" section of the instructions."   # 消した g1-no-report-file.md の字（付録 A の G16〜G19 の G18）
@@ -125,6 +138,32 @@ def appendix_rows() -> list:
     return out
 
 
+def pinned_lines(path: str) -> list:
+    done = subprocess.run(["git", "-C", str(ROOT), "show", f"{PIN}:{path}"], env=hermetic.child_env(),
+                          capture_output=True, text=True)
+    if done.returncode:
+        raise AssertionError(f"PIN の版の {path} を git から引けない（履歴の浅い clone か）: {done.stderr.strip()}")
+    return done.stdout.split("\n")
+
+
+def appendix_sources() -> dict:
+    """付録 A の本文の行の番号 → その行が引く置き場の行 [(パス, 頭, 尻)]（`:4`・`brief.md:2-4`・`.shared/prompts/lib-docs.md:1` の形）"""
+    text = PLAN.read_text(encoding="utf-8")
+    body = text[text.index("## 付録 A"):text.index("## 付録 B")]
+    out = {}
+    for sec in re.split(r"^### ", body, flags=re.M)[1:]:
+        head = sec.split("\n", 1)[0][:3]
+        for ids, said in re.findall(r"^- (\S+?) (.*?) → ", sec, re.M):
+            refs = re.findall(r"`([\w./-]*):(\d+)(?:-(\d+))?`", said)
+            if not refs:
+                continue
+            paths = [DEFAULT[head] if not name else "workflows/" + name if name.startswith(".shared/")
+                     else "workflows/.shared/prompts/" + name if name in SHARED_PARTS else "workflows/fix/prompts/parts/" + name
+                     for name, _, _ in refs]
+            out.setdefault(ids, []).append([(p, int(a), int(b or a)) for p, (_, a, b) in zip(paths, refs)])
+    return out
+
+
 class TableCase(unittest.TestCase):
     def test_the_table_is_appendix_a(self):
         self.assertEqual([(r["id"], r["to"]) for r in ROWS], appendix_rows())
@@ -139,6 +178,20 @@ class TableCase(unittest.TestCase):
                 continue
             got["variant" if r["to"] == "variant・pin" else r["to"]] += n
         self.assertEqual(got, COUNTS)
+
+    def test_the_table_text_is_the_text_before_the_move(self):
+        """表の各行の文は、付録 A がその行に引く置き場の行の PIN の版の字に在る（表と md を一緒に弱めると赤）"""
+        sources = appendix_sources()
+        cache = {}
+        for r in ROWS:
+            for line in r["text"]:
+                with self.subTest(row=r["id"]):
+                    self.assertIn(r["id"], sources, "付録 A の本文に置き場の行の引きが無い")
+                    new, old = REWORDED.get(r["id"], ("", ""))
+                    want = flat(line.replace(new, old) if new else line).strip()
+                    places = [flat(" ".join(" ".join(cache.setdefault(p, pinned_lines(p))[a - 1:b]) for p, a, b in refs))
+                              for refs in sources[r["id"]]]
+                    self.assertTrue(any(want in place for place in places), f"PIN の版の字に無い: {want[:80]}")
 
 
 class AssetCase(unittest.TestCase):
