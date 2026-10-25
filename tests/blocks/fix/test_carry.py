@@ -15,6 +15,7 @@ import unittest
 
 from tests.bin.gitkit import committed_copy
 from tests.blocks import kit
+from tests.blocks.fix import steps
 from tests.blocks.fix import test_tdd as tddcase
 
 
@@ -326,7 +327,7 @@ class PriorLoopsCase(tddcase.LoopCase):
         self.assertEqual(list(self.st()["frozen"]), ["test_stats.py"])
 
     def test_second_place_sees_the_first_place_loops_through_the_bundle(self):
-        from src import board, carry, facts, tdd
+        from src import board, carry, facts, common, tdd
         self.first_loop()
         bundle = json.loads(carry.write(self.board).read_text(encoding="utf-8"))
         self.assertEqual([loop["state"]["frozen"] for loop in bundle["loops"]], [self.st()["frozen"]])
@@ -342,8 +343,8 @@ class PriorLoopsCase(tddcase.LoopCase):
                 got = tdd.start(place, self.repo, str(self.suite), json.dumps([tddcase.CLAMP]))
                 self.assertTrue(got["go"], got)
                 rows = [{"unit_key": tddcase.CLAMP, "route": "direct", "why": "2 回目の段で先にテストを書かない単位"}]
-                self.assertTrue(tdd.step(got["state_file"], {"phase": "route", "units": rows}, self.repo)["ok"])
-                self.assertEqual(len(tdd.states(place)), 2)
+                self.assertTrue(steps.loop_step(got["state_file"], {"phase": "route", "units": rows}, self.repo)["ok"])
+                self.assertEqual(len(common.states(place)), 2)
                 self.assertEqual(board.ruled_states(place), (got["state_file"], got["state_file"]))
                 self.assertEqual(facts.check_frozen(place, got["state_file"], self.repo, "first"), [])
                 self.edit("test_stats.py", "mean([2, 4]), 3", "mean([2, 4]), 3.0")   # 2 回目の修正役が tdd-1 の凍ったテストを変えた

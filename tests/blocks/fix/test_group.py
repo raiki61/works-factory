@@ -1,8 +1,8 @@
 """修正の block（workflows/fix/）の形 group の子の run の試験（docs/design/fix.md の 14.2 の test_group.py）。
 
 今の tests/workflows/test_fix.py の GroupChildScriptsCase と lib/tests/test_fix_seams.py の GroupChildSeamCase を写した物。
-子の run は port だけを渡して回す: intake（mode group・group・out_dir＝親の place の groups/・from_tree）→ group-start → tdd-prep・
-tdd-step → fix-prep・fix-accept → group-end。親の place は prep が書く写し（intake.json・values.json・judgment.json・baseline.json）を
+子の run は port だけを渡して回す: intake（mode group・group・out_dir＝親の place の groups/・from_tree）→ group-start → route-go →
+route-prep・route-step → orders → tdd-prep・tdd-step → fix-prep・fix-accept → group-end。親の place は prep が書く写し（intake.json・values.json・judgment.json・baseline.json）を
 試験が置く。返りは節の output_format で照らす。テストの実行器は tests/blocks/fix/support.py の SUITE。
 写さない物: 深さの上げ直し（unit_depths・頭の深さの控え。port skip_rerun に替わった）、始めの記録の方針の固めた写し（line の仕事。
 values.json の policy をそのまま名指す）
@@ -159,13 +159,32 @@ class GroupChildScriptsCase(unittest.TestCase):
         self.intake(**inputs)
         if not ok:
             return self.run_script("group_start", ok=False, cwd=cwd)
-        return self.run_script("group_start", cwd=cwd)
+        out = self.run_script("group_start", cwd=cwd)
+        if not self.run_script("route_go", cwd=cwd)["route"]:
+            self.run_script("orders", cwd=cwd)
+        return out
+
+    def loop_phase(self) -> str:
+        """輪の状態の段（状態が無ければ ""）"""
+        started = json.loads((self.place / "tdd-start.json").read_text(encoding="utf-8"))
+        if not started.get("state_file"):
+            return ""
+        return json.loads(pathlib.Path(started["state_file"]).read_text(encoding="utf-8"))["phase"]
 
     def step(self, reply):
-        return self.run_script("tdd_step", reply=json.dumps(reply, ensure_ascii=False))
+        """組の子の順の 1 歩: 段が route なら route-step（済めば注文の node orders。返りの phase は輪の状態の段）、ほかは tdd-step"""
+        text = json.dumps(reply, ensure_ascii=False)
+        if self.loop_phase() != "route":
+            return self.run_script("tdd_step", reply=text)
+        out = self.run_script("route_step", reply=text)
+        if not out["done"]:
+            return out
+        self.run_script("orders")
+        phase = self.loop_phase()
+        return {**out, "done": phase == "done", "phase": phase}
 
     def tdd_prompt(self):
-        return self.run_script("tdd_prep")["prompt"]
+        return self.run_script("route_prep" if self.loop_phase() == "route" else "tdd_prep")["prompt"]
 
     def notes(self):
         """親の place に修正前の関所の一言（prep が書く human-notes.md）を置き、子の place に写ったパスを返す"""
@@ -468,12 +487,12 @@ class GroupChildScriptsCase(unittest.TestCase):
 
     def test_tdd_prep_and_step_route_the_unit_change_between_the_two_roles(self):
         """tdd-prep は 1 周目と単位が替わる周だけ new_unit: true（新しい会話の役 tdd-new）、同じ単位の出し直しは false（続きの役
-        tdd）。tdd-step は飛ばされた方の束ね（null）を読まず、起きた方の返答で段を進める（F032）"""
+        tdd）。tdd-step は飛ばされた方の束ね（null）を読まず、起きた方の返答で段を進める（F032）。振り分けは前の loop route-loop
+        （route-prep → route-step → 注文の orders）で済ませ、TDD の輪の 1 周目は新しい会話"""
         self.parent_inputs(str(self.suite))
         self.start()
-        self.assertIs(self.run_script("tdd_prep")["new_unit"], True)
-        route = json.dumps({"phase": "route", "units": [{"unit_key": MEAN, "route": "tdd"}]}, ensure_ascii=False)
-        got = self.run_script("tdd_step", reply="null", reply_new=route)
+        self.assertIs(self.run_script("route_prep")["go"], True)
+        got = self.step({"phase": "route", "units": [{"unit_key": MEAN, "route": "tdd"}]})
         self.assertEqual((got["ok"], got["phase"]), (True, "test"), got)
         self.assertIs(self.run_script("tdd_prep")["new_unit"], True, "振り分けから単位の段へ")
         bad = json.dumps({"phase": "test", "unit_key": MEAN, "test_files": [], "tests": []}, ensure_ascii=False)
@@ -508,7 +527,7 @@ class GroupChildScriptsCase(unittest.TestCase):
         self.parent_inputs(str(self.suite))
         out = self.start()
         self.assertEqual((out["tdd"], out["units"], out["reason"]), (True, 1, ""), out)
-        prep = self.run_script("tdd_prep")
+        prep = self.run_script("route_prep")
         self.assertTrue(prep["go"])
         self.assertIn(MEAN, prep["prompt"])
         self.assertIn("## Handoff from the previous units", prep["prompt"], "周ごとに新しい会話なので引き継ぎの節が載る")

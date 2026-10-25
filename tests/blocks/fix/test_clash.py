@@ -127,9 +127,10 @@ class CitesCase(unittest.TestCase):
 
 class StageCase(Place):
     def test_patch_that_does_not_apply_leaves_the_tree_alone(self):
+        from src import common
         repo = self.place / "repo"
         committed_copy(repo, joinkit.SEED)
-        tree = self.tdd.snapshot(repo)
+        tree = common.snapshot(repo)
         patch = self.place / "join" / "g2.diff"
         patch.parent.mkdir()
         patch.write_text("diff --git a/stats.py b/stats.py\n--- a/stats.py\n+++ b/stats.py\n@@ -1,1 +1,1 @@\n-nothing like this\n+X\n",
@@ -142,7 +143,7 @@ class StageCase(Place):
         ok, why = self.clash.stage(self.place, repo, "g2", self.clash.FIRST)
         self.assertFalse(ok)
         self.assertIn("当たらない", why)
-        self.assertEqual(self.tdd.snapshot(repo), tree)
+        self.assertEqual(common.snapshot(repo), tree)
         self.assertEqual(self.clash.todo(self.place, self.clash.FIRST), ["g2"], "当たらなかった組はまだ直し待ち（呼び手が申し出へ回す）")
 
 

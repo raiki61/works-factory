@@ -1,7 +1,7 @@
 """修正の block（workflows/fix/）の 9 つの AI の node の指示を、その prep（か prep が呼ぶ src/prompts.py の口）を回して md から組み、
 決まった文が入ることを見る（docs/design/fix.md の 14.2 の test_prompts.py）。
 
-表 RENDERED は、筋書き（fixtures/）で届かない 7 つの node（全体の形は fan_out で dry-run が落ち、tdd は同じ単位の 2 周目にだけ回り、suite-fix は起動スクリプトが壊れた組だけ）の
+表 RENDERED は、筋書き（fixtures/）で届かない 8 つの node（全体の形は fan_out で dry-run が落ち、tdd-new と tdd は振り分けで tdd の単位が在る組だけ〔tdd は同じ単位の 2 周目〕、suite-fix は起動スクリプトが壊れた組だけ）の
 md の決まった文。tests/layers/test_block_shape.py の 7.1 の 3 の照らしは、この表の在りと字だけを見る（14.3）。表の行は下の試験が
 本当に組んだ指示の中に在ることを照らす。
 """
@@ -27,6 +27,7 @@ RENDERED = {
     "fix-ruled": "# Fixing (the writer's job)",
     "ruled-consult-answer": "# Scope consultation (from the fixing stage)",
     "tdd": "## What this role does",
+    "tdd-new": "## What this role does",   # tdd の単位の在る組の 1 周目だけ（振り分けの役 route が筋書きで回る）
     "suite-fix": "## What to look for",   # 起動スクリプトが壊れた組だけ（試験は tests/blocks/fix/test_suite_fix.py が組んで照らす）
 }
 KEY = "stats.py:4 mean"
@@ -117,11 +118,18 @@ class RenderedCase(unittest.TestCase):
         run = seeded(self)
         run.script("intake", mode="group", group=GROUP, judgment=JUDGMENT, tdd_suite=str(RUNNER))
         self.assertTrue(run.script("group_start")["tdd"])
+        self.assertEqual(run.script("route_go"), {"route": True, "stop": False})
+        self.assertTrue(run.script("route_prep")["go"])
+        self.assertTrue((run.artifacts / "route-prompt-1.md").is_file())
+        routed = run.script("route_step", reply=json.dumps({"phase": "route", "units": [{"unit_key": KEY, "route": "tdd"}]}))
+        self.assertTrue(routed["done"], routed)
+        self.assertTrue(run.script("orders")["tdd"])
         first = run.script("tdd_prep")
         second = run.script("tdd_prep")
         self.assertEqual((first["go"], first["new_unit"], second["go"], second["new_unit"]), (True, True, True, False))
         self.assertTrue((run.artifacts / "tdd-new-prompt-1.md").is_file())
         self.assertTrue((run.artifacts / "tdd-prompt-1.md").is_file())
+        self.assert_rendered("tdd-new", first["prompt"])
         self.assert_rendered("tdd", second["prompt"])
 
 
@@ -164,7 +172,8 @@ class FixerParagraphsCase(unittest.TestCase):
         raw.write_text("書き換えた方針\n", encoding="utf-8")
         run.script("intake", mode="group", group=GROUP, judgment=JUDGMENT, tdd_suite=str(RUNNER), policy=str(copy))
         run.script("group_start")
-        text = run.script("tdd_prep")["prompt"]
+        run.script("route_go")   # 1 周目は振り分けの段（組の子の loop route-loop の route-prep）
+        text = run.script("route_prep")["prompt"]
         self.assertIn(str(copy), text)
         self.assertNotIn(str(raw), text)
 
@@ -233,7 +242,8 @@ class FixerParagraphsCase(unittest.TestCase):
         run = seeded(self)
         run.script("intake", mode="group", group=GROUP, judgment=JUDGMENT, tdd_suite=str(RUNNER))
         run.script("group_start")
-        text = run.script("tdd_prep")["prompt"]
+        run.script("route_go")   # 1 周目は振り分けの段（組の子の loop route-loop の route-prep）
+        text = run.script("route_prep")["prompt"]
         self.assertIn("# The TDD loop prompt (round 1, phase route)", text)
         self.assertIn("## Units you owe a fix", text)
         self.assertNotIn("## The current unit", text)
@@ -270,7 +280,8 @@ class ConflictWordsCase(unittest.TestCase):
         run = seeded(self)
         run.script("intake", mode="group", group=GROUP, judgment=JUDGMENT, tdd_suite=str(RUNNER))
         run.script("group_start")
-        tdd = run.script("tdd_prep")["prompt"]
+        run.script("route_go")   # 1 周目は振り分けの段（組の子の loop route-loop の route-prep）
+        tdd = run.script("route_prep")["prompt"]
         for kind in conflict.DIV_KINDS:
             self.assertIn(f"`{kind}`", tdd)
         self.assertIn('"kind"', tdd)

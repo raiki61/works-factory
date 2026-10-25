@@ -72,7 +72,7 @@ def limit_problem(lim: str, repo) -> str:
     """範囲の 1 つ（<パス>・<パス>:<行>・<パス>:<行>-<行>。リポジトリの根から）が現物に在るか"""
     if not isinstance(lim, str) or not lim.strip():
         return f"範囲 {lim!r} が空"
-    if conflict.parse_limit(lim) is None:   # 絶対パス・根の外: 凍結の検査（tddloop.frozen_problems）が読めない範囲を受けない
+    if conflict.parse_limit(lim) is None:   # 絶対パス・根の外: 凍結の検査（common.frozen_problems）が読めない範囲を受けない
         return f"範囲 {lim!r} がリポジトリの根からの相対パスでない"
     if cite.CITE.match(lim.strip()):
         return cite.problem(lim, repo)

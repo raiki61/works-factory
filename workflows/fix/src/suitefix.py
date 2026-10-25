@@ -4,14 +4,12 @@
 error）、test_cmd の単体は通る時（tdd.start の _suite_broken）、起動スクリプトを書く役に 1 回だけ書き直させ、同じ輪の頭をやり直す。
 直らなければ組を止める（finish が stopby.SUITE_BROKEN を名乗る。輪を回さずに置いたまま、確かめていない直しを書き進めない）。
 
-- reuse_of(values)・begin(place, repo, values, keys, reuse) -> tdd.start の返り: 輪の頭（group-start と書き直しの後のやり直しが同じ引数で呼ぶ）
+- reuse_of(values)・begin(place, repo, values, keys, reuse) -> 組の頭の返り（src/basecase.take）: 元の結末（group-start と書き直しの後のやり直しが同じ引数で呼ぶ）
 - prompt_values(place, repo, values, started) -> (values, when): 書き直す役の指示（prompts/suite-fix.md）に渡す値
 - retry(place, repo, values, keys, reply) -> {tdd, stop, reason}: 書き手の返り reply の本文で実行器を置き換え、輪の頭をやり直す
-- gate(place) -> {tdd, stop}: TDD の輪と修正役の輪を回すか（輪の頭の返り tdd-start.json から）
 """
 from __future__ import annotations
 
-import json
 import os
 import pathlib
 
@@ -20,7 +18,6 @@ import ports
 import baseline_red      # lib/
 import declared_checks   # lib/
 import oneline           # lib/
-import related           # lib/
 import suitewrite        # lib/
 import tree_run          # lib/
 
@@ -37,14 +34,10 @@ def reuse_of(values: dict):
 
 
 def begin(place, repo, values: dict, keys: list, reuse) -> dict:
-    """輪の頭（tdd.start）。軽量の単位（skip_rerun）・関わる試験だけ（related.applies）・単位の道の決め方（routes）・工場の書いた実行器か
-    （suite_made）は values から。reuse は reuse_of の返り"""
-    light = {k: tdd.LIGHT for k in values["skip_rerun"] if k in keys}
-    test_cmd = str(values["test_cmd"] or "")
-    return tdd.start(place, repo, str(values["tdd_suite"] or ""), json.dumps(keys, ensure_ascii=False), test_cmd=test_cmd,
-                     unit_depths=json.dumps(light, ensure_ascii=False) if light else "", owed=set(keys), reuse=reuse,
-                     narrow=related.applies(repo, test_cmd), routes=str(values["routes"] or "auto"),
-                     suite_made=values["suite_made"] is True)
+    """組の頭（src/basecase.take。元の結末を取って base.json を書く）。関わる試験だけ（related.applies）・工場の書いた実行器か
+    （suite_made）は values から、計画の語は route.plan_words、起点の版は base_rev_of。reuse は reuse_of の返り"""
+    from src import basecase, route
+    return basecase.take(place, repo, values, keys, reuse, words=route.plan_words(place, keys), rev=board.base_rev_of(place))
 
 
 def settle_kept(values: dict, repo, out: dict) -> None:
@@ -55,7 +48,7 @@ def settle_kept(values: dict, repo, out: dict) -> None:
     exe = tdd.exe_path(repo, out["suite"])
     if out.get("suite_broken") is True:
         suitewrite.drop_runner(ports.suite_keep(), str(values["test_cmd"] or ""), exe)
-    elif out.get("go"):
+    elif out.get("base_file"):
         suitewrite.keep_runner(ports.suite_keep(), str(values["test_cmd"] or ""), exe)
 
 
@@ -109,10 +102,5 @@ def retry(place, repo, values: dict, keys: list, reply) -> dict:
         if out.get("suite_broken") is True:
             out = {**out, "reason": f"{STILL_BROKEN}——{out.get('reason') or ''}"}
     board.write_json(place / board.TDD_START_FILE, out)
-    return {"tdd": bool(out.get("go")), "stop": out.get("suite_broken") is True, "reason": str(out.get("reason") or "")}
+    return {"tdd": bool(out.get("base_file")), "stop": out.get("suite_broken") is True, "reason": str(out.get("reason") or "")}
 
-
-def gate(place) -> dict:
-    """{tdd, stop}: 輪の頭の返りが go なら TDD の輪を回す。起動スクリプトが壊れたまま（suite_broken）なら修正役の輪も回さない"""
-    doc = board.read_json(pathlib.Path(place) / board.TDD_START_FILE) or {}
-    return {"tdd": doc.get("go") is True, "stop": doc.get("suite_broken") is True}

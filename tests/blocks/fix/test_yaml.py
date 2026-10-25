@@ -17,7 +17,8 @@ if str(ROOT / "lib") not in sys.path:
 import rolekit  # noqa: E402
 
 AI_NODES = ("fixer", "fix-ruled", "consult-answer", "ruled-consult-answer", "tdd", "tdd-new", "ruler", "clash-fix", "clash-ruled")
-ADDED_AI_NODES = ("suite-fix",)   # 作り直しの後に足した役（壊れた起動スクリプトの書き直し。#836・docs/design/fix.md の 19）
+ADDED_AI_NODES = ("suite-fix", "route")   # 作り直しの後に足した役（壊れた起動スクリプトの書き直し。#836・docs/design/fix.md の 19。振り分けの役。
+#                                         今の TDD の役の振り分けの段を輪の外へ出した物。docs/plans/2026-10-24-fix-weapons.md の 4.1 の 3）
 WRITE_TOOLS = {"Edit", "Write", "Bash", "NotebookEdit", "Agent"}
 LAUNCH = ("model", "settingSources", "allowed_tools", "sandbox", "skills", "idle_timeout", "retry", "mutates_checkout", "context")
 

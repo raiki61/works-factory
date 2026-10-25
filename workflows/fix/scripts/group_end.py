@@ -16,7 +16,7 @@ import conflict  # noqa: E402
 import groups  # noqa: E402
 import oneline  # noqa: E402
 
-from src import board, finish, intake, tdd  # noqa: E402
+from src import board, finish, intake, common, tdd  # noqa: E402
 
 
 def tdd_exit(started) -> dict:
@@ -26,7 +26,7 @@ def tdd_exit(started) -> dict:
                 "units": []}
     try:
         return tdd.exit_fields(started)
-    except tdd.Broken as e:
+    except common.Broken as e:
         return {"ran": False, "suite": str(started.get("suite") or ""),
                 "reason": f"TDD のループが済まずに抜けた（{oneline.one_line(e)}）", "units": []}
 

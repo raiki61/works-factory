@@ -30,19 +30,19 @@ ACCEPT_TRACE_FILE = fixnames.ACCEPT_TRACE_FILE   # 受け付けが選んだ試�
 
 
 def tests_trace(place, state_file, note: str, *, pass_: str, attempt: int) -> None:
-    """受け付けの回 (pass_, attempt) に選んだ試験を走らせた知らせ（tddloop.selected_problems の 2 つ目の返り。0 件しか走らなかった・
+    """受け付けの回 (pass_, attempt) に選んだ試験を走らせた知らせ（common.selected_problems の 2 つ目の返り。0 件しか走らなかった・
     走らせられない・実行器が無い・新しい赤なし）を、置き場 place の ACCEPT_TRACE_FILE の並びの末尾に 1 行足す。行の形は元の盤面の
     trace の行 {op: impact.ACCEPT_TRACE_OP, node, note, ci_left, final_left, final_far}（元 works/blk-fix/scripts/accept.py:708）に
     pass と attempt を足した物（回ごとに足し、受けた回の行を読み手が選ぶ）。元は受けた回だけ盤面の trace に書いた（新しい関数）"""
     import impact
-    from src import tdd as tddloop
+    from src import common
     path = pathlib.Path(place) / ACCEPT_TRACE_FILE
     rows = read_json(path, [])
     if not isinstance(rows, list):
         raise ValueError(f"{path} が行の並び（JSON の array）でない")
     rows.append({"op": impact.ACCEPT_TRACE_OP, "node": FIX_ACCEPT_BY, "pass": pass_, "attempt": attempt, "note": note,
-                 "ci_left": tddloop.ci_left(state_file), "final_left": tddloop.final_left(state_file),
-                 "final_far": tddloop.final_far(state_file)})
+                 "ci_left": common.ci_left(state_file), "final_left": common.final_left(state_file),
+                 "final_far": common.final_far(state_file)})
     write_json(path, rows)
 
 
@@ -291,17 +291,17 @@ def rerun_problem(place, repo, suite: str, cases, named, *, name: str = "rerun",
     1. 名指し named（前に戻せた組とこの組が赤 → 緑を確かめた名指し）が在れば先にそれだけを走らせ、実行器が走らない・名指しが結末に
        居ない（0 件を含む）・緑でなければその文（_RunnerDown を戻す理由にした所）。ただし直す前の結末 cases と照らして前から同じ形で
        赤の名指し（same_red）は戻す理由にせず、「名指し（結末の語: 失敗の文）」の文を old_red（呼び手が渡した並び）に足す（#837）。
-    2. 名指しの無い組（修正役だけが直した組）も、変えたファイルに当たる試験の新しい赤を tddloop.selected_problems で見る（元の
+    2. 名指しの無い組（修正役だけが直した組）も、変えたファイルに当たる試験の新しい赤を common.selected_problems で見る（元の
        結末 cases に無い赤は版 rev の写しでその試験を名指しで走らせて確かめる）。写しの結末に出ず比べられなかった赤は、uncompared
        （呼び手が渡した並び）が在れば戻す理由にせずその鍵を足す（呼び手が報告で人に聞く。#846）。前に戻した組とも重なったファイル shared が在れば、それを起点に地図が届く
-       試験の全部（tddloop._reached の direct_only 偽。地図が一式を求める時は足さない）を選びに足す（元 tddlanes.py:695-698）。
+       試験の全部（common._reached の direct_only 偽。地図が一式を求める時は足さない）を選びに足す（元 tddlanes.py:695-698）。
     3. 赤が無く test_cmd（関門が on の時だけ呼び手が渡す。rerun_cmd）が在れば 1 回走らせ、緑でなければその文。ただし組を当てる前の
-       木 base（tdd.snapshot。skip の頭の下は数えない）を呼び手が渡せば、赤を 1 回で戻す理由にせず cmd_verdict で見分ける（#855）:
+       木 base（common.snapshot。skip の頭の下は数えない）を呼び手が渡せば、赤を 1 回で戻す理由にせず cmd_verdict で見分ける（#855）:
        外した木でも赤なら前から赤（または環境）、外すと緑で走らせ直しに 1 回でも緑が在れば揺れと見て戻さず、その文を cmd_notes
        （呼び手が渡した並び）に足す。外した木の結果が取れなければ uncompared（在れば）に足して人に聞く。3 回とも赤の時だけ戻す理由。
     shared の在る組の赤は意味の食い違い（SEMANTIC_CLASH）と名指す。走らせ直しの状態とログは置き場の <name>/ に置く"""
     import baseline_red
-    from src import tdd as tddloop
+    from src import common, tdd as tddloop
     suite = (suite or "").strip()
     named = sorted({t for t in named or [] if isinstance(t, str) and t.strip()})
     shared = sorted({f for f in shared or () if isinstance(f, str) and f})
@@ -312,7 +312,7 @@ def rerun_problem(place, repo, suite: str, cases, named, *, name: str = "rerun",
     work.mkdir(parents=True, exist_ok=True)
     probs = []
     if named:
-        ran, _, why = baseline_red.run_suite(str(exe), repo, work, "named", tddloop._abs_ids(repo, named), only=True)
+        ran, _, why = baseline_red.run_suite(str(exe), repo, work, "named", common._abs_ids(repo, named), only=True)
         if ran is None:
             return f"当てた後の木で名指しのテストを走らせられない（{'; '.join(why)}）"
         old = [t for t in named if same_red(t, cases, ran)]
@@ -327,14 +327,14 @@ def rerun_problem(place, repo, suite: str, cases, named, *, name: str = "rerun",
             probs = ["当てた後の木で名指しのテストが緑でない: " + "；".join(probs)]
     if not probs:
         st = {"exe": str(exe), "work": str(work), "suite_made": [], "contract": {}, "unit_head": "",
-              "baseline": {tddloop._key(c): c.get("outcome") for c in cases or [] if isinstance(c, dict)},
+              "baseline": {common._key(c): c.get("outcome") for c in cases or [] if isinstance(c, dict)},
               "units": {name: {"tests": named, "test_files": []}}}
         if shared:
-            wide, everything = tddloop._reached(st, repo, seeds=shared, direct_only=False)
+            wide, everything = common._reached(st, repo, seeds=shared, direct_only=False)
             if not everything:
                 st["units"][name]["test_files"] = wide
         state = write_json(work / tddloop.STATE, st)
-        probs, _ = tddloop.selected_problems(str(state), repo, rev, uncompared=uncompared)
+        probs, _ = common.selected_problems(str(state), repo, rev, uncompared=uncompared)
     if not probs and (test_cmd or "").strip():
         probs = cmd_verdict(repo, test_cmd.strip(), work, base=base, notes=cmd_notes, uncompared=uncompared, skip=skip)
     why = "；".join(probs)
@@ -351,7 +351,7 @@ CMD_TRIES = 3   # 外すと緑の時に当てた木で走らせる回の数（1 
 
 
 def _cmd_said(mat: dict, log) -> str:
-    """test_cmd の 1 回の素材（tdd._cmd_run）の訳: 書き換えの文か起こせない訳か、コマンドの出力（ログ log の末尾）"""
+    """test_cmd の 1 回の素材（common._cmd_run）の訳: 書き換えの文か起こせない訳か、コマンドの出力（ログ log の末尾）"""
     if mat.get("rewrote") or mat.get("reason"):
         return mat.get("rewrote") or mat.get("reason")
     try:
@@ -365,14 +365,14 @@ def _cmd_without(repo, base: str, cmd: str, log, skip=()) -> dict:
     """組を外した木（当てる前の木 base）の姿で test_cmd を 1 回走らせた素材。走らせる前に今の木を控え、走らせた後は控えの姿へ
     戻す（外した木で test_cmd が作ったファイルも残さない）。戻せなければ落ちる（join の道は呼び手の join_group が組を戻し、合わせ役の道は
     受け付けの node が落ちる）。.gitignore に当たるファイルは木の姿に入らないので戻さない"""
-    from src import tdd as tddloop
-    now = tddloop.snapshot(repo)
-    paths = [p for p in tddloop.touched(repo, base, now) if not p.startswith(tuple(skip))]
-    tddloop.restore_paths(repo, base, paths)
+    from src import common
+    now = common.snapshot(repo)
+    paths = [p for p in common.touched(repo, base, now) if not p.startswith(tuple(skip))]
+    common.restore_paths(repo, base, paths)
     try:
-        mat, _ = tddloop._cmd_run(repo, cmd, log)
+        mat, _ = common._cmd_run(repo, cmd, log)
     finally:
-        tddloop.restore_paths(repo, now, [p for p in tddloop.touched(repo, now, tddloop.snapshot(repo))
+        common.restore_paths(repo, now, [p for p in common.touched(repo, now, common.snapshot(repo))
                                           if not p.startswith(tuple(skip))])
     return mat
 
@@ -384,10 +384,10 @@ def cmd_verdict(repo, cmd: str, work, *, base: str = "", notes=None, uncompared=
     2. 外すと緑 → 当てた木であと 2 回走らせ、3 回とも赤なら戻す理由（CMD_STILL_RED を添える）。1 回でも緑なら CMD_FLAKY を notes に足して空。
     3. 外した木の結果が取れない（起こせない）→ uncompared が在れば CMD_UNCOMPARED を足して空（人に聞く）、無ければ戻す理由。
     ログは work/test-cmd.log（1 回目）・test-cmd-base.log（外した木）・test-cmd-<k>.log（走らせ直し）"""
-    from src import tdd as tddloop
+    from src import common
     work = pathlib.Path(work)
     log = work / "test-cmd.log"
-    mat, _ = tddloop._cmd_run(repo, cmd, log)
+    mat, _ = common._cmd_run(repo, cmd, log)
     if mat["status"] == "clean":
         return []
     red = CMD_RED.format(cmd=cmd, said=_cmd_said(mat, log))
@@ -405,7 +405,7 @@ def cmd_verdict(repo, cmd: str, work, *, base: str = "", notes=None, uncompared=
         keep.append(CMD_OLD_RED.format(cmd=cmd, said=_cmd_said(was, base_log)))
         return []
     for k in range(2, CMD_TRIES + 1):
-        again, _ = tddloop._cmd_run(repo, cmd, work / f"test-cmd-{k}.log")
+        again, _ = common._cmd_run(repo, cmd, work / f"test-cmd-{k}.log")
         if again["status"] == "clean":
             keep.append(CMD_FLAKY.format(cmd=cmd, runs=k, said=_cmd_said(mat, log)))
             return []
@@ -416,11 +416,11 @@ def rerun_cmd(place, result, test_cmd: str) -> str:
     """当てた後に走らせ直す test_cmd（rerun_problem に渡す）: 組の子の TDD の輪が決めた関門（結果の tdd.test_cmd.gate）が on で、
     組に走らせ直しを省かない単位（port skip_rerun の外）が在る時だけ test_cmd、ほかは ""（元 works/blk-fix/lib/tddlanes.py:704）。
     tdd か tdd.test_cmd が在って dict でない結果は関門を読めないので on と見る（走らせ直しを飛ばして戻さない）"""
-    from src import tdd as tddloop
+    from src import common
     tdd = (result or {}).get("tdd") or {}
     cmd = (tdd.get("test_cmd") or {}) if isinstance(tdd, dict) else None
-    gate = cmd.get("gate") if isinstance(cmd, dict) else tddloop.GATE_ON
-    if gate != tddloop.GATE_ON or not (test_cmd or "").strip():
+    gate = cmd.get("gate") if isinstance(cmd, dict) else common.GATE_ON
+    if gate != common.GATE_ON or not (test_cmd or "").strip():
         return ""
     from src import runvals
     light = set(runvals.read(place)["skip_rerun"])
@@ -439,13 +439,13 @@ def join_group(repo, from_tree: str, end_tree: str, kept, *, union=(), check=Non
     元 works/blk-fix/lib/lanekit.py の merge（単位の worktree の差分を当てた所）を、子の run の終わりの木との差分で受ける形にした物"""
     import groups
     from src import lanes as lanekit
-    from src import tdd as tddloop
+    from src import common
     import unittrees
     patch = groups.diff_since(repo, from_tree, end_tree)
     kept = pathlib.Path(kept)
     kept.parent.mkdir(parents=True, exist_ok=True)
     kept.write_text(patch, encoding="utf-8", errors="surrogateescape")
-    before = tddloop.snapshot(repo)
+    before = common.snapshot(repo)
     got: list = []
     ok, why = unittrees.apply(repo, patch, union=union, unioned=got, check=unittrees.tests_unique)
     if not ok:
@@ -456,12 +456,12 @@ def join_group(repo, from_tree: str, end_tree: str, kept, *, union=(), check=Non
     except Exception as e:  # noqa: BLE001  落ちた確かめ直しも赤と同じく戻す（#406）
         why = CHECK_RAISED.format(error=f"{type(e).__name__}: {oneline.one_line(e)[:300]}")
     except BaseException:
-        tddloop.restore_paths(repo, before, names)
+        common.restore_paths(repo, before, names)
         raise
     if not why:
         return lanekit.Merge("", str(kept), names, got, False)
     try:
-        tddloop.restore_paths(repo, before, names)
+        common.restore_paths(repo, before, names)
     except Exception as e:  # noqa: BLE001  戻せない組を当てていないと言わない（#403）
         return lanekit.Merge(UNRESTORED.format(error=f"{type(e).__name__}: {oneline.one_line(e)[:300]}", why=why), str(kept), [], got,
                              False, unrestored=names)
@@ -876,12 +876,12 @@ def plan_face_errors(place, reply, units) -> list:
 
 
 def _bodies(text, rel: str) -> dict:
-    """ファイルの中身 text（None は無いファイル）の test 関数の id（tddloop._id_base）→ 源（tddloop.test_functions）。
+    """ファイルの中身 text（None は無いファイル）の test 関数の id（common._id_base）→ 源（tddloop.test_functions）。
     元 works/blk-fix/lib/tddlanes.py:641（単位の worktree のファイルを読んだ所を中身で受ける）"""
-    from src import tdd as tddloop
+    from src import common, tdd as tddloop
     if text is None:
         return {}
-    return {tddloop._id_base(i): body for i, body in tddloop.test_functions(text, rel).items()}
+    return {common._id_base(i): body for i, body in tddloop.test_functions(text, rel).items()}
 
 
 def test_file(f) -> str | None:
@@ -902,16 +902,16 @@ def unit_test_files(unit) -> list:
 def _moved_tests(repo, tree: str, units, shared: set) -> list:
     """重なりのファイル shared（前に当てた組の差分とも重なるパス）に在る名指しのテストのうち、関数の源が組の子の終わりの木 tree と
     親の作業ツリー repo で違う・消えた物。units は TDD の輪の単位の行（tests・test_files）。元 works/blk-fix/lib/tddlanes.py:629
-    （単位の worktree のファイルを読んだ所を、子の終わりの木の中身 tddloop._tree_text で読む）"""
-    from src import tdd as tddloop
+    （単位の worktree のファイルを読んだ所を、子の終わりの木の中身 common._tree_text で読む）"""
+    from src import common
     out = []
     for u in units:
         for f in sorted(set(unit_test_files(u)) & set(shared)):
-            mine = _bodies(tddloop._tree_text(repo, tree, f), f)
+            mine = _bodies(common._tree_text(repo, tree, f), f)
             p = pathlib.Path(repo) / f
             now = _bodies(p.read_text(encoding="utf-8", errors="replace") if p.is_file() else None, f)
-            out += [t for t in u.get("tests") or [] if tddloop._norm_id(t).startswith(f + "::")
-                    and (mine.get(tddloop._id_base(t)) is None or mine.get(tddloop._id_base(t)) != now.get(tddloop._id_base(t)))]
+            out += [t for t in u.get("tests") or [] if common._norm_id(t).startswith(f + "::")
+                    and (mine.get(common._id_base(t)) is None or mine.get(common._id_base(t)) != now.get(common._id_base(t)))]
     return out
 
 
@@ -958,8 +958,8 @@ def adopt_inputs(parent, place, repo=None) -> list:
         write_text(dst / conflict.FILE, (src / conflict.FILE).read_text(encoding="utf-8"))
         out.append(conflict.FILE)
     if repo is not None:
-        from src import tdd as tddloop
-        prior = [str(p) for p in tddloop.states(src) if read_json(p, {}).get(PRIOR_LOOP)]
+        from src import common
+        prior = [str(p) for p in common.states(src) if read_json(p, {}).get(PRIOR_LOOP)]
         out += adopt_tdd_states(dst, [{"tdd_state": p} for p in prior], repo, prior=True)
     if conflict.frozen_fields(src, 1) is not None:
         doc = read_json(marks_path(src))
@@ -977,9 +977,9 @@ def adopt_prior_pass(place, prior, items, repo) -> dict:
     （元 works/.shared/core/conflict.py:411・works/blk-fix/lib/fixgates.py:103・works/blk-fix/lib/tddloop.py:1816）。
     返り {rows: 写した行の id, loops: 写した状態のパス}。新しい"""
     import conflict
-    from src import tdd as tddloop
+    from src import common
     rows = conflict.adopt_prior(place, prior, items)
-    loops = adopt_tdd_states(place, [{"tdd_state": str(p)} for p in tddloop.states(prior)], repo, prior=True)
+    loops = adopt_tdd_states(place, [{"tdd_state": str(p)} for p in common.states(prior)], repo, prior=True)
     return {"rows": rows, "loops": loops}
 
 
@@ -1052,13 +1052,13 @@ def group_result(group, *, start_tree: str, end_tree: str, tdd, tdd_state: str =
 def adopt_tdd_states(place, results, repo, *, prior: bool = False) -> list:
     """戻せた組の子の結果 results（組の順）が名指す TDD の輪の状態（tdd_state）を、親の置き場 place の次の tdd-<k>/ に写す
     （state.json の work を写した先に、exe を親の作業ツリー repo で解き直した実行器に替え、輪の要約 summary.md も写す。
-    並べた子の exe は子の作業ツリーの中を指し、自分の置き場から根を引く実行器だと親の試験を子の木で走らせるため）。写した状態は tddloop.states(place) に run の全部の輪として
+    並べた子の exe は子の作業ツリーの中を指し、自分の置き場から根を引く実行器だと親の試験を子の木で走らせるため）。写した状態は common.states(place) に run の全部の輪として
     載り、裁定の後の修正の受け付けが凍結・範囲・変更に当たる試験に使う（ruled_states）。もう写した子の状態（状態の
     ADOPTED_FROM）は写し直さない。prior が真なら写した状態に印 PRIOR_LOOP を置く（1 回目の修正の段の輪。ruled_states が今の段の輪から
     外す）。写した状態のパスを返す。新しい（元は 1 つの盤面に輪の状態が在った）"""
-    from src import tdd as tddloop
+    from src import common, tdd as tddloop
     place = pathlib.Path(place)
-    have = {str(read_json(p, {}).get(ADOPTED_FROM) or "") for p in tddloop.states(place)}
+    have = {str(read_json(p, {}).get(ADOPTED_FROM) or "") for p in common.states(place)}
     out = []
     for r in results:
         src = str((r or {}).get("tdd_state") or "")
@@ -1096,8 +1096,8 @@ def ruled_states(place) -> tuple:
     前の輪として見る。factchecks.check_frozen）。置き場の輪（adopt_tdd_states が写した組ごとの輪）が
     1 つならそれを今の輪に（元の 1 つの輪の run と同じ）。幾つも在れば今の輪は無し（どの輪も同じ段に並んで走ったので、凍結は全部の輪を
     輪の後の木で見る。factchecks.check_frozen）、試験は最後の輪の実行器で走らせる。無ければ ("", "")"""
-    from src import tdd as tddloop
-    loops = [str(p) for p in tddloop.states(place) if not read_json(p, {}).get(PRIOR_LOOP)]
+    from src import common
+    loops = [str(p) for p in common.states(place) if not read_json(p, {}).get(PRIOR_LOOP)]
     if len(loops) == 1:
         return loops[0], loops[0]
     return "", loops[-1] if loops else ""
@@ -1128,7 +1128,7 @@ def drop_unreturned(repo, gdir, skip=()) -> list:
     """並べない run（組の子が親の作業ツリーで直す）で、子が使える結果（usable_result）を残さずに落ちた組の変更を、子の始めの木
     （gdir の GROUP_START_FILE の start_tree）に戻し、戻したパス（除くパスの頭 skip の下は数えない）を返す。使える結果の在る組・
     始めの記録の無い組は何もしない（[]）。新しい（元は枝ごとの worktree で直したので、落ちた枝の直しは親の木に届かなかった）"""
-    from src import tdd as tddloop
+    from src import common
     gdir = pathlib.Path(gdir)
     if usable_result(gdir) is not None:
         return []
@@ -1137,7 +1137,7 @@ def drop_unreturned(repo, gdir, skip=()) -> list:
     if not isinstance(tree, str) or not tree:
         return []
     paths = touched_since(repo, tree, skip)
-    tddloop.restore_paths(repo, tree, paths)
+    common.restore_paths(repo, tree, paths)
     return paths
 # ---------------------------------------------------------------- 修正役の受け付けと範囲の相談（fix-accept・fix-ruled-accept・
 # consult-check・fix-ruled-prep の scripts が呼ぶ）。元 works/blk-fix/scripts/accept.py の受け付けの手順と、元
@@ -1496,21 +1496,21 @@ def keep_patch(place, repo, files, head: str) -> str:
 def revert_units(place, repo, files, head: str) -> str:
     """止めた単位の足跡 files を段の頭の木 head に戻す（先に keep_patch で控える）。返りは控えのパス。元
     works/blk-fix/scripts/accept.py:417"""
-    from src import tdd as tddloop
+    from src import common
     patch = keep_patch(place, repo, files, head)
-    tddloop.restore_paths(repo, head, sorted(files))
+    common.restore_paths(repo, head, sorted(files))
     return patch
 
 
 def last_settle(texts: list, rows: list, place, repo, rev: str, state: str, owed, excused: dict, parked=frozenset(), *,
                 declared=None, skip=()):
     """輪の最後の回の拒否の文 texts を単位に結ぶ（parking.settle）。返り (Settlement, 義務の外の単位の集合, 足跡)。足跡は返答の行 rows と
-    今の段の輪の状態 state（空なら置き場の全部の輪 tddloop.states。裁定の後の段は組ごとの輪を join が写した物）、届く試験は単位ごとの impact の地図（置き場の impact/ に控える）、義務の外は外れた単位 excused と
+    今の段の輪の状態 state（空なら置き場の全部の輪 common.states。裁定の後の段は組ごとの輪を join が写した物）、届く試験は単位ごとの impact の地図（置き場の impact/ に控える）、義務の外は外れた単位 excused と
     もう止めた単位 parked。元 works/blk-fix/scripts/accept.py:378（盤面の代わりに置き場と値 owed・excused で受ける）"""
     from src import parking
-    from src import tdd as tddloop
+    from src import common
     import writes
-    loops = [state] if state else [str(p) for p in tddloop.states(place)]
+    loops = [state] if state else [str(p) for p in common.states(place)]
     feet = parking.footprint(rows, loops, repo, skip=tuple(skip))
     cache = pathlib.Path(place) / "impact"
     reached = {k: parking.reach(repo, rev, f, cache) for k, f in feet.items()}
@@ -1560,7 +1560,7 @@ def accept_reply(reply: dict, place, repo, *, pass_: str, iteration: int, owed, 
     最後に 1 回だけ拒む。順は 範囲の相談の枠 → 凍ったテスト（factchecks.check_frozen）→ 書き込みの出どころ（factchecks.check_writes。
     記録の無い run は undeclared_writes で段の頭の木 head からの変更を申告に縛る）→ 食い違いの申し出（take_conflicts。first で
     裁かれていない申し出が在れば輪を抜ける {ok: True, conflicted: True}）→ 除くパスの頭の下の変更（check_pack_copy）→
-    単位の行（check_unique_units・check_opened_units・check_excused_units）→ 承認済みの修正案の範囲（factchecks.check_plan_scope）→ 変更に当たる試験（tddloop.selected_problems）→
+    単位の行（check_unique_units・check_opened_units・check_excused_units）→ 承認済みの修正案の範囲（factchecks.check_plan_scope）→ 変更に当たる試験（common.selected_problems）→
     事後の関門の束（fixgates.problems）→ 閉鎖の数え直し（closure_reply。defects の問いが閉じない単位は申し出が無ければ
     戻す。通れば表を querytest.save_closure）→ 数え直し（recount.accept_fix）。積んだ行が範囲の外のはみ出し（gather_overflow）だけなら
     拒まずに settle_overflow を通す（相談に積んだ回は {ok: False, queued: True, count: false}。戻した回は戻した返答で頭から通し直す。reverted・
@@ -1581,7 +1581,7 @@ def accept_reply(reply: dict, place, repo, *, pass_: str, iteration: int, owed, 
     from src import gates as fixgates
     from src import parking
     import recount
-    from src import tdd as tddloop
+    from src import common
     from src import unitrows
     import writes
     parked = dict(parked or {})
@@ -1600,7 +1600,7 @@ def accept_reply(reply: dict, place, repo, *, pass_: str, iteration: int, owed, 
     whole = reply
     frozen_over = []   # 相談に回せる凍ったファイルの頼み（check_frozen が足す）
     note("frozen", factchecks.check_frozen(pathlib.Path(place), state, repo, pass_, asks=frozen_over, base_rev=rev))
-    made = set(tddloop.suite_made(state)) | tddloop.suite_made_all(place)
+    made = set(common.suite_made(state)) | common.suite_made_all(place)
     wrote = factchecks.check_writes(reply, pathlib.Path(place), rev, repo, state, log=log, since=head or None,
                                     skip=tuple(skip))
     note("writes", wrote["problems"])
@@ -1631,7 +1631,7 @@ def accept_reply(reply: dict, place, repo, *, pass_: str, iteration: int, owed, 
         note("scope", scope)
     else:
         duty, excused = fix_duty(place, owed)
-    red, tests_note = tddloop.selected_problems(state or tests_state, repo, rev)
+    red, tests_note = common.selected_problems(state or tests_state, repo, rev)
     note("tests", red)
     tests_trace(place, state or tests_state, tests_note, pass_=pass_, attempt=iteration)   # 0 件の知らせも捨てない（F014）
     note("plan_faces", plan_face_errors(place, reply, face_units(pass_, duty)))
@@ -2075,8 +2075,8 @@ def settle_overflow(asks: list, found: list, whole: dict, place, repo, *, head: 
                     again, ask: bool = True):
     """はみ出しの行だけの回の道筋の選び。返りは出口の dict（積んだ {ok: False, queued: True, count: false, …}・戻して通し直した返り）か、拒む時は
     None（戻しきれない物を成り立たない行にして found に足してある）。見分けは持ち主（planscope の overflow・fixgates.overflow_asks・
-    tddloop.frozen_asks）、聞いた答えは conflict.plan_asks、積みは consult.queue、戻しは keep_patch・tddloop.restore_paths・
-    tddloop.restore_tests・_without_rows が持ち、ここは選ぶだけ:
+    common.frozen_asks）、聞いた答えは conflict.plan_asks、積みは consult.queue、戻しは keep_patch・common.restore_paths・
+    common.restore_tests・_without_rows が持ち、ここは選ぶだけ:
     - 戻したのにまだ行が残る物（reverted に在る）は『はみ出しを戻せない』
     - まだ聞いていない物は積む（枠が足りなければ戻す側）。積んだが頼みにする前の物は積み直さず同じ出口
     - 聞いた物（allow の後も残る行・deny・defer・invalid・unavailable・refused）は戻す
@@ -2091,7 +2091,7 @@ def settle_overflow(asks: list, found: list, whole: dict, place, repo, *, head: 
     import conflict
     from src import consult
     from src import facts as factchecks
-    from src import tdd as tddloop
+    from src import common
     answered = [r for r in conflict.plan_asks(place) if r.get("origin") == consult.ORIGIN_ACCEPT]
     pending = consult.queued(place, pass_)
     stuck = [a for a in asks if a["line"] in reverted]
@@ -2130,10 +2130,10 @@ def settle_overflow(asks: list, found: list, whole: dict, place, repo, *, head: 
     test_files = {posixpath.normpath(s.partition("::")[0]) if "::" in s else (conflict.parse_limit(s) or (s,))[0]
                   for s in [*specs, *ids]}
     patch = keep_patch(place, repo, {*paths, *test_files}, head)
-    tddloop.restore_paths(repo, head, paths)
+    common.restore_paths(repo, head, paths)
     for ref, ss in by_ref.items():
-        tddloop.restore_tests(repo, head, ss, ref=ref)
-    tddloop.restore_tests(repo, head, ids)
+        common.restore_tests(repo, head, ss, ref=ref)
+    common.restore_tests(repo, head, ids)
     trail["reverted"].append({"paths": paths, "tests": specs, "new_tests": ids, "patch": patch,
                               "lines": [a["line"] for a in back]})
     gone = set(paths)

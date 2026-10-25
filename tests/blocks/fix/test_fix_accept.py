@@ -45,7 +45,7 @@ from tests.blocks import kit
 
 _l_SEED = kit.ROOT / "tests" / "e2e" / "target-seed"
 _L_SRC = {"fixboard": "board", "fixgates": "gates", "planscope": "scope", "unitrows": "unitrows", "parking": "parking",
-          "fixrules": "rules", "tddloop": "tdd", "ruling": "ruling"}
+          "fixrules": "rules", "tddloop": "tdd", "ruling": "ruling", "common": "common", "basecase": "basecase"}
 
 
 def _l_bind() -> None:
@@ -402,7 +402,9 @@ class TestLoopRedTree(FixGatesCase):
         def run(exe, repo, *a, **k):
             calls.append(pathlib.Path(repo).resolve() == self.repo.resolve())
             return real(exe, repo, *a, **k)
-        with mock.patch.object(fixgates.tddloop, "run_suite", side_effect=run):
+        # 赤の木の走らせ直しは common.red_rerun の口（common.run_suite）、base の木は関門の口（tddloop.run_suite）
+        with mock.patch.object(fixgates.tddloop, "run_suite", side_effect=run), \
+                mock.patch.object(common, "run_suite", side_effect=run):
             self.assertEqual(self.problems(attempt=1), [])
             self.assertEqual(self.problems(attempt=2), [])
         self.assertEqual(calls.count(False), 2, "赤の木と base の木は 1 回ずつだけ走らせる")
@@ -2039,13 +2041,13 @@ class DutySets(DutyCase):
     def tdd_owed(self) -> tuple:
         suite = self.tmp / "suite.py"
         suite.write_text("", encoding="utf-8")
-        with mock.patch.object(tddloop, "run_suite", return_value=([], 0, [])), \
-                mock.patch.object(tddloop, "snapshot", return_value=""):
+        with mock.patch.object(basecase, "run_suite", return_value=([], 0, [])), \
+                mock.patch.object(tddloop, "snapshot", return_value=""), mock.patch.object(common, "snapshot", return_value=""):
             got = tddloop.start(self.tmp, self.tmp, str(suite), json.dumps(_l_IS_OPEN, ensure_ascii=False), owed=_l_OWED,
                                 **self.kw())
         self.assertTrue(got["go"], got)
         st = json.loads(pathlib.Path(got["state_file"]).read_text(encoding="utf-8"))
-        return set(tddloop._owed(st)), set(st["excused"])
+        return set(common._owed(st)), set(st["excused"])
 
     def gated_items(self) -> set:
         """事後の関門が見る項目の単位: 単位ごとに 1 項目の tdd の欄を置き、OUT_OF_DUTY で飛ばさなかった項目の単位"""

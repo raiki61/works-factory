@@ -11,20 +11,20 @@ import pathlib
 
 from src import files
 
-LOOP_DIR = "tdd-{k}"   # 置き直す輪のフォルダ（lib の tddloop.states が tdd-<k>/state.json を番号の順に読む）
+LOOP_DIR = "tdd-{k}"   # 置き直す輪のフォルダ（lib の common.states が tdd-<k>/state.json を番号の順に読む）
 SUMMARY = "summary.md"
 
 
 def write(place) -> pathlib.Path | None:
     """place の申し出と輪の状態を carry.json に束ねて書き、パスを返す。どちらも無ければ書かずに None"""
     import conflict
-    from src import tdd
+    from src import common
     place = pathlib.Path(place)
     conflicts = None
     if (place / conflict.FILE).is_file():
         conflicts = json.loads((place / conflict.FILE).read_text(encoding="utf-8"))
     loops = []
-    for state in tdd.states(place):
+    for state in common.states(place):
         summary = state.parent / SUMMARY
         loops.append({"state": json.loads(state.read_text(encoding="utf-8")),
                       "summary": summary.read_text(encoding="utf-8") if summary.is_file() else ""})

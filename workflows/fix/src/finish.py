@@ -96,9 +96,9 @@ def _diff(place, repo) -> dict:
 
 def _frozen(place) -> pathlib.Path | None:
     """輪ごとの凍ったテストのファイルの hash {loops: [{state, frozen, frozen_tree}]}（輪が無ければ書かない）"""
-    from src import board, tdd
+    from src import board, common
     loops = []
-    for state in tdd.states(place):
+    for state in common.states(place):
         doc = board.read_json(state, {}) or {}
         loops.append({"state": str(state), "frozen": doc.get("frozen") or {}, "frozen_tree": doc.get("frozen_tree") or ""})
     if not loops:
@@ -118,9 +118,9 @@ def _scope(place) -> pathlib.Path | None:
 def _tdd_refused(place) -> dict:
     """TDD の輪の状態の calls から修正役が拒まれた単位と、在るのに読めない状態の訳（今の fixbeside.tdd_refused）"""
     import oneline
-    from src import tdd
+    from src import common, tdd
     refused, unread = [], []
-    for state in tdd.states(place):
+    for state in common.states(place):
         try:
             doc = json.loads(state.read_text(encoding="utf-8"))
         except (OSError, ValueError) as e:

@@ -2,7 +2,7 @@
 # 走り、AI の役の返答だけを差し替える）。TDD のループは回らず、修正役が 1 回起き、受け付けが拒んでも筋書きは completed
 fixture:
   expect: completed
-  reached: [intake, group-start, tdd-go, fix-prep, fixer, consult-check, consult-accept, fix-accept, group-end, fix-reads, finish]
+  reached: [intake, group-start, route-go, orders, fix-prep, fixer, consult-check, consult-accept, fix-accept, group-end, fix-reads, finish]
   inputs:
     mode: group
     group: '{"group_id":"g1","unit_ids":["stats.py:4 mean"],"items":[]}'

@@ -2,7 +2,7 @@
 # go を立て、答えの役（読むだけ）が修正案の md から組んだ指示で起きる
 fixture:
   expect: completed
-  reached: [intake, group-start, tdd-go, fix-prep, fixer, consult-check, consult-answer, consult-accept, fix-accept, group-end, finish]
+  reached: [intake, group-start, route-go, orders, fix-prep, fixer, consult-check, consult-answer, consult-accept, fix-accept, group-end, finish]
   inputs:
     mode: group
     group: '{"group_id":"g1","unit_ids":["stats.py:4 mean"],"items":[1]}'
