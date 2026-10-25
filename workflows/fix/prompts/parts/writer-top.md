@@ -53,12 +53,6 @@ The acceptance checks the tests you added, the existing tests whose bodies you c
 <!-- if frozen_files -->
 - Rewriting a frozen test file outside the names and ranges above is rejected. The functions of new tests you only added do not count as frozen; they are checked against "足してよい新しいテスト" above.
 <!-- end frozen_files -->
-<!-- if frozen_verified -->
-- Do not change the names under "ループが書き換えて凍らせた名指し" any more, even if they are in the names above.
-<!-- end frozen_verified -->
-<!-- if frozen_unruled -->
-- The ranges of rulings `fix_test_scope` do not lift the freeze in this round: rewriting a file under "今の段の TDD のループが凍らせたファイル" outside the names above and the ranges of scope consultations is rejected.
-<!-- end frozen_unruled -->
 <!-- if tests_tail -->
 - Changing or removing the body of any other existing test function is rejected.
 <!-- end tests_tail -->

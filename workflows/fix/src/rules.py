@@ -255,11 +255,6 @@ def tests_rows(got, edits: dict, frozen=None) -> str:
     files = (frozen or {}).get("files") or []
     if files:
         lines.append(f"- 凍ったテストのファイル（TDD のループが緑にした単位のテスト）: {_paths_line(files)}")
-        if verified:
-            lines.append(f"  - ループが書き換えて凍らせた名指し: {_paths_line(verified)}")
-        unruled = frozen.get("unruled") or []
-        if unruled:
-            lines.append(f"  - 今の段の TDD のループが凍らせたファイル: {_paths_line(unruled)}")
     return "\n".join(lines)
 
 

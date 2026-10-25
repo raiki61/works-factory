@@ -107,10 +107,11 @@ def writer_values(place, repo, pass_: str, weapon: str, values: dict, *, owed, i
         raise Broken(str(e)) from None
     ledger = writers.ledger(place, pass_, weapon)
     slots = ("rejection rulings_file saved_reply brief_rows faces_rows scope_rows tests_rows tests_how policy_path request_file "
-             "judgment_file open_units plan_file summary_file notes_file budget draft check_cmd ripple_file libdocs_rows g1_items "
+             "judgment_file open_units plan_file notes_file budget draft check_cmd ripple_file libdocs_rows g1_items "
              "seat_file seat_body unattended overlay_file first_prompt answer_file left lang").split()
+    slots += ["summary_file"] if weapon == "tdd" else []   # 輪の要約を読むのは tdd の閉じの書き手だけ（付録 A の F26 の前半）
     vals = {k: "" for k in slots}
-    when = {k: False for k in ("rejected rulings_first ruled_reply briefs faces scope tests tests_new tests_tail tests_broken frozen_files frozen_verified frozen_unruled tests_how rules ask ask_ripple libdocs g1 "
+    when = {k: False for k in ("rejected rulings_first ruled_reply briefs faces scope tests tests_new tests_tail tests_broken frozen_files tests_how rules ask ask_ripple libdocs g1 "
                                "seat_one resume queued overflow_answer conflict docs prompts_kind config code evidence where_fixer where_tdd where_rework "
                                "ask_variant rules_change rules_sites rules_red conflict_change").split()}
     when["conflict"] = True
@@ -161,11 +162,9 @@ def writer_values(place, repo, pass_: str, weapon: str, values: dict, *, owed, i
     when["tests_new"] = got_scope is not None
     when["tests_broken"] = bool(edits.get("broken"))
     when["frozen_files"] = bool((frozen or {}).get("files"))
-    when["frozen_verified"] = bool(when["frozen_files"] and (frozen or {}).get("verified"))
-    when["frozen_unruled"] = bool(when["frozen_files"] and (frozen or {}).get("unruled"))
     vals["tests_how"] = board.tests_how_text(place)
     when["tests_how"] = bool(vals["tests_how"])
-    for key in ("judgment_file", "open_units", "plan_file", "summary_file", "notes_file"):
+    for key in ("judgment_file", "open_units", "plan_file", "notes_file", *(["summary_file"] if weapon == "tdd" else [])):
         vals[key] = shown(values.get(key))
     config = rules.ask_config(place, repo, values, pass_, items=items)
     if config:

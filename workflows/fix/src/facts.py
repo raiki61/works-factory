@@ -7,7 +7,7 @@ TDD の輪の状態 tdd-<k>/ を置く所）。返答の番号を名前に戻す
 - fix_unit_keys(reply, board, owed, ...): 返答の changes の単位の名前と直す義務（fixboard.fix_duty）（手順 0）
 - check_writes: 書き込みの出どころ（-2）。log は書き込みの記録（既定は置き場の writelog.LOG）、skip は除くパスの頭
 - check_frozen: TDD の輪で凍ったテストのファイル（1b）。agreed は範囲の相談の合意の行（None は置き場の trace。conflict.agreed）
-- frozen_tests(board, state, pass_): 凍ったテストのファイルと、輪が確かめた書き換えの名指しと、裁定の範囲で凍結が解けない今の輪のファイル
+- frozen_tests(board, state, pass_): 凍ったテストのファイルと、輪が確かめた書き換えの名指し
   （check_frozen と修正役の指示書が同じ値を引く）
 - check_plan_scope: 承認済みの修正案の範囲（1d）。agreed は同じ。items は承認済みの修正案の項目（planmarks.approved_items の
   形の値か口。None は照らさない）。ask は拒否の頭で相談を先の道に言うか（None は consult_place の相談の控えで決める）
@@ -151,12 +151,10 @@ def _now_rulings(pass_: str) -> bool:
 def frozen_tests(board, state, pass_: str) -> dict:
     """修正役の指示書の「テストの行」（fix の rules.tests_rows）に貼る凍ったテスト {files: run の全部の輪が凍らせたテストのファイル（_loop_freeze。
     check_plan_scope と同じ和で、凍結の照らし common.frozen_problems が輪ごとに読む frozen の和と一致する）, verified: check_frozen
-    が許しから外すのと同じ名指し（_verified）, unruled: 事後の関門が裁定の範囲を許す（conflict.edit_rulings）のに、check_frozen が
-    その範囲で凍結を解かない今の輪（state）の凍ったファイル（2 回目の修正の段の first）}"""
+    が許しから外すのと同じ名指し（_verified。書き換えてよい名指しの行から外す）}。輪が書き換えて凍らせた名指しと、裁定の範囲で凍結が
+    解けない今の輪のファイルは、指示書に貼らず check_frozen が拒む（付録 A の F12・F13。PR B で書き手の指示から消した）"""
     loops = _loop_states(board, state)
-    unruled = bool(state) and conflict.edit_rulings(board, pass_) and not _now_rulings(pass_)
-    return {"files": _loop_freeze(board, state)[1], "verified": _verified(loops),
-            "unruled": sorted(common.load_state(state).get("frozen") or {}) if unruled else []}
+    return {"files": _loop_freeze(board, state)[1], "verified": _verified(loops)}
 
 
 def check_plan_scope(reply: dict, keys: list, board: Path, base_rev: str, repo: Path, state: str, pass_: str,
