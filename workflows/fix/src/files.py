@@ -50,6 +50,7 @@ BASES_DIR = "bases"            # ほかの組・前の段から写した元の�
 RETURNS_DIR = "returns"        # 共通の受け付けが通した返しの控え returns/<k>.json
 ORDERS_DIR = "orders"          # 型ごとの注文 orders/<weapon>.json（組の子の頭の orders と裁定の後の段の注文を書く役が書く）
 ORDERS_FILE = "orders.json"    # 注文の索引 {sequence, weapons, stage, since, agreed, unsatisfied[, pass]}
+WRITER_FILE = "writer.json"    # 今回している型の書き手 {pass, weapon, done}（src/writers.py。外の輪の頭が書き、受け付けが done を積む）
 
 # この block の出力の先（finish が書く）
 FROZEN_FILE = "frozen.json"        # 輪ごとの凍ったテストのファイルの hash {loops: [{state, frozen, frozen_tree}]}（出力 frozen）
@@ -63,5 +64,8 @@ PROMPT_ERROR = "prompt-error.json"   # 指示が組めなかった node と訳
 COLLECT_ERROR = "fix-collect-error.txt"   # finish の中の誤り
 CONFLICTS_DROPPED = "conflicts-dropped.json"
 TDD_DELIVERED = "tdd-delivered.json"         # TDD の役に渡した証拠の種類と回の控え（今の tdd-<k>/next.delivered.json の代わり）
-FIXER_DELIVERED = "fixer-delivered.json"     # 修正役に渡した証拠の種類と回の控え（今の prompt-p3.fix.delivered.json）
-RULED_DELIVERED = "fix-ruled-delivered.json"
+
+
+def delivered(node: str) -> str:
+    """型の書き手 node に渡した証拠の種類と回の控えの名（今の fixer-delivered.json を node ごとに）"""
+    return f"{node}-delivered.json"

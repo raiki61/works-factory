@@ -52,6 +52,12 @@ class SuiteFixCase(tg.GroupChildScriptsCase):
     def started(self) -> dict:
         return json.loads((self.place / "tdd-start.json").read_text(encoding="utf-8"))
 
+    def assert_tdd_follows_taken(self, got: dict, want: bool):
+        """retry の返りの tdd（TDD の輪を回すか）は、元の結末が取れた印 base.json の taken と同じ（tdd-start.json の no_suite では決めない）"""
+        path = self.place / "base.json"   # 元の結末が取れなかった組は控えを書かないこともある（無ければ取れていない）
+        base = json.loads(path.read_text(encoding="utf-8")) if path.is_file() else {}
+        self.assertEqual((got["tdd"], bool(base.get("taken"))), (want, want), base)
+
     def broken_start(self, test_cmd: str = "true", made: bool = True) -> dict:
         self.kept(test_cmd).parent.mkdir(parents=True, exist_ok=True)
         self.kept(test_cmd).write_bytes(self.runner.read_bytes())   # 前の run が取り置いた同じ壊れた実行器
@@ -93,6 +99,7 @@ class SuiteFixCase(tg.GroupChildScriptsCase):
         self.assertTrue((self.place / "suite-fix-prompt-1.md").is_file())
         got = self.run_script("suite_fix_try", reply=json.dumps({"made": True, "body": GOOD, "why": ""}))
         self.assertEqual((got["tdd"], got["stop"]), (True, False))
+        self.assert_tdd_follows_taken(got, True)
         self.assertEqual(self.runner.read_text(encoding="utf-8"), GOOD)
         self.assertEqual(self.kept("true").read_text(encoding="utf-8"), GOOD)
         self.assertEqual(self.run_script("route_go"), {"route": True, "stop": False})
@@ -120,6 +127,7 @@ class SuiteFixCase(tg.GroupChildScriptsCase):
         self.broken_start(test_cmd=f"mkdir {once}")   # 1 回目の test_cmd は通り（壊れと見る）、書き直しの後の回は赤
         got = self.run_script("suite_fix_try", reply=json.dumps({"made": True, "body": NO_RESULT, "why": ""}))
         self.assertEqual((got["tdd"], got["stop"]), (False, True), got)
+        self.assert_tdd_follows_taken(got, False)
         self.assertIs(self.started().get("no_suite"), True, self.started())
         self.assertEqual(self.run_script("route_go"), {"route": False, "stop": True})
         self.assertEqual({k: v for k, v in self.run_script("orders").items() if k != "reason"}, {"tdd": False, "writer": False, "stop": True})
@@ -158,8 +166,8 @@ class SuiteFixCase(tg.GroupChildScriptsCase):
         self.assertEqual(NODES["route-loop"]["when"], "$route-go.output.route == true")
         self.assertIn("suite-fix-try", NODES["route-go"]["depends_on"])
         self.assertEqual(NODES["tdd-loop"]["when"], "$orders.output.tdd == true")
-        self.assertEqual(NODES["fix-loop"]["when"], "$orders.output.writer == true && $orders.output.stop == false")
-        self.assertIn("orders", NODES["fix-loop"]["depends_on"])
+        self.assertEqual(NODES["writers-loop"]["when"], "$orders.output.writer == true && $orders.output.stop == false")
+        self.assertIn("orders", NODES["writers-loop"]["depends_on"])
         self.assertIn("route-loop", NODES["orders"]["depends_on"])
         self.assertEqual(NODES["suite-fix-try"]["trigger_rule"], "none_failed_min_one_success")
         self.assertEqual(NODES["suite-fix-try"]["when"], "$group-start.output.suite_broken == true",

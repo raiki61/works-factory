@@ -1,0 +1,139 @@
+"""型ごとの書き手を 1 つずつ順に回す口（docs/plans/2026-10-25-fix-weapons-stage1-b.md の 1。node writer-pick・ruled-writer-pick と、
+修正の輪の fix-prep・fix-accept・fix-ruled-prep・fix-ruled-accept・consult-check が読む）。
+
+外の輪の 1 周が型 1 つ。writer-pick が注文の在る型を SEQUENCE の順に選んで置き場の writer.json に書き、その型の段の頭（段の頭の木・
+除くパスの姿・注文の since）を控え直す。内の輪の受け付けが done を返した型を done に積む。型ごとの状態（拒否の控えと回の数え・
+渡した証拠の控え）の名は、ここの accept_name・ledger が型の名から引く。
+
+- pick(place, repo, pass_) -> {go, writer, done}
+- current(place) -> 今の型の名（選んでいなければ ""）
+- node(pass_, weapon) -> 型の書き手の node の名
+- owed(place, keys) -> keys のうち今の型の注文の単位（並びは keys のまま）
+- accept_name(pass_, weapon)・ledger(place, pass_, weapon)
+- finished(place, weapon): 受け付けが型を済ませた印を積む
+- reply_of(environ, pass_) -> 書き手の返りの字（起きた書き手の 1 つ。どれも起きていなければ None）
+"""
+from __future__ import annotations
+
+import pathlib
+
+import conflict   # lib/
+import groups     # lib/
+import jsonfile   # lib/
+
+from src import board, files, orders, rules
+
+SEQUENCE = {"first": ("tdd", "pin", "tidy", "static", "variant", "remove"),
+            "ruled": ("pin", "tidy", "static", "variant", "remove")}   # 型を回す順（tdd の輪の後。残りは箱の順。下書き 4.1 の 3）
+ACCEPT = {"first": "fix-accept", "ruled": "fix-ruled-accept"}
+
+
+def node(pass_: str, weapon: str) -> str:
+    """型 weapon の書き手の node の名（1 回目の段の tdd は輪の閉じの書き手 tdd-close、裁定の後の段は <型>-ruled）"""
+    if weapon not in SEQUENCE[pass_]:
+        raise ValueError(f"段 {pass_} に型 {weapon!r} の書き手は無い")
+    if pass_ == "ruled":
+        return f"{weapon}-ruled"
+    return "tdd-close" if weapon == "tdd" else weapon
+
+
+def nodes(pass_: str) -> list:
+    return [node(pass_, w) for w in SEQUENCE[pass_]]
+
+
+def accept_name(pass_: str, weapon: str) -> str:
+    """型ごとの受け付けの名（拒否の控え rejects-<名>.json と回の数え。型が替われば 1 回目から数える）"""
+    return f"{ACCEPT[pass_]}-{weapon}"
+
+
+def ledger(place, pass_: str, weapon: str) -> pathlib.Path:
+    """型の書き手に渡した証拠の種類と回の控え（node ごと）"""
+    return pathlib.Path(place) / files.delivered(node(pass_, weapon))
+
+
+def _state(place) -> dict:
+    doc = jsonfile.read_or(pathlib.Path(place) / files.WRITER_FILE)
+    return doc if isinstance(doc, dict) else {}
+
+
+FALLBACK = "variant"   # 注文の無い置き場（注文を書く段を通らない置き場）で直す義務の全部を受ける型（route から型を引く表の 5 と同じ行き先）
+
+
+def current(place) -> str:
+    """今の型の名。外の輪の頭が選んでいなければ ""。注文の無い置き場（注文を書く段 orders・write_ruled を通らずに修正の輪を回す置き場）は
+    FALLBACK（直す義務の全部を受ける）"""
+    got = str(_state(place).get("weapon") or "")
+    if got:
+        return got
+    return "" if orders.order_docs(place) else FALLBACK
+
+
+def _pending(place, pass_: str) -> list:
+    """注文の在る型のうち済んでいない物（SEQUENCE の順）"""
+    docs = orders.order_docs(place)
+    done = set(_state(place).get("done") or [])
+    if not docs:   # 注文の無い置き場: 直す義務の全部を FALLBACK の書き手が受ける
+        return [] if FALLBACK in done else [FALLBACK]
+    return [w for w in SEQUENCE[pass_] if w in docs and docs[w].get("units") and w not in done]
+
+
+def ruled_due(place) -> bool:
+    """裁定の後の段で直す裁定が在るか（1 回目の段の裁定〔2 回目の段が写した行〕と組どうしの合わせの申し出は除く）"""
+    return bool([r for r in conflict.ruled_fix(place) if not r.get(conflict.PRIOR) and r.get("source") != conflict.JOIN_SOURCE])
+
+
+def pick(place, repo, pass_: str, skip=()) -> dict:
+    """外の輪の頭: 次に回す型を選んで writer.json に書き、型の段の頭を控え直す。回す型が無ければ go: false"""
+    place, repo = pathlib.Path(place), pathlib.Path(repo)
+    if pass_ == "first":
+        orders.regive(place)   # tdd の輪が諦めた単位を variant の注文に書き直す（何度呼んでも同じ）
+        if board.no_suite_stop(place):   # 組が no-suite で止まった: 残りの型を回さない
+            return {"go": False, "writer": "", "done": True}
+    else:
+        if not ruled_due(place):
+            return {"go": False, "writer": "", "done": True}
+        if not orders.is_ruled(place):
+            head = place / rules.head_file("ruled")
+            board.write_json(head, {"tree": groups.end_tree(repo)})
+            orders.write_ruled(place, board.ruled_owed(place), since=board.fixer_head(place, "ruled"))
+    pending = _pending(place, pass_)
+    if not pending:
+        return {"go": False, "writer": "", "done": True}
+    weapon = pending[0]
+    st = _state(place)
+    if st.get("weapon") != weapon or st.get("pass") != pass_:
+        board.record_skipped(place, repo, skip)   # 印より先に（落ちて回し直した支度が控えを飛ばさない）
+        tree = groups.end_tree(repo)
+        board.write_json(place / rules.head_file(pass_), {"tree": tree})
+        orders.restart(place, weapon, since=tree)
+        jsonfile.write(place / files.WRITER_FILE, {"pass": pass_, "weapon": weapon, "done": list(st.get("done") or [])})
+    return {"go": True, "writer": node(pass_, weapon), "done": len(pending) == 1}
+
+
+def owed(place, keys) -> list:
+    """keys（組か段の直す義務の単位）のうち今の型の注文の単位"""
+    w = current(place)
+    docs = orders.order_docs(place)
+    if not docs and w == FALLBACK:
+        return list(keys)
+    doc = docs.get(w) or {}
+    mine = {str(u.get("key")) for u in doc.get("units") or [] if isinstance(u, dict)}
+    return [k for k in keys if k in mine]
+
+
+def finished(place, weapon: str) -> None:
+    st = _state(place)
+    done = [*(st.get("done") or [])]
+    if weapon and weapon not in done:
+        done.append(weapon)
+    jsonfile.write(pathlib.Path(place) / files.WRITER_FILE, {**st, "done": done})
+
+
+def reply_of(environ, pass_: str, skipped):
+    """書き手の返りの字（with: の reply_<型> のうち起きた物 1 つ。skipped は飛んだ節の値を見分ける口〔埋め skip_value の value が None〕。
+    どれも起きていなければ None）"""
+    for w in SEQUENCE[pass_]:
+        raw = environ.get(f"INPUTS_REPLY_{w.upper()}" if pass_ == "ruled" or w != "tdd" else "INPUTS_REPLY_TDD_CLOSE")
+        if raw is not None and not skipped(raw):
+            return raw
+    return None

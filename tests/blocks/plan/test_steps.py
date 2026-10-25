@@ -995,12 +995,12 @@ class FilesCase(PlaceCase):
 
     def test_crash_finish_fills_pointers_and_keeps_a_kept_plan(self):
         files.write_json(self.place / files.CURRENT_ROUND, {"round": 2})
-        files.write_json(self.place / "r2" / files.FIELDS, {"round": 2, "fields": [{"allowed_paths": ["stats.py"]}]})
+        files.write_json(self.place / "r2" / files.FIELDS, {"round": 2, "fields": [{"allowed_paths": ["stats.py"], "out_of_scope": []}]})
         got = files.crash_finish(self.place, "出口が落ちた")
         self.assertEqual((got["ok"], got["status"], got["round"], got["reason"]), (False, "failed", 2, "出口が落ちた"))
         self.assertEqual(got["plan"], {"type": ports.POINTER_TYPE, "run_id": kit.RUN_ID, "path": "r2/plan-fields.json"})
         self.assertEqual(got["ripple"]["path"], "r2/ripple.json")
-        self.assertEqual(self.read(self.place / "r2" / files.FIELDS)["fields"], [{"allowed_paths": ["stats.py"]}], "在って空でない控えは上書きしない")
+        self.assertEqual(self.read(self.place / "r2" / files.FIELDS)["fields"], [{"allowed_paths": ["stats.py"], "out_of_scope": []}], "在って空でない控えは上書きしない")
 
     def test_crash_finish_does_not_raise_on_an_off_shape_file(self):
         """落ちない出口: 形の外れた控え（出口が落ちた訳そのものになりうる）を指す時に形の照らしで投げ直さず、「無い」を表す形に

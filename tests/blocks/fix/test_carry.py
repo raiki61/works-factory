@@ -29,7 +29,7 @@ FIRST, SECOND = "line__fix", "line__refix-run"
 JUDGMENT = {"units": [{"key": "A", "label": "block"}, {"key": "B", "label": "block"},
                       {"key": "C", "label": "suggest", "disposition": "do-now"}, {"key": "D", "label": "suggest"}],
             "questions": []}
-PLAN = {"round": 1, "fields": [{}, {}]}
+PLAN = {"round": 1, "fields": [{"allowed_paths": ["**"], "out_of_scope": []}, {"allowed_paths": ["**"], "out_of_scope": []}]}
 FIX_PLAN = {"plan": [{"unit_keys": ["A", "B"]}, {"unit_keys": ["C"]}]}
 # 今の FixLoopPlace の判定と申し出の行（tests/workflows/test_fix.py の _FX_*）
 MEAN, BOUND = "u-mean", "u-bound"
@@ -300,7 +300,7 @@ class RefixCase(StagesCase):
         path = self.repo / "test_stats.py"
         path.write_text(path.read_text(encoding="utf-8").replace("mean([1, 2, 3]), 2", "mean([2, 4]), 3"), encoding="utf-8")
         reply = {"changes": [_change(MEAN, ["stats.py", "test_stats.py"])]}
-        out = twin.script("fix_accept", reply=_j(reply), consulted="false")
+        out = twin.script("fix_accept", reply_variant=_j(reply), consulted="false")
         self.assertEqual((out["ok"], out["done"]), (True, True), out)
 
     def test_first_pass_rulings_are_not_fixed_again(self):

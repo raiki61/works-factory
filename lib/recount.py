@@ -348,13 +348,14 @@ def recount_problems(reply: dict, place, base_rev: str, repo, *, judged=None, ow
 
 
 def accept_fix(reply: dict, place, base_rev: str, repo, *, judged=None, owed=None, zero_keys=(), precedents=(),
-               round_: int = 1, commit: bool = True, red_units=None) -> dict:
+               round_: int = 1, commit: bool = True, red_units=None, merge: bool = False) -> dict:
     """受け付けの時の数え直し（recount_problems）を当て、結果に 1 本目の出口のための changes（[{unit_key, files, what}]。返答の
     changes[] から写す）を足す。拒否のときの changes は空（1 本目と同じ）、誤りの行は problems に並べ、reason は見出しと行。
     通れば数え直した件数を置き場 place の coverage-after.json（{"round", "items"}）に書く。
     commit が偽なら乾いた照らし（置き場に件数を書かない。数えた量と版の答えの取り置きは刻む）で、返りに dry: True と changes: []。
     元 works/.shared/core/recount.py:115（盤面の entry.take(board, "p3.fix", …) に渡し、写しの fix_covers_open_units が
-    盤面の判定と state.inputs.review_rev を読んで数え直した所を、引数の判定 judged・直す義務 owed・修正前の版 base_rev で受ける）。red_units は赤を見ない clean の照らしを当てる単位（_after_problems。None は全部）"""
+    盤面の判定と state.inputs.review_rev を読んで数え直した所を、引数の判定 judged・直す義務 owed・修正前の版 base_rev で受ける）。red_units は赤を見ない clean の照らしを当てる単位（_after_problems。None は全部）。
+    merge が真なら、同じ周の前の件数のうち今の返答に無い単位の行を残して重ねる（書き手を 1 つずつ順に回す受け付け）"""
     if not isinstance(reply, dict) or not isinstance(reply.get("changes", []), list):
         return {"ok": False, "reason": "修正の返答に changes の並びが無い", "problems": ["修正の返答に changes の並びが無い"],
                 "changes": [], **({"dry": True} if not commit else {})}
@@ -367,6 +368,14 @@ def accept_fix(reply: dict, place, base_rev: str, repo, *, judged=None, owed=Non
         return {"ok": True, "dry": True, "problems": [], "changes": []}
     path = pathlib.Path(place) / COVERAGE_FILE
     path.parent.mkdir(parents=True, exist_ok=True)
+    if merge:
+        try:
+            prev = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            prev = {}
+        if isinstance(prev, dict) and prev.get("round") == round_:
+            now = {a.get("unit_key") for a in afters}
+            afters = [a for a in prev.get("items") or [] if isinstance(a, dict) and a.get("unit_key") not in now] + afters
     tmp = path.with_name(path.name + ".tmp")
     tmp.write_text(json.dumps({"round": round_, "items": afters}, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
     os.replace(tmp, path)

@@ -11,7 +11,7 @@
           "between": {"type": "array", "items": {"type": "string"}},
           "why_both_cannot_hold": {"type": "string"},
           "which_is_right": {"type": "string", "enum": ["request", "test", "code", "unknown", "query"]},
-          "kind": {"type": ["string", "null"], "enum": ["brief_vs_judgment", "unnamed_test_broke", "not_red", "scope_needed", "query_hits_fixed", "needs_context", null]},
+          "kind": {"type": ["string", "null"], "enum": ["brief_vs_judgment", "unnamed_test_broke", "not_red", "scope_needed", "query_hits_fixed", "needs_context", "red_at_base", null]},
           "correct_lines": {"type": "array", "items": {"type": "string"}}
         }
       }

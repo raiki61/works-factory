@@ -119,7 +119,7 @@ class NoSuiteGroupCase(tg.GroupChildScriptsCase):
         self.run_script("join", art=self.parent)
         stats = self.repo / "stats.py"
         stats.write_text(stats.read_text(encoding="utf-8").replace("(len(xs) - 1)", "len(xs)") + "# NOXML\n", encoding="utf-8")
-        out = self.run_script("fix_ruled_accept", art=self.parent, reply=json.dumps({"changes": [tg._change(tg.MEAN, ["stats.py"])]}),
+        out = self.run_script("fix_ruled_accept", art=self.parent, reply_variant=json.dumps({"changes": [tg._change(tg.MEAN, ["stats.py"])]}),
                               consulted="false", iteration="1")
         self.assertEqual((out["ok"], out["done"]), (False, True), out)
         self.assertIn("実行器が結末を返さない", out["reason"])
@@ -178,7 +178,7 @@ class AcceptStopCase(unittest.TestCase):
         from graphloops.engine import declared
         self.based(no_tests=False, test_list={"status": basecase.ABSENT, "why": "list の鍵が無い"})
         reason = f"受け付けが拒んだ\n  - setup.cfg: {pin.KEPT_CONFIG}\n  - stats.py: ほかの拒否"
-        rolekit.rejects_path(self.place, "fix-accept").write_text(json.dumps([{"at": 1, "reason": reason}]), encoding="utf-8")
+        rolekit.rejects_path(self.place, "fix-accept-variant").write_text(json.dumps([{"at": 1, "reason": reason}]), encoding="utf-8")
         got = board.no_suite_at_accept(self.place, self.seen)
         self.assertIn("一覧で決まらない", got)
         self.assertIn("list の鍵が無い", got)

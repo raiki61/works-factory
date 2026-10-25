@@ -1348,12 +1348,13 @@ def pasted_line(text: str, head: str) -> set:
     return set(re.findall(r"`([^`]+)`", re.split(r"）?: ", line, maxsplit=1)[1]))
 
 
-class TestPastedVerifiedRewrite(ContractCase):
-    """#603: 輪が赤→緑を確かめた書き換えは、指示書の「本体を変えてよい名指し」から外れ「もう変えるな」の行に在り、凍ったテストの確かめ
-    （facts.check_frozen）がその変更を拒む。貼る値と拒む値は facts.frozen_tests の verified（check_frozen と同じ _verified）"""
+class TestVerifiedRewriteLeftOut(ContractCase):
+    """#603: 輪が赤→緑を確かめた書き換えは、指示書の「本体を変えてよい名指し」から外れ、凍ったテストの確かめ（facts.check_frozen）が
+    その変更を拒む。外す値と拒む値は facts.frozen_tests の verified（check_frozen と同じ _verified）。「もう変えるな」の行は書き手の
+    指示から消した（付録 A の F12。代わりは check_frozen の拒否）"""
     CONTRACT = TestPlanRewrites.CONTRACT
 
-    def test_verified_rewrite_is_pasted_as_frozen_and_rejected(self):
+    def test_verified_rewrite_is_left_out_and_rejected(self):
         import planmarks
         import planrange
         self.route(mean="direct", clamp="tdd")
@@ -1373,17 +1374,17 @@ class TestPastedVerifiedRewrite(ContractCase):
         self.assertIn(REWRITE, edits["tests"], "事後の関門は id で許す")
         text = rules.tests_rows(None, edits, facts.frozen_tests(self.board, self.state, "first"))
         self.assertNotIn(REWRITE, pasted_line(text, "- 本体を変えてよい既存のテストの名指し"))
-        self.assertEqual(pasted_line(text, "- ループが書き換えて凍らせた名指し"), {REWRITE})
+        self.assertNotIn("ループが書き換えて凍らせた名指し", text)
         self.assertEqual(facts.check_frozen(self.board, self.state, self.repo, "first"), [])
         self.edit("test_stats.py", "clamp(99, 0, 10), 10)", "clamp(98, 0, 10), 10)")
         got = facts.check_frozen(self.board, self.state, self.repo, "first")
         self.assertTrue(got and "test_stats.py" in got[0], got)
 
 
-class TestPastedUnruledFrozen(LoopCase):
+class TestUnruledFrozen(LoopCase):
     """#603: 2 回目の修正の段（conflict.second_pass）の first では、事後の関門は裁定 fix_test_scope の範囲を許す（conflict.edit_rulings）が、
-    凍ったテストの確かめは今の輪の凍ったファイルを裁定の範囲で解かない。指示書はそのファイルを字のまま貼り、段 ruled では貼らない。
-    貼る側（facts.frozen_tests の unruled）と拒む側（check_frozen）の片方だけ変えれば赤"""
+    凍ったテストの確かめは今の輪の凍ったファイルを裁定の範囲で解かない（段 ruled では解く）。そのファイルを指示書に貼る行は書き手の
+    指示から消した（付録 A の F13。代わりは check_frozen の拒否）ので、どちらの段でも貼らない"""
 
     def test_unruled_files_are_what_check_frozen_keeps_frozen_under_rulings(self):
         import planrange
@@ -1403,14 +1404,8 @@ class TestPastedUnruledFrozen(LoopCase):
             with self.subTest(pass_=pass_):
                 edits = conflict.edit_permits(self.board, pass_)
                 self.assertIn("test_stats.py", edits["limits"], "事後の関門は裁定の範囲を許す")
-                got = facts.frozen_tests(self.board, self.state, pass_)
-                self.assertEqual(got["unruled"], ["test_stats.py"] if frozen else [])
-                text = rules.tests_rows(None, edits, got)
-                head = "- 今の段の TDD のループが凍らせたファイル"
-                if frozen:
-                    self.assertEqual(pasted_line(text, head), {"test_stats.py"})
-                else:
-                    self.assertNotIn(head, text)
+                text = rules.tests_rows(None, edits, facts.frozen_tests(self.board, self.state, pass_))
+                self.assertNotIn("今の段の TDD のループが凍らせたファイル", text)
                 problems = facts.check_frozen(self.board, self.state, self.repo, pass_)
                 self.assertEqual(bool(problems), frozen, problems)
 
