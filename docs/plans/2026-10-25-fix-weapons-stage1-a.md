@@ -92,4 +92,4 @@ B とした物の行き先は 6 節。
 - 守れない依存 `unsatisfied` を報告に出す（5 節の「後に回した nit」の行）: 段 2。訳: PR B は型を順に回す並びを入れたが、依存の辺で並べ替えず（`docs/plans/2026-10-25-fix-weapons-stage1-b.md` の 1 節の 2）、守れない対は今も索引 `orders.json` に名で残る。報告の節は段 2 で組の結果の形と一緒に足す。
 - 注文の形の欄 `run`・`asks_answered`・`orders.<weapon>`（`workflows/fix/schemas/weapon-order.schema.json` の description。3 節の最後から 2 つ目の段落）: 段 2。訳: 中身を決める書き手の指示は PR B で入ったが、PR B はこの 3 欄を書かせていない。段 2 で注文が型の block の port になる時に、形と書き手を一緒に足す。
 
-上の 8 項目は、段 2 の設計（下書きの 11 章）にまだ置き場が無い。窓口が設計の部署へ、11 章に置き場を足す頼みを出した（PR #874 のレビューの残った疑問から）。
+上の 8 項目の置き場は、段 2 の設計の下書き `docs/plans/2026-10-24-fix-weapons.md` の 11.12（第 13 版。設計の部署の枝 `work/design-seat` の commit dafa015f）が決める。項目ごとの置き場（F1・F2・F3・E1 の `orders.tdd`、`na` は持ち主に聞く）と訳は 11.12 を見る。
