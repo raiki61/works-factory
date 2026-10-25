@@ -208,6 +208,8 @@ class WeaponDutiesCase(unittest.TestCase):
         self.assertTrue(static.why_untested({**f, "why_untested": ""}))
         self.assertTrue(static.kinds_allowed({**f, "kinds": {"code"}, "kind_by_path": {"a.py": "code"}}))
         self.assertTrue(static.kinds_allowed({**f, "kind_by_path": {"a.weird": None}}))
+        self.assertIn(static.NO_ALLOWED.format(kinds=["docs"]), static.kinds_allowed({**f, "allowed_kinds": []}),
+                      "計画から種類が引けない時は素通りさせない")
         self.assertTrue(static.no_test_edits({**f, "test_files": ["test_a.py"]}))
 
     def test_pin_tests_only_and_the_config_exception(self):
@@ -299,12 +301,16 @@ class AcceptTableCase(unittest.TestCase):
             self.put(f"orders/{w}.json", {"weapon": w, "group": "g1", "stage": 1, "permits": [], **doc})
 
     def test_static_unit_is_checked_by_its_duties(self):
-        """static の単位: 訳が無い・試験のファイルを変えた返答を拒み、文書だけを訳つきで変えた返答は通す"""
+        """static の単位: 訳が無い・試験のファイルを変えた返答を拒み、文書だけを訳つきで変えた返答は通す（変えてよい種類は計画の項目の
+        files から引く）"""
+        import planmarks
+        planmarks.save(self.place, 1, [{"unit_keys": ["S"], "route": "static", "route_why": "文書の言い回しだけを直す", "tests": [],
+                                        "files": [{"path": "docs/a.md"}]}])
         self.ordered({"S": "static"}, {"static": {"units": [{"key": "S", "removes": [], "tests": []}]}})
         (self.repo / "test_stats.py").write_text("def test_mean():\n    assert 1\n", encoding="utf-8")
         reply = {"changes": [{"unit_key": "S", "files": ["docs/a.md", "test_stats.py"]}]}
         got = self.duties.accept_problems(self.place, self.repo, self.rev, reply)
-        self.assertEqual([k for k, _ in got], ["S", "S"], got)
+        self.assertEqual({k for k, _ in got}, {"S"}, got)
         self.assertTrue(any("why_untested" in t for _, t in got) and any("試験のファイル" in t for _, t in got), got)
         self.ordered({"S": "static"}, {"static": {"units": [{"key": "S", "removes": [], "tests": []}], "why_untested": "文書の言い回し"}})
         self.assertEqual(self.duties.accept_problems(self.place, self.repo, self.rev,

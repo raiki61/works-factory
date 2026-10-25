@@ -16,11 +16,17 @@ def why_untested(f: dict) -> list:
     return [] if str(f.get("why_untested") or "").strip() else ["注文に試験を求めない訳（why_untested。計画の route_why）が無い"]
 
 
+NO_ALLOWED = "計画の項目の files から変えてよい種類が引けない（パスの種類が分からないか、計画の控えが読めない）のに、差分の種類 {kinds} を変えた"
+
+
 def kinds_allowed(f: dict) -> list:
+    """差分の種類が計画の項目の files の種類の中か。計画から種類が引けない時は素通りさせず拒む（何でも通さない）"""
     allowed = set(f.get("allowed_kinds") or [])
-    bad = sorted(k for k in f.get("kinds") or [] if k is not None and allowed and k not in allowed)
+    kinds = sorted(k for k in f.get("kinds") or [] if k is not None)
+    bad = [k for k in kinds if k not in allowed]
     unknown = [p for p, k in (f.get("kind_by_path") or {}).items() if k is None]
-    out = [f"差分の種類 {bad} が、計画の項目の files の種類 {sorted(allowed)} の外"] if bad else []
+    out = [NO_ALLOWED.format(kinds=kinds)] if kinds and not allowed else \
+        ([f"差分の種類 {bad} が、計画の項目の files の種類 {sorted(allowed)} の外"] if bad else [])
     return out + ([f"種類の分からないファイル {unknown[:10]} を変えた（試験の要らない直しの型は種類の分かる物だけを変える）"] if unknown else [])
 
 
