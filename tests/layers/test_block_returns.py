@@ -554,6 +554,37 @@ class ShapesTest(unittest.TestCase):
                 self.assertIn("bin/_lib/reads.py:2: RETURN_READS の ", got[0])
                 self.assertIn(want, got[0])
 
+    READ_SHAPE = ('{"type": "object", "required": ["units"], "properties": {"ready": {"type": "boolean"}, '
+                  '"units": {"type": ["object", "null"], "required": ["key"], "properties": {"key": {"type": "string"}}}}}')
+
+    def whole_reading(self, fields: str, paths: str = '"units.key", "ready",') -> list[str]:
+        """返す節が fields を返す judge と、その返す値そのものを形 read.schema.json で読む殻の表 RETURN_READS（欄 ""。道の並びは
+        字の定数の名の並び PATHS で書く）の小さな木の赤。paths は PATHS の中の字"""
+        module = ('JUDGE = "works-factory-judge"\nKEY, READY = "units.key", "ready"\n'
+                  f"PATHS = ({paths})\n" 'RETURN_READS = {JUDGE: ("", "json(read.schema.json)", PATHS)}\n')
+        return self.problems({BLOCK: judge_returning(fields), "workflows/judge/schemas/read.schema.json": self.READ_SHAPE,
+                              "bin/_lib/reads.py": module})
+
+    def test_shell_reads_of_the_whole_return_fit_the_declared_return(self):
+        """殻の表 RETURN_READS の欄が "" の行（返す値そのものを読む。bin/_lib/apply.py が result を読む所）は、返す節の output_format
+        （書き手）が form の形（読み手）に合い、読む欄の道はその形に在る。道の並びは字の定数の名の並びで書いてもよい"""
+        good = "units: {type: [object, 'null'], properties: {key: {type: string}}}"
+        self.assertEqual(self.whole_reading(good), [])
+        self.assertEqual(self.whole_reading(good, "KEY, READY"), [])
+        cases = (
+            ("units: {type: [object, 'null'], properties: {name: {type: string}}}", '"units.key",', "が json(read.schema.json) の形に合わない: $.units: 読み手の要る欄 key が書き手の形に無い"),
+            ("placed: {type: [object, 'null'], properties: {key: {type: string}}}", '"units.key",', "が json(read.schema.json) の形に合わない: $: 読み手の要る欄 units が書き手の形に無い"),
+            ("units: {type: [object, 'null'], properties: {key: {type: integer}}}", '"units.key",', "$.units.key: 書き手の型 ['integer'] を読み手の型 ['string'] が受けない"),
+            (good, '"units.name",', "の読む欄 units.name が json(read.schema.json) の形に無い"),
+        )
+        for fields, paths, want in cases:
+            with self.subTest(fields=fields, paths=paths):
+                got = self.whole_reading(fields, paths)
+                self.assertEqual(len(got), 1, got)
+                self.assertIn("bin/_lib/reads.py:", got[0])
+                self.assertIn("RETURN_READS の works-factory-judge の返す値", got[0])
+                self.assertIn(want, got[0])
+
     def test_pointer_field_without_a_form_is_red(self):
         got = self.wired("units: " + POINTER % "置き場のファイル", "file")
         self.assertEqual(len(got), 1, got)

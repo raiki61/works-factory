@@ -1073,7 +1073,9 @@ def _shapes(root: Path) -> list[str]:
        の類は form を呼びの外で選び、字の照らしを抜ける）
     5. 起動の殻（bin/）が Archon の記録から部品の返す値を読む所は、モジュールの頭の表 RETURN_READS（部品 → 返す節の欄・その欄の form・
        指す先の中身から読む欄の道）に書き、表の部品は pack に在り、欄は返す節の output_format に在り、form はその欄の form と字のまま
-       同じで、道はその form の形に在る（#851 の落ちるはずの所の 10 番。殻は workflows/ の外なので 4 の照らしが届かない）"""
+       同じで、道はその form の形に在る（#851 の落ちるはずの所の 10 番。殻は workflows/ の外なので 4 の照らしが届かない）。欄が ""
+       の行は返す値そのものを読む行で、返す節の output_format（書き手）が form の形（読み手）に合い、道はその形に在る（bin/_lib/apply.py
+       がメイングラフと周の鎖の result を読む所）"""
     pack, out = _Pack(root), []
     gate = pack.gate
     returns_name = re.compile(r"\bjsonl?\(%s:" % gate.RETURNS_HEAD)
@@ -1258,7 +1260,7 @@ def _port_reads(pack: "_Pack") -> list[str]:
 
 
 def _module_strings(tree) -> dict:
-    """モジュールの頭の字の定数（`A = "x"`・`A, B = "x", "y"`）の名 → 字"""
+    """モジュールの頭の字の定数（`A = "x"`・`A, B = "x", "y"`）と、字かその名の並び（`P = (A, "y")`）の名 → 値"""
     env = {}
     for node in tree.body:
         if not isinstance(node, ast.Assign) or len(node.targets) != 1:
@@ -1269,11 +1271,16 @@ def _module_strings(tree) -> dict:
         for name, const in pairs:
             if isinstance(name, ast.Name) and isinstance(const, ast.Constant) and isinstance(const.value, str):
                 env[name.id] = const.value
+            elif isinstance(name, ast.Name) and isinstance(const, ast.Tuple):
+                texts = [env.get(e.id) if isinstance(e, ast.Name) else e.value if isinstance(e, ast.Constant) else None
+                         for e in const.elts]
+                if all(isinstance(t, str) for t in texts):
+                    env[name.id] = tuple(texts)
     return env
 
 
 def _literal(node, env: dict):
-    """字の定数の名を env で解いた ast.literal_eval"""
+    """字の定数の名（と字の名の並びの名）を env で解いた ast.literal_eval"""
     if isinstance(node, ast.Name) and node.id in env:
         return env[node.id]
     if isinstance(node, ast.Dict):
@@ -1329,6 +1336,9 @@ def _shell_reads(pack: "_Pack") -> list[str]:
             continue
         for workflow, (field, form, paths) in table.items() if isinstance(table, dict) else ():
             shape, folder = pack.returned(workflow)
+            if field == "":
+                out += _whole_read(pack, where, workflow, shape, folder, form, paths)
+                continue
             got = _field(shape, [field]) if shape is not None else None
             declared = pack.gate.form_of(got.get("description")) if isinstance(got, dict) else None
             if got is None:
@@ -1342,6 +1352,19 @@ def _shell_reads(pack: "_Pack") -> list[str]:
             out += [f"{where}: {SHELL_READS} の {workflow} の読む欄 {path} が {form} の形に無い"
                     for path in paths if named is None or not _path_in(pack, named, folder, path)]
     return out
+
+
+def _whole_read(pack: "_Pack", where: str, workflow: str, shape, folder, form: str, paths) -> list[str]:
+    """RETURN_READS の欄が "" の行（返す値そのものを読む）: 返す節の output_format が form の形に合い、道がその形に在る"""
+    head = f"{where}: {SHELL_READS} の {workflow} の返す値"
+    if shape is None:
+        return [f"{head}: {workflow} の返す節の output_format が無い"]
+    declared = pack.gate.form_of(form)
+    named = pack.shape_of(declared[1], folder) if declared and declared[0] == "json" else None
+    if named is None:
+        return [f"{head}: form {form} が json(<名>) でないか、名の形が読めない"]
+    return ([f"{head}が {form} の形に合わない: {p}" for p in _fits(shape, named, "$")]
+            + [f"{head}の読む欄 {path} が {form} の形に無い" for path in paths if not _path_in(pack, named, folder, path)])
 
 
 def _inputs_read(root: Path) -> list[str]:
