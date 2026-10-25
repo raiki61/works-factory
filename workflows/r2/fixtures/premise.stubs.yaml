@@ -4,7 +4,7 @@ fixture:
   reached: [intake, premise-check-prep, premise-check, premise-check-save, finish]
   inputs:
     purpose: 'ベンチの台で、工場の AI の役の Bash が使う環境を直す'
-    design: '{"question_stands": false, "reason": "既に入っている", "premise_invalid_reason": "compose の main の security_opt に既に在る"}'
+    design: '{"question_stands": false, "reason": "既に入っている", "premise_invalid_reason": "compose の main の security_opt に既に在る", "design": ""}'
   resolved-text-contains:
     premise-check: 'As the judge: R2 returned premise-invalid (the question to solve does not stand).'
 exec-code: true

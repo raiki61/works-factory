@@ -39,7 +39,7 @@ def _request(raw) -> tuple[str, bool]:
     if _blank(raw):
         return "", False
     try:
-        path = ports.file(raw)
+        path = ports.file(raw, "json(shared:request.schema.json)")
         return path.read_text(encoding="utf-8"), True
     except (ValueError, OSError, UnicodeDecodeError):
         return "", False
@@ -47,20 +47,19 @@ def _request(raw) -> tuple[str, bool]:
 
 def _read_ports(raw: dict) -> tuple[dict, list]:
     """port の値と、読めない port の訳の並び（「入力 <名>: <訳>」）"""
-    optional_json = lambda schema, empty: (lambda v: empty if _blank(v) else ports.json(v, schema))   # noqa: E731
     readers = {
         "base": lambda v: ports.text(v).strip(),
         "head": lambda v: ports.text(v).strip(),
         "base_label": lambda v: ports.text(v).strip(),
         "purpose": lambda v: ports.text(v).strip(),
-        "design": optional_json("r2-design.schema.json", None),
+        "design": lambda v: None if _blank(v) else ports.json(v, "shared:design.schema.json"),
         "design_reason": lambda v: ports.text(v).strip(),
-        "design_premises": optional_json("r2-design-premises.schema.json", None),
-        "answers": optional_json("shared:gate-answers.schema.json", {}),
-        "changed": optional_json("shared:fix-marks.schema.json", {}),
-        "constraints": optional_json("shared:constraints.schema.json", []),
-        "test_outcomes": optional_json("r2-outcomes.schema.json", None),
-        "tdd": optional_json("r2-tdd.schema.json", None),
+        "design_premises": lambda v: None if _blank(v) else ports.json(v, "shared:design-premises.schema.json"),
+        "answers": lambda v: {} if _blank(v) else ports.json(v, "shared:gate-answers.schema.json"),
+        "changed": lambda v: {} if _blank(v) else ports.json(v, "shared:fix-marks.schema.json"),
+        "constraints": lambda v: [] if _blank(v) else ports.json(v, "shared:constraints.schema.json"),
+        "test_outcomes": lambda v: None if _blank(v) else ports.json(v, "shared:outcomes.schema.json"),
+        "tdd": lambda v: None if _blank(v) else ports.json(v, "shared:tdd.schema.json"),
         "lang": lambda v: ports.text(v).strip(),
     }
     doc, bad = {}, []
@@ -206,7 +205,7 @@ def finish(out) -> dict:
             status, why = "failed", row["reason"]
     else:
         status = "skipped"
-        row = {"status": "unverifiable", "reason": due.R2_NO_PURPOSE if design.get("question_stands") is True else due.R2_NO_STANDS}
+        row = {"status": "unverifiable", "reason": due.R2_NO_PURPOSE}   # 問いが立つかの欄は port の形（shared:design）が要る
     got = {"ok": status != "failed", "status": status, "reason": why, "verdict": row, "questions": [], "premise_check": premise_check,
            "notes": note_lines, "report": report.lines(row, note_lines, premise_check, replied)}
     jsonfile.write(out / files.FINISH, got)

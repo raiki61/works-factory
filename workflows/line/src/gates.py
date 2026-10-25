@@ -3,7 +3,7 @@
 元 lib/gatepolicy.py の全部（最後の承認ノードの開き方と無人の方針）・元 lib/gate_axes.py（4 つの軸を軸ごとにまとめる。材料は事前審査の
 返りの行に替えた）・元 lib/gatemarks.py の承認ノードの決めの部分（開くか・項目の行・通した行・無人の抜け方・row_push・_as_push・
 design_talk・request_answers・design_item・stuck_push・design_items・_continued・_item。integration.md の 4.5-4 (a)(b)）と、元
-lib/boardview.py の方針の文書の変化（policy_change・change_row）と HUMAN_FACE_KINDS・replan_asks の「聞くか」の決め。
+lib/boardview.py の方針の文書の変化（policy_change・change_row）と replan_asks の「聞くか」の決め。
 問いの行の形（ASKING・asks_human・ask_text・推しの尾の字の形 push_rec・_push・recommend_of・decided・gate_text・head3・pass_lines）
 と問いの台帳の値の見え方（ledger・ledger_files・answered）は KEEP の lib/gatemarks.py を引く（README 9.3）。
 
@@ -20,7 +20,7 @@ lib/boardview.py の方針の文書の変化（policy_change・change_row）と 
   対話モードの run は設計の相談の承認ノード（TALK_GATE）の合意 agreed を受け、合意した行を聞き直さない
 - replan_rows(...)・replan(...): 案の直しの承認ノード（2 節の 3）の「聞くか」と項目の行
 - policy_change(record, cwd, folder)・change_row(ch): 固めた方針の文書と今の文書の版の比べ（元 boardview）
-- path_of(value)・read_json(path): pointer かパスの値をファイルのパスに・ファイルの JSON
+- path_of(value, opened)・read_json(path): pointer かパスの値を、宣言の form で照らした（opened）ファイルのパスに・ファイルの JSON
 - review_verdict(...): 修正が使った案を審査した最後の往復の結論 {round, verdict, blocks, why}（独立の目の port review。元
   boardview.read_open_of の「往復と案が組むか」の照らしと eyeverdict.plan_review_line の通否）
 """
@@ -115,7 +115,6 @@ def passage(rows: list, read: Callable[[str], Push | None]) -> Passage:
 DESIGN_ONLY = gatemarks.DESIGN_ONLY
 AXIS_KIND = "plan_review"
 POLICY_CHANGED = "policy_changed"     # 関所の項目の種類（方針の文書が固めた版から変わった。元 boardview.POLICY_CHANGED）
-HUMAN_FACE_KINDS = ("regression", policy.POLICY_KIND)   # 人に回す穴の種類（元 fixboard.HUMAN_FACE_KINDS・boardview の写し）
 
 
 def row_push(text) -> Push | None:
@@ -451,14 +450,14 @@ def read_json(path) -> dict | list | None:
         return None
 
 
-def path_of(value) -> str:
-    """pointer かパスの値（null・空・"null" は ""）を、在るファイルのパスの字に（ports.file。無いファイル・ほかの run の pointer は ValueError）"""
-    import ports
+def path_of(value, opened) -> str:
+    """pointer かパスの値（null・空・"null" は ""）を、在るファイルのパスの字に。opened は呼び手が宣言の form で照らす ports.file の読み
+    （無いファイル・ほかの run の pointer・形に合わない中身は ValueError）"""
     if value is None or value == "" or value == "null":
         return ""
     if isinstance(value, str) and value.strip().startswith("{"):
         value = json.loads(value)
-    got = ports.file(json.dumps(value) if isinstance(value, dict) else str(value))
+    got = opened(json.dumps(value) if isinstance(value, dict) else str(value))
     return str(got) if got else ""
 
 
@@ -467,9 +466,10 @@ UNREAD_KIND = "unread"   # 関所の項目の種類: 指す先のファイルが
 UNREAD_TAIL = "（読めないまま進めないので人に見せる）"
 
 
-def located(value, what: str, unread: list) -> str:
+def located(value, what: str, unread: list, opened) -> str:
     """pointer かパスの値を、在るファイルのパスの字に。null・空・"null" は ""。先のファイルが無ければ unread に「<what> の <先> が無い」を
-    足して ""（設計した状態: 読めない控えは聞く側に倒す。docs/design/line.md の 2 節）。pointer の形の違い（object でない・型が違う・
+    足して ""、在れば opened（呼び手が宣言の form で照らす ports.file の読み）で中身を照らし、形に合わなければ unread に訳を足して ""
+    （設計した状態: 読めない控えは聞く側に倒す。E23・docs/design/line.md の 2 節）。pointer の形の違い（object でない・型が違う・
     ほかの run の id・run directory の外を指す）は約束の誤りなので ValueError のまま（呼び手は落ちて works:line-script を返す）"""
     import ports
     if value is None or value == "" or value == "null":
@@ -493,12 +493,17 @@ def located(value, what: str, unread: list) -> str:
     if not path.is_file():
         unread.append(f"{what} の {shown} が無い")
         return ""
+    try:
+        opened(str(path))
+    except ValueError as error:
+        unread.append(f"{what} の {shown} が読めない・形に合わない（{error}）")
+        return ""
     return str(path)
 
 
-def read_located(value, what: str, unread: list):
-    """located の先の JSON。無い・JSON として読めなければ unread に訳を足して None（形の違う pointer は ValueError）"""
-    path = located(value, what, unread)
+def read_located(value, what: str, unread: list, opened):
+    """located の先の JSON。無い・JSON として読めない・形に合わなければ unread に訳を足して None（形の違う pointer は ValueError）"""
+    path = located(value, what, unread, opened)
     if not path:
         return None
     try:

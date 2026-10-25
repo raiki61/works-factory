@@ -1,0 +1,17 @@
+{
+  "description": "起動の殻の bin/apply（bin/_lib/apply.py の RETURN_READS）が、メイングラフの出力が読めない run を --allow-failed で当てる時に、run の記録の出来事から読む封じの受け皿 merge-seal-out の got（merge の返す節の出力の names の欄）。殻は読む前にこの形で照らし、合わなければ当てずに止まる。受け皿の got の宣言がこの形に合うことは tests/layers/scan.py の E5（_shell_reads）が照らす。mode の seal は殻が別に照らす（merge の返す節は 3 つの語を持つ）",
+  "type": "object",
+  "required": ["mode", "ok", "hash", "diff", "reason"],
+  "properties": {
+    "mode": {"type": "string"},
+    "ok": {"type": "boolean"},
+    "hash": {"type": "string"},
+    "diff": {
+      "description": "file: 封じた差分",
+      "type": ["object", "null"],
+      "required": ["type", "run_id", "path"],
+      "properties": {"type": {"type": "string", "enum": ["archon_artifact"]}, "run_id": {"type": "string"}, "path": {"type": "string"}}
+    },
+    "reason": {"type": "string"}
+  }
+}

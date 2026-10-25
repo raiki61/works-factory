@@ -14,7 +14,7 @@
 - `entry`: `text: 入口のファイル（空白区切り）。空は README.md と AGENTS.md`。既定 `""`。
 - `lang`: `text`。人に見せる欄（why・change・stuck・guessed）の言語。既定 `""`。
 
-出力（`returns: finish`、`outcome_field: ok`）: `ok`（全部の頼みを辿れて、外れには直しが通ったか）・`status`・`reason`・`paths`（pointer。頼みごとの辿った道・置いた所・写した物・詰まり・推測・当たりか）・`fixes`（`[{request, kind, where, change, why}]`。`kind` は `guide`・`model`・`block`）・`hits`・`misses`・`report`（日本語の行）。
+出力（`returns: finish`、`outcome_field: ok`）: `ok`（全部の頼みを辿れて、外れには直しが通ったか）・`status`・`reason`・`paths`（pointer。form は `json(paths.schema.json)`。頼みごとの辿った道・置いた所・写した物・詰まり・推測・当たりか。頼みが無ければ null）・`fixes`（`[{request, kind, where, change, why}]`。`kind` は `guide`・`model`・`block`）・`hits`・`misses`・`report`（日本語の行）。
 
 ### 1.2 node の並び（`workflows/guidance-path/works-factory-guidance-path.yaml`）
 

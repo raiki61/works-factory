@@ -1,0 +1,12 @@
+{
+  "description": "修正の後の局所レビュー（レンズ）の控え lens.json の形（lib/lens.py の行の形）。行は {lens, agent, go, reason, state, findings, dropped}",
+  "type": "object",
+  "properties": {
+    "rows": {"type": "array", "items": {"type": "object", "properties": {
+      "lens": {"type": "string"}, "agent": {"type": ["string", "null"]}, "go": {"type": "boolean"}, "reason": {"type": "string"},
+      "state": {"type": "string", "enum": ["pending", "ran", "failed", "not_routed"]},
+      "findings": {"type": "array", "items": {"type": "object", "properties": {
+        "lens": {"type": "string"}, "where": {"type": "string"}, "cite": {"type": "string"}, "why": {"type": "string"}}}},
+      "dropped": {"type": "integer"}}}}
+  }
+}

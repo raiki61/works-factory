@@ -1,0 +1,6 @@
+{"description": "修正の block が受け付けた修正役の返答をまとめた物（fix-reply.json・fix-ruled-reply.json。{changes, not_done, plan_faces}）。差分の審査と事前審査の答えの読み手が読む欄",
+ "type": ["object", "null"],
+ "properties": {
+  "changes": {"type": "array", "items": {"type": "object", "properties": {"unit_key": {"type": "string"}, "files": {"type": "array", "items": {"type": "string"}}, "what": {"type": "string"}}}},
+  "not_done": {"type": "array", "items": {"type": "object", "properties": {"unit_key": {"type": "string"}, "why": {"type": "string"}}}},
+  "plan_faces": {"type": "array", "items": {"type": "object", "required": ["key", "handled"], "properties": {"key": {"type": "string"}, "handled": {"type": "string"}}}}}}

@@ -9,5 +9,5 @@ nodes:
       type: object
       properties:
         ready: { type: boolean }
-        units: { type: array }
+        units: { type: array, items: { type: object, properties: { key: { type: string } } } }
       required: [units]

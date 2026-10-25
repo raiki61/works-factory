@@ -1,0 +1,48 @@
+{
+  "description": "起動の殻の bin/apply（bin/_lib/apply.py の RETURN_READS）が、メイングラフと周の鎖の returns: が名指すノード result の値（terminal_record.returns.value）から読む欄。殻は読む前にこの形で照らし、合わなければ当てずに止まる。両方の returns: が名指すノードの output_format がこの形に合うことは tests/layers/scan.py の E5（_shell_reads）が照らす。final_answer は周の鎖が運ばない（最後の承認ノードは周の子 run の中）ので要る欄でない",
+  "type": "object",
+  "required": ["outcome", "stop_reason", "apply", "sealed", "r2_status", "spec_questions"],
+  "properties": {
+    "outcome": {"type": "string"},
+    "stop_reason": {"type": "string"},
+    "apply": {
+      "description": "merge-apply が置いた差分。置いていなければ ok が真でない。merge-apply が走らなければ null",
+      "type": ["object", "null"],
+      "required": ["ok", "hash", "diff"],
+      "properties": {
+        "ok": {"type": ["boolean", "null"]},
+        "hash": {"type": ["string", "null"]},
+        "diff": {
+          "description": "file: 置いた差分",
+          "type": ["object", "null"],
+          "additionalProperties": false,
+          "required": ["type", "run_id", "path"],
+          "properties": {"type": {"type": "string", "enum": ["archon_artifact"]}, "run_id": {"type": "string"}, "path": {"type": "string"}}
+        }
+      }
+    },
+    "sealed": {
+      "description": "merge-seal が封じた差分。封じる前に止まれば null",
+      "type": ["object", "null"],
+      "required": ["ok", "hash", "diff"],
+      "properties": {
+        "ok": {"type": ["boolean", "null"]},
+        "hash": {"type": ["string", "null"]},
+        "diff": {
+          "description": "file: 封じた差分",
+          "type": ["object", "null"],
+          "additionalProperties": false,
+          "required": ["type", "run_id", "path"],
+          "properties": {"type": {"type": "string", "enum": ["archon_artifact"]}, "run_id": {"type": "string"}, "path": {"type": "string"}}
+        }
+      }
+    },
+    "r2_status": {"type": ["string", "null"]},
+    "final_answer": {
+      "description": "最後の承認ノードの答え。開かなかったら null",
+      "type": ["object", "null"],
+      "properties": {"text": {"type": "string"}}
+    },
+    "spec_questions": {"type": "integer"}
+  }
+}

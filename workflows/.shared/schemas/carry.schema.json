@@ -1,0 +1,7 @@
+{"description": "次の修正の段への申し送り carry.json {conflicts, loops}（修正の block の出力 carry が指し、2 回目の修正の段の入力 prior が読む）。conflicts は食い違いの申し出の控えの中身、loops は輪ごとの状態と要約",
+ "type": ["object", "null"],
+ "properties": {
+  "conflicts": {"type": ["object", "null"], "description": "json(lib:conflicts.schema.json): 申し出の控え（無ければ null）"},
+  "loops": {"type": "array", "items": {"type": "object", "properties": {
+    "state": {"type": "object", "properties": {"phase": {"type": "string"}, "done": {"type": "boolean"}, "open_units": {"type": "array", "items": {"type": "string"}}}},
+    "summary": {"type": "string"}}}}}}

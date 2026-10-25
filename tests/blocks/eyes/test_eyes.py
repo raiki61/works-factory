@@ -20,16 +20,21 @@ def ptr(path: str) -> dict:
     return {"type": "archon_artifact", "run_id": kit.RUN_ID, "path": path}
 
 
+PASSED = {"node": "gate", "round": 1, "by": "human", "item": "y", "passed_at": {"node": "gate", "round": 1}}
+
+
 def eye(name: str, status: str = "pass", **extra) -> dict:
     return {"ok": True, "status": "ran", "reason": "", "verdict": {"status": status, "reason": f"{name} の訳"}, "questions": [],
             **extra, "report": [f"{name.upper()}: {status}"]}
 
 
 def passing() -> dict:
-    return {"structure-after": {"ok": True, "status": "ok", "reason": "", "structure": None, "after": ptr("structure-after/a.json"),
+    """目と直した後の実測の返りの手の作り物（それぞれの block の返す節の形で照らしてから使う。#851）"""
+    got = {"structure-after": {"ok": True, "status": "ok", "reason": "", "structure": None, "after": ptr("structure-after/a.json"),
                                 "dirty": 0, "escalate": 0, "optional": [{"node": "measure", "bare": False}], "report": ["- 実測"]},
             "r1": eye("r1"), "r2": eye("r2", premise_check=None, notes=["控え"]), "r3": eye("r3"),
-            "r4": eye("r4", questions=["R4 が見た人の方針とのぶつかり: x"], passes=[{"node": "gate", "item": "y"}], coherence=None)}
+            "r4": eye("r4", questions=["R4 が見た人の方針とのぶつかり: x"], passes=[PASSED], coherence=None)}
+    return {name: kit.returned("structure" if name == "structure-after" else name, value) for name, value in got.items()}
 
 
 class VerdictCase(unittest.TestCase):
@@ -46,7 +51,7 @@ class VerdictCase(unittest.TestCase):
         self.assertTrue(out["ok"])
         self.assertEqual(out["r1"], {"status": "pass", "reason": "r1 の訳"})
         self.assertEqual((out["questions"], out["passes"], out["notes"], out["premise_check"]),
-                         (["R4 が見た人の方針とのぶつかり: x"], [{"node": "gate", "item": "y"}], ["控え"], None))
+                         (["R4 が見た人の方針とのぶつかり: x"], [PASSED], ["控え"], None))
         self.assertEqual((out["after"], out["after_ok"]), (ptr("structure-after/a.json"), True))
         self.assertEqual([s["title"] for s in out["sections"]], [*self.v.TITLES.values(), self.v.OWN_TITLE])
 
@@ -148,7 +153,7 @@ class ScriptCase(unittest.TestCase):
         got = {"got": passing()["structure-after"], "why": ""}
         self.assertEqual(self.run.script("after_in", "eyes__after-in", structure_after_out=json.dumps(got))["after"],
                          ptr("structure-after/a.json"))
-        self.assertEqual(self.run.script("after_in", "eyes__after-in", structure_after_out="null"), {"after": "", "why": ""})
+        self.assertEqual(self.run.script("after_in", "eyes__after-in", structure_after_out="null"), {"after": None, "why": ""})
 
     def test_returned(self):
         got = self.run.script("returned", "eyes__r1-out", got=json.dumps(eye("r1")), names="ok verdict report")

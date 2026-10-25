@@ -74,6 +74,6 @@ def finish(out, mode: str = "before") -> dict:
     dirty = [r for r in rows if r.get("verdict") == structmark.DIRTY]
     up = [r for r in dirty if r.get("route") == structmark.ROUTE_UP]
     after = mode == "after" and structmark.read_after(out) is not None
-    return returned(st.get("status") or "failed", st.get("reason") or "", ports.pointer(path),
-                    ports.pointer(out / files.AFTER_FILE) if after else None, len(dirty), len(up),
+    return returned(st.get("status") or "failed", st.get("reason") or "", ports.pointer(path, "json(shared:structure-state.schema.json)"),
+                    ports.pointer(out / files.AFTER_FILE, "json(shared:structure-after.schema.json)") if after else None, len(dirty), len(up),
                     structmark.report_lines(path, out if mode == "after" else None))

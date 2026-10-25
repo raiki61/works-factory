@@ -54,9 +54,9 @@ def pushes(judged, record: dict, before_fix, *, unattended: bool) -> tuple:
     if judged is None or judged["judgment"] is None:
         return [], []
     try:
-        doc = gates.read_json(gates.path_of(judged["judgment"])) or {}
-        b = gatemarks.ledger_files(doc, ties_file=gates.path_of(judged["answer_ties"]) or None,
-                                   materials_file=gates.path_of(judged["materials"]) or None, answers=gates.request_answers(record),
+        doc = gates.read_json(gates.path_of(judged["judgment"], lambda raw: ports.file(raw, "json(shared:judgment.schema.json)"))) or {}
+        b = gatemarks.ledger_files(doc, ties_file=gates.path_of(judged["answer_ties"], lambda raw: ports.file(raw, "json(shared:answer-ties.schema.json)")) or None,
+                                   materials_file=gates.path_of(judged["materials"], lambda raw: ports.file(raw, "json(shared:materials-state.schema.json)")) or None, answers=gates.request_answers(record),
                                    gate=before_fix, takes_push=unattended)
         return [f"問い {q.get('key')}: {push}" for q, push, _ in gatemarks.taken_pushes(b)], []
     except (OSError, ValueError, TypeError, AttributeError, KeyError) as error:
@@ -67,7 +67,7 @@ def compute() -> dict:
     raw = {"fix_in": os.environ.get("INPUTS_FIX_IN"), "fixed": os.environ.get("INPUTS_FIXED"),
            "start_answer": os.environ.get("INPUTS_START_ANSWER"), "replan_review": os.environ.get("INPUTS_REPLAN_REVIEW"),
            "judged": os.environ.get("INPUTS_JUDGED"), "record": os.environ.get("INPUTS_RECORD"), "ports": os.environ.get("INPUTS_PORTS")}
-    from src import gates, startrec
+    from src import gates, rounds, startrec
 
     given = ports.parsed(raw["ports"]) or {}
     fix_in = ports.picked(raw["fix_in"], FIX_IN)
@@ -75,7 +75,7 @@ def compute() -> dict:
     judged = ports.picked(raw["judged"], JUDGED)
     replan_review = ports.picked(raw["replan_review"], REVIEW)
     start_answer = ports.parsed(raw["start_answer"])
-    record_path = ports.file(raw["record"])
+    record_path = ports.file(raw["record"], "json(start-record.schema.json)")
     record = startrec.load(record_path) if record_path else {}
     before_fix = fix_in["answer"] if fix_in is not None else None
     switches = (fix_in or {}).get("switches") if isinstance((fix_in or {}).get("switches"), dict) else {}
@@ -83,7 +83,8 @@ def compute() -> dict:
     if fixed is not None and fixed["no_fix"]:
         review = dict(NO_FIX_REVIEW)
     else:
-        doc = gates.read_json(gates.path_of(fix_in["record"])) if fix_in is not None else None
+        path = gates.path_of(fix_in["record"], lambda raw: ports.file(raw, "json(shared:plan-converge.schema.json)")) if fix_in is not None else ""
+        doc = rounds.read(path) if path else None
         review = gates.review_verdict(doc, round_=(fix_in or {}).get("round"),
                                       replan_review=dict(replan_review) if replan_review is not None else None)
     taken, notes = pushes(judged, record, before_fix, unattended=bool(given.get("unattended")))

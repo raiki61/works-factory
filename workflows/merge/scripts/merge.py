@@ -38,28 +38,23 @@ def true_only(raw) -> bool:
         return False
 
 
-def optional_json(raw, schema: str, name: str) -> tuple:
-    """(値, 形が合うか)。空と null は (None, True)。JSON として読めない入力は誤り（ValueError。入力の名 name を名指す）。形の違う
-    値は (値, False) で返し、落とさずに呼ぶ側が拒む側へ倒す（指紋は合わない・答えは通さない。差分と守りの当たりは書く）"""
+def optional_json(raw, read, name: str) -> tuple:
+    """(値, 形が合うか)。空と null は (None, True)。read は宣言の形の名で読む口の呼び（ports.json(raw, "<名>")）。JSON として読めない
+    入力は誤り（ValueError。入力の名 name を名指す）。形の違う値（ShapeError）は値を持ったまま (値, False) で返し、落とさずに呼ぶ側が
+    拒む側へ倒す（指紋は合わない・答えは通さない。差分と守りの当たりは書く）"""
     if ports.text(raw).strip() in ("", "null"):
         return None, True
     try:
-        value = ports.json(raw)
+        return read(), True
+    except ports.ShapeError as e:
+        return e.value, False
     except ValueError as e:
         raise ValueError(f"入力 {name} が読めない（{e}）") from e
-    try:
-        ports.json(raw, schema)
-    except ValueError:
-        return value, False
-    return value, True
 
 
 def r2_value(raw):
     """R2 の札は形が違えば誤り（前と同じ）"""
-    value, shaped = optional_json(raw, "r2.schema.json", "r2")
-    if not shaped:
-        ports.json(raw, "r2.schema.json")
-    return value
+    return None if ports.text(raw).strip() in ("", "null") else ports.json(raw, "r2.schema.json")
 
 
 OFF_SHAPE_ANSWER = {"decision": "形の違う答え", "text": ""}
@@ -80,7 +75,9 @@ def compute() -> dict:
     base = ports.text(os.environ.get("INPUTS_BASE")).strip()
     if not base:
         raise ValueError(f"差分の根 base が無い: {base!r}")
-    fingerprint, fingerprint_shaped = optional_json(os.environ.get("INPUTS_FINGERPRINT"), "fingerprint.schema.json", "fingerprint")
+    fingerprint, fingerprint_shaped = optional_json(os.environ.get("INPUTS_FINGERPRINT"),
+                                                       lambda: ports.json(os.environ.get("INPUTS_FINGERPRINT"), "fingerprint.schema.json"),
+                                                       "fingerprint")
     repo = Path.cwd()
 
     data = green_cert.diff_bytes(repo, base, skip=(ports.RUNTIME_COPY_PREFIX,))
@@ -89,7 +86,7 @@ def compute() -> dict:
 
     def put(name: str) -> tuple:
         path = folder / name
-        return ports.pointer(path), seal.write_readback(path, data)
+        return ports.pointer(path, "file"), seal.write_readback(path, data)
 
     def returned(ptr, digest: str, reason: str, hits=None, count=None) -> dict:
         return {"mode": mode, "ok": not reason, "hash": digest, "diff": ptr, "protected_hits": hits, "protected_count": count,
@@ -115,7 +112,8 @@ def compute() -> dict:
         whole.write_text(json.dumps({"protected_hits": protected}, ensure_ascii=False), encoding="utf-8")
         return returned(ptr, digest, reason, protect.shown(protected, "protected_hits", whole), counted)
 
-    answer, answer_shaped = optional_json(os.environ.get("INPUTS_ANSWER"), "answer.schema.json", "answer")
+    answer, answer_shaped = optional_json(os.environ.get("INPUTS_ANSWER"),
+                                            lambda: ports.json(os.environ.get("INPUTS_ANSWER"), "answer.schema.json"), "answer")
     reason = seal.apply_refusal(
         sealed_hash=sealed_hash,
         current_hash=seal.digest(data),

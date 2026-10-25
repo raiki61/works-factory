@@ -1,0 +1,19 @@
+{
+  "description": "案内の道の目が辿った頼みごとの行（finish が書く paths.json）",
+  "type": "array",
+  "items": {
+    "type": "object",
+    "properties": {
+      "id": {"type": "string"},
+      "request": {"type": "string"},
+      "closes": {"type": "array", "items": {"type": "string"}},
+      "hit": {"type": ["boolean", "null"]},
+      "steps": {"type": "array", "items": {"type": "object", "properties": {"file": {"type": "string"}, "why": {"type": "string"}}}},
+      "placed": {"type": "array", "items": {"type": "object", "properties": {"path": {"type": "string"}, "change": {"type": "string"}}}},
+      "copied": {"type": "array", "items": {"type": "object", "properties": {"path": {"type": "string"}, "why": {"type": "string"}}}},
+      "stuck": {"type": "array", "items": {"type": "string"}},
+      "guessed": {"type": "array", "items": {"type": "string"}},
+      "gave_up": {"type": "string"}
+    }
+  }
+}

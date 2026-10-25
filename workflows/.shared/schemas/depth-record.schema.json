@@ -1,0 +1,18 @@
+{
+  "description": "run の頭の深さの控え（head-depth の depth-head.json。lib/headdepth.py の record の形）。depth は段の語、items は役が返した依頼の行ごとの未知の種類と引用、facts は役を起こす前の事実、groups は役の群の選び",
+  "type": "object",
+  "properties": {
+    "depth": {"type": "string", "enum": ["軽量", "標準", "重厚"]},
+    "why": {"type": "string"},
+    "items": {"type": "array", "items": {"type": "object", "properties": {
+      "item": {"type": "integer"}, "unknown": {"type": "string"}, "cause_quote": {"type": "string"},
+      "where": {"type": "string"}, "code_quote": {"type": "string"}}}},
+    "facts": {"type": "object", "properties": {
+      "items": {"type": "array", "items": {"type": "object", "properties": {
+        "item": {"type": "integer"}, "text": {"type": "string"}, "where": {"type": "string"}}}},
+      "test_cmd": {"type": "boolean"}, "spec": {"type": "boolean"}, "design_only": {"type": "boolean"}, "forced": {"type": "string"}}},
+    "groups": {"type": "array", "items": {"type": "object", "properties": {
+      "group": {"type": ["string", "null"]}, "model": {"type": ["string", "null"]}, "effort": {"type": ["string", "null"]},
+      "why": {"type": ["string", "null"]}, "fallback": {"type": ["string", "null"]}}}}
+  }
+}

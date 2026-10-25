@@ -27,7 +27,7 @@ LINE = "workflows/line/works-factory-line.yaml"
 RETURNING = (
     "name: works-factory-judge\nreturns: verdict\noutcome_field: ready\nnodes:\n"
     "  - id: verdict\n    script: stub\n"
-    "    output_format:\n      type: object\n      properties:\n        ready: {type: boolean}\n        units: {type: array}\n"
+    "    output_format:\n      type: object\n      properties:\n        ready: {type: boolean}\n        units: {type: array, items: {type: string}}\n"
     "      required: [ready, units]\n"
 )
 TAKE = "workflows/line/scripts/take.py"
@@ -418,6 +418,269 @@ class BlockReturnsTest(unittest.TestCase):
         self.assertEqual(len(got), 1, got)
         self.assertIn("節 take", got[0])
         self.assertIn("呼びが 0 個", got[0])
+
+# #851 の受け渡しの形の照らし（scan._shapes）。書き手 judge の返りを graph line が plan の入力へ結ぶ木
+PLAN = "workflows/plan/works-factory-plan.yaml"
+UNITS = "workflows/plan/schemas/units.schema.json"
+POINTER = ("{type: object, additionalProperties: false, required: [type, run_id, path], description: '%s',"
+           " properties: {type: {type: string, enum: [archon_artifact]}, run_id: {type: string}, path: {type: string}}}")
+
+
+def judge_returning(fields: str) -> str:
+    return ("name: works-factory-judge\nreturns: verdict\noutcome_field: ready\nnodes:\n  - id: verdict\n    script: stub\n"
+            "    output_format:\n      type: object\n      required: [ready]\n      properties:\n        ready: {type: boolean}\n"
+            + "".join(f"        {line}\n" for line in fields.splitlines()))
+
+
+def plan_reading(name: str, form: str) -> str:
+    return (f"name: works-factory-plan\ninputs:\n  {name}: {{default: '', description: '{form}: 読む物'}}\nreturns: finish\n"
+            "outcome_field: ok\nnodes:\n  - id: finish\n    script: finish\n    with: {x: \"$INPUTS.%s\"}\n" % name +
+            "    output_format: {type: object, required: [ok], properties: {ok: {type: boolean}}}\n")
+
+
+def line_wiring(key: str, ref: str) -> str:
+    return (LINE_TOP + "  - id: judge\n    include: works-factory-judge\n  - id: plan\n    include: works-factory-plan\n"
+            f"    with:\n      {key}: \"{ref}\"\n")
+
+
+class ShapesTest(unittest.TestCase):
+    """終わりの条件（issue #851）: 中身を宣言しない object・pointer の欄の form の欠け・配線の両端の形の食い違いが赤になる"""
+
+    def problems(self, files):
+        """形の赤だけ（小さな木の返りの欄の読み手ゼロの赤は数えない）"""
+        with tree(files) as root:
+            return [line for line in scan.problems("E5", root) if "に読み手が無い" not in line]
+
+    def wired(self, fields, form, key="units", ref="$judge.output.units", shape=None):
+        files = {BLOCK: judge_returning(fields), PLAN: plan_reading(key, form), LINE: line_wiring(key, ref)}
+        if shape is not None:
+            files[UNITS] = shape
+        return self.problems(files)
+
+    UNITS_SHAPE = '{"type": "array", "items": {"type": "object", "required": ["key"], "properties": {"key": {"type": "string"}}}}'
+
+    def test_fitting_wire_is_clean(self):
+        self.assertEqual(self.wired("units: {type: array, items: {type: object, properties: {key: {type: string}}}}",
+                                    "json(units.schema.json)", shape=self.UNITS_SHAPE), [])
+
+    def test_open_object_in_an_output_format_is_red(self):
+        got = self.wired("units: {type: array, items: {type: object}}", "json(units.schema.json)", shape=self.UNITS_SHAPE)
+        self.assertTrue(any("$.properties.units.items が中身を宣言しない" in line for line in got), got)
+
+    def test_reader_needs_a_field_the_writer_does_not_declare(self):
+        """graph の配線の 1 本で、書き手の宣言に無い欄を読み手が要ると赤"""
+        got = self.wired("units: {type: array, items: {type: object, properties: {name: {type: string}}}}",
+                         "json(units.schema.json)", shape=self.UNITS_SHAPE)
+        self.assertEqual(len(got), 1, got)
+        self.assertIn("読み手の要る欄 key が書き手の形に無い", got[0])
+
+    def test_types_and_enums_must_fit(self):
+        shape = '{"type": "object", "properties": {"verdict": {"type": "string", "enum": ["same", "differs"]}}, "required": ["verdict"]}'
+        got = self.wired("units: {type: object, properties: {verdict: {type: string, enum: [same, other]}}}",
+                         "json(units.schema.json)", shape=shape)
+        self.assertTrue(any("書き手の語" in line for line in got), got)
+        got = self.wired("units: {type: string}", "json(units.schema.json)", shape=shape)
+        self.assertTrue(any("書き手の型 ['string']" in line for line in got), got)
+
+    def test_json_value_read_as_text_is_red(self):
+        """JSON を入れた string（issue #851 の仕組み 2）: 書き手の欄が object・array の値で、読み手の form が json・jsonl でない辺は赤。
+        Archon は値を JSON の字にして渡すので、読み手は形を名指さずに JSON を読むことになる"""
+        for fields in ("units: {type: array, items: {type: string}}", "units: {type: [object, 'null'], properties: {x: {type: string}}}"):
+            with self.subTest(fields=fields):
+                got = self.wired(fields, "text")
+                self.assertEqual(len(got), 1, got)
+                self.assertIn("JSON を入れた string", got[0])
+        self.assertEqual(self.wired("units: {type: string}", "text"), [], "字の欄を text で受けるのは赤にしない")
+
+    def test_every_type_in_an_output_format_is_red(self):
+        """type に 6 つの型を全部並べた所は「何でも受ける」で、中身を宣言しない（#861）"""
+        got = self.wired("units: {type: array, items: {type: [object, array, string, number, boolean, 'null']}}", "text")
+        self.assertTrue(any("$.properties.units.items(6 つの型を全部並べた)" in line for line in got), got)
+
+    def receiving(self, description: str, include: str = "works-factory-judge") -> list[str]:
+        line = (LINE_TOP + f"  - id: judge\n    include: {include}\n  - id: judge-out\n    script: returned\n"
+                "    output_format:\n      type: object\n"
+                "      required: [got]\n      properties:\n"
+                f"        got: {{type: [object, 'null'], description: '{description}'}}\n")
+        return self.problems({BLOCK: judge_returning("units: {type: array, items: {type: string}}"), LINE: line,
+                              "workflows/other/works-factory-other.yaml": judge_returning("x: {type: string}").replace("judge", "other")})
+
+    def test_receiver_names_the_return_of_what_it_includes(self):
+        """include の返りの受け皿は、返りの形を returns:<workflow の名> で名指す（返りの形は返す節の output_format の 1 か所で、
+        ファイルに出すと写しが 2 つになる）。名指す先の開きは名指した所の開き"""
+        self.assertEqual(self.receiving("json(returns:works-factory-judge): 選んだ欄"), [])
+        line = (LINE_TOP + "  - id: judge\n    include: works-factory-judge\n  - id: judge-out\n    script: returned\n"
+                "    output_format: {type: object, required: [got], properties: {got: {type: object, description: "
+                "'json(returns:works-factory-judge): 選んだ欄'}}}\n")
+        got = self.problems({BLOCK: judge_returning("units: {type: array}"), LINE: line})
+        self.assertTrue(any("judge-out" in g and "(returns:works-factory-judge).properties.units" in g for g in got), got)
+
+    def test_returns_name_only_where_the_workflow_is_included(self):
+        """returns:<名> は、その workflow を include する workflow の節の output_format にだけ書ける（block はほかの block を
+        名指さない。形のファイルと入力は実行の時に口が読むが、口は YAML を読まない）"""
+        got = self.receiving("json(returns:works-factory-other): 選んだ欄")
+        self.assertTrue(any("include していない works-factory-other" in g for g in got), got)
+        files = {BLOCK: judge_returning("units: {type: array, items: {type: string}}"), LINE: LINE_TOP,
+                 "workflows/.shared/schemas/a.schema.json":
+                     '{"type": "object", "properties": {"x": {"type": "object", "description": "json(returns:works-factory-judge): x"}}}'}
+        got = self.problems(files)
+        self.assertTrue(any("a.schema.json" in g and "returns:" in g for g in got), got)
+
+    FACES_SHAPE = ('{"type": "object", "properties": {"faces": {"type": "array", "items": {"type": "object", '
+                   '"properties": {"key": {"type": "string"}}}}}}')
+
+    def shell_reading(self, table: str) -> list[str]:
+        """返す節の欄 units が pointer（json(faces.schema.json)）の judge と、その返す値を読む殻の表 RETURN_READS（table）の小さな木の赤"""
+        return self.problems({BLOCK: judge_returning("units: " + POINTER % "json(faces.schema.json): 読む物"),
+                              "workflows/judge/schemas/faces.schema.json": self.FACES_SHAPE,
+                              "bin/_lib/reads.py": 'JUDGE = "works-factory-judge"\nRETURN_READS = {' + table + "}\n"})
+
+    def test_shell_reads_name_the_declared_return(self):
+        """殻（bin/）が部品の返す値を読む表 RETURN_READS は、返す節の欄とその form を字のまま名指し、読む欄の道はその form の形に
+        在る（#851 の落ちるはずの所の 10 番。殻は workflows/ の外で、ports.json の照らしが届かない）"""
+        self.assertEqual(self.shell_reading('JUDGE: ("units", "json(faces.schema.json)", ("faces[].key",))'), [])
+        cases = (
+            ('JUDGE: ("units", "json(other.schema.json)", ("faces[].key",))',
+             "の form json(other.schema.json) が返す節の宣言 json(faces.schema.json) と違う"),
+            ('JUDGE: ("units", "json(faces.schema.json)", ("faces[].name",))', "の読む欄 faces[].name が json(faces.schema.json) の形に無い"),
+            ('JUDGE: ("units", "json(faces.schema.json)", ("faces.key",))', "の読む欄 faces.key が json(faces.schema.json) の形に無い"),
+            ('JUDGE: ("verdicts", "json(faces.schema.json)", ("faces[].key",))', "の欄 verdicts が works-factory-judge の返す節の output_format に無い"),
+            ('"works-factory-gone": ("units", "json(faces.schema.json)", ())', "の欄 units が works-factory-gone の返す節の output_format に無い"),
+        )
+        for table, want in cases:
+            with self.subTest(table=table):
+                got = self.shell_reading(table)
+                self.assertEqual(len(got), 1, got)
+                self.assertIn("bin/_lib/reads.py:2: RETURN_READS の ", got[0])
+                self.assertIn(want, got[0])
+
+    READ_SHAPE = ('{"type": "object", "required": ["units"], "properties": {"ready": {"type": "boolean"}, '
+                  '"units": {"type": ["object", "null"], "required": ["key"], "properties": {"key": {"type": "string"}}}}}')
+
+    def whole_reading(self, fields: str, paths: str = '"units.key", "ready",') -> list[str]:
+        """返す節が fields を返す judge と、その返す値そのものを形 read.schema.json で読む殻の表 RETURN_READS（欄 ""。道の並びは
+        字の定数の名の並び PATHS で書く）の小さな木の赤。paths は PATHS の中の字"""
+        module = ('JUDGE = "works-factory-judge"\nKEY, READY = "units.key", "ready"\n'
+                  f"PATHS = ({paths})\n" 'RETURN_READS = {JUDGE: ("", "json(read.schema.json)", PATHS)}\n')
+        return self.problems({BLOCK: judge_returning(fields), "workflows/judge/schemas/read.schema.json": self.READ_SHAPE,
+                              "bin/_lib/reads.py": module})
+
+    def test_shell_reads_of_the_whole_return_fit_the_declared_return(self):
+        """殻の表 RETURN_READS の欄が "" の行（返す値そのものを読む。bin/_lib/apply.py が result を読む所）は、返す節の output_format
+        （書き手）が form の形（読み手）に合い、読む欄の道はその形に在る。道の並びは字の定数の名の並びで書いてもよい"""
+        good = "units: {type: [object, 'null'], properties: {key: {type: string}}}"
+        self.assertEqual(self.whole_reading(good), [])
+        self.assertEqual(self.whole_reading(good, "KEY, READY"), [])
+        cases = (
+            ("units: {type: [object, 'null'], properties: {name: {type: string}}}", '"units.key",', "が json(read.schema.json) の形に合わない: $.units: 読み手の要る欄 key が書き手の形に無い"),
+            ("placed: {type: [object, 'null'], properties: {key: {type: string}}}", '"units.key",', "が json(read.schema.json) の形に合わない: $: 読み手の要る欄 units が書き手の形に無い"),
+            ("units: {type: [object, 'null'], properties: {key: {type: integer}}}", '"units.key",', "$.units.key: 書き手の型 ['integer'] を読み手の型 ['string'] が受けない"),
+            (good, '"units.name",', "の読む欄 units.name が json(read.schema.json) の形に無い"),
+        )
+        for fields, paths, want in cases:
+            with self.subTest(fields=fields, paths=paths):
+                got = self.whole_reading(fields, paths)
+                self.assertEqual(len(got), 1, got)
+                self.assertIn("bin/_lib/reads.py:", got[0])
+                self.assertIn("RETURN_READS の works-factory-judge の返す値", got[0])
+                self.assertIn(want, got[0])
+
+    def node_reading(self, fields: str, table: str) -> list[str]:
+        """返す節が fields を返す judge を include して受け皿 judge-out（欄 got が json(returns:works-factory-judge)）で受け、答えのノード
+        ans（出力 {go}）を持つメイングラフと、それらのノードの出力を形 shared:read.schema.json・shared:go.schema.json で読む殻の表
+        RETURN_READS（鍵は (グラフ, ノードの id)）の小さな木の赤。table は表の中の字"""
+        line = (LINE_TOP + "  - id: judge\n    include: works-factory-judge\n  - id: judge-out\n    script: returned\n"
+                "    output_format: {type: object, required: [got], properties: {got: {type: [object, 'null'], "
+                "description: 'json(returns:works-factory-judge): 選んだ欄'}}}\n"
+                "  - id: ans\n    script: ans\n    output_format: {type: object, required: [go], properties: {go: {type: boolean}}}\n")
+        module = 'LINE = "works-factory-line"\nRETURN_READS = {' + table + "}\n"
+        return self.problems({BLOCK: judge_returning(fields), LINE: line, "bin/_lib/reads.py": module,
+                              "workflows/.shared/schemas/read.schema.json": self.READ_SHAPE,
+                              "workflows/.shared/schemas/go.schema.json":
+                                  '{"type": "object", "required": ["go"], "properties": {"go": {"type": "boolean"}}}'})
+
+    def test_shell_reads_of_a_node_fit_the_node_output(self):
+        """殻の表 RETURN_READS の鍵が (グラフ, ノードの id) の行（run の記録の出来事からノードの出力を読む。bin/_lib/apply.py の
+        --allow-failed の道）は、ノードの output_format（欄が "" でなければその欄。欄が json(returns:<名>) なら名の返す節の
+        output_format）が form の形に合い、読む欄の道はその形に在る"""
+        good = "units: {type: [object, 'null'], properties: {key: {type: string}}}"
+        rows = ('(LINE, "judge-out"): ("got", "json(shared:read.schema.json)", ("units.key", "ready")), '
+                '(LINE, "ans"): ("", "json(shared:go.schema.json)", ("go",))')
+        self.assertEqual(self.node_reading(good, rows), [])
+        cases = (
+            ("units: {type: [object, 'null'], properties: {name: {type: string}}}", rows,
+             "works-factory-line のノード judge-out の 欄 got の出力が json(shared:read.schema.json) の形に合わない: $.units: 読み手の要る欄 key"),
+            (good, '(LINE, "ans"): ("", "json(shared:read.schema.json)", ())',
+             "works-factory-line のノード ans の出力が json(shared:read.schema.json) の形に合わない: $: 読み手の要る欄 units"),
+            (good, '(LINE, "ans"): ("", "json(shared:go.schema.json)", ("stop",))', "の読む欄 stop が json(shared:go.schema.json) の形に無い"),
+            (good, '(LINE, "judge-out"): ("why", "json(shared:read.schema.json)", ())', "のノード judge-out: 欄 why が output_format に無い"),
+            (good, '(LINE, "gone"): ("", "json(shared:go.schema.json)", ())', "のノード gone: ノードか、その output_format が works-factory-line に無い"),
+        )
+        for fields, table, want in cases:
+            with self.subTest(table=table, fields=fields):
+                got = self.node_reading(fields, table)
+                self.assertEqual(len(got), 1, got)
+                self.assertIn("bin/_lib/reads.py:2: RETURN_READS の ", got[0])
+                self.assertIn(want, got[0])
+
+    def test_pointer_field_without_a_form_is_red(self):
+        got = self.wired("units: " + POINTER % "置き場のファイル", "file")
+        self.assertEqual(len(got), 1, got)
+        self.assertIn("description に指す先の form", got[0])
+
+    def test_wire_ends_must_name_the_same_shape(self):
+        """JSON を運ぶ辺の両端の form は字のまま同じ。名を変えた形の写し・json を file で受ける・jsonl を json で受けるは赤"""
+        for writer, reader in (("json(shared:a.schema.json)", "json(shared:b.schema.json)"), ("json(shared:a.schema.json)", "file"),
+                               ("jsonl(shared:a.schema.json)", "json(shared:a.schema.json)"), ("file", "json(shared:a.schema.json)")):
+            with self.subTest(writer=writer, reader=reader):
+                files = {BLOCK: judge_returning("units: " + POINTER % f"{writer}: 置き場のファイル"), PLAN: plan_reading("units", reader),
+                         LINE: line_wiring("units", "$judge.output.units"),
+                         "workflows/.shared/schemas/a.schema.json": '{"type": "object", "properties": {"x": {"type": "string"}}}',
+                         "workflows/.shared/schemas/b.schema.json": '{"type": "object", "properties": {"x": {"type": "string"}}}'}
+                got = [line for line in self.problems(files) if "with.units" in line]
+                self.assertEqual(len(got), 1, got)
+                self.assertIn("が違う", got[0])
+
+    def test_inputs_pass_through_is_wired_too(self):
+        line = LINE_TOP.replace("nodes:\n", "inputs:\n  units: {default: '', description: 'json(shared:a.schema.json): 単位'}\nnodes:\n") \
+            + "  - id: plan\n    include: works-factory-plan\n    with:\n      units: \"$INPUTS.units\"\n"
+        files = {PLAN: plan_reading("units", "json(shared:b.schema.json)"), LINE: line,
+                 "workflows/.shared/schemas/a.schema.json": '{"type": "object", "properties": {"x": {"type": "string"}}}',
+                 "workflows/.shared/schemas/b.schema.json": '{"type": "object", "properties": {"x": {"type": "string"}}}'}
+        got = [p for p in self.problems(files) if "with.units" in p]
+        self.assertEqual(len(got), 1, got)
+
+    def test_script_writer_in_the_graph_is_wired_too(self):
+        """配線の書き手は include の返りだけでなく、graph の script の節の output_format も（中継の節の欄）"""
+        line = (LINE_TOP + "  - id: relay\n    script: relay\n    output_format:\n      type: object\n      properties:\n"
+                f"        units: {POINTER % 'json(shared:a.schema.json): 中継'}\n"
+                "  - id: plan\n    include: works-factory-plan\n    with:\n      units: \"$relay.output.units\"\n")
+        files = {PLAN: plan_reading("units", "file"), LINE: line,
+                 "workflows/.shared/schemas/a.schema.json": '{"type": "object", "properties": {"x": {"type": "string"}}}'}
+        got = [p for p in self.problems(files) if "with.units" in p]
+        self.assertEqual(len(got), 1, got)
+
+    def test_port_calls_name_a_declared_form_literally(self):
+        """block の口の呼びの形の名と form は字のままで、その block の宣言の form の組に在る。口を値として渡さない"""
+        base = {PLAN: plan_reading("units", "json(shared:a.schema.json)"), LINE: LINE_TOP,
+                "workflows/.shared/schemas/a.schema.json": '{"type": "object", "properties": {"x": {"type": "string"}}}'}
+        script = "workflows/plan/scripts/finish.py"
+        cases = {'ports.json(os.environ.get("INPUTS_UNITS"), "shared:a.schema.json")\n': [],
+                 'ports.file(os.environ.get("INPUTS_UNITS"), "json(shared:a.schema.json)")\n': [],
+                 'ports.json(os.environ.get("INPUTS_UNITS"), NAME)\n': ["字のままでない"],
+                 'ports.file(os.environ.get("INPUTS_UNITS"), "file")\n': ["宣言の form の組に無い"],
+                 'ports.json(os.environ.get("INPUTS_UNITS"), "shared:b.schema.json")\n': ["宣言の form の組に無い"],
+                 'ports.returns({"p": {"type": "archon_artifact", "run_id": "r", "path": "x.json"}})\n': ["札を手で組む"],
+                 'ports.returns({"p": {"type": ports.POINTER_TYPE, "run_id": "r", "path": "x.json"}})\n': ["札を手で組む"],
+                 'ok = got.get("type") == ports.POINTER_TYPE\n': [],
+                 'read = ports.file\n': ["値として渡す"]}
+        for code, words in cases.items():
+            with self.subTest(code):
+                got = [p for p in self.problems({**base, script: code}) if "finish.py" in p]
+                self.assertEqual(len(got), len(words), got)
+                for word, line in zip(words, got):
+                    self.assertIn(word, line)
+
 
 if __name__ == "__main__":
     unittest.main()

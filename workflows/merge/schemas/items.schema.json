@@ -1,4 +1,9 @@
 {
-  "description": "差分のパスを修正案の項目に決める記録（中の形は itemcommits.split が読み、読めない記録は 1 つの commit に倒す）。null は無い",
-  "type": ["object", "null"]
+  "description": "差分のパスを修正案の項目に決める記録（修正の出力 item_claims。lib/itemcommits.py の record の形 {items, claims, unread}）。null は無い",
+  "type": ["object", "null"],
+  "properties": {
+    "items": {"type": ["array", "null"], "items": {"type": "object", "properties": {"item": {"type": "integer"}, "unit_keys": {"type": "array", "items": {"type": "string"}}, "approach": {"type": "string"}, "after": {"type": "array", "items": {"type": "integer"}}}}},
+    "claims": {"type": "array", "items": {"type": "object", "properties": {"unit_key": {"type": "string"}, "files": {"type": "array", "items": {"type": "string"}}}}},
+    "unread": {"type": "array", "items": {"type": "string"}}
+  }
 }

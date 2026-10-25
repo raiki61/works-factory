@@ -91,6 +91,7 @@ nodes:
           enum: [ok, failed]
         reason: {type: string}
         rows:
+          description: 'json(shared:lens-rows.schema.json): レンズの控え（振り分けと集めの行）'
           type: [object, 'null']
           properties:
             type:

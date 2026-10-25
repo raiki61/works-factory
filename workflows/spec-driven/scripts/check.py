@@ -29,11 +29,12 @@ def compute():
     from src import check
     got = check.check(ports.place(), Path.cwd(), ready=_true(os.environ.get("INPUTS_READY")),
                       plan_ok=_true(os.environ.get("INPUTS_PLAN_OK")),
-                      plan=_port("plan", lambda: ports.file(os.environ.get("INPUTS_PLAN"))),
+                      plan=_port("plan", lambda: ports.file(os.environ.get("INPUTS_PLAN"), "json(shared:plan-fields.schema.json)")),
                       out_of_scope=_port("out_of_scope", lambda: ports.json(os.environ.get("INPUTS_OUT_OF_SCOPE") or "[]",
                                                                            "out-of-scope.schema.json")),
                       tdd=_port("tdd", lambda: ports.flag(os.environ.get("INPUTS_TDD") or "false")),
-                      out_of_purpose=_port("out_of_purpose", lambda: ports.file(os.environ.get("INPUTS_OUT_OF_PURPOSE"))),
+                      out_of_purpose=_port("out_of_purpose", lambda: ports.file(os.environ.get("INPUTS_OUT_OF_PURPOSE"),
+                                                                                  "json(lib:out-of-purpose.schema.json)")),
                       base=ports.text(os.environ.get("INPUTS_BASE")).strip())
     return {"done": got["ok"], "reason": ""}
 

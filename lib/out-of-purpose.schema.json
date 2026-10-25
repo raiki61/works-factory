@@ -1,0 +1,29 @@
+{
+  "description": "判定が凍結した目的の外として単位にしなかった所見の控え out-of-purpose.json（住処は lib/outpurpose.py。MIN_WHY と行の型 ROW_SCHEMA はこの形から引く）。rounds は周の番号 → 行の配列。行は判定役が書いた {source, where, why_outside, text?} に、機械が当たった材料の行 found を足した物",
+  "type": "object",
+  "properties": {
+    "rounds": {
+      "type": "object",
+      "patternProperties": {
+        "^[0-9]+$": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["source", "where", "why_outside"],
+            "properties": {
+              "source": {"type": "string", "minLength": 1, "note": "材料のどのセクション・どの目の行か（材料の見出しと目の名）"},
+              "where": {"type": "string", "minLength": 1, "note": "材料の行の where を一字も変えずに写した物"},
+              "why_outside": {"type": "string", "minLength": 10, "note": "凍結した目的の外とした理由"},
+              "text": {"type": "string", "minLength": 1,
+                       "note": "同じ where の材料の行が 2 つ以上在る時だけ、運ぶ行の text の頭を一字も変えずに写した物"},
+              "found": {"type": "array", "note": "機械が足す、当たった材料の行（outpurpose._walk の行）",
+                        "items": {"type": "object", "properties": {
+                          "where": {"type": "string"}, "text": {"type": "string"}, "mechanism": {"type": "string"},
+                          "measured": {"type": "string"}, "false_positive_if": {"type": "string"}, "from": {"type": "string"}}}}
+            }
+          }
+        }
+      }
+    }
+  }
+}

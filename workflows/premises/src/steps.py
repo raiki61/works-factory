@@ -197,5 +197,5 @@ def finish(out) -> dict:
     if not isinstance(got, dict):
         return failed(_why_failed(out))
     rows = [c for c in got.get("constraints") or [] if isinstance(c, dict)]
-    return {"ok": True, "status": "ok", "reason": "", "constraints": ports.pointer(out / PREMISES_FILE),
+    return {"ok": True, "status": "ok", "reason": "", "constraints": ports.pointer(out / PREMISES_FILE, "json(shared:constraints.schema.json)"),
             "report": report.lines(doc.get("findings"), rows, HYPOTHESIS)}

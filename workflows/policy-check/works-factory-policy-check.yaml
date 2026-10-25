@@ -24,10 +24,9 @@ nodes:
           type: object
           additionalProperties: false
           required: [type, run_id, path]
-          properties:
-            type:
-              type: string
-              enum: [archon_artifact]
+          description: 'json(shared:request.schema.json): 方針の文と困り事から組んだ依頼の行'
+          properties: &pointer_fields
+            type: {type: string, enum: [archon_artifact]}
             run_id: {type: string}
             path: {type: string}
         policy: {type: string}
@@ -73,12 +72,34 @@ nodes:
       properties:
         ok: {type: boolean}
         world:
-          anyOf:
-            - {type: object}
-            - {type: 'null'}
+          # world の返り（WORLD の 7 欄）をそのまま載せる。走らなかった時は null
+          type: [object, 'null']
+          properties:
+            ok: {type: boolean}
+            status: {type: string}
+            reason: {type: string}
+            rows:
+              type: [object, 'null']
+              additionalProperties: false
+              required: [type, run_id, path]
+              description: 'jsonl(lib:world-row.schema.json): 世界の解の行。行が無ければ null'
+              properties: *pointer_fields
+            classes: {type: integer}
+            dropped: {type: integer}
+            report: {type: array, items: {type: string}}
         holes:
+          # 事前審査の返答の faces（人に回しうる穴の行）
           type: array
-          items: {type: object}
+          items:
+            type: object
+            properties:
+              key: {type: string}
+              unit_keys: {type: array, items: {type: string}}
+              kind: {type: string}
+              where: {type: string}
+              why: {type: string}
+              severity: {type: string}
+              reach: {type: string}
         report:
           type: array
           items: {type: string}

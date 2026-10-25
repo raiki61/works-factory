@@ -31,10 +31,6 @@ from tests.blocks.chain.test_chain import ROUND_FILES, chain, run_final, run_res
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 MERGE = WORKFLOWS / "merge" / "works-factory-merge.yaml"
 LINE = WORKFLOWS / "line" / "works-factory-line.yaml"
-CHAIN = WORKFLOWS / "chain" / "works-factory-chain.yaml"
-# 周の鎖は承認のノードを持たない（最後の承認は周の子 run の中）ので、人の一言 final_answer を鎖の result は運ばない。
-# stopped_why は無い一言を言わないだけで、ほかの読む欄は鎖も線と同じに要る
-CHAIN_OMITS = {"final_answer"}
 
 RUN = "0123456789abcdef0123456789abcdef"
 SHORT = RUN[:8]
@@ -136,7 +132,7 @@ class ApplyTest(TargetCase):
         value = {"outcome": "fixed",
                  "apply": {"ok": True, "hash": h, "diff": pointer("merge/apply.diff"), "reason": ""},
                  "sealed": {"ok": True, "hash": h, "diff": pointer("merge/sealed.diff")},
-                 "r2_status": None, "report": None}
+                 "r2_status": None, "report": None, "stop_reason": "", "spec_questions": 0}
         value.update(over)
         return value
 
@@ -251,6 +247,22 @@ class ApplyTest(TargetCase):
         value = self.value(apply=None, outcome="stopped_by_human", r2_status="redesign-needed")
         self.assert_refused(self.run_apply(self.record(value), "--allow-stopped"), 1, "redesign-needed")
 
+    def test_apply_stops_on_a_result_off_the_declared_shape(self):
+        """メイングラフと周の鎖の result の値は、読む前に読む欄の形（RETURN_READS の form）で照らす。欄の名がずれた値（apply を
+        別の名で返す・sealed の hash の名が違う・spec_questions が字）を、黙って「置いた差分が無い」と読んだり、照らさずに当てたり
+        せず、形の誤りとして終了の値 2 で止まり、ずれた欄を名指す（#851 の外。PR #861 の足した物）"""
+        good = self.value()
+        sealed = {"ok": True, "digest": sha(self.diff), "diff": pointer("merge/sealed.diff")}
+        cases = (
+            ("apply の名がずれた", {**{k: v for k, v in good.items() if k != "apply"}, "placed": good["apply"]}, "'apply'"),
+            ("sealed の hash の名がずれた", self.value(apply=None, sealed=sealed), "$.sealed: 必須の欄 'hash'"),
+            ("spec_questions が字", self.value(spec_questions="2"), "$.spec_questions"),
+        )
+        for name, value, field in cases:
+            with self.subTest(name):
+                err = self.assert_refused(self.run_apply(self.record(value), "--allow-stopped"), 2, "の形に合わない", field)
+                self.assertNotIn("置いた差分が無い", err)
+
     def test_apply_refuses_unreadable_run(self):
         cases = {
             "終わっていない": ({"run": {"id": RUN}, "terminal_record": None}, 0),
@@ -293,12 +305,15 @@ class ApplyTest(TargetCase):
                                 ("symlink", pointer("link/apply.diff"), "外"), ("無いファイル", pointer("none/apply.diff"), "普通のファイル"),
                                 ("フォルダ", pointer("folder/apply.diff"), "普通のファイル"),
                                 ("別の run", pointer("merge/apply.diff", run_id="other"), "別の run"),
-                                ("先の名が違う", pointer("merge/sealed.diff"), "名が apply.diff でない"),
-                                ("指し札でない", "merge/apply.diff", "読めない")):
+                                ("先の名が違う", pointer("merge/sealed.diff"), "名が apply.diff でない")):
             with self.subTest(name):
                 value = self.value()
                 value["apply"]["diff"] = ptr
                 self.assert_refused(self.run_apply(self.record(value)), 1, said)
+        with self.subTest("指し札でない（読む欄の形の照らしが先に止める）"):
+            value = self.value()
+            value["apply"]["diff"] = "merge/apply.diff"
+            self.assert_refused(self.run_apply(self.record(value)), 2, "の形に合わない", "$.apply.diff")
 
     def test_apply_reads_the_place_of_any_include(self):
         """place は include の道で決まる（merge-seal/sealed.diff・merge-apply/apply.diff）。決まったパスでなく名の末尾で照らす（README 11.3 の 7）"""
@@ -389,21 +404,38 @@ class ApplyTest(TargetCase):
                 shape = {"type": "object", "properties": {k: returns[k] for k in member}, "required": list(member)}
                 self.assertEqual(validate_schema(member, shape), [])
 
-    def test_apply_reads_only_line_returns(self):
-        """bin/_lib/apply.py が value から読む欄は、どれも線の result の output_format が要る欄として持つ（名を変えると知らせが黙って消える）。
-        spec_questions は respec_note が数えられる整数で来る。周の鎖の result も同じ口で読むので、CHAIN_OMITS のほかは同じ欄を同じ形で持つ"""
+    def test_apply_reads_the_result_only_through_the_table(self):
+        """bin/_lib/apply.py は result の値を、表 RETURN_READS の道を at で引いて読み（value を字の名で直に読まない）、表の道はどれも
+        読む。表はメイングラフと周の鎖の両方を同じ形と道で名指す（周の鎖の result も同じ口で読む）。form と道が両方の返す節の
+        output_format に合うかは tests/layers/scan.py の E5（_shell_reads）が照らす"""
         tree = ast.parse((ROOT / "bin" / "_lib" / "apply.py").read_text(encoding="utf-8"))
-        read = {key.value for node in ast.walk(tree) for key in value_keys(node)}
-        self.assertIn("spec_questions", read)
-        for graph in (LINE, CHAIN):
-            with self.subTest(graph.name):
-                result = next(n for n in yaml.safe_load(graph.read_text(encoding="utf-8"))["nodes"] if n["id"] == "result")
-                returns = result["output_format"]
-                self.assertLessEqual(read - (CHAIN_OMITS if graph == CHAIN else set()), set(returns["required"]))
-                self.assertIn("spec_questions", returns["required"])
-                self.assertEqual(validate_schema(self.value(spec_questions=2)["spec_questions"],
-                                                 returns["properties"]["spec_questions"]), [])
-                self.assertNotEqual(validate_schema("2", returns["properties"]["spec_questions"]), [])
+        self.assertEqual([key.value for node in ast.walk(tree) for key in value_keys(node)], [])
+        read = {getattr(apply, node.args[1].id) for node in ast.walk(tree)
+                if isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id == "at"
+                and isinstance(node.args[0], ast.Name) and node.args[0].id == "value" and isinstance(node.args[1], ast.Name)}
+        self.assertEqual(read, set(apply.RESULT_PATHS))
+        self.assertEqual(apply.RETURN_READS, {
+            "works-factory-line": ("", apply.RESULT_FORM, apply.RESULT_PATHS),
+            "works-factory-chain": ("", apply.RESULT_FORM, apply.RESULT_PATHS),
+            ("works-factory-line", apply.SEAL_STEP): ("got", apply.SEAL_FORM, apply.SEAL_PATHS),
+            ("works-factory-line", apply.EYES_STEP): ("got", apply.EYES_FORM, apply.EYES_PATHS),
+            ("works-factory-line", apply.ANSWER_STEP): ("", apply.ANSWER_FORM, apply.ANSWER_PATHS)})
+
+    def test_apply_reads_the_events_only_through_the_table(self):
+        """--allow-failed の道が出来事から読むノードの出力（step_read の値）は、表 RETURN_READS の道の名を添字か at で引いて読み
+        （字の名で直に読まない）、表の道はどれも読む"""
+        tree = ast.parse((ROOT / "bin" / "_lib" / "apply.py").read_text(encoding="utf-8"))
+        held = {"sealed", "verdict", "answer"}
+        literal = [n.lineno for n in ast.walk(tree) if isinstance(n, ast.Subscript) and isinstance(n.value, ast.Name)
+                   and n.value.id in held and isinstance(n.slice, ast.Constant)]
+        literal += [n.lineno for n in ast.walk(tree) if isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute)
+                    and n.func.attr == "get" and isinstance(n.func.value, ast.Name) and n.func.value.id in held]
+        self.assertEqual(literal, [])
+        keys = [n.slice for n in ast.walk(tree) if isinstance(n, ast.Subscript) and isinstance(n.value, ast.Name) and n.value.id in held]
+        keys += [n.args[1] for n in ast.walk(tree) if isinstance(n, ast.Call) and isinstance(n.func, ast.Name) and n.func.id == "at"
+                 and isinstance(n.args[0], ast.Name) and n.args[0].id in held]
+        read = {getattr(apply, k.id) for k in keys if isinstance(k, ast.Name)}
+        self.assertEqual(read, {*apply.SEAL_PATHS, *apply.EYES_PATHS, *apply.ANSWER_PATHS})
 
     def test_apply_sets_no_deadline(self):
         for part in (ROOT / "bin" / "apply", ROOT / "bin" / "_lib" / "apply.py"):
@@ -556,7 +588,7 @@ class FailedAfterSealTest(TargetCase):
 
     def test_unattended_push_does_not_say_the_human_approved(self):
         """無人の run が推しで通した run（答えに欄 pushed）は、人の承認と言わない"""
-        self.assert_go_not_by_a_human({"go": True, "answer": {"decision": "approve", "text": "", "asked": [], "pushed": ["ask-final"]},
+        self.assert_go_not_by_a_human({"go": True, "answer": {"decision": "approve", "text": "", "asked": [], "pushed": [{"item": "ask-final", "answer": "continue"}]},
                                        "stop_reason": ""}, "推しで通した")
 
     def test_run_stopped_at_the_final_gate_whose_report_failed_needs_allow_stopped(self):
@@ -610,6 +642,28 @@ class FailedAfterSealTest(TargetCase):
         with self.subTest("独立の目が済んでいない"):
             self.assert_refused(self.run_apply(self.failed_run(eyes_state="failed"), "--allow-failed", events=self.events()),
                                 2, apply.EYES_STEP, "R2")
+
+    def test_events_off_the_declared_shape_are_refused(self):
+        """--allow-failed の道が出来事から読む 3 つの出力（封じの受け皿の got・独立の目の受け皿の got・最後の承認ノードの答え）も、
+        result と同じく表 RETURN_READS の形で照らし、欄の名がずれていれば訳に欄を出して終了の値 2 で止まる（欄 r2 の名がずれた出力を
+        作り直しを言っていないと、欄 answer の名がずれた答えを方針で開かなかったと読み違えて当てない）"""
+        go = {"go": True, "answer": {"decision": "approve", "text": "", "asked": []}, "stop_reason": ""}
+        sealed = {"mode": "seal", "ok": True, "sealed_hash": sha(self.diff), "diff": pointer("merge/sealed.diff"),
+                  "protected_hits": [], "reason": ""}
+        eyes = self.events(answer=go)
+        verdict = eyes["events"][2]["data"]
+        eyes["events"][2]["data"] = json.dumps({**json.loads(verdict), "structured_output": {
+            "got": {"ok": True, "r2_row": {"status": "redesign-needed", "reason": "設計を組み直す"}}, "stop_reason": ""}})
+        moved = {"go": True, "row": {"decision": "stop", "text": "当てない"}, "stop_reason": ""}
+        cases = {apply.SEAL_STEP: (self.events(seal=sealed, answer=go), "hash"),
+                 apply.EYES_STEP: (eyes, "r2"),
+                 apply.ANSWER_STEP: (self.events(answer=moved), "answer")}
+        for step, (events, field) in cases.items():
+            with self.subTest(step):
+                form = apply.RETURN_READS[(apply.LINE, step)][1]
+                err = self.assert_refused(self.run_apply(self.failed_run(answer=go), "--allow-failed", "--allow-stopped",
+                                                         events=events), 2, step, form, "形に合わない", f"必須の欄 '{field}'")
+                self.assertIn("欄の名", err)
 
     def test_structured_output_is_read_before_the_truncation_mark(self):
         """Archon の terminal-record.ts と同じく、型つきの出力が在れば切り詰めの印を見ない"""

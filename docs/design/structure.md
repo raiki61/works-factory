@@ -34,7 +34,7 @@
 
 - `mode`: `choice(before|after): before は直す前に単位を測って見る。after は base から今の作業ツリーまでの差分を測って見る`。既定 `before`。
 - `units`: `json(shared:units.schema.json): 直しの単位の配列 [{id, paths, summary}]。before では paths が空の単位は測らずに skipped に名指す。after では空の配列でよく、その時は差分の全体を 1 つの単位（id は diff）として見る`。既定 `[]`。
-- `intent`: `json(intent.schema.json): 書いた意図の文書のパスの配列（作業ツリーの根からの相対）。空の配列なら決まった名で探す（3 節の intent）`。既定 `[]`。
+- `intent`: `json(shared:intent.schema.json): 書いた意図の文書のパスの配列（作業ツリーの根からの相対）。空の配列なら決まった名で探す（3 節の intent）`。既定 `[]`。
 - `policy`: `file: 人が run に固めた方針の文書（今の始めの記録の policy の写し）。空の字は、方針の文書が渡されていない`。既定 `""`。
 - `base`: `text: after の時の直す前の版の commit。before では読まない`。既定 `""`。
 - `plan`: `file: after の時の修正案の欄のファイル（plan-fields.json。欄 fields）。構造の目の避け方から外れた訳を読む。空の字は、修正案が渡されていない（外れの訳は空の並び）。before では読まない`。既定 `""`。

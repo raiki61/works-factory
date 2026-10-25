@@ -101,6 +101,7 @@ nodes:
           enum: [ok, failed]
         reason: {type: string}
         constraints:
+          description: 'json(shared:constraints.schema.json): 前提の実測の行を constraints の欄に持つ控え'
           type: [object, 'null']
           properties:
             type:

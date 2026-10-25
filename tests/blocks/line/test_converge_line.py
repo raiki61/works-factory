@@ -191,9 +191,10 @@ class RecordCase(BoardCase):
 
     def test_stash_rejects_go_to_last_pass(self):
         self.record(["a"])
-        C.stash_rejects(self.b, ["拒否 1"])
-        C.stash_rejects(self.b, ["拒否 2"])
-        self.assertEqual(C.read(self.b)["passes"][-1]["rejects"], ["拒否 1", "拒否 2"])
+        rows = [{"role": "plan", "at": "1", "reason": "拒否 1"}, {"role": "plan", "at": "2", "reason": "拒否 2"}]   # 拒否の行の形（lib/rolekit）
+        C.stash_rejects(self.b, rows[:1])
+        C.stash_rejects(self.b, rows[1:])
+        self.assertEqual(C.read(self.b)["passes"][-1]["rejects"], rows)
 
     def test_new_central_blocks_go_on_past_three_passes(self):
         """中央の新しい block が出る限り、往復の数では止めない（3 往復目も 5 往復目も AGAIN。直しの役に返す行は最後の往復）"""
@@ -717,13 +718,15 @@ class PlaceRecordCase(BoardCase):
     """line の形の記録の読み書き（元 RecordCase の盤面の照らしの写し。pass.json の材料と place のパス）"""
 
     def test_read_without_record_is_first_pass(self):
+        """無い記録だけが 1 往復目。読めない・形の違う記録は往復の無い記録にすり替えず、理由を名指して落ちる（#851）"""
         path = self.b.dir / rounds_files.PLAN_CONVERGE
         self.assertEqual(rounds.read(path), rounds.fresh())
-        path.write_text("{壊れた", encoding="utf-8")
-        self.assertEqual(rounds.read(path), rounds.fresh())
-        path.write_text(json.dumps({"passes": [7]}), encoding="utf-8")
-        self.assertEqual(rounds.read(path), rounds.fresh())
         self.assertEqual(rounds.read(None), rounds.fresh())
+        for text, word in (("{壊れた", "JSON として読めない"), (json.dumps({"passes": [7]}), "passes"),
+                           (json.dumps({"round": 1}), "passes")):
+            path.write_text(text, encoding="utf-8")
+            with self.subTest(text=text), self.assertRaisesRegex(ValueError, word):
+                rounds.read(path)
 
     def test_record_pass_keeps_every_pass_and_copies_files(self):
         row1 = self.record(["a"], files={"plan.json": self.src("plan.json", "案 1"), "review.json": self.src("review.json", "審査 1")},

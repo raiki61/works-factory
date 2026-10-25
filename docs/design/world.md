@@ -256,7 +256,7 @@ Return only JSON that matches the output schema.
 - run で 1 回の歯止め（元の `line_edge.py:1027` は控えが在れば回さなかった）: 工場に無い（（未確認）: 意図の記録なし）。この block では 1.6 の配線（judge のまとめが 1 回だけ include する）で同じ事になる。
 - 出口での行の検査（元の world_edge が行を読めるか確かめた）: 工場は読み手の `stage_rows` が弾く形にした（#334）。この block の `finish.py` は行を自分で書くので、書く前に `worldmark` の行の形で確かめる（読み手の確かめも残る）。
 - 関所の判定に目的の文の出典 `source_files` を使っていた所: 工場は意図して外した（#365「目的の審査を走り直すための物で、意味が違う」）。この block は関わらない（判定は line の承認ノードの側）。
-- 行の型のファイル `world-row.schema.json`: 工場に無い（#29、`docs/plans/2026-10-12-lib-port.md:180` が型を読む試験を外すと決めた）。この block では `lib/worldmark.py` の `FIELDS` を正本のまま使う。`lib/worldmark.py:5` の docstring に残る型ファイルの名は、組み込みで直す。
+- 行の型のファイル `world-row.schema.json`: 工場に無かった（#29）。#851 で `lib/world-row.schema.json` に置き、`lib/worldmark.py` の `FIELDS`・`VERDICTS`・`BASES`・`VERSUS_FIELDS` はそこから引き、行の照らしもその形で当てる。返す節の `rows` の pointer は `jsonl(lib:world-row.schema.json)`。
 - web が off の道: 工場では機能を切ると段ごと飛ぶので、off の道には実際は届かなかった（`lib/judge_accept.py:3685`）。この block では port `web` で単独の run から off を選べるので、off の道が初めて実際に使える道になる。
 
 graphloops の `prompts/review-loop/p1.external_standards.md` にあって、この block に無い物（順位 ranked・diff_at・why_not_higher、見た範囲と見ていない範囲、「定石は無い」という結論、一次情報とブログの区別、受容済みの弱点の照らし直し、機構を変えた周での回し直し、対象と依存を読むこと）: どれも工場の素材の観点 external-standards（`workflows/judge/commands/material-external-standards.md`）がそのまま持つ。世界の解は「対象を読まずに上の類に上がる」ための別の観点で、元の works の計画（5.2 節「対象の木は読まない」、5.4 節「1 回だけ」）が意図して持たせなかった。この block にも足さない。「定石は無い」と言える道と、一次情報とブログの区別は、振る舞いを変える提案なので、この作り直しの後に別に扱う。

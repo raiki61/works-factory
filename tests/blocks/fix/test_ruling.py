@@ -470,8 +470,8 @@ class RuleScriptsCase(unittest.TestCase):
         始めの記録の固めた版の写しの代わり）"""
         policy = self.run.artifacts.parent / "frozen-policy.md"
         policy.write_text("- 固めた版\n", encoding="utf-8")
-        request = self.run.artifacts.parent / "request.md"
-        request.write_text("平均を直して\n", encoding="utf-8")
+        request = self.run.artifacts.parent / "request.json"
+        request.write_text(json.dumps([{"where": "stats.py", "text": "平均を直して"}], ensure_ascii=False), encoding="utf-8")
         self.start(policy=str(policy), request=str(request))
         out = self.run.script("rule_prep")
         self.assertIn(f"The policy document: {policy}", out["prompt"])

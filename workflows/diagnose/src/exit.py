@@ -4,7 +4,6 @@ rejudge_verdict, rejudge_exit, rejudge_diff, downgrades, report} を返す。jud
 from __future__ import annotations
 
 import json
-import os
 import pathlib
 
 import gatemarks   # lib/
@@ -45,8 +44,8 @@ def _last_brief(place: pathlib.Path):
     return prompts[-1] if prompts else None
 
 
-def _pointer(path):
-    return ports.pointer(path) if path is not None and pathlib.Path(path).is_file() else None
+def _there(path) -> bool:
+    return path is not None and pathlib.Path(path).is_file()
 
 
 def _status(place: pathlib.Path, mode: str):
@@ -85,17 +84,21 @@ def finish(place, repo, objection: str) -> dict:
     units = judge.structure_units(judgment, repo, record=place / files.STRUCTURE_DROPPED_FILE) if ok else []
     questions = [q for q in (judgment.get("questions") or []) if isinstance(q, dict) and gatemarks.asks_human(q)] if ok else []
     first = mode == files.JUDGE
+    inputs, brief, mats = place / files.INPUT_FILE, _last_brief(place), place / files.MATERIALS_FILE
+    outside, ties = place / files.OUT_OF_PURPOSE_FILE, place / files.ANSWER_TIES_FILE
+    rexit, rdiff = place / files.REJUDGE_EXIT_FILE, place / files.REJUDGE_DIFF_FILE
     out = {
         "ok": ok, "status": status, "mode": mode, "stop_reason": stop_reason, "reason": reason,
-        "ready": ok and bool(units), "judgment": ports.pointer(place / files.JUDGMENT_FILE), "units": units, "questions": questions,
-        "inputs": _pointer(place / files.INPUT_FILE) if first else None,
-        "brief": _pointer(_last_brief(place)) if first else None,
-        "materials": _pointer(place / files.MATERIALS_FILE) if first else None,
-        "out_of_purpose": _pointer(place / files.OUT_OF_PURPOSE_FILE) if first and ok else None,
-        "answer_ties": _pointer(place / files.ANSWER_TIES_FILE) if first and ok else None,
+        "ready": ok and bool(units), "judgment": ports.pointer(place / files.JUDGMENT_FILE, "json(shared:judgment.schema.json)"),
+        "units": units, "questions": questions,
+        "inputs": ports.pointer(inputs, "json(shared:diagnose-input.schema.json)") if first and _there(inputs) else None,
+        "brief": ports.pointer(brief, "file") if first and _there(brief) else None,
+        "materials": ports.pointer(mats, "json(shared:materials-state.schema.json)") if first and _there(mats) else None,
+        "out_of_purpose": ports.pointer(outside, "json(lib:out-of-purpose.schema.json)") if first and ok and _there(outside) else None,
+        "answer_ties": ports.pointer(ties, "json(shared:answer-ties.schema.json)") if first and ok and _there(ties) else None,
         "rejudge_verdict": rejudge.verdict_of(place) if not first and ok else None,
-        "rejudge_exit": _pointer(place / files.REJUDGE_EXIT_FILE) if not first else None,
-        "rejudge_diff": _pointer(place / files.REJUDGE_DIFF_FILE) if not first else None,
+        "rejudge_exit": ports.pointer(rexit, "json(shared:rejudge-exit.schema.json)") if not first and _there(rexit) else None,
+        "rejudge_diff": ports.pointer(rdiff, "json(shared:rejudge-diff.schema.json)") if not first and _there(rdiff) else None,
         "downgrades": [dict(row) for row in files.DOWNGRADES],
     }
     out["report"] = report.lines(place, mode, status, reason, judgment)
@@ -104,16 +107,16 @@ def finish(place, repo, objection: str) -> dict:
 
 
 def fallback(place, why: str, objection: str) -> dict:
-    """出口が思わぬ例外で落ちた時の返り（出口は落ちない）。judgment は place に空の形を書けた時だけ pointer、書けなければ約束の形の pointer"""
+    """出口が思わぬ例外で落ちた時の返り（出口は落ちない）。judgment は在る判定のファイルが形に合えばそれを指し、無い・形に合わない時は
+    空の形を書き直してから指す（形に合わない判定を指さない。fallback の中で形の誤りを投げない）"""
     mode = files.REJUDGE if str(objection or "").strip() else files.JUDGE
     reason = f"判定の出口が落ちた（{oneline.one_line(why)}）"
+    place = pathlib.Path(place)
     try:
-        place = pathlib.Path(place)
-        if not (place / files.JUDGMENT_FILE).is_file():
-            jsonfile.write(place / files.JUDGMENT_FILE, EMPTY_JUDGMENT, parents=True)
-        judgment = ports.pointer(place / files.JUDGMENT_FILE)
-    except Exception:   # noqa: BLE001
-        judgment = {"type": ports.POINTER_TYPE, "run_id": os.environ.get("WORKFLOW_ID", ""), "path": files.JUDGMENT_FILE}
+        judgment = ports.pointer(place / files.JUDGMENT_FILE, "json(shared:judgment.schema.json)")
+    except ValueError:   # 無い・読めない・形に合わない（ShapeError も ValueError の子）
+        jsonfile.write(place / files.JUDGMENT_FILE, EMPTY_JUDGMENT, parents=True)
+        judgment = ports.pointer(place / files.JUDGMENT_FILE, "json(shared:judgment.schema.json)")
     return {"ok": False, "status": "failed", "mode": mode, "stop_reason": _stop_word(mode), "reason": reason, "ready": False,
             "judgment": judgment, "units": [], "questions": [], "inputs": None, "brief": None, "materials": None,
             "out_of_purpose": None, "answer_ties": None, "rejudge_verdict": None, "rejudge_exit": None, "rejudge_diff": None,

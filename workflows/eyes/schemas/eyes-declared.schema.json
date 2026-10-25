@@ -1,7 +1,0 @@
-{
-  "description": "直す側が直さずに残すと答えた事前審査の block の行の配列（r4 の port declared と同じ形）",
-  "type": "array",
-  "items": {
-    "type": "string"
-  }
-}

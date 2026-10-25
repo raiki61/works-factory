@@ -1,0 +1,13 @@
+{
+  "description": "起動の殻の bin/apply（bin/_lib/apply.py の RETURN_READS）が、メイングラフの出力が読めない run を --allow-failed で当てる時に、run の記録の出来事から読む最後の承認ノードの答え answer-final の出力。殻は人が止めたかを読む前にこの形で照らし、合わなければ当てずに止まる。answer-final の output_format がこの形に合うことは tests/layers/scan.py の E5（_shell_reads）が照らす。answer は方針で開かなかったら null",
+  "type": "object",
+  "required": ["go", "answer", "stop_reason"],
+  "properties": {
+    "go": {"type": "boolean"},
+    "answer": {
+      "type": ["object", "null"],
+      "properties": {"text": {"type": "string"}, "pushed": {"type": "array", "items": {"type": "object", "description": "json(lib:push-row.schema.json): 無人の run が採った推しの行"}}}
+    },
+    "stop_reason": {"type": "string"}
+  }
+}

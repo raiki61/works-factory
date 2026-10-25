@@ -9,7 +9,7 @@ inputs:
     description: 'json(shared:units.schema.json): 直しの単位の配列 [{id, paths, summary}]。before では paths が空の単位は測らずに skipped に名指す。after では空の配列でよく、その時は差分の全体を 1 つの単位（id は diff）として見る'
   intent:
     default: '[]'
-    description: 'json(intent.schema.json): 書いた意図の文書のパスの配列（作業ツリーの根からの相対）。空の配列なら決まった名（ARCHITECTURE.md・AGENTS.md）で探す'
+    description: 'json(shared:intent.schema.json): 書いた意図の文書のパスの配列（作業ツリーの根からの相対）。空の配列なら決まった名（ARCHITECTURE.md・AGENTS.md）で探す'
   policy:
     default: ''
     description: 'file: 人が run に固めた方針の文書。空の字は、方針の文書が渡されていない'
@@ -18,7 +18,7 @@ inputs:
     description: 'text: after の時の直す前の版の commit。before では読まない'
   plan:
     default: ''
-    description: 'file: after の時の修正案の欄のファイル（plan-fields.json。欄 fields）。構造の目の避け方から外れた訳を読む。空の字は、修正案が渡されていない。before では読まない'
+    description: 'json(shared:plan-fields.schema.json): after の時の修正案の欄のファイル（plan-fields.json。欄 fields）。構造の目の避け方から外れた訳を読む。空の字は、修正案が渡されていない。before では読まない'
   lang:
     default: ''
     description: 'text: 人に見せる欄（reason・chosen・chosen_reason・rejected・undecided_because）の言語。空は共通の既定（依頼の言語）'
@@ -137,21 +137,20 @@ nodes:
           enum: [ok, failed]
         reason: {type: string}
         structure:
-          type: [object, 'null']
-          properties:
-            type:
-              type: string
-              enum: [archon_artifact]
-            run_id: {type: string}
-            path: {type: string}
+          <<: &pointer
+            type: [object, 'null']
+            additionalProperties: false
+            required: [type, run_id, path]
+            properties:
+              type:
+                type: string
+                enum: [archon_artifact]
+              run_id: {type: string}
+              path: {type: string}
+          description: 'json(shared:structure-state.schema.json): 構造の目の控え（structure-state.json）。書けなければ null'
         after:
-          type: [object, 'null']
-          properties:
-            type:
-              type: string
-              enum: [archon_artifact]
-            run_id: {type: string}
-            path: {type: string}
+          <<: *pointer
+          description: 'json(shared:structure-after.schema.json): 直した後の構造の実測の控え（structure-after.json）。before と測れなかった時は null'
         dirty: {type: integer}
         escalate: {type: integer}
         optional:

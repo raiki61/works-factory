@@ -1,0 +1,20 @@
+{
+  "description": "食い違いの申し出の控え（置き場の conflicts.json）の形。行は欄の名・型・語だけを持ち、返答の下限（理由の長さ・名指しの数・正しい行の数）は lib/conflict.py の定数に置く（控えには返答の形を通らない機械の行も積まれるので）。park が足す id・round・source・status・ruling などの欄はそのまま通る",
+  "type": "object",
+  "properties": {
+    "items": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "unit_key": {"type": "string"},
+          "between": {"type": "array", "items": {"type": "string"}},
+          "why_both_cannot_hold": {"type": "string"},
+          "which_is_right": {"type": "string", "enum": ["request", "test", "code", "unknown", "query"]},
+          "kind": {"type": ["string", "null"], "enum": ["brief_vs_judgment", "unnamed_test_broke", "not_red", "scope_needed", "query_hits_fixed", "needs_context", null]},
+          "correct_lines": {"type": "array", "items": {"type": "string"}}
+        }
+      }
+    }
+  }
+}

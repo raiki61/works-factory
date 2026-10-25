@@ -265,7 +265,7 @@ bin/works-factory workflow run works-factory-cold-read \
 4. 筋書きの script の node は差し替えず本当に走らせる（11 節の「script の node も差し替え」を採らない）。根拠: 土台の形の検査 `check_standalone_renders` が、AI の node の指示を md から組んだ証として、`exec-code: true`・prep を差し替えない・`resolved-text-contains` が md の決まった文、を求める。`cold-prep` を差し替えると証が立たない。`finish` も本当に走らせ、台本の返答を読む配線まで見る。`unreadable` は存在しないファイル名を渡して `due: false` の道を本当に通す。
 5. `cold-prep` は place の中を全部消さず、自分の名のファイル（`cold-prompt-1.md`・`reply.json`・`read.json`。名は `src/files.py`）だけを消す。根拠: 土台の決め「block が消してよいのは自分が名を持つファイルだけ」。
 6. `lang` が空の時の言語は、共通の断片 `lang-default`（「依頼の言語」）でなく `the language of the text`（md の段落 `<!-- if not lang_given -->` の字。main の決め「lang の既定の文は md に置く」に合わせ、Python に AI 向けの字を持たない）にする。根拠: この block に依頼は無く、port の説明も「空は本文の言語」。`prompt.lang` は使わない。
-7. 本文は `ports.file` で受けて UTF-8 で読み、末尾の改行だけを外して差し込む（字の中は触らない）。ファイルが読めない型（無い・UTF-8 でない）は、パス（80 字まで）と型の名を訳に入れる。
+7. 本文は `ports.file(raw, "file")`（字の文書。JSON のファイルは口が拒む）で受けて UTF-8 で読み、末尾の改行だけを外して差し込む（字の中は触らない）。ファイルが読めない型（無い・UTF-8 でない）は、パス（80 字まで）と型の名を訳に入れる。
 8. 試験の本文は例の run の 1 回目の報告の頭（Archon の記録の `report__write-loop.cold-prep` の `node_output`）で、約 5.7 KB だった（1 回目が約 11 KB という記述と違う）。対象の名だけ `<owner>/<repo>` に替えた。
 9. 1 つ目の commit の比べは、今の `cold-check.md` の行 1-10 と行 14 以降（行 11-13 を除く）に本文を差し込み、空白を畳んで照らす。2 つ目の commit で消した。
 

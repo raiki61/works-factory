@@ -232,17 +232,16 @@ nodes:
           enum: [ok, failed]
         reason: {type: string}
         rows:
-          anyOf:
-            - type: object
-              additionalProperties: false
-              required: [type, run_id, path]
-              properties:
-                type:
-                  type: string
-                  enum: [archon_artifact]
-                run_id: {type: string}
-                path: {type: string}
-            - {type: 'null'}
+          description: 'jsonl(lib:world-row.schema.json): 世界の解の行（依頼の行ごとに 1 行）。行が無ければ null'
+          type: [object, 'null']
+          additionalProperties: false
+          required: [type, run_id, path]
+          properties:
+            type:
+              type: string
+              enum: [archon_artifact]
+            run_id: {type: string}
+            path: {type: string}
         classes: {type: integer}
         dropped: {type: integer}
         report:

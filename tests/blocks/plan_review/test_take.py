@@ -19,6 +19,7 @@ from tests.bin.gitkit import committed_copy
 from tests.blocks import kit
 
 BLOCK = "plan-review"
+ROUNDS = kit.load("line", "rounds")   # 往復の記録の書き手（line）。plan-review の src を読む前に読む（kit.load は前の src を外す）
 SEED = kit.ROOT / "tests" / "e2e" / "target-seed"
 UNIT_MEAN = "stats.py mean: 分母が len(xs) - 1 になっている"
 UNIT_CLAMP = "stats.py clamp: 上限を超えた値に lo を返す"
@@ -71,7 +72,7 @@ def item(unit, n=1, **extra) -> dict:
 
 def fields(unit=None, **extra) -> dict:
     """修正案の項目の works の欄（port fields の fields[] の 1 行）"""
-    return {"route": "direct", "route_why": "1 行の直しで済む", "tests": [], "rewrite_tests": [], "refactor": "無い",
+    return {"route": "direct", "route_why": "1 行の直しで済む", "tests": [], "rewrite_tests": [], "refactor": {"declared": False, "why": ""},
             "allowed_paths": ["stats.py"], "out_of_scope": [], "structure": [], **extra}
 
 
@@ -244,18 +245,12 @@ class Flow:
         return kit.load(BLOCK, name)
 
     def carry(self) -> dict:
-        """line の代わりに、受けた往復の pass.json を往復の記録に足し（converge.add_pass）、次の往復の port prior にする。返りは足した行"""
-        converge = kit.load(BLOCK, "take").converge   # lib/
+        """line の代わりに、受けた往復の pass.json を line の書き手 rounds.record_pass で往復の記録に足し、次の往復の port prior にする
+        （手で枠を組まない）。返りは足した行"""
         got = self.read("pass.json")
-        prior = copy.deepcopy(self.prior) or {"passes": [], "outcome": None}
-        doc = {"round": 1, "passes": prior.get("passes") or [], "plan": got["plan"], "open": {}, "outcome": prior.get("outcome")}
-        row = converge.add_pass(doc, got["review"], answers=got["answers"], resolved=got["resolved"], synergy=got["synergy"],
-                                hits={int(k): v for k, v in (got["hits"] or {}).items()}, origins=got["origins"],
-                                refs={int(k): v for k, v in (got["refs"] or {}).items()}, push=got["push"])
-        row["files"] = dict(got["files"])
-        row["rejects"] += got["rejects"]
-        self.prior = {"passes": doc["passes"], "plan": doc["plan"], "outcome": doc["outcome"],
-                      "precedent_checks": got["precedent_checks"]}
+        doc = copy.deepcopy(self.prior) if self.prior else ROUNDS.fresh()
+        row = ROUNDS.record_pass(doc, got, at_cap=False, dest=self.place / "line-passes" / str(len(doc["passes"]) + 1))
+        self.prior = kit.shaped("shared:plan-converge.schema.json", doc)
         return row
 
 
@@ -735,7 +730,7 @@ class ReplanCase(FlowCase):
     """形 replan（案の直しの事前審査。port ruling が空でない。元 ReplanCase の受け付けの側）: 往復を足さず、pass.json を書かない"""
 
     CONFLICT = {"id": "c-clamp", "unit_key": UNIT_CLAMP, "between": ["項目 2", "test_stats.py"],
-                "why_both_cannot_hold": "上限の枝の試験が lo を期待していて案と両立しない", "kind": "plan",
+                "why_both_cannot_hold": "上限の枝の試験が lo を期待していて案と両立しない", "kind": "brief_vs_judgment",
                 "which_is_right": "test", "ruling": {"decision": "fix_plan_item", "text": "RULING-MARK-3131 試験の側を正とせよ"}}
 
     def replan(self, rows=None, field_rows=None, ruled="2", design=None, first=None):

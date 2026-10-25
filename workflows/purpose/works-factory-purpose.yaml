@@ -97,6 +97,7 @@ nodes:
           enum: [ok, failed]
         reason: {type: string}
         purpose:
+          description: 'json(shared:purpose.schema.json): 固めた目的のファイル'
           type: [object, 'null']
           properties:
             type:

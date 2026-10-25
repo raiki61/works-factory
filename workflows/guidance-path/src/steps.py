@@ -365,7 +365,7 @@ def finish(out) -> dict:
     paths = None
     if rows:
         jsonfile.write(out / PATHS, rows)
-        paths = ports.pointer(out / PATHS)
+        paths = ports.pointer(out / PATHS, "json(paths.schema.json)")
     hits = sum(r["hit"] is True for r in rows)
     report = [f"- 頼み {r['id']}: " + ("当たり" if r["hit"] else "外れ" if r["hit"] is False else "辿れなかった")
               + (f"（置いた所 {', '.join(norm(p['path']) for p in r['placed'])}。閉じるべき所 {', '.join(r['closes'])}）"

@@ -1,0 +1,30 @@
+{
+  "description": "修正案の盤面の控え（plan-fields.json。書き手は修正案の block の受け付け〔lib/planmarks.py の save〕）{round, fields: [項目ごとの works の欄], amended?: {番号: 核の欄}}。欄の行の型の住処は lib/plan-item-fields.schema.json の 1 か所（lib/planmarks.py の FIELD_SCHEMA・FILES_SCHEMA もそこから引く）",
+  "type": "object",
+  "required": [
+    "round",
+    "fields"
+  ],
+  "properties": {
+    "round": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "fields": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "description": "json(lib:plan-item-fields.schema.json): 項目 1 つの works の欄の行（項目と同じ並び）"
+      }
+    },
+    "amended": {
+      "type": "object",
+      "patternProperties": {
+        "^[0-9]+$": {
+          "type": "object",
+          "description": "json(shared:plan-reply-item.schema.json): 差し替えた項目の核の欄（lib/planmarks.py の CORE_KEYS）"
+        }
+      }
+    }
+  }
+}

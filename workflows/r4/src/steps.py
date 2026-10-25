@@ -54,18 +54,18 @@ def _read_ports(raw: dict) -> tuple[dict, list]:
         "purpose": lambda v: ports.text(v).strip(),
         "green": lambda v: True if _blank(v) else ports.flag(v),
         "coherence": lambda v: False if _blank(v) else ports.flag(v),
-        "policy": lambda v: _path(ports.file(v)),
-        "ripple": lambda v: _path(ports.file(v)),
-        "world_rows": lambda v: _path(ports.file(v)),
-        "decisions": lambda v: _path(ports.file(v)),
+        "policy": lambda v: _path(ports.file(v, "file")),
+        "ripple": lambda v: _path(ports.file(v, "json(shared:ripple.schema.json)")),
+        "world_rows": lambda v: _path(ports.file(v, "jsonl(lib:world-row.schema.json)")),
+        "decisions": lambda v: _path(ports.file(v, "json(shared:material.schema.json)")),
         "answers": lambda v: {} if _blank(v) else ports.json(v, "shared:gate-answers.schema.json"),
         "changed": lambda v: {} if _blank(v) else ports.json(v, "shared:fix-marks.schema.json"),
         "pushes": lambda v: [] if _blank(v) else ports.json(v, "shared:pushes.schema.json"),
-        "asked": lambda v: [] if _blank(v) else ports.json(v, "r4-asked.schema.json"),
-        "declared": lambda v: [] if _blank(v) else ports.json(v, "r4-declared.schema.json"),
+        "asked": lambda v: [] if _blank(v) else ports.json(v, "shared:asked.schema.json"),
+        "declared": lambda v: [] if _blank(v) else ports.json(v, "shared:declared.schema.json"),
         "request": lambda v: [] if _blank(v) else requestrows.parts(v)["answers"],   # 依頼の answers
     }
-    coherence = {"after": lambda v: _path(ports.file(v)),
+    coherence = {"after": lambda v: _path(ports.file(v, "json(shared:structure-after.schema.json)")),
                  "review": lambda v: {} if _blank(v) else ports.json(v, "shared:plan-verdict.schema.json")}
 
     def read(name, fn):
