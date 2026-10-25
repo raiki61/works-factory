@@ -1,0 +1,6 @@
+{
+  "description": "並行 PR と重なるので外した範囲（parallel-pr の pr-excluded.json {node, head, excluded: [行]}）か、行の配列。null は外す範囲が無い",
+  "type": ["object", "array", "null"],
+  "properties": {"node": {"type": "string"}, "head": {"type": "string"}, "excluded": {"type": "array", "items": {"type": "object", "required": ["file", "start", "end"], "properties": {"pr": {"type": ["string", "integer"]}, "file": {"type": "string", "minLength": 1}, "start": {"type": "integer", "minimum": 1}, "end": {"type": "integer", "minimum": 1}, "why": {"type": "string"}, "text": {"type": "string"}, "sha256": {"type": "string"}}}}},
+  "items": {"type": "object", "required": ["file", "start", "end"], "properties": {"pr": {"type": ["string", "integer"]}, "file": {"type": "string", "minLength": 1}, "start": {"type": "integer", "minimum": 1}, "end": {"type": "integer", "minimum": 1}, "why": {"type": "string"}, "text": {"type": "string"}, "sha256": {"type": "string"}}}
+}

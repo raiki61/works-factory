@@ -1,7 +1,7 @@
 """修正の block（workflows/fix/）の 9 つの AI の node の指示を、その prep（か prep が呼ぶ src/prompts.py の口）を回して md から組み、
 決まった文が入ることを見る（docs/design/fix.md の 14.2 の test_prompts.py）。
 
-表 RENDERED は、筋書き（fixtures/）で届かない 7 つの node（全体の形は fan_out で dry-run が落ち、tdd は同じ単位の 2 周目にだけ回り、suite-fix は起動スクリプトが壊れた組だけ）の
+表 RENDERED は、筋書き（fixtures/）で届かない 8 つの node（全体の形は fan_out で dry-run が落ち、tdd-new と tdd は振り分けで tdd の単位が在る組だけ〔tdd は同じ単位の 2 周目〕、suite-fix は起動スクリプトが壊れた組だけ）の
 md の決まった文。tests/layers/test_block_shape.py の 7.1 の 3 の照らしは、この表の在りと字だけを見る（14.3）。表の行は下の試験が
 本当に組んだ指示の中に在ることを照らす。
 """
@@ -24,9 +24,19 @@ RENDERED = {
     "ruler": "# Ruling on conflicts (a read-only role)",
     "clash-fix": "# Merging groups (the merger)",
     "clash-ruled": "# Merging groups (the merger after a ruling)",
-    "fix-ruled": "# Fixing (the writer's job)",
+    "tdd-close": "# Fixing (the writer's job)",   # 型ごとの書き手は筋書きが variant だけを回す（ほかは test_writers_the_fixtures_do_not_reach）
+    "pin": "# Fixing (the writer's job)",
+    "tidy": "# Fixing (the writer's job)",
+    "static": "# Fixing (the writer's job)",
+    "remove": "# Fixing (the writer's job)",
+    "pin-ruled": "# Fixing (the writer's job)",
+    "tidy-ruled": "# Fixing (the writer's job)",
+    "static-ruled": "# Fixing (the writer's job)",
+    "variant-ruled": "# Fixing (the writer's job)",
+    "remove-ruled": "# Fixing (the writer's job)",
     "ruled-consult-answer": "# Scope consultation (from the fixing stage)",
     "tdd": "## What this role does",
+    "tdd-new": "## What this role does",   # tdd の単位の在る組の 1 周目だけ（振り分けの役 route が筋書きで回る）
     "suite-fix": "## What to look for",   # 起動スクリプトが壊れた組だけ（試験は tests/blocks/fix/test_suite_fix.py が組んで照らす）
 }
 KEY = "stats.py:4 mean"
@@ -36,7 +46,7 @@ RUNNER = BLOCK / "fixtures" / "tdd-runner.py"
 REPLY = {"changes": [], "not_done": [], "fix_closure": {"status": "not_applicable"}, "mechanism_changed": False,
          "premise_drift": False, "gates_changed": False, "seams_changed": False, "security_surface_changed": False,
          "path_changed": False, "interactions": [], "wrote_refs": [], "plan_faces": []}
-PLAN = json.dumps({"round": 1, "fields": [{"route": "direct", "tests": [], "rewrite_tests": [], "refactor": "",
+PLAN = json.dumps({"round": 1, "fields": [{"route": "direct", "tests": [], "rewrite_tests": [], "refactor": {"declared": False, "why": ""},
                                             "allowed_paths": ["stats.py"], "out_of_scope": []}]})
 FIX_PLAN = json.dumps({"plan": [{"unit_keys": [KEY], "approach": "空の並びを先に返す"}]})
 
@@ -49,8 +59,8 @@ def seeded(case) -> kit.Run:
     return run
 
 
-# brief ファイルの読み方の句（背景は参照・書き換えてよい範囲が引けない・範囲を決めていない項目）。brief を読む AI の指示に共通の断片 brief-reading で入る
-BRIEF_READING = ("the brief wins", "could not be looked up", "did not decide a scope")
+# brief ファイルの読み方の句（背景は参照・書き換えてよい範囲が引けない）。brief を読む AI の指示に共通の断片 brief-reading で入る
+BRIEF_READING = ("the brief wins", "could not be looked up")
 
 
 class RenderedCase(unittest.TestCase):
@@ -93,12 +103,22 @@ class RenderedCase(unittest.TestCase):
                                      "kind": "not_red"}], source=conflict.FIX_SOURCE)
         conflict.apply_rulings(place, {ids[0]: {"decision": "fix_code_as", "text": "分母が 0 の時は 0 を返すように直す", "limits": []}},
                                by="role:rule")
+        self.assertEqual(run.script("writer_pick", **{"pass": "ruled"}), {"go": True, "writer": "variant-ruled", "done": True})
         out = run.script("fix_ruled_prep")
         self.assertTrue(out["go"], out)
-        self.assert_rendered("fix-ruled", out["prompt"])
+        self.assertEqual(out["writer"], "variant-ruled")
+        self.assert_rendered("variant-ruled", out["prompt"])
         self.assertIn(str(place / conflict.RULINGS_FILE), out["prompt"])
         again = run.script("fix_ruled_prep")
         self.assertNotIn(str(place / conflict.RULINGS_FILE), again["prompt"].split("# Fixing")[0])   # 裁定の文の段落は 1 周目だけ
+
+    def test_writers_the_fixtures_do_not_reach(self):
+        """筋書きが回さない型の書き手の指示も、型の頭と決まりの本体を組む（組み方は tests/blocks/fix/test_assets.py の assembled）"""
+        from tests.blocks.fix import test_assets
+        for node, weapon in test_assets.nodes().items():
+            if node in RENDERED:
+                with self.subTest(node=node):
+                    self.assert_rendered(node, test_assets.assembled(node, weapon))
 
     def test_ruled_consult_answer(self):
         run = seeded(self)
@@ -117,11 +137,18 @@ class RenderedCase(unittest.TestCase):
         run = seeded(self)
         run.script("intake", mode="group", group=GROUP, judgment=JUDGMENT, tdd_suite=str(RUNNER))
         self.assertTrue(run.script("group_start")["tdd"])
+        self.assertEqual(run.script("route_go"), {"route": True, "stop": False})
+        self.assertTrue(run.script("route_prep")["go"])
+        self.assertTrue((run.artifacts / "route-prompt-1.md").is_file())
+        routed = run.script("route_step", reply=json.dumps({"phase": "route", "units": [{"unit_key": KEY, "route": "tdd"}]}))
+        self.assertTrue(routed["done"], routed)
+        self.assertTrue(run.script("orders")["tdd"])
         first = run.script("tdd_prep")
         second = run.script("tdd_prep")
         self.assertEqual((first["go"], first["new_unit"], second["go"], second["new_unit"]), (True, True, True, False))
         self.assertTrue((run.artifacts / "tdd-new-prompt-1.md").is_file())
         self.assertTrue((run.artifacts / "tdd-prompt-1.md").is_file())
+        self.assert_rendered("tdd-new", first["prompt"])
         self.assert_rendered("tdd", second["prompt"])
 
 
@@ -131,7 +158,7 @@ class FixerParagraphsCase(unittest.TestCase):
     def test_consult_resume_round_has_no_rules(self):
         run = seeded(self)
         inp = {"mode": "group", "group": json.dumps({"group_id": "g1", "unit_ids": [KEY], "items": [1]}), "judgment": JUDGMENT,
-               "plan": PLAN, "fix_plan": FIX_PLAN}
+               "plan": PLAN, "fix_plan": FIX_PLAN, "tdd_suite": str(RUNNER)}
         run.script("intake", **inp)
         run.script("group_start")
         first = run.script("fix_prep")
@@ -142,7 +169,7 @@ class FixerParagraphsCase(unittest.TestCase):
         reply = {**REPLY, "consult": [{"item": 1, "paths": ["README.md"], "tests": [], "why": "直しに伴う記録を README に足す要がある",
                                        "tried": ["stats.py の分母を直した"], "blocked": "直しは済んだが記録の置き場が範囲の外",
                                        "evidence": [{"path": "stats.py", "line": 4}]}]}
-        asked = run.script("consult_check", reply=json.dumps(reply), **{"pass": "first"})
+        asked = run.script("consult_check", reply_variant=json.dumps(reply), **{"pass": "first"})
         self.assertTrue(asked["go"], asked)
         self.assertIn("Answer as the author of the fix plan.", asked["prompt"])
         answer = {"answers": [{"ask": 1, "decision": "allow", "paths": ["README.md"], "tests": [], "spec": "",
@@ -164,14 +191,15 @@ class FixerParagraphsCase(unittest.TestCase):
         raw.write_text("書き換えた方針\n", encoding="utf-8")
         run.script("intake", mode="group", group=GROUP, judgment=JUDGMENT, tdd_suite=str(RUNNER), policy=str(copy))
         run.script("group_start")
-        text = run.script("tdd_prep")["prompt"]
+        run.script("route_go")   # 1 周目は振り分けの段（組の子の loop route-loop の route-prep）
+        text = run.script("route_prep")["prompt"]
         self.assertIn(str(copy), text)
         self.assertNotIn(str(raw), text)
 
     def test_tests_section_is_always_there_and_the_scope_section_needs_a_fix_plan(self):
         """テストの節（変えてよい既存のテストと、それ以外の本体を変えると拒む文）は修正案の有無によらず入る。範囲の節は修正案が在る時だけ"""
         bare = seeded(self)
-        bare.script("intake", mode="group", group=GROUP, judgment=JUDGMENT)
+        bare.script("intake", mode="group", group=GROUP, judgment=JUDGMENT, tdd_suite=str(RUNNER))
         bare.script("group_start")
         text = bare.script("fix_prep")["prompt"]
         self.assertIn("## Tests you may add or change, and frozen tests", text)
@@ -179,7 +207,7 @@ class FixerParagraphsCase(unittest.TestCase):
         self.assertNotIn("## Paths you may change and what you must not touch", text)
         planned = seeded(self)
         planned.script("intake", mode="group", group=json.dumps({"group_id": "g1", "unit_ids": [KEY], "items": [1]}),
-                       judgment=JUDGMENT, plan=PLAN, fix_plan=FIX_PLAN)
+                       judgment=JUDGMENT, plan=PLAN, fix_plan=FIX_PLAN, tdd_suite=str(RUNNER))
         planned.script("group_start")
         text = planned.script("fix_prep")["prompt"]
         self.assertIn("## Paths you may change and what you must not touch", text)
@@ -189,12 +217,12 @@ class FixerParagraphsCase(unittest.TestCase):
         """#836: 関わる試験で直す前から壊れていた物（置き場の conflict.BROKEN_TESTS_FILE。TDD の輪の頭が書く）は、テストの節に別の行で
         名指され、ついでに直してよいと書かれる。無い run には出ない"""
         run = seeded(self)
-        run.script("intake", mode="group", group=GROUP, judgment=JUDGMENT)
+        run.script("intake", mode="group", group=GROUP, judgment=JUDGMENT, tdd_suite=str(RUNNER))
         run.script("group_start")
         self.assertNotIn("直す前から壊れていた関わる試験", run.script("fix_prep")["prompt"])
         (run.artifacts / conflict.BROKEN_TESTS_FILE).write_text(
             json.dumps({"tests": [{"path": "test_stats.py", "ids": ["test_stats.TestStats::test_mean"]}]}), encoding="utf-8")
-        for name in list(run.artifacts.glob("fixer-prompt-*.md")) + list(run.artifacts.glob("fix-first*.json")):
+        for name in list(run.artifacts.glob("variant-prompt-*.md")) + list(run.artifacts.glob("fix-first*.json")):
             name.unlink()
         text = run.script("fix_prep")["prompt"]
         self.assertIn("- 直す前から壊れていた関わる試験（ついでに直してよい。最後の承認ノードに出る）: `test_stats.py`", text)
@@ -205,27 +233,27 @@ class FixerParagraphsCase(unittest.TestCase):
         指示のファイルを名指す"""
         run = seeded(self)
         run.script("intake", mode="group", group=json.dumps({"group_id": "g1", "unit_ids": [KEY], "items": [1]}),
-                   judgment=JUDGMENT, plan=PLAN, fix_plan=FIX_PLAN)
+                   judgment=JUDGMENT, plan=PLAN, fix_plan=FIX_PLAN, tdd_suite=str(RUNNER))
         run.script("group_start")
         first = run.script("fix_prep")
         self.assertRegex(first["prompt"], r"write in its prompt to Read this file: \S+unattended\.md")
         reply = {**REPLY, "consult": [{"item": 1, "paths": ["README.md"], "tests": [], "why": "直しに伴う記録を README に足す要がある",
                                        "tried": ["stats.py の分母を直した"], "blocked": "直しは済んだが記録の置き場が範囲の外",
                                        "evidence": [{"path": "stats.py", "line": 4}]}]}
-        run.script("consult_check", reply=json.dumps(reply), **{"pass": "first"})
+        run.script("consult_check", reply_variant=json.dumps(reply), **{"pass": "first"})
         answer = {"answers": [{"ask": 1, "decision": "allow", "paths": ["README.md"], "tests": [], "spec": "",
                                "reason": "直しの記録は範囲に入れてよい"}]}
         run.script("consult_accept", answer=json.dumps(answer), **{"pass": "first"})
         resumed = run.script("fix_prep")["prompt"]
-        self.assertRegex(resumed, r"Read \S+fixer-prompt-1\.md again")
+        self.assertRegex(resumed, r"Read \S+variant-prompt-1\.md again")
 
     def test_language_line_keeps_code_identifiers_and_error_messages(self):
-        for name in ("parts/fixer.md", "parts/tdd.md", "parts/clash.md", "ruler.md"):
+        for name in ("parts/writer.md", "parts/tdd.md", "parts/clash.md", "ruler.md"):
             with self.subTest(name=name):
                 text = (BLOCK / "prompts" / name).read_text(encoding="utf-8")
                 self.assertIn("Keep keys, enum values, code identifiers, paths, commands, and error messages as they are "
                               "(keys are matched across rounds, so do not translate them).", text)
-        fixer = (BLOCK / "prompts" / "parts" / "fixer.md").read_text(encoding="utf-8")
+        fixer = (BLOCK / "prompts" / "parts" / "writer.md").read_text(encoding="utf-8")
         for field in ("`coverage.remaining`", "`precedent.problem`", "`precedent.searched`"):
             self.assertIn(field, fixer.rsplit("Write the human-facing fields", 1)[1])
 
@@ -233,7 +261,8 @@ class FixerParagraphsCase(unittest.TestCase):
         run = seeded(self)
         run.script("intake", mode="group", group=GROUP, judgment=JUDGMENT, tdd_suite=str(RUNNER))
         run.script("group_start")
-        text = run.script("tdd_prep")["prompt"]
+        run.script("route_go")   # 1 周目は振り分けの段（組の子の loop route-loop の route-prep）
+        text = run.script("route_prep")["prompt"]
         self.assertIn("# The TDD loop prompt (round 1, phase route)", text)
         self.assertIn("## Units you owe a fix", text)
         self.assertNotIn("## The current unit", text)
@@ -250,7 +279,7 @@ class ConflictWordsCase(unittest.TestCase):
     def planned_fixer(self) -> str:
         run = seeded(self)
         run.script("intake", mode="group", group=json.dumps({"group_id": "g1", "unit_ids": [KEY], "items": [1]}), judgment=JUDGMENT,
-                   plan=PLAN, fix_plan=FIX_PLAN)
+                   plan=PLAN, fix_plan=FIX_PLAN, tdd_suite=str(RUNNER))
         run.script("group_start")
         return run.script("fix_prep")["prompt"]
 
@@ -270,7 +299,8 @@ class ConflictWordsCase(unittest.TestCase):
         run = seeded(self)
         run.script("intake", mode="group", group=GROUP, judgment=JUDGMENT, tdd_suite=str(RUNNER))
         run.script("group_start")
-        tdd = run.script("tdd_prep")["prompt"]
+        run.script("route_go")   # 1 周目は振り分けの段（組の子の loop route-loop の route-prep）
+        tdd = run.script("route_prep")["prompt"]
         for kind in conflict.DIV_KINDS:
             self.assertIn(f"`{kind}`", tdd)
         self.assertIn('"kind"', tdd)
@@ -303,7 +333,7 @@ class SubAgentFilesCase(unittest.TestCase):
 
     def test_g1_files(self):
         run = seeded(self)
-        run.script("intake", mode="group", group=GROUP, judgment=JUDGMENT)
+        run.script("intake", mode="group", group=GROUP, judgment=JUDGMENT, tdd_suite=str(RUNNER))
         run.script("group_start")
         out = run.script("fix_prep")
         self.assertIn("## Running subagents", out["prompt"])

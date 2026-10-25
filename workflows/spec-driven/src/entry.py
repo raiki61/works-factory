@@ -53,8 +53,12 @@ def reviews_problems(spec: spectable.Spec, raw_path: str) -> list:
     return out
 
 
+PURPOSE_SOURCE = "②計画・タスク記述"   # 人と固めた仕様の表は計画・タスクの記述（固めた目的の source の語）
+
+
 def _purpose(spec: spectable.Spec) -> dict:
-    return {"purpose_text": str(spec.table["purpose"]).strip(), "source": f"人と固めた仕様の表（{spec.table_rel}）",
+    # source は固めた目的の形（shared:purpose.schema.json）の語の 1 つ。表のパスは source_files が持つ
+    return {"purpose_text": str(spec.table["purpose"]).strip(), "source": PURPOSE_SOURCE,
             "known_weaknesses": [], "source_files": [spec.table_rel, spec.design_rel]}
 
 
@@ -79,7 +83,7 @@ def entry(place, repo, table, reviews_file: str) -> dict:
     for name in files.OWN_FILES:
         (place / name).unlink(missing_ok=True)
     try:
-        path = ports.file(table)
+        path = ports.file(table, "file")
     except ValueError as error:
         path, unread = None, f"入力 table を読めない: {error}"
     else:
@@ -100,9 +104,9 @@ def entry(place, repo, table, reviews_file: str) -> dict:
             jsonfile.write(place / files.REQUEST, rows)
             jsonfile.write(place / files.PURPOSE, _purpose(spec))
             (place / files.SPEC).write_text(spectable.proposal_text(spec) + "\n", encoding="utf-8")
-            got = {"ok": True, "stop_reason": "", "reason": "", "request": ports.pointer(place / files.REQUEST),
-                   "origin": f"人と固めた仕様（{spec.table_rel}）", "purpose": ports.pointer(place / files.PURPOSE),
-                   "spec": ports.pointer(place / files.SPEC), "spec_files": [spec.table_rel, spec.design_rel],
+            got = {"ok": True, "stop_reason": "", "reason": "", "request": ports.pointer(place / files.REQUEST, "json(shared:request.schema.json)"),
+                   "origin": f"人と固めた仕様（{spec.table_rel}）", "purpose": ports.pointer(place / files.PURPOSE, "json(shared:purpose.schema.json)"),
+                   "spec": ports.pointer(place / files.SPEC, "file"), "spec_files": [spec.table_rel, spec.design_rel],
                    "tdd": spectable.has_tdd(spec.design), "out_of_scope": list(spec.table.get("out_of_scope") or []),
                    "report": _report(spec)}
     jsonfile.write(place / files.ENTRY, got)

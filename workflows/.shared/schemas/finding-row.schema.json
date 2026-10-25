@@ -1,0 +1,21 @@
+{
+  "description": "観点の所見の行（where・text と、依頼の行の任意の欄。lib/outpurpose.py の _walk が where・text の行を拾う）。作り手は素材の観点の block の役の output_format",
+  "type": "object",
+  "properties": {
+    "where": {
+      "type": "string"
+    },
+    "text": {
+      "type": "string"
+    },
+    "mechanism": {
+      "type": "string"
+    },
+    "measured": {
+      "type": "string"
+    },
+    "false_positive_if": {
+      "type": "string"
+    }
+  }
+}

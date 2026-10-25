@@ -189,8 +189,11 @@ class ConsultTypeCase(unittest.TestCase):
 
     def fmt(self) -> dict:
         nodes = _nodes()
-        self.assertEqual(nodes["fixer"]["output_format"], nodes["fix-ruled"]["output_format"])
-        return nodes["fix-ruled"]["output_format"]
+        writers = kit.load("fix", "writers")
+        names = [writers.node(p, w) for p in writers.SEQUENCE for w in writers.SEQUENCE[p]]
+        for n in names:   # 型ごとの書き手は同じ返答の形
+            self.assertEqual(nodes[n]["output_format"], nodes["variant-ruled"]["output_format"])
+        return nodes["variant-ruled"]["output_format"]
 
     def check(self, ask) -> list:
         """output_format の consult の欄の型に、ask 1 行の並びを当てた誤り"""
@@ -706,14 +709,14 @@ class ConsultScriptsCase(unittest.TestCase):
         """返答の consult の頼みで答えの役の指示を組んで go: true、答えを受けて答えのファイルを書く"""
         reply_ = {"changes": [], "consult": [{"item": 1, "paths": ["docs/notes.md"], "tests": [],
                                               "why": "直しに伴う変更の記録を docs に残す要がある（範囲の外）", **SUMMARY}]}
-        out = self.run.script("consult_check", reply=json.dumps(reply_, ensure_ascii=False), **{"pass": "first"})
+        out = self.run.script("consult_check", reply_variant=json.dumps(reply_, ensure_ascii=False), **{"pass": "first"})
         self.assertEqual(set(out), {"consulted", "go", "prompt"})
         self.assertEqual((out["consulted"], out["go"]), (True, True), out)
         self.assertIn(str(self.plan_reply), out["prompt"])
         self.assertIn("docs/notes.md", out["prompt"])
         self.assertIn("# Scope consultation (from the fixing stage)", out["prompt"])
         self.assertEqual((self.place / "consult-answer-prompt-1.md").read_text(encoding="utf-8"), out["prompt"])
-        out = self.run.script("consult_check", reply=json.dumps({"changes": []}), **{"pass": "first"})
+        out = self.run.script("consult_check", reply_variant=json.dumps({"changes": []}), **{"pass": "first"})
         self.assertEqual((out["consulted"], out["go"], out["prompt"]), (False, False, ""))
         answer = {"answers": [{"ask": 1, "decision": "allow", "paths": ["docs/notes.md"], "tests": [], "spec": "",
                                "reason": "記録を残すのは直しに伴う変更なので足してよい"}]}
@@ -728,7 +731,7 @@ class ConsultScriptsCase(unittest.TestCase):
         頼みの行を unavailable で残す"""
         reply_ = {"changes": [], "consult": [{"item": 1, "paths": ["docs/notes.md"], "tests": [],
                                               "why": "直しに伴う変更の記録を docs に残す要がある（範囲の外）", **SUMMARY}]}
-        out = self.run.script("consult_check", reply=json.dumps(reply_, ensure_ascii=False), **{"pass": "ruled"})
+        out = self.run.script("consult_check", reply_variant=json.dumps(reply_, ensure_ascii=False), **{"pass": "ruled"})
         self.assertEqual((out["consulted"], out["go"]), (True, True), out)
         self.assertTrue((self.place / "ruled-consult-answer-prompt-1.md").is_file())
         self.assertFalse((self.place / "consult-answer-prompt-1.md").exists())
@@ -742,7 +745,7 @@ class ConsultScriptsCase(unittest.TestCase):
     def test_refused_only_ask_does_not_launch(self):
         """先の確かめで全部断った頼みは答えの役を起こさない（consulted: true・go: false・prompt は空）"""
         reply_ = {"changes": [], "consult": [{"item": 1, "paths": ["../outside.md"], "tests": [], "why": WHY, **SUMMARY}]}
-        out = self.run.script("consult_check", reply=json.dumps(reply_, ensure_ascii=False), **{"pass": "first"})
+        out = self.run.script("consult_check", reply_variant=json.dumps(reply_, ensure_ascii=False), **{"pass": "first"})
         self.assertEqual((out["consulted"], out["go"], out["prompt"]), (True, False, ""))
         out = self.run.script("consult_accept", answer="null", **{"pass": "first"})
         (row,) = conflict.plan_asks(self.place)

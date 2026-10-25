@@ -24,7 +24,7 @@ def compute() -> dict:
     raw_tier, raw_named, raw_record = os.environ.get("INPUTS_TIER"), os.environ.get("INPUTS_TREE_NAMED"), os.environ.get("INPUTS_RECORD")
     from src import tiers
     record = ports.parsed(raw_record)
-    record = ports.json(raw_record) if record is not None else None
+    record = ports.json(raw_record, "start-record.schema.json") if record is not None else None
     return {**tiers.switches(ports.text(raw_tier), ports.text(raw_named), record), "stop_reason": ""}
 
 

@@ -126,7 +126,8 @@ def _capped(data: bytes, where) -> str:
 
 
 RECORDED_KEY = "recorded_policy"   # 事前審査の材料 open.json と見え方の record.process の欄（一覧の行）
-POLICY_KIND = "policy"            # 方針とのぶつかりの穴の kind（fixboard.HUMAN_FACE_KINDS が引く）
+POLICY_KIND = "policy"            # 方針とのぶつかりの穴の kind
+HUMAN_FACE_KINDS = ("regression", POLICY_KIND)   # 人に回しうる穴の kind（事前審査・差分の審査・line の関所が引く。住処はここ 1 か所）
 POLICY_DOC_FENCE = "policy_doc"   # 方針の文書の行を書き換える穴の柵の語（gatemarks.FENCES が引く）
 RECORDED_TERM = "記録された方針"
 RECORDED_REF = f"「{RECORDED_TERM}」のセクション"

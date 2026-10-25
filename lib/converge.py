@@ -60,6 +60,8 @@ note_plan の無い控え（行に items が無い）は今までどおり全体
   HITS_SCHEMA・出自の型は ORIGIN_SCHEMA）
 - 止めの訳・往復の行・止まった時の key（capped・stuck_reason・lines・stuck_keys・uncited・stuck_faces）は line の src/rounds.py に在る
   （README 9.2。line が写した）
+- closed_ids(doc): 最後の往復で閉じた項目の id の集合（splice が機械の行を差し込む項目。修正案の受け付けも同じ集合で、差し込んだ行の
+  誤りを役への拒みでなく止めに回す）
 - carried_refs(b, opened)・last_refs(b, n): 今の往復が見ない項目が前の往復の答えの対応表（DESIGN_MAP）で受けた独立設計の要素の id
   （往復の行の items の refs。要素の網羅は全部の項目の答えを合わせて数える）と、項目 n を最後に審査した往復の refs（2 往復目からの
   開いた項目は変わっていない files の鍵の行を書き直さないので、前の往復の要素を引き継ぐ）
@@ -587,7 +589,7 @@ def _item_scope(doc: dict, n: int):
     return lambda units: _touches(units, mine, every)
 
 
-def _closed_ids(doc: dict) -> set:
+def closed_ids(doc: dict) -> set:
     """今の案の項目のうち、最後の往復で閉じた項目の id"""
     last = _last_items(doc)
     return {it["id"] for it in doc.get("plan") or [] if (last.get(it["id"]) or {}).get("state") == CLOSED}
@@ -611,7 +613,7 @@ def splice(doc: dict, rows: list, *, fill: bool = True) -> tuple[list, list[str]
     for r in given:
         by_id.setdefault(item_id(r.get("unit_keys")), r)
     in_rows = {str(k) for r in given for k in r.get("unit_keys") or []}
-    closed = _closed_ids(doc)
+    closed = closed_ids(doc)
     whole, rejects, dropped, used = [], [], [], set()
     for n, it in enumerate(doc.get("plan") or [], 1):
         mine = by_id.get(it["id"])

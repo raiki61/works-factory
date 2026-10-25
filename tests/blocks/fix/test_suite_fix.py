@@ -25,6 +25,8 @@ import stopby  # noqa: E402
 BROKEN = ("#!/bin/sh\nprintf '%s' \"<testsuite><testcase classname='test_stats.TestStats' name='test_mean_of_three'>"
           "<error message=\\\"No module named 'yaml'\\\"/></testcase></testsuite>\" > \"$1\"\necho \"ModuleNotFoundError: No module named 'yaml'\"\nexit 1\n")
 # 同じ試験が中身まで届いて通る起動スクリプト（書き直した後の形）
+# 結末（JUnit XML）を書かずに落ちるだけの起動スクリプト
+NO_RESULT = "#!/bin/sh\nexit 1\n"
 GOOD = ("#!/bin/sh\nprintf '%s' \"<testsuite><testcase classname='test_stats.TestStats' name='test_mean_of_three'/></testsuite>\" "
         "> \"$1\"\nexit 0\n")
 
@@ -50,6 +52,12 @@ class SuiteFixCase(tg.GroupChildScriptsCase):
     def started(self) -> dict:
         return json.loads((self.place / "tdd-start.json").read_text(encoding="utf-8"))
 
+    def assert_tdd_follows_taken(self, got: dict, want: bool):
+        """retry の返りの tdd（TDD の輪を回すか）は、元の結末が取れた印 base.json の taken と同じ（tdd-start.json の no_suite では決めない）"""
+        path = self.place / "base.json"   # 元の結末が取れなかった組は控えを書かないこともある（無ければ取れていない）
+        base = json.loads(path.read_text(encoding="utf-8")) if path.is_file() else {}
+        self.assertEqual((got["tdd"], bool(base.get("taken"))), (want, want), base)
+
     def broken_start(self, test_cmd: str = "true", made: bool = True) -> dict:
         self.kept(test_cmd).parent.mkdir(parents=True, exist_ok=True)
         self.kept(test_cmd).write_bytes(self.runner.read_bytes())   # 前の run が取り置いた同じ壊れた実行器
@@ -65,7 +73,8 @@ class SuiteFixCase(tg.GroupChildScriptsCase):
         started = self.started()
         self.assertIn(started["runner_log"], started["reason"])
         self.assertIn(started["cmd_log"], started["reason"])
-        self.assertEqual(self.run_script("tdd_go"), {"tdd": False, "stop": True})
+        self.assertEqual(self.run_script("route_go"), {"route": False, "stop": True})
+        self.assertEqual({k: v for k, v in self.run_script("orders").items() if k != "reason"}, {"tdd": False, "writer": False, "stop": True})
 
     def test_a_runner_the_person_gave_is_not_called_broken(self):
         """人が渡した実行器（suite_made が偽）は書き直させない（今までどおり）"""
@@ -90,24 +99,55 @@ class SuiteFixCase(tg.GroupChildScriptsCase):
         self.assertTrue((self.place / "suite-fix-prompt-1.md").is_file())
         got = self.run_script("suite_fix_try", reply=json.dumps({"made": True, "body": GOOD, "why": ""}))
         self.assertEqual((got["tdd"], got["stop"]), (True, False))
+        self.assert_tdd_follows_taken(got, True)
         self.assertEqual(self.runner.read_text(encoding="utf-8"), GOOD)
         self.assertEqual(self.kept("true").read_text(encoding="utf-8"), GOOD)
-        self.assertEqual(self.run_script("tdd_go"), {"tdd": True, "stop": False})
+        self.assertEqual(self.run_script("route_go"), {"route": True, "stop": False})
 
     def test_a_runner_still_broken_after_the_rewrite_stops_the_group(self):
-        """書き直しても壊れたままなら組を止める: 修正役の輪を回さず（tdd-go の stop）、組の結果の tdd に suite_broken が載り、組の形の
+        """書き直しても壊れたままなら組を止める: 修正役の輪を回さず（orders の stop）、組の結果の tdd に suite_broken が載り、組の形の
         出口が stopby.SUITE_BROKEN を名乗る"""
         self.broken_start()
         got = self.run_script("suite_fix_try", reply=json.dumps({"made": True, "body": BROKEN, "why": ""}))
         self.assertEqual((got["tdd"], got["stop"]), (False, True))
         self.assertIn("書き直した起動スクリプトも壊れている", got["reason"])
-        self.assertEqual(self.run_script("tdd_go"), {"tdd": False, "stop": True})
+        self.assertEqual(self.run_script("route_go"), {"route": False, "stop": True})
+        self.assertEqual({k: v for k, v in self.run_script("orders").items() if k != "reason"}, {"tdd": False, "writer": False, "stop": True})
         result = json.loads(pathlib.Path(self.run_script("group_end")["result_file"]).read_text(encoding="utf-8"))
         self.assertIs(result["tdd"]["suite_broken"], True)
         out = self.run_script("finish")
         self.assertEqual((out["ok"], out["stop_reason"]), (False, stopby.SUITE_BROKEN))
         self.assertIn("書き直した起動スクリプトも壊れている", out["reason"])
         self.assertIs(next(r for r in out["tdd"] if r["group_id"] == "g1")["suite_broken"], True)
+
+    def test_a_rewritten_runner_that_gives_no_result_stops_the_group_as_no_suite(self):
+        """書き直した実行器が結末を返さず、test_cmd の単体も赤になって壊れの印が付かない時も、組の頭と同じく no-suite で止める:
+        振り分け・注文・修正役の輪を回さず、組の形の出口が stopby.NO_SUITE を名乗る（試験無しで直に直す道を残さない）"""
+        once = self.tmp / "once"
+        self.broken_start(test_cmd=f"mkdir {once}")   # 1 回目の test_cmd は通り（壊れと見る）、書き直しの後の回は赤
+        got = self.run_script("suite_fix_try", reply=json.dumps({"made": True, "body": NO_RESULT, "why": ""}))
+        self.assertEqual((got["tdd"], got["stop"]), (False, True), got)
+        self.assert_tdd_follows_taken(got, False)
+        self.assertIs(self.started().get("no_suite"), True, self.started())
+        self.assertEqual(self.run_script("route_go"), {"route": False, "stop": True})
+        self.assertEqual({k: v for k, v in self.run_script("orders").items() if k != "reason"}, {"tdd": False, "writer": False, "stop": True})
+        self.assertFalse(self.run_script("fix_prep")["go"], "修正役を起こさない")
+        result = json.loads(pathlib.Path(self.run_script("group_end")["result_file"]).read_text(encoding="utf-8"))
+        self.assertIs(result["tdd"].get("no_suite"), True, result["tdd"])
+        out = self.run_script("finish")
+        self.assertEqual((out["ok"], out["stop_reason"]), (False, stopby.NO_SUITE), out)
+
+    def test_a_static_only_group_does_not_keep_a_runner_it_never_ran(self):
+        """static だけの組は元の結末を取らない（走らせずに taken: false の base.json を書く）ので、工場の書いた実行器を取り置かない
+        （照らしが通った実行器だけを取り置く。持ち主の決め suite-by-ai）"""
+        import planmarks
+        self.put(self.runner, NO_RESULT)
+        planmarks.save(self.parent, 1, [{"unit_keys": [tg.MEAN], "route": "static", "route_why": "文書の言い回しだけを直す", "tests": []}])
+        self.parent_inputs(str(self.runner), test_cmd="true", suite_made=True)
+        self.intake()
+        out = self.run_script("group_start")
+        self.assertEqual((out["tdd"], out["no_suite"]), (False, False), out)
+        self.assertFalse(self.kept("true").exists(), "走らせていない実行器を取り置いた")
 
     def test_a_writer_that_could_not_rewrite_stops_the_group(self):
         """書き手が作れなかった（made が偽）・返答が無い時も、確かめていない直しを書き進めずに組を止める"""
@@ -119,12 +159,16 @@ class SuiteFixCase(tg.GroupChildScriptsCase):
                 self.assertIn("起動スクリプトを書き直せなかった", got["reason"])
 
     def test_the_fix_loop_waits_for_the_rewrite(self):
-        """配線: 書き直しの node は group-start の suite_broken の時だけ回り、TDD の輪と修正役の輪は tdd-go の後ろ"""
+        """配線: 書き直しの node は group-start の suite_broken の時だけ回り、振り分けの輪は route-go の後ろ、TDD の輪と修正役の輪は
+        注文の node orders の後ろ"""
         NODES = tg.NODES
         self.assertEqual(NODES["suite-fix-prep"]["when"], "$group-start.output.suite_broken == true")
-        self.assertEqual(NODES["tdd-loop"]["when"], "$tdd-go.output.tdd == true")
-        self.assertEqual(NODES["fix-loop"]["when"], "$tdd-go.output.stop == false")
-        self.assertIn("tdd-go", NODES["fix-loop"]["depends_on"])
+        self.assertEqual(NODES["route-loop"]["when"], "$route-go.output.route == true")
+        self.assertIn("suite-fix-try", NODES["route-go"]["depends_on"])
+        self.assertEqual(NODES["tdd-loop"]["when"], "$orders.output.tdd == true")
+        self.assertEqual(NODES["writers-loop"]["when"], "$orders.output.writer == true && $orders.output.stop == false")
+        self.assertIn("orders", NODES["writers-loop"]["depends_on"])
+        self.assertIn("route-loop", NODES["orders"]["depends_on"])
         self.assertEqual(NODES["suite-fix-try"]["trigger_rule"], "none_failed_min_one_success")
         self.assertEqual(NODES["suite-fix-try"]["when"], "$group-start.output.suite_broken == true",
                          "前が飛んでも走る: 壊れていない組で書き直せなかったと読んで止めない")
@@ -144,18 +188,19 @@ class BrokenBeforeCase(unittest.TestCase):
         self.repo = self.tmp / "repo"
         committed_copy(self.repo, ROOT / "tests" / "e2e" / "target-seed")
         self.tdd = kit.load("fix", "tdd")
+        self.basecase = kit.load("fix", "basecase")
 
     def test_only_failing_tests_near_the_fix_are_picked(self):
         cases = [{"classname": "test_stats.TestStats", "name": "test_mean", "outcome": "failure"},
                  {"classname": "test_stats.TestStats", "name": "test_ok", "outcome": "passed"}]
         near = {"whole": False, "files": ["test_stats.py"], "left": [], "far": [], "reasons": []}
-        got = self.tdd.broken_related(self.tmp, self.repo, [], 1, self.tmp, cases, near)
+        got = self.basecase.broken_related(self.tmp, self.repo, [], 1, self.tmp, cases, near)
         self.assertEqual(got, [{"path": "test_stats.py", "ids": ["test_stats.TestStats::test_mean"]}])
-        self.assertEqual(self.tdd.broken_related(self.tmp, self.repo, [], 1, self.tmp, cases, {**near, "files": []}), [],
+        self.assertEqual(self.basecase.broken_related(self.tmp, self.repo, [], 1, self.tmp, cases, {**near, "files": []}), [],
                          "修正案が触る所に直に関わらない試験はついでに直してよい物に入れない")
-        self.assertEqual(self.tdd.broken_related(self.tmp, self.repo, [], 1, self.tmp, cases, {**near, "whole": True}), [],
+        self.assertEqual(self.basecase.broken_related(self.tmp, self.repo, [], 1, self.tmp, cases, {**near, "whole": True}), [],
                          "関わるかを選べない時は入れない")
-        self.assertEqual(self.tdd.broken_related(self.tmp, self.repo, [], 1, self.tmp, cases[1:], near), [])
+        self.assertEqual(self.basecase.broken_related(self.tmp, self.repo, [], 1, self.tmp, cases[1:], near), [])
 
     def test_the_file_becomes_a_permit_from_the_broken_source(self):
         import conflict

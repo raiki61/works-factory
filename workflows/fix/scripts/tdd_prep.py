@@ -17,7 +17,7 @@ import ports  # noqa: E402
 
 import oneline  # noqa: E402
 
-from src import board, prompts, runvals, tdd  # noqa: E402
+from src import board, prompts, runvals, common, tdd  # noqa: E402
 
 NODE = "tdd-prep"
 
@@ -43,7 +43,7 @@ def main() -> dict:
         if not view["go"]:
             return {"prompt": "", "go": False, "new_unit": False}
         out = prompts.tdd(place, repo, view, values)
-    except (tdd.Broken, prompts.Broken) as e:
+    except (common.Broken, prompts.Broken) as e:
         prompts.error(place, NODE, oneline.one_line(e))
         raise
     return {"prompt": out["prompt"], "go": True, "new_unit": bool(view["new_unit"])}

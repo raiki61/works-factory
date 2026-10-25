@@ -3,7 +3,7 @@
 # dependencies = []
 # ///
 """node tdd-step（組の形の tdd-loop の中。役の後）: 役の返答を機械が確かめて段を進める（src/tdd.step。今のまま）。止めた申し出は
-状態の未送の並びから place の conflicts.json に積む（tdd.flush_unsent → rulings.park → conflict.park_claims）。入力 reply は同じ単位の続きの役 tdd の
+状態の未送の並びから place の conflicts.json に積む（common.flush_unsent → rulings.park → conflict.park_claims）。入力 reply は同じ単位の続きの役 tdd の
 返答、reply_new は新しい単位の役 tdd-new の返答（周ごとにどちらか一方だけ）。拒んだ理由は place の tdd-step-reject-<n>.md にも書く。
 返り {ok, done, reason, reason_file, phase}"""
 import os
@@ -17,7 +17,7 @@ import ports  # noqa: E402
 import oneline  # noqa: E402
 import writelog  # noqa: E402
 
-from src import board, runvals, tdd  # noqa: E402
+from src import board, runvals, common, tdd  # noqa: E402
 from src import rulings  # noqa: E402
 
 REJECT = "tdd-step-reject-{}.md"
@@ -44,10 +44,10 @@ def main() -> dict:
     log = writelog.log_here()
     ports.drop_runner_env(runvals.read(place)["user_env_dir"])   # 対象のテストに Archon の変数を継がせない（place・repo は先に取った）
     out = tdd.step(state, reply, repo, try_query=hits, log=log)
-    tdd.flush_unsent(state, lambda rows: rulings.park(place, rows))
+    common.flush_unsent(state, lambda rows: rulings.park(place, rows))
     reason_file = ""
     if out["reason"]:
-        n = len(tdd.load_state(state).get("calls") or [])
+        n = len(common.load_state(state).get("calls") or [])
         reason_file = str(board.write_text(place / REJECT.format(n), out["reason"] + "\n"))
     return {"ok": bool(out["ok"]), "done": bool(out["done"]), "reason": out["reason"], "reason_file": reason_file,
             "phase": out["phase"]}

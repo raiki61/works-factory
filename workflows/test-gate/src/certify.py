@@ -245,7 +245,7 @@ def certified(place, optional_raw) -> dict:
                                     runs=[], skipped_steps=[], narrow=True, exit_codes={}, junit_steps=[], fingerprint=now,
                                     how=declared_checks.run_how(root, planned_run(root, run, doc["test_cmd"]), test_cmd=doc["test_cmd"],
                                                                 material=material))
-        out["baseline"] = ports.pointer(place / files.BASELINE)
+        out["baseline"] = ports.pointer(place / files.BASELINE, "json(lib:baseline.schema.json)")
         suites = BASE_SUITES
     else:
         out["fingerprint"] = now
@@ -254,7 +254,7 @@ def certified(place, optional_raw) -> dict:
         suites = declared_checks.suites_line(tests, role_status=(status or "") if role else None)
     out.update(gate_fields(run, suites, declared_checks.baseline_line(given) if mode == "final" else "", why))
     write(place, files.EVIDENCE, evidence(mode, out, run, material, summary))
-    out["evidence"] = ports.pointer(place / files.EVIDENCE)
+    out["evidence"] = ports.pointer(place / files.EVIDENCE, "file")
     out["optional"] = optional_items(optional_raw)
     out["related"] = run.get("related") or files.NOT_PICKED
     out.update(suite.outputs(place, mode, doc["tdd_suite"]))
@@ -294,11 +294,8 @@ def failed(place, error: BaseException) -> dict:
 
 
 def _pointer(place, name: str) -> dict:
-    """証拠の pointer。run の置き場が引けなければ、札の形だけ（パスは place の中の名）で返す"""
-    try:
-        return ports.pointer(pathlib.Path(place) / name)
-    except (KeyError, ValueError):
-        return {"type": ports.POINTER_TYPE, "run_id": os.environ.get("WORKFLOW_ID", ""), "path": name}
+    """証拠の pointer（字の文書。form file は中身を照らさないので、書けなかった時も place の中の名を指せる）"""
+    return ports.pointer(pathlib.Path(place) / name, "file")
 
 
 def _port_suite(place) -> str:

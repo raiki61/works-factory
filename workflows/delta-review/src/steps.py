@@ -16,6 +16,7 @@ import jsonfile  # lib/
 import leftovers  # lib/
 import lens  # lib/
 import oneline  # lib/
+import policy  # lib/
 import report  # lib/
 import rolekit  # lib/
 import writelog  # lib/
@@ -106,7 +107,7 @@ def intake(place, repo, *, base, plan, lens_rows, fix_reply, permits, plan_revie
         reply = _port("fix_reply", lambda: materials.fix_reply(fix_reply))
         paths = _port("permits", lambda: materials.permit_paths(permits))
         review_of_plan = _port("plan_review", lambda: materials.plan_review(plan_review))
-        found = _port("policy", lambda: ports.file(policy))
+        found = _port("policy", lambda: ports.file(policy, "file"))
         _port("request", lambda: materials.request_copy(place, request))
         doc["lens_error"] = materials.lens_copy(place, lens_rows)
         doc["policy"] = str(found) if found is not None else ""
@@ -148,8 +149,8 @@ def _emit(place, node: str, values: dict, when: dict) -> dict:
 
 def _faces_values(change: str) -> dict:
     return {"change": change, "copy": review.FACE_KINDS[0], "entrance": review.FACE_KINDS[1], "contract_drift": review.FACE_KINDS[2],
-            "dead_path": review.FACE_KINDS[3], "scope_creep": review.FACE_KINDS[4], "regression": review.HUMAN_FACE_KINDS[0],
-            "policy_kind": review.HUMAN_FACE_KINDS[1], "precedent": review.PLAN_ONLY_FACE_KINDS[-1], "min_key": review.MIN_KEY,
+            "dead_path": review.FACE_KINDS[3], "scope_creep": review.FACE_KINDS[4], "regression": policy.HUMAN_FACE_KINDS[0],
+            "policy_kind": policy.HUMAN_FACE_KINDS[1], "precedent": review.PLAN_ONLY_FACE_KINDS[-1], "min_key": review.MIN_KEY,
             "min_cite": review.MIN_CITE, "min_why": review.MIN_WHY, "min_none": review.NONE_MIN}
 
 
@@ -196,9 +197,9 @@ def refix_prompt(place, n: int) -> dict:
               "diff_file": cut.read_cut(place, n)["file"], "inner_word": report.INNER_FACE_KIND, "fixed": touchup.HANDLED[0],
               "declared": touchup.HANDLED[1], "min_how": touchup.MIN_HOW, "lang": doc["lang"], **seat}
     when = {"rejected": bool(rejected), "policy": bool(doc["policy"]), "request": request.is_file(), "scope": bool(items),
-            "conflict": False, "docs": True, "prompts_kind": True, "config": True, "code": True, "spawns": False,
+            "conflict": False, "conflict_change": False, "docs": True, "prompts_kind": True, "config": True, "code": True, "spawns": False,
             # 証拠の頭と、答えを書く場所（今の common.md の節 evidence は手直しの役にもいつも載り、書く場所は handled の how）
-            "evidence": True, "where_fixer": False, "where_tdd": False, "where_rework": True}
+            "evidence": True, "where_writer": False, "where_tdd": False, "where_rework": True}
     return _emit(place, role, values, when)
 
 

@@ -89,6 +89,26 @@ class RulerTypeCase(unittest.TestCase):
                 self.assertTrue(validate_schema(reply, self.fmt()))
 
 
+class RedAtBaseRulingCase(unittest.TestCase):
+    """申し出の種類 red_at_base（下ごしらえが足した試験が起点の木で落ちる）に許す裁定は fix_plan_item・ask_human だけ（下書き 3.6）。
+    fix_code_as は変えない段の注文でコードを変えさせるので、受け付け（ruling.problems）が拒む"""
+
+    TODO = {"p-1": {"id": "p-1", "unit_key": "A", "source": conflict.FIX_SOURCE, "kind": conflict.RED_AT_BASE,
+                    conflict.WHY_FIELD: "足した試験が起点の木で落ちる"}}
+
+    def problems(self, decision):
+        row = {"id": "p-1", "decision": decision, "text": "裁きの理由の文", "limits": []}
+        return [e for e in ruling.problems({"rulings": [row]}, self.TODO, "/nonexistent") if conflict.RED_AT_BASE in e]
+
+    def test_only_fix_plan_item_and_ask_human(self):
+        for decision in conflict.DECISIONS:
+            with self.subTest(decision=decision):
+                if decision in (conflict.REPLAN, conflict.ASK):
+                    self.assertEqual(self.problems(decision), [])
+                else:
+                    self.assertTrue(self.problems(decision))
+
+
 class ConflictSeamCase(unittest.TestCase):
     """conflict の継ぎ目: 申し出の控えは place の conflicts.json {"items": [...]}、trace は place の trace.jsonl（board.trace）、
     周は引数 round_（既定 1）、壊れた控えは ValueError。直す義務の数え（board.fix_duty）は src の写し"""
@@ -470,8 +490,8 @@ class RuleScriptsCase(unittest.TestCase):
         始めの記録の固めた版の写しの代わり）"""
         policy = self.run.artifacts.parent / "frozen-policy.md"
         policy.write_text("- 固めた版\n", encoding="utf-8")
-        request = self.run.artifacts.parent / "request.md"
-        request.write_text("平均を直して\n", encoding="utf-8")
+        request = self.run.artifacts.parent / "request.json"
+        request.write_text(json.dumps([{"where": "stats.py", "text": "平均を直して"}], ensure_ascii=False), encoding="utf-8")
         self.start(policy=str(policy), request=str(request))
         out = self.run.script("rule_prep")
         self.assertIn(f"The policy document: {policy}", out["prompt"])

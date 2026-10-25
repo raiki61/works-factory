@@ -1,7 +1,6 @@
 """修正の block（workflows/fix/works-factory-fix.yaml）の形（docs/design/fix.md の 14.2 の test_yaml.py）: loop の上限が定数と同じ・柵 nodes-ok の
 結び・all_done の node・会話を継ぐ役の直前の層・修正役の会話の続きと答えの役の切り離し・役の起こし方が今の YAML と同じ・自分を起こす組の node・指示の受け渡し"""
 import pathlib
-import re
 import sys
 import unittest
 
@@ -17,8 +16,11 @@ if str(ROOT / "lib") not in sys.path:
 
 import rolekit  # noqa: E402
 
-AI_NODES = ("fixer", "fix-ruled", "consult-answer", "ruled-consult-answer", "tdd", "tdd-new", "ruler", "clash-fix", "clash-ruled")
-ADDED_AI_NODES = ("suite-fix",)   # 作り直しの後に足した役（壊れた起動スクリプトの書き直し。#836・docs/design/fix.md の 19）
+WRITERS = ("tdd-close", "pin", "tidy", "static", "variant", "remove", "pin-ruled", "tidy-ruled", "static-ruled", "variant-ruled",
+           "remove-ruled")   # 型ごとの書き手（今の修正役 fixer・fix-ruled を型ごとに分けた物。docs/plans/2026-10-25-fix-weapons-stage1-b.md の 1）
+AI_NODES = (*WRITERS, "consult-answer", "ruled-consult-answer", "tdd", "tdd-new", "ruler", "clash-fix", "clash-ruled")
+ADDED_AI_NODES = ("suite-fix", "route")   # 作り直しの後に足した役（壊れた起動スクリプトの書き直し。#836・docs/design/fix.md の 19。振り分けの役。
+#                                         今の TDD の役の振り分けの段を輪の外へ出した物。docs/plans/2026-10-24-fix-weapons.md の 4.1 の 3）
 WRITE_TOOLS = {"Edit", "Write", "Bash", "NotebookEdit", "Agent"}
 LAUNCH = ("model", "settingSources", "allowed_tools", "sandbox", "skills", "idle_timeout", "retry", "mutates_checkout", "context")
 
@@ -52,10 +54,13 @@ class LimitsCase(unittest.TestCase):
     def test_loop_limits_match_the_constants(self):
         tdd = kit.load("fix", "tdd")
         consult = kit.load("fix", "consult")
-        t = top()
+        writers = kit.load("fix", "writers")
+        t = every()
         self.assertEqual(t["tdd-loop"]["loop_group"]["max_iterations"], tdd.MAX_ITERATIONS)
         self.assertEqual(t["fix-loop"]["loop_group"]["max_iterations"], rolekit.GIVE_UP_AFTER + consult.BUDGET)
         self.assertEqual(t["fix-ruled-loop"]["loop_group"]["max_iterations"], rolekit.GIVE_UP_AFTER + consult.BUDGET)
+        self.assertEqual(t["writers-loop"]["loop_group"]["max_iterations"], len(writers.SEQUENCE["first"]))   # 1 周に型 1 つ
+        self.assertEqual(t["ruled-writers-loop"]["loop_group"]["max_iterations"], len(writers.SEQUENCE["ruled"]))
         self.assertEqual(t["rule-loop"]["loop_group"]["max_iterations"], rolekit.GIVE_UP_AFTER)
         for loop, accept in (("clash-loop", "clash-accept"), ("clash-ruled-loop", "clash-ruled-accept")):
             with self.subTest(loop=loop):
@@ -97,7 +102,7 @@ class ConversationCase(unittest.TestCase):
     """fresh_context: false の loop で前の周の会話を継ぐ役の直前の層は 1 つの node（2 つ以上の層は Archon が会話を切る）"""
 
     def test_no_wide_layer_right_before_a_continuing_role(self):
-        for loop in (n for n in DOC["nodes"] if "loop_group" in n and n["loop_group"].get("fresh_context") is False):
+        for loop in (n for n in every().values() if "loop_group" in n and n["loop_group"].get("fresh_context") is False):
             nodes = {m["id"]: m for m in loop["loop_group"]["nodes"]}
             layer = {}
             for nid in nodes:   # YAML の並びは依存の順
@@ -117,13 +122,18 @@ class ConversationCase(unittest.TestCase):
     def test_fixers_continue_their_own_conversation(self):
         """13.3 の 1（#833）: 修正の輪の次の周の修正役は、前の周の修正役の会話を継ぐ。止めた Archon は輪の周の最後に走った AI の node の
         会話を次の周へ渡すので、修正の輪の本体に直に置く AI の node は修正役 1 つだけ。相談の答えの役を本体に直に置くと（context: fresh
-        でも）、次の周の修正役は答えの役の会話を継ぐ"""
-        for loop, fixer in (("fix-loop", "fixer"), ("fix-ruled-loop", "fix-ruled")):
+        でも）、次の周の修正役は答えの役の会話を継ぐ。型ごとの書き手は 1 本の鎖に並び（どの層も node 1 つ）、周ごとに 1 つだけ起きる。
+        型が替わる時は外の輪（fresh_context: true）の次の周で内の輪が 1 周目から起きるので、型どうしは会話を分け合わない"""
+        writers = kit.load("fix", "writers")
+        for outer, loop, pass_ in (("writers-loop", "fix-loop", "first"), ("ruled-writers-loop", "fix-ruled-loop", "ruled")):
             with self.subTest(loop=loop):
-                group = top()[loop]["loop_group"]
+                self.assertIs(top()[outer]["loop_group"]["fresh_context"], True)
+                self.assertIn(loop, [m["id"] for m in top()[outer]["loop_group"]["nodes"]])
+                group = every()[loop]["loop_group"]
                 self.assertIs(group["fresh_context"], False)
-                self.assertEqual([m["id"] for m in group["nodes"] if is_ai(m)], [fixer])
-                self.assertNotIn("context", every()[fixer])
+                self.assertEqual([m["id"] for m in group["nodes"] if is_ai(m)], writers.nodes(pass_))
+                for w in writers.nodes(pass_):
+                    self.assertNotIn("context", every()[w])
 
     def test_answerers_start_fresh_in_their_own_loop(self):
         """13.3 の 1（#833）: 相談の答えの役は修正役の会話を継がず、新しい会話で起きる。答えの役は修正の輪の本体の中の、答えの役
@@ -133,7 +143,7 @@ class ConversationCase(unittest.TestCase):
         rules = kit.load("fix", "rules")
         for loop, answerer in (("fix-loop", rules.answer_node("first")), ("fix-ruled-loop", rules.answer_node("ruled"))):
             with self.subTest(loop=loop):
-                holders = [m for m in top()[loop]["loop_group"]["nodes"]
+                holders = [m for m in every()[loop]["loop_group"]["nodes"]
                            if answerer in [x["id"] for x in (m.get("loop_group") or {}).get("nodes") or []]]
                 self.assertEqual(len(holders), 1, "答えの役は修正の輪の本体の輪の中")
                 group = holders[0]["loop_group"]
@@ -169,24 +179,6 @@ class RolesCase(unittest.TestCase):
                 n = every()[nid]
                 self.assertIs(n["mutates_checkout"], False)
                 self.assertFalse(set(n["allowed_tools"]) & WRITE_TOOLS)
-
-
-    def test_every_role_with_web_tools_takes_the_query_rule(self):
-        """WebSearch か WebFetch を持つ AI の node の指示（md と、中の {part:}・{shared:} を辿った物）は {shared:query-rule} を取り込む
-        （外への問い合わせに対象の名を出さない決まり。道具を足した役が決まりを落とさないための仕組み）"""
-        include = re.compile(r"\{(part|shared):([\w.-]+)\}")
-
-        def closure(path: pathlib.Path) -> str:
-            text = path.read_text(encoding="utf-8")
-            for kind, name in include.findall(text):
-                base = kit.BLOCKS / "fix" / "prompts" / "parts" if kind == "part" else kit.SHARED / "prompts"
-                text += "\n" + closure(base / f"{name}.md")
-            return text
-        webbed = [nid for nid, n in every().items() if {"WebSearch", "WebFetch"} & set(n.get("allowed_tools") or [])]
-        self.assertTrue(webbed)
-        for nid in webbed:
-            with self.subTest(node=nid):
-                self.assertIn("{shared:query-rule}", closure(kit.BLOCKS / "fix" / "prompts" / f"{nid}.md"))
 
 
 if __name__ == "__main__":

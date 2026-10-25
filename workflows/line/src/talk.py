@@ -71,10 +71,15 @@ def _obj(raw):
     return got if isinstance(got, dict) else None
 
 
-def _read(ptr):
-    """pointer の指すファイルの JSON（pointer でない・無い・読めなければ None）"""
+def _read(ptr, opened):
+    """pointer の指すファイルの JSON。opened は pointer の字を宣言の form で照らしてパスを返す読み（ports.file）。pointer でない・無い・
+    JSON として読めなければ None。形に合わない控えは飲まずに落とす（ShapeError）"""
+    if not isinstance(ptr, dict):
+        return None
     try:
-        return json.loads(ports.file(json.dumps(ptr)).read_text(encoding="utf-8")) if isinstance(ptr, dict) else None
+        return json.loads(opened(json.dumps(ptr)).read_text(encoding="utf-8"))
+    except ports.ShapeError:
+        raise
     except (OSError, ValueError):
         return None
 
@@ -90,8 +95,8 @@ def _empties(talks: list) -> int:
     return sum(1 for t in talks if t.get("decision") == answer.REVISE and not str(t.get("text") or "").strip())
 
 
-def _pointer_or_empty(value):
-    return value if isinstance(value, dict) else ""
+def _pointer_or_null(value):
+    return value if isinstance(value, dict) else None
 
 
 def turn(*, answer_raw, previous_raw, last_raw, given: dict, recorded, place: Path) -> dict:
@@ -109,7 +114,7 @@ def turn(*, answer_raw, previous_raw, last_raw, given: dict, recorded, place: Pa
     if prev is not None and not isinstance(plan_prior, dict):   # 計画ができなかった周は prior を書かないので、その周が受けた prior を使い直す
         plan_prior = (last or {}).get("plan_prior")
     record = (prev or {}).get("record")
-    out = {"plan": True, "answer": None, "plan_prior": _pointer_or_empty(plan_prior), "record": _pointer_or_empty(record), "asks": asks,
+    out = {"plan": True, "answer": None, "plan_prior": _pointer_or_null(plan_prior), "record": _pointer_or_null(record), "asks": asks,
            "talks": talks, "stop_reason": "", "reason": ""}
     taken = [str(t) for t in (last or {}).get("notes") or []]
     timeline = [e for e in ((prev or {}).get("timeline") or (last or {}).get("timeline") or []) if isinstance(e, dict)]
@@ -259,13 +264,13 @@ def _ask_again(place: Path, *, key: str, text: str, n: int, record, plan_prior, 
     from src import files, rounds
     out = {}
     if isinstance(record, dict):
-        doc = rounds.ask_again(rounds.read(ports.file(json.dumps(record))), key=key, text=text, reach=reach or rounds.PERSON_REACH,
-                               where=where)
-        out["record"] = ports.pointer(rounds.write(place / files.PLAN_CONVERGE, doc))
+        doc = rounds.ask_again(rounds.read(ports.file(json.dumps(record), "json(shared:plan-converge.schema.json)")), key=key, text=text,
+                               reach=reach or rounds.PERSON_REACH, where=where)
+        out["record"] = ports.pointer(rounds.write(place / files.PLAN_CONVERGE, doc), "json(shared:plan-converge.schema.json)")
         if isinstance(plan_prior, dict):
-            prior = json.loads(ports.file(json.dumps(plan_prior)).read_text(encoding="utf-8"))
+            prior = json.loads(ports.file(json.dumps(plan_prior), "json(shared:plan-prior.schema.json)").read_text(encoding="utf-8"))
             written = jsonfile.write(place / files.PLAN_TALK.format(n=n), {**prior, "record": doc}, parents=True)
-            out["plan_prior"] = ports.pointer(written)
+            out["plan_prior"] = ports.pointer(written, "json(shared:plan-prior.schema.json)")
     return out
 
 
@@ -274,7 +279,7 @@ def settle(*, turn_got: dict, plan_out: dict | None, previous: dict | None, give
     """周の終わり design-talk。turn_got は design-turn の返り、plan_out は plan-out の返り（回さなかった周は None）、previous は前の周の
     design-talk の返り、materials は修正前の承認ノードの材料を読む口（rounds → before_fix の材料。src.asking.materials を包んだ物）。
     返りは plan-out の返りの欄と TALK_FIELDS"""
-    from src import gates
+    from src import gates, rounds
 
     if turn_got.get("plan"):
         if plan_out is None:   # plan の include が落ちて plan-out が飛んだ: 計画ができなかった形で止める（輪を落とさない）
@@ -309,7 +314,7 @@ def settle(*, turn_got: dict, plan_out: dict | None, previous: dict | None, give
             items = [(gatemarks.DESIGN_ONLY_KIND, consult)]
         else:
             kw = materials(plan_out)
-            doc = kw["record_doc"]
+            doc = kw["record_doc"] if kw["record_doc"] is not None else rounds.fresh()   # 材料が読めないと名指した記録を読み直さない（unread の行が関所に届く）
             items = gates.before_fix(plan_out, unattended_run=False, design=False, **kw)["items"]
         ways = outcomes(plan_out, notes=bool(held))
         text = talk_text(plan_out, items, run_id=run_id, consult=bool(consult), doc=doc, ways=ways)
@@ -357,7 +362,8 @@ def _consult_row(po: dict) -> str:
 
 def plan_lines(po: dict) -> list:
     """設計案の行（修正案の項目ごとに、単位・やり方・書く所）。案の控えが無い・読めなければその訳の 1 行"""
-    bare, fields = _read(po.get("fix_plan")), _read(po.get("plan"))
+    bare = _read(po.get("fix_plan"), lambda raw: ports.file(raw, "json(shared:fix-plan.schema.json)"))
+    fields = _read(po.get("plan"), lambda raw: ports.file(raw, "json(shared:plan-fields.schema.json)"))
     items = bare.get("plan") if isinstance(bare, dict) else None
     if not isinstance(items, list) or not items:
         return ["- （設計案の控えが無い。下の相談の結果を見る）"]
@@ -374,12 +380,10 @@ def plan_lines(po: dict) -> list:
 
 
 def _record_of(ptr) -> dict:
-    """往復の記録の pointer の中身（pointer でない・読めなければ往復の無い記録）"""
+    """往復の記録の pointer の中身（pointer でなければ往復の無い記録）。読めない・形の違う記録は往復の無い記録にすり替えず、理由を名指して
+    落とす（src.rounds.read。設計の相談の節は落ちて止まる）"""
     from src import rounds
-    try:
-        return rounds.read(ports.file(json.dumps(ptr))) if isinstance(ptr, dict) else rounds.fresh()
-    except ValueError:
-        return rounds.fresh()
+    return rounds.read(ports.file(json.dumps(ptr), "json(shared:plan-converge.schema.json)")) if isinstance(ptr, dict) else rounds.fresh()
 
 
 def _record(po: dict) -> dict:
@@ -402,7 +406,7 @@ def talk_text(po: dict, items: list, *, run_id: str, consult: bool, doc: dict | 
     """設計の相談の承認ノードの文: 冒頭 3 行 → 設計案 → 事前審査の結果 → 人が決める項目（合意で修正前に聞き直さない行）→ 答え方"""
     from src import gates, rounds
     k = po.get("round")
-    doc = doc if isinstance(doc, dict) and isinstance(doc.get("passes"), list) else _record(po)   # 材料が読んだ往復の記録（無ければ読む）
+    doc = doc if isinstance(doc, dict) else _record(po)   # 材料が読んだ往復の記録（相談の結果だけの周は渡されないので読む）
     texts = [t for _, t in items]
     ways = ways or outcomes(po)
     lines = gatemarks.head3(

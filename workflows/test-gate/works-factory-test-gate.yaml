@@ -24,7 +24,7 @@ inputs:
     description: 'flag: 真なら base の形で依頼の行の where を範囲の照らしの変更に足す（入口の差分が空の run）'
   baseline:
     default: ''
-    description: 'file: final の時、base の出力の baseline のファイル。空は無い（1 件ごとの比べをしない）'
+    description: 'json(lib:baseline.schema.json): final の時、base の出力の baseline のファイル。空は無い（1 件ごとの比べをしない）'
   reuse_dir:
     default: ''
     description: 'text: 同じ run の中の試験の結果の控えの置き場の絶対パス。今は読まない（直す前は試験を走らせず、控えを引かず置かない。docs/design/test-gate.md の 15）。空は使い回さない'
@@ -240,44 +240,40 @@ nodes:
         # 報告と最後の関所の冒頭の句が読む
         ran_steps: *systems
         baseline:
-          anyOf:
-            - type: "null"
-            - type: object
-              additionalProperties: false
-              required: [type, run_id, path]
-              properties:
-                type: {type: string, enum: [archon_artifact]}
-                run_id: {type: string}
-                path: {type: string}
-        fingerprint:
-          anyOf:
-            - type: "null"
-            - type: object
-              additionalProperties: false
-              required: [head, diff_hash]
-              properties:
-                head: {type: string}
-                diff_hash: {type: string}
+          description: 'json(lib:baseline.schema.json): 直す前の結末のファイル（base だけ。final は null）'
+          type: [object, "null"]
+          additionalProperties: false
+          required: [type, run_id, path]
+          properties:
+            type: {type: string, enum: [archon_artifact]}
+            run_id: {type: string}
+            path: {type: string}
+        fingerprint:   # final だけ（base は null）
+          type: [object, "null"]
+          additionalProperties: false
+          required: [head, diff_hash]
+          properties:
+            head: {type: string}
+            diff_hash: {type: string}
         test_outcomes:   # final だけ。テストごとの修正前と今の結末（片側に居なければ ""）。比べない時は rows が空で unmeasured に訳
-          anyOf:
-            - type: "null"
-            - type: object
-              additionalProperties: false
-              required: [rows, unmeasured]
-              properties:
-                rows:
-                  type: array
-                  items:
-                    type: object
-                    additionalProperties: false
-                    required: [key, base, final, fail_message]
-                    properties:
-                      key: {type: string}
-                      base: {type: string, enum: [passed, failure, error, skipped, ""]}
-                      final: {type: string, enum: [passed, failure, error, skipped, ""]}
-                      fail_message: {type: string}
-                unmeasured: {type: string}
+          type: [object, "null"]
+          additionalProperties: false
+          required: [rows, unmeasured]
+          properties:
+            rows:
+              type: array
+              items:
+                type: object
+                additionalProperties: false
+                required: [key, base, final, fail_message]
+                properties:
+                  key: {type: string}
+                  base: {type: string, enum: [passed, failure, error, skipped, ""]}
+                  final: {type: string, enum: [passed, failure, error, skipped, ""]}
+                  fail_message: {type: string}
+            unmeasured: {type: string}
         evidence:
+          description: 'file: 証拠の文（evidence.md。書けなければ誤りの 1 行の failure.txt）'
           type: object
           additionalProperties: false
           required: [type, run_id, path]
@@ -285,7 +281,7 @@ nodes:
             type: {type: string, enum: [archon_artifact]}
             run_id: {type: string}
             path: {type: string}
-        by: {anyOf: [*run_by, {type: string, enum: [""]}]}   # "" は返す節の中の誤り
+        by: {type: string, enum: [engine, role, role_needed, ""]}   # "" は返す節の中の誤り（語は走らせ方の by と同じ）
         suites_line: {type: string}
         log: {type: string}
         baseline_line: {type: string}
@@ -306,4 +302,5 @@ nodes:
             reasons: *names
             ran: {type: string, enum: [related, whole, none]}
         report: {type: array, items: {type: string}}   # 報告に載せる日本語の行
-        optional: {type: array}
+        # 落ちても線が先へ進めてよい node の宣言（入力 optional を読んだ並びのまま）
+        optional: {type: array, items: {type: object, properties: {node: {type: string}, bare: {type: boolean}}}}

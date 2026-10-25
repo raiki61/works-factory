@@ -36,7 +36,7 @@ def facts(place, *, sections, facts, lang, run_id: str, workflow_file, repo) -> 
     place = pathlib.Path(place)
     problems = []
     try:
-        rows = ports.json(sections, "sections.schema.json")
+        rows = ports.json(sections, "shared:sections.schema.json")
     except ValueError as e:
         problems.append(f"入力 sections: {e}")
         rows = []
@@ -56,9 +56,10 @@ def facts(place, *, sections, facts, lang, run_id: str, workflow_file, repo) -> 
     ok = word in outcomelib.OK_OUTCOMES
     jsonfile.write(place / files.FACTS_FILE, {"outcome": word, "stop_reason": stop, "ok": ok, "ai_go": built["ai_go"], "stamp": stamp,
                                               "lang": ports.text(lang).strip(), "run_id": run_id, "decisions": built["decisions"]})
-    pointer = lambda path: None if path is None else ports.pointer(path)   # noqa: E731
-    return {"outcome": word, "ok": ok, "stop_reason": stop, "machine": pointer(built["report"]),
-            "next_request": pointer(built["next_request"]), "prior_failures": pointer(built["prior_failures"]),
+    nxt, prior = built["next_request"], built["prior_failures"]
+    return {"outcome": word, "ok": ok, "stop_reason": stop, "machine": ports.pointer(built["report"], "file"),
+            "next_request": None if nxt is None else ports.pointer(nxt, "json(lib:next-request.schema.json)"),
+            "prior_failures": None if prior is None else ports.pointer(prior, "json(lib:prior-failures.schema.json)"),
             "ai_go": built["ai_go"], "stamp": stamp}
 
 
@@ -77,7 +78,7 @@ def facts_fallback(place, why: str, run_id: str = "") -> dict:
                                                          ensure_ascii=False) + "\n", encoding="utf-8")
     except OSError:
         pass
-    return {"outcome": "record_invalid", "ok": False, "stop_reason": stop, "machine": ports.pointer(path), "next_request": None,
+    return {"outcome": "record_invalid", "ok": False, "stop_reason": stop, "machine": ports.pointer(path, "file"), "next_request": None,
             "prior_failures": None, "ai_go": False, "stamp": ""}
 
 
@@ -105,7 +106,7 @@ def write_prompt(place, *, run_id: str) -> dict:
               "stop_heading": files.bare(files.STOP_HEADING), "prev_file": str(candidate) if prev else "",
               "decisions_head": writer.DECISIONS_HEAD, "lang": prompt.lang(doc.get("lang")),
               "decisions_heading": files.bare(files.DECISIONS_HEADING), "cell_limit": writer.CELL_LIMIT, "handoff_rounds": notes}
-    when = {"rejected": bool(rejected), "prev": prev, "handoff_rounds": bool(notes)}
+    when = {"rejected": bool(rejected), "prev": prev, "handoff_rounds": bool(notes), "spawns": False}
     out = prompt.emit(files.WRITE_NODE, values, when, prompt.round_of(files.WRITE_NODE))
     return {"prompt": out["prompt"]}
 
@@ -120,9 +121,11 @@ def cold_prompt(place, raw) -> dict:
 
 
 # ---------------------------------------------------------------- 出口
-def _pointer_if(path):
-    path = pathlib.Path(path)
-    return ports.pointer(path) if path.is_file() else None
+def _carried(place) -> dict:
+    """次の run に運ぶ控えの pointer（無いファイルは null）"""
+    nxt, prior = pathlib.Path(place) / carry.NEXT_REQUEST_FILE, pathlib.Path(place) / carry.PRIOR_FAILURES_FILE
+    return {"next_request": ports.pointer(nxt, "json(lib:next-request.schema.json)") if nxt.is_file() else None,
+            "prior_failures": ports.pointer(prior, "json(lib:prior-failures.schema.json)") if prior.is_file() else None}
 
 
 def _machine_file(place) -> pathlib.Path | None:
@@ -152,18 +155,17 @@ def finish(place, *, run_id: str) -> dict:
     if machine_file.name == files.REPORT_FILE:
         writer.note_writer_fell(machine_file, fell, run_id=run_id)
         ai_path = writer.collect(machine_file.read_text(encoding="utf-8"), place=place, stamp=doc["stamp"])
-    human = ports.pointer(ai_path) if ai_path else None
+    human = ports.pointer(ai_path, "file") if ai_path else None
     if human:
         why = ""
     elif not doc["ai_go"]:
         why = f"結果を名乗れない（結末 {doc['outcome']}）ので書き手を起こしていない"
     else:
         why = f"書き手のノードが落ちた（{fell['error']}）" if fell else "書き手の返答が無い"
-    machine_pointer = ports.pointer(machine_file)
+    machine_pointer = ports.pointer(machine_file, "file")
+    detail = place / files.DETAIL_FILE
     return {"ok": doc["ok"] is True, "outcome": doc["outcome"], "stop_reason": doc["stop_reason"], "machine": machine_pointer,
-            "human": human, "detail": _pointer_if(place / files.DETAIL_FILE) if human else None,
-            "next_request": _pointer_if(place / carry.NEXT_REQUEST_FILE),
-            "prior_failures": _pointer_if(place / carry.PRIOR_FAILURES_FILE),
+            "human": human, "detail": ports.pointer(detail, "file") if human and detail.is_file() else None, **_carried(place),
             "report": _report_lines(doc["outcome"], human, why, machine_pointer)}
 
 
@@ -172,8 +174,11 @@ def finish_fallback(place, why: str, run_id: str = "") -> dict:
     place = pathlib.Path(place)
     stop = f"report:{why}"
     path = _machine_file(place) or unwritten(place, files.FINISH_UNWRITTEN_FILE, why, run_id)
-    pointer = ports.pointer(path)
+    pointer = ports.pointer(path, "file")
+    try:
+        carried = _carried(place)
+    except ValueError:   # 落ちない出口の中: 形の外れた控えは運ばない（指さずに null。訳は機械の報告の側に在る）
+        carried = {"next_request": None, "prior_failures": None}
     return {"ok": False, "outcome": "record_invalid", "stop_reason": stop, "machine": pointer, "human": None, "detail": None,
-            "next_request": _pointer_if(place / carry.NEXT_REQUEST_FILE),
-            "prior_failures": _pointer_if(place / carry.PRIOR_FAILURES_FILE),
+            **carried,
             "report": _report_lines("record_invalid", None, why, pointer)}

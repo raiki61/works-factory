@@ -491,12 +491,13 @@ class AcceptCase(unittest.TestCase):
         self.assertIsNone(out["gave_up"], "項目ごとの諦めの行は形 replan だけ")
 
 
+# 修正の段の申し出と裁定の控え（lib:conflicts.schema.json。kind・which_is_right は控えの語。入力 conflicts の口が形で照らす）
 CONFLICTS = {"items": [
-    {"id": "c1", "unit_key": CLAMP, "kind": "scope", "between": ["stats.py", "test_stats.py"],
-     "why_both_cannot_hold": "試験を直さないと上限の枝を直した証が立たない", "which_is_right": "plan",
+    {"id": "c1", "unit_key": CLAMP, "kind": "scope_needed", "between": ["stats.py", "test_stats.py"],
+     "why_both_cannot_hold": "試験を直さないと上限の枝を直した証が立たない", "which_is_right": "code",
      "ruling": {"decision": "fix_plan_item", "text": "項目 1 の allowed_paths に request_ok.json を足せ", "limits": [], "plan_items": [1]}},
-    {"id": "c2", "unit_key": MEAN, "kind": "scope", "between": ["stats.py"],
-     "why_both_cannot_hold": "人が決める", "which_is_right": "human",
+    {"id": "c2", "unit_key": MEAN, "kind": "needs_context", "between": ["stats.py"],
+     "why_both_cannot_hold": "人が決める", "which_is_right": "unknown",
      "ruling": {"decision": "ask_human", "text": "人に聞く裁定の文", "limits": []}}]}
 RULING_TEXT = CONFLICTS["items"][0]["ruling"]["text"]
 
@@ -531,7 +532,7 @@ class ReplanCase(unittest.TestCase):
         self.assertIn("一字も変えずに写す", why[1])
         self.assertIn(RULING_TEXT, prompts[0])
         self.assertIn(ITEM_HEAD.format(n=1), prompts[0])
-        for phrase in ("the brief wins", "could not be looked up", "did not decide a scope"):
+        for phrase in ("the brief wins", "could not be looked up"):
             self.assertIn(phrase, prompts[0], "直し直す回の指示に brief の読み方の句が無い")
         self.assertNotIn("人に聞く裁定の文", prompts[0], "fix_plan_item でない裁定の行は渡さない")
         self.assertIn(CONCEPT_HEAD, prompts[0])

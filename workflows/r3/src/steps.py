@@ -35,7 +35,10 @@ def _path(path) -> str:
 def _request_answers(raw) -> tuple[str, list, str]:
     """(依頼のファイルのパス, 依頼の answers, 中身が読めない訳)。ファイルが無い・指せないのは port の誤り（ValueError）。中身が読めない
     だけなら止めず、answers を空にして訳を返す（answers は記録された方針の行の出どころの 1 つにすぎない）"""
-    path = ports.file(raw)
+    try:
+        path = ports.file(raw, "json(shared:request.schema.json)")
+    except ports.ShapeError as e:   # 形に合わない中身は役を止めない（JSON として読めない・無いファイルは port の誤り）
+        return "", [], REQUEST_UNREAD.format(why=oneline.one_line(f"{type(e).__name__}: {e}"))
     if path is None:
         return "", [], ""
     try:
@@ -51,13 +54,13 @@ def _read_ports(raw: dict) -> tuple[dict, list]:
         "base": lambda v: ports.text(v).strip(),
         "lang": lambda v: ports.text(v).strip(),
         "green": lambda v: True if _blank(v) else ports.flag(v),
-        "after": lambda v: _path(ports.file(v)),
+        "after": lambda v: _path(ports.file(v, "json(shared:structure-after.schema.json)")),
         "review": lambda v: {} if _blank(v) else ports.json(v, "shared:plan-verdict.schema.json"),
-        "policy": lambda v: _path(ports.file(v)),
+        "policy": lambda v: _path(ports.file(v, "file")),
         "answers": lambda v: {} if _blank(v) else ports.json(v, "shared:gate-answers.schema.json"),
         "request": _request_answers,
         "pushes": lambda v: [] if _blank(v) else ports.json(v, "shared:pushes.schema.json"),
-        "decisions": lambda v: _path(ports.file(v)),
+        "decisions": lambda v: _path(ports.file(v, "json(shared:material.schema.json)")),
     }
     for name, read in readers.items():
         try:

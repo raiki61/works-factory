@@ -1,5 +1,7 @@
 {shared:resubmit}
 
+{shared:query-rule}
+
 <!-- if not replan -->
 For `plan`, the rule above that a field you return replaces the previous field as a whole does not apply; `plan` is merged by the rules below.
 

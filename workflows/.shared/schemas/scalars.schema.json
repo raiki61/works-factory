@@ -1,0 +1,8 @@
+{
+  "description": "修正役が足した規模の数値の欄の object（名は x_ で始まる小文字・数字・_、値は数）。書き手は修正役の返答（fix の YAML の修正役の output_format の x_scalars と同じ形）を fix の src/board.py の x_scalars が名ごとに足した物と、line の src/stages.py が段ごとに重ねた物。空の object は無い",
+  "type": "object",
+  "additionalProperties": false,
+  "patternProperties": {
+    "^x_[a-z0-9_]+$": {"type": "number"}
+  }
+}

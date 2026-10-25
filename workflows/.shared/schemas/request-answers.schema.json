@@ -1,0 +1,13 @@
+{
+  "description": "依頼の answers の行の配列（依頼者が前の run の問いに答えた物 [{question, text, command?, output?}]。形を確かめる住処は lib/carry.py の parts）",
+  "type": "array",
+  "items": {
+    "type": "object",
+    "properties": {
+      "question": {"type": "string"},
+      "text": {"type": "string"},
+      "command": {"type": "string"},
+      "output": {"type": "string"}
+    }
+  }
+}

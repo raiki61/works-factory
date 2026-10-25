@@ -66,19 +66,28 @@ def copies():
 class CountHowCopyCase(unittest.TestCase):
     def test_every_how_copy_is_the_owner(self):
         found = list(copies())
-        self.assertEqual(sorted(name.split("/")[1] for name, _ in found), ["diagnose", "fix-ruled", "fixer", "rejudge", "rejudge-fix"])
+        self.assertEqual(sorted(name.split("/")[1] for name, _ in found), ["diagnose", "pin", "pin-ruled", "rejudge", "rejudge-fix", "remove", "remove-ruled", "ruler",
+                          "static", "static-ruled", "tdd-close", "tidy", "tidy-ruled", "variant", "variant-ruled"])
         want = _owner_form(engine_util.COUNT_HOW_SCHEMA)
         for name, props in found:
             with self.subTest(name):
                 self.assertEqual(_owner_form(props["how"]), want)
 
     def test_every_examples_copy_is_the_owner(self):
+        """例を必須にする写し（裁定の replace_query の query。理由の欄を持たず、hits に下限 1 を足して締める）は、持ち主の例の欄
+        （hits・misses）と比べる。足した下限は締めで緩めではないので、hits の minItems 1 だけを外して比べる"""
         for name, props in copies():
             examples = {k: props[k] for k in querytest.EXAMPLES_SCHEMA if k in props}
             if not examples:
                 continue
+            owner = querytest.EXAMPLES_SCHEMA
+            if not any(k in props for k in querytest.REASON_FIELDS):
+                owner = {k: owner[k] for k in querytest.EXAMPLE_FIELDS}
+                hits = examples.get("hits") or {}
+                if hits.get("minItems") == 1:
+                    examples = {**examples, "hits": {k: v for k, v in hits.items() if k != "minItems"}}
             with self.subTest(name):
-                self.assertEqual(_owner_form(examples), _owner_form(querytest.EXAMPLES_SCHEMA))
+                self.assertEqual(_owner_form(examples), _owner_form(owner))
 
     def test_line_copy_passes_what_the_owner_passes(self):
         """写しの LINE は持ち主の 1 行の欄（前後の空白を除いた minLength 1 と OWNER_LINE）と同じ字を通す"""

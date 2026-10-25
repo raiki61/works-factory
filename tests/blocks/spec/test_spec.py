@@ -739,7 +739,7 @@ class PromptCase(_Case):
         self.assertTrue(text.startswith("Your previous answer was rejected by the machine's check."), text[:60])
         self.assertIn("return `{}`", text, "二重の波括弧は字の {} になる")
         for role in ("review", "revise"):
-            self.assertEqual((BLOCK / "prompts" / f"spec-{role}-fix.md").read_text(encoding="utf-8"), "{shared:resubmit}\n")
+            self.assertEqual((BLOCK / "prompts" / f"spec-{role}-fix.md").read_text(encoding="utf-8"), "{shared:resubmit}\n\n{shared:query-rule}\n")
 
 
 class ShapeCase(unittest.TestCase):

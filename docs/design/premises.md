@@ -298,7 +298,7 @@ Write `text` and `measured_how` in the language of the request lines. …
 1. `intake.json` を読む。`failed` が真なら `status: failed`・`reason` はその訳。
 2. ほかは `premises.json` を読む。在れば `status: ok`。無ければ `status: failed`、`reason` は `rolekit.given_up_reason(place, "premises")`、それも空なら控えの最後の拒みの文、それも無ければ「前提の実測を受け付けた控えが無い（役が走らなかったか落ちた）」（今の `lib/judge_accept.py:3919` の訳と同じ向き）。
 3. `report`: `ok` の時は `report.lines(findings, constraints)`。中身は今の `premise_lines` と同じ: 制約のうち `kind` が `仮説` の行を `hyp` とし、依頼の行で `measured` と `where` を持つ物ごとに、`where` を `text` に含む最初の `hyp` の行が在れば `依頼の実測を測り直せなかった（前提は仮説）: <where>——<その行の text>`。`failed` の時は `[f"前提の制約: {reason}"]`。
-4. 返り: `{ok, status, reason, constraints: ports.pointer(place / "premises.json") か None, report}`。
+4. 返り: `{ok, status, reason, constraints: ports.pointer(place / "premises.json", "json(shared:constraints.schema.json)") か None, report}`。
 5. どこで例外が出ても落ちず、`{ok: false, status: failed, reason: "<型>: <訳>", constraints: null, report: ["前提の制約: <訳>"]}` を返す。
 
 `finish` の `output_format`:

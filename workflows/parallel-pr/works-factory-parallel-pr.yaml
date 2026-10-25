@@ -149,8 +149,17 @@ nodes:
         status: {type: string, enum: [found, clean, not_applicable, awaiting_human, not_run, failed]}
         stop_reason: {type: string}
         reason: {type: string}
-        material: {type: object}
+        material:
+          type: object
+          properties:
+            status: {type: string}
+            count: {type: integer}
+            detail: {type: string}
+            checked: {type: string}
+            reason: {type: string}
+            from_round: {type: integer}
         excluded:
+          description: 'json(shared:excluded.schema.json): 並行 PR と重なるので外す範囲'
           type: [object, "null"]
           required: [type, run_id, path]
           properties:
@@ -158,6 +167,7 @@ nodes:
             run_id: {type: string}
             path: {type: string}
         drafts:
+          description: 'json(shared:pr-drafts.schema.json): 並行 PR の申し送りの下書き'
           type: [object, "null"]
           required: [type, run_id, path]
           properties:
@@ -165,6 +175,7 @@ nodes:
             run_id: {type: string}
             path: {type: string}
         reads:
+          description: 'json(shared:reads.schema.json): 役が渡し物を読んだ証拠'
           type: [object, "null"]
           required: [type, run_id, path]
           properties:

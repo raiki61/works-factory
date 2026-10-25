@@ -1,0 +1,22 @@
+{
+  "description": "無人の run が採った推しの行（lib/gatemarks.py の push_rec。lib/answer.py が答えに足す）",
+  "type": "object",
+  "properties": {
+    "item": {
+      "type": "string"
+    },
+    "answer": {
+      "type": "string",
+      "enum": [
+        "continue",
+        "stop"
+      ]
+    },
+    "note": {
+      "type": "string"
+    },
+    "why": {
+      "type": "string"
+    }
+  }
+}

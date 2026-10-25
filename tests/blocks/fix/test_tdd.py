@@ -28,9 +28,10 @@ from unittest import mock
 from tests.bin import hermetic
 from tests.bin.gitkit import committed_copy, git
 from tests.blocks import kit
+from tests.blocks.fix import steps
 
 tdd = kit.load("fix", "tdd")
-from src import board, facts, gates, prompts, rules, runvals  # noqa: E402
+from src import basecase, board, common, facts, gates, prompts, route, rules, runvals  # noqa: E402
 for _name in ("files", "rules", "runvals", "carry", "lanes", "intake", "scope", "unitrows", "consult", "clash", "ruling", "parking"):
     importlib.import_module(f"src.{_name}")   # 遅れて読む src の名（board の関数の中の import）もこの block の物に揃える
 FIX_SRC = {n: m for n, m in sys.modules.items() if n == "src" or n.startswith("src.")}
@@ -67,7 +68,7 @@ V1 = {"ok", "files", "changes_file", "removed"}
 from tests.blocks.fix.support import SUITE  # noqa: E402
 
 # SUITE の写しで、pytest の JUnit に合わせる実行器: 断言の失敗も本体の例外も failure と書き、message に「<型>: <文>」を付ける
-# （pytest は本体の例外を failure と書く。引用の照らし tdd.red_check はこの message を読む）
+# （pytest は本体の例外を failure と書く。引用の照らし common.red_check はこの message を読む）
 PYTEST_LIKE = '''
 import sys, unittest, xml.etree.ElementTree as ET
 sys.dont_write_bytecode = True
@@ -129,7 +130,7 @@ class StepLogCase(Case):
         state = start["state_file"]
         log = tmp / "run-writes.jsonl"   # 置き場の外の記録（既定の置き場の記録は使わない）
         log.write_text("", encoding="utf-8")
-        got = tdd.step(state, {"phase": "route", "units": [
+        got = steps.loop_step(state, {"phase": "route", "units": [
             {"unit_key": MEAN, "route": "tdd"},
             {"unit_key": CLAMP, "route": "direct", "why": "文書の直しと同じで、先にテストを書けない単位"}]}, repo, log=log)
         self.assertTrue(got["ok"], got)
@@ -137,14 +138,14 @@ class StepLogCase(Case):
         tests.write_text(tests.read_text(encoding="utf-8").replace("\n\nif __name__", NEW_TEST + "\n\nif __name__"), encoding="utf-8")
         reply = {"phase": "test", "unit_key": MEAN, "test_files": ["test_stats.py"],
                  "tests": ["test_stats.py::TestStats::test_mean_of_two"]}
-        got = tdd.step(state, dict(reply), repo, log=log)
+        got = steps.loop_step(state, dict(reply), repo, log=log)
         self.assertEqual((got["ok"], got["phase"]), (False, "test"), got)
         self.assertIn(writes.REJECT, got["reason"])
         self.assertIn("test_stats.py", got["reason"])
         real = os.path.realpath(tests)
         with open(log, "a", encoding="utf-8") as f:
             f.write(json.dumps({"tool_name": "Write", "path": real, "file_sha": writes._sha(real)}) + "\n")
-        got = tdd.step(state, dict(reply), repo, log=log)
+        got = steps.loop_step(state, dict(reply), repo, log=log)
         self.assertEqual((got["ok"], got["phase"]), (True, "fix"), got)
 
 
@@ -157,14 +158,14 @@ class TestNoSuite(Case):
             repo = tmp / "repo"
             committed_copy(repo, SEED)
             got = tdd.start(tmp / "art", repo, "", OPEN)
-            self.assertEqual(got, {"go": False, "reason": tdd.NO_SUITE, "suite": "", "state_file": "",
+            self.assertEqual(got, {"go": False, "reason": basecase.NO_SUITE, "suite": "", "base_file": "", "state_file": "",
                                    "summary_file": ""})
             self.assertFalse((tmp / "art").exists(), "置き場に何も書かない")
             self.assertEqual(git(repo, "status", "--porcelain"), "")
 
     def test_exit_fields_without_suite(self):
-        start = {"go": False, "reason": tdd.NO_SUITE, "suite": "", "state_file": "", "summary_file": ""}
-        self.assertEqual(tdd.exit_fields(start), {"ran": False, "suite": "", "reason": tdd.NO_SUITE, "units": []})
+        start = {"go": False, "reason": basecase.NO_SUITE, "suite": "", "state_file": "", "summary_file": ""}
+        self.assertEqual(tdd.exit_fields(start), {"ran": False, "suite": "", "reason": basecase.NO_SUITE, "units": []})
 
     def test_missing_suite_file_falls_back_to_direct(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -177,7 +178,7 @@ class TestNoSuite(Case):
             self.assertEqual(got["state_file"], "")
 
     def test_freeze_check_skips_without_state(self):
-        self.assertEqual(tdd.frozen_problems("", pathlib.Path(".")), [])
+        self.assertEqual(common.frozen_problems("", pathlib.Path(".")), [])
 
 
 DECLARED = {"declared": True, "why": "分母の式を名前の付いた変数に分けたい"}   # fix の段の整えの申告（理由は MIN_WHY 字以上）
@@ -211,17 +212,17 @@ class LoopCase(Case):
 
     def values(self, values=None):
         """今の周の指示の (値, 段落の真偽)（tdd.prep の材料を prompts.tdd_values が組む物。node tdd-prep と同じ）"""
-        vals, when, _ = prompts.tdd_values(self.board, self.repo, tdd.prep(self.state), values or {})
+        vals, when, _ = prompts.tdd_values(self.board, self.repo, steps.loop_prep(self.state), values or {})
         return vals, when
 
     def prompt(self, values=None):
         """今の周の組んだ指示の字（prompts.tdd が place に書く物。place は輪の置き場の根 self.board）"""
-        view = tdd.prep(self.state)
+        view = steps.loop_prep(self.state)
         with mock.patch.dict(os.environ, {"ARTIFACTS_DIR": str(self.board), "ARCHON_NODE_EXECUTION": ""}):
             return prompts.tdd(self.board, self.repo, view, values or {})["prompt"]
 
     def step(self, reply):
-        return tdd.step(self.state, reply, self.repo)
+        return steps.loop_step(self.state, reply, self.repo)
 
     def edit(self, name, old, new):
         p = self.repo / name
@@ -285,8 +286,8 @@ class TestStart(LoopCase):
         新しい会話の役と続きの役を振り分ける。元 works/blk-fix/lib/tddloop.py:880 write_key の鍵と同じ切れ目）。拒まれた出し直し・
         同じ単位の次の段は偽、単位が替われば真"""
         def new_unit():
-            return tdd.prep(self.state)["new_unit"]
-        self.assertTrue(new_unit(), "1 周目は新しい会話")
+            return steps.loop_prep(self.state)["new_unit"]
+        self.assertFalse(new_unit(), "振り分けの段は組の子の loop route-loop の 1 つの会話（出し直しも同じ会話）")
         self.assertFalse(new_unit(), "同じ振り分けの段の出し直し")
         self.route(clamp="tdd")
         self.assertTrue(new_unit(), "振り分けから単位の段へ")
@@ -328,9 +329,10 @@ class TestStart(LoopCase):
         self.assertIn(rules, full2, "2 回目も決まりを全部")
         self.assertIn("- **test**:", full2)
         self.assertNotIn("- **route**:", full2)
-        self.assertEqual(sorted(p.name for p in self.board.glob("tdd*-prompt-*.md")),
-                         ["tdd-prompt-1.md", "tdd-prompt-2.md"],
-                         "周ごとに place に書く（先の self.values の支度が単位の鍵を進めたので、どちらも続きの役 tdd の周）")
+        self.assertEqual(sorted(p.name for p in self.board.glob("*-prompt-*.md")),
+                         ["route-prompt-1.md", "tdd-prompt-1.md"],
+                         "周ごとに node の名で place に書く（1 周目は振り分けの役 route。2 周目は先の self.values の支度が単位の鍵を"
+                         "進めたので続きの役 tdd の 1 枚目）")
 
     def test_owed_units_are_conflict_fix_duty_not_the_is_open_list(self):
         """TDD が振り分ける義務は受け付けと同じ conflict.fix_duty の owed。渡された open_units（is_open）に無くても、関所で答えて
@@ -342,7 +344,7 @@ class TestStart(LoopCase):
         self.assertEqual(duty.call_args.args, (self.board, {MEAN, CLAMP, back}), "直す義務の値は呼び手が渡す（元は盤面）")
         self.assertTrue(got["go"], got)
         st = json.loads(pathlib.Path(got["state_file"]).read_text(encoding="utf-8"))
-        self.assertEqual(sorted(tdd._owed(st)), sorted([MEAN, back]))
+        self.assertEqual(sorted(common._owed(st)), sorted([MEAN, back]))
 
     def test_second_start_gets_its_own_state(self):
         again = tdd.start(self.board, self.repo, str(self.suite), OPEN)
@@ -437,9 +439,9 @@ class TestStart(LoopCase):
         """brief の控えが壊れていれば、brief の無い指示書として続けず、控えを名指す理由の Broken で止める（traceback にしない）"""
         broken = planbrief.LedgerBroken(f"brief の控え /b/r1/{planbrief.LEDGER} を読めない: 壊れた")
         with mock.patch.object(tdd.planbrief, "cut_at", side_effect=broken):
-            with self.assertRaisesRegex(tdd.Broken, planbrief.LEDGER):
-                tdd.prep(self.state)
-            with self.assertRaisesRegex(tdd.Broken, planbrief.LEDGER):
+            with self.assertRaisesRegex(common.Broken, planbrief.LEDGER):
+                steps.loop_prep(self.state)
+            with self.assertRaisesRegex(common.Broken, planbrief.LEDGER):
                 self.prompt()
 
 class TestRoute(LoopCase):
@@ -488,9 +490,9 @@ class TestUnitLoop(LoopCase):
         summary = pathlib.Path(self.start["summary_file"]).read_text(encoding="utf-8")
         for w in (MEAN, CLAMP, "test_stats.py"):
             self.assertIn(w, summary)
-        self.assertEqual(tdd.frozen_problems(self.state, self.repo), [])
+        self.assertEqual(common.frozen_problems(self.state, self.repo), [])
         self.edit("test_stats.py", "mean([2, 4]), 3", "mean([2, 4]), 3.0")
-        self.assertTrue(tdd.frozen_problems(self.state, self.repo), "輪の後の修正役がテストを変えたら拒む")
+        self.assertTrue(common.frozen_problems(self.state, self.repo), "輪の後の修正役がテストを変えたら拒む")
 
     def test_refactor_rechecked(self):
         self.route()
@@ -567,7 +569,7 @@ class TestUnitLoop(LoopCase):
             got = self.step({"phase": "fix", "unit_key": MEAN, "files": ["helper.py"], "what": "直せていない"})
             self.assertFalse(got["ok"])
         self.assertNotIn("conflict", got, "止めた申し出の出口は状態の未送の並び 1 つ")
-        unsent = self.st()[tdd.UNSENT]
+        unsent = self.st()[common.UNSENT]
         self.assertEqual([r["source"] for r in unsent], [conflict.GAVE_UP_SOURCE], "3 回拒まれた単位は機械の申し出 1 件を状態の未送に積む")
         item = unsent[0]["item"]
         self.assertEqual((item["unit_key"], item["kind"], item["which_is_right"]), (MEAN, "needs_context", "unknown"))
@@ -605,10 +607,10 @@ class TestUnitLoop(LoopCase):
             self.assertFalse(got["ok"])
         self.assertTrue(got["done"])
         parked = []
-        tdd.flush_unsent(self.state, parked.extend)
+        common.flush_unsent(self.state, parked.extend)
         self.assertEqual([(r["source"], r["item"]["unit_key"]) for r in parked],
                          [(conflict.TDD_SOURCE, MEAN), (conflict.GAVE_UP_SOURCE, CLAMP)])
-        self.assertEqual(self.st()[tdd.UNSENT], [], "渡せた行は未送から外す")
+        self.assertEqual(self.st()[common.UNSENT], [], "渡せた行は未送から外す")
 
     def test_give_up_reads_briefs_before_moving_tree(self):
         """止める前に置き場の brief を読む。読めずに落ちた周は、作業ツリーを単位の頭に戻さず、状態も進めない"""
@@ -691,11 +693,11 @@ class ContractCase(LoopCase):
         """名指しを実行器で 1 回走らせ、結末の failure の文から赤の引用を作る（役が結末を読んで引く代わり）。{id: {quote, why}}。
         failure の文の無い名指し（落ちていない・文を書かない実行器）は載せない"""
         with tempfile.TemporaryDirectory() as td:
-            cases, _, why = tdd.run_suite(str(self.suite), self.repo, pathlib.Path(td), "q", tdd._abs_ids(self.repo, tests))
+            cases, _, why = tdd.run_suite(str(self.suite), self.repo, pathlib.Path(td), "q", common._abs_ids(self.repo, tests))
         self.assertEqual(why, [])
         out = {}
         for t in tests:
-            c = tdd.rules().match_case(t, cases) or {}
+            c = common.rules().match_case(t, cases) or {}
             if c.get("fail_message"):
                 out[t] = {"quote": c["fail_message"], "why": "今のコードの欠陥で期待どおりに落ちた（打ち間違いではない）"}
         return out
@@ -703,8 +705,8 @@ class ContractCase(LoopCase):
     def step(self, reply):
         """test の段の返答に red_quotes が無ければ、結末の failure の文から作って足す（red_quotes を書いた返答はそのまま。
         failure の文を書かない実行器の結末からは作れず、{} を足す）"""
-        if isinstance(reply, dict) and reply.get("phase") == "test" and reply.get("tests") and tdd.QUOTES_FIELD not in reply:
-            reply = {**reply, tdd.QUOTES_FIELD: self.quotes_for(reply["tests"])}
+        if isinstance(reply, dict) and reply.get("phase") == "test" and reply.get("tests") and common.QUOTES_FIELD not in reply:
+            reply = {**reply, common.QUOTES_FIELD: self.quotes_for(reply["tests"])}
         return super().step(reply)
 
     def wrong_kind(self):
@@ -754,14 +756,14 @@ class TestPlanContract(ContractCase):
         self.route()
         self.add_test(NEW_TEST)
         reply = {"phase": "test", "unit_key": MEAN, "test_files": ["test_stats.py"], "tests": [MEAN_ID]}
-        got = self.step({**reply, tdd.QUOTES_FIELD: {}})
+        got = self.step({**reply, common.QUOTES_FIELD: {}})
         self.assertFalse(got["ok"])
         self.assertIn(MEAN_ID, got["reason"])
-        self.assertIn(tdd.QUOTES_FIELD, got["reason"])
+        self.assertIn(common.QUOTES_FIELD, got["reason"])
         quotes = {MEAN_ID: {"quote": "6.0 != 3", "why": "mean が分母を 1 つ少なく割るので 6.0 になる（期待は 3）"}}
-        got = self.step({**reply, tdd.QUOTES_FIELD: quotes})
+        got = self.step({**reply, common.QUOTES_FIELD: quotes})
         self.assertTrue(got["ok"], got)
-        self.assertEqual(self.st()["units"][MEAN][tdd.QUOTES_FIELD], quotes)
+        self.assertEqual(self.st()["units"][MEAN][common.QUOTES_FIELD], quotes)
 
     def test_red_kind_matches_and_is_recorded(self):
         """赤の記録は、機械が分けた種類でなく、役が返答に書いた引用と理由（結末の失敗の文に在ると照らし済み）がそのまま残る"""
@@ -769,9 +771,9 @@ class TestPlanContract(ContractCase):
         self.add_test(NEW_TEST)
         quotes = {MEAN_ID: {"quote": "6.0 != 3", "why": "mean が分母を 1 つ少なく割るので 6.0 になる（期待は 3）"}}
         got = self.step({"phase": "test", "unit_key": MEAN, "test_files": ["test_stats.py"], "tests": [MEAN_ID],
-                         tdd.QUOTES_FIELD: quotes})
+                         common.QUOTES_FIELD: quotes})
         self.assertTrue(got["ok"], got)
-        self.assertEqual(self.st()["units"][MEAN][tdd.QUOTES_FIELD], quotes)
+        self.assertEqual(self.st()["units"][MEAN][common.QUOTES_FIELD], quotes)
         self.assertEqual(self.st()["units"][MEAN]["quote_unchecked"], [])
 
     def test_red_rejects_wrong_kind(self):
@@ -781,7 +783,7 @@ class TestPlanContract(ContractCase):
         self.add_test(WRONG_KIND_TEST)
         got = self.wrong_kind()
         self.assertTrue(got["ok"], got)
-        self.assertIn("AttributeError", self.st()["units"][MEAN][tdd.QUOTES_FIELD][MEAN_ID]["quote"])
+        self.assertIn("AttributeError", self.st()["units"][MEAN][common.QUOTES_FIELD][MEAN_ID]["quote"])
 
     def test_crash_red_with_assertion_plan_passes_and_is_recorded(self):
         """今のコードが例外で落ちる種類のバグ（ZeroDivisionError）は、案が assertion でも拒まず、引いた失敗の文を記録する"""
@@ -789,7 +791,7 @@ class TestPlanContract(ContractCase):
         self.add_test("\n    def test_mean_of_two(self):\n        self.assertEqual(mean([5]), 5)\n")
         got = self.wrong_kind()
         self.assertTrue(got["ok"], got)
-        self.assertIn("ZeroDivisionError", self.st()["units"][MEAN][tdd.QUOTES_FIELD][MEAN_ID]["quote"])
+        self.assertIn("ZeroDivisionError", self.st()["units"][MEAN][common.QUOTES_FIELD][MEAN_ID]["quote"])
 
     def test_name_error_red_with_assertion_plan_rejected(self):
         """NameError の failure も機械は種類で拒まず、引用が結末の文に在れば赤として通る"""
@@ -797,7 +799,7 @@ class TestPlanContract(ContractCase):
         self.add_test("\n    def test_mean_of_two(self):\n        self.assertEqual(mean_of([2, 4]), 3)\n")
         got = self.wrong_kind()
         self.assertTrue(got["ok"], got)
-        self.assertIn("NameError", self.st()["units"][MEAN][tdd.QUOTES_FIELD][MEAN_ID]["quote"])
+        self.assertIn("NameError", self.st()["units"][MEAN][common.QUOTES_FIELD][MEAN_ID]["quote"])
 
     def test_wrong_kind_three_times_gives_up_and_parks_for_ruling(self):
         """結末に無い引用で 3 回拒まれ、食い違いの申し出で止めて裁定に回し、木が単位の頭に戻る（gave_up red）"""
@@ -807,7 +809,7 @@ class TestPlanContract(ContractCase):
         made_up = {MEAN_ID: {"quote": "結末に無い作り話の失敗の文", "why": "期待どおりの理由で落ちたと思う（作り話）"}}
         for _ in range(tdd.retry_max()):
             got = self.step({"phase": "test", "unit_key": MEAN, "test_files": ["test_stats.py"], "tests": [MEAN_ID],
-                             tdd.QUOTES_FIELD: made_up})
+                             common.QUOTES_FIELD: made_up})
             self.assertFalse(got["ok"])
         self.assertTrue(got["done"], "tdd の単位が 1 つなので輪は済む")
         self.assertEqual((self.repo / "test_stats.py").read_text(encoding="utf-8"), head, "作業ツリーは単位の頭")
@@ -821,7 +823,7 @@ class TestPlanContract(ContractCase):
         self.route()
         self.red()
         u = self.st()["units"][MEAN]
-        self.assertEqual((u[tdd.QUOTES_FIELD], u["quote_unchecked"]), ({}, [MEAN_ID]))
+        self.assertEqual((u[common.QUOTES_FIELD], u["quote_unchecked"]), ({}, [MEAN_ID]))
 
     def test_missing_named_test_then_stub_outside_test_files_passes(self):
         """まだ無い名を読むテストで名指しが一式に居ない回は、NOT_RAN つきで拒まれる。仮の実装を足して出し直すと赤が通り、
@@ -847,7 +849,7 @@ class TestRoutesPlan(LoopCase):
 
     def start_plan(self, contract, whys=None):
         with mock.patch.object(tdd, "plan_contract", return_value=contract), \
-                mock.patch.object(tdd, "plan_route_whys", return_value=whys or {}):
+                mock.patch.object(route, "plan_whys", return_value=whys or {}):
             return tdd.start(self.board, self.repo, str(self.suite), OPEN, routes="plan")
 
     def test_plan_routes_skip_the_routing_turn(self):
@@ -865,7 +867,7 @@ class TestRoutesPlan(LoopCase):
         got = self.start_plan({MEAN: {"items": [1], "route": "tdd", "tests": [], "rewrites": [], "refactor": []}})
         self.state = got["state_file"]
         why = self.st()["units"][CLAMP]["why"]
-        self.assertGreaterEqual(len(why), tdd.MIN_WHY)
+        self.assertGreaterEqual(len(why), common.MIN_WHY)
         self.assertIn("routes: plan", why)
 
     def test_no_tdd_unit_does_not_start_the_loop(self):
@@ -873,7 +875,7 @@ class TestRoutesPlan(LoopCase):
         self.assertEqual((got["go"], got["reason"]), (False, tdd.PLAN_NO_TDD))
 
     def test_unknown_routes_word_is_broken(self):
-        with self.assertRaises(tdd.Broken):
+        with self.assertRaises(common.Broken):
             tdd.start(self.board, self.repo, str(self.suite), OPEN, routes="spec")
 
 
@@ -888,7 +890,7 @@ class TestNoContract(LoopCase):
         got = self.step({"phase": "test", "unit_key": MEAN, "test_files": ["test_stats.py"], "tests": [other]})
         self.assertTrue(got["ok"], got)
         u = self.st()["units"][MEAN]
-        self.assertEqual((u[tdd.QUOTES_FIELD], u["quote_unchecked"]), ({}, [other]))
+        self.assertEqual((u[common.QUOTES_FIELD], u["quote_unchecked"]), ({}, [other]))
 
     def test_board_without_fields_has_no_contract(self):
         """欄の控えが無ければ（frozen_fields が None）約束は空。置き場と周をそのまま渡す"""
@@ -956,7 +958,7 @@ class TestPlanRewrites(ContractCase):
         self.edit("test_stats.py", "self.assertEqual(clamp(15, 0, 10), 10)", "self.assertEqual(clamp_to(15, 0, 10), 10)")
         got = self.step({"phase": "test", "unit_key": CLAMP, "test_files": ["test_stats.py"], "tests": [REWRITE]})
         self.assertTrue(got["ok"], got)
-        self.assertIn("NameError", self.st()["units"][CLAMP][tdd.QUOTES_FIELD][REWRITE]["quote"])
+        self.assertIn("NameError", self.st()["units"][CLAMP][common.QUOTES_FIELD][REWRITE]["quote"])
         self.assertEqual(self.st()["phase"], "fix")
 
     def test_unnamed_edit_rejected_before_running(self):
@@ -1346,12 +1348,13 @@ def pasted_line(text: str, head: str) -> set:
     return set(re.findall(r"`([^`]+)`", re.split(r"）?: ", line, maxsplit=1)[1]))
 
 
-class TestPastedVerifiedRewrite(ContractCase):
-    """#603: 輪が赤→緑を確かめた書き換えは、指示書の「本体を変えてよい名指し」から外れ「もう変えるな」の行に在り、凍ったテストの確かめ
-    （facts.check_frozen）がその変更を拒む。貼る値と拒む値は facts.frozen_tests の verified（check_frozen と同じ _verified）"""
+class TestVerifiedRewriteLeftOut(ContractCase):
+    """#603: 輪が赤→緑を確かめた書き換えは、指示書の「本体を変えてよい名指し」から外れ、凍ったテストの確かめ（facts.check_frozen）が
+    その変更を拒む。外す値と拒む値は facts.frozen_tests の verified（check_frozen と同じ _verified）。「もう変えるな」の行は書き手の
+    指示から消した（付録 A の F12。代わりは check_frozen の拒否）"""
     CONTRACT = TestPlanRewrites.CONTRACT
 
-    def test_verified_rewrite_is_pasted_as_frozen_and_rejected(self):
+    def test_verified_rewrite_is_left_out_and_rejected(self):
         import planmarks
         import planrange
         self.route(mean="direct", clamp="tdd")
@@ -1371,17 +1374,17 @@ class TestPastedVerifiedRewrite(ContractCase):
         self.assertIn(REWRITE, edits["tests"], "事後の関門は id で許す")
         text = rules.tests_rows(None, edits, facts.frozen_tests(self.board, self.state, "first"))
         self.assertNotIn(REWRITE, pasted_line(text, "- 本体を変えてよい既存のテストの名指し"))
-        self.assertEqual(pasted_line(text, "- ループが書き換えて凍らせた名指し"), {REWRITE})
+        self.assertNotIn("ループが書き換えて凍らせた名指し", text)
         self.assertEqual(facts.check_frozen(self.board, self.state, self.repo, "first"), [])
         self.edit("test_stats.py", "clamp(99, 0, 10), 10)", "clamp(98, 0, 10), 10)")
         got = facts.check_frozen(self.board, self.state, self.repo, "first")
         self.assertTrue(got and "test_stats.py" in got[0], got)
 
 
-class TestPastedUnruledFrozen(LoopCase):
+class TestUnruledFrozen(LoopCase):
     """#603: 2 回目の修正の段（conflict.second_pass）の first では、事後の関門は裁定 fix_test_scope の範囲を許す（conflict.edit_rulings）が、
-    凍ったテストの確かめは今の輪の凍ったファイルを裁定の範囲で解かない。指示書はそのファイルを字のまま貼り、段 ruled では貼らない。
-    貼る側（facts.frozen_tests の unruled）と拒む側（check_frozen）の片方だけ変えれば赤"""
+    凍ったテストの確かめは今の輪の凍ったファイルを裁定の範囲で解かない（段 ruled では解く）。そのファイルを指示書に貼る行は書き手の
+    指示から消した（付録 A の F13。代わりは check_frozen の拒否）ので、どちらの段でも貼らない"""
 
     def test_unruled_files_are_what_check_frozen_keeps_frozen_under_rulings(self):
         import planrange
@@ -1401,14 +1404,8 @@ class TestPastedUnruledFrozen(LoopCase):
             with self.subTest(pass_=pass_):
                 edits = conflict.edit_permits(self.board, pass_)
                 self.assertIn("test_stats.py", edits["limits"], "事後の関門は裁定の範囲を許す")
-                got = facts.frozen_tests(self.board, self.state, pass_)
-                self.assertEqual(got["unruled"], ["test_stats.py"] if frozen else [])
-                text = rules.tests_rows(None, edits, got)
-                head = "- 今の段の TDD のループが凍らせたファイル"
-                if frozen:
-                    self.assertEqual(pasted_line(text, head), {"test_stats.py"})
-                else:
-                    self.assertNotIn(head, text)
+                text = rules.tests_rows(None, edits, facts.frozen_tests(self.board, self.state, pass_))
+                self.assertNotIn("今の段の TDD のループが凍らせたファイル", text)
                 problems = facts.check_frozen(self.board, self.state, self.repo, pass_)
                 self.assertEqual(bool(problems), frozen, problems)
 
@@ -1459,7 +1456,7 @@ class TestOneItemTwoUnits(ContractCase):
         self.edit("stats.py", "    if x > hi:\n        return lo", "    if x > hi:\n        return hi")
         got = self.step({"phase": "fix", "unit_key": MEAN, "files": ["stats.py"], "what": "分母と上限の枝を項目どおりに直した"})
         self.assertTrue(got["ok"], got)
-        self.assertEqual((got["done"], self.st().get(tdd.UNSENT)), (True, None), "同じ項目の後の単位は機械が閉じ、輪は済む")
+        self.assertEqual((got["done"], self.st().get(common.UNSENT)), (True, None), "同じ項目の後の単位は機械が閉じ、輪は済む")
         st = self.st()
         self.assertEqual(st["parked"], [])
         self.assertNotIn("conflict", [c["phase"] for c in st["calls"]])
@@ -1473,7 +1470,7 @@ class TestOneItemTwoUnits(ContractCase):
         summary = pathlib.Path(self.start["summary_file"]).read_text(encoding="utf-8")
         done = summary.split("## ループで直した単位", 1)[1].split("\n## ", 1)[0]
         self.assertIn(f"- {CLAMP}", done, "閉じた単位はループで直した単位に並ぶ（direct に並べない）")
-        self.assertEqual(tdd.frozen_problems(self.state, self.repo), [])
+        self.assertEqual(common.frozen_problems(self.state, self.repo), [])
 
     def test_later_unit_is_not_closed_when_its_tests_are_not_verified(self):
         """前の単位が申し出で止まれば（受け入れのテストを確かめていない）、後の単位は今どおり自分の段を回す"""
@@ -1557,10 +1554,10 @@ class TestTestFunctions(Case):
         with tempfile.TemporaryDirectory() as td:
             repo = pathlib.Path(td) / "repo"
             committed_copy(repo, SEED)
-            tree = tdd.snapshot(repo)
+            tree = common.snapshot(repo)
             p = repo / "test_stats.py"
             p.write_text(p.read_text(encoding="utf-8").replace("clamp(5, 0, 10), 5)", "clamp(6, 0, 10), 6)"), encoding="utf-8")
-            self.assertEqual(tdd._unnamed_edits(repo, tree, ["test_stats.py"],
+            self.assertEqual(common._unnamed_edits(repo, tree, ["test_stats.py"],
                                                     {"test_stats.py::TestStats::test_clamp_within_range[1]"}), [])
 
     def test_unnamed_edits(self):
@@ -1568,14 +1565,14 @@ class TestTestFunctions(Case):
         with tempfile.TemporaryDirectory() as td:
             repo = pathlib.Path(td) / "repo"
             committed_copy(repo, SEED)
-            tree = tdd.snapshot(repo)
+            tree = common.snapshot(repo)
             p = repo / "test_stats.py"
             text = p.read_text(encoding="utf-8")
             text = text.replace("clamp(5, 0, 10), 5)", "clamp(6, 0, 10), 6)").replace("clamp(15, 0, 10), 10)", "clamp(16, 0, 10), 10)")
             text = text.replace("    def test_mean_of_three(self):\n        self.assertEqual(mean([1, 2, 3]), 2)\n", "")
             p.write_text(text, encoding="utf-8")
             (repo / "notes.txt").write_text("x\n", encoding="utf-8")
-            got = tdd._unnamed_edits(repo, tree, ["test_stats.py", "notes.txt", "test_new.py"],
+            got = common._unnamed_edits(repo, tree, ["test_stats.py", "notes.txt", "test_new.py"],
                                          {"./test_stats.py::TestStats::test_clamp_above_range"})
             self.assertEqual(sorted(got), ["test_stats.py::TestStats::test_clamp_within_range",
                                            "test_stats.py::TestStats::test_mean_of_three"])
@@ -1587,10 +1584,10 @@ class TestContractBroken(LoopCase):
         conflict.FIELDS_BROKEN で始まる）"""
         gap = ValueError(f"{tdd.conflict.FIELDS_BROKEN}: 控えの sha256 が印と違う")
         with mock.patch.object(tdd.conflict, "frozen_fields", side_effect=gap):
-            with self.assertRaises(tdd.Broken) as got:
+            with self.assertRaises(common.Broken) as got:
                 tdd.plan_contract(self.board, [MEAN])
             self.assertTrue(str(got.exception).startswith(tdd.conflict.FIELDS_BROKEN), got.exception)
-            with self.assertRaises(tdd.Broken) as again:
+            with self.assertRaises(common.Broken) as again:
                 tdd.start(self.board, self.repo, str(self.suite), OPEN)
             self.assertTrue(str(again.exception).startswith(tdd.conflict.FIELDS_BROKEN), again.exception)
 
@@ -1633,7 +1630,7 @@ class TestRedCheck(Case):
     def check(self, xml, quote=None, why=RC_WHY, out="", **kw):
         cases, code, log = self.suite(xml, out)
         quotes = None if quote is None else {RC_ID: {"quote": quote, "why": why}}
-        return tdd.red_check([RC_ID], cases, code, {}, kw.get("quotes", quotes), log)
+        return common.red_check([RC_ID], cases, code, {}, kw.get("quotes", quotes), log)
 
     def test_failure_with_any_language_text_is_red(self):
         """failure の message が Python でない文でも、名指しが failure で落ち、引用がその文に在れば赤として通る"""
@@ -1726,7 +1723,7 @@ class TestTestCmdGate(LoopCase):
 
     def test_fix_rejected_when_test_cmd_red(self):
         self.restart(self.lint())
-        self.assertEqual(self.st()["test_cmd_gate"], tdd.GATE_ON)
+        self.assertEqual(self.st()["test_cmd_gate"], common.GATE_ON)
         self.route()
         self.red()
         self.edit("stats.py", "return sum(xs) / (len(xs) - 1)", "print('debug')\n    return sum(xs) / len(xs)")
@@ -1740,7 +1737,7 @@ class TestTestCmdGate(LoopCase):
     def test_light_unit_does_not_run_test_cmd_after_green(self):
         # 軽量の単位は緑の後の test_cmd を走らせない（同じコマンドを線の最後のテストが木の全部で走らせる）。赤・緑の確かめは今どおり
         self.restart(self.lint(), unit_depths=json.dumps({MEAN: "軽量", CLAMP: "標準"}))
-        self.assertEqual(self.st()["test_cmd_gate"], tdd.GATE_ON)
+        self.assertEqual(self.st()["test_cmd_gate"], common.GATE_ON)
         self.route()
         self.red()
         runs = self.st()["runs"]
@@ -1773,7 +1770,7 @@ class TestTestCmdGate(LoopCase):
         渡す（省く単位だけ。標準の単位は名指さない）。その単位は緑の後の test_cmd を走らせない（名指さない単位は次の試験）"""
         self.restart(self.lint(), unit_depths=json.dumps({MEAN: tdd.LIGHT}))
         st = self.st()
-        self.assertEqual((st["test_cmd_gate"], st["light"]), (tdd.GATE_ON, [MEAN]))
+        self.assertEqual((st["test_cmd_gate"], st["light"]), (common.GATE_ON, [MEAN]))
         self.route()
         self.red()
         runs = self.st()["runs"]
@@ -1791,11 +1788,11 @@ class TestTestCmdGate(LoopCase):
         _nice19）。argv は command_argv の形のまま"""
         seen = []
         log = pathlib.Path(self.st()["work"]) / "test-cmd-niced.log"
-        with mock.patch.object(tdd.tree_run, "run", side_effect=lambda argv, **kw: seen.append((argv, kw)) or 0):
-            mat = tdd._cmd_material(self.repo, self.lint(), log)
+        with mock.patch.object(common.tree_run, "run", side_effect=lambda argv, **kw: seen.append((argv, kw)) or 0):
+            mat = common._cmd_material(self.repo, self.lint(), log)
         self.assertEqual(mat["status"], "clean", mat)
         self.assertEqual([(argv, kw.get("preexec_fn")) for argv, kw in seen],
-                         [(tdd.tree_run.command_argv(self.lint())[0], tdd.baseline_red.nice19)])
+                         [(common.tree_run.command_argv(self.lint())[0], common.baseline_red.nice19)])
 
     def test_shell_test_cmd_that_cannot_launch_is_not_run_under_nice(self):
         """shell の形の test_cmd の先頭の語が無ければ、優先度を下げても起こす前の証明（tree_run.prove_launchable）を通らず
@@ -1803,7 +1800,7 @@ class TestTestCmdGate(LoopCase):
         log = pathlib.Path(self.st()["work"]) / "test-cmd-missing.log"
         for cmd in ("no_such_cmd_xyz --x | cat", "no_such_cmd_xyz --x"):
             with self.subTest(cmd=cmd):
-                mat = tdd._cmd_material(self.repo, cmd, log)
+                mat = common._cmd_material(self.repo, cmd, log)
                 self.assertEqual(mat["status"], "not_run", mat)
                 self.assertIn("no_such_cmd_xyz", mat["reason"])
 
@@ -1818,15 +1815,15 @@ class TestTestCmdGate(LoopCase):
         only.chmod(0o755)
         env = {"PATH": f"{uv_bin}{os.pathsep}{os.environ.get('PATH', '')}", "UV_RUN_RECURSION_DEPTH": "1"}
         log = pathlib.Path(self.st()["work"]) / "test-cmd-uv.log"
-        with mock.patch.dict(os.environ, env), mock.patch.object(tdd.tree_run.sys, "executable", str(uv_bin / "python3")):
+        with mock.patch.dict(os.environ, env), mock.patch.object(common.tree_run.sys, "executable", str(uv_bin / "python3")):
             self.assertIsNotNone(__import__("shutil").which("only_on_uv_path"), "この process からは見える")
-            mat = tdd._cmd_material(self.repo, "only_on_uv_path --x | cat", log)
+            mat = common._cmd_material(self.repo, "only_on_uv_path --x | cat", log)
         self.assertEqual(mat["status"], "not_run", mat)
         self.assertIn("only_on_uv_path", mat["reason"])
 
     def test_unit_depths_of_wrong_shape_is_broken(self):
         for raw in ("{", "[]", json.dumps({MEAN: 1})):
-            with self.subTest(raw=raw), self.assertRaises(tdd.Broken):
+            with self.subTest(raw=raw), self.assertRaises(common.Broken):
                 tdd.start(self.board, self.repo, str(self.suite), OPEN, unit_depths=raw)
 
     def test_fix_passes_and_records(self):
@@ -1837,7 +1834,7 @@ class TestTestCmdGate(LoopCase):
         self.assertEqual(self.st()["units"][MEAN]["test_cmd"], "ok")
         self.step({"phase": "refactor", "unit_key": MEAN, "what": "整える物は無い"})
         ex = tdd.exit_fields(self.start)
-        self.assertEqual(ex["test_cmd"], {"gate": tdd.GATE_ON, "note": ""})
+        self.assertEqual(ex["test_cmd"], {"gate": common.GATE_ON, "note": ""})
         rows = {u["unit_key"]: u for u in ex["units"]}
         self.assertEqual((rows[MEAN]["test_cmd"], rows[CLAMP]["test_cmd"]), ("ok", ""))
 
@@ -1854,40 +1851,40 @@ class TestTestCmdGate(LoopCase):
     def test_baseline_red_test_cmd_turns_gate_off(self):
         self.restart(f"{sys.executable} -c 'raise SystemExit(1)'")
         st = self.st()
-        self.assertEqual(st["test_cmd_gate"], tdd.GATE_OFF)
+        self.assertEqual(st["test_cmd_gate"], common.GATE_OFF)
         self.assertTrue(st["test_cmd_note"])
         self.route()
         self.red()
         self.fix_mean(refactor=DECLARED)   # 毎単位を拒まない
         self.assertEqual(self.st()["units"][MEAN]["test_cmd"], "")
         self.step({"phase": "refactor", "unit_key": MEAN, "what": "整える物は無い"})
-        self.assertEqual(tdd.exit_fields(self.start)["test_cmd"], {"gate": tdd.GATE_OFF, "note": st["test_cmd_note"]})
+        self.assertEqual(tdd.exit_fields(self.start)["test_cmd"], {"gate": common.GATE_OFF, "note": st["test_cmd_note"]})
 
     def test_same_command_as_suite_runs_once(self):
         cmd = f"{sys.executable} {self.suite}"
-        with mock.patch.object(tdd, "_cmd_material") as lcm:
+        with mock.patch.object(common, "_cmd_material") as lcm:
             self.suite.write_text(SUITE + f"\n# {cmd}\n", encoding="utf-8")
             self.restart(cmd)
             self.route()
             self.red()
             self.fix_mean()
         lcm.assert_not_called()
-        self.assertEqual(self.st()["test_cmd_gate"], tdd.GATE_SAME)
+        self.assertEqual(self.st()["test_cmd_gate"], common.GATE_SAME)
 
     def test_empty_test_cmd_is_off(self):
-        with mock.patch.object(tdd, "_cmd_material") as lcm:
+        with mock.patch.object(common, "_cmd_material") as lcm:
             self.restart("")
             self.route()
             self.red()
             self.fix_mean()
         lcm.assert_not_called()
         st = self.st()
-        self.assertEqual((st["test_cmd"], st["test_cmd_gate"], st["test_cmd_note"]), ("", tdd.GATE_OFF, ""))
+        self.assertEqual((st["test_cmd"], st["test_cmd_gate"], st["test_cmd_note"]), ("", common.GATE_OFF, ""))
 
     def test_default_start_has_gate_off(self):
         """LoopCase の既定（test_cmd を渡さない start）も関門は off・理由は空"""
         st = self.st()
-        self.assertEqual((st["test_cmd"], st["test_cmd_gate"], st["test_cmd_note"]), ("", tdd.GATE_OFF, ""))
+        self.assertEqual((st["test_cmd"], st["test_cmd_gate"], st["test_cmd_note"]), ("", common.GATE_OFF, ""))
 
     def test_test_cmd_not_run_leaves_loop_like_runner_down(self):
         self.restart(self.lint())
@@ -1895,7 +1892,7 @@ class TestTestCmdGate(LoopCase):
         self.red()
         down = {"status": "not_run", "reason": "起こせない"}
         self.edit("stats.py", "return sum(xs) / (len(xs) - 1)", "return sum(xs) / len(xs)")
-        with mock.patch.object(tdd, "_cmd_material", return_value=down):
+        with mock.patch.object(common, "_cmd_material", return_value=down):
             got = self.step({"phase": "fix", "unit_key": MEAN, "files": ["stats.py"], "what": "分母を直した"})
         self.assertTrue(got["done"])
         self.assertIn("起こせない", got["reason"])
@@ -1912,7 +1909,7 @@ class TestTestCmdGate(LoopCase):
         """既存のファイルを書き換えた test_cmd は緑でない: 拒み、理由に書き換えたパスを載せ、元に戻して suite_made に積まない
         （書き込みの出どころの照合から外さない）。新しく出来たファイルは今どおり積む"""
         self.restart(self.tool("fmt.py", FMT))
-        self.assertEqual(self.st()["test_cmd_gate"], tdd.GATE_ON)
+        self.assertEqual(self.st()["test_cmd_gate"], common.GATE_ON)
         self.route()
         self.red()
         self.edit("stats.py", "return sum(xs) / (len(xs) - 1)", "return sum(xs) / len(xs)")
@@ -1939,7 +1936,7 @@ class TestTestCmdGate(LoopCase):
     def test_start_rewriting_test_cmd_turns_gate_off(self):
         self.restart(self.tool("fmt_always.py", FMT_ALWAYS))
         st = self.st()
-        self.assertEqual(st["test_cmd_gate"], tdd.GATE_OFF)
+        self.assertEqual(st["test_cmd_gate"], common.GATE_OFF)
         self.assertIn("test_cmd が作業ツリーの既存のファイルを書き換える", st["test_cmd_note"])
         self.assertIn("stats.py", st["test_cmd_note"])
         self.assertNotIn("stats.py", st["suite_made"])
@@ -1972,10 +1969,10 @@ class TestTestCmdGate(LoopCase):
 
     def test_start_not_run_turns_gate_off_with_reason(self):
         down = {"status": "not_run", "reason": "起こせない"}
-        with mock.patch.object(tdd, "_cmd_material", return_value=down):
+        with mock.patch.object(common, "_cmd_material", return_value=down):
             self.restart(self.lint())
         st = self.st()
-        self.assertEqual(st["test_cmd_gate"], tdd.GATE_OFF)
+        self.assertEqual(st["test_cmd_gate"], common.GATE_OFF)
         self.assertIn("起こせない", st["test_cmd_note"])
 
 
@@ -2001,9 +1998,10 @@ class TestSkipRerunScript(Case):
         self.assertEqual(runvals.read(run.artifacts)["skip_rerun"], [MEAN, "組の外の単位"])
         got = run.script("group_start")
         self.assertEqual((got["tdd"], got["units"]), (True, 2), got)
+        self.assertTrue(run.script("route_go")["route"], "輪の状態は振り分けの頭 route-go が置く")
         started = json.loads((run.artifacts / board.TDD_START_FILE).read_text(encoding="utf-8"))
-        st = tdd.load_state(started["state_file"])
-        self.assertEqual((st["test_cmd_gate"], st["light"]), (tdd.GATE_ON, [MEAN]), "組の単位のうち skip_rerun の物だけが軽量")
+        st = common.load_state(started["state_file"])
+        self.assertEqual((st["test_cmd_gate"], st["light"]), (common.GATE_ON, [MEAN]), "組の単位のうち skip_rerun の物だけが軽量")
 
     def test_group_start_without_skip_rerun_has_no_light_unit(self):
         run = kit.Run(self, "fix")
@@ -2015,8 +2013,9 @@ class TestSkipRerunScript(Case):
         self.assertTrue(run.script("intake", mode="group", group=json.dumps({"group_id": "g1", "unit_ids": [MEAN]}, ensure_ascii=False),
                                    judgment=json.dumps(judgment, ensure_ascii=False), tdd_suite=str(suite))["ok"])
         self.assertTrue(run.script("group_start")["tdd"])
+        self.assertTrue(run.script("route_go")["route"], "輪の状態は振り分けの頭 route-go が置く")
         started = json.loads((run.artifacts / board.TDD_START_FILE).read_text(encoding="utf-8"))
-        self.assertEqual(tdd.load_state(started["state_file"])["light"], [])
+        self.assertEqual(common.load_state(started["state_file"])["light"], [])
 
 
 class TestRefactorGate(LoopCase):
@@ -2181,22 +2180,22 @@ class TestCrossLoopFreeze(LoopCase):
         self.assertTrue(got["go"], got)
         rows = [{"unit_key": k, "route": route, **({"why": "2 回目の段で先にテストを書かない単位"} if route == "direct" else {})}
                 for k in keys]
-        self.assertTrue(tdd.step(got["state_file"], {"phase": "route", "units": rows}, self.repo)["ok"])
+        self.assertTrue(steps.loop_step(got["state_file"], {"phase": "route", "units": rows}, self.repo)["ok"])
         return got["state_file"]
 
     def since(self, state2) -> str:
-        return tdd.load_state(state2)["handoff"]
+        return common.load_state(state2)["handoff"]
 
     def test_states_in_order_and_suite_made_all(self):
         self.first_loop()
         state2 = self.second_loop([CLAMP])
-        self.assertEqual(tdd.states(self.board), [pathlib.Path(self.state), pathlib.Path(state2)])
+        self.assertEqual(common.states(self.board), [pathlib.Path(self.state), pathlib.Path(state2)])
         for f, made in ((self.state, ["one.log"]), (state2, ["two.log"])):
-            st = tdd.load_state(f)
+            st = common.load_state(f)
             st["suite_made"] = made
             pathlib.Path(f).write_text(json.dumps(st, ensure_ascii=False), encoding="utf-8")
-        self.assertEqual(tdd.suite_made_all(self.board), {"one.log", "two.log"})
-        self.assertEqual(tdd.states(self.tmp_board()), [])
+        self.assertEqual(common.suite_made_all(self.board), {"one.log", "two.log"})
+        self.assertEqual(common.states(self.tmp_board()), [])
 
     def tmp_board(self):
         return pathlib.Path(self._tmp.name) / "no-board"
@@ -2205,11 +2204,11 @@ class TestCrossLoopFreeze(LoopCase):
         self.first_loop()
         state2 = self.second_loop([CLAMP])
         since = self.since(state2)
-        self.assertEqual(tdd.frozen_problems(self.state, self.repo, since=since), [])
+        self.assertEqual(common.frozen_problems(self.state, self.repo, since=since), [])
         self.edit("test_stats.py", "mean([2, 4]), 3", "mean([2, 4]), 3.0")   # 2 回目の修正役が tdd-1 の凍ったテストを変えた
-        got = tdd.frozen_problems(self.state, self.repo, since=since)
+        got = common.frozen_problems(self.state, self.repo, since=since)
         self.assertTrue(got and "test_stats.py" in got[0], got)
-        self.assertEqual(tdd.frozen_problems(state2, self.repo), [], "tdd-2 は何も凍らせていない")
+        self.assertEqual(common.frozen_problems(state2, self.repo), [], "tdd-2 は何も凍らせていない")
 
     def test_second_place_sees_the_first_place_loops(self):
         """F018: 2 度目の修正の差し込み（線の include refix-run）は置き場が 1 回目と分かれるが、1 回目の段の置き場の輪（tdd-1）が凍らせた
@@ -2226,8 +2225,8 @@ class TestCrossLoopFreeze(LoopCase):
                 got = tdd.start(place, self.repo, str(self.suite), json.dumps([CLAMP]))
                 self.assertTrue(got["go"], got)
                 rows = [{"unit_key": CLAMP, "route": "direct", "why": "2 回目の段で先にテストを書かない単位"}]
-                self.assertTrue(tdd.step(got["state_file"], {"phase": "route", "units": rows}, self.repo)["ok"])
-                self.assertEqual(len(tdd.states(place)), 2)
+                self.assertTrue(steps.loop_step(got["state_file"], {"phase": "route", "units": rows}, self.repo)["ok"])
+                self.assertEqual(len(common.states(place)), 2)
                 self.assertEqual(board.ruled_states(place), (got["state_file"], got["state_file"]))
                 self.assertEqual(facts.check_frozen(place, got["state_file"], self.repo, "first"), [])
                 self.edit("test_stats.py", "mean([2, 4]), 3", "mean([2, 4]), 3.0")   # 2 回目の修正役が tdd-1 の凍ったテストを変えた
@@ -2239,31 +2238,31 @@ class TestCrossLoopFreeze(LoopCase):
         self.first_loop()
         state2 = self.second_loop([CLAMP], route="tdd")
         self.add_test(FAR_TEST)
-        got = tdd.step(state2, {"phase": "test", "unit_key": CLAMP, "test_files": ["test_stats.py"], "tests": [FAR_ID]},
+        got = steps.loop_step(state2, {"phase": "test", "unit_key": CLAMP, "test_files": ["test_stats.py"], "tests": [FAR_ID]},
                            self.repo)
         self.assertTrue(got["ok"], got)
         self.edit("stats.py", "    if x > hi:\n        return lo", "    if x > hi:\n        return hi")
-        got = tdd.step(state2, {"phase": "fix", "unit_key": CLAMP, "files": ["stats.py"], "what": "上限で hi を返す"},
+        got = steps.loop_step(state2, {"phase": "fix", "unit_key": CLAMP, "files": ["stats.py"], "what": "上限で hi を返す"},
                            self.repo)
         self.assertTrue(got["done"], got)
-        self.assertEqual(tdd.frozen_problems(self.state, self.repo), [],
+        self.assertEqual(common.frozen_problems(self.state, self.repo), [],
                          "tdd-1 の関数を変えずに足しただけは since が無くても凍結に数えない（依頼 195i の 2）")
-        self.assertEqual(tdd.frozen_problems(self.state, self.repo, since=self.since(state2)), [])
+        self.assertEqual(common.frozen_problems(self.state, self.repo, since=self.since(state2)), [])
         self.edit("test_stats.py", "clamp(20, 0, 10), 10", "clamp(20, 0, 10), 0")
-        self.assertTrue(tdd.frozen_problems(state2, self.repo), "足したテストは tdd-2 の凍結で見る")
+        self.assertTrue(common.frozen_problems(state2, self.repo), "足したテストは tdd-2 の凍結で見る")
 
     def test_amended_units_old_test_span_is_not_frozen(self):
         self.first_loop()
         state2 = self.second_loop([MEAN])
         since = self.since(state2)
-        spans = tdd.test_spans(self.state, {MEAN})
+        spans = common.test_spans(self.state, {MEAN})
         self.assertEqual(spans, [("test_stats.py", "TestStats::test_mean_of_two")])
-        self.assertEqual(tdd.test_spans(self.state, {CLAMP}), [], "tdd-1 で緑にしていない単位の関数は無い")
+        self.assertEqual(common.test_spans(self.state, {CLAMP}), [], "tdd-1 で緑にしていない単位の関数は無い")
         self.edit("test_stats.py", "mean([2, 4]), 3", "mean([2, 4, 6]), 4")
-        self.assertTrue(tdd.frozen_problems(self.state, self.repo, since=since))
-        self.assertEqual(tdd.frozen_problems(self.state, self.repo, since=since, skip_spans=spans), [])
+        self.assertTrue(common.frozen_problems(self.state, self.repo, since=since))
+        self.assertEqual(common.frozen_problems(self.state, self.repo, since=since, skip_spans=spans), [])
         self.edit("test_stats.py", "clamp(5, 0, 10), 5", "clamp(6, 0, 10), 6")   # 関数の範囲の外
-        got = tdd.frozen_problems(self.state, self.repo, since=since, skip_spans=spans)
+        got = common.frozen_problems(self.state, self.repo, since=since, skip_spans=spans)
         self.assertTrue(got and "範囲の外" in got[0], got)
 
     def test_frozen_source_reads_since_tree(self):
@@ -2272,7 +2271,7 @@ class TestCrossLoopFreeze(LoopCase):
         state2 = self.second_loop([CLAMP])
         since = self.since(state2)
         self.edit("test_stats.py", "mean([2, 4]), 3", "mean([2, 4]), 3.0")
-        read = tdd.frozen_source(self.state, self.repo, since=since)
+        read = common.frozen_source(self.state, self.repo, since=since)
         self.assertEqual(read("test_stats.py").rstrip("\n"), git(self.repo, "show", f"{since}:test_stats.py").rstrip("\n"))
         self.assertIn("mean([2, 4]), 3)", read("test_stats.py"))
 
@@ -2294,7 +2293,7 @@ class TestShapeless(LoopCase):
     def test_green_test_cmd_gate_is_on_and_refactor_needs_a_declaration(self):
         """緑の test_cmd は関門 on。申告の無い単位は整えを飛ばす"""
         self.restart(test_cmd=f"{sys.executable} -c pass")
-        self.assertEqual(self.st()["test_cmd_gate"], tdd.GATE_ON)
+        self.assertEqual(self.st()["test_cmd_gate"], common.GATE_ON)
         self.route()
         self.red()
         _, when = self.values()
@@ -2337,7 +2336,7 @@ class TestResume(LoopCase):
 
     def test_reply_for_a_done_loop_is_still_refused(self):
         self.done_loop()
-        with self.assertRaises(tdd.Broken):
+        with self.assertRaises(common.Broken):
             self.step({"phase": "fix", "unit_key": MEAN, "files": ["stats.py"], "what": "x"})
 
     def test_missing_reply_in_a_running_loop_is_refused(self):
@@ -2359,12 +2358,12 @@ class TestResume(LoopCase):
         def broken(rows):
             raise ValueError("食い違いの控えが読めない")
         with self.assertRaises(ValueError):
-            tdd.flush_unsent(self.state, broken)
-        self.assertEqual(len(self.st()[tdd.UNSENT]), 1, "積めなかった申し出は状態に残る")
+            common.flush_unsent(self.state, broken)
+        self.assertEqual(len(self.st()[common.UNSENT]), 1, "積めなかった申し出は状態に残る")
         for call in ("積み直す呼び", "積み増さない呼び"):
-            tdd.flush_unsent(self.state, parked.extend)
+            common.flush_unsent(self.state, parked.extend)
             self.assertEqual([r["item"]["unit_key"] for r in parked], [MEAN], call)
-            self.assertEqual(self.st().get(tdd.UNSENT), [], call)
+            self.assertEqual(self.st().get(common.UNSENT), [], call)
 
 
 class TddloopSeamsGoneCase(Case):
@@ -2495,14 +2494,14 @@ class OutsideCase(Case):
 class TestLoopOutsideTier(OutsideCase):
     def test_named_test_outside_tier_goes_red_then_green(self):
         state = self.begin()
-        got = tdd.step(state, {"phase": "route", "units": [{"unit_key": MEAN, "route": "tdd"}]}, self.repo)
+        got = steps.loop_step(state, {"phase": "route", "units": [{"unit_key": MEAN, "route": "tdd"}]}, self.repo)
         self.assertTrue(got["ok"], got)
         self.write(OUTSIDE, OUTSIDE_TEST)
-        got = tdd.step(state, {"phase": "test", "unit_key": MEAN, "test_files": [OUTSIDE], "tests": [NAMED]}, self.repo)
+        got = steps.loop_step(state, {"phase": "test", "unit_key": MEAN, "test_files": [OUTSIDE], "tests": [NAMED]}, self.repo)
         self.assertTrue(got["ok"], f"段の外のファイルの名指しが赤として受からない: {got['reason']}")
         p = self.repo / "stats.py"
         p.write_text(p.read_text(encoding="utf-8").replace("(len(xs) - 1)", "len(xs)"), encoding="utf-8")
-        got = tdd.step(state, {"phase": "fix", "unit_key": MEAN, "files": ["stats.py"], "what": "分母を len(xs) にした"},
+        got = steps.loop_step(state, {"phase": "fix", "unit_key": MEAN, "files": ["stats.py"], "what": "分母を len(xs) にした"},
                            self.repo)
         self.assertTrue(got["ok"], f"段の外のファイルの名指しが緑として受からない: {got['reason']}")
 
@@ -2527,7 +2526,7 @@ class TestLoopRunsOnlyWhatItChecks(OutsideCase):
         return [json.loads(line) for line in self.log.read_text(encoding="utf-8").splitlines()]
 
     def step(self, reply):
-        return tdd.step(self.state, reply, self.repo)
+        return steps.loop_step(self.state, reply, self.repo)
 
     def red(self):
         self.assertTrue(self.step({"phase": "route", "units": [{"unit_key": MEAN, "route": "tdd"}]})["ok"])
@@ -2580,7 +2579,7 @@ class TestAcceptOutsideTier(OutsideCase):
         git(self.repo, "commit", "-q", "-m", "段の外の試験")
         state = self.begin()
         self.write(OUTSIDE, OUTSIDE_PASSING.replace("1 + 1, 2", "1 + 1, 3"))
-        probs, note = tdd.selected_problems(state, self.repo, "HEAD")
+        probs, note = common.selected_problems(state, self.repo, "HEAD")
         self.assertTrue(probs, f"版で通っていた段の外の試験の赤を受け付けが拾わない（知らせ: {note}）")
         self.assertEqual(len(probs), 1, "行はテストのファイルごと")
         self.assertIn("test_sum", probs[0])
@@ -2601,17 +2600,17 @@ class TestAcceptOutsideTier(OutsideCase):
         def copies():
             return [d for d in cwd_log.read_text(encoding="utf-8").splitlines()
                     if pathlib.Path(d).resolve() != self.repo.resolve()]
-        first = tdd.selected_problems(state, self.repo, "HEAD")
+        first = common.selected_problems(state, self.repo, "HEAD")
         self.assertTrue(first[0], first)
         self.assertEqual(len(copies()), 1, "版の写しで 1 回走る")
-        again = tdd.selected_problems(state, self.repo, "HEAD")
+        again = common.selected_problems(state, self.repo, "HEAD")
         self.assertEqual(again, first, "使い回しても判定は同じ")
         self.assertEqual(len(copies()), 1, "同じ版・同じ引数の 2 回目は版の写しを走らせない")
         (self.repo / "note.txt").write_text("x", encoding="utf-8")
         git(self.repo, "add", "note.txt")
         git(self.repo, "commit", "-q", "-m", "版を進める")
         self.write(OUTSIDE, OUTSIDE_PASSING.replace("1 + 1, 2", "1 + 1, 3"))
-        tdd.selected_problems(state, self.repo, "HEAD~0")
+        common.selected_problems(state, self.repo, "HEAD~0")
         self.assertEqual(len(copies()), 2, "版が変われば走らせ直す")
 
     def test_base_copy_args_lie_under_real_cwd(self):
@@ -2629,7 +2628,7 @@ class TestAcceptOutsideTier(OutsideCase):
         real.mkdir()
         link.symlink_to(real)
         with mock.patch.object(tempfile, "tempdir", str(link)):
-            first = tdd.selected_problems(state, self.repo, "HEAD")
+            first = common.selected_problems(state, self.repo, "HEAD")
         self.assertTrue(first[0], first)
         rows = [json.loads(line) for line in log.read_text(encoding="utf-8").splitlines()]
         copies = [(cwd, args) for cwd, args in rows if pathlib.Path(cwd) != self.repo.resolve()]
@@ -2656,7 +2655,7 @@ class TestAcceptOutsideTier(OutsideCase):
         state = self.begin()
         self.write(OUTSIDE, reads_git.replace(f'assertIn("{OUTSIDE}"', 'assertIn("heavy/nothing.py"'))
         branch = git(self.repo, "rev-parse", "--abbrev-ref", "HEAD")
-        probs, note = tdd.selected_problems(state, self.repo, "HEAD")
+        probs, note = common.selected_problems(state, self.repo, "HEAD")
         self.assertTrue(probs, f"版の写しで git を読めず、版でも赤と数えて新しい赤から外した（知らせ: {note}）")
         self.assertIn("test_lists_itself", probs[0])
         self.assertEqual(len(git(self.repo, "worktree", "list").splitlines()), 1, "比べた後に一時の木が残る")
@@ -2671,21 +2670,21 @@ class TestAcceptOutsideTier(OutsideCase):
         git(self.repo, "commit", "-q", "-m", "版でも赤の段の外の試験")
         state = self.begin()
         self.write(OUTSIDE, failing + "\n# 版と同じく赤のまま\n")
-        probs, note = tdd.selected_problems(state, self.repo, "HEAD")
+        probs, note = common.selected_problems(state, self.repo, "HEAD")
         self.assertEqual(probs, [], "版でも赤の試験は新しい赤に数えない")
         self.assertIn("新しい赤なし", note)
         self.assertIn("版の写しでも赤だったので外した 1 件", note)
         self.assertIn("test_sum", note, "外した試験の名を出す")
 
         self.write(OUTSIDE, OUTSIDE_PASSING)
-        _, quiet = tdd.selected_problems(state, self.repo, "HEAD")
+        _, quiet = common.selected_problems(state, self.repo, "HEAD")
         self.assertNotIn("外した", quiet, "外した物が 0 件なら何も足さない")
 
     def test_zero_selected_cases_are_not_reported_as_no_new_red(self):
         state = self.begin(EMPTY_RUNNER)
         p = self.repo / "stats.py"
         p.write_text(p.read_text(encoding="utf-8").replace("(len(xs) - 1)", "len(xs)"), encoding="utf-8")
-        probs, note = tdd.selected_problems(state, self.repo, "HEAD")
+        probs, note = common.selected_problems(state, self.repo, "HEAD")
         self.assertNotIn("新しい赤なし", note, "選んだ試験が 1 件も走らないのを緑に見せる（fail-open）")
         self.assertIn("0 件", " ".join(probs) + note)
         # 修正の受け付けはその知らせを捨てず、置き場の隣のファイル accept-trace.json に盤面の trace の行の形で積む
@@ -2713,7 +2712,7 @@ class TestAcceptOutsideTier(OutsideCase):
                            + RUNNER)
         p = self.repo / "stats.py"
         p.write_text(p.read_text(encoding="utf-8").replace("(len(xs) - 1)", "len(xs)"), encoding="utf-8")
-        tdd.selected_problems(state, self.repo, "HEAD")
+        common.selected_problems(state, self.repo, "HEAD")
         runs = [json.loads(line) for line in argv_log.read_text(encoding="utf-8").splitlines()][1:]   # 頭は元の結末の回
         self.assertTrue(runs, "受け付けが実行器を走らせていない")
         for argv in runs:
@@ -2728,12 +2727,12 @@ class TestAcceptOutsideTier(OutsideCase):
         state = self.begin()
         p = self.repo / "stats.py"
         p.write_text(p.read_text(encoding="utf-8").replace("(len(xs) - 1)", "len(xs)"), encoding="utf-8")
-        probs, note = tdd.selected_problems(state, self.repo, "HEAD")
+        probs, note = common.selected_problems(state, self.repo, "HEAD")
         self.assertEqual(probs, [], note)
         self.assertIn("手元で回さなかった", note)
         self.assertIn(OUTSIDE, note)
         self.assertNotIn("test_stats.py", note.split("手元で回さなかった", 1)[1], "手元で走った試験を回さなかったと言う")
-        self.assertEqual(tdd.load_state(state).get("ci_left"), [OUTSIDE])
+        self.assertEqual(common.load_state(state).get("ci_left"), [OUTSIDE])
 
     def env_red_case(self, runner):
         """直す前も後も同じ環境の壊れで赤の、stats を直に読む段の外の試験（版に在る）を置き、stats を直してから比べる準備"""
@@ -2749,7 +2748,7 @@ class TestAcceptOutsideTier(OutsideCase):
         """#846: 実行器が走らせる試験を差分から自分で選ぶ形でも、版の写しでは比べたい試験（元の結末に無い赤）を名指しで走らせる。
         版でも同じく赤なら新しい赤に数えない（差分の無い版の写しで比べたい試験が走らず、新しい赤と数えて組を戻した。run 96f35545）"""
         state = self.env_red_case(DIFF_RUNNER)
-        probs, note = tdd.selected_problems(state, self.repo, "HEAD")
+        probs, note = common.selected_problems(state, self.repo, "HEAD")
         self.assertEqual(probs, [], f"版の写しで比べたい試験を走らせず、前から赤の試験を新しい赤と数えた（知らせ: {note}）")
         self.assertIn("版の写しでも赤だったので外した", note)
         self.assertIn("test_env", note)
@@ -2759,18 +2758,18 @@ class TestAcceptOutsideTier(OutsideCase):
         （組を当てた後の確かめ直し）は新しい赤に数えず受け口に名指し、渡さない呼び（修正の受け付け）は今どおり赤のまま。
         版に試験のファイルが無い試験（この直しで足した）は比べるまでもなく新しい赤"""
         state = self.env_red_case(DIFF_ONLY_RUNNER)
-        probs, note = tdd.selected_problems(state, self.repo, "HEAD")
+        probs, note = common.selected_problems(state, self.repo, "HEAD")
         self.assertTrue(probs, "受け口の無い呼びが比べられなかった赤を黙って外した")
         self.assertIn("比べられず", probs[0])
         left = []
-        probs, note = tdd.selected_problems(state, self.repo, "HEAD", uncompared=left)
+        probs, note = common.selected_problems(state, self.repo, "HEAD", uncompared=left)
         self.assertEqual(probs, [], note)
         self.assertIn("test_outside.TestOutside::test_env", left)
         self.assertIn(f"比べられなかった {len(left)} 件", note)
         added = "heavy/test_added.py"
         self.write(added, ENV_RED_TEST.replace("TestOutside", "TestAdded"))
         left = []
-        probs, note = tdd.selected_problems(state, self.repo, "HEAD", uncompared=left)
+        probs, note = common.selected_problems(state, self.repo, "HEAD", uncompared=left)
         self.assertEqual(len(probs), 1, probs)
         self.assertIn("TestAdded", probs[0], "版に無いファイルの試験の赤を比べられなかったと数えた")
         self.assertNotIn("TestAdded", " ".join(left))
@@ -2780,7 +2779,7 @@ class TestAcceptOutsideTier(OutsideCase):
         names = ["t/test_a.py", "t/b_test.py", "t/conftest.py", "t/run-suite.py", "t/x-case.py", "t/y.bats", "t/gone_test.py"]
         for n in names[:-1]:
             self.write(n, "")
-        self.assertEqual(tdd._args(self.repo, names, "a or b"),
+        self.assertEqual(common._args(self.repo, names, "a or b"),
                          [str(self.repo.absolute() / "t/test_a.py"), str(self.repo.absolute() / "t/b_test.py"), "-k", "a or b"])
 
 
@@ -2823,10 +2822,10 @@ class TestDirectOnly(OutsideCase):
 
     def test_accept_runs_only_direct_tests_and_leaves_far_ones_to_final_stage(self):
         self.fix_stats()
-        probs, note = tdd.selected_problems(self.state, self.repo, "HEAD")
+        probs, note = common.selected_problems(self.state, self.repo, "HEAD")
         self.assertEqual(probs, [], note)
         self.assertEqual(self.runs()[-1], [None, ["-k", "test_stats"]], "先の試験を -k に入れた")
-        self.assertEqual(tdd.final_left(self.state), [WRAP_FAR])
+        self.assertEqual(common.final_left(self.state), [WRAP_FAR])
         self.assertIn("最後のテストの段に任せた", note)
         self.assertIn(WRAP_FAR, note.split("最後のテストの段に任せた", 1)[1])
 
@@ -2836,31 +2835,31 @@ class TestDirectOnly(OutsideCase):
         git(self.repo, "add", "-A")
         git(self.repo, "commit", "-q", "-m", "深さ 2 の動的 import")
         self.fix_stats()
-        probs, note = tdd.selected_problems(self.state, self.repo, "HEAD")
+        probs, note = common.selected_problems(self.state, self.repo, "HEAD")
         self.assertEqual(probs, [], note)
         self.assertEqual(self.runs()[-1], [None, ["-k", "test_stats"]], "遠くの分からない物で一式を回した")
-        self.assertEqual(tdd.final_far(self.state), ["dynamic-import: far_loader.py:6"])
+        self.assertEqual(common.final_far(self.state), ["dynamic-import: far_loader.py:6"])
         self.assertIn("far_loader.py", note.split("最後のテストの段に任せた", 1)[1])
 
     def test_accept_runs_tests_named_by_the_plan(self):
-        st = tdd.load_state(self.state)
+        st = common.load_state(self.state)
         st["contract"] = {MEAN: {"route": "tdd", "tests": [{"id": f"{WRAP_FAR}::TestFar::test_twice"}], "rewrites": []}}
         pathlib.Path(self.state).write_text(json.dumps(st, ensure_ascii=False), encoding="utf-8")
         self.fix_stats()
-        tdd.selected_problems(self.state, self.repo, "HEAD")
+        common.selected_problems(self.state, self.repo, "HEAD")
         self.assertEqual(self.runs()[-1], [None, ["-k", "test_far or test_stats"]], "修正案が名指す試験を回さない")
-        self.assertEqual(tdd.final_left(self.state), [])
+        self.assertEqual(common.final_left(self.state), [])
 
     def test_green_adds_only_direct_files_of_the_baseline(self):
-        self.assertTrue(tdd.step(self.state, {"phase": "route", "units": [{"unit_key": MEAN, "route": "tdd"}]},
+        self.assertTrue(steps.loop_step(self.state, {"phase": "route", "units": [{"unit_key": MEAN, "route": "tdd"}]},
                                      self.repo)["ok"])
         p = self.repo / "test_stats.py"
         p.write_text(p.read_text(encoding="utf-8").replace("\n\nif __name__", NEW_TEST + "\n\nif __name__"), encoding="utf-8")
-        got = tdd.step(self.state, {"phase": "test", "unit_key": MEAN, "test_files": ["test_stats.py"],
+        got = steps.loop_step(self.state, {"phase": "test", "unit_key": MEAN, "test_files": ["test_stats.py"],
                                         "tests": [NAMED_IN_TIER]}, self.repo)
         self.assertTrue(got["ok"], got)
         self.fix_stats()
-        got = tdd.step(self.state, {"phase": "fix", "unit_key": MEAN, "files": ["stats.py"], "what": "分母を len(xs) にした"},
+        got = steps.loop_step(self.state, {"phase": "fix", "unit_key": MEAN, "files": ["stats.py"], "what": "分母を len(xs) にした"},
                            self.repo)
         self.assertTrue(got["ok"], got)
         only, args = self.runs()[-1]
@@ -2899,7 +2898,7 @@ class FunctionSpanCase(Case):
         (self.repo / F).write_text(SPAN_SRC, encoding="utf-8")
         (self.repo / N).write_text("a\nb\nc\n", encoding="utf-8")
         self.state = tmp / "state.json"
-        st = {"frozen": tdd.hashes(self.repo, [F, N]), "frozen_tree": tdd.snapshot(self.repo)}
+        st = {"frozen": common.hashes(self.repo, [F, N]), "frozen_tree": common.snapshot(self.repo)}
         self.state.write_text(json.dumps(st), encoding="utf-8")
 
     def edit(self, old, new, path=F):
@@ -2909,7 +2908,7 @@ class FunctionSpanCase(Case):
         p.write_text(text.replace(old, new, 1), encoding="utf-8")
 
     def frozen(self, *allowed):
-        return tdd.frozen_problems(str(self.state), self.repo, allowed=list(allowed))
+        return common.frozen_problems(str(self.state), self.repo, allowed=list(allowed))
 
     def test_def_line_allows_decorator_comment_def_and_body(self):
         for old, new in [("@unittest.skipIf(False", "@unittest.skipIf(True"), ("# b の説明", "# b を直した説明"),
@@ -2942,8 +2941,8 @@ class FunctionSpanCase(Case):
         (self.repo / F).write_text("class T:\n    def a(self):\n        pass\n        # a の末尾\n    def b(self):\n        pass\n",
                                    encoding="utf-8")
         st = json.loads(self.state.read_text())
-        st["frozen_tree"] = tdd.snapshot(self.repo)
-        st["frozen"] = tdd.hashes(self.repo, [F, N])
+        st["frozen_tree"] = common.snapshot(self.repo)
+        st["frozen"] = common.hashes(self.repo, [F, N])
         self.state.write_text(json.dumps(st), encoding="utf-8")
         self.edit("# a の末尾", "# a の末尾を直した")
         self.assertTrue(self.frozen(f"{F}:6"))
@@ -2961,8 +2960,8 @@ class FunctionSpanCase(Case):
     def test_unparsable_old_text_stays_one_line(self):
         (self.repo / F).write_text("def f(:\n  x\n", encoding="utf-8")
         st = json.loads(self.state.read_text())
-        st["frozen_tree"] = tdd.snapshot(self.repo)
-        st["frozen"] = tdd.hashes(self.repo, [F, N])
+        st["frozen_tree"] = common.snapshot(self.repo)
+        st["frozen"] = common.hashes(self.repo, [F, N])
         self.state.write_text(json.dumps(st), encoding="utf-8")
         self.edit("  x", "  y")
         self.assertTrue(self.frozen(f"{F}:1"))
@@ -3357,7 +3356,9 @@ class RelatedStartCase(Case):
         with mock.patch.object(tdd.conflict, "frozen_fields", return_value=fields):
             got = tdd.start(self.board, self.repo, str(self.suite), OPEN, narrow=narrow)
         self.assertTrue(got["go"], got)
-        return json.loads(pathlib.Path(got["state_file"]).read_text(encoding="utf-8")), pathlib.Path(got["state_file"]).parent
+        # 元の結末は組の頭（basecase.take）が base.json の work（base/）で取る（実行器の控え runner-args.txt もそこ）
+        return (json.loads(pathlib.Path(got["state_file"]).read_text(encoding="utf-8")),
+                pathlib.Path(basecase.read_file(got["base_file"])["work"]))
 
     def test_the_base_runs_only_the_tests_that_touch_the_planned_files(self):
         st, work = self.start(["stats.py"])
@@ -3365,7 +3366,7 @@ class RelatedStartCase(Case):
                          ["only=1", str((self.repo / "test_stats.py").resolve())])
         self.assertEqual(st["baseline"], {"test_stats.TestStats::test_mean_of_three": "passed"})
         self.assertEqual((st["related"]["applied"], st["related"]["whole"], st["related"]["files"]), (True, False, ["test_stats.py"]))
-        state = work / "state.json"
+        state = pathlib.Path(st["work"]) / "state.json"
         state.write_text(json.dumps({**st, "done": True}), encoding="utf-8")
         self.assertEqual(tdd.exit_fields({"go": True, "state_file": str(state)})["related"], st["related"], "出口の欄に選びが載る")
 
@@ -3384,7 +3385,7 @@ class RelatedStartCase(Case):
         st, work = self.start(["stats.py"], narrow=False)
         self.assertEqual((work / "runner-args.txt").read_text(encoding="utf-8").splitlines(), ["only="])
         self.assertEqual(st["related"], {"applied": False})
-        state = work / "state.json"
+        state = pathlib.Path(st["work"]) / "state.json"
         state.write_text(json.dumps({**st, "done": True}), encoding="utf-8")
         self.assertNotIn("related", tdd.exit_fields({"go": True, "state_file": str(state)}), "絞らなかった run の出口は今のまま")
 

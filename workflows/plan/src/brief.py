@@ -398,13 +398,13 @@ def values(place, repo) -> tuple:
                 v["verify_rows"], w["verify"] = verify_rows(got_verify), True
             else:
                 v["verify_file"], w["verify_unreadable"] = verify, True
-        if ctx.get("spec"):
-            spec = pathlib.Path(ctx["spec"]).read_text(encoding="utf-8", errors="replace")
-            try:
-                spec = "\n".join(_json_block(json.loads(spec)))
-            except ValueError:
-                pass
-            v["spec"], w["spec"] = spec, True
+        texts = []
+        if ctx.get("spec"):   # 固めた仕様（spec.json。入口が形で照らした JSON）
+            texts.append("\n".join(_json_block(json.loads(pathlib.Path(ctx["spec"]).read_text(encoding="utf-8")))))
+        if ctx.get("spec_doc"):   # 人と固めた仕様の本文（字のまま貼る）
+            texts.append(pathlib.Path(ctx["spec_doc"]).read_text(encoding="utf-8", errors="replace"))
+        if texts:
+            v["spec"], w["spec"] = "\n\n".join(texts), True
         w["routes_spec"] = ctx.get("routes") == "spec"
         if prior:
             w["prior"] = True
@@ -425,6 +425,7 @@ def values(place, repo) -> tuple:
     else:
         v["replan_items"] = replan_rows(folder, ctx, judgment, repo)
     v["unread"], w["unread"] = "\n".join(f"- {u}" for u in ctx.get("unread") or []), bool(ctx.get("unread"))
+    w["spawns"] = False   # 修正案の役は Agent を持たない（query-rule の下請けへの渡しの段落）
     v["lang"] = prompt.lang(ctx.get("lang"))
     v["whole_plan"] = steps.WHOLE_PLAN
     return v, w
@@ -449,4 +450,4 @@ def fix_prep(place) -> dict:
     rejected = rolekit.rejected(folder, files.ROLE)
     vals = {"rejection": rejected[-1] if rejected else "", "candidate": str(rolekit.candidate_path(folder, files.ROLE)),
             "whole_plan": steps.WHOLE_PLAN}
-    return {"prompt": prompt.emit("plan-writer-fix", vals, {"replan": ctx["mode"] == "replan"}, prompt.round_of("plan-writer-fix"))["prompt"]}
+    return {"prompt": prompt.emit("plan-writer-fix", vals, {"replan": ctx["mode"] == "replan", "spawns": False}, prompt.round_of("plan-writer-fix"))["prompt"]}

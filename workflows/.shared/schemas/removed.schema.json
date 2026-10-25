@@ -1,0 +1,2 @@
+{"description": "役が残した生成物を消した控え（lib/leftovers.py の clean が書く {removed: [パス]}）",
+ "type": "object", "properties": {"removed": {"type": "array", "items": {"type": "string"}}}}

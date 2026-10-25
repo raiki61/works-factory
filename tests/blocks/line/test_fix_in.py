@@ -43,7 +43,7 @@ class FixInCase(unittest.TestCase):
                 "purpose_text": "P", "means": ["m"], "tier": "軽量", **{n: self.ptr(f"judge/{n}.json") for n in names}, **kw}
 
     def rounds(self, **kw):
-        plan = self.ptr("plan/plan-fields.json", {"fields": [{"unit_keys": [U1], "allowed_paths": ["a.py"], "tests": [], "rewrite_tests": []}]})
+        plan = self.ptr("plan/plan-fields.json", {"round": 1, "fields": [{"unit_keys": [U1], "allowed_paths": ["a.py"], "out_of_scope": [], "tests": [], "rewrite_tests": []}]})
         return {"ok": True, "status": "ok", "round": 2, "record": self.ptr("plan-converge.json"), "plan": plan,
                 "fix_plan": self.ptr("plan/fix-plan.json"), "reply": self.ptr("plan/reply.json"), "handoffs": [{"round": 1}],
                 "ripple": self.ptr("plan/ripple.json"), "owed": [U1], "review": self.ptr("plan-review/review.json"), **kw}

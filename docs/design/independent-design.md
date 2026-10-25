@@ -26,10 +26,10 @@
 
 - `purpose`（必須）: `text: 元の目的の 1 文（目的の固定の purpose_text）`
 - `purpose_source`: `text: 目的の出典の語（目的の固定の source）。「目的不明」なら役を起こさない。空は出典を渡されていない（起こす）`。既定 `""`。
-- `purpose_review`: `json(purpose-review.schema.json): 目的の監査の受けた返答 {verdict, reason, findings}。裏取りを通った「狭めている」なら役を起こさない。空のオブジェクトは監査が無い`。既定 `{}`。
+- `purpose_review`: `json(shared:purpose-review.schema.json): 目的の監査の受けた返答 {verdict, reason, findings}。裏取りを通った「狭めている」なら役を起こさない。空のオブジェクトは監査が無い`。既定 `{}`。
 - `constraints`: `json(shared:constraints.schema.json): 実測した制約の配列 [{text, measured_how, kind, measured_output?}]（前提の実測の constraints）か、それを constraints の欄に持つオブジェクト。空の配列は渡されていない`。既定 `[]`。
 - `answers`: `json(answers.schema.json): 人が承認ノードで返した答え {decision, text} か、その配列。null と空の配列は答えが無い`。既定 `[]`。
-- `request`: `file: 依頼のファイル（依頼が名指した設計書の節をここから引く）。空は依頼のファイルが無い`。既定 `""`。
+- `request`: `json(shared:request.schema.json): 依頼のファイル（依頼が名指した設計書の節をここから引く）。空は依頼のファイルが無い`。既定 `""`。
 - `policy`: `file: 人の方針の文書を run の頭で固めた写し。空は方針が無い`。既定 `""`。
 - `base`: `text: 審査する変更の起点の版（入口の差分の根）。空は足した行の印を付けない`。既定 `""`。
 - `head`: `text: 審査する変更の先の版（修正前の HEAD）。空は HEAD`。既定 `""`。
@@ -40,8 +40,8 @@
 - `ok`: boolean。`status` が `failed` でないか（`unusable` は役を起こさないと正しく決めた事なので真）。
 - `status`: `ok`（設計を受け取った）・`unusable`（目的が使えないので役を起こさなかった）・`failed`（3 回拒まれて諦めた・どこかの段が落ちた）。
 - `stands`: boolean か null。受け取った設計の `question_stands`。設計が無ければ null。
-- `design`: pointer（`design.json`。受け取った役の返答そのまま）か null。
-- `premises`: pointer（`design-premises.json`。貼った前提の控え `{node, given, withheld, seen, claims}`）か null。役を起こさなかった時は null。
+- `design`: pointer（`design.json`。受け取った役の返答そのまま。form は `json(shared:design.schema.json)`）か null。
+- `premises`: pointer（`design-premises.json`。貼った前提の控え `{node, given, withheld, seen, claims}`。form は `json(shared:design-premises.schema.json)`）か null。役を起こさなかった時は null。
 - `reason`: 日本語の 1 行。設計が無い訳（`lib/design.py` の `UNUSABLE` の文か `独立設計が取れなかった: <最後の却下の理由>`）。設計が在れば空。
 - `downgrades`: 下げている所の行の配列（この block の分だけ。parallel-pr の設計書の 10 節の 8 と同じ形 `{node, what, versus}`）。中身は今の `lib/downgrades.json` の `r2.design` の行を字のまま。
 - `report`: 報告に載せる日本語の行の配列（10 節）。
@@ -87,8 +87,8 @@ script の node はどれも `runtime: uv`・`mutates_checkout: false`。YAML �
 - `workflows/independent-design/src/marks.py`: 足した行の印に要る git の 2 つ。今の `lib/fixboard.py` の `pr_revs`（:1107-1111）・`pr_diff`（:1114-1119）・`pr_added_lines`（:1122-1131）の写し。`unittrees._out`・`unittrees._DIFF`・`unittrees.pathspec_without`・git を起こす時に環境変数 `GIT_DIR` など 7 つ（`unittrees._GIT_PLACE`）を外す所（`lib/unittrees.py:36-70`）も、この 3 つが使う分だけ写す。git が落ちた時は `MarkError`（`unittrees.UnitTreeError` の代わり）。訳: `fixboard` と `unittrees` は README 9.2 で fix の `src/` へ MOVE するので、組み込みの後は lib に無い（11 節の 4）。
 - `workflows/independent-design/src/premises.py`: 人が決めた前提の材料を、見出しと頼みの文を除いた形で返す（2.3 の 3）。`lib/design.py` の `human_answers`・`named_sections`・`repo_map` を呼び、返りの本文から頭（見出しと頼みの 2 段落）を外した物を材料にする。lib は頭の字を持たなくなった（#764 で `design.HUMAN_HEAD` などを消し、見出しと頼みの文は md `design-premises.md` が持つ）ので、頭の形（# が 3 つの見出しで始まる）の本文が来た時だけ 3 つ目の段落から後ろを取り、頭が無い本文はそのまま使う。控え `{given, withheld, seen}` は `PREMISE_KINDS` の外の種類を `rolekit.BoardGap` で落として、この module の `material` が組む。頭だけで材料が無い本文は `ValueError`（黙って頭を貼り直さない）。
 - `workflows/independent-design/src/report.py`: 報告の行（10 節）。
-- `workflows/independent-design/schemas/purpose-review.schema.json`: `{"type": "object", "properties": {"verdict": {"type": "string"}, "reason": {"type": "string"}, "findings": {"type": "array"}}}`（ほかの欄は許す）。
-- `workflows/independent-design/schemas/answers.schema.json`: 説明だけの形（`anyOf` は照らしの語に無い。11 節の 11）。`{decision, text}` かその配列かの選びは `src/steps.py` の `answer_rows` が読む。
+- 目的の監査の返答の形は共通の `workflows/.shared/schemas/purpose-review.schema.json`（judge が写し、この block が読む。findings の行は {text, cite, hits}。ほかの欄は許す）。
+- `workflows/independent-design/schemas/answers.schema.json`: `{decision, text}` の object かその配列（形の検査が知る語〔`KNOWN_KEYWORDS`〕に `anyOf` が無いので、型の並び `[object, array, null]` と properties・items で書く。null は答えが無い時。配列の行も `{decision, text}` の字の object。11 節の 11）。`{decision, text}` かその配列かの選びは `src/steps.py` の `answer_rows` が読む。
 - `constraints` の形はこの block に置かず、共通の `workflows/.shared/schemas/constraints.schema.json`（`json(shared:constraints.schema.json)`。11 節の 10）を使う。
 - `workflows/independent-design/fixtures/standalone.stubs.yaml`・`unusable.stubs.yaml`・`gave-up.stubs.yaml`（12 節）。
 - `tests/blocks/independent_design/__init__.py`・`test_independent_design.py`・`values.py`（12 節）。
@@ -411,7 +411,7 @@ bin/works-factory workflow run works-factory-independent-design \
 8. 制約の `kind` の語「仮説」を md に `{hypothesis}` で入れ、値を `src/steps.py` に 1 つ置く。根拠: README 5.3（md と受け付け・データが同じ字を持つべき値は定数 1 つ）。語の正本は premises の block の出力の形で、その block の行の形のモジュールが lib に置かれたらそこから引く。
 9. prep は前の周の却下の理由を `$LOOP_PREV` で受けず、place の却下の控えから読む。根拠: 書いた時は、Archon が `with:` に貼った前の周の値をもう 1 度置き換える（今の裁定 R44）と読んだ。土台の PR が、止めた版は読み直さないと源で確かめ（README の 13 章）、それでも resume で却下が抜けないよう控えから読む形に決めた。world も同じ形（world.md の 9.1 の 6）。
 10. `constraints` の形は、土台の共通の形 `shared:constraints.schema.json` を使い、この block に `schemas/constraints.schema.json` を置かない（1.5 を直した）。根拠: 形のファイルの名は pack の中で 1 か所にしか置けない（`tests/layers/test_block_shape.py` の 5）。共通の形は `measured_how` が必須で `kind` が 実測／仮説 の二択と今の前提の実測の出力に合わせて厳しいが、独立設計の入力は前提の実測の block の出力そのものなので足りる。`{constraints: [...]}` の形のオブジェクトも読む。
-11. `answers.schema.json` は `anyOf` を使わず、説明だけの形にする（1.5 を直した）。根拠: `anyOf` は照らしの語（`KNOWN_KEYWORDS`）に無く、`ports.json` も形の検査も拒む。`{decision, text}` かその配列かの選びは `src/steps.py` の `answer_rows` が読み、`decision` を持たない行は答えの無い行として読む（今の `_answer_rows` と同じ）。
+11. `answers.schema.json` は `anyOf` を使わず、型の並びと properties・items で書く（1.5 を直した。中身を宣言しない形は ports が拒む。#851）。根拠: `anyOf` は照らしの語（`KNOWN_KEYWORDS`）に無く、`ports.json` も形の検査も拒む。`{decision, text}` かその配列かの選びは `src/steps.py` の `answer_rows` が読み、`decision` を持たない行は答えの無い行として読む（今の `_answer_rows` と同じ）。
 12. standalone の筋書きは `exec-code: true` で、差し替えるのは AI の node `design` だけにする（12 節の「script の node も差し替える」を直した）。根拠: 7.1 の 3 が、筋書きの `resolved-text-contains` を prep が md から本当に組んだ指示に照らす（prep を差し替えると証にならない）。`gave-up` の筋書きは要素の無い返答を `design` に返させ、受け付けが 1 回拒む道を見る（筋書きの輪は 1 周で終わるので、3 回で諦める数えは試験が見る）。`unusable` は入口が本当に走る。
 13. 入口が消すのは、この block が名を持つファイルだけ（`intake.json`・`design-tree.json`・`design-premises.json`・`design.json`・`design-crash.json`・`finish.json`・`rejects-r2.design.json`・`design-prompt-*.md`・`design-system-*.md`）。3 節の「place の中のファイルを全部消してから」を直した。根拠: block が消してよいのは自分が名を持つファイルだけ（`workflows/.shared/AGENTS.md`）。
 14. `r2_view` の `rules` は、`purpose_unusable` でなく、`design.named_sections` が引く `MD_LINK`・`_md_lines`・`_md_slugs`（`lib/boardview.py:151-176` の写し）を持つ（1.5 を直した）。目的が使えるかは `unusable(source, review)` が決める。根拠: 依頼の名指しの節を引く `design._named_targets`・`_section` は `b.rules` のこの 3 つを読む。

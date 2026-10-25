@@ -206,7 +206,7 @@ def gate_text(shape: dict, record: dict, run_id: str, notes: list) -> str:
 def write(artifacts: Path, doc) -> dict:
     """始めの記録を run directory の根の startrec の置き場に書き、pointer を返す（起動の殻と包みと bin/ の読み手と同じ所。L-E24）"""
     startrec.write(artifacts, doc)
-    return ports.pointer(startrec.path(artifacts))
+    return ports.pointer(startrec.path(artifacts), "json(start-record.schema.json)")
 
 
 def adds(checked: dict) -> tuple:
@@ -230,8 +230,10 @@ def from_fixture(raw: dict, checked: dict, asked: dict, repo: Path, artifacts: P
     named = asked["request_file"]
     doc.update({"versions": versions_doc, **features(checked), "request_file": named,
                 "input": {**startrec.shape(doc), "request_file": named}})
-    prior = ports.pointer(artifacts / carry.PRIOR_IN_FILE) if (artifacts / carry.PRIOR_IN_FILE).is_file() else None
-    return begun(doc, startrec.shape(doc), prior, raw, repo, artifacts, run_id, ports.pointer(artifacts / fixture.CARRIED))
+    prior = (ports.pointer(artifacts / carry.PRIOR_IN_FILE, "json(shared:prior-failures.schema.json)")
+             if (artifacts / carry.PRIOR_IN_FILE).is_file() else None)
+    return begun(doc, startrec.shape(doc), prior, raw, repo, artifacts, run_id,
+                 ports.pointer(artifacts / fixture.CARRIED, "json(received.schema.json)"))
 
 
 def begun(record: dict, shape: dict, prior, raw: dict, repo: Path, artifacts: Path, run_id: str, carried=None) -> dict:
@@ -294,7 +296,7 @@ def start(raw: dict, repo: Path, artifacts: Path, run_id: str) -> dict:
     prior = None
     if parts[carry.PRIOR]:
         carry.place_prior(artifacts, parts[carry.PRIOR])
-        prior = ports.pointer(artifacts / carry.PRIOR_IN_FILE)
+        prior = ports.pointer(artifacts / carry.PRIOR_IN_FILE, "json(shared:prior-failures.schema.json)")
     return begun(record, shape, prior, raw, repo, artifacts, run_id)
 
 

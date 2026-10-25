@@ -42,6 +42,16 @@ CLOSURE_FILE = "closure.json"               # 閉鎖の表 {rows, claimed}（出
 REMOVED_FILE = "fix-removed.json"           # clean が消したパスの全件（lib/leftovers.py が同じ字で書く）
 TDD_STATE_FILE = "state.json"               # TDD の輪の状態（tdd-<k>/ の中）
 
+# 直し方の型の口（docs/plans/2026-10-24-fix-weapons.md の 2.1・2.2）
+BASE_FILE = "base.json"        # 組の元の結末の控え（src/basecase.take。組の置き場・確かめ直しの <name>/。親は置かない）
+BASE_DIR = "base"              # 元の結末を取った回のログ・JUnit・地図の控えの置き場（base.json の work）
+ACCEPT_FILE = "accept.json"    # 受け付けが書き戻す欄 {final_left, final_far, ci_left, suite_made}（受け付けの走る置き場ごと）
+BASES_DIR = "bases"            # ほかの組・前の段から写した元の結末 bases/<k>/{base.json, accept.json}
+RETURNS_DIR = "returns"        # 共通の受け付けが通した返しの控え returns/<k>.json
+ORDERS_DIR = "orders"          # 型ごとの注文 orders/<weapon>.json（組の子の頭の orders と裁定の後の段の注文を書く役が書く）
+ORDERS_FILE = "orders.json"    # 注文の索引 {sequence, weapons, stage, since, agreed, unsatisfied[, pass]}
+WRITER_FILE = "writer.json"    # 今回している型の書き手 {pass, weapon, done}（src/writers.py。外の輪の頭が書き、受け付けが done を積む）
+
 # この block の出力の先（finish が書く）
 FROZEN_FILE = "frozen.json"        # 輪ごとの凍ったテストのファイルの hash {loops: [{state, frozen, frozen_tree}]}（出力 frozen）
 SCOPE_FILE = "scope.json"          # {plan_items, ruled_paths, agreed}（出力 scope）
@@ -54,5 +64,8 @@ PROMPT_ERROR = "prompt-error.json"   # 指示が組めなかった node と訳
 COLLECT_ERROR = "fix-collect-error.txt"   # finish の中の誤り
 CONFLICTS_DROPPED = "conflicts-dropped.json"
 TDD_DELIVERED = "tdd-delivered.json"         # TDD の役に渡した証拠の種類と回の控え（今の tdd-<k>/next.delivered.json の代わり）
-FIXER_DELIVERED = "fixer-delivered.json"     # 修正役に渡した証拠の種類と回の控え（今の prompt-p3.fix.delivered.json）
-RULED_DELIVERED = "fix-ruled-delivered.json"
+
+
+def delivered(node: str) -> str:
+    """型の書き手 node に渡した証拠の種類と回の控えの名（今の fixer-delivered.json を node ごとに）"""
+    return f"{node}-delivered.json"

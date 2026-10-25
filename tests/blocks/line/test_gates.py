@@ -286,7 +286,7 @@ def final_got(final, **over) -> dict:
                     "r4": {"status": "pass", "reason": ""}, "premise_check": None},
            "questions": [], "spec_changed": [], "spec_unchecked": False, "objection": "", "rejudge_verdict": "", "rejudge": [],
            "split": "", "unproven": [], "amend": [], "delta": [], "stuck": [], "closure": [], "tests_left": [], "gates": [], "always": [],
-           "beside_unread": [], "allowed_tests": [], "allowed_untouched": 0, "structure_missing": "", "sealed": True, "seal_reason": "",
+           "beside_unread": [], "allowed_tests": [], "allowed_untouched": 0, "removed_tests": [], "untested": [], "structure_missing": "", "sealed": True, "seal_reason": "",
            "hash": "h", "deleted": [], "sealed_diff": "", "fenced": [], "after": [], "passes": [], "r2_inputs": [], "converge": [],
            "parallel_after": None, "held": [], "answered": [], "unmatched": [], "unread_holds": [], "lost_ties": [], "unread": []}
     return {**got, **over}
@@ -326,6 +326,54 @@ class AskFinalCase(unittest.TestCase):
         self.assertIn(f"## {self.f.ALONG_HEAD}（1 件。", text)
         self.assertIn("- tests/test_a.py（許し broken-before-1）", text)
         self.assertNotIn(f"## {self.f.ALLOWED_TESTS_HEAD}", text)
+
+    def test_removed_tests_are_their_own_must_reason_and_section(self):
+        """下書き 4.1 の 7・4.3: 消した試験（修正の出力の removed_tests）は開き方に依らず開ける理由と節に出し、消しただけの試験のファイルを
+        「書き換えを許したテストを触った」の数えから外す（同じファイルで書き換えもした物は数えに残す）"""
+        gone = {"group_id": "g1", "weapon": "remove", "units": ["u1"], "tests": ["tests/test_a.py::test_old"],
+                "only_removed": ["tests/test_a.py"], "stage": "修正の段"}
+        allowed = [{"path": "tests/test_a.py", "permit": "p1", "source": "案"}]
+        got = final_got(self.f, removed_tests=[gone], allowed_tests=allowed)
+        why = self.f.needs(got)
+        self.assertIn((f"{self.f.REMOVED_TESTS_HEAD}が在る（1 件。人の確かめが要る）", True), why)
+        self.assertFalse(any(self.f.ALLOWED_TESTS_HEAD in w for w, _ in why), why)
+        self.assertTrue(self.ask(got, mode="protected_only")["open"])
+        text = self.f.final_text(got, self.f.final_needs(got), RUN)
+        self.assertIn(f"## {self.f.REMOVED_TESTS_HEAD}（1 件。", text)
+        self.assertIn("- tests/test_a.py::test_old（修正の段・組 g1・型 remove・単位 u1）", text)
+        self.assertNotIn(f"## {self.f.ALLOWED_TESTS_HEAD}", text)
+        both = final_got(self.f, removed_tests=[{**gone, "only_removed": []}], allowed_tests=allowed)
+        self.assertIn((f"{self.f.ALLOWED_TESTS_HEAD}（1 件。人の確かめが要る）", True), self.f.needs(both))
+
+    def test_unchecked_note_is_written_once_whichever_sections_show(self):
+        """下書き 4.3: 封じた差分が無い時の注記 ALLOWED_UNCHECKED は、許したテスト・ついでに直した試験・消した試験のどの組み合わせでも
+        1 度だけ出る"""
+        allowed = {"path": "tests/test_b.py", "permit": "p1", "source": "案"}
+        along = {"path": "tests/test_c.py", "permit": "broken-before-1", "source": "broken"}
+        gone = {"group_id": "g1", "weapon": "remove", "units": ["u1"], "tests": ["tests/test_a.py::test_old"],
+                "only_removed": ["tests/test_a.py"], "stage": "修正の段"}
+        for rows, removed in (([allowed], []), ([along], []), ([], [gone]), ([allowed, along], [gone]), ([along], [gone])):
+            with self.subTest(rows=rows, removed=removed):
+                got = final_got(self.f, allowed_tests=rows, removed_tests=removed, allowed_untouched=None)
+                self.assertEqual(self.f.final_text(got, [], RUN).count(self.f.ALLOWED_UNCHECKED), 1)
+                self.assertEqual(self.f.final_text({**got, "allowed_untouched": 0}, [], RUN).count(self.f.ALLOWED_UNCHECKED), 0)
+
+    def test_untested_fixes_have_their_own_section_and_mark_code_files(self):
+        """下書き 3.7: 試験を求めなかった直し（untested）は節に分けて訳とファイルの種類を並べ、種類 code のファイルに印を付ける。
+        code を触った時だけ開き方で開く理由（must でない）"""
+        row = {"group_id": "g1", "weapon": "static", "units": ["u1"], "why": "README の言い回しだけで試験で示す物が無い",
+               "files": [{"path": "README.md", "kind": "docs"}], "stage": "修正の段"}
+        docs = final_got(self.f, untested=[row])
+        self.assertEqual(self.f.final_needs(docs), [])
+        text = self.f.final_text(docs, [], RUN)
+        self.assertIn(f"## {self.f.UNTESTED_HEAD}（1 件。", text)
+        self.assertIn("試験を求めない訳: README の言い回しだけで試験で示す物が無い", text)
+        self.assertIn("  - README.md（docs）", text)
+        code = final_got(self.f, untested=[{**row, "files": [{"path": "src/a.py", "kind": "code"}]}])
+        self.assertIn((f"{self.f.UNTESTED_HEAD}が{self.f.CODE_UNTESTED}（1 件）", False), self.f.needs(code))
+        self.assertIn(f"  - src/a.py（code。{self.f.CODE_UNTESTED}）", self.f.final_text(code, [], RUN))
+        self.assertTrue(self.ask(code, mode="when_needed")["open"])
+        self.assertFalse(self.ask(code, mode="protected_only")["open"])
 
     def test_protected_only_ignores_other_reasons(self):
         self.assertFalse(self.ask(final_got(self.f, tests_ok=False), mode="protected_only")["open"])
@@ -473,8 +521,8 @@ class ScriptCase(unittest.TestCase):
         self.assertTrue(pathlib.Path(out["policy"]).is_file())
 
     def plans(self):
-        old = self.put("plan-fields.json", {"fields": [{"unit_keys": ["u1"], "allowed_paths": ["a.py"]}]})
-        new = self.put("replan/plan-fields.json", {"fields": [{"unit_keys": ["u1"], "allowed_paths": ["a.py", "b.py"]}]})
+        old = self.put("plan-fields.json", {"round": 1, "fields": [{"unit_keys": ["u1"], "allowed_paths": ["a.py"], "out_of_scope": []}]})
+        new = self.put("replan/plan-fields.json", {"round": 1, "fields": [{"unit_keys": ["u1"], "allowed_paths": ["a.py", "b.py"], "out_of_scope": []}]})
         return old, new
 
     def replan_got(self, new):

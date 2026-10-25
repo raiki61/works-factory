@@ -1,0 +1,94 @@
+{
+ "description": "役の brief の範囲の欄 {plan_items, ruled_paths, agreed}（lib/fixboard.py の scope_brief。修正の block が scope.json に書き、差分の審査が読む）。plan_items の行は承認済みの修正案の項目（lib/planmarks.py の approved_items の形）に held・held_units を足した物。項目の並びだけの配列でもよい（合意と裁定が無い）",
+ "type": [
+  "object",
+  "array"
+ ],
+ "properties": {
+  "plan_items": {
+   "type": "array",
+   "items": {
+    "type": "object",
+    "properties": {
+     "unit_keys": {
+      "type": "array",
+      "items": {
+       "type": "string"
+      }
+     },
+     "allowed_paths": {
+      "type": "array",
+      "items": {
+       "type": "string"
+      }
+     },
+     "held": {
+      "type": "string"
+     },
+     "held_units": {
+      "type": "object",
+      "patternProperties": {
+       "^.+$": {
+        "type": "string"
+       }
+      }
+     },
+     "item": {
+      "type": "integer"
+     }
+    }
+   }
+  },
+  "ruled_paths": {
+   "type": "array",
+   "items": {
+    "type": "string"
+   }
+  },
+  "agreed": {
+   "type": "array",
+   "items": {
+    "type": "object",
+    "properties": {
+     "id": {
+      "type": "string"
+     },
+     "group_id": {
+      "type": "string"
+     }
+    }
+   }
+  }
+ },
+ "items": {
+  "type": "object",
+  "properties": {
+   "unit_keys": {
+    "type": "array",
+    "items": {
+     "type": "string"
+    }
+   },
+   "allowed_paths": {
+    "type": "array",
+    "items": {
+     "type": "string"
+    }
+   },
+   "held": {
+    "type": "string"
+   },
+   "held_units": {
+    "type": "object",
+    "patternProperties": {
+     "^.+$": {
+      "type": "string"
+     }
+    }
+   },
+   "item": {
+    "type": "integer"
+   }
+  }
+ }
+}

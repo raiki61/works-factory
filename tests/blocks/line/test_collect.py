@@ -15,8 +15,8 @@ from tests.blocks import kit
 
 BLOCK = "line"
 ROOT = pathlib.Path(__file__).resolve().parents[3]
-FACTS_SCHEMA = kit.BLOCKS / "report" / "schemas" / "facts.schema.json"
-SECTIONS_SCHEMA = kit.BLOCKS / "report" / "schemas" / "sections.schema.json"
+FACTS_SCHEMA = kit.BLOCKS / ".shared" / "schemas" / "facts.schema.json"
+SECTIONS_SCHEMA = kit.BLOCKS / ".shared" / "schemas" / "sections.schema.json"
 INPUTS = ("notices", "start", "answer_start", "test_gate_base", "judge", "tiers", "owed", "structure", "structure_in", "independent_design",
           "design_in", "rounds", "ask_before_fix", "answer_before_fix", "fix_in", "fix", "after_fix", "raise", "lens", "lens_in", "delta",
           "replan", "replan_review", "ask_replan", "answer_replan", "refix", "lens_2", "lens_2_in", "delta_2", "fixed", "parallel_after",
@@ -47,7 +47,7 @@ def passing() -> dict:
            "scope": None, "checked": {"ok": True, "reason": ""}, "allowed_test_changes": [], "changed": {}, "x_scalars": {}, "handoffs": [], "handoff_titles": {},
            "mismatched": [], "plan_declared": [], "stop_reason": "", "allowed_tests": None, "accept_trace": None, "closure": None,
            "tdd_unit": None, "tdd": [{"units": [{"unit_key": "u1", "test_cmd": "light"}]}], "frozen": None, "removed": [],
-           "tdd_refused": {"refused": [], "unread": []}, "item_claims": None, "freeze_off": [], "report": ["- u1: fixed"]}
+           "tdd_refused": {"refused": [], "unread": []}, "item_claims": None, "freeze_off": [], "removed_tests": [], "untested": [], "report": ["- u1: fixed"]}
     fix["closure"] = ptr("fix/closure.json")
     eyes = {"ok": True, **{f"r{n}": {"status": "pass", "reason": ""} for n in range(1, 5)}, "questions": [], "passes": [],
             "premise_check": None, "notes": [], "after": None, "dirty": 0, "escalate": 0, "after_ok": True, "report": ["- 目: 通した"],
@@ -176,7 +176,7 @@ class FactsCase(unittest.TestCase):
         """keep-essence 8: 人に回した申し出で人待ち（waits.conflicts）"""
         (self.run.artifacts / "fix").mkdir(exist_ok=True)
         (self.run.artifacts / "fix" / "conflicts.json").write_text(json.dumps({"items": [
-            {"id": "c1", "unit_key": "u1", "kind": "spec", "ruling": {"decision": "ask_human", "text": "人に聞く"}}]}))
+            {"id": "c1", "unit_key": "u1", "kind": "brief_vs_judgment", "ruling": {"decision": "ask_human", "text": "人に聞く"}}]}))
         v = passing()
         v["fixed"] = {**v["fixed"], "conflicts": [ptr("fix/conflicts.json")]}
         got = self.build(v)
@@ -324,7 +324,7 @@ class SectionsCase(unittest.TestCase):
         self.assertNotIn(self.s.TDD_2, titles, "走らなかった block の節は載せない")
         tdd = next(s for s in got if s["title"] == self.s.TDD)
         self.assertEqual(tdd["lines"], ["- u1: fixed"], "keep-essence 11: TDD の単位ごとの行は fix の report のまま")
-        self.assertEqual(tdd["files"], [{"label": "差分", "ref": ptr("fix/diff")}])
+        self.assertEqual(tdd["files"], [{"label": "差分", "ref": ptr("fix/diff"), "form": "file"}])
         entry = next(s for s in got if s["title"] == self.s.ENTRY)["lines"]
         self.assertIn("判定の裏取りを回さなかった: 既定で切（features の既定）", entry)
         self.assertIn("決めた人: 承認ノードの答え 2 件", entry)

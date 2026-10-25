@@ -25,7 +25,7 @@ def compute(place: Path, repo: Path) -> dict:
     rejected = rolekit.rejected(place, files.REVIEW_NODE)
     values = {"rejection": rejected[-1] if rejected else "", "candidate": str(rolekit.candidate_path(place, files.REVIEW_NODE)),
               "lang": prompt.lang(intake.get("lang") or "")}
-    out = prompt.emit(node, values, {}, prompt.round_of(node))
+    out = prompt.emit(node, values, {"spawns": True}, prompt.round_of(node))
     jsonfile.write(place / files.TREE_STATE, accept.tree_state(repo))
     return {"prompt": out["prompt"]}
 

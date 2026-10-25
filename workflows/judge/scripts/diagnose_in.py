@@ -15,15 +15,16 @@ sys.path[:0] = [str(Path(__file__).resolve().parents[2] / ".shared"), str(Path(_
 import ports  # noqa: E402
 
 
+RECEIVED = ("got", "why")   # 受け皿の返りの欄（受け皿の output_format の required の全部）
+
+
 def _got(raw):
-    raw = ports.text(raw).strip()
-    whole = None if raw in ("", "null") else ports.json(raw)
-    return whole.get("got") if isinstance(whole, dict) else None
+    whole = ports.picked(raw, RECEIVED)
+    return whole["got"] if whole is not None else None
 
 
 def _value(raw):
-    raw = ports.text(raw).strip()
-    return None if raw in ("", "null") else ports.json(raw)
+    return ports.parsed(raw)   # 返し spec-in の返りまるごと（Archon が output_format で照らした値）
 
 
 def compute():
@@ -55,7 +56,7 @@ def compute():
 
 def fallback(why: str) -> dict:
     return {"ok": False, "reason": f"判定へ渡す値をそろえられない（{why}）", "go": False, "purpose": None, "constraints": None, "materials": [], "missing": [], "pr_material": None,
-            "world_rows": "", "row_asks": [], "depth_why": "", "spec_rows": "", "spec_origin": "", "tier": "標準", "verify": False}
+            "world_rows": None, "row_asks": [], "depth_why": "", "spec_rows": None, "spec_origin": "", "tier": "標準", "verify": False, "reply_sources": None}
 
 
 ports.run(compute, fallback)

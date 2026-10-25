@@ -1,11 +1,12 @@
 """最後の承認ノードの開ける理由と文（docs/design/line.md の 2 節の 4・6 節・8.1。今の workflows/line/scripts/ask_final.py の中身）。
 
 開ける理由の列 needs(got) を 1 つ組み、開くかと冒頭の 1 行目をこの列だけから作る（元 works の line_edge._final_needs）。列の行のうち
-守りのパスの当たり（確かめられなかった時も）・書き換えを許したテストに触った・人に回した食い違いの申し出・申し出の控えを読めない・
+守りのパスの当たり（確かめられなかった時も）・書き換えを許したテストに触った・消した試験（修正の出力の removed_tests）・人に回した食い違いの申し出・申し出の控えを読めない・
 修正の段の控えを読めない・承認の後に受け入れ条件のテストが変わった（spec の check の questions。照らせなかった時は「照らせなかった」）・
 読めなかった控え（直した後の実測・封じた差分・問いの台帳の控えなど。got の unread。読めた控えについての注記 lost_ties は数えない）
 は開き方に依らず開く（must。通すのは人の答えだけ）。ほかは開き方 final_gate で開く（src.gates.opens）。無人の run で開くはずの時は
-開かずに works:needs-human で止め、merge の apply を飛ばす（L-G39・L-W25）。判定の役が保留にしたままの問いは冒頭と本文に見せるが
+開かずに works:needs-human で止め、merge の apply を飛ばす（L-G39・L-W25）。試験を求めなかった直し（untested）は節に分けて並べ、種類 code の
+ファイルを触った時だけ開き方で開く理由にする。判定の役が保留にしたままの問いは冒頭と本文に見せるが
 開ける理由に数えない（L-G36）。修正の後の並行 PR の確かめ直し（8.1）が重なりを見つけた・確かめ直せなかった時は、開き方で開く理由。
 
 got は ask_final の script が受け皿の got と line の値から組む dict（gather の返り）。読む物は修正の事実（fixed と、その stages の
@@ -27,6 +28,7 @@ import fixboard
 import gatemarks
 import green_cert
 import oneline
+import ports
 import protect
 import querytest
 import replan
@@ -43,6 +45,9 @@ ALLOWED_TESTS_HEAD = "書き換えを許したテストを触った"
 ALONG_HEAD = "ついでに直した試験"   # 関わる試験で直す前から壊れていた物を修正役が直した（許しの出どころ broken。#836・docs/design/fix.md の 19 節）
 ALONG_SOURCE = fixboard.ALLOWED_SOURCES[3]
 ALLOWED_UNCHECKED = "封じた差分が無い・読めないので、許した行が差分に在るかを照らしていない（許した行をみな並べた）"
+REMOVED_TESTS_HEAD = "消した試験"           # 型の返しの控えが起点の版に在って今の木に無いとした試験（修正の出力の removed_tests。下書き 4.1 の 7）
+UNTESTED_HEAD = "試験を求めなかった直し"     # 注文が試験を求めない訳を持った直し（修正の出力の untested。static の型）
+CODE_UNTESTED = "コードのファイルを試験なしで変えた"   # 試験を求めなかった直しが種類 code のファイルを触った印（コメントだけかを機械は見分けない。E13）
 CONFLICT_UNREAD = "食い違いの申し出の控えを読めない"
 BESIDE_UNREAD = "修正の段の控えを読めない"
 MISSING_HEAD = "控えの指す先が無いか読めない（読めないまま置かないので人に見せる）"
@@ -86,8 +91,37 @@ def unpassed_eyes(got: dict) -> list:
     return [f"{label}: {gatemarks.REVIEW_WORDS.get(status, status)}" for label, status in rows if status != seal.PASSED]
 
 
+def removed_only(got: dict) -> set:
+    """試験を消しただけで足しも書き換えもしなかった試験のファイル（消した試験の節が持つので、許したテストの数えから外す）"""
+    return {p for row in got["removed_tests"] for p in row.get("only_removed") or []}
+
+
+def allowed_rows(got: dict) -> list:
+    """封じた差分が触った許しの行のうち、書き換えを許したテストの節に並べる行（ついでに直した試験と、消しただけのファイルを外す）"""
+    gone = removed_only(got)
+    return [row for row in got["allowed_tests"] if row.get("source") != ALONG_SOURCE and row.get("path") not in gone]
+
+
 def allowed_count(got: dict) -> int:
-    return len({row.get("path") for row in got["allowed_tests"] if row.get("source") != ALONG_SOURCE})
+    return len({row.get("path") for row in allowed_rows(got)})
+
+
+def removed_count(got: dict) -> int:
+    return len({t for row in got["removed_tests"] for t in row.get("tests") or []})
+
+
+def code_untested(got: dict) -> list:
+    """試験を求めなかった直しが触った種類 code のファイル（重ねない）"""
+    return list(dict.fromkeys(f.get("path") for row in got["untested"] for f in row.get("files") or [] if f.get("kind") == "code"))
+
+
+def unchecked_note(got: dict, section: str) -> list:
+    """ALLOWED_UNCHECKED の 1 行を、許しの照らしに当たる節（書き換えを許したテスト・ついでに直した試験・消した試験）のうち出る最初の節にだけ
+    添える（どの節の組み合わせでも 1 度だけ。封じた差分が触らなかった数 allowed_untouched が None の時だけ）"""
+    if got["allowed_untouched"] is not None:
+        return []
+    shown = [name for name, on in (("allowed", allowed_count(got)), ("along", along_rows(got)), ("removed", got["removed_tests"])) if on]
+    return [ALLOWED_UNCHECKED] if shown[:1] == [section] else []
 
 
 def along_rows(got: dict) -> list:
@@ -130,6 +164,10 @@ def needs(got: dict) -> list:
         why.append((f"{ALLOWED_TESTS_HEAD}（{allowed_count(got)} 件。人の確かめが要る）", True))
     if along_rows(got):
         why.append((f"{ALONG_HEAD}が在る（{len({r.get('path') for r in along_rows(got)})} 件。人の確かめが要る）", True))
+    if got["removed_tests"]:
+        why.append((f"{REMOVED_TESTS_HEAD}が在る（{removed_count(got)} 件。人の確かめが要る）", True))
+    if code_untested(got):
+        why.append((f"{UNTESTED_HEAD}が{CODE_UNTESTED}（{len(code_untested(got))} 件）", False))
     word = tests_word(got)
     if word != "緑":
         why.append((f"最後のテストが{word}", False))
@@ -173,7 +211,7 @@ def final_needs(got: dict) -> list:
 
 # ---------------------------------------------------------------- 文
 def final_head(got: dict, why: list) -> list:
-    guarded = bool(got["protected_hits"]) or bool(got["allowed_tests"])
+    guarded = bool(got["protected_hits"]) or bool(got["allowed_tests"]) or bool(got["removed_tests"])
     held = got["held"]
     happened = (f"最後のテストと独立の目が済み、報告の前で止まった。テストは{tests_word(got)}。"
                 + ("開けた理由: " + "・".join(why) if why else
@@ -181,7 +219,7 @@ def final_head(got: dict, why: list) -> list:
                 + (f"。判定の役が人に聞くと保留にしたままの問いも在る（{len(held)} 件。承認ノードを開ける理由には数えない）" if held else "")
                 + (f"。{got['split']}" if got["split"] else ""))
     decide = ("報告へ進めて run を終えるか、止めるか（打つ行は末尾の答え方）"
-              + ("。守りのパスと許したテストの変更は下の最初のセクションを確かめてから通す" if guarded else ""))
+              + ("。守りのパスと許したテストの変更と消した試験は下の最初のセクションを確かめてから通す" if guarded else ""))
     return gatemarks.head3(happened, decide, gatemarks.pushes([*held, *got["questions"]]))
 
 
@@ -199,17 +237,35 @@ def protected_section(got: dict) -> list:
     if allowed_count(got):
         lines += [f"## {ALLOWED_TESTS_HEAD}（{allowed_count(got)} 件。承認済みの案と範囲の相談と裁定が書き換えを許したテスト。"
                   "通すのは人の答えだけ）", "",
-                  *[f"- {row.get('path')}（許し {row.get('permit')}・{row.get('source')}）" for row in got["allowed_tests"]
-                    if row.get("source") != ALONG_SOURCE],
-                  *([ALLOWED_UNCHECKED] if got["allowed_untouched"] is None else []), ""]
+                  *[f"- {row.get('path')}（許し {row.get('permit')}・{row.get('source')}）" for row in allowed_rows(got)],
+                  *unchecked_note(got, "allowed"), ""]
     if along_rows(got):
         lines += [f"## {ALONG_HEAD}（{len({r.get('path') for r in along_rows(got)})} 件。直しに関わる試験で、直す前から落ちていた物を修正役が"
                   "直しと一緒に直した。試験が確かめる中身を弱めていないかを人が確かめる。通すのは人の答えだけ）", "",
                   *[f"- {row.get('path')}（許し {row.get('permit')}）" for row in along_rows(got)],
-                  *([ALLOWED_UNCHECKED] if got["allowed_untouched"] is None and not allowed_count(got) else []), ""]
+                  *unchecked_note(got, "along"), ""]
+    if got["removed_tests"]:
+        lines += [f"## {REMOVED_TESTS_HEAD}（{removed_count(got)} 件。起点の版に在って直した後の木に無い試験。消してよい物かを人が確かめる。"
+                  "通すのは人の答えだけ）", "",
+                  *[f"- {t}（{row.get('stage')}・組 {row.get('group_id')}・型 {row.get('weapon')}・単位 {'・'.join(row.get('units') or []) or '無い'}）"
+                    for row in got["removed_tests"] for t in row.get("tests") or []],
+                  *unchecked_note(got, "removed"), ""]
     if got["allowed_untouched"]:
         lines += [f"- 書き換えを許したが封じた差分が触らなかったテスト: {got['allowed_untouched']} 件（確かめは要らない）", ""]
     return lines
+
+
+def untested_section(got: dict) -> list:
+    """試験を求めなかった直しの節（項目ごとに、計画が試験を求めなかった訳・変えたファイルと種類。種類 code のファイルに印）"""
+    if not got["untested"]:
+        return []
+    lines = [f"## {UNTESTED_HEAD}（{len(got['untested'])} 件。計画が試験で示す物が無いとした直し。試験の赤緑でなく人が中身を読む）", ""]
+    for row in got["untested"]:
+        lines.append(f"- {row.get('stage')}・組 {row.get('group_id')}・型 {row.get('weapon')}・単位 {'・'.join(row.get('units') or []) or '無い'}: "
+                     f"試験を求めない訳: {oneline.one_line(row.get('why') or '')}")
+        lines += [f"  - {f.get('path')}（{f.get('kind') or '種類が分からない'}"
+                  + (f"。{CODE_UNTESTED}" if f.get("kind") == "code" else "") + "）" for f in row.get("files") or []]
+    return [*lines, ""]
 
 
 def conflict_section(got: dict) -> list:
@@ -333,6 +389,7 @@ def final_text(got: dict, why: list, run_id: str) -> str:
     """本文の節の並びは今のまま（docs/design/line.md の 2 節の 4）。「修正の後の並行 PR の確かめ直し」を独立の目の前に足した"""
     lines = [*final_head(got, why), ""]
     lines += protected_section(got)
+    lines += untested_section(got)
     lines += conflict_section(got)
     lines += rows_section(HANDOFF_HEAD, got["handoffs"], "。通すのは人の continue だけ")
     lines += rows_section(querytest.STUCK_HEAD, got["stuck"])
@@ -395,7 +452,7 @@ def asked_conflicts(pointers) -> tuple:
     rows, unread = [], []
     for ptr in pointers or []:
         try:
-            folder = Path(gates.path_of(ptr)).parent
+            folder = Path(gates.path_of(ptr, lambda raw: ports.file(raw, "json(lib:conflicts.schema.json)"))).parent
             if not (folder / conflict.FILE).is_file():
                 raise ValueError(f"{conflict.FILE} が無い")
             rows += conflict.human_lines(folder)
@@ -414,9 +471,9 @@ def ledger_rows(judged: dict | None, record: dict, before_fix, *, unattended: bo
     if judged is None or judged.get("judgment") is None:
         return empty, []
     try:
-        doc = gates.read_json(gates.path_of(judged["judgment"])) or {}
-        b = gatemarks.ledger_files(doc, ties_file=gates.path_of(judged.get("answer_ties")) or None,
-                                   materials_file=gates.path_of(judged.get("materials")) or None,
+        doc = gates.read_json(gates.path_of(judged["judgment"], lambda raw: ports.file(raw, "json(shared:judgment.schema.json)"))) or {}
+        b = gatemarks.ledger_files(doc, ties_file=gates.path_of(judged.get("answer_ties"), lambda raw: ports.file(raw, "json(shared:answer-ties.schema.json)")) or None,
+                                   materials_file=gates.path_of(judged.get("materials"), lambda raw: ports.file(raw, "json(shared:materials-state.schema.json)")) or None,
                                    answers=gates.request_answers(record), gate=before_fix, takes_push=unattended)
     except (OSError, ValueError, TypeError, AttributeError, KeyError) as error:
         return empty, [f"判定の問いの控えか始めの記録を読めない（保留の問いを数えていない。{type(error).__name__}: {error}）"]
@@ -431,7 +488,7 @@ def after_rows(after) -> tuple:
     if after is None:
         return [], [NO_AFTER], ""
     try:
-        folder = Path(gates.path_of(after)).parent
+        folder = Path(gates.path_of(after, lambda raw: ports.file(raw, "json(shared:structure-after.schema.json)"))).parent
     except (ValueError, TypeError, AttributeError, KeyError) as error:
         return [], [], f"直した後の実測のポインタを読めない（柵の増えを数えていない。{type(error).__name__}: {error}）"
     if structmark.read_after(folder) is None:
@@ -444,7 +501,7 @@ def structure_missing(structure) -> str:
     if structure is None:
         return ""
     try:
-        state = Path(gates.path_of(structure))
+        state = Path(gates.path_of(structure, lambda raw: ports.file(raw, "json(shared:structure-state.schema.json)")))
     except (ValueError, TypeError, AttributeError, KeyError) as error:
         return f"構造の目の控えのポインタを読めない（{type(error).__name__}: {error}）"
     return structmark.note(structmark.read(state))
@@ -455,7 +512,7 @@ def sealed_files(diff) -> tuple:
     if diff is None:
         return [], None, ""
     try:
-        text = Path(gates.path_of(diff)).read_text(encoding="utf-8", errors="replace")
+        text = Path(gates.path_of(diff, lambda raw: ports.file(raw, "file"))).read_text(encoding="utf-8", errors="replace")
     except (OSError, ValueError, TypeError, AttributeError, KeyError) as error:
         return [], None, (f"封じた差分を読めない（取り込むと消えるファイルと、許したテストのうち触った物を数えていない。"
                           f"{type(error).__name__}: {error}）")
@@ -490,7 +547,8 @@ def fix_beside(stage_rows: list) -> dict:
                       stages.resolve)
     return {"stuck": stages.closure_lines(got, stuck_only=True), "closure": stages.closure_lines(got),
             "tests_left": stages.tests_left_lines(got), "gates": [*stages.gates_lines(got), *stages.plan_ask_lines(got)],
-            "always": stages.always_rows(got), "allowed": got["allowed"], "beside_unread": got["unread"]}
+            "always": stages.always_rows(got), "allowed": got["allowed"], "removed_tests": got["removed_tests"],
+            "untested": got["untested"], "beside_unread": got["unread"]}
 
 
 def judged_rows(judged: dict | None) -> list:
@@ -502,7 +560,7 @@ def unproven_lines(judgment) -> list:
     """例で試していない単位の行（元 runreport.unproven_lines。判定の judgment の units から querytest.unproven で出し直す。開いた単位は
     元の検証器の is_open と同じ式 gatemarks._fix_duty）。判定が無ければ []、判定の pointer を開けなければ訳の 1 行（黙って 0 件にしない）"""
     try:
-        doc = gates.read_json(gates.path_of(judgment)) if judgment is not None else None
+        doc = gates.read_json(gates.path_of(judgment, lambda raw: ports.file(raw, "json(shared:judgment.schema.json)"))) if judgment is not None else None
     except (OSError, ValueError, TypeError) as error:
         return [f"判定を読めないので、例で試していない単位を数えていない（{type(error).__name__}: {error}）"]
     units = [u for u in (doc or {}).get("units") or [] if isinstance(u, dict) and isinstance(u.get("key"), str)] \
@@ -561,7 +619,7 @@ def gather(*, fix_in: dict, fixed: dict, judged: dict | None, tests: dict | None
         **beside, "allowed_tests": allowed, "allowed_untouched": untouched,
         "structure_missing": structure_missing(fix_in.get("structure")),
         "sealed": closing.get("ok") is True, "seal_reason": str(closing.get("reason") or ""), "hash": str(closing.get("hash") or ""),
-        "deleted": deleted, "sealed_diff": gates.located(closing.get("diff"), "封じた差分", missing),
+        "deleted": deleted, "sealed_diff": gates.located(closing.get("diff"), "封じた差分", missing, lambda raw: ports.file(raw, "file")),
         "fenced": after_fenced, "after": after, "passes": passes,
         "r2_inputs": [x for x in eye.get("notes") or [] if isinstance(x, str)],
         "converge": rounds_lines, "parallel_after": parallel_after,

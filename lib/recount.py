@@ -150,12 +150,14 @@ def _reply_shape_problems(reply: dict, precedents) -> list:
     return errs
 
 
-def _after_problems(reply: dict, place, base_rev: str, repo) -> list:
+def _after_problems(reply: dict, place, base_rev: str, repo, red_units=None) -> list:
     """数え直しの後の照らし: 赤を一度も見ずに名乗った clean・修正が新しく書いた指し（wrote_refs。cite._cite_errors で
     作業ツリーの指し先を数え直す。申告が空でも通す）・差分が足した Markdown のリンク（md_link_errors。申告に依らず差分から拾う）。
-    元 review-loop.py:2776-2812"""
+    red_units（単位の key の集まり）を渡せば、赤を見ない clean の照らしはその単位の changes の行だけで見る（呼び手が赤を求める
+    単位を決める。None は今のとおり全部の行）。元 review-loop.py:2776-2812"""
     errs = []
-    changes = [c for c in reply.get("changes") or [] if isinstance(c, dict)]
+    changes = [c for c in reply.get("changes") or [] if isinstance(c, dict)
+               and (red_units is None or c.get("unit_key") in red_units)]
     if changes and (reply.get("fix_closure") or {}).get("status") == "clean":
         if not any(s.get("red_seen") for c in changes for s in (c.get("closure") or {}).get("sites") or []):
             errs.append("閉鎖の実証で赤を一度も見ていないのに fix_closure=clean——found にして赤を見ていない site を書くか、"
@@ -278,7 +280,7 @@ def md_link_errors(base, root) -> list:
 
 
 def recount_problems(reply: dict, place, base_rev: str, repo, *, judged=None, owed=None, zero_keys=(), precedents=(),
-                     round_: int = 1) -> tuple:
+                     round_: int = 1, red_units=None) -> tuple:
     """数え直しの欄の照らし ——（誤りの行の一覧, 数え直した件数の行の一覧）。元は盤面の写しの fix_covers_open_units
     （元 works/.shared/core/graphloops/rules/review-loop.py:2658）。直す義務の覆い・返答の自己申告の形（_reply_shape_problems）・
     coverage の数え直し・数え直しの後の照らし（_after_problems）を、1 誤り 1 行で全部溜める。
@@ -341,23 +343,24 @@ def recount_problems(reply: dict, place, base_rev: str, repo, *, judged=None, ow
                         "——塞ぎ損ねた site が在る（向きは判定者が決めるので、修正役が population と書いても外れない）")
         afters.append({"unit_key": c.get("unit_key"), "how": cov["how"], "counts": counts, "total": total, "closed": closed,
                        "after": after})
-    errs += _after_problems(reply, place, base_rev, repo)
+    errs += _after_problems(reply, place, base_rev, repo, red_units)
     return errs, afters
 
 
 def accept_fix(reply: dict, place, base_rev: str, repo, *, judged=None, owed=None, zero_keys=(), precedents=(),
-               round_: int = 1, commit: bool = True) -> dict:
+               round_: int = 1, commit: bool = True, red_units=None, merge: bool = False) -> dict:
     """受け付けの時の数え直し（recount_problems）を当て、結果に 1 本目の出口のための changes（[{unit_key, files, what}]。返答の
     changes[] から写す）を足す。拒否のときの changes は空（1 本目と同じ）、誤りの行は problems に並べ、reason は見出しと行。
     通れば数え直した件数を置き場 place の coverage-after.json（{"round", "items"}）に書く。
     commit が偽なら乾いた照らし（置き場に件数を書かない。数えた量と版の答えの取り置きは刻む）で、返りに dry: True と changes: []。
     元 works/.shared/core/recount.py:115（盤面の entry.take(board, "p3.fix", …) に渡し、写しの fix_covers_open_units が
-    盤面の判定と state.inputs.review_rev を読んで数え直した所を、引数の判定 judged・直す義務 owed・修正前の版 base_rev で受ける）"""
+    盤面の判定と state.inputs.review_rev を読んで数え直した所を、引数の判定 judged・直す義務 owed・修正前の版 base_rev で受ける）。red_units は赤を見ない clean の照らしを当てる単位（_after_problems。None は全部）。
+    merge が真なら、同じ周の前の件数のうち今の返答に無い単位の行を残して重ねる（書き手を 1 つずつ順に回す受け付け）"""
     if not isinstance(reply, dict) or not isinstance(reply.get("changes", []), list):
         return {"ok": False, "reason": "修正の返答に changes の並びが無い", "problems": ["修正の返答に changes の並びが無い"],
                 "changes": [], **({"dry": True} if not commit else {})}
     errs, afters = recount_problems(reply, place, base_rev, repo, judged=judged, owed=owed, zero_keys=zero_keys,
-                                    precedents=precedents, round_=round_)
+                                    precedents=precedents, round_=round_, red_units=red_units)
     if errs:
         got = {"ok": False, "reason": REJECT_HEADING + "\n" + "\n".join(f"- {e}" for e in errs), "problems": errs, "changes": []}
         return {**got, "dry": True} if not commit else got
@@ -365,6 +368,14 @@ def accept_fix(reply: dict, place, base_rev: str, repo, *, judged=None, owed=Non
         return {"ok": True, "dry": True, "problems": [], "changes": []}
     path = pathlib.Path(place) / COVERAGE_FILE
     path.parent.mkdir(parents=True, exist_ok=True)
+    if merge:
+        try:
+            prev = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            prev = {}
+        if isinstance(prev, dict) and prev.get("round") == round_:
+            now = {a.get("unit_key") for a in afters}
+            afters = [a for a in prev.get("items") or [] if isinstance(a, dict) and a.get("unit_key") not in now] + afters
     tmp = path.with_name(path.name + ".tmp")
     tmp.write_text(json.dumps({"round": round_, "items": afters}, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
     os.replace(tmp, path)

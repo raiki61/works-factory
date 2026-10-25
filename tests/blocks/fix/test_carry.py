@@ -15,6 +15,7 @@ import unittest
 
 from tests.bin.gitkit import committed_copy
 from tests.blocks import kit
+from tests.blocks.fix import steps
 from tests.blocks.fix import test_tdd as tddcase
 
 
@@ -28,7 +29,7 @@ FIRST, SECOND = "line__fix", "line__refix-run"
 JUDGMENT = {"units": [{"key": "A", "label": "block"}, {"key": "B", "label": "block"},
                       {"key": "C", "label": "suggest", "disposition": "do-now"}, {"key": "D", "label": "suggest"}],
             "questions": []}
-PLAN = {"round": 1, "fields": [{}, {}]}
+PLAN = {"round": 1, "fields": [{"allowed_paths": ["**"], "out_of_scope": []}, {"allowed_paths": ["**"], "out_of_scope": []}]}
 FIX_PLAN = {"plan": [{"unit_keys": ["A", "B"]}, {"unit_keys": ["C"]}]}
 # 今の FixLoopPlace の判定と申し出の行（tests/workflows/test_fix.py の _FX_*）
 MEAN, BOUND = "u-mean", "u-bound"
@@ -120,13 +121,28 @@ class CarryCase(StagesCase):
         self.assertFalse((self.first / "carry.json").exists())
         got = self.first_stage([])
         doc = json.loads((self.art / got["carry"]["path"]).read_text(encoding="utf-8"))
-        self.assertEqual(doc, {"conflicts": {"items": []}, "loops": []})
+        self.assertEqual(doc, {"conflicts": {"items": []}, "loops": [], "accept": None, "bases": [], "returns": []})
 
     def test_finish_points_at_the_bundle(self):
         got = self.first_stage([FX_SCOPE])
         self.assertEqual(got["carry"], {"type": "archon_artifact", "run_id": kit.RUN_ID, "path": "line/fix/carry.json"})
         doc = json.loads((self.art / got["carry"]["path"]).read_text(encoding="utf-8"))
-        self.assertEqual(doc, {"conflicts": {"items": [FX_SCOPE]}, "loops": []})
+        self.assertEqual(doc, {"conflicts": {"items": [FX_SCOPE]}, "loops": [], "accept": None, "bases": [], "returns": []})
+
+    def test_a_return_with_a_gone_frozen_file_is_carried(self):
+        """tdd の返しの控えの frozen は、凍らせたファイルが無くなった時に null を持つ（common.hashes）。申し送りの形はそれを通し、
+        finish は修正の段の出力を組める（輪の状態の frozen.json と同じ形）"""
+        self.intake(FIRST, mode="whole", judgment=_j(JUDGMENT), plan=_j(PLAN), fix_plan=_j(FIX_PLAN))
+        out = self.script(FIRST, "prep")
+        _write(self.first / "returns" / "1.json",
+               {"stage": 1, "weapon": "tdd", "group": "g1", "tree": "t", "units": [{"key": "A", "named": []}],
+                "frozen": {"test_stats.py": "h1", "test_gone.py": None}, "frozen_tree": "t", "suite_made": [], "added": [],
+                "rewritten": [], "removed": [], "files": [], "why_untested": ""})
+        self.joined(self.first, out["groups"])
+        got = self.script(FIRST, "finish")
+        self.assertTrue(got["ok"], got)
+        doc = json.loads((self.art / got["carry"]["path"]).read_text(encoding="utf-8"))
+        self.assertEqual(doc["returns"][0]["frozen"], {"test_stats.py": "h1", "test_gone.py": None})
 
     def test_group_form_carries_nothing(self):
         """組の形の finish は申し送りを返さない（2 回目の段に渡すのは全体の形の出力）"""
@@ -141,15 +157,23 @@ class CarryCase(StagesCase):
         _write(place / "tdd-1" / "state.json", {"frozen": {"test_stats.py": "h1"}, "suite": "s"})
         (place / "tdd-1" / "summary.md").write_text("輪 1 の要約\n", encoding="utf-8")
         _write(place / "tdd-2" / "state.json", {"frozen": {}})
+        _write(place / "accept.json", {"suite_made": ["a"]})
+        _write(place / "bases" / "1" / "base.json", {"suite_made": ["b"]})
+        _write(place / "bases" / "1" / "accept.json", {"adopted_from": "x"})
+        _write(place / "returns" / "1.json", {"stage": 1, "weapon": "tdd"})
         path = self.carry.write(place)
         self.assertEqual(path, place / "carry.json")
         doc = json.loads(path.read_text(encoding="utf-8"))
         self.assertEqual(doc, {"conflicts": {"items": [FX_SCOPE]},
                                "loops": [{"state": {"frozen": {"test_stats.py": "h1"}, "suite": "s"}, "summary": "輪 1 の要約\n"},
-                                         {"state": {"frozen": {}}, "summary": ""}]})
+                                         {"state": {"frozen": {}}, "summary": ""}],
+                               "accept": {"suite_made": ["a"]},
+                               "bases": [{"base": {"suite_made": ["b"]}, "accept": {"adopted_from": "x"}}],
+                               "returns": [{"stage": 1, "weapon": "tdd"}]})
         root = self.carry.place_prior(again, doc)
         self.assertEqual(root, again / "prior")
-        for rel in ("conflicts.json", "tdd-1/state.json", "tdd-1/summary.md", "tdd-2/state.json"):
+        for rel in ("conflicts.json", "tdd-1/state.json", "tdd-1/summary.md", "tdd-2/state.json", "accept.json",
+                    "bases/1/base.json", "bases/1/accept.json", "returns/1.json"):
             self.assertEqual(json.loads((root / rel).read_text(encoding="utf-8")) if rel.endswith(".json")
                              else (root / rel).read_text(encoding="utf-8"),
                              json.loads((place / rel).read_text(encoding="utf-8")) if rel.endswith(".json")
@@ -276,7 +300,7 @@ class RefixCase(StagesCase):
         path = self.repo / "test_stats.py"
         path.write_text(path.read_text(encoding="utf-8").replace("mean([1, 2, 3]), 2", "mean([2, 4]), 3"), encoding="utf-8")
         reply = {"changes": [_change(MEAN, ["stats.py", "test_stats.py"])]}
-        out = twin.script("fix_accept", reply=_j(reply), consulted="false")
+        out = twin.script("fix_accept", reply_variant=_j(reply), consulted="false")
         self.assertEqual((out["ok"], out["done"]), (True, True), out)
 
     def test_first_pass_rulings_are_not_fixed_again(self):
@@ -326,7 +350,7 @@ class PriorLoopsCase(tddcase.LoopCase):
         self.assertEqual(list(self.st()["frozen"]), ["test_stats.py"])
 
     def test_second_place_sees_the_first_place_loops_through_the_bundle(self):
-        from src import board, carry, facts, tdd
+        from src import board, carry, facts, common, tdd
         self.first_loop()
         bundle = json.loads(carry.write(self.board).read_text(encoding="utf-8"))
         self.assertEqual([loop["state"]["frozen"] for loop in bundle["loops"]], [self.st()["frozen"]])
@@ -342,14 +366,114 @@ class PriorLoopsCase(tddcase.LoopCase):
                 got = tdd.start(place, self.repo, str(self.suite), json.dumps([tddcase.CLAMP]))
                 self.assertTrue(got["go"], got)
                 rows = [{"unit_key": tddcase.CLAMP, "route": "direct", "why": "2 回目の段で先にテストを書かない単位"}]
-                self.assertTrue(tdd.step(got["state_file"], {"phase": "route", "units": rows}, self.repo)["ok"])
-                self.assertEqual(len(tdd.states(place)), 2)
+                self.assertTrue(steps.loop_step(got["state_file"], {"phase": "route", "units": rows}, self.repo)["ok"])
+                self.assertEqual(len(common.states(place)), 2)
                 self.assertEqual(board.ruled_states(place), (got["state_file"], got["state_file"]))
                 self.assertEqual(facts.check_frozen(place, got["state_file"], self.repo, "first"), [])
                 self.edit("test_stats.py", "mean([2, 4]), 3", "mean([2, 4]), 3.0")   # 2 回目の修正役が tdd-1 の凍ったテストを変えた
                 problems = facts.check_frozen(place, got["state_file"], self.repo, "first")
                 self.assertTrue(problems and "test_stats.py" in problems[0], problems)
                 self.edit("test_stats.py", "mean([2, 4]), 3.0", "mean([2, 4]), 3")
+
+
+class BasesCarryCase(unittest.TestCase):
+    """下書き docs/plans/2026-10-24-fix-weapons.md の 4.4 の 3 の縛る試験 (i)〜(iv): 元の結末 base.json と受け付けの書き戻し accept.json と
+    返しの控え returns/ が、組を合わせる時に親へ（board.adopt_returned）、束 carry.json で 2 回目の修正の段の置き場へ（carry.adopt）、
+    その組の子へ（board.adopt_inputs）写る。どの試験も対象の試験を走らせない（持ち主の決め base-runs-nothing）"""
+
+    def setUp(self):
+        import tempfile
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.root = pathlib.Path(tmp.name)
+        self.repo = self.root / "repo"
+        self.repo.mkdir()
+        kit.load("fix", "board")
+        from src import basecase, board, carry, files
+        self.basecase, self.board, self.carry, self.files = basecase, board, carry, files
+
+    def child(self, name, *, accept=None, ret=None):
+        """元の結末を取った組の子の置き場（base.json と、accept が在れば accept.json、ret が在れば returns/1.json）と、その組の結果"""
+        place = self.root / name
+        _write(place / self.files.BASE_FILE, {"work": str(place), "baseline_cases": [], "suite_made": [f"{name}.base"]})
+        if accept is not None:
+            _write(place / self.files.ACCEPT_FILE, accept)
+        if ret is not None:
+            _write(place / self.files.RETURNS_DIR / "1.json", ret)
+        return {"group_id": name, "base": str(place / self.files.BASE_FILE), "place": str(place), "tdd_state": ""}
+
+    def read(self, path):
+        return json.loads(pathlib.Path(path).read_text(encoding="utf-8"))
+
+    def joined(self):
+        """1 回目の段の親: 組 g1（accept.json と返しの控えあり）と g2（accept.json なし）を合わせ、親の裁定の後の受け付けが accept.json を書いた"""
+        parent = self.root / "first"
+        parent.mkdir()
+        results = [self.child("g1", accept={"final_left": [], "suite_made": ["g1.accept"]},
+                              ret={"stage": 1, "weapon": "tdd", "suite_made": ["g1.ret"], "added": [], "rewritten": []}),
+                   self.child("g2")]
+        self.board.adopt_returned(parent, self.repo, results)
+        _write(parent / self.files.ACCEPT_FILE, {"final_left": [], "suite_made": ["first.accept"]})
+        return parent, results
+
+    def test_i_join_marks_accept_and_never_copies_twice(self):
+        """(i) 親の bases/<k>/accept.json が ADOPTED_FROM を持つ。子に accept.json が無い組でも印だけの物が出来る。base.json は字のまま
+        写り印を持たない。2 度合わせても写し直さない（返しの控えも同じ）"""
+        parent, results = self.joined()
+        b1, b2 = (parent / self.files.BASES_DIR / k for k in ("1", "2"))
+        self.assertEqual(self.read(b1 / self.files.ACCEPT_FILE),
+                         {"final_left": [], "suite_made": ["g1.accept"], self.board.ADOPTED_FROM: results[0]["base"]})
+        self.assertEqual(self.read(b2 / self.files.ACCEPT_FILE), {self.board.ADOPTED_FROM: results[1]["base"]})
+        for b, r in ((b1, results[0]), (b2, results[1])):
+            self.assertEqual((b / self.files.BASE_FILE).read_text(encoding="utf-8"),
+                             pathlib.Path(r["base"]).read_text(encoding="utf-8"))
+        self.assertEqual(self.read(parent / self.files.RETURNS_DIR / "1.json")[self.board.ADOPTED_FROM],
+                         str(self.root / "g1" / self.files.RETURNS_DIR / "1.json"))
+        self.board.adopt_returned(parent, self.repo, results)
+        self.assertEqual(sorted(p.name for p in (parent / self.files.BASES_DIR).iterdir()), ["1", "2"])
+        self.assertEqual(sorted(p.name for p in (parent / self.files.RETURNS_DIR).iterdir()), ["1.json"])
+
+    def second(self):
+        parent, _ = self.joined()
+        bundle = self.read(self.carry.write(parent))
+        second = self.root / "refix-run"
+        second.mkdir()
+        got = self.carry.adopt(second, bundle, ["1"], self.repo)
+        return second, got
+
+    def test_ii_first_parent_accept_becomes_an_accept_only_prior_base(self):
+        """(ii) 1 回目の段の親の accept.json が、2 回目の段の置き場で accept.json だけの bases/<k>/ になり PRIOR_LOOP を持つ。親の bases/ と
+        returns/ も PRIOR_LOOP つきで写る"""
+        second, got = self.second()
+        dirs = self.board.base_dirs(second)
+        self.assertEqual([str(d) for d in dirs], got["bases"])
+        accs = [self.read(d / self.files.ACCEPT_FILE) for d in dirs]
+        self.assertTrue(all(a.get(self.board.PRIOR_LOOP) for a in accs), accs)
+        only = [d for d in dirs if not (d / self.files.BASE_FILE).is_file()]
+        self.assertEqual([self.read(d / self.files.ACCEPT_FILE)["suite_made"] for d in only], [["first.accept"]])
+        self.assertEqual(len(dirs), 3)
+        self.assertTrue(self.read(got["returns"][0])[self.board.PRIOR_LOOP])
+
+    def test_iii_prior_bases_reach_the_child_and_its_suite_made_all(self):
+        """(iii) その bases/<k>/ が 2 回目の段の組の子へ写り、子の basecase.suite_made_all にその suite_made が入る"""
+        second, _ = self.second()
+        child = self.root / "child"
+        child.mkdir()
+        self.board.adopt_inputs(second, child, self.repo)
+        self.assertEqual(len(self.board.base_dirs(child)), 3)
+        self.assertTrue({"first.accept", "g1.accept", "g1.base", "g2.base", "g1.ret"} <= self.basecase.suite_made_all(child),
+                        self.basecase.suite_made_all(child))
+        self.board.adopt_inputs(second, child, self.repo)
+        self.assertEqual(len(self.board.base_dirs(child)), 3)
+
+    def test_iv_parent_base_choice_skips_prior_bases(self):
+        """(iv) 親の受け付けが読む元の結末の選び（board.ruled_base）が PRIOR_LOOP の物を外す: 写しが 1 回目の段の物だけなら無し、
+        この段の組を合わせれば最後の組の物"""
+        second, _ = self.second()
+        self.assertEqual(self.board.ruled_base(second), "")
+        self.board.adopt_returned(second, self.repo, [self.child("h1"), self.child("h2")])
+        self.assertEqual(self.read(pathlib.Path(self.board.ruled_base(second)) / self.files.ACCEPT_FILE)[self.board.ADOPTED_FROM],
+                         str(self.root / "h2" / self.files.BASE_FILE))
 
 
 if __name__ == "__main__":

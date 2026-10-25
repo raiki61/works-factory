@@ -225,14 +225,20 @@ class SectionsCase(Base):
     def test_where_lines_open_files_and_name_the_unopenable(self):
         diff = self.run.repo / "a.patch"
         diff.write_text("x", encoding="utf-8")
-        sections = [{"title": "直した所", "lines": ["x"], "files": [{"label": "差分", "ref": str(diff)}, {"label": "試験の記録", "ref": "/no/such/file"}]},
-                    {"title": "目的", "lines": ["y"], "files": [{"label": "判定", "ref": self.run.pointer("here.json")}]}]
-        (self.place / "here.json").write_text("{}", encoding="utf-8")
+        judged = "json(shared:judgment.schema.json)"
+        sections = [{"title": "直した所", "lines": ["x"], "files": [{"label": "差分", "ref": str(diff), "form": "file"},
+                                                                  {"label": "試験の記録", "ref": "/no/such/file", "form": "file"}]},
+                    {"title": "目的", "lines": ["y"], "files": [{"label": "判定", "ref": self.run.pointer("here.json"), "form": judged},
+                                                              {"label": "形の違う判定", "ref": self.run.pointer("off.json"), "form": judged}]}]
+        (self.place / "here.json").write_text('{"units": []}', encoding="utf-8")
+        (self.place / "off.json").write_text("{}", encoding="utf-8")
         _, text = self.build(sections)
         where = self.section(text, "## 3. 見る所").splitlines()
         self.assertEqual(where[0], f"- 差分（直した所）: {diff}")
         self.assertTrue(where[1].startswith("- 試験の記録（直した所）: 開けない（file の入力のファイル /no/such/file が無い"), where[1])
-        self.assertEqual(where[2], f"- 判定（目的）: {self.place / 'here.json'}")
+        self.assertEqual(where[2], f"- 判定（目的）: {self.place / 'here.json'}", "JSON のファイルは行の form で照らして開く")
+        self.assertTrue(where[3].startswith("- 形の違う判定（目的）: 開けない（"), where[3])
+        self.assertIn("units", where[3], "行の form の形に合わない中身は開かずに訳を名指す")
         self.assertIn(where[1].removeprefix("- "), self.section(text, "## 注意（読めなかった物）"), "開けない訳は注意にも載る")
 
     def test_no_files_is_named(self):

@@ -66,13 +66,14 @@ judge__diagnose-in:
   materials: []
   missing: []
   pr_material: null
-  world_rows: ''
+  world_rows: null
   row_asks: []
   depth_why: ''
-  spec_rows: ''
+  spec_rows: null
   spec_origin: ''
   tier: 標準
   verify: false
+  reply_sources: null
 judge__verdict:
   questions: []
   ok: true
@@ -237,6 +238,8 @@ fix__finish:
     unread: []
   item_claims: null
   freeze_off: []
+  removed_tests: []
+  untested: []
   report: ['- 修正: 1 単位']
 parallel-pr-after__scan: {go_role: false, reason: ''}
 parallel-pr-after__finish:

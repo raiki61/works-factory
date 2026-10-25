@@ -1,1 +1,0 @@
-{"type": ["object", "null"], "properties": {"changes": {"type": "array", "items": {"type": "object"}}, "not_done": {"type": "array", "items": {"type": "object"}}, "plan_faces": {"type": "array", "items": {"type": "object", "required": ["key", "handled"], "properties": {"key": {"type": "string"}, "handled": {"type": "string"}}}}}}

@@ -15,8 +15,9 @@
    Archon の源が無ければ見送り、CI は赤）
 4. どの workflow にも fixtures/standalone.stubs.yaml が在り、その fixture.inputs の鍵は workflow の inputs: の中にあって pointer の
    値を持たず、必須の入力を全部持つ
-5. どの入力の description も `<form>: ` で始まり（form は text・file・flag・json(<schema>)・choice(a|b|…)）、json の <schema> が
-   その workflow の schemas/ に在る（shared:<schema> は pack の .shared/schemas/ に在る）。形のファイルの名は pack の中で 1 か所に
+5. どの入力の description も `<form>: ` で始まり（form の語の住処は workflows/.shared/ports.py の form_of: text・file・flag・
+   choice(a|b|…)・json(<名>)・jsonl(<名>)）、json・jsonl の <名> の形のファイルが在る（頭の無い名はその workflow の schemas/、
+   shared:<名> は pack の .shared/schemas/、lib:<名> は lib/ の下。引き方は ports._shape_path）。形のファイルの名は pack の中で 1 か所に
    しか無い（2 つ以上の block が使う形は .shared/schemas/ に 1 つ。憲法の 4）
 6. ほかの workflow を名指す workflow（include:、自分の外を指す workflow: を持つ物。graph）は AI の node を持たない。block（AI の
    node を持つ物）が起こしてよい workflow は自分だけ
@@ -26,7 +27,9 @@
 9. src/ が在れば __init__.py を持つ package。scripts/ の名は lib/ のモジュールの名・pack の共通の口（.shared/*.py）の名・src と
    重ならない。.shared/*.py の名も lib/ のモジュールの名と重ならない（script のフォルダと .shared が sys.path の頭に来るため）
 11. YAML に指示の文を置く鍵が無い: loop: の node（loop_group と prep で書く）・agents:・on_reject の prompt・decisions の rework の
-   prompt。形のファイル（block の schemas/ と .shared/schemas/）は照らしの知らない語を持たない（ports.unknown_keywords）
+   prompt。形のファイル（block の schemas/ と .shared/schemas/）は照らしの知らない語を持たず（ports.unknown_keywords）、中身を
+   宣言しない所を持たない（ports.open_shapes。properties の無い object・items の無い array・型の無い所。節の output_format の開きは
+   tests/layers/scan.py の E5 が同じ関数で照らす）
 10. どの workflow にも試験のフォルダ tests/blocks/<名の - を _ にした物>/ が在り、__init__.py と test_*.py を持つ（Python の
    package の名は - を持てない）
 12. AI の node の md（と system の md。{shared:…}・{part:…} を入れた後）に `"欄":` の形で書いた欄が、その node の output_format の
@@ -40,6 +43,10 @@
    繰り返しの中の node の id も同じに数える。
    （筋書きはこれを捕まえない: graph の筋書きは include した block の入口と出口を台本で差し替えて中の loop を回さず、block の筋書きは
    block を単独で回す。dry-run は include の中の loop の本体に include の道を渡さないので、本体の script を本物で回す graph の筋書きも組めない）
+14. .shared/prompts/ の断片が頭の 1 行に `<!-- required-for-tools: <道具> <道具> -->` の印を持つなら、そのどれかの道具を allowed_tools に持つ
+   AI の node の指示（md と system の md。{shared:…}・{part:…} を入れた後）に、その断片が入っている。段落（<!-- if … -->）の中だけに
+   在って段落が外れると消える場合は入っていないと数える（全部の段落を真にした組み立てと全部を偽にした組み立ての両方に在ることを求める。
+   組み立ては workflows/.shared/prompt.py の `_select`）。道具に結びつく断片の印は断片自身が持ち、別の対応表は持たない（憲法の 6）
 
 今ある yes/no の検査も pack（workflows/）に当てる（ExistingRulesCase）: E6（外への書き込み）・E7（読むだけの node の印）・E12（期限を
 置かない）・E16（承認ノードの形）・E19（AI の node の retry）は tests/layers/scan.py の照らしを、pack を一時の木の workflows/ に写して
@@ -66,12 +73,12 @@ ROOT = pathlib.Path(__file__).resolve().parents[2]
 BLOCKS = archon.WORKFLOWS   # pack のフォルダ workflows/（pack.json の ours.folder から読む。docs/design/integration.md の 4.5-11）
 SHARED = ".shared"
 LIB = ROOT / "lib"
-FORM = re.compile(r"^(text|file|flag|json\((shared:)?([A-Za-z0-9_.-]+)\)|choice\([a-z0-9_-]+(?:\|[a-z0-9_-]+)+\)): ")
 SYSTEM_REF = re.compile(r"^\$([a-z0-9][a-z0-9_-]*)\.output\.system$")
 PROMPT_REF = re.compile(r"^\$([a-z0-9][a-z0-9_-]*)\.output\.prompt$")
 FRAGMENT = re.compile(r"\{(shared|part):([a-z0-9][a-z0-9_-]*)\}")
 RENDER_PART_NAME = re.compile(r"[a-z0-9][a-z0-9-]*")   # workflows/.shared/prompt.py の NODE_ID と同じ字（render_part はほかの名を拒む）
 MARK = re.compile(r"^<!-- (if|if not|end) ([a-z0-9_]+) -->$")
+REQUIRED_FOR_TOOLS = re.compile(r"\A<!-- required-for-tools: ([A-Za-z]+(?: [A-Za-z]+)*) -->\n")   # workflows/.shared/prompt.py の同名と同じ形
 JSON_KEY = re.compile(r'"([A-Za-z_]\w*)"\s*:', re.ASCII)
 UV_HEAD = ["# /// script", '# requires-python = ">=3.12"', "# dependencies = []", "# ///"]
 STANDALONE = "standalone"
@@ -282,7 +289,7 @@ def _text_keys(value, at: str) -> list[str]:
 
 
 def check_no_text_in_yaml(pack: pathlib.Path) -> list[str]:
-    from_ports = _ports().unknown_keywords
+    gate = scan.ports()
     out = []
     for folder in folders(pack):
         for node in nodes(load(folder)):
@@ -292,19 +299,18 @@ def check_no_text_in_yaml(pack: pathlib.Path) -> list[str]:
                     for hit in _text_keys({k: v for k, v in node.items() if k not in ("output_format",)}, node["id"])]
     for path in sorted([*(pack / SHARED / "schemas").glob("*.json"), *[p for f in folders(pack) for p in (f / "schemas").glob("*.json")]]):
         try:
-            unknown = from_ports(json.loads(path.read_text(encoding="utf-8")))
+            shape = json.loads(path.read_text(encoding="utf-8"))
         except ValueError as error:
-            unknown = [f"JSON でない: {error}"]
+            out.append(f"{path.relative_to(pack)}: JSON でない: {error}")
+            continue
+        unknown = gate.unknown_keywords(shape)
         if unknown:
             out.append(f"{path.relative_to(pack)}: 照らしの知らない語 {unknown}")
+            continue
+        holes = gate.open_shapes(shape, path.parents[1], shared=pack / SHARED, lib=pack.parent / "lib")
+        if holes:
+            out.append(f"{path.relative_to(pack)}: 中身を宣言しない所 {holes}（object は properties か patternProperties、array は items）")
     return out
-
-
-def _ports():
-    import importlib
-    if str(BLOCKS / SHARED) not in sys.path:
-        sys.path.append(str(BLOCKS / SHARED))
-    return importlib.import_module("ports")
 
 
 def check_standalone_inputs(pack: pathlib.Path) -> list[str]:
@@ -326,16 +332,17 @@ def check_standalone_inputs(pack: pathlib.Path) -> list[str]:
 
 
 def check_input_forms(pack: pathlib.Path) -> list[str]:
-    out = []
+    gate, out = scan.ports(), []
     for folder in folders(pack):
         for name, spec in sorted((load(folder).get("inputs") or {}).items()):
-            text = (spec or {}).get("description")
-            match = FORM.match(text) if isinstance(text, str) else None
-            if not match:
+            form = gate.form_of((spec or {}).get("description"))
+            if form is None:
                 out.append(f"{folder.name}: 入力 {name} の description が `<form>: ` で始まらない")
-            elif match.group(3) and not ((pack / SHARED if match.group(2) else folder) / "schemas" / match.group(3)).is_file():
-                where = f"{SHARED}/schemas" if match.group(2) else f"{folder.name}/schemas"
-                out.append(f"{folder.name}: 入力 {name} の形 {where}/{match.group(3)} が無い")
+            elif form[0] in gate.JSON_FORMS:
+                path = gate._shape_path(form[1], folder, shared=pack / SHARED, lib=pack.parent / "lib")
+                if not path.is_file():
+                    shown = path.relative_to(pack) if path.is_relative_to(pack) else path.relative_to(pack.parent)
+                    out.append(f"{folder.name}: 入力 {name} の形 {shown.as_posix()} が無い")
     homes = {}
     for folder in [pack / SHARED, *folders(pack)]:
         for path in (folder / "schemas").glob("*.json"):
@@ -429,6 +436,34 @@ def shape_names(shape) -> set:
     return names
 
 
+def _prompt():
+    scan.ports()   # .shared を sys.path に足す
+    import importlib
+    return importlib.import_module("prompt")
+
+
+def check_tool_fragments(pack: pathlib.Path) -> list[str]:
+    select = _prompt()._select
+    marked = {}   # 断片の名 → (印の行, 道具の集合)
+    for path in sorted((pack / SHARED / "prompts").glob("*.md")):
+        if m := REQUIRED_FOR_TOOLS.match(path.read_text(encoding="utf-8")):
+            marked[path.stem] = (m.group(0).strip(), set(m.group(1).split()))
+    out = []
+    for folder in folders(pack):
+        for node in ai_nodes(load(folder)):
+            tools = set(node.get("allowed_tools") or [])
+            texts = [_expand(path.read_text(encoding="utf-8"), pack, folder)
+                     for path in (folder / "prompts" / f"{node['id']}.md", folder / "prompts" / f"{node['id']}.system.md") if path.is_file()]
+            for name, (line, needs) in sorted(marked.items()):
+                if not tools & needs:
+                    continue
+                names = {m.group(2) for text in texts for row in text.split("\n") if (m := MARK.match(row.strip()))}
+                if not any(all(line in select(text, dict.fromkeys(names, state))[0] for state in (True, False)) for text in texts):
+                    out.append(f"{folder.name}: AI の node {node['id']} は道具 {sorted(tools & needs)} を持つが、指示（md）に {{shared:{name}}} が"
+                               f"（段落に頼らずには）入っていない")
+    return out
+
+
 def check_reply_fields(pack: pathlib.Path) -> list[str]:
     out = []
     for folder in folders(pack):
@@ -480,7 +515,7 @@ def check_include_ids_unique(pack: pathlib.Path) -> list[str]:
 
 CHECKS = (check_prompt_from_prep, check_prompt_files, check_standalone_renders, check_standalone_inputs, check_input_forms,
           check_graphs_have_no_roles, check_no_run_root_or_other_folders, check_returns_carry_outcome_and_report, check_module_names,
-          check_block_tests, check_no_text_in_yaml, check_reply_fields, check_include_ids_unique)
+          check_block_tests, check_no_text_in_yaml, check_reply_fields, check_include_ids_unique, check_tool_fragments)
 
 
 class RealTreeCase(unittest.TestCase):
@@ -521,7 +556,7 @@ class SeedCase(unittest.TestCase):
                                          "properties": {"ok": {"type": "boolean"}, "report": {"type": "array"}}}}]}),
         "demo/prompts/role.md": "{shared:rejected}\n{part:rules}\n",
         "demo/prompts/parts/rules.md": "rules\n",
-        "demo/schemas/doc.schema.json": "{}",
+        "demo/schemas/doc.schema.json": '{"type": "object", "properties": {"text": {"type": "string"}}}',
         "demo/scripts/prep.py": "import ports\n",
         "demo/scripts/finish.py": "import ports\n",
         "demo/src/__init__.py": "",
@@ -570,6 +605,21 @@ class SeedCase(unittest.TestCase):
             other["nodes"] = [*other["nodes"], {"id": loop_id, "include": "works-factory-mid"}]
         return {"demo/works-factory-demo.yaml": yaml.safe_dump(demo), "other/works-factory-other.yaml": yaml.safe_dump(other),
                 "mid/works-factory-mid.yaml": yaml.safe_dump(mid)}
+
+    def tool_fragment(self, role_md, tools=("Read", "WebSearch")):
+        """道具に結びつく断片 tooly（印 WebSearch・WebFetch のどれか）を足し、demo の role が道具 tools を持ち md が role_md の木の変更"""
+        demo = yaml.safe_load(self.GOOD["demo/works-factory-demo.yaml"])
+        demo["nodes"][1]["allowed_tools"] = list(tools)
+        return {".shared/prompts/tooly.md": "<!-- required-for-tools: WebSearch WebFetch -->\ntooly\n",
+                "demo/works-factory-demo.yaml": yaml.safe_dump(demo), "demo/prompts/role.md": role_md}
+
+    def test_tool_fragment_is_taken_without_depending_on_a_paragraph(self):
+        """印の道具を持つ node の md が断片を段落の外で入れる（part の中でもよい）か、印の道具を持たない node なら赤にならない"""
+        for role_md, tools in (("{shared:tooly}\n", ("WebFetch",)), ("{part:rules}\n", ("WebFetch",)), ("rules\n", ("Read", "Bash"))):
+            with self.subTest(role_md=role_md, tools=tools):
+                changes = self.tool_fragment(role_md, tools)
+                changes["demo/prompts/parts/rules.md"] = "{shared:tooly}\n"
+                self.assertEqual(self.broken(check_tool_fragments, changes), [])
 
     def yaml_with(self, **top):
         doc = yaml.safe_load(self.GOOD["demo/works-factory-demo.yaml"])
@@ -644,6 +694,9 @@ class SeedCase(unittest.TestCase):
             (check_no_text_in_yaml, {"demo/works-factory-demo.yaml": yaml.safe_dump(with_rework)}, "rework.prompt"),
             (check_no_text_in_yaml, {"demo/schemas/doc.schema.json": '{"anyOf": [], "format": "uri"}'}, "$.anyOf"),
             (check_no_text_in_yaml, {".shared/schemas/x.schema.json": '{"oneOf": []}'}, "$.oneOf"),
+            (check_no_text_in_yaml, {"demo/schemas/doc.schema.json": '{"type": "object", "properties": {"rows": {"type": "array"}}}'},
+             "中身を宣言しない所 ['$.properties.rows']"),
+            (check_no_text_in_yaml, {".shared/schemas/x.schema.json": '{"type": "object"}'}, "中身を宣言しない所 ['$']"),
             (check_reply_fields, {"demo/prompts/role.md": '{shared:rejected}\n{part:rules}\nReturn {{"ok": true}}.\n'}, "['ok']"),
             (check_reply_fields, {"demo/prompts/parts/rules.md": 'rules\n"field": x\n'}, "['field']"),
             (check_include_ids_unique, {"other/works-factory-other.yaml": yaml.safe_dump(
@@ -656,6 +709,9 @@ class SeedCase(unittest.TestCase):
                 "demo/works-factory-demo.yaml": yaml.safe_dump({**demo, "nodes": [*demo["nodes"], {"id": "outer", "loop_group": {
                     "nodes": [{"id": "inner", "loop_group": {"nodes": [{"id": "deep", "script": "prep"}]}}]}}]})},
              "include の node deep"),
+            (check_tool_fragments, self.tool_fragment("rules\n"), "{shared:tooly} が"),
+            (check_tool_fragments, self.tool_fragment("{shared:rejected}\n<!-- if on -->\n{shared:tooly}\n<!-- end on -->\n"), "{shared:tooly} が"),
+            (check_tool_fragments, self.tool_fragment("<!-- if not on -->\n{shared:tooly}\n<!-- end on -->\n"), "{shared:tooly} が"),
             (check_include_ids_unique, self.nested_include("deep2", "mid-inner", sibling=False), "include の node deep2"),
             (check_include_ids_unique, self.nested_include("deep2", "other-inner", sibling=True), "別の include other-inner"),
         ]

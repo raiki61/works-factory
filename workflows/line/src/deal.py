@@ -5,8 +5,8 @@ block は始めの記録を読まない（README 4.2・4.3）。line の start �
 run で値が黙って変わった 8dfebca6 の形が戻る）。
 
 - ports_of(record, artifacts) -> dict: 配る値の 36 欄（欄と式は line.md の 1.6。YAML の start の output_format の ports と同じ並び）
-- empty() -> dict: 拒んだ run・落ちた run の ports（全部の欄を空の値: 字は ""・flag は false・object は {}・配列は []・request と
-  carried は "[]"。後ろは when: で飛ぶ）
+- empty() -> dict: 拒んだ run・落ちた run の ports（全部の欄を空の値: 字は ""・flag は false・object は {}・配列は []・pointer の
+  request と carried は null。後ろは when: で飛ぶ）
 - pr_text(pr) -> str: PR の番号・題・本文を並べた文（元 lib/judge_accept.py の pr_file_text の字。PR の無い run は ""）
 - entry_origin(record) -> str: 判定から入る run の出どころの文（入口の差分が空で依頼の行が 1 件以上の時だけ。元 judge_accept.due_view の
   record.process.request_entry.origin と同じ字）
@@ -20,7 +20,6 @@ from __future__ import annotations
 import pathlib
 
 AUTO = "自動"
-NO_REQUEST = "[]"
 # 元 lib/judge_accept.py の PR_TITLE・PR_SUBJECT_HEAD・PR_BODY_HEAD（元 entryshape.write_pr_file の見出し）
 PR_TITLE = "# PR #{number}"
 PR_SUBJECT_HEAD = "## 題"
@@ -39,7 +38,7 @@ FLAGS = ("carried_measured", "world", "spec", "has_checks", "design_talk", "unat
 def empty() -> dict:
     out = {name: "" for name in NAMES}
     out.update({name: False for name in FLAGS})
-    out.update({"request": NO_REQUEST, "carried": NO_REQUEST, "verify_by_tier": {}, "prior_rows": [], "request_answers": [],
+    out.update({"request": None, "carried": None, "verify_by_tier": {}, "prior_rows": [], "request_answers": [],
                 "routes": ROUTES_AUTO})
     return out
 
@@ -83,7 +82,7 @@ def _named(record: dict, name: str) -> str:
 
 
 def _carried(artifacts: pathlib.Path) -> tuple:
-    """carried.json の (pointer か "[]", 前の run の前提の検算が運んだ実測の行が在るか)"""
+    """carried.json の (pointer, 前の run の前提の検算が運んだ実測の行が在るか)。無ければ空の配列を置いて指す"""
     import carry
     import jsonfile
     import ports
@@ -92,11 +91,26 @@ def _carried(artifacts: pathlib.Path) -> tuple:
 
     path = artifacts / files.CARRIED
     if not path.is_file():
-        return NO_REQUEST, False
+        jsonfile.write(path, [], parents=True)
     rows = jsonfile.read_or(path, [])
     measured = any(isinstance(r, dict) and str(r.get("measured_how") or "").startswith(carry.CARRIED_HOW_HEAD)
                    for r in rows if isinstance(rows, list))
-    return ports.pointer(path), measured
+    return ports.pointer(path, "json(shared:constraints.schema.json)"), measured
+
+
+def _request(artifacts: pathlib.Path, request_file: str) -> dict:
+    """依頼の写し request.json の pointer（依頼のファイルの中身。無い run は空の配列）。block は写しを形で照らして読む"""
+    import json
+    import jsonfile
+    import ports
+
+    from src import files
+
+    doc = json.loads(pathlib.Path(request_file).read_text(encoding="utf-8")) if request_file else []
+    if isinstance(doc, dict) and "findings" not in doc:   # findings を省いた依頼は空の findings（start と同じ読み。#505）
+        doc = {**doc, "findings": []}
+    path = jsonfile.write(artifacts / files.REQUEST, doc, parents=True)
+    return ports.pointer(path, "json(shared:request.schema.json)")
 
 
 def _prior_rows(artifacts: pathlib.Path) -> list:
@@ -123,7 +137,7 @@ def ports_of(record: dict, artifacts) -> dict:
     shape = startrec.shape(record) or {}
     answers = record.get("answers")
     return {
-        "request": request_file or NO_REQUEST,
+        "request": _request(artifacts, request_file),
         "request_file": request_file,
         "pr_text": pr_text(shape.get("pr")),
         "carried": carried,

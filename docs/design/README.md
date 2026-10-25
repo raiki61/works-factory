@@ -251,12 +251,18 @@ Archon の源で確かめた読み方（この形はこれに合わせた）:
 ### 4.1 宣言の形
 
 - 入力は YAML の `inputs:` に書く。Archon が受ける鍵は `required`・`default`・`description` の 3 つだけで、ほかの鍵は警告になる（`A/packages/workflows/src/schemas/workflow.ts` の `workflowInputSpecSchema`）。E1 は警告を許さないので、形は `description` の頭に書く: `<form>: <意味>`。
-- form は 5 つ。
+- form は 6 つ。語の住処は `workflows/.shared/ports.py` の `form_of` の 1 か所で、入力の `description`・形の中の `description`・口の呼びの form の字がどれもそれを引く。
   - `text`: 字。空の時の意味を説明に書く。
-  - `json(<schema>)`: JSON の値。値そのもの（JSON の字）か、値を入れたファイル（下の 4.2）で渡す。`<schema>` は block の `schemas/` のファイル名。
-  - `file`: ファイル 1 つ（中身の形を問わない時）。
+  - `json(<名>)`: JSON の値。値そのもの（JSON の字）か、値を入れたファイル（下の 4.2）で渡す。
+  - `jsonl(<名>)`: JSON Lines のファイル。`<名>` は 1 行の形。
+  - `file`: 字の文書のファイル 1 つ（方針の md・diff・YAML の表など）。JSON のファイル（`.json`・`.jsonl`）は運ばない（口が拒む）。
   - `flag`: true か false。
   - `choice(a|b|…)`: 決まった語のどれか。
+- 形の `<名>` は 3 つの置き場のどれか: 頭の無い名は block の `schemas/`、`shared:<名>` は 2 つ以上の block が使う形の `.shared/schemas/`、`lib:<名>` は `lib/` に住処の在る行の形（欄・語を `lib/` のモジュールがその JSON から引く物。`.shared` に写すと形が 2 つになるので、住処の在る `lib/` に置く。前例は `lib/carry.py` の `next-request.schema.json`）。引き方は `ports._shape_path` の 1 つ。
+- 形は中身を宣言する（#851）: object は `properties` か `patternProperties`、array は `items` を持ち、型の無い所を置かない（`ports.open_shapes`。照らしがこれらを持たない所を「開き」として赤にする）。`type` に JSON の 6 つの型（object・array・string・number・boolean・null）を全部並べた「何でも受ける」所も開きと数える（PR #861 の持ち主の答え「型は決まるでしょ」: どの値も書き手が型を決めて書ける。たとえば人が承認の画面で返す答えも、何でも受ける形ではなく string と書ける）。中身の住処がほかの形に在る所は、写さずに `description` の `json(<名>)` で名指す（`<名>` は上の行の 3 つの置き場の形のファイルの名。照らしは名の形に置き換えて照らす）。返す節の pointer の欄は、`description` に指す先の form（`file`・`json(<名>)`・`jsonl(<名>)`）を書く。
+- include した block の返りを受ける graph の受け皿（`script: returned` の節。返りから欄を選び直して `got` に入れる）は、`got` の形を `json(returns:<workflow の名>)` で名指す（#861。`json(<名>)` の `<名>` の 4 つ目の置き場）。`<workflow の名>` は include される block の workflow の名（`works-factory-<フォルダの名>`）で、名指す先はその block の YAML の `returns:` が名指す返す節の `output_format`。形のファイルではない。返りの形は YAML の節の中の字でしか書けず（Archon は `output_format` を外のファイルから読まない）、`$<id>.output.<欄>` の参照もその字の `properties` で照らす（`A/packages/workflows/src/output-ref.ts` の not-in-schema）ので、形のファイルに出すと同じ形の写しが 2 つになる。`returns:<workflow の名>` を書けるのは、その block を include する側（受け皿を持つ graph）の YAML の節の `output_format` だけ（block はほかの block を名指さない）。読むのは静的な照らし（E5 の機械 `tests/layers/scan.py`）だけで、実行の時の口 `ports.py` は YAML を読まないので、形のファイルと入力の `description` には書かない。受け皿の値は、Archon が作り手の返す節の `output_format` で照らした値から欄を選んだ物なので、実行の時に照らし直さない。
+  - `returns:` を足す前の E11 の 3 つの問い（#861）: Archon が持つか → 持たない（`output_format` は節の中の字だけ。`A/packages/workflows/src/schemas/dag-node.ts`）。ASF が持つか → 持たない（ASF に受け皿が無い）。本当に要るか → 要る。持ち主の答えで、受け皿の `got`（line・judge・eyes の 3 本の graph で 48 か所）に中身の宣言が要り、返りの形をファイルに出すと写しが 2 つになる。足すのは静的な照らしが読む名 1 つだけで、引き方は block の試験が既に使う物（`tests/blocks/kit.py` の `returned`: block の YAML の `returns:` が名指す節の `output_format` を読み、試験の作り物の返りをそれで照らす）と同じ。実行の時の仕組みは足さない。
+- 書き手は書く前に、読み手は読む前に、同じ形で値を照らす: `ports.json(raw, <名>)`・`ports.file(raw, <form>)`・`ports.pointer(path, <form>)` の形と form は必須で、宣言と同じ字を渡す。形に合わない値は `ShapeError` で落ちる。graph の配線の両端の宣言の突き合わせは E5 の機械（`tests/layers/scan.py`）。object・array の値の欄を `text` などの JSON でない form で受ける配線（JSON を入れた string）は、その機械が赤にする（読み手は `json(<名>)` で受ける）。形の中の string の欄に JSON を入れることは、形の字からは見分けられないので照らさない（string の欄の中身の意味は description が持つ）。
 - 出力は `returns:` が名指す node の `output_format`（素の JSON Schema）だけで述べ、写しを持たない（今の E5 と持ち主の決め `io-in-output-format` のまま）。大きい中身はファイルにし、出力には Archon の pointer `{type: archon_artifact, run_id, path}` を入れる（`A/packages/workflows/src/artifact-pointer.ts`。作り手の run の中のファイルだけを指せる）。
 - 2 つ以上の block が読む出力の行の形（欄の名・語・行を読む述語）は、作り手の出力ごとに `lib/` の 1 モジュールに置き、作り手は書く時に、読み手は読む時にそれを使う。手本は `worldmark`（world.md の 1.5）。ほかに当たる物は、問いの行（diagnose が作る。今の `gatemarks` の問いの語と `asks_human`）・食い違いの申し出の行（fix が作る。今の `conflict` の語と読み口）・修正案の項目（plan が作る。`planmarks`）・頭の深さの出力（head-depth が作る。`headdepth` の段の語と控えの読み）・前提の実測の行（premises が作る。`kind` の語 `実測`・`仮説`。今は `carry.MEASURED` と `runreport.HYPOTHESIS` に割れている）・目的の出典の語（purpose が作る。`source` の語。今の `judge_accept.PURPOSE_UNKNOWN` の「目的不明」など。independent-design が読む）。欄の型の正本は `output_format` のままで、このモジュールは語の意味と述語を持つ。1 つの block だけが読む行の形は、作り手の block の `src/` に置く。
 - どの block の返りにも、`outcome_field:` が名指す欄（block の仕事がうまくいったか）と、欄 `report`（報告に載せる日本語の行の配列）を置く。報告の文は事実を持つ block が組み、report の block は並べて継ぐだけにする。今の `lib/runreport.py` が lib の 43 モジュールを import する集め口になった崩れ（`~/.cache/works-self/tmp/drift-audit.md` の 3 節）を、この形で閉じる。
@@ -335,16 +341,17 @@ block の設計書（`docs/design/<block>.md`）は、頭に block の全体（�
 2. AI の node ごとに `prompts/<node-id>.md` が在り（system prompt を持つ node は `prompts/<node-id>.system.md` も）、`prompts/` の直下の md はどれもどれかの AI の node の物で、`prompts/parts/` の md はどれも同じ block のどれかの md から `{part:…}` で差し込まれるか、同じ block の `scripts/`・`src/` の `prompt.render_part("<name>", …)` の呼びが名指す（AI の node でない物の指示。束ね役が起こす下請けが Read する指示のファイルなど）。
 3. どの md も、その block の standalone の fixture の値で `prompt.render` が通る（埋まらない口も、使われない値も無い）。
 4. どの block にも `fixtures/standalone.stubs.yaml` が在り、その `fixture.inputs` の鍵は block の `inputs:` の中にあって、pointer の値を持たない。
-5. どの入力の `description` も `<form>: ` で始まり、`json(<schema>)` の `<schema>` が block の `schemas/` に在る。
+5. どの入力の `description` も `<form>: ` で始まり（4.1 の 6 つ。語の住処は `ports.form_of`）、`json(<名>)`・`jsonl(<名>)` の形のファイルが在る（4.1 の 3 つの置き場）。
 6. ほかの workflow を名指す workflow（`include:` か、自分の外を指す `workflow:` を持つ物）は AI の node を持たない。AI の node を持つ block が `workflow:` で起こしてよいのは自分の YAML だけ（直しの組ごとに自分を子の run として起こす fix の形）。AI の node を持たない merge が、出口の語 pr の時に Archon 同梱の `archon-pr` を `workflow:` で起こすのは、この決まりの中で通る（持ち主の決め `deliver-via-archon-pr`。根の `AGENTS.md` の E8 の外し。merge の設計書の 10 節の 1）。
 7. block の `scripts/` と `src/` に、字 `ARTIFACTS_DIR` と、ほかの block のフォルダへのパスが無い。
 8. どの block の `returns:` の node の `output_format` にも、`outcome_field:` の欄と `report` の欄が在る。
 9. `src/` の package の名は `src` で、`scripts/` の名と `lib/` のモジュールの名は重ならない（script のフォルダが `sys.path` の頭に来るため。今の E4 の決まりを続ける）。
 10. どの block にも試験のフォルダ `tests/blocks/<block の名の - を _ にした物>/` が在り、`__init__.py` と `test_*.py` を持つ（13 章）。
 
-11. YAML に指示の文を置く鍵（`loop:` の node・`agents:`・`on_reject` と `decisions` の `rework` の `prompt`）が無く、形のファイルは照らしの知らない語を持たない（13 章）。
+11. YAML に指示の文を置く鍵（`loop:` の node・`agents:`・`on_reject` と `decisions` の `rework` の `prompt`）が無く、形のファイルは照らしの知らない語を持たず（13 章）、中身を宣言しない所を持たない（`ports.open_shapes`。#851）。
 12. AI の node の md（`{part:…}` と `{shared:…}` を入れた後）に `"欄":` の形で書いた欄が、その node の `output_format` のどこかの深さの `properties` に在る（返答の型が指示の欄を全部持つ。組み込みの前の `tests/workflows/test_reply_fields.py` の後継。`docs/design/integration.md` の 4.2-2）。
 13. `include:` の node（loop_group の本体の中の物も）の id が、取り込む workflow の中のどの node の id（上の段も、どの深さの loop_group の本体も）とも違う。役と同じ名を持つ block は `<block の名>-run` で include する（judge-eyes.md の 1.3 の「include の id」）。
+14. `.shared/prompts/` の断片が頭の 1 行に `<!-- required-for-tools: <道具> <道具> -->` の印を持つなら、そのどれかの道具を `allowed_tools` に持つ AI の node の指示（`{part:…}` と `{shared:…}` を入れた後）に、その断片が入っている。段落（`<!-- if … -->`）の中だけに在って、段落が外れると消える場合は入っていないと数える（7.1 の 3 と同じ `prompt._select` で、全部の段落を真にした組み立てと全部を偽にした組み立ての両方に断片の印の行が残ることを求める）。印は断片自身が持ち、別の対応表は持たない（憲法の 6）。`prompt.py` は断片を差し込む時に印の行を落とすので、指示には出ない。
 
 1 の `systemPrompt:`（`prompts/<node-id>.system.md`）・3 の照らし方（筋書きの `resolved-text-contains` が md の決まった文）・5 の `json(shared:<schema>)`・6 の block と graph の見分けは 13 章の土台の決め。検査は `tests/layers/test_block_shape.py` 1 本。
 

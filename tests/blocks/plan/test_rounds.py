@@ -18,6 +18,7 @@ from tests.blocks.plan import base
 from tests.blocks.plan.base import (CLAMP, DIRTY_ROW, HANDOFF_NOTE, LOOSE, MEAN, NIT, RUN_ID, PlanRun, catalog, item, judgment, narrow,
                                     unit, writer_of)
 
+rounds = kit.load("line", "rounds")   # 往復の記録の書き手（line）。plan の src より先に読む（kit.load は前の src を外す）
 steps = kit.load("plan", "steps")
 take = importlib.import_module("src.take")   # kit.load が置いた src の package から
 brief = kit.load("plan", "brief")
@@ -98,21 +99,23 @@ def review_rows(run, out) -> list:
     return converge.plan_rows([planmarks.joined(r, f) for r, f in zip(bare["plan"], fields)], marks=marks)
 
 
-def converge_record(rounds) -> dict:
-    """往復の記録（line が prior.record に渡す物。今の planfile.converge_record の中身）。rounds は周ごとの
-    (その周を開いた時に受けた事前審査, その周の受けた案[, 記録の plan に置く行])。最後は今開く周で、案は None。行を渡さなければ
-    受けた案の項目そのものから組む"""
-    doc = {"round": 0, "passes": [], "outcome": None, "open": {}}
+def converge_record(passes, dest: pathlib.Path) -> dict:
+    """往復の記録（line が prior.record に渡す物）を、line の書き手で組む: rounds.fresh() に、受けた事前審査ごとに pass.json の中身を
+    rounds.record_pass で足し、受けた案の項目の行を記録の plan に置く。passes は周ごとの (その周を開いた時に受けた事前審査, その周の
+    受けた案[, 記録の plan に置く行])。最後は今開く周で、案は None。行を渡さなければ受けた案の項目そのものから組む。手で枠を組まないので、
+    書き手の欄の組と記録の形（shared:plan-converge.schema.json）から外れない"""
+    doc = rounds.fresh()
     answers: list = []
-    for k, (review, reply, *rows) in enumerate(rounds, 1):
-        doc["round"] = k
+    for k, (review, reply, *rows) in enumerate(passes, 1):
         if isinstance(review, dict) and doc.get("plan"):
             resolved = review.get(converge.RESOLVED)
-            converge.add_pass(doc, review, answers=copy.deepcopy(answers), resolved=resolved if isinstance(resolved, list) else [])
+            rounds.record_pass(doc, {"pass": len(doc["passes"]) + 1, "plan": doc["plan"], "answers": copy.deepcopy(answers),
+                                     "review": review, "resolved": resolved if isinstance(resolved, list) else []},
+                               at_cap=False, dest=dest / f"pass-{k}")
         if isinstance(reply, dict) and isinstance(reply.get("plan"), list):
             doc["plan"] = rows[0] if rows else converge.plan_rows(reply["plan"])
             answers = [r for r in reply.get(converge.ANSWERS) or [] if isinstance(r, dict)]
-    return doc
+    return kit.shaped("shared:plan-converge.schema.json", doc)
 
 
 class Line:
@@ -129,7 +132,7 @@ class Line:
                   for rv, o in self.history] + [(review, None)]
         return {"round": last["round"], "reply": last["reply"], "fields": last["plan"], "fix_plan": last["fix_plan"],
                 "ripple": last["ripple"], "review": review if review_form is None else review_form,
-                "record": converge_record(rounds),
+                "record": converge_record(rounds, self.run.tmp / "line-rounds"),
                 "handoffs": [{"round": o["round"], "handoff": o["handoff"]} for _, o in self.history]}
 
     def round(self, review=None, *, review_form=None, **kw) -> dict:
@@ -357,6 +360,43 @@ class CollectCase(unittest.TestCase):
         why = rolekit.rejected(run.art / "r2", "plan")[0]
         self.assertTrue(why.startswith(steps.CLOSED_REJECT), why)
 
+    def test_closed_row_shape_error_halts_on_the_first_try(self):
+        """#851: 往復の記録から機械が差し込んだ閉じた項目の行が受け付けの形に合わない時は、役は閉じた項目を直せない（splice が拒む）ので
+        拒みとして役へ返さず、1 回目で止める（status failed・halt）。訳は合わない欄を名指す"""
+        run = PlanRun(self)
+        line = Line(run)
+        self.assertIs(line.round(writer=writer_of({"plan": [item(1), item(2)]}))["ok"], True)
+        prior = line.prior({"faces": [FACE_MEAN]})
+        prior["record"]["plan"][1]["row"]["route"] = "機械が壊した語"   # 記録の書き手の誤り（役の書いた行ではない）
+        role = seq({"plan": [item(1, approach=CHANGED_APPROACH)], "block_answers": [FIXED_MEAN]})
+        out = run.include(prior=prior, writer=role, fixer=role)
+        self.assertEqual((out["ok"], out["status"]), (False, "failed"), out)
+        self.assertIn(take.MACHINE_ROWS_HALT, out["reason"])
+        self.assertIn("閉じた項目 2", out["reason"])
+        self.assertIn("plan[1].route", out["reason"])
+        self.assertEqual(len(writer_prompts(run)), 2, "1 周目と 2 周目の 1 回ずつ。2 周目の役に出し直させない")
+        self.assertEqual(rolekit.rejected(run.art / "r2", "plan"), [], "役の拒否に数えない")
+        self.assertTrue(run.read("r2/round.json")["halt"])
+
+    def test_closed_rows_tests_declared_by_an_open_item_do_not_halt(self):
+        """項目の間の照らし（閉じた項目の files が足すテストを、開いた項目の tests が宣言する）は、閉じた項目の行 1 本だけでは誤りに
+        見えても、案の全体で通るなら止めない（行 1 本に当てた項目の間の照らしの分は機械の誤りに数えない）"""
+        adds = {"path": "test_stats.py", "op": "modify", "responsibility": "上限の枝の試験を足す",
+                "home": {"concept": "単位 2 の試験", "why": "上限の枝の試験は test_stats.py が持つ"},
+                "considered": [{"path": "alt_home.py", "why_not": "同じ仕事の助け手が alt_home.py:3 に無かった"}],
+                "symbols": [{"name": "test_mean_of_two", "change": "add"}]}
+        two = item(2, tests=[], rewrite_tests=[REWRITE], route="direct", route_why="上限の枝の戻り値を 1 か所直すだけ")
+        two["files"] = [*two["files"], adds]
+        run = PlanRun(self)
+        line = Line(run)
+        first = line.round(writer=writer_of({"plan": [item(1), two]}))
+        self.assertIs(first["ok"], True, first)
+        self.assertEqual(planmarks._added_test_gaps([run.json(first["reply"])["plan"][1]]) != [], True, "行 1 本では誤りに見える")
+        role = seq({"plan": [item(1, approach=CHANGED_APPROACH)], "block_answers": [FIXED_MEAN]})
+        out = line.round({"faces": [FACE_MEAN]}, writer=role, fixer=role)
+        self.assertIs(out["ok"], True, out)
+        self.assertEqual(len(writer_prompts(run)), 2)
+
     def test_closed_item_with_machine_limit_is_not_rejected(self):
         """#845: line の往復の記録の案の行は、事前審査が planmarks.joined で欄の行を重ねた物で、rewrite_tests の行に機械が足した範囲
         limit を持つ。閉じた項目をその行で差し込んでも、前のまま書いた閉じた項目も、limit を理由に拒まない。役が自分で書いた limit は拒む"""
@@ -546,8 +586,8 @@ class SurvivesCase(unittest.TestCase):
         out = run.script("finish")
         self.assertEqual(validate_schema(out, FINISH_FORMAT), [])
         self.assertEqual((out["ok"], out["status"], out["round"], out["owed"]), (False, "failed", 1, []))
-        for key in ("plan", "ripple"):
-            run.pointed(out[key])
+        self.assertEqual((out["plan"], out["ripple"]), (None, None), "形を照らせない出口は照らさずに指さない")
+        self.assertIn("ModuleNotFoundError", out["reason"])
         self.assertIn("ModuleNotFoundError", (run.art / "r1" / files.FINISH_ERROR).read_text(encoding="utf-8"))
         run.env_extra = {}
         again = run.script("intake")
@@ -591,13 +631,13 @@ class SurvivesCase(unittest.TestCase):
         self.assertTrue((run.art / "plan-writer-prompt-1.md").exists())
 
     def test_question_with_depends_that_is_not_a_list(self):
-        """判定の問いの depends が数でも周を開け、owed は直す義務の単位だけ"""
+        """判定の問いの depends が配列でない判定は、port の形（shared:judgment.schema.json）が拒む: 周を開かず、読めない入力を名指す"""
         judge = judgment()
         judge["questions"] = [{"key": "q", "kind": "fork", "status": "held", "origin": CLAMP, "depends": 3}]
         run = PlanRun(self, judge=judge)
-        out = run.include(writer=writer_of({"plan": [item(1)]}))
-        self.assertIs(out["ok"], True, out)
-        self.assertEqual(out["owed"], [MEAN])
+        out = run.include(writer=never(self))
+        self.assertEqual(out["status"], "held", out)
+        self.assertIn("$.questions[0].depends", out["reason"])
 
 
 class BriefCase(unittest.TestCase):
@@ -798,11 +838,19 @@ class BriefCase(unittest.TestCase):
         run.include()
         self.assertNotIn(SPEC_HEAD, self.prompt(run))
         run = PlanRun(self)
-        run.include(spec=run.file("judge/spec.json", {"requirements": ["空の列の平均は 0"],
-                                                      "acceptance": ["test_stats.py::TestStats::test_mean_of_empty"]}))
+        run.include(spec=run.file("judge/spec.json", {   # 仕様の block が固めた spec.json の形（shared:spec.schema.json）
+            "requirements": [{"key": "r1", "text": "空の列の平均は 0"}],
+            "acceptance": [{"key": "a1", "requirement": "r1", "file": "test_stats.py", "name": "TestStats::test_mean_of_empty",
+                            "run": "python -m unittest test_stats", "sha256": "0" * 64, "exit_at_approval": 1}]}))
         prompt = self.prompt(run)
         self.assertIn(SPEC_HEAD, prompt)
-        self.assertIn("test_stats.py::TestStats::test_mean_of_empty", prompt.split(SPEC_HEAD, 1)[1])
+        self.assertIn("TestStats::test_mean_of_empty", prompt.split(SPEC_HEAD, 1)[1])
+        run = PlanRun(self)
+        doc = run.art / "spec-driven" / "spec.md"
+        doc.parent.mkdir(parents=True)
+        doc.write_text("# 人と固めた仕様\n\n空の列の平均は 0\n", encoding="utf-8")
+        run.include(spec_doc=str(doc))
+        self.assertIn("空の列の平均は 0", self.prompt(run).split(SPEC_HEAD, 1)[1], "人と固めた仕様の本文は字のまま")
 
     def test_routes_spec_puts_the_route_paragraph(self):
         """入力 routes（docs/design/spec-driven.md の 7 章の 2）: spec の時だけ、固めた仕様の「TDD で直す所」が名指す行だけを tdd にする
@@ -867,7 +915,7 @@ class PlaceCase(unittest.TestCase):
         reply, fields = run.json(first["reply"]), run.json(first["plan"])
         fix_plan = str(run.pointed(first["fix_plan"]))
         prior = {"round": 1, "reply": reply, "fields": fields, "fix_plan": fix_plan, "ripple": first["ripple"], "review": review,
-                 "record": converge_record([(None, reply), (review, None)]), "handoffs": [{"round": 1, "handoff": HANDOFF_NOTE}]}
+                 "record": converge_record([(None, reply), (review, None)], run.tmp), "handoffs": [{"round": 1, "handoff": HANDOFF_NOTE}]}
         second = run.include(prior=prior)
         self.assertEqual((second["round"], second["status"]), (2, "ok"), second)
         r2 = run.art / "r2"

@@ -1,0 +1,44 @@
+{
+  "description": "事前審査の返答（review.json。書き手は事前審査の block の受け付け）{reason, faces: [穴], shrink: [別案], faces_none?, resolved?, stuck_recommend?}。対応表 design_map と出自の申告 origins は受け付けが外して往復の控え（pass.json）に置き、review.json には書かない。穴の行の型の住処は事前審査の役の output_format（受け付けが照らす）で、ここは読み手（修正の段・差分の審査・line）が読む欄の型だけを書く",
+  "type": "object",
+  "properties": {
+    "reason": {"type": "string"},
+    "faces": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "key": {"type": "string"},
+          "unit_keys": {"type": "array", "items": {"type": ["integer", "string"]}},
+          "kind": {"type": "string"},
+          "where": {"type": "string"},
+          "why": {"type": "string"},
+          "severity": {"type": "string"},
+          "reach": {"type": "string"},
+          "no_add": {"type": "string"},
+          "decided_by": {"type": "string"},
+          "undecided_because": {"type": "string"},
+          "fences": {"type": "array", "items": {"type": "string"}},
+          "world": {"type": "string"},
+          "recommend": {"type": "object", "properties": {"answer": {"type": "string"}, "note": {"type": "string"}, "why": {"type": "string"}}},
+          "no_narrow": {"type": "string"}
+        }
+      }
+    },
+    "shrink": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "key": {"type": "string"},
+          "unit_keys": {"type": "array", "items": {"type": ["integer", "string"]}},
+          "alternative": {"type": "string"},
+          "why": {"type": "string"}
+        }
+      }
+    },
+    "faces_none": {"type": "string"},
+    "resolved": {"type": "array", "items": {"type": "string"}},
+    "stuck_recommend": {"type": "object", "properties": {"answer": {"type": "string"}, "note": {"type": "string"}, "why": {"type": "string"}}}
+  }
+}

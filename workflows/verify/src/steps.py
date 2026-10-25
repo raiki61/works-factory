@@ -90,14 +90,13 @@ def synergy_schema() -> dict:
                            "order": {"type": "array", "items": order}}}
 
 
-JUDGMENT_SCHEMA = "shared:judgment.schema.json"   # 2 つ以上の block が使う判定の形（docs/design/verify.md の 1.2）
 
 
 # ---------------------------------------------------------------- 判定の単位
 def read_judgment(raw):
     """port judgment を共通の形で読み、この block が要る欄を足して照らす。共通の形（shared:judgment.schema.json）は単位の label を
     必須にしないが、開いた単位を選ぶ is_open が label を読むので、label が字でない単位はここで拒む（KeyError で落とさない）"""
-    doc = ports.json(raw, JUDGMENT_SCHEMA)
+    doc = ports.json(raw, "shared:judgment.schema.json")   # 2 つ以上の block が使う判定の形（docs/design/verify.md の 1.2）
     for n, u in enumerate(doc["units"], 1):
         if not isinstance(u, dict) or not isinstance(u.get("label"), str):
             raise ValueError(f"units の {n} 行目に label（字）が無い")
@@ -270,7 +269,7 @@ def _moved_since(out: pathlib.Path) -> list:
 
 def _result(out, status, stop_reason, reason, doc, ran) -> dict:
     return {"ok": status == "ok", "status": status, "stop_reason": stop_reason, "reason": reason,
-            "verify": ports.pointer(out / VERIFY_FILE), "report": report.lines(doc, ran)}
+            "verify": ports.pointer(out / VERIFY_FILE, "json(shared:verify.schema.json)"), "report": report.lines(doc, ran)}
 
 
 def finish(out) -> dict:

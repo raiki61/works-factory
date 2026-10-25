@@ -61,7 +61,8 @@ block と graph の YAML・AI のノードへの指示の md・script・`src/`�
 - block の YAML は `returns:` で 1 つのノードを名指し、`outcome_field:` で仕事がうまくいったかの欄を名指す。そのノードの `output_format` には `report`（報告に載せる日本語の行の配列）を置く。block の間で渡す物の型の正本は、そのノードの `output_format` と graph の `with:` だけ（持ち主の決め `io-in-output-format`）。
 - 大きい中身はファイルに置き、出力には pointer `{type: archon_artifact, run_id, path}` を入れる。作り手の欄を 3 つ以上読む受け手は、作り手の出力を丸ごと置いたファイルの pointer 1 つで受ける（`docs/design/README.md` の 4.2）。
 - 飛ばされうる段の出力は、受ける側の `with:` に `{ from: "$<id>.output.<欄>", if_skipped: null }` で受ける。include の受け手へ束ねて渡す時は、graph の中継の script のノードで受けてから渡す（埋め P2）。
-- 機械: `tests/layers/test_block_returns.py`・`tests/layers/test_block_shape.py`（7.1 の 8）。
+- 受け渡しの形を機械が照らす（#851）: どのノードの `output_format` も中身を宣言し（`ports.open_shapes`）、pointer の欄は `description` に指す先の form を書く。graph の配線の 1 本ごとに書き手と読み手の宣言を結び、JSON を運ぶ辺の両端は同じ形の名を指し、値の欄は読み手の形の要る欄と型を持つ。block の口の呼びの形と form は字のままで、その block の宣言の form の組に在る。実行時は書き手が `ports.pointer(path, form)` で、読み手が `ports.json`・`ports.file` で同じ形を照らす（`docs/design/README.md` の 4.1）。
+- 機械: `tests/layers/test_block_returns.py`（`tests/layers/scan.py` の E5。形と配線は `_shapes`。起動の殻が部品の返す値を読む表 `RETURN_READS` も `_shapes` が宣言に照らす。返す値そのものを読む行は、`returns:` が名指すノードの出力が読み手の形に合うかを照らす）・`tests/layers/test_block_shape.py`（7.1 の 5・8・11）・口の照らしは `tests/blocks/shared/test_ports.py`。
 
 ## E6 外への書き込みは 1 つの script のノードで、書いた後に読み戻す
 

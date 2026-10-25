@@ -211,7 +211,8 @@ class FlowCase(_RepoCase):
         self.run.environ = lambda include="", **inputs: {**environ(include, **inputs), "WORKS_FACTORY_ROOT": str(broken)}
         fin = self.finish()
         self.assertEqual((fin["ok"], fin["status"]), (False, "failed"))
-        self.assertEqual(fin["structure"]["path"], "structure-state.json")
+        self.assertIsNone(fin["structure"], "形を照らせない出口は照らさずに指さない")
+        self.assertIn("ModuleNotFoundError", fin["reason"])
         self.assertEqual(self.place("design.jsonl").read_bytes(), b"")
         self.assertIn("ModuleNotFoundError", self.read("structure-state.json")["reason"])
         files = kit.load("structure", "files")
@@ -381,7 +382,8 @@ class AfterCase(_RepoCase):
 
     def test_plan_deviations_reach_the_eye(self):
         plan = self.run.repo / "plan-fields.json"
-        plan.write_text(json.dumps({"fields": [{"structure": [{"prescription": "p1", "deviation": "従わない訳である"}]}]}), encoding="utf-8")
+        plan.write_text(json.dumps({"round": 1, "fields": [{"structure": [{"prescription": "p1", "deviation": "従わない訳である"}], "allowed_paths": ["a.py"], "out_of_scope": []}]}),
+                        encoding="utf-8")   # 修正案の盤面の控えの形（shared:plan-fields.schema.json）
         self.after(plan=str(plan))
         self.assertEqual(self.read("structure-after.json")["deviations"][0]["deviation"], "従わない訳である")
         self.assertIn("従わない訳である", self.run.script("prep", mode="after")["prompt"])

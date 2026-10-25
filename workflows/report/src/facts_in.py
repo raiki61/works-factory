@@ -7,7 +7,7 @@ import ports
 
 from engine.schema import validate_schema   # lib/graphloops/engine/schema.py
 
-SCHEMA = pathlib.Path(__file__).resolve().parents[1] / "schemas" / "facts.schema.json"
+SCHEMA = pathlib.Path(ports.SHARED) / "schemas" / "facts.schema.json"   # 書き手 line と同じ共通の形
 DEFAULTS = {
     "start_ok": False, "problems": [], "notes": [], "gates": [], "stops": [], "halts": [],
     "waits": {"conflicts": [], "conflicts_if_closed": [], "others": []}, "cut": None, "optional": [], "returned": [],
@@ -26,9 +26,6 @@ def read(value) -> dict:
         raise ValueError(f"facts が JSON のオブジェクトでない（{type(value).__name__}）")
     shape = json.loads(SCHEMA.read_text(encoding="utf-8"))
     errors = validate_schema(value, shape)
-    tallied = value.get("tallied")
-    if isinstance(tallied, dict):
-        errors += [f"$.tallied.{k}: 整数でない" for k, v in tallied.items() if not isinstance(v, int) or isinstance(v, bool)]
     if errors:
         raise ValueError(f"facts が形に合わない: {' / '.join(errors[:5])}")
     out = copy.deepcopy(DEFAULTS)
@@ -45,4 +42,4 @@ def from_port(raw) -> dict:
     """INPUTS_FACTS の字（値そのもの・ファイルのパス・pointer）を読む。空の字は空のオブジェクト（既定の入力 {}）"""
     if not ports.text(raw).strip():
         return read({})
-    return read(ports.json(raw, "facts.schema.json"))
+    return read(ports.json(raw, "shared:facts.schema.json"))

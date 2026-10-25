@@ -17,7 +17,7 @@ def compute():
     from src import steps
     return steps.intake(
         ports.place(), Path.cwd(),
-        proposal=os.environ.get("INPUTS_PROPOSAL"), proposal_file=os.environ.get("INPUTS_PROPOSAL_FILE"),
+        proposal=os.environ.get("INPUTS_PROPOSAL"), plan=os.environ.get("INPUTS_PLAN"), proposal_file=os.environ.get("INPUTS_PROPOSAL_FILE"),
         fields=os.environ.get("INPUTS_FIELDS"), judgment=os.environ.get("INPUTS_JUDGMENT"),
         purpose=os.environ.get("INPUTS_PURPOSE"), design=os.environ.get("INPUTS_DESIGN"), design_why=os.environ.get("INPUTS_DESIGN_WHY"),
         world_rows=os.environ.get("INPUTS_WORLD_ROWS"), means=os.environ.get("INPUTS_MEANS"), structure=os.environ.get("INPUTS_STRUCTURE"),

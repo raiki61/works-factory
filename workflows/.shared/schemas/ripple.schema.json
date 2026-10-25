@@ -1,0 +1,22 @@
+{
+  "description": "修正案の項目ごとの波及の一覧（ripple.json。書き手は修正案の block）{items: [{item, unit_keys, names, uncovered}], overlaps: [{at, items}], error}。案が無い周は {items: [], error: 訳}",
+  "type": "object",
+  "properties": {
+    "items": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "item": {"type": "integer"},
+          "unit_keys": {"type": "array", "items": {"type": ["string", "integer"]}},
+          "names": {"type": "array", "items": {"type": "object", "properties": {
+            "name": {"type": "string"}, "files": {"type": "integer"}, "common": {"type": "boolean"},
+            "code": {"type": "array", "items": {"type": "string"}}, "tests": {"type": "array", "items": {"type": ["string", "null"]}}}}},
+          "uncovered": {"type": "array", "items": {"type": "object", "properties": {"id": {"type": "string"}, "name": {"type": "string"}, "kind": {"type": "string"}, "at": {"type": "string"}}}}
+        }
+      }
+    },
+    "overlaps": {"type": "array", "items": {"type": "object", "properties": {"at": {"type": "string"}, "items": {"type": "array", "items": {"type": "integer"}}}}},
+    "error": {"type": "string"}
+  }
+}

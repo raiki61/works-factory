@@ -6,7 +6,7 @@ block の script と `src/` が Archon と出入りする口と、2 つ以上の
 ## 口を通さずに書けない物
 
 - 入力の読み: script は `os.environ.get("INPUTS_<名>")` を字のまま読み、`ports` の form の口（`text`・`flag`・`choice`・`json`・`file`）に渡す。名を組んで読まない。依頼の行は `requestrows.findings(raw)`（形の照らしと、知らない鍵・下書きの行の拒みまで）。
-- place: `ports.place()` だけ。run directory の根（Archon の環境変数）を script と `src/` に書かない。place は作るだけで消さない。block が消してよいのは、自分が名を持つファイルだけ（名で引く。`rejects-*.json` のような広い形で消さない）。ほかの block に渡すファイルは `ports.pointer(path)` で出力に入れる。
+- place: `ports.place()` だけ。run directory の根（Archon の環境変数）を script と `src/` に書かない。place は作るだけで消さない。block が消してよいのは、自分が名を持つファイルだけ（名で引く。`rejects-*.json` のような広い形で消さない）。ほかの block に渡すファイルは `ports.pointer(path, form)` で出力に入れる（form は返すノードの pointer の欄の description と同じ字で、中身を照らしてから指す）。
 - 指示: prep は `prompt.emit(node_id, values, when, prompt.round_of(node_id))`（組むだけなら `prompt.render`）だけで組む。md のパスも文も渡さない。前の回の却下は `with:` の `$LOOP_PREV` で受けず、place の却下の控え（`lib/rolekit` の `rejected(place, <名>)`）から全部を読む。`prompt.render` は md の全部の `{name}` に値を要る（選ばれない段落の中の `{name}` も、system の md の物も数える）。prep はいつも同じ組の値を渡し、入らない段落の `{name}` には空の字を渡す。
 - node の出力: `ports.returns(obj)`。落ちない node は `ports.run(compute, fallback)`。
 
@@ -19,9 +19,10 @@ block の script と `src/` が Archon と出入りする口と、2 つ以上の
 
 ## 口の一覧
 
-- `ports.py`: `text(raw)`・`flag(raw)`・`choice(raw, words)`・`json(raw, schema)`（schema は block の `schemas/` の名か `shared:<名>`）・`file(raw)`・`parsed(raw)`・`picked(raw, names, optional=())`（names の欄が作り手の出力に無ければ `KeyError`。無くてよい欄は optional）・`unknown_keywords(shape)`・`place()`・`pointer(path)`・`returns(obj)`・`run(compute, fallback)`・`lib_root()`・`inside(rel, root)`（置き場 root からの相対パスの照らし。`..` と先頭・末尾の `/` を拒む）・`shared_cache()`（run をまたぐ控えの根。`STATE_DIR` の下の `works-factory/`、渡されなければ None）。import すると `lib/` が読めるようになる。
+- `ports.py`: `text(raw)`・`flag(raw)`・`choice(raw, words)`・`json(raw, schema)`（schema は必須。block の `schemas/` の名・`shared:<名>`・`lib:<名>`。形に合わない値は `ShapeError`）・`file(raw, form)`（form は必須で入力の宣言と同じ字。json・jsonl の form は中身を照らしてからパスを返し、`file` は `.json`・`.jsonl` を拒む）・`carried_file(row)`（form を値と一緒に運ぶ行 `{ref, form}` の ref を行の form で照らしてパスを返す。種類の違うファイルを 1 つの欄で中継する値の読み）・`parsed(raw)`・`picked(raw, names, optional=())`（返す値まるごとだけを読み、pointer を開かない。names の欄が作り手の出力に無ければ `KeyError`。無くてよい欄は optional）・`form_of(description)`（form の語の住処）・`open_shapes(shape, …)`（中身を宣言しない所）・`is_pointer_shape(shape)`（pointer の欄の判別）・`shape_errors(value, schema)`・`unknown_keywords(shape)`・`place()`・`pointer(path, form)`（form は必須。中身を照らしてから指す）・`returns(obj)`・`run(compute, fallback)`・`lib_root()`・`inside(rel, root)`（置き場 root からの相対パスの照らし。`..` と先頭・末尾の `/` を拒む）・`shared_cache()`（run をまたぐ控えの根。`STATE_DIR` の下の `works-factory/`、渡されなければ None）。import すると `lib/` が読めるようになる。
 - `ports.py` の、対象のコマンドを起こす block の口: `RUNTIME_COPY`・`RUNTIME_COPY_PREFIX`・`RUNNER_PREFIXES`・`RUNNER_NAMES`・`drop_runner_env(user_env)`・`suite_keep()`。
 - 埋め: `ports.polyfill(name)`（`fence`・`childsweep`・`skip_value`。`ports.py` の隣のファイルを読む）。`child_pointer` は chain が直に import する。役の書き込みの柵（`fence`）は起動の殻が役の claude を包むので、block が import する物ではない（読むだけの役は YAML の `sandbox.filesystem.denyWrite` に印を書く。根の `workflows/AGENTS.md` の E7）。
+- 道具に結びつく断片の印: `.shared/prompts/<name>.md` の頭の 1 行に `<!-- required-for-tools: <道具> <道具> -->` を置くと、どれかの道具を `allowed_tools` に持つ AI の node の指示がその断片を（段落に頼らずに）入れていることを、形の検査 7.1 の 14（`tests/layers/test_block_shape.py`）が照らす。`prompt.py` が差し込む時に印の行を落とす。別の対応表は置かない。道具に結びつかない断片（`works-gh` は gh を使う役、`lib-docs` は機械が控えを取った役、`writer-rules` は書き手の役だけが入れる）には印を付けない。
 - `prompt.py`: `render(node_id, values, when)`・`render_part(name, values, when)`（AI の node でない物の指示を `prompts/parts/<name>.md` から組む。束ね役が起こす下請けが Read する指示のファイルなど）・`emit(node_id, values, when, n)`・`round_of(node_id)`・`lang(raw)`・`PromptError`。
 - `requestrows.py`: `parts(raw)`・`findings(raw)`。依頼の行の port を読む口。
 
@@ -29,7 +30,7 @@ block の script と `src/` が Archon と出入りする口と、2 つ以上の
 
 - `prompts/<name>.md`: 2 つ以上の block が使う指示の断片。md から `{shared:<name>}` で入れる。今在る名:
   - `rejected`: 前の回の却下（中の口 `{rejection}`）。
-  - `query-rule`: 外への検索と出典の決まりの全部（名を出さない・どの出典を先に読むか）。役が web を引く時の決まりはここに足す。段落 `spawns` の真偽が要る（下請けを起こさない役は `spawns: false`）。役の定義と node の md は検索の決まりを書き直さず `{shared:query-rule}` で受け、断片を変えた時に取り込む md は直さない。断片の文だけを直す依頼は `prompts/query-rule.md` 1 本で閉じる。この一覧の行は断片の名や段落（`spawns`）が変わる時だけ直す。`tests/blocks/` に断片の字を照らす試験は無い。
+  - `query-rule`: 外への検索と出典の決まりの全部（名を出さない・どの出典を先に読むか）。役が web を引く時の決まりはここに足す。段落 `spawns` の真偽が要る（下請けを起こさない役は `spawns: false`）。役の定義と node の md は検索の決まりを書き直さず `{shared:query-rule}` で受け、断片を変えた時に取り込む md は直さない。断片の文だけを直す依頼は `prompts/query-rule.md` 1 本で閉じる。この一覧の行は断片の名や段落（`spawns`）が変わる時だけ直す。頭の 1 行の印 `<!-- required-for-tools: WebSearch WebFetch -->` が、どちらかの道具を `allowed_tools` に持つ AI の node の指示に取り込まれているかを形の検査 7.1 の 14 が照らす（取り込み忘れは赤。出し直し用の `*-fix` の node も別の node なので取り込む）。`spawns` の値は YAML の node が `Agent` を持つ時だけ真（形の検査では照らさない）。断片の字を照らす試験は無い。
   - `lang-default`: `lang` が空の時の言語の文（`prompt.lang` が読む）。
   - `design-premises`: 人が決めた前提（承認ノードの答え・依頼が名指した設計書の部分・対象の地図。中の口 `{answers}`・`{named}`・`{map}`。段落 `answers`・`named` の真偽が要る）。独立設計と r2 の比べの役が共に差し込む。
   - `policy`: 人の方針（中の口 `{policy_body}`）。方針を受ける役の全部が、段落の中で差し込む。
@@ -42,13 +43,14 @@ block の script と `src/` が Archon と出入りする口と、2 つ以上の
   - 役の定義 5 本: `role-judge`・`role-blind-judge`・`role-cold-reader`・`role-inspector`・`role-investigator`。
   - `works-gh`: 読むだけの gh の口の使い方。
   - `lib-docs`: ライブラリの文書の欄の頭の文（控えを Read で読み、無い物は WebSearch・WebFetch で引く）。plan・plan-review・fix が使う。
-  - `brief-reading`: brief ファイルの読み方の 3 句（背景は参照で食い違えば brief が勝つ・書き換えてよい範囲が「引けない」なら書き換えは許されない・範囲を決めていない項目は範囲で縛らない）。fix の `brief.md`・`g1-impl.md`・`g1-review.md` と plan の `plan-writer.md`（直し直す回）が差し込む。
-  - `writer-rules`: 作業ツリーを直す書き手の役の決まり（直し方・テストで赤→緑を示せない直しの証拠・食い違いの申し出・守ること）。段落 `conflict`（食い違いの申し出）・`evidence`（証拠の頭。4 つの種類のどれかが真の時）・`docs`・`prompts_kind`・`config`・`code`（証拠の 4 つの種類）・`where_fixer`・`where_tdd`・`where_rework`（証拠を書く場所。使う役の 1 つだけを真にする）の真偽が要る。
+  - `brief-reading`: brief ファイルの読み方の 2 句（背景は参照で食い違えば brief が勝つ・書き換えてよい範囲が「引けない」なら書き換えは許されない）。fix の `brief.md`・`g1-impl.md`・`g1-review.md` と plan の `plan-writer.md`（直し直す回）が差し込む。
+  - `writer-rules`: 作業ツリーを直す書き手の役の決まり（直し方・テストで赤→緑を示せない直しの証拠・食い違いの申し出・守ること）。段落 `conflict`（食い違いの申し出）・`conflict_change`（その中の種類 `not_red`。変える段の書き手〔TDD の役・型 tdd・variant・remove の書き手〕だけ真）・`evidence`（証拠の頭。4 つの種類のどれかが真の時）・`docs`・`prompts_kind`・`config`・`code`（証拠の 4 つの種類）・`where_writer`・`where_tdd`・`where_rework`（証拠を書く場所。使う役の 1 つだけを真にする）の真偽が要る。
   - 素材の観点の族（docs/design/materials.md の 3.2）: `material-status`・`material-na`（段落 `na_never`・`na_cond_true`・`na_cond_false`・`na_judged`、中の口 `{na_why}`）・`material-where`・`material-readonly`。
   - 目の外の block も使う物（docs/design/r1.md の 0.6）: `axis`（判断の 1 軸の 1 文）・`concept-map`（考えの住処の地図。段落 `maps_found` の真偽が要る。中は次の 2 本を選ぶだけ）・`concept-map-found`（中の口 `{concept_maps}`）・`concept-map-none`（中の口 `{map_tail}`）。値は `lib/eyekit.py` の `maps` が組む。`concept-map-found`・`concept-map-none` は段落の印を持たないので、段落の中に地図を置く md（r4 のまとめた形）はこの 2 本を自分の段落で選ぶ。
   - 独立の目の族（docs/design/r1.md の 0.6。r1〜r4 だけが使う。どれも段落の印を持たないので、段落の中に置ける）: `eye-role`（役の 2 行目と 3 行目）・`eye-diff`（累積差分の 1 段落。中の口 `{diff_file}`・`{base}`・`{changed_files}`・`{repo}`。値は `eyekit.diff_values`）・`eye-frozen`（読むのはこの run に固定した作業ツリー）・`eye-green`（最後のテストの認証が通っていない 1 文。md は `<!-- if not green -->` の中に置く）・`eye-seen`（seen と unseen・status の 3 語。中の口 `{st_pass}`・`{st_redesign}`・`{st_unverifiable}`）・`eye-coherence`（R3 の観点の全部。`axis`・`eye-seen` を中に持ち、中の口 `{home_prefix}`・`{after_section}`・`{review_md}`・`{repo_review_md}`。地図は持たない）・`eye-policy`（`policy` とこの役の書く先 reason。md は `<!-- if policy -->` の中に置く）・`eye-recorded-policy`（目の 1 文と `recorded-policy`。段落の外に置く）。
 - 取り置いた断片の名（まだ置かない。最初に要った PR が、この名で足す）: 今は無い。
 - `schemas/<name>.schema.json`: 2 つ以上の block が使う port の形。今在る物: `request.schema.json`（依頼の行）・`constraints.schema.json`（前提の実測の行）・`purpose.schema.json`（固めた目的）・`units.schema.json`（判定が切った根本の単位の目録）・`plan-verdict.schema.json`（事前審査の最後の往復の結論）・`gate-answers.schema.json`（承認ノードの人の答え `{start, before_fix}`）・`pushes.schema.json`（無人の run が採った推しの文）・`fix-marks.schema.json`（修正の印）・`judgment.schema.json`（受け付けた判定。欄 `units`・`questions`）・`prior-failures.schema.json`（前の run で通らなかった物の行 `[{where, text}]`）。
+  - 形は中身を宣言する: object は `properties` か `patternProperties`、array は `items`、`type` に 6 つの型を全部並べない（`ports.open_shapes` が拒む）。中身の住処がほかの形に在る所は `description` の `json(<名>)` で名指す。include した block の出力は `json(returns:<workflow の名>)` で、include する workflow の node の `output_format` だけが名指す（`docs/design/README.md` の 4.1）。
   - 形は `lib/graphloops/engine/schema.py` の `KNOWN_KEYWORDS` の語だけで書く（`type`・`enum`・`const`・`required`・`properties`・`patternProperties`・`additionalProperties`・`items`・`minItems`・`maxItems`・`minimum`・`maximum`・`minLength`・`maxLength`・`pattern`・`note`・`description`）。`anyOf`・`oneOf`・`format`・`$ref` などは照らしが効かないので、`ports.json` も形の検査も拒む。
   - `required` は値が object の時だけ効く（`request.schema.json` は行の配列 `[]` を通す。空の依頼の扱いは block が決める）。
   - 1 つの block の不具合は、その block の `src/` と `tests/blocks/<block>/` で閉じ、共通の形は直さない。

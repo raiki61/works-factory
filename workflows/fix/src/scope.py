@@ -73,7 +73,7 @@ import leftovers  # noqa: E402
 import planmarks  # noqa: E402
 import planrange  # noqa: E402   範囲の読みと単位に結べないパスの照らし（手直しの受け付けと同じ決まりの 1 か所。.shared/core）
 from planrange import LIFTED, NO_PLAN, NO_SCOPE, with_agreed  # noqa: E402,F401   このモジュールの口の名（試験と受け付けが読む）
-from src import tdd as tddloop  # noqa: E402   試験のモジュールの名の型（PYTEST_FILE）の正本
+from src import common  # noqa: E402   試験のモジュールの名の型（PYTEST_FILE）の正本
 
 REJECT = "承認済みの修正案の項目から外れた（同じ brief のまま直して出し直せ。範囲の外が要るなら変えずに食い違いの申し出で返せ）: "
 # 範囲の相談がその段に在る時の頭（reject_head）。範囲の外と out_of_scope の物が要る時の先の道は相談で、申し出は聞けない・許されない時
@@ -125,9 +125,9 @@ def _test_ids(path: str, src: str | None) -> list[str] | None:
 
 
 def new_test_ids(path: str, base: str | None, now: str | None) -> list[str]:
-    """path が試験のモジュール（試験の実行器の既定の試験のファイルの名の型 tddloop.PYTEST_FILE に当たる .py）の時だけ、now に在って base に無いテストの id
+    """path が試験のモジュール（試験の実行器の既定の試験のファイルの名の型 common.PYTEST_FILE に当たる .py）の時だけ、now に在って base に無いテストの id
     （<path>::<クラス>::<名>・<path>::<名>）。now の構文が壊れていれば []（base が壊れていれば全部を新しい物に数える）"""
-    if not tddloop.PYTEST_FILE.match(posixpath.basename(path)):
+    if not common.PYTEST_FILE.match(posixpath.basename(path)):
         return []
     got = _test_ids(path, now)
     if not got:

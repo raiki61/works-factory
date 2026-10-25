@@ -6,15 +6,14 @@ undecided_because の規律（本流 p2.diagnose.md 8 項）を関所の項目�
 通した行は出どころつきで state.works.gate_passes に残り、報告の冒頭にいつも並び、最後の関所が開いた時はその文にも並ぶ
 （通した行は最後の関所を開く理由に入れない）。欄の無い行は今までどおり聞く。
 
-欄は役の型（block の output_format）にだけ在り、受け付けが盤面へ渡す前に外して盤面の gate-marks.json（MARKS_FILE）に置く（道は STEPS。
-外す口は jsonfile.split）。関所の項目の組み立てと無人の方針の読み（前の plan_gate_items・design_item・stuck_push・row_push）は line の
-src/ へ移った（README 9.2・integration.md 4.5-4）。役の指示書の頭に足す決め手の頼みの文（前の HEAD）と、直す前の承認ノードで通した
+欄は役の型（block の output_format）にだけ在り、受け付けが盤面へ渡す前に外す（道は STEPS。外す口は jsonfile.split）。関所の項目の
+組み立てと無人の方針の読み（前の plan_gate_items・design_item・stuck_push・row_push）は line の src/ へ移った（README 9.2・integration.md 4.5-4）。役の指示書の頭に足す決め手の頼みの文（前の HEAD）と、直す前の承認ノードで通した
 狭まりの節（前の carried_section）は plan・plan-review の md（integration.md 4.3-追加-1）。
 
 狭めない案（持ち主 2026-10-01。人が関所で毎回「BASE の動きを残し、黙らずに名指す」形を書き足していたため）: 修正案の役は
 narrows を書く前に狭めを避ける形を当たり、無い時だけ narrows に書いて各行に探した結果（NO_NARROW）を書く。欄は決め手の欄と
 同じ道で役の型にだけ足して盤面へ渡す前に外し、関所の項目の尾に添えるが、関所を通す条件（decided）には使わない。
-- split(node, reply)・save(board, node, round, marks): 受け付け
+- split(node, reply): 受け付け
 - narrow_gaps(node, reply): 修正案の narrows の行で狭めない案の欄を欠く・短い行（planblk.take が拒む）
 - passes(b)・lines(b): 通した行と、最後の関所の文・報告の行
 
@@ -117,7 +116,6 @@ import seal      # 目の状態の語の持ち主
 import structmark  # 構造の目の行（汚れる・人に上げる）
 import worldmark   # 世界の解の行と、関所の軸「世界の解か」（world_ok）
 
-MARKS_FILE = "gate-marks.json"   # 盤面の根の控え {行の札: {round, marks}}
 ANSWER_TIES_FILE = "answer-ties.json"   # 判定の結びの控え {rounds: {周: [行…]}}
 # 返答の中の決め手の欄を持つ行の道（鍵は行の札。修正案の narrows の行と事前審査の faces の行。graph の node の id ではない）
 STEPS = {"p2.fix_plan": ("plan", jsonfile.EACH, "narrows", jsonfile.EACH), "p2.plan_review": ("faces", jsonfile.EACH)}
@@ -414,46 +412,9 @@ def split(node: str, reply: dict) -> tuple:
     return jsonfile.split(reply, STEPS[node], (*FIELDS, NO_NARROW))
 
 
-def _any(rows) -> bool:
-    return any(_any(m) for m in rows) if isinstance(rows, list) else bool(rows)
-
-
-def save(board, node: str, rnd: int, rows) -> None:
-    """盤面の gate-marks.json の節の分を今の返答の分（split の決め手）で置き換える（周を控える）。決め手も狭めない案も 1 つも
-    無ければ節の分を消し、ファイルが無ければ作らない（どちらも書かない役の盤面は今までどおりの姿）"""
-    p = _path(board, MARKS_FILE)
-    doc = jsonfile.read_or(p)
-    doc = doc if isinstance(doc, dict) else {}
-    if _any(rows):
-        doc[node] = {"round": rnd, "marks": rows}
-    elif node in doc:
-        del doc[node]
-    else:
-        return
-    jsonfile.dump(p, doc)
-
-
 def _path(board, name: str) -> pathlib.Path:
     """盤面の根の控えのパス（board は盤面か、その置き場のパス）"""
     return pathlib.Path(getattr(board, "dir", board)) / name
-
-
-def _saved(b, node: str):
-    doc = jsonfile.read_or(_path(b, MARKS_FILE))
-    got = (doc.get(node) if isinstance(doc, dict) else None) or {}
-    return got.get("marks") if isinstance(got, dict) and got.get("round") == b.round else None
-
-
-def _mark(row: dict, saved, *idx) -> dict:
-    """行の決め手と狭めない案: 行が欄を持てばそれ、無ければ盤面の控え（idx の位置）"""
-    if any(k in row for k in (*FIELDS, NO_NARROW)):
-        return {k: row[k] for k in (*FIELDS, NO_NARROW) if k in row}
-    try:
-        for i in idx:
-            saved = saved[i]
-    except (TypeError, IndexError, KeyError):
-        return {}
-    return saved if isinstance(saved, dict) else {}
 
 
 def decided(mark: dict) -> bool:
@@ -512,30 +473,6 @@ def push_rec(text) -> dict | None:
 
 
 
-
-
-def _gate_rows(b) -> list:
-    """修正前の関所の決め手の濾しに掛ける行 [(kind, 文, 決め手, 節, 単位の key の並び)]（修正案の narrows と事前審査の人に回す種類の穴。
-    記録された方針の行を名指さない kind policy の穴（policy.unrecorded）と、機械が足した保留の block（converge.HELD_MARK）は行にしない。
-    narrows の単位はその項目の unit_keys、穴の単位は
-    穴の unit_keys）"""
-    rows = []
-    plan = b.output_of_round("p2.fix_plan", b.round) or {}
-    saved = _saved(b, "p2.fix_plan")
-    for i, p in enumerate(plan.get("plan") or []):
-        keys = [k for k in p.get("unit_keys") or [] if isinstance(k, str)]
-        rows += [("regression", f"修正案 {i + 1} が狭める能力: {n['what']}——{n['why']}", _mark(n, saved, i, j), "p2.fix_plan", keys)
-                 for j, n in enumerate(p.get("narrows") or [])]
-    saved = _saved(b, "p2.plan_review")
-    recorded = (b.record.get("process") or {}).get(policy.RECORDED_KEY) or []
-    for j, f in enumerate((b.output_of_round("p2.plan_review", b.round) or {}).get("faces") or []):
-        m = _mark(f, saved, j)
-        if f.get(converge.HELD_MARK):
-            continue
-        if f["kind"] in b.rules.HUMAN_FACE_KINDS and not policy.unrecorded(f, m, recorded):
-            rows.append((f["kind"], f"事前審査の穴 [{f['kind']}] {f['key']}: {f['why']}", m, "p2.plan_review",
-                         [k for k in f.get("unit_keys") or [] if isinstance(k, str)]))
-    return rows
 
 
 def _item(text: str, mark: dict, why=()) -> str:

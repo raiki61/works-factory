@@ -4,17 +4,19 @@
 # ///
 """node group-start（組の形の頭）: 親の姿の木を自分の作業ツリーに写し（from_tree）、入力を自分の place に写し（out_dir の在る子は
 親の place の写しと values.json を board.adopt_inputs で、単独の run は board.prep で）、git が無視するファイルの控えと始めの木を取り、
-TDD の輪の状態を置く（src/tdd.start）。今の group_start と同じ順。
+元の結末を取って base.json に書く（src/basecase.take。輪の状態は振り分けの route-go か注文の orders が置く）。
 - 親の作業ツリーで 1 つずつ回る子（out_dir が在り from_tree が空）は、前の組の子が使える結果を残さずに落ちていれば、何も書かずに
   1 で止まる（#576）。自分の組の分は始めの木に戻してから始める（board.drop_unreturned）
-- 軽量の単位（port skip_rerun）は緑の後に test_cmd を走らせない（tdd.start の unit_depths に {key: "軽量"} で渡す）
+- 軽量の単位（port skip_rerun）は緑の後に test_cmd を走らせない（輪の状態を置く tdd.open_state の light。route-go・orders が渡す）
 - 走らせ方が決まらない対象（test_cmd が空で、対象の根に走らせる段の宣言が無い。related.applies）は、輪の頭の元の結末を関わる試験だけにする
-  （tdd.start の narrow。持ち主の決め related-tests-only）
-- 実行器が工場の書いた物（values の suite_made）なら、輪の頭の元の結末の回で起動スクリプトの壊れを確かめる（tdd.start の suite_made。
+  （basecase.take の narrow。持ち主の決め related-tests-only）
+- 実行器が工場の書いた物（values の suite_made）なら、元の結末の回で起動スクリプトの壊れを確かめる（basecase.take の suite_made。
   docs/design/fix.md の 19 節）。壊れていれば取り置きから捨て（suitewrite.drop_runner）、返りの suite_broken を真にして、後ろの
   suite-fix-prep・suite-fix・suite-fix-try が書き直させる。壊れていなければ、走らせて結末が取れた実行器を test_cmd の字で取り置く
   （suitewrite.keep_runner。直す前には走らせないので、取り置くのはここ）
-返り {tdd, units, reason, suite_broken}。入力が読めない・前の組が止まっている・git が効かない・輪の頭が壊れた: 標準エラーに 1 行で 1"""
+- 実行器が無い・走らない組で、計画の語が static でない単位が在れば、返りの no_suite を真にして組を止める（orders.no_suite_why。
+  下書き docs/plans/2026-10-24-fix-weapons.md の 3.9。route-go と orders が tdd-start.json の no_suite を読む。static だけの組は止めない）
+返り {tdd（元の結末が取れた）, units, reason, suite_broken, no_suite}。入力が読めない・前の組が止まっている・git が効かない・輪の頭が壊れた: 標準エラーに 1 行で 1"""
 import sys
 from pathlib import Path
 
@@ -69,10 +71,11 @@ def main() -> dict:
         reuse = suitefix.reuse_of(values)
         ports.drop_runner_env(values["user_env_dir"])   # 対象のテストに Archon の変数を継がせない（place・repo・reuse は先に取った）
         out = suitefix.begin(place, repo, values, keys, reuse)
-        suitefix.settle_kept(values, repo, out)
-    board.write_json(place / board.TDD_START_FILE, out)
-    return {"tdd": bool(out["go"]), "units": len(keys), "reason": str(out.get("reason") or ""),
-            "suite_broken": out.get("suite_broken") is True}
+        suitefix.settle_kept(place, values, repo, out)
+    # 実行器が無い・走らない組で、static でない単位が在れば no_suite（下書き 3.9 の止め方の 1。route-go と orders が読んで止める）
+    out = suitefix.settle_start(place, out)
+    return {"tdd": suitefix.taken(place), "units": len(keys), "reason": str(out.get("reason") or ""),
+            "suite_broken": out.get("suite_broken") is True, "no_suite": out.get("no_suite") is True}
 
 
 if __name__ == "__main__":

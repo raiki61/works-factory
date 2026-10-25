@@ -116,10 +116,8 @@ class ShapeCase(unittest.TestCase):
         self.assertTrue((BLOCK / "prompts" / f"{M.files.WRITE_NODE}.md").is_file())
         self.assertTrue((BLOCK / "prompts" / f"{M.files.COLD_NODE}.md").is_file())
 
-    def test_schemas_exist_for_the_json_ports(self):
-        for name in ("sections.schema.json", "facts.schema.json"):
-            self.assertTrue((BLOCK / "schemas" / name).is_file())
-        facts = json.loads((BLOCK / "schemas" / "facts.schema.json").read_text(encoding="utf-8"))
+    def test_facts_fields_match_the_defaults(self):
+        facts = json.loads((kit.SHARED / "schemas" / "facts.schema.json").read_text(encoding="utf-8"))
         self.assertEqual(set(facts["properties"]), set(M.facts_in.DEFAULTS), "欄と既定は同じ並び")
 
     def test_the_shared_fragments_the_block_adds_exist(self):

@@ -30,7 +30,7 @@ MEAN_BLOCK = V.face("mean-empty-list-block", V.UNIT_MEAN, where="stats.py mean �
                     why="空の列で分母が 0 になり ZeroDivisionError で落ちる筋道が案に無い")
 ANSWERS = [{"key": MEAN_BLOCK["key"], "handled": "fixed", "how": "空の列を先に弾く手順を案に足して確かめる形に直した"}]
 CONFLICT = {"id": "c-clamp", "unit_key": V.UNIT_CLAMP, "between": ["項目 2", "test_stats.py"],
-            "why_both_cannot_hold": "上限の枝の試験が lo を期待していて案と両立しない", "kind": "plan",
+            "why_both_cannot_hold": "上限の枝の試験が lo を期待していて案と両立しない", "kind": "brief_vs_judgment",
             "which_is_right": "test", "ruling": {"decision": "fix_plan_item", "text": "RULING-MARK-3131 試験の側を正とせよ"}}
 POLICY_MD = "# 方針\n- POLICY-MARK-8080 公開の口を減らさない\n"
 
@@ -142,7 +142,7 @@ class MaterialCase(_Case):
     def test_material_carries_plan_fields(self):
         """元 ReviewAcceptCase.test_material_carries_plan_fields: 項目ごとの works の欄を JSON で貼り、指示が見る点を頼む"""
         test = {"id": "test_stats.py::TestStats::test_mean_of_two", "behavior": "2 つの値の平均がその真ん中の値になる",
-                "path": "本物の経路: stats.mean を本物のまま呼ぶ", "red_kind": "assertion", "red_why": "分母が 1 少ない"}
+                "path": "本物の経路: stats.mean を本物のまま呼ぶ", "red_kind": "assertion", "red_why": "分母が 1 少ないので平均が大きく出る"}
         rows = [{**V.fields(V.UNIT_MEAN), "route": "tdd", "tests": [test]}, V.fields(V.UNIT_CLAMP)]
         prompt, mat = self.texts(fields=self.r.put("plan/r1/plan-fields-x.json", {"round": 1, "fields": rows}))
         for want in (material.MAT_HEADS["fields"], material.LABELS["fields_item"].format(n=1), '"route": "tdd"', test["id"],
@@ -181,7 +181,7 @@ class MaterialCase(_Case):
 
     def test_excluded_range_named(self):
         """元 ReviewAcceptCase.test_excluded_range_named: 並行 PR の外した範囲を写し、材料が写しのパスを、指示が読み方を名指す"""
-        prompt, mat = self.texts(excluded=self.r.put("judge/pr-excluded.json", {"excluded": ["docs/"]}))
+        prompt, mat = self.texts(excluded=self.r.put("judge/pr-excluded.json", {"excluded": [{"file": "docs/a.md", "start": 1, "end": 3}]}))
         self.assertIn(f"{material.MAT_HEADS['excluded']}\n\n{self.r.artifacts / files.EXCLUDED}", mat)
         self.assertIn("Ranges of parallel PRs", prompt)
         prompt, mat = self.texts()
@@ -320,11 +320,11 @@ class MaterialCase(_Case):
     def test_request_file_is_the_port_file(self):
         """元 test_boardview の Owners.test_request_file_is_the_same_file_for_review_and_gate: 依頼のファイルは port request の 1 つから
         読み（決め手の出どころの依頼の引用を照らす元）、置き場の外のファイルを名で探さない"""
-        req = self.r.put("start/request.json", "[REQUEST-MARK-1]", raw=True)
+        text = '[{"where": "stats.py", "text": "REQUEST-MARK-1"}]'   # 依頼のファイルの形（shared:request.schema.json）
+        req = self.r.put("start/request.json", text, raw=True)
         self.intake(request=req)
         got = self.r.read(files.INTAKE)
-        self.assertEqual((pathlib.Path(got["request_file"]), got["request"]),
-                         (self.r.artifacts / "start/request.json", "[REQUEST-MARK-1]"))
+        self.assertEqual((pathlib.Path(got["request_file"]), got["request"]), (self.r.artifacts / "start/request.json", text))
 
 
 # ---------------------------------------------------------------- 却下と出し直し
@@ -416,7 +416,7 @@ class DesignCase(_Case):
     def test_design_off_the_schema_is_missing(self):
         """元 test_blk_plan の DesignReadCase 2 本: place の design.json は役の型で確かめてから読む。型に合わない控えは設計が無い訳に
         回り、欄を引いて落ちない。型に合う控えは本文を貼る"""
-        schema = json.loads((kit.BLOCKS / V.BLOCK / "schemas" / "review-design.schema.json").read_text(encoding="utf-8"))
+        schema = json.loads((kit.SHARED / "schemas" / "design.schema.json").read_text(encoding="utf-8"))
         tmp = self.r.artifacts.parent / "board"
         tmp.mkdir()
         b = types.SimpleNamespace(dir=tmp, design_schema=schema)
@@ -625,7 +625,7 @@ class SplitCase(_Case):
     def test_material_has_no_instruction_text(self):
         """足す: 材料のファイルは指示の文を持たない（MAT_HEADS と札の外の、今の決まりの文の頭の字も、md の決まりの文も無い）。
         ライブラリの文書の節は lib の libdocs の字のまま（17 節の未確認）なので除いて見る"""
-        mats = [self.second(design=V.dump(V.DESIGN_OK), excluded=self.r.put("judge/pr-excluded.json", {"excluded": ["docs/"]}))[1],
+        mats = [self.second(design=V.dump(V.DESIGN_OK), excluded=self.r.put("judge/pr-excluded.json", {"excluded": [{"file": "docs/a.md", "start": 1, "end": 3}]}))[1],
                 self.texts(design=V.dump(V.DESIGN_OK))[1], self.replan()[1]]
         rules = [line.strip() for line in md_texts().splitlines() if len(line.strip()) > 60 and "{" not in line]
         for mat in mats:

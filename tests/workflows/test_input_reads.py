@@ -17,7 +17,7 @@ import unittest
 
 from tests.archon import ROOT, WORKFLOWS
 
-SCRIPTS = sorted({*WORKFLOWS.glob("*/scripts/*.py"), *WORKFLOWS.glob("*/scripts/*/*.py")})
+SCRIPTS = sorted({*WORKFLOWS.glob("*/scripts/*.py"), *WORKFLOWS.glob("*/scripts/*/*.py"), *WORKFLOWS.glob("*/src/*.py")})   # src の関数も入力の字を受ける
 INPUT_HEAD = "INPUTS_"
 FILE_READS = frozenset({"read_text", "read_bytes"})
 
@@ -133,9 +133,9 @@ class InputReadsCase(unittest.TestCase):
 
     def test_the_ports_read_empty_text_as_null(self):
         """宣言した null の欄が届く空の字を、飛ばされうる欄を受ける口は「無い」と読み、値の要る口は理由を名指して落ちる"""
-        self.assertEqual((ports.parsed(""), ports.picked("", ("ok",)), ports.file(""), ports.text("")), (None, None, None, ""))
+        self.assertEqual((ports.parsed(""), ports.picked("", ("ok",)), ports.file("", "file"), ports.text("")), (None, None, None, ""))
         with self.assertRaisesRegex(ValueError, "json の入力が空"):
-            ports.json("")
+            ports.json("", "shared:request.schema.json")
         with self.assertRaisesRegex(ValueError, "true か false"):
             ports.flag("")
 

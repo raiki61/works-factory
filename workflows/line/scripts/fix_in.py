@@ -82,7 +82,9 @@ def _items(plan_ptr) -> list:
     if not isinstance(plan_ptr, dict):
         return []
     try:
-        doc = json.loads(ports.file(json.dumps(plan_ptr)).read_text(encoding="utf-8"))
+        doc = json.loads(ports.file(json.dumps(plan_ptr), "json(shared:plan-fields.schema.json)").read_text(encoding="utf-8"))
+    except ports.ShapeError:
+        raise
     except (OSError, ValueError):
         return []
     items = doc.get("fields") if isinstance(doc, dict) else None
@@ -144,8 +146,8 @@ def fix_in(raw: dict, place: Path, repo: Path, run_id: str) -> dict:
     from src import fixture
     raw = spec_raw(raw)
     dealt = ports.parsed(raw["ports"]) or {}
-    record = ports.json(raw["record"]) if ports.parsed(raw.get("record")) is not None else None
-    carried = ports.file(raw["fixture"]) if ports.parsed(raw["fixture"]) is not None else None
+    record = ports.json(raw["record"], "start-record.schema.json") if ports.parsed(raw.get("record")) is not None else None
+    carried = ports.file(raw["fixture"], "json(received.schema.json)") if ports.parsed(raw["fixture"]) is not None else None
     start_go = ports.flag(raw["start_go"])
     live = received_live(raw)
     if carried is not None:

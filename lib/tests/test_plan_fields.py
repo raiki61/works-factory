@@ -70,6 +70,14 @@ class TestGaps(PlanFieldsCase):
         got = self.gaps(item(tests=[]))
         self.assertTrue(any(g.startswith("plan[0].tests") for g in got), got)
 
+    def test_gaps_static_tidy_pin_items_need_route_why(self):
+        """試験で示す物の無い直し・使われていない物の消し・試験の欠けを埋める直しの語も、語を選んだ訳を MIN_WHY 字以上で書く"""
+        for word in ("static", "tidy", "pin"):
+            got = self.gaps(item(route=word, tests=[], route_why="短い"))
+            self.assertTrue(any(g.startswith("plan[0].route_why") and word in g for g in got), (word, got))
+            self.assertEqual(self.gaps(item(route=word, tests=[], route_why="文書だけの直しで試験で示す物が無い")), [], word)
+        self.assertTrue(any(g.startswith("plan[0].route") for g in self.gaps(item(route="rebuild", tests=[], route_why="z" * 20))))
+
     def test_gaps_direct_item_needs_route_why(self):
         got = self.gaps(item(route="direct", tests=[], route_why="短い"))
         self.assertTrue(any(g.startswith("plan[0].route_why") for g in got), got)
@@ -887,12 +895,6 @@ class TestWidened(PlanFieldsCase):
         for name, over in cases.items():
             with self.subTest(name):
                 self.assertIsNone(planmarks.widened(old, {**old, **copy.deepcopy(over)}))
-
-    def test_old_without_scope_is_none(self):
-        """範囲の欄の無い承認済みの項目（217 番の形の控え。範囲の縛りが無い）に allowed_paths を書いた直しは狭める物で、広げる物でない"""
-        old = item()
-        del old["allowed_paths"]
-        self.assertIsNone(planmarks.widened(old, item(allowed_paths=["stats.py", "README.md"])))
 
     def test_order_and_rewrite_limit_do_not_count(self):
         """unit_keys・tests の並べ替え・rewrite_tests の範囲 limit（凍結の控えが足す）は違いに数えない（contract_diff と同じ読み）"""

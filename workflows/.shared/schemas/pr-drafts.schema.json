@@ -1,0 +1,6 @@
+{
+  "description": "並行 PR の申し送りの下書き（parallel-pr の pr-downgrades.json）。行は重なった PR・ファイル・引き継いだか・注",
+  "type": "array",
+  "items": {"type": "object", "properties": {
+    "pr": {"type": "string"}, "files": {"type": "array", "items": {"type": "string"}}, "handed_over": {"type": "boolean"}, "note": {"type": "string"}}}
+}

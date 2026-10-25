@@ -4,7 +4,7 @@ inputs:
   mode: {default: write, description: 'choice(write|check): write は仕様を書いて審査し、承認ノードの後に固める。check は固めた仕様の受け入れ条件のテストが承認の版から変わったかを照らす'}
   request: {default: '[]', description: 'json(shared:request.schema.json): 依頼の行の配列 [{where, text, mechanism?, measured?, false_positive_if?}]。それを findings の欄に持つオブジェクトでもよい。check では読まない'}
   pr_text: {default: '', description: 'text: 依頼が名指す PR の題と本文（write の役に見せる）。空は PR が無い'}
-  spec: {default: '', description: 'file: check で照らす固めた仕様（write の出力 spec の pointer）。write では読まない。check で空なら、照らす仕様が無いという問いを返す'}
+  spec: {default: '', description: 'json(shared:spec.schema.json): check で照らす固めた仕様（write の出力 spec の pointer）。write では読まない。check で空なら、照らす仕様が無いという問いを返す'}
   user_env_dir: {default: '', description: 'text: 受け入れ条件のコマンドを利用者の HOME・XDG に戻して走らせた印を置くフォルダの絶対パス。空なら place に置く'}
   lang: {default: '', description: 'text: 人に見せる欄（requirements の text・out_of_scope・faces の why・handled の how）の言語。空は依頼の行の言語'}
 returns: finish
@@ -346,15 +346,21 @@ nodes:
           enum: [approved, stopped, failed, checked, unchecked]
         stop_reason: {type: string}
         reason: {type: string}
-        spec: &pointer
-          type: [object, 'null']
-          properties:
-            type:
-              type: string
-              enum: [archon_artifact]
-            run_id: {type: string}
-            path: {type: string}
-        added_rows: *pointer
+        spec:
+          <<: &pointer
+            type: [object, 'null']
+            additionalProperties: false
+            required: [type, run_id, path]
+            properties:
+              type:
+                type: string
+                enum: [archon_artifact]
+              run_id: {type: string}
+              path: {type: string}
+          description: 'json(shared:spec.schema.json): 固めた仕様（spec.json）。固めていなければ null'
+        added_rows:
+          <<: *pointer
+          description: 'json(shared:request.schema.json): 受け入れ条件を依頼の行にした配列（added-rows.json）。固めていなければ null'
         added_origin: {type: string}
         questions:
           type: array

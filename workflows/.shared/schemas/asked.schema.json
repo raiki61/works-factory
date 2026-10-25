@@ -1,0 +1,5 @@
+{
+  "description": "修正前の承認ノードで聞いた項目の配列（狭める能力と事前審査の穴の行）",
+  "type": "array",
+  "items": {"type": "object", "properties": {"kind": {"type": "string"}, "text": {"type": "string"}}}
+}

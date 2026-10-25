@@ -139,9 +139,11 @@ nodes:
         reason: {type: string}
         material:
           type: [object, "null"]
+          description: 'json(shared:material.schema.json): 観点の素材の状態のファイル（material.json）。書けなければ null'
+          additionalProperties: false
           required: [type, run_id, path]
           properties:
-            type: {const: archon_artifact}
+            type: {type: string, enum: [archon_artifact]}
             run_id: {type: string}
             path: {type: string}
         report: {type: array, items: {type: string}}

@@ -14,6 +14,8 @@ md の書き方:
 - 差し込み口 {name}（小文字・数字・_）。字の { と } は {{ と }} で書く。形の合わない {"a": 1}・{id, url} は字のまま残る
 - {shared:<name>} は pack の .shared/prompts/<name>.md、{part:<name>} は同じ block の prompts/parts/<name>.md を差し込む
   （断片の中の断片も差し込む。.shared の断片は {part:…} を持たない）
+- .shared の断片は、頭の 1 行に <!-- required-for-tools: <道具> <道具> --> を置ける（どれかの道具を allowed_tools に持つ AI の node の指示は
+  この断片を入れる、という形の検査 7.1 の 14 の印）。差し込む時に落とすので、指示には出ない
 - 差し込むかを選ぶ段落は、それぞれ 1 行の <!-- if <name> --> か <!-- if not <name> --> と <!-- end <name> --> で囲む。入れ子にしない
 - 入れた値の中の字（{…}・$…）は読み直さない。Archon も prompt: の $<id>.output.prompt に入れた字を読み直さない（止めた版の
   executor-shared.ts の substituteWorkflowVariables が 1 回の走査で、入れた値を字のまま置く）
@@ -30,6 +32,7 @@ import ports
 SLOT = re.compile(r"\{([a-z0-9_]+)\}")
 FRAGMENT = re.compile(r"\{(shared|part):([a-z0-9][a-z0-9_-]*)\}")
 MARK = re.compile(r"^<!-- (if|if not|end) ([a-z0-9_]+) -->$")
+REQUIRED_FOR_TOOLS = re.compile(r"\A<!-- required-for-tools: [A-Za-z]+(?: [A-Za-z]+)* -->\n")   # 共通の断片の頭の印（形の検査が読む。指示には出さない）
 NODE_ID = re.compile(r"[a-z0-9][a-z0-9-]*")
 OPEN, CLOSE = "\x00", "\x01"
 LANG_DEFAULT = "lang-default"   # 共通の断片の名（lib/rolekit.py の LANG_DEFAULT と同じ意味の英語の文）
@@ -60,7 +63,8 @@ def _expand(text: str, block: Path, stack: tuple, in_shared: bool) -> str:
         if key in stack:
             raise PromptError(f"断片が自分を差し込む: {' → '.join(stack + (key,))}")
         path = (ports.SHARED / "prompts" if kind == "shared" else block / "prompts" / "parts") / f"{name}.md"
-        return _expand(_read(path, "断片"), block, stack + (key,), in_shared or kind == "shared")
+        body = REQUIRED_FOR_TOOLS.sub("", _read(path, "断片") + "\n", count=1).rstrip("\n") if kind == "shared" else _read(path, "断片")
+        return _expand(body, block, stack + (key,), in_shared or kind == "shared")
     return FRAGMENT.sub(one, text)
 
 

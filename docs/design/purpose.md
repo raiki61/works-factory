@@ -284,7 +284,7 @@ Each row of `constraints` has … (`実測` or `仮説`) …
 
 1. `intake.json` を読む。`failed` が真なら `status: failed`、`reason` はその訳。
 2. ほかは `purpose.json` を読む。受け付けは `purpose-means.json` を先に、`purpose.json` を最後に書くので、`purpose.json` が済んだ印になる。在れば `status: ok`（`frozen` が真なら `reason` は「目的は既に固めてある（purpose.json）」、ほかは空の字）。`means` は `purpose-means.json` の `means`。その控えが無い・読めない・字の配列でなければ、空の並びにせず `status: failed`（「目的の解き方の控え purpose-means.json が無いか読めない（目的の控えが書きかけ）」）。`purpose.json` が無ければ `status: failed`、`reason` は `rolekit.given_up_reason(place, "purpose")`、それが空なら最後の拒否の文、それも無ければ「目的の文を受け付けた控えが無い（役が走らなかったか落ちた）」（今の `lib/judge_accept.py:3920` の訳と同じ向き）。
-3. 返り: `{ok, status, reason, purpose: ports.pointer(place / "purpose.json") か None, purpose_text, source, means, report}`。`report` は 1.2 のとおり。
+3. 返り: `{ok, status, reason, purpose: ports.pointer(place / "purpose.json", "json(shared:purpose.schema.json)") か None, purpose_text, source, means, report}`。`report` は 1.2 のとおり。
 4. どこで例外が出ても落ちず、`{ok: false, status: failed, reason: "<型>: <訳>", purpose: null, purpose_text: "", source: "", means: [], report: ["目的の文: <訳>"]}` を返す。
 
 `finish` の `output_format`:

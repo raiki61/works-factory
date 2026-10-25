@@ -5,6 +5,9 @@
   ARCHON_NODE_EXECUTION の path を渡す（place が include の道に分かれる）。other(block) は同じ run でほかの block を回す
 - load(block, module): block の src/<module> を、この過程に読み込む（block ごとに src の名が重なるので、読む前に前の src を外す）。
   env(run) は script と同じ環境を、この過程の os.environ に一時に置く（src の関数が ports.place・ports.pointer を呼ぶ時）
+- shaped(schema, value, block=None): 手で組んだ受け渡しの値 value を、port の形の名 schema（block の schemas/ の名・shared:<名>・
+  lib:<名>）で照らしてから返す。合わなければ AssertionError（試験の作り物が本物の書き手の形から外れたまま読み手へ渡らない）
+- returned(block, value): ほかの block の返りを手で書いた物 value を、その block の返す節の output_format で照らしてから返す
 - fixture(block, name): block の fixtures/<name>.stubs.yaml
 - tests_of(block): block の試験のフォルダ tests/blocks/<名の - を _ にした物>/（Python の package の名は - を持てない。
   tests/layers/test_block_shape.py の 10 が在ることを照らす）
@@ -99,6 +102,36 @@ def load(block: str, module: str):
         return importlib.import_module(f"src.{module}")
     finally:
         sys.path.remove(str(BLOCKS / block))
+
+
+def _gate():
+    if str(SHARED) not in sys.path:
+        sys.path.append(str(SHARED))
+    return importlib.import_module("ports")
+
+
+def shaped(schema: str, value, block: str | None = None):
+    gate = _gate()
+    errors = gate.shape_errors(value, schema, BLOCKS / block if block else None)
+    if errors:
+        raise AssertionError(f"試験の作り物が {schema} の形に合わない: {' / '.join(errors[:5])}")
+    return value
+
+
+def returned(block: str, value: dict) -> dict:
+    from engine.schema import validate_schema
+    gate = _gate()
+    [path] = (BLOCKS / block).glob("works-factory-*.yaml")
+    doc = yaml.safe_load(path.read_text(encoding="utf-8"))
+    nodes, stack = {}, list(doc.get("nodes") or [])
+    while stack:
+        node = stack.pop()
+        nodes[node.get("id")] = node
+        stack += (node.get("loop_group") or {}).get("nodes") or []
+    errors = validate_schema(value, gate._expanded(nodes[doc["returns"]]["output_format"], BLOCKS / block))
+    if errors:
+        raise AssertionError(f"試験の作り物が {block} の返りの形に合わない: {' / '.join(errors[:5])}")
+    return value
 
 
 def fixture(block: str, name: str) -> dict:

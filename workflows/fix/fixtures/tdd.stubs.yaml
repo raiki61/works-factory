@@ -1,20 +1,21 @@
-# 組の形で TDD の実行器（fixtures/tdd-runner.py。pack の写しの置き場から）を渡す: group-start が一式を 1 回走らせて輪を置き、1 周目は
-# 新しい単位の役 tdd-new が振り分けの段の指示で起き、tdd-step が振り分けを受けて、修正の輪へ進む
+# 組の形で TDD の実行器（fixtures/tdd-runner.py。pack の写しの置き場から）を渡す: group-start が一式を 1 回走らせて元の結末を取り、
+# route-go が輪の状態を段 route で置き、振り分けの役 route が振り分けの段の指示で起き、route-step が振り分けを受け、注文 orders が
+# tdd の単位の無い組として修正の輪へ進める
 fixture:
   expect: completed
-  reached: [intake, group-start, tdd-go, tdd-prep, tdd-new, tdd-step, fix-prep, finish]
+  reached: [intake, group-start, route-go, route-prep, route, route-step, orders, writer-pick, fix-prep, finish]
   inputs:
     mode: group
     group: '{"group_id":"g1","unit_ids":["stats.py:4 mean"],"items":[]}'
     judgment: '{"units":[{"key":"stats.py:4 mean","label":"block","reason":"空の並びで 0 除算する"}],"questions":[]}'
     tdd_suite: .archon/workflows/works-factory/fix/fixtures/tdd-runner.py
   resolved-text-contains:
-    tdd-new: '## What this role does'
+    route: '## What this role does'
 exec-code: true
-tdd-new:
+route:
   phase: route
   units: [{unit_key: "stats.py:4 mean", route: direct, why: 先にテストを書けない単位として直す}]
-fixer:
+variant:
   changes: []
   not_done: []
   fix_closure: {status: not_applicable}
