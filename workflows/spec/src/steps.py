@@ -89,7 +89,7 @@ def fix_prompt(place, role: str) -> dict:
     rejected = rolekit.rejected(place, name)
     nid = files.node_id(role, fix=True)
     values = {"rejection": rejected[-1] if rejected else "", "candidate": str(rolekit.candidate_path(place, name))}
-    return prompt.emit(nid, values, {}, prompt.round_of(nid))
+    return prompt.emit(nid, values, {"spawns": False}, prompt.round_of(nid))
 
 
 # ---------------------------------------------------------------- 受け付け

@@ -56,6 +56,8 @@ Range of parallel pull requests. Do not touch it, and do not put it in a unit: {
 
 {shared:concept-map}
 
+{shared:query-rule}
+
 {shared:handoff}
 
 <!-- if units -->
