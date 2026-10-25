@@ -264,7 +264,7 @@ DELETE（どの block にも写さない）: `PREP_INPUTS`・`MODES`・`LANE_SWI
 | `ask_ripple` | `ask` で波及の一覧が在る |
 | `libdocs` | `rules` でライブラリの文書の節が空でない |
 | `g1` | `rules` で下請けを起こす単位が在る（1 回目は TDD の loop が緑にした単位を除いて残る物、fix-ruled はいつも） |
-| `seat_one` | `rules` で `g1` が偽 |
+| `seat_one` | （PR B で消した。付録 A の F108・F148b。下請けを起こさない周に借りた implementer の型を直に載せる段落） |
 | `resume` | 相談の答えを渡す続きの周（今の `fix-consult-resume`） |
 | `queued` | 受け付けがはみ出しを相談に積んだ続きの周（今の `fix-overflow-queued`） |
 | `overflow_answer` | はみ出しの答えを渡す続きの周（今の `fix-overflow-resume`。答えの行の origin が accept） |
@@ -285,7 +285,7 @@ DELETE（どの block にも写さない）: `PREP_INPUTS`・`MODES`・`LANE_SWI
 12. `<!-- if ask -->` `## Scope consultation and the pre-check`（今の `fix-ask`。`{budget}` ← `consult.BUDGET`・`{draft}`・`{check_cmd}`）。`<!-- if ask_ripple -->` 波及の一覧の 1 行と `{ripple_file}`。
 13. `<!-- if libdocs -->` `## Library documents (installed version and official)` と頭の 1 文と `{libdocs_rows}`（← `libdocs.section` の本文から見出しと頭の 1 文を除いた行。数・取れた物・ライブラリごとのパス。取る・控える仕事を含む `section` は plan の枝も使うので lib に残り、この block は見出し〔`libdocs.TITLE`〕と頭の文〔`libdocs.HEAD`〕を剥がして行だけを入れる）。
 14. `<!-- if g1 -->` `## Running subagents`（今の `seat.G1_HEAD`・`G1_STEPS` の 6 手順・`G1_LOOP_NOTE`・`DIVERGENCE_HINT` の 6 つの場面・`G1_OVERRIDES` を英語の決まった文に）と `{g1_items}`（← 項目ごとの 1 行「項目 n: 実装役 <ファイル>・審査役 <ファイル>・差分のコマンド <字>」）と `## Reading borrowed skills` の頭の 1 文と `{unattended}`（← `seat.overlay_body(seat.OVERLAY_KINDS["fix"])`。日本語のまま。local-review の設計書と同じ）。
-15. `<!-- if seat_one -->` `## The borrowed seat`（今の `seat.HEAD`・`WINS`・`PROMPT_HEAD` を英語に）と `{seat_body}`（← `seat.fill` で埋めた superpowers の implementer の型。借りた写しの字のまま）と `{unattended}`。
+15. （PR B で消した。付録 A の F108・F148b・G18）`<!-- if seat_one -->` `## The borrowed seat`（今の `seat.HEAD`・`WINS`・`PROMPT_HEAD` を英語に）と `{seat_body}`（← `seat.fill` で埋めた superpowers の implementer の型。借りた写しの字のまま）と `{unattended}`。
 16. `<!-- if rules -->` `## What to write for each fix (one changes row)` と `## What to write for the whole round` と、受け付けが見る物の結びの段落（今の `fix-reply`）。
 17. `<!-- if resume -->` `# The answer to your scope consultation (continued)` と `{answer_file}`・`{left}`。
 18. `<!-- if queued -->` `# Overflow the acceptance found (sent to consultation)`。

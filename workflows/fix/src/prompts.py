@@ -108,11 +108,11 @@ def writer_values(place, repo, pass_: str, weapon: str, values: dict, *, owed, i
     ledger = writers.ledger(place, pass_, weapon)
     slots = ("rejection rulings_file saved_reply brief_rows faces_rows scope_rows tests_rows tests_how policy_path request_file "
              "judgment_file open_units plan_file notes_file budget draft check_cmd ripple_file libdocs_rows g1_items "
-             "seat_file seat_body unattended overlay_file first_prompt answer_file left lang").split()
+             "unattended overlay_file first_prompt answer_file left lang").split()
     slots += ["summary_file"] if weapon == "tdd" else []   # 輪の要約を読むのは tdd の閉じの書き手だけ（付録 A の F26 の前半）
     vals = {k: "" for k in slots}
     when = {k: False for k in ("rejected rulings_first ruled_reply briefs faces scope tests tests_new tests_tail tests_broken frozen_files tests_how rules ask ask_ripple libdocs g1 "
-                               "seat_one resume queued overflow_answer conflict docs prompts_kind config code evidence where_fixer where_tdd where_rework "
+                               "resume queued overflow_answer conflict docs prompts_kind config code evidence where_fixer where_tdd where_rework "
                                "ask_variant rules_change rules_sites rules_red conflict_change").split()}
     when["conflict"] = True
     when["conflict_change"] = kind["conflict_change"]   # 申し出の種類 not_red は変える段の書き手だけ（付録 A の W24）
@@ -181,11 +181,6 @@ def writer_values(place, repo, pass_: str, weapon: str, values: dict, *, owed, i
         if subs:
             vals["g1_items"] = "\n".join(f"- {rules.g1_row(r)}" for r in g1_files(place, values, repo, subs, briefs, config))
             when["g1"] = True
-        else:
-            sec = spseam.load_seams()[seat.SEATS["fix"]]
-            vals["seat_file"] = sec["files"][0]
-            vals["seat_body"] = seat.fill(seat.SEATS["fix"], rules.implementer_values(place, values, repo, owed_keys, briefs)).rstrip("\n")
-            when["seat_one"] = True
         vals["unattended"] = seat.overlay_body(seat.OVERLAY_KINDS["fix"]).rstrip("\n")
         vals["overlay_file"] = OVERLAY_FILE
     except ValueError as e:

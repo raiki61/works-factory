@@ -64,20 +64,8 @@ The ripple list: {ripple_file} (the callers and tests of the names the approved 
 5. When all items are done, check the working tree's diff yourself (do not trust the subagents' reports; DELEGATE of the reading rules), and return only the JSON of the answer fields. Write the files a subagent reported writing with Bash in the answer's bash_writes with path and reason (writes with Edit and Write appear in the record).
 6. The machine's gates are applied after the answer: the acceptance test's red-to-green and the freezing of existing tests by the fix acceptance's bundle, the tests the change reaches by the acceptance, and test_cmd by later stages. For the subagents' "commit" and "ask a person", the works rules at the end of the subagent file apply.
 
-The units the TDD loop fixed (the "units the loop fixed" in the loop's summary file) are not in the items below. Do not start subagents for them; write one row in changes as the result of the TDD loop in "What to read" says.
-
 {g1_items}
 <!-- end g1 -->
-
-<!-- if seat_one -->
-## The borrowed seat
-
-The promises of these instructions' stage (the JSON to return, the machine's gates, the order of the stage) and the reading rules below win over the borrowed text.
-
-### The helper template (superpowers {seat_file}, wrapped in works sections)
-
-{seat_body}
-<!-- end seat_one -->
 
 <!-- if rules -->
 When the implementer template's status words NEEDS_CONTEXT or BLOCKED (the works word divergence) apply, do not count that unit as fixed; return it as one entry of the conflict declarations in conflicts. `kind` is the situation that occurred, one of the following (the rules of the fields are in the section "Conflict declarations (do not bend to get green)" of these instructions):
