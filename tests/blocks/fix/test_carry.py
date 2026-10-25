@@ -129,6 +129,21 @@ class CarryCase(StagesCase):
         doc = json.loads((self.art / got["carry"]["path"]).read_text(encoding="utf-8"))
         self.assertEqual(doc, {"conflicts": {"items": [FX_SCOPE]}, "loops": [], "accept": None, "bases": [], "returns": []})
 
+    def test_a_return_with_a_gone_frozen_file_is_carried(self):
+        """tdd の返しの控えの frozen は、凍らせたファイルが無くなった時に null を持つ（common.hashes）。申し送りの形はそれを通し、
+        finish は修正の段の出力を組める（輪の状態の frozen.json と同じ形）"""
+        self.intake(FIRST, mode="whole", judgment=_j(JUDGMENT), plan=_j(PLAN), fix_plan=_j(FIX_PLAN))
+        out = self.script(FIRST, "prep")
+        _write(self.first / "returns" / "1.json",
+               {"stage": 1, "weapon": "tdd", "group": "g1", "tree": "t", "units": [{"key": "A", "named": []}],
+                "frozen": {"test_stats.py": "h1", "test_gone.py": None}, "frozen_tree": "t", "suite_made": [], "added": [],
+                "rewritten": [], "removed": [], "files": [], "why_untested": ""})
+        self.joined(self.first, out["groups"])
+        got = self.script(FIRST, "finish")
+        self.assertTrue(got["ok"], got)
+        doc = json.loads((self.art / got["carry"]["path"]).read_text(encoding="utf-8"))
+        self.assertEqual(doc["returns"][0]["frozen"], {"test_stats.py": "h1", "test_gone.py": None})
+
     def test_group_form_carries_nothing(self):
         """組の形の finish は申し送りを返さない（2 回目の段に渡すのは全体の形の出力）"""
         self.intake(FIRST, mode="group", group=_j({"group_id": "g1", "unit_ids": ["A"], "items": []}), judgment=_j(JUDGMENT))

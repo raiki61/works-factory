@@ -56,10 +56,13 @@
     },
     "frozen": {
       "type": "object",
-      "description": "tdd の輪の機械が書く {パス: hash}。ほかの型は空",
+      "description": "tdd の輪の機械が書く {パス: hash}（凍らせたファイルが無くなれば null。common.hashes）。ほかの型は空",
       "patternProperties": {
         "": {
-          "type": "string"
+          "type": [
+            "string",
+            "null"
+          ]
         }
       }
     },
