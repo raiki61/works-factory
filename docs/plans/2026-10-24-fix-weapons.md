@@ -1,9 +1,12 @@
-# 直し方の型（Weapon）を切り分ける設計の下書き（受付 20261024-104757-e4058d・第 1 版 → 受付 20261024-190133-4eaab8・第 2 版 → 受付 20261024-192726-65ce8b・第 3 版 → 受付 20261024-192743-7ce001・第 4 版 → 受付 20261024-201057-064f84・受付 20261024-201940-d59578・第 5 版 → 受付 20261024-210440-df333e・第 6 版 → 受付 20261024-213356-734220・受付 20261024-221204-c21cf7・第 7 版 → 受付 20261024-222546-4d038e・第 8 版 → 受付 20261024-224744-8687a7・受付 20261024-231019-b3a840・受付 20261024-231316-72dfb7・受付 20261024-232412-857288・受付 20261024-235401-aecc84・第 9 版 → 第 9 版の続き 5 → 受付 20261025-211623-0323e9・第 10 版 → 受付 20261025-220301-675c57・第 11 版 → 受付 20261025-220351-7ef4b9・第 11 版の続き → 受付 20261025-220553-1dba8f・第 12 版 → 受付 20261025-221742-37d15a・第 13 版）
+# 直し方の型（Weapon）を切り分ける設計の下書き（受付 20261024-104757-e4058d・第 1 版 → 受付 20261024-190133-4eaab8・第 2 版 → 受付 20261024-192726-65ce8b・第 3 版 → 受付 20261024-192743-7ce001・第 4 版 → 受付 20261024-201057-064f84・受付 20261024-201940-d59578・第 5 版 → 受付 20261024-210440-df333e・第 6 版 → 受付 20261024-213356-734220・受付 20261024-221204-c21cf7・第 7 版 → 受付 20261024-222546-4d038e・第 8 版 → 受付 20261024-224744-8687a7・受付 20261024-231019-b3a840・受付 20261024-231316-72dfb7・受付 20261024-232412-857288・受付 20261024-235401-aecc84・第 9 版 → 第 9 版の続き 5 → 受付 20261025-211623-0323e9・第 10 版 → 受付 20261025-220301-675c57・第 11 版 → 受付 20261025-220351-7ef4b9・第 11 版の続き → 受付 20261025-220553-1dba8f・第 12 版 → 受付 20261025-221742-37d15a・第 13 版 → 受付 20261025-223230-c8c352・第 14 版）
 
 ## 冒頭
 
 - 何の話か: 工場の修正の block（`workflows/fix/`）で、直し方の型（段 1 の前は TDD と direct〔修正役が試験を先に書かずに直す型〕の 2 本）が互いの中身に頼り合っている所を棚卸しし、型ごとに切り分ける形を描いた設計の下書き。段 1（4.1・4.4）は PR A #869・PR B #872 で main に入った。第 10 版で、段 2（型を block に上げる。4.2）の設計を 11 章に足し、第 11 版で、型の block どうしで同じ物を 1 か所に置く形を 11.10 に足した。第 12 版で、変更のレビューの指摘を直し、持ち主の答えを待つ所を 11.11 に控えた。この下書きはコードを変えていない。役の名（持ち主・窓口・部署）・受付の番号・訳・止めた Archon などの語は、この冒頭の次の節「語」に書いた。
-- この版（第 13 版。受付 20261025-221742-37d15a）の読み手に求めること: 段 1・PR A が段 2 へ回した 8 項目（返しの欄と照らし）の置き場を 11.12 と 11.6 の F1・F2・F3 に足した版。下の第 12 版の求めること（憲法の 3 の外しの答え・確かめ 5）は、そのまま続く。
+- この版（第 14 版。受付 20261025-223230-c8c352）: 下請けの実装役と審査役を付ける型（11.8）を、持ち主への問いの形から、窓口の決め（案 B: tdd の閉じの書き手の外の 5 つ全部。2026-10-26。持ち主が覆せる。まだ覆していない）の形に書き直した版。持ち主と窓口に新しく求める物は無い。下の第 13 版・第 12 版の求めること（`na` の問い・憲法の 3 の外しの答え・確かめ 5）は、そのまま続く。
+  - 覆す時の材料: 案 A・案 C と代償は 11.8 に残した。覆した時に変わる所も 11.8 に書いた。
+  - 第 14 版で変えた所: 11.8（見出し・決めの行・採った訳・覆す時）・11.0 の 6・7・9.1 に 15 を足し、見出しの日付を 26 日まで延ばした・9.2 の 9 を閉じた・11 章の「案 B か C なら」「案 A の時」の条件の字を、決めた案 B を本文にし案 A を覆した時の字にした（11.3・11.4 の 5・11.6 の D2・11.7 の E11 の 3・11.10・11.12 の 1）。部品の置き場と中身は変えていない。
+- 第 13 版（受付 20261025-221742-37d15a）の読み手に求めること: 段 1・PR A が段 2 へ回した 8 項目（返しの欄と照らし）の置き場を 11.12 と 11.6 の F1・F2・F3 に足した版。下の第 12 版の求めること（憲法の 3 の外しの答え・確かめ 5）は、そのまま続く。
   - 持ち主に新しく決めてもらうのは 1 つで、急ぎは無い: 試験だけ・文書だけの直しで、当たらない返答の欄（`bypass_tried`・`breaks`・`precedent`）を、機械が事実を確かめた時に限って欠けてよくするか（`na`。11.12 の 4）。返答の必須の欄を減らす向きなので、段 2 では作らず答えを待つ。段 2 のどの PR も止めない。
   - 窓口に求めるのは 1 つ: PR #874 の控え（`docs/plans/2026-10-25-fix-weapons-stage1-a.md` の 6 節）の最後の段落「11 章にまだ置き場が無い」を、11.12 を指す字に直す頼みを、その枝の部署に渡す（この枝からは直さない）。
   - 第 13 版で変えた所: 11.12 を足した。11.6 に F1・F2・F3 を足し、見出しと順の行を 7 本に直した。11.0 の 6・9、11.1 の 2、11.4 の 3、11.7（E11 の 3・keep-essence の 1）、11.9 の 8・9 に足した。2.1 の `run`・`asks_answered` と 2.2 の `evidence.added`・`rewritten` の申告は 11.12 の決めで置き換えた（2.1・2.2 の字は記録として変えていない）。同じ commit で、前の版を初見の読み手に読ませた指摘から、11.6 の D1 の作る物の 1 の「graph のフォルダの名の行」が何の行かを書き足した。
@@ -833,7 +836,7 @@ variant の「起点の木で赤」と下ごしらえの「起点の木で 2 回
 
 ## 9 持ち主の決めと問い
 
-### 9.1 持ち主の答え（2026-10-24〜25。実装の時に `docs/owner-decisions.md` へ写す）
+### 9.1 持ち主の答え（2026-10-24〜26。実装の時に `docs/owner-decisions.md` へ写す。窓口の決めの 13〜15 は写さない）
 
 1. 消す型を立てるか → 立てる。そのうえで型を 2 段に並べる（2.0・2.4）。持ち主の言葉: 「ふるまいをかえる、かえないの中に細かいブロックができそうなイメージだよね。さらに。」・2 段の形の案に「はい」。訳として「なんか TDD の loop がややこしかったんだよね。それが切り出すことですっきりするかな？」（答えは 3.1 の「輪から出ていく物」）。direct の段は設計の部署（この下書きを書いている側）が詰める → 変える段（第 2 版の 3.2。第 3 版で variant に受け継ぐ）。
 2. 書き直しの型を立てるか → 第 1 版の推しのまま。口（語の節）の形だけを今決め、作るのは判定の単位の決めを見直す時と一緒にする（3.4・3.5・4.1 の 8）。持ち主の言葉: 「おしで」（推しの案でよい、の意。8〜10 の「おし」も同じ）。
@@ -865,10 +868,13 @@ variant の「起点の木で赤」と下ごしらえの「起点の木で 2 回
     - 窓口の訳: 案 2 は、確かめられない AI の 0 件で例外が開く（守りを弱める）。案 1 は持ち主の答え 9.1 の 12 の 3（一覧のコマンドは対象の宣言から）の字のまま。拠った物は 13 と同じ。
     - 本文は前からこの形（2.1 の「決まらない時」・4.4 の作らない物の 5）で、中身は変えていない。
     - 一覧の宣言を読む木（第 9 版の続き 4。レビューの指摘 P）: 「確かめられない AI の宣言で例外を開かない」は、run の中で型が書いた宣言にも当てる。工場の AI が写した木の `.review-checks.json` に足した・書き換えた `list`・`setup` は読まず、起点の木の宣言だけから取る。起点の木に `list` が無ければ、写した木に在っても決まらない（`absent`）。13 の訳の項と同じ決め。
+15. 下請けの実装役と審査役を、どの型の書き手に付けるか（第 10 版。9.2 の 9・11.8）→ 案 B。tdd の閉じの書き手の外の 5 つ全部（variant・remove・pin・tidy・static）。持ち主の言葉ではなく、窓口が 2026-10-26 に決めて持ち主に伝えた物で、持ち主が覆せる（まだ覆していない。受付 20261025-223230-c8c352）。前にも、第 11 版の頼み（受付 20261025-220301-675c57）が案 B を承認済みの条件に挙げ、レビューの頼み（受付 20261025-215821-3c5604）が「窓口が決めた物で、持ち主が覆せる」と書いていた（冒頭の第 11 版で変えた所）。
+    - 訳: 窓口の頼みは決めだけを伝え、訳を載せていない。本文の訳は設計の部署の推しの訳（11.8 の「採った訳」）で、持ち主の言葉「アセットが損なわないことが重要」と、#872 のレビューの問いへの持ち主の答え「段 2 で決める」に拠る。
+    - 本文は 11.8・11.6 の D2・11.3・11.4 の 5・11.10。覆す時の材料（案 A・案 C の代償と得る物、覆した時に変わる所）は 11.8 に残した。
 
 ### 9.2 新しく決めてほしいこと
 
-- 第 10 版で足した 9（開いている。11.8）: 下請けの実装役と審査役を、どの型の書き手に付けるか。案 A（variant だけ。今の #872 のまま）・案 B（推し。tdd の閉じの書き手の外の 5 つ全部。段 1 の前の守りに戻す）・案 C（pin を除く 4 つ）。代償と得る物は 11.8。
+- 第 10 版で足した 9 は、第 14 版で閉じた（下の 9。窓口の決めで、持ち主が覆せる）。
 
 第 6 版で全部閉じ、第 7 版で足した 5 も第 7 版の続きで閉じた。第 9 版で足した 6 は、第 9 版の続きで持ち主の答え（案 C）で閉じた（9.1 の 12）。第 9 版の続きで足した 7・8 は、第 9 版の続き 3 で窓口が持ち主の前の決めから決めて閉じた（9.1 の 13・14。持ち主が覆せる）。持ち主に残る決めは、段 1 を実装の部署に頼むか（冒頭の「読み手に求めること」）。問いと、採った案:
 
@@ -890,6 +896,7 @@ variant の「起点の木で赤」と下ごしらえの「起点の木で 2 回
 8. 対象の宣言が無い対象（`test_cmd` も `.review-checks.json` も無い (3) の道）では、試験が無いと決まらないままでよいか（第 9 版の続き。9.1 の 12 から出た）→ 案 1 を採った（9.1 の 14。窓口の決めで、持ち主が覆せる）。案 2 は採らない。問いの中身: 案 C は一覧のコマンドを対象の宣言から取るので、宣言の無い対象では `list` が無く、`no_tests` はいつも偽（決まらない）になる。試験の無い対象の多くは、試験の走らせ方も宣言していないこの形と見込まれる（数えてはいない）。結果: その対象では下ごしらえの設定のファイルの例外が開かない。keep の型だけの組では下ごしらえを挟み、試験のファイルだけで実行器（test-gate の書き手 `suite-write` が書いた物）に拾わせられれば進み、拾わせられなければ `no-suite` で止まって、宣言に `list`（と `suite`）を足す案内を報告に出す（2.1 の「決まらない時」）。変える段の型（tdd・variant）は今の範囲の決まりで設定のファイルを書けるので、この印に頼らない。
    - 案 1（推し。採った。本文はこの形）: そのままにする。代償: 宣言の無い、試験の無い対象で、試験を走らせる設定が要る keep の直しは止まる。得る物: 持ち主の答えの 3（対象の宣言から取る）の字のまま。決めを工場の AI の申告に頼らない。
    - 案 2: test-gate の実行器の書き手が書く実行器の約束（第 1 引数に JUnit XML を書く。`docs/design/test-gate.md` の 4 節）に、走らせずに 1 行 1 件で一覧を出す口を足し、宣言の無い対象ではその口で数える。代償: 一覧を書くのが工場の AI で、実行器は判定の前に照らされない（`checked: false`。3.9 の既に在る物の 1）ので、0 件と誤って言えば例外が開く（弱める向き）。実行器の約束・書き手の共通の断片 `runner-writer.md`・照らしと試験の直しが要る。得る物: 宣言の無い対象でも決まる。ASF の「走らせ方を見つけるのは AI、走らせるのは script」（`docs/asf-notes.md` の A13）の形。
+9. 下請けの実装役と審査役を、どの型の書き手に付けるか（第 10 版。#872 のレビューの問いへの持ち主の答え「段 2 で決める」から出た）→ 案 B を採った（9.1 の 15。窓口の決めで、持ち主が覆せる）。案 A（variant だけ。#872 のまま）・案 C（pin を除く 4 つ）は採らない。問いの中身と、案ごとの代償と得る物は 11.8 に残した（覆す時の材料）。
 
 ## 10 残る設計の問い（持ち主に聞かず、設計の部署が詰める物）
 
@@ -957,8 +964,8 @@ variant の「起点の木で赤」と下ごしらえの「起点の木で 2 回
 3. port: 型の block が受けるのは、注文 `order`（今の `weapon-order.schema.json` を `.shared/schemas/` へ移す）と、書き手の指示の値 `slots`（修正の block が組む。新しい形 `writer-slots.schema.json`）。書き手の型の block が返すのは書き手の返答 `reply`（今の修正の block の YAML の `*fix_reply` を形のファイル `writer-reply.schema.json` にした物）。`weapon-return.schema.json` は受け付けの控え（`returns/`）の形として修正の block に残す（11.1 の 2）。
 4. 書き手の型の block の入口の node は script にする。止めた Archon は、合成した block の入口の AI の node をいつも新しい会話で起こす（11.1 の 5）ので、AI が入口だと、拒まれた後の出し直しが前の周の会話を継げない。
 5. 実走で確かめた事（11.5）: AI を使わない最小の run 3 本（止めた Archon `a972888a`）で、選ばれなかった型の block の中の `loop_group` と承認ノードが待たずに飛ばされて run が終わること、今の書き手の 2 重の輪（外の輪 1 周に型 1 つ・内の輪で出し直す）の内の輪の本体に include を鎖で並べられること、飛ばした include の返りを受け付けが `if_skipped: null` で受けられることを確かめた。AI の会話の継ぎ（出し直しで前の周の会話を継ぐか）は、実走の部署が本物の役で 3 本回し、入口 script→AI の block は前の周の会話を継ぎ、入口が AI の block は新しい会話になることを確かめた（11.5 の確かめ 4。第 11 版の続き）。
-6. PR は 4 本を順に出す（11.6）: D1 書き手の型の block 5 つ（variant の外）→ D2 `weapon-variant`（下請けの扱いは持ち主の答え次第）→ E1 修正の block の中で、TDD の輪の状態を受け付けが読まない形にする → E2 `weapon-tdd`。D1 の前に実走の確かめ（11.5 の頼み）を済ませる。第 13 版で、段 1・PR A から回した 8 項目の置き場として F1・F2・F3 を足し、7 本にした: D1 → D2 → F1 → E1 → E2 → F2。F3 は順を問わない（E1 と同じ時に開かない）。
-7. 持ち主に聞く物は 1 つ（11.8。下請けの実装役と審査役をどの型の書き手に付けるか。推しは案 B: tdd の閉じの書き手の外の 5 つ全部）。ほかは 9.1・決まり・持ち主の答え（4.2）から決めた（各節に根拠）。
+6. PR は 4 本を順に出す（11.6）: D1 書き手の型の block 5 つ（variant の外）→ D2 `weapon-variant`（下請けを付ける型は 11.8 の窓口の決め〔案 B〕で 5 つ。下請けの部品は D2 で `lib/` と `.shared/` に置く）→ E1 修正の block の中で、TDD の輪の状態を受け付けが読まない形にする → E2 `weapon-tdd`。D1 の前に実走の確かめ（11.5 の頼み）を済ませる。第 13 版で、段 1・PR A から回した 8 項目の置き場として F1・F2・F3 を足し、7 本にした: D1 → D2 → F1 → E1 → E2 → F2。F3 は順を問わない（E1 と同じ時に開かない）。
+7. 下請けの実装役と審査役を付ける型は、窓口の決めで案 B（tdd の閉じの書き手の外の 5 つ全部）にした（11.8。2026-10-26。持ち主が覆せる。まだ覆していない。9.1 の 15）。第 13 版までは持ち主への問いだった。覆す時の材料（案 A・案 C の代償と覆した時に変わる所）は 11.8 に残した。ほかは 9.1・決まり・持ち主の答え（4.2）から決めた（各節に根拠）。持ち主の答えを待つ物は、憲法の 3 の外し（11.0 の 2・11.11）と `na`（11.0 の 9・11.12 の 4）。
 8. 共通化（第 11 版。11.10）: 書き手の 2 本の script の本体は `.shared/writerblock.py` の 1 か所に置き、各 block の `scripts/` は 6 つとも 1 字も違わない数行にする。型ごとに違う物は `src/render.py` の定数 3 つ（`ORDER_WEAPON`・`SPAWNS`・`SUMMARY`）と頭の段落の `prompts/parts/head.md` だけ。YAML の写し（起こし方・`output_format`）は、Archon がファイルをまたいで読ませないので残し、6 つの YAML が型の名と `Agent` の外は同じことを 1 つの照らしで縛る。持ち主に聞く物は増えない。
 9. 段 1・PR A から回した 8 項目（第 13 版。11.12）: sites と証拠の種類の照らし（`kinds_rows`・`sites_per_test`・`sites_shape`・`unit_red`）は F1、変える段の箱の義務と `evidence.named` は F2、守れない依存の報告は F3、注文の欄は E1 の `orders.tdd` だけ（`run`・`asks_answered` は足さない）。返しの形に足す欄は、どれも欠けてよい欄。`na` は返答の必須の欄を減らすので段 2 では作らず、持ち主に聞く（11.12 の 4）。
 
@@ -1010,7 +1017,7 @@ variant の「起点の木で赤」と下ごしらえの「起点の木で 2 回
   - `works-factory-weapon-<w>.yaml`
   - `prompts/<w>.md`（AI の node の指示 1 本）
   - `scripts/writer_prep.py`・`scripts/writer_out.py`（node の `script:` の名。6 つの block で同じ名でよい〔script は block の `scripts/` から名で探す〕。`lib/` のモジュールの名と重ならない。7.1 の 9）。中身は 6 つの block で 1 字も違わない十数行で、共通の本体 `.shared/writerblock.py` の `prep`・`out` を、この block の型の表 `src/render.py` を渡して呼ぶだけ（11.10 の 1）
-  - `src/__init__.py`・`src/render.py`（型ごとに違う物の表。値の定数 3 つだけで、関数を持たない。下の「型が持つ物」）。案 A の時だけ variant に `src/subagents.py` も（11.4 の 5・11.10 の 1）
+  - `src/__init__.py`・`src/render.py`（型ごとに違う物の表。値の定数 3 つだけで、関数を持たない。下の「型が持つ物」）。持ち主が 11.8 を覆して案 A にした時だけ、variant に `src/subagents.py` も（11.4 の 5・11.10 の 1）
   - `fixtures/standalone.stubs.yaml`
   - `schemas/` は置かない（形は全部 `.shared/schemas/`）
 - `inputs:`:
@@ -1019,7 +1026,7 @@ variant の「起点の木で赤」と下ごしらえの「起点の木で 2 回
   - 作り手（修正の block）を名指さない（E4）。
 - node（上から順。どれも 1 つの層に 1 つ）:
   1. `<w>-prep`（`script: writer_prep`・`runtime: uv`・`mutates_checkout: false`）: 本体の `writerblock.prep(render)` が、型の名 `<w>` を呼んだ block のフォルダの名（`ports.caller_block()` の `weapon-<w>`）から引き、`ports.json` で `order`・`slots` を読み、`order.weapon` が表の `ORDER_WEAPON` でなければ落ちる（型の名と block の食い違いを書けなくする yes/no）。`slots.values`・`slots.when` に型が持つ値と段落を足し（足す名が slots の名と重なれば落ちる）、`prompt.emit("<w>", values, when, prompt.round_of("<w>"))` で組む。返り `{prompt}`。
-  2. `<w>`（AI）: 今の書き手の起こし方（`works-factory-fix.yaml` の錨 `writer_launch`。`model: '@wf-fix-writers'`・`settingSources: [user]`・`allowed_tools`・`sandbox`・`idle_timeout: 1728000000`・`retry`）をそのまま写す。`allowed_tools` は今の書き手のまま（表の `SPAWNS` が真の型だけ `Agent` を足す。案 A なら variant だけ、11.8 で案 B なら 5 つとも）。`prompt: "$<w>-prep.output.prompt"`。`output_format` は `writer-reply.schema.json` の中身を字のまま写す（11.4 の 3）。`description` は型の名だけが違う決まった字（例 `'書き手の型の block static の書き手'`）。写しの 6 つは 11.10 の 2 の照らし 1 つで縛る。
+  2. `<w>`（AI）: 今の書き手の起こし方（`works-factory-fix.yaml` の錨 `writer_launch`。`model: '@wf-fix-writers'`・`settingSources: [user]`・`allowed_tools`・`sandbox`・`idle_timeout: 1728000000`・`retry`）をそのまま写す。`allowed_tools` は今の書き手のまま（表の `SPAWNS` が真の型だけ `Agent` を足す。11.8 の決め〔案 B〕で D2 の後は 5 つとも。D1 の間は下請けを移さないので 5 つとも偽。覆して案 A なら variant だけ）。`prompt: "$<w>-prep.output.prompt"`。`output_format` は `writer-reply.schema.json` の中身を字のまま写す（11.4 の 3）。`description` は型の名だけが違う決まった字（例 `'書き手の型の block static の書き手'`）。写しの 6 つは 11.10 の 2 の照らし 1 つで縛る。
   3. `<w>-out`（`script: writer_out`・`runtime: uv`・`mutates_checkout: false`）: 本体の `writerblock.out()` が、`with: {reply: "$<w>.output"}` を `ports.json(raw, "shared:writer-reply.schema.json")` で照らし、place の `reply-<n>.json` に書き、`ports.pointer(path, "json(shared:writer-reply.schema.json)")` を返す。返り `{ok: true, reply: <pointer>, report: []}`。
      - `<n>` の式（第 12 版で 1 つに決めた）: `<n> = prompt.round_of("<w>") - 1`。`<w>-out` の時点では、同じ周の `<w>-prep` が `<w>-prompt-<n>.md` を書いた後なので、`round_of` は n+1 を返す。`-1` した数は「この周の指示の番号」で、`reply-<n>.json` と `<w>-prompt-<n>.md` が同じ番号で対になる。AI の node が落ちて `<w>-out` が走らなかった周は `reply-` が欠けるだけで、次の周の対はずれない（次の周の prep が `<w>-prompt-<n+1>.md` を書き、out が `reply-<n+1>.json` を書く）。本体は `reply-` のファイルを数えない（数えると、欠けた周の後で番号が指示とずれる）。
      - 返答が形に合わない時は、`ok: false` を返さずに落ちる（`ports.json` の `ValueError` をそのまま上げる）。訳: 今は書き手の AI の node の出力を Archon が `output_format` で照らし、合わなければ node が落ちて、`trigger_rule: none_failed_min_one_success` の受け付けは走らない。`ok: false` と `reply: null` を返すと、受け付けは飛んだ型と同じ `null` を受け、返答が無かった周として黙って済ませる（今より弱い）。だから `reply` は null を許さない。
@@ -1047,12 +1054,12 @@ variant の「起点の木で赤」と下ごしらえの「起点の木で 2 回
     - 照らす決まり: E5（`report` を置く・pointer の欄は description に form を書く）・7.1 の 8（`outcome_field` の欄 `ok` が `required` に在る）・#861 の配線の照らし（`tests/layers/scan.py` の `_shapes`。修正の block の `with:` の `{from: "$w-<型>.output.reply", …}` の読み手と、この欄の form `json(shared:writer-reply.schema.json)` を結ぶ）。pointer の欄の形は今の block の返す節（例 `workflows/consistency-bypass/works-factory-consistency-bypass.yaml` の `finish` の `material`）と同じ書き方。
     - `.shared/schemas/` に今在る `fix-reply.schema.json`（delta-review が読む、受け付けた返答をまとめた `{changes, not_done, plan_faces}`）は別の物で、名も `writer-reply` と重ならない。
   - `returns: <w>-out`・`outcome_field: ok`（E5・7.1 の 8）。
-- 指示の md `prompts/<w>.md`: 今の `parts/<w>.md` の字のまま、`{part:writer-top}` を `{shared:writer-top}` に、`{part:writer}` を `{shared:writer}` に替えた物。頭の段落（`<!-- if rules -->` の中の役の文）は字を変えない。第 11 版で、型ごとに違う頭の段落の文（見出しの次の役の文）だけを `prompts/parts/head.md` に出し、`prompts/<w>.md` はその所を `{part:head}` にする。組み上がる指示は 1 字も変わらず、`prompts/<w>.md` は 6 つの block で同じ字になる（11.10 の 2 の照らしの (b) に入る）。下請けに型の決まりを渡す時（11.8 で案 B・C）も、同じ `parts/head.md` を組んで渡す（D2）。
+- 指示の md `prompts/<w>.md`: 今の `parts/<w>.md` の字のまま、`{part:writer-top}` を `{shared:writer-top}` に、`{part:writer}` を `{shared:writer}` に替えた物。頭の段落（`<!-- if rules -->` の中の役の文）は字を変えない。第 11 版で、型ごとに違う頭の段落の文（見出しの次の役の文）だけを `prompts/parts/head.md` に出し、`prompts/<w>.md` はその所を `{part:head}` にする。組み上がる指示は 1 字も変わらず、`prompts/<w>.md` は 6 つの block で同じ字になる（11.10 の 2 の照らしの (b) に入る）。下請けに型の決まりを渡す時（11.8 の決め。案 B）も、同じ `parts/head.md` を組んで渡す（D2）。
 - 型が持つ物（slots に入れない。足すのは本体 `writerblock.prep` 1 か所で、型ごとに違う所は `src/render.py` の表だけから引く。11.10 の 1）:
   - 値 `first_prompt`（この block の place の `<w>-prompt-1.md`。続きの周が読み直す 1 回目の指示）・`unattended`（`lib/seat.py` の `overlay_body(seat.OVERLAY_KINDS["fix"])`）・`overlay_file`（`spseam.BORROW_DIR / spseam.OVERLAY_FILE`）: 6 つとも同じ組み方なので、本体が組む。
   - 値 `summary_file`（slots の上の段の欄 `summary_file` を写す。11.4 の 1）: 表の `SUMMARY` が真の型（`weapon-tdd-close` だけ）に本体が足す。
   - 下請けの段落と値: `spawns`・`ask_variant`（どちらも表の `SPAWNS`。`ask_variant` の段落は「下請けは自分で相談できない」の 1 文で、下請けを起こす型の物）・`g1`（下請けの項目が 1 つでも在れば真）・`g1_items`（11.4 の 5）。`SPAWNS` が偽の型は `spawns`・`g1`・`ask_variant` を偽、`g1_items` を空で足す。段落の真偽は、本体の、place を読まない関数 `writerblock.paragraphs(table) -> {spawns, g1, ask_variant}` が表から引く（第 12 版。`g1` は表の `SPAWNS` の真偽で、下請けの項目が 0 件の周は `prep` が偽に下ろす。D1 の縛る試験の 4 が同じ関数を読む）。
-  - 表 `src/render.py` の 3 つの定数（どの型も 3 つとも書く。欠ければ本体が落ちる。既定の値を本体に持たない）: `ORDER_WEAPON`（注文の `weapon` の語。`weapon-tdd-close` は `"tdd"`、ほかは `<w>` と同じ語）・`SPAWNS`（下請けを起こすか）・`SUMMARY`（TDD の輪の要約を受けるか）。案 A の時だけ、variant の表に `subagents`（`src/subagents.py` の関数の名）を足す（11.10 の 1）。
+  - 表 `src/render.py` の 3 つの定数（どの型も 3 つとも書く。欠ければ本体が落ちる。既定の値を本体に持たない）: `ORDER_WEAPON`（注文の `weapon` の語。`weapon-tdd-close` は `"tdd"`、ほかは `<w>` と同じ語）・`SPAWNS`（下請けを起こすか）・`SUMMARY`（TDD の輪の要約を受けるか）。持ち主が 11.8 を覆して案 A にした時だけ、variant の表に `subagents`（`src/subagents.py` の関数の名）を足す（11.10 の 1）。
   - 今の `prompts.writer_paragraphs` のうち、義務の表から引く段落（`rules_change`・`rules_sites`・`rules_red`・`conflict_change`）は型が持たない（11.4 の 2）。
 - 筋書き `fixtures/standalone.stubs.yaml`: `fixture.inputs` に `order`・`slots` を JSON の字で置き（7.1 の 4。pointer を持たない）、`exec-code: true`、`<w>` の返答を stub に書き、`reached: [<w>-prep, <w>, <w>-out]`、`resolved-text-contains` に頭の段落の 1 文（例 static なら「You are the static writer, a fixer.」）。単独の run は `bin/works-factory workflow run works-factory-weapon-<w> --cwd <対象> --input order=<ファイル> --input slots=<ファイル>`（憲法の 5）。
 - 設計書 `docs/design/weapon-<w>.md`: 型ごとに違う物だけを書く短い物（役の 1 文・頭の段落の在りか・表 `src/render.py` の 3 つの値・`Agent` の有無）。6 つに共通の物（port・node の並び・place のファイル・本体の口・AI の node の 9 項・組み立ての順）は、修正の block の設計書 `docs/design/fix.md` の新しい節「書き手の型の block の共通の形と slots」の 1 か所に書き、各設計書はそこを指す（11.10 の 3）。
@@ -1081,10 +1088,10 @@ variant の「起点の木で赤」と下ごしらえの「起点の木で 2 回
    - include の `when:` は展開した block の入口の node（`<型>-prep`）に付き、後ろの 2 つは上流が飛べば飛ぶ（`include-expander.ts` の頭の説明・11.5 の確かめ 1）。鎖の次の include の入口は `trigger_rule` で、前の include が飛んでも走れる（11.5 の確かめ 3）。
    - `consult-check`・`fix-accept` の `depends_on` は書き手の node の名の代わりに include の id を並べる（include を名指す `depends_on` は block の出口〔sink〕の全部を待つ）。
    - `nodes-ok` の柵は、loop の node を名指しているので変えない。
-5. 下請け（variant の項目ごとの実装役と審査役）のファイル: 今は `prompts.g1_files` が修正の block の place に `g1-impl-<n>.md`・`g1-review-<n>.md` を書き、修正役の指示の `{g1_items}` に名指す。D2 で `weapon-variant` の `src/subagents.py` に移す（11.8 で案 B か C なら、11.6 の D2 の「11.8 で案 B か C の時に足す物」のとおり `lib/` と `.shared/` に移す）。
+5. 下請け（variant の項目ごとの実装役と審査役）のファイル: 今は `prompts.g1_files` が修正の block の place に `g1-impl-<n>.md`・`g1-review-<n>.md` を書き、修正役の指示の `{g1_items}` に名指す。D2 で、11.8 の決め（案 B）により、11.6 の D2 の「11.8 の決め（案 B）で足す物」のとおり `lib/` と `.shared/` に移す（持ち主が覆して案 A なら `weapon-variant` の `src/subagents.py`）。
    - 修正の block が slots の `subagents` に入れる物（データだけ。指示の文を持たない）: `owed`（下請けを起こす単位。`rules.dispatched` の結果）・`briefs`（`planbrief.for_units(briefs, owed)` の行。欄 `item`・`file`・`unit_keys`）・`all_items`（項目の番号の最大を引くための、凍結した brief の全部の `item` の並び）・`seat_brief_rows`（`rules.brief_rows` の字）・`judgment_file`・`policy_path`・`base_rev`・`check_cmd`（`prompts._check_cmd(config)`。相談の控えが無ければ空）・`directory`（作業ツリーの根）。
    - 型の block に移す物: `prompts.g1_files`・`rules.implementer_values`・`g1_items`・`_g1_task`・`unit_note`（下請けだけが使う分）・`review_values`・`g1_row`・`g1_diff_cmd`・定数 `G1_IMPL`・`G1_REVIEW`・`G1_PATCH_FILE`・`G1_PATCH`・`SEAT_BRIEFS`、md の `parts/g1-impl.md`・`g1-review.md`・`g1-impl-report.md`・`g1-report.md`・`g1-head-sha.md`・`g1-scene.md`・`g1-rest.md`。`brief-head` を組む所（今の `render_part("brief-head")`）は、`weapon-variant` の `prompts/parts/seat-briefs.md`（中身は `{shared:brief-head}` の 1 行）を `render_part` する。
-   - 第 12 版: `seat-briefs.md` は D1 で先に fix に置く。D1 は 6 で `brief-head.md` を `.shared/prompts/` へ移すが、`prompt.render_part` は呼んだ block の `prompts/parts/<名>.md` しか読まない（`.shared/prompt.py:105` の `_compose`）ので、D2 まで fix に残る `rules.py:183`（下請けの実装役の brief のファイル `SEAT_BRIEFS` を書く所）の `render_part("brief-head", …)` が落ちる。D1 で fix の `prompts/parts/seat-briefs.md`（中身は `{shared:brief-head}` の 1 行）を置き、`rules.py:183` を `render_part("seat-briefs", {"brief_rows": rows})` に替える。D2 で、このファイルと呼びを `weapon-variant` へ移す（案 B・C なら `.shared/prompts/` の側。D2 の「11.8 で案 B か C の時に足す物」）。
+   - 第 12 版: `seat-briefs.md` は D1 で先に fix に置く。D1 は 6 で `brief-head.md` を `.shared/prompts/` へ移すが、`prompt.render_part` は呼んだ block の `prompts/parts/<名>.md` しか読まない（`.shared/prompt.py:105` の `_compose`）ので、D2 まで fix に残る `rules.py:183`（下請けの実装役の brief のファイル `SEAT_BRIEFS` を書く所）の `render_part("brief-head", …)` が落ちる。D1 で fix の `prompts/parts/seat-briefs.md`（中身は `{shared:brief-head}` の 1 行）を置き、`rules.py:183` を `render_part("seat-briefs", {"brief_rows": rows})` に替える。D2 で、このファイルと呼びを `.shared/prompts/` の側へ移す（11.8 の決め〔案 B〕。D2 の「11.8 の決め（案 B）で足す物」。覆して案 A なら `weapon-variant` へ）。
    - 修正の block に残す物: 渡す前の計算（`rules.dispatched`・`rules.brief_rows`・`planbrief.for_units`・`ask_config` と `_check_cmd`）。`unit_note` を修正の block のほかの所も使うなら、両方が使う関数として `lib/` に出す（憲法の 4。実装の時に `grep` で決める）。
 6. 共通の指示の断片を `.shared/prompts/` へ移す（D1。字は変えず、中の `{part:` を `{shared:` に替えるだけ）:
    - `writer-top.md`（今の `parts/writer-top.md`）・`writer.md`（今の `parts/writer.md`）・`brief-head.md`（今の `parts/brief-head.md`）・`brief.md`（今の `parts/brief.md`）。
@@ -1176,10 +1183,10 @@ variant の「起点の木で赤」と下ごしらえの「起点の木で 2 回
 
 #### D2 `weapon-variant`
 
-- 作る物: `workflows/weapon-variant/`（11.3 の形。`allowed_tools` に `Agent`）・`src/subagents.py` と `prompts/parts/g1-*.md`・`seat-briefs.md`（11.4 の 5）・slots の `subagents` を組む所（修正の block の `writer_slots`）・修正の block の鎖の `w-variant`・`wr-variant`・`docs/design/weapon-variant.md`。修正の block から `parts/g1-*.md` と下請けの関数を消す。
-- 11.8 で案 B か C の時に足す物: 下請けの関数と `parts/g1-*.md` は 2 つ以上の block が使うので、`weapon-variant` の中には置かない。分け方（第 11 版で直した。前の字「関数は `lib/subagents.py`」のままでは、今の `g1_files` が呼ぶ `prompt.render_part` を Archon を知らない `lib/` から呼べない）: 項目ごとの値と借りた型の埋め（`rules.implementer_values`・`review_values`・`g1_items`・`seat.fill` の呼び。place のパスは引数で受ける）は `lib/subagents.py`、md は `.shared/prompts/g1-*.md`、ファイルを place に書いて md を組む所は本体 `writerblock.prep` が表の `SPAWNS` が真の時に行う。共通の断片を単独の字に組む口が今の `prompt.py` に無い（`render_part` は呼んだ block の `prompts/parts/` を読む）ので、`prompt.render_shared(name, values, when)`（`render_part` と同じ決まりで `.shared/prompts/<name>.md` を組む）を足す。付ける型の block は表の `SPAWNS` を真にし、`Agent` を足す（D1 の縛る試験の 2 の (c) が組を照らす）。下請けの実装役の型（借りた superpowers の `implementer-prompt.md` の「Write tests (following TDD if task says to)」）と型の決まりがぶつかる型（static は試験を足さない、tidy は振る舞いを変えない、pin はコードを変えない、remove は消えたことだけを確かめる試験を書かない）は、`g1-impl.md` の「works rules」の節に、型の頭の段落の文を値 `{weapon_rule}` で差し込む段落を足す（足すだけ。今の文を減らさない）。型の決まりの文を 2 か所に写さないため、D1 で各 block の `prompts/parts/head.md` 1 本に出した頭の段落の文（11.3）を、本体が `prompt.render_part("head", …)` で組んで `{weapon_rule}` に渡す（11.10 の 3）。付録 A の Q10（下請けを起こすなら規則を字のまま渡す）が付ける型の書き手にも出るので、`test_weapon_assets.py` の `SPAWN_ONLY` の照らしを付ける型に広げる。
-- 案 A の時: `src/subagents.py`（今の `g1_files` の中身）は `weapon-variant` に置き、variant の表 `src/render.py` が関数の名 `subagents` を持つ。本体は `SPAWNS` が真の時に `table.subagents(place, slots["subagents"])` を呼び、返りの `g1_items` の字と項目の有無を値と段落に入れる（本体は variant の中身を知らない）。
-- 縛る試験: `tests/blocks/weapon_variant/test_subagents.py`（今の修正の block の試験のうち `g1_files` を照らす物を移す。項目ごとに 2 つのファイル・審査役の型の `<base>..<head>` の直し・brief の無い run の残りの単位の項目。案 B・C なら `lib/tests/test_subagents.py` と本体の試験に分ける）・D1 の縛る試験の 1・2 に variant を足す（書き手の型の block の見分けは形で引くので、variant が block になれば自ずと入る。D1 の間の variant の node の足しを消す）。
+- 作る物: `workflows/weapon-variant/`（11.3 の形。`allowed_tools` に `Agent`）・下請けの部品（値の関数・`g1-*.md`・`seat-briefs.md`。11.4 の 5。置き場は次の項）・slots の `subagents` を組む所（修正の block の `writer_slots`）・修正の block の鎖の `w-variant`・`wr-variant`・`docs/design/weapon-variant.md`。修正の block から `parts/g1-*.md` と下請けの関数を消す。
+- 11.8 の決め（案 B）で足す物（第 14 版で条件の字から決めの字にした。持ち主が覆して案 C にした時は、pin の表の `SPAWNS` を偽にし `Agent` を付けないだけで、置き場は同じ）: 下請けの関数と `parts/g1-*.md` は 2 つ以上の block が使うので、`weapon-variant` の中には置かない。分け方（第 11 版で直した。前の字「関数は `lib/subagents.py`」のままでは、今の `g1_files` が呼ぶ `prompt.render_part` を Archon を知らない `lib/` から呼べない）: 項目ごとの値と借りた型の埋め（`rules.implementer_values`・`review_values`・`g1_items`・`seat.fill` の呼び。place のパスは引数で受ける）は `lib/subagents.py`、md は `.shared/prompts/g1-*.md`、ファイルを place に書いて md を組む所は本体 `writerblock.prep` が表の `SPAWNS` が真の時に行う。共通の断片を単独の字に組む口が今の `prompt.py` に無い（`render_part` は呼んだ block の `prompts/parts/` を読む）ので、`prompt.render_shared(name, values, when)`（`render_part` と同じ決まりで `.shared/prompts/<name>.md` を組む）を足す。付ける型の block は表の `SPAWNS` を真にし、`Agent` を足す（D1 の縛る試験の 2 の (c) が組を照らす）。下請けの実装役の型（借りた superpowers の `implementer-prompt.md` の「Write tests (following TDD if task says to)」）と型の決まりがぶつかる型（static は試験を足さない、tidy は振る舞いを変えない、pin はコードを変えない、remove は消えたことだけを確かめる試験を書かない）は、`g1-impl.md` の「works rules」の節に、型の頭の段落の文を値 `{weapon_rule}` で差し込む段落を足す（足すだけ。今の文を減らさない）。型の決まりの文を 2 か所に写さないため、D1 で各 block の `prompts/parts/head.md` 1 本に出した頭の段落の文（11.3）を、本体が `prompt.render_part("head", …)` で組んで `{weapon_rule}` に渡す（11.10 の 3）。付録 A の Q10（下請けを起こすなら規則を字のまま渡す）が付ける型の書き手にも出るので、`test_weapon_assets.py` の `SPAWN_ONLY` の照らしを付ける型に広げる。
+- 持ち主が 11.8 を覆して案 A にした時（覆す時の材料として残す）: `src/subagents.py`（今の `g1_files` の中身）と `prompts/parts/g1-*.md`・`seat-briefs.md` は `weapon-variant` に置き、variant の表 `src/render.py` が関数の名 `subagents` を持つ。本体は `SPAWNS` が真の時に `table.subagents(place, slots["subagents"])` を呼び、返りの `g1_items` の字と項目の有無を値と段落に入れる（本体は variant の中身を知らない）。
+- 縛る試験: 下請けの試験（今の修正の block の試験のうち `g1_files` を照らす物を移す。項目ごとに 2 つのファイル・審査役の型の `<base>..<head>` の直し・brief の無い run の残りの単位の項目。11.8 の決め〔案 B〕で `lib/tests/test_subagents.py` と本体の試験に分ける。覆して案 A なら `tests/blocks/weapon_variant/test_subagents.py` に移すだけ）・D1 の縛る試験の 1・2 に variant を足す（書き手の型の block の見分けは形で引くので、variant が block になれば自ずと入る。D1 の間の variant の node の足しを消す）。
 - 作らない物: TDD の輪の移し・下請けの回し方の変更（今の F101・G1〜G8 の手順のまま）。
 
 #### F1 sites と証拠の種類の照らし（第 13 版で足した。D2 の後・E1 の前。11.12）
@@ -1275,7 +1282,7 @@ TDD の輪を block に出す前に、修正の block の中で、輪の外が�
 
 - E11 の 1（Archon が持っているか）: include・`loop_group` の本体の include・include の `when:` と `trigger_rule`・飛ばした返りの `if_skipped` は Archon が持つ（11.5 で回して確かめた）。script の本体を `<pack>/.shared/` のモジュールに置き、block ごとの `scripts/` の入口から import する形は、Archon が定める形（11.10 の 1）。node の鍵と `output_format` をファイルをまたいで共にする仕組みは、Archon に無い（11.10 の 2）。型を部品として差し替える仕組みは Archon に無い。会話の継ぎは Archon の決まり（入口の AI は新しい会話）に合わせて形を決めた（11.1 の 5。11.5 の確かめ 4 で回して確かめた）。
 - E11 の 2（ASF が持っているか）: AI の node を持つ block が loop の本体で葉の block を include する形は ASF の `archon-deliver-block` が持つ（11.1 の 1 の訳 2）。採るのは型だけで、字は写さない（E8）。`docs/asf-notes.md` に 1 行足す（D1）。
-- E11 の 3（本当に要るか）: 持ち主の答え（4.2。振り分けの設計を型の作りと切り離す）。足すのは block 7 つ（書き手 6・輪 1）と `.shared` の形 4 つ（`weapon-order` は移し）と断片 5 つ（D1 で 4・E2 で 1）と `lib/` のモジュール 1〜2 つ（E2・D2 の案 B）。第 11 版で、`.shared/` の口 1 つ（`writerblock.py`）・形 1 つ（`tdd-reply`。E2）・`lib/` の証拠の種類の数えのモジュール 1 つ（E2）を足し、案 B・C なら `prompt.render_shared` の口 1 つを足す（11.10）。どれも今の置き場に足すだけ。新しい層・置き場・常駐する仕組みは足さない（block は今の置き場の形のまま。E10 に当たらない）。代償は 4.2 の「代償」に、`.shared` に修正の系の書き手の文が出ること（11.4 の 6）と、返答の形の写しが 6 つになること（照らしを 1 つ置く。11.4 の 3）を足した物。第 13 版で、F1 の当たりの行を引く口 1 つ（修正の block の `src/`）を足す。返しの形の欠けてよい欄 4 つと指示の段落 4 つは、今の形のファイルと `.shared/prompts/writer.md` に足すだけ。
+- E11 の 3（本当に要るか）: 持ち主の答え（4.2。振り分けの設計を型の作りと切り離す）。足すのは block 7 つ（書き手 6・輪 1）と `.shared` の形 4 つ（`weapon-order` は移し）と断片 5 つ（D1 で 4・E2 で 1）と `lib/` のモジュール 1〜2 つ（E2・D2。D2 の分は 11.8 の決め〔案 B〕による）。第 11 版で、`.shared/` の口 1 つ（`writerblock.py`）・形 1 つ（`tdd-reply`。E2）・`lib/` の証拠の種類の数えのモジュール 1 つ（E2）を足し、11.8 の決め（案 B）で `prompt.render_shared` の口 1 つを足す（11.10）。どれも今の置き場に足すだけ。新しい層・置き場・常駐する仕組みは足さない（block は今の置き場の形のまま。E10 に当たらない）。代償は 4.2 の「代償」に、`.shared` に修正の系の書き手の文が出ること（11.4 の 6）と、返答の形の写しが 6 つになること（照らしを 1 つ置く。11.4 の 3）を足した物。第 13 版で、F1 の当たりの行を引く口 1 つ（修正の block の `src/`）を足す。返しの形の欠けてよい欄 4 つと指示の段落 4 つは、今の形のファイルと `.shared/prompts/writer.md` に足すだけ。
 - 憲法の 3（宣言した port だけで受け渡す）: 第 12 版の控え: この行の「型の block は修正の block を名指さない」は憲法の 3 を片方向だけに読んでいて、字は両方向を禁じる（レビュー 3c5604 の止める指摘 1）。持ち主の答えで書き直す（11.11 の 2）。今の字: 型の block は `order` と `slots`（E2 は `context`）だけを受け、返りの pointer だけを返す。型の block は修正の block の place を読まない（README 4.3）。修正の block は型の block を include で名指すが、型の block は修正の block を名指さない（入力の description も作り手を書かない。E4）。
 - E20（深さの段で `when:` の句を書かない。第 12 版で足した）: 照らし `tests/layers/scan.py:1760-1771` の `_depth_when` は、line の節と、line が直に include する YAML の節（`loop_group` の中も）までを読む。修正の block の鎖の include の node（`w-<型>`・`wr-<型>`）の `when:` は修正の block の節なので照らされるが、型の block（line → fix → 型）の中の節は照らされない。届かせない: 型の block の node は 3 つ（11.3 の node の 1〜3）を 1 本に並べた鎖で、どれも `when:` を持たず、受ける物は `order`・`slots` だけ（どちらの形にも深さの欄が無い）。6 つの YAML が同じ字であることは D1 の縛る試験の 2 の (b) が照らす。照らしを型の block まで広げるのは、型の block が `when:` を持つ形になった時（今の設計には無い）。
 - 憲法の 5（単独で回る）: 書き手の型の block は、注文と slots の JSON と対象のリポジトリだけで回る（筋書きと単独の run。11.3）。`weapon-tdd` は注文と context と対象のリポジトリ（と実行器。注文の `base` が指す `base.json` の `exe`）で回る。slots・context を手で書くのは重いので、単独の run の例は筋書きの値を使う（設計書に書く）。
@@ -1284,15 +1291,19 @@ TDD の輪を block に出す前に、修正の block の中で、輪の外が�
   - 5 書き込みの出どころ・6 当たる試験・7 class_query の数え直し・8 食い違いの申し出と読むだけの裁定役・11 単位ごとの記録: 受け付けと裁定は修正の block に残り、変えない。申し出の流しは E2 で輪の後にずらすが、流れる先と裁く時は変えない（E2 の 3）。
   - 2・9・10・12: 段 2 は触らない。
 
-### 11.8 持ち主への問い: 下請けの実装役と審査役をどの型の書き手に付けるか
+### 11.8 下請けの実装役と審査役を付ける型（窓口の決め: 案 B。持ち主が覆せる）
+
+- 決め（第 14 版で問いの形から書き直した）: 案 B。tdd の閉じの書き手の外の 5 つ全部（variant・remove・pin・tidy・static）に付ける。窓口が 2026-10-26 に決めて持ち主に伝えた物で、持ち主の言葉ではない。持ち主が覆せて、まだ覆していない（受付 20261025-223230-c8c352。9.1 の 15）。`docs/owner-decisions.md` には写さず、この節と 9.1 の 15 に置く（9.1 の 13・14 と同じ扱い）。本文（11.3・11.4 の 5・11.6 の D2・11.10）はこの決めの形で書いた。
+- 下の前提・照らしが見ない所・案 A〜C は、第 13 版まで持ち主への問いだった時の字で、覆す時の材料として残す。
 
 - 前提: 書き手（型ごとに直しを書く AI）は、修正案の項目ごとに下請けの AI を 2 つ起こせる。1 つ目は実装役で、借りた superpowers の実装役の手順書を改変せずに渡される。2 つ目は審査役で、実装役の差分を読み、修正案の項目どおりか・抜けが無いかを見て、だめなら実装役に直させる（3 回まで）。段 1 の前（#869 の前の main）は、tdd 以外の単位を 1 つの修正役がまとめて受け、TDD の輪が直した単位の外の全部の項目にこの 2 つを起こしていた。#872 で書き手を型ごとに分け、付録 A の表どおり、これを起こすのは variant の書き手だけになった。remove・pin・tidy・static の書き手は下請けを起こさずに自分で直し、審査役が付かない（#872 のレビューの問いで、持ち主は「段 2 で決める」と答えた。2026-10-26）。
 - 機械の照らしが見ない所（審査役の値打ちが出る所）: 範囲・凍結・同じ結果・種類の確かめの行の在る無しは機械が照らすが、差分が修正案の項目の趣旨に合うか（多く消しすぎていないか・言い回しの意味が合うか）は見ない。型ごとに見ると、static は直しの中身を機械が全く照らさない（種類の確かめの行が在るかだけ。3.7 の確かめの 4）、tidy は同じ結果を関わる試験でしか照らさない、remove は消えたことを名で照らすが残りの直し方は照らさない、pin は差分が試験だけ・2 回通る・壊して赤の申告を照らす。
 - 案 A: variant だけ（今の #872 のまま）。代償: remove・pin・tidy・static の直しに審査役が付かないまま。段 1 の前より守りが減ったまま続く。得る物: 費用と時間が一番少ない。D2 は variant の block だけで閉じる。
-- 案 B（推し）: tdd の閉じの書き手の外の 5 つ全部（variant・remove・pin・tidy・static）。代償: 項目ごとに下請けの会話が 2 つ以上増え、static の文書の直しのような小さな項目にも乗る（費用と時間は段 1 の前と同じ水準に戻る）。下請けの実装役の手順書の「試験を書け」と型の決まりがぶつかる型（static・tidy・pin・remove）に、型の決まりを渡す段落を足す（D2 の「案 B か C の時」）。下請けの部品が `lib/` と `.shared/` に出る。得る物: 段 1 の前の審査の守りに戻る。機械が中身を見ない static と、試験の届かない所がある tidy に、修正案の趣旨の目が付く。
+- 案 B（採った）: tdd の閉じの書き手の外の 5 つ全部（variant・remove・pin・tidy・static）。代償: 項目ごとに下請けの会話が 2 つ以上増え、static の文書の直しのような小さな項目にも乗る（費用と時間は段 1 の前と同じ水準に戻る）。下請けの実装役の手順書の「試験を書け」と型の決まりがぶつかる型（static・tidy・pin・remove）に、型の決まりを渡す段落を足す（D2 の「11.8 の決め（案 B）で足す物」）。下請けの部品が `lib/` と `.shared/` に出る。得る物: 段 1 の前の審査の守りに戻る。機械が中身を見ない static と、試験の届かない所がある tidy に、修正案の趣旨の目が付く。
 - 案 C: variant・remove・tidy・static（pin を除く）。代償: 案 B より少し安いが、pin の足した試験が縛る中身（つまらない物を固めていないか）は人の最後の承認だけが見る。得る物: pin は機械の照らし（差分が試験だけ・2 回通る・壊して赤）が一番厚いので、費用を削る所として筋が通る。
-- 推しの訳: 持ち主の「アセットが損なわないことが重要」に一番近いのは、段 1 の前の守りに戻す案 B。費用は段 1 の前と同じ水準で、新しく増えるのではない。案 A は今の減った守りを固定する。
-- 急ぎ: D2 を頼む前までに要る（D1 は答えを待たずに進められる）。答えが無いまま D2 に進む時は、案 A の形で作り、案 B・C は後の PR で足す（D2 の「案 B か C の時」の分だけ増える）。
+- 採った訳（設計の部署の推しの訳。窓口の頼みは訳を載せていない）: 持ち主の「アセットが損なわないことが重要」に一番近いのは、段 1 の前の守りに戻す案 B。費用は段 1 の前と同じ水準で、新しく増えるのではない。案 A は今の減った守りを固定する。
+- 覆す時に変わる所: D2 を頼む前に覆されれば、D2 の作る物をその案の形にする（案 A は D2 の「持ち主が 11.8 を覆して案 A にした時」、案 C は D2 の「11.8 の決め（案 B）で足す物」から pin を外すだけ）。D2 が入った後に案 C に覆されれば、pin の表の `SPAWNS` を偽にし `Agent` を外す PR 1 本で足り、部品の置き場は変えない（2 つ以上の block が使うまま）。案 A に覆されれば、部品を使うのが variant だけになるので、憲法の 4 に沿って `lib/subagents.py`・`.shared/prompts/g1-*.md` と `prompt.render_shared` を `weapon-variant` へ戻す PR になる。D1 はどの案でも変わらない（D1 の間は 5 つとも `SPAWNS` が偽）。
+- 前の急ぎの字（第 13 版まで）: D2 を頼む前までに要る。答えが無いまま D2 に進む時は案 A の形で作る、とした。決めが案 B になったので、D2 は案 B の形で頼む。
 
 ### 11.9 残る設計の問い（設計の部署が詰める物。持ち主に聞かない）
 
@@ -1318,11 +1329,11 @@ TDD の輪を block に出す前に、修正の block の中で、輪の外が�
   - 憲法の 4: 6 つの block が使うので、どれか 1 つの block の中には置けない。
   - E3（`lib/` は Archon を知らない）: 本体の仕事は、ほとんどが Archon との出入り（`INPUTS_order`・`INPUTS_slots`・`INPUTS_reply` の読み・place・`prompt.emit`・`ports.pointer`・`ports.returns`）なので、`lib/` には置けない。`lib/` は `workflows/` を import できない（E22 の層の地図で、層 lib の `may_use` は空）。
   - `.shared/AGENTS.md` の「`.shared` と `lib/` の分け」: 2 つ以上の block が使う助けのうち、pointer・`INPUTS_`・place を解く所は「ここの口（`ports.py` か、ここの小さなモジュール）」に置く。本体はこれに当たる。Archon を知らない所（型の名の照らし・足す名と slots の名の重なりの照らし）は数行で、本体の外に読み手が無いので `lib/` に割らない（`lib/` は 2 つ以上の使い手の物だけ。`lib/AGENTS.md`。`requestrows.py` も、形の照らしと知らない鍵の拒みを口の中に持つ）。
-  - E22: 層の地図で層 shared は lib に頼ってよいので、本体は `lib/seat.py`・`lib/spseam.py`（案 B・C なら `lib/subagents.py`）を import できる。block は shared に頼ってよい。
+  - E22: 層の地図で層 shared は lib に頼ってよいので、本体は `lib/seat.py`・`lib/spseam.py`・`lib/subagents.py`（11.8 の決め。案 B）を import できる。block は shared に頼ってよい。
   - E11 の 1（Archon の定め）: 止めた Archon は、pack の形の workflow の名前の script を、その workflow の `scripts/` からだけ探す（`packages/docs-web/src/content/docs/guides/script-nodes.md` の「Packaged workflow: resolve only from the owning workflow's `scripts/` directory」・`packages/workflows/src/script-discovery.ts` の `discoverPackScripts`）。使い回すモジュールは `<pack>/.shared/` に置き、script が import する形を定める（同じ文書の「Put reusable `.ts`, `.js`, or `.py` modules under `<pack>/.shared/` … its files are neither workflows nor named script targets」）。だから各 block の `scripts/` の入口は無くせず、本体を `.shared/` に置くのが Archon の形そのもの。
 - 各 block の `scripts/writer_prep.py`・`writer_out.py`: PEP 723 の頭・`sys.path` の 2 行・`import writerblock` と `from src import render`・`writerblock.prep(render)`（`writer_out.py` は `writerblock.out()`）だけ。型の名は渡さない。本体が、`ports.caller_block()`（呼んだ script の在る block のフォルダ。`prompt.render` が md を探すのと同じ口）の名 `weapon-<w>` から引く。
   - 頼みの字「型の名を渡して共通の本体を呼ぶ」から変えた訳: 名を script の字で渡すと、block のフォルダ・グラフの名・node の id・md の名に続く 5 つ目の写しになり、script が block ごとに違う字になる（頼みの「型ごとに違う物は `src/render.py` の表だけ」に反する）。フォルダから引けば 6 つの script は 1 字も違わず、照らしは「同じ字か」の yes/no 1 つで済む（2 の (d)）。名と md が食い違えば、`prompt.emit` が md を見つけられずに落ちる。
-- 型ごとに違う物: `src/render.py` の 3 つの定数（`ORDER_WEAPON`・`SPAWNS`・`SUMMARY`。11.3）だけ。案 A の時だけ、variant の表に関数の名 `subagents` が 4 つ目として付く（D2）。
+- 型ごとに違う物: `src/render.py` の 3 つの定数（`ORDER_WEAPON`・`SPAWNS`・`SUMMARY`。11.3）だけ。持ち主が 11.8 を覆して案 A にした時だけ、variant の表に関数の名 `subagents` が 4 つ目として付く（D2）。
 - 11.3 の前の字で型が持つとしていた組み方のうち、6 つとも同じ物（`first_prompt`・`unattended`・`overlay_file`・下請けの段落の真偽）は本体へ移した。
 - 決まりの字の直し（D1 の作る物の 8）: E2 の口の並び・`tests/layers/scan.py` の `PACK_PORTS`・`.shared/AGENTS.md` の口の一覧・E4 の place のファイルの名の句。E10（新しい層・置き場・常駐する仕組み）には当たらない。今の置き場 `.shared/` に、そこの決まりが既に許す「小さなモジュール」を 1 つ足すだけだから。
 
@@ -1358,10 +1369,10 @@ TDD の輪を block に出す前に、修正の block の中で、輪の外が�
 - `first_prompt`・`unattended`・`overlay_file` の組み方と下請けの段落の真偽: 本体 `writerblock.prep`（1）。今は修正の block の `prompts.writer_values` に在り、D1 の後は修正の block から消える。
 - 型の block の試験: 照らす事は 1 か所に置く（`tests/blocks/kit.py` の試験の組と、本体の試験 `tests/blocks/shared/test_writerblock.py`）。block ごとの `tests/blocks/weapon_<型>/test_<型>.py` は block の名を渡して継ぐだけ。7.1 の 10 が block ごとの試験のフォルダを求めるので、フォルダは残す。
 - 設計書: 6 つに共通の形は `docs/design/fix.md` の 1 節に置く。訳: slots を組むのは修正の block で、型の block の口の意味は slots の形と組にして読む。全部の block の型を書く README に、1 つの族の形は書かない。各 `docs/design/weapon-<型>.md` は型ごとに違う物だけを書く（block を名指す依頼が `docs/design/<block>.md` を引く道は残す。`workflows/AGENTS.md`）。
-- 型の決まりの文（頭の段落）: 各 block の `prompts/parts/head.md` 1 本。AI の node の md と、案 B・C の時の下請けの指示の `{weapon_rule}` の両方が、ここから組む（11.3・D2）。
+- 型の決まりの文（頭の段落）: 各 block の `prompts/parts/head.md` 1 本。AI の node の md と、下請けの指示の `{weapon_rule}`（11.8 の決め。案 B）の両方が、ここから組む（11.3・D2）。
 - 修正の block の YAML の鎖の `with:`: 鎖ごとに YAML の錨 1 つ（11.4 の 4）。
 - TDD の役の指示の値と証拠の種類の数え: E2 の作る物の 6（材料の部は修正の block の 1 つの関数、輪の部は `weapon-tdd`、種類の数えは `lib/`）。証拠の種類の控えは、E1 で `orders.tdd` に運ぶ（今は振り分けと輪が 1 つの控えを使う。運ばないと輪の最初の周で段落が減りうる）。
-- 案 B・C の時の下請けの部品: 値は `lib/subagents.py`、md は `.shared/prompts/g1-*.md`、ファイルを書く所は本体（D2）。
+- 下請けの部品（11.8 の決め。案 B）: 値は `lib/subagents.py`、md は `.shared/prompts/g1-*.md`、ファイルを書く所は本体（D2）。
 
 写して照らす物（Archon か決まりが、1 か所から読ませない物）:
 - 書き手の YAML の起こし方・`output_format`・`inputs:`・node の並び: 2 の照らし（`test_weapon_blocks.py` の (i)）。
@@ -1378,7 +1389,7 @@ TDD の輪を block に出す前に、修正の block の中で、輪の外が�
 
 #### 4. 持ち主に聞く物
 
-無い。1 の置き場は決まり（憲法の 4・E3・E22・`.shared/AGENTS.md`）と Archon の定めで 1 つに決まる。2 は、写しを無くす道が Archon にも決まりの中にも無い（4 つ目の道は承認済みの形に反する）。3 の分けも、1 か所に置けるかで決まる。案 A と案 B・C で部品の置き場が変わる所（D2）は 11.8 の答えに従うだけで、新しい問いではない。
+無い。1 の置き場は決まり（憲法の 4・E3・E22・`.shared/AGENTS.md`）と Archon の定めで 1 つに決まる。2 は、写しを無くす道が Archon にも決まりの中にも無い（4 つ目の道は承認済みの形に反する）。3 の分けも、1 か所に置けるかで決まる。部品の置き場は 11.8 の決め（案 B）に従うだけで、新しい問いではない（覆された時に変わる所は 11.8）。
 
 ### 11.11 持ち主の答え（憲法の 3 の外し）で変わる所の控え（第 12 版で足した。受付 20261025-220553-1dba8f）
 
@@ -1410,7 +1421,7 @@ TDD の輪を block に出す前に、修正の block の中で、輪の外が�
 
 - static の義務 4 `kinds_rows`（`workflows/fix/src/static.py:39`）: F1。返しの欄も指示の文も足さない。`evidence.kinds` は #872 で返しの形と指示（`.shared/prompts/writer-rules.md:20` の段落 `where_writer`）に入っている。受け付けの事実と表に足すだけ。
 - pin の義務 3 `sites_per_test`（`pin.py:39`）: F1。sites の行に欠けてよい欄 `test`（足した試験の id）を足し、指示に 1 文。
-- variant の `sites_shape`・`unit_red`（`variant.py:15`・`:20`）: F1。sites の行に欠けてよい欄 `at`・`fixed_by` を足し、指示に 2 文。問いの当たりの行を引く口（2.2 の機械の照らしの (1)）を修正の block の `src/` に置く。sites の行を書くのは variant の書き手で、下請けの実装役ではないので、11.8 の答えは F1 の置き場を変えない。
+- variant の `sites_shape`・`unit_red`（`variant.py:15`・`:20`）: F1。sites の行に欠けてよい欄 `at`・`fixed_by` を足し、指示に 2 文。問いの当たりの行を引く口（2.2 の機械の照らしの (1)）を修正の block の `src/` に置く。sites の行を書くのは variant の書き手で、下請けの実装役ではないので、11.8 の決め（と覆した時の案）は F1 の置き場を変えない。
 - change の箱の義務 `change_named_or_gone`（`duties.py:35`）: F2。名指しの赤緑は、走らせを足さずに今の事後の関門の赤緑（`gates._red_green`。`gates.py:289`）の事実を使う（11.6 の F2 の「`before` の出どころ」）。E2 の後に置く訳: tdd の単位の名指しを輪の記録 `record.json`（E1）から読むため。E1 の前に置くと輪の状態を読む所が 1 つ増え、E1 の棚卸し（付録 C）に足し直すことになる。
 - 返しの `evidence.named`（と同じ行の `added`・`rewritten` を受け付けの名指しに足す所。`orders.py:449` の `named_tests`）: F2。`evidence` に欠けてよい欄 `named` を、単位の鍵つきの行 `{unit_key, test}` で足す（2.2 の字は試験の並びだったが、箱の義務を単位ごとに引くので単位を持たせた）。`added`・`rewritten` は返しに足さない。受け付けが木の比べで出す今の値（`duties.unit_facts` の `added`、`write_returns` の `added`・`rewritten`）を名指しに足す。2.2 は「型の申告で、受け付けが照らし直す」としたが、照らし直す側の値が在るので、申告を足すと同じ事実が 2 か所になる。
 - `na`（PR A の控えの 3 節の表の行と、4.4 の 4 の「直す所」）: 段 2 では作らない。持ち主に聞く（4）。
