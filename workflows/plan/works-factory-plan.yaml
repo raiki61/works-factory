@@ -288,6 +288,9 @@ nodes:
                       enum:
                       - tdd
                       - direct
+                      - static
+                      - tidy
+                      - pin
                     route_why:
                       type: string
                     tests:
