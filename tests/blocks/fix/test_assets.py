@@ -2,14 +2,17 @@
 付録 A・4.4 の作る物 9。docs/plans/2026-10-25-fix-weapons-stage1-b.md）。
 
 - 表 appendix-a.json: 付録 A の行（番号・行き先・出どころ）と、その行の英語の文（移す前の指示の行の字。差し込み口は {名} のまま）。番号と
-  行き先は付録 A の本文から機械で読み直して照らし（表と付録 A が食い違えば赤）、行き先ごとの数（共通 156・variant 29・変える 4・
+  行き先と出どころ（節の見出しが名指す置き場。機械の行 machine は A.8 の行だけ）は付録 A の本文から機械で読み直して照らし（表と付録 A が
+  食い違えば赤。from を machine に替えて照らしを飛ばすこともできない）、行き先ごとの数（共通 156・variant 29・変える 4・
   消す 11。範囲の番号 F17〜F20 などは広げて数える）も照らす。
 - 表の文の出どころ: 表の各行の文が、付録 A の本文がその行に引く置き場の行（`:4`・`brief.md:2-4` など）の、付録 A の行番号の版
   （PIN。#865 の後で #866 の前の main）の字に在る。表と指示の md を一緒に書き換えても、git の履歴の字は変わらないので赤になる
   （CI は fetch-depth: 0 で全履歴を取る。履歴を引けなければ見送らずに赤）。移す時に字を替えた行は REWORDED に、替えた後と前の字の対で置く。
   削る向きも照らす: 機械の行（from が machine）でない行の文は空にできず、付録 A が引く置き場の行ごとに、そこを引く行の文を全部
   抜いた残り（段落の印 <!-- --> と差し込み口 {名} を除き、空白をそろえる）が LEFT に書いた字と等しい（既定は空）。表と md から
-  文の尻・真ん中を一緒に削る、行を一緒に消すと、残りが増えて赤になる。
+  文の尻・真ん中を一緒に削る、行を一緒に消すと、残りが増えて赤になる。行き先が型を絞る行の置き場の行に、全部の書き手に残す字が
+  在る時は、その字を表の行の rest に置く（F135 の行の返答の欄 fix_closure の残り。付録 A は残りを移すと決めていない）。rest は
+  残りの照らしで覆う側に入り、組み上がった全部の書き手の指示に在ることを照らす（消す行・機械の行には置けない）。
 - 組み上がった指示: 型ごとの書き手の node の md（prompts/<node>.md）を、差し込みを解き、型が選ぶ段落を src/prompts.writer_paragraphs で
   選び、ほかの段落（却下・裁定・相談・続きの周など）を全部入れて組んだ字。差し込み口の値は {名} の字のまま（表の文と比べるため）、
   借りた型の読み替え {unattended} だけは本物の値（lib/seat.overlay_body）。
@@ -59,11 +62,9 @@ REWORDED = {   # 移す時に字を替えた行: 番号 → (表の字, PIN の�
     "F135": ("`clean` without ever having seen red is rejected.", "clean without ever having seen red is rejected"),   # F135 の文を rules_red の段落へ切り出した
 }
 COUNTS = {"共通": 156, "variant": 29, "変える": 4, "消す": 11}   # 付録 A の A.1・1.4.2 の数（全部で 200）
-LEFT = {   # 置き場の行のうち、引く行の文に移さなかった字（付録 A の行の番号 → 残る字）
+LEFT = {   # 置き場の行のうち、引く行の文にも残り（rest）にも移さなかった字（付録 A の行の番号 → 残る字）
     "F21": "You are the fixer. , and fix the units you owe a fix on the working tree.",   # 型ごとの頭に言い直した（付録 A の F21）
-    "F135": "- `fix_closure`: the result of the round's proof of closure. In a round with fixes, `clean` (in `checked`, what you "
-            "confirmed; ) or `found`. Only a round with 0 fixes may be `not_applicable` (silent values such as not_applicable when "
-            "there are fixes are rejected)",   # F135 の文だけを切り出した。行の残りは返答の欄の行のまま（writer.md の fix_closure）
+    "F135": ";",   # F135 の文を rules_red の段落へ切り出した時に消した区切り。行の残り（返答の欄 fix_closure の行）は表の rest
     "G13": "The units fixed in the TDD loop are in the loop summary.",   # 3 文目は G14 と一緒に消す（付録 A の G13 の第 8 版）
 }
 MARKUP = re.compile(r"<!--.*?-->|\{[\w:.-]+\}")   # 段落の印と差し込み口（字の観点ではない）
@@ -133,19 +134,24 @@ def expand(ids: str) -> list:
 
 
 def appendix_rows() -> list:
-    """付録 A の本文の行 (番号, 行き先)。行き先は 共通・variant・variant・pin・変える・消す（数に入れない行と、A.2 の Q の写しの行は除く）"""
+    """付録 A の本文の行 (番号, 行き先, 出どころ)。行き先は 共通・variant・variant・pin・変える・消す（数に入れない行と、A.2 の Q の
+    写しの行は除く）。出どころは節の見出しが名指す置き場: A.6 の下請けの指示は g1、A.7 の unattended.md は unattended、A.8 の
+    Python が組む行は machine、ほかは writer"""
     text = PLAN.read_text(encoding="utf-8")
     body = text[text.index("## 付録 A"):text.index("## 付録 B")]
     out = []
     for sec in re.split(r"^### ", body, flags=re.M)[1:]:
         head = sec.split("\n", 1)[0]
+        place = head.split(" ", 2)[1]
+        src = ("g1" if place == "下請けの指示" else "unattended" if place == "`lib/borrow/unattended.md`"
+               else "machine" if place == "Python" else "writer")
         for ids, dest in re.findall(r"^- (\S+?) `[^`]*`.*?→ \**([^／]*?)\**\s*／", sec, re.M):
             dest = dest.strip()
             if dest.startswith("数に入れない") or (head.startswith("A.2") and ids.startswith("Q1")):
                 continue
             to = ("消す" if dest.startswith("消す") or ids == "F26" else "variant・pin" if dest.startswith("variant・pin")
                   else "variant" if dest.startswith("variant") else "変える" if dest.startswith("変える") else "共通")
-            out.append((ids, to))
+            out.append((ids, to, src))
     return out
 
 
@@ -177,7 +183,12 @@ def appendix_sources() -> dict:
 
 class TableCase(unittest.TestCase):
     def test_the_table_is_appendix_a(self):
-        self.assertEqual([(r["id"], r["to"]) for r in ROWS], appendix_rows())
+        self.assertEqual([(r["id"], r["to"], r["from"]) for r in ROWS], appendix_rows())
+        for r in ROWS:
+            with self.subTest(row=r["id"]):
+                self.assertLessEqual(set(r), {"id", "to", "from", "text", "rest"})
+                if "rest" in r:   # 残りは全部の書き手に照らすので、消す行・機械の行には置けない
+                    self.assertTrue(r["to"] != "消す" and r["from"] == "writer" and r["rest"], "残りを置けない行")
 
     def test_counts_by_destination_match_appendix_a(self):
         got = {k: 0 for k in COUNTS}
@@ -195,7 +206,7 @@ class TableCase(unittest.TestCase):
         sources = appendix_sources()
         cache = {}
         for r in ROWS:
-            for line in r["text"]:
+            for line in r["text"] + r.get("rest", []):
                 with self.subTest(row=r["id"]):
                     self.assertIn(r["id"], sources, "付録 A の本文に置き場の行の引きが無い")
                     new, old = REWORDED.get(r["id"], ("", ""))
@@ -215,7 +226,7 @@ class TableCase(unittest.TestCase):
             with self.subTest(row=r["id"], what="空でない"):
                 self.assertTrue(r["text"] and all(line.strip() for line in r["text"]), "機械の行でない行の文が空")
             new, old = REWORDED.get(r["id"], ("", ""))
-            texts = r["text"] + ([G18] if r["id"] == "G16〜G19" else [])   # G18 は表の G16〜G19 の行に無い（消す。下の G18）
+            texts = r["text"] + r.get("rest", []) + ([G18] if r["id"] == "G16〜G19" else [])   # G18 は表の G16〜G19 の行に無い（消す。下の G18）
             for refs in sources.get(r["id"], []):
                 for ref in refs:
                     cited.setdefault(ref, []).append((r["id"], [flat(t.replace(new, old) if new else t).strip() for t in texts]))
@@ -248,6 +259,14 @@ class AssetCase(unittest.TestCase):
                 for n in sorted(targets):
                     with self.subTest(row=r["id"], node=n):
                         self.assertIn(want, self.text[n])
+
+    def test_the_rest_of_a_row_is_in_every_writer(self):
+        """表の行の残り（rest。行き先が型を絞る行が引く置き場の行のうち、その行の文に移さなかった字）は、全部の書き手に在る"""
+        for r in ROWS:
+            for line in r.get("rest", []):
+                for n in sorted(nodes()):
+                    with self.subTest(row=r["id"], node=n):
+                        self.assertIn(flat(line).strip(), self.text[n])
 
     def test_removed_rows_are_in_no_writer(self):
         """行き先が「消す」の行の文は、どの書き手の指示にも下請けの指示にも無い（G16〜G19 の行は variant なので、消す G18 の文は G18 で足す）"""

@@ -613,6 +613,10 @@
   "from": "writer",
   "text": [
    "`clean` without ever having seen red is rejected."
+  ],
+  "rest": [
+   "- `fix_closure`: the result of the round's proof of closure. In a round with fixes, `clean` (in `checked`, what you confirmed",
+   ") or `found`. Only a round with 0 fixes may be `not_applicable` (silent values such as not_applicable when there are fixes are rejected)"
   ]
  },
  {
