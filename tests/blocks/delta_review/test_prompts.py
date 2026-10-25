@@ -134,9 +134,9 @@ class WriterRulesCase(s.Case):
         for name in names:
             self.assertIn(f"`{name}`", row)
 
-    def test_the_conflict_paragraph_names_the_six_scenes(self):
+    def test_the_conflict_paragraph_names_the_seven_scenes(self):
         text = WRITER_RULES.read_text(encoding="utf-8")
         block = "\n".join(re.findall(r"<!-- if conflict(?:_change)? -->\n(.*?)<!-- end conflict(?:_change)? -->", text, re.S))
-        for kind in ("brief_vs_judgment", "unnamed_test_broke", "not_red", "scope_needed", "query_hits_fixed", "needs_context"):
+        for kind in ("brief_vs_judgment", "unnamed_test_broke", "not_red", "scope_needed", "query_hits_fixed", "needs_context", "red_at_base"):
             self.assertIn(f"`{kind}`", block)
-        self.assertEqual(len(re.findall(r"^  - `", block, re.M)), 6)
+        self.assertEqual(len(re.findall(r"^  - `", block, re.M)), 7)

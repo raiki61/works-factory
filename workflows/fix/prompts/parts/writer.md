@@ -78,6 +78,7 @@ When the implementer template's status words NEEDS_CONTEXT or BLOCKED (the works
 - `scope_needed`: it does not go green without touching something outside the brief's or the plan's scope, or the recount with the judge's query does not close (when there is a scope consultation section, only after you consulted first in the answer's consult and were not allowed; a subagent reports to the coordinating role that a consultation is needed)
 - `query_hits_fixed`: the judge's query also hits the correct form after the fix (`which_is_right` is query, and `correct_lines` is needed)
 - `needs_context`: the policy, the intent of the request, or which is right cannot be decided from the materials, and a person's or the request's answer is needed (`which_is_right` is unknown)
+- `red_at_base`: a test you added to pin the current behavior fails on the version before the fix, so the current code may be wrong (only when your role pins current behavior; `which_is_right` is test or unknown, and the unit is returned parked, not fixed)
 <!-- end rules -->
 
 <!-- if g1 -->

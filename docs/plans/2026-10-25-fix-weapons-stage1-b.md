@@ -15,7 +15,22 @@
 
 ## 2 進み（commit ごと）
 
-- [ ] 型ごとの書き手（移し）
-- [ ] 消す 11（行ごとの commit）
-- [ ] アセットの試験
-- [ ] PR A の残り
+- [x] 型ごとの書き手（移し）: b2f101d7
+- [x] 消す 11（行ごとの commit。条件と代わりの照らしは各 commit の本文と PR の本文）: 5a16ada0（F12・F13・F26 の前半）・619bf8d4（F107・F108・F148b・G14・G13 の 3 文目・G18）・88226c38（F25）・16eabebc（W13）・1d746211（BR3）
+- [x] アセットの試験: 7acf0fc7（tests/blocks/fix/test_assets.py）
+- [x] PR A の残り: red_at_base（種類・which_is_right の対・裁定の受け付け・指示の文）・pin の 1 文・retry の tdd の試験・この控えの 4 節
+
+## 3 消すの中で決めた事（実装の部署の決め。持ち主・窓口が覆せる）
+
+1. lib/seat.SEATS から fix・fix-ruled を外した（F108・F148b の後は読む所が無い）。借りた型の読み替え OVERLAY_KINDS は下請けが読むので残す。
+2. W13: 段落の名 where_fixer を where_writer に替え、文を「返答の evidence.kinds に種類ごとに 1 行」にした。返答の closure.verified_how の欄は形に残す（必須を減らさない）。
+3. BR3: 修正案の項目の欄の形 lib/plan-item-fields.schema.json に allowed_paths・out_of_scope を required で足した。下書きが名指す fix の入口の形 workflows/fix/schemas/plan-fields.schema.json は今の木に無く、入口の port は shared:plan-fields.schema.json の fields の行がこの形を名指すので、ここに足した。この形を読む plan・line・spec-driven・structure の試験の筋書きに範囲の欄を足した。lib/planrange の NO_SCOPE の枝は残す: 凍結の控えは planmarks.frozen が port の形の検査を通さずに読むので、範囲の欄の無いファイルが置かれた時に照らさなかった訳を報告に残すため。
+
+## 4 控え 5 節と再レビューの nit の扱い
+
+1. retry の返りの tdd を縛る試験: tests/blocks/fix/test_suite_fix.py の assert_tdd_follows_taken。書き直しが効いた時と結末が取れない時の両方で、返りの tdd が base.json の taken と同じことを照らす。taken と no_suite が食い違う組（取れたのに no_suite が立つ組）は筋書きを組めず、照らしていない。
+2. 下ごしらえ（pin）を keep の組の前に挟む所（orders.compute）: 直さない。訳: 型の順 SEQUENCE は pin を tdd の後・ほかの型の前に回すので、pin の注文の在る組では pin の書き手が先に起きる。keep の組（守りだけの組）に pin の注文を機械が足す決まりは下書きに無く、足すと注文を書く役の判断（3.1）を機械が奪う。今は挟まずに受け付けで止まる（fail closed。pin.tests_only と 0 件の止め）。
+3. 消した試験 removed_tests を拾うのが .py だけ: 直さない。訳は PR A の控えのとおり（試験の id を引く口 scope._test_ids が Python の構文木で読む。ほかの言語の試験の id を引く口を決める時に直す）。
+4. plan-writer.md:156（仕様の道の節）の「仕様が名指さない項目は static・tidy・pin を取ってよい」の 1 文: 残す。訳: 仕様の道の決まりが縛るのは TDD で直す所だけで、static・tidy・pin は TDD の道ではない。消すと、仕様が名指さない項目は全部 direct（型 variant）になり、4.4 の 7 が足した route の語を仕様の道だけが使えなくなる。
+5. pin の 1 文（4.4 の 6）は parts/pin.md の役の頭の前に「Do not rewrite configuration files that exist in the version before the fix.」と置いた。受け付けの照らし（起点の木に在る設定のファイルの書き換えを拒む）は PR A に在る。
+6. red_at_base の指示の文は、申し出の種類を並べる 2 か所（parts/writer.md と共通の断片 writer-rules.md）に同じ字で足した。「only when your role pins current behavior」と書き、書き手ごとに段落で分けてはいない（種類の並びは今もどの書き手にも同じ物が載るため）。

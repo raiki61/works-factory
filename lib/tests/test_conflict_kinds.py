@@ -75,7 +75,7 @@ class KindCase(unittest.TestCase):
 
     def test_design_kinds_and_two_kept(self):
         self.assertEqual(conflict.DIV_KINDS, ("brief_vs_judgment", "unnamed_test_broke", "not_red", "scope_needed",
-                                              "query_hits_fixed", "needs_context"))
+                                              "query_hits_fixed", "needs_context", "red_at_base"))
         self.assertEqual(self.errs(), [])
         got = self.errs(kind="other")
         self.assertTrue(any("kind" in e and "needs_context" in e for e in got), got)
@@ -87,6 +87,13 @@ class KindCase(unittest.TestCase):
             got = self.errs(**over)
             self.assertTrue(any("kind" in e and "which_is_right" in e for e in got), (over, got))
         self.assertEqual(self.errs(kind="needs_context", which_is_right="unknown"), [])
+
+    def test_red_at_base_pairs_with_test_or_unknown(self):
+        """red_at_base（今の振る舞いを留めるために足した試験が起点の木で落ちる）の which_is_right は test か unknown（下書き 3.6）"""
+        for which in ("test", "unknown"):
+            self.assertEqual(self.errs(kind="red_at_base", which_is_right=which), [], which)
+        got = self.errs(kind="red_at_base", which_is_right="code")
+        self.assertTrue(any("red_at_base" in e and "which_is_right" in e for e in got), got)
 
     def test_problems_by_entry_names_the_unit_of_each_entry(self):
         # 申し出ごとに (i, 読めた unit_key か None, 文の並び)。key は dict の unit_key が str で owed に在る時だけ読める
