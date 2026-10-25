@@ -1,7 +1,7 @@
 # 直し方の型の段 1・PR B の実装の控え（受付 20261025-095016-54abf0）
 
 - 何の話か: 設計の下書き [2026-10-24-fix-weapons.md](2026-10-24-fix-weapons.md)（以下「下書き」）の 4.4 の作る物 9（修正役の指示を付録 A の行き先どおりに型ごとの書き手へ移す）と、PR A（#869）が PR B に回した物のうち頼みが名指す物を作る PR B の、実装の部署の控え。PR A の控えは [2026-10-25-fix-weapons-stage1-a.md](2026-10-25-fix-weapons-stage1-a.md)。
-- この控えに書く物: 下書きが黙っていた所で実装の部署が決めた事（持ち主・窓口が覆せる）と、どの commit で何を閉じたか。会話は納品のたびに空になるので、続きはここと PR の本文から読み直す。
+- この控えに書く物: 下書きが黙っていた所で実装の部署が決めた事（持ち主・窓口が覆せる）と、どの commit で何を閉じたか。会話は納品のたびに空になるので、続きはここと PR の本文から読み直す。済んだ事の記録で、読み手に頼む作業は無い。覆したい物があれば、見出しに「覆せる」とある 1 節・3 節の行を持ち主（この工場の持ち主で、設計の決めを出す人）か窓口（持ち主と会話して工場への頼みを取り次ぐ AI）に伝える。
 
 ## 1 形の決め（実装の部署の決め。持ち主が覆せる）
 
@@ -16,21 +16,21 @@
 ## 2 進み（commit ごと）
 
 - [x] 型ごとの書き手（移し）: b2f101d7
-- [x] 消す 11（行ごとの commit。条件と代わりの照らしは各 commit の本文と PR の本文）: 5a16ada0（F12・F13・F26 の前半）・619bf8d4（F107・F108・F148b・G14・G13 の 3 文目・G18）・88226c38（F25）・16eabebc（W13）・1d746211（BR3）
+- [x] 消す 11（下書きの付録 A は、今の修正役の指示を 1 項目ずつ番号〔F12・W13・BR3 など〕で挙げ、型を分けた後の行き先を付けた表。行き先が「消す」〔型を分けると要らなくなるので指示の文を消す〕の項目が 11 ある。その 11 を項目ごとに commit した。条件と代わりの照らしは各 commit の本文と PR の本文）: 5a16ada0（F12・F13・F26 の前半）・619bf8d4（F107・F108・F148b・G14・G13 の 3 文目・G18）・88226c38（F25）・16eabebc（W13）・1d746211（BR3）。並べた番号は 12 あるが、G13 の 3 文目は 11 に数えない。G13 の行き先は variant で、その中の 3 文目だけが TDD の要約を指す文なので、G14 と一緒に消した（付録 A の G13 の行）。
 - [x] アセットの試験: 7acf0fc7（tests/blocks/fix/test_assets.py）
-- [x] PR A の残り: red_at_base（種類・which_is_right の対・裁定の受け付け・指示の文）・pin の 1 文・retry の tdd の試験・この控えの 4 節
+- [x] PR A の残り: 申し出の種類 red_at_base（下ごしらえ pin が今の振る舞いを留めるために足した試験が、修正前の版で落ちる時に出す申し出。下書きの 3.6）の 4 つ（種類の一覧への追加・申し出の欄 which_is_right〔どちらが正しいと見たか〕を test か unknown に限る照らし・裁定を fix_plan_item と ask_human に限る受け付け・指示の文）・pin の 1 文・retry の tdd の試験・この控えの 4 節
 
 ## 3 消すの中で決めた事（実装の部署の決め。持ち主・窓口が覆せる）
 
-1. lib/seat.SEATS から fix・fix-ruled を外した（F108・F148b の後は読む所が無い）。借りた型の読み替え OVERLAY_KINDS は下請けが読むので残す。
+1. lib/seat.py の表 SEATS（役の名 → その役の会話に載せる、借りた superpowers の型の節）から fix・fix-ruled を外した。F108・F148b で、修正役の会話に借りた implementer の型を直に載せる段落を消したので、この 2 行を読む所が無い。同じファイルの表 OVERLAY_KINDS（役の名 → その役に載せる、借りた型の読み替え lib/borrow/unattended.md の節）の fix の行は残す。書き手の指示に載り、書き手が項目ごとに起こす下請け（実装の子と審査の子）にも同じファイルを読ませるため。
 2. W13: 段落の名 where_fixer を where_writer に替え、文を「返答の evidence.kinds に種類ごとに 1 行」にした。返答の closure.verified_how の欄は形に残す（必須を減らさない）。
-3. BR3: 修正案の項目の欄の形 lib/plan-item-fields.schema.json に allowed_paths・out_of_scope を required で足した。下書きが名指す fix の入口の形 workflows/fix/schemas/plan-fields.schema.json は今の木に無く、入口の port は shared:plan-fields.schema.json の fields の行がこの形を名指すので、ここに足した。この形を読む plan・line・spec-driven・structure の試験の筋書きに範囲の欄を足した。lib/planrange の NO_SCOPE の枝は残す: 凍結の控えは planmarks.frozen が port の形の検査を通さずに読むので、範囲の欄の無いファイルが置かれた時に照らさなかった訳を報告に残すため。
+3. BR3: 修正案の項目の欄の形 lib/plan-item-fields.schema.json に allowed_paths・out_of_scope を required で足した。下書きが名指す fix の入口の形 workflows/fix/schemas/plan-fields.schema.json は今のリポジトリに無い。fix の block の入力 port（YAML の inputs:）の plan は、形を workflows/.shared/schemas/plan-fields.schema.json と名指し、その形の fields の行（項目 1 つの欄）は lib/plan-item-fields.schema.json を名指す。項目の欄の形の住処はここ 1 か所なので、ここに足した。この形を読む plan・line・spec-driven・structure の試験の筋書きに範囲の欄を足した。lib/planrange.py の NO_SCOPE の枝（範囲の欄の無い修正案の控えなら範囲を照らさず、照らさなかった訳だけを返す分岐）は残す: 凍結の控えは planmarks.frozen が port の形の検査を通さずに読むので、範囲の欄の無いファイルが置かれた時に照らさなかった訳を報告に残すため。
 
-## 4 控え 5 節と再レビューの nit の扱い
+## 4 PR A の控えの 5 節で後に回した nit と、再レビューの nit の扱い
 
-1. retry の返りの tdd を縛る試験: tests/blocks/fix/test_suite_fix.py の assert_tdd_follows_taken。書き直しが効いた時と結末が取れない時の両方で、返りの tdd が base.json の taken と同じことを照らす。taken と no_suite が食い違う組（取れたのに no_suite が立つ組）は筋書きを組めず、照らしていない。
-2. 下ごしらえ（pin）を keep の組の前に挟む所（orders.compute）: 直さない。訳: 型の順 SEQUENCE は pin を tdd の後・ほかの型の前に回すので、pin の注文の在る組では pin の書き手が先に起きる。keep の組（守りだけの組）に pin の注文を機械が足す決まりは下書きに無く、足すと注文を書く役の判断（3.1）を機械が奪う。今は挟まずに受け付けで止まる（fail closed。pin.tests_only と 0 件の止め）。
-3. 消した試験 removed_tests を拾うのが .py だけ: 直さない。訳は PR A の控えのとおり（試験の id を引く口 scope._test_ids が Python の構文木で読む。ほかの言語の試験の id を引く口を決める時に直す）。
-4. plan-writer.md:156（仕様の道の節）の「仕様が名指さない項目は static・tidy・pin を取ってよい」の 1 文: 残す。訳: 仕様の道の決まりが縛るのは TDD で直す所だけで、static・tidy・pin は TDD の道ではない。消すと、仕様が名指さない項目は全部 direct（型 variant）になり、4.4 の 7 が足した route の語を仕様の道だけが使えなくなる。
-5. pin の 1 文（4.4 の 6）は parts/pin.md の役の頭の前に「Do not rewrite configuration files that exist in the version before the fix.」と置いた。受け付けの照らし（起点の木に在る設定のファイルの書き換えを拒む）は PR A に在る。
-6. red_at_base の指示の文は、申し出の種類を並べる 2 か所（parts/writer.md と共通の断片 writer-rules.md）に同じ字で足した。「only when your role pins current behavior」と書き、書き手ごとに段落で分けてはいない（種類の並びは今もどの書き手にも同じ物が載るため）。
+1. retry の返りの tdd を縛る試験: tests/blocks/fix/test_suite_fix.py の assert_tdd_follows_taken。起動スクリプトの書き直しの後のやり直し（suitefix.retry）が返す tdd（TDD の輪を回すか）を、書き直しが効いた時と結末が取れない時の両方で、base.json の taken（直す前の試験の結果が取れたかの印）と同じことを照らす。taken と、組の頭が tdd-start.json に書く no_suite（試験の実行器が無く止める印）が食い違う組（結果が取れたのに no_suite が立つ組）は筋書きを組めず、照らしていない。
+2. 下ごしらえ（pin）を keep の組（振る舞いを変えない型〔tidy など〕だけの組）の前に挟む所（orders.compute）: 直さない。訳: 型の順の表 SEQUENCE（workflows/fix/src/writers.py）は pin を tdd の後・ほかの型の前に回すので、pin の注文の在る組では pin の書き手が先に起きる。keep の組に pin の注文を機械が足す決まりは下書きに無い。下ごしらえを付けるかは、計画の役（AI）が項目の route の語 pin で名指して決める（下書きの 3.6）。機械が足すと、この判断を機械が奪う。今は挟まずに受け付けで止まる（fail closed。pin.tests_only と 0 件の止め）。
+3. 消した試験 removed_tests を拾うのが .py だけ: 直さない。訳は PR A の控えの 5 節のとおり（試験の id を引く口 scope._test_ids が Python の構文木で読む。ほかの言語の試験の id を引く口を決める時に直す）。
+4. 計画の役の指示 workflows/plan/prompts/plan-writer.md の 156 行目（仕様の道の節。仕様の書き手が「TDD で直す所」を名指す run の道）の「仕様が名指さない項目は static・tidy・pin を取ってよい」の 1 文: 残す。訳: 仕様の道の決まりが縛るのは TDD で直す所だけで、static・tidy・pin は TDD の道ではない。消すと、仕様が名指さない項目は全部 route の語 direct（今の修正役の道。段 1 では型 variant が受ける）になり、下書きの 4.4 の作る物 7 が足した route の語 static・tidy・pin を仕様の道だけが使えなくなる。
+5. pin の 1 文（下書きの 4.4 の作る物 6 が名指す、下ごしらえの指示の 1 文）は parts/pin.md の役の頭の前に「Do not rewrite configuration files that exist in the version before the fix.」と置いた。受け付けの照らし（起点の木に在る設定のファイルの書き換えを拒む）は PR A に在る。
+6. red_at_base の指示の文は、申し出（書き手が依頼・試験・コードの食い違いなどを見つけた時に、直さずに返答へ積んで裁定を待つ行。not_red・scope_needed などの種類を持つ）の種類を並べる 2 か所（parts/writer.md と共通の断片 writer-rules.md）に同じ字で足した。「only when your role pins current behavior」と書き、書き手ごとに段落で分けてはいない（種類の並びは今もどの書き手にも同じ物が載るため）。
