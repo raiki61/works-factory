@@ -4,8 +4,9 @@
 # ///
 """node fix-prep（組の形の修正の輪の頭）: 修正役の指示を md から組む（src/prompts.fixer。今の fixrules.prep の順）。
 直す義務は組の単位のうち判定の直す義務の物（board.group_owed）。義務が残らなければ go: false。段の頭の木（TDD の輪の後の姿）と
-除くパスの頭の下の姿を 1 回目に控える（fix-head.json・skip-before.json）。範囲の相談の答えがまだ渡っていない周・はみ出しを相談に
+除くパスの頭の下の姿を 1 回目に控える（fix-head.json・skip-before.json）。組が no-suite で止まっていれば（board.no_suite_stop）go: false。範囲の相談の答えがまだ渡っていない周・はみ出しを相談に
 積んだ周は続きの段落だけを組む（回は数え直さない）。TDD の輪が緑にした単位の外の単位には、項目ごとの下請けのファイルを置く。
+tdd の輪が諦めた単位は、先に variant の注文に書き直す（orders.regive）。
 返り {prompt, go, iteration}。回す側の誤り（判定の写しが無い・brief の控えが壊れた・指示が組めない）は prompt-error.json に書いて非 0"""
 import functools
 import os
@@ -20,7 +21,7 @@ import groups  # noqa: E402
 import oneline  # noqa: E402
 import writelog  # noqa: E402
 
-from src import board, facts, files, intake, prompts, rules, tdd  # noqa: E402
+from src import board, facts, files, intake, orders, prompts, rules, tdd  # noqa: E402
 
 NODE = "fix-prep"
 SKIP = (ports.RUNTIME_COPY_PREFIX,)
@@ -28,6 +29,7 @@ SKIP = (ports.RUNTIME_COPY_PREFIX,)
 
 def main() -> dict:
     place, repo = ports.place(), Path.cwd()
+    orders.regive(place)   # tdd の輪が諦めた単位を variant の注文に書き直す（何度呼んでも同じ）
     group = intake.load(place).get("group")
     owed = board.group_owed(place, group["unit_ids"] if group else None)
     head = place / rules.head_file("first")
@@ -36,7 +38,7 @@ def main() -> dict:
         board.write_json(head, {"tree": groups.end_tree(repo)})
     n = rules.iteration_next(place / prompts.LEDGER["first"])
     duty, _ = board.fix_duty(place, owed)
-    if not duty:
+    if not duty or board.no_suite_stop(place):   # 組が no-suite で止まった（TDD のループが実行器の止まりで抜けた・受け付けが止めた）
         return {"prompt": "", "go": False, "iteration": n}
     state, summary = board.loop_files(place)
     values = board.fix_values(place, owed, state=state, summary=summary, answer_node=rules.answer_node("first"))

@@ -26,7 +26,7 @@ from typing import NamedTuple
 sys.dont_write_bytecode = True
 
 import impact  # noqa: E402  （lib。変更に当たる試験の選び）
-from src import tdd as tddloop  # noqa: E402  （同じブロックの lib。輪の状態の読み口）
+from src import common  # noqa: E402  （同じブロックの lib。輪の状態の読み口）
 
 OUT_ONLY = ("写しの拒否の行が義務の外の単位にだけ結び、写しは受けないので、義務の残りの単位を全部止めた"
             "（受けた直しを黙って捨てない）")
@@ -68,7 +68,7 @@ def footprint(rows: list, loop_states: list, repo, skip: tuple = ()) -> dict:
         if isinstance(row, dict):
             add(row.get("unit_key"), row.get("files"))
     for state in loop_states:
-        for key, unit in (tddloop.load_state(state).get("units") or {}).items():
+        for key, unit in (common.load_state(state).get("units") or {}).items():
             add(key, [*(unit.get("files") or []), *(unit.get("test_files") or [])])
     return feet
 

@@ -184,6 +184,8 @@ If you leave out `test_cmd`, the target's declaration `.review-checks.json` is u
 
 For tools that need preparation (such as tools that do not trust a new worktree), add `setup` (a list of argv; for example `"setup": [["<prep command>", "<arg>"]]`) next to `suite` in the `.review-checks.json` declaration. It runs once per worktree before the first target command, with your HOME and XDG. It may write only outside the worktree or under `.gitignore` (anything written into the worktree is counted as written by the first target command). If it fails, the target command is not started, and a run in which not a single stage of the pre-fix tests ran stops before judging and shows the error text and guidance. A target with only `test_cmd` can also use `setup` by writing the same argv in `suite`.
 
+Optionally, add `list` next to `suite` as well (one list of argv, the same shape as `setup`). It prints one test per line without running any test; empty output with exit code 0 means the repository has no tests. The fix stage uses it only when the repository has no test-like file names, to decide that it truly has no tests. If `list` is absent or fails, the factory does not conclude that there are no tests. A malformed `list` does not stop `suite` from being read.
+
 ### If your key allows few concurrent requests
 
 Some API keys (and some company gateways) accept only a few requests at a time, sometimes one. The factory runs AI nodes side by side inside one run (the judging block starts every independent viewpoint at once, up to 11 in one step; the fix block runs up to 5 groups at once), so such a key answers the extra requests with HTTP 429 and those nodes fail.

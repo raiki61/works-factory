@@ -20,7 +20,7 @@ import pathlib
 
 # fix の出力の欄 → 控えの中身（docs/design/fix.md の 1.2）。読み手はこの欄で受け、fix の place を名で開かない
 PORTS = ("allowed_tests", "accept_trace", "closure", "tdd_unit")
-FROM = ("removed", "tdd_refused")
+FROM = ("removed", "tdd_refused", "removed_tests", "untested")
 READ_ERRORS = (ValueError, TypeError, AttributeError, KeyError)
 CLOSURE_UNREAD = "閉じたかを数えていない"   # 閉鎖の表の控えを読めない行の尾（facts.residue が修正の残りにする）
 REMOVED_UNRETURNED = "修正の出力が消したファイルの控えを返せなかった"
@@ -174,9 +174,12 @@ def _accepted_tests(trace: list) -> list:
 
 def read(stages, resolve) -> dict:
     """修正の段ごとの返りの控えの欄の dict（fix と 2 度目の修正の順。ポインタのまま）を読み合わせる（元 fixbeside.read。差分の審査の
-    穴とレンズの控えは fix の出力に無くなったので読まない）。返り {closure, claimed, trace, tests, removed, allowed, unread,
-    closure_unread}。removed は段ごとの並び [(段の名, 中身)]。null・戻せない・読めない・無い控えと {"error"} は unread に訳"""
-    got = {"closure": {}, "claimed": [], "trace": [], "tests": [], "removed": [], "allowed": [], "unread": [], "closure_unread": []}
+    穴とレンズの控えは fix の出力に無くなったので読まない）。返り {closure, claimed, trace, tests, removed, allowed, removed_tests,
+    untested, unread, closure_unread}。removed は段ごとの並び [(段の名, 中身)]。removed_tests・untested は段の欄の行に段の名 stage を
+    足して段の順に並べた物（消した試験・試験を求めなかった直し。下書き 4.1 の 7）。null・戻せない・読めない・無い控えと {"error"} は
+    unread に訳"""
+    got = {"closure": {}, "claimed": [], "trace": [], "tests": [], "removed": [], "allowed": [], "removed_tests": [], "untested": [],
+           "unread": [], "closure_unread": []}
     for n, stage in enumerate(stages or [], 1):
         if not isinstance(stage, dict):
             got["unread"].append("修正の段の出力が dict でない")
@@ -198,6 +201,12 @@ def read(stages, resolve) -> dict:
         got["tests"] += _accepted_tests(trace)
         got["removed"].append((label, _removed(stage, resolve, place)))
         _allowed(_port(stage, "allowed_tests", resolve, got["unread"]), got["allowed"], got["unread"])
+        for field in ("removed_tests", "untested"):
+            rows = stage.get(field)
+            if not isinstance(rows, list) or not all(isinstance(r, dict) for r in rows):
+                got["unread"].append(f"修正の段（{label}）の欄 {field} が行の並びでない")
+                continue
+            got[field] += [{**r, "stage": label} for r in rows]
     got["closure"] = list(got["closure"].values())
     return got
 

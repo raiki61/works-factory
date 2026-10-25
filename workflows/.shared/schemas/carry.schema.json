@@ -1,7 +1,261 @@
-{"description": "次の修正の段への申し送り carry.json {conflicts, loops}（修正の block の出力 carry が指し、2 回目の修正の段の入力 prior が読む）。conflicts は食い違いの申し出の控えの中身、loops は輪ごとの状態と要約",
- "type": ["object", "null"],
+{
+ "description": "次の修正の段への申し送り carry.json {conflicts, loops, accept, bases, returns}（修正の block の出力 carry が指し、2 回目の修正の段の入力 prior が読む）。conflicts は食い違いの申し出の控えの中身、loops は輪ごとの状態と要約、accept・bases・returns は受け付けの記録・元の結末の写し・返しの控え（workflows/fix/src/carry.py）",
+ "type": [
+  "object",
+  "null"
+ ],
  "properties": {
-  "conflicts": {"type": ["object", "null"], "description": "json(lib:conflicts.schema.json): 申し出の控え（無ければ null）"},
-  "loops": {"type": "array", "items": {"type": "object", "properties": {
-    "state": {"type": "object", "properties": {"phase": {"type": "string"}, "done": {"type": "boolean"}, "open_units": {"type": "array", "items": {"type": "string"}}}},
-    "summary": {"type": "string"}}}}}}
+  "conflicts": {
+   "type": [
+    "object",
+    "null"
+   ],
+   "description": "json(lib:conflicts.schema.json): 申し出の控え（無ければ null）"
+  },
+  "loops": {
+   "type": "array",
+   "items": {
+    "type": "object",
+    "properties": {
+     "state": {
+      "type": "object",
+      "properties": {
+       "phase": {
+        "type": "string"
+       },
+       "done": {
+        "type": "boolean"
+       },
+       "open_units": {
+        "type": "array",
+        "items": {
+         "type": "string"
+        }
+       }
+      }
+     },
+     "summary": {
+      "type": "string"
+     }
+    }
+   }
+  },
+  "accept": {
+   "type": [
+    "object",
+    "null"
+   ],
+   "description": "受け付けの記録 accept.json の中身（workflows/fix/src/common.py の accept_values。無ければ null）",
+   "properties": {
+    "final_left": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    },
+    "final_far": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    },
+    "ci_left": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    },
+    "suite_made": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    }
+   }
+  },
+  "bases": {
+   "type": "array",
+   "items": {
+    "type": "object",
+    "properties": {
+     "base": {
+      "type": [
+       "object",
+       "null"
+      ],
+      "description": "元の結末の写し bases/<k>/base.json の中身（workflows/fix/src/basecase.py が書く）",
+      "properties": {
+       "work": {
+        "type": "string"
+       },
+       "exe": {
+        "type": "string"
+       },
+       "suite": {
+        "type": "string"
+       },
+       "rev": {
+        "type": "string"
+       },
+       "taken": {
+        "type": "boolean"
+       },
+       "baseline": {
+        "type": "object",
+        "patternProperties": {
+         "": {
+          "type": [
+           "string",
+           "null"
+          ]
+         }
+        }
+       },
+       "baseline_cases": {
+        "type": "array",
+        "items": {
+         "type": "object",
+         "properties": {
+          "outcome": {
+           "type": [
+            "string",
+            "null"
+           ]
+          }
+         }
+        }
+       },
+       "suite_made": {
+        "type": "array",
+        "items": {
+         "type": "string"
+        }
+       },
+       "test_cmd": {
+        "type": "string"
+       }
+      }
+     },
+     "accept": {
+      "type": [
+       "object",
+       "null"
+      ],
+      "description": "その組の受け付けの記録 bases/<k>/accept.json の中身",
+      "properties": {
+       "final_left": {
+        "type": "array",
+        "items": {
+         "type": "string"
+        }
+       },
+       "final_far": {
+        "type": "array",
+        "items": {
+         "type": "string"
+        }
+       },
+       "ci_left": {
+        "type": "array",
+        "items": {
+         "type": "string"
+        }
+       },
+       "suite_made": {
+        "type": "array",
+        "items": {
+         "type": "string"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "returns": {
+   "type": "array",
+   "description": "返しの控え returns/<k>.json の中身の並び（workflows/fix/src/duties.py の write_returns）",
+   "items": {
+    "type": "object",
+    "properties": {
+     "stage": {
+      "type": "integer"
+     },
+     "weapon": {
+      "type": "string"
+     },
+     "group": {
+      "type": "string"
+     },
+     "tree": {
+      "type": "string"
+     },
+     "units": {
+      "type": "array",
+      "items": {
+       "type": "object",
+       "properties": {
+        "key": {
+         "type": "string"
+        },
+        "named": {
+         "type": "array",
+         "items": {
+          "type": "string"
+         }
+        }
+       }
+      }
+     },
+     "frozen": {
+      "type": "object",
+      "patternProperties": {
+       "": {
+        "type": [
+         "string",
+         "null"
+        ]
+       }
+      }
+     },
+     "frozen_tree": {
+      "type": "string"
+     },
+     "suite_made": {
+      "type": "array",
+      "items": {
+       "type": "string"
+      }
+     },
+     "added": {
+      "type": "array",
+      "items": {
+       "type": "string"
+      }
+     },
+     "rewritten": {
+      "type": "array",
+      "items": {
+       "type": "string"
+      }
+     },
+     "removed": {
+      "type": "array",
+      "items": {
+       "type": "string"
+      }
+     },
+     "files": {
+      "type": "array",
+      "items": {
+       "type": "string"
+      }
+     },
+     "why_untested": {
+      "type": "string"
+     }
+    }
+   }
+  }
+ }
+}

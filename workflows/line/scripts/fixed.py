@@ -20,7 +20,7 @@ import ports  # noqa: E402
 FIX = ("ok", "reason", "units", "groups", "conflicts", "carry", "replan_items", "objection", "diff", "start_tree", "reply",
        "ruled_reply", "scope", "checked", "allowed_test_changes", "changed", "x_scalars", "handoffs", "handoff_titles", "mismatched", "plan_declared",
        "stop_reason", "allowed_tests", "accept_trace", "closure", "tdd_unit", "tdd", "frozen", "removed", "tdd_refused",
-       "item_claims", "freeze_off", "report")
+       "item_claims", "freeze_off", "removed_tests", "untested", "report")
 LENS = ("ok", "status", "reason", "rows", "ran", "failed", "not_routed", "carry", "report")
 DELTA = ("ok", "status", "reason", "rounds", "pass", "holes", "diff", "carry", "report")
 PLAN = ("ok", "status", "reason", "mode", "round", "owed", "plan", "fix_plan", "reply", "handoff", "replan", "ripple", "rejects",

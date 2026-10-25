@@ -645,9 +645,10 @@ def rejudge_texts(rows) -> list:
                               if decision(r) == REJUDGE and isinstance(r[RULING].get("text"), str) and r[RULING]["text"].strip()))
 
 
-def apply_rulings(b, rulings: dict, *, by: str) -> None:
+def apply_rulings(b, rulings: dict, *, by: str, stage=None) -> None:
     """裁定 {id: {decision, text, limits[, grounds, request_searched, query]}} を今の周の申し出に積み（裁かれていない物だけ。
-    fix_plan_item の行には案の直しの状態 WAITING を置く）、trace に 1 行ずつ。知らない id は
+    fix_plan_item の行には案の直しの状態 WAITING を置く）、trace に 1 行ずつ。stage（段の番。その裁定が見た返しの段）を渡せば
+    裁定の欄 stage に書く（注文の許しの裁定の例外が読む。機械が書き、裁定役には書かせない）。知らない id は
     ValueError（回す側が確かめてから渡す）"""
     doc = _load(b)
     by_id = {r["id"]: r for r in doc["items"]}
@@ -658,7 +659,7 @@ def apply_rulings(b, rulings: dict, *, by: str) -> None:
         row = by_id[rid]
         if row.get("ruling") is not None:
             continue
-        row.update(status="ruled", ruling={**ruling, "by": by})
+        row.update(status="ruled", ruling={**ruling, "by": by, **({"stage": int(stage)} if stage is not None else {})})
         if ruling["decision"] == REPLAN:
             row[REPLAN_STATE] = WAITING
         fixboard.trace(b, RULE_OP, id=rid, unit_key=row["unit_key"], decision=ruling["decision"], by=by)

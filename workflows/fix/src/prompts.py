@@ -237,11 +237,11 @@ def consult_render(place, pass_: str, *, plan_file: str, ripple_file: str):
 def tdd_values(place, repo, view: dict, values: dict) -> tuple[dict, dict, dict]:
     """TDD の役の指示の (値, 段落, 周の控え)。view は src/tdd.prep の返り（go が真の物）。values は run の値（判定・修正案・方針・依頼・
     notes の写しのパスと base_rev）。今の tddloop.prep の組み立ての順のまま"""
-    from src import tdd
+    from src import common, tdd
     place = pathlib.Path(place)
     st, briefs = view["state"], view["briefs"]
     phase = st["phase"]
-    owed = tdd._owed(st)
+    owed = common._owed(st)
     vals = {k: "" for k in ("iteration phase brief_rows rejection policy_path request_file judgment_file open_units plan_file "
                             "notes_file skill seat_applies seat_not_applies unattended overlay_file test_cmd owed_units current_unit "
                             "together_rows named_rows handoff_rows later_rows tests_how runner_cmd lang").split()}
@@ -258,7 +258,7 @@ def tdd_values(place, repo, view: dict, values: dict) -> tuple[dict, dict, dict]
     if st.get("reason"):
         vals["rejection"] = st["reason"].rstrip("\n")
         when["rejected"] = True
-    if phase in ("fix", "refactor") and st.get("test_cmd_gate") == tdd.GATE_ON and tdd._cur(st)["unit_key"] not in st.get("light", []):
+    if phase in ("fix", "refactor") and st.get("test_cmd_gate") == common.GATE_ON and tdd._cur(st)["unit_key"] not in st.get("light", []):
         vals["test_cmd"] = st["test_cmd"]
         when["gate"] = True
     if phase == "route":
@@ -304,7 +304,9 @@ def tdd_values(place, repo, view: dict, values: dict) -> tuple[dict, dict, dict]
 
 
 def tdd(place, repo, view: dict, values: dict) -> dict:
-    node = "tdd-new" if view["new_unit"] else "tdd"
+    """TDD の役と振り分けの役の指示を組んで place に書く（node は view の node か、単位が替わった周は tdd-new・続きは tdd。振り分けの
+    段は src/route.prep が node route を渡す。どれも prompts/parts/tdd.md を組む）。返り {prompt}"""
+    node = view.get("node") or ("tdd-new" if view["new_unit"] else "tdd")
     vals, when, rnd = tdd_values(place, repo, view, values)
     try:
         out = prompt.emit(node, vals, when, prompt.round_of(node))

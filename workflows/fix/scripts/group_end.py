@@ -2,7 +2,7 @@
 # requires-python = ">=3.12"
 # dependencies = []
 # ///
-"""node group-end（組の形の終わり）: 終わりの木・単位ごとの結末・TDD の輪の結果・申し出・異議・修正役の印・許したテストの変更と、始めの木からの変更が並行 PR に回した hunk に触れたことを（mismatched に）
+"""node group-end（組の形の終わり）: 終わりの木・単位ごとの結末・TDD の輪の結果・申し出・異議・修正役の印・許したテストの変更と、始めの木からの変更が並行 PR に回した hunk に触れたことを（mismatched に）と、元の結末のファイル base.json の場所（欄 base）を
 out_dir/<group_id>/result.json（out_dir が空なら place の groups/）に書く（board.group_result。今のまま）。返り {result_file}"""
 import os
 import sys
@@ -16,19 +16,22 @@ import conflict  # noqa: E402
 import groups  # noqa: E402
 import oneline  # noqa: E402
 
-from src import board, finish, intake, tdd  # noqa: E402
+from src import basecase, board, finish, intake, common, tdd  # noqa: E402
 
 
 def tdd_exit(started) -> dict:
-    """TDD の輪の出口の欄（tdd.exit_fields）。輪の頭の返りが無い・輪が済んでいなければ ran: false と理由"""
+    """TDD の輪の出口の欄（tdd.exit_fields）。輪の頭の返りが無い・輪が済んでいなければ ran: false と理由（no-suite の印は残す）"""
     if not isinstance(started, dict):
         return {"ran": False, "suite": "", "reason": f"置き場に {board.TDD_START_FILE} が無い（group-start が走らなかった）",
                 "units": []}
     try:
         return tdd.exit_fields(started)
-    except tdd.Broken as e:
-        return {"ran": False, "suite": str(started.get("suite") or ""),
-                "reason": f"TDD のループが済まずに抜けた（{oneline.one_line(e)}）", "units": []}
+    except common.Broken as e:
+        out = {"ran": False, "suite": str(started.get("suite") or ""),
+               "reason": f"TDD のループが済まずに抜けた（{oneline.one_line(e)}）", "units": []}
+        if started.get("no_suite") is True:   # 組の頭か受け付けが no-suite で止めた印は、輪が済まずに抜けても落とさない
+            out.update(no_suite=True, reason=str(started.get("reason") or out["reason"]))
+        return out
 
 
 def main() -> dict:
@@ -46,7 +49,8 @@ def main() -> dict:
         reply_file=str(reply_path) if reply_path.is_file() else "",
         allowed_rows=board.allowed_test_rows(place), conflicts=conflict.this_pass(place),
         worktree=os.path.realpath(repo), mismatched=[*board.mismatched_lines(place), *board.check_excluded(place, repo, start)],
-        accept_trace=board.accept_trace_rows(place), closure=finish.closure_rows(place), place=str(place))
+        accept_trace=board.accept_trace_rows(place), closure=finish.closure_rows(place), place=str(place),
+        base=str(basecase.path(place)) if basecase.path(place).is_file() else "")
     target = gdir / board.RESULT_FILE
     board.write_json(target, result)
     return {"result_file": str(target)}

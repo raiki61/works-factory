@@ -100,7 +100,7 @@ MEANS_KEYS = ("approach", "files", "shrink_first", "route", "route_why", "tests"
 WIDEN_KEYS = ("allowed_paths", "out_of_scope")
 AMENDED_KEY = "amended"            # 控えの鍵 {"<項目の番号>": {CORE_KEYS の欄}}（差し替えた項目の核の欄）
 AMEND_OP = "plan_amended"          # 差し替えの trace の行（planfile が書く） {round, items: [番号…]}（SAVED_OP の行の直後）
-# route_why は route が direct の時だけ要る（gaps が見る）
+# route_why は route が tdd でない時だけ要る（gaps が見る）
 REQUIRED = ("route", "tests", "rewrite_tests", "refactor", "allowed_paths", "out_of_scope")
 # 範囲の相談の合意で入る新しいテストだけが使う赤の種類: 守りのテスト（base で緑でよい。人の条件「X を壊さないことを確かめよ」の型）。
 # 修正案の役の tests は今どおり赤を求めるので RED_KINDS には入れない
@@ -118,6 +118,9 @@ FILES_SCHEMA = _ROW["files"]
 MIN_WHY = FILES_SCHEMA["items"]["properties"]["why"]["minLength"]   # 訳の欄（消す訳 why・route_why など）の字の下限
 FILE_OPS = tuple(FILES_SCHEMA["items"]["properties"]["op"]["enum"])          # 行の操作。rename は元のパス from を持つ
 SYMBOL_CHANGES = tuple(FILES_SCHEMA["items"]["properties"]["symbols"]["items"]["properties"]["change"]["enum"])   # symbols の行の変え方
+# 直し方の語。tdd・direct のほか、項目がどんな直しかの見分けの 3 語（持ち主の答え。docs/plans/2026-10-24-fix-weapons.md の 9.1 の 10）:
+# static は試験で示す振る舞いの無い直し・tidy は利用者から届かない使われていない物を消す直し・pin はコードが正しく試験だけが欠けた直し。
+# 修正の段は語を表で型に引くだけで、語を推し量らない（workflows/fix/src/route.py）
 ROUTES = tuple(_ROW["route"]["enum"])
 RED_KINDS = tuple(_ROW["tests"]["items"]["properties"]["red_kind"]["enum"])
 # 項目の欄のうち単位の no（か単位の字）を持つ欄の表 (欄の名, 行の中の鍵)。鍵が None の欄は単位の並びそのもの、鍵が在る欄は
@@ -765,6 +768,8 @@ def gaps(reply: dict, repo: pathlib.Path, *, exists=None) -> list[str]:
         why = it.get("route_why")
         if route == "direct" and not (isinstance(why, str) and len(why.strip()) >= MIN_WHY):
             out.append(f"plan[{i}].route_why: route が direct の項目は、テストを先に書かない理由を {MIN_WHY} 字以上で書く")
+        elif route in ROUTES and route not in ("tdd", "direct") and not (isinstance(why, str) and len(why.strip()) >= MIN_WHY):
+            out.append(f"plan[{i}].route_why: route が {route} の項目は、その語を選んだ訳を {MIN_WHY} 字以上で書く")
         for j, row in enumerate(_rows(it, "tests")):
             tid = _id_of(row)
             bad = _path_problem(repo, tid) if tid else None

@@ -1,17 +1,21 @@
-# 組の形で承認済みの修正案（項目 1 つ・allowed_paths は stats.py）を渡し、修正役が範囲の外（README.md）を相談する: 頼みの照らしが
+# 組の形で TDD の実行器（fixtures/tdd-runner.py）と承認済みの修正案（項目 1 つ・allowed_paths は stats.py）を渡し、修正役が範囲の外（README.md）を相談する: 頼みの照らしが
 # go を立て、答えの役（読むだけ）が修正案の md から組んだ指示で起きる
 fixture:
   expect: completed
-  reached: [intake, group-start, tdd-go, fix-prep, fixer, consult-check, consult-answer, consult-accept, fix-accept, group-end, finish]
+  reached: [intake, group-start, route-go, route-prep, route, route-step, orders, fix-prep, fixer, consult-check, consult-answer, consult-accept, fix-accept, group-end, finish]
   inputs:
     mode: group
     group: '{"group_id":"g1","unit_ids":["stats.py:4 mean"],"items":[1]}'
     judgment: '{"units":[{"key":"stats.py:4 mean","label":"block","reason":"空の並びで 0 除算する"}],"questions":[]}'
     plan: '{"round":1,"fields":[{"route":"direct","tests":[],"rewrite_tests":[],"refactor":{"declared": false, "why": ""},"allowed_paths":["stats.py"],"out_of_scope":[]}]}'
     fix_plan: '{"plan":[{"unit_keys":["stats.py:4 mean"],"approach":"空の並びを先に返す"}]}'
+    tdd_suite: .archon/workflows/works-factory/fix/fixtures/tdd-runner.py
   resolved-text-contains:
     consult-answer: 'Answer as the author of the fix plan.'
 exec-code: true
+route:
+  phase: route
+  units: [{unit_key: "stats.py:4 mean", route: direct, why: 先にテストを書けない単位として直す}]
 fixer:
   changes: []
   not_done: []

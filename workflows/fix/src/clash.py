@@ -39,7 +39,7 @@ from src.rulings import write as write_rulings  # noqa: E402
 import impact  # noqa: E402
 import oneline  # noqa: E402
 import stopby  # noqa: E402
-from src import tdd as tddloop  # noqa: E402
+from src import common  # noqa: E402
 import unittrees  # noqa: E402
 
 FILE = "clash.json"
@@ -170,7 +170,7 @@ def named_tests(place, gid) -> list:
 
 # ---------------------------------------------------------------- 当て直し
 def _back_to(repo, before: str, skip) -> None:
-    tddloop.restore_paths(repo, before, fixboard.touched_since(repo, before, skip))
+    common.restore_paths(repo, before, fixboard.touched_since(repo, before, skip))
 
 
 def stage(place, repo, gid: str, pass_: str, skip=()) -> tuple:
@@ -188,7 +188,7 @@ def stage(place, repo, gid: str, pass_: str, skip=()) -> tuple:
     r = result(place, gid)
     union = sorted({f for u in fixboard.child_tdd_units(r) for f in fixboard.unit_test_files(u)}
                    | {t["path"] for t in fixboard.child_allowed_rows(r)})
-    row.update(before=tddloop.snapshot(repo), staged="")
+    row.update(before=common.snapshot(repo), staged="")
     row["pass"] = pass_
     _save(place, rows)
     patch = pathlib.Path(row["patch"]).read_text(encoding="utf-8", errors="surrogateescape")
@@ -199,7 +199,7 @@ def stage(place, repo, gid: str, pass_: str, skip=()) -> tuple:
     locked = _unpermitted_tests(r, set(fixboard.allowed_tests(place, [r])), marked)
     if locked:   # 印を残しても消しても受け付けが拒む（problems の UNRESOLVED と TESTS）。回さずに裁定へ
         return False, MARKED_TESTS.format(paths="・".join(locked))
-    row.update(state=STAGED, staged=tddloop.snapshot(repo), marked=marked)
+    row.update(state=STAGED, staged=common.snapshot(repo), marked=marked)
     _save(place, rows)
     return True, ""
 
