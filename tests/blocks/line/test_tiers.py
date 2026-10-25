@@ -171,7 +171,7 @@ class RaiseCase(unittest.TestCase):
     def test_width_is_counted_not_raised(self):
         """issue #760: run の広さは上げる信号にせず、counted に記録として残す"""
         wide = self.put("fix/wide.patch", patch(*(f"w{n}.py" for n in range(10))))
-        plan = self.put("plan/plan-fields.json", {"round": 1, "fields": [{"unit_keys": [U1], "allowed_paths": ["a.py"], "tests": [], "rewrite_tests": []}]})
+        plan = self.put("plan/plan-fields.json", {"round": 1, "fields": [{"unit_keys": [U1], "allowed_paths": ["a.py"], "out_of_scope": [], "tests": [], "rewrite_tests": []}]})
         got = self.raised(fix=self.fix(diff=wide), plan=plan)
         self.assertEqual(got["units"][0]["depth"], "軽量")
         self.assertTrue(got["counted"].startswith("触るファイル 11 個（起点: 修正の差分 fix/wide.patch）"), got["counted"])

@@ -60,7 +60,7 @@ class TalkBase(unittest.TestCase):
         """plan-out の返り（往復の記録と案の控えの pointer つき）"""
         record = self.put("plan-converge.json", self.record())
         fix_plan = self.put("plan/r1/p2.fix_plan.json", {"plan": [{"unit_keys": ["u1"], "approach": APPROACH}]})
-        fields = self.put("plan/r1/plan-fields.json", {"round": 1, "fields": [{"unit_keys": ["u1"], "allowed_paths": ["a.py"], "route": "tdd"}]})
+        fields = self.put("plan/r1/plan-fields.json", {"round": 1, "fields": [{"unit_keys": ["u1"], "allowed_paths": ["a.py"], "out_of_scope": [], "route": "tdd"}]})
         reply = self.put("plan/r1/reply.json", {"plan": [{"unit_keys": ["u1"], "approach": APPROACH}]})
         prior = self.put("plan-rounds/prior-1.json", {"round": 1, "reply": reply, "fields": fields, "record": self.record()})
         return {**rounds(record=record, plan_prior=prior, fix_plan=fix_plan, plan=fields), **over}
