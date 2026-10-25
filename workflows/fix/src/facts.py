@@ -208,13 +208,16 @@ def declared_files(rows, repo) -> set:
 
 def precheck(cfg: dict, reply=None, *, items=None, skip: tuple = ()) -> dict:
     """事前の確かめ（モジュールの頭）。cfg は相談の控え（consult.load_config。board・repo・pass・base_rev・tdd_state と、在れば
-    書き込みの記録のファイル log）。修正役が変え始めた木は控えでなく置き場の段の頭（fixboard.fixer_head）。items は承認済みの修正案の項目（check_plan_scope）、skip は除くパスの頭（check_writes）"""
+    書き込みの記録のファイル log）。修正役が変え始めた木は控えでなく置き場の段の頭（fixboard.fixer_head）。凍結は受け付けと同じく
+    輪の状態の照らしと返しの控えの照らし（duties.frozen_by_returns）の両方を見る。items は承認済みの修正案の項目（check_plan_scope）、skip は除くパスの頭（check_writes）"""
     board, repo = Path(cfg["board"]), Path(cfg["repo"])
     state, pass_, base_rev = cfg.get("tdd_state") or "", cfg.get("pass") or "first", cfg.get("base_rev") or ""
     log, since = cfg.get("log") or None, fixboard.fixer_head(board, pass_) or None
     reply = reply if isinstance(reply, dict) else {"changes": []}
     agreed = conflict.agreed(board)
     found = [("frozen", t) for t in check_frozen(board, state, repo, pass_, agreed=agreed, base_rev=base_rev)]
+    from src import duties
+    found += [("frozen", t) for t in duties.frozen_by_returns(board, repo) if ("frozen", t) not in found]   # 受け付けと同じ返しの控えの凍結
     wrote = check_writes(reply, board, base_rev, repo, state, log=log, since=since, skip=skip)
     found += [("writes", t) for t in wrote["problems"]]
     keys = [c.get("unit_key") for c in wrote["reply"].get("changes") or [] if isinstance(c, dict)]   # 返答は単位の名前で書く

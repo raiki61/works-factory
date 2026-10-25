@@ -2095,7 +2095,7 @@ import writes  # noqa: E402
 SEED = kit.ROOT / "tests" / "e2e" / "target-seed"
 SKIP = ("vendored/",)
 WHY = "整形の道具で 40 ファイルを一度に書き換えた"
-_S_MODS = ("board", "facts", "gates", "scope", "unitrows", "parking", "rules", "consult", "prompts", "runvals", "ruling")
+_S_MODS = ("board", "facts", "gates", "scope", "unitrows", "parking", "rules", "consult", "prompts", "runvals", "ruling", "duties")
 
 
 def _s_load() -> types.SimpleNamespace:
@@ -2378,6 +2378,25 @@ class FactchecksSeamCase(SeamTemp):
         self.assertTrue(any("'def median' は指し先 'stats.py' の中に無い" in t for t in refs), refs)
         reply["wrote_refs"][0]["cite"] = "def mean"
         self.assertEqual([r for r in self.fc.precheck(self.cfg, reply)["rejects"] if r["check"] == "refs"], [])
+        self.assertEqual(self.shas(), before, "置き場を書かない")
+
+    def test_precheck_checks_the_frozen_files_of_the_returns_the_acceptance_checks(self):
+        """事前の確かめは、受け付けと同じく返しの控えの凍ったファイルを注文の許しで照らす（duties.frozen_by_returns）。置き場は書かない"""
+        import hashlib
+        test_file = self.repo / "test_stats.py"
+        (self.place / "returns").mkdir()
+        (self.place / "returns" / "1.json").write_text(json.dumps(
+            {"stage": 1, "weapon": "tdd", "group": "g1", "tree": self.rev, "units": [], "frozen_tree": self.rev,
+             "frozen": {"test_stats.py": hashlib.sha256(test_file.read_bytes()).hexdigest()}}), encoding="utf-8")
+        (self.place / "orders.json").write_text(json.dumps({"sequence": [], "weapons": {}, "stage": 1, "since": self.rev}),
+                                                encoding="utf-8")
+        self.assertEqual([r for r in self.fc.precheck(self.cfg, self.reply)["rejects"] if r["check"] == "frozen"], [])
+        test_file.write_text(test_file.read_text(encoding="utf-8").replace("clamp(15, 0, 10), 10", "clamp(15, 0, 10), 10.0"),
+                             encoding="utf-8")
+        before = self.shas()
+        frozen = [r["text"] for r in self.fc.precheck(self.cfg, self.reply)["rejects"] if r["check"] == "frozen"]
+        self.assertEqual(frozen, self.m.duties.frozen_by_returns(self.place, self.repo))
+        self.assertTrue(frozen)
         self.assertEqual(self.shas(), before, "置き場を書かない")
 
     def test_place_agreement_counts(self):
