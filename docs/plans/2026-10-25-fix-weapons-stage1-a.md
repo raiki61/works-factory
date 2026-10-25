@@ -35,6 +35,7 @@
 - 4.4 の 5 の申し出の種類 `red_at_base` と、その裁定を `fix_plan_item`・`ask_human` に絞る yes/no は B へ回す。訳: 種類を出すのは下ごしらえの書き手で、PR A には居ない（1 の 1）。種類の一覧 `conflict.DIV_KINDS` に足すと、共通の断片 `writer-rules.md` と TDD の役の指示 `tdd.md` が一覧の全部の語を言うことを縛る試験（`tests/blocks/fix/test_prompts.py` の DIV_KINDS の照らし・`tests/blocks/delta_review/test_prompts.py` の 6 つの数え）のために、指示の既存の文（「6 つの場面の語」など）を書き換えることになり、頼みの「足してよい文は 4.4 の 6 が名指す 1 文ずつだけ」の外になる。PR A の 5 で作るのは、裁定の後の注文（`orders.write_ruled`。`checked_as`・段の番 2n・裁定の範囲を入れた `permits`）、裁定の控えの欄 `stage`（`ruling.seen_stage`）、`checked_as` で義務を引く受け付け、裁定の後の段で F135 を返答の全部の行で見ること、2 回目の block の組の子が段の番 3 を数えるための空の `prior/`（`board.adopt_inputs`）。
 - 4.4 の 6 の下ごしらえの指示の md への 1 文（在る設定のファイルは書き換えない）は B へ回す。訳: 下ごしらえの書き手の指示の md は作る物 9 で修正役の指示を仕分けて作る物で、PR A には無い（1 の 1）。修正役の指示に足すと、頼みの「足してよい文は 4.4 の 6 が名指す 1 文ずつ」の置き場の外になる。機械の照らし（`pin.tests_only` の設定のファイルの例外と、拒んだパスを 0 件の止めの訳に載せる所）は PR A で効かせる。
 - 4.4 の 6 の止め `no-suite` は 3 か所で決める: 組の頭（`orders.no_suite_why`。実行器が無く元の結末が取れず、計画の語が static でない単位が在る）・TDD のループ（実行器が結末を返さない。`tdd._abort` の段 runner が輪の状態に印）・受け付け（`board.no_suite_at_accept`。型の義務より前）。止めた印は `tdd-start.json` か輪の状態に置き、`fix-prep` は印が在れば修正役を起こさない（`board.no_suite_stop`）。輪が済まずに抜けた組でも、組の出口は印を落とさない（`group_end.tdd_exit`）。今まで実行器の無い組を修正役に直に回していた試験と筋書き（`fixtures/standalone.stubs.yaml`・`consult.stubs.yaml`）には、試験の実行器を渡して同じ所まで届かせた（止まる形そのものは `tests/blocks/fix/test_no_suite.py`）。
+- 4.4 の 8 の出力の欄 `removed_tests`・`untested` は、返しの控え `returns/` から組む（`finish.returned_rows`）。下書きの 4.3 は「消した試験を「書き換えを許したテストを触った」の数えから外す」と書くが、許しの行はパスごとで試験の id を持たないので、試験を消しただけで足しも書き換えもしなかったファイル（`only_removed`）だけを外す（同じファイルで書き換えもした物は数えに残す。厳しい側）。消した試験は開き方に依らず開ける理由（must）。試験を求めなかった直しは節に並べ、種類 code のファイルを触った時だけ開き方で開く理由にした（下書きは理由にするかを書いていない。実装の部署の決め）。
 - 輪の状態の無い組（static だけの組など。元の結末は取ったが TDD の輪を開かない組）の受け付けは、今は試験を走らせなかった（`selected_problems` に状態が無い）。PR A は元の結末 `base.json` で選んで走らせる（`board.accept_base`。厳しい側）。
 
 ## 4 進み（commit ごと）
@@ -46,6 +47,6 @@
 - [x] 2・3 型のモジュール・元の結末・振り分けの輪・注文: 部品の分けと node は f6af387d。組の結果の `base` の欄・`bases/<k>/` と `returns/` の引き継ぎ・諦めた単位の variant の注文への書き直しは cea0f8c1（返しの控えを書くのは 4 の受け付け）
 - [x] 4 共通の受け付けと義務の表: d6c37bf1
 - [x] 5 裁定の後の注文: 0f6d92c3
-- [x] 6 止めの語 `no-suite`: この commit（次の commit で番を書く）
-- [ ] 8 出力の欄と最後の承認の節
-- [ ] 10・11 持ち主の決めの写しと設計書
+- [x] 6 止めの語 `no-suite`: 665df082
+- [x] 10・11 持ち主の決めの写しと設計書: e21fd105
+- [x] 8 出力の欄と最後の承認の節: この commit

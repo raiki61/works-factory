@@ -369,6 +369,34 @@ class AcceptTableCase(unittest.TestCase):
                                             "permits": [{"kind": "rewrite", "duty": True, "test": "test_stats.py"}]}})
         self.assertEqual(self.duties.frozen_by_returns(self.place, self.repo), [], "注文の許しの範囲の中は通す")
 
+    def test_returns_carry_removed_tests_and_untested_into_the_output_rows(self):
+        """下書き 4.1 の 7: 返しの控えは起点の版に在って今の木に無い試験の id（removed）と注文の why_untested を持ち、修正の出力の
+        removed_tests・untested はそこから組む。消しただけのファイルは only_removed に出て、1 回目の段から写した控え（PRIOR_LOOP）は数えない"""
+        kit.load("fix", "finish")
+        from src import finish
+        self.ordered({"R": "remove", "S": "static"}, {"remove": {"units": [{"key": "R", "tests": []}]},
+                                                      "static": {"units": [{"key": "S", "tests": []}], "why_untested": "文書の言い回しだけ"}})
+        (self.repo / "test_stats.py").write_text("x = 1\n", encoding="utf-8")
+        (self.repo / "docs" / "a.md").write_text("# b\n", encoding="utf-8")
+        self.duties.write_returns(self.place, self.repo, self.rev, {"changes": [
+            {"unit_key": "R", "files": ["test_stats.py"]}, {"unit_key": "S", "files": ["docs/a.md"]}]})
+        removed, untested = finish.returned_rows(self.place)
+        self.assertEqual(removed, [{"group_id": "g1", "weapon": "remove", "units": ["R"], "tests": ["test_stats.py::test_mean"],
+                                    "only_removed": ["test_stats.py"]}])
+        self.assertEqual(untested, [{"group_id": "g1", "weapon": "static", "units": ["S"], "why": "文書の言い回しだけ",
+                                     "files": [{"path": "docs/a.md", "kind": "docs"}]}])
+        (self.repo / "test_stats.py").write_text("def test_other():\n    assert True\n", encoding="utf-8")
+        for p in sorted((self.place / "returns").glob("*.json")):
+            p.unlink()
+        self.duties.write_returns(self.place, self.repo, self.rev, {"changes": [{"unit_key": "R", "files": ["test_stats.py"]}]})
+        self.assertEqual(finish.returned_rows(self.place)[0][0]["only_removed"], [], "同じファイルに足した試験が在れば消しただけでない")
+        for p in (self.place / "returns").glob("*.json"):
+            p.write_text(json.dumps({**json.loads(p.read_text(encoding="utf-8")), self.board.PRIOR_LOOP: True}), encoding="utf-8")
+        self.assertEqual(finish.returned_rows(self.place), ([], []))
+        (self.place / "returns" / "9.json").write_text("{", encoding="utf-8")
+        with self.assertRaises(ValueError):
+            finish.returned_rows(self.place)
+
     def test_before_cases_read_the_group_base(self):
         """確かめ直しが照らす直す前の結末は、組の結果の欄 base の base.json の baseline_cases（輪の状態は読まない）"""
         row = {"classname": "test_stats", "name": "test_mean", "outcome": "failure"}

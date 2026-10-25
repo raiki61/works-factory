@@ -144,6 +144,28 @@ def _removed(place):
         return None
 
 
+def returned_rows(place) -> tuple:
+    """(消した試験の並び removed_tests, 試験を求めなかった直しの並び untested)。この段の置き場の返しの控え returns/ から組む（下書き
+    4.1 の 7。line の最後の承認が節に分ける）。only_removed は試験を消しただけで足しも書き換えもしなかった試験のファイル（最後の承認が
+    「書き換えを許したテストを触った」の数えから外す）。1 回目の段から写した控え（board.PRIOR_LOOP の印）は 1 回目の段の出力が持つので数えない。
+    untested は注文に試験を求めない訳（why_untested）が在った返し。控えが読めなければ ValueError（黙って空にしない）"""
+    from src import board, orders, rules
+    removed, untested = [], []
+    for r in orders.returns_of(place):
+        if r.get(board.PRIOR_LOOP):
+            continue
+        head = {"group_id": str(r.get("group") or ""), "weapon": str(r.get("weapon") or ""),
+                "units": [str(u.get("key")) for u in r.get("units") or [] if isinstance(u, dict) and u.get("key")]}
+        if r.get("removed"):
+            kept = {orders.common_path(str(t)) for t in [*(r.get("added") or []), *(r.get("rewritten") or [])]}
+            removed.append({**head, "tests": [str(t) for t in r["removed"]],
+                            "only_removed": sorted({orders.common_path(str(t)) for t in r["removed"]} - kept)})
+        if str(r.get("why_untested") or "").strip():
+            untested.append({**head, "why": str(r["why_untested"]),
+                             "files": [{"path": str(p), "kind": rules.kind_of(p) or ""} for p in r.get("files") or []]})
+    return removed, untested
+
+
 def _item_claims(place, results, ruled, repo) -> dict:
     """項目ごとの commit の記録（itemcommits.record。今の collect.item_claims）"""
     import itemcommits
@@ -179,6 +201,7 @@ def _common(place, repo, rows_groups, groups, extras, results, *, ok, reason, fi
     unit_file = board.write_json(place / files.TDD_UNIT_FILE, tdd_rows)
     objection = [board.objection(extras), *conflict.rejudge_texts(conflict.this_pass(place))]
     frozen = _frozen(place)
+    removed_tests, untested = returned_rows(place)
     return {"ok": ok, "reason": reason, "units": units_rows, "groups": groups_rows,
             "conflicts": _ptr(place / conflict.FILE) if rows else None,
             "carry": carry,
@@ -193,6 +216,7 @@ def _common(place, repo, rows_groups, groups, extras, results, *, ok, reason, fi
             "allowed_tests": _ptr(place / files.ALLOWED_TESTS_FILE), "accept_trace": _ptr(place / files.ACCEPT_TRACE_FILE),
             "closure": _ptr(place / CLOSURE_FILE), "tdd_unit": ports.pointer(unit_file), "tdd": tdd_rows,
             "frozen": ports.pointer(frozen) if frozen else None, "removed": _removed(place), "tdd_refused": _tdd_refused(place),
+            "removed_tests": removed_tests, "untested": untested,
             "freeze_off": report.freeze_off(tdd_rows), "report": report.lines(place, tdd_rows, units_rows, repo, groups_rows)}
 
 
@@ -331,6 +355,10 @@ def fallback(place, why: str) -> dict:
             return ports.pointer(place / name) if (place / name).is_file() else None
         except Exception:
             return None
+    try:
+        removed_tests, untested = returned_rows(place)
+    except Exception:
+        removed_tests, untested = [], []
     return {"ok": False, "reason": why, "units": units_rows, "groups": groups_rows, "conflicts": None, "carry": None,
             "replan_items": [], "objection": "", "diff": diff, "start_tree": "", "reply": None, "ruled_reply": None, "scope": None,
             "checked": {"ok": False, "reason": why}, "allowed_test_changes": [],
@@ -338,5 +366,5 @@ def fallback(place, why: str) -> dict:
             "handoffs": [], "handoff_titles": {}, "mismatched": [], "plan_declared": [], "stop_reason": stop, "item_claims": None,
             "allowed_tests": ptr(files.ALLOWED_TESTS_FILE), "accept_trace": ptr(files.ACCEPT_TRACE_FILE), "closure": None,
             "tdd_unit": None, "tdd": [], "frozen": None, "removed": None, "tdd_refused": {"refused": [], "unread": [why]},
-            "freeze_off": [], "report": [f"修正の出力を組めない: {why}"]}
+            "removed_tests": removed_tests, "untested": untested, "freeze_off": [], "report": [f"修正の出力を組めない: {why}"]}
 

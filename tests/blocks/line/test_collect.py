@@ -47,7 +47,7 @@ def passing() -> dict:
            "scope": None, "checked": {"ok": True, "reason": ""}, "allowed_test_changes": [], "changed": {}, "x_scalars": {}, "handoffs": [], "handoff_titles": {},
            "mismatched": [], "plan_declared": [], "stop_reason": "", "allowed_tests": None, "accept_trace": None, "closure": None,
            "tdd_unit": None, "tdd": [{"units": [{"unit_key": "u1", "test_cmd": "light"}]}], "frozen": None, "removed": [],
-           "tdd_refused": {"refused": [], "unread": []}, "item_claims": None, "freeze_off": [], "report": ["- u1: fixed"]}
+           "tdd_refused": {"refused": [], "unread": []}, "item_claims": None, "freeze_off": [], "removed_tests": [], "untested": [], "report": ["- u1: fixed"]}
     fix["closure"] = ptr("fix/closure.json")
     eyes = {"ok": True, **{f"r{n}": {"status": "pass", "reason": ""} for n in range(1, 5)}, "questions": [], "passes": [],
             "premise_check": None, "notes": [], "after": None, "dirty": 0, "escalate": 0, "after_ok": True, "report": ["- 目: 通した"],

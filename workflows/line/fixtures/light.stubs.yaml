@@ -237,6 +237,8 @@ fix__finish:
     unread: []
   item_claims: null
   freeze_off: []
+  removed_tests: []
+  untested: []
   report: ['- 修正: 1 単位']
 parallel-pr-after__scan: {go_role: false, reason: ''}
 parallel-pr-after__finish:
