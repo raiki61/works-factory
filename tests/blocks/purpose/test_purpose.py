@@ -165,8 +165,9 @@ class PromptCase(_RepoCase):
         self.intake(lang="Japanese")
         text = self.prep()["prompt"]
         # 断片の字は照らさない（字は .shared/prompts/query-rule.md が持つ）。断片の頭の行が入り、段落 spawns は入らないことだけを見る
-        rule = (kit.SHARED / "prompts" / "query-rule.md").read_text(encoding="utf-8").splitlines()
+        rule = (kit.SHARED / "prompts" / "query-rule.md").read_text(encoding="utf-8").splitlines()[1:]   # 0 行目は道具の印（指示には出ない）
         self.assertTrue(text.startswith(rule[0]), text[:80])
+        self.assertNotIn("required-for-tools", text)
         spawns = rule[rule.index("<!-- if spawns -->") + 1:rule.index("<!-- end spawns -->")]
         self.assertTrue(spawns)
         for line in spawns:

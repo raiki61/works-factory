@@ -40,6 +40,8 @@ The machine rewrites these instructions each round. **Every time, read all of it
 
 {shared:writer-rules}
 
+{shared:query-rule}
+
 ## Reading for this loop (wins over the rules above)
 
 - Where the rules above say to write in answer fields (`changes`, `not_done`, `rejudge_requested`, `breaks`, and so on), this loop's answer does not have those fields. Write it in `what` of the fix and refactor phases (the fixer after the loop reads it and copies it into that unit's one row of `changes`). Write the reason for a unit you route to direct in `why` of the route phase or `direct_why` of the test phase. Only when you find in the test phase that the unit cannot have a test written first, return just `{{"phase": "test", "unit_key", "direct_why"}}`; the machine returns the working tree to the head of that unit, routes it to direct, and moves on to the next unit (that ends the phase). A unit whose acceptance tests the fix plan's brief decided gets `direct_why` rejected, so return a conflict declaration (`kind` is `not_red`)

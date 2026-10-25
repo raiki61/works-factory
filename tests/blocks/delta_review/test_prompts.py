@@ -130,9 +130,9 @@ class WriterRulesCase(s.Case):
         self.assertEqual(sorted(re.findall(r"<!-- end ([a-z_]+) -->", text)), sorted(names))
         self.assertFalse(re.findall(r"(?<!\{)\{[a-z0-9_]+\}(?!\})", text), "断片は差し込み口を持たない")
         listed = (kit.SHARED / "AGENTS.md").read_text(encoding="utf-8")
-        self.assertIn("`writer-rules`", listed)
+        [row] = [line for line in listed.splitlines() if line.startswith("  - `writer-rules`:")]
         for name in names:
-            self.assertIn(f"`{name}`", listed.split("`writer-rules`", 1)[1].split("\n", 1)[0])
+            self.assertIn(f"`{name}`", row)
 
     def test_the_conflict_paragraph_names_the_six_scenes(self):
         text = WRITER_RULES.read_text(encoding="utf-8")

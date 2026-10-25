@@ -94,6 +94,7 @@ def fixer_values(place, repo, pass_: str, values: dict, *, owed, items=None, sou
     when = {k: False for k in ("rejected rulings_first ruled_reply briefs faces scope tests tests_new tests_tail tests_broken frozen_files frozen_verified frozen_unruled tests_how rules ask ask_ripple libdocs g1 "
                                "seat_one resume queued overflow_answer conflict docs prompts_kind config code evidence where_fixer where_tdd where_rework").split()}
     when["conflict"] = True
+    when["spawns"] = True   # 修正役は Agent を持つ（query-rule の下請けへの渡しの段落）
     start_vals, start_when = _starts(values)
     vals.update(start_vals, lang=prompt.lang(runvals.read(place)["lang"]))
     when.update({k: False for k in start_when})
@@ -218,7 +219,7 @@ def consult_values(place, table: dict, asked: list, *, plan_file: str, ripple_fi
             "asks": consult.asks_text(table, asked), "red": planmarks.AGREED_RED, "guard": planmarks.GUARD_KIND,
             "min_why": consult.MIN_WHY, "lang": prompt.lang(runvals.read(place)["lang"]), "history": consult.history_text(place)}
     gate = [a for a in asked if a.get("origin") == consult.ORIGIN_GATE]
-    when = {"ripple": bool(ripple_file), "gate": bool(gate), "plain": len(gate) < len(asked), "history": bool(vals["history"])}
+    when = {"ripple": bool(ripple_file), "gate": bool(gate), "plain": len(gate) < len(asked), "history": bool(vals["history"]), "spawns": False}
     return vals, when
 
 
@@ -245,7 +246,7 @@ def tdd_values(place, repo, view: dict, values: dict) -> tuple[dict, dict, dict]
                             "notes_file skill seat_applies seat_not_applies unattended overlay_file test_cmd owed_units current_unit "
                             "together_rows named_rows handoff_rows later_rows tests_how runner_cmd lang").split()}
     when = {k: False for k in ("briefs rejected rules conflict docs prompts_kind config code phase_route phase_test phase_fix "
-                               "phase_refactor gate current together named handoff later tests_how evidence where_fixer where_tdd where_rework").split()}
+                               "phase_refactor gate current together named handoff later tests_how evidence where_fixer where_tdd where_rework spawns").split()}
     when.update(rules=True, conflict=True, **{f"phase_{phase}": True})
     start_vals, start_when = _starts(values)
     vals.update(start_vals)
@@ -321,7 +322,7 @@ def ruler_values(place, got: dict) -> tuple[dict, dict]:
     rejection = _rejection(place, "rule")
     vals = {**start_vals, "rejection": rejection, "conflicts_file": v["conflicts_file"], "ids": v["ids"],
             "judgment_file": shown(v.get("judgment_file")), "lang": prompt.lang(runvals.read(place)["lang"])}
-    return vals, {**start_when, "rejected": bool(rejection)}
+    return vals, {**start_when, "rejected": bool(rejection), "spawns": False}
 
 
 def ruler(place, got: dict) -> dict:

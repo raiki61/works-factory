@@ -425,6 +425,7 @@ def values(place, repo) -> tuple:
     else:
         v["replan_items"] = replan_rows(folder, ctx, judgment, repo)
     v["unread"], w["unread"] = "\n".join(f"- {u}" for u in ctx.get("unread") or []), bool(ctx.get("unread"))
+    w["spawns"] = False   # 修正案の役は Agent を持たない（query-rule の下請けへの渡しの段落）
     v["lang"] = prompt.lang(ctx.get("lang"))
     v["whole_plan"] = steps.WHOLE_PLAN
     return v, w
@@ -449,4 +450,4 @@ def fix_prep(place) -> dict:
     rejected = rolekit.rejected(folder, files.ROLE)
     vals = {"rejection": rejected[-1] if rejected else "", "candidate": str(rolekit.candidate_path(folder, files.ROLE)),
             "whole_plan": steps.WHOLE_PLAN}
-    return {"prompt": prompt.emit("plan-writer-fix", vals, {"replan": ctx["mode"] == "replan"}, prompt.round_of("plan-writer-fix"))["prompt"]}
+    return {"prompt": prompt.emit("plan-writer-fix", vals, {"replan": ctx["mode"] == "replan", "spawns": False}, prompt.round_of("plan-writer-fix"))["prompt"]}

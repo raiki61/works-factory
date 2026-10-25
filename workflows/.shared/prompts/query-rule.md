@@ -1,3 +1,4 @@
+<!-- required-for-tools: WebSearch WebFetch -->
 Rules for queries to outside services and for the sources you use:
 
 - **Do not put the target's names in queries.** Whatever the tool (web search, web fetch, curl from a shell, a query to a package registry, and so on), a query you send to an outside service that does not hold the target (search words, URLs, command arguments) stays in that service's records. Treat the target (the repository, documents, and diff you were given) as possibly private even when it looks public; do not decide for yourself whether it is public.

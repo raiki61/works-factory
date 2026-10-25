@@ -106,7 +106,7 @@ def write_prompt(place, *, run_id: str) -> dict:
               "stop_heading": files.bare(files.STOP_HEADING), "prev_file": str(candidate) if prev else "",
               "decisions_head": writer.DECISIONS_HEAD, "lang": prompt.lang(doc.get("lang")),
               "decisions_heading": files.bare(files.DECISIONS_HEADING), "cell_limit": writer.CELL_LIMIT, "handoff_rounds": notes}
-    when = {"rejected": bool(rejected), "prev": prev, "handoff_rounds": bool(notes)}
+    when = {"rejected": bool(rejected), "prev": prev, "handoff_rounds": bool(notes), "spawns": False}
     out = prompt.emit(files.WRITE_NODE, values, when, prompt.round_of(files.WRITE_NODE))
     return {"prompt": out["prompt"]}
 

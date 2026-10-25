@@ -21,7 +21,7 @@ def suite_write(place, intake: dict) -> dict:
     test_cmd = suite.load(place).get("test_cmd") or ""
     values = {"root": str(root), "decl_name": declared_checks.DECL_NAME, "test_cmd": test_cmd, "fence": fence_of(test_cmd),
               "only_env": baseline_red.ONLY_ENV, "lang": prompt.lang(intake["lang"])}
-    when = {"declared": (root / declared_checks.DECL_NAME).is_file(), "test_cmd": bool(test_cmd.strip())}
+    when = {"declared": (root / declared_checks.DECL_NAME).is_file(), "test_cmd": bool(test_cmd.strip()), "spawns": False}
     return prompt.emit("suite-write", values, when, prompt.round_of("suite-write"))
 
 
