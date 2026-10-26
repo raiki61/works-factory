@@ -93,8 +93,9 @@ def scene(case, kind: str):
 
 
 def put_rejection(run, pass_: str, weapon: str, writers) -> None:
-    """同じ型の受け付けの却下の控えを置く"""
-    rolekit.write_rejects(run.artifacts, writers.accept_name(pass_, weapon), ["the reply left a unit without a change", "run the tests again"])
+    """同じ型の受け付けの却下の控え（受け付けが積む rejects-<名>.json の行。rolekit.rejected が読む）を置く。at は組ごとに同じ字にする"""
+    rows = [{"at": "2026-01-01T00:00:00+00:00", "reason": r} for r in ("the reply left a unit without a change", "run the tests again")]
+    rolekit.rejects_path(run.artifacts, writers.accept_name(pass_, weapon)).write_text(json.dumps(rows), encoding="utf-8")
 
 
 def block_prep(run, pass_: str, weapon: str, slots: dict, writers) -> None:
