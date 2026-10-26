@@ -473,7 +473,7 @@ def _verified(st) -> set:
 
 
 def verified_rewrites(record_file, rewrites) -> list[str]:
-    """約束の書き換えの名指し rewrites（注文の permits の rewrite の行の test。書いたまま。orders.rewrite_ids）のうち、輪が赤→緑を
+    """約束の書き換えの名指し rewrites（承認済みの修正案の rewrite_tests の id。書いたまま。conflict.plan_rewrite_ids）のうち、輪が赤→緑を
     確かめた物。受け付けはこれをテストの変更の許しから外す（conflict.ruled_test_limits の skip_ids。輪の後の修正役に確かめなしで
     書き換えさせない）。確かめ済みか（route・green・tests）は輪の記録 record_file。記録が無い（輪の無い run）なら空"""
     if not record_file or not pathlib.Path(record_file).is_file():

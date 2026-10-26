@@ -1955,7 +1955,7 @@ md の断片でなく、Python が値を組む時に字を足して指示にな�
 - `src/facts.py:80` `_loop_states`（全部の輪の状態の並び）→ B。
 - `src/facts.py:87-128` `check_frozen`: 今の輪と前の輪の `frozen`・`frozen_tree`・`handoff`（`:118` で前の輪の起点の木に今の輪の `handoff`）、`frozen_problems`・`frozen_source`・`frozen_asks` で `units` の鍵、`test_spans` で `units[].route/green/tests`、`verified_rewrites` で `contract[].rewrites`。段 1 の `frozen_by_returns` は横に並べてあるだけで、今の輪の凍結・試験の関数の範囲の免除・確かめた書き換えを許しから外すこと・起点の木を `handoff` にすることを持たない → B。
 - `src/facts.py:131` `_loop_freeze`: 前の輪の分は A（`returns/` の `frozen`・`frozen_tree`）、今の輪の分は B。
-- `src/facts.py:141` `_verified` → `common.verified_rewrites`（`common.py:470`）: `rewrites` は注文の `permits` の `rewrite` の行で A、確かめ済みか（`route`・`green`・`tests`）は B。
+- `src/facts.py:141` `_verified` → `common.verified_rewrites`（`common.py:470`）: `rewrites` は承認済みの修正案の全部の `rewrite_tests`（`conflict.plan_rewrite_ids`。許しの `test_permits` と同じ元。注文の `permits` は返しの控えの凍結と裁定の後の段で行が抜けるので読まない。PR #885 のレビュー）で A、確かめ済みか（`route`・`green`・`tests`）は B。
 - `src/facts.py:151` `frozen_tests`（書き手の指示の「テストの行」。呼び手 `fix_prep.py:52`・`fix_ruled_prep.py:45`）→ B。
 - `src/facts.py:68`（`check_writes`）・`:179`（`check_plan_scope`）・`board.py:1794` の `suite_made`（`common.suite_made_all`・`basecase.suite_made_all:281`）: `base.json`・`accept.json`・`returns/` の和は段 1 で読む。輪の中で出来たファイルは記録が要る → B。
 - `src/facts.py:212` `precheck`: 相談の控えの `tdd_state`（`fix_prep.py:46` → `board.fix_values:2246` → `rules.ask_config:333` → `consult.write_config`）→ B。

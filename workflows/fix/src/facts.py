@@ -139,10 +139,9 @@ def _loop_freeze(board, record) -> tuple:
 
 
 def _verified(board, loops) -> list:
-    """輪が赤→緑を確かめた書き換えの名指し（common.verified_rewrites。loops は輪の記録のファイル。書き換えは注文の permits の
-    rewrite の行）。凍結の許しから外す"""
-    from src import orders
-    rewrites = orders.rewrite_ids(board)
+    """輪が赤→緑を確かめた書き換えの名指し（common.verified_rewrites。loops は輪の記録のファイル。書き換えは承認済みの修正案の
+    全部の rewrite_tests。conflict.plan_rewrite_ids。許しの conflict.test_permits と同じ元）。凍結の許しから外す"""
+    rewrites = conflict.plan_rewrite_ids(board)
     return [i for p in loops for i in common.verified_rewrites(p, rewrites)]
 
 
