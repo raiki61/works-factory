@@ -139,17 +139,6 @@
               }
             },
             "additionalProperties": true
-          },
-          "na": {
-            "type": "array",
-            "items": {
-              "type": "string",
-              "enum": [
-                "bypass_tried",
-                "breaks",
-                "precedent"
-              ]
-            }
           }
         },
         "additionalProperties": true

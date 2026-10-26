@@ -12,12 +12,16 @@ FACTS（単位ごと）: unit（単位の key）・weapon・files（単位の行
 impact.is_test_file）・kinds（files の rules.kind_of の集まり）・allowed_kinds（static の注文の変えてよい種類）・why_untested・
 added（足した試験の id）・vanished（元で通っていて返した木の同じ選びの回に居ない試験の鍵）・permits（注文の permits の行）・
 no_tests（base.json の印）・absent_at_base（files のうち起点の木に無いパス）・twice（足した試験を起点の木で 2 回走らせた問題の文の並び。
-走らせていなければ None）・named・before・after・removes・gone・sites・kinds_rows・red_seen（単位の行の sites のどれかが赤を見た）。
+走らせていなければ None）・named・before・after・removes・gone・class_query（注文の units[] の物。無ければ None）・hits（問いの当たりの行
+path:line の集まり。問いを行で結べない単位と問いの無い単位は None）・hunks（since から返した木までの git diff -U0 の新しい側の塊
+{path: [(a, b)]}）と、書き手の返答から組む REPLY_FACTS（kinds_rows〔返答の evidence.kinds の行〕・sites〔単位の行の closure.sites の全部〕・
+red_seen〔そのどれかが赤を見た〕）。
 """
 from __future__ import annotations
 
 import pathlib
 import posixpath
+import re
 
 from src import pin, rebuild, remove, static, tdd, tidy, variant
 
@@ -26,6 +30,9 @@ BOXES = {"tdd": "change", "variant": "change", "remove": "change", "tidy": "keep
 MODULES = {"tdd": tdd, "variant": variant, "remove": remove, "static": static, "tidy": tidy, "pin": pin, "rebuild": rebuild}
 WEAPONS = tuple(BOXES)
 REJECT = "型 {weapon} の単位 {unit} の義務: {text}"
+
+
+REPLY_FACTS = ("kinds_rows", "sites", "red_seen")   # 書き手の返答から組む事実の名（unit_facts が組む。読む義務の関数は段落の属性 paragraph を持つ。tests/blocks/fix/test_duty_paragraphs.py）
 
 
 def box_of(weapon: str) -> str:
@@ -58,10 +65,15 @@ def keep_same_result(f: dict) -> list:
 BOX_DUTIES = {"change": (), "keep": (keep_same_result,), "outside": ()}   # 段 2 で change に change_named_or_gone を足す
 
 
+def table_of(weapon: str) -> tuple:
+    """型 weapon の義務の関数の全部（箱の義務の表 + 型の義務の表）。照らし（check）と、書き手の指示の段落の真偽（prompts.writer_paragraphs）が
+    同じ表から引く"""
+    return (*BOX_DUTIES[box_of(weapon)], *MODULES[weapon].DUTIES)
+
+
 def check(weapon: str, facts: dict) -> list:
     """型 weapon の単位の事実 facts を、箱の義務と型の義務の表で照らした問題の文（空なら通る）"""
-    out = [t for fn in BOX_DUTIES[box_of(weapon)] for t in fn(facts)]
-    out += [t for fn in MODULES[weapon].DUTIES for t in fn(facts)]
+    out = [t for fn in table_of(weapon) for t in fn(facts)]
     return [REJECT.format(weapon=weapon, unit=facts.get("unit", ""), text=t) for t in out]
 
 
@@ -128,6 +140,7 @@ def _twice(base: dict | None, repo, added: list, work) -> list | None:
     from src import common
     if not base or not base.get("exe") or not added:
         return None
+    pathlib.Path(work).mkdir(parents=True, exist_ok=True)   # 実行器の出力（junit・log）の置き場。受け付けの前に誰も作らない
     out = []
     for n in (1, 2):
         ran, _, why = baseline_red.run_suite(str(base["exe"]), repo, work, f"pin-twice-{n}", common._abs_ids(repo, added), only=True)
@@ -140,8 +153,62 @@ def _twice(base: dict | None, repo, added: list, work) -> list | None:
     return out
 
 
-def unit_facts(place, repo, rev: str, key: str, weapon: str, rows: list, *, order: dict, base, cases, declared=()) -> dict:
-    """単位 key（型 weapon）の事実（上の FACTS）。rows は返答の changes のうちその単位の行、order はその型の注文"""
+def _reply_facts(rows: list, kinds_rows) -> dict:
+    """書き手の返答から組む事実（REPLY_FACTS）。rows は返答の changes のうちその単位の行、kinds_rows は返答の evidence.kinds の行"""
+    sites = [s for c in rows for s in ((c.get("closure") or {}).get("sites") or []) if isinstance(s, dict)]
+    return {"kinds_rows": [r for r in kinds_rows or [] if isinstance(r, dict)], "sites": sites,
+            "red_seen": any(bool(s.get("red_seen")) for s in sites)}
+
+
+_HUNK = re.compile(r"^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@")
+
+
+def _hunks(repo, since: str, files: list) -> dict:
+    """since から今の作業ツリーまでの git diff -U0 の新しい側の塊 {path: [(a, b)]}（files の分だけ。消しだけの塊は入れない）。追跡されて
+    いない新しいファイルは、ファイル全体 (1, 行数) を 1 つの塊にする。git が読めなければ {}（塊が無いので fixed_by は重ならず拒まれる）"""
+    from leftovers import Unreadable, git   # lib/
+    out: dict = {}
+    if not files:
+        return out
+    try:
+        text = git(repo, "-c", "core.quotePath=false", "diff", "-U0", "--no-color", since, "--", *files)
+        fresh = git(repo, "-c", "core.quotePath=false", "ls-files", "--others", "--exclude-standard", "--", *files).split("\n")
+    except Unreadable:
+        return out
+    path = None
+    for line in text.splitlines():
+        if line.startswith("+++ "):
+            name = line[4:].split("\t")[0]
+            path = name[2:] if name.startswith("b/") else None
+        elif path and (m := _HUNK.match(line)):
+            a, d = int(m.group(1)), int(m.group(2) if m.group(2) is not None else 1)
+            if d:
+                out.setdefault(path, []).append((a, a + d - 1))
+    for p in (q for q in fresh if q):
+        n = len((_now(repo, p) or "").splitlines())
+        if n:
+            out[p] = [(1, n)]
+    return out
+
+
+def _query_hits(repo, rev: str, cq) -> set | None:
+    """単位の問い cq（注文の units[] の class_query）の起点の木 rev での当たりの行 path:line の集まり。問いが無い単位と、問いを行で
+    結べない単位（ファイルごとの数が引けない・合計と合わない。unitrows の _bind の loose と同じ決まり）は None"""
+    from src import unitrows
+    how = (cq or {}).get("how")
+    if not how:
+        return None
+    per_file, why = unitrows.file_counts(how, repo, rev)
+    total = cq.get("total")
+    if why or not isinstance(per_file, dict) or (isinstance(total, int) and not isinstance(total, bool) and sum(per_file.values()) != total):
+        return None
+    got, why = unitrows.hit_lines(how, repo, rev)
+    return None if why else got
+
+
+def unit_facts(place, repo, rev: str, key: str, weapon: str, rows: list, *, order: dict, base, cases, declared=(), kinds_rows=()) -> dict:
+    """単位 key（型 weapon）の事実（上の FACTS）。rows は返答の changes のうちその単位の行、order はその型の注文、kinds_rows は返答の
+    evidence.kinds の行（単位に分けない）"""
     import impact   # lib/
     from src import rules, scope
     files = _rows_files(rows)
@@ -153,13 +220,18 @@ def unit_facts(place, repo, rev: str, key: str, weapon: str, rows: list, *, orde
         before = set(scope._test_ids(p, old) or []) if old is not None else set()
         removed += sorted(before - set(scope._test_ids(p, new) or [] if new is not None else []))
     kind_by_path = {p: rules.kind_of(p) for p in files}
+    unit = next((u for u in order.get("units") or [] if isinstance(u, dict) and u.get("key") == key), {})
+    cq = unit.get("class_query") if isinstance((unit.get("class_query") or {}).get("how"), dict) else None
     return {"unit": key, "weapon": weapon, "files": files, "test_files": tests, "kind_by_path": kind_by_path,
             "kinds": sorted({k for k in kind_by_path.values() if k}), "allowed_kinds": _plan_kinds(place, key),
             "why_untested": str(order.get("why_untested") or ""), "added": added, "removed": removed,
             "permits": list(order.get("permits") or []), "no_tests": bool(base and base.get("no_tests") is True),
             "absent_at_base": [p for p in files if _show(repo, rev, p) is None],
             "vanished": _vanished(base, cases) if box_of(weapon) == "keep" else [],
-            "twice": _twice(base, repo, added, pathlib.Path(place) / "duties") if weapon == "pin" else None}
+            "twice": _twice(base, repo, added, pathlib.Path(place) / "duties") if weapon == "pin" else None,
+            "class_query": cq, "hits": _query_hits(repo, rev, cq),
+            "hunks": _hunks(repo, str(order.get("since") or "") or rev, files),
+            **_reply_facts(rows, kinds_rows)}
 
 
 def accept_problems(place, repo, rev: str, reply, *, cases=None) -> list:
@@ -183,10 +255,10 @@ def accept_problems(place, repo, rev: str, reply, *, cases=None) -> list:
     out = []
     for k, rows in by.items():
         w = checked.get(k) or weapons[k]
-        if not (BOX_DUTIES[box_of(w)] or MODULES[w].DUTIES):
+        if not table_of(w):
             continue
         facts = unit_facts(pathlib.Path(place), repo, rev, k, w, rows, order=docs.get(weapons[k]) or {}, base=base, cases=cases,
-                           declared=declared)
+                           declared=declared, kinds_rows=(reply.get("evidence") or {}).get("kinds"))
         out += [(k, t) for t in dict.fromkeys(check(w, facts))]
     return out
 

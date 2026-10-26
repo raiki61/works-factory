@@ -194,12 +194,31 @@ def all_records(case) -> dict:
     return {f"{kind}/{weapon}": record(kind, weapon, case) for kind, weapon in COMBOS}
 
 
+# 控えの後に足した段落（F1。docs/plans/2026-10-24-fix-weapons.md の 11.6 の F1。控えは書き直さない）。控えの鍵の真偽は今までどおり全部照らし、
+# ここの 3 つは足した時の決めをそのまま書いて照らす: 型の義務の表の関数が書かせる段落（variant の sites_shape・unit_red と pin の
+# sites_per_test）が、続きの周でない場面で、その型の指示に出る
+ADDED_WHEN = ("rules_sites_at", "rules_sites_test", "rules_red_unit")
+# 足した段落の文を付録 A に足した行（付録 A の A.9。test_weapon_assets.added_ids）→ その行の文が在る段落。控えの (c) から外し、段落が真の組に
+# だけ在ることを照らす
+ADDED_ROWS = {"S1": "rules_sites_at", "S2": "rules_sites_test", "S3": "rules_red_unit"}
+
+
+def added_truth(kind: str, weapon: str) -> dict:
+    live = kind != "resumed"
+    return {"rules_sites_at": live and weapon == "variant", "rules_sites_test": live and weapon == "pin",
+            "rules_red_unit": live and weapon == "variant"}
+
+
 class WriterPromptsKeptCase(unittest.TestCase):
     maxDiff = None
 
     @classmethod
     def setUpClass(cls):
         cls.before = json.loads(BEFORE.read_text(encoding="utf-8"))
+
+    def test_the_added_rows_are_the_added_section_of_appendix_a(self):
+        self.assertEqual(set(ADDED_ROWS), test_assets.added_ids())
+        self.assertEqual(set(ADDED_ROWS.values()), set(ADDED_WHEN))
 
     def test_the_combos_are_the_23_of_the_scenes_and_the_weapons(self):
         self.assertEqual(len(COMBOS), 23)
@@ -209,8 +228,13 @@ class WriterPromptsKeptCase(unittest.TestCase):
         for kind, weapon in COMBOS:
             with self.subTest(scene=kind, weapon=weapon):
                 got, want = record(kind, weapon, self), self.before[f"{kind}/{weapon}"]
+                added = {k: got["when"].pop(k) for k in ADDED_WHEN}
+                rows = [i for i in got["appendix"] if i in ADDED_ROWS]
+                got["appendix"] = [i for i in got["appendix"] if i not in ADDED_ROWS]
                 self.assertEqual(got["when"], want["when"], "(a) 段落の真偽が違う")
+                self.assertEqual(added, added_truth(kind, weapon), "(a) 後から足した段落の真偽が違う")
                 self.assertEqual(got["appendix"], want["appendix"], "(c) 付録 A の行の在る無しが違う")
+                self.assertEqual(rows, [i for i, k in ADDED_ROWS.items() if added[k]], "(c) 後から足した付録 A の行の在る無しが違う")
                 self.assertEqual(got["values"], want["values"], "(d) 値が違う")
 
     def test_the_record_is_not_a_dummy(self):

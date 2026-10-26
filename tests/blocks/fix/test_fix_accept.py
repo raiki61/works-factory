@@ -1576,6 +1576,20 @@ class SitePathCase(_LSrc):
         self.assertEqual(out[0]["closure"]["sites"], [{"site": "s", "red_seen": True}], "写しに任せる行も path を外す")
 
 
+    def test_the_works_only_site_fields_are_dropped_before_the_copy(self):
+        """sites の行の works だけの欄（path・at・fixed_by・test）は、写しの sites が additionalProperties: false なので、どの道でも
+        写しに渡す前に外す（数えられる行・数えられない行・母数を超えて並べ替えて切る行）"""
+        row = {"red_seen": True, "path": "stats.py", "at": "stats.py:2", "fixed_by": ["stats.py:2-2"], "test": "t.py::a"}
+        sites = [{"site": f"s{i}", **row, "red_seen": i == 0} for i in range(3)]
+        got, _ = self.build(sites, total=1, after=0, files={"stats.py": 1})
+        self.assertEqual(len(got["closure"]["sites"]), 1, "母数 1 に切る")
+        self.assertEqual(set(got["closure"]["sites"][0]), {"site", "red_seen"}, got["closure"]["sites"])
+        c = {"unit_key": _l_KEY, "files": ["stats.py"], "what": "直した",
+             "closure": {"mechanism": "m", "fix_mechanism": "f", "verified_how": "v", "sites": [{"site": "s", **row}]}}
+        out, _ = unitrows.build([c], {_l_KEY: {"how": _l_HOW, "counts": "defects"}}, count=lambda h, r: (None, "走らない"), blank=_l_blank)
+        self.assertEqual(out[0]["closure"]["sites"], [{"site": "s", "red_seen": True}])
+
+
 class ChangedFilesCoverCase(_LSrc):
     """population の問いの当たりのファイルは、site の path が名指さなくても、その単位の files に在って修正前の版から実際に
     変わったファイル（touched）なら覆ったと数える。canary の run a2097fd6（2026-10-07）の盤面の形: 判定の問いは mean の定義・
