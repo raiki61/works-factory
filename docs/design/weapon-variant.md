@@ -15,7 +15,7 @@ TDD の輪を通らず、振る舞いを変える直し（輪が緑にしなか�
 ## 表 `src/render.py` の 3 つの定数
 
 - `ORDER_WEAPON = "variant"`: 注文の `weapon` の語。注文の語が違えば `prep` が落ちる。
-- `SPAWNS = True`: 下請けを起こすか。真なので AI の node の `allowed_tools` に `Agent` を足し、段落 `spawns`・`ask_variant` は真（`ask_variant` は slots の `ask` が偽なら偽）で本体が slots に足す。段落 `g1` は slots の `subagents.owed`（下請けを起こす単位）が空でない周だけ真。下請けのファイルは本体が `prep` で block の place に書く（fix.md の 24.9）。実装役の指示 `g1-impl-<n>.md` には、この block の `head.md`（下の頭の段落）が `{weapon_rule}` の段落として渡る。この型の頭の段落は下請けの実装役の手順書の「試験を書け」とぶつからないが、本体の組み方は 5 つの型で同じ（型ごとの分岐を作らない）ので、この型の `head.md` も同じ道で渡る。
+- `SPAWNS = True`: 下請けを起こすか。真なので AI の node の `allowed_tools` に `Agent` を足し、段落 `spawns`・`ask_variant` は真（`ask_variant` は、範囲の相談の節が入る周で真になる slots の `ask` が偽なら偽）で本体が slots に足す。段落 `g1` は slots の `subagents.owed`（下請けを起こす単位）が空でない周だけ真。下請けのファイルは本体が `prep` で block の place に書く（fix.md の 24.9）。実装役の指示 `g1-impl-<n>.md` には、この block の `head.md`（下の頭の段落）が `{weapon_rule}` の段落として渡る。この型の頭の段落は下請けの実装役の手順書の「試験を書け」とぶつからないが、本体の組み方は 5 つの型で同じ（型ごとの分岐を作らない）ので、この型の `head.md` も同じ道で渡る。
 - `SUMMARY = False`: TDD の輪の要約を受けるか。偽なので、`summary_file` は足さない。
 
 ## 頭の段落 `prompts/parts/head.md` の出どころ
