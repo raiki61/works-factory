@@ -252,7 +252,7 @@ def compute(place, repo) -> dict:
     if not taken:   # 元の結末を取らない組（static だけの組。ほかは組の頭が no-suite で止めた）: tdd の輪を回さない
         weapons = {k: ("variant" if w == "tdd" else w) for k, w in weapons.items()}
     values = runvals.read(place)
-    counted = route.counted(place, routed) if routed else COUNTED   # 輪が数え始める物（注文の型ごとの欄 tdd）
+    counted = route.start_counts(place, routed) if routed else COUNTED   # 輪が数え始める物（注文の型ごとの欄 tdd）
     if tdd_keys or state or routed:
         if not state:   # 輪の状態はここで初めて作る（振り分けの結果と数えを渡す。輪の置き場 tdd-<k>/ もここで置く）
             light = [k for k in values.get("skip_rerun") or [] if k in keys]

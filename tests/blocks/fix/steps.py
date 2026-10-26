@@ -37,7 +37,7 @@ def open_loop(route_file, repo) -> str:
     place = pathlib.Path(route_file).parent
     rt = _doc(route_file)
     loop = tdd.open_state(place, repo, rt["base_file"], list(rt["open_units"]), light=rt["light"], routed=rt,
-                          counted=route.counted(place, rt))
+                          counted=route.start_counts(place, rt))
     st = _doc(loop)
     tdd.assign(loop, repo, {k: u["route"] for k, u in st["units"].items()}, {k: u.get("why", "") for k, u in st["units"].items()})
     LOOPS[str(route_file)] = loop

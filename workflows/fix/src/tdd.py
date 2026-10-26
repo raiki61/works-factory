@@ -204,7 +204,7 @@ BASE_FIELDS = ("exe", "suite", "baseline", "baseline_exit", "baseline_cases", "s
 
 ROUTE_CARRY = ("open_units", "excused", "contract", "order", "units", "parked", "parked_why", "note", "handoff", "unsent")
 # 振り分けの状態（place の route.json。src/route.py）から輪の状態へ移す欄（orders が輪の状態を作る時。同じ名と形。contract は振り分けが
-# 見た約束のまま使う）。数え（iterations・calls）と渡した証拠の種類（kinds）は注文の型ごとの欄 orders.tdd（route.counted）で渡る。
+# 見た約束のまま使う）。数え（iterations・calls）と渡した証拠の種類（kinds）は注文の型ごとの欄 orders.tdd（route.start_counts）で渡る。
 # tries・reason は assign が空に戻し、runs・suite_made・light・元の結末の欄は new_state が組み直す（振り分けは実行器を走らせない）
 
 
@@ -235,7 +235,7 @@ def open_state(board_dir, repo, base_file, open_units: list, *, owed=None, withh
                light=(), routed: dict | None = None, counted: dict | None = None) -> str:
     """輪の状態を置き、状態のファイルのパスを返す（組の子の node orders が、振り分けの後か振り分けを起こさない組で呼ぶ。輪の置き場
     tdd-<k>/ もここで初めて作る）。routed は振り分けの状態 route.json（src/route.py）の辞書で、あれば ROUTE_CARRY の欄を移し、段を
-    振り分けが済んだ印のままにする。counted は注文の型ごとの欄 orders.tdd {iterations, calls, kinds}（route.counted）で、輪はそこから
+    振り分けが済んだ印のままにする。counted は注文の型ごとの欄 orders.tdd {iterations, calls, kinds}（route.start_counts）で、輪はそこから
     数え始める（回数の上限 MAX_ITERATIONS・呼びの控え calls・渡した証拠の種類の控え kinds）。段が route のまま置くのは tdd.start
     （routes が plan の手早い口）で、assign が tdd の単位の並びを置く"""
     board_dir = pathlib.Path(board_dir)

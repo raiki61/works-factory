@@ -11,7 +11,7 @@
 - route_keys(keys, words, removes) -> 振り分けの AI に渡す単位の並び（語の在る単位と消す名の在る単位を除く）
 - path(place)・read(place) -> 振り分けの状態 route.json のパス・中身（無ければ {}）・open_route(place, repo, base_file, keys, ...) -> route.json を置く
 - begin(st, keys) -> 状態を段 route にして振る単位を置く・step(state_file, reply, repo, ...): 振り分けの段
-- counted(place, st) -> 注文の型ごとの欄 orders.tdd {iterations, calls, kinds}（輪が数え始める物）
+- start_counts(place, st) -> 注文の型ごとの欄 orders.tdd {iterations, calls, kinds}（輪が数え始める物）
 """
 from __future__ import annotations
 
@@ -129,7 +129,7 @@ def open_route(place, repo, base_file, keys, *, to_route=None, owed=None, withhe
     return str(path(place))
 
 
-def counted(place, st: dict) -> dict:
+def start_counts(place, st: dict) -> dict:
     """注文の型ごとの欄 orders.tdd: 振り分けが使った周の数・呼びの控え・渡した証拠の種類（振り分けの控え ROUTE_DELIVERED の種類の並び）。
     輪はここから数え始め（回数の上限・calls を今と同じに続け、種類を減らさない）、最後の承認の tdd_refused は輪の記録の calls に振り分けの
     呼びも入るので今と同じに読む"""

@@ -600,7 +600,7 @@ class TddRecordCase(LoopCase):
 
 
 class RouteHandoverCase(LoopCase):
-    """E1: 振り分けの周と呼びの数え・渡した証拠の種類が、注文の型ごとの欄 orders.tdd（route.counted）で輪へ渡り、輪はそこから数え始める。
+    """E1: 振り分けの周と呼びの数え・渡した証拠の種類が、注文の型ごとの欄 orders.tdd（route.start_counts）で輪へ渡り、輪はそこから数え始める。
     振り分けの状態は place の route.json で、輪の状態 tdd-<k>/ は振り分けの後に作る"""
 
     def test_route_rounds_count_in_the_loop_budget_and_the_calls_reach_tdd_refused(self):
@@ -609,7 +609,7 @@ class RouteHandoverCase(LoopCase):
         self.assertFalse(list(self.board.glob("tdd-[0-9]*")), "振り分けは輪の置き場を作らない")
         self.assertFalse(self.step({"phase": "route", "units": []})["ok"])   # 振り分けの 1 周目は拒否
         self.route()                                                         # 2 周目で通る
-        counted = route.counted(self.board, json.loads(pathlib.Path(route.path(self.board)).read_text(encoding="utf-8")))
+        counted = route.start_counts(self.board, json.loads(pathlib.Path(route.path(self.board)).read_text(encoding="utf-8")))
         self.assertEqual((counted["iterations"], [(c["phase"], c["ok"]) for c in counted["calls"]]),
                          (2, [("route", False), ("route", True)]))
         st = self.st()
