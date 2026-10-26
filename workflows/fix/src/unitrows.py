@@ -25,12 +25,14 @@ site が名指す当たりのファイルも、修正前の版から実際に変
 - build(changes, judged, *, count, blank, zero_keys, replaced, per_file, touched): 本体（盤面を読まない）。返り (写しに渡す changes, 表の行)
 - unclosed_defects(rows): 表の行のうち defects の問いが閉じない（か数えられない）単位の行
 - file_counts(how, root, rev): 問いの当たりをファイルごとに数える（argv は写しの count_argv、走らせ方は写しの _grep）
+- hit_lines(how, root, rev): 問いの当たりの行 path:line の集まり（受け付けの sites の at の照らし。数える旗だけを -n に替える）
 （元の take(reply, b, repo)——盤面の判定者の問い・置き換えた問い・engine_zero・写しの規則の _run_query で build を当てた口——は
 外した。呼び手の script が判定の問い・conflict.replaced_queries(置き場)・recount._run_query と file_counts で build を回す）
 """
 import copy
 import pathlib
 import posixpath
+import re
 import sys
 
 sys.dont_write_bytecode = True
@@ -135,6 +137,30 @@ def file_counts(how, root, rev=None):
         if not n.strip().isdigit():
             return None, f"-c の出力が `…:数` の形でない（{line[:60]!r}）"
         got[path] = int(n)
+    return got, ""
+
+
+def hit_lines(how, root, rev=None):
+    """問いの当たりの行 ——（{"path:line"}, ""）か（None, 理由）。argv は写さず count_argv が組む物の数える旗（-c か -l）を -n に替える
+    （count: files の問いも当たりの行を引く）。版 rev を渡すと出力は `rev:path:line:本文` の形なので、頭の `rev:` を剥がす。file_counts と同じく
+    パスは生で出させ、走らせ方は写しの _grep"""
+    argv, why = _util.count_argv(how, rev)
+    if why:
+        return None, why
+    argv[argv.index(_util.COUNT_BY[how["count"]])] = "-n"
+    out, why = _util._grep([argv[0], "-c", "core.quotePath=false", *argv[1:]], str(root))
+    if why:
+        return None, why
+    got = set()
+    for line in out.splitlines():
+        if not line.strip():
+            continue
+        if rev and line.startswith(f"{rev}:"):
+            line = line[len(rev) + 1:]
+        m = re.match(r"(.+?):(\d+):", line)
+        if not m:
+            return None, f"-n の出力が `パス:行:…` の形でない（{line[:60]!r}）"
+        got.add(f"{m.group(1)}:{m.group(2)}")
     return got, ""
 
 

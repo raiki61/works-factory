@@ -5,7 +5,7 @@
 1. 注文に why_untested が在る（計画の route_why。計画の側で 10 字以上を照らす）
 2. 差分の各パスの種類が、注文の変えてよい種類の中（範囲は共通の受け付けの scope の照らし）
 3. 試験の関数を変えない（単位の行に試験のファイルが無い。前から通っていた試験が通ることは共通の受け付けの新しい赤の照らし）
-4. evidence.kinds に差分の種類ごとに 1 行以上（kinds_rows。段 2 で表に足す。書き手の指示が書き先を教えてから。付録 A の W13）
+4. evidence.kinds に差分の種類ごとに 1 行以上（kinds_rows。書き先は書き手の指示の段落 where_writer が教える。付録 A の W13）
 """
 from __future__ import annotations
 
@@ -42,4 +42,5 @@ def kinds_rows(f: dict) -> list:
     return [f"evidence.kinds に差分の種類 {miss} の確かめの行が無い"] if miss else []
 
 
-DUTIES = (why_untested, kinds_allowed, no_test_edits)   # 段 2 で kinds_rows を足す
+kinds_rows.paragraph = "where_writer"   # 書き手が evidence.kinds に書く段落（.shared/prompts/writer-rules.md。writer.md が差し込む）
+DUTIES = (why_untested, kinds_allowed, no_test_edits, kinds_rows)

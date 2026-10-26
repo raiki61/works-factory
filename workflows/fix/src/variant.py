@@ -3,9 +3,9 @@
 同じ決まりを共有する所を全部挙げて直し、1 か所ずつ退行を注入して赤を見て、戻して緑を見る。書き手は PR A では今の修正役（指示は
 prompts/parts/fixer.md のまま）。型の義務（2.4）:
 1. class_query の在る単位は sites が 1 行以上あり、どの行も at が問いの当たりの行で、fixed_by が since から tree の差分の塊と重なる
-   （sites_shape。段 2 で表に足す。書き手の指示が at・fixed_by を書かせてから）
-2. 単位ごとに、sites のどれかに赤を見た記録がある（unit_red。段 2 で表に足す。PR A は今の周の全体の照らし recount._after_problems の
-   F135 を variant・remove・pin の単位に当てる）
+   （sites_shape。書き手の指示 rules_sites_at が at・fixed_by を書かせる）
+2. 単位ごとに、sites のどれかに赤を見た記録がある（unit_red。書き手の指示 rules_red_unit が書かせる。周の全体の照らし
+   recount._after_problems の F135 は board.RED_WEAPONS の型の単位に当て続ける）
 """
 from __future__ import annotations
 
@@ -43,4 +43,6 @@ def sites_shape(f: dict) -> list:
     return out
 
 
-DUTIES = ()   # 段 2 で (sites_shape, unit_red)
+sites_shape.paragraph = "rules_sites_at"   # 書き手が at・fixed_by を書く段落（.shared/prompts/writer.md。duties.REPLY_FACTS を読む関数は持つ）
+unit_red.paragraph = "rules_red_unit"
+DUTIES = (sites_shape, unit_red)
