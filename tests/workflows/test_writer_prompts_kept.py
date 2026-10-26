@@ -12,16 +12,16 @@
 - (d) 値（`emit` に渡った values に置き字を当てた物。字が md から来る unattended は鍵だけ残して字を `{MD}`）。writer_slots 相当の値の誤り
   （却下の文や裁定の値が空になる）を赤にする
 
-置き字（場で変わるパスだけ。この順）: first_prompt の値 → `{FIRST_PROMPT}`、試験を回す python の実行ファイル（事前の確かめのコマンド
+置き字（場で変わるパスだけ。この順）: first_prompt の値 → `{FIRST_PROMPT}`、指示を組んだ place（型の block の place。下請けのファイルの名指しが
+持つ。variant だけ。控えは下請けのファイルが修正の block の place に在った時の字なので、場所の違いを `{PLACE}` に揃える）→ `{PLACE}`、試験を回す python の実行ファイル（事前の確かめのコマンド
 check_cmd が持つ。uv run --isolated の度に一時のパスが変わる）→ `{PYTHON}`、修正の block の place → `{PLACE}`、対象のリポジトリの根 →
 `{REPO}`、対象のリポジトリの種の commit（commit の時刻で hash が run ごとに変わる。下請けの差分を取るコマンドが持つ）→ `{BASE}`、工場のリポジトリの根 → `{ROOT}`。これで消えない違いが出たら置き字を足して通さず、指示が変わった印として調べる。
 
 組み立ての助けは `compose` の 1 つだけ。`prompt.emit` を包んで引数と返りを受ける。割る前は修正の block の `prompts.writer` を呼んだ。
-割った後（今）は、型の block 5 つ（tdd・pin・tidy・static・remove）は修正の block の `prompts.writer_slots` を同じ引数で呼び、返りの slots と注文を
+割った後は、6 つの型（tdd・pin・tidy・static・variant・remove）とも、修正の block の `prompts.writer_slots` を同じ引数で呼び、返りの slots と注文を
 `writers.hand_over` で pointer にして、その型の block の `scripts/writer_prep.py`（`writerblock.prep(render)`）を、`ports.caller_block()` がその block
-を返すように script のファイルのまま起こして組む。D1 の間に修正の block に残る variant は、今も修正の block の `prompts.writer`
-（中で `writer_slots` を呼ぶ）で組む（D2 で variant も型の block の道に替える）。
-割る commit はこの `compose` だけを替え、場面の作り（`scene`）と控えは替えていない。node の名は控えない（裁定の後の段の node は、割る前は `<型>-ruled`、割った後は型の block の中の `<型>` で、指示の中身ではない）。控えは最初の commit の後に書き直さない
+を返すように script のファイルのまま起こして組む（variant も D2 で型の block になり、割る前の `prompts.writer` の道は無い）。
+割る commit と variant を block にした commit は `compose` だけを替え、場面の作り（`scene`）と控えは替えていない。node の名は控えない（裁定の後の段の node は、割る前は `<型>-ruled`、割った後は型の block の中の `<型>` で、指示の中身ではない）。控えは最初の commit の後に書き直さない
 （`git log --format=%h -- tests/workflows/writer-prompts-before.json` が 1 つだけ）。
 
 (b) の字の比べは D2 の最後の commit で外し、(a)・(c)・(d) を残す（指示の文だけを変える依頼を md 1 本で閉じるため）。
@@ -123,9 +123,8 @@ def block_prep(run, pass_: str, weapon: str, slots: dict, writers) -> None:
 
 
 def compose(kind: str, weapon: str, case) -> dict:
-    """場面 kind・型 weapon の書き手の指示を組み、prompt.emit の引数と返りを受けて返す {when, prompt, values, node}。型の block の 5 つは
-    修正の block の writer_slots → 型の block の writer_prep.py（writerblock.prep）で、variant は修正の block の prompts.writer（中で
-    writer_slots を呼ぶ）で組む。割る commit はこの関数だけを替えた"""
+    """場面 kind・型 weapon の書き手の指示を組み、prompt.emit の引数と返りを受けて返す {when, prompt, values, node}。修正の block の
+    writer_slots → 型の block の writer_prep.py（writerblock.prep）で組む。割る commit と variant を block にした commit はこの関数だけを替えた"""
     run, pass_ = scene(case, kind)
     seen = {}
     real = prompt.emit
@@ -134,7 +133,7 @@ def compose(kind: str, weapon: str, case) -> dict:
         out = real(node, values, when, n)
         slots = {k: v if k in FROM_MD else "{" + k + "}" for k, v in values.items()}
         again = prompt.render(node, slots, when)["prompt"]
-        seen.update(node=node, values=dict(values), when=dict(when), prompt=out["prompt"], slotted=again)
+        seen.update(node=node, values=dict(values), when=dict(when), prompt=out["prompt"], slotted=again, emit_place=str(ports.place()))
         return out
 
     with run.env(), mock.patch.object(prompt, "emit", wraps=wrapped):
@@ -159,11 +158,8 @@ def compose(kind: str, weapon: str, case) -> dict:
             extra = {"saved_reply": saved}
         call = dict(owed=owed, items=functools.partial(board.place_items, place), sources=board.brief_sources(place),
                     frozen=facts.frozen_tests(place, state, pass_), shared=ports.shared_cache(), **extra)
-        if weapon == "variant":
-            prompts.writer(place, repo, pass_, weapon, values, **call)
-        else:
-            slots, _ = prompts.writer_slots(place, repo, pass_, weapon, values, **call)
-            block_prep(run, pass_, weapon, slots, writers)
+        slots, _ = prompts.writer_slots(place, repo, pass_, weapon, values, **call)
+        block_prep(run, pass_, weapon, slots, writers)
     seen["place"], seen["repo"], seen["first_prompt"] = str(place), str(repo), seen["values"].get("first_prompt", "")
     seen["base"] = git(repo, "rev-parse", "HEAD")
     return seen
@@ -174,7 +170,7 @@ def paths(text, got: dict):
     def forms(path):
         found = {str(path), str(pathlib.Path(path).resolve())}
         return sorted(found, key=len, reverse=True)
-    for old, new in ((got["first_prompt"], "{FIRST_PROMPT}"), (sys.executable, "{PYTHON}"), (got["place"], "{PLACE}"), (got["repo"], "{REPO}"), (got["base"], "{BASE}"), (str(ROOT), "{ROOT}")):
+    for old, new in ((got["first_prompt"], "{FIRST_PROMPT}"), (got["emit_place"], "{PLACE}"), (sys.executable, "{PYTHON}"), (got["place"], "{PLACE}"), (got["repo"], "{REPO}"), (got["base"], "{BASE}"), (str(ROOT), "{ROOT}")):
         if old:
             for form in forms(old):
                 text = text.replace(form, new)

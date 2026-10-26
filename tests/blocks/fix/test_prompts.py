@@ -28,8 +28,7 @@ RENDERED = {
     "ruler": "# Ruling on conflicts (a read-only role)",
     "clash-fix": "# Merging groups (the merger)",
     "clash-ruled": "# Merging groups (the merger after a ruling)",
-    "variant-ruled": "# Fixing (the writer's job)",   # 型ごとの書き手は、variant だけ D1 の間 fix の node のまま（筋書きは 1 回目の variant だけを回す。ほかの型は
-    #                                                    型の block weapon-<型>。その指示は tests/workflows/test_weapon_assets.py が組んで照らす）
+    "consult-answer": "# Scope consultation (from the fixing stage)",   # 筋書き consult は書き手の返りを読めず consult-check を差し替えるので、ここで組んで照らす
     "ruled-consult-answer": "# Scope consultation (from the fixing stage)",
     "tdd": "## What this role does",
     "tdd-new": "## What this role does",   # tdd の単位の在る組の 1 周目だけ（振り分けの役 route が筋書きで回る）
@@ -45,6 +44,11 @@ REPLY = {"changes": [], "not_done": [], "fix_closure": {"status": "not_applicabl
 PLAN = json.dumps({"round": 1, "fields": [{"route": "direct", "tests": [], "rewrite_tests": [], "refactor": {"declared": False, "why": ""},
                                             "allowed_paths": ["stats.py"], "out_of_scope": []}]})
 FIX_PLAN = json.dumps({"plan": [{"unit_keys": [KEY], "approach": "空の並びを先に返す"}]})
+
+
+def prompt_of(run, out: dict) -> str:
+    """支度 fix_prep の返り out の周に起こす型の書き手の block が、渡された order・slots から組む指示（その block の writer_prep.py を回す）"""
+    return support.writer_prompt(run.environ(), out, run.repo)
 
 
 def seeded(case) -> kit.Run:
@@ -99,14 +103,15 @@ class RenderedCase(unittest.TestCase):
                                      "kind": "not_red"}], source=conflict.FIX_SOURCE)
         conflict.apply_rulings(place, {ids[0]: {"decision": "fix_code_as", "text": "分母が 0 の時は 0 を返すように直す", "limits": []}},
                                by="role:rule")
-        self.assertEqual(run.script("writer_pick", **{"pass": "ruled"}), {"go": True, "writer": "variant-ruled", "done": True})
+        self.assertEqual(run.script("writer_pick", **{"pass": "ruled"}), {"go": True, "writer": "wr-variant", "done": True})
         out = run.script("fix_ruled_prep")
         self.assertTrue(out["go"], out)
-        self.assertEqual(out["writer"], "variant-ruled")
-        self.assert_rendered("variant-ruled", out["prompt"])
-        self.assertIn(str(place / conflict.RULINGS_FILE), out["prompt"])
-        again = run.script("fix_ruled_prep")
-        self.assertNotIn(str(place / conflict.RULINGS_FILE), again["prompt"].split("# Fixing")[0])   # 裁定の文の段落は 1 周目だけ
+        self.assertEqual(out["writer"], "wr-variant")
+        text = prompt_of(run, out)   # 指示は型の block が組む
+        self.assertIn("# Fixing (the writer's job)", text)
+        self.assertIn(str(place / conflict.RULINGS_FILE), text)
+        again = prompt_of(run, run.script("fix_ruled_prep"))
+        self.assertNotIn(str(place / conflict.RULINGS_FILE), again.split("# Fixing")[0])   # 裁定の文の段落は 1 周目だけ
 
     def test_writers_the_fixtures_do_not_reach(self):
         """筋書きが回さない型の書き手の指示も、型の頭と決まりの本体を組む（組み方は tests/workflows/test_weapon_assets.py の assembled）"""
@@ -115,6 +120,19 @@ class RenderedCase(unittest.TestCase):
             if node in RENDERED:
                 with self.subTest(node=node):
                     self.assert_rendered(node, test_assets.assembled(node, weapon))
+
+    def test_consult_answer(self):
+        run = seeded(self)
+        run.script("intake", mode="group", group=GROUP, judgment=JUDGMENT, plan=PLAN, fix_plan=FIX_PLAN)
+        prompts = kit.load("fix", "prompts")
+        asked = [{"n": 1, "item": 1, "paths": ["README.md"], "tests": [], "new_tests": [], "why": "直しの記録を足す要がある",
+                  "out_of_scope": []}]
+        table = {1: {"item": 1, "unit_keys": [KEY], "allowed_paths": ["stats.py"], "out_of_scope": []}}
+        with run.env():
+            text = prompts.consult_render(run.artifacts, "first", plan_file="/p/fix-plan-reply.json", ripple_file="")(table, asked)
+        self.assert_rendered("consult-answer", text)
+        self.assertIn("Answer as the author of the fix plan.", text)
+        self.assertTrue((run.artifacts / "consult-answer-prompt-1.md").is_file())
 
     def test_ruled_consult_answer(self):
         run = seeded(self)
@@ -158,10 +176,11 @@ class FixerParagraphsCase(unittest.TestCase):
         run.script("intake", **inp)
         run.script("group_start")
         first = run.script("fix_prep")
-        self.assertIn("# Fixing (the writer's job)", first["prompt"])
-        self.assertIn("## Scope consultation and the pre-check", first["prompt"])
-        self.assertIn("If the write to ", first["prompt"])   # 下書きの置き場が拒まれた時の逃げ道（temporary directory）
-        self.assertIn("pass that path to `--reply`", first["prompt"])
+        first_prompt = prompt_of(run, first)
+        self.assertIn("# Fixing (the writer's job)", first_prompt)
+        self.assertIn("## Scope consultation and the pre-check", first_prompt)
+        self.assertIn("If the write to ", first_prompt)   # 下書きの置き場が拒まれた時の逃げ道（temporary directory）
+        self.assertIn("pass that path to `--reply`", first_prompt)
         reply = {**REPLY, "consult": [{"item": 1, "paths": ["README.md"], "tests": [], "why": "直しに伴う記録を README に足す要がある",
                                        "tried": ["stats.py の分母を直した"], "blocked": "直しは済んだが記録の置き場が範囲の外",
                                        "evidence": [{"path": "stats.py", "line": 4}]}]}
@@ -173,10 +192,11 @@ class FixerParagraphsCase(unittest.TestCase):
         run.script("consult_accept", answer=json.dumps(answer), **{"pass": "first"})
         resumed = run.script("fix_prep")
         self.assertEqual(resumed["iteration"], first["iteration"])
-        self.assertIn("# The answer to your scope consultation (continued)", resumed["prompt"])
-        self.assertNotIn("# Fixing (the writer's job)", resumed["prompt"])
-        self.assertNotIn("## Scope consultation and the pre-check", resumed["prompt"])
-        self.assertIn("## How to fix", resumed["prompt"])   # 共通の断片の直し方は続きの周にも入る（13.2 の 1）
+        resumed_prompt = prompt_of(run, resumed)
+        self.assertIn("# The answer to your scope consultation (continued)", resumed_prompt)
+        self.assertNotIn("# Fixing (the writer's job)", resumed_prompt)
+        self.assertNotIn("## Scope consultation and the pre-check", resumed_prompt)
+        self.assertIn("## How to fix", resumed_prompt)   # 共通の断片の直し方は続きの周にも入る（13.2 の 1）
 
     def test_tdd_prompt_names_the_policy_the_port_gives(self):
         """TDD の役の指示が名指す方針の文書は port policy の値（line が固めて渡す写し）。run の途中で書き換えた生の文書の名は載らない"""
@@ -197,7 +217,7 @@ class FixerParagraphsCase(unittest.TestCase):
         bare = seeded(self)
         bare.script("intake", mode="group", group=GROUP, judgment=JUDGMENT, tdd_suite=str(RUNNER))
         bare.script("group_start")
-        text = bare.script("fix_prep")["prompt"]
+        text = prompt_of(bare, bare.script("fix_prep"))
         self.assertIn("## Tests you may add or change, and frozen tests", text)
         self.assertIn("- Changing or removing the body of any other existing test function is rejected.", text)
         self.assertNotIn("## Paths you may change and what you must not touch", text)
@@ -205,7 +225,7 @@ class FixerParagraphsCase(unittest.TestCase):
         planned.script("intake", mode="group", group=json.dumps({"group_id": "g1", "unit_ids": [KEY], "items": [1]}),
                        judgment=JUDGMENT, plan=PLAN, fix_plan=FIX_PLAN, tdd_suite=str(RUNNER))
         planned.script("group_start")
-        text = planned.script("fix_prep")["prompt"]
+        text = prompt_of(planned, planned.script("fix_prep"))
         self.assertIn("## Paths you may change and what you must not touch", text)
         self.assertIn("## Tests you may add or change, and frozen tests", text)
 
@@ -215,12 +235,10 @@ class FixerParagraphsCase(unittest.TestCase):
         run = seeded(self)
         run.script("intake", mode="group", group=GROUP, judgment=JUDGMENT, tdd_suite=str(RUNNER))
         run.script("group_start")
-        self.assertNotIn("直す前から壊れていた関わる試験", run.script("fix_prep")["prompt"])
+        self.assertNotIn("直す前から壊れていた関わる試験", prompt_of(run, run.script("fix_prep")))
         (run.artifacts / conflict.BROKEN_TESTS_FILE).write_text(
             json.dumps({"tests": [{"path": "test_stats.py", "ids": ["test_stats.TestStats::test_mean"]}]}), encoding="utf-8")
-        for name in list(run.artifacts.glob("variant-prompt-*.md")) + list(run.artifacts.glob("fix-first*.json")):
-            name.unlink()
-        text = run.script("fix_prep")["prompt"]
+        text = prompt_of(run, run.script("fix_prep"))
         self.assertIn("- 直す前から壊れていた関わる試験（ついでに直してよい。最後の承認ノードに出る）: `test_stats.py`", text)
         self.assertIn("You may fix them along with your fix", text)
 
@@ -231,8 +249,8 @@ class FixerParagraphsCase(unittest.TestCase):
         run.script("intake", mode="group", group=json.dumps({"group_id": "g1", "unit_ids": [KEY], "items": [1]}),
                    judgment=JUDGMENT, plan=PLAN, fix_plan=FIX_PLAN, tdd_suite=str(RUNNER))
         run.script("group_start")
-        first = run.script("fix_prep")
-        self.assertRegex(first["prompt"], r"write in its prompt to Read this file: \S+unattended\.md")
+        first = prompt_of(run, run.script("fix_prep"))
+        self.assertRegex(first, r"write in its prompt to Read this file: \S+unattended\.md")
         reply = {**REPLY, "consult": [{"item": 1, "paths": ["README.md"], "tests": [], "why": "直しに伴う記録を README に足す要がある",
                                        "tried": ["stats.py の分母を直した"], "blocked": "直しは済んだが記録の置き場が範囲の外",
                                        "evidence": [{"path": "stats.py", "line": 4}]}]}
@@ -240,7 +258,7 @@ class FixerParagraphsCase(unittest.TestCase):
         answer = {"answers": [{"ask": 1, "decision": "allow", "paths": ["README.md"], "tests": [], "spec": "",
                                "reason": "直しの記録は範囲に入れてよい"}]}
         run.script("consult_accept", answer=json.dumps(answer), **{"pass": "first"})
-        resumed = run.script("fix_prep")["prompt"]
+        resumed = prompt_of(run, run.script("fix_prep"))
         self.assertRegex(resumed, r"Read \S+variant-prompt-1\.md again")
 
     def test_language_line_keeps_code_identifiers_and_error_messages(self):
@@ -278,7 +296,7 @@ class ConflictWordsCase(unittest.TestCase):
         run.script("intake", mode="group", group=json.dumps({"group_id": "g1", "unit_ids": [KEY], "items": [1]}), judgment=JUDGMENT,
                    plan=PLAN, fix_plan=FIX_PLAN, tdd_suite=str(RUNNER))
         run.script("group_start")
-        return run.script("fix_prep")["prompt"]
+        return prompt_of(run, run.script("fix_prep"))
 
     def ruler(self) -> str:
         run = seeded(self)
@@ -332,24 +350,30 @@ class ConflictWordsCase(unittest.TestCase):
 
 
 class SubAgentFilesCase(unittest.TestCase):
-    """下請けのファイル（g1-impl-<n>.md・g1-review-<n>.md）は prompts/parts/ の md から組まれ、place に書かれる"""
+    """下請けのファイル（g1-impl-<n>.md・g1-review-<n>.md）は、修正の block の fix-prep が slots の subagents に渡した材料から、型の block（variant）が
+    .shared/prompts の md で組み、型の block の place に書く（値の関数は lib/tests/test_subagents.py、ファイルを書く本体の事は
+    tests/blocks/shared/test_writerblock.py。ここは fix-prep → 型の block の通し）"""
 
     def test_g1_files(self):
         run = seeded(self)
         run.script("intake", mode="group", group=GROUP, judgment=JUDGMENT, tdd_suite=str(RUNNER))
         run.script("group_start")
         out = run.script("fix_prep")
-        self.assertIn("## Running subagents", out["prompt"])
-        impl = (run.artifacts / "g1-impl-1.md").read_text(encoding="utf-8")
-        review = (run.artifacts / "g1-review-1.md").read_text(encoding="utf-8")
+        self.assertEqual(out["writer"], "w-variant")
+        text = prompt_of(run, out)
+        place = run.artifacts / out["writer"]   # 型の block の place
+        self.assertIn("## Running subagents", text)
+        impl = (place / "g1-impl-1.md").read_text(encoding="utf-8")
+        review = (place / "g1-review-1.md").read_text(encoding="utf-8")
         self.assertIn("## works rules", impl)
         self.assertIn("**Do not put the target's names in queries.**", impl)
         self.assertNotIn("If you start a sub-agent", impl)   # spawns は偽
         self.assertIn("## works rules", review)
-        self.assertIn(str(run.artifacts / "g1-impl-1.md"), out["prompt"])
-        for name, text in (("g1-impl", impl), ("g1-review", review), ("fixer", out["prompt"])):
+        self.assertIn(str(place / "g1-impl-1.md"), text)
+        self.assertFalse(list(run.artifacts.glob("g1-*")), "下請けのファイルは修正の block の place に置かない")
+        for name, body in (("g1-impl", impl), ("g1-review", review), ("fixer", text)):
             for phrase in BRIEF_READING:
-                self.assertIn(phrase, text, f"{name} に brief の読み方の句が無い")
+                self.assertIn(phrase, body, f"{name} に brief の読み方の句が無い")
 
 
 SLOTS_SHAPE = json.loads((kit.SHARED / "schemas" / "writer-slots.schema.json").read_text(encoding="utf-8"))
@@ -441,14 +465,15 @@ class WriterSlotsCase(unittest.TestCase):
         self.assertLessEqual(set(self.prompts.DUTY_WHEN), set(SLOTS_SHAPE["properties"]["when"]["required"]))
 
     def test_fix_prep_hands_the_type_block_its_order_and_slots_by_pointer(self):
-        """型の block の周（variant 以外）は writer が include の id で、order と slots が pointer。prompt は組まない。variant は今の node の名と指示"""
+        """どの型の周も writer が include の id で、order と slots が pointer。指示は組まない（型の block が組む）"""
         place = self.run.artifacts
         orders = place / "orders"
         orders.mkdir()
         (orders / "pin.json").write_text(yaml.safe_load(PIN_ORDER.read_text(encoding="utf-8"))["fixture"]["inputs"]["order"], encoding="utf-8")
         self.assertEqual(self.run.script("writer_pick", **{"pass": "first"}), {"go": True, "writer": "w-pin", "done": True})
         out = self.run.script("fix_prep")
-        self.assertEqual((out["go"], out["writer"], out["prompt"]), (True, "w-pin", ""))
+        self.assertEqual((out["go"], out["writer"]), (True, "w-pin"))
+        self.assertNotIn("prompt", out, "指示は型の block が組む")
         self.assertEqual(out["order"], {"type": "archon_artifact", "run_id": kit.RUN_ID, "path": "orders/pin.json"})
         self.assertEqual(out["slots"], {"type": "archon_artifact", "run_id": kit.RUN_ID, "path": "slots-w-pin-1.json"})
         kit.shaped("shared:writer-slots.schema.json", json.loads((place / "slots-w-pin-1.json").read_text(encoding="utf-8")))

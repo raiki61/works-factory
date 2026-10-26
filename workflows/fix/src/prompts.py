@@ -1,6 +1,6 @@
 """9 つの AI の node の指示に渡す値と段落の真偽（docs/design/fix.md の 2.3・3.3・4.3・5.3・6.3 の差し込み口の一覧）。
 
-指示の文は prompts/ の md が持ち、ここは値を集めて prompt.emit（下請けの頼みは prompt.render_part）に渡すだけ。材料の行（brief・穴・範囲・
+指示の文は prompts/ の md が持ち、ここは値を集めて prompt.emit に渡すだけ（書き手の指示と下請けのファイルは型の block が組む。ここは writer_slots で slots を渡す）。材料の行（brief・穴・範囲・
 テスト・ライブラリ・相談の頼み・単位・引き継ぎ）は今の lib が組む日本語の字のまま入る（13.2 の 5）。組んだ指示は place の
 <node-id>-prompt-<n>.md に書く。
 """
@@ -19,7 +19,6 @@ import rolekit    # lib/
 import seat       # lib/
 import spseam     # lib/
 import unittrees  # lib/
-import writerblock  # .shared/（下請けのファイルを組む本体。variant が型の block になる commit で外れる）
 
 from src import board, files, rules, runvals
 from src.rulings import write as write_rulings
@@ -74,19 +73,18 @@ SITES_WEAPONS = ("variant", "pin")   # 同じ決まりを共有する所を 1 �
 
 
 def writer_when(weapon: str) -> dict:
-    """型 weapon の書き手の指示で、型が選ぶ段落の真偽（付録 A の行き先: variant だけの手順・変える段の義務・壊して赤の証明・赤を見ない
+    """型 weapon の書き手の指示で、型が選ぶ段落の真偽のうち義務の表から引く物（付録 A の行き先: 変える段の義務・壊して赤の証明・赤を見ない
     clean の拒否）。箱は duties.BOXES、赤を見ない clean を拒む型は受け付けと同じ board.RED_WEAPONS から引く（指示と照らしをそろえる）"""
     from src import duties
-    return {"variant": weapon == "variant", "change": duties.box_of(weapon) == "change", "sites": weapon in SITES_WEAPONS,
-            "red": weapon in board.RED_WEAPONS}
+    return {"change": duties.box_of(weapon) == "change", "sites": weapon in SITES_WEAPONS, "red": weapon in board.RED_WEAPONS}
 
 
 def writer_paragraphs(weapon: str) -> dict:
-    """型 weapon が選ぶ書き手の md の段落の真偽（writer_when を段落の名に引いた物。決まりの段落 rules・相談の段落 ask・下請けの項目が在る時に
-    だけ効く。writer_values が使い、tests/workflows/test_weapon_assets.py が組んだ指示の照らしに使う）"""
+    """型 weapon が選ぶ書き手の md の段落の真偽のうち、義務の表から引く 4 つ（DUTY_WHEN。writer_when を段落の名に引いた物。_slots が slots の
+    when に入れ、tests/workflows/test_weapon_assets.py が組んだ指示の照らしに使う）。下請けの段落 spawns・g1・ask_variant は型の block の
+    表 SPAWNS から本体 .shared/writerblock.paragraphs が引く（型の block は義務の表を知らず、修正の block は表 SPAWNS を知らない）"""
     k = writer_when(weapon)
-    return {"ask_variant": k["variant"], "rules_change": k["change"], "rules_sites": k["sites"], "rules_red": k["red"],
-            "conflict_change": k["change"], "spawns": k["variant"], "g1": k["variant"]}
+    return {"rules_change": k["change"], "rules_sites": k["sites"], "rules_red": k["red"], "conflict_change": k["change"]}
 
 
 # 型の block の slots の values・when の鍵（形 .shared/schemas/writer-slots.schema.json の required と等しい。tests/blocks/fix/test_prompts.py が照らす）。
@@ -212,39 +210,6 @@ def writer_slots(place, repo, pass_: str, weapon: str, values: dict, **kw) -> tu
     slots を型の block に渡せた後に rules.remember に渡す"""
     slots, rnd, _ = _slots(place, repo, pass_, weapon, values, **kw)
     return slots, rnd
-
-
-def writer(place, repo, pass_: str, weapon: str, values: dict, **kw) -> dict:
-    """fix の node のまま残る書き手（D1 の間は variant）の指示を組んで place に書く。返り {prompt, iteration}。slots を writer_slots と
-    同じ組み方で組み、型が持つ値と段落（今の writer_values が組んでいた first_prompt・unattended・overlay_file・summary_file・g1_items と
-    spawns・g1・ask_variant）をここで足す。D2 で variant も型の block になれば、この関数と下請けのファイルを組む g1_files は外れる"""
-    from src import writers
-    slots, rnd, more = _slots(place, repo, pass_, weapon, values, **kw)
-    node = writers.node(pass_, weapon)
-    kind = writer_paragraphs(weapon)
-    vals, when = slots["values"], slots["when"]
-    vals.update(first_prompt=str(pathlib.Path(place) / f"{node}-prompt-1.md"), unattended="", overlay_file="", g1_items="")   # 続きの周が読み直す、1 回目に組んだ指示のファイル
-    if weapon == "tdd":
-        vals["summary_file"] = slots["summary_file"]
-    when.update(spawns=kind["spawns"], g1=False, ask_variant=kind["ask_variant"] and when["ask"])   # 下請けを起こすのは variant の書き手だけ（Agent を持つ）
-    if not more["continuing"]:
-        sub = slots["subagents"] if kind["g1"] else no_subagents()   # 項目ごとの下請けは variant だけ（付録 A の F101）
-        try:
-            seat.pinned()   # 写しの照合を、下請けのファイルの書き込みより前に
-            if sub["owed"]:
-                vals["g1_items"] = writerblock.subagent_items(place, sub)   # 下請けのファイルを組む本体は型の block の本体と同じ（.shared/writerblock.py）
-                when["g1"] = True
-            vals["unattended"] = seat.overlay_body(seat.OVERLAY_KINDS["fix"]).rstrip("\n")
-            vals["overlay_file"] = OVERLAY_FILE
-        except ValueError as e:
-            raise Broken(f"修正役の座を組めない: {e}") from None
-    try:
-        out = prompt.emit(node, vals, when, prompt.round_of(node))
-    except prompt.PromptError as e:
-        raise Broken(f"{node} の指示を組めない: {e}") from None
-    if rnd["kinds"] is not None:
-        rules.remember(rnd["ledger"], rnd["kinds"], rnd["iteration"])
-    return {"prompt": out["prompt"], "iteration": rnd["iteration"]}
 
 
 # ---------------------------------------------------------------- 相談の答えの役（consult-answer・ruled-consult-answer）

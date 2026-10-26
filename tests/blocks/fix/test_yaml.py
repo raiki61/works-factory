@@ -16,8 +16,7 @@ if str(ROOT / "lib") not in sys.path:
 
 import rolekit  # noqa: E402
 
-WRITERS = ("variant", "variant-ruled")   # fix の node のまま残る書き手（D1 の間。ほかの型は型の block の include。D2 で variant も block になれば空）
-AI_NODES = (*WRITERS, "consult-answer", "ruled-consult-answer", "tdd", "tdd-new", "ruler", "clash-fix", "clash-ruled")
+AI_NODES = ("consult-answer", "ruled-consult-answer", "tdd", "tdd-new", "ruler", "clash-fix", "clash-ruled")
 ADDED_AI_NODES = ("suite-fix", "route")   # 作り直しの後に足した役（壊れた起動スクリプトの書き直し。#836・docs/design/fix.md の 19。振り分けの役。
 #                                         今の TDD の役の振り分けの段を輪の外へ出した物。docs/plans/2026-10-24-fix-weapons.md の 4.1 の 3）
 WRITE_TOOLS = {"Edit", "Write", "Bash", "NotebookEdit", "Agent"}
@@ -153,7 +152,7 @@ class ConversationCase(unittest.TestCase):
 
 class WriterChainCase(unittest.TestCase):
     """縛る試験 6（docs/design/fix.md の 2.2.1）: 書き手の 2 つの鎖（fix-loop は w-<型>・fix-ruled-loop は wr-<型>）の include の id・並び・
-    depends_on・trigger_rule・when・with と、受け付け・consult-check の with: の鍵。D1 の間は variant だけ今の node のまま鎖の中の同じ位置に残る"""
+    depends_on・trigger_rule・when・with と、受け付け・consult-check の with: の鍵。書き手の型は 6 つとも型の block の include"""
     CHAINS = (("first", "fix-loop", "fix-prep", "fix-accept", "consult-check"),
               ("ruled", "fix-ruled-loop", "fix-ruled-prep", "fix-ruled-accept", "ruled-consult-check"))
 
@@ -181,15 +180,12 @@ class WriterChainCase(unittest.TestCase):
                     else:
                         self.assertEqual(m["trigger_rule"], "none_failed_min_one_success")
                     self.assertEqual(m["when"], f"$%s.output.go == true && $%s.output.writer == '%s'" % (prep, prep, m["id"]))
-                    if "include" in m:
-                        self.assertEqual(m["include"], f"works-factory-weapon-{writers.block_of(w)}")
-                        self.assertEqual(m["with"], {"order": f"${prep}.output.order", "slots": f"${prep}.output.slots"})
-                    else:
-                        self.assertEqual(w, "variant", "D1 の間 node のまま残るのは variant だけ")
+                    self.assertEqual(m["include"], f"works-factory-weapon-{writers.block_of(w)}")
+                    self.assertEqual(m["with"], {"order": f"${prep}.output.order", "slots": f"${prep}.output.slots"})
 
     def test_the_accepts_read_each_types_reply_and_wait_for_the_whole_chain(self):
-        """受け付けと consult-check は、型の block の返りまるごと（ok・reply・report の 3 つを受ける script が ports.picked で拾う。E5）を、
-        variant は D1 の間 node の返答を受け、鎖の全部を待つ"""
+        """受け付けと consult-check は、型の block の返りまるごと（ok・reason・reply・report を受ける script が ports.picked で拾う。E5）を
+        受け、鎖の全部を待つ"""
         writers = kit.load("fix", "writers")
         for pass_, loop, prep, accept, check in self.CHAINS:
             ids = [m["id"] for m in self.chain(loop)]
@@ -209,12 +205,13 @@ class WriterChainCase(unittest.TestCase):
                 self.assertEqual(set(body[check]["with"]) - set(want) - set(absent), {"pass"})
 
     def test_the_two_chains_share_one_with_each_and_no_include_is_left_out(self):
-        """鎖ごとの with: は同じ字（YAML の錨 1 つ）で、variant 以外の型が全部 block になっている（D1 の間は variant だけ node）"""
+        """鎖ごとの with: は同じ字（YAML の錨 1 つ）で、型が全部 block になっている（鎖の中に block でない書き手の node が無い）"""
         writers = kit.load("fix", "writers")
         for pass_, loop, prep, *_ in self.CHAINS:
             includes = [m for m in self.chain(loop) if "include" in m]
             with self.subTest(loop=loop):
-                self.assertEqual(len(includes), len(writers.SEQUENCE[pass_]) - 1)
+                self.assertEqual(len(includes), len(writers.SEQUENCE[pass_]))
+                self.assertEqual(len(includes), len(self.chain(loop)), "書き手の node は全部 include")
                 self.assertEqual(len({str(m["with"]) for m in includes}), 1)
 
 

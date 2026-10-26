@@ -13,7 +13,7 @@ INCLUDED = ("test-gate", "judge", "head-depth", "spec", "parallel-pr", "premises
             "purpose-review", "local-review", "consistency-bypass", "hygiene", "external-standards", "procedure-trace",
             "test-double-fidelity", "main-path-observation", "provenance", "diagnose", "verify", "structure", "independent-design", "plan",
             "plan-review", "fix", "lens", "delta-review", "eyes", "r1", "r2", "r3", "r4", "merge", "report", "spec-driven",
-            "weapon-tdd-close", "weapon-pin", "weapon-tidy", "weapon-static", "weapon-remove")
+            "weapon-tdd-close", "weapon-pin", "weapon-tidy", "weapon-static", "weapon-variant", "weapon-remove")
 
 
 class StandaloneCase(unittest.TestCase):

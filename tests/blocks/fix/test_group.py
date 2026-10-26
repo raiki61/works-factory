@@ -132,7 +132,7 @@ class GroupChildScriptsCase(unittest.TestCase):
         env.update({"ARTIFACTS_DIR": str(art), "WORKFLOW_ID": RUN, "WORKS_FACTORY_ROOT": str(ROOT),
                     "PYTHONDONTWRITEBYTECODE": "1", **self.grp_env})
         env.update({f"INPUTS_{k.upper()}": v for k, v in inputs.items()})
-        return env
+        return support.variant_return(env)
 
     def run_script(self, script, *, art=None, ok=True, cwd=None, node=None, **inputs):
         """workflows/fix/scripts/<script>.py を起こす。ok なら返りを JSON で読み、node（既定は script の名の - 綴り）の output_format で
@@ -216,11 +216,8 @@ class GroupChildScriptsCase(unittest.TestCase):
         self.assertEqual((got["ok"], got["done"]), (True, True), got)
         prep = self.run_script("fix_prep")
         self.assertTrue(prep["go"], prep)
-        if prep["prompt"]:   # variant は fix の node のまま、指示を fix-prep が組む
-            return test_file, prep["prompt"]
-        # 型の block の周（tdd の閉じの書き手）は指示を型の block が組むので、fix-prep が渡す slots の材料の字（テストの節の行）を読む
-        slots = json.loads((self.place / prep["slots"]["path"]).read_text(encoding="utf-8"))
-        return test_file, slots["values"]["tests_rows"]
+        # 指示は型の block が組むので、fix-prep が渡す slots の材料の字（テストの節の行）を読む
+        return test_file, support.slots_of(self.place, prep)["values"]["tests_rows"]
 
     def accept(self, reply):
         return self.run_script("fix_accept", reply_variant=support.reply_json(reply), consulted="false", iteration="1")
@@ -413,7 +410,8 @@ class GroupChildScriptsCase(unittest.TestCase):
         self.start()
         prep = self.run_script("fix_prep")
         self.assertTrue(prep["go"], prep)
-        self.assertIn(notes, prep["prompt"])
+        self.assertEqual(support.slots_of(self.place, prep)["values"]["notes_file"], notes, "slots の材料に名指す")
+        self.assertIn(notes, support.writer_prompt(self.env(self.art, {}), prep, self.repo), "型の block が組んだ指示にも名指す")
 
     def test_tdd_prep_names_the_gate_notes(self):
         """TDD の役の指示は、親から写した修正前の関所の一言のファイルを notes_file に名指す"""
@@ -618,7 +616,7 @@ class GroupChildScriptsCase(unittest.TestCase):
         idx = json.loads((self.place / "orders.json").read_text(encoding="utf-8"))   # 4.4 の 5: 段の頭で裁定の後の注文を書く
         self.assertEqual((idx["pass"], idx["weapons"], idx["stage"], idx["since"]),
                          ("ruled", {MEAN: "variant"}, 2, _src("board").fixer_head(self.place, "ruled")))
-        pasted = self.frozen_line(out["prompt"])
+        pasted = self.frozen_line(support.writer_prompt(self.env(self.art, {}), out, self.repo))
         self.assertEqual(pasted, {"test_stats.py"})
         test_file.write_text(test_file.read_text(encoding="utf-8").replace("mean([2, 4]), 3)", "mean([2, 4]), 3.0)"),
                              encoding="utf-8")
@@ -636,12 +634,13 @@ class GroupChildScriptsCase(unittest.TestCase):
                                     "why_both_cannot_hold": "テストの期待が誤った平均を前提にしている",
                                     "which_is_right": "request", "kind": "unnamed_test_broke"}],
                       source=conflict.FIX_SOURCE, ruling={"decision": "fix_code_as", "text": "分母を len(xs) にせよ", "limits": []})
-        first = self.run_script("fix_ruled_prep")["prompt"]
+        env = self.env(self.art, {})
+        first = support.writer_prompt(env, self.run_script("fix_ruled_prep"), self.repo)
         self.assertNotIn("The first fixer's answer (saved by the machine)", first)
         reply = _write(self.tmp / "first-reply.json", {"changes": [], "not_done": [], "plan_faces": []})
         _write(self.place / "groups.json", {"groups": [GROUP], "out_dir": str(self.out_dir)})
         _write(self.out_dir / "g1" / "result.json", {"reply_file": str(reply)})
-        prompt = self.run_script("fix_ruled_prep")["prompt"]
+        prompt = support.writer_prompt(env, self.run_script("fix_ruled_prep"), self.repo)
         saved = str(self.place / "fix-reply.json")
         self.assertEqual(prompt.count("The first fixer's answer (saved by the machine): "), 1)
         self.assertEqual(prompt.count(saved), 1)

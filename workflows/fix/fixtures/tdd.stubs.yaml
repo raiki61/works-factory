@@ -1,6 +1,7 @@
 # 組の形で TDD の実行器（fixtures/tdd-runner.py。pack の写しの置き場から）を渡す: group-start が一式を 1 回走らせて元の結末を取り、
 # route-go が輪の状態を段 route で置き、振り分けの役 route が振り分けの段の指示で起き、route-step が振り分けを受け、注文 orders が
-# tdd の単位の無い組として修正の輪へ進める
+# tdd の単位の無い組として修正の輪へ進める。型 variant の書き手の block と、その返りを読む受け付けの 3 つの script は差し替える
+# （standalone.stubs.yaml の頭の説明と同じ訳）
 fixture:
   expect: completed
   reached: [intake, group-start, route-go, route-prep, route, route-step, orders, writer-pick, fix-prep, finish]
@@ -15,7 +16,7 @@ exec-code: true
 route:
   phase: route
   units: [{unit_key: "stats.py:4 mean", route: direct, why: 先にテストを書けない単位として直す}]
-variant:
+w-variant__variant:
   changes: []
   not_done: []
   fix_closure: {status: not_applicable}
@@ -28,3 +29,13 @@ variant:
   interactions: []
   wrote_refs: []
   plan_faces: []
+w-variant__variant-prep: {prompt: 型 variant の書き手の指示（include の中の script は筋書きでは入力を受けないので差し替える）}
+w-variant__variant-save: {saved: true}
+w-variant__variant-out:
+  ok: true
+  reason: ''
+  reply: {type: archon_artifact, run_id: dry-run, path: reply-1.json}
+  report: []
+consult-check: {consulted: false, go: false, prompt: ''}
+consult-accept: {consulted: false, answer_file: ''}
+fix-accept: {ok: true, done: true, reason: '', reason_file: ''}

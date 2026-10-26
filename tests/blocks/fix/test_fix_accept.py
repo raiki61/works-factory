@@ -25,6 +25,7 @@
 """
 import ast
 import contextlib
+import copy
 import hashlib
 import importlib
 import json
@@ -3842,9 +3843,11 @@ class _XPlace(unittest.TestCase):
 
     def _x_run(self, script, *, art=None, env_extra=None, **inputs):
         """scripts/<script>.py を子のプロセスで回す。(終了の値, 標準出力の JSON か None, 標準エラー)"""
-        env = self.run.environ(**inputs)
-        if art is not None:
-            env["ARTIFACTS_DIR"] = str(art)
+        run = self.run
+        if art is not None:   # 別の置き場: 書き手の返りのファイルもそこに置く
+            run = copy.copy(self.run)
+            run.artifacts = pathlib.Path(art)
+        env = run.environ(**inputs)
         env.update(env_extra or {})
         done = subprocess.run([sys.executable, str(self.run.block / "scripts" / f"{script}.py")], cwd=self.repo,
                               env=hermetic.child_env(**env), capture_output=True, text=True, encoding="utf-8")
@@ -3858,6 +3861,11 @@ class _XPlace(unittest.TestCase):
         code, out, err = self._x_run(script, **kw)
         self.assertEqual(code, 0, err)
         return out
+
+    def _x_prompt(self, out) -> str:
+        """支度 fix_prep・fix_ruled_prep の返り out の周に起こす型の書き手の block が、渡された order・slots から組む指示（その block の
+        writer_prep.py を回す。指示は block の place の <型>-prompt-<n>.md にも書かれる）"""
+        return support.writer_prompt(self.run.environ(), out, self.repo)
 
     def _x_intake(self, units, *, art=None):
         """組の単位を port group で、判定を port judgment で渡す（組を替える時も intake を回し直す）"""
@@ -4097,13 +4105,13 @@ class FixLoopScriptsCase(_XPlace):
                 self.assertNotEqual(*reasons)
                 out = self._x_ok(prep)
                 self.assertEqual(out["iteration"], 3, out)
-                text = out["prompt"]
+                text = self._x_prompt(out)
                 self.assertIn("## Why your previous answer was rejected", text)
                 self.assertLess(text.index(reasons[0]), text.index(reasons[1]), "1 回目の拒否も古い順に届く")
 
     def test_fix_ruled_prep_without_fix_ruling_does_not_launch(self):
         out = self._x_ok("fix_ruled_prep")
-        self.assertEqual(out, {"prompt": "", "go": False, "iteration": 1, "writer": ""})
+        self.assertEqual(out, {"go": False, "iteration": 1, "writer": ""})
         self._x_park({"decision": "ask_human", "text": "人が決める", "limits": []},
                      why_both_cannot_hold="材料から決められない食い違いが在る", which_is_right="unknown", kind="needs_context")
         self.assertFalse(self._x_ok("fix_ruled_prep")["go"])
@@ -4120,8 +4128,9 @@ class FixLoopScriptsCase(_XPlace):
                                      "par": False, "start_tree": "", "out_dir": str(out_dir)})
         out = self._x_ok("fix_ruled_prep")
         self.assertEqual((out["go"], out["iteration"]), (True, 1), out)
-        self.assertIn(str(self.place / "fix-reply.json"), out["prompt"])
-        self.assertIn(conflict.RULINGS_FILE, out["prompt"])
+        text = self._x_prompt(out)
+        self.assertIn(str(self.place / "fix-reply.json"), text)
+        self.assertIn(conflict.RULINGS_FILE, text)
         self.assertTrue((self.place / "fix-ruled-head.json").is_file())
 
     def test_first_pass_conflict_leaves_the_loop_for_ruling(self):
@@ -4156,15 +4165,17 @@ class FixLoopScriptsCase(_XPlace):
         from src import consult
         out = self._x_ok("fix_prep")
         self.assertEqual((out["go"], out["iteration"]), (True, 1), out)
-        text = out["prompt"]
+        self.assertEqual(out["writer"], "w-variant", "注文の無い置き場の直す義務の全部を受ける型は variant")
+        text = self._x_prompt(out)
         self.assertIn(_X_MEAN, text)
         self.assertFalse((self.place / consult.CONFIG).exists(), "修正案の無い run は相談の控えを書かない")
-        # TDD の輪が緑にしていない単位は、修正役が項目ごとに下請け（実装役・審査役）を Agent で起こす（元の g1）
+        # TDD の輪が緑にしていない単位は、修正役が項目ごとに下請け（実装役・審査役）を Agent で起こす（元の g1）。ファイルは型の block の place
         self.assertIn("## Running subagents", text)
-        impl = (self.place / "g1-impl-1.md").read_text(encoding="utf-8")
+        block_place = self.place / out["writer"]
+        impl = (block_place / "g1-impl-1.md").read_text(encoding="utf-8")
         self.assertIn(_X_MEAN, impl)
         self.assertIn("## works rules (for the subagent", impl)
-        self.assertIn(str(self.place / "g1-1.patch"), (self.place / "g1-review-1.md").read_text(encoding="utf-8"))
+        self.assertIn(str(block_place / "g1-1.patch"), (block_place / "g1-review-1.md").read_text(encoding="utf-8"))
         self._x_intake(["not-owed"])
         self.assertFalse(self._x_ok("fix_prep")["go"])
 
@@ -4178,7 +4189,7 @@ class FixLoopScriptsCase(_XPlace):
         libdocs.section(FakeBoard(self.tmp / "earlier").work(""), self.repo, ["app.py"], get=ok_http(), env={},
                         shared=state / "works-factory")
         out = self._x_ok("fix_prep", env_extra={"STATE_DIR": str(state), **_X_NO_NET})
-        self.assertIn("ほかの run 1 本", out["prompt"])
+        self.assertIn("ほかの run 1 本", self._x_prompt(out))
 
     def _x_overflow(self):
         """承認済みの項目 1（stats.py だけ）の範囲の外の request_ok.json にも触れた返答。返り (返答, 触る前の中身)"""
@@ -4306,7 +4317,7 @@ class FixAcceptCase(_XPlace):
         """#570: 組の子の修正役の指示が貼る事前審査の key は、同じ組の受け付けが「応答が無い」と拒む key と同じ集合"""
         self._x_json("p2.plan_review.json", self.REVIEW)
         out = self._x_ok("fix_prep")
-        section = out["prompt"].split(_X_FACES_HEAD, 1)[1]
+        section = self._x_prompt(out).split(_X_FACES_HEAD, 1)[1]
         pasted = set(re.findall(r"^- `([^`]+)`（(?:穴|別案)", section, re.M))
         self.assertEqual(pasted, {"穴-平均の分母が空の列で割れる", "別案-len を直に使う"})
         self._x_fix_mean()
@@ -4323,7 +4334,7 @@ class HandoffCase(_XPlace):
         breaks.accepted に書け……機械が人に見せる一覧（報告の「人が決めること」）に載せる」が本当になる: 組の子の返答の
         breaks.accepted が組の結果の handoffs と fix の出力の handoffs を通って報告の人が決めることのセクションに 1 件 1 行で出る"""
         board = self.board
-        text = self._x_ok("fix_prep")["prompt"]
+        text = self._x_prompt(self._x_ok("fix_prep"))
         self.assertIn("**Write what goes to a person in `breaks.accepted`.**", text)
         self.assertIn("The machine puts them in the list shown to the person (the report's \"what the person decides\")", text)
         reply = {"changes": [{"unit_key": "u1", "breaks": {"accepted": "ADR-3 と食い違う既定を残す（docs/adr/3.md:4）"}}]}

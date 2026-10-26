@@ -5,9 +5,7 @@
 ファイルをまたいで共にできないので、書き手の AI の node の起こし方と返答の形は型の block の数だけの YAML に写る。写しを 1 つの照らしで縛る。
 
 (i) 型の block どうし
-- (a) どの block の AI の node の `output_format` も `.shared/schemas/writer-reply.schema.json` と等しい。D1 の間は、修正の block に残る variant の
-  node（`variant`・`variant-ruled`）の `output_format` も等しく、起こし方（`model`・`settingSources`・`sandbox`・`idle_timeout`・`retry`・
-  `Agent` を除いた `allowed_tools`）が型の block の AI の node と同じ（D2 で variant が block になれば (b) に入るので、この足しを消す）
+- (a) どの block の AI の node の `output_format` も `.shared/schemas/writer-reply.schema.json` と等しい
 - (b) YAML の全体が、型の名 `<w>` を置き字に替え、AI の node の `allowed_tools` から `Agent` を除くと、どの block も同じ（起こし方の鍵・
   `inputs:`・node の並び・`returns:` まで。照らす鍵の表を持たないので、後で鍵を足しても、全部が同じでなければ落ちる）。`prompts/<w>.md` も同じ形
   （`<w>` を置き字に替えた字が同じ）で照らす。
@@ -18,7 +16,6 @@
 
 (ii) 修正の block の 2 つの鎖（fix-loop・fix-ruled-loop）の include の先が全部 `weapon-` の書き手の型の block で、`writers.SEQUENCE` の型ごとに鎖に
 1 つずつ在る（表 `src/render.py` の `ORDER_WEAPON` が注文の型の語なので、それで型と block を結ぶ）。鎖に無い block・block の無い型を書けない。
-D1 の間は variant だけ block でなく node のまま鎖に残るので、型の集まりから除く（D2 でこの除きを消す）。
 """
 import json
 import pathlib
@@ -31,8 +28,6 @@ from tests.blocks import kit
 
 PACK = kit.BLOCKS
 SCHEMA = json.loads((kit.SHARED / "schemas" / "writer-reply.schema.json").read_text(encoding="utf-8"))
-LAUNCH = ("model", "settingSources", "sandbox", "idle_timeout", "retry")   # 起こし方の鍵（allowed_tools は Agent を除いて比べる）
-NOT_A_BLOCK_YET = {"variant"}   # D1 の間 修正の block に node のまま残る型（D2 で weapon-variant の block になり、この除きを消す）
 HEAD = "works-factory-weapon-"
 
 
@@ -104,18 +99,6 @@ class CopiesCase(unittest.TestCase):
             with self.subTest(block=block):
                 self.assertEqual(node["output_format"], SCHEMA)
 
-    def test_a_the_variant_nodes_left_in_the_fix_block_are_written_like_the_blocks(self):
-        """D1 の間は修正の block に残る variant の node の返答の形と起こし方も、型の block の AI の node と同じ（D2 で消す足し）"""
-        fix = {n["id"]: n for n in walk(load(PACK / "fix" / "works-factory-fix.yaml")["nodes"])}
-        [first, *rest] = [ai_nodes(doc)[0] for doc in self.blocks.values()]
-        for node_id in ("variant", "variant-ruled"):
-            node = fix[node_id]
-            with self.subTest(node=node_id):
-                self.assertEqual(node["output_format"], SCHEMA)
-                for other in (first, *rest):
-                    self.assertEqual({k: node[k] for k in LAUNCH}, {k: other[k] for k in LAUNCH})
-                    self.assertEqual(without_agent(node["allowed_tools"]), without_agent(other["allowed_tools"]))
-
     def test_b_the_whole_yaml_and_the_instruction_md_are_one_text(self):
         texts = {block: normal(block, doc) for block, doc in self.blocks.items()}
         [(base, want), *rest] = texts.items()
@@ -140,7 +123,7 @@ class CopiesCase(unittest.TestCase):
 
 
 class ChainCase(unittest.TestCase):
-    """(ii) 修正の block の 2 つの鎖の include の先が全部書き手の型の block で、型ごとに 1 つずつ（variant だけ D1 の間は node のまま除く）"""
+    """(ii) 修正の block の 2 つの鎖の include の先が全部書き手の型の block で、型ごとに 1 つずつ"""
 
     @classmethod
     def setUpClass(cls):
@@ -156,7 +139,7 @@ class ChainCase(unittest.TestCase):
         self.assertEqual(len(self.by_weapon), len(self.blocks), "注文の型の語が書き手の型の block の間で重ならない")
         for pass_, loop in (("first", "fix-loop"), ("ruled", "fix-ruled-loop")):
             names = [n["include"] for n in self.chain(loop)]
-            want = [HEAD + self.by_weapon[w][len("weapon-"):] for w in self.writers.SEQUENCE[pass_] if w not in NOT_A_BLOCK_YET]
+            want = [HEAD + self.by_weapon[w][len("weapon-"):] for w in self.writers.SEQUENCE[pass_]]
             with self.subTest(pass_=pass_):
                 self.assertTrue(all(name.startswith(HEAD) for name in names), names)
                 self.assertTrue(all(name[len("works-factory-"):] in self.blocks for name in names), "pack に無い block を include している")

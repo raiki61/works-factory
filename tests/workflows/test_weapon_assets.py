@@ -22,10 +22,9 @@
   残りの照らしで覆う側に入り、組み上がった全部の書き手の指示に在ることを照らす（消す行・機械の行には置けない）。
 - 組み上がった指示: 書き手の型の block の md（workflows/weapon-<型>/prompts/<型>.md。差し込みは .shared/prompts/ と block の
   prompts/parts/head.md）を、差し込みを解き、型が選ぶ段落を次の和で選び、ほかの段落（却下・裁定・相談・続きの周など）を全部入れて組んだ字。
-  和の 1 つは修正の block の prompts.writer_paragraphs(型) のうち義務の表から引く 4 つ（prompts.DUTY_WHEN。writer_slots が slots の when に
-  入れる物）、もう 1 つは本体 .shared/writerblock.paragraphs(block の表 src/render.py)（spawns・g1・ask_variant）。2 つは名が重ならず、和が
-  writer_paragraphs(型) と同じ。D1 の間 fix の node のまま残る variant（prompts/variant.md）は今のとおり writer_paragraphs の 7 つから引く
-  （D2 で型の block の道に替える）。差し込み口の値は {名} の字のまま（表の文と比べるため）、借りた型の読み替え {unattended} だけは本物の値
+  和の 1 つは修正の block の prompts.writer_paragraphs(型)（義務の表から引く 4 つ。prompts.DUTY_WHEN と等しい。writer_slots が slots の when に
+  入れる物）、もう 1 つは本体 .shared/writerblock.paragraphs(block の表 src/render.py)（spawns・g1・ask_variant）。2 つは名が重ならない。
+  差し込み口の値は {名} の字のまま（表の文と比べるため）、借りた型の読み替え {unattended} だけは本物の値
   （lib/seat.overlay_body）。
 - 型ごとの頭の文: 型 → 頭の役の文の表 HEADS が、D1 の基の main（HEADS_PIN）の workflows/fix/prompts/parts/<型>.md の字に在り（git の履歴に結ぶ。
   引けなければ赤。表と md を一緒に書き換えても赤）、その型の書き手の組み上がった指示に在る。表の型の集まりは writers.SEQUENCE の型の和と等しい。
@@ -133,20 +132,14 @@ def flat(text: str) -> str:
 
 
 def folder_of(node: str, weapon: str) -> tuple:
-    """node の指示の md の置き場 (block のフォルダ, md の名)。型の block は weapon-<型>/prompts/<型>.md、D1 の間 fix に残る variant は fix の prompts/<node>.md"""
-    if weapon == "variant":
-        return BLOCK, node
+    """node の指示の md の置き場 (block のフォルダ, md の名)。型の block は weapon-<型>/prompts/<型>.md"""
     name = writers.block_of(weapon)
     return kit.BLOCKS / f"weapon-{name}", name
 
 
 def paragraph_truth(weapon: str) -> dict:
-    """型 weapon の書き手が選ぶ段落の真偽。型の block は、修正の block が義務の表から引く 4 つと、本体が表の SPAWNS から引く 3 つの和（重ならない）。
-    D1 の間の variant の node は今のとおり writer_paragraphs の 7 つ"""
-    pick = prompts.writer_paragraphs(weapon)
-    if weapon == "variant":
-        return pick
-    duty = {k: v for k, v in pick.items() if k in prompts.DUTY_WHEN}
+    """型 weapon の書き手が選ぶ段落の真偽。修正の block が義務の表から引く 4 つと、本体が表の SPAWNS から引く 3 つの和（重ならない）"""
+    duty = prompts.writer_paragraphs(weapon)
     own = writerblock.paragraphs(RENDERS[f"weapon-{writers.block_of(weapon)}"])
     assert not set(duty) & set(own), "義務から引く段落と型の block の本体が足す段落が重なる"
     return {**duty, **own}
@@ -328,7 +321,7 @@ class AssetCase(unittest.TestCase):
                     with self.subTest(row=r["id"], where="g1"):
                         self.assertIn(want, self.g1)
                     continue
-                targets = {n for n in to_nodes(r["to"], r["id"]) if r["id"] not in SPAWN_ONLY or prompts.writer_paragraphs(nodes()[n])["spawns"]}
+                targets = {n for n in to_nodes(r["to"], r["id"]) if r["id"] not in SPAWN_ONLY or writerblock.paragraphs(RENDERS[f"weapon-{writers.block_of(nodes()[n])}"])["spawns"]}
                 for n in sorted(targets):
                     with self.subTest(row=r["id"], node=n):
                         self.assertIn(want, self.text[n])
@@ -361,27 +354,23 @@ class AssetCase(unittest.TestCase):
                         self.assertNotIn(flat(line), self.text[n])
 
     def test_the_writers_node_md_names_its_head_part(self):
-        """型の block の md は型ごとの頭を block の prompts/parts/head.md から引く。D1 の間 fix に残る variant の md は parts/variant.md を引く"""
+        """型の block の md は型ごとの頭を block の prompts/parts/head.md から引く"""
         for n, w in nodes().items():
             folder, md = folder_of(n, w)
             text = (folder / "prompts" / f"{md}.md").read_text(encoding="utf-8").strip()
             with self.subTest(node=n):
-                if w == "variant":
-                    self.assertEqual(text, "{part:variant}")
-                else:
-                    self.assertIn("{part:head}", text)
-                    self.assertTrue((folder / "prompts" / "parts" / "head.md").is_file())
+                self.assertIn("{part:head}", text)
+                self.assertTrue((folder / "prompts" / "parts" / "head.md").is_file())
 
-    def test_the_two_sources_of_the_paragraphs_do_not_overlap_and_make_the_old_seven(self):
+    def test_the_two_sources_of_the_paragraphs_do_not_overlap(self):
+        """段落の真偽の出どころは 2 つ: 修正の block が義務の表から引く 4 つ（writer_paragraphs。名は prompts.DUTY_WHEN と等しい）と、本体が表の
+        SPAWNS から引く 3 つ（writerblock.paragraphs）。名が重ならない"""
         for w in {w for p in writers.SEQUENCE for w in writers.SEQUENCE[p]}:
-            pick = prompts.writer_paragraphs(w)
-            if w == "variant":
-                continue
+            duty = prompts.writer_paragraphs(w)
             own = writerblock.paragraphs(RENDERS[f"weapon-{writers.block_of(w)}"])
-            duty = {k: v for k, v in pick.items() if k in prompts.DUTY_WHEN}
             with self.subTest(weapon=w):
+                self.assertEqual(set(duty), set(prompts.DUTY_WHEN))
                 self.assertFalse(set(duty) & set(own))
-                self.assertEqual({**duty, **own}, pick, "和が今の writer_paragraphs の 7 つと同じ")
 
     def test_every_head_sentence_is_in_the_main_before_the_split_and_in_the_assembled_writers(self):
         """頭の文の表: HEADS_PIN の parts/<型>.md の字に在り、その型の書き手の組み上がった指示に在る。表の型は SEQUENCE の型の和と等しい"""

@@ -1,5 +1,12 @@
-"""fix の block の試験が共に使う定数（元 lib/tests/test_blk_fix_tdd.py の SUITE と lib/tests/test_fix_seams.py の SELF_REPORT。
+"""fix の block の試験が共に使う定数と、型の書き手の block との橋渡し（元 lib/tests/test_blk_fix_tdd.py の SUITE と lib/tests/test_fix_seams.py の SELF_REPORT。
 lib/tests は組み込みで消えるので、ここに置く）"""
+import json
+import pathlib
+import subprocess
+import sys
+
+from tests.bin import hermetic
+from tests.blocks import kit
 
 # 対象リポジトリの根で test_*.py を unittest で回し、JUnit XML を第 1 引数に書く実行器（本線の tdd_suite の約束と同じ形）
 SUITE = '''
@@ -114,3 +121,47 @@ def full_reply(reply: dict) -> dict:
 def reply_json(reply: dict) -> str:
     import json
     return json.dumps(full_reply(reply), ensure_ascii=False)
+
+
+# ---------------------------------------------------------------- 型の書き手の block との橋渡し（受け付けと支度の試験が、書き手の返りと指示を block の道で作る）
+VARIANT_RETURN_FILE = "reply-variant.json"
+
+
+def variant_return(env: dict) -> dict:
+    """受け付け・consult-check の入力 INPUTS_REPLY_VARIANT を、型 variant の書き手の block の返りの字に替えた環境。試験は書き手の返答の字
+    （reply_json の字）をそのまま渡すので、返答を place（ARTIFACTS_DIR）の reply-variant.json に置き、block の返り {ok, reason, reply（pointer）, report}
+    に包む。飛んだ block を表す "null"・空・もう block の返りの字の物は替えない"""
+    raw = str(env.get("INPUTS_REPLY_VARIANT") or "")
+    if raw.strip() in ("", "null"):
+        return env
+    try:
+        doc = json.loads(raw)
+    except ValueError:
+        return env
+    if isinstance(doc, dict) and {"ok", "reply", "report"} <= set(doc):
+        return env
+    place = pathlib.Path(env["ARTIFACTS_DIR"])
+    (place / VARIANT_RETURN_FILE).write_text(raw, encoding="utf-8")
+    pointer = {"type": "archon_artifact", "run_id": env["WORKFLOW_ID"], "path": VARIANT_RETURN_FILE}
+    return {**env, "INPUTS_REPLY_VARIANT": json.dumps({"ok": True, "reason": "", "reply": pointer, "report": []})}
+
+
+def writer_prompt(env: dict, out: dict, cwd) -> str:
+    """支度 fix_prep・fix_ruled_prep の返り out（writer・order・slots の pointer）を、起こす型の書き手の block（writer の id w-<型>・wr-<型> の
+    <型>）の writer_prep.py に渡して組んだ指示（block の place の <型>-prompt-<n>.md にも書かれる）。env は支度を回した環境
+    （ARTIFACTS_DIR など）、cwd は作業ツリー"""
+    weapon = out["writer"].split("-", 1)[1]
+    block = kit.BLOCKS / f"weapon-{weapon}"
+    include = f"{out['writer']}__{weapon}-prep"
+    full = {**env, "ARCHON_NODE_EXECUTION": json.dumps({"runId": env["WORKFLOW_ID"], "path": include}),
+            "INPUTS_ORDER": json.dumps(out["order"]), "INPUTS_SLOTS": json.dumps(out["slots"])}
+    done = subprocess.run([sys.executable, str(block / "scripts" / "writer_prep.py")], cwd=cwd, env=hermetic.child_env(**full),
+                          capture_output=True, text=True, encoding="utf-8")
+    if done.returncode != 0:
+        raise AssertionError(f"writer_prep.py が落ちた（{done.returncode}）: {done.stderr}")
+    return json.loads(done.stdout)["prompt"]
+
+
+def slots_of(place, out: dict) -> dict:
+    """支度の返り out の slots の pointer が指す slots（型の block に渡った値と段落の真偽）"""
+    return json.loads((pathlib.Path(place) / out["slots"]["path"]).read_text(encoding="utf-8"))
