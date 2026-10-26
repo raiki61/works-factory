@@ -26,7 +26,7 @@ D1 の基の main（`e52a1b45`）の `workflows/fix/prompts/parts/tdd-close.md` 
 
 ## この型の受け付けの義務の在処
 
-受け付けの義務は修正の block に在り、型の block は義務の表を知らない（[fix.md](fix.md) の 22.4）。型のモジュール `src/tdd.py` の `DUTIES` は空で、輪の中の赤の記録（輪の状態の凍結と名指し）が義務の出どころ。箱 change の `BOX_DUTIES` は今は空で、`duties.py` のコメントが段 2 で足すと書く物（`change_named_or_gone`）は、この D1 の外。型の箱は `duties.BOXES`（`tdd` は `change`）。指示の段落のうち義務の表から引く 7 つ（`rules_change`・`rules_sites`・`rules_red`・`conflict_change`・`rules_sites_at`・`rules_sites_test`・`rules_red_unit`）も修正の block が `writer_slots` で組んで slots に入れる（[fix.md](fix.md) の 2.3）。
+受け付けの義務は修正の block に在り、型の block は義務の表を知らない（[fix.md](fix.md) の 22.4）。型のモジュール `src/tdd.py` の `DUTIES` は空で、輪の中の赤の記録（輪の状態の凍結と名指し）が義務の出どころ。箱 change の `BOX_DUTIES` の `change_named_or_gone`（段 2 の PR F2。22.4）は、tdd の単位では名指しを輪の記録 `record.json` の `units[<key>].tests` から読むので、書き手が `evidence.named` を書かなくても通る。赤の見方は輪の赤の木（単位の頭の木。前の単位の直しに頼る試験は起点の木では `error` だが輪の赤の木では `failure`）で、事後の関門と同じ事実を使う。型の箱は `duties.BOXES`（`tdd` は `change`）。指示の段落のうち義務の表から引く 8 つ（`rules_change`・`rules_sites`・`rules_red`・`conflict_change`・`rules_sites_at`・`rules_sites_test`・`rules_red_unit`・`rules_named`）も修正の block が `writer_slots` で組んで slots に入れる（[fix.md](fix.md) の 2.3）。
 
 ## 指示の md と試験
 
