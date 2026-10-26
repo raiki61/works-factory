@@ -1283,7 +1283,8 @@ bin/works-factory workflow run works-factory-fix --cwd <対象> \
 
 - `inputs:`: `order`（必須。`json(shared:weapon-order.schema.json)`）・`slots`（必須。`json(shared:writer-slots.schema.json)`）。作り手（修正の block）を名指さない（E4）。入力は本体が `INPUTS_ORDER`・`INPUTS_SLOTS` で読む（宣言した入力に読み手が在るかの照らしは、block の script が import する `.shared` 直下のモジュールの `INPUTS_<名>` も数える。24.7）。
 - `returns: <w>-out`・`outcome_field: ok`（E5・形の検査 7.1 の 8）。`<w>-out` の `output_format` は `{ok: boolean, reason: 字, reply: pointer か null, report: [字]}`（6 つの YAML で同じ字）。`reply` は pointer（`type`・`run_id`・`path`。description に form `json(shared:writer-reply.schema.json)` を書く）で、`ok` が偽の時は `null`（`type: [object, 'null']`。eyes の `after` と同じ書き方）。
-- 落ちた周の守り（下書きの第 19 版の 11.3）: 返す節 `<w>-out` は落ちない（落とし穴 K1。`trigger_rule: all_done` で、どの node の出力も結ばない）。書き手の AI の node か、返答を置く `<w>-save` が落ちた周は `ok: false` を値で返す。分ける前と同じ守りは 2 つの道で残る。
+- 落ちた周の守り（下書きの第 19 版の 11.3）: 返す節 `<w>-out` は落ちない（落とし穴 K1。`trigger_rule: all_done` で、どの node の出力も結ばない）。書き手の AI の node か、返答を置く `<w>-save` が落ちた周は `ok: false` を値で返す。指示を組む `<w>-prep` が落ちた周（place に同じ番号の `<w>-prompt-<n>.md` が無いか、`out-<n>.json` が在る）と、`<w>-out` の中の誤りで `ports.run` の fallback を返した周も `ok: false`（下書き 11.3 の 4 の 1）。分ける前と同じ守りは 2 つの道で残る。
+  - 記録: resume で `<w>-save` だけが回し直されると、前の回の `<w>-out` が書いた `out-<n>.json` が残っているので、`<w>-out` は「prep が落ちた」の `ok: false` を返しうる（通す向きでなく落ちる向き。受け取る側が止める）。
   - 型の block の `<w>-prep`・AI の node・`<w>-save` は内の輪の本体の node なので、どれかが落ちれば、その周の終わりに内の輪が落ちる（止めた Archon の `dag-executor.ts` の「A failed body node fails the group immediately」）。
   - 周の中で後ろの node（`consult-check`・`fix-accept`）が place に書く前に、受け取る側の `writers.reply_of` が `ok` を読み、偽なら include の id と返りの `reason` を名指して落ちる（2.8）。`<w>-out` の fallback で `ok: false` になった周は本体に落ちた node が無いので、止めるのはこの読みだけ。
 
