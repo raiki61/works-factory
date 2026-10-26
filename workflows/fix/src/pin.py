@@ -4,7 +4,7 @@
 1. 差分は試験のファイルだけで、足した試験が 1 つ以上（tests_only）。例外は 1 つ: base.json の no_tests が真の注文では、起点の木に
    無い設定のファイル（rules.kind_of が config）を新しく作る物も許す。起点の木に在る設定のファイルの書き換え・消しは拒む（9.1 の 13）
 2. 足した試験が起点の木で 2 回走らせて 2 回とも通る（twice。受け付けが走らせた結果の問題の文を読む）
-3. 足した試験ごとに、sites に壊して赤・戻して緑の記録（行の test がその試験。sites_per_test。PR B で表に足す。PR A は今の周の全体の
+3. 足した試験ごとに、sites に壊して赤・戻して緑の記録（行の test がその試験。sites_per_test。段 2 で表に足す。PR A は今の周の全体の
    F135 を当てる）
 """
 from __future__ import annotations
@@ -42,4 +42,4 @@ def sites_per_test(f: dict) -> list:
     return [f"足した試験 {miss[:10]} に、縛るコードを壊して赤を見た sites の行（test にその id）が無い"] if miss else []
 
 
-DUTIES = (tests_only, twice)   # PR B で sites_per_test を足す
+DUTIES = (tests_only, twice)   # 段 2 で sites_per_test を足す

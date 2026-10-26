@@ -18,6 +18,8 @@
 
 ## 3 照らしの効かせ方（PR A）
 
+B とした物の行き先は 6 節。
+
 | 照らし | PR A | 待つ物 |
 | --- | --- | --- |
 | tdd の型の義務 | 今のまま（輪の中） | なし |
@@ -76,3 +78,20 @@
   - 消した試験 `removed_tests` を拾うのが `.py` だけ: 後。試験の id を引く口（`scope._test_ids`）が Python の構文木で読むため。他の言語の試験の id を引く言語に依らない口（例: 対象の宣言の一覧 `list` の行）を決める時に直す。E13 は `src/` に当たらない。
   - `test_cmd` が走らない時の名乗り（`tdd.py` の `_CmdDown` が `_RunnerDown` の子で no-suite を名乗る）: 後。止めの語を分けると報告と finish の止めの語の表が変わるので、別の変更で決める。
   - `plan-writer.md:156`（仕様の道の節）の「static・tidy・pin を取ってよい」の 1 文: PR B。4.4 の 7 を仕様の道に広げた文で、4.4 は名指していない。指示の文を移す PR B で、残すか消すかを決める（PR A では指示の文を消さない）。
+
+## 6 PR B で手を付けなかった物の行き先（受付 20261025-211611-0333bc）
+
+3 節と 5 節が「B で」とした物のうち PR B（#872）が手を付けなかった物は、段 2（下書きの 4.2。型を block に上げる段）へ回す。済んだ事の記録として、3 節と 5 節の「B」「PR B」の字は書き換えない。訳は共通で、書き手の返す証拠が要る照らしは、書き手の指示がその欄を書かせてから効かせる（1 節の 2。指示なしに求めると拒否が続いて単位が諦めに倒れる）。段 2 は型の返しが block の出力になる段なので、返しの形と照らしを一緒に決める。
+
+- static の義務 4 `kinds_rows`（`workflows/fix/src/static.py` の docstring とコメント）: 段 2。訳: 返しの `evidence.kinds` に種類ごとの行を書かせる指示は PR B で入ったが、行を求める照らしは、段 2 で static の返しの形を決める時に一緒に足す。
+- pin の義務 3 `sites_per_test`（`workflows/fix/src/pin.py`）: 段 2。訳: sites の行の `test` を書かせる指示が無いまま求めると拒否が続くので、pin の返しの形と一緒に足す。
+- variant の `sites_shape`・`unit_red`（`workflows/fix/src/variant.py`）: 段 2。訳: sites の `at`・`fixed_by` を書かせる指示が無いまま求めると拒否が続くので、variant の返しの形と一緒に足す。
+- change の箱の義務 `change_named_or_gone`（`workflows/fix/src/duties.py`）: 段 2。訳: 名指しの赤緑か gone を返しに書かせる指示が無いまま求めると拒否が続くので、change の返しの形と一緒に足す。
+- `na`（3 節の表の行と、表の下の 4.4 の 4 の「直す所」の段落。返答の形に `na` と sites の新しい欄 `at`・`fixed_by`・`test` を入れる直し）: 段 2。訳: 修正役の返答の形はそのままで、型の返しが block の出力になる時に、欄の形と書き手の指示を一緒に決める。
+- 返しの `evidence.named`（と同じ行の `added`・`rewritten` を受け付けの名指しに足す所。`workflows/fix/src/orders.py` の `named_tests`）: 段 2。訳: 返しが名指す試験を書き手に書かせてから名指しに足す。先に足すと、書かれない欄を求めることになる。
+- 守れない依存 `unsatisfied` を報告に出す（5 節の「後に回した nit」の行）: 段 2。訳: PR B は型を順に回す並びを入れたが、依存の辺で並べ替えず（`docs/plans/2026-10-25-fix-weapons-stage1-b.md` の 1 節の 2）、守れない対は今も索引 `orders.json` に名で残る。報告の節は段 2 で組の結果の形と一緒に足す。
+- 注文の形の欄 `run`・`asks_answered`・`orders.<weapon>`（`workflows/fix/schemas/weapon-order.schema.json` の description。3 節の最後から 2 つ目の段落）: 段 2。訳: 中身を決める書き手の指示は PR B で入ったが、PR B はこの 3 欄を書かせていない。段 2 で注文が型の block の port になる時に、形と書き手を一緒に足す。
+
+上の 8 項目の置き場は、段 2 の設計の下書き `docs/plans/2026-10-24-fix-weapons.md` の 11.12（第 13 版。main に入る前の、設計の部署の枝 `work/design-seat` の commit dafa015f の版。段 2 の章は別の PR で main に入る）が決める。項目ごとの置き場（F1・F2・F3・E1 の `orders.tdd`、`na` は持ち主に聞く）と訳は 11.12 を見る。
+
+上の 8 項目のほかに 1 つ、PR #874 の再レビュー（受付 20261025-230146-c09c8f）の nit も段 2 へ回す。付録 A の F21 の行の残り（「You are the fixer. … and fix the units you owe a fix on the working tree.」）を型ごとに言い直した頭（`workflows/fix/prompts/parts/static.md:6` などの「You are the <型> writer, a fixer. …」）は、観点の表の照らし（`tests/blocks/fix/test_assets.py`）で照らしていない（言い直した頭の文が減っても赤にならない）。F135 の行の残りと同じ形（表の行の `rest` を全部の書き手で照らす）では塞げない。TDD の書き手 `tdd-close` の頭が別の字で言い直しているためで、型ごとの字を表に持つ形が要る。段 2 で型ごとの頭が型の block の指示に移る時に、型ごとの頭の字を照らす形を一緒に決める。

@@ -248,5 +248,5 @@
     }
   },
   "additionalProperties": false,
-  "description": "型が受け取る注文（docs/plans/2026-10-24-fix-weapons.md の 2.1）。組の子の頭と裁定の後の段の注文を書く役が、型ごとに 1 つ書く。下書き 2.1 の run・asks_answered・orders.<weapon> は書き手の型の指示と一緒に PR B で足す（PR A は書き手が無く、中身を宣言できない）"
+  "description": "型が受け取る注文（docs/plans/2026-10-24-fix-weapons.md の 2.1）。組の子の頭と裁定の後の段の注文を書く役が、型ごとに 1 つ書く。下書き 2.1 の run・asks_answered・orders.<weapon> は書き手の型の指示と一緒に段 2 で足す（PR A は書き手が無く、中身を宣言できない）"
 }

@@ -145,6 +145,13 @@ class BriefCase(PlaceCase):
             self.assertIn(w, text)
         self.assertIn("## 触らない物（out_of_scope）\n\n無し\n", planbrief.render(1, item1, {**f, "out_of_scope": []}, {}, "", ""))
 
+    def test_render_tells_the_scope_is_not_checked_when_the_fields_lack_it(self):
+        """範囲の欄の無い控え（planmarks.scoped が偽。受け付けは範囲を照らさない）の範囲の節は、空の範囲の「無し」と分けて言う"""
+        old = {k: v for k, v in FIELDS[0].items() if k not in ("allowed_paths", "out_of_scope")}
+        text = planbrief.render(1, plan_reply()["plan"][0], old, {}, "", "")
+        for h in (planbrief.ALLOWED_HEAD, planbrief.OUT_OF_SCOPE_HEAD):
+            self.assertIn(f"{h}\n\n{planbrief.UNCHECKED}\n", text)
+
     def test_cut_is_frozen_and_restores_edited_file(self):
         self.ready(); first = self.cut()
         pathlib.Path(first[0]["file"]).write_text("書き換えた", encoding="utf-8")

@@ -77,6 +77,7 @@ BACKGROUND_HEAD = f"## {BACKGROUND}"
 UNIT_HEAD = "### {key}"
 
 
+UNCHECKED = "欄が無い（範囲の欄の無い控え。機械はこの案の範囲を照らさない）"   # planmarks.scoped が偽の項目の範囲の節（空の範囲の「無し」と分ける）
 NOT_NOW = "今は直すな"   # brief の行で、項目の単位のうち今直す単位でない物の頭（brief を名指す文は fix の src/rules.py が組む）
 
 
@@ -200,6 +201,7 @@ def render(n: int, item: dict, fields: dict, units: dict, purpose: str, structur
     """修正案の項目 n（1 始まり）の brief の文。item は修正案の項目、fields はその項目の works の欄（planmarks の控えの行）、
     units は判定の単位の key → 単位、purpose は凍結した目的の文、structure は構造の目の節（structmark.plan_section。空なら無し）"""
     keys = [k for k in item.get("unit_keys") or [] if isinstance(k, str)]
+    checked = planmarks.scoped([fields])   # 決まりは受け付け（planrange.approved）と同じ planmarks.scoped。ただし受け付けは項目の全部で 1 つに決め（1 つでも欄が無ければ全部を照らさない）、brief はこの項目だけで決める
     parts = [
         TITLE.format(n=n),
         f"{UNITS_HEAD}\n\n" + _bullets(keys, str),
@@ -212,8 +214,8 @@ def render(n: int, item: dict, fields: dict, units: dict, purpose: str, structur
         f"{TESTS_HEAD}\n\n" + _bullets(fields.get("tests") or [], _test),
         f"{REWRITE_HEAD}\n\n" + _bullets(fields.get("rewrite_tests") or [], _rewrite),
         f"{REFACTOR_HEAD}\n\n" + _refactor(fields),
-        f"{ALLOWED_HEAD}\n\n" + _bullets(fields.get("allowed_paths") or [], str),
-        f"{OUT_OF_SCOPE_HEAD}\n\n" + _bullets(fields.get("out_of_scope") or [], _scope),
+        f"{ALLOWED_HEAD}\n\n" + (_bullets(fields.get("allowed_paths") or [], str) if checked else UNCHECKED),
+        f"{OUT_OF_SCOPE_HEAD}\n\n" + (_bullets(fields.get("out_of_scope") or [], _scope) if checked else UNCHECKED),
         f"{PURPOSE_HEAD}\n\n{purpose or NONE}",
         structure or f"{STRUCTURE_ROW_HEAD}\n\n{NONE}",
         f"{STRUCTURE_HEAD}\n\n" + _bullets(fields.get("structure") or [], planmarks.answer_line),
