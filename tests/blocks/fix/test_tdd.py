@@ -1530,9 +1530,8 @@ class TestVerifiedRewriteLeftOut(ContractCase):
     指示から消した（付録 A の F12。代わりは check_frozen の拒否）"""
     CONTRACT = TestPlanRewrites.CONTRACT
 
-    def test_verified_rewrite_is_left_out_and_rejected(self):
-        import planmarks
-        import planrange
+    def loop_and_plan(self):
+        """輪が書き換えの名指し REWRITE を赤→緑で確かめて done になり、承認済みの修正案がその書き換えを名指した盤面"""
         self.route(mean="direct", clamp="tdd")
         self.edit("test_stats.py", "self.assertEqual(clamp(15, 0, 10), 10)",
                   "self.assertEqual(clamp(15, 0, 10), 10)\n        self.assertEqual(clamp(99, 0, 10), 10)")
@@ -1546,11 +1545,10 @@ class TestVerifiedRewriteLeftOut(ContractCase):
                                         "rewrite_tests": [{"id": REWRITE, "behavior": "上限を超えた値", "old": "10 だけ",
                                                            "new": "99 も 10 に", "limit": "test_stats.py:14"}],
                                         "refactor": {"declared": False, "why": ""}}])
+
+    def assert_left_out_and_rejected(self):
         edits = conflict.edit_permits(self.board, "first")
         self.assertIn(REWRITE, edits["tests"], "事後の関門は id で許す")
-        orders = pathlib.Path(self.board) / "orders"   # 書き換えの約束は注文の permits の rewrite の行から読む
-        orders.mkdir(exist_ok=True)
-        (orders / "tdd.json").write_text(json.dumps({"permits": [{"kind": "rewrite", "test": REWRITE}]}), encoding="utf-8")
         text = rules.tests_rows(None, edits, facts.frozen_tests(self.board, self.record, "first"))
         self.assertNotIn(REWRITE, pasted_line(text, "- 本体を変えてよい既存のテストの名指し"))
         self.assertNotIn("ループが書き換えて凍らせた名指し", text)
@@ -1558,6 +1556,31 @@ class TestVerifiedRewriteLeftOut(ContractCase):
         self.edit("test_stats.py", "clamp(99, 0, 10), 10)", "clamp(98, 0, 10), 10)")
         got = facts.check_frozen(self.board, self.record, self.repo, "first")
         self.assertTrue(got and "test_stats.py" in got[0], got)
+
+    def test_verified_rewrite_is_left_out_and_rejected(self):
+        self.loop_and_plan()
+        orders = pathlib.Path(self.board) / "orders"
+        orders.mkdir(exist_ok=True)
+        (orders / "tdd.json").write_text(json.dumps({"permits": [{"kind": "rewrite", "test": REWRITE}]}), encoding="utf-8")
+        self.assert_left_out_and_rejected()
+
+    def test_left_out_even_when_the_order_pulled_the_rewrite_row(self):
+        """keep-essence の 3（付録 A の F12）: 本物の注文の書き手（orders.permits_for）は、tdd の返しの控えの frozen（輪の記録から写した物）
+        に当たる rewrite の行を注文から抜き、裁定の後の段（orders.write_ruled）は直す義務の単位の注文しか書かない。どちらでも、確かめた
+        書き換えは指示から外れ check_frozen が拒む（書き換えの名は注文でなく、許しと同じ承認済みの修正案から読む）"""
+        from src import orders
+        self.loop_and_plan()
+        loop = common.load_record(self.record)
+        orders.write_return(self.board, {"stage": 1, "weapon": "tdd", "group": "", "tree": "", "units": [{"key": CLAMP, "named": []}],
+                                         "frozen": dict(loop.get("frozen") or {}), "frozen_tree": str(loop.get("frozen_tree") or ""),
+                                         "suite_made": [], "added": [], "rewritten": [], "removed": [], "files": [],
+                                         "why_untested": "", "kinds": []})
+        permits = orders.permits_for(self.board, [1], stage=2, rulings=False)
+        self.assertNotIn("rewrite", [r["kind"] for r in permits], "注文は返しの控えの凍結に当たる rewrite の行を抜く")
+        d = pathlib.Path(self.board) / "orders"
+        d.mkdir(exist_ok=True)
+        (d / "variant.json").write_text(json.dumps({"permits": permits}), encoding="utf-8")
+        self.assert_left_out_and_rejected()
 
 
 class TestUnruledFrozen(LoopCase):
