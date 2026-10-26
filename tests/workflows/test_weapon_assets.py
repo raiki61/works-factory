@@ -216,6 +216,11 @@ def expand(ids: str) -> list:
     return [f"{m[1]}{i}" for i in range(int(m[2]), int(m[3]) + 1)] if m else [ids]
 
 
+def section_no(sec: str) -> str:
+    """付録 A の節（`### ` で切った物）の見出しの番号（A.9・A.10 など。頭の 3 字で切ると A.10 を A.1 と読み違える）"""
+    return sec.split(None, 1)[0]
+
+
 def appendix_rows() -> list:
     """付録 A の本文の行 (番号, 行き先, 出どころ)。行き先は 共通・variant・variant・pin・変える・消す（数に入れない行と、A.2 の Q の
     写しの行は除く）。出どころは節の見出しが名指す置き場: A.6 の下請けの指示は g1、A.7 の unattended.md は unattended、A.8 の
@@ -229,7 +234,7 @@ def appendix_rows() -> list:
                else "machine" if place == "Python" else "writer")
         for ids, dest in re.findall(r"^- (\S+?) `[^`]*`.*?→ \**([^／]*?)\**\s*／", sec, re.M):
             dest = dest.strip()
-            if dest.startswith("数に入れない") or (head.startswith("A.2") and ids.startswith("Q1")):
+            if dest.startswith("数に入れない") or (section_no(head) == "A.2" and ids.startswith("Q1")):
                 continue
             to = ("消す" if dest.startswith("消す") or ids == "F26" else "variant・pin" if dest.startswith("variant・pin")
                   else "variant" if dest.startswith("variant") else "pin" if dest.startswith("pin")
@@ -260,7 +265,7 @@ def pinned_lines(path: str, head: str = "") -> list:
 def added_ids() -> frozenset:
     """付録 A の行のうち、型を分けた後に足した段落の節（ADDED_PINS）に在る行の番号"""
     body = appendix_a("\n".join(git_show(PLAN_PIN, PLAN)))
-    return frozenset(i for sec in re.split(r"^### ", body, flags=re.M)[1:] if sec[:3] in ADDED_PINS
+    return frozenset(i for sec in re.split(r"^### ", body, flags=re.M)[1:] if section_no(sec) in ADDED_PINS
                      for i in re.findall(r"^- (\S+?) `", sec, re.M))
 
 
@@ -270,7 +275,7 @@ def appendix_sources() -> dict:
     body = appendix_a("\n".join(git_show(PLAN_PIN, PLAN)))
     out = {}
     for sec in re.split(r"^### ", body, flags=re.M)[1:]:
-        head = sec.split("\n", 1)[0][:3]
+        head = section_no(sec)
         for ids, said in re.findall(r"^- (\S+?) (.*?) → ", sec, re.M):
             refs = re.findall(r"`([\w./-]*):(\d+)(?:-(\d+))?`", said)
             if not refs:
