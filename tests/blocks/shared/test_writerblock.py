@@ -117,6 +117,17 @@ class PrepCase(Base):
         _, seen = self.prep(table(SUMMARY=True), given)
         self.assertEqual(seen["values"]["summary_file"], "/p/summary.json")
 
+    def test_a_continuing_round_leaves_the_summary_file_empty(self):
+        """続きの周（範囲の相談の答えの後・はみ出しを相談に積んだ周）は輪の要約も組まない（今の writer_values の早い返りは summary_file を
+        組まず空のまま。割る前と割った後を比べる test_writer_prompts_kept の (d) が見つけた違い）"""
+        self.write_md(OWNED_VALUES, ("summary_file",))
+        for name in writerblock.CONTINUING:
+            with self.subTest(name=name):
+                given = slots(**{name: True})
+                given["summary_file"] = "/p/summary.json"
+                _, seen = self.prep(table(SUMMARY=True), given)
+                self.assertEqual(seen["values"]["summary_file"], "")
+
     def test_the_second_round_numbers_the_prompt_after_the_first(self):
         self.prep(table())
         got, seen = self.prep(table())

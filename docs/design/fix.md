@@ -294,7 +294,7 @@ slots の形（`{values, when, subagents, summary_file}`）:
 - `subagents`: object。下請けの材料（データだけで、指示の文を持たない。`owed`・`briefs`・`all_items`・`seat_brief_rows`・`judgment_file`・`policy_path`・`base_rev`・`check_cmd`・`directory`）。`required` は無く、下請けを起こさない型の注文の時は空の `{}` を通す（下書きの 11.4 の 5 の「空の並び」は、object なので字の誤りと読んだ）。D1 は下請けを移さないので、いつも `{}`（variant の node は今の `writer` が組む）。D2 で中身を入れる。
 - `summary_file`: 字。TDD の輪の要約のパス。`values` に入れず、上の段の欄に置く。tdd の閉じの書き手の注文の時だけ空でなく、読むのは `weapon-tdd-close` の `src/render.py` の表（定数 `SUMMARY`）だけで、本体が自分の値に足す。訳: `{summary_file}` を持つ md は `weapon-tdd-close` の頭の段落だけで、使われない値は拒まれるので、ほかの型に同じ組の `values` を渡せなくなる。
 
-型が持つ物（slots に入れない。足すのは本体 1 か所）: 値 `first_prompt`・`unattended`・`overlay_file`・`summary_file`（`SUMMARY` が真の型だけ）・`g1_items`（D1 は空）と、段落 `spawns`・`g1`・`ask_variant`（表の `SPAWNS` から `writerblock.paragraphs` が引く）。足す名が slots の名と重なれば本体が落ちる。続きの周（`resume`・`overflow_answer`・`queued` のどれかが真）は続きの段落だけを組む周なので、本体は `unattended`・`overlay_file` を空にする。`ask_variant` は slots の `ask` が偽なら偽（相談の節が入る周だけ。今の `writer_values` と同じ）。
+型が持つ物（slots に入れない。足すのは本体 1 か所）: 値 `first_prompt`・`unattended`・`overlay_file`・`summary_file`（`SUMMARY` が真の型だけ）・`g1_items`（D1 は空）と、段落 `spawns`・`g1`・`ask_variant`（表の `SPAWNS` から `writerblock.paragraphs` が引く）。足す名が slots の名と重なれば本体が落ちる。続きの周（`resume`・`overflow_answer`・`queued` のどれかが真）は続きの段落だけを組む周なので、本体は `unattended`・`overlay_file`・`summary_file`（`SUMMARY` が真の型だけ）を空にする（今の `writer_values` の早い返りは組まない）。`ask_variant` は slots の `ask` が偽なら偽（相談の節が入る周だけ。今の `writer_values` と同じ）。
 
 段落の真偽（`writer_slots` が組む `when` の名と意味は下の表。入れ子にしない決まりなので、どの段落も 1 つの名で選ぶ。値の組はいつも同じで、入らない段落の口には空の字を渡す）。
 

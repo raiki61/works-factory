@@ -9,7 +9,7 @@
   組む。型が持つ値と段落は下の 2 つだけ。標準出力へ返りを書き、返りの dict を返す
   - 値: first_prompt（この block の place の <w>-prompt-1.md。続きの周が読み直す 1 回目の指示）・unattended・overlay_file
     （借りた写しの固定を照らしてから組む。範囲の相談の答えの後・はみ出しを相談に積んだ周は続きの段落だけを組む周なので、今と同じく
-    空）・summary_file（表の SUMMARY が真の型だけ。slots の上の段の欄 summary_file を写す。空なら (empty)）・g1_items（D1 は空）
+    空）・summary_file（表の SUMMARY が真の型だけ。slots の上の段の欄 summary_file を写す。空なら (empty)。続きの周は空）・g1_items（D1 は空）
   - 段落: paragraphs(table) の spawns・g1・ask_variant。g1 は下請けの項目が 0 件なら偽に下ろし、ask_variant は slots の段落 ask が
     偽なら偽に下ろす（今の writer_values と同じ向き）
 - out() -> {ok, reply, report}: 入力 reply（AI の node の出力）を ports.json で形（shared:writer-reply.schema.json）に照らし、place の
@@ -74,10 +74,11 @@ def _added(table, weapon: str, slots: dict, place) -> tuple[dict, dict]:
     """型が持つ (値, 段落)。slots の名と重なれば落ちる"""
     when = slots["when"]
     values = {"first_prompt": str(place / f"{weapon}-prompt-1.md"), "unattended": "", "overlay_file": "", "g1_items": ""}
-    if not any(when[name] for name in CONTINUING):
+    continuing = any(when[name] for name in CONTINUING)
+    if not continuing:
         values["unattended"], values["overlay_file"] = _seat()
-    if _constant(table, "SUMMARY", bool):
-        values["summary_file"] = slots["summary_file"] if slots["summary_file"].strip() else EMPTY
+    if _constant(table, "SUMMARY", bool):   # 続きの周は輪の要約も組まない（今の writer_values の早い返りと同じく空）
+        values["summary_file"] = "" if continuing else slots["summary_file"] if slots["summary_file"].strip() else EMPTY
     para = paragraphs(table)
     para["g1"] = para["g1"] and bool(values["g1_items"])   # 下請けの項目が 0 件の周は偽（D1 は下請けを移さないので、いつも空）
     para["ask_variant"] = para["ask_variant"] and when["ask"]   # 下請けの相談の 1 文は、相談の節が入る周だけ
