@@ -7,6 +7,9 @@
   prep の返りの形で返す。AI の node の YAML は prompt: "$<prep>.output.prompt"（と systemPrompt: "$<prep>.output.system"）だけ
 - render_part(name, values, when=None) -> str: 呼んだ script の在る block の prompts/parts/<name>.md を、render と同じ決まり（断片・段落・
   差し込み口の数え・落ち方）で組んだ字。AI の node でない物（束ね役が起こす下請けが Read する指示のファイルなど）の指示を md から組む
+- render_shared(name, values, when=None) -> str: pack の .shared/prompts/<name>.md を、render と同じ決まりで組んだ字（呼んだ block を問わない）。
+  2 つ以上の block が使う、AI の node でない物の指示を md から組む（書き手の型の block 全部が起こす下請けのファイルなど。本体 writerblock が呼ぶ）。
+  共通の断片は {part:…} を持たない。頭の印 <!-- required-for-tools: … --> は差し込む時と同じく落とす
 - round_of(node_id) -> int: place に在る <node_id>-prompt-<n>.md の数 + 1（emit に渡す、輪の何回目か）
 - lang(raw) -> str: 人に見せる欄の言語の値（port lang。空なら共通の断片 .shared/prompts/lang-default.md の文）
 
@@ -96,16 +99,23 @@ def _select(text: str, when: dict) -> tuple[str, set]:
     return "\n".join(out), names
 
 
-def _compose(block: Path, node_id: str, values: dict, when: dict | None, *, part: bool = False) -> dict:
+def _compose(block: Path, node_id: str, values: dict, when: dict | None, *, part: bool = False, shared: bool = False) -> dict:
     if not NODE_ID.fullmatch(node_id):
-        raise PromptError(f"{'断片' if part else 'node'} の id の形でない: {node_id!r}")
+        raise PromptError(f"{'断片' if part or shared else 'node'} の id の形でない: {node_id!r}")
     when = dict(when or {})
     if not all(isinstance(v, bool) for v in when.values()):
         raise PromptError("when の値は真偽だけ")
-    files = {"prompt": block / "prompts" / ("parts" if part else "") / f"{node_id}.md"}
-    if not part and (system := block / "prompts" / f"{node_id}{SYSTEM}.md").is_file():
+    if shared:
+        files = {"prompt": ports.SHARED / "prompts" / f"{node_id}.md"}
+    else:
+        files = {"prompt": block / "prompts" / ("parts" if part else "") / f"{node_id}.md"}
+    if not (part or shared) and (system := block / "prompts" / f"{node_id}{SYSTEM}.md").is_file():
         files["system"] = system
-    texts = {key: _expand(_read(path, "指示の md"), block, (), False).replace("{{", OPEN).replace("}}", CLOSE)
+
+    def read(path: Path) -> str:
+        text = _read(path, "指示の md")
+        return REQUIRED_FOR_TOOLS.sub("", text + "\n", count=1).rstrip("\n") if shared else text
+    texts = {key: _expand(read(path), block, (f"shared:{node_id}",) if shared else (), shared).replace("{{", OPEN).replace("}}", CLOSE)
              for key, path in files.items()}
     slots = {name for text in texts.values() for name in SLOT.findall(text)}
     missing, unused = sorted(slots - set(values)), sorted(set(values) - slots)
@@ -133,6 +143,10 @@ def render(node_id: str, values: dict, when: dict | None = None) -> dict:
 
 def render_part(name: str, values: dict, when: dict | None = None) -> str:
     return _compose(ports.caller_block(), name, values, when, part=True)["prompt"]
+
+
+def render_shared(name: str, values: dict, when: dict | None = None) -> str:
+    return _compose(ports.SHARED, name, values, when, shared=True)["prompt"]
 
 
 def emit(node_id: str, values: dict, when: dict | None, n: int) -> dict:
