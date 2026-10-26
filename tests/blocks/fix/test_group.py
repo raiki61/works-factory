@@ -768,6 +768,7 @@ class GroupChildScriptsCase(unittest.TestCase):
         _write(self.place / "fix-unit-rows.json", {"round": 1, "rows": [closure]})
         notice = {"op": impact.ACCEPT_TRACE_OP, "ci_left": [], "final_left": ["test_far.py"], "final_far": []}
         b.write_json(self.place / b.ACCEPT_TRACE_FILE, [notice])
+        _write(self.place / "orders.json", {"unsatisfied": [{"before": "a", "after": "b"}]})
         out = self.run_script("group_end")
         self.assertEqual(out["result_file"], str(self.out_dir / "g1" / "result.json"))
         result = json.loads(pathlib.Path(out["result_file"]).read_text(encoding="utf-8"))
@@ -789,6 +790,7 @@ class GroupChildScriptsCase(unittest.TestCase):
         self.assertEqual(result["changed"], {**{k: k == "gates_changed" for k in CHANGED_MARKS},
                                              "premise_drift_note": "上限を測り直した"})
         self.assertEqual(result["x_scalars"], {"x_moved": 2})
+        self.assertEqual(result["unsatisfied"], [{"before": "a", "after": "b"}], "子の置き場の注文の索引の守れない依存の対")
         self.assertEqual((result["objection"], [t["path"] for t in result["allowed_tests"]], result["verified"],
                           result["conflicts"]), ("単位の見立てが違う", ["test_stats.py"], [], []))
         self.assertEqual(result["reply_file"], str(self.place / "fix-reply.json"))

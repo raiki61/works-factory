@@ -508,7 +508,8 @@ def join_rows(groups, outcomes, backed_out=None, unrestored=None, old_red=None, 
     直す前の版と比べられなかったので戻す理由にしなかった赤の鍵}（rerun_problem の uncompared。#846）、test_cmd_notes は {group_id:
     確かめ直しの test_cmd の赤を前から赤か揺れと見て戻す理由にしなかった文}（rerun_problem の cmd_notes。#855）で、在る組の行にだけ同じ名の欄を置く。
     組の子の結果（戻せた組か否かに依らず、結果が在れば）の unsatisfied（計画の依存で前に直すはずの単位が型の順で後に回る対 [{before, after}]。
-    止めにはしない）が空でなければ、組の行に同じ名の欄 unsatisfied を置く。
+    止めにはしない）が空でなければ、組の行に同じ名の欄 unsatisfied を置く。合わせのループが申し出へ回した組（clash._settle_join）は
+    結果を None で渡すので、組の行に unsatisfied を置かない。
     新しい（元の締めの結末の並べ。p3.lane_merge）"""
     rows, units = [], []
     for g in groups:
@@ -1082,7 +1083,7 @@ def group_result(group, *, start_tree: str, end_tree: str, tdd, tdd_record: str 
     """組の子の結果（out_dir/<group_id>/result.json の中身。join・collect・tdd-unit・conflict-check が読む）:
     {group_id, unit_ids, end_tree, start_tree, units: [{unit_id, status, reason}], tdd, conflicts, objection, changed, x_scalars,
     allowed_tests, verified, reply_file, tdd_record, worktree, handoffs, handoff_titles, mismatched, accept_trace, closure,
-    claimed, place, base, writer_report, unsatisfied}。unsatisfied は子の置き場の注文の索引の守れない依存の対（orders.unsatisfied_of。計画の依存で前に直すはずの単位が、型を回す順で後に回る [{before, after}]。join_rows が組の行の同じ名の欄に写し、報告と最後の承認が名で出す。止めにはしない）。writer_report は子の置き場の writer_report_rows の行（group_id を足す。親の finish が報告の行に集める）。base は子の置き場の元の結末のファイル base.json のパス（無い組は空。join が親の置き場の bases/<k>/ へ写す。
+    claimed, place, base, writer_report, unsatisfied}。unsatisfied は子の置き場の注文の索引の守れない依存の対（orders.unsatisfied_of。計画の依存で前に直すはずの単位が、型を回す順で後に回る [{before, after}]。join_rows が組の行の同じ名の欄に写し、line の最後の承認の本文が名で出す。止めにはしない）。writer_report は子の置き場の writer_report_rows の行（group_id を足す。親の finish が報告の行に集める）。base は子の置き場の元の結末のファイル base.json のパス（無い組は空。join が親の置き場の bases/<k>/ へ写す。
     adopt_bases）。allowed_rows は許しの訳（allowed_test_rows の行）、handoffs は reply の handoff_lines、mismatched は子の置き場の
     mismatched_lines（最後の関所を開ける理由）、accept_trace は子の置き場の accept_trace_rows の行（group_id を足す。親の collect が
     diff の隣に集める）、closure は子の置き場の閉鎖の表の行（表を読めなければ None。fixbeside.closure_rows）と claimed は reply の
