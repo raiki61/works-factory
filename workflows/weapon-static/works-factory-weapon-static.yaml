@@ -65,6 +65,11 @@ nodes:
                         site: {type: string}
                         red_seen: {type: boolean}
                         path: {type: string}
+                        at: {type: string}
+                        fixed_by:
+                          type: array
+                          items: {type: string}
+                        test: {type: string}
               files:
                 type: array
                 minItems: 1

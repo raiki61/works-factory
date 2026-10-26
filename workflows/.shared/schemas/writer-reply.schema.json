@@ -75,6 +75,18 @@
                     },
                     "path": {
                       "type": "string"
+                    },
+                    "at": {
+                      "type": "string"
+                    },
+                    "fixed_by": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "test": {
+                      "type": "string"
                     }
                   }
                 }

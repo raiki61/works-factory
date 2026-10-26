@@ -176,8 +176,29 @@ def write_return(place, doc: dict) -> pathlib.Path:
     return jsonfile.write(d / f"{k}.json", doc)
 
 
+def _queries(place, keys) -> dict:
+    """単位 → 判定の問い class_query（裁定 replace_query を受けた単位は置き換えた問い。unitrows の数え直しと同じ物。置き換えた問いに
+    how が無ければ判定の問い）。無い単位は入れない"""
+    judgment = board.read_json(pathlib.Path(place) / board.JUDGMENT_FILE)
+    got = {u.get("key"): u.get("class_query") for u in (judgment or {}).get("units") or [] if isinstance(u, dict)} \
+        if isinstance(judgment, dict) else {}
+    try:
+        replaced = conflict.replaced_queries(pathlib.Path(place))
+    except ValueError:
+        replaced = {}
+    out = {}
+    for k in keys:
+        q = got.get(k)
+        if isinstance((replaced.get(k) or {}).get("how"), dict):
+            q = {"how": replaced[k]["how"], **({"counts": replaced[k]["counts"]} if replaced[k].get("counts") else {})}   # 判定の total は置き換えた問いの数ではない
+        if isinstance(q, dict) and isinstance(q.get("how"), dict):
+            out[k] = q
+    return out
+
+
 def _order(place, weapon, keys, rows, *, group_id, stage, since, base_file, whys, removes, why_untested=False, rulings=False,
            checked=None) -> dict:
+    queries = _queries(place, keys)
     units = []
     items = []
     allowed, out_scope = [], []
@@ -187,6 +208,8 @@ def _order(place, weapon, keys, rows, *, group_id, stage, since, base_file, whys
         allowed += [g for g in r["allowed"] if g not in allowed]
         out_scope += [o for o in r["out"] if o not in out_scope]
         unit = {"key": k, "items": r["items"], "removes": list(removes.get(k) or []), "tests": r["tests"]}
+        if queries.get(k):
+            unit["class_query"] = queries[k]
         if whys.get(k):
             unit["why"] = whys[k]
         if checked and checked.get(k):

@@ -4,7 +4,7 @@
 - 決めたこと: 型ごとに違う物は `src/render.py` の 3 つの定数（`ORDER_WEAPON`・`SPAWNS`・`SUMMARY`）と、頭の段落 `prompts/parts/head.md` だけ。
 - 読む人: この block を作る・直す実装の役が、型ごとの違いを引く時に読む。急ぎではない。持ち主に求めること: なし。この文書を読んだだけで要る作業は無い。
 - 語: D1・D2 は修正の block の型の block 化の段階（D1 が書き手 5 つ、D2 が variant）。「鎖」は修正の block の YAML で、型の block の include を並べた node の並び（fix.md の 2.2.1）。「箱」は型の区分（change・keep・outside。fix.md の 22 節）。`prep` は block の最初の script node で、注文と slots を読んで書き手の指示を組む（落ちるのは run がその node で止まること。fix.md の 24.3）。「注文」は修正の block が型ごとに書く依頼（単位・範囲・許し）。「受け付け」は書き手の返答を通すか拒むかを決める修正の block の検査。「赤を見ない clean の拒否」は、試験が赤になるのを見ずに直したと言う返答を拒む検査。
-- block の状態: 今の木に在る（`workflows/weapon-remove/`）。
+- block の状態: 今の木に在る（`workflows/weapon-remove/`）。名と形は `weapon-static`（型 static の書き手の block。[weapon-static.md](weapon-static.md)）と同じで、違いは 3 つの定数と `head.md` だけ。
 
 ## 役
 
@@ -24,7 +24,7 @@ D1 の基の main（`e52a1b45`）の `workflows/fix/prompts/parts/remove.md` の
 
 ## この型の受け付けの義務の在処
 
-受け付けの義務は修正の block に在り、型の block は義務の表を知らない（[fix.md](fix.md) の 22.4）。型のモジュール `src/remove.py` の `DUTIES`（`removed_in_permits`）。箱 change の `BOX_DUTIES` は今は空（`duties.py` のコメントが段 2 で足すと書く物は、この D1 の外。22.4）。赤を見ない clean の拒否（`rules_red`）は、修正の block が `board.RED_WEAPONS` から引く。型の箱は `duties.BOXES`（`remove` は `change`）。指示の段落のうち義務の表から引く 4 つ（`rules_change`・`rules_sites`・`rules_red`・`conflict_change`）も修正の block が `writer_slots` で組んで slots に入れる（[fix.md](fix.md) の 2.3）。
+受け付けの義務は修正の block に在り、型の block は義務の表を知らない（[fix.md](fix.md) の 22.4）。この型の義務は、型のモジュール `src/remove.py` の `DUTIES`（義務の関数の並び。`removed_in_permits`）。箱 change の `BOX_DUTIES` は今は空（`duties.py` のコメントが段 2 で足すと書く物は、この D1 の外。22.4）。赤を見ない clean の拒否（`rules_red`）は、修正の block が `board.RED_WEAPONS` から引く。型の箱は `duties.BOXES`（`remove` は `change`）。指示の段落のうち義務の表から引く 7 つ（`rules_change`・`rules_sites`・`rules_red`・`conflict_change`・`rules_sites_at`・`rules_sites_test`・`rules_red_unit`）も修正の block が `writer_slots` で組んで slots に入れる（[fix.md](fix.md) の 2.3）。
 
 ## 指示の md と試験
 

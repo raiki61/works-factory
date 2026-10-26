@@ -20,11 +20,12 @@ canary の run a2097fd6: 母数の問いの 3 ファイルを全部直して fil
 site が名指す当たりのファイルも、修正前の版から実際に変わっていなければ覆ったと数えず、表の unchanged_sites にパスを並べる（問いの
 種類に依らない。名指すだけで数えると、population の当たりの 5 ファイルを site に並べて 2 ファイルだけ変えた直しが閉じた）。変更が
 読めなければ何も覆わず、理由 UNKNOWN_CHANGES を discrepancies の頭に書く。
-写しの sites は additionalProperties: false なので、写しに渡す返答からは path を外す。
+写しの sites は additionalProperties: false なので、写しに渡す返答からは works だけの欄（path・at・fixed_by・test）を外す。
 
 - build(changes, judged, *, count, blank, zero_keys, replaced, per_file, touched): 本体（盤面を読まない）。返り (写しに渡す changes, 表の行)
 - unclosed_defects(rows): 表の行のうち defects の問いが閉じない（か数えられない）単位の行
 - file_counts(how, root, rev): 問いの当たりをファイルごとに数える（argv は写しの count_argv、走らせ方は写しの _grep）
+- hit_lines(how, root, rev): 問いの当たりの行 path:line の集まり（受け付けの sites の at の照らし。数える旗だけを -n に替える）
 （元の take(reply, b, repo)——盤面の判定者の問い・置き換えた問い・engine_zero・写しの規則の _run_query で build を当てた口——は
 外した。呼び手の script が判定の問い・conflict.replaced_queries(置き場)・recount._run_query と file_counts で build を回す）
 """
@@ -56,12 +57,15 @@ def _sites(c) -> list:
     return [s for s in ((c.get("closure") or {}).get("sites") or []) if isinstance(s, dict)]
 
 
+WORKS_ONLY = (recount.SITE_PATH, "at", "fixed_by", "test")   # closure.sites[] の works だけの欄（写しの sites は additionalProperties: false）
+
+
 def _unpathed(c):
-    """写しに渡す形: closure.sites から works だけの欄 path を外した写し"""
-    if not isinstance(c, dict) or not any(recount.SITE_PATH in s for s in _sites(c)):
+    """写しに渡す形: closure.sites から works だけの欄（path・at・fixed_by・test）を外した写し"""
+    if not isinstance(c, dict) or not any(k in s for s in _sites(c) for k in WORKS_ONLY):
         return c
     c2 = copy.deepcopy(c)
-    c2["closure"]["sites"] = [{k: v for k, v in s.items() if k != recount.SITE_PATH} if isinstance(s, dict) else s
+    c2["closure"]["sites"] = [{k: v for k, v in s.items() if k not in WORKS_ONLY} if isinstance(s, dict) else s
                               for s in c2["closure"]["sites"]]
     return c2
 
@@ -132,6 +136,32 @@ def file_counts(how, root, rev=None):
         if not n.strip().isdigit():
             return None, f"-c の出力が `…:数` の形でない（{line[:60]!r}）"
         got[path] = int(n)
+    return got, ""
+
+
+def hit_lines(how, root, rev=None):
+    """問いの当たりの行 ——（{"path:line"}, ""）か（None, 理由）。argv は写さず count_argv が組む物の数える旗（-c か -l）を -n -z に替える
+    （count: files の問いも当たりの行を引く）。-z でパスと行の番号を NUL で区切らせ、パスに `:<数字>:` が在っても切り損なわない。版 rev を
+    渡すと出力は `rev:path<NUL>line<NUL>本文` の形なので、頭の `rev:` を剥がす。file_counts と同じくパスは生で出させ、走らせ方は写しの _grep"""
+    argv, why = _util.count_argv(how, rev)
+    if why:
+        return None, why
+    at = argv.index(_util.COUNT_BY[how["count"]])
+    argv[at:at + 1] = ["-n", "-z"]
+    out, why = _util._grep([argv[0], "-c", "core.quotePath=false", *argv[1:]], str(root))
+    if why:
+        return None, why
+    got = set()
+    for line in out.split("\n"):   # 本文の中の改行に似た字（splitlines が切る \x1c など）で切らない
+        if not line.strip():
+            continue
+        if rev and line.startswith(f"{rev}:"):
+            line = line[len(rev) + 1:]
+        path, _, rest = line.partition("\0")
+        n = rest.partition("\0")[0]
+        if not path or not n.isdigit():
+            return None, f"-n -z の出力が `パス\\0行\\0…` の形でない（{line[:60]!r}）"
+        got.add(f"{path}:{n}")
     return got, ""
 
 
