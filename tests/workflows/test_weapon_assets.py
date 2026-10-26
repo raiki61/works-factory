@@ -78,7 +78,7 @@ import writerblock  # noqa: E402
 ROWS = json.loads((HERE / "appendix-a.json").read_text(encoding="utf-8"))
 BEFORE = json.loads((HERE / "fixer-reply-before.json").read_text(encoding="utf-8"))
 PIN = "523599ac3b62f9ad7f707c5846c4ba186b38c1f0"   # 付録 A の行番号の版（#865。A.2 の見出し「#865 で 2 行増えた後の行番号」）
-PLAN_PIN = "b9eae896194daeacce338edcaf698ab30b3b4e38"   # 計画の版（git の blob。PR #883 で付録 A に A.9 を足した計画。付録 A を直す PR はこの値を替える）
+PLAN_PIN = "fa22851e3c509775e6ef95a2712e5df949b7b68e"   # 計画の版（git の blob。PR #883 で付録 A に A.9 を足し、F2 で S4 を足した計画。付録 A を直す PR はこの値を替える）
 DEFAULT = {"A.2": "workflows/fix/prompts/parts/fixer.md", "A.4": "workflows/.shared/prompts/writer-rules.md",
            "A.5": "workflows/.shared/prompts/query-rule.md", "A.7": "lib/borrow/unattended.md",
            "A.9": "workflows/.shared/prompts/writer.md"}   # 節の頭が名指す、`:行` だけの引きの置き場
@@ -88,8 +88,8 @@ REWORDED = {   # 移す時に字を替えた行: 番号 → (表の字, PIN の�
     "F135": ("`clean` without ever having seen red is rejected.", "clean without ever having seen red is rejected"),   # F135 の文を rules_red の段落へ切り出した
 }
 COUNTS = {"共通": 156, "variant": 29, "変える": 4, "消す": 11}   # 付録 A の A.1・1.4.2 の数（全部で 200）
-ADDED_PINS = {"A.9": "ae28a6e98c313cdab8399045a7ba05002e8889c7"}   # 型を分けた後に段落を足した節 → 節の置き場の足した後の版（git の blob。PR #883 の writer.md）
-ADDED_COUNTS = {"variant": 2, "pin": 1}   # ADDED_PINS の節の行き先ごとの数（200 項目の外。付録 A の A.9）
+ADDED_PINS = {"A.9": "9c4edc02cad602d391ebdfbea3d191ed9a3a58a7"}   # 型を分けた後に段落を足した節 → 節の置き場の足した後の版（git の blob。F2 の後の writer.md）
+ADDED_COUNTS = {"variant": 2, "pin": 1, "変える": 1}   # ADDED_PINS の節の行き先ごとの数（200 項目の外。付録 A の A.9）
 LEFT = {   # 置き場の行のうち、引く行の文にも残り（rest）にも移さなかった字（付録 A の行の番号 → 残る字）
     "F21": "You are the fixer. , and fix the units you owe a fix on the working tree.",   # 型ごとの頭に言い直した（付録 A の F21）
     "F135": ";",   # F135 の文を rules_red の段落へ切り出した時に消した区切り。行の残り（返答の欄 fix_closure の行）は表の rest
@@ -158,7 +158,7 @@ def spawns_of(weapon: str) -> bool:
 
 
 def paragraph_truth(weapon: str, spawning: bool | None = None) -> dict:
-    """型 weapon の書き手が選ぶ段落の真偽。修正の block が義務の表から引く 7 つと、本体が表の SPAWNS から引く 3 つの和（重ならない）。
+    """型 weapon の書き手が選ぶ段落の真偽。修正の block が義務の表から引く 8 つと、本体が表の SPAWNS から引く 3 つの和（重ならない）。
     spawning を渡すと、下請けの 3 つの段落をその真偽に替える（下請けの段落の中に在る行を引くため）"""
     duty = prompts.writer_paragraphs(weapon)
     own = writerblock.paragraphs(RENDERS[f"weapon-{writers.block_of(weapon)}"])
