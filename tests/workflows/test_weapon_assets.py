@@ -78,7 +78,7 @@ import writerblock  # noqa: E402
 ROWS = json.loads((HERE / "appendix-a.json").read_text(encoding="utf-8"))
 BEFORE = json.loads((HERE / "fixer-reply-before.json").read_text(encoding="utf-8"))
 PIN = "523599ac3b62f9ad7f707c5846c4ba186b38c1f0"   # 付録 A の行番号の版（#865。A.2 の見出し「#865 で 2 行増えた後の行番号」）
-PLAN_PIN = "a6d32c2ab6df2e4cb1a8a969e794c07b9808c3b3"   # 計画の版（git の blob。PR #883 で付録 A に A.9 を足した計画。付録 A を直す PR はこの値を替える）
+PLAN_PIN = "6009cedfcece60603f7a95f380b47024be4d1934"   # 計画の版（git の blob。PR #883 で付録 A に A.9 を足した計画。付録 A を直す PR はこの値を替える）
 DEFAULT = {"A.2": "workflows/fix/prompts/parts/fixer.md", "A.4": "workflows/.shared/prompts/writer-rules.md",
            "A.5": "workflows/.shared/prompts/query-rule.md", "A.7": "lib/borrow/unattended.md",
            "A.9": "workflows/.shared/prompts/writer.md"}   # 節の頭が名指す、`:行` だけの引きの置き場
