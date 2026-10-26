@@ -75,4 +75,6 @@ A row whose `source` is `join-clash` is a declaration the machine made from a gr
 6. `rejudge`: when the judgment's cut of units is wrong and the two groups are actually fixing one problem separately. Write `text` as an objection the redone judgment reads. `limits` is empty.
 7. Only when none of these applies, `ask_human`.
 
+A row whose `kind` is `red_at_base` is a declaration that a test the pinning step added to hold the current behavior fails in the base tree (so the test does not describe the current behavior). The pinning step does not change behavior, so for this row rule only {red_at_base_decisions}; the machine rejects any other ruling (a `fix_code_as` would make a step that must not change behavior change the code).
+
 Write `text`, `ask_why.line`, and `request_searched` in {lang}. Keep keys, enum values, code identifiers, paths, commands, and error messages as they are (keys are matched across rounds, so do not translate them).
