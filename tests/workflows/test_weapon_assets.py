@@ -32,10 +32,11 @@
   書き手、variant は variant の書き手、variant・pin は variant と下ごしらえの書き手）。行き先が型を絞る行（変える・variant・variant・pin）の
   文は、ほかの書き手の指示に無い。下請けの指示の行（G）は 下請けを起こす型の書き手が置く下請けのファイルの md（.shared/prompts/g1-*.md を組んだ字）、
   Python が組む行（P）は値を組む関数の字で照らす。
-- 例外（付録 A の行き先のまま、指示の段落が書き手の道具で決まる物）: 付録 A の行き先が共通か variant で、文が下請けの段落（本体
-  .shared/writerblock.paragraphs が表の SPAWNS から引く spawns・g1・ask_variant）の中に在る行（Q10・F39・F101〜F106・F116・F148a。番号の表を
-  持たず、段落を全部真にして組んだ字に在り、全部偽にして組んだ字に無い行を機械で引く）は、行き先でなく、表の SPAWNS が真の型の書き手
-  （Agent を持つ書き手。11.8 の決め〔案 B〕で tdd の閉じの外の 5 つ）の全部に出て、偽の型の書き手に出ない。F135（赤を見ない clean を拒む）は付録 A では variant だが、PR A が
+- 例外（付録 A の行き先のまま、指示の段落が書き手の道具で決まる物）: 文が下請けの段落（本体 .shared/writerblock.paragraphs が表の
+  SPAWNS から引く spawns・g1・ask_variant）の中に在る行（Q10・F39・F101〜F106・F116・F148a）は、行き先でなく、表の SPAWNS が真の型の書き手
+  （Agent を持つ書き手。11.8 の決め〔案 B〕で tdd の閉じの外の 5 つ）の全部に出て、偽の型の書き手に出ない。行き先が variant の行は番号の表を
+  持たず、段落を全部真にして組んだ字に在り、全部偽にして組んだ字に無い行を機械で引く。行き先が共通の行は前からの外し SPAWN_ONLY（Q10）
+  だけで、機械では引かない（共通の行を下請けの段落へ移す md の直しで、照らす先が後を追って tdd の閉じの書き手から行が消えるのを拒む）。F135（赤を見ない clean を拒む）は付録 A では variant だが、PR A が
   受け付けの照らしを variant・remove・pin に当てた（board.RED_WEAPONS）ので、指示もその型の書き手に出す（照らしと指示をそろえる）。
 - 返答の形: 書き手の返答の形の正本 .shared/schemas/writer-reply.schema.json が、PR A の前の修正役の返答の形（fixer-reply-before.json。#869 の前の
   main 5aa8530a の fixer の output_format の写し）の必須の欄と空にできない欄（minLength・minItems）を、どの深さでも減らさない（型の block の
@@ -47,9 +48,12 @@ import functools
 import json
 import pathlib
 import re
+import shutil
 import subprocess
 import sys
+import tempfile
 import unittest
+from unittest import mock
 
 import yaml
 
@@ -86,6 +90,7 @@ LEFT = {   # 置き場の行のうち、引く行の文にも残り（rest）に
     "F135": ";",   # F135 の文を rules_red の段落へ切り出した時に消した区切り。行の残り（返答の欄 fix_closure の行）は表の rest
     "G13": "The units fixed in the TDD loop are in the loop summary.",   # 3 文目は G14 と一緒に消す（付録 A の G13 の第 8 版）
 }
+SPAWN_ONLY = {"Q10"}   # 付録 A は共通。下請けを起こす書き手（表の SPAWNS が真）だけに出る段落の行（機械で引くのは行き先が variant の行だけ）
 MARKUP = re.compile(r"<!--.*?-->|\{[\w:.-]+\}")   # 段落の印と差し込み口（字の観点ではない）
 G18 = "Do not write the report to a file. Your reply is the JSON in the \"fields of the reply\" section of the instructions."   # 消した g1-no-report-file.md の字（付録 A の G16〜G19 の G18）
 RED_ROWS = {"F135"}   # 付録 A は variant。PR A が受け付けの照らしを variant・remove・pin に当てたので（PR A の控えの 3 節）、指示も同じ型にそろえる
@@ -172,12 +177,18 @@ def assembled(node: str, weapon: str, spawning: bool | None = None) -> str:
 
 @functools.lru_cache(maxsize=None)
 def spawn_bound() -> frozenset:
-    """付録 A の行のうち、文が下請けの段落（paragraphs の spawns・g1・ask_variant）の中に在る行の番号。行き先が共通か variant の書き手の行で、
-    その文が全部、下請けの段落を全部真にして組んだ字に在り、全部偽にして組んだ字に無い。番号の表を持たず、md の段落を足し替えると追う"""
+    """付録 A の行のうち、文が下請けの段落（paragraphs の spawns・g1・ask_variant）の中に在る行の番号。行き先が variant の書き手の行は、
+    その文が全部、下請けの段落を全部真にして組んだ字に在り、全部偽にして組んだ字に無い行を機械で引く（番号の表を持たず、md の段落を
+    足し替えると追う）。行き先が共通の行は SPAWN_ONLY だけ（共通の行を段落へ移しても、照らす先は全部の書き手のまま）"""
+    return frozenset(r["id"] for r in ROWS if r["from"] == "writer" and r["to"] in ("共通", "variant") and r["id"] not in RED_ROWS
+                     and inside_spawn_paragraphs(r))
+
+
+def inside_spawn_paragraphs(row: dict) -> bool:
+    """行の文が全部、下請けの段落を全部真にして組んだ字に在り、全部偽にして組んだ字に無い"""
     node, weapon = sorted(nodes().items())[0]
     on, off = assembled(node, weapon, True), assembled(node, weapon, False)
-    return frozenset(r["id"] for r in ROWS if r["from"] == "writer" and r["to"] in ("共通", "variant") and r["id"] not in RED_ROWS
-                     and all(flat(line) in on and flat(line) not in off for line in r["text"]))
+    return all(flat(line) in on and flat(line) not in off for line in row["text"])
 
 
 def g1_text() -> str:
@@ -351,12 +362,36 @@ class AssetCase(unittest.TestCase):
         """下請けの段落の中に在る行を、段落の真偽から機械で引けている（番号の表を持たない。引けなければ、下請けの段落の行が行き先の書き手に
         だけ照らされ、案 B の書き手で見落ちる）。引いた行は、表の SPAWNS が偽の書き手に無く、真の書き手の全部に在る"""
         bound = spawn_bound()
-        self.assertIn("Q10", bound)
+        self.assertTrue(bound - SPAWN_ONLY, "行き先が variant の下請けの段落の行を引けない")
+        for rid in sorted(SPAWN_ONLY):   # 外しの行も、文が下請けの段落の中に在る
+            self.assertTrue(inside_spawn_paragraphs(next(r for r in ROWS if r["id"] == rid)), rid)
         self.assertTrue(bound <= {r["id"] for r in ROWS if r["from"] == "writer"})
         spawning = {n for n, w in nodes().items() if spawns_of(w)}
         self.assertTrue(spawning)
         for rid in sorted(bound):
             self.assertEqual(to_nodes("variant", rid), spawning, rid)
+
+    def test_a_common_row_moved_into_the_subagent_paragraphs_is_missed_by_a_writer(self):
+        """共通の行（F109）を一時の md で下請けの段落（g1）の中へ移すと、照らす先は全部の書き手のままで、下請けを起こさない書き手
+        （tdd の閉じ）の指示から消えたことが見える（照らす先が md の後を追って、移した行を通さない）"""
+        row = next(r for r in ROWS if r["id"] == "F109")
+        line = (kit.SHARED / "prompts" / "writer.md").read_text(encoding="utf-8").split("\n")
+        at = next(i for i, x in enumerate(line) if flat(x).strip() == flat(row["text"][0]).strip())
+        moved = line[:at] + line[at + 1:]
+        g1 = moved.index("<!-- if g1 -->")
+        moved = moved[:g1 + 1] + [line[at], ""] + moved[g1 + 1:]
+        with tempfile.TemporaryDirectory() as tmp:
+            shutil.copytree(kit.SHARED / "prompts", pathlib.Path(tmp) / "prompts")
+            (pathlib.Path(tmp) / "prompts" / "writer.md").write_text("\n".join(moved), encoding="utf-8")
+            spawn_bound.cache_clear()
+            try:
+                with mock.patch.object(prompt.ports, "SHARED", pathlib.Path(tmp)):
+                    targets = to_nodes(row["to"], row["id"])
+                    missing = [n for n in sorted(targets) if flat(row["text"][0]) not in assembled(n, nodes()[n])]
+            finally:
+                spawn_bound.cache_clear()
+        self.assertEqual(targets, set(nodes()))
+        self.assertTrue(missing, "共通の行を下請けの段落へ移しても、照らしがどの書き手でも欠けを見ない")
 
     def test_the_rest_of_a_row_is_in_every_writer(self):
         """表の行の残り（rest。行き先が型を絞る行が引く置き場の行のうち、その行の文に移さなかった字）は、全部の書き手に在る"""
