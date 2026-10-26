@@ -20,7 +20,7 @@ canary の run a2097fd6: 母数の問いの 3 ファイルを全部直して fil
 site が名指す当たりのファイルも、修正前の版から実際に変わっていなければ覆ったと数えず、表の unchanged_sites にパスを並べる（問いの
 種類に依らない。名指すだけで数えると、population の当たりの 5 ファイルを site に並べて 2 ファイルだけ変えた直しが閉じた）。変更が
 読めなければ何も覆わず、理由 UNKNOWN_CHANGES を discrepancies の頭に書く。
-写しの sites は additionalProperties: false なので、写しに渡す返答からは path を外す。
+写しの sites は additionalProperties: false なので、写しに渡す返答からは works だけの欄（path・at・fixed_by・test）を外す。
 
 - build(changes, judged, *, count, blank, zero_keys, replaced, per_file, touched): 本体（盤面を読まない）。返り (写しに渡す changes, 表の行)
 - unclosed_defects(rows): 表の行のうち defects の問いが閉じない（か数えられない）単位の行
@@ -56,12 +56,15 @@ def _sites(c) -> list:
     return [s for s in ((c.get("closure") or {}).get("sites") or []) if isinstance(s, dict)]
 
 
+WORKS_ONLY = (recount.SITE_PATH, "at", "fixed_by", "test")   # closure.sites[] の works だけの欄（写しの sites は additionalProperties: false）
+
+
 def _unpathed(c):
-    """写しに渡す形: closure.sites から works だけの欄 path を外した写し"""
-    if not isinstance(c, dict) or not any(recount.SITE_PATH in s for s in _sites(c)):
+    """写しに渡す形: closure.sites から works だけの欄（path・at・fixed_by・test）を外した写し"""
+    if not isinstance(c, dict) or not any(k in s for s in _sites(c) for k in WORKS_ONLY):
         return c
     c2 = copy.deepcopy(c)
-    c2["closure"]["sites"] = [{k: v for k, v in s.items() if k != recount.SITE_PATH} if isinstance(s, dict) else s
+    c2["closure"]["sites"] = [{k: v for k, v in s.items() if k not in WORKS_ONLY} if isinstance(s, dict) else s
                               for s in c2["closure"]["sites"]]
     return c2
 
