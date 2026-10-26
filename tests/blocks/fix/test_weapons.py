@@ -403,6 +403,16 @@ class SchemaCase(unittest.TestCase):
         self.assertTrue(validate_schema({"verdict": "adopt", "reason": "先行例に従う", "problem": "同じ欠陥"}, shape), "not_found でなければ source が要る")
         self.assertEqual(validate_schema({"verdict": "not_found", "reason": "先行例が無い", "problem": "同じ欠陥", "searched": "全体を検索した"}, shape), [])
 
+    def test_the_writer_reply_evidence_named_is_a_row_of_unit_key_and_test_and_may_be_absent(self):
+        """F2 の作る物の 1: evidence.named は単位の鍵つきの行 {unit_key, test}（欠けてよい欄。書かない返答も形に合う）"""
+        shape = self.load("writer-reply.schema.json")["properties"]["evidence"]
+        self.assertEqual(validate_schema({}, shape), [])
+        self.assertEqual(validate_schema({"named": [{"unit_key": "u", "test": "t.py::a"}]}, shape), [])
+        self.assertTrue(validate_schema({"named": ["t.py::a"]}, shape), "試験の id だけの並びは単位に結べない")
+        self.assertTrue(validate_schema({"named": [{"unit_key": "u"}]}, shape))
+        self.assertTrue(validate_schema({"named": [{"unit_key": "u", "test": "t.py::a", "why": "x"}]}, shape))
+        self.assertNotIn("required", shape, "evidence の欄は全部欠けてよい")
+
     def test_writer_slots_shape_requires_every_key(self):
         """段 2 の D1 で .shared/schemas/ に置いた writer-slots は、values・when の全部の鍵を required に持つ"""
         slots = self.load("writer-slots.schema.json")
