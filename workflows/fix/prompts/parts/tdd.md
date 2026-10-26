@@ -1,7 +1,7 @@
 # The TDD loop prompt (round {iteration}, phase {phase})
 
 <!-- if briefs -->
-{part:brief-head}
+{shared:brief-head}
 <!-- end briefs -->
 
 <!-- if rejected -->
@@ -36,7 +36,7 @@ The machine rewrites these instructions each round. **Every time, read all of it
 - The fix plan: {plan_file} — you need not read all of it (the requirement is cut out into the briefs; if there is no briefs section at the head and this is not empty, Read it). The person's policy document: {policy_path} (if not empty, Read it)
 - The file with what was answered at the approval node (a person's answer, or the recommendation an unattended run took; a recommended answer has "無人の run が採った推し" on the line just before it): {notes_file} (if empty, nothing was asked. If not empty, Read it. A comment is a scope and a condition to let through; do not cut beyond it)
 
-{part:brief}
+{shared:brief}
 
 {shared:writer-rules}
 

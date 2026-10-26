@@ -13,7 +13,7 @@ The first fixer's answer (saved by the machine): {saved_reply}. Read it all firs
 <!-- end ruled_reply -->
 
 <!-- if briefs -->
-{part:brief-head}
+{shared:brief-head}
 <!-- end briefs -->
 
 <!-- if faces -->

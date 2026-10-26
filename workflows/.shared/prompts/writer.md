@@ -7,7 +7,7 @@
 - The file with what was answered at the approval node (answers to questions about changes that reduce or narrow capability, or changes to the person's policy or the policy document; a person's answer, or the recommendation an unattended run took, and a recommended answer has "無人の run が採った推し" on the line just before it): {notes_file} — if empty, nothing was asked. If not empty, Read it all (the body of the comments is only in the file). A comment is a scope and a condition to let through; **do not cut beyond it**.
 <!-- end rules -->
 
-{part:brief}
+{shared:brief}
 
 {shared:writer-rules}
 

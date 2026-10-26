@@ -248,12 +248,13 @@ class FixerParagraphsCase(unittest.TestCase):
         self.assertRegex(resumed, r"Read \S+variant-prompt-1\.md again")
 
     def test_language_line_keeps_code_identifiers_and_error_messages(self):
-        for name in ("parts/writer.md", "parts/tdd.md", "parts/clash.md", "ruler.md"):
+        for name in ("writer.md", "parts/tdd.md", "parts/clash.md", "ruler.md"):
             with self.subTest(name=name):
-                text = (BLOCK / "prompts" / name).read_text(encoding="utf-8")
+                text = ((kit.SHARED / "prompts" / name if name == "writer.md" else BLOCK / "prompts" / name)   # writer は pack の共通（段 2 の D1）
+                        .read_text(encoding="utf-8"))
                 self.assertIn("Keep keys, enum values, code identifiers, paths, commands, and error messages as they are "
                               "(keys are matched across rounds, so do not translate them).", text)
-        fixer = (BLOCK / "prompts" / "parts" / "writer.md").read_text(encoding="utf-8")
+        fixer = (kit.SHARED / "prompts" / "writer.md").read_text(encoding="utf-8")
         for field in ("`coverage.remaining`", "`precedent.problem`", "`precedent.searched`"):
             self.assertIn(field, fixer.rsplit("Write the human-facing fields", 1)[1])
 
