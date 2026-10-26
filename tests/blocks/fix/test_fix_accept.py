@@ -504,6 +504,60 @@ class RedGreenKeptCase(FixGatesCase):
         self.assertEqual(self.traced(attempt=2), GOLDEN["second"])
 
 
+    # ---- 受け付けが直す前の結末を引く口 named_before（F2 の作る物の 3）。事後の関門と同じ named_facts を同じ控えで呼ぶ
+    def before(self, ids):
+        return fixgates.named_before(self.board, self.repo, self.base, self.SUITE, ids, self.board / "duties")
+
+    def test_named_before_reads_the_loop_red_tree_for_a_name_the_loop_recorded_red(self):
+        """輪が赤を記録した名指しは輪の赤の木で見る（起点の木では実装が無く一式の結末に居ないが、赤の木では failure）。赤の木が通る記録は
+        failure にしない"""
+        self.stub_red()
+        self.assertEqual(self.before([_l_TWO_ID]), {_l_TWO_ID: "failure"})
+
+    def test_named_before_does_not_call_a_red_tree_that_passes_a_red(self):
+        self.stub_red(red_is_green=True)
+        self.assertEqual(self.before([_l_TWO_ID]), {_l_TWO_ID: "not_red"})
+
+    def test_named_before_does_not_call_a_test_that_passes_at_the_base_a_red_even_on_a_red_tree(self):
+        """輪の赤の木で見る名指しでも、起点の木で通る（既存の実装を壊して作った偽の赤）なら failure にしない（事後の関門が拒む物）"""
+        self.ready_with_fields(self.fields_for(_l_SAB_ID))
+        (self.repo / "test_sab.py").write_text(_l_SAB, encoding="utf-8")
+        self.edit_tree({"def clamp(x, lo, hi):": "def clamp(x, lo, hi):\n    return -1  # 壊す\n"})
+        red = fixgates.tddloop.snapshot(self.repo)
+        self.edit_tree({"    return -1  # 壊す\n": ""})
+        unit = {"unit_key": _l_MEAN, "route": "tdd", "red": "ok", "tests": [_l_SAB_ID], "test_files": ["test_sab.py"],
+                "test_hashes": fixgates.tddloop.hashes(self.repo, ["test_sab.py"]), "red_tree": red}
+        d = self.board / "tdd-1"
+        d.mkdir(parents=True, exist_ok=True)
+        (d / fixgates.tddloop.RECORD).write_text(json.dumps({"units": {_l_MEAN: unit}, "frozen": unit["test_hashes"]}), encoding="utf-8")
+        self.assertEqual(self.before([_l_SAB_ID]), {_l_SAB_ID: "passed"})
+
+    def test_named_before_reads_the_base_tree_for_the_rest(self):
+        self.ready_with_fields()
+        self.add_test_mean_of_two()
+        self.add_test_that_passes_on_base("test_clamp_inside")
+        got = self.before([_l_MEAN_ID, "test_stats.py::TestStats::test_clamp_inside", "test_stats.py::TestStats::test_absent"])
+        self.assertEqual(got, {_l_MEAN_ID: "failure", "test_stats.py::TestStats::test_clamp_inside": "passed",
+                               "test_stats.py::TestStats::test_absent": "missing"})
+
+    def test_named_before_is_empty_when_the_executor_cannot_run(self):
+        self.ready_with_fields()
+        self.add_test_mean_of_two()
+        self.assertEqual(fixgates.named_before(self.board, self.repo, self.base, "", [_l_MEAN_ID], self.board / "duties"), {})
+        self.assertEqual(self.before([]), {})
+        real = fixgates.tddloop.run_suite
+        with mock.patch.object(fixgates.tddloop, "run_suite", side_effect=lambda exe, repo, *a, **k:
+                               (None, None, ["起動できない"]) if pathlib.Path(repo).resolve() != self.repo.resolve() else real(exe, repo, *a, **k)):
+            self.assertEqual(self.before([_l_MEAN_ID]), {}, "起点の木が走らない回は空（義務は拒む側に倒れる）")
+
+    def test_the_gate_reads_the_base_tree_the_named_before_already_took(self):
+        """受け付けの型の義務（named_before）が引いた起点の木の結末は控えに残り、後の事後の関門は同じ名指しの起点の木を走らせ直さない"""
+        self.ready_with_fields()
+        self.add_test_mean_of_two()
+        self.edit_tree(_l_MEAN_FIX)
+        self.assertEqual(self.before([_l_MEAN_ID]), {_l_MEAN_ID: "failure"})
+        self.assertEqual(self.traced()["calls"], [_NOW], "今の木の 1 回だけ（起点の木は控えから）")
+
 _NOW, _BASE, _RED = ("now", "gates-now"), ("tree", "gates-base"), ("tree", "gates-red-1")
 _UNIT = ["stats.py mean: 分母が len(xs) - 1 になっている"]
 _NONE = {"rows": [], "skipped": [], "guards": [], "ledger_rows": 0}
