@@ -321,7 +321,7 @@ slots の形（`{values, when, subagents, summary_file}`）:
 | `queued` | 受け付けがはみ出しを相談に積んだ続きの周（今の `fix-overflow-queued`） |
 | `overflow_answer` | はみ出しの答えを渡す続きの周（今の `fix-overflow-resume`。答えの行の origin が accept） |
 | `ask_variant`・`spawns` | 型が持つ段落（表の `SPAWNS`。`ask_variant` は下請けは自分で相談できないの 1 文で、`ask` が偽なら偽。`spawns` は下請けへの検索の決まりの渡しの段落） |
-| `rules_change`・`rules_sites`・`rules_red`・`conflict_change`・`rules_sites_at`・`rules_sites_test`・`rules_red_unit`・`rules_named` | 義務の表から引く 8 つ（修正の block が `writer_slots` で引いて `when` に入れる。前の 4 つは `duties.box_of`・`board.RED_WEAPONS`・`SITES_WEAPONS`、後ろの 4 つ〔`prompts.TABLE_WHEN`〕は義務の表〔`duties.table_of`。箱の義務 `change_named_or_gone` を含む〕の関数の属性 `paragraph` が名指す段落。照らしを表に足せば指示も出る。指示と照らしを同じ表から引く今の形を保つ。型の block は義務の表を知らない。`prompts.writer_paragraphs` はこの 8 つだけを返す。`where_writer` は書き手に型を問わず載るので表の関数が名指しても入れない） |
+| `rules_change`・`rules_sites`・`rules_red`・`conflict_change`・`rules_sites_at`・`rules_sites_test`・`rules_red_unit`・`rules_named` | 義務の表から引く 8 つ（修正の block が `writer_slots` で引いて `when` に入れる。前の 4 つは、`rules_change`・`conflict_change` が `duties.box_of`（箱が変える段か）、`rules_sites` が `prompts.SITES_WEAPONS`（variant・pin）、`rules_red` が `board.RED_WEAPONS`（赤を見ない clean を拒む型）から、後ろの 4 つ〔`prompts.TABLE_WHEN`〕は義務の表〔`duties.table_of`。箱の義務 `change_named_or_gone` を含む〕の関数の属性 `paragraph` が名指す段落。照らしを表に足せば指示も出る。指示と照らしを同じ表から引く今の形を保つ。型の block は義務の表を知らない。`prompts.writer_paragraphs` はこの 8 つだけを返す。`where_writer` は書き手に型を問わず載るので表の関数が名指しても入れない） |
 
 並び（今の `rulebook.render` の並び: 却下の 1 行 → before → 決まり → 言語の 1 行）:
 
