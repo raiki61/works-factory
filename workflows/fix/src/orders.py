@@ -177,7 +177,8 @@ def write_return(place, doc: dict) -> pathlib.Path:
 
 
 def _queries(place, keys) -> dict:
-    """単位 → 判定の問い class_query（裁定 replace_query を受けた単位は置き換えた問い。unitrows の数え直しと同じ物）。無い単位は入れない"""
+    """単位 → 判定の問い class_query（裁定 replace_query を受けた単位は置き換えた問い。unitrows の数え直しと同じ物。置き換えた問いに
+    how が無ければ判定の問い）。無い単位は入れない"""
     judgment = board.read_json(pathlib.Path(place) / board.JUDGMENT_FILE)
     got = {u.get("key"): u.get("class_query") for u in (judgment or {}).get("units") or [] if isinstance(u, dict)} \
         if isinstance(judgment, dict) else {}
@@ -188,7 +189,7 @@ def _queries(place, keys) -> dict:
     out = {}
     for k in keys:
         q = got.get(k)
-        if k in replaced:
+        if isinstance((replaced.get(k) or {}).get("how"), dict):
             q = {"how": replaced[k]["how"], **({"counts": replaced[k]["counts"]} if replaced[k].get("counts") else {})}   # 判定の total は置き換えた問いの数ではない
         if isinstance(q, dict) and isinstance(q.get("how"), dict):
             out[k] = q

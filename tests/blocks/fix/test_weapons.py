@@ -247,6 +247,17 @@ class WeaponDutiesCase(unittest.TestCase):
         self.assertTrue(variant.sites_shape({**f, "sites": [{**f["sites"][0], "at": "a.py:9"}]}))
         self.assertTrue(variant.sites_shape({**f, "sites": [{**f["sites"][0], "fixed_by": ["a.py:9-10"]}]}))
         self.assertEqual(variant.sites_shape({**f, "class_query": None, "sites": []}), [], "問いの無い単位には当てない")
+        for gone in ({}, {"fixed_by": []}):   # 照らす単位（hits が None でない）では fixed_by が 1 つ以上要る
+            with self.subTest(fixed_by=gone):
+                row = {k: v for k, v in f["sites"][0].items() if k != "fixed_by"}
+                self.assertTrue(variant.sites_shape({**f, "sites": [{**row, **gone}]}))
+        loose = {**f, "hits": None}   # 問いを行で結べない単位: at と fixed_by の在る無しは照らさず、書いた fixed_by は照らす
+        self.assertEqual(variant.sites_shape({**loose, "sites": [{"site": "s1", "at": "a.py:9", "red_seen": True}]}), [])
+        self.assertTrue(variant.sites_shape({**loose, "sites": [{**f["sites"][0], "fixed_by": ["a.py:9-10"]}]}))
+        files = {**f, "class_query": {"how": {"patterns": ["x"], "count": "files"}}, "hits": {"a.py:3", "b.py:1"}}
+        self.assertEqual(variant.sites_shape({**files, "sites": [{**f["sites"][0], "at": "a.py:9"}]}), [],
+                         "count: files の問いは at が当たりのファイルに在ればよい（当たりの行でなくてよい）")
+        self.assertTrue(variant.sites_shape({**files, "sites": [{**f["sites"][0], "at": "c.py:3"}]}))
         self.assertEqual(variant.unit_red({"red_seen": True}), [])
         self.assertTrue(variant.unit_red({"red_seen": False}))
 
@@ -278,6 +289,16 @@ class AcceptFactsCase(unittest.TestCase):
         self.assertEqual(self.unitrows.hit_lines(self.how, self.repo, self.rev)[0], {"a.py:2", "a.py:3", "b.py:1"})
         self.assertIsNone(self.unitrows.hit_lines({**self.how, "paths": []}, self.repo, self.rev)[0])
 
+    def test_hit_lines_keep_a_path_that_holds_a_colon_and_digits(self):
+        """パスに `:<数字>:` を含んでも、パスと行を切り損なわない"""
+        (self.repo / "x:1:y").mkdir()
+        (self.repo / "x:1:y" / "e.py").write_text("lo = 4\n", encoding="utf-8")
+        git(self.repo, "add", ".")
+        git(self.repo, "commit", "-qm", "colon")
+        rev = git(self.repo, "rev-parse", "HEAD").strip()
+        self.assertEqual(self.unitrows.hit_lines(self.how, self.repo, rev)[0], {"a.py:2", "a.py:3", "b.py:1", "x:1:y/e.py:1"})
+        self.assertEqual(self.unitrows.hit_lines(self.how, self.repo)[0], {"a.py:2", "a.py:3", "b.py:1", "x:1:y/e.py:1"})
+
     def test_hunks_are_the_new_side_of_the_diff_from_since(self):
         (self.repo / "a.py").write_text("x = 1\nlo = 9\nlo = 2\nnew = 1\n", encoding="utf-8")
         (self.repo / "b.py").unlink()
@@ -299,6 +320,40 @@ class AcceptFactsCase(unittest.TestCase):
         self.assertEqual(tuple(sorted(f)), tuple(sorted(duties.REPLY_FACTS)))
         self.assertEqual((len(f["sites"]), f["red_seen"], f["kinds_rows"]), (2, True, [{"kind": "docs", "did": "d"}]))
         self.assertFalse(duties._reply_facts([{"closure": {"sites": [{"red_seen": False}]}}], None)["red_seen"])
+
+
+class OrderQueriesCase(unittest.TestCase):
+    """注文を書く段が単位の問いを引く口（orders._queries。F1 の作る物の 2）: 判定の写しの class_query か、裁定 replace_query が
+    置き換えた問い"""
+
+    HOW = {"patterns": ["lo ="], "paths": ["*.py"], "count": "lines", "fixed": True}
+
+    def setUp(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.place = pathlib.Path(tmp.name)
+        self.orders = kit.load("fix", "orders")
+        self.judged = {"how": self.HOW, "counts": "defects", "total": 3}
+        (self.place / "judgment.json").write_text(json.dumps({"units": [
+            {"key": "a", "class_query": self.judged}, {"key": "b"}]}, ensure_ascii=False), encoding="utf-8")
+
+    def replace(self, query):
+        import conflict
+        conflict.park(self.place, [{"unit_key": "a", "between": ["a.py:2", "a.py:2"], "why_both_cannot_hold": "問いが正しい形にも当たる",
+                                    "which_is_right": "query", "kind": "query_hits_fixed"}], source=conflict.FIX_SOURCE,
+                      ruling={"decision": "replace_query", "text": "問いを置き換える", "limits": [], "query": query})
+
+    def test_the_judged_query_goes_to_the_unit(self):
+        self.assertEqual(self.orders._queries(self.place, ["a", "b"]), {"a": self.judged})
+
+    def test_a_replaced_query_wins_over_the_judged_one(self):
+        how = {**self.HOW, "patterns": ["lo = 1"]}
+        self.replace({"how": how, "counts": "population", "hits": ["lo = 1"], "misses": []})
+        self.assertEqual(self.orders._queries(self.place, ["a"]), {"a": {"how": how, "counts": "population"}})
+
+    def test_a_replaced_query_without_how_keeps_the_judged_one(self):
+        self.replace({"counts": "population", "hits": ["lo = 1"], "misses": []})
+        self.assertEqual(self.orders._queries(self.place, ["a"]), {"a": self.judged})
 
 
 class SchemaCase(unittest.TestCase):
@@ -762,20 +817,24 @@ class AcceptWiringCase(tg.GroupChildScriptsCase):
 
     def weapon_start(self, weapon, unit_extra=None):
         """mean の単位を型 weapon の注文に書き直して（注文を書く段の後・修正の輪の頭の前）、修正の輪の頭まで回す"""
+        unit_extra = dict(unit_extra or {})
+        query = unit_extra.pop("class_query", None)
         self.parent_inputs(str(self.suite))
         self.start()
+        judgment = json.loads((self.place / "judgment.json").read_text(encoding="utf-8"))
+        judgment["units"][0].pop("class_query", None)
+        if query:   # 判定の写しにだけ置く。注文の単位へは注文を書く段（orders._queries・_order）が写す
+            judgment["units"][0]["class_query"] = query
+        (self.place / "judgment.json").write_text(json.dumps(judgment, ensure_ascii=False), encoding="utf-8")
         got = self.step({"phase": "route", "units": [{"unit_key": tg.MEAN, "route": "direct", "why": "期待の書き換えだけで先に書ける試験が無い"}]})
         self.assertTrue(got["ok"], got)
         orders_dir = self.place / "orders"
         (made,) = list(orders_dir.glob("*.json"))
         doc = json.loads(made.read_text(encoding="utf-8"))
         made.unlink()
-        if unit_extra and unit_extra.get("class_query"):   # 閉鎖の数え直しも同じ問いで数える（判定の写しの問い）
-            judgment = json.loads((self.place / "judgment.json").read_text(encoding="utf-8"))
-            judgment["units"][0]["class_query"] = unit_extra["class_query"]
-            (self.place / "judgment.json").write_text(json.dumps(judgment, ensure_ascii=False), encoding="utf-8")
+        self.assertEqual(doc["units"][0].get("class_query"), query, "注文を書く段が判定の写しの問いを注文の単位に写す")
         doc["weapon"] = weapon
-        doc["units"][0].update(unit_extra or {})
+        doc["units"][0].update(unit_extra)
         (orders_dir / f"{weapon}.json").write_text(json.dumps(doc, ensure_ascii=False), encoding="utf-8")
         idx = json.loads((self.place / "orders.json").read_text(encoding="utf-8"))
         (self.place / "orders.json").write_text(json.dumps({**idx, "sequence": [weapon], "weapons": {tg.MEAN: weapon}}), encoding="utf-8")
@@ -844,16 +903,42 @@ class AcceptWiringCase(tg.GroupChildScriptsCase):
         self.assertEqual(recount._after_problems({"fix_closure": {"status": "clean"}, "changes": [self.variant_change(site), other]},
                                                  self.place, "HEAD", self.repo, set()), [], "周の全体の赤を見る照らしは通る（だから単位ごとの照らしが要る）")
 
+    def test_the_accept_rejects_variant_sites_without_fixed_by(self):
+        """variant: 照らす単位（問いを行で結べる単位）で、fixed_by が無い行・空の行を拒む"""
+        self.weapon_start("variant", {"class_query": {"how": self.HOW, "counts": "defects", "total": 1}})
+        self.fix_mean()
+        site = {"site": "stats.py:5", "red_seen": True, "path": "stats.py", "at": "stats.py:5"}
+        for gone in ({}, {"fixed_by": []}):
+            with self.subTest(fixed_by=gone):
+                out = self.weapon_accept("variant", {"changes": [self.variant_change({**site, **gone})]})
+                self.assertTrue(any("fixed_by が無い" in ln for ln in self.duty_lines(out)), out["reason"])
+
     def test_a_unit_the_query_cannot_bind_to_lines_skips_the_at_check_but_not_the_red(self):
-        """問いを行で結べない単位（ファイルごとの数が合計と合わない）は at を照らさず、赤を見た site を求める。fixed_by は照らす"""
+        """問いを行で結べない単位（ファイルごとの数が合計と合わない）は at と fixed_by の在る無しを照らさず、赤を見た site を求める。
+        書いた fixed_by は差分の塊と重なるかを照らす"""
         loose = {"how": self.HOW, "counts": "defects", "total": 5}
         self.weapon_start("variant", {"class_query": loose})
         self.fix_mean()
         site = {"site": "stats.py:5", "red_seen": True, "path": "stats.py", "at": "stats.py:9", "fixed_by": ["stats.py:5-5"]}
         out = self.weapon_accept("variant", {"changes": [self.variant_change(site)]})
         self.assertEqual(self.duty_lines(out), [], out["reason"])
+        out = self.weapon_accept("variant", {"changes": [self.variant_change({k: v for k, v in site.items() if k != "fixed_by"})]})
+        self.assertEqual(self.duty_lines(out), [], out["reason"])
+        out = self.weapon_accept("variant", {"changes": [self.variant_change({**site, "fixed_by": ["stats.py:9-9"]})]})
+        self.assertTrue(any("が差分の塊と重ならない" in ln for ln in self.duty_lines(out)), out["reason"])
         out = self.weapon_accept("variant", {"changes": [self.variant_change({**site, "red_seen": False})]})
         self.assertEqual(len(self.duty_lines(out)), 1, out["reason"])
+
+    def test_a_unit_without_a_query_skips_the_sites_shape_but_not_the_red(self):
+        """問いの無い単位（判定が class_query を返していない）は sites_shape が素通りし、unit_red だけが当たる"""
+        self.weapon_start("variant")
+        self.fix_mean()
+        site = {"site": "stats.py:5", "red_seen": True, "path": "stats.py"}
+        out = self.weapon_accept("variant", {"changes": [self.variant_change(site)]})
+        self.assertEqual(self.duty_lines(out), [], out["reason"])
+        out = self.weapon_accept("variant", {"changes": [self.variant_change({**site, "red_seen": False})]})
+        self.assertEqual(len(self.duty_lines(out)), 1, out["reason"])
+        self.assertTrue(any("赤を見た記録" in ln for ln in self.duty_lines(out)), out["reason"])
 
     def files(self) -> dict:
         """組の子の run の置き場のファイルの名と中身の組（走らせる前と後を比べる。ファイルの名の表を持たない）"""

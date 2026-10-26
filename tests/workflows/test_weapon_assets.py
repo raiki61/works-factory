@@ -78,7 +78,7 @@ import writerblock  # noqa: E402
 ROWS = json.loads((HERE / "appendix-a.json").read_text(encoding="utf-8"))
 BEFORE = json.loads((HERE / "fixer-reply-before.json").read_text(encoding="utf-8"))
 PIN = "523599ac3b62f9ad7f707c5846c4ba186b38c1f0"   # 付録 A の行番号の版（#865。A.2 の見出し「#865 で 2 行増えた後の行番号」）
-PLAN_PIN = "6009cedfcece60603f7a95f380b47024be4d1934"   # 計画の版（git の blob。PR #883 で付録 A に A.9 を足した計画。付録 A を直す PR はこの値を替える）
+PLAN_PIN = "3c21e91d7c49f22508a12c7dc10fc6203be1d3b2"   # 計画の版（git の blob。PR #883 で付録 A に A.9 を足した計画。付録 A を直す PR はこの値を替える）
 DEFAULT = {"A.2": "workflows/fix/prompts/parts/fixer.md", "A.4": "workflows/.shared/prompts/writer-rules.md",
            "A.5": "workflows/.shared/prompts/query-rule.md", "A.7": "lib/borrow/unattended.md",
            "A.9": "workflows/.shared/prompts/writer.md"}   # 節の頭が名指す、`:行` だけの引きの置き場
@@ -88,7 +88,7 @@ REWORDED = {   # 移す時に字を替えた行: 番号 → (表の字, PIN の�
     "F135": ("`clean` without ever having seen red is rejected.", "clean without ever having seen red is rejected"),   # F135 の文を rules_red の段落へ切り出した
 }
 COUNTS = {"共通": 156, "variant": 29, "変える": 4, "消す": 11}   # 付録 A の A.1・1.4.2 の数（全部で 200）
-ADDED_PINS = {"A.9": "254b467c28cc1d1b0e55f7b96af68f64b0644f18"}   # 型を分けた後に段落を足した節 → 節の置き場の足した後の版（git の blob。PR #883 の writer.md）
+ADDED_PINS = {"A.9": "ae28a6e98c313cdab8399045a7ba05002e8889c7"}   # 型を分けた後に段落を足した節 → 節の置き場の足した後の版（git の blob。PR #883 の writer.md）
 ADDED_COUNTS = {"variant": 2, "pin": 1}   # ADDED_PINS の節の行き先ごとの数（200 項目の外。付録 A の A.9）
 LEFT = {   # 置き場の行のうち、引く行の文にも残り（rest）にも移さなかった字（付録 A の行の番号 → 残る字）
     "F21": "You are the fixer. , and fix the units you owe a fix on the working tree.",   # 型ごとの頭に言い直した（付録 A の F21）

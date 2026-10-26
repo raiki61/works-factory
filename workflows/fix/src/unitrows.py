@@ -32,7 +32,6 @@ site が名指す当たりのファイルも、修正前の版から実際に変
 import copy
 import pathlib
 import posixpath
-import re
 import sys
 
 sys.dont_write_bytecode = True
@@ -141,26 +140,28 @@ def file_counts(how, root, rev=None):
 
 
 def hit_lines(how, root, rev=None):
-    """問いの当たりの行 ——（{"path:line"}, ""）か（None, 理由）。argv は写さず count_argv が組む物の数える旗（-c か -l）を -n に替える
-    （count: files の問いも当たりの行を引く）。版 rev を渡すと出力は `rev:path:line:本文` の形なので、頭の `rev:` を剥がす。file_counts と同じく
-    パスは生で出させ、走らせ方は写しの _grep"""
+    """問いの当たりの行 ——（{"path:line"}, ""）か（None, 理由）。argv は写さず count_argv が組む物の数える旗（-c か -l）を -n -z に替える
+    （count: files の問いも当たりの行を引く）。-z でパスと行の番号を NUL で区切らせ、パスに `:<数字>:` が在っても切り損なわない。版 rev を
+    渡すと出力は `rev:path<NUL>line<NUL>本文` の形なので、頭の `rev:` を剥がす。file_counts と同じくパスは生で出させ、走らせ方は写しの _grep"""
     argv, why = _util.count_argv(how, rev)
     if why:
         return None, why
-    argv[argv.index(_util.COUNT_BY[how["count"]])] = "-n"
+    at = argv.index(_util.COUNT_BY[how["count"]])
+    argv[at:at + 1] = ["-n", "-z"]
     out, why = _util._grep([argv[0], "-c", "core.quotePath=false", *argv[1:]], str(root))
     if why:
         return None, why
     got = set()
-    for line in out.splitlines():
+    for line in out.split("\n"):   # 本文の中の改行に似た字（splitlines が切る \x1c など）で切らない
         if not line.strip():
             continue
         if rev and line.startswith(f"{rev}:"):
             line = line[len(rev) + 1:]
-        m = re.match(r"(.+?):(\d+):", line)
-        if not m:
-            return None, f"-n の出力が `パス:行:…` の形でない（{line[:60]!r}）"
-        got.add(f"{m.group(1)}:{m.group(2)}")
+        path, _, rest = line.partition("\0")
+        n = rest.partition("\0")[0]
+        if not path or not n.isdigit():
+            return None, f"-n -z の出力が `パス\\0行\\0…` の形でない（{line[:60]!r}）"
+        got.add(f"{path}:{n}")
     return got, ""
 
 
