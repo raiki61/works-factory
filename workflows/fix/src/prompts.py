@@ -82,7 +82,7 @@ def writer_when(weapon: str) -> dict:
 
 def writer_paragraphs(weapon: str) -> dict:
     """型 weapon が選ぶ書き手の md の段落の真偽（writer_when を段落の名に引いた物。決まりの段落 rules・相談の段落 ask・下請けの項目が在る時に
-    だけ効く。writer_values が使い、tests/blocks/fix/test_assets.py が組んだ指示の照らしに使う）"""
+    だけ効く。writer_values が使い、tests/workflows/test_weapon_assets.py が組んだ指示の照らしに使う）"""
     k = writer_when(weapon)
     return {"ask_variant": k["variant"], "rules_change": k["change"], "rules_sites": k["sites"], "rules_red": k["red"],
             "conflict_change": k["change"], "spawns": k["variant"], "g1": k["variant"]}

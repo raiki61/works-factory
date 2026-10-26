@@ -6,8 +6,8 @@
 - (a) 段落の真偽: `prompt.emit` に渡った when の全部。`prompt.render` は名の欠けを拒むが真偽の誤りは拒まないので、割った組み立てが
   rejected・resume・where_writer などを誤って偽にして観点の文が落ちても、ほかの試験は緑のまま。ここが赤にする
 - (b) 組み上がった指示の字（`emit` の返りの prompt）。置き字（下）に替えた後の字
-- (c) 付録 A の行（下請けの行 G と機械の行を除く。tests/blocks/fix/test_assets.py の ROWS）のうち、組み上がった字に在る行の id。値を差し込み口の
-  字（`{名}`）に替え（ただし unattended は本物の字）、`prompt.render` でもう 1 度組み、test_assets.py の flat と同じ照らし方（`in`）で見る。
+- (c) 付録 A の行（下請けの行 G と機械の行を除く。tests/workflows/test_weapon_assets.py の ROWS）のうち、組み上がった字に在る行の id。値を差し込み口の
+  字（`{名}`）に替え（ただし unattended は本物の字）、`prompt.render` でもう 1 度組み、test_weapon_assets.py の flat と同じ照らし方（`in`）で見る。
   md だけの直しで文が段落の間を動いて、ある場面から観点が消える道を赤にする
 - (d) 値（`emit` に渡った values に置き字を当てた物。字が md から来る unattended は鍵だけ残して字を `{MD}`）。writer_slots 相当の値の誤り
   （却下の文や裁定の値が空になる）を赤にする
@@ -41,7 +41,8 @@ from unittest import mock
 
 from tests.bin.gitkit import git
 from tests.blocks import kit
-from tests.blocks.fix import support, test_assets, test_prompts
+from tests.blocks.fix import support, test_prompts
+from tests.workflows import test_weapon_assets as test_assets
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 BEFORE = pathlib.Path(__file__).resolve().parent / "writer-prompts-before.json"

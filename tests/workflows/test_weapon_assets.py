@@ -20,9 +20,15 @@
   文の尻・真ん中を一緒に削る、行を一緒に消すと、残りが増えて赤になる。行き先が型を絞る行の置き場の行に、全部の書き手に残す字が
   在る時は、その字を表の行の rest に置く（F135 の行の返答の欄 fix_closure の残り。付録 A は残りを移すと決めていない）。rest は
   残りの照らしで覆う側に入り、組み上がった全部の書き手の指示に在ることを照らす（消す行・機械の行には置けない）。
-- 組み上がった指示: 型ごとの書き手の node の md（prompts/<node>.md）を、差し込みを解き、型が選ぶ段落を src/prompts.writer_paragraphs で
-  選び、ほかの段落（却下・裁定・相談・続きの周など）を全部入れて組んだ字。差し込み口の値は {名} の字のまま（表の文と比べるため）、
-  借りた型の読み替え {unattended} だけは本物の値（lib/seat.overlay_body）。
+- 組み上がった指示: 書き手の型の block の md（workflows/weapon-<型>/prompts/<型>.md。差し込みは .shared/prompts/ と block の
+  prompts/parts/head.md）を、差し込みを解き、型が選ぶ段落を次の和で選び、ほかの段落（却下・裁定・相談・続きの周など）を全部入れて組んだ字。
+  和の 1 つは修正の block の prompts.writer_paragraphs(型) のうち義務の表から引く 4 つ（prompts.DUTY_WHEN。writer_slots が slots の when に
+  入れる物）、もう 1 つは本体 .shared/writerblock.paragraphs(block の表 src/render.py)（spawns・g1・ask_variant）。2 つは名が重ならず、和が
+  writer_paragraphs(型) と同じ。D1 の間 fix の node のまま残る variant（prompts/variant.md）は今のとおり writer_paragraphs の 7 つから引く
+  （D2 で型の block の道に替える）。差し込み口の値は {名} の字のまま（表の文と比べるため）、借りた型の読み替え {unattended} だけは本物の値
+  （lib/seat.overlay_body）。
+- 型ごとの頭の文: 型 → 頭の役の文の表 HEADS が、D1 の基の main（HEADS_PIN）の workflows/fix/prompts/parts/<型>.md の字に在り（git の履歴に結ぶ。
+  引けなければ赤。表と md を一緒に書き換えても赤）、その型の書き手の組み上がった指示に在る。表の型の集まりは writers.SEQUENCE の型の和と等しい。
 - 照らす事: 行き先が「消す」の行の文はどの書き手と下請けの指示にも無い。行き先が「消す」でない行の文が、行き先の書き手の全部の組み上がった指示に在る（共通は全部の書き手、変える は変える段の
   書き手、variant は variant の書き手、variant・pin は variant と下ごしらえの書き手）。行き先が型を絞る行（変える・variant・variant・pin）の
   文は、ほかの書き手の指示に無い。下請けの指示の行（G）は variant の書き手が置く下請けのファイルの md（prompts/parts/g1-*.md を組んだ字）、
@@ -30,8 +36,9 @@
 - 例外（付録 A の行き先のまま、指示の段落が書き手の道具で決まる物）: Q10（下請けを起こすなら規則を字のまま渡す）は Agent を持つ
   variant の書き手だけに出る（今の修正役も Agent を持つので出ていた）。F135（赤を見ない clean を拒む）は付録 A では variant だが、PR A が
   受け付けの照らしを variant・remove・pin に当てた（board.RED_WEAPONS）ので、指示もその型の書き手に出す（照らしと指示をそろえる）。
-- 返答の形: 型ごとの書き手の返答の形（YAML の output_format）が、PR A の前の修正役の返答の形（fixer-reply-before.json。#869 の前の
-  main 5aa8530a の fixer の output_format の写し）の必須の欄と空にできない欄（minLength・minItems）を、どの深さでも減らさない。
+- 返答の形: 書き手の返答の形の正本 .shared/schemas/writer-reply.schema.json が、PR A の前の修正役の返答の形（fixer-reply-before.json。#869 の前の
+  main 5aa8530a の fixer の output_format の写し）の必須の欄と空にできない欄（minLength・minItems）を、どの深さでも減らさない（型の block の
+  写しがこの形と等しいことは tests/workflows/test_weapon_blocks.py）。
 
 文の意味が弱まっていないか（言い換え）は、独立のレビューが文で見る（この試験は字の在る無しだけ）。
 """
@@ -48,7 +55,7 @@ import yaml
 from tests.bin import hermetic
 from tests.blocks import kit
 
-ROOT = pathlib.Path(__file__).resolve().parents[3]
+ROOT = pathlib.Path(__file__).resolve().parents[2]
 HERE = pathlib.Path(__file__).resolve().parent
 BLOCK = kit.BLOCKS / "fix"
 PLAN = "docs/plans/2026-10-24-fix-weapons.md"
@@ -58,6 +65,7 @@ for p in (ROOT / "lib", kit.SHARED):
 
 import prompt  # noqa: E402
 import seat  # noqa: E402
+import writerblock  # noqa: E402
 
 ROWS = json.loads((HERE / "appendix-a.json").read_text(encoding="utf-8"))
 BEFORE = json.loads((HERE / "fixer-reply-before.json").read_text(encoding="utf-8"))
@@ -80,8 +88,23 @@ MARKUP = re.compile(r"<!--.*?-->|\{[\w:.-]+\}")   # 段落の印と差し込み�
 SPAWN_ONLY = {"Q10"}
 G18 = "Do not write the report to a file. Your reply is the JSON in the \"fields of the reply\" section of the instructions."   # 消した g1-no-report-file.md の字（付録 A の G16〜G19 の G18）
 RED_ROWS = {"F135"}   # 付録 A は variant。PR A が受け付けの照らしを variant・remove・pin に当てたので（PR A の控えの 3 節）、指示も同じ型にそろえる   # 下請けを起こす書き手（Agent を持つ variant）だけに出る段落の行
+HEADS_PIN = "e52a1b452d330504e1fa5c0b49e8905a817515e7"   # 頭の文の出どころの版（D1 の基の main。PR #875 の後。`git log e52a1b45..origin/main -- 'workflows/fix/prompts/parts/*.md'` が空）
+HEADS = {   # 型 → 頭の役の文（組み上がった指示にも、HEADS_PIN の parts/<型>.md にも在る字）
+    "tdd": ["You are the TDD loop's closing writer.",
+            "the TDD loop has already fixed the units you owe a fix on the working tree, test first, and the machine confirmed each test's red-to-green."],
+    "pin": ["Do not rewrite configuration files that exist in the version before the fix.", "You are the pinning writer, a fixer.",
+            "The defect of these units is that no test catches it: do not change code; add tests that pin down the current behavior."],
+    "tidy": ["You are the tidy writer, a fixer.", "These fixes do not change behavior (for example, removing what nothing uses any more)"],
+    "static": ["You are the static writer, a fixer.",
+               "These are fixes that no test can show (documents, instructions, notes, setting values, CI settings, and the like)"],
+    "remove": ["You are the removing writer, a fixer.",
+               "These units remove what the fix plan names to remove (names and files) together with the tests that bind it"],
+    "variant": ["You are the variant writer, a fixer.", "These units change behavior and did not go through the TDD loop's test-first steps"],
+}
+RENDERS = {d.name: kit.load(d.name, "render") for d in sorted(kit.BLOCKS.glob("weapon-*")) if (d / "src" / "render.py").is_file()}   # 型の block の表（fix の src を読む前に。src の名が重なる）
 writers = kit.load("fix", "writers")
 prompts = kit.load("fix", "prompts")
+kit.load("fix", "duties")   # prompts.writer_when が遅れて import する（読んだ後の src を fix の物に保つ）
 
 
 def nodes() -> dict:
@@ -108,18 +131,38 @@ def flat(text: str) -> str:
     return re.sub(r"\s+", " ", text.replace("{{", "{").replace("}}", "}"))
 
 
-def assembled(node: str, weapon: str) -> str:
-    """node の md を組んだ字（型が選ぶ段落は writer_paragraphs、ほかの段落は全部入れる。値は {名} の字、{unattended} は本物）"""
-    raw = prompt._expand(prompt._read(BLOCK / "prompts" / f"{node}.md", "md"), BLOCK, (), False)
-    names = {m.group(2) for line in raw.split("\n") if (m := prompt.MARK.match(line.strip()))}
+def folder_of(node: str, weapon: str) -> tuple:
+    """node の指示の md の置き場 (block のフォルダ, md の名)。型の block は weapon-<型>/prompts/<型>.md、D1 の間 fix に残る variant は fix の prompts/<node>.md"""
+    if weapon == "variant":
+        return BLOCK, node
+    name = writers.block_of(weapon)
+    return kit.BLOCKS / f"weapon-{name}", name
+
+
+def paragraph_truth(weapon: str) -> dict:
+    """型 weapon の書き手が選ぶ段落の真偽。型の block は、修正の block が義務の表から引く 4 つと、本体が表の SPAWNS から引く 3 つの和（重ならない）。
+    D1 の間の variant の node は今のとおり writer_paragraphs の 7 つ"""
     pick = prompts.writer_paragraphs(weapon)
+    if weapon == "variant":
+        return pick
+    duty = {k: v for k, v in pick.items() if k in prompts.DUTY_WHEN}
+    own = writerblock.paragraphs(RENDERS[f"weapon-{writers.block_of(weapon)}"])
+    assert not set(duty) & set(own), "義務から引く段落と型の block の本体が足す段落が重なる"
+    return {**duty, **own}
+
+
+def assembled(node: str, weapon: str) -> str:
+    """node の md を組んだ字（型が選ぶ段落は paragraph_truth、ほかの段落は全部入れる。値は {名} の字、{unattended} は本物）"""
+    folder, md = folder_of(node, weapon)
+    raw = prompt._expand(prompt._read(folder / "prompts" / f"{md}.md", "md"), folder, (), False)
+    names = {m.group(2) for line in raw.split("\n") if (m := prompt.MARK.match(line.strip()))}
     when = {n: True for n in names}
-    when.update({k: v for k, v in pick.items() if k in names})
+    when.update({k: v for k, v in paragraph_truth(weapon).items() if k in names})
     when.update({k: False for k in ("where_tdd", "where_rework") if k in names})   # 修正の書き手に載らない書き先（付録 A の W14・W15）
     slots = set(prompt.SLOT.findall(raw.replace("{{", "").replace("}}", "")))
     values = {s: "{" + s + "}" for s in slots}
     values["unattended"] = seat.overlay_body(seat.OVERLAY_KINDS["fix"]).rstrip("\n")
-    return flat(prompt._compose(BLOCK, node, values, when)["prompt"])
+    return flat(prompt._compose(folder, md, values, when)["prompt"])
 
 
 def g1_text() -> str:
@@ -318,10 +361,40 @@ class AssetCase(unittest.TestCase):
                     with self.subTest(row=r["id"], node=n):
                         self.assertNotIn(flat(line), self.text[n])
 
-    def test_the_writers_node_md_names_its_weapon_part(self):
+    def test_the_writers_node_md_names_its_head_part(self):
+        """型の block の md は型ごとの頭を block の prompts/parts/head.md から引く。D1 の間 fix に残る variant の md は parts/variant.md を引く"""
         for n, w in nodes().items():
+            folder, md = folder_of(n, w)
+            text = (folder / "prompts" / f"{md}.md").read_text(encoding="utf-8").strip()
             with self.subTest(node=n):
-                self.assertEqual((BLOCK / "prompts" / f"{n}.md").read_text(encoding="utf-8").strip(), "{part:%s}" % writers.node("first", w))
+                if w == "variant":
+                    self.assertEqual(text, "{part:variant}")
+                else:
+                    self.assertIn("{part:head}", text)
+                    self.assertTrue((folder / "prompts" / "parts" / "head.md").is_file())
+
+    def test_the_two_sources_of_the_paragraphs_do_not_overlap_and_make_the_old_seven(self):
+        for w in {w for p in writers.SEQUENCE for w in writers.SEQUENCE[p]}:
+            pick = prompts.writer_paragraphs(w)
+            if w == "variant":
+                continue
+            own = writerblock.paragraphs(RENDERS[f"weapon-{writers.block_of(w)}"])
+            duty = {k: v for k, v in pick.items() if k in prompts.DUTY_WHEN}
+            with self.subTest(weapon=w):
+                self.assertFalse(set(duty) & set(own))
+                self.assertEqual({**duty, **own}, pick, "和が今の writer_paragraphs の 7 つと同じ")
+
+    def test_every_head_sentence_is_in_the_main_before_the_split_and_in_the_assembled_writers(self):
+        """頭の文の表: HEADS_PIN の parts/<型>.md の字に在り、その型の書き手の組み上がった指示に在る。表の型は SEQUENCE の型の和と等しい"""
+        self.assertEqual(set(HEADS), {w for p in writers.SEQUENCE for w in writers.SEQUENCE[p]})
+        for w, sentences in HEADS.items():
+            old = flat(" ".join(git_show(f"{HEADS_PIN}:workflows/fix/prompts/parts/{writers.block_of(w)}.md",
+                                         f"parts/{writers.block_of(w)}.md")))
+            for sentence in sentences:
+                with self.subTest(weapon=w, sentence=sentence[:40]):
+                    self.assertIn(flat(sentence), old)
+                    for n in (n for n, x in nodes().items() if x == w):
+                        self.assertIn(flat(sentence), self.text[n], n)
 
     def test_python_built_rows(self):
         rules = kit.load("fix", "rules")
@@ -355,21 +428,11 @@ def requirements(shape, path="") -> set:
 
 
 class ReplyShapeCase(unittest.TestCase):
-    def test_writer_replies_keep_every_required_and_non_empty_field(self):
-        doc = yaml.safe_load((BLOCK / "works-factory-fix.yaml").read_text(encoding="utf-8"))
-        found = {}
-
-        def walk(ns):
-            for n in ns:
-                found[n["id"]] = n
-                walk((n.get("loop_group") or {}).get("nodes") or [])
-        walk(doc["nodes"])
+    def test_the_writer_reply_shape_keeps_every_required_and_non_empty_field(self):
+        shape = json.loads((kit.SHARED / "schemas" / "writer-reply.schema.json").read_text(encoding="utf-8"))
         base = requirements(BEFORE)
         self.assertGreater(len(base), 30)
-        for n in nodes():
-            with self.subTest(node=n):
-                got = requirements(found[n]["output_format"])
-                self.assertEqual(sorted(base - got), [], "PR A の前の修正役の返答の形から減った欄")
+        self.assertEqual(sorted(base - requirements(shape)), [], "PR A の前の修正役の返答の形から減った欄")
 
 
 if __name__ == "__main__":
