@@ -1548,6 +1548,9 @@ class TestVerifiedRewriteLeftOut(ContractCase):
                                         "refactor": {"declared": False, "why": ""}}])
         edits = conflict.edit_permits(self.board, "first")
         self.assertIn(REWRITE, edits["tests"], "事後の関門は id で許す")
+        orders = pathlib.Path(self.board) / "orders"   # 書き換えの約束は注文の permits の rewrite の行から読む
+        orders.mkdir(exist_ok=True)
+        (orders / "tdd.json").write_text(json.dumps({"permits": [{"kind": "rewrite", "test": REWRITE}]}), encoding="utf-8")
         text = rules.tests_rows(None, edits, facts.frozen_tests(self.board, self.record, "first"))
         self.assertNotIn(REWRITE, pasted_line(text, "- 本体を変えてよい既存のテストの名指し"))
         self.assertNotIn("ループが書き換えて凍らせた名指し", text)
@@ -2662,6 +2665,15 @@ class OutsideCase(Case):
         self.assertTrue(got["go"], got)
         return got["state_file"]
 
+    def base(self, state):
+        """受け付けが読む元の結末 base.json（輪の状態を置いた置き場の直下）。輪の状態の実行器・置き場・元の結末の欄を同じ名と形で写す
+        （basecase.take が組の頭で書く物と同じ読み手向けの欄）"""
+        st = common.load_state(state)
+        path = pathlib.Path(state).parent / "base.json"
+        path.write_text(json.dumps({k: st[k] for k in ("work", "exe", "suite", "baseline", "baseline_cases", "suite_made") if k in st},
+                                   ensure_ascii=False), encoding="utf-8")
+        return str(path)
+
     def write(self, rel, text):
         p = self.repo / rel
         p.parent.mkdir(parents=True, exist_ok=True)
@@ -2756,7 +2768,7 @@ class TestAcceptOutsideTier(OutsideCase):
         git(self.repo, "commit", "-q", "-m", "段の外の試験")
         state = self.begin()
         self.write(OUTSIDE, OUTSIDE_PASSING.replace("1 + 1, 2", "1 + 1, 3"))
-        probs, note = common.selected_problems(state, self.repo, "HEAD")
+        probs, note = common.selected_problems(self.base(state), self.repo, "HEAD")
         self.assertTrue(probs, f"版で通っていた段の外の試験の赤を受け付けが拾わない（知らせ: {note}）")
         self.assertEqual(len(probs), 1, "行はテストのファイルごと")
         self.assertIn("test_sum", probs[0])
@@ -2777,17 +2789,17 @@ class TestAcceptOutsideTier(OutsideCase):
         def copies():
             return [d for d in cwd_log.read_text(encoding="utf-8").splitlines()
                     if pathlib.Path(d).resolve() != self.repo.resolve()]
-        first = common.selected_problems(state, self.repo, "HEAD")
+        first = common.selected_problems(self.base(state), self.repo, "HEAD")
         self.assertTrue(first[0], first)
         self.assertEqual(len(copies()), 1, "版の写しで 1 回走る")
-        again = common.selected_problems(state, self.repo, "HEAD")
+        again = common.selected_problems(self.base(state), self.repo, "HEAD")
         self.assertEqual(again, first, "使い回しても判定は同じ")
         self.assertEqual(len(copies()), 1, "同じ版・同じ引数の 2 回目は版の写しを走らせない")
         (self.repo / "note.txt").write_text("x", encoding="utf-8")
         git(self.repo, "add", "note.txt")
         git(self.repo, "commit", "-q", "-m", "版を進める")
         self.write(OUTSIDE, OUTSIDE_PASSING.replace("1 + 1, 2", "1 + 1, 3"))
-        common.selected_problems(state, self.repo, "HEAD~0")
+        common.selected_problems(self.base(state), self.repo, "HEAD~0")
         self.assertEqual(len(copies()), 2, "版が変われば走らせ直す")
 
     def test_base_copy_args_lie_under_real_cwd(self):
@@ -2805,7 +2817,7 @@ class TestAcceptOutsideTier(OutsideCase):
         real.mkdir()
         link.symlink_to(real)
         with mock.patch.object(tempfile, "tempdir", str(link)):
-            first = common.selected_problems(state, self.repo, "HEAD")
+            first = common.selected_problems(self.base(state), self.repo, "HEAD")
         self.assertTrue(first[0], first)
         rows = [json.loads(line) for line in log.read_text(encoding="utf-8").splitlines()]
         copies = [(cwd, args) for cwd, args in rows if pathlib.Path(cwd) != self.repo.resolve()]
@@ -2832,7 +2844,7 @@ class TestAcceptOutsideTier(OutsideCase):
         state = self.begin()
         self.write(OUTSIDE, reads_git.replace(f'assertIn("{OUTSIDE}"', 'assertIn("heavy/nothing.py"'))
         branch = git(self.repo, "rev-parse", "--abbrev-ref", "HEAD")
-        probs, note = common.selected_problems(state, self.repo, "HEAD")
+        probs, note = common.selected_problems(self.base(state), self.repo, "HEAD")
         self.assertTrue(probs, f"版の写しで git を読めず、版でも赤と数えて新しい赤から外した（知らせ: {note}）")
         self.assertIn("test_lists_itself", probs[0])
         self.assertEqual(len(git(self.repo, "worktree", "list").splitlines()), 1, "比べた後に一時の木が残る")
@@ -2847,29 +2859,30 @@ class TestAcceptOutsideTier(OutsideCase):
         git(self.repo, "commit", "-q", "-m", "版でも赤の段の外の試験")
         state = self.begin()
         self.write(OUTSIDE, failing + "\n# 版と同じく赤のまま\n")
-        probs, note = common.selected_problems(state, self.repo, "HEAD")
+        probs, note = common.selected_problems(self.base(state), self.repo, "HEAD")
         self.assertEqual(probs, [], "版でも赤の試験は新しい赤に数えない")
         self.assertIn("新しい赤なし", note)
         self.assertIn("版の写しでも赤だったので外した 1 件", note)
         self.assertIn("test_sum", note, "外した試験の名を出す")
 
         self.write(OUTSIDE, OUTSIDE_PASSING)
-        _, quiet = common.selected_problems(state, self.repo, "HEAD")
+        _, quiet = common.selected_problems(self.base(state), self.repo, "HEAD")
         self.assertNotIn("外した", quiet, "外した物が 0 件なら何も足さない")
 
     def test_zero_selected_cases_are_not_reported_as_no_new_red(self):
         state = self.begin(EMPTY_RUNNER)
         p = self.repo / "stats.py"
         p.write_text(p.read_text(encoding="utf-8").replace("(len(xs) - 1)", "len(xs)"), encoding="utf-8")
-        probs, note = common.selected_problems(state, self.repo, "HEAD")
+        probs, note = common.selected_problems(self.base(state), self.repo, "HEAD")
         self.assertNotIn("新しい赤なし", note, "選んだ試験が 1 件も走らないのを緑に見せる（fail-open）")
         self.assertIn("0 件", " ".join(probs) + note)
         # 修正の受け付けはその知らせを捨てず、置き場の隣のファイル accept-trace.json に盤面の trace の行の形で積む
         # （元 works/blk-fix/scripts/accept.py:708 の TESTS_OP の行。読むのは最後の関所と報告）
         import impact
-        place = pathlib.Path(state).parent.parent
+        place = pathlib.Path(state).parent
+        self.base(state)
         for attempt in (1, 2):
-            board.accept_reply({"changes": []}, place, self.repo, pass_="first", iteration=attempt, owed=[], state=state,
+            board.accept_reply({"changes": []}, place, self.repo, pass_="first", iteration=attempt, owed=[],
                                   base_rev="HEAD")   # 輪は回していない（記録が無い）
         rows = json.loads((place / board.ACCEPT_TRACE_FILE).read_text(encoding="utf-8"))
         self.assertEqual([(r["op"], r["pass"], r["attempt"]) for r in rows],
@@ -2889,7 +2902,7 @@ class TestAcceptOutsideTier(OutsideCase):
                            + RUNNER)
         p = self.repo / "stats.py"
         p.write_text(p.read_text(encoding="utf-8").replace("(len(xs) - 1)", "len(xs)"), encoding="utf-8")
-        common.selected_problems(state, self.repo, "HEAD")
+        common.selected_problems(self.base(state), self.repo, "HEAD")
         runs = [json.loads(line) for line in argv_log.read_text(encoding="utf-8").splitlines()][1:]   # 頭は元の結末の回
         self.assertTrue(runs, "受け付けが実行器を走らせていない")
         for argv in runs:
@@ -2904,12 +2917,15 @@ class TestAcceptOutsideTier(OutsideCase):
         state = self.begin()
         p = self.repo / "stats.py"
         p.write_text(p.read_text(encoding="utf-8").replace("(len(xs) - 1)", "len(xs)"), encoding="utf-8")
-        probs, note = common.selected_problems(state, self.repo, "HEAD")
+        probs, note = common.selected_problems(self.base(state), self.repo, "HEAD")
         self.assertEqual(probs, [], note)
         self.assertIn("手元で回さなかった", note)
         self.assertIn(OUTSIDE, note)
         self.assertNotIn("test_stats.py", note.split("手元で回さなかった", 1)[1], "手元で走った試験を回さなかったと言う")
-        self.assertEqual(common.load_state(state).get("ci_left"), [OUTSIDE])
+        place = pathlib.Path(state).parent
+        self.assertEqual(common.accept_values(place).get("ci_left"), [OUTSIDE])
+        self.assertNotIn("ci_left", common.load_state(state), "受け付けは輪の状態に書き戻さず accept.json だけに書く")
+        self.assertNotIn("final_left", common.load_state(state))
 
     def env_red_case(self, runner):
         """直す前も後も同じ環境の壊れで赤の、stats を直に読む段の外の試験（版に在る）を置き、stats を直してから比べる準備"""
@@ -2925,7 +2941,7 @@ class TestAcceptOutsideTier(OutsideCase):
         """#846: 実行器が走らせる試験を差分から自分で選ぶ形でも、版の写しでは比べたい試験（元の結末に無い赤）を名指しで走らせる。
         版でも同じく赤なら新しい赤に数えない（差分の無い版の写しで比べたい試験が走らず、新しい赤と数えて組を戻した。run 96f35545）"""
         state = self.env_red_case(DIFF_RUNNER)
-        probs, note = common.selected_problems(state, self.repo, "HEAD")
+        probs, note = common.selected_problems(self.base(state), self.repo, "HEAD")
         self.assertEqual(probs, [], f"版の写しで比べたい試験を走らせず、前から赤の試験を新しい赤と数えた（知らせ: {note}）")
         self.assertIn("版の写しでも赤だったので外した", note)
         self.assertIn("test_env", note)
@@ -2935,18 +2951,18 @@ class TestAcceptOutsideTier(OutsideCase):
         （組を当てた後の確かめ直し）は新しい赤に数えず受け口に名指し、渡さない呼び（修正の受け付け）は今どおり赤のまま。
         版に試験のファイルが無い試験（この直しで足した）は比べるまでもなく新しい赤"""
         state = self.env_red_case(DIFF_ONLY_RUNNER)
-        probs, note = common.selected_problems(state, self.repo, "HEAD")
+        probs, note = common.selected_problems(self.base(state), self.repo, "HEAD")
         self.assertTrue(probs, "受け口の無い呼びが比べられなかった赤を黙って外した")
         self.assertIn("比べられず", probs[0])
         left = []
-        probs, note = common.selected_problems(state, self.repo, "HEAD", uncompared=left)
+        probs, note = common.selected_problems(self.base(state), self.repo, "HEAD", uncompared=left)
         self.assertEqual(probs, [], note)
         self.assertIn("test_outside.TestOutside::test_env", left)
         self.assertIn(f"比べられなかった {len(left)} 件", note)
         added = "heavy/test_added.py"
         self.write(added, ENV_RED_TEST.replace("TestOutside", "TestAdded"))
         left = []
-        probs, note = common.selected_problems(state, self.repo, "HEAD", uncompared=left)
+        probs, note = common.selected_problems(self.base(state), self.repo, "HEAD", uncompared=left)
         self.assertEqual(len(probs), 1, probs)
         self.assertIn("TestAdded", probs[0], "版に無いファイルの試験の赤を比べられなかったと数えた")
         self.assertNotIn("TestAdded", " ".join(left))
@@ -3007,7 +3023,7 @@ class TestDirectOnly(OutsideCase):
 
     def test_accept_runs_only_direct_tests_and_leaves_far_ones_to_final_stage(self):
         self.fix_stats()
-        probs, note = common.selected_problems(self.state, self.repo, "HEAD")
+        probs, note = common.selected_problems(self.base(self.state), self.repo, "HEAD")
         self.assertEqual(probs, [], note)
         self.assertEqual(self.runs()[-1], [None, ["-k", "test_stats"]], "先の試験を -k に入れた")
         self.assertEqual(common.final_left(self.accepted_at()), [WRAP_FAR])
@@ -3029,18 +3045,15 @@ class TestDirectOnly(OutsideCase):
         git(self.repo, "add", "-A")
         git(self.repo, "commit", "-q", "-m", "深さ 2 の動的 import")
         self.fix_stats()
-        probs, note = common.selected_problems(self.state, self.repo, "HEAD")
+        probs, note = common.selected_problems(self.base(self.state), self.repo, "HEAD")
         self.assertEqual(probs, [], note)
         self.assertEqual(self.runs()[-1], [None, ["-k", "test_stats"]], "遠くの分からない物で一式を回した")
         self.assertEqual(common.final_far(self.accepted_at()), ["dynamic-import: far_loader.py:6"])
         self.assertIn("far_loader.py", note.split("最後のテストの段に任せた", 1)[1])
 
     def test_accept_runs_tests_named_by_the_plan(self):
-        st = common.load_state(self.state)
-        st["contract"] = {MEAN: {"route": "tdd", "tests": [{"id": f"{WRAP_FAR}::TestFar::test_twice"}], "rewrites": []}}
-        pathlib.Path(self.state).write_text(json.dumps(st, ensure_ascii=False), encoding="utf-8")
-        self.fix_stats()
-        common.selected_problems(self.state, self.repo, "HEAD")
+        self.fix_stats()   # 修正案の約束の試験は注文の units[].tests として named で渡る（orders.named_tests）
+        common.selected_problems(self.base(self.state), self.repo, "HEAD", named=[f"{WRAP_FAR}::TestFar::test_twice"])
         self.assertEqual(self.runs()[-1], [None, ["-k", "test_far or test_stats"]], "修正案が名指す試験を回さない")
         self.assertEqual(common.final_left(self.accepted_at()), [])
 

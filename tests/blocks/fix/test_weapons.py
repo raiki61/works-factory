@@ -548,12 +548,21 @@ class AcceptTableCase(unittest.TestCase):
         """確かめ直しが照らす直す前の結末は、組の結果の欄 base の base.json の baseline_cases（輪の状態は読まない）"""
         row = {"classname": "test_stats", "name": "test_mean", "outcome": "failure"}
         base = self.put("g1/base.json", {"baseline_cases": [row]})
-        stale = self.put("g1/tdd-1/state.json", {"baseline_cases": [{**row, "outcome": "passed"}]})
+        stale = self.put("g1/tdd-1/state.json", {"baseline_cases": [{**row, "outcome": "passed"}]})   # 古い結果の輪の状態は読まない
         self.put("groups.json", {"out_dir": str(self.tmp / "out"), "groups": [{"group_id": "g1"}]})
         (self.tmp / "out" / "g1").mkdir(parents=True)
         (self.tmp / "out" / "g1" / "result.json").write_text(json.dumps(
-            {"end_tree": "t", "base": str(base), "tdd_state": str(stale)}), encoding="utf-8")   # 古い結果の欄名も読む（A。次の頼みで消す）
+            {"end_tree": "t", "base": str(base), "tdd_state": str(stale)}), encoding="utf-8")
         self.assertEqual(self.board.before_cases(self.place), [row])
+
+    def test_before_cases_do_not_fall_back_to_the_loop_state(self):
+        """組の結果に base が無ければ、輪の状態（tdd_state）の baseline_cases には逃げず、足さない"""
+        row = {"classname": "test_stats", "name": "test_mean", "outcome": "failure"}
+        stale = self.put("g1/tdd-1/state.json", {"baseline_cases": [row]})
+        self.put("groups.json", {"out_dir": str(self.tmp / "out"), "groups": [{"group_id": "g1"}]})
+        (self.tmp / "out" / "g1").mkdir(parents=True)
+        (self.tmp / "out" / "g1" / "result.json").write_text(json.dumps({"end_tree": "t", "tdd_state": str(stale)}), encoding="utf-8")
+        self.assertEqual(self.board.before_cases(self.place), [])
 
     def test_named_tests_come_from_the_orders(self):
         self.ordered({"T": "tdd"}, {"tdd": {"units": [{"key": "T", "tests": ["t.py::a", "t.py::a"]}],

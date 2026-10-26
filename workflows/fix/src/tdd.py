@@ -118,7 +118,7 @@ PLAN_DIRECT = "承認済みの修正案の route が direct（入力 routes: pla
 PLAN_NO_ROW = "承認済みの修正案にこの単位を持つ行が無い（入力 routes: plan は案の route に従い、行の無い単位は direct）"
 SESSION_KEY = "session_key"   # 状態の欄: 前の周の支度が組んだ単位の鍵（prep の new_unit の元。元 write_key の鍵）
 GAVE_UP_WHY = "機械が書いた申し出（TDD の確認が回数の上限まで通らなかった）: "   # 3 回拒まれた単位の申し出の why の頭
-STATE, PROMPT, SUMMARY, RECORD = fixnames.TDD_STATE_FILE, "next.md", "summary.md", fixnames.RECORD_FILE
+STATE, PROMPT, SUMMARY, RECORD = "state.json", "next.md", "summary.md", fixnames.RECORD_FILE   # STATE は輪の状態のファイルの名。名を持つのはこの部品だけ（輪の外は記録 RECORD を読む）
 # 実行器への合図（env）: 1 なら後ろに足した試験（ファイル・node id）だけを走らせてよい（既定の一式を集めない）。輪の赤・緑の回だけが
 # 付ける（元の結末・受け付け・版の写しは付けない）。解かない実行器は無視してよい（一式に足して走らせても確かめは同じ）
 ONLY_ENV = "TDD_SUITE_ONLY"

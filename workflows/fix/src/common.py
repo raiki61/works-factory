@@ -42,7 +42,7 @@ import oneline  # noqa: E402
 from leftovers import Unreadable, git, git_names  # noqa: E402
 
 
-STATE, PROMPT, SUMMARY, RECORD = fixnames.TDD_STATE_FILE, "next.md", "summary.md", fixnames.RECORD_FILE
+PROMPT, SUMMARY, RECORD = "next.md", "summary.md", fixnames.RECORD_FILE
 
 
 MIN_WHY = 10
@@ -472,18 +472,14 @@ def _verified(st) -> set:
             for t in u.get("tests") or []}
 
 
-def verified_rewrites(record_file) -> list[str]:
-    """約束の書き換えの名指し（修正案の rewrite_tests の id。書いたまま）のうち、輪が赤→緑を確かめた物。受け付けはこれを
-    テストの変更の許しから外す（conflict.ruled_test_limits の skip_ids。輪の後の修正役に確かめなしで書き換えさせない）。
-    確かめ済みか（route・green・tests）は輪の記録 record_file、約束の rewrites は記録の隣の輪の状態（state_of。A の側。次の頼みで
-    注文の permits に替わる）。記録が無い（輪の無い run）なら空"""
+def verified_rewrites(record_file, rewrites) -> list[str]:
+    """約束の書き換えの名指し rewrites（注文の permits の rewrite の行の test。書いたまま。orders.rewrite_ids）のうち、輪が赤→緑を
+    確かめた物。受け付けはこれをテストの変更の許しから外す（conflict.ruled_test_limits の skip_ids。輪の後の修正役に確かめなしで
+    書き換えさせない）。確かめ済みか（route・green・tests）は輪の記録 record_file。記録が無い（輪の無い run）なら空"""
     if not record_file or not pathlib.Path(record_file).is_file():
         return []
     done = _verified(_load(record_file))
-    state = state_of(record_file)
-    contract = (_load(state).get("contract") or {}) if state.is_file() else {}
-    ids = (i for c in contract.values() for i in c.get("rewrites") or [])
-    return [i for i in dict.fromkeys(ids) if _norm_id(i) in done]
+    return [i for i in dict.fromkeys(rewrites) if _norm_id(i) in done]
 
 
 def id_path(test_id: str) -> str:
@@ -904,12 +900,6 @@ def records(board_dir) -> list:
     return [p for _, p in sorted(got)]
 
 
-def state_of(record_file) -> pathlib.Path:
-    """輪の記録 record_file の隣の輪の状態のパス（A の側の読み手のため。受け付けの試験の選びが状態の exe・work・約束を読む間だけ。
-    次の頼みで状態の読み手と一緒に消える）"""
-    return pathlib.Path(record_file).with_name(STATE)
-
-
 def suite_made_all(board_dir) -> set:
     """run の全部の輪（records）の suite_made の和（書き込みの出どころの突き合わせと案の項目の照らしが外す）"""
     return {f for p in records(board_dir) for f in suite_made(p)}
@@ -932,7 +922,7 @@ def _args(root, files, kexpr) -> list:
     return [*_abs_paths(root, py), *(["-k", kexpr] if kexpr else [])]
 
 
-def selected_problems(state_file, repo, rev, uncompared=None, *, named=(), accept=None, seen=None) -> tuple:
+def selected_problems(base_file, repo, rev, uncompared=None, *, named=(), record=None, accept=None, seen=None) -> tuple:
     """(赤の文の一覧, 知らせ)。選ぶのは変更に直に関わる試験と名指しの試験（_named_files）だけで、届くだけの先の試験は
     final_left に残す。実行器の後ろに足すのは、選んだ試験のうちこの run で変えた・足したファイルだけ（ADR 0071 の
     3 の 1。届いただけの段の外の試験は手元で走らせない）。実行器の既定の一式の中は -k で選んだ全部のモジュールに絞る。
@@ -942,28 +932,25 @@ def selected_problems(state_file, repo, rev, uncompared=None, *, named=(), accep
     受け口 uncompared（並び）を渡す呼び（組を当てた後の確かめ直し。#846）は赤に数えずその鍵を足し、渡さない呼びは赤のまま。
     版に試験のファイルが無い試験（この直しで足した）は比べるまでもなく新しい赤。
     外した鍵と比べられなかった鍵は黙って捨てず、件数と名（頭の 20 件）を赤の行か知らせに出す。
-    state_file は輪の状態か元の結末 base.json（下書き docs/plans/2026-10-24-fix-weapons.md の 2.1。同じ名と形の欄を読む）。名指しは
-    named（注文の units[].tests と permits の rewrite の行。orders.named_tests）と、輪の状態なら今の _named_files の和（狭めない）。
-    書き戻す 4 つの欄（final_left・final_far・ci_left・suite_made の足し）は置き場の accept.json に書く（accept はそのフォルダ。None は
-    state_file が base.json ならその隣、輪の状態なら輪のフォルダの親。suite_made は前の回との和）。輪の状態にも今と同じく書く
-    （base.json は書き換えない）。seen（dict）を渡せば走らせた回の結末の行（走らなければ None）・訳・ログを seen の cases・why・log に
+    base_file は元の結末 base.json（下書き docs/plans/2026-10-24-fix-weapons.md の 2.1。実行器・置き場・元の結末・実行器が作ったファイルを
+    読む。呼び手が board.accept_base で選ぶ）。名指しは named（注文の units[].tests と permits の rewrite の行。orders.named_tests）と、
+    輪が名指した試験（record の units[].tests・test_files。_named_files）の和（狭めない）。record は輪の記録のファイルで、空・無ければ輪の
+    名指しは無い。書き戻す 4 つの欄（final_left・final_far・ci_left・suite_made の足し）は置き場の accept.json だけに書く（accept はその
+    フォルダ。None は base.json の隣。suite_made は前の回との和）。輪の状態には書かない（輪の状態の名は輪の中の部品だけが持つ）。
+    seen（dict）を渡せば走らせた回の結末の行（走らなければ None）・訳・ログを seen の cases・why・log に
     置く（変えない段の同じ結果の照らしと、受け付けの止め board.no_suite_at_accept）"""
-    if not state_file:
+    if not base_file:
         return [], NO_SUITE
-    st = _load(state_file)
-    is_base = pathlib.Path(state_file).name == fixnames.BASE_FILE
-    acc_dir = pathlib.Path(accept) if accept is not None else \
-        (pathlib.Path(state_file).parent if is_base else pathlib.Path(st["work"]).parent)
+    st = _load(base_file)
+    acc_dir = pathlib.Path(accept) if accept is not None else pathlib.Path(base_file).parent
     work = pathlib.Path(st["work"])
     m = impact.map(repo, rev=rev, diff=True, cache_dir=work / "impact")
-    names = sorted(set(_named_files(st)) | {posixpath.normpath(str(i).partition("::")[0]) for i in named or () if str(i).strip()})
+    names = sorted(set(_named_files(_load(record) if record and pathlib.Path(record).is_file() else {})) | {posixpath.normpath(str(i).partition("::")[0]) for i in named or () if str(i).strip()})
     sel = impact.select_tests(m, direct_only=True, named=names)
     st["final_left"], st["final_far"] = sel["left"], sel["far"]
     st.setdefault("suite_made", [])
 
     def save():
-        if not is_base:
-            _save(state_file, st)
         acc = accept_values(acc_dir)
         jsonfile.write(acc_dir / fixnames.ACCEPT_FILE, {**acc, "final_left": st["final_left"], "final_far": st["final_far"],
                                                      "ci_left": st.get("ci_left", []),
@@ -1055,11 +1042,9 @@ def _left_to_ci(selected, run_files, cases) -> list:
     return [t for t in selected if t not in run_files and impact._mod(t) not in ran]
 
 
-def _named_files(st) -> list:
-    """修正案の約束の受け入れ・書き換えのテストと、輪で名指したテストのファイル（根からの相対。受け付けは直に関わる試験に足す）"""
-    ids = [t.get("id", "") if isinstance(t, dict) else str(t)
-           for c in (st.get("contract") or {}).values() for t in [*(c.get("tests") or []), *(c.get("rewrites") or [])]]
-    ids += [t for u in (st.get("units") or {}).values() for t in [*(u.get("tests") or []), *(u.get("test_files") or [])]]
+def _named_files(record) -> list:
+    """輪が名指したテストのファイル（輪の記録 record の units[].tests・test_files。根からの相対。受け付けは直に関わる試験に足す）"""
+    ids = [t for u in (record.get("units") or {}).values() for t in [*(u.get("tests") or []), *(u.get("test_files") or [])]]
     return sorted({posixpath.normpath(i.partition("::")[0]) for i in ids if i and i.strip()})
 
 

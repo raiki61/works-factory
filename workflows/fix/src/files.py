@@ -41,7 +41,6 @@ ACCEPT_TRACE_FILE = "accept-trace.json"     # 受け付けが選んだ試験を�
 WRITER_REPORT_FILE = "writer-report.json"   # 型の block の書き手の報告の行 [{weapon, line}]（受け付けが積む。出力 report が読む）
 CLOSURE_FILE = "closure.json"               # 閉鎖の表 {rows, claimed}（出力 closure）
 REMOVED_FILE = "fix-removed.json"           # clean が消したパスの全件（lib/leftovers.py が同じ字で書く）
-TDD_STATE_FILE = "state.json"               # TDD の輪の状態（tdd-<k>/ の中）
 ROUTE_FILE = "route.json"                   # 振り分けの段の状態（place 直下。route-go が置き、route-step が進め、orders が読んで輪の状態を作る）
 RECORD_FILE = "record.json"                 # TDD の輪の記録（tdd-<k>/ の中。輪が抜ける時に書く。形は schemas/tdd-record.schema.json）
 
@@ -59,7 +58,7 @@ WRITER_FILE = "writer.json"    # 今回している型の書き手 {pass, weapon
 FROZEN_FILE = "frozen.json"        # 輪ごとの凍ったテストのファイルの hash {loops: [{state, frozen, frozen_tree}]}（出力 frozen）
 SCOPE_FILE = "scope.json"          # {plan_items, ruled_paths, agreed}（出力 scope）
 CARRY_FILE = "carry.json"          # 次の修正の段への申し送り {conflicts, loops}（出力 carry → port prior）
-PRIOR_DIR = "prior"                # port prior の束を置き直すフォルダ（prior/tdd-<k>/state.json・summary.md・conflicts.json）
+PRIOR_DIR = "prior"                # port prior の束を置き直すフォルダ（prior/tdd-<k>/record.json・summary.md・conflicts.json）
 RULED_REPLY_FILE = "fix-ruled-reply.json"
 DIFF_FILE = "fix.diff"
 DIFF_NONE_FILE = "fix-diff-none.txt"
