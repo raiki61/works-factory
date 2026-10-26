@@ -4,7 +4,7 @@
 - 試験が無いかの印 no_tests の決め（src/basecase._no_tests。4.4 の作る物 12 の 5 つの場合と、宣言を読む木）。どの試験も対象の試験を
   走らせない（持ち主の決め base-runs-nothing。走らせるのは試験の一覧のコマンドだけ）
 - 確かめの表（src/duties.py）の形の決まりと、型の義務の関数（static・pin・remove・variant・rebuild）
-- 口の形（schemas/weapon-order.schema.json・weapon-return.schema.json）
+- 口の形（.shared/schemas/weapon-order.schema.json・schemas/weapon-return.schema.json）
 - 共通の受け付けが型の義務の表を引く口（duties.accept_problems）・赤を見ない clean の照らしを当てる単位（board.red_units・
   recount の red_units）・返しの控えを書く所（duties.write_returns）・返しの控えの凍結の照らし（duties.frozen_by_returns）・
   受け付けの名指しの出どころ（orders.named_tests）（4.4 の 4）
@@ -253,7 +253,8 @@ class WeaponDutiesCase(unittest.TestCase):
 
 class SchemaCase(unittest.TestCase):
     def load(self, name):
-        return json.loads((BLOCK / "schemas" / name).read_text(encoding="utf-8"))
+        folder = kit.SHARED if name in ("weapon-order.schema.json", "writer-slots.schema.json") else BLOCK   # 注文・書き手の形は pack の共通（段 2 の D1）
+        return json.loads((folder / "schemas" / name).read_text(encoding="utf-8"))
 
     def test_an_order_and_a_return_hold_the_shape(self):
         order = {"weapon": "variant", "group": "g1", "stage": 1, "since": "abc", "base": "/p/base.json",
@@ -280,6 +281,13 @@ class SchemaCase(unittest.TestCase):
                                 "申し出の語は lib/conflicts.schema.json と同じ語だけ")
         self.assertEqual(validate_schema({**order, "base": ""}, self.load("weapon-order.schema.json")), [],
                          "元の結末の無い組（裁定の後の段で写した元の結末が無い時）の注文は base が空")
+
+    def test_writer_slots_shape_requires_every_key(self):
+        """段 2 の D1 で .shared/schemas/ に置いた writer-slots は、values・when の全部の鍵を required に持つ"""
+        slots = self.load("writer-slots.schema.json")
+        self.assertEqual(set(slots["required"]), {"values", "when", "subagents", "summary_file"})
+        for key in ("values", "when"):
+            self.assertEqual(set(slots["properties"][key]["required"]), set(slots["properties"][key]["properties"]))
 
 
 class AcceptTableCase(unittest.TestCase):
@@ -482,7 +490,7 @@ class RuledOrderCase(unittest.TestCase):
         var = json.loads((self.place / "orders" / "variant.json").read_text(encoding="utf-8"))
         self.assertEqual([(u["key"], u.get("checked_as")) for u in var["units"]], [("T", "tdd"), ("X", None)])
         self.assertEqual(self.orders.checked_as(self.place), {"T": "tdd", "S": "static"})
-        schema = json.loads((BLOCK / "schemas" / "weapon-order.schema.json").read_text(encoding="utf-8"))
+        schema = json.loads((kit.SHARED / "schemas" / "weapon-order.schema.json").read_text(encoding="utf-8"))
         self.assertEqual(validate_schema(var, schema), [])
         self.assertTrue(self.orders.is_ruled(self.place))
         (self.place / "prior").mkdir()
