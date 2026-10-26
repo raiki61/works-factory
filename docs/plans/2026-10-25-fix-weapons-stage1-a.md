@@ -92,6 +92,6 @@ B とした物の行き先は 6 節。
 - 守れない依存 `unsatisfied` を報告に出す（5 節の「後に回した nit」の行）: 段 2。訳: PR B は型を順に回す並びを入れたが、依存の辺で並べ替えず（`docs/plans/2026-10-25-fix-weapons-stage1-b.md` の 1 節の 2）、守れない対は今も索引 `orders.json` に名で残る。報告の節は段 2 で組の結果の形と一緒に足す。
 - 注文の形の欄 `run`・`asks_answered`・`orders.<weapon>`（`workflows/fix/schemas/weapon-order.schema.json` の description。3 節の最後から 2 つ目の段落）: 段 2。訳: 中身を決める書き手の指示は PR B で入ったが、PR B はこの 3 欄を書かせていない。段 2 で注文が型の block の port になる時に、形と書き手を一緒に足す。
 
-上の 8 項目の置き場は、段 2 の設計の下書き `docs/plans/2026-10-24-fix-weapons.md` の 11.12（第 13 版。設計の部署の枝 `work/design-seat` の commit dafa015f）が決める。項目ごとの置き場（F1・F2・F3・E1 の `orders.tdd`、`na` は持ち主に聞く）と訳は 11.12 を見る。
+上の 8 項目の置き場は、段 2 の設計の下書き `docs/plans/2026-10-24-fix-weapons.md` の 11.12（第 13 版。main に入る前の、設計の部署の枝 `work/design-seat` の commit dafa015f の版。段 2 の章は別の PR で main に入る）が決める。項目ごとの置き場（F1・F2・F3・E1 の `orders.tdd`、`na` は持ち主に聞く）と訳は 11.12 を見る。
 
 上の 8 項目のほかに 1 つ、PR #874 の再レビュー（受付 20261025-230146-c09c8f）の nit も段 2 へ回す。付録 A の F21 の行の残り（「You are the fixer. … and fix the units you owe a fix on the working tree.」）を型ごとに言い直した頭（`workflows/fix/prompts/parts/static.md:6` などの「You are the <型> writer, a fixer. …」）は、観点の表の照らし（`tests/blocks/fix/test_assets.py`）で照らしていない（言い直した頭の文が減っても赤にならない）。F135 の行の残りと同じ形（表の行の `rest` を全部の書き手で照らす）では塞げない。TDD の書き手 `tdd-close` の頭が別の字で言い直しているためで、型ごとの字を表に持つ形が要る。段 2 で型ごとの頭が型の block の指示に移る時に、型ごとの頭の字を照らす形を一緒に決める。

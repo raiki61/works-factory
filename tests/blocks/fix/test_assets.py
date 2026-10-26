@@ -3,7 +3,8 @@
 
 - 表 appendix-a.json: 付録 A の行（番号・行き先・出どころ）と、その行の英語の文（移す前の指示の行の字。差し込み口は {名} のまま）。番号と
   行き先と出どころ（節の見出しが名指す置き場。機械の行 machine は A.8 の行だけ）は付録 A の本文から機械で読み直して照らし（表と付録 A が
-  食い違えば赤。from を machine に替えて照らしを飛ばすこともできない）、行き先ごとの数（共通 156・variant 29・変える 4・
+  食い違えば赤。from を machine に替えて照らしを飛ばすこともできない。機械の行が引く置き場は .py のファイルに限るので、
+  md の行を A.8 へ動かす・見出しを Python に替えて machine にすることもできない）、行き先ごとの数（共通 156・variant 29・変える 4・
   消す 11。範囲の番号 F17〜F20 などは広げて数える）も照らす。
 - 表の文の出どころ: 表の各行の文が、付録 A の本文がその行に引く置き場の行（`:4`・`brief.md:2-4` など）の、付録 A の行番号の版
   （PIN。#865 の後で #866 の前の main）の字に在る。表と指示の md を一緒に書き換えても、git の履歴の字は変わらないので赤になる
@@ -189,6 +190,16 @@ class TableCase(unittest.TestCase):
                 self.assertLessEqual(set(r), {"id", "to", "from", "text", "rest"})
                 if "rest" in r:   # 残りは全部の書き手に照らすので、消す行・機械の行には置けない
                     self.assertTrue(r["to"] != "消す" and r["from"] == "writer" and r["rest"], "残りを置けない行")
+
+    def test_machine_rows_cite_only_python(self):
+        """機械の行（from が machine）が付録 A の本文で引く置き場は、全部 .py のファイル（指示の md の行を machine にして照らしを飛ばせない）"""
+        sources = appendix_sources()
+        for r in ROWS:
+            if r["from"] != "machine":
+                continue
+            with self.subTest(row=r["id"]):
+                paths = [p for refs in sources.get(r["id"], []) for p, _, _ in refs]
+                self.assertTrue(paths and all(p.endswith(".py") for p in paths), f"機械の行が .py でない置き場を引く: {paths}")
 
     def test_counts_by_destination_match_appendix_a(self):
         got = {k: 0 for k in COUNTS}
