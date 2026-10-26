@@ -7,7 +7,7 @@ works-factory は、修正依頼を受けて確かめ済みの変更と報告を
 
 1. YAML はつなぐだけ。値はコードが計算し、判断は AI がする（Archon の憲法の "YAML coordinates. Code computes. Agents judge."）。
 2. AI のノードの指示は、そのノードの md 1 本に英語で書く。Python は指示の文を持たず、md の `{name}` に値を渡す。
-3. block は宣言した port だけで受け渡しし、ほかの block を名指さない。つなぐのは graph だけ。
+3. block は宣言した port だけで受け渡しし、ほかの block を名指さない。つなぐのは graph だけ。外しは 1 つ: AI の node を持つ block も、葉の block（ほかの workflow を名指さず、入口の node がどれも script か bash の block）だけは `include:` してよい（持ち主の決め `leaf-include`）。
 4. 1 つの block だけが使うコードは、その block のフォルダに置く。`lib/` には 2 つ以上の block が使う物だけを置く。
 5. どの block も、文とリポジトリだけで単独で回る。block ごとの standalone の fixture で確かめる。
 6. 機械の検査は yes/no の形の決まりだけにする。数の上限や許す物の表では縛らず、間違った書き方を API と置き場の形で書けなくする。
