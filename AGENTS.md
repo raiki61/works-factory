@@ -7,7 +7,7 @@ works-factory は、修正依頼を受けて確かめ済みの変更と報告を
 
 1. YAML はつなぐだけ。値はコードが計算し、判断は AI がする（Archon の憲法の "YAML coordinates. Code computes. Agents judge."）。
 2. AI のノードの指示は、そのノードの md 1 本に英語で書く。Python は指示の文を持たず、md の `{name}` に値を渡す。
-3. block は宣言した port だけで受け渡しし、ほかの block を名指さない。つなぐのは graph だけ。
+3. block は宣言した port だけで受け渡しし、ほかの block を名指さない。つなぐのは graph だけ。外しは 1 つ: AI の node を持つ block も、葉の block（ほかの workflow を名指さず、入口の node がどれも script か bash の block）だけは `include:` してよい（持ち主の決め `leaf-include`）。
 4. 1 つの block だけが使うコードは、その block のフォルダに置く。`lib/` には 2 つ以上の block が使う物だけを置く。
 5. どの block も、文とリポジトリだけで単独で回る。block ごとの standalone の fixture で確かめる。
 6. 機械の検査は yes/no の形の決まりだけにする。数の上限や許す物の表では縛らず、間違った書き方を API と置き場の形で書けなくする。
@@ -69,7 +69,7 @@ works-factory/
 │   │   ├── schemas/             json の port の形
 │   │   └── fixtures/            筋書き（standalone.stubs.yaml は必ず置く）
 │   ├── <graph>/                 block を include でつなぐ graph（line・chain・judge・eyes・policy-check）。形は block と同じ。手本は policy-check
-│   └── .shared/                 pack の共通の部品（AGENTS.md が口の一覧）。口 ports.py・prompt.py・requestrows.py・2 つ以上の block が使う断片 prompts/ と形 schemas/・埋め（E2）
+│   └── .shared/                 pack の共通の部品（AGENTS.md が口の一覧）。口 ports.py・prompt.py・requestrows.py・writerblock.py・2 つ以上の block が使う断片 prompts/ と形 schemas/・埋め（E2）
 ├── lib/                         助け手（AGENTS.md が E3）。Archon を知らない Python で、2 つ以上の block（か graph か bin/）が使う物だけ
 │   ├── borrow/                  借りた superpowers の写しと固定（borrow.json）・継ぎ目の表（seams.json）・無人の読み替え（unattended.md）。読み口は lib/spseam.py
 │   ├── graphloops/engine/       元の graphloops の小道具のうち残る 3 つ（declared.py・schema.py・util.py）

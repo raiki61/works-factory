@@ -41,12 +41,6 @@ def shown(value) -> str:
     return str(value) if str(value or "").strip() else EMPTY
 
 
-def round_file(place, node_id: str) -> pathlib.Path | None:
-    """node の組んだ 1 回目の指示のファイル（無ければ None。読んだ証拠が段を起こしたかを見る）"""
-    path = pathlib.Path(place) / f"{node_id}-prompt-1.md"
-    return path if path.is_file() else None
-
-
 def _starts(values: dict) -> tuple[dict, dict]:
     """方針の文書と依頼のファイルの値と段落（今の fixrules.start_lines）"""
     policy = str(values.get("policy_path") or "").strip()
@@ -88,15 +82,26 @@ def writer_when(weapon: str) -> dict:
 
 def writer_paragraphs(weapon: str) -> dict:
     """型 weapon が選ぶ書き手の md の段落の真偽（writer_when を段落の名に引いた物。決まりの段落 rules・相談の段落 ask・下請けの項目が在る時に
-    だけ効く。writer_values が使い、tests/blocks/fix/test_assets.py が組んだ指示の照らしに使う）"""
+    だけ効く。writer_values が使い、tests/workflows/test_weapon_assets.py が組んだ指示の照らしに使う）"""
     k = writer_when(weapon)
     return {"ask_variant": k["variant"], "rules_change": k["change"], "rules_sites": k["sites"], "rules_red": k["red"],
             "conflict_change": k["change"], "spawns": k["variant"], "g1": k["variant"]}
 
 
-def writer_values(place, repo, pass_: str, weapon: str, values: dict, *, owed, items=None, sources=None, green=frozenset(),
-                  frozen=None, shared=None, saved_reply: str = "") -> tuple[dict, dict, dict]:
-    """型 weapon の書き手の指示の (値, 段落, 周の控え {iteration, kinds, ledger})。今の修正役の組み立ての順のまま（fixrules.prep）。
+# 型の block の slots の values・when の鍵（形 .shared/schemas/writer-slots.schema.json の required と等しい。tests/blocks/fix/test_prompts.py が照らす）。
+# 型が持つ値と段落（first_prompt・unattended・overlay_file・summary_file・g1_items と spawns・g1・ask_variant）は slots に入れない
+SLOT_VALUES = ("rejection rulings_file saved_reply brief_rows faces_rows scope_rows tests_rows tests_how policy_path request_file "
+               "judgment_file open_units plan_file notes_file budget draft check_cmd ripple_file libdocs_rows answer_file left lang").split()
+SLOT_WHEN = ("rejected rulings_first ruled_reply briefs faces scope tests tests_new tests_tail tests_broken frozen_files tests_how rules ask "
+             "ask_ripple libdocs resume queued overflow_answer conflict docs prompts_kind config code evidence where_writer where_tdd "
+             "where_rework rules_change rules_sites rules_red conflict_change policy no_policy request no_request").split()
+DUTY_WHEN = ("rules_change", "rules_sites", "rules_red", "conflict_change")   # 義務の表から引く段落（型の block は義務の表を知らない）
+
+
+def _slots(place, repo, pass_: str, weapon: str, values: dict, *, owed, items=None, sources=None, frozen=None, shared=None,
+           saved_reply: str = "", **_unused) -> tuple[dict, dict, dict]:
+    """型 weapon の書き手の slots {values, when, subagents, summary_file} と周の控え {iteration, kinds, ledger}、writer の続きが要る物
+    {briefs, config, owed_keys, values, continuing}。今の修正役の組み立ての順のまま（fixrules.prep）。型が持つ値と段落は組まない。
     範囲の相談の答えの後・はみ出しを相談に積んだ周は続きの段落だけ（回の数え直しをしない）。brief の控えが壊れていれば Broken"""
     from src import writers
     place = pathlib.Path(place)
@@ -106,31 +111,24 @@ def writer_values(place, repo, pass_: str, weapon: str, values: dict, *, owed, i
     except ValueError as e:
         raise Broken(str(e)) from None
     ledger = writers.ledger(place, pass_, weapon)
-    slots = ("rejection rulings_file saved_reply brief_rows faces_rows scope_rows tests_rows tests_how policy_path request_file "
-             "judgment_file open_units plan_file notes_file budget draft check_cmd ripple_file libdocs_rows g1_items "
-             "unattended overlay_file first_prompt answer_file left lang").split()
-    slots += ["summary_file"] if weapon == "tdd" else []   # 輪の要約を読むのは tdd の閉じの書き手だけ（付録 A の F26 の前半）
-    vals = {k: "" for k in slots}
-    when = {k: False for k in ("rejected rulings_first ruled_reply briefs faces scope tests tests_new tests_tail tests_broken frozen_files tests_how rules ask ask_ripple libdocs g1 "
-                               "resume queued overflow_answer conflict docs prompts_kind config code evidence where_writer where_tdd where_rework "
-                               "ask_variant rules_change rules_sites rules_red conflict_change").split()}
+    vals = {k: "" for k in SLOT_VALUES}
+    when = {k: False for k in SLOT_WHEN}
     when["conflict"] = True
     when["conflict_change"] = kind["conflict_change"]   # 申し出の種類 not_red は変える段の書き手だけ（付録 A の W24）
-    when["spawns"] = kind["spawns"]   # 下請けを起こすのは variant の書き手だけ（Agent を持つ。query-rule の下請けへの渡しの段落）
     start_vals, start_when = _starts(values)
     vals.update(start_vals, lang=prompt.lang(runvals.read(place)["lang"]))
     when.update({k: False for k in start_when})
+    slots = {"values": vals, "when": when, "subagents": {}, "summary_file": ""}   # subagents は D1 の間は空（下請けは variant の node のまま）
     from src import consult
-    vals["first_prompt"] = str(place / f"{writers.node(pass_, weapon)}-prompt-1.md")   # 続きの周が読み直す、1 回目に組んだ指示のファイル
     got = consult.take(place, pass_)
     if got is not None:   # 範囲の相談の答えの後の周: 答えのファイルを名指すだけ（受け付けの回は数え直さない）
         rv = rules.resume_values(got)
         vals.update(answer_file=rv["answer_file"], left=rv["left"])
         when["overflow_answer" if rv["overflow"] else "resume"] = True
-        return vals, when, {"iteration": max(1, rules.iteration_next(ledger) - 1), "kinds": None, "ledger": ledger}
+        return slots, {"iteration": max(1, rules.iteration_next(ledger) - 1), "kinds": None, "ledger": ledger}, {"continuing": True}
     if consult.queued(place, pass_):   # 受け付けがはみ出しを相談に積んだ周
         when["queued"] = True
-        return vals, when, {"iteration": max(1, rules.iteration_next(ledger) - 1), "kinds": None, "ledger": ledger}
+        return slots, {"iteration": max(1, rules.iteration_next(ledger) - 1), "kinds": None, "ledger": ledger}, {"continuing": True}
     n = rules.iteration_next(ledger)
     when.update(start_when, rules=True, tests=True, tests_tail=True)   # テストの節は修正案の有無によらずいつも載る
     when.update({k: kind[k] for k in ("rules_change", "rules_sites", "rules_red")})
@@ -164,39 +162,59 @@ def writer_values(place, repo, pass_: str, weapon: str, values: dict, *, owed, i
     when["frozen_files"] = bool((frozen or {}).get("files"))
     vals["tests_how"] = board.tests_how_text(place)
     when["tests_how"] = bool(vals["tests_how"])
-    for key in ("judgment_file", "open_units", "plan_file", "notes_file", *(["summary_file"] if weapon == "tdd" else [])):
+    for key in ("judgment_file", "open_units", "plan_file", "notes_file"):
         vals[key] = shown(values.get(key))
+    if weapon == "tdd":   # 輪の要約を読むのは tdd の閉じの書き手だけ（付録 A の F26 の前半）。続きの周は組まない
+        slots["summary_file"] = shown(values.get("summary_file"))
     config = rules.ask_config(place, repo, values, pass_, items=items)
     if config:
         vals.update(budget=str(consult.BUDGET), draft=str(pathlib.Path(config).parent / rules.ASK_DRAFT), check_cmd=_check_cmd(config))
         when["ask"] = True
-        when["ask_variant"] = kind["ask_variant"]
         ripple = str(values.get("ripple_file") or "").strip()
         if ripple:
             vals["ripple_file"] = ripple
             when["ask_ripple"] = True
-    subs = rules.dispatched(owed_keys, green) if kind["g1"] else []   # 項目ごとの下請けは variant だけ（付録 A の F101）
-    try:
-        seat.pinned()   # 写しの照合を、下請けのファイルの書き込みとライブラリの文書の引きより前に
-        if subs:
-            vals["g1_items"] = "\n".join(f"- {rules.g1_row(r)}" for r in g1_files(place, values, repo, subs, briefs, config))
-            when["g1"] = True
-        vals["unattended"] = seat.overlay_body(seat.OVERLAY_KINDS["fix"]).rstrip("\n")
-        vals["overlay_file"] = OVERLAY_FILE
-    except ValueError as e:
-        raise Broken(f"修正役の座を組めない: {e}") from None
     vals["libdocs_rows"] = _libdocs_rows(rules.lib_section(place, repo, values, shared))
     when["libdocs"] = bool(vals["libdocs_rows"])
     kinds = rules.kinds_for(ledger, values, repo)
     when.update(_kinds_when(kinds, "writer"))
-    return vals, when, {"iteration": n, "kinds": kinds, "ledger": ledger}
+    return (slots, {"iteration": n, "kinds": kinds, "ledger": ledger},
+            {"continuing": False, "briefs": briefs, "config": config, "owed_keys": owed_keys, "values": values})
+
+
+def writer_slots(place, repo, pass_: str, weapon: str, values: dict, **kw) -> tuple[dict, dict]:
+    """型 weapon の書き手の slots（形 .shared/schemas/writer-slots.schema.json）と周の控え {iteration, kinds, ledger}。型を問わない値と
+    段落だけを組む（型が持つ物は型の block の本体 .shared/writerblock.py が足す）。義務の表から引く段落（DUTY_WHEN）はここで引く。
+    **kw は owed（今直す単位。必須）・items・sources・green・frozen・shared・saved_reply（green は下請けを起こす単位を引く variant の
+    node の分で、D1 の間 slots の subagents は空なので、ここでは使わない）。控えは呼び手が slots を型の block に渡せた後に rules.remember に渡す"""
+    slots, rnd, _ = _slots(place, repo, pass_, weapon, values, **kw)
+    return slots, rnd
 
 
 def writer(place, repo, pass_: str, weapon: str, values: dict, **kw) -> dict:
-    """型 weapon の書き手の指示を組んで place に書く。返り {prompt, iteration}"""
+    """fix の node のまま残る書き手（D1 の間は variant）の指示を組んで place に書く。返り {prompt, iteration}。slots を writer_slots と
+    同じ組み方で組み、型が持つ値と段落（今の writer_values が組んでいた first_prompt・unattended・overlay_file・summary_file・g1_items と
+    spawns・g1・ask_variant）をここで足す。D2 で variant も型の block になれば、この関数と下請けのファイルを組む g1_files は外れる"""
     from src import writers
-    vals, when, rnd = writer_values(place, repo, pass_, weapon, values, **kw)
+    slots, rnd, more = _slots(place, repo, pass_, weapon, values, **kw)
     node = writers.node(pass_, weapon)
+    kind = writer_paragraphs(weapon)
+    vals, when = slots["values"], slots["when"]
+    vals.update(first_prompt=str(pathlib.Path(place) / f"{node}-prompt-1.md"), unattended="", overlay_file="", g1_items="")   # 続きの周が読み直す、1 回目に組んだ指示のファイル
+    if weapon == "tdd":
+        vals["summary_file"] = slots["summary_file"]
+    when.update(spawns=kind["spawns"], g1=False, ask_variant=kind["ask_variant"] and when["ask"])   # 下請けを起こすのは variant の書き手だけ（Agent を持つ）
+    if not more["continuing"]:
+        subs = rules.dispatched(more["owed_keys"], kw.get("green", frozenset())) if kind["g1"] else []   # 項目ごとの下請けは variant だけ（付録 A の F101）
+        try:
+            seat.pinned()   # 写しの照合を、下請けのファイルの書き込みより前に
+            if subs:
+                vals["g1_items"] = "\n".join(f"- {rules.g1_row(r)}" for r in g1_files(place, more["values"], repo, subs, more["briefs"], more["config"]))
+                when["g1"] = True
+            vals["unattended"] = seat.overlay_body(seat.OVERLAY_KINDS["fix"]).rstrip("\n")
+            vals["overlay_file"] = OVERLAY_FILE
+        except ValueError as e:
+            raise Broken(f"修正役の座を組めない: {e}") from None
     try:
         out = prompt.emit(node, vals, when, prompt.round_of(node))
     except prompt.PromptError as e:

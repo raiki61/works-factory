@@ -394,8 +394,10 @@ def unknown_keywords(shape, at: str = "$") -> list[str]:
                 out += [hit for name, child in sub.items() for hit in unknown_keywords(child, f"{at}.{key}.{name}")]
             elif key not in KNOWN_KEYWORDS:
                 out.append(f"{at}.{key}")
-            elif key in ("items", "additionalProperties"):
+            elif key in ("items", "additionalProperties", "if", "then", "not"):
                 out += unknown_keywords(sub, f"{at}.{key}")
+            elif key == "allOf" and isinstance(sub, list):
+                out += [hit for i, part in enumerate(sub) for hit in unknown_keywords(part, f"{at}.allOf[{i}]")]
     return out
 
 

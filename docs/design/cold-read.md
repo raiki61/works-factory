@@ -77,7 +77,7 @@ script の node はどれも `runtime: uv`・`mutates_checkout: false`。受け�
 
 ### 1.6 つなぎ方（graph の側。block には書かない）
 
-- report の書き手の往復（書く → 読む → 通らなければ書き直す、3 回まで）は、report の block が自分の中に持つ。report の中の初見の読み手の node は、この block を include せず（block は `include:` を持てない）、同じ断片 `{shared:role-cold-reader}` に report の断片 `{shared:report-head-check}` を足した自分の md で組む。訳（report の設計書の決め）: 書き手の回ごとの受け付けが同じ回の読み手の判定で決まる・読み手の後に受け付けの node を graph に置くと憲法の 3 に触れる・report を単独で回した時にも初見の確かめが要る。
+- report の書き手の往復（書く → 読む → 通らなければ書き直す、3 回まで）は、report の block が自分の中に持つ。report の中の初見の読み手の node は、この block を include せず（この block は葉の block〔入口が script の `cold-prep`〕なので、外しの後は AI の node を持つ report も include できる〔持ち主の決め `leaf-include`〕。report は外しの前に決めた自前の node の形のまま。include に替えるかは決めていない）、同じ断片 `{shared:role-cold-reader}` に report の断片 `{shared:report-head-check}` を足した自分の md で組む。訳（report の設計書の決め）: 書き手の回ごとの受け付けが同じ回の読み手の判定で決まる・読み手の後に受け付けの node を graph に置くと憲法の 3 に触れる・report を単独で回した時にも初見の確かめが要る。
 - だから、初見の読み手の役の定義（道具なし・正当化しない・判断できる事とできない事を分ける・無言の省略を作らない）は断片 `role-cold-reader` の 1 か所に在り、この block と report の両方が差し込む。複数の作業を切り替える読み手の段落と返し方は、この block の md と report の md の両方に在る（2.6 の「写した」）。
 - この block の使い道: 工場が人に見せる文（承認ノードの文・PR の本文・設計書の草稿など）を、どの graph からでも、または単独で初見の確かめに通す。今そういう配線は無い。`with:` は `text` ← 確かめる本文のファイル・`lang` ← 始めの記録の lang。
 - 読み手: 呼んだ graph（`pass`・`stuck`・`stops`・`guessed`）と報告の事実の行（`report`）。

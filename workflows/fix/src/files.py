@@ -38,6 +38,7 @@ FIX_REPLY_FILE = "fix-reply.json"      # 組ごとの修正役の返答をまと
 # 今の lib/fixnames.py の名（出力の欄の先）
 ALLOWED_TESTS_FILE = "allowed-tests.json"   # 許したテストの変更の訳 [{path, permit, source}]（出力 allowed_tests）
 ACCEPT_TRACE_FILE = "accept-trace.json"     # 受け付けが選んだ試験を走らせた回の行の並び（出力 accept_trace）
+WRITER_REPORT_FILE = "writer-report.json"   # 型の block の書き手の報告の行 [{weapon, line}]（受け付けが積む。出力 report が読む）
 CLOSURE_FILE = "closure.json"               # 閉鎖の表 {rows, claimed}（出力 closure）
 REMOVED_FILE = "fix-removed.json"           # clean が消したパスの全件（lib/leftovers.py が同じ字で書く）
 TDD_STATE_FILE = "state.json"               # TDD の輪の状態（tdd-<k>/ の中）

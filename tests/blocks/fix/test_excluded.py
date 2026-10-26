@@ -9,6 +9,7 @@ import unittest
 from tests.bin import hermetic
 from tests.bin.gitkit import git
 from tests.blocks import kit
+from tests.blocks.fix import support
 
 RUNNER = pathlib.Path(__file__).resolve().parents[3] / "workflows" / "fix" / "fixtures" / "tdd-runner.py"
 
@@ -65,14 +66,14 @@ class ExcludedCase(unittest.TestCase):
     def test_touching_an_excluded_hunk_is_rejected_naming_it(self):
         run = self.started()
         self.edit(run, "    return sum(xs)\n", "    return sum(xs) + 0\n")
-        out = run.script("fix_accept", reply_variant=json.dumps(reply_for(["stats.py"])), consulted="false")
+        out = run.script("fix_accept", reply_variant=support.reply_json(reply_for(["stats.py"])), consulted="false")
         self.assertFalse(out["ok"], out)
         self.assertIn("並行 PR #7 に回した hunk stats.py:5-6（PR 7 が同じ total を書き換える）を変えた", out["reason"])
 
     def test_change_outside_the_hunk_passes_this_check(self):
         run = self.started()
         self.edit(run, "    return sum(xs) / len(xs)\n", "    return sum(xs) / len(xs) if xs else 0\n")
-        out = run.script("fix_accept", reply_variant=json.dumps(reply_for(["stats.py"])), consulted="false")
+        out = run.script("fix_accept", reply_variant=support.reply_json(reply_for(["stats.py"])), consulted="false")
         self.assertNotIn("並行 PR", out["reason"], out)
 
     def test_a_later_stage_finds_the_hunk_by_its_anchor_not_by_the_recorded_lines(self):
@@ -83,13 +84,13 @@ class ExcludedCase(unittest.TestCase):
         later = json.dumps({"node": "pr-check", "head": "", "excluded": row})
         run = self.started(later, shifted)
         self.edit(run, "    return sum(xs)\n", "    return sum(xs) + 0\n")
-        out = run.script("fix_accept", reply_variant=json.dumps(reply_for(["stats.py"])), consulted="false")
+        out = run.script("fix_accept", reply_variant=support.reply_json(reply_for(["stats.py"])), consulted="false")
         self.assertFalse(out["ok"], out)
         self.assertIn("並行 PR #7 に回した hunk stats.py:5-6", out["reason"])
         self.assertIn("変えた行 8-8", out["reason"])
         other = self.started(later, shifted)
         self.edit(other, "import math\n\n", "import math\nimport os\n\n")
-        out = other.script("fix_accept", reply_variant=json.dumps(reply_for(["stats.py"])), consulted="false")
+        out = other.script("fix_accept", reply_variant=support.reply_json(reply_for(["stats.py"])), consulted="false")
         self.assertNotIn("並行 PR", out["reason"], out)
 
     def test_ruled_accept_checks_the_hunk_too(self):
@@ -102,7 +103,7 @@ class ExcludedCase(unittest.TestCase):
                       source=conflict.FIX_SOURCE, ruling={"decision": "fix_code_as", "text": "total も直せ", "limits": []})
         self.assertTrue(run.script("fix_ruled_prep")["go"])
         self.edit(run, "    return sum(xs)\n", "    return sum(xs) + 0\n")
-        out = run.script("fix_ruled_accept", reply_variant=json.dumps(reply_for(["stats.py"])), consulted="false", iteration="1")
+        out = run.script("fix_ruled_accept", reply_variant=support.reply_json(reply_for(["stats.py"])), consulted="false", iteration="1")
         self.assertFalse(out["ok"], out)
         self.assertIn("並行 PR #7 に回した hunk stats.py:5-6", out["reason"])
 

@@ -19,8 +19,9 @@
    choice(a|b|…)・json(<名>)・jsonl(<名>)）、json・jsonl の <名> の形のファイルが在る（頭の無い名はその workflow の schemas/、
    shared:<名> は pack の .shared/schemas/、lib:<名> は lib/ の下。引き方は ports._shape_path）。形のファイルの名は pack の中で 1 か所に
    しか無い（2 つ以上の block が使う形は .shared/schemas/ に 1 つ。憲法の 4）
-6. ほかの workflow を名指す workflow（include:、自分の外を指す workflow: を持つ物。graph）は AI の node を持たない。block（AI の
-   node を持つ物）が起こしてよい workflow は自分だけ
+6. 自分の外を指す workflow: を持つ workflow は AI の node を持たない。include: を持つ workflow が AI の node を持ってよいのは、
+   include する先がどれも葉の block（include: も外を指す workflow: も持たず、入口の node（depends_on が無いか空の list）がどれも
+   script か bash）の時だけ（憲法の 3 の外し。持ち主の決め leaf-include）。block（AI の node を持つ物）が workflow: で起こしてよいのは自分だけ
 7. scripts/ と src/ の .py に、字 ARTIFACTS_DIR と、ほかの workflow のフォルダへのパス（blocks/<名>・../<名>/・
    .archon/workflows/<pack>/<名>）が無い
 8. returns: の node の output_format の properties と required に、outcome_field: の欄と report の欄が在る
@@ -352,17 +353,52 @@ def check_input_forms(pack: pathlib.Path) -> list[str]:
     return out
 
 
-def check_graphs_have_no_roles(pack: pathlib.Path) -> list[str]:
+def outside_workflows(doc: dict) -> list[str]:
+    """自分の外を指す workflow: の先（自分の YAML を指す物は数えない）"""
+    own = doc.get("name")
+    return sorted({n["workflow"] for n in nodes(doc) if "workflow" in n and n["workflow"] != own})
+
+
+def included_workflows(doc: dict) -> list[str]:
+    return sorted({n["include"] for n in nodes(doc) if "include" in n})
+
+
+def non_leaf_reasons(doc: dict) -> list[str]:
+    """workflow が葉の block でない訳（無ければ葉）。入口は上の段の node のうち depends_on が無いか空の list の物（止めた Archon の
+    include-expander.ts の `(depends_on ?? []).length === 0` と同じ。`"depends_on" not in n` では depends_on: [] の入口を見落とす）"""
+    reasons = []
+    if included_workflows(doc):
+        reasons.append("include: を持つ")
+    if outside_workflows(doc):
+        reasons.append("自分の外を指す workflow: を持つ")
+    reasons += [f"入口 {n['id']} が script でも bash でもない" for n in doc.get("nodes") or []
+                if not n.get("depends_on") and "script" not in n and "bash" not in n]
+    return reasons
+
+
+def check_ai_blocks_name_only_own_workflow(pack: pathlib.Path) -> list[str]:
+    """(i) AI の node を持つ workflow は自分の外を指す workflow: を持たない"""
+    return [f"{folder.name}: AI の node {sorted(n['id'] for n in ai_nodes(doc))} を持つ block が、自分の外を指す workflow: "
+            f"{outside} を持つ（block が workflow: で起こしてよいのは自分の YAML だけ）"
+            for folder in folders(pack) if (doc := load(folder)) and ai_nodes(doc) and (outside := outside_workflows(doc))]
+
+
+def check_ai_blocks_include_only_leaves(pack: pathlib.Path) -> list[str]:
+    """(ii) AI の node を持つ workflow が include する先は、pack の中の YAML の name で引ける葉の block だけ"""
+    by_name = {doc.get("name"): doc for doc in map(load, folders(pack))}
     out = []
     for folder in folders(pack):
         doc = load(folder)
-        own = doc.get("name")
-        named = sorted({n["include"] for n in nodes(doc) if "include" in n}
-                       | {n["workflow"] for n in nodes(doc) if "workflow" in n and n["workflow"] != own})
-        if named and ai_nodes(doc):
-            out.append(f"{folder.name}: ほかの workflow {named} を名指す graph が AI の node "
-                       f"{sorted(n['id'] for n in ai_nodes(doc))} を持つ（観点の判断は block に置く）")
+        for name in included_workflows(doc) if ai_nodes(doc) else []:
+            if name not in by_name:
+                out.append(f"{folder.name}: AI の node を持つ block が include する {name} が pack に無い（葉の block か引けない）")
+            elif why := non_leaf_reasons(by_name[name]):
+                out.append(f"{folder.name}: AI の node を持つ block が include する {name} は葉の block でない（{'・'.join(why)}）")
     return out
+
+
+def check_graphs_have_no_roles(pack: pathlib.Path) -> list[str]:
+    return check_ai_blocks_name_only_own_workflow(pack) + check_ai_blocks_include_only_leaves(pack)
 
 
 def check_no_run_root_or_other_folders(pack: pathlib.Path) -> list[str]:
@@ -678,9 +714,7 @@ class SeedCase(unittest.TestCase):
             (check_input_forms, {"demo/works-factory-demo.yaml": self.yaml_with(
                 inputs={"a": {"description": "json(shared:absent.schema.json): x"}})}, ".shared/schemas/absent.schema.json が無い"),
             (check_graphs_have_no_roles, {"demo/works-factory-demo.yaml": yaml.safe_dump(
-                {**demo, "nodes": [*demo["nodes"], {"id": "sub", "include": "works-factory-other"}]})}, "graph が AI の node"),
-            (check_graphs_have_no_roles, {"demo/works-factory-demo.yaml": yaml.safe_dump(
-                {**demo, "nodes": [*demo["nodes"], {"id": "kid", "workflow": "works-factory-other"}]})}, "graph が AI の node"),
+                {**demo, "nodes": [*demo["nodes"], {"id": "kid", "workflow": "works-factory-other"}]})}, "自分の外を指す workflow:"),
             (check_no_run_root_or_other_folders, {"demo/scripts/prep.py": "import os\nos.environ['ARTIFACTS_DIR']\n"}, "字 ARTIFACTS_DIR"),
             (check_no_run_root_or_other_folders, {"demo/src/x.py": "P = '../other/scripts/x.py'\n"}, "'../other'"),
             (check_returns_carry_outcome_and_report, {"demo/works-factory-demo.yaml": yaml.safe_dump(no_report)}, "欄 report が無い"),
@@ -763,11 +797,78 @@ class SeedCase(unittest.TestCase):
         got = self.broken(check_prompt_files, {"demo/works-factory-demo.yaml": doc})
         self.assertTrue(any("prompts/deep-role.md が無い" in line for line in got), got)
 
+    @staticmethod
+    def wf(folder, nodes, name=None):
+        """一時の木に足す workflow の YAML 1 本（{パス: 中身}）。入口の node は script"""
+        return {f"{folder}/works-factory-{folder}.yaml": yaml.safe_dump({"name": name or f"works-factory-{folder}", "returns": "x",
+                                                                        "outcome_field": "ok", "nodes": nodes})}
+
+    def with_demo_nodes(self, *extra):
+        """AI の node（role）を持つ demo に node を足した変更"""
+        demo = yaml.safe_load(self.GOOD["demo/works-factory-demo.yaml"])
+        return {"demo/works-factory-demo.yaml": yaml.safe_dump({**demo, "nodes": [*demo["nodes"], *extra]})}
+
+    def test_ai_block_includes_only_leaf_blocks(self):
+        """7.1 の 6（憲法の 3 の外し）: AI の node を持つ block が include してよいのは葉の block（include: も外を指す workflow: も持たず、
+        入口の node がどれも script か bash）だけ。graph（AI の node を持たない物）は何を include しても照らさない。
+        どの赤の場合も、ほかの句には当たらない形で 1 つの句だけを外す（句を消すと緑になって落ちる）"""
+        script = {"id": "s", "script": "s", "runtime": "uv"}
+        sub = lambda target: {"id": "sub", "include": target, "depends_on": ["s"]}   # noqa: E731
+        ai_entry = self.wf("aientry", [{"id": "a", "prompt": "$p.output.prompt"}])
+        empty_entry = self.wf("emptyentry", [{"id": "a", "prompt": "$p.output.prompt", "depends_on": []}])
+        has_include = self.wf("hasinclude", [script, sub("works-factory-other")])
+        has_workflow = self.wf("hasworkflow", [script, {"id": "kid", "workflow": "works-factory-other", "depends_on": ["s"]}])
+        bash_entry = self.wf("bashentry", [{"id": "b", "bash": "true"}])
+        ask = lambda target: self.with_demo_nodes({"id": "sub", "include": target, "depends_on": ["prep"]})   # noqa: E731
+        red = [
+            (empty_entry, "works-factory-emptyentry", "（入口 a が script でも bash でもない）"),
+            (ai_entry, "works-factory-aientry", "（入口 a が script でも bash でもない）"),
+            (has_include, "works-factory-hasinclude", "（include: を持つ）"),
+            (has_workflow, "works-factory-hasworkflow", "（自分の外を指す workflow: を持つ）"),
+        ]
+        for files, target, word in red:
+            with self.subTest(red=target):
+                got = self.broken(check_graphs_have_no_roles, {**files, **ask(target)})
+                self.assertEqual(len(got), 1, got)
+                self.assertIn(f"include する {target} は葉の block でない{word}", got[0])
+        with self.subTest(red="pack に無い名"):
+            got = self.broken(check_graphs_have_no_roles, ask("works-factory-absent"))
+            self.assertEqual(len(got), 1, got)
+            self.assertIn("works-factory-absent が pack に無い", got[0])
+        with self.subTest(red="外を指す workflow:（先が葉でも赤）"):
+            got = self.broken(check_graphs_have_no_roles, self.with_demo_nodes({"id": "kid", "workflow": "works-factory-other"}))
+            self.assertEqual(len(got), 1, got)
+            self.assertIn("自分の外を指す workflow: ['works-factory-other']", got[0])
+        green = [
+            ("葉の block（入口が script）の include", ask("works-factory-other")),
+            ("入口が bash の block の include", {**bash_entry, **ask("works-factory-bashentry")}),
+            ("自分の YAML の workflow:", self.with_demo_nodes({"id": "kid", "workflow": "works-factory-demo"})),
+            ("graph は葉でない block（入口が AI・include を持つ）を include しても照らさない",
+             {**ai_entry, **has_include, **self.wf("graph", [{"id": "g1", "include": "works-factory-aientry"},
+                                                              {"id": "g2", "include": "works-factory-hasinclude", "depends_on": ["g1"]}])}),
+        ]
+        for label, changes in green:
+            with self.subTest(green=label):
+                self.assertEqual(self.broken(check_graphs_have_no_roles, changes), [])
+
     def test_self_workflow_is_allowed_in_a_block(self):
         """block が起こしてよい workflow は自分（直しの組ごとに自分を子の run として起こす形）"""
         demo = yaml.safe_load(self.GOOD["demo/works-factory-demo.yaml"])
         doc = yaml.safe_dump({**demo, "nodes": [*demo["nodes"], {"id": "kid", "workflow": "works-factory-demo"}]})
         self.assertEqual(self.broken(check_graphs_have_no_roles, {"demo/works-factory-demo.yaml": doc}), [])
+
+
+def graph_folders(pack: pathlib.Path) -> set[str]:
+    """graph のフォルダの名（include を持ち、AI の node を持たない workflow。新しい 7.1 の 6 の graph と同じ見分け。AI の node の有無だけにすると、
+    AI の node も include も持たない script だけの block の名の行まで捨ててしまう）"""
+    return {f.name for f in folders(pack) if included_workflows(load(f)) and not ai_nodes(load(f))}
+
+
+def stale_keep_checkout(pack: pathlib.Path) -> re.Pattern:
+    """E7 の誤りの行のうち捨てる行の組。graph は役を持たないので、graph の名（judge・eyes など）の役を名指す表 KEEP_CHECKOUT の行が
+    「工程に無い」と出る。その行は表の話で、graph の形の外れではない"""
+    graphs = graph_folders(pack)
+    return re.compile(rf"^workflows/({'|'.join(map(re.escape, graphs)) or '$^'})/[^:]+:1: 表 KEEP_CHECKOUT が名指した役 ")
 
 
 class ExistingRulesCase(unittest.TestCase):
@@ -781,14 +882,41 @@ class ExistingRulesCase(unittest.TestCase):
             shutil.copytree(BLOCKS, root / "workflows", ignore=shutil.ignore_patterns("__pycache__"))
             shutil.copy(ROOT / "pack.json", root / "pack.json")
             shutil.copytree(ROOT / "factory", root / "factory")
-            # graph（include を持つ物）は役を持たないので、graph の名（judge・eyes など）の役を名指す表 KEEP_CHECKOUT の行が
-            # 「工程に無い」と出る。その行は表の話で、graph の形の外れではない
-            graphs = {f.name for f in folders(BLOCKS) if any("include" in n for n in nodes(load(f)))}
-            stale = re.compile(rf"^workflows/({'|'.join(map(re.escape, graphs)) or '$^'})/[^:]+:1: 表 KEEP_CHECKOUT が名指した役 ")
+            stale = stale_keep_checkout(BLOCKS)
             for rule in self.RULES:
                 with self.subTest(rule=rule):
                     got = [line.replace("workflows/", "blocks/", 1) for line in scan.problems(rule, root) if not stale.match(line)]
                     self.assertEqual(got, [])
+
+
+class StaleRowCase(unittest.TestCase):
+    """ExistingRulesCase が捨てる E7 の行（graph の名の表 KEEP_CHECKOUT の古い行）は、graph のフォルダだけに当てる。graph は include を持ち AI の
+    node を持たない workflow で、AI の node を持つ block（include も持つ修正の block の形）の行は赤のまま残す（見分けを include の有無に戻すと落ちる）"""
+
+    ROLE = next(iter(scan.KEEP_CHECKOUT))   # (block の名, 役の id)。表の行が名指す役が、その block の工程に無い木を組む
+
+    def rows(self, folder_nodes):
+        block, ident = self.ROLE
+        leaf = {"name": "works-factory-leaf", "nodes": [{"id": "s", "script": "s", "runtime": "uv"}]}
+        doc = {"name": f"works-factory-{block}", "nodes": folder_nodes}
+        with tree({f"workflows/{block}/works-factory-{block}.yaml": yaml.safe_dump(doc),
+                   "workflows/leaf/works-factory-leaf.yaml": yaml.safe_dump(leaf)}) as root:
+            keep = stale_keep_checkout(root / "workflows")
+            return [line for line in scan.problems("E7", root) if not keep.match(line)
+                    and f"表 KEEP_CHECKOUT が名指した役 {ident} が工程に無い" in line]
+
+    def test_stale_row_stays_red_for_a_block_with_ai_node_and_include(self):
+        got = self.rows([{"id": "other-role", "prompt": "p"}, {"id": "sub", "include": "works-factory-leaf"}])
+        self.assertEqual(len(got), 1, got)
+
+    def test_stale_row_is_dropped_for_a_graph(self):
+        self.assertEqual(self.rows([{"id": "sub", "include": "works-factory-leaf"}]), [])
+
+    def test_stale_row_stays_red_for_a_block_without_include(self):
+        self.assertEqual(len(self.rows([{"id": "other-role", "prompt": "p"}])), 1)
+
+    def test_stale_row_stays_red_for_a_script_only_block(self):
+        self.assertEqual(len(self.rows([{"id": "s", "script": "s", "runtime": "uv"}])), 1)
 
 
 class ArchonCase(unittest.TestCase):

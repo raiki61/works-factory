@@ -93,3 +93,24 @@ for t, kind, message in rows:
 ET.ElementTree(root).write(out)
 sys.exit(0 if all(k in (None, "skipped") for _, k, _ in rows) else 1)
 '''
+
+
+# 試験が手で組む書き手の返答（changes などだけ）を、型の block と受け付けの間の形 shared:writer-reply.schema.json に合う全体にする
+# （欠けた必須の欄を中立の値で補う。在る欄は変えない）。受け付け・consult-check は返答を読む時にこの形に照らす（writers.reply_of）
+REPLY_DEFAULTS = {"changes": [], "not_done": [], "fix_closure": {"status": "not_applicable"}, "mechanism_changed": False,
+                  "premise_drift": False, "gates_changed": False, "seams_changed": False, "security_surface_changed": False,
+                  "path_changed": False, "interactions": [], "wrote_refs": [], "plan_faces": []}
+
+
+def full_reply(reply: dict) -> dict:
+    """欠けた必須の欄を中立の値で補う。fix_closure は、修正（changes）が在る返答では found（修正が在るのに黙って通る not_applicable・carried_over は
+    受け付けが拒む）、無い返答では not_applicable"""
+    given = {k: v for k, v in REPLY_DEFAULTS.items() if k not in reply}
+    if reply.get("changes"):
+        given["fix_closure"] = {"status": "found", "count": 1, "detail": "試験の返答の既定（閉鎖の状態を測らない）"}
+    return {**given, **reply}
+
+
+def reply_json(reply: dict) -> str:
+    import json
+    return json.dumps(full_reply(reply), ensure_ascii=False)

@@ -180,7 +180,7 @@ def implementer_values(b, values: dict, repo, owed: list[str], briefs: list) -> 
     brief_file = values.get("judgment_file") or ""
     if rows:
         path = pathlib.Path(b) / SEAT_BRIEFS
-        path.write_text(prompt.render_part("brief-head", {"brief_rows": rows}), encoding="utf-8")
+        path.write_text(prompt.render_part("seat-briefs", {"brief_rows": rows}), encoding="utf-8")
         brief_file = str(path)
     items = "、".join(str(r["item"]) for r in mine)
     return {"[task name]": f"直す義務の単位 {len(owed)} 件" + (f"（修正案の項目 {items}）" if items else ""),

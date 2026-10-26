@@ -1,6 +1,6 @@
 """`workflows/.shared/` と `bin/_lib/` のファイルが、pack の口・入口の部品の外し・埋めの名簿の `- 埋め:` の行の頭の欄のどれかに当たる（`workflows/AGENTS.md` の E2 の機械の行）。
 
-- pack の口: `ports.py`・`prompt.py`・`requestrows.py`。2 つ以上の block が使う断片と形（`prompts/`・`schemas/`）と `AGENTS.md` も口の側に数える。
+- pack の口: `ports.py`・`prompt.py`・`requestrows.py`・`writerblock.py`。2 つ以上の block が使う断片と形（`prompts/`・`schemas/`）と `AGENTS.md` も口の側に数える。
 - 入口の部品の外し: `bin/_lib/` の埋めでない物（起動の認証と隔離を元の works から持ってきた部品）は `tests/layers/scan.py` の `ALLOWED["E2"]` に 1 行ずつ訳つきで置く。
 - 名簿 `docs/polyfills.md` の `- 埋め:` の行の頭の欄（`- 埋め:` の直後の、`、` 区切りのパスの並び）が名指す物だけを数え、行の説明の文にだけ名が出る部品は数えない。
 - 木に在るかの照らしは頭の欄に限らず行の全部のパスに掛かり、名簿の `- 埋め:` の行が名指す `workflows/`・`bin/`・`lib/`・`tests/` の下のパスが木に無い行も赤。置き場のパスの直後に「（予定）」と書いた行は、木に無くてよい。

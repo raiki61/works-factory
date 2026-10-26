@@ -2,8 +2,10 @@
 
 pip 依存を持たない配布方針（issue #6）で jsonschema を使わない。見る語は type / enum / const /
 required / properties / patternProperties / additionalProperties / items / minItems / maxItems / minimum / maximum /
-minLength / maxLength / pattern だけで、これ以外は無視する（展開されていない $ref だけは無視せず拒む）。本家と意味が違う点を明記する:
+minLength / maxLength / pattern / allOf / if / then / not だけで、これ以外は無視する（展開されていない $ref だけは無視せず拒む）。本家と意味が違う点を明記する:
   - enum / const は値だけでなく真偽値かどうかも見る（True を [0, 1] に一致させない）
+  - allOf は全部の部分の誤りの和、if が通る（誤りが空）時だけ then を当てる（then の無い if は何もしない。else は持たない）、
+    not は部分が通れば誤り 1 行（JSON Schema 2020-12 の意味。部分は親の形に重ねる条件）
   - minLength は**前後の空白を除いた長さ**（空白だけの返答を「在る」と数えないため）
   - maxLength は**素の長さ**（空白も数える）——上限は「役が作れる大きさ」を縛るもので、
     前後の空白を削ってから測ると、空白で水増しした値が上限をすり抜ける
@@ -98,14 +100,20 @@ def validate_schema(value, schema, path="$"):
             errs.append(f"{path}: {schema['maxLength']} 字を超えている")
         if "pattern" in schema and not end_anchored(schema["pattern"]).search(value):
             errs.append(f"{path}: 形が合わない（{schema['pattern']}）")
+    for part in schema.get("allOf", []):
+        errs += validate_schema(value, part, path)
+    if "if" in schema and "then" in schema and not validate_schema(value, schema["if"], path):
+        errs += validate_schema(value, schema["then"], path)
+    if "not" in schema and not validate_schema(value, schema["not"], path):
+        errs.append(f"{path}: not の部分に当たる値（当たってはならない）")
     return errs
 
 
-# engine が読む語の全部。これ以外（oneOf / not / format / uniqueItems、綴り違い）は validate_schema が黙って無視するので、
+# engine が読む語の全部。これ以外（oneOf / format / uniqueItems、綴り違い）は validate_schema が黙って無視するので、
 # graph に書いても効かない。graphcheck がこの集合で節の schema を走査して落とす（注記で守るのをやめ、仕組みで守る）。
 # note / description は説明のための欄で、検査には使わないが書いてよい。
 KNOWN_KEYWORDS = frozenset({"type", "enum", "const", "required", "properties", "patternProperties", "additionalProperties", "items",
-                            "minItems", "maxItems", "minimum", "maximum", "minLength", "maxLength", "pattern", "note", "description"})
+                            "minItems", "maxItems", "minimum", "maximum", "minLength", "maxLength", "pattern", "allOf", "if", "then", "not", "note", "description"})
 
 
 # 節の鍵のうち engine（と graphcheck の実行の形の検査）が読む物と、人が読むための説明の鍵。ループ固有の鍵は rules が NODE_KEYS

@@ -70,5 +70,12 @@ def test_cmd_lines(groups) -> list:
             for x in g.get("test_cmd_notes") or [] if isinstance(x, str)]
 
 
-def lines(place, tdd_rows: list, units: list, repo=None, groups=()) -> list:
-    return [*tdd_lines(tdd_rows, units), *test_cmd_lines(groups), *evidence_lines(place, repo)]
+def lines(place, tdd_rows: list, units: list, repo=None, groups=(), writers=()) -> list:
+    return [*tdd_lines(tdd_rows, units), *test_cmd_lines(groups), *writer_lines(writers), *evidence_lines(place, repo)]
+
+
+def writer_lines(rows) -> list:
+    """型の block の書き手が返した報告の行（board.writer_report_rows の行）を 1 件 1 行「書き手 <型>（組 <group_id>）: <行>」に
+    （組の無い行は組の句を書かない）"""
+    return [f"書き手 {r.get('weapon')}" + (f"（組 {r['group_id']}）" if r.get("group_id") else "") + f": {oneline.one_line(r.get('line') or '')}"
+            for r in rows or [] if isinstance(r, dict)]
