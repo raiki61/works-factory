@@ -412,6 +412,118 @@ class TestLoopRedTree(FixGatesCase):
         self.assertEqual(calls.count(False), 2, "赤の木と base の木は 1 回ずつだけ走らせる")
 
 
+class RedGreenKeptCase(FixGatesCase):
+    """事後の関門の赤緑（gates._red_green）の振る舞いの控え（docs/plans/2026-10-24-fix-weapons.md の 11.6 の F2 の縛る試験の 4）。
+    _red_green を「名指しごとの事実を返す口」と「問題の文を組む口」に割る前に作り、割る前の字（実行器を起こす順と回数・問題の行・
+    飛ばした理由・守りの結末）をここに控える。割った後も同じ返答で同じ字になることを縛る（割ると、実行器を 2 回起こす・文が変わる
+    のを赤にする）。場面は 8 つ: 緑の通し・base で通る赤・輪の赤の木・赤の木が通る・赤の木の後にテストが動いた・守りのテスト・
+    base の木が走らない・2 回目の回（控えを使い回す）"""
+
+    def traced(self, **kw):
+        """problems を呼び、実行器を起こした順 [(今の木か別の木か, 名前 n)] と、返った行・飛ばした理由・守りの結末を返す"""
+        real_gate, real_common = fixgates.tddloop.run_suite, common.run_suite
+        calls = []
+
+        def wrap(real):
+            def run(exe, repo, work, n, *a, **k):
+                calls.append(("now" if pathlib.Path(repo).resolve() == self.repo.resolve() else "tree", n))
+                return real(exe, repo, work, n, *a, **k)
+            return run
+        with mock.patch.object(fixgates.tddloop, "run_suite", side_effect=wrap(real_gate)), \
+                mock.patch.object(common, "run_suite", side_effect=wrap(real_common)):
+            rows = self.problems(**kw)
+        attempt = kw.get("attempt", 1)
+        ledger = self.ledger() if (self.board / fixgates.LEDGER).is_file() else {}
+        return {"calls": calls, "rows": [(r["gate"], r["id"], r["detail"], r["unit_keys"]) for r in rows],
+                "skipped": fixgates.skipped(self.board, pass_=kw.get("pass_", "first"), attempt=attempt),
+                "guards": fixgates.guards(self.board, pass_=kw.get("pass_", "first"), attempt=attempt),
+                "ledger_rows": len(ledger.get("rows") or [])}
+
+    def stub_red(self, red_is_green=False):
+        self.ready_with_fields(self.fields_for(_l_TWO_ID))
+        (self.repo / "test_two.py").write_text(_l_TWO_FILE, encoding="utf-8")
+        self.edit_tree({"def clamp(x, lo, hi):": _l_STUB})
+        red = fixgates.tddloop.snapshot(self.repo)
+        self.edit_tree({"return 0  # 仮の実装": "return x / 2"})
+        if red_is_green:
+            red = fixgates.tddloop.snapshot(self.repo)
+        unit = {"unit_key": _l_MEAN, "route": "tdd", "red": "ok", "tests": [_l_TWO_ID], "test_files": ["test_two.py"],
+                "test_hashes": fixgates.tddloop.hashes(self.repo, ["test_two.py"]), "red_tree": red, "stub_files": ["stats.py"]}
+        d = self.board / "tdd-1"
+        d.mkdir(parents=True, exist_ok=True)
+        (d / fixgates.tddloop.RECORD).write_text(json.dumps({"units": {_l_MEAN: unit}, "frozen": fixgates.tddloop.hashes(self.repo, ["test_two.py"])},
+                                                           ensure_ascii=False), encoding="utf-8")
+
+    def test_a_green_pass(self):
+        self.ready_with_fields()
+        self.add_test_mean_of_two()
+        self.edit_tree(_l_MEAN_FIX)
+        self.assertEqual(self.traced(), GOLDEN["green"])
+
+    def test_a_test_that_passes_at_the_base(self):
+        self.ready_with_fields()
+        self.add_test_that_passes_on_base("test_mean_of_two")
+        self.assertEqual(self.traced(), GOLDEN["base_passes"])
+
+    def test_the_loop_red_tree(self):
+        self.stub_red()
+        self.assertEqual(self.traced(), GOLDEN["red_tree"])
+
+    def test_the_red_tree_that_passes(self):
+        self.stub_red(red_is_green=True)
+        self.assertEqual(self.traced(), GOLDEN["red_tree_passes"])
+
+    def test_the_test_file_moved_after_the_loop(self):
+        self.stub_red()
+        path = self.repo / "test_two.py"
+        path.write_text(path.read_text(encoding="utf-8") + "\n# 赤の後の書き足し\n", encoding="utf-8")
+        self.assertEqual(self.traced(), GOLDEN["moved"])
+
+    def test_a_guard_test(self):
+        self.ready_with_fields([{**_l_FIELDS[0], "tests": [{**_l_TEST_ROW, "id": _l_SAB_ID, "red_kind": planmarks.GUARD_KIND}]}])
+        (self.repo / "test_sab.py").write_text(_l_SAB, encoding="utf-8")
+        self.assertEqual(self.traced(), GOLDEN["guard"])
+
+    def test_a_base_tree_that_does_not_run(self):
+        self.ready_with_fields()
+        self.add_test_mean_of_two()
+        self.edit_tree(_l_MEAN_FIX)
+        real = fixgates.tddloop.run_suite
+
+        def run(exe, repo, *a, **k):
+            if pathlib.Path(repo).resolve() != self.repo.resolve():
+                return None, None, ["base で JUnit を書かなかった"]
+            return real(exe, repo, *a, **k)
+        with mock.patch.object(fixgates.tddloop, "run_suite", side_effect=run):
+            rows = self.problems()
+        self.assertEqual((rows, fixgates.skipped(self.board, pass_="first", attempt=1)), GOLDEN["base_down"])
+
+    def test_the_second_round_reads_the_cache(self):
+        self.stub_red()
+        self.traced()
+        self.assertEqual(self.traced(attempt=2), GOLDEN["second"])
+
+
+_NOW, _BASE, _RED = ("now", "gates-now"), ("tree", "gates-base"), ("tree", "gates-red-1")
+_UNIT = ["stats.py mean: 分母が len(xs) - 1 になっている"]
+_NONE = {"rows": [], "skipped": [], "guards": [], "ledger_rows": 0}
+# 割る前の gates._red_green が出した字（実行器を起こした順 calls・問題の行 rows・飛ばした理由 skipped・守りの結末 guards・帳面の行の数）
+GOLDEN = {
+    "green": {**_NONE, "calls": [_NOW, _BASE]},
+    "base_passes": {**_NONE, "calls": [_NOW, _BASE], "ledger_rows": 1, "rows": [(
+        "red_green", _l_MEAN_ID, f"base で {_l_MEAN_ID}: もう通る——直す前に赤でないテストは修正の証拠にならない", _UNIT)]},
+    "red_tree": {**_NONE, "calls": [_NOW, _RED, _BASE]},
+    "red_tree_passes": {**_NONE, "calls": [_NOW, _RED, _BASE], "ledger_rows": 1, "rows": [(
+        "red_green", _l_TWO_ID, f"ループの赤の木で {_l_TWO_ID}: もう通る——直す前に赤でないテストは修正の証拠にならない", _UNIT)]},
+    "moved": {**_NONE, "calls": [_NOW, _BASE], "ledger_rows": 1, "rows": [(
+        "red_green", _l_TWO_ID, f"base で {_l_TWO_ID}: 一式の結末に居ない——読み込み（import・構文）で落ちたか、名指しが実行器の識別子と違う",
+        _UNIT)]},
+    "guard": {**_NONE, "calls": [_NOW, _BASE], "guards": [{"id": _l_SAB_ID, "base": "passed"}]},
+    "base_down": ([], ["受け入れのテストの事後の赤緑を確かめられない（base の木: base で JUnit を書かなかった）"]),
+    "second": {**_NONE, "calls": [_NOW]},
+}
+
+
 class TestTestEdits(FixGatesCase):
     def test_unnamed_existing_edit_is_a_miss(self):
         self.ready_with_fields(_l_direct_fields())
