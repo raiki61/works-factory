@@ -1072,7 +1072,7 @@ variant の「起点の木で赤」と下ごしらえの「起点の木で 2 回
 ### 11.2 block の一覧と名
 
 - 名の形: フォルダは `weapon-<型>`、グラフの名は `works-factory-weapon-<型>`（E9）。
-  - 訳: `static`・`remove`・`pin` のような語だけのフォルダは、pack の中で何の block かが読めない。この下書きの語「型（Weapon）」を頭に置けば、型の block の並びが名で引ける。E18 の取ってきた物の頭（`factory`・`FACTORY`・`harness`・`.factory`・`archon-`）に当たらない。
+  - 訳: `static`・`remove`・`pin` のような語だけのフォルダは、pack の中で何の block かが読めない。この下書きの語「型（Weapon）」を頭に置けば、型の block の並びが名で引ける。E18（根の `AGENTS.md` の決まり。ASF など外から取ってきた物は名の頭で見分けるので、自分の物にはその頭を付けない）が挙げる取ってきた物の頭（`factory`・`FACTORY`・`harness`・`.factory`・`archon-`）のどれでも始まらないので、`weapon-` は自分の物の名として使える。
 - 書き手の型の block（6 つ）と、修正の block の中の include の id:
   - `weapon-tdd-close`: 1 回目の段 `w-tdd-close`。裁定の後の段には無い（今の `writers.SEQUENCE["ruled"]` に tdd が無いのと同じ）。
   - `weapon-pin`: `w-pin`・`wr-pin`。
@@ -1080,7 +1080,7 @@ variant の「起点の木で赤」と下ごしらえの「起点の木で 2 回
   - `weapon-static`: `w-static`・`wr-static`。
   - `weapon-variant`: `w-variant`・`wr-variant`。
   - `weapon-remove`: `w-remove`・`wr-remove`。
-  - 同じ block を 1 回目の段（組の子）と裁定の後の段（親）で別の id で include するので、place（`ports.place()`。include の道ごとのフォルダ）も分かれる（README 4.4）。11.5 の確かめ 3 で、内の輪の本体の include の place が `ARTIFACTS_DIR/<include の id>` になることを見た。
+  - 同じ block を 1 回目の段（組の子。修正の block が組ごとに自分を `mode: group` で起こした子の run。語の節）と裁定の後の段（親。`mode: whole` の run）で別の id で include するので、place（`ports.place()`。include の道ごとのフォルダ）も分かれる（README 4.4）。11.5 の確かめ 3 で、内の輪の本体の include の place が `ARTIFACTS_DIR/<include の id>` になることを見た。
   - include の id は、取り込む block の中の node の id と重ならない（7.1 の 13）: 書き手の block の中の node は `<型>-prep`・`<型>`・`<型>-save`・`<型>-out` で、include の id は `w-`・`wr-` で始まる。
 - 輪の型の block `weapon-tdd`（include の id は `w-tdd`）: 第 21 版で取り止めた（11.6 の E2）。
 - rebuild: block を作らない（9.1 の 2。口の形だけ。注文を書く道を開けない今の形のまま）。
@@ -1250,6 +1250,8 @@ variant の「起点の木で赤」と下ごしらえの「起点の木で 2 回
 どの PR も、振る舞いを変える物は直しを外すと落ちる試験を先に作る。指示の観点の文と返答の形の必須の欄を減らさない縛り（今の `tests/blocks/fix/test_assets.py`）を、各 PR の後も通す。手元の試験は `uv run --isolated python3 tests/changed.py`、全部の試験は CI。
 
 #### D1 書き手の型の block 5 つ（tdd の閉じ・pin・tidy・static・remove）
+
+D1 は main に入った（#878）。下の「作る物」「PR #878 に当てる直し」などは、頼んだ時の字の記録で、残っている作業ではない。
 
 - 前に済ませる物: 11.5 の実走の頼み（済んだ。11.5 の確かめ 4）と、確かめ 5（済んだ。11.5 の確かめ 5。第 14 版の続き 2）。持ち主の答え（憲法の 3 の外し。11.11）を、11.11 の書き分けで写すこと（済んだ。持ち主が認めた〔2026-10-26。9.1 の 16〕。認める時の側の字を第 15 版で写した）。PR #875 のレビュー（受付 20261026-062146-248d1e）の止める指摘 1〜4 を下書きに入れること（済んだ。第 16 版）。PR #876 のレビュー（受付 20261026-070756-5577d8）の止める指摘 1 を下書きに入れること（済んだ。第 17 版）。PR #876 の再レビュー（レビュー 6f63e4）の止める指摘を下書きに入れること（済んだ。第 18 版）。D1 を止める物は残っていない。
 - 回し方の補い（確かめ 4 を CI の試験にするかの判断の材料。第 11 版の続き）: 殻の外の会話の環境では、`hermetic.inherited("ANTHROPIC_", "CLAUDE_")` だけでは役が `Not logged in` で落ち、起動の殻と同じ `bin/_lib/auth_launch.resolve` で得た認証を env に足すと動いた（実走の部署の納品。受付 20261025-220334-baf4a2）。
