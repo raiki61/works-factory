@@ -23,10 +23,8 @@ NODE = "route-prep"
 
 def main() -> dict:
     place, repo = ports.place(), Path.cwd()
-    started = board.read_json(place / board.TDD_START_FILE)
-    if not isinstance(started, dict):
-        raise ValueError(f"置き場に {board.TDD_START_FILE} が無い（group-start が走らなかった。{place}）")
-    if not started.get("state_file"):
+    state = route.path(place)
+    if not state.is_file():
         return {"prompt": "", "go": False}
     run = runvals.read(place)
     judgment_file = place / board.JUDGMENT_FILE
@@ -38,7 +36,7 @@ def main() -> dict:
               "notes_file": str(notes) if notes.is_file() else "", "base_rev": board.base_rev_of(place)}
     sources = {"plan": board.read_json(plan_file), "judgment": board.read_json(judgment_file)}
     try:
-        view = route.prep(started["state_file"], sources=sources)
+        view = route.prep(state, sources=sources)
         if not view["go"]:
             return {"prompt": "", "go": False}
         out = prompts.tdd(place, repo, view, values)

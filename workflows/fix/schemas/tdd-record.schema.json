@@ -1,0 +1,90 @@
+{
+  "description": "TDD の輪の記録 tdd-<k>/record.json（輪が抜ける時に書く。輪の外が輪の状態でなく読む物。全部済んだ・回数の上限・実行器が走らない・振り分けを諦めた・tdd の単位が無い、のどの抜け方でも同じ形）。欄の名と形は輪の状態のまま（fix の src/tdd.py の record）。adopted_from・prior_pass は輪が書かず、輪の結果を写す時（join・clash・2 回目の段）が写し先の記録に足す印",
+  "type": "object",
+  "required": ["frozen", "frozen_tree", "handoff", "suite_made", "no_suite", "note", "done", "calls", "summary", "order", "parked",
+               "parked_why", "suite", "test_cmd_gate", "test_cmd_note", "reused", "related", "units"],
+  "properties": {
+    "frozen": {
+      "type": "object",
+      "description": "輪で緑になった単位のテストのファイル → 輪が済んだ時の中身の sha256（16 進。ファイルが無ければ null）",
+      "patternProperties": {"^.+$": {"type": ["string", "null"]}}
+    },
+    "frozen_tree": {"type": "string", "description": "輪が済んだ時の作業ツリーの版（木の sha）。凍結の差分の起点"},
+    "handoff": {"type": "string", "description": "最後に突き合わせを通した（機械が戻した）作業ツリーの版。次の輪の起点の木"},
+    "suite_made": {"type": "array", "items": {"type": "string"}, "description": "一式・test_cmd を走らせて出来たファイル（書き込みの出どころの照合と凍結の照らしから外す）"},
+    "no_suite": {"type": "boolean", "description": "実行器が走らず輪を抜けた（組を no-suite で止める）"},
+    "note": {"type": "string", "description": "輪を途中で抜けた理由（全部済んだ時は空）"},
+    "done": {"type": "boolean", "description": "輪を抜けた印（記録はいつも真で書く）"},
+    "calls": {
+      "type": "array",
+      "description": "step 1 回ごとの呼びの控え（振り分けの周も含む。最後の承認の tdd_refused が読む）",
+      "items": {
+        "type": "object",
+        "properties": {
+          "n": {"type": "integer"},
+          "phase": {"type": "string", "description": "確かめた段（route・test・fix・refactor・conflict・runner）"},
+          "unit_key": {"type": "string"},
+          "ok": {"type": "boolean"},
+          "runs": {"type": "integer"},
+          "secs": {"type": "number"}
+        }
+      }
+    },
+    "summary": {"type": "string", "description": "輪の後の修正役へ渡す summary.md のパス"},
+    "order": {"type": "array", "items": {"type": "string"}, "description": "輪が振った単位の並び"},
+    "parked": {"type": "array", "items": {"type": "string"}, "description": "食い違いの申し出で止めた単位"},
+    "parked_why": {
+      "type": "object",
+      "description": "止めた単位 → 理由",
+      "patternProperties": {"^.+$": {"type": "string"}}
+    },
+    "suite": {"type": "string", "description": "元の結末を取った実行器"},
+    "test_cmd_gate": {"type": "string", "enum": ["on", "same_as_suite", "off"], "description": "run の test_cmd の関門"},
+    "test_cmd_note": {"type": "string", "description": "関門が off の理由"},
+    "reused": {
+      "type": "object",
+      "description": "同じ run の控えから使い回した一式の結果の出どころ（使い回していなければ {}）",
+      "properties": {"suite": {"type": "string"}}
+    },
+    "related": {
+      "type": "object",
+      "description": "輪の頭の元の結末を変更に関わる試験に絞った選び（絞っていなければ {applied: false}）",
+      "properties": {
+        "applied": {"type": "boolean"},
+        "whole": {"type": "boolean"},
+        "reasons": {"type": "array", "items": {"type": "string"}},
+        "files": {"type": "array", "items": {"type": "string"}},
+        "left": {"type": "array", "items": {"type": "string"}},
+        "far": {"type": "array", "items": {"type": "string"}}
+      }
+    },
+    "units": {
+      "type": "object",
+      "description": "order の単位ごとの行（単位の key → 行）",
+      "patternProperties": {
+        "^.+$": {
+          "type": "object",
+          "required": ["route", "why", "tests", "test_files", "red", "green", "gave_up", "files", "red_tree", "test_hashes"],
+          "properties": {
+            "route": {"type": "string", "enum": ["tdd", "direct", "parked"], "description": "道（振り分けの結果。止めた単位は parked）"},
+            "why": {"type": "string", "description": "direct に回した理由・止めた理由"},
+            "tests": {"type": "array", "items": {"type": "string"}, "description": "名指しのテスト"},
+            "test_files": {"type": "array", "items": {"type": "string"}, "description": "テストのファイル（凍る）"},
+            "red": {"type": "string", "description": "赤を機械が確かめたか（ok か空）"},
+            "green": {"type": "string", "description": "緑を機械が確かめたか（ok か空）"},
+            "gave_up": {"type": "string", "description": "諦めた段（route・red・green・runner・budget か空）"},
+            "files": {"type": "array", "items": {"type": "string"}, "description": "fix の段が直したファイル（足跡）"},
+            "red_tree": {"type": "string", "description": "赤が通った時の作業ツリーの版（事後の関門が仮の実装を含む赤をこの木で確かめ直す。赤が無ければ空）"},
+            "test_hashes": {
+              "type": "object",
+              "description": "赤が通った時のテストのファイル → sha256（赤が無い単位は {}）",
+              "patternProperties": {"^.+$": {"type": ["string", "null"]}}
+            }
+          }
+        }
+      }
+    },
+    "adopted_from": {"type": "string", "description": "親の置き場へ写した記録の、写し元の子の記録のパス（輪は書かない）"},
+    "prior_pass": {"type": "boolean", "description": "1 回目の段の輪の記録を 2 回目の段の置き場へ写した印（輪は書かない）"}
+  }
+}

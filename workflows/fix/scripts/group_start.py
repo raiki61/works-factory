@@ -29,7 +29,7 @@ import leftovers  # noqa: E402
 import oneline  # noqa: E402
 import writelog  # noqa: E402
 
-from src import board, intake, runvals, suitefix  # noqa: E402
+from src import board, intake, route, runvals, suitefix  # noqa: E402
 
 NO_UNITS = "組に単位が無い——TDD のループを回さない"
 HALTED = "前の組 {groups} の子の run が結果を書かずに止まっている——親を resume すればその子が続きから回る"
@@ -63,6 +63,7 @@ def main() -> dict:
     board.write_json(board.group_dir(place, out_dir, group["group_id"]) / board.GROUP_START_FILE,
                      {"group": group, "from_tree": from_tree, "out_dir": out_dir, "start_tree": start_tree})
     values = runvals.read(place)
+    route.path(place).unlink(missing_ok=True)   # 組の頭をやり直したら、前の振り分けの状態は捨てる（元の結末の取り直しと同じ組の頭の物）
     keys = [str(k) for k in group["unit_ids"]]
     suite = str(values["tdd_suite"] or "")
     if not keys:

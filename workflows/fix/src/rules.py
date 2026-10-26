@@ -241,9 +241,10 @@ def iteration_next(ledger) -> int:
     return len(delivered(ledger).get("iterations") or []) + 1
 
 
-def kinds_for(ledger, values: dict, repo) -> dict:
-    """今の組み立てで載せる証拠の種類（kinds_now に、控え ledger の前に渡した種類を足す。輪の中で減らさない）"""
-    return kinds_now(values, repo, delivered(ledger).get("kinds") or ())
+def kinds_for(ledger, values: dict, repo, start=()) -> dict:
+    """今の組み立てで載せる証拠の種類（kinds_now に、控え ledger の前に渡した種類と、控えの前の段が渡した種類 start を足す。輪の中で減らさない。
+    start は TDD の輪の最初の周が振り分けの段の渡した種類を受ける口で、注文の型ごとの欄 orders.tdd の kinds）"""
+    return kinds_now(values, repo, [*start, *(delivered(ledger).get("kinds") or ())])
 
 
 def remember(ledger, kinds, iteration: int) -> None:

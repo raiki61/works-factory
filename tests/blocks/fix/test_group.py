@@ -171,22 +171,32 @@ class GroupChildScriptsCase(unittest.TestCase):
             self.run_script("orders", cwd=cwd)
         return out
 
+    def start_routed(self, cwd=None, **inputs):
+        """子の頭から振り分けまで（MEAN を tdd に振る）。輪の状態は振り分けの後に orders が置くので、輪の状態を読む試験はここから始める"""
+        out = self.start(cwd=cwd, **inputs)
+        if self.loop_phase() == "route":
+            self.step({"phase": "route", "units": [{"unit_key": MEAN, "route": "tdd"}]}, cwd=cwd)
+        return out
+
     def loop_phase(self) -> str:
-        """輪の状態の段（状態が無ければ ""）"""
+        """今の段: 振り分けの状態（place の route.json）の段が route なら "route"、輪の状態の段（振り分けの後に orders が置く。無ければ ""）"""
+        routed = self.place / "route.json"
+        if routed.is_file() and json.loads(routed.read_text(encoding="utf-8")).get("phase") == "route":
+            return "route"
         started = json.loads((self.place / "tdd-start.json").read_text(encoding="utf-8"))
         if not started.get("state_file"):
             return ""
         return json.loads(pathlib.Path(started["state_file"]).read_text(encoding="utf-8"))["phase"]
 
-    def step(self, reply):
+    def step(self, reply, cwd=None):
         """組の子の順の 1 歩: 段が route なら route-step（済めば注文の node orders。返りの phase は輪の状態の段）、ほかは tdd-step"""
         text = json.dumps(reply, ensure_ascii=False)
         if self.loop_phase() != "route":
-            return self.run_script("tdd_step", reply=text)
-        out = self.run_script("route_step", reply=text)
+            return self.run_script("tdd_step", reply=text, cwd=cwd)
+        out = self.run_script("route_step", reply=text, cwd=cwd)
         if not out["done"]:
             return out
-        self.run_script("orders")
+        self.run_script("orders", cwd=cwd)
         phase = self.loop_phase()
         return {**out, "done": phase == "done", "phase": phase}
 
@@ -352,7 +362,7 @@ class GroupChildScriptsCase(unittest.TestCase):
         親の裁定の後の修正の受け付けは、写した状態の実行器で変更に当たる試験を走らせ、元で緑だった試験を赤にする直しを拒む"""
         import leftovers
         self.parent_inputs(str(self.suite))
-        self.start()
+        self.start_routed()
         result = json.loads(pathlib.Path(self.run_script("group_end")["result_file"]).read_text(encoding="utf-8"))
         self.assertTrue(pathlib.Path(result["tdd_state"]).is_file(), result["tdd_state"])
         self.parent_groups(result["start_tree"])
@@ -403,7 +413,7 @@ class GroupChildScriptsCase(unittest.TestCase):
         child = self.tmp / "child-tree"
         git(self.repo, "worktree", "add", "--detach", "--quiet", str(child), "HEAD")
         self.parent_inputs("ci/suite.py")
-        self.start(cwd=child)
+        self.start_routed(cwd=child)
         result = json.loads(pathlib.Path(self.run_script("group_end", cwd=child)["result_file"]).read_text(encoding="utf-8"))
         self.parent_groups(result["start_tree"])
         self.run_script("join", art=self.parent)
@@ -504,8 +514,7 @@ class GroupChildScriptsCase(unittest.TestCase):
         """持ち主の決め related-tests-only: group-start は related.applies（test_cmd が空で、対象の根に走らせる段の宣言が無い）の時だけ
         輪の頭の元の結末を関わる試験に絞る。test_cmd が在る run は今のまま（状態の related は applied 偽）"""
         def related_of() -> dict:
-            state = json.loads(pathlib.Path(_src("board").loop_files(self.place)[0]).read_text(encoding="utf-8"))
-            return state["related"]
+            return _src("route").read(self.place)["related"]   # 振り分けの状態（輪の状態と同じ元の結末の欄）
         self.parent_inputs(str(self.suite))
         self.assertEqual(self.start()["tdd"], True)
         self.assertTrue(related_of()["applied"], "plan の欄が無くても絞る対象と読む（起点が無いので一式。whole）")
@@ -596,6 +605,47 @@ class GroupChildScriptsCase(unittest.TestCase):
         self.assertEqual([(u["unit_key"], u["gave_up"]) for u in result["tdd"]["units"]], [(MEAN, "green")])
         self.assertEqual([(u["unit_id"], u["status"]) for u in result["units"]], [(MEAN, "given_up")])
         self.assertEqual([r["unit_key"] for r in result["conflicts"]], [MEAN])
+
+    def test_orders_hand_the_route_counts_to_the_loop_and_the_loop_writes_its_record(self):
+        """E1: 振り分けの状態は place の route.json（輪の置き場 tdd-<k>/ を持たない）。振り分けが使った周・呼びの控え・渡した証拠の種類は
+        orders が注文の型ごとの欄 tdd（weapon-order の形）に書き、輪の状態はそこから数え始める。輪が抜けたら tdd-<k>/record.json を
+        書く（形は schemas/tdd-record.schema.json）"""
+        self.parent_inputs(str(self.suite))
+        self.start()
+        self.assertEqual(self.loop_phase(), "route")
+        self.assertFalse(list(self.place.glob("tdd-[0-9]*")), "振り分けは輪の置き場を作らない")
+        self.assertFalse(json.loads((self.place / "tdd-start.json").read_text(encoding="utf-8")).get("state_file"))
+        self.assertTrue(self.run_script("route_prep")["go"])
+        self.assertTrue((self.place / "route-delivered.json").is_file(), "振り分けの控えは輪の控えと別")
+        self.assertFalse(self.step({"phase": "route", "units": []})["ok"])
+        got = self.step({"phase": "route", "units": [{"unit_key": MEAN, "route": "tdd"}]})
+        self.assertEqual((got["ok"], got["phase"]), (True, "test"), got)
+        order = json.loads((self.place / "orders" / "tdd.json").read_text(encoding="utf-8"))
+        schema = json.loads((kit.SHARED / "schemas" / "weapon-order.schema.json").read_text(encoding="utf-8"))
+        self.assertEqual(validate_schema(order, schema), [])
+        started = json.loads((self.place / "tdd-start.json").read_text(encoding="utf-8"))
+        loop = json.loads(pathlib.Path(started["state_file"]).read_text(encoding="utf-8"))
+        self.assertEqual(order["tdd"]["iterations"], 2)
+        self.assertEqual([(c["phase"], c["ok"]) for c in order["tdd"]["calls"]], [("route", False), ("route", True)])
+        self.assertEqual(order["tdd"]["kinds"], ["code"])
+        self.assertEqual((loop["iterations"], loop["calls"], loop["kinds"]),
+                         (2, order["tdd"]["calls"], order["tdd"]["kinds"]), "輪は注文の欄から数え始める")
+        self.assertFalse((pathlib.Path(started["state_file"]).parent / "record.json").exists())
+        test_file = self.repo / "test_stats.py"
+        test_file.write_text(test_file.read_text(encoding="utf-8").replace("\n\nif __name__", NEW_TEST + "\n\nif __name__"),
+                             encoding="utf-8")
+        self.assertTrue(self.step({"phase": "test", "unit_key": MEAN, "test_files": ["test_stats.py"],
+                                   "tests": ["test_stats.py::TestStats::test_mean_of_two"]})["ok"])
+        stats = self.repo / "stats.py"
+        stats.write_text(stats.read_text(encoding="utf-8").replace("(len(xs) - 1)", "len(xs)"), encoding="utf-8")
+        got = self.step({"phase": "fix", "unit_key": MEAN, "files": ["stats.py"], "what": "分母を len(xs) にした"})
+        self.assertEqual((got["ok"], got["done"]), (True, True), got)
+        record = json.loads((pathlib.Path(started["state_file"]).parent / "record.json").read_text(encoding="utf-8"))
+        shape = json.loads((BLOCK / "schemas" / "tdd-record.schema.json").read_text(encoding="utf-8"))
+        self.assertEqual(validate_schema(record, shape), [], record)
+        self.assertEqual([(c["phase"], c["ok"]) for c in record["calls"]],
+                         [("route", False), ("route", True), ("test", True), ("fix", True)], "振り分けの呼びが輪の記録の頭に入る")
+        self.assertEqual(list(record["frozen"]), ["test_stats.py"])
 
     # ---- 修正の輪
     def test_fix_accept_rejects_a_change_to_a_loop_frozen_test(self):

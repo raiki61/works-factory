@@ -24,10 +24,9 @@ REJECT = "route-step-reject-{}.md"
 def main() -> dict:
     reply = ports.polyfill("skip_value").value(os.environ.get("INPUTS_REPLY"))
     place, repo = ports.place(), Path.cwd()
-    started = board.read_json(place / board.TDD_START_FILE)
-    if not isinstance(started, dict) or not started.get("state_file"):
+    state = route.path(place)
+    if not state.is_file():
         return {"ok": True, "done": True, "reason": "", "reason_file": "", "phase": route.ROUTED}
-    state = started["state_file"]
     hits = board.judge_query(place)
     log = writelog.log_here()
     ports.drop_runner_env(runvals.read(place)["user_env_dir"])

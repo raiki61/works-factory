@@ -42,6 +42,8 @@ WRITER_REPORT_FILE = "writer-report.json"   # 型の block の書き手の報告
 CLOSURE_FILE = "closure.json"               # 閉鎖の表 {rows, claimed}（出力 closure）
 REMOVED_FILE = "fix-removed.json"           # clean が消したパスの全件（lib/leftovers.py が同じ字で書く）
 TDD_STATE_FILE = "state.json"               # TDD の輪の状態（tdd-<k>/ の中）
+ROUTE_FILE = "route.json"                   # 振り分けの段の状態（place 直下。route-go が置き、route-step が進め、orders が読んで輪の状態を作る）
+RECORD_FILE = "record.json"                 # TDD の輪の記録（tdd-<k>/ の中。輪が抜ける時に書く。形は schemas/tdd-record.schema.json）
 
 # 直し方の型の口（docs/plans/2026-10-24-fix-weapons.md の 2.1・2.2）
 BASE_FILE = "base.json"        # 組の元の結末の控え（src/basecase.take。組の置き場・確かめ直しの <name>/。親は置かない）
@@ -64,7 +66,8 @@ DIFF_NONE_FILE = "fix-diff-none.txt"
 PROMPT_ERROR = "prompt-error.json"   # 指示が組めなかった node と訳
 COLLECT_ERROR = "fix-collect-error.txt"   # finish の中の誤り
 CONFLICTS_DROPPED = "conflicts-dropped.json"
-TDD_DELIVERED = "tdd-delivered.json"         # TDD の役に渡した証拠の種類と回の控え（今の tdd-<k>/next.delivered.json の代わり）
+TDD_DELIVERED = "tdd-delivered.json"         # TDD の役に渡した証拠の種類と回の控え（今の tdd-<k>/next.delivered.json の代わり。輪だけが使う）
+ROUTE_DELIVERED = "route-delivered.json"     # 振り分けの役に渡した証拠の種類と回の控え（輪の控えと分ける。輪は注文の tdd 欄の kinds から始める）
 
 
 def delivered(node: str) -> str:
