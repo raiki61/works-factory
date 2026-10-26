@@ -253,7 +253,7 @@ class WeaponDutiesCase(unittest.TestCase):
 
 class SchemaCase(unittest.TestCase):
     def load(self, name):
-        folder = kit.SHARED if name in ("weapon-order.schema.json", "writer-slots.schema.json") else BLOCK   # 注文・書き手の形は pack の共通（段 2 の D1）
+        folder = kit.SHARED if name in ("weapon-order.schema.json", "writer-slots.schema.json", "writer-reply.schema.json") else BLOCK   # 注文・書き手の形は pack の共通（段 2 の D1）
         return json.loads((folder / "schemas" / name).read_text(encoding="utf-8"))
 
     def test_an_order_and_a_return_hold_the_shape(self):
@@ -281,6 +281,43 @@ class SchemaCase(unittest.TestCase):
                                 "申し出の語は lib/conflicts.schema.json と同じ語だけ")
         self.assertEqual(validate_schema({**order, "base": ""}, self.load("weapon-order.schema.json")), [],
                          "元の結末の無い組（裁定の後の段で写した元の結末が無い時）の注文は base が空")
+
+    def test_writer_reply_shape_is_the_anchor_fix_reply_written_out(self):
+        """writer-reply は今の YAML の錨 fix_reply を字のまま JSON にした物（YAML に書く output_format と同じ中身）"""
+        import yaml
+        doc = yaml.safe_load((BLOCK / "works-factory-fix.yaml").read_text(encoding="utf-8"))
+        found = []
+
+        def walk(o):
+            if isinstance(o, dict):
+                of = o.get("output_format")
+                if isinstance(of, dict) and "changes" in (of.get("properties") or {}):
+                    found.append(of)
+                for v in o.values():
+                    walk(v)
+            elif isinstance(o, list):
+                for v in o:
+                    walk(v)
+        walk(doc)
+        self.assertTrue(found)
+        for shape in found:
+            self.assertEqual(self.load("writer-reply.schema.json"), shape)
+
+    def test_precedent_conditions_of_the_writer_reply(self):
+        """precedent の 3 つの条件（allOf の if/then。from_judge_row が真でなければ problem・not_found なら searched・not_found でなければ source）"""
+        shape = self.load("writer-reply.schema.json")["properties"]["changes"]["items"]["properties"]["precedent"]
+
+        def errors(**p):
+            return validate_schema({"verdict": "adopt", "reason": "先行例に従う", "problem": "同じ欠陥", "source": "src.py:1", **p}, shape)
+        self.assertEqual(errors(), [])
+        self.assertTrue(validate_schema({"verdict": "adopt", "reason": "先行例に従う", "source": "s.py"}, shape),
+                        "from_judge_row が真でなければ problem が要る")
+        self.assertEqual(validate_schema({"verdict": "adopt", "reason": "判定の行どおり", "from_judge_row": True}, shape), [],
+                         "from_judge_row が真なら problem も source も要らない")
+        self.assertTrue(errors(verdict="not_found"), "not_found は searched が要る")
+        self.assertEqual(errors(verdict="not_found", searched="全体を検索した", source="x" * 4), [])
+        self.assertTrue(validate_schema({"verdict": "adopt", "reason": "先行例に従う", "problem": "同じ欠陥"}, shape), "not_found でなければ source が要る")
+        self.assertEqual(validate_schema({"verdict": "not_found", "reason": "先行例が無い", "problem": "同じ欠陥", "searched": "全体を検索した"}, shape), [])
 
     def test_writer_slots_shape_requires_every_key(self):
         """段 2 の D1 で .shared/schemas/ に置いた writer-slots は、values・when の全部の鍵を required に持つ"""

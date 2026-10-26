@@ -94,6 +94,15 @@ class JsonCase(Base):
         with self.assertRaisesRegex(ValueError, r"知らない語 \['\$\.anyOf'\]"):
             ports.json("[]", "shared:bad.schema.json")
 
+    def test_unknown_words_under_all_of_if_then_not_are_found(self):
+        """allOf・if・then・not は照らしが読む語。その下の部分の知らない語（欄の名でない）も拾う"""
+        shape = {"type": "object", "allOf": [{"required": ["a"], "anyOf": []}], "if": {"oneOf": []}, "then": {"format": "uri"},
+                 "not": {"properties": {"format": {"type": "string"}, "x": {"pattern": "a", "uniqueItems": True}}}}
+        self.assertEqual(sorted(ports.unknown_keywords(shape)),
+                         ["$.allOf[0].anyOf", "$.if.oneOf", "$.not.properties.x.uniqueItems", "$.then.format"])
+        self.assertEqual(ports.unknown_keywords({"type": "object", "allOf": [{"required": ["a"]}], "if": {"required": ["a"]},
+                                                 "then": {"required": ["b"]}, "not": {"required": ["c"]}}), [])
+
     def test_open_schema_is_refused(self):
         """中身を宣言しない形（properties の無い object・items の無い array・型の無い所）は、何でも通すので形のファイルごと拒む"""
         cases = {"object": {"type": "object"}, "empty-properties": {"type": "object", "properties": {}},
