@@ -367,11 +367,12 @@ class PriorLoopsCase(tddcase.LoopCase):
                 self.assertTrue(got["go"], got)
                 rows = [{"unit_key": tddcase.CLAMP, "route": "direct", "why": "2 回目の段で先にテストを書かない単位"}]
                 self.assertTrue(steps.loop_step(got["state_file"], {"phase": "route", "units": rows}, self.repo)["ok"])
+                loop = steps.resolve(got["state_file"])
                 self.assertEqual(len(common.states(place)), 2)
-                self.assertEqual(board.ruled_states(place), (got["state_file"], got["state_file"]))
-                self.assertEqual(facts.check_frozen(place, got["state_file"], self.repo, "first"), [])
+                self.assertEqual(board.ruled_states(place), (loop, loop))
+                self.assertEqual(facts.check_frozen(place, loop, self.repo, "first"), [])
                 self.edit("test_stats.py", "mean([2, 4]), 3", "mean([2, 4]), 3.0")   # 2 回目の修正役が tdd-1 の凍ったテストを変えた
-                problems = facts.check_frozen(place, got["state_file"], self.repo, "first")
+                problems = facts.check_frozen(place, loop, self.repo, "first")
                 self.assertTrue(problems and "test_stats.py" in problems[0], problems)
                 self.edit("test_stats.py", "mean([2, 4]), 3.0", "mean([2, 4]), 3")
 

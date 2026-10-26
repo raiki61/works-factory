@@ -118,7 +118,7 @@ PLAN_DIRECT = "承認済みの修正案の route が direct（入力 routes: pla
 PLAN_NO_ROW = "承認済みの修正案にこの単位を持つ行が無い（入力 routes: plan は案の route に従い、行の無い単位は direct）"
 SESSION_KEY = "session_key"   # 状態の欄: 前の周の支度が組んだ単位の鍵（prep の new_unit の元。元 write_key の鍵）
 GAVE_UP_WHY = "機械が書いた申し出（TDD の確認が回数の上限まで通らなかった）: "   # 3 回拒まれた単位の申し出の why の頭
-STATE, PROMPT, SUMMARY = fixnames.TDD_STATE_FILE, "next.md", "summary.md"
+STATE, PROMPT, SUMMARY, RECORD = fixnames.TDD_STATE_FILE, "next.md", "summary.md", fixnames.RECORD_FILE
 # 実行器への合図（env）: 1 なら後ろに足した試験（ファイル・node id）だけを走らせてよい（既定の一式を集めない）。輪の赤・緑の回だけが
 # 付ける（元の結末・受け付け・版の写しは付けない）。解かない実行器は無視してよい（一式に足して走らせても確かめは同じ）
 ONLY_ENV = "TDD_SUITE_ONLY"
@@ -202,12 +202,17 @@ BASE_FIELDS = ("exe", "suite", "baseline", "baseline_exit", "baseline_cases", "s
                "test_cmd_note", "reused", "related")   # 元の結末の控え base.json から輪の状態へ写す欄（同じ名と形）
 
 
-def open_state(board_dir, repo, base_file, open_units: list, *, owed=None, withheld_by=None, returned=(), round_: int = 1,
-               light=()) -> str:
-    """輪の状態を置き、状態のファイルのパスを返す。元の結末は組の頭が取った base_file（src/basecase.take）の欄を同じ名で写す
-    （輪の頭で試験を走らせ直さない）。段は route（振り分けの loop が回す。src/route.begin）で置き、振り分けの後か振り分けを
-    起こさない組では注文の node が assign で tdd の単位の並びを置く。owed・withheld_by・returned は直す義務の値（_duty）、round_ は
-    凍結した欄の周（plan_contract）、light は緑の後の test_cmd を走らせない軽量の単位"""
+ROUTE_CARRY = ("open_units", "excused", "contract", "order", "units", "parked", "parked_why", "note", "handoff", "unsent")
+# 振り分けの状態（place の route.json。src/route.py）から輪の状態へ移す欄（orders が輪の状態を作る時。同じ名と形。contract は振り分けが
+# 見た約束のまま使う）。数え（iterations・calls）と渡した証拠の種類（kinds）は注文の型ごとの欄 orders.tdd（route.counted）で渡る。
+# tries・reason は assign が空に戻し、runs・suite_made・light・元の結末の欄は new_state が組み直す（振り分けは実行器を走らせない）
+
+
+def new_state(board_dir, repo, base_file, open_units: list, work, *, owed=None, withheld_by=None, returned=(), round_: int = 1,
+              light=()) -> dict:
+    """輪の状態の辞書を組む（ファイルを置かず、work の置き場も作らない。work は状態の欄にそのまま書く）。元の結末は組の頭が取った
+    base_file（src/basecase.take）の欄を同じ名で写す（輪の頭で試験を走らせ直さない）。段は route。owed・withheld_by・returned は
+    直す義務の値（_duty）、round_ は凍結した欄の周（plan_contract）、light は緑の後の test_cmd を走らせない軽量の単位"""
     from src import basecase
     base = basecase.read_file(base_file)
     if not base or not base.get("taken"):
@@ -219,16 +224,32 @@ def open_state(board_dir, repo, base_file, open_units: list, *, owed=None, withh
         keys = [k for k in keys if k in owed or k in excused] + sorted(owed - set(keys))   # is_open の並び順を保つ
     excused = {k: why for k, why in excused.items() if k in keys}
     contract = plan_contract(board_dir, keys, round_)   # 輪の頭で 1 回だけ（欄の控えの食い違いは conflict の 1 か所で止める）
+    return {**{f: base[f] for f in BASE_FIELDS}, "work": str(work), "base_file": str(base_file), "open_units": keys,
+            "excused": excused, "handoff": snapshot(repo), "phase": "route", "tries": 0, "reason": "", "iterations": 0,
+            "runs": 1, "order": [], "units": {}, "queue": [], "cur": 0, "unit_head": "", "green_tree": "",
+            "done": False, "note": "", "frozen": {}, "parked": [], "parked_why": {}, "contract": contract,
+            "light": sorted(set(light) & set(keys)), "calls": [], "kinds": []}
+
+
+def open_state(board_dir, repo, base_file, open_units: list, *, owed=None, withheld_by=None, returned=(), round_: int = 1,
+               light=(), routed: dict | None = None, counted: dict | None = None) -> str:
+    """輪の状態を置き、状態のファイルのパスを返す（組の子の node orders が、振り分けの後か振り分けを起こさない組で呼ぶ。輪の置き場
+    tdd-<k>/ もここで初めて作る）。routed は振り分けの状態 route.json（src/route.py）の辞書で、あれば ROUTE_CARRY の欄を移し、段を
+    振り分けが済んだ印のままにする。counted は注文の型ごとの欄 orders.tdd {iterations, calls, kinds}（route.counted）で、輪はそこから
+    数え始める（回数の上限 MAX_ITERATIONS・呼びの控え calls・渡した証拠の種類の控え kinds）。段が route のまま置くのは tdd.start
+    （routes が plan の手早い口）で、assign が tdd の単位の並びを置く"""
+    board_dir = pathlib.Path(board_dir)
     k = 1
     while (board_dir / f"tdd-{k}").exists():
         k += 1
     work = board_dir / f"tdd-{k}"
+    st = new_state(board_dir, repo, base_file, open_units, work, owed=owed, withheld_by=withheld_by, returned=returned,
+                   round_=round_, light=light)
+    if routed:
+        st.update({f: routed[f] for f in ROUTE_CARRY if f in routed}, phase=routed["phase"])
+    if counted:
+        st.update(iterations=int(counted["iterations"]), calls=list(counted["calls"]), kinds=list(counted["kinds"]))
     work.mkdir(parents=True)
-    st = {**{f: base[f] for f in BASE_FIELDS}, "work": str(work), "base_file": str(base_file), "open_units": keys,
-          "excused": excused, "handoff": snapshot(repo), "phase": "route", "tries": 0, "reason": "", "iterations": 0,
-          "runs": 1, "order": [], "units": {}, "queue": [], "cur": 0, "unit_head": "", "green_tree": "",
-          "done": False, "note": "", "frozen": {}, "parked": [], "parked_why": {}, "contract": contract,
-          "light": sorted(set(light) & set(keys)), "calls": []}
     state_file = work / STATE
     _save(state_file, st)
     return str(state_file)
@@ -255,6 +276,7 @@ def assign(state_file, repo, routes: dict, whys: dict | None = None) -> None:
     _next_unit(st, repo)
     if st["done"]:
         _finish(st, repo)
+        _write_record(st)
     _save(state_file, st)
 
 
@@ -264,7 +286,8 @@ def start(board_dir, repo, suite: str, open_units: str, test_cmd: str = "", unit
     """組の頭（src/basecase.take）と輪の状態（open_state）を 1 回で組む口（単独の呼びと試験の手早い口。組の子は group-start・
     route-go・orders の 3 つの node でこれと同じ順に呼ぶ）。{go, reason, suite, state_file, summary_file, base_file}。
     routes が plan なら振り分けの段の AI を起こさず、承認済みの案の route（約束の route が tdd の単位を tdd）で単位を振って test の
-    段から始める（tdd の単位が無ければ go: false。PLAN_NO_TDD）。auto なら段 route で置く（src/route.step が回す）。
+    段から始める（tdd の単位が無ければ go: false。PLAN_NO_TDD）。auto なら振り分けの状態 route.json を置き、state_file はそのパス
+    （src/route.step が回す。輪の状態は振り分けの後に注文の node orders が置く）。
     narrow・reuse・suite_made・test_cmd は元の結末の取り方（basecase.take）へ。narrow は related.applies の代わりに渡す"""
     from src import basecase
     from src import route as router
@@ -283,15 +306,17 @@ def start(board_dir, repo, suite: str, open_units: str, test_cmd: str = "", unit
         contract = plan_contract(board_dir, keys, round_)
         if not any((contract.get(k) or {}).get("route") == "tdd" for k in keys if k not in excused):
             return {**head, "go": False, "reason": PLAN_NO_TDD}
+    light = _light_units(unit_depths)
+    if routes != "plan":   # 振り分けの状態 route.json を置く（輪の状態は注文の node orders が振り分けの後に作る。試験の助けは steps.loop_step）
+        state_file = router.open_route(board_dir, repo, head["base_file"], keys, owed=owed, withheld_by=withheld_by,
+                                       returned=returned, round_=round_, light=light)
+        return {**head, "go": True, "state_file": state_file, "summary_file": ""}
     state_file = open_state(board_dir, repo, head["base_file"], keys, owed=owed, withheld_by=withheld_by, returned=returned,
-                            round_=round_, light=_light_units(unit_depths))
+                            round_=round_, light=light)
     st = _load(state_file)
-    if routes == "plan":
-        whys = router.plan_whys(board_dir, keys, round_)
-        routed = {k: "tdd" if (_contract(st, k) or {}).get("route") == "tdd" else "direct" for k in _owed(st)}
-        assign(state_file, repo, routed, {k: whys.get(k) or (PLAN_DIRECT if _contract(st, k) else PLAN_NO_ROW) for k in routed})
-    else:
-        _save(state_file, router.begin(st, _owed(st)))
+    whys = router.plan_whys(board_dir, keys, round_)
+    routed = {k: "tdd" if (_contract(st, k) or {}).get("route") == "tdd" else "direct" for k in _owed(st)}
+    assign(state_file, repo, routed, {k: whys.get(k) or (PLAN_DIRECT if _contract(st, k) else PLAN_NO_ROW) for k in routed})
     return {**head, "go": True, "state_file": state_file, "summary_file": str(pathlib.Path(state_file).parent / SUMMARY)}
 
 
@@ -976,6 +1001,8 @@ def step(state_file, reply, repo, try_query=None, log=None) -> dict:
                                        "secs": round(time.monotonic() - t0, 1)})
     if item is not None:
         st.setdefault(UNSENT, []).append({"source": source, "item": item})
+    if st["done"]:
+        _write_record(st)
     _save(state_file, st)
     return {"ok": not probs, "done": st["done"], "reason": "\n".join(probs), "phase": "done" if st["done"] else st["phase"],
             "writes": got}
@@ -1012,6 +1039,30 @@ def _finish(st, repo) -> None:
     lines += ["", DIRECT_HEAD, ""]
     lines += [f"- {st['units'][k]['unit_key']}: {st['units'][k]['why']}" for k in st["order"] if st["units"][k]["route"] == "direct"]
     (pathlib.Path(st["work"]) / SUMMARY).write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
+def _write_record(st) -> None:
+    """輪が抜ける時に輪の記録 record.json を書く。輪を抜ける道（全部の単位が済んだ・回数の上限・実行器が走らない・振り分けを諦めた・
+    tdd の単位が無い）は _finish を通り、step の終わり（最後の呼びの行と handoff を状態に積んだ後）と assign が呼ぶ"""
+    _save(pathlib.Path(st["work"]) / RECORD, record(st))
+
+
+RECORD_UNIT = {"route": "", "why": "", "tests": [], "test_files": [], "red": "", "green": "", "gave_up": "", "files": [],
+               "red_tree": "", "test_hashes": {}}   # 記録の単位の行の欄と、その単位の状態に無い時の値（test_hashes は赤が通った単位にしか付かない）
+
+
+def record(st) -> dict:
+    """輪の記録 record.json の中身（形は schemas/tdd-record.schema.json）。輪が抜ける時の状態から、輪の外が読む欄だけを同じ名と形で写す:
+    輪の全体の frozen・frozen_tree・handoff・suite_made・no_suite・note・done・calls と summary.md の在りか、組の結果の tdd の欄
+    （exit_fields の order・parked・parked_why・suite・test_cmd_gate・test_cmd_note・reused・related）、単位ごと（order の単位）の
+    RECORD_UNIT の欄。どの抜け方でも同じ形で書く（諦めた・direct の単位には test_hashes が無いので {} に揃える）"""
+    units = {k: {f: json.loads(json.dumps(st["units"][k].get(f, default))) for f, default in RECORD_UNIT.items()} for k in st["order"]}
+    return {"frozen": st["frozen"], "frozen_tree": st["frozen_tree"], "handoff": st["handoff"], "suite_made": list(st["suite_made"]),
+            "no_suite": st.get("no_suite") is True, "note": st["note"], "done": True, "calls": list(st.get("calls") or []),
+            "summary": str(pathlib.Path(st["work"]) / SUMMARY), "order": list(st["order"]), "parked": list(st.get("parked") or []),
+            "parked_why": dict(st.get("parked_why") or {}), "suite": st["suite"], "test_cmd_gate": st.get("test_cmd_gate", GATE_OFF),
+            "test_cmd_note": st.get("test_cmd_note", ""), "reused": dict(st.get("reused") or {}), "related": dict(st.get("related") or {}),
+            "units": units}
 
 
 def green_units(summary_file) -> set:

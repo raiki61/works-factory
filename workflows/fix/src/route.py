@@ -2,13 +2,16 @@
 
 振り分けの段は TDD の輪の最初の段だった（tdd.py の route）。組の子の loop route-loop（route-prep → AI の route → route-step）に出し、
 型の輪の前に回す。指示は変えない（prompts/route.md は {part:tdd} の 1 行で、状態の段が route の時の tdd_values が同じ字を組む）。
-返す語も tdd・direct と訳のまま。振り分けの段の状態は、後の TDD の輪と同じ輪の状態のファイル（tdd-<k>/state.json）に置く
-（回数の上限 MAX_ITERATIONS と申し出の数えを今と同じに続けるため。注文の node orders が、振り分けの後に tdd の単位の並びを置く）。
+返す語も tdd・direct と訳のまま。振り分けの段の状態は place の route.json（輪の状態と同じ欄の辞書。輪の置き場 tdd-<k>/ は置かない）に
+置き、輪の状態は注文の node orders が route.json を読んで tdd.open_state で初めて作る（振り分けが数えた周の数・呼びの控え・渡した
+証拠の種類は注文の型ごとの欄 orders.tdd で輪へ渡り、輪はそこから数え始める。回数の上限 MAX_ITERATIONS と申し出の数えは今と同じ）。
 
 - plan_words(place, keys) -> {単位: 計画の語}・plan_removes(place, keys) -> {単位: 消す名やパス}: 凍結した計画の欄から機械が引く
 - weapon_of(p, a, removes) -> 型の名: route から型を引く表（計画の語が先・AI の振りが後。上から順に最初に当たる行）
 - route_keys(keys, words, removes) -> 振り分けの AI に渡す単位の並び（語の在る単位と消す名の在る単位を除く）
-- begin(place, repo, base, keys, ...) -> 輪の状態のファイル（段 route で置く）・step(state_file, reply, repo, ...): 振り分けの段
+- path(place)・read(place) -> 振り分けの状態 route.json のパス・中身（無ければ {}）・open_route(place, repo, base_file, keys, ...) -> route.json を置く
+- begin(st, keys) -> 状態を段 route にして振る単位を置く・step(state_file, reply, repo, ...): 振り分けの段
+- counted(place, st) -> 注文の型ごとの欄 orders.tdd {iterations, calls, kinds}（輪が数え始める物）
 """
 from __future__ import annotations
 
@@ -21,7 +24,7 @@ import planmarks  # lib/
 import writelog   # lib/
 import writes     # lib/
 
-from src import common
+from src import common, files
 
 WORDS = ("static", "tidy", "pin")   # 計画の語のうち、項目がどんな直しかの見分けの語（その語の型を引き、振り分けの AI に渡さない）
 GAVE_UP = "振り分けの返答が {n} 回とも通らなかった: {why}"
@@ -95,10 +98,44 @@ def route_keys(keys, words: dict, removes: dict) -> list:
     return [k for k in keys if words.get(k) not in WORDS and not removes.get(k)]
 
 
+WORK = "route"   # 振り分けの状態の欄 work（置き場の下の名。作らない。common.conflict_item が親を置き場に引く）
+
+
+def path(place) -> pathlib.Path:
+    return pathlib.Path(place) / files.ROUTE_FILE
+
+
+def read(place) -> dict:
+    """振り分けの状態 route.json（無ければ {}。読めなければ Broken）"""
+    p = path(place)
+    return common._load(p) if p.is_file() else {}
+
+
 def begin(state: dict, keys: list) -> dict:
-    """輪の状態 state（tdd.open_state が元の結末から組んだ物）を段 route にして、振る単位 keys を open_units に置く"""
+    """振り分けの状態 state（tdd.new_state が元の結末から組んだ物）を段 route にして、振る単位 keys を open_units に置く"""
     state.update(open_units=list(keys), phase="route", order=[], units={}, queue=[], cur=0)
     return state
+
+
+def open_route(place, repo, base_file, keys, *, to_route=None, owed=None, withheld_by=None, returned=(), round_: int = 1,
+               light=()) -> str:
+    """振り分けの状態 route.json を place に置き、パスを返す（node route-go と tdd.start が呼ぶ）。to_route は振る単位（無ければ直す義務の
+    全部）。輪の置き場 tdd-<k>/ は作らない（輪の状態は orders が作る）"""
+    from src import tdd
+    st = tdd.new_state(place, repo, base_file, keys, pathlib.Path(place) / WORK, owed=owed, withheld_by=withheld_by,
+                       returned=returned, round_=round_, light=light)
+    owed_keys = common._owed(st)
+    common._save(path(place), begin(st, [k for k in owed_keys if to_route is None or k in to_route]))
+    return str(path(place))
+
+
+def counted(place, st: dict) -> dict:
+    """注文の型ごとの欄 orders.tdd: 振り分けが使った周の数・呼びの控え・渡した証拠の種類（振り分けの控え ROUTE_DELIVERED の種類の並び）。
+    輪はここから数え始め（回数の上限・calls を今と同じに続け、種類を減らさない）、最後の承認の tdd_refused は輪の記録の calls に振り分けの
+    呼びも入るので今と同じに読む"""
+    from src import rules
+    kinds = rules.delivered(pathlib.Path(place) / files.ROUTE_DELIVERED).get("kinds") or []
+    return {"iterations": int(st.get("iterations") or 0), "calls": list(st.get("calls") or []), "kinds": sorted(kinds)}
 
 
 def prep(state_file, sources=None) -> dict:

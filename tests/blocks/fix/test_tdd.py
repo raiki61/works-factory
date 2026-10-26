@@ -36,6 +36,7 @@ for _name in ("files", "rules", "runvals", "carry", "lanes", "intake", "scope", 
     importlib.import_module(f"src.{_name}")   # 遅れて読む src の名（board の関数の中の import）もこの block の物に揃える
 FIX_SRC = {n: m for n, m in sys.modules.items() if n == "src" or n.startswith("src.")}
 
+from graphloops.engine.schema import validate_schema  # noqa: E402  （lib）
 import conflict  # noqa: E402  （lib）
 import planbrief  # noqa: E402  （lib）
 import planmarks  # noqa: E402  （lib）
@@ -201,6 +202,26 @@ class LoopCase(Case):
         self.assertTrue(self.start["go"], self.start)
         self.state = self.start["state_file"]
 
+    @property
+    def state(self):
+        """今の状態のファイル: 振り分けの間は tdd.start が置いた route.json、振り分けが済んだ後は輪の状態（steps.resolve。route.json は
+        同じ置き場に 2 度目の start で置き直されるので、輪の状態に引けたらそれを持ち続ける）"""
+        self._state = steps.resolve(self._state)
+        return self._state
+
+    @state.setter
+    def state(self, path):
+        self._state = path
+
+    @property
+    def summary_file(self):
+        """輪の要約（輪の状態の隣の summary.md）"""
+        return str(pathlib.Path(self.state).parent / tdd.SUMMARY)
+
+    def loop_start(self):
+        """輪の出口の欄（tdd.exit_fields）に渡す組の頭の返り: state_file は今の状態（輪の状態）"""
+        return {**self.start, "state_file": self.state, "summary_file": self.summary_file}
+
     def restart(self, test_cmd=""):
         """tdd-start を起こし直す（test_cmd は線の入力）"""
         self.start = tdd.start(self.board, self.repo, str(self.suite), OPEN, test_cmd=test_cmd)
@@ -347,8 +368,14 @@ class TestStart(LoopCase):
         self.assertEqual(sorted(common._owed(st)), sorted([MEAN, back]))
 
     def test_second_start_gets_its_own_state(self):
-        again = tdd.start(self.board, self.repo, str(self.suite), OPEN)
-        self.assertNotEqual(again["state_file"], self.state)
+        """同じ置き場に輪の状態を 2 度置くと、2 つ目は次の tdd-<k>/ に置く（輪の状態を置くのは open_state。振り分けの状態は
+        place の route.json の 1 つで、輪の置き場を持たない）"""
+        base = str(basecase.path(self.board))
+        first = tdd.open_state(self.board, self.repo, base, [MEAN, CLAMP])
+        again = tdd.open_state(self.board, self.repo, base, [MEAN, CLAMP])
+        self.assertNotEqual(first, again)
+        self.assertEqual(sorted(p.name for p in self.board.glob("tdd-[0-9]*")), ["tdd-1", "tdd-2"])
+        self.assertEqual(self.state, str(route.path(self.board)), "振り分けの状態は輪の置き場の外の 1 つ")
 
     def test_head_reuses_the_green_baseline_of_the_same_run(self):
         """元 works/blk-fix/lib/tddloop.py:598 の run_suite(note=reuse["suite"]): 同じ run の中で同じ木の輪の頭は、緑の元の結末を
@@ -359,9 +386,10 @@ class TestStart(LoopCase):
         green.write_text(f"import sys\nopen({str(count)!r}, 'a').write('1\\n')\nopen(sys.argv[1], 'w').write("
                          "'<testsuite><testcase classname=\"c\" name=\"t\"/></testsuite>')\n", encoding="utf-8")
         place = tree_run.reuse_place(self.board.parent, "run-1", rerun=False)
-        first = tdd.start(self.board, self.repo, str(green), OPEN, reuse=place)
-        again = tdd.start(self.board, self.repo, str(green), OPEN, reuse=place)
-        states = [json.loads(pathlib.Path(s["state_file"]).read_text(encoding="utf-8")) for s in (first, again)]
+        states = []
+        for _ in range(2):   # 振り分けの状態は place の route.json の 1 つなので、置くたびに読む
+            got = tdd.start(self.board, self.repo, str(green), OPEN, reuse=place)
+            states.append(json.loads(pathlib.Path(got["state_file"]).read_text(encoding="utf-8")))
         self.assertEqual(len(count.read_text(encoding="utf-8").split()), 1)
         self.assertEqual(states[1]["baseline"], {"c::t": "passed"})
         self.assertEqual(states[0]["reused"], {})
@@ -461,13 +489,151 @@ class TestRoute(LoopCase):
         for _ in range(tdd.retry_max()):
             got = self.step({"phase": "route", "units": []})
         self.assertEqual((got["ok"], got["done"]), (False, True))
-        ex = tdd.exit_fields(self.start)
+        ex = tdd.exit_fields(self.loop_start())
         self.assertEqual([(u["unit_key"], u["route"]) for u in ex["units"]], [(MEAN, "direct"), (CLAMP, "direct")])
         self.assertTrue(all(len(u["why"]) >= 10 for u in ex["units"]))
 
     def test_all_direct_ends_loop(self):
         got = self.route(mean="direct", clamp="direct")
         self.assertTrue(got["done"])
+
+
+RECORD_SCHEMA = json.loads((kit.BLOCKS / "fix" / "schemas" / "tdd-record.schema.json").read_text(encoding="utf-8"))
+RECORD_UNIT_FIELDS = ("route", "why", "tests", "test_files", "red", "green", "gave_up", "files", "red_tree")
+
+
+class TddRecordCase(LoopCase):
+    """輪の記録 tdd-<k>/record.json（E1。輪が抜ける時に書く。輪の外が輪の状態でなくこれを読む。形は schemas/tdd-record.schema.json）:
+    輪を抜ける道（全部の単位が済んだ・回数の上限・実行器が走らない・諦め・tdd の単位が無く注文が即済ませる）のどれでも、記録を書き、
+    形に合い、輪の状態の同じ欄と同じ中身になる。単位の test_hashes・red_tree・files は、赤が通らなかった単位（direct・諦め）でも在る"""
+
+    def record(self):
+        path = pathlib.Path(self.state).parent / "record.json"
+        self.assertTrue(path.is_file(), "輪が抜けたら記録を書く")
+        rec = json.loads(path.read_text(encoding="utf-8"))
+        self.assertEqual(validate_schema(rec, RECORD_SCHEMA), [], rec)
+        st = self.st()
+        for f in ("frozen", "frozen_tree", "handoff", "suite_made", "note", "calls", "order", "parked", "parked_why", "suite",
+                  "test_cmd_gate", "test_cmd_note", "reused", "related"):
+            self.assertEqual(rec[f], st[f], f"記録の {f} は輪の状態と同じ")
+        self.assertEqual((rec["done"], rec["no_suite"]), (True, st.get("no_suite") is True))
+        self.assertEqual(rec["summary"], str(pathlib.Path(self.state).parent / tdd.SUMMARY))
+        self.assertTrue(pathlib.Path(rec["summary"]).is_file())
+        self.assertEqual(list(rec["units"]), st["order"])
+        for k, row in rec["units"].items():
+            for f in RECORD_UNIT_FIELDS:
+                self.assertEqual(row[f], st["units"][k][f], f"{k} の {f}")
+            self.assertEqual(row["test_hashes"], st["units"][k].get("test_hashes") or {}, f"{k} の test_hashes")
+        return rec
+
+    def test_every_unit_done_writes_the_record(self):
+        self.route()
+        self.red()
+        self.assertFalse((pathlib.Path(self.state).parent / "record.json").exists(), "輪の途中は書かない")
+        self.assertTrue(self.fix_mean()["done"])
+        rec = self.record()
+        mean, clamp = rec["units"][MEAN], rec["units"][CLAMP]
+        self.assertEqual((mean["route"], mean["red"], mean["green"], mean["files"]), ("tdd", "ok", "ok", ["stats.py"]))
+        self.assertEqual(list(mean["test_hashes"]), ["test_stats.py"])
+        self.assertTrue(mean["red_tree"])
+        self.assertEqual(list(rec["frozen"]), ["test_stats.py"])
+        self.assertEqual((clamp["route"], clamp["test_hashes"], clamp["red_tree"], clamp["files"]), ("direct", {}, "", []),
+                         "赤を通らない単位も同じ欄が在る")
+
+    def test_the_budget_writes_the_record(self):
+        self.route()
+        st = self.st()
+        st["iterations"] = tdd.MAX_ITERATIONS - 1
+        pathlib.Path(self.state).write_text(json.dumps(st, ensure_ascii=False), encoding="utf-8")
+        self.assertTrue(self.step({"phase": "test", "unit_key": MEAN, "test_files": [], "tests": []})["done"])
+        rec = self.record()
+        self.assertEqual(rec["units"][MEAN]["gave_up"], "budget")
+        self.assertIn(str(tdd.MAX_ITERATIONS), rec["note"])
+        self.assertEqual(rec["calls"][-1]["unit_key"], MEAN, "最後の呼びの行まで入れて書く")
+
+    def test_a_runner_that_does_not_run_writes_the_record(self):
+        self.route(clamp="tdd")
+        self.add_test(NEW_TEST)
+        self.suite.write_text("import sys\nsys.exit(3)\n", encoding="utf-8")   # JUnit を書かない
+        self.assertTrue(self.step({"phase": "test", "unit_key": MEAN, "test_files": ["test_stats.py"],
+                                   "tests": ["test_stats.py::TestStats::test_mean_of_two"]})["done"])
+        rec = self.record()
+        self.assertTrue(rec["no_suite"])
+        self.assertEqual([u["gave_up"] for u in rec["units"].values()], ["runner", "runner"])
+        self.assertEqual(rec["calls"][-1]["phase"], "runner")
+
+    def test_a_unit_given_up_writes_the_record(self):
+        """単位の諦め（段の 3 回目の拒否。申し出で止めて次の単位へ）で最後の単位が済んだ輪の記録: 止めた単位は parked・諦めた段が残る"""
+        self.route()
+        bad = {"phase": "test", "unit_key": MEAN, "test_files": [], "tests": []}
+        got = [self.step(bad) for _ in range(tdd.retry_max())]
+        self.assertTrue(got[-1]["done"])
+        rec = self.record()
+        self.assertEqual((rec["parked"], list(rec["parked_why"])), ([MEAN], [MEAN]))
+        row = rec["units"][MEAN]
+        self.assertEqual((row["route"], row["gave_up"], row["test_hashes"], row["red_tree"]), ("parked", "red", {}, ""))
+
+    def test_a_route_given_up_writes_the_record(self):
+        for _ in range(tdd.retry_max()):
+            got = self.step({"phase": "route", "units": []})
+        self.assertTrue(got["done"])
+        rec = self.record()
+        self.assertEqual([(u["route"], u["gave_up"]) for u in rec["units"].values()], [("direct", "route"), ("direct", "route")])
+        self.assertEqual([c["ok"] for c in rec["calls"]], [False] * tdd.retry_max(), "振り分けの呼びも入る")
+        self.assertEqual(rec["frozen"], {})
+
+    def test_no_tdd_unit_writes_the_record_when_orders_finish_the_loop(self):
+        """tdd の単位が無い（assign が即 _finish する）組も、輪の状態と記録を置く"""
+        self.assertTrue(self.route(mean="direct", clamp="direct")["done"])
+        rec = self.record()
+        self.assertEqual(([u["route"] for u in rec["units"].values()], rec["frozen"]), (["direct", "direct"], {}))
+
+
+class RouteHandoverCase(LoopCase):
+    """E1: 振り分けの周と呼びの数え・渡した証拠の種類が、注文の型ごとの欄 orders.tdd（route.counted）で輪へ渡り、輪はそこから数え始める。
+    振り分けの状態は place の route.json で、輪の状態 tdd-<k>/ は振り分けの後に作る"""
+
+    def test_route_rounds_count_in_the_loop_budget_and_the_calls_reach_tdd_refused(self):
+        from src import finish
+        self.assertEqual(self.state, str(route.path(self.board)))
+        self.assertFalse(list(self.board.glob("tdd-[0-9]*")), "振り分けは輪の置き場を作らない")
+        self.assertFalse(self.step({"phase": "route", "units": []})["ok"])   # 振り分けの 1 周目は拒否
+        self.route()                                                         # 2 周目で通る
+        counted = route.counted(self.board, json.loads(pathlib.Path(route.path(self.board)).read_text(encoding="utf-8")))
+        self.assertEqual((counted["iterations"], [(c["phase"], c["ok"]) for c in counted["calls"]]),
+                         (2, [("route", False), ("route", True)]))
+        st = self.st()
+        self.assertEqual((st["iterations"], st["calls"], st["kinds"]), (2, counted["calls"], counted["kinds"]), "輪はそこから数え始める")
+        bad = {"phase": "test", "unit_key": MEAN, "test_files": [], "tests": []}
+        with mock.patch.object(tdd, "MAX_ITERATIONS", 4):   # 振り分けの 2 周 + 輪の 2 周で 4 周に届く（振り分けの周を数えなければ 2）
+            self.assertFalse(self.step(bad)["done"])
+            got = self.step(bad)
+        self.assertTrue(got["done"], "回数の上限に振り分けの周が入る")
+        self.assertEqual(self.st()["units"][MEAN]["gave_up"], "budget")
+        want = [tdd.ROUTE_REFUSED, MEAN]
+        self.assertEqual(tdd.refused_units(json.loads((pathlib.Path(self.state).parent / "record.json").read_text(
+            encoding="utf-8"))["calls"]), want, "最後の承認の拒まれた単位に振り分けの拒否も入る（輪の記録の calls）")
+        self.assertEqual(finish._tdd_refused(self.board), {"refused": want, "unread": []})
+
+    def test_kinds_the_route_delivered_stay_in_the_first_prompt_of_the_loop(self):
+        """振り分けの役に渡した証拠の種類（docs）は、輪の最初の周の指示の種類の段落から減らない。控えは振り分けと輪で別のファイル"""
+        wide = self.board / "judgment-wide.json"
+        wide.write_text(json.dumps({"units": [{"key": MEAN, "class_query": {"how": {"paths": ["docs/guide.md"]}}}, {"key": CLAMP}]}),
+                        encoding="utf-8")
+        narrow = self.board / "judgment-narrow.json"
+        narrow.write_text(json.dumps({"units": [{"key": MEAN}, {"key": CLAMP}]}), encoding="utf-8")
+        self.prompt({"judgment_file": str(wide)})
+        self.assertTrue((self.board / "route-delivered.json").is_file())
+        self.assertFalse((self.board / "tdd-delivered.json").exists(), "振り分けは輪の控えを使わない")
+        self.assertTrue(self.values({"judgment_file": str(wide)})[1]["docs"])
+        self.route()
+        vals, when = self.values({"judgment_file": str(narrow)})
+        self.assertEqual(vals["phase"], "test")
+        self.assertTrue(when["docs"], "振り分けが渡した docs は輪の最初の周でも減らさない")
+        self.assertEqual(self.st()["kinds"], ["code", "docs"])
+        self.prompt({"judgment_file": str(narrow)})
+        ledger = json.loads((self.board / "tdd-delivered.json").read_text(encoding="utf-8"))
+        self.assertEqual(ledger["kinds"], ["code", "docs"], "輪の控えは振り分けの種類から始まる")
 
 
 class TestUnitLoop(LoopCase):
@@ -478,7 +644,7 @@ class TestUnitLoop(LoopCase):
         self.assertEqual(self.st()["phase"], "fix")
         got = self.fix_mean()
         self.assertEqual((got["ok"], got["done"]), (True, True), "申告が無ければ整えの段は来ない")
-        ex = tdd.exit_fields(self.start)
+        ex = tdd.exit_fields(self.loop_start())
         self.assertTrue(ex["ran"])
         rows = {u["unit_key"]: u for u in ex["units"]}
         m = rows[MEAN]
@@ -487,7 +653,7 @@ class TestUnitLoop(LoopCase):
         self.assertEqual(m["test_files"], ["test_stats.py"])
         self.assertEqual(rows[CLAMP]["route"], "direct")
         self.assertIn("先にテストを書けない", rows[CLAMP]["why"])
-        summary = pathlib.Path(self.start["summary_file"]).read_text(encoding="utf-8")
+        summary = pathlib.Path(self.summary_file).read_text(encoding="utf-8")
         for w in (MEAN, CLAMP, "test_stats.py"):
             self.assertIn(w, summary)
         self.assertEqual(common.frozen_problems(self.state, self.repo), [])
@@ -501,7 +667,7 @@ class TestUnitLoop(LoopCase):
         self.edit("stats.py", "return sum(xs) / len(xs)", "total = sum(xs)\n    return total / len(xs)")
         got = self.step({"phase": "refactor", "unit_key": MEAN, "what": "式を 2 行にした"})
         self.assertTrue(got["done"], got)
-        self.assertEqual(tdd.exit_fields(self.start)["units"][0]["refactor"], "ok")
+        self.assertEqual(tdd.exit_fields(self.loop_start())["units"][0]["refactor"], "ok")
 
     def test_red_rejects_already_passing_test(self):
         self.route()
@@ -555,7 +721,7 @@ class TestUnitLoop(LoopCase):
         self.assertTrue(got["done"], "tdd の単位が 1 つなので輪は済む")
         self.assertEqual((self.repo / "test_stats.py").read_text(encoding="utf-8"), before, "書いたテストを外す")
         self.assertFalse((self.repo / "helper.py").exists(), "単位の頭に戻す")
-        u = tdd.exit_fields(self.start)["units"][0]
+        u = tdd.exit_fields(self.loop_start())["units"][0]
         self.assertEqual((u["route"], u["gave_up"]), ("parked", "green"))
         self.assertTrue(u["problems"])
         self.assertIn("緑", u["why"])
@@ -638,7 +804,7 @@ class TestUnitLoop(LoopCase):
             self.assertFalse(got["ok"])
         self.assertTrue(got["done"])
         self.assertEqual((self.repo / "stats.py").read_text(encoding="utf-8"), green)
-        u = tdd.exit_fields(self.start)["units"][0]
+        u = tdd.exit_fields(self.loop_start())["units"][0]
         self.assertEqual((u["route"], u["green"], u["refactor"]), ("tdd", "ok", "reverted"))
 
     def test_writer_can_hand_unit_to_direct(self):
@@ -647,7 +813,7 @@ class TestUnitLoop(LoopCase):
         got = self.step({"phase": "test", "unit_key": MEAN, "direct_why": "既存の名前だけでは再現できないと分かった"})
         self.assertTrue(got["done"])
         self.assertEqual(git(self.repo, "status", "--porcelain"), "")
-        u = tdd.exit_fields(self.start)["units"][0]
+        u = tdd.exit_fields(self.loop_start())["units"][0]
         self.assertEqual((u["route"], u["gave_up"]), ("direct", "writer"))
 
     def test_runner_failure_ends_loop_all_direct(self):
@@ -658,7 +824,7 @@ class TestUnitLoop(LoopCase):
                          "tests": ["test_stats.py::TestStats::test_mean_of_two"]})
         self.assertTrue(got["done"])
         self.assertEqual(git(self.repo, "status", "--porcelain"), "")
-        ex = tdd.exit_fields(self.start)
+        ex = tdd.exit_fields(self.loop_start())
         self.assertIn("JUnit", ex["reason"])
         self.assertEqual([(u["route"], u["gave_up"]) for u in ex["units"]], [("direct", "runner"), ("direct", "runner")])
 
@@ -669,7 +835,7 @@ class TestUnitLoop(LoopCase):
         pathlib.Path(self.state).write_text(json.dumps(st, ensure_ascii=False), encoding="utf-8")
         got = self.step({"phase": "test", "unit_key": MEAN, "test_files": [], "tests": []})
         self.assertTrue(got["done"], "max_iterations に届く周で印を立てる（R50）")
-        self.assertEqual(tdd.exit_fields(self.start)["units"][0]["gave_up"], "budget")
+        self.assertEqual(tdd.exit_fields(self.loop_start())["units"][0]["gave_up"], "budget")
 
 MEAN_ID = "test_stats.py::TestStats::test_mean_of_two"
 WRONG_KIND_TEST = "\n    def test_mean_of_two(self):\n        import stats\n        self.assertEqual(stats.mean2([2, 4]), 3)\n"
@@ -1461,13 +1627,13 @@ class TestOneItemTwoUnits(ContractCase):
         self.assertEqual(st["parked"], [])
         self.assertNotIn("conflict", [c["phase"] for c in st["calls"]])
         self.assertEqual([c["unit_key"] for c in st["calls"] if c["phase"] != "route"], [MEAN, MEAN], "CLAMP の段は回らない")
-        rows = {u["unit_key"]: u for u in tdd.exit_fields(self.start)["units"]}
+        rows = {u["unit_key"]: u for u in tdd.exit_fields(self.loop_start())["units"]}
         c = rows[CLAMP]
         self.assertEqual((c["route"], c["red"], c["green"], c["gave_up"]), ("tdd", "ok", "ok", ""))
         self.assertEqual(sorted(c["tests"]), sorted(t["id"] for t in SAME_ITEM_TESTS))
         self.assertIn(MEAN, c["why"], "どの単位の段で一緒に直したかを残す")
         self.assertEqual(st["units"][CLAMP]["covered_by"], [MEAN])
-        summary = pathlib.Path(self.start["summary_file"]).read_text(encoding="utf-8")
+        summary = pathlib.Path(self.summary_file).read_text(encoding="utf-8")
         done = summary.split("## ループで直した単位", 1)[1].split("\n## ", 1)[0]
         self.assertIn(f"- {CLAMP}", done, "閉じた単位はループで直した単位に並ぶ（direct に並べない）")
         self.assertEqual(common.frozen_problems(self.state, self.repo), [])
@@ -1833,7 +1999,7 @@ class TestTestCmdGate(LoopCase):
         self.fix_mean(refactor=DECLARED)
         self.assertEqual(self.st()["units"][MEAN]["test_cmd"], "ok")
         self.step({"phase": "refactor", "unit_key": MEAN, "what": "整える物は無い"})
-        ex = tdd.exit_fields(self.start)
+        ex = tdd.exit_fields(self.loop_start())
         self.assertEqual(ex["test_cmd"], {"gate": common.GATE_ON, "note": ""})
         rows = {u["unit_key"]: u for u in ex["units"]}
         self.assertEqual((rows[MEAN]["test_cmd"], rows[CLAMP]["test_cmd"]), ("ok", ""))
@@ -1858,7 +2024,7 @@ class TestTestCmdGate(LoopCase):
         self.fix_mean(refactor=DECLARED)   # 毎単位を拒まない
         self.assertEqual(self.st()["units"][MEAN]["test_cmd"], "")
         self.step({"phase": "refactor", "unit_key": MEAN, "what": "整える物は無い"})
-        self.assertEqual(tdd.exit_fields(self.start)["test_cmd"], {"gate": common.GATE_OFF, "note": st["test_cmd_note"]})
+        self.assertEqual(tdd.exit_fields(self.loop_start())["test_cmd"], {"gate": common.GATE_OFF, "note": st["test_cmd_note"]})
 
     def test_same_command_as_suite_runs_once(self):
         cmd = f"{sys.executable} {self.suite}"
@@ -1998,9 +2164,10 @@ class TestSkipRerunScript(Case):
         self.assertEqual(runvals.read(run.artifacts)["skip_rerun"], [MEAN, "組の外の単位"])
         got = run.script("group_start")
         self.assertEqual((got["tdd"], got["units"]), (True, 2), got)
-        self.assertTrue(run.script("route_go")["route"], "輪の状態は振り分けの頭 route-go が置く")
+        self.assertTrue(run.script("route_go")["route"], "振り分けの状態（route.json）は振り分けの頭 route-go が置く")
         started = json.loads((run.artifacts / board.TDD_START_FILE).read_text(encoding="utf-8"))
-        st = common.load_state(started["state_file"])
+        self.assertEqual(started["state_file"], "", "輪の状態は振り分けの後に orders が置く")
+        st = route.read(run.artifacts)
         self.assertEqual((st["test_cmd_gate"], st["light"]), (common.GATE_ON, [MEAN]), "組の単位のうち skip_rerun の物だけが軽量")
 
     def test_group_start_without_skip_rerun_has_no_light_unit(self):
@@ -2013,9 +2180,8 @@ class TestSkipRerunScript(Case):
         self.assertTrue(run.script("intake", mode="group", group=json.dumps({"group_id": "g1", "unit_ids": [MEAN]}, ensure_ascii=False),
                                    judgment=json.dumps(judgment, ensure_ascii=False), tdd_suite=str(suite))["ok"])
         self.assertTrue(run.script("group_start")["tdd"])
-        self.assertTrue(run.script("route_go")["route"], "輪の状態は振り分けの頭 route-go が置く")
-        started = json.loads((run.artifacts / board.TDD_START_FILE).read_text(encoding="utf-8"))
-        self.assertEqual(common.load_state(started["state_file"])["light"], [])
+        self.assertTrue(run.script("route_go")["route"], "振り分けの状態（route.json）は振り分けの頭 route-go が置く")
+        self.assertEqual(route.read(run.artifacts)["light"], [])
 
 
 class TestRefactorGate(LoopCase):
@@ -2027,9 +2193,9 @@ class TestRefactorGate(LoopCase):
         self.red()
         got = self.fix_mean()
         self.assertTrue(got["done"], got)
-        u = tdd.exit_fields(self.start)["units"][0]
+        u = tdd.exit_fields(self.loop_start())["units"][0]
         self.assertEqual((u["refactor"], u["refactor_why"]), ("skipped", ""))
-        self.assertIn("整え: skipped", pathlib.Path(self.start["summary_file"]).read_text(encoding="utf-8"))
+        self.assertIn("整え: skipped", pathlib.Path(self.summary_file).read_text(encoding="utf-8"))
 
     def test_declared_fix_goes_to_refactor(self):
         self.route()
@@ -2040,7 +2206,7 @@ class TestRefactorGate(LoopCase):
         self.assertTrue(self.values()[1]["phase_refactor"])
         self.assertIn("- **refactor**:", self.prompt())
         self.step({"phase": "refactor", "unit_key": MEAN, "what": "整える物は無い"})
-        self.assertIn(f"整え: none（{DECLARED['why']}）", pathlib.Path(self.start["summary_file"]).read_text(encoding="utf-8"))
+        self.assertIn(f"整え: none（{DECLARED['why']}）", pathlib.Path(self.summary_file).read_text(encoding="utf-8"))
 
     def test_declared_without_why_rejected(self):
         self.route()
@@ -2142,7 +2308,7 @@ class TestRefactorGate(LoopCase):
         self.assertTrue(all(c["ok"] for c in calls))
         self.assertEqual([c["runs"] for c in calls], [0, 1, 1])
         self.assertTrue(all(isinstance(c["secs"], float) for c in calls))
-        self.assertEqual(tdd.exit_fields(self.start)["calls"], calls)
+        self.assertEqual(tdd.exit_fields(self.loop_start())["calls"], calls)
 
     def test_calls_record_rejection_and_conflict_phase(self):
         self.route()
@@ -2181,7 +2347,7 @@ class TestCrossLoopFreeze(LoopCase):
         rows = [{"unit_key": k, "route": route, **({"why": "2 回目の段で先にテストを書かない単位"} if route == "direct" else {})}
                 for k in keys]
         self.assertTrue(steps.loop_step(got["state_file"], {"phase": "route", "units": rows}, self.repo)["ok"])
-        return got["state_file"]
+        return steps.resolve(got["state_file"])
 
     def since(self, state2) -> str:
         return common.load_state(state2)["handoff"]
@@ -2226,11 +2392,12 @@ class TestCrossLoopFreeze(LoopCase):
                 self.assertTrue(got["go"], got)
                 rows = [{"unit_key": CLAMP, "route": "direct", "why": "2 回目の段で先にテストを書かない単位"}]
                 self.assertTrue(steps.loop_step(got["state_file"], {"phase": "route", "units": rows}, self.repo)["ok"])
+                loop = steps.resolve(got["state_file"])
                 self.assertEqual(len(common.states(place)), 2)
-                self.assertEqual(board.ruled_states(place), (got["state_file"], got["state_file"]))
-                self.assertEqual(facts.check_frozen(place, got["state_file"], self.repo, "first"), [])
+                self.assertEqual(board.ruled_states(place), (loop, loop))
+                self.assertEqual(facts.check_frozen(place, loop, self.repo, "first"), [])
                 self.edit("test_stats.py", "mean([2, 4]), 3", "mean([2, 4]), 3.0")   # 2 回目の修正役が tdd-1 の凍ったテストを変えた
-                problems = facts.check_frozen(place, got["state_file"], self.repo, "first")
+                problems = facts.check_frozen(place, loop, self.repo, "first")
                 self.assertTrue(problems and "test_stats.py" in problems[0], problems)
                 self.edit("test_stats.py", "mean([2, 4]), 3.0", "mean([2, 4]), 3")
 
@@ -3366,7 +3533,7 @@ class RelatedStartCase(Case):
                          ["only=1", str((self.repo / "test_stats.py").resolve())])
         self.assertEqual(st["baseline"], {"test_stats.TestStats::test_mean_of_three": "passed"})
         self.assertEqual((st["related"]["applied"], st["related"]["whole"], st["related"]["files"]), (True, False, ["test_stats.py"]))
-        state = pathlib.Path(st["work"]) / "state.json"
+        state = route.path(self.board)   # 振り分けの状態（輪の状態と同じ欄の辞書）を済んだ輪の状態として読ませる
         state.write_text(json.dumps({**st, "done": True}), encoding="utf-8")
         self.assertEqual(tdd.exit_fields({"go": True, "state_file": str(state)})["related"], st["related"], "出口の欄に選びが載る")
 
@@ -3385,7 +3552,7 @@ class RelatedStartCase(Case):
         st, work = self.start(["stats.py"], narrow=False)
         self.assertEqual((work / "runner-args.txt").read_text(encoding="utf-8").splitlines(), ["only="])
         self.assertEqual(st["related"], {"applied": False})
-        state = pathlib.Path(st["work"]) / "state.json"
+        state = route.path(self.board)   # 振り分けの状態（輪の状態と同じ欄の辞書）を済んだ輪の状態として読ませる
         state.write_text(json.dumps({**st, "done": True}), encoding="utf-8")
         self.assertNotIn("related", tdd.exit_fields({"go": True, "state_file": str(state)}), "絞らなかった run の出口は今のまま")
 

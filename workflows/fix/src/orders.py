@@ -24,6 +24,7 @@ import planmarks  # lib/
 
 from src import basecase, board, common, files, intake, route, runvals, tdd
 
+COUNTED = {"iterations": 0, "calls": [], "kinds": []}   # 振り分けを起こさなかった組の注文の欄 tdd（輪は 0 周・呼びの控え無しから数える）
 GATE_STOP = "起動スクリプトが書き直しても壊れたまま"
 NO_SUITE_STOP = ("試験の実行器が無いか走らない組（{why}）で、計画の語が static でない単位 {keys} が在る——型を回さず、確かめていない"
                  "直しを書き進めずに止めた（下書き 3.9。static だけの組は止めない）")
@@ -197,7 +198,7 @@ def _queries(place, keys) -> dict:
 
 
 def _order(place, weapon, keys, rows, *, group_id, stage, since, base_file, whys, removes, why_untested=False, rulings=False,
-           checked=None) -> dict:
+           checked=None, counted=None) -> dict:
     queries = _queries(place, keys)
     units = []
     items = []
@@ -219,6 +220,8 @@ def _order(place, weapon, keys, rows, *, group_id, stage, since, base_file, whys
            "scope": {"allowed_paths": allowed, "out_of_scope": [{"glob": str(o.get("glob") or ""), "why": str(o.get("why") or "")}
                                                                 for o in out_scope]},
            "permits": permits_for(place, items, stage=stage, rulings=rulings)}
+    if counted is not None:   # 型ごとの欄（2.1）: tdd の輪が数え始める物。共通の受け付けはこの欄を読まない
+        doc["tdd"] = {"iterations": counted["iterations"], "calls": counted["calls"], "kinds": counted["kinds"]}
     if why_untested:
         doc["why_untested"] = "；".join(dict.fromkeys(whys.get(k, "") for k in keys if whys.get(k)))
     return doc
@@ -236,7 +239,8 @@ def compute(place, repo) -> dict:
     keys = [str(k) for k in group.get("unit_ids") or []]
     words, removes, whys = route.plan_words(place, keys), route.plan_removes(place, keys), route.plan_whys(place, keys)
     state = str(started.get("state_file") or "")
-    st = common.load_state(state) if state else {}
+    routed = route.read(place)   # 振り分けの状態 route.json（振り分けを起こさなかった組は {}）
+    st = common.load_state(state) if state else routed
     answered = {k: (u or {}).get("route", "") for k, u in (st.get("units") or {}).items()}
     gave_up = {k for k, u in (st.get("units") or {}).items() if (u or {}).get("gave_up")}
     parked = set(st.get("parked") or [])
@@ -248,15 +252,17 @@ def compute(place, repo) -> dict:
     if not taken:   # 元の結末を取らない組（static だけの組。ほかは組の頭が no-suite で止めた）: tdd の輪を回さない
         weapons = {k: ("variant" if w == "tdd" else w) for k, w in weapons.items()}
     values = runvals.read(place)
-    if tdd_keys or state:
-        if not state:
+    counted = route.counted(place, routed) if routed else COUNTED   # 輪が数え始める物（注文の型ごとの欄 tdd）
+    if tdd_keys or state or routed:
+        if not state:   # 輪の状態はここで初めて作る（振り分けの結果と数えを渡す。輪の置き場 tdd-<k>/ もここで置く）
             light = [k for k in values.get("skip_rerun") or [] if k in keys]
-            state = tdd.open_state(place, repo, str(basecase.path(place)), keys, owed=set(keys), light=light)
+            state = tdd.open_state(place, repo, str(basecase.path(place)), keys, owed=set(keys), light=light,
+                                   routed=routed or None, counted=counted)
         mark = {k: "tdd" if weapons.get(k) == "tdd" else "direct" for k in owed}
         tdd.assign(state, repo, mark, {k: whys.get(k) or answered_why(st, k) for k in owed})
         started.update(go=True, state_file=state, summary_file=str(pathlib.Path(state).parent / tdd.SUMMARY))
         board.write_json(place / board.TDD_START_FILE, started)
-    _write_orders(place, keys, owed, weapons, stage=stage_of(place), since=groups.end_tree(repo), has_base=bool(base))
+    _write_orders(place, keys, owed, weapons, stage=stage_of(place), since=groups.end_tree(repo), has_base=bool(base), counted=counted)
     loop = common.load_state(state) if state else {}
     return {"tdd": bool(loop) and not loop.get("done"), "writer": True, "stop": False, "reason": ""}
 
@@ -264,8 +270,9 @@ def compute(place, repo) -> dict:
 ORDER_SEQUENCE = ("pin", "tidy", "static", "tdd", "variant", "remove")
 
 
-def _write_orders(place, keys, owed, weapons: dict, *, stage: int, since: str, has_base: bool, agreed=None) -> list:
-    """型ごとの注文 orders/<w>.json と索引 orders.json を書く（単位の無い型の注文は消す）。型の並びを返す"""
+def _write_orders(place, keys, owed, weapons: dict, *, stage: int, since: str, has_base: bool, agreed=None, counted=None) -> list:
+    """型ごとの注文 orders/<w>.json と索引 orders.json を書く（単位の無い型の注文は消す）。型の並びを返す。counted は tdd の注文の
+    型ごとの欄 tdd（振り分けが使った周の数・呼びの控え・渡した証拠の種類。無ければ欄を書かない）"""
     place = pathlib.Path(place)
     group = intake.load(place).get("group") or {}
     whys, removes = route.plan_whys(place, keys), route.plan_removes(place, keys)
@@ -282,7 +289,8 @@ def _write_orders(place, keys, owed, weapons: dict, *, stage: int, since: str, h
             continue
         jsonfile.write(d / f"{w}.json", _order(place, w, by[w], rows, group_id=str(group.get("group_id") or ""), stage=stage,
                                                since=since, base_file=str(basecase.path(place)) if has_base else "",
-                                               whys=whys, removes=removes, why_untested=w == "static"))
+                                               whys=whys, removes=removes, why_untested=w == "static",
+                                               counted=counted if w == "tdd" else None))
     jsonfile.write(place / files.ORDERS_FILE, {"sequence": sequence, "weapons": weapons, "stage": stage, "since": since,
                                                "agreed": agreed_keys(place) if agreed is None else list(agreed),
                                                "unsatisfied": unsatisfied(place, owed, weapons, sequence)})
@@ -336,8 +344,10 @@ def regive(place) -> list:
     weapons.update({k: "variant" for k in moved})
     group = intake.load(place).get("group") or {}
     keys = [str(k) for k in group.get("unit_ids") or []]
+    was = jsonfile.read_or(place / files.ORDERS_DIR / "tdd.json")   # tdd の注文の型ごとの欄 tdd は書き直しても残す
     _write_orders(place, keys, [k for k in keys if k in weapons], weapons, stage=int(idx.get("stage") or stage_of(place)),
-                  since=str(idx.get("since") or ""), has_base=basecase.read(place) is not None, agreed=idx.get("agreed") or [])
+                  since=str(idx.get("since") or ""), has_base=basecase.read(place) is not None, agreed=idx.get("agreed") or [],
+                  counted=was.get("tdd") if isinstance(was, dict) else None)
     return moved
 
 
