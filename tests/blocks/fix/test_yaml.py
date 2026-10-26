@@ -197,12 +197,16 @@ class WriterChainCase(unittest.TestCase):
             want = {f"reply_{writers.block_of(w).replace('-', '_')}": {"from": f"${writers.node(pass_, w)}.output",
                                                                        "if_skipped": None}
                     for w in writers.SEQUENCE[pass_]}
+            # consult_check.py は 2 つの段で同じ script で、どの型の返りも字の名で読む。段に無い型（裁定の後の tdd の閉じ）は空の字で結ぶ
+            # （止めた Archon の読み込みの照らし exec-input-validation.ts が、script が字の名で読む入力の結びを求める）
+            absent = {f"reply_{writers.block_of(w).replace('-', '_')}": "" for w in writers.SEQUENCE["first"]
+                      if w not in writers.SEQUENCE[pass_]}
             with self.subTest(pass_=pass_):
                 self.assertEqual(body[check]["depends_on"], ids)
-                self.assertEqual({k: v for k, v in body[check]["with"].items() if k.startswith("reply_")}, want)
+                self.assertEqual({k: v for k, v in body[check]["with"].items() if k.startswith("reply_")}, {**want, **absent})
                 self.assertEqual({k: v for k, v in body[accept]["with"].items() if k.startswith("reply_")}, want)
                 self.assertEqual(set(body[accept]["with"]) - set(want), {"consulted"})
-                self.assertEqual(set(body[check]["with"]) - set(want), {"pass"})
+                self.assertEqual(set(body[check]["with"]) - set(want) - set(absent), {"pass"})
 
     def test_the_two_chains_share_one_with_each_and_no_include_is_left_out(self):
         """鎖ごとの with: は同じ字（YAML の錨 1 つ）で、variant 以外の型が全部 block になっている（D1 の間は variant だけ node）"""

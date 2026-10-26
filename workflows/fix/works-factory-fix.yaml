@@ -857,6 +857,9 @@ nodes:
                       reply_static: {from: "$wr-static.output", if_skipped: null}
                       reply_variant: {from: "$variant-ruled.output", if_skipped: null}
                       reply_remove: {from: "$wr-remove.output", if_skipped: null}
+                  # 裁定の後の段に tdd の閉じの書き手は無い。consult_check.py は 2 つの段で同じ script で、INPUTS_REPLY_TDD_CLOSE を字の名で
+                  # 読む（E5 の ports.picked）ので、止めた Archon の読み込みの照らし（exec-input-validation.ts）が結びを求める。空の字は picked が None で読む
+                  reply_tdd_close: ''
                   pass: ruled
                 output_format: &consult_check_out
                   type: object
