@@ -31,7 +31,7 @@
   引けなければ赤。表と md を一緒に書き換えても赤）、その型の書き手の組み上がった指示に在る。表の型の集まりは writers.SEQUENCE の型の和と等しい。
 - 照らす事: 行き先が「消す」の行の文はどの書き手と下請けの指示にも無い。行き先が「消す」でない行の文が、行き先の書き手の全部の組み上がった指示に在る（共通は全部の書き手、変える は変える段の
   書き手、variant は variant の書き手、variant・pin は variant と下ごしらえの書き手）。行き先が型を絞る行（変える・variant・variant・pin）の
-  文は、ほかの書き手の指示に無い。下請けの指示の行（G）は variant の書き手が置く下請けのファイルの md（prompts/parts/g1-*.md を組んだ字）、
+  文は、ほかの書き手の指示に無い。下請けの指示の行（G）は 下請けを起こす型の書き手が置く下請けのファイルの md（.shared/prompts/g1-*.md を組んだ字）、
   Python が組む行（P）は値を組む関数の字で照らす。
 - 例外（付録 A の行き先のまま、指示の段落が書き手の道具で決まる物）: Q10（下請けを起こすなら規則を字のまま渡す）は Agent を持つ
   variant の書き手だけに出る（今の修正役も Agent を持つので出ていた）。F135（赤を見ない clean を拒む）は付録 A では variant だが、PR A が
@@ -63,6 +63,7 @@ for p in (ROOT / "lib", kit.SHARED):
     if str(p) not in sys.path:
         sys.path.append(str(p))
 
+import planbrief  # noqa: E402
 import prompt  # noqa: E402
 import seat  # noqa: E402
 import writerblock  # noqa: E402
@@ -166,17 +167,15 @@ def assembled(node: str, weapon: str) -> str:
 
 
 def g1_text() -> str:
-    """variant の書き手が置く下請けのファイルの md を組んだ字（値は {名} の字）"""
+    """下請けを起こす型の書き手が置く下請けのファイルの md（.shared/prompts/g1-*.md）を組んだ字（値は {名} の字）"""
     out = []
     for name in ("g1-impl", "g1-review", "g1-scene", "g1-rest", "g1-report", "g1-impl-report", "g1-head-sha"):
-        path = BLOCK / "prompts" / "parts" / f"{name}.md"
-        if not path.is_file():
-            continue
-        raw = prompt._expand(prompt._read(path, "md"), BLOCK, (), False)
+        path = kit.SHARED / "prompts" / f"{name}.md"
+        raw = prompt._expand(prompt._read(path, "md"), kit.SHARED, (f"shared:{name}",), True)
         names = {m.group(2) for line in raw.split("\n") if (m := prompt.MARK.match(line.strip()))}
         slots = set(prompt.SLOT.findall(raw.replace("{{", "").replace("}}", "")))
-        out.append(prompt._compose(BLOCK, name, {s: "{" + s + "}" for s in slots}, {n: n != "spawns" for n in names},
-                                   part=True)["prompt"])
+        out.append(prompt._compose(kit.SHARED, name, {s: "{" + s + "}" for s in slots}, {n: n != "spawns" for n in names},
+                                   shared=True)["prompt"])
     return flat("\n".join(out))
 
 
@@ -397,9 +396,8 @@ class AssetCase(unittest.TestCase):
                         self.assertIn(flat(sentence), self.text[n], n)
 
     def test_python_built_rows(self):
-        rules = kit.load("fix", "rules")
         board = kit.load("fix", "board")
-        self.assertIn(f"・{rules.NOT_NOW}: b", rules.unit_note(["a", "b"], ["a"]))   # P1: 項目の単位のうち今の注文に無い物を直させない
+        self.assertIn(f"・{planbrief.NOT_NOW}: b", planbrief.unit_note(["a", "b"], ["a"]))   # P1: 項目の単位のうち今の注文に無い物を直させない
         recount = (ROOT / "lib" / "recount.py").read_text(encoding="utf-8")
         self.assertIn("退行を注入して赤を見てから出せ", recount)   # P2: F135 の拒否の文（赤を見ない clean を拒む型だけに届く）
         self.assertIn("variant", board.RED_WEAPONS)

@@ -37,8 +37,18 @@ def table(**kw) -> types.SimpleNamespace:
     return types.SimpleNamespace(**{"ORDER_WEAPON": "static", "SPAWNS": False, "SUMMARY": False, **kw})
 
 
-def slots(**when) -> dict:
-    return {"values": {k: f"<{k}>" for k in VALUES}, "when": {**{k: False for k in WHEN}, **when}, "subagents": {}, "summary_file": ""}
+NONE = {"owed": [], "briefs": [], "all_items": [], "seat_brief_rows": "", "judgment_file": "", "policy_path": "", "base_rev": "",
+        "check_cmd": "", "directory": ""}   # 下請けを起こす単位が無い周の subagents（形の required の欄を全部置く）
+A, B = "stats.py:4 mean", "bounds.py:2 clamp"
+BRIEF_ROW = "- 項目 1: /b/brief-1.md（sha256 " + "a" * 64 + f"・単位 {A}）"
+BRIEFED = {"owed": [A], "briefs": [{"item": 1, "file": "/b/brief-1.md", "unit_keys": [A]}], "all_items": [1], "seat_brief_rows": BRIEF_ROW,
+           "judgment_file": "/p/judgment.json", "policy_path": "/p/policy.md", "base_rev": "abc123", "check_cmd": "", "directory": "/repo"}
+BRIEF_READING = ("the brief wins", "could not be looked up")   # 共通の断片 brief-reading の 2 句
+
+
+def slots(subagents=None, **when) -> dict:
+    return {"values": {k: f"<{k}>" for k in VALUES}, "when": {**{k: False for k in WHEN}, **when}, "subagents": subagents or dict(NONE),
+            "summary_file": ""}
 
 
 class Base(unittest.TestCase):
@@ -91,7 +101,7 @@ class PrepCase(Base):
         self.assertEqual(writerblock.paragraphs(table(SPAWNS=False)), {"spawns": False, "g1": False, "ask_variant": False})
         _, seen = self.prep(table(SPAWNS=True), slots(ask=True))
         self.assertEqual({k: seen["when"][k] for k in OWNED_WHEN}, {"spawns": True, "g1": False, "ask_variant": True},
-                         "D1 は下請けの項目が無いので g1 は偽。ask_variant は相談の節が入る周だけ")
+                         "下請けを起こす単位が無い周は g1 が偽。ask_variant は相談の節が入る周だけ")
         _, seen = self.prep(table(SPAWNS=True), slots(ask=False))
         self.assertFalse(seen["when"]["ask_variant"])
         self.assertTrue(seen["when"]["spawns"])
@@ -151,6 +161,97 @@ class PrepCase(Base):
         with mock.patch.object(ports, "caller_block", return_value=self.block.parent / "demo"):
             with self.assertRaisesRegex(ValueError, "weapon-<型>"):
                 self.prep(table())
+
+
+class SubagentCase(Base):
+    """表の SPAWNS が真の型の prep が、slots の subagents から下請けのファイルをこの block の place に書き、修正役の指示の {g1_items} の行と段落 g1 を
+    組む（docs/plans/2026-10-24-fix-weapons.md の 11.6 の D2。値の関数は lib/tests/test_subagents.py）。照らす事: 項目ごとに 2 つのファイル・
+    審査役の型の <base>..<head> の直し・brief の無い run の残りの単位の項目・brief の在る run の seat-briefs.md が頭の見出しと brief の行を持つ"""
+
+    def files(self):
+        return sorted(p.name for p in self.art.glob("g1-*")) + sorted(p.name for p in self.art.glob("seat-briefs.md"))
+
+    def spawn(self, subagents, **when):
+        return self.prep(table(SPAWNS=True), slots(subagents, **when))
+
+    def test_each_item_has_an_implementer_file_and_a_reviewer_file_in_the_place(self):
+        _, seen = self.spawn(BRIEFED)
+        self.assertEqual(self.files(), ["g1-impl-1.md", "g1-review-1.md", "seat-briefs.md"])
+        impl = (self.art / "g1-impl-1.md").read_text(encoding="utf-8")
+        review = (self.art / "g1-review-1.md").read_text(encoding="utf-8")
+        self.assertIn("## works rules", impl)
+        self.assertIn("**Do not put the target's names in queries.**", impl)
+        self.assertNotIn("If you start a sub-agent", impl, "下請けは下請けを起こさない（spawns は偽）")
+        self.assertIn("## works rules", review)
+        self.assertIn("/b/brief-1.md", impl)
+        self.assertIn(str(self.art / "g1-1.patch"), review)
+        for name, text in (("g1-impl", impl), ("g1-review", review)):
+            for phrase in BRIEF_READING:
+                self.assertIn(phrase, text, f"{name} に brief の読み方の句が無い")
+        v = seen["values"]["g1_items"]
+        self.assertTrue(v.startswith(f"- 項目 1: 実装役 {self.art / 'g1-impl-1.md'}・審査役 {self.art / 'g1-review-1.md'}・差分のコマンド `"), v)
+        self.assertTrue(seen["when"]["g1"])
+
+    def test_the_reviewer_reads_the_diff_against_the_base_and_not_a_commit_range(self):
+        self.spawn(BRIEFED)
+        review = (self.art / "g1-review-1.md").read_text(encoding="utf-8")
+        self.assertNotIn("abc123..", review)
+        self.assertIn("abc123", review)
+        self.assertIn("/p/policy.md", review, "方針の文書は審査役の全体の縛りに入る")
+
+    def test_the_seat_briefs_file_names_the_briefs_in_a_run_with_briefs(self):
+        """brief の在る run は直す義務の単位の brief を名指すファイルを置く（brief-head の断片が .shared に在り、頭の見出しと brief の行を持つ）"""
+        self.spawn(BRIEFED)
+        text = (self.art / "seat-briefs.md").read_text(encoding="utf-8")
+        self.assertTrue(text.startswith("## The requirement (briefs)\n"), text)
+        self.assertIn(BRIEF_ROW, text)
+
+    def test_a_run_without_briefs_has_one_item_per_owed_unit_and_no_seat_briefs_file(self):
+        sub = {**NONE, "owed": [A, B], "judgment_file": "/p/judgment.json", "base_rev": "abc123", "directory": "/repo"}
+        _, seen = self.spawn(sub)
+        self.assertEqual(self.files(), ["g1-impl-1.md", "g1-impl-2.md", "g1-review-1.md", "g1-review-2.md"])
+        self.assertIn(f"The owed unit {A} that no item of the fix plan holds", (self.art / "g1-impl-1.md").read_text(encoding="utf-8"))
+        self.assertIn("/p/judgment.json", (self.art / "g1-impl-2.md").read_text(encoding="utf-8"))
+        self.assertEqual(len(seen["values"]["g1_items"].splitlines()), 2)
+
+    def test_the_consultation_section_of_the_implementer_follows_the_check_command(self):
+        """範囲の相談の節が入る周（事前の確かめのコマンドが在る）だけ、実装役の指示に相談の節とコマンドが入る"""
+        self.spawn({**BRIEFED, "check_cmd": "/py facts.py /p/consult.json"})
+        impl = (self.art / "g1-impl-1.md").read_text(encoding="utf-8")
+        self.assertIn("## When you need something outside the scope", impl)
+        self.assertIn("/py facts.py /p/consult.json", impl)
+        self.spawn(BRIEFED)
+        self.assertNotIn("## When you need something outside the scope", (self.art / "g1-impl-1.md").read_text(encoding="utf-8"))
+
+    def test_a_round_without_owed_units_writes_no_files_and_the_g1_paragraph_stays_off(self):
+        _, seen = self.spawn({**BRIEFED, "owed": [], "briefs": [], "seat_brief_rows": ""})
+        self.assertEqual(self.files(), [])
+        self.assertEqual((seen["values"]["g1_items"], seen["when"]["g1"], seen["when"]["spawns"]), ("", False, True))
+
+    def test_a_type_that_does_not_start_subagents_ignores_the_subagents_of_the_slots(self):
+        """表の SPAWNS が偽の型は、slots の subagents が単位を持っていても下請けのファイルを組まない（段落 g1 は偽）"""
+        _, seen = self.prep(table(SPAWNS=False), slots(BRIEFED))
+        self.assertEqual(self.files(), [])
+        self.assertEqual((seen["values"]["g1_items"], seen["when"]["g1"]), ("", False))
+
+    def test_a_continuing_round_writes_no_subagent_files(self):
+        for name in writerblock.CONTINUING:
+            with self.subTest(name=name):
+                _, seen = self.spawn(BRIEFED, **{name: True})
+                self.assertEqual(self.files(), [])
+                self.assertEqual((seen["values"]["g1_items"], seen["when"]["g1"]), ("", False))
+
+    def test_the_borrowed_copy_is_checked_before_any_subagent_file_is_written(self):
+        """写しの照合（seat.pinned）は下請けのファイルの書き込みより前: 合わなければ 1 つも書かずに、座を組めない落ち方をする"""
+        with mock.patch.object(writerblock.seat, "pinned", side_effect=ValueError("写しが固定と合わない")):
+            with self.assertRaisesRegex(ValueError, "修正役の座を組めない: 写しが固定と合わない"):
+                self.spawn(BRIEFED)
+        self.assertEqual(self.files(), [])
+
+    def test_a_failure_while_the_files_are_written_is_named_as_the_seat_failure(self):
+        with mock.patch.object(writerblock.subagents.seat, "fill", side_effect=ValueError("穴が足りない")):
+            with self.assertRaisesRegex(ValueError, "修正役の座を組めない: 穴が足りない"):
+                self.spawn(BRIEFED)
 
 
 class TableCase(Base):

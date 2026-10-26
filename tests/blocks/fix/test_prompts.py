@@ -351,20 +351,6 @@ class SubAgentFilesCase(unittest.TestCase):
             for phrase in BRIEF_READING:
                 self.assertIn(phrase, text, f"{name} に brief の読み方の句が無い")
 
-    def test_seat_briefs_file_names_the_briefs(self):
-        """brief の在る run では、下請けの実装役の `[BRIEF_FILE]` が指すファイル（rules.SEAT_BRIEFS）が、頭の見出しと brief の行を持つ
-        （brief-head の断片を `.shared/` へ移す時に、このファイルの組み方を置き忘れると落ちる）"""
-        run = seeded(self)
-        rows = [{"item": 1, "unit_keys": [KEY], "file": "/b/r1/brief-1.md", "sha256": "a" * 64}]
-        rules = kit.load("fix", "rules")
-        with run.env():
-            values = rules.implementer_values(run.artifacts, {"judgment_file": "/b/judgment.json"}, run.repo, [KEY], rows)
-        path = pathlib.Path(values["[BRIEF_FILE]"])
-        self.assertEqual(path, run.artifacts / "seat-briefs.md")
-        text = path.read_text(encoding="utf-8")
-        self.assertTrue(text.startswith("## The requirement (briefs)\n"), text)
-        self.assertIn("- 項目 1: /b/r1/brief-1.md（sha256 " + "a" * 64, text)
-
 
 SLOTS_SHAPE = json.loads((kit.SHARED / "schemas" / "writer-slots.schema.json").read_text(encoding="utf-8"))
 PIN_ORDER = (kit.BLOCKS / "weapon-pin" / "fixtures" / "standalone.stubs.yaml")
@@ -409,8 +395,36 @@ class WriterSlotsCase(unittest.TestCase):
                 self.assertEqual(set(got["when"]), want["when"])
                 self.assertFalse((set(got["values"]) & TYPE_OWNED_VALUES) | (set(got["when"]) & TYPE_OWNED_WHEN), "型が持つ物は slots に入れない")
                 kit.shaped("shared:writer-slots.schema.json", got)
-                self.assertEqual(got["subagents"], {}, "D1 の間は下請けを slots で渡さない（variant は fix の node のまま）")
+                self.assertEqual(set(got["subagents"]), set(SLOTS_SHAPE["properties"]["subagents"]["required"]), "欄は全部置く（型を問わず同じ組み方）")
                 self.assertEqual(bool(got["summary_file"]), weapon == "tdd", "輪の要約は閉じの書き手の注文の時だけ")
+
+    def test_the_subagents_hold_the_data_and_no_instruction_text(self):
+        """slots の subagents（11.4 の 5）: 下請けを起こす単位・それに当たる brief の行・凍結した項目の番号・直す義務の単位の brief の行・判定のファイル・
+        修正前の版・事前の確かめのコマンド・作業ツリーの根。データだけで、指示の文を持たない"""
+        got = self.slots("variant")["subagents"]
+        place = self.run.artifacts
+        brief = str(place / "brief-1.md")
+        self.assertEqual((got["owed"], got["all_items"], got["judgment_file"], got["policy_path"], got["directory"]),
+                         ([KEY], [1], str(place / "judgment.json"), "", str(self.run.repo)))
+        self.assertEqual(got["briefs"], [{"item": 1, "file": brief, "unit_keys": [KEY]}])
+        self.assertTrue(got["seat_brief_rows"].startswith(f"- 項目 1: {brief}（sha256 "), got["seat_brief_rows"])
+        self.assertRegex(got["base_rev"], r"^[0-9a-f]{40}$")
+        self.assertTrue(got["check_cmd"].endswith(str(place / "consult.json")), "相談の控えが在れば事前の確かめのコマンド")
+
+    def test_the_units_the_tdd_loop_made_green_are_not_handed_to_the_subagents(self):
+        """下請けを起こす単位は、TDD の輪が緑にした単位を除いた物（rules.dispatched）。除いた後に brief の行も合わせて減る"""
+        two = ["a.py:1 x", "b.py:2 y"]
+        briefs = [{"item": 1, "file": "/b/1.md", "unit_keys": [two[0]], "sha256": "s"}, {"item": 2, "file": "/b/2.md", "unit_keys": [two[1]], "sha256": "s"}]
+        got = self.prompts.subagents_slot({"judgment_file": "/j", "policy_path": ""}, self.run.repo, briefs, two, frozenset({two[0]}), "")
+        self.assertEqual((got["owed"], [r["item"] for r in got["briefs"]], got["all_items"]), ([two[1]], [2], [1, 2]))
+        self.assertNotIn("/b/1.md", got["seat_brief_rows"])
+        self.assertEqual(got["check_cmd"], "", "相談の控えが無ければ空")
+
+    def test_a_round_without_subagents_has_every_field_and_no_data(self):
+        want = self.prompts.no_subagents()
+        self.assertEqual(set(want), set(SLOTS_SHAPE["properties"]["subagents"]["required"]))
+        self.assertFalse(any(want.values()), "空の並びと空の字だけ")
+        kit.shaped("shared:writer-slots.schema.json", {**self.slots("pin"), "subagents": want})
 
     def test_the_duty_paragraphs_are_drawn_from_the_duty_tables(self):
         for weapon in self.writers.SEQUENCE["first"]:
