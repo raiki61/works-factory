@@ -852,11 +852,11 @@ nodes:
                 trigger_rule: none_failed_min_one_success
                 with:
                   <<: &wr_replies
-                      reply_pin: {from: "$wr-pin.output.reply", if_skipped: null}
-                      reply_tidy: {from: "$wr-tidy.output.reply", if_skipped: null}
-                      reply_static: {from: "$wr-static.output.reply", if_skipped: null}
+                      reply_pin: {from: "$wr-pin.output", if_skipped: null}
+                      reply_tidy: {from: "$wr-tidy.output", if_skipped: null}
+                      reply_static: {from: "$wr-static.output", if_skipped: null}
                       reply_variant: {from: "$variant-ruled.output", if_skipped: null}
-                      reply_remove: {from: "$wr-remove.output.reply", if_skipped: null}
+                      reply_remove: {from: "$wr-remove.output", if_skipped: null}
                   pass: ruled
                 output_format: &consult_check_out
                   type: object
@@ -1376,12 +1376,12 @@ nodes:
                 trigger_rule: none_failed_min_one_success
                 with:
                   <<: &w_replies
-                      reply_tdd_close: {from: "$w-tdd-close.output.reply", if_skipped: null}
-                      reply_pin: {from: "$w-pin.output.reply", if_skipped: null}
-                      reply_tidy: {from: "$w-tidy.output.reply", if_skipped: null}
-                      reply_static: {from: "$w-static.output.reply", if_skipped: null}
+                      reply_tdd_close: {from: "$w-tdd-close.output", if_skipped: null}
+                      reply_pin: {from: "$w-pin.output", if_skipped: null}
+                      reply_tidy: {from: "$w-tidy.output", if_skipped: null}
+                      reply_static: {from: "$w-static.output", if_skipped: null}
                       reply_variant: {from: "$variant.output", if_skipped: null}
-                      reply_remove: {from: "$w-remove.output.reply", if_skipped: null}
+                      reply_remove: {from: "$w-remove.output", if_skipped: null}
                   pass: first
                 output_format: *consult_check_out
 

@@ -13,10 +13,12 @@
 - owed(place, keys) -> keys のうち今の型の注文の単位（並びは keys のまま）
 - accept_name(pass_, weapon)・ledger(place, pass_, weapon)
 - finished(place, weapon): 受け付けが型を済ませた印を積む
-- reply_of(environ, pass_, skipped) -> 書き手の返答の dict（起きた書き手の 1 つの pointer を解いた物。どれも起きていなければ None。読めなければ ValueError）
+- reply_of(blocks, variant, pass_, skipped) -> (書き手の返答の dict, 報告の行): 起きた書き手の 1 つ。型の block の返りまるごと {ok, reply, report}
+  （受ける script が ports.picked で拾った物）は reply の pointer を解き、variant の node の返りは字のまま照らす。どれも起きていなければ (None, [])
 """
 from __future__ import annotations
 
+import json as _json
 import pathlib
 
 import ports      # .shared/（呼ぶ script が sys.path に入れる）
@@ -165,12 +167,21 @@ def hand_over(place, pass_: str, weapon: str, slots: dict) -> dict:
             "slots": ports.pointer(path, "json(shared:writer-slots.schema.json)")}
 
 
-def reply_of(environ, pass_: str, skipped):
-    """書き手の返答の dict（with: の reply_<型> のうち起きた物 1 つ。skipped は飛んだ節の値を見分ける口〔埋め skip_value の value が None〕。
-    型の block の返りは pointer、fix の node のまま残る variant の返りは AI の node の出力そのもので、ports.json はどちらも読む。
-    どれも起きていなければ None。形（shared:writer-reply.schema.json）に合わない・読めない時は ValueError）"""
+def reply_of(blocks: dict, variant, pass_: str, skipped):
+    """起きた書き手の 1 つの (返答の dict, 報告の行の並び)。blocks は型の名 → 型の block の返りまるごと（受ける script が
+    ports.picked(<INPUTS_REPLY_<型>>, ("ok", "reply", "report")) で拾った物。飛んだ block は None）、variant は D1 の間 fix の node のまま残る
+    variant の返りの字（skipped は飛んだ節の値を見分ける口〔埋め skip_value の value が None〕）。型の block の返りは ok が真でなければ
+    ValueError（block の writer_out は形に合わない返答で落ち、真でない ok を返さない）。返答が形（shared:writer-reply.schema.json）に
+    合わない・読めない時も ValueError。報告の行は型の block の report（variant は無い）。どれも起きていなければ (None, [])"""
     for w in SEQUENCE[pass_]:
-        raw = environ.get(f"INPUTS_REPLY_{w.upper()}" if pass_ == "ruled" or w != "tdd" else "INPUTS_REPLY_TDD_CLOSE")
-        if raw is not None and not skipped(raw):
-            return ports.json(raw, "shared:writer-reply.schema.json")
-    return None
+        if w == "variant":
+            if variant is not None and not skipped(variant):
+                return ports.json(variant, "shared:writer-reply.schema.json"), []
+            continue
+        got = blocks.get(w)
+        if got is None:
+            continue
+        if got["ok"] is not True:
+            raise ValueError(f"型の block weapon-{block_of(w)} の返りの ok が真でない（{got['ok']!r}）")
+        return ports.json(_json.dumps(got["reply"]), "shared:writer-reply.schema.json"), [str(x) for x in got["report"] or []]
+    return None, []

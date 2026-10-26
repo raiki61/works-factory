@@ -236,7 +236,7 @@ DELETE（どの block にも写さない）: `PREP_INPUTS`・`MODES`・`LANE_SWI
 - 足す（pack の共通）: `workflows/.shared/writerblock.py`（`prep`・`out`・`paragraphs`。24.4）・`.shared/schemas/` の `weapon-order`（`workflows/fix/schemas/` から移す。中身は変えない）・`writer-slots`・`writer-reply`・`.shared/prompts/` の `writer-top.md`・`writer.md`・`brief-head.md`・`brief.md`（`parts/` から移す。字は変えず、中の `{part:` を `{shared:` に替えるだけ）。
 - 足す（型の block）: `workflows/weapon-tdd-close/`・`weapon-pin/`・`weapon-tidy/`・`weapon-static/`・`weapon-remove/`（24 節）。
 - この block に足す: `prompts/parts/seat-briefs.md`（中身は `{shared:brief-head}` の 1 行。D2 まで fix に残る `src/rules.py` の下請けの `[BRIEF_FILE]` を書く所が `render_part("seat-briefs", …)` で呼ぶ。`prompt.render_part` が呼んだ block の `prompts/parts/<名>.md` しか読まないため。D2 で `weapon-variant` 側へ移す）。
-- この block のコード: `src/prompts.py` の `writer_slots`（2.3。今の `writer`・`writer_values` の後継）・`scripts/fix_prep.py`・`fix_ruled_prep.py` の返り（`order`・`slots`。2.2）・`src/writers.py` の `node`（include の id を返す）と `reply_of`（pointer を解く。2.8）・YAML の 2 つの鎖（2.2.1）・`fix-accept`・`fix-ruled-accept`・`consult-check` の `with:`。
+- この block のコード: `src/prompts.py` の `writer_slots`（2.3。今の `writer`・`writer_values` の後継）・`scripts/fix_prep.py`・`fix_ruled_prep.py` の返り（`order`・`slots`。2.2）・`src/writers.py` の `node`（include の id を返す）と `reply_of`（返りまるごとの 3 つの欄を読み、pointer を解く。2.8）・YAML の 2 つの鎖（2.2.1）・`fix-accept`・`fix-ruled-accept`・`consult-check` の `with:`。
 - 消す: `prompts/tdd-close.md`・`pin.md`・`tidy.md`・`static.md`・`remove.md` と `-ruled` の 4 本、`parts/tdd-close.md`・`pin.md`・`tidy.md`・`static.md`・`remove.md`、`parts/writer-top.md`・`writer.md`・`brief-head.md`・`brief.md`（`.shared` へ）。variant の md（`variant.md`・`variant-ruled.md`・`parts/variant.md`）と `parts/g1-*.md` は D2 まで残る。錨 `writer_launch`・`fix_reply` は、使う node が残らなくなる D2 で消す。
 - 置き場: 型の block だけが使うコードは型の block の `src/`（憲法の 4）、2 つ以上の block が使う物は `.shared/`、`lib/` は Archon を知らない物だけ（E3）。共通の本体を `.shared/` に置く訳は 24.4。
 
@@ -267,7 +267,7 @@ DELETE（どの block にも写さない）: `PREP_INPUTS`・`MODES`・`LANE_SWI
 
 `fix-prep`・`fix-ruled-prep` の返りは `{prompt, go, iteration, writer, order, slots}`（`order`・`slots` は `go` が偽の周は書かず、`required` に入れない）。`writer` は起こす include の id（`writers.node` が返す。1 回目の段 `w-<型>`、裁定の後の段 `wr-<型>`。D1 の間の variant だけ今の名 `variant`・`variant-ruled`）。`prompt` は D1 の間、fix の中に残る variant の node のためだけに組み、全部の型が block になった後（D2）に外す。
 
-型の block の出力は `reply`（pointer。形 `json(shared:writer-reply.schema.json)`。受け付けの前の返答のファイル `reply-<n>.json`）。受け付け（`fix-accept`・`fix-ruled-accept`・`consult-check`）は `writers.reply_of` でこれを解く（2.8）。
+型の block の出力は `{ok, reply, report}`（`reply` は pointer。形 `json(shared:writer-reply.schema.json)`。受け付けの前の返答のファイル `reply-<n>.json`。`report` は報告に載せる行）。受け付け（`fix-accept`・`fix-ruled-accept`・`consult-check`）は返りまるごとを受け、`writers.reply_of` で 3 つとも読む（2.8）。
 
 指示が名指すファイル（今までと同じ。place に置かれた物）: `values.json`（← port `policy`・`request`・`lang`・`tdd_suite`）・`judgment.json`（← `judgment`）・`fix-plan-reply.json`（← `fix_plan`）・`plan-fields.json`（← `plan`）・`p2.plan_review.json`（← `plan_review`）・`ripple.json`（← `ripple`）・`human-notes.md`（← `answers`・`request_answers`・`unattended`・`notes`）・`baseline.json`（← `baseline`）・TDD の loop の要約（組の中の `tdd-<k>/summary.md`）・範囲の相談の控え（place）・却下の控え `rejects-fix-accept-<型>.json`（裁定の後は `rejects-fix-ruled-accept-<型>.json`）・裁定の文 `conflict-rulings.md` と保存した 1 回目の返答 `fix-reply.json`（裁定の後だけ）。型の block の place（`<修正の block の place>/<include の id>/`）には、組み上がった指示 `<型>-prompt-<n>.md` と返答 `reply-<n>.json` が置かれる（24.4）。
 
@@ -464,7 +464,11 @@ fix-ruled の 2 周目は、頭の 1 の後に 3（`<place>/fix-reply.json`）�
 
 ### 2.8 受け付け（fix-accept・fix-ruled-accept）
 
-8 節。読みの形（D1）: `fix-accept`・`fix-ruled-accept`・`consult-check` の `with:` は、型ごとの `{from: "$w-<型>.output.reply", if_skipped: null}`（裁定の後は `wr-`）。`with:` の鍵の名（`reply_pin` など）と、名の組み立て（`INPUTS_REPLY_<型>`）は今のまま。`writers.reply_of(environ, pass_, skipped)` は、`SEQUENCE[pass_]` の順に `INPUTS_REPLY_<型>` を見て、飛んでいない最初の 1 つを `ports.json(raw, "shared:writer-reply.schema.json")` で読んで返す（`dict | None`。どれも起きていなければ `None`。形に合わない・読めない時は `ValueError`。今の呼び手が `rolekit.parse_reply` の失敗で上げる `ValueError` と同じ落ち方）。`ports.json` は値そのもの・ファイルのパス・pointer のどれも読むので、D1 の間に fix の node のまま残る variant の返答（AI の node の出力の JSON そのもの）も、型の block の pointer も同じ 1 行で読める（型で分ける表を持たない）。呼び手 `fix_accept.py`・`fix_ruled_accept.py`・`consult_check.py` は `rolekit.parse_reply(raw)` を呼ばず、返りの dict をそのまま使う。受け付けの義務の表（22.4 の `duties`）は修正の block に在り、型の block は知らない。
+8 節。読みの形（D1）: `fix-accept`・`fix-ruled-accept`・`consult-check` の `with:` は、型ごとの `{from: "$w-<型>.output", if_skipped: null}`（裁定の後は `wr-`。型の block の返りまるごと）。variant は D1 の間 fix の node のままで、`{from: "$variant.output", if_skipped: null}`（裁定の後は `variant-ruled`）。`with:` の鍵の名（`reply_pin` など）と、名の組み立て（`INPUTS_REPLY_<型>`）は今のまま。
+- 受ける 3 つの script は、型の block の入力ごとに `ports.picked(os.environ.get("INPUTS_REPLY_<型>"), GOT)`（`GOT = ("ok", "reply", "report")`）の呼び 1 つで欄を拾う（E5 の照らしが、include した block の返りの欄 `ok`・`report` にも読み手を求めるため。`workflows/line/works-factory-line.yaml` の受け手の script が block の返りまるごとを受けて `ports.picked` で拾うのと同じ型。窓口の決め、受付 20261026-123356-d51294 の 1。下書き 11.4 の 4 の `$w-<型>.output.reply` から替えた）。
+- `writers.reply_of(blocks, variant, pass_, skipped)` は、`SEQUENCE[pass_]` の順に見て、起きた最初の 1 つの `(返答, 報告の行)` を返す。型の block は `ok` が真でなければ `ValueError`（`writer_out` は形に合わない返答で落ち、真でない `ok` を返さない）。`reply` の pointer は `ports.json(<pointer>, "shared:writer-reply.schema.json")` で解き、報告の行は `report`。variant は返答の字を同じ形で読み、報告の行は無い。どれも起きていなければ `(None, [])`。形に合わない・読めない時は `ValueError`（今の呼び手が `rolekit.parse_reply` の失敗で上げる `ValueError` と同じ落ち方）。呼び手は `rolekit.parse_reply(raw)` を呼ばず、返りの dict をそのまま使う。
+- 報告の行: `fix-accept`・`fix-ruled-accept` は周ごとに、起きた書き手の報告の行を `board.add_writer_report` で置き場の `writer-report.json`（`[{weapon, line}]`）に積む（範囲の相談の周も積む）。組の子の行は `group_result` の `writer_report`（`group_id` を足す）で親へ渡り、`finish` の `report` に「書き手 <型>（組 <id>）: <行>」で載る（`board.writer_report_rows`・`report.writer_lines`）。D1 の型の block は `report: []` を返すので、今は行が無い。
+- 受け付けの義務の表（22.4 の `duties`）は修正の block に在り、型の block は知らない。
 
 ### 2.9 試験
 

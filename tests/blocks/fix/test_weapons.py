@@ -19,6 +19,7 @@ import unittest.mock
 
 from tests.bin.gitkit import git
 from tests.blocks import kit
+from tests.blocks.fix import support
 from tests.blocks.fix import test_group as tg
 
 route = kit.load("fix", "route")
@@ -29,6 +30,7 @@ static = kit.load("fix", "static")
 remove = kit.load("fix", "remove")
 variant = kit.load("fix", "variant")
 rebuild = kit.load("fix", "rebuild")
+writers = kit.load("fix", "writers")
 from graphloops.engine.schema import validate_schema  # noqa: E402  （lib）
 
 BLOCK = kit.BLOCKS / "fix"
@@ -702,6 +704,52 @@ class AcceptWiringCase(tg.GroupChildScriptsCase):
         out = self.accept({"changes": [tg._change(tg.MEAN, ["stats.py"])]})
         self.assertFalse(out["ok"], out)
         self.assertIn("test_old_denominator", out["reason"])
+    def whole_return(self, reply, *, ok=True, report=()):
+        """型の block の返りまるごと（writer_out の形 {ok, reply: <pointer>, report}）。返答は組の子の run の置き場に書く"""
+        path = self.place / "w-pin" / "reply-1.json"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(support.reply_json(reply), encoding="utf-8")
+        rel = path.resolve().relative_to(self.art.resolve()).as_posix()
+        return json.dumps({"ok": ok, "reply": {"type": "archon_artifact", "run_id": tg.RUN, "path": rel}, "report": list(report)})
+
+    def test_the_accept_reads_a_writer_blocks_whole_return_and_keeps_its_report(self):
+        """受け付けは型の block の返りまるごとを受け（E5。ok・reply・report の 3 つとも読む）、report の行を置き場の
+        writer-report.json に型の名と積む。積んだ行は finish の report に載る（WriterReportCase）"""
+        self.direct_start()
+        weapon = writers.current(self.place)
+        out = self.run_script("fix_accept", reply_pin=self.whole_return({"changes": []}, report=["型の block の報告の 1 行"]),
+                              consulted="true", iteration="1")
+        self.assertEqual(out["reason"], tg._src("board").CONSULTED, out)
+        rows = json.loads((self.place / "writer-report.json").read_text(encoding="utf-8"))
+        self.assertEqual(rows, [{"weapon": weapon, "line": "型の block の報告の 1 行"}])
+
+    def test_the_accept_refuses_a_writer_block_return_whose_ok_is_not_true(self):
+        """型の block の返りの ok が真でなければ、受け付けは返答を読まずに落ちる（回す側の誤り）"""
+        self.direct_start()
+        err = self.run_script("fix_accept", ok=False, reply_pin=self.whole_return({"changes": []}, ok=False),
+                              consulted="false", iteration="1")
+        self.assertIn("ok が真でない", err)
+
+
+class WriterReportCase(unittest.TestCase):
+    """型の block の書き手の報告の行が、組の子の結果を通って親の finish の report に載る（board.add_writer_report・writer_report_rows・
+    group_result の writer_report・report.writer_lines）"""
+
+    def test_the_lines_go_from_a_group_child_to_the_parent_report(self):
+        board, report = tg._src("board"), tg._src("report")
+        with tempfile.TemporaryDirectory() as tmp:
+            child, parent = pathlib.Path(tmp) / "child", pathlib.Path(tmp) / "parent"
+            child.mkdir()
+            parent.mkdir()
+            board.add_writer_report(child, "pin", ["固定の 1 行"])
+            board.add_writer_report(child, "tidy", [])
+            result = board.group_result({"group_id": "g1", "unit_ids": []}, start_tree="", end_tree="", tdd=None,
+                                        writer_report=board.writer_report_rows(child))
+            board.add_writer_report(parent, "static", ["裁定の後の 1 行"])
+            rows = board.writer_report_rows(parent, [result])
+            self.assertEqual(report.writer_lines(rows), ["書き手 pin（組 g1）: 固定の 1 行", "書き手 static: 裁定の後の 1 行"])
+            self.assertEqual(report.lines(parent, [], [], writers=rows)[:2], report.writer_lines(rows))
+
 
 def load_tests(loader, tests, pattern):
     """借りた tg.GroupChildScriptsCase の試験を回し直さない（AcceptWiringCase はこのクラスに書いた試験だけ）"""

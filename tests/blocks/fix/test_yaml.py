@@ -188,11 +188,13 @@ class WriterChainCase(unittest.TestCase):
                         self.assertEqual(w, "variant", "D1 の間 node のまま残るのは variant だけ")
 
     def test_the_accepts_read_each_types_reply_and_wait_for_the_whole_chain(self):
+        """受け付けと consult-check は、型の block の返りまるごと（ok・reply・report の 3 つを受ける script が ports.picked で拾う。E5）を、
+        variant は D1 の間 node の返答を受け、鎖の全部を待つ"""
         writers = kit.load("fix", "writers")
         for pass_, loop, prep, accept, check in self.CHAINS:
             ids = [m["id"] for m in self.chain(loop)]
             body = inner(every()[loop])
-            want = {f"reply_{writers.block_of(w).replace('-', '_')}": {"from": f"${writers.node(pass_, w)}.output" + ("" if w == "variant" else ".reply"),
+            want = {f"reply_{writers.block_of(w).replace('-', '_')}": {"from": f"${writers.node(pass_, w)}.output",
                                                                        "if_skipped": None}
                     for w in writers.SEQUENCE[pass_]}
             with self.subTest(pass_=pass_):

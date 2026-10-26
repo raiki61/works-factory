@@ -689,7 +689,7 @@ class GroupChildScriptsCase(unittest.TestCase):
         result = json.loads(pathlib.Path(out["result_file"]).read_text(encoding="utf-8"))
         self.assertEqual(set(result), {"group_id", "unit_ids", "end_tree", "start_tree", "units", "tdd", "conflicts",
                                        "objection", "changed", "x_scalars", "allowed_tests", "verified",
-                                       "reply_file", "tdd_state", "worktree", "handoffs", "handoff_titles", "mismatched", "accept_trace", "closure",
+                                       "reply_file", "tdd_state", "worktree", "handoffs", "handoff_titles", "mismatched", "accept_trace", "writer_report", "closure",
                                        "claimed", "place", "base"})
         # F427・F428・F013: 子の place の受け入れた壊れ・閉鎖の表・受け付けの知らせを、親の finish へ結果で運ぶ
         self.assertEqual((result["handoffs"], result["claimed"], result["closure"]),
@@ -870,10 +870,10 @@ class GroupChildSeamCase(unittest.TestCase):
                                            {"path": "t.py", "permit": "p2", "source": "plan"}])
         self.assertEqual(set(got), {"group_id", "unit_ids", "end_tree", "start_tree", "units", "tdd", "conflicts",
                                     "objection", "changed", "x_scalars", "allowed_tests", "verified",
-                                    "reply_file", "tdd_state", "worktree", "handoffs", "handoff_titles", "mismatched", "accept_trace", "closure",
+                                    "reply_file", "tdd_state", "worktree", "handoffs", "handoff_titles", "mismatched", "accept_trace", "writer_report", "closure",
                                     "claimed", "place", "base"})
         self.assertEqual((got["worktree"], got["place"], got["base"]), ("", "", ""), "渡さなければ空")
-        self.assertEqual((got["handoffs"], got["claimed"], got["closure"], got["accept_trace"]), ([], [], [], []))
+        self.assertEqual((got["handoffs"], got["claimed"], got["closure"], got["accept_trace"], got["writer_report"]), ([], [], [], [], []))
         self.assertEqual([(u["unit_id"], u["status"]) for u in got["units"]],
                          [("a", "fixed"), ("b", "given_up"), ("c", "not_done")])
         self.assertEqual(got["units"][2]["reason"], b.NO_UNIT_RESULT)

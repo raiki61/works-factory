@@ -23,15 +23,30 @@ from src import board, runvals, writers  # noqa: E402
 NODE = "fix-ruled-accept"
 NOT_LAUNCHED = "裁定の後の修正役を起こさなかった（直す裁定が無い）"
 SKIP = (ports.RUNTIME_COPY_PREFIX,)
+GOT = ("ok", "reply", "report")   # 型の block の返りまるごとから拾う欄（reply は返答の pointer、report は報告に載せる行）
+
+
+def written() -> tuple:
+    """起きた型の書き手の (返答, 報告の行)。型の block の返りはまるごとを ports.picked で拾い、variant の node の返りは字で
+    読む（writers.reply_of）"""
+    blocks = {
+        "pin": ports.picked(os.environ.get("INPUTS_REPLY_PIN"), GOT),
+        "tidy": ports.picked(os.environ.get("INPUTS_REPLY_TIDY"), GOT),
+        "static": ports.picked(os.environ.get("INPUTS_REPLY_STATIC"), GOT),
+        "remove": ports.picked(os.environ.get("INPUTS_REPLY_REMOVE"), GOT),
+    }
+    return writers.reply_of(blocks, os.environ.get("INPUTS_REPLY_VARIANT"), "ruled",
+                            lambda v: ports.polyfill("skip_value").value(v) is None)
 
 
 def main() -> dict:
-    reply = writers.reply_of(os.environ, "ruled", lambda v: ports.polyfill("skip_value").value(v) is None)
+    reply, lines = written()
+    place, repo = ports.place(), Path.cwd()
+    weapon = writers.current(place)
+    board.add_writer_report(place, weapon, lines)   # 範囲の相談の周も、起きた書き手の報告の行は残す
     consulted = os.environ.get("INPUTS_CONSULTED", "").strip().lower() == "true"
     if consulted:
         return {"ok": False, "done": False, "reason": board.CONSULTED, "reason_file": ""}
-    place, repo = ports.place(), Path.cwd()
-    weapon = writers.current(place)
     if reply is None:
         writers.finished(place, weapon)
         return {"ok": True, "done": True, "reason": NOT_LAUNCHED, "reason_file": ""}
