@@ -10,6 +10,7 @@ orders/<weapon>.json（.shared/schemas/weapon-order.schema.json の形）に書�
 - compute(place, repo) -> {tdd, writer, stop, reason}
 - no_suite_why(place) -> 組の頭で止める訳（下書き 3.9 の止め方の 1。止めないなら空）
 - weapons(place) -> {単位: 型の名}: 書いた注文の索引から引く（受け付けが型の義務を引く口）
+- unsatisfied_of(place) -> [{before, after}]: 書いた注文の索引の守れない依存の対（組の結果 group_result の欄 unsatisfied の元）
 - later_agreed(place) -> 段の頭の後に取れた範囲の相談の合意の許しの範囲（凍結の照らし duties.frozen_by_returns が足す）
 - stage_of(place) -> 段の番（1 回目の段 2n−1。n は修正の block を入れた回で、前の段の申し送りが在れば 2）
 """
@@ -465,6 +466,13 @@ def weapons(place) -> dict:
     got = doc.get("weapons") if isinstance(doc, dict) else None
     return dict(got) if isinstance(got, dict) else {}
 
+
+def unsatisfied_of(place) -> list:
+    """守れない依存の対 [{before, after}]（orders.json の unsatisfied のうち、before・after が字の行だけ。無い・読めなければ []）"""
+    doc = jsonfile.read_or(pathlib.Path(place) / files.ORDERS_FILE)
+    got = doc.get("unsatisfied") if isinstance(doc, dict) else None
+    return [{"before": r["before"], "after": r["after"]} for r in got or []
+            if isinstance(r, dict) and isinstance(r.get("before"), str) and isinstance(r.get("after"), str)] if isinstance(got, list) else []
 
 
 def order_docs(place) -> dict:

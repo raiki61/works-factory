@@ -774,7 +774,7 @@ class GroupChildScriptsCase(unittest.TestCase):
         self.assertEqual(set(result), {"group_id", "unit_ids", "end_tree", "start_tree", "units", "tdd", "conflicts",
                                        "objection", "changed", "x_scalars", "allowed_tests", "verified",
                                        "reply_file", "tdd_record", "worktree", "handoffs", "handoff_titles", "mismatched", "accept_trace", "writer_report", "closure",
-                                       "claimed", "place", "base"})
+                                       "claimed", "place", "base", "unsatisfied"})
         # F427・F428・F013: 子の place の受け入れた壊れ・閉鎖の表・受け付けの知らせを、親の finish へ結果で運ぶ
         self.assertEqual((result["handoffs"], result["claimed"], result["closure"]),
                          ([f"{MEAN}: 壊すと分かって通した——空の列の平均の値が変わる"], [MEAN], [closure]))
@@ -955,7 +955,7 @@ class GroupChildSeamCase(unittest.TestCase):
         self.assertEqual(set(got), {"group_id", "unit_ids", "end_tree", "start_tree", "units", "tdd", "conflicts",
                                     "objection", "changed", "x_scalars", "allowed_tests", "verified",
                                     "reply_file", "tdd_record", "worktree", "handoffs", "handoff_titles", "mismatched", "accept_trace", "writer_report", "closure",
-                                    "claimed", "place", "base"})
+                                    "claimed", "place", "base", "unsatisfied"})
         self.assertEqual((got["worktree"], got["place"], got["base"]), ("", "", ""), "渡さなければ空")
         self.assertEqual((got["handoffs"], got["claimed"], got["closure"], got["accept_trace"], got["writer_report"]), ([], [], [], [], []))
         self.assertEqual([(u["unit_id"], u["status"]) for u in got["units"]],

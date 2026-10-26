@@ -76,7 +76,7 @@ D1・D2 の node 間の port: `fix-prep`・`fix-ruled-prep` の返りは `{go, i
 - `ok`: boolean。組の形: 組の結果を書いた。全体の形: 戻しの記録（`join.json`）が在り、変更の確かめが通り、当たったままの組が無い（今の `done` から差分の審査の `pass` を外した物）。
 - `reason`: 日本語の 1 行。ok でない訳（落ちた段・読めない port・変更の確かめの訳）。
 - `units`: `[{unit_id, group_id, status (fixed|given_up|not_done), reason}]`（今のまま）。
-- `groups`: `[{group_id, unit_ids, returned, reason, backed_out?, unrestored?, old_red?, uncompared?, test_cmd_notes?, clash?}]`（今のまま。`clash` は `{outcome (repaired|parked), requests, patch}`。`old_red` は確かめ直しで前から同じ形で赤だったので戻す理由にしなかった名指しの文の並びで、確かめ直しを通って親の作業ツリーに当てたままにした組の行にだけ在る。18 節。`uncompared` は確かめ直しで直す前の版と比べられなかったので戻す理由にしなかった赤の鍵 `classname::name` の並びで、同じく当てたままにした組の行にだけ在る。報告が人に聞く。20 節。`test_cmd` の行〔外した木で走らせた結果が取れない〕も入る。21 節。`test_cmd_notes` は確かめ直しの `test_cmd` の赤を、組を外した木でも赤（前から赤か環境）か走らせ直しで緑（揺れ）と見て戻す理由にしなかった文の並びで、同じく当てたままにした組の行にだけ在る。`report` に 1 件 1 行で出す。21 節）。
+- `groups`: `[{group_id, unit_ids, returned, reason, backed_out?, unrestored?, old_red?, uncompared?, test_cmd_notes?, unsatisfied?, clash?}]`（今のまま。`clash` は `{outcome (repaired|parked), requests, patch}`。`old_red` は確かめ直しで前から同じ形で赤だったので戻す理由にしなかった名指しの文の並びで、確かめ直しを通って親の作業ツリーに当てたままにした組の行にだけ在る。18 節。`uncompared` は確かめ直しで直す前の版と比べられなかったので戻す理由にしなかった赤の鍵 `classname::name` の並びで、同じく当てたままにした組の行にだけ在る。報告が人に聞く。20 節。`test_cmd` の行〔外した木で走らせた結果が取れない〕も入る。21 節。`test_cmd_notes` は確かめ直しの `test_cmd` の赤を、組を外した木でも赤（前から赤か環境）か走らせ直しで緑（揺れ）と見て戻す理由にしなかった文の並びで、同じく当てたままにした組の行にだけ在る。`report` に 1 件 1 行で出す。21 節。`unsatisfied` は計画の依存で前に直すはずの単位 `before` が、型を回す順で後の単位 `after` より後に回った対 `[{before, after}]` の並びで、組の子の置き場の `orders.json` の `unsatisfied` を `group_result` が写し、`join_rows` が戻せた組か否かに依らず結果が在って空でなければ組の行に置く〔22.2。無い組の行には欄を置かない〕。止めにはせず、line の最後の承認ノードの本文の「守れなかった依存」の節に名で出す）。
 - `conflicts`: pointer（`conflicts.json`）か null。
 - `carry`: pointer（`carry.json`。次の修正の段の port `prior` に渡す申し出と輪の状態の束。1.4）か null（組の形）。
 - `replan_items`: 字の配列。fix_plan_item の裁定が誤りとした項目の番号。
@@ -1059,7 +1059,7 @@ bin/works-factory workflow run works-factory-fix --cwd <対象> \
 8. 棚卸しで持ち主の確かめ待ちの 6 件（9 節の 2 つ目の項）は、この作り直しで変えない。
 9. 段 1 の PR A の形（22 節）は、本物の run で通していない（試験と筋書きだけ）。見る物: 振り分けの AI を `route-loop` に出した後の会話の継ぎ（22.1）・元の結末を組の頭に移した後の `base.json` の運び（22.3）・no-suite の止めが line の止めの道で後ろの段へ進めないこと（19.1）。
 10. 輪の途中で実行器が結末を返さない時に、実行器を書き直す 1 回は段 1 の後に回した（19.1 の止め方の 2。輪の途中では呼べない）。
-11. 型を 1 回ずつ回す順と、守れなかった依存を組の結果と報告へ出す所（22.2）は PR A で出口に届いていない（`orders.json` の `unsatisfied` に書くだけ）。
+11. 型を 1 回ずつ回す順と、守れなかった依存（22.2）は、`orders.json` の `unsatisfied` を `group_result` の欄 `unsatisfied` が写し、`join_rows` が組の行に置き、line の最後の承認ノードの本文の「守れなかった依存」の節に名で出る（段 2 の PR F3。止めにも開ける理由にもしない）。
 
 ## 17 関わる試験だけで元の結末を取る（2026-10-20。持ち主の決め `related-tests-only`）
 
@@ -1209,7 +1209,7 @@ bin/works-factory workflow run works-factory-fix --cwd <対象> \
 - 返りの `tdd` は「輪の状態が在って済んでいない」。`writer` は止めの無い組でいつも真。YAML の `when:` へ運ぶのは真偽だけ（憲法の 1）。
 - 修正役の輪（`fix-loop`）は tdd の輪の後に起きる（`depends_on: [group-start, orders, tdd-loop]`）。段 1 の PR A では書き手が修正役のまま 1 つなので、tdd 以外の全部の型（variant・remove・static・tidy・下ごしらえ）の注文をこの輪が受ける。修正役は今と同じく、tdd の輪が緑にした単位の行も `changes` に写す（輪が自分で `changes` を書く形は、tdd の役の指示の直しが要るので段 1 の PR B で）。指示の観点の文は PR A で移さず消さない（`prompts/parts/fixer.md` は今のまま）。
 - 輪が諦めた単位（40 周に届いた・3 回目の拒否）は、`fix-prep` が `orders.regive` で同じ箱の `variant` の注文に書き直す（`orders/tdd.json` から外して `orders/variant.json` に足し、索引の `weapons` を替える。何度呼んでも同じ）。
-- 守れない依存（`unsatisfied`）: 項目の間の依存 `depends_on` のうち、tdd の輪が先に回るために守れない対（tdd の単位が tdd でない単位を待つ）を `orders.json` に名で書く。PR A は型を 1 回ずつ回す順を「tdd の輪、次に修正役の輪」の 2 つにしか分けない（`orders._slot`）ので、箱の順と依存の辺での型の並べ替えは段 1 の PR B で。
+- 守れない依存（`unsatisfied`）: 項目の間の依存 `depends_on` のうち、tdd の輪が先に回るために守れない対（tdd の単位が tdd でない単位を待つ）を `orders.json` に名で書く。PR A は型を 1 回ずつ回す順を「tdd の輪、次に修正役の輪」の 2 つにしか分けない（`orders._slot`）ので、箱の順と依存の辺での型の並べ替えは段 1 の PR B で。対は組の結果 → 親の合わせ（`join` の組の行）→ 修正の出力の `groups[].unsatisfied` → line の最後の承認ノードの本文の「守れなかった依存」の節へ名で出る（止めない。段 2 の PR F3）。
 
 ### 22.3 元の結末（`src/basecase.py`・`base.json`）
 
