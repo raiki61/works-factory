@@ -176,17 +176,8 @@ class TableCase(Base):
 
 
 class OutCase(Base):
-    """<w>-out: 返答を形に照らして place の reply-<n>.json に書き、pointer で返す。形に合わなければ落ちる。形のファイル writer-reply は
-    ここでは作り物（欄 changes だけ）に替えて、写しと番号の付け方だけを照らす"""
-
-    def setUp(self):
-        super().setUp()
-        shared = hermetic.tmpdir(self) / ".shared"
-        (shared / "schemas").mkdir(parents=True)
-        (shared / "schemas" / "writer-reply.schema.json").write_text(json.dumps(
-            {"type": "object", "required": ["changes"], "additionalProperties": False, "properties": {"changes": {"type": "array", "items": {"type": "string"}}}}),
-            encoding="utf-8")
-        self.enterContext(mock.patch.object(ports, "SHARED", shared))
+    """<w>-out: 返答を本物の形 writer-reply に照らして place の reply-<n>.json に書き、pointer で返す。形に合わなければ落ちる"""
+    REPLY = kit.fixture("weapon-static", "standalone")["static"]
 
     def out(self, reply):
         with mock.patch.dict(os.environ, {"INPUTS_REPLY": json.dumps(reply)}), contextlib.redirect_stdout(io.StringIO()) as stdout:
@@ -196,23 +187,25 @@ class OutCase(Base):
 
     def test_out_writes_the_reply_with_the_number_of_the_prompt_it_answers(self):
         (self.art / "demo-prompt-1.md").write_text("p1", encoding="utf-8")
-        got = self.out({"changes": ["a"]})
+        got = self.out(self.REPLY)
         self.assertEqual(got, {"ok": True, "reply": {"type": "archon_artifact", "run_id": "r1", "path": "reply-1.json"}, "report": []})
-        self.assertEqual(json.loads((self.art / "reply-1.json").read_text(encoding="utf-8")), {"changes": ["a"]})
+        self.assertEqual(json.loads((self.art / "reply-1.json").read_text(encoding="utf-8")), self.REPLY)
         (self.art / "demo-prompt-2.md").write_text("p2", encoding="utf-8")
-        self.assertEqual(self.out({"changes": []})["reply"]["path"], "reply-2.json")
+        self.assertEqual(self.out(self.REPLY)["reply"]["path"], "reply-2.json")
 
     def test_a_round_whose_reply_is_missing_does_not_shift_the_next_pair(self):
         """AI の node が落ちて out が走らなかった周は reply- が欠けるだけで、次の周の対（prompt-2 と reply-2）はずれない"""
         for n in (1, 2):
             (self.art / f"demo-prompt-{n}.md").write_text("p", encoding="utf-8")
-        self.assertEqual(self.out({"changes": []})["reply"]["path"], "reply-2.json")
+        self.assertEqual(self.out(self.REPLY)["reply"]["path"], "reply-2.json")
         self.assertFalse((self.art / "reply-1.json").exists())
 
     def test_a_reply_that_does_not_hold_the_shape_stops_the_node(self):
         (self.art / "demo-prompt-1.md").write_text("p1", encoding="utf-8")
-        for bad in ({}, {"changes": [1]}, {"changes": [], "extra": 1}):
-            with self.subTest(bad=bad), self.assertRaises(ValueError):
+        for name, bad in (("空", {}), ("必須の欄が欠ける", {k: v for k, v in self.REPLY.items() if k != "fix_closure"}),
+                          ("知らない欄", {**self.REPLY, "extra": 1}), ("precedent の条件に外れる",
+                           {**self.REPLY, "changes": [{"unit_key": "u"}]})):
+            with self.subTest(name), self.assertRaises(ValueError):
                 self.out(bad)
         self.assertFalse((self.art / "reply-1.json").exists(), "形に合わない返答は書かない")
 

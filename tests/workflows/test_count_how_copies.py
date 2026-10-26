@@ -65,9 +65,9 @@ def copies():
 
 class CountHowCopyCase(unittest.TestCase):
     def test_every_how_copy_is_the_owner(self):
-        found = list(copies())
+        found = list(copies())   # static は 2 つ（修正の block の node と、書き手の型の block weapon-static の node。返答の形の写し）
         self.assertEqual(sorted(name.split("/")[1] for name, _ in found), ["diagnose", "pin", "pin-ruled", "rejudge", "rejudge-fix", "remove", "remove-ruled", "ruler",
-                          "static", "static-ruled", "tdd-close", "tidy", "tidy-ruled", "variant", "variant-ruled"])
+                          "static", "static", "static-ruled", "tdd-close", "tidy", "tidy-ruled", "variant", "variant-ruled"])
         want = _owner_form(engine_util.COUNT_HOW_SCHEMA)
         for name, props in found:
             with self.subTest(name):
