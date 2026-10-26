@@ -151,18 +151,18 @@ def compose(kind: str, weapon: str, case) -> dict:
         saved = ""
         if pass_ == "first":
             owed = board.group_owed(place, [KEY])
-            state, summary = board.loop_files(place)
+            record, summary = board.loop_files(place)
             summary = summary if weapon == "tdd" else ""
-            values = board.fix_values(place, owed, state=state, summary=summary, answer_node=rules.answer_node("first"))
+            values = board.fix_values(place, owed, record=record, summary=summary, answer_node=rules.answer_node("first"))
             extra = {"green": tdd.green_units(summary)}
         else:
             owed = board.ruled_owed(place)
-            state, _ = board.ruled_states(place)
+            record, _ = board.ruled_states(place)
             values = board.fix_values(place, owed, answer_node=rules.answer_node("ruled"))
             saved = str(place / "fix-reply.json")
             extra = {"saved_reply": saved}
         call = dict(owed=owed, items=functools.partial(board.place_items, place), sources=board.brief_sources(place),
-                    frozen=facts.frozen_tests(place, state, pass_), shared=ports.shared_cache(), **extra)
+                    frozen=facts.frozen_tests(place, record, pass_), shared=ports.shared_cache(), **extra)
         slots, _ = prompts.writer_slots(place, repo, pass_, weapon, values, **call)
         block_prep(run, pass_, weapon, slots, writers)
     seen["place"], seen["repo"], seen["first_prompt"] = str(place), str(repo), seen["values"].get("first_prompt", "")

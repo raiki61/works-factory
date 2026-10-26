@@ -43,11 +43,11 @@ def main() -> dict:
     duty, _ = board.fix_duty(place, owed)
     if not duty or board.no_suite_stop(place):   # 組が no-suite で止まった（TDD のループが実行器の止まりで抜けた・受け付けが止めた）
         return {"go": False, "iteration": n, "writer": node}
-    state, summary = board.loop_files(place)
+    record, summary = board.loop_files(place)
     summary = summary if weapon == "tdd" else ""   # 輪の要約を読むのは tdd の輪の閉じの書き手だけ
-    values = board.fix_values(place, owed, state=state, summary=summary, answer_node=rules.answer_node("first"))
+    values = board.fix_values(place, owed, record=record, summary=summary, answer_node=rules.answer_node("first"))
     extra = dict(owed=owed, items=functools.partial(board.place_items, place), sources=board.brief_sources(place), green=tdd.green_units(summary),
-                 frozen=facts.frozen_tests(place, state, "first"), shared=ports.shared_cache())
+                 frozen=facts.frozen_tests(place, record, "first"), shared=ports.shared_cache())
     try:
         slots, rnd = prompts.writer_slots(place, repo, "first", weapon, values, **extra)
         handed = writers.hand_over(place, "first", weapon, slots, owed)   # 形に合わなければ落ちる（落ちた周は控えない）

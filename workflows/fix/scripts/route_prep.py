@@ -4,7 +4,8 @@
 # ///
 """node route-prep（組の形の route-loop の中。役 route の前）: 振り分けの段の指示を md から組む（src/route.prep の材料を src/prompts.tdd が
 prompts/parts/tdd.md に入れる。振り分けの段の字は今の TDD の輪の route の段と同じ）。振り分けが済んだ（resume で 1 周目から回り直した）・
-振り分けない組は {prompt: "", go: false}。brief の控えが壊れた・座が組めない・指示が組めない時は prompt-error.json に書いて落ちる。
+振り分けない組は {prompt: "", go: false}。組の頭の返り tdd-start.json が無い（group-start が走らなかった）時は落ちる。brief の控えが
+壊れた・座が組めない・指示が組めない時は prompt-error.json に書いて落ちる。
 返り {prompt, go}"""
 import os
 import sys
@@ -23,10 +24,10 @@ NODE = "route-prep"
 
 def main() -> dict:
     place, repo = ports.place(), Path.cwd()
-    started = board.read_json(place / board.TDD_START_FILE)
-    if not isinstance(started, dict):
+    if not isinstance(board.read_json(place / board.TDD_START_FILE), dict):
         raise ValueError(f"置き場に {board.TDD_START_FILE} が無い（group-start が走らなかった。{place}）")
-    if not started.get("state_file"):
+    state = route.path(place)
+    if not state.is_file():
         return {"prompt": "", "go": False}
     run = runvals.read(place)
     judgment_file = place / board.JUDGMENT_FILE
@@ -38,7 +39,7 @@ def main() -> dict:
               "notes_file": str(notes) if notes.is_file() else "", "base_rev": board.base_rev_of(place)}
     sources = {"plan": board.read_json(plan_file), "judgment": board.read_json(judgment_file)}
     try:
-        view = route.prep(started["state_file"], sources=sources)
+        view = route.prep(state, sources=sources)
         if not view["go"]:
             return {"prompt": "", "go": False}
         out = prompts.tdd(place, repo, view, values)

@@ -58,12 +58,12 @@ def main() -> dict:
     values = runvals.read(place)
     judgment = board.read_json(place / board.JUDGMENT_FILE) or {}
     head = board.fixer_head(place, "ruled")
-    state, tests_state = board.ruled_states(place)
+    record, tests_record = board.ruled_states(place)
     log = writelog.log_here()
     ports.drop_runner_env(values["user_env_dir"])   # 対象のテストを走らせる前に Archon の変数を落とす（place は先に取った）
     got = board.accept_reply(reply, place, repo, pass_="ruled", iteration=iteration, owed=owed,
-                             judged=judgment.get("units"), suite=str(values["tdd_suite"] or ""), state=state,
-                             tests_state=tests_state, head=head, skip=SKIP, log=log)
+                             judged=judgment.get("units"), suite=str(values["tdd_suite"] or ""), record=record,
+                             tests_record=tests_record, head=head, skip=SKIP, log=log)
     out = _finish(place, got, iteration, name)
     if out["done"]:
         writers.finished(place, weapon)

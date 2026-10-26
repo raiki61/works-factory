@@ -493,16 +493,16 @@ class AcceptTableCase(unittest.TestCase):
                             "static の単位の赤は variant の単位の赤に数えない")
 
     def test_accepted_reply_writes_returns_and_their_frozen_files_are_checked(self):
-        """返しを通した時に型ごとの returns/<k>.json を書き（tdd は輪の状態の frozen・frozen_tree・suite_made を写す）、後の受け付けは
+        """返しを通した時に型ごとの returns/<k>.json を書き（tdd は輪の記録の frozen・frozen_tree・suite_made を写す）、後の受け付けは
         その凍ったファイルの、注文の許しの外の書き換えを拒む"""
-        state = self.put("tdd-1/state.json", {"frozen": {"test_stats.py": self.common.hashes(self.repo, ["test_stats.py"])["test_stats.py"]},
+        record = self.put("tdd-1/record.json", {"frozen": {"test_stats.py": self.common.hashes(self.repo, ["test_stats.py"])["test_stats.py"]},
                                               "frozen_tree": self.rev, "suite_made": ["made.log"],
                                               "units": {"T": {"tests": ["test_stats.py::test_mean"]}}})
         self.ordered({"T": "tdd", "V": "variant"}, {"tdd": {"units": [{"key": "T", "tests": ["test_stats.py::test_mean"]}]},
                                                     "variant": {"units": [{"key": "V", "tests": []}]}})
         (self.repo / "test_new.py").write_text("def test_added():\n    assert True\n", encoding="utf-8")
         got = self.duties.write_returns(self.place, self.repo, self.rev, {"changes": [
-            {"unit_key": "T", "files": ["stats.py"]}, {"unit_key": "V", "files": ["test_new.py"]}]}, state=str(state))
+            {"unit_key": "T", "files": ["stats.py"]}, {"unit_key": "V", "files": ["test_new.py"]}]}, record=str(record))
         rets = {json.loads(pathlib.Path(p).read_text(encoding="utf-8"))["weapon"]: json.loads(pathlib.Path(p).read_text(encoding="utf-8"))
                 for p in got}
         self.assertEqual(sorted(rets), ["tdd", "variant"])
@@ -548,12 +548,21 @@ class AcceptTableCase(unittest.TestCase):
         """確かめ直しが照らす直す前の結末は、組の結果の欄 base の base.json の baseline_cases（輪の状態は読まない）"""
         row = {"classname": "test_stats", "name": "test_mean", "outcome": "failure"}
         base = self.put("g1/base.json", {"baseline_cases": [row]})
-        stale = self.put("g1/tdd-1/state.json", {"baseline_cases": [{**row, "outcome": "passed"}]})
+        stale = self.put("g1/tdd-1/state.json", {"baseline_cases": [{**row, "outcome": "passed"}]})   # 古い結果の輪の状態は読まない
         self.put("groups.json", {"out_dir": str(self.tmp / "out"), "groups": [{"group_id": "g1"}]})
         (self.tmp / "out" / "g1").mkdir(parents=True)
         (self.tmp / "out" / "g1" / "result.json").write_text(json.dumps(
             {"end_tree": "t", "base": str(base), "tdd_state": str(stale)}), encoding="utf-8")
         self.assertEqual(self.board.before_cases(self.place), [row])
+
+    def test_before_cases_do_not_fall_back_to_the_loop_state(self):
+        """組の結果に base が無ければ、輪の状態（tdd_state）の baseline_cases には逃げず、足さない"""
+        row = {"classname": "test_stats", "name": "test_mean", "outcome": "failure"}
+        stale = self.put("g1/tdd-1/state.json", {"baseline_cases": [row]})
+        self.put("groups.json", {"out_dir": str(self.tmp / "out"), "groups": [{"group_id": "g1"}]})
+        (self.tmp / "out" / "g1").mkdir(parents=True)
+        (self.tmp / "out" / "g1" / "result.json").write_text(json.dumps({"end_tree": "t", "tdd_state": str(stale)}), encoding="utf-8")
+        self.assertEqual(self.board.before_cases(self.place), [])
 
     def test_named_tests_come_from_the_orders(self):
         self.ordered({"T": "tdd"}, {"tdd": {"units": [{"key": "T", "tests": ["t.py::a", "t.py::a"]}],
