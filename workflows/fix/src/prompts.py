@@ -342,7 +342,8 @@ def ruler_values(place, got: dict) -> tuple[dict, dict]:
     start_vals, start_when = _starts(v)
     rejection = _rejection(place, "rule")
     vals = {**start_vals, "rejection": rejection, "conflicts_file": v["conflicts_file"], "ids": v["ids"],
-            "judgment_file": shown(v.get("judgment_file")), "lang": prompt.lang(runvals.read(place)["lang"])}
+            "judgment_file": shown(v.get("judgment_file")), "lang": prompt.lang(runvals.read(place)["lang"]),
+            "red_at_base_decisions": " or ".join(f"`{d}`" for d in conflict.RED_AT_BASE_DECISIONS)}   # 受け付けの表のまま
     return vals, {**start_when, "rejected": bool(rejection), "spawns": False}
 
 

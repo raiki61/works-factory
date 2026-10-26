@@ -324,6 +324,12 @@ class ConflictWordsCase(unittest.TestCase):
         """範囲（limits）を書く時も fix_plan_item を考える時も、その単位の brief を開く"""
         self.assertIn("When you write `limits` and when you consider `fix_plan_item`, open that unit's brief", self.ruler())
 
+    def test_ruler_names_the_rulings_red_at_base_allows(self):
+        """種類 red_at_base の申し出に許す裁定は、受け付けの表 conflict.RED_AT_BASE_DECISIONS の物を全部、その段落で言う"""
+        para = next(p for p in self.ruler().split("\n\n") if "`red_at_base`" in p)
+        for decision in conflict.RED_AT_BASE_DECISIONS:
+            self.assertIn(f"`{decision}`", para)
+
     def test_ruler_says_same_run(self):
         self.assertIn("within the same run, the fix plan's side fixes that item", self.ruler())
 

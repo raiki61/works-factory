@@ -448,7 +448,7 @@ def order_docs(place) -> dict:
 
 def named_tests(place) -> list:
     """受け付けの名指しの出どころ（下書き 2.1 の「受け付けの名指しの出どころ」）のうち注文の物: 全部の注文の units[].tests と、
-    permits の rewrite の行の test（現れた順・重ねない）。返しの evidence.named・added・rewritten は書き手が返す PR B で足す"""
+    permits の rewrite の行の test（現れた順・重ねない）。返しの evidence.named・added・rewritten は書き手が返す段 2 で足す"""
     out: list = []
     for doc in order_docs(place).values():
         ids = [t for u in doc.get("units") or [] if isinstance(u, dict) for t in u.get("tests") or []]
