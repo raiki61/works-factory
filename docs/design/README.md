@@ -648,6 +648,7 @@ form は 4.1 の物。どの block も `lang`（`text`）を持つ物は書く�
 - guidance-path の `closes` に新しい block の名の口 `{new}`（試験のフォルダは `-` を `_` にした `{new_}`）を置ける。置いた所の全部で同じ 1 つの名に結ばれ、その名で埋めた所がまだ作業ツリーに無い時だけ当たる。根拠: 「観点を足す」（1.2 の N）の閉じる所は名がまだ無いフォルダで、`blocks/` と書くと既にある block の中に置いても当たりになった。
 - guidance-path の入口は、place の中のこの block のファイルを名で引いて消す（頼みの id ごとの却下の控えも、前の intake と今の頼みの id から名を組む）。`rejects-*.json` のような広い形で消さない（上の「place は作るだけで、消さない」）。
 - 本物の run の外れ 6 件の直し（案内の直し 15 件）は、`blocks/AGENTS.md`（変更の種類ごとに閉じる所・作り直しの間に触らない所・「全部の役」の意味）・`blocks/.shared/AGENTS.md`（`.shared` と `lib/` の分け・形の語・`query-rule` が検索と出典の決まりの全部）・共通の断片 `query-rule`（一次の出典を先に読む文を寄せた）・`lib/AGENTS.md`（7.2 の行）・根の README（`works-factory-world` が何か）・world.md（md の本文の写しを外し、空の依頼の返りと拒否を足す道を書いた）に当てた。設計書が md の本文を写さないのは、写しがあると直す所が 2 か所になり、読み手が設計書も直す慣わしと読んだため（1.2 の I は md 1 本で閉じる）。
+- 書き手の型の block 6 つの 2 本の script の本体は、pack の口 `workflows/.shared/writerblock.py` 1 か所に置く（`prep(table)`・`out()`・`paragraphs(table)`。型ごとに違う物は block の `src/render.py` の表の定数 3 つだけ）。根拠: 6 つの block が使うので 1 つの block には置けず（憲法の 4）、仕事のほとんどが Archon との出入り（`INPUTS_`・place・`prompt.emit`・pointer）なので `lib/` にも置けない（E3）。Archon は pack の形の workflow の名前の script をその workflow の `scripts/` からだけ探すので、各 block の入口は残り、本体を呼ぶ数行になる。計画 `docs/plans/2026-10-24-fix-weapons.md` の 11.10 の 1。
 
 ## 未確認の一覧
 

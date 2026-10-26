@@ -31,7 +31,7 @@ def word(pattern: str) -> re.Pattern:
 
 
 # pack の口（workflows/AGENTS.md の E2）。2 つ以上の block が使う断片と形（prompts/・schemas/ の下の全部）と AGENTS.md も口の側に数える
-PACK_PORTS = ("ports.py", "prompt.py", "requestrows.py", "AGENTS.md")
+PACK_PORTS = ("ports.py", "prompt.py", "requestrows.py", "writerblock.py", "AGENTS.md")
 PACK_PORT_FOLDERS = ("prompts", "schemas")
 # 「（予定）」は語の境の外に置く。後ろに字が続いても（予定）を落とさない
 POLYFILL_ROW = re.compile(word(r"((?:workflows|bin|lib|tests)/[^\s`（）()、・。]+)").pattern + r"(`?（予定）)?")

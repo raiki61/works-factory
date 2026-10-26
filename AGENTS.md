@@ -69,7 +69,7 @@ works-factory/
 │   │   ├── schemas/             json の port の形
 │   │   └── fixtures/            筋書き（standalone.stubs.yaml は必ず置く）
 │   ├── <graph>/                 block を include でつなぐ graph（line・chain・judge・eyes・policy-check）。形は block と同じ。手本は policy-check
-│   └── .shared/                 pack の共通の部品（AGENTS.md が口の一覧）。口 ports.py・prompt.py・requestrows.py・2 つ以上の block が使う断片 prompts/ と形 schemas/・埋め（E2）
+│   └── .shared/                 pack の共通の部品（AGENTS.md が口の一覧）。口 ports.py・prompt.py・requestrows.py・writerblock.py・2 つ以上の block が使う断片 prompts/ と形 schemas/・埋め（E2）
 ├── lib/                         助け手（AGENTS.md が E3）。Archon を知らない Python で、2 つ以上の block（か graph か bin/）が使う物だけ
 │   ├── borrow/                  借りた superpowers の写しと固定（borrow.json）・継ぎ目の表（seams.json）・無人の読み替え（unattended.md）。読み口は lib/spseam.py
 │   ├── graphloops/engine/       元の graphloops の小道具のうち残る 3 つ（declared.py・schema.py・util.py）

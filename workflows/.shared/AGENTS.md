@@ -25,6 +25,7 @@ block の script と `src/` が Archon と出入りする口と、2 つ以上の
 - 道具に結びつく断片の印: `.shared/prompts/<name>.md` の頭の 1 行に `<!-- required-for-tools: <道具> <道具> -->` を置くと、どれかの道具を `allowed_tools` に持つ AI の node の指示がその断片を（段落に頼らずに）入れていることを、形の検査 7.1 の 14（`tests/layers/test_block_shape.py`）が照らす。`prompt.py` が差し込む時に印の行を落とす。別の対応表は置かない。道具に結びつかない断片（`works-gh` は gh を使う役、`lib-docs` は機械が控えを取った役、`writer-rules` は書き手の役だけが入れる）には印を付けない。
 - `prompt.py`: `render(node_id, values, when)`・`render_part(name, values, when)`（AI の node でない物の指示を `prompts/parts/<name>.md` から組む。束ね役が起こす下請けが Read する指示のファイルなど）・`emit(node_id, values, when, n)`・`round_of(node_id)`・`lang(raw)`・`PromptError`。
 - `requestrows.py`: `parts(raw)`・`findings(raw)`。依頼の行の port を読む口。
+- `writerblock.py`: `prep(table)`・`out()`・`paragraphs(table)`。書き手の型の block（`workflows/weapon-<型>/`）6 つの `scripts/writer_prep.py`・`writer_out.py` の本体。型の名は呼んだ block のフォルダの名 `weapon-<型>`（`ports.caller_block()`）から引き、型ごとに違う物は block の `src/render.py` の表（定数 `ORDER_WEAPON`・`SPAWNS`・`SUMMARY`。欠ければ落ちる）だけ。`prep` は `INPUTS_ORDER`・`INPUTS_SLOTS` を `ports.json` で読み、型が持つ値（`first_prompt`・`unattended`・`overlay_file`・`summary_file`・`g1_items`）と段落（`spawns`・`g1`・`ask_variant`）を slots に足して `prompt.emit` で組む。`out` は `INPUTS_REPLY` を形 `shared:writer-reply.schema.json` に照らして place の `reply-<n>.json` に書き、pointer で返す。試験は `tests/blocks/shared/test_writerblock.py`。
 
 ## 置く物
 

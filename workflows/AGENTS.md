@@ -45,13 +45,13 @@ block と graph の YAML・AI のノードへの指示の md・script・`src/`�
 
 ## E2 `.shared/` の中身は口と埋めだけで、埋めは名簿に載せる
 
-- `.shared/` のファイルは、Archon との出入りの口（`ports.py`・`prompt.py`・`requestrows.py`）・2 つ以上の block が使う断片と形（`prompts/`・`schemas/`）・埋め（polyfill。Archon に無い物を外から補う部品）だけ。
+- `.shared/` のファイルは、Archon との出入りの口（`ports.py`・`prompt.py`・`requestrows.py`・`writerblock.py`）・2 つ以上の block が使う断片と形（`prompts/`・`schemas/`）・埋め（polyfill。Archon に無い物を外から補う部品）だけ。
 - 埋めは `docs/polyfills.md` に 1 行ずつ載せる（穴・Archon の証拠の引用・外す条件）。置き場を持たない埋め（YAML の型・期限の値）も載せる。`bin/_lib/` の埋めでない入口の部品は `tests/layers/scan.py` の `ALLOWED["E2"]` に訳つきで置く。
 - 機械: `tests/layers/test_polyfills_listed.py`・`tests/layers/test_polyfill_evidence.py`。
 
 ## E4 block はほかの block のファイルを指さず、入力の説明で作り手を名指さない
 
-- block の `scripts/`・`src/` は、ほかの block のフォルダへのパスを組まず、run directory の根（`ARTIFACTS_DIR`）を読まない。受け取りは `with:` の入力（`ports` の form の口）と、作り手の出力の欄の pointer だけ。place のファイルの名はその block の `src/` だけが持つ。
+- block の `scripts/`・`src/` は、ほかの block のフォルダへのパスを組まず、run directory の根（`ARTIFACTS_DIR`）を読まない。受け取りは `with:` の入力（`ports` の form の口）と、作り手の出力の欄の pointer だけ。place のファイルの名はその block の `src/` だけが持つ（`.shared/` の口が書く物 `prompt.emit` の `<node>-prompt-<n>.md` と `writerblock` の `reply-<n>.json` を除く）。
 - 入力の `description:` は `<form>: <意味>` で受け取る値の形と意味を書き、作り手（ほかの block・graph のノード）を名指さない。結びは graph の `with:` だけが持つ（持ち主の決め `io-in-output-format`）。
 - script は同じ `scripts/` の別の script を import しない（共に使う物は `src/`）。script の名を `lib/` のモジュールと `.shared/` の口の名にしない。
 - 機械: `tests/layers/test_block_shape.py`（7.1 の 5・7・9）・`tests/workflows/test_script_imports.py`。入力の説明が作り手を名指さないことは人が見る。
