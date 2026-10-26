@@ -354,6 +354,20 @@ class SubAgentFilesCase(unittest.TestCase):
             for phrase in BRIEF_READING:
                 self.assertIn(phrase, text, f"{name} に brief の読み方の句が無い")
 
+    def test_seat_briefs_file_names_the_briefs(self):
+        """brief の在る run では、下請けの実装役の `[BRIEF_FILE]` が指すファイル（rules.SEAT_BRIEFS）が、頭の見出しと brief の行を持つ
+        （brief-head の断片を `.shared/` へ移す時に、このファイルの組み方を置き忘れると落ちる）"""
+        run = seeded(self)
+        rows = [{"item": 1, "unit_keys": [KEY], "file": "/b/r1/brief-1.md", "sha256": "a" * 64}]
+        rules = kit.load("fix", "rules")
+        with run.env():
+            values = rules.implementer_values(run.artifacts, {"judgment_file": "/b/judgment.json"}, run.repo, [KEY], rows)
+        path = pathlib.Path(values["[BRIEF_FILE]"])
+        self.assertEqual(path, run.artifacts / "seat-briefs.md")
+        text = path.read_text(encoding="utf-8")
+        self.assertTrue(text.startswith("## The requirement (briefs)\n"), text)
+        self.assertIn("- 項目 1: /b/r1/brief-1.md（sha256 " + "a" * 64, text)
+
 
 if __name__ == "__main__":
     unittest.main()
