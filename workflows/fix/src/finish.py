@@ -220,7 +220,8 @@ def _common(place, repo, rows_groups, groups, extras, results, *, ok, reason, fi
             "tdd_unit": ports.pointer(unit_file, "json(shared:tdd-units.schema.json)"), "tdd": tdd_rows,
             "frozen": ports.pointer(frozen, "json(shared:frozen.schema.json)") if frozen else None, "removed": _removed(place), "tdd_refused": _tdd_refused(place),
             "removed_tests": removed_tests, "untested": untested,
-            "freeze_off": report.freeze_off(tdd_rows), "report": report.lines(place, tdd_rows, units_rows, repo, groups_rows)}
+            "freeze_off": report.freeze_off(tdd_rows), "report": report.lines(place, tdd_rows, units_rows, repo, groups_rows,
+                                                                     board.writer_report_rows(place, results))}
 
 
 def suite_broken(results) -> list:

@@ -21,6 +21,7 @@ import yaml
 from tests.bin import hermetic
 from tests.bin.gitkit import committed_copy, git
 from tests.blocks import kit
+from tests.blocks.fix import support
 
 ROOT = kit.ROOT
 BLOCK = kit.BLOCKS / "fix"
@@ -199,7 +200,7 @@ class GroupChildScriptsCase(unittest.TestCase):
 
     def green_loop(self):
         """実行器の在る子の run で TDD の輪を mean の単位の緑まで回し（route → test の赤 → fix の緑）、修正の輪の頭（fix-prep）を
-        回す。返りは (テストのファイル, fix-prep の指示)"""
+        回す。返りは (テストのファイル, fix-prep の指示。型の block の周は slots のテストの節の行)"""
         self.parent_inputs(str(self.suite))
         self.start()
         self.assertEqual(self.step({"phase": "route", "units": [{"unit_key": MEAN, "route": "tdd"}]})["phase"], "test")
@@ -215,10 +216,14 @@ class GroupChildScriptsCase(unittest.TestCase):
         self.assertEqual((got["ok"], got["done"]), (True, True), got)
         prep = self.run_script("fix_prep")
         self.assertTrue(prep["go"], prep)
-        return test_file, prep["prompt"]
+        if prep["prompt"]:   # variant は fix の node のまま、指示を fix-prep が組む
+            return test_file, prep["prompt"]
+        # 型の block の周（tdd の閉じの書き手）は指示を型の block が組むので、fix-prep が渡す slots の材料の字（テストの節の行）を読む
+        slots = json.loads((self.place / prep["slots"]["path"]).read_text(encoding="utf-8"))
+        return test_file, slots["values"]["tests_rows"]
 
     def accept(self, reply):
-        return self.run_script("fix_accept", reply_variant=json.dumps(reply, ensure_ascii=False), consulted="false", iteration="1")
+        return self.run_script("fix_accept", reply_variant=support.reply_json(reply), consulted="false", iteration="1")
 
     @staticmethod
     def frozen_line(prompt: str) -> set:
@@ -367,7 +372,7 @@ class GroupChildScriptsCase(unittest.TestCase):
         stats.write_text(stats.read_text(encoding="utf-8").replace("(len(xs) - 1)", "len(xs)")
                          .replace("    return x\n", "    return lo\n"), encoding="utf-8")
         reply = {"changes": [_change(MEAN, ["stats.py"])]}
-        out = self.run_script("fix_ruled_accept", art=self.parent, reply_variant=json.dumps(reply, ensure_ascii=False),
+        out = self.run_script("fix_ruled_accept", art=self.parent, reply_variant=support.reply_json(reply),
                               consulted="false", iteration="1")
         self.assertFalse(out["ok"], out)
         self.assertIn("test_clamp_within_range", out["reason"])
@@ -395,7 +400,7 @@ class GroupChildScriptsCase(unittest.TestCase):
         stats = self.repo / "stats.py"
         stats.write_text(stats.read_text(encoding="utf-8").replace("    return x\n", "    return lo\n"), encoding="utf-8")
         reply = {"changes": [_change(MEAN, ["stats.py"])]}
-        out = self.run_script("fix_ruled_accept", art=self.parent, reply_variant=json.dumps(reply, ensure_ascii=False),
+        out = self.run_script("fix_ruled_accept", art=self.parent, reply_variant=support.reply_json(reply),
                               consulted="false", iteration="1")
         self.assertFalse(out["ok"], out)
         self.assertIn("test_clamp_within_range", out["reason"])
@@ -618,7 +623,7 @@ class GroupChildScriptsCase(unittest.TestCase):
         test_file.write_text(test_file.read_text(encoding="utf-8").replace("mean([2, 4]), 3)", "mean([2, 4]), 3.0)"),
                              encoding="utf-8")
         out = self.run_script("fix_ruled_accept", consulted="false", iteration="1",
-                              reply_variant=json.dumps({"changes": [_change(MEAN, ["stats.py", "test_stats.py"])]}, ensure_ascii=False))
+                              reply_variant=support.reply_json({"changes": [_change(MEAN, ["stats.py", "test_stats.py"])]}))
         frozen = self.frozen_reason(out["reason"])
         self.assertTrue(all(p in frozen for p in pasted), frozen)
 
@@ -684,7 +689,7 @@ class GroupChildScriptsCase(unittest.TestCase):
         result = json.loads(pathlib.Path(out["result_file"]).read_text(encoding="utf-8"))
         self.assertEqual(set(result), {"group_id", "unit_ids", "end_tree", "start_tree", "units", "tdd", "conflicts",
                                        "objection", "changed", "x_scalars", "allowed_tests", "verified",
-                                       "reply_file", "tdd_state", "worktree", "handoffs", "handoff_titles", "mismatched", "accept_trace", "closure",
+                                       "reply_file", "tdd_state", "worktree", "handoffs", "handoff_titles", "mismatched", "accept_trace", "writer_report", "closure",
                                        "claimed", "place", "base"})
         # F427・F428・F013: 子の place の受け入れた壊れ・閉鎖の表・受け付けの知らせを、親の finish へ結果で運ぶ
         self.assertEqual((result["handoffs"], result["claimed"], result["closure"]),
@@ -865,10 +870,10 @@ class GroupChildSeamCase(unittest.TestCase):
                                            {"path": "t.py", "permit": "p2", "source": "plan"}])
         self.assertEqual(set(got), {"group_id", "unit_ids", "end_tree", "start_tree", "units", "tdd", "conflicts",
                                     "objection", "changed", "x_scalars", "allowed_tests", "verified",
-                                    "reply_file", "tdd_state", "worktree", "handoffs", "handoff_titles", "mismatched", "accept_trace", "closure",
+                                    "reply_file", "tdd_state", "worktree", "handoffs", "handoff_titles", "mismatched", "accept_trace", "writer_report", "closure",
                                     "claimed", "place", "base"})
         self.assertEqual((got["worktree"], got["place"], got["base"]), ("", "", ""), "渡さなければ空")
-        self.assertEqual((got["handoffs"], got["claimed"], got["closure"], got["accept_trace"]), ([], [], [], []))
+        self.assertEqual((got["handoffs"], got["claimed"], got["closure"], got["accept_trace"], got["writer_report"]), ([], [], [], [], []))
         self.assertEqual([(u["unit_id"], u["status"]) for u in got["units"]],
                          [("a", "fixed"), ("b", "given_up"), ("c", "not_done")])
         self.assertEqual(got["units"][2]["reason"], b.NO_UNIT_RESULT)

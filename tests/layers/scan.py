@@ -31,7 +31,7 @@ def word(pattern: str) -> re.Pattern:
 
 
 # pack の口（workflows/AGENTS.md の E2）。2 つ以上の block が使う断片と形（prompts/・schemas/ の下の全部）と AGENTS.md も口の側に数える
-PACK_PORTS = ("ports.py", "prompt.py", "requestrows.py", "AGENTS.md")
+PACK_PORTS = ("ports.py", "prompt.py", "requestrows.py", "writerblock.py", "AGENTS.md")
 PACK_PORT_FOLDERS = ("prompts", "schemas")
 # 「（予定）」は語の境の外に置く。後ろに字が続いても（予定）を落とさない
 POLYFILL_ROW = re.compile(word(r"((?:workflows|bin|lib|tests)/[^\s`（）()、・。]+)").pattern + r"(`?（予定）)?")
@@ -1395,6 +1395,17 @@ def _whole_read(pack: "_Pack", where: str, label: str, shape, folder, form: str,
             + [f"{head}の読む欄 {path} が {form} の形に無い" for path in paths if not _path_in(pack, named, folder, path)])
 
 
+IMPORTED = re.compile(r"(?m)^\s*(?:import\s+([A-Za-z_]\w*)|from\s+([A-Za-z_]\w*)\s+import\b)")
+
+
+def _imported_shared(root: Path, codes: list[str]) -> list[str]:
+    """block の scripts/・src/ の字が import する `workflows/.shared/<名>.py`（.shared の直下のファイルだけ）の字。2 つ以上の block が使う
+    本体（例 writerblock）が入力を読む時、その入力の読み手に数える。数えるのは `INPUTS_<名>` の字そのものだけ（`INPUTS_{` を組む句を
+    .shared に当てると、ports.py などの汎用の字で誤って読み手が在ると数える）"""
+    names = sorted({m for code in codes for pair in IMPORTED.findall(code) for m in pair if m})
+    return ["\n".join(_lines(root, p)[0]) for n in names if (p := root / "workflows" / ".shared" / f"{n}.py").is_file()]
+
+
 def _inputs_read(root: Path) -> list[str]:
     """block の inputs: の名は、その block の YAML の字が $INPUTS.<名> で読むか（with: で include・script・役へ渡す字を含む）、その block の
     scripts/ と src/ の Python が INPUTS_<名> で読む（script_reads）。宣言しただけで誰も読まない入力を残さない（declared-io）"""
@@ -1406,8 +1417,10 @@ def _inputs_read(root: Path) -> list[str]:
         refs = {m[1] for node in _nodes(document) for _, text in _scalars(node, skip={("loop_group", "nodes")})
                 for m in INPUT_REF.finditer(text)}
         codes = ["\n".join(_lines(root, p)[0]) for part in ("scripts", "src") for p in _files(folder, part) if p.suffix == ".py"]
+        shared = _imported_shared(root, codes)
         for key, value in _pairs(_top(document, "inputs")):
-            if key not in refs and not any(script_reads(text, key, root / "lib") for text in codes):
+            if key not in refs and not any(script_reads(text, key, root / "lib") for text in codes) \
+                    and not any(re.search(rf"INPUTS_{re.escape(key.replace('-', '_').upper())}(?![A-Z0-9_])", text) for text in shared):
                 out.append(f"{_rel(root, path)}:{_line(value)}: 入力 {key} に読み手が無い（YAML の $INPUTS.{key} も、"
                            f"scripts/・src/ の {_input_env(key)} も無い）")
     return out

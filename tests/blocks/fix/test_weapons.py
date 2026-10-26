@@ -4,7 +4,7 @@
 - 試験が無いかの印 no_tests の決め（src/basecase._no_tests。4.4 の作る物 12 の 5 つの場合と、宣言を読む木）。どの試験も対象の試験を
   走らせない（持ち主の決め base-runs-nothing。走らせるのは試験の一覧のコマンドだけ）
 - 確かめの表（src/duties.py）の形の決まりと、型の義務の関数（static・pin・remove・variant・rebuild）
-- 口の形（schemas/weapon-order.schema.json・weapon-return.schema.json）
+- 口の形（.shared/schemas/weapon-order.schema.json・schemas/weapon-return.schema.json）
 - 共通の受け付けが型の義務の表を引く口（duties.accept_problems）・赤を見ない clean の照らしを当てる単位（board.red_units・
   recount の red_units）・返しの控えを書く所（duties.write_returns）・返しの控えの凍結の照らし（duties.frozen_by_returns）・
   受け付けの名指しの出どころ（orders.named_tests）（4.4 の 4）
@@ -19,6 +19,7 @@ import unittest.mock
 
 from tests.bin.gitkit import git
 from tests.blocks import kit
+from tests.blocks.fix import support
 from tests.blocks.fix import test_group as tg
 
 route = kit.load("fix", "route")
@@ -29,6 +30,7 @@ static = kit.load("fix", "static")
 remove = kit.load("fix", "remove")
 variant = kit.load("fix", "variant")
 rebuild = kit.load("fix", "rebuild")
+writers = kit.load("fix", "writers")
 from graphloops.engine.schema import validate_schema  # noqa: E402  （lib）
 
 BLOCK = kit.BLOCKS / "fix"
@@ -253,7 +255,8 @@ class WeaponDutiesCase(unittest.TestCase):
 
 class SchemaCase(unittest.TestCase):
     def load(self, name):
-        return json.loads((BLOCK / "schemas" / name).read_text(encoding="utf-8"))
+        folder = kit.SHARED if name in ("weapon-order.schema.json", "writer-slots.schema.json", "writer-reply.schema.json") else BLOCK   # 注文・書き手の形は pack の共通（段 2 の D1）
+        return json.loads((folder / "schemas" / name).read_text(encoding="utf-8"))
 
     def test_an_order_and_a_return_hold_the_shape(self):
         order = {"weapon": "variant", "group": "g1", "stage": 1, "since": "abc", "base": "/p/base.json",
@@ -280,6 +283,50 @@ class SchemaCase(unittest.TestCase):
                                 "申し出の語は lib/conflicts.schema.json と同じ語だけ")
         self.assertEqual(validate_schema({**order, "base": ""}, self.load("weapon-order.schema.json")), [],
                          "元の結末の無い組（裁定の後の段で写した元の結末が無い時）の注文は base が空")
+
+    def test_writer_reply_shape_is_the_anchor_fix_reply_written_out(self):
+        """writer-reply は今の YAML の錨 fix_reply を字のまま JSON にした物（YAML に書く output_format と同じ中身）"""
+        import yaml
+        doc = yaml.safe_load((BLOCK / "works-factory-fix.yaml").read_text(encoding="utf-8"))
+        found = []
+
+        def walk(o):
+            if isinstance(o, dict):
+                of = o.get("output_format")
+                if isinstance(of, dict) and "changes" in (of.get("properties") or {}):
+                    found.append(of)
+                for v in o.values():
+                    walk(v)
+            elif isinstance(o, list):
+                for v in o:
+                    walk(v)
+        walk(doc)
+        self.assertTrue(found)
+        for shape in found:
+            self.assertEqual(self.load("writer-reply.schema.json"), shape)
+
+    def test_precedent_conditions_of_the_writer_reply(self):
+        """precedent の 3 つの条件（allOf の if/then。from_judge_row が真でなければ problem・not_found なら searched・not_found でなければ source）"""
+        shape = self.load("writer-reply.schema.json")["properties"]["changes"]["items"]["properties"]["precedent"]
+
+        def errors(**p):
+            return validate_schema({"verdict": "adopt", "reason": "先行例に従う", "problem": "同じ欠陥", "source": "src.py:1", **p}, shape)
+        self.assertEqual(errors(), [])
+        self.assertTrue(validate_schema({"verdict": "adopt", "reason": "先行例に従う", "source": "s.py"}, shape),
+                        "from_judge_row が真でなければ problem が要る")
+        self.assertEqual(validate_schema({"verdict": "adopt", "reason": "判定の行どおり", "from_judge_row": True}, shape), [],
+                         "from_judge_row が真なら problem も source も要らない")
+        self.assertTrue(errors(verdict="not_found"), "not_found は searched が要る")
+        self.assertEqual(errors(verdict="not_found", searched="全体を検索した", source="x" * 4), [])
+        self.assertTrue(validate_schema({"verdict": "adopt", "reason": "先行例に従う", "problem": "同じ欠陥"}, shape), "not_found でなければ source が要る")
+        self.assertEqual(validate_schema({"verdict": "not_found", "reason": "先行例が無い", "problem": "同じ欠陥", "searched": "全体を検索した"}, shape), [])
+
+    def test_writer_slots_shape_requires_every_key(self):
+        """段 2 の D1 で .shared/schemas/ に置いた writer-slots は、values・when の全部の鍵を required に持つ"""
+        slots = self.load("writer-slots.schema.json")
+        self.assertEqual(set(slots["required"]), {"values", "when", "subagents", "summary_file"})
+        for key in ("values", "when"):
+            self.assertEqual(set(slots["properties"][key]["required"]), set(slots["properties"][key]["properties"]))
 
 
 class AcceptTableCase(unittest.TestCase):
@@ -482,7 +529,7 @@ class RuledOrderCase(unittest.TestCase):
         var = json.loads((self.place / "orders" / "variant.json").read_text(encoding="utf-8"))
         self.assertEqual([(u["key"], u.get("checked_as")) for u in var["units"]], [("T", "tdd"), ("X", None)])
         self.assertEqual(self.orders.checked_as(self.place), {"T": "tdd", "S": "static"})
-        schema = json.loads((BLOCK / "schemas" / "weapon-order.schema.json").read_text(encoding="utf-8"))
+        schema = json.loads((kit.SHARED / "schemas" / "weapon-order.schema.json").read_text(encoding="utf-8"))
         self.assertEqual(validate_schema(var, schema), [])
         self.assertTrue(self.orders.is_ruled(self.place))
         (self.place / "prior").mkdir()
@@ -657,6 +704,117 @@ class AcceptWiringCase(tg.GroupChildScriptsCase):
         out = self.accept({"changes": [tg._change(tg.MEAN, ["stats.py"])]})
         self.assertFalse(out["ok"], out)
         self.assertIn("test_old_denominator", out["reason"])
+
+    def whole_return(self, reply, *, ok=True, report=()):
+        """型の block の返りまるごと（writer_out の形 {ok, reason, reply: <pointer>, report}）。返答は組の子の run の置き場に書く。
+        ok が偽の返りは reply が null で、report が reason と同じ 1 行（docs/plans/2026-10-24-fix-weapons.md の 11.3）"""
+        if not ok:
+            reason = "書き手の返答が無い（書き手の AI の node か、返答を置く node pin-save が落ちた）"
+            return json.dumps({"ok": False, "reason": reason, "reply": None, "report": [reason]})
+        path = self.place / "w-pin" / "reply-1.json"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(support.reply_json(reply), encoding="utf-8")
+        rel = path.resolve().relative_to(self.art.resolve()).as_posix()
+        return json.dumps({"ok": ok, "reason": "", "reply": {"type": "archon_artifact", "run_id": tg.RUN, "path": rel},
+                           "report": list(report)})
+
+    def test_the_accept_reads_a_writer_blocks_whole_return_and_keeps_its_report(self):
+        """受け付けは型の block の返りまるごとを受け（E5。ok・reason・reply・report の 4 つとも読む）、report の行を置き場の
+        writer-report.json に型の名と積む。積んだ行は finish の report に載る（WriterReportCase）"""
+        self.direct_start()
+        weapon = writers.current(self.place)
+        out = self.run_script("fix_accept", reply_pin=self.whole_return({"changes": []}, report=["型の block の報告の 1 行"]),
+                              consulted="true", iteration="1")
+        self.assertEqual(out["reason"], tg._src("board").CONSULTED, out)
+        rows = json.loads((self.place / "writer-report.json").read_text(encoding="utf-8"))
+        self.assertEqual(rows, [{"weapon": weapon, "line": "型の block の報告の 1 行"}])
+
+    def files(self) -> dict:
+        """組の子の run の置き場のファイルの名と中身の組（走らせる前と後を比べる。ファイルの名の表を持たない）"""
+        return {p.relative_to(self.art).as_posix(): p.read_bytes() for p in sorted(self.art.rglob("*")) if p.is_file()}
+
+    def test_a_script_given_a_writer_block_return_whose_ok_is_false_stops_before_writing(self):
+        """縛る試験の 10: 受け取る側の 3 つの script は、型の block の返りの ok が偽なら非 0 で終わり、place を変えない（単位の結末の重ね・
+        型を済ませた印・却下の控えを書かない）。文は include の id と block の返りの reason を名指す（11.3 の「落ちた周の守り」）"""
+        self.direct_start()
+        for script, pass_, extra in (("consult_check", "first", {"pass": "first"}),
+                                     ("fix_accept", "first", {"consulted": "false", "iteration": "1"}),
+                                     ("consult_check", "ruled", {"pass": "ruled"}),
+                                     ("fix_ruled_accept", "ruled", {"consulted": "false", "iteration": "1"})):
+            with self.subTest(script=script, pass_=pass_):
+                before = self.files()
+                err = self.run_script(script, ok=False, reply_pin=self.whole_return({}, ok=False), **extra)
+                self.assertIn(writers.node(pass_, "pin"), err)
+                self.assertIn("書き手の返答が無い", err)
+                self.assertEqual(self.files(), before, "ok が偽の返りを受けた script は place に何も書かない")
+
+
+class ReplyOfCase(unittest.TestCase):
+    """writers.reply_of の結末の欄 ok の読み（縛る試験の 10。11.4 の 3）"""
+    REASON = "書き手の返答が無い"
+
+    @staticmethod
+    def unskipped(_value) -> bool:
+        return False
+
+    def test_a_block_whose_ok_is_false_stops_with_the_include_id_and_the_reason(self):
+        for pass_ in ("first", "ruled"):
+            with self.subTest(pass_=pass_):
+                got = {"ok": False, "reason": self.REASON, "reply": None, "report": [self.REASON]}
+                with self.assertRaises(ValueError) as caught:
+                    writers.reply_of({"pin": got}, None, pass_, self.unskipped)
+                self.assertIn(writers.node(pass_, "pin"), str(caught.exception))
+                self.assertIn(f"weapon-{writers.block_of('pin')}", str(caught.exception))
+                self.assertIn(self.REASON, str(caught.exception))
+
+    def test_a_skipped_block_and_the_variant_node_are_not_read_for_ok(self):
+        """飛んだ型の block（if_skipped: null で None）は ok を見ない。D1 の間 node のまま残る variant は ok の鍵を持たない"""
+        self.assertEqual(writers.reply_of({"pin": None, "tidy": None}, None, "first", self.unskipped), (None, []))
+        reply = json.loads(support.reply_json({"changes": []}))
+        got, lines = writers.reply_of({"pin": None}, json.dumps(reply), "first", self.unskipped)
+        self.assertEqual((got, lines), (reply, []))
+
+
+class WriterReportCase(unittest.TestCase):
+    """型の block の書き手の報告の行が、組の子の結果を通って親の finish の report に載る（board.add_writer_report・writer_report_rows・
+    group_result の writer_report・report.writer_lines）"""
+
+    def test_the_lines_go_from_a_group_child_to_the_parent_report(self):
+        board, report = tg._src("board"), tg._src("report")
+        with tempfile.TemporaryDirectory() as tmp:
+            child, parent = pathlib.Path(tmp) / "child", pathlib.Path(tmp) / "parent"
+            child.mkdir()
+            parent.mkdir()
+            board.add_writer_report(child, "pin", ["固定の 1 行"])
+            board.add_writer_report(child, "tidy", [])
+            result = board.group_result({"group_id": "g1", "unit_ids": []}, start_tree="", end_tree="", tdd=None,
+                                        writer_report=board.writer_report_rows(child))
+            board.add_writer_report(parent, "static", ["裁定の後の 1 行"])
+            rows = board.writer_report_rows(parent, [result])
+            self.assertEqual(report.writer_lines(rows), ["書き手 pin（組 g1）: 固定の 1 行", "書き手 static: 裁定の後の 1 行"])
+            self.assertEqual(report.lines(parent, [], [], writers=rows)[:2], report.writer_lines(rows))
+
+
+class ReadStagesCase(unittest.TestCase):
+    """読んだ証拠の段の頭の印（board.read_stages）は、修正の block が自分の place に書くファイルだけ（型の block の place の中を
+    読まない。E4）。型の block は渡した 1 回目の slots、variant は今の node の指示書"""
+
+    def test_the_marks_are_files_the_fix_block_writes_in_its_own_place(self):
+        board = tg._src("board")
+        with tempfile.TemporaryDirectory() as tmp:
+            place = pathlib.Path(tmp)
+            (place / "w-pin").mkdir()
+            (place / "w-pin" / "pin-prompt-1.md").write_text("型の block の指示\n", encoding="utf-8")
+            stages = {role: (mark, launched) for role, mark, launched in board.read_stages(place)}
+            self.assertEqual({mark.parent for mark, _ in stages.values()}, {place})
+            self.assertIsNone(stages["w-pin"][1], "型の block の place の中の指示書は印にしない")
+            (place / "slots-w-pin-1.json").write_text("{}", encoding="utf-8")
+            (place / "variant-prompt-1.md").write_text("variant の指示\n", encoding="utf-8")
+            stages = {role: (mark, launched) for role, mark, launched in board.read_stages(place)}
+            self.assertEqual(stages["w-pin"], (place / "slots-w-pin-1.json",) * 2)
+            self.assertEqual(stages["variant"], (place / "variant-prompt-1.md",) * 2)
+            self.assertIsNone(stages["wr-pin"][1])
+
 
 def load_tests(loader, tests, pattern):
     """借りた tg.GroupChildScriptsCase の試験を回し直さない（AcceptWiringCase はこのクラスに書いた試験だけ）"""

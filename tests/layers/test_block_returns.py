@@ -218,6 +218,29 @@ class BlockReturnsTest(unittest.TestCase):
                 self.assertTrue(got[0].startswith(f"{BLOCK}:3:"), got)
                 self.assertIn("入力 request に読み手が無い", got[0])
 
+    def test_block_input_read_by_an_imported_shared_module(self):
+        """block の scripts/・src/ が import する .shared の直下のモジュールが INPUTS_<名> で読むなら読み手に数える
+        （書き手の型の block の writerblock）。import しない・import しても読まないなら赤"""
+        head = ("name: works-factory-judge\ninputs:\n  request: {default: '', description: 'text: x'}\n"
+                "returns: verdict\noutcome_field: ready\nnodes:\n  - id: verdict\n    script: verdict\n")
+        tail = ("    output_format:\n      type: object\n      properties:\n        ready: {type: boolean}\n      required: [ready]\n")
+        line = LINE_HEAD + "  - id: x\n    script: x\n    with:\n      a: $judge.output.ready\n"
+        script, shared = "workflows/judge/scripts/verdict.py", "workflows/.shared/bodyblock.py"
+        reads, silent = 'raw = os.environ.get("INPUTS_REQUEST")\n', 'raw = os.environ.get("INPUTS_OTHER")\n'
+        for name, files, red in (
+                ("import して読む", {script: "import bodyblock\nbodyblock.run()\n", shared: reads}, False),
+                ("from で import して読む", {script: "from bodyblock import run\n", shared: reads}, False),
+                ("import しない", {script: "pass\n", shared: reads}, True),
+                ("import しても読まない", {script: "import bodyblock\n", shared: silent}, True),
+                ("`INPUTS_{` を組む句は .shared に当てない", {script: "import bodyblock\n", shared: 'f"INPUTS_{name}"  # "request"\n'}, True)):
+            with self.subTest(name):
+                got = self.files({BLOCK: head + tail, LINE: line, **files})
+                if red:
+                    self.assertEqual(len(got), 1, got)
+                    self.assertIn("入力 request に読み手が無い", got[0])
+                else:
+                    self.assertEqual(got, [])
+
     def test_whole_ref_in_any_graph_is_checked(self):
         """まるごとの参照は線の外の graph（include を持つ workflow）でも照らす"""
         graph = ("name: works-factory-r1\nreturns: take\noutcome_field: ok\nnodes:\n  - id: judge\n    include: works-factory-judge\n"

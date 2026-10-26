@@ -15,6 +15,7 @@ import unittest.mock
 
 from tests.bin.gitkit import git
 from tests.blocks import kit
+from tests.blocks.fix import support
 from tests.blocks.fix import test_group as tg
 from tests.blocks.fix.support import SUITE
 
@@ -119,7 +120,7 @@ class NoSuiteGroupCase(tg.GroupChildScriptsCase):
         self.run_script("join", art=self.parent)
         stats = self.repo / "stats.py"
         stats.write_text(stats.read_text(encoding="utf-8").replace("(len(xs) - 1)", "len(xs)") + "# NOXML\n", encoding="utf-8")
-        out = self.run_script("fix_ruled_accept", art=self.parent, reply_variant=json.dumps({"changes": [tg._change(tg.MEAN, ["stats.py"])]}),
+        out = self.run_script("fix_ruled_accept", art=self.parent, reply_variant=support.reply_json({"changes": [tg._change(tg.MEAN, ["stats.py"])]}),
                               consulted="false", iteration="1")
         self.assertEqual((out["ok"], out["done"]), (False, True), out)
         self.assertIn("実行器が結末を返さない", out["reason"])

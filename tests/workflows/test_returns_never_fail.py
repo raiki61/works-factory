@@ -13,6 +13,8 @@ resolveBindingDirective・output-ref.ts の resolveNodeOutputField・assertProdu
 - 結ばれた include の節は、その block の返す節に置き換えて同じ照らしを当てる
 
 照らし:
+- どの workflow の返す節も trigger_rule: all_done で、落ちた節の後にも走る。既定の trigger_rule の返す節は、上流が落ちると飛び、
+  block が値を返さない（docs/plans/2026-10-24-fix-weapons.md の 11.0 の 10。one_success・always_run は上流の全部を待たないので入れない）
 - 落ちてはいけない節は script の節で（AI の節は retry の後に落ちうる）、一時のフォルダへ単独で写して入力無しで走らせると、終了の値 0 で、
   標準出力の JSON が節の output_format に合い、返りの指し札の先が在って空でない。単独とは lib も隣の script も無い木で、口
   （.shared/ports.py。docs/design/README.md の 4 節）と自分の block の src/ だけを置く（block のコードは block のフォルダに在り、
@@ -42,6 +44,7 @@ from tests.archon import ROOT, WORKFLOWS, src_module
 RUN_ID = "run-alone"
 PREFIX = "works-factory-"
 LENIENT = ("all_done", "one_success")   # 落ちた節の後にも走る trigger_rule
+RETURN_RULE = "all_done"   # 返す節の trigger_rule（上流の全部が終わってから、落ちた節の後にも走る）
 AI_KEYS = ("prompt", "command")
 BOUND = re.compile(r"\$([A-Za-z][\w-]*)\.output\b")
 TYPES = {"object": dict, "array": list, "string": str, "boolean": bool, "null": type(None)}
@@ -119,6 +122,17 @@ def never_fail(pack: pathlib.Path = WORKFLOWS) -> dict[tuple[str, str], str]:
     callers = {b for b, doc in docs.items() if any(isinstance(n.get("workflow"), str) for n in all_nodes(doc["nodes"]))}
     for block in sorted((called | callers) & set(docs)):
         add(block, docs[block]["returns"], f"{block} は workflow: で run を起こすか起こされ、その返りを殻か親の run が読む")
+    return out
+
+
+def strict_returns(pack: pathlib.Path = WORKFLOWS) -> list[str]:
+    """返す節が落ちた節の後に走らない workflow（返す節が既定の trigger_rule の物）の誤りの行"""
+    out = []
+    for block in blocks(pack):
+        ret = return_node(load(block, pack))
+        if ret.get("trigger_rule") != RETURN_RULE:
+            out.append(f"{block}: 返す節 {ret['id']} の trigger_rule が {ret.get('trigger_rule') or '既定'}（落ちた節の後にも走る"
+                       f" {RETURN_RULE} にする）")
     return out
 
 
@@ -284,6 +298,9 @@ class ReturnScriptCase(unittest.TestCase):
         self.assertLessEqual({("line", "result"), ("chain", "result"), ("line", "sweep-children"), ("report", "finish")},
                              set(self.table))
 
+    def test_every_return_node_runs_after_a_failed_node(self):
+        self.assertEqual(strict_returns(), [])
+
     def test_never_failing_nodes_are_scripts(self):
         """落ちてはいけない節は script の節（AI の節は retry の後にも落ちうる。承認ノードの答えも script の節で受ける）"""
         for (block, nid), why in self.table.items():
@@ -413,6 +430,16 @@ class SeedCase(unittest.TestCase):
         graph("caller", {"returns": "done", "nodes": [{"id": "child", "workflow": f"{PREFIX}leaf"},
                                                       {"id": "done", "script": "done", "trigger_rule": "all_done"}]})
         self.assertEqual(sorted(never_fail(pack)), [("caller", "done"), ("leaf", "end"), ("leaf", "work"), ("top", "other-out")])
+
+    def test_seed_return_node_with_the_default_trigger_rule_is_red(self):
+        pack = self.dir / "pack"
+        for name, ret in (("strict", {"id": "end", "script": "end", "depends_on": ["work"]}),
+                          ("done", {"id": "end", "script": "end", "depends_on": ["work"], "trigger_rule": "all_done"}),
+                          ("one", {"id": "end", "script": "end", "depends_on": ["work"], "trigger_rule": "one_success"}),
+                          ("always", {"id": "end", "script": "end", "depends_on": ["work"], "always_run": True})):
+            self.seed(f"pack/{name}/{PREFIX}{name}.yaml", yaml.safe_dump(
+                {"name": f"{PREFIX}{name}", "returns": "end", "nodes": [{"id": "work", "script": "work"}, ret]}))
+        self.assertEqual([p.split(":")[0] for p in strict_returns(pack)], ["always", "one", "strict"])
 
     def test_seed_pointer_to_a_missing_or_empty_file_is_red(self):
         (self.dir / "empty.txt").write_text("", encoding="utf-8")

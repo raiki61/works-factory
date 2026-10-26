@@ -49,7 +49,8 @@ def main() -> dict:
         reply_file=str(reply_path) if reply_path.is_file() else "",
         allowed_rows=board.allowed_test_rows(place), conflicts=conflict.this_pass(place),
         worktree=os.path.realpath(repo), mismatched=[*board.mismatched_lines(place), *board.check_excluded(place, repo, start)],
-        accept_trace=board.accept_trace_rows(place), closure=finish.closure_rows(place), place=str(place),
+        accept_trace=board.accept_trace_rows(place), writer_report=board.writer_report_rows(place),
+        closure=finish.closure_rows(place), place=str(place),
         base=str(basecase.path(place)) if basecase.path(place).is_file() else "")
     target = gdir / board.RESULT_FILE
     board.write_json(target, result)

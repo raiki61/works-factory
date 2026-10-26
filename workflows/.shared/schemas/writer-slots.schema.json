@@ -1,0 +1,338 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "values",
+    "when",
+    "subagents",
+    "summary_file"
+  ],
+  "properties": {
+    "values": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "rejection",
+        "rulings_file",
+        "saved_reply",
+        "brief_rows",
+        "faces_rows",
+        "scope_rows",
+        "tests_rows",
+        "tests_how",
+        "policy_path",
+        "request_file",
+        "judgment_file",
+        "open_units",
+        "plan_file",
+        "notes_file",
+        "budget",
+        "draft",
+        "check_cmd",
+        "ripple_file",
+        "libdocs_rows",
+        "answer_file",
+        "left",
+        "lang"
+      ],
+      "description": "書き手の指示の差し込み口の値（型が持つ値を除く全部。どれも字）",
+      "properties": {
+        "rejection": {
+          "type": "string"
+        },
+        "rulings_file": {
+          "type": "string"
+        },
+        "saved_reply": {
+          "type": "string"
+        },
+        "brief_rows": {
+          "type": "string"
+        },
+        "faces_rows": {
+          "type": "string"
+        },
+        "scope_rows": {
+          "type": "string"
+        },
+        "tests_rows": {
+          "type": "string"
+        },
+        "tests_how": {
+          "type": "string"
+        },
+        "policy_path": {
+          "type": "string"
+        },
+        "request_file": {
+          "type": "string"
+        },
+        "judgment_file": {
+          "type": "string"
+        },
+        "open_units": {
+          "type": "string"
+        },
+        "plan_file": {
+          "type": "string"
+        },
+        "notes_file": {
+          "type": "string"
+        },
+        "budget": {
+          "type": "string"
+        },
+        "draft": {
+          "type": "string"
+        },
+        "check_cmd": {
+          "type": "string"
+        },
+        "ripple_file": {
+          "type": "string"
+        },
+        "libdocs_rows": {
+          "type": "string"
+        },
+        "answer_file": {
+          "type": "string"
+        },
+        "left": {
+          "type": "string"
+        },
+        "lang": {
+          "type": "string"
+        }
+      }
+    },
+    "when": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "rejected",
+        "rulings_first",
+        "ruled_reply",
+        "briefs",
+        "faces",
+        "scope",
+        "tests",
+        "tests_new",
+        "tests_tail",
+        "tests_broken",
+        "frozen_files",
+        "tests_how",
+        "rules",
+        "ask",
+        "ask_ripple",
+        "libdocs",
+        "resume",
+        "queued",
+        "overflow_answer",
+        "conflict",
+        "docs",
+        "prompts_kind",
+        "config",
+        "code",
+        "evidence",
+        "where_writer",
+        "where_tdd",
+        "where_rework",
+        "rules_change",
+        "rules_sites",
+        "rules_red",
+        "conflict_change",
+        "policy",
+        "no_policy",
+        "request",
+        "no_request"
+      ],
+      "description": "書き手の指示の段落の真偽（型が持つ段落を除く全部）",
+      "properties": {
+        "rejected": {
+          "type": "boolean"
+        },
+        "rulings_first": {
+          "type": "boolean"
+        },
+        "ruled_reply": {
+          "type": "boolean"
+        },
+        "briefs": {
+          "type": "boolean"
+        },
+        "faces": {
+          "type": "boolean"
+        },
+        "scope": {
+          "type": "boolean"
+        },
+        "tests": {
+          "type": "boolean"
+        },
+        "tests_new": {
+          "type": "boolean"
+        },
+        "tests_tail": {
+          "type": "boolean"
+        },
+        "tests_broken": {
+          "type": "boolean"
+        },
+        "frozen_files": {
+          "type": "boolean"
+        },
+        "tests_how": {
+          "type": "boolean"
+        },
+        "rules": {
+          "type": "boolean"
+        },
+        "ask": {
+          "type": "boolean"
+        },
+        "ask_ripple": {
+          "type": "boolean"
+        },
+        "libdocs": {
+          "type": "boolean"
+        },
+        "resume": {
+          "type": "boolean"
+        },
+        "queued": {
+          "type": "boolean"
+        },
+        "overflow_answer": {
+          "type": "boolean"
+        },
+        "conflict": {
+          "type": "boolean"
+        },
+        "docs": {
+          "type": "boolean"
+        },
+        "prompts_kind": {
+          "type": "boolean"
+        },
+        "config": {
+          "type": "boolean"
+        },
+        "code": {
+          "type": "boolean"
+        },
+        "evidence": {
+          "type": "boolean"
+        },
+        "where_writer": {
+          "type": "boolean"
+        },
+        "where_tdd": {
+          "type": "boolean"
+        },
+        "where_rework": {
+          "type": "boolean"
+        },
+        "rules_change": {
+          "type": "boolean"
+        },
+        "rules_sites": {
+          "type": "boolean"
+        },
+        "rules_red": {
+          "type": "boolean"
+        },
+        "conflict_change": {
+          "type": "boolean"
+        },
+        "policy": {
+          "type": "boolean"
+        },
+        "no_policy": {
+          "type": "boolean"
+        },
+        "request": {
+          "type": "boolean"
+        },
+        "no_request": {
+          "type": "boolean"
+        }
+      }
+    },
+    "subagents": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "下請けの材料（データだけ。下請けを起こさない型の注文の時は空の object）",
+      "properties": {
+        "owed": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "下請けを起こす単位の key（rules.dispatched の結果）"
+        },
+        "briefs": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "item",
+              "file",
+              "unit_keys"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "item": {
+                "type": "integer"
+              },
+              "file": {
+                "type": "string"
+              },
+              "unit_keys": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "description": "planbrief.for_units(briefs, owed) の行"
+        },
+        "all_items": {
+          "type": "array",
+          "items": {
+            "type": "integer"
+          },
+          "description": "項目の番号の最大を引くための、凍結した brief の全部の item"
+        },
+        "seat_brief_rows": {
+          "type": "string",
+          "description": "rules.brief_rows の字"
+        },
+        "judgment_file": {
+          "type": "string",
+          "description": "判定のファイル"
+        },
+        "policy_path": {
+          "type": "string",
+          "description": "方針の文書のパス"
+        },
+        "base_rev": {
+          "type": "string",
+          "description": "修正前の版"
+        },
+        "check_cmd": {
+          "type": "string",
+          "description": "相談の確かめのコマンド（相談の控えが無ければ空）"
+        },
+        "directory": {
+          "type": "string",
+          "description": "作業ツリーの根"
+        }
+      }
+    },
+    "summary_file": {
+      "type": "string",
+      "description": "TDD の輪の要約のパス（tdd の閉じの書き手の注文の時だけ空でない）"
+    }
+  }
+}

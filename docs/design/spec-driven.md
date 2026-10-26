@@ -416,7 +416,7 @@ run の id は頭の 8 字（全部の id と記録の置き場は PR #809 の�
 
 ただし block の中で計画の AI を回す所は決まりに当たる:
 
-- block はほかの block を名指さない（憲法の 3）。block の中から計画の部品 `works-factory-plan` を include すると、その workflow は形の検査で graph と見なされ、graph は AI の node を持てない（[README.md](README.md) の 7.1 の 6 と 13 章の「block と graph の見分け」）。
+- block はほかの block を名指さない（憲法の 3）。block の中から計画の部品 `works-factory-plan` を include すると、その workflow は形の検査で graph と見なされ、graph は AI の node を持てない（[README.md](README.md) の 7.1 の 6 と 13 章の「block と graph の見分け」）。この字は 2026-10-21 の決まり。2026-10-26 の外し（持ち主の決め `leaf-include`）の後は、計画の部品は葉の block（入口が script の `intake`）なので、AI の node を持つ block も include してよい。この設計の形（6.1）は変えていない。
 - block の中に計画の AI を自前で置くと、計画の部品の指示（`workflows/plan/prompts/plan-writer.md`）と受け付けの照らし（`workflows/plan/src/`）を 2 か所に持つことになる。1 つの観点の正本は 1 つの block に置く（憲法の 4 と、設計の正本の README の 1.2）。
 
 そこで、この設計では次の形にした（工場窓口の答え〔2026-10-21、受付 20261020-224412-ca616a〕で採った。10 章）:

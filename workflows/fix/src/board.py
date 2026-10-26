@@ -63,6 +63,29 @@ def accept_trace_rows(place, results=()) -> list:
     return out
 
 
+def add_writer_report(place, weapon: str, lines) -> None:
+    """型 weapon の書き手の block が返した報告の行 lines を、置き場 place の WRITER_REPORT_FILE の並びの末尾に {weapon, line} で足す
+    （受け付けが周ごとに呼ぶ。行が無ければ書かない）"""
+    lines = [str(x) for x in lines or []]
+    if not lines:
+        return
+    path = pathlib.Path(place) / fixnames.WRITER_REPORT_FILE
+    rows = read_json(path, [])
+    if not isinstance(rows, list):
+        raise ValueError(f"{path} が行の並び（JSON の array）でない")
+    write_json(path, [*rows, *({"weapon": weapon, "line": x} for x in lines)])
+
+
+def writer_report_rows(place, results=()) -> list:
+    """型の block の書き手の報告の行: 組の子の結果 results の writer_report の行（組の順。子の行は group_id を持つ）と、置き場 place の
+    行（裁定の後の書き手と、組の子の run 自身の行）。置き場の並びが行の配列でなければ ValueError"""
+    path = pathlib.Path(place) / fixnames.WRITER_REPORT_FILE
+    own = read_json(path, [])
+    if not isinstance(own, list):
+        raise ValueError(f"{path} が行の並び（JSON の array）でない")
+    return [row for row in [*(x for r in results for x in (r or {}).get("writer_report") or []), *own] if isinstance(row, dict)]
+
+
 def base_rev(state, given: str = "") -> str:
     """突き合わせの起点の版: state["inputs"]["review_rev"]（修正前に固めた版）。無ければ given、それも空なら HEAD。
     元 works/.shared/core/writes.py:88（盤面の b.state を読んだ）。state は同じ形の dict（{"inputs": {...}}）か None"""
@@ -114,15 +137,17 @@ READS_OWNER = "fix"   # 読んだ証拠の索引の持ち主（reads.index_name�
 
 
 def read_stages(place) -> list:
-    """読んだ証拠を集める修正の段 [(役, 段の頭の印のファイル, 指示書)]: 1 回目の段と裁定の後の段の型ごとの書き手（src/writers.nodes）。
-    型は段の中で順に回り、段の頭の木の控えは型を選ぶたびに書き直すので、印はその書き手の 1 回目の指示書（組んだ時刻から後を集める）"""
-    from src import prompts, writers
+    """読んだ証拠を集める修正の段 [(役, 段の頭の印のファイル, 起こした印)]: 1 回目の段と裁定の後の段の型ごとの書き手（src/writers.node・
+    stage_mark）。型は段の中で順に回り、段の頭の木の控えは型を選ぶたびに書き直すので、印はその書き手の 1 回目に修正の block が自分の
+    place に書いたファイル（型の block は渡した slots、variant は指示書。その時刻から後を集める）。型の block の place の中のファイルは
+    読まない（E4。受け取りは with: の入力と出力の欄の pointer だけ）。起こした印は印が在れば印、無ければ None"""
+    from src import writers
     p = pathlib.Path(place)
     out = []
     for pass_ in writers.SEQUENCE:
-        for node in writers.nodes(pass_):
-            first = prompts.round_file(p, node)
-            out.append((node, first if first is not None else p / f"{node}-prompt-1.md", first))
+        for weapon in writers.SEQUENCE[pass_]:
+            node, first = writers.node(pass_, weapon), writers.stage_mark(p, pass_, weapon)
+            out.append((node, first, first if first.is_file() else None))
     return out
 
 
@@ -1049,11 +1074,11 @@ def _unit_row(key, fix_units, tdd_rows) -> dict:
 
 def group_result(group, *, start_tree: str, end_tree: str, tdd, tdd_state: str = "", fix_units=None, reply=None,
                  reply_file: str = "", allowed_rows=(), conflicts=(), worktree: str = "", mismatched=(),
-                 accept_trace=(), closure=(), place: str = "", base: str = "") -> dict:
+                 accept_trace=(), closure=(), place: str = "", base: str = "", writer_report=()) -> dict:
     """組の子の結果（out_dir/<group_id>/result.json の中身。join・collect・tdd-unit・conflict-check が読む）:
     {group_id, unit_ids, end_tree, start_tree, units: [{unit_id, status, reason}], tdd, conflicts, objection, changed, x_scalars,
     allowed_tests, verified, reply_file, tdd_state, worktree, handoffs, handoff_titles, mismatched, accept_trace, closure,
-    claimed, place, base}。base は子の置き場の元の結末のファイル base.json のパス（無い組は空。join が親の置き場の bases/<k>/ へ写す。
+    claimed, place, base, writer_report}。writer_report は子の置き場の writer_report_rows の行（group_id を足す。親の finish が報告の行に集める）。base は子の置き場の元の結末のファイル base.json のパス（無い組は空。join が親の置き場の bases/<k>/ へ写す。
     adopt_bases）。allowed_rows は許しの訳（allowed_test_rows の行）、handoffs は reply の handoff_lines、mismatched は子の置き場の
     mismatched_lines（最後の関所を開ける理由）、accept_trace は子の置き場の accept_trace_rows の行（group_id を足す。親の collect が
     diff の隣に集める）、closure は子の置き場の閉鎖の表の行（表を読めなければ None。fixbeside.closure_rows）と claimed は reply の
@@ -1082,6 +1107,7 @@ def group_result(group, *, start_tree: str, end_tree: str, tdd, tdd_state: str =
             "worktree": str(worktree or ""), "handoffs": handoff_lines([reply] if reply else []), "handoff_titles": handoff_titles([reply] if reply else []),
             "mismatched": list(mismatched),
             "accept_trace": [{**r, "group_id": gid} for r in accept_trace or [] if isinstance(r, dict)],
+            "writer_report": [{**r, "group_id": gid} for r in writer_report or [] if isinstance(r, dict)],
             "closure": None if closure is None else [r for r in closure if isinstance(r, dict)],
             "claimed": fixbeside.claimed_of(reply), "place": str(place or ""), "base": str(base or "")}
 
