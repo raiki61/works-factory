@@ -24,7 +24,7 @@ D1 の基の main（`e52a1b45`）の `workflows/fix/prompts/parts/remove.md` の
 
 ## この型の受け付けの義務の在処
 
-受け付けの義務は修正の block に在り、型の block は義務の表を知らない（[fix.md](fix.md) の 22.4）。型のモジュール `src/remove.py` の `DUTIES`（`removed_in_permits`）。箱 change の `BOX_DUTIES` は今は空（`duties.py` のコメントが段 2 で足すと書く物は、この D1 の外。22.4）。赤を見ない clean の拒否（`rules_red`）は、修正の block が `board.RED_WEAPONS` から引く。型の箱は `duties.BOXES`（`remove` は `change`）。指示の段落のうち義務の表から引く 4 つ（`rules_change`・`rules_sites`・`rules_red`・`conflict_change`）も修正の block が `writer_slots` で組んで slots に入れる（[fix.md](fix.md) の 2.3）。
+受け付けの義務は修正の block に在り、型の block は義務の表を知らない（[fix.md](fix.md) の 22.4）。型のモジュール `src/remove.py` の `DUTIES`（`removed_in_permits`）。箱 change の `BOX_DUTIES` は今は空（`duties.py` のコメントが段 2 で足すと書く物は、この D1 の外。22.4）。赤を見ない clean の拒否（`rules_red`）は、修正の block が `board.RED_WEAPONS` から引く。型の箱は `duties.BOXES`（`remove` は `change`）。指示の段落のうち義務の表から引く 7 つ（`rules_change`・`rules_sites`・`rules_red`・`conflict_change`・`rules_sites_at`・`rules_sites_test`・`rules_red_unit`）も修正の block が `writer_slots` で組んで slots に入れる（[fix.md](fix.md) の 2.3）。
 
 ## 指示の md と試験
 

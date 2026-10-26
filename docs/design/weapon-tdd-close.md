@@ -26,7 +26,7 @@ D1 の基の main（`e52a1b45`）の `workflows/fix/prompts/parts/tdd-close.md` 
 
 ## この型の受け付けの義務の在処
 
-受け付けの義務は修正の block に在り、型の block は義務の表を知らない（[fix.md](fix.md) の 22.4）。型のモジュール `src/tdd.py` の `DUTIES` は空で、輪の中の赤の記録（輪の状態の凍結と名指し）が義務の出どころ。箱 change の `BOX_DUTIES` は今は空で、`duties.py` のコメントが段 2 で足すと書く物（`change_named_or_gone`）は、この D1 の外。型の箱は `duties.BOXES`（`tdd` は `change`）。指示の段落のうち義務の表から引く 4 つ（`rules_change`・`rules_sites`・`rules_red`・`conflict_change`）も修正の block が `writer_slots` で組んで slots に入れる（[fix.md](fix.md) の 2.3）。
+受け付けの義務は修正の block に在り、型の block は義務の表を知らない（[fix.md](fix.md) の 22.4）。型のモジュール `src/tdd.py` の `DUTIES` は空で、輪の中の赤の記録（輪の状態の凍結と名指し）が義務の出どころ。箱 change の `BOX_DUTIES` は今は空で、`duties.py` のコメントが段 2 で足すと書く物（`change_named_or_gone`）は、この D1 の外。型の箱は `duties.BOXES`（`tdd` は `change`）。指示の段落のうち義務の表から引く 7 つ（`rules_change`・`rules_sites`・`rules_red`・`conflict_change`・`rules_sites_at`・`rules_sites_test`・`rules_red_unit`）も修正の block が `writer_slots` で組んで slots に入れる（[fix.md](fix.md) の 2.3）。
 
 ## 指示の md と試験
 

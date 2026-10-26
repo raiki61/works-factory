@@ -24,7 +24,7 @@ D1 の基の main（`e52a1b45`）の `workflows/fix/prompts/parts/pin.md` の、
 
 ## この型の受け付けの義務の在処
 
-受け付けの義務は修正の block に在り、型の block は義務の表を知らない（[fix.md](fix.md) の 22.4）。箱 keep の `duties.keep_same_result`（`BOX_DUTIES`）と、型のモジュール `src/pin.py` の `DUTIES`（`tests_only`・`twice`）。`DUTIES` のコメントが段 2 で足すと書く物（`sites_per_test`）は、この D1 の外。壊して赤の証明の段落（`rules_sites`）と赤を見ない clean の拒否（`rules_red`）は、修正の block が `SITES_WEAPONS`・`board.RED_WEAPONS` から引く。型の箱は `duties.BOXES`（`pin` は `keep`）。指示の段落のうち義務の表から引く 4 つ（`rules_change`・`rules_sites`・`rules_red`・`conflict_change`）も修正の block が `writer_slots` で組んで slots に入れる（[fix.md](fix.md) の 2.3）。
+受け付けの義務は修正の block に在り、型の block は義務の表を知らない（[fix.md](fix.md) の 22.4）。箱 keep の `duties.keep_same_result`（`BOX_DUTIES`）と、型のモジュール `src/pin.py` の `DUTIES`（`tests_only`・`twice`・`sites_per_test`）。`sites_per_test` は足した試験ごとに、`test` がその id で赤を見た `sites` の行を求め（`fixed_by` は書かない。戻す塊が無い）、書かせる段落 `rules_sites_test` を属性 `paragraph` で持つ（段 2 の PR F1）。壊して赤の証明の段落（`rules_sites`）と赤を見ない clean の拒否（`rules_red`）は、修正の block が `SITES_WEAPONS`・`board.RED_WEAPONS` から引く。型の箱は `duties.BOXES`（`pin` は `keep`）。指示の段落のうち義務の表から引く 7 つ（`rules_change`・`rules_sites`・`rules_red`・`conflict_change`・`rules_sites_at`・`rules_sites_test`・`rules_red_unit`）も修正の block が `writer_slots` で組んで slots に入れる（[fix.md](fix.md) の 2.3）。
 
 ## 指示の md と試験
 

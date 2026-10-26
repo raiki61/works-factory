@@ -24,7 +24,7 @@ D1 の基の main（`e52a1b45`）の `workflows/fix/prompts/parts/static.md` の
 
 ## この型の受け付けの義務の在処
 
-受け付けの義務は修正の block に在り、型の block は義務の表を知らない（[fix.md](fix.md) の 22.4）。この型の義務は 2 か所から引かれる: 箱 outside（`BOX_DUTIES` は空）と、型のモジュール `src/static.py` の `DUTIES`（`why_untested`・`kinds_allowed`・`no_test_edits`）。`DUTIES` のコメントが段 2 で足すと書く物（`kinds_rows`）は、この D1 の外。型の箱は `duties.BOXES`（`static` は `outside`）。指示の段落のうち義務の表から引く 4 つ（`rules_change`・`rules_sites`・`rules_red`・`conflict_change`）も修正の block が `writer_slots` で組んで slots に入れる（[fix.md](fix.md) の 2.3）。
+受け付けの義務は修正の block に在り、型の block は義務の表を知らない（[fix.md](fix.md) の 22.4）。この型の義務は 2 か所から引かれる: 箱 outside（`BOX_DUTIES` は空）と、型のモジュール `src/static.py` の `DUTIES`（`why_untested`・`kinds_allowed`・`no_test_edits`・`kinds_rows`）。`kinds_rows` は差分の種類ごとに返答の `evidence.kinds` の行を求め、書き先を教える今の段落 `where_writer` を属性 `paragraph` で名指す（段 2 の PR F1。文は足さない）。型の箱は `duties.BOXES`（`static` は `outside`）。指示の段落のうち義務の表から引く 7 つ（`rules_change`・`rules_sites`・`rules_red`・`conflict_change`・`rules_sites_at`・`rules_sites_test`・`rules_red_unit`）も修正の block が `writer_slots` で組んで slots に入れる（[fix.md](fix.md) の 2.3）。
 
 ## 指示の md と試験
 

@@ -24,7 +24,7 @@ D2 の基の main（`899a69c3`）の `workflows/fix/prompts/parts/variant.md` �
 
 ## この型の受け付けの義務の在処
 
-受け付けの義務は修正の block に在り、型の block は義務の表を知らない（[fix.md](fix.md) の 22.4）。この型の義務は 2 か所から引かれる: 箱 change の `BOX_DUTIES` と、型のモジュール `src/variant.py` の `DUTIES`（今は空。`sites` の照らし〔`sites_shape`・`unit_red`〕は下書きの 11.12 の F1 で足す）。型の箱は `duties.BOXES`（`variant` は `change`）。赤を見ない clean を拒む照らし（F135）は `board.RED_WEAPONS` に入っている。指示の段落のうち義務の表から引く 4 つ（`rules_change`・`rules_sites`・`rules_red`・`conflict_change`）も修正の block が `writer_slots` で組んで slots に入れる（[fix.md](fix.md) の 2.3）。
+受け付けの義務は修正の block に在り、型の block は義務の表を知らない（[fix.md](fix.md) の 22.4）。この型の義務は 2 か所から引かれる: 箱 change の `BOX_DUTIES` と、型のモジュール `src/variant.py` の `DUTIES`（`sites_shape`・`unit_red`。段 2 の PR F1）。`sites_shape` は `class_query` の在る単位の `sites` の行の `at` が問いの当たりの行に在ること〔問いを行で結べない単位は照らさない〕と、`fixed_by` の範囲が `since` から返した木までの差分の塊と重なることを求め、`unit_red` は単位ごとに赤を見た `sites` の行を求める（周の全体の F135 は残る）。書かせる段落は属性 `paragraph` が名指す `rules_sites_at`・`rules_red_unit`。型の箱は `duties.BOXES`（`variant` は `change`）。赤を見ない clean を拒む照らし（F135）は `board.RED_WEAPONS` に入っている。指示の段落のうち義務の表から引く 7 つ（`rules_change`・`rules_sites`・`rules_red`・`conflict_change`・`rules_sites_at`・`rules_sites_test`・`rules_red_unit`）も修正の block が `writer_slots` で組んで slots に入れる（[fix.md](fix.md) の 2.3）。
 
 ## 下請けの材料
 
