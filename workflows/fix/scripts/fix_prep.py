@@ -6,7 +6,7 @@
 注文 orders/<型>.json とともに pointer で返す（型の block 6 つが include の入力で受ける。指示は型の block が組む）。直す義務は組の単位のうち判定の直す義務の物（board.group_owed）で、その型の注文の単位（src/writers.owed）。義務が
 残らなければ go: false。型の段の頭の木と除くパスの頭の下の姿は writer-pick が控える（無ければここで控える）。組が no-suite で止まっていれば
 （board.no_suite_stop）go: false。範囲の相談の答えがまだ渡っていない周・はみ出しを相談に積んだ周は続きの段落だけを組む（回は数え直さない）。
-variant の書き手には項目ごとの下請けのファイルを置き、tdd の輪の閉じの書き手には輪の要約を渡す（slots の欄 summary_file）。
+下請けの材料（slots の欄 subagents）は型を問わず同じ組み方で渡し、下請けを起こすか（項目ごとの下請けのファイルを置くか）は型の block の表の SPAWNS が決める（tdd の閉じの外の 5 つ）。tdd の輪の閉じの書き手には輪の要約を渡す（slots の欄 summary_file）。
 返り {go, iteration, writer, order, slots}（writer は起こす include の id。order・slots は go が偽の周は無い）。回す側の誤り（判定の写しが無い・brief の控えが壊れた・slots が組めない）は prompt-error.json に書いて非 0"""
 import functools
 import os

@@ -15,7 +15,7 @@ TDD の輪（`tdd`・`tdd-new`）が赤から緑まで直した単位につい�
 ## 表 `src/render.py` の 3 つの定数
 
 - `ORDER_WEAPON = "tdd"`: 注文の `weapon` の語。注文の語が違えば `prep` が落ちる。
-- `SPAWNS = False`: 下請けを起こすか。偽なので AI の node の `allowed_tools` に `Agent` を足さず、段落 `spawns`・`g1`・`ask_variant` は偽の値で本体が slots に足す（偽なので、その段落は組み上がる指示に入らない）。D2 の後の値は下書きの 11.8 の決め（案 B）で、この設計書を直す。
+- `SPAWNS = False`: 下請けを起こすか。偽なので AI の node の `allowed_tools` に `Agent` を足さず、段落 `spawns`・`g1`・`ask_variant` は偽の値で本体が slots に足す（偽なので、その段落は組み上がる指示に入らない）。下書きの 11.8 の決め（案 B）は tdd の閉じの書き手の外の 5 つに下請けを付けるので、この型は偽のまま。下請けを起こさないので `g1-impl` も組まず、この型の `head.md` が持つ値 `{summary_file}` を下請けのために組むことはない。
 - `SUMMARY = True`: TDD の輪の要約を受けるか。真なので、本体が slots の欄 `summary_file` を自分の値に足す。
 - 注文の `weapon` の語（`ORDER_WEAPON`）が block の名の `<w>` と違う唯一の型（block の名は `tdd-close`、注文の語は `tdd`）。輪の側の型の名が `tdd`、書き手の側の block が閉じの書き手であることを字で分けるため。
 

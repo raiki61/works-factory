@@ -52,7 +52,7 @@ block の script と `src/` が Archon と出入りする口と、2 つ以上の
     - `brief-head`: brief の部分の見出しと行（中の口 `{brief_rows}`）。
     - `brief`: brief の決まり 1〜8（段落 `rules`・`rules_change` の真偽が要る。中で `brief-reading` を差し込む）。
   - 書き手の型の block の下請けのファイル（D2。書き手が項目ごとに起こす実装役と審査役。本体 `writerblock` が `prompt.render_shared` で組んで書き手の block の place に書く。字は修正の block の `prompts/parts/` から移した物）:
-    - `g1-impl`: 実装役の指示（中の口 `{template}`・`{check_cmd}`。段落 `spawns`・`ask` の真偽が要る。中で `brief-reading`・`query-rule` を差し込む）。`{template}` は借りた superpowers の implementer の型を `lib/subagents.py` が埋めた字。
+    - `g1-impl`: 実装役の指示（中の口 `{template}`・`{check_cmd}`・`{weapon_rule}`。段落 `spawns`・`ask` の真偽が要る。中で `brief-reading`・`query-rule` を差し込む）。`{weapon_rule}` は works rules の節の中の 1 行だけの段落で、本体が、書き手の block の `prompts/parts/head.md`（型の決まりの頭の段落）を `prompt.render_part("head", {})` で組んで渡す（下請けを起こす型は、tdd の閉じの外の 5 つ全部。設計は fix.md の 24.9）。`{template}` は借りた superpowers の implementer の型を `lib/subagents.py` が埋めた字。
     - `g1-review`: 審査役の指示（中の口 `{template}`。段落 `spawns` の真偽が要る。中で `brief-reading`・`query-rule` を差し込む）。
     - `g1-scene`・`g1-rest`（中の口 `{keys}`）・`g1-report`・`g1-impl-report`・`g1-head-sha`: 借りた型の穴を埋める短い字。
     - `seat-briefs`: 直す義務の単位の brief を名指すファイル（中身は `{shared:brief-head}` の 1 行）。

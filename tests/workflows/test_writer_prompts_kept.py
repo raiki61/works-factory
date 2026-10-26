@@ -13,7 +13,7 @@
   （却下の文や裁定の値が空になる）を赤にする
 
 置き字（場で変わるパスだけ。この順）: first_prompt の値 → `{FIRST_PROMPT}`、指示を組んだ place（型の block の place。下請けのファイルの名指しが
-持つ。variant だけ。控えは下請けのファイルが修正の block の place に在った時の字なので、場所の違いを `{PLACE}` に揃える）→ `{PLACE}`、試験を回す python の実行ファイル（事前の確かめのコマンド
+持つ。表の SPAWNS が真の型〔variant・pin・tidy・static・remove〕。控えは下請けのファイルが修正の block の place に在った時の字なので、場所の違いを `{PLACE}` に揃える）→ `{PLACE}`、試験を回す python の実行ファイル（事前の確かめのコマンド
 check_cmd が持つ。uv run --isolated の度に一時のパスが変わる）→ `{PYTHON}`、修正の block の place → `{PLACE}`、対象のリポジトリの根 →
 `{REPO}`、対象のリポジトリの種の commit（commit の時刻で hash が run ごとに変わる。下請けの差分を取るコマンドが持つ）→ `{BASE}`、工場のリポジトリの根 → `{ROOT}`。これで消えない違いが出たら置き字を足して通さず、指示が変わった印として調べる。
 

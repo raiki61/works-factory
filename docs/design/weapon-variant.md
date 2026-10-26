@@ -1,7 +1,7 @@
 # block の設計書: weapon-variant（書き手の型 variant）
 
 - 何の話か: 修正の block が `include:` する葉の block `workflows/weapon-variant/` のうち、型 `variant` の書き手の設計。共通の形（フォルダ・ports・node の並び・共通の本体・写しの照らし）は [fix.md](fix.md) の 24 節、書き手に渡す slots と鎖の並びは同じ文書の 2 節、下請けの部品は 24.9 に書いてあり、この文書は型ごとに違う物だけを書く。
-- 決めたこと: 型ごとに違う物は `src/render.py` の 3 つの定数（`ORDER_WEAPON`・`SPAWNS`・`SUMMARY`）と、頭の段落 `prompts/parts/head.md` だけ。この型は 6 つの書き手の型のうち、AI の node に `Agent` を足し、項目ごとに下請けの実装役と審査役を起こせる型（段 2 の D2 の段 1 の時点では、下請けを起こすのはこの型だけ）。
+- 決めたこと: 型ごとに違う物は `src/render.py` の 3 つの定数（`ORDER_WEAPON`・`SPAWNS`・`SUMMARY`）と、頭の段落 `prompts/parts/head.md` だけ。この型は、AI の node に `Agent` を足し、項目ごとに下請けの実装役と審査役を起こせる型。下書きの 11.8 の決め（案 B）で、下請けを起こすのは tdd の閉じの書き手の外の 5 つ（variant・remove・pin・tidy・static）で、variant だけの型ではない（D2 の段 2 で pin・tidy・static・remove にも付けた。部品は 5 つで共通なので、この block の中に置かない）。
 - 読む人: この block を作る・直す実装の役が、型ごとの違いを引く時に読む。急ぎではない。持ち主に求めること: なし。この文書を読んだだけで要る作業は無い。
 - 語: D1・D2 は修正の block の型の block 化の段階（D1 が書き手 5 つ、D2 が variant）。「鎖」は修正の block の YAML で、型の block の include を並べた node の並び（fix.md の 2.2.1）。「箱」は型の区分（change・keep・outside。fix.md の 22 節）。`prep` は block の最初の script node で、注文と slots を読んで書き手の指示を組む（落ちるのは run がその node で止まること。fix.md の 24.3）。「注文」は修正の block が型ごとに書く依頼（単位・範囲・許し）。「受け付け」は書き手の返答を通すか拒むかを決める修正の block の検査。「下請け」は書き手が修正案の項目ごとに Agent で起こす実装役と審査役。
 - block の状態: 今の木に在る（`workflows/weapon-variant/`）。
@@ -15,7 +15,7 @@ TDD の輪を通らず、振る舞いを変える直し（輪が緑にしなか�
 ## 表 `src/render.py` の 3 つの定数
 
 - `ORDER_WEAPON = "variant"`: 注文の `weapon` の語。注文の語が違えば `prep` が落ちる。
-- `SPAWNS = True`: 下請けを起こすか。真なので AI の node の `allowed_tools` に `Agent` を足し、段落 `spawns`・`ask_variant` は真（`ask_variant` は slots の `ask` が偽なら偽）で本体が slots に足す。段落 `g1` は slots の `subagents.owed`（下請けを起こす単位）が空でない周だけ真。下請けのファイルは本体が `prep` で block の place に書く（fix.md の 24.9）。
+- `SPAWNS = True`: 下請けを起こすか。真なので AI の node の `allowed_tools` に `Agent` を足し、段落 `spawns`・`ask_variant` は真（`ask_variant` は slots の `ask` が偽なら偽）で本体が slots に足す。段落 `g1` は slots の `subagents.owed`（下請けを起こす単位）が空でない周だけ真。下請けのファイルは本体が `prep` で block の place に書く（fix.md の 24.9）。実装役の指示 `g1-impl-<n>.md` には、この block の `head.md`（下の頭の段落）が `{weapon_rule}` の段落として渡る。この型の頭の段落は下請けの実装役の手順書とぶつからないが、5 つの型で同じ道を通る。
 - `SUMMARY = False`: TDD の輪の要約を受けるか。偽なので、`summary_file` は足さない。
 
 ## 頭の段落 `prompts/parts/head.md` の出どころ
