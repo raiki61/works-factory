@@ -3,7 +3,7 @@ workflows/fix/ の src/・scripts/ のうち、輪の中の部品（src/tdd.py�
 （"state.json" の字と TDD_STATE_FILE・tdd.STATE の名）を名指さない。輪の外が輪の結果を読む口は輪の記録 record.json（files.RECORD_FILE）で、
 route.json など別の置き場の名とは取り違えない（照らすのは上の名だけ）。
 
-E2 で block の形の検査（輪が weapon-tdd の block に出て、ほかの block の src/・scripts/ が輪の状態を名指せなくなる）に替わるので、そこで消す"""
+輪は修正の block の中に残り（輪を block に出す E2 は取り止めた。#886）、block の形の検査は輪の中と外を分けないので、この試験は残す"""
 import pathlib
 import re
 import unittest

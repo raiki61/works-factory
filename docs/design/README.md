@@ -191,7 +191,7 @@
 #### 形の直し（歩かせが訳なく散った所。13 節にも書いた）
 
 1. block の YAML の `workflow:` を、自分の YAML を子の run として起こす形にだけ許す（7.1 の 6）。訳: fix は直しの組ごとに自分を子として起こし（#765 の本文が手本として残すと書いた形）、組の子の結果は fix の中の受け渡し。禁じると、組の子と親を別の block と graph に割ることになり、`result.json` が block をまたぐ port になる（歩かせ 1・3）。ほかの block を名指さないので、憲法の 3 に触れない。
-2. tdd を独立の block にせず、fix の組の子の run の中の loop のままにする（8.3）。訳: block は `include:` を持てないので、組ごとの TDD の loop を別の block にすると fix から呼べない。テストの許しの「1 本」（keep-essence の 3）も、割れば 2 つの block の間の port になる（10 節が崩れる余地と書いた所）。TDD だけを単独で回すのは、今も単独で回る fix の組 1 つの形（`mode` が `group`）で足りる。
+2. tdd を独立の block にせず、fix の組の子の run の中の loop のままにする（8.3）。訳: TDD の loop が使う部品は、どれも fix の振り分け（直しの単位を書き手の型へ振り分ける段）と受け付け（書き手の返答を通すか拒むかを決める段）でも使い、loop だけが使う部品は無い。別の block に出しても、単独で回せる物にも差し替えられる物にもならず、block の間を行き来する物（入出力の口・注文〔書き手の型が受け取る物のひとそろい〕の欄・新しい script・写しが同じ字のままかを照らす試験）が約 20 増える（#886 を閉じた時の文。持ち主の基準「きれいで保守しやすいこと」。数と訳の要約は `docs/plans/2026-10-24-fix-weapons.md` の 11.6 の「E2」の節）。TDD だけを単独で回すのは、今も単独で回る fix の組 1 つの形（`mode` が `group`）で足りる。
 3. 同じ block の 2 つ以上の node が使う指示の断片は、その block の `prompts/parts/<name>.md` に置き、`{part:<name>}` で差し込む（3 節・5.1）。`workflows/.shared/prompts/` は 2 つ以上の block が使う物だけ。訳: fix の 4 つの役（修正役・TDD の役・裁定役・合わせ役）だけが使う決まり（今の `fix-rules/brief.md`・`principles.md`）を pack の共通の置き場に置くと、fix だけの直しが共通の置き場に及ぶ（歩かせ 6・7）。fix と delta-review の 2 つが使う書き手の決まり（今の `fix-rules/common.md`）は、共通の断片 `writer-rules` に置く（`docs/design/integration.md` の 4.4-E）。憲法の 4（1 つの block だけが使う物はその block に）と同じ決め方。
 4. 2 つ以上の block が読む出力の行の形（欄の名・語・行を読む述語）は、作り手の出力ごとに `lib/` の 1 モジュールに置く（4.1。2 節の 4 の当てはめ）。手本は今の `worldmark`（world.md の 1.5）。当たる物: 問いの行（今の `gatemarks` の問いの語と `asks_human`。diagnose が作り、line が読む）・食い違いの申し出の行（今の `conflict` の語と読み口。fix が作り、plan・line・report が読む）・修正案の項目（`planmarks`）・頭の深さの出力（`headdepth` の段の語と控えの読み）。`gatemarks` と `conflict` は、行の形の部分を KEEP にし、決めの部分を line と fix へ割る（9.2・9.3）。訳: `gatemarks` を丸ごと line の `src/` に移すと、diagnose が line の中身を import するか写しを持つことになる（歩かせ 2・6）。
 5. 深さの表を 2 つに割る（1.2 の D・8.1・8.3・8.7）。未知の種類 → 段（`headdepth.UNKNOWNS`）は `lib/headdepth`（diagnose・plan も読む）、段 → 回す物（今の `depth.TIERS`）・単位ごとの深さ・修正の後の上げ直し（`depth`・`latedepth`）は line。fix の中の上げ直し（今の `fixboard.redepth`。差分の審査を省くかの決め）は無くし、line が fix と delta-review の間で 1 回だけ上げ直して、delta-review を `when:` で回すか決める。fix は、緑の後の試験の走らせ直しを省く単位の一覧を port `skip_rerun` で受ける。訳: 上げ直しの読み手が fix と line の 2 つ在ると `latedepth` を line に置けず、2 つが同じ決まりで読むことを縛る試験（`294b2fe5`）が要り続ける。delta-review が fix の外の block になったので、決める所を line 1 つにできる。種類 → 段を head-depth の block の `src/` に置く案は、未知の種類を読む diagnose・plan も表を使うので採らず、`lib/headdepth` に残した（`ad88e48a` は `headdepth.py` と `head-depth.md` を一緒に直した。表を直す時は役の md の段の意味の文も合わせる）。
@@ -395,7 +395,7 @@ form は 4.1 の物。どの block も `lang`（`text`）を持つ物は書く�
 ### 8.3 修正
 
 - fix（修正）: 承認済みの案を項目ごとに直す。範囲の相談・食い違いの裁定・組どうしの合わせと、組ごとの TDD の loop（単位ごとに赤から緑まで回し、赤緑を JUnit の結末で機械が判じる）を含む。直しの組ごとに自分を子の run として起こす（`workflow:` と `fan_out:`。#765 の本文が手本として残すと書いた形。7.1 の 6）。単独の run と standalone の fixture は組 1 つの形（`mode` が `group`。今も単独で回る）で回す。全体の形は、Archon が先祖と同じ名の子の run を循環として拒むので、graph から include された時だけ回る（今のまま）。入力 `mode` choice(whole|group)・`plan` file・`judgment` file・`policy` file・`test_cmd` text・`tdd_suite` text・`baseline` file・`skip_rerun` json（緑の後の試験の走らせ直しを省く単位。line が深さの表から引く）と、組の形の時の組・親の木・結果の置き場。出力 `diff`（pointer）・`closure`・`conflicts`・`permits`・`units`（単位ごとの記録）・`frozen`（テストの hash）。深さの上げ直しは持たない（line が fix と delta-review の間で行う）。
-- tdd は独立の block にしない。組ごとの TDD の loop は fix の組の子の run の中に置く（block は `include:` を持てないので、別の block にすると fix から呼べない。1.3 の形の直し 2）。
+- tdd は独立の block にしない。組ごとの TDD の loop は fix の組の子の run の中に置く（loop だけが使う部品は無く、別の block にすると block の間を行き来する物が増えるだけになる。1.3 の形の直し 2）。
 - delta-review（差分の審査と手直し）: 差分を案の項目への準拠と品質で見て、2 往復まで手直しする。入力 `base` text・`plan` file・`lens_rows` file。出力 `holes`・`diff`。
 - lens（黙った失敗のレンズ）: 利用者が入れた review のレンズで差分を見る。入力 `base` text・`lenses` json。出力 `rows`（pointer）。
 
@@ -605,7 +605,7 @@ form は 4.1 の物。どの block も `lang`（`text`）を持つ物は書く�
 - 守りのファイルに触れたかを見る所（keep-essence の 10）は merge に置く。最後の承認ノードは組み込みの前も merge の封じの当たりを読んでいた。eyes の中に在った同じ数えの写し（読むのは、報告が落ちた時に機械が代わりに書く控えだけだった）は消す（integration.md の 4.5-13・4.5-18 の (c)）。根拠: 守りの当たりは差分を確定する所の事実で、独立の目の観点ではない。最後の承認ノードと `bin/apply` の拒みが読む事実は変わらない。
 - 1.3 の変更の歩かせで訳なく散った所から、形を 8 か所直した（詳しい訳は 1.3 の「形の直し」）。根拠はどれも、持ち主の決め（block はほかの block を名指さない・1 つの block だけの物は block に・機械の検査は yes/no だけ）と、変わりやすい決めを 1 つのモジュールに隠す情報隠蔽（1 節の Parnas）と、#765 の本文。
   - block の `workflow:` は自分を子の run として起こす形だけ許す。根拠: #765 の本文が fix の自分を子として呼ぶ形を「手本として残す」と書いた。ほかの block を名指さない。
-  - tdd は fix の中に置き、独立の block にしない。根拠: block は `include:` を持てない。keep-essence の 3 の「1 本」が block をまたがない。
+  - tdd は fix の中に置き、独立の block にしない。根拠: loop だけが使う部品は無く、別の block に出すと block の間を行き来する物が約 20 増える（#886。何が増えるかは 1.3 の形の直し 2）。
   - 同じ block の node どうしの断片は block の `prompts/parts/` に。根拠: 憲法の 4 と同じ決め方。
   - 2 つ以上の block が読む行の形（block の出力の配列の 1 行ずつが持つ欄・語と、行を読む述語）は、作り手の出力ごとに `lib/` の 1 モジュール（手本 `worldmark`）。根拠: 憲法の 4。読み手が作り手の中身を import しない。
   - 深さの表を、未知の種類 → 段（`lib/headdepth`。head-depth・diagnose・plan が読む）と、段 → 回す物・上げ直し（line）に割り、fix の中の上げ直しを無くす。根拠: 上げ直しの読み手が 1 つになる。delta-review は fix の外の block。
