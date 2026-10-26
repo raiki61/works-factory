@@ -151,12 +151,11 @@ class CarryCase(StagesCase):
         self.assertIsNone(self.script(FIRST, "finish")["carry"])
 
     def test_write_and_place_prior_round_trip(self):
-        """束は conflicts.json の中身と輪ごとの record.json の中身・summary.md の字（と、記録の隣に state.json が在れば A の側の読み手のための
-        その中身）を持ち、place_prior が同じファイルに置き直す"""
+        """束は conflicts.json の中身と輪ごとの record.json の中身・summary.md の字を持ち（輪の状態は束に入れない）、place_prior が同じファイルに置き直す"""
         place, again = self.art / "one", self.art / "two"
         _write(place / "conflicts.json", {"items": [FX_SCOPE]})
         _write(place / "tdd-1" / "record.json", {"frozen": {"test_stats.py": "h1"}, "suite": "s", "done": True})
-        _write(place / "tdd-1" / "state.json", {"frozen": {"test_stats.py": "h1"}, "contract": {}})
+        _write(place / "tdd-1" / "state.json", {"frozen": {"test_stats.py": "h1"}, "contract": {}})   # 束には載らない
         (place / "tdd-1" / "summary.md").write_text("輪 1 の要約\n", encoding="utf-8")
         _write(place / "tdd-2" / "record.json", {"frozen": {}})
         _write(place / "accept.json", {"suite_made": ["a"]})
@@ -168,21 +167,21 @@ class CarryCase(StagesCase):
         doc = json.loads(path.read_text(encoding="utf-8"))
         self.assertEqual(doc, {"conflicts": {"items": [FX_SCOPE]},
                                "loops": [{"record": {"frozen": {"test_stats.py": "h1"}, "suite": "s", "done": True},
-                                          "summary": "輪 1 の要約\n", "state": {"frozen": {"test_stats.py": "h1"}, "contract": {}}},
+                                          "summary": "輪 1 の要約\n"},
                                          {"record": {"frozen": {}}, "summary": ""}],
                                "accept": {"suite_made": ["a"]},
                                "bases": [{"base": {"suite_made": ["b"]}, "accept": {"adopted_from": "x"}}],
                                "returns": [{"stage": 1, "weapon": "tdd"}]})
         root = self.carry.place_prior(again, doc)
         self.assertEqual(root, again / "prior")
-        for rel in ("conflicts.json", "tdd-1/record.json", "tdd-1/state.json", "tdd-1/summary.md", "tdd-2/record.json", "accept.json",
+        for rel in ("conflicts.json", "tdd-1/record.json", "tdd-1/summary.md", "tdd-2/record.json", "accept.json",
                     "bases/1/base.json", "bases/1/accept.json", "returns/1.json"):
             self.assertEqual(json.loads((root / rel).read_text(encoding="utf-8")) if rel.endswith(".json")
                              else (root / rel).read_text(encoding="utf-8"),
                              json.loads((place / rel).read_text(encoding="utf-8")) if rel.endswith(".json")
                              else (place / rel).read_text(encoding="utf-8"), rel)
         self.assertFalse((root / "tdd-2" / "summary.md").exists(), "空の要約は書かない")
-        self.assertFalse((root / "tdd-2" / "state.json").exists(), "記録だけの輪は状態を書かない")
+        self.assertFalse((root / "tdd-1" / "state.json").exists(), "束は輪の状態を運ばない")
 
     def test_write_without_anything_is_none(self):
         place = self.art / "empty"

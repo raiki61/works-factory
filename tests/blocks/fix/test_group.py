@@ -393,8 +393,7 @@ class GroupChildScriptsCase(unittest.TestCase):
         self.assertEqual((record["adopted_from"], record["summary"]),
                          (result["tdd_record"], str(self.parent / "tdd-1" / "summary.md")), "写し元の印と写し先の要約のパス")
         self.assertTrue((self.parent / "tdd-1" / "summary.md").is_file())
-        self.assertEqual(json.loads((self.parent / "tdd-1" / "state.json").read_text(encoding="utf-8"))["work"],
-                         str(self.parent / "tdd-1"))
+        self.assertFalse((self.parent / "tdd-1" / "state.json").exists(), "輪の状態は写さない（輪の外は記録と元の結末を読む）")
         stats = self.repo / "stats.py"
         stats.write_text(stats.read_text(encoding="utf-8").replace("(len(xs) - 1)", "len(xs)")
                          .replace("    return x\n", "    return lo\n"), encoding="utf-8")
@@ -422,7 +421,7 @@ class GroupChildScriptsCase(unittest.TestCase):
         self.assertIn("test_stats.py", self.frozen_reason(out["reason"]))
 
     def test_join_resolves_a_relative_runner_in_the_parent_tree(self):
-        """並べた子の worktree で回った輪の状態の実行器（相対パス。自分の place から根を引く）を、join は親の作業ツリーで解き直して
+        """並べた子の worktree で回った元の結末の実行器（相対パス。自分の place から根を引く）を、join は親の作業ツリーで解き直して
         写す。親の裁定の後の修正の受け付けは親の木で試験を走らせ、元で緑だった試験を赤にする直しを拒む"""
         from tests.blocks.fix.support import SUITE
         (self.repo / "ci").mkdir()
@@ -438,8 +437,6 @@ class GroupChildScriptsCase(unittest.TestCase):
         result = json.loads(pathlib.Path(self.run_script("group_end", cwd=child)["result_file"]).read_text(encoding="utf-8"))
         self.parent_groups(result["start_tree"])
         self.run_script("join", art=self.parent)
-        state = json.loads((self.parent / "tdd-1" / "state.json").read_text(encoding="utf-8"))
-        self.assertEqual(pathlib.Path(state["exe"]).resolve(), (self.repo / "ci" / "suite.py").resolve())
         base = json.loads((self.parent / "bases" / "1" / "base.json").read_text(encoding="utf-8"))
         self.assertEqual(pathlib.Path(base["exe"]).resolve(), (self.repo / "ci" / "suite.py").resolve(), "写した元の結末も親の木で解く")
         stats = self.repo / "stats.py"

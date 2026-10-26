@@ -100,7 +100,7 @@ def check_frozen(board: Path, record: str, repo: Path, pass_: str, agreed=None, 
     if not loops:
         return []
     b = board
-    skip = _verified(loops)
+    skip = _verified(board, loops)
     rev = fixboard.base_rev(None, base_rev)
     before = common.rev_source(repo, rev)
 
@@ -138,9 +138,12 @@ def _loop_freeze(board, record) -> tuple:
     return tree, sorted(files)
 
 
-def _verified(loops) -> list:
-    """輪が赤→緑を確かめた書き換えの名指し（common.verified_rewrites。loops は輪の記録のファイル）。凍結の許しから外す"""
-    return [i for p in loops for i in common.verified_rewrites(p)]
+def _verified(board, loops) -> list:
+    """輪が赤→緑を確かめた書き換えの名指し（common.verified_rewrites。loops は輪の記録のファイル。書き換えは注文の permits の
+    rewrite の行）。凍結の許しから外す"""
+    from src import orders
+    rewrites = orders.rewrite_ids(board)
+    return [i for p in loops for i in common.verified_rewrites(p, rewrites)]
 
 
 def _now_rulings(pass_: str) -> bool:
@@ -154,7 +157,7 @@ def frozen_tests(board, record, pass_: str) -> dict:
     が許しから外すのと同じ名指し（_verified。書き換えてよい名指しの行から外す）}。輪が書き換えて凍らせた名指しと、裁定の範囲で凍結が
     解けない今の輪のファイルは、指示書に貼らず check_frozen が拒む（付録 A の F12・F13。PR B で書き手の指示から消した）"""
     loops = _loop_records(board, record)
-    return {"files": _loop_freeze(board, record)[1], "verified": _verified(loops)}
+    return {"files": _loop_freeze(board, record)[1], "verified": _verified(board, loops)}
 
 
 def check_plan_scope(reply: dict, keys: list, board: Path, base_rev: str, repo: Path, record: str, pass_: str,

@@ -479,6 +479,14 @@ def order_docs(place) -> dict:
     return out
 
 
+def rewrite_ids(place) -> list:
+    """注文の permits の rewrite の行の test（書き換えを許した既存のテストの名指し。現れた順・重ねない。輪が赤→緑を確かめた物を
+    受け付けが許しから外す元。common.verified_rewrites）"""
+    ids = [r.get("test") for doc in order_docs(place).values() for r in doc.get("permits") or []
+           if isinstance(r, dict) and r.get("kind") == "rewrite"]
+    return [t for t in dict.fromkeys(ids) if isinstance(t, str) and t.strip()]
+
+
 def named_tests(place) -> list:
     """受け付けの名指しの出どころ（下書き 2.1 の「受け付けの名指しの出どころ」）のうち注文の物: 全部の注文の units[].tests と、
     permits の rewrite の行の test（現れた順・重ねない）。返しの evidence.named・added・rewritten は書き手が返す段 2 で足す"""

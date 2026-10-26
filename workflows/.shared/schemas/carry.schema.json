@@ -74,24 +74,6 @@
      },
      "summary": {
       "type": "string"
-     },
-     "state": {
-      "type": "object",
-      "properties": {
-       "phase": {
-        "type": "string"
-       },
-       "done": {
-        "type": "boolean"
-       },
-       "open_units": {
-        "type": "array",
-        "items": {
-         "type": "string"
-        }
-       }
-      },
-      "description": "A の側の読み手のため輪の状態 tdd-<k>/state.json の中身（記録の隣に在れば。次の頼みで消す）"
      }
     }
    }

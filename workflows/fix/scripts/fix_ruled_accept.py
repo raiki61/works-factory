@@ -63,7 +63,7 @@ def main() -> dict:
     ports.drop_runner_env(values["user_env_dir"])   # 対象のテストを走らせる前に Archon の変数を落とす（place は先に取った）
     got = board.accept_reply(reply, place, repo, pass_="ruled", iteration=iteration, owed=owed,
                              judged=judgment.get("units"), suite=str(values["tdd_suite"] or ""), record=record,
-                             state=board.loop_state(record), tests_state=board.loop_state(tests_record), head=head, skip=SKIP, log=log)
+                             tests_record=tests_record, head=head, skip=SKIP, log=log)
     out = _finish(place, got, iteration, name)
     if out["done"]:
         writers.finished(place, weapon)
