@@ -477,6 +477,7 @@ form は 4.1 の物。どの block も `lang`（`text`）を持つ物は書く�
 - `handoff`（plan・report）・`outpurpose`（diagnose・line・report）・`policy`（fix・delta-review・plan・structure・r1・r3・r4・line。文は md へ。名の字は `judgebeside` の import を外して直に書く。4.3-5）
 - `lens`（lens・delta-review）・`libdocs`・`libdocs_local`・`libdocs_web`（plan・plan-review・fix）・`webget`（world・libdocs の使い手）
 - `leftovers`（fix・delta-review・lens。4.3-11・4.4-C）
+- `subagents`（書き手の型の block。`.shared/writerblock.py` の `prep` が呼ぶ。書き手が項目ごとに起こす下請けの実装役と審査役の値と借りた型の埋め。docs/design/fix.md の 24.9）
 - `rolekit`（役を持つ block の全部。loop の数え・諦め・却下の控え。言語の文と出し直しの文は md へ）・`rulebook`・`seat`（fix・delta-review。座の値の口だけに削り、`QUERY_RULE_SOURCE`・`query_rule`・`g1_section`・`G1_*` は消す。4.3-13）・`spseam`・`borrow/`（`bin/`・fix・delta-review）
 - `reads`（fix・plan・plan-review・parallel-pr・`bin/`）・`writelog`（`bin/`・fix・delta-review）・`writes`（fix・delta-review）
 - `report`（report・fix・line。語 `CMD_LIGHT` もここ。4.5-14）・`stopby`（line・report・chain・judge のまとめ。前提の実測と目的の固定が落ちた時に judge のまとめが止める語 `works:premises`・`works:purpose` もここに在り、止めるかは judge のまとめが決める）
