@@ -751,6 +751,27 @@ class WriterReportCase(unittest.TestCase):
             self.assertEqual(report.lines(parent, [], [], writers=rows)[:2], report.writer_lines(rows))
 
 
+class ReadStagesCase(unittest.TestCase):
+    """読んだ証拠の段の頭の印（board.read_stages）は、修正の block が自分の place に書くファイルだけ（型の block の place の中を
+    読まない。E4）。型の block は渡した 1 回目の slots、variant は今の node の指示書"""
+
+    def test_the_marks_are_files_the_fix_block_writes_in_its_own_place(self):
+        board = tg._src("board")
+        with tempfile.TemporaryDirectory() as tmp:
+            place = pathlib.Path(tmp)
+            (place / "w-pin").mkdir()
+            (place / "w-pin" / "pin-prompt-1.md").write_text("型の block の指示\n", encoding="utf-8")
+            stages = {role: (mark, launched) for role, mark, launched in board.read_stages(place)}
+            self.assertEqual({mark.parent for mark, _ in stages.values()}, {place})
+            self.assertIsNone(stages["w-pin"][1], "型の block の place の中の指示書は印にしない")
+            (place / "slots-w-pin-1.json").write_text("{}", encoding="utf-8")
+            (place / "variant-prompt-1.md").write_text("variant の指示\n", encoding="utf-8")
+            stages = {role: (mark, launched) for role, mark, launched in board.read_stages(place)}
+            self.assertEqual(stages["w-pin"], (place / "slots-w-pin-1.json",) * 2)
+            self.assertEqual(stages["variant"], (place / "variant-prompt-1.md",) * 2)
+            self.assertIsNone(stages["wr-pin"][1])
+
+
 def load_tests(loader, tests, pattern):
     """借りた tg.GroupChildScriptsCase の試験を回し直さない（AcceptWiringCase はこのクラスに書いた試験だけ）"""
     suite = unittest.TestSuite()

@@ -9,7 +9,7 @@
 - current(place) -> 今の型の名（選んでいなければ ""）
 - node(pass_, weapon) -> 型の書き手の node の名（variant 以外は型の block を include する node の id。1 回目の段 w-<型>・裁定の後 wr-<型>）
 - hand_over(place, pass_, weapon, slots) -> {order, slots}: 型の block に渡す入力の pointer（slots は place に書く）
-- prompt_file(place, pass_, weapon) -> 型の書き手の 1 回目の指示のファイル（型の block の place の中。variant は今の node の place）
+- stage_mark(place, pass_, weapon) -> 型の書き手の段の頭の印のファイル（修正の block の place の中。型の block は hand_over が書く 1 回目の slots、variant は今の node の 1 回目の指示書）
 - owed(place, keys) -> keys のうち今の型の注文の単位（並びは keys のまま）
 - accept_name(pass_, weapon)・ledger(place, pass_, weapon)
 - finished(place, weapon): 受け付けが型を済ませた印を積む
@@ -54,13 +54,14 @@ def node(pass_: str, weapon: str) -> str:
     return f"{NODE_HEAD[pass_]}-{block_of(weapon)}"
 
 
-def prompt_file(place, pass_: str, weapon: str) -> pathlib.Path:
-    """型 weapon の書き手の 1 回目の指示のファイル。型の block は自分の place（<修正の block の place>/<include の id>）に
-    <w>-prompt-1.md を書く。variant は今の node の指示を修正の block の place に書く"""
+def stage_mark(place, pass_: str, weapon: str) -> pathlib.Path:
+    """型 weapon の書き手の段の頭の印: 修正の block が自分の place に書く、その書き手の 1 回目のファイル。型の block は hand_over が書く
+    slots-<include の id>-1.json（型の block の place の中は読まない。E4）、D1 の間 fix の node のまま残る variant は今の node の指示書
+    <node>-prompt-1.md"""
     name = node(pass_, weapon)
     if weapon == "variant":
         return pathlib.Path(place) / f"{name}-prompt-1.md"
-    return pathlib.Path(place) / name / f"{block_of(weapon)}-prompt-1.md"
+    return pathlib.Path(place) / f"slots-{name}-1.json"
 
 
 def nodes(pass_: str) -> list:
