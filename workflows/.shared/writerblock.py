@@ -1,7 +1,7 @@
-"""書き手の型の block（workflows/weapon-<型>/）の 2 本の script の本体（docs/plans/2026-10-24-fix-weapons.md の 11.10 の 1）。
+"""書き手の型の block（workflows/weapon-<型>/）の 3 本の script の本体（docs/plans/2026-10-24-fix-weapons.md の 11.10 の 1）。
 
-各 block の scripts/writer_prep.py・writer_out.py は、PEP 723 の頭・sys.path の 2 行・`import writerblock` と `from src import render`・
-`writerblock.prep(render)`（writer_out.py は `writerblock.out()`）だけで、6 つの block で 1 字も違わない。型の名は渡さない:
+各 block の scripts/writer_prep.py・writer_save.py・writer_out.py は、PEP 723 の頭・sys.path の 2 行・`import writerblock` と `from src import render`・
+`writerblock.prep(render)`（writer_save.py は `writerblock.save()`、writer_out.py は `writerblock.out()`）だけで、6 つの block で 1 字も違わない。型の名は渡さない:
 呼んだ script の在る block のフォルダの名 `weapon-<w>`（ports.caller_block）から引く。型ごとに違う物は block の src/render.py の表だけ。
 
 - prep(table) -> {prompt}: 入力 order・slots を ports.json で読み、order.weapon が表の ORDER_WEAPON と違えば落ち（型の名と block の
@@ -12,9 +12,13 @@
     空）・summary_file（表の SUMMARY が真の型だけ。slots の上の段の欄 summary_file を写す。空なら (empty)。続きの周は空）・g1_items（D1 は空）
   - 段落: paragraphs(table) の spawns・g1・ask_variant。g1 は下請けの項目が 0 件なら偽に下ろし、ask_variant は slots の段落 ask が
     偽なら偽に下ろす（今の writer_values と同じ向き）
-- out() -> {ok, reply, report}: 入力 reply（AI の node の出力）を ports.json で形（shared:writer-reply.schema.json）に照らし、place の
-  reply-<n>.json に書いて pointer で返す。<n> = prompt.round_of(<w>) - 1（同じ周の <w>-prep が書いた <w>-prompt-<n>.md と対）。
-  形に合わなければ ok: false で返さずに落ちる（受け付けを飛んだ型と同じ null にして、返答が無かった周を黙って済ませない）
+- save() -> {saved}: 入力 reply（AI の node の出力）を ports.json で形（shared:writer-reply.schema.json）に照らし、place の
+  reply-<n>.json に書く。<n> = prompt.round_of(<w>) - 1（同じ周の <w>-prep が書いた <w>-prompt-<n>.md と対）。形に合わなければ
+  落ちる（返す節に結ばれない node なので落ちてよく、落ちればその周の終わりに内の輪が落ちる。計画の 11.3 の「落ちた周の守り」）
+- out() -> {ok, reason, reply, report}: 入力を持たず、落ちない（K1。ports.run）。同じ <n> で、place に <w>-prompt-<n>.md が無いか
+  out-<n>.json が在れば prep が落ちた周（前の周の返答を返し直さない）、reply-<n>.json が無ければ書き手か save が落ちた周で、どちらも
+  ok: false・reply: null・report に reason の 1 行。ほかは ok: true と reply-<n>.json の pointer。返りは out-<n>.json にも書く。
+  prep が落ちた周（<n> は前の周の番号で、書くと前の周の控えを消す）と fallback の時は書かない
 - paragraphs(table) -> {spawns, g1, ask_variant}: 表の SPAWNS から引く下請けの段落の真偽（place を読まない。試験が同じ関数を読む）
 
 表 table（block の src/render.py）は定数 ORDER_WEAPON（注文の weapon の語）・SPAWNS（下請けを起こすか）・SUMMARY（TDD の輪の要約を
@@ -103,11 +107,38 @@ def prep(table) -> dict:
     return result
 
 
-def out() -> dict:
+def _number(weapon: str) -> int:
+    """この周の指示の番号（同じ周の <w>-prep が <w>-prompt-<n>.md を書いた後なので round_of は n+1。reply- のファイルは数えない）"""
+    return prompt.round_of(weapon) - 1
+
+
+def save() -> dict:
     weapon = weapon_block()
     reply = ports.json(os.environ.get("INPUTS_REPLY"), REPLY_SCHEMA)
-    path = ports.place() / f"reply-{prompt.round_of(weapon) - 1}.json"
+    path = ports.place() / f"reply-{_number(weapon)}.json"
     path.write_text(json.dumps(reply, ensure_ascii=False), encoding="utf-8")
-    result = {"ok": True, "reply": ports.pointer(path, REPLY_FORM), "report": []}
+    result = {"saved": True}
     ports.returns(result)
     return result
+
+
+def _failed(reason: str) -> dict:
+    return {"ok": False, "reason": reason, "reply": None, "report": [reason]}
+
+
+def out() -> None:
+    def compute() -> dict:
+        weapon = weapon_block()
+        place, n = ports.place(), _number(weapon)
+        reply, kept = place / f"reply-{n}.json", place / f"out-{n}.json"
+        if not (place / f"{weapon}-prompt-{n}.md").is_file() or kept.exists():
+            # <n> は前の周の番号なので out-<n>.json を書かない（前の周の控えを消さない）
+            return _failed(f"この周の指示を組む node {weapon}-prep が落ちた（前の周の返答を返し直さない）")
+        if not reply.is_file():
+            result = _failed(f"書き手の返答が無い（書き手の AI の node か、返答を置く node {weapon}-save が落ちた）")
+        else:
+            result = {"ok": True, "reason": "", "reply": ports.pointer(reply, REPLY_FORM), "report": []}
+        kept.write_text(json.dumps(result, ensure_ascii=False), encoding="utf-8")
+        return result
+
+    ports.run(compute, lambda reason: _failed(f"返す node が落ちた（{reason}）"))

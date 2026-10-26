@@ -2,7 +2,7 @@
 # requires-python = ">=3.12"
 # dependencies = []
 # ///
-"""書き手の返答を形に照らして place に書き、pointer で返す（本体は workflows/.shared/writerblock.py の out）。6 つの書き手の型の block で 1 字も違わない"""
+"""書き手の返答を place から読み、block の返りを返す（落ちない。本体は workflows/.shared/writerblock.py の out）。6 つの書き手の型の block で 1 字も違わない"""
 import sys
 from pathlib import Path
 

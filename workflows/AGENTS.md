@@ -51,7 +51,7 @@ block と graph の YAML・AI のノードへの指示の md・script・`src/`�
 
 ## E4 block はほかの block のファイルを指さず、入力の説明で作り手を名指さない
 
-- block の `scripts/`・`src/` は、ほかの block のフォルダへのパスを組まず、run directory の根（`ARTIFACTS_DIR`）を読まない。受け取りは `with:` の入力（`ports` の form の口）と、作り手の出力の欄の pointer だけ。place のファイルの名はその block の `src/` だけが持つ（`.shared/` の口が書く物 `prompt.emit` の `<node>-prompt-<n>.md` と `writerblock` の `reply-<n>.json` を除く）。
+- block の `scripts/`・`src/` は、ほかの block のフォルダへのパスを組まず、run directory の根（`ARTIFACTS_DIR`）を読まない。受け取りは `with:` の入力（`ports` の form の口）と、作り手の出力の欄の pointer だけ。place のファイルの名はその block の `src/` だけが持つ（`.shared/` の口が書く物 `prompt.emit` の `<node>-prompt-<n>.md` と `writerblock` の `reply-<n>.json`・`out-<n>.json` を除く）。
 - 入力の `description:` は `<form>: <意味>` で受け取る値の形と意味を書き、作り手（ほかの block・graph のノード）を名指さない。結びは graph の `with:` だけが持つ（持ち主の決め `io-in-output-format`）。
 - script は同じ `scripts/` の別の script を import しない（共に使う物は `src/`）。script の名を `lib/` のモジュールと `.shared/` の口の名にしない。
 - 機械: `tests/layers/test_block_shape.py`（7.1 の 5・7・9）・`tests/workflows/test_script_imports.py`。入力の説明が作り手を名指さないことは人が見る。

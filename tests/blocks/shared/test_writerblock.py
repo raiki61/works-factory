@@ -16,6 +16,7 @@ from unittest import mock
 
 from tests.bin import hermetic
 from tests.blocks import kit
+from tests.workflows.test_returns_never_fail import load, misfits, return_node
 
 sys.dont_write_bytecode = True
 sys.path.insert(0, str(kit.SHARED))
@@ -186,29 +187,31 @@ class TableCase(Base):
                 self.prep(table(**{name: value}))
 
 
-class OutCase(Base):
-    """<w>-out: 返答を本物の形 writer-reply に照らして place の reply-<n>.json に書き、pointer で返す。形に合わなければ落ちる"""
+class SaveCase(Base):
+    """<w>-save: 返答を本物の形 writer-reply に照らして place の reply-<n>.json に書き、{saved: true} を返す。形に合わなければ落ちる
+    （その周の終わりに内の輪が落ちる。docs/plans/2026-10-24-fix-weapons.md の 11.3 の「落ちた周の守り」）"""
     REPLY = kit.fixture("weapon-static", "standalone")["static"]
 
-    def out(self, reply):
+    def save(self, reply):
         with mock.patch.dict(os.environ, {"INPUTS_REPLY": json.dumps(reply)}), contextlib.redirect_stdout(io.StringIO()) as stdout:
-            got = writerblock.out()
+            got = writerblock.save()
         self.assertEqual(json.loads(stdout.getvalue()), got)
         return got
 
-    def test_out_writes_the_reply_with_the_number_of_the_prompt_it_answers(self):
+    def test_save_writes_the_reply_with_the_number_of_the_prompt_it_answers(self):
         (self.art / "demo-prompt-1.md").write_text("p1", encoding="utf-8")
-        got = self.out(self.REPLY)
-        self.assertEqual(got, {"ok": True, "reply": {"type": "archon_artifact", "run_id": "r1", "path": "reply-1.json"}, "report": []})
+        self.assertEqual(self.save(self.REPLY), {"saved": True})
         self.assertEqual(json.loads((self.art / "reply-1.json").read_text(encoding="utf-8")), self.REPLY)
         (self.art / "demo-prompt-2.md").write_text("p2", encoding="utf-8")
-        self.assertEqual(self.out(self.REPLY)["reply"]["path"], "reply-2.json")
+        self.save(self.REPLY)
+        self.assertTrue((self.art / "reply-2.json").is_file())
 
     def test_a_round_whose_reply_is_missing_does_not_shift_the_next_pair(self):
-        """AI の node が落ちて out が走らなかった周は reply- が欠けるだけで、次の周の対（prompt-2 と reply-2）はずれない"""
+        """AI の node が落ちて save が走らなかった周は reply- が欠けるだけで、次の周の対（prompt-2 と reply-2）はずれない"""
         for n in (1, 2):
             (self.art / f"demo-prompt-{n}.md").write_text("p", encoding="utf-8")
-        self.assertEqual(self.out(self.REPLY)["reply"]["path"], "reply-2.json")
+        self.save(self.REPLY)
+        self.assertTrue((self.art / "reply-2.json").is_file())
         self.assertFalse((self.art / "reply-1.json").exists())
 
     def test_a_reply_that_does_not_hold_the_shape_stops_the_node(self):
@@ -217,8 +220,67 @@ class OutCase(Base):
                           ("知らない欄", {**self.REPLY, "extra": 1}), ("precedent の条件に外れる",
                            {**self.REPLY, "changes": [{"unit_key": "u"}]})):
             with self.subTest(name), self.assertRaises(ValueError):
-                self.out(bad)
+                self.save(bad)
         self.assertFalse((self.art / "reply-1.json").exists(), "形に合わない返答は書かない")
+
+
+class OutCase(Base):
+    """<w>-out（落ちない。縛る試験の 10）: 入力を持たず、place の <w>-prompt-<n>.md・reply-<n>.json・out-<n>.json を見て返す。どの場合も
+    終了せずに返り、返りが型の block の返す節の output_format に合う（test_returns_never_fail.misfits で照らす）"""
+    REPLY = SaveCase.REPLY
+    SHAPE = return_node(load("weapon-static"))["output_format"]   # 返す節の形（6 つの YAML で同じ字。縛る試験の 2 の (b)）
+
+    def out(self) -> dict:
+        os.environ.pop("INPUTS_REPLY", None)
+        with contextlib.redirect_stdout(io.StringIO()) as stdout:
+            writerblock.out()
+        got = json.loads(stdout.getvalue())
+        self.assertEqual(misfits(got, self.SHAPE), [])
+        return got
+
+    def put(self, *names):
+        for name in names:
+            (self.art / name).write_text(json.dumps(self.REPLY) if name.startswith("reply-") else "p", encoding="utf-8")
+
+    def assert_failed(self, got: dict, said: str):
+        self.assertEqual((got["ok"], got["reply"]), (False, None))
+        self.assertIn(said, got["reason"])
+        self.assertEqual(got["report"], [got["reason"]])
+
+    def test_a_saved_reply_is_returned_by_pointer(self):
+        """(a) save の後は ok: true で、pointer の先が在って空でない。返りは out-<n>.json にも書く"""
+        self.put("demo-prompt-1.md", "reply-1.json")
+        got = self.out()
+        self.assertEqual(got, {"ok": True, "reason": "", "report": [],
+                               "reply": {"type": "archon_artifact", "run_id": "r1", "path": "reply-1.json"}})
+        self.assertGreater((self.art / got["reply"]["path"]).stat().st_size, 0, "pointer の先が在って空でない")
+        self.assertEqual(json.loads((self.art / "out-1.json").read_text(encoding="utf-8")), got)
+
+    def test_a_round_without_a_reply_returns_not_ok(self):
+        """(b) reply-<n>.json が無い（AI の node か save が落ちた周）と ok: false・reply: null"""
+        self.put("demo-prompt-1.md")
+        self.assert_failed(self.out(), "書き手の返答が無い")
+
+    def test_a_round_whose_prep_failed_does_not_return_the_reply_of_the_round_before(self):
+        """(c) 前の周の reply-<n>.json と out-<n>.json が在り、この周の <w>-prompt-<n+1>.md が無い（prep が落ちた周）と ok: false。
+        前の周の out-<n>.json の中身を変えない（prep が落ちた周の <n> は前の周の番号）"""
+        self.put("demo-prompt-1.md", "reply-1.json")
+        self.assertTrue(self.out()["ok"])
+        kept = (self.art / "out-1.json").read_text(encoding="utf-8")
+        self.assert_failed(self.out(), "demo-prep が落ちた")
+        self.assertEqual((self.art / "out-1.json").read_text(encoding="utf-8"), kept)
+
+    def test_a_first_round_whose_prep_failed_returns_not_ok(self):
+        """(d) 1 周目に prep が落ちた（<w>-prompt-1.md も無い）と ok: false"""
+        self.assert_failed(self.out(), "demo-prep が落ちた")
+
+    def test_a_failure_inside_the_node_falls_back_to_not_ok(self):
+        """(e) compute の中で落ちる（out-<n>.json の書き出し）と fallback で ok: false。out-<n>.json は書かない"""
+        self.put("demo-prompt-1.md", "reply-1.json")
+        with mock.patch.object(pathlib.Path, "write_text", side_effect=OSError("書けない")):
+            got = self.out()
+        self.assert_failed(got, "書けない")
+        self.assertFalse((self.art / "out-1.json").exists())
 
 
 if __name__ == "__main__":

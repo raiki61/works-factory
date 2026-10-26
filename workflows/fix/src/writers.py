@@ -170,9 +170,11 @@ def hand_over(place, pass_: str, weapon: str, slots: dict) -> dict:
 
 def reply_of(blocks: dict, variant, pass_: str, skipped):
     """起きた書き手の 1 つの (返答の dict, 報告の行の並び)。blocks は型の名 → 型の block の返りまるごと（受ける script が
-    ports.picked(<INPUTS_REPLY_<型>>, ("ok", "reply", "report")) で拾った物。飛んだ block は None）、variant は D1 の間 fix の node のまま残る
-    variant の返りの字（skipped は飛んだ節の値を見分ける口〔埋め skip_value の value が None〕）。型の block の返りは ok が真でなければ
-    ValueError（block の writer_out は形に合わない返答で落ち、真でない ok を返さない）。返答が形（shared:writer-reply.schema.json）に
+    ports.picked(<INPUTS_REPLY_<型>>, ("ok", "reason", "reply", "report")) で拾った物。飛んだ block は None）、variant は D1 の間 fix の
+    node のまま残る variant の返りの字（skipped は飛んだ節の値を見分ける口〔埋め skip_value の value が None〕）。型の block の返りは ok が
+    真でなければ、block の名・include の id と返りの reason を名指した ValueError（block の返す節 writer_out は落ちず、指示を組む
+    node・書き手・返答を置く node のどれかが落ちた周は ok: false と reason を返す。呼び手は place に書く前にここで落ちる。計画 docs/plans/2026-10-24-fix-weapons.md の 11.3 の「落ちた周の守り」）。
+    variant の node は ok の欄を持たないので見ない。返答が形（shared:writer-reply.schema.json）に
     合わない・読めない時も ValueError。報告の行は型の block の report（variant は無い）。どれも起きていなければ (None, [])"""
     for w in SEQUENCE[pass_]:
         if w == "variant":
@@ -183,6 +185,7 @@ def reply_of(blocks: dict, variant, pass_: str, skipped):
         if got is None:
             continue
         if got["ok"] is not True:
-            raise ValueError(f"型の block weapon-{block_of(w)} の返りの ok が真でない（{got['ok']!r}）")
+            raise ValueError(f"型の block weapon-{block_of(w)}（include の id {node(pass_, w)}）の返りの ok が真でない（{got['ok']!r}）:"
+                             f" {got['reason']}")
         return ports.json(_json.dumps(got["reply"]), "shared:writer-reply.schema.json"), [str(x) for x in got["report"] or []]
     return None, []

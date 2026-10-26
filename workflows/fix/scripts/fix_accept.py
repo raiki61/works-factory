@@ -29,7 +29,7 @@ from src import board, intake, runvals, writers  # noqa: E402
 NODE = "fix-accept"
 NOT_LAUNCHED = "修正役を起こさなかった（組の直す義務の単位が残らない）"
 SKIP = (ports.RUNTIME_COPY_PREFIX,)
-GOT = ("ok", "reply", "report")   # 型の block の返りまるごとから拾う欄（reply は返答の pointer、report は報告に載せる行）
+GOT = ("ok", "reason", "reply", "report")   # 型の block の返りまるごとから拾う欄（reason は ok が偽の訳、reply は返答の pointer、report は報告に載せる行）
 
 
 def written() -> tuple:

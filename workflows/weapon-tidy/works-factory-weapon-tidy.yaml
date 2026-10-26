@@ -323,8 +323,8 @@ nodes:
                     enum: [docs, prompts, config, code]
                   did: {type: string, minLength: 1}
 
-  - id: tidy-out
-    script: writer_out
+  - id: tidy-save
+    script: writer_save
     runtime: uv
     mutates_checkout: false
     depends_on: [tidy]
@@ -333,12 +333,26 @@ nodes:
     output_format:
       type: object
       additionalProperties: false
-      required: [ok, reply, report]
+      required: [saved]
+      properties:
+        saved: {type: boolean}
+
+  - id: tidy-out
+    script: writer_out
+    runtime: uv
+    mutates_checkout: false
+    depends_on: [tidy-save]
+    trigger_rule: all_done
+    output_format:
+      type: object
+      additionalProperties: false
+      required: [ok, reason, reply, report]
       properties:
         ok: {type: boolean}
+        reason: {type: string}
         reply:
-          type: object
-          description: 'json(shared:writer-reply.schema.json): 書き手の返答（受け付けの前の物）のファイル reply-<n>.json'
+          type: [object, 'null']
+          description: 'json(shared:writer-reply.schema.json): 書き手の返答（受け付けの前の物）のファイル reply-<n>.json。ok が偽の時は null'
           additionalProperties: false
           required: [type, run_id, path]
           properties:

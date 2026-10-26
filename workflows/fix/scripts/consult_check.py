@@ -19,7 +19,7 @@ import planmarks  # noqa: E402
 
 from src import board, prompts, rules, writers  # noqa: E402
 
-GOT = ("ok", "reply", "report")   # 型の block の返りまるごとから拾う欄（reply は返答の pointer、report は報告に載せる行）
+GOT = ("ok", "reason", "reply", "report")   # 型の block の返りまるごとから拾う欄（reason は ok が偽の訳、reply は返答の pointer、report は報告に載せる行）
 
 
 def written(pass_: str) -> tuple:

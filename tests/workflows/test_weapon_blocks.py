@@ -14,7 +14,7 @@
   外すのは YAML の頭の `description`（workflow の説明の文）だけ: 型ごとに役の文が違い（5 つとも違う字）、型の名を置き字にしても揃わない。
   node の `description` は型の名だけが違う決まった字なので照らしに入る
 - (c) `Agent` を `allowed_tools` に持つ block の組と、表 `src/render.py` の `SPAWNS` が真の block の組が同じ
-- (d) `scripts/writer_prep.py`・`writer_out.py` が、どの block でも 1 字も違わない
+- (d) `scripts/writer_prep.py`・`writer_save.py`・`writer_out.py` が、どの block でも 1 字も違わない
 
 (ii) 修正の block の 2 つの鎖（fix-loop・fix-ruled-loop）の include の先が全部 `weapon-` の書き手の型の block で、`writers.SEQUENCE` の型ごとに鎖に
 1 つずつ在る（表 `src/render.py` の `ORDER_WEAPON` が注文の型の語なので、それで型と block を結ぶ）。鎖に無い block・block の無い型を書けない。
@@ -132,8 +132,8 @@ class CopiesCase(unittest.TestCase):
         having = {b for b, doc in self.blocks.items() if "Agent" in ai_nodes(doc)[0]["allowed_tools"]}
         self.assertEqual(having, {b for b in self.blocks if spawns(b)})
 
-    def test_d_the_two_scripts_are_the_same_text_in_every_block(self):
-        for name in ("writer_prep.py", "writer_out.py"):
+    def test_d_the_three_scripts_are_the_same_text_in_every_block(self):
+        for name in ("writer_prep.py", "writer_save.py", "writer_out.py"):
             texts = {b: (PACK / b / "scripts" / name).read_text(encoding="utf-8") for b in self.blocks}
             with self.subTest(script=name):
                 self.assertEqual(len(set(texts.values())), 1, sorted(texts))

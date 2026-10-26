@@ -704,16 +704,22 @@ class AcceptWiringCase(tg.GroupChildScriptsCase):
         out = self.accept({"changes": [tg._change(tg.MEAN, ["stats.py"])]})
         self.assertFalse(out["ok"], out)
         self.assertIn("test_old_denominator", out["reason"])
+
     def whole_return(self, reply, *, ok=True, report=()):
-        """型の block の返りまるごと（writer_out の形 {ok, reply: <pointer>, report}）。返答は組の子の run の置き場に書く"""
+        """型の block の返りまるごと（writer_out の形 {ok, reason, reply: <pointer>, report}）。返答は組の子の run の置き場に書く。
+        ok が偽の返りは reply が null で、report が reason と同じ 1 行（docs/plans/2026-10-24-fix-weapons.md の 11.3）"""
+        if not ok:
+            reason = "書き手の返答が無い（書き手の AI の node か、返答を置く node pin-save が落ちた）"
+            return json.dumps({"ok": False, "reason": reason, "reply": None, "report": [reason]})
         path = self.place / "w-pin" / "reply-1.json"
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(support.reply_json(reply), encoding="utf-8")
         rel = path.resolve().relative_to(self.art.resolve()).as_posix()
-        return json.dumps({"ok": ok, "reply": {"type": "archon_artifact", "run_id": tg.RUN, "path": rel}, "report": list(report)})
+        return json.dumps({"ok": ok, "reason": "", "reply": {"type": "archon_artifact", "run_id": tg.RUN, "path": rel},
+                           "report": list(report)})
 
     def test_the_accept_reads_a_writer_blocks_whole_return_and_keeps_its_report(self):
-        """受け付けは型の block の返りまるごとを受け（E5。ok・reply・report の 3 つとも読む）、report の行を置き場の
+        """受け付けは型の block の返りまるごとを受け（E5。ok・reason・reply・report の 4 つとも読む）、report の行を置き場の
         writer-report.json に型の名と積む。積んだ行は finish の report に載る（WriterReportCase）"""
         self.direct_start()
         weapon = writers.current(self.place)
@@ -723,12 +729,50 @@ class AcceptWiringCase(tg.GroupChildScriptsCase):
         rows = json.loads((self.place / "writer-report.json").read_text(encoding="utf-8"))
         self.assertEqual(rows, [{"weapon": weapon, "line": "型の block の報告の 1 行"}])
 
-    def test_the_accept_refuses_a_writer_block_return_whose_ok_is_not_true(self):
-        """型の block の返りの ok が真でなければ、受け付けは返答を読まずに落ちる（回す側の誤り）"""
+    def files(self) -> dict:
+        """組の子の run の置き場のファイルの名と中身の組（走らせる前と後を比べる。ファイルの名の表を持たない）"""
+        return {p.relative_to(self.art).as_posix(): p.read_bytes() for p in sorted(self.art.rglob("*")) if p.is_file()}
+
+    def test_a_script_given_a_writer_block_return_whose_ok_is_false_stops_before_writing(self):
+        """縛る試験の 10: 受け取る側の 3 つの script は、型の block の返りの ok が偽なら非 0 で終わり、place を変えない（単位の結末の重ね・
+        型を済ませた印・却下の控えを書かない）。文は include の id と block の返りの reason を名指す（11.3 の「落ちた周の守り」）"""
         self.direct_start()
-        err = self.run_script("fix_accept", ok=False, reply_pin=self.whole_return({"changes": []}, ok=False),
-                              consulted="false", iteration="1")
-        self.assertIn("ok が真でない", err)
+        for script, pass_, extra in (("consult_check", "first", {"pass": "first"}),
+                                     ("fix_accept", "first", {"consulted": "false", "iteration": "1"}),
+                                     ("consult_check", "ruled", {"pass": "ruled"}),
+                                     ("fix_ruled_accept", "ruled", {"consulted": "false", "iteration": "1"})):
+            with self.subTest(script=script, pass_=pass_):
+                before = self.files()
+                err = self.run_script(script, ok=False, reply_pin=self.whole_return({}, ok=False), **extra)
+                self.assertIn(writers.node(pass_, "pin"), err)
+                self.assertIn("書き手の返答が無い", err)
+                self.assertEqual(self.files(), before, "ok が偽の返りを受けた script は place に何も書かない")
+
+
+class ReplyOfCase(unittest.TestCase):
+    """writers.reply_of の結末の欄 ok の読み（縛る試験の 10。11.4 の 3）"""
+    REASON = "書き手の返答が無い"
+
+    @staticmethod
+    def unskipped(_value) -> bool:
+        return False
+
+    def test_a_block_whose_ok_is_false_stops_with_the_include_id_and_the_reason(self):
+        for pass_ in ("first", "ruled"):
+            with self.subTest(pass_=pass_):
+                got = {"ok": False, "reason": self.REASON, "reply": None, "report": [self.REASON]}
+                with self.assertRaises(ValueError) as caught:
+                    writers.reply_of({"pin": got}, None, pass_, self.unskipped)
+                self.assertIn(writers.node(pass_, "pin"), str(caught.exception))
+                self.assertIn(f"weapon-{writers.block_of('pin')}", str(caught.exception))
+                self.assertIn(self.REASON, str(caught.exception))
+
+    def test_a_skipped_block_and_the_variant_node_are_not_read_for_ok(self):
+        """飛んだ型の block（if_skipped: null で None）は ok を見ない。D1 の間 node のまま残る variant は ok の鍵を持たない"""
+        self.assertEqual(writers.reply_of({"pin": None, "tidy": None}, None, "first", self.unskipped), (None, []))
+        reply = json.loads(support.reply_json({"changes": []}))
+        got, lines = writers.reply_of({"pin": None}, json.dumps(reply), "first", self.unskipped)
+        self.assertEqual((got, lines), (reply, []))
 
 
 class WriterReportCase(unittest.TestCase):

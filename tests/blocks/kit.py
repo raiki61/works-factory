@@ -201,15 +201,18 @@ class WriterBlockCase(unittest.TestCase):
         order["weapon"] = next(w for w in ("pin", "tidy", "remove") if w != order["weapon"])
         self.assertIn("注文の型は", self.run_.failing("writer_prep", **{**self.inputs, "order": json.dumps(order)}))
 
-    def test_the_out_script_returns_the_reply_by_pointer_and_stops_on_a_bad_reply(self):
-        """(iii) <w>-out が形に合う返答を pointer で返し、必須の欄を欠いた返答で落ちる"""
+    def test_the_save_and_out_scripts_return_the_reply_by_pointer_and_not_ok_without_it(self):
+        """(iii)（縛る試験の 10 の block の側）<w>-save が形に合う返答を reply-<n>.json に置き、必須の欄を欠いた返答で落ちる。<w>-out は
+        置いた返答を pointer で返し、返答が無い周は落ちずに ok: false を返す（本体の場合ごとの照らしは tests/blocks/shared/test_writerblock.py）"""
         self.prep()
-        got = self.run_.script("writer_out", reply=json.dumps(self.reply()))
-        self.assertEqual(got, {"ok": True, "report": [],
-                               "reply": {"type": "archon_artifact", "run_id": RUN_ID, "path": "reply-1.json"}})
-        self.assertEqual(json.loads((self.run_.artifacts / "reply-1.json").read_text(encoding="utf-8")), self.reply())
+        self.assertEqual(self.run_.script("writer_out"), {"ok": False, "reply": None, "reason": mock.ANY, "report": [mock.ANY]})
+        self.prep()
         bad = {k: v for k, v in self.reply().items() if k != "fix_closure"}
-        self.assertIn("fix_closure", self.run_.failing("writer_out", reply=json.dumps(bad)))
+        self.assertIn("fix_closure", self.run_.failing("writer_save", reply=json.dumps(bad)))
+        self.assertEqual(self.run_.script("writer_save", reply=json.dumps(self.reply())), {"saved": True})
+        self.assertEqual(json.loads((self.run_.artifacts / "reply-2.json").read_text(encoding="utf-8")), self.reply())
+        self.assertEqual(self.run_.script("writer_out"), {"ok": True, "reason": "", "report": [],
+                                                          "reply": {"type": "archon_artifact", "run_id": RUN_ID, "path": "reply-2.json"}})
 
     def test_the_paragraphs_about_subagents_follow_the_table(self):
         """(iv) 表の SPAWNS が偽の型には、下請けの段落 spawns・g1・ask_variant が偽で足される（指示に下請けの文が入らない）"""
