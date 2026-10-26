@@ -5,7 +5,8 @@
   行き先と出どころ（節の見出しが名指す置き場。機械の行 machine は A.8 の行だけ）は付録 A の本文から機械で読み直して照らし（表と付録 A が
   食い違えば赤。from を machine に替えて照らしを飛ばすこともできない。機械の行が引く置き場は .py のファイルに限るので、
   md の行を A.8 へ動かす・見出しを Python に替えて machine にすることもできない）、行き先ごとの数（共通 156・variant 29・変える 4・
-  消す 11。範囲の番号 F17〜F20 などは広げて数える）も照らす。
+  消す 11。範囲の番号 F17〜F20 などは広げて数える）も照らす。型を分けた後に足した段落の行（付録 A の A.9。ADDED_PINS の節）は 200 項目の外で、
+  数は ADDED_COUNTS で別に照らす（行き先に下ごしらえの書き手だけの pin が在る）。
 - 付録 A は作業ツリーでなく固定した版（PLAN_PIN。計画のファイルの git の blob）から読み、作業ツリーの付録 A がその版と同じことも照らす。
   計画の側で行を動かす・見出しや引きを替えるだけでは照らしを動かせず、付録 A を直す PR は PLAN_PIN を替えるので試験の差分に出る。
   blob にしたのは、squash で main に入ると PR の commit が main の履歴から消えても、同じ字の blob は残るため。設計の枝
@@ -15,6 +16,7 @@
 - 表の文の出どころ: 表の各行の文が、付録 A の本文がその行に引く置き場の行（`:4`・`brief.md:2-4` など）の、付録 A の行番号の版
   （PIN。#865 の後で #866 の前の main）の字に在る。表と指示の md を一緒に書き換えても、git の履歴の字は変わらないので赤になる
   （CI は fetch-depth: 0 で全履歴を取る。履歴を引けなければ見送らずに赤）。移す時に字を替えた行は REWORDED に、替えた後と前の字の対で置く。
+  型を分けた後に足した段落の節（ADDED_PINS）は移す前の字が無いので、PIN でなく、節が引く置き場の足した後の版（git の blob）の字で照らす。
   削る向きも照らす: 機械の行（from が machine）でない行の文は空にできず、付録 A が引く置き場の行ごとに、そこを引く行の文を全部
   抜いた残り（段落の印 <!-- --> と差し込み口 {名} を除き、空白をそろえる）が LEFT に書いた字と等しい（既定は空）。表と md から
   文の尻・真ん中を一緒に削る、行を一緒に消すと、残りが増えて赤になる。行き先が型を絞る行の置き場の行に、全部の書き手に残す字が
@@ -76,15 +78,18 @@ import writerblock  # noqa: E402
 ROWS = json.loads((HERE / "appendix-a.json").read_text(encoding="utf-8"))
 BEFORE = json.loads((HERE / "fixer-reply-before.json").read_text(encoding="utf-8"))
 PIN = "523599ac3b62f9ad7f707c5846c4ba186b38c1f0"   # 付録 A の行番号の版（#865。A.2 の見出し「#865 で 2 行増えた後の行番号」）
-PLAN_PIN = "8c277a11d84bd69245a8a1ed53acb3850de614cc"   # 計画の版（git の blob。#869 の後の main の計画。付録 A を直す PR はこの値を替える）
+PLAN_PIN = "a6d32c2ab6df2e4cb1a8a969e794c07b9808c3b3"   # 計画の版（git の blob。PR #883 で付録 A に A.9 を足した計画。付録 A を直す PR はこの値を替える）
 DEFAULT = {"A.2": "workflows/fix/prompts/parts/fixer.md", "A.4": "workflows/.shared/prompts/writer-rules.md",
-           "A.5": "workflows/.shared/prompts/query-rule.md", "A.7": "lib/borrow/unattended.md"}   # 節の頭が名指す、`:行` だけの引きの置き場
+           "A.5": "workflows/.shared/prompts/query-rule.md", "A.7": "lib/borrow/unattended.md",
+           "A.9": "workflows/.shared/prompts/writer.md"}   # 節の頭が名指す、`:行` だけの引きの置き場
 SHARED_PARTS = {"brief-reading.md", "rejected.md"}   # A.3 の .shared/prompts の断片（ほかの名は fix の prompts/parts）
 REWORDED = {   # 移す時に字を替えた行: 番号 → (表の字, PIN の字)
     "W21": ("one of the kinds below", "one of the 6 below"),   # 申し出の種類に red_at_base を足した（PR B の控え）
     "F135": ("`clean` without ever having seen red is rejected.", "clean without ever having seen red is rejected"),   # F135 の文を rules_red の段落へ切り出した
 }
 COUNTS = {"共通": 156, "variant": 29, "変える": 4, "消す": 11}   # 付録 A の A.1・1.4.2 の数（全部で 200）
+ADDED_PINS = {"A.9": "254b467c28cc1d1b0e55f7b96af68f64b0644f18"}   # 型を分けた後に段落を足した節 → 節の置き場の足した後の版（git の blob。PR #883 の writer.md）
+ADDED_COUNTS = {"variant": 2, "pin": 1}   # ADDED_PINS の節の行き先ごとの数（200 項目の外。付録 A の A.9）
 LEFT = {   # 置き場の行のうち、引く行の文にも残り（rest）にも移さなかった字（付録 A の行の番号 → 残る字）
     "F21": "You are the fixer. , and fix the units you owe a fix on the working tree.",   # 型ごとの頭に言い直した（付録 A の F21）
     "F135": ";",   # F135 の文を rules_red の段落へ切り出した時に消した区切り。行の残り（返答の欄 fix_closure の行）は表の rest
@@ -131,6 +136,8 @@ def to_nodes(to: str, row: str = "") -> set:
         return {n for n, w in nodes().items() if w == "variant"}
     if to == "variant・pin":
         return {n for n, w in nodes().items() if w in ("variant", "pin")}
+    if to == "pin":
+        return {n for n, w in nodes().items() if w == "pin"}
     raise ValueError(to)
 
 
@@ -225,7 +232,8 @@ def appendix_rows() -> list:
             if dest.startswith("数に入れない") or (head.startswith("A.2") and ids.startswith("Q1")):
                 continue
             to = ("消す" if dest.startswith("消す") or ids == "F26" else "variant・pin" if dest.startswith("variant・pin")
-                  else "variant" if dest.startswith("variant") else "変える" if dest.startswith("変える") else "共通")
+                  else "variant" if dest.startswith("variant") else "pin" if dest.startswith("pin")
+                  else "変える" if dest.startswith("変える") else "共通")
             out.append((ids, to, src))
     return out
 
@@ -243,12 +251,22 @@ def git_show(spec: str, path: str) -> list:
     return done.stdout.split("\n")
 
 
-def pinned_lines(path: str) -> list:
-    return git_show(f"{PIN}:{path}", path)
+def pinned_lines(path: str, head: str = "") -> list:
+    """置き場の照らす版の字の行（PIN の版。型を分けた後に足した節〔ADDED_PINS〕は、その節の足した後の blob）"""
+    return git_show(ADDED_PINS[head], path) if head in ADDED_PINS else git_show(f"{PIN}:{path}", path)
+
+
+@functools.lru_cache(maxsize=None)
+def added_ids() -> frozenset:
+    """付録 A の行のうち、型を分けた後に足した段落の節（ADDED_PINS）に在る行の番号"""
+    body = appendix_a("\n".join(git_show(PLAN_PIN, PLAN)))
+    return frozenset(i for sec in re.split(r"^### ", body, flags=re.M)[1:] if sec[:3] in ADDED_PINS
+                     for i in re.findall(r"^- (\S+?) `", sec, re.M))
 
 
 def appendix_sources() -> dict:
-    """付録 A の本文の行の番号 → その行が引く置き場の行 [(パス, 頭, 尻)]（`:4`・`brief.md:2-4`・`.shared/prompts/lib-docs.md:1` の形）"""
+    """付録 A の本文の行の番号 → その行が引く置き場の行 [(パス, 頭, 尻, 節)]（`:4`・`brief.md:2-4`・`.shared/prompts/lib-docs.md:1` の形。
+    節は版を選ぶ pinned_lines に渡す）"""
     body = appendix_a("\n".join(git_show(PLAN_PIN, PLAN)))
     out = {}
     for sec in re.split(r"^### ", body, flags=re.M)[1:]:
@@ -260,7 +278,7 @@ def appendix_sources() -> dict:
             paths = [DEFAULT[head] if not name else "workflows/" + name if name.startswith(".shared/")
                      else "workflows/.shared/prompts/" + name if name in SHARED_PARTS else "workflows/fix/prompts/parts/" + name
                      for name, _, _ in refs]
-            out.setdefault(ids, []).append([(p, int(a), int(b or a)) for p, (_, a, b) in zip(paths, refs)])
+            out.setdefault(ids, []).append([(p, int(a), int(b or a), head) for p, (_, a, b) in zip(paths, refs)])
     return out
 
 
@@ -285,19 +303,24 @@ class TableCase(unittest.TestCase):
             if r["from"] != "machine":
                 continue
             with self.subTest(row=r["id"]):
-                paths = [p for refs in sources.get(r["id"], []) for p, _, _ in refs]
+                paths = [p for refs in sources.get(r["id"], []) for p, _, _, _ in refs]
                 self.assertTrue(paths and all(p.endswith(".py") for p in paths), f"機械の行が .py でない置き場を引く: {paths}")
 
     def test_counts_by_destination_match_appendix_a(self):
         got = {k: 0 for k in COUNTS}
+        added = {k: 0 for k in ADDED_COUNTS}
         for r in ROWS:
             n = len(expand(r["id"]))
+            if r["id"] in added_ids():
+                added[r["to"]] += n
+                continue
             if r["id"] == "G16〜G19":   # G18 だけ消す（付録 A の G16〜G19）
                 got["variant"] += 3
                 got["消す"] += 1
                 continue
             got["variant" if r["to"] == "variant・pin" else r["to"]] += n
         self.assertEqual(got, COUNTS)
+        self.assertEqual(added, ADDED_COUNTS)
 
     def test_the_table_text_is_the_text_before_the_move(self):
         """表の各行の文は、付録 A がその行に引く置き場の行の PIN の版の字に在る（表と md を一緒に弱めると赤）"""
@@ -309,7 +332,7 @@ class TableCase(unittest.TestCase):
                     self.assertIn(r["id"], sources, "付録 A の本文に置き場の行の引きが無い")
                     new, old = REWORDED.get(r["id"], ("", ""))
                     want = flat(line.replace(new, old) if new else line).strip()
-                    places = [flat(" ".join(" ".join(cache.setdefault(p, pinned_lines(p))[a - 1:b]) for p, a, b in refs))
+                    places = [flat(" ".join(" ".join(cache.setdefault((p, h), pinned_lines(p, h))[a - 1:b]) for p, a, b, h in refs))
                               for refs in sources[r["id"]]]
                     self.assertTrue(any(want in place for place in places), f"PIN の版の字に無い: {want[:80]}")
 
@@ -328,9 +351,9 @@ class TableCase(unittest.TestCase):
             for refs in sources.get(r["id"], []):
                 for ref in refs:
                     cited.setdefault(ref, []).append((r["id"], [flat(t.replace(new, old) if new else t).strip() for t in texts]))
-        for (path, a, b), rows in cited.items():
+        for (path, a, b, head), rows in cited.items():
             ids = "・".join(dict.fromkeys(i for i, _ in rows))
-            rest = flat(" ".join(cache.setdefault(path, pinned_lines(path))[a - 1:b]))
+            rest = flat(" ".join(cache.setdefault((path, head), pinned_lines(path, head))[a - 1:b]))
             for want in sorted((t for _, texts in rows for t in texts), key=len, reverse=True):
                 rest = rest.replace(want, "", 1)
             with self.subTest(row=ids, place=f"{path}:{a}-{b}"):
