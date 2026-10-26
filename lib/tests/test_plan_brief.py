@@ -290,6 +290,16 @@ class BriefCase(PlaceCase):
         self.assert_broken("ディレクトリ")
 
 
+class UnitNoteCase(unittest.TestCase):
+    """unit_note は brief の行（fix の rules.brief_rows）と下請けの実装役の題（lib/subagents.py）の 2 つが使う"""
+
+    def test_units_that_are_not_owed_now_are_marked_and_none_is_spelled_out(self):
+        self.assertEqual(planbrief.unit_note(["a", "b"]), "a、b", "owed が None なら全部")
+        self.assertEqual(planbrief.unit_note(["a", "b"], ["a"]), f"a・{planbrief.NOT_NOW}: b")
+        self.assertEqual(planbrief.unit_note(["a"], ["z"]), f"{planbrief.NONE}・{planbrief.NOT_NOW}: a", "今直す単位が無ければ『無し』")
+        self.assertEqual(planbrief.unit_note(None), planbrief.NONE)
+
+
 class BriefFreezeEdgeCase(PlaceCase):
     """凍結の端: 欄の控え plan-fields.json の書き換え・cut の外で置いた控え・控えの一時ファイルのリンク"""
 

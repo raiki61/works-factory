@@ -189,13 +189,9 @@ class ConsultTypeCase(unittest.TestCase):
     所だけを見る。#844 の指摘）。理由の字の下限は受け付けの MIN_WHY と同じ字"""
 
     def fmt(self) -> dict:
-        """正本は .shared/schemas/writer-reply.schema.json（型の block の AI の node と、D1 の間 fix に残る variant の node の output_format が
-        字のまま写す。写しの照らしは tests/workflows/test_weapon_blocks.py）"""
-        nodes = _nodes()
-        shape = json.loads((kit.SHARED / "schemas" / "writer-reply.schema.json").read_text(encoding="utf-8"))
-        for n in ("variant", "variant-ruled"):   # D1 の間 fix に残る書き手は同じ返答の形
-            self.assertEqual(nodes[n]["output_format"], shape)
-        return shape
+        """正本は .shared/schemas/writer-reply.schema.json（型の block の AI の node の output_format が字のまま写す。写しの照らしは
+        tests/workflows/test_weapon_blocks.py）"""
+        return json.loads((kit.SHARED / "schemas" / "writer-reply.schema.json").read_text(encoding="utf-8"))
 
     def check(self, ask) -> list:
         """output_format の consult の欄の型に、ask 1 行の並びを当てた誤り"""

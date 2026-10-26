@@ -59,6 +59,9 @@ class Run:
                **{f"INPUTS_{name.upper()}": value for name, value in inputs.items()}}
         if include:
             env["ARCHON_NODE_EXECUTION"] = json.dumps({"runId": RUN_ID, "path": include})
+        if "INPUTS_REPLY_VARIANT" in env:   # 修正の block の受け付けへ渡す書き手の返答の字を、型 variant の書き手の block の返りに包む
+            from tests.blocks.fix import support
+            env = support.variant_return(env)
         return env
 
     def script(self, name: str, include: str = "", **inputs) -> dict:
@@ -215,12 +218,49 @@ class WriterBlockCase(unittest.TestCase):
                                                           "reply": {"type": "archon_artifact", "run_id": RUN_ID, "path": "reply-2.json"}})
 
     def test_the_paragraphs_about_subagents_follow_the_table(self):
-        """(iv) 表の SPAWNS が偽の型には、下請けの段落 spawns・g1・ask_variant が偽で足される（指示に下請けの文が入らない）"""
+        """(iv) 下請けの段落は表の SPAWNS で決まる（名の表を持たない）。偽の型は spawns・g1・ask_variant が偽で足され、指示に下請けの文が入らず、
+        下請けのファイルも組まれない。真の型は spawns が真、g1 が slots の subagents.owed の有無、ask_variant が slots の段落 ask に従い、
+        項目ごとの下請けのファイル 2 つが place に書かれる"""
         table = load(self.block, "render")
         _gate()
         import writerblock
         want = {"spawns": table.SPAWNS, "g1": table.SPAWNS, "ask_variant": table.SPAWNS}
         self.assertEqual(writerblock.paragraphs(table), want)
-        text = self.prep()["prompt"]
-        for sentence in ("## Running subagents", "A subagent (an implementer started with Agent) cannot consult itself"):
-            self.assertEqual(sentence in text, table.SPAWNS, sentence)
+        given = json.loads(self.inputs["slots"])
+        items = bool(given["subagents"]["owed"])
+        files = lambda: sorted(p.name for p in self.run_.artifacts.glob("g1-*"))   # noqa: E731
+        asked = "A subagent (an implementer started with Agent) cannot consult itself"
+        for ask in (False, True):
+            with self.subTest(ask=ask):
+                slots = {**given, "when": {**given["when"], "ask": ask}}
+                text = self.prep(slots=json.dumps(slots))["prompt"]
+                self.assertEqual("## Running subagents" in text, table.SPAWNS and items)
+                self.assertEqual(asked in text, table.SPAWNS and ask)
+        self.assertEqual(files(), ["g1-impl-1.md", "g1-review-1.md"] if table.SPAWNS and items else [])
+        if table.SPAWNS:   # 下請けを起こす単位が無い周は、真の型でも項目の段落もファイルも無い
+            self.run_ = Run(self, self.block)
+            none = {**given, "subagents": {**given["subagents"], "owed": [], "briefs": []}}
+            self.assertNotIn("## Running subagents", self.prep(slots=json.dumps(none))["prompt"])
+            self.assertEqual(files(), [])
+
+    def test_the_head_paragraph_is_handed_to_the_subagents_as_the_rule_of_the_type(self):
+        """(v) 下請けを起こす型（表の SPAWNS が真。名の表を持たない）は、block の prompts/parts/head.md を空の値で組めて、組んだ字が、本体が書いた
+        下請けの実装役の指示 g1-impl-<n>.md の works rules の節に在る（docs/plans/2026-10-24-fix-weapons.md の 11.6 の D2 の {weapon_rule}。
+        head.md に {名} が増えれば空の値では組めず落ちる）。偽の型は下請けを起こさないので g1-impl を組まない"""
+        table = load(self.block, "render")
+        _gate()
+        import ports
+        import prompt
+        given = json.loads(self.inputs["slots"])
+        owed = {**given["subagents"], "owed": ["stats.py:4 mean"], "judgment_file": "/p/judgment.json", "base_rev": "abc123", "directory": "/repo"}
+        self.prep(slots=json.dumps({**given, "subagents": owed}))
+        written = sorted(p.name for p in self.run_.artifacts.glob("g1-impl-*.md"))
+        if not table.SPAWNS:
+            self.assertEqual(written, [])
+            return
+        self.assertEqual(written, ["g1-impl-1.md"])
+        with mock.patch.object(ports, "caller_block", return_value=BLOCKS / self.block):
+            head = prompt.render_part("head", {}).strip()
+        self.assertTrue(head)
+        impl = (self.run_.artifacts / "g1-impl-1.md").read_text(encoding="utf-8")
+        self.assertIn(head, impl, "型の頭の段落（型の決まり）が下請けの実装役の指示に渡っていない")

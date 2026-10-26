@@ -7,14 +7,14 @@
 
 - pick(place, repo, pass_) -> {go, writer, done}
 - current(place) -> 今の型の名（選んでいなければ ""）
-- node(pass_, weapon) -> 型の書き手の node の名（variant 以外は型の block を include する node の id。1 回目の段 w-<型>・裁定の後 wr-<型>）
-- hand_over(place, pass_, weapon, slots) -> {order, slots}: 型の block に渡す入力の pointer（slots は place に書く）
-- stage_mark(place, pass_, weapon) -> 型の書き手の段の頭の印のファイル（修正の block の place の中。型の block は hand_over が書く 1 回目の slots、variant は今の node の 1 回目の指示書）
+- node(pass_, weapon) -> 型の書き手の node の名（型の block を include する node の id。1 回目の段 w-<型>・裁定の後 wr-<型>）
+- hand_over(place, pass_, weapon, slots, owed=()) -> {order, slots}: 型の block に渡す入力の pointer（slots は place に書く。注文の無い置き場の FALLBACK だけは、直す義務の全部を受ける注文もここで書く）
+- stage_mark(place, pass_, weapon) -> 型の書き手の段の頭の印のファイル（修正の block の place の中。hand_over が書く 1 回目の slots）
 - owed(place, keys) -> keys のうち今の型の注文の単位（並びは keys のまま）
 - accept_name(pass_, weapon)・ledger(place, pass_, weapon)
 - finished(place, weapon): 受け付けが型を済ませた印を積む
-- reply_of(blocks, variant, pass_, skipped) -> (書き手の返答の dict, 報告の行): 起きた書き手の 1 つ。型の block の返りまるごと {ok, reply, report}
-  （受ける script が ports.picked で拾った物）は reply の pointer を解き、variant の node の返りは字のまま照らす。どれも起きていなければ (None, [])
+- reply_of(blocks, pass_) -> (書き手の返答の dict, 報告の行): 起きた書き手の 1 つ。型の block の返りまるごと {ok, reason, reply, report}
+  （受ける script が ports.picked で拾った物。飛んだ block は None）は reply の pointer を解く。どれも起きていなければ (None, [])
 """
 from __future__ import annotations
 
@@ -27,7 +27,7 @@ import conflict   # lib/
 import groups     # lib/
 import jsonfile   # lib/
 
-from src import board, files, orders, rules
+from src import board, files, intake, orders, rules
 
 
 SEQUENCE = {"first": ("tdd", "pin", "tidy", "static", "variant", "remove"),
@@ -46,22 +46,16 @@ def block_of(weapon: str) -> str:
 
 def node(pass_: str, weapon: str) -> str:
     """型 weapon の書き手の node の名。型の block を include する node の id（1 回目の段 w-<型>、裁定の後の段 wr-<型>。tdd は輪の閉じの
-    書き手の block tdd-close）。D1 の間に fix の node のまま残る variant だけは今の名（variant・variant-ruled。D2 で外す）"""
+    書き手の block tdd-close）"""
     if weapon not in SEQUENCE[pass_]:
         raise ValueError(f"段 {pass_} に型 {weapon!r} の書き手は無い")
-    if weapon == "variant":
-        return "variant-ruled" if pass_ == "ruled" else "variant"
     return f"{NODE_HEAD[pass_]}-{block_of(weapon)}"
 
 
 def stage_mark(place, pass_: str, weapon: str) -> pathlib.Path:
-    """型 weapon の書き手の段の頭の印: 修正の block が自分の place に書く、その書き手の 1 回目のファイル。型の block は hand_over が書く
-    slots-<include の id>-1.json（型の block の place の中は読まない。E4）、D1 の間 fix の node のまま残る variant は今の node の指示書
-    <node>-prompt-1.md"""
-    name = node(pass_, weapon)
-    if weapon == "variant":
-        return pathlib.Path(place) / f"{name}-prompt-1.md"
-    return pathlib.Path(place) / f"slots-{name}-1.json"
+    """型 weapon の書き手の段の頭の印: 修正の block が自分の place に書く、その書き手の 1 回目のファイル。hand_over が書く
+    slots-<include の id>-1.json（型の block の place の中は読まない。E4）"""
+    return pathlib.Path(place) / f"slots-{node(pass_, weapon)}-1.json"
 
 
 def nodes(pass_: str) -> list:
@@ -156,31 +150,42 @@ def finished(place, weapon: str) -> None:
     jsonfile.write(pathlib.Path(place) / files.WRITER_FILE, {**st, "done": done})
 
 
-def hand_over(place, pass_: str, weapon: str, slots: dict) -> dict:
+def _order_path(place, pass_: str, weapon: str, owed) -> pathlib.Path:
+    """型 weapon の注文のファイル orders/<w>.json。注文の無い置き場（注文を書く段を通らない置き場。current が FALLBACK を返す）の FALLBACK だけは、
+    型の block が注文を必ず受けるので、直す義務の全部 owed を受ける注文を fallback-order-<段>.json に書いてそれを指す（orders/ に書くと注文の在る
+    置き場になり、current が FALLBACK を返さなくなる。型の block は注文の weapon の語だけを読む）"""
+    place = pathlib.Path(place)
+    path = place / files.ORDERS_DIR / f"{weapon}.json"
+    if path.is_file() or weapon != FALLBACK or orders.order_docs(place):
+        return path
+    group = (intake.load(place).get("group") or {}).get("group_id") or "whole"
+    head = board.read_json(place / rules.head_file(pass_)) or {}
+    doc = {"weapon": weapon, "group": group, "stage": orders.stage_of(place, pass_), "since": str(head.get("tree") or "unknown"), "base": "",
+           "units": [{"key": k, "removes": [], "tests": []} for k in owed], "scope": {"allowed_paths": [], "out_of_scope": []}, "permits": []}
+    return jsonfile.write(place / f"fallback-order-{pass_}.json", doc)
+
+
+def hand_over(place, pass_: str, weapon: str, slots: dict, owed=()) -> dict:
     """型の block に渡す入力: slots を place の slots-<node>-<n>.json に書き（n は同じ node の前の周の数 + 1）、その型の注文 orders/<型>.json と
-    ともに pointer で返す {order, slots}（どちらも形に合うことを ports.pointer が照らす。合わなければ落ちる）"""
+    ともに pointer で返す {order, slots}（どちらも形に合うことを ports.pointer が照らす。合わなければ落ちる）。注文の無い置き場の FALLBACK の
+    注文は _order_path が書く（owed はその単位）"""
     place = pathlib.Path(place)
     name = node(pass_, weapon)
     n = len(list(place.glob(f"slots-{name}-*.json"))) + 1
     path = place / f"slots-{name}-{n}.json"
     jsonfile.write(path, slots)
-    return {"order": ports.pointer(place / files.ORDERS_DIR / f"{weapon}.json", "json(shared:weapon-order.schema.json)"),
+    return {"order": ports.pointer(_order_path(place, pass_, weapon, owed), "json(shared:weapon-order.schema.json)"),
             "slots": ports.pointer(path, "json(shared:writer-slots.schema.json)")}
 
 
-def reply_of(blocks: dict, variant, pass_: str, skipped):
+def reply_of(blocks: dict, pass_: str):
     """起きた書き手の 1 つの (返答の dict, 報告の行の並び)。blocks は型の名 → 型の block の返りまるごと（受ける script が
-    ports.picked(<INPUTS_REPLY_<型>>, ("ok", "reason", "reply", "report")) で拾った物。飛んだ block は None）、variant は D1 の間 fix の
-    node のまま残る variant の返りの字（skipped は飛んだ節の値を見分ける口〔埋め skip_value の value が None〕）。型の block の返りは ok が
-    真でなければ、block の名・include の id と返りの reason を名指した ValueError（block の返す節 writer_out は落ちず、指示を組む
-    node・書き手・返答を置く node のどれかが落ちた周は ok: false と reason を返す。呼び手は place に書く前にここで落ちる。計画 docs/plans/2026-10-24-fix-weapons.md の 11.3 の「落ちた周の守り」）。
-    variant の node は ok の欄を持たないので見ない。返答が形（shared:writer-reply.schema.json）に
-    合わない・読めない時も ValueError。報告の行は型の block の report（variant は無い）。どれも起きていなければ (None, [])"""
+    ports.picked(<INPUTS_REPLY_<型>>, ("ok", "reason", "reply", "report")) で拾った物。飛んだ block は None）。返りは ok が真でなければ、
+    block の名・include の id と返りの reason を名指した ValueError（block の返す節 writer_out は落ちず、指示を組む node・書き手・返答を置く
+    node のどれかが落ちた周は ok: false と reason を返す。呼び手は place に書く前にここで落ちる。計画 docs/plans/2026-10-24-fix-weapons.md の
+    11.3 の「落ちた周の守り」）。返答が形（shared:writer-reply.schema.json）に合わない・読めない時も ValueError。報告の行は返りの report。
+    どれも起きていなければ (None, [])"""
     for w in SEQUENCE[pass_]:
-        if w == "variant":
-            if variant is not None and not skipped(variant):
-                return ports.json(variant, "shared:writer-reply.schema.json"), []
-            continue
         got = blocks.get(w)
         if got is None:
             continue

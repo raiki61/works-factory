@@ -2,29 +2,34 @@
 （docs/plans/2026-10-24-fix-weapons.md の 11.6 の D1 の縛る試験の 8）。
 
 縛る事: 書き手の 6 つの型（tdd・pin・tidy・static・variant・remove）× 4 つの場面（1 回目・却下の後・裁定の後の段・範囲の相談の答えの
-後の続きの周。裁定の後の段に tdd は無い）の 23 の組を組み、組ごとに次の 4 つが控え writer-prompts-before.json と等しいことを見る。
+後の続きの周。裁定の後の段に tdd は無い）の 23 の組を組み、組ごとに次の (a)・(c)・(d) の 3 つが控え writer-prompts-before.json と等しいことを見る
+（(b) は D2 の最後の commit で比べを外した。下）。
 - (a) 段落の真偽: `prompt.emit` に渡った when の全部。`prompt.render` は名の欠けを拒むが真偽の誤りは拒まないので、割った組み立てが
   rejected・resume・where_writer などを誤って偽にして観点の文が落ちても、ほかの試験は緑のまま。ここが赤にする
-- (b) 組み上がった指示の字（`emit` の返りの prompt）。置き字（下）に替えた後の字
+- (b) 組み上がった指示の字（`emit` の返りの prompt）。置き字（下）に替えた後の字。D2 の最後の commit で比べを外した（控えの prompt の欄は、
+  外す前の字の記録として残り、照らさない。--write も書かない）
 - (c) 付録 A の行（下請けの行 G と機械の行を除く。tests/workflows/test_weapon_assets.py の ROWS）のうち、組み上がった字に在る行の id。値を差し込み口の
   字（`{名}`）に替え（ただし unattended は本物の字）、`prompt.render` でもう 1 度組み、test_weapon_assets.py の flat と同じ照らし方（`in`）で見る。
   md だけの直しで文が段落の間を動いて、ある場面から観点が消える道を赤にする
 - (d) 値（`emit` に渡った values に置き字を当てた物。字が md から来る unattended は鍵だけ残して字を `{MD}`）。writer_slots 相当の値の誤り
   （却下の文や裁定の値が空になる）を赤にする
 
-置き字（場で変わるパスだけ。この順）: first_prompt の値 → `{FIRST_PROMPT}`、試験を回す python の実行ファイル（事前の確かめのコマンド
+置き字（場で変わるパスだけ。この順）: first_prompt の値 → `{FIRST_PROMPT}`、指示を組んだ place（型の block の place。下請けのファイルの名指しが
+持つ。表の SPAWNS が真の型〔variant・pin・tidy・static・remove〕。控えは下請けのファイルが修正の block の place に在った時の字なので、場所の違いを `{PLACE}` に揃える）→ `{PLACE}`、試験を回す python の実行ファイル（事前の確かめのコマンド
 check_cmd が持つ。uv run --isolated の度に一時のパスが変わる）→ `{PYTHON}`、修正の block の place → `{PLACE}`、対象のリポジトリの根 →
 `{REPO}`、対象のリポジトリの種の commit（commit の時刻で hash が run ごとに変わる。下請けの差分を取るコマンドが持つ）→ `{BASE}`、工場のリポジトリの根 → `{ROOT}`。これで消えない違いが出たら置き字を足して通さず、指示が変わった印として調べる。
 
 組み立ての助けは `compose` の 1 つだけ。`prompt.emit` を包んで引数と返りを受ける。割る前は修正の block の `prompts.writer` を呼んだ。
-割った後（今）は、型の block 5 つ（tdd・pin・tidy・static・remove）は修正の block の `prompts.writer_slots` を同じ引数で呼び、返りの slots と注文を
+割った後は、6 つの型（tdd・pin・tidy・static・variant・remove）とも、修正の block の `prompts.writer_slots` を同じ引数で呼び、返りの slots と注文を
 `writers.hand_over` で pointer にして、その型の block の `scripts/writer_prep.py`（`writerblock.prep(render)`）を、`ports.caller_block()` がその block
-を返すように script のファイルのまま起こして組む。D1 の間に修正の block に残る variant は、今も修正の block の `prompts.writer`
-（中で `writer_slots` を呼ぶ）で組む（D2 で variant も型の block の道に替える）。
-割る commit はこの `compose` だけを替え、場面の作り（`scene`）と控えは替えていない。node の名は控えない（裁定の後の段の node は、割る前は `<型>-ruled`、割った後は型の block の中の `<型>` で、指示の中身ではない）。控えは最初の commit の後に書き直さない
-（`git log --format=%h -- tests/workflows/writer-prompts-before.json` が 1 つだけ）。
+を返すように script のファイルのまま起こして組む（variant も D2 で型の block になり、割る前の `prompts.writer` の道は無い）。
+割る commit と variant を block にした commit は `compose` だけを替え、場面の作り（`scene`）と控えは替えていない。node の名は控えない（裁定の後の段の node は、割る前は `<型>-ruled`、割った後は型の block の中の `<型>` で、指示の中身ではない）。控えは最初の commit の後、書き直したのは 1 度だけ:
+D2 の段 2（設計 11.8 の決め〔案 B〕で pin・tidy・static・remove にも下請けを付けた commit）。狙った変化なので、pin・tidy・static・remove の 16 の組の
+(a) spawns・g1・ask_variant、(c) の増えた行（Q10・F39・F101〜F106・F116・F148a。減った行は無い）、(d) g1_items、(b) の足し（前の字の行は全部残り、
+足したのは下請けの段落と g1_items の行だけ）だけが変わり、variant と tdd の組（7 つ）は 1 字も変えていない。以後は書き直さない
+（`git log --format=%h -- tests/workflows/writer-prompts-before.json` が、最初の commit と段 2 の 2 つだけ）。
 
-(b) の字の比べは D2 の最後の commit で外し、(a)・(c)・(d) を残す（指示の文だけを変える依頼を md 1 本で閉じるため）。
+(b) の字の比べは D2 の最後の commit で外し、(a)・(c)・(d) を残した（指示の文だけを変える依頼を md 1 本で閉じるため。設計 11.6 の D2）。
 
 控えを書く口: `uv run --isolated python3 -m tests.workflows.test_writer_prompts_kept --write`（通常の試験の走りでは書かない）。
 """
@@ -123,9 +128,8 @@ def block_prep(run, pass_: str, weapon: str, slots: dict, writers) -> None:
 
 
 def compose(kind: str, weapon: str, case) -> dict:
-    """場面 kind・型 weapon の書き手の指示を組み、prompt.emit の引数と返りを受けて返す {when, prompt, values, node}。型の block の 5 つは
-    修正の block の writer_slots → 型の block の writer_prep.py（writerblock.prep）で、variant は修正の block の prompts.writer（中で
-    writer_slots を呼ぶ）で組む。割る commit はこの関数だけを替えた"""
+    """場面 kind・型 weapon の書き手の指示を組み、prompt.emit の引数と返りを受けて返す {when, values, slotted, node}。修正の block の
+    writer_slots → 型の block の writer_prep.py（writerblock.prep）で組む。割る commit と variant を block にした commit はこの関数だけを替えた"""
     run, pass_ = scene(case, kind)
     seen = {}
     real = prompt.emit
@@ -134,7 +138,7 @@ def compose(kind: str, weapon: str, case) -> dict:
         out = real(node, values, when, n)
         slots = {k: v if k in FROM_MD else "{" + k + "}" for k, v in values.items()}
         again = prompt.render(node, slots, when)["prompt"]
-        seen.update(node=node, values=dict(values), when=dict(when), prompt=out["prompt"], slotted=again)
+        seen.update(node=node, values=dict(values), when=dict(when), slotted=again, emit_place=str(ports.place()))
         return out
 
     with run.env(), mock.patch.object(prompt, "emit", wraps=wrapped):
@@ -159,11 +163,8 @@ def compose(kind: str, weapon: str, case) -> dict:
             extra = {"saved_reply": saved}
         call = dict(owed=owed, items=functools.partial(board.place_items, place), sources=board.brief_sources(place),
                     frozen=facts.frozen_tests(place, state, pass_), shared=ports.shared_cache(), **extra)
-        if weapon == "variant":
-            prompts.writer(place, repo, pass_, weapon, values, **call)
-        else:
-            slots, _ = prompts.writer_slots(place, repo, pass_, weapon, values, **call)
-            block_prep(run, pass_, weapon, slots, writers)
+        slots, _ = prompts.writer_slots(place, repo, pass_, weapon, values, **call)
+        block_prep(run, pass_, weapon, slots, writers)
     seen["place"], seen["repo"], seen["first_prompt"] = str(place), str(repo), seen["values"].get("first_prompt", "")
     seen["base"] = git(repo, "rev-parse", "HEAD")
     return seen
@@ -174,7 +175,7 @@ def paths(text, got: dict):
     def forms(path):
         found = {str(path), str(pathlib.Path(path).resolve())}
         return sorted(found, key=len, reverse=True)
-    for old, new in ((got["first_prompt"], "{FIRST_PROMPT}"), (sys.executable, "{PYTHON}"), (got["place"], "{PLACE}"), (got["repo"], "{REPO}"), (got["base"], "{BASE}"), (str(ROOT), "{ROOT}")):
+    for old, new in ((got["first_prompt"], "{FIRST_PROMPT}"), (got["emit_place"], "{PLACE}"), (sys.executable, "{PYTHON}"), (got["place"], "{PLACE}"), (got["repo"], "{REPO}"), (got["base"], "{BASE}"), (str(ROOT), "{ROOT}")):
         if old:
             for form in forms(old):
                 text = text.replace(form, new)
@@ -185,7 +186,7 @@ def record(kind: str, weapon: str, case) -> dict:
     got = compose(kind, weapon, case)
     values = {k: "{MD}" if k in FROM_MD else paths(v, got) for k, v in got["values"].items()}
     text = test_assets.flat(got["slotted"])
-    return {"when": got["when"], "prompt": paths(got["prompt"], got), "values": values,
+    return {"when": got["when"], "values": values,
             "appendix": [r["id"] for r in APPENDIX if all(test_assets.flat(line) in text for line in r["text"])]}
 
 
@@ -211,11 +212,10 @@ class WriterPromptsKeptCase(unittest.TestCase):
                 self.assertEqual(got["when"], want["when"], "(a) 段落の真偽が違う")
                 self.assertEqual(got["appendix"], want["appendix"], "(c) 付録 A の行の在る無しが違う")
                 self.assertEqual(got["values"], want["values"], "(d) 値が違う")
-                self.assertEqual(got["prompt"], want["prompt"], "(b) 組み上がった指示の字が違う")
 
     def test_the_record_is_not_a_dummy(self):
-        """控えが空・全部同じでない（段落の真偽・付録 A の行・字が組ごとに違う）"""
-        for part in ("when", "appendix", "prompt"):
+        """控えが空・全部同じでない（段落の真偽・付録 A の行・値が組ごとに違う）"""
+        for part in ("when", "appendix", "values"):
             self.assertGreater(len({json.dumps(r[part], sort_keys=True) for r in self.before.values()}), 5, part)
 
 

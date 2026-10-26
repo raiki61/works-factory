@@ -1,6 +1,6 @@
 """9 つの AI の node の指示に渡す値と段落の真偽（docs/design/fix.md の 2.3・3.3・4.3・5.3・6.3 の差し込み口の一覧）。
 
-指示の文は prompts/ の md が持ち、ここは値を集めて prompt.emit（下請けの頼みは prompt.render_part）に渡すだけ。材料の行（brief・穴・範囲・
+指示の文は prompts/ の md が持ち、ここは値を集めて prompt.emit に渡すだけ（書き手の指示と下請けのファイルは型の block が組む。ここは writer_slots で slots を渡す）。材料の行（brief・穴・範囲・
 テスト・ライブラリ・相談の頼み・単位・引き継ぎ）は今の lib が組む日本語の字のまま入る（13.2 の 5）。組んだ指示は place の
 <node-id>-prompt-<n>.md に書く。
 """
@@ -73,19 +73,18 @@ SITES_WEAPONS = ("variant", "pin")   # 同じ決まりを共有する所を 1 �
 
 
 def writer_when(weapon: str) -> dict:
-    """型 weapon の書き手の指示で、型が選ぶ段落の真偽（付録 A の行き先: variant だけの手順・変える段の義務・壊して赤の証明・赤を見ない
+    """型 weapon の書き手の指示で、型が選ぶ段落の真偽のうち義務の表から引く物（付録 A の行き先: 変える段の義務・壊して赤の証明・赤を見ない
     clean の拒否）。箱は duties.BOXES、赤を見ない clean を拒む型は受け付けと同じ board.RED_WEAPONS から引く（指示と照らしをそろえる）"""
     from src import duties
-    return {"variant": weapon == "variant", "change": duties.box_of(weapon) == "change", "sites": weapon in SITES_WEAPONS,
-            "red": weapon in board.RED_WEAPONS}
+    return {"change": duties.box_of(weapon) == "change", "sites": weapon in SITES_WEAPONS, "red": weapon in board.RED_WEAPONS}
 
 
 def writer_paragraphs(weapon: str) -> dict:
-    """型 weapon が選ぶ書き手の md の段落の真偽（writer_when を段落の名に引いた物。決まりの段落 rules・相談の段落 ask・下請けの項目が在る時に
-    だけ効く。writer_values が使い、tests/workflows/test_weapon_assets.py が組んだ指示の照らしに使う）"""
+    """型 weapon が選ぶ書き手の md の段落の真偽のうち、義務の表から引く 4 つ（DUTY_WHEN。writer_when を段落の名に引いた物。_slots が slots の
+    when に入れ、tests/workflows/test_weapon_assets.py が組んだ指示の照らしに使う）。下請けの段落 spawns・g1・ask_variant は型の block の
+    表 SPAWNS から本体 .shared/writerblock.paragraphs が引く（型の block は義務の表を知らず、修正の block は表 SPAWNS を知らない）"""
     k = writer_when(weapon)
-    return {"ask_variant": k["variant"], "rules_change": k["change"], "rules_sites": k["sites"], "rules_red": k["red"],
-            "conflict_change": k["change"], "spawns": k["variant"], "g1": k["variant"]}
+    return {"rules_change": k["change"], "rules_sites": k["sites"], "rules_red": k["red"], "conflict_change": k["change"]}
 
 
 # 型の block の slots の values・when の鍵（形 .shared/schemas/writer-slots.schema.json の required と等しい。tests/blocks/fix/test_prompts.py が照らす）。
@@ -98,8 +97,28 @@ SLOT_WHEN = ("rejected rulings_first ruled_reply briefs faces scope tests tests_
 DUTY_WHEN = ("rules_change", "rules_sites", "rules_red", "conflict_change")   # 義務の表から引く段落（型の block は義務の表を知らない）
 
 
+def no_subagents() -> dict:
+    """slots の subagents の、下請けを起こす単位が無い周・続きの周の形（欄は全部置く。形 writer-slots.schema.json の required）"""
+    return {"owed": [], "briefs": [], "all_items": [], "seat_brief_rows": "", "judgment_file": "", "policy_path": "", "base_rev": "",
+            "check_cmd": "", "directory": ""}
+
+
+def subagents_slot(values: dict, repo, briefs: list, owed_keys: list[str], green, config: str) -> dict:
+    """slots の subagents（データだけ。下請けの値の関数は lib/subagents.py）: 下請けを起こす単位 owed（TDD の輪が緑にした単位 green を
+    除く。rules.dispatched）・それに当たる凍結した brief の行・凍結した項目の全部の番号・直す義務の単位の brief を名指す行・判定のファイル・
+    方針の文書・修正前の版（board.base_rev）・範囲の相談の確かめのコマンド・作業ツリーの根。型の block が下請けを起こすかは型の block の表
+    （SPAWNS）が決め、ここは型を問わず同じ組み方で渡す"""
+    owed = rules.dispatched(owed_keys, green)
+    mine = planbrief.for_units(briefs, owed)
+    return {"owed": owed, "briefs": [{"item": r["item"], "file": r["file"], "unit_keys": list(r.get("unit_keys") or [])} for r in mine],
+            "all_items": [r["item"] for r in briefs], "seat_brief_rows": rules.brief_rows(mine, owed),
+            "judgment_file": values.get("judgment_file") or "", "policy_path": values.get("policy_path") or "",
+            "base_rev": board.base_rev(None, values.get("base_rev") or ""), "check_cmd": _check_cmd(config),
+            "directory": "" if repo is None else str(repo)}
+
+
 def _slots(place, repo, pass_: str, weapon: str, values: dict, *, owed, items=None, sources=None, frozen=None, shared=None,
-           saved_reply: str = "", **_unused) -> tuple[dict, dict, dict]:
+           saved_reply: str = "", green=frozenset(), **_unused) -> tuple[dict, dict, dict]:
     """型 weapon の書き手の slots {values, when, subagents, summary_file} と周の控え {iteration, kinds, ledger}、writer の続きが要る物
     {briefs, config, owed_keys, values, continuing}。今の修正役の組み立ての順のまま（fixrules.prep）。型が持つ値と段落は組まない。
     範囲の相談の答えの後・はみ出しを相談に積んだ周は続きの段落だけ（回の数え直しをしない）。brief の控えが壊れていれば Broken"""
@@ -118,7 +137,7 @@ def _slots(place, repo, pass_: str, weapon: str, values: dict, *, owed, items=No
     start_vals, start_when = _starts(values)
     vals.update(start_vals, lang=prompt.lang(runvals.read(place)["lang"]))
     when.update({k: False for k in start_when})
-    slots = {"values": vals, "when": when, "subagents": {}, "summary_file": ""}   # subagents は D1 の間は空（下請けは variant の node のまま）
+    slots = {"values": vals, "when": when, "subagents": no_subagents(), "summary_file": ""}   # 続きの周は下請けを組まない
     from src import consult
     got = consult.take(place, pass_)
     if got is not None:   # 範囲の相談の答えの後の周: 答えのファイルを名指すだけ（受け付けの回は数え直さない）
@@ -167,6 +186,7 @@ def _slots(place, repo, pass_: str, weapon: str, values: dict, *, owed, items=No
     if weapon == "tdd":   # 輪の要約を読むのは tdd の閉じの書き手だけ（付録 A の F26 の前半）。続きの周は組まない
         slots["summary_file"] = shown(values.get("summary_file"))
     config = rules.ask_config(place, repo, values, pass_, items=items)
+    slots["subagents"] = subagents_slot(values, repo, briefs, owed_keys, green, config)
     if config:
         vals.update(budget=str(consult.BUDGET), draft=str(pathlib.Path(config).parent / rules.ASK_DRAFT), check_cmd=_check_cmd(config))
         when["ask"] = True
@@ -185,66 +205,11 @@ def _slots(place, repo, pass_: str, weapon: str, values: dict, *, owed, items=No
 def writer_slots(place, repo, pass_: str, weapon: str, values: dict, **kw) -> tuple[dict, dict]:
     """型 weapon の書き手の slots（形 .shared/schemas/writer-slots.schema.json）と周の控え {iteration, kinds, ledger}。型を問わない値と
     段落だけを組む（型が持つ物は型の block の本体 .shared/writerblock.py が足す）。義務の表から引く段落（DUTY_WHEN）はここで引く。
-    **kw は owed（今直す単位。必須）・items・sources・green・frozen・shared・saved_reply（green は下請けを起こす単位を引く variant の
-    node の分で、D1 の間 slots の subagents は空なので、ここでは使わない）。控えは呼び手が slots を型の block に渡せた後に rules.remember に渡す"""
+    **kw は owed（今直す単位。必須）・items・sources・green（TDD の輪が緑にした単位。slots の subagents の下請けを起こす単位から除く）・frozen・
+    shared・saved_reply。slots の subagents は型を問わず同じ組み方で渡す（下請けを起こすかは型の block の表 SPAWNS が決める）。控えは呼び手が
+    slots を型の block に渡せた後に rules.remember に渡す"""
     slots, rnd, _ = _slots(place, repo, pass_, weapon, values, **kw)
     return slots, rnd
-
-
-def writer(place, repo, pass_: str, weapon: str, values: dict, **kw) -> dict:
-    """fix の node のまま残る書き手（D1 の間は variant）の指示を組んで place に書く。返り {prompt, iteration}。slots を writer_slots と
-    同じ組み方で組み、型が持つ値と段落（今の writer_values が組んでいた first_prompt・unattended・overlay_file・summary_file・g1_items と
-    spawns・g1・ask_variant）をここで足す。D2 で variant も型の block になれば、この関数と下請けのファイルを組む g1_files は外れる"""
-    from src import writers
-    slots, rnd, more = _slots(place, repo, pass_, weapon, values, **kw)
-    node = writers.node(pass_, weapon)
-    kind = writer_paragraphs(weapon)
-    vals, when = slots["values"], slots["when"]
-    vals.update(first_prompt=str(pathlib.Path(place) / f"{node}-prompt-1.md"), unattended="", overlay_file="", g1_items="")   # 続きの周が読み直す、1 回目に組んだ指示のファイル
-    if weapon == "tdd":
-        vals["summary_file"] = slots["summary_file"]
-    when.update(spawns=kind["spawns"], g1=False, ask_variant=kind["ask_variant"] and when["ask"])   # 下請けを起こすのは variant の書き手だけ（Agent を持つ）
-    if not more["continuing"]:
-        subs = rules.dispatched(more["owed_keys"], kw.get("green", frozenset())) if kind["g1"] else []   # 項目ごとの下請けは variant だけ（付録 A の F101）
-        try:
-            seat.pinned()   # 写しの照合を、下請けのファイルの書き込みより前に
-            if subs:
-                vals["g1_items"] = "\n".join(f"- {rules.g1_row(r)}" for r in g1_files(place, more["values"], repo, subs, more["briefs"], more["config"]))
-                when["g1"] = True
-            vals["unattended"] = seat.overlay_body(seat.OVERLAY_KINDS["fix"]).rstrip("\n")
-            vals["overlay_file"] = OVERLAY_FILE
-        except ValueError as e:
-            raise Broken(f"修正役の座を組めない: {e}") from None
-    try:
-        out = prompt.emit(node, vals, when, prompt.round_of(node))
-    except prompt.PromptError as e:
-        raise Broken(f"{node} の指示を組めない: {e}") from None
-    if rnd["kinds"] is not None:
-        rules.remember(rnd["ledger"], rnd["kinds"], rnd["iteration"])
-    return {"prompt": out["prompt"], "iteration": rnd["iteration"]}
-
-
-def g1_files(place, values: dict, repo, owed: list[str], briefs: list, config: str = "") -> list[dict]:
-    """修正役が起こす下請けのファイルを、項目ごとに place に 2 つ書き（prompt.render_part。名は今のまま g1-impl-<n>.md・g1-review-<n>.md）、
-    項目の順の [{item, impl_file, review_file, base, patch}] を返す（今の fixrules.g1_values）。実装役は implementer の型
-    （[BRIEF_FILE] はその項目の brief、[task name] はその項目の直す義務の単位、[REPORT_FILE] は md の g1-impl-report）、審査役は
-    task-review の型（[BASE_SHA] は修正前の版、[DIFF_FILE] は place の g1-<n>.patch。型の <base>..<head> は <base> に直す）"""
-    place = pathlib.Path(place)
-    common = rules.implementer_values(place, values, repo, owed, briefs)
-    base = board.base_rev(None, values.get("base_rev") or "")
-    rows = []
-    for n, brief, task in rules.g1_items(place, values, owed, briefs):
-        impl, review = place / rules.G1_IMPL.format(n=n), place / rules.G1_REVIEW.format(n=n)
-        patch = str(place / rules.G1_PATCH_FILE.format(n=n))
-        template = seat.fill("implementer", {**common, "[task name]": task, "[BRIEF_FILE]": brief,
-                                              "[REPORT_FILE]": prompt.render_part("g1-impl-report", {}).strip()})
-        impl.write_text(prompt.render_part("g1-impl", {"template": template.rstrip("\n"), "check_cmd": _check_cmd(config)},
-                                   {"spawns": False, "ask": bool(config)}), encoding="utf-8")
-        rv = rules.review_values(brief, values, base, patch)
-        filled = seat.fill("task-review", rv).replace(f"{rv['[BASE_SHA]']}..{rv['[HEAD_SHA]']}", rv["[BASE_SHA]"])
-        review.write_text(prompt.render_part("g1-review", {"template": filled.rstrip("\n")}, {"spawns": False}), encoding="utf-8")
-        rows.append({"item": n, "impl_file": str(impl), "review_file": str(review), "base": base, "patch": patch})
-    return rows
 
 
 # ---------------------------------------------------------------- 相談の答えの役（consult-answer・ruled-consult-answer）

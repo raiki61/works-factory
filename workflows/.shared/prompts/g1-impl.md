@@ -10,6 +10,8 @@
 - Do not run the whole suite (later stages run the whole suite and test_cmd). Run only the tests the files you changed reach.
 - Do not start subagents.
 
+{weapon_rule}
+
 {shared:brief-reading}
 
 {shared:query-rule}
