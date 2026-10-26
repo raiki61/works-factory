@@ -245,6 +245,30 @@
     "why_untested": {
       "type": "string",
       "description": "static の注文だけ: 計画が試験を求めない訳"
+    },
+    "tdd": {
+      "type": "object",
+      "description": "tdd の注文だけの型ごとの欄（2.1）: 振り分けの段が使った分。輪はここから数え始める（回数の上限・呼びの控え・渡した証拠の種類を減らさない）。共通の受け付けは読まない。無ければ 0 周・呼び無し・種類無し",
+      "required": ["iterations", "calls", "kinds"],
+      "properties": {
+        "iterations": {"type": "integer", "minimum": 0, "description": "振り分けの段が使った周の数"},
+        "calls": {
+          "type": "array",
+          "description": "振り分けの段の呼びの控え（step 1 回ごとの行。輪の記録の calls の頭になる）",
+          "items": {
+            "type": "object",
+            "properties": {
+              "n": {"type": "integer"},
+              "phase": {"type": "string"},
+              "unit_key": {"type": "string"},
+              "ok": {"type": "boolean"},
+              "runs": {"type": "integer"},
+              "secs": {"type": "number"}
+            }
+          }
+        },
+        "kinds": {"type": "array", "items": {"type": "string"}, "description": "振り分けの役に渡した証拠の種類の並び（輪の最初の周が減らさずに続ける）"}
+      }
     }
   },
   "additionalProperties": false,

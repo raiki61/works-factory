@@ -718,6 +718,14 @@ def _plan_rewrites(b, round_: int = 1) -> list[dict]:
         raise fields_broken(b, e) from None
 
 
+def plan_rewrite_ids(b, round_: int = 1) -> list:
+    """承認済みの修正案の全部の項目の rewrite_tests の名指しの id（_plan_rewrites。現れた順・重ねない）。test_permits が skip_ids で
+    外す行の id と同じ元で、TDD の輪が赤→緑を確かめた書き換えを許しから外す元（fix の common.verified_rewrites）。注文の permits は返しの
+    控えの凍結や裁定の後の段の単位で行が抜けるので、そこから読まない。控えが食い違えば ValueError（止めるのは呼び手）"""
+    ids = [r.get("id") for r in _plan_rewrites(b, round_)]
+    return [i for i in dict.fromkeys(ids) if isinstance(i, str) and i.strip()]
+
+
 def _plan_removes(b, round_: int = 1) -> list[dict]:
     """planmarks.removes_permits。_plan_rewrites と同じく、控えが食い違えば ValueError（止めるのは呼び手）"""
     try:
@@ -809,7 +817,7 @@ def test_permits(b, *, rulings: bool = True, source=None, skip_ids=(), agreed_ro
     （id で許す事後の関門が読む）。案の直しの行だけは limit を持たず units（単位の key の並び）を持つ（テストの関数の幅は TDD の輪の
     状態が知る。tddloop.test_spans）。source（パス → 中身か None）を渡すと、修正案の行の範囲をその木でテストの id から
     引き直し、引けない行は捨てる（凍結の検査が読む輪の後の木。tddloop.frozen_source）。skip_ids（修正案の行の id そのまま）に
-    在る修正案の行は外す（TDD の輪が赤→緑を確かめた書き換え。tddloop.verified_rewrites）。裁定の行はそのまま。
+    在る修正案の行は外す（TDD の輪が赤→緑を確かめた書き換え。fix の common.verified_rewrites）。裁定の行はそのまま。
     範囲の相談の合意（agreed_rows を渡せばその行——盤面にまだ写していない合意を足して見る事前の確かめ）は修正案の行の後にいつも入れる。
     合意の範囲の行は修正前の版の行で、source を渡す読み手には base（パス → 修正前の版の中身）も渡して、その木の行へ移す（_in_tree。
     移せない範囲は捨てる）。裁定の範囲は書いた木のまま。

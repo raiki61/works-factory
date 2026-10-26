@@ -146,6 +146,12 @@ class RenderedCase(unittest.TestCase):
         self.assert_rendered("ruled-consult-answer", text)
         self.assertTrue((run.artifacts / "ruled-consult-answer-prompt-1.md").is_file())
 
+    def test_route_prep_stops_when_group_start_did_not_run(self):
+        """組の頭の返り tdd-start.json が無い（group-start が走らなかった）時、route-prep は黙って go: false を返さずに落ちる"""
+        run = seeded(self)
+        run.script("intake", mode="group", group=GROUP, judgment=JUDGMENT, tdd_suite=str(RUNNER))
+        self.assertIn("group-start", run.failing("route_prep"))
+
     def test_tdd_same_unit_round_uses_the_continuing_role(self):
         """同じ単位の 2 回目の支度は tdd（会話を継ぐ役）の指示を組む。1 回目は tdd-new"""
         run = seeded(self)
@@ -400,12 +406,12 @@ class WriterSlotsCase(unittest.TestCase):
         place = self.run.artifacts
         with self.run.env():
             owed = self.board.group_owed(place, [KEY])
-            state, summary = self.board.loop_files(place)
-            values = self.board.fix_values(place, owed, state=state, summary=summary if weapon == "tdd" else "", answer_node=rules.answer_node("first"))
+            record, summary = self.board.loop_files(place)
+            values = self.board.fix_values(place, owed, record=record, summary=summary if weapon == "tdd" else "", answer_node=rules.answer_node("first"))
             got, rnd = self.prompts.writer_slots(place, self.run.repo, "first", weapon, values, owed=owed,
                                                  items=functools.partial(self.board.place_items, place),
                                                  sources=self.board.brief_sources(place),
-                                                 frozen=facts.frozen_tests(place, state, "first"), shared=ports.shared_cache())
+                                                 frozen=facts.frozen_tests(place, record, "first"), shared=ports.shared_cache())
         self.assertEqual(set(rnd), {"iteration", "kinds", "ledger"})
         return got
 

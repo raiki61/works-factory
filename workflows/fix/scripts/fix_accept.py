@@ -66,13 +66,13 @@ def main() -> dict:
         writers.finished(place, weapon)
         return stopped
     values = runvals.read(place)
-    state, _ = board.loop_files(place)
+    record, _ = board.loop_files(place)
     judgment = board.read_json(place / board.JUDGMENT_FILE) or {}
     head = board.fixer_head(place, "first")
     log = writelog.log_here()
     ports.drop_runner_env(values["user_env_dir"])   # 対象のテストを走らせる前に Archon の変数を落とす（place は先に取った）
     got = board.accept_reply(reply, place, repo, pass_="first", iteration=iteration, owed=owed,
-                             judged=judgment.get("units"), suite=str(values["tdd_suite"] or ""), state=state,
+                             judged=judgment.get("units"), suite=str(values["tdd_suite"] or ""), record=record,
                              head=head, skip=SKIP, log=log)
     out = finish(place, got, iteration, name)
     if out["done"]:

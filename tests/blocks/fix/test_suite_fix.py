@@ -229,11 +229,11 @@ class BeforeCasesCase(unittest.TestCase):
         board = kit.load("fix", "board")
         row = {"classname": "test_stats.TestStats", "name": "test_mean", "outcome": "error", "fail_message": "No module named 'yaml'",
                "fail_text": ""}
-        state = place / "g1-art" / "tdd-1" / "state.json"
-        state.parent.mkdir(parents=True)
-        state.write_text(json.dumps({"baseline_cases": [row]}), encoding="utf-8")
+        base = place / "g1-art" / "base.json"
+        base.parent.mkdir(parents=True)
+        base.write_text(json.dumps({"baseline_cases": [row]}), encoding="utf-8")
         (place / "groups" / "g1").mkdir(parents=True)
-        (place / "groups" / "g1" / board.RESULT_FILE).write_text(json.dumps({"group_id": "g1", "end_tree": "t", "tdd_state": str(state)}), encoding="utf-8")
+        (place / "groups" / "g1" / board.RESULT_FILE).write_text(json.dumps({"group_id": "g1", "end_tree": "t", "base": str(base)}), encoding="utf-8")
         (place / board.GROUPS_FILE).write_text(json.dumps({"groups": [{"group_id": "g1"}], "out_dir": str(place / "groups")}),
                                                 encoding="utf-8")
         (place / board.BASELINE_FILE).write_text(json.dumps({"cases": [], "exit": None, "how": []}), encoding="utf-8")

@@ -306,8 +306,8 @@ def tdd_values(place, repo, view: dict, values: dict) -> tuple[dict, dict, dict]
         vals["overlay_file"] = OVERLAY_FILE
     except (ValueError, KeyError) as e:
         raise Broken(f"TDD のループの座を組めない: {e}") from None
-    ledger = place / files.TDD_DELIVERED
-    kinds = rules.kinds_for(ledger, {**values, "open_units": vals["open_units"]}, repo)
+    ledger = place / (files.ROUTE_DELIVERED if phase == "route" else files.TDD_DELIVERED)   # 控えは振り分けと輪で分ける（輪は st["kinds"] から始める）
+    kinds = rules.kinds_for(ledger, {**values, "open_units": vals["open_units"]}, repo, start=st.get("kinds") or ())
     when.update(_kinds_when(kinds, "tdd"))
     return vals, when, {"iteration": st["iterations"] + 1, "kinds": kinds, "ledger": ledger}
 
