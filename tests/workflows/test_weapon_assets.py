@@ -180,8 +180,8 @@ def spawn_bound() -> frozenset:
     """付録 A の行のうち、文が下請けの段落（paragraphs の spawns・g1・ask_variant）の中に在る行の番号。行き先が variant の書き手の行は、
     その文が全部、下請けの段落を全部真にして組んだ字に在り、全部偽にして組んだ字に無い行を機械で引く（番号の表を持たず、md の段落を
     足し替えると追う）。行き先が共通の行は SPAWN_ONLY だけ（共通の行を段落へ移しても、照らす先は全部の書き手のまま）"""
-    return frozenset(r["id"] for r in ROWS if r["from"] == "writer" and r["to"] in ("共通", "variant") and r["id"] not in RED_ROWS
-                     and inside_spawn_paragraphs(r))
+    return frozenset(r["id"] for r in ROWS if r["from"] == "writer" and r["to"] == "variant" and r["id"] not in RED_ROWS
+                     and inside_spawn_paragraphs(r)) | SPAWN_ONLY
 
 
 def inside_spawn_paragraphs(row: dict) -> bool:
