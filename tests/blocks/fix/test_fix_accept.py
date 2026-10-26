@@ -2223,7 +2223,7 @@ import writes  # noqa: E402
 SEED = kit.ROOT / "tests" / "e2e" / "target-seed"
 SKIP = ("vendored/",)
 WHY = "整形の道具で 40 ファイルを一度に書き換えた"
-_S_MODS = ("board", "facts", "gates", "scope", "unitrows", "parking", "rules", "consult", "prompts", "runvals", "ruling", "duties")
+_S_MODS = ("board", "common", "facts", "gates", "scope", "unitrows", "parking", "rules", "consult", "prompts", "runvals", "ruling", "duties")
 
 
 def _s_load() -> types.SimpleNamespace:
@@ -2904,6 +2904,42 @@ class FixAcceptSeamCase(SeamTemp):
         path.write_text(text, encoding="utf-8")
         return self.b.accept_reply(reply, self.place, self.repo, pass_="first", iteration=1, owed=[R_MEAN, R_CLAMP],
                                      judged=R_JUDGED, head=head, base_rev=self.rev, skip=SKIP)
+
+    def test_accept_reply_hands_the_reply_names_to_the_selection_and_the_loop_record_to_the_duties(self):
+        """F2 の縛る試験の 3: 受け付けが試験の選びに渡す named は、注文の物（units[].tests・rewrite の行）に、返答の evidence.named と
+        受け付けが木の比べで出す足した試験を足した物。型の義務には、選びに渡すのと同じ輪の記録（record か、空なら tests_record）を渡す"""
+        (self.place / "orders").mkdir()
+        (self.place / "orders.json").write_text(json.dumps({"sequence": ["variant"], "weapons": {R_MEAN: "variant"}, "stage": 1,
+                                                            "since": self.rev}), encoding="utf-8")
+        plan, rewrite = "test_stats.py::TestStats::test_mean_of_three", "test_stats.py::TestStats::test_clamp_above_range"
+        (self.place / "orders" / "variant.json").write_text(json.dumps({
+            "weapon": "variant", "group": "g1", "stage": 1, "since": self.rev,
+            "units": [{"key": R_MEAN, "removes": [], "tests": [plan]}],
+            "permits": [{"kind": "rewrite", "duty": True, "test": rewrite, "source": "plan"}]}), encoding="utf-8")
+        (self.place / "judgment.json").write_text(json.dumps({"units": R_JUDGED}, ensure_ascii=False), encoding="utf-8")
+        record = self.tmp / "loop-record.json"
+        record.write_text(json.dumps({"units": {}}), encoding="utf-8")
+        head = leftovers.snapshot(self.repo)
+        path = self.repo / "stats.py"
+        path.write_text(path.read_text(encoding="utf-8").replace("sum(xs) / (len(xs) - 1)", "sum(xs) / len(xs)"), encoding="utf-8")
+        (self.repo / "test_new.py").write_text("def test_added():\n    assert True\n", encoding="utf-8")
+        reply = {"changes": [{**_fix_row(R_MEAN, 1), "files": ["stats.py", "test_new.py"]}],
+                 "evidence": {"named": [{"unit_key": R_MEAN, "test": "test_other.py::test_said"}]}}
+        got = {}
+
+        def selected(base, repo, rev, **kw):
+            got["named"], got["record"] = list(kw["named"]), kw["record"]
+            return [], ""
+
+        def duties_run(place, repo, rev, reply, **kw):
+            got["duty_record"] = kw["record"]
+            return []
+        with mock.patch.object(self.m.common, "selected_problems", selected), \
+                mock.patch.object(self.m.duties, "accept_problems", duties_run):
+            self.b.accept_reply(reply, self.place, self.repo, pass_="first", iteration=1, owed=[R_MEAN], judged=R_JUDGED, head=head,
+                                base_rev=self.rev, skip=SKIP, tests_record=str(record))
+        self.assertEqual(got["named"], [plan, rewrite, "test_other.py::test_said", "test_new.py::test_added"])
+        self.assertEqual((got["record"], got["duty_record"]), (str(record), str(record)))
 
     def test_accept_reply_saves_the_closure_table_it_recounted(self):
         """受けた返答は閉鎖の数え直し（closure_reply）を通り、単位ごとの表を置き場に置く（querytest.save_closure）"""

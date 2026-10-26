@@ -322,6 +322,209 @@ class AcceptFactsCase(unittest.TestCase):
         self.assertFalse(duties._reply_facts([{"closure": {"sites": [{"red_seen": False}]}}], None)["red_seen"])
 
 
+class NamedDutyCase(unittest.TestCase):
+    """変える段の箱の義務 change_named_or_gone を受け付けの事実（duties.unit_facts の named・before・after・removes・gone）から引く
+    （F2 の縛る試験の 1・2。実行器は本物の小さな実行器で、起点の木の結末は事後の関門と同じ口 gates.named_facts が引く）。
+    起点の木では test_mean_of_three が failure（平均の分母の誤り）・test_clamp_within_range が通る。返した木の結末 cases は受け付けが走らせた
+    回の結末（selected_problems の seen["cases"]）の代わりに渡す"""
+
+    NAMED = "名指しの試験が起点の木で赤（failure）・返した木で緑にならず"
+    MEAN3 = "test_stats.py::TestStats::test_mean_of_three"
+    CLAMP = "test_stats.py::TestStats::test_clamp_within_range"
+    TWO = "test_two.py::TestTwo::test_halve"
+    TWO_FILE = ("import unittest\n\nfrom stats import halve\n\n\nclass TestTwo(unittest.TestCase):\n    def test_halve(self):\n"
+                "        self.assertEqual(halve(4), 2)\n")
+    STUB = "def halve(x):\n    return 0  # 仮の実装\n\n\ndef clamp(x, lo, hi):"
+
+    def setUp(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.tmp = pathlib.Path(tmp.name)
+        seed = kit.ROOT / "tests" / "e2e" / "target-seed"
+        files = {f.name: f.read_text(encoding="utf-8") for f in seed.glob("*.py")}
+        self.repo = _repo(self.tmp, {**files, "legacy.py": "def old_helper():\n    return 1\n"})
+        self.rev = git(self.repo, "rev-parse", "HEAD").strip()
+        self.suite = self.tmp / "suite.py"
+        self.suite.write_text(support.SUITE, encoding="utf-8")
+        self.place = self.tmp / "place"
+        self.place.mkdir()
+        kit.load("fix", "duties")
+        from src import common, duties, gates, orders
+        self.common, self.duties, self.gates, self.orders = common, duties, gates, orders
+
+    def put(self, rel, doc):
+        p = self.place / rel
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text(json.dumps(doc), encoding="utf-8")
+        return p
+
+    def order(self, weapon, unit_extra=None, permits=(), units=None):
+        keys = [u["key"] for u in units] if units else ["U"]
+        self.put("orders.json", {"sequence": [weapon], "weapons": {k: weapon for k in keys}, "stage": 1, "since": self.rev})
+        self.put(f"orders/{weapon}.json", {"weapon": weapon, "group": "g1", "stage": 1, "since": self.rev, "permits": list(permits),
+                                           "units": units or [{"key": "U", "removes": [], "tests": [], **(unit_extra or {})}]})
+        self.put("base.json", {"exe": str(self.suite), "work": str(self.place / "base"), "baseline": {}, "baseline_cases": [],
+                               "rev": self.rev, "taken": True})
+
+    def fix_mean(self):
+        stats = self.repo / "stats.py"
+        stats.write_text(stats.read_text(encoding="utf-8").replace("(len(xs) - 1)", "len(xs)"), encoding="utf-8")
+
+    @staticmethod
+    def passed(*tests):
+        return [{"classname": ".".join(t.partition("::")[0][:-3:].split("/") + t.split("::")[1:-1]), "name": t.rsplit("::", 1)[1],
+                 "outcome": "passed"} for t in tests]
+
+    def texts(self, named=(), files=("stats.py",), cases=None, record="", reply_extra=None):
+        reply = {"changes": [{"unit_key": "U", "files": list(files)}],
+                 "evidence": {"named": [{"unit_key": "U", "test": t} for t in named]}, **(reply_extra or {})}
+        got = self.duties.accept_problems(self.place, self.repo, self.rev, reply, cases=cases, record=record)
+        return [t for k, t in got if k == "U"]
+
+    def rejected(self, texts) -> bool:
+        return any(self.NAMED in t for t in texts)
+
+    # ---- 拒む（縛る試験の 1）
+    def test_a_variant_unit_with_neither_a_named_test_nor_a_removed_name_is_rejected(self):
+        self.order("variant")
+        self.fix_mean()
+        self.assertTrue(self.rejected(self.texts(cases=self.passed(self.MEAN3))))
+
+    def test_a_named_test_that_already_passes_at_the_base_is_rejected(self):
+        """名指しの試験が起点の木で通る（赤を見ていない）単位: 返した木で緑でも拒む"""
+        self.order("variant")
+        self.fix_mean()
+        self.assertTrue(self.rejected(self.texts(named=[self.CLAMP], cases=self.passed(self.CLAMP))))
+
+    def test_a_named_test_that_is_not_green_in_the_returned_tree_is_rejected(self):
+        self.order("variant")
+        self.fix_mean()
+        cases = [{**c, "outcome": "failure"} for c in self.passed(self.MEAN3)]
+        self.assertTrue(self.rejected(self.texts(named=[self.MEAN3], cases=cases)))
+        self.assertTrue(self.rejected(self.texts(named=[self.MEAN3], cases=[])), "走らせた回に居ない名指しは緑でない")
+        self.assertTrue(self.rejected(self.texts(named=[self.MEAN3], cases=None)), "実行器が走らなかった回も緑でない")
+
+    def test_a_remove_unit_whose_name_stays_in_the_returned_tree_is_rejected(self):
+        self.order("remove", {"removes": ["old_helper"]})
+        self.assertTrue(self.rejected(self.texts(files=["legacy.py"], cases=[])), "消していない")
+        (self.repo / "legacy.py").unlink()
+        (self.repo / "user.py").write_text("from legacy import old_helper\n", encoding="utf-8")   # 未追跡の新しいファイルに残る
+        self.assertTrue(self.rejected(self.texts(files=["legacy.py", "user.py"], cases=[])), "未追跡のファイルに残る名も残りに数える")
+
+    def test_a_remove_unit_whose_path_stays_is_rejected(self):
+        self.order("remove", {"removes": ["legacy.py"]})
+        self.assertTrue(self.rejected(self.texts(files=["legacy.py"], cases=[])))
+
+    # ---- 通す（縛る試験の 2）
+    def test_a_named_test_red_at_the_base_and_green_in_the_returned_tree_passes(self):
+        self.order("variant")
+        self.fix_mean()
+        self.assertFalse(self.rejected(self.texts(named=[self.MEAN3], cases=self.passed(self.MEAN3))))
+
+    def test_the_tests_the_order_names_count_without_the_reply_naming_them(self):
+        """注文の units[].tests と、permits の rewrite の行の試験（1 単位の注文は全部がその単位）は、返答が名指さなくても名指しに数える"""
+        self.fix_mean()
+        self.order("variant", {"tests": [self.MEAN3]})
+        self.assertFalse(self.rejected(self.texts(cases=self.passed(self.MEAN3))))
+        self.order("variant", permits=[{"kind": "rewrite", "duty": True, "test": self.MEAN3, "source": "plan"}])
+        self.assertFalse(self.rejected(self.texts(cases=self.passed(self.MEAN3))))
+        self.order("variant", permits=[{"kind": "remove", "duty": False, "test": self.MEAN3, "source": "plan"}])
+        self.assertTrue(self.rejected(self.texts(cases=self.passed(self.MEAN3))), "remove の許しは名指しでない")
+
+    def test_a_rewrite_permit_of_an_order_with_two_units_is_tied_by_the_units_own_tests(self):
+        """単位が 2 つの注文では、rewrite の行の試験は、その単位の注文の tests に在る単位だけに結ぶ（別の単位の書き換えで通さない）"""
+        self.fix_mean()
+        self.order("variant", permits=[{"kind": "rewrite", "duty": True, "test": self.MEAN3, "source": "plan"}],
+                   units=[{"key": "U", "removes": [], "tests": [self.MEAN3]}, {"key": "V", "removes": [], "tests": []}])
+        self.assertFalse(self.rejected(self.texts(cases=self.passed(self.MEAN3))))
+        got = self.duties.accept_problems(self.place, self.repo, self.rev, {"changes": [{"unit_key": "V", "files": ["stats.py"]}]},
+                                          cases=self.passed(self.MEAN3))
+        self.assertTrue(any(k == "V" and self.NAMED in t for k, t in got), got)
+
+    def test_a_guard_test_of_the_plan_is_not_a_named_test(self):
+        """計画の守りのテスト（赤の種類が guard。直す前から緑で緑のまま）は、注文の tests に在っても名指しに数えない（数えると『起点の木で赤』を
+        満たせず、正しい単位を拒む）。受け入れのテストは数える"""
+        import planmarks
+        row = {"behavior": "x", "path": "y", "red_why": "z"}
+        planmarks.save(self.place, 1, [{"unit_keys": ["U"], "route": "tdd", "route_why": "", "rewrite_tests": [],
+                                        "refactor": {"declared": False, "why": ""},
+                                        "tests": [{**row, "id": self.MEAN3, "red_kind": "assertion"},
+                                                  {**row, "id": self.CLAMP, "red_kind": planmarks.GUARD_KIND}]}])
+        self.order("variant", {"tests": [self.MEAN3, self.CLAMP]})
+        self.fix_mean()
+        self.assertFalse(self.rejected(self.texts(cases=self.passed(self.MEAN3, self.CLAMP))))
+
+    def test_a_remove_unit_whose_names_are_all_gone_passes_without_a_named_test(self):
+        self.order("remove", {"removes": ["legacy.py", "old_helper"]})
+        (self.repo / "legacy.py").unlink()
+        self.assertEqual(self.texts(files=["legacy.py"], cases=[]), [])
+
+    def test_a_tdd_unit_passes_by_the_loop_record_without_evidence_named(self):
+        """tdd の単位は、書き手が evidence.named を書かなくても輪の記録 record.json の単位の tests で通る"""
+        self.order("tdd")
+        self.fix_mean()
+        record = self.put("tdd-1/record.json", {"units": {"U": {"route": "tdd", "tests": [self.MEAN3]}}})
+        self.assertFalse(self.rejected(self.texts(cases=self.passed(self.MEAN3), record=str(record))))
+        self.assertTrue(self.rejected(self.texts(cases=self.passed(self.MEAN3))), "記録を渡さなければ名指しは無い")
+        self.assertTrue(self.rejected(self.texts(cases=[], record=str(record))), "輪の名指しも返した木で緑が要る")
+
+    def loop_record(self, red_tree):
+        files = ["test_two.py"]
+        hashes = self.common.hashes(self.repo, files)
+        unit = {"unit_key": "U", "route": "tdd", "red": "ok", "tests": [self.TWO], "test_files": files, "test_hashes": hashes,
+                "red_tree": red_tree}
+        return self.put("tdd-1/record.json", {"units": {"U": unit}, "frozen": hashes})
+
+    def test_a_tdd_test_that_leans_on_an_earlier_units_fix_is_not_rejected(self):
+        """前の単位の直しに頼る tdd の試験: 起点の木では実装が無く一式の結末に居ない（error と同じ非 failure）が、輪の赤の木（単位の頭の木）では
+        failure。輪の赤の木で見るので、正しい単位を拒まない。赤の木を渡さなければ起点の木で見て拒む"""
+        self.order("tdd")
+        (self.repo / "test_two.py").write_text(self.TWO_FILE, encoding="utf-8")
+        stats = self.repo / "stats.py"
+        stats.write_text(stats.read_text(encoding="utf-8").replace("def clamp(x, lo, hi):", self.STUB), encoding="utf-8")
+        red = self.common.snapshot(self.repo)
+        stats.write_text(stats.read_text(encoding="utf-8").replace("return 0  # 仮の実装", "return x / 2"), encoding="utf-8")
+        record = self.loop_record(red)
+        cases = self.passed(self.TWO)
+        self.assertEqual(self.texts(files=["stats.py", "test_two.py"], cases=cases, record=str(record)), [])
+        bad = self.loop_record(self.rev)   # 赤の木が今の記録の赤を映さない（赤の木で通る）なら、名指しは赤を見ていない
+        self.assertTrue(self.rejected(self.texts(files=["stats.py", "test_two.py"], cases=cases, record=str(bad))))
+        self.put("tdd-1/record.json", {"units": {"U": {"route": "tdd", "tests": [self.TWO]}}})   # 赤の記録の無い輪の名指し: 起点の木で見る
+        self.assertTrue(self.rejected(self.texts(files=["stats.py", "test_two.py"], cases=cases, record=str(record))))
+
+    # ---- 事実
+    def test_gone_reads_a_path_by_its_presence_and_a_name_by_a_word_search(self):
+        legacy = self.repo / "legacy.py"
+        self.assertEqual(self.duties.gone_of(self.repo, self.rev, ["legacy.py", "old_helper", "absent_name"]), [], "どれも残っている")
+        legacy.unlink()
+        self.assertEqual(self.duties.gone_of(self.repo, self.rev, ["legacy.py", "old_helper", "absent_name", "mean"]),
+                         ["legacy.py", "old_helper"], "起点の木で引けない名は入れない。残る名（mean）は入れない")
+        (self.repo / "note.md").write_text("old_helper_v2 は別の名\n", encoding="utf-8")
+        self.assertEqual(self.duties.gone_of(self.repo, self.rev, ["old_helper"]), ["old_helper"], "語の単位で当てる（別の名の一部は残りでない）")
+
+    def test_gone_leaves_out_a_name_it_cannot_read(self):
+        (self.repo / "legacy.py").unlink()
+        self.assertEqual(self.duties.gone_of(self.repo, "no-such-rev", ["legacy.py", "old_helper"]), [], "git が読めない名は gone に入れない")
+        self.assertEqual(self.duties.gone_of(self.tmp / "no-repo", self.rev, ["old_helper"]), [])
+
+    def test_the_named_tests_the_reply_the_order_and_the_loop_record_are_laid_without_repeats(self):
+        self.order("tdd", {"tests": [self.MEAN3]}, permits=[{"kind": "rewrite", "duty": True, "test": self.MEAN3, "source": "plan"}])
+        record = self.put("tdd-1/record.json", {"units": {"U": {"route": "tdd", "tests": [self.MEAN3, self.CLAMP]}}})
+        facts = self.duties.unit_facts(self.place, self.repo, self.rev, "U", "tdd", [{"unit_key": "U", "files": ["stats.py"]}],
+                                       order=self.orders.order_docs(self.place)["tdd"], base={"exe": ""}, cases=[],
+                                       evidence={"named": [{"unit_key": "U", "test": self.TWO}, {"unit_key": "V", "test": "x.py::y"}]},
+                                       record=str(record))
+        self.assertEqual(facts["named"], [self.TWO, self.MEAN3, self.CLAMP])
+
+    def test_before_and_after_are_not_taken_for_a_unit_without_names_or_outside_the_change_box(self):
+        """名指しの無い単位・変える段でない型では before・after を引かない（実行器を起こさない）"""
+        self.order("tidy")
+        with unittest.mock.patch.object(self.gates, "named_before", side_effect=AssertionError("走らせない")):
+            self.assertEqual(self.texts(named=[self.MEAN3], cases=[]), [])
+            self.order("variant")
+            self.assertTrue(self.rejected(self.texts(cases=[])))
+
+
 class OrderQueriesCase(unittest.TestCase):
     """注文を書く段が単位の問いを引く口（orders._queries。F1 の作る物の 2）: 判定の写しの class_query か、裁定 replace_query が
     置き換えた問い"""
@@ -742,11 +945,13 @@ class RuledOrderCase(unittest.TestCase):
         self.assertIsNone(self.board.red_units(self.place))
         reply = {"changes": [{"unit_key": "T", "files": ["stats.py"]}]}
         flag = (lambda f: ["輪の赤の記録"],)
-        with unittest.mock.patch.object(self.duties.MODULES["tdd"], "DUTIES", flag):
-            got = self.duties.accept_problems(self.place, self.repo, self.rev, reply)
-        self.assertEqual(got, [("T", "型 tdd の単位 T の義務: 輪の赤の記録")])
-        with unittest.mock.patch.object(self.duties.MODULES["variant"], "DUTIES", flag):
-            self.assertEqual(self.duties.accept_problems(self.place, self.repo, self.rev, reply), [], "variant の義務は当てない")
+        # 箱の義務（変える段の change_named_or_gone。両方の型に同じ）は外し、型の義務の表を引く型だけを見る
+        with unittest.mock.patch.dict(self.duties.BOX_DUTIES, {"change": ()}):
+            with unittest.mock.patch.object(self.duties.MODULES["tdd"], "DUTIES", flag):
+                got = self.duties.accept_problems(self.place, self.repo, self.rev, reply)
+            self.assertEqual(got, [("T", "型 tdd の単位 T の義務: 輪の赤の記録")])
+            with unittest.mock.patch.object(self.duties.MODULES["variant"], "DUTIES", flag):
+                self.assertEqual(self.duties.accept_problems(self.place, self.repo, self.rev, reply), [], "variant の義務は当てない")
 
 
 
@@ -893,6 +1098,9 @@ class AcceptWiringCase(tg.GroupChildScriptsCase):
         good = self.weapon_accept("pin", {"changes": [{**change, "closure": {**change["closure"], "sites": [site]}}]})
         self.assertFalse([ln for ln in self.duty_lines(good) if "sites の行" in ln], good)
 
+    MEAN3 = "test_stats.py::TestStats::test_mean_of_three"   # 起点の木で failure（分母の誤り）・直した木で緑
+    NAMED = {"evidence": {"named": [{"unit_key": tg.MEAN, "test": MEAN3}]}}   # 変える段の箱の義務（F2）を満たす名指し
+
     def variant_change(self, site, **extra):
         change = tg._change(tg.MEAN, ["stats.py"])
         return {**change, "closure": {**change["closure"], "sites": [site]}, **extra}
@@ -902,13 +1110,14 @@ class AcceptWiringCase(tg.GroupChildScriptsCase):
         self.weapon_start("variant", {"class_query": {"how": self.HOW, "counts": "defects", "total": 1}})
         self.fix_mean()
         site = {"site": "stats.py:5", "red_seen": True, "path": "stats.py", "at": "stats.py:5", "fixed_by": ["stats.py:5-5"]}
+        good = self.weapon_accept("variant", {"changes": [self.variant_change(site)], **self.NAMED})
+        self.assertEqual(self.duty_lines(good), [], good)
+        self.assertTrue(good["ok"], "最後の回でない 1 回目で通る（最後の回の諦めで空になった訳ではない）")
         for field, value, text in (("at", "stats.py:9", "が判定の問いの当たりの行に無い"),
                                    ("fixed_by", ["stats.py:9-9"], "が差分の塊と重ならない")):
             with self.subTest(field=field):
-                out = self.weapon_accept("variant", {"changes": [self.variant_change({**site, field: value})]})
+                out = self.weapon_accept("variant", {"changes": [self.variant_change({**site, field: value})], **self.NAMED})
                 self.assertTrue(any(text in ln for ln in self.duty_lines(out)), out["reason"])
-        good = self.weapon_accept("variant", {"changes": [self.variant_change(site)]})
-        self.assertEqual(self.duty_lines(good), [], good)
 
     def test_the_accept_asks_each_variant_unit_for_its_own_red(self):
         """variant: 同じ周のほかの単位だけが赤を見た返答を拒む（周の全体の赤を見る F135 は通す）"""
@@ -916,7 +1125,7 @@ class AcceptWiringCase(tg.GroupChildScriptsCase):
         site = {"site": "stats.py:5", "red_seen": False}
         self.weapon_start("variant", {"class_query": {"how": self.HOW, "counts": "defects", "total": 1}})
         self.fix_mean()
-        out = self.weapon_accept("variant", {"changes": [self.variant_change(site)]})
+        out = self.weapon_accept("variant", {"changes": [self.variant_change(site)], **self.NAMED})
         self.assertTrue(any("sites のどれにも赤を見た記録（red_seen）が無い" in ln for ln in self.duty_lines(out)), out["reason"])
         other = {"unit_key": "other", "closure": {"sites": [{"site": "x", "red_seen": True}]}}
         self.assertEqual(recount._after_problems({"fix_closure": {"status": "clean"}, "changes": [self.variant_change(site), other]},
@@ -929,7 +1138,7 @@ class AcceptWiringCase(tg.GroupChildScriptsCase):
         site = {"site": "stats.py:5", "red_seen": True, "path": "stats.py", "at": "stats.py:5"}
         for gone in ({}, {"fixed_by": []}):
             with self.subTest(fixed_by=gone):
-                out = self.weapon_accept("variant", {"changes": [self.variant_change({**site, **gone})]})
+                out = self.weapon_accept("variant", {"changes": [self.variant_change({**site, **gone})], **self.NAMED})
                 self.assertTrue(any("fixed_by が無い" in ln for ln in self.duty_lines(out)), out["reason"])
 
     def test_a_unit_the_query_cannot_bind_to_lines_skips_the_at_check_but_not_the_red(self):
@@ -939,13 +1148,13 @@ class AcceptWiringCase(tg.GroupChildScriptsCase):
         self.weapon_start("variant", {"class_query": loose})
         self.fix_mean()
         site = {"site": "stats.py:5", "red_seen": True, "path": "stats.py", "at": "stats.py:9", "fixed_by": ["stats.py:5-5"]}
-        out = self.weapon_accept("variant", {"changes": [self.variant_change(site)]})
+        out = self.weapon_accept("variant", {"changes": [self.variant_change(site)], **self.NAMED})
         self.assertEqual(self.duty_lines(out), [], out["reason"])
-        out = self.weapon_accept("variant", {"changes": [self.variant_change({k: v for k, v in site.items() if k != "fixed_by"})]})
+        out = self.weapon_accept("variant", {"changes": [self.variant_change({k: v for k, v in site.items() if k != "fixed_by"})], **self.NAMED})
         self.assertEqual(self.duty_lines(out), [], out["reason"])
-        out = self.weapon_accept("variant", {"changes": [self.variant_change({**site, "fixed_by": ["stats.py:9-9"]})]})
+        out = self.weapon_accept("variant", {"changes": [self.variant_change({**site, "fixed_by": ["stats.py:9-9"]})], **self.NAMED})
         self.assertTrue(any("が差分の塊と重ならない" in ln for ln in self.duty_lines(out)), out["reason"])
-        out = self.weapon_accept("variant", {"changes": [self.variant_change({**site, "red_seen": False})]})
+        out = self.weapon_accept("variant", {"changes": [self.variant_change({**site, "red_seen": False})], **self.NAMED})
         self.assertEqual(len(self.duty_lines(out)), 1, out["reason"])
 
     def test_a_unit_without_a_query_skips_the_sites_shape_but_not_the_red(self):
@@ -953,11 +1162,91 @@ class AcceptWiringCase(tg.GroupChildScriptsCase):
         self.weapon_start("variant")
         self.fix_mean()
         site = {"site": "stats.py:5", "red_seen": True, "path": "stats.py"}
-        out = self.weapon_accept("variant", {"changes": [self.variant_change(site)]})
+        out = self.weapon_accept("variant", {"changes": [self.variant_change(site)], **self.NAMED})
         self.assertEqual(self.duty_lines(out), [], out["reason"])
-        out = self.weapon_accept("variant", {"changes": [self.variant_change({**site, "red_seen": False})]})
+        out = self.weapon_accept("variant", {"changes": [self.variant_change({**site, "red_seen": False})], **self.NAMED})
         self.assertEqual(len(self.duty_lines(out)), 1, out["reason"])
         self.assertTrue(any("赤を見た記録" in ln for ln in self.duty_lines(out)), out["reason"])
+
+    # ---- 変える段の箱の義務（F2。docs/plans/2026-10-24-fix-weapons.md の 11.6 の F2 の縛る試験の 1・3）
+    BY_NAME = '''
+import pathlib, sys, unittest, xml.etree.ElementTree as ET
+sys.dont_write_bytecode = True
+sys.path.insert(0, ".")
+out, args = sys.argv[1], sys.argv[2:]
+named = [a for i, a in enumerate(args) if "::" in a and (i == 0 or args[i - 1] != "-k")]
+words = [w.strip() for w in args[args.index("-k") + 1].split(" or ")] if "-k" in args else None
+rows = []
+class R(unittest.TestResult):
+    def addSuccess(self, t): rows.append((t, None, ""))
+    def addFailure(self, t, e): rows.append((t, "failure", str(e[1])))
+    def addError(self, t, e): rows.append((t, "error", str(e[1])))
+    def addSkip(self, t, r): rows.append((t, "skipped", ""))
+loader = unittest.defaultTestLoader
+def flat(s):
+    for t in s:
+        yield from (flat(t) if isinstance(t, unittest.TestSuite) else [t])
+if named:   # 名指しだけを回す（起点の木の結末）
+    for n in named:
+        path, _, rest = n.partition("::")
+        mod = pathlib.Path(path).resolve().relative_to(pathlib.Path.cwd().resolve()).with_suffix("").as_posix().replace("/", ".")
+        loader.loadTestsFromName(mod + "." + rest.replace("::", ".")).run(R())
+else:   # 受け付けの回: -k の語を id に含む試験だけ（無ければ全部）
+    for t in flat(loader.discover(".", pattern="test_*.py", top_level_dir=".")):
+        if words is None or any(w in t.id() for w in words):
+            t.run(R())
+root = ET.Element("testsuite")
+for t, kind, message in rows:
+    cls, name = t.id().rsplit(".", 1)
+    tc = ET.SubElement(root, "testcase", classname=cls, name=name)
+    if kind:
+        ET.SubElement(tc, kind, message=message)
+ET.ElementTree(root).write(out)
+sys.exit(0 if all(k in (None, "skipped") for _, k, _ in rows) else 1)
+'''
+    NO_OLD = ("import unittest\n\n\nclass TestSource(unittest.TestCase):\n    def test_no_old_denominator(self):\n"
+              "        with open('sta' + 'ts.py', encoding='utf-8') as f:\n            self.assertNotIn('(len(xs) - 1)', f.read())\n")
+
+    def test_the_accept_rejects_a_variant_return_that_names_no_test_and_removes_no_name(self):
+        """variant: 名指しの試験も消す名も無い単位を拒む（変える段の箱の義務）。起点の木で赤・返した木で緑の試験を evidence.named に書いた同じ返答は
+        1 回目で通る"""
+        self.weapon_start("variant", {"class_query": {"how": self.HOW, "counts": "defects", "total": 1}})
+        self.fix_mean()
+        site = {"site": "stats.py:5", "red_seen": True, "path": "stats.py", "at": "stats.py:5", "fixed_by": ["stats.py:5-5"]}
+        bad = self.weapon_accept("variant", {"changes": [self.variant_change(site)]})
+        self.assertTrue(any("名指しの試験が起点の木で赤（failure）" in ln for ln in self.duty_lines(bad)), bad["reason"])
+        good = self.weapon_accept("variant", {"changes": [self.variant_change(site)], **self.NAMED})
+        self.assertEqual(self.duty_lines(good), [], good)
+        self.assertTrue(good["ok"], good)
+
+    def test_the_accept_rejects_a_named_test_that_already_passes_at_the_base(self):
+        self.weapon_start("variant", {"class_query": {"how": self.HOW, "counts": "defects", "total": 1}})
+        self.fix_mean()
+        site = {"site": "stats.py:5", "red_seen": True, "path": "stats.py", "at": "stats.py:5", "fixed_by": ["stats.py:5-5"]}
+        clamp = "test_stats.py::TestStats::test_clamp_within_range"
+        out = self.weapon_accept("variant", {"changes": [self.variant_change(site)],
+                                             "evidence": {"named": [{"unit_key": tg.MEAN, "test": clamp}]}})
+        self.assertTrue(any("名指しの試験が起点の木で赤（failure）" in ln for ln in self.duty_lines(out)), out["reason"])
+
+    def test_a_named_test_in_a_file_the_change_does_not_reach_enters_the_selection_and_the_returns(self):
+        """evidence.named の試験は受け付けの試験の選びに入る（変更から辿れないファイルの試験も走る）。書かなければ走らず、返した木の結末が無いので
+        拒む。通した返答の evidence.named は returns/ の units[].named に入る"""
+        (self.repo / "test_source.py").write_text(self.NO_OLD, encoding="utf-8")
+        git(self.repo, "add", "-A")
+        git(self.repo, "-c", "user.email=t@example.invalid", "-c", "user.name=t", "commit", "-qm", "変更から辿れない試験")
+        self.suite.write_text(self.BY_NAME, encoding="utf-8")
+        self.weapon_start("variant", {"class_query": {"how": self.HOW, "counts": "defects", "total": 1}})
+        self.fix_mean()
+        site = {"site": "stats.py:5", "red_seen": True, "path": "stats.py", "at": "stats.py:5", "fixed_by": ["stats.py:5-5"]}
+        named = "test_source.py::TestSource::test_no_old_denominator"
+        out = self.weapon_accept("variant", {"changes": [self.variant_change(site)]})
+        self.assertTrue(any("名指しの試験が起点の木で赤（failure）" in ln for ln in self.duty_lines(out)), out["reason"])
+        good = self.weapon_accept("variant", {"changes": [self.variant_change(site)],
+                                              "evidence": {"named": [{"unit_key": tg.MEAN, "test": named}]}})
+        self.assertEqual(self.duty_lines(good), [], good)
+        self.assertTrue(good["ok"], good)
+        (ret,) = [json.loads(p.read_text(encoding="utf-8")) for p in sorted((self.place / "returns").glob("*.json"))]
+        self.assertEqual([u["named"] for u in ret["units"]], [[named]])
 
     def files(self) -> dict:
         """組の子の run の置き場のファイルの名と中身の組（走らせる前と後を比べる。ファイルの名の表を持たない）"""
