@@ -22,7 +22,6 @@ sys.path[:0] = [str(Path(__file__).resolve().parents[2] / ".shared"), str(Path(_
 import ports  # noqa: E402
 
 import oneline  # noqa: E402
-import rolekit  # noqa: E402
 import writelog  # noqa: E402
 
 from src import board, intake, runvals, writers  # noqa: E402
@@ -33,7 +32,7 @@ SKIP = (ports.RUNTIME_COPY_PREFIX,)
 
 
 def main() -> dict:
-    raw = writers.reply_of(os.environ, "first", lambda v: ports.polyfill("skip_value").value(v) is None)
+    reply = writers.reply_of(os.environ, "first", lambda v: ports.polyfill("skip_value").value(v) is None)
     consulted = os.environ.get("INPUTS_CONSULTED", "").strip().lower() == "true"
     if consulted:
         return {"ok": False, "done": False, "reason": board.CONSULTED, "reason_file": ""}
@@ -41,14 +40,11 @@ def main() -> dict:
     weapon = writers.current(place)
     group = intake.load(place).get("group")
     owed = writers.owed(place, board.group_owed(place, group["unit_ids"] if group else None))
-    if raw is None:
+    if reply is None:
         _, excused = board.fix_duty(place, owed)
         board.merge_units(place, board.FIX_UNITS_FILE, board.unit_outcomes(owed, {}, excused=excused))
         writers.finished(place, weapon)
         return {"ok": True, "done": True, "reason": NOT_LAUNCHED, "reason_file": ""}
-    reply, why = rolekit.parse_reply(raw)
-    if reply is None:
-        raise ValueError(why)
     name = writers.accept_name("first", weapon)
     iteration, stopped = board.round_number(place, name)
     if stopped:

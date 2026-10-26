@@ -488,13 +488,53 @@ nodes:
                   additionalProperties: false
                   required: [prompt, go, iteration, writer]
                   properties:
-                    prompt: {type: string}
+                    prompt: {type: string}   # 指示の字。D1 の間は variant の周だけ（型の block の周は空。型の block が指示を組む）
                     go: {type: boolean}
                     iteration: {type: integer, minimum: 1}
-                    writer: {type: string}   # 今の周に起こす書き手の node の名（writer-pick が選んだ型の書き手。go が偽なら空）
+                    writer: {type: string}   # 今の周に起こす書き手の include の id（writer-pick が選んだ型。w-<型>・裁定の後 wr-<型>。D1 の間の variant だけ今の node の名。go が偽なら空）
+                    order:
+                      type: object
+                      description: 'json(shared:weapon-order.schema.json): 今の周の型の注文 orders/<型>.json（variant の周と go が偽の周は無い）'
+                      additionalProperties: false
+                      required: [type, run_id, path]
+                      properties:
+                        type: {type: string, enum: [archon_artifact]}
+                        run_id: {type: string}
+                        path: {type: string}
+                    slots:
+                      type: object
+                      description: 'json(shared:writer-slots.schema.json): 今の周に型の block へ渡す slots のファイル slots-<id>-<n>.json（variant の周と go が偽の周は無い）'
+                      additionalProperties: false
+                      required: [type, run_id, path]
+                      properties:
+                        type: {type: string, enum: [archon_artifact]}
+                        run_id: {type: string}
+                        path: {type: string}
 
-              - id: pin-ruled
-                description: '型 pin の書き手（注文 orders/pin.json の単位を受ける）'
+              - id: wr-pin
+                include: works-factory-weapon-pin
+                depends_on: [fix-ruled-prep]
+                when: "$fix-ruled-prep.output.go == true && $fix-ruled-prep.output.writer == 'wr-pin'"
+                with: &wr_with
+                  order: "$fix-ruled-prep.output.order"
+                  slots: "$fix-ruled-prep.output.slots"
+
+              - id: wr-tidy
+                include: works-factory-weapon-tidy
+                depends_on: [fix-ruled-prep, wr-pin]
+                trigger_rule: none_failed_min_one_success
+                when: "$fix-ruled-prep.output.go == true && $fix-ruled-prep.output.writer == 'wr-tidy'"
+                with: *wr_with
+
+              - id: wr-static
+                include: works-factory-weapon-static
+                depends_on: [fix-ruled-prep, wr-tidy]
+                trigger_rule: none_failed_min_one_success
+                when: "$fix-ruled-prep.output.go == true && $fix-ruled-prep.output.writer == 'wr-static'"
+                with: *wr_with
+
+              - id: variant-ruled
+                description: '型 variant の書き手（注文 orders/variant.json の単位を受ける。D1 の間は型の block にせず、この node のまま）'
                 <<: &writer_launch
                   model: '@wf-fix-writers'
                   settingSources: [user]
@@ -502,9 +542,11 @@ nodes:
                   sandbox: {enabled: true, allowUnsandboxedCommands: false}
                   idle_timeout: 1728000000
                   retry: {max_attempts: 2, on_error: all}
+                allowed_tools: [Read, Grep, Glob, Edit, Write, Bash, WebSearch, WebFetch, Agent]   # 項目ごとの下請けを起こす（付録 A の F101）
                 prompt: "$fix-ruled-prep.output.prompt"
-                depends_on: [fix-ruled-prep]
-                when: "$fix-ruled-prep.output.go == true && $fix-ruled-prep.output.writer == 'pin'"
+                depends_on: [fix-ruled-prep, wr-static]
+                trigger_rule: none_failed_min_one_success
+                when: "$fix-ruled-prep.output.go == true && $fix-ruled-prep.output.writer == 'variant-ruled'"
                 output_format: &fix_reply
                   type: object
                   required: [changes, fix_closure, gates_changed, interactions, mechanism_changed, not_done, path_changed, plan_faces, premise_drift, seams_changed, security_surface_changed, wrote_refs]
@@ -795,55 +837,26 @@ nodes:
                                 enum: [docs, prompts, config, code]
                               did: {type: string, minLength: 1}
 
-              - id: tidy-ruled
-                description: '型 tidy の書き手（注文 orders/tidy.json の単位を受ける）'
-                <<: *writer_launch
-                prompt: "$fix-ruled-prep.output.prompt"
-                depends_on: [fix-ruled-prep, pin-ruled]
-                trigger_rule: none_failed_min_one_success
-                when: "$fix-ruled-prep.output.go == true && $fix-ruled-prep.output.writer == 'tidy'"
-                output_format: *fix_reply
-
-              - id: static-ruled
-                description: '型 static の書き手（注文 orders/static.json の単位を受ける）'
-                <<: *writer_launch
-                prompt: "$fix-ruled-prep.output.prompt"
-                depends_on: [fix-ruled-prep, tidy-ruled]
-                trigger_rule: none_failed_min_one_success
-                when: "$fix-ruled-prep.output.go == true && $fix-ruled-prep.output.writer == 'static'"
-                output_format: *fix_reply
-
-              - id: variant-ruled
-                description: '型 variant の書き手（注文 orders/variant.json の単位を受ける）'
-                <<: *writer_launch
-                allowed_tools: [Read, Grep, Glob, Edit, Write, Bash, WebSearch, WebFetch, Agent]   # 項目ごとの下請けを起こす（付録 A の F101）
-                prompt: "$fix-ruled-prep.output.prompt"
-                depends_on: [fix-ruled-prep, static-ruled]
-                trigger_rule: none_failed_min_one_success
-                when: "$fix-ruled-prep.output.go == true && $fix-ruled-prep.output.writer == 'variant'"
-                output_format: *fix_reply
-
-              - id: remove-ruled
-                description: '型 remove の書き手（注文 orders/remove.json の単位を受ける）'
-                <<: *writer_launch
-                prompt: "$fix-ruled-prep.output.prompt"
+              - id: wr-remove
+                include: works-factory-weapon-remove
                 depends_on: [fix-ruled-prep, variant-ruled]
                 trigger_rule: none_failed_min_one_success
-                when: "$fix-ruled-prep.output.go == true && $fix-ruled-prep.output.writer == 'remove'"
-                output_format: *fix_reply
+                when: "$fix-ruled-prep.output.go == true && $fix-ruled-prep.output.writer == 'wr-remove'"
+                with: *wr_with
 
               - id: ruled-consult-check
                 script: consult_check
                 runtime: uv
                 mutates_checkout: false
-                depends_on: [pin-ruled, tidy-ruled, static-ruled, variant-ruled, remove-ruled]
+                depends_on: [wr-pin, wr-tidy, wr-static, variant-ruled, wr-remove]
                 trigger_rule: none_failed_min_one_success
                 with:
-                  reply_pin: {from: "$pin-ruled.output", if_skipped: null}
-                  reply_tidy: {from: "$tidy-ruled.output", if_skipped: null}
-                  reply_static: {from: "$static-ruled.output", if_skipped: null}
-                  reply_variant: {from: "$variant-ruled.output", if_skipped: null}
-                  reply_remove: {from: "$remove-ruled.output", if_skipped: null}
+                  <<: &wr_replies
+                      reply_pin: {from: "$wr-pin.output.reply", if_skipped: null}
+                      reply_tidy: {from: "$wr-tidy.output.reply", if_skipped: null}
+                      reply_static: {from: "$wr-static.output.reply", if_skipped: null}
+                      reply_variant: {from: "$variant-ruled.output", if_skipped: null}
+                      reply_remove: {from: "$wr-remove.output.reply", if_skipped: null}
                   pass: ruled
                 output_format: &consult_check_out
                   type: object
@@ -935,11 +948,7 @@ nodes:
                 depends_on: [fix-ruled-prep, ruled-consult-accept]
                 trigger_rule: none_failed_min_one_success
                 with:
-                  reply_pin: {from: "$pin-ruled.output", if_skipped: null}
-                  reply_tidy: {from: "$tidy-ruled.output", if_skipped: null}
-                  reply_static: {from: "$static-ruled.output", if_skipped: null}
-                  reply_variant: {from: "$variant-ruled.output", if_skipped: null}
-                  reply_remove: {from: "$remove-ruled.output", if_skipped: null}
+                  <<: *wr_replies
                   consulted: {from: "$ruled-consult-accept.output.consulted", if_skipped: false}
                 output_format: *accept_out
 
@@ -1313,73 +1322,66 @@ nodes:
                 mutates_checkout: false
                 output_format: *fix_prep_out
 
-              - id: tdd-close
-                description: '型 tdd-close の書き手（注文 orders/tdd.json の単位を受ける）'
-                <<: *writer_launch
-                prompt: "$fix-prep.output.prompt"
+              - id: w-tdd-close
+                include: works-factory-weapon-tdd-close
                 depends_on: [fix-prep]
-                when: "$fix-prep.output.go == true && $fix-prep.output.writer == 'tdd-close'"
-                output_format: *fix_reply
+                when: "$fix-prep.output.go == true && $fix-prep.output.writer == 'w-tdd-close'"
+                with: &w_with
+                  order: "$fix-prep.output.order"
+                  slots: "$fix-prep.output.slots"
 
-              - id: pin
-                description: '型 pin の書き手（注文 orders/pin.json の単位を受ける）'
-                <<: *writer_launch
-                prompt: "$fix-prep.output.prompt"
-                depends_on: [fix-prep, tdd-close]
+              - id: w-pin
+                include: works-factory-weapon-pin
+                depends_on: [fix-prep, w-tdd-close]
                 trigger_rule: none_failed_min_one_success
-                when: "$fix-prep.output.go == true && $fix-prep.output.writer == 'pin'"
-                output_format: *fix_reply
+                when: "$fix-prep.output.go == true && $fix-prep.output.writer == 'w-pin'"
+                with: *w_with
 
-              - id: tidy
-                description: '型 tidy の書き手（注文 orders/tidy.json の単位を受ける）'
-                <<: *writer_launch
-                prompt: "$fix-prep.output.prompt"
-                depends_on: [fix-prep, pin]
+              - id: w-tidy
+                include: works-factory-weapon-tidy
+                depends_on: [fix-prep, w-pin]
                 trigger_rule: none_failed_min_one_success
-                when: "$fix-prep.output.go == true && $fix-prep.output.writer == 'tidy'"
-                output_format: *fix_reply
+                when: "$fix-prep.output.go == true && $fix-prep.output.writer == 'w-tidy'"
+                with: *w_with
 
-              - id: static
-                description: '型 static の書き手（注文 orders/static.json の単位を受ける）'
-                <<: *writer_launch
-                prompt: "$fix-prep.output.prompt"
-                depends_on: [fix-prep, tidy]
+              - id: w-static
+                include: works-factory-weapon-static
+                depends_on: [fix-prep, w-tidy]
                 trigger_rule: none_failed_min_one_success
-                when: "$fix-prep.output.go == true && $fix-prep.output.writer == 'static'"
-                output_format: *fix_reply
+                when: "$fix-prep.output.go == true && $fix-prep.output.writer == 'w-static'"
+                with: *w_with
 
               - id: variant
-                description: '型 variant の書き手（注文 orders/variant.json の単位を受ける）'
+                description: '型 variant の書き手（注文 orders/variant.json の単位を受ける。D1 の間は型の block にせず、この node のまま）'
                 <<: *writer_launch
                 allowed_tools: [Read, Grep, Glob, Edit, Write, Bash, WebSearch, WebFetch, Agent]   # 項目ごとの下請けを起こす（付録 A の F101）
                 prompt: "$fix-prep.output.prompt"
-                depends_on: [fix-prep, static]
+                depends_on: [fix-prep, w-static]
                 trigger_rule: none_failed_min_one_success
                 when: "$fix-prep.output.go == true && $fix-prep.output.writer == 'variant'"
                 output_format: *fix_reply
 
-              - id: remove
-                description: '型 remove の書き手（注文 orders/remove.json の単位を受ける）'
-                <<: *writer_launch
-                prompt: "$fix-prep.output.prompt"
+              - id: w-remove
+                include: works-factory-weapon-remove
                 depends_on: [fix-prep, variant]
                 trigger_rule: none_failed_min_one_success
-                when: "$fix-prep.output.go == true && $fix-prep.output.writer == 'remove'"
-                output_format: *fix_reply
+                when: "$fix-prep.output.go == true && $fix-prep.output.writer == 'w-remove'"
+                with: *w_with
 
               - id: consult-check
                 script: consult_check
                 runtime: uv
                 mutates_checkout: false
-                depends_on: [tdd-close, pin, tidy, static, variant, remove]
+                depends_on: [w-tdd-close, w-pin, w-tidy, w-static, variant, w-remove]
                 trigger_rule: none_failed_min_one_success
                 with:
-                  reply_tdd_close: {from: "$tdd-close.output", if_skipped: null}
-                  reply_pin: {from: "$pin.output", if_skipped: null}
-                  reply_tidy: {from: "$tidy.output", if_skipped: null}
-                  reply_static: {from: "$static.output", if_skipped: null}
-                  reply_variant: {from: "$variant.output", if_skipped: null}
-                  reply_remove: {from: "$remove.output", if_skipped: null}
+                  <<: &w_replies
+                      reply_tdd_close: {from: "$w-tdd-close.output.reply", if_skipped: null}
+                      reply_pin: {from: "$w-pin.output.reply", if_skipped: null}
+                      reply_tidy: {from: "$w-tidy.output.reply", if_skipped: null}
+                      reply_static: {from: "$w-static.output.reply", if_skipped: null}
+                      reply_variant: {from: "$variant.output", if_skipped: null}
+                      reply_remove: {from: "$w-remove.output.reply", if_skipped: null}
                   pass: first
                 output_format: *consult_check_out
 
@@ -1416,12 +1418,7 @@ nodes:
                 depends_on: [fix-prep, consult-accept]
                 trigger_rule: none_failed_min_one_success
                 with:
-                  reply_tdd_close: {from: "$tdd-close.output", if_skipped: null}
-                  reply_pin: {from: "$pin.output", if_skipped: null}
-                  reply_tidy: {from: "$tidy.output", if_skipped: null}
-                  reply_static: {from: "$static.output", if_skipped: null}
-                  reply_variant: {from: "$variant.output", if_skipped: null}
-                  reply_remove: {from: "$remove.output", if_skipped: null}
+                  <<: *w_replies
                   consulted: {from: "$consult-accept.output.consulted", if_skipped: false}
                 output_format: *accept_out
 

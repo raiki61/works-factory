@@ -1316,7 +1316,7 @@ bin/works-factory workflow run works-factory-fix --cwd <対象> \
 
 - 形の照らし `lib/graphloops/engine/schema.py` に `allOf`・`if`・`then`・`not` を足した（`KNOWN_KEYWORDS` にも）。返答の形 `writer-reply.schema.json` の `precedent` が条件つきの必須（`from_judge_row` が真でなければ `problem` が要る、など）を持ち、口 `ports.shape_errors` が知らない語を拒むため。意味は JSON Schema 2020-12 のまま（`allOf` は全部の誤りの和、`if` が通る時だけ `then`、`else` は持たない、`not` は部分が通れば誤り）。
 - 入力の読み手の照らし `tests/layers/scan.py` の `_inputs_read` は、block の `scripts/`・`src/` が import する `.shared` 直下のモジュールの `INPUTS_<名>` の字も、入力の読み手に数える。本体 `writerblock` が `INPUTS_ORDER`・`INPUTS_SLOTS` を読む（block の `scripts/` の字には現れない）ので、数えないと宣言した入力に読み手が無いと誤って赤になる。数えるのは `INPUTS_<名>` の字そのものだけ（`INPUTS_{` を組む汎用の句は数えない。`ports.py` などの汎用の字で、読み手が在ると誤って数えるため）。
-- `writerblock.prep` は、続きの周（`resume`・`overflow_answer`・`queued`）で `unattended`・`overlay_file` を空にし、`ask_variant` は slots の `ask` が偽なら偽にする。今の `writer_values` と同じ字にするため（組み上がる指示を割る前と変えない）。
+- `writerblock.prep` は、続きの周（`resume`・`overflow_answer`・`queued`）で `unattended`・`overlay_file`・`summary_file`（`SUMMARY` が真の型だけ）を空にし、`ask_variant` は slots の `ask` が偽なら偽にする。今の `writer_values` と同じ字にするため（組み上がる指示を割る前と変えない）。
 - slots の `subagents` は `required` の無い object で、空の `{}` を通す。下書きの 11.4 の 5 は「空の並び」と書くが、object なので字の誤りと読んだ（2.3）。
 - 本体の置き場は `.shared/`。決まりの字として E2 の口の並び・E4 の place のファイルの名の句（`.shared/` の口が書く物〔`prompt.emit` の `<node>-prompt-<n>.md`・`writerblock` の `reply-<n>.json`〕を除く）・`tests/layers/scan.py` の `PACK_PORTS`・`.shared/AGENTS.md` の口の一覧を直した。
 

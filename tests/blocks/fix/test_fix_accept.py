@@ -42,6 +42,7 @@ from unittest import mock
 from tests.bin import hermetic
 from tests.bin.gitkit import committed_copy, git
 from tests.blocks import kit
+from tests.blocks.fix import support
 
 _l_SEED = kit.ROOT / "tests" / "e2e" / "target-seed"
 _L_SRC = {"fixboard": "board", "fixgates": "gates", "planscope": "scope", "unitrows": "unitrows", "parking": "parking",
@@ -3878,7 +3879,7 @@ class _XPlace(unittest.TestCase):
     def _x_accept(self, script, reply, iteration, *, units=None, art=None, env_extra=None):
         if units is not None:
             self._x_intake(units, art=art)
-        return self._x_ok(script, art=art, env_extra=env_extra, reply_variant=json.dumps(reply, ensure_ascii=False),
+        return self._x_ok(script, art=art, env_extra=env_extra, reply_variant=support.reply_json(reply),
                           consulted="false", iteration=str(iteration))
 
     def _x_park(self, ruling=None, **claim):
@@ -4027,7 +4028,7 @@ class FixLoopScriptsCase(_XPlace):
     def test_consulted_turn_and_skipped_fixer(self):
         out = self._x_accept("fix_accept", {"changes": []}, 1)
         self.assertFalse(out["ok"])
-        code, out, err = self._x_run("fix_accept", reply_variant="{}", consulted="true", iteration="1")
+        code, out, err = self._x_run("fix_accept", reply_variant=support.reply_json({}), consulted="true", iteration="1")
         self.assertEqual((code, out["ok"], out["done"]), (0, False, False), err)
         code, out, err = self._x_run("fix_accept", reply_variant="null", consulted="false", iteration="1")
         self.assertEqual((code, out["ok"], out["done"]), (0, True, True), err)
@@ -4239,7 +4240,7 @@ class FixLoopScriptsCase(_XPlace):
             with self.subTest(script=script):
                 (self.place / f"rejects-{name}.json").unlink(missing_ok=True)
                 (self.place / f"rejects-{name}.json").mkdir()
-                out = self._x_ok(script, reply_variant=json.dumps({"changes": [], "rulings": []}), consulted="false", iteration="1")
+                out = self._x_ok(script, reply_variant=support.reply_json({"changes": []}), consulted="false", iteration="1")
                 self.assertEqual((out["ok"], out["done"], out["reason_file"]), (False, True, ""), out)
                 self.assertIn("拒否の控えが扱えない", out["reason"])
 
@@ -4255,7 +4256,7 @@ class FixLoopScriptsCase(_XPlace):
         self.assertTrue(out["reason"].startswith(self.board.QUEUED), out["reason"])
         self.assertEqual(len(rolekit.rejected(self.place, "fix-accept-variant")), 2, "積んだ回は控えに数えない")
         self.assertEqual((self.repo / "request_ok.json").read_bytes(), before + b"\n", "積んだ回は作業ツリーを変えない")
-        out = self._x_ok("consult_check", reply_variant=json.dumps(reply, ensure_ascii=False), **{"pass": "first"})
+        out = self._x_ok("consult_check", reply_variant=support.reply_json(reply), **{"pass": "first"})
         self.assertEqual((out["consulted"], out["go"]), (True, True), out)
         self.assertIn("request_ok.json", out["prompt"])
 
@@ -4263,7 +4264,7 @@ class FixLoopScriptsCase(_XPlace):
         """相談で deny された後の同じはみ出しは、機械が段の頭の木に戻して受け付ける"""
         reply, before = self._x_overflow()
         self.assertFalse(self._x_accept("fix_accept", reply, 1)["ok"])
-        out = self._x_ok("consult_check", reply_variant=json.dumps(reply, ensure_ascii=False), **{"pass": "first"})
+        out = self._x_ok("consult_check", reply_variant=support.reply_json(reply), **{"pass": "first"})
         self.assertTrue(out["go"], out)
         answer = {"answers": [{"ask": 1, "decision": "deny", "reason": "見本の入力は直しに要らないので範囲に足さない"}]}
         out = self._x_ok("consult_accept", answer=json.dumps(answer, ensure_ascii=False), **{"pass": "first"})

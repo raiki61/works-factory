@@ -26,6 +26,7 @@ import unittest
 import yaml
 
 from tests.blocks import kit
+from tests.blocks.fix import support
 
 BLOCK = kit.BLOCKS / "fix"
 OOS_WHY = "README の節は別の依頼で書き直す"
@@ -184,16 +185,17 @@ class SummaryCase(unittest.TestCase):
 
 
 class ConsultTypeCase(unittest.TestCase):
-    """修正役の頼みの型の正本は修正役の節（fixer・fix-ruled）の output_format の consult だけ（受け付けの summary_problem は型より厳しい
+    """修正役の頼みの型の正本は書き手の返答の形（writer-reply.schema.json）の consult だけ（受け付けの summary_problem は型より厳しい
     所だけを見る。#844 の指摘）。理由の字の下限は受け付けの MIN_WHY と同じ字"""
 
     def fmt(self) -> dict:
+        """正本は .shared/schemas/writer-reply.schema.json（型の block の AI の node と、D1 の間 fix に残る variant の node の output_format が
+        字のまま写す。写しの照らしは tests/workflows/test_weapon_blocks.py）"""
         nodes = _nodes()
-        writers = kit.load("fix", "writers")
-        names = [writers.node(p, w) for p in writers.SEQUENCE for w in writers.SEQUENCE[p]]
-        for n in names:   # 型ごとの書き手は同じ返答の形
-            self.assertEqual(nodes[n]["output_format"], nodes["variant-ruled"]["output_format"])
-        return nodes["variant-ruled"]["output_format"]
+        shape = json.loads((kit.SHARED / "schemas" / "writer-reply.schema.json").read_text(encoding="utf-8"))
+        for n in ("variant", "variant-ruled"):   # D1 の間 fix に残る書き手は同じ返答の形
+            self.assertEqual(nodes[n]["output_format"], shape)
+        return shape
 
     def check(self, ask) -> list:
         """output_format の consult の欄の型に、ask 1 行の並びを当てた誤り"""
@@ -709,14 +711,14 @@ class ConsultScriptsCase(unittest.TestCase):
         """返答の consult の頼みで答えの役の指示を組んで go: true、答えを受けて答えのファイルを書く"""
         reply_ = {"changes": [], "consult": [{"item": 1, "paths": ["docs/notes.md"], "tests": [],
                                               "why": "直しに伴う変更の記録を docs に残す要がある（範囲の外）", **SUMMARY}]}
-        out = self.run.script("consult_check", reply_variant=json.dumps(reply_, ensure_ascii=False), **{"pass": "first"})
+        out = self.run.script("consult_check", reply_variant=support.reply_json(reply_), **{"pass": "first"})
         self.assertEqual(set(out), {"consulted", "go", "prompt"})
         self.assertEqual((out["consulted"], out["go"]), (True, True), out)
         self.assertIn(str(self.plan_reply), out["prompt"])
         self.assertIn("docs/notes.md", out["prompt"])
         self.assertIn("# Scope consultation (from the fixing stage)", out["prompt"])
         self.assertEqual((self.place / "consult-answer-prompt-1.md").read_text(encoding="utf-8"), out["prompt"])
-        out = self.run.script("consult_check", reply_variant=json.dumps({"changes": []}), **{"pass": "first"})
+        out = self.run.script("consult_check", reply_variant=support.reply_json({"changes": []}), **{"pass": "first"})
         self.assertEqual((out["consulted"], out["go"], out["prompt"]), (False, False, ""))
         answer = {"answers": [{"ask": 1, "decision": "allow", "paths": ["docs/notes.md"], "tests": [], "spec": "",
                                "reason": "記録を残すのは直しに伴う変更なので足してよい"}]}
@@ -731,7 +733,7 @@ class ConsultScriptsCase(unittest.TestCase):
         頼みの行を unavailable で残す"""
         reply_ = {"changes": [], "consult": [{"item": 1, "paths": ["docs/notes.md"], "tests": [],
                                               "why": "直しに伴う変更の記録を docs に残す要がある（範囲の外）", **SUMMARY}]}
-        out = self.run.script("consult_check", reply_variant=json.dumps(reply_, ensure_ascii=False), **{"pass": "ruled"})
+        out = self.run.script("consult_check", reply_variant=support.reply_json(reply_), **{"pass": "ruled"})
         self.assertEqual((out["consulted"], out["go"]), (True, True), out)
         self.assertTrue((self.place / "ruled-consult-answer-prompt-1.md").is_file())
         self.assertFalse((self.place / "consult-answer-prompt-1.md").exists())
@@ -745,7 +747,7 @@ class ConsultScriptsCase(unittest.TestCase):
     def test_refused_only_ask_does_not_launch(self):
         """先の確かめで全部断った頼みは答えの役を起こさない（consulted: true・go: false・prompt は空）"""
         reply_ = {"changes": [], "consult": [{"item": 1, "paths": ["../outside.md"], "tests": [], "why": WHY, **SUMMARY}]}
-        out = self.run.script("consult_check", reply_variant=json.dumps(reply_, ensure_ascii=False), **{"pass": "first"})
+        out = self.run.script("consult_check", reply_variant=support.reply_json(reply_), **{"pass": "first"})
         self.assertEqual((out["consulted"], out["go"], out["prompt"]), (True, False, ""))
         out = self.run.script("consult_accept", answer="null", **{"pass": "first"})
         (row,) = conflict.plan_asks(self.place)

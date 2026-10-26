@@ -114,15 +114,15 @@ READS_OWNER = "fix"   # 読んだ証拠の索引の持ち主（reads.index_name�
 
 
 def read_stages(place) -> list:
-    """読んだ証拠を集める修正の段 [(役, 段の頭の印のファイル, 指示書)]: 1 回目の段と裁定の後の段の型ごとの書き手（src/writers.nodes）。
+    """読んだ証拠を集める修正の段 [(役, 段の頭の印のファイル, 指示書)]: 1 回目の段と裁定の後の段の型ごとの書き手（src/writers.node・prompt_file）。
     型は段の中で順に回り、段の頭の木の控えは型を選ぶたびに書き直すので、印はその書き手の 1 回目の指示書（組んだ時刻から後を集める）"""
-    from src import prompts, writers
+    from src import writers
     p = pathlib.Path(place)
     out = []
     for pass_ in writers.SEQUENCE:
-        for node in writers.nodes(pass_):
-            first = prompts.round_file(p, node)
-            out.append((node, first if first is not None else p / f"{node}-prompt-1.md", first))
+        for weapon in writers.SEQUENCE[pass_]:
+            node, first = writers.node(pass_, weapon), writers.prompt_file(p, pass_, weapon)   # 型の block の指示は block の place の中
+            out.append((node, first, first if first.is_file() else None))
     return out
 
 

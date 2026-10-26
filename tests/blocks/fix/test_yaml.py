@@ -16,8 +16,7 @@ if str(ROOT / "lib") not in sys.path:
 
 import rolekit  # noqa: E402
 
-WRITERS = ("tdd-close", "pin", "tidy", "static", "variant", "remove", "pin-ruled", "tidy-ruled", "static-ruled", "variant-ruled",
-           "remove-ruled")   # 型ごとの書き手（今の修正役 fixer・fix-ruled を型ごとに分けた物。docs/plans/2026-10-25-fix-weapons-stage1-b.md の 1）
+WRITERS = ("variant", "variant-ruled")   # fix の node のまま残る書き手（D1 の間。ほかの型は型の block の include。D2 で variant も block になれば空）
 AI_NODES = (*WRITERS, "consult-answer", "ruled-consult-answer", "tdd", "tdd-new", "ruler", "clash-fix", "clash-ruled")
 ADDED_AI_NODES = ("suite-fix", "route")   # 作り直しの後に足した役（壊れた起動スクリプトの書き直し。#836・docs/design/fix.md の 19。振り分けの役。
 #                                         今の TDD の役の振り分けの段を輪の外へ出した物。docs/plans/2026-10-24-fix-weapons.md の 4.1 の 3）
@@ -131,7 +130,7 @@ class ConversationCase(unittest.TestCase):
                 self.assertIn(loop, [m["id"] for m in top()[outer]["loop_group"]["nodes"]])
                 group = every()[loop]["loop_group"]
                 self.assertIs(group["fresh_context"], False)
-                self.assertEqual([m["id"] for m in group["nodes"] if is_ai(m)], writers.nodes(pass_))
+                self.assertEqual([m["id"] for m in group["nodes"] if is_ai(m) or "include" in m], writers.nodes(pass_))   # 並びは型の順
                 for w in writers.nodes(pass_):
                     self.assertNotIn("context", every()[w])
 
@@ -150,6 +149,67 @@ class ConversationCase(unittest.TestCase):
                 self.assertEqual([x["id"] for x in group["nodes"]], [answerer])
                 self.assertEqual((group["max_iterations"], group["fresh_context"]), (1, True))
                 self.assertNotIn("context", every()[answerer])
+
+
+class WriterChainCase(unittest.TestCase):
+    """縛る試験 6（docs/design/fix.md の 2.2.1）: 書き手の 2 つの鎖（fix-loop は w-<型>・fix-ruled-loop は wr-<型>）の include の id・並び・
+    depends_on・trigger_rule・when・with と、受け付け・consult-check の with: の鍵。D1 の間は variant だけ今の node のまま鎖の中の同じ位置に残る"""
+    CHAINS = (("first", "fix-loop", "fix-prep", "fix-accept", "consult-check"),
+              ("ruled", "fix-ruled-loop", "fix-ruled-prep", "fix-ruled-accept", "ruled-consult-check"))
+
+    def chain(self, loop: str) -> list:
+        return [m for m in every()[loop]["loop_group"]["nodes"] if "include" in m or is_ai(m)]
+
+    def test_the_chain_has_one_node_per_type_in_the_sequence(self):
+        writers = kit.load("fix", "writers")
+        for pass_, loop, *_ in self.CHAINS:
+            with self.subTest(pass_=pass_):
+                self.assertEqual([m["id"] for m in self.chain(loop)], writers.nodes(pass_))
+                self.assertEqual([m["id"] for m in self.chain(loop)],
+                                 [writers.node(pass_, w) for w in writers.SEQUENCE[pass_]], "node の id は型の順の 1 つずつ")
+
+    def test_every_include_follows_the_one_before_and_starts_on_its_own_type(self):
+        writers = kit.load("fix", "writers")
+        for pass_, loop, prep, *_ in self.CHAINS:
+            nodes = self.chain(loop)
+            for i, (w, m) in enumerate(zip(writers.SEQUENCE[pass_], nodes)):
+                with self.subTest(pass_=pass_, node=m["id"]):
+                    self.assertEqual(m["id"], writers.node(pass_, w))
+                    self.assertEqual(m["depends_on"], [prep] if i == 0 else [prep, nodes[i - 1]["id"]])
+                    if i == 0:
+                        self.assertNotIn("trigger_rule", m, "先頭は前が無いので書かない")
+                    else:
+                        self.assertEqual(m["trigger_rule"], "none_failed_min_one_success")
+                    self.assertEqual(m["when"], f"$%s.output.go == true && $%s.output.writer == '%s'" % (prep, prep, m["id"]))
+                    if "include" in m:
+                        self.assertEqual(m["include"], f"works-factory-weapon-{writers.block_of(w)}")
+                        self.assertEqual(m["with"], {"order": f"${prep}.output.order", "slots": f"${prep}.output.slots"})
+                    else:
+                        self.assertEqual(w, "variant", "D1 の間 node のまま残るのは variant だけ")
+
+    def test_the_accepts_read_each_types_reply_and_wait_for_the_whole_chain(self):
+        writers = kit.load("fix", "writers")
+        for pass_, loop, prep, accept, check in self.CHAINS:
+            ids = [m["id"] for m in self.chain(loop)]
+            body = inner(every()[loop])
+            want = {f"reply_{writers.block_of(w).replace('-', '_')}": {"from": f"${writers.node(pass_, w)}.output" + ("" if w == "variant" else ".reply"),
+                                                                       "if_skipped": None}
+                    for w in writers.SEQUENCE[pass_]}
+            with self.subTest(pass_=pass_):
+                self.assertEqual(body[check]["depends_on"], ids)
+                self.assertEqual({k: v for k, v in body[check]["with"].items() if k.startswith("reply_")}, want)
+                self.assertEqual({k: v for k, v in body[accept]["with"].items() if k.startswith("reply_")}, want)
+                self.assertEqual(set(body[accept]["with"]) - set(want), {"consulted"})
+                self.assertEqual(set(body[check]["with"]) - set(want), {"pass"})
+
+    def test_the_two_chains_share_one_with_each_and_no_include_is_left_out(self):
+        """鎖ごとの with: は同じ字（YAML の錨 1 つ）で、variant 以外の型が全部 block になっている（D1 の間は variant だけ node）"""
+        writers = kit.load("fix", "writers")
+        for pass_, loop, prep, *_ in self.CHAINS:
+            includes = [m for m in self.chain(loop) if "include" in m]
+            with self.subTest(loop=loop):
+                self.assertEqual(len(includes), len(writers.SEQUENCE[pass_]) - 1)
+                self.assertEqual(len({str(m["with"]) for m in includes}), 1)
 
 
 class RolesCase(unittest.TestCase):

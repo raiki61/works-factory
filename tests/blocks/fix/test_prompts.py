@@ -5,13 +5,17 @@
 md の決まった文。tests/layers/test_block_shape.py の 7.1 の 3 の照らしは、この表の在りと字だけを見る（14.3）。表の行は下の試験が
 本当に組んだ指示の中に在ることを照らす。
 """
+import functools
 import json
 import pathlib
 import sys
 import unittest
 
+import yaml
+
 from tests.bin.gitkit import git
 from tests.blocks import kit
+from tests.blocks.fix import support
 
 ROOT = pathlib.Path(__file__).resolve().parents[3]
 BLOCK = kit.BLOCKS / "fix"
@@ -24,16 +28,8 @@ RENDERED = {
     "ruler": "# Ruling on conflicts (a read-only role)",
     "clash-fix": "# Merging groups (the merger)",
     "clash-ruled": "# Merging groups (the merger after a ruling)",
-    "tdd-close": "# Fixing (the writer's job)",   # 型ごとの書き手は筋書きが variant だけを回す（ほかは test_writers_the_fixtures_do_not_reach）
-    "pin": "# Fixing (the writer's job)",
-    "tidy": "# Fixing (the writer's job)",
-    "static": "# Fixing (the writer's job)",
-    "remove": "# Fixing (the writer's job)",
-    "pin-ruled": "# Fixing (the writer's job)",
-    "tidy-ruled": "# Fixing (the writer's job)",
-    "static-ruled": "# Fixing (the writer's job)",
-    "variant-ruled": "# Fixing (the writer's job)",
-    "remove-ruled": "# Fixing (the writer's job)",
+    "variant-ruled": "# Fixing (the writer's job)",   # 型ごとの書き手は、variant だけ D1 の間 fix の node のまま（筋書きは 1 回目の variant だけを回す。ほかの型は
+    #                                                    型の block weapon-<型>。その指示は tests/workflows/test_weapon_assets.py が組んで照らす）
     "ruled-consult-answer": "# Scope consultation (from the fixing stage)",
     "tdd": "## What this role does",
     "tdd-new": "## What this role does",   # tdd の単位の在る組の 1 周目だけ（振り分けの役 route が筋書きで回る）
@@ -169,7 +165,7 @@ class FixerParagraphsCase(unittest.TestCase):
         reply = {**REPLY, "consult": [{"item": 1, "paths": ["README.md"], "tests": [], "why": "直しに伴う記録を README に足す要がある",
                                        "tried": ["stats.py の分母を直した"], "blocked": "直しは済んだが記録の置き場が範囲の外",
                                        "evidence": [{"path": "stats.py", "line": 4}]}]}
-        asked = run.script("consult_check", reply_variant=json.dumps(reply), **{"pass": "first"})
+        asked = run.script("consult_check", reply_variant=support.reply_json(reply), **{"pass": "first"})
         self.assertTrue(asked["go"], asked)
         self.assertIn("Answer as the author of the fix plan.", asked["prompt"])
         answer = {"answers": [{"ask": 1, "decision": "allow", "paths": ["README.md"], "tests": [], "spec": "",
@@ -240,7 +236,7 @@ class FixerParagraphsCase(unittest.TestCase):
         reply = {**REPLY, "consult": [{"item": 1, "paths": ["README.md"], "tests": [], "why": "直しに伴う記録を README に足す要がある",
                                        "tried": ["stats.py の分母を直した"], "blocked": "直しは済んだが記録の置き場が範囲の外",
                                        "evidence": [{"path": "stats.py", "line": 4}]}]}
-        run.script("consult_check", reply_variant=json.dumps(reply), **{"pass": "first"})
+        run.script("consult_check", reply_variant=support.reply_json(reply), **{"pass": "first"})
         answer = {"answers": [{"ask": 1, "decision": "allow", "paths": ["README.md"], "tests": [], "spec": "",
                                "reason": "直しの記録は範囲に入れてよい"}]}
         run.script("consult_accept", answer=json.dumps(answer), **{"pass": "first"})
@@ -368,6 +364,82 @@ class SubAgentFilesCase(unittest.TestCase):
         text = path.read_text(encoding="utf-8")
         self.assertTrue(text.startswith("## The requirement (briefs)\n"), text)
         self.assertIn("- 項目 1: /b/r1/brief-1.md（sha256 " + "a" * 64, text)
+
+
+SLOTS_SHAPE = json.loads((kit.SHARED / "schemas" / "writer-slots.schema.json").read_text(encoding="utf-8"))
+PIN_ORDER = (kit.BLOCKS / "weapon-pin" / "fixtures" / "standalone.stubs.yaml")
+TYPE_OWNED_VALUES = {"first_prompt", "unattended", "overlay_file", "summary_file", "g1_items"}   # 型の block の本体が足す物（slots に入れない）
+TYPE_OWNED_WHEN = {"spawns", "g1", "ask_variant"}
+
+
+class WriterSlotsCase(unittest.TestCase):
+    """縛る試験 5（docs/design/fix.md の 2.3）: writer_slots が組む slots の values・when の鍵の組が形（writer-slots.schema.json）の required と
+    等しく、義務の表から引く段落が表（duties・board.RED_WEAPONS・prompts.SITES_WEAPONS）のとおり。型の block に渡る注文と slots は
+    fix-prep が pointer で返す"""
+
+    def setUp(self):
+        self.run = seeded(self)
+        self.run.script("intake", mode="group", group=json.dumps({"group_id": "g1", "unit_ids": [KEY], "items": [1]}), judgment=JUDGMENT,
+                        plan=PLAN, fix_plan=FIX_PLAN, tdd_suite=str(RUNNER))
+        self.run.script("group_start")
+        self.prompts, self.board, self.duties, self.writers = (kit.load("fix", m) for m in ("prompts", "board", "duties", "writers"))
+
+    def slots(self, weapon: str) -> dict:
+        facts, rules = kit.load("fix", "facts"), kit.load("fix", "rules")
+        import ports
+        place = self.run.artifacts
+        with self.run.env():
+            owed = self.board.group_owed(place, [KEY])
+            state, summary = self.board.loop_files(place)
+            values = self.board.fix_values(place, owed, state=state, summary=summary if weapon == "tdd" else "", answer_node=rules.answer_node("first"))
+            got, rnd = self.prompts.writer_slots(place, self.run.repo, "first", weapon, values, owed=owed,
+                                                 items=functools.partial(self.board.place_items, place),
+                                                 sources=self.board.brief_sources(place),
+                                                 frozen=facts.frozen_tests(place, state, "first"), shared=ports.shared_cache())
+        self.assertEqual(set(rnd), {"iteration", "kinds", "ledger"})
+        return got
+
+    def test_the_keys_of_the_values_and_the_paragraphs_are_the_required_of_the_shape(self):
+        want = {"values": set(SLOTS_SHAPE["properties"]["values"]["required"]), "when": set(SLOTS_SHAPE["properties"]["when"]["required"])}
+        for weapon in self.writers.SEQUENCE["first"]:
+            with self.subTest(weapon=weapon):
+                got = self.slots(weapon)
+                self.assertEqual(set(got), set(SLOTS_SHAPE["required"]))
+                self.assertEqual(set(got["values"]), want["values"])
+                self.assertEqual(set(got["when"]), want["when"])
+                self.assertFalse((set(got["values"]) & TYPE_OWNED_VALUES) | (set(got["when"]) & TYPE_OWNED_WHEN), "型が持つ物は slots に入れない")
+                kit.shaped("shared:writer-slots.schema.json", got)
+                self.assertEqual(got["subagents"], {}, "D1 の間は下請けを slots で渡さない（variant は fix の node のまま）")
+                self.assertEqual(bool(got["summary_file"]), weapon == "tdd", "輪の要約は閉じの書き手の注文の時だけ")
+
+    def test_the_duty_paragraphs_are_drawn_from_the_duty_tables(self):
+        for weapon in self.writers.SEQUENCE["first"]:
+            with self.subTest(weapon=weapon):
+                when = self.slots(weapon)["when"]
+                change = self.duties.box_of(weapon) == "change"
+                self.assertEqual({k: when[k] for k in self.prompts.DUTY_WHEN},
+                                 {"rules_change": change, "rules_sites": weapon in self.prompts.SITES_WEAPONS,
+                                  "rules_red": weapon in self.board.RED_WEAPONS, "conflict_change": change})
+
+    def test_the_duty_names_are_a_part_of_the_slots_and_not_of_the_types_own_paragraphs(self):
+        """義務から引く段落（slots が持つ）と型の block の本体が足す段落は重ならない（和にした時に同じ名が 2 度出ない）"""
+        self.assertFalse(set(self.prompts.DUTY_WHEN) & TYPE_OWNED_WHEN)
+        self.assertLessEqual(set(self.prompts.DUTY_WHEN), set(SLOTS_SHAPE["properties"]["when"]["required"]))
+
+    def test_fix_prep_hands_the_type_block_its_order_and_slots_by_pointer(self):
+        """型の block の周（variant 以外）は writer が include の id で、order と slots が pointer。prompt は組まない。variant は今の node の名と指示"""
+        place = self.run.artifacts
+        orders = place / "orders"
+        orders.mkdir()
+        (orders / "pin.json").write_text(yaml.safe_load(PIN_ORDER.read_text(encoding="utf-8"))["fixture"]["inputs"]["order"], encoding="utf-8")
+        self.assertEqual(self.run.script("writer_pick", **{"pass": "first"}), {"go": True, "writer": "w-pin", "done": True})
+        out = self.run.script("fix_prep")
+        self.assertEqual((out["go"], out["writer"], out["prompt"]), (True, "w-pin", ""))
+        self.assertEqual(out["order"], {"type": "archon_artifact", "run_id": kit.RUN_ID, "path": "orders/pin.json"})
+        self.assertEqual(out["slots"], {"type": "archon_artifact", "run_id": kit.RUN_ID, "path": "slots-w-pin-1.json"})
+        kit.shaped("shared:writer-slots.schema.json", json.loads((place / "slots-w-pin-1.json").read_text(encoding="utf-8")))
+        self.assertTrue((place / "w-pin-delivered.json").is_file(), "渡した証拠の種類の控えは include の id の名")
+        self.assertEqual(self.run.script("fix_prep")["slots"]["path"], "slots-w-pin-2.json", "周ごとに別のファイル")
 
 
 if __name__ == "__main__":

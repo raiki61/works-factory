@@ -16,8 +16,12 @@
 check_cmd が持つ。uv run --isolated の度に一時のパスが変わる）→ `{PYTHON}`、修正の block の place → `{PLACE}`、対象のリポジトリの根 →
 `{REPO}`、対象のリポジトリの種の commit（commit の時刻で hash が run ごとに変わる。下請けの差分を取るコマンドが持つ）→ `{BASE}`、工場のリポジトリの根 → `{ROOT}`。これで消えない違いが出たら置き字を足して通さず、指示が変わった印として調べる。
 
-組み立ての助けは `compose` の 1 つだけ。割る前は修正の block の `prompts.writer` を呼び、`prompt.emit` を包んで引数と返りを受ける。
-割る commit はこの `compose` だけを替え、場面の作り（`scene`）と控えは替えない。node の名は控えない（裁定の後の段の node は、割る前は `<型>-ruled`、割った後は型の block の中の `<型>` で、指示の中身ではない）。控えは最初の commit の後に書き直さない
+組み立ての助けは `compose` の 1 つだけ。`prompt.emit` を包んで引数と返りを受ける。割る前は修正の block の `prompts.writer` を呼んだ。
+割った後（今）は、型の block 5 つ（tdd・pin・tidy・static・remove）は修正の block の `prompts.writer_slots` を同じ引数で呼び、返りの slots と注文を
+`writers.hand_over` で pointer にして、その型の block の `scripts/writer_prep.py`（`writerblock.prep(render)`）を、`ports.caller_block()` がその block
+を返すように script のファイルのまま起こして組む。D1 の間に修正の block に残る variant は、今も修正の block の `prompts.writer`
+（中で `writer_slots` を呼ぶ）で組む（D2 で variant も型の block の道に替える）。
+割る commit はこの `compose` だけを替え、場面の作り（`scene`）と控えは替えていない。node の名は控えない（裁定の後の段の node は、割る前は `<型>-ruled`、割った後は型の block の中の `<型>` で、指示の中身ではない）。控えは最初の commit の後に書き直さない
 （`git log --format=%h -- tests/workflows/writer-prompts-before.json` が 1 つだけ）。
 
 (b) の字の比べは D2 の最後の commit で外し、(a)・(c)・(d) を残す（指示の文だけを変える依頼を md 1 本で閉じるため）。
@@ -26,16 +30,18 @@ check_cmd が持つ。uv run --isolated の度に一時のパスが変わる）�
 """
 import contextlib
 import functools
+import io
 import json
 import pathlib
 import re
+import runpy
 import sys
 import unittest
 from unittest import mock
 
 from tests.bin.gitkit import git
 from tests.blocks import kit
-from tests.blocks.fix import test_assets, test_prompts
+from tests.blocks.fix import support, test_assets, test_prompts
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 BEFORE = pathlib.Path(__file__).resolve().parent / "writer-prompts-before.json"
@@ -77,7 +83,7 @@ def scene(case, kind: str):
         reply = {**test_prompts.REPLY, "consult": [{"item": 1, "paths": ["README.md"], "tests": [], "why": "直しに伴う記録を README に足す要がある",
                                                     "tried": ["stats.py の分母を直した"], "blocked": "直しは済んだが記録の置き場が範囲の外",
                                                     "evidence": [{"path": "stats.py", "line": 4}]}]}
-        asked = run.script("consult_check", reply_variant=json.dumps(reply), **{"pass": "first"})
+        asked = run.script("consult_check", reply_variant=support.reply_json(reply), **{"pass": "first"})
         assert asked["go"], asked
         answer = {"answers": [{"ask": 1, "decision": "allow", "paths": ["README.md"], "tests": [], "spec": "",
                                "reason": "直しの記録は範囲に入れてよい"}]}
@@ -90,9 +96,34 @@ def put_rejection(run, pass_: str, weapon: str, writers) -> None:
     rolekit.write_rejects(run.artifacts, writers.accept_name(pass_, weapon), ["the reply left a unit without a change", "run the tests again"])
 
 
+def block_prep(run, pass_: str, weapon: str, slots: dict, writers) -> None:
+    """型 weapon の書き手の block の writer_prep.py を、script のファイルのまま（ports.caller_block がその block を返す）この過程で起こす。
+    入力 order・slots は fix-prep が返す形（注文 orders/<型>.json と slots のファイルを指す pointer）にして env に置く。place は
+    <修正の block の place>/<include の id>（ARCHON_NODE_EXECUTION の path が include の道を作る）"""
+    block = kit.BLOCKS / f"weapon-{writers.block_of(weapon)}"
+    doc = kit.fixture(block.name, "standalone")["fixture"]["inputs"]["order"]   # 筋書きの注文の字（形に合う。weapon は表の ORDER_WEAPON）
+    orders = run.artifacts / "orders"
+    orders.mkdir(exist_ok=True)
+    (orders / f"{weapon}.json").write_text(doc, encoding="utf-8")
+    handed = writers.hand_over(run.artifacts, pass_, weapon, slots)
+    include = f"{writers.node(pass_, weapon)}__{writers.block_of(weapon)}-prep"
+    env = {**run.environ(include, order=json.dumps(handed["order"]), slots=json.dumps(handed["slots"]))}
+    for name in [n for n in sys.modules if n == "src" or n.startswith("src.")]:
+        del sys.modules[name]   # block ごとに src の名が重なる（kit.load と同じ）
+    keep = list(sys.path)
+    try:
+        with mock.patch.dict("os.environ", env), contextlib.redirect_stdout(io.StringIO()):
+            runpy.run_path(str(block / "scripts" / "writer_prep.py"), run_name="__main__")
+    finally:
+        sys.path[:] = keep
+        for name in [n for n in sys.modules if n == "src" or n.startswith("src.")]:
+            del sys.modules[name]
+
+
 def compose(kind: str, weapon: str, case) -> dict:
-    """場面 kind・型 weapon の書き手の指示を、割る前の修正の block の prompts.writer（中で writer_values → prompt.emit）で組み、
-    prompt.emit の引数と返りを受けて返す {when, prompt, values, node}。割る commit はこの関数だけを替える"""
+    """場面 kind・型 weapon の書き手の指示を組み、prompt.emit の引数と返りを受けて返す {when, prompt, values, node}。型の block の 5 つは
+    修正の block の writer_slots → 型の block の writer_prep.py（writerblock.prep）で、variant は修正の block の prompts.writer（中で
+    writer_slots を呼ぶ）で組む。割る commit はこの関数だけを替えた"""
     run, pass_ = scene(case, kind)
     seen = {}
     real = prompt.emit
@@ -124,9 +155,13 @@ def compose(kind: str, weapon: str, case) -> dict:
             values = board.fix_values(place, owed, answer_node=rules.answer_node("ruled"))
             saved = str(place / "fix-reply.json")
             extra = {"saved_reply": saved}
-        prompts.writer(place, repo, pass_, weapon, values, owed=owed, items=functools.partial(board.place_items, place),
-                       sources=board.brief_sources(place), frozen=facts.frozen_tests(place, state, pass_),
-                       shared=ports.shared_cache(), **extra)
+        call = dict(owed=owed, items=functools.partial(board.place_items, place), sources=board.brief_sources(place),
+                    frozen=facts.frozen_tests(place, state, pass_), shared=ports.shared_cache(), **extra)
+        if weapon == "variant":
+            prompts.writer(place, repo, pass_, weapon, values, **call)
+        else:
+            slots, _ = prompts.writer_slots(place, repo, pass_, weapon, values, **call)
+            block_prep(run, pass_, weapon, slots, writers)
     seen["place"], seen["repo"], seen["first_prompt"] = str(place), str(repo), seen["values"].get("first_prompt", "")
     seen["base"] = git(repo, "rev-parse", "HEAD")
     return seen

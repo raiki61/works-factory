@@ -7,15 +7,19 @@
 
 - pick(place, repo, pass_) -> {go, writer, done}
 - current(place) -> 今の型の名（選んでいなければ ""）
-- node(pass_, weapon) -> 型の書き手の node の名
+- node(pass_, weapon) -> 型の書き手の node の名（variant 以外は型の block を include する node の id。1 回目の段 w-<型>・裁定の後 wr-<型>）
+- hand_over(place, pass_, weapon, slots) -> {order, slots}: 型の block に渡す入力の pointer（slots は place に書く）
+- prompt_file(place, pass_, weapon) -> 型の書き手の 1 回目の指示のファイル（型の block の place の中。variant は今の node の place）
 - owed(place, keys) -> keys のうち今の型の注文の単位（並びは keys のまま）
 - accept_name(pass_, weapon)・ledger(place, pass_, weapon)
 - finished(place, weapon): 受け付けが型を済ませた印を積む
-- reply_of(environ, pass_) -> 書き手の返りの字（起きた書き手の 1 つ。どれも起きていなければ None）
+- reply_of(environ, pass_, skipped) -> 書き手の返答の dict（起きた書き手の 1 つの pointer を解いた物。どれも起きていなければ None。読めなければ ValueError）
 """
 from __future__ import annotations
 
 import pathlib
+
+import ports      # .shared/（呼ぶ script が sys.path に入れる）
 
 import conflict   # lib/
 import groups     # lib/
@@ -23,18 +27,38 @@ import jsonfile   # lib/
 
 from src import board, files, orders, rules
 
+
 SEQUENCE = {"first": ("tdd", "pin", "tidy", "static", "variant", "remove"),
             "ruled": ("pin", "tidy", "static", "variant", "remove")}   # 型を回す順（tdd の輪の後。残りは箱の順。下書き 4.1 の 3）
 ACCEPT = {"first": "fix-accept", "ruled": "fix-ruled-accept"}
 
 
+BLOCK_WEAPON = {"tdd": "tdd-close"}   # 型の名 → 型の block の名の末尾（閉じの書き手の block は weapon-tdd-close）
+NODE_HEAD = {"first": "w", "ruled": "wr"}   # 型の block を include する node の id の頭
+
+
+def block_of(weapon: str) -> str:
+    """型 weapon の書き手の block の名の末尾（<w>。node の id・md の名・指示のファイルの名の頭）"""
+    return BLOCK_WEAPON.get(weapon, weapon)
+
+
 def node(pass_: str, weapon: str) -> str:
-    """型 weapon の書き手の node の名（1 回目の段の tdd は輪の閉じの書き手 tdd-close、裁定の後の段は <型>-ruled）"""
+    """型 weapon の書き手の node の名。型の block を include する node の id（1 回目の段 w-<型>、裁定の後の段 wr-<型>。tdd は輪の閉じの
+    書き手の block tdd-close）。D1 の間に fix の node のまま残る variant だけは今の名（variant・variant-ruled。D2 で外す）"""
     if weapon not in SEQUENCE[pass_]:
         raise ValueError(f"段 {pass_} に型 {weapon!r} の書き手は無い")
-    if pass_ == "ruled":
-        return f"{weapon}-ruled"
-    return "tdd-close" if weapon == "tdd" else weapon
+    if weapon == "variant":
+        return "variant-ruled" if pass_ == "ruled" else "variant"
+    return f"{NODE_HEAD[pass_]}-{block_of(weapon)}"
+
+
+def prompt_file(place, pass_: str, weapon: str) -> pathlib.Path:
+    """型 weapon の書き手の 1 回目の指示のファイル。型の block は自分の place（<修正の block の place>/<include の id>）に
+    <w>-prompt-1.md を書く。variant は今の node の指示を修正の block の place に書く"""
+    name = node(pass_, weapon)
+    if weapon == "variant":
+        return pathlib.Path(place) / f"{name}-prompt-1.md"
+    return pathlib.Path(place) / name / f"{block_of(weapon)}-prompt-1.md"
 
 
 def nodes(pass_: str) -> list:
@@ -129,11 +153,24 @@ def finished(place, weapon: str) -> None:
     jsonfile.write(pathlib.Path(place) / files.WRITER_FILE, {**st, "done": done})
 
 
+def hand_over(place, pass_: str, weapon: str, slots: dict) -> dict:
+    """型の block に渡す入力: slots を place の slots-<node>-<n>.json に書き（n は同じ node の前の周の数 + 1）、その型の注文 orders/<型>.json と
+    ともに pointer で返す {order, slots}（どちらも形に合うことを ports.pointer が照らす。合わなければ落ちる）"""
+    place = pathlib.Path(place)
+    name = node(pass_, weapon)
+    n = len(list(place.glob(f"slots-{name}-*.json"))) + 1
+    path = place / f"slots-{name}-{n}.json"
+    jsonfile.write(path, slots)
+    return {"order": ports.pointer(place / files.ORDERS_DIR / f"{weapon}.json", "json(shared:weapon-order.schema.json)"),
+            "slots": ports.pointer(path, "json(shared:writer-slots.schema.json)")}
+
+
 def reply_of(environ, pass_: str, skipped):
-    """書き手の返りの字（with: の reply_<型> のうち起きた物 1 つ。skipped は飛んだ節の値を見分ける口〔埋め skip_value の value が None〕。
-    どれも起きていなければ None）"""
+    """書き手の返答の dict（with: の reply_<型> のうち起きた物 1 つ。skipped は飛んだ節の値を見分ける口〔埋め skip_value の value が None〕。
+    型の block の返りは pointer、fix の node のまま残る variant の返りは AI の node の出力そのもので、ports.json はどちらも読む。
+    どれも起きていなければ None。形（shared:writer-reply.schema.json）に合わない・読めない時は ValueError）"""
     for w in SEQUENCE[pass_]:
         raw = environ.get(f"INPUTS_REPLY_{w.upper()}" if pass_ == "ruled" or w != "tdd" else "INPUTS_REPLY_TDD_CLOSE")
         if raw is not None and not skipped(raw):
-            return raw
+            return ports.json(raw, "shared:writer-reply.schema.json")
     return None

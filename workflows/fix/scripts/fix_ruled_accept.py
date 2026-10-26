@@ -16,7 +16,6 @@ sys.path[:0] = [str(Path(__file__).resolve().parents[2] / ".shared"), str(Path(_
 import ports  # noqa: E402
 
 import oneline  # noqa: E402
-import rolekit  # noqa: E402
 import writelog  # noqa: E402
 
 from src import board, runvals, writers  # noqa: E402
@@ -27,18 +26,15 @@ SKIP = (ports.RUNTIME_COPY_PREFIX,)
 
 
 def main() -> dict:
-    raw = writers.reply_of(os.environ, "ruled", lambda v: ports.polyfill("skip_value").value(v) is None)
+    reply = writers.reply_of(os.environ, "ruled", lambda v: ports.polyfill("skip_value").value(v) is None)
     consulted = os.environ.get("INPUTS_CONSULTED", "").strip().lower() == "true"
     if consulted:
         return {"ok": False, "done": False, "reason": board.CONSULTED, "reason_file": ""}
     place, repo = ports.place(), Path.cwd()
     weapon = writers.current(place)
-    if raw is None:
+    if reply is None:
         writers.finished(place, weapon)
         return {"ok": True, "done": True, "reason": NOT_LAUNCHED, "reason_file": ""}
-    reply, why = rolekit.parse_reply(raw)
-    if reply is None:
-        raise ValueError(why)
     name = writers.accept_name("ruled", weapon)
     iteration, stopped = board.round_number(place, name)
     if stopped:

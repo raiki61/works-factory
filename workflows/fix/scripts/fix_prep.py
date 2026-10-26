@@ -2,12 +2,14 @@
 # requires-python = ">=3.12"
 # dependencies = []
 # ///
-"""node fix-prep（組の形の修正の輪の頭）: 外の輪の頭 writer-pick が選んだ型の書き手の指示を md から組む（src/prompts.writer。今の
-fixrules.prep の順）。直す義務は組の単位のうち判定の直す義務の物（board.group_owed）で、その型の注文の単位（src/writers.owed）。義務が
+"""node fix-prep（組の形の修正の輪の頭）: 外の輪の頭 writer-pick が選んだ型の書き手に渡す slots を組み（src/prompts.writer_slots）、
+注文 orders/<型>.json とともに pointer で返す（型の block 5 つが include の入力で受ける。指示は型の block が組む）。fix の node のまま残る
+variant（D1 の間）の分だけ、指示を md から組む（src/prompts.writer。今の fixrules.prep の順）。直す義務は組の単位のうち判定の直す義務の物（board.group_owed）で、その型の注文の単位（src/writers.owed）。義務が
 残らなければ go: false。型の段の頭の木と除くパスの頭の下の姿は writer-pick が控える（無ければここで控える）。組が no-suite で止まっていれば
 （board.no_suite_stop）go: false。範囲の相談の答えがまだ渡っていない周・はみ出しを相談に積んだ周は続きの段落だけを組む（回は数え直さない）。
-variant の書き手には項目ごとの下請けのファイルを置き、tdd の輪の閉じの書き手 tdd-close には輪の要約を渡す。
-返り {prompt, go, iteration, writer}。回す側の誤り（判定の写しが無い・brief の控えが壊れた・指示が組めない）は prompt-error.json に書いて非 0"""
+variant の書き手には項目ごとの下請けのファイルを置き、tdd の輪の閉じの書き手には輪の要約を渡す（slots の欄 summary_file）。
+返り {prompt, go, iteration, writer, order, slots}（writer は起こす include の id か variant の node の名。order・slots は variant と go が偽の
+周は無い。prompt は variant の周だけ）。回す側の誤り（判定の写しが無い・brief の控えが壊れた・指示が組めない）は prompt-error.json に書いて非 0"""
 import functools
 import os
 import sys
@@ -46,15 +48,23 @@ def main() -> dict:
     state, summary = board.loop_files(place)
     summary = summary if weapon == "tdd" else ""   # 輪の要約を読むのは tdd の輪の閉じの書き手だけ
     values = board.fix_values(place, owed, state=state, summary=summary, answer_node=rules.answer_node("first"))
+    extra = dict(owed=owed, items=functools.partial(board.place_items, place), sources=board.brief_sources(place), green=tdd.green_units(summary),
+                 frozen=facts.frozen_tests(place, state, "first"), shared=ports.shared_cache())
     try:
-        got = prompts.writer(place, repo, "first", weapon, values, owed=owed, items=functools.partial(board.place_items, place),
-                             sources=board.brief_sources(place), green=tdd.green_units(summary),
-                             frozen=facts.frozen_tests(place, state, "first"), shared=ports.shared_cache())
+        if weapon == "variant":   # D1 の間は fix の node のまま（D2 で型の block になる）
+            got = prompts.writer(place, repo, "first", weapon, values, **extra)
+            handed = {}
+        else:
+            slots, rnd = prompts.writer_slots(place, repo, "first", weapon, values, **extra)
+            handed = writers.hand_over(place, "first", weapon, slots)   # 形に合わなければ落ちる（落ちた周は控えない）
+            if rnd["kinds"] is not None:
+                rules.remember(rnd["ledger"], rnd["kinds"], rnd["iteration"])
+            got = {"prompt": "", "iteration": rnd["iteration"]}
     except prompts.Broken as e:
         prompts.error(place, node, oneline.one_line(e))
         raise
     board.consult_skip(place, SKIP, writelog.log_here())
-    return {"prompt": got["prompt"], "go": True, "iteration": got["iteration"], "writer": node}
+    return {"prompt": got["prompt"], "go": True, "iteration": got["iteration"], "writer": node, **handed}
 
 
 if __name__ == "__main__":

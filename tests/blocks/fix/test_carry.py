@@ -15,7 +15,7 @@ import unittest
 
 from tests.bin.gitkit import committed_copy
 from tests.blocks import kit
-from tests.blocks.fix import steps
+from tests.blocks.fix import steps, support
 from tests.blocks.fix import test_tdd as tddcase
 
 
@@ -300,7 +300,7 @@ class RefixCase(StagesCase):
         path = self.repo / "test_stats.py"
         path.write_text(path.read_text(encoding="utf-8").replace("mean([1, 2, 3]), 2", "mean([2, 4]), 3"), encoding="utf-8")
         reply = {"changes": [_change(MEAN, ["stats.py", "test_stats.py"])]}
-        out = twin.script("fix_accept", reply_variant=_j(reply), consulted="false")
+        out = twin.script("fix_accept", reply_variant=support.reply_json(reply), consulted="false")
         self.assertEqual((out["ok"], out["done"]), (True, True), out)
 
     def test_first_pass_rulings_are_not_fixed_again(self):

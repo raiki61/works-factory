@@ -16,7 +16,6 @@ import ports  # noqa: E402
 
 import oneline  # noqa: E402
 import planmarks  # noqa: E402
-import rolekit  # noqa: E402
 
 from src import board, prompts, rules, writers  # noqa: E402
 
@@ -24,12 +23,9 @@ from src import board, prompts, rules, writers  # noqa: E402
 def main() -> dict:
     pass_ = os.environ["INPUTS_PASS"]
     node = rules.answer_node(pass_)
-    raw = writers.reply_of(os.environ, pass_, lambda v: ports.polyfill("skip_value").value(v) is None)   # 起きた型の書き手の返答
-    if raw is None:
-        raise ValueError("どの型の書き手の返答も無い")
-    reply, why = rolekit.parse_reply(raw)
+    reply = writers.reply_of(os.environ, pass_, lambda v: ports.polyfill("skip_value").value(v) is None)   # 起きた型の書き手の返答
     if reply is None:
-        raise ValueError(why)
+        raise ValueError("どの型の書き手の返答も無い")
     place = ports.place()
     try:
         items = board.place_items(place) or []
