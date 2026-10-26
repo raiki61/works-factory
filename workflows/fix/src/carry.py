@@ -1,6 +1,7 @@
 """次の修正の段への申し送り carry.json（docs/design/fix.md の 1.4）。
 
-形 {conflicts: <conflicts.json の中身か null>, loops: [{state: <tdd-<k>/state.json の中身>, summary: <summary.md の字か "">}],
+形 {conflicts: <conflicts.json の中身か null>, loops: [{record: <tdd-<k>/record.json の中身>, summary: <summary.md の字か "">,
+state?: <tdd-<k>/state.json の中身（A の側の読み手のため。記録の隣に在れば。次の頼みで消す）>}],
 accept: <accept.json の中身か null>, bases: [{base: <bases/<k>/base.json の中身か null>, accept: <bases/<k>/accept.json の中身か null>}],
 returns: [<returns/<k>.json の中身>]}（この段の place の全部の輪・元の結末の写し・返しの控え。子から写した物を含む。accept・bases・
 returns は下書き docs/plans/2026-10-24-fix-weapons.md の 2.1 の「2 回目の block の置き場へ写す」道）。2 回目の段の prep は port prior でこの束だけを受け、place の prior/ に
@@ -13,7 +14,7 @@ import pathlib
 
 from src import files
 
-LOOP_DIR = "tdd-{k}"   # 置き直す輪のフォルダ（lib の common.states が tdd-<k>/state.json を番号の順に読む）
+LOOP_DIR = "tdd-{k}"   # 置き直す輪のフォルダ（common.records が tdd-<k>/record.json を番号の順に読む）
 SUMMARY = "summary.md"
 
 
@@ -26,10 +27,12 @@ def write(place) -> pathlib.Path | None:
     if (place / conflict.FILE).is_file():
         conflicts = json.loads((place / conflict.FILE).read_text(encoding="utf-8"))
     loops = []
-    for state in common.states(place):
-        summary = state.parent / SUMMARY
-        loops.append({"state": json.loads(state.read_text(encoding="utf-8")),
-                      "summary": summary.read_text(encoding="utf-8") if summary.is_file() else ""})
+    for record in common.records(place):
+        summary = record.parent / SUMMARY
+        state = common.state_of(record)
+        loops.append({"record": json.loads(record.read_text(encoding="utf-8")),
+                      "summary": summary.read_text(encoding="utf-8") if summary.is_file() else "",
+                      **({"state": json.loads(state.read_text(encoding="utf-8"))} if state.is_file() else {})})   # state は A の側（次の頼みで消す）
     from src import board
     accept = _read(place / files.ACCEPT_FILE)
     bases = [{"base": _read(d / files.BASE_FILE), "accept": _read(d / files.ACCEPT_FILE)} for d in board.base_dirs(place)]
@@ -54,8 +57,8 @@ def _put(path: pathlib.Path, doc) -> None:
 
 
 def place_prior(place, prior: dict) -> pathlib.Path:
-    """束 prior を place の prior/ に置き直し（conflicts.json と tdd-<k>/state.json・summary.md、accept.json・bases/<k>/・
-    returns/<k>.json）、そのフォルダを返す"""
+    """束 prior を place の prior/ に置き直し（conflicts.json と tdd-<k>/record.json・summary.md〔束に state が在れば state.json も。
+    A の側〕、accept.json・bases/<k>/・returns/<k>.json）、そのフォルダを返す"""
     import conflict
     from src import tdd
     root = pathlib.Path(place) / files.PRIOR_DIR
@@ -63,11 +66,13 @@ def place_prior(place, prior: dict) -> pathlib.Path:
     if isinstance(prior.get("conflicts"), dict):
         (root / conflict.FILE).write_text(json.dumps(prior["conflicts"], ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
     for k, loop in enumerate(prior.get("loops") or [], 1):
-        if not isinstance(loop, dict) or not isinstance(loop.get("state"), dict):
-            raise ValueError(f"入力 prior の loops[{k - 1}] に state が無い")
+        if not isinstance(loop, dict) or not isinstance(loop.get("record"), dict):
+            raise ValueError(f"入力 prior の loops[{k - 1}] に record が無い")
         d = root / LOOP_DIR.format(k=k)
         d.mkdir(parents=True, exist_ok=True)
-        (d / tdd.STATE).write_text(json.dumps(loop["state"], ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
+        (d / tdd.RECORD).write_text(json.dumps(loop["record"], ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
+        if isinstance(loop.get("state"), dict):   # A の側の読み手のため（次の頼みで消す）
+            (d / tdd.STATE).write_text(json.dumps(loop["state"], ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
         if loop.get("summary"):
             (d / SUMMARY).write_text(str(loop["summary"]), encoding="utf-8")
     if isinstance(prior.get("accept"), dict):

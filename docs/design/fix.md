@@ -160,7 +160,7 @@ D1・D2 の後の違い（node）: 書き手の node のうち `tdd-close`・`pi
 - 型の block の place（D1。1 つの include ごとに `<修正の block の place>/<include の id>/` ができる。例 `w-static/`）: 組み上がった指示 `<型>-prompt-<n>.md`（`<n>` はその block の周の番号。1 回目の指示 `<型>-prompt-1.md` を続きの周が読み直す）と、返答 `reply-<n>.json`（`<n>` はその周の指示と同じ番号）と、返す node の返り `out-<n>.json`（prep が落ちた周の見分け）。今の `fixer-prompt-<n>.md`・`fix-ruled-prompt-<n>.md` は書かない。表の `SPAWNS` が真の型（D2 の後は variant）の block の place には、下請けのファイル `g1-impl-<n>.md`・`g1-review-<n>.md`（brief の在る run は `seat-briefs.md` も）も書かれる（24.9）。読んだ証拠の段の頭の印（`board.read_stages`）は、修正の block が自分の place に書く 1 回目の slots `slots-<include の id>-1.json`（`writers.stage_mark`）で、型の block の place の中の指示書は読まない（E4。受け取りは `with:` の入力と出力の欄の pointer だけ）。渡した証拠の種類の控え（`writers.ledger`）は修正の block の place に残り、名が include の id（`w-<型>-delivered.json`）に替わる（同じ型の周どうしで同じ名なので数えは変わらない）。
 - 終わり: `fix-removed.json`・`assert-changed.json`・`fix.diff` か `fix-diff-none.txt`・`allowed-tests.json`・`accept-trace.json`・`closure.json`・`tdd-unit.json`・`frozen.json`・`scope.json`・`carry.json`・`reads-fix.json`・`reads-fix-ruled.json`・`reads-fix-block.json`・`prompt-error.json`（指示が組めなかった node と訳）・`fix-collect-error.txt`（finish の中の誤り）。
 
-`carry.json` の形: `{conflicts: <conflicts.json の中身か null>, loops: [{state: <tdd-<k>/state.json の中身>, summary: <summary.md の字か "">}]}`（この段の place の全部の輪。子から写した物を含む）。2 回目の段の prep はこの 1 つのファイルだけを読み、`prior/<k>/state.json`・`prior/<k>/summary.md` に置いてから今の `adopt_prior_pass` と同じ写しをする（今は前の段の place のフォルダを名で開いていた。README の 4.3。13.1 の 5）。
+`carry.json` の形: `{conflicts: <conflicts.json の中身か null>, loops: [{record: <tdd-<k>/record.json の中身>, summary: <summary.md の字か "">, state?: <tdd-<k>/state.json の中身>}]}`（この段の place の全部の輪。子から写した物を含む。`state` は受け付けの試験の選びなど輪の状態を読む側のためで、記録の隣に在れば並べる。凍結・足跡・要約などの輪の外の読み手は `record` を読む）。2 回目の段の prep はこの 1 つのファイルだけを読み、`prior/<k>/record.json`・`prior/<k>/summary.md`（と、束に `state` が在れば `prior/<k>/state.json`）に置いてから今の `adopt_prior_pass` と同じ写し(前の段の申し出と裁定・輪の記録・元の結末・返しの控えを今の段の place へ写す)をする（今は前の段の place のフォルダを名で開いていた。README の 4.3。13.1 の 5）。
 
 ### 1.5 コードの置き場と、作る・触るファイル
 
@@ -806,7 +806,7 @@ Write `how` and `bash_writes[].why` in 依頼文の言語（利用者の言語�
 
 ### 8.2 fix-accept と fix-ruled-accept の違い
 
-ruled は、直す義務が `board.ruled_owed`（戻せた組の単位のうち fixed でない物）、頭の木が `fix-ruled-head.json`、輪の状態が `board.ruled_states`（今の段の輪だけ。PRIOR の輪は凍結に効く）、fix_test_scope の範囲がいつも許しに入り、裁定の `limits` のパスが範囲に入る（F109・F217）。
+ruled(裁定の後の修正の段)が何を使うかは次のとおり。直す義務は `board.ruled_owed`（組の子の直しを親の作業ツリーへ戻せた組の単位のうち、結末が fixed〔直し済み〕でない物。join.json が無ければ判定の直す義務の全部）、頭の木（この段の修正役が直し始める前の作業ツリーの版。段の頭に取る）が `fix-ruled-head.json`、輪の記録が `board.ruled_states`（今の段の輪だけを返す。1 回目の段から写した輪〔印 `prior_pass` つきの記録〕は今の段の輪には数えないが、凍結の照らし〔凍らせたテストを書き換えていないかの確かめ〕では前の輪として見て、書き換えを拒む。記録の隣の輪の状態は `board.loop_state` が引く）。許し(修正役が書き換えてよいテストの範囲)には、裁定 fix_test_scope の範囲がいつも入り、裁定の `limits` のパスもその範囲に入る(F109・F217)。
 
 ### 8.3 tdd-step（TDD の loop）
 

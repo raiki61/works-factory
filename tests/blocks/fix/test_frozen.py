@@ -50,7 +50,7 @@ class FrozenRuledScopeCase(Case):
         committed_copy(self.repo, SEED)
         (self.repo / NEW_FILE).write_text("import unittest\n\n\nclass T(unittest.TestCase):\n"
                                           "    def test_one(self):\n        self.assertEqual(1, 1)\n", encoding="utf-8")
-        self.state = tmp / "state.json"
+        self.state = tmp / "record.json"
         self.freeze(frozen_tree=common.snapshot(self.repo), handoff=EMPTY_TREE)
 
     def freeze(self, **trees):

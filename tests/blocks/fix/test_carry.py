@@ -151,12 +151,14 @@ class CarryCase(StagesCase):
         self.assertIsNone(self.script(FIRST, "finish")["carry"])
 
     def test_write_and_place_prior_round_trip(self):
-        """束は conflicts.json の中身と輪ごとの state.json の中身・summary.md の字を持ち、place_prior が同じファイルに置き直す"""
+        """束は conflicts.json の中身と輪ごとの record.json の中身・summary.md の字（と、記録の隣に state.json が在れば A の側の読み手のための
+        その中身）を持ち、place_prior が同じファイルに置き直す"""
         place, again = self.art / "one", self.art / "two"
         _write(place / "conflicts.json", {"items": [FX_SCOPE]})
-        _write(place / "tdd-1" / "state.json", {"frozen": {"test_stats.py": "h1"}, "suite": "s"})
+        _write(place / "tdd-1" / "record.json", {"frozen": {"test_stats.py": "h1"}, "suite": "s", "done": True})
+        _write(place / "tdd-1" / "state.json", {"frozen": {"test_stats.py": "h1"}, "contract": {}})
         (place / "tdd-1" / "summary.md").write_text("輪 1 の要約\n", encoding="utf-8")
-        _write(place / "tdd-2" / "state.json", {"frozen": {}})
+        _write(place / "tdd-2" / "record.json", {"frozen": {}})
         _write(place / "accept.json", {"suite_made": ["a"]})
         _write(place / "bases" / "1" / "base.json", {"suite_made": ["b"]})
         _write(place / "bases" / "1" / "accept.json", {"adopted_from": "x"})
@@ -165,20 +167,22 @@ class CarryCase(StagesCase):
         self.assertEqual(path, place / "carry.json")
         doc = json.loads(path.read_text(encoding="utf-8"))
         self.assertEqual(doc, {"conflicts": {"items": [FX_SCOPE]},
-                               "loops": [{"state": {"frozen": {"test_stats.py": "h1"}, "suite": "s"}, "summary": "輪 1 の要約\n"},
-                                         {"state": {"frozen": {}}, "summary": ""}],
+                               "loops": [{"record": {"frozen": {"test_stats.py": "h1"}, "suite": "s", "done": True},
+                                          "summary": "輪 1 の要約\n", "state": {"frozen": {"test_stats.py": "h1"}, "contract": {}}},
+                                         {"record": {"frozen": {}}, "summary": ""}],
                                "accept": {"suite_made": ["a"]},
                                "bases": [{"base": {"suite_made": ["b"]}, "accept": {"adopted_from": "x"}}],
                                "returns": [{"stage": 1, "weapon": "tdd"}]})
         root = self.carry.place_prior(again, doc)
         self.assertEqual(root, again / "prior")
-        for rel in ("conflicts.json", "tdd-1/state.json", "tdd-1/summary.md", "tdd-2/state.json", "accept.json",
+        for rel in ("conflicts.json", "tdd-1/record.json", "tdd-1/state.json", "tdd-1/summary.md", "tdd-2/record.json", "accept.json",
                     "bases/1/base.json", "bases/1/accept.json", "returns/1.json"):
             self.assertEqual(json.loads((root / rel).read_text(encoding="utf-8")) if rel.endswith(".json")
                              else (root / rel).read_text(encoding="utf-8"),
                              json.loads((place / rel).read_text(encoding="utf-8")) if rel.endswith(".json")
                              else (place / rel).read_text(encoding="utf-8"), rel)
         self.assertFalse((root / "tdd-2" / "summary.md").exists(), "空の要約は書かない")
+        self.assertFalse((root / "tdd-2" / "state.json").exists(), "記録だけの輪は状態を書かない")
 
     def test_write_without_anything_is_none(self):
         place = self.art / "empty"
@@ -189,7 +193,7 @@ class CarryCase(StagesCase):
     def test_bad_shapes(self):
         with self.assertRaisesRegex(ValueError, "入力 prior が object でない"):
             self.carry.adopt(self.art / "x", ["not", "a", "bundle"], [], self.repo)
-        with self.assertRaisesRegex(ValueError, r"入力 prior の loops\[0\] に state が無い"):
+        with self.assertRaisesRegex(ValueError, r"入力 prior の loops\[0\] に record が無い"):
             self.carry.place_prior(self.art / "x", {"conflicts": None, "loops": [{"summary": "要約だけ"}]})
         with self.subTest("intake が形に合わない束を ok: false で返す"):
             out = self.script(SECOND, "intake", mode="whole", judgment=_j(JUDGMENT), prior=_j([1]))
@@ -197,7 +201,7 @@ class CarryCase(StagesCase):
             self.assertTrue(out["reason"].startswith("入力 prior: "), out)
             out = self.script(SECOND, "intake", mode="whole", judgment=_j(JUDGMENT), prior=_j({"loops": {}}))
             self.assertTrue(out["reason"].startswith("入力 prior: "), out)
-        with self.subTest("state の無い輪の束は prep が落ちる"):
+        with self.subTest("record の無い輪の束は prep が落ちる"):
             self.intake(SECOND, mode="whole", judgment=_j(JUDGMENT), prior=_j({"conflicts": None, "loops": [{"summary": "x"}]}))
             err = self.run.failing("prep", include=f"{SECOND}__prep")
             self.assertIn("loops[0]", err)
@@ -353,13 +357,13 @@ class PriorLoopsCase(tddcase.LoopCase):
         from src import board, carry, facts, common, tdd
         self.first_loop()
         bundle = json.loads(carry.write(self.board).read_text(encoding="utf-8"))
-        self.assertEqual([loop["state"]["frozen"] for loop in bundle["loops"]], [self.st()["frozen"]])
+        self.assertEqual([loop["record"]["frozen"] for loop in bundle["loops"]], [self.st()["frozen"]])
         second, child = self.board.parent / "refix-run", self.board.parent / "child"
         second.mkdir()
         child.mkdir()
         got = carry.adopt(second, bundle, ["1"], self.repo)
-        self.assertEqual(got["loops"], [str(second / "tdd-1" / "state.json")])
-        self.assertTrue(json.loads((second / "tdd-1" / "state.json").read_text(encoding="utf-8"))[board.PRIOR_LOOP])
+        self.assertEqual(got["loops"], [str(second / "tdd-1" / "record.json")])
+        self.assertTrue(json.loads((second / "tdd-1" / "record.json").read_text(encoding="utf-8"))[board.PRIOR_LOOP])
         board.adopt_inputs(second, child, self.repo)
         for place in (second, child):
             with self.subTest(place=place.name):
@@ -368,11 +372,12 @@ class PriorLoopsCase(tddcase.LoopCase):
                 rows = [{"unit_key": tddcase.CLAMP, "route": "direct", "why": "2 回目の段で先にテストを書かない単位"}]
                 self.assertTrue(steps.loop_step(got["state_file"], {"phase": "route", "units": rows}, self.repo)["ok"])
                 loop = steps.resolve(got["state_file"])
-                self.assertEqual(len(common.states(place)), 2)
-                self.assertEqual(board.ruled_states(place), (loop, loop))
-                self.assertEqual(facts.check_frozen(place, loop, self.repo, "first"), [])
+                record = tddcase.record_of(loop)
+                self.assertEqual(len(common.records(place)), 2)
+                self.assertEqual(board.ruled_states(place), (record, record))
+                self.assertEqual(facts.check_frozen(place, record, self.repo, "first"), [])
                 self.edit("test_stats.py", "mean([2, 4]), 3", "mean([2, 4]), 3.0")   # 2 回目の修正役が tdd-1 の凍ったテストを変えた
-                problems = facts.check_frozen(place, loop, self.repo, "first")
+                problems = facts.check_frozen(place, record, self.repo, "first")
                 self.assertTrue(problems and "test_stats.py" in problems[0], problems)
                 self.edit("test_stats.py", "mean([2, 4]), 3.0", "mean([2, 4]), 3")
 
@@ -401,7 +406,7 @@ class BasesCarryCase(unittest.TestCase):
             _write(place / self.files.ACCEPT_FILE, accept)
         if ret is not None:
             _write(place / self.files.RETURNS_DIR / "1.json", ret)
-        return {"group_id": name, "base": str(place / self.files.BASE_FILE), "place": str(place), "tdd_state": ""}
+        return {"group_id": name, "base": str(place / self.files.BASE_FILE), "place": str(place), "tdd_record": ""}
 
     def read(self, path):
         return json.loads(pathlib.Path(path).read_text(encoding="utf-8"))

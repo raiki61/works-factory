@@ -328,15 +328,15 @@ def later_agreed(place) -> list:
 
 
 def regive(place) -> list:
-    """tdd の輪が諦めた単位（輪の状態の units の gave_up）を、同じ箱の variant の注文に書き直す（下書き 4.1 の 3 の gave_up の
+    """tdd の輪が諦めた単位（輪の記録の units の gave_up）を、同じ箱の variant の注文に書き直す（下書き 4.1 の 3 の gave_up の
     単位の書き直し。route から型を引く表の 5 と同じ行き先）。注文 orders/tdd.json から外し orders/variant.json に足し、索引の weapons を
     替える（段の番・since・元の結末・段の頭の合意 agreed は今の注文のまま）。注文の無い組・諦めの無い組は何もしない。何度呼んでも同じ。書き直した単位を返す"""
     place = pathlib.Path(place)
     idx = jsonfile.read_or(place / files.ORDERS_FILE)
     if not isinstance(idx, dict) or not isinstance(idx.get("weapons"), dict):
         return []
-    state = str(_start(place).get("state_file") or "")
-    units = (common.load_state(state).get("units") or {}) if state and pathlib.Path(state).is_file() else {}
+    record = board.loop_files(place)[0]
+    units = (common.load_record(record).get("units") or {}) if record and pathlib.Path(record).is_file() else {}
     weapons = dict(idx["weapons"])
     moved = [k for k, w in weapons.items() if w == "tdd" and (units.get(k) or {}).get("gave_up")]
     if not moved:

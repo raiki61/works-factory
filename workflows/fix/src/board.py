@@ -958,8 +958,8 @@ ADOPTED = (VALUES, JUDGMENT_FILE, TIES_FILE, MATERIALS_FILE, PLAN_REPLY_FILE, PL
 FIX_UNITS_FILE = "fix-units.json"        # 修正の輪の単位ごとの結末 {unit_key: {status, reason}}（fix-accept が書く）
 ALLOWED_TESTS_FILE = fixnames.ALLOWED_TESTS_FILE   # 許したテストの変更の訳 [{path, permit, source}]（collect が書き、欄 allowed_tests で返す。allowed_test_rows）
 GROUP_START_FILE = "group-start.json"   # 組の子の始めの記録 {group, from_tree, out_dir, start_tree}（group-start が組の置き場に書く）
-ADOPTED_FROM = "adopted_from"           # 親の置き場に写した TDD の輪の状態の、写し元の子の状態のパスの欄（adopt_tdd_states）
-PRIOR_LOOP = "prior_pass"               # 2 回目の修正の段の置き場に写した 1 回目の段の輪の状態の印（adopt_prior_pass。新しい）
+ADOPTED_FROM = "adopted_from"           # 親の置き場に写した TDD の輪の記録の、写し元の子の記録のパスの欄（adopt_tdd_states。記録の鍵）
+PRIOR_LOOP = "prior_pass"               # 2 回目の修正の段の置き場に写した 1 回目の段の輪の記録の印（adopt_prior_pass。記録の鍵。新しい）
 NO_UNIT_RESULT = "修正のループがこの単位の結末を残さなかった"
 
 
@@ -995,8 +995,8 @@ def adopt_inputs(parent, place, repo=None) -> list:
         out.append(fixnames.PRIOR_DIR)
     if repo is not None:
         from src import common
-        prior = [str(p) for p in common.states(src) if read_json(p, {}).get(PRIOR_LOOP)]
-        out += adopt_tdd_states(dst, [{"tdd_state": p} for p in prior], repo, prior=True)
+        prior = [str(p) for p in common.records(src) if read_json(p, {}).get(PRIOR_LOOP)]
+        out += adopt_tdd_states(dst, [{"tdd_record": p} for p in prior], repo, prior=True)
         have = _adopted(d / fixnames.ACCEPT_FILE for d in base_dirs(dst))
         for d in base_dirs(src):
             if read_json(d / fixnames.ACCEPT_FILE, {}).get(PRIOR_LOOP) and str(d) not in have:
@@ -1017,11 +1017,11 @@ def adopt_prior_pass(place, prior, items, repo) -> dict:
     状態（印 PRIOR_LOOP つき。実行器は作業ツリー repo で解き直す）を写す。元は 1 つの盤面に両方の段が在り、conflict.second_pass・
     輪をまたぐ凍結（factchecks.check_frozen）・2 回目の機械の諦め（conflict.park_claims）・事後の関門（fixgates）が 1 回目の段を見た
     （元 works/.shared/core/conflict.py:411・works/blk-fix/lib/fixgates.py:103・works/blk-fix/lib/tddloop.py:1816）。
-    返り {rows: 写した行の id, loops: 写した状態のパス, bases: 写した元の結末の bases/<k>/, returns: 写した返しの控え}。新しい"""
+    返り {rows: 写した行の id, loops: 写した記録のパス, bases: 写した元の結末の bases/<k>/, returns: 写した返しの控え}。新しい"""
     import conflict
     from src import common
     rows = conflict.adopt_prior(place, prior, items)
-    loops = adopt_tdd_states(place, [{"tdd_state": str(p)} for p in common.states(prior)], repo, prior=True)
+    loops = adopt_tdd_states(place, [{"tdd_record": str(p)} for p in common.records(prior)], repo, prior=True)
     bases = adopt_prior_bases(place, prior)
     returns = adopt_returns(place, [str(prior)], prior=True)
     return {"rows": rows, "loops": loops, "bases": bases, "returns": returns}
@@ -1072,12 +1072,12 @@ def _unit_row(key, fix_units, tdd_rows) -> dict:
     return {"unit_id": key, "status": NOT_DONE, "reason": NO_UNIT_RESULT}
 
 
-def group_result(group, *, start_tree: str, end_tree: str, tdd, tdd_state: str = "", fix_units=None, reply=None,
+def group_result(group, *, start_tree: str, end_tree: str, tdd, tdd_record: str = "", fix_units=None, reply=None,
                  reply_file: str = "", allowed_rows=(), conflicts=(), worktree: str = "", mismatched=(),
                  accept_trace=(), closure=(), place: str = "", base: str = "", writer_report=()) -> dict:
     """組の子の結果（out_dir/<group_id>/result.json の中身。join・collect・tdd-unit・conflict-check が読む）:
     {group_id, unit_ids, end_tree, start_tree, units: [{unit_id, status, reason}], tdd, conflicts, objection, changed, x_scalars,
-    allowed_tests, verified, reply_file, tdd_state, worktree, handoffs, handoff_titles, mismatched, accept_trace, closure,
+    allowed_tests, verified, reply_file, tdd_record, worktree, handoffs, handoff_titles, mismatched, accept_trace, closure,
     claimed, place, base, writer_report}。writer_report は子の置き場の writer_report_rows の行（group_id を足す。親の finish が報告の行に集める）。base は子の置き場の元の結末のファイル base.json のパス（無い組は空。join が親の置き場の bases/<k>/ へ写す。
     adopt_bases）。allowed_rows は許しの訳（allowed_test_rows の行）、handoffs は reply の handoff_lines、mismatched は子の置き場の
     mismatched_lines（最後の関所を開ける理由）、accept_trace は子の置き場の accept_trace_rows の行（group_id を足す。親の collect が
@@ -1085,7 +1085,7 @@ def group_result(group, *, start_tree: str, end_tree: str, tdd, tdd_state: str =
     changes の単位（親の collect が diff の隣の fixbeside.CLOSURE_FILE に合わせる）。worktree は子の作業ツリーの実パス（join がその書き込みの記録を親の記録へ写す。
     writes.carry_children）。place は子の run の置き場（読み手は 2 つ: 親の conflict-check がこの組の申し出の名指しに許す根と、join の
     fixboard.adopt_returned（consult.carry_agreed）がここから範囲の相談の合意を親の置き場へ写す）。group は {group_id, unit_ids}、tdd は tddloop.exit_fields の形、
-    tdd_state は子の TDD の輪の状態のファイル（輪の無い組は空。join が親の置き場に写す。adopt_tdd_states）、fix_units は
+    tdd_record は子の TDD の輪の記録のファイル（輪の無い組は空。join が親の置き場に写す。adopt_tdd_states）、fix_units は
     修正の輪の単位の結末 {unit_key: {status, reason}}、reply は最後に受け付けた修正役の返答（印 CHANGED_MARKS と rejudge_requested
     を持つ。無ければ None）、allowed_tests は reply の在る組（修正の輪の受け付けが通った組）だけ allowed_rows の行（無い組は []。join の和と親の collect の
     ALLOWED_TESTS_FILE・allowed_test_changes が同じ 1 つの欄から読む。受け付けの行は accept_trace に残る）、conflicts は
@@ -1103,7 +1103,7 @@ def group_result(group, *, start_tree: str, end_tree: str, tdd, tdd_state: str =
             "objection": objection([reply] if reply else []),
             "changed": changed_marks([{"changed": reply}] if reply else []), X_SCALARS: x_scalars([reply] if reply else []),
             "allowed_tests": permits,
-            "verified": verified_tests(tdd), "reply_file": str(reply_file or ""), "tdd_state": str(tdd_state or ""),
+            "verified": verified_tests(tdd), "reply_file": str(reply_file or ""), "tdd_record": str(tdd_record or ""),
             "worktree": str(worktree or ""), "handoffs": handoff_lines([reply] if reply else []), "handoff_titles": handoff_titles([reply] if reply else []),
             "mismatched": list(mismatched),
             "accept_trace": [{**r, "group_id": gid} for r in accept_trace or [] if isinstance(r, dict)],
@@ -1113,31 +1113,36 @@ def group_result(group, *, start_tree: str, end_tree: str, tdd, tdd_state: str =
 
 
 def adopt_tdd_states(place, results, repo, *, prior: bool = False) -> list:
-    """戻せた組の子の結果 results（組の順）が名指す TDD の輪の状態（tdd_state）を、親の置き場 place の次の tdd-<k>/ に写す
-    （state.json の work を写した先に、exe を親の作業ツリー repo で解き直した実行器に替え、輪の要約 summary.md も写す。
-    並べた子の exe は子の作業ツリーの中を指し、自分の置き場から根を引く実行器だと親の試験を子の木で走らせるため）。写した状態は common.states(place) に run の全部の輪として
-    載り、裁定の後の修正の受け付けが凍結・範囲・変更に当たる試験に使う（ruled_states）。もう写した子の状態（状態の
-    ADOPTED_FROM）は写し直さない。prior が真なら写した状態に印 PRIOR_LOOP を置く（1 回目の修正の段の輪。ruled_states が今の段の輪から
-    外す）。写した状態のパスを返す。新しい（元は 1 つの盤面に輪の状態が在った）"""
+    """戻せた組の子の結果 results（組の順）が名指す TDD の輪の記録（tdd_record）を、親の置き場 place の次の tdd-<k>/ に写す
+    （record.json の summary を写した先の summary.md のパスに替え、輪の要約 summary.md も写す。写した記録は common.records(place) に
+    run の全部の輪として載り、裁定の後の修正の受け付けが凍結・範囲に使う（ruled_states）。もう写した子の記録（記録の ADOPTED_FROM）は
+    写し直さない。prior が真なら写した記録に印 PRIOR_LOOP を置く（1 回目の修正の段の輪。ruled_states が今の段の輪から外す）。
+    A の側の読み手（受け付けの試験の選びが輪の状態の exe・work・約束・単位の名指しを読む）のため、記録の隣の輪の状態があれば
+    その写しも置く（work を写した先に、exe を親の作業ツリー repo で解き直した実行器に替える。並べた子の exe は子の作業ツリーの中を
+    指し、自分の置き場から根を引く実行器だと親の試験を子の木で走らせるため。次の頼みで消す）。写した記録のパスを返す。
+    新しい（元は 1 つの盤面に輪の状態が在った）"""
     from src import common, tdd as tddloop
     place = pathlib.Path(place)
-    have = {str(read_json(p, {}).get(ADOPTED_FROM) or "") for p in common.states(place)}
+    have = {str(read_json(p, {}).get(ADOPTED_FROM) or "") for p in common.records(place)}
     out = []
     for r in results:
-        src = str((r or {}).get("tdd_state") or "")
+        src = str((r or {}).get("tdd_record") or "")
         if not src or src in have or not pathlib.Path(src).is_file():
             continue
         k = 1
         while (place / f"tdd-{k}").exists():
             k += 1
         dst = place / f"tdd-{k}"
-        st = read_json(pathlib.Path(src))
-        write_json(dst / tddloop.STATE, {**st, "work": str(dst), "exe": str(tddloop.exe_path(repo, st["suite"])),
-                                         ADOPTED_FROM: src, **({PRIOR_LOOP: True} if prior else {})})
+        write_json(dst / tddloop.RECORD, {**read_json(pathlib.Path(src)), "summary": str(dst / tddloop.SUMMARY),
+                                          ADOPTED_FROM: src, **({PRIOR_LOOP: True} if prior else {})})
         summary = pathlib.Path(src).parent / tddloop.SUMMARY
         if summary.is_file():
             write_text(dst / tddloop.SUMMARY, summary.read_text(encoding="utf-8"))
-        out.append(str(dst / tddloop.STATE))
+        state = common.state_of(src)
+        if state.is_file():   # A の側の読み手のため（次の頼みで消す）
+            st = read_json(state)
+            write_json(dst / tddloop.STATE, {**st, "work": str(dst), "exe": str(tddloop.exe_path(repo, st["suite"]))})
+        out.append(str(dst / tddloop.RECORD))
     return out
 
 
@@ -1274,12 +1279,13 @@ def adopt_returned(place, repo, results, *, log=None, applied=()) -> None:
 
 
 def ruled_states(place) -> tuple:
-    """裁定の後の修正の受け付けに渡す (今の輪の状態, 変更に当たる試験の輪の状態)。1 回目の段の輪（PRIOR_LOOP）は数えない（凍結の検査は
+    """裁定の後の修正の受け付けに渡す (今の輪の記録, 変更に当たる試験の輪の記録)。1 回目の段の輪（PRIOR_LOOP）は数えない（凍結の検査は
     前の輪として見る。factchecks.check_frozen）。置き場の輪（adopt_tdd_states が写した組ごとの輪）が
     1 つならそれを今の輪に（元の 1 つの輪の run と同じ）。幾つも在れば今の輪は無し（どの輪も同じ段に並んで走ったので、凍結は全部の輪を
-    輪の後の木で見る。factchecks.check_frozen）、試験は最後の輪の実行器で走らせる。無ければ ("", "")"""
+    輪の後の木で見る。factchecks.check_frozen）、試験は最後の輪の実行器で走らせる（呼び手が common.state_of で記録の隣の輪の状態を引く。
+    A の側）。無ければ ("", "")"""
     from src import common
-    loops = [str(p) for p in common.states(place) if not read_json(p, {}).get(PRIOR_LOOP)]
+    loops = [str(p) for p in common.records(place) if not read_json(p, {}).get(PRIOR_LOOP)]
     if len(loops) == 1:
         return loops[0], loops[0]
     return "", loops[-1] if loops else ""
@@ -1716,15 +1722,15 @@ def revert_units(place, repo, files, head: str) -> str:
     return patch
 
 
-def last_settle(texts: list, rows: list, place, repo, rev: str, state: str, owed, excused: dict, parked=frozenset(), *,
+def last_settle(texts: list, rows: list, place, repo, rev: str, record: str, owed, excused: dict, parked=frozenset(), *,
                 declared=None, skip=()):
     """輪の最後の回の拒否の文 texts を単位に結ぶ（parking.settle）。返り (Settlement, 義務の外の単位の集合, 足跡)。足跡は返答の行 rows と
-    今の段の輪の状態 state（空なら置き場の全部の輪 common.states。裁定の後の段は組ごとの輪を join が写した物）、届く試験は単位ごとの impact の地図（置き場の impact/ に控える）、義務の外は外れた単位 excused と
+    今の段の輪の記録 record（空なら置き場の全部の輪 common.records。裁定の後の段は組ごとの輪を join が写した物）、届く試験は単位ごとの impact の地図（置き場の impact/ に控える）、義務の外は外れた単位 excused と
     もう止めた単位 parked。元 works/blk-fix/scripts/accept.py:378（盤面の代わりに置き場と値 owed・excused で受ける）"""
     from src import parking
     from src import common
     import writes
-    loops = [state] if state else [str(p) for p in common.states(place)]
+    loops = [record] if record else [str(p) for p in common.records(place)]
     feet = parking.footprint(rows, loops, repo, skip=tuple(skip))
     cache = pathlib.Path(place) / "impact"
     reached = {k: parking.reach(repo, rev, f, cache) for k, f in feet.items()}
@@ -1768,7 +1774,7 @@ def _without_units(reply: dict, drop: set) -> dict:
 
 
 def accept_reply(reply: dict, place, repo, *, pass_: str, iteration: int, owed, judged=None, suite: str = "",
-                 state: str = "", tests_state: str = "", base_rev: str = "", head: str = "", skip=(), parked=None,
+                 record: str = "", state: str = "", tests_state: str = "", base_rev: str = "", head: str = "", skip=(), parked=None,
                  reverted=frozenset(), trail=None, log=None) -> dict:
     """修正役の返答の受け付け（fix-accept は pass_ first・fix-ruled-accept は ruled）。確かめは返さずに FIX_CHECKS の id で積み、
     最後に 1 回だけ拒む。順は 範囲の相談の枠 → 凍ったテスト（factchecks.check_frozen）→ 書き込みの出どころ（factchecks.check_writes。
@@ -1783,9 +1789,10 @@ def accept_reply(reply: dict, place, repo, *, pass_: str, iteration: int, owed, 
     （park_units）、残りの単位で頭から通し直す。義務の外の単位にだけ結んだ行は数えず、その単位の行を changes・not_done から外して
     （直しは作業ツリーに残す）写しの照らしを当て直し、受ければ trace に ABSORBED_OP。写しの拒否が残れば同じく結び、止める単位が
     残らなければ義務の残りを全部止めて通し直す（parking.park_owed。写しの拒否の時だけ）。それでも残れば受けずに諦める（NOT_SETTLED）。
-    owed は直す義務の値（fixboard.fix_duty に渡す）、judged は判定の units、suite は実行器、state は今の段の
-    TDD の輪の状態のファイル（無ければ空）、tests_state は state が空の時に変更に当たる試験を走らせる輪の状態（実行器と名指し。
-    裁定の後の段で組の輪が幾つも在る時。ruled_states）、base_rev は修正前の版（空なら base_rev_of）、skip は除くパスの頭、log は
+    owed は直す義務の値（fixboard.fix_duty に渡す）、judged は判定の units、suite は実行器、record は今の段の
+    TDD の輪の記録のファイル（無ければ空。凍結・書き込み・範囲・返しの控え・足跡が読む）、state は同じ輪の状態のファイル
+    （A の側。変更に当たる試験の選びが読む。無ければ空。次の頼みで消す）、tests_state は state が空の時に変更に当たる試験を走らせる
+    輪の状態（実行器と名指し。裁定の後の段で組の輪が幾つも在る時。loop_state(ruled_states の 2 つ目)）、base_rev は修正前の版（空なら base_rev_of）、skip は除くパスの頭、log は
     書き込みの記録のファイル（factchecks.check_writes。None なら置き場の既定）。
     返り {ok, reason, rejects: [{check, text}], reply（受けた返答。bash_writes と conflicts を外した物）, units（unit_outcomes）,
     parked {key: 理由}, conflicted}。変更に当たる試験を走らせた回が no_suite_at_accept に当たれば、型の義務より前に
@@ -1815,10 +1822,10 @@ def accept_reply(reply: dict, place, repo, *, pass_: str, iteration: int, owed, 
         reply = {k: v for k, v in reply.items() if k != conflict.CONSULT_FIELD}
     whole = reply
     frozen_over = []   # 相談に回せる凍ったファイルの頼み（check_frozen が足す）
-    note("frozen", factchecks.check_frozen(pathlib.Path(place), state, repo, pass_, asks=frozen_over, base_rev=rev))
+    note("frozen", factchecks.check_frozen(pathlib.Path(place), record, repo, pass_, asks=frozen_over, base_rev=rev))
     note("frozen", duties.frozen_by_returns(place, repo))   # 返しの控えの凍結を注文の許しで（今の照らしと両方を通る物だけを通す）
-    made = set(common.suite_made(state)) | basecase.suite_made_all(place)
-    wrote = factchecks.check_writes(reply, pathlib.Path(place), rev, repo, state, log=log, since=head or None,
+    made = set(common.suite_made(record)) | basecase.suite_made_all(place)
+    wrote = factchecks.check_writes(reply, pathlib.Path(place), rev, repo, record, log=log, since=head or None,
                                     skip=tuple(skip))
     note("writes", wrote["problems"])
     if not wrote["problems"] and wrote["note"] == writes.NO_RECORD:
@@ -1843,7 +1850,7 @@ def accept_reply(reply: dict, place, repo, *, pass_: str, iteration: int, owed, 
         note("duplicate", [DUPLICATE + k for k in check_unique_units(keys)])
         note("not_opened", [NOT_OPENED + k for k in check_opened_units(keys, duty | set(excused))])
         note("excused", [f"{EXCUSED}{k}（{why}）" for k, why in check_excused_units(keys, duty, excused).items()])
-        scope, scope_note = factchecks.check_plan_scope(reply, keys, pathlib.Path(place), rev, repo, state, pass_, since=head or None,
+        scope, scope_note = factchecks.check_plan_scope(reply, keys, pathlib.Path(place), rev, repo, record, pass_, since=head or None,
                                                items=functools.partial(place_items, place), consult_place=place)
         note("scope", scope)
     else:
@@ -1891,7 +1898,7 @@ def accept_reply(reply: dict, place, repo, *, pass_: str, iteration: int, owed, 
                     if r.get("unit_key") not in keys]   # 前の型の行を残す（型は 1 つずつ順に回り、単位は重ならない）
             querytest.save_closure(types.SimpleNamespace(scope_root=pathlib.Path(place), round=1), kept + closure)
     check_copy(reply)
-    kw = dict(pass_=pass_, iteration=iteration, owed=owed, judged=judged, suite=suite, state=state,
+    kw = dict(pass_=pass_, iteration=iteration, owed=owed, judged=judged, suite=suite, record=record, state=state,
               tests_state=tests_state, base_rev=base_rev, head=head, skip=skip, parked=parked, log=log)
 
     def again(r, gone):
@@ -1915,7 +1922,7 @@ def accept_reply(reply: dict, place, repo, *, pass_: str, iteration: int, owed, 
         gates_trace(place, pass_=pass_, attempt=iteration)
         if absorbed:
             trace(place, ABSORBED_OP, node=FIX_ACCEPT_BY, **absorbed)
-        duties.write_returns(place, repo, rev, reply, state=state, owed=owed)   # 返しの控え returns/<k>.json（下書き 2.1）
+        duties.write_returns(place, repo, rev, reply, record=record, owed=owed)   # 返しの控え returns/<k>.json（下書き 2.1）
         return {"ok": True, "reason": "", "rejects": [], "reply": reply, "units": units, "parked": parked,
                 "conflicted": False}
 
@@ -1934,7 +1941,7 @@ def accept_reply(reply: dict, place, repo, *, pass_: str, iteration: int, owed, 
     plain = [t for c, t in rest if c != "copy"]
     settled = None
     if plain:
-        settled, out_of_duty, feet = last_settle(plain, rows, place, repo, rev, state, owed, excused, set(parked),
+        settled, out_of_duty, feet = last_settle(plain, rows, place, repo, rev, record, owed, excused, set(parked),
                                                  declared=declared, skip=skip)
         if not settled.park:   # 義務の外の単位にだけ結んだ行: 数えず、その単位の行を外して残りで先へ（直しは作業ツリーに残す。元 :636-645）
             absorbed = {"dropped": [c.get("unit_key") for c in reply.get("changes") or []
@@ -1954,7 +1961,7 @@ def accept_reply(reply: dict, place, repo, *, pass_: str, iteration: int, owed, 
                 return accepted(reply)
     if settled is None or not settled.park:   # 写しの拒否（by_copy）: 止める単位が残らなければ義務の残りを全部止める（元 :738-740）
         texts = [t for c, t in rest if c == "copy"]
-        settled, out_of_duty, feet = last_settle(texts, rows, place, repo, rev, state, owed, excused, set(parked),
+        settled, out_of_duty, feet = last_settle(texts, rows, place, repo, rev, record, owed, excused, set(parked),
                                                  declared=declared, skip=skip)
         if not settled.park and texts and set(duty) - out_of_duty:
             settled = parking.park_owed(texts, feet=feet, owed=set(duty), out_of_duty=out_of_duty, skip=tuple(skip))
@@ -1962,7 +1969,7 @@ def accept_reply(reply: dict, place, repo, *, pass_: str, iteration: int, owed, 
         return rejected(NOT_SETTLED)
     now, _ = park_units(place, repo, settled, head or rev, iteration=iteration, pass_=pass_)
     return accept_reply(_without_units(whole, set(now)), place, repo, pass_=pass_, iteration=iteration, owed=owed,
-                        judged=judged, suite=suite, state=state, tests_state=tests_state, base_rev=base_rev, head=head,
+                        judged=judged, suite=suite, record=record, state=state, tests_state=tests_state, base_rev=base_rev, head=head,
                         skip=skip, parked={**parked, **now}, reverted=reverted, trail=trail, log=log)
 
 
@@ -2144,12 +2151,24 @@ JOIN_FILE = "join.json"             # 組を親の木へ戻した結果 {groups,
 
 
 def loop_files(place) -> tuple:
-    """(今の段の TDD の輪の状態のファイル, 輪の要約のファイル)。置き場の tdd-start.json の state_file・summary_file のうち在る物
-    （輪の無い run・始めていない run は ("", ""))"""
+    """(今の段の TDD の輪の記録のファイル, 輪の要約のファイル)。置き場の tdd-start.json の state_file の隣の記録 record.json と
+    summary_file のうち在る物（輪の無い run・始めていない run・輪が済んでいない run は ("", ""))。輪の状態のファイルは
+    loop_state が記録から引く（A の側の読み手のため）"""
     doc = read_json(pathlib.Path(place) / TDD_START_FILE)
     doc = doc if isinstance(doc, dict) else {}
-    got = [str(doc.get(k) or "") for k in ("state_file", "summary_file")]
+    state = str(doc.get("state_file") or "")
+    got = [str(pathlib.Path(state).with_name(fixnames.RECORD_FILE)) if state else "", str(doc.get("summary_file") or "")]
     return tuple(p if p and pathlib.Path(p).is_file() else "" for p in got)
+
+
+def loop_state(record) -> str:
+    """輪の記録 record の隣の輪の状態のファイル（無ければ ""）。A の側の読み手（変更に当たる試験の選びが輪の状態の exe・work・約束を
+    読む）に渡す。次の頼みで A と一緒に消える"""
+    from src import common
+    if not record:
+        return ""
+    state = common.state_of(record)
+    return str(state) if state.is_file() else ""
 
 
 def stage_head(place, name: str = "") -> str:
@@ -2216,15 +2235,15 @@ def mark_no_suite(place, why: str) -> None:
 
 
 def no_suite_stop(place) -> str:
-    """組が no-suite で止まっている訳（組の頭・受け付けが tdd-start.json に書いた印か、TDD のループが実行器の止まりで抜けた輪の状態の
+    """組が no-suite で止まっている訳（組の頭・受け付けが tdd-start.json に書いた印か、TDD のループが実行器の止まりで抜けた輪の記録の
     no_suite）。止まっていなければ空"""
     from src import common
     started = read_json(pathlib.Path(place) / TDD_START_FILE) or {}
     if started.get("no_suite") is True:
         return str(started.get("reason") or "no-suite")
-    state = str(started.get("state_file") or "")
-    if state and pathlib.Path(state).is_file():
-        st = common.load_state(state)
+    record = loop_files(place)[0]
+    if record:
+        st = common.load_record(record)
         if st.get("no_suite") is True:
             return str(st.get("note") or "no-suite")
     return ""
@@ -2256,8 +2275,8 @@ def brief_sources(place) -> dict:
     return {"plan": read_json(p / PLAN_REPLY_FILE), "judgment": read_json(p / JUDGMENT_FILE)}
 
 
-def fix_values(place, owed, *, start=None, state: str = "", summary: str = "", answer_node: str = "") -> dict:
-    """修正役の指示書の run の値（fixrules.FIX_VALUES と request_file・plan_session・tdd_state・ripple_file・base_rev）。始めの
+def fix_values(place, owed, *, start=None, record: str = "", summary: str = "", answer_node: str = "") -> dict:
+    """修正役の指示書の run の値（fixrules.FIX_VALUES と request_file・plan_session・tdd_record・ripple_file・base_rev）。始めの
     記録 start の固めた方針の写しは policy_path、request_file は startrec.request_file で読む。plan_session は範囲の相談に答える役の名（answer_node。
     空なら相談の節を載せない）"""
     p = pathlib.Path(place)
@@ -2269,7 +2288,7 @@ def fix_values(place, owed, *, start=None, state: str = "", summary: str = "", a
     return {"judgment_file": there(JUDGMENT_FILE), "open_units": json.dumps(list(owed), ensure_ascii=False),
             "plan_file": there(PLAN_REPLY_FILE), "policy_path": start["policy"],
             "notes_file": there(NOTES_FILE), "summary_file": summary or "",
-            "request_file": start["request_file"], "plan_session": answer_node, "tdd_state": state or "",
+            "request_file": start["request_file"], "plan_session": answer_node, "tdd_record": record or "",
             "ripple_file": there(RIPPLE_FILE), "base_rev": base_rev_of(place)}
 
 

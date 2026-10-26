@@ -685,6 +685,29 @@ class ReportCase(FinishPlace):
         self.assertTrue(out["report"][0].startswith("修正の出力を組めない: "), out["report"])
 
 
+class LoopRecordsCase(FinishPlace):
+    """修正の出力の frozen・tdd_refused は輪の記録 tdd-<k>/record.json から組む（輪の状態 state.json は読まない。E1 の作る物 3）"""
+
+    def put_loops(self):
+        write(self.place / "tdd-1" / "record.json", {"frozen": {"test_stats.py": "h1"}, "frozen_tree": "t1", "done": True,
+                                                    "calls": [{"n": 1, "phase": "test", "unit_key": "A", "ok": False},
+                                                              {"n": 2, "phase": "runner", "unit_key": "A", "ok": False}]})
+        write(self.place / "tdd-2" / "record.json", {"frozen": {}, "frozen_tree": "t2", "done": True,
+                                                    "calls": [{"n": 1, "phase": "fix", "unit_key": "B", "ok": False}]})
+        write(self.place / "tdd-3" / "state.json", {"frozen": {"only_state.py": "h"}, "frozen_tree": "t3",
+                                                   "calls": [{"n": 1, "phase": "test", "unit_key": "C", "ok": False}]})
+
+    def test_frozen_and_tdd_refused_read_the_records(self):
+        kit.load("fix", "finish")
+        from src import finish
+        self.put_loops()
+        path = finish._frozen(self.place)
+        loops = json.loads(path.read_text(encoding="utf-8"))["loops"]
+        self.assertEqual([(pathlib.Path(r["state"]).parent.name, r["frozen"], r["frozen_tree"]) for r in loops],
+                         [("tdd-1", {"test_stats.py": "h1"}, "t1"), ("tdd-2", {}, "t2")], "状態しか無い輪 tdd-3 は数えない")
+        self.assertEqual(finish._tdd_refused(self.place), {"refused": ["A", "B"], "unread": []})
+
+
 class UnitsReachReportCase(FinishPlace):
     """直す単位ごとの記録が報告と最後の承認ノードに届く（docs/design/fix.md の 12 節の 11）: 出力 units の形と、report の TDD の行が
     report.tdd_lines の字のまま"""

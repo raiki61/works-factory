@@ -8,7 +8,7 @@ TDD の輪の中にだけ在った 2 つの関門を、base（修正前の版。
 - red_green: 承認済みの修正案の欄（conflict.frozen_fields）の route が tdd の項目の受け入れのテスト tests[].id ごとに、今の木で
   一式を走らせて passed、base の木で failure（輪と同じ赤の判定 common.red_check が返す事実の文: 言語に依らず、error・一式の結末に
   居ない・もう通る・飛ばされたを拒む。文は『base で 』を頭に付けて行の detail に並べる）。輪が赤を確かめた単位（置き場の
-  輪の状態の units で、route が tdd・red が ok・赤の木 red_tree が在り、今の木のテストのファイルが輪が終わった時の hash（輪の
+  輪の記録の units で、route が tdd・red が ok・赤の木 red_tree が在り、今の木のテストのファイルが輪が終わった時の hash（輪の
   状態の frozen）と同じ物）の名指しは、赤の判定を輪の記録した赤の木（仮の実装を含む）で走らせ直して見る（common.red_rerun。
   並べの締めと同じ口。文は RED_TREE_HEAD を頭に付ける）。test の段は走る前の失敗を最小の仮の実装で直してよいので、base の木に
   テストのファイルだけを写すと組み立てで落ちる正しい赤を拒むため（持ち主の直す前の関所の答え (3) A）。その名指しも base の木では
@@ -263,14 +263,14 @@ def _test_files(repo, rev: str, tree: str, ids=()) -> list[str]:
 
 
 def _red_units(board_dir, repo: pathlib.Path) -> dict:
-    """名指しの id（common._norm_id）→ 輪が赤を確かめた単位の記録（置き場の全部の輪の状態 common.states。route が tdd・red が ok・
-    諦めていない・赤の木 red_tree が在り、今の木のテストのファイルが輪が終わった時の hash（その輪の状態の frozen）と同じ単位。
+    """名指しの id（common._norm_id）→ 輪が赤を確かめた単位の記録（置き場の全部の輪の記録 common.records。route が tdd・red が ok・
+    諦めていない・赤の木 red_tree が在り、今の木のテストのファイルが輪が終わった時の hash（その輪の記録の frozen）と同じ単位。
     後の単位が同じファイルに足しただけなら赤の木を使う（赤の木の中のファイルが赤の記録と同じかは red_rerun が照らす）。同じ名指しは
-    先の輪の物）。読めない輪の状態は飛ばす（その名指しは base の木で見る。緩めない側）"""
+    先の輪の物）。読めない輪の記録は飛ばす（その名指しは base の木で見る。緩めない側）"""
     out = {}
-    for path in common.states(board_dir):
+    for path in common.records(board_dir):
         try:
-            st = common.load_state(path)
+            st = common.load_record(path)
         except common.Broken:
             continue
         frozen = st.get("frozen") or {}

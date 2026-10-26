@@ -95,12 +95,13 @@ def _scope_ptr(place) -> dict | None:
 
 
 def _frozen(place) -> pathlib.Path | None:
-    """輪ごとの凍ったテストのファイルの hash {loops: [{state, frozen, frozen_tree}]}（輪が無ければ書かない）"""
+    """輪ごとの凍ったテストのファイルの hash {loops: [{state, frozen, frozen_tree}]}（輪が無ければ書かない。state は輪の記録のパス。
+    欄の名は frozen.schema.json の物のまま）"""
     from src import board, common
     loops = []
-    for state in common.states(place):
-        doc = board.read_json(state, {}) or {}
-        loops.append({"state": str(state), "frozen": doc.get("frozen") or {}, "frozen_tree": doc.get("frozen_tree") or ""})
+    for record in common.records(place):
+        doc = board.read_json(record, {}) or {}
+        loops.append({"state": str(record), "frozen": doc.get("frozen") or {}, "frozen_tree": doc.get("frozen_tree") or ""})
     if not loops:
         return None
     return board.write_json(pathlib.Path(place) / files.FROZEN_FILE, {"loops": loops})
@@ -116,21 +117,21 @@ def _scope(place) -> pathlib.Path | None:
 
 
 def _tdd_refused(place) -> dict:
-    """TDD の輪の状態の calls から修正役が拒まれた単位と、在るのに読めない状態の訳（今の fixbeside.tdd_refused）"""
+    """TDD の輪の記録の calls から修正役が拒まれた単位と、在るのに読めない記録の訳（今の fixbeside.tdd_refused）"""
     import oneline
     from src import common, tdd
     refused, unread = [], []
-    for state in common.states(place):
+    for record in common.records(place):
         try:
-            doc = json.loads(state.read_text(encoding="utf-8"))
+            doc = json.loads(record.read_text(encoding="utf-8"))
         except (OSError, ValueError) as e:
-            unread.append(f"修正の控え {state} が読めない（{type(e).__name__}: {oneline.one_line(e)}）")
+            unread.append(f"修正の控え {record} が読めない（{type(e).__name__}: {oneline.one_line(e)}）")
             continue
         if isinstance(doc, dict) and "error" in doc:
-            unread.append(f"修正の控え {state} を組めなかった（{oneline.one_line(doc['error'])}）")
+            unread.append(f"修正の控え {record} を組めなかった（{oneline.one_line(doc['error'])}）")
             continue
         if not isinstance(doc, dict):
-            unread.append(f"修正の控え {state} の形が違う（オブジェクトでない）")
+            unread.append(f"修正の控え {record} の形が違う（オブジェクトでない）")
             continue
         refused += tdd.refused_units(doc.get("calls"))
     return {"refused": refused, "unread": unread}

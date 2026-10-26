@@ -1,5 +1,5 @@
 {
- "description": "次の修正の段への申し送り carry.json {conflicts, loops, accept, bases, returns}（修正の block の出力 carry が指し、2 回目の修正の段の入力 prior が読む）。conflicts は食い違いの申し出の控えの中身、loops は輪ごとの状態と要約、accept・bases・returns は受け付けの記録・元の結末の写し・返しの控え（workflows/fix/src/carry.py）",
+ "description": "次の修正の段への申し送り carry.json {conflicts, loops, accept, bases, returns}（修正の block の出力 carry が指し、2 回目の修正の段の入力 prior が読む）。conflicts は食い違いの申し出の控えの中身、loops は輪ごとの記録と要約（と、A の側の読み手のための輪の状態）、accept・bases・returns は受け付けの記録・元の結末の写し・返しの控え（workflows/fix/src/carry.py）",
  "type": [
   "object",
   "null"
@@ -17,6 +17,64 @@
    "items": {
     "type": "object",
     "properties": {
+     "record": {
+      "type": "object",
+      "description": "輪の記録 tdd-<k>/record.json の中身（形は workflows/fix/schemas/tdd-record.schema.json。2 回目の修正の block の place_prior が prior/tdd-<k>/record.json に置く）",
+      "properties": {
+       "frozen": {
+        "type": "object",
+        "patternProperties": {
+         "^.+$": {
+          "type": [
+           "string",
+           "null"
+          ]
+         }
+        }
+       },
+       "frozen_tree": {
+        "type": "string"
+       },
+       "handoff": {
+        "type": "string"
+       },
+       "suite_made": {
+        "type": "array",
+        "items": {
+         "type": "string"
+        }
+       },
+       "done": {
+        "type": "boolean"
+       },
+       "summary": {
+        "type": "string"
+       },
+       "calls": {
+        "type": "array",
+        "items": {
+         "type": "object",
+         "properties": {
+          "n": {
+           "type": "integer"
+          },
+          "phase": {
+           "type": "string"
+          },
+          "unit_key": {
+           "type": "string"
+          },
+          "ok": {
+           "type": "boolean"
+          }
+         }
+        }
+       }
+      }
+     },
+     "summary": {
+      "type": "string"
+     },
      "state": {
       "type": "object",
       "properties": {
@@ -32,10 +90,8 @@
          "type": "string"
         }
        }
-      }
-     },
-     "summary": {
-      "type": "string"
+      },
+      "description": "A の側の読み手のため輪の状態 tdd-<k>/state.json の中身（記録の隣に在れば。次の頼みで消す）"
      }
     }
    }

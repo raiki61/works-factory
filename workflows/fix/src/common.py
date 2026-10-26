@@ -42,7 +42,7 @@ import oneline  # noqa: E402
 from leftovers import Unreadable, git, git_names  # noqa: E402
 
 
-STATE, PROMPT, SUMMARY = fixnames.TDD_STATE_FILE, "next.md", "summary.md"
+STATE, PROMPT, SUMMARY, RECORD = fixnames.TDD_STATE_FILE, "next.md", "summary.md", fixnames.RECORD_FILE
 
 
 MIN_WHY = 10
@@ -301,6 +301,11 @@ def load_state(state_file) -> dict:
     return _load(state_file)
 
 
+def load_record(record_file) -> dict:
+    """輪の記録 tdd-<k>/record.json（frozen・frozen_tree・handoff・suite_made・calls・units の行など。輪が抜ける時に書く）を読む口"""
+    return _load(record_file)
+
+
 def _load(state_file) -> dict:
     try:
         return json.loads(pathlib.Path(state_file).read_text(encoding="utf-8"))
@@ -467,15 +472,17 @@ def _verified(st) -> set:
             for t in u.get("tests") or []}
 
 
-def verified_rewrites(state_file) -> list[str]:
+def verified_rewrites(record_file) -> list[str]:
     """約束の書き換えの名指し（修正案の rewrite_tests の id。書いたまま）のうち、輪が赤→緑を確かめた物。受け付けはこれを
     テストの変更の許しから外す（conflict.ruled_test_limits の skip_ids。輪の後の修正役に確かめなしで書き換えさせない）。
-    状態が無い（輪の無い run）なら空"""
-    if not state_file or not pathlib.Path(state_file).is_file():
+    確かめ済みか（route・green・tests）は輪の記録 record_file、約束の rewrites は記録の隣の輪の状態（state_of。A の側。次の頼みで
+    注文の permits に替わる）。記録が無い（輪の無い run）なら空"""
+    if not record_file or not pathlib.Path(record_file).is_file():
         return []
-    st = _load(state_file)
-    done = _verified(st)
-    ids = (i for c in (st.get("contract") or {}).values() for i in c.get("rewrites") or [])
+    done = _verified(_load(record_file))
+    state = state_of(record_file)
+    contract = (_load(state).get("contract") or {}) if state.is_file() else {}
+    ids = (i for c in contract.values() for i in c.get("rewrites") or [])
     return [i for i in dict.fromkeys(ids) if _norm_id(i) in done]
 
 
@@ -508,7 +515,7 @@ def flush_claims(state_file, st: dict, holder: dict, field: str, park) -> None:
 
 
 # ---------------------------------------------------------------- 輪の後
-def frozen_problems(state_file, repo, allowed=(), *, since=None, skip_spans=()) -> list:
+def frozen_problems(record_file, repo, allowed=(), *, since=None, skip_spans=()) -> list:
     """輪で緑になった単位のテストのファイルが、輪が済んだ時から変わっていれば、その文（状態が無ければ空）。
     allowed はテストの変更の許し（承認済みの修正案の rewrite_tests と裁定 fix_test_scope の範囲。conflict.test_permits を
     conflict.ruled_test_limits が引く）で、その中だけの変更は通す。
@@ -522,15 +529,15 @@ def frozen_problems(state_file, repo, allowed=(), *, since=None, skip_spans=()) 
     足した物を除いた中身で範囲の外の塊を見る。既存の文の書き換え・消し・skip の印の追加は今どおり拒む
     文は 1 ファイル 1 文（許しの無いファイルを 1 つの文に並べない）。範囲の外の塊が全部、輪の受け入れのテストでない既存のテストの
     関数の幅に収まるファイルは frozen_asks が相談の頼みに直す（同じ文を line に持つ）"""
-    return [line for _, line, _ in _frozen_rows(state_file, repo, allowed, since, skip_spans)]
+    return [line for _, line, _ in _frozen_rows(record_file, repo, allowed, since, skip_spans)]
 
 
-def _frozen_rows(state_file, repo, allowed, since, skip_spans) -> list:
+def _frozen_rows(record_file, repo, allowed, since, skip_spans) -> list:
     """凍ったファイルの検査の本体（frozen_problems と frozen_asks が共有する、判定の式の 1 か所）。返り [(パス, 文, 範囲の外の塊
     （`a-b` の文の並び。旧い側の行。許しの範囲が無ければ変わった塊の全部。読めなければ ["（輪が済んだ時の姿が読めない）"]）)]"""
-    if not state_file:
+    if not record_file:
         return []
-    st = _load(state_file)
+    st = _load(record_file)
     now = hashes(repo, st["frozen"])
     then = _tree_hashes(repo, since, st["frozen"]) if since else st["frozen"]
     moved = [f for f in st["frozen"] if now[f] != then[f]]
@@ -570,19 +577,19 @@ def _frozen_rows(state_file, repo, allowed, since, skip_spans) -> list:
     return out
 
 
-def frozen_asks(state_file, repo, allowed=(), since=None, skip_spans=(), rev=None) -> list:
+def frozen_asks(record_file, repo, allowed=(), since=None, skip_spans=(), rev=None) -> list:
     """frozen_problems と同じ計算で、凍ったファイルごとの相談の頼み [{path, tests: [<パス>:<関数の def の行>], line, ref}]。範囲の外の
     塊（足しただけの文を除いた後の物）が全部、輪の受け入れのテスト（test_spans）でない既存のテストの関数の幅（_function_span）の中に
     収まるファイルだけ。塊が 1 つでも関数の外（import の行・モジュールの直下の定数・クラスの属性など）か、輪の受け入れのテストの
     関数に掛かれば頼みにしない（成り立たない frozen の文のまま）。line はそのファイルの frozen_problems の文と同じ。
     頼みの行の番号は修正前の版 rev の物（範囲の相談の合意の行の読む木は 1 つ。conflict.agreed_permits）で、凍結の基準の木の関数を
     id で rev の木へ引き直す。rev に無い関数（輪が足した物）・rev が読めない時は頼みにしない。ref は rev で、restore_tests の ref に渡す"""
-    rows = _frozen_rows(state_file, repo, allowed, since, skip_spans)
+    rows = _frozen_rows(record_file, repo, allowed, since, skip_spans)
     if not rows or not rev:
         return []
-    st = _load(state_file)
+    st = _load(record_file)
     base = since or st.get("frozen_tree") or st.get("handoff")
-    mine = test_spans(state_file, list(st.get("units") or {}))
+    mine = test_spans(record_file, list(st.get("units") or {}))
     out = []
     for path, line, bad in rows:
         old = _tree_text(repo, base, path)
@@ -662,12 +669,12 @@ def _def_line(src, name: str):
     return walk(tree.body, [])
 
 
-def test_spans(state_file, keys) -> list:
+def test_spans(record_file, keys) -> list:
     """輪が tdd で緑にした単位のうち keys の単位の受け入れのテスト（単位の tests。名指しの id）を [(パス, 関数の名)] に
     （frozen_problems の skip_spans の形。名は id のパスの後ろ。parametrize の `[…]` は落とす）。状態が無ければ空"""
-    if not state_file:
+    if not record_file:
         return []
-    st = _load(state_file)
+    st = _load(record_file)
     out = []
     for k in keys:
         u = st.get("units", {}).get(k) or {}
@@ -680,13 +687,13 @@ def test_spans(state_file, keys) -> list:
     return out
 
 
-def frozen_source(state_file, repo, *, since=None):
+def frozen_source(record_file, repo, *, since=None):
     """凍結の検査が行を読む輪の後の木（since が在ればその木。無ければ frozen_tree、それも無ければ handoff。frozen_problems の
     基準の木と同じ）から、パスの中身を読む口（conflict.ruled_test_limits の source。修正案の limit をその木でテストの id から
     引き直す）。状態・木・パスが読めなければ口は None を返す（許しを捨てる側）。状態は口を呼んだ時に読む"""
     def read(path):
         try:
-            st = _load(state_file) if state_file else {}
+            st = _load(record_file) if record_file else {}
             tree = since or st.get("frozen_tree") or st.get("handoff")
             return git(repo, "show", f"{tree}:{path}") if tree else None
         except (Broken, Unreadable):
@@ -881,25 +888,31 @@ def _function_span(old, line):
     return top, node.end_lineno
 
 
-def suite_made(state_file) -> list:
-    """実行器を走らせて出来たファイル（書き込みの出どころの突き合わせから外す。状態が無ければ空）"""
-    return _load(state_file).get("suite_made", []) if state_file else []
+def suite_made(record_file) -> list:
+    """実行器を走らせて出来たファイル（書き込みの出どころの突き合わせから外す）を輪の記録 record_file から。記録が無ければ空"""
+    return _load(record_file).get("suite_made", []) if record_file else []
 
 
-def states(board_dir) -> list:
-    """盤面の根の輪の状態 tdd-<k>/ の STATE を番号の順に（run の全部の輪。2 回目の修正の段の輪は 1 回目の後に起きる）。
+def records(board_dir) -> list:
+    """盤面の根の輪の記録 tdd-<k>/ の RECORD を番号の順に（run の全部の輪。2 回目の修正の段の輪は 1 回目の後に起きる）。
     置き場が無ければ空"""
     got = []
     for d in pathlib.Path(board_dir).glob("tdd-*"):
         k = d.name[len("tdd-"):]
-        if k.isdigit() and (d / STATE).is_file():
-            got.append((int(k), d / STATE))
+        if k.isdigit() and (d / RECORD).is_file():
+            got.append((int(k), d / RECORD))
     return [p for _, p in sorted(got)]
 
 
+def state_of(record_file) -> pathlib.Path:
+    """輪の記録 record_file の隣の輪の状態のパス（A の側の読み手のため。受け付けの試験の選びが状態の exe・work・約束を読む間だけ。
+    次の頼みで状態の読み手と一緒に消える）"""
+    return pathlib.Path(record_file).with_name(STATE)
+
+
 def suite_made_all(board_dir) -> set:
-    """run の全部の輪（states）の suite_made の和（書き込みの出どころの突き合わせと案の項目の照らしが外す）"""
-    return {f for p in states(board_dir) for f in suite_made(p)}
+    """run の全部の輪（records）の suite_made の和（書き込みの出どころの突き合わせと案の項目の照らしが外す）"""
+    return {f for p in records(board_dir) for f in suite_made(p)}
 
 
 ACCEPT_RUN = "accept"   # 受け付けが走らせた回のログ・JUnit の名（suite-accept.log）
@@ -1056,34 +1069,34 @@ def accept_values(place) -> dict:
     return got if isinstance(got, dict) else {}
 
 
-def accept_dir(state_file) -> pathlib.Path | None:
-    """state_file（輪の状態か base.json）の受け付けが書き戻す accept.json のフォルダ（selected_problems の accept の既定と同じ。
-    無い・読めなければ None）"""
-    if not state_file or not pathlib.Path(state_file).is_file():
+def accept_dir(record_file) -> pathlib.Path | None:
+    """record_file（輪の記録か base.json）の受け付けが書き戻す accept.json のフォルダ（selected_problems の accept の既定と同じ。
+    記録は tdd-<k>/ の中なのでその親。無い・読めなければ None）"""
+    if not record_file or not pathlib.Path(record_file).is_file():
         return None
-    if pathlib.Path(state_file).name == fixnames.BASE_FILE:
-        return pathlib.Path(state_file).parent
-    return pathlib.Path(_load(state_file)["work"]).parent
+    if pathlib.Path(record_file).name == fixnames.BASE_FILE:
+        return pathlib.Path(record_file).parent
+    return pathlib.Path(record_file).parent.parent
 
 
-def _accepted(state_file, key: str) -> list:
-    d = accept_dir(state_file)
+def _accepted(record_file, key: str) -> list:
+    d = accept_dir(record_file)
     return list(accept_values(d).get(key) or []) if d is not None else []
 
 
-def final_left(state_file) -> list:
+def final_left(record_file) -> list:
     """受け付けが直に関わらないので回さず、線の最後のテストの段に任せた試験（accept.json の欄。無い・まだ選んでいなければ空）"""
-    return _accepted(state_file, "final_left")
+    return _accepted(record_file, "final_left")
 
 
-def final_far(state_file) -> list:
+def final_far(record_file) -> list:
     """受け付けが一式を回す理由にせず最後のテストの段に任せた、地図の遠く（深さ 2 以上）の分からない物の理由（impact の far。accept.json）"""
-    return _accepted(state_file, "final_far")
+    return _accepted(record_file, "final_far")
 
 
-def ci_left(state_file) -> list:
+def ci_left(record_file) -> list:
     """受け付けが手元で回さなかった試験（accept.json の欄。無い・まだ選んでいなければ空。受け付けの知らせの文にも同じ名が載る）"""
-    return _accepted(state_file, "ci_left")
+    return _accepted(record_file, "ci_left")
 
 
 REV_CACHE = "accept-rev-cache.json"   # 版の写しの結末の控え（盤面の根。run の全部の輪と受け付けの回が使い回す）
