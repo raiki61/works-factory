@@ -9,8 +9,9 @@
 - 付録 A は作業ツリーでなく固定した版（PLAN_PIN。計画のファイルの git の blob）から読み、作業ツリーの付録 A がその版と同じことも照らす。
   計画の側で行を動かす・見出しや引きを替えるだけでは照らしを動かせず、付録 A を直す PR は PLAN_PIN を替えるので試験の差分に出る。
   blob にしたのは、squash で main に入ると PR の commit が main の履歴から消えても、同じ字の blob は残るため。設計の枝
-  work/design-seat が付録 A を直す時は、直した commit で `git rev-parse HEAD:docs/plans/2026-10-24-fix-weapons.md` の値を
-  PLAN_PIN に書く（直した表 appendix-a.json と一緒に）。引けなければ見送らずに赤。
+  work/design-seat が付録 A を直す時は、PR の最後の commit で `git rev-parse HEAD:docs/plans/2026-10-24-fix-weapons.md` の値を
+  PLAN_PIN に書く（直した表 appendix-a.json と一緒に。途中の commit の blob は、後の commit が計画を直すと squash の後の main に残らない）。
+  引けなければ見送らずに赤。
 - 表の文の出どころ: 表の各行の文が、付録 A の本文がその行に引く置き場の行（`:4`・`brief.md:2-4` など）の、付録 A の行番号の版
   （PIN。#865 の後で #866 の前の main）の字に在る。表と指示の md を一緒に書き換えても、git の履歴の字は変わらないので赤になる
   （CI は fetch-depth: 0 で全履歴を取る。履歴を引けなければ見送らずに赤）。移す時に字を替えた行は REWORDED に、替えた後と前の字の対で置く。
