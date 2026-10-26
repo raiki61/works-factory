@@ -374,6 +374,23 @@ class GroupChildScriptsCase(unittest.TestCase):
         self.assertFalse(out["ok"], out)
         self.assertIn("test_clamp_within_range", out["reason"])
 
+    def test_ruled_accept_rejects_a_rewrite_of_a_test_the_child_loop_froze(self):
+        """組の子の輪が凍らせた試験は、join が親へ写した後も凍ったまま: 親の裁定の後の修正の受け付け（fix-ruled-accept）は、子の輪で
+        緑にした単位の試験のファイルの既存の行を変えた返答を、凍ったテストの確かめで拒み、そのファイルを名指す（keep-essence の 3。
+        写しを消すと board.ruled_states → facts.check_frozen が子の輪の凍結を見失う）"""
+        import leftovers
+        test_file, _ = self.green_loop()
+        result = json.loads(pathlib.Path(self.run_script("group_end")["result_file"]).read_text(encoding="utf-8"))
+        self.parent_groups(result["start_tree"])
+        leftovers.record_ignored(self.parent, self.repo)
+        self.run_script("join", art=self.parent)
+        test_file.write_text(test_file.read_text(encoding="utf-8").replace("mean([2, 4]), 3)", "mean([2, 4]), 3.0)"),
+                             encoding="utf-8")
+        out = self.run_script("fix_ruled_accept", art=self.parent, consulted="false", iteration="1",
+                              reply_variant=support.reply_json({"changes": [_change(MEAN, ["stats.py", "test_stats.py"])]}))
+        self.assertFalse(out["ok"], out)
+        self.assertIn("test_stats.py", self.frozen_reason(out["reason"]))
+
     def test_join_resolves_a_relative_runner_in_the_parent_tree(self):
         """並べた子の worktree で回った輪の状態の実行器（相対パス。自分の place から根を引く）を、join は親の作業ツリーで解き直して
         写す。親の裁定の後の修正の受け付けは親の木で試験を走らせ、元で緑だった試験を赤にする直しを拒む"""
