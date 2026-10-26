@@ -6,6 +6,11 @@
   食い違えば赤。from を machine に替えて照らしを飛ばすこともできない。機械の行が引く置き場は .py のファイルに限るので、
   md の行を A.8 へ動かす・見出しを Python に替えて machine にすることもできない）、行き先ごとの数（共通 156・variant 29・変える 4・
   消す 11。範囲の番号 F17〜F20 などは広げて数える）も照らす。
+- 付録 A は作業ツリーでなく固定した版（PLAN_PIN。計画のファイルの git の blob）から読み、作業ツリーの付録 A がその版と同じことも照らす。
+  計画の側で行を動かす・見出しや引きを替えるだけでは照らしを動かせず、付録 A を直す PR は PLAN_PIN を替えるので試験の差分に出る。
+  blob にしたのは、squash で main に入ると PR の commit が main の履歴から消えても、同じ字の blob は残るため。設計の枝
+  work/design-seat が付録 A を直す時は、直した commit で `git rev-parse HEAD:docs/plans/2026-10-24-fix-weapons.md` の値を
+  PLAN_PIN に書く（直した表 appendix-a.json と一緒に）。引けなければ見送らずに赤。
 - 表の文の出どころ: 表の各行の文が、付録 A の本文がその行に引く置き場の行（`:4`・`brief.md:2-4` など）の、付録 A の行番号の版
   （PIN。#865 の後で #866 の前の main）の字に在る。表と指示の md を一緒に書き換えても、git の履歴の字は変わらないので赤になる
   （CI は fetch-depth: 0 で全履歴を取る。履歴を引けなければ見送らずに赤）。移す時に字を替えた行は REWORDED に、替えた後と前の字の対で置く。
@@ -29,6 +34,7 @@
 
 文の意味が弱まっていないか（言い換え）は、独立のレビューが文で見る（この試験は字の在る無しだけ）。
 """
+import functools
 import json
 import pathlib
 import re
@@ -44,7 +50,7 @@ from tests.blocks import kit
 ROOT = pathlib.Path(__file__).resolve().parents[3]
 HERE = pathlib.Path(__file__).resolve().parent
 BLOCK = kit.BLOCKS / "fix"
-PLAN = ROOT / "docs" / "plans" / "2026-10-24-fix-weapons.md"
+PLAN = "docs/plans/2026-10-24-fix-weapons.md"
 for p in (ROOT / "lib", kit.SHARED):
     if str(p) not in sys.path:
         sys.path.append(str(p))
@@ -55,6 +61,7 @@ import seat  # noqa: E402
 ROWS = json.loads((HERE / "appendix-a.json").read_text(encoding="utf-8"))
 BEFORE = json.loads((HERE / "fixer-reply-before.json").read_text(encoding="utf-8"))
 PIN = "523599ac3b62f9ad7f707c5846c4ba186b38c1f0"   # 付録 A の行番号の版（#865。A.2 の見出し「#865 で 2 行増えた後の行番号」）
+PLAN_PIN = "8c277a11d84bd69245a8a1ed53acb3850de614cc"   # 計画の版（git の blob。#869 の後の main の計画。付録 A を直す PR はこの値を替える）
 DEFAULT = {"A.2": "workflows/fix/prompts/parts/fixer.md", "A.4": "workflows/.shared/prompts/writer-rules.md",
            "A.5": "workflows/.shared/prompts/query-rule.md", "A.7": "lib/borrow/unattended.md"}   # 節の頭が名指す、`:行` だけの引きの置き場
 SHARED_PARTS = {"brief-reading.md", "rejected.md"}   # A.3 の .shared/prompts の断片（ほかの名は fix の prompts/parts）
@@ -138,8 +145,7 @@ def appendix_rows() -> list:
     """付録 A の本文の行 (番号, 行き先, 出どころ)。行き先は 共通・variant・variant・pin・変える・消す（数に入れない行と、A.2 の Q の
     写しの行は除く）。出どころは節の見出しが名指す置き場: A.6 の下請けの指示は g1、A.7 の unattended.md は unattended、A.8 の
     Python が組む行は machine、ほかは writer"""
-    text = PLAN.read_text(encoding="utf-8")
-    body = text[text.index("## 付録 A"):text.index("## 付録 B")]
+    body = appendix_a("\n".join(git_show(PLAN_PIN, PLAN)))
     out = []
     for sec in re.split(r"^### ", body, flags=re.M)[1:]:
         head = sec.split("\n", 1)[0]
@@ -156,18 +162,26 @@ def appendix_rows() -> list:
     return out
 
 
-def pinned_lines(path: str) -> list:
-    done = subprocess.run(["git", "-C", str(ROOT), "show", f"{PIN}:{path}"], env=hermetic.child_env(),
-                          capture_output=True, text=True)
+def appendix_a(text: str) -> str:
+    return text[text.index("## 付録 A"):text.index("## 付録 B")]
+
+
+@functools.lru_cache(maxsize=None)
+def git_show(spec: str, path: str) -> list:
+    """git の版の字の行（spec は commit:パス か blob）。引けなければ見送らずに赤"""
+    done = subprocess.run(["git", "-C", str(ROOT), "show", spec], env=hermetic.child_env(), capture_output=True, text=True)
     if done.returncode:
-        raise AssertionError(f"PIN の版の {path} を git から引けない（履歴の浅い clone か）: {done.stderr.strip()}")
+        raise AssertionError(f"固定した版の {path}（{spec}）を git から引けない（履歴の浅い clone か）: {done.stderr.strip()}")
     return done.stdout.split("\n")
+
+
+def pinned_lines(path: str) -> list:
+    return git_show(f"{PIN}:{path}", path)
 
 
 def appendix_sources() -> dict:
     """付録 A の本文の行の番号 → その行が引く置き場の行 [(パス, 頭, 尻)]（`:4`・`brief.md:2-4`・`.shared/prompts/lib-docs.md:1` の形）"""
-    text = PLAN.read_text(encoding="utf-8")
-    body = text[text.index("## 付録 A"):text.index("## 付録 B")]
+    body = appendix_a("\n".join(git_show(PLAN_PIN, PLAN)))
     out = {}
     for sec in re.split(r"^### ", body, flags=re.M)[1:]:
         head = sec.split("\n", 1)[0][:3]
@@ -183,6 +197,11 @@ def appendix_sources() -> dict:
 
 
 class TableCase(unittest.TestCase):
+    def test_the_plan_is_the_pinned_plan(self):
+        """作業ツリーの計画の付録 A が PLAN_PIN の版の付録 A と同じ（付録 A を直すなら PLAN_PIN を替えるので、試験の差分に出る）"""
+        self.assertEqual(appendix_a((ROOT / PLAN).read_text(encoding="utf-8")), appendix_a("\n".join(git_show(PLAN_PIN, PLAN))),
+                         "計画の付録 A が PLAN_PIN の版と違う。付録 A を直したなら PLAN_PIN を新しい blob に替える")
+
     def test_the_table_is_appendix_a(self):
         self.assertEqual([(r["id"], r["to"], r["from"]) for r in ROWS], appendix_rows())
         for r in ROWS:
