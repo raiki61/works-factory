@@ -315,7 +315,7 @@ class SchemaCase(unittest.TestCase):
         self.assertTrue(validate_schema({**order, "weapon": "direct"}, self.load("weapon-order.schema.json")))
         self.assertTrue(validate_schema({**order, "units": []}, self.load("weapon-order.schema.json")))
         ret = {"weapon": "pin", "status": [{"unit": "u", "status": "done", "why": ""}], "tree": "t",
-               "changes": [{"unit": "u", "files": ["t.py"], "what": "足した", "na": ["breaks"],
+               "changes": [{"unit": "u", "files": ["t.py"], "what": "足した",
                             "closure": {"sites": [{"site": "s", "test": "t.py::a", "fixed_by": [], "red_seen": "赤"}]}}],
                "evidence": {"named": [], "added": ["t.py::a"], "rewritten": [], "removed": [], "gone": [],
                             "kinds": [{"kind": "docs", "did": "リンクを引いた"}]}}
