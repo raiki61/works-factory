@@ -15,7 +15,7 @@
 ## 表 `src/render.py` の 3 つの定数
 
 - `ORDER_WEAPON = "pin"`: 注文の `weapon` の語。注文の語が違えば `prep` が落ちる。
-- `SPAWNS = True`: 下請けを起こすか。真なので AI の node の `allowed_tools` に `Agent` を足し（下書きの 11.8 の決め〔案 B〕。D2 の段 2 で足した。tdd の閉じの外の 5 つの型）、段落 `spawns`・`ask_variant` は真（`ask_variant` は slots の `ask` が偽なら偽）で本体が slots に足す。段落 `g1` は slots の `subagents.owed`（下請けを起こす単位）が空でない周だけ真。下請けのファイルは本体が `prep` で block の place に書き、実装役の指示 `g1-impl-<n>.md` には、この block の `prompts/parts/head.md`（下の頭の段落）を空の値で組んだ字が `{weapon_rule}` の段落として渡る（型の決まりが、下請けの実装役の手順書の「試験を書け」とぶつかる時に、下請けにも守らせる。fix.md の 24.9）。
+- `SPAWNS = True`: 下請けを起こすか。真なので AI の node の `allowed_tools` に `Agent` を足し（下書きの 11.8 の決め〔案 B〕: 下請けを付けるのは、TDD の輪の結果を閉じる書き手 `weapon-tdd-close` を除く 5 つの型 variant・remove・pin・tidy・static。この型も入る。D2 の 2 段目〔段 2〕で足した。案 B を選んだ理由は下書きの 11.8）、段落 `spawns`・`ask_variant` は真（`ask_variant` は slots の `ask` が偽なら偽）で本体が slots に足す。段落 `g1` は slots の `subagents.owed`（下請けを起こす単位）が空でない周だけ真。下請けのファイルは本体が `prep` で block の place に書き、実装役の指示 `g1-impl-<n>.md` には、この block の `prompts/parts/head.md`（下の頭の段落）を空の値で組んだ字が `{weapon_rule}` の段落として渡る（型の決まりが、下請けの実装役の手順書の「試験を書け」とぶつかる時に、下請けにも守らせる。fix.md の 24.9）。
 - `SUMMARY = False`: TDD の輪の要約を受けるか。偽なので、`summary_file` は足さない。
 
 ## 頭の段落 `prompts/parts/head.md` の出どころ
