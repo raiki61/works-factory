@@ -261,14 +261,25 @@
     "subagents": {
       "type": "object",
       "additionalProperties": false,
-      "description": "下請けの材料（データだけ。下請けを起こさない型の注文の時は空の object）",
+      "required": [
+        "owed",
+        "briefs",
+        "all_items",
+        "seat_brief_rows",
+        "judgment_file",
+        "policy_path",
+        "base_rev",
+        "check_cmd",
+        "directory"
+      ],
+      "description": "下請けの材料（データだけ。欄は全部置く。下請けを起こす単位が無い周・続きの周は owed・briefs・all_items を空の並びに、字の欄を空の字にする）",
       "properties": {
         "owed": {
           "type": "array",
           "items": {
             "type": "string"
           },
-          "description": "下請けを起こす単位の key（rules.dispatched の結果）"
+          "description": "下請けを起こす単位の key（rules.dispatched の結果。空なら下請けのファイルを組まない）"
         },
         "briefs": {
           "type": "array",

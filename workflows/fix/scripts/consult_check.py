@@ -4,7 +4,7 @@
 # ///
 """node consult-check・ruled-consult-check（修正の輪の中、修正役の後）: 返答の consult の頼み（と受け付けが積んだ頼み・人の関所の
 条件）を先の確かめに当てて place の相談の状態に積み、聞く頼みが在れば答えの役の指示を md から組んで go: true
-（board.consult_ask・src/prompts.consult_render）。入力 pass は first か ruled、reply_<型> は型の書き手の block の返りまるごと（variant は D1 の間 node の返答。起きた 1 つだけを読む）。相談の枠を使い切った後の頼みは consulted: false。
+（board.consult_ask・src/prompts.consult_render）。入力 pass は first か ruled、reply_<型> は型の書き手の block の返りまるごと（起きた 1 つだけを読む）。相談の枠を使い切った後の頼みは consulted: false。
 返り {consulted, go, prompt}"""
 import os
 import sys
@@ -23,17 +23,17 @@ GOT = ("ok", "reason", "reply", "report")   # 型の block の返りまるごと
 
 
 def written(pass_: str) -> tuple:
-    """段 pass_ に起きた型の書き手の (返答, 報告の行。報告は受け付けが積む)。型の block の返りはまるごとを ports.picked で拾い、
-    variant の node の返りは字で読む（writers.reply_of）。裁定の後の段に tdd の閉じは無い（INPUTS_REPLY_TDD_CLOSE が無く None）"""
+    """段 pass_ に起きた型の書き手の (返答, 報告の行。報告は受け付けが積む)。型の block の返りはまるごとを ports.picked で拾う
+    （writers.reply_of）。裁定の後の段に tdd の閉じは無い（INPUTS_REPLY_TDD_CLOSE が無く None）"""
     blocks = {
         "tdd": ports.picked(os.environ.get("INPUTS_REPLY_TDD_CLOSE"), GOT),
         "pin": ports.picked(os.environ.get("INPUTS_REPLY_PIN"), GOT),
         "tidy": ports.picked(os.environ.get("INPUTS_REPLY_TIDY"), GOT),
         "static": ports.picked(os.environ.get("INPUTS_REPLY_STATIC"), GOT),
+        "variant": ports.picked(os.environ.get("INPUTS_REPLY_VARIANT"), GOT),
         "remove": ports.picked(os.environ.get("INPUTS_REPLY_REMOVE"), GOT),
     }
-    return writers.reply_of(blocks, os.environ.get("INPUTS_REPLY_VARIANT"), pass_,
-                            lambda v: ports.polyfill("skip_value").value(v) is None)
+    return writers.reply_of(blocks, pass_)
 
 
 def main() -> dict:

@@ -27,16 +27,15 @@ GOT = ("ok", "reason", "reply", "report")   # 型の block の返りまるごと
 
 
 def written() -> tuple:
-    """起きた型の書き手の (返答, 報告の行)。型の block の返りはまるごとを ports.picked で拾い、variant の node の返りは字で
-    読む（writers.reply_of）"""
+    """起きた型の書き手の (返答, 報告の行)。型の block の返りはまるごとを ports.picked で拾う（writers.reply_of）"""
     blocks = {
         "pin": ports.picked(os.environ.get("INPUTS_REPLY_PIN"), GOT),
         "tidy": ports.picked(os.environ.get("INPUTS_REPLY_TIDY"), GOT),
         "static": ports.picked(os.environ.get("INPUTS_REPLY_STATIC"), GOT),
+        "variant": ports.picked(os.environ.get("INPUTS_REPLY_VARIANT"), GOT),
         "remove": ports.picked(os.environ.get("INPUTS_REPLY_REMOVE"), GOT),
     }
-    return writers.reply_of(blocks, os.environ.get("INPUTS_REPLY_VARIANT"), "ruled",
-                            lambda v: ports.polyfill("skip_value").value(v) is None)
+    return writers.reply_of(blocks, "ruled")
 
 
 def main() -> dict:

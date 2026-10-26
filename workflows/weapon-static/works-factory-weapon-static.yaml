@@ -1,6 +1,6 @@
 name: works-factory-weapon-static
 description: >-
-  書き手の型 static の block（docs/design/weapon-static.md）。注文の単位のうち、テストで赤から緑を示せない直し（文書・指示・メモ・設定値・CI の設定など）を作業ツリーに直す書き手を 1 人起こし、返答を形に照らして返す。
+  書き手の型 static の block（docs/design/weapon-static.md）。注文の単位のうち、テストで赤から緑を示せない直し（文書・指示・メモ・設定値・CI の設定など）を作業ツリーに直す書き手を 1 人起こし（項目ごとに下請けの実装役と審査役を付けられる）、返答を形に照らして返す。
   修正の block が include する葉の block（入口が script）で、単独の run でも回る
 inputs:
   order:
@@ -29,7 +29,7 @@ nodes:
     prompt: "$static-prep.output.prompt"
     model: '@wf-fix-writers'
     settingSources: [user]
-    allowed_tools: [Read, Grep, Glob, Edit, Write, Bash, WebSearch, WebFetch]
+    allowed_tools: [Read, Grep, Glob, Edit, Write, Bash, WebSearch, WebFetch, Agent]
     sandbox: {enabled: true, allowUnsandboxedCommands: false}
     idle_timeout: 1728000000
     retry: {max_attempts: 2, on_error: all}

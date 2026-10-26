@@ -1,8 +1,10 @@
-# 組の形で TDD の実行器（fixtures/tdd-runner.py）と承認済みの修正案（項目 1 つ・allowed_paths は stats.py）を渡し、修正役が範囲の外（README.md）を相談する: 頼みの照らしが
-# go を立て、答えの役（読むだけ）が修正案の md から組んだ指示で起きる
+# 組の形で TDD の実行器（fixtures/tdd-runner.py）と承認済みの修正案（項目 1 つ・allowed_paths は stats.py）を渡し、修正役が範囲の外（README.md）を相談する:
+# 相談の頼みの照らし（consult-check）が go を立て、答えの役（読むだけ）が起き、相談の受け付けと修正の受け付けが続く配線を通す。書き手の block の返りの
+# pointer の先は筋書きでは読めない（dry-run は置き場にファイルを書けない）ので、返りを読む 3 つの script は差し替える。答えの役の指示を md から組む事は
+# 試験 tests/blocks/fix/test_prompts.py の表 RENDERED（consult-answer）と tests/blocks/fix/test_consult.py が照らす
 fixture:
   expect: completed
-  reached: [intake, group-start, route-go, route-prep, route, route-step, orders, writer-pick, fix-prep, variant, consult-check, consult-answer, consult-accept, fix-accept, group-end, finish]
+  reached: [intake, group-start, route-go, route-prep, route, route-step, orders, writer-pick, fix-prep, w-variant__variant-prep, w-variant__variant, w-variant__variant-save, w-variant__variant-out, consult-check, consult-accept, fix-accept, group-end, finish]
   inputs:
     mode: group
     group: '{"group_id":"g1","unit_ids":["stats.py:4 mean"],"items":[1]}'
@@ -10,13 +12,11 @@ fixture:
     plan: '{"round":1,"fields":[{"route":"direct","tests":[],"rewrite_tests":[],"refactor":{"declared": false, "why": ""},"allowed_paths":["stats.py"],"out_of_scope":[]}]}'
     fix_plan: '{"plan":[{"unit_keys":["stats.py:4 mean"],"approach":"空の並びを先に返す"}]}'
     tdd_suite: .archon/workflows/works-factory/fix/fixtures/tdd-runner.py
-  resolved-text-contains:
-    consult-answer: 'Answer as the author of the fix plan.'
 exec-code: true
 route:
   phase: route
   units: [{unit_key: "stats.py:4 mean", route: direct, why: 先にテストを書けない単位として直す}]
-variant:
+w-variant__variant:
   changes: []
   not_done: []
   fix_closure: {status: not_applicable}
@@ -39,3 +39,13 @@ variant:
       evidence: [{path: stats.py, line: 4}]
 consult-answer:
   answers: [{ask: 1, decision: allow, paths: [README.md], tests: [], spec: "", reason: 直しの記録は範囲に入れてよい}]
+w-variant__variant-prep: {prompt: 型 variant の書き手の指示（include の中の script は筋書きでは入力を受けないので差し替える）}
+w-variant__variant-save: {saved: true}
+w-variant__variant-out:
+  ok: true
+  reason: ''
+  reply: {type: archon_artifact, run_id: dry-run, path: reply-1.json}
+  report: []
+consult-check: {consulted: true, go: true, prompt: 範囲の相談の答えの役の指示（筋書きでは書き手の返答の pointer の先を読めないので差し替える）}
+consult-accept: {consulted: true, answer_file: ''}
+fix-accept: {ok: false, done: false, reason: 範囲の相談の周（筋書きの差し替え）, reason_file: ''}

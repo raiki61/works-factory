@@ -1,22 +1,23 @@
 # 単独の run: 組の形・TDD の実行器（fixtures/tdd-runner.py。pack の写しの置き場から）。判定（1 単位を [block] で持つ。$ARTIFACTS_DIR を
 # 字のまま持つ）と組だけで最後まで届く（script は本当に走り、AI の役の返答だけを差し替える）。組の頭が元の結末を取り（実行器の無い組で
-# 計画の語が static でない単位は no-suite で止まる）、振り分けの役が direct に振り、TDD のループは回らず、variant の書き手が 1 回起き、受け付けが
-# 拒んでも筋書きは completed
+# 計画の語が static でない単位は no-suite で止まる）、振り分けの役が direct に振り、TDD のループは回らず、型 variant の書き手の block（include
+# w-variant）が 1 回起きて筋書きは completed。include の中の node は <include の id>__<id> の名で差し替える。筋書きは include の入力を名前の
+# script に渡さない（docs/design/archon.md の U3）ので、中の script（prep・save・out）も差し替え、返りの返答の pointer の先は筋書きでは
+# 読めない（dry-run は置き場にファイルを書けない）ので、その返りを読む受け付けの 3 つ（consult-check・consult-accept・fix-accept）も差し替える
+# （受け付けが返りを読む事は tests/blocks/fix/test_fix_accept.py と tests/blocks/fix/test_weapons.py が照らす）
 fixture:
   expect: completed
-  reached: [intake, group-start, route-go, route-prep, route, route-step, orders, writer-pick, fix-prep, variant, consult-check, consult-accept, fix-accept, group-end, fix-reads, finish]
+  reached: [intake, group-start, route-go, route-prep, route, route-step, orders, writer-pick, fix-prep, w-variant__variant-prep, w-variant__variant, w-variant__variant-save, w-variant__variant-out, consult-check, consult-accept, fix-accept, group-end, fix-reads, finish]
   inputs:
     mode: group
     group: '{"group_id":"g1","unit_ids":["stats.py:4 mean"],"items":[]}'
     judgment: '{"units":[{"key":"stats.py:4 mean","label":"block","disposition":"do-now","reason":"空の並びで 0 除算する（$ARTIFACTS_DIR の字はそのまま）"}],"questions":[]}'
     tdd_suite: .archon/workflows/works-factory/fix/fixtures/tdd-runner.py
-  resolved-text-contains:
-    variant: 'Do not say "done" without changing anything'
 exec-code: true
 route:
   phase: route
   units: [{unit_key: "stats.py:4 mean", route: direct, why: 先にテストを書けない単位として直す}]
-variant:
+w-variant__variant:
   changes:
     - unit_key: "stats.py:4 mean"
       files: [stats.py]
@@ -37,3 +38,13 @@ variant:
   interactions: []
   wrote_refs: []
   plan_faces: []
+w-variant__variant-prep: {prompt: 型 variant の書き手の指示（include の中の script は筋書きでは入力を受けないので差し替える）}
+w-variant__variant-save: {saved: true}
+w-variant__variant-out:
+  ok: true
+  reason: ''
+  reply: {type: archon_artifact, run_id: dry-run, path: reply-1.json}
+  report: []
+consult-check: {consulted: false, go: false, prompt: ''}
+consult-accept: {consulted: false, answer_file: ''}
+fix-accept: {ok: true, done: true, reason: '', reason_file: ''}

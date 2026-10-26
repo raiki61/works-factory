@@ -162,6 +162,49 @@ class SystemCase(Base):
         self.assertEqual(set(prompt._compose(self.block, "role", {}, None)), {"prompt"})
 
 
+class SharedCase(Base):
+    """render_shared は pack の .shared/prompts/<名>.md を、render と同じ決まりで組む（呼んだ block を問わない）"""
+
+    def shared_dir(self, **files) -> mock._patch:
+        """試験用の .shared の置き場（prompts/<名>.md）に替える"""
+        root = hermetic.tmpdir(self) / "shared"
+        (root / "prompts").mkdir(parents=True)
+        for name, text in files.items():
+            (root / "prompts" / f"{name.replace('_', '-')}.md").write_text(text, encoding="utf-8")
+        return mock.patch.object(prompt.ports, "SHARED", root)
+
+    def test_it_composes_a_shared_fragment_like_a_prompt(self):
+        """差し込み口・段落・断片の中の断片・頭の印の落とし方が render と同じ。呼んだ block が何かは見ない（block の外からも呼べる）"""
+        with self.shared_dir(g1_demo="<!-- required-for-tools: Agent -->\nRead {file}.\n<!-- if later -->\nAgain.\n<!-- end later -->\n{shared:inner}\n",
+                             inner="Inner {file2}.\n"):
+            got = prompt.render_shared("g1-demo", {"file": "a.md", "file2": "b.md"}, {"later": True})
+            self.assertEqual(got, "Read a.md.\nAgain.\nInner b.md.\n")
+            self.assertEqual(prompt.render_shared("g1-demo", {"file": "a.md", "file2": "b.md"}, {"later": False}), "Read a.md.\nInner b.md.\n")
+
+    def test_it_refuses_what_render_refuses(self):
+        """値の欠け・使われない値・when と md の段落の食い違い・無い断片・block の断片（{part:）・自分を差し込む断片・名の形でない物は名指して落ちる"""
+        with self.shared_dir(g1_demo="Read {file}.\n<!-- if later -->\nAgain.\n<!-- end later -->\n", bad="{part:x}\n", loop="{shared:loop}\n"):
+            with self.assertRaisesRegex(prompt.PromptError, r"\['file'\] に値が無い"):
+                prompt.render_shared("g1-demo", {}, {"later": True})
+            with self.assertRaisesRegex(prompt.PromptError, r"値 \['more'\] の置き換えの印"):
+                prompt.render_shared("g1-demo", {"file": "a", "more": "b"}, {"later": True})
+            with self.assertRaisesRegex(prompt.PromptError, "when に無い"):
+                prompt.render_shared("g1-demo", {"file": "a"}, {})
+            with self.assertRaisesRegex(prompt.PromptError, "が無い"):
+                prompt.render_shared("absent", {})
+            with self.assertRaisesRegex(prompt.PromptError, "part を持たない"):
+                prompt.render_shared("bad", {})
+            with self.assertRaisesRegex(prompt.PromptError, "自分を差し込む"):
+                prompt.render_shared("loop", {})
+            for name in ("../x", "my_brief", "parts/brief"):
+                with self.subTest(name=name), self.assertRaisesRegex(prompt.PromptError, "断片 の id の形でない"):
+                    prompt.render_shared(name, {})
+
+    def test_it_reads_the_real_shared_fragments(self):
+        """本物の .shared/prompts の断片も組める（呼んだ block が無くても）"""
+        self.assertEqual(prompt.render_shared("brief-head", {"brief_rows": "- row"}).splitlines()[:3], ["## The requirement (briefs)", "", "- row"])
+
+
 class CallerCase(Base):
     def test_render_outside_a_block_is_refused(self):
         with self.assertRaisesRegex(ValueError, "block の中に無い"):

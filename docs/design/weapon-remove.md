@@ -4,7 +4,7 @@
 - 決めたこと: 型ごとに違う物は `src/render.py` の 3 つの定数（`ORDER_WEAPON`・`SPAWNS`・`SUMMARY`）と、頭の段落 `prompts/parts/head.md` だけ。
 - 読む人: この block を作る・直す実装の役が、型ごとの違いを引く時に読む。急ぎではない。持ち主に求めること: なし。この文書を読んだだけで要る作業は無い。
 - 語: D1・D2 は修正の block の型の block 化の段階（D1 が書き手 5 つ、D2 が variant）。「鎖」は修正の block の YAML で、型の block の include を並べた node の並び（fix.md の 2.2.1）。「箱」は型の区分（change・keep・outside。fix.md の 22 節）。`prep` は block の最初の script node で、注文と slots を読んで書き手の指示を組む（落ちるのは run がその node で止まること。fix.md の 24.3）。「注文」は修正の block が型ごとに書く依頼（単位・範囲・許し）。「受け付け」は書き手の返答を通すか拒むかを決める修正の block の検査。「赤を見ない clean の拒否」は、試験が赤になるのを見ずに直したと言う返答を拒む検査。
-- block の状態: D1 で作る（別の作業場で写している最中）。名と形は `weapon-static` と同じで、違いは 3 つの定数と `head.md` だけ。
+- block の状態: 今の木に在る（`workflows/weapon-remove/`）。
 
 ## 役
 
@@ -15,7 +15,7 @@
 ## 表 `src/render.py` の 3 つの定数
 
 - `ORDER_WEAPON = "remove"`: 注文の `weapon` の語。注文の語が違えば `prep` が落ちる。
-- `SPAWNS = False`: 下請けを起こすか。偽なので AI の node の `allowed_tools` に `Agent` を足さず、段落 `spawns`・`g1`・`ask_variant` は偽の値で本体が slots に足す（偽なので、その段落は組み上がる指示に入らない）。D2 の後の値は下書きの 11.8 の決め（案 B）で、この設計書を直す。
+- `SPAWNS = True`: 下請けを起こすか。真なので AI の node の `allowed_tools` に `Agent` を足し（下書きの 11.8 の決め〔案 B〕: 下請けを付けるのは、TDD の輪の結果を閉じる書き手 `weapon-tdd-close` を除く 5 つの型 variant・remove・pin・tidy・static。この型も入る。D2 の 2 段目〔段 2〕で足した。案 B を選んだ理由は下書きの 11.8）、段落 `spawns`・`ask_variant` は真（`ask_variant` は、範囲の相談の節が入る周で真になる slots の `ask` が偽なら偽）で本体が slots に足す。段落 `g1` は slots の `subagents.owed`（下請けを起こす単位）が空でない周だけ真。下請けのファイルは本体が `prep` で block の place に書き、実装役の指示 `g1-impl-<n>.md` には、この block の `prompts/parts/head.md`（下の頭の段落）を値を渡さずに組んだ文面そのもの（この `head.md` は `{名}` の差し込み欄を持たない。持てば組む時に落ちる）が `{weapon_rule}` の段落として渡る（型の決まりが、下請けの実装役の手順書の「試験を書け」とぶつかる時に、下請けにも守らせる。fix.md の 24.9）。
 - `SUMMARY = False`: TDD の輪の要約を受けるか。偽なので、`summary_file` は足さない。
 
 ## 頭の段落 `prompts/parts/head.md` の出どころ
