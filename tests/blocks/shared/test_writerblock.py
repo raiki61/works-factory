@@ -266,8 +266,10 @@ class SubagentCase(Base):
         self.assertIn("- Do not start subagents.\n\n" + HEAD + "\n\n", impl)
         self.assertLess(impl.index("## works rules"), impl.index(HEAD))
         self.assertLess(impl.index(HEAD), impl.index("the brief wins"))
+
+    def test_a_type_that_does_not_start_subagents_does_not_read_the_head(self):
         (self.block / "prompts" / "parts" / "head.md").unlink()
-        _, seen = self.prep(table(SPAWNS=False), slots(BRIEFED))
+        self.prep(table(SPAWNS=False), slots(BRIEFED))
         self.assertEqual(self.files(), [], "偽の型は head.md が無くても落ちず、下請けのファイルも組まない")
 
     def test_a_head_paragraph_with_a_slot_stops_the_prep_and_is_not_filled_with_nothing(self):

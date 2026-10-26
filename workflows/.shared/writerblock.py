@@ -15,7 +15,9 @@
     偽なら偽に下ろす（今の writer_values と同じ向き）
   - 下請け（表の SPAWNS が真の型。subagent_items）: slots の subagents から、項目ごとに g1-impl-<n>.md・g1-review-<n>.md を、brief の在る run は
     seat-briefs.md も、この block の place に書く（md は .shared/prompts の g1-*.md・seat-briefs.md を prompt.render_shared で組む。値と借りた型の
-    埋めは lib/subagents.py）。借りた写しの固定の照合（seat.pinned）は下請けのファイルの書き込みより前。続きの周は組まない
+    埋めは lib/subagents.py）。g1-impl の {weapon_rule} は、この block の prompts/parts/head.md を prompt.render_part("head", {}) で組んだ字
+    （型の決まり。下請けの実装役の手順書の「試験を書け」とぶつかる型の決まりを、文を 2 か所に写さずに渡す。11.8 の決め〔案 B〕）。
+    借りた写しの固定の照合（seat.pinned）は下請けのファイルの書き込みより前。続きの周は組まない
 - save() -> {saved}: 入力 reply（AI の node の出力）を ports.json で形（shared:writer-reply.schema.json）に照らし、place の
   reply-<n>.json に書く。<n> = prompt.round_of(<w>) - 1（同じ周の <w>-prep が書いた <w>-prompt-<n>.md と対）。形に合わなければ
   落ちる（返す節に結ばれない node なので落ちてよく、落ちればその周の終わりに内の輪が落ちる。計画の 11.3 の「落ちた周の守り」）
@@ -82,7 +84,9 @@ def _seat() -> tuple[str, str]:
 
 def subagent_items(place, sub: dict) -> str:
     """slots の subagents（下請けを起こす単位 sub["owed"] が空でない）から、項目ごとの下請けのファイルを place に書き、修正役の指示の
-    {g1_items} の字（項目ごとの 1 行を改行で並べた物）を返す。借りた写しの固定が合わなければ ValueError（呼び手が先に seat.pinned を呼ぶ）"""
+    {g1_items} の字（項目ごとの 1 行を改行で並べた物）を返す。借りた写しの固定が合わなければ ValueError（呼び手が先に seat.pinned を呼ぶ）。
+    実装役の指示 g1-impl の {weapon_rule} には、この block の prompts/parts/head.md（型の決まりの頭の段落）を空の値で組んだ字を渡す
+    （表の SPAWNS が真の型だけがここへ来る。head.md に {名} が在れば prompt.render が値の欠けで落ちる。黙って空の字にしない）"""
     place = pathlib.Path(place)
     shown = {"scene": "g1-scene", "impl_report": "g1-impl-report", "report": "g1-report", "head_sha": "g1-head-sha"}
     texts = {key: prompt.render_shared(name, {}).strip() for key, name in shown.items()}
@@ -90,10 +94,12 @@ def subagent_items(place, sub: dict) -> str:
     if sub["seat_brief_rows"]:
         (place / subagents.SEAT_BRIEFS).write_text(prompt.render_shared("seat-briefs", {"brief_rows": sub["seat_brief_rows"]}), encoding="utf-8")
     rows = subagents.entries(place, sub, rest_title=rest, **texts)
+    weapon_rule = prompt.render_part("head", {}).strip()
     asking = bool(sub["check_cmd"])   # 範囲の相談の節が入る周だけ、下請けに事前の確かめを走らせる
     for entry in rows:
         pathlib.Path(entry["impl_file"]).write_text(
-            prompt.render_shared("g1-impl", {"template": entry["impl_template"], "check_cmd": sub["check_cmd"]}, {"spawns": False, "ask": asking}),
+            prompt.render_shared("g1-impl", {"template": entry["impl_template"], "check_cmd": sub["check_cmd"], "weapon_rule": weapon_rule},
+                                {"spawns": False, "ask": asking}),
             encoding="utf-8")
         pathlib.Path(entry["review_file"]).write_text(prompt.render_shared("g1-review", {"template": entry["review_template"]}, {"spawns": False}),
                                                       encoding="utf-8")
