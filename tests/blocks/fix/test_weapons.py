@@ -25,6 +25,7 @@ from tests.blocks.fix import support
 from tests.blocks.fix import test_group as tg
 
 route = kit.load("fix", "route")
+import loopkit  # noqa: E402  （lib）
 basecase = kit.load("fix", "basecase")
 duties = kit.load("fix", "duties")
 pin = kit.load("fix", "pin")
@@ -495,7 +496,7 @@ class AcceptTableCase(unittest.TestCase):
     def test_accepted_reply_writes_returns_and_their_frozen_files_are_checked(self):
         """返しを通した時に型ごとの returns/<k>.json を書き（tdd は輪の記録の frozen・frozen_tree・suite_made を写す）、後の受け付けは
         その凍ったファイルの、注文の許しの外の書き換えを拒む"""
-        record = self.put("tdd-1/record.json", {"frozen": {"test_stats.py": self.common.hashes(self.repo, ["test_stats.py"])["test_stats.py"]},
+        record = self.put("tdd-1/record.json", {"frozen": {"test_stats.py": loopkit.hashes(self.repo, ["test_stats.py"])["test_stats.py"]},
                                               "frozen_tree": self.rev, "suite_made": ["made.log"],
                                               "units": {"T": {"tests": ["test_stats.py::test_mean"]}}})
         self.ordered({"T": "tdd", "V": "variant"}, {"tdd": {"units": [{"key": "T", "tests": ["test_stats.py::test_mean"]}]},
@@ -585,7 +586,7 @@ class RuledOrderCase(unittest.TestCase):
         kit.load("fix", "duties")
         from src import board, common, duties, orders, ruling
         self.board, self.common, self.duties, self.orders, self.ruling = board, common, duties, orders, ruling
-        self.hash = common.hashes(self.repo, ["test_stats.py"])["test_stats.py"]
+        self.hash = loopkit.hashes(self.repo, ["test_stats.py"])["test_stats.py"]
 
     def put(self, rel, doc):
         p = self.place / rel
@@ -708,7 +709,7 @@ class RuledOrderCase(unittest.TestCase):
     def test_a_second_block_does_not_take_the_first_block_rewrite_as_its_own(self):
         """指摘 M: 1 回目の block が書き換えた試験の差分（段の頭の木 since に在る）は、2 回目の block の書き換えとして拒まない"""
         (self.repo / "test_stats.py").write_text("import os\nLIMIT = 1\n\n\ndef test_mean():\n    assert 1\n", encoding="utf-8")
-        child = self.child_of_a_second_block(self.common.snapshot(self.repo))
+        child = self.child_of_a_second_block(loopkit.snapshot(self.repo))
         self.assertEqual(self.duties.frozen_by_returns(child, self.repo), [])
         (self.repo / "test_stats.py").write_text("import os\nLIMIT = 1\n\n\ndef test_mean():\n    assert 2\n", encoding="utf-8")
         self.assertTrue(self.duties.frozen_by_returns(child, self.repo), "その後の書き換えは拒む")

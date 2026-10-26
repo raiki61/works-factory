@@ -34,12 +34,12 @@ import sys
 sys.dont_write_bytecode = True
 
 import conflict  # noqa: E402
+import loopkit  # noqa: E402  （lib。輪と修正の block の両方が使う部品）
 from src import board as fixboard  # noqa: E402
 from src.rulings import write as write_rulings  # noqa: E402
 import impact  # noqa: E402
 import oneline  # noqa: E402
 import stopby  # noqa: E402
-from src import common  # noqa: E402
 import unittrees  # noqa: E402
 
 FILE = "clash.json"
@@ -170,7 +170,7 @@ def named_tests(place, gid) -> list:
 
 # ---------------------------------------------------------------- 当て直し
 def _back_to(repo, before: str, skip) -> None:
-    common.restore_paths(repo, before, fixboard.touched_since(repo, before, skip))
+    loopkit.restore_paths(repo, before, fixboard.touched_since(repo, before, skip))
 
 
 def stage(place, repo, gid: str, pass_: str, skip=()) -> tuple:
@@ -186,9 +186,9 @@ def stage(place, repo, gid: str, pass_: str, skip=()) -> tuple:
     if row.get("before") and row.get("pass") == pass_:
         _back_to(repo, row["before"], skip)
     r = result(place, gid)
-    union = sorted({f for u in fixboard.child_tdd_units(r) for f in fixboard.unit_test_files(u)}
+    union = sorted({f for u in fixboard.child_tdd_units(r) for f in loopkit.unit_test_files(u)}
                    | {t["path"] for t in fixboard.child_allowed_rows(r)})
-    row.update(before=common.snapshot(repo), staged="")
+    row.update(before=loopkit.snapshot(repo), staged="")
     row["pass"] = pass_
     _save(place, rows)
     patch = pathlib.Path(row["patch"]).read_text(encoding="utf-8", errors="surrogateescape")
@@ -199,7 +199,7 @@ def stage(place, repo, gid: str, pass_: str, skip=()) -> tuple:
     locked = _unpermitted_tests(r, set(fixboard.allowed_tests(place, [r])), marked)
     if locked:   # 印を残しても消しても受け付けが拒む（problems の UNRESOLVED と TESTS）。回さずに裁定へ
         return False, MARKED_TESTS.format(paths="・".join(locked))
-    row.update(state=STAGED, staged=common.snapshot(repo), marked=marked)
+    row.update(state=STAGED, staged=loopkit.snapshot(repo), marked=marked)
     _save(place, rows)
     return True, ""
 
@@ -208,7 +208,7 @@ def stage(place, repo, gid: str, pass_: str, skip=()) -> tuple:
 def _unpermitted_tests(r, permits: set, paths) -> list:
     """paths のうち、許し permits の無いテストのファイル（impact.is_test_file。宣言は組の子の結果 r の TDD のループの単位のテストの
     ファイル。組自身のテストであることは許しにならない）"""
-    declared = {f for u in fixboard.child_tdd_units(r) for f in fixboard.unit_test_files(u)}
+    declared = {f for u in fixboard.child_tdd_units(r) for f in loopkit.unit_test_files(u)}
     return sorted(p for p in paths if impact.is_test_file(p, declared) and p not in permits)
 
 

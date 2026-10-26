@@ -19,7 +19,8 @@ import oneline  # noqa: E402
 import unittrees  # noqa: E402
 import writelog  # noqa: E402
 
-from src import board, clash, lanes, runvals, common  # noqa: E402
+import loopkit  # noqa: E402  （lib）
+from src import board, clash, lanes, runvals  # noqa: E402
 
 
 def main() -> dict:
@@ -48,13 +49,13 @@ def main() -> dict:
                 return lanes.Merge(board.AFTER_UNRESTORED.format(group=next(iter(unrestored))), "", [], [], False)
             r = results[g["group_id"]]
             tdd_rows = board.child_tdd_units(r)
-            union = sorted({f for u in tdd_rows for f in board.unit_test_files(u)} | {t["path"] for t in board.child_allowed_rows(r)})
+            union = sorted({f for u in tdd_rows for f in loopkit.unit_test_files(u)} | {t["path"] for t in board.child_allowed_rows(r)})
             named = [*verified, *board.child_verified(r)]
             old = []   # 確かめ直しで前から同じ形で赤だった名指し（戻す理由にしない。#837）
             unknown = []   # 確かめ直しで直す前の版と比べられなかった赤の鍵（戻す理由にせず報告で人に聞く。#846）
             notes = []   # 確かめ直しの test_cmd の赤を前から赤か揺れと見た文（戻す理由にせず報告に書く。#855）
             cmd = board.rerun_cmd(place, r, start["test_cmd"])
-            base = common.snapshot(repo) if cmd else ""   # 組を当てる前の木（test_cmd の赤を組を外した木で見分ける）
+            base = loopkit.snapshot(repo) if cmd else ""   # 組を当てる前の木（test_cmd の赤を組を外した木で見分ける）
 
             def check(names):
                 shared = set(names) & earlier

@@ -34,6 +34,7 @@
   brief_vs_judgment の確かめが読む。置き場が無い・控えが無い・壊れているなら {}）
 - for_units: 単位の key に当たる項目の行だけ
 - unit_note: 項目の単位の書き方（今直す単位と「今は直すな」の単位）
+- brief_rows(briefs, owed): 指示に入れる brief の行（項目ごとに 1 行。修正の block の書き手と下請けと TDD の輪が使う）
 - files: 今の周の brief のファイル（読んだ証拠に足す）
 """
 from __future__ import annotations
@@ -79,7 +80,7 @@ UNIT_HEAD = "### {key}"
 
 
 UNCHECKED = "欄が無い（範囲の欄の無い控え。機械はこの案の範囲を照らさない）"   # planmarks.scoped が偽の項目の範囲の節（空の範囲の「無し」と分ける）
-NOT_NOW = "今は直すな"   # brief の行で、項目の単位のうち今直す単位でない物の頭（brief を名指す文は fix の src/rules.py が組む。unit_note が使う）
+NOT_NOW = "今は直すな"   # brief の行で、項目の単位のうち今直す単位でない物の頭（brief を名指す行は brief_rows が組む。unit_note が使う）
 
 
 class LedgerBroken(ValueError):
@@ -470,7 +471,7 @@ def for_units(briefs: list, keys) -> list[dict]:
 
 def unit_note(keys, owed=None) -> str:
     """項目の単位の並び keys の書き方: owed（今直す単位の key）と重なる物を「、」で並べ（無ければ NONE）、ほかの単位は
-    「・今は直すな: …」と添える。owed が None なら keys を全部（元 planbrief.unit_note）。brief の行（fix の src/rules.py の brief_rows）と
+    「・今は直すな: …」と添える。owed が None なら keys を全部（元 planbrief.unit_note）。brief の行（brief_rows）と
     下請けの実装役の [task name]（lib/subagents.py）の 2 つが使う"""
     keys = list(keys or [])
     now = keys if owed is None else [k for k in keys if k in set(owed)]
@@ -481,3 +482,8 @@ def unit_note(keys, owed=None) -> str:
 def files(b, round_: int = 1) -> list[str]:
     """今の周の控えに在る brief のファイル（絶対パス）。控えが無ければ []"""
     return [r["file"] for r in _out(b, _ledger(b, round_) or [])]
+
+
+def brief_rows(briefs: list, owed=None) -> str:
+    """指示に入れる brief の行（項目ごとに 1 行。brief が無ければ空）。見出しと結びの文は md の brief-head（元 planbrief.head_text の行）"""
+    return "\n".join(f"- 項目 {r['item']}: {r['file']}（sha256 {r['sha256']}・単位 {unit_note(r.get('unit_keys'), owed)}）" for r in briefs)

@@ -26,6 +26,7 @@ import declared_checks as dc  # noqa: E402
 import gatemarks  # noqa: E402
 import green_cert  # noqa: E402
 import tree_run  # noqa: E402
+import loopkit  # noqa: E402  （lib）
 from tests.bin.gitkit import committed_copy, git  # noqa: E402
 from tests.blocks import kit  # noqa: E402
 
@@ -753,9 +754,8 @@ class ReuseCase(RepoCase):
         exe = self.tmp / "suite.sh"
         exe.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
         basecase = kit.load("fix", "basecase")   # 頭の test_cmd は fix の src/basecase.py（前は src/tdd.py・lib/tddloop.py。integration.md 4.3-3）
-        from src import common
         gate, why, _ = basecase._test_cmd_gate(exe, self.cmd, self.repo, self.work / "head.log", reuse=self.place())
-        self.assertEqual((gate, why, self.launched()), (common.GATE_ON, "", 1))
+        self.assertEqual((gate, why, self.launched()), (loopkit.GATE_ON, "", 1))
 
 
 class TreeRunnerCase(unittest.TestCase):

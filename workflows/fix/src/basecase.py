@@ -24,6 +24,7 @@ import subprocess
 import conflict          # lib/
 import impact            # lib/
 import jsonfile          # lib/
+import leftovers         # lib/
 import oneline           # lib/
 import planmarks         # lib/
 import related           # lib/
@@ -31,6 +32,7 @@ import tree_run          # lib/
 from graphloops.engine import declared   # lib/
 from baseline_red import exe_path, run_suite   # lib/
 
+import loopkit  # noqa: E402  （lib。輪と修正の block の両方が使う部品）
 from src import common, files
 
 NO_SUITE = "テストの実行器（入力 tdd_suite）が無い run"
@@ -80,7 +82,7 @@ def take(place, repo, values: dict, keys: list, reuse, *, words: dict, rev: str,
     work.mkdir(parents=True, exist_ok=True)
     test_cmd = str(values.get("test_cmd") or "").strip()
     doc = {"work": str(work), "exe": str(exe), "suite": suite, "rev": rev, "taken": False, "baseline": {}, "baseline_exit": 0,
-           "baseline_cases": [], "suite_made": [], "test_cmd": test_cmd, "test_cmd_gate": common.GATE_OFF, "test_cmd_note": "",
+           "baseline_cases": [], "suite_made": [], "test_cmd": test_cmd, "test_cmd_gate": loopkit.GATE_OFF, "test_cmd_note": "",
            "reused": {}, "related": {"applied": False}, "no_tests": False,
            "test_list": {"status": SKIPPED, "argv": [], "count": 0, "why": "", "log": ""},
            "suite_by_factory": values.get("suite_made") is True}
@@ -104,7 +106,7 @@ def take(place, repo, values: dict, keys: list, reuse, *, words: dict, rev: str,
         return {**out, "reason": NO_CASES.format(why="; ".join(why))}
     jsonfile.write(place / conflict.BROKEN_TESTS_FILE, {"tests": broken_related(place, repo, keys, round_, work, cases, picked)})
     gate, gate_note, gate_made = _test_cmd_gate(exe, test_cmd, repo, work / "test-cmd-0.log", reuse=reuse)
-    doc.update(taken=True, baseline={common._key(c): c["outcome"] for c in cases}, baseline_exit=code, baseline_cases=cases,
+    doc.update(taken=True, baseline={loopkit._key(c): c["outcome"] for c in cases}, baseline_exit=code, baseline_cases=cases,
                suite_made=gate_made, test_cmd_gate=gate, test_cmd_note=gate_note,
                reused={"suite": t} if (t := tree_run.reused_text(note)) else {},
                related={"applied": True, **picked} if picked is not None else {"applied": False})
@@ -128,7 +130,7 @@ def _declared(place, keys, round_: int) -> set:
             for row in f.get(k) or []:
                 i = row.get("id") if isinstance(row, dict) else None
                 if isinstance(i, str) and i.strip():
-                    out.add(common.id_path(i))
+                    out.add(loopkit.id_path(i))
     return out
 
 
@@ -140,7 +142,7 @@ def _no_tests(place, repo, rev: str, keys, round_: int, cases) -> tuple[dict, bo
     rows = {"status": SKIPPED, "argv": [], "count": 0, "why": "", "log": ""}
     declared_paths = _declared(place, keys, round_)
     try:
-        tree = common.git_names(repo, "ls-tree", "-r", "--name-only", rev)
+        tree = leftovers.git_names(repo, "ls-tree", "-r", "--name-only", rev)
     except common.Unreadable:
         tree = []
     if any(impact.is_test_file(p, declared_paths) for p in tree):
@@ -189,7 +191,7 @@ def _related_pick(place, repo, keys, round_: int, work: pathlib.Path) -> dict:
     try:
         fields = conflict.frozen_fields(pathlib.Path(place), round_) or []
     except ValueError as e:
-        raise common.Broken(str(e)) from None
+        raise loopkit.Broken(str(e)) from None
     seeds = sorted({str(row["path"]).strip() for f in fields if isinstance(f, dict) and set(f.get("unit_keys") or []) & set(keys)
                     for row in planmarks.file_rows(f) if isinstance(row.get("path"), str) and row["path"].strip()})
     if not seeds:
@@ -221,7 +223,7 @@ def _case_files(repo, cases) -> dict:
     out = {}
     for c in cases:
         for p in mods.get(impact._junit_module(c) or "", []):
-            out.setdefault(p, []).append(common._key(c))
+            out.setdefault(p, []).append(loopkit._key(c))
     return out
 
 
@@ -236,7 +238,7 @@ def _suite_broken(exe, repo, work: pathlib.Path, test_cmd: str, cases, why, *, n
     log = work / "suite-0.log"
     what = "; ".join(why) if cases is None else f"error {sum(1 for c in cases if c.get('outcome') == 'error')} 件"
     cmd_log = work / "test-cmd-alone.log"
-    mat, _ = common._cmd_run(repo, test_cmd, cmd_log)
+    mat, _ = loopkit._cmd_run(repo, test_cmd, cmd_log)
     if mat["status"] != "clean":
         return None
     if narrow:
@@ -251,21 +253,21 @@ def _suite_broken(exe, repo, work: pathlib.Path, test_cmd: str, cases, why, *, n
 
 def _test_cmd_gate(exe: pathlib.Path, cmd: str, repo, log: pathlib.Path, *, reuse=None) -> tuple[str, str, list]:
     """(関門, 理由, 走らせて出来たファイル)。空は (off, "", [])。実行器のファイルの中身が cmd をそのまま含めば (same_as_suite, "", [])。
-    ほかは common._cmd_run で 1 回走らせ、緑なら on、赤・走らないなら off と理由"""
+    ほかは loopkit._cmd_run で 1 回走らせ、緑なら on、赤・走らないなら off と理由"""
     if not cmd:
-        return common.GATE_OFF, "", []
+        return loopkit.GATE_OFF, "", []
     try:
         if cmd in exe.read_text(encoding="utf-8", errors="replace"):
             return common.GATE_SAME, "", []
     except OSError:
         pass   # 読めない実行器は包みと見なさず、走らせて決める
-    mat, made = common._cmd_run(repo, cmd, log, reuse=reuse)
+    mat, made = loopkit._cmd_run(repo, cmd, log, reuse=reuse)
     if mat["status"] == "clean":
-        return common.GATE_ON, "", made
+        return loopkit.GATE_ON, "", made
     if mat["status"] == "found":
-        return common.GATE_OFF, (f"run の test_cmd（{cmd}）がループの頭で赤（{mat.get('rewrote') or f'元から赤。ログ {log}'}）——"
+        return loopkit.GATE_OFF, (f"run の test_cmd（{cmd}）がループの頭で赤（{mat.get('rewrote') or f'元から赤。ログ {log}'}）——"
                                  "単位ごとに確かめると毎単位を拒むのでこのループでは確かめない（一式の緑はメイングラフの最後のテストの段が確かめる）"), made
-    return common.GATE_OFF, f"run の test_cmd（{cmd}）をループの頭で走らせられない（{mat.get('reason', '')}）——このループでは確かめない", made
+    return loopkit.GATE_OFF, f"run の test_cmd（{cmd}）をループの頭で走らせられない（{mat.get('reason', '')}）——このループでは確かめない", made
 
 
 def suite_made_all(place) -> set:

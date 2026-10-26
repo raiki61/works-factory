@@ -2,7 +2,7 @@
 # requires-python = ">=3.12"
 # dependencies = []
 # ///
-"""node route-prep（組の形の route-loop の中。役 route の前）: 振り分けの段の指示を md から組む（src/route.prep の材料を src/prompts.tdd が
+"""node route-prep（組の形の route-loop の中。役 route の前）: 振り分けの段の指示を md から組む（src/route.prep の材料を src/prompts.route_prompt が
 prompts/parts/tdd.md に入れる。振り分けの段の字は今の TDD の輪の route の段と同じ）。振り分けが済んだ（resume で 1 周目から回り直した）・
 振り分けない組は {prompt: "", go: false}。組の頭の返り tdd-start.json が無い（group-start が走らなかった）時は落ちる。brief の控えが
 壊れた・座が組めない・指示が組めない時は prompt-error.json に書いて落ちる。
@@ -17,7 +17,8 @@ import ports  # noqa: E402
 
 import oneline  # noqa: E402
 
-from src import board, common, prompts, route, runvals  # noqa: E402
+import loopkit  # noqa: E402  （lib）
+from src import board, prompts, route, runvals  # noqa: E402
 
 NODE = "route-prep"
 
@@ -42,8 +43,8 @@ def main() -> dict:
         view = route.prep(state, sources=sources)
         if not view["go"]:
             return {"prompt": "", "go": False}
-        out = prompts.tdd(place, repo, view, values)
-    except (common.Broken, prompts.Broken) as e:
+        out = prompts.route_prompt(place, repo, view, prompts.tdd_context(place, values))
+    except (loopkit.Broken, prompts.Broken) as e:
         prompts.error(place, NODE, oneline.one_line(e))
         raise
     return {"prompt": out["prompt"], "go": True}

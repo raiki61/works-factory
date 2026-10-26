@@ -1,28 +1,22 @@
 """修正の block の型を問わない部品（docs/plans/2026-10-24-fix-weapons.md の 4.1 の 2）。
 
-TDD の輪（src/tdd.py）の中に在り、修正役の受け付け（board・facts・gates）・合わせ役（clash）・確かめ直しが借りていた部品を
-ここに集めた。型のモジュール（tdd・variant・remove・static・tidy・pin）と型を問わない部品（basecase・route・duties）はここを
-import し、型のモジュールどうしは import しない（tests/layers/test_weapon_imports.py）。中身は移す前のまま:
-- 版を木に固める・戻す（snapshot・touched・restore・restore_paths・restore_tests・hashes）と版・作業ツリーの読み口（rev_source・
-  _tree_text・_now_text・frozen_source）
-- test_cmd を走らせる口（_cmd_run・_cmd_material）
-- 輪の状態の読み書きと状態の欄の小さな読み口（load_state・_load・_save・_owed・_unit・_contract・_plan_tdd・states・suite_made）と、
-  止めた申し出の流し（flush_unsent・flush_claims）
-- 赤の判定の唯一の口（red_check・red_rerun）と、凍ったテストのファイルの照らし（frozen_problems・frozen_asks・test_spans）
+修正役の受け付け（board・facts・gates）・合わせ役（clash）・確かめ直しが使う部品を集めた。型のモジュール（tdd・variant・remove・
+static・tidy・pin）と型を問わない部品（basecase・route・duties）はここを import し、型のモジュールどうしは import しない
+（tests/layers/test_weapon_imports.py）。輪と修正の block の両方が使う部品（版の写しと戻し・赤の判定・test_cmd を走らせる口・輪の
+状態の読み書き・止めた申し出の流しなど）は lib/loopkit.py に出した（docs/plans/2026-10-27-fix-weapons-stage2-e2.md の 1 節）。
+ここに残る物:
+- 版・作業ツリーの読み口（restore_tests・rev_source・_tree_text・_now_text・frozen_source）
+- 輪の記録の読み口（load_record・states・suite_made）
+- 赤の判定を版の木で回し直す口（red_rerun）と、凍ったテストのファイルの照らし（frozen_problems・frozen_asks・test_spans）
 - 受け付けが変更に当たる試験を選んで走らせる口（selected_problems）と版の写しの結末（_base_reds）
 """
 import ast
 import difflib
 import hashlib
 import json
-import os
 import pathlib
 import posixpath
-import re
-import subprocess
 import sys
-import tempfile
-import shlex
 import unittest
 
 sys.dont_write_bytecode = True
@@ -33,86 +27,44 @@ import cite  # noqa: E402  （.shared/core。名指しの形・引いた文が�
 import conflict  # noqa: E402  （lib。食い違いの申し出の確かめ・直す義務から外れた単位）
 from src import files as fixnames  # noqa: E402
 import impact  # noqa: E402  （.shared/core。変更に当たる試験の選び）
-import planmarks  # noqa: E402  （.shared/core。修正案の項目の works の欄。単位の約束）
-from planmarks import test_functions  # noqa: E402,F401  （.shared/core。テストの関数の id（pytest の node id の形）→ 源の引き。fixgates・fixboard が tddloop.test_functions の名で読む）
-import tree_run  # noqa: E402
 import jsonfile  # noqa: E402
-import leftovers  # noqa: E402
-import oneline  # noqa: E402
-from leftovers import Unreadable, git, git_names  # noqa: E402
+import loopkit  # noqa: E402  （lib。輪と修正の block の両方が使う部品）
+import planmarks  # noqa: E402  （.shared/core。修正案の項目の works の欄。単位の約束）
+from leftovers import Unreadable, git  # noqa: E402
 
 
 PROMPT, SUMMARY, RECORD = "next.md", "summary.md", fixnames.RECORD_FILE
 
 
-MIN_WHY = 10
 
 
-MIN_QUOTE = 3   # 赤の引用の下限（寄せた字数。1〜2 字の引用はどの失敗の文にも当たるので、照らす先が短くなければ拒む）
 
 
-QUOTES_FIELD = "red_quotes"   # test の段の返答の欄と単位の記録の欄の名: {名指しの id: {quote: 失敗の文, why: なぜ期待どおりの理由か}}
 
 
-UNSENT = "unsent"   # 状態の欄: 盤面へまだ積んでいない止めた申し出の並び（行 {source, item}）
 
 
 NO_SUITE = "テストの実行器（入力 tdd_suite）が無いか元の結末を取らない組（static だけの組。ほかの組は no-suite で止まる）——受け付けは試験を走らせない"
 
 
-# run の test_cmd の関門（start が 1 回だけ決める）: on＝緑の後に毎回走らせる・same_as_suite＝実行器がそのコマンドを包んだ物で
-# 一式の緑と同じ（走らせない）・off＝空か、輪の頭で赤・走らない（理由は状態の test_cmd_note）。1 行ずつ定義する（根の柵の
-# doc-symbols が文書の名指しを `^名前 =` の行で引く）
-GATE_ON = "on"
 
 
 GATE_SAME = "same_as_suite"
 
 
-GATE_OFF = "off"
 
 
-class Broken(Exception):
-    """回す側の誤り（状態が読めない・輪が済んだ後に呼んだ・入力の形が違う）。節は 2 で落ちる"""
 
 
-def rules():
-    """赤・緑の判定の正本のモジュール（lib/baseline_red。red_problems・green_problems・match_case・parse_junit）。元は写しの TDD 版の
-    rules（review-loop-tdd.py）を盤面の graph から読んだ"""
-    return baseline_red
 
 
 # ---------------------------------------------------------------- 版を木に固める・戻す
-snapshot = leftovers.snapshot   # 作業ツリーの今の姿の木の sha（正本は leftovers。輪の中の名は変えない）
 
 
-def touched(repo, a: str, b: str) -> list:
-    """木 a から木 b で変わったパス（足した・消したを含む）"""
-    return sorted(set(git_names(repo, "diff-tree", "-r", "--name-only", "--no-renames", a, b)))
 
 
-def restore(repo, tree: str) -> list:
-    """作業ツリーを木 tree の姿に戻す（その後に変わった・足した・消したファイルだけ）。戻したパスを返す"""
-    return restore_paths(repo, tree, touched(repo, tree, snapshot(repo)))
 
 
-def restore_paths(repo, tree: str, paths) -> list:
-    """作業ツリーの paths だけを木 tree の姿に戻す（tree に無いパスは消す）。戻したパスを返す"""
-    paths = sorted(set(paths))
-    if not paths:
-        return []
-    keep = set(paths) & set(git_names(repo, "ls-tree", "-r", "--name-only", tree))
-    for p in paths:
-        if p not in keep:
-            f = pathlib.Path(repo) / p
-            if f.is_file() or f.is_symlink():
-                f.unlink()
-    if keep:
-        with tempfile.TemporaryDirectory(prefix="works-tdd-index-") as td:
-            env = {**os.environ, "GIT_INDEX_FILE": str(pathlib.Path(td) / "index")}
-            git(repo, "read-tree", tree, env=env)
-            git(repo, "checkout-index", "-f", "--", *sorted(keep), env=env)
-    return paths
 
 
 def _chain_at(src, line: int):
@@ -183,72 +135,12 @@ def restore_tests(repo, tree: str, specs, *, ref=None) -> list:
     return done
 
 
-def hashes(repo, files) -> dict:
-    """ファイル → 中身の sha256（無ければ None）"""
-    out = {}
-    for f in files:
-        p = pathlib.Path(repo) / f
-        out[f] = hashlib.sha256(p.read_bytes()).hexdigest() if p.is_file() else None
-    return out
 
 
-def _quote_target(case: dict, log) -> str:
-    """赤の引用を照らす先: その testcase の failure の message と本文。どちらも空ならその回のログ（無い・読めなければ空）"""
-    text = " ".join(filter(None, [case.get("fail_message") or "", case.get("fail_text") or ""]))
-    if cite.flat(text):
-        return text
-    try:
-        return pathlib.Path(log).read_text(encoding="utf-8", errors="replace") if log else ""
-    except OSError:
-        return ""
 
 
-def _quote_problem(t: str, entry, target: str) -> str:
-    """名指し t の引用 entry（{quote, why}）を照らし先 target と照らした拒否の文（通れば空）"""
-    if not isinstance(entry, dict) or not isinstance(entry.get("quote"), str) or not isinstance(entry.get("why"), str):
-        return f"{t}: {QUOTES_FIELD} の値は {{quote（失敗の文）, why（理由）}}"
-    quote, shown = cite.flat(entry["quote"]), cite.flat(target)
-    if len(quote) < min(MIN_QUOTE, len(shown)):
-        return f"{t}: quote が短すぎる（{MIN_QUOTE} 字以上。結末の失敗の文をそのまま引け）"
-    if not cite.quoted_in(entry["quote"], target):
-        return f"{t}: quote が結末の失敗の文に無い——赤の時の失敗の文をそのまま引け（作り話の引用は通らない。空白・改行・色の違いは無視する）"
-    if _blank(entry["why"]):
-        return f"{t}: why（なぜ期待どおりの理由で落ちたか。機能が無いから・打ち間違いでない）を {MIN_WHY} 字以上で書け"
-    return ""
 
 
-def red_check(named: list, cases: list, code, baseline, quotes=None, log=None) -> tuple[list, list]:
-    """赤の判定の唯一の口（輪の test の段・事後の関門が呼ぶ）——（問題の文, 引用を照らせなかった名指し）。
-    事実は言語に依らず、baseline_red の red_problems が見る物だけ: 名指しが全部 failure で落ちる（error・一式に居ない・もう通る・飛ばされた
-    は拒む）・名指しの外は元（baseline）のまま・一式が 0 以外で終わる。返す文は事実だけで、言い足しは足さない。
-    quotes（{名指しの id: {quote, why}}。None は引用を見ない）が在れば、事実が通った failure の名指しごとに、quote が failure の
-    message と本文を寄せた文（cite.quoted_in）に在るか・短すぎないか（MIN_QUOTE）・why が MIN_WHY 字以上かを照らす。両方が空なら
-    役が引いた時だけ log（その回のログ）と照らす。照らす先が無い名指し（failure の文が空で、log にも文が無い）は引用が無くても拒まず、
-    unchecked に返す。failure の文が在る名指しは、quotes が渡されていれば引用が要る"""
-    probs = list(rules().red_problems(named, cases, code, baseline))
-    given = {_norm_id(k): v for k, v in (quotes or {}).items() if isinstance(k, str)}
-    unchecked = []
-    for t in named:
-        c = rules().match_case(t, cases)
-        if c is None or c["outcome"] != "failure":
-            continue
-        entry = given.get(_norm_id(t))
-        own = cite.flat(" ".join([c.get("fail_message") or "", c.get("fail_text") or ""]))
-        if entry is None:
-            if not own:
-                unchecked.append(t)
-            elif quotes is not None:
-                probs.append(f"{t}: 失敗の文の引用と理由が無い——{QUOTES_FIELD} に結末の failure の文をそのまま引き、なぜ期待どおりの"
-                             "理由で落ちたかを書け")
-            continue
-        target = _quote_target(c, log)
-        if not cite.flat(target):
-            unchecked.append(t)   # 引いたが照らす先が無い（ログも空）。拒まず、照らせなかったと残す
-            continue
-        bad = _quote_problem(t, entry, target)
-        if bad:
-            probs.append(bad)
-    return probs, unchecked
 
 
 RED_TREE_MOVED = "赤の木の中のテストのファイルが赤の記録と違う（赤を確かめ直せない）"
@@ -264,67 +156,39 @@ def red_rerun(tree, u: dict, exe: str, work: pathlib.Path, n, baseline=None) -> 
     （事後の関門。名指しの外は今の木の一式が見る）"""
     tests, files = list(u.get("tests") or []), list(u.get("test_files") or [])
     recorded = u.get("test_hashes") or {}
-    final = snapshot(tree)
+    final = loopkit.snapshot(tree)
     try:
-        restore(tree, u["red_tree"])
-        if any(h != recorded.get(f) for f, h in hashes(tree, files).items()):
+        loopkit.restore(tree, u["red_tree"])
+        if any(h != recorded.get(f) for f, h in loopkit.hashes(tree, files).items()):
             return [RED_TREE_MOVED], []
-        cases, code, why = run_suite(exe, tree, work, n, abs_ids(tree, tests), only=True)
+        cases, code, why = run_suite(exe, tree, work, n, loopkit.abs_ids(tree, tests), only=True)
     finally:
-        restore(tree, final)
+        loopkit.restore(tree, final)
     if cases is None:
         return None, why
     if baseline is None:
-        cases = [c for t in tests if (c := rules().match_case(t, cases)) is not None]
-    return red_check(tests, cases, code, baseline)[0], []
+        cases = [c for t in tests if (c := loopkit.rules().match_case(t, cases)) is not None]
+    return loopkit.red_check(tests, cases, code, baseline)[0], []
 
 
-def _key(c) -> str:
-    return f"{c['classname']}::{c['name']}"   # baseline_red の _key と同じ形（元の結末の鍵）
 
 
-def _abs_paths(repo, files) -> list:
-    """根からの相対パス（node id の頭も）を絶対パスにする。実行器は自分の置き場へ cd しうるので、相対では解けない"""
-    root = pathlib.Path(repo).absolute()
-    return [str(root / f) for f in files]
 
 
-def _abs_ids(repo, ids) -> list:
-    """名指し『<相対パス>::…』を『<絶対パス>::…』の node id にする"""
-    parts = [i.partition("::") for i in ids]
-    return [a + sep + rest for a, (_, sep, rest) in zip(_abs_paths(repo, [p[0] for p in parts]), parts)]
 
 
 # ---------------------------------------------------------------- 状態
-def load_state(state_file) -> dict:
-    """輪の状態（frozen・frozen_tree など）を読む口（受け付けが止めた単位の直しを戻す先を決める）"""
-    return _load(state_file)
 
 
 def load_record(record_file) -> dict:
     """輪の記録 tdd-<k>/record.json（frozen・frozen_tree・handoff・suite_made・calls・units の行など。輪が抜ける時に書く）を読む口"""
-    return _load(record_file)
+    return loopkit._load(record_file)
 
 
-def _load(state_file) -> dict:
-    try:
-        return json.loads(pathlib.Path(state_file).read_text(encoding="utf-8"))
-    except (OSError, ValueError) as e:
-        raise Broken(f"TDD のループの状態が読めない（{state_file}: {e}）")
 
 
-def _save(state_file, st: dict) -> None:
-    p = pathlib.Path(state_file)
-    tmp = p.with_name(p.name + ".tmp")
-    tmp.write_text(json.dumps(st, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
-    os.replace(tmp, p)
 
 
-def _owed(st) -> list:
-    """TDD の直す義務: start が conflict.fix_duty から組んだ単位（open_units）から、外れた単位（excused）と食い違いで止めた
-    単位（parked）を除いた物"""
-    out = set(st.get("excused", {})) | set(st.get("parked", []))
-    return [k for k in st["open_units"] if k not in out]
 
 
 def _not_owed_why(st, k) -> str:
@@ -335,141 +199,27 @@ def _not_owed_why(st, k) -> str:
     return "直す義務の単位に無い"
 
 
-def _unit(key, route, why="") -> dict:
-    return {"unit_key": key, "route": route, "why": why, "tests": [], "test_files": [], "red": "", "green": "",
-            "refactor": "", "gave_up": "", "problems": [], "files": [], "what": "", QUOTES_FIELD: {},
-            "quote_unchecked": [], "stub_files": [], "red_tree": "", "test_cmd": "", "refactor_why": ""}
 
 
-def _cmd_run(repo, cmd: str, log: pathlib.Path, *, reuse: dict | None = None) -> tuple[dict, list[str]]:
-    """test_cmd を 1 回走らせる——（素材 {status: clean・found・not_run, reason, detail, count}, 新しく出来たパス）。
-    決まりは 1 つ: 既存のファイルを書き換えた（変えた・消した）test_cmd は緑でない。書き換えたパスは走らせる前の木に戻し
-    （restore_paths。緑を出した木と残る木を違えない）、素材を赤（found）にして、書き換えたパスと戻したことを rewrote の文に載せる。
-    suite_made に積んでよいのは新しく出来たパスだけ（積むと書き込みの出どころの照合・凍結の照らしから外れる）。
-    起こし方は baseline_red.run_suite と同じ tree_run.reuse_run（自分のプロセスグループ・標準入力は空・環境は tree_run.outside_env・
-    出力は log）で、コマンドの 1 行は tree_run.command_argv の形（direct か shell）、優先度は実行器と同じ baseline_red.lowered（nice -n 19 と同じだけ下げる）。
-    元は entry.local_checks_material（試験の枠 tree_run.slotted_run・nice・同じ run の控えの使い回し）で走らせた。枠は外し、
-    使い回しは reuse を渡した呼び（ループの頭）だけ"""
-    pre = snapshot(repo)
-    mat = _cmd_material(repo, cmd, pathlib.Path(log), reuse=reuse)
-    post = snapshot(repo)
-    made = sorted(set(git_names(repo, "diff-tree", "-r", "--name-only", "--no-renames", "--diff-filter=A", pre, post)))
-    rewrote = sorted(set(touched(repo, pre, post)) - set(made))
-    restore_paths(repo, pre, rewrote)
-    if rewrote:
-        why = (f"test_cmd が作業ツリーの既存のファイルを書き換える（{', '.join(rewrote[:10])}。元に戻した。ログ {log}）——"
-               "書き換えた木で出た緑は数えない（書き換えた物を書き込みの出どころの照合から外さない）")
-        mat = {**mat, "status": "found", "count": 1, "rewrote": why}
-    return mat, made
 
 
-def _cmd_material(repo, cmd: str, log: pathlib.Path, *, reuse: dict | None = None) -> dict:
-    """test_cmd を対象の根で走らせた素材（_cmd_run の 1 か所の起こし。tree_run.reuse_run）。終了コード 0 なら clean、ほかは found・count 1
-    （detail はログの末尾）、起こせなければ not_run（reason）。reuse（tree_run.reuse_place の返り）の控えから使い回した回は、clean の
-    checked に出どころ（tree_run.reused_text）を足す"""
-    cmd = (cmd or "").strip()
-    if not cmd:
-        return {"status": "not_run", "reason": "テストのコマンド（test_cmd）が空で、走らせる物が無い"}
-    log.parent.mkdir(parents=True, exist_ok=True)
-    argv, how = tree_run.command_argv(cmd)
-    nice_kw, bare = baseline_red.lowered()   # 実行器と同じ 1 か所（下げられなければ下げずに、ログに 1 行）
-    launched = f"{shlex.join(argv)}（起こし方 {how}）"
-    note = {}
-    with open(log, "wb") as f:
-        if bare:
-            f.write(f"{bare}\n".encode("utf-8"))
-            f.flush()
-        try:
-            code = tree_run.reuse_run(argv, tree_run.outside_env(os.environ), place=reuse, note=note, stdin=subprocess.DEVNULL,
-                                      stdout=f, stderr=subprocess.STDOUT, cwd=str(repo), **nice_kw)
-        except OSError as e:
-            return {"status": "not_run", "reason": f"{launched} でテストのコマンドを起こせない: {e}"}
-    kind = tree_run.launch_kind(code)
-    if kind == "broken":
-        return {"status": "not_run", "reason": f"{launched} でテストのコマンドを起こせない（exit None。ログ {log}）"}
-    tail = oneline.one_line(log.read_text(encoding="utf-8", errors="replace"))[-2000:]
-    ran = f"{launched} を対象の根で走らせた: exit {code}（ログ {log}）"
-    if kind == "clean":
-        reused = tree_run.reused_text(note)
-        return {"status": "clean", "count": 0, "checked": f"{ran} ／ 控えから使った（{reused}）" if reused else ran, "detail": tail}
-    return {"status": "found", "count": 1, "detail": f"{ran} ／ 末尾: {tail}"}
 
 
 # ---------------------------------------------------------------- 返答の確かめ（節 tdd-step）
-def _blank(s) -> bool:
-    return not isinstance(s, str) or len(s.strip()) < MIN_WHY
 
 
-def _reached(st, repo, seeds=None, direct_only=True) -> tuple[list, bool]:
-    """緑の回に足す試験 ——（根からの相対の pytest の試験のファイル, 一式を回すか）。単位の頭からの変更（走らせて出来たファイルを
-    除く）を起点に地図を引き（impact.map の seeds。置き場は work/impact）、直に関わる試験（impact.select_tests の direct_only。
-    起点か深さ 1。先の試験は受け付けと同じく線の最後のテストの段に任せる）のうち作業ツリーに在り、
-    元の結末に載ったモジュール（元の一式が走らせた物。元で赤だった試験が届いただけで拒まれない）のファイル。地図が引けない・
-    run_all なら ([], True)（合図なしの一式）。
-    seeds（根からの相対のパス）を渡せばそれを起点にし、direct_only が偽なら地図が届く試験の全部を選ぶ（組を当てた後の確かめ直し
-    fixboard.rerun_problem が、前の組と重なったファイルを起点に広げる口。F411 の 2）"""
-    if seeds is None:
-        seeds = set(touched(repo, st["unit_head"], snapshot(repo))) - set(st["suite_made"])
-    seeds = sorted(seeds)
-    try:
-        sel = impact.select_tests(impact.map(repo, seeds=seeds, cache_dir=pathlib.Path(st["work"]) / "impact"),
-                                  direct_only=direct_only)
-    except (RuntimeError, OSError, ValueError):
-        return [], True
-    if sel["run_all"]:
-        return [], True
-    base = {impact._junit_module({"classname": k.partition("::")[0]}) for k in st["baseline"]}
-    return [f for f in sel["selected"] if PYTEST_FILE.match(posixpath.basename(f)) and (pathlib.Path(repo) / f).is_file()
-            and impact._mod(f) in base], False
 
 
-def _contract(st, k) -> dict | None:
-    """単位 k の約束（start が plan_contract で組んだ状態の contract の行）。約束の無い単位・約束の無い run は None"""
-    return (st.get("contract") or {}).get(k)
 
 
-def _plan_tdd(st, k, how="direct に振れない") -> str:
-    """約束で tdd の単位を direct へ回す返答を拒む文（約束が無いか tdd でなければ空）"""
-    c = _contract(st, k)
-    if not c or c.get("route") != "tdd":
-        return ""
-    return (f"'{k}' は承認済みの修正案で tdd（受け入れのテスト {len(c.get('tests') or [])} 本）——{how}。"
-            "案の前提が誤りなら phase conflict で申し出よ")
 
 
-def _norm_id(test_id: str) -> str:
-    """名指しのパスの部分を posixpath.normpath で整えた id（`./a.py::T::t` と `a.py::T::t` を同じに見る）"""
-    path, sep, rest = test_id.strip().partition("::")
-    return posixpath.normpath(path) + sep + rest
 
 
-def _unnamed_edits(repo, tree: str, files: list[str], allowed: set[str]) -> list[str]:
-    """files のうち木 tree に在った .py で、木の時の test_functions に在った id の源が変わった・消えた物のうち、allowed に無い
-    id（_id_base で整え、parametrize の `[…]` を落として比べる）。import の行・補助の関数・新しいテストは見ない。今の中身が構文として読めなければ、木の時の
-    test* 関数は全部消えた側に数える（拒む側。実行器の結末は消えたテストを数えない）。.py でないファイルは見ない（関数の幅が引けない）"""
-    ok = {_id_base(a) for a in allowed}
-    py = [f for f in files if f.endswith(".py")]
-    there = set(git_names(repo, "ls-tree", "-r", "--name-only", tree, "--", *py)) if py else set()
-    out = []
-    for f in py:
-        if f not in there:
-            continue   # 木に無かった（この段で足した）ファイル
-        old = git(repo, "show", f"{tree}:{f}")
-        p = pathlib.Path(repo) / f
-        new = test_functions(p.read_text(encoding="utf-8", errors="replace") if p.is_file() else "", f)
-        out += [i for i, body in test_functions(old, f).items() if new.get(i) != body and _id_base(i) not in ok]
-    return out
 
 
-def _id_base(test_id: str) -> str:
-    """_norm_id から parametrize の `[…]` を落とした id（`t.py::test_x[1]` の許しは関数 `t.py::test_x` の書き換えを覆う）"""
-    return _norm_id(test_id).split("[", 1)[0]
 
 
-def _verified(st) -> set:
-    """輪がもう赤→緑を確かめたテストの id（_norm_id。緑に届いた tdd の単位の名指し）"""
-    return {_norm_id(t) for u in st.get("units", {}).values() if u.get("route") == "tdd" and u.get("green") == "ok"
-            for t in u.get("tests") or []}
 
 
 def verified_rewrites(record_file, rewrites) -> list[str]:
@@ -478,36 +228,16 @@ def verified_rewrites(record_file, rewrites) -> list[str]:
     書き換えさせない）。確かめ済みか（route・green・tests）は輪の記録 record_file。記録が無い（輪の無い run）なら空"""
     if not record_file or not pathlib.Path(record_file).is_file():
         return []
-    done = _verified(_load(record_file))
-    return [i for i in dict.fromkeys(rewrites) if _norm_id(i) in done]
+    done = loopkit._verified(loopkit._load(record_file))
+    return [i for i in dict.fromkeys(rewrites) if loopkit._norm_id(i) in done]
 
 
-def id_path(test_id: str) -> str:
-    """名指し（`<パス>::…`）のパスの部分（posixpath.normpath で整えた物）"""
-    return posixpath.normpath(test_id.strip().partition("::")[0])
 
 
-def _mark_parked(st, key, why) -> None:
-    st.setdefault("parked", []).append(key)
-    st.setdefault("parked_why", {})[key] = why
 
 
-def flush_unsent(state_file, park) -> None:
-    """状態の未送の並び UNSENT（step が保存と同じ 1 回の書き込みで積んだ止めた申し出）を park で盤面へ流す（flush_claims）。
-    節 tdd-step が毎回呼ぶ（済んだ輪の resume の早抜けでも、前の周が積めなかった申し出を積む）"""
-    st = _load(state_file)
-    flush_claims(state_file, st, st, UNSENT, park)
 
 
-def flush_claims(state_file, st: dict, holder: dict, field: str, park) -> None:
-    """状態の st に保存した、盤面にまだ積んでいない申し出の並び holder[field] を park に渡し、渡せたら空にして保存し直す
-    （申し出を積む口は conflict.park で、同じ申し出を積み増さない。積みの途中で落ちても、次の呼びが残りを積む。積む口が無ければ何もしない）"""
-    claims = holder.get(field)
-    if not claims or park is None:
-        return
-    park(list(claims))
-    holder[field] = []
-    _save(state_file, st)
 
 
 # ---------------------------------------------------------------- 輪の後
@@ -533,8 +263,8 @@ def _frozen_rows(record_file, repo, allowed, since, skip_spans) -> list:
     （`a-b` の文の並び。旧い側の行。許しの範囲が無ければ変わった塊の全部。読めなければ ["（輪が済んだ時の姿が読めない）"]）)]"""
     if not record_file:
         return []
-    st = _load(record_file)
-    now = hashes(repo, st["frozen"])
+    st = loopkit._load(record_file)
+    now = loopkit.hashes(repo, st["frozen"])
     then = _tree_hashes(repo, since, st["frozen"]) if since else st["frozen"]
     moved = [f for f in st["frozen"] if now[f] != then[f]]
     base = since or st.get("frozen_tree") or st.get("handoff")
@@ -583,7 +313,7 @@ def frozen_asks(record_file, repo, allowed=(), since=None, skip_spans=(), rev=No
     rows = _frozen_rows(record_file, repo, allowed, since, skip_spans)
     if not rows or not rev:
         return []
-    st = _load(record_file)
+    st = loopkit._load(record_file)
     base = since or st.get("frozen_tree") or st.get("handoff")
     mine = test_spans(record_file, list(st.get("units") or {}))
     out = []
@@ -670,14 +400,14 @@ def test_spans(record_file, keys) -> list:
     （frozen_problems の skip_spans の形。名は id のパスの後ろ。parametrize の `[…]` は落とす）。状態が無ければ空"""
     if not record_file:
         return []
-    st = _load(record_file)
+    st = loopkit._load(record_file)
     out = []
     for k in keys:
         u = st.get("units", {}).get(k) or {}
         if u.get("route") != "tdd" or u.get("green") != "ok":
             continue
         for t in u.get("tests") or []:
-            path, sep, rest = _id_base(t).partition("::")
+            path, sep, rest = loopkit._id_base(t).partition("::")
             if sep and (path, rest) not in out:
                 out.append((path, rest))
     return out
@@ -689,10 +419,10 @@ def frozen_source(record_file, repo, *, since=None):
     引き直す）。状態・木・パスが読めなければ口は None を返す（許しを捨てる側）。状態は口を呼んだ時に読む"""
     def read(path):
         try:
-            st = _load(record_file) if record_file else {}
+            st = loopkit._load(record_file) if record_file else {}
             tree = since or st.get("frozen_tree") or st.get("handoff")
             return git(repo, "show", f"{tree}:{path}") if tree else None
-        except (Broken, Unreadable):
+        except (loopkit.Broken, Unreadable):
             return None
     return read
 
@@ -886,7 +616,7 @@ def _function_span(old, line):
 
 def suite_made(record_file) -> list:
     """実行器を走らせて出来たファイル（書き込みの出どころの突き合わせから外す）を輪の記録 record_file から。記録が無ければ空"""
-    return _load(record_file).get("suite_made", []) if record_file else []
+    return loopkit._load(record_file).get("suite_made", []) if record_file else []
 
 
 def records(board_dir) -> list:
@@ -911,15 +641,14 @@ ACCEPT_RUN = "accept"   # 受け付けが走らせた回のログ・JUnit の名
 NO_SELECTED = "変えたファイルに当たる試験が無い"
 
 
-PYTEST_FILE = re.compile(r"^(test_.*|.*_test)\.py$")   # pytest の既定の python_files（conftest.py・*-suite.py などは試験のモジュールでない）
 
 
 def _args(root, files, kexpr) -> list:
     """受け付けが実行器に足す引数: 選んだ試験のうち root の中に在る pytest の試験のモジュール（絶対パス。.sh・.bats を渡すと
     収集器が無く一式ごと止まり、conftest.py・実行器の台本の .py を名指しすると pytest が型に依らず import する）と、段の中を
     絞る -k（一式を回す時は付けない）"""
-    py = [f for f in files if PYTEST_FILE.match(posixpath.basename(f)) and (pathlib.Path(root) / f).is_file()]
-    return [*_abs_paths(root, py), *(["-k", kexpr] if kexpr else [])]
+    py = [f for f in files if impact.PYTEST_FILE.match(posixpath.basename(f)) and (pathlib.Path(root) / f).is_file()]
+    return [*loopkit._abs_paths(root, py), *(["-k", kexpr] if kexpr else [])]
 
 
 def selected_problems(base_file, repo, rev, uncompared=None, *, named=(), record=None, accept=None, seen=None) -> tuple:
@@ -941,11 +670,11 @@ def selected_problems(base_file, repo, rev, uncompared=None, *, named=(), record
     置く（変えない段の同じ結果の照らしと、受け付けの止め board.no_suite_at_accept）"""
     if not base_file:
         return [], NO_SUITE
-    st = _load(base_file)
+    st = loopkit._load(base_file)
     acc_dir = pathlib.Path(accept) if accept is not None else pathlib.Path(base_file).parent
     work = pathlib.Path(st["work"])
     m = impact.map(repo, rev=rev, diff=True, cache_dir=work / "impact")
-    names = sorted(set(_named_files(_load(record) if record and pathlib.Path(record).is_file() else {})) | {posixpath.normpath(str(i).partition("::")[0]) for i in named or () if str(i).strip()})
+    names = sorted(set(_named_files(loopkit._load(record) if record and pathlib.Path(record).is_file() else {})) | {posixpath.normpath(str(i).partition("::")[0]) for i in named or () if str(i).strip()})
     sel = impact.select_tests(m, direct_only=True, named=names)
     st["final_left"], st["final_far"] = sel["left"], sel["far"]
     st.setdefault("suite_made", [])
@@ -967,9 +696,9 @@ def selected_problems(base_file, repo, rev, uncompared=None, *, named=(), record
     changed = set(m["seeds"]["from_diff"])
     files = [f for f in sel["selected"] if f in changed]
     kexpr = "" if sel["run_all"] else " or ".join(sel["modules"])
-    pre = snapshot(repo)
+    pre = loopkit.snapshot(repo)
     cases, code, why = run_suite(st["exe"], repo, work, ACCEPT_RUN, _args(repo, files, kexpr))
-    st["suite_made"] = sorted(set(st["suite_made"]) | set(touched(repo, pre, snapshot(repo))))
+    st["suite_made"] = sorted(set(st["suite_made"]) | set(loopkit.touched(repo, pre, loopkit.snapshot(repo))))
     st["ci_left"] = _left_to_ci(sel["selected"], files, cases)
     save()
     if seen is not None:
@@ -983,8 +712,8 @@ def selected_problems(base_file, repo, rev, uncompared=None, *, named=(), record
     if not cases:
         return [], (f"{what}が一式の結末に 0 件——選んだ試験が 1 件も走らなかった（-k が何にも当たらない・実行器が足した試験を"
                     f"拾わない。ログ {work / f'suite-{ACCEPT_RUN}.log'}）。新しい赤が無いことは確かめていない{ci}")
-    reds = {_key(c): c for c in cases if c["outcome"] in ("failure", "error")
-            and st["baseline"].get(_key(c)) not in ("failure", "error")}
+    reds = {loopkit._key(c): c for c in cases if c["outcome"] in ("failure", "error")
+            and st["baseline"].get(loopkit._key(c)) not in ("failure", "error")}
     red = list(reds)
     fresh = [k for k in red if k not in st["baseline"]]
     tail = ""
@@ -1022,7 +751,7 @@ def _by_test_file(repo, cases) -> dict:
     out = {}
     for c in cases:
         hit = files.get(impact._junit_module(c) or "", [])
-        out.setdefault(f"（ファイル {', '.join(hit)}）" if hit else "", []).append(_key(c))
+        out.setdefault(f"（ファイル {', '.join(hit)}）" if hit else "", []).append(loopkit._key(c))
     return out
 
 
@@ -1101,7 +830,7 @@ def exe_id(repo, exe) -> list:
     try:
         return ["repo", p.absolute().relative_to(pathlib.Path(repo).absolute()).as_posix()]
     except ValueError:
-        return ["abs", str(p.absolute()), hashes(p.parent, [p.name])[p.name]]
+        return ["abs", str(p.absolute()), loopkit.hashes(p.parent, [p.name])[p.name]]
 
 
 def load_json(path: pathlib.Path, default):
@@ -1130,7 +859,7 @@ def _case_ids(repo, cases) -> dict:
         parts = [x for x in c["classname"].split(".") if x]
         tail = parts[len(parts) - parts[::-1].index(mod):] if mod in parts else []
         for path in files.get(mod, []):
-            out.setdefault(_key(c), []).append("::".join([path, *tail, c["name"]]))
+            out.setdefault(loopkit._key(c), []).append("::".join([path, *tail, c["name"]]))
     return out
 
 
@@ -1150,7 +879,7 @@ def _base_reds(st, repo, rev, cases) -> tuple:
     for r in rows:
         if isinstance(r, dict) and {k: r.get(k) for k in key} == key and isinstance(r.get("outcomes"), dict):
             seen.update(r["outcomes"])
-    wanted = [_key(c) for c in cases]
+    wanted = [loopkit._key(c) for c in cases]
     if all(k in seen for k in wanted):
         return {k: seen[k] for k in wanted}, []
     ids = _case_ids(repo, cases)
@@ -1169,21 +898,17 @@ def _base_reds(st, repo, rev, cases) -> tuple:
                 exe = inner if inner.is_file() else exe
             except ValueError:
                 pass
-            ran, _, why = run_suite(str(exe), copy, pathlib.Path(st["work"]), f"{ACCEPT_RUN}-rev", _abs_ids(copy, named), only=True)
+            ran, _, why = run_suite(str(exe), copy, pathlib.Path(st["work"]), f"{ACCEPT_RUN}-rev", loopkit._abs_ids(copy, named), only=True)
             if ran is None:
                 return None, why
-            outcome = {_key(c): c["outcome"] for c in ran}
+            outcome = {loopkit._key(c): c["outcome"] for c in ran}
             got.update({k: outcome[k] for k in wanted if got[k] is None and k in outcome})
     jsonfile.write(cache, [*rows, {**key, "outcomes": got}])
     return got, []
 
 
-# 事後の関門の束（同じブロックの fixgates。計画 220 Task 4）が輪と同じ決まりで読む口の公開の別名（輪の中の名は変えない。
-# 名指しの外の既存のテストの書き換え・名指しの node id・関数の幅・範囲の外の差分の塊。preflight F11・F13）
-unnamed_edits = _unnamed_edits
 
 
-abs_ids = _abs_ids
 
 
 function_span = _function_span
@@ -1192,25 +917,5 @@ function_span = _function_span
 hunks_outside = _hunks_outside
 
 
-def retry_max() -> int:
-    """段ごとの諦めの回数（rolekit.GIVE_UP_AFTER。元の写しの rules の RETRY_MAX と同じ 3）"""
-    import rolekit
-    return rolekit.GIVE_UP_AFTER
 
 
-def conflict_item(st, reply, repo, owed: set, try_query=None) -> tuple:
-    """phase conflict の返答（どの段でも）の確かめ ——（問題, 申し出の 1 件か None）。名指しが現物に在れば問題は空で、止め方
-    （振り分けの段は義務から外す・ほかの段は作業ツリーを単位の頭に戻して次の単位へ）は呼び手（route._conflict・tdd._conflict）。
-    owed は申し出てよい単位、try_query は conflict.problems に渡す。盤面の控えに積むのは節（盤面を開く口）"""
-    from src import runvals
-    import planbrief
-    extra = sorted(set(reply) - {"phase", *conflict.FIELDS, conflict.CORRECT})
-    if extra:
-        return [f"食い違いの申し出の欄は phase と {list(conflict.FIELDS)}（query なら {conflict.CORRECT} も）だけ（{extra}）"], None
-    item = {k: reply.get(k) for k in conflict.FIELDS}
-    if conflict.CORRECT in reply:
-        item[conflict.CORRECT] = reply[conflict.CORRECT]
-    board_dir = pathlib.Path(st["work"]).parent
-    probs = conflict.problems([item], repo=repo, board_dir=board_dir, owed=owed, request_file=runvals.read(board_dir)["request_file"],
-                              try_query=try_query, briefs=planbrief.by_unit_at(board_dir))
-    return (probs, None) if probs else ([], item)

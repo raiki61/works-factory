@@ -6,7 +6,7 @@ TDD の輪の中にだけ在った 2 つの関門を、base（修正前の版。
 
 関門（GATES）:
 - red_green: 承認済みの修正案の欄（conflict.frozen_fields）の route が tdd の項目の受け入れのテスト tests[].id ごとに、今の木で
-  一式を走らせて passed、base の木で failure（輪と同じ赤の判定 common.red_check が返す事実の文: 言語に依らず、error・一式の結末に
+  一式を走らせて passed、base の木で failure（輪と同じ赤の判定 loopkit.red_check が返す事実の文: 言語に依らず、error・一式の結末に
   居ない・もう通る・飛ばされたを拒む。文は『base で 』を頭に付けて行の detail に並べる）。輪が赤を確かめた単位（置き場の
   輪の記録の units で、route が tdd・red が ok・赤の木 red_tree が在り、今の木のテストのファイルが輪が終わった時の hash（輪の
   状態の frozen）と同じ物）の名指しは、赤の判定を輪の記録した赤の木（仮の実装を含む）で走らせ直して見る（common.red_rerun。
@@ -31,7 +31,7 @@ TDD の輪の中にだけ在った 2 つの関門を、base（修正前の版。
   （planmarks.GUARD_KIND）なら今の木で緑だけを求め、base の結末（base で何か）は帳面の guards に残す（base で緑でも抜けの行に
   しない。受けた回の trace が名指す）
 - test_edits: base から今の木で変わったテストのファイル（impact.is_test_file: 修正案の受け入れのテスト・書き換えの名指しのパスか名の慣習）のうち、base に在ったテストの関数
-  （tddloop.test_functions）の源が変わった・消えた物（common.unnamed_edits）。許すのはテストの変更の許し（conflict.test_permits）の
+  （tddloop.test_functions）の源が変わった・消えた物（loopkit.unnamed_edits）。許すのはテストの変更の許し（conflict.test_permits）の
   行だけ: 承認済みの修正案の rewrite_tests の id（行の test）と、修正案の項目の files の change=remove の symbol（消す名。op=delete の path・op=rename の元のパス from の .py のモジュールの名も）を base の本体で名指す関数の id
   （行の test。消す仕組みを縛るテストは変えざるを得ない。関数の丸ごとの消しも許す）と、範囲の相談の合意・裁定 fix_test_scope の範囲
   （裁定は裁定の後の受け付けだけ）の中だけを変えた関数。案の直しの単位の行は見ない（前の輪が足したテストは base に無く、ここでは照らさない）。範囲の読みは輪の凍結の検査（common.frozen_problems）と同じ: 1 行の指しの .py はその行を
@@ -61,6 +61,7 @@ import shutil
 
 import cite  # noqa: E402  （.shared/core。名指しの形）
 import conflict  # noqa: E402  （.shared/core。修正案の欄の控え・テストの変更の許し）
+import loopkit  # noqa: E402  （lib。輪と修正の block の両方が使う部品）
 from src import board as fixboard  # noqa: E402  （lib。修正前の版 base_rev・直す義務 owed_units_but_asked（元 writes・conflict の盤面の読みを値で受ける形））
 import impact  # noqa: E402  （.shared/core。受け付けの置き場の trace の行の名・テストのファイルの見分け）
 import jsonfile  # noqa: E402
@@ -145,13 +146,13 @@ def overflow_asks(rows: list[dict], repo, rev: str, items) -> list[dict]:
     out = []
     for r in rows:
         if r.get("gate") == "red_green" and r.get("agreed"):
-            item = planrange.owner(common.id_path(r["id"]), items)
+            item = planrange.owner(loopkit.id_path(r["id"]), items)
             out.append({"item": item.get("item") if item else None, "tests": [], "new_tests": [r["id"]], "line": reject_line(r),
                         "revert": True})
             continue
         if r.get("gate") != "test_edits":
             continue
-        path = common.id_path(r["id"])
+        path = loopkit.id_path(r["id"])
         try:
             line = planmarks.line_in(git(repo, "show", f"{rev}:{path}"), r["id"])
         except Unreadable:
@@ -250,7 +251,7 @@ def present(repo, test_id) -> bool:
     if not isinstance(test_id, str) or not test_id.strip():
         return False
     try:
-        text = (pathlib.Path(repo) / common.id_path(test_id)).read_text(encoding="utf-8")
+        text = (pathlib.Path(repo) / loopkit.id_path(test_id)).read_text(encoding="utf-8")
     except (OSError, UnicodeDecodeError):
         return False
     return planmarks.line_in(text, test_id) is not None
@@ -258,12 +259,12 @@ def present(repo, test_id) -> bool:
 
 def _test_files(repo, rev: str, tree: str, ids=()) -> list[str]:
     """base から木 tree で変わったテストのファイル（impact.is_test_file。宣言は名指し ids のパス）"""
-    declared = {common.id_path(i) for i in ids}
-    return [f for f in common.touched(repo, rev, tree) if impact.is_test_file(f, declared)]
+    declared = {loopkit.id_path(i) for i in ids}
+    return [f for f in loopkit.touched(repo, rev, tree) if impact.is_test_file(f, declared)]
 
 
 def _red_units(board_dir, repo: pathlib.Path) -> dict:
-    """名指しの id（common._norm_id）→ 輪が赤を確かめた単位の記録（置き場の全部の輪の記録 common.records。route が tdd・red が ok・
+    """名指しの id（loopkit._norm_id）→ 輪が赤を確かめた単位の記録（置き場の全部の輪の記録 common.records。route が tdd・red が ok・
     諦めていない・赤の木 red_tree が在り、今の木のテストのファイルが輪が終わった時の hash（その輪の記録の frozen）と同じ単位。
     後の単位が同じファイルに足しただけなら赤の木を使う（赤の木の中のファイルが赤の記録と同じかは red_rerun が照らす）。同じ名指しは
     先の輪の物）。読めない輪の記録は飛ばす（その名指しは base の木で見る。緩めない側）"""
@@ -271,7 +272,7 @@ def _red_units(board_dir, repo: pathlib.Path) -> dict:
     for path in common.records(board_dir):
         try:
             st = common.load_record(path)
-        except common.Broken:
+        except loopkit.Broken:
             continue
         frozen = st.get("frozen") or {}
         for u in (st.get("units") or {}).values():
@@ -279,10 +280,10 @@ def _red_units(board_dir, repo: pathlib.Path) -> dict:
                     and u.get("red_tree") and u.get("test_files")):
                 continue
             if any(f not in frozen for f in u["test_files"]) \
-                    or common.hashes(repo, u["test_files"]) != {f: frozen[f] for f in u["test_files"]}:
+                    or loopkit.hashes(repo, u["test_files"]) != {f: frozen[f] for f in u["test_files"]}:
                 continue   # 輪の後（やり直し・裁定）にテストのファイルが変わった: 赤の木は今のテストを表さない
             for t in u.get("tests") or []:
-                out.setdefault(common._norm_id(t), u)
+                out.setdefault(loopkit._norm_id(t), u)
     return out
 
 
@@ -292,24 +293,24 @@ def _red_green(repo: pathlib.Path, rev: str, suite: str, tests: list, work: path
     緑だけを求め、base の結末は抜けの行にせず返す。今の木で一式（名指しを絶対パスの node id で後ろに足す）を 1 回走らせ、base の木の結末は控え（cache。
     _base_keys の鍵ごと）に無い名指しだけを base の木で走らせて控えに足し、比べる。loop（_red_units）に在る名指しは赤を輪の
     赤の木で走らせ直して見て（_red_tree_probs。結末は同じ控えに _red_key の鍵で残す）、base の木では passed の時だけ拒む。赤の判定は輪と同じ
-    common.red_check の事実の文（行の detail は『base で 』か RED_TREE_HEAD を頭に付けて並べる）"""
+    loopkit.red_check の事実の文（行の detail は『base で 』か RED_TREE_HEAD を頭に付けて並べる）"""
     work.mkdir(parents=True, exist_ok=True)
     ids = [t["id"] for t in tests]
-    tree = common.snapshot(repo)
+    tree = loopkit.snapshot(repo)
     try:
-        now, _, why = tddloop.run_suite(suite, repo, work, f"{RUN}-now", common.abs_ids(repo, ids))
+        now, _, why = tddloop.run_suite(suite, repo, work, f"{RUN}-now", loopkit.abs_ids(repo, ids))
     finally:
-        common.restore_paths(repo, tree, common.touched(repo, tree, common.snapshot(repo)))   # 走らせて出来た物を消す
+        loopkit.restore_paths(repo, tree, loopkit.touched(repo, tree, loopkit.snapshot(repo)))   # 走らせて出来た物を消す
     if now is None:
         return [], [f"{NO_RUN}（今の木で実行器が走らない: {'; '.join(why)}）"], []
-    red, why = _red_tree_probs(repo, rev, suite, [i for i in ids if common._norm_id(i) in (loop or {})], loop or {}, work, cache)
+    red, why = _red_tree_probs(repo, rev, suite, [i for i in ids if loopkit._norm_id(i) in (loop or {})], loop or {}, work, cache)
     if red is None:
         return [], [f"{NO_RUN}（ループの赤の木: {'; '.join(why)}）"], []
-    copy = sorted(set(_test_files(repo, rev, tree, ids)) | {common.id_path(i) for i in ids})
+    copy = sorted(set(_test_files(repo, rev, tree, ids)) | {loopkit.id_path(i) for i in ids})
     keys = _base_keys(repo, rev, suite, ids, copy)
     seen = common.load_json(cache, {})
     need = [i for i in ids if keys[i] not in seen]
-    rules = common.rules()
+    rules = loopkit.rules()
     if need:
         base, why = _base_run(repo, rev, suite, need, copy, work)
         if base is None:
@@ -326,7 +327,7 @@ def _red_green(repo: pathlib.Path, rev: str, suite: str, tests: list, work: path
         if t.get("guard"):   # 守りのテスト: base の結末は抜けにせず控える
             guards.append({"id": t["id"], "base": base[0]["outcome"] if base else "一式の結末に居ない"})
             continue
-        probs, _ = common.red_check([t["id"]], base, None, None)
+        probs, _ = loopkit.red_check([t["id"]], base, None, None)
         if t["id"] in red:   # 赤は赤の木で見る。base の木では直す前から通る時だけ拒む
             if red[t["id"]]:
                 rows.append(_row("red_green", t["id"], RED_TREE_HEAD + "；".join(red[t["id"]]), t["unit_keys"]))
@@ -352,7 +353,7 @@ def _red_tree_probs(repo: pathlib.Path, rev: str, suite: str, ids: list, loop: d
     worktree（base の版から作る。common.temp_tree）で common.red_rerun に回す（名指しは 1 本ずつ。その名指しだけの事実にする）。
     赤の木を読めない（オブジェクトが無い）名指しは返さない（呼び手が base の木で見る）"""
     seen = common.load_json(cache, {})
-    keys = {i: _red_key(repo, suite, i, loop[common._norm_id(i)]) for i in ids}
+    keys = {i: _red_key(repo, suite, i, loop[loopkit._norm_id(i)]) for i in ids}
     out = {i: seen[keys[i]] for i in ids if isinstance(seen.get(keys[i]), list)}
     need = [i for i in ids if i not in out]
     if not need:
@@ -362,7 +363,7 @@ def _red_tree_probs(repo: pathlib.Path, rev: str, suite: str, ids: list, loop: d
             return None, why
         exe = _inner_exe(repo, wt, suite)
         for n, i in enumerate(need, 1):
-            u = {**loop[common._norm_id(i)], "tests": [i]}
+            u = {**loop[loopkit._norm_id(i)], "tests": [i]}
             try:
                 probs, why = common.red_rerun(wt, u, exe, work, f"{RUN}-red-{n}")
             except Unreadable:
@@ -381,11 +382,11 @@ def _base_keys(repo: pathlib.Path, rev: str, suite: str, ids: list, copy: list) 
     ファイルの今の中身・写す conftest.py の中身。ほかの写すテストのファイルは鍵に入れない（テストのファイルが別のテストの
     ファイルを import する形は見ない。入れると修正役がどれか 1 つのテストのファイルを触るたびに全部を走らせ直す）"""
     head = [common.rev_id(repo, rev), common.exe_id(repo, suite),
-            sorted(common.hashes(repo, [f for f in copy if posixpath.basename(f) == "conftest.py"]).items())]
+            sorted(loopkit.hashes(repo, [f for f in copy if posixpath.basename(f) == "conftest.py"]).items())]
     out = {}
     for i in ids:
-        f = common.id_path(i)
-        raw = json.dumps([*head, i, common.hashes(repo, [f])[f]], ensure_ascii=False)
+        f = loopkit.id_path(i)
+        raw = json.dumps([*head, i, loopkit.hashes(repo, [f])[f]], ensure_ascii=False)
         out[i] = hashlib.sha256(raw.encode("utf-8")).hexdigest()
     return out
 
@@ -404,7 +405,7 @@ def _base_run(repo: pathlib.Path, rev: str, suite: str, ids: list, copy: list, w
                 shutil.copyfile(src, dst)
             elif dst.is_file() or dst.is_symlink():
                 dst.unlink()
-        cases, _, why = tddloop.run_suite(_inner_exe(repo, wt, suite), wt, work, f"{RUN}-base", common.abs_ids(wt, ids))
+        cases, _, why = tddloop.run_suite(_inner_exe(repo, wt, suite), wt, work, f"{RUN}-base", loopkit.abs_ids(wt, ids))
         return cases, why
 
 
@@ -422,11 +423,11 @@ def _test_edits(b, repo: pathlib.Path, rev: str, pass_: str, ids=(), round_: int
     """ids は修正案の受け入れのテストの名指し（そのパスもテストのファイルと見る。書き換えの名指しのパスも同じ）"""
     got = conflict.edit_permits(b, pass_, round_=round_)
     plan = got["tests"]   # 修正案の名指しは id で許し、そのパスはテストのファイルの宣言
-    files = _test_files(repo, rev, common.snapshot(repo), [*ids, *plan])
+    files = _test_files(repo, rev, loopkit.snapshot(repo), [*ids, *plan])
     if not files:
         return []
     allowed = set(plan) | _ruled_ids(repo, rev, files, got["limits"])
-    return [_row("test_edits", i, EDITED) for i in common.unnamed_edits(repo, rev, files, allowed)]
+    return [_row("test_edits", i, EDITED) for i in loopkit.unnamed_edits(repo, rev, files, allowed)]
 
 
 def _ruled_ids(repo, rev: str, files: list, limits: list) -> set:

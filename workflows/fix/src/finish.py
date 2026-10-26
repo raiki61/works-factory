@@ -150,7 +150,8 @@ def returned_rows(place) -> tuple:
     4.1 の 7。line の最後の承認が節に分ける）。only_removed は試験を消しただけで足しも書き換えもしなかった試験のファイル（最後の承認が
     「書き換えを許したテストを触った」の数えから外す）。1 回目の段から写した控え（board.PRIOR_LOOP の印）は 1 回目の段の出力が持つので数えない。
     untested は注文に試験を求めない訳（why_untested）が在った返し。控えが読めなければ ValueError（黙って空にしない）"""
-    from src import board, orders, rules
+    import impact
+    from src import board, orders
     removed, untested = [], []
     for r in orders.returns_of(place):
         if r.get(board.PRIOR_LOOP):
@@ -163,13 +164,14 @@ def returned_rows(place) -> tuple:
                             "only_removed": sorted({orders.common_path(str(t)) for t in r["removed"]} - kept)})
         if str(r.get("why_untested") or "").strip():
             untested.append({**head, "why": str(r["why_untested"]),
-                             "files": [{"path": str(p), "kind": rules.kind_of(p) or ""} for p in r.get("files") or []]})
+                             "files": [{"path": str(p), "kind": impact.kind_of(p) or ""} for p in r.get("files") or []]})
     return removed, untested
 
 
 def _item_claims(place, results, ruled, repo) -> dict:
     """項目ごとの commit の記録（itemcommits.record。今の collect.item_claims）"""
     import itemcommits
+    import loopkit
     from src import board
     unread, replies = [], [ruled]
     try:
@@ -185,7 +187,7 @@ def _item_claims(place, results, ruled, repo) -> dict:
         if named and reply is None:
             unread.append(f"組 {r.get('group_id')} の修正役の返答 {named} を読めない")
         replies.append(reply)
-    tdd = [{"unit_key": u.get("unit_key"), "test_files": board.unit_test_files(u)} for r in results for u in board.child_tdd_units(r)]
+    tdd = [{"unit_key": u.get("unit_key"), "test_files": loopkit.unit_test_files(u)} for r in results for u in board.child_tdd_units(r)]
     return itemcommits.record(items, replies, tdd, repo, unread)
 
 

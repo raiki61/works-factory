@@ -22,6 +22,7 @@ import groups     # lib/
 import jsonfile   # lib/
 import planmarks  # lib/
 
+import loopkit  # noqa: E402  （lib。輪と修正の block の両方が使う部品）
 from src import basecase, board, common, files, intake, route, runvals, tdd
 
 COUNTED = {"iterations": 0, "calls": [], "kinds": []}   # 振り分けを起こさなかった組の注文の欄 tdd（輪は 0 周・呼びの控え無しから数える）
@@ -240,7 +241,7 @@ def compute(place, repo) -> dict:
     words, removes, whys = route.plan_words(place, keys), route.plan_removes(place, keys), route.plan_whys(place, keys)
     state = str(started.get("state_file") or "")
     routed = route.read(place)   # 振り分けの状態 route.json（振り分けを起こさなかった組は {}）
-    st = common.load_state(state) if state else routed
+    st = loopkit.load_state(state) if state else routed
     answered = {k: (u or {}).get("route", "") for k, u in (st.get("units") or {}).items()}
     gave_up = {k for k, u in (st.get("units") or {}).items() if (u or {}).get("gave_up")}
     parked = set(st.get("parked") or [])
@@ -263,7 +264,7 @@ def compute(place, repo) -> dict:
         started.update(go=True, state_file=state, summary_file=str(pathlib.Path(state).parent / tdd.SUMMARY))
         board.write_json(place / board.TDD_START_FILE, started)
     _write_orders(place, keys, owed, weapons, stage=stage_of(place), since=groups.end_tree(repo), has_base=bool(base), counted=counted)
-    loop = common.load_state(state) if state else {}
+    loop = loopkit.load_state(state) if state else {}
     return {"tdd": bool(loop) and not loop.get("done"), "writer": True, "stop": False, "reason": ""}
 
 

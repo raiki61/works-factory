@@ -17,6 +17,7 @@ sys.dont_write_bytecode = True
 sys.path[:0] = [str(Path(__file__).resolve().parents[2] / ".shared"), str(Path(__file__).resolve().parents[1])]
 import ports  # noqa: E402
 
+import evidencekinds  # noqa: E402
 import groups  # noqa: E402
 import oneline  # noqa: E402
 import writelog  # noqa: E402
@@ -39,7 +40,7 @@ def main() -> dict:
     if not head.is_file():   # 外の輪の頭が控えていない置き場（注文を書く段を通らない置き場）: 型の段の頭をここで控える
         board.record_skipped(place, repo, SKIP)   # 印より先に（落ちて回し直した支度が控えを飛ばさない）
         board.write_json(head, {"tree": groups.end_tree(repo)})
-    n = rules.iteration_next(writers.ledger(place, "first", weapon))
+    n = evidencekinds.iteration_next(writers.ledger(place, "first", weapon))
     duty, _ = board.fix_duty(place, owed)
     if not duty or board.no_suite_stop(place):   # 組が no-suite で止まった（TDD のループが実行器の止まりで抜けた・受け付けが止めた）
         return {"go": False, "iteration": n, "writer": node}
@@ -52,7 +53,7 @@ def main() -> dict:
         slots, rnd = prompts.writer_slots(place, repo, "first", weapon, values, **extra)
         handed = writers.hand_over(place, "first", weapon, slots, owed)   # 形に合わなければ落ちる（落ちた周は控えない）
         if rnd["kinds"] is not None:
-            rules.remember(rnd["ledger"], rnd["kinds"], rnd["iteration"])
+            evidencekinds.remember(rnd["ledger"], rnd["kinds"], rnd["iteration"])
     except prompts.Broken as e:
         prompts.error(place, node, oneline.one_line(e))
         raise

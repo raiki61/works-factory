@@ -16,7 +16,8 @@ import conflict  # noqa: E402
 import groups  # noqa: E402
 import oneline  # noqa: E402
 
-from src import basecase, board, finish, intake, common, tdd  # noqa: E402
+import loopkit  # noqa: E402  （lib）
+from src import basecase, board, finish, intake, tdd  # noqa: E402
 
 
 def tdd_exit(started) -> dict:
@@ -26,7 +27,7 @@ def tdd_exit(started) -> dict:
                 "units": []}
     try:
         return tdd.exit_fields(started)
-    except common.Broken as e:
+    except loopkit.Broken as e:
         out = {"ran": False, "suite": str(started.get("suite") or ""),
                "reason": f"TDD のループが済まずに抜けた（{oneline.one_line(e)}）", "units": []}
         if started.get("no_suite") is True:   # 組の頭か受け付けが no-suite で止めた印は、輪が済まずに抜けても落とさない

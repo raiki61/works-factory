@@ -21,6 +21,7 @@ import rolekit
 from fixboard import (  # noqa: F401  lib のまま呼ぶ名（docs/design/fix.md の 1.5.2）
     trace, trace_rows, TRACE_FILE, read_json, write_json, write_text, plan_view, marks_view, allowed_test_rows, _allowed_row, child_allowed_rows, scope_brief, ALLOWED_SOURCES, FIX_IN_DIFF_CORE, run_diff, DIFF_EMPTY, diff_file, pr_revs, pr_diff, pr_added_lines, UNIT_STATUSES, FIXED, GIVEN_UP, NOT_DONE, UNIT_LEFT, HANDOFF_HEAD, accept_out, round_number, snapshot, touched_since, undeclared_writes, UNDECLARED)
 
+import loopkit  # noqa: E402  （lib。輪と修正の block の両方が使う部品）
 from src import files as fixnames
 from src.rulings import write as write_rulings
 from src.files import (  # noqa: F401
@@ -324,9 +325,9 @@ def rerun_problem(place, repo, suite: str, cases, named, *, name: str = "rerun",
     2. 名指しの無い組（修正役だけが直した組）も、変えたファイルに当たる試験の新しい赤を common.selected_problems で見る（元の
        結末 cases に無い赤は版 rev の写しでその試験を名指しで走らせて確かめる）。写しの結末に出ず比べられなかった赤は、uncompared
        （呼び手が渡した並び）が在れば戻す理由にせずその鍵を足す（呼び手が報告で人に聞く。#846）。前に戻した組とも重なったファイル shared が在れば、それを起点に地図が届く
-       試験の全部（common._reached の direct_only 偽。地図が一式を求める時は足さない）を選びに足す（元 tddlanes.py:695-698）。
+       試験の全部（loopkit._reached の direct_only 偽。地図が一式を求める時は足さない）を選びに足す（元 tddlanes.py:695-698）。
     3. 赤が無く test_cmd（関門が on の時だけ呼び手が渡す。rerun_cmd）が在れば 1 回走らせ、緑でなければその文。ただし組を当てる前の
-       木 base（common.snapshot。skip の頭の下は数えない）を呼び手が渡せば、赤を 1 回で戻す理由にせず cmd_verdict で見分ける（#855）:
+       木 base（loopkit.snapshot。skip の頭の下は数えない）を呼び手が渡せば、赤を 1 回で戻す理由にせず cmd_verdict で見分ける（#855）:
        外した木でも赤なら前から赤（または環境）、外すと緑で走らせ直しに 1 回でも緑が在れば揺れと見て戻さず、その文を cmd_notes
        （呼び手が渡した並び）に足す。外した木の結果が取れなければ uncompared（在れば）に足して人に聞く。3 回とも赤の時だけ戻す理由。
     shared の在る組の赤は意味の食い違い（SEMANTIC_CLASH）と名指す。走らせ直しの仮の base.json・accept.json とログは置き場の <name>/ に置く"""
@@ -342,7 +343,7 @@ def rerun_problem(place, repo, suite: str, cases, named, *, name: str = "rerun",
     work.mkdir(parents=True, exist_ok=True)
     probs = []
     if named:
-        ran, _, why = baseline_red.run_suite(str(exe), repo, work, "named", common._abs_ids(repo, named), only=True)
+        ran, _, why = baseline_red.run_suite(str(exe), repo, work, "named", loopkit._abs_ids(repo, named), only=True)
         if ran is None:
             return f"当てた後の木で名指しのテストを走らせられない（{'; '.join(why)}）"
         old = [t for t in named if same_red(t, cases, ran)]
@@ -357,10 +358,10 @@ def rerun_problem(place, repo, suite: str, cases, named, *, name: str = "rerun",
             probs = ["当てた後の木で名指しのテストが緑でない: " + "；".join(probs)]
     if not probs:   # 仮の元の結末 base.json（直す前の結末 cases）と名指し named を渡す（下書き 2.1。仮の輪の状態は組まない）
         st = {"exe": str(exe), "work": str(work), "suite": suite, "suite_made": [], "taken": True, "baseline_cases": [],
-              "baseline": {common._key(c): c.get("outcome") for c in cases or [] if isinstance(c, dict)}}
+              "baseline": {loopkit._key(c): c.get("outcome") for c in cases or [] if isinstance(c, dict)}}
         wide = []
         if shared:
-            wide, everything = common._reached(st, repo, seeds=shared, direct_only=False)
+            wide, everything = loopkit._reached(st, repo, seeds=shared, direct_only=False)
             wide = [] if everything else wide
         base_file = write_json(work / fixnames.BASE_FILE, st)
         probs, _ = common.selected_problems(str(base_file), repo, rev, uncompared=uncompared, named=[*named, *wide],
@@ -381,7 +382,7 @@ CMD_TRIES = 3   # 外すと緑の時に当てた木で走らせる回の数（1 
 
 
 def _cmd_said(mat: dict, log) -> str:
-    """test_cmd の 1 回の素材（common._cmd_run）の訳: 書き換えの文か起こせない訳か、コマンドの出力（ログ log の末尾）"""
+    """test_cmd の 1 回の素材（loopkit._cmd_run）の訳: 書き換えの文か起こせない訳か、コマンドの出力（ログ log の末尾）"""
     if mat.get("rewrote") or mat.get("reason"):
         return mat.get("rewrote") or mat.get("reason")
     try:
@@ -395,14 +396,13 @@ def _cmd_without(repo, base: str, cmd: str, log, skip=()) -> dict:
     """組を外した木（当てる前の木 base）の姿で test_cmd を 1 回走らせた素材。走らせる前に今の木を控え、走らせた後は控えの姿へ
     戻す（外した木で test_cmd が作ったファイルも残さない）。戻せなければ落ちる（join の道は呼び手の join_group が組を戻し、合わせ役の道は
     受け付けの node が落ちる）。.gitignore に当たるファイルは木の姿に入らないので戻さない"""
-    from src import common
-    now = common.snapshot(repo)
-    paths = [p for p in common.touched(repo, base, now) if not p.startswith(tuple(skip))]
-    common.restore_paths(repo, base, paths)
+    now = loopkit.snapshot(repo)
+    paths = [p for p in loopkit.touched(repo, base, now) if not p.startswith(tuple(skip))]
+    loopkit.restore_paths(repo, base, paths)
     try:
-        mat, _ = common._cmd_run(repo, cmd, log)
+        mat, _ = loopkit._cmd_run(repo, cmd, log)
     finally:
-        common.restore_paths(repo, now, [p for p in common.touched(repo, now, common.snapshot(repo))
+        loopkit.restore_paths(repo, now, [p for p in loopkit.touched(repo, now, loopkit.snapshot(repo))
                                           if not p.startswith(tuple(skip))])
     return mat
 
@@ -414,10 +414,9 @@ def cmd_verdict(repo, cmd: str, work, *, base: str = "", notes=None, uncompared=
     2. 外すと緑 → 当てた木であと 2 回走らせ、3 回とも赤なら戻す理由（CMD_STILL_RED を添える）。1 回でも緑なら CMD_FLAKY を notes に足して空。
     3. 外した木の結果が取れない（起こせない）→ uncompared が在れば CMD_UNCOMPARED を足して空（人に聞く）、無ければ戻す理由。
     ログは work/test-cmd.log（1 回目）・test-cmd-base.log（外した木）・test-cmd-<k>.log（走らせ直し）"""
-    from src import common
     work = pathlib.Path(work)
     log = work / "test-cmd.log"
-    mat, _ = common._cmd_run(repo, cmd, log)
+    mat, _ = loopkit._cmd_run(repo, cmd, log)
     if mat["status"] == "clean":
         return []
     red = CMD_RED.format(cmd=cmd, said=_cmd_said(mat, log))
@@ -435,7 +434,7 @@ def cmd_verdict(repo, cmd: str, work, *, base: str = "", notes=None, uncompared=
         keep.append(CMD_OLD_RED.format(cmd=cmd, said=_cmd_said(was, base_log)))
         return []
     for k in range(2, CMD_TRIES + 1):
-        again, _ = common._cmd_run(repo, cmd, work / f"test-cmd-{k}.log")
+        again, _ = loopkit._cmd_run(repo, cmd, work / f"test-cmd-{k}.log")
         if again["status"] == "clean":
             keep.append(CMD_FLAKY.format(cmd=cmd, runs=k, said=_cmd_said(mat, log)))
             return []
@@ -446,11 +445,10 @@ def rerun_cmd(place, result, test_cmd: str) -> str:
     """当てた後に走らせ直す test_cmd（rerun_problem に渡す）: 組の子の TDD の輪が決めた関門（結果の tdd.test_cmd.gate）が on で、
     組に走らせ直しを省かない単位（port skip_rerun の外）が在る時だけ test_cmd、ほかは ""（元 works/blk-fix/lib/tddlanes.py:704）。
     tdd か tdd.test_cmd が在って dict でない結果は関門を読めないので on と見る（走らせ直しを飛ばして戻さない）"""
-    from src import common
     tdd = (result or {}).get("tdd") or {}
     cmd = (tdd.get("test_cmd") or {}) if isinstance(tdd, dict) else None
-    gate = cmd.get("gate") if isinstance(cmd, dict) else common.GATE_ON
-    if gate != common.GATE_ON or not (test_cmd or "").strip():
+    gate = cmd.get("gate") if isinstance(cmd, dict) else loopkit.GATE_ON
+    if gate != loopkit.GATE_ON or not (test_cmd or "").strip():
         return ""
     from src import runvals
     light = set(runvals.read(place)["skip_rerun"])
@@ -469,13 +467,12 @@ def join_group(repo, from_tree: str, end_tree: str, kept, *, union=(), check=Non
     元 works/blk-fix/lib/lanekit.py の merge（単位の worktree の差分を当てた所）を、子の run の終わりの木との差分で受ける形にした物"""
     import groups
     from src import lanes as lanekit
-    from src import common
     import unittrees
     patch = groups.diff_since(repo, from_tree, end_tree)
     kept = pathlib.Path(kept)
     kept.parent.mkdir(parents=True, exist_ok=True)
     kept.write_text(patch, encoding="utf-8", errors="surrogateescape")
-    before = common.snapshot(repo)
+    before = loopkit.snapshot(repo)
     got: list = []
     ok, why = unittrees.apply(repo, patch, union=union, unioned=got, check=unittrees.tests_unique)
     if not ok:
@@ -486,12 +483,12 @@ def join_group(repo, from_tree: str, end_tree: str, kept, *, union=(), check=Non
     except Exception as e:  # noqa: BLE001  落ちた確かめ直しも赤と同じく戻す（#406）
         why = CHECK_RAISED.format(error=f"{type(e).__name__}: {oneline.one_line(e)[:300]}")
     except BaseException:
-        common.restore_paths(repo, before, names)
+        loopkit.restore_paths(repo, before, names)
         raise
     if not why:
         return lanekit.Merge("", str(kept), names, got, False)
     try:
-        common.restore_paths(repo, before, names)
+        loopkit.restore_paths(repo, before, names)
     except Exception as e:  # noqa: BLE001  戻せない組を当てていないと言わない（#403）
         return lanekit.Merge(UNRESTORED.format(error=f"{type(e).__name__}: {oneline.one_line(e)[:300]}", why=why), str(kept), [], got,
                              False, unrestored=names)
@@ -907,27 +904,12 @@ def plan_face_errors(place, reply, units) -> list:
 
 
 def _bodies(text, rel: str) -> dict:
-    """ファイルの中身 text（None は無いファイル）の test 関数の id（common._id_base）→ 源（tddloop.test_functions）。
+    """ファイルの中身 text（None は無いファイル）の test 関数の id（loopkit._id_base）→ 源（tddloop.test_functions）。
     元 works/blk-fix/lib/tddlanes.py:641（単位の worktree のファイルを読んだ所を中身で受ける）"""
-    from src import common, tdd as tddloop
+    from src import tdd as tddloop
     if text is None:
         return {}
-    return {common._id_base(i): body for i, body in tddloop.test_functions(text, rel).items()}
-
-
-def test_file(f) -> str | None:
-    """TDD の輪の単位の test_files の要素の決まり: 空でない文字列を posixpath.normpath で整えたパス（ほかは None）。書き手
-    tddloop の確かめ（要素が 1 つでも外れれば並びごと拒む）と読み手 unit_test_files（外れた要素を落とす）がここから引く"""
-    return posixpath.normpath(f.strip()) if isinstance(f, str) and f.strip() else None
-
-
-def unit_test_files(unit) -> list:
-    """TDD の輪の単位の行の test_files のうち、決まり（test_file）に合う要素だけを整えた並び（子の result.json の写しも読む口。
-    並びでない test_files は空、形の違う要素は落とす）"""
-    files = (unit or {}).get("test_files")
-    if not isinstance(files, list):
-        return []
-    return [p for p in map(test_file, files) if p]
+    return {loopkit._id_base(i): body for i, body in tddloop.test_functions(text, rel).items()}
 
 
 def _moved_tests(repo, tree: str, units, shared: set) -> list:
@@ -937,12 +919,12 @@ def _moved_tests(repo, tree: str, units, shared: set) -> list:
     from src import common
     out = []
     for u in units:
-        for f in sorted(set(unit_test_files(u)) & set(shared)):
+        for f in sorted(set(loopkit.unit_test_files(u)) & set(shared)):
             mine = _bodies(common._tree_text(repo, tree, f), f)
             p = pathlib.Path(repo) / f
             now = _bodies(p.read_text(encoding="utf-8", errors="replace") if p.is_file() else None, f)
-            out += [t for t in u.get("tests") or [] if common._norm_id(t).startswith(f + "::")
-                    and (mine.get(common._id_base(t)) is None or mine.get(common._id_base(t)) != now.get(common._id_base(t)))]
+            out += [t for t in u.get("tests") or [] if loopkit._norm_id(t).startswith(f + "::")
+                    and (mine.get(loopkit._id_base(t)) is None or mine.get(loopkit._id_base(t)) != now.get(loopkit._id_base(t)))]
     return out
 
 
@@ -1310,7 +1292,6 @@ def drop_unreturned(repo, gdir, skip=()) -> list:
     """並べない run（組の子が親の作業ツリーで直す）で、子が使える結果（usable_result）を残さずに落ちた組の変更を、子の始めの木
     （gdir の GROUP_START_FILE の start_tree）に戻し、戻したパス（除くパスの頭 skip の下は数えない）を返す。使える結果の在る組・
     始めの記録の無い組は何もしない（[]）。新しい（元は枝ごとの worktree で直したので、落ちた枝の直しは親の木に届かなかった）"""
-    from src import common
     gdir = pathlib.Path(gdir)
     if usable_result(gdir) is not None:
         return []
@@ -1319,7 +1300,7 @@ def drop_unreturned(repo, gdir, skip=()) -> list:
     if not isinstance(tree, str) or not tree:
         return []
     paths = touched_since(repo, tree, skip)
-    common.restore_paths(repo, tree, paths)
+    loopkit.restore_paths(repo, tree, paths)
     return paths
 # ---------------------------------------------------------------- 修正役の受け付けと範囲の相談（fix-accept・fix-ruled-accept・
 # consult-check・fix-ruled-prep の scripts が呼ぶ）。元 works/blk-fix/scripts/accept.py の受け付けの手順と、元
@@ -1363,7 +1344,6 @@ NOT_OPENED = ("今の周に直す単位に無い unit_key を changes に書い�
 EXCUSED = ("直す義務から外れた単位を changes に書いた（答えが届くまで・人が決めるまで直さない。changes から外し、not_done に"
            "理由を書け）: ")
 CONFLICT_BAD = "食い違いの申し出を受けない（名指した所が現物に無いか、形が違う。直して丸ごと出し直せ）: "
-JUDGE_UNREAD = f"置き場の判定の写し {JUDGMENT_FILE} が読めない（{{why}}）——判定者の問いを correct_lines に当てて試せない"
 SECOND_CONFLICT = ("裁定の後の出し直しで新しく申し出た食い違い——裁定のループは 1 周に 1 回だけなので、機械が人に回した"
                    "（最後の承認ノードで人が決める）")
 CONSULT_SPENT = ("範囲の相談の枠（この段のループで {n} 回）を使い切った後の consult を受けない。consult の欄を外し、範囲の中で直すか、"
@@ -1631,19 +1611,11 @@ def parked_reasons(place, keys) -> dict:
 
 def judge_query(place):
     """食い違いの申し出の確かめ（conflict.problems_by_entry）の try_query: 置き場の判定の写し judgment.json の units から
-    querytest.judge_hits を組む（TDD の輪の道 tdd-step と同じ。裁定 replace_query が置き換えた単位は置き換えた問いを当てる）。写しが無い・読めない・dict でなければ、query の申し出ごとに
-    JUDGE_UNREAD の文を返す口（読めないと名指して拒む。黙って試さずに通さない。元は盤面の判定 b.record["units"] を引き、
-    無ければ落ちた）"""
+    querytest.judge_hits を組む（TDD の輪の道 tdd-step と同じ。裁定 replace_query が置き換えた単位は置き換えた問いを当てる。本体は
+    querytest.judge_query）。写しが読めなければ querytest.JUDGE_UNREAD の文を返す口"""
     import conflict
     import querytest
-    try:
-        judgment = read_json(pathlib.Path(place) / JUDGMENT_FILE)
-        why = "" if isinstance(judgment, dict) else ("無い" if judgment is None else "dict でない")
-    except ValueError as e:
-        judgment, why = None, str(e)
-    if why:
-        return lambda key, lines: JUDGE_UNREAD.format(why=why)
-    return querytest.judge_hits(judgment.get("units") or [], conflict.replaced_queries(place))
+    return querytest.judge_query(pathlib.Path(place) / JUDGMENT_FILE, conflict.replaced_queries(place))
 
 
 def take_conflicts(reply: dict, place, repo, pass_: str, owed) -> tuple:
@@ -1710,9 +1682,8 @@ def keep_patch(place, repo, files, head: str) -> str:
 def revert_units(place, repo, files, head: str) -> str:
     """止めた単位の足跡 files を段の頭の木 head に戻す（先に keep_patch で控える）。返りは控えのパス。元
     works/blk-fix/scripts/accept.py:417"""
-    from src import common
     patch = keep_patch(place, repo, files, head)
-    common.restore_paths(repo, head, sorted(files))
+    loopkit.restore_paths(repo, head, sorted(files))
     return patch
 
 
@@ -2374,7 +2345,7 @@ def settle_overflow(asks: list, found: list, whole: dict, place, repo, *, head: 
                     again, ask: bool = True):
     """はみ出しの行だけの回の道筋の選び。返りは出口の dict（積んだ {ok: False, queued: True, count: false, …}・戻して通し直した返り）か、拒む時は
     None（戻しきれない物を成り立たない行にして found に足してある）。見分けは持ち主（planscope の overflow・fixgates.overflow_asks・
-    common.frozen_asks）、聞いた答えは conflict.plan_asks、積みは consult.queue、戻しは keep_patch・common.restore_paths・
+    common.frozen_asks）、聞いた答えは conflict.plan_asks、積みは consult.queue、戻しは keep_patch・loopkit.restore_paths・
     common.restore_tests・_without_rows が持ち、ここは選ぶだけ:
     - 戻したのにまだ行が残る物（reverted に在る）は『はみ出しを戻せない』
     - まだ聞いていない物は積む（枠が足りなければ戻す側）。積んだが頼みにする前の物は積み直さず同じ出口
@@ -2429,7 +2400,7 @@ def settle_overflow(asks: list, found: list, whole: dict, place, repo, *, head: 
     test_files = {posixpath.normpath(s.partition("::")[0]) if "::" in s else (conflict.parse_limit(s) or (s,))[0]
                   for s in [*specs, *ids]}
     patch = keep_patch(place, repo, {*paths, *test_files}, head)
-    common.restore_paths(repo, head, paths)
+    loopkit.restore_paths(repo, head, paths)
     for ref, ss in by_ref.items():
         common.restore_tests(repo, head, ss, ref=ref)
     common.restore_tests(repo, head, ids)

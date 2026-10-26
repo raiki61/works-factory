@@ -3,7 +3,7 @@
 # dependencies = []
 # ///
 """node tdd-prep（組の形の tdd-loop の中。役 tdd・tdd-new の前）: 今の段の指示を md から組む（src/tdd.prep の材料を
-src/prompts.tdd が prompts/parts/tdd.md に入れる）。単位が替わった周かを new_unit で返し、YAML が同じ単位の続きの役 tdd（会話を継ぐ）
+src/prompts.loop_prompt が prompts/parts/tdd.md に入れる）。単位が替わった周かを new_unit で返し、YAML が同じ単位の続きの役 tdd（会話を継ぐ）
 と新しい単位の役 tdd-new（context: fresh）を振り分ける。輪が済んだ（resume で 1 周目から回り直した）・実行器の無い run は
 {prompt: "", go: false, new_unit: false}。brief の控えが壊れた・座が組めない・指示が組めない時は prompt-error.json に書いて落ちる。
 返り {prompt, go, new_unit}"""
@@ -17,7 +17,8 @@ import ports  # noqa: E402
 
 import oneline  # noqa: E402
 
-from src import board, prompts, runvals, common, tdd  # noqa: E402
+import loopkit  # noqa: E402  （lib）
+from src import board, prompts, runvals, tdd  # noqa: E402
 
 NODE = "tdd-prep"
 
@@ -42,8 +43,8 @@ def main() -> dict:
         view = tdd.prep(started["state_file"], sources=sources)
         if not view["go"]:
             return {"prompt": "", "go": False, "new_unit": False}
-        out = prompts.tdd(place, repo, view, values)
-    except (common.Broken, prompts.Broken) as e:
+        out = prompts.loop_prompt(repo, view, prompts.tdd_context(place, values), place)
+    except (loopkit.Broken, prompts.Broken) as e:
         prompts.error(place, NODE, oneline.one_line(e))
         raise
     return {"prompt": out["prompt"], "go": True, "new_unit": bool(view["new_unit"])}

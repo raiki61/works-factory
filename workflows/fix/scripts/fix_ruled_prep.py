@@ -16,6 +16,7 @@ sys.dont_write_bytecode = True
 sys.path[:0] = [str(Path(__file__).resolve().parents[2] / ".shared"), str(Path(__file__).resolve().parents[1])]
 import ports  # noqa: E402
 
+import evidencekinds  # noqa: E402
 import groups  # noqa: E402
 import oneline  # noqa: E402
 import writelog  # noqa: E402
@@ -46,7 +47,7 @@ def main() -> dict:
         slots, rnd = prompts.writer_slots(place, repo, "ruled", weapon, values, **extra)
         handed = writers.hand_over(place, "ruled", weapon, slots, owed)   # 形に合わなければ落ちる（落ちた周は控えない）
         if rnd["kinds"] is not None:
-            rules.remember(rnd["ledger"], rnd["kinds"], rnd["iteration"])
+            evidencekinds.remember(rnd["ledger"], rnd["kinds"], rnd["iteration"])
     except prompts.Broken as e:
         prompts.error(place, node, oneline.one_line(e))
         raise

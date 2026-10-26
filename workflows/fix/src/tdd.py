@@ -93,22 +93,22 @@ from baseline_red import _failure_attrs, exe_path, run_suite  # noqa: E402,F401 
 import conflict  # noqa: E402  （lib。食い違いの申し出の確かめ・直す義務から外れた単位）
 from src import board as fixboard  # noqa: E402  （lib。直す義務 fix_duty。元 conflict.fix_duty の値で受ける形）
 from src import files as fixnames  # noqa: E402
+from src import runvals  # noqa: E402
 from src import rules as fixrules  # noqa: E402  （同じブロックの lib。指示書の組み立て）
 import impact  # noqa: E402  （.shared/core。変更に当たる試験の選び）
 import planbrief  # noqa: E402  （同じブロックの lib。承認済みの修正案の項目ごとの brief の凍結）
 import planmarks  # noqa: E402  （.shared/core。修正案の項目の works の欄。単位の約束）
 from planmarks import test_functions  # noqa: E402,F401  （.shared/core。テストの関数の id（pytest の node id の形）→ 源の引き。fixgates・fixboard が tddloop.test_functions の名で読む）
-import rolekit  # noqa: E402  （lib。諦めの回数 GIVE_UP_AFTER）
 import writelog  # noqa: E402
 import writes  # noqa: E402  （.shared/core。書き込みの出どころの突き合わせ）
 import oneline  # noqa: E402
 from leftovers import git, git_names  # noqa: E402
-# 型を問わない部品（src/common.py。輪の中の名は変えない）
-from src import common  # noqa: E402
-from src.common import (  # noqa: E402
-    Broken, GATE_OFF, GATE_ON, MIN_WHY, QUOTES_FIELD, UNSENT, _abs_ids, _abs_paths, _blank, _cmd_run, _contract, _id_base,
+# 輪と修正の block の両方が使う部品（lib/loopkit.py。輪の中の名は変えない）
+import loopkit  # noqa: E402
+from loopkit import (  # noqa: E402
+    Broken, GATE_ON, MIN_WHY, QUOTES_FIELD, UNSENT, _abs_ids, _abs_paths, _blank, _cmd_run, _contract, _id_base,
     _key, _load, _mark_parked, _norm_id, _owed, _plan_tdd, _reached, _save, _unit, _unnamed_edits, _verified, hashes, id_path,
-    red_check, restore, rules, snapshot, touched)
+    red_check, restore, retry_max, rules, snapshot, touched)
 
 PHASES = ("test", "fix", "refactor")   # 振り分けの段は輪の外の route-loop（src/route.py）
 MAX_ITERATIONS = 40   # YAML の tdd-loop の max_iterations と同じ値（試験が縛る）。この周に届いたら残りを direct にして抜ける
@@ -137,11 +137,6 @@ class _RunnerDown(Exception):
 class _CmdDown(_RunnerDown):
     """run の test_cmd が走らない（実行器が走らない時と同じ道で輪を抜ける。理由の頭の語だけ違う）"""
     head = "テストのコマンドが走らない"
-
-
-def retry_max() -> int:
-    """段ごとの諦めの回数（rolekit.GIVE_UP_AFTER。元の写しの rules の RETRY_MAX と同じ 3）"""
-    return rolekit.GIVE_UP_AFTER
 
 
 # ---------------------------------------------------------------- 一式を走らせる（run_suite・_failure_attrs は baseline_red の物）
@@ -198,10 +193,6 @@ def _light_units(raw: str) -> list:
     return sorted(k for k, v in doc.items() if v == LIGHT)
 
 
-BASE_FIELDS = ("exe", "suite", "baseline", "baseline_exit", "baseline_cases", "suite_made", "test_cmd", "test_cmd_gate",
-               "test_cmd_note", "reused", "related")   # 元の結末の控え base.json から輪の状態へ写す欄（同じ名と形）
-
-
 ROUTE_CARRY = ("open_units", "excused", "contract", "order", "units", "parked", "parked_why", "note", "handoff", "unsent")
 # 振り分けの状態（place の route.json。src/route.py）から輪の状態へ移す欄（orders が輪の状態を作る時。同じ名と形。contract は振り分けが
 # 見た約束のまま使う）。数え（iterations・calls）と渡した証拠の種類（kinds）は注文の型ごとの欄 orders.tdd（route.counted）で渡る。
@@ -224,11 +215,7 @@ def new_state(board_dir, repo, base_file, open_units: list, work, *, owed=None, 
         keys = [k for k in keys if k in owed or k in excused] + sorted(owed - set(keys))   # is_open の並び順を保つ
     excused = {k: why for k, why in excused.items() if k in keys}
     contract = plan_contract(board_dir, keys, round_)   # 輪の頭で 1 回だけ（欄の控えの食い違いは conflict の 1 か所で止める）
-    return {**{f: base[f] for f in BASE_FIELDS}, "work": str(work), "base_file": str(base_file), "open_units": keys,
-            "excused": excused, "handoff": snapshot(repo), "phase": "route", "tries": 0, "reason": "", "iterations": 0,
-            "runs": 1, "order": [], "units": {}, "queue": [], "cur": 0, "unit_head": "", "green_tree": "",
-            "done": False, "note": "", "frozen": {}, "parked": [], "parked_why": {}, "contract": contract,
-            "light": sorted(set(light) & set(keys)), "calls": [], "kinds": []}
+    return loopkit.skeleton(base, work, base_file, keys, excused, contract, snapshot(repo), light)
 
 
 def open_state(board_dir, repo, base_file, open_units: list, *, owed=None, withheld_by=None, returned=(), round_: int = 1,
@@ -367,8 +354,6 @@ def current_lines(st) -> list:
     phase = st["phase"]
     tries = st.get("tries") or 0
     again = [f"- この段の返答は {tries} 回拒まれた（理由は上の「前の回の返答を機械が拒んだ理由」）"] if tries else []
-    if phase == "route":
-        return ["- 今の段: route（直す義務の単位の振り分け）。このループの最初の段で、前の段の結果は無い", *again]
     if phase not in ("test", "fix", "refactor") or not st.get("queue") or st["cur"] >= len(st["queue"]):
         return [f"- 今の段: {phase}", *again]
     u = _cur(st)
@@ -448,7 +433,7 @@ def _together_lines(st, k) -> list:
 
 
 def prep(state_file, sources=None) -> dict:
-    """node tdd-prep の材料（指示の文は prompts/parts/tdd.md。値と段落の真偽は src/prompts.py の tdd_values が組む）。
+    """node tdd-prep の材料（指示の文は prompts/parts/tdd.md。値と段落の真偽は src/prompts.py の loop_values が組む）。
     返り {go, new_unit, state, path, briefs}: state は輪の状態、path は輪の置き場の印（今の next.md の場所。単位の鍵の名に使う）、
     briefs は置き場の brief（_briefs。sources は brief を切る材料。置き場に控えが在れば読まない。控えが壊れていれば Broken）。
     輪が済んでいる（状態の done）なら {"go": False, "new_unit": False}:
@@ -491,8 +476,8 @@ def _over(st: dict) -> bool:
 
 
 def _paths(v, name) -> tuple:
-    """空でない文字列の配列 → (要素の決まり fixboard.test_file で整えたパスの一覧, 問題)"""
-    out = [fixboard.test_file(x) for x in v] if isinstance(v, list) else []
+    """空でない文字列の配列 → (要素の決まり loopkit.test_file で整えたパスの一覧, 問題)"""
+    out = [loopkit.test_file(x) for x in v] if isinstance(v, list) else []
     if not out or None in out:
         return [], [f"{name} は空でない文字列の配列"]
     bad = [x for x in out if x.startswith("/") or x == ".." or x.startswith("../")]
@@ -603,7 +588,7 @@ def declared_test_files(st) -> set[str]:
     名指し（rewrites）のパス。テストのファイルの見分け（impact.is_test_file）の宣言の正本。純粋"""
     out = set()
     for u in (st.get("units") or {}).values():
-        out |= set(fixboard.unit_test_files(u))
+        out |= set(loopkit.unit_test_files(u))
     for c in (st.get("contract") or {}).values():
         ids = [t.get("id") for t in (c or {}).get("tests") or [] if isinstance(t, dict)] + list((c or {}).get("rewrites") or [])
         out |= {id_path(i) for i in ids if isinstance(i, str) and i.strip()}
@@ -922,8 +907,11 @@ def _abort(st, repo, why, stage) -> None:
 
 def _conflict(st, reply, repo, try_query=None) -> tuple:
     """phase conflict（test・fix・refactor の段）: 名指しが現物に在れば拒否に数えず、作業ツリーを単位の頭に戻して次の単位へ（確かめは
-    common.conflict_item。振り分けの段の申し出は route._conflict）。返り (問題, 申し出の 1 件)。盤面の控えに積むのは節 tdd-step"""
-    probs, item = common.conflict_item(st, reply, repo, {st["queue"][st["cur"]]}, try_query)
+    loopkit.conflict_item。振り分けの段の申し出は route._conflict）。返り (問題, 申し出の 1 件)。盤面の控えに積むのは節 tdd-step"""
+    place = pathlib.Path(st["work"]).parent
+    probs, item = loopkit.conflict_item(st, reply, repo, {st["queue"][st["cur"]]}, try_query,
+                                        request_file=runvals.read(place)["request_file"], cite_root=place,
+                                        briefs_by_unit=planbrief.by_unit_at(place))
     if probs:
         return probs, None
     _park_cur(st, repo, item["unit_key"], item["why_both_cannot_hold"])
@@ -1044,25 +1032,7 @@ def _finish(st, repo) -> None:
 def _write_record(st) -> None:
     """輪が抜ける時に輪の記録 record.json を書く。輪を抜ける道（全部の単位が済んだ・回数の上限・実行器が走らない・振り分けを諦めた・
     tdd の単位が無い）は _finish を通り、step の終わり（最後の呼びの行と handoff を状態に積んだ後）と assign が呼ぶ"""
-    _save(pathlib.Path(st["work"]) / RECORD, record(st))
-
-
-RECORD_UNIT = {"route": "", "why": "", "tests": [], "test_files": [], "red": "", "green": "", "gave_up": "", "files": [],
-               "red_tree": "", "test_hashes": {}}   # 記録の単位の行の欄と、その単位の状態に無い時の値（test_hashes は赤が通った単位にしか付かない）
-
-
-def record(st) -> dict:
-    """輪の記録 record.json の中身（形は schemas/tdd-record.schema.json）。輪が抜ける時の状態から、輪の外が読む欄だけを同じ名と形で写す:
-    輪の全体の frozen・frozen_tree・handoff・suite_made・no_suite・note・done・calls と summary.md の在りか、組の結果の tdd の欄
-    （exit_fields の order・parked・parked_why・suite・test_cmd_gate・test_cmd_note・reused・related）、単位ごと（order の単位）の
-    RECORD_UNIT の欄。どの抜け方でも同じ形で書く（諦めた・direct の単位には test_hashes が無いので {} に揃える）"""
-    units = {k: {f: json.loads(json.dumps(st["units"][k].get(f, default))) for f, default in RECORD_UNIT.items()} for k in st["order"]}
-    return {"frozen": st["frozen"], "frozen_tree": st["frozen_tree"], "handoff": st["handoff"], "suite_made": list(st["suite_made"]),
-            "no_suite": st.get("no_suite") is True, "note": st["note"], "done": True, "calls": list(st.get("calls") or []),
-            "summary": str(pathlib.Path(st["work"]) / SUMMARY), "order": list(st["order"]), "parked": list(st.get("parked") or []),
-            "parked_why": dict(st.get("parked_why") or {}), "suite": st["suite"], "test_cmd_gate": st.get("test_cmd_gate", GATE_OFF),
-            "test_cmd_note": st.get("test_cmd_note", ""), "reused": dict(st.get("reused") or {}), "related": dict(st.get("related") or {}),
-            "units": units}
+    _save(pathlib.Path(st["work"]) / RECORD, loopkit.record(st, str(pathlib.Path(st["work"]) / SUMMARY)))
 
 
 def green_units(summary_file) -> set:
@@ -1078,10 +1048,6 @@ def green_units(summary_file) -> set:
     units = st.get("units") if isinstance(st, dict) else None
     return {k for k, u in (units or {}).items()
             if isinstance(u, dict) and u.get("route") == "tdd" and u.get("green") == "ok" and not u.get("gave_up")}
-
-
-FIELDS = ("unit_key", "route", "why", "tests", "test_files", "red", "green", "refactor", "gave_up", "problems", QUOTES_FIELD,
-          "quote_unchecked", "stub_files", "test_cmd", "refactor_why")
 
 
 def exit_fields(start_out: dict) -> dict:
@@ -1106,18 +1072,9 @@ def exit_fields(start_out: dict) -> dict:
     st = _load(start_out["state_file"])
     if not st["done"]:
         raise Broken("TDD のループが済んでいない（done の印が無い）")
-    rows = [{f: st["units"][k][f] for f in FIELDS} for k in st["order"]]
-    rows += [{**{f: _unit(k, "parked")[f] for f in FIELDS}, "why": st.get("parked_why", {}).get(k, "")}
-             for k in st.get("parked", []) if k not in st["order"]]   # 振り分けの段で止めた単位
-    out = {"ran": True, "suite": st["suite"], "reason": st["note"], "units": rows,
-           "test_cmd": {"gate": st.get("test_cmd_gate", GATE_OFF), "note": st.get("test_cmd_note", "")},
-           "calls": st.get("calls", [])}
-    if st.get("reused"):
-        out["reused"] = st["reused"]
-    if st.get("related", {}).get("applied"):
-        out["related"] = st["related"]
-    if st.get("no_suite") is True or start_out.get("no_suite") is True:   # 輪か受け付けが実行器の止まりで組を止めた（下書き 3.9）
-        out.update(no_suite=True, reason=str(start_out.get("reason") or "") if start_out.get("no_suite") is True else st["note"])
+    out = loopkit.exit_rows(st)
+    if start_out.get("no_suite") is True:   # 受け付けが実行器の止まりで組を止めた（輪が止めた印は exit_rows が載せた。下書き 3.9）
+        out.update(no_suite=True, reason=str(start_out.get("reason") or ""))
     return out
 
 

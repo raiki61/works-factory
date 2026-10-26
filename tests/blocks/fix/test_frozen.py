@@ -21,6 +21,7 @@ from tests.bin.gitkit import committed_copy
 from tests.blocks import kit
 
 tdd = kit.load("fix", "tdd")
+import loopkit  # noqa: E402  （lib）
 common = kit.load("fix", "common")
 FIX_SRC = {n: m for n, m in sys.modules.items() if n == "src" or n.startswith("src.")}
 SEED = kit.ROOT / "tests" / "e2e" / "target-seed"
@@ -51,10 +52,10 @@ class FrozenRuledScopeCase(Case):
         (self.repo / NEW_FILE).write_text("import unittest\n\n\nclass T(unittest.TestCase):\n"
                                           "    def test_one(self):\n        self.assertEqual(1, 1)\n", encoding="utf-8")
         self.state = tmp / "record.json"
-        self.freeze(frozen_tree=common.snapshot(self.repo), handoff=EMPTY_TREE)
+        self.freeze(frozen_tree=loopkit.snapshot(self.repo), handoff=EMPTY_TREE)
 
     def freeze(self, **trees):
-        st = {"frozen": common.hashes(self.repo, [TEST_FILE, NEW_FILE]), **trees}
+        st = {"frozen": loopkit.hashes(self.repo, [TEST_FILE, NEW_FILE]), **trees}
         self.state.write_text(json.dumps(st, ensure_ascii=False), encoding="utf-8")
 
     def edit(self, old, new, path=TEST_FILE):
@@ -168,7 +169,7 @@ class FrozenRuledScopeCase(Case):
         self.assertTrue(self.frozen([f"{TEST_FILE}:9"]))
 
     def test_old_state_without_frozen_tree_falls_back_to_handoff(self):
-        self.freeze(handoff=common.snapshot(self.repo))
+        self.freeze(handoff=loopkit.snapshot(self.repo))
         self.edit("mean([1, 2, 3]), 2)", "mean([1, 2, 3]), 2.0)")
         self.assertEqual(self.frozen([f"{TEST_FILE}:9"]), [])
 

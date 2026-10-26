@@ -35,6 +35,7 @@ if __name__ == "__main__":   # 修正役が事前の確かめのコマンドと�
     sys.path[:0] = [str(Path(__file__).resolve().parents[2] / ".shared"), str(Path(__file__).resolve().parents[1])]
     import ports  # noqa: E402,F401  （lib/ を sys.path に足す）
 
+import loopkit  # noqa: E402  （lib。輪と修正の block の両方が使う部品）
 from src import consult  # noqa: E402   範囲の相談の控え（同じブロックの lib）
 import conflict  # noqa: E402
 from src import board as fixboard  # noqa: E402  （直す義務・突き合わせの起点の版・承認済みの修正案の項目の読み口）
@@ -111,7 +112,7 @@ def check_frozen(board: Path, record: str, repo: Path, pass_: str, agreed=None, 
     if asks is not None and record:
         try:
             asks += common.frozen_asks(record, repo, now, rev=rev)
-        except common.Broken:   # 記録が読めないのは frozen_problems の側が拒む。頼みは作れないだけ
+        except loopkit.Broken:   # 記録が読めないのは frozen_problems の側が拒む。頼みは作れないだけ
             pass
     old = loops[:-1] if record else loops
     if old:
@@ -123,7 +124,7 @@ def check_frozen(board: Path, record: str, repo: Path, pass_: str, agreed=None, 
             if asks is not None:
                 try:
                     asks += common.frozen_asks(p, repo, lims, since, spans, rev=rev)
-                except common.Broken:
+                except loopkit.Broken:
                     pass
     return out
 

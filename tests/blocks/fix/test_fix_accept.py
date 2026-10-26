@@ -56,7 +56,7 @@ def _l_bind() -> None:
     names = globals()
     for name, module in _L_SRC.items():
         names[name] = importlib.import_module(f"src.{module}")
-    for name in ("conflict", "planmarks", "planrange", "querytest"):
+    for name in ("conflict", "loopkit", "planmarks", "planrange", "querytest"):
         names[name] = importlib.import_module(name)
 
 
@@ -2058,12 +2058,12 @@ class DutySets(DutyCase):
         suite = self.tmp / "suite.py"
         suite.write_text("", encoding="utf-8")
         with mock.patch.object(basecase, "run_suite", return_value=([], 0, [])), \
-                mock.patch.object(tddloop, "snapshot", return_value=""), mock.patch.object(common, "snapshot", return_value=""):
+                mock.patch.object(tddloop, "snapshot", return_value=""), mock.patch.object(loopkit, "snapshot", return_value=""):
             got = tddloop.start(self.tmp, self.tmp, str(suite), json.dumps(_l_IS_OPEN, ensure_ascii=False), owed=_l_OWED,
                                 **self.kw())
         self.assertTrue(got["go"], got)
         st = json.loads(pathlib.Path(got["state_file"]).read_text(encoding="utf-8"))
-        return set(common._owed(st)), set(st["excused"])
+        return set(loopkit._owed(st)), set(st["excused"])
 
     def gated_items(self) -> set:
         """事後の関門が見る項目の単位: 単位ごとに 1 項目の tdd の欄を置き、OUT_OF_DUTY で飛ばさなかった項目の単位"""

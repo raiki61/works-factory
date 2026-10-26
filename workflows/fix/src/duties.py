@@ -9,7 +9,7 @@ API に無い。憲法の 6）: check は「箱の義務の問題 + 型の義務
 要る照らしは、関数と試験を置いて段 2 で表に足す（docs/plans/2026-10-25-fix-weapons-stage1-a.md の 3）。
 
 FACTS（単位ごと）: unit（単位の key）・weapon・files（単位の行の files。根からの相対）・test_files（その中の試験のファイル。
-impact.is_test_file）・kinds（files の rules.kind_of の集まり）・allowed_kinds（static の注文の変えてよい種類）・why_untested・
+impact.is_test_file）・kinds（files の impact.kind_of の集まり）・allowed_kinds（static の注文の変えてよい種類）・why_untested・
 added（足した試験の id）・vanished（元で通っていて返した木の同じ選びの回に居ない試験の鍵）・permits（注文の permits の行）・
 no_tests（base.json の印）・absent_at_base（files のうち起点の木に無いパス）・twice（足した試験を起点の木で 2 回走らせた問題の文の並び。
 走らせていなければ None）・named・before・after・removes・gone・class_query（注文の units[] の物。無ければ None）・hits（問いの当たりの行
@@ -23,6 +23,8 @@ import pathlib
 import posixpath
 import re
 
+import impact  # noqa: E402  （lib）
+import loopkit  # noqa: E402  （lib。輪と修正の block の両方が使う部品）
 from src import pin, rebuild, remove, static, tdd, tidy, variant
 
 BOXES = {"tdd": "change", "variant": "change", "remove": "change", "tidy": "keep", "rebuild": "keep", "pin": "keep",
@@ -104,9 +106,8 @@ def _rows_files(rows) -> list:
 
 
 def _plan_kinds(place, key: str) -> list:
-    """単位 key の計画の項目の files の種類（rules.kind_of。static の変えてよい種類）"""
+    """単位 key の計画の項目の files の種類（impact.kind_of。static の変えてよい種類）"""
     import conflict   # lib/
-    from src import rules
     try:
         fields = conflict.frozen_fields(pathlib.Path(place), 1) or []
     except ValueError:
@@ -116,34 +117,31 @@ def _plan_kinds(place, key: str) -> list:
         if isinstance(f, dict) and key in (f.get("unit_keys") or []):
             for row in f.get("files") or []:
                 p = row.get("path") if isinstance(row, dict) else None
-                k = rules.kind_of(p) if isinstance(p, str) else None
+                k = impact.kind_of(p) if isinstance(p, str) else None
                 out += [k] if k and k not in out else []
     return out
 
 
 def _vanished(base: dict | None, cases) -> list:
     """元の結末で通っていて、受け付けが走らせた回（cases）に同じモジュールが出たのに居ない試験の鍵"""
-    import impact   # lib/
     if not base or cases is None:
         return []
-    from src import common
     ran = {impact._junit_module(c) for c in cases}
-    after = {common._key(c) for c in cases}
-    return [common._key(c) for c in base.get("baseline_cases") or [] if isinstance(c, dict) and c.get("outcome") == "passed"
-            and impact._junit_module(c) in ran and common._key(c) not in after]
+    after = {loopkit._key(c) for c in cases}
+    return [loopkit._key(c) for c in base.get("baseline_cases") or [] if isinstance(c, dict) and c.get("outcome") == "passed"
+            and impact._junit_module(c) in ran and loopkit._key(c) not in after]
 
 
 def _twice(base: dict | None, repo, added: list, work) -> list | None:
     """足した試験を 2 回名指しで走らせて、2 回とも通らなかった物の文（下ごしらえはコードを変えないので、作業ツリーのコードは起点の木の
     コードのまま）。実行器が無い・足した試験が無ければ None"""
     import baseline_red   # lib/
-    from src import common
     if not base or not base.get("exe") or not added:
         return None
     pathlib.Path(work).mkdir(parents=True, exist_ok=True)   # 実行器の出力（junit・log）の置き場。受け付けの前に誰も作らない
     out = []
     for n in (1, 2):
-        ran, _, why = baseline_red.run_suite(str(base["exe"]), repo, work, f"pin-twice-{n}", common._abs_ids(repo, added), only=True)
+        ran, _, why = baseline_red.run_suite(str(base["exe"]), repo, work, f"pin-twice-{n}", loopkit._abs_ids(repo, added), only=True)
         if ran is None:
             out.append(f"足した試験を {n} 回目に走らせられない（{'; '.join(why)[:200]}）")
             continue
@@ -209,8 +207,7 @@ def _query_hits(repo, rev: str, cq) -> set | None:
 def unit_facts(place, repo, rev: str, key: str, weapon: str, rows: list, *, order: dict, base, cases, declared=(), kinds_rows=()) -> dict:
     """単位 key（型 weapon）の事実（上の FACTS）。rows は返答の changes のうちその単位の行、order はその型の注文、kinds_rows は返答の
     evidence.kinds の行（単位に分けない）"""
-    import impact   # lib/
-    from src import rules, scope
+    from src import scope
     files = _rows_files(rows)
     tests = [p for p in files if impact.is_test_file(p, set(declared))]
     added, removed = [], []
@@ -219,7 +216,7 @@ def unit_facts(place, repo, rev: str, key: str, weapon: str, rows: list, *, orde
         added += scope.new_test_ids(p, old, new)
         before = set(scope._test_ids(p, old) or []) if old is not None else set()
         removed += sorted(before - set(scope._test_ids(p, new) or [] if new is not None else []))
-    kind_by_path = {p: rules.kind_of(p) for p in files}
+    kind_by_path = {p: impact.kind_of(p) for p in files}
     unit = next((u for u in order.get("units") or [] if isinstance(u, dict) and u.get("key") == key), {})
     cq = unit.get("class_query") if isinstance((unit.get("class_query") or {}).get("how"), dict) else None
     return {"unit": key, "weapon": weapon, "files": files, "test_files": tests, "kind_by_path": kind_by_path,
@@ -305,7 +302,7 @@ def write_returns(place, repo, rev: str, reply, *, record: str = "", owed=None) 
     for c in reply.get("changes") or []:
         if isinstance(c, dict) and c.get("unit_key") in weapons:
             rows.setdefault(weapons[c["unit_key"]], []).append(c)
-    tree = common.snapshot(repo)
+    tree = loopkit.snapshot(repo)
     out = []
     mine = None if owed is None else set(owed)
     for w, doc in docs.items():
@@ -319,7 +316,7 @@ def write_returns(place, repo, rev: str, reply, *, record: str = "", owed=None) 
             old, new = _show(repo, rev, p), _now(repo, p)
             added += scope.new_test_ids(p, old, new)
             rewritten += _rewritten(p, old, new)
-            if common.PYTEST_FILE.match(posixpath.basename(p)):
+            if impact.PYTEST_FILE.match(posixpath.basename(p)):
                 before = set(scope._test_ids(p, old) or []) if old is not None else set()
                 removed += sorted(before - set((scope._test_ids(p, new) or []) if new is not None else []))
         if w == "tdd":

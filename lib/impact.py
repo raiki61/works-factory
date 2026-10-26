@@ -21,6 +21,8 @@ AI に探させず、1 回作って使い回す（鍵 = rev・起点・作業ツ
 - py_imports(text) -> list | None: Python の file の import の一覧（地図の import の辺と同じ読み取り。libdocs が使う）
 - tree_files(repo) -> list | None: 作業ツリーの file の一覧（追跡中と無視されていない未追跡。git が使えなければ None。libdocs が使う）
 - is_test(path) -> "module" | "support" | None: 名の慣習でのテストの file の見分け（言語の表でなく名の形）
+- kind_of(path) -> str | None: パスの形から変更の種類（docs・prompts・config・code。分からなければ None）。表は PROMPT_DIRS ほか。
+  証拠の種類の数え（evidencekinds）と修正の block の注文・返しが呼ぶ。PYTEST_FILE は試験のモジュールの名の型
 - is_test_file(path, declared) -> bool: テストの file か（宣言 declared に在るか、is_test の module）。宣言と慣習を合わせた見分けの
   1 か所（TDD の輪・事後の関門・深さの run の広さの数えが呼ぶ）。純粋
 
@@ -90,6 +92,15 @@ OTHER_CODE_EXT = frozenset({"js", "jsx", "mjs", "cjs", "ts", "tsx", "go", "rb", 
                             "groovy", "gradle", "ex", "exs", "hs", "elm", "clj", "vue", "svelte", "ps1", "m", "mm"})
 # refs（設定・文書）に数える拡張子。ほかの届いた file は mentions（コード）
 REF_EXT = PATHREF_EXT - {"sh", "bash", "zsh", "bats", "mk"} | DOC_EXT
+PYTEST_FILE = re.compile(r"^(test_.*|.*_test)\.py$")   # pytest の既定の python_files（conftest.py・*-suite.py などは試験のモジュールでない）
+# 種類の見分け（パスの形だけで決める。当たらない物は種類なし）
+PROMPT_DIRS = frozenset({"commands", "prompts", "agents", "skills", "rules", "writerules"})   # writerules は決まりの正本のフォルダの名（rulebook.CANON の親。impact は単独で回るので rulebook を読まない）
+PROMPT_NAMES = frozenset({"CLAUDE.md", "AGENTS.md", "SKILL.md", "GEMINI.md"})
+DOC_SUFFIXES = frozenset({".md", ".markdown", ".rst", ".txt", ".adoc"})
+CONFIG_SUFFIXES = frozenset({".yaml", ".yml", ".toml", ".json", ".ini", ".cfg", ".conf"})
+CONFIG_NAMES = frozenset({"Dockerfile", "Makefile", ".gitignore", ".gitattributes", ".editorconfig"})
+CODE_SUFFIXES = frozenset({".py", ".pyi", ".js", ".jsx", ".ts", ".tsx", ".mjs", ".cjs", ".go", ".rs", ".java", ".kt", ".rb",
+                           ".sh", ".bash", ".c", ".h", ".cc", ".cpp", ".hpp", ".cs", ".swift", ".php", ".scala", ".lua"})
 TEST_DIRS = frozenset({"tests", "test", "__tests__", "spec"})
 TEST_NAME = re.compile(r"(^test_.*\.py$|.*_test\.(py|go)$|.*\.bats$|.*\.(test|spec)\.[jt]sx?$|.*-(case|suite)\.(py|sh)$"
                        r"|^conftest\.py$)")
@@ -186,6 +197,23 @@ def is_test(path):
             return "module"
     if any(part in TEST_DIRS for part in path.split("/")[:-1]):
         return "support"
+    return None
+
+
+def kind_of(path: str):
+    """パスの形から変更の種類（evidencekinds.KINDS のどれか。分からなければ None）"""
+    p = posixpath.normpath(str(path).strip())
+    name = posixpath.basename(p)
+    suffix = posixpath.splitext(name)[1].lower()
+    dirs = set(p.split("/")[:-1])
+    if name in PROMPT_NAMES or (suffix in DOC_SUFFIXES and dirs & PROMPT_DIRS):
+        return "prompts"
+    if suffix in DOC_SUFFIXES:
+        return "docs"
+    if suffix in CONFIG_SUFFIXES or name in CONFIG_NAMES or "/.github/workflows/" in f"/{p}":
+        return "config"
+    if suffix in CODE_SUFFIXES:
+        return "code"
     return None
 
 

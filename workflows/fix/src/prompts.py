@@ -13,6 +13,7 @@ import sys
 import prompt
 
 import conflict   # lib/（写さずに呼ぶ。1.5.2）
+import evidencekinds  # lib/
 import planbrief  # lib/
 import planrange  # lib/
 import rolekit    # lib/
@@ -20,7 +21,8 @@ import seat       # lib/
 import spseam     # lib/
 import unittrees  # lib/
 
-from src import board, files, rules, runvals
+import loopkit  # noqa: E402  （lib。輪と修正の block の両方が使う部品）
+from src import board, files, route, rules, runvals
 from src.rulings import write as write_rulings
 
 EMPTY = "(empty)"
@@ -30,7 +32,6 @@ FACTS = BLOCK / "src" / "facts.py"   # 事前の確かめのコマンド（1.5.5
 ACCEPT = {"first": "fix-accept", "ruled": "fix-ruled-accept"}   # 合わせ役の受け付けの名の頭（型の書き手の受け付けの名は src/writers.accept_name）
 CLASH = {"first": "clash-fix", "ruled": "clash-ruled"}
 CONSULT = {"first": "consult-answer", "ruled": "ruled-consult-answer"}
-WRITER_KINDS = {"docs": "docs", "prompts": "prompts_kind", "config": "config", "code": "code"}   # 種類 → writer-rules の段落の名
 
 
 class Broken(ValueError):
@@ -56,12 +57,6 @@ def _rejection(place, name: str) -> str:
 def _libdocs_rows(text: str) -> str:
     """libdocs.section は材料の行だけを返す（見出しと頭の文は md が持つ）"""
     return text.strip("\n")
-
-
-def _kinds_when(kinds, role: str) -> dict:
-    """writer-rules の証拠の段落の真偽。続きの周は種類が全部偽で、見出しと頭の文ごと落とす。role は答えを書く場所の段落の名（この block は writer・tdd）"""
-    got = {name: kind in kinds for kind, name in WRITER_KINDS.items()}
-    return {**got, "evidence": any(got.values()), **{f"where_{r}": r == role for r in ("writer", "tdd", "rework")}}
 
 
 def _check_cmd(config: str) -> str:
@@ -118,7 +113,7 @@ def subagents_slot(values: dict, repo, briefs: list, owed_keys: list[str], green
     owed = rules.dispatched(owed_keys, green)
     mine = planbrief.for_units(briefs, owed)
     return {"owed": owed, "briefs": [{"item": r["item"], "file": r["file"], "unit_keys": list(r.get("unit_keys") or [])} for r in mine],
-            "all_items": [r["item"] for r in briefs], "seat_brief_rows": rules.brief_rows(mine, owed),
+            "all_items": [r["item"] for r in briefs], "seat_brief_rows": planbrief.brief_rows(mine, owed),
             "judgment_file": values.get("judgment_file") or "", "policy_path": values.get("policy_path") or "",
             "base_rev": board.base_rev(None, values.get("base_rev") or ""), "check_cmd": _check_cmd(config),
             "directory": "" if repo is None else str(repo)}
@@ -151,11 +146,11 @@ def _slots(place, repo, pass_: str, weapon: str, values: dict, *, owed, items=No
         rv = rules.resume_values(got)
         vals.update(answer_file=rv["answer_file"], left=rv["left"])
         when["overflow_answer" if rv["overflow"] else "resume"] = True
-        return slots, {"iteration": max(1, rules.iteration_next(ledger) - 1), "kinds": None, "ledger": ledger}, {"continuing": True}
+        return slots, {"iteration": max(1, evidencekinds.iteration_next(ledger) - 1), "kinds": None, "ledger": ledger}, {"continuing": True}
     if consult.queued(place, pass_):   # 受け付けがはみ出しを相談に積んだ周
         when["queued"] = True
-        return slots, {"iteration": max(1, rules.iteration_next(ledger) - 1), "kinds": None, "ledger": ledger}, {"continuing": True}
-    n = rules.iteration_next(ledger)
+        return slots, {"iteration": max(1, evidencekinds.iteration_next(ledger) - 1), "kinds": None, "ledger": ledger}, {"continuing": True}
+    n = evidencekinds.iteration_next(ledger)
     when.update(start_when, rules=True, tests=True, tests_tail=True)   # テストの節は修正案の有無によらずいつも載る
     when.update({k: kind[k] for k in ("rules_change", "rules_sites", "rules_red", *TABLE_WHEN)})
     rejects = rolekit.rejected(place, writers.accept_name(pass_, weapon))
@@ -174,7 +169,7 @@ def _slots(place, repo, pass_: str, weapon: str, values: dict, *, owed, items=No
         when["ruled_reply"] = True
     values = rules.owed_values(place, values, owed=owed)
     owed_keys = json.loads(values["open_units"])
-    vals["brief_rows"] = rules.brief_rows(planbrief.for_units(briefs, owed_keys), owed_keys)
+    vals["brief_rows"] = planbrief.brief_rows(planbrief.for_units(briefs, owed_keys), owed_keys)
     when["briefs"] = bool(vals["brief_rows"])
     vals["faces_rows"] = board.plan_faces_text(place, board.face_units(pass_, owed_keys))
     when["faces"] = bool(vals["faces_rows"])
@@ -203,8 +198,8 @@ def _slots(place, repo, pass_: str, weapon: str, values: dict, *, owed, items=No
             when["ask_ripple"] = True
     vals["libdocs_rows"] = _libdocs_rows(rules.lib_section(place, repo, values, shared))
     when["libdocs"] = bool(vals["libdocs_rows"])
-    kinds = rules.kinds_for(ledger, values, repo)
-    when.update(_kinds_when(kinds, "writer"))
+    kinds = evidencekinds.kinds_for(ledger, values, repo)
+    when.update(evidencekinds.kinds_when(kinds, "writer"))
     return (slots, {"iteration": n, "kinds": kinds, "ledger": ledger},
             {"continuing": False, "briefs": briefs, "config": config, "owed_keys": owed_keys, "values": values})
 
@@ -214,7 +209,7 @@ def writer_slots(place, repo, pass_: str, weapon: str, values: dict, **kw) -> tu
     段落だけを組む（型が持つ物は型の block の本体 .shared/writerblock.py が足す）。義務の表から引く段落（DUTY_WHEN）はここで引く。
     **kw は owed（今直す単位。必須）・items・sources・green（TDD の輪が緑にした単位。slots の subagents の下請けを起こす単位から除く）・frozen・
     shared・saved_reply。slots の subagents は型を問わず同じ組み方で渡す（下請けを起こすかは型の block の表 SPAWNS が決める）。控えは呼び手が
-    slots を型の block に渡せた後に rules.remember に渡す"""
+    slots を型の block に渡せた後に evidencekinds.remember に渡す"""
     slots, rnd, _ = _slots(place, repo, pass_, weapon, values, **kw)
     return slots, rnd
 
@@ -241,61 +236,29 @@ def consult_render(place, pass_: str, *, plan_file: str, ripple_file: str):
     return render
 
 
-# ---------------------------------------------------------------- TDD の役（tdd・tdd-new）
-def tdd_values(place, repo, view: dict, values: dict) -> tuple[dict, dict, dict]:
-    """TDD の役の指示の (値, 段落, 周の控え)。view は src/tdd.prep の返り（go が真の物）。values は run の値（判定・修正案・方針・依頼・
-    notes の写しのパスと base_rev）。今の tddloop.prep の組み立ての順のまま"""
-    from src import common, tdd
+# ---------------------------------------------------------------- TDD の役と振り分けの役（tdd・tdd-new・route）
+# 2 つの役は同じ prompts/parts/tdd.md を組む。値の組み立ては 3 つに割る: run の材料の部（tdd_material。place を読むのはこれだけ）・
+# 振り分けの部（route_values。段 route・義務の単位の全部の brief・振り分けの控え）・輪の部（loop_values。段 test・fix・refactor・今の単位・
+# 引き継ぎ・関門・却下・輪の控え。place の値を読まず、材料と生の値だけを受ける）。2 つの部の土台（段・周・却下・材料の写し）は _frame
+TDD_VALUES = ("iteration phase brief_rows rejection policy_path request_file judgment_file open_units plan_file "
+              "notes_file skill seat_applies seat_not_applies unattended overlay_file test_cmd owed_units current_unit "
+              "together_rows named_rows handoff_rows later_rows tests_how runner_cmd lang").split()
+TDD_WHEN = ("briefs rejected rules conflict docs prompts_kind config code phase_route phase_test phase_fix "
+            "phase_refactor gate current together named handoff later tests_how evidence where_writer where_tdd where_rework spawns "
+            "rules_change conflict_change").split()
+
+
+def tdd_material(place, values: dict) -> dict:
+    """run の材料の部 {values, when}: 判定・修正案・方針・依頼・notes のパスの字（shown を当てた物）・lang・tests_how・借りた座の skill・
+    seat_applies・seat_not_applies・unattended・overlay_file と、その段落の真偽 policy・no_policy・request・no_request・tests_how。
+    values は run の値（判定・修正案・方針・依頼・notes の写しのパス）。振り分けの指示も輪の指示（context の material）も同じ返りから組む。
+    place を読むのはこの関数だけ（lang は run の値の控え、tests_how は置き場の試験の書き方）。座が組めなければ Broken"""
     place = pathlib.Path(place)
-    st, briefs = view["state"], view["briefs"]
-    phase = st["phase"]
-    owed = common._owed(st)
-    vals = {k: "" for k in ("iteration phase brief_rows rejection policy_path request_file judgment_file open_units plan_file "
-                            "notes_file skill seat_applies seat_not_applies unattended overlay_file test_cmd owed_units current_unit "
-                            "together_rows named_rows handoff_rows later_rows tests_how runner_cmd lang").split()}
-    when = {k: False for k in ("briefs rejected rules conflict docs prompts_kind config code phase_route phase_test phase_fix "
-                               "phase_refactor gate current together named handoff later tests_how evidence where_writer where_tdd where_rework spawns "
-                               "rules_change conflict_change").split()}
-    when.update(rules=True, conflict=True, rules_change=True, conflict_change=True, **{f"phase_{phase}": True})
-    start_vals, start_when = _starts(values)
-    vals.update(start_vals)
-    when.update(start_when)
-    vals.update(iteration=st["iterations"] + 1, phase=phase, lang=prompt.lang(runvals.read(place)["lang"]),
-                judgment_file=shown(values.get("judgment_file")), plan_file=shown(values.get("plan_file")),
-                notes_file=shown(values.get("notes_file")), open_units=json.dumps(owed, ensure_ascii=False),
-                runner_cmd=st["exe"])
-    if st.get("reason"):
-        vals["rejection"] = st["reason"].rstrip("\n")
-        when["rejected"] = True
-    if phase in ("fix", "refactor") and st.get("test_cmd_gate") == common.GATE_ON and tdd._cur(st)["unit_key"] not in st.get("light", []):
-        vals["test_cmd"] = st["test_cmd"]
-        when["gate"] = True
-    if phase == "route":
-        vals["owed_units"] = "\n".join(f"- {k}" for k in owed)
-        brief = rules.brief_rows(planbrief.for_units(briefs, owed), owed)
-    else:
-        u = st["units"][st["queue"][st["cur"]]]
-        both = tdd.together(st, u["unit_key"])
-        brief = rules.brief_rows(planbrief.for_units(briefs, [u["unit_key"]]), [u["unit_key"], *both])
-        vals["current_unit"] = f"- {u['unit_key']}"
-        when["current"] = True
-        if both:
-            vals["together_rows"] = "\n".join(tdd.together_rows(st, u["unit_key"]))
-            when["together"] = True
-        if u["tests"]:
-            vals["named_rows"] = f"- 名指しのテスト: {', '.join(u['tests'])}\n- テストのファイル（凍っている）: {', '.join(u['test_files'])}"
-            when["named"] = True
-        left = [q for q in st["queue"][st["cur"] + 1:] if q not in both]
-        if left:
-            vals["later_rows"] = " / ".join(left)
-            when["later"] = True
-    had, rows = tdd.handoff_rows(st)
-    vals["handoff_rows"] = "\n".join(rows)
-    when["handoff"] = had
-    vals["brief_rows"] = brief
-    when["briefs"] = bool(vals["brief_rows"])
-    vals["tests_how"] = board.tests_how_text(place)
-    when["tests_how"] = bool(vals["tests_how"])
+    vals, when = _starts(values)
+    vals = {**vals, "lang": prompt.lang(runvals.read(place)["lang"]), "judgment_file": shown(values.get("judgment_file")),
+            "plan_file": shown(values.get("plan_file")), "notes_file": shown(values.get("notes_file")),
+            "tests_how": board.tests_how_text(place)}
+    when = {**when, "tests_how": bool(vals["tests_how"])}
     try:
         seat.pinned()
         sec = spseam.load_seams()[seat.SEATS["tdd"]]
@@ -306,23 +269,109 @@ def tdd_values(place, repo, view: dict, values: dict) -> tuple[dict, dict, dict]
         vals["overlay_file"] = OVERLAY_FILE
     except (ValueError, KeyError) as e:
         raise Broken(f"TDD のループの座を組めない: {e}") from None
-    ledger = place / (files.ROUTE_DELIVERED if phase == "route" else files.TDD_DELIVERED)   # 控えは振り分けと輪で分ける（輪は st["kinds"] から始める）
-    kinds = rules.kinds_for(ledger, {**values, "open_units": vals["open_units"]}, repo, start=st.get("kinds") or ())
-    when.update(_kinds_when(kinds, "tdd"))
+    return {"values": vals, "when": when}
+
+
+def tdd_context(place, values: dict) -> dict:
+    """振り分けの部・輪の部が受ける 1 つの辞書 {material, judgment_file, request_file, base_rev}: material は tdd_material の返り、残りは
+    run の生の値（指示用の shown の字と分ける。種類の数えの根に使う）。values は run の値"""
+    return {"material": tdd_material(place, values), "judgment_file": values.get("judgment_file"),
+            "request_file": values.get("request_file"), "base_rev": values.get("base_rev")}
+
+
+def _frame(context: dict, st: dict, owed: list) -> tuple[dict, dict]:
+    """振り分けの部と輪の部が共に起こす土台の (値, 段落): 空の欄を全部置き、段 phase_<段>・決まりの段落・材料の写し・周・段・直す義務の単位・
+    実行器・却下の理由を足す"""
+    vals = {k: "" for k in TDD_VALUES}
+    when = {k: False for k in TDD_WHEN}
+    when.update(rules=True, conflict=True, rules_change=True, conflict_change=True, **{f"phase_{st['phase']}": True})
+    material = context["material"]
+    vals.update(material["values"])
+    when.update(material["when"])
+    vals.update(iteration=st["iterations"] + 1, phase=st["phase"], open_units=json.dumps(owed, ensure_ascii=False), runner_cmd=st["exe"])
+    if st.get("reason"):
+        vals["rejection"] = st["reason"].rstrip("\n")
+        when["rejected"] = True
+    return vals, when
+
+
+def _kinds(ledger, context: dict, vals: dict, repo, st: dict) -> dict:
+    """渡す証拠の種類（控え ledger の前に渡した種類と、状態の kinds を足す）と、その段落の真偽の更新は呼び手"""
+    return evidencekinds.kinds_for(ledger, {"judgment_file": context["judgment_file"], "request_file": context["request_file"],
+                                            "base_rev": context["base_rev"], "open_units": vals["open_units"]},
+                                   repo, start=st.get("kinds") or ())
+
+
+def route_values(place, repo, view: dict, context: dict) -> tuple[dict, dict, dict]:
+    """振り分けの役の指示の (値, 段落, 周の控え)。view は src/route.prep の返り（go が真の物）、context は tdd_context の返り。段 route の
+    値: 義務の単位の一覧 owed_units と、義務の単位の全部の brief。控えは振り分けの控え ROUTE_DELIVERED（置き場 place）"""
+    st, briefs = view["state"], view["briefs"]
+    owed = loopkit._owed(st)
+    vals, when = _frame(context, st, owed)
+    vals["owed_units"] = "\n".join(f"- {k}" for k in owed)
+    vals["handoff_rows"] = "\n".join(route.current_lines(st))
+    vals["brief_rows"] = planbrief.brief_rows(planbrief.for_units(briefs, owed), owed)
+    when["briefs"] = bool(vals["brief_rows"])
+    kinds = _kinds(pathlib.Path(place) / files.ROUTE_DELIVERED, context, vals, repo, st)
+    when.update(evidencekinds.kinds_when(kinds, "tdd"))
+    return vals, when, {"iteration": st["iterations"] + 1, "kinds": kinds, "ledger": pathlib.Path(place) / files.ROUTE_DELIVERED}
+
+
+def loop_values(repo, view: dict, context: dict, ledger_dir) -> tuple[dict, dict, dict]:
+    """輪の役の指示の (値, 段落, 周の控え)。view は src/tdd.prep の返り（go が真の物）、context は tdd_context の返り。place の値は読まない
+    （材料と生の値だけ）。段 test・fix・refactor の値: 今の単位・一緒に直す単位・名指しの試験・残り・引き継ぎ・関門のコマンド・却下と、今の単位の
+    brief。控えは輪の控え TDD_DELIVERED（置き場 ledger_dir）。輪の最初の周の種類は状態の kinds から始まる"""
+    from src import tdd
+    st, briefs = view["state"], view["briefs"]
+    owed = loopkit._owed(st)
+    vals, when = _frame(context, st, owed)
+    if st["phase"] in ("fix", "refactor") and st.get("test_cmd_gate") == loopkit.GATE_ON and tdd._cur(st)["unit_key"] not in st.get("light", []):
+        vals["test_cmd"] = st["test_cmd"]
+        when["gate"] = True
+    u = st["units"][st["queue"][st["cur"]]]
+    both = tdd.together(st, u["unit_key"])
+    vals["current_unit"] = f"- {u['unit_key']}"
+    when["current"] = True
+    if both:
+        vals["together_rows"] = "\n".join(tdd.together_rows(st, u["unit_key"]))
+        when["together"] = True
+    if u["tests"]:
+        vals["named_rows"] = f"- 名指しのテスト: {', '.join(u['tests'])}\n- テストのファイル（凍っている）: {', '.join(u['test_files'])}"
+        when["named"] = True
+    left = [q for q in st["queue"][st["cur"] + 1:] if q not in both]
+    if left:
+        vals["later_rows"] = " / ".join(left)
+        when["later"] = True
+    had, rows = tdd.handoff_rows(st)
+    vals["handoff_rows"] = "\n".join(rows)
+    when["handoff"] = had
+    vals["brief_rows"] = planbrief.brief_rows(planbrief.for_units(briefs, [u["unit_key"]]), [u["unit_key"], *both])
+    when["briefs"] = bool(vals["brief_rows"])
+    ledger = pathlib.Path(ledger_dir) / files.TDD_DELIVERED   # 控えは振り分けと輪で分ける（輪は st["kinds"] から始める）
+    kinds = _kinds(ledger, context, vals, repo, st)
+    when.update(evidencekinds.kinds_when(kinds, "tdd"))
     return vals, when, {"iteration": st["iterations"] + 1, "kinds": kinds, "ledger": ledger}
 
 
-def tdd(place, repo, view: dict, values: dict) -> dict:
-    """TDD の役と振り分けの役の指示を組んで place に書く（node は view の node か、単位が替わった周は tdd-new・続きは tdd。振り分けの
-    段は src/route.prep が node route を渡す。どれも prompts/parts/tdd.md を組む）。返り {prompt}"""
-    node = view.get("node") or ("tdd-new" if view["new_unit"] else "tdd")
-    vals, when, rnd = tdd_values(place, repo, view, values)
+def _emit(node: str, vals: dict, when: dict, rnd: dict) -> dict:
     try:
         out = prompt.emit(node, vals, when, prompt.round_of(node))
     except prompt.PromptError as e:
         raise Broken(f"TDD のループの指示を組めない: {e}") from None
-    rules.remember(rnd["ledger"], rnd["kinds"], rnd["iteration"])
+    evidencekinds.remember(rnd["ledger"], rnd["kinds"], rnd["iteration"])
     return {"prompt": out["prompt"]}
+
+
+def route_prompt(place, repo, view: dict, context: dict) -> dict:
+    """振り分けの役の指示を組んで place に書く（node route。prompts/route.md が parts/tdd.md を組み、route-prompt-<n>.md に書く）。返り {prompt}"""
+    vals, when, rnd = route_values(place, repo, view, context)
+    return _emit("route", vals, when, rnd)
+
+
+def loop_prompt(repo, view: dict, context: dict, ledger_dir) -> dict:
+    """輪の役の指示を組んで書く（node は単位が替わった周は tdd-new・続きは tdd。どちらも prompts/parts/tdd.md を組む）。返り {prompt}"""
+    vals, when, rnd = loop_values(repo, view, context, ledger_dir)
+    return _emit("tdd-new" if view["new_unit"] else "tdd", vals, when, rnd)
 
 
 # ---------------------------------------------------------------- 裁定役（ruler）

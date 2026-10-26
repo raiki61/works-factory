@@ -291,7 +291,7 @@ class BriefCase(PlaceCase):
 
 
 class UnitNoteCase(unittest.TestCase):
-    """unit_note は brief の行（fix の rules.brief_rows）と下請けの実装役の題（lib/subagents.py）の 2 つが使う"""
+    """unit_note は brief の行（planbrief.brief_rows）と下請けの実装役の題（lib/subagents.py）の 2 つが使う"""
 
     def test_units_that_are_not_owed_now_are_marked_and_none_is_spelled_out(self):
         self.assertEqual(planbrief.unit_note(["a", "b"]), "a、b", "owed が None なら全部")

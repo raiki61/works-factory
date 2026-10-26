@@ -1,7 +1,7 @@
 """振り分けと、route から型を引く表（docs/plans/2026-10-24-fix-weapons.md の 4.1 の 3。型を問わない部品）。
 
 振り分けの段は TDD の輪の最初の段だった（tdd.py の route）。組の子の loop route-loop（route-prep → AI の route → route-step）に出し、
-型の輪の前に回す。指示は変えない（prompts/route.md は {part:tdd} の 1 行で、状態の段が route の時の tdd_values が同じ字を組む）。
+型の輪の前に回す。指示は変えない（prompts/route.md は {part:tdd} の 1 行で、src/prompts.py の route_values が同じ字を組む）。
 返す語も tdd・direct と訳のまま。振り分けの段の状態は place の route.json（輪の状態と同じ欄の辞書。輪の置き場 tdd-<k>/ は置かない）に
 置き、輪の状態は注文の node orders が route.json を読んで tdd.open_state で初めて作る（振り分けが数えた周の数・呼びの控え・渡した
 証拠の種類は注文の型ごとの欄 orders.tdd で輪へ渡り、輪はそこから数え始める。回数の上限 MAX_ITERATIONS と申し出の数えは今と同じ）。
@@ -19,12 +19,14 @@ import pathlib
 import time
 
 import conflict   # lib/
+import evidencekinds  # lib/
 import planbrief  # lib/
 import planmarks  # lib/
 import writelog   # lib/
 import writes     # lib/
 
-from src import common, files
+import loopkit  # noqa: E402  （lib。輪と修正の block の両方が使う部品）
+from src import common, files, runvals
 
 WORDS = ("static", "tidy", "pin")   # 計画の語のうち、項目がどんな直しかの見分けの語（その語の型を引き、振り分けの AI に渡さない）
 GAVE_UP = "振り分けの返答が {n} 回とも通らなかった: {why}"
@@ -35,7 +37,7 @@ def _fields(place, round_: int) -> list:
     try:
         return conflict.frozen_fields(pathlib.Path(place), round_) or []
     except ValueError as e:
-        raise common.Broken(str(e)) from None
+        raise loopkit.Broken(str(e)) from None
 
 
 def plan_words(place, keys, round_: int = 1) -> dict:
@@ -98,7 +100,7 @@ def route_keys(keys, words: dict, removes: dict) -> list:
     return [k for k in keys if words.get(k) not in WORDS and not removes.get(k)]
 
 
-WORK = "route"   # 振り分けの状態の欄 work（置き場の下の名。作らない。common.conflict_item が親を置き場に引く）
+WORK = "route"   # 振り分けの状態の欄 work（置き場の下の名。作らない。loopkit.conflict_item が親を置き場に引く）
 
 
 def path(place) -> pathlib.Path:
@@ -108,7 +110,7 @@ def path(place) -> pathlib.Path:
 def read(place) -> dict:
     """振り分けの状態 route.json（無ければ {}。読めなければ Broken）"""
     p = path(place)
-    return common._load(p) if p.is_file() else {}
+    return loopkit._load(p) if p.is_file() else {}
 
 
 def begin(state: dict, keys: list) -> dict:
@@ -124,8 +126,8 @@ def open_route(place, repo, base_file, keys, *, to_route=None, owed=None, withhe
     from src import tdd
     st = tdd.new_state(place, repo, base_file, keys, pathlib.Path(place) / WORK, owed=owed, withheld_by=withheld_by,
                        returned=returned, round_=round_, light=light)
-    owed_keys = common._owed(st)
-    common._save(path(place), begin(st, [k for k in owed_keys if to_route is None or k in to_route]))
+    owed_keys = loopkit._owed(st)
+    loopkit._save(path(place), begin(st, [k for k in owed_keys if to_route is None or k in to_route]))
     return str(path(place))
 
 
@@ -133,15 +135,22 @@ def counted(place, st: dict) -> dict:
     """注文の型ごとの欄 orders.tdd: 振り分けが使った周の数・呼びの控え・渡した証拠の種類（振り分けの控え ROUTE_DELIVERED の種類の並び）。
     輪はここから数え始め（回数の上限・calls を今と同じに続け、種類を減らさない）、最後の承認の tdd_refused は輪の記録の calls に振り分けの
     呼びも入るので今と同じに読む"""
-    from src import rules
-    kinds = rules.delivered(pathlib.Path(place) / files.ROUTE_DELIVERED).get("kinds") or []
+    kinds = evidencekinds.delivered(pathlib.Path(place) / files.ROUTE_DELIVERED).get("kinds") or []
     return {"iterations": int(st.get("iterations") or 0), "calls": list(st.get("calls") or []), "kinds": sorted(kinds)}
+
+
+def current_lines(st) -> list:
+    """振り分けの指示の引き継ぎの節の行（今の段 route と、この段の返答が拒まれた回。前の単位も前の段の結果も無い）。輪の側の
+    tdd.current_lines の段 route の枝を、振り分けの側へ移した物（輪の状態の段は tdd-start の後いつも test・fix・refactor か済み）"""
+    tries = st.get("tries") or 0
+    again = [f"- この段の返答は {tries} 回拒まれた（理由は上の「前の回の返答を機械が拒んだ理由」）"] if tries else []
+    return ["- 今の段: route（直す義務の単位の振り分け）。このループの最初の段で、前の段の結果は無い", *again]
 
 
 def prep(state_file, sources=None) -> dict:
     """node route-prep の材料（tdd.prep と同じ形 {go, new_unit, node, state, path, briefs}。振り分けは同じ会話を継ぐので new_unit は
-    いつも偽、node は route（prompts.tdd が prompts/route.md を組み、route-prompt-<n>.md に書く）。済んだ（段が route でない）なら {"go": False, "new_unit": False}"""
-    st = common._load(state_file)
+    いつも偽、node は route（prompts.route_prompt が prompts/route.md を組み、route-prompt-<n>.md に書く）。済んだ（段が route でない）なら {"go": False, "new_unit": False}"""
+    st = loopkit._load(state_file)
     if st.get("phase") != "route" or st.get("done"):
         return {"go": False, "new_unit": False}
     path = pathlib.Path(st["work"]) / common.PROMPT
@@ -149,7 +158,7 @@ def prep(state_file, sources=None) -> dict:
         briefs = planbrief.cut_at(path.parent.parent, **(sources or {}))
     except planbrief.LedgerBroken as e:
         from src import rules
-        raise common.Broken(rules.brief_halt(e)) from None
+        raise loopkit.Broken(rules.brief_halt(e)) from None
     return {"go": True, "new_unit": False, "node": "route", "state": st, "path": path, "briefs": briefs}
 
 
@@ -160,26 +169,26 @@ def _route(st, reply, repo) -> list:
     if not isinstance(rows, list) or not all(isinstance(r, dict) and isinstance(r.get("unit_key"), str) for r in rows):
         return ["units は {unit_key（文字列）, route, why} の配列"]
     errs = []
-    moved = sorted(set(common.touched(repo, st["handoff"], common.snapshot(repo))) - set(st["suite_made"]))
+    moved = sorted(set(loopkit.touched(repo, st["handoff"], loopkit.snapshot(repo))) - set(st["suite_made"]))
     if moved:
         errs.append(f"振り分けの段で作業ツリーを変えた: {moved[:5]}（この段では何も書かない）")
     keys = [r.get("unit_key") for r in rows]
-    owed = common._owed(st)
+    owed = loopkit._owed(st)
     errs += [f"'{k}' を 2 度以上振った" for k in dict.fromkeys(k for k in keys if keys.count(k) > 1)]
     errs += [f"直す義務の単位 '{k}' を振っていない" for k in owed if k not in keys]
     errs += [f"'{k}' は振らない（{common._not_owed_why(st, k)}）" for k in dict.fromkeys(k for k in keys if k not in owed)]
     for r in rows:
         if r.get("route") not in ("tdd", "direct"):
             errs.append(f"'{r.get('unit_key')}' の route は tdd か direct（{r.get('route')!r}）")
-        elif r["route"] == "direct" and common._blank(r.get("why")):
-            errs.append(f"'{r.get('unit_key')}' は direct なのに、先にテストを書けない理由（why。{common.MIN_WHY} 字以上）が無い")
-        bound = common._plan_tdd(st, r["unit_key"]) if r.get("route") == "direct" else ""
+        elif r["route"] == "direct" and loopkit._blank(r.get("why")):
+            errs.append(f"'{r.get('unit_key')}' は direct なのに、先にテストを書けない理由（why。{loopkit.MIN_WHY} 字以上）が無い")
+        bound = loopkit._plan_tdd(st, r["unit_key"]) if r.get("route") == "direct" else ""
         if bound:
             errs.append(bound)
     if errs:
         return errs
     st["order"] = keys
-    st["units"] = {r["unit_key"]: common._unit(r["unit_key"], r["route"], (r.get("why") or "").strip() if r["route"] == "direct" else "")
+    st["units"] = {r["unit_key"]: loopkit._unit(r["unit_key"], r["route"], (r.get("why") or "").strip() if r["route"] == "direct" else "")
                    for r in rows}
     st["phase"] = ROUTED
     return []
@@ -188,19 +197,22 @@ def _route(st, reply, repo) -> list:
 def _abort(st, why) -> None:
     """振り分けを諦めた: 振る単位を全部 AI の答え無し（direct の行。表で variant に引かれる）にして段を ROUTED にする"""
     st["note"] = why
-    st["order"] = common._owed(st)
-    st["units"] = {k: {**common._unit(k, "direct"), "gave_up": "route", "why": why} for k in st["order"]}
+    st["order"] = loopkit._owed(st)
+    st["units"] = {k: {**loopkit._unit(k, "direct"), "gave_up": "route", "why": why} for k in st["order"]}
     st["phase"] = ROUTED
 
 
 def _conflict(st, reply, repo, try_query=None) -> tuple:
     """振り分けの段の申し出（phase conflict）: 名指しが現物に在れば拒否に数えず、その単位を義務から外す。振る単位が残らなければ
     段を ROUTED にする"""
-    probs, item = common.conflict_item(st, reply, repo, set(common._owed(st)), try_query)
+    place = pathlib.Path(st["work"]).parent
+    probs, item = loopkit.conflict_item(st, reply, repo, set(loopkit._owed(st)), try_query,
+                                        request_file=runvals.read(place)["request_file"], cite_root=place,
+                                        briefs_by_unit=planbrief.by_unit_at(place))
     if probs:
         return probs, None
-    common._mark_parked(st, item["unit_key"], item["why_both_cannot_hold"])
-    if not set(common._owed(st)):
+    loopkit._mark_parked(st, item["unit_key"], item["why_both_cannot_hold"])
+    if not set(loopkit._owed(st)):
         st.update(order=[], units={}, phase=ROUTED)
     st["reason"] = ""
     return [], item
@@ -209,17 +221,17 @@ def _conflict(st, reply, repo, try_query=None) -> tuple:
 def step(state_file, reply, repo, try_query=None, log=None) -> dict:
     """node route-step。{ok, done, reason, phase, writes}。tdd.step の振り分けの段と同じ確かめ・同じ回数の数え（拒否 rolekit の
     3 回で諦める・周の数は輪の iterations に積む・呼びの記録 calls・止めた申し出は UNSENT）。済んだ状態に返答 None は何もしない"""
-    st = common._load(state_file)
+    st = loopkit._load(state_file)
     if st.get("phase") != "route":
         if reply is None:
             return {"ok": True, "done": True, "reason": "", "phase": st.get("phase", ROUTED), "writes": None}
-        raise common.Broken("振り分けは済んでいる（route-step を呼ぶ番でない）")
+        raise loopkit.Broken("振り分けは済んでいる（route-step を呼ぶ番でない）")
     t0, runs0 = time.monotonic(), st["runs"]
     call = {"n": st["iterations"] + 1,
             "phase": "conflict" if isinstance(reply, dict) and reply.get("phase") == "conflict" else "route", "unit_key": ""}
     item, source, got = None, conflict.TDD_SOURCE, None
     if isinstance(reply, dict) and reply.get("phase") != "conflict":
-        moved = sorted(set(common.touched(repo, st["handoff"], common.snapshot(repo))) - set(st["suite_made"]))
+        moved = sorted(set(loopkit.touched(repo, st["handoff"], loopkit.snapshot(repo))) - set(st["suite_made"]))
         got = writes.check(reply, repo, moved, pathlib.Path(st["work"]) / writelog.LOG if log is None else pathlib.Path(log))
         reply = got.pop("reply")
     if not isinstance(reply, dict):
@@ -235,17 +247,17 @@ def step(state_file, reply, repo, try_query=None, log=None) -> dict:
     if probs and st["phase"] == "route":
         st["tries"] += 1
         st["reason"] = "\n".join(f"- {p}" for p in probs)
-        if st["tries"] >= common.retry_max():
-            _abort(st, GAVE_UP.format(n=common.retry_max(), why=probs[0][:200]))
+        if st["tries"] >= loopkit.retry_max():
+            _abort(st, GAVE_UP.format(n=loopkit.retry_max(), why=probs[0][:200]))
     st["iterations"] += 1
     if st["phase"] == ROUTED:
         st.update(tries=0, reason="")
     if got and not got["problems"]:
-        st["handoff"] = common.snapshot(repo)
+        st["handoff"] = loopkit.snapshot(repo)
     st.setdefault("calls", []).append({**call, "ok": not probs, "runs": st["runs"] - runs0,
                                        "secs": round(time.monotonic() - t0, 1)})
     if item is not None:
-        st.setdefault(common.UNSENT, []).append({"source": source, "item": item})
-    common._save(state_file, st)
+        st.setdefault(loopkit.UNSENT, []).append({"source": source, "item": item})
+    loopkit._save(state_file, st)
     done = st["phase"] == ROUTED
     return {"ok": not probs, "done": done, "reason": "\n".join(probs), "phase": st["phase"], "writes": got}

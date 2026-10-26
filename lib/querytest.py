@@ -8,6 +8,8 @@
 - run_examples(how, lines): 例を 1 行 1 ファイルに書き、数える本体と同じ旗（engine の count_argv）の git grep --no-index で当てる
 - judge_hits(units, replaced): 食い違いの申し出の correct_lines に判定者の問い（裁定 replace_query の後は置き換えた問い）を当てる口
   （conflict.problems の try_query）
+- judge_query(judgment_file, replaced): 判定の写しのファイルのパスと置き換えた問いから judge_hits を組む口。写しが無い・読めない・
+  dict でなければ query の申し出ごとに JUDGE_UNREAD の文を返す口（修正役の受け付けと TDD の輪が使う）
 - problems(units, is_open): 今の周に直す単位の例の誤り（当たらない hits・当たる misses・理由の無い defects の misses の欠け・
   例を出せない理由と例の同時の記入・走らない問い）。例の無い単位は拒まない
 - unproven(units, is_open)・unproven_lines(board): 例の無い開いた単位（「例で証明できない」印）と、最後の関所と報告に載せるその行
@@ -30,6 +32,7 @@ if str(_GL) not in sys.path:
 
 import engine.util as _util  # noqa: E402
 from engine.schema import validate_schema  # noqa: E402
+import fixboard  # noqa: E402
 import jsonfile  # noqa: E402
 
 EXAMPLES_FILE = "query-examples.json"
@@ -115,6 +118,24 @@ def judge_hits(units, replaced=None):
             return f"判定者の問い（か裁定が置き換えた問い）を correct_lines に当てられない（{why}）"
         return "" if got else "判定者の問い（か裁定が置き換えた問い）は correct_lines のどの行にも当たらない（問いが正しい形に当たる、の証拠にならない）"
     return hits
+
+
+JUDGE_UNREAD = "置き場の判定の写し {name} が読めない（{why}）——判定者の問いを correct_lines に当てて試せない"
+
+
+def judge_query(judgment_file, replaced=None):
+    """食い違いの申し出の確かめ（conflict.problems_by_entry）の try_query: 判定の写し judgment_file の units から judge_hits を組む
+    （replaced は裁定 replace_query が置き換えた問い。conflict.replaced_queries）。写しが無い・読めない・dict でなければ、query の申し出ごとに
+    JUDGE_UNREAD の文を返す口（読めないと名指して拒む。黙って試さずに通さない）"""
+    path = pathlib.Path(judgment_file)
+    try:
+        judgment = fixboard.read_json(path)
+        why = "" if isinstance(judgment, dict) else ("無い" if judgment is None else "dict でない")
+    except ValueError as e:
+        judgment, why = None, str(e)
+    if why:
+        return lambda key, lines: JUDGE_UNREAD.format(name=path.name, why=why)
+    return judge_hits(judgment.get("units") or [], replaced)
 
 
 def unproven(units, is_open) -> list:
