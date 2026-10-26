@@ -43,6 +43,7 @@ A, B = "stats.py:4 mean", "bounds.py:2 clamp"
 BRIEF_ROW = "- 項目 1: /b/brief-1.md（sha256 " + "a" * 64 + f"・単位 {A}）"
 BRIEFED = {"owed": [A], "briefs": [{"item": 1, "file": "/b/brief-1.md", "unit_keys": [A]}], "all_items": [1], "seat_brief_rows": BRIEF_ROW,
            "judgment_file": "/p/judgment.json", "policy_path": "/p/policy.md", "base_rev": "abc123", "check_cmd": "", "directory": "/repo"}
+HEAD = "Do not rewrite configuration files.\n\nYou are the demo writer, a fixer."   # 型の決まりの 2 段落（pin の head.md と同じ形）
 BRIEF_READING = ("the brief wins", "could not be looked up")   # 共通の断片 brief-reading の 2 句
 
 
@@ -55,9 +56,10 @@ class Base(unittest.TestCase):
     def setUp(self):
         tmp = hermetic.tmpdir(self)
         self.block, self.art = tmp / "weapon-demo", tmp / "art"
-        (self.block / "prompts").mkdir(parents=True)
+        (self.block / "prompts" / "parts").mkdir(parents=True)
         self.art.mkdir()
         self.write_md()
+        self.write_head(HEAD)
         self.enterContext(mock.patch.dict(os.environ, {"ARTIFACTS_DIR": str(self.art), "WORKFLOW_ID": "r1"}))
         self.enterContext(mock.patch.object(ports, "caller_block", return_value=self.block))
 
@@ -66,6 +68,9 @@ class Base(unittest.TestCase):
         names = [*VALUES, *owned_values, *extra]
         body = "\n".join(f"{{{k}}}" for k in names) + "\n" + "\n".join(f"<!-- if {k} -->\n{k}\n<!-- end {k} -->" for k in [*WHEN, *OWNED_WHEN])
         (self.block / "prompts" / "demo.md").write_text(body + "\n", encoding="utf-8")
+
+    def write_head(self, text):
+        (self.block / "prompts" / "parts" / "head.md").write_text(text + "\n", encoding="utf-8")
 
     def prep(self, tbl, given=None, order=None):
         env = {"INPUTS_ORDER": json.dumps(order or ORDER), "INPUTS_SLOTS": json.dumps(given or slots())}
@@ -252,6 +257,29 @@ class SubagentCase(Base):
         with mock.patch.object(writerblock.subagents.seat, "fill", side_effect=ValueError("穴が足りない")):
             with self.assertRaisesRegex(ValueError, "修正役の座を組めない: 穴が足りない"):
                 self.spawn(BRIEFED)
+
+    def test_the_head_paragraphs_of_the_type_are_handed_to_the_implementer_as_the_weapon_rule(self):
+        """表の SPAWNS が真の型は、block の prompts/parts/head.md を空の値で組み、g1-impl の works rules の節の中の 1 つの段落 {weapon_rule} として
+        渡す（11.6 の D2。2 段落の字がそのまま入る）。偽の型は下請けを起こさないので head を読まない"""
+        self.spawn(BRIEFED)
+        impl = (self.art / "g1-impl-1.md").read_text(encoding="utf-8")
+        self.assertIn("- Do not start subagents.\n\n" + HEAD + "\n\n", impl)
+        self.assertLess(impl.index("## works rules"), impl.index(HEAD))
+        self.assertLess(impl.index(HEAD), impl.index("the brief wins"))
+        (self.block / "prompts" / "parts" / "head.md").unlink()
+        _, seen = self.prep(table(SPAWNS=False), slots(BRIEFED))
+        self.assertEqual(self.files(), [], "偽の型は head.md が無くても落ちず、下請けのファイルも組まない")
+
+    def test_a_head_paragraph_with_a_slot_stops_the_prep_and_is_not_filled_with_nothing(self):
+        """head.md を空の値で組むので、{名} が足されれば prompt.render が値の欠けで落ちる（黙って空の字にしない）"""
+        self.write_head("You are the demo writer. Read {summary_file}.")
+        with self.assertRaisesRegex(ValueError, "summary_file"):
+            self.spawn(BRIEFED)
+
+    def test_a_round_without_owed_units_does_not_read_the_head(self):
+        (self.block / "prompts" / "parts" / "head.md").unlink()
+        self.spawn({**BRIEFED, "owed": [], "briefs": [], "seat_brief_rows": ""})
+        self.assertEqual(self.files(), [])
 
 
 class TableCase(Base):

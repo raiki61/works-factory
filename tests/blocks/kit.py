@@ -242,3 +242,25 @@ class WriterBlockCase(unittest.TestCase):
             none = {**given, "subagents": {**given["subagents"], "owed": [], "briefs": []}}
             self.assertNotIn("## Running subagents", self.prep(slots=json.dumps(none))["prompt"])
             self.assertEqual(files(), [])
+
+    def test_the_head_paragraph_is_handed_to_the_subagents_as_the_rule_of_the_type(self):
+        """(v) 下請けを起こす型（表の SPAWNS が真。名の表を持たない）は、block の prompts/parts/head.md を空の値で組めて、組んだ字が、本体が書いた
+        下請けの実装役の指示 g1-impl-<n>.md の works rules の節に在る（docs/plans/2026-10-24-fix-weapons.md の 11.6 の D2 の {weapon_rule}。
+        head.md に {名} が増えれば空の値では組めず落ちる）。偽の型は下請けを起こさないので g1-impl を組まない"""
+        table = load(self.block, "render")
+        _gate()
+        import ports
+        import prompt
+        given = json.loads(self.inputs["slots"])
+        owed = {**given["subagents"], "owed": ["stats.py:4 mean"], "judgment_file": "/p/judgment.json", "base_rev": "abc123", "directory": "/repo"}
+        self.prep(slots=json.dumps({**given, "subagents": owed}))
+        written = sorted(p.name for p in self.run_.artifacts.glob("g1-impl-*.md"))
+        if not table.SPAWNS:
+            self.assertEqual(written, [])
+            return
+        self.assertEqual(written, ["g1-impl-1.md"])
+        with mock.patch.object(ports, "caller_block", return_value=BLOCKS / self.block):
+            head = prompt.render_part("head", {}).strip()
+        self.assertTrue(head)
+        impl = (self.run_.artifacts / "g1-impl-1.md").read_text(encoding="utf-8")
+        self.assertIn(head, impl, "型の頭の段落（型の決まり）が下請けの実装役の指示に渡っていない")
