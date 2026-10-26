@@ -21,8 +21,11 @@ check_cmd が持つ。uv run --isolated の度に一時のパスが変わる）�
 割った後は、6 つの型（tdd・pin・tidy・static・variant・remove）とも、修正の block の `prompts.writer_slots` を同じ引数で呼び、返りの slots と注文を
 `writers.hand_over` で pointer にして、その型の block の `scripts/writer_prep.py`（`writerblock.prep(render)`）を、`ports.caller_block()` がその block
 を返すように script のファイルのまま起こして組む（variant も D2 で型の block になり、割る前の `prompts.writer` の道は無い）。
-割る commit と variant を block にした commit は `compose` だけを替え、場面の作り（`scene`）と控えは替えていない。node の名は控えない（裁定の後の段の node は、割る前は `<型>-ruled`、割った後は型の block の中の `<型>` で、指示の中身ではない）。控えは最初の commit の後に書き直さない
-（`git log --format=%h -- tests/workflows/writer-prompts-before.json` が 1 つだけ）。
+割る commit と variant を block にした commit は `compose` だけを替え、場面の作り（`scene`）と控えは替えていない。node の名は控えない（裁定の後の段の node は、割る前は `<型>-ruled`、割った後は型の block の中の `<型>` で、指示の中身ではない）。控えは最初の commit の後、書き直したのは 1 度だけ:
+D2 の段 2（設計 11.8 の決め〔案 B〕で pin・tidy・static・remove にも下請けを付けた commit）。狙った変化なので、pin・tidy・static・remove の 16 の組の
+(a) spawns・g1・ask_variant、(c) の増えた行（Q10・F39・F101〜F106・F116・F148a。減った行は無い）、(d) g1_items、(b) の足し（前の字の行は全部残り、
+足したのは下請けの段落と g1_items の行だけ）だけが変わり、variant と tdd の組（7 つ）は 1 字も変えていない。以後は書き直さない
+（`git log --format=%h -- tests/workflows/writer-prompts-before.json` が、最初の commit と段 2 の 2 つだけ）。
 
 (b) の字の比べは D2 の最後の commit で外し、(a)・(c)・(d) を残す（指示の文だけを変える依頼を md 1 本で閉じるため）。
 
