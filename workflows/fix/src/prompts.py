@@ -80,11 +80,16 @@ def writer_when(weapon: str) -> dict:
 
 
 def writer_paragraphs(weapon: str) -> dict:
-    """型 weapon が選ぶ書き手の md の段落の真偽のうち、義務の表から引く 4 つ（DUTY_WHEN。writer_when を段落の名に引いた物。_slots が slots の
-    when に入れ、tests/workflows/test_weapon_assets.py が組んだ指示の照らしに使う）。下請けの段落 spawns・g1・ask_variant は型の block の
+    """型 weapon が選ぶ書き手の md の段落の真偽のうち、義務の表から引く物（DUTY_WHEN。_slots が slots の when に入れ、
+    tests/workflows/test_weapon_assets.py が組んだ指示の照らしに使う）。前の 4 つは writer_when を段落の名に引いた物、後ろの TABLE_WHEN は
+    型の義務の表（duties.table_of）の関数の属性 paragraph が名指す段落（照らしを表に足せば指示も出る。書き手の返答の欄を読む義務の関数は
+    paragraph を持つ。tests/blocks/fix/test_duty_paragraphs.py）。下請けの段落 spawns・g1・ask_variant は型の block の
     表 SPAWNS から本体 .shared/writerblock.paragraphs が引く（型の block は義務の表を知らず、修正の block は表 SPAWNS を知らない）"""
+    from src import duties
     k = writer_when(weapon)
-    return {"rules_change": k["change"], "rules_sites": k["sites"], "rules_red": k["red"], "conflict_change": k["change"]}
+    table = {getattr(fn, "paragraph", None) for fn in duties.table_of(weapon)}
+    return {"rules_change": k["change"], "rules_sites": k["sites"], "rules_red": k["red"], "conflict_change": k["change"],
+            **{name: name in table for name in TABLE_WHEN}}
 
 
 # 型の block の slots の values・when の鍵（形 .shared/schemas/writer-slots.schema.json の required と等しい。tests/blocks/fix/test_prompts.py が照らす）。
@@ -93,8 +98,10 @@ SLOT_VALUES = ("rejection rulings_file saved_reply brief_rows faces_rows scope_r
                "judgment_file open_units plan_file notes_file budget draft check_cmd ripple_file libdocs_rows answer_file left lang").split()
 SLOT_WHEN = ("rejected rulings_first ruled_reply briefs faces scope tests tests_new tests_tail tests_broken frozen_files tests_how rules ask "
              "ask_ripple libdocs resume queued overflow_answer conflict docs prompts_kind config code evidence where_writer where_tdd "
-             "where_rework rules_change rules_sites rules_red conflict_change policy no_policy request no_request").split()
-DUTY_WHEN = ("rules_change", "rules_sites", "rules_red", "conflict_change")   # 義務の表から引く段落（型の block は義務の表を知らない）
+             "where_rework rules_change rules_sites rules_red conflict_change rules_sites_at rules_sites_test rules_red_unit policy no_policy "
+             "request no_request").split()
+TABLE_WHEN = ("rules_sites_at", "rules_sites_test", "rules_red_unit")   # 型の義務の表の関数の属性 paragraph から引く段落（where_writer は書き手に型を問わず載るので入れない）
+DUTY_WHEN = ("rules_change", "rules_sites", "rules_red", "conflict_change", *TABLE_WHEN)   # 義務の表から引く段落（型の block は義務の表を知らない）
 
 
 def no_subagents() -> dict:
@@ -150,7 +157,7 @@ def _slots(place, repo, pass_: str, weapon: str, values: dict, *, owed, items=No
         return slots, {"iteration": max(1, rules.iteration_next(ledger) - 1), "kinds": None, "ledger": ledger}, {"continuing": True}
     n = rules.iteration_next(ledger)
     when.update(start_when, rules=True, tests=True, tests_tail=True)   # テストの節は修正案の有無によらずいつも載る
-    when.update({k: kind[k] for k in ("rules_change", "rules_sites", "rules_red")})
+    when.update({k: kind[k] for k in ("rules_change", "rules_sites", "rules_red", *TABLE_WHEN)})
     rejects = rolekit.rejected(place, writers.accept_name(pass_, weapon))
     if pass_ == "ruled" and n == 1:
         rulings = place / conflict.RULINGS_FILE

@@ -455,9 +455,11 @@ class WriterSlotsCase(unittest.TestCase):
             with self.subTest(weapon=weapon):
                 when = self.slots(weapon)["when"]
                 change = self.duties.box_of(weapon) == "change"
+                table = {getattr(fn, "paragraph", None) for fn in self.duties.table_of(weapon)}
                 self.assertEqual({k: when[k] for k in self.prompts.DUTY_WHEN},
                                  {"rules_change": change, "rules_sites": weapon in self.prompts.SITES_WEAPONS,
-                                  "rules_red": weapon in self.board.RED_WEAPONS, "conflict_change": change})
+                                  "rules_red": weapon in self.board.RED_WEAPONS, "conflict_change": change,
+                                  **{k: k in table for k in self.prompts.TABLE_WHEN}})   # 表の関数の属性 paragraph から引く（F1）
 
     def test_the_duty_names_are_a_part_of_the_slots_and_not_of_the_types_own_paragraphs(self):
         """義務から引く段落（slots が持つ）と型の block の本体が足す段落は重ならない（和にした時に同じ名が 2 度出ない）"""

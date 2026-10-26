@@ -141,6 +141,9 @@
         "rules_sites",
         "rules_red",
         "conflict_change",
+        "rules_sites_at",
+        "rules_sites_test",
+        "rules_red_unit",
         "policy",
         "no_policy",
         "request",
@@ -242,6 +245,15 @@
           "type": "boolean"
         },
         "conflict_change": {
+          "type": "boolean"
+        },
+        "rules_sites_at": {
+          "type": "boolean"
+        },
+        "rules_sites_test": {
+          "type": "boolean"
+        },
+        "rules_red_unit": {
           "type": "boolean"
         },
         "policy": {

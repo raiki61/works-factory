@@ -22,7 +22,7 @@
   残りの照らしで覆う側に入り、組み上がった全部の書き手の指示に在ることを照らす（消す行・機械の行には置けない）。
 - 組み上がった指示: 書き手の型の block の md（workflows/weapon-<型>/prompts/<型>.md。差し込みは .shared/prompts/ と block の
   prompts/parts/head.md）を、差し込みを解き、型が選ぶ段落を次の和で選び、ほかの段落（却下・裁定・相談・続きの周など）を全部入れて組んだ字。
-  和の 1 つは修正の block の prompts.writer_paragraphs(型)（義務の表から引く 4 つ。prompts.DUTY_WHEN と等しい。writer_slots が slots の when に
+  和の 1 つは修正の block の prompts.writer_paragraphs(型)（義務の表から引く 7 つ。prompts.DUTY_WHEN と等しい。writer_slots が slots の when に
   入れる物）、もう 1 つは本体 .shared/writerblock.paragraphs(block の表 src/render.py)（spawns・g1・ask_variant）。2 つは名が重ならない。
   差し込み口の値は {名} の字のまま（表の文と比べるため）、借りた型の読み替え {unattended} だけは本物の値
   （lib/seat.overlay_body）。
@@ -151,7 +151,7 @@ def spawns_of(weapon: str) -> bool:
 
 
 def paragraph_truth(weapon: str, spawning: bool | None = None) -> dict:
-    """型 weapon の書き手が選ぶ段落の真偽。修正の block が義務の表から引く 4 つと、本体が表の SPAWNS から引く 3 つの和（重ならない）。
+    """型 weapon の書き手が選ぶ段落の真偽。修正の block が義務の表から引く 7 つと、本体が表の SPAWNS から引く 3 つの和（重ならない）。
     spawning を渡すと、下請けの 3 つの段落をその真偽に替える（下請けの段落の中に在る行を引くため）"""
     duty = prompts.writer_paragraphs(weapon)
     own = writerblock.paragraphs(RENDERS[f"weapon-{writers.block_of(weapon)}"])
@@ -430,7 +430,7 @@ class AssetCase(unittest.TestCase):
                 self.assertTrue((folder / "prompts" / "parts" / "head.md").is_file())
 
     def test_the_two_sources_of_the_paragraphs_do_not_overlap(self):
-        """段落の真偽の出どころは 2 つ: 修正の block が義務の表から引く 4 つ（writer_paragraphs。名は prompts.DUTY_WHEN と等しい）と、本体が表の
+        """段落の真偽の出どころは 2 つ: 修正の block が義務の表から引く 7 つ（writer_paragraphs。名は prompts.DUTY_WHEN と等しい）と、本体が表の
         SPAWNS から引く 3 つ（writerblock.paragraphs）。名が重ならない"""
         for w in {w for p in writers.SEQUENCE for w in writers.SEQUENCE[p]}:
             duty = prompts.writer_paragraphs(w)

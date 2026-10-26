@@ -194,6 +194,18 @@ def all_records(case) -> dict:
     return {f"{kind}/{weapon}": record(kind, weapon, case) for kind, weapon in COMBOS}
 
 
+# 控えの後に足した段落（F1。docs/plans/2026-10-24-fix-weapons.md の 11.6 の F1。控えは書き直さない）。控えの鍵の真偽は今までどおり全部照らし、
+# ここの 3 つは足した時の決めをそのまま書いて照らす: 型の義務の表の関数が書かせる段落（variant の sites_shape・unit_red と pin の
+# sites_per_test）が、続きの周でない場面で、その型の指示に出る
+ADDED_WHEN = ("rules_sites_at", "rules_sites_test", "rules_red_unit")
+
+
+def added_truth(kind: str, weapon: str) -> dict:
+    live = kind != "resumed"
+    return {"rules_sites_at": live and weapon == "variant", "rules_sites_test": live and weapon == "pin",
+            "rules_red_unit": live and weapon == "variant"}
+
+
 class WriterPromptsKeptCase(unittest.TestCase):
     maxDiff = None
 
@@ -209,7 +221,9 @@ class WriterPromptsKeptCase(unittest.TestCase):
         for kind, weapon in COMBOS:
             with self.subTest(scene=kind, weapon=weapon):
                 got, want = record(kind, weapon, self), self.before[f"{kind}/{weapon}"]
+                added = {k: got["when"].pop(k) for k in ADDED_WHEN}
                 self.assertEqual(got["when"], want["when"], "(a) 段落の真偽が違う")
+                self.assertEqual(added, added_truth(kind, weapon), "(a) 後から足した段落の真偽が違う")
                 self.assertEqual(got["appendix"], want["appendix"], "(c) 付録 A の行の在る無しが違う")
                 self.assertEqual(got["values"], want["values"], "(d) 値が違う")
 

@@ -65,10 +65,15 @@ def keep_same_result(f: dict) -> list:
 BOX_DUTIES = {"change": (), "keep": (keep_same_result,), "outside": ()}   # 段 2 で change に change_named_or_gone を足す
 
 
+def table_of(weapon: str) -> tuple:
+    """型 weapon の義務の関数の全部（箱の義務の表 + 型の義務の表）。照らし（check）と、書き手の指示の段落の真偽（prompts.writer_paragraphs）が
+    同じ表から引く"""
+    return (*BOX_DUTIES[box_of(weapon)], *MODULES[weapon].DUTIES)
+
+
 def check(weapon: str, facts: dict) -> list:
     """型 weapon の単位の事実 facts を、箱の義務と型の義務の表で照らした問題の文（空なら通る）"""
-    out = [t for fn in BOX_DUTIES[box_of(weapon)] for t in fn(facts)]
-    out += [t for fn in MODULES[weapon].DUTIES for t in fn(facts)]
+    out = [t for fn in table_of(weapon) for t in fn(facts)]
     return [REJECT.format(weapon=weapon, unit=facts.get("unit", ""), text=t) for t in out]
 
 
@@ -250,7 +255,7 @@ def accept_problems(place, repo, rev: str, reply, *, cases=None) -> list:
     out = []
     for k, rows in by.items():
         w = checked.get(k) or weapons[k]
-        if not (BOX_DUTIES[box_of(w)] or MODULES[w].DUTIES):
+        if not table_of(w):
             continue
         facts = unit_facts(pathlib.Path(place), repo, rev, k, w, rows, order=docs.get(weapons[k]) or {}, base=base, cases=cases,
                            declared=declared, kinds_rows=(reply.get("evidence") or {}).get("kinds"))
