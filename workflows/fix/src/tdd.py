@@ -1066,13 +1066,13 @@ def record(st) -> dict:
 
 
 def green_units(summary_file) -> set:
-    """輪の要約 summary_file の隣の状態で、輪が緑にした単位（route が tdd・green が ok・諦めていない）の key。要約が空・状態が
+    """輪の要約 summary_file の隣の記録 record.json で、輪が緑にした単位（route が tdd・green が ok・諦めていない）の key。要約が空・記録が
     無い・読めない時は空（修正役の下請けを起こす単位を絞る節約の口なので、読めなくても止めず、全部の単位に下請けを起こす。
     依頼 243 の 2）"""
     if not summary_file:
         return set()
     try:
-        st = _load(pathlib.Path(summary_file).parent / STATE)
+        st = _load(pathlib.Path(summary_file).parent / RECORD)
     except Broken:
         return set()
     units = st.get("units") if isinstance(st, dict) else None

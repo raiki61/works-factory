@@ -271,7 +271,7 @@ def ask_config(b, repo, values: dict, pass_: str, *, items=None) -> str:
     """範囲の相談の控えを置き場 b に書き（consult.write_config。事前の確かめのコマンドが読み、受け付けの拒否の文が相談を言うかを
     決める）、控えのパスを返す（修正役の段落 ask と下請けの段落 ask の文は md。コマンドの字は src/prompts.py が組む）。
     入力 plan_session（相談の相手の役の名）が空・承認済みの修正案の項目 items（planmarks.approved_items の形の値か口）が引けない run は
-    書かずに ""。values の tdd_state は TDD の輪の状態のファイル（空は輪の無い run）"""
+    書かずに ""。values の tdd_record は TDD の輪の記録のファイル（空は輪の無い run）"""
     node = (values.get("plan_session") or "").strip()
     if not node or repo is None:
         return ""
@@ -280,7 +280,7 @@ def ask_config(b, repo, values: dict, pass_: str, *, items=None) -> str:
         return ""
     doc = {"board": str(b), "repo": str(repo), "pass": pass_,
            "base_rev": values.get("base_rev") or "",
-           "tdd_state": values.get("tdd_state") or "",
+           "tdd_record": values.get("tdd_record") or "",
            "items": consult.items_doc(got)}
     return str(consult.write_config(b, doc))
 

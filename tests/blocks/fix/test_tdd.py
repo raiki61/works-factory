@@ -186,6 +186,11 @@ DECLARED = {"declared": True, "why": "分母の式を名前の付いた変数に
 PLAN_REFACTOR = {"item": 1, "why": "分母の計算を補助の関数に寄せる"}   # 約束の refactor の 1 行（修正案の項目の申告）
 
 
+def record_of(state) -> str:
+    """輪の状態のファイル state の隣の輪の記録のファイル"""
+    return str(pathlib.Path(state).with_name(tdd.RECORD))
+
+
 class LoopCase(Case):
     """種の git と小さな実行器で輪を回す（役の代わりに作業ツリーを書き換える）"""
 
@@ -212,6 +217,11 @@ class LoopCase(Case):
     @state.setter
     def state(self, path):
         self._state = path
+
+    @property
+    def record(self):
+        """今の輪の記録（輪の状態の隣の record.json。輪が抜けた時に書かれる）"""
+        return record_of(self.state)
 
     @property
     def summary_file(self):
@@ -656,9 +666,9 @@ class TestUnitLoop(LoopCase):
         summary = pathlib.Path(self.summary_file).read_text(encoding="utf-8")
         for w in (MEAN, CLAMP, "test_stats.py"):
             self.assertIn(w, summary)
-        self.assertEqual(common.frozen_problems(self.state, self.repo), [])
+        self.assertEqual(common.frozen_problems(self.record, self.repo), [])
         self.edit("test_stats.py", "mean([2, 4]), 3", "mean([2, 4]), 3.0")
-        self.assertTrue(common.frozen_problems(self.state, self.repo), "輪の後の修正役がテストを変えたら拒む")
+        self.assertTrue(common.frozen_problems(self.record, self.repo), "輪の後の修正役がテストを変えたら拒む")
 
     def test_refactor_rechecked(self):
         self.route()
@@ -1538,12 +1548,12 @@ class TestVerifiedRewriteLeftOut(ContractCase):
                                         "refactor": {"declared": False, "why": ""}}])
         edits = conflict.edit_permits(self.board, "first")
         self.assertIn(REWRITE, edits["tests"], "事後の関門は id で許す")
-        text = rules.tests_rows(None, edits, facts.frozen_tests(self.board, self.state, "first"))
+        text = rules.tests_rows(None, edits, facts.frozen_tests(self.board, self.record, "first"))
         self.assertNotIn(REWRITE, pasted_line(text, "- 本体を変えてよい既存のテストの名指し"))
         self.assertNotIn("ループが書き換えて凍らせた名指し", text)
-        self.assertEqual(facts.check_frozen(self.board, self.state, self.repo, "first"), [])
+        self.assertEqual(facts.check_frozen(self.board, self.record, self.repo, "first"), [])
         self.edit("test_stats.py", "clamp(99, 0, 10), 10)", "clamp(98, 0, 10), 10)")
-        got = facts.check_frozen(self.board, self.state, self.repo, "first")
+        got = facts.check_frozen(self.board, self.record, self.repo, "first")
         self.assertTrue(got and "test_stats.py" in got[0], got)
 
 
@@ -1570,9 +1580,9 @@ class TestUnruledFrozen(LoopCase):
             with self.subTest(pass_=pass_):
                 edits = conflict.edit_permits(self.board, pass_)
                 self.assertIn("test_stats.py", edits["limits"], "事後の関門は裁定の範囲を許す")
-                text = rules.tests_rows(None, edits, facts.frozen_tests(self.board, self.state, pass_))
+                text = rules.tests_rows(None, edits, facts.frozen_tests(self.board, self.record, pass_))
                 self.assertNotIn("今の段の TDD のループが凍らせたファイル", text)
-                problems = facts.check_frozen(self.board, self.state, self.repo, pass_)
+                problems = facts.check_frozen(self.board, self.record, self.repo, pass_)
                 self.assertEqual(bool(problems), frozen, problems)
 
 
@@ -1636,7 +1646,7 @@ class TestOneItemTwoUnits(ContractCase):
         summary = pathlib.Path(self.summary_file).read_text(encoding="utf-8")
         done = summary.split("## ループで直した単位", 1)[1].split("\n## ", 1)[0]
         self.assertIn(f"- {CLAMP}", done, "閉じた単位はループで直した単位に並ぶ（direct に並べない）")
-        self.assertEqual(common.frozen_problems(self.state, self.repo), [])
+        self.assertEqual(common.frozen_problems(self.record, self.repo), [])
 
     def test_later_unit_is_not_closed_when_its_tests_are_not_verified(self):
         """前の単位が申し出で止まれば（受け入れのテストを確かめていない）、後の単位は今どおり自分の段を回す"""
@@ -2355,13 +2365,13 @@ class TestCrossLoopFreeze(LoopCase):
     def test_states_in_order_and_suite_made_all(self):
         self.first_loop()
         state2 = self.second_loop([CLAMP])
-        self.assertEqual(common.states(self.board), [pathlib.Path(self.state), pathlib.Path(state2)])
-        for f, made in ((self.state, ["one.log"]), (state2, ["two.log"])):
-            st = common.load_state(f)
+        self.assertEqual(common.records(self.board), [pathlib.Path(self.record), pathlib.Path(record_of(state2))])
+        for f, made in ((self.record, ["one.log"]), (record_of(state2), ["two.log"])):
+            st = common.load_record(f)
             st["suite_made"] = made
             pathlib.Path(f).write_text(json.dumps(st, ensure_ascii=False), encoding="utf-8")
         self.assertEqual(common.suite_made_all(self.board), {"one.log", "two.log"})
-        self.assertEqual(common.states(self.tmp_board()), [])
+        self.assertEqual(common.records(self.tmp_board()), [])
 
     def tmp_board(self):
         return pathlib.Path(self._tmp.name) / "no-board"
@@ -2370,11 +2380,11 @@ class TestCrossLoopFreeze(LoopCase):
         self.first_loop()
         state2 = self.second_loop([CLAMP])
         since = self.since(state2)
-        self.assertEqual(common.frozen_problems(self.state, self.repo, since=since), [])
+        self.assertEqual(common.frozen_problems(self.record, self.repo, since=since), [])
         self.edit("test_stats.py", "mean([2, 4]), 3", "mean([2, 4]), 3.0")   # 2 回目の修正役が tdd-1 の凍ったテストを変えた
-        got = common.frozen_problems(self.state, self.repo, since=since)
+        got = common.frozen_problems(self.record, self.repo, since=since)
         self.assertTrue(got and "test_stats.py" in got[0], got)
-        self.assertEqual(common.frozen_problems(state2, self.repo), [], "tdd-2 は何も凍らせていない")
+        self.assertEqual(common.frozen_problems(record_of(state2), self.repo), [], "tdd-2 は何も凍らせていない")
 
     def test_second_place_sees_the_first_place_loops(self):
         """F018: 2 度目の修正の差し込み（線の include refix-run）は置き場が 1 回目と分かれるが、1 回目の段の置き場の輪（tdd-1）が凍らせた
@@ -2393,11 +2403,11 @@ class TestCrossLoopFreeze(LoopCase):
                 rows = [{"unit_key": CLAMP, "route": "direct", "why": "2 回目の段で先にテストを書かない単位"}]
                 self.assertTrue(steps.loop_step(got["state_file"], {"phase": "route", "units": rows}, self.repo)["ok"])
                 loop = steps.resolve(got["state_file"])
-                self.assertEqual(len(common.states(place)), 2)
-                self.assertEqual(board.ruled_states(place), (loop, loop))
-                self.assertEqual(facts.check_frozen(place, loop, self.repo, "first"), [])
+                self.assertEqual(len(common.records(place)), 2)
+                self.assertEqual(board.ruled_states(place), (record_of(loop), record_of(loop)))
+                self.assertEqual(facts.check_frozen(place, record_of(loop), self.repo, "first"), [])
                 self.edit("test_stats.py", "mean([2, 4]), 3", "mean([2, 4]), 3.0")   # 2 回目の修正役が tdd-1 の凍ったテストを変えた
-                problems = facts.check_frozen(place, loop, self.repo, "first")
+                problems = facts.check_frozen(place, record_of(loop), self.repo, "first")
                 self.assertTrue(problems and "test_stats.py" in problems[0], problems)
                 self.edit("test_stats.py", "mean([2, 4]), 3.0", "mean([2, 4]), 3")
 
@@ -2412,24 +2422,24 @@ class TestCrossLoopFreeze(LoopCase):
         got = steps.loop_step(state2, {"phase": "fix", "unit_key": CLAMP, "files": ["stats.py"], "what": "上限で hi を返す"},
                            self.repo)
         self.assertTrue(got["done"], got)
-        self.assertEqual(common.frozen_problems(self.state, self.repo), [],
+        self.assertEqual(common.frozen_problems(self.record, self.repo), [],
                          "tdd-1 の関数を変えずに足しただけは since が無くても凍結に数えない（依頼 195i の 2）")
-        self.assertEqual(common.frozen_problems(self.state, self.repo, since=self.since(state2)), [])
+        self.assertEqual(common.frozen_problems(self.record, self.repo, since=self.since(state2)), [])
         self.edit("test_stats.py", "clamp(20, 0, 10), 10", "clamp(20, 0, 10), 0")
-        self.assertTrue(common.frozen_problems(state2, self.repo), "足したテストは tdd-2 の凍結で見る")
+        self.assertTrue(common.frozen_problems(record_of(state2), self.repo), "足したテストは tdd-2 の凍結で見る")
 
     def test_amended_units_old_test_span_is_not_frozen(self):
         self.first_loop()
         state2 = self.second_loop([MEAN])
         since = self.since(state2)
-        spans = common.test_spans(self.state, {MEAN})
+        spans = common.test_spans(self.record, {MEAN})
         self.assertEqual(spans, [("test_stats.py", "TestStats::test_mean_of_two")])
-        self.assertEqual(common.test_spans(self.state, {CLAMP}), [], "tdd-1 で緑にしていない単位の関数は無い")
+        self.assertEqual(common.test_spans(self.record, {CLAMP}), [], "tdd-1 で緑にしていない単位の関数は無い")
         self.edit("test_stats.py", "mean([2, 4]), 3", "mean([2, 4, 6]), 4")
-        self.assertTrue(common.frozen_problems(self.state, self.repo, since=since))
-        self.assertEqual(common.frozen_problems(self.state, self.repo, since=since, skip_spans=spans), [])
+        self.assertTrue(common.frozen_problems(self.record, self.repo, since=since))
+        self.assertEqual(common.frozen_problems(self.record, self.repo, since=since, skip_spans=spans), [])
         self.edit("test_stats.py", "clamp(5, 0, 10), 5", "clamp(6, 0, 10), 6")   # 関数の範囲の外
-        got = common.frozen_problems(self.state, self.repo, since=since, skip_spans=spans)
+        got = common.frozen_problems(self.record, self.repo, since=since, skip_spans=spans)
         self.assertTrue(got and "範囲の外" in got[0], got)
 
     def test_frozen_source_reads_since_tree(self):
@@ -2438,7 +2448,7 @@ class TestCrossLoopFreeze(LoopCase):
         state2 = self.second_loop([CLAMP])
         since = self.since(state2)
         self.edit("test_stats.py", "mean([2, 4]), 3", "mean([2, 4]), 3.0")
-        read = common.frozen_source(self.state, self.repo, since=since)
+        read = common.frozen_source(self.record, self.repo, since=since)
         self.assertEqual(read("test_stats.py").rstrip("\n"), git(self.repo, "show", f"{since}:test_stats.py").rstrip("\n"))
         self.assertIn("mean([2, 4]), 3)", read("test_stats.py"))
 
@@ -2860,7 +2870,7 @@ class TestAcceptOutsideTier(OutsideCase):
         place = pathlib.Path(state).parent.parent
         for attempt in (1, 2):
             board.accept_reply({"changes": []}, place, self.repo, pass_="first", iteration=attempt, owed=[], state=state,
-                                  base_rev="HEAD")
+                                  base_rev="HEAD")   # 輪は回していない（記録が無い）
         rows = json.loads((place / board.ACCEPT_TRACE_FILE).read_text(encoding="utf-8"))
         self.assertEqual([(r["op"], r["pass"], r["attempt"]) for r in rows],
                          [(impact.ACCEPT_TRACE_OP, "first", 1), (impact.ACCEPT_TRACE_OP, "first", 2)], "回ごとに足す（上書きしない）")
@@ -2983,6 +2993,14 @@ class TestDirectOnly(OutsideCase):
     def runs(self):
         return [json.loads(line) for line in self.log.read_text(encoding="utf-8").splitlines()]
 
+    def accepted_at(self) -> str:
+        """受け付けが書き戻した accept.json の置き場を引く口（common.final_left など）に渡す輪の記録のパス（この試験は輪を回さないので、
+        置き場の tdd-1/ に空の記録を置く）"""
+        record = pathlib.Path(self.state).parent / "tdd-1" / tdd.RECORD
+        record.parent.mkdir(exist_ok=True)
+        record.write_text("{}", encoding="utf-8")
+        return str(record)
+
     def fix_stats(self):
         p = self.repo / "stats.py"
         p.write_text(p.read_text(encoding="utf-8").replace("(len(xs) - 1)", "len(xs)"), encoding="utf-8")
@@ -2992,9 +3010,18 @@ class TestDirectOnly(OutsideCase):
         probs, note = common.selected_problems(self.state, self.repo, "HEAD")
         self.assertEqual(probs, [], note)
         self.assertEqual(self.runs()[-1], [None, ["-k", "test_stats"]], "先の試験を -k に入れた")
-        self.assertEqual(common.final_left(self.state), [WRAP_FAR])
+        self.assertEqual(common.final_left(self.accepted_at()), [WRAP_FAR])
         self.assertIn("最後のテストの段に任せた", note)
         self.assertIn(WRAP_FAR, note.split("最後のテストの段に任せた", 1)[1])
+
+    def test_accept_dir_is_found_from_the_loop_record(self):
+        """受け付けの書き戻し accept.json の置き場は、輪の記録 tdd-<k>/record.json の 2 つ上（輪の状態のファイルを読まずに引く）"""
+        record = pathlib.Path(record_of(self.state))
+        record.write_text("{}", encoding="utf-8")
+        self.assertEqual(common.accept_dir(str(record)), record.parent.parent)
+        self.assertEqual(common.accept_dir(str(record)), common.accept_dir(self.state))
+        record.unlink()
+        self.assertIsNone(common.accept_dir(str(record)))
 
     def test_far_unanalysable_does_not_force_the_whole_suite(self):
         self.write("far_loader.py", "import importlib\nimport wrap\n\n\ndef load(name):\n"
@@ -3005,7 +3032,7 @@ class TestDirectOnly(OutsideCase):
         probs, note = common.selected_problems(self.state, self.repo, "HEAD")
         self.assertEqual(probs, [], note)
         self.assertEqual(self.runs()[-1], [None, ["-k", "test_stats"]], "遠くの分からない物で一式を回した")
-        self.assertEqual(common.final_far(self.state), ["dynamic-import: far_loader.py:6"])
+        self.assertEqual(common.final_far(self.accepted_at()), ["dynamic-import: far_loader.py:6"])
         self.assertIn("far_loader.py", note.split("最後のテストの段に任せた", 1)[1])
 
     def test_accept_runs_tests_named_by_the_plan(self):
@@ -3015,7 +3042,7 @@ class TestDirectOnly(OutsideCase):
         self.fix_stats()
         common.selected_problems(self.state, self.repo, "HEAD")
         self.assertEqual(self.runs()[-1], [None, ["-k", "test_far or test_stats"]], "修正案が名指す試験を回さない")
-        self.assertEqual(common.final_left(self.state), [])
+        self.assertEqual(common.final_left(self.accepted_at()), [])
 
     def test_green_adds_only_direct_files_of_the_baseline(self):
         self.assertTrue(steps.loop_step(self.state, {"phase": "route", "units": [{"unit_key": MEAN, "route": "tdd"}]},
@@ -3064,7 +3091,7 @@ class FunctionSpanCase(Case):
         committed_copy(self.repo, SEED)
         (self.repo / F).write_text(SPAN_SRC, encoding="utf-8")
         (self.repo / N).write_text("a\nb\nc\n", encoding="utf-8")
-        self.state = tmp / "state.json"
+        self.state = tmp / "record.json"
         st = {"frozen": common.hashes(self.repo, [F, N]), "frozen_tree": common.snapshot(self.repo)}
         self.state.write_text(json.dumps(st), encoding="utf-8")
 

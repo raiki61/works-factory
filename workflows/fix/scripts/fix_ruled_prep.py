@@ -39,9 +39,9 @@ def main() -> dict:
     owed = writers.owed(place, board.ruled_owed(place))
     saved = board.group_fix_reply(place)
     values = board.fix_values(place, owed, answer_node=rules.answer_node("ruled"))
-    state, _ = board.ruled_states(place)
+    record, _ = board.ruled_states(place)
     extra = dict(owed=owed, items=functools.partial(board.place_items, place), sources=board.brief_sources(place),
-                 frozen=facts.frozen_tests(place, state, "ruled"), shared=ports.shared_cache(), saved_reply=str(saved) if saved is not None else "")
+                 frozen=facts.frozen_tests(place, record, "ruled"), shared=ports.shared_cache(), saved_reply=str(saved) if saved is not None else "")
     try:
         slots, rnd = prompts.writer_slots(place, repo, "ruled", weapon, values, **extra)
         handed = writers.hand_over(place, "ruled", weapon, slots, owed)   # 形に合わなければ落ちる（落ちた周は控えない）

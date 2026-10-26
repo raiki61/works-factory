@@ -55,8 +55,8 @@ def _ours(path: str, skip: tuple = ()) -> bool:
     return not any(path == top.rstrip("/") or path.startswith(top) for top in skip)
 
 
-def footprint(rows: list, loop_states: list, repo, skip: tuple = ()) -> dict:
-    """単位の key → 足跡（返答の行 rows の files と、輪の状態のファイル loop_states の単位の files・test_files）。除くパスの頭 skip の
+def footprint(rows: list, loop_records: list, repo, skip: tuple = ()) -> dict:
+    """単位の key → 足跡（返答の行 rows の files と、輪の記録のファイル loop_records の単位の files・test_files）。除くパスの頭 skip の
     下は入れない"""
     feet = {}
 
@@ -67,8 +67,8 @@ def footprint(rows: list, loop_states: list, repo, skip: tuple = ()) -> dict:
     for row in rows:
         if isinstance(row, dict):
             add(row.get("unit_key"), row.get("files"))
-    for state in loop_states:
-        for key, unit in (common.load_state(state).get("units") or {}).items():
+    for record in loop_records:
+        for key, unit in (common.load_record(record).get("units") or {}).items():
             add(key, [*(unit.get("files") or []), *(unit.get("test_files") or [])])
     return feet
 

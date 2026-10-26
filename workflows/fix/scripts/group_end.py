@@ -44,7 +44,7 @@ def main() -> dict:
     start = str(began.get("start_tree") or board.start_tree(place))
     result = board.group_result(
         group, start_tree=start, end_tree=groups.end_tree(repo),
-        tdd=tdd_exit(board.read_json(place / board.TDD_START_FILE)), tdd_state=board.loop_files(place)[0],
+        tdd=tdd_exit(board.read_json(place / board.TDD_START_FILE)), tdd_record=board.loop_files(place)[0],
         fix_units=board.read_json(place / board.FIX_UNITS_FILE, {}), reply=board.read_json(reply_path),
         reply_file=str(reply_path) if reply_path.is_file() else "",
         allowed_rows=board.allowed_test_rows(place), conflicts=conflict.this_pass(place),

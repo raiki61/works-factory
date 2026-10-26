@@ -322,7 +322,7 @@ class TestLoopRedTree(FixGatesCase):
         return red
 
     def save_unit(self, red_tree, **over):
-        """置き場の輪の状態 tdd-1/state.json に、赤を確かめた単位の記録を置く（輪の _test が残す欄だけ。frozen は輪が終わった
+        """置き場の輪の記録 tdd-1/record.json に、赤を確かめた単位の記録を置く（輪の _test が残す欄だけ。frozen は輪が終わった
         時のテストのファイルの hash で、今の姿）"""
         unit = {"unit_key": _l_MEAN, "route": "tdd", "red": "ok", "tests": [_l_TWO_ID], "test_files": ["test_two.py"],
                 "test_hashes": fixgates.tddloop.hashes(self.repo, ["test_two.py"]), "red_tree": red_tree, "stub_files": ["stats.py"],
@@ -333,7 +333,7 @@ class TestLoopRedTree(FixGatesCase):
         files = sorted({f for u in units.values() for f in u["test_files"]})
         d = self.board / "tdd-1"
         d.mkdir(parents=True, exist_ok=True)
-        (d / fixgates.tddloop.STATE).write_text(json.dumps({"units": units, "frozen": fixgates.tddloop.hashes(self.repo, files)},
+        (d / fixgates.tddloop.RECORD).write_text(json.dumps({"units": units, "frozen": fixgates.tddloop.hashes(self.repo, files)},
                                                            ensure_ascii=False), encoding="utf-8")
 
     def test_stub_red_rechecked_on_loop_red_tree(self):
@@ -2360,7 +2360,7 @@ class FactchecksSeamCase(SeamTemp):
             text = text.replace(old, new)
         path.write_text(text, encoding="utf-8")
         self.reply = {"changes": [{"unit_key": R_MEAN, "files": ["stats.py"]}]}
-        self.cfg = {"board": str(self.place), "repo": str(self.repo), "base_rev": self.rev, "tdd_state": "", "pass": "first"}
+        self.cfg = {"board": str(self.place), "repo": str(self.repo), "base_rev": self.rev, "tdd_record": "", "pass": "first"}
 
     def shas(self) -> dict:
         import hashlib
@@ -2488,6 +2488,32 @@ class FactchecksSeamCase(SeamTemp):
 
     def test_no_loop_has_no_frozen_rejects(self):
         self.assertEqual(self.fc.check_frozen(self.place, "", self.repo, "first", base_rev=self.rev), [])
+
+    def test_precheck_reads_the_loop_record_named_by_the_consult_config(self):
+        """相談の控えの値 tdd_record（輪の記録のパス）が指す記録の凍結と suite_made を、事前の確かめが
+        受け付けと同じ口（check_frozen・check_writes）で読む。輪の状態のファイルは置かない"""
+        import hashlib
+        test_file = self.repo / "test_stats.py"
+        d = self.place / "tdd-1"
+        d.mkdir()
+        (d / "record.json").write_text(json.dumps(
+            {"frozen": {"test_stats.py": hashlib.sha256(test_file.read_bytes()).hexdigest()}, "frozen_tree": self.rev,
+             "handoff": self.rev, "suite_made": ["made.log"], "units": {}}), encoding="utf-8")
+        cfg = {**self.cfg, "tdd_record": str(d / "record.json")}
+        self.assertEqual([r for r in self.fc.precheck(cfg, self.reply)["rejects"] if r["check"] == "frozen"], [])
+        test_file.write_text(test_file.read_text(encoding="utf-8").replace("clamp(15, 0, 10), 10", "clamp(15, 0, 10), 10.0"),
+                             encoding="utf-8")
+        frozen = [r["text"] for r in self.fc.precheck(cfg, self.reply)["rejects"] if r["check"] == "frozen"]
+        self.assertTrue(frozen and "test_stats.py" in frozen[0], frozen)
+        self.assertEqual(self.m.facts.common.suite_made(str(d / "record.json")), ["made.log"], "書き込みの照合から外す物は記録から読む")
+        self.assertEqual(self.m.facts.common.suite_made_all(self.place), {"made.log"})
+
+    def test_fix_values_hand_the_record_path_under_the_new_name(self):
+        """書き手の run の値は輪の記録のパスを tdd_record に入れる（同じ名の tdd_state は無い。中身が状態でなく記録）"""
+        values = self.b.fix_values(self.place, [R_MEAN], start={"policy": "", "request_file": ""}, record="/x/tdd-1/record.json")
+        self.assertEqual(values["tdd_record"], "/x/tdd-1/record.json")
+        self.assertNotIn("tdd_state", values)
+        self.assertEqual(self.b.fix_values(self.place, [R_MEAN], start={"policy": "", "request_file": ""})["tdd_record"], "")
 
     def test_declared_files(self):
         rows = [{"files": [str(self.repo / "a" / ".." / "stats.py"), " docs/x.md ", "", 3]}]

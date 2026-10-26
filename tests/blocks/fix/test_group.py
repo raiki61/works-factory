@@ -178,6 +178,21 @@ class GroupChildScriptsCase(unittest.TestCase):
             self.step({"phase": "route", "units": [{"unit_key": MEAN, "route": "tdd"}]}, cwd=cwd)
         return out
 
+    def finish_loop(self, cwd=None):
+        """start_routed の後、MEAN の単位を test の赤 → fix の緑まで回して輪を抜ける（輪の記録 record.json は輪が抜ける時に書く。cwd は
+        並べた子の作業ツリー）"""
+        root = pathlib.Path(cwd) if cwd else self.repo
+        test_file = root / "test_stats.py"
+        test_file.write_text(test_file.read_text(encoding="utf-8").replace("\n\nif __name__", NEW_TEST + "\n\nif __name__"),
+                             encoding="utf-8")
+        got = self.step({"phase": "test", "unit_key": MEAN, "test_files": ["test_stats.py"],
+                         "tests": ["test_stats.py::TestStats::test_mean_of_two"]}, cwd=cwd)
+        self.assertEqual((got["ok"], got["phase"]), (True, "fix"), got)
+        stats = root / "stats.py"
+        stats.write_text(stats.read_text(encoding="utf-8").replace("(len(xs) - 1)", "len(xs)"), encoding="utf-8")
+        got = self.step({"phase": "fix", "unit_key": MEAN, "files": ["stats.py"], "what": "分母を len(xs) にした"}, cwd=cwd)
+        self.assertEqual((got["ok"], got["done"]), (True, True), got)
+
     def loop_phase(self) -> str:
         """今の段: 振り分けの状態（place の route.json）の段が route なら "route"、輪の状態の段（振り分けの後に orders が置く。無ければ ""）"""
         routed = self.place / "route.json"
@@ -358,21 +373,26 @@ class GroupChildScriptsCase(unittest.TestCase):
 
     # ---- 子の TDD の輪の状態を親へ（join）
     def test_ruled_accept_runs_the_tests_of_the_tdd_state_the_join_copied(self):
-        """子の TDD の輪の状態は組の結果の tdd_state に載り、join が親の place の tdd-<k>/ に写す（2 度回しても写し直さない）。
+        """子の TDD の輪の記録は組の結果の tdd_record に載り、join が親の place の tdd-<k>/ に写す（2 度回しても写し直さない）。
         親の裁定の後の修正の受け付けは、写した状態の実行器で変更に当たる試験を走らせ、元で緑だった試験を赤にする直しを拒む"""
         import leftovers
         self.parent_inputs(str(self.suite))
         self.start_routed()
+        self.finish_loop()
         result = json.loads(pathlib.Path(self.run_script("group_end")["result_file"]).read_text(encoding="utf-8"))
-        self.assertTrue(pathlib.Path(result["tdd_state"]).is_file(), result["tdd_state"])
+        self.assertTrue(pathlib.Path(result["tdd_record"]).is_file(), result["tdd_record"])
         self.parent_groups(result["start_tree"])
         leftovers.record_ignored(self.parent, self.repo)
         for _ in range(2):
             self.run_script("join", art=self.parent)
         b = _src("board")
         copied = b.ruled_states(self.parent)
-        self.assertEqual(copied, (str(self.parent / "tdd-1" / "state.json"),) * 2)
+        self.assertEqual(copied, (str(self.parent / "tdd-1" / "record.json"),) * 2)
         self.assertFalse((self.parent / "tdd-2").exists())
+        record = json.loads((self.parent / "tdd-1" / "record.json").read_text(encoding="utf-8"))
+        self.assertEqual((record["adopted_from"], record["summary"]),
+                         (result["tdd_record"], str(self.parent / "tdd-1" / "summary.md")), "写し元の印と写し先の要約のパス")
+        self.assertTrue((self.parent / "tdd-1" / "summary.md").is_file())
         self.assertEqual(json.loads((self.parent / "tdd-1" / "state.json").read_text(encoding="utf-8"))["work"],
                          str(self.parent / "tdd-1"))
         stats = self.repo / "stats.py"
@@ -414,6 +434,7 @@ class GroupChildScriptsCase(unittest.TestCase):
         git(self.repo, "worktree", "add", "--detach", "--quiet", str(child), "HEAD")
         self.parent_inputs("ci/suite.py")
         self.start_routed(cwd=child)
+        self.finish_loop(cwd=child)
         result = json.loads(pathlib.Path(self.run_script("group_end", cwd=child)["result_file"]).read_text(encoding="utf-8"))
         self.parent_groups(result["start_tree"])
         self.run_script("join", art=self.parent)
@@ -755,13 +776,13 @@ class GroupChildScriptsCase(unittest.TestCase):
         result = json.loads(pathlib.Path(out["result_file"]).read_text(encoding="utf-8"))
         self.assertEqual(set(result), {"group_id", "unit_ids", "end_tree", "start_tree", "units", "tdd", "conflicts",
                                        "objection", "changed", "x_scalars", "allowed_tests", "verified",
-                                       "reply_file", "tdd_state", "worktree", "handoffs", "handoff_titles", "mismatched", "accept_trace", "writer_report", "closure",
+                                       "reply_file", "tdd_record", "worktree", "handoffs", "handoff_titles", "mismatched", "accept_trace", "writer_report", "closure",
                                        "claimed", "place", "base"})
         # F427・F428・F013: 子の place の受け入れた壊れ・閉鎖の表・受け付けの知らせを、親の finish へ結果で運ぶ
         self.assertEqual((result["handoffs"], result["claimed"], result["closure"]),
                          ([f"{MEAN}: 壊すと分かって通した——空の列の平均の値が変わる"], [MEAN], [closure]))
         self.assertEqual(result["accept_trace"], [{**notice, "group_id": "g1"}, {**agreed, "group_id": "g1"}])
-        self.assertEqual(result["tdd_state"], "", "輪の無い組")
+        self.assertEqual(result["tdd_record"], "", "輪の無い組")
         self.assertEqual(result["base"], "", "実行器の無い組は元の結末を取らない")
         self.assertEqual(result["worktree"], os.path.realpath(self.repo))
         self.assertEqual(result["units"], [{"unit_id": MEAN, "status": "fixed", "reason": ""}])
@@ -936,7 +957,7 @@ class GroupChildSeamCase(unittest.TestCase):
                                            {"path": "t.py", "permit": "p2", "source": "plan"}])
         self.assertEqual(set(got), {"group_id", "unit_ids", "end_tree", "start_tree", "units", "tdd", "conflicts",
                                     "objection", "changed", "x_scalars", "allowed_tests", "verified",
-                                    "reply_file", "tdd_state", "worktree", "handoffs", "handoff_titles", "mismatched", "accept_trace", "writer_report", "closure",
+                                    "reply_file", "tdd_record", "worktree", "handoffs", "handoff_titles", "mismatched", "accept_trace", "writer_report", "closure",
                                     "claimed", "place", "base"})
         self.assertEqual((got["worktree"], got["place"], got["base"]), ("", "", ""), "渡さなければ空")
         self.assertEqual((got["handoffs"], got["claimed"], got["closure"], got["accept_trace"], got["writer_report"]), ([], [], [], [], []))

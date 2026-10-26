@@ -646,7 +646,7 @@ class JoinCase(Whole):
                                     {"group_id": "g1", "unit_ids": ["A"], "items": [1]}], start)
         broken = self.tmp / "g0-state.json"
         broken.write_text("{broken", encoding="utf-8")
-        write(out_dir / "g0" / "result.json", result("g0", ["B"], t0, start, tdd_state=str(broken)))
+        write(out_dir / "g0" / "result.json", result("g0", ["B"], t0, start, tdd_record=str(broken)))
         write(out_dir / "g1" / "result.json", result("g1", ["A"], t1, start, verified=["test_m.py::TestM::test_v"]))
         code, _, err = self.go("join")
         os.chmod(self.repo / "pkg", 0o755)

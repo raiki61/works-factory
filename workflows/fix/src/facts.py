@@ -7,7 +7,7 @@ TDD の輪の状態 tdd-<k>/ を置く所）。返答の番号を名前に戻す
 - fix_unit_keys(reply, board, owed, ...): 返答の changes の単位の名前と直す義務（fixboard.fix_duty）（手順 0）
 - check_writes: 書き込みの出どころ（-2）。log は書き込みの記録（既定は置き場の writelog.LOG）、skip は除くパスの頭
 - check_frozen: TDD の輪で凍ったテストのファイル（1b）。agreed は範囲の相談の合意の行（None は置き場の trace。conflict.agreed）
-- frozen_tests(board, state, pass_): 凍ったテストのファイルと、輪が確かめた書き換えの名指し
+- frozen_tests(board, record, pass_): 凍ったテストのファイルと、輪が確かめた書き換えの名指し
   （check_frozen と修正役の指示書が同じ値を引く）
 - check_plan_scope: 承認済みの修正案の範囲（1d）。agreed は同じ。items は承認済みの修正案の項目（planmarks.approved_items の
   形の値か口。None は照らさない）。ask は拒否の頭で相談を先の道に言うか（None は consult_place の相談の控えで決める）
@@ -59,13 +59,13 @@ def fix_unit_keys(reply: dict, board: Path, owed, *, withheld_by=None, returned=
     return (keys, *fixboard.fix_duty(board, owed, withheld_by=withheld_by, returned=returned))
 
 
-def check_writes(reply: dict, board: Path, base_rev: str, repo: Path, state: str, *, log=None, since=None,
+def check_writes(reply: dict, board: Path, base_rev: str, repo: Path, record: str, *, log=None, since=None,
                  skip: tuple = ()) -> dict:
     """書き込みの出どころ（writes.check。欄 bash_writes を外した返答は reply に）。実行器が作ったファイルは run の全部の輪の物を
     外す（basecase.suite_made_all。元の結末・受け付けの書き戻し・写した物・返しの控えを含む）。盤面は書かない（申告の記録は writes.check が足す）。
     書き込みの記録は log（既定は置き場の writelog.LOG）。skip は除くパスの頭（writes.check）。
     since は見る変更の起点（受け付けと事前の確かめは fixboard.fixer_head の段の頭。前の段が書いた物を修正役に求めない）"""
-    made = set(common.suite_made(state)) | basecase.suite_made_all(board)
+    made = set(common.suite_made(record)) | basecase.suite_made_all(board)
     rev = fixboard.base_rev(None, base_rev)
     return writes.check(reply, repo, [p for p in _changed(repo, rev, since) if p not in made],
                         Path(board) / writelog.LOG if log is None else Path(log), skip=tuple(skip))
@@ -77,16 +77,16 @@ def _changed(repo, rev: str, since=None) -> list:
     return writes.changed_from(repo, since) if since else writes.changed(repo, rev)
 
 
-def _loop_states(board, state) -> list:
-    """run の全部の輪の状態のファイル（盤面の tdd-<k> の番号の順。今の輪 state は最後。無ければ空）"""
-    if not state:
-        return common.states(board)
-    return [p for p in common.states(board) if p.resolve() != Path(state).resolve()] + [state]
+def _loop_records(board, record) -> list:
+    """run の全部の輪の記録のファイル（盤面の tdd-<k> の番号の順。今の輪 record は最後。無ければ空）"""
+    if not record:
+        return common.records(board)
+    return [p for p in common.records(board) if p.resolve() != Path(record).resolve()] + [record]
 
 
-def check_frozen(board: Path, state: str, repo: Path, pass_: str, agreed=None, asks=None, base_rev: str = "") -> list:
-    """手順 1b: 凍ったテストのファイル（common.frozen_problems）を run の全部の輪で見た拒否の文。今の輪（state）は今どおり、前の輪
-    （1 回目の修正の段の輪）は今の輪の状態の handoff の木（since）からの変更で見て、直した項目の単位（テストの変更の許しの単位の行。conflict.permitted_units）の前の
+def check_frozen(board: Path, record: str, repo: Path, pass_: str, agreed=None, asks=None, base_rev: str = "") -> list:
+    """手順 1b: 凍ったテストのファイル（common.frozen_problems）を run の全部の輪で見た拒否の文。今の輪（record）は今どおり、前の輪
+    （1 回目の修正の段の輪）は今の輪の記録の handoff の木（since）からの変更で見て、直した項目の単位（テストの変更の許しの単位の行。conflict.permitted_units）の前の
     輪の受け入れのテストの関数（common.test_spans）の中の変更は通す。テストの変更の許し（conflict.ruled_test_limits）は輪ごとに、
     凍結の検査が比べる木で修正案の行を引き直す（今の輪は輪の後の木、前の輪は since の木。common.frozen_source）。輪が赤→緑を
     確かめた書き換えは、どの輪の物でも許しから外す。今の輪が無い（2 回目の段の輪が走らなかった）時、前の輪は輪の後の木で見る。
@@ -96,7 +96,7 @@ def check_frozen(board: Path, state: str, repo: Path, pass_: str, agreed=None, a
     移して読む（conflict.test_permits の base。読む木は 1 つ）。
     asks に list を渡せば、相談に回せる凍ったファイル（範囲の外の塊が全部、輪の受け入れのテストでない既存のテストの関数の幅に
     収まる物。common.frozen_asks）の頼み {path, tests, line, ref} を足す（line は返す文のどれかと同じ。tests の行は修正前の版の行）"""
-    loops = _loop_states(board, state)
+    loops = _loop_records(board, record)
     if not loops:
         return []
     b = board
@@ -106,16 +106,16 @@ def check_frozen(board: Path, state: str, repo: Path, pass_: str, agreed=None, a
 
     def allowed(source, rulings):
         return conflict.ruled_test_limits(b, rulings=rulings, source=source, skip_ids=skip, agreed_rows=agreed, base=before)
-    now = allowed(common.frozen_source(state, repo), _now_rulings(pass_)) if state else []
-    out = common.frozen_problems(state, repo, now) if state else []
-    if asks is not None and state:
+    now = allowed(common.frozen_source(record, repo), _now_rulings(pass_)) if record else []
+    out = common.frozen_problems(record, repo, now) if record else []
+    if asks is not None and record:
         try:
-            asks += common.frozen_asks(state, repo, now, rev=rev)
-        except common.Broken:   # 状態が読めないのは frozen_problems の側が拒む。頼みは作れないだけ
+            asks += common.frozen_asks(record, repo, now, rev=rev)
+        except common.Broken:   # 記録が読めないのは frozen_problems の側が拒む。頼みは作れないだけ
             pass
-    old = loops[:-1] if state else loops
+    old = loops[:-1] if record else loops
     if old:
-        since = common.load_state(state).get("handoff") if state else None
+        since = common.load_record(record).get("handoff") if record else None
         amended = conflict.permitted_units(b)
         for p in old:
             lims, spans = allowed(common.frozen_source(p, repo, since=since), True), common.test_spans(p, amended)
@@ -128,18 +128,18 @@ def check_frozen(board: Path, state: str, repo: Path, pass_: str, agreed=None, a
     return out
 
 
-def _loop_freeze(board, state) -> tuple:
+def _loop_freeze(board, record) -> tuple:
     """(一番後の輪の frozen_tree, run の全部の輪が凍らせたファイル)。輪が無ければ (None, [])"""
     tree, files = None, set()
-    for p in _loop_states(board, state):
-        st = common.load_state(p)
+    for p in _loop_records(board, record):
+        st = common.load_record(p)
         files |= set(st.get("frozen") or {})
         tree = st.get("frozen_tree") or tree
     return tree, sorted(files)
 
 
 def _verified(loops) -> list:
-    """輪が赤→緑を確かめた書き換えの名指し（common.verified_rewrites）。凍結の許しから外す"""
+    """輪が赤→緑を確かめた書き換えの名指し（common.verified_rewrites。loops は輪の記録のファイル）。凍結の許しから外す"""
     return [i for p in loops for i in common.verified_rewrites(p)]
 
 
@@ -148,21 +148,21 @@ def _now_rulings(pass_: str) -> bool:
     return pass_ == "ruled"
 
 
-def frozen_tests(board, state, pass_: str) -> dict:
+def frozen_tests(board, record, pass_: str) -> dict:
     """修正役の指示書の「テストの行」（fix の rules.tests_rows）に貼る凍ったテスト {files: run の全部の輪が凍らせたテストのファイル（_loop_freeze。
     check_plan_scope と同じ和で、凍結の照らし common.frozen_problems が輪ごとに読む frozen の和と一致する）, verified: check_frozen
     が許しから外すのと同じ名指し（_verified。書き換えてよい名指しの行から外す）}。輪が書き換えて凍らせた名指しと、裁定の範囲で凍結が
     解けない今の輪のファイルは、指示書に貼らず check_frozen が拒む（付録 A の F12・F13。PR B で書き手の指示から消した）"""
-    loops = _loop_states(board, state)
-    return {"files": _loop_freeze(board, state)[1], "verified": _verified(loops)}
+    loops = _loop_records(board, record)
+    return {"files": _loop_freeze(board, record)[1], "verified": _verified(loops)}
 
 
-def check_plan_scope(reply: dict, keys: list, board: Path, base_rev: str, repo: Path, state: str, pass_: str,
+def check_plan_scope(reply: dict, keys: list, board: Path, base_rev: str, repo: Path, record: str, pass_: str,
                      agreed=None, ask=None, since=None, *, items=None, consult_place=None) -> tuple:
     """承認済みの修正案の項目と差分の照らし（planscope.check）。行は changes と keys（単位の名前）を並べ、files を根からの相対に
     揃えた物。変わったパスは版からの変更（writes.changed）と since からの変更（版と同じ中身に戻した・版に無く since の後に消した
     ファイルも修正役に問う）の和から、実行器が作ったファイル（common.suite_made）を除いた物。TDD の輪が
-    凍らせたファイル（輪の状態の frozen と frozen_tree）は planscope.check に渡し、欠けは版からの
+    凍らせたファイル（輪の記録の frozen と frozen_tree）は planscope.check に渡し、欠けは版からの
     差分の全部で、修正役に問う外れと余分は凍った後に変えた分だけで見させる。
     返り (拒否の行（最初の行の頭に planscope.reject_head）, 記録)。盤面は書かない（控えの食い違いで止めるのは planscope.check）。
     items は承認済みの修正案の項目（planmarks.approved_items の形の値か口。修正案の無い run は None で、照らさない）。
@@ -176,11 +176,11 @@ def check_plan_scope(reply: dict, keys: list, board: Path, base_rev: str, repo: 
     run 97fd532f）"""
     b = board
     rows = [{"unit_key": k, "files": sorted(declared_files([c], repo))} for c, k in zip(reply.get("changes") or [], keys)]
-    made = set(common.suite_made(state)) | basecase.suite_made_all(board)
+    made = set(common.suite_made(record)) | basecase.suite_made_all(board)
     rev = fixboard.base_rev(None, base_rev)
     after = set(writes.changed_from(repo, since)) if since else None
     paths = sorted(p for p in set(writes.changed(repo, rev)) | (after or set()) if p not in made)
-    tree, frozen = (since, paths) if since else _loop_freeze(board, state)
+    tree, frozen = (since, paths) if since else _loop_freeze(board, record)
     problems, note = planscope.check(rows, b, repo, rev, paths, pass_=pass_, loop_tree=tree, frozen=frozen, touched=after,
                                      agreed=agreed, items=items)
     if problems:
@@ -205,21 +205,21 @@ def declared_files(rows, repo) -> set:
 
 
 def precheck(cfg: dict, reply=None, *, items=None, skip: tuple = ()) -> dict:
-    """事前の確かめ（モジュールの頭）。cfg は相談の控え（consult.load_config。board・repo・pass・base_rev・tdd_state と、在れば
+    """事前の確かめ（モジュールの頭）。cfg は相談の控え（consult.load_config。board・repo・pass・base_rev・tdd_record と、在れば
     書き込みの記録のファイル log）。修正役が変え始めた木は控えでなく置き場の段の頭（fixboard.fixer_head）。凍結は受け付けと同じく
-    輪の状態の照らしと返しの控えの照らし（duties.frozen_by_returns）の両方を見る。items は承認済みの修正案の項目（check_plan_scope）、skip は除くパスの頭（check_writes）"""
+    輪の記録の照らしと返しの控えの照らし（duties.frozen_by_returns）の両方を見る。items は承認済みの修正案の項目（check_plan_scope）、skip は除くパスの頭（check_writes）"""
     board, repo = Path(cfg["board"]), Path(cfg["repo"])
-    state, pass_, base_rev = cfg.get("tdd_state") or "", cfg.get("pass") or "first", cfg.get("base_rev") or ""
+    record, pass_, base_rev = cfg.get("tdd_record") or "", cfg.get("pass") or "first", cfg.get("base_rev") or ""
     log, since = cfg.get("log") or None, fixboard.fixer_head(board, pass_) or None
     reply = reply if isinstance(reply, dict) else {"changes": []}
     agreed = conflict.agreed(board)
-    found = [("frozen", t) for t in check_frozen(board, state, repo, pass_, agreed=agreed, base_rev=base_rev)]
+    found = [("frozen", t) for t in check_frozen(board, record, repo, pass_, agreed=agreed, base_rev=base_rev)]
     from src import duties
     found += [("frozen", t) for t in duties.frozen_by_returns(board, repo) if ("frozen", t) not in found]   # 受け付けと同じ返しの控えの凍結
-    wrote = check_writes(reply, board, base_rev, repo, state, log=log, since=since, skip=skip)
+    wrote = check_writes(reply, board, base_rev, repo, record, log=log, since=since, skip=skip)
     found += [("writes", t) for t in wrote["problems"]]
     keys = [c.get("unit_key") for c in wrote["reply"].get("changes") or [] if isinstance(c, dict)]   # 返答は単位の名前で書く
-    scope, _ = check_plan_scope(wrote["reply"], keys, board, base_rev, repo, state,
+    scope, _ = check_plan_scope(wrote["reply"], keys, board, base_rev, repo, record,
                                 pass_, agreed=agreed, ask=True, since=since,
                                 items=items)
     found += [("scope", t) for t in scope]

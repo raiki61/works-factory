@@ -400,12 +400,12 @@ class WriterSlotsCase(unittest.TestCase):
         place = self.run.artifacts
         with self.run.env():
             owed = self.board.group_owed(place, [KEY])
-            state, summary = self.board.loop_files(place)
-            values = self.board.fix_values(place, owed, state=state, summary=summary if weapon == "tdd" else "", answer_node=rules.answer_node("first"))
+            record, summary = self.board.loop_files(place)
+            values = self.board.fix_values(place, owed, record=record, summary=summary if weapon == "tdd" else "", answer_node=rules.answer_node("first"))
             got, rnd = self.prompts.writer_slots(place, self.run.repo, "first", weapon, values, owed=owed,
                                                  items=functools.partial(self.board.place_items, place),
                                                  sources=self.board.brief_sources(place),
-                                                 frozen=facts.frozen_tests(place, state, "first"), shared=ports.shared_cache())
+                                                 frozen=facts.frozen_tests(place, record, "first"), shared=ports.shared_cache())
         self.assertEqual(set(rnd), {"iteration", "kinds", "ledger"})
         return got
 
