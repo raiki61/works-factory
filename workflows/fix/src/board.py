@@ -499,7 +499,7 @@ def join_group(repo, from_tree: str, end_tree: str, kept, *, union=(), check=Non
 
 
 def join_rows(groups, outcomes, backed_out=None, unrestored=None, old_red=None, uncompared=None, test_cmd_notes=None) -> tuple:
-    """(組の行 [{group_id, unit_ids, returned, reason, backed_out?, unrestored?}], 単位の行 [{unit_id, group_id, status, reason}])
+    """(組の行 [{group_id, unit_ids, returned, reason, backed_out?, unrestored?, unsatisfied?}], 単位の行 [{unit_id, group_id, status, reason}])
     （返す節の約束の形）。outcomes は {group_id: (子の結果の dict か None, 戻せたか, 理由)}。戻せた組の単位は子の結果の status・reason
     （結果に無い単位・知らない status は not_done）、戻せなかった組・結果の無い組の単位は not_done と組の理由。backed_out は
     {group_id: 当ててから確かめ直しが赤か落ちて戻したパス}、unrestored は {group_id: 戻せず当たったままのパス}（lanekit.Merge の
@@ -507,6 +507,9 @@ def join_rows(groups, outcomes, backed_out=None, unrestored=None, old_red=None, 
     前から同じ形で赤だったので戻す理由にしなかった名指しの文}（rerun_problem の old_red。#837）、uncompared は {group_id: 確かめ直しで
     直す前の版と比べられなかったので戻す理由にしなかった赤の鍵}（rerun_problem の uncompared。#846）、test_cmd_notes は {group_id:
     確かめ直しの test_cmd の赤を前から赤か揺れと見て戻す理由にしなかった文}（rerun_problem の cmd_notes。#855）で、在る組の行にだけ同じ名の欄を置く。
+    組の子の結果（戻せた組か否かに依らず、結果が在れば）の unsatisfied（計画の依存で前に直すはずの単位が型の順で後に回る対 [{before, after}]。
+    止めにはしない）が空でなければ、組の行に同じ名の欄 unsatisfied を置く。合わせのループが申し出へ回した組（clash._settle_join）は
+    結果を None で渡すので、組の行に unsatisfied を置かない。
     新しい（元の締めの結末の並べ。p3.lane_merge）"""
     rows, units = [], []
     for g in groups:
@@ -515,7 +518,9 @@ def join_rows(groups, outcomes, backed_out=None, unrestored=None, old_red=None, 
         marks = {k: list(v) for k, given in (("backed_out", backed_out), ("unrestored", unrestored), ("old_red", old_red),
                                                     ("uncompared", uncompared), ("test_cmd_notes", test_cmd_notes))
                  if (v := (given or {}).get(gid))}
-        rows.append({"group_id": gid, "unit_ids": list(g["unit_ids"]), "returned": bool(back), "reason": str(why or ""), **marks})
+        late = [r for r in (result or {}).get("unsatisfied") or [] if isinstance(r, dict)]
+        rows.append({"group_id": gid, "unit_ids": list(g["unit_ids"]), "returned": bool(back), "reason": str(why or ""), **marks,
+                     **({"unsatisfied": late} if late else {})})
         got = {u.get("unit_id"): u for u in (result or {}).get("units") or [] if isinstance(u, dict)} if back else {}
         for k in g["unit_ids"]:
             u = got.get(k) or {}
@@ -1074,11 +1079,11 @@ def _unit_row(key, fix_units, tdd_rows) -> dict:
 
 def group_result(group, *, start_tree: str, end_tree: str, tdd, tdd_record: str = "", fix_units=None, reply=None,
                  reply_file: str = "", allowed_rows=(), conflicts=(), worktree: str = "", mismatched=(),
-                 accept_trace=(), closure=(), place: str = "", base: str = "", writer_report=()) -> dict:
+                 accept_trace=(), closure=(), place: str = "", base: str = "", writer_report=(), unsatisfied=()) -> dict:
     """組の子の結果（out_dir/<group_id>/result.json の中身。join・collect・tdd-unit・conflict-check が読む）:
     {group_id, unit_ids, end_tree, start_tree, units: [{unit_id, status, reason}], tdd, conflicts, objection, changed, x_scalars,
     allowed_tests, verified, reply_file, tdd_record, worktree, handoffs, handoff_titles, mismatched, accept_trace, closure,
-    claimed, place, base, writer_report}。writer_report は子の置き場の writer_report_rows の行（group_id を足す。親の finish が報告の行に集める）。base は子の置き場の元の結末のファイル base.json のパス（無い組は空。join が親の置き場の bases/<k>/ へ写す。
+    claimed, place, base, writer_report, unsatisfied}。unsatisfied は子の置き場の注文の索引の守れない依存の対（orders.unsatisfied_of。計画の依存で前に直すはずの単位が、型を回す順で後に回る [{before, after}]。join_rows が組の行の同じ名の欄に写し、line の最後の承認の本文が名で出す。止めにはしない）。writer_report は子の置き場の writer_report_rows の行（group_id を足す。親の finish が報告の行に集める）。base は子の置き場の元の結末のファイル base.json のパス（無い組は空。join が親の置き場の bases/<k>/ へ写す。
     adopt_bases）。allowed_rows は許しの訳（allowed_test_rows の行）、handoffs は reply の handoff_lines、mismatched は子の置き場の
     mismatched_lines（最後の関所を開ける理由）、accept_trace は子の置き場の accept_trace_rows の行（group_id を足す。親の collect が
     diff の隣に集める）、closure は子の置き場の閉鎖の表の行（表を読めなければ None。fixbeside.closure_rows）と claimed は reply の
@@ -1109,7 +1114,8 @@ def group_result(group, *, start_tree: str, end_tree: str, tdd, tdd_record: str 
             "accept_trace": [{**r, "group_id": gid} for r in accept_trace or [] if isinstance(r, dict)],
             "writer_report": [{**r, "group_id": gid} for r in writer_report or [] if isinstance(r, dict)],
             "closure": None if closure is None else [r for r in closure if isinstance(r, dict)],
-            "claimed": fixbeside.claimed_of(reply), "place": str(place or ""), "base": str(base or "")}
+            "claimed": fixbeside.claimed_of(reply), "place": str(place or ""), "base": str(base or ""),
+            "unsatisfied": [{"before": r["before"], "after": r["after"]} for r in unsatisfied or [] if isinstance(r, dict)]}
 
 
 def adopt_tdd_states(place, results, *, prior: bool = False) -> list:

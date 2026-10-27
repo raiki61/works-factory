@@ -6,7 +6,7 @@
 読めなかった控え（直した後の実測・封じた差分・問いの台帳の控えなど。got の unread。読めた控えについての注記 lost_ties は数えない）
 は開き方に依らず開く（must。通すのは人の答えだけ）。ほかは開き方 final_gate で開く（src.gates.opens）。無人の run で開くはずの時は
 開かずに works:needs-human で止め、merge の apply を飛ばす（L-G39・L-W25）。試験を求めなかった直し（untested）は節に分けて並べ、種類 code の
-ファイルを触った時だけ開き方で開く理由にする。判定の役が保留にしたままの問いは冒頭と本文に見せるが
+ファイルを触った時だけ開き方で開く理由にする。計画の依存で前に直すはずの単位が型の順で後に回った対（fixed の groups の unsatisfied）は「守れなかった依存」の節に名で並べ、止めず開ける理由にも数えない。判定の役が保留にしたままの問いは冒頭と本文に見せるが
 開ける理由に数えない（L-G36）。修正の後の並行 PR の確かめ直し（8.1）が重なりを見つけた・確かめ直せなかった時は、開き方で開く理由。
 
 got は ask_final の script が受け皿の got と line の値から組む dict（gather の返り）。読む物は修正の事実（fixed と、その stages の
@@ -46,6 +46,7 @@ ALONG_HEAD = "ついでに直した試験"   # 関わる試験で直す前から
 ALONG_SOURCE = fixboard.ALLOWED_SOURCES[3]
 ALLOWED_UNCHECKED = "封じた差分が無い・読めないので、許した行が差分に在るかを照らしていない（許した行をみな並べた）"
 REMOVED_TESTS_HEAD = "消した試験"           # 型の返しの控えが起点の版に在って今の木に無いとした試験（修正の出力の removed_tests。下書き 4.1 の 7）
+UNSATISFIED_HEAD = "守れなかった依存"   # 計画の依存で前に直すはずの単位が、型を回す順で後に回った対（fixed の groups の unsatisfied。止めず、並べ替えもしない）
 UNTESTED_HEAD = "試験を求めなかった直し"     # 注文が試験を求めない訳を持った直し（修正の出力の untested。static の型）
 CODE_UNTESTED = "コードのファイルを試験なしで変えた"   # 試験を求めなかった直しが種類 code のファイルを触った印（コメントだけかを機械は見分けない。E13）
 CONFLICT_UNREAD = "食い違いの申し出の控えを読めない"
@@ -268,6 +269,13 @@ def untested_section(got: dict) -> list:
     return [*lines, ""]
 
 
+def unsatisfied_rows(groups) -> list:
+    """fixed の groups の行の unsatisfied（{before, after} の対）を、組ごと・対ごとに 1 行の字にする（字でない対・壊れた行は飛ばす）"""
+    return [f"組 {g.get('group_id')}: 単位 {r['before']} → {r['after']}（計画の依存では {r['before']} を先に直すはずが、型を回す順で {r['after']} が先に回った）"
+            for g in groups or [] if isinstance(g, dict)
+            for r in g.get("unsatisfied") or [] if isinstance(r, dict) and isinstance(r.get("before"), str) and isinstance(r.get("after"), str)]
+
+
 def conflict_section(got: dict) -> list:
     lines = []
     if got["asked"]:
@@ -390,6 +398,7 @@ def final_text(got: dict, why: list, run_id: str) -> str:
     lines = [*final_head(got, why), ""]
     lines += protected_section(got)
     lines += untested_section(got)
+    lines += rows_section(UNSATISFIED_HEAD, got["unsatisfied"], "。止めずに名で出す。並べ替えはしていない")
     lines += conflict_section(got)
     lines += rows_section(HANDOFF_HEAD, got["handoffs"], "。通すのは人の continue だけ")
     lines += rows_section(querytest.STUCK_HEAD, got["stuck"])
@@ -612,7 +621,7 @@ def gather(*, fix_in: dict, fixed: dict, judged: dict | None, tests: dict | None
         "spec_changed": [q for q in (spec_check or {}).get("questions") or [] if isinstance(q, str)],
         "spec_unchecked": (spec_check or {}).get("unchecked") is True,
         "objection": str(fixed.get("objection") or ""), "rejudge_verdict": str((judged or {}).get("rejudge_verdict") or ""),
-        "rejudge": judged_rows(judged), "split": split, "unproven": unproven,
+        "rejudge": judged_rows(judged), "split": split, "unproven": unproven, "unsatisfied": unsatisfied_rows(fixed.get("groups")),
         "amend": replan.amend_lines(fixed.get("replan_items") or [], refixed=fixed.get("refixed") is True, answer=replan_answer,
                                     widened=widened or [], gate="gate-replan"),
         "delta": stage_delta_lines(fixed.get("stages"), str(fixed.get("skip_why") or "")),
