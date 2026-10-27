@@ -327,6 +327,15 @@ nodes:
                     type: string
                     enum: [docs, prompts, config, code]
                   did: {type: string, minLength: 1}
+            named:
+              type: array
+              items:
+                type: object
+                required: [unit_key, test]
+                additionalProperties: false
+                properties:
+                  unit_key: {type: string, minLength: 1}
+                  test: {type: string, minLength: 1}
 
   - id: pin-save
     script: writer_save

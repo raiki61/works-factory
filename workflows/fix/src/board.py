@@ -1857,8 +1857,8 @@ def accept_reply(reply: dict, place, repo, *, pass_: str, iteration: int, owed, 
         duty, excused = fix_duty(place, owed)
     picked = accept_base(place)   # 元の結末 base.json で選んで走らせる（下書き 2.1）。輪が名指した試験だけ輪の記録から足す
     seen: dict = {}
-    red, tests_note = common.selected_problems(picked, repo, rev, named=orders.named_tests(place), record=record or tests_record,
-                                               accept=place, seen=seen)
+    red, tests_note = common.selected_problems(picked, repo, rev, named=[*orders.named_tests(place), *duties.reply_named(place, repo, rev, reply)],
+                                               record=record or tests_record, accept=place, seen=seen)
     stop = no_suite_at_accept(place, seen)   # 型の義務より前に、事実 1 つで止める（下書き 3.9 の止め方の 2・3）
     if stop:
         mark_no_suite(place, stop)
@@ -1866,7 +1866,7 @@ def accept_reply(reply: dict, place, repo, *, pass_: str, iteration: int, owed, 
                 "units": unit_outcomes([k for k in owed if k not in parked], {}, excused=excused, parked=parked),
                 "parked": parked, "conflicted": False}
     note("tests", red)
-    for key, text in duties.accept_problems(place, repo, rev, reply, cases=seen.get("cases")):   # 型の義務の表（下書き 2.4）
+    for key, text in duties.accept_problems(place, repo, rev, reply, cases=seen.get("cases"), record=record or tests_record):   # 型の義務の表（下書き 2.4）
         note("duties", text)
         declared.setdefault(text, set()).add(key)
     tests_trace(place, picked, tests_note, pass_=pass_, attempt=iteration)   # 0 件の知らせも捨てない（F014）
