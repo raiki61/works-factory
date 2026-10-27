@@ -412,6 +412,172 @@ class TestLoopRedTree(FixGatesCase):
         self.assertEqual(calls.count(False), 2, "赤の木と base の木は 1 回ずつだけ走らせる")
 
 
+class RedGreenKeptCase(FixGatesCase):
+    """事後の関門の赤緑（gates._red_green）の振る舞いの控え（docs/plans/2026-10-24-fix-weapons.md の 11.6 の F2 の縛る試験の 4）。
+    _red_green を「名指しごとの事実を返す口」と「問題の文を組む口」に割る前に作り、割る前の字（実行器を起こす順と回数・問題の行・
+    飛ばした理由・守りの結末）をここに控える。割った後も同じ返答で同じ字になることを縛る（割ると、実行器を 2 回起こす・文が変わる
+    のを赤にする）。場面は 8 つ: 緑の通し・base で通る赤・輪の赤の木・赤の木が通る・赤の木の後にテストが動いた・守りのテスト・
+    base の木が走らない・2 回目の回（控えを使い回す）"""
+
+    def traced(self, **kw):
+        """problems を呼び、実行器を起こした順 [(今の木か別の木か, 名前 n)] と、返った行・飛ばした理由・守りの結末を返す"""
+        real_gate, real_common = fixgates.tddloop.run_suite, common.run_suite
+        calls = []
+
+        def wrap(real):
+            def run(exe, repo, work, n, *a, **k):
+                calls.append(("now" if pathlib.Path(repo).resolve() == self.repo.resolve() else "tree", n))
+                return real(exe, repo, work, n, *a, **k)
+            return run
+        with mock.patch.object(fixgates.tddloop, "run_suite", side_effect=wrap(real_gate)), \
+                mock.patch.object(common, "run_suite", side_effect=wrap(real_common)):
+            rows = self.problems(**kw)
+        attempt = kw.get("attempt", 1)
+        ledger = self.ledger() if (self.board / fixgates.LEDGER).is_file() else {}
+        return {"calls": calls, "rows": [(r["gate"], r["id"], r["detail"], r["unit_keys"]) for r in rows],
+                "skipped": fixgates.skipped(self.board, pass_=kw.get("pass_", "first"), attempt=attempt),
+                "guards": fixgates.guards(self.board, pass_=kw.get("pass_", "first"), attempt=attempt),
+                "ledger_rows": len(ledger.get("rows") or [])}
+
+    def stub_red(self, red_is_green=False):
+        self.ready_with_fields(self.fields_for(_l_TWO_ID))
+        (self.repo / "test_two.py").write_text(_l_TWO_FILE, encoding="utf-8")
+        self.edit_tree({"def clamp(x, lo, hi):": _l_STUB})
+        red = fixgates.tddloop.snapshot(self.repo)
+        self.edit_tree({"return 0  # 仮の実装": "return x / 2"})
+        if red_is_green:
+            red = fixgates.tddloop.snapshot(self.repo)
+        unit = {"unit_key": _l_MEAN, "route": "tdd", "red": "ok", "tests": [_l_TWO_ID], "test_files": ["test_two.py"],
+                "test_hashes": fixgates.tddloop.hashes(self.repo, ["test_two.py"]), "red_tree": red, "stub_files": ["stats.py"]}
+        d = self.board / "tdd-1"
+        d.mkdir(parents=True, exist_ok=True)
+        (d / fixgates.tddloop.RECORD).write_text(json.dumps({"units": {_l_MEAN: unit}, "frozen": fixgates.tddloop.hashes(self.repo, ["test_two.py"])},
+                                                           ensure_ascii=False), encoding="utf-8")
+
+    def test_a_green_pass(self):
+        self.ready_with_fields()
+        self.add_test_mean_of_two()
+        self.edit_tree(_l_MEAN_FIX)
+        self.assertEqual(self.traced(), GOLDEN["green"])
+
+    def test_a_test_that_passes_at_the_base(self):
+        self.ready_with_fields()
+        self.add_test_that_passes_on_base("test_mean_of_two")
+        self.assertEqual(self.traced(), GOLDEN["base_passes"])
+
+    def test_the_loop_red_tree(self):
+        self.stub_red()
+        self.assertEqual(self.traced(), GOLDEN["red_tree"])
+
+    def test_the_red_tree_that_passes(self):
+        self.stub_red(red_is_green=True)
+        self.assertEqual(self.traced(), GOLDEN["red_tree_passes"])
+
+    def test_the_test_file_moved_after_the_loop(self):
+        self.stub_red()
+        path = self.repo / "test_two.py"
+        path.write_text(path.read_text(encoding="utf-8") + "\n# 赤の後の書き足し\n", encoding="utf-8")
+        self.assertEqual(self.traced(), GOLDEN["moved"])
+
+    def test_a_guard_test(self):
+        self.ready_with_fields([{**_l_FIELDS[0], "tests": [{**_l_TEST_ROW, "id": _l_SAB_ID, "red_kind": planmarks.GUARD_KIND}]}])
+        (self.repo / "test_sab.py").write_text(_l_SAB, encoding="utf-8")
+        self.assertEqual(self.traced(), GOLDEN["guard"])
+
+    def test_a_base_tree_that_does_not_run(self):
+        self.ready_with_fields()
+        self.add_test_mean_of_two()
+        self.edit_tree(_l_MEAN_FIX)
+        real = fixgates.tddloop.run_suite
+
+        def run(exe, repo, *a, **k):
+            if pathlib.Path(repo).resolve() != self.repo.resolve():
+                return None, None, ["base で JUnit を書かなかった"]
+            return real(exe, repo, *a, **k)
+        with mock.patch.object(fixgates.tddloop, "run_suite", side_effect=run):
+            rows = self.problems()
+        self.assertEqual((rows, fixgates.skipped(self.board, pass_="first", attempt=1)), GOLDEN["base_down"])
+
+    def test_the_second_round_reads_the_cache(self):
+        self.stub_red()
+        self.traced()
+        self.assertEqual(self.traced(attempt=2), GOLDEN["second"])
+
+
+    # ---- 受け付けが直す前の結末を引く口 named_before（F2 の作る物の 3）。事後の関門と同じ named_facts を同じ控えで呼ぶ
+    def before(self, ids):
+        return fixgates.named_before(self.board, self.repo, self.base, self.SUITE, ids, self.board / "duties")
+
+    def test_named_before_reads_the_loop_red_tree_for_a_name_the_loop_recorded_red(self):
+        """輪が赤を記録した名指しは輪の赤の木で見る（起点の木では実装が無く一式の結末に居ないが、赤の木では failure）。赤の木が通る記録は
+        failure にしない"""
+        self.stub_red()
+        self.assertEqual(self.before([_l_TWO_ID]), {_l_TWO_ID: "failure"})
+
+    def test_named_before_does_not_call_a_red_tree_that_passes_a_red(self):
+        self.stub_red(red_is_green=True)
+        self.assertEqual(self.before([_l_TWO_ID]), {_l_TWO_ID: "not_red"})
+
+    def test_named_before_does_not_call_a_test_that_passes_at_the_base_a_red_even_on_a_red_tree(self):
+        """輪の赤の木で見る名指しでも、起点の木で通る（既存の実装を壊して作った偽の赤）なら failure にしない（事後の関門が拒む物）"""
+        self.ready_with_fields(self.fields_for(_l_SAB_ID))
+        (self.repo / "test_sab.py").write_text(_l_SAB, encoding="utf-8")
+        self.edit_tree({"def clamp(x, lo, hi):": "def clamp(x, lo, hi):\n    return -1  # 壊す\n"})
+        red = fixgates.tddloop.snapshot(self.repo)
+        self.edit_tree({"    return -1  # 壊す\n": ""})
+        unit = {"unit_key": _l_MEAN, "route": "tdd", "red": "ok", "tests": [_l_SAB_ID], "test_files": ["test_sab.py"],
+                "test_hashes": fixgates.tddloop.hashes(self.repo, ["test_sab.py"]), "red_tree": red}
+        d = self.board / "tdd-1"
+        d.mkdir(parents=True, exist_ok=True)
+        (d / fixgates.tddloop.RECORD).write_text(json.dumps({"units": {_l_MEAN: unit}, "frozen": unit["test_hashes"]}), encoding="utf-8")
+        self.assertEqual(self.before([_l_SAB_ID]), {_l_SAB_ID: "passed"})
+
+    def test_named_before_reads_the_base_tree_for_the_rest(self):
+        self.ready_with_fields()
+        self.add_test_mean_of_two()
+        self.add_test_that_passes_on_base("test_clamp_inside")
+        got = self.before([_l_MEAN_ID, "test_stats.py::TestStats::test_clamp_inside", "test_stats.py::TestStats::test_absent"])
+        self.assertEqual(got, {_l_MEAN_ID: "failure", "test_stats.py::TestStats::test_clamp_inside": "passed",
+                               "test_stats.py::TestStats::test_absent": "missing"})
+
+    def test_named_before_is_empty_when_the_executor_cannot_run(self):
+        self.ready_with_fields()
+        self.add_test_mean_of_two()
+        self.assertEqual(fixgates.named_before(self.board, self.repo, self.base, "", [_l_MEAN_ID], self.board / "duties"), {})
+        self.assertEqual(self.before([]), {})
+        real = fixgates.tddloop.run_suite
+        with mock.patch.object(fixgates.tddloop, "run_suite", side_effect=lambda exe, repo, *a, **k:
+                               (None, None, ["起動できない"]) if pathlib.Path(repo).resolve() != self.repo.resolve() else real(exe, repo, *a, **k)):
+            self.assertEqual(self.before([_l_MEAN_ID]), {}, "起点の木が走らない回は空（義務は拒む側に倒れる）")
+
+    def test_the_gate_reads_the_base_tree_the_named_before_already_took(self):
+        """受け付けの型の義務（named_before）が引いた起点の木の結末は控えに残り、後の事後の関門は同じ名指しの起点の木を走らせ直さない"""
+        self.ready_with_fields()
+        self.add_test_mean_of_two()
+        self.edit_tree(_l_MEAN_FIX)
+        self.assertEqual(self.before([_l_MEAN_ID]), {_l_MEAN_ID: "failure"})
+        self.assertEqual(self.traced()["calls"], [_NOW], "今の木の 1 回だけ（起点の木は控えから）")
+
+_NOW, _BASE, _RED = ("now", "gates-now"), ("tree", "gates-base"), ("tree", "gates-red-1")
+_UNIT = ["stats.py mean: 分母が len(xs) - 1 になっている"]
+_NONE = {"rows": [], "skipped": [], "guards": [], "ledger_rows": 0}
+# 割る前の gates._red_green が出した字（実行器を起こした順 calls・問題の行 rows・飛ばした理由 skipped・守りの結末 guards・帳面の行の数）
+GOLDEN = {
+    "green": {**_NONE, "calls": [_NOW, _BASE]},
+    "base_passes": {**_NONE, "calls": [_NOW, _BASE], "ledger_rows": 1, "rows": [(
+        "red_green", _l_MEAN_ID, f"base で {_l_MEAN_ID}: もう通る——直す前に赤でないテストは修正の証拠にならない", _UNIT)]},
+    "red_tree": {**_NONE, "calls": [_NOW, _RED, _BASE]},
+    "red_tree_passes": {**_NONE, "calls": [_NOW, _RED, _BASE], "ledger_rows": 1, "rows": [(
+        "red_green", _l_TWO_ID, f"ループの赤の木で {_l_TWO_ID}: もう通る——直す前に赤でないテストは修正の証拠にならない", _UNIT)]},
+    "moved": {**_NONE, "calls": [_NOW, _BASE], "ledger_rows": 1, "rows": [(
+        "red_green", _l_TWO_ID, f"base で {_l_TWO_ID}: 一式の結末に居ない——読み込み（import・構文）で落ちたか、名指しが実行器の識別子と違う",
+        _UNIT)]},
+    "guard": {**_NONE, "calls": [_NOW, _BASE], "guards": [{"id": _l_SAB_ID, "base": "passed"}]},
+    "base_down": ([], ["受け入れのテストの事後の赤緑を確かめられない（base の木: base で JUnit を書かなかった）"]),
+    "second": {**_NONE, "calls": [_NOW]},
+}
+
+
 class TestTestEdits(FixGatesCase):
     def test_unnamed_existing_edit_is_a_miss(self):
         self.ready_with_fields(_l_direct_fields())
@@ -2111,7 +2277,7 @@ import writes  # noqa: E402
 SEED = kit.ROOT / "tests" / "e2e" / "target-seed"
 SKIP = ("vendored/",)
 WHY = "整形の道具で 40 ファイルを一度に書き換えた"
-_S_MODS = ("board", "facts", "gates", "scope", "unitrows", "parking", "rules", "consult", "prompts", "runvals", "ruling", "duties")
+_S_MODS = ("board", "common", "facts", "gates", "scope", "unitrows", "parking", "rules", "consult", "prompts", "runvals", "ruling", "duties")
 
 
 def _s_load() -> types.SimpleNamespace:
@@ -2792,6 +2958,42 @@ class FixAcceptSeamCase(SeamTemp):
         path.write_text(text, encoding="utf-8")
         return self.b.accept_reply(reply, self.place, self.repo, pass_="first", iteration=1, owed=[R_MEAN, R_CLAMP],
                                      judged=R_JUDGED, head=head, base_rev=self.rev, skip=SKIP)
+
+    def test_accept_reply_hands_the_reply_names_to_the_selection_and_the_loop_record_to_the_duties(self):
+        """F2 の縛る試験の 3: 受け付けが試験の選びに渡す named は、注文の物（units[].tests・rewrite の行）に、返答の evidence.named と
+        受け付けが木の比べで出す足した試験を足した物。型の義務には、選びに渡すのと同じ輪の記録（record か、空なら tests_record）を渡す"""
+        (self.place / "orders").mkdir()
+        (self.place / "orders.json").write_text(json.dumps({"sequence": ["variant"], "weapons": {R_MEAN: "variant"}, "stage": 1,
+                                                            "since": self.rev}), encoding="utf-8")
+        plan, rewrite = "test_stats.py::TestStats::test_mean_of_three", "test_stats.py::TestStats::test_clamp_above_range"
+        (self.place / "orders" / "variant.json").write_text(json.dumps({
+            "weapon": "variant", "group": "g1", "stage": 1, "since": self.rev,
+            "units": [{"key": R_MEAN, "removes": [], "tests": [plan]}],
+            "permits": [{"kind": "rewrite", "duty": True, "test": rewrite, "source": "plan"}]}), encoding="utf-8")
+        (self.place / "judgment.json").write_text(json.dumps({"units": R_JUDGED}, ensure_ascii=False), encoding="utf-8")
+        record = self.tmp / "loop-record.json"
+        record.write_text(json.dumps({"units": {}}), encoding="utf-8")
+        head = leftovers.snapshot(self.repo)
+        path = self.repo / "stats.py"
+        path.write_text(path.read_text(encoding="utf-8").replace("sum(xs) / (len(xs) - 1)", "sum(xs) / len(xs)"), encoding="utf-8")
+        (self.repo / "test_new.py").write_text("def test_added():\n    assert True\n", encoding="utf-8")
+        reply = {"changes": [{**_fix_row(R_MEAN, 1), "files": ["stats.py", "test_new.py"]}],
+                 "evidence": {"named": [{"unit_key": R_MEAN, "test": "test_other.py::test_said"}]}}
+        got = {}
+
+        def selected(base, repo, rev, **kw):
+            got["named"], got["record"] = list(kw["named"]), kw["record"]
+            return [], ""
+
+        def duties_run(place, repo, rev, reply, **kw):
+            got["duty_record"] = kw["record"]
+            return []
+        with mock.patch.object(self.m.common, "selected_problems", selected), \
+                mock.patch.object(self.m.duties, "accept_problems", duties_run):
+            self.b.accept_reply(reply, self.place, self.repo, pass_="first", iteration=1, owed=[R_MEAN], judged=R_JUDGED, head=head,
+                                base_rev=self.rev, skip=SKIP, tests_record=str(record))
+        self.assertEqual(got["named"], [plan, rewrite, "test_other.py::test_said", "test_new.py::test_added"])
+        self.assertEqual((got["record"], got["duty_record"]), (str(record), str(record)))
 
     def test_accept_reply_saves_the_closure_table_it_recounted(self):
         """受けた返答は閉鎖の数え直し（closure_reply）を通り、単位ごとの表を置き場に置く（querytest.save_closure）"""

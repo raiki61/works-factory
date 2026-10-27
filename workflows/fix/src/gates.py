@@ -289,10 +289,9 @@ def _red_units(board_dir, repo: pathlib.Path) -> dict:
 def _red_green(repo: pathlib.Path, rev: str, suite: str, tests: list, work: pathlib.Path, cache: pathlib.Path,
                loop: dict | None = None) -> tuple[list, list, list]:
     """(行, 飛ばした理由, 守りのテストの base の結末 [{id, base}])。守りのテスト（guard。赤の種類が planmarks.GUARD_KIND）は今の木で
-    緑だけを求め、base の結末は抜けの行にせず返す。今の木で一式（名指しを絶対パスの node id で後ろに足す）を 1 回走らせ、base の木の結末は控え（cache。
-    _base_keys の鍵ごと）に無い名指しだけを base の木で走らせて控えに足し、比べる。loop（_red_units）に在る名指しは赤を輪の
-    赤の木で走らせ直して見て（_red_tree_probs。結末は同じ控えに _red_key の鍵で残す）、base の木では passed の時だけ拒む。赤の判定は輪と同じ
-    common.red_check の事実の文（行の detail は『base で 』か RED_TREE_HEAD を頭に付けて並べる）"""
+    緑だけを求め、base の結末は抜けの行にせず返す。今の木で一式（名指しを絶対パスの node id で後ろに足す）を 1 回走らせ、名指しごとの
+    base の木・輪の赤の木の結末は named_facts（実行器を起こすのはそこ。控え cache に無い名指しだけ）に任せ、その事実から行を組む
+    （named_rows）。赤の判定は輪と同じ common.red_check の事実の文（行の detail は『base で 』か RED_TREE_HEAD を頭に付けて並べる）"""
     work.mkdir(parents=True, exist_ok=True)
     ids = [t["id"] for t in tests]
     tree = common.snapshot(repo)
@@ -302,9 +301,26 @@ def _red_green(repo: pathlib.Path, rev: str, suite: str, tests: list, work: path
         common.restore_paths(repo, tree, common.touched(repo, tree, common.snapshot(repo)))   # 走らせて出来た物を消す
     if now is None:
         return [], [f"{NO_RUN}（今の木で実行器が走らない: {'; '.join(why)}）"], []
+    facts, gaps = named_facts(repo, rev, suite, ids, work, cache, loop, tree)
+    if facts is None:
+        return [], gaps, []
+    rows, guards = named_rows(tests, now, facts)
+    return rows, [], guards
+
+
+def named_facts(repo: pathlib.Path, rev: str, suite: str, ids: list, work: pathlib.Path, cache: pathlib.Path, loop: dict | None,
+                tree: str) -> tuple:
+    """(名指し → 事実 {where, red, base, probs} か None, 飛ばした理由の並び)。where は赤を見る木（輪の赤の木 "red" か base の木 "base"）、
+    red は where が "red" の名指しの赤の木での red_check の問題の文の並び（空なら赤）、base は base の木の結末のうちその名指しに当たる行（無ければ
+    None）、probs は base の木の結末の red_check の問題の文の並び（空なら base の木で赤）。実行器を起こすのはここだけ: loop（_red_units）に在る
+    名指しは赤の木で走らせ直し（_red_tree_probs。結末は控え cache に _red_key の鍵で残す）、base の木の結末は控え（_base_keys の鍵ごと）に無い
+    名指しだけを base の木で走らせて控えに足す。tree は今の木（snapshot。base から変わったテストのファイルを写す元）。実行器が走らない・
+    base の木を作れない時は (None, [NO_RUN で始まる理由])。_red_green（事後の関門）と、受け付けの型の義務の事実 before（duties.unit_facts）が
+    同じ口を呼ぶ（同じ名指しを 2 回走らせず、2 つの結末が食い違う道を作らない）"""
+    work.mkdir(parents=True, exist_ok=True)
     red, why = _red_tree_probs(repo, rev, suite, [i for i in ids if common._norm_id(i) in (loop or {})], loop or {}, work, cache)
     if red is None:
-        return [], [f"{NO_RUN}（ループの赤の木: {'; '.join(why)}）"], []
+        return None, [f"{NO_RUN}（ループの赤の木: {'; '.join(why)}）"]
     copy = sorted(set(_test_files(repo, rev, tree, ids)) | {common.id_path(i) for i in ids})
     keys = _base_keys(repo, rev, suite, ids, copy)
     seen = common.load_json(cache, {})
@@ -313,29 +329,66 @@ def _red_green(repo: pathlib.Path, rev: str, suite: str, tests: list, work: path
     if need:
         base, why = _base_run(repo, rev, suite, need, copy, work)
         if base is None:
-            return [], [f"{NO_RUN}（base の木: {'; '.join(why)}）"], []
+            return None, [f"{NO_RUN}（base の木: {'; '.join(why)}）"]
         seen = {**common.load_json(cache, {}), **{keys[i]: rules.match_case(i, base) for i in need}}
         jsonfile.write(cache, seen)
+    out = {}
+    for i in ids:
+        base = [seen[keys[i]]] if seen.get(keys[i]) else []   # base の木の結末のうちこのテストに当たる行（無ければ空）
+        out[i] = {"where": "red" if i in red else "base", "red": red.get(i), "base": base[0] if base else None,
+                  "probs": common.red_check([i], base, None, None)[0]}
+    return out, []
+
+
+def named_rows(tests: list, now: list, facts: dict) -> tuple[list, list]:
+    """(行, 守りのテストの base の結末 [{id, base}])。tests は _accept_tests の行、now は今の木の一式の結末、facts は named_facts の事実。
+    今の木で緑でない名指しは行、守りのテスト（guard）は base の結末を抜けにせず返し、赤の木で見る名指しは赤の木の問題の文を RED_TREE_HEAD
+    を頭に行にして base の木では passed の時だけ拒み、ほかは base の木の問題の文を『base で 』を頭に行にする"""
+    rules = common.rules()
     rows, guards = [], []
     for t in tests:
         c = rules.match_case(t["id"], now)
         if c is None or c["outcome"] != "passed":
             rows.append(_row("red_green", t["id"], f"今の木で {c['outcome'] if c else '一式の結末に居ない'}（受け入れのテストが緑でない）",
                              t["unit_keys"]))
-        base = [seen[keys[t["id"]]]] if seen.get(keys[t["id"]]) else []   # base の木の結末のうちこのテストに当たる行（無ければ空）
+        f = facts[t["id"]]
+        base = f["base"]
         if t.get("guard"):   # 守りのテスト: base の結末は抜けにせず控える
-            guards.append({"id": t["id"], "base": base[0]["outcome"] if base else "一式の結末に居ない"})
+            guards.append({"id": t["id"], "base": base["outcome"] if base else "一式の結末に居ない"})
             continue
-        probs, _ = common.red_check([t["id"]], base, None, None)
-        if t["id"] in red:   # 赤は赤の木で見る。base の木では直す前から通る時だけ拒む
-            if red[t["id"]]:
-                rows.append(_row("red_green", t["id"], RED_TREE_HEAD + "；".join(red[t["id"]]), t["unit_keys"]))
-            if base and base[0].get("outcome") == "passed":
-                rows.append(_row("red_green", t["id"], "base で " + "；".join(probs), t["unit_keys"]))
+        if f["where"] == "red":   # 赤は赤の木で見る。base の木では直す前から通る時だけ拒む
+            if f["red"]:
+                rows.append(_row("red_green", t["id"], RED_TREE_HEAD + "；".join(f["red"]), t["unit_keys"]))
+            if base and base.get("outcome") == "passed":
+                rows.append(_row("red_green", t["id"], "base で " + "；".join(f["probs"]), t["unit_keys"]))
             continue
-        if probs:
-            rows.append(_row("red_green", t["id"], "base で " + "；".join(probs), t["unit_keys"]))
-    return rows, [], guards
+        if f["probs"]:
+            rows.append(_row("red_green", t["id"], "base で " + "；".join(f["probs"]), t["unit_keys"]))
+    return rows, guards
+
+
+def named_before(board_dir, repo: pathlib.Path, rev: str, suite: str, ids: list, work: pathlib.Path) -> dict:
+    """名指し ids の『直す前の結末』{id: "failure" か、赤でない時の結末の語（passed・error・…。結末に居なければ missing）}（受け付けの型の
+    義務の事実 before。duties.unit_facts）。事後の関門と同じ named_facts の事実（走らせを足さない: 控え BASE_CACHE を同じ置き場から読み、
+    輪が赤を記録した名指し〔_red_units〕は輪の赤の木、ほかは base の木）。『failure』は赤の判定（common.red_check の問題の文が空）が通った
+    時だけ。輪の赤の木で見る名指しは、base の木で passed なら（既存の実装を壊して作った偽の赤。事後の関門が拒む物）failure にしない。
+    実行器が走らない・base の木を作れない時は {}（呼び手が義務を拒む側に倒す）"""
+    b, repo = pathlib.Path(board_dir), pathlib.Path(repo)
+    ids = [i for i in dict.fromkeys(ids) if isinstance(i, str) and i.strip()]
+    if not ids or not suite:
+        return {}
+    suite = str(tddloop.exe_path(repo, suite))
+    facts, _ = named_facts(repo, rev, suite, ids, pathlib.Path(work), _base_cache(b), _red_units(b, repo), common.snapshot(repo))
+    if facts is None:
+        return {}
+    out = {}
+    for i, f in facts.items():
+        base = (f["base"] or {}).get("outcome") or "missing"
+        if f["where"] == "red":
+            out[i] = "not_red" if f["red"] else ("passed" if base == "passed" else "failure")
+        else:
+            out[i] = "failure" if not f["probs"] else base
+    return out
 
 
 def _red_key(repo: pathlib.Path, suite: str, test_id: str, u: dict) -> str:

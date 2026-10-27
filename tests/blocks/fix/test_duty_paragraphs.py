@@ -68,7 +68,7 @@ class DutyParagraphCase(unittest.TestCase):
     def test_the_functions_reading_reply_facts_are_the_ones_the_plan_names(self):
         """読む関数を構文木で引くので、表の関数が事実を読んでいることを見失わない（引けなければ上の照らしが空振りする）"""
         reading = {fn.__name__ for fn in table_functions() if read_names(fn) & set(duties.REPLY_FACTS)}
-        self.assertEqual(reading, {"kinds_rows", "sites_shape", "unit_red", "sites_per_test"})
+        self.assertEqual(reading, {"kinds_rows", "sites_shape", "unit_red", "sites_per_test", "change_named_or_gone"})
 
     def test_a_function_without_the_attribute_or_with_a_paragraph_missing_from_the_md_is_red(self):
         def reads(f):
