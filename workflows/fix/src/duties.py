@@ -14,8 +14,9 @@ impact.is_test_file）・kinds（files の rules.kind_of の集まり）・allow
 added（足した試験の id）・vanished（元で通っていて返した木の同じ選びの回に居ない試験の鍵）・permits（注文の permits の行）・
 no_tests（base.json の印）・absent_at_base（files のうち起点の木に無いパス）・twice（足した試験を起点の木で 2 回走らせた問題の文の並び。
 走らせていなければ None）・named（その単位の名指しの試験。unit_named が返答の evidence.named・注文の units[].tests・permits の rewrite の行の
-試験・tdd の単位の輪の記録の tests を重ねずに並べる。変える段の型だけ引く）・before（名指し → 起点の木の結末。赤は "failure"。gates.named_before が
-事後の関門と同じ事実から引き、走らせを足さない）・after（名指し → 返した木の結末。受け付けが走らせた回 cases から引く。居なければ "missing"）・
+試験・tdd の単位の輪の記録の tests を重ねずに並べる。変える段の型だけ引く）・before（名指し → 起点の木の結末。赤は "failure"。受け付けが
+全部の単位の名指しを集めて gates.named_before を 1 回だけ呼び、事後の関門と同じ事実から引き、走らせを足さない。実行器が無い・走らずに
+引けなければ None）・after（名指し → 返した木の結末。受け付けが走らせた回 cases から引く。居なければ "missing"）・
 removes（注文の units[].removes）・gone（removes のうち起点の木で引けて今の木で引けない物。gone_of）・class_query（注文の units[] の物。無ければ None）・hits（問いの当たりの行
 path:line の集まり。問いを行で結べない単位と問いの無い単位は None）・hunks（since から返した木までの git diff -U0 の新しい側の塊
 {path: [(a, b)]}）と、書き手の返答から組む REPLY_FACTS（kinds_rows〔返答の evidence.kinds の行〕・sites〔単位の行の closure.sites の全部〕・
@@ -35,6 +36,7 @@ BOXES = {"tdd": "change", "variant": "change", "remove": "change", "tidy": "keep
 MODULES = {"tdd": tdd, "variant": variant, "remove": remove, "static": static, "tidy": tidy, "pin": pin, "rebuild": rebuild}
 WEAPONS = tuple(BOXES)
 REJECT = "型 {weapon} の単位 {unit} の義務: {text}"
+NO_BEFORE = "（実行器が無い・走らないので、名指しの試験の起点の木の結末を引けなかった。直しの誤りでなく実行器の失敗）"
 
 
 REPLY_FACTS = ("kinds_rows", "sites", "red_seen", "named")   # 書き手の返答から組む事実の名（unit_facts が組む。読む義務の関数は段落の属性 paragraph を持つ。tests/blocks/fix/test_duty_paragraphs.py）
@@ -55,7 +57,7 @@ def change_named_or_gone(f: dict) -> list:
     if removes and set(removes) <= set(f.get("gone") or []):
         return []
     return ["名指しの試験が起点の木で赤（failure）・返した木で緑にならず、消す名も返した木から全部は消えていない"
-            "（変えた動きを試験か機械で示す）"]
+            "（変えた動きを試験か機械で示す）" + (NO_BEFORE if named and f.get("before") is None else "")]
 
 
 change_named_or_gone.paragraph = "rules_named"   # 書き手に evidence.named を書かせる段落（.shared/prompts/writer.md。tests/blocks/fix/test_duty_paragraphs.py）
@@ -215,13 +217,13 @@ def _query_hits(repo, rev: str, cq) -> set | None:
     return None if why else got
 
 
-def _guard_ids(place) -> set:
-    """承認済みの修正案の項目の受け入れの試験のうち、赤の種類が守りのテスト（planmarks.GUARD_KIND。直す前から緑で、緑のまま）の id
-    （事後の関門 gates._accept_tests が guard にする物と同じ。名指しの『起点の木で赤』の義務に数えない）"""
+def _guard_ids(place, round_: int = 1) -> set:
+    """承認済みの修正案（周 round_ の凍結した欄）の項目の受け入れの試験のうち、赤の種類が守りのテスト（planmarks.GUARD_KIND。直す前から
+    緑で、緑のまま）の id（事後の関門 gates._accept_tests が guard にする物と同じ。名指しの『起点の木で赤』の義務に数えない）"""
     import conflict   # lib/
     import planmarks   # lib/
     try:
-        fields = conflict.frozen_fields(pathlib.Path(place), 1) or []
+        fields = conflict.frozen_fields(pathlib.Path(place), round_) or []
     except ValueError:
         return set()
     return {t["id"] for f in fields if isinstance(f, dict) for t in f.get("tests") or []
@@ -306,13 +308,14 @@ def reply_named(place, repo, rev: str, reply) -> list:
 
 
 def unit_facts(place, repo, rev: str, key: str, weapon: str, rows: list, *, order: dict, base, cases, declared=(), evidence=None,
-               record: str = "") -> dict:
+               record: str = "", outcomes=None, round_: int = 1) -> dict:
     """単位 key（型 weapon）の事実（上の FACTS）。rows は返答の changes のうちその単位の行、order はその型の注文、evidence は返答の evidence
     （kinds の行は単位に分けない。named の行は unit_key で単位に分ける）、record は今の段の輪の記録のファイル（tdd の単位の名指しを読む。
-    無ければ空）。cases は受け付けが走らせた回の結末（keep の居なくなった試験と、変える段の after）"""
+    無ければ空）。cases は受け付けが走らせた回の結末（keep の居なくなった試験と、変える段の after）。outcomes は受け付けが全部の単位の名指しで
+    引いた起点の木の結末（accept_problems。引けなければ None）で、その単位の名指しの分を事実 before にする（ここは実行器を起こさない）。round_ は守りのテストを読む受け付けの周"""
     import baseline_red   # lib/
     import impact   # lib/
-    from src import common, gates, rules, scope
+    from src import common, rules, scope
     files = _rows_files(rows)
     tests = [p for p in files if impact.is_test_file(p, set(declared))]
     added, removed = [], []
@@ -325,12 +328,11 @@ def unit_facts(place, repo, rev: str, key: str, weapon: str, rows: list, *, orde
     unit = next((u for u in order.get("units") or [] if isinstance(u, dict) and u.get("key") == key), {})
     cq = unit.get("class_query") if isinstance((unit.get("class_query") or {}).get("how"), dict) else None
     loop = common.load_record(record) if record and pathlib.Path(record).is_file() else {}
-    named, before, after, removes, gone = [], {}, {}, [], []
-    if box_of(weapon) == "change":   # 変える段の箱の義務の事実（ほかの箱は読まないので引かない。実行器も起こさない）
-        named = unit_named(key, weapon, order, evidence, loop, _guard_ids(place))
-        exe = str((base or {}).get("exe") or "")
-        if named and exe:
-            before = gates.named_before(place, repo, rev, exe, named, pathlib.Path(place) / "duties")
+    named, mine, after, removes, gone = [], {}, {}, [], []
+    if box_of(weapon) == "change":   # 変える段の箱の義務の事実（ほかの箱は読まないので引かない）
+        named = unit_named(key, weapon, order, evidence, loop, _guard_ids(place, round_))
+        if named:
+            mine = None if outcomes is None else {t: outcomes[t] for t in named if t in outcomes}
         if named and cases is not None:
             after = {t: (c["outcome"] if (c := baseline_red.match_case(t, cases)) else "missing") for t in named}
         removes = _ids(unit.get("removes") or [])
@@ -344,16 +346,17 @@ def unit_facts(place, repo, rev: str, key: str, weapon: str, rows: list, *, orde
             "twice": _twice(base, repo, added, pathlib.Path(place) / "duties") if weapon == "pin" else None,
             "class_query": cq, "hits": _query_hits(repo, rev, cq),
             "hunks": _hunks(repo, str(order.get("since") or "") or rev, files),
-            "before": before, "after": after, "removes": removes, "gone": gone,
+            "before": mine, "after": after, "removes": removes, "gone": gone,
             **_reply_facts(rows, (evidence or {}).get("kinds"), named)}
 
 
-def accept_problems(place, repo, rev: str, reply, *, cases=None, record: str = "") -> list:
+def accept_problems(place, repo, rev: str, reply, *, cases=None, record: str = "", round_: int = 1) -> list:
     """共通の受け付けが型の義務の表で照らした問題の [(単位, 文)]（下書き 2.3・2.4。PR A の表は static・tidy・pin・remove の物）。
     型は注文の索引 orders.json の weapons（注文の無い置き場は照らさない）で、義務は単位の行の checked_as（裁定の後の直しの注文の、照らしに
     使う元の型。下書き 4.1 の 6）が在ればその型で引く（tdd から来た単位に variant の義務を当てない）。cases は受け付けが走らせた回の結末の
-    行（keep の箱の居なくなった試験）"""
-    from src import basecase, orders
+    行（keep の箱の居なくなった試験）。round_ は受け付けの周（事後の関門 gates.problems と同じ周を渡す）。変える段の単位の名指しは先に
+    全部集め、起点の木の結末 before を gates.named_before の 1 回で引く（実行器を単位の数だけ起こさない）"""
+    from src import basecase, common, gates, orders
     weapons = orders.weapons(place)
     if not weapons or not isinstance(reply, dict):
         return []
@@ -366,14 +369,18 @@ def accept_problems(place, repo, rev: str, reply, *, cases=None, record: str = "
     for c in reply.get("changes") or []:
         if isinstance(c, dict) and c.get("unit_key") in weapons:
             by.setdefault(c["unit_key"], []).append(c)
+    evidence = reply.get("evidence") if isinstance(reply.get("evidence"), dict) else None
+    todo = [(k, rows, checked.get(k) or weapons[k]) for k, rows in by.items() if table_of(checked.get(k) or weapons[k])]
+    loop = common.load_record(record) if record and pathlib.Path(record).is_file() else {}
+    guards = _guard_ids(place, round_)
+    named = _ids([t for k, _, w in todo if box_of(w) == "change"
+                  for t in unit_named(k, w, docs.get(weapons[k]) or {}, evidence, loop, guards)])
+    exe = str((base or {}).get("exe") or "")
+    before = (gates.named_before(place, repo, rev, exe, named, pathlib.Path(place) / "duties") or None) if named and exe else None
     out = []
-    for k, rows in by.items():
-        w = checked.get(k) or weapons[k]
-        if not table_of(w):
-            continue
+    for k, rows, w in todo:
         facts = unit_facts(pathlib.Path(place), repo, rev, k, w, rows, order=docs.get(weapons[k]) or {}, base=base, cases=cases,
-                           declared=declared, evidence=reply.get("evidence") if isinstance(reply.get("evidence"), dict) else None,
-                           record=record)
+                           declared=declared, evidence=evidence, record=record, outcomes=before, round_=round_)
         out += [(k, t) for t in dict.fromkeys(check(w, facts))]
     return out
 

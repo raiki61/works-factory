@@ -375,10 +375,10 @@ class NamedDutyCase(unittest.TestCase):
         return [{"classname": ".".join(t.partition("::")[0][:-3:].split("/") + t.split("::")[1:-1]), "name": t.rsplit("::", 1)[1],
                  "outcome": "passed"} for t in tests]
 
-    def texts(self, named=(), files=("stats.py",), cases=None, record="", reply_extra=None):
+    def texts(self, named=(), files=("stats.py",), cases=None, record="", reply_extra=None, round_=1):
         reply = {"changes": [{"unit_key": "U", "files": list(files)}],
                  "evidence": {"named": [{"unit_key": "U", "test": t} for t in named]}, **(reply_extra or {})}
-        got = self.duties.accept_problems(self.place, self.repo, self.rev, reply, cases=cases, record=record)
+        got = self.duties.accept_problems(self.place, self.repo, self.rev, reply, cases=cases, record=record, round_=round_)
         return [t for k, t in got if k == "U"]
 
     def rejected(self, texts) -> bool:
@@ -391,10 +391,18 @@ class NamedDutyCase(unittest.TestCase):
         self.assertTrue(self.rejected(self.texts(cases=self.passed(self.MEAN3))))
 
     def test_a_named_test_that_already_passes_at_the_base_is_rejected(self):
-        """名指しの試験が起点の木で通る（赤を見ていない）単位: 返した木で緑でも拒む"""
+        """名指しの試験が起点の木で通る（赤を見ていない）単位: 返した木で緑でも拒む。実行器が無い・走らない回は起点の木の結末を引けずに拒み、
+        拒否の文にそれが実行器の失敗だと書き分ける"""
         self.order("variant")
         self.fix_mean()
         self.assertTrue(self.rejected(self.texts(named=[self.CLAMP], cases=self.passed(self.CLAMP))))
+        base = json.loads((self.place / "base.json").read_text(encoding="utf-8"))
+        self.put("base.json", {**base, "exe": ""})
+        got = self.texts(named=[self.MEAN3], cases=self.passed(self.MEAN3))
+        self.assertTrue(self.rejected(got) and any(self.duties.NO_BEFORE in t for t in got), got)
+        self.put("base.json", {**base, "exe": str(self.tmp / "no-such-suite.py")})
+        got = self.texts(named=[self.MEAN3], cases=self.passed(self.MEAN3))
+        self.assertTrue(self.rejected(got) and any(self.duties.NO_BEFORE in t for t in got), got)
 
     def test_a_named_test_that_is_not_green_in_the_returned_tree_is_rejected(self):
         self.order("variant")
@@ -403,6 +411,8 @@ class NamedDutyCase(unittest.TestCase):
         self.assertTrue(self.rejected(self.texts(named=[self.MEAN3], cases=cases)))
         self.assertTrue(self.rejected(self.texts(named=[self.MEAN3], cases=[])), "走らせた回に居ない名指しは緑でない")
         self.assertTrue(self.rejected(self.texts(named=[self.MEAN3], cases=None)), "実行器が走らなかった回も緑でない")
+        self.assertFalse(any(self.duties.NO_BEFORE in t for t in self.texts(named=[self.MEAN3], cases=cases)),
+                         "起点の木の結末を引けた回の拒否は、実行器の失敗と書かない")
 
     def test_a_remove_unit_whose_name_stays_in_the_returned_tree_is_rejected(self):
         self.order("remove", {"removes": ["old_helper"]})
@@ -440,6 +450,14 @@ class NamedDutyCase(unittest.TestCase):
         got = self.duties.accept_problems(self.place, self.repo, self.rev, {"changes": [{"unit_key": "V", "files": ["stats.py"]}]},
                                           cases=self.passed(self.MEAN3))
         self.assertTrue(any(k == "V" and self.NAMED in t for k, t in got), got)
+        both = {"changes": [{"unit_key": "U", "files": ["stats.py"]}, {"unit_key": "V", "files": ["stats.py"]}],
+                "evidence": {"named": [{"unit_key": "V", "test": self.CLAMP}]}}
+        with unittest.mock.patch.object(self.gates, "named_before", wraps=self.gates.named_before) as nb:
+            got = self.duties.accept_problems(self.place, self.repo, self.rev, both, cases=self.passed(self.MEAN3, self.CLAMP))
+        self.assertEqual(nb.call_count, 1, "全部の単位の名指しを集めて実行器を 1 回だけ起こす")
+        self.assertEqual(set(nb.call_args.args[4]), {self.MEAN3, self.CLAMP})
+        self.assertFalse(any(k == "U" and self.NAMED in t for k, t in got), got)
+        self.assertTrue(any(k == "V" and self.NAMED in t for k, t in got), "V の名指しは起点の木で通る（赤でない）")
 
     def test_a_guard_test_of_the_plan_is_not_a_named_test(self):
         """計画の守りのテスト（赤の種類が guard。直す前から緑で緑のまま）は、注文の tests に在っても名指しに数えない（数えると『起点の木で赤』を
@@ -453,6 +471,12 @@ class NamedDutyCase(unittest.TestCase):
         self.order("variant", {"tests": [self.MEAN3, self.CLAMP]})
         self.fix_mean()
         self.assertFalse(self.rejected(self.texts(cases=self.passed(self.MEAN3, self.CLAMP))))
+        planmarks.save(self.place, 2, [{"unit_keys": ["U"], "route": "tdd", "route_why": "", "rewrite_tests": [],
+                                        "refactor": {"declared": False, "why": ""},
+                                        "tests": [{**row, "id": self.MEAN3, "red_kind": "assertion"},
+                                                  {**row, "id": self.CLAMP, "red_kind": planmarks.GUARD_KIND}]}])
+        self.assertFalse(self.rejected(self.texts(cases=self.passed(self.MEAN3, self.CLAMP), round_=2)),
+                         "守りのテストは受け付けの周の欄から読む（事後の関門と同じ周）")
 
     def test_a_remove_unit_whose_names_are_all_gone_passes_without_a_named_test(self):
         self.order("remove", {"removes": ["legacy.py", "old_helper"]})
