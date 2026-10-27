@@ -1,4 +1,5 @@
 """workflows/.shared/prompt.py の口（docs/design/README.md の 5 節）: md に値を入れて指示を組み、md と値が食い違えば名指して落ちる"""
+import json
 import sys
 import unittest
 from unittest import mock
@@ -24,6 +25,13 @@ class Base(unittest.TestCase):
 
     def render(self, values=None, when=None, name="role"):
         return prompt._compose(self.block, name, values or {}, when)["prompt"]
+
+    def from_block(self, code: str) -> dict:
+        """block の src/ のモジュールとして code を回す（ports.caller_block が呼び手の在る block を解く道を通す）"""
+        names = {"prompt": prompt}
+        with mock.patch.object(prompt.ports, "PACK", self.block.parent):
+            exec(compile(code, str(self.block / "src" / "brief.py"), "exec"), names)
+        return names
 
     def refused(self, word, values=None, when=None):
         with self.assertRaisesRegex(prompt.PromptError, word):
@@ -63,13 +71,6 @@ class PartCase(Base):
             prompt._compose(self.block, "brief", {}, {"later": False}, part=True)
         with self.assertRaisesRegex(prompt.PromptError, "が無い"):
             prompt._compose(self.block, "absent", {}, {}, part=True)
-
-    def from_block(self, code: str) -> dict:
-        """block の src/ のモジュールとして code を回す（ports.caller_block が呼び手の在る block を解く道を通す）"""
-        names = {"prompt": prompt}
-        with mock.patch.object(prompt.ports, "PACK", self.block.parent):
-            exec(compile(code, str(self.block / "src" / "brief.py"), "exec"), names)
-        return names
 
     def test_render_part_reads_the_parts_of_the_caller_block(self):
         """render_part は呼んだ block の prompts/parts/ を読む。名は node の id の字だけ（ほかの字は prompts/parts/ の外を指しうるので拒む）。
@@ -205,6 +206,51 @@ class SharedCase(Base):
         self.assertEqual(prompt.render_shared("brief-head", {"brief_rows": "- row"}).splitlines()[:3], ["## The requirement (briefs)", "", "- row"])
 
 
+def replayed(place, node_id: str, n: int, pack=kit.BLOCKS) -> dict:
+    """place の <node>-viewer-values-<n>.json の値と段落の選びで指示を組み直し、組んだ物と place の <node>-<key>-<n>.md の字の組を返す"""
+    kept = json.loads((place / f"{node_id}-viewer-values-{n}.json").read_text(encoding="utf-8"))
+    block = pack / kept["block"]
+    for key, rel in kept["md"].items():
+        assert (block / rel).is_file(), f"記録の md {rel} が block {kept['block']} に無い"
+    again = prompt._compose(block, kept["node"], kept["values"], kept["when"])
+    assert sorted(again) == sorted(kept["md"]), f"組み直しの欄 {sorted(again)} が記録の md {sorted(kept['md'])} と違う"
+    return {key: (text, (place / f"{node_id}-{key}-{n}.md").read_text(encoding="utf-8")) for key, text in again.items()}
+
+
+class ViewerValuesCase(Base):
+    def test_emit_keeps_values_that_rebuild_the_same_prompt(self):
+        """emit は組んだ指示の隣に <node>-viewer-values-<n>.json（工場の外の見る道具のための値と段落の選び）を書き、
+        その値と when で組み直すと、place の指示と system が字のまま同じになる"""
+        self.md("Hello {name}, {count} items.\n<!-- if web -->\nOn {name}\n<!-- end web -->\n{{literal}}\n")
+        (self.block / "prompts" / "role.system.md").write_text("You are {name}.\n", encoding="utf-8")
+        place = self.block.parent / "artifacts"
+        with mock.patch.dict(prompt.ports.os.environ, {"ARTIFACTS_DIR": str(place)}):
+            self.from_block("prompt.emit('role', {'name': 'x{y}$z', 'count': 3}, {'web': False}, 2)\n")
+        kept = json.loads((place / "role-viewer-values-2.json").read_text(encoding="utf-8"))
+        self.assertEqual(kept, {"node": "role", "block": "demo", "md": {"prompt": "prompts/role.md", "system": "prompts/role.system.md"},
+                                "values": {"name": "x{y}$z", "count": 3}, "when": {"web": False}})
+        for key, (again, written) in replayed(place, "role", 2, self.block.parent).items():
+            with self.subTest(key=key):
+                self.assertEqual(again, written)
+
+    def test_when_none_is_kept_as_empty(self):
+        self.md("Plain {name}\n")
+        place = self.block.parent / "artifacts"
+        with mock.patch.dict(prompt.ports.os.environ, {"ARTIFACTS_DIR": str(place)}):
+            self.from_block("prompt.emit('role', {'name': 'a'}, None, 1)\n")
+        kept = json.loads((place / "role-viewer-values-1.json").read_text(encoding="utf-8"))
+        self.assertEqual((kept["md"], kept["when"]), ({"prompt": "prompts/role.md"}, {}))
+        for key, (again, written) in replayed(place, "role", 1, self.block.parent).items():
+            self.assertEqual(again, written)
+
+    def test_round_of_does_not_count_the_values_file(self):
+        self.md("Plain {name}\n")
+        place = self.block.parent / "artifacts"
+        with mock.patch.dict(prompt.ports.os.environ, {"ARTIFACTS_DIR": str(place)}):
+            self.from_block("prompt.emit('role', {'name': 'a'}, None, 1)\n")
+            self.assertEqual(self.from_block("n = prompt.round_of('role')\n")["n"], 2)
+
+
 class CallerCase(Base):
     def test_render_outside_a_block_is_refused(self):
         with self.assertRaisesRegex(ValueError, "block の中に無い"):
@@ -218,6 +264,9 @@ class CallerCase(Base):
             steps.intake(run.artifacts, request='[{"where": "README", "text": "x"}]', purpose="", means="[]", web="on", lang="")
             got = steps.classes_prompt(run.artifacts)
         self.assertEqual((run.artifacts / "world-classes-prompt-1.md").read_text(encoding="utf-8"), got["prompt"])
+        for key, (again, written) in replayed(run.artifacts, "world-classes", 1).items():
+            with self.subTest(key=key):
+                self.assertEqual(again, written, "本物の block の指示も、残した値で字のまま組み直せる")
 
     def test_lang_default(self):
         self.assertEqual(prompt.lang(""), "the language of the request (the user's language)", "空なら共通の断片の文")
