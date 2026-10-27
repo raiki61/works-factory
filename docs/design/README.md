@@ -303,6 +303,7 @@ Archon の源で確かめた読み方（この形はこれに合わせた）:
 - 口は次の時に落ちる: 値の無い `{name}` が在る（選ばれない段落の中の口も、system の md の口も数える。prep はいつも同じ組の値を渡す）・使われない値を渡された・`when` の名が md に無い・md の `if` に `when` の値が無い・`{shared:…}`・`{part:…}` の先が無い。
 - 口は段落を選んだ後、値を入れる前に、3 つ以上続く改行を 2 つに畳む。だから空の値を入れた行は空行として残る（見た目だけ。消したい行は段落の `if` で選ぶ）。
 - 組んだ指示は place の `<node-id>-prompt-<n>.md` に書く（`<n>` はloop の何回目か）。prep の出力の欄 `prompt`（system prompt は `system`）で返す。
+- `prompt.emit` は隣に、組むのに使った値と段落の選び `<node-id>-viewer-values-<n>.json` も書く。工場の外の見る道具（run で LLM に入った英語の指示を、日本語の md の写しで同じ形に組み直して人に見せる物）のための記録で、工場の中では読まない。LLM に渡す指示の字は変えない（持ち主の決め `prompt-values-for-viewer`）。形は `{"node", "block"（呼んだ block のフォルダの名）, "md"（組んだ欄ごとの block からの相対パス `{"prompt": "prompts/<node-id>.md", "system"?: "prompts/<node-id>.system.md"}`）, "values"（差し込み口の値。字か整数）, "when"（段落の選び。無ければ `{}`）}`。この `values` と `when` で組み直すと、同じ `<node-id>-prompt-<n>.md`（と system）が字のまま組み上がる（照らしは `tests/blocks/shared/test_prompt.py`）。
 - AI の node の YAML は `prompt: "$<prep の id>.output.prompt"` の 1 行だけにする（system prompt を持つ node は `systemPrompt: "$<prep の id>.output.system"` も）。`command:` は使わない。道具を持たない役（world-classes など）も、指示をファイルから Read せずに受け取れる。
 - 「Python は指示の文を持たない」は、この口の形で守る。AI に届く決まった文の在りかは md しか無く、審査は md を読めば済む。lib の Python の定数の長さを数える検査は置かない（持ち主の決め `shape-checks-only`）。
 
