@@ -24,7 +24,7 @@ D1 の基の main（`e52a1b45`）の `workflows/fix/prompts/parts/tidy.md` の�
 
 ## この型の受け付けの義務の在処
 
-受け付けの義務は修正の block に在り、型の block は義務の表を知らない（[fix.md](fix.md) の 22.4）。箱 keep の `duties.keep_same_result`（`BOX_DUTIES`）。型のモジュール `src/tidy.py` の `DUTIES` は空。型の箱は `duties.BOXES`（`tidy` は `keep`）。指示の段落のうち義務の表から引く 7 つ（`rules_change`・`rules_sites`・`rules_red`・`conflict_change`・`rules_sites_at`・`rules_sites_test`・`rules_red_unit`）も修正の block が `writer_slots` で組んで slots に入れる（[fix.md](fix.md) の 2.3）。
+受け付けの義務は修正の block に在り、型の block は義務の表を知らない（[fix.md](fix.md) の 22.4）。箱 keep の `duties.keep_same_result`（`BOX_DUTIES`）。型のモジュール `src/tidy.py` の `DUTIES` は空。型の箱は `duties.BOXES`（`tidy` は `keep`）。指示の段落のうち義務の表から引く 8 つ（`rules_change`・`rules_sites`・`rules_red`・`conflict_change`・`rules_sites_at`・`rules_sites_test`・`rules_red_unit`・`rules_named`）も修正の block が `writer_slots` で組んで slots に入れる（[fix.md](fix.md) の 2.3）。
 
 ## 指示の md と試験
 

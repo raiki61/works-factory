@@ -98,9 +98,9 @@ SLOT_VALUES = ("rejection rulings_file saved_reply brief_rows faces_rows scope_r
                "judgment_file open_units plan_file notes_file budget draft check_cmd ripple_file libdocs_rows answer_file left lang").split()
 SLOT_WHEN = ("rejected rulings_first ruled_reply briefs faces scope tests tests_new tests_tail tests_broken frozen_files tests_how rules ask "
              "ask_ripple libdocs resume queued overflow_answer conflict docs prompts_kind config code evidence where_writer where_tdd "
-             "where_rework rules_change rules_sites rules_red conflict_change rules_sites_at rules_sites_test rules_red_unit policy no_policy "
+             "where_rework rules_change rules_sites rules_red conflict_change rules_sites_at rules_sites_test rules_red_unit rules_named policy no_policy "
              "request no_request").split()
-TABLE_WHEN = ("rules_sites_at", "rules_sites_test", "rules_red_unit")   # 型の義務の表の関数の属性 paragraph から引く段落（where_writer は書き手に型を問わず載るので入れない）
+TABLE_WHEN = ("rules_sites_at", "rules_sites_test", "rules_red_unit", "rules_named")   # 型の義務の表の関数の属性 paragraph から引く段落（where_writer は書き手に型を問わず載るので入れない）
 DUTY_WHEN = ("rules_change", "rules_sites", "rules_red", "conflict_change", *TABLE_WHEN)   # 義務の表から引く段落（型の block は義務の表を知らない）
 
 

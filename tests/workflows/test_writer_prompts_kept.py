@@ -194,19 +194,19 @@ def all_records(case) -> dict:
     return {f"{kind}/{weapon}": record(kind, weapon, case) for kind, weapon in COMBOS}
 
 
-# 控えの後に足した段落（F1。docs/plans/2026-10-24-fix-weapons.md の 11.6 の F1。控えは書き直さない）。控えの鍵の真偽は今までどおり全部照らし、
-# ここの 3 つは足した時の決めをそのまま書いて照らす: 型の義務の表の関数が書かせる段落（variant の sites_shape・unit_red と pin の
-# sites_per_test）が、続きの周でない場面で、その型の指示に出る
-ADDED_WHEN = ("rules_sites_at", "rules_sites_test", "rules_red_unit")
+# 控えの後に足した段落（F1・F2。docs/plans/2026-10-24-fix-weapons.md の 11.6 の F1・F2。控えは書き直さない）。控えの鍵の真偽は今までどおり
+# 全部照らし、ここの 4 つは足した時の決めをそのまま書いて照らす: 型の義務の表の関数が書かせる段落（variant の sites_shape・unit_red と
+# pin の sites_per_test と、変える段の型 tdd・variant・remove の change_named_or_gone）が、続きの周でない場面で、その型の指示に出る
+ADDED_WHEN = ("rules_sites_at", "rules_sites_test", "rules_red_unit", "rules_named")
 # 足した段落の文を付録 A に足した行（付録 A の A.9。test_weapon_assets.added_ids）→ その行の文が在る段落。控えの (c) から外し、段落が真の組に
 # だけ在ることを照らす
-ADDED_ROWS = {"S1": "rules_sites_at", "S2": "rules_sites_test", "S3": "rules_red_unit"}
+ADDED_ROWS = {"S1": "rules_sites_at", "S2": "rules_sites_test", "S3": "rules_red_unit", "S4": "rules_named"}
 
 
 def added_truth(kind: str, weapon: str) -> dict:
     live = kind != "resumed"
     return {"rules_sites_at": live and weapon == "variant", "rules_sites_test": live and weapon == "pin",
-            "rules_red_unit": live and weapon == "variant"}
+            "rules_red_unit": live and weapon == "variant", "rules_named": live and weapon in ("tdd", "variant", "remove")}
 
 
 class WriterPromptsKeptCase(unittest.TestCase):

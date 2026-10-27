@@ -144,6 +144,7 @@
         "rules_sites_at",
         "rules_sites_test",
         "rules_red_unit",
+        "rules_named",
         "policy",
         "no_policy",
         "request",
@@ -254,6 +255,9 @@
           "type": "boolean"
         },
         "rules_red_unit": {
+          "type": "boolean"
+        },
+        "rules_named": {
           "type": "boolean"
         },
         "policy": {
