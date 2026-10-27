@@ -308,11 +308,12 @@ def reply_named(place, repo, rev: str, reply) -> list:
 
 
 def unit_facts(place, repo, rev: str, key: str, weapon: str, rows: list, *, order: dict, base, cases, declared=(), evidence=None,
-               record: str = "", outcomes=None, round_: int = 1) -> dict:
+               record: str = "", outcomes=None, round_: int = 1, named=None) -> dict:
     """単位 key（型 weapon）の事実（上の FACTS）。rows は返答の changes のうちその単位の行、order はその型の注文、evidence は返答の evidence
     （kinds の行は単位に分けない。named の行は unit_key で単位に分ける）、record は今の段の輪の記録のファイル（tdd の単位の名指しを読む。
     無ければ空）。cases は受け付けが走らせた回の結末（keep の居なくなった試験と、変える段の after）。outcomes は受け付けが全部の単位の名指しで
-    引いた起点の木の結末（accept_problems。引けなければ None）で、その単位の名指しの分を事実 before にする（ここは実行器を起こさない）。round_ は守りのテストを読む受け付けの周"""
+    引いた起点の木の結末（accept_problems。引けなければ None）で、その単位の名指しの分を事実 before にする（ここは実行器を起こさない）。round_ は守りのテストを読む受け付けの周。named は
+    呼び手が unit_named で集めたその単位の名指し（accept_problems が渡す。None なら record と round_ からここで集める）"""
     import baseline_red   # lib/
     import impact   # lib/
     from src import common, rules, scope
@@ -327,10 +328,13 @@ def unit_facts(place, repo, rev: str, key: str, weapon: str, rows: list, *, orde
     kind_by_path = {p: rules.kind_of(p) for p in files}
     unit = next((u for u in order.get("units") or [] if isinstance(u, dict) and u.get("key") == key), {})
     cq = unit.get("class_query") if isinstance((unit.get("class_query") or {}).get("how"), dict) else None
-    loop = common.load_record(record) if record and pathlib.Path(record).is_file() else {}
-    named, mine, after, removes, gone = [], {}, {}, [], []
-    if box_of(weapon) == "change":   # 変える段の箱の義務の事実（ほかの箱は読まないので引かない）
-        named = unit_named(key, weapon, order, evidence, loop, _guard_ids(place, round_))
+    mine, after, removes, gone = {}, {}, [], []
+    if box_of(weapon) != "change":
+        named = []
+    else:   # 変える段の箱の義務の事実（ほかの箱は読まないので引かない）
+        if named is None:
+            loop = common.load_record(record) if record and pathlib.Path(record).is_file() else {}
+            named = unit_named(key, weapon, order, evidence, loop, _guard_ids(place, round_))
         if named:
             mine = None if outcomes is None else {t: outcomes[t] for t in named if t in outcomes}
         if named and cases is not None:
@@ -354,7 +358,7 @@ def accept_problems(place, repo, rev: str, reply, *, cases=None, record: str = "
     """共通の受け付けが型の義務の表で照らした問題の [(単位, 文)]（下書き 2.3・2.4。PR A の表は static・tidy・pin・remove の物）。
     型は注文の索引 orders.json の weapons（注文の無い置き場は照らさない）で、義務は単位の行の checked_as（裁定の後の直しの注文の、照らしに
     使う元の型。下書き 4.1 の 6）が在ればその型で引く（tdd から来た単位に variant の義務を当てない）。cases は受け付けが走らせた回の結末の
-    行（keep の箱の居なくなった試験）。round_ は受け付けの周（事後の関門 gates.problems と同じ周を渡す）。変える段の単位の名指しは先に
+    行（keep の箱の居なくなった試験）。round_ は守りのテストを読む凍結した欄の周（今の board.accept_reply は渡さず、事後の関門 gates.problems と同じ既定の 1）。変える段の単位の名指しは先に
     全部集め、起点の木の結末 before を gates.named_before の 1 回で引く（実行器を単位の数だけ起こさない）"""
     from src import basecase, common, gates, orders
     weapons = orders.weapons(place)
@@ -373,14 +377,14 @@ def accept_problems(place, repo, rev: str, reply, *, cases=None, record: str = "
     todo = [(k, rows, checked.get(k) or weapons[k]) for k, rows in by.items() if table_of(checked.get(k) or weapons[k])]
     loop = common.load_record(record) if record and pathlib.Path(record).is_file() else {}
     guards = _guard_ids(place, round_)
-    named = _ids([t for k, _, w in todo if box_of(w) == "change"
-                  for t in unit_named(k, w, docs.get(weapons[k]) or {}, evidence, loop, guards)])
+    by_unit = {k: unit_named(k, w, docs.get(weapons[k]) or {}, evidence, loop, guards) for k, _, w in todo if box_of(w) == "change"}
+    named = _ids([t for ts in by_unit.values() for t in ts])
     exe = str((base or {}).get("exe") or "")
     before = (gates.named_before(place, repo, rev, exe, named, pathlib.Path(place) / "duties") or None) if named and exe else None
     out = []
     for k, rows, w in todo:
         facts = unit_facts(pathlib.Path(place), repo, rev, k, w, rows, order=docs.get(weapons[k]) or {}, base=base, cases=cases,
-                           declared=declared, evidence=evidence, record=record, outcomes=before, round_=round_)
+                           declared=declared, evidence=evidence, outcomes=before, named=by_unit.get(k, []))
         out += [(k, t) for t in dict.fromkeys(check(w, facts))]
     return out
 
