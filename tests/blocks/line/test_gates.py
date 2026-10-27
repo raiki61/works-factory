@@ -286,7 +286,7 @@ def final_got(final, **over) -> dict:
                     "r4": {"status": "pass", "reason": ""}, "premise_check": None},
            "questions": [], "spec_changed": [], "spec_unchecked": False, "objection": "", "rejudge_verdict": "", "rejudge": [],
            "split": "", "unproven": [], "amend": [], "delta": [], "stuck": [], "closure": [], "tests_left": [], "gates": [], "always": [],
-           "beside_unread": [], "allowed_tests": [], "allowed_untouched": 0, "removed_tests": [], "untested": [], "structure_missing": "", "sealed": True, "seal_reason": "",
+           "beside_unread": [], "allowed_tests": [], "allowed_untouched": 0, "removed_tests": [], "untested": [], "unsatisfied": [], "structure_missing": "", "sealed": True, "seal_reason": "",
            "hash": "h", "deleted": [], "sealed_diff": "", "fenced": [], "after": [], "passes": [], "r2_inputs": [], "converge": [],
            "parallel_after": None, "held": [], "answered": [], "unmatched": [], "unread_holds": [], "lost_ties": [], "unread": []}
     return {**got, **over}
@@ -374,6 +374,19 @@ class AskFinalCase(unittest.TestCase):
         self.assertIn(f"  - src/a.py（code。{self.f.CODE_UNTESTED}）", self.f.final_text(code, [], RUN))
         self.assertTrue(self.ask(code, mode="when_needed")["open"])
         self.assertFalse(self.ask(code, mode="protected_only")["open"])
+
+    def test_unsatisfied_dependencies_are_named_in_a_section_that_never_opens(self):
+        """F3: 守れなかった依存（fixed の groups の行の unsatisfied）は節に対を名で並べる。止めにせず、開ける理由に数えない。無ければ節が出ない"""
+        self.assertNotIn(self.f.UNSATISFIED_HEAD, self.f.final_text(final_got(self.f), [], RUN))
+        rows = self.f.unsatisfied_rows([{"group_id": "g1", "unsatisfied": [{"before": "u1", "after": "u2"}]},
+                                        {"group_id": "g2"}, "壊れた行"])
+        self.assertEqual(len(rows), 1)
+        got = final_got(self.f, unsatisfied=rows)
+        text = self.f.final_text(got, [], RUN)
+        self.assertIn(f"## {self.f.UNSATISFIED_HEAD}（1 件", text)
+        self.assertIn("組 g1: 単位 u1 → u2", text)
+        self.assertEqual(self.f.final_needs(got), [])
+        self.assertFalse(self.ask(got, mode="when_needed")["open"])
 
     def test_protected_only_ignores_other_reasons(self):
         self.assertFalse(self.ask(final_got(self.f, tests_ok=False), mode="protected_only")["open"])
