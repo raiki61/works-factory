@@ -1216,6 +1216,16 @@ nodes:
               uncompared: {type: array, items: {type: string}}
               # 確かめ直しの test_cmd の赤を、組を外した木でも赤（前から赤か環境）か走らせ直しで緑（揺れ）と見て戻す理由にしなかった文（戻せた組だけ。report に 1 行ずつ。#855）
               test_cmd_notes: {type: array, items: {type: string}}
+              # 計画の依存で前に直すはずの単位 before が、型を回す順で後の単位 after より後に回った対（組の子の注文の索引の unsatisfied。止めにせず、line の最後の承認の本文が名で出す）
+              unsatisfied:
+                type: array
+                items:
+                  type: object
+                  additionalProperties: false
+                  required: [before, after]
+                  properties:
+                    before: {type: string}
+                    after: {type: string}
               # 合わせのループの結末（join が確かめ直しの赤で戻した組と字で当たらなかった組だけ。後者は backed_out を持たない）: 合わせ役が直して当てた（repaired）か、申し出へ回した（parked）か
               clash:
                 type: object
