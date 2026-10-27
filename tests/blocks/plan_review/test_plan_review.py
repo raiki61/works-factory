@@ -22,7 +22,7 @@ from tests.blocks.plan_review import values as v
 BLOCK = kit.BLOCKS / "plan-review"
 YAML = BLOCK / "works-factory-plan-review.yaml"
 PORTS = ["proposal", "plan", "proposal_file", "fields", "judgment", "purpose", "design", "design_why", "world_rows", "means", "structure", "ripple", "prior",
-         "tree", "excluded", "policy", "recorded", "request", "review_rev", "diff_base", "ruling", "conflicts", "lang"]
+         "tree", "excluded", "policy", "recorded", "request", "review_rev", "diff_base", "ruling", "conflicts", "lang", "theme_doc"]
 RETURNS = ["ok", "status", "form", "round", "reason", "holes", "blocks", "pass", "asks", "deviations", "replan", "gave_up", "reads",
            "report"]
 RECORDER = kit.ROOT / "bin" / "_lib" / "record-read.py"
@@ -636,12 +636,13 @@ class YamlCase(unittest.TestCase):
         got = nodes()
         self.assertEqual(got["review-loop"]["loop_group"]["max_iterations"], rolekit.NET_AFTER)
         self.assertEqual(got["text-loop"]["loop_group"]["max_iterations"], rolekit.GIVE_UP_AFTER)
-        for loop in ("review-loop", "text-loop"):
+        self.assertEqual(got["theme-loop"]["loop_group"]["max_iterations"], rolekit.NET_AFTER)
+        for loop in ("review-loop", "text-loop", "theme-loop"):
             self.assertIs(got[loop]["loop_group"]["fresh_context"], False)
 
     def test_loop_bodies_are_chains_of_one_node_per_layer(self):
         """会話を続ける輪の中で同じ層に 2 つの node を並べない（並んだ層は会話を切る。#571・Archon の落とし穴）"""
-        for loop in ("review-loop", "text-loop"):
+        for loop in ("review-loop", "text-loop", "theme-loop"):
             body = {n["id"]: n for n in nodes()[loop]["loop_group"]["nodes"]}
             layer = {}
             for nid, node in body.items():
@@ -652,13 +653,14 @@ class YamlCase(unittest.TestCase):
     def test_conversation_keys(self):
         """1 回目の役は context: fresh、出し直しの役と方針の文の役は context を書かない（会話の続き）"""
         got = nodes()
-        for nid in ("review", "review-tree"):
+        for nid in ("review", "review-tree", "review-theme"):
             self.assertEqual(got[nid].get("context"), "fresh")
-        for nid in ("review-fix", "review-tree-fix", "review-text"):
+        for nid in ("review-fix", "review-tree-fix", "review-text", "review-theme-fix"):
             self.assertNotIn("context", got[nid])
-        for nid in ("review", "review-fix", "review-tree", "review-tree-fix", "review-text"):
+        preps = {"review-text": "text-prep", "review-theme": "theme-prep", "review-theme-fix": "theme-prep"}
+        for nid in ("review", "review-fix", "review-tree", "review-tree-fix", "review-text", "review-theme", "review-theme-fix"):
             with self.subTest(nid):
-                prep = "review-fix-prep" if nid.endswith("-fix") else "text-prep" if nid == "review-text" else "review-prep"
+                prep = preps.get(nid) or ("review-fix-prep" if nid.endswith("-fix") else "review-prep")
                 self.assertEqual(got[nid]["prompt"], f"${prep}.output.prompt")
                 self.assertEqual(got[nid]["model"], "@wf-plan-review")
                 self.assertEqual(got[nid]["retry"], {"max_attempts": 2, "on_error": "all"})
@@ -713,7 +715,7 @@ class YamlCase(unittest.TestCase):
     def test_resubmit_formats_equal_the_first_role(self):
         """#832: 出し直しの役の型は 1 回目の役の型と同じ（違うと会話の続きの最初の要求でキャッシュが効かない）"""
         got = nodes()
-        for base, fix in (("review", "review-fix"), ("review-tree", "review-tree-fix")):
+        for base, fix in (("review", "review-fix"), ("review-tree", "review-tree-fix"), ("review-theme", "review-theme-fix")):
             with self.subTest(fix):
                 self.assertEqual(got[fix]["output_format"], got[base]["output_format"])
                 launch = lambda node: {k: x for k, x in node.items()  # noqa: E731
@@ -733,10 +735,29 @@ class YamlCase(unittest.TestCase):
         self.assertEqual(text["required"], ["faces", "shrink", "reason"])
         self.assertEqual(got["review-text"]["allowed_tools"], ["Read", "Grep", "Glob", "WebSearch", "WebFetch"])
 
+    def test_theme_format_is_the_text_format_plus_resolved(self):
+        """形 theme の役の型は形 text の型に往復の欄 resolved を足した物。根の欄は要ると書かない（出し直しの役と同じ型。#832）"""
+        converge, _, _ = libs()
+        got = nodes()
+        theme, text = got["review-theme"]["output_format"], got["review-text"]["output_format"]
+        self.assertEqual({k: x for k, x in theme["properties"].items() if k != converge.RESOLVED}, text["properties"])
+        self.assertEqual(trimmed.without_trimmed(theme["properties"][converge.RESOLVED]), converge.RESOLVED_SCHEMA)
+        self.assertEqual(theme["required"], [])
+        self.assertEqual(got["review-theme"]["allowed_tools"], ["Read", "Grep", "Glob", "WebSearch", "WebFetch"])
+
+    def test_theme_loop_is_waited_for(self):
+        """読んだ証拠と出口は形 theme の輪も待つ（trigger_rule: all_done なので、待たないと輪の前に回る）。形 plan の輪は形 theme で回らない"""
+        got = nodes()
+        for nid in ("review-reads", "finish"):
+            self.assertIn("theme-loop", got[nid]["depends_on"], nid)
+        self.assertIn("form != 'theme'", got["review-loop"]["when"])
+        for nid in ("intake", "finish"):
+            self.assertIn("theme", got[nid]["output_format"]["properties"]["form"]["enum"], nid)
+
     def test_formats_use_only_known_keywords(self):
         files = kit.load("plan-review", "files")
         import ports
-        for nid in ("review", "review-fix", "review-tree", "review-tree-fix", "review-text"):
+        for nid in ("review", "review-fix", "review-tree", "review-tree-fix", "review-text", "review-theme", "review-theme-fix"):
             with self.subTest(nid):
                 self.assertEqual(ports.unknown_keywords(files.node_schema(nid)), [])
                 self.assertEqual(files.node_schema(nid), nodes()[nid]["output_format"], "node_schema は YAML の型をそのまま読む")
@@ -746,7 +767,7 @@ class YamlCase(unittest.TestCase):
         """役の返りの穴の種類は、断片 checks の「What to look at」の 8 つと同じ並び"""
         text = (BLOCK / "prompts" / "parts" / "checks.md").read_text(encoding="utf-8")
         looked = re.findall(r"^\d\. \*\*[^*]+\*\* \(kind=(\w+)\)", text, re.M)
-        for nid in ("review", "review-text"):
+        for nid in ("review", "review-text", "review-theme"):
             with self.subTest(nid):
                 self.assertEqual(nodes()[nid]["output_format"]["properties"]["faces"]["items"]["properties"]["kind"]["enum"], looked)
         self.assertEqual(len(looked), 8)

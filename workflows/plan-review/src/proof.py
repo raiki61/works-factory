@@ -2,11 +2,13 @@
 
 この include の審査の役が、機械が渡したパス（材料のファイル review-material-<n>.md と方針の写し）を読んだかを lib/reads の collect で
 集め、place に reads-<役>.json と索引を書く。記録は入口が intake.json を書いた時刻から後の、材料のファイルを読んだ session の行で切る
-（材料のファイルはこの役だけに渡す物）。形 replan は役の名を reads.role_key の案の直しの名にする。形 text は材料のファイルが無いので、
+（材料のファイルはこの役だけに渡す物）。形 replan は役の名を reads.role_key の案の直しの名にする。形 theme は材料のファイルの代わりに
+設計の案の写し（files.THEME_COPY）を目印にする。形 text は材料のファイルが無いので、
 方針の写しを渡した時だけ、その写しを目印に集める（渡したパスが無ければ索引に訳だけを書く）。木の往復は、束ね役の Agent の起動の数と
 型ごとの数を、書いた下請けの項目の材料のファイルの数と並べて trace に AGENT_OP で残す（拒まない。測る）。受け付けの条件にしない。
 
 - collect(place, log, repo) -> {ok: True, missing, index_file}（scripts/review_reads.py が lib/reads.guarded で包む）
+- role(doc) -> (役の名, 案の直しか): intake.json の形から読んだ証拠の役の名を引く（scripts/review_reads.py の owner も同じ）
 - evidence(place) -> (読んだ証拠のパスか None, 欠けたパスの並び, 集める node が落ちた訳): 出口が返りと報告の行に使う
 """
 from __future__ import annotations
@@ -24,10 +26,12 @@ AGENT_OP = "plan_review_agents"   # 下請けの起動の数の trace の行（�
 NOTHING_HANDED = "機械が渡したパスが無い（方針の写しの無い形 text は、指示に全部を貼る）"
 
 
-def _role(doc: dict) -> tuple[str, bool]:
-    """(役の名, 案の直しか)"""
+def role(doc: dict) -> tuple[str, bool]:
+    """(役の名, 案の直しか)。doc は intake.json の中身（scripts/review_reads.py も同じ名で引く）"""
     if doc.get("form") == "text":
         return files.TEXT_READS_ROLE, False
+    if doc.get("form") == "theme":
+        return files.THEME_READS_ROLE, False
     return files.READS_ROLE, doc.get("form") == "replan"
 
 
@@ -36,17 +40,19 @@ def collect(place, log, repo) -> dict:
     doc = jsonfile.read_or(place / files.INTAKE)
     if not isinstance(doc, dict):
         raise ValueError(f"入口の控え {place / files.INTAKE} が無いか読めない")
-    role, again = _role(doc)
+    role_name, again = role(doc)
     since = reads.stamp((place / files.INTAKE).stat().st_mtime)
     materials = sorted(str(p) for p in place.glob(files.MATERIAL.format(n="*")))
+    if doc.get("form") == "theme" and (place / files.THEME_COPY).is_file():
+        materials = [str(place / files.THEME_COPY)]
     policy = [doc["policy_copy"]] if doc.get("policy_copy") else []
     own = materials or policy
     index_name = reads.index_name(files.READS_ROLE, again)
     if not own:
-        out = jsonfile.write(place / index_name, {reads.role_key(role, again): None, reads.INDEX_WHY: NOTHING_HANDED})
+        out = jsonfile.write(place / index_name, {reads.role_key(role_name, again): None, reads.INDEX_WHY: NOTHING_HANDED})
         return {"ok": True, "missing": [], "index_file": str(out)}
-    got = reads.collect(place, role, [*materials, *policy], log, own=own, since=since, repo=repo, replan=again)
-    out = jsonfile.write(place / index_name, {reads.role_key(role, again): got["reads_file"]})
+    got = reads.collect(place, role_name, [*materials, *policy], log, own=own, since=since, repo=repo, replan=again)
+    out = jsonfile.write(place / index_name, {reads.role_key(role_name, again): got["reads_file"]})
     if doc.get("tree"):
         rows, why = got["records"], got["sources"]["why"]
         kinds = dict(collections.Counter(str(t or "") for t in reads.tool_inputs(rows, "Agent")))

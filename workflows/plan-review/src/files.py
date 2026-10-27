@@ -20,6 +20,7 @@ import worldmark    # lib/
 
 REVIEW_NODE = "p2.plan_review"          # 審査の受け付けの名（却下の控えの名）
 TEXT_NODE = "p2.plan_review.text"       # 形 text の受け付けの名
+THEME_NODE = "p2.plan_review.theme"     # 形 theme の受け付けの名
 # 審査の役（review）と束ね役（review-tree）の答えに要る根の欄。役の型（YAML の output_format）は出し直しの役と同じ形にするので
 # 根の欄を要ると書かず、受け付けが rolekit.resubmitted で確かめる（#832）
 REVIEW_REQUIRED = ("faces", "shrink", "reason")
@@ -32,6 +33,7 @@ SHORT_HEAD = "足りない: "               # 入力が足りない時の faces_
 # ---------------------------------------------------------------- place のファイル
 INTAKE = "intake.json"
 INTAKE_ERROR = "intake-error.json"
+THEME_COPY = "theme-design.md"          # 形 theme で審査する設計の案の md の写し（入力 theme_doc から入口が写す）
 JUDGMENT = "judgment.json"
 EXCLUDED = "excluded.json"
 WORLD_DIR = "world"
@@ -61,17 +63,18 @@ REPLAN = "replan.json"
 REPLAN_GAVE_UP = "replan-gave-up.json"
 CRASH = "crash.json"
 FINISH = "finish.json"
-# 読んだ証拠（lib/reads が名を組む。役の名は形 plan・replan の審査の役と形 text の役。形 replan は reads.role_key で頭に replan-）
+# 読んだ証拠（lib/reads が名を組む。役の名は形 plan・replan の審査の役と形 text・theme の役。形 replan は reads.role_key で頭に replan-）
 READS_ROLE = "plan-review"
 TEXT_READS_ROLE = "plan-review-text"
+THEME_READS_ROLE = "plan-review-theme"
 READS_FILES = tuple(reads.evidence_name(reads.role_key(role, again)) for role, again in
-                    ((READS_ROLE, False), (READS_ROLE, True), (TEXT_READS_ROLE, False)))
+                    ((READS_ROLE, False), (READS_ROLE, True), (TEXT_READS_ROLE, False), (THEME_READS_ROLE, False)))
 READS_INDEXES = (reads.index_name(READS_ROLE), reads.index_name(READS_ROLE, True))
 # 読んだ証拠を集める node が落ちた時に lib/reads.guarded が置く記録（名に時刻が入るので、名の型で引く）
 READS_FAILED = tuple(name.removesuffix(".json") + "-failed-*.json" for name in READS_FILES)
 # 組んだ指示（prompt.emit が書く）の node の id
-PROMPT_NODES = ("review", "review-fix", "review-tree", "review-tree-fix", "review-text")
-OWN_FILES = (INTAKE, INTAKE_ERROR, JUDGMENT, EXCLUDED, DESIGN, RIPPLE, FIELDS, TRACE, CONVERGE, PRECEDENT_CHECKS, TREE_STATE,
+PROMPT_NODES = ("review", "review-fix", "review-tree", "review-tree-fix", "review-text", "review-theme", "review-theme-fix")
+OWN_FILES = (INTAKE, INTAKE_ERROR, THEME_COPY, JUDGMENT, EXCLUDED, DESIGN, RIPPLE, FIELDS, TRACE, CONVERGE, PRECEDENT_CHECKS, TREE_STATE,
              REVIEW, FACE_MARKS, PASS, REPLAN, REPLAN_GAVE_UP, CRASH, FINISH, worldmark.COPY_STATE, worldmark.COPY_MEANS, structmark.COPY_FILE,
              WORLD_COPY, STRUCTURE_ROWS, *READS_FILES, *READS_INDEXES)
 OWN_DIRS = (ITEMS_DIR, ANSWERS_DIR, WORLD_DIR, STRUCTURE_DIR)
