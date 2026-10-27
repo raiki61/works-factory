@@ -1343,6 +1343,48 @@ class ReadStagesCase(unittest.TestCase):
             self.assertIsNone(stages["wr-pin"][1])
 
 
+class UnsatisfiedReachesTheGroupRowCase(unittest.TestCase):
+    """F3: 計画の依存で前に直すはずの単位が型の順で後に回る対（orders.unsatisfied）が、orders.json → 読み口 orders.unsatisfied_of →
+    group_result の欄 unsatisfied → join_rows の組の行へ名で出る。逆らわない計画では組の行に欄を置かない"""
+
+    def setUp(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.place = pathlib.Path(tmp.name)
+        from src import board, orders
+        self.board, self.orders = board, orders
+
+    def run_to_row(self, weapons: dict) -> dict:
+        import planmarks
+        fields = [{"unit_keys": ["u1"]}, {"unit_keys": ["u2"], "depends_on": [{"unit": "u1", "receives": ["a.py"]}]}]
+        planmarks.save(self.place, 1, fields)
+        keys = ["u1", "u2"]
+        sequence = [w for w in self.orders.ORDER_SEQUENCE if w in weapons.values()]
+        (self.place / "orders.json").write_text(json.dumps({
+            "sequence": sequence, "weapons": weapons, "stage": 1, "since": "",
+            "unsatisfied": self.orders.unsatisfied(self.place, keys, weapons, sequence)}), encoding="utf-8")
+        result = self.board.group_result({"group_id": "g1", "unit_ids": keys}, start_tree="t", end_tree="t", tdd=None,
+                                         unsatisfied=self.orders.unsatisfied_of(self.place))
+        rows, _ = self.board.join_rows([{"group_id": "g1", "unit_ids": keys}], {"g1": (result, True, "")})
+        return rows[0]
+
+    def test_pair_against_the_writer_order_reaches_the_group_row(self):
+        row = self.run_to_row({"u1": "variant", "u2": "static"})
+        self.assertEqual(row["unsatisfied"], [{"before": "u1", "after": "u2"}])
+
+    def test_pair_along_the_writer_order_leaves_no_field(self):
+        row = self.run_to_row({"u1": "static", "u2": "variant"})
+        self.assertNotIn("unsatisfied", row)
+
+    def test_reader_keeps_only_string_pairs(self):
+        self.assertEqual(self.orders.unsatisfied_of(self.place), [], "orders.json が無ければ空")
+        (self.place / "orders.json").write_text(json.dumps({"unsatisfied": [
+            {"before": "a", "after": "b"}, {"before": 1, "after": "b"}, "x", {"before": "c"}]}), encoding="utf-8")
+        self.assertEqual(self.orders.unsatisfied_of(self.place), [{"before": "a", "after": "b"}])
+        (self.place / "orders.json").write_text("{", encoding="utf-8")
+        self.assertEqual(self.orders.unsatisfied_of(self.place), [])
+
+
 def load_tests(loader, tests, pattern):
     """借りた tg.GroupChildScriptsCase の試験を回し直さない（AcceptWiringCase はこのクラスに書いた試験だけ）"""
     suite = unittest.TestSuite()
