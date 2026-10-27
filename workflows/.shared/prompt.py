@@ -31,6 +31,8 @@ md の書き方:
 - 形: {"node": node_id, "block": 呼んだ block のフォルダの名, "md": {"prompt": "prompts/<node_id>.md", "system"?: "prompts/<node_id>.system.md"}
   （block からの相対パス。組んだ欄ごと）, "values": 差し込み口の値（字か整数）, "when": 段落の選び（when=None は {}）}。
   この values と when で組み直すと、同じ <node_id>-prompt-<n>.md（と system）が字のまま組み上がる
+- run の置き場を使い直すと、前の試みの <node_id>-viewer-values-<n>.json が残りうる。今の run の記録は、同じ <n> の
+  <node_id>-prompt-<n>.md が在る物だけ。見る道具は prompt の側から引く
 
 落ちる時（PromptError。ValueError の子）: md か断片が無い・断片が自分を差し込む・値の無い差し込み口が在る（選ばれない段落の中も、
 system の md の中も数える）・使われない値を渡された・when の名がどの md の if にも無い・md の if の名が when に無い・if と end が
