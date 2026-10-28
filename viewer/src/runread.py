@@ -109,16 +109,21 @@ def connect(db: Path):
 
 
 def runs(db: Path) -> list[dict]:
-    """親の run の一覧（新しい順）。行は id・グラフの名・状態・止まっている承認ノード・始め・かかった秒・費用・落ちの訳の頭の 1 行"""
+    """親の run の一覧（新しい順）。行は id・グラフの名・状態・止まっている承認ノード・始め・かかった秒・費用・落ちの訳の頭の 1 行。
+    始めとかかった秒は、DB の出来事の最初と最後の時刻から出す（承認の答えで起き直した run は、run の行の始めが起き直した時刻に
+    書き換わる。packages/core/src/db/workflow-run-resume.ts）。出来事の無い run は run の行の始めと終わり"""
     with connect(db) as con:
         rows = con.execute(f"select id, workflow_name, status, started_at, completed_at, metadata from {RUN_TABLE} "
                            f"where parent_run_id is null {NEWEST}").fetchall()
+        spans = {rid: (first, last) for rid, first, last in con.execute(
+            f"select workflow_run_id, min(created_at), max(created_at) from {EVENT_TABLE} group by workflow_run_id")}
         waiting = _waiting(con)
         errors = {rid: _error(data) for rid, data in con.execute(
             f"select workflow_run_id, data from {EVENT_TABLE} where event_type = ?", (FAILED_EVENT,))}
     out = []
     for rid, name, status, started, completed, metadata in rows:
         meta = _json(metadata)
+        started, completed = spans.get(rid) or (started, completed)
         out.append({"id": rid, "short": rid[:8], "graph": name, "status": status, "waiting": waiting.get(rid, []),
                     "started": started, "seconds": _seconds(started, completed), "cost": runlog.number(meta.get(TOTAL_COST)),
                     "error": errors.get(rid, "")})
@@ -140,7 +145,8 @@ def pick(db: Path, wanted: str = "") -> str:
 
 
 def run(db: Path, run_id: str) -> dict:
-    """run と子の run（workflow: のノードが起こした物。DB の parent_run_id と metadata の parent_node_id で辿る）の記録"""
+    """run と子の run（workflow: のノードが起こした物。DB の parent_run_id と metadata の parent_node_id で辿る）の記録。
+    始めとかかった秒は、子の run を含む出来事の最初の始めと最後の終わりから出す（runs と同じ訳）"""
     with connect(db) as con:
         top = _row(con, run_id)
         if top is None:
@@ -164,8 +170,9 @@ def run(db: Path, run_id: str) -> dict:
                 todo.append((child["id"], prefix))
     meta = _json(top["metadata"])
     root = Path(top["output_root"]) if top["output_root"] else None
+    started, ended = _span(reader.events) or (top["started_at"], top["completed_at"])
     return {"id": run_id, "graph": top["workflow_name"], "status": top["status"], "live": top["status"] in LIVE,
-            "waiting": waiting.get(run_id, []), "started": top["started_at"], "seconds": _seconds(top["started_at"], top["completed_at"]),
+            "waiting": waiting.get(run_id, []), "started": started, "seconds": _seconds(started, ended),
             "cost": runlog.number(meta.get(TOTAL_COST)), "copy": str(copy(root, run_id)) if root else "",
             "children": reader.children, "events": sorted(reader.events, key=lambda e: (e["start"] or "", "/".join(e["tokens"]))),
             "skipped": reader.skipped, "checks": reader.checks, "missing_logs": reader.missing, "unread": reader.unread, "artifacts": reader.artifacts}
@@ -355,6 +362,12 @@ def _waiting(con) -> dict:
             if step in out.get(rid, []):
                 out[rid].remove(step)
     return {rid: names for rid, names in out.items() if names}
+
+
+def _span(events: list[dict]) -> tuple[str, str] | None:
+    """出来事の最初の始めと最後の終わり（終わりの無い出来事は始め）。出来事が無ければ None"""
+    times = [t for e in events for t in (e["start"], e["end"]) if t]
+    return (min(times, key=_time), max(times, key=_time)) if times else None
 
 
 def _error(data: str) -> str:

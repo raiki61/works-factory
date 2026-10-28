@@ -35,6 +35,8 @@
 ## 5 記録の読み（`src/runread.py`）
 
 - run の家の `archon-home/archon.db`（名は `isolate.DIRS`）を読むだけで開く。run の一覧は run の表の親の行（`parent_run_id` が空）だけを読み、ログは読まない。行は id・グラフの名・状態・止まっている承認ノード（状態が `paused` の run だけ。DB の `node_suspended` の後に終わりの無いノード。止めた・放棄した run は `node_completed` を書かずに `cancelled` になるので、状態で絞る）・始め・かかった秒・費用（metadata の `total_cost_usd`）・落ちの訳の頭の 1 行（DB の `workflow_failed`）。
+- run の始めとかかった秒は、run の行の始めと終わりでなく、出来事の最初と最後の時刻から出す（一覧は DB の出来事の表の `created_at`、選んだ run は子の run を含むログの出来事の始めと終わり）。承認の答えで起き直した run は、Archon が run の行の始めを起き直した時刻に書き換える（`packages/core/src/db/workflow-run-resume.ts`）ので、行の値では答えの後の数分しか出ない。出来事の無い run だけ行の値を使う。走り中の run は最後の出来事までの長さ。
+- 長さの丸め（ページ）: 頭の帯・一覧・大きな数は分を整数に（1 分未満は秒）、畳みの中は「分:秒」。同じ値はどの画面でも同じ丸めで出す。
 - 選んだ run の記録は、DB の行の `output_root` から `logs/<run>.jsonl` を読む。子の run は DB の `parent_run_id` と metadata の `parent_node_id` で辿り、子の出来事の道の頭に親のノードの道を足す。run の写しは `<output_root>/workflow-source/runs/<run>/project/.archon/workflows`。写しが無い run は今の木で読み、`shape_from` を `tree` にする。
 - 飛んだノード（`node_skipped`）は、道と飛んだ時刻（`time`）と訳（`cause`）を持つ。
 - 出来事はノードの起動（`execution.invocation.id`）ごとに 1 つ: 始めと終わり・状態（走り中・待ち・済み・落ち）・落ちた時の誤りの字（`node_error` の `error`）・費用（`accounting` が `node` の行だけ。束ねた行は数え直さない）・模型とトークンと往復の数・道具の呼び出し（`provider_event` の `tool_call` と `tool_call_update` を試み〔`attemptId`〕で結ぶ）・script と bash の出力の終わり（`exec_output`）・出力（DB の `node_completed` の `node_output`）と、出力が指す run の置き場の小さなファイル・その run の置き場の根（`artifacts`。日本語の写しが値の記録を引く。6.6）。
