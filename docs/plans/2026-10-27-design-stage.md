@@ -191,7 +191,7 @@ testcmd → start → gate-start
 ### 2.2 設計の段の並び（line に足す node）
 
 1. `theme-world`: `include: works-factory-world`。依頼の行 `[{where: "テーマ", text: <テーマの文>}]` で 1 度。返りの行を書き手と審査役に配る（keep-essence の 12・`step-up`）。
-2. `theme-blind`: `include: works-factory-independent-design`。目的の port にテーマの文（14 章の 2 で、目的の役を挟むかを詰める）、人が決めた前提に方針の文書と依頼の `answers`。書き手の案は渡さない（独立の守り。keep-essence の 9）。返りは審査役だけが読む。
+2. `theme-blind`: `include: works-factory-independent-design`。目的の port にテーマの文（14 章の 2 で、目的の役を挟むかを詰める）、人が決めた前提に方針の文書と依頼の `answers`。書き手の案は渡さない（独立の守り。keep-essence の 9）。返りは審査役だけが読む。T3（#898）は依頼の `answers` を渡さず、independent-design の port `answers` に起動の承認ノードの答えを渡す形にした（この箇条と違う。port の形が承認ノードの答えだけを受けるため。`docs/design/line.md` の 15 節）。
 3. `theme-rounds`: `loop_group`。本体は `theme-turn` → `theme` → `theme-review` → `theme-out` → `theme-talk` → `gate-theme`。`until_bash` は `theme-talk` の `done` だけを読む（E16）。`max_iterations` は `rounds.LIMIT`（20）と `talk.EMPTY_LIMIT`（2）の和の 22（今の `plan-rounds` と同じ数え。試験が和を突き合わせる）。
 4. `theme`（`include: works-factory-theme`）: 書き手の block（4 章）。前の周の設計の案・往復の記録・人の答えを受け、1 周分の設計の案を返す。
 5. `theme-review`（`include: works-factory-plan-review`）: 形 `theme`（5 章）。設計の案を描いた md・往復の記録・世界の解の行・独立設計の返り・方針を受け、穴を返す。

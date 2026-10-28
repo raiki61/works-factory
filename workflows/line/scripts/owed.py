@@ -11,7 +11,7 @@
 出力 {owed, why, recorded, stop_reason}。例外の時は偽・空の行と止めの語 works:line-script を返し、計画の往復へ進めない。
 
 入力（with:）: judgment・answer_ties・materials・world・decisions（判定のまとめの出力の pointer。null 可）・answer（起動の承認ノードの
-答え。null 可）・ports（$start.output.ports）。record（始めの記録の pointer）は在れば読む
+答え。null 可）・ports（$start.output.ports）・request（request-in の返り。依頼の答えはここから読む）。record（始めの記録の pointer）は在れば読む
 """
 import os
 import sys
@@ -28,8 +28,8 @@ def compute() -> dict:
     raw_decisions, raw_answer = os.environ.get("INPUTS_DECISIONS"), os.environ.get("INPUTS_ANSWER")
     raw_ports, raw_record = os.environ.get("INPUTS_PORTS"), os.environ.get("INPUTS_RECORD")
     from src import rounds
-    given = ports.parsed(raw_ports)
-    dealt = given if isinstance(given, dict) else {}
+    from src import descend
+    dealt = descend.dealt(ports.parsed(raw_ports), os.environ.get("INPUTS_REQUEST"))
     record = ports.json(raw_record, "start-record.schema.json") if ports.parsed(raw_record) is not None else None
     why = rounds.owed_why(lambda: ports.file(raw_judgment, "json(shared:judgment.schema.json)"),
                           lambda: ports.file(raw_ties, "json(shared:answer-ties.schema.json)"),

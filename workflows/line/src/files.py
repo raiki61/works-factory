@@ -15,6 +15,13 @@ carry の prior-failures-in.json・answer の gates/<承認ノード>.json・pol
 - TALK_ANSWERS: 設計の相談の承認ノードの答えの並び（design-turn が答えごとに書き直す。人が読む控え）
 - NOTES: 対話モードの run の人の指摘の受け箱（人が 1 行に 1 つ足していく字のファイル。line は読むだけで書かない。design-turn が周の頭で、
   前の周までに取った数より後の行を拾う）。TALK_ROUND: 往復ごとの設計の控え（design-talk が周の終わりに書き、在りかを告げる。人が読む）
+- THEME: テーマの写し（start がテーマの文か md の中身を固める。設計の段の書き手の port theme の先。3.3 節）。THEME_REQUEST: テーマを
+  1 行の依頼の行にした写し（start が書く。設計の段の頭の世界の解の port request の先）
+- THEME_CONVERGE: 設計の往復の記録（theme-out が周ごとに 1 行足して書き直す。形は PLAN_CONVERGE と同じ。事前審査の形 theme の port prior の先）。
+  THEME_TALK・THEME_ANSWERS・THEME_ROUND は PLAN_TALK・TALK_ANSWERS・TALK_ROUND の設計の段の物（PLAN_TALK に当たる写しは書かない
+  ので THEME_TALK は無い）
+- THEME_APPROVED: 承認された設計の案の md の写し・THEME_DESCENDED: 承認された設計の変える所を依頼の行にした依頼のファイル（theme-descend が書く）
+- THEME_NEXT_DIR: 計画の承認ノードで設計へ戻した時の、続きの run の材料の置き場（theme-return が書く。中のファイルは THEME_NEXT_*）
 - REPLAN_PRIOR: 案の直しの plan の port prior の先（after-fix が書く）
 - FINAL_GATE_MD: 開いた最後の承認ノードの文の控え
 - SECTIONS・FACTS: report に pointer で渡す 2 つの形（collect が書く。docs/design/line.md の 7 節）
@@ -31,6 +38,17 @@ PLAN_TALK = "plan-rounds/talk-{n}.json"
 TALK_ANSWERS = "gates/gate-design.json"
 NOTES = "talk/notes.txt"
 TALK_ROUND = "talk/round-{k}.md"
+THEME = "theme.md"
+THEME_REQUEST = "theme/world-request.json"
+THEME_CONVERGE = "theme-converge.json"
+THEME_ANSWERS = "gates/gate-theme.json"
+THEME_ROUND = "talk/theme-{k}.md"
+THEME_APPROVED = "theme/approved.md"
+THEME_DESCENDED = "theme/request.json"
+THEME_NEXT_DIR = "theme/next"
+THEME_NEXT_THEME = THEME_NEXT_DIR + "/theme.md"
+THEME_NEXT_REQUEST = THEME_NEXT_DIR + "/request.json"
+THEME_NEXT_COMMAND = THEME_NEXT_DIR + "/command.txt"
 REPLAN_PRIOR = "replan-prior.json"
 FINAL_GATE_MD = "gates/final-gate.md"
 SECTIONS = "report-in/sections.json"

@@ -18,7 +18,8 @@ policy_changed（方針の文書の変化の行を載せたか。answer-before-f
 合意を修正前の答えとして書き、報告は止めた答えの一言も出す。対話モードでない run は null）。材料の読みは src.asking.materials（設計の相談と同じ 1 か所）。
 
 入力（with:）: rounds（plan-rounds-out の got）・structure（structure-in の structure。構造の目の控えの pointer か null）・judge
-（judge-out の got）・record（始めの記録の pointer）・ports（start の配る値）
+（judge-out の got）・record（始めの記録の pointer）・ports（start の配る値）・
+request（request-in の返り。台帳の依頼の答えは src.descend.dealt で替えた配る値から読む）
 """
 import os
 import sys
@@ -37,17 +38,18 @@ QUESTION = "事前審査の 4 つの軸と人への問い。通すなら通す�
 
 def compute() -> dict:
     raw = {"rounds": os.environ.get("INPUTS_ROUNDS"), "structure": os.environ.get("INPUTS_STRUCTURE"),
-           "judge": os.environ.get("INPUTS_JUDGE"), "record": os.environ.get("INPUTS_RECORD"), "ports": os.environ.get("INPUTS_PORTS")}
+           "judge": os.environ.get("INPUTS_JUDGE"), "record": os.environ.get("INPUTS_RECORD"), "ports": os.environ.get("INPUTS_PORTS"),
+           "request": os.environ.get("INPUTS_REQUEST")}
     import gatemarks
-    from src import gates
+    from src import descend, gates
     from src.asking import materials
 
-    given = ports.parsed(raw["ports"]) or {}
+    given = descend.dealt(ports.parsed(raw["ports"]), raw["request"])
     unattended, design = bool(given.get("unattended")), bool(given.get("design_talk"))
     rounds = ports.picked(raw["rounds"], ROUNDS + TALKED, optional=TALKED)
     agreed = rounds["agreed"] if rounds is not None and isinstance(rounds["agreed"], dict) else None
     kw = materials(dict(rounds) if rounds is not None else None, structure_raw=raw["structure"], judge_raw=raw["judge"],
-                   record_raw=raw["record"], unattended=unattended, place=ports.place())
+                   record_raw=raw["record"], dealt=given, unattended=unattended, place=ports.place())
     got = gates.before_fix(dict(rounds) if rounds is not None else None, unattended_run=unattended, design=design, agreed=agreed, **kw)
     text = ""
     if got["open"]:

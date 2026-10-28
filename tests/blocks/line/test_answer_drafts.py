@@ -42,9 +42,9 @@ class AnswerDraftsCase(unittest.TestCase):
             judge["materials"] = self.put("judge/materials.json", materials)
         return {"judge": judge}
 
-    def drafts(self, returns=None, *, values=None, gates=None, record=None, unattended=False) -> list:
+    def drafts(self, returns=None, *, values=None, gates=None, unattended=False) -> list:
         with self.run.env():
-            return self.f.answer_drafts(values or {}, returns or {}, gates or {}, record or {}, unattended)
+            return self.f.answer_drafts(values or {}, returns or {}, gates or {}, unattended)
 
     def test_every_draft_is_marked(self):
         """下書きは全部 draft: true と出どころ source を持つ（依頼の入口 carry.parts が拒む印）"""
@@ -141,10 +141,10 @@ class AnswerDraftsCase(unittest.TestCase):
         drafts = self.drafts(returns)
         self.assertEqual([(d["question"], d["text"]) for d in drafts], [("parallel_pr", "")])
         self.assertIn("forge が無い", drafts[0]["note"])
-        answered = {"answers": [{"question": "parallel_pr", "text": "無い", "command": "gh pr list", "output": "[]"}]}
-        self.assertEqual(self.drafts(returns, record=answered), [])
-        unmeasured = {"answers": [{"question": "parallel_pr", "text": "無いはず"}]}
-        self.assertEqual(self.drafts(returns, record=unmeasured), [])
+        answered = {"request_answers": [{"question": "parallel_pr", "text": "無い", "command": "gh pr list", "output": "[]"}]}
+        self.assertEqual(self.drafts({**returns, "request_in": answered}), [])
+        unmeasured = {"request_answers": [{"question": "parallel_pr", "text": "無いはず"}]}
+        self.assertEqual(self.drafts({**returns, "request_in": unmeasured}), [])
 
     def test_material_with_its_question_is_drafted_once(self):
         """素材から立てた問いが台帳に在れば、素材の行は足さず問いの下書きだけ（出どころ origin が素材の名）"""

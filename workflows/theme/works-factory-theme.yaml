@@ -10,7 +10,7 @@ inputs:
   theme: {required: true, description: 'file: テーマの md（テーマの文・名指す設計書のセクション・始めに頼んだ調べものの結果を書いてよい）'}
   prior: {default: '', description: 'json(shared:plan-converge.schema.json): 往復の記録（前の周までの審査の穴と答え）。空は 1 周目'}
   prior_design: {default: '', description: 'json(shared:theme-design.schema.json): 前の周の設計の案。空は前の案が無い'}
-  answers: {default: '[]', description: 'json(human-answers.schema.json): 人の答えの行の配列 [{id, kind, text, ask?, pick?, from?}]。空の配列は答えが無い'}
+  answers: {default: '[]', description: 'json(shared:human-answers.schema.json): 人の答えの行の配列 [{id, kind, text, ask?, pick?, from?}]。空の配列は答えが無い'}
   world_rows: {default: '', description: 'jsonl(lib:world-row.schema.json): 世界の解の行の JSON Lines。空は行が無い'}
   policy: {default: '', description: 'file: 人の方針の文書の固めた写し。空は方針の文書が無い'}
   recorded: {default: '[]', description: 'json(shared:recorded.schema.json): 記録された方針の行の配列 [{source, name, text, lines?, alias?}]。空の配列は行が無い'}

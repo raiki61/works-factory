@@ -283,6 +283,9 @@ start:
     request_answers: []
     spec_table: ''
     routes: auto
+    theme: ''
+    theme_text: ''
+    theme_request: null
 fix-in:
   go: true
   no_fix: false

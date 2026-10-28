@@ -56,7 +56,7 @@ def intake(place, k: int, raw: dict) -> dict:
             got = _port("prior_design", lambda: ports.json(raw["prior_design"], "shared:theme-design.schema.json"))
             doc["prior_design"] = str(files.write_json(folder / files.PRIOR_DESIGN, got))
         if not _blank(raw.get("answers")):
-            doc["answers"] = _port("answers", lambda: ports.json(raw["answers"], "human-answers.schema.json"))
+            doc["answers"] = _port("answers", lambda: ports.json(raw["answers"], "shared:human-answers.schema.json"))
             ids = [a["id"] for a in doc["answers"]]
             if len(set(ids)) != len(ids):
                 raise ValueError(f"入力 answers: 人の答えの id が重なる（{', '.join(ids)}）")

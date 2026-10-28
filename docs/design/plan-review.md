@@ -950,13 +950,13 @@ bin/works-factory workflow run works-factory-plan-review --cwd <対象> \
 
 `depends_on: [intake]`・`when: "$intake.output.due == true && $intake.output.form == 'theme'"`・`max_iterations: 20`（`rolekit.NET_AFTER`）・`fresh_context: false`・`until_bash: done=$theme-accept.output.done; test "$done" = true`。`review-loop` の `when` に `&& $intake.output.form != 'theme'` を足した。本体は層ごとに 1 つの node の鎖:
 
-1. `theme-prep`（script `theme_prep.py`。`with: {prev: "$LOOP_PREV.theme-accept.output.ok"}`）: 出力 `{prompt, resubmit}`。前の周の受け付けが拒み（`prev` が偽）、受け付けが前の答えと出し直しを合わせた答えの控え（place の `candidate-p2.plan_review.theme.json`）が在れば（`rolekit.resubmitting`）`{prompt: "", resubmit: true}` だけを返し、無ければ 1 回目の役の指示（`prompts/review-theme.md`）を組む。役を起こす前の作業ツリーの姿（`accept.tree_state`。受け付けが「作業ツリーが役の前と同じ」を照らす元）を place の `review-tree-state.json`（`files.TREE_STATE`）に置く。
+1. `theme-prep`（script `theme_prep.py`。`with: {prev: "$LOOP_PREV.theme-accept.output.ok"}`）: 出力 `{prompt, resubmit}`。前の周の受け付けが拒み（`prev` が偽。1 回目は前の周が無く `prev` は空なので、拒みに当たらない）、受け付けが前の答えと出し直しを合わせた答えの控え（place〔この block が自分のファイルを書くフォルダ〕の `rolekit.candidate_path(place, files.THEME_NODE)`。名は受け付けの名 `files.THEME_NODE` から `rolekit` が組む）が在れば（`rolekit.resubmitting`）`{prompt: "", resubmit: true}` だけを返し、それ以外（1 回目・前の周が受け付けた・控えが無い）は 1 回目の役の指示（`prompts/review-theme.md`）を組む。役を起こす前の作業ツリーの姿（`accept.tree_state`。受け付けが「作業ツリーが役の前と同じ」を照らす元）を place の `review-tree-state.json`（`files.TREE_STATE`）に置く。
 2. `review-theme`（AI。`when: "$theme-prep.output.resubmit != true"`・`context: fresh`・`allowed_tools: [Read, Grep, Glob, WebSearch, WebFetch]`・起こし方の鍵は 1.3 と同じ）。
-3. `theme-fix-prep`（script `theme_fix_prep.py`。`depends_on: [theme-prep, review-theme]`・`trigger_rule: none_failed_min_one_success`・`when: "$theme-prep.output.resubmit == true"`）: 出力 `{prompt}`。出し直しの役の指示（`prompts/review-theme-fix.md`。却下の控え `rejects-p2.plan_review.theme.json` の最後の 1 件の理由と、合わせた答えの控えのパス）を組み、作業ツリーの姿を `review-tree-state.json` に置き直す。形 plan の `review-fix-prep` と同じ役目（出し直しの役の指示は出し直しの支度の節が組む。`tests/workflows/test_loop_sessions.py` の表 `RESUBMIT` が縛る）。
+3. `theme-fix-prep`（script `theme_fix_prep.py`。`depends_on: [theme-prep, review-theme]`・`trigger_rule: none_failed_min_one_success`・`when: "$theme-prep.output.resubmit == true"`）: 出力 `{prompt}`。出し直しの役の指示（`prompts/review-theme-fix.md`。却下の控え〔名は同じく `files.THEME_NODE` から `rolekit` が組む〕の最後の 1 件の理由と、合わせた答えの控えのパス）を組み、作業ツリーの姿を `review-tree-state.json` に置き直す。形 plan の `review-fix-prep` と同じ役目（出し直しの役の指示は出し直しの支度の節が組む。`tests/workflows/test_loop_sessions.py` の表 `RESUBMIT` が縛る）。
 4. `review-theme-fix`（AI。`prompt: "$theme-fix-prep.output.prompt"`・`depends_on: [theme-prep, theme-fix-prep, review-theme]`・`trigger_rule: none_failed_min_one_success`・`when: "$theme-prep.output.resubmit == true"`・`context` を書かない＝`review-theme` の会話の続き。型と起こし方は `review-theme` と同じ。#832）。
 5. `theme-accept`（script `theme_accept.py`。`depends_on: [review-theme, review-theme-fix]`・`trigger_rule: none_failed_min_one_success`・`with: {status_guarded: true, reply: {from: "$review-theme.output", if_skipped: null}, fix_reply: {from: "$review-theme-fix.output", if_skipped: null}}`）: 出力 `{ok, done, give_up, reason}`。
 
-下書きの 5.1.1 の node の並び（`theme-prep` → `review-theme`・`review-theme-fix` → `theme-accept`）に、`theme-fix-prep` を足した。初めの版は出し直しの指示も `theme-prep` が組んでいたが、頭が `resubmit` を返す輪は全部、出し直しの支度の節を持つ形に揃える決まり（`test_loop_sessions.py` の docstring。#571）に反して CI で落ちたので、形 plan と同じ形に直した。形 theme の筋書きは 1 往復目の通りだけなので、`review-theme-fix` の指示は `tests/blocks/plan_review/test_prompts.py` の表 `RENDERED` で照らす（7.1 の 3）。
+下書きの 5.1.1 の node の並び（`theme-prep` → `review-theme`・`review-theme-fix` → `theme-accept`）に、`theme-fix-prep` を足した。初めの版は出し直しの指示も `theme-prep` が組んでいたが、頭が `resubmit` を返す輪は全部、出し直しの支度の節を持つ形に揃える決まり（`test_loop_sessions.py` の docstring。#571）に反して CI で落ちたので、形 plan と同じ形に直した。形 theme の出し直しの役 `review-theme-fix` の指示は、形 plan と同じく筋書き `fixtures/theme-resubmit.stubs.yaml`（`theme-prep` だけを `resubmit: true` に差し替え、本当の `theme-fix-prep` が md から組む）で照らす（初めの版は試験の表 `RENDERED` で照らしていたが、形 plan の輪の照らし方に揃えて外した。issue #862 の PR T3）。
 
 ### 19.3 指示（`prompts/review-theme.md`・`review-theme-fix.md`・`parts/theme-checks.md`）
 
@@ -979,7 +979,6 @@ bin/works-factory workflow run works-factory-plan-review --cwd <対象> \
 
 ### 19.6 試験
 
-- `tests/blocks/plan_review/test_theme.py`: 入口（形の決め・写し・往復の番号・空の案）・指示（在りか・観点・独立設計・世界の解・前の往復・出し直し）・受け付け（形 text と同じ照らし・作業ツリー・出し直しの合わせ・網での諦め）・往復（行き先の欠け・`resolved` と挙げ直し・迷子と両方）・読んだ証拠の役の名。
-- `tests/blocks/plan_review/test_prompts.py` の `RENDERED`（`review-theme-fix`）。
-- `tests/blocks/plan_review/test_plan_review.py` の YAML の照らしに形 theme のループを足した（網の数・層の鎖・会話の鍵・型の同じ・待ち）。
-- 筋書き `fixtures/theme.stubs.yaml`（1 往復目の通り）。
+- `tests/blocks/plan_review/test_theme.py`: 入口（形の決め・写し・往復の番号・空の案）・指示（在りか・観点・独立設計・世界の解〔冒頭の語。port `world_rows` の行〕が指示に入る・前の往復・出し直し）・受け付け（形 text と同じ照らし・作業ツリー・出し直しの合わせ・網での諦め〔拒否の回数では諦めず、受け付けの網 `rolekit.NET_AFTER` 回目で諦める〕）・往復（行き先の欠け〔前の往復の答えの要る穴には、消えたとして `resolved` に鍵を書くか、今の返答の穴の行に挙げ直すかの行き先が要る（19.4 の受け付けの 4）。そのどちらも無い〕・`resolved` と挙げ直し・迷子〔挙げていない穴の鍵を `resolved` に書く〕と両方〔同じ鍵を `resolved` と block の穴の両方に書く〕）・読んだ証拠の役の名（形 theme の読んだ証拠が役の名 `plan-review-theme` で残り、渡したパスが設計の案の写しであること）。
+- `tests/blocks/plan_review/test_plan_review.py` の YAML の照らしに形 theme のループを足した（網の数〔輪の `max_iterations` が `rolekit.NET_AFTER`〕・層の鎖〔輪の本体の層ごとに node が 1 つ〕・会話の鍵〔1 回目の役は `context: fresh`、出し直しの役は会話の続き〕・型の同じ〔役の型は形 text の型に `resolved` を足した物〕・待ち〔出口 `finish` が形 theme の輪を待つ〕）。
+- 筋書き `fixtures/theme.stubs.yaml`（1 往復目の通り）と `fixtures/theme-resubmit.stubs.yaml`（出し直しの役の指示を本当の prep で組む）。
