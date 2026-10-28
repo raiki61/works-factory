@@ -4,12 +4,16 @@
 Claude Code の版は工場が止めていないので、記録の形は試験で照らせない（人が見る）。読まない型の行は型ごとに数えて返し、黙って落とさない。
 
 - find(projects, preview) -> run の記録の会話の id の頭（sessionPreview）に当たる記録のパス（無ければ None。Claude Code が消した古い記録は結べない）
-- read(path, keep) -> 1 本の会話。keep は同じ字を 1 つにして番号で指す関数（同じ system を会話ごとに持たない）
+- read(path, keep) -> 1 本の会話。keep は同じ字を 1 つにして番号で指す関数（同じ system を会話ごとに持たない）。system と道具の一覧
+  （api-request-shape）と添え書き（api-request-blob）は、その型の行が記録に在ったかを recorded に持つ（無ければページは欄を空にせず
+  「記録に無い」と出す。普通の利用者の Claude Code でこの 2 つの型が出るかは確かめていない）
 """
 import json
 from pathlib import Path
 
-READ_TYPES = ("user", "assistant", "api-request-shape", "api-request-blob", "cost-state")
+SHAPE = "api-request-shape"
+BLOB = "api-request-blob"
+READ_TYPES = ("user", "assistant", SHAPE, BLOB, "cost-state")
 REMINDER = "<system-reminder>"
 
 
@@ -20,7 +24,8 @@ def find(projects: Path, preview: str) -> Path | None:
 
 
 def read(path: Path, keep) -> dict:
-    got = {"system": [], "tools": [], "inject": [], "prompt": None, "turns": [], "seq": [], "cost": None, "usage": None, "unread": {}}
+    got = {"system": [], "tools": [], "inject": [], "prompt": None, "turns": [], "seq": [], "cost": None, "usage": None, "unread": {},
+           "recorded": {SHAPE: False, BLOB: False}}
     turns, by_id, results = [], {}, {}
     for line in path.read_text(encoding="utf-8", errors="replace").splitlines():
         try:
@@ -33,11 +38,13 @@ def read(path: Path, keep) -> dict:
             _count(got, f"読まない型 {kind}")
             continue
         message = row.get("message") or {}
-        if kind == "api-request-shape" and not got["system"]:
+        if kind in got["recorded"]:
+            got["recorded"][kind] = True
+        if kind == SHAPE and not got["system"]:
             shape = row.get("shape") or {}
             got["system"] = [keep(part.get("text", "")) for part in shape.get("system") or []]
             got["tools"] = [[tool.get("name", "?"), len(json.dumps(tool, ensure_ascii=False))] for tool in shape.get("tools") or []]
-        elif kind == "api-request-blob":
+        elif kind == BLOB:
             _inject(got, message, keep)
         elif kind == "user":
             _user(got, message, keep, results)

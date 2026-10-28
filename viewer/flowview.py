@@ -1,5 +1,6 @@
-"""工場の作りの図と run の再生のデータを 1 つの JSON に起こす入口（見る道具。決まりは viewer/AGENTS.md の E25、設計は
-docs/design/viewer.md）。引数を読み、src/ の部品を順に呼ぶだけ。読むだけで、書くのは名指した出力のファイルだけ。
+"""工場の作りの図と run の一覧と再生を 1 枚の HTML に起こす入口（見る道具。決まりは viewer/AGENTS.md の E25、設計は
+docs/design/viewer.md）。引数を読み、src/ の部品を順に呼ぶだけ。読むだけで、書くのは名指した出力のファイルと、利用者のキャッシュに
+置く図の配置の道具 elkjs（viewer/elkjs.json の版。初めての 1 回だけ網から取る）だけ。
 
 使い方（工場の clone の根から）:
     uv run --isolated python3 viewer/flowview.py [--target <対象のリポジトリ> [--run <run の id か頭の字>]] <出力>
@@ -7,7 +8,7 @@ docs/design/viewer.md）。引数を読み、src/ の部品を順に呼ぶだけ
 - --target が無ければ、今の木の作りだけを出す
 - --target が在れば、run の家を殻と同じ関数（bin/_lib/launcher.py の target_root・run_home）で引き、親の run の一覧を入れる。
   --run が無ければ一番新しい親の run を見る。図は run の写し（Archon が run の始めに写し取った作り）から作り、写しが無ければ今の木から作る
-- 出力は工場の clone の外に置く（ページに対象の字と会話の中身が入る）
+- 出力は工場の clone の外に置く（ページに対象の字と会話の中身が入る）。ページは 1 枚で完結し、別のファイルを読まない
 """
 import argparse
 import hashlib
@@ -23,7 +24,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from bin._lib import isolate, launcher  # noqa: E402
-from viewer.src import runread, session, shape  # noqa: E402
+from viewer.src import page, runread, session, shape  # noqa: E402
 
 PACK = json.loads((ROOT / "pack.json").read_text(encoding="utf-8"))["ours"]
 ANSWER = "bin/works-factory workflow respond {run} approve|stop --cwd {target}"
@@ -37,16 +38,17 @@ def main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(prog="viewer/flowview.py", description=__doc__.splitlines()[0])
     parser.add_argument("--target", help="対象のリポジトリ（run の家を引く）")
     parser.add_argument("--run", default="", help="見る run の id か頭の字（無ければ一番新しい親の run）")
-    parser.add_argument("out", help="出力のファイル（工場の clone の外）")
+    parser.add_argument("out", help="出力の HTML（工場の clone の外）")
     args = parser.parse_args(argv)
     try:
         out = outside_clone(Path(args.out))
         data = build(args.target, args.run, dict(os.environ), Path.cwd())
-    except (Refused, launcher.Stop) as stop:
+        html = page.render(data, dict(os.environ))
+    except (Refused, launcher.Stop, page.Unfetched) as stop:
         print(f"flowview: {stop}", file=sys.stderr)
         return 2
     out.parent.mkdir(parents=True, exist_ok=True)
-    out.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
+    out.write_text(html, encoding="utf-8")
     run = data["run"]
     print(f"{out} {round(out.stat().st_size / 1024)} KB・graph {len(data['shape']['graphs'])}・"
           f"run {run['id'][:8] if run else 'なし'}（一覧 {len(data['runs'])}）・図に当たらないノード {len(data['unmatched'])}")
