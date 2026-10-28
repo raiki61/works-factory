@@ -85,7 +85,7 @@
 
 ## 7 照らし
 
-1. 作りの照らし（`tests/viewer/test_shape.py`）: 今の木の全部の graph を読み、`problems` が 0。
+1. 作りの照らし（`tests/viewer/test_shape.py`）: 今の木の全部の graph を読み、`problems` が 0。今の木の line の最初の block の頭のノードに、外から入る道（`via`）が付く（Archon を起こさずに手元で照らす）。図に当てる入口（`tests/viewer/test_flowview.py`）: 飛んだノードに当たる所（`at`）を付けても、飛んだ時刻（`time`）が残る。
 2. Archon の名の照らし（`tests/viewer/test_archon_names.py`。源の字を読むだけで手元でも回る）: 行の型と道具の出来事の型と run の状態が源とちょうど同じ・DB の欄と置き場の名が源に在る。
 3. 本物の run の照らし（`tests/viewer/test_real_run.py`。Archon を起こすので CI だけで回る）: 小さな graph を 1 回回し、読めなかった行が 0・図に当たらないノードが 0・include の中のノードに外の graph から入る道（`via`）が付く・一覧にその run が終わりの状態で 1 行在る。承認ノードで止まった run は待ちと `answer` を出し、答えが入って次へ進む前の間（Archon の答えを書く口 `answerAttentionWait` を bun で直に呼んで作る）と、待ちのまま放棄した後は出さない。答えた承認ノードは出力に答えを持ち、ログに `gate_decision` の行が無い。行の中の欄の名（`execution.path` など）はここで照らす。
 4. 1 枚の照らし（`tests/viewer/test_page.py`）: 雛形に `<script src`・`import(`・`fetch(` が無い。elkjs は照らしの値が合わなければ止まり、合わない物をキャッシュに置かない。網に届かなければ置き場と値を出して止まる。データの字はページの script を閉じず、読み戻せる。
