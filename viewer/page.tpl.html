@@ -22,7 +22,8 @@
 html,body{margin:0;height:100%}
 [hidden]{display:none!important}
 body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:13px;line-height:1.55;overflow:hidden}
-/* 高さは body でなく .app が画面の高さで持つ（ビューアが body の中身を別の要素で包んでも切れない。fixed は包みの transform で崩れるので使わない） */
+/* 高さは body でなく .app が画面の高さで持つ（ビューアが body の中身を別の要素で包んでも切れない。fixed は包みの transform で崩れるので使わない）。
+   ビューアの拡大縮小の倍率に合わせた高さは script の sizeApp が置く */
 .app{height:100vh;display:flex;flex-direction:column}
 button{font:inherit;color:inherit;cursor:pointer}
 code,pre,.mono{font-family:var(--f-mono);font-size:12px}
@@ -171,6 +172,14 @@ function h(tag, attrs, ...kids) {
   return el;
 }
 const $ = id => document.getElementById(id);
+// 高さは画面の高さを、ビューアが実際に掛けた倍率で割った物（ビューアは拡大縮小で包みに scale() を掛け、その後に resize を送る。
+// 100vh のままだと 100% の時しか画面に合わない）
+function sizeApp() {
+  const app = document.querySelector('.app'), scale = app.offsetHeight ? app.getBoundingClientRect().height / app.offsetHeight : 1;
+  app.style.height = `${innerHeight / (scale || 1)}px`;
+}
+sizeApp();
+addEventListener('resize', sizeApp);
 const usd = v => v == null ? '' : '$' + Number(v).toFixed(v < 1 ? 4 : 2);
 const secs = v => v == null ? '' : v < 90 ? `${v} 秒` : `${(v / 60).toFixed(1)} 分`;
 const num = v => v == null ? '' : Number(v).toLocaleString('ja-JP');
@@ -677,7 +686,7 @@ function unread() {
     list('記録の無い run', RUN.missing_logs);
     const ses = [];
     for (const [p, S] of Object.entries(RUN.sessions || {})) for (const [k, v] of Object.entries(S.unread)) ses.push(`${p} ${k}: ${v}`);
-    list('会話の記録の知らない型の行（Claude Code の記録の形は工場が止めていない。読まないと決めた型は数えない）', ses);
+    list('会話の記録の知らない型の行（Claude Code の記録の形は工場が止めていない。読まないと決めた型は、字を読む代わりの型が記録に在る時は数えない）', ses);
   }
   $('s-unread').append(box);
 }

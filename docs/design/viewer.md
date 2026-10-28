@@ -44,7 +44,7 @@
 
 - 隔離した Claude Code の設定（`claude-config/projects/`）の中から、記録の `binding.sessionPreview`（会話の id の頭）で会話の記録を探す。Claude Code が消した古い記録は結べない。
 - system と道具の一覧は `api-request-shape`、添え書き（system の片と `<system-reminder>` の片）は `api-request-blob` から取る。この 2 つの型が普通の利用者の Claude Code でも出るかは確かめていない。型の行が在ったかを `recorded` に持ち、無ければページは欄を空にせず「記録に無い」と出す。
-- Claude Code の版は工場が止めていないので、記録の形は試験で照らさない（人が見る）。行の型は、読む型と読まない型（訳つき。`session.py` の `UNREAD_TYPES`。添え物・API の頼みの印・待ち行列の印・会話の題など、LLM に入った字を別の型から読む物と中身を持たない物）に分ける。どちらでもない知らない型の行だけを型ごとに数えて返し、ページの「読めなかった物」の数に入れる（読まない型まで数えると、帯の数が本当に読めなかった物を指さない）。
+- Claude Code の版は工場が止めていないので、記録の形は試験で照らさない（人が見る）。行の型は、読む型と読まない型（訳つき。`session.py` の `UNREAD_TYPES`。添え物・API の頼みの印・待ち行列の印・会話の題など、LLM に入った字を別の型から読む物と中身を持たない物）に分ける。どちらでもない知らない型の行だけを型ごとに数えて返し、ページの「読めなかった物」の数に入れる（読まない型まで数えると、帯の数が本当に読めなかった物を指さない）。ただし読まない型のうち字を別の型から読む物（`session.py` の `READ_FROM`。`attachment` は `api-request-blob` から、`api-request` は `api-request-shape` と `api-request-blob` から読む）は、代わりの型が記録に無い会話では知らない型と同じく数える（代わりが無ければ LLM に入った字が帯から消える）。
 
 ## 6.5 ページ（`src/page.py`・`page.tpl.html`・`elkjs.json`）
 

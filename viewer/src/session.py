@@ -3,7 +3,8 @@
 
 Claude Code の版は工場が止めていないので、記録の形は試験で照らせない（人が見る）。行の型は、読む型と読まない型（訳つき。UNREAD_TYPES）
 に分け、どちらでもない知らない型の行は型ごとに数えて返し、黙って落とさない（読まない型は数えない。ページの帯の数が本当に読めなかった
-物を指す）。
+物を指す）。ただし読まない型のうち字を別の型から読む物（READ_FROM）は、その代わりの型が記録に無い会話では、知らない型と同じく数える
+（代わりが無ければ LLM に入った字が帯から消えるので）。
 
 - find(projects, preview) -> run の記録の会話の id の頭（sessionPreview）に当たる記録のパス（無ければ None。Claude Code が消した古い記録は結べない）
 - read(path, keep) -> 1 本の会話。keep は同じ字を 1 つにして番号で指す関数（同じ system を会話ごとに持たない）。system と道具の一覧
@@ -25,6 +26,8 @@ UNREAD_TYPES = {
     "atis-latch": "Claude Code の中の印で、会話の中身を持たない",
     "mode": "権限のモードの印",
 }
+# 読まない型のうち、LLM に入った字を別の型から読む物と、その代わりの型（1 つでも記録に無ければ数える）
+READ_FROM = {"attachment": (BLOB,), "api-request": (SHAPE, BLOB)}
 REMINDER = "<system-reminder>"
 
 
@@ -37,7 +40,7 @@ def find(projects: Path, preview: str) -> Path | None:
 def read(path: Path, keep) -> dict:
     got = {"system": [], "tools": [], "inject": [], "prompt": None, "turns": [], "seq": [], "cost": None, "usage": None, "unread": {},
            "recorded": {SHAPE: False, BLOB: False}}
-    turns, by_id, results = [], {}, {}
+    turns, by_id, results, held = [], {}, {}, {}
     for line in path.read_text(encoding="utf-8", errors="replace").splitlines():
         try:
             row = json.loads(line)
@@ -46,6 +49,8 @@ def read(path: Path, keep) -> dict:
             continue
         kind = row.get("type")
         if kind in UNREAD_TYPES:
+            if kind in READ_FROM:
+                held[kind] = held.get(kind, 0) + 1
             continue
         if kind not in READ_TYPES:
             _count(got, f"知らない型 {kind}")
@@ -69,6 +74,9 @@ def read(path: Path, keep) -> dict:
         for call in turn["calls"]:
             call["result"] = results.get(call.pop("id"))
     got["turns"] = turns
+    for kind, n in held.items():
+        if not all(got["recorded"][sub] for sub in READ_FROM[kind]):
+            got["unread"][f"字を読む代わりの型が記録に無い {kind}"] = n
     return got
 
 
