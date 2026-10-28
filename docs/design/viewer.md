@@ -24,13 +24,22 @@
 - `--target` が無ければ今の木の作りだけを出す。在れば run の家の親の run の一覧を入れ、`--run` が無ければ一番新しい親の run を見る。
 - 出力は工場の clone の下を拒む（ページに対象の字と会話の中身が入る）。拒みの文は見る道具が自分で持つ（`launcher.refuse_in_factory` は run の家のための文で、意味が合わない）。
 - 出力は 1 枚の HTML（6.5）。初めての 1 回だけ elkjs を網から取る。
-- データの欄: `made_at`（作った時刻）・`commit`・`target`・`runs`（一覧）・`run`（選んだ run）・`shape`（図の作り）・`shape_from`（`run-copy` か `tree`）・`unmatched`（図に当たらないノードの道）・`texts`（会話の字を 1 つにした表。会話の欄は番号で指す）。
+- データの欄: `made_at`（作った時刻）・`commit`・`target`・`runs`（一覧）・`run`（選んだ run）・`shape`（図の作り。graph と item に札の 1 行 `what`。4.5）・`shape_from`（`run-copy` か `tree`）・`unmatched`（図に当たらないノードの道）・`texts`（会話の字を 1 つにした表。会話の欄は番号で指す）。
 
 ## 4 作りの読み（`src/shape.py`）
 
 - 根（pack のフォルダ）を引数で受け、今の木 `<clone>/workflows` と run の写し `<写し>/project/.archon/workflows/<pack>` を同じ形で読む。
 - ノードの読み分けは種類の鍵（`loop_group`・`include`・`workflow`・`approval`・`wait`・`prompt`・`command`・`loop`・`cancel`・`bash`・`script`）のどれか 1 つ。0 個か 2 個以上は読み分けられない物として `problems` に出す。AI のノードの md（`prompts/<id>.md`）・script のノードの script（`scripts/<名>.py`）が無い物と、工場の名の頭で始まるのに木に無い `include:`・`workflow:` の先も `problems` に出す。工場の名の頭で始まらない `workflow:` の先（Archon 同梱の `archon-pr`）は工場の外の graph として印を付ける。
 - 記録のノードの道（`a__b.c`。`__` は include で開いた子、`.` は `loop_group` の本体）を、`locate` が include と `workflow:` の先の graph へ辿って図の所に当てる。当てた所には、通った include・`workflow:` のノードを外から順に並べた道（`via`）を付ける（図が入れ子の graph へ外から入る道。6.7 の再生が使う）。
+
+## 4.5 札の 1 行（`src/what.py`）
+
+- 図のノードと block の札に「何をする物か」の 1 行を出す（持ち主の言葉 2026-10-29「正直全然なんのやつかわからないのも多い」。下書き `docs/plans/2026-10-29-viewer-overview.md` の 5.6）。見るたびに LLM で書かせず、工場に既に在る字から、種類ごとの順で最初に在る物の最初の文（括弧と `` ` `` の外の「。」まで）を選ぶ。読むのは設計書と、作りの読みが既に持つ字（YAML の説明・script の docstring・指示の md と日本語の写し）だけで、block の `src/` は読まない（E22）。
+- 順: graph と block は、自分の設計書の「役」の見出し（設計シートの外の最初の物）→ YAML の説明が名指す設計書の中の、フォルダの名で始まる節の下の「役」（judge と eyes は `judge-eyes.md`）→ YAML の `description`。AI のノードは、設計書の「node の設計シート: <id>」の下の「役」→ 設計書の node の並びの行（`` `<id>`（…）: 説明 ``。鎖の形 `` `a` → `b`: 説明 `` は 1 つのノードの行にしない）→ YAML の `description` → 指示の md の `You ` で始まる段落の日本語の写し（訳が無ければ英語）。script は docstring で、「受け皿」「返し」で始まる物は配線として札を細く畳む。include と `workflow:` は呼ぶ先の graph の 1 行と、呼ぶ側での役（呼ぶ側の設計書の node の並びの行 → `with` の `mode` の値）。繰り返しは形から組む（「下の n ノードを最大 m 周回す器」）。承認・止め・bash は node の並びの行 → YAML の `description`。
+- データ: graph と item の `what` に `line`（1 行）・`from`（出どころの文書と節）・`why`（出どころの段落の 2 文目より後ろ）・`role` と `role_from`（呼ぶ側での役）・`wire`（配線）。1 行が無い物は `line` が空で、札と板は「1 行が無い」と出す（黙って空にしない）。呼ぶ側での役が無く、呼ぶ先を 2 か所以上で使う include は「ここでの役は設計書に無い」と出す（札が同じ字で並ぶ所）。
+- ページ: 札の主を 1 行（2 行で切る）にし、名と種類を下に小さく置く。板の頭に 1 行を大きく、出どころを小さく、なぜ在るかを畳みで出す。
+- 1 行は今の木の設計書から引く（run の写しの図でも同じ）。docstring と指示の md は図を作った pack（写しか今の木）の物。
+- 書き足し（1 行が無い 12 ノード・工場の中の語が残る 1 行・呼ぶ側での役が無い include）は別の仕事（下書きの 5.6.3）。
 
 ## 5 記録の読み（`src/runread.py`）
 
@@ -89,3 +98,4 @@
 4. 1 枚の照らし（`tests/viewer/test_page.py`）: 雛形に `<script src`・`import(`・`fetch(` が無い。elkjs は照らしの値が合わなければ止まり、合わない物をキャッシュに置かない。網に届かなければ置き場と値を出して止まる。データの字はページの script を閉じず、読み戻せる。
 5. 層の照らし: 2 章の照らし。
 6. 日本語の写しの照らし（`tests/viewer/test_ja.py`）: 取り込みの口が今の木の md の段落の鍵の訳だけを `viewer/ja/` に書き、合わない訳を拒む。写しは値の記録から工場の組み立ての口で組み、訳の無い段落と合わない訳は英語のまま。`viewer/ja/` の訳のうち今の木の md の段落に当たる物は、どれも英語と同じ差し込み口と印の字を持つ。本物の run では（照らしの 3 の試験）、include の中で `prompt.emit` が書いた値の記録から組み直した写しが、訳の無い時に place の英語の指示と字のまま同じ。工場の組み立ての口の照らしは `tests/blocks/shared/test_prompt.py`（値の記録で、写した木からも同じ字に組み直せる）。
+7. 札の 1 行の照らし（`tests/viewer/test_what.py`）: 今の木で、1 行を選ぶ部品が読めない設計書の節（「役」の見出しの下に段落が無い）が 0（読めない節はページの「読めなかった物」にも出す）。1 行が無いノードの数は照らさない（書き足しを試験で強いない）。小さな木で、種類ごとの出どころの順・配線・呼ぶ側での役・1 行が無い物が空であること。
