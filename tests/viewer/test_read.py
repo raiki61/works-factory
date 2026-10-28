@@ -197,6 +197,22 @@ class ReadCase(unittest.TestCase):
         self.assertEqual([row[1] for row in got["seq"] if row[0] == "turn"], [0, 1])
         self.assertEqual([turn["usage"].get("out") for turn in got["turns"]], [None, 4])
 
+    def test_turns_keep_their_first_time_and_calls_their_whole_input(self):
+        """往復の時刻は往復の最初の行の時刻（cache の保ち時間を越えた往復を出す。無駄の手がかり）。道具の呼び出しは切る前の入力の字の
+        番号を持ち、会話は作業の場所 cwd を持つ（読み直しの数えが、切った入力でなく全文のパスを読む）"""
+        path = self.tmp / "s.jsonl"
+        long = {"file_path": "/w/a.md", "note": "x" * 1000}
+        say = lambda ident, ts, part: {"type": "assistant", "timestamp": ts, "cwd": "/w", "message": {"id": ident, "content": [part]}}
+        rows = [say("m1", "2026-10-25T01:00:00.000Z", {"type": "tool_use", "id": "t1", "name": "Read", "input": long}),
+                say("m1", "2026-10-25T01:00:09.000Z", {"type": "text", "text": "a"}),
+                say("m2", "2026-10-25T01:07:00.000Z", {"type": "text", "text": "b"})]
+        path.write_text("\n".join(json.dumps(row) for row in rows) + "\n", encoding="utf-8")
+        texts = {}
+        got = session.read(path, lambda text: texts.setdefault(str(len(texts)), text) and next(k for k, v in texts.items() if v == text))
+        self.assertEqual([turn["at"] for turn in got["turns"]], ["2026-10-25T01:00:00.000Z", "2026-10-25T01:07:00.000Z"])
+        self.assertEqual(json.loads(texts[got["turns"][0]["calls"][0]["text"]]), long)
+        self.assertEqual(got["cwd"], "/w")
+
 
 if __name__ == "__main__":
     unittest.main()

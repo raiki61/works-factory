@@ -7,6 +7,7 @@
 - runs(db) -> 親の run（parent_run_id が空）の一覧。新しい順。DB の run の行だけを読み、ログは読まない
 - run(db, run_id) -> 選んだ run と子の run の記録（ノードごとの出来事・道具の呼び出し・費用・出力・知らない行の数え）
 - pick(db, wanted) -> run の id（wanted が空なら一番新しい親の run。頭の字でもよい）
+- where(path, cwd) -> 会話が読んだファイルのパスを、run ごとに違う頭（作業ツリー・run の置き場・run の写し）を外した字にする
 """
 import contextlib
 import json
@@ -193,6 +194,28 @@ def run(db: Path, run_id: str) -> dict:
 def copy(output_root: Path, run_id: str) -> Path:
     """run の写しの中の pack の置き場の親（`<写し>/project/.archon/workflows`）"""
     return output_root / SOURCE / RUNS_DIR / run_id / PROJECT_SCOPE / WORKFLOW_FOLDER
+
+
+# where の頭の印（ページに出す字）
+PLACE_MARK = "（run の置き場）/"
+COPY_MARK = "（run の写し）/"
+
+
+def where(path: str, cwd: str) -> str:
+    """会話が読んだファイルのパス（無駄の手がかりの読み直しの数え）。作業ツリー（会話の cwd）の下は cwd からのパス、run の置き場
+    （`<output_root>/artifacts/runs/<run>/`）と run の写し（`<output_root>/workflow-source/runs/<run>/project/`）の下は印とその下の
+    パス。同じファイルを相対と絶対のパスで読んでも、別の run の同じ所を読んでも、同じ字になる"""
+    if cwd and path.startswith(cwd.rstrip("/") + "/"):
+        return path[len(cwd.rstrip("/")) + 1:]
+    parts = path.split("/")
+    for at in range(len(parts) - 2):
+        if parts[at + 1] != RUNS_DIR:
+            continue
+        if parts[at] == ARTIFACTS:
+            return PLACE_MARK + "/".join(parts[at + 3:])
+        if parts[at] == SOURCE and parts[at + 3:at + 4] == [PROJECT_SCOPE]:
+            return COPY_MARK + "/".join(parts[at + 4:])
+    return path
 
 
 class _Reader:
