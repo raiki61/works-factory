@@ -9,10 +9,10 @@
 <style>
 :root{
   --bg:#f2f4f7; --dot:#d0d5dd; --node:#fff; --node-b:#eaecf0; --ink:#101828; --ink2:#344054; --muted:#667085; --faint:#98a2b3;
-  --panel:#fff; --panel2:#f9fafb; --line:#eaecf0; --sel:#296dff; --sel-soft:#eff4ff; --edge:#b2b8c2;
+  --panel:#fff; --panel2:#f9fafb; --line:#eaecf0; --sel:#0071e3; --sel-soft:#e8f1fc; --edge:#b2b8c2;
   --c-ai:#6172f3; --c-script:#2e90fa; --c-bash:#2e90fa; --c-block:#06aed4; --c-child:#0e9384; --c-gate:#f79009; --c-loop:#ee46bc; --c-halt:#f04438;
-  --ok:#12b76a; --bad:#f04438; --run:#296dff; --wait:#f79009; --skip:#98a2b3; --warn-soft:#fffaeb; --bad-soft:#fef3f2;
-  --f-body:"Hiragino Sans","Yu Gothic","Noto Sans JP",system-ui,sans-serif; --f-mono:ui-monospace,"SFMono-Regular",Menlo,Consolas,monospace;
+  --ok:#12b76a; --bad:#f04438; --run:#0071e3; --wait:#f79009; --skip:#98a2b3; --warn-soft:#fffaeb; --bad-soft:#fef3f2;
+  --f-body:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Yu Gothic","Noto Sans JP",system-ui,sans-serif; --f-mono:ui-monospace,"SFMono-Regular",Menlo,Consolas,monospace;
 }
 @media (prefers-color-scheme: dark){:root{
   --bg:#1a1a1d; --dot:#2e2e33; --node:#26262a; --node-b:#34343a; --ink:#f2f2f3; --ink2:#d0d0d5; --muted:#9a9aa3; --faint:#6f6f78;
@@ -29,11 +29,12 @@ button{font:inherit;color:inherit;cursor:pointer}
 code,pre,.mono{font-family:var(--f-mono);font-size:12px}
 pre{white-space:pre-wrap;overflow-wrap:anywhere;margin:4px 0;padding:8px 10px;background:var(--panel2);border:1px solid var(--line);border-radius:8px;max-height:420px;overflow:auto}
 .top{display:flex;align-items:center;gap:14px;flex-wrap:wrap;padding:8px 16px;background:var(--panel);border-bottom:1px solid var(--line)}
-.top h1{font-size:15px;margin:0}
+.top h1{font-size:15px;font-weight:600;margin:0}
 .top .facts{color:var(--muted);font-size:12px;display:flex;gap:12px;flex-wrap:wrap}
-.tabs{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;margin-left:auto}
-.tabs button{border:0;background:transparent;padding:4px 12px;color:var(--muted)}
-.tabs button[aria-pressed="true"]{background:var(--sel-soft);color:var(--sel);font-weight:700}
+/* タブ: 面の上の押し物の組（今のタブは白い面） */
+.tabs{display:inline-flex;flex-wrap:wrap;gap:2px;background:var(--panel2);border-radius:10px;padding:3px;margin-left:auto}
+.tabs button{border:0;background:transparent;padding:4px 12px;color:var(--muted);border-radius:8px;font-size:12px}
+.tabs button[aria-pressed="true"]{background:var(--panel);color:var(--ink);font-weight:600;box-shadow:0 1px 2px rgba(0,0,0,.12)}
 .notice{padding:6px 16px;background:var(--warn-soft);border-bottom:1px solid var(--line);font-size:12.5px}
 .notice code{user-select:all}
 .main{flex:1;min-height:0;position:relative}
@@ -50,9 +51,10 @@ pre{white-space:pre-wrap;overflow-wrap:anywhere;margin:4px 0;padding:8px 10px;ba
 .side .n{margin-left:auto;color:var(--faint);font-size:11px}
 .canvas{flex:1;position:relative;overflow:hidden;cursor:grab;background-color:var(--bg);background-image:radial-gradient(var(--dot) 1.2px,transparent 1.2px);background-size:18px 18px}
 .canvas.drag{cursor:grabbing}
-.crumb{position:absolute;left:12px;top:10px;z-index:3;display:flex;gap:6px;align-items:center;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:3px 10px}
+.crumb{position:absolute;left:12px;top:10px;z-index:3;display:flex;gap:6px;align-items:center;background:var(--panel);border-radius:10px;padding:4px 10px;box-shadow:0 1px 3px rgba(0,0,0,.08)}
+.crumb .mark{background:var(--sel);color:#fff;border-radius:999px;padding:0 10px;font-weight:600;font-size:12px;border:0}
 .crumb a{color:var(--sel);cursor:pointer}
-.crumb .home{border:1px solid var(--line);background:var(--sel-soft);color:var(--sel);border-radius:6px;padding:0 8px;font-weight:700}
+.crumb .home{border:0;background:var(--sel-soft);color:var(--sel);border-radius:6px;padding:0 8px;font-weight:600}
 .crumb .home:disabled{cursor:default;opacity:.7}
 .crumb .via{color:var(--muted);font-size:11.5px}
 /* 下の帯: 図の拡げと再生。板が開いている時は板の左までにする */
@@ -61,11 +63,12 @@ pre{white-space:pre-wrap;overflow-wrap:anywhere;margin:4px 0;padding:8px 10px;ba
 .dock>*{pointer-events:auto}
 .zoom{display:flex;gap:4px;flex:none}
 .zoom button,.replay button,.replay select{border:1px solid var(--line);background:var(--panel);border-radius:6px;padding:2px 8px}
-.replay{flex:1;min-width:0;max-width:760px;display:flex;flex-direction:column;gap:4px;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:6px 10px;box-shadow:0 4px 12px -2px rgba(16,24,40,.10)}
+.replay{flex:1;min-width:0;max-width:760px;display:flex;flex-direction:column;gap:4px;background:var(--panel);border-radius:14px;padding:8px 12px;box-shadow:0 4px 16px -2px rgba(0,0,0,.12)}
 .replay .row{display:flex;gap:4px 6px;align-items:center;min-width:0;flex-wrap:wrap}
 .replay button,.replay select{white-space:nowrap;flex:none}
 .replay input[type=range]{flex:1;min-width:80px;accent-color:var(--run)}
 .replay .what{font-size:12px;flex:1 1 280px;min-width:0;overflow-wrap:anywhere}
+.replay .what b{font-size:13px;font-weight:600;color:var(--sel)}
 .replay .key{display:inline-flex;gap:8px;color:var(--muted);font-size:11px;flex:none}
 .replay .key i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:3px;vertical-align:-1px;border:1.5px solid var(--node-b);background:var(--node)}
 .replay .key i.now{border-color:var(--run);box-shadow:0 0 0 2px color-mix(in srgb,var(--run) 30%,transparent)}
@@ -80,6 +83,8 @@ svg.edges path{fill:none;stroke:var(--edge);stroke-width:1.5}
 .node .s{font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .node.box{background:color-mix(in srgb,var(--k) 6%,transparent);border-style:dashed;border-left-width:1.5px;border-color:var(--k)}
 .node.sel{outline:3px solid var(--sel)}
+.node.st-out{opacity:.18}
+.node.st-in{outline:2px solid var(--sel)}
 /* 再生: 今の歩のノード・走り中・まだ・飛んだ（済んだ物は普段の姿） */
 .world.glide{transition:transform .35s ease}
 .node.rp-yet{opacity:.35}
@@ -90,12 +95,13 @@ svg.edges path{fill:none;stroke:var(--edge);stroke-width:1.5}
 .node .st{position:absolute;right:6px;top:5px;width:9px;height:9px;border-radius:50%}
 .st.ok{background:var(--ok)}.st.failed{background:var(--bad)}.st.running{background:var(--run)}.st.waiting{background:var(--wait)}.st.skipped{background:var(--skip)}
 .k-ai{--k:var(--c-ai)}.k-script{--k:var(--c-script)}.k-bash{--k:var(--c-bash)}.k-block{--k:var(--c-block)}.k-child{--k:var(--c-child)}.k-gate{--k:var(--c-gate)}.k-loop{--k:var(--c-loop)}.k-halt{--k:var(--c-halt)}
-.panel{position:absolute;top:10px;right:10px;bottom:10px;width:min(560px,calc(100% - 20px));background:var(--panel);border:1px solid var(--line);border-radius:14px;box-shadow:0 12px 24px -4px rgba(16,24,40,.12);z-index:4;display:flex;flex-direction:column}
+.panel{position:absolute;top:10px;right:10px;bottom:10px;width:min(560px,calc(100% - 20px));background:var(--panel);border-radius:18px;box-shadow:0 12px 28px -4px rgba(0,0,0,.16);z-index:4;display:flex;flex-direction:column}
 .panel .ph{padding:10px 14px;border-bottom:1px solid var(--line);display:flex;gap:8px;align-items:flex-start}
-.panel .ph h2{font-size:16px;margin:0;overflow-wrap:anywhere}
+.panel .ph h2{font-size:15px;font-weight:600;margin:0;overflow-wrap:anywhere}
 .panel .ph .x{margin-left:auto;border:0;background:transparent;font-size:16px}
 .panel .pb{overflow:auto;padding:4px 14px 18px}
-h3{font-size:12px;color:var(--muted);margin:14px 0 4px}
+h3{font-size:12px;font-weight:600;color:var(--muted);margin:14px 0 4px}
+.tostage{display:inline-block;color:var(--sel);cursor:pointer;margin:6px 0 2px}
 .kv{display:grid;grid-template-columns:max-content 1fr;gap:2px 12px}
 .kv>b{color:var(--muted);font-weight:600}
 .kv>span{overflow-wrap:anywhere}
@@ -141,6 +147,54 @@ i.cr{background:#98a2b3}i.cw{background:#f79009}i.in{background:#296dff}i.out{ba
 .wide .ph .x{margin-left:auto;border:0;background:transparent;font-size:16px}
 .wide .pb{overflow:auto;padding:8px 18px 18px}
 .wide pre{max-height:none}
+/* 流れの画面（見本 *-2.html の型）: 字の段は 4 つ（40/600・22/600・15/400〔強め 15/600〕・12/400）、色は青 1 つ。枠の線でなく余白と面で組を分け、
+   頭に主張を 1 文、細部は畳み */
+.ov{background:#f5f5f7;color:#1d1d1f;font-size:15px;line-height:1.55}
+.ov .wrap{max-width:1080px;margin:0 auto;padding:8px 28px 40px}
+.ov .cap{font-size:12px;color:#6e6e73}
+.ov b{font-weight:600}
+.ov .hero{padding:32px 0 24px}
+.ov .hero h1{font-size:40px;font-weight:600;line-height:1.2;margin:6px 0 10px;letter-spacing:-.01em}
+.ov .hero p{margin:0;color:#6e6e73}
+.ov .card{background:#fff;border-radius:18px;padding:24px 28px;margin:0 0 20px;min-width:0}
+.ov h2{font-size:22px;font-weight:600;margin:0 0 4px}
+.ov .stages{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:14px;margin-top:14px}
+.ov .stg{border:1px solid #d2d2d7;border-radius:14px;padding:12px 14px;cursor:pointer;min-width:0;background:#fff;text-align:left;font:inherit;color:inherit;transition:opacity .2s}
+.ov .stg:hover{border-color:#0071e3}
+.ov .stg .name{font-weight:600}
+.ov .stg.skipped,.ov .stg.none{background:#f5f5f7;border-color:transparent;color:#6e6e73}
+.ov .stg.stop,.ov .stg.failed,.ov .stg.waiting,.ov .stg.running{border:2px solid #0071e3}
+.ov .stg.stop .state,.ov .stg.failed .state,.ov .stg.waiting .state,.ov .stg.running .state{color:#0071e3}
+.ov .stg.yet{opacity:.35}
+.ov .stg.now{background:#0071e3;color:#fff;border-color:#0071e3}
+.ov .stg.now .cap{color:#e8f1ff}
+.ov .stg.flash{box-shadow:0 0 0 6px #0071e355}
+.ov .tl{display:grid;grid-template-columns:minmax(90px,150px) minmax(0,1fr);gap:0 12px;margin-top:14px}
+.ov .tl .lab{font-size:12px;color:#6e6e73;height:24px;line-height:24px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ov .tl .lab.off{color:#c7c7cc}
+.ov .tl .lab.now{color:#0071e3;font-weight:600}
+.ov .tl svg{width:100%;display:block;cursor:crosshair;background:#fbfbfd;border-radius:8px}
+.ov .axis{position:relative;height:18px;font-size:12px;color:#6e6e73}
+.ov .axis span{position:absolute;transform:translateX(-50%);white-space:nowrap}
+.ov .key{display:flex;gap:16px;flex-wrap:wrap;font-size:12px;color:#6e6e73;margin-top:8px}
+.ov .key i{display:inline-block;width:12px;height:8px;border-radius:2px;margin-right:4px}
+.ov .nowline{font-size:15px;font-weight:600;margin:6px 0 0;color:#0071e3;min-height:1.55em}
+.ov details{margin:16px 0 0;border:0;border-top:1px solid #e8e8ed;border-radius:0;padding-top:12px;background:transparent}
+.ov details>summary{cursor:pointer;color:#0071e3;list-style:none;font-size:15px;padding:0;display:block}
+.ov details>summary::-webkit-details-marker{display:none}
+.ov details>summary::after{content:" ＋"}
+.ov details[open]>summary::after{content:" −"}
+.ov details>div{padding:8px 0 0}
+.ov details ul{margin:0;padding-left:20px}
+.ov details li{margin:6px 0}
+.ov .scroll{overflow-x:auto}
+.ov table{font-size:12px}
+.ov th{position:static}
+.ov td.n{text-align:right;font-variant-numeric:tabular-nums}
+.ov code{font-size:12px;color:#6e6e73}
+.ov .dock{position:sticky;bottom:0;padding:10px 0 14px;display:flex;justify-content:center;background:linear-gradient(transparent,#f5f5f7 30%)}
+@media (prefers-color-scheme: dark){.ov{background:var(--bg);color:var(--ink)}.ov .card,.ov .stg{background:var(--panel)}.ov .stg.skipped,.ov .stg.none{background:var(--panel2)}
+  .ov .tl svg{background:var(--panel2)}.ov .dock{background:linear-gradient(transparent,var(--bg) 30%)}}
 </style>
 </head>
 <body>
@@ -154,6 +208,7 @@ i.cr{background:#98a2b3}i.cw{background:#f79009}i.in{background:#296dff}i.out{ba
 </div>
 <div id="notices"></div>
 <div class="main">
+  <div class="screen ov" id="s-overview" hidden><div class="wrap" id="ov"></div><div class="dock" id="ov-dock"></div></div>
   <div class="screen flow" id="s-flow">
     <div class="side"><input id="find" placeholder="graph を名で絞る"><div class="list" id="graphs"></div></div>
     <div class="canvas" id="canvas">
@@ -180,7 +235,7 @@ i.cr{background:#98a2b3}i.cw{background:#f79009}i.in{background:#296dff}i.out{ba
 <script>
 'use strict';
 const D = JSON.parse(document.getElementById('data').textContent);
-const G = D.shape.graphs, RUN = D.run, TX = D.texts || {}, TJ = D.texts_ja || {};
+const G = D.shape.graphs, RUN = D.run, TX = D.texts || {}, TJ = D.texts_ja || {}, STG = D.stages;
 const KIND = {ai: 'AI', script: 'script', bash: 'bash', block: 'block', child: '子の run', gate: '承認', loop: '繰り返し', halt: '止め', '': '読めない'};
 const STATUS = {ok: '済み', failed: '落ち', running: '走り中', waiting: '待ち', skipped: '飛んだ', completed: '終わり', paused: '止まっている',
   cancelled: '止めた', pending: '始まる前'};
@@ -228,7 +283,7 @@ const both = mark => [pre(text(mark)), ja(TJ[mark])];
 // 帯
 function header() {
   $('facts').append(...[D.commit && `commit ${D.commit}`, `作った時刻 ${D.made_at}`, D.target && `対象 ${D.target}`,
-    RUN && h('span', {}, `run ${RUN.id.slice(0, 8)}・${RUN.graph}・`, badge(RUN.status), ` ${usd(RUN.cost)} ${secs(RUN.seconds)}`)].filter(Boolean)
+    RUN && h('span', {}, `run ${RUN.id.slice(0, 8)}・${RUN.graph}・`, badge(RUN.status), ` ${usd(RUN.cost)}・${secs(RUN.seconds)}`)].filter(Boolean)
     .map(x => x instanceof Node ? x : h('span', {text: x})));
   const notes = [];
   if (RUN && RUN.live) notes.push(`この run は走り中（${STATUS[RUN.status] || RUN.status}）。ページは作った時刻 ${D.made_at} までの姿。新しい姿は同じ命令で作り直す`);
@@ -238,19 +293,31 @@ function header() {
   const bad = unreadCount();
   if (bad) notes.push(`読めなかった物が ${bad} 件ある（「読めなかった物」の画面）`);
   $('notices').append(...notes.map(n => h('div', {class: 'notice'}, n)));
-  const tabs = [['flow', '図'], ...(D.target ? [['runs', `run の一覧（${D.runs.length}）`]] : []), ...(RUN ? [['log', 'ログ']] : []), ['unread', '読めなかった物']];
+  // タブの並び。足す時はこの表に 1 行足す
+  const tabs = [
+    ['overview', '流れ'],
+    ['flow', '図と再生'],
+    ...(D.target ? [['runs', `run の一覧（${D.runs.length}）`]] : []),
+    ...(RUN ? [['log', 'ログ']] : []),
+    ['unread', '読めなかった物'],
+  ];
   tabs.forEach(([id, label]) => $('tabs').append(h('button', {'data-tab': id, text: label, onclick: () => tab(id)})));
-  tab('flow');
+  tab('overview');
 }
+// 再生の帯は 1 つで、図と再生の画面と流れの画面の下に付け替える（再生の今の位置 at も 1 つ）
+const DOCKS = {flow: () => document.querySelector('#s-flow .dock'), overview: () => $('ov-dock')};
 function tab(id) {
   document.querySelectorAll('[data-tab]').forEach(b => b.setAttribute('aria-pressed', b.dataset.tab === id));
   document.querySelectorAll('.screen').forEach(s => s.hidden = s.id !== 's-' + id);
+  if (DOCKS[id]) DOCKS[id]().append($('replay'));
   if (id === 'flow' && !cur) openGraph(firstGraph());
+  // 図が隠れている間に動いた再生の位置へ、図を合わせる
+  if (id === 'flow' && behind && at >= 0) go(at);
 }
 
 // 図: graph の一覧と道しるべ。道しるべ stack は根の graph（run の graph か line）から始まり、各段は {folder, node（外の graph の中で
 // この graph を include・workflow: するノードの道）}。一覧から開いた graph も、根から include を辿った道で同じ形に出す
-let cur = null, stack = [], selId = null;
+let cur = null, stack = [], selId = null, marked = null;   // marked: 一番外の図で強める段の番号（流れの地図の段の箱から来た時）
 const T = {x: 40, y: 60, s: 1};
 function firstGraph() {
   if (RUN) { const hit = Object.keys(G).find(f => G[f].name === RUN.graph); if (hit) return hit; }
@@ -370,6 +437,8 @@ async function show() {
   const first = laid.children.reduce((a, n) => !a || n.y < a.y || (n.y === a.y && n.x < a.x) ? n : a, null);
   world.dataset.cx = first ? first.x + first.width / 2 : 0;
   home();
+  if (cur !== ROOT) marked = null;
+  if (marked) markStage();
   paint();
 }
 function sub(item) {
@@ -395,6 +464,8 @@ function crumb() {
     if (step.loose) c.append(h('span', {class: 'via', text: `（${ROOT} から辿れない）`}));
     else if (node && node !== name) c.append(h('span', {class: 'via', text: `（ノード ${node}）`}));
   });
+  if (marked && cur === ROOT) c.append(h('button', {class: 'mark', title: '段の強めを外す', text: `段 ${marked} ${STG.table[marked - 1].name} ×`,
+    onclick: () => { marked = null; show(); }}));
   c.append(h('a', {text: '説明', title: 'この graph の説明・入力・返す欄', onclick: () => graphPanel(cur)}),
     h('span', {class: 'empty', text: 'ノードを押すと板・block は 2 度押しで中へ'}));
 }
@@ -442,7 +513,7 @@ function home() {
 // include・workflow: を辿った道（出来事の at.via）で入り、ノードを真ん中に寄せて板に出来事を開く。繰り返しの周と子の run の出来事も、
 // 同じ並びに時刻で入る（周は 1 回ずつ別の出来事）。飛んだノードは歩にせず、時刻が過ぎて、まだ走っていなければ「飛んだ」に見せる
 const STEPS = [], SKIPS = [];
-let at = -1, playing = null, going = 0;
+let at = -1, playing = null, going = 0, behind = false;
 if (RUN) {
   for (const e of RUN.events) {
     if (e.start) STEPS.push({t: e.start, end: false, e});
@@ -494,7 +565,10 @@ async function go(k) {
   if (!STEPS.length) return;
   at = Math.max(0, Math.min(STEPS.length - 1, k));
   const mine = ++going, step = STEPS[at], where = step.e.at;
-  $('r-pos').value = at; label(step);
+  $('r-pos').value = at; label(step); overviewNow();
+  // 図の画面が隠れている間（流れの画面で歩く時）は図を描き直さず、図を開いた時に今の歩へ合わせる
+  behind = $('s-flow').hidden;
+  if (behind) return;
   if (where && where.graph) {
     const via = where.via || [];
     const want = [{folder: ROOT, node: null}, ...via.map((v, i) => ({folder: (via[i + 1] || where).graph, node: v.node}))];
@@ -522,6 +596,7 @@ function label(step) {
   $('r-what').textContent = [`${at + 1} / ${STEPS.length}`, `+${clock}`, step.end ? `終わり（${STATUS[e.status] || e.status}）` : '始まり',
     e.tokens.join(' / '), e.loop.length ? `周 ${e.loop.join('.')}` : '', e.run !== RUN.id ? `子の run ${e.run.slice(0, 8)}` : '',
     e.at && e.at.graph ? '' : '図に当たらない'].filter(Boolean).join('　');
+  if (e.stage) $('r-what').prepend(h('b', {text: `段 ${e.stage} ${STG.table[e.stage - 1].name}`}), '　');
 }
 function play(on) {
   clearTimeout(playing); playing = null;
@@ -548,16 +623,173 @@ function play(on) {
   $('r-prev').onclick = () => { play(false); go(at - 1); };
   $('r-next').onclick = () => { play(false); go(at + 1); };
   $('r-pos').oninput = () => { play(false); go(+$('r-pos').value); };
-  $('r-off').onclick = () => { play(false); at = -1; going++; $('r-pos').value = 0;
-    $('r-what').textContent = `run の出来事 ${STEPS.length} 歩（ノードの始まりと終わり）。▶ 再生で始めから歩く`; closePanel(); paint(); };
+  $('r-off').onclick = () => { play(false); at = -1; going++; behind = false; $('r-pos').value = 0;
+    $('r-what').textContent = `run の出来事 ${STEPS.length} 歩（ノードの始まりと終わり）。▶ 再生で始めから歩く`; closePanel(); paint(); overviewNow(); };
   addEventListener('keydown', ev => {
     // 字の欄とつまみは自分で受ける。押し物は空白を自分で受ける
-    if ($('s-flow').hidden || ev.target.closest('input,select,textarea') || (ev.key === ' ' && ev.target.closest('button'))) return;
+    if (($('s-flow').hidden && $('s-overview').hidden) || ev.target.closest('input,select,textarea') || (ev.key === ' ' && ev.target.closest('button'))) return;
     if (ev.key === 'ArrowRight') { ev.preventDefault(); $('r-next').click(); }
     else if (ev.key === 'ArrowLeft') { ev.preventDefault(); $('r-prev').click(); }
     else if (ev.key === ' ') { ev.preventDefault(); $('r-play').click(); }
   });
 })();
+
+// 流れ: 段の地図（line の一番上のノードを人の言葉の段に畳んだ物。表と run の段ごとの集計は D.stages、viewer/src/stages.py）と時間の帯。
+// 再生の今の位置 at は図と再生の画面と 1 つで、帯の縦の線・地図の今の段・帯の上の 1 文がそれに付いて動く。帯を押すとその時刻の歩へ飛ぶ。
+// 段の箱を押すと図と再生の画面で一番外の図のその段のノードを強め、図のノードの板からは段の箱へ戻る口を出す
+const SR = STG.run, ROW = 24, BAND_W = 1000;
+const clock = v => { if (v == null) return ''; const s = Math.round(v); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; };
+const STATE = {ok: '通った', failed: '落ちた', waiting: '答え待ち', running: '走り中', skipped: '飛んだ', none: '記録に無い'};
+const ROLE = {ai: ['#0071e3', 'AI の手番'], machine: ['#86868b', '機械の手番（script・bash）'], wait: ['#d2d2d7', '人の答え待ち']};
+const total = key => SR ? SR.reduce((n, r) => n + (r[key] || 0), 0) : 0;
+const stageName = n => STG.table[n - 1].name;
+const NODE_STAGE = Object.fromEntries(STG.table.flatMap((s, i) => s.nodes.map(node => [node, i + 1])));
+const T0 = SR && STEPS.length ? Date.parse(STEPS[0].t) : 0, SPAN = SR && STEPS.length ? Math.max(1, Date.parse(STEPS[STEPS.length - 1].t) - T0) : 1;
+// 図のノードの段: 一番外の graph が段の表の graph の時だけ、その graph の一番上のノード（中の graph なら入ったノード）から引く
+function stageOfNode(id) {
+  if (!G[ROOT] || G[ROOT].name !== STG.graph) return null;
+  const top = cur === ROOT ? id : stack.length > 1 && stack[1].node;
+  return top ? NODE_STAGE[top.split('/')[0]] || null : null;
+}
+// 頭の 1 文（主張）と、その下の 1 文。数から機械が組む。長さは分を整数に丸める
+function claim() {
+  if (!RUN) return [`工場の流れは ${STG.table.length} の段。`, `${STG.graph || 'line'} の一番上のノードを段に畳んだ。--target で run を選ぶと、段を塗り、時間の帯を出す。`];
+  if (!SR) return ['この run は段に畳めない。', `段の表は ${STG.graph} の物で、この run は ${RUN.graph}。「図と再生」の画面で見る。`];
+  const ran = SR.map((r, i) => i + 1).filter(n => !['skipped', 'none'].includes(SR[n - 1].state));
+  const busy = ['failed', 'waiting', 'running'].map(st => SR.findIndex(r => r.state === st) + 1).find(n => n > 0);
+  const head = busy ? `${stageName(busy)}で${{failed: '落ちた', waiting: '人の答えを待っている', running: '走っている'}[SR[busy - 1].state]}。`
+    : STG.stop ? `${stageName(STG.stop)}で止まり、${stageName(ran[ran.length - 1])}へ移った。`
+    : ran.length ? `${stageName(ran[ran.length - 1])}まで通った。` : 'どの段も走っていない。';
+  const wait = total('wait'), skipped = SR.map((r, i) => r.state === 'skipped' ? stageName(i + 1) : null).filter(Boolean);
+  return [head, `${secs(RUN.seconds)}${wait >= 60 ? `（うち人の答え待ち ${secs(wait)}）` : ''}・${usd(RUN.cost)}・AI の手番 ${total('ai')} 回。` +
+    (skipped.length ? `飛んだ段: ${skipped.join('・')}。` : '')];
+}
+function boxState(n) {
+  const r = SR[n - 1];
+  if (STG.stop === n) return `ここで止まった · ${secs(r.seconds)}`;
+  return r.state === 'ok' ? [STATE.ok, secs(r.seconds), r.cost ? usd(r.cost) : ''].filter(Boolean).join(' · ') : STATE[r.state];
+}
+// 段の地図: 再生していない時は run の終わりの姿、再生中は今の歩までの姿（配線のノードだけが走った段は通ったに数えない）
+function drawMap() {
+  const now = at >= 0 ? STEPS[at].e.stage : null, reached = new Set();
+  if (at >= 0) for (let j = 0; j <= at; j++) if (STEPS[j].e.stage && !STEPS[j].e.through) reached.add(STEPS[j].e.stage);
+  $('ov-stages').replaceChildren(...STG.table.map((s, i) => {
+    const n = i + 1;
+    const replaying = SR && at >= 0 && SR[i].state !== 'none';   // 記録に無い段は再生中も記録に無いと出す
+    const cls = !SR ? '' : replaying ? (n === now ? 'now' : reached.has(n) ? '' : 'yet') : STG.stop === n ? 'stop' : SR[i].state === 'ok' ? '' : SR[i].state;
+    const state = !SR ? s.line : replaying ? (n === now ? '再生の今' : reached.has(n) ? '通った' : 'まだ') : boxState(n);
+    return h('button', {class: 'stg ' + cls, title: `${s.line}（押すと「図と再生」でこの段のノードを強める）`, onclick: () => toGraph(n)},
+      h('div', {class: 'cap', text: n}), h('div', {class: 'name', text: s.name}), h('div', {class: 'cap state', text: state}));
+  }));
+}
+// 時間の帯: 段を縦・run の始めからの時刻を横に、出来事を AI・機械・人の答え待ちで塗る（繰り返しの器と子の run を起こすノードは描かない）
+function band() {
+  const NS = 'http://www.w3.org/2000/svg', H = STG.table.length * ROW, x = t => (Date.parse(t) - T0) / SPAN * BAND_W;
+  const el = (tag, attrs) => { const e = document.createElementNS(NS, tag); for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v); return e; };
+  const svg = el('svg', {viewBox: `0 0 ${BAND_W} ${H}`, preserveAspectRatio: 'none', role: 'img', 'aria-label': '段ごとの時間の帯'});
+  svg.style.height = `${H}px`;
+  STG.table.forEach((_, i) => { if (i % 2) svg.append(el('rect', {x: 0, y: i * ROW, width: BAND_W, height: ROW, fill: 'rgba(0,0,0,.035)'})); });
+  for (const e of RUN.events) {
+    if (!e.stage || !e.start || !ROLE[e.role]) continue;
+    const end = e.end || STEPS[STEPS.length - 1].t, bar = el('rect', {x: x(e.start), y: (e.stage - 1) * ROW + 5, width: Math.max(1.5, x(end) - x(e.start)), height: ROW - 10, rx: 2, fill: ROLE[e.role][0]});
+    bar.append(el('title', {}));
+    bar.lastChild.textContent = `${e.tokens.join(' / ')}${e.loop.length ? ` 周 ${e.loop.join('.')}` : ''} ${clock((Date.parse(end) - Date.parse(e.start)) / 1000)}${e.cost ? ' ' + usd(e.cost) : ''}`;
+    svg.append(bar);
+  }
+  svg.append(el('rect', {id: 'ov-line', y: 0, width: 3, height: H, fill: '#0071e3', visibility: 'hidden'}));
+  svg.addEventListener('click', ev => {
+    const box = svg.getBoundingClientRect(), t = T0 + (ev.clientX - box.left) / box.width * SPAN;
+    let k = 0;
+    while (k + 1 < STEPS.length && Date.parse(STEPS[k + 1].t) <= t) k++;
+    play(false); go(k);
+  });
+  const every = [1, 2, 5, 10, 15, 30, 60, 120].find(m => SPAN / 60000 / m <= 6) || 240, ticks = [];
+  for (let m = 0; m * 60000 <= SPAN; m += every) ticks.push(h('span', {style: `left:${m * 60000 / SPAN * 100}%`, text: `${m} 分`}));
+  return h('div', {class: 'tl'}, h('div', {}, STG.table.map((s, i) => h('div', {class: 'lab' + (['skipped', 'none'].includes(SR[i].state) ? ' off' : ''), 'data-n': i + 1, text: `${i + 1} ${s.name}`}))),
+    h('div', {}, svg, h('div', {class: 'axis'}, ticks)));
+}
+// 帯から読める事（数から機械が組む）
+function readings() {
+  const run = RUN.seconds || 0, cost = RUN.cost || total('cost'), pct = (a, b) => b ? Math.round(100 * a / b) : 0, out = [];
+  const longest = SR.reduce((a, r, i) => (r.seconds || 0) > (SR[a].seconds || 0) ? i : a, 0), dear = SR.reduce((a, r, i) => r.cost > SR[a].cost ? i : a, 0);
+  if (SR[longest].seconds) out.push(`一番長い段は ${stageName(longest + 1)}（${clock(SR[longest].seconds)}・run の ${pct(SR[longest].seconds, run)}%）。`);
+  if (total('wait')) out.push(`人の答え待ちは合わせて ${clock(total('wait'))}（run の ${pct(total('wait'), run)}%）。`);
+  if (SR[dear].cost) out.push(`費用の ${pct(SR[dear].cost, cost)}% は ${stageName(dear + 1)}（${usd(SR[dear].cost)}）。`);
+  const top = RUN.events.filter(e => e.role === 'ai' && e.cost).sort((a, b) => b.cost - a.cost)[0];
+  if (top) out.push(`一番高い AI の手番は ${top.tokens.join(' / ')}${top.loop.length ? ` 周 ${top.loop.join('.')}` : ''}（${usd(top.cost)}・${clock((Date.parse(top.end || top.start) - Date.parse(top.start)) / 1000)}）。`);
+  return out;
+}
+function overview() {
+  const [head, sub] = claim(), box = $('ov');
+  box.append(h('section', {class: 'hero'}, h('div', {class: 'cap', text: RUN ? `run ${RUN.id.slice(0, 8)} · ${RUN.graph}` : `${STG.graph || 'line'} · 今の木の作り`}),
+    h('h1', {text: head}), h('p', {text: sub})));
+  box.append(h('div', {class: 'card'}, h('h2', {text: '段の地図'}),
+    h('div', {class: 'cap', text: SR ? '段を押すと「図と再生」で一番外の図のその段のノードを強める。再生中は今の段が青くなる。' : '段を押すと「図と再生」で一番外の図のその段のノードを強める。'}),
+    h('div', {class: 'stages', id: 'ov-stages'}),
+    fold('各段がする事と、段の間で渡す物', h('ul', {}, STG.table.map((s, i) => {
+      const r = SR && SR[i], fact = !r ? '' : r.state === 'ok' || STG.stop === i + 1
+        ? ` この run: ${[STG.stop === i + 1 ? 'ここで止まった' : STATE.ok, clock(r.seconds), r.wait ? `うち人の答え待ち ${clock(r.wait)}` : '', r.cost ? usd(r.cost) : '', r.ai ? `AI ${r.ai} 回` : ''].filter(Boolean).join('・')}。`
+        : ` この run: ${STATE[r.state]}。`;
+      return h('li', {}, h('b', {text: `${i + 1} ${s.name}`}), `: ${s.line}${fact}${s.hands ? ` → 渡す物: ${s.hands}` : ''}`,
+        h('div', {class: 'cap', text: `中のノード: ${s.nodes.join('・')} ／ 説明の出どころ: ${s.source}`}));
+    })))));
+  if (SR && STEPS.length) {
+    const odd = SR.reduce((n, r) => n + r.tokens.odd, 0);
+    box.append(h('div', {class: 'card'}, h('h2', {text: '時間の帯'}),
+      h('div', {class: 'cap', text: '帯を押すと、その時刻へ再生が飛ぶ。青い縦の線が再生の今の位置（「図と再生」の再生と同じ位置）。'}),
+      h('div', {class: 'nowline', id: 'ov-now'}), band(),
+      h('div', {class: 'key'}, Object.values(ROLE).map(([c, l]) => h('span', {}, h('i', {style: `background:${c}`}), l))),
+      fold('帯から読める事', h('ul', {}, readings().map(t => h('li', {text: t})))),
+      fold('段ごとの時間・費用・AI の手番・往復・トークン', [h('div', {class: 'scroll'}, h('table', {},
+        h('tr', {}, ['段', '状態', '時間', '人の答え待ち', 'AI の時間', '費用', 'AI の手番', '往復', '新しく読んだ', 'cache 書き', 'cache 読み', '出力'].map(x => h('th', {text: x}))),
+        STG.table.map((s, i) => { const r = SR[i]; return h('tr', {}, h('td', {text: `${i + 1} ${s.name}`}), h('td', {text: STG.stop === i + 1 ? 'ここで止まった' : STATE[r.state]}),
+          [clock(r.seconds), r.wait ? clock(r.wait) : '', r.ai_seconds ? clock(r.ai_seconds) : '', r.cost ? usd(r.cost) : '', r.ai || '', r.turns || '',
+            ...['fresh', 'cacheWrite', 'cacheRead', 'output'].map(k => r.tokens[k] ? num(r.tokens[k]) : '')].map(v => h('td', {class: 'n', text: v}))); }))),
+        h('p', {class: 'cap', text: `横は run の始め（${STEPS[0].t.replace('T', ' ').replace(/\..*/, '')} UTC）からの時刻。時間は「分:秒」。費用は手番のドルの和だけ（4 分けごとのドルは記録に無い）。` +
+          `トークンは Archon の記録の和で、新しく読んだ分は入力から cache の読みと書きを引いた数${odd ? `（引けない手番 ${odd} 件は入れていない）` : ''}。`})])));
+  }
+  overviewNow();
+}
+// 再生の今の位置を流れの画面に映す
+function overviewNow() {
+  if (!$('ov-stages')) return;
+  drawMap();
+  if (!$('ov-now')) return;
+  const step = at >= 0 ? STEPS[at] : null, n = step && step.e.stage, line = $('ov-line');
+  line.setAttribute('visibility', step ? 'visible' : 'hidden');
+  if (step) line.setAttribute('x', (Date.parse(step.t) - T0) / SPAN * BAND_W - 1.5);
+  document.querySelectorAll('#ov .lab').forEach(l => l.classList.toggle('now', !!n && +l.dataset.n === n));
+  $('ov-now').textContent = step ? `再生の今 +${clock((Date.parse(step.t) - T0) / 1000)} · ${n ? `段 ${n} ${stageName(n)}` : '段に当たらない'} · ${step.e.tokens.join(' / ')} の${step.end ? '終わり' : '始まり'}`
+    : '再生していない（run の終わりの姿）。下の ▶ か帯を押すと始まる';
+}
+// 段の箱 → 「図と再生」で一番外の図のその段のノードを強める（道しるべの段の札を押すと外す）
+function toGraph(n) {
+  marked = n; behind = false;
+  const fresh = !cur;
+  tab('flow');
+  if (fresh) return;   // tab が一番外の図を描き、描いた後に強める
+  if (cur === ROOT && stack.length === 1) { markStage(); crumb(); } else { stack = [{folder: ROOT, node: null}]; show(); }
+}
+function markStage() {
+  const ids = new Set(STG.table[marked - 1].nodes);
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  for (const el of document.querySelectorAll('#world .node')) {
+    const top = !el.dataset.id.includes('/'), inside = ids.has(el.dataset.id.split('/')[0]);
+    el.classList.toggle('st-in', inside && top); el.classList.toggle('st-out', !inside);
+    if (inside && top) { const l = parseFloat(el.style.left), t = parseFloat(el.style.top);
+      x0 = Math.min(x0, l); y0 = Math.min(y0, t); x1 = Math.max(x1, l + el.offsetWidth); y1 = Math.max(y1, t + el.offsetHeight); }
+  }
+  if (x1 < x0) return;   // この作りにこの段のノードが無い
+  const c = $('canvas'), s = Math.min(1, Math.max(0.3, Math.min(room() / (x1 - x0 + 40), (c.clientHeight - 90 - below()) / (y1 - y0 + 40))));
+  T.s = s; T.x = 30 + Math.max(0, (room() - (x1 - x0) * s) / 2) - x0 * s; T.y = 60 - y0 * s; apply();
+}
+// 図のノードの板 → 流れの地図のその段の箱
+function toMap(n) {
+  tab('overview');
+  const el = $('ov-stages').children[n - 1];
+  $('s-overview').scrollTop = Math.max(0, el.offsetTop - 80);
+  el.classList.add('flash'); setTimeout(() => el.classList.remove('flash'), 1200);
+}
 
 // 板: graph とノード
 function openPanel(title, body) {
@@ -588,8 +820,9 @@ function select(id, item, focus) {
   selId = id;
   if (!id) return;
   [...document.querySelectorAll('.node')].find(n => n.dataset.id === id)?.classList.add('sel');
-  const at = AT[cur + '/' + id] || {events: [], skipped: []};
+  const at = AT[cur + '/' + id] || {events: [], skipped: []}, n = stageOfNode(id);
   openPanel(item.id, [
+    n && h('a', {class: 'tostage', text: `段 ${n} ${STG.table[n - 1].name} · 流れの地図で見る →`, onclick: () => toMap(n)}),
     item.desc && pre(item.desc),
     kv([['種類', KIND[item.kind] ?? item.kind], ['道', item.path.join(' / ')], ['依る', item.deps], ['when', item.when], ['trigger_rule', item.trigger],
       ['always_run', item.always ? 'はい' : ''], ['模型', item.model], ['道具', item.tools], ['禁じた道具', item.denied], ['skill', item.skills],
@@ -749,6 +982,7 @@ function unread() {
   $('s-unread').append(box);
 }
 
+overview();
 header();
 if (D.target) runs();
 if (RUN) log();
