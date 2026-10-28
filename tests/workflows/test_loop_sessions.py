@@ -49,6 +49,7 @@ RESUBMIT = {
     ("plan-review", "review-loop"): ("review-prep", "review-fix-prep", (
         ("review", "review-fix", "tree != true", ("reply", "fix_reply")),
         ("review-tree", "review-tree-fix", "tree == true", ("tree_reply", "tree_fix_reply"))), "review-accept"),
+    ("plan-review", "theme-loop"): ("theme-prep", "theme-fix-prep", (("review-theme", "review-theme-fix", *ONE),), "theme-accept"),
     ("r4", "r4-loop"): ("r4-scope-prep", "r4-scope-fix-prep", (("r4-scope", "r4-scope-fix", *ONE),), "r4-scope-accept"),
     ("spec", "spec-write-loop"): ("spec-write-prep", "spec-write-fix-prep", (("spec-write", "spec-write-fix", *ONE),),
                                   "spec-write-accept"),

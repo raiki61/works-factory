@@ -2,6 +2,7 @@
 聞かずに通した行は line が、受けた設計の返答の行は設計を返した側が組む）。
 
 - 形 plan で通った時: 「事前審査（<k> 往復目・修正案）: block <key の並びか「無い」>・suggest <n> 件・別案 <n> 件<・木（項目 <n> 本）>」
+- 形 theme で通った時: 「事前審査（<k> 往復目・設計の案）: block …・suggest … 件・別案 … 件・消えた穴 <resolved の数> 件」
 - 形 replan で通った時: 「事前審査（案の直し・項目 <番号>）: block …・suggest … 件・別案 … 件」
 - 形 text で通った時: 頭の 1 行「事前審査（方針の文）: 穴 <n> 件（block <m>）・別案 <n> 件」と、block の穴ごとに「- [<kind>] <key>: <why の 1 行>」
 - 諦めた・落ちた時: 「事前審査: <reason>」
@@ -15,6 +16,7 @@ import oneline    # lib/
 
 HEAD = "事前審査"
 PLAN_WORD = "修正案"
+THEME_WORD = "設計の案"
 NONE = "無い"
 
 
@@ -47,6 +49,9 @@ def _head(*, status: str, form: str, reason: str, review: dict | None, k: int, r
         shrink = [s for s in review.get("shrink") or [] if isinstance(s, dict)]
         return [f"{HEAD}（方針の文）: 穴 {len(faces)} 件（block {len(blocks)}）・別案 {len(shrink)} 件",
                 *(f"- [{f.get('kind')}] {f.get('key')}: {oneline.one_line(f.get('why'))}" for f in blocks)]
+    if form == "theme":
+        resolved = [x for x in review.get(converge.RESOLVED) or [] if isinstance(x, str)]
+        return [f"{HEAD}（{k} 往復目・{THEME_WORD}）: {_counts(review)}・消えた穴 {len(resolved)} 件"]
     if form == "replan":
         return [f"{HEAD}（案の直し・項目 {'、'.join(str(n) for n in ruled)}）: {_counts(review)}"]
     tree = f"・木（項目 {tree_items} 本）" if tree_items else ""

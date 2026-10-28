@@ -57,6 +57,8 @@ NOT_PASSED = {
     ("rejudge-run", "request_files"): "再審の道は読まない（判定の道だけの入力）",
     **{(review, name): "方針の文と方針の文のファイル。仕様を固める会話から単独で回す時だけ使う（line は修正案を plan で渡す）"
        for review in ("plan-review-run", "replan-review") for name in ("proposal", "proposal_file")},
+    **{(review, "theme_doc"): "形 theme の設計の案。設計の段を回す run だけが渡す（line へのつなぎは issue #862 の PR T3）"
+       for review in ("plan-review-run", "replan-review")},
     **{(plan, "spec_doc"): "仕様駆動の run だけが渡す人と固めた仕様の本文（依頼の文の run の固めた仕様は spec）" for plan in ("plan", "replan")},
     ("spec-plan", "spec"): "仕様駆動の run は仕様の段の spec.json を作らない（固めた本文は spec_doc）",
     ("plan-review-run", "ruling"): "形 replan だけが読む",
