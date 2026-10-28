@@ -390,14 +390,13 @@ class SpecDrivenWiringCase(unittest.TestCase):
 
     def test_request_run_gates(self):
         """依頼の文の run の判定は from_spec == false の時だけ回り、直す前の結末は spec-entry を読む節を || の後ろに置く（前の節で
-        打ち切るので、依頼の文の run は飛ばされた spec-entry の出力を読まない）。どの節も answer-start を request-in より先に読む（始めで
-        止まった run は request-in が飛ぶ。筋書き start-refused）"""
+        打ち切るので、依頼の文の run は飛ばされた spec-entry の出力を読まない）。どの節も answer-start を request-in より先に読む読み順
+        は、ここで縛らず筋書き start-refused の dry-run が照らす（始めで止まった run は request-in が飛ぶ）"""
         self.assertEqual(TOP["judge"]["when"], "$test-gate-base.output.ok == true && $start.output.from_spec == false")
         when = TOP["test-gate-base"]["when"]
         head, tail = when.split(" || ")
         self.assertEqual(head, "$answer-start.output.go == true && $request-in.output.go == true && $start.output.from_fixture == false"
                                " && $start.output.from_spec == false")
-        self.assertTrue(tail.startswith("$answer-start.output.go == true && $request-in.output.go == true"), tail)
         self.assertIn("$spec-entry.output.ok == true", tail)
         self.assertNotIn("$spec-entry", head)
 
