@@ -1,0 +1,5 @@
+{shared:resubmit}
+
+{shared:query-rule}
+
+When you fix `block_answers`, `answers_used`, or `inventory`, return every row (the field is replaced as a whole).

@@ -57,6 +57,7 @@ RESUBMIT = {
                                    "spec-review-accept"),
     ("spec", "spec-revise-loop"): ("spec-revise-prep", "spec-revise-fix-prep", (("spec-revise", "spec-revise-fix", *ONE),),
                                    "spec-revise-accept"),
+    ("theme", "write-loop"): ("write-prep", "theme-fix-prep", (("theme-writer", "theme-writer-fix", *ONE),), "write-accept"),
 }
 LAUNCH = ("model", "effort", "allowed_tools", "denied_tools", "skills", "plugins", "settingSources", "sandbox", "mutates_checkout",
           "idle_timeout", "retry")

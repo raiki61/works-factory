@@ -1,0 +1,13 @@
+# 出し直しの役の md を本当の prep で組んだと照らす筋書き。dry-run の loop は 1 周で、1 周目の write-prep は受け付けの ok を受けないので、
+# 本当の write-prep は出し直しにならない。そこでこの筋書きだけ write-prep を {prompt: '', resubmit: true} で差し替え、theme-fix-prep は本当に走らせる。
+# 受け付けは合わせる元の控え candidate-theme.json が無いので拒み（1 回目なので諦めない）、出口は status: failed と最後の拒否を返す。run は completed
+fixture:
+  expect: completed
+  reached: [intake, theme-fix-prep, theme-writer-fix, write-accept, finish]
+  inputs:
+    theme: 'README.md'
+  resolved-text-contains:
+    theme-writer-fix: 'return every row (the field is replaced as a whole).'
+exec-code: true
+write-prep: {prompt: '', resubmit: true}
+theme-writer-fix: {}

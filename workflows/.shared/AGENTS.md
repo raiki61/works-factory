@@ -62,6 +62,7 @@ block の script と `src/` が Archon と出入りする口と、2 つ以上の
 - 取り置いた断片の名（まだ置かない。最初に要った PR が、この名で足す）: 今は無い。
 - `schemas/<name>.schema.json`: 2 つ以上の block が使う port の形。今在る物: `request.schema.json`（依頼の行）・`constraints.schema.json`（前提の実測の行）・`purpose.schema.json`（固めた目的）・`units.schema.json`（判定が切った根本の単位の目録）・`plan-verdict.schema.json`（事前審査の最後の往復の結論）・`gate-answers.schema.json`（承認ノードの人の答え `{start, before_fix}`）・`pushes.schema.json`（無人の run が採った推しの文）・`fix-marks.schema.json`（修正の印）・`judgment.schema.json`（受け付けた判定。欄 `units`・`questions`）・`prior-failures.schema.json`（前の run で通らなかった物の行 `[{where, text}]`）。
   - 書き手の型の block の形（修正の系。D1）: `weapon-order.schema.json`（修正の block が型の block に渡す注文 `{weapon, group, stage, since, base, units, scope, permits}`）。
+  - 設計の段の形: `theme-design.schema.json`（設計の案の書き手の block theme が返す設計の案。line が降りる時に読む。docs/design/theme.md の 3 章）。
   - `writer-slots.schema.json`（書き手の指示の共通の値と段落の真偽 `{values, when, subagents, summary_file}`。`values`・`when` の鍵は全部 required）。
   - `writer-reply.schema.json`（書き手の返答。書き手の型の block の AI の node の `output_format` と同じ中身。`precedent` が `allOf`・`if`・`then`・`not` を使う）。
   - 形は中身を宣言する: object は `properties` か `patternProperties`、array は `items`、`type` に 6 つの型を全部並べない（`ports.open_shapes` が拒む）。中身の住処がほかの形に在る所は `description` の `json(<名>)` で名指す。include した block の出力は `json(returns:<workflow の名>)` で、include する workflow の node の `output_format` だけが名指す（`docs/design/README.md` の 4.1）。

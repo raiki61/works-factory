@@ -1,0 +1,17 @@
+{
+  "description": "人の答えの行の配列（docs/design/theme.md の 7 章）。承認ノードの答えの text の見出しのセクションと受け箱の行を、渡す側が行ごとに分けて id H<n> を付けた物。kind は owner_words（持ち主の言葉。字のまま）・research（調べものの結果）・ask_answer（問いへの答え。ask と pick を持つ）・reading（取り次ぐ会話の読み）・note（見出しの無い一言）。空の配列は答えが無い",
+  "type": "array",
+  "items": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": ["id", "kind", "text"],
+    "properties": {
+      "id": {"type": "string", "pattern": "^H[0-9]+$"},
+      "kind": {"type": "string", "enum": ["owner_words", "research", "ask_answer", "reading", "note"]},
+      "text": {"type": "string", "minLength": 1},
+      "ask": {"type": "string", "pattern": "^Q[0-9]+$"},
+      "pick": {"type": "string", "pattern": "^A[0-9]+$"},
+      "from": {"type": "string"}
+    }
+  }
+}

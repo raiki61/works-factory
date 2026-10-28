@@ -1,0 +1,7 @@
+# テーマの md が無い道: 入口が書き手を起こさず（loop は飛ばされる）、出口が status: failed と訳を返す。run は止めない
+fixture:
+  expect: completed
+  reached: [intake, finish]
+  inputs:
+    theme: 'no-such-theme.md'
+exec-code: true
