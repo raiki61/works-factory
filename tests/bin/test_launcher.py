@@ -87,7 +87,7 @@ class LauncherTest(unittest.TestCase):
             HOME=str(self.home), PATH=f"{self.fake}{os.pathsep}{self.tools}", XDG_CACHE_HOME=str(self.cache_home),
             FAKE_BUN_LOG=str(self.bun_log), FAKE_CLAUDE_LOG=str(self.tmp / "claude.jsonl"),
             FAKE_SECURITY_LOG=str(self.security_log), ANTHROPIC_API_KEY=API_KEY)
-        for name in (*USER_SPECIFIC, *launcher.CHOSEN_TTL_ENVS):
+        for name in USER_SPECIFIC:
             self.env.pop(name, None)
 
     def launch(self, *args, cwd=None, **env):
