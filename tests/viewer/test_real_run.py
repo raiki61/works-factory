@@ -22,7 +22,6 @@ Archon の振る舞いの意味の話なので、本物の run で照らす。
 import json
 import pathlib
 import shutil
-import sqlite3
 import subprocess
 import tempfile
 import unittest
@@ -104,7 +103,7 @@ process.exit(done.answered ? 0 : 1);
 def answer_only(tree: pathlib.Path, run_id: str) -> subprocess.CompletedProcess:
     """止まっている run の承認ノードに、Archon の口で答えだけを書く（次へ進む前の間を残す）"""
     db = tree.parent / "archon-home" / runread.DB_FILE
-    with sqlite3.connect(f"file:{db}?mode=ro", uri=True) as con:
+    with runread.connect(db) as con:
         meta = json.loads(con.execute(f"select metadata from {runread.RUN_TABLE} where id = ?", (run_id,)).fetchone()[0])
     script = tree.parent / "answer-only.ts"
     script.write_text(ANSWER_ONLY % (archon.source() / "packages/core/src/db/workflow-run-waits.ts"), encoding="utf-8")
@@ -115,7 +114,7 @@ def answer_only(tree: pathlib.Path, run_id: str) -> subprocess.CompletedProcess:
 
 def rows(tree: pathlib.Path, run_id: str) -> list[str]:
     """run のログの行の型"""
-    with sqlite3.connect(f"file:{tree.parent / 'archon-home' / runread.DB_FILE}?mode=ro", uri=True) as con:
+    with runread.connect(tree.parent / 'archon-home' / runread.DB_FILE) as con:
         root = con.execute(f"select output_root from {runread.RUN_TABLE} where id = ?", (run_id,)).fetchone()[0]
     log = pathlib.Path(root) / runread.LOGS / f"{run_id}.jsonl"
     return [json.loads(line).get("type") for line in log.read_text(encoding="utf-8").splitlines() if line.strip()]

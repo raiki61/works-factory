@@ -21,7 +21,9 @@
 *{box-sizing:border-box}
 html,body{margin:0;height:100%}
 [hidden]{display:none!important}
-body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:13px;line-height:1.55;display:flex;flex-direction:column;overflow:hidden}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:13px;line-height:1.55;overflow:hidden}
+/* 高さは body でなく .app が画面の高さで持つ（ビューアが body の中身を別の要素で包んでも切れない。fixed は包みの transform で崩れるので使わない） */
+.app{height:100vh;display:flex;flex-direction:column}
 button{font:inherit;color:inherit;cursor:pointer}
 code,pre,.mono{font-family:var(--f-mono);font-size:12px}
 pre{white-space:pre-wrap;overflow-wrap:anywhere;margin:4px 0;padding:8px 10px;background:var(--panel2);border:1px solid var(--line);border-radius:8px;max-height:420px;overflow:auto}
@@ -93,6 +95,7 @@ tr.cur td{background:var(--sel-soft)}
 <body>
 <script type="application/json" id="data">__DATA__</script>
 <script>/*__ELK__*/</script>
+<div class="app">
 <div class="top">
   <h1>works-factory の作りと run</h1>
   <div class="facts" id="facts"></div>
@@ -113,6 +116,7 @@ tr.cur td{background:var(--sel-soft)}
   <div class="screen" id="s-log" hidden></div>
   <div class="screen" id="s-unread" hidden></div>
 </div>
+</div>
 <script>
 'use strict';
 const D = JSON.parse(document.getElementById('data').textContent);
@@ -129,7 +133,7 @@ function h(tag, attrs, ...kids) {
     if (v == null || v === false) continue;
     if (k === 'text') el.textContent = v; else if (k.startsWith('on')) el.addEventListener(k.slice(2), v); else el.setAttribute(k, v === true ? '' : v);
   }
-  for (const kid of kids.flat()) if (kid != null && kid !== false) el.append(kid instanceof Node ? kid : String(kid));
+  for (const kid of kids.flat(Infinity)) if (kid != null && kid !== false) el.append(kid instanceof Node ? kid : String(kid));
   return el;
 }
 const $ = id => document.getElementById(id);
@@ -140,6 +144,9 @@ const badge = s => h('span', {class: 'badge ' + s, text: STATUS[s] || s});
 const text = mark => TX[mark] ?? '';
 const kv = rows => h('div', {class: 'kv'}, rows.filter(r => r && r[1] !== '' && r[1] != null && !(Array.isArray(r[1]) && !r[1].length))
   .map(([k, v]) => [h('b', {text: k}), h('span', {}, v instanceof Node ? v : Array.isArray(v) ? v.map(x => h('span', {class: 'chip', text: x})) : String(v))]));
+const where = at => at ? `${at.graph} / ${at.node}` : '図に当たらない';
+// 殻に貼る命令の引数（パスの空白や記号を殻に読ませない。flowview.py の shlex.quote と同じ形）
+const sh = s => /^[\w@%+=:,./-]+$/.test(s) ? s : `'${s.replace(/'/g, `'"'"'`)}'`;
 const pre = (s, cls) => h('pre', {class: cls || null, text: s});
 const fold = (title, body, open) => h('details', {open: open || null}, h('summary', {}, title), h('div', {}, body));
 // 日本語の写し（人が読むための射影。LLM には渡していない）。訳の無い段落は英語のまま
@@ -218,22 +225,38 @@ async function show() {
     if (item.kind === 'loop') return {id: item.path.join('/'), children: item.kids.map(node), layoutOptions: {'elk.padding': '[top=46,left=16,bottom=16,right=16]'}};
     return {id: item.path.join('/'), width: W, height: H};
   };
+  // 線は順を決める依りだけを引く（ほかの依りを通って届く依りは引かない。collect のように数十の依りを持つノードへの線が束になって図を
+  // 埋めるため）。依りの全部はノードの板に出す
   const edges = [];
-  const link = (items) => items.forEach(item => {
-    const scope = item.path.slice(0, -1);
-    for (const dep of item.deps) {
-      const from = [...scope, dep].join('/');
-      if (items.some(i => i.id === dep)) edges.push({id: 'e' + edges.length, sources: [from], targets: [item.path.join('/')]});
-    }
-    if (item.kids) link(item.kids);
-  });
+  const link = (items) => {
+    const deps = Object.fromEntries(items.map(i => [i.id, i.deps.filter(d => d !== i.id && items.some(o => o.id === d))]));
+    const above = {};
+    const reach = id => {
+      if (!above[id]) { above[id] = new Set(); for (const d of deps[id]) { above[id].add(d); reach(d).forEach(x => above[id].add(x)); } }
+      return above[id];
+    };
+    items.forEach(item => {
+      const scope = item.path.slice(0, -1);
+      for (const dep of deps[item.id].filter(d => !deps[item.id].some(o => o !== d && reach(o).has(d))))
+        edges.push({id: 'e' + edges.length, sources: [[...scope, dep].join('/')], targets: [item.path.join('/')]});
+      if (item.kids) link(item.kids);
+    });
+  };
   link(g.items);
-  const laid = await elk.layout({id: 'root', children: g.items.map(node), edges, layoutOptions: {
-    'elk.algorithm': 'layered', 'elk.direction': 'DOWN', 'elk.hierarchyHandling': 'INCLUDE_CHILDREN', 'org.eclipse.elk.json.edgeCoords': 'ROOT',
-    'elk.edgeRouting': 'ORTHOGONAL', 'elk.layered.spacing.nodeNodeBetweenLayers': '44', 'elk.spacing.nodeNode': '26',
-    'elk.layered.considerModelOrder.strategy': 'NODES_AND_EDGES'}});
+  const world = $('world'); world.replaceChildren(); delete world.dataset.w;
+  let laid;
+  try {
+    laid = await elk.layout({id: 'root', children: g.items.map(node), edges, layoutOptions: {
+      'elk.algorithm': 'layered', 'elk.direction': 'DOWN', 'elk.hierarchyHandling': 'INCLUDE_CHILDREN', 'org.eclipse.elk.json.edgeCoords': 'ROOT',
+      'elk.edgeRouting': 'ORTHOGONAL', 'elk.layered.spacing.nodeNodeBetweenLayers': '44', 'elk.spacing.nodeNode': '26',
+      'elk.layered.considerModelOrder.strategy': 'NODES_AND_EDGES'}});
+  } catch (error) {
+    if (cur === folder) world.append(h('div', {class: 'notice err', style: 'position:absolute;left:0;top:0;width:520px'},
+      `${folder} の図を並べられなかった（elk の誤り）: ${error && error.message || error}。ノードの出来事は「ログ」の画面で見る`));
+    T.x = 30; T.y = 56; T.s = 1; apply();
+    return;
+  }
   if (cur !== folder) return;
-  const world = $('world'); world.replaceChildren();
   const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
   svg.setAttribute('class', 'edges'); svg.setAttribute('width', laid.width); svg.setAttribute('height', laid.height);
   const draw = (n, ox, oy) => {
@@ -256,8 +279,9 @@ async function show() {
   svg.insertAdjacentHTML('afterbegin', '<defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0L10,5L0,10z" fill="currentColor" style="stroke:none;fill:var(--edge)"/></marker></defs>');
   world.prepend(svg);
   world.dataset.w = laid.width; world.dataset.h = laid.height;
-  fit();
-  graphPanel(folder);
+  const first = laid.children.reduce((a, n) => !a || n.y < a.y || (n.y === a.y && n.x < a.x) ? n : a, null);
+  world.dataset.cx = first ? first.x + first.width / 2 : 0;
+  home();
 }
 function sub(item) {
   const bits = [KIND[item.kind] ?? item.kind];
@@ -274,6 +298,8 @@ function crumb() {
     if (i) c.append(h('span', {text: '›'}));
     c.append(i === stack.length - 1 ? h('b', {text: f}) : h('a', {text: f, onclick: () => { stack = stack.slice(0, i + 1); show(); }}));
   });
+  c.append(h('a', {text: '説明', title: 'この graph の説明・入力・返す欄', onclick: () => graphPanel(cur)}),
+    h('span', {class: 'empty', text: 'ノードを押すと板・block は 2 度押しで中へ'}));
 }
 
 // 図: 動かす・拡げる
@@ -283,27 +309,36 @@ function zoomAt(f, cx, cy) {
   cx ??= c.clientWidth / 2; cy ??= c.clientHeight / 2;
   T.x = cx - (cx - T.x) * s / T.s; T.y = cy - (cy - T.y) * s / T.s; T.s = s; apply();
 }
+function room() { const c = $('canvas'); return c.clientWidth - ($('panel').hidden ? 0 : $('panel').offsetWidth + 20) - 60; }
 function fit() {
   const c = $('canvas'), w = +$('world').dataset.w || 1, hh = +$('world').dataset.h || 1;
-  const room = c.clientWidth - ($('panel').hidden ? 0 : $('panel').offsetWidth + 20) - 60;
-  T.s = Math.min(1.2, Math.max(0.1, Math.min(room / w, (c.clientHeight - 90) / hh)));
-  T.x = 30 + Math.max(0, (room - w * T.s) / 2); T.y = 56; apply();
+  T.s = Math.min(1.2, Math.max(0.1, Math.min(room() / w, (c.clientHeight - 90) / hh)));
+  T.x = 30 + Math.max(0, (room() - w * T.s) / 2); T.y = 56; apply();
+}
+// 開いた時の姿: 全体が読める大きさで入れば全体、入らなければ読める大きさ（READABLE）で入口のノードを上の真ん中に置く
+const READABLE = 0.75;
+function home() {
+  fit();
+  if (T.s >= READABLE) return;
+  const w = +$('world').dataset.w || 1;
+  T.s = READABLE;
+  T.x = Math.min(30, Math.max(30 + room() - w * T.s, 30 + room() / 2 - (+$('world').dataset.cx || 0) * T.s)); T.y = 56; apply();
 }
 (function pan() {
-  const c = $('canvas'); let from = null;
-  c.addEventListener('mousedown', ev => { if (ev.target.closest('.panel,.zoom,.crumb')) return; from = {x: ev.clientX - T.x, y: ev.clientY - T.y}; c.classList.add('drag'); });
-  addEventListener('mousemove', ev => { if (from) { T.x = ev.clientX - from.x; T.y = ev.clientY - from.y; apply(); } });
+  const c = $('canvas'); let from = null, moved = false;
+  c.addEventListener('mousedown', ev => { if (ev.target.closest('.panel,.zoom,.crumb')) return; from = {x: ev.clientX - T.x, y: ev.clientY - T.y}; moved = false; c.classList.add('drag'); });
+  addEventListener('mousemove', ev => { if (from) { T.x = ev.clientX - from.x; T.y = ev.clientY - from.y; moved = true; apply(); } });
   addEventListener('mouseup', () => { from = null; c.classList.remove('drag'); });
   c.addEventListener('wheel', ev => { if (ev.target.closest('.panel')) return; ev.preventDefault(); const r = c.getBoundingClientRect();
     zoomAt(Math.exp(-ev.deltaY * 0.0015), ev.clientX - r.left, ev.clientY - r.top); }, {passive: false});
-  c.addEventListener('click', ev => { if (!ev.target.closest('.panel,.node,.zoom,.crumb')) graphPanel(cur); });
+  c.addEventListener('click', ev => { if (!moved && !ev.target.closest('.panel,.node,.zoom,.crumb')) { $('panel').hidden = true; select(null); } });
   $('z-in').onclick = () => zoomAt(1.25); $('z-out').onclick = () => zoomAt(0.8); $('z-fit').onclick = fit;
   $('p-close').onclick = () => { $('panel').hidden = true; select(null); };
   $('find').oninput = catalog;
 })();
 
 // 板: graph とノード
-function openPanel(title, body) { $('p-title').textContent = title; $('p-body').replaceChildren(...body.filter(Boolean)); $('panel').hidden = false; }
+function openPanel(title, body) { $('p-title').textContent = title; $('p-body').replaceChildren(...body.flat(Infinity).filter(Boolean)); $('panel').hidden = false; }
 function graphPanel(folder) {
   const g = G[folder];
   document.querySelectorAll('.node.sel').forEach(n => n.classList.remove('sel'));
@@ -347,7 +382,7 @@ function select(id, item) {
     item.prompt && [h('h3', {text: 'YAML の指示の欄'}), pre(item.prompt)],
     RUN && h('h3', {text: `この run で（${at.events.length} 回）`}),
     RUN && !at.events.length && !at.skipped.length && h('div', {class: 'empty', text: 'この所の出来事は記録に無い'}),
-    ...at.skipped.map(s => h('div', {}, badge('skipped'), ` ${s.at || ''} ${s.cause ? JSON.stringify(s.cause) : ''}`)),
+    ...at.skipped.map(s => h('div', {}, badge('skipped'), ` ${s.tokens.join(' / ')} ${s.cause ? JSON.stringify(s.cause) : ''}`)),
     ...at.events.map((e, i) => eventView(e, at.events.length === 1)),
   ].flat());
 }
@@ -359,7 +394,7 @@ function eventView(e, open) {
   const body = [
     kv([['run', e.run === RUN.id ? '' : e.run.slice(0, 8)], ['種類', e.kind], ['始め', e.start], ['終わり', e.end], ['模型', e.model], ['effort', e.effort],
       ['往復', e.turns], ['トークン', e.usage ? `入 ${num(e.usage.input)}・出 ${num(e.usage.output)}・cache 読み ${num(e.usage.cacheRead)}・cache 書き ${num(e.usage.cacheWrite)}` : ''],
-      ['会話', e.session ? `${e.session}（${e.origin}）` : ''], ['図の所', e.at ? `${e.at.graph} / ${e.at.node}` : '図に当たらない']]),
+      ['会話', e.session ? `${e.session}（${e.origin}）` : ''], ['図の所', where(e.at)]]),
     e.error && [h('h3', {text: '誤り'}), pre(e.error, 'err')],
     e.calls.length && [h('h3', {text: `道具の呼び出し（${e.calls.length}）`}),
       h('table', {}, e.calls.map(c => h('tr', {}, h('td', {text: c.name}), h('td', {text: c.status}), h('td', {class: 'wrap mono', text: c.title}))))],
@@ -406,7 +441,7 @@ function seqRow(x) {
 // run の一覧
 function runs() {
   const out = $('s-runs');
-  const cmd = id => `uv run --isolated python3 viewer/flowview.py --target ${D.target} --run ${id} <出力>`;
+  const cmd = id => `uv run --isolated python3 viewer/flowview.py --target ${sh(D.target)} --run ${id} <出力>`;
   out.append(h('div', {class: 'pad'}, `${D.target} の run の家の親の run（新しい順）。別の run を見るには、その行の命令を工場の clone の根で打つ（ページは 1 枚なので、ここから移れない）`),
     h('table', {}, h('tr', {}, ['id', 'graph', '状態', '待ち', '始め', 'かかった', '費用'].map(x => h('th', {text: x}))),
       D.runs.flatMap(r => [h('tr', {class: RUN && r.id === RUN.id ? 'cur' : null}, h('td', {class: 'mono', text: r.short}), h('td', {text: r.graph}),
@@ -424,7 +459,7 @@ function log() {
       h('td', {text: c.node.join(' / ')}), h('td', {text: secs(c.seconds)})))));
   box.append(h('h3', {text: `ノードの出来事（${RUN.events.length}・時刻順）`}), ...RUN.events.map(e => eventView(e, false)));
   if (RUN.skipped.length) box.append(h('h3', {text: `飛んだノード（${RUN.skipped.length}）`}),
-    h('table', {}, RUN.skipped.map(s => h('tr', {}, h('td', {class: 'mono', text: s.tokens.join(' / ')}), h('td', {text: s.at || ''}),
+    h('table', {}, RUN.skipped.map(s => h('tr', {}, h('td', {class: 'mono', text: s.tokens.join(' / ')}), h('td', {text: where(s.at)}),
       h('td', {class: 'wrap mono', text: s.cause ? JSON.stringify(s.cause) : ''})))));
   if (RUN.checks.length) box.append(h('h3', {text: `繰り返しの終わりの確かめ（${RUN.checks.length}）`}),
     ...RUN.checks.map(x => fold(`${x.step} ${x.label} 終了の値 ${x.exit}`, [x.stdout && pre(x.stdout), x.stderr && pre(x.stderr, 'err')])));
@@ -451,7 +486,7 @@ function unread() {
     list('記録の無い run', RUN.missing_logs);
     const ses = [];
     for (const [p, S] of Object.entries(RUN.sessions || {})) for (const [k, v] of Object.entries(S.unread)) ses.push(`${p} ${k}: ${v}`);
-    list('会話の記録の読まない行（Claude Code の記録の形は工場が止めていない）', ses);
+    list('会話の記録の知らない型の行（Claude Code の記録の形は工場が止めていない。読まないと決めた型は数えない）', ses);
   }
   $('s-unread').append(box);
 }
