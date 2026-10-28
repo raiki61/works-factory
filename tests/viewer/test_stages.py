@@ -8,7 +8,8 @@
 - トークンの新しく読んだ分は lib/runlog.py の add_tokens と同じ訳（cache の欄が欠けた手番が在れば知れない）。input が cache の和より
   小さい手番は数だけ持ち、新しく読んだ分を出さない
 - 段の表の配線の列（wiring。合流・受け渡しだけで段の仕事をしないノード）は、その段のノードの中に在り、どの段にも配線でない
-  ノードが在る。配線のノードだけが走った段は「飛んだ」（修正の段が飛んだ run でも fix-in・fixed・judged は走る）
+  ノードが在る。配線のノードだけが走った段は「飛んだ」（修正の段が飛んだ run でも fix-in・fixed・judged は走る。修正前の承認の
+  聞きと受け ask-before-fix・answer-before-fix は、人が聞かれずに止めや通しを受け渡しただけでも走る。人が答えた run は「通った」）
 - 止まった段は記録の事実から引く: 落ちた run は最後に落ちた出来事の段、人が止めた run は答えが stop だった人の答え待ちの段（run 642df5d7
   の形で、止めを受け渡しただけの修正前の承認を返さない）。通す答えだけの run と落ちずに終わった run には無い
 - line でない run は段に集めない
@@ -70,13 +71,13 @@ class StagesCase(unittest.TestCase):
         """修正の段が飛んだ run（修正前の承認で止めた）でも、合流の fix-in・fixed と判定を渡す judged は走る。段は飛んだ"""
         events = [event(["judge", "diagnose"], kind="agent"), event(["ask-before-fix"]), event(["answer-before-fix"]),
                   event(["fix-in"]), event(["lens-in"]), event(["fixed"]), event(["judged"]), event(["collect"])]
-        skipped = [{"tokens": [node]} for node in ("fix", "rejudge-run", "test-gate-final", "eyes", "merge-seal")]
+        skipped = [{"tokens": [node]} for node in ("gate-before-fix", "fix", "rejudge-run", "test-gate-final", "eyes", "merge-seal")]
         data = {"shape": {"graphs": line(NODES)}, "run": {"graph": "works-factory-line", "events": events, "skipped": skipped}}
         stages.attach(data)
         rows = data["stages"]["run"]
         self.assertEqual([rows[number(node) - 1]["state"] for node in ("judge", "gate-before-fix", "fix", "judged", "eyes", "collect")],
-                         ["ok", "ok", "skipped", "skipped", "skipped", "ok"])
-        self.assertEqual([e["through"] for e in events], [False, False, False, True, True, True, True, False])
+                         ["ok", "skipped", "skipped", "skipped", "skipped", "ok"])
+        self.assertEqual([e["through"] for e in events], [False, True, True, True, True, True, True, False])
 
     def test_run_is_summed_by_stage(self):
         usage = {"input": 100, "output": 7, "cacheRead": 60, "cacheWrite": 30}
@@ -168,7 +169,16 @@ class StagesCase(unittest.TestCase):
                   event(["ask-before-fix"]), event(["answer-before-fix"]), event(["fix-in"]), event(["fixed"]), event(["judged"]),
                   event(["collect"]), event(["report"], kind="workflow"), event(["result"])]
         skipped = [{"tokens": [node]} for node in ("gate-before-fix", "fix", "rejudge-run", "test-gate-final", "eyes", "merge-seal")]
-        self.assertEqual(run_of(events, skipped, status="completed")["stages"]["stop"], number("plan-rounds"))
+        got = run_of(events, skipped, status="completed")["stages"]
+        self.assertEqual(got["stop"], number("plan-rounds"))
+        # 修正前の承認は人が聞かれていない（聞きと受けは止めを受け渡しただけ）ので飛んだ
+        self.assertEqual(got["run"][number("gate-before-fix") - 1]["state"], "skipped")
+
+    def test_a_before_fix_approval_by_a_human_passes(self):
+        # 人が修正前の承認 gate-before-fix で通した run は、修正前の承認の段が通った
+        events = [event(["ask-before-fix"]), event(["gate-before-fix"], kind="wait", output='{"decision": "approve", "text": ""}'),
+                  event(["answer-before-fix"]), event(["fix-in"]), event(["fix"], kind="agent")]
+        self.assertEqual(summed(events)[number("gate-before-fix") - 1]["state"], "ok")
 
     def test_a_go_answer_or_a_run_that_did_not_stop_has_no_stop(self):
         go = event(["plan-rounds", "gate-design"], kind="wait", output={"decision": "approve", "text": ""})
