@@ -471,10 +471,10 @@ def asked_conflicts(pointers) -> tuple:
     return rows, unread
 
 
-def ledger_rows(judged: dict | None, record: dict, before_fix, *, unattended: bool) -> tuple:
+def ledger_rows(judged: dict | None, given: dict, before_fix, *, unattended: bool) -> tuple:
     """(問いの台帳から並べる行 {held, answered, unmatched, unread_holds, lost_ties}, 読めなかった訳の行)。lost_ties は読めた控えについての注記
     （結びの宛て先が今の問いにも単位にも無く字の一致で当てた。材料に見せるだけで、読めなかった控えには数えない）。判定・結び・素材の状態は judged の pointer、依頼の答えは
-    始めの記録、修正前の答えは fix-in が運んだ物（gatemarks.ledger_files。結びの宛て先が今の問いにも単位にも無ければ字の一致に落とし、
+    配る値 given の request_answers（src.descend.dealt。テーマの run は降りた依頼の答え）、修正前の答えは fix-in が運んだ物（gatemarks.ledger_files。結びの宛て先が今の問いにも単位にも無ければ字の一致に落とし、
     そのことを lost_ties の行にする）。判定が無い時は空、読めなければ読めなかった訳の行"""
     empty = {"held": [], "answered": [], "unmatched": [], "unread_holds": [], "lost_ties": []}
     if judged is None or judged.get("judgment") is None:
@@ -483,9 +483,9 @@ def ledger_rows(judged: dict | None, record: dict, before_fix, *, unattended: bo
         doc = gates.read_json(gates.path_of(judged["judgment"], lambda raw: ports.file(raw, "json(shared:judgment.schema.json)"))) or {}
         b = gatemarks.ledger_files(doc, ties_file=gates.path_of(judged.get("answer_ties"), lambda raw: ports.file(raw, "json(shared:answer-ties.schema.json)")) or None,
                                    materials_file=gates.path_of(judged.get("materials"), lambda raw: ports.file(raw, "json(shared:materials-state.schema.json)")) or None,
-                                   answers=gates.request_answers(record), gate=before_fix, takes_push=unattended)
+                                   answers=gates.request_answers(given), gate=before_fix, takes_push=unattended)
     except (OSError, ValueError, TypeError, AttributeError, KeyError) as error:
-        return empty, [f"判定の問いの控えか始めの記録を読めない（保留の問いを数えていない。{type(error).__name__}: {error}）"]
+        return empty, [f"判定の問いの控えを読めない（保留の問いを数えていない。{type(error).__name__}: {error}）"]
     units = [u.get("key") for u in b.record["units"]]
     return ({"held": gatemarks.held_lines(b), "answered": gatemarks.answered_lines(b),
              "unmatched": gatemarks.unmatched_answer_lines(b), "unread_holds": gatemarks.unread_hold_lines(b),
@@ -603,7 +603,7 @@ def gather(*, fix_in: dict, fixed: dict, judged: dict | None, tests: dict | None
     deleted, touched, deleted_unread = sealed_files(closing.get("diff"))
     beside = fix_beside(fixed.get("stages"))
     allowed, untouched = touched_allowed(beside.pop("allowed"), touched)
-    rows, ledger_unread = ledger_rows(judged, record, fix_in.get("answer"), unattended=bool(given.get("unattended")))
+    rows, ledger_unread = ledger_rows(judged, given, fix_in.get("answer"), unattended=bool(given.get("unattended")))
     split, unproven = split_and_unproven(fixed, (judged or {}).get("judgment"))
     passes = gatemarks.pass_lines([*(fix_in.get("passes") or []), *(eye.get("passes") or [])])
     return {

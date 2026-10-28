@@ -4,7 +4,7 @@ block は始めの記録を読まない（README 4.2・4.3）。line の start �
 から、同じ式でここが値を引き、node は `$start.output.ports.<名>` で読む。値の源を 1 つにする（node ごとに記録を開いて引き直すと、続きの
 run で値が黙って変わった 8dfebca6 の形が戻る）。
 
-- ports_of(record, artifacts) -> dict: 配る値の 36 欄（欄と式は line.md の 1.6。YAML の start の output_format の ports と同じ並び）
+- ports_of(record, artifacts) -> dict: 配る値の 39 欄（欄と式は line.md の 1.6。YAML の start の output_format の ports と同じ並び）
 - empty() -> dict: 拒んだ run・落ちた run の ports（全部の欄を空の値: 字は ""・flag は false・object は {}・配列は []・pointer の
   request と carried は null。後ろは when: で飛ぶ）
 - pr_text(pr) -> str: PR の番号・題・本文を並べた文（元 lib/judge_accept.py の pr_file_text の字。PR の無い run は ""）
@@ -31,14 +31,14 @@ ROUTES_AUTO, ROUTES_PLAN = "auto", "plan"   # 修正の部品の入力 routes �
 NAMES = ("request", "request_file", "pr_text", "carried", "carried_measured", "base", "base_rev", "request_origin", "base_label",
          "review_rev", "entry", "lang", "web", "world", "spec", "has_checks", "thickness", "forced", "design_talk", "unattended", "policy",
          "test_cmd", "tdd_suite", "reuse_dir", "user_env_dir", "run_id", "deliver", "parallel", "verify_by_tier", "tree_named",
-         "takes_push", "request_scope", "prior_rows", "request_answers", "spec_table", "routes")
+         "takes_push", "request_scope", "prior_rows", "request_answers", "spec_table", "routes", "theme", "theme_text", "theme_request")
 FLAGS = ("carried_measured", "world", "spec", "has_checks", "design_talk", "unattended", "parallel", "takes_push", "request_scope")
 
 
 def empty() -> dict:
     out = {name: "" for name in NAMES}
     out.update({name: False for name in FLAGS})
-    out.update({"request": None, "carried": None, "verify_by_tier": {}, "prior_rows": [], "request_answers": [],
+    out.update({"request": None, "carried": None, "theme_request": None, "verify_by_tier": {}, "prior_rows": [], "request_answers": [],
                 "routes": ROUTES_AUTO})
     return out
 
@@ -174,5 +174,19 @@ def ports_of(record: dict, artifacts) -> dict:
         "request_answers": answers if isinstance(answers, list) else [],
         "spec_table": _text(record, "spec_table"),
         "routes": ROUTES_PLAN if record.get("spec_table") else ROUTES_AUTO,
+        **_theme(record, artifacts),
     }
+
+
+def _theme(record: dict, artifacts: pathlib.Path) -> dict:
+    """テーマの run の 3 欄（テーマの写しのパス・その中身・テーマを 1 行の依頼の行にした写しの pointer。ほかの run は空。3.3 節）"""
+    import ports
+
+    from src import files
+
+    path = _text(record, "theme")
+    if not path:
+        return {"theme": "", "theme_text": "", "theme_request": None}
+    return {"theme": path, "theme_text": pathlib.Path(path).read_text(encoding="utf-8").strip(),
+            "theme_request": ports.pointer(artifacts / files.THEME_REQUEST, "json(shared:request.schema.json)")}
 

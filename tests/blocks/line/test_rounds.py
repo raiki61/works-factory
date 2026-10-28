@@ -18,6 +18,7 @@ rounds = kit.load(BLOCK, "rounds")
 files = kit.load(BLOCK, "files")
 import converge  # noqa: E402
 import judgmark  # noqa: E402
+from tests.blocks.line.test_tiers import handed  # noqa: E402
 
 U1, U2 = "u1", "u2"
 
@@ -157,7 +158,8 @@ class OwedCase(unittest.TestCase):
 
     def owed(self, judgment, *, answer="null", decisions="null", dealt=None):
         return self.run.script("owed", judgment=judgment, answer_ties="null", materials="null", world="null", decisions=decisions,
-                               answer=answer, ports=json.dumps(dealt or {"request_answers": [], "takes_push": False, "policy": ""}))
+                               answer=answer, ports=json.dumps(dealt or {"request_answers": [], "takes_push": False, "policy": ""}),
+                               request=handed(dealt or {"request_answers": []}))
 
     def test_owed_units_open_the_round(self):
         got = self.owed(self.put("judge/judgment.json", {"units": [{"key": U1, "label": "block"}], "questions": []}))

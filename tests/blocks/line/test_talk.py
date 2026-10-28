@@ -12,6 +12,7 @@ import pathlib
 import unittest
 
 from tests.blocks import kit
+from tests.blocks.line.test_tiers import handed
 from tests.blocks.line.test_gates import NARROW, ask_row, rounds
 
 BLOCK = "line"
@@ -566,7 +567,7 @@ class BeforeFixAgreedCase(unittest.TestCase):
             for given, want in ((agreed, False), (None, True)):
                 with self.subTest(agreed=given is not None):
                     kw = asking.materials({**rounds(), "agreed": given}, structure_raw=None, judge_raw=judge, record_raw="",
-                                          unattended=False, place=run.artifacts)
+                                          dealt={}, unattended=False, place=run.artifacts)
                     out = self.g.before_fix(rounds(), unattended_run=False, design=False, agreed=given, **kw)
                     self.assertEqual(out["open"], want)
 
@@ -618,7 +619,7 @@ class ScriptCase(unittest.TestCase):
         record.write_text('{"answers": []}', encoding="utf-8")
         agreed = {"round": 1, "decision": "continue", "text": "", "asked": [NARROW]}
         got = {**rounds(asks=[ask_row()]), "open": False, "text": "", "asked": [], "agreed": agreed, "talks": [agreed]}
-        out = self.run.script("ask_before_fix", rounds=json.dumps(got, ensure_ascii=False), structure="null",
+        out = self.run.script("ask_before_fix", request=handed({}), rounds=json.dumps(got, ensure_ascii=False), structure="null",
                               judge=json.dumps({"judgment": None, "answer_ties": None, "materials": None}),
                               record=self.run.pointer("r1/start.json"),
                               ports=json.dumps({"unattended": False, "design_talk": True, "policy": ""}))
@@ -637,11 +638,13 @@ class DryRunBodiesCase(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             placed = pathlib.Path(tmp)
             shutil.copytree(kit.BLOCKS / BLOCK, placed / BLOCK)
-            self.assertEqual(archon.dry_run_bodies(placed), ["gate-design"])
+            self.assertEqual(archon.dry_run_bodies(placed), ["gate-theme", "gate-design"])
             doc = yaml.safe_load((placed / BLOCK / f"works-factory-{BLOCK}.yaml").read_text(encoding="utf-8"))
         top = {n["id"]: n for n in doc["nodes"]}
         body = [n["id"] for n in top["plan-rounds"]["loop_group"]["nodes"]]
         self.assertEqual(body, ["design-turn", "plan", "plan-review-run", "plan-out", "design-talk"])
+        theme = [n["id"] for n in top["theme-rounds"]["loop_group"]["nodes"]]
+        self.assertNotIn("gate-theme", theme)
         self.assertIn("gate-before-fix", top)
 
 

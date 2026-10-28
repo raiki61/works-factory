@@ -15,7 +15,8 @@ eyes_due（checks か、前の run の前提の検算が運んだ実測が在る
 stop_reason。例外の時は works:line-script を返し、fixed が held にして試験の関門から先は飛ぶ（深さの分からない差分を目に通さない）。
 
 入力（with:）: fix（$fix.output）・replan（after-fix の replan）・units_tier・switches（fix-in の返り）・judgment・tier_record・answer
-（fix-in が運んだ判定の pointer・頭の深さの控え・修正前の答え）・record（始めの記録の pointer）・ports。在れば plan・answer_ties・
+（fix-in が運んだ判定の pointer・頭の深さの控え・修正前の答え）・record（始めの記録の pointer）・ports・request（request-in の返り。
+依頼の答えはここから読む）。在れば plan・answer_ties・
 materials（fix-in が運んだ承認済みの案の欄・結び・素材の状態の pointer）も読む
 """
 import json
@@ -134,14 +135,16 @@ def compute() -> dict:
     raw_judgment, raw_record = os.environ.get("INPUTS_JUDGMENT"), os.environ.get("INPUTS_TIER_RECORD")
     raw_answer, raw_start, raw_ports = os.environ.get("INPUTS_ANSWER"), os.environ.get("INPUTS_RECORD"), os.environ.get("INPUTS_PORTS")
     raw_plan, raw_ties = os.environ.get("INPUTS_PLAN"), os.environ.get("INPUTS_ANSWER_TIES")
-    raw_materials = os.environ.get("INPUTS_MATERIALS")
+    raw_materials, raw_request = os.environ.get("INPUTS_MATERIALS"), os.environ.get("INPUTS_REQUEST")
     del raw_start   # 始めの記録は読まない（答えと無人の印は配る値から）
+    from src import descend
     fix = ports.picked(raw_fix, FIX)
     if fix is None:
         raise ValueError("fix の出力（fix）が読めない。with: の鍵の結びを確かめる")
     return raise_depth(fix, replan=ports.parsed(raw_replan) is True, units_tier=ports.parsed(raw_units) or [],
                        switches=ports.parsed(raw_switches) or {}, judgment=ports.parsed(raw_judgment),
-                       tier_record=ports.parsed(raw_record), answer=ports.parsed(raw_answer), dealt=ports.parsed(raw_ports) or {},
+                       tier_record=ports.parsed(raw_record), answer=ports.parsed(raw_answer),
+                       dealt=descend.dealt(ports.parsed(raw_ports), raw_request),
                        plan=ports.parsed(raw_plan), ties=ports.parsed(raw_ties), materials=ports.parsed(raw_materials))
 
 

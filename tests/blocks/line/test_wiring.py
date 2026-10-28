@@ -25,7 +25,9 @@ TEXT = PATH.read_text(encoding="utf-8")
 DOC = yaml.safe_load(TEXT)
 TOP = {n["id"]: n for n in DOC["nodes"]}
 LOOP = {n["id"]: n for n in TOP["plan-rounds"]["loop_group"]["nodes"]}
-NODES = {**TOP, **LOOP}
+THEME_LOOP = {n["id"]: n for n in TOP["theme-rounds"]["loop_group"]["nodes"]}   # 設計の段の往復（docs/design/line.md の 3.3 節）
+BODIES = {**LOOP, **THEME_LOOP}   # 輪の本体の節（受け皿は輪の外の返りを受ける。輪の中の include は受け皿を持たない）
+NODES = {**TOP, **BODIES}
 INCLUDES = {k: n for k, n in NODES.items() if "include" in n}
 ONCE = ("replan", "replan-review", "refix-run", "rejudge-run", "parallel-pr-after")
 STAGES = (("lens", "delta-review", "fix"), ("lens-2", "delta-review-2", "refix-run"))
@@ -57,11 +59,17 @@ NOT_PASSED = {
     ("rejudge-run", "request_files"): "再審の道は読まない（判定の道だけの入力）",
     **{(review, name): "方針の文と方針の文のファイル。仕様を固める会話から単独で回す時だけ使う（line は修正案を plan で渡す）"
        for review in ("plan-review-run", "replan-review") for name in ("proposal", "proposal_file")},
-    **{(review, "theme_doc"): "形 theme の設計の案。設計の段を回す run だけが渡す（line へのつなぎは issue #862 の PR T3）"
+    **{(review, "theme_doc"): "形 theme の設計の案。この 2 つは修正案を審査する include で、設計の案は渡さない（設計の案を渡すのは設計の段の theme-review）"
        for review in ("plan-review-run", "replan-review")},
     **{(plan, "spec_doc"): "仕様駆動の run だけが渡す人と固めた仕様の本文（依頼の文の run の固めた仕様は spec）" for plan in ("plan", "replan")},
     ("spec-plan", "spec"): "仕様駆動の run は仕様の段の spec.json を作らない（固めた本文は spec_doc）",
     ("plan-review-run", "ruling"): "形 replan だけが読む",
+    **{("theme-review", name): "形 theme は読まない（設計の案の審査が読む port は docs/design/plan-review.md の 19.1）"
+       for name in ("proposal", "proposal_file", "plan", "fields", "judgment", "means", "structure", "ripple", "tree", "excluded", "ruling",
+                    "conflicts")},
+    ("theme-world", "means"): "テーマの run は依頼の解き方の文を持たない（入口の欄はテーマの文だけ。docs/design/line.md の 3.3 節）",
+    **{("theme-blind", name): "設計の段は判定の前に回り、目的の固定・目的の監査・前提の実測がまだ無い（テーマの文をそのまま目的にする。3.3 節）"
+       for name in ("purpose_source", "purpose_review", "constraints")},
     ("plan-review-run", "conflicts"): "形 replan だけが読む",
     **{("rejudge-run", name): "判定の道だけが読む（再審の道は prior と objection で考え直す。docs/design/diagnose.md の 1.2）"
        for name in ("answers", "base", "baseline", "constraints", "depth_why", "materials", "pr_material", "pr_text", "prior_failures",
@@ -96,14 +104,14 @@ class ReceiverCase(unittest.TestCase):
             with self.subTest(script=script):
                 self.assertEqual(len(re.findall(rf"^\s*script: {script}\s*$", TEXT, re.M)), count)
         self.assertEqual(sorted(k for k, n in TOP.items() if n.get("script") == "relay"),
-                         ["design-in", "lens-2-in", "lens-in", "structure-in"])
+                         ["design-in", "lens-2-in", "lens-in", "structure-in", "theme-design-in", "theme-world-in"])
         self.assertEqual(sorted(k for k, n in TOP.items() if n.get("script") == "gate_answer"), ["answer-final", "answer-start"])
 
     def test_every_top_include_has_a_receiver_with_every_field(self):
         """受け皿は include の返りをまるごと受け、運ぶ欄の名は block の返す node の output_format の欄と同じ（optional はいつも無くてよい欄
         なので名指さない）。report は報告そのもので、受け皿を持たない（result が直に読む）"""
         for key, node in INCLUDES.items():
-            if key in LOOP or key == "report":
+            if key in BODIES or key == "report":
                 continue
             with self.subTest(include=key):
                 receiver = TOP.get(f"{key}-out")
@@ -134,7 +142,7 @@ class ReceiverCase(unittest.TestCase):
     def test_all_done_readers_read_receivers_only(self):
         """all_done で集める collect と、落ちうる include の後ろの集め役は、include の返りを直に読まない（落ちた node への with: は
         Archon が誤りにする）"""
-        includes = [k for k in INCLUDES if k not in LOOP]
+        includes = [k for k in INCLUDES if k not in BODIES]
         for reader in ("collect", "fixed", "fix-in", "judged", "ask-final"):
             with self.subTest(reader=reader):
                 reads = refs({k: v for k, v in TOP[reader].get("with", {}).items() if isinstance(v, dict)})
@@ -182,7 +190,7 @@ class IncludeInputsCase(unittest.TestCase):
                 self.assertNotIn("loop_group", TOP[key])
         self.assertEqual(named.count("works-factory-fix"), 2)
         self.assertEqual(named.count("works-factory-plan"), 3, "往復の中・案の直し・仕様駆動の run の spec-plan")
-        self.assertEqual(named.count("works-factory-plan-review"), 2)
+        self.assertEqual(named.count("works-factory-plan-review"), 3, "往復の中・案の直し・設計の段の往復の theme-review（形 theme）")
         self.assertEqual(named.count("works-factory-diagnose"), 2, "再審と、仕様駆動の run の spec-diagnose")
         self.assertEqual(named.count("works-factory-parallel-pr"), 1)
         self.assertEqual(named.count("works-factory-judge"), 1, "再審は判定のまとめを 2 度 include せず diagnose を直に include する")
@@ -239,9 +247,10 @@ class WhenCase(unittest.TestCase):
         self.assertEqual(TOP["lens"]["depends_on"], ["raise"])
 
     def test_parallel_pr_after_runs_for_judged_entries_with_a_diff(self):
-        """8.1: 判定から入る run で、直した差分が在る時だけ、修正の後に 1 度だけ並行 PR を確かめ直す"""
+        """8.1: 判定から入る run で、直した差分が在る時だけ、修正の後に 1 度だけ並行 PR を確かめ直す。始めで止まった run は request-in が
+        飛ぶので、fixed を先に読んで打ち切る（筋書き start-refused）"""
         node = TOP["parallel-pr-after"]
-        self.assertEqual(node["when"], "$start.output.ports.entry != '' && $fixed.output.diffed == true")
+        self.assertEqual(node["when"], "$fixed.output.diffed == true && $request-in.output.entry != ''")
         self.assertEqual((node["with"]["base"], node["with"]["changed"]), ("$start.output.ports.base_rev", "[]"))
         self.assertIn("parallel-pr-after-out", TOP["test-gate-final"]["depends_on"])
 
@@ -284,9 +293,13 @@ class FlowCase(unittest.TestCase):
         for key in gates:
             self.assertEqual([o["id"] for o in TOP[key]["wait"]["options"]], ["approve", "continue", "stop", "reject"], key)
         # 往復の本体の関所は設計の相談の gate-design 1 つだけ（本体の唯一の終わり。E16・3.1 節）。選び肢は 4 つの語と revise
-        self.assertEqual([k for k in LOOP if "wait" in LOOP[k]], ["gate-design"])
-        self.assertEqual([o["id"] for o in LOOP["gate-design"]["wait"]["options"]], ["approve", "continue", "stop", "reject", "revise"])
-        self.assertFalse([k for k, n in LOOP.items() if "gate-design" in (n.get("depends_on") or [])], "関所の後ろに本体の節を置かない")
+        # 設計の段の往復の本体の関所は gate-theme 1 つ（3.3 節）。選び肢は 4 つの語と revise。設計の相談はそれに設計へ戻す redesign を足す
+        for body, gate, options in ((LOOP, "gate-design", ["approve", "continue", "stop", "reject", "revise", "redesign"]),
+                                    (THEME_LOOP, "gate-theme", ["approve", "continue", "stop", "reject", "revise"])):
+            with self.subTest(gate=gate):
+                self.assertEqual([k for k in body if "wait" in body[k]], [gate])
+                self.assertEqual([o["id"] for o in body[gate]["wait"]["options"]], options)
+                self.assertFalse([k for k, n in body.items() if gate in (n.get("depends_on") or [])], "関所の後ろに本体の節を置かない")
 
     def test_plan_rounds_carry_two_priors(self):
         """3 節: plan の prior は plan の形、plan-review の prior は往復の記録の形で、1 周目はどちらも空。どちらも周の頭の design-turn が
@@ -377,11 +390,13 @@ class SpecDrivenWiringCase(unittest.TestCase):
 
     def test_request_run_gates(self):
         """依頼の文の run の判定は from_spec == false の時だけ回り、直す前の結末は spec-entry を読む節を || の後ろに置く（前の節で
-        打ち切るので、依頼の文の run は飛ばされた spec-entry の出力を読まない）"""
+        打ち切るので、依頼の文の run は飛ばされた spec-entry の出力を読まない）。どの節も answer-start を request-in より先に読む読み順
+        は、ここで縛らず筋書き start-refused の dry-run が照らす（始めで止まった run は request-in が飛ぶ）"""
         self.assertEqual(TOP["judge"]["when"], "$test-gate-base.output.ok == true && $start.output.from_spec == false")
         when = TOP["test-gate-base"]["when"]
         head, tail = when.split(" || ")
-        self.assertEqual(head, "$answer-start.output.go == true && $start.output.from_fixture == false && $start.output.from_spec == false")
+        self.assertEqual(head, "$answer-start.output.go == true && $request-in.output.go == true && $start.output.from_fixture == false"
+                               " && $start.output.from_spec == false")
         self.assertIn("$spec-entry.output.ok == true", tail)
         self.assertNotIn("$spec-entry", head)
 

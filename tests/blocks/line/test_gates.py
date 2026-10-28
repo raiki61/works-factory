@@ -16,6 +16,7 @@ import tempfile
 import unittest
 
 from tests.blocks import kit
+from tests.blocks.line.test_tiers import handed
 
 BLOCK = "line"
 SCRIPTS = kit.BLOCKS / BLOCK / "scripts"
@@ -503,7 +504,7 @@ class ScriptCase(unittest.TestCase):
 
     def test_ask_before_fix_opens_with_the_gate_text(self):
         record = self.put("r1/start.json", {"answers": []})
-        out = self.run.script("ask_before_fix", rounds=json.dumps(rounds(asks=[ask_row()])), structure="null",
+        out = self.run.script("ask_before_fix", request=handed({}), rounds=json.dumps(rounds(asks=[ask_row()])), structure="null",
                               judge=json.dumps({"judgment": None, "answer_ties": None, "materials": None}), record=record,
                               ports=self.ports())
         self.assertEqual((out["open"], out["go"], out["stop_reason"]), (True, True, ""), out)
@@ -600,7 +601,7 @@ class ScriptCase(unittest.TestCase):
                   "switches": {"merge": True}, "no_fix": False}
         for due, want in ((True, True), (False, False)):
             with self.subTest(due=due):
-                out = self.run.script("eyes_in", fix_in=json.dumps(fix_in),
+                out = self.run.script("eyes_in", request=handed({}), fix_in=json.dumps(fix_in),
                                       fixed=json.dumps({"eyes_due": due, "no_fix": False, "refixed": False}), start_answer="null",
                                       replan_review="null", judged=json.dumps({"judgment": None, "answer_ties": None, "materials": None}),
                                       record="null", ports=self.ports())
@@ -616,7 +617,7 @@ class ScriptCase(unittest.TestCase):
                  "stages": [], "replan_items": [], "refixed": False, "skip_why": ""}
         tests = {"ok": True, "green": True, "red_cause": "", "ran_steps": None, "by": "test_cmd", "suites_line": "1 本", "log": "l",
                  "baseline_line": "b", "reason": "", "fingerprint": {"head": "h", "diff_hash": "d"}}
-        out = self.run.script("ask_final", fix_in=json.dumps(fix_in), fixed=json.dumps(fixed), judged="null", tests=json.dumps(tests),
+        out = self.run.script("ask_final", request=handed({}), fix_in=json.dumps(fix_in), fixed=json.dumps(fixed), judged="null", tests=json.dumps(tests),
                               eyes="null", seal="null", spec_check="null", parallel_after="null", replan_review="null",
                               replan_answer="null", widened="null", start_answer="null", record="null", final_gate="when_needed",
                               ports=self.ports())
@@ -627,10 +628,10 @@ class ScriptCase(unittest.TestCase):
 
     def test_scripts_do_not_fall_on_null_inputs(self):
         """どの script も with: の全部が null でも落ちず、止めの語 works:line-script の返りにする（L-G52・L-W63）"""
-        names = {"ask_before_fix": ("rounds", "structure", "judge", "record", "ports"),
+        names = {"ask_before_fix": ("rounds", "structure", "judge", "record", "ports", "request"),
                  "ask_replan": ("replan", "review", "old_plan", "items", "conflicts", "before_fix", "ports"),
                  "ask_final": ("fix_in", "fixed", "judged", "tests", "eyes", "seal", "spec_check", "parallel_after", "replan_review",
-                               "replan_answer", "widened", "start_answer", "record", "final_gate", "ports")}
+                               "replan_answer", "widened", "start_answer", "record", "final_gate", "ports", "request")}
         for name, keys in names.items():
             with self.subTest(name=name):
                 out = self.run.script(name, **dict.fromkeys(keys, "null"))

@@ -306,6 +306,10 @@
     "spec_table": {
       "type": "string"
     },
+    "theme": {
+      "type": "string",
+      "description": "テーマの写し（run directory の根の theme.md）の絶対パス。テーマの run だけ"
+    },
     "features": {
       "type": "object",
       "description": "機能ごとの切り替えの語（lib/entry.py の feature_words）",

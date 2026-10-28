@@ -14,7 +14,7 @@
 - 取り次ぐ会話: 工場の外で持ち主と話す AI の会話（利用者が works-factory を呼ぶ Claude Code の会話など）。持ち主の言葉を読み取り、run への答えに整える。工場の機能ではない（下書きの語）。
 - port・form: port は block が YAML の `inputs:` と出力で宣言する受け渡しの口。form はその値の形（`file`・`text`・`json(<形>)`・`jsonl(<形>)` など。README の 4 章）。形の名の頭の `shared:` は `workflows/.shared/schemas/`、`lib:` は `lib/` の下の形、頭の無い物は block の `schemas/` の形。
 - 作り変え: 今在るファイルの本文を組み替える変更（`changes` の `op: rework`）。`edit` は今の本文に足す・一部を直す変更で、作り変えの照らし（6 章）は `rework` の行だけに当てる。
-- 固めた版: 対象のリポジトリの HEAD の追跡ファイル（`lib/design.py` の `anchor_misses`）。名指し `<パス>:<行>` はこの版で照らす。起点の木（port `base`）とは別で、`base` を数えるのは作り変えの照らしだけ。
+- 固めた版: 対象のリポジトリの HEAD の追跡ファイル（`lib/design.py` の `anchor_misses`）。名指し `<パス>:<行>` はこの版で照らす。起点の木（port `base`）とは別で、`base` を数えるのは作り変えの照らしだけ。物差しは 2 つに見えるが、line（工場のメイングラフ。下の語）はこの block の port `base` に、配る値の `base_rev`（run の始めの HEAD）を渡し、テーマの run は差分を持たない（入力 `base`・`pr` と組めない。line.md の 3.3 節）ので、line から回す時は 2 つの照らしが同じ版を数える。この block を単独で回して `base` に別の版を名指した時だけ分かれる（作り変えの照らしは、名指した版のファイルの空でない行の全部が `inventory` の `lines` に入るかを数え〔6.2 の 1〕、名指しの照らしは今の HEAD の行で照らす）。
 - `spawns`: 外への検索の決まりの断片 `query-rule` の中の、下請けの役を起こす役にだけ入れる段落の切り替え。書き手は下請けを起こさない（11.2 の 5）ので偽。
 - 模型の群: AI の node の `model` に書く群の名（`lib/launchgroups.py`）。同じ群の役は同じ AI のモデルの割り当てで回る（`workflows/AGENTS.md` の E7）。
 - 起点の木: port `base` が名指す版（空なら HEAD）のファイルの木。作り変えの照らしはこの木のファイルの行を数える。
@@ -46,7 +46,7 @@
 | `theme` | `file` | 必須 |
 | `prior` | `json(shared:plan-converge.schema.json)` | 空 |
 | `prior_design` | `json(shared:theme-design.schema.json)` | 空 |
-| `answers` | `json(human-answers.schema.json)` | `[]` |
+| `answers` | `json(shared:human-answers.schema.json)` | `[]` |
 | `world_rows` | `jsonl(lib:world-row.schema.json)` | 空 |
 | `policy` | `file` | 空 |
 | `recorded` | `json(shared:recorded.schema.json)` | `[]` |
@@ -55,7 +55,7 @@
 
 - `prior` は往復の記録。前の周までの審査の穴と答えを持つ。空は 1 周目。周の番号はこの往復の数 + 1。
 - `prior_design` は前の周の設計の案。書き手は Read で読み、穴と答えが求めない所は保つ。
-- `answers` の形は block の `schemas/human-answers.schema.json`（7 章）。
+- `answers` の形は `workflows/.shared/schemas/human-answers.schema.json`（7 章。書く line と読むこの block の 2 つが使うので `.shared/`）。
 - 独立設計の返答は受けない。独立設計と案を比べるのは審査役（事前審査の形 `theme`）だけ（keep-essence の 9。下書きの 4.2）。
 
 出力（`finish` の `output_format`。`returns: finish`・`outcome_field: ok`）: `ok`・`status`（`ok`・`gave_up`・`failed`）・`design`（pointer。`json(shared:theme-design.schema.json)`）・`design_md`（pointer。`file`）・`reason`・`report`。受けた案が無ければ 2 つの pointer は null。
@@ -202,7 +202,7 @@ Rules for queries to outside services and for the sources you use: …
 
 行の分け方（段落か箇条か）は書き手が決め、機械は覆いだけを照らす（段落を機械が割る道具を足さない。下書きの 13 章の 8）。行き先の正しさは審査役が見る（下書きの 5.2 の 4）。修正の後に機械で照らす形は下書きの 14 章の 4（後回し）。
 
-## 7 人の答えの行（`workflows/theme/schemas/human-answers.schema.json`）
+## 7 人の答えの行（`workflows/.shared/schemas/human-answers.schema.json`）
 
 `[{id: H<n>, kind, text, ask?, pick?, from?}]`。`kind` は `owner_words`（持ち主の言葉。字のまま運ぶ）・`research`（調べものの結果）・`ask_answer`（問いへの答え。`ask: Q<n>` と `pick: A<n>`）・`reading`（取り次ぐ会話の読み）・`note`（見出しの無い一言）。承認ノードの `text` の見出しのセクション（下書きの 7.2）と受け箱の行を、line の `theme-turn` が行に分けて番号を付ける（PR T3）。この block は行を受けるだけで、`text` を読み分けない。
 
@@ -237,10 +237,10 @@ bin/works-factory workflow run works-factory-theme --cwd <対象> --input theme=
 
 ### 11.2 この block で決めた事
 
-1. 出し直しの役の指示を組む prep を `theme-fix-prep` として分けた（下書きの 4.1 の並びに無い node）。根拠: plan の block と同じ形（`docs/design/plan.md` の 1.3 と 11 章の 9）。分ける訳は、出し直しの役の md を筋書きで本当の prep から組めることを照らすため。筋書き（dry-run）の loop は 1 回りだけで、前の回の値 `$LOOP_PREV` が空なので、本当の `write-prep` が出し直しを選ぶ筋書きは書けない。そこで `write-prep` だけを `resubmit: true` に差し替え、別の node の `theme-fix-prep` を本当に走らせて md を組む（9 章の `resubmit.stubs.yaml`）。分けても、本体の層（同じ時に走る node の組）はどれも node 1 つのままにする（1.3 の 2）。出し直しの役は前の回の書き手の会話の続きで起きる（`fresh_context: false`）ので、その直前に 2 つ以上の node の層を置かないため。
+1. 出し直しの役の指示を組む prep を `theme-fix-prep` として分けた（下書きの 4.1 の並びに無い node）。根拠: plan の block と同じ形（`docs/design/plan.md` の 1.3 と 11 章の 9）。分ける訳は、出し直しの役の md を筋書きで本当の prep から組めることを照らすため。筋書き（`fixtures/*.stubs.yaml`。AI の node を決まった返りに差し替えて YAML を通しで回す dry-run）の loop は 1 回りだけで、前の回の値 `$LOOP_PREV`（loop の前の回の node の返りを読む Archon の参照）が空なので、本当の `write-prep` が出し直しを選ぶ筋書きは書けない。そこで `write-prep` だけを `resubmit: true` に差し替え、別の node の `theme-fix-prep` を本当に走らせて md を組む（9 章の `resubmit.stubs.yaml`）。分けても、本体の層（同じ時に走る node の組）はどれも node 1 つのままにする（1.3 の 2）。出し直しの役は前の回の書き手の会話の続きで起きる（`fresh_context: false`）ので、その直前に 2 つ以上の node の層を置かないため。
 2. 却下の数えは `rolekit.GIVE_UP_AFTER`（3 回）。plan の block の網（`NET_AFTER`）は使わない。根拠: 下書きの 4.1「却下 3 回で諦める」と keep-essence の 4。
-3. 周ごとのフォルダ `r<k>/`（k は往復の記録の往復の数 + 1）。根拠: line は同じ include を loop で何周も回し、place が周をまたいで同じなので、却下の控えと出し直しの控えを周ごとに分けないと前の周の拒否を数える（plan の block と同じ形）。
-4. 人の答えの行の形（7 章）を block の `schemas/` に置き、id を `H<n>` にした。根拠: 下書きは「番号」とだけ書き形を決めていない。`premises` の `from` で答えの番号とテーマの行（`theme:<行>`）を字で見分けるため、頭の字を付けた。形を読むのはこの block だけ（書くのは line）なので `.shared/` に置かない（憲法の 4）。
+3. 周ごとのフォルダ `r<k>/`（k は往復の記録の往復の数 + 1）。根拠: line は `theme-rounds` の loop の本体で同じ `include: works-factory-theme`（この block の取り込み。8 章）を何周も回し、place（block が自分のファイルを書くフォルダ。冒頭の語）が周をまたいで同じなので、却下の控えと出し直しの控えを周ごとに分けないと前の周の拒否を数える（plan の block と同じ形）。
+4. 人の答えの行の形（7 章）の id を `H<n>` にした。根拠: 下書きは「番号」とだけ書き形を決めていない。`premises` の `from` で答えの番号とテーマの行（`theme:<行>`）を字で見分けるため、頭の字を付けた。初めは形を block の `schemas/` に置いたが、PR T3 で line の `theme-turn` が同じ形で行を書いて照らすので `workflows/.shared/schemas/` へ上げた（2 つが使う。憲法の 4。設計の案の形 `theme-design` の `answers_used[].answer` の `^H[0-9]+$` もこの形の決めに頼る）。
 5. 書き手の道具は修正案の役と同じ（Read・Grep・Glob・WebSearch・WebFetch）にし、Agent を持たせない（下書きの 14 章の 8 の答え）。根拠: 下請けの審査役は往復ごとの事前審査の形 `theme` が担う。持たせるかは実走（PR T4）の後に見る。
 6. 模型の群は修正案の役と同じ `@wf-plan-writer`。根拠: 同じ類の役（計画を書く）で、群を足す訳が無い。
 7. 受け付けで、ほかに欄ごとの id の重なりと `changes` の `parts` の名指しを照らした（下書きの 4.4 の 9 つに無い）。根拠: `reuse`・`inventory`・`answers_used` の名指しの先を 1 つに決めるのに要る yes/no の照らしで、場面ごとの試験でなく形の照らし（`mechanism-over-tests`）。

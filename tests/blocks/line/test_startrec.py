@@ -99,7 +99,9 @@ class RequestFileOwner(unittest.TestCase):
     block は記録を読まない）"""
     READERS = {("scripts/start.py", "start", "asked"): "始めの記録を書く側が依頼の読みの dict から欄を写す",
                ("scripts/start.py", "from_fixture", "asked"):
-                   "固定材料の run の始めの記録を書く側が、写しの依頼のファイルを今の依頼の読みの dict の物に替える"}
+                   "固定材料の run の始めの記録を書く側が、写しの依頼のファイルを今の依頼の読みの dict の物に替える",
+               ("src/descend.py", "request_in", "theme"):
+                   "依頼の出どころ request-in が、設計の段の降り theme-descend の返りから降りた依頼のファイルを読む（始めの記録ではない）"}
 
     def stray(self, name: str, source: str) -> list[str]:
         """name のファイルの読む式のうち、持ち主の外で見逃す物に当たらない物の在りか（<name>:<行>）"""

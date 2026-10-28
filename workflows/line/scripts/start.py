@@ -165,6 +165,47 @@ def request(raw: dict, repo: Path) -> dict:
     return {"items": parts[carry.FINDINGS], "request_file": str(path.resolve()), "request_text": body, "parts": parts}
 
 
+THEME_WHERE = "テーマ"   # テーマを 1 行の依頼の行にした時の where（設計の段の頭の世界の解へ渡す。docs/design/line.md の 3.3 節）
+THEME_CLASH = (("findings", "依頼の行（findings）"), ("pr", "PR の番号（入力 pr か依頼の pr）"), ("base", "差分の根（base）"),
+               ("spec_table", "仕様駆動の道の表（spec_table）"), ("fix_fixture", "固定材料（fix_fixture）"))
+
+
+def theme(raw: dict, checked: dict, asked: dict, repo: Path) -> str:
+    """テーマの文（依頼の欄 theme。字のまま書いた文か、対象の根からの md のパスの中身）。欄が空なら空の字。組めない入力（依頼の行・PR・
+    差分の根・仕様駆動の道の表・固定材料）と一緒か、design_talk が真でなければ Refused（入力の意味を黙って上書きしない。設計の下書きの
+    2.1 の 2・3。周の鎖は design_talk を拒むので、鎖の子はテーマの run にならない）。md のパスに見える字（改行が無く .md で終わる）で
+    ファイルが無ければ Refused（字のテーマと取り違えない）"""
+    value = asked["parts"][carry.THEME]
+    if not value:
+        return ""
+    named = {"findings": bool(asked["items"]), "pr": bool(raw["pr"].strip() or asked["parts"][carry.PR]), "base": bool(raw["base"].strip()),
+             "spec_table": bool(checked["spec_table"]), "fix_fixture": bool(checked["fix_fixture"])}
+    clash = [label for key, label in THEME_CLASH if named[key]]
+    if clash:
+        raise Refused(f"テーマの run（依頼の theme）は {'・'.join(clash)} と組めない（この版はテーマだけの run。テーマから承認された"
+                      "設計の変える所が依頼の行になる）")
+    if checked["design_talk"] != gatemarks.DESIGN_ONLY:
+        raise Refused(f"テーマの run（依頼の theme）は design_talk={gatemarks.DESIGN_ONLY} の run に限る（設計を人と相談して承認する run）——"
+                      f"起動の入力に design_talk={gatemarks.DESIGN_ONLY} を足す")
+    path = Path(value) if Path(value).is_absolute() else repo / value
+    if "\n" not in value and path.is_file():
+        try:
+            return path.read_text(encoding="utf-8").strip()
+        except (OSError, UnicodeDecodeError) as error:
+            raise Refused(f"テーマの md {value} が読めない（{type(error).__name__}: {error}）") from None
+    if "\n" not in value and value.endswith(".md"):
+        raise Refused(f"テーマの md {value} が無い（依頼の theme は、テーマの文か対象の根からの md のパス）")
+    return value
+
+
+def place_theme(artifacts: Path, text: str) -> str:
+    """テーマの写し（files.THEME）と、テーマを 1 行の依頼の行にした写し（files.THEME_REQUEST）を書き、写しの絶対パスを返す"""
+    jsonfile.write(artifacts / files.THEME_REQUEST, {"findings": [{"where": THEME_WHERE, "text": text}]}, parents=True)
+    path = artifacts / files.THEME
+    path.write_text(text + "\n", encoding="utf-8")
+    return str(path)
+
+
 def version_record(root: Path, raw: dict, run_id: str) -> dict:
     """版の控え（lib/versions.py。元 works/.shared/core/versions.py）。止めた Archon の commit と模型は線が引いて渡す"""
     archon, why = versions.pinned(root / PIN[0], PIN[1])
@@ -258,19 +299,20 @@ def start(raw: dict, repo: Path, artifacts: Path, run_id: str) -> dict:
     try:
         checked = words(raw, repo)
         asked = request(raw, repo)
+        theme_text = theme(raw, checked, asked, repo)
         if checked["fix_fixture"]:
             return from_fixture(raw, checked, asked, repo, artifacts, run_id, record["versions"])
         reads = entryshape.github_reads(artifacts, repo, raw)
         if reads is not None:
             ghreads.place(artifacts, reads)
         change = entryshape.change_base(raw, repo, reads)
-        if not checked["spec_table"]:   # 仕様駆動の道の表は依頼の代わりの入口（依頼の行も差分も要らない）
+        if not checked["spec_table"] and not theme_text:   # 仕様駆動の道の表とテーマは依頼の代わりの入口（依頼の行も差分も要らない）
             entryshape.refuse_empty(asked["items"], change, repo)
         inp = {"items": asked["items"], "request_file": asked["request_file"], "request_text": asked["request_text"],
                "base": change["base"] if change else None, "pr": change["pr"] if change else None,
                "spec": bool(checked["spec"])}
         pr = inp["pr"] or {}
-        if checked["spec"] and not asked["items"] and not (pr.get("title") or pr.get("body")):
+        if checked["spec"] and not asked["items"] and not theme_text and not (pr.get("title") or pr.get("body")):
             raise Refused("spec=on なのに依頼の文が無い（依頼の findings も PR の題と本文も無い）——仕様の書き手が読む物が無い。"
                           "findings を書いた依頼か PR を名指すか、仕様の段を外す")
         shape = entryshape.build(inp, repo)
@@ -291,6 +333,7 @@ def start(raw: dict, repo: Path, artifacts: Path, run_id: str) -> dict:
         "answers": parts[carry.ANSWERS], "request_text": entryshape.request_text(inp),
         "pr_file": entryshape.write_pr_file(artifacts, inp),
         **({"spec_table": checked["spec_table"]} if checked["spec_table"] else {}),
+        **({"theme": place_theme(artifacts, theme_text)} if theme_text else {}),
     })
     place_carried(artifacts, parts[carry.CONSTRAINTS])
     prior = None

@@ -13,6 +13,8 @@
 - GO_WORDS・STOP_WORDS・REJECT: 関所の決めの語。通す語でない答えは止める語と読む
 - REVISE: 設計の相談の承認ノード（対話モードの run の計画の往復の末尾。line の src/talk.py）だけが選び肢に足す、設計し直しを求める語。通す語でも
   止める語でもなく、答えた後の周が一言を設計へ戻して事前審査をやり直す。ほかの関所はこの語を選び肢に持たない
+- REDESIGN: 設計の相談の承認ノードだけが選び肢に足す、テーマの run で計画の段から設計へ戻す語（line の docs/design/line.md の 3.3 節）。
+  通す語でも止める語でもなく、答えた run は修正へ進まずに閉じ、続きの run の材料を書き出す。テーマでない run では聞き直す
 - decision(got) -> dict: 関所の出力の値を {decision, text} に
 - taken(got, *, go, stop_reason, place, folder, asked=(), pushed=None, final=False) -> dict: 関所の答えの行 {go, answer, stop_reason}。関所が開かなかった
   （got が None か空の字）時は前の決め go・stop_reason をそのまま返す。ただし無人の run が推しで進んだ（pushed が
@@ -48,6 +50,7 @@ GO_WORDS = ("approve", VERBS[0])   # approve は関所の選び肢に要る語
 REJECT = "reject"   # 今の works の関所の語で、stop と同じ。関所の選び肢に無いと、実行基盤がこの答えを拒む
 STOP_WORDS = (VERBS[1], REJECT)
 REVISE = "revise"   # 設計の相談の承認ノードだけの語（設計し直しを求める）
+REDESIGN = "redesign"   # 設計の相談の承認ノードだけの語（テーマの run で、計画の段から設計へ戻す。run を閉じて続きの材料を書き出す）
 ANSWERS = "gates"
 STOP_NOTE = "承認ノードで止めた"
 FINAL_STOP_NOTE = "最後の承認ノードで止めた"
