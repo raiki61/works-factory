@@ -53,10 +53,14 @@ WAIT_KIND = "attention"
 WAIT_ANSWER = "answer"
 WAIT_LOOP_OWNER = "loop_group"
 # ノードの種類（packages/workflows/src/schemas/dag-node.ts の DagNode の kind。出来事の kind に入る）。流れの集計（src/stages.py）が、
-# AI の手番・人の答え待ち・中の出来事を束ねる器（繰り返しの周の器と子の run を起こすノード。長さを足すと中の出来事と二重になる）を分ける
+# AI の手番・人の答え待ち・中の出来事を束ねる器（繰り返しの周の器・並べて起こす器・子の run を起こすノード。長さを足すと中の出来事と
+# 二重になる。子の run を起こすノードの行は子の総額も載せる。packages/workflows/src/node-execution.ts の accounting）を分ける
 AI_KINDS = ("agent", "loop")
 WAIT_NODE = "wait"
-GROUP_KINDS = ("loop_group", "workflow")
+GROUP_KINDS = ("loop_group", "compose_fan_out", "workflow")
+# 前のノードが飛んでも走る trigger_rule（packages/workflows/src/dag-executor.ts の checkTriggerRuleForDependencies。all_success だけは
+# 前が全部済んだ時だけ走る）。流れの集計が、どの道でも走る合流のノードを見分ける
+JOIN_RULES = ("one_success", "none_failed_min_one_success", "all_done")
 # DB の出来事の型（ノードの出力と、run の落ちの訳。packages/workflows/src/event-emitter.ts）
 OUTPUT_EVENT = "node_completed"
 NODE_OUTPUT = "node_output"
