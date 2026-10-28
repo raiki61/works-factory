@@ -154,6 +154,10 @@ ALLOWED = {
         "tests/layers/scan.py#os.environ.items()",
         "tests/layers/scan.py#outside_env(os.environ)",
     ),
+    "E25": (
+        # 照らしの試験の小さな木の字（見る道具を名指す形を赤にする見本）
+        "tests/layers/test_viewer_apart.py",
+    ),
     "E13": (
         "lib/AGENTS.md",
         "lib/tests/",
@@ -449,8 +453,29 @@ def _lang_neutral(root: Path) -> list[str]:
 
 def _no_owner_env(root: Path) -> list[str]:
     pattern = re.compile("|".join(re.escape(s) for s in OWNER_ENV))
-    paths = [p for layer in ("bin", "workflows", "lib") for p in _files(root, layer)]
+    paths = [p for layer in ("bin", "workflows", "lib", "viewer") for p in _files(root, layer)]
     return _grep(root, paths, (pattern, lambda m: f"持ち主の環境の字 {m[0]}"))
+
+
+# 見る道具の決まり E25 の 1（決まりの文は見る道具のフォルダの AGENTS.md）。名指しはフォルダのパスと import の 2 つの形だけで、語 viewer だけでは当てない
+# （workflows/.shared/prompt.py の VIEWER_VALUES = "viewer-values" は値の記録の名で、見る道具への頼りでない）。パスは前が `.`・`/` でも当てる
+# （相対のパスや、根を差し込んだ字）。外すのは見る道具の試験のフォルダだけ
+VIEWER = "viewer"
+VIEWER_NAMED = re.compile(rf"(?<![\w\-])(?<!tests/){VIEWER}/|^\s*(?:from|import)\s+{VIEWER}\b")
+# 名指してよい所: 見る道具とその試験と、文書（docs/ と、どの階層の AGENTS.md と根の md）
+VIEWER_HOMES = (f"{VIEWER}/", f"tests/{VIEWER}/", "docs/")
+
+
+def _viewer_apart(root: Path) -> list[str]:
+    """E25 の 1: 見る道具は工場の外の物で、見る道具とその試験と文書のほかから、パスでも import でも名指さない"""
+    paths = []
+    for top in sorted(p for p in root.iterdir() if p.name != ".git"):
+        for path in ([top] if top.is_file() else _files(root, top.name)):
+            rel = _rel(root, path)
+            if rel.startswith(VIEWER_HOMES) or path.name == "AGENTS.md" or (top.is_file() and path.suffix == ".md"):
+                continue
+            paths.append(path)
+    return _grep(root, paths, (VIEWER_NAMED, lambda m: f"見る道具を名指す {m[0].strip()}"))
 
 
 # 環境をその場で差し替える patch.dict は親の環境を写さない（dict( の前に . が付く形は当てない）。dict に足し書きを付けた形・辞書の
@@ -540,7 +565,7 @@ def _hermetic_env(root: Path) -> list[str]:
 
 
 ORIGIN_NAME = re.compile(r"^(factory|FACTORY|harness|\.factory|archon-)")
-OWN_LAYERS = ("bin", "workflows", "lib", "tests", "docs")
+OWN_LAYERS = ("bin", "workflows", "lib", "tests", "docs", "viewer")
 
 
 def _origin_names(root: Path) -> list[str]:
@@ -1821,4 +1846,5 @@ RULES = {
     "E19": _role_retry,
     "E20": _depth_when,
     "E21": _hermetic_env,
+    "E25": _viewer_apart,
 }
