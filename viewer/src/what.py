@@ -134,7 +134,7 @@ class _Doc:
         return None
 
     def listed(self, ident: str) -> dict | None:
-        """node の並びの行「`<id>`（…）: 説明」の説明"""
+        """node の並びの行「`<id>`（…）: 説明」の説明。id の直後の種類の括弧は要る（別のノードの下の入れ子の `- <id>: …` は出力の欄の並び）"""
         for line in (self.lines[n] for n in self.rows):
             hit = ITEM.match(line.strip())
             if not hit or hit[1] != ident:
@@ -160,9 +160,9 @@ def _ids(text: str) -> list[str]:
 
 
 def _after_paren(text: str) -> str | None:
-    """頭の全角の括弧（入れ子を数える）の後ろ。括弧が無ければそのまま。閉じなければ None"""
+    """頭の全角の括弧（入れ子を数える）の後ろ。括弧が無いか閉じなければ None"""
     if not text.startswith("（"):
-        return text
+        return None
     depth = 0
     for i, ch in enumerate(text):
         depth += {"（": 1, "）": -1}.get(ch, 0)

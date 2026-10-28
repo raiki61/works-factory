@@ -4,7 +4,8 @@
   強いない。下書き docs/plans/2026-10-29-viewer-overview.md の 5.6.3）
 - 小さな木: 種類ごとの出どころの順（設計シートの役 → node の並びの行 → YAML の description → 指示の md の You の段落の写し）・script の
   docstring と配線・include の呼ぶ先の 1 行と呼ぶ側での役・繰り返しの形・1 行が無い物は空・役の見出しの下が空なら problems。node の並びの
-  行は「並び」の節の囲みのコードの外だけ（port の節の同じ id の行を拾わない）。役の下が箇条書きなら頭の印を落とした最初の項。共有の設計書の
+  行は「並び」の節（見出しの括弧の中の並びは外し、下の節は含む）の囲みのコードの外の、id の直後に種類の括弧を持つ行だけ（port の節の
+  同じ id の行と、別のノードの下の入れ子の括弧の無い行を拾わない）。役の下が箇条書きなら頭の印を落とした最初の項。共有の設計書の
   フォルダの節の役（judge-eyes.md の形）が、入口の build を通して graph の what に付く
 """
 import json
@@ -41,9 +42,14 @@ a の役の 1 文目（括弧の中の。は切らない）。2 文目はなぜ�
 ```
 
 1. `listed`（AI。`x: y`）: 並びの行の説明。続き。
+   - `b-again`: 別のノードの下の入れ子の、括弧の無い行は拾わない。
 2. `gate`（`wait:`）: 人に聞く。
 3. `b`（include）: ここでの役。
 4. `first` → `second`: 鎖の形は 1 行にしない。
+
+#### 1.3.1 続き
+
+1. `deep`（AI）: 並びの下の節の行。
 
 ## 2 node の設計シート: sheet と sheet-2（役の名）
 
@@ -58,6 +64,10 @@ a の役の 1 文目（括弧の中の。は切らない）。2 文目はなぜ�
 ```
 
 ### 3.2 port
+
+## 4 sections（並び）
+
+- `paren`（AI）: 見出しの括弧の中の並びの節の行は拾わない。
 """,
     "docs/design/b.md": "# b\n\n### 1.1 役\n\n",
     "docs/design/c.md": "# c\n\n### 1.1 役\n\n- one: 1 つ目の形の役。続き。\n  折り返し。\n- two: 2 つ目の形の役。\n",
@@ -76,6 +86,10 @@ nodes:
   - id: you
     prompt: p
   - id: none
+    prompt: p
+  - id: deep
+    prompt: p
+  - id: paren
     prompt: p
   - id: tool
     script: tool
@@ -99,6 +113,7 @@ nodes:
     cancel: x
 """,
     "workflows/a/prompts/sheet.md": "x", "workflows/a/prompts/listed.md": "x", "workflows/a/prompts/desc.md": "x",
+    "workflows/a/prompts/deep.md": "x", "workflows/a/prompts/paren.md": "x",
     "workflows/a/prompts/you.md": "# Head\n\nYou measure the claims. Then you return.\n",
     "workflows/a/prompts/none.md": "no paragraph starts with the word.",
     "workflows/a/scripts/tool.py": '"""道具の 1 文目。\n\n残り。\n"""\n',
@@ -131,6 +146,8 @@ class WhatTest(unittest.TestCase):
         self.assertEqual(graphs["e"]["what"]["line"], "e の役。")
         self.assertEqual(a["sheet"]["line"], "設計シートの役。")
         self.assertEqual(a["listed"]["line"], "並びの行の説明。")
+        self.assertEqual(a["deep"]["line"], "並びの下の節の行。")
+        self.assertEqual(a["paren"]["line"], "")
         self.assertEqual(a["desc"]["line"], "YAML の説明の 1 文目。")
         self.assertEqual(a["you"]["line"], "主張を測る。")
         self.assertIn("日本語の写し", a["you"]["from"])
