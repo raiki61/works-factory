@@ -56,10 +56,6 @@ class MovedReadsCase(unittest.TestCase):
         self.assertEqual(cite.Reject.__module__, "engine.util")
 
 
-if __name__ == "__main__":
-    unittest.main()
-
-
 class ElsewhereCase(unittest.TestCase):
     """文が名指したファイルのうち版に無い物を、ほかの版で探して読む（人の答えや指示ファイルが指した文書が、まだ取り込まれていない枝に
     だけ在る時。guided-resolver #2177 の run）"""
@@ -106,3 +102,26 @@ class ElsewhereCase(unittest.TestCase):
     def test_unreadable_version_raises(self):
         with self.assertRaises(OSError):
             cite.elsewhere(self.repo, "no-such-rev", ["a/b.md"])
+
+    def test_a_file_deleted_in_the_history_of_the_version_is_not_found(self):
+        (self.repo / "docs" / "gone.md").write_text("古い決まり\n", encoding="utf-8")
+        self.git("add", "-A")
+        self.git("commit", "-q", "-m", "add")
+        self.git("rm", "-q", "docs/gone.md")
+        self.git("commit", "-q", "-m", "drop")
+        row, = cite.elsewhere(self.repo, "main", ["docs/gone.md"])
+        self.assertEqual((row["found"], row["commit"], row["at"], row["text"]), ("", "", "", ""),
+                         "読む版の祖先で消した文書は、まだ取り込まれていない枝の本文ではない")
+
+    def test_a_file_only_in_the_stash_is_not_found(self):
+        (self.repo / "wip").mkdir()
+        (self.repo / "wip" / "note.md").write_text("書きかけ\n", encoding="utf-8")
+        self.git("add", "wip/note.md")
+        self.git("stash", "push", "-q", "-m", "wip")
+        row, = cite.elsewhere(self.repo, "main", ["wip/note.md"])
+        self.assertEqual((row["found"], row["commit"], row["at"], row["text"]), ("", "", "", ""),
+                         "commit していない書きかけ（stash）は読まない")
+
+
+if __name__ == "__main__":
+    unittest.main()

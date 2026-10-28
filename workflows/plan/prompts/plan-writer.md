@@ -242,7 +242,7 @@ Of the items of the approved plan, fix only the items pasted below. During the f
 <!-- if pointed -->
 ## Documents named in a person's answers that are not in the version you read (taken by the machine)
 
-A person's answer (an answer in the request, or a word written at an approval node) names the files below, but they are not in the version you read (`{pointed_rev}`). The machine found each one in another version of the repository (for example, a branch that is not merged yet) and copied its text to the file shown. Read that file; do not look for the document in the working tree. Where the person tells you to follow a document below or to check the plan against it, check the plan against its text, not against the person's summary of it, and say in approach which version you read.
+A person's answer (an answer in the request, or a word written at an approval node) names the files below, but they are not in the version you read (`{pointed_rev}`). The machine found each one in another version of the repository (for example, a branch that is not merged yet) and copied its text to the file shown (a long text is cut, and the row says how much was left out; a binary file is not copied, and the row says binary). Read that file; do not look for the document in the working tree. Where the person tells you to follow a document below or to check the plan against it, check the plan against its text, not against the person's summary of it, and say in approach which version you read.
 
 {pointed_rows}
 <!-- end pointed -->

@@ -713,10 +713,6 @@ class OwedAnswersCase(unittest.TestCase):
         self.assertIn(brief.DUTY_OWED, self.duty_line(prompts[0]))
 
 
-if __name__ == "__main__":
-    unittest.main()
-
-
 class PointedCase(unittest.TestCase):
     """人の答えが名指した文書が、役が読む版に無くほかの枝にだけ在る時（guided-resolver #2177 の run: 承認ノードの一言が照らせと指した正典は
     まだ取り込まれていない PR の枝にだけ在り、Bash の無い役は読めないまま要約から組み直した）。機械がほかの版から本文を取って役に渡し、
@@ -750,6 +746,27 @@ class PointedCase(unittest.TestCase):
         self.assertIn(f"`{self.NEW}`", missing, "どの版にも無い名（作るファイルでもありうる）は名指すだけで止めない")
         self.assertNotIn(f"`{self.CANON}`", missing)
 
+    def test_a_long_document_is_cut_and_a_binary_one_is_not_copied(self):
+        run = PlanRun(self, answers=[{"question": "q", "text": f"正典 {self.CANON} と図 docs/canon/chart.png に照らす"}])
+        git(run.repo, "checkout", "-q", "-b", "canon")
+        (run.repo / "docs" / "canon").mkdir(parents=True)
+        (run.repo / self.CANON).write_text("字" * (steps.POINTED_CAP + 7), encoding="utf-8")
+        (run.repo / "docs" / "canon" / "chart.png").write_bytes(b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR")
+        git(run.repo, "add", "-A")
+        git(run.repo, "commit", "-q", "-m", "canon")
+        git(run.repo, "checkout", "-q", run.base)
+        out, prompts = go(run, {"plan": [item(1, 2)]})
+        self.assertIs(out["ok"], True, out)
+        found = prompts[0].split(self.FOUND_HEAD, 1)[1].split("\n## ", 1)[0]
+        canon = next(line for line in found.splitlines() if f"`{self.CANON}`" in line)
+        copy_ = next(w for w in canon.split() if w.endswith(".txt"))
+        self.assertEqual(pathlib.Path(copy_).read_text(encoding="utf-8"), "字" * steps.POINTED_CAP)
+        self.assertIn("7 more were left out", canon)
+        chart = next(line for line in found.splitlines() if "`docs/canon/chart.png`" in line)
+        self.assertIn("binary", chart)
+        self.assertNotIn(".txt", chart, "バイナリは本文のファイルに書かない")
+        self.assertEqual(len(list(pathlib.Path(copy_).parent.glob("pointed-*.txt"))), 1)
+
     def test_answers_that_name_no_file_add_no_section(self):
         run = PlanRun(self, answers=[{"question": "q", "text": "このまま進める"}])
         _, prompts = go(run, {"plan": [item(1, 2)]})
@@ -765,3 +782,7 @@ class PointedCase(unittest.TestCase):
         self.assertEqual(len(prompts), 1, "拒んで出し直させず、1 回で止める")
         self.assertEqual(reasons(run), [])
         self.assertEqual(run.json(out["plan"]), {"round": 1, "fields": []})
+
+
+if __name__ == "__main__":
+    unittest.main()

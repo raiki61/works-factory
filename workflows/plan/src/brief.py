@@ -240,11 +240,14 @@ def prior_failure_rows(rows) -> tuple:
 
 def pointed_rows(rows) -> tuple:
     """(ほかの版で見つけた行, どの版にも無い行, 役が読む版)。人の答えが名指し、役が読む版に無いファイル（steps.pointed）を 1 件 1 行:
-    見つけた物は `- `<名指し>`: <本文のファイル> (commit <hash>, <ref の名>; path there: `<その版のパス>`)`、無い物は `- `<名指し>``"""
+    見つけた物は `- `<名指し>`: <本文のファイル> (commit <hash>, <ref の名>; path there: `<その版のパス>`)`（切った物は切った字の数を
+    添え、バイナリは本文のファイルの代わりに binary と書く）、無い物は `- `<名指し>``"""
     rows = [r for r in rows if isinstance(r, dict)]
-    found = [f"- `{r['path']}`: {r['file']} (commit {r['commit'][:12]}{', ' + r['at'] if r.get('at') else ''}; path there: `{r['found']}`)"
-             for r in rows if r.get("file")]
-    missing = [f"- `{r['path']}`" for r in rows if not r.get("file")]
+    found = [f"- `{r['path']}`: {r['file'] or 'binary, not copied'} (commit {r['commit'][:12]}{', ' + r['at'] if r.get('at') else ''}; "
+             f"path there: `{r['found']}`)"
+             + (f" (cut: the first {steps.POINTED_CAP} characters are copied; {r['cut']} more were left out)" if r.get("cut") else "")
+             for r in rows if r.get("file") or r.get("binary")]
+    missing = [f"- `{r['path']}`" for r in rows if not (r.get("file") or r.get("binary"))]
     return "\n".join(found), "\n".join(missing), str(rows[0].get("rev") or "") if rows else ""
 
 

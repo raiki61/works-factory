@@ -259,10 +259,14 @@ def intake(place, repo, k: int, raw: dict) -> dict:
     return {"go": not reason, "mode": mode, "round": k, "reason": reason}
 
 
+POINTED_CAP = 6000   # pointed が書く本文 1 本の字の上限（structure の TEXT_CAP と同じ形）。超えた分は切り、cut に切った字の数を残す
+
+
 def pointed(folder, repo, ctx: dict, unread: list) -> list:
     """人の答え（port answers の text。依頼の答えと、承認ノードで人が書いた一言）が名指したファイルのうち、役が読む版（review_rev、空なら
-    base、それも空なら HEAD）に無い物の行 [{path, found, commit, at, rev, file}]（cite.elsewhere。まだ取り込まれていない枝にだけ在る正典
-    など）。ほかの版で見つけた物は本文を周のフォルダの POINTED_TEXT に書き、file にそのパスを置く。どの版にも無い物は found・commit・
+    base、それも空なら HEAD）に無い物の行 [{path, found, commit, at, rev, file, cut, binary}]（cite.elsewhere。まだ取り込まれていない枝に
+    だけ在る正典など）。ほかの版で見つけた物は本文の頭 POINTED_CAP 字を周のフォルダの POINTED_TEXT に書き、file にそのパス、cut に切った
+    字の数を置く。本文に NUL の在る物（バイナリ）は書かず、binary を真にして file を空にする。どの版にも無い物は found・commit・
     file が空（新しく作るファイルの名でもありうるので止めない。読めないまま組み直すかは役が決め、cannot_read で止める）。git が版を
     読めなければ unread に名指して []"""
     paths = []
@@ -278,11 +282,13 @@ def pointed(folder, repo, ctx: dict, unread: list) -> list:
         return []
     out = []
     for n, row in enumerate(rows, 1):
-        file = ""
-        if row["commit"]:
+        file, text = "", row["text"]
+        binary = bool(row["commit"]) and "\0" in text
+        if row["commit"] and not binary:
             file = folder / files.POINTED_TEXT.format(n=n)
-            file.write_text(row["text"], encoding="utf-8")
-        out.append({**{k: row[k] for k in ("path", "found", "commit", "at")}, "rev": rev, "file": str(file) if file else ""})
+            file.write_text(text[:POINTED_CAP], encoding="utf-8")
+        out.append({**{k: row[k] for k in ("path", "found", "commit", "at")}, "rev": rev, "file": str(file) if file else "",
+                    "cut": max(0, len(text) - POINTED_CAP) if file else 0, "binary": binary})
     return out
 
 
