@@ -30,7 +30,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from bin._lib import isolate, launcher  # noqa: E402
-from viewer.src import ja, page, runread, session, shape  # noqa: E402
+from viewer.src import ja, page, runread, session, shape, stages  # noqa: E402
 
 PACK = json.loads((ROOT / "pack.json").read_text(encoding="utf-8"))["ours"]
 TREE = ROOT / PACK["folder"]
@@ -90,6 +90,7 @@ def keep_ja(folder: str | None, prune: bool) -> int:
 def build(target: str | None, wanted: str, user: dict, here: Path) -> tuple[dict, dict[str, str]]:
     """出力のデータと、訳の無い段落（{鍵: 英語}）。target が無ければ今の木の作りだけ"""
     data, pack = read(target, wanted, user, here)
+    stages.attach(data)
     return data, ja.attach(data, pack, user)
 
 
