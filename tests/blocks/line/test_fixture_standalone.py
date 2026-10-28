@@ -1,25 +1,21 @@
 """line の standalone の筋書きを dry-run で回し、道の node の状態と result の返りを見る（docs/design/line.md の 11 節）。
 
-include した block が workflows/ に要る（組み込みの前は別の枝に在る block が無いので赤。Archon の源か bun が無ければ見送り）。
+include した block（line の YAML の include を辿った物。test_scenarios.included_blocks）が workflows/ に要る（Archon の源か bun が無ければ見送り）。
 36 本の今の筋書きの書き直しは別の試験（test_scenarios.py・test_scenarios_gates.py）が持つ。
 """
 import json
 import unittest
 
 from tests.blocks import kit
+from tests.blocks.line.test_scenarios import included_blocks
 
 BLOCK = "line"
-INCLUDED = ("test-gate", "judge", "head-depth", "spec", "parallel-pr", "premises", "purpose", "world", "prior-decisions",
-            "purpose-review", "local-review", "consistency-bypass", "hygiene", "external-standards", "procedure-trace",
-            "test-double-fidelity", "main-path-observation", "provenance", "diagnose", "verify", "structure", "independent-design", "plan",
-            "plan-review", "fix", "lens", "delta-review", "eyes", "r1", "r2", "r3", "r4", "merge", "report", "spec-driven",
-            "weapon-tdd-close", "weapon-pin", "weapon-tidy", "weapon-static", "weapon-variant", "weapon-remove")
 
 
 class StandaloneCase(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.trace = kit.dry_run_traces(BLOCK, ("standalone",), INCLUDED)["standalone"]
+        cls.trace = kit.dry_run_traces(BLOCK, ("standalone",), included_blocks())["standalone"]
 
     def state(self, node):
         return self.trace.get(node, {}).get("state", "absent")

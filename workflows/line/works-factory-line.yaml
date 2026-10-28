@@ -449,12 +449,13 @@ nodes:
         prior_rows: {type: array, items: {type: object, properties: {where: {type: string}, text: {type: string}}}}
         notes: {type: array, items: {type: string}}
   # 3 直す前の結末（固定材料の run は飛ぶ）。仕様駆動の run は入口の確かめが通った時だけ。when: は括弧を持てないので OR-of-AND で書き、
-  # 飛ばされうる spec-entry を読む節は || の後ろに置く（依頼の文の run は前の節で打ち切り、spec-entry を読まない）
+  # 飛ばされうる spec-entry を読む節は || の後ろに置く（依頼の文の run は前の節で打ち切り、spec-entry を読まない）。始めで止まった run は
+  # request-in が飛ぶので、各節は answer-start を先に読んで打ち切る
   - id: test-gate-base
     include: works-factory-test-gate
     depends_on: [answer-start, spec-entry, request-in]
     trigger_rule: none_failed_min_one_success
-    when: "$request-in.output.go == true && $start.output.from_fixture == false && $start.output.from_spec == false || $request-in.output.go == true && $start.output.from_fixture == false && $spec-entry.output.ok == true"
+    when: "$answer-start.output.go == true && $request-in.output.go == true && $start.output.from_fixture == false && $start.output.from_spec == false || $answer-start.output.go == true && $request-in.output.go == true && $start.output.from_fixture == false && $spec-entry.output.ok == true"
     with:
       mode: "base"
       test_cmd: "$start.output.ports.test_cmd"
@@ -1546,11 +1547,11 @@ nodes:
         ripple: {<<: *pointer_or_null, description: 'json(shared:ripple.schema.json): 修正が使った波及の一覧'}
         left: {type: array, items: {type: object, properties: {where: {type: string}, text: {type: string}}}}
         stop_reason: {type: string}
-  # 18 修正の後の読むだけの 3 つ（互いを待たない。作業ツリーを変える手直しの後に置く）
+  # 18 修正の後の読むだけの 3 つ（互いを待たない。作業ツリーを変える手直しの後に置く）。parallel-pr-after は飛びうる request-in より前に fixed を読む
   - id: parallel-pr-after
     include: works-factory-parallel-pr
     depends_on: [fixed]
-    when: "$request-in.output.entry != '' && $fixed.output.diffed == true"
+    when: "$fixed.output.diffed == true && $request-in.output.entry != ''"
     with:
       request: "$request-in.output.request"
       base: "$start.output.ports.base_rev"

@@ -247,9 +247,10 @@ class WhenCase(unittest.TestCase):
         self.assertEqual(TOP["lens"]["depends_on"], ["raise"])
 
     def test_parallel_pr_after_runs_for_judged_entries_with_a_diff(self):
-        """8.1: 判定から入る run で、直した差分が在る時だけ、修正の後に 1 度だけ並行 PR を確かめ直す"""
+        """8.1: 判定から入る run で、直した差分が在る時だけ、修正の後に 1 度だけ並行 PR を確かめ直す。始めで止まった run は request-in が
+        飛ぶので、fixed を先に読んで打ち切る（筋書き start-refused）"""
         node = TOP["parallel-pr-after"]
-        self.assertEqual(node["when"], "$request-in.output.entry != '' && $fixed.output.diffed == true")
+        self.assertEqual(node["when"], "$fixed.output.diffed == true && $request-in.output.entry != ''")
         self.assertEqual((node["with"]["base"], node["with"]["changed"]), ("$start.output.ports.base_rev", "[]"))
         self.assertIn("parallel-pr-after-out", TOP["test-gate-final"]["depends_on"])
 
@@ -389,11 +390,14 @@ class SpecDrivenWiringCase(unittest.TestCase):
 
     def test_request_run_gates(self):
         """依頼の文の run の判定は from_spec == false の時だけ回り、直す前の結末は spec-entry を読む節を || の後ろに置く（前の節で
-        打ち切るので、依頼の文の run は飛ばされた spec-entry の出力を読まない）"""
+        打ち切るので、依頼の文の run は飛ばされた spec-entry の出力を読まない）。どの節も answer-start を request-in より先に読む（始めで
+        止まった run は request-in が飛ぶ。筋書き start-refused）"""
         self.assertEqual(TOP["judge"]["when"], "$test-gate-base.output.ok == true && $start.output.from_spec == false")
         when = TOP["test-gate-base"]["when"]
         head, tail = when.split(" || ")
-        self.assertEqual(head, "$request-in.output.go == true && $start.output.from_fixture == false && $start.output.from_spec == false")
+        self.assertEqual(head, "$answer-start.output.go == true && $request-in.output.go == true && $start.output.from_fixture == false"
+                               " && $start.output.from_spec == false")
+        self.assertTrue(tail.startswith("$answer-start.output.go == true && $request-in.output.go == true"), tail)
         self.assertIn("$spec-entry.output.ok == true", tail)
         self.assertNotIn("$spec-entry", head)
 
