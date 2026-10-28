@@ -51,6 +51,7 @@ works-factory は、修正依頼を受けて確かめ済みの変更と報告を
 | E22 | `AGENTS.md` |
 | E23 | `workflows/AGENTS.md` |
 | E24 | `tests/AGENTS.md` |
+| E25 | `viewer/AGENTS.md` |
 
 ## リポジトリの形
 
@@ -74,16 +75,18 @@ works-factory/
 │   ├── borrow/                  借りた superpowers の写しと固定（borrow.json）・継ぎ目の表（seams.json）・無人の読み替え（unattended.md）。読み口は lib/spseam.py
 │   ├── graphloops/engine/       元の graphloops の小道具のうち残る 3 つ（declared.py・schema.py・util.py）
 │   └── tests/                   lib/ の試験
+├── viewer/                      見る道具（AGENTS.md が E25）。工場の作りの図と run の再生を人が見る物で、工場の中からは頼らない。入口 flowview.py と読む部品 src/
 ├── tests/                       lib/ 以外の試験（AGENTS.md が試験の決まり）
 │   ├── layers/                  形と層の決まりの yes/no の試験（各決まりの「機械」の行）。block の形は test_block_shape.py
 │   ├── blocks/                  block の試験（tests/blocks/<block の名の - を _ にした物>/。助けは tests/blocks/kit.py）
 │   ├── workflows/               pack の YAML と script の形の試験
 │   ├── bin/                     入口の試験
 │   ├── shared/                  埋めと Archon との約束の試験
+│   ├── viewer/                  見る道具の試験
 │   ├── calibration/             公開ベンチの比べ
 │   └── e2e/                     小さな対象のリポジトリの種（target-seed/。__init__.py を置かない）と、通しの試験と筋書き（scenario.json。人が読む要約は scenario.md）
 ├── docs/
-│   ├── design/                  設計。README.md が型（憲法・置き場・port・指示の組み立て・形の検査・keep-essence）、<block>.md が block と graph の設計書、archon.md が Archon の分かっていること
+│   ├── design/                  設計。README.md が型（憲法・置き場・port・指示の組み立て・形の検査・keep-essence）、<block>.md が block と graph の設計書、archon.md が Archon の分かっていること、viewer.md が見る道具の設計書
 │   ├── owner-decisions.md       持ち主の決めの正本
 │   ├── asf-notes.md             ASF から採った型
 │   ├── polyfills.md             埋めの名簿（E2）
@@ -153,7 +156,8 @@ works-factory/
 
 ## E22 層は地図に沿って頼る
 
-- 層の地図は `docs/layers.json` の 1 か所。層は起動の殻 `bin/`・メイングラフと周の鎖・block と graph・pack の共通の部品 `workflows/.shared/`・共通の lib `lib/` で、層ごとに頼ってよい層（`may_use`）を書く。
+- 層の地図は `docs/layers.json` の 1 か所。層は起動の殻 `bin/`・メイングラフと周の鎖・block と graph・pack の共通の部品 `workflows/.shared/`・共通の lib `lib/`・見る道具 `viewer/` で、層ごとに頼ってよい層（`may_use`）を書く。
 - graph と block（`workflows/`）と `lib/` は `bin/` の物を import しない。Archon の上で動く物は、Archon の外の起動の殻に頼らない。殻の事実が要る時は、殻が組んだ物を env で渡し、その名は読む側の部品が持つ。
 - block どうしは互いに頼らない（憲法の 3）。block の `src/` を import してよいのは同じ block の `scripts/`・`src/` と、その block の試験だけ（`lib/` とほかの block は読まない）。
-- 機械: `tests/layers/test_lib_blind.py`（lib の向き）・`tests/layers/test_block_shape.py`（ほかの block のフォルダへのパス）。`workflows/` から `bin/` への import は人が見る。
+- 見る道具 `viewer/` は、殻と pack の共通の部品と `lib/` に頼ってよく、どの層からも頼られない（`viewer/AGENTS.md` の E25）。
+- 機械: `tests/layers/test_lib_blind.py`（lib の向き）・`tests/layers/test_block_shape.py`（ほかの block のフォルダへのパス）・`tests/layers/test_viewer_apart.py`（見る道具へ頼らない向き）。`workflows/` から `bin/` への import と、見る道具が地図の `may_use` の外（block と graph の中の物）を import しないことは人が見る。

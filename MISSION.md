@@ -19,5 +19,5 @@
 - ASF のコードを写すこと。型（作りの考え）だけを採り、`docs/asf-notes.md` に書く。
 - ASF や Archon 同梱のグラフを `include`（別のグラフを取り込む Archon の書き方）すること。横に並べて見比べるだけ。
 - グラフの YAML を別の形から変換して作ること。YAML は手で書き、そのまま Archon に渡す。
-- 層の外の新しい層や仕組み。層は、人が打つ入口（`bin/`）・graph と block（`workflows/`）・pack の共通の部品（`workflows/.shared/`）・助け手（`lib/`）で、地図は `docs/layers.json`。足すなら先に持ち主の決めを `docs/owner-decisions.md` に書く。
+- 層の外の新しい層や仕組み。層は、人が打つ入口（`bin/`）・graph と block（`workflows/`）・pack の共通の部品（`workflows/.shared/`）・助け手（`lib/`）・見る道具（`viewer/`）で、地図は `docs/layers.json`。足すなら先に持ち主の決めを `docs/owner-decisions.md` に書く。
 - 特定の言語・テストの実行器に寄った確かめ。対象に依らない言い方で書く。
