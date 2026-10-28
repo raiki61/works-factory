@@ -4,9 +4,10 @@
 （viewer/AGENTS.md の E25）。出来事の段は、出来事の道の頭（line の一番上のノード。include・繰り返し・子の run の出来事も、道の頭は
 line のノード）で引く。
 
-- check(graphs) -> 照らしの問題の字の一覧。今の木の line の一番上のノードがどれもちょうど 1 つの段に入り、表の id がどれも line に在る
+- check(graphs) -> 照らしの問題の字の一覧。今の木の line の一番上のノードがどれもちょうど 1 つの段に入り、表の id がどれも line に在り、
+  段の配線の列 wiring がその段のノードの中に在り、どの段にも配線でないノードが在る
 - attach(data) -> data["stages"] に段の表と、run が line の run なら段ごとの集計を足し、出来事と飛んだノードに段の番号 stage を、
-  出来事に時間の帯の塗り分け role と、段の状態に数えない合流のノードの印 through を付ける
+  出来事に時間の帯の塗り分け role と、段の状態に数えない配線のノードの印 through を付ける
 """
 import json
 from datetime import datetime
@@ -16,7 +17,7 @@ import runlog   # lib/（viewer/src/__init__.py が sys.path に足す）
 from viewer.src import runread
 
 TABLE = json.loads((Path(__file__).resolve().parents[1] / "stages.json").read_text(encoding="utf-8"))
-SHOWN = ("name", "line", "hands", "source", "nodes")
+SHOWN = ("name", "line", "hands", "source", "nodes", "wiring")
 
 
 def check(graphs: dict) -> list[str]:
@@ -31,6 +32,10 @@ def check(graphs: dict) -> list[str]:
     out = [f"{TABLE['graph']} のノード {top} が段の表のどの段にも無い" for top in tops if top not in homes]
     out += [f"ノード {node} が段の表の {len(at)} つの段（{'・'.join(map(str, at))}）に在る" for node, at in homes.items() if len(at) > 1]
     out += [f"段の表のノード {node} が {TABLE['graph']} に無い" for node in homes if node not in tops]
+    for stage in TABLE["stages"]:
+        out += [f"段 {stage['name']} の配線 {node} がその段のノードに無い" for node in stage["wiring"] if node not in stage["nodes"]]
+        if not set(stage["nodes"]) - set(stage["wiring"]):
+            out.append(f"段 {stage['name']} のノードが全部配線で、段の状態を決められない")
     return out
 
 
@@ -44,7 +49,7 @@ def attach(data: dict) -> None:
     run = data["run"]
     if not run or not graph or run["graph"] != graph["name"]:
         return
-    through = {item["id"] for item in graph["items"] if item["trigger"] in runread.JOIN_RULES and not item["when"]}
+    through = {node for stage in TABLE["stages"] for node in stage["wiring"]}
     for entry in [*run["events"], *run["skipped"]]:
         top = entry["tokens"][0] if entry["tokens"] else ""
         entry["stage"] = of.get(top)
@@ -52,7 +57,7 @@ def attach(data: dict) -> None:
             out["loose"].append(top)
     for e in run["events"]:
         e["role"] = _role(e["kind"])
-        e["through"] = e["stage"] is not None and e["tokens"][0] in through and bool(set(TABLE["stages"][e["stage"] - 1]["nodes"]) - through)
+        e["through"] = e["stage"] is not None and e["tokens"][0] in through
     out["run"] = [_sum(n, run, through) for n in range(1, len(TABLE["stages"]) + 1)]
     out["stop"] = _stop(out["run"])
 
@@ -61,11 +66,10 @@ def _sum(n: int, run: dict, through: set[str]) -> dict:
     """段 n の集計。時間は段の出来事の最初の始めから最後の終わり、人の待ちと AI の時間は出来事の長さの和（並んで走れば重なる）。
     中の出来事を束ねる器（繰り返し・子の run を起こすノード）は、数と長さと費用に数えない（中の出来事と二重になる。子の run を起こす
     ノードの行には子の総額が載る）。周の数は、繰り返しの本体の出来事の周（入れ子なら内の周まで）の違う物の数。
-    段の状態（通った・飛んだ）には、どの道でも走る合流のノード through（前が飛んでも走る trigger_rule を持ち when の無い物）を
-    数えない。段のノードが全部合流のノードなら（報告）数える"""
+    段の状態（通った・飛んだ）には、段の表の配線のノード through（合流・受け渡しだけの物。fix-in・fixed・judged は修正の段が
+    飛んでも走る）を数えない"""
     events = [e for e in run["events"] if e.get("stage") == n]
-    tops = set(TABLE["stages"][n - 1]["nodes"])
-    deciding = [e for e in events if e["tokens"][0] not in through] if tops - through else events
+    deciding = [e for e in events if e["tokens"][0] not in through]
     own = [e for e in events if e["kind"] not in runread.GROUP_KINDS]
     times = [t for e in events for t in (e["start"], e["end"]) if t]
     tokens, odd = {}, 0

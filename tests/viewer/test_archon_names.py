@@ -33,7 +33,6 @@ WRITTEN = {
     f"{runread.ATTEMPT_ID}:": "packages/workflows/src/schemas/provider-event.ts",
     **{f"kind: z.literal('{kind}')": "packages/workflows/src/schemas/dag-node.ts"
        for kind in (*runread.AI_KINDS, runread.WAIT_NODE, *runread.GROUP_KINDS)},
-    **{f"case '{rule}':": "packages/workflows/src/dag-executor.ts" for rule in runread.JOIN_RULES},
     **{name: RUN_SCHEMA for name in (f"metadata?.{runread.WAIT}", f"kind: z.literal('{runread.WAIT_KIND}')", f"{runread.WAIT_ANSWER}: attentionAnswerSchema",
                                      f"wait.owner === '{runread.WAIT_LOOP_OWNER}' ? `${{wait.nodeId}}.${{wait.bodyWaitId}}` : wait.nodeId")},
 }

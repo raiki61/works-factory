@@ -58,9 +58,6 @@ WAIT_LOOP_OWNER = "loop_group"
 AI_KINDS = ("agent", "loop")
 WAIT_NODE = "wait"
 GROUP_KINDS = ("loop_group", "compose_fan_out", "workflow")
-# 前のノードが飛んでも走る trigger_rule（packages/workflows/src/dag-executor.ts の checkTriggerRuleForDependencies。all_success だけは
-# 前が全部済んだ時だけ走る）。流れの集計が、どの道でも走る合流のノードを見分ける
-JOIN_RULES = ("one_success", "none_failed_min_one_success", "all_done")
 # DB の出来事の型（ノードの出力と、run の落ちの訳。packages/workflows/src/event-emitter.ts）
 OUTPUT_EVENT = "node_completed"
 NODE_OUTPUT = "node_output"
