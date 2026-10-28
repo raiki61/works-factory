@@ -41,6 +41,12 @@ PAUSED = "paused"
 # run の metadata の欄（子の run を起こしたノード・費用。packages/workflows/src/dag-executor.ts）
 PARENT_NODE = "parent_node_id"
 TOTAL_COST = "total_cost_usd"
+# run の metadata の待ち（packages/workflows/src/schemas/workflow-run.ts の workflowWaitAttentionFields と workflowWaitStepName）。
+# 答えが入った待ちは、run が次へ進む前でも答えを待たない（同じファイルの runAttention の「Answered」）
+WAIT = "wait"
+WAIT_KIND = "attention"
+WAIT_ANSWER = "answer"
+WAIT_LOOP_OWNER = "loop_group"
 # DB の出来事の型（ノードの出力と、run の落ちの訳。packages/workflows/src/event-emitter.ts）
 OUTPUT_EVENT = "node_completed"
 NODE_OUTPUT = "node_output"
@@ -319,7 +325,8 @@ def _outputs(con) -> dict:
 
 
 def _waiting(con) -> dict:
-    """答えを待つ run（状態が paused）ごとの、止まって答えを待つノード（node_suspended の後に同じノードの終わりが無い物）"""
+    """答えを待つ run（状態が paused）ごとの、止まって答えを待つノード（node_suspended の後に同じノードの終わりが無い物）。
+    答えが入って次へ進む前のノード（metadata の待ちに答えが在る物）は外す"""
     out = {}
     for rid, step, kind in con.execute(f"select e.workflow_run_id, e.step_name, e.event_type from {EVENT_TABLE} e "
                                        f"join {RUN_TABLE} r on r.id = e.workflow_run_id where r.status = ? and e.event_type in (?, ?) "
@@ -330,6 +337,12 @@ def _waiting(con) -> dict:
             names.append(step)
         elif kind == OUTPUT_EVENT and step in names:
             names.remove(step)
+    for rid, metadata in con.execute(f"select id, metadata from {RUN_TABLE} where status = ?", (PAUSED,)):
+        wait = _json(metadata).get(WAIT)
+        if isinstance(wait, dict) and wait.get("kind") == WAIT_KIND and wait.get(WAIT_ANSWER) is not None:
+            step = f"{wait.get('nodeId')}.{wait.get('bodyWaitId')}" if wait.get("owner") == WAIT_LOOP_OWNER else wait.get("nodeId")
+            if step in out.get(rid, []):
+                out[rid].remove(step)
     return {rid: names for rid, names in out.items() if names}
 
 
