@@ -7,8 +7,9 @@ Claude Code の版は工場が止めていないので、記録の形は試験�
 （代わりが無ければ LLM に入った字が帯から消えるので）。
 
 - find(projects, preview) -> run の記録の会話の id の頭（sessionPreview）に当たる記録のパス（無ければ None。Claude Code が消した古い記録は結べない）
-- read(path, keep) -> 1 本の会話。流れ（seq）は LLM に入った順の片で、往復の始まりに ["turn", 往復の番号] を置く（トークンは往復の
-  usage から読む。1 つの返事は行が分かれ、出力のトークンは終わりの行で数え終わるので、流れに写さない）。keep は同じ字を 1 つにして番号で指す関数（同じ system を会話ごとに持たない）。system と道具の一覧
+- read(path, keep) -> 1 本の会話。流れ（seq）は LLM に入った順の片で、往復の最初の行で ["turn", 往復の番号] を置く（usage を持つ
+  行を待たない。トークンは往復の usage から後で埋め、usage の無い往復は空のまま。1 つの返事は行が分かれ、出力のトークンは終わりの行で
+  数え終わるので、流れに写さない）。keep は同じ字を 1 つにして番号で指す関数（同じ system を会話ごとに持たない）。system と道具の一覧
   （api-request-shape）と添え書き（api-request-blob）は、その型の行が記録に在ったかを recorded に持つ（無ければページは欄を空にせず
   「記録に無い」と出す。普通の利用者の Claude Code でこの 2 つの型が出るかは確かめていない）
 """
@@ -114,15 +115,13 @@ def _assistant(got, message, keep, turns, by_id):
     ident = message.get("id") or str(len(turns))
     if ident not in by_id:
         by_id[ident] = {"usage": {}, "calls": [], "say": ""}
+        got["seq"].append(["turn", len(turns)])
         turns.append(by_id[ident])
     turn = by_id[ident]
     usage = message.get("usage") or {}
     if usage:
-        counted = {"in": usage.get("input_tokens", 0), "cache_read": usage.get("cache_read_input_tokens", 0),
-                   "cache_write": usage.get("cache_creation_input_tokens", 0), "out": usage.get("output_tokens", 0)}
-        if not turn["usage"]:
-            got["seq"].append(["turn", turns.index(turn)])
-        turn["usage"] = counted
+        turn["usage"] = {"in": usage.get("input_tokens", 0), "cache_read": usage.get("cache_read_input_tokens", 0),
+                         "cache_write": usage.get("cache_creation_input_tokens", 0), "out": usage.get("output_tokens", 0)}
     for part in message.get("content") or []:
         kind = part.get("type") if isinstance(part, dict) else None
         if kind == "tool_use":

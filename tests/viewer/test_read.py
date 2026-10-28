@@ -9,6 +9,8 @@
 - 壊れた時刻（読めない ts）の出来事が在っても、選んだ run は落ちず、その時刻だけを数えない
 - 会話の記録の行は、読む型・読まない型（訳つき）・知らない型に分け、知らない型だけを読めなかった物に数える（帯の数が本当に読めなかった
   物を指す）。読まない型のうち字を別の型から読む物は、その代わりの型が記録に無い会話では知らない型と同じく数える。Claude Code の記録の形は工場が止めていないので、読まない型の表が本物の記録に合うかは人が見る
+- 往復の印は、usage を持つ行を待たず、その往復の最初の行で置く（usage の無い返事が混じっても往復の数がずれず、どの返事にも usage が
+  無くても返事と道具の呼び出しが並びから消えない。usage は後の行で埋める）
 
 試験は一時のフォルダに小さな DB と記録を作る。
 """
@@ -181,6 +183,19 @@ class ReadCase(unittest.TestCase):
         self.assertEqual([row[0] for row in got["seq"]], ["user", "turn", "say", "call", "result", "turn", "say"])
         self.assertEqual([row[1] for row in got["seq"] if row[0] == "turn"], [0, 1])
         self.assertEqual([turn["usage"]["out"] for turn in got["turns"]], [50, 7])
+
+    def test_flow_marks_turns_without_usage(self):
+        path = self.tmp / "s.jsonl"
+        say = lambda ident, part, **more: {"type": "assistant", "message": {"id": ident, "content": [part], **more}}
+        rows = [{"type": "user", "message": {"content": "go"}},
+                say("m1", {"type": "tool_use", "id": "t1", "name": "Read", "input": {}}),
+                {"type": "user", "message": {"content": [{"type": "tool_result", "tool_use_id": "t1", "content": "body"}]}},
+                say("m2", {"type": "text", "text": "a"}), say("m2", {"type": "text", "text": "b"}, usage={"output_tokens": 4})]
+        path.write_text("\n".join(json.dumps(row) for row in rows) + "\n", encoding="utf-8")
+        got = session.read(path, lambda text: text)
+        self.assertEqual([row[0] for row in got["seq"]], ["user", "turn", "call", "result", "turn", "say", "say"])
+        self.assertEqual([row[1] for row in got["seq"] if row[0] == "turn"], [0, 1])
+        self.assertEqual([turn["usage"].get("out") for turn in got["turns"]], [None, 4])
 
 
 if __name__ == "__main__":
