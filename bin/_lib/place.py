@@ -11,7 +11,7 @@
 Archon の家（$ARCHON_HOME）には、利用者が provider の同時数の上限を渡した時の $ARCHON_HOME/config.yaml の上限の鍵（write_provider_cap）のほかは
 何も書かない（$ARCHON_HOME/workflows など）。工場が決める値は、
 run のノードに渡す環境変数（launcher.run_env）・役の claude の会話のキャッシュの寿命の既定（launcher.cache_ttl。--adopt の起動と、
-寿命が選ばれている起動では載せない）・AI ノードの群の別名（'@wf-<群>'）・使用枠の方針（QUOTA_POLICY）を新しい run に run 1 本ぶんの
+工場だけに効く層〔--config の env: か対象の .archon/config.yaml の env:〕で寿命が選ばれている起動では載せない）・AI ノードの群の別名（'@wf-<群>'）・使用枠の方針（QUOTA_POLICY）を新しい run に run 1 本ぶんの
 設定の層（run_config）で、既定の provider を Archon の環境変数（PROVIDER_ENV）で渡す。
 """
 import hashlib

@@ -87,7 +87,7 @@ class LauncherTest(unittest.TestCase):
             HOME=str(self.home), PATH=f"{self.fake}{os.pathsep}{self.tools}", XDG_CACHE_HOME=str(self.cache_home),
             FAKE_BUN_LOG=str(self.bun_log), FAKE_CLAUDE_LOG=str(self.tmp / "claude.jsonl"),
             FAKE_SECURITY_LOG=str(self.security_log), ANTHROPIC_API_KEY=API_KEY)
-        for name in (*USER_SPECIFIC, *launcher.CHOSEN_TTL_ENVS):
+        for name in USER_SPECIFIC:
             self.env.pop(name, None)
 
     def launch(self, *args, cwd=None, **env):
@@ -319,8 +319,9 @@ class LauncherTest(unittest.TestCase):
 
     def test_run_layer_carries_the_prompt_cache_ttl(self):
         """役の claude の会話のキャッシュの寿命の既定（5 分）は、新しい run の設定の層の env で運ぶ（Archon は起動の最初に CLAUDE_CODE_* を消すので、
-        子の env に置いても役に届かない）。誰かが寿命を選んでいれば工場は載せない: 利用者の shell の env・利用者の --config の env:・
-        対象の .archon/config.yaml の env:。--adopt の起動では、その選びを殻が見られないので載せない"""
+        子の env に置いても役に届かない）。工場だけに効く層で寿命を選んでいれば工場は載せない: 利用者の --config の env:・対象の
+        .archon/config.yaml の env:。--adopt の起動では、repo の選びを殻が見られないので載せない。利用者の shell の env の寿命の名は
+        効かない"""
         name = "CLAUDE_CODE_PROMPT_CACHE_TTL"
         real = shutil.which("bun")
 
@@ -333,18 +334,15 @@ class LauncherTest(unittest.TestCase):
 
         with self.subTest("選びが無ければ 5 分（対象に .archon/config.yaml が無ければ、殻は bun も起こさない）"):
             self.assertEqual(env_of()[name], "5m")
-        with self.subTest("利用者の shell の寿命の選びは、Archon が消すのでそのまま運ぶ"):
-            self.assertEqual(env_of(**{name: "1h"})[name], "1h")
-        for chosen in launcher.CHOSEN_TTL_ENVS[1:]:
-            with self.subTest(f"利用者の shell の {chosen} は Archon を通って届くので、工場は名を足さない"):
-                self.assertNotIn(name, env_of(**{chosen: "1"}))
+        for chosen in launcher.CHOSEN_TTL_ENVS:
+            with self.subTest(f"利用者の shell の {chosen} は効かず、5 分を載せる"):
+                self.assertEqual(env_of(**{chosen: "1h" if chosen == name else "1"})[name], "5m")
         with self.subTest("続ける命令（--resume）は層を足さない"):
             self.assertNotIn("--config", self.reached(self.launch("workflow", "run", "works-factory-line", "--resume"))["argv"])
         with self.subTest("--adopt は repo の選びを殻が見られないので、名を載せない（repo の config.yaml があっても読まない）"):
             repo_config("env:\n  MINE: '1'\n")
             for args in (["--adopt", "run-1"], ["--adopt=run-1"]):
                 self.assertNotIn(name, env_of(*args))
-                self.assertNotIn(name, env_of(*args, **{name: "1h"}))
             (self.target / ".archon" / "config.yaml").unlink()
         if real is None:
             self.skipTest("bun が無い（利用者の --config と対象の .archon/config.yaml は Archon と同じ Bun.YAML.parse で読む）")
@@ -358,8 +356,8 @@ class LauncherTest(unittest.TestCase):
             got = env_of("--config", "chosen.yaml")
             self.assertNotIn(name, got)
             self.assertEqual(got["ENABLE_PROMPT_CACHING_1H"], "1")
-        with self.subTest("利用者の --config の env: の寿命はそのまま運ぶ。利用者の shell の寿命では上書きしない"):
-            self.assertEqual(env_of("--config", "named.yaml", **{name: "5m"})[name], "1h")
+        with self.subTest("利用者の --config の env: の寿命はそのまま運ぶ"):
+            self.assertEqual(env_of("--config", "named.yaml")[name], "1h")
         for text, why in ((f"env:\n  {name}: 1h\n", "寿命の名"), ("env:\n  ENABLE_PROMPT_CACHING_1H: '1'\n", "ENABLE_PROMPT_CACHING_1H")):
             with self.subTest(f"対象の .archon/config.yaml の env: の {why}は、工場の 5 分で潰さない"):
                 repo_config(text)
@@ -371,9 +369,6 @@ class LauncherTest(unittest.TestCase):
             with self.subTest(f"対象の .archon/config.yaml に寿命の選びが無ければ 5 分: {text!r}"):
                 repo_config(text)
                 self.assertEqual(env_of()[name], "5m")
-        with self.subTest("対象の .archon/config.yaml の選びは、利用者の shell の寿命にも勝つ（Archon が重ねるのは run の層より下）"):
-            repo_config(f"env:\n  {name}: 1h\n")
-            self.assertNotIn(name, env_of(**{name: "5m"}))
         with self.subTest("対象の .archon/config.yaml が読めなければ名を足さず、その訳を 1 行で言う"):
             repo_config("env: [unclosed\n")
             done = self.launch("workflow", "run", "works-factory-line")
