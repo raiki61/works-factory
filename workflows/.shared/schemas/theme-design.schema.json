@@ -1,0 +1,204 @@
+{
+  "description": "設計の段の設計の案（docs/design/theme.md の 3 章。書き手の block theme が 1 周ごとに返し、line が降りる時に読む）。欄の id は P・N・D・Q・A・R・C の頭と番号。人に見せる字は書き手の lang",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["question", "purpose", "premises", "current", "parts", "reuse", "checks", "asks", "decided", "changes", "inventory", "narrows",
+               "block_answers", "answers_used"],
+  "properties": {
+    "question": {"type": "string", "minLength": 1, "description": "テーマの問いを 1〜3 文で言い直した物"},
+    "purpose": {"type": "string", "minLength": 1, "description": "何のための設計か"},
+    "premises": {
+      "description": "設計が置いた前提。owner は人が決めた前提（from に人の答えの id H<n> か、テーマの md の行 theme:<行> か theme:<始め>-<終わり>）、assumed は書き手が仮に置いた前提（from に置いた訳）",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "what", "by", "from"],
+        "properties": {
+          "id": {"type": "string", "pattern": "^P[0-9]+$"},
+          "what": {"type": "string", "minLength": 1},
+          "by": {"type": "string", "enum": ["owner", "assumed"]},
+          "from": {"type": "string", "minLength": 1}
+        }
+      }
+    },
+    "current": {
+      "description": "今在る物。where は <パス>:<行> か <パス>:<始め>-<終わり>",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "what", "where"],
+        "properties": {
+          "id": {"type": "string", "pattern": "^N[0-9]+$"},
+          "what": {"type": "string", "minLength": 1},
+          "where": {"type": "string", "minLength": 1}
+        }
+      }
+    },
+    "parts": {
+      "description": "設計の中身。足す・変える部品ごとに 1 行",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "what", "where", "why"],
+        "properties": {
+          "id": {"type": "string", "pattern": "^D[0-9]+$"},
+          "what": {"type": "string", "minLength": 1},
+          "where": {"type": "string", "minLength": 1},
+          "why": {"type": "string", "minLength": 1}
+        }
+      }
+    },
+    "reuse": {
+      "description": "足す部品ごとに、先に挙げた今在る物と、それで足りない訳",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["part", "existing", "enough", "why_not"],
+        "properties": {
+          "part": {"type": "string", "pattern": "^D[0-9]+$"},
+          "existing": {"type": "array", "items": {"type": "string", "pattern": "^N[0-9]+$"}},
+          "enough": {"type": "boolean", "enum": [false]},
+          "why_not": {"type": "string", "minLength": 1}
+        }
+      }
+    },
+    "checks": {
+      "description": "対象の方針の文書が求める確かめへの答え。rule は決まりの <パス>:<行>",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["rule", "answer", "where"],
+        "properties": {
+          "rule": {"type": "string", "minLength": 1},
+          "answer": {"type": "string", "minLength": 1},
+          "where": {"type": "string", "minLength": 1}
+        }
+      }
+    },
+    "asks": {
+      "description": "持ち主に聞く問い。pick は推しの案の id",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "ask", "pick", "pick_why", "options"],
+        "properties": {
+          "id": {"type": "string", "pattern": "^Q[0-9]+$"},
+          "ask": {"type": "string", "minLength": 1},
+          "pick": {"type": "string", "pattern": "^A[0-9]+$"},
+          "pick_why": {"type": "string", "minLength": 1},
+          "options": {
+            "type": "array",
+            "minItems": 2,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["id", "what", "cost", "gain"],
+              "properties": {
+                "id": {"type": "string", "pattern": "^A[0-9]+$"},
+                "what": {"type": "string", "minLength": 1},
+                "cost": {"type": "string", "minLength": 1},
+                "gain": {"type": "string", "minLength": 1}
+              }
+            }
+          }
+        }
+      }
+    },
+    "decided": {
+      "description": "部署の決め（決まりで決まるので聞かない物）。by は決まりの <パス>:<行>",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "what", "by", "why"],
+        "properties": {
+          "id": {"type": "string", "pattern": "^R[0-9]+$"},
+          "what": {"type": "string", "minLength": 1},
+          "by": {"type": "string", "minLength": 1},
+          "why": {"type": "string", "minLength": 1}
+        }
+      }
+    },
+    "changes": {
+      "description": "変える所。降りる時に依頼の行になる。rework は今在るファイルを作り変える行で、inventory が覆う",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "where", "what", "op", "parts"],
+        "properties": {
+          "id": {"type": "string", "pattern": "^C[0-9]+$"},
+          "where": {"type": "string", "minLength": 1},
+          "what": {"type": "string", "minLength": 1},
+          "op": {"type": "string", "enum": ["add", "edit", "rework", "remove"]},
+          "parts": {"type": "array", "items": {"type": "string", "pattern": "^D[0-9]+$"}}
+        }
+      }
+    },
+    "inventory": {
+      "description": "作り変えの照らしの行。lines は <始め>-<終わり>（起点の木のファイルの行）",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["path", "lines", "gist", "to", "dest", "why"],
+        "properties": {
+          "path": {"type": "string", "minLength": 1},
+          "lines": {"type": "string", "pattern": "^[0-9]+-[0-9]+$"},
+          "gist": {"type": "string", "minLength": 1},
+          "to": {"type": "string", "enum": ["keep", "move", "merge", "drop"]},
+          "dest": {"type": "string"},
+          "why": {"type": "string"}
+        }
+      }
+    },
+    "narrows": {
+      "description": "設計が今の能力を狭める所。decided_by か undecided_because のどちらかを書く",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["what"],
+        "properties": {
+          "what": {"type": "string", "minLength": 1},
+          "decided_by": {"type": "string"},
+          "undecided_because": {"type": "string"}
+        }
+      }
+    },
+    "block_answers": {
+      "description": "前の往復の答えの要る穴への答え（計画の block_answers と同じ形。lib/converge.py の answer_gaps が読む）",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["key", "handled", "how"],
+        "properties": {
+          "key": {"type": "string", "minLength": 1},
+          "handled": {"type": "string", "enum": ["fixed", "disputed"]},
+          "how": {"type": "string", "minLength": 10}
+        }
+      }
+    },
+    "answers_used": {
+      "description": "人の答えの行ごとの使い道。applied は答えを入れた欄の id、declined_why は入れなかった訳（どちらかを書く）",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["answer"],
+        "properties": {
+          "answer": {"type": "string", "pattern": "^H[0-9]+$"},
+          "applied": {"type": "array", "items": {"type": "string", "minLength": 1}},
+          "declined_why": {"type": "string"}
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,166 @@
+name: works-factory-theme
+description: |
+  設計の案の書き手の block（docs/design/theme.md）。テーマ（コードに落とす前の設計の問い）の md と、前の周の設計の案・往復の記録・人の答え・
+  世界の解の行・方針から、1 周分の設計の案（問い・前提・今在る物・設計・在る物で足りない訳・持ち主に聞く問い〔案・推し・代償〕・部署の決め・
+  変える所・作り変えの照らし・前の穴と人の答えへの答え）を書かせ、受け付けが yes/no の照らしで確かめる。往復の記録と止めはこの block を呼ぶ graph が
+  持ち、この block は前の周を port prior で受けて 1 周分の案を作る。拒まれた後の出し直しは書き手の会話の続きで拒まれた欄だけを返させ、受け付けが
+  前の答えと合わせる。3 回拒まれたら諦める。出口 finish は落ちない。単独の run でも、graph から include されても回る
+
+inputs:
+  theme: {required: true, description: 'file: テーマの md（テーマの文・名指す設計書のセクション・始めに頼んだ調べものの結果を書いてよい）'}
+  prior: {default: '', description: 'json(shared:plan-converge.schema.json): 往復の記録（前の周までの審査の穴と答え）。空は 1 周目'}
+  prior_design: {default: '', description: 'json(shared:theme-design.schema.json): 前の周の設計の案。空は前の案が無い'}
+  answers: {default: '[]', description: 'json(human-answers.schema.json): 人の答えの行の配列 [{id, kind, text, ask?, pick?, from?}]。空の配列は答えが無い'}
+  world_rows: {default: '', description: 'jsonl(lib:world-row.schema.json): 世界の解の行の JSON Lines。空は行が無い'}
+  policy: {default: '', description: 'file: 人の方針の文書の固めた写し。空は方針の文書が無い'}
+  recorded: {default: '[]', description: 'json(shared:recorded.schema.json): 記録された方針の行の配列 [{source, name, text, lines?, alias?}]。空の配列は行が無い'}
+  base: {default: '', description: 'text: 起点の版（作り変えの照らしが行を数える版）。空は HEAD'}
+  lang: {default: '', description: 'text: 人に見せる欄（question・purpose・各 what・why・ask・pick_why・cost・gain・answer・gist・how・declined_why）の言語。空は依頼の言語'}
+returns: finish
+outcome_field: ok
+
+nodes:
+  # 周を開く。port を読み、周のフォルダ r<k>/（k は往復の記録の往復の数 + 1）を作る。読めない port は役を起こさない。落ちない
+  - id: intake
+    script: intake
+    runtime: uv
+    mutates_checkout: false
+    output_format:
+      type: object
+      additionalProperties: false
+      required: [due, round, reason]
+      properties:
+        due: {type: boolean}
+        round: {type: integer, minimum: 1}
+        reason: {type: string}
+
+  # 書き手の loop。1 回目は書き手 theme-writer が全部の材料から案を書く。拒否の後は出し直しの役 theme-writer-fix が同じ会話の続きで拒まれた欄
+  # だけを返し、受け付けが前の答えの控えと合わせてから全体を照らす（振り分けは write-prep の resubmit。会話を切らないよう、本体の層はどれも node 1 つ）。
+  # 3 回目の拒否で受け付けが done・give_up を出して loop を抜ける（rolekit.GIVE_UP_AFTER。max_iterations と同じ数）
+  - id: write-loop
+    depends_on: [intake]
+    when: "$intake.output.due == true"
+    loop_group:
+      max_iterations: 3
+      fresh_context: false
+      until_bash: 'done=$write-accept.output.done; test "$done" = true'
+      nodes:
+        - id: write-prep
+          script: write_prep
+          runtime: uv
+          mutates_checkout: false
+          with:
+            prev: "$LOOP_PREV.write-accept.output.ok"
+          output_format:
+            type: object
+            additionalProperties: false
+            required: [prompt, resubmit]
+            properties:
+              prompt: {type: string}
+              resubmit: {type: boolean}
+        # 模型・道具・設定は出し直しの役 theme-writer-fix と同じ（merge key の錨 writer_launch）
+        - id: theme-writer
+          prompt: "$write-prep.output.prompt"
+          depends_on: [write-prep]
+          when: "$write-prep.output.resubmit != true"
+          <<: &writer_launch
+            model: '@wf-plan-writer'
+            allowed_tools: [Read, Grep, Glob, WebSearch, WebFetch]
+            settingSources: [user]
+            sandbox: {enabled: true, allowUnsandboxedCommands: false}
+            mutates_checkout: false
+            idle_timeout: 1728000000
+            retry: {max_attempts: 2, on_error: all}
+          # 書き手の型は形 shared:theme-design.schema.json の写し（欄の一致は tests/blocks/theme が見る）。出し直しの役と同じ型にするので
+          # 根の欄を要ると書かない（#832）。根の要る欄は受け付けが rolekit.resubmitted で確かめる（src/files.py の REQUIRED）
+          output_format: &design_reply
+            type: object
+            additionalProperties: false
+            required: []
+            properties:
+              question: {"type": "string", "minLength": 1}
+              purpose: {"type": "string", "minLength": 1}
+              premises: {"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["id", "what", "by", "from"], "properties": {"id": {"type": "string", "pattern": "^P[0-9]+$"}, "what": {"type": "string", "minLength": 1}, "by": {"type": "string", "enum": ["owner", "assumed"]}, "from": {"type": "string", "minLength": 1}}}}
+              current: {"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["id", "what", "where"], "properties": {"id": {"type": "string", "pattern": "^N[0-9]+$"}, "what": {"type": "string", "minLength": 1}, "where": {"type": "string", "minLength": 1}}}}
+              parts: {"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["id", "what", "where", "why"], "properties": {"id": {"type": "string", "pattern": "^D[0-9]+$"}, "what": {"type": "string", "minLength": 1}, "where": {"type": "string", "minLength": 1}, "why": {"type": "string", "minLength": 1}}}}
+              reuse: {"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["part", "existing", "enough", "why_not"], "properties": {"part": {"type": "string", "pattern": "^D[0-9]+$"}, "existing": {"type": "array", "items": {"type": "string", "pattern": "^N[0-9]+$"}}, "enough": {"type": "boolean", "enum": [false]}, "why_not": {"type": "string", "minLength": 1}}}}
+              checks: {"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["rule", "answer", "where"], "properties": {"rule": {"type": "string", "minLength": 1}, "answer": {"type": "string", "minLength": 1}, "where": {"type": "string", "minLength": 1}}}}
+              asks: {"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["id", "ask", "pick", "pick_why", "options"], "properties": {"id": {"type": "string", "pattern": "^Q[0-9]+$"}, "ask": {"type": "string", "minLength": 1}, "pick": {"type": "string", "pattern": "^A[0-9]+$"}, "pick_why": {"type": "string", "minLength": 1}, "options": {"type": "array", "minItems": 2, "items": {"type": "object", "additionalProperties": false, "required": ["id", "what", "cost", "gain"], "properties": {"id": {"type": "string", "pattern": "^A[0-9]+$"}, "what": {"type": "string", "minLength": 1}, "cost": {"type": "string", "minLength": 1}, "gain": {"type": "string", "minLength": 1}}}}}}}
+              decided: {"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["id", "what", "by", "why"], "properties": {"id": {"type": "string", "pattern": "^R[0-9]+$"}, "what": {"type": "string", "minLength": 1}, "by": {"type": "string", "minLength": 1}, "why": {"type": "string", "minLength": 1}}}}
+              changes: {"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["id", "where", "what", "op", "parts"], "properties": {"id": {"type": "string", "pattern": "^C[0-9]+$"}, "where": {"type": "string", "minLength": 1}, "what": {"type": "string", "minLength": 1}, "op": {"type": "string", "enum": ["add", "edit", "rework", "remove"]}, "parts": {"type": "array", "items": {"type": "string", "pattern": "^D[0-9]+$"}}}}}
+              inventory: {"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["path", "lines", "gist", "to", "dest", "why"], "properties": {"path": {"type": "string", "minLength": 1}, "lines": {"type": "string", "pattern": "^[0-9]+-[0-9]+$"}, "gist": {"type": "string", "minLength": 1}, "to": {"type": "string", "enum": ["keep", "move", "merge", "drop"]}, "dest": {"type": "string"}, "why": {"type": "string"}}}}
+              narrows: {"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["what"], "properties": {"what": {"type": "string", "minLength": 1}, "decided_by": {"type": "string"}, "undecided_because": {"type": "string"}}}}
+              block_answers: {"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["key", "handled", "how"], "properties": {"key": {"type": "string", "minLength": 1}, "handled": {"type": "string", "enum": ["fixed", "disputed"]}, "how": {"type": "string", "minLength": 10}}}}
+              answers_used: {"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["answer"], "properties": {"answer": {"type": "string", "pattern": "^H[0-9]+$"}, "applied": {"type": "array", "items": {"type": "string", "minLength": 1}}, "declined_why": {"type": "string"}}}}
+        - id: theme-fix-prep
+          script: fix_prep
+          runtime: uv
+          mutates_checkout: false
+          depends_on: [write-prep, theme-writer]
+          trigger_rule: none_failed_min_one_success
+          when: "$write-prep.output.resubmit == true"
+          output_format:
+            type: object
+            additionalProperties: false
+            required: [prompt]
+            properties:
+              prompt: {type: string, minLength: 1}
+        # 拒まれた後の出し直しの役（theme-writer の会話の続き）。型は theme-writer の型と同じ（#832）
+        - id: theme-writer-fix
+          prompt: "$theme-fix-prep.output.prompt"
+          depends_on: [write-prep, theme-fix-prep]
+          when: "$write-prep.output.resubmit == true"
+          <<: *writer_launch
+          output_format: *design_reply
+        - id: write-accept
+          script: write_accept
+          runtime: uv
+          mutates_checkout: false
+          depends_on: [theme-writer, theme-writer-fix]
+          trigger_rule: none_failed_min_one_success
+          with:
+            reply: {from: "$theme-writer.output", if_skipped: null}
+            fix_reply: {from: "$theme-writer-fix.output", if_skipped: null}
+          output_format:
+            type: object
+            additionalProperties: false
+            required: [ok, done, give_up, reason]
+            properties:
+              ok: {type: boolean}
+              done: {type: boolean}
+              give_up: {type: boolean}
+              reason: {type: string}
+
+  # 出口。落ちない（中の誤りを捕まえて status failed と訳を返す）。受けた設計の案を design.json に、人と審査役に見せる md を design.md に置く
+  - id: finish
+    script: finish
+    runtime: uv
+    mutates_checkout: false
+    depends_on: [intake, write-loop]
+    trigger_rule: all_done
+    output_format:
+      type: object
+      additionalProperties: false
+      required: [ok, status, design, design_md, reason, report]
+      properties:
+        ok: {type: boolean}
+        status:
+          type: string
+          enum: [ok, gave_up, failed]
+        design:
+          <<: &pointer_or_null
+            type: [object, 'null']
+            additionalProperties: false
+            required: [type, run_id, path]
+            properties:
+              type: {type: string, enum: [archon_artifact]}
+              run_id: {type: string}
+              path: {type: string}
+          description: 'json(shared:theme-design.schema.json): 受け付けを通った設計の案（r<k>/design.json）。受けた案が無ければ null'
+        design_md:
+          <<: *pointer_or_null
+          description: 'file: 設計の案を人と審査役に見せる md（r<k>/design.md）。受けた案が無ければ null'
+        reason: {type: string}
+        report:
+          type: array
+          items: {type: string}

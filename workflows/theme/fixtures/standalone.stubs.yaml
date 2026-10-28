@@ -1,0 +1,38 @@
+# 単独の run: テーマの md（筋書きの作業ツリーの README.md）だけで最後まで届く（script は本当に走り、書き手の返答だけを差し替える）。往復の記録・
+# 前の設計の案・人の答え・世界の解の行・方針は渡さない（空の入力）。返答は受け付けの照らしを全部通る小さな設計の案（名指しは作業ツリーの AGENTS.md）
+fixture:
+  expect: completed
+  reached: [intake, write-prep, theme-writer, write-accept, finish]
+  inputs:
+    theme: 'README.md'
+  resolved-text-contains:
+    theme-writer: 'You are the design writer.'
+exec-code: true
+theme-writer:
+  question: 'Where should a new review viewpoint live?'
+  purpose: 'Keep each review viewpoint callable on its own.'
+  premises:
+    - {id: P1, what: 'The rules file is the only map of the target.', by: assumed, from: 'The theme names no other document.'}
+  current:
+    - {id: N1, what: 'The rule that new review viewpoints are blocks.', where: 'AGENTS.md:3'}
+  parts:
+    - {id: D1, what: 'A block for the new viewpoint.', where: 'AGENTS.md', why: 'The rule already asks for a block.'}
+  reuse:
+    - {part: D1, existing: [N1], enough: false, why_not: 'The rule says where, not what the block holds.'}
+  checks: []
+  asks:
+    - id: Q1
+      ask: 'Should the block run on every request or only when asked?'
+      pick: A1
+      pick_why: 'Running only when asked keeps the default run as it is.'
+      options:
+        - {id: A1, what: 'Only when asked.', cost: 'A person must ask for it.', gain: 'The default run does not change.'}
+        - {id: A2, what: 'On every request.', cost: 'Every run takes longer.', gain: 'Nobody has to remember it.'}
+  decided:
+    - {id: R1, what: 'The viewpoint is a block.', by: 'AGENTS.md:3', why: 'The rule settles it.'}
+  changes:
+    - {id: C1, where: 'AGENTS.md', what: 'Name the new block in the rules.', op: edit, parts: [D1]}
+  inventory: []
+  narrows: []
+  block_answers: []
+  answers_used: []
