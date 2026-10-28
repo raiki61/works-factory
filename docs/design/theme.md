@@ -245,6 +245,7 @@ bin/works-factory workflow run works-factory-theme --cwd <対象> --input theme=
 6. 模型の群は修正案の役と同じ `@wf-plan-writer`。根拠: 同じ類の役（計画を書く）で、群を足す訳が無い。
 7. 受け付けで、ほかに欄ごとの id の重なりと `changes` の `parts` の名指しを照らした（下書きの 4.4 の 9 つに無い）。根拠: `reuse`・`inventory`・`answers_used` の名指しの先を 1 つに決めるのに要る yes/no の照らしで、場面ごとの試験でなく形の照らし（`mechanism-over-tests`）。
 8. `drop` の行が `narrows` に「同じ path と lines」を持つかは、`narrows` の `what` が `<path>:<始め>-<終わり>` の字を含むかで照らした。`narrows` に欄を足さない（下書きの 3 章の `narrows` の形のまま）。
+9. 名指し `<パス>:<行>` は、下書きの 4.4 の 2 の「作業ツリー」でなく固めた版（HEAD）で照らした。根拠: 既存の `lib/design.py` の `anchor_misses` がこの版で照らすので、同じ部品を使う。`parts` の `where` は足す部品の置き場でまだ無いことがあるので、名指しが在る時だけ照らす。
 
 ## 12 未確認
 
