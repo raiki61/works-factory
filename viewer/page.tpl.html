@@ -725,7 +725,7 @@ function log() {
 
 // 読めなかった物（黙って落とさない）
 function unreadCount() {
-  let n = D.shape.problems.length + D.unmatched.length;
+  let n = D.shape.problems.length + D.unmatched.length + D.stages.loose.length;
   if (RUN) { n += Object.values(RUN.unread).reduce((a, b) => a + b, 0) + RUN.missing_logs.length;
     for (const S of Object.values(RUN.sessions || {})) n += Object.values(S.unread).reduce((a, b) => a + b, 0); }
   return n;
@@ -735,6 +735,7 @@ function unread() {
   const list = (title, rows) => box.append(h('h3', {text: `${title}（${rows.length}）`}), rows.length ? h('ul', {}, rows.map(r => h('li', {class: 'mono', text: r}))) : h('div', {class: 'empty', text: 'なし'}));
   list('作りの読みの問題', D.shape.problems);
   list('図に当たらないノード', D.unmatched);
+  list(`段の表（viewer/stages.json）のどの段にも無い ${D.stages.graph || 'line'} のノード（流れの画面で段に数えない）`, D.stages.loose);
   if (RUN) {
     list('Archon の記録の読めなかった行', Object.entries(RUN.unread).map(([k, v]) => `${k}: ${v}`));
     list('記録の無い run', RUN.missing_logs);

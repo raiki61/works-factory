@@ -51,6 +51,11 @@ WAIT = "wait"
 WAIT_KIND = "attention"
 WAIT_ANSWER = "answer"
 WAIT_LOOP_OWNER = "loop_group"
+# ノードの種類（packages/workflows/src/schemas/dag-node.ts の DagNode の kind。出来事の kind に入る）。流れの集計（src/stages.py）が、
+# AI の手番・人の答え待ち・中の出来事を束ねる器（繰り返しの周の器と子の run を起こすノード。長さを足すと中の出来事と二重になる）を分ける
+AI_KINDS = ("agent", "loop")
+WAIT_NODE = "wait"
+GROUP_KINDS = ("loop_group", "workflow")
 # DB の出来事の型（ノードの出力と、run の落ちの訳。packages/workflows/src/event-emitter.ts）
 OUTPUT_EVENT = "node_completed"
 NODE_OUTPUT = "node_output"
