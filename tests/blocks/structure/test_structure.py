@@ -246,7 +246,8 @@ class IntentCase(_RepoCase):
     def test_found_by_the_fixed_names_shallow_first(self):
         self.survey(self.unit)
         head = git(self.run.repo, "rev-parse", "HEAD")
-        self.assertEqual([(d["path"], d["rev"]) for d in self.read("intent.json")], [("AGENTS.md", head), ("pkg/AGENTS.md", head)])
+        self.assertEqual([(d["path"], d["rev"]) for d in self.read("intent.json") if "pointed_by" not in d],
+                         [("AGENTS.md", head), ("pkg/AGENTS.md", head)])
 
     def test_prompt_carries_the_documents_and_the_dirty_row_is_checked_against_them(self):
         self.survey(self.unit)
@@ -333,6 +334,48 @@ class IntentCase(_RepoCase):
         (self.run.repo / "pkg" / "AGENTS.md").write_text("# 書き換えた\n\n全然違う本文である。\n", encoding="utf-8")
         self.survey(self.unit)
         self.assertIn("pkg/names.py だけが持つ", self.read("intent.json")[1]["text"])
+
+
+class PointedCase(_RepoCase):
+    """指示ファイルが名指した文書が読む版に無い時（guided-resolver #2177 の run: AGENTS.md が「デプロイの設定は <パス> の正典に従う」と
+    書き、正典はまだ取り込まれていない PR の枝にだけ在った。目は気づかなかった）。ほかの版で見つけた物は本文を書いた意図に足し、
+    どの版にも無い物は読めないと名指し、どちらも報告の行に出す"""
+
+    CANON = "docs/explanations/deploy-config.adoc"
+    RULES = f"# 決まり\n\nデプロイの設定は `{CANON}` の正典に従う。試験の書き方は `pkg/a.py` を見る。古い手順は `docs/gone.md` に在った。\n"
+
+    def setUp(self):
+        super().setUp()
+        self.target({"AGENTS.md": self.RULES, "pkg/a.py": "x = 1\n"})
+        git(self.run.repo, "checkout", "-q", "-b", "canon")
+        self.target({self.CANON: "名前は chart に持たせず、Terraform から受け渡す。\n"})
+        self.canon = git(self.run.repo, "rev-parse", "HEAD")
+        git(self.run.repo, "checkout", "-q", "-")
+        self.unit = [{"id": "u1", "paths": ["pkg/a.py"], "summary": "設定の名を足す"}]
+
+    def test_a_document_only_on_another_branch_is_read_as_written_intent(self):
+        self.survey(self.unit)
+        docs = {d["path"]: d for d in self.read("intent.json")}
+        self.assertEqual((docs[self.CANON]["rev"], docs[self.CANON]["pointed_by"]), (self.canon, "AGENTS.md"))
+        self.assertIn("Terraform から受け渡す", docs[self.CANON]["text"])
+        self.assertNotIn("pkg/a.py", docs, "版に在る名指しは足さない")
+        prompt = self.run.script("prep")["prompt"]
+        self.assertIn(f"### {self.CANON} ({self.canon[:12]}, lines 1-1; pointed to by AGENTS.md, not in the version under review", prompt)
+        self.take(self.reply_clean())
+        report = self.finish()["report"]
+        self.assertTrue(any(self.CANON in line and "読む版に無い" in line for line in report), report)
+
+    def test_a_document_in_no_version_is_named_without_text(self):
+        self.survey(self.unit)
+        gone = next(d for d in self.read("intent.json") if d["path"] == "docs/gone.md")
+        self.assertEqual((gone["text"], gone["pointed_by"]), ("", "AGENTS.md"))
+        self.assertIn("ほかのどの版にも無い", gone["reason"])
+        self.assertIn("### docs/gone.md (could not be read:", self.run.script("prep")["prompt"])
+        self.take(self.reply_clean())
+        self.assertTrue(any("docs/gone.md" in line and "どの版にも無く" in line for line in self.finish()["report"]))
+
+    def reply_clean(self):
+        return {"rows": [clean("u1")]}
 
 
 class AfterCase(_RepoCase):
