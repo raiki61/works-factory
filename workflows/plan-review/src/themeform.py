@@ -1,8 +1,9 @@
 """形 theme（設計の案）の指示の値と受け付け（docs/design/plan-review.md の 19 節）。
 
-- prompt_values(place, intake, repo, prev) -> (node, values, when, resubmit): 輪の前の周の受け付けが拒み、合わせた答えの控えが在れば
-  出し直しの役（review-theme-fix。1 回目の役の会話の続き）の指示の値、無ければ 1 回目の役（review-theme）の指示の値（作り手は
-  src/material.py の SLOTS・WHEN）
+- resubmitting(place, prev) -> 輪の前の周の受け付けが拒み、合わせた答えの控えが在るか（在れば出し直しの周）
+- prompt_values(place, intake, repo) -> (values, when): 1 回目の役（review-theme）の指示の値（作り手は src/material.py の SLOTS・WHEN）
+- fix_values(place, intake) -> (values, when): 出し直しの役（review-theme-fix。1 回目の役の会話の続き）の指示の値（拒否の訳と合わせた
+  答えの在りか）
 - take(place, reply, repo, *, keys, fix_reply=None) -> {ok, done, give_up, reason}: 設計の案の審査の返答の受け付け。出し直しは前の答えの
   控えと rolekit.merge_fields で合わせ（要る根の欄 files.REVIEW_REQUIRED）、合わせた答えの全体を照らす。上から 1 作業ツリーが役の前と
   同じ・2 穴の行ごとの照らし（形 text と同じ部品）・3 返答の全体（形 text と同じ）・4 前の往復の答えの要る穴の行き先
@@ -33,16 +34,21 @@ NODE = "review-theme"          # 1 回目の役（prompts/review-theme.md）
 FIX_NODE = "review-theme-fix"  # 出し直しの役（prompts/review-theme-fix.md）
 
 
-def prompt_values(place, intake: dict, repo, prev) -> tuple[str, dict, dict, bool]:
-    """(組む node の id, 差し込み口の値, 段落の真偽, 出し直しか)。prev は輪の前の周の受け付けの ok を値に戻した物"""
+def resubmitting(place, prev) -> bool:
+    """prev は輪の前の周の受け付けの ok を値に戻した物"""
+    return rolekit.resubmitting(pathlib.Path(place), files.THEME_NODE, prev)
+
+
+def prompt_values(place, intake: dict, repo) -> tuple[dict, dict]:
+    return material.fragment_values([f"node:{NODE}"], pathlib.Path(place), intake, repo)
+
+
+def fix_values(place, intake: dict) -> tuple[dict, dict]:
     place = pathlib.Path(place)
-    if rolekit.resubmitting(place, files.THEME_NODE, prev):
-        rejected = rolekit.rejected(place, files.THEME_NODE)
-        values = {"rejection": rejected[-1] if rejected else "", "candidate": str(rolekit.candidate_path(place, files.THEME_NODE)),
-                  "lang": prompt.lang(intake.get("lang") or "")}
-        return FIX_NODE, values, {"spawns": False}, True
-    values, when = material.fragment_values([f"node:{NODE}"], place, intake, repo)
-    return NODE, values, when, False
+    rejected = rolekit.rejected(place, files.THEME_NODE)
+    values = {"rejection": rejected[-1] if rejected else "", "candidate": str(rolekit.candidate_path(place, files.THEME_NODE)),
+              "lang": prompt.lang(intake.get("lang") or "")}
+    return values, {"spawns": False}
 
 
 def reply_value(raw):

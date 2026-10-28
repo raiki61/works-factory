@@ -3,8 +3,8 @@
 # dependencies = []
 # ///
 """設計の案の審査の役の指示を組む（docs/design/plan-review.md の 19 節の theme_prep）。前の周の受け付けが拒み、合わせた答えの控えが
-在れば出し直しの役（review-theme-fix。1 回目の役の会話の続き）の指示を、無ければ 1 回目の役（review-theme）の指示を md から組む。
-返り {prompt, resubmit}。役を起こす前の作業ツリーの姿も置く。組めなければ crash.json に訳を書いてから落ちる（出口が訳を名指す）"""
+在れば返り {prompt: "", resubmit: true} だけを返し（出し直しの役の指示は theme-fix-prep が組む）、無ければ 1 回目の役（review-theme）の
+指示を md から組む。役を起こす前の作業ツリーの姿も置く。組めなければ crash.json に訳を書いてから落ちる（出口が訳を名指す）"""
 import os
 import sys
 from pathlib import Path
@@ -20,11 +20,14 @@ def compute(place: Path, repo: Path) -> dict:
     import jsonfile  # lib/
     import prompt
     from src import files, themeform
-    intake = steps.read_intake(place)
-    node, values, when, resubmit = themeform.prompt_values(place, intake, repo, ports.parsed(os.environ.get("INPUTS_PREV", "")))
-    out = prompt.emit(node, values, when, prompt.round_of(node))
+    if themeform.resubmitting(place, ports.parsed(os.environ.get("INPUTS_PREV", ""))):
+        # 出し直しの役の指示は theme-fix-prep が組む（出し直しの周だけ回る）。ここは作業ツリーの姿を置き直すだけ
+        jsonfile.write(place / files.TREE_STATE, accept.tree_state(repo))
+        return {"prompt": "", "resubmit": True}
+    values, when = themeform.prompt_values(place, steps.read_intake(place), repo)
+    out = prompt.emit(themeform.NODE, values, when, prompt.round_of(themeform.NODE))
     jsonfile.write(place / files.TREE_STATE, accept.tree_state(repo))
-    return {"prompt": out["prompt"], "resubmit": resubmit}
+    return {"prompt": out["prompt"], "resubmit": False}
 
 
 try:

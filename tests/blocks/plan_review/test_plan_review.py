@@ -657,7 +657,7 @@ class YamlCase(unittest.TestCase):
             self.assertEqual(got[nid].get("context"), "fresh")
         for nid in ("review-fix", "review-tree-fix", "review-text", "review-theme-fix"):
             self.assertNotIn("context", got[nid])
-        preps = {"review-text": "text-prep", "review-theme": "theme-prep", "review-theme-fix": "theme-prep"}
+        preps = {"review-text": "text-prep", "review-theme": "theme-prep", "review-theme-fix": "theme-fix-prep"}
         for nid in ("review", "review-fix", "review-tree", "review-tree-fix", "review-text", "review-theme", "review-theme-fix"):
             with self.subTest(nid):
                 prep = preps.get(nid) or ("review-fix-prep" if nid.endswith("-fix") else "review-prep")

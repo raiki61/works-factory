@@ -564,7 +564,7 @@ nodes:
             additionalProperties: false
             required: [prompt, resubmit]
             properties:
-              prompt: {type: string, minLength: 1}
+              prompt: {type: string}   # 1 回目の役の指示（出し直しの周は ""。出し直しの役の指示は theme-fix-prep が組む）
               resubmit: {type: boolean}
         # output_format は src/files.py の node_schema が読むので JSON の流れの書き方で書く。根の欄は要ると書かない（出し直しの役と同じ形に
         # して、会話の続きの最初の要求でキャッシュを効かせる。#832）。要る欄は受け付けが確かめる（src/files.py の REVIEW_REQUIRED）
@@ -629,10 +629,23 @@ nodes:
                   "resolved": {"type": "array", "items": {"type": "string"}}
                 }
               }
+        - id: theme-fix-prep
+          script: theme_fix_prep
+          runtime: uv
+          mutates_checkout: false
+          depends_on: [theme-prep, review-theme]
+          trigger_rule: none_failed_min_one_success
+          when: "$theme-prep.output.resubmit == true"
+          output_format:
+            type: object
+            additionalProperties: false
+            required: [prompt]
+            properties:
+              prompt: {type: string, minLength: 1}
         # review-theme の会話の続きの出し直しの役。型は review-theme の型と同じ（#832）
         - id: review-theme-fix
-          prompt: "$theme-prep.output.prompt"
-          depends_on: [theme-prep, review-theme]
+          prompt: "$theme-fix-prep.output.prompt"
+          depends_on: [theme-prep, theme-fix-prep, review-theme]
           trigger_rule: none_failed_min_one_success
           when: "$theme-prep.output.resubmit == true"
           <<: *theme_launch
