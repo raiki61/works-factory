@@ -1,7 +1,7 @@
 """無駄の手がかりの数え（viewer/src/waste.py。docs/design/viewer.md の 6.9 と照らしの 8）。
 
 小さな作りと run の記録（周 2 つの繰り返し・前と同じ出力・空の出力・同じファイルの 2 回の読み・1 万字を超える結果・空いた往復・
-引く先の無い出力）を手で組み、数えがその値を返すことを照らす。数えを外せば落ちる。run の無いページには数えを置かない。
+引く先の無い出力・同じノードから起こした周の数の違う子の run 2 つ・出力の変わらない周・別の run の同じ名のファイル）を手で組み、数えがその値を返すことを照らす。数えを外せば落ちる。run の無いページには数えを置かない。
 """
 import unittest
 
@@ -14,8 +14,15 @@ def at(minute: int, second: int = 0) -> str:
     return T.format(minute, second)
 
 
-def event(tokens, kind="exec", start=0, end=1, loop=(), cost=0.0, **more):
-    return {"tokens": tokens, "kind": kind, "start": at(start), "end": at(end), "status": "ok", "loop": list(loop), "cost": cost, **more}
+def event(tokens, kind="exec", start=0, end=1, loop=(), cost=0.0, run="r", **more):
+    if "output" in more:
+        more.setdefault("digest", more["output"])
+    return {"tokens": tokens, "kind": kind, "start": at(start), "end": at(end), "status": "ok", "loop": list(loop), "cost": cost, "run": run,
+            **more}
+
+
+def check(step, exit, minute, run="r", node=()):
+    return {"step": step, "node": list(node), "run": run, "exit": exit, "stdout": "", "stderr": "", "at": at(minute)}
 
 
 def item(ident, kind="script", **more):
@@ -44,8 +51,7 @@ class WasteCase(unittest.TestCase):
             event(["rounds", "tidy"], start=18, end=19, loop=[2], output='{"same":true}'),
             event(["blank"], start=20, end=21, output="{}"),
         ]
-        checks = [{"step": f"rounds-iteration-{n}", "node": [], "exit": code, "stdout": "", "stderr": "", "at": at(minute)}
-                  for n, code, minute in ((1, 1, 15), (2, 0, 19))]
+        checks = [check(f"rounds{runread.ITERATION_MARK}{n}", code, minute) for n, code, minute in ((1, 1, 15), (2, 0, 19))]
         texts = {"sys": "S" * 50, "r1": '{"file_path": "docs/a.md"}', "r2": '{"file_path": "/work/docs/a.md"}',
                  "r3": '{"file_path": "/home/x/artifacts/runs/abc/plan/out.md"}', "r4": '{"file_path": "/home/x/artifacts/runs/abc/plan/out.md"}',
                  "pin": "<system-reminder>same</system-reminder>"}
@@ -95,7 +101,7 @@ class WasteCase(unittest.TestCase):
         self.assertEqual(context["tools"], [{"names": ["Read"], "chars": 30, "sessions": 2}])
         self.assertEqual([(row["chars"], row["sessions"]) for row in context["inject"]], [(len(self.data["texts"]["pin"]), 2)])
         self.assertEqual(context["reads"], {"files": 2, "again": [
-            {"path": runread.PLACE_MARK + "plan/out.md", "times": 2, "chars": 24000, "sessions": 2},
+            {"path": runread.PLACE_MARK + "abc/plan/out.md", "times": 2, "chars": 24000, "sessions": 2},
             {"path": "docs/a.md", "times": 2, "chars": 8000, "sessions": 2}]})
         self.assertEqual(context["pauses"], [{"session": "s1", "event": 2, "turn": 1, "gap": 420.0, "cache_write": 50}])
         self.assertEqual(context["cache"]["cacheRead"], 140)
@@ -113,11 +119,52 @@ class WasteCase(unittest.TestCase):
         self.assertIsNone(data["waste"])
 
 
+class RoundsCase(unittest.TestCase):
+    """周の数えの、子の run と同じ周の照らし"""
+
+    def test_child_runs_of_one_node_keep_their_own_rounds(self):
+        """同じノードから起こした子の run（fan_out）は出来事の道も周の番号も同じなので、run の id で分ける。c1 は 2 周、c2 は 1 周"""
+        events = [
+            event(["fan"], kind="workflow", start=0, end=9, run="top"),
+            event(["fan", "rounds"], kind="loop_group", start=0, end=9, run="c1"),
+            event(["fan", "rounds", "plan"], kind="agent", start=0, end=2, loop=[1], cost=1.0, run="c1", output="p"),
+            event(["fan", "rounds", "plan"], kind="agent", start=2, end=4, loop=[2], cost=1.0, run="c1", output="q"),
+            event(["fan", "rounds"], kind="loop_group", start=0, end=9, run="c2"),
+            event(["fan", "rounds", "plan"], kind="agent", start=1, end=3, loop=[1], cost=1.0, run="c2", output="p"),
+        ]
+        checks = [check(f"rounds{runread.ITERATION_MARK}1", 7, 3, run="c2", node=["fan"]),
+                  *(check(f"rounds{runread.ITERATION_MARK}{n}", code, minute, run="c1", node=["fan"]) for n, code, minute in ((1, 1, 2), (2, 0, 4)))]
+        data = {"texts": {}, "shape": {"graphs": {}}, "run": {"seconds": 540.0, "events": events, "checks": checks, "sessions": {}}}
+        waste.attach(data)
+        (group,) = data["waste"]["rounds"]
+        self.assertEqual((group["event"], group["cost"]), (1, 2.0))
+        self.assertEqual([(row["round"], row["events"], row["check"]["exit"]) for row in group["rounds"]], [(1, [2], 1), (2, [3], 0)])
+        self.assertEqual(data["waste"]["idle"]["same"], [])
+
+    def test_a_round_is_same_when_its_outputs_did_not_change(self):
+        """until_bash の途中の周はどれも終了の値が 1 で落ちが無いので、出力まで比べる。周 3 だけが前の周と同じ。切った字が同じでも、
+        切る前の字の hash（digest）が違えば同じと数えない"""
+        events = [event(["fix"], kind="loop_group", start=0, end=9),
+                  *(event(["fix", "try"], start=n, end=n + 1, loop=[n], output=out) for n, out in ((1, "a"), (2, "b"), (3, "b"))),
+                  event(["fix", "try"], start=4, end=5, loop=[4], output="b", digest="b-longer")]
+        checks = [check(f"fix{runread.ITERATION_MARK}{n}", 1, n + 1) for n in (1, 2, 3, 4)]
+        data = {"texts": {}, "shape": {"graphs": {}}, "run": {"seconds": 540.0, "events": events, "checks": checks, "sessions": {}}}
+        waste.attach(data)
+        (group,) = data["waste"]["rounds"]
+        self.assertEqual([row["same"] for row in group["rounds"]], [False, False, True, False])
+        self.assertEqual(data["waste"]["idle"]["same"], [{"event": 3, "before": 2}])
+
+
 class WhereCase(unittest.TestCase):
     def test_run_heads_are_cut(self):
         self.assertEqual(runread.where("/w/t/a.md", "/w/t"), "a.md")
-        self.assertEqual(runread.where("/h/workflow-source/runs/r1/project/.archon/x.md", ""), runread.COPY_MARK + ".archon/x.md")
+        self.assertEqual(runread.where("/h/workflow-source/runs/r1/project/.archon/x.md", ""), runread.COPY_MARK + "r1/.archon/x.md")
         self.assertEqual(runread.where("/elsewhere/a.md", "/w/t"), "/elsewhere/a.md")
+
+    def test_other_runs_keep_their_id(self):
+        """別の run（fan_out の子どうし・親と子）の置き場の同じ名のファイルは、別のファイルとして数える"""
+        self.assertNotEqual(runread.where("/h/artifacts/runs/c1/plan.md", ""), runread.where("/h/artifacts/runs/c2/plan.md", ""))
+        self.assertEqual(runread.where("/h/artifacts/runs/c1/plan.md", ""), runread.PLACE_MARK + "c1/plan.md")
 
 
 if __name__ == "__main__":

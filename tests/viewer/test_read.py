@@ -147,6 +147,39 @@ class ReadCase(unittest.TestCase):
         got = runread.run(db, "top")
         self.assertEqual((got["started"], got["seconds"]), ("2026-10-25T01:00:00.000Z", 20.0))
 
+    def test_children_keep_their_run_and_outputs_their_whole_digest(self):
+        """同じノードから起こした子の run 2 つ（fan_out）は出来事の道が同じなので、繰り返しの確かめの行も run の id で分かる。
+        切った出力は、切る前の字の hash（digest）を持つ（頭の 20,000 字が同じで後ろの違う出力を同じと数えない）"""
+        db = self.tmp / runread.DB_FILE
+        con = sqlite3.connect(db)
+        con.execute(f"create table {runread.RUN_TABLE} ({', '.join(runread.RUN_COLUMNS)})")
+        con.execute(f"create table {runread.EVENT_TABLE} ({', '.join(runread.EVENT_COLUMNS)})")
+        con.execute(f"insert into {runread.RUN_TABLE} (id, workflow_name, status, parent_run_id, started_at, output_root, metadata) "
+                    "values ('top', 'g', 'completed', null, '2026-10-25 01:00:00', ?, '{}')", (str(self.tmp),))
+        for child in ("c1", "c2"):
+            con.execute(f"insert into {runread.RUN_TABLE} (id, workflow_name, status, parent_run_id, started_at, output_root, metadata) "
+                        "values (?, 'k', 'completed', 'top', '2026-10-25 01:00:01', ?, ?)",
+                        (child, str(self.tmp), json.dumps({runread.PARENT_NODE: "fan"})))
+            con.execute(f"insert into {runread.EVENT_TABLE} (workflow_run_id, event_type, data, created_at) values (?, ?, ?, '')",
+                        (child, runread.OUTPUT_EVENT, json.dumps({"invocation": {"id": f"{child}-a"},
+                                                                   runread.NODE_OUTPUT: "x" * runread.CLIP + child})))
+        con.commit()
+        con.close()
+        (self.tmp / runread.LOGS).mkdir()
+        (self.tmp / runread.LOGS / "top.jsonl").write_text("", encoding="utf-8")
+        for child in ("c1", "c2"):
+            node = lambda kind: {"type": kind, "ts": "2026-10-25T01:00:02.000Z", "step": "a",
+                                 runread.EXECUTION: {"path": "a", "invocation": {"id": f"{child}-a"}}}
+            check = {"type": runread.EXEC_ROW, "step": f"rounds{runread.ITERATION_MARK}1", runread.runlog.EXIT_CODE: 1,
+                     "ts": "2026-10-25T01:00:03.000Z"}
+            (self.tmp / runread.LOGS / f"{child}.jsonl").write_text(
+                "\n".join(json.dumps(row) for row in (node("node_start"), node("node_complete"), check)) + "\n", encoding="utf-8")
+        got = runread.run(db, "top")
+        self.assertEqual([(row["run"], row["node"]) for row in got["checks"]], [("c1", ["fan"]), ("c2", ["fan"])])
+        a1, a2 = sorted(got["events"], key=lambda e: e["run"])
+        self.assertEqual((a1["tokens"], a1["output"]), (a2["tokens"], a2["output"]))
+        self.assertNotEqual(a1["digest"], a2["digest"])
+
     def test_only_unknown_session_types_are_unread(self):
         path = self.tmp / "s.jsonl"
         known = next(kind for kind in session.UNREAD_TYPES if kind not in session.READ_FROM)

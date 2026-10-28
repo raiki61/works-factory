@@ -66,18 +66,19 @@ def _time_split(run) -> dict:
 
 
 def _rounds(events, checks) -> list[dict]:
-    """2 周以上回った繰り返しの器ごとの周。周は器の中の出来事（道が器の下で、外の周の番号が器と同じ物）を、器の周の番号で分けた物。
-    周の終わりの確かめ（until_bash の終了の値。runread の checks）は、道と周の番号と器の時刻の内で当てる。前の周と落ちた道と確かめの値が
-    同じ周に same を付ける"""
+    """2 周以上回った繰り返しの器ごとの周。周は器の中の出来事（器と同じ run で、道が器の下で、外の周の番号が器と同じ物）を、器の周の
+    番号で分けた物。同じノードから起こした子の run どうし（fan_out）は道も周の番号も同じなので、run で分ける。周の終わりの確かめ
+    （until_bash の終了の値。runread の checks）は、run と道と周の番号と器の時刻の内で当てる。前の周と落ちた道と確かめの値と中の出力
+    （切る前の字の hash）が同じ周に same を付ける（until_bash の途中の周は終了の値も落ちも同じなので、出力まで比べる）"""
     out = []
     for n, group in enumerate(events):
-        if group["kind"] != "loop_group":
+        if group["kind"] != runread.LOOP_GROUP:
             continue
         head, depth = group["tokens"], len(group["loop"])
         by = {}
         for m, e in enumerate(events):
-            if e is not group and e["tokens"][:len(head)] == head and len(e["tokens"]) > len(head) and len(e["loop"]) > depth \
-                    and e["loop"][:depth] == group["loop"]:
+            if e is not group and e["run"] == group["run"] and e["tokens"][:len(head)] == head and len(e["tokens"]) > len(head) \
+                    and len(e["loop"]) > depth and e["loop"][:depth] == group["loop"]:
                 by.setdefault(e["loop"][depth], []).append((m, e))
         if len(by) < 2:
             continue
@@ -87,7 +88,8 @@ def _rounds(events, checks) -> list[dict]:
             times = [t for _, e in by[k] for t in (e["start"], e["end"]) if t]
             failed = sorted("/".join(e["tokens"][len(head):]) for e in inner if e["status"] == "failed")
             check = _check(checks, head, k, group)
-            here = (failed, check["exit"] if check else None)
+            outputs = sorted(("/".join(e["tokens"][len(head):]), e["digest"]) for e in inner if "digest" in e)
+            here = (failed, check["exit"] if check else None, outputs)
             rows.append({"round": k, "events": [m for m, _ in by[k]], "cost": round(sum(e["cost"] for e in inner), 6),
                          "seconds": _seconds(min(times, key=_at), max(times, key=_at)) if times else None,
                          "ai": sum(1 for e in inner if e["kind"] in runread.AI_KINDS), "failed": failed, "check": check,
@@ -99,10 +101,10 @@ def _rounds(events, checks) -> list[dict]:
 
 
 def _check(checks, head, k, group) -> dict | None:
-    suffix = f"-iteration-{k}"
+    suffix = f"{runread.ITERATION_MARK}{k}"
     for row in checks:
         step = row["step"]
-        if not step.endswith(suffix):
+        if row["run"] != group["run"] or not step.endswith(suffix):
             continue
         ids = [t for path in [*row["node"], step[:-len(suffix)]] for t in shape.tokens(path)]
         if ids == head and _inside(row["at"], group):
@@ -117,7 +119,7 @@ def _inside(at, group) -> bool:
 
 
 def _idle(events, graphs) -> dict:
-    """前と同じ出力（同じ道の前の起動の出力と字のまま同じ）・空の出力・出力の欄を引く先が無いノード（作りの読みで、同じ graph の中に
+    """前と同じ出力（同じ run の同じ道の前の起動の出力と、切る前の字の hash が同じ）・空の出力・出力の欄を引く先が無いノード（作りの読みで、同じ graph の中に
     `$<id>.output` の引きが 1 つも無く、graph の返りでもない AI・script・bash のノード。工場は大きい物をファイルに置いて pointer で
     渡すので、引きが無くても読まれていることが多い）。引く先の無いノードは、今の作りの数と、この run で走った物を出す"""
     last, same, empty = {}, [], []
@@ -125,10 +127,10 @@ def _idle(events, graphs) -> dict:
                                                             pair[0])):
         if "output" not in e or e["kind"] in runread.GROUP_KINDS:
             continue
-        key = tuple(e["tokens"])
+        key = (e["run"], tuple(e["tokens"]))
         if e["output"].strip() in EMPTY:
             empty.append(n)
-        elif key in last and events[last[key]]["output"] == e["output"]:
+        elif key in last and events[last[key]]["digest"] == e["digest"]:
             same.append({"event": n, "before": last[key]})
         last[key] = n
     unread, counted = _unreferenced(graphs)
@@ -161,7 +163,7 @@ def _unreferenced(graphs) -> tuple[set, int]:
 
 def _context(events, sessions, first, texts) -> dict:
     """文脈の重なり。system・道具の一覧・添え書きの片の、同じ物が入った会話の数と字の数。cache の読みと書きの和と割合。同じファイルの
-    読み直し（Read のパスを runread.where で run ごとの頭を外して比べる）。前の往復から PAUSE 秒以上空いた往復"""
+    読み直し（Read のパスを runread.where で run ごとの頭を印に替えて比べる）。前の往復から PAUSE 秒以上空いた往復"""
     def size(marks):
         return sum(len(texts.get(mark, "")) for mark in marks)
 
