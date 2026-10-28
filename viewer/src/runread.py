@@ -8,6 +8,7 @@
 - run(db, run_id) -> 選んだ run と子の run の記録（ノードごとの出来事・道具の呼び出し・費用・出力・知らない行の数え）
 - pick(db, wanted) -> run の id（wanted が空なら一番新しい親の run。頭の字でもよい）
 """
+import contextlib
 import json
 import sqlite3
 from datetime import datetime
@@ -94,8 +95,14 @@ CLIP = 20000
 ARTIFACT_LIMIT = 60000
 
 
-def connect(db: Path) -> sqlite3.Connection:
-    return sqlite3.connect(f"file:{db}?mode=ro", uri=True)
+@contextlib.contextmanager
+def connect(db: Path):
+    """読むだけで開き、抜ける時に閉じる（sqlite3 の with は commit するだけで閉じない）"""
+    con = sqlite3.connect(f"file:{db}?mode=ro", uri=True)
+    try:
+        yield con
+    finally:
+        con.close()
 
 
 def runs(db: Path) -> list[dict]:
