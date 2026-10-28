@@ -7,8 +7,9 @@
 - トークンの新しく読んだ分は lib/runlog.py の add_tokens と同じ訳（cache の欄が欠けた手番が在れば知れない）。input が cache の和より
   小さい手番は数だけ持ち、新しく読んだ分を出さない
 - 段の表の配線の列（wiring。合流・受け渡しだけで段の仕事をしないノード）は、その段のノードの中に在り、どの段にも配線でない
-  ノードが在る。配線のノードだけが走った段は「飛んだ」（修正の段が飛んだ run でも fix-in・fixed・judged は走る）。最後に走った段の
-  前で、間の段が全部飛んだ段を「止まった所」にする（間が記録に無いだけなら出さない）。最後に走った段が落ちたなら、その段が止まった所
+  ノードが在る。配線のノードだけが走った段は「飛んだ」（修正の段が飛んだ run でも fix-in・fixed・judged は走る）
+- 止まった段は記録の事実から引く: 落ちた run は最後に落ちた出来事の段、人が止めた run は答えが stop だった人の答え待ちの段（run 642df5d7
+  の形で、止めを受け渡しただけの修正前の承認を返さない）。通す答えだけの run と落ちずに終わった run には無い
 - line でない run は段に集めない
 
 試験は小さな作りと run の記録を手で組む。
@@ -35,8 +36,8 @@ def event(tokens, kind="exec", start="2026-10-25T01:00:00.000Z", end="2026-10-25
     return {"tokens": tokens, "kind": kind, "start": start, "end": end, "status": "ok", "cost": cost, "loop": [], **more}
 
 
-def run_of(events: list[dict], skipped: list[dict]) -> dict:
-    data = {"shape": {"graphs": line(NODES)}, "run": {"graph": "works-factory-line", "events": events, "skipped": skipped}}
+def run_of(events: list[dict], skipped: list[dict], status: str = "completed") -> dict:
+    data = {"shape": {"graphs": line(NODES)}, "run": {"graph": "works-factory-line", "status": status, "events": events, "skipped": skipped}}
     stages.attach(data)
     return data
 
@@ -73,7 +74,6 @@ class StagesCase(unittest.TestCase):
         rows = data["stages"]["run"]
         self.assertEqual([rows[number(node) - 1]["state"] for node in ("judge", "gate-before-fix", "fix", "judged", "eyes", "collect")],
                          ["ok", "ok", "skipped", "skipped", "skipped", "ok"])
-        self.assertEqual(data["stages"]["stop"], number("gate-before-fix"))
         self.assertEqual([e["through"] for e in events], [False, False, False, True, True, True, True, False])
 
     def test_run_is_summed_by_stage(self):
@@ -85,7 +85,8 @@ class StagesCase(unittest.TestCase):
             event(["plan-rounds"], kind="loop_group", start="2026-10-25T01:03:00.000Z", end="2026-10-25T01:10:00.000Z"),
             event(["plan-rounds", "plan"], kind="agent", cost=2.0, usage=usage, turns=3,
                   start="2026-10-25T01:03:00.000Z", end="2026-10-25T01:05:00.000Z"),
-            event(["plan-rounds", "gate-design"], kind="wait", start="2026-10-25T01:05:00.000Z", end="2026-10-25T01:10:00.000Z"),
+            event(["plan-rounds", "gate-design"], kind="wait", start="2026-10-25T01:05:00.000Z", end="2026-10-25T01:10:00.000Z",
+                  output='{"decision": "stop", "text": ""}'),
             event(["fix-in"], start="2026-10-25T01:10:01.000Z", end="2026-10-25T01:10:02.000Z"),
             event(["collect"], start="2026-10-25T01:11:00.000Z", end="2026-10-25T01:12:00.000Z"),
         ]
@@ -128,19 +129,30 @@ class StagesCase(unittest.TestCase):
         got = summed([event(["judge", "a"], kind="agent", usage=known), event(["judge", "b"], kind="agent", usage=odd)])
         self.assertEqual(got[number("judge") - 1]["tokens"], {"input": 110, "output": 8, "cacheRead": 120, "cacheWrite": 60, "odd": 1})
 
-    def test_stop_needs_a_skipped_stage_between(self):
-        # 間の段が記録に無いだけでは、道が分かれたと言えない
-        data = run_of([event(["start"]), event(["collect"])], [])
-        self.assertEqual(data["stages"]["stop"], None)
-        data = run_of([event(["start"]), event(["collect"])], [{"tokens": ["fix"]}])
-        self.assertEqual(data["stages"]["stop"], number("start"))
-
-    def test_a_failed_run_stops_at_the_failed_stage(self):
-        # 落ちた後ろを Archon が飛んだと書かない run でも、落ちた段で止まる
+    def test_a_failed_run_stops_at_the_last_failed_stage(self):
+        # 落ちた後ろを Archon が飛んだと書かない run でも、落ちた出来事の段で止まる。落ちて続けて終わった run は止まっていない
         failed = event(["fix"], status="failed")
-        self.assertEqual(run_of([event(["start"]), failed], [])["stages"]["stop"], number("fix"))
-        self.assertEqual(run_of([event(["start"]), failed, event(["collect"])], [{"tokens": ["eyes"]}])["stages"]["stop"], number("fix"))
-        self.assertEqual(run_of([event(["start"]), event(["fix"], status="running")], [])["stages"]["stop"], None)
+        self.assertEqual(run_of([event(["start"]), failed], [], status="failed")["stages"]["stop"], number("fix"))
+        self.assertEqual(run_of([event(["start"]), failed, event(["collect"], status="failed")], [{"tokens": ["eyes"]}], status="failed")["stages"]["stop"],
+                         number("collect"))
+        self.assertEqual(run_of([event(["start"]), failed, event(["fix"]), event(["collect"])], [], status="completed")["stages"]["stop"], None)
+        self.assertEqual(run_of([event(["start"]), event(["fix"], status="running")], [], status="running")["stages"]["stop"], None)
+
+    def test_a_human_stop_stops_at_the_stage_of_the_answer(self):
+        """run 642df5d7 の形: 計画の段の中の相談 plan-rounds/gate-design で人が stop と答え、修正前の承認の聞きと受け（ask-before-fix・
+        answer-before-fix）はその stop を受け渡しただけ（承認の聞き gate-before-fix は飛んだ）。止まった段は答えた段（計画）"""
+        events = [event(["start"]), event(["judge", "diagnose"], kind="agent"), event(["plan-rounds"], kind="loop_group"),
+                  event(["plan-rounds", "plan"], kind="agent", loop=[1]),
+                  event(["plan-rounds", "gate-design"], kind="wait", loop=[1], output='{"decision": "stop", "text": "止める"}'),
+                  event(["ask-before-fix"]), event(["answer-before-fix"]), event(["fix-in"]), event(["fixed"]), event(["judged"]),
+                  event(["collect"]), event(["report"], kind="workflow"), event(["result"])]
+        skipped = [{"tokens": [node]} for node in ("gate-before-fix", "fix", "rejudge-run", "test-gate-final", "eyes", "merge-seal")]
+        self.assertEqual(run_of(events, skipped, status="completed")["stages"]["stop"], number("plan-rounds"))
+
+    def test_a_go_answer_or_a_run_that_did_not_stop_has_no_stop(self):
+        go = event(["plan-rounds", "gate-design"], kind="wait", output={"decision": "approve", "text": ""})
+        self.assertEqual(run_of([event(["start"]), go, event(["collect"])], [{"tokens": ["fix"]}], status="completed")["stages"]["stop"], None)
+        self.assertEqual(run_of([event(["start"]), event(["fix"]), event(["collect"])], [{"tokens": ["eyes"]}])["stages"]["stop"], None)
 
     def test_a_run_of_another_graph_is_not_summed(self):
         data = {"shape": {"graphs": line(NODES)}, "run": {"graph": "works-factory-chain", "events": [event(["x"])], "skipped": []}}

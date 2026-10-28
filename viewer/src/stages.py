@@ -13,7 +13,8 @@ import json
 from datetime import datetime
 from pathlib import Path
 
-import runlog   # lib/（viewer/src/__init__.py が sys.path に足す）
+import answer   # lib/（viewer/src/__init__.py が sys.path に足す）
+import runlog
 from viewer.src import runread
 
 TABLE = json.loads((Path(__file__).resolve().parents[1] / "stages.json").read_text(encoding="utf-8"))
@@ -59,7 +60,7 @@ def attach(data: dict) -> None:
         e["role"] = _role(e["kind"])
         e["through"] = e["stage"] is not None and e["tokens"][0] in through
     out["run"] = [_sum(n, run, through) for n in range(1, len(TABLE["stages"]) + 1)]
-    out["stop"] = _stop(out["run"])
+    out["stop"] = _stop(run)
 
 
 def _sum(n: int, run: dict, through: set[str]) -> dict:
@@ -103,17 +104,26 @@ def _role(kind: str) -> str:
     return "ai" if kind in runread.AI_KINDS else "wait" if kind == runread.WAIT_NODE else "group" if kind in runread.GROUP_KINDS else "machine"
 
 
-def _stop(rows: list[dict]) -> int | None:
-    """止まった所: 最後に走った段が落ちた段なら（最後の段でなければ）その段（落ちた後ろを Archon が飛んだと書かない時も出す）。
-    でなければ、道が分かれて先を飛んだ段: 最後に走った段の 1 つ前に走った段で、その間の段が全部飛んだ物（飛んだ段が 1 つ以上。記録に
-    無い段は間に在ってよいが、記録に無い段だけでは道が分かれたと言えない）。最後の段の前で走った段が続いていれば無い"""
-    ran = [n for n, row in enumerate(rows, 1) if row["state"] not in ("skipped", "none")]
-    if ran and rows[ran[-1] - 1]["state"] == "failed" and ran[-1] < len(rows):
-        return ran[-1]
-    if len(ran) < 2:
-        return None
-    between = [row["state"] for row in rows[ran[-2]:ran[-1] - 1]]
-    return ran[-2] if "skipped" in between and set(between) <= {"skipped", "none"} else None
+def _stop(run: dict) -> int | None:
+    """止まった段を記録の事実から引く（下書きの計画 2026-10-29-viewer-overview.md の 6.6.8）。落ちた run は最後に落ちた出来事の段、
+    人が止めた run は答えが止める語（lib/answer.py の STOP_WORDS）だった最後の人の答え待ちの出来事の段。どちらでもなければ無い。
+    道が分かれて先を飛んだ段は使わない（止めを受け渡しただけの段を止まった所と取り違える）"""
+    if run.get("status") == runread.FAILED:
+        rows = [e for e in run["events"] if e["status"] == "failed"]
+    else:
+        rows = [e for e in run["events"] if e["kind"] == runread.WAIT_NODE and _answer(e.get("output")) in answer.STOP_WORDS]
+    rows = [e for e in rows if e.get("stage") is not None]
+    return rows[-1]["stage"] if rows else None
+
+
+def _answer(output) -> str:
+    """人の答え待ちの出力（{decision, text}。記録では JSON の字）の答えの語"""
+    if isinstance(output, str):
+        try:
+            output = json.loads(output)
+        except ValueError:
+            return ""
+    return answer.decision(output)["decision"] if isinstance(output, dict) else ""
 
 
 def _length(event: dict) -> float:

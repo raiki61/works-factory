@@ -43,6 +43,8 @@ LIVE = ("pending", "running", "paused")
 # 答えを待つ run の状態。待ちはこの状態の run だけに出す（止めた・放棄した run は node_completed を書かずに終わる。
 # packages/core/src/operations/workflow-operations.ts の resolveAndCancelApprovalGate・abandon）
 PAUSED = "paused"
+# 落ちた run の状態。流れの集計（src/stages.py）が止まった段を落ちた出来事から引く
+FAILED = "failed"
 # run の metadata の欄（子の run を起こしたノード・費用。packages/workflows/src/dag-executor.ts）
 PARENT_NODE = "parent_node_id"
 TOTAL_COST = "total_cost_usd"

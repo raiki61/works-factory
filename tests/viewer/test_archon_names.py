@@ -67,7 +67,7 @@ class ArchonNamesTest(unittest.TestCase):
     def test_statuses_are_the_sources(self):
         found = re.search(r"workflowRunStatusSchema = z\.enum\(\[(.*?)\]\)", self.read(RUN_SCHEMA), re.S)[1]
         self.assertEqual(literals(found), set(runread.STATUSES))
-        self.assertLessEqual({*runread.LIVE, runread.PAUSED}, set(runread.STATUSES))
+        self.assertLessEqual({*runread.LIVE, runread.PAUSED, runread.FAILED}, set(runread.STATUSES))
 
     def test_table_columns_are_in_the_source(self):
         text = self.read(SQLITE)
