@@ -94,6 +94,20 @@ class ReadCase(unittest.TestCase):
         self.assertEqual(session.read(path, lambda text: text)["unread"], {})
         self.assertLessEqual(set(session.READ_FROM), set(session.UNREAD_TYPES))
 
+    def test_flow_marks_each_turn_once_by_its_number(self):
+        path = self.tmp / "s.jsonl"
+        usage = lambda out: {"input_tokens": 2, "cache_read_input_tokens": 10, "cache_creation_input_tokens": 5, "output_tokens": out}
+        say = lambda ident, out, part: {"type": "assistant", "message": {"id": ident, "usage": usage(out), "content": [part]}}
+        rows = [{"type": "user", "message": {"content": "go"}},
+                say("m1", 1, {"type": "text", "text": "a"}), say("m1", 50, {"type": "tool_use", "id": "t1", "name": "Read", "input": {}}),
+                {"type": "user", "message": {"content": [{"type": "tool_result", "tool_use_id": "t1", "content": "body"}]}},
+                say("m2", 7, {"type": "text", "text": "b"})]
+        path.write_text("\n".join(json.dumps(row) for row in rows) + "\n", encoding="utf-8")
+        got = session.read(path, lambda text: text)
+        self.assertEqual([row[0] for row in got["seq"]], ["user", "turn", "say", "call", "result", "turn", "say"])
+        self.assertEqual([row[1] for row in got["seq"] if row[0] == "turn"], [0, 1])
+        self.assertEqual([turn["usage"]["out"] for turn in got["turns"]], [50, 7])
+
 
 if __name__ == "__main__":
     unittest.main()
