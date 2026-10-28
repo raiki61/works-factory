@@ -116,7 +116,7 @@ tr.cur td{background:var(--sel-soft)}
 <script>
 'use strict';
 const D = JSON.parse(document.getElementById('data').textContent);
-const G = D.shape.graphs, RUN = D.run, TX = D.texts || {};
+const G = D.shape.graphs, RUN = D.run, TX = D.texts || {}, TJ = D.texts_ja || {};
 const KIND = {ai: 'AI', script: 'script', bash: 'bash', block: 'block', child: '子の run', gate: '承認', loop: '繰り返し', halt: '止め', '': '読めない'};
 const STATUS = {ok: '済み', failed: '落ち', running: '走り中', waiting: '待ち', skipped: '飛んだ', completed: '終わり', paused: '止まっている',
   cancelled: '止めた', pending: '始まる前'};
@@ -142,6 +142,9 @@ const kv = rows => h('div', {class: 'kv'}, rows.filter(r => r && r[1] !== '' && 
   .map(([k, v]) => [h('b', {text: k}), h('span', {}, v instanceof Node ? v : Array.isArray(v) ? v.map(x => h('span', {class: 'chip', text: x})) : String(v))]));
 const pre = (s, cls) => h('pre', {class: cls || null, text: s});
 const fold = (title, body, open) => h('details', {open: open || null}, h('summary', {}, title), h('div', {}, body));
+// 日本語の写し（人が読むための射影。LLM には渡していない）。訳の無い段落は英語のまま
+const ja = s => s ? fold('日本語の写し', pre(s), true) : null;
+const both = mark => [pre(text(mark)), ja(TJ[mark])];
 
 // 帯
 function header() {
@@ -152,6 +155,7 @@ function header() {
   if (RUN && RUN.live) notes.push(`この run は走り中（${STATUS[RUN.status] || RUN.status}）。ページは作った時刻 ${D.made_at} までの姿。新しい姿は同じ命令で作り直す`);
   if (RUN && RUN.waiting.length) notes.push(h('span', {}, `承認待ち（${RUN.waiting.join('・')}）。答えは殻で打つ: `, h('code', {class: 'cmd', text: RUN.answer})));
   if (D.shape_from === 'tree' && RUN) notes.push('この run の写し（run の始めに Archon が写し取った作り）が無いので、図は今の木の作りから作った');
+  if (D.ja && (D.ja.md || D.ja.texts)) notes.push(`日本語の写しに訳の無い段落: 指示の md ${D.ja.md} 個・会話 ${D.ja.texts} 個（英語のまま出す。--ja-batches で束にして訳し、--ja-import で取り込む）`);
   const bad = unreadCount();
   if (bad) notes.push(`読めなかった物が ${bad} 件ある（「読めなかった物」の画面）`);
   $('notices').append(...notes.map(n => h('div', {class: 'notice'}, n)));
@@ -338,8 +342,8 @@ function select(id, item) {
     item.ask && [h('h3', {text: '人に聞くこと'}), pre(item.ask)],
     item.bash && [h('h3', {text: 'bash'}), pre(item.bash)],
     item.doc && [h('h3', {text: 'script の頭の説明'}), pre(item.doc)],
-    item.md && [h('h3', {text: `指示 ${item.md.file || ''}`}), item.md.file ? pre(item.md.text) : h('div', {class: 'empty', text: 'md が無い'})],
-    item.system_md && item.system_md.file && [h('h3', {text: `system ${item.system_md.file}`}), pre(item.system_md.text)],
+    item.md && [h('h3', {text: `指示 ${item.md.file || ''}`}), item.md.file ? [pre(item.md.text), ja(item.md.ja)] : h('div', {class: 'empty', text: 'md が無い'})],
+    item.system_md && item.system_md.file && [h('h3', {text: `system ${item.system_md.file}`}), pre(item.system_md.text), ja(item.system_md.ja)],
     item.prompt && [h('h3', {text: 'YAML の指示の欄'}), pre(item.prompt)],
     RUN && h('h3', {text: `この run で（${at.events.length} 回）`}),
     RUN && !at.events.length && !at.skipped.length && h('div', {class: 'empty', text: 'この所の出来事は記録に無い'}),
@@ -360,6 +364,8 @@ function eventView(e, open) {
     e.calls.length && [h('h3', {text: `道具の呼び出し（${e.calls.length}）`}),
       h('table', {}, e.calls.map(c => h('tr', {}, h('td', {text: c.name}), h('td', {text: c.status}), h('td', {class: 'wrap mono', text: c.title}))))],
     e.exec.length && [h('h3', {text: 'script と bash の出力の終わり'}), ...e.exec.map(x => fold(`${x.label} 終了の値 ${x.exit}`, [x.stdout && pre(x.stdout), x.stderr && pre(x.stderr, 'err')]))],
+    e.prompts && [h('h3', {text: '組んだ指示の日本語の写し（値の記録から組み直した物）'}), ...e.prompts.map(p => fold(`${p.md} の ${p.n} 回目`,
+      p.error ? pre(p.error, 'err') : [pre(p.ja.prompt), p.ja.system && [h('h3', {text: 'system'}), pre(p.ja.system)]].flat().filter(Boolean), e.prompts.length === 1))],
     e.output != null && [h('h3', {text: '出力'}), pre(pretty(e.output))],
     e.session && sessionView(e.session),
   ];
@@ -379,10 +385,10 @@ function sessionView(preview) {
     : h('span', {}, `${S.inject.length} 片・${num(size(S.inject.map(i => i[1])))} 字`);
   return [h('h3', {text: `会話 ${preview}`}),
     kv([['system', system], ['添え書き', inject], ['往復', S.turns.length], ['費用', usd(S.cost)]]),
-    S.system.length && fold('system', S.system.map(m => pre(text(m)))),
+    S.system.length && fold('system', S.system.map(both)),
     S.tools.length && fold('道具の一覧', h('div', {}, S.tools.map(t => h('span', {class: 'chip', text: `${t[0]} ${num(t[1])}`})))),
-    S.inject.length && fold('添え書き', S.inject.map(i => pre(text(i[1])))),
-    S.prompt && fold('最初の指示', pre(text(S.prompt))),
+    S.inject.length && fold('添え書き', S.inject.map(i => both(i[1]))),
+    S.prompt && fold('最初の指示', both(S.prompt)),
     S.turns.length && fold('往復ごと', h('table', {}, h('tr', {}, ['', '入', 'cache 読み', 'cache 書き', '出', '道具'].map(x => h('th', {text: x}))),
       S.turns.map((t, i) => h('tr', {}, h('td', {text: i + 1}), ['in', 'cache_read', 'cache_write', 'out'].map(k => h('td', {text: num((t.usage || {})[k])})),
         h('td', {class: 'wrap', text: t.calls.map(c => c.name).join('・')}))))),
@@ -394,7 +400,7 @@ function seqRow(x) {
   if (kind === 'usage') return h('div', {class: 'empty', text: `トークン 入 ${num(a.in)}・cache 読み ${num(a.cache_read)}・cache 書き ${num(a.cache_write)}・出 ${num(a.out)}`});
   if (kind === 'call') return fold(`道具 ${a}`, pre(text(b)));
   const label = {user: '指示', result: b ? '道具の結果（誤り）' : '道具の結果', say: 'AI', think: '考え'}[kind] || kind;
-  return fold(`${label}（${num(text(a).length)} 字）`, pre(text(a), kind === 'result' && b ? 'err' : null));
+  return fold(`${label}（${num(text(a).length)} 字）`, kind === 'user' ? both(a) : pre(text(a), kind === 'result' && b ? 'err' : null));
 }
 
 // run の一覧
