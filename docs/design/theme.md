@@ -255,7 +255,16 @@ bin/works-factory workflow run works-factory-theme --cwd <対象> --input theme=
 
 ## 13 実走の記録（run 1471a930。PR T4 の real-measure）
 
-本物の AI の役で、テーマの run を 1 本回した。テーマは run 19268881（下書きの 1.2）と同じ 2 行（機能を試験ごと消す依頼で TDD の輪が止まる・振る舞いを変えない整理を工場が単独で直せない）。対象は main の `7e19bb47`（PR T3 の後）。承認ノードは `gate-start` に continue、`gate-theme` に approve（設計の周 3 の案で降りる。問いは推しを採る）、`gate-before-fix` に approve（計画の周 4 の案で進める）と答えた。入力 `tdd_suite` は渡していない。
+本物の AI の役で、テーマの run を 1 本回した。テーマは run 19268881（下書きの 1.2）と同じ 2 行（機能を試験ごと消す依頼で TDD の輪が止まる・振る舞いを変えない整理を工場が単独で直せない）。対象は main の `7e19bb47`（PR T3 の後）。承認ノードは `gate-start` に continue、`gate-theme` に approve（設計の周 3 の案で降りる。問いは推しを採る）、計画の往復の `gate-design` に approve（計画の周 4 の案で進める）と答えた。修正前の承認ノード `gate-before-fix` は、`gate-design` の答えを合意として読んだので開かなかった（run の記録で `skipped`。`docs/design/line.md` の 2 章）。入力 `tdd_suite` は渡していない。
+
+この章の語（下書き `docs/plans/2026-10-27-design-stage.md` の「語」・`docs/design/plan-review.md`・`docs/design/line.md` の物）:
+
+- 承認ノードの答え: 承認ノード（`gate-*`。人の答えを待つ所）の選び肢は `approve`・`continue`・`stop`・`reject`（`docs/design/line.md` の 2 章）。`gate-start` の continue は起動をそのまま通す答え、`gate-theme` の approve はその周の設計の案を承認して降りる答え、`gate-design` の approve はその周の計画を承認して修正へ進む答え。
+- 推し: 役が問いに添えた、選び肢を名指す勧めの答え（`docs/design/line.md` の語）。設計の案では `asks` の `pick`（3 章）。
+- 穴・鍵: 穴は事前審査の役が返す指摘 1 件（返りの `faces` の 1 行）。鍵はその穴の識別子（key）で、周をまたいで同じ穴を同じ鍵で挙げ直す。穴の重さは `block`（直しへ進めない穴）か `suggest`。穴の及ぶ所は中央（設計のやり直しが要る）か端（後の段へ申し送れば済む）。
+- 消えた: 審査役が返りの `resolved` に、前の周の鍵を「もう穴でない」として挙げたこと。
+- fixed・disputed: 書き手が前の周の穴ごとに返す答え（`block_answers` の `handled`）。fixed は直した、disputed は穴でないと異を唱えた。
+- clean・settled: 往復の止め時の語（`workflows/line/src/rounds.py` の `decide`）。clean は最後の周の block が 0、settled は 2 周目から最後の周の開いた block に中央が無い（端の block だけを申し送って進む）。
 
 ### 13.1 費用と時間
 
@@ -267,7 +276,7 @@ bin/works-factory workflow run works-factory-theme --cwd <対象> --input theme=
 
 ### 13.2 設計の段の往復
 
-- 書き手は 3 周とも、問い（`asks`）・選び肢・推し・代償で答えた。問いは 4→5→5（推しは 5 つとも付いた）、変える所（`changes`）は 6→9→16、部署の決めは 3→4→5、前提は 6→7→8（うち持ち主の決め 2）。
+- 書き手は 3 周とも、問い（`asks`）・選び肢・推し・代償で答えた。問いは 4→5→5（推しは 5 つとも付いた）、変える所（`changes`）は 6→9→16、部署の決め（`decided`。決まりで決まるので持ち主に聞かない決め）は 3→4→5、前提は 6→7→8（うち持ち主の決め 2）。
 - 審査役（形 `theme`）の穴は 3 周で違う鍵 14（block 7・suggest 7）。1 周目 block 4・suggest 4 → 2 周目 block 2・suggest 2 → 3 周目 block 1（端）・suggest 1 で `settled`。
 - 2 周目の審査役は 1 周目の 8 鍵を全部「消えた」と照らし、書き手の答えは fixed 8・disputed 0。3 周目も 2 周目の 4 鍵を消えたと照らした。前の周から残った穴（`persists`）は 0。
 - 往復ごとの控え（`talk/theme-<k>.md`）と `gate-theme` の文に、問いごとの選び肢・推し・代償が出た。
@@ -286,8 +295,9 @@ bin/works-factory workflow run works-factory-theme --cwd <対象> --input theme=
 
 ### 13.5 この run で見た事（直していない）
 
-- 修正の段は `works:no-suite` で止まった（差分は空）。入力 `tdd_suite` を渡さず、計画の語が static でない単位を持つ組だったため、型を回さずに止める今の決まりのとおり。設計の段と降りる道の確かめは修正の段の前で済むので、回し直していない。修正の段まで通すには `tdd_suite` を渡す。
-- `gate-start` の文が入口を「依頼 0 件」と書き、テーマに触れない。
-- `gate-theme` の文の「往復ごとの案と審査:」の後が空。
-- `theme-converge.json` の `round` が 1 のまま（`passes` は 3）。3 周目の `resolved` に 1 周目の 4 鍵が重ねて数えられる（8 = 2 周目の 4 ＋ 1 周目の 4）。
-- 計画の役は、承認で採った推しを「持ち主の Qn の答え」として扱った（下書きの 8 章の降りる道のとおり）。
+- 修正の段は `works:no-suite` で止まった（差分は空）。`tdd_suite` は対象の試験を走らせる実行器を渡す入力で、渡さないと工場は試験の元の結末を取れない。修正の段は単位を組にまとめて直し、計画は単位ごとに直し方の型の語（`route`。試験の要らない直しは `static`）を付ける。組に `static` でない単位が在り、元の結末が取れない時は、直し方の型（tdd・variant など）を 1 つも回さずに組を止め、止めの語 `no-suite` を名乗る（`docs/plans/2026-10-24-fix-weapons.md` の 3.9 の「止め方」の 1・`workflows/fix/src/orders.py` の `no_suite_why`）。この run の組はこれに当たったので、今の決まりのとおり。設計の段と降りる道の確かめは修正の段の前で済むので、回し直していない。修正の段まで通すには `tdd_suite` を渡す。
+- `gate-start` の文が入口を「依頼 0 件」と書き、テーマに触れない。表示がいま壊れている。run の進み方は壊れていない（テーマは設計の段へ運ばれた）。
+- `gate-theme` の文の「往復ごとの案と審査:」の見出しが括弧の中で空になり、往復の行は次の行から「- - 1 往復目」の形で続く。中身は欠けておらず、並べ方が崩れている。表示がいま壊れている。
+- `theme-converge.json` の `round` が 1 のまま（`passes` は 3）。設計の往復の `theme-out` の `round` は 1・2・3 と数えられ、往復の上限の判定（`workflows/line/src/talk.py` の `_capped`）は `theme-out` の `round` を読むので、上限は効く。`lib/converge.py` は記録の `round` と block の `round` が同じことを求めるので、1 のままなのは形 `theme` の作りどおりかもしれない。欠陥かどうかは未確認。
+- 3 周目の `resolved`（審査役が消えたと挙げた鍵の並び）は 8 鍵で、2 周目の 4 鍵（block 2・suggest 2）に加えて、2 周目で既に消えたと照らした 1 周目の 8 鍵のうち 4 つが重ねて入った（8 = 2 周目の 4 ＋ 1 周目の 4）。1 周目のどの 4 鍵かは、この記録に控えていない。記録の数がいま違っている。往復の止め時など進み方への響きは確かめていない。
+- 計画の役は、承認で採った推しを「持ち主の Qn の答え」（Qn は設計の案の問い `asks` の id `Q<n>`）として扱った（下書きの 8 章の降りる道のとおり。降りる時に問いの答えを依頼の `answers` の行にして計画へ運ぶ）。
