@@ -3,7 +3,8 @@
 - 今の木の line の一番上のノードは、どれも段の表のちょうど 1 つの段に入り、表のノードはどれも line に在る（line にノードを足して
   表に足さなければ赤。表に残った古い id も赤）
 - 出来事は道の頭のノードで段に寄せ、段ごとに状態・時間・人の待ち・AI の手番・費用・トークンを集める。繰り返しの器は数えない
-- 子の run を起こすノードの費用（子の総額）は、子の中の出来事の費用と二重になるので足さない。周の数は繰り返しの周ごとに 1 つ
+- 子の run を起こすノードの費用（子の総額）と並べて起こす器の手番・長さ・費用は、中の出来事と二重になるので足さない。周の数は
+  繰り返しの周ごとに 1 つ（本体に include が在っても）
 - トークンの新しく読んだ分は lib/runlog.py の add_tokens と同じ訳（cache の欄が欠けた手番が在れば知れない）。input が cache の和より
   小さい手番は数だけ持ち、新しく読んだ分を出さない
 - 段の表の配線の列（wiring。合流・受け渡しだけで段の仕事をしないノード）は、その段のノードの中に在り、どの段にも配線でない
@@ -33,7 +34,8 @@ def line(ids: list[str]) -> dict:
 
 
 def event(tokens, kind="exec", start="2026-10-25T01:00:00.000Z", end="2026-10-25T01:00:01.000Z", cost=0.0, **more):
-    return {"tokens": tokens, "kind": kind, "start": start, "end": end, "status": "ok", "cost": cost, "loop": [], **more}
+    return {"tokens": tokens, "path": ".".join(tokens), "run": "r", "kind": kind, "start": start, "end": end, "status": "ok", "cost": cost,
+            "loop": [], **more}
 
 
 def run_of(events: list[dict], skipped: list[dict], status: str = "completed") -> dict:
@@ -120,6 +122,25 @@ class StagesCase(unittest.TestCase):
                       *[event(["plan-rounds", node], loop=[n]) for n in (1, 2, 3) for node in ("plan", "gate-design")]])
         self.assertEqual(got[number("plan-rounds") - 1]["rounds"], 3)
         self.assertEqual(got[number("start") - 1]["rounds"], 0)
+
+    def test_a_round_with_an_include_in_the_body_is_one_round(self):
+        # 本体に直に在るノード（plan-rounds.design-turn）と include の中のノード（plan-rounds.plan__draft）は同じ周
+        got = summed([event(["plan-rounds"], kind="loop_group"),
+                      *[event(["plan-rounds", "design-turn"], loop=[n]) for n in (1, 2)],
+                      *[event(["plan-rounds", "plan", "draft"], path="plan-rounds.plan__draft", loop=[n]) for n in (1, 2)]])
+        self.assertEqual(got[number("plan-rounds") - 1]["rounds"], 2)
+
+    def test_a_fan_out_holder_is_not_counted_twice(self):
+        # 並べて起こす器（compose_fan_out）の行は中の出来事と重なる。手番の数・長さ・費用に器の分を足さない
+        got = summed([event(["plan-rounds"], kind="compose_fan_out", cost=3.0, turns=4,
+                            start="2026-10-25T01:00:00.000Z", end="2026-10-25T01:10:00.000Z"),
+                      event(["plan-rounds", "a"], kind="agent", cost=1.0, turns=1,
+                            start="2026-10-25T01:00:00.000Z", end="2026-10-25T01:01:00.000Z"),
+                      event(["plan-rounds", "b"], kind="agent", cost=2.0, turns=3,
+                            start="2026-10-25T01:00:00.000Z", end="2026-10-25T01:02:00.000Z")])
+        plan = got[number("plan-rounds") - 1]
+        self.assertEqual({key: plan[key] for key in ("steps", "ai", "turns", "ai_seconds", "cost")},
+                         {"steps": 2, "ai": 2, "turns": 4, "ai_seconds": 180.0, "cost": 3.0})
 
     def test_tokens_unknown_cache_and_odd_turns(self):
         known = {"input": 100, "output": 7, "cacheRead": 60, "cacheWrite": 30}

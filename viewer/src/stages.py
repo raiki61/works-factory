@@ -15,7 +15,7 @@ from pathlib import Path
 
 import answer   # lib/（viewer/src/__init__.py が sys.path に足す）
 import runlog
-from viewer.src import runread
+from viewer.src import runread, shape
 
 TABLE = json.loads((Path(__file__).resolve().parents[1] / "stages.json").read_text(encoding="utf-8"))
 SHOWN = ("name", "line", "hands", "source", "nodes", "wiring")
@@ -66,7 +66,8 @@ def attach(data: dict) -> None:
 def _sum(n: int, run: dict, through: set[str]) -> dict:
     """段 n の集計。時間は段の出来事の最初の始めから最後の終わり、人の待ちと AI の時間は出来事の長さの和（並んで走れば重なる）。
     中の出来事を束ねる器（繰り返し・子の run を起こすノード）は、数と長さと費用に数えない（中の出来事と二重になる。子の run を起こす
-    ノードの行には子の総額が載る）。周の数は、繰り返しの本体の出来事の周（入れ子なら内の周まで）の違う物の数。
+    ノードの行には子の総額が載る）。周の数は、繰り返しの本体の場所（道を繰り返しの区切りだけで切る。本体の include の中のノードも
+    同じ周）と周の番号（入れ子なら内の周まで）の違う物の数。
     段の状態（通った・飛んだ）には、段の表の配線のノード through（合流・受け渡しだけの物。fix-in・fixed・judged は修正の段が
     飛んでも走る）を数えない"""
     events = [e for e in run["events"] if e.get("stage") == n]
@@ -95,7 +96,7 @@ def _sum(n: int, run: dict, through: set[str]) -> dict:
             "ai_seconds": round(sum(_length(e) for e in own if e["kind"] in runread.AI_KINDS), 1),
             "ai": sum(1 for e in own if e["kind"] in runread.AI_KINDS), "steps": len(own),
             "turns": sum(e.get("turns") or 0 for e in own),
-            "rounds": len({(*e["tokens"][:-1], *e["loop"]) for e in own if e["loop"]}),
+            "rounds": len({(e["run"], *e["path"].split(shape.IN_LOOP)[:-1], *e["loop"]) for e in own if e["loop"]}),
             "cost": round(sum(e["cost"] for e in own), 6), "tokens": tokens}
 
 
