@@ -31,6 +31,8 @@ WRITTEN = {
     f"{runread.PARENT_NODE}": "packages/workflows/src/dag-executor.ts",
     f"{runread.TOTAL_COST}:": "packages/workflows/src/dag-executor.ts",
     f"{runread.ATTEMPT_ID}:": "packages/workflows/src/schemas/provider-event.ts",
+    **{name: RUN_SCHEMA for name in (f"metadata?.{runread.WAIT}", f"kind: z.literal('{runread.WAIT_KIND}')", f"{runread.WAIT_ANSWER}: attentionAnswerSchema",
+                                     f"wait.owner === '{runread.WAIT_LOOP_OWNER}' ? `${{wait.nodeId}}.${{wait.bodyWaitId}}` : wait.nodeId")},
 }
 
 

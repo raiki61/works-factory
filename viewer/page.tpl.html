@@ -1,0 +1,459 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>works-factory の作りと run</title>
+<!-- 見る道具の雛形（viewer/AGENTS.md の E25。設計は docs/design/viewer.md）。viewer/src/page.py が下の 2 つの印にデータと elkjs を埋める。
+     ページは 1 枚で完結し、別のファイルからスクリプトを読まない。見た目は試験で縛らない（見ながら直す） -->
+<style>
+:root{
+  --bg:#f2f4f7; --dot:#d0d5dd; --node:#fff; --node-b:#eaecf0; --ink:#101828; --ink2:#344054; --muted:#667085; --faint:#98a2b3;
+  --panel:#fff; --panel2:#f9fafb; --line:#eaecf0; --sel:#296dff; --sel-soft:#eff4ff; --edge:#b2b8c2;
+  --c-ai:#6172f3; --c-script:#2e90fa; --c-bash:#2e90fa; --c-block:#06aed4; --c-child:#0e9384; --c-gate:#f79009; --c-loop:#ee46bc; --c-halt:#f04438;
+  --ok:#12b76a; --bad:#f04438; --run:#296dff; --wait:#f79009; --skip:#98a2b3; --warn-soft:#fffaeb; --bad-soft:#fef3f2;
+  --f-body:"Hiragino Sans","Yu Gothic","Noto Sans JP",system-ui,sans-serif; --f-mono:ui-monospace,"SFMono-Regular",Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){:root{
+  --bg:#1a1a1d; --dot:#2e2e33; --node:#26262a; --node-b:#34343a; --ink:#f2f2f3; --ink2:#d0d0d5; --muted:#9a9aa3; --faint:#6f6f78;
+  --panel:#202024; --panel2:#2a2a2f; --line:#34343a; --sel:#5b8bff; --sel-soft:#1f2a44; --edge:#55555e; --warn-soft:#3a2c12; --bad-soft:#43201f;
+  color-scheme:dark}}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%}
+[hidden]{display:none!important}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:13px;line-height:1.55;display:flex;flex-direction:column;overflow:hidden}
+button{font:inherit;color:inherit;cursor:pointer}
+code,pre,.mono{font-family:var(--f-mono);font-size:12px}
+pre{white-space:pre-wrap;overflow-wrap:anywhere;margin:4px 0;padding:8px 10px;background:var(--panel2);border:1px solid var(--line);border-radius:8px;max-height:420px;overflow:auto}
+.top{display:flex;align-items:center;gap:14px;flex-wrap:wrap;padding:8px 16px;background:var(--panel);border-bottom:1px solid var(--line)}
+.top h1{font-size:15px;margin:0}
+.top .facts{color:var(--muted);font-size:12px;display:flex;gap:12px;flex-wrap:wrap}
+.tabs{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;margin-left:auto}
+.tabs button{border:0;background:transparent;padding:4px 12px;color:var(--muted)}
+.tabs button[aria-pressed="true"]{background:var(--sel-soft);color:var(--sel);font-weight:700}
+.notice{padding:6px 16px;background:var(--warn-soft);border-bottom:1px solid var(--line);font-size:12.5px}
+.notice code{user-select:all}
+.main{flex:1;min-height:0;position:relative}
+.screen{position:absolute;inset:0;overflow:auto}
+/* 図 */
+.flow{display:flex;overflow:hidden}
+.side{width:250px;flex:none;border-right:1px solid var(--line);background:var(--panel);display:flex;flex-direction:column}
+.side input{margin:8px;padding:4px 8px;border:1px solid var(--line);border-radius:8px;background:var(--panel2);color:var(--ink);font:inherit}
+.side .list{overflow:auto;flex:1;padding:0 6px 12px}
+.side .gh{font-size:11.5px;color:var(--muted);font-weight:700;margin:10px 6px 2px}
+.side button{display:flex;gap:6px;align-items:center;width:100%;text-align:left;border:0;background:transparent;padding:3px 6px;border-radius:6px}
+.side button:hover{background:var(--panel2)}
+.side button.cur{background:var(--sel-soft);color:var(--sel);font-weight:700}
+.side .n{margin-left:auto;color:var(--faint);font-size:11px}
+.canvas{flex:1;position:relative;overflow:hidden;cursor:grab;background-color:var(--bg);background-image:radial-gradient(var(--dot) 1.2px,transparent 1.2px);background-size:18px 18px}
+.canvas.drag{cursor:grabbing}
+.crumb{position:absolute;left:12px;top:10px;z-index:3;display:flex;gap:6px;align-items:center;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:3px 10px}
+.crumb a{color:var(--sel);cursor:pointer}
+.zoom{position:absolute;left:12px;bottom:12px;z-index:3;display:flex;gap:4px}
+.zoom button{border:1px solid var(--line);background:var(--panel);border-radius:6px;padding:2px 8px}
+.world{position:absolute;left:0;top:0;transform-origin:0 0}
+svg.edges{position:absolute;left:0;top:0;overflow:visible;pointer-events:none}
+svg.edges path{fill:none;stroke:var(--edge);stroke-width:1.5}
+.node{position:absolute;background:var(--node);border:1.5px solid var(--node-b);border-left:5px solid var(--k);border-radius:9px;padding:4px 8px;cursor:pointer;overflow:hidden;box-shadow:0 1px 2px rgba(16,24,40,.06)}
+.node .t{font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.node .s{font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.node.box{background:color-mix(in srgb,var(--k) 6%,transparent);border-style:dashed;border-left-width:1.5px;border-color:var(--k)}
+.node.sel{outline:3px solid var(--sel)}
+.node .st{position:absolute;right:6px;top:5px;width:9px;height:9px;border-radius:50%}
+.st.ok{background:var(--ok)}.st.failed{background:var(--bad)}.st.running{background:var(--run)}.st.waiting{background:var(--wait)}.st.skipped{background:var(--skip)}
+.k-ai{--k:var(--c-ai)}.k-script{--k:var(--c-script)}.k-bash{--k:var(--c-bash)}.k-block{--k:var(--c-block)}.k-child{--k:var(--c-child)}.k-gate{--k:var(--c-gate)}.k-loop{--k:var(--c-loop)}.k-halt{--k:var(--c-halt)}
+.panel{position:absolute;top:10px;right:10px;bottom:10px;width:min(560px,calc(100% - 20px));background:var(--panel);border:1px solid var(--line);border-radius:14px;box-shadow:0 12px 24px -4px rgba(16,24,40,.12);z-index:4;display:flex;flex-direction:column}
+.panel .ph{padding:10px 14px;border-bottom:1px solid var(--line);display:flex;gap:8px;align-items:flex-start}
+.panel .ph h2{font-size:16px;margin:0;overflow-wrap:anywhere}
+.panel .ph .x{margin-left:auto;border:0;background:transparent;font-size:16px}
+.panel .pb{overflow:auto;padding:4px 14px 18px}
+h3{font-size:12px;color:var(--muted);margin:14px 0 4px}
+.kv{display:grid;grid-template-columns:max-content 1fr;gap:2px 12px}
+.kv>b{color:var(--muted);font-weight:600}
+.kv>span{overflow-wrap:anywhere}
+.chip{display:inline-block;padding:0 7px;border-radius:6px;background:var(--panel2);border:1px solid var(--line);margin:1px 3px 1px 0;font-size:12px}
+.empty{color:var(--faint)}
+.err{background:var(--bad-soft)}
+details{border:1px solid var(--line);border-radius:8px;margin:4px 0;background:var(--panel)}
+details>summary{cursor:pointer;padding:4px 8px;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+details>div{padding:0 10px 8px}
+/* 表（短い値だけ） */
+table{border-collapse:collapse;width:100%;background:var(--panel)}
+th,td{text-align:left;padding:4px 10px;border-bottom:1px solid var(--line);white-space:nowrap}
+th{color:var(--muted);font-weight:600;position:sticky;top:0;background:var(--panel2)}
+td.wrap{white-space:normal;overflow-wrap:anywhere}
+.pad{padding:12px 16px}
+.badge{display:inline-block;padding:0 7px;border-radius:6px;color:#fff;font-size:11.5px;font-weight:700}
+.badge.ok,.badge.completed{background:var(--ok)}.badge.failed{background:var(--bad)}.badge.running,.badge.pending{background:var(--run)}
+.badge.waiting,.badge.paused{background:var(--wait)}.badge.cancelled,.badge.skipped{background:var(--skip)}
+tr.cur td{background:var(--sel-soft)}
+.cmd{user-select:all}
+</style>
+</head>
+<body>
+<script type="application/json" id="data">__DATA__</script>
+<script>/*__ELK__*/</script>
+<div class="top">
+  <h1>works-factory の作りと run</h1>
+  <div class="facts" id="facts"></div>
+  <div class="tabs" id="tabs"></div>
+</div>
+<div id="notices"></div>
+<div class="main">
+  <div class="screen flow" id="s-flow">
+    <div class="side"><input id="find" placeholder="graph を名で絞る"><div class="list" id="graphs"></div></div>
+    <div class="canvas" id="canvas">
+      <div class="crumb" id="crumb"></div>
+      <div class="world" id="world"></div>
+      <div class="zoom"><button id="z-in">＋</button><button id="z-out">－</button><button id="z-fit">全体</button></div>
+      <div class="panel" id="panel" hidden><div class="ph"><h2 id="p-title"></h2><button class="x" id="p-close">×</button></div><div class="pb" id="p-body"></div></div>
+    </div>
+  </div>
+  <div class="screen" id="s-runs" hidden></div>
+  <div class="screen" id="s-log" hidden></div>
+  <div class="screen" id="s-unread" hidden></div>
+</div>
+<script>
+'use strict';
+const D = JSON.parse(document.getElementById('data').textContent);
+const G = D.shape.graphs, RUN = D.run, TX = D.texts || {};
+const KIND = {ai: 'AI', script: 'script', bash: 'bash', block: 'block', child: '子の run', gate: '承認', loop: '繰り返し', halt: '止め', '': '読めない'};
+const STATUS = {ok: '済み', failed: '落ち', running: '走り中', waiting: '待ち', skipped: '飛んだ', completed: '終わり', paused: '止まっている',
+  cancelled: '止めた', pending: '始まる前'};
+const NOT_RECORDED = '記録に無い';
+
+// 字は全部 textContent で置く（記録の字を HTML として読まない）
+function h(tag, attrs, ...kids) {
+  const el = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs || {})) {
+    if (v == null || v === false) continue;
+    if (k === 'text') el.textContent = v; else if (k.startsWith('on')) el.addEventListener(k.slice(2), v); else el.setAttribute(k, v === true ? '' : v);
+  }
+  for (const kid of kids.flat()) if (kid != null && kid !== false) el.append(kid instanceof Node ? kid : String(kid));
+  return el;
+}
+const $ = id => document.getElementById(id);
+const usd = v => v == null ? '' : '$' + Number(v).toFixed(v < 1 ? 4 : 2);
+const secs = v => v == null ? '' : v < 90 ? `${v} 秒` : `${(v / 60).toFixed(1)} 分`;
+const num = v => v == null ? '' : Number(v).toLocaleString('ja-JP');
+const badge = s => h('span', {class: 'badge ' + s, text: STATUS[s] || s});
+const text = mark => TX[mark] ?? '';
+const kv = rows => h('div', {class: 'kv'}, rows.filter(r => r && r[1] !== '' && r[1] != null && !(Array.isArray(r[1]) && !r[1].length))
+  .map(([k, v]) => [h('b', {text: k}), h('span', {}, v instanceof Node ? v : Array.isArray(v) ? v.map(x => h('span', {class: 'chip', text: x})) : String(v))]));
+const pre = (s, cls) => h('pre', {class: cls || null, text: s});
+const fold = (title, body, open) => h('details', {open: open || null}, h('summary', {}, title), h('div', {}, body));
+
+// 帯
+function header() {
+  $('facts').append(...[D.commit && `commit ${D.commit}`, `作った時刻 ${D.made_at}`, D.target && `対象 ${D.target}`,
+    RUN && h('span', {}, `run ${RUN.id.slice(0, 8)}・${RUN.graph}・`, badge(RUN.status), ` ${usd(RUN.cost)} ${secs(RUN.seconds)}`)].filter(Boolean)
+    .map(x => x instanceof Node ? x : h('span', {text: x})));
+  const notes = [];
+  if (RUN && RUN.live) notes.push(`この run は走り中（${STATUS[RUN.status] || RUN.status}）。ページは作った時刻 ${D.made_at} までの姿。新しい姿は同じ命令で作り直す`);
+  if (RUN && RUN.waiting.length) notes.push(h('span', {}, `承認待ち（${RUN.waiting.join('・')}）。答えは殻で打つ: `, h('code', {class: 'cmd', text: RUN.answer})));
+  if (D.shape_from === 'tree' && RUN) notes.push('この run の写し（run の始めに Archon が写し取った作り）が無いので、図は今の木の作りから作った');
+  const bad = unreadCount();
+  if (bad) notes.push(`読めなかった物が ${bad} 件ある（「読めなかった物」の画面）`);
+  $('notices').append(...notes.map(n => h('div', {class: 'notice'}, n)));
+  const tabs = [['flow', '図'], ...(D.target ? [['runs', `run の一覧（${D.runs.length}）`]] : []), ...(RUN ? [['log', 'ログ']] : []), ['unread', '読めなかった物']];
+  tabs.forEach(([id, label]) => $('tabs').append(h('button', {'data-tab': id, text: label, onclick: () => tab(id)})));
+  tab('flow');
+}
+function tab(id) {
+  document.querySelectorAll('[data-tab]').forEach(b => b.setAttribute('aria-pressed', b.dataset.tab === id));
+  document.querySelectorAll('.screen').forEach(s => s.hidden = s.id !== 's-' + id);
+  if (id === 'flow' && !cur) openGraph(firstGraph());
+}
+
+// 図: graph の一覧
+let cur = null, stack = [], selId = null;
+const T = {x: 40, y: 60, s: 1};
+function firstGraph() {
+  if (RUN) { const hit = Object.keys(G).find(f => G[f].name === RUN.graph); if (hit) return hit; }
+  return G.line ? 'line' : Object.keys(G)[0];
+}
+function catalog() {
+  const q = $('find').value.trim();
+  const list = $('graphs'); list.replaceChildren();
+  for (const [kind, label] of [['graph', 'graph（block をつなぐ物）'], ['block', 'block']]) {
+    const names = Object.keys(G).filter(f => G[f].kind === kind && (!q || f.includes(q))).sort();
+    if (!names.length) continue;
+    list.append(h('div', {class: 'gh', text: label}));
+    for (const f of names) list.append(h('button', {class: stack.length && stack[0] === f ? 'cur' : null, onclick: () => openGraph(f)},
+      h('span', {text: f}), h('span', {class: 'n', text: `${G[f].nodes}`})));
+  }
+}
+function openGraph(folder) { stack = [folder]; show(); }
+function enter(folder) { stack.push(folder); show(); }
+
+// run の出来事を図の所に寄せる（同じ graph が何度 include されても、その graph の所に全部寄せる）
+const AT = {};
+if (RUN) {
+  for (const e of RUN.events) if (e.at && e.at.graph) (AT[e.at.graph + '/' + e.at.node] ||= {events: [], skipped: []}).events.push(e);
+  for (const e of RUN.skipped) if (e.at && e.at.graph) (AT[e.at.graph + '/' + e.at.node] ||= {events: [], skipped: []}).skipped.push(e);
+}
+const ORDER = ['failed', 'waiting', 'running', 'ok', 'skipped'];
+function statusAt(folder, item) {
+  const got = AT[folder + '/' + item.path.join('/')];
+  if (!got) return '';
+  const seen = got.events.map(e => e.status);
+  if (!seen.length && got.skipped.length) seen.push('skipped');
+  return ORDER.find(s => seen.includes(s)) || '';
+}
+
+// 図: elk で並べて描く
+const elk = new ELK();
+const W = 220, H = 50;
+async function show() {
+  const folder = stack[stack.length - 1];
+  cur = folder; selId = null; $('panel').hidden = true;
+  catalog(); crumb();
+  const g = G[folder], byId = {};
+  const node = item => {
+    byId[item.path.join('/')] = item;
+    if (item.kind === 'loop') return {id: item.path.join('/'), children: item.kids.map(node), layoutOptions: {'elk.padding': '[top=46,left=16,bottom=16,right=16]'}};
+    return {id: item.path.join('/'), width: W, height: H};
+  };
+  const edges = [];
+  const link = (items) => items.forEach(item => {
+    const scope = item.path.slice(0, -1);
+    for (const dep of item.deps) {
+      const from = [...scope, dep].join('/');
+      if (items.some(i => i.id === dep)) edges.push({id: 'e' + edges.length, sources: [from], targets: [item.path.join('/')]});
+    }
+    if (item.kids) link(item.kids);
+  });
+  link(g.items);
+  const laid = await elk.layout({id: 'root', children: g.items.map(node), edges, layoutOptions: {
+    'elk.algorithm': 'layered', 'elk.direction': 'DOWN', 'elk.hierarchyHandling': 'INCLUDE_CHILDREN', 'org.eclipse.elk.json.edgeCoords': 'ROOT',
+    'elk.edgeRouting': 'ORTHOGONAL', 'elk.layered.spacing.nodeNodeBetweenLayers': '44', 'elk.spacing.nodeNode': '26',
+    'elk.layered.considerModelOrder.strategy': 'NODES_AND_EDGES'}});
+  if (cur !== folder) return;
+  const world = $('world'); world.replaceChildren();
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  svg.setAttribute('class', 'edges'); svg.setAttribute('width', laid.width); svg.setAttribute('height', laid.height);
+  const draw = (n, ox, oy) => {
+    const x = ox + n.x, y = oy + n.y, item = byId[n.id];
+    const st = statusAt(folder, item);
+    const el = h('div', {class: `node k-${item.kind}${n.children ? ' box' : ''}`, 'data-id': n.id, style: `left:${x}px;top:${y}px;width:${n.width}px;height:${n.height}px`,
+      onclick: ev => { ev.stopPropagation(); select(n.id, item); }, ondblclick: () => item.target && G[item.target] && enter(item.target)},
+      h('div', {class: 't', text: item.id}), h('div', {class: 's', text: sub(item)}), st && h('span', {class: 'st ' + st, title: STATUS[st]}));
+    world.append(el);
+    (n.children || []).forEach(k => draw(k, x, y));
+  };
+  laid.children.forEach(n => draw(n, 0, 0));
+  for (const e of laid.edges || []) for (const s of e.sections || []) {
+    const pts = [s.startPoint, ...(s.bendPoints || []), s.endPoint];
+    const p = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    p.setAttribute('d', pts.map((q, i) => (i ? 'L' : 'M') + q.x + ',' + q.y).join(' '));
+    p.setAttribute('marker-end', 'url(#arrow)');
+    svg.append(p);
+  }
+  svg.insertAdjacentHTML('afterbegin', '<defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0L10,5L0,10z" fill="currentColor" style="stroke:none;fill:var(--edge)"/></marker></defs>');
+  world.prepend(svg);
+  world.dataset.w = laid.width; world.dataset.h = laid.height;
+  fit();
+  graphPanel(folder);
+}
+function sub(item) {
+  const bits = [KIND[item.kind] ?? item.kind];
+  if (item.kind === 'ai' && item.model) bits.push(item.model);
+  if (item.kind === 'script') bits.push(item.script);
+  if ((item.kind === 'block' || item.kind === 'child')) bits.push(item.target || item.outside || item.name);
+  if (item.kind === 'loop' && item.max) bits.push(`最大 ${item.max} 回`);
+  if (item.when) bits.push('when');
+  return bits.join(' · ');
+}
+function crumb() {
+  const c = $('crumb'); c.replaceChildren();
+  stack.forEach((f, i) => {
+    if (i) c.append(h('span', {text: '›'}));
+    c.append(i === stack.length - 1 ? h('b', {text: f}) : h('a', {text: f, onclick: () => { stack = stack.slice(0, i + 1); show(); }}));
+  });
+}
+
+// 図: 動かす・拡げる
+function apply() { $('world').style.transform = `translate(${T.x}px,${T.y}px) scale(${T.s})`; }
+function zoomAt(f, cx, cy) {
+  const c = $('canvas'), s = Math.min(2.5, Math.max(0.1, T.s * f));
+  cx ??= c.clientWidth / 2; cy ??= c.clientHeight / 2;
+  T.x = cx - (cx - T.x) * s / T.s; T.y = cy - (cy - T.y) * s / T.s; T.s = s; apply();
+}
+function fit() {
+  const c = $('canvas'), w = +$('world').dataset.w || 1, hh = +$('world').dataset.h || 1;
+  const room = c.clientWidth - ($('panel').hidden ? 0 : $('panel').offsetWidth + 20) - 60;
+  T.s = Math.min(1.2, Math.max(0.1, Math.min(room / w, (c.clientHeight - 90) / hh)));
+  T.x = 30 + Math.max(0, (room - w * T.s) / 2); T.y = 56; apply();
+}
+(function pan() {
+  const c = $('canvas'); let from = null;
+  c.addEventListener('mousedown', ev => { if (ev.target.closest('.panel,.zoom,.crumb')) return; from = {x: ev.clientX - T.x, y: ev.clientY - T.y}; c.classList.add('drag'); });
+  addEventListener('mousemove', ev => { if (from) { T.x = ev.clientX - from.x; T.y = ev.clientY - from.y; apply(); } });
+  addEventListener('mouseup', () => { from = null; c.classList.remove('drag'); });
+  c.addEventListener('wheel', ev => { if (ev.target.closest('.panel')) return; ev.preventDefault(); const r = c.getBoundingClientRect();
+    zoomAt(Math.exp(-ev.deltaY * 0.0015), ev.clientX - r.left, ev.clientY - r.top); }, {passive: false});
+  c.addEventListener('click', ev => { if (!ev.target.closest('.panel,.node,.zoom,.crumb')) graphPanel(cur); });
+  $('z-in').onclick = () => zoomAt(1.25); $('z-out').onclick = () => zoomAt(0.8); $('z-fit').onclick = fit;
+  $('p-close').onclick = () => { $('panel').hidden = true; select(null); };
+  $('find').oninput = catalog;
+})();
+
+// 板: graph とノード
+function openPanel(title, body) { $('p-title').textContent = title; $('p-body').replaceChildren(...body.filter(Boolean)); $('panel').hidden = false; }
+function graphPanel(folder) {
+  const g = G[folder];
+  document.querySelectorAll('.node.sel').forEach(n => n.classList.remove('sel'));
+  openPanel(g.name, [
+    g.desc && pre(g.desc),
+    kv([['種類', g.kind === 'graph' ? 'graph（block をつなぐ）' : 'block'], ['YAML', g.file], ['ノード', g.nodes], ['設計書', g.docs], ['返す', g.returns],
+      ['結果の欄', g.outcome], ['AI のノード', g.ai], ['作業ツリー', g.worktree]]),
+    g.inputs.length && h('h3', {text: '入力'}),
+    g.inputs.length && h('table', {}, h('tr', {}, h('th', {text: '名'}), h('th', {text: '要る'}), h('th', {text: '既定'})),
+      g.inputs.map(i => h('tr', {title: i.desc}, h('td', {text: i.name}), h('td', {text: i.required ? '要る' : ''}), h('td', {class: 'wrap', text: i.default})))),
+    g.return_fields.length && h('h3', {text: '返す欄'}),
+    g.return_fields.length && kv(g.return_fields.map(f => [f[0], f[1] + (f[2] ? ' ' + f[2] : '')])),
+    g.subs.length && h('h3', {text: '中で使う graph と block'}),
+    g.subs.length && h('div', {}, g.subs.map(s => h('button', {class: 'chip', text: s, onclick: () => enter(s)}))),
+    g.used_by.length && h('h3', {text: '使われる所'}),
+    g.used_by.length && h('div', {}, g.used_by.map(u => h('button', {class: 'chip', text: `${u.graph} の ${u.node}`, onclick: () => openGraph(u.graph)}))),
+  ]);
+}
+function select(id, item) {
+  document.querySelectorAll('.node.sel').forEach(n => n.classList.remove('sel'));
+  selId = id;
+  if (!id) return;
+  [...document.querySelectorAll('.node')].find(n => n.dataset.id === id)?.classList.add('sel');
+  const at = AT[cur + '/' + id] || {events: [], skipped: []};
+  openPanel(item.id, [
+    item.desc && pre(item.desc),
+    kv([['種類', KIND[item.kind] ?? item.kind], ['道', item.path.join(' / ')], ['依る', item.deps], ['when', item.when], ['trigger_rule', item.trigger],
+      ['always_run', item.always ? 'はい' : ''], ['模型', item.model], ['道具', item.tools], ['禁じた道具', item.denied], ['skill', item.skills],
+      ['retry', item.retry], ['script', item.script_file || item.script], ['runtime', item.runtime], ['最大', item.max], ['終わりの確かめ', item.until],
+      ['先', item.target || item.outside || item.name], ['fan_out', item.fan_out], ['isolation', item.isolation], ['止めの訳', item.halt]]),
+    item.target && G[item.target] && h('button', {class: 'chip', text: `${item.target} を開く`, onclick: () => enter(item.target)}),
+    Object.keys(item.with || {}).length && h('h3', {text: 'with（渡す値）'}),
+    Object.keys(item.with || {}).length && kv(Object.entries(item.with)),
+    item.outs && item.outs.length && h('h3', {text: '出力の欄'}),
+    item.outs && item.outs.length && kv(item.outs.map(f => [f[0], f[1] + (f[2] ? ' ' + f[2] : '')])),
+    item.ask && [h('h3', {text: '人に聞くこと'}), pre(item.ask)],
+    item.bash && [h('h3', {text: 'bash'}), pre(item.bash)],
+    item.doc && [h('h3', {text: 'script の頭の説明'}), pre(item.doc)],
+    item.md && [h('h3', {text: `指示 ${item.md.file || ''}`}), item.md.file ? pre(item.md.text) : h('div', {class: 'empty', text: 'md が無い'})],
+    item.system_md && item.system_md.file && [h('h3', {text: `system ${item.system_md.file}`}), pre(item.system_md.text)],
+    item.prompt && [h('h3', {text: 'YAML の指示の欄'}), pre(item.prompt)],
+    RUN && h('h3', {text: `この run で（${at.events.length} 回）`}),
+    RUN && !at.events.length && !at.skipped.length && h('div', {class: 'empty', text: 'この所の出来事は記録に無い'}),
+    ...at.skipped.map(s => h('div', {}, badge('skipped'), ` ${s.at || ''} ${s.cause ? JSON.stringify(s.cause) : ''}`)),
+    ...at.events.map((e, i) => eventView(e, at.events.length === 1)),
+  ].flat());
+}
+
+// 出来事（図の板とログで同じ形）
+function eventView(e, open) {
+  const head = [badge(e.status), h('span', {class: 'mono', text: e.tokens.join(' / ')}), e.loop.length ? h('span', {text: `周 ${e.loop.join('.')}`}) : null,
+    h('span', {class: 'empty', text: (e.start || '').replace('T', ' ').replace(/\..*/, '')}), e.cost ? h('span', {text: usd(e.cost)}) : null];
+  const body = [
+    kv([['run', e.run === RUN.id ? '' : e.run.slice(0, 8)], ['種類', e.kind], ['始め', e.start], ['終わり', e.end], ['模型', e.model], ['effort', e.effort],
+      ['往復', e.turns], ['トークン', e.usage ? `入 ${num(e.usage.input)}・出 ${num(e.usage.output)}・cache 読み ${num(e.usage.cacheRead)}・cache 書き ${num(e.usage.cacheWrite)}` : ''],
+      ['会話', e.session ? `${e.session}（${e.origin}）` : ''], ['図の所', e.at ? `${e.at.graph} / ${e.at.node}` : '図に当たらない']]),
+    e.error && [h('h3', {text: '誤り'}), pre(e.error, 'err')],
+    e.calls.length && [h('h3', {text: `道具の呼び出し（${e.calls.length}）`}),
+      h('table', {}, e.calls.map(c => h('tr', {}, h('td', {text: c.name}), h('td', {text: c.status}), h('td', {class: 'wrap mono', text: c.title}))))],
+    e.exec.length && [h('h3', {text: 'script と bash の出力の終わり'}), ...e.exec.map(x => fold(`${x.label} 終了の値 ${x.exit}`, [x.stdout && pre(x.stdout), x.stderr && pre(x.stderr, 'err')]))],
+    e.output != null && [h('h3', {text: '出力'}), pre(pretty(e.output))],
+    e.session && sessionView(e.session),
+  ];
+  return fold(head, body.flat().filter(Boolean), open);
+}
+function pretty(s) { try { return JSON.stringify(JSON.parse(s), null, 1); } catch (_) { return s; } }
+
+// 会話（Claude Code の記録）
+function sessionView(preview) {
+  const S = (RUN.sessions || {})[preview];
+  if (!S) return [h('h3', {text: '会話'}), h('div', {class: 'empty', text: `会話 ${preview} の記録が見つからない（Claude Code が消した古い記録は結べない）`})];
+  const rec = S.recorded || {};
+  const size = marks => marks.reduce((n, m) => n + text(m).length, 0);
+  const system = rec['api-request-shape'] === false ? h('span', {class: 'empty', text: NOT_RECORDED})
+    : h('span', {}, `${S.system.length} 片・${num(size(S.system))} 字・道具 ${S.tools.length}`);
+  const inject = rec['api-request-blob'] === false ? h('span', {class: 'empty', text: NOT_RECORDED})
+    : h('span', {}, `${S.inject.length} 片・${num(size(S.inject.map(i => i[1])))} 字`);
+  return [h('h3', {text: `会話 ${preview}`}),
+    kv([['system', system], ['添え書き', inject], ['往復', S.turns.length], ['費用', usd(S.cost)]]),
+    S.system.length && fold('system', S.system.map(m => pre(text(m)))),
+    S.tools.length && fold('道具の一覧', h('div', {}, S.tools.map(t => h('span', {class: 'chip', text: `${t[0]} ${num(t[1])}`})))),
+    S.inject.length && fold('添え書き', S.inject.map(i => pre(text(i[1])))),
+    S.prompt && fold('最初の指示', pre(text(S.prompt))),
+    S.turns.length && fold('往復ごと', h('table', {}, h('tr', {}, ['', '入', 'cache 読み', 'cache 書き', '出', '道具'].map(x => h('th', {text: x}))),
+      S.turns.map((t, i) => h('tr', {}, h('td', {text: i + 1}), ['in', 'cache_read', 'cache_write', 'out'].map(k => h('td', {text: num((t.usage || {})[k])})),
+        h('td', {class: 'wrap', text: t.calls.map(c => c.name).join('・')}))))),
+    S.seq.length && fold('流れ', S.seq.map(seqRow)),
+  ].filter(Boolean);
+}
+function seqRow(x) {
+  const [kind, a, b] = x;
+  if (kind === 'usage') return h('div', {class: 'empty', text: `トークン 入 ${num(a.in)}・cache 読み ${num(a.cache_read)}・cache 書き ${num(a.cache_write)}・出 ${num(a.out)}`});
+  if (kind === 'call') return fold(`道具 ${a}`, pre(text(b)));
+  const label = {user: '指示', result: b ? '道具の結果（誤り）' : '道具の結果', say: 'AI', think: '考え'}[kind] || kind;
+  return fold(`${label}（${num(text(a).length)} 字）`, pre(text(a), kind === 'result' && b ? 'err' : null));
+}
+
+// run の一覧
+function runs() {
+  const out = $('s-runs');
+  const cmd = id => `uv run --isolated python3 viewer/flowview.py --target ${D.target} --run ${id} <出力>`;
+  out.append(h('div', {class: 'pad'}, `${D.target} の run の家の親の run（新しい順）。別の run を見るには、その行の命令を工場の clone の根で打つ（ページは 1 枚なので、ここから移れない）`),
+    h('table', {}, h('tr', {}, ['id', 'graph', '状態', '待ち', '始め', 'かかった', '費用'].map(x => h('th', {text: x}))),
+      D.runs.flatMap(r => [h('tr', {class: RUN && r.id === RUN.id ? 'cur' : null}, h('td', {class: 'mono', text: r.short}), h('td', {text: r.graph}),
+        h('td', {}, badge(r.status)), h('td', {text: r.waiting.join('・')}), h('td', {text: r.started}), h('td', {text: secs(r.seconds)}), h('td', {text: usd(r.cost)})),
+        h('tr', {}, h('td', {}), h('td', {colspan: 6, class: 'wrap'}, r.error ? h('div', {class: 'err', text: r.error}) : null, h('code', {class: 'cmd', text: cmd(r.short)})))])));
+}
+
+// ログ
+function log() {
+  const out = $('s-log'), box = h('div', {class: 'pad'});
+  box.append(kv([['run', RUN.id], ['graph', RUN.graph], ['状態', badge(RUN.status)], ['始め', RUN.started], ['かかった', secs(RUN.seconds)], ['費用', usd(RUN.cost)],
+    ['写し', RUN.copy]]));
+  if (RUN.children.length) box.append(h('h3', {text: `子の run（${RUN.children.length}）`}),
+    h('table', {}, RUN.children.map(c => h('tr', {}, h('td', {class: 'mono', text: c.id.slice(0, 8)}), h('td', {text: c.graph}), h('td', {}, badge(c.status)),
+      h('td', {text: c.node.join(' / ')}), h('td', {text: secs(c.seconds)})))));
+  box.append(h('h3', {text: `ノードの出来事（${RUN.events.length}・時刻順）`}), ...RUN.events.map(e => eventView(e, false)));
+  if (RUN.skipped.length) box.append(h('h3', {text: `飛んだノード（${RUN.skipped.length}）`}),
+    h('table', {}, RUN.skipped.map(s => h('tr', {}, h('td', {class: 'mono', text: s.tokens.join(' / ')}), h('td', {text: s.at || ''}),
+      h('td', {class: 'wrap mono', text: s.cause ? JSON.stringify(s.cause) : ''})))));
+  if (RUN.checks.length) box.append(h('h3', {text: `繰り返しの終わりの確かめ（${RUN.checks.length}）`}),
+    ...RUN.checks.map(x => fold(`${x.step} ${x.label} 終了の値 ${x.exit}`, [x.stdout && pre(x.stdout), x.stderr && pre(x.stderr, 'err')])));
+  const arts = Object.entries(RUN.artifacts);
+  if (arts.length) box.append(h('h3', {text: `出力が指す run の置き場のファイル（${arts.length}）`}), ...arts.map(([k, v]) => fold(h('span', {class: 'mono', text: k}), pre(v))));
+  if (RUN.live) box.append(h('div', {class: 'notice', text: `ここまで（${D.made_at}）。run は走り中なので、この先は記録にまだ無い`}));
+  out.append(box);
+}
+
+// 読めなかった物（黙って落とさない）
+function unreadCount() {
+  let n = D.shape.problems.length + D.unmatched.length;
+  if (RUN) { n += Object.values(RUN.unread).reduce((a, b) => a + b, 0) + RUN.missing_logs.length;
+    for (const S of Object.values(RUN.sessions || {})) n += Object.values(S.unread).reduce((a, b) => a + b, 0); }
+  return n;
+}
+function unread() {
+  const box = h('div', {class: 'pad'});
+  const list = (title, rows) => box.append(h('h3', {text: `${title}（${rows.length}）`}), rows.length ? h('ul', {}, rows.map(r => h('li', {class: 'mono', text: r}))) : h('div', {class: 'empty', text: 'なし'}));
+  list('作りの読みの問題', D.shape.problems);
+  list('図に当たらないノード', D.unmatched);
+  if (RUN) {
+    list('Archon の記録の読めなかった行', Object.entries(RUN.unread).map(([k, v]) => `${k}: ${v}`));
+    list('記録の無い run', RUN.missing_logs);
+    const ses = [];
+    for (const [p, S] of Object.entries(RUN.sessions || {})) for (const [k, v] of Object.entries(S.unread)) ses.push(`${p} ${k}: ${v}`);
+    list('会話の記録の読まない行（Claude Code の記録の形は工場が止めていない）', ses);
+  }
+  $('s-unread').append(box);
+}
+
+header();
+if (D.target) runs();
+if (RUN) log();
+unread();
+</script>
+</body>
+</html>
