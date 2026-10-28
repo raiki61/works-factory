@@ -119,3 +119,10 @@ ASF の版を進めた時は、各セクションの行を新しい版で読み�
 - なぜその形か: 人の答えで同じ実行の中の次の周を回せ、繰り返しを起こし直さない（直す前の試験と判定をやり直さない）。`when:` で飛んだ承認ノードは出力を持たないので、ループの終わりは承認ノードの前のノードが決める。
 - 採った先: line の計画の往復 `plan-rounds` の設計の相談（周の頭 `design-turn`・終わり `design-talk`・承認ノード `gate-design`。`docs/design/line.md` の 3.1（設計の相談）。持ち主の決め `dialogue-gate-in-loop`）。
 - 違い: 承認ノードを開くのは対話モード（`design_talk`）の run の、往復が止まる周だけ。答えの語は今の 4 つに `revise` を足した 5 つ（`rerun`・`finish` は使わない）。修正要望は一言を往復の記録の人の block に書き足し、計画の役の答えと事前審査の照らしを求める（止め時の決まりは今のまま）。合意の後は修正前の承認ノードで聞き直さない。
+
+### A15 どう作るかの計画は、選んだ案と捨てた案と訳を書き、人にしか答えられない問いで止まる
+
+- ASF: a972888a の `.archon/workflows/sdlc/plan-entry/archon-plan.yaml`（頭の `description` の「the approach chosen with alternatives rejected for stated reasons」と「When the plan stops on questions only a person can answer, the run pauses as one attention item … The answer plans again with the person's note」）。
+- なぜその形か: 何を作るかは決まり、どう作るかが決まっていない時、選んだ案だけを書くと捨てた案の代償が読み手に見えず、人にしか決められない問いが成果物の中に埋もれる。問いで止まって人の一言で計画し直せば、問いを残したまま先へ進まない。
+- 採った先: 設計の案の書き手の block `workflows/theme/`（設計の案の `asks` の案ごとの得と代償・推しと訳。`docs/design/theme.md` の 3 章と 11.1 の 2）。人の一言で設計し直す往復は line の設計の段（`docs/plans/2026-10-27-design-stage.md` の 2.3。PR T3）。
+- 違い: ASF の計画は 1 本の役で、往復ごとに別の役が攻める目と、計画の後に同じ run で作り始める道を持たない（読んで報告するだけ）。工場は問いを 1 つの欄にまとめず、問いごとに 2 つ以上の案・推し・代償を持たせ、決まりで決まる物は問いにせず出どころつきの部署の決め（`decided`）にする。
