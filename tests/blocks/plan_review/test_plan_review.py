@@ -55,6 +55,23 @@ def nodes() -> dict:
     return out
 
 
+def roles() -> dict:
+    """AI の node（prompt を持つ node）を、YAML から {id: node} で（node の id を手で並べない）"""
+    return {nid: node for nid, node in nodes().items() if "prompt" in node}
+
+
+def first_and_fix() -> tuple[set, set]:
+    """輪ごとに、出し直しの役（同じ輪の <1 回目の役>-fix）を持つ 1 回目の役と、出し直しの役の id"""
+    first, fix = set(), set()
+    for node in workflow()["nodes"]:
+        body = {n["id"] for n in (node.get("loop_group") or {}).get("nodes") or [] if "prompt" in n}
+        for nid in body:
+            if nid.endswith("-fix") and nid.removesuffix("-fix") in body:
+                first.add(nid.removesuffix("-fix"))
+                fix.add(nid)
+    return first, fix
+
+
 def libs():
     """lib の KEEP のモジュール（script と同じ sys.path で読む）"""
     kit.load("plan-review", "files")
@@ -650,20 +667,27 @@ class YamlCase(unittest.TestCase):
             with self.subTest(loop):
                 self.assertEqual(sorted(layer.values()), list(range(len(body))))
 
+    def test_ai_nodes_are_the_prompt_nodes(self):
+        """YAML の AI の node（prompt を持つ node）は、指示を組む口が名を持つ files.PROMPT_NODES と同じ組（下の照らしは YAML から引く）"""
+        files = kit.load("plan-review", "files")
+        self.assertEqual(set(roles()), set(files.PROMPT_NODES))
+
     def test_conversation_keys(self):
-        """1 回目の役は context: fresh、出し直しの役と方針の文の役は context を書かない（会話の続き）"""
+        """出し直しの役を持つ輪の 1 回目の役は context: fresh、出し直しの役と、出し直しの役を持たない輪の役（方針の文の役）は context を
+        書かない（会話の続き）。どの役も指示は同じ輪の script の prep の出力で、模型の群と出し直しの鍵は同じ"""
         got = nodes()
-        for nid in ("review", "review-tree", "review-theme"):
-            self.assertEqual(got[nid].get("context"), "fresh")
-        for nid in ("review-fix", "review-tree-fix", "review-text", "review-theme-fix"):
-            self.assertNotIn("context", got[nid])
-        preps = {"review-text": "text-prep", "review-theme": "theme-prep", "review-theme-fix": "theme-fix-prep"}
-        for nid in ("review", "review-fix", "review-tree", "review-tree-fix", "review-text", "review-theme", "review-theme-fix"):
+        first, _ = first_and_fix()
+        for nid, node in roles().items():
             with self.subTest(nid):
-                prep = preps.get(nid) or ("review-fix-prep" if nid.endswith("-fix") else "review-prep")
-                self.assertEqual(got[nid]["prompt"], f"${prep}.output.prompt")
-                self.assertEqual(got[nid]["model"], "@wf-plan-review")
-                self.assertEqual(got[nid]["retry"], {"max_attempts": 2, "on_error": "all"})
+                if nid in first:
+                    self.assertEqual(node.get("context"), "fresh")
+                else:
+                    self.assertNotIn("context", node)
+                prep = node["prompt"].removeprefix("$").removesuffix(".output.prompt")
+                self.assertEqual(node["prompt"], f"${prep}.output.prompt")
+                self.assertIsNotNone(got[prep].get("script"), f"{nid} の指示を組む {prep} が script の node でない")
+                self.assertEqual(node["model"], "@wf-plan-review")
+                self.assertEqual(node["retry"], {"max_attempts": 2, "on_error": "all"})
 
     def test_every_node_keeps_the_checkout(self):
         for nid, node in nodes().items():
@@ -715,7 +739,8 @@ class YamlCase(unittest.TestCase):
     def test_resubmit_formats_equal_the_first_role(self):
         """#832: 出し直しの役の型は 1 回目の役の型と同じ（違うと会話の続きの最初の要求でキャッシュが効かない）"""
         got = nodes()
-        for base, fix in (("review", "review-fix"), ("review-tree", "review-tree-fix"), ("review-theme", "review-theme-fix")):
+        first, _ = first_and_fix()
+        for base, fix in ((nid, f"{nid}-fix") for nid in sorted(first)):
             with self.subTest(fix):
                 self.assertEqual(got[fix]["output_format"], got[base]["output_format"])
                 launch = lambda node: {k: x for k, x in node.items()  # noqa: E731
@@ -745,11 +770,12 @@ class YamlCase(unittest.TestCase):
         self.assertEqual(theme["required"], [])
         self.assertEqual(got["review-theme"]["allowed_tools"], ["Read", "Grep", "Glob", "WebSearch", "WebFetch"])
 
-    def test_theme_loop_is_waited_for(self):
-        """読んだ証拠と出口は形 theme の輪も待つ（trigger_rule: all_done なので、待たないと輪の前に回る）。形 plan の輪は形 theme で回らない"""
+    def test_theme_form_is_named(self):
+        """形 plan の輪は形 theme で回らず、入口と出口の形の語に theme が在る。出口が形 theme の輪を待つかは、全部の workflow の返す節に
+        当てる tests/workflows/test_returns_waits.py が照らす（読んだ証拠の review-reads は出口が待つ節の 1 つ）"""
         got = nodes()
-        for nid in ("review-reads", "finish"):
-            self.assertIn("theme-loop", got[nid]["depends_on"], nid)
+        self.assertIn("review-reads", got["finish"]["depends_on"])
+        self.assertIn("theme-loop", got["review-reads"]["depends_on"])
         self.assertIn("form != 'theme'", got["review-loop"]["when"])
         for nid in ("intake", "finish"):
             self.assertIn("theme", got[nid]["output_format"]["properties"]["form"]["enum"], nid)
@@ -757,7 +783,7 @@ class YamlCase(unittest.TestCase):
     def test_formats_use_only_known_keywords(self):
         files = kit.load("plan-review", "files")
         import ports
-        for nid in ("review", "review-fix", "review-tree", "review-tree-fix", "review-text", "review-theme", "review-theme-fix"):
+        for nid in roles():
             with self.subTest(nid):
                 self.assertEqual(ports.unknown_keywords(files.node_schema(nid)), [])
                 self.assertEqual(files.node_schema(nid), nodes()[nid]["output_format"], "node_schema は YAML の型をそのまま読む")

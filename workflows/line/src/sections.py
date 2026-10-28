@@ -26,6 +26,7 @@ LENS_LOCAL = "未確認のレンズと局所レビュー"
 JUDGMENT = "判定（目的の外とした所見を含む）"
 DESIGN = "独立設計"
 ROUNDS = "計画の往復"
+THEME = "設計の段"
 BEFORE_FIX = "修正前の承認ノード"
 REVIEW_1 = "レンズと差分の審査（1 回目の段）"
 REPLAN = "案の直し"
@@ -271,6 +272,9 @@ def build(values: dict, record: dict, *, cwd, folder) -> list:
     judge_s, eyes_s = _by_title(judge), _by_title(eyes)
     used = set()
     out = [_section(ENTRY, entry_lines(values, record, cwd=cwd, folder=folder))]
+    theme = theme_section(v)
+    if theme:
+        out.append(theme)
     spec_lines = [*_lines(v.get("spec_entry")), *_lines(v.get("spec_driven_check"))]
     if spec_lines:   # 仕様駆動の run の入口の確かめと、仕様とリポジトリの食い違いの照らし（docs/design/spec-driven.md の 6.2 の変える node の 7）
         out.append(_section(SPEC_DRIVEN, spec_lines))
@@ -384,6 +388,25 @@ def rounds_lines(rounds: dict) -> list:
     except Exception as e:  # noqa: BLE001 — 往復の行を組めなくても節を出す
         lines.append(f"往復ごとの行を組めない（{type(e).__name__}: {e}）")
     return lines
+
+
+def theme_section(v: dict) -> dict | None:
+    """設計の段の節（テーマの run だけ。docs/design/line.md の 3.3 節）: 往復の行・関所の答え・降りた依頼の行・設計へ戻した時の続きの
+    run の在りかと起動の 1 行。テーマの run でなければ None"""
+    rounds, descended, back = v.get("theme_rounds"), v.get("theme_descend"), v.get("theme_return")
+    if not (rounds or descended):
+        return None
+    lines = rounds_lines(rounds) if rounds else ["設計の往復の返りが無い（設計の段が落ちたか飛んだ）"]
+    lines[0] = lines[0].replace("修正へ進まない", "降りない").replace("修正へ進む", "降りる")
+    lines += [f"設計の段の承認ノードの答え（{t.get('round')} 周目）: {t.get('decision')}——{t.get('text') or '（一言なし）'}"
+              + (f"（読めずに聞き直した: {t['bad']}）" if t.get("bad") else "")
+              for t in _l(_d(rounds).get("talks")) if isinstance(t, dict)]
+    lines += [str(x) for x in _l(_d(rounds).get("report"))]
+    lines += [str(x) for x in _l(_d(descended).get("report"))]
+    lines += [str(x) for x in _l(_d(back).get("report"))]
+    return _section(THEME, lines, _files(("承認された設計", _d(descended).get("approved") or None, "file"),
+                                         ("設計の案（最後の周）", _d(rounds).get("design_md"), "file"),
+                                         ("設計の往復の記録", _d(rounds).get("record"), "json(shared:plan-converge.schema.json)")))
 
 
 def groups_lines(judge: dict) -> list:

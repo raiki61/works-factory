@@ -551,7 +551,9 @@ def start_items(answer) -> list:
 
 def recorded_rows(record, dealt: dict, *, decisions, answer) -> list:
     """事前審査に渡す記録された方針の行（policy.recorded。始めの記録の欄 policy の固めた版と依頼の answers・起動の承認ノードの答え・
-    判定の決着済みの論点）。record は始めの記録の dict（無ければ配る値の方針の写しと依頼の answers から同じ形を組む）"""
+    判定の決着済みの論点）。record は始めの記録の dict（無ければ配る値の方針の写しから同じ形を組む）。依頼の answers はどちらも配る値の
+    request_answers（テーマの run は降りた依頼の答え。src.descend.dealt）"""
     import policy
-    start = record if isinstance(record, dict) else {"policy_md": dealt.get("policy") or "", "answers": dealt.get("request_answers") or []}
+    start = {**record, "answers": dealt.get("request_answers") or []} if isinstance(record, dict) else \
+        {"policy_md": dealt.get("policy") or "", "answers": dealt.get("request_answers") or []}
     return policy.recorded(start, decisions, human_items=start_items(answer))

@@ -16,7 +16,8 @@
 until_bash はこの node の done だけを読む（飛びうる関所の出力を読まない。止めた Archon の決まり）。
 
 入力（with:）: turn（design-turn の返り）・plan_out（plan-out の返り。回さなかった周は null）・previous（$LOOP_PREV.design-talk.output）・
-structure（structure-in の structure）・judge（judge-out の got）・record（始めの記録の pointer）・ports（start の配る値）
+structure（structure-in の structure）・judge（judge-out の got）・record（始めの記録の pointer）・ports（start の配る値）・
+request（request-in の返り。台帳の依頼の答えは src.descend.dealt で替えた配る値から読む）
 """
 import os
 import sys
@@ -29,8 +30,8 @@ import ports  # noqa: E402
 
 def compute() -> dict:
     raw = {name: os.environ.get(f"INPUTS_{name.upper()}")
-           for name in ("turn", "plan_out", "previous", "structure", "judge", "record", "ports")}
-    from src import asking, talk
+           for name in ("turn", "plan_out", "previous", "structure", "judge", "record", "ports", "request")}
+    from src import asking, descend, talk
 
     given = ports.parsed(raw["ports"])
     turn_got = ports.parsed(raw["turn"])
@@ -39,10 +40,11 @@ def compute() -> dict:
     plan_out = ports.picked(raw["plan_out"], tuple(talk.failed()))   # plan-out の返りの欄（落ちた形と同じ欄）
     previous = ports.parsed(raw["previous"])
     place = ports.place()
+    dealt = descend.dealt(given, raw["request"])
 
     def materials(rounds: dict) -> dict:
         return asking.materials(rounds, structure_raw=raw["structure"], judge_raw=raw["judge"], record_raw=raw["record"],
-                                unattended=False, place=place)
+                                dealt=dealt, unattended=False, place=place)
 
     return talk.settle(turn_got=turn_got, plan_out=dict(plan_out) if plan_out is not None else None,
                        previous=previous if isinstance(previous, dict) else None, given=given, materials=materials,

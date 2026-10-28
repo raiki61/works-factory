@@ -4,7 +4,7 @@
 loopIterationCompletes）。ここでは line の YAML の plan-rounds の node をそのまま写し、AI を起こす 2 つの include（plan・plan-review-run）
 だけを、同じ id・同じ when・同じ返りの欄の模擬の script に差し替えた使い捨ての工程を組んで回す。周の頭 design-turn・plan-out・周の
 終わり design-talk・関所 gate-design と、輪の後ろの受け皿と修正前の承認ノード ask-before-fix は line の本物の script。輪の外の前の段
-（start・判定・owed など）は値を返すだけの script。AI も認証も要らないので CI でも走る。本物の AI の役（計画・事前審査）は回していない。
+（start・依頼の出どころ request-in・判定・owed など）は値を返すだけの script。AI も認証も要らないので CI でも走る。本物の AI の役（計画・事前審査）は回していない。
 
 照らす事（#822 の受入確認のうち、本物の Archon の止め・答え・再開・周の数が要る物）:
 - 通常の run（design_talk が空）: 止まらずに終わり、関所は飛び、往復の返りは plan-out の返りのまま
@@ -157,7 +157,10 @@ def probe(design_talk: bool, notes: str = "") -> dict:
     head = [
         _emit("start", {"ok": True, "record": "@ptr:r1/start.json", "ports": ports},
               files={"r1/start.json": {"answers": []}, **({"talk/notes.txt": notes} if notes else {})}),
-        _emit("judge", {"ok": True, "ready": True}, depends=["start"]),
+        _emit("request-in", {"go": True, "stop_reason": "", "reason": "", "request": None, "request_file": "",
+                             "request_answers": ports["request_answers"], "entry": "", "request_origin": "", "request_scope": False,
+                             "prior_rows": [], "notes": []}, depends=["start"]),
+        _emit("judge", {"ok": True, "ready": True}, depends=["request-in"]),
         _emit("judge-out", {"got": {"judgment": None, "answer_ties": None, "materials": None}}, depends=["judge"]),
         _emit("owed", {"owed": True, "recorded": [{"source": "doc", "name": "p.md", "text": ""}], "stop_reason": ""}, depends=["judge"]),
         _emit("structure-in", {"structure": None, "stop_reason": ""}, depends=["judge"]),

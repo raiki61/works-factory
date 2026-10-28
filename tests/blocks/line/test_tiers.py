@@ -14,6 +14,14 @@ BLOCK = "line"
 tiers = kit.load(BLOCK, "tiers")
 import headdepth  # noqa: E402  （KEEP の lib）
 
+descend = kit.load(BLOCK, "descend")
+
+
+def handed(dealt: dict) -> str:
+    """request-in の返りの形の依頼の欄（配る値まるごとを受ける script は依頼をここから読む。src/descend.py の dealt）"""
+    return json.dumps({name: dealt.get(name) for name in descend.REQUEST_FIELDS}, ensure_ascii=False)
+
+
 UNKNOWN_NONE = "無し"   # head-depth の行ごとの未知の種類「無し」（workflows/head-depth/src/steps.py の NONE。block の間は import しない）
 
 U1 = "u1: 一つ目の根本"
@@ -105,7 +113,7 @@ class RaiseCase(unittest.TestCase):
                                units_tier=json.dumps(rows, ensure_ascii=False), switches=json.dumps({"tier": tier}, ensure_ascii=False),
                                judgment=json.dumps(judgment), tier_record=json.dumps(tier_record), answer=json.dumps(answer),
                                record="null", ports=json.dumps(dealt or {"forced": "", "carried_measured": False}),
-                               plan=json.dumps(plan))
+                               plan=json.dumps(plan), request=handed(dealt or {}))
 
     def test_quiet_light_run_skips_and_says_why(self):
         got = self.raised()

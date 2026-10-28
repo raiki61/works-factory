@@ -15,7 +15,8 @@ got）は要る欄を全部名指して読む（欄の欠けた前の版の返�
 入力（with:）: notices（testcmd の注意の字）・start・answer_start・tiers・owed・structure_in・design_in・ask_before_fix・answer_before_fix・
 fix_in・after_fix・raise・lens_in・ask_replan・answer_replan・lens_2_in・fixed・judged・eyes_in・ask_final・answer_final（line の script の
 出力）・test_gate_base・judge・structure・independent_design・rounds・fix・lens・delta・replan・replan_review・refix・lens_2・delta_2・
-parallel_after・rejudge・spec_check・test_gate_final・eyes・merge_seal・merge_apply（受け皿の got）・optional（line 自身の受け止める段の宣言）
+parallel_after・rejudge・spec_check・test_gate_final・eyes・merge_seal・merge_apply（受け皿の got）・optional（line 自身の受け止める段の宣言）・
+テーマの run の theme_world_in・theme_blind（受け皿の got）・theme_design_in・theme_rounds（受け皿の got）・theme_descend・request_in・theme_return
 """
 import json
 import os
@@ -51,6 +52,9 @@ GOT = {
     "eyes": "ok r1 r2 r3 r4 questions passes premise_check notes after dirty escalate after_ok report sections",
     "merge_seal": "mode ok hash diff protected_hits protected_count reason deliver report",
     "merge_apply": "mode ok hash diff protected_hits protected_count reason deliver report",
+    "theme_blind": "ok status stands design premises reason downgrades report",
+    "theme_rounds": "done ok status round prior_design record design design_md review stalled capped review_status review_reason reason "
+                    "stop_reason open text asked agreed talks notes shown timeline",
 }
 GOT["refix"] = GOT["fix"]
 GOT["lens_2"] = GOT["lens"]
@@ -83,6 +87,10 @@ def raw_inputs() -> dict:
         "spec_driven_check": os.environ.get("INPUTS_SPEC_DRIVEN_CHECK"), "spec_rounds": os.environ.get("INPUTS_SPEC_ROUNDS"),
         "spec_ask_before_fix": os.environ.get("INPUTS_SPEC_ASK_BEFORE_FIX"),
         "spec_answer_before_fix": os.environ.get("INPUTS_SPEC_ANSWER_BEFORE_FIX"),
+        "theme_world_in": os.environ.get("INPUTS_THEME_WORLD_IN"), "theme_blind": os.environ.get("INPUTS_THEME_BLIND"),
+        "theme_design_in": os.environ.get("INPUTS_THEME_DESIGN_IN"), "theme_rounds": os.environ.get("INPUTS_THEME_ROUNDS"),
+        "theme_descend": os.environ.get("INPUTS_THEME_DESCEND"), "request_in": os.environ.get("INPUTS_REQUEST_IN"),
+        "theme_return": os.environ.get("INPUTS_THEME_RETURN"),
     }
 
 

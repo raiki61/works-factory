@@ -42,14 +42,15 @@ class PushRecCase(unittest.TestCase):
 
 
 class RecordReadsCase(unittest.TestCase):
-    """4.5-4 (b): 設計だけの run か・依頼が先に持っていた答えは、始めの記録の dict の値で読む（KEEP の lib に記録を読ませない）"""
+    """4.5-4 (b): 設計だけの run かは始めの記録の dict の値で、依頼の答えは配る値（src.descend.dealt の写し）の値で読む（KEEP の lib に記録を
+    読ませない）"""
 
     def test_design_only_and_request_answers(self):
         self.assertTrue(gates.design_talk({"design_talk": gatemarks.DESIGN_ONLY}))
         self.assertFalse(gates.design_talk({}))
         self.assertFalse(gates.design_talk(None))
-        self.assertEqual(gates.request_answers({"answers": [{"question": "q", "text": "a"}, "x"]}), [{"question": "q", "text": "a"}])
-        self.assertEqual(gates.request_answers({"answers": "x"}), [])
+        self.assertEqual(gates.request_answers({"request_answers": [{"question": "q", "text": "a"}, "x"]}), [{"question": "q", "text": "a"}])
+        self.assertEqual(gates.request_answers({"request_answers": "x"}), [])
 
 
 if __name__ == "__main__":

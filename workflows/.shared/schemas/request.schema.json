@@ -15,6 +15,7 @@
   },
   "required": ["findings"],
   "properties": {
+    "theme": {"type": "string", "description": "テーマ（コードに落とす前の設計の問い）の文か、対象の根からの md のパス。設計の段の入口（docs/design/line.md の 3.3）"},
     "findings": {
       "type": "array",
       "items": {
