@@ -2,7 +2,7 @@
 （docs/design/viewer.md の照らしの 2）。源の字を読むだけなので手元の確かめでも回る（源が無ければ tests/archon.py の absent。CI は赤）。
 
 - ログの行の型と道具の出来事の型は、源の型の和と runread の読む型・読まない型の和がちょうど同じ（源に型が足されても消されても赤）
-- run の状態は源の enum とちょうど同じ
+- run の状態は源の enum とちょうど同じ（生きている状態と答えを待つ状態はその中）
 - DB の表の欄は、源の CREATE TABLE のその表の欄に在る
 - 置き場の名と、DB の出来事・metadata の名は、源のその名を書くファイルに字として在る
 
@@ -63,7 +63,7 @@ class ArchonNamesTest(unittest.TestCase):
     def test_statuses_are_the_sources(self):
         found = re.search(r"workflowRunStatusSchema = z\.enum\(\[(.*?)\]\)", self.read(RUN_SCHEMA), re.S)[1]
         self.assertEqual(literals(found), set(runread.STATUSES))
-        self.assertLessEqual(set(runread.LIVE), set(runread.STATUSES))
+        self.assertLessEqual({*runread.LIVE, runread.PAUSED}, set(runread.STATUSES))
 
     def test_table_columns_are_in_the_source(self):
         text = self.read(SQLITE)

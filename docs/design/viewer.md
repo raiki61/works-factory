@@ -13,7 +13,7 @@
 ## 2 層と頼り
 
 - 層の地図 `docs/layers.json` の層 `viewer`（`may_use` は `shell`・`shared`・`lib`）。どの層の `may_use` にも入らない。
-- 殻（`shell`）に頼るのは、run の家を殻と同じ順に引くため。読む殻の口は `bin/_lib/launcher.py` の `target_root`・`run_home` と `bin/_lib/isolate.py` の `DIRS` の 3 つ（`bin/AGENTS.md` に同じ 3 つを書く）。`target_root` を通すのは、殻が `--cwd` を実のパスと git の根に直してから `run_home` に渡すため（相対のパス・対象の下のフォルダ・symlink で違う家を引かない）。
+- 殻（`shell`）に頼るのは、run の家を殻と同じ順に引くため。読む殻の口は `bin/_lib/launcher.py` の `target_root`・`run_home`・その 2 つが止まる時に投げる `Stop`（見る道具は受けて文を出し、終了の値 2 で止まる）と、`bin/_lib/isolate.py` の `DIRS` の 4 つ（`bin/AGENTS.md` に同じ 4 つを書く）。`target_root` を通すのは、殻が `--cwd` を実のパスと git の根に直してから `run_home` に渡すため（相対のパス・対象の下のフォルダ・symlink で違う家を引かない）。
 - `lib` は `lib/runlog.py`（Archon の spend の測りの読み `measurement`・`tokens` と、記録の行の名の一部）を使う。`shared` は T3 で日本語の写しを組む口（`workflows/.shared/prompt.py`）に使う。
 - 照らし: 見る道具へ頼らない向きは `tests/layers/test_viewer_apart.py`（E25 の 1）、`lib/` が見る道具を import しない向きは `tests/layers/test_lib_blind.py`（地図から頭のフォルダを作る `scan.LAYER_IMPORT` に `viewer` が入る）。見る道具自身の `may_use` は機械で照らさない: import の照らしは頭のフォルダの単位で、`may_use` の 3 つの層の頭（`bin`・`workflows`・`lib`）がどれも許されるので照らす字が無い。block と graph の中の物を import しないことは人が見る（YAML と md と script の docstring を字として読むのは見る道具の役目で、頼りに数えない）。
 
@@ -33,10 +33,10 @@
 
 ## 5 記録の読み（`src/runread.py`）
 
-- run の家の `archon-home/archon.db`（名は `isolate.DIRS`）を読むだけで開く。run の一覧は run の表の親の行（`parent_run_id` が空）だけを読み、ログは読まない。行は id・グラフの名・状態・止まっている承認ノード（DB の `node_suspended` の後に終わりの無いノード）・始め・かかった秒・費用（metadata の `total_cost_usd`）・落ちの訳の頭の 1 行（DB の `workflow_failed`）。
+- run の家の `archon-home/archon.db`（名は `isolate.DIRS`）を読むだけで開く。run の一覧は run の表の親の行（`parent_run_id` が空）だけを読み、ログは読まない。行は id・グラフの名・状態・止まっている承認ノード（状態が `paused` の run だけ。DB の `node_suspended` の後に終わりの無いノード。止めた・放棄した run は `node_completed` を書かずに `cancelled` になるので、状態で絞る）・始め・かかった秒・費用（metadata の `total_cost_usd`）・落ちの訳の頭の 1 行（DB の `workflow_failed`）。
 - 選んだ run の記録は、DB の行の `output_root` から `logs/<run>.jsonl` を読む。子の run は DB の `parent_run_id` と metadata の `parent_node_id` で辿り、子の出来事の道の頭に親のノードの道を足す。run の写しは `<output_root>/workflow-source/runs/<run>/project/.archon/workflows`。写しが無い run は今の木で読み、`shape_from` を `tree` にする。
 - 出来事はノードの起動（`execution.invocation.id`）ごとに 1 つ: 始めと終わり・状態（走り中・待ち・済み・落ち）・落ちた時の誤りの字（`node_error` の `error`）・費用（`accounting` が `node` の行だけ。束ねた行は数え直さない）・模型とトークンと往復の数・道具の呼び出し（`provider_event` の `tool_call` と `tool_call_update` を試み〔`attemptId`〕で結ぶ）・script と bash の出力の終わり（`exec_output`）・出力（DB の `node_completed` の `node_output`）と、出力が指す run の置き場の小さなファイル。
-- 行の型と道具の出来事の型は、止めた Archon の型の和の全部を読む型と読まない型（訳つき）に分けて持つ。知らない型の行・ノードに当たらない道具の出来事は `unread` に数え、黙って落とさない。走り中の run は `live` と作った時刻を出す。止まっている run には答える殻の命令の 1 行（`answer`）を付ける。
+- 行の型と道具の出来事の型は、止めた Archon の型の和の全部を読む型と読まない型（訳つき）に分けて持つ。知らない型の行・ノードに当たらない道具の出来事は `unread` に数え、黙って落とさない。走り中の run は `live` と作った時刻を出す。答えを待つ run（状態が `paused`）には答える殻の命令の 1 行（`answer`）を付ける。承認ノードの答えはノードの出力（`wait: attention` の `{decision, text}`）から読む（`gate_decision` の行は工場が使わない古い `approval:` だけが書く）。
 
 ## 6 会話の記録の読み（`src/session.py`）
 
@@ -48,6 +48,6 @@
 
 1. 作りの照らし（`tests/viewer/test_shape.py`）: 今の木の全部の graph を読み、`problems` が 0。
 2. Archon の名の照らし（`tests/viewer/test_archon_names.py`。源の字を読むだけで手元でも回る）: 行の型と道具の出来事の型と run の状態が源とちょうど同じ・DB の欄と置き場の名が源に在る。
-3. 本物の run の照らし（`tests/viewer/test_real_run.py`。Archon を起こすので CI だけで回る）: 小さな graph を 1 回回し、読めなかった行が 0・図に当たらないノードが 0・一覧にその run が終わりの状態で 1 行在る。行の中の欄の名（`execution.path` など）はここで照らす。
+3. 本物の run の照らし（`tests/viewer/test_real_run.py`。Archon を起こすので CI だけで回る）: 小さな graph を 1 回回し、読めなかった行が 0・図に当たらないノードが 0・一覧にその run が終わりの状態で 1 行在る。承認ノードで止まった run は待ちと `answer` を出し、待ちのまま放棄した後は出さない。答えた承認ノードは出力に答えを持つ。行の中の欄の名（`execution.path` など）はここで照らす。
 4. 1 枚の照らし（T2）: 雛形に `<script src`・`import(`・`fetch(` が無い。
 5. 層の照らし: 2 章の照らし。

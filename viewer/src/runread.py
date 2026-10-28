@@ -35,6 +35,9 @@ EVENT_COLUMNS = ("workflow_run_id", "event_type", "step_name", "data", "event_or
 # run の状態（packages/workflows/src/schemas/workflow-run.ts の workflowRunStatusSchema）
 STATUSES = ("pending", "running", "completed", "failed", "cancelled", "paused")
 LIVE = ("pending", "running", "paused")
+# 答えを待つ run の状態。待ちはこの状態の run だけに出す（止めた・放棄した run は node_completed を書かずに終わる。
+# packages/core/src/operations/workflow-operations.ts の resolveAndCancelApprovalGate・abandon）
+PAUSED = "paused"
 # run の metadata の欄（子の run を起こしたノード・費用。packages/workflows/src/dag-executor.ts）
 PARENT_NODE = "parent_node_id"
 TOTAL_COST = "total_cost_usd"
@@ -47,12 +50,15 @@ SUSPENDED_EVENT = "node_suspended"
 # ログの行の型（packages/workflows/src/logger.ts の WorkflowEvent の type と、packages/workflows/src/schemas/worktree-setup.ts の
 # WORKTREE_SETUP_EVENT_TYPES）。読む型と、読まない型（訳つき）に分ける
 NODE_ROWS = ("node_start", "node_complete", "node_error", "node_skipped", "node_suspended")
-RUN_ROWS = ("workflow_start", "workflow_resume", "workflow_complete", "workflow_error")
 PROVIDER_ROW = runlog.PROVIDER_ROW
 EXEC_ROW = runlog.EXEC_ROW
-GATE_ROW = "gate_decision"
-READ_ROWS = (*NODE_ROWS, *RUN_ROWS, PROVIDER_ROW, EXEC_ROW, GATE_ROW)
+READ_ROWS = (*NODE_ROWS, PROVIDER_ROW, EXEC_ROW)
 UNREAD_ROWS = {
+    "gate_decision": "古い承認ノード approval: の答え。工場の承認ノード wait: attention はこの行を書かず、答えをノードの出力 {decision, text} に持つ",
+    "workflow_start": "run の始めの印。始めの時刻は DB の run の行から読む",
+    "workflow_resume": "resume の境の印。ノードの出来事は resume の前と後の行を同じに読む",
+    "workflow_complete": "run の終わりの印。状態・終わりの時刻・費用は DB の run の行から読む",
+    "workflow_error": "run の落ちの印。落ちの訳は DB の workflow_failed から読む",
     "watchdog_reset": "期限の見張りを延ばした印で、中身を持たない",
     "assistant": "古い記録だけの型（provider_event に替わった）",
     "tool": "古い記録だけの型（provider_event に替わった）",
@@ -313,11 +319,12 @@ def _outputs(con) -> dict:
 
 
 def _waiting(con) -> dict:
-    """run ごとの、止まって答えを待つノード（node_suspended の後に同じノードの終わりが無い物）"""
+    """答えを待つ run（状態が paused）ごとの、止まって答えを待つノード（node_suspended の後に同じノードの終わりが無い物）"""
     out = {}
-    for rid, step, kind in con.execute(f"select workflow_run_id, step_name, event_type from {EVENT_TABLE} "
-                                       f"where event_type in (?, ?) order by workflow_run_id, created_at, event_order",
-                                       (SUSPENDED_EVENT, OUTPUT_EVENT)):
+    for rid, step, kind in con.execute(f"select e.workflow_run_id, e.step_name, e.event_type from {EVENT_TABLE} e "
+                                       f"join {RUN_TABLE} r on r.id = e.workflow_run_id where r.status = ? and e.event_type in (?, ?) "
+                                       "order by e.workflow_run_id, e.created_at, e.event_order",
+                                       (PAUSED, SUSPENDED_EVENT, OUTPUT_EVENT)):
         names = out.setdefault(rid, [])
         if kind == SUSPENDED_EVENT and step not in names:
             names.append(step)
