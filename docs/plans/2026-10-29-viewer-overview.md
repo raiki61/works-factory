@@ -1,5 +1,5 @@
 <!-- coldwrite:skip 設計の下書き。語は 0 章と docs/design/README.md の頭の語の一覧で定義 -->
-# 見る道具に「工場の全体の流れ」と「無駄の手がかり」の画面を足す設計の下書き（受付 20261028-213244-f440fd・20261028-213328-62e917・20261028-213343-a8fed6）
+# 見る道具に「工場の全体の流れ」と「無駄の手がかり」の画面を足す設計の下書き（受付 20261028-213244-f440fd・20261028-213328-62e917・20261028-213343-a8fed6・20261028-221225-3b050e）
 
 ## 冒頭
 
@@ -11,6 +11,7 @@
 - データ: どちらも run 642df5d7 のページに今入っているデータ（`src/runread.py`・`src/session.py` が読む物）で作れた。足りない物は 4 つ（5.5.4）。うち往復ごとの時刻は `session.py` が捨てている物で、読みを足せば取れる。
 - 持ち主に求めること: 9 章の問い 4 つ（段の説明の字をどこに置くか・帯を地図の下に常に出すか・4 分けごとの費用をドルで出すか・札の 1 行の書き足しをどこまでやるか）。
 - 見本: 窓口の手元の見る道具の出力の置き場（リポジトリの外。以下「見本の置き場」）の `overview-mock/`（8 章）。無駄の見本は `d-waste.html`、札の 1 行の見本は `e-what.html`。
+- 見た目（受付 3b050e）: Apple の見せ方の型（5.7 章）で 4 枚を作り直した `*-2.html` を並べた。一目で読む字は前の 19〜35%、字の大きさと太さの組は 6〜11 から 4〜5 に減った。数えた値と中身は畳みの中に全部残した。
 
 ## 0 語
 
@@ -197,6 +198,42 @@ run 642df5d7 のページ（見本の置き場の `run-latest.html`。`docs/desi
 3. 呼ぶ側での役が無い include 45（line 25・fix 12・chain 6・eyes 1・judge 1）→ 呼ぶ側の設計書の node の並びに「`` `<id>`（…）: 説明 ``」の行。line は 1.3 の鎖の書き方を変えることになる。
 4. 工場の中の語が残る docstring 261 → 最初の文だけを人の言葉にする（残りの文はそのまま）。数が多いので、block を触る PR のついでに直す形が無理が無い。9 章の問い 4。
 
+## 5.7 見本の見た目: Apple の見せ方から拾った型（受付 3b050e）
+
+持ち主の言葉（2026-10-29）「あとは文字がごちゃごちゃしてるので、モダンなデザインとかで解決できる可能性があるね。アップルを参考にするといいかもしれない」。
+
+### 5.7.1 拾った型と出どころ
+
+出どころはどれも 2026-10-29 に読んだ一次情報。HIG は Apple の Human Interface Guidelines（`developer.apple.com/design/human-interface-guidelines/<頁>`）。
+
+1. 画面の頭に主張を 1 つ、文で置く。細部は後ろ。HIG の charting-data「Summarize the main message of your chart」（Weather は「Chance of light rain in the next hour」を表の上に置く）。HIG の layout「place the most important items near the top」。
+2. 細部は押すまで畳む。ただし主張に要る値は畳まない。HIG の layout「Use progressive disclosure」、disclosure-controls「hide details until they're relevant」、charting-data「Keep a chart simple, letting people choose when they want additional details」と「don't require interaction to reveal critical information」。畳みの札は中身を言う（disclosure-controls「Provide a descriptive label」）。
+3. 字の段を少なくし、段は大きさと太さで分ける。HIG の typography「Adjust font weight, size, and color … to … visualize hierarchy」「Minimize the number of typefaces」「avoid light font weights」。見本は 4 段（40/600・22/600・15/400・12/400）と、本文の強め 15/600 だけにした。
+4. 枠の線でなく、余白と面で組を分ける。HIG の layout「use negative space, container shapes, or separator lines」「Use consistent spacing」。見本は枠の線を外し、白い角丸の面と 20px の間を使った。
+5. 色は 1 つ（青）を、押せる所と止まった所だけに使う。色だけで意味を持たせない（字を添える）。HIG の color「Avoid relying solely on color」、同じ頁の「Use color sparingly」「Prefer using color in places where it can help call attention to important information」。
+6. 組ごとに「小見出し → 大きな数か短い主張 → 1 文 → 詳しく ＋」。apple.com の製品ページ（`apple.com/macbook-air/` の HTML の class）は、節ごとに `typography-section-label`（「Design」など 1 語）→ `typography-section-headline`（「Built to go places.」）→ `typography-section-intro`（1 文）と並べ、数の札（`typography-icon-card-headline`「Made with 55% recycled material」と 1 文の本文）の細部を押して開く板（modal）に置く。
+
+### 5.7.2 作り直した見本と数えた値
+
+数え方: 包まない形を幅 1400 で開き、`document.body.innerText`（SVG の字を含む。閉じた畳みの中は入らない）から空白を除いた字の数。字の段は、見えている字の大きさと太さの組の数。畳みを全部開いた字の数が前の字の数以上であることで、中身を消していないことを見た（開いた数は畳みの札の分だけ多い）。
+
+| 見本 | 前の字 | 後の字 | 割 | 前の段 | 後の段 | 開いた字 |
+| --- | --- | --- | --- | --- | --- | --- |
+| d-waste → d-waste-2 | 2,449 | 476 | 19% | 10 | 5 | 2,562 |
+| e-what → e-what-2 | 3,411 | 1,138 | 33% | 11 | 4 | 3,754 |
+| a-map → a-map-2 | 1,107 | 336 | 30% | 8 | 4 | 1,490 |
+| b-timeline → b-timeline-2 | 716 | 248 | 35% | 6 | 4 | 747 |
+
+- d-waste-2: 頭は「費用の 59% は、3 つの AI の手番。」。欄 1 は上の 3 件だけを棒で出し、19 件の表と 4 分けは畳み。欄 2〜6 は大きな数 1 つと 1 文の札にし、内訳は札ごとの畳み。「数えられない物」は一番下の小さな畳み。
+- e-what-2: 札の主を 1 行にし、名と種類を小さな字で下に置いた。板は 1 行を大きく出し、run の値を 2 つの数にした。出どころの全文・なぜ在るか・数えの表・書き足す所は畳み。
+- a-map-2: SVG の箱をやめ、段の名と 1 語の状態だけの箱を HTML で 5 つずつ 2 行に並べた（幅 900 でも字が縮まない）。止まった所だけ青い枠。段の説明と渡す物は畳み。
+- b-timeline-2: 右の数の列と帯の中の字を外し、帯の図と 1 つの注記だけにした。数の表と「帯から読める事」は畳み。SVG なので幅 900 では軸の字が小さくなる。
+
+### 5.7.3 実装に持ち込む時の注意
+
+- 畳みは `<details>` で、雛形の中の script は要らない。VS Code の HTML ビューアの包みでも開け閉めは同じに動く前提だが、包みの中で押して確かめてはいない（10 章）。
+- 頭の 1 文（「費用の 59% は…」）は数から機械が組む。どの数を頭に出すか（一番大きい割合か、人の待ちか）の決め方は V3・V4 の設計で書く。
+
 ## 6 推し
 
 目的 1（流れ）には、案 A を「流れ」のタブの頭に置き、案 B の帯をその下に置く（A+B）。目的 2（無駄）には、案 D を「無駄の手がかり」のタブにする。案 C は採らない。
@@ -225,7 +262,9 @@ run 642df5d7 のページ（見本の置き場の `run-latest.html`。`docs/desi
 - 撮った絵（幅 1400・全体）: `overview-mock/shots/<見本>.png`（そのまま）・`<見本>.wrapped.png`（VS Code の HTML ビューアの包みを見本の置き場の `shots-before/wrap.py` で当てた形）・`<見本>.wrapped-900.png`（包んだ形を幅 900 で）
 - 今のページの絵: `overview-mock/shots-now/now-first.png`・`now-fit.png`・`now-about.png`・`now-log.png`
 
-包んだ形でも、4 枚とも幅 1400 と幅 900 で横にはみ出さず（`scrollWidth` が画面の幅と同じ）、見た目はそのままの形と同じだった。案 A は SVG を幅に合わせて縮めるので、幅 900 では箱の中の字が小さくなる（読めはする）。
+- 受付 3b050e で足した Apple の型の版（5.7）: `overview-mock/a-map-2.html`・`b-timeline-2.html`・`d-waste-2.html`・`e-what-2.html`。前の版は消していない。撮った絵は同じ `shots/` に `<見本>-2.png`・`-2.wrapped.png`・`-2.wrapped-900.png` と、畳みを全部開いた `-2.open.png`。
+
+包んだ形でも、4 枚とも幅 1400 と幅 900 で横にはみ出さず（`scrollWidth` が画面の幅と同じ）、見た目はそのままの形と同じだった。案 A は SVG を幅に合わせて縮めるので、幅 900 では箱の中の字が小さくなる（読めはする）。 Apple の型の版の 4 枚も、そのまま・包んだ形の幅 1400・包んだ形の幅 900 と、畳みを全部開いた形の幅 1400 と包んだ幅 900 で、横にはみ出さなかった。
 
 ## 9 持ち主への問い
 
@@ -243,4 +282,5 @@ run 642df5d7 のページ（見本の置き場の `run-latest.html`。`docs/desi
 - 走り中の run（`live`）の地図の塗りと帯の右の端（「ここまで」）の形は見本に無い。
 - 子の run（fix の組）の時間の帯の中での見せ方は、この run に子の run が無いので見本で確かめていない。案 D の子の run の費用の数え（親の手番に子の費用を足さない）も、同じ訳で run では確かめていない（`runread.py` が `accounting` が `node` の行だけを数える形には沿う）。
 - 案 D の数えを確かめたのは run 642df5d7 の 1 本だけ。修正の段まで走った run（直しの周・fix の組・独立の目）で数えが当たるかは見ていない。
+- Apple の型の版（`*-2.html`）の畳みを、VS Code の HTML ビューアの包みの中で押して開くかは見ていない（撮りは包んだ形を Chromium で開き、畳みは script で開いた）。
 - 欄 4 の「同じ所で落ちて回り直した周」は、この run に落ちた手番が無いので、見本では「落ちた手番 0 件」とだけ出した。
