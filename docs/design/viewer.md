@@ -2,7 +2,7 @@
 # 見る道具（`viewer/`）の設計書
 
 - 何の話か: 工場の作り（graph と block の図・指示の md）と、run（工場の 1 回の実行）の一覧と再生を、人が 1 枚で見る道具の設計。置き場の決めは持ち主の決め `viewer-in-repo`、決まりは `viewer/AGENTS.md` の E25、計画は `docs/plans/2026-10-28-viewer.md`（3〜7 章と 9 章の PR の切り方）。
-- 今在る物（計画の PR T1〜T3）: 置き場・層の地図の行・読む部品（`src/shape.py`・`src/runread.py`・`src/session.py`）・1 枚の HTML の組み立て（`src/page.py`・雛形 `page.tpl.html`・配置の道具 elkjs の止め `elkjs.json`）・日本語の写し（`src/ja.py` と訳の控え `ja/paragraphs.json`。6.6）と、ページを書く入口 `flowview.py`。
+- 今在る物（計画の PR T1〜T3）: 置き場・層の地図の行・読む部品（`src/shape.py`・`src/runread.py`・`src/session.py`）・1 枚の HTML の組み立て（`src/page.py`・雛形 `page.tpl.html`・配置の道具 elkjs の止め `elkjs.json`）・日本語の写し（`src/ja.py` と訳の控え `ja/paragraphs.json`。6.6）・run の再生（雛形の中。6.7）と、ページを書く入口 `flowview.py`。
 
 ## 1 E11 の 3 つの答え
 
@@ -30,12 +30,13 @@
 
 - 根（pack のフォルダ）を引数で受け、今の木 `<clone>/workflows` と run の写し `<写し>/project/.archon/workflows/<pack>` を同じ形で読む。
 - ノードの読み分けは種類の鍵（`loop_group`・`include`・`workflow`・`approval`・`wait`・`prompt`・`command`・`loop`・`cancel`・`bash`・`script`）のどれか 1 つ。0 個か 2 個以上は読み分けられない物として `problems` に出す。AI のノードの md（`prompts/<id>.md`）・script のノードの script（`scripts/<名>.py`）が無い物と、工場の名の頭で始まるのに木に無い `include:`・`workflow:` の先も `problems` に出す。工場の名の頭で始まらない `workflow:` の先（Archon 同梱の `archon-pr`）は工場の外の graph として印を付ける。
-- 記録のノードの道（`a__b.c`。`__` は include で開いた子、`.` は `loop_group` の本体）を、`locate` が include と `workflow:` の先の graph へ辿って図の所に当てる。
+- 記録のノードの道（`a__b.c`。`__` は include で開いた子、`.` は `loop_group` の本体）を、`locate` が include と `workflow:` の先の graph へ辿って図の所に当てる。当てた所には、通った include・`workflow:` のノードを外から順に並べた道（`via`）を付ける（図が入れ子の graph へ外から入る道。6.7 の再生が使う）。
 
 ## 5 記録の読み（`src/runread.py`）
 
 - run の家の `archon-home/archon.db`（名は `isolate.DIRS`）を読むだけで開く。run の一覧は run の表の親の行（`parent_run_id` が空）だけを読み、ログは読まない。行は id・グラフの名・状態・止まっている承認ノード（状態が `paused` の run だけ。DB の `node_suspended` の後に終わりの無いノード。止めた・放棄した run は `node_completed` を書かずに `cancelled` になるので、状態で絞る）・始め・かかった秒・費用（metadata の `total_cost_usd`）・落ちの訳の頭の 1 行（DB の `workflow_failed`）。
 - 選んだ run の記録は、DB の行の `output_root` から `logs/<run>.jsonl` を読む。子の run は DB の `parent_run_id` と metadata の `parent_node_id` で辿り、子の出来事の道の頭に親のノードの道を足す。run の写しは `<output_root>/workflow-source/runs/<run>/project/.archon/workflows`。写しが無い run は今の木で読み、`shape_from` を `tree` にする。
+- 飛んだノード（`node_skipped`）は、道と飛んだ時刻（`time`）と訳（`cause`）を持つ。
 - 出来事はノードの起動（`execution.invocation.id`）ごとに 1 つ: 始めと終わり・状態（走り中・待ち・済み・落ち）・落ちた時の誤りの字（`node_error` の `error`）・費用（`accounting` が `node` の行だけ。束ねた行は数え直さない）・模型とトークンと往復の数・道具の呼び出し（`provider_event` の `tool_call` と `tool_call_update` を試み〔`attemptId`〕で結ぶ）・script と bash の出力の終わり（`exec_output`）・出力（DB の `node_completed` の `node_output`）と、出力が指す run の置き場の小さなファイル・その run の置き場の根（`artifacts`。日本語の写しが値の記録を引く。6.6）。
 - 行の型と道具の出来事の型は、止めた Archon の型の和の全部を読む型と読まない型（訳つき）に分けて持つ。知らない型の行・ノードに当たらない道具の出来事は `unread` に数え、黙って落とさない。走り中の run は `live` と作った時刻を出す。答えを待つ run（状態が `paused`）には答える殻の命令の 1 行（`answer`）を付ける。答えが入って次へ進む前の間（Archon は答えを run の metadata の `wait` に書くだけで、状態は `paused` のまま `node_completed` も書かない）のノードは待ちに数えない（Archon の `runAttention` と同じ。名は `schemas/workflow-run.ts` の `workflowWaitStepName`）。承認ノードの答えはノードの出力（`wait: attention` の `{decision, text}`）から読む（`gate_decision` の行は工場が使わない古い `approval:` だけが書く）。
 
@@ -50,10 +51,11 @@
 - ページは 1 枚で完結する（E25 の 3）。データは雛形の `<script type="application/json">` に、JSON の字の `<` を全部 `\u003c` にして埋める（記録の字の `</script>` や `<!--` が script の中身を閉じない）。elkjs の bundle は次の `<script>` に字のまま埋め、`</script` だけを崩す。雛形の印は 1 度ずつ埋め、埋めた字の中の印の字は埋め直さない。
 - ページは HTML のビューアが body の中身を別の要素で包み、拡大縮小の `transform` を掛けて開く事がある。高さは body の直下の flex にも `position:fixed` にも頼らず、雛形のいちばん外の要素 `.app` が `100vh` で持つ（中身の高さが 0 にならない）。
 - elkjs（計画の 4 章の案 E1）: 版と tarball の照らしの値（npm の登録所の `dist.integrity`。tarball の sha512）を `viewer/elkjs.json` に止める。版 0.10.0 は、窓口の手元の見る道具が使ってきた bundle（sha256 の頭 `48d338d5aeddd950`）と同じ物だったので選んだ。tarball は利用者のキャッシュ（`place.cache_dir` の下の `viewer/elkjs-<版>/`）に元の名のまま置き、読むたびに照らす。取った物もキャッシュの物も、合わなければページを書かずに止まる。網に届かない時は、置くべきパスと照らしの値を出して止まる。ページには bundle の前に、版・license（EPL-2.0）・取った所と、tarball の `package/LICENSE.md` の字を注で置く。
-- 画面は 4 つ: 図（graph と block の一覧・elk で上から下に並べたノードの図・ノードを押すと板に作りとこの run の出来事・block と子の run は 2 度押しで中へ）・run の一覧（行ごとに、その run のページを作る命令の 1 行。計画の 3.5）・ログ（ノードの出来事を時刻順に。子の run・飛んだノード・繰り返しの終わりの確かめ・出力が指すファイル。走り中は「ここまで」）・読めなかった物（作りの問題・図に当たらないノード・記録の読めなかった行・会話の記録の読まない行）。記録の字は全部 `textContent` で置き、HTML として読まない。
+- 画面は 4 つ: 図（graph と block の一覧・elk で上から下に並べたノードの図・ノードを押すと板に作りとこの run の出来事・block と子の run は 2 度押しで中へ・run が在れば下の帯に再生。6.7）・run の一覧（行ごとに、その run のページを作る命令の 1 行。計画の 3.5）・ログ（ノードの出来事を時刻順に。子の run・飛んだノード・繰り返しの終わりの確かめ・出力が指すファイル。走り中は「ここまで」）・読めなかった物（作りの問題・図に当たらないノード・記録の読めなかった行・会話の記録の読まない行）。記録の字は全部 `textContent` で置き、HTML として読まない。
 - 図の出来事は、同じ graph が何度 include されても、その graph の所に全部寄せる（include の文脈ごとに分けるのは見た目の磨きで回す）。
 - 図の線は、順を決める依りだけを引く（ほかの依りを通って届く依りは引かない。数十の依りを持つノードへの線が束になって図を埋めるため）。依りの全部はノードの板に出す。
-- 開いた時の図は、全体が読める大きさで入れば全体を、入らなければ読める大きさで入口（一番上のノード）から見せる。全体はボタンで縮めて見る。板は閉じて始め、graph の説明は道の欄の「説明」で開く。elk が並べられない時は、誤りを図の所に出す。
+- 図の行き来: 根の graph は run の graph（run が無ければ `line`）。上の道しるべは常に根から始め、根へ 1 回押しで戻るボタン（⌂）を頭に置く。各段は graph の名と、外の graph の中でその graph を include・`workflow:` するノード（名が graph と違う時だけ）を出す。一覧から開いた graph も、根から include と `workflow:` を辿った一番短い道で同じ形に出す（根から辿れない graph は根の下に「辿れない」と書いて置く）。
+- 開いた時の図は、全体が読める大きさで入れば全体を、入らなければ読める大きさで入口（一番上のノード）から見せる。今の graph の全部はボタン「画面に収める」で縮めて見る（graph の行き来と取り違えない名にする）。板は閉じて始め、graph の説明は道の欄の「説明」で開く。elk が並べられない時は、誤りを図の所に出す。
 
 ## 6.6 日本語の写し（`src/ja.py`・`ja/paragraphs.json`）
 
@@ -66,11 +68,21 @@
 - 訳の控えの足し方: `flowview.py --ja-batches <置き場>` がページに出す字のうち訳の無い段落を約 3.5 万字ずつの束（`batch-<n>.en.txt`。clone の外）に書く。訳すのは取り次ぐ会話で、同じ鍵の行の訳を `batch-<n>.ja.txt` に書く。`--ja-import <置き場>` が、今の木の md の段落の鍵の訳だけを `viewer/ja/` に、ほかをキャッシュに書く（合わない訳は拒んで名指す）。md を直して古くなった鍵は残っても英語で出るだけで、`--ja-prune` が消す。
 - 始めの控え: 窓口の手元の控え（904 段落）のうち、今の木の md の段落に当たる 578 段落を、取り込みの口で入れた。残りは会話の字の訳で、リポジトリに入れない。
 
+## 6.7 再生（`page.tpl.html` の中のスクリプトだけ）
+
+- 終わった run を後から 1 枚で歩く。操作は図の画面の下の帯: 始めへ・1 つ前・再生と止める・1 つ後・時の位置のつまみ・速さ（1 秒に進む歩）・やめる（run の終わりの姿の図へ戻る）。鍵盤の ← → と空白でも動く。ページの中のスクリプトだけで動き、別のファイルを読まない（E25 の 3）。
+- 1 歩は、run の出来事（ノードの起動ごと）の始まりか終わりの 1 つで、時刻順に並べる（同じ時刻は始まりが先）。終わりの無い出来事（走り中・待ち）は始まりだけ。
+- 繰り返しの周は、周ごとに別の出来事なので、そのまま 1 周ずつ歩く（帯に「周 n」を出す）。子の run（`workflow:` の先）の出来事は、親の出来事と同じ並びに時刻で入り、帯に子の run の id を出す。図の所は親のノードから辿った子の graph の中。
+- 飛んだノードは歩にしない（数が出来事より多く、歩の大半が飛びになる）。時の位置が飛んだ時刻を過ぎ、その所がまだ走っていなければ「飛んだ」に見せる（resume で走った後に飛びの行が来た所は、走った姿のまま）。
+- 歩へ移る時は、出来事の所の `via` で根からの道しるべを組み、違う graph なら描き直してから、そのノードを画面の真ん中へ寄せ、板に「この run で」の欄を出して今の歩の出来事だけを開いて目立たせる（中身はノードを押した時と同じ。指示の md・日本語の写し・会話・出力・飛んだ訳）。
+- 図の上の姿: 今の歩のノード（太い縁と輪）・走り中（縁の色）・済み（普段の姿と終わりの状態の点）・まだ（薄い）・飛んだ（点線で薄い）。include のノードと繰り返しの箱は、中の出来事を自分の所の出来事として数える（中が走っていれば走り中、触れられた後は済み）。
+- 図に当たらない出来事の歩は、図を動かさず帯に「図に当たらない」と出す。
+
 ## 7 照らし
 
 1. 作りの照らし（`tests/viewer/test_shape.py`）: 今の木の全部の graph を読み、`problems` が 0。
 2. Archon の名の照らし（`tests/viewer/test_archon_names.py`。源の字を読むだけで手元でも回る）: 行の型と道具の出来事の型と run の状態が源とちょうど同じ・DB の欄と置き場の名が源に在る。
-3. 本物の run の照らし（`tests/viewer/test_real_run.py`。Archon を起こすので CI だけで回る）: 小さな graph を 1 回回し、読めなかった行が 0・図に当たらないノードが 0・一覧にその run が終わりの状態で 1 行在る。承認ノードで止まった run は待ちと `answer` を出し、答えが入って次へ進む前の間（Archon の答えを書く口 `answerAttentionWait` を bun で直に呼んで作る）と、待ちのまま放棄した後は出さない。答えた承認ノードは出力に答えを持ち、ログに `gate_decision` の行が無い。行の中の欄の名（`execution.path` など）はここで照らす。
+3. 本物の run の照らし（`tests/viewer/test_real_run.py`。Archon を起こすので CI だけで回る）: 小さな graph を 1 回回し、読めなかった行が 0・図に当たらないノードが 0・include の中のノードに外の graph から入る道（`via`）が付く・一覧にその run が終わりの状態で 1 行在る。承認ノードで止まった run は待ちと `answer` を出し、答えが入って次へ進む前の間（Archon の答えを書く口 `answerAttentionWait` を bun で直に呼んで作る）と、待ちのまま放棄した後は出さない。答えた承認ノードは出力に答えを持ち、ログに `gate_decision` の行が無い。行の中の欄の名（`execution.path` など）はここで照らす。
 4. 1 枚の照らし（`tests/viewer/test_page.py`）: 雛形に `<script src`・`import(`・`fetch(` が無い。elkjs は照らしの値が合わなければ止まり、合わない物をキャッシュに置かない。網に届かなければ置き場と値を出して止まる。データの字はページの script を閉じず、読み戻せる。
 5. 層の照らし: 2 章の照らし。
 6. 日本語の写しの照らし（`tests/viewer/test_ja.py`）: 取り込みの口が今の木の md の段落の鍵の訳だけを `viewer/ja/` に書き、合わない訳を拒む。写しは値の記録から工場の組み立ての口で組み、訳の無い段落と合わない訳は英語のまま。`viewer/ja/` の訳のうち今の木の md の段落に当たる物は、どれも英語と同じ差し込み口と印の字を持つ。本物の run では（照らしの 3 の試験）、include の中で `prompt.emit` が書いた値の記録から組み直した写しが、訳の無い時に place の英語の指示と字のまま同じ。工場の組み立ての口の照らしは `tests/blocks/shared/test_prompt.py`（値の記録で、写した木からも同じ字に組み直せる）。

@@ -4,7 +4,7 @@
 手書きの DB や記録の見本は作らない（見本は Archon の形から外れても緑のままになる。docs/design/test-double-fidelity.md の型）。
 
 - 読めなかった行（知らない型の行・ノードに当たらない道具の出来事）が 0、記録の無い run が 0
-- 図は run の写しから作り、図に当たらないノードが 0
+- 図は run の写しから作り、図に当たらないノードが 0。include の中のノードには、外の graph から入る道（通った include のノード）が付く
 - run の一覧に、その run が終わりの状態で 1 行在る
 - 落ちたノードの誤りの字が出来事に在る
 - include の中で指示を組んだノード（prompt.emit）の出来事に、値の記録から工場の組み立ての口で組み直した日本語の写しが付き、訳の無い
@@ -166,6 +166,9 @@ class RealRunCase(unittest.TestCase):
         self.assertEqual([(r["id"], r["status"]) for r in data["runs"]], [(run["id"], "failed"), (again["run"]["id"], "completed"), (paused["run"]["id"], "cancelled")])
         at = {e["at"]["graph"] + "/" + e["at"]["node"] for e in run["events"]}
         self.assertLessEqual({"seen/make", "seen-leaf/rounds/step", "seen/boom"}, at)
+        # 図が入れ子の graph へ外から入る道（再生が今の歩のノードの graph へ移る）
+        step = next(e for e in run["events"] if e["tokens"] == ["leaf", "rounds", "step"])
+        self.assertEqual(step["at"]["via"], [{"graph": "seen", "node": "leaf"}])
         self.assertIn("boom", next(e for e in run["events"] if e["tokens"] == ["boom"])["error"])
         talk = next(e for e in run["events"] if e["tokens"] == ["leaf", "talk"])
         self.assertEqual([(p["md"], p["n"], p["error"], p["ja"]["prompt"]) for p in talk.get("prompts", [])],

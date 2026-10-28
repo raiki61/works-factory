@@ -221,7 +221,7 @@ class _Reader:
         key = (path, invocation.get("id") or "")
         ids = [*_tokens(prefix), *_tokens([path])]
         if kind == "node_skipped":
-            self.skipped.append({"tokens": ids, "at": entry.get("ts"), "cause": entry.get("cause")})
+            self.skipped.append({"tokens": ids, "time": entry.get("ts"), "cause": entry.get("cause")})
             return
         event = by_invocation.get(key)
         if event is None:
