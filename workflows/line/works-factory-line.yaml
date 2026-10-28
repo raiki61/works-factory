@@ -79,7 +79,7 @@ nodes:
           required: [request, request_file, pr_text, carried, carried_measured, base, base_rev, request_origin, base_label, review_rev, entry,
                      lang, web, world, spec, has_checks, thickness, forced, design_talk, unattended, policy, test_cmd, tdd_suite, reuse_dir,
                      user_env_dir, run_id, deliver, parallel, verify_by_tier, tree_named, takes_push, request_scope, prior_rows,
-                     request_answers, spec_table, routes]
+                     request_answers, spec_table, routes, theme, theme_text, theme_request]
           properties:
             request: {<<: *pointer_or_null, description: 'json(shared:request.schema.json): 依頼の写し（run directory の根の request.json。依頼のファイルが無い run は空の配列）。拒んだ run は null'}
             request_file: {type: string, description: 'json(shared:request.schema.json): 依頼のファイルの絶対パス（役が Read して <絶対パス>:<行> で名指す）。無い run は空の字'}
@@ -119,6 +119,9 @@ nodes:
             request_answers: {type: array, items: {type: object, properties: {question: {type: string}, text: {type: string}}}}
             spec_table: {type: string, description: 'file: 仕様駆動の道の表（YAML）のパス。名指していない run は空の字'}
             routes: {type: string, enum: [auto, plan]}
+            theme: {type: string, description: 'file: テーマの写し（run directory の根の theme.md）のパス。テーマの run でなければ空の字'}
+            theme_text: {type: string}
+            theme_request: {<<: *pointer_or_null, description: 'json(shared:request.schema.json): テーマを 1 行の依頼の行にした写し。テーマの run でなければ null'}
   # 2 起動の承認ノード（docs/design/line.md の 2 節の 1）
   - id: gate-start
     wait:
@@ -164,26 +167,19 @@ nodes:
     with:
       mode: "entry"
       table: "$start.output.ports.spec_table"
-  # 3 直す前の結末（固定材料の run は飛ぶ）。仕様駆動の run は入口の確かめが通った時だけ。when: は括弧を持てないので OR-of-AND で書き、
-  # 飛ばされうる spec-entry を読む節は || の後ろに置く（依頼の文の run は前の節で打ち切り、spec-entry を読まない）
-  - id: test-gate-base
-    include: works-factory-test-gate
-    depends_on: [answer-start, spec-entry]
-    trigger_rule: none_failed_min_one_success
-    when: "$answer-start.output.go == true && $start.output.from_fixture == false && $start.output.from_spec == false || $answer-start.output.go == true && $start.output.from_fixture == false && $spec-entry.output.ok == true"
+  # 2.7 設計の段（テーマの run だけ。docs/design/line.md の 3.3 節）。頭で世界の解と独立設計を 1 度ずつ回し、書き手（theme）と事前審査の形 theme の
+  # 往復を回す。止まる周に本体の唯一の終わりの関所 gate-theme で持ち主に聞き（無人の run は開かない）、合意したら theme-descend が承認された
+  # 設計の変える所を依頼の行にして降りる。依頼の出どころは request-in の 1 つで、判定から後ろはそこから読む
+  - id: theme-world
+    include: works-factory-world
+    depends_on: [answer-start]
+    when: "$answer-start.output.go == true && $start.output.ports.theme != ''"
     with:
-      mode: "base"
-      test_cmd: "$start.output.ports.test_cmd"
-      tdd_suite: "$start.output.ports.tdd_suite"
-      base: "$start.output.ports.base_rev"
-      entry_base: "$start.output.ports.base"
-      request: "$start.output.ports.request"
-      request_scope: "$start.output.ports.request_scope"
-      reuse_dir: "$start.output.ports.reuse_dir"
-      reuse_key: "$start.output.ports.run_id"
-      user_env_dir: "$start.output.ports.user_env_dir"
+      request: "$start.output.ports.theme_request"
+      purpose: "$start.output.ports.theme_text"
+      web: "$start.output.ports.web"
       lang: "$start.output.ports.lang"
-  - id: test-gate-base-out
+  - id: theme-world-out
     # 受け皿の本体はここ 1 か所。ほかは <<: *receiver で受け、id・depends_on・with だけを書く（names は運ぶ欄の名）
     <<: &receiver
       script: returned
@@ -194,8 +190,286 @@ nodes:
         additionalProperties: false
         required: [got, why]
         properties:
-          got: {type: [object, 'null'], description: 'json(returns:works-factory-test-gate): 受けた block の出力の、names の欄を選んだ物（受け手が ports.picked で名を選ぶ）。飛ばされた block は null'}
+          got: {type: [object, 'null'], description: '受けた block の出力の、names の欄を選んだ物（受け手が ports.picked で名を選ぶ。form は受け皿ごとに output_format で書き替える）。飛ばされた block は null'}
           why: {type: string}
+    output_format: {<<: *received, properties: {got: {type: [object, 'null'], description: 'json(returns:works-factory-world): 出力の names の欄。飛ばされた block は null'}, why: {type: string}}}
+    depends_on: [theme-world]
+    with:
+      got: "$theme-world.output"
+      names: "ok status reason rows classes dropped report"
+  - id: theme-world-in
+    # 返しの本体はここ 1 か所（docs/design/line.md の 1.5 の relay）。ほかは <<: *relay で受け、output_format だけを書き替える
+    <<: &relay
+      script: relay
+      runtime: uv
+      mutates_checkout: false
+    depends_on: [answer-start, theme-world]
+    trigger_rule: none_failed_min_one_success
+    when: "$answer-start.output.go == true && $start.output.ports.theme != ''"
+    with:
+      got: {from: "$theme-world.output", if_skipped: null}
+      field: "rows"
+    output_format:
+      type: object
+      additionalProperties: false
+      required: [rows, stop_reason]
+      properties:
+        rows: {<<: *pointer_or_null, description: 'jsonl(lib:world-row.schema.json): テーマの世界の解の行。世界の解が走らなければ null'}
+        stop_reason: {type: string}
+  - id: theme-blind
+    include: works-factory-independent-design
+    depends_on: [answer-start]
+    when: "$answer-start.output.go == true && $start.output.ports.theme != ''"
+    with:
+      purpose: "$start.output.ports.theme_text"
+      answers: "$answer-start.output.answer"
+      request: "$start.output.ports.request_file"
+      policy: "$start.output.ports.policy"
+      base: "$start.output.ports.base"
+      head: "$start.output.ports.base_rev"
+      lang: "$start.output.ports.lang"
+  - id: theme-blind-out
+    <<: *receiver
+    output_format: {<<: *received, properties: {got: {type: [object, 'null'], description: 'json(returns:works-factory-independent-design): 出力の names の欄。飛ばされた block は null'}, why: {type: string}}}
+    depends_on: [theme-blind]
+    with:
+      got: "$theme-blind.output"
+      names: "ok status stands design premises reason downgrades report"
+  - id: theme-design-in
+    <<: *relay
+    depends_on: [answer-start, theme-blind]
+    trigger_rule: none_failed_min_one_success
+    when: "$answer-start.output.go == true && $start.output.ports.theme != ''"
+    with:
+      got: {from: "$theme-blind.output", if_skipped: null}
+      field: "design reason"
+    output_format:
+      type: object
+      additionalProperties: false
+      required: [design, reason, stop_reason]
+      properties:
+        design: {<<: *pointer_or_null, description: 'json(shared:design.schema.json): テーマの独立設計の返答。走らなければ null'}
+        reason: {type: [string, 'null']}
+        stop_reason: {type: string}
+  - id: theme-rounds
+    depends_on: [theme-world-in, theme-design-in]
+    when: "$answer-start.output.go == true && $start.output.ports.theme != '' && $theme-world-in.output.stop_reason == '' && $theme-design-in.output.stop_reason == ''"
+    loop_group:
+      max_iterations: 22   # 往復の安全の上限 rounds.LIMIT（20）と、一言の空の revise で聞き直す周 talk.EMPTY_LIMIT（2）。plan-rounds と同じ数え
+      until_bash: 'done=$theme-talk.output.done; [ "$done" = "true" ]'
+      nodes:
+        - id: theme-turn
+          script: theme_turn
+          runtime: uv
+          mutates_checkout: false
+          with:
+            answer: "$LOOP_PREV.gate-theme.output"
+            previous: "$LOOP_PREV.theme-talk.output"
+            last: "$LOOP_PREV.theme-turn.output"
+            ports: "$start.output.ports"
+          output_format:
+            type: object
+            additionalProperties: false
+            required: [plan, answer, prior_design, record, answers, recorded, asks, talks, notes, timeline, stop_reason, reason]
+            properties:
+              plan: {type: boolean}
+              notes: {type: array, items: {type: string}}
+              timeline: {type: array, items: &event {type: object, properties: {kind: {type: string}, by: {type: string}, line: {type: string}, n: {type: [integer, 'null']}, key: {type: string}, pass: {type: integer}}}}
+              answer: &talked {type: [object, 'null'], properties: {round: {type: [integer, 'null']}, decision: {type: string}, text: {type: string}, asked: {type: array, items: {type: string}}, by: {type: string}, bad: {type: string}}}
+              prior_design: {<<: *pointer_or_null, description: 'json(shared:theme-design.schema.json): この周の書き手の port prior_design（前の周の設計の案）。1 周目は null'}
+              record: {<<: *pointer_or_null, description: 'json(shared:plan-converge.schema.json): この周の事前審査と theme-out の port prior の往復の記録。1 周目は null'}
+              answers: {type: array, description: 'json(shared:human-answers.schema.json): 人の答えの行（依頼の answers と承認ノードの答えのセクション。id H<n>）', items: {type: object}}
+              recorded: &recorded
+                type: array
+                description: 'json(shared:recorded.schema.json): 記録された方針の行（lib/policy.py の recorded）'
+                items:
+                  type: object
+                  properties: {source: {type: string}, name: {type: string}, text: {type: string}, lines: {type: integer}, alias: {type: string}}
+              asks: {type: array, items: &asked_again {type: object, properties: {n: {type: integer}, key: {type: string}, round: {type: [integer, 'null']}, text: {type: string}, note: {type: boolean}}}}
+              talks: {type: array, items: *talked}
+              stop_reason: {type: string}
+              reason: {type: string}
+        - id: theme
+          include: works-factory-theme
+          depends_on: [theme-turn]
+          when: "$theme-turn.output.plan == true"
+          with:
+            theme: "$start.output.ports.theme"
+            prior: "$theme-turn.output.record"
+            prior_design: "$theme-turn.output.prior_design"
+            answers: "$theme-turn.output.answers"
+            world_rows: "$theme-world-in.output.rows"
+            policy: "$start.output.ports.policy"
+            recorded: "$theme-turn.output.recorded"
+            base: "$start.output.ports.base_rev"
+            lang: "$start.output.ports.lang"
+        - id: theme-review
+          include: works-factory-plan-review
+          depends_on: [theme]
+          when: "$theme.output.ok == true"
+          with:
+            theme_doc: "$theme.output.design_md"
+            purpose: "$start.output.ports.theme_text"
+            design: "$theme-design-in.output.design"
+            design_why: "$theme-design-in.output.reason"
+            world_rows: "$theme-world-in.output.rows"
+            prior: "$theme-turn.output.record"
+            policy: "$start.output.ports.policy"
+            recorded: "$theme-turn.output.recorded"
+            request: "$start.output.ports.request_file"
+            review_rev: "$start.output.ports.review_rev"
+            diff_base: "$start.output.ports.base"
+            lang: "$start.output.ports.lang"
+        - id: theme-out
+          script: theme_out
+          runtime: uv
+          mutates_checkout: false
+          depends_on: [theme, theme-review]
+          trigger_rule: none_failed_min_one_success
+          with:
+            design: "$theme.output"
+            review: {from: "$theme-review.output", if_skipped: null}
+            prior: "$theme-turn.output.record"
+          output_format:
+            type: object
+            additionalProperties: false
+            required: [done, ok, status, round, prior_design, record, design, design_md, review, stalled, capped, review_status, review_reason,
+                       reason, report, stop_reason]
+            properties: &theme_out_props
+              done: {type: boolean}
+              ok: {type: boolean}
+              status: {type: string}
+              round: {type: integer}
+              prior_design: {<<: *pointer_or_null, description: 'json(shared:theme-design.schema.json): 次の周の書き手に渡す前の周の設計の案。案ができなかった周は null'}
+              record: {<<: *pointer_or_null, description: 'json(shared:plan-converge.schema.json): 設計の往復の記録 theme-converge.json'}
+              design: {<<: *pointer_or_null, description: 'json(shared:theme-design.schema.json): この周の設計の案'}
+              design_md: {<<: *pointer_or_null, description: 'file: この周の設計の案の md'}
+              review: {<<: *pointer_or_null, description: 'json(shared:plan-review-reply.schema.json): この周の事前審査の返答'}
+              stalled: {type: boolean}
+              capped: {type: boolean}
+              review_status: {type: string}
+              review_reason: {type: string}
+              reason: {type: string}
+              report: {type: array, items: {type: string}, description: 'この周の設計の案の書き手の block の報告の行（報告の「設計の段」のセクションに出す）'}
+              stop_reason: {type: string}
+        # 往復の返り（本体の唯一の終わりの関所が依る node）。theme-out の欄と設計の相談の欄
+        - id: theme-talk
+          script: theme_talk
+          runtime: uv
+          mutates_checkout: false
+          depends_on: [theme-turn, theme-out]
+          trigger_rule: none_failed_min_one_success
+          with:
+            turn: "$theme-turn.output"
+            theme_out: {from: "$theme-out.output", if_skipped: null}
+            previous: "$LOOP_PREV.theme-talk.output"
+            ports: "$start.output.ports"
+          output_format:
+            type: object
+            additionalProperties: false
+            required: [done, ok, status, round, prior_design, record, design, design_md, review, stalled, capped, review_status, review_reason,
+                       reason, report, stop_reason, open, text, asked, agreed, talks, notes, shown, timeline]
+            properties: &theme_talk_props
+              <<: *theme_out_props
+              open: {type: boolean}
+              text: {type: string}
+              asked: {type: array, items: {type: string}}
+              agreed: *talked
+              talks: {type: array, items: *talked}
+              notes: {type: array, items: {type: string}}
+              shown: {type: string}
+              timeline: {type: array, items: *event}
+        # 設計の段の関所（本体の唯一の終わり）。人の居る run の止まる周だけ開く。revise は設計し直し（redesign は持たない）
+        - id: gate-theme
+          depends_on: [theme-talk]
+          when: "$theme-talk.output.open == true"
+          wait:
+            attention: "$theme-talk.output.text"
+            form: select
+            options: [{id: approve}, {id: continue}, {id: stop}, {id: reject}, {id: revise}]
+  - id: theme-rounds-out
+    <<: *receiver
+    output_format: {<<: *received, properties: {got: {type: [object, 'null'], additionalProperties: false, properties: {<<: *theme_talk_props, optional: {type: 'null', description: '受け皿の returned が足す欄（往復は落ちてよい node を宣言しないので null）'}}}, why: {type: string}}}
+    depends_on: [theme-rounds]
+    with:
+      got: "$theme-rounds.output"
+      names: "done ok status round prior_design record design design_md review stalled capped review_status review_reason reason report
+        stop_reason open text asked agreed talks notes shown timeline"
+  - id: theme-descend
+    script: theme_descend
+    runtime: uv
+    mutates_checkout: false
+    depends_on: [theme-rounds-out]
+    when: "$answer-start.output.go == true && $start.output.ports.theme != ''"
+    with:
+      rounds: "$theme-rounds-out.output.got"
+      ports: "$start.output.ports"
+    output_format:
+      type: object
+      additionalProperties: false
+      required: [go, stop_reason, reason, answer, no_change, request, request_file, request_answers, approved, rows, notes, report]
+      properties:
+        go: {type: boolean}
+        stop_reason: {type: string}
+        reason: {type: string}
+        answer: *answer
+        no_change: {type: boolean}
+        request: {<<: *pointer_or_null, description: 'json(shared:request.schema.json): 承認された設計の変える所を依頼の行にした依頼のファイル。降りなければ null'}
+        request_file: {type: string, description: 'json(shared:request.schema.json): 同じ依頼のファイルの絶対パス。降りなければ空の字'}
+        request_answers: {type: array, items: {type: object, properties: {question: {type: string}, text: {type: string}}}}
+        approved: {type: string, description: 'file: 承認された設計の md の写しのパス。無ければ空の字'}
+        rows: {type: integer}
+        notes: {type: array, items: {type: string}}
+        report: {type: array, items: {type: string}}
+  # 2.8 依頼の出どころ（どの run も 1 度。docs/design/line.md の 3.3 節）。判定から後ろは依頼をここからだけ読む
+  - id: request-in
+    script: request_in
+    runtime: uv
+    mutates_checkout: false
+    depends_on: [answer-start, theme-descend]
+    trigger_rule: none_failed_min_one_success
+    when: "$answer-start.output.go == true"
+    with:
+      ports: "$start.output.ports"
+      theme: {from: "$theme-descend.output", if_skipped: null}
+    output_format:
+      type: object
+      additionalProperties: false
+      required: [go, stop_reason, reason, request, request_file, request_answers, entry, request_origin, request_scope, prior_rows, notes]
+      properties:
+        go: {type: boolean}
+        stop_reason: {type: string}
+        reason: {type: string}
+        request: {<<: *pointer_or_null, description: 'json(shared:request.schema.json): この run の依頼の写し（テーマの run は降りた依頼）。無ければ null'}
+        request_file: {type: string, description: 'json(shared:request.schema.json): 依頼のファイルの絶対パス。無い run は空の字'}
+        request_answers: {type: array, items: {type: object, properties: {question: {type: string}, text: {type: string}}}}
+        entry: {type: string}
+        request_origin: {type: string}
+        request_scope: {type: boolean}
+        prior_rows: {type: array, items: {type: object, properties: {where: {type: string}, text: {type: string}}}}
+        notes: {type: array, items: {type: string}}
+  # 3 直す前の結末（固定材料の run は飛ぶ）。仕様駆動の run は入口の確かめが通った時だけ。when: は括弧を持てないので OR-of-AND で書き、
+  # 飛ばされうる spec-entry を読む節は || の後ろに置く（依頼の文の run は前の節で打ち切り、spec-entry を読まない）
+  - id: test-gate-base
+    include: works-factory-test-gate
+    depends_on: [answer-start, spec-entry, request-in]
+    trigger_rule: none_failed_min_one_success
+    when: "$request-in.output.go == true && $start.output.from_fixture == false && $start.output.from_spec == false || $request-in.output.go == true && $start.output.from_fixture == false && $spec-entry.output.ok == true"
+    with:
+      mode: "base"
+      test_cmd: "$start.output.ports.test_cmd"
+      tdd_suite: "$start.output.ports.tdd_suite"
+      base: "$start.output.ports.base_rev"
+      entry_base: "$start.output.ports.base"
+      request: "$request-in.output.request"
+      request_scope: "$request-in.output.request_scope"
+      reuse_dir: "$start.output.ports.reuse_dir"
+      reuse_key: "$start.output.ports.run_id"
+      user_env_dir: "$start.output.ports.user_env_dir"
+      lang: "$start.output.ports.lang"
+  - id: test-gate-base-out
+    <<: *receiver
+    output_format: {<<: *received, properties: {got: {type: [object, 'null'], description: 'json(returns:works-factory-test-gate): 受けた block の出力の、names の欄を選んだ物（受け手が ports.picked で名を選ぶ）。飛ばされた block は null'}, why: {type: string}}}
     depends_on: [test-gate-base]
     with:
       got: "$test-gate-base.output"
@@ -213,11 +487,11 @@ nodes:
     depends_on: [test-gate-base]
     when: "$test-gate-base.output.ok == true && $start.output.from_spec == false"
     with:
-      request: "$start.output.ports.request"
+      request: "$request-in.output.request"
       pr_text: "$start.output.ports.pr_text"
       carried: "$start.output.ports.carried"
       base: "$start.output.ports.base"
-      entry: "$start.output.ports.entry"
+      entry: "$request-in.output.entry"
       web: "$start.output.ports.web"
       world: "$start.output.ports.world"
       spec: "$start.output.ports.spec"
@@ -226,7 +500,7 @@ nodes:
       design_only: "$start.output.ports.design_talk"
       verify_by_tier: "$start.output.ports.verify_by_tier"
       user_env_dir: "$start.output.ports.user_env_dir"
-      request_origin: "$start.output.ports.request_origin"
+      request_origin: "$request-in.output.request_origin"
       baseline: "$test-gate-base.output.baseline"
       policy: "$start.output.ports.policy"
       lang: "$start.output.ports.lang"
@@ -278,6 +552,7 @@ nodes:
       answer: "$answer-start.output.answer"
       record: "$start.output.record"
       ports: "$start.output.ports"
+      request: "$request-in.output"
     output_format:
       type: object
       additionalProperties: false
@@ -285,12 +560,7 @@ nodes:
       properties:
         owed: {type: boolean}
         why: {type: string}
-        recorded: &recorded
-          type: array
-          description: 'json(shared:recorded.schema.json): 記録された方針の行（lib/policy.py の recorded）'
-          items:
-            type: object
-            properties: {source: {type: string}, name: {type: string}, text: {type: string}, lines: {type: integer}, alias: {type: string}}
+        recorded: *recorded
         stop_reason: {type: string}
   - id: structure
     include: works-factory-structure
@@ -310,11 +580,7 @@ nodes:
       got: "$structure.output"
       names: "ok status reason structure after dirty escalate report"
   - id: structure-in
-    # 返しの本体はここ 1 か所（docs/design/line.md の 1.5 の relay）。ほかは <<: *relay で受け、output_format だけを書き替える
-    <<: &relay
-      script: relay
-      runtime: uv
-      mutates_checkout: false
+    <<: *relay
     depends_on: [judge, structure]
     trigger_rule: none_failed_min_one_success
     when: "$judge.output.ready == true"
@@ -339,7 +605,7 @@ nodes:
       purpose_review: "$judge.output.purpose_review"
       constraints: "$judge.output.constraints"
       answers: "$answer-start.output.answer"
-      request: "$start.output.ports.request_file"
+      request: "$request-in.output.request_file"
       policy: "$start.output.ports.policy"
       base: "$start.output.ports.base"
       head: "$start.output.ports.base_rev"
@@ -389,6 +655,7 @@ nodes:
             last: "$LOOP_PREV.design-turn.output"
             ports: "$start.output.ports"
             recorded: "$owed.output.recorded"
+            request: "$request-in.output"
           output_format:
             type: object
             additionalProperties: false
@@ -396,13 +663,13 @@ nodes:
             properties:
               plan: {type: boolean}
               notes: {type: array, items: {type: string}}
-              timeline: {type: array, items: &event {type: object, properties: {kind: {type: string}, by: {type: string}, line: {type: string}, n: {type: [integer, 'null']}, key: {type: string}, pass: {type: integer}}}}
-              answer: &talked {type: [object, 'null'], properties: {round: {type: [integer, 'null']}, decision: {type: string}, text: {type: string}, asked: {type: array, items: {type: string}}, by: {type: string}}}
+              timeline: {type: array, items: *event}
+              answer: *talked
               plan_prior: {<<: *pointer_or_null, description: 'json(shared:plan-prior.schema.json): この周の plan の port prior（前の周の値か、修正要望を差し込んだ写し）。1 周目は null'}
               record: {<<: *pointer_or_null, description: 'json(shared:plan-converge.schema.json): この周の事前審査と plan-out の port prior の往復の記録。1 周目は null'}
               answers: {type: array, items: {type: object, properties: {question: {type: string}, text: {type: string}}}}
               recorded: *recorded
-              asks: {type: array, items: &asked_again {type: object, properties: {n: {type: integer}, key: {type: string}, round: {type: [integer, 'null']}, text: {type: string}, note: {type: boolean}}}}
+              asks: {type: array, items: *asked_again}
               talks: {type: array, items: *talked}
               stop_reason: {type: string}
               reason: {type: string}
@@ -425,7 +692,7 @@ nodes:
             structure: "$structure-in.output.structure"
             spec: "$judge.output.spec"
             policy: "$start.output.ports.policy"
-            prior_failures: "$start.output.ports.prior_rows"
+            prior_failures: "$request-in.output.prior_rows"
             prior: "$design-turn.output.plan_prior"
             ruling: "[]"
             base: "$start.output.ports.base_rev"
@@ -452,7 +719,7 @@ nodes:
             excluded: "$judge.output.excluded"
             policy: "$start.output.ports.policy"
             recorded: "$design-turn.output.recorded"
-            request: "$start.output.ports.request_file"
+            request: "$request-in.output.request_file"
             review_rev: "$start.output.ports.review_rev"
             diff_base: "$start.output.ports.base"
             lang: "$start.output.ports.lang"
@@ -532,7 +799,7 @@ nodes:
           wait:
             attention: "$design-talk.output.text"
             form: select
-            options: [{id: approve}, {id: continue}, {id: stop}, {id: reject}, {id: revise}]
+            options: [{id: approve}, {id: continue}, {id: stop}, {id: reject}, {id: revise}, {id: redesign}]
   - id: plan-rounds-out
     <<: *receiver
     output_format: {<<: *received, properties: {got: {type: [object, 'null'], additionalProperties: false, properties: {<<: *design_talk_props, optional: {type: 'null', description: '受け皿の returned が足す欄（往復は落ちてよい node を宣言しないので null）'}}}, why: {type: string}}}
@@ -541,6 +808,29 @@ nodes:
       got: "$plan-rounds.output"
       names: "done ok status round plan_prior record plan fix_plan reply handoffs ripple owed gave_up stalled capped review asks deviations
         review_status review_reason stop_reason open text asked agreed talks notes shown timeline"
+  # 8.5 設計へ戻す（テーマの run で、計画の承認ノード gate-design に redesign と答えた時だけ書き出す。docs/design/line.md の 3.3 節）。
+  # run を閉じるのは修正前の承認ノード（agreed の redesign は通す語でないので human:gate-design で止める）
+  - id: theme-return
+    script: theme_return
+    runtime: uv
+    mutates_checkout: false
+    depends_on: [plan-rounds-out, theme-descend]
+    when: "$start.output.ports.theme != ''"
+    with:
+      rounds: "$plan-rounds-out.output.got"
+      ports: "$start.output.ports"
+      record: "$start.output.record"
+      descended: "$theme-descend.output"
+    output_format:
+      type: object
+      additionalProperties: false
+      required: [back, next, command, reason, report]
+      properties:
+        back: {type: boolean}
+        next: {type: string}
+        command: {type: string}
+        reason: {type: string}
+        report: {type: array, items: {type: string}}
   # 9 修正前の承認ノード（docs/design/line.md の 2 節の 2）。軸・項目・聞かずに通した行は line が組む
   - id: ask-before-fix
     # 本体はここ 1 か所。仕様駆動の run の spec-ask-before-fix は <<: *ask_before_fix で受ける
@@ -640,7 +930,7 @@ nodes:
       units: "$spec-diagnose.output.units"
       answer_ties: "$spec-diagnose.output.answer_ties"
       materials: "$spec-diagnose.output.materials"
-      answers: "$start.output.ports.request_answers"
+      answers: "$request-in.output.request_answers"
       takes_push: "$start.output.ports.takes_push"
       spec_doc: "$spec-entry.output.spec"
       routes: "spec"
@@ -834,7 +1124,7 @@ nodes:
       ripple: "$fix-in.output.ripple"
       plan_review: "$fix-in.output.review"
       answers: "$fix-in.output.answer"
-      request_answers: "$start.output.ports.request_answers"
+      request_answers: "$request-in.output.request_answers"
       unattended: "$start.output.ports.unattended"
       parallel: "$start.output.ports.parallel"
       test_cmd: "$start.output.ports.test_cmd"
@@ -843,7 +1133,7 @@ nodes:
       user_env_dir: "$start.output.ports.user_env_dir"
       lang: "$start.output.ports.lang"
       policy: "$fix-in.output.policy"
-      request: "$start.output.ports.request_file"
+      request: "$request-in.output.request_file"
       baseline: "$fix-in.output.baseline"
       tdd_suite: "$fix-in.output.suite"
       suite_made: "$fix-in.output.suite_made"
@@ -902,6 +1192,7 @@ nodes:
       answer: "$fix-in.output.answer"
       record: "$start.output.record"
       ports: "$start.output.ports"
+      request: "$request-in.output"
     output_format:
       type: object
       additionalProperties: false
@@ -958,7 +1249,7 @@ nodes:
       permits: "$fix.output.allowed_tests"
       plan_review: "$fix-in.output.review"
       policy: "$fix-in.output.policy"
-      request: "$start.output.ports.request"
+      request: "$request-in.output.request"
       lang: "$start.output.ports.lang"
   - id: delta-review-out
     <<: *receiver
@@ -978,7 +1269,7 @@ nodes:
       units: "$fix-in.output.units"
       answer_ties: "$fix-in.output.answer_ties"
       materials: "$fix-in.output.materials"
-      answers: "$start.output.ports.request_answers"
+      answers: "$request-in.output.request_answers"
       takes_push: "$start.output.ports.takes_push"
       verify: "$fix-in.output.verify"
       excluded: "$fix-in.output.excluded"
@@ -988,7 +1279,7 @@ nodes:
       structure: "$fix-in.output.structure"
       spec: "$fix-in.output.spec"
       policy: "$fix-in.output.policy"
-      prior_failures: "$start.output.ports.prior_rows"
+      prior_failures: "$request-in.output.prior_rows"
       prior: "$after-fix.output.prior"
       ruling: "$fix.output.replan_items"
       conflicts: "$fix.output.conflicts"
@@ -1023,7 +1314,7 @@ nodes:
       excluded: "$fix-in.output.excluded"
       policy: "$fix-in.output.policy"
       recorded: "$fix-in.output.recorded"
-      request: "$start.output.ports.request_file"
+      request: "$request-in.output.request_file"
       review_rev: "$start.output.ports.review_rev"
       diff_base: "$start.output.ports.base"
       ruling: "$fix.output.replan_items"
@@ -1121,7 +1412,7 @@ nodes:
       notes: "$answer-replan.output.fix_notes"
       only_items: "$fix.output.replan_items"
       prior: "$fix.output.carry"
-      request_answers: "$start.output.ports.request_answers"
+      request_answers: "$request-in.output.request_answers"
       unattended: "$start.output.ports.unattended"
       parallel: "$start.output.ports.parallel"
       test_cmd: "$start.output.ports.test_cmd"
@@ -1130,7 +1421,7 @@ nodes:
       user_env_dir: "$start.output.ports.user_env_dir"
       lang: "$start.output.ports.lang"
       policy: "$fix-in.output.policy"
-      request: "$start.output.ports.request_file"
+      request: "$request-in.output.request_file"
       baseline: "$fix-in.output.baseline"
       tdd_suite: "$fix-in.output.suite"
       suite_made: "$fix-in.output.suite_made"
@@ -1186,7 +1477,7 @@ nodes:
       permits: "$refix-run.output.allowed_tests"
       plan_review: "$answer-replan.output.plan_review"
       policy: "$fix-in.output.policy"
-      request: "$start.output.ports.request"
+      request: "$request-in.output.request"
       lang: "$start.output.ports.lang"
   - id: delta-review-2-out
     <<: *receiver
@@ -1256,9 +1547,9 @@ nodes:
   - id: parallel-pr-after
     include: works-factory-parallel-pr
     depends_on: [fixed]
-    when: "$start.output.ports.entry != '' && $fixed.output.diffed == true"
+    when: "$request-in.output.entry != '' && $fixed.output.diffed == true"
     with:
-      request: "$start.output.ports.request"
+      request: "$request-in.output.request"
       base: "$start.output.ports.base_rev"
       changed: "[]"
       lang: "$start.output.ports.lang"
@@ -1274,7 +1565,7 @@ nodes:
     depends_on: [fixed]
     when: "$fixed.output.rejudge == true"
     with:
-      request: "$start.output.ports.request"
+      request: "$request-in.output.request"
       objection: "$fixed.output.objection"
       prior: "$fix-in.output.judgment"
       prior_brief: "$fix-in.output.brief"
@@ -1357,8 +1648,8 @@ nodes:
       tdd_suite: "$fix-in.output.suite"
       base: "$start.output.ports.base_rev"
       entry_base: "$start.output.ports.base"
-      request: "$start.output.ports.request"
-      request_scope: "$start.output.ports.request_scope"
+      request: "$request-in.output.request"
+      request_scope: "$request-in.output.request_scope"
       baseline: "$fix-in.output.baseline"
       reuse_dir: "$start.output.ports.reuse_dir"
       reuse_key: "$start.output.ports.run_id"
@@ -1430,7 +1721,7 @@ nodes:
       pushes: "$eyes-in.output.pushes"
       answers: "$eyes-in.output.answers"
       asked: "$eyes-in.output.asked"
-      request: "$start.output.ports.request_file"
+      request: "$request-in.output.request_file"
       decisions: "$fix-in.output.decisions"
       intent: "[]"
       lang: "$start.output.ports.lang"
@@ -1530,7 +1821,7 @@ nodes:
       answer: "$answer-final.output.answer"
       r2: "$ask-final.output.r2"
       deliver: "$start.output.ports.deliver"
-      request: "$start.output.ports.request_file"
+      request: "$request-in.output.request_file"
       user_env_dir: "$start.output.ports.user_env_dir"
       items: "$fixed.output.item_claims"
   - id: merge-apply-out
@@ -1551,7 +1842,8 @@ nodes:
                  delta-review-out, replan-out, replan-review-out, ask-replan, answer-replan, refix-run-out, lens-2-out, lens-2-in,
                  delta-review-2-out, fixed, parallel-pr-after-out, rejudge-run-out, spec-check-run-out, judged, test-gate-final-out, eyes-in,
                  eyes-out, merge-seal-out, ask-final, answer-final, merge-apply-out, spec-entry-out, spec-diagnose-out, spec-plan-out,
-                 spec-check-out, spec-rounds, spec-ask-before-fix, spec-answer-before-fix]
+                 spec-check-out, spec-rounds, spec-ask-before-fix, spec-answer-before-fix, theme-world-out, theme-world-in, theme-blind-out, theme-design-in,
+                 theme-rounds-out, theme-descend, request-in, theme-return]
     trigger_rule: all_done
     always_run: true
     with:
@@ -1603,6 +1895,14 @@ nodes:
       spec_rounds: {from: "$spec-rounds.output", if_skipped: null}
       spec_ask_before_fix: {from: "$spec-ask-before-fix.output", if_skipped: null}
       spec_answer_before_fix: {from: "$spec-answer-before-fix.output", if_skipped: null}
+      # テーマの run だけ（ほかの run は request-in のほか null。docs/design/line.md の 3.3 節）
+      theme_world_in: {from: "$theme-world-in.output", if_skipped: null}
+      theme_blind: {from: "$theme-blind-out.output.got", if_skipped: null}
+      theme_design_in: {from: "$theme-design-in.output", if_skipped: null}
+      theme_rounds: {from: "$theme-rounds-out.output.got", if_skipped: null}
+      theme_descend: {from: "$theme-descend.output", if_skipped: null}
+      request_in: {from: "$request-in.output", if_skipped: null}
+      theme_return: {from: "$theme-return.output", if_skipped: null}
       # 受け止める段の宣言: include 丸ごと受け止める段だけをここに書く（docs/design/line.md の 7.2 の optional）。block の中の node は
       # 各 block が返りの欄 optional で宣言し、collect が include の頭を付けて合わせる
       optional: '["eyes__", "lens__", "lens-2__"]'

@@ -1,0 +1,23 @@
+# 形 theme の拒まれた後の出し直し: 筋書きは輪を 1 周しか回さないので、1 周目の theme-prep の返りを「出し直す」に差し替えて、出し直しの
+# 指示を組む theme-fix-prep・出し直しの役・受け付けへ届かせる（形 plan の resubmit.stubs.yaml と同じ形）。出し直しの役の指示は本物の
+# prep が md から組む。合わせる前の答えの控えが無いので受け付けは拒み、出口が status: failed を返す
+fixture:
+  expect: completed
+  reached:
+  - intake
+  - theme-prep
+  - theme-fix-prep
+  - review-theme-fix
+  - theme-accept
+  - review-reads
+  - finish
+  inputs:
+    theme_doc: README.md
+    purpose: 直し方の型を何段に分けるかを決める
+  resolved-text-contains:
+    review-theme-fix: Your previous answer was rejected by the machine's check.
+exec-code: true
+theme-prep:
+  prompt: ''
+  resubmit: true
+review-theme-fix: {}

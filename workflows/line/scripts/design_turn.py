@@ -11,7 +11,8 @@
 gates/gate-design.json に並べて書く（人が読む控え）。
 
 入力（with:）: answer（$LOOP_PREV.gate-design.output）・previous（$LOOP_PREV.design-talk.output）・last（$LOOP_PREV.design-turn.output）・
-ports（start の配る値）・recorded（owed の recorded）
+ports（start の配る値）・recorded（owed の recorded）・request（request-in の返り。依頼の答えと、テーマの run の設計の段が
+取った受け箱の行 notes〔計画の段の 1 周目はその後の行から読む〕）
 """
 import os
 import sys
@@ -23,14 +24,15 @@ import ports  # noqa: E402
 
 
 def compute() -> dict:
-    raw = {name: os.environ.get(f"INPUTS_{name.upper()}") for name in ("answer", "previous", "last", "ports", "recorded")}
-    from src import talk
+    raw = {name: os.environ.get(f"INPUTS_{name.upper()}") for name in ("answer", "previous", "last", "ports", "recorded", "request")}
+    from src import descend, talk
 
-    given = ports.parsed(raw["ports"])
-    if not isinstance(given, dict):
+    if not isinstance(ports.parsed(raw["ports"]), dict):
         raise ValueError("配る値（ports）が読めない。with: の鍵の結びを確かめる")
+    given = descend.dealt(ports.parsed(raw["ports"]), raw["request"])
+    request = ports.parsed(raw["request"])
     return talk.turn(answer_raw=raw["answer"], previous_raw=raw["previous"], last_raw=raw["last"], given=given,
-                     recorded=ports.parsed(raw["recorded"]), place=ports.place())
+                     recorded=ports.parsed(raw["recorded"]), place=ports.place(), before=request.get("notes") or [])
 
 
 def fallback(reason: str) -> dict:

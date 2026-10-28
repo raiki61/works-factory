@@ -7,7 +7,7 @@ next-request.schema.json と prior-failures.schema.json）の読みと照らし�
 依頼を解く時に同じ Schema で前の失敗の行を照らす（欄の名の定数と Schema の欄が揃うことは tests/test_carry_home が縛る）。
 
 依頼のファイルは findings の JSON の配列か、{"findings": [...], "pr": [<番号>…], "issue": [<番号>…], "answers": [...],
-"prior_failures": [...]} の形。prior_failures は前の run で最後まで通らなかった物 [{where, text}]（前の run の報告が書く
+"prior_failures": [...], "theme": "..."} の形。prior_failures は前の run で最後まで通らなかった物 [{where, text}]（前の run の報告が書く
 next-request.json の欄。判定役と修正案の役の材料に貼る。受け付けが最後まで拒んだ行は直す穴ではない注意で、独立の目 R2 の作り直しの行
 （where が REDESIGN_WHERE）は次の周の先頭で直す穴）。
 answers は依頼者が前の run の問いに答えた物 [{question, text, command?, output?}]（question は問いの key か出どころ。
@@ -16,7 +16,8 @@ command・output は人が手元で測った命令と出力で、両方か無し
 （入口・判定と前提の受け口）はここで解き、graphloops の規則（check_request・add_request・REQUEST_SCHEMA）に渡すのは
 findings だけにする（容器の形を規則の側へ漏らさない）。
 
-- parts(doc) -> {"findings": list, "pr": [int], "issue": [int], "answers": [dict], "prior_failures": [dict], "constraints": [dict]}:
+- parts(doc) -> {"findings": list, "pr": [int], "issue": [int], "answers": [dict], "prior_failures": [dict], "constraints": [dict],
+  "theme": str}: theme はテーマの文か対象の根からの md のパス（設計の段の入口。空の字は無い）。
   解けなければ ValueError（1 行）。constraints は前の run の前提の検算が偽と示した仮定の実測 [{text, measured_how, kind: "実測"}]
   （前の run の報告が書く。判定が前提の実測の制約に足す。直す穴 findings にも前の失敗 prior_failures にも混ぜない）
 - carried_constraints(facts, run_id): 前提の検算の facts_to_add を constraints の行にする（書き手は報告）
@@ -50,7 +51,8 @@ import oneline  # noqa: E402
 
 # 依頼の容器の欄の名
 FINDINGS, PR, ISSUE, ANSWERS, PRIOR, CONSTRAINTS = "findings", "pr", "issue", "answers", "prior_failures", "constraints"
-KEYS = (FINDINGS, PR, ISSUE, ANSWERS, PRIOR, CONSTRAINTS)
+THEME = "theme"   # テーマ（コードに落とす前の設計の問い）の文か、対象の根からの md のパス（設計の段。docs/design/line.md の 3.3）
+KEYS = (FINDINGS, PR, ISSUE, ANSWERS, PRIOR, CONSTRAINTS, THEME)
 ANSWER_KEYS = ("question", "text", "command", "output")   # 人が見直した答えの欄（Schema の answers は下書きの欄で、別の物）
 DRAFT, SOURCE, NOTE = "draft", "source", "note"
 DRAFT_KEYS = (DRAFT, SOURCE)   # 前の run の報告が next-request.json の answers・findings に置く下書きの印（人が見直して消すまで拒む）
@@ -91,7 +93,7 @@ def errors(doc, name: str) -> list:
 
 def parts(doc) -> dict:
     if isinstance(doc, list):
-        return {FINDINGS: doc, PR: [], ISSUE: [], ANSWERS: [], PRIOR: [], CONSTRAINTS: []}
+        return {FINDINGS: doc, PR: [], ISSUE: [], ANSWERS: [], PRIOR: [], CONSTRAINTS: [], THEME: ""}
     if not isinstance(doc, dict):
         raise ValueError(f"findings の配列か {{findings, pr, issue, answers, prior_failures, constraints}} の形でない（{type(doc).__name__}）")
     extra = sorted(set(doc) - set(KEYS))
@@ -114,6 +116,10 @@ def parts(doc) -> dict:
     out[ANSWERS] = _answers(doc.get(ANSWERS, []))
     out[PRIOR] = _prior_failures(doc.get(PRIOR, []))
     out[CONSTRAINTS] = _constraints(doc.get(CONSTRAINTS, []))
+    theme = doc.get(THEME, "")
+    if not isinstance(theme, str):
+        raise ValueError(f"theme が字でない（{type(theme).__name__}。テーマの文か、対象の根からの md のパス）")
+    out[THEME] = theme.strip()
     return out
 
 

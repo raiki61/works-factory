@@ -637,11 +637,13 @@ class DryRunBodiesCase(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             placed = pathlib.Path(tmp)
             shutil.copytree(kit.BLOCKS / BLOCK, placed / BLOCK)
-            self.assertEqual(archon.dry_run_bodies(placed), ["gate-design"])
+            self.assertEqual(archon.dry_run_bodies(placed), ["gate-theme", "gate-design"])
             doc = yaml.safe_load((placed / BLOCK / f"works-factory-{BLOCK}.yaml").read_text(encoding="utf-8"))
         top = {n["id"]: n for n in doc["nodes"]}
         body = [n["id"] for n in top["plan-rounds"]["loop_group"]["nodes"]]
         self.assertEqual(body, ["design-turn", "plan", "plan-review-run", "plan-out", "design-talk"])
+        theme = [n["id"] for n in top["theme-rounds"]["loop_group"]["nodes"]]
+        self.assertNotIn("gate-theme", theme)
         self.assertIn("gate-before-fix", top)
 
 

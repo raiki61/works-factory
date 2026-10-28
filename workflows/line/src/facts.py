@@ -24,7 +24,8 @@ LINE_STOPS = (("start", "start"), ("answer-start", "answer_start"), ("tiers", "t
               ("design-in", "design_in"), ("ask-before-fix", "ask_before_fix"), ("answer-before-fix", "answer_before_fix"),
               ("fix-in", "fix_in"), ("after-fix", "after_fix"), ("raise", "raise"), ("lens-in", "lens_in"), ("ask-replan", "ask_replan"),
               ("answer-replan", "answer_replan"), ("lens-2-in", "lens_2_in"), ("fixed", "fixed"), ("judged", "judged"),
-              ("ask-final", "ask_final"), ("answer-final", "answer_final"), ("spec-rounds", "spec_rounds"))
+              ("ask-final", "ask_final"), ("answer-final", "answer_final"), ("spec-rounds", "spec_rounds"),
+              ("theme-descend", "theme_descend"), ("request-in", "request_in"))
 # block の返りの止めの語（node の id → collect の入力の名）。修正後の並行 PR の確かめ直しは run を止めない（docs/design/line.md の 8.1）
 BLOCK_STOPS = (("judge", "judge"), ("spec-check-run", "spec_check"), ("spec-entry", "spec_entry"), ("spec-check", "spec_driven_check"))
 GIVE_UP = "give-up"
@@ -90,7 +91,7 @@ def read_ptr(ptr, field: str):
 def returns_of(values: dict, record: dict | None) -> dict:
     """元の役の名の returns: judge（fix-in が運んだ固定材料の値で埋める）・rejudge・plan（計画の往復の記録 plan-out）・plan-review
     （最後の往復の事前審査の値。plan-out の stalled・asks を持つ）・replan・replan-review-result・fix（fixed の合わせ）・before-tests・
-    final-tests・eyes・sealed-diff・applied-diff・structure・start（始めの記録）"""
+    final-tests・eyes・sealed-diff・applied-diff・structure・start（始めの記録）・theme_descend（テーマの run の降りる道）"""
     received = as_dict(as_dict(values.get("fix_in")).get("received"))
     judge = values.get("judge") if isinstance(values.get("judge"), dict) else received.get("judge")
     rounds = values.get("rounds") if isinstance(values.get("rounds"), dict) else received.get("rounds")
@@ -110,6 +111,7 @@ def returns_of(values: dict, record: dict | None) -> dict:
         "sealed-diff": values.get("merge_seal") if isinstance(values.get("merge_seal"), dict) else None,
         "applied-diff": values.get("merge_apply") if isinstance(values.get("merge_apply"), dict) else None,
         "structure": values.get("structure") if isinstance(values.get("structure"), dict) else received.get("structure"),
+        "theme_descend": values.get("theme_descend") if isinstance(values.get("theme_descend"), dict) else None,
     }
 
 
@@ -297,6 +299,9 @@ def gates_of(values: dict) -> dict:
     out = {at: as_dict(values.get(name)).get("answer") if isinstance(as_dict(values.get(name)).get("answer"), dict) else None
            for at, name in GATES}
     import answer
+    theme = as_dict(values.get("theme_descend")).get("answer")   # テーマの run の設計の段の承認ノードの答え（無人の run の推しも。3.3 節）
+    if isinstance(theme, dict):
+        out = {"gate-theme": theme, **out}
     talked = as_dict(values.get("ask_before_fix")).get("agreed")   # 対話モードの run の設計の相談の最後の答え（docs/design/line.md の 3.1 節）
     # 通す語の合意は answer-before-fix が修正前の答えとして書くので、そこに答えが在れば 2 度数えない（止めた答えと、修正前に答えが無い合意だけ出す）
     if isinstance(talked, dict) and (talked.get("decision") not in answer.GO_WORDS or out.get("gate-before-fix") is None):
@@ -428,8 +433,9 @@ def chain_notes(returns: dict) -> list:
 
 
 def no_fix(returns: dict) -> bool:
-    """直す物が無い周: fixed が直す物の無い形か、判定が ready でなく止めの語も無いか、直す単位が 0"""
-    if as_dict(returns.get("fix")).get("no_fix") is True:
+    """直す物が無い周: fixed が直す物の無い形か、判定が ready でなく止めの語も無いか、直す単位が 0か、テーマの run で承認された設計に変える所が
+    無い（設計だけの結末）"""
+    if as_dict(returns.get("fix")).get("no_fix") is True or as_dict(returns.get("theme_descend")).get("no_change") is True:
         return True
     j = latest(returns, "judge")
     return bool(j) and ((j.get("ready") is False and not j.get("stop_reason")) or not _units(returns))
