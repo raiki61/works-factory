@@ -7,7 +7,7 @@
 - AI: 設計書の「node の設計シート: <id>」の「役」→ 設計書の node の並びの行（`<id>`（…）: 説明）→ YAML の description → 指示の md の You で始まる段落
   （日本語の写しが在れば写し）
 - script: docstring の最初の文。「受け皿」「返し」で始まる物は配線（wire）
-- include と workflow: 呼ぶ先の graph の 1 行と、呼ぶ側での役（呼ぶ側の設計書の node の並びの行 → with の mode の値）
+- block と child（include と workflow: のノード）: 呼ぶ先の graph の 1 行と、呼ぶ側での役（呼ぶ側の設計書の node の並びの行 → with の mode の値）
 - 繰り返し: 形から組む。承認・止め・bash: 設計書の node の並びの行 → YAML の description
 
 - attach(shape, design, translate) -> problems: shape の graph に what、item に what（{line, from, why, role?, role_from?, wire?}）を足す。1 行が無い
@@ -25,6 +25,8 @@ SHEET = "node の設計シート"
 ROLE = "役"
 ID = re.compile(r"^[A-Za-z0-9_-]+$")
 ITEM = re.compile(r"^(?:[-*]|\d+(?:\.\d+)*\.)\s+`([A-Za-z0-9_-]+)`")
+BULLET = re.compile(r"^(?:[-*]|\d+(?:\.\d+)*\.)\s+")
+LISTING = "並び"
 WIRES = ("受け皿", "返し")
 
 
@@ -65,27 +67,33 @@ def first(text: str) -> tuple[str, str]:
 
 
 class _Doc:
-    """設計書 1 本の見出しの木と、node の並びの行"""
+    """設計書 1 本の見出しの木と、node の並びの行（見出しの括弧の外に「並び」を持つ節とその下の節の、囲みのコードの外の行）"""
 
     def __init__(self, name: str, text: str, problems: list):
-        self.name, self.heads, self.lines = name, [], text.split("\n")
-        fence = ""
+        self.name, self.heads, self.lines, self.rows = name, [], text.split("\n"), []
+        fence, fenced = "", set()
         for n, line in enumerate(self.lines):
             mark = re.match(r"\s*(`{3,}|~{3,})", line)
             if mark and (not fence or (mark[1][0] == fence[0] and len(mark[1]) >= len(fence) and not line.strip()[len(mark[1]):])):
                 fence = "" if fence else mark[1]
+                fenced.add(n)
                 continue
+            if fence:
+                fenced.add(n)
             hit = not fence and HEAD.match(line)
             if hit:
                 self.heads.append({"n": n, "level": len(hit[1]), "title": hit[2], "name": NUMBER.sub("", hit[2])})
         for i, head in enumerate(self.heads):
             head["up"] = [h for h in self.heads[:i] if h["level"] < head["level"]]
             head["up"] = [h for j, h in enumerate(head["up"]) if all(o["level"] > h["level"] for o in head["up"][j + 1:])]
+            end = self.heads[i + 1]["n"] if i + 1 < len(self.heads) else len(self.lines)
+            if any(LISTING in re.split(r"[（(]", h["name"])[0] for h in [head, *head["up"]]):
+                self.rows += [n for n in range(head["n"] + 1, end) if n not in fenced]
             if head["name"] == ROLE and not self.paragraph(head):
                 problems.append(f"docs/design/{Path(name).name}: 「{head['title']}」の見出しの下に段落が無い（札の 1 行が選べない）")
 
     def paragraph(self, head: dict) -> str:
-        """見出しの下の最初の段落（次の見出しまで）"""
+        """見出しの下の最初の段落（次の見出しまで）。段落が箇条書きなら、頭の印を落とした最初の項（mode ごとの役を並べた節の 1 つ目）"""
         got = []
         for line in self.lines[head["n"] + 1:]:
             if HEAD.match(line):
@@ -94,7 +102,11 @@ class _Doc:
                 if got:
                     break
                 continue
+            if got and BULLET.match(got[0]) and BULLET.match(line.strip()):
+                break
             got.append(line.strip())
+        if got:
+            got[0] = BULLET.sub("", got[0])
         return " ".join(got)
 
     def where(self, head: dict) -> str:
@@ -123,7 +135,7 @@ class _Doc:
 
     def listed(self, ident: str) -> dict | None:
         """node の並びの行「`<id>`（…）: 説明」の説明"""
-        for line in self.lines:
+        for line in (self.lines[n] for n in self.rows):
             hit = ITEM.match(line.strip())
             if not hit or hit[1] != ident:
                 continue
