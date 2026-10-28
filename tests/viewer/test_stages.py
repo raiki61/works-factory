@@ -9,7 +9,7 @@
   小さい手番は数だけ持ち、新しく読んだ分を出さない
 - 段の表の配線の列（wiring。合流・受け渡しだけで段の仕事をしないノード）は、その段のノードの中に在り、どの段にも配線でない
   ノードが在る。配線のノードだけが走った段は「飛んだ」（修正の段が飛んだ run でも fix-in・fixed・judged は走る。修正前の承認の
-  聞きと受け ask-before-fix・answer-before-fix は、人が聞かれずに止めや通しを受け渡しただけでも走る。人が答えた run は「通った」）
+  聞きと受け ask-before-fix・answer-before-fix と仕様駆動の spec-ask-before-fix・spec-answer-before-fix は、人が聞かれずに止めや通しを受け渡しただけでも走る。人が答えた run は「通った」）
 - 止まった段は記録の事実から引く: 落ちた run は最後に落ちた出来事の段、人が止めた run は答えが stop だった人の答え待ちの段（run 642df5d7
   の形で、止めを受け渡しただけの修正前の承認を返さない）。通す答えだけの run と落ちずに終わった run には無い
 - line でない run は段に集めない
@@ -179,6 +179,16 @@ class StagesCase(unittest.TestCase):
         events = [event(["ask-before-fix"]), event(["gate-before-fix"], kind="wait", output='{"decision": "approve", "text": ""}'),
                   event(["answer-before-fix"]), event(["fix-in"]), event(["fix"], kind="agent")]
         self.assertEqual(summed(events)[number("gate-before-fix") - 1]["state"], "ok")
+
+    def test_a_spec_driven_before_fix_approval_passes_only_when_a_human_answered(self):
+        # 仕様駆動の run の聞きと受け spec-ask-before-fix・spec-answer-before-fix も、人に聞かずに止めを受け渡すだけで走る（受付 03e0e5）
+        handed = [{"tokens": ["spec-rounds"]}, {"tokens": ["spec-ask-before-fix"]}, {"tokens": ["spec-answer-before-fix"]}]
+        skipped = [{"tokens": [node]} for node in ("ask-before-fix", "gate-before-fix", "answer-before-fix", "spec-gate-before-fix", "fix")]
+        events = [event(**e) for e in handed] + [event(["fix-in"]), event(["fixed"]), event(["collect"])]
+        self.assertEqual(run_of(events, skipped)["stages"]["run"][number("spec-gate-before-fix") - 1]["state"], "skipped")
+        answered = [event(["spec-ask-before-fix"]), event(["spec-gate-before-fix"], kind="wait", output='{"decision": "approve", "text": ""}'),
+                    event(["spec-answer-before-fix"]), event(["fix-in"]), event(["fix"], kind="agent")]
+        self.assertEqual(summed(answered)[number("spec-gate-before-fix") - 1]["state"], "ok")
 
     def test_a_go_answer_or_a_run_that_did_not_stop_has_no_stop(self):
         go = event(["plan-rounds", "gate-design"], kind="wait", output={"decision": "approve", "text": ""})
