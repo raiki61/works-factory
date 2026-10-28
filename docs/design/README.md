@@ -299,10 +299,11 @@ Archon の源で確かめた読み方（この形はこれに合わせた）:
 
 ### 5.2 組み立ての口
 
-- prep は `prompt.render(node_id, values, when)`（place に書くなら `prompt.emit`）だけで指示を組む。口は、呼んだ script の在る block の `prompts/<node_id>.md` を自分で探し、パスも文も受けない。system prompt の文も md に置く: `prompts/<node-id>.system.md` が在れば、口が同じ値と `when` で組んで返す（13 章）。
-- 口は次の時に落ちる: 値の無い `{name}` が在る（選ばれない段落の中の口も、system の md の口も数える。prep はいつも同じ組の値を渡す）・使われない値を渡された・`when` の名が md に無い・md の `if` に `when` の値が無い・`{shared:…}`・`{part:…}` の先が無い。
+- prep（AI の node の直前の script の node。材料を集めて指示を組む）は `prompt.render(node_id, values, when)`（place〔block ごとの run directory。4.4〕に書くなら `prompt.emit`）だけで指示を組む。`values` は差し込み口 `{name}` ごとの値、`when` は 5.1 の `<!-- if <name> -->` の段落ごとに入れるかの真偽（`{名: true/false}`）。口（`workflows/.shared/prompt.py` のこの関数）は、呼んだ script（block の `scripts/` に在る、script の node が走らせる Python）の在る block の `prompts/<node_id>.md` を自分で探し、パスも文も受けない。system prompt の文も md に置く: `prompts/<node-id>.system.md` が在れば、口が同じ値と `when` で組んで返す（13 章）。
+- 口は次の時に落ちる: 値の無い `{name}` が在る（選ばれない段落の中の口も、system の md の口も数える。prep はいつも同じ組の値を渡す）・使われない値を渡された・`when` の名が md に無い・md の `if` に `when` の値が無い・`{shared:…}`・`{part:…}` の先が無い（5.1 の断片の差し込み。`{part:<name>}` は同じ block の `prompts/parts/<name>.md`、`{shared:<name>}` は `workflows/.shared/prompts/<name>.md` を差し込むので、その名のファイルが無ければ落ちる）。
 - 口は段落を選んだ後、値を入れる前に、3 つ以上続く改行を 2 つに畳む。だから空の値を入れた行は空行として残る（見た目だけ。消したい行は段落の `if` で選ぶ）。
 - 組んだ指示は place の `<node-id>-prompt-<n>.md` に書く（`<n>` はloop の何回目か）。prep の出力の欄 `prompt`（system prompt は `system`）で返す。
+- `prompt.emit` は隣に、組むのに使った値と段落の選び `<node-id>-viewer-values-<n>.json` も書く。工場の外の見る道具（run〔Archon の workflow の 1 回の実行〕で LLM に入った英語の指示を、日本語の md の写しで同じ形に組み直して人に見せる物）のための記録で、工場の中では読まない。LLM に渡す指示の字は変えない（持ち主の決め `prompt-values-for-viewer`）。形は `{"node", "block"（呼んだ block のフォルダの名）, "md"（組んだ欄ごとの block からの相対パス `{"prompt": "prompts/<node-id>.md", "system"?: "prompts/<node-id>.system.md"}`）, "values"（差し込み口の値。字か整数）, "when"（段落の選び。無ければ `{}`）}`。この `values` と `when` で組み直すと、同じ `<node-id>-prompt-<n>.md`（と system）が字のまま組み上がる（照らしは `tests/blocks/shared/test_prompt.py`）。run の置き場を使い直すと、前の試みの `<node-id>-viewer-values-<n>.json` が残りうる。今の run の記録は、同じ `<n>` の `<node-id>-prompt-<n>.md` が在る物だけなので、見る道具は prompt の側から引く。
 - AI の node の YAML は `prompt: "$<prep の id>.output.prompt"` の 1 行だけにする（system prompt を持つ node は `systemPrompt: "$<prep の id>.output.system"` も）。`command:` は使わない。道具を持たない役（world-classes など）も、指示をファイルから Read せずに受け取れる。
 - 「Python は指示の文を持たない」は、この口の形で守る。AI に届く決まった文の在りかは md しか無く、審査は md を読めば済む。lib の Python の定数の長さを数える検査は置かない（持ち主の決め `shape-checks-only`）。
 
