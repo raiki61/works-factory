@@ -7,6 +7,8 @@
 - 図は run の写しから作り、図に当たらないノードが 0
 - run の一覧に、その run が終わりの状態で 1 行在る
 - 落ちたノードの誤りの字が出来事に在る
+- include の中で指示を組んだノード（prompt.emit）の出来事に、値の記録から工場の組み立ての口で組み直した日本語の写しが付き、訳の無い
+  段落は英語のまま残るので、写しは place に書かれた英語の指示と字のまま同じ（Archon の place の置き場と ports.include_folders の引きが合う）
 - 承認ノードで止まった run は待ちと答える命令を出し、答えが入って次へ進む前の間（Archon は答えを run の metadata の wait に書くだけで、
   状態は paused のまま node_completed も書かない。Archon の runAttention はこの間を待ちに数えない）と、待ちのまま止めた後（Archon は
   node_completed を書かず、run を cancelled にする）は、どちらも出さない。答えだけを入れた間は、Archon の CLI がすぐ次へ進めて残らないので、
@@ -60,8 +62,20 @@ nodes:
         - id: step
           script: step
           runtime: uv
+  - id: talk
+    script: talk
+    runtime: uv
+    depends_on: [rounds]
 """,
     "seen-leaf/scripts/step.py": HEAD + 'print("{}")\n',
+    # 指示を組む prep と同じ口（prompt.emit）で、include の中の place に指示と値の記録を書く
+    "seen-leaf/scripts/talk.py": HEAD + """import json, sys
+from pathlib import Path
+sys.path[:0] = [str(Path(__file__).resolve().parents[2] / ".shared")]
+import prompt
+print(json.dumps(prompt.emit("talk", {"name": "x{y}"}, {"web": True}, prompt.round_of("talk"))))
+""",
+    "seen-leaf/prompts/talk.md": "Say hello to {name} and describe what this factory makes today.\n<!-- if web -->\nOn\n<!-- end web -->\n{shared:lang-default}\n",
     f"seen-gate/{PREFIX}seen-gate.yaml": f"""name: {PREFIX}seen-gate
 description: 承認ノードで止まり、待ちのまま止められる試し
 nodes:
@@ -120,18 +134,18 @@ class RealRunCase(unittest.TestCase):
                 # 家は archon.archon が木の横に置く archon-home（isolate.DIRS の名）。殻と同じく WORKS_FACTORY_HOME で向ける
                 user = {"WORKS_FACTORY_HOME": str(tree.parent), "HOME": str(tree.parent)}
                 gate = archon.archon(tree, "workflow", "run", f"{PREFIX}seen-gate", "--no-worktree", "--cwd", str(tree))
-                paused = flowview.build(str(tree), "", user, tree)
+                paused = flowview.build(str(tree), "", user, tree)[0]
                 answering = answer_only(tree, paused["run"]["id"]) if paused["run"] else None
-                answered_only = flowview.build(str(tree), paused["run"]["id"] if paused["run"] else "", user, tree)
+                answered_only = flowview.build(str(tree), paused["run"]["id"] if paused["run"] else "", user, tree)[0]
                 abandoned = archon.archon(tree, "workflow", "abandon", paused["run"]["id"], "--cwd", str(tree)) if paused["run"] else None
-                stopped = flowview.build(str(tree), paused["run"]["id"] if paused["run"] else "", user, tree)
+                stopped = flowview.build(str(tree), paused["run"]["id"] if paused["run"] else "", user, tree)[0]
                 archon.archon(tree, "workflow", "run", f"{PREFIX}seen-gate", "--no-worktree", "--cwd", str(tree))
-                again = flowview.build(str(tree), "", user, tree)
+                again = flowview.build(str(tree), "", user, tree)[0]
                 approved = archon.archon(tree, "workflow", "approve", again["run"]["id"], "よし", "--cwd", str(tree))
-                answered = flowview.build(str(tree), again["run"]["id"], user, tree)
+                answered = flowview.build(str(tree), again["run"]["id"], user, tree)[0]
                 answered_rows = rows(tree, again["run"]["id"])
                 done = archon.archon(tree, "workflow", "run", f"{PREFIX}seen", "--no-worktree", "--cwd", str(tree))
-                data = flowview.build(str(tree), "", user, tree)
+                data = flowview.build(str(tree), "", user, tree)[0]
         self.assertIsNotNone(paused["run"], f"{gate.stdout}{gate.stderr}")
         self.assertEqual((paused["run"]["status"], paused["run"]["waiting"], paused["runs"][0]["waiting"]), ("paused", ["ask"], ["ask"]))
         self.assertIn(f"respond {paused['run']['id']}", paused["run"]["answer"])
@@ -154,6 +168,9 @@ class RealRunCase(unittest.TestCase):
         at = {e["at"]["graph"] + "/" + e["at"]["node"] for e in run["events"]}
         self.assertLessEqual({"seen/make", "seen-leaf/rounds/step", "seen/boom"}, at)
         self.assertIn("boom", next(e for e in run["events"] if e["tokens"] == ["boom"])["error"])
+        talk = next(e for e in run["events"] if e["tokens"] == ["leaf", "talk"])
+        self.assertEqual([(p["md"], p["n"], p["error"], p["ja"]["prompt"]) for p in talk.get("prompts", [])],
+                         [("talk", 1, "", json.loads(talk["output"])["prompt"])])
 
 
 if __name__ == "__main__":

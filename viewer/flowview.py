@@ -3,12 +3,17 @@ docs/design/viewer.md）。引数を読み、src/ の部品を順に呼ぶだけ
 置く図の配置の道具 elkjs（viewer/elkjs.json の版。初めての 1 回だけ網から取る）だけ。
 
 使い方（工場の clone の根から）:
-    uv run --isolated python3 viewer/flowview.py [--target <対象のリポジトリ> [--run <run の id か頭の字>]] <出力>
+    uv run --isolated python3 viewer/flowview.py [--target <対象のリポジトリ> [--run <run の id か頭の字>]] [--ja-batches <束の置き場>] <出力>
+    uv run --isolated python3 viewer/flowview.py --ja-import <束の置き場>
+    uv run --isolated python3 viewer/flowview.py --ja-prune
 
 - --target が無ければ、今の木の作りだけを出す
 - --target が在れば、run の家を殻と同じ関数（bin/_lib/launcher.py の target_root・run_home）で引き、親の run の一覧を入れる。
   --run が無ければ一番新しい親の run を見る。図は run の写し（Archon が run の始めに写し取った作り）から作り、写しが無ければ今の木から作る
 - 出力は工場の clone の外に置く（ページに対象の字と会話の中身が入る）。ページは 1 枚で完結し、別のファイルを読まない
+- 日本語の写し（src/ja.py）は訳の控えから引く。--ja-batches は、ページに出す字のうち訳の無い段落を束にして書く（訳すのは取り次ぐ会話。
+  束も clone の外に置く）。--ja-import は訳した束を訳の控えに取り込み、--ja-prune は viewer/ja/ から今の木の md に無い段落の訳を消す。
+  この 2 つはページを書かない
 """
 import argparse
 import hashlib
@@ -24,9 +29,10 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from bin._lib import isolate, launcher  # noqa: E402
-from viewer.src import page, runread, session, shape  # noqa: E402
+from viewer.src import ja, page, runread, session, shape  # noqa: E402
 
 PACK = json.loads((ROOT / "pack.json").read_text(encoding="utf-8"))["ours"]
+TREE = ROOT / PACK["folder"]
 ANSWER = "bin/works-factory workflow respond {run} approve|stop --cwd {target}"
 
 
@@ -38,11 +44,19 @@ def main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(prog="viewer/flowview.py", description=__doc__.splitlines()[0])
     parser.add_argument("--target", help="対象のリポジトリ（run の家を引く）")
     parser.add_argument("--run", default="", help="見る run の id か頭の字（無ければ一番新しい親の run）")
-    parser.add_argument("out", help="出力の HTML（工場の clone の外）")
+    parser.add_argument("--ja-batches", metavar="DIR", help="ページに出す字のうち訳の無い段落を束にして DIR に書く（clone の外）")
+    parser.add_argument("--ja-import", metavar="DIR", help="DIR の訳の束（batch-<n>.ja.txt）を訳の控えに取り込む（ページは書かない）")
+    parser.add_argument("--ja-prune", action="store_true", help="viewer/ja/ から今の木の md に無い段落の訳を消す（ページは書かない）")
+    parser.add_argument("out", nargs="?", help="出力の HTML（工場の clone の外）")
     args = parser.parse_args(argv)
+    if args.ja_import or args.ja_prune:
+        return keep_ja(args.ja_import, args.ja_prune)
+    if not args.out:
+        parser.error("出力の HTML が要る")
     try:
         out = outside_clone(Path(args.out))
-        data = build(args.target, args.run, dict(os.environ), Path.cwd())
+        batches = outside_clone(Path(args.ja_batches)) if args.ja_batches else None
+        data, todo = build(args.target, args.run, dict(os.environ), Path.cwd())
         html = page.render(data, dict(os.environ))
     except (Refused, launcher.Stop, page.Unfetched) as stop:
         print(f"flowview: {stop}", file=sys.stderr)
@@ -51,12 +65,33 @@ def main(argv: list[str]) -> int:
     out.write_text(html, encoding="utf-8")
     run = data["run"]
     print(f"{out} {round(out.stat().st_size / 1024)} KB・graph {len(data['shape']['graphs'])}・"
-          f"run {run['id'][:8] if run else 'なし'}（一覧 {len(data['runs'])}）・図に当たらないノード {len(data['unmatched'])}")
+          f"run {run['id'][:8] if run else 'なし'}（一覧 {len(data['runs'])}）・図に当たらないノード {len(data['unmatched'])}・"
+          f"訳の無い段落 指示の md {data['ja']['md']}・会話 {data['ja']['texts']}")
+    if batches is not None:
+        print(f"訳の無い段落 {len(todo)} 個 → 束 {ja.export(todo, batches)} 個（{batches}）")
     return 0
 
 
-def build(target: str | None, wanted: str, user: dict, here: Path) -> dict:
-    """出力のデータ。target が無ければ今の木の作りだけ"""
+def keep_ja(folder: str | None, prune: bool) -> int:
+    """訳の控えの取り込みと掃除。取り込みは今の木の md の段落の訳だけを viewer/ja/ に、ほかを利用者のキャッシュに書く"""
+    if folder:
+        to_repo, to_cache, refused = ja.take(Path(folder), dict(os.environ))
+        print(f"取り込んだ viewer/ja/ に {to_repo}・キャッシュに {to_cache}")
+        for line in refused:
+            print(f"拒んだ: {line}", file=sys.stderr)
+    if prune:
+        print(f"viewer/ja/ から古い段落の訳 {ja.prune()} 個を消した")
+    return 0
+
+
+def build(target: str | None, wanted: str, user: dict, here: Path) -> tuple[dict, dict[str, str]]:
+    """出力のデータと、訳の無い段落（{鍵: 英語}）。target が無ければ今の木の作りだけ"""
+    data, pack = read(target, wanted, user, here)
+    return data, ja.attach(data, pack, user)
+
+
+def read(target: str | None, wanted: str, user: dict, here: Path) -> tuple[dict, Path]:
+    """出力のデータ（日本語の写しの前）と、図を作った pack のフォルダ"""
     texts = {}
 
     def keep(text: str) -> str:
@@ -71,7 +106,7 @@ def build(target: str | None, wanted: str, user: dict, here: Path) -> dict:
         if wanted:
             raise Refused("--run には --target が要る（run の家は対象から引く）")
         data["shape"] = tree_shape()
-        return data
+        return data, TREE
     root = launcher.target_root(Path(target), here)
     home = launcher.run_home(user, root)
     db = home / isolate.DIRS["ARCHON_HOME"] / runread.DB_FILE
@@ -85,11 +120,12 @@ def build(target: str | None, wanted: str, user: dict, here: Path) -> dict:
         if wanted:
             raise Refused(str(error)) from None
         data["shape"] = tree_shape()
-        return data
+        return data, TREE
     run = runread.run(db, run_id)
     run["answer"] = ANSWER.format(run=run_id, target=root) if run["waiting"] else ""
     copy = Path(run["copy"]) / PACK["pack"] if run["copy"] else None
-    if copy is not None and copy.is_dir():
+    pack = copy if copy is not None and copy.is_dir() else TREE
+    if pack == copy:
         data["shape"], data["shape_from"] = shape.read(copy, PACK["name_prefix"], ROOT / "docs" / "design"), "run-copy"
     else:
         data["shape"] = tree_shape()
@@ -104,11 +140,11 @@ def build(target: str | None, wanted: str, user: dict, here: Path) -> dict:
                 sessions[preview] = session.read(found, keep)
     run["sessions"] = sessions
     data["run"] = run
-    return data
+    return data, pack
 
 
 def tree_shape() -> dict:
-    return shape.read(ROOT / PACK["folder"], PACK["name_prefix"], ROOT / "docs" / "design")
+    return shape.read(TREE, PACK["name_prefix"], ROOT / "docs" / "design")
 
 
 def unmatched(graphs: dict, run: dict) -> list[str]:
