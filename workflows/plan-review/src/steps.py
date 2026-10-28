@@ -4,6 +4,7 @@ _role_item・replan_items〔:588-612〕・_tree_on〔:692-696〕の写し）。
 
 - intake(out, repo, **raw): port の字を読み、形を決め、place のこの block のファイルを名で消して材料を写し、intake.json を書く。
   返り {due, form, tree, k, reason}。落ちない（誤りは intake-error.json の {why, form} と due: false）
+- 形 theme（設計の案。19 節）: 入力 theme_doc が空でなければ、ほかの審査する物の入力より先に形 theme と決める（_theme_doc）
 - proposal_of(raw) -> 審査する物の字（入力 proposal か proposal_file の中身）・proposal_form(raw) -> ("plan", 修正案の役の返答) か
   ("text", 方針の文): 審査する物の形の決め（8 節の intake の 2。proposal_file の中身はいつも方針の文）
 - recorded_rows(recorded, policy_path) -> 記録された方針の行（port recorded が空で方針が在れば、方針の文書の行だけ）
@@ -28,6 +29,10 @@ intake.json の欄（形 plan と replan）:
 intake.json の欄（形 text）:
   form（"text"）・k（0）・round（0）・proposal_text（方針の文）・purpose・world（世界の解の行。無ければ []）・recorded_policy・
   policy_copy・review_rev・diff_base・cwd・defaults・lang
+intake.json の欄（形 theme）:
+  form（"theme"）・k（往復の番号 = prior の往復の数 + 1）・round（0）・theme_file（設計の案の写しのパス）・purpose・world・
+  recorded_policy・policy_copy・review_rev・diff_base・cwd・defaults・lang・request_file（依頼のファイルのパスか ""）・
+  design_schema・design_why（形 plan と同じ）
 place に写す物は docs/design/plan-review.md の 1.4（名は src/files.py）。
 """
 from __future__ import annotations
@@ -57,6 +62,8 @@ NO_STRUCTURE = "構造の目の控えが渡されていない"
 NO_RIPPLE = "波及の一覧が渡されていない"
 NO_APPROVED = "案の直しの事前審査なのに、承認済みの修正案（入力 prior の往復の記録の plan の行）が無い"
 NO_FIELDS = "入力 fields: 修正案の欄が渡されていない"
+NO_THEME = "入力 theme_doc: 審査する設計の案が空（{path}）"
+THEME_IGNORED = "入力 {names} は形 theme では読まない（theme_doc が在る）"
 NO_JUDGMENT = "入力 judgment: 判定の返りが渡されていない"
 # 既定で読んだ入力の訳の行（材料の「Inputs read with defaults」の節。今の pass_open.port の「無いとして読んだ」と REQUEST_UNREAD）
 UNREAD = "入力 {name} を読めない（{why}）——無いとして読んだ"
@@ -182,7 +189,7 @@ def _clean(d: pathlib.Path) -> None:
     """この block のファイルを名で引いて消す（libdocs/ は版で引く控えなので消さない。14 節の 14）。却下の控えと合わせた答えの控えは
     lib/rolekit が名を組む物を、受け付けの名で引く（rejects-*.json の広い形で消さない）"""
     names = [*files.OWN_FILES,
-             *(p.name for node in (files.REVIEW_NODE, files.TEXT_NODE)
+             *(p.name for node in (files.REVIEW_NODE, files.TEXT_NODE, files.THEME_NODE)
                for p in (rolekit.rejects_path(d, node), rolekit.rejects_text_path(d, node), rolekit.candidate_path(d, node)))]
     for name in names:
         (d / name).unlink(missing_ok=True)
@@ -417,6 +424,31 @@ def _plan_doc(d: pathlib.Path, repo, raw: dict, proposal: dict, defaults: list, 
     return doc
 
 
+def _theme_doc(d: pathlib.Path, repo, raw: dict, defaults: list, common: dict) -> dict:
+    """形 theme の材料を写して intake.json の中身を組む（19 節）: 設計の案の写し・依頼のファイルの在りか・独立設計の写し・往復の記録の
+    作業の写し（prior の passes と outcome。項目の行 plan は持たない）"""
+    path = _read("theme_doc", raw.get("theme_doc"), lambda v: ports.file(v, "file"))
+    if not path.read_text(encoding="utf-8").strip():
+        raise ValueError(NO_THEME.format(path=path))
+    shutil.copyfile(path, d / files.THEME_COPY)
+    ignored = [name for name in ("plan", "proposal", "proposal_file") if not _blank(raw.get(name))]
+    if ignored:
+        defaults.append(THEME_IGNORED.format(names="・".join(ignored)))
+    request_file, _ = _request(raw.get("request"), defaults)
+    design_doc = _read("design", raw.get("design"), lambda v: ports.json(v, "shared:design.schema.json"))
+    if design_doc is not None:
+        jsonfile.write(d / files.DESIGN, design_doc)
+    prior = _read("prior", raw.get("prior"), lambda v: ports.json(v, "shared:plan-converge.schema.json"))
+    jsonfile.write(d / files.CONVERGE, {"round": 1, "passes": copy.deepcopy((prior or {}).get("passes") or []),
+                                        "outcome": (prior or {}).get("outcome"), "open": {}})
+    return {"form": "theme", "k": converge.pass_no(view.place(d)), "round": 0, "theme_file": str(d / files.THEME_COPY),
+            "purpose": common["purpose"], "world": common["world"], policy.RECORDED_KEY: common[policy.RECORDED_KEY],
+            "policy_copy": common["policy_copy"], "review_rev": common["review_rev"], "diff_base": common["diff_base"],
+            "cwd": str(repo), "defaults": defaults, "lang": common["lang"], "request_file": request_file,
+            "design_schema": json.loads((ports.SHARED / "schemas" / "design.schema.json").read_text(encoding="utf-8")),
+            "design_why": ports.text(raw.get("design_why")).strip() or ("" if design_doc is not None else DESIGN_NOT_GIVEN)}
+
+
 def intake(out, repo, **raw) -> dict:
     """port の字（raw の鍵は port の名。script が os.environ.get("INPUTS_<名>") の字のまま渡す）を読み、place のこの block のファイルを
     名で消して材料を写し、intake.json を書く（docs/design/plan-review.md の 8 節）。返り {due, form, tree, k, reason}。落ちない:
@@ -426,6 +458,11 @@ def intake(out, repo, **raw) -> dict:
     try:
         _clean(d)
         defaults: list = []
+        if not _blank(raw.get("theme_doc")):
+            form = "theme"
+            doc = _theme_doc(d, repo, raw, defaults, _texts(d, raw, defaults))
+            jsonfile.write(d / files.INTAKE, doc)
+            return {"due": True, "form": form, "tree": False, "k": doc["k"], "reason": ""}
         if ports.text(raw.get("proposal_file")).strip():
             form, proposal = "text", proposal_of(raw)
         else:
@@ -462,7 +499,7 @@ def result(status: str, reason: str, *, form: str = "", k: int = 0, review_file=
            deviations=(), replan=(), gave_up=None, ruled=(), tree_items: int = 0, out=None) -> dict:
     """block の返り（docs/design/plan-review.md の 1.2）。ok は status が ok か。out（place）が在れば読んだ証拠の pointer と欠けの行を足す"""
     found, missing, failed = proof.evidence(out) if out is not None else (None, [], "")
-    return {"ok": status == "ok", "status": status, "form": form, "round": k if form == "plan" else 0, "reason": reason,
+    return {"ok": status == "ok", "status": status, "form": form, "round": k if form in ("plan", "theme") else 0, "reason": reason,
             "holes": ports.pointer(review_file, "json(shared:plan-review-reply.schema.json)")
             if review_file is not None and review_file.is_file() else None,
             "blocks": [str(f.get("key")) for f in converge.block_faces(review)] if status == "ok" and isinstance(review, dict) else [],
@@ -494,6 +531,21 @@ def _finish_text(d: pathlib.Path, doc: dict) -> dict:
     if isinstance(review, dict):
         return result("ok", "", form="text", review_file=d / files.REVIEW, review=review, out=d)
     return result("failed", _not_passed(d, files.TEXT_NODE), form="text", out=d)
+
+
+def _finish_theme(d: pathlib.Path, doc: dict) -> dict:
+    """形 theme の出口: 受け付けが諦めたら gave_up（受け付けが諦めの空の返答を review.json に書く）、受けた返答が在れば ok、どちらも
+    無ければ failed。人に回しうる行・外れは組まない（設計の段の承認ノードの項目は line が組む）"""
+    k = int(doc.get("k") or 0)
+    gave = rolekit.given_up_reason(d, files.THEME_NODE)
+    review = jsonfile.read_or(d / files.REVIEW)
+    if not gave and isinstance(review, dict) and str(review.get("reason") or "").startswith(GIVEN_UP_FACES):
+        gave = str(review["reason"])[len(GIVEN_UP_FACES):]
+    if gave:
+        return result("gave_up", GIVEN_UP_FACES + gave, form="theme", k=k, review_file=d / files.REVIEW, out=d)
+    if not isinstance(review, dict):
+        return result("failed", _not_passed(d, files.THEME_NODE), form="theme", k=k, out=d)
+    return result("ok", "", form="theme", k=k, review_file=d / files.REVIEW, review=review, out=d)
 
 
 def _finish_plan(d: pathlib.Path, doc: dict) -> dict:
@@ -533,6 +585,8 @@ def finish(out) -> dict:
         got = result("failed", str(err.get("why") or NO_INTAKE), form=str(err.get("form") or ""))
     elif doc.get("form") == "text":
         got = _finish_text(d, doc)
+    elif doc.get("form") == "theme":
+        got = _finish_theme(d, doc)
     else:
         got = _finish_plan(d, doc)
     jsonfile.write(d / files.FINISH, got)

@@ -1,0 +1,26 @@
+# 形 theme・1 往復目: 設計の案の md を字のまま渡し（入口が place に写す）、審査役 1 つが穴を 1 つ挙げた返答を返して通る
+fixture:
+  expect: completed
+  reached:
+  - intake
+  - theme-prep
+  - review-theme
+  - theme-accept
+  - review-reads
+  - finish
+  inputs:
+    theme_doc: README.md
+    purpose: 直し方の型を何段に分けるかを決める
+  resolved-text-contains:
+    review-theme: What you review below is a design draft, not a fix plan
+exec-code: true
+review-theme:
+  faces:
+  - key: design-gap-step-count
+    kind: scope_creep
+    where: 設計の案の asks Q1
+    why: 段の数を持ち主に聞いているが、在る決まりで決まるので部署の決めにすべき問いになっている
+    severity: suggest
+    reach: peripheral
+  shrink: []
+  reason: 設計の案を 8 種の確かめと設計の観点で読み、穴を 1 つ挙げた（決まりで決まる問い）

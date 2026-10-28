@@ -3,6 +3,7 @@
 材料のファイル（review-material-<n>.md）は機械が貼る材料だけを持ち、指示の文を持たない。指示の文は全部 prompts/ の md と断片に在り、
 ここは材料の行と短い英語の札（MAT_HEADS・LABELS）と、md と受け付け・読み手が同じ字を持つ値だけを持つ。
 
+- theme_passes(b) -> 形 theme の 2 往復目からの、前の往復の答えの要る穴の行（項目を持たない往復の記録から）
 - write_material(place, intake, repo, *, n) -> (path, values, when): 材料のファイルを書き、prompts/review.md の差し込み口の値と段落の真偽
 - fragment_values(fragments, place, intake, repo, *, b=None, material=None, spawns=False) -> (values, when): 名指した断片（"part:<名>"・
   "shared:<名>"・"node:<id>"）を prompt.py と同じ決まりで広げ、その中の差し込み口 {…} と段落の名の全部を、名ごとに 1 つの作り手
@@ -323,6 +324,23 @@ def previous_passes(b) -> str:
     return "\n\n".join(parts)
 
 
+def theme_passes(b) -> str:
+    """形 theme の前の往復の行（previous_passes の項目と答えの無い形）: 往復ごとに答えの要る穴（converge.owed_faces）の block と suggest。
+    書き手の答えは設計の案の md に在るので並べない。1 往復目は空"""
+    doc = converge.read(b)
+    parts = []
+    for p in doc["passes"]:
+        owed = converge.owed_faces(doc, p)
+        blocks = [f for f in owed if f["severity"] == "block"]
+        suggests = [f for f in owed if f["severity"] != "block"]
+        parts.append(LABELS["pass_blocks"].format(n=p.get("pass")))
+        parts += [_face_rows(f) for f in blocks] or [f"- {LABELS['none']}"]
+        if suggests:
+            parts.append(LABELS["pass_owed"].format(n=p.get("pass")))
+            parts += [_face_rows(f) for f in suggests]
+    return "\n\n".join(parts)
+
+
 def _replan_section(row: dict) -> str:
     """案の直しの項目ごとの節: 番号・unit_keys（字のまま）・承認済みの前の項目・申し出と裁定の行（字のまま）・直した項目（決め手の欄つき）
     （元 boardview._replan_section。6 つの札は今の札を英語にした物で、欄の名は字のまま）"""
@@ -544,7 +562,7 @@ class _Ctx:
 
     @property
     def node(self) -> str:
-        return files.TEXT_NODE if self.text else REVIEW_NODE
+        return {"text": files.TEXT_NODE, "theme": files.THEME_NODE}.get(self.intake.get("form"), REVIEW_NODE)
 
     @property
     def rows(self) -> list:
@@ -621,6 +639,10 @@ SLOTS = {
     "policy_body": lambda c: policy_body(_policy_path(c)) if _policy_path(c) else "",
     "concept_maps": lambda c: "\n".join(c.maps[0]),
     "map_tail": lambda c: f" (could not read the tree: {c.maps[1]})" if c.maps[1] else "",
+    "theme_file": lambda c: str(c.intake.get("theme_file") or ""),
+    "theme_passes": lambda c: theme_passes(c.b),
+    "request_file": lambda c: str(c.intake.get("request_file") or ""),
+    "defaults_rows": lambda c: "\n".join(f"- {x}" for x in c.intake.get("defaults") or [] if str(x).strip()),
 }
 # 段落の名 → 作り手
 WHEN = {
@@ -645,6 +667,8 @@ WHEN = {
     "maps_found": lambda c: bool(c.maps[0]),
     "spawns": lambda c: c.spawns,
     "framing": lambda c: bool(_framing(c)),
+    "theme_passes": lambda c: bool(converge.read(c.b)["passes"]),
+    "request_file": lambda c: bool(c.intake.get("request_file")),
 }
 
 

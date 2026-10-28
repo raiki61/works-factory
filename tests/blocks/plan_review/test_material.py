@@ -638,7 +638,7 @@ class SplitCase(_Case):
     def test_every_slot_has_one_producer(self):
         """足す: 指示の md が持つ差し込み口と段落の名は、material の作り手（SLOTS・WHEN）か、その md を組む口だけの値（木の束ね役と
         下請けの口）で、作り手の無い名は fragment_values が名を挙げて拒む"""
-        for node in ("review", "review-text"):
+        for node in ("review", "review-text", "review-theme"):
             slots, marks = material.names_of([f"node:{node}"])
             self.assertEqual(sorted(slots - set(material.SLOTS)), [], node)
             self.assertEqual(sorted(marks - set(material.WHEN)), [], node)

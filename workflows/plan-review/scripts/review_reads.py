@@ -20,8 +20,7 @@ def compute():
     place = ports.place()
     doc = jsonfile.read_or(place / files.INTAKE)
     doc = doc if isinstance(doc, dict) else {}
-    role = files.TEXT_READS_ROLE if doc.get("form") == "text" else files.READS_ROLE
-    return reads.guarded(lambda: proof.collect(place, reads.log_here(), Path.cwd()), owner=role, place=place,
+    return reads.guarded(lambda: proof.collect(place, reads.log_here(), Path.cwd()), owner=proof.role(doc)[0], place=place,
                          replan=doc.get("form") == "replan")
 
 
