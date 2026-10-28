@@ -3,19 +3,20 @@
 - 今の木の line の一番上のノードは、どれも段の表のちょうど 1 つの段に入り、表のノードはどれも line に在る（line にノードを足して
   表に足さなければ赤。表に残った古い id も赤）
 - 出来事は道の頭のノードで段に寄せ、段ごとに状態・時間・人の待ち・AI の手番・費用・トークンを集める。繰り返しの器は数えない
-- どの道でも走る合流のノード（trigger_rule を持ち when の無い物）だけが走った段は「飛んだ」。最後に走った段の前で、間の段が
-  全部飛んだ段を「止まった所」にする
+- 段の表の配線の列（wiring。合流・受け渡しだけで段の仕事をしないノード）は、その段のノードの中に在り、どの段にも配線でない
+  ノードが在る。配線のノードだけが走った段は「飛んだ」（修正の段が飛んだ run でも fix-in・fixed・judged は走る）。最後に走った段の
+  前で、間の段が全部飛んだ段を「止まった所」にする
 - line でない run は段に集めない
 
 試験は小さな作りと run の記録を手で組む。
 """
 import unittest
+import unittest.mock
 
 from viewer import flowview
 from viewer.src import stages
 
 NODES = [node for stage in stages.TABLE["stages"] for node in stage["nodes"]]
-THROUGH = ("fix-in", "collect", "report", "sweep-children", "result")
 
 
 def number(node: str) -> int:
@@ -23,7 +24,7 @@ def number(node: str) -> int:
 
 
 def line(ids: list[str]) -> dict:
-    items = [{"id": i, "trigger": "none_failed_min_one_success" if i in THROUGH else "", "when": ""} for i in ids]
+    items = [{"id": i, "trigger": "", "when": ""} for i in ids]
     return {stages.TABLE["graph"]: {"name": "works-factory-line", "items": items}}
 
 
@@ -39,6 +40,28 @@ class StagesCase(unittest.TestCase):
         got = stages.check(line([*NODES[1:], "new-node"]))
         self.assertEqual(len(got), 2)
         self.assertTrue(any("new-node" in line for line in got) and any(NODES[0] in line for line in got))
+
+    def test_wiring_outside_its_stage_or_a_stage_of_only_wiring_is_red(self):
+        table = {**stages.TABLE, "stages": [{**stage, "wiring": list(stage["wiring"])} for stage in stages.TABLE["stages"]]}
+        table["stages"][0]["wiring"].append("fixed")
+        table["stages"][2]["wiring"] = list(table["stages"][2]["nodes"])
+        with unittest.mock.patch.object(stages, "TABLE", table):
+            got = stages.check(line(NODES))
+        self.assertEqual(len(got), 2)
+        self.assertTrue(any("fixed" in line for line in got) and any(table["stages"][2]["name"] in line for line in got))
+
+    def test_a_stage_where_only_wiring_ran_is_skipped(self):
+        """修正の段が飛んだ run（修正前の承認で止めた）でも、合流の fix-in・fixed と判定を渡す judged は走る。段は飛んだ"""
+        events = [event(["judge", "diagnose"], kind="agent"), event(["ask-before-fix"]), event(["answer-before-fix"]),
+                  event(["fix-in"]), event(["lens-in"]), event(["fixed"]), event(["judged"]), event(["collect"])]
+        skipped = [{"tokens": [node]} for node in ("fix", "rejudge-run", "test-gate-final", "eyes", "merge-seal")]
+        data = {"shape": {"graphs": line(NODES)}, "run": {"graph": "works-factory-line", "events": events, "skipped": skipped}}
+        stages.attach(data)
+        rows = data["stages"]["run"]
+        self.assertEqual([rows[number(node) - 1]["state"] for node in ("judge", "gate-before-fix", "fix", "judged", "eyes", "collect")],
+                         ["ok", "ok", "skipped", "skipped", "skipped", "ok"])
+        self.assertEqual(data["stages"]["stop"], number("gate-before-fix"))
+        self.assertEqual([e["through"] for e in events], [False, False, False, True, True, True, True, False])
 
     def test_run_is_summed_by_stage(self):
         usage = {"input": 100, "output": 7, "cacheRead": 60, "cacheWrite": 30}
