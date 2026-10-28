@@ -319,8 +319,9 @@ class LauncherTest(unittest.TestCase):
 
     def test_run_layer_carries_the_prompt_cache_ttl(self):
         """役の claude の会話のキャッシュの寿命の既定（5 分）は、新しい run の設定の層の env で運ぶ（Archon は起動の最初に CLAUDE_CODE_* を消すので、
-        子の env に置いても役に届かない）。誰かが寿命を選んでいれば工場は載せない: 利用者の shell の env・利用者の --config の env:・
-        対象の .archon/config.yaml の env:。--adopt の起動では、その選びを殻が見られないので載せない"""
+        子の env に置いても役に届かない）。工場だけに効く層で寿命を選んでいれば工場は載せない: 利用者の --config の env:・対象の
+        .archon/config.yaml の env:。利用者の shell の env の寿命の名は、Claude Code の全体の好みが運ばれた物でありうるので見ない。
+        --adopt の起動では、repo の選びを殻が見られないので載せない"""
         name = "CLAUDE_CODE_PROMPT_CACHE_TTL"
         real = shutil.which("bun")
 
@@ -333,11 +334,9 @@ class LauncherTest(unittest.TestCase):
 
         with self.subTest("選びが無ければ 5 分（対象に .archon/config.yaml が無ければ、殻は bun も起こさない）"):
             self.assertEqual(env_of()[name], "5m")
-        with self.subTest("利用者の shell の寿命の選びは、Archon が消すのでそのまま運ぶ"):
-            self.assertEqual(env_of(**{name: "1h"})[name], "1h")
-        for chosen in launcher.CHOSEN_TTL_ENVS[1:]:
-            with self.subTest(f"利用者の shell の {chosen} は Archon を通って届くので、工場は名を足さない"):
-                self.assertNotIn(name, env_of(**{chosen: "1"}))
+        for chosen, value in ((name, "1h"), *((other, "1") for other in launcher.CHOSEN_TTL_ENVS[1:])):
+            with self.subTest(f"利用者の shell の {chosen} は見ず、5 分を載せる"):
+                self.assertEqual(env_of(**{chosen: value})[name], "5m")
         with self.subTest("続ける命令（--resume）は層を足さない"):
             self.assertNotIn("--config", self.reached(self.launch("workflow", "run", "works-factory-line", "--resume"))["argv"])
         with self.subTest("--adopt は repo の選びを殻が見られないので、名を載せない（repo の config.yaml があっても読まない）"):
@@ -371,7 +370,7 @@ class LauncherTest(unittest.TestCase):
             with self.subTest(f"対象の .archon/config.yaml に寿命の選びが無ければ 5 分: {text!r}"):
                 repo_config(text)
                 self.assertEqual(env_of()[name], "5m")
-        with self.subTest("対象の .archon/config.yaml の選びは、利用者の shell の寿命にも勝つ（Archon が重ねるのは run の層より下）"):
+        with self.subTest("対象の .archon/config.yaml の選びは、利用者の shell の寿命が在っても潰さない"):
             repo_config(f"env:\n  {name}: 1h\n")
             self.assertNotIn(name, env_of(**{name: "5m"}))
         with self.subTest("対象の .archon/config.yaml が読めなければ名を足さず、その訳を 1 行で言う"):

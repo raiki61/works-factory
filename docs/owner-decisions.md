@@ -761,6 +761,19 @@
 - 足す置き場（E10）: run の置き場の中のファイル 1 つ（AI の node の prep ごと）。新しい層・常駐する仕組みは足さない。見る道具そのものと日本語の写しは工場のリポジトリに入れない。
 - 当て方: 下請けの指示のファイル（`render_part`・`render_shared`）は今は残さない。照らしは `tests/blocks/shared/test_prompt.py`（残した値で組み直すと字のまま同じ指示になる）。
 
+## 2026-10-28 の決め（役の会話のキャッシュの寿命）
+
+出典: 持ち主と窓口の会話（2026-10-28）と、受付 20261027-234050-679101 の調べ。5 分の既定は #835（#819）で入れた。
+
+### `factory-cache-ttl` 役の会話のキャッシュの寿命は、工場の run だけ 5 分にし、利用者の shell の env を見ない
+
+- 持ち主の言葉（2026-10-28）: 「とりあえずこの工場のみに5分をきかせてあげたいよね」「だってワークフローは決まってるんだもん」
+- 持ち主の言葉（#835 で 5 分を既定にした時）: なし（本文の要約。工場の役の会話はノードをまたいだキャッシュの読みが無く、5 分を超える間も少ないので、書き込みの単価が 2 倍の 1 時間をやめる）
+- 決め: 殻は新しい run の設定の層の env に `CLAUDE_CODE_PROMPT_CACHE_TTL=5m` を載せる。載せないのは、工場だけに効く層（利用者の `--config` の `env:`、対象の `.archon/config.yaml` の `env:`）が寿命を選んでいる時と、`--adopt` の起動だけ。利用者の shell の env の寿命の名（`CLAUDE_CODE_PROMPT_CACHE_TTL`・`FORCE_PROMPT_CACHING_5M`・`ENABLE_PROMPT_CACHING_1H`・`ENABLE_PROMPT_CACHING_1H_BEDROCK`）は見ない。
+- 訳: Claude Code は settings.json の `env` を会話の環境変数に入れるので、Claude Code の会話から殻を起こすと、利用者の Claude Code 全体の好み（持ち主では `ENABLE_PROMPT_CACHING_1H=1`）が shell の env に在り、工場への選びと見分けられない。shell の env を選びと読んでいた間（2026-10-14〜10-27）、工場の run で 5 分が効いた回は 0 だった。工場のグラフ（役の会話の流れ）は決まっているので、寿命は工場の側で決める。
+- 代償（E14）: shell の env で工場の寿命を 1 時間にしていた利用者は、`--config` の `env:` か対象の `.archon/config.yaml` の `env:` に `ENABLE_PROMPT_CACHING_1H: '1'` を書き直せば戻せる。
+- 当て方: `bin/_lib/launcher.py` の `cache_ttl`。設計は `docs/design/archon.md` の「役の claude の env の届き方」。機械は `tests/bin/test_launcher.py` の `test_run_layer_carries_the_prompt_cache_ttl`。
+
 ## 引き継いだ決め
 
 今の works の地図から、works-factory でも生きる物を選んだ。外した物は末尾。
