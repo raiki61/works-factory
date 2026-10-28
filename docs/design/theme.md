@@ -237,7 +237,7 @@ bin/works-factory workflow run works-factory-theme --cwd <対象> --input theme=
 
 ### 11.2 この block で決めた事
 
-1. 出し直しの役の指示を組む prep を `theme-fix-prep` として分けた（下書きの 4.1 の並びに無い node）。根拠: plan の block と同じ形（`docs/design/plan.md` の 1.3 と 11 章の 9）。出し直しの役は書き手の会話の続きで起きるので本体の層はどれも node 1 つにし、出し直しの役の md を筋書きで本当の prep から組めるように prep を分ける。
+1. 出し直しの役の指示を組む prep を `theme-fix-prep` として分けた（下書きの 4.1 の並びに無い node）。根拠: plan の block と同じ形（`docs/design/plan.md` の 1.3 と 11 章の 9）。分ける訳は、出し直しの役の md を筋書きで本当の prep から組めることを照らすため。筋書き（dry-run）の loop は 1 回りだけで、前の回の値 `$LOOP_PREV` が空なので、本当の `write-prep` が出し直しを選ぶ筋書きは書けない。そこで `write-prep` だけを `resubmit: true` に差し替え、別の node の `theme-fix-prep` を本当に走らせて md を組む（9 章の `resubmit.stubs.yaml`）。分けても、本体の層（同じ時に走る node の組）はどれも node 1 つのままにする（1.3 の 2）。出し直しの役は前の回の書き手の会話の続きで起きる（`fresh_context: false`）ので、その直前に 2 つ以上の node の層を置かないため。
 2. 却下の数えは `rolekit.GIVE_UP_AFTER`（3 回）。plan の block の網（`NET_AFTER`）は使わない。根拠: 下書きの 4.1「却下 3 回で諦める」と keep-essence の 4。
 3. 周ごとのフォルダ `r<k>/`（k は往復の記録の往復の数 + 1）。根拠: line は同じ include を loop で何周も回し、place が周をまたいで同じなので、却下の控えと出し直しの控えを周ごとに分けないと前の周の拒否を数える（plan の block と同じ形）。
 4. 人の答えの行の形（7 章）を block の `schemas/` に置き、id を `H<n>` にした。根拠: 下書きは「番号」とだけ書き形を決めていない。`premises` の `from` で答えの番号とテーマの行（`theme:<行>`）を字で見分けるため、頭の字を付けた。形を読むのはこの block だけ（書くのは line）なので `.shared/` に置かない（憲法の 4）。
