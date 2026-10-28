@@ -4,7 +4,7 @@
 どちらも同じ形で読む。読み分けられない物は黙って落とさず `problems` に 1 行ずつ出す（`tests/viewer/test_shape.py` が今の木で 0 を照らす）。
 
 - read(workflows, prefix, design=None) -> {"graphs": {フォルダ: graph}, "problems": [行]}
-- locate(graphs, folder, tokens) -> 記録のノードの道（`tokens`）が当たる所。当たらなければ None
+- locate(graphs, folder, tokens) -> 記録のノードの道（`tokens`）が当たる所と、そこまでに通った include・workflow: のノード。当たらなければ None
 - tokens(path) -> Archon の記録のノードの道（`a__b.c`）を id の並びにする
 """
 import json
@@ -75,9 +75,10 @@ def walk(items):
         yield from walk(item.get("kids") or [])
 
 
-def locate(graphs: dict, folder: str, ids: list[str]) -> dict | None:
-    """graph folder の中で、記録のノードの道 ids（tokens が返す物）が当たる所 {"graph", "node"（graph の中の道。/ 区切り）}。
-    include・workflow: の先へは、そのノードの先の graph の頭のノードから続けて辿る。工場の外の graph の中は {"outside": 名}"""
+def locate(graphs: dict, folder: str, ids: list[str], via: tuple = ()) -> dict | None:
+    """graph folder の中で、記録のノードの道 ids（tokens が返す物）が当たる所 {"graph", "node"（graph の中の道。/ 区切り）, "via"}。
+    include・workflow: の先へは、そのノードの先の graph の頭のノードから続けて辿る。via は通った include・workflow: のノードを外から順に
+    並べた [{"graph", "node"}]（見る道具の図が、入れ子の graph へ外から入る道）。工場の外の graph の中は {"outside": 名}"""
     graph = graphs.get(folder)
     if graph is None or not ids:
         return None
@@ -89,11 +90,11 @@ def locate(graphs: dict, folder: str, ids: list[str]) -> dict | None:
         trail.append(ident)
         rest = ids[index + 1:]
         if not rest:
-            return {"graph": folder, "node": "/".join(trail)}
+            return {"graph": folder, "node": "/".join(trail), "via": list(via)}
         if item["kind"] == "loop":
             items = item["kids"]
         elif item["kind"] in ("block", "child") and item.get("target"):
-            return locate(graphs, item["target"], rest)
+            return locate(graphs, item["target"], rest, (*via, {"graph": folder, "node": "/".join(trail)}))
         elif item["kind"] == "child" and item.get("outside"):
             return {"outside": item["outside"]}
         else:

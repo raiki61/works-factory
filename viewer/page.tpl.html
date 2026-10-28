@@ -22,7 +22,8 @@
 html,body{margin:0;height:100%}
 [hidden]{display:none!important}
 body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:13px;line-height:1.55;overflow:hidden}
-/* 高さは body でなく .app が画面の高さで持つ（ビューアが body の中身を別の要素で包んでも切れない。fixed は包みの transform で崩れるので使わない） */
+/* 高さは body でなく .app が画面の高さで持つ（ビューアが body の中身を別の要素で包んでも切れない。fixed は包みの transform で崩れるので使わない）。
+   ビューアの拡大縮小の倍率に合わせた高さは script の sizeApp が置く */
 .app{height:100vh;display:flex;flex-direction:column}
 button{font:inherit;color:inherit;cursor:pointer}
 code,pre,.mono{font-family:var(--f-mono);font-size:12px}
@@ -51,8 +52,26 @@ pre{white-space:pre-wrap;overflow-wrap:anywhere;margin:4px 0;padding:8px 10px;ba
 .canvas.drag{cursor:grabbing}
 .crumb{position:absolute;left:12px;top:10px;z-index:3;display:flex;gap:6px;align-items:center;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:3px 10px}
 .crumb a{color:var(--sel);cursor:pointer}
-.zoom{position:absolute;left:12px;bottom:12px;z-index:3;display:flex;gap:4px}
-.zoom button{border:1px solid var(--line);background:var(--panel);border-radius:6px;padding:2px 8px}
+.crumb .home{border:1px solid var(--line);background:var(--sel-soft);color:var(--sel);border-radius:6px;padding:0 8px;font-weight:700}
+.crumb .home:disabled{cursor:default;opacity:.7}
+.crumb .via{color:var(--muted);font-size:11.5px}
+/* 下の帯: 図の拡げと再生。板が開いている時は板の左までにする */
+.dock{position:absolute;left:12px;bottom:12px;right:12px;z-index:3;display:flex;gap:10px;align-items:flex-end;pointer-events:none}
+.canvas.with-panel .dock{right:calc(min(560px,100% - 20px) + 22px)}
+.dock>*{pointer-events:auto}
+.zoom{display:flex;gap:4px;flex:none}
+.zoom button,.replay button,.replay select{border:1px solid var(--line);background:var(--panel);border-radius:6px;padding:2px 8px}
+.replay{flex:1;min-width:0;max-width:760px;display:flex;flex-direction:column;gap:4px;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:6px 10px;box-shadow:0 4px 12px -2px rgba(16,24,40,.10)}
+.replay .row{display:flex;gap:4px 6px;align-items:center;min-width:0;flex-wrap:wrap}
+.replay button,.replay select{white-space:nowrap;flex:none}
+.replay input[type=range]{flex:1;min-width:80px;accent-color:var(--run)}
+.replay .what{font-size:12px;flex:1 1 280px;min-width:0;overflow-wrap:anywhere}
+.replay .key{display:inline-flex;gap:8px;color:var(--muted);font-size:11px;flex:none}
+.replay .key i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:3px;vertical-align:-1px;border:1.5px solid var(--node-b);background:var(--node)}
+.replay .key i.now{border-color:var(--run);box-shadow:0 0 0 2px color-mix(in srgb,var(--run) 30%,transparent)}
+.replay .key i.run{border-color:var(--run)}
+.replay .key i.yet{opacity:.35}
+.replay .key i.skip{border-style:dotted;opacity:.6}
 .world{position:absolute;left:0;top:0;transform-origin:0 0}
 svg.edges{position:absolute;left:0;top:0;overflow:visible;pointer-events:none}
 svg.edges path{fill:none;stroke:var(--edge);stroke-width:1.5}
@@ -61,6 +80,13 @@ svg.edges path{fill:none;stroke:var(--edge);stroke-width:1.5}
 .node .s{font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .node.box{background:color-mix(in srgb,var(--k) 6%,transparent);border-style:dashed;border-left-width:1.5px;border-color:var(--k)}
 .node.sel{outline:3px solid var(--sel)}
+/* 再生: 今の歩のノード・走り中・まだ・飛んだ（済んだ物は普段の姿） */
+.world.glide{transition:transform .35s ease}
+.node.rp-yet{opacity:.35}
+.node.rp-skip{opacity:.6;border-style:dotted}
+.node.rp-run{border-color:var(--run)}
+.node.rp-now{outline:3px solid var(--run);box-shadow:0 0 0 8px color-mix(in srgb,var(--run) 22%,transparent);z-index:2}
+.node.box.rp-now{outline-style:dashed;box-shadow:none}
 .node .st{position:absolute;right:6px;top:5px;width:9px;height:9px;border-radius:50%}
 .st.ok{background:var(--ok)}.st.failed{background:var(--bad)}.st.running{background:var(--run)}.st.waiting{background:var(--wait)}.st.skipped{background:var(--skip)}
 .k-ai{--k:var(--c-ai)}.k-script{--k:var(--c-script)}.k-bash{--k:var(--c-bash)}.k-block{--k:var(--c-block)}.k-child{--k:var(--c-child)}.k-gate{--k:var(--c-gate)}.k-loop{--k:var(--c-loop)}.k-halt{--k:var(--c-halt)}
@@ -79,6 +105,7 @@ h3{font-size:12px;color:var(--muted);margin:14px 0 4px}
 details{border:1px solid var(--line);border-radius:8px;margin:4px 0;background:var(--panel)}
 details>summary{cursor:pointer;padding:4px 8px;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
 details>div{padding:0 10px 8px}
+details.focus{border-color:var(--run);box-shadow:0 0 0 2px color-mix(in srgb,var(--run) 25%,transparent)}
 /* 表（短い値だけ） */
 table{border-collapse:collapse;width:100%;background:var(--panel)}
 th,td{text-align:left;padding:4px 10px;border-bottom:1px solid var(--line);white-space:nowrap}
@@ -90,6 +117,30 @@ td.wrap{white-space:normal;overflow-wrap:anywhere}
 .badge.waiting,.badge.paused{background:var(--wait)}.badge.cancelled,.badge.skipped{background:var(--skip)}
 tr.cur td{background:var(--sel-soft)}
 .cmd{user-select:all}
+/* LLM に入った物: 片の種類の色・往復の棒（cache 読み・cache 書き・入・出を同じ尺で並べる）・広い面 */
+.ctx-sum{font-size:12px;color:var(--ink2);margin:2px 0 6px}
+.ctx-bars{display:flex;flex-direction:column;gap:3px;padding:6px 8px;border:1px solid var(--line);border-radius:8px;background:var(--panel2);margin-bottom:6px}
+.ctx-bar{display:grid;grid-template-columns:4.5em 1fr minmax(13em,max-content);gap:8px;align-items:center;font-size:11.5px}
+.ctx-bar .track{display:flex;flex-direction:column;gap:1px}
+.ctx-bar .track>span{display:flex;height:11px;background:var(--panel);border-radius:3px;overflow:hidden}
+.ctx-bar .track>span.o{height:4px}
+.ctx-bar i,.ctx-key i{display:inline-block;height:100%;min-width:1px}
+.ctx-key{display:flex;gap:12px;font-size:11px;color:var(--muted)}
+.ctx-key i{width:10px;height:10px;border-radius:2px;margin-right:4px;vertical-align:-1px}
+i.cr{background:#98a2b3}i.cw{background:#f79009}i.in{background:#296dff}i.out{background:#12b76a}
+.ctx .ctx-group{font-size:11.5px;font-weight:700;color:var(--muted);margin:10px 0 2px}
+.ctx .ctx-bar{margin:0 0 4px}
+.ctx details{margin:2px 0}
+.ctx-row{display:flex;gap:10px;padding:4px 8px;border:1px dashed var(--line);border-radius:8px;margin:2px 0}
+.pk{font-weight:700;border-left:4px solid var(--k,var(--faint));padding-left:6px}
+.pk.k-system,.pk.k-tools,.pk.k-inject,.pk.k-prompt{--k:#7a5af8}.pk.k-user{--k:#7a5af8}.pk.k-say{--k:#12b76a}.pk.k-think{--k:#98a2b3}
+.pk.k-call{--k:#2e90fa}.pk.k-result{--k:#06aed4}
+.wide{position:absolute;inset:10px;z-index:20;background:var(--panel);border:1px solid var(--line);border-radius:14px;box-shadow:0 12px 24px -4px rgba(16,24,40,.18);display:flex;flex-direction:column}
+.wide .ph{padding:10px 14px;border-bottom:1px solid var(--line);display:flex;gap:8px;align-items:flex-start}
+.wide .ph h2{font-size:16px;margin:0}
+.wide .ph .x{margin-left:auto;border:0;background:transparent;font-size:16px}
+.wide .pb{overflow:auto;padding:8px 18px 18px}
+.wide pre{max-height:none}
 </style>
 </head>
 <body>
@@ -108,10 +159,19 @@ tr.cur td{background:var(--sel-soft)}
     <div class="canvas" id="canvas">
       <div class="crumb" id="crumb"></div>
       <div class="world" id="world"></div>
-      <div class="zoom"><button id="z-in">＋</button><button id="z-out">－</button><button id="z-fit">全体</button></div>
+      <div class="dock">
+        <div class="zoom"><button id="z-in" title="拡げる">＋</button><button id="z-out" title="縮める">－</button><button id="z-fit" title="今の graph の図の全部を画面に収める（graph は移らない）">画面に収める</button></div>
+        <div class="replay" id="replay" hidden>
+          <div class="row"><button id="r-first" title="run の始めへ">⏮</button><button id="r-prev" title="1 つ前（←）">◀</button><button id="r-play" title="再生・止める（空白）">▶ 再生</button><button id="r-next" title="1 つ後（→）">▶|</button>
+            <input type="range" id="r-pos" min="0" value="0"><select id="r-speed" title="速さ（1 秒に進む歩）"><option value="0.5">0.5 歩/秒</option><option value="1" selected>1 歩/秒</option><option value="2">2 歩/秒</option><option value="4">4 歩/秒</option><option value="10">10 歩/秒</option></select>
+            <button id="r-off" title="再生をやめて、run の終わりの姿の図へ戻る">やめる</button></div>
+          <div class="row"><span class="what" id="r-what"></span><span class="key"><span><i class="now"></i>今</span><span><i class="run"></i>走り中</span><span><i></i>済み</span><span><i class="yet"></i>まだ</span><span><i class="skip"></i>飛んだ</span></span></div>
+        </div>
+      </div>
       <div class="panel" id="panel" hidden><div class="ph"><h2 id="p-title"></h2><button class="x" id="p-close">×</button></div><div class="pb" id="p-body"></div></div>
     </div>
   </div>
+  <div class="wide" id="wide" hidden><div class="ph"><h2 id="w-title"></h2><button class="x" id="w-close" title="閉じる（Esc）">×</button></div><div class="pb" id="w-body"></div></div>
   <div class="screen" id="s-runs" hidden></div>
   <div class="screen" id="s-log" hidden></div>
   <div class="screen" id="s-unread" hidden></div>
@@ -137,6 +197,14 @@ function h(tag, attrs, ...kids) {
   return el;
 }
 const $ = id => document.getElementById(id);
+// 高さは画面の高さを、ビューアが実際に掛けた倍率で割った物（ビューアは拡大縮小で包みに scale() を掛け、その後に resize を送る。
+// 100vh のままだと 100% の時しか画面に合わない）
+function sizeApp() {
+  const app = document.querySelector('.app'), scale = app.offsetHeight ? app.getBoundingClientRect().height / app.offsetHeight : 1;
+  app.style.height = `${innerHeight / (scale || 1)}px`;
+}
+sizeApp();
+addEventListener('resize', sizeApp);
 const usd = v => v == null ? '' : '$' + Number(v).toFixed(v < 1 ? 4 : 2);
 const secs = v => v == null ? '' : v < 90 ? `${v} 秒` : `${(v / 60).toFixed(1)} 分`;
 const num = v => v == null ? '' : Number(v).toLocaleString('ja-JP');
@@ -176,12 +244,28 @@ function tab(id) {
   if (id === 'flow' && !cur) openGraph(firstGraph());
 }
 
-// 図: graph の一覧
+// 図: graph の一覧と道しるべ。道しるべ stack は根の graph（run の graph か line）から始まり、各段は {folder, node（外の graph の中で
+// この graph を include・workflow: するノードの道）}。一覧から開いた graph も、根から include を辿った道で同じ形に出す
 let cur = null, stack = [], selId = null;
 const T = {x: 40, y: 60, s: 1};
 function firstGraph() {
   if (RUN) { const hit = Object.keys(G).find(f => G[f].name === RUN.graph); if (hit) return hit; }
   return G.line ? 'line' : Object.keys(G)[0];
+}
+const ROOT = firstGraph();
+const items = list => list.flatMap(i => [i, ...items(i.kids || [])]);
+const into = (folder, target) => items(G[folder].items).find(i => i.target === target);
+// 根から folder へ include・workflow: を辿る一番短い道。辿れない graph は根の下に「根から辿れない」として置く
+function pathTo(folder) {
+  const seen = new Set([ROOT]), queue = [[{folder: ROOT, node: null}]];
+  while (queue.length) {
+    const trail = queue.shift(), last = trail[trail.length - 1];
+    if (last.folder === folder) return trail;
+    for (const i of items(G[last.folder].items)) if (i.target && G[i.target] && !seen.has(i.target)) {
+      seen.add(i.target); queue.push([...trail, {folder: i.target, node: i.path.join('/')}]);
+    }
+  }
+  return [{folder: ROOT, node: null}, {folder, node: null, loose: true}];
 }
 function catalog() {
   const q = $('find').value.trim();
@@ -190,12 +274,12 @@ function catalog() {
     const names = Object.keys(G).filter(f => G[f].kind === kind && (!q || f.includes(q))).sort();
     if (!names.length) continue;
     list.append(h('div', {class: 'gh', text: label}));
-    for (const f of names) list.append(h('button', {class: stack.length && stack[0] === f ? 'cur' : null, onclick: () => openGraph(f)},
+    for (const f of names) list.append(h('button', {class: f === cur ? 'cur' : null, onclick: () => openGraph(f)},
       h('span', {text: f}), h('span', {class: 'n', text: `${G[f].nodes}`})));
   }
 }
-function openGraph(folder) { stack = [folder]; show(); }
-function enter(folder) { stack.push(folder); show(); }
+function openGraph(folder) { stack = pathTo(folder); show(); }
+function enter(folder, node) { stack.push({folder, node: node ?? into(cur, folder)?.path.join('/') ?? null}); show(); }
 
 // run の出来事を図の所に寄せる（同じ graph が何度 include されても、その graph の所に全部寄せる）
 const AT = {};
@@ -216,8 +300,8 @@ function statusAt(folder, item) {
 const elk = new ELK();
 const W = 220, H = 50;
 async function show() {
-  const folder = stack[stack.length - 1];
-  cur = folder; selId = null; $('panel').hidden = true;
+  const folder = stack[stack.length - 1].folder;
+  cur = folder; selId = null; closePanel();
   catalog(); crumb();
   const g = G[folder], byId = {};
   const node = item => {
@@ -263,8 +347,8 @@ async function show() {
     const x = ox + n.x, y = oy + n.y, item = byId[n.id];
     const st = statusAt(folder, item);
     const el = h('div', {class: `node k-${item.kind}${n.children ? ' box' : ''}`, 'data-id': n.id, style: `left:${x}px;top:${y}px;width:${n.width}px;height:${n.height}px`,
-      onclick: ev => { ev.stopPropagation(); select(n.id, item); }, ondblclick: () => item.target && G[item.target] && enter(item.target)},
-      h('div', {class: 't', text: item.id}), h('div', {class: 's', text: sub(item)}), st && h('span', {class: 'st ' + st, title: STATUS[st]}));
+      onclick: ev => { ev.stopPropagation(); select(n.id, item); }, ondblclick: () => item.target && G[item.target] && enter(item.target, n.id)},
+      h('div', {class: 't', text: item.id}), h('div', {class: 's', text: sub(item)}), RUN && h('span', {class: 'st ' + st, 'data-was': st, title: STATUS[st]}));
     world.append(el);
     (n.children || []).forEach(k => draw(k, x, y));
   };
@@ -282,6 +366,7 @@ async function show() {
   const first = laid.children.reduce((a, n) => !a || n.y < a.y || (n.y === a.y && n.x < a.x) ? n : a, null);
   world.dataset.cx = first ? first.x + first.width / 2 : 0;
   home();
+  paint();
 }
 function sub(item) {
   const bits = [KIND[item.kind] ?? item.kind];
@@ -294,9 +379,17 @@ function sub(item) {
 }
 function crumb() {
   const c = $('crumb'); c.replaceChildren();
-  stack.forEach((f, i) => {
-    if (i) c.append(h('span', {text: '›'}));
-    c.append(i === stack.length - 1 ? h('b', {text: f}) : h('a', {text: f, onclick: () => { stack = stack.slice(0, i + 1); show(); }}));
+  c.append(h('button', {class: 'home', disabled: stack.length === 1, title: `いちばん外の graph ${ROOT} へ戻る`, text: `⌂ ${ROOT}`,
+    onclick: () => { stack = stack.slice(0, 1); show(); }}));
+  stack.forEach((step, i) => {
+    if (!i) return;
+    c.append(h('span', {text: '›'}));
+    const name = step.folder, last = i === stack.length - 1;
+    c.append(last ? h('b', {text: name}) : h('a', {text: name, onclick: () => { stack = stack.slice(0, i + 1); show(); }}));
+    // どのノードの中か（ノードの道の終わりが graph の名と違う時だけ）。一覧から開いて根から辿れない graph はそう書く
+    const node = step.node && step.node.split('/').pop();
+    if (step.loose) c.append(h('span', {class: 'via', text: `（${ROOT} から辿れない）`}));
+    else if (node && node !== name) c.append(h('span', {class: 'via', text: `（ノード ${node}）`}));
   });
   c.append(h('a', {text: '説明', title: 'この graph の説明・入力・返す欄', onclick: () => graphPanel(cur)}),
     h('span', {class: 'empty', text: 'ノードを押すと板・block は 2 度押しで中へ'}));
@@ -309,10 +402,12 @@ function zoomAt(f, cx, cy) {
   cx ??= c.clientWidth / 2; cy ??= c.clientHeight / 2;
   T.x = cx - (cx - T.x) * s / T.s; T.y = cy - (cy - T.y) * s / T.s; T.s = s; apply();
 }
+// 下の帯（再生）の分の高さ
+function below() { return $('replay').hidden ? 34 : $('replay').offsetHeight + 24; }
 function room() { const c = $('canvas'); return c.clientWidth - ($('panel').hidden ? 0 : $('panel').offsetWidth + 20) - 60; }
 function fit() {
   const c = $('canvas'), w = +$('world').dataset.w || 1, hh = +$('world').dataset.h || 1;
-  T.s = Math.min(1.2, Math.max(0.1, Math.min(room() / w, (c.clientHeight - 90) / hh)));
+  T.s = Math.min(1.2, Math.max(0.1, Math.min(room() / w, (c.clientHeight - 56 - below()) / hh)));
   T.x = 30 + Math.max(0, (room() - w * T.s) / 2); T.y = 56; apply();
 }
 // 開いた時の姿: 全体が読める大きさで入れば全体、入らなければ読める大きさ（READABLE）で入口のノードを上の真ん中に置く
@@ -326,19 +421,146 @@ function home() {
 }
 (function pan() {
   const c = $('canvas'); let from = null, moved = false;
-  c.addEventListener('mousedown', ev => { if (ev.target.closest('.panel,.zoom,.crumb')) return; from = {x: ev.clientX - T.x, y: ev.clientY - T.y}; moved = false; c.classList.add('drag'); });
+  c.addEventListener('mousedown', ev => { if (ev.target.closest('.panel,.dock,.crumb')) return; from = {x: ev.clientX - T.x, y: ev.clientY - T.y}; moved = false; c.classList.add('drag'); });
   addEventListener('mousemove', ev => { if (from) { T.x = ev.clientX - from.x; T.y = ev.clientY - from.y; moved = true; apply(); } });
   addEventListener('mouseup', () => { from = null; c.classList.remove('drag'); });
   c.addEventListener('wheel', ev => { if (ev.target.closest('.panel')) return; ev.preventDefault(); const r = c.getBoundingClientRect();
     zoomAt(Math.exp(-ev.deltaY * 0.0015), ev.clientX - r.left, ev.clientY - r.top); }, {passive: false});
-  c.addEventListener('click', ev => { if (!moved && !ev.target.closest('.panel,.node,.zoom,.crumb')) { $('panel').hidden = true; select(null); } });
+  c.addEventListener('click', ev => { if (!moved && !ev.target.closest('.panel,.node,.dock,.crumb')) { closePanel(); select(null); } });
   $('z-in').onclick = () => zoomAt(1.25); $('z-out').onclick = () => zoomAt(0.8); $('z-fit').onclick = fit;
-  $('p-close').onclick = () => { $('panel').hidden = true; select(null); };
+  $('p-close').onclick = () => { closePanel(); select(null); };
   $('find').oninput = catalog;
+  $('w-close').onclick = () => { $('wide').hidden = true; };
+  addEventListener('keydown', ev => { if (ev.key === 'Escape') $('wide').hidden = true; });
+})();
+
+// 再生: 終わった run を、ノードの始まりと終わりの 1 つずつを 1 歩にして時刻順に歩く。歩の出来事のノードが在る graph へ、根から
+// include・workflow: を辿った道（出来事の at.via）で入り、ノードを真ん中に寄せて板に出来事を開く。繰り返しの周と子の run の出来事も、
+// 同じ並びに時刻で入る（周は 1 回ずつ別の出来事）。飛んだノードは歩にせず、時刻が過ぎて、まだ走っていなければ「飛んだ」に見せる
+const STEPS = [], SKIPS = [];
+let at = -1, playing = null, going = 0;
+if (RUN) {
+  for (const e of RUN.events) {
+    if (e.start) STEPS.push({t: e.start, end: false, e});
+    if (e.end) STEPS.push({t: e.end, end: true, e});
+  }
+  STEPS.sort((a, b) => a.t < b.t ? -1 : a.t > b.t ? 1 : 0);   // 同じ時刻は始まりが先（並べた順のまま）
+  for (const s of RUN.skipped) if (s.at && s.at.graph && s.time) SKIPS.push(s);
+}
+// 出来事が触れる図の所: ノードの所と、そこまでに通った include のノードと、包む繰り返しの箱（道の頭）
+function spots(where) {
+  const out = [];
+  for (const {graph, node} of [...(where.via || []), where]) {
+    const parts = node.split('/');
+    parts.forEach((_, i) => out.push(graph + '/' + parts.slice(0, i + 1).join('/')));
+  }
+  return out;
+}
+// 歩 k までの各所の姿: now（今の歩）・waiting・running・済み（最後の状態）・skipped
+function stateAt(k) {
+  const run = {}, last = {}, now = new Set();
+  for (let j = 0; j <= k; j++) {
+    const {e, end} = STEPS[j];
+    if (!e.at || !e.at.graph) continue;
+    for (const key of spots(e.at)) {
+      if (end) { run[key] = (run[key] || 0) - 1; last[key] = e.status; }
+      else { run[key] = (run[key] || 0) + 1; last[key] ??= 'running'; if (!e.end && e.status === 'waiting') last[key] = 'waiting'; }
+    }
+  }
+  const step = STEPS[k];
+  if (step.e.at && step.e.at.graph) spots(step.e.at).forEach(key => now.add(key));
+  const skipped = new Set(SKIPS.filter(s => s.time <= step.t).flatMap(s => spots(s.at)).filter(key => !(key in last)));
+  return key => now.has(key) ? 'now' : run[key] > 0 ? (last[key] === 'waiting' ? 'waiting' : 'running')
+    : key in last ? last[key] : skipped.has(key) ? 'skipped' : 'yet';
+}
+// 図のノードに再生の姿を付ける（再生していない時は外す）
+function paint() {
+  const look = at >= 0 ? stateAt(at) : null;
+  for (const el of document.querySelectorAll('#world .node')) {
+    el.classList.remove('rp-now', 'rp-run', 'rp-yet', 'rp-skip');
+    const dot = el.querySelector('.st');
+    if (!look) { if (dot) dot.className = 'st ' + (dot.dataset.was || ''); continue; }
+    const st = look(cur + '/' + el.dataset.id);
+    el.classList.add({now: 'rp-now', running: 'rp-run', waiting: 'rp-run', yet: 'rp-yet', skipped: 'rp-skip'}[st] || 'rp-done');
+    if (dot) dot.className = 'st ' + (st === 'now' ? (STEPS[at].end ? STEPS[at].e.status : 'running') : st === 'yet' ? '' : st);
+  }
+}
+// 歩 k へ移る。graph を移る時は図を描き直す（描き直しの間に次の歩へ移ったら、古い歩は何もしない）
+async function go(k) {
+  if (!STEPS.length) return;
+  at = Math.max(0, Math.min(STEPS.length - 1, k));
+  const mine = ++going, step = STEPS[at], where = step.e.at;
+  $('r-pos').value = at; label(step);
+  if (where && where.graph) {
+    const via = where.via || [];
+    const want = [{folder: ROOT, node: null}, ...via.map((v, i) => ({folder: (via[i + 1] || where).graph, node: v.node}))];
+    if (want.map(w => w.folder + '>' + w.node).join() !== stack.map(w => w.folder + '>' + w.node).join()) {
+      stack = want; await show();
+      if (mine !== going) return;
+    }
+  }
+  paint();
+  if (!where || !where.graph) return;
+  const el = [...document.querySelectorAll('#world .node')].find(n => n.dataset.id === where.node);
+  const item = items(G[cur].items).find(i => i.path.join('/') === where.node);
+  if (el && item) { select(where.node, item, step.e); center(el); }
+}
+function center(el) {
+  const c = $('canvas'), s = Math.max(T.s, READABLE);
+  const cx = parseFloat(el.style.left) + el.offsetWidth / 2, cy = parseFloat(el.style.top) + el.offsetHeight / 2;
+  T.s = s; T.x = 30 + room() / 2 - cx * s; T.y = (c.clientHeight - below()) / 2 - cy * s;
+  $('world').classList.add('glide'); apply();
+  clearTimeout(center.done); center.done = setTimeout(() => $('world').classList.remove('glide'), 400);
+}
+function label(step) {
+  const e = step.e, t0 = STEPS[0].t, past = Math.round((Date.parse(step.t) - Date.parse(t0)) / 1000);
+  const clock = `${String(Math.floor(past / 60)).padStart(2, '0')}:${String(past % 60).padStart(2, '0')}`;
+  $('r-what').textContent = [`${at + 1} / ${STEPS.length}`, `+${clock}`, step.end ? `終わり（${STATUS[e.status] || e.status}）` : '始まり',
+    e.tokens.join(' / '), e.loop.length ? `周 ${e.loop.join('.')}` : '', e.run !== RUN.id ? `子の run ${e.run.slice(0, 8)}` : '',
+    e.at && e.at.graph ? '' : '図に当たらない'].filter(Boolean).join('　');
+}
+function play(on) {
+  clearTimeout(playing); playing = null;
+  $('r-play').textContent = on ? '⏸ 止める' : '▶ 再生';
+  if (!on) return;
+  const tick = async () => {
+    if (at >= STEPS.length - 1) { play(false); return; }
+    await go(at + 1);
+    if (playing !== null) playing = setTimeout(tick, 1000 / +$('r-speed').value);
+  };
+  playing = setTimeout(tick, 0);
+}
+(function replayBar() {
+  if (!STEPS.length) return;
+  $('replay').hidden = false;
+  $('r-pos').max = STEPS.length - 1;
+  $('r-what').textContent = `run の出来事 ${STEPS.length} 歩（ノードの始まりと終わり）。▶ 再生で始めから歩く`;
+  $('r-play').onclick = () => {
+    if (playing !== null) return play(false);
+    if (at >= STEPS.length - 1) at = -1;   // 終わりに居れば始めから
+    play(true);
+  };
+  $('r-first').onclick = () => { play(false); go(0); };
+  $('r-prev').onclick = () => { play(false); go(at - 1); };
+  $('r-next').onclick = () => { play(false); go(at + 1); };
+  $('r-pos').oninput = () => { play(false); go(+$('r-pos').value); };
+  $('r-off').onclick = () => { play(false); at = -1; going++; $('r-pos').value = 0;
+    $('r-what').textContent = `run の出来事 ${STEPS.length} 歩（ノードの始まりと終わり）。▶ 再生で始めから歩く`; closePanel(); paint(); };
+  addEventListener('keydown', ev => {
+    // 字の欄とつまみは自分で受ける。押し物は空白を自分で受ける
+    if ($('s-flow').hidden || ev.target.closest('input,select,textarea') || (ev.key === ' ' && ev.target.closest('button'))) return;
+    if (ev.key === 'ArrowRight') { ev.preventDefault(); $('r-next').click(); }
+    else if (ev.key === 'ArrowLeft') { ev.preventDefault(); $('r-prev').click(); }
+    else if (ev.key === ' ') { ev.preventDefault(); $('r-play').click(); }
+  });
 })();
 
 // 板: graph とノード
-function openPanel(title, body) { $('p-title').textContent = title; $('p-body').replaceChildren(...body.flat(Infinity).filter(Boolean)); $('panel').hidden = false; }
+function openPanel(title, body) {
+  $('p-title').textContent = title; $('p-body').replaceChildren(...body.flat(Infinity).filter(Boolean)); $('panel').hidden = false;
+  $('canvas').classList.add('with-panel');
+}
+function closePanel() { $('panel').hidden = true; $('canvas').classList.remove('with-panel'); }
 function graphPanel(folder) {
   const g = G[folder];
   document.querySelectorAll('.node.sel').forEach(n => n.classList.remove('sel'));
@@ -357,7 +579,7 @@ function graphPanel(folder) {
     g.used_by.length && h('div', {}, g.used_by.map(u => h('button', {class: 'chip', text: `${u.graph} の ${u.node}`, onclick: () => openGraph(u.graph)}))),
   ]);
 }
-function select(id, item) {
+function select(id, item, focus) {
   document.querySelectorAll('.node.sel').forEach(n => n.classList.remove('sel'));
   selId = id;
   if (!id) return;
@@ -383,12 +605,15 @@ function select(id, item) {
     RUN && h('h3', {text: `この run で（${at.events.length} 回）`}),
     RUN && !at.events.length && !at.skipped.length && h('div', {class: 'empty', text: 'この所の出来事は記録に無い'}),
     ...at.skipped.map(s => h('div', {}, badge('skipped'), ` ${s.tokens.join(' / ')} ${s.cause ? JSON.stringify(s.cause) : ''}`)),
-    ...at.events.map((e, i) => eventView(e, at.events.length === 1)),
+    ...at.events.map(e => eventView(e, focus ? e === focus : at.events.length === 1, e === focus)),
   ].flat());
+  // 再生の今の歩の出来事を板の見える所へ（scrollIntoView は包みの外の要素まで動かすので、板の中だけを動かす）
+  const shown = $('p-body').querySelector('.focus');
+  if (shown) $('p-body').scrollTop = shown.offsetTop - $('p-body').offsetTop - 8;
 }
 
 // 出来事（図の板とログで同じ形）
-function eventView(e, open) {
+function eventView(e, open, focus) {
   const head = [badge(e.status), h('span', {class: 'mono', text: e.tokens.join(' / ')}), e.loop.length ? h('span', {text: `周 ${e.loop.join('.')}`}) : null,
     h('span', {class: 'empty', text: (e.start || '').replace('T', ' ').replace(/\..*/, '')}), e.cost ? h('span', {text: usd(e.cost)}) : null];
   const body = [
@@ -396,46 +621,74 @@ function eventView(e, open) {
       ['往復', e.turns], ['トークン', e.usage ? `入 ${num(e.usage.input)}・出 ${num(e.usage.output)}・cache 読み ${num(e.usage.cacheRead)}・cache 書き ${num(e.usage.cacheWrite)}` : ''],
       ['会話', e.session ? `${e.session}（${e.origin}）` : ''], ['図の所', where(e.at)]]),
     e.error && [h('h3', {text: '誤り'}), pre(e.error, 'err')],
+    e.session && contextView(e.session),
     e.calls.length && [h('h3', {text: `道具の呼び出し（${e.calls.length}）`}),
       h('table', {}, e.calls.map(c => h('tr', {}, h('td', {text: c.name}), h('td', {text: c.status}), h('td', {class: 'wrap mono', text: c.title}))))],
     e.exec.length && [h('h3', {text: 'script と bash の出力の終わり'}), ...e.exec.map(x => fold(`${x.label} 終了の値 ${x.exit}`, [x.stdout && pre(x.stdout), x.stderr && pre(x.stderr, 'err')]))],
     e.prompts && [h('h3', {text: '組んだ指示の日本語の写し（値の記録から組み直した物）'}), ...e.prompts.map(p => fold(`${p.md} の ${p.n} 回目`,
       p.error ? pre(p.error, 'err') : [pre(p.ja.prompt), p.ja.system && [h('h3', {text: 'system'}), pre(p.ja.system)]].flat().filter(Boolean), e.prompts.length === 1))],
     e.output != null && [h('h3', {text: '出力'}), pre(pretty(e.output))],
-    e.session && sessionView(e.session),
   ];
-  return fold(head, body.flat().filter(Boolean), open);
+  const out = fold(head, body.flat().filter(Boolean), open);
+  if (focus) out.classList.add('focus');
+  return out;
 }
 function pretty(s) { try { return JSON.stringify(JSON.parse(s), null, 1); } catch (_) { return s; } }
 
-// 会話（Claude Code の記録）
-function sessionView(preview) {
+// LLM に入った物（Claude Code の会話の記録）: 初めの文脈（system・道具の一覧・添え書き・最初の指示）と、往復ごとに積まれた物（返事・考え・
+// 道具の呼び出し・道具の結果）を、入った順の 1 本の並びにする。往復の頭には、その往復で LLM が読んだ入力のトークン（in・cache 読み・
+// cache 書きの和。上の棒）と出したトークン（下の細い棒）を同じ尺で置き、文脈が育つ様子を上の棒の束で一目に見せる
+const PIECE = {system: 'system', tools: '道具の一覧', inject: '添え書き', prompt: '最初の指示', user: '指示', say: '返事', think: '考え', call: '道具の呼び出し',
+  result: '道具の結果'};
+const tokensIn = u => (u.in || 0) + (u.cache_read || 0) + (u.cache_write || 0);
+function contextView(preview, wide) {
   const S = (RUN.sessions || {})[preview];
-  if (!S) return [h('h3', {text: '会話'}), h('div', {class: 'empty', text: `会話 ${preview} の記録が見つからない（Claude Code が消した古い記録は結べない）`})];
-  const rec = S.recorded || {};
-  const size = marks => marks.reduce((n, m) => n + text(m).length, 0);
-  const system = rec['api-request-shape'] === false ? h('span', {class: 'empty', text: NOT_RECORDED})
-    : h('span', {}, `${S.system.length} 片・${num(size(S.system))} 字・道具 ${S.tools.length}`);
-  const inject = rec['api-request-blob'] === false ? h('span', {class: 'empty', text: NOT_RECORDED})
-    : h('span', {}, `${S.inject.length} 片・${num(size(S.inject.map(i => i[1])))} 字`);
-  return [h('h3', {text: `会話 ${preview}`}),
-    kv([['system', system], ['添え書き', inject], ['往復', S.turns.length], ['費用', usd(S.cost)]]),
-    S.system.length && fold('system', S.system.map(both)),
-    S.tools.length && fold('道具の一覧', h('div', {}, S.tools.map(t => h('span', {class: 'chip', text: `${t[0]} ${num(t[1])}`})))),
-    S.inject.length && fold('添え書き', S.inject.map(i => both(i[1]))),
-    S.prompt && fold('最初の指示', both(S.prompt)),
-    S.turns.length && fold('往復ごと', h('table', {}, h('tr', {}, ['', '入', 'cache 読み', 'cache 書き', '出', '道具'].map(x => h('th', {text: x}))),
-      S.turns.map((t, i) => h('tr', {}, h('td', {text: i + 1}), ['in', 'cache_read', 'cache_write', 'out'].map(k => h('td', {text: num((t.usage || {})[k])})),
-        h('td', {class: 'wrap', text: t.calls.map(c => c.name).join('・')}))))),
-    S.seq.length && fold('流れ', S.seq.map(seqRow)),
-  ].filter(Boolean);
+  const title = h('h3', {}, `LLM に入った物（会話 ${preview}）`, ' ', !wide && S && h('button', {class: 'chip', text: '広く見る', onclick: () => wideView(preview)}));
+  if (!S) return [title, h('div', {class: 'empty', text: `会話 ${preview} の記録が見つからない（Claude Code が消した古い記録は結べない）`})];
+  const rec = S.recorded || {}, len = mark => text(mark).length, sum = marks => marks.reduce((n, m) => n + len(m), 0);
+  const firstTurn = S.seq.findIndex(x => x[0] === 'turn'), head = firstTurn < 0 ? S.seq : S.seq.slice(0, firstTurn);
+  const prompts = head.filter(x => x[0] === 'user').map(x => x[1]);
+  const toolsSize = S.tools.reduce((n, t) => n + t[1], 0);
+  const start = sum(S.system) + toolsSize + sum(S.inject.map(i => i[1])) + sum(prompts);
+  const max = Math.max(1, ...S.turns.map(t => tokensIn(t.usage || {})));
+  const piece = (kind, size, body, note) => fold([h('span', {class: 'pk k-' + kind, text: note || PIECE[kind]}), h('span', {class: 'mono empty', text: `${num(size)} 字`})], body);
+  const missing = what => h('div', {class: 'ctx-row'}, h('span', {class: 'pk', text: what}), h('span', {class: 'empty', text: NOT_RECORDED}));
+  const bar = (u, i) => {
+    const total = tokensIn(u), before = i ? tokensIn(S.turns[i - 1].usage || {}) : 0, w = v => `${(100 * v / max).toFixed(2)}%`;
+    return h('div', {class: 'ctx-bar', title: `入 ${num(u.in)}・cache 読み ${num(u.cache_read)}・cache 書き ${num(u.cache_write)}・出 ${num(u.out)}`},
+      h('span', {class: 'mono', text: `往復 ${i + 1}`}),
+      h('span', {class: 'track'}, h('span', {}, h('i', {class: 'cr', style: `width:${w(u.cache_read || 0)}`}), h('i', {class: 'cw', style: `width:${w(u.cache_write || 0)}`}),
+        h('i', {class: 'in', style: `width:${w(u.in || 0)}`})), h('span', {class: 'o'}, h('i', {class: 'out', style: `width:${w(u.out || 0)}`}))),
+      h('span', {class: 'mono', text: `入 ${num(total)}${i ? `（${total >= before ? '+' : ''}${num(total - before)}）` : ''}・出 ${num(u.out)}`}));
+  };
+  const rows = [h('div', {class: 'ctx-group', text: '初めの文脈'})];
+  if (rec['api-request-shape'] === false) rows.push(missing('system と道具の一覧'));
+  else {
+    S.system.forEach((m, i) => rows.push(piece('system', len(m), both(m), `system ${i + 1}/${S.system.length}`)));
+    rows.push(piece('tools', toolsSize, h('div', {}, S.tools.map(t => h('span', {class: 'chip', text: `${t[0]} ${num(t[1])} 字`}))), `道具の一覧 ${S.tools.length} 個`));
+  }
+  if (rec['api-request-blob'] === false) rows.push(missing('添え書き'));
+  else S.inject.forEach((i, k) => rows.push(piece('inject', len(i[1]), both(i[1]), `添え書き ${k + 1}/${S.inject.length}${i[0] ? `（${i[0]}）` : ''}`)));
+  prompts.forEach(m => rows.push(piece('prompt', len(m), both(m))));
+  if (!prompts.length) rows.push(missing('最初の指示'));
+  for (const [kind, a, b] of firstTurn < 0 ? [] : S.seq.slice(firstTurn)) {
+    if (kind === 'turn') { rows.push(h('div', {class: 'ctx-group'}, `往復 ${a + 1} で積まれた物`), bar(S.turns[a].usage || {}, a)); continue; }
+    if (kind === 'call') rows.push(piece('call', len(b), pre(text(b)), `道具の呼び出し ${a}`));
+    else if (kind === 'user') rows.push(piece('user', len(a), both(a), '指示（後から）'));
+    else rows.push(piece(kind, len(a), pre(text(a), kind === 'result' && b ? 'err' : null), kind === 'result' && b ? '道具の結果（誤り）' : null));
+  }
+  return [title,
+    h('div', {class: 'ctx-sum'}, `初めの文脈 ${num(start)} 字（system ${S.system.length} 片・道具 ${S.tools.length}・添え書き ${S.inject.length} 片・指示 ${prompts.length}）・往復 ${S.turns.length}`,
+      S.turns.length ? `・入力のトークン ${num(tokensIn(S.turns[0].usage || {}))} → ${num(tokensIn(S.turns[S.turns.length - 1].usage || {}))}` : '', S.cost != null ? `・費用 ${usd(S.cost)}` : ''),
+    S.turns.length && h('div', {class: 'ctx-bars'}, S.turns.map((t, i) => bar(t.usage || {}, i)),
+      h('div', {class: 'ctx-key'}, [['cr', 'cache 読み'], ['cw', 'cache 書き'], ['in', '入（cache の外）'], ['out', '出']].map(([c, l]) => h('span', {}, h('i', {class: c}), l)))),
+    h('div', {class: 'ctx'}, rows)].filter(Boolean);
 }
-function seqRow(x) {
-  const [kind, a, b] = x;
-  if (kind === 'usage') return h('div', {class: 'empty', text: `トークン 入 ${num(a.in)}・cache 読み ${num(a.cache_read)}・cache 書き ${num(a.cache_write)}・出 ${num(a.out)}`});
-  if (kind === 'call') return fold(`道具 ${a}`, pre(text(b)));
-  const label = {user: '指示', result: b ? '道具の結果（誤り）' : '道具の結果', say: 'AI', think: '考え'}[kind] || kind;
-  return fold(`${label}（${num(text(a).length)} 字）`, kind === 'user' ? both(a) : pre(text(a), kind === 'result' && b ? 'err' : null));
+// 広い面: 板の狭さで読みにくい時に、同じ並びを図の画面いっぱいに出す
+function wideView(preview) {
+  $('w-title').textContent = `LLM に入った物（会話 ${preview}）`;
+  $('w-body').replaceChildren(...contextView(preview, true).filter(x => x.tagName !== 'H3'));
+  $('wide').hidden = false;
 }
 
 // run の一覧
@@ -486,7 +739,7 @@ function unread() {
     list('記録の無い run', RUN.missing_logs);
     const ses = [];
     for (const [p, S] of Object.entries(RUN.sessions || {})) for (const [k, v] of Object.entries(S.unread)) ses.push(`${p} ${k}: ${v}`);
-    list('会話の記録の知らない型の行（Claude Code の記録の形は工場が止めていない。読まないと決めた型は数えない）', ses);
+    list('会話の記録の知らない型の行（Claude Code の記録の形は工場が止めていない。読まないと決めた型は、字を読む代わりの型が記録に在る時は数えない）', ses);
   }
   $('s-unread').append(box);
 }
