@@ -1,7 +1,9 @@
 """Claude Code の会話の記録（隔離した設定の `projects/<フォルダ>/<会話の id>.jsonl`）の読み。LLM に入った物（system・道具・添え書き・
 指示）と、往復ごとの道具の呼び出しとトークンを取る。
 
-Claude Code の版は工場が止めていないので、記録の形は試験で照らせない（人が見る）。読まない型の行は型ごとに数えて返し、黙って落とさない。
+Claude Code の版は工場が止めていないので、記録の形は試験で照らせない（人が見る）。行の型は、読む型と読まない型（訳つき。UNREAD_TYPES）
+に分け、どちらでもない知らない型の行は型ごとに数えて返し、黙って落とさない（読まない型は数えない。ページの帯の数が本当に読めなかった
+物を指す）。
 
 - find(projects, preview) -> run の記録の会話の id の頭（sessionPreview）に当たる記録のパス（無ければ None。Claude Code が消した古い記録は結べない）
 - read(path, keep) -> 1 本の会話。keep は同じ字を 1 つにして番号で指す関数（同じ system を会話ごとに持たない）。system と道具の一覧
@@ -14,6 +16,15 @@ from pathlib import Path
 SHAPE = "api-request-shape"
 BLOB = "api-request-blob"
 READ_TYPES = ("user", "assistant", SHAPE, BLOB, "cost-state")
+UNREAD_TYPES = {
+    "attachment": "Claude Code が添えた物（sandbox の説明・hook の出力など）。LLM に入った字は api-request-blob から読む",
+    "api-request": "API への頼みの印（版・模型・betas）。LLM に入った字は api-request-shape と api-request-blob から読む",
+    "queue-operation": "指示の待ち行列の出し入れの印。指示そのものは user の行から読む",
+    "last-prompt": "最後の指示の頭の控え。指示そのものは user の行から読む",
+    "ai-title": "Claude Code が付けた会話の題",
+    "atis-latch": "Claude Code の中の印で、会話の中身を持たない",
+    "mode": "権限のモードの印",
+}
 REMINDER = "<system-reminder>"
 
 
@@ -34,8 +45,10 @@ def read(path: Path, keep) -> dict:
             _count(got, "JSON でない行")
             continue
         kind = row.get("type")
+        if kind in UNREAD_TYPES:
+            continue
         if kind not in READ_TYPES:
-            _count(got, f"読まない型 {kind}")
+            _count(got, f"知らない型 {kind}")
             continue
         message = row.get("message") or {}
         if kind in got["recorded"]:

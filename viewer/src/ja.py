@@ -17,7 +17,7 @@ prompt-values-for-viewer・viewer-in-repo の 4。設計は docs/design/viewer.m
   （texts_ja）、訳の無い段落の数（ja）。pack は図を作った pack のフォルダ（run の写しか今の木）
 - export(todo, folder) -> 束の数: 訳の無い段落を約 3.5 万字ずつの束 batch-<n>.en.txt に書く（訳すのは取り次ぐ会話）
 - take(folder, env) -> (REPO に入れた数, キャッシュに入れた数, 拒んだ行): 束の訳 batch-<n>.ja.txt を取り込む。今の木の md の段落の鍵だけを
-  REPO に、ほかをキャッシュに書く
+  REPO に、ほかをキャッシュに書く。置き場か束が無ければ何も書かずに拒む
 - prune() -> 消した数: REPO から、今の木の md の段落に無い鍵を消す（md を直して古くなった訳。残っていても英語で出るだけで、赤にはしない）
 """
 import hashlib
@@ -118,6 +118,8 @@ def export(todo: Mapping[str, str], folder: Path) -> int:
 
 
 def take(folder: Path, env: Mapping[str, str]) -> tuple[int, int, list[str]]:
+    if not sorted(folder.glob("batch-*.ja.txt")):
+        return 0, 0, [f"{folder}: 訳の束 batch-<n>.ja.txt が無い" if folder.is_dir() else f"{folder}: 置き場が無い"]
     ours = tree_keys()
     repo, cache = _load(REPO), _load(place.cache_dir(env) / CACHE)
     to_repo = to_cache = 0

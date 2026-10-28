@@ -3,7 +3,8 @@
 - 雛形は別のファイルからスクリプトを読まない（viewer/AGENTS.md の E25 の 3）: `<script src`・`import(`・`fetch(` が無い。見た目は縛らない（E25 の 4）
 - elkjs は照らしの値（viewer/elkjs.json の integrity）が合う tarball だけを使う: 取った物もキャッシュの物も、合わなければページを書かずに
   止まり、合わない物をキャッシュに置かない。網に届かない時は、置くべきパスと照らしの値を出して止まる
-- 合う tarball はキャッシュに置き、次からは網を使わない。データの字（記録の </script> や <!-- を含む）は script の中身を閉じず、そのまま読み戻せる
+- 合う tarball はキャッシュに置き、次からは網を使わない。データの字（記録の </script> や <!-- を含む）と elkjs の字と注（大文字の
+  </SCRIPT も）は script の中身を閉じず、データはそのまま読み戻せる
 
 試験は網に出ない（網の口 get を差し替える）。合う tarball は小さな偽の tarball を作り、照らしの値をその値に差し替えて使う。
 """
@@ -24,7 +25,7 @@ OUTSIDE = (re.compile(r"<script\b[^>]*\bsrc\b", re.I), re.compile(r"\bimport\s*\
 def tarball(bundle: str) -> bytes:
     body = io.BytesIO()
     with tarfile.open(fileobj=body, mode="w:gz") as tar:
-        for name, text in ((page.ELK["bundle"], bundle), (page.ELK["license_file"], "license */ text")):
+        for name, text in ((page.ELK["bundle"], bundle), (page.ELK["license_file"], "license */ </Script> text")):
             data = text.encode()
             info = tarfile.TarInfo(name)
             info.size = len(data)
@@ -63,7 +64,7 @@ class PageCase(unittest.TestCase):
         self.assertIn(page.ELK["integrity"], str(stop.exception))
 
     def test_page_is_one_file(self):
-        body = tarball("window.ELK = function () {}; // </script> inside")
+        body = tarball("window.ELK = function () {}; // </script> and </SCRIPT inside")
         calls = []
 
         def get(url, headers, size):
@@ -78,7 +79,7 @@ class PageCase(unittest.TestCase):
                 raise page.webget.FetchError("URLError: down")
             again = page.render(data, self.env, down)
         self.assertEqual((calls, first), ([page.ELK["tarball"]], again))
-        self.assertEqual(first.lower().count("</script>"), page.TEMPLATE.read_text(encoding="utf-8").lower().count("</script>"))
+        self.assertEqual(first.lower().count("</script"), page.TEMPLATE.read_text(encoding="utf-8").lower().count("</script"))
         embedded = re.search(r'<script type="application/json" id="data">(.*?)</script>', first, re.S)[1]
         self.assertEqual(json.loads(embedded), data)
         self.assertIn("window.ELK = function", first)

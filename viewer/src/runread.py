@@ -8,6 +8,7 @@
 - run(db, run_id) -> 選んだ run と子の run の記録（ノードごとの出来事・道具の呼び出し・費用・出力・知らない行の数え）
 - pick(db, wanted) -> run の id（wanted が空なら一番新しい親の run。頭の字でもよい）
 """
+import contextlib
 import json
 import sqlite3
 from datetime import datetime
@@ -30,6 +31,9 @@ WORKFLOW_FOLDER = ".archon/workflows"
 # DB の表と欄（packages/core/src/db/adapters/sqlite.ts の CREATE TABLE）
 RUN_TABLE = "remote_agent_workflow_runs"
 RUN_COLUMNS = ("id", "workflow_name", "status", "parent_run_id", "started_at", "completed_at", "output_root", "metadata")
+# 新しい順。started_at は秒まで（datetime('now')）で、承認で再開した run は始めを今に書き直す（packages/core/src/db/workflow-run-resume.ts）
+# ので、再開の直後に起こした run と秒が並ぶ。並んだら後に作った行（rowid が大きい）を新しいとする
+NEWEST = "order by started_at desc, rowid desc"
 EVENT_TABLE = "remote_agent_workflow_events"
 EVENT_COLUMNS = ("workflow_run_id", "event_type", "step_name", "data", "event_order", "created_at")
 # run の状態（packages/workflows/src/schemas/workflow-run.ts の workflowRunStatusSchema）
@@ -94,15 +98,21 @@ CLIP = 20000
 ARTIFACT_LIMIT = 60000
 
 
-def connect(db: Path) -> sqlite3.Connection:
-    return sqlite3.connect(f"file:{db}?mode=ro", uri=True)
+@contextlib.contextmanager
+def connect(db: Path):
+    """読むだけで開き、抜ける時に閉じる（sqlite3 の with は commit するだけで閉じない）"""
+    con = sqlite3.connect(f"file:{db}?mode=ro", uri=True)
+    try:
+        yield con
+    finally:
+        con.close()
 
 
 def runs(db: Path) -> list[dict]:
     """親の run の一覧（新しい順）。行は id・グラフの名・状態・止まっている承認ノード・始め・かかった秒・費用・落ちの訳の頭の 1 行"""
     with connect(db) as con:
         rows = con.execute(f"select id, workflow_name, status, started_at, completed_at, metadata from {RUN_TABLE} "
-                           "where parent_run_id is null order by started_at desc").fetchall()
+                           f"where parent_run_id is null {NEWEST}").fetchall()
         waiting = _waiting(con)
         errors = {rid: _error(data) for rid, data in con.execute(
             f"select workflow_run_id, data from {EVENT_TABLE} where event_type = ?", (FAILED_EVENT,))}
@@ -119,7 +129,7 @@ def pick(db: Path, wanted: str = "") -> str:
     """run の id。wanted が空なら一番新しい親の run、在れば id そのものか一意な頭の字。当たらなければ LookupError"""
     with connect(db) as con:
         if not wanted:
-            row = con.execute(f"select id from {RUN_TABLE} where parent_run_id is null order by started_at desc limit 1").fetchone()
+            row = con.execute(f"select id from {RUN_TABLE} where parent_run_id is null {NEWEST} limit 1").fetchone()
             if row is None:
                 raise LookupError("run の家に親の run が無い")
             return row[0]

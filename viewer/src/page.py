@@ -27,6 +27,7 @@ ELK = json.loads((HERE / "elkjs.json").read_text(encoding="utf-8"))
 DATA_MARK = "__DATA__"
 ELK_MARK = "/*__ELK__*/"
 MAX_BODY = 32 * 1024 * 1024
+CLOSE = re.compile(r"</(script)", re.I)
 
 
 class Unfetched(Exception):
@@ -38,7 +39,8 @@ def render(data: dict, env: Mapping[str, str], get: Callable = webget.http_get) 
     return fill(TEMPLATE.read_text(encoding="utf-8"), {
         # JSON の字の < を全部 \u003c にし、記録の字の </script> や <!-- が script の中身を閉じない・読み方を変えないようにする
         DATA_MARK: json.dumps(data, ensure_ascii=False).replace("<", "\\u003c"),
-        ELK_MARK: note + "\n" + bundle.replace("</script", "<\\/script"),
+        # elkjs の字と注（license の字）の </script を、大小に依らず崩す
+        ELK_MARK: CLOSE.sub(r"<\\/\1", note + "\n" + bundle),
     })
 
 
