@@ -41,7 +41,7 @@ WHEN_NAMES = ("rejected", "replan", "excluded", "prior_notes", "prior_redesign",
               "structure_clean_only", "structure_clean", "world", "ripple_units", "ripple_units_error", "verify", "verify_unreadable",
               "unknown_rows", "unknown_none", "spec", "prior", "prior_review", "no_prior_review", "revise", "owed_suggests", "revise_notes",
               "revise_keys", "closed_items", "held_items", "prior_ripple", "prior_ripple_error", "policy", "unread", "prior_fix_plan", "prior_fields_only",
-              "routes_spec")
+              "routes_spec", "pointed", "pointed_missing")
 
 
 def _dump(doc) -> str:
@@ -238,6 +238,16 @@ def prior_failure_rows(rows) -> tuple:
     return ("\n".join(line(r) for r in rows if not carry.is_redesign(r)), "\n".join(line(r) for r in rows if carry.is_redesign(r)))
 
 
+def pointed_rows(rows) -> tuple:
+    """(ほかの版で見つけた行, どの版にも無い行, 役が読む版)。人の答えが名指し、役が読む版に無いファイル（steps.pointed）を 1 件 1 行:
+    見つけた物は `- `<名指し>`: <本文のファイル> (commit <hash>, <ref の名>; path there: `<その版のパス>`)`、無い物は `- `<名指し>``"""
+    rows = [r for r in rows if isinstance(r, dict)]
+    found = [f"- `{r['path']}`: {r['file']} (commit {r['commit'][:12]}{', ' + r['at'] if r.get('at') else ''}; path there: `{r['found']}`)"
+             for r in rows if r.get("file")]
+    missing = [f"- `{r['path']}`" for r in rows if not r.get("file")]
+    return "\n".join(found), "\n".join(missing), str(rows[0].get("rev") or "") if rows else ""
+
+
 def handoff_rows(prior) -> str:
     """前の周までの引き継ぎのメモの行（1 周 1 行。メモの無い周・読めない周も名指す）"""
     lines = []
@@ -338,7 +348,7 @@ def values(place, repo) -> tuple:
         "ripple_units_error", "verify_rows", "verify_file", "kind_none", "kind_cause", "kind_shape", "kind_scope", "unknown_rows",
         "unknown_why", "spec", "prior_fix_plan", "prior_fields", "prior_review", "revise_blocks", "revise_pass", "owed_suggests",
         "revise_notes", "suggest_keys", "closed_items", "held_items", "prior_ripple", "prior_ripple_error", "policy_body",
-        "replan_items", "unread", "lang", "not_web", "duty_owed", "duty_may", "duty_filled")}
+        "replan_items", "unread", "pointed_rows", "pointed_missing", "pointed_rev", "lang", "not_web", "duty_owed", "duty_may", "duty_filled")}
     w = dict.fromkeys(WHEN_NAMES, False)
     v["rejection"], w["rejected"] = rolekit.rejects_text(rejected), bool(rejected)
     w["replan"] = not plan_form
@@ -425,9 +435,12 @@ def values(place, repo) -> tuple:
     else:
         v["replan_items"] = replan_rows(folder, ctx, judgment, repo)
     v["unread"], w["unread"] = "\n".join(f"- {u}" for u in ctx.get("unread") or []), bool(ctx.get("unread"))
+    v["pointed_rows"], v["pointed_missing"], v["pointed_rev"] = pointed_rows(ctx.get("pointed") or [])
+    w["pointed"], w["pointed_missing"] = bool(v["pointed_rows"]), bool(v["pointed_missing"])
     w["spawns"] = False   # 修正案の役は Agent を持たない（query-rule の下請けへの渡しの段落）
     v["lang"] = prompt.lang(ctx.get("lang"))
     v["whole_plan"] = steps.WHOLE_PLAN
+    v["cannot_read"] = steps.CANNOT_READ
     return v, w
 
 

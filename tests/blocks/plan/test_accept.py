@@ -11,6 +11,7 @@ from __future__ import annotations
 import copy
 import hashlib
 import json
+import pathlib
 import unittest
 
 from tests.bin.gitkit import git
@@ -714,3 +715,53 @@ class OwedAnswersCase(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class PointedCase(unittest.TestCase):
+    """人の答えが名指した文書が、役が読む版に無くほかの枝にだけ在る時（guided-resolver #2177 の run: 承認ノードの一言が照らせと指した正典は
+    まだ取り込まれていない PR の枝にだけ在り、Bash の無い役は読めないまま要約から組み直した）。機械がほかの版から本文を取って役に渡し、
+    それでも読めない文書は役が cannot_read で申し出て、受け付けが案を照らさずに止める（status held）"""
+
+    CANON = "docs/canon/principles.md"
+    NEW = "tests/new_case.py"
+    FOUND_HEAD = "## Documents named in a person's answers that are not in the version you read"
+    MISSING_HEAD = "## Files named in a person's answers that are in no version"
+
+    def run_with_canon(self, text):
+        run = PlanRun(self, answers=[{"question": "設計の相談の答え 1", "text": text}])
+        git(run.repo, "checkout", "-q", "-b", "canon")
+        (run.repo / "docs" / "canon").mkdir(parents=True)
+        (run.repo / self.CANON).write_text("正典: 名前は chart に持たせず受け渡す\n", encoding="utf-8")
+        git(run.repo, "add", "-A")
+        git(run.repo, "commit", "-q", "-m", "canon")
+        git(run.repo, "checkout", "-q", run.base)
+        return run
+
+    def test_a_document_named_in_an_answer_is_taken_from_another_branch(self):
+        run = self.run_with_canon(f"正典 {self.CANON}（main に無く枝 canon に在る）に照らして組み直す。試験は {self.NEW} に足す")
+        out, prompts = go(run, {"plan": [item(1, 2)]})
+        self.assertIs(out["ok"], True, out)
+        found = prompts[0].split(self.FOUND_HEAD, 1)[1].split("\n## ", 1)[0]
+        self.assertIn(f"`{self.CANON}`", found)
+        self.assertIn(git(run.repo, "rev-parse", "canon")[:12], found)
+        copy_ = next(w for w in found.split() if w.endswith(".txt"))
+        self.assertEqual(pathlib.Path(copy_).read_text(encoding="utf-8"), "正典: 名前は chart に持たせず受け渡す\n")
+        missing = prompts[0].split(self.MISSING_HEAD, 1)[1].split("\n## ", 1)[0]
+        self.assertIn(f"`{self.NEW}`", missing, "どの版にも無い名（作るファイルでもありうる）は名指すだけで止めない")
+        self.assertNotIn(f"`{self.CANON}`", missing)
+
+    def test_answers_that_name_no_file_add_no_section(self):
+        run = PlanRun(self, answers=[{"question": "q", "text": "このまま進める"}])
+        _, prompts = go(run, {"plan": [item(1, 2)]})
+        self.assertNotIn(self.FOUND_HEAD, prompts[0])
+        self.assertNotIn(self.MISSING_HEAD, prompts[0])
+
+    def test_role_that_cannot_read_a_named_document_holds_the_round(self):
+        run = PlanRun(self, answers=[{"question": "q", "text": f"正典 {self.CANON} に照らして組み直す"}])
+        out, prompts = go(run, {steps.CANNOT_READ: [{"path": self.CANON, "why": "版にもほかの枝にも無く、本文を読めない"}]})
+        self.assertEqual((out["ok"], out["status"]), (False, "held"))
+        self.assertIn(self.CANON, out["reason"])
+        self.assertTrue(any(self.CANON in line for line in out["report"]))
+        self.assertEqual(len(prompts), 1, "拒んで出し直させず、1 回で止める")
+        self.assertEqual(reasons(run), [])
+        self.assertEqual(run.json(out["plan"]), {"round": 1, "fields": []})

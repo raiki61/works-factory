@@ -239,6 +239,24 @@ Of the items of the approved plan, fix only the items pasted below. During the f
 {unread}
 <!-- end unread -->
 
+<!-- if pointed -->
+## Documents named in a person's answers that are not in the version you read (taken by the machine)
+
+A person's answer (an answer in the request, or a word written at an approval node) names the files below, but they are not in the version you read (`{pointed_rev}`). The machine found each one in another version of the repository (for example, a branch that is not merged yet) and copied its text to the file shown. Read that file; do not look for the document in the working tree. Where the person tells you to follow a document below or to check the plan against it, check the plan against its text, not against the person's summary of it, and say in approach which version you read.
+
+{pointed_rows}
+<!-- end pointed -->
+
+<!-- if pointed_missing -->
+## Files named in a person's answers that are in no version (checked by the machine)
+
+A person's answer names the files below, but the machine found them neither in the version you read (`{pointed_rev}`) nor in any other version of the repository. A file that the plan is to create is named this way too, and that is fine.
+
+{pointed_missing}
+<!-- end pointed_missing -->
+
+If a person's answer or the request tells you to follow a document or to check the plan against it, and you cannot read its text (it is not in the working tree, not among the files above, and not on the web), do not rebuild the plan from a summary of it. Instead, answer with the field `{cannot_read}` of your output: one row {path, why} per such document (why: what you tried and what you would need, 10 characters or more), and write no other field. The run then stops before the plan goes on, and a person is told which documents you could not read.
+
 Do not write `{whole_plan}` (only a resubmission in this conversation writes it).
 
 Write the fields that people read (approach, shrink_first, every why, why_not, no_narrow, undecided_because, world, deviation, the what of narrows, the note and why of recommend, the how of block_answers, and handoff, and any other free-text field shown at approval nodes or in the report, such as the behavior, old and new of tests and rewrite_tests, responsibility, the concept of home, route_why, and red_why) in {lang}. Keep keys, enum values, code identifiers, paths, commands, and error messages as they are (keys are matched across rounds, so do not translate them).

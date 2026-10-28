@@ -1,6 +1,8 @@
 """名指しの形と場所の文の読みの住処 cite の試験（本物の cite・holeties・conflict・material を直に呼ぶ。FAST）"""
 import pathlib
+import subprocess
 import sys
+import tempfile
 import unittest
 
 LIB = pathlib.Path(__file__).resolve().parents[1]
@@ -9,6 +11,8 @@ if str(LIB) not in sys.path:
     sys.path.append(str(LIB))
 
 import cite  # noqa: E402
+from tests.bin.gitkit import GIT_ID  # noqa: E402
+from tests.bin.hermetic import child_env  # noqa: E402
 
 
 class WhereCase(unittest.TestCase):
@@ -54,3 +58,51 @@ class MovedReadsCase(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ElsewhereCase(unittest.TestCase):
+    """文が名指したファイルのうち版に無い物を、ほかの版で探して読む（人の答えや指示ファイルが指した文書が、まだ取り込まれていない枝に
+    だけ在る時。guided-resolver #2177 の run）"""
+
+    def git(self, *args):
+        return subprocess.run(["git", *GIT_ID, "-C", str(self.repo), *args], env=child_env(), capture_output=True, text=True,
+                              encoding="utf-8", check=True).stdout.strip()
+
+    def setUp(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.repo = pathlib.Path(tmp.name)
+        self.git("init", "-q", "-b", "main")
+        (self.repo / "docs").mkdir()
+        (self.repo / "docs" / "AGENTS.md").write_text("決まり\n", encoding="utf-8")
+        self.git("add", "-A")
+        self.git("commit", "-q", "-m", "main")
+        self.git("checkout", "-q", "-b", "canon")
+        (self.repo / "infra" / "docs").mkdir(parents=True)
+        (self.repo / "infra" / "docs" / "principles.adoc").write_text("正典の本文\n", encoding="utf-8")
+        self.git("add", "-A")
+        self.git("commit", "-q", "-m", "canon")
+        self.git("checkout", "-q", "main")
+
+    def test_named_files_are_paths_with_a_name_and_an_extension(self):
+        text = ("正典（infra/docs/principles.adoc。git show origin/canon:<path> で読める）と docs/AGENTS.md:3、"
+                "https://example.com/a/b.md と chart の _helpers.tpl、フォルダ deploy/chart/ と ./x/y.md と ../z/w.md、infra/docs/principles.adoc")
+        self.assertEqual(cite.named_files(text), ["infra/docs/principles.adoc", "docs/AGENTS.md", "x/y.md"])
+        self.assertEqual(cite.named_files(None), [])
+
+    def test_a_file_only_on_another_branch_is_read_from_there(self):
+        rows = cite.elsewhere(self.repo, "main", ["infra/docs/principles.adoc", "docs/AGENTS.md", "AGENTS.md", "new/file.md"])
+        self.assertEqual([r["path"] for r in rows], ["infra/docs/principles.adoc", "new/file.md"],
+                         "版に在る物と、在るパスで終わる名（フォルダからの相対）は数えない")
+        got, none = rows
+        self.assertEqual((got["found"], got["commit"], got["text"]), ("infra/docs/principles.adoc", self.git("rev-parse", "canon"), "正典の本文\n"))
+        self.assertIn("canon", got["at"])
+        self.assertEqual((none["found"], none["commit"], none["at"], none["text"]), ("", "", "", ""))
+
+    def test_a_name_relative_to_a_folder_is_found_on_another_branch(self):
+        rows = cite.elsewhere(self.repo, "main", ["docs/principles.adoc"])
+        self.assertEqual((rows[0]["found"], rows[0]["text"]), ("infra/docs/principles.adoc", "正典の本文\n"))
+
+    def test_unreadable_version_raises(self):
+        with self.assertRaises(OSError):
+            cite.elsewhere(self.repo, "no-such-rev", ["a/b.md"])
