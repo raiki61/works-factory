@@ -94,7 +94,7 @@ def rework_gaps(doc: dict, repo, base: str) -> list[str]:
     """作り変えの照らし（docs/design/theme.md の 6.2）。行の分け方は書き手が決め、ここは覆いだけを照らす"""
     out = []
     dests = {p["id"] for p in doc["parts"]} | {c["id"] for c in doc["changes"]}
-    narrows = [n["what"] for n in doc["narrows"]]
+    named = {a for n in doc["narrows"] for a in design.anchors(n["what"])}
     rows_of: dict[str, list] = {}
     for row in doc["inventory"]:
         rows_of.setdefault(row["path"], []).append(row)
@@ -102,7 +102,7 @@ def rework_gaps(doc: dict, repo, base: str) -> list[str]:
         if row["to"] == "drop":
             if not row["why"].strip():
                 out.append(f"inventory {where} は drop なのに why が空")
-            if not any(where in what for what in narrows):
+            if (row["path"], *_span(row["lines"])) not in named:
                 out.append(f"inventory {where} は drop なのに、narrows に {where} を名指す行が無い")
         if row["to"] in ("move", "merge") and row["dest"] not in dests:
             out.append(f"inventory {where} は {row['to']} なのに、dest {row['dest']!r} が parts か changes の id に無い")

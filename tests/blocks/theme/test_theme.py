@@ -150,12 +150,15 @@ class AcceptTest(_Case):
 
     def test_5_reuse_points_at_current(self):
         self.check(lambda r: r["reuse"][0]["existing"].append("N7"), "existing N7 が current の id に無い")
+        self.check(lambda r: r["reuse"][0].update(part="D9"), "reuse の part D9 が parts の id に無い")
 
     def test_6_rework_is_covered(self):
         self.check(lambda r: r["inventory"].pop(0), "空でない行 1 を覆っていない")
         self.check(lambda r: r["inventory"][1].update(lines="1-4"), "が docs/rules.md:1-1 と重なる")
         self.check(lambda r: r["inventory"][2].update(lines="6-9"), "ファイルの行の外")
         self.check(lambda r: r["narrows"].clear(), "narrows に docs/rules.md:6-6 を名指す行が無い")
+        self.check(lambda r: r["narrows"][0].update(what="docs/rules.md:6-60 is dropped."), "narrows に docs/rules.md:6-6 を名指す行が無い")
+        self.check(lambda r: r["inventory"][2].update(why=" "), "は drop なのに why が空")
         self.check(lambda r: r["inventory"][1].update(dest="D9"), "dest 'D9' が parts か changes の id に無い")
         self.check(lambda r: r["changes"][0].update(where="docs/none.md"), "docs/none.md が起点の木")
         self.check(lambda r: r["changes"][0].update(where="the rules file"), "がファイルのパス（<パス> か <パス>:<行>）でない")
@@ -168,6 +171,11 @@ class AcceptTest(_Case):
         self.check(lambda r: None, "空でない行 7 を覆っていない")
         self.assertTrue(self.intake(base=base)["due"])
         self.assertTrue(self.accept(values.reply())["ok"])
+
+    def test_ids_are_one_per_row_and_changes_point_at_parts(self):
+        """欄ごとの id が重ならない・changes の parts が parts の id を指す（名指しの先を 1 つに決める）"""
+        self.check(lambda r: r["current"][1].update(id="N1"), "current の id N1 が 2 行に在る")
+        self.check(lambda r: r["changes"][0]["parts"].append("D9"), "changes C1 の parts D9 が parts の id に無い")
 
     def test_7_block_answers_answer_the_holes(self):
         prior = {"outcome": "again", "passes": [{"pass": 1, "blocks": ["k-hole"], "faces": [
