@@ -399,6 +399,8 @@ class FlowCase(Base):
         self.assertEqual((rows[0]["pass"], rows[0]["round"], rows[0]["turn"], rows[0]["node"]), ("first", 1, 1, NODE))
         (agreed,) = conflict.agreed(self.b)
         self.assertEqual((agreed["item"], agreed["granted_paths"]), ("3", ["works/CHANGELOG.md"]), "頼んでいない物は捨てる")
+        # 書き手の行（id は整数）がそのまま範囲の欄に載る。出口の形（scope.json の schema）が書き手と食い違うと修正の出力を組めない
+        kit.shaped("shared:scope-fields.schema.json", {"plan_items": [], "ruled_paths": [], "agreed": [agreed]})
         (permit,) = conflict.agreed_permits([agreed])
         self.assertEqual((permit["limit"], permit["id"]), ("works/tests/test_report.py:12", f"{conflict.AGREED_TEST_ID}-3"))
         text = pathlib.Path(got["answer_file"]).read_text(encoding="utf-8")
