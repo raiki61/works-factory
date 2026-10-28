@@ -5,7 +5,8 @@
 line のノード）で引く。
 
 - check(graphs) -> 照らしの問題の字の一覧。今の木の line の一番上のノードがどれもちょうど 1 つの段に入り、表の id がどれも line に在る
-- attach(data) -> data["stages"] に段の表と、run が line の run なら段ごとの集計を足し、出来事と飛んだノードに段の番号 stage を付ける
+- attach(data) -> data["stages"] に段の表と、run が line の run なら段ごとの集計を足し、出来事と飛んだノードに段の番号 stage を、
+  出来事に時間の帯の塗り分け role と、段の状態に数えない合流のノードの印 through を付ける
 """
 import json
 from datetime import datetime
@@ -43,12 +44,15 @@ def attach(data: dict) -> None:
     run = data["run"]
     if not run or not graph or run["graph"] != graph["name"]:
         return
+    through = {item["id"] for item in graph["items"] if item["trigger"] and not item["when"]}
     for entry in [*run["events"], *run["skipped"]]:
         top = entry["tokens"][0] if entry["tokens"] else ""
         entry["stage"] = of.get(top)
         if entry["stage"] is None and top not in out["loose"]:
             out["loose"].append(top)
-    through = {item["id"] for item in graph["items"] if item["trigger"] and not item["when"]}
+    for e in run["events"]:
+        e["role"] = _role(e["kind"])
+        e["through"] = e["stage"] is not None and e["tokens"][0] in through and bool(set(TABLE["stages"][e["stage"] - 1]["nodes"]) - through)
     out["run"] = [_sum(n, run, through) for n in range(1, len(TABLE["stages"]) + 1)]
     out["stop"] = _stop(out["run"])
 
@@ -81,6 +85,11 @@ def _sum(n: int, run: dict, through: set[str]) -> dict:
             "ai_seconds": round(sum(_length(e) for e in own if e["kind"] in runread.AI_KINDS), 1),
             "ai": sum(1 for e in own if e["kind"] in runread.AI_KINDS), "steps": len(own),
             "turns": sum(e.get("turns") or 0 for e in own), "cost": round(sum(e["cost"] for e in events), 6), "tokens": tokens}
+
+
+def _role(kind: str) -> str:
+    """時間の帯の塗り分け: AI の手番（ai）・人の答え待ち（wait）・中の出来事を束ねる器（group。帯に描かない）・機械の手番（machine）"""
+    return "ai" if kind in runread.AI_KINDS else "wait" if kind == runread.WAIT_NODE else "group" if kind in runread.GROUP_KINDS else "machine"
 
 
 def _stop(rows: list[dict]) -> int | None:

@@ -68,6 +68,8 @@ class StagesCase(unittest.TestCase):
                          {"seconds": 420.0, "wait": 300.0, "ai_seconds": 120.0, "ai": 1, "steps": 2, "turns": 3, "cost": 2.0})
         self.assertEqual(plan["tokens"], {**usage, "fresh": 10, "odd": 0})
         self.assertEqual([e["stage"] for e in events], [number(e["tokens"][0]) for e in events])
+        self.assertEqual([(e["role"], e["through"]) for e in events],
+                         [("machine", False), ("ai", False), ("group", False), ("ai", False), ("wait", False), ("machine", True), ("machine", False)])
         self.assertEqual(got["loose"], [])
 
     def test_a_run_of_another_graph_is_not_summed(self):
