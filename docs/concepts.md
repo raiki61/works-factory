@@ -261,7 +261,7 @@
 ### `ai-launch` AI の起こし方（模型・effort・道具・隔離）
 
 - 状態: 散らばり
-- 今: 模型と effort の既定だけが `lib/launchgroups.py` の群の表（`GROUPS`）に住み、グラフの YAML の AI のノードは `model:` に群の名 `'@wf-<群>'` を書くだけ（`effort:` は書かない。run ごとの付け替えは `run-model-choice`）。道具 `allowed_tools:` の行と隔離と役の定義の前付け（`lib/agents/`）は散らばりのまま（役の定義の前付けは模型と effort の行を今も持つ）: YAML の行は役の定義の前付けと結ばれておらず、試験（`tests/workflows/test_judge.py` ほか）はノードごとに自分の表で群の既定を縛るだけ。数の歯止めは表の `known` の 12 ファイル 73 行（`workflows/*/works-factory-*.yaml` の 7 ファイル 63 行・役の定義の前付けの 5 ファイル 10 行）。役の claude の会話のキャッシュの寿命の既定（5 分）は `bin/_lib/launcher.py` の `PROMPT_CACHE_TTL`・`cache_ttl` に住み、運び手は Archon の run の設定の層の env（誰かが寿命を選んでいれば載せず、`--adopt` の起動でも載せない。訳は `docs/design/archon.md`）。前の works の run の明示の模型 `WORKS_DEV_MODEL`・隔離の旗 `isolated` は今の木に無い
+- 今: 模型と effort の既定だけが `lib/launchgroups.py` の群の表（`GROUPS`）に住み、グラフの YAML の AI のノードは `model:` に群の名 `'@wf-<群>'` を書くだけ（`effort:` は書かない。run ごとの付け替えは `run-model-choice`）。道具 `allowed_tools:` の行と隔離と役の定義の前付け（`lib/agents/`）は散らばりのまま（役の定義の前付けは模型と effort の行を今も持つ）: YAML の行は役の定義の前付けと結ばれておらず、試験（`tests/workflows/test_judge.py` ほか）はノードごとに自分の表で群の既定を縛るだけ。数の歯止めは表の `known` の 12 ファイル 73 行（`workflows/*/works-factory-*.yaml` の 7 ファイル 63 行・役の定義の前付けの 5 ファイル 10 行）。役の claude の会話のキャッシュの寿命の既定（5 分）は `bin/_lib/launcher.py` の `PROMPT_CACHE_TTL`・`cache_ttl` に住み、運び手は Archon の run の設定の層の env（利用者の `--config` の `env:` か対象の `.archon/config.yaml` の `env:` で寿命を選んでいれば載せず、利用者の shell の env は見ず、`--adopt` の起動でも載せない。訳は `docs/design/archon.md`）。前の works の run の明示の模型 `WORKS_DEV_MODEL`・隔離の旗 `isolated` は今の木に無い
 - 計画: まだ無い
 
 ### `prompt-assembly` 指示書の組み立て
