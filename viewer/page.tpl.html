@@ -221,7 +221,10 @@ sizeApp();
 addEventListener('resize', sizeApp);
 const usd = v => v == null ? '' : '$' + Number(v).toFixed(v < 1 ? 4 : 2);
 // 長さの丸め: 頭と一覧と大きな数は分を整数に（1 分未満は秒）、畳みの中は「分:秒」（clock）。同じ値はどの画面でも同じ丸めで出す
-const secs = v => v == null ? '' : v < 60 ? `${Math.round(v)} 秒` : `${Math.round(v / 60)} 分`;
+// 先に秒へ丸めてから比べる（59.5 秒を「60 秒」と出さず「1 分」にする）
+const secs = v => v == null ? '' : Math.round(v) < 60 ? `${Math.round(v)} 秒` : `${Math.round(v / 60)} 分`;
+// 時刻の書き方: DB の書き方（2026-10-25 01:50:54）とログの書き方（2026-10-25T01:50:54.377Z）を、秒までの前の形にそろえる（どちらも UTC）
+const when = v => v ? String(v).replace('T', ' ').replace(/\.\d+/, '').replace(/Z$/, '') : '';
 const num = v => v == null ? '' : Number(v).toLocaleString('ja-JP');
 const badge = s => h('span', {class: 'badge ' + s, text: STATUS[s] || s});
 const text = mark => TX[mark] ?? '';
@@ -738,14 +741,14 @@ function runs() {
   out.append(h('div', {class: 'pad'}, `${D.target} の run の家の親の run（新しい順）。別の run を見るには、その行の命令を工場の clone の根で打つ（ページは 1 枚なので、ここから移れない）`),
     h('table', {}, h('tr', {}, ['id', 'graph', '状態', '待ち', '始め', 'かかった', '費用'].map(x => h('th', {text: x}))),
       D.runs.flatMap(r => [h('tr', {class: RUN && r.id === RUN.id ? 'cur' : null}, h('td', {class: 'mono', text: r.short}), h('td', {text: r.graph}),
-        h('td', {}, badge(r.status)), h('td', {text: r.waiting.join('・')}), h('td', {text: r.started}), h('td', {text: secs(r.seconds)}), h('td', {text: usd(r.cost)})),
+        h('td', {}, badge(r.status)), h('td', {text: r.waiting.join('・')}), h('td', {text: when(r.started)}), h('td', {text: secs(r.seconds)}), h('td', {text: usd(r.cost)})),
         h('tr', {}, h('td', {}), h('td', {colspan: 6, class: 'wrap'}, r.error ? h('div', {class: 'err', text: r.error}) : null, h('code', {class: 'cmd', text: cmd(r.short)})))])));
 }
 
 // ログ
 function log() {
   const out = $('s-log'), box = h('div', {class: 'pad'});
-  box.append(kv([['run', RUN.id], ['graph', RUN.graph], ['状態', badge(RUN.status)], ['始め', RUN.started], ['かかった', secs(RUN.seconds)], ['費用', usd(RUN.cost)],
+  box.append(kv([['run', RUN.id], ['graph', RUN.graph], ['状態', badge(RUN.status)], ['始め', when(RUN.started)], ['かかった', secs(RUN.seconds)], ['費用', usd(RUN.cost)],
     ['写し', RUN.copy]]));
   if (RUN.children.length) box.append(h('h3', {text: `子の run（${RUN.children.length}）`}),
     h('table', {}, RUN.children.map(c => h('tr', {}, h('td', {class: 'mono', text: c.id.slice(0, 8)}), h('td', {text: c.graph}), h('td', {}, badge(c.status)),
