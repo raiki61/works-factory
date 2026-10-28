@@ -75,7 +75,7 @@ works-factory/
 │   ├── borrow/                  借りた superpowers の写しと固定（borrow.json）・継ぎ目の表（seams.json）・無人の読み替え（unattended.md）。読み口は lib/spseam.py
 │   ├── graphloops/engine/       元の graphloops の小道具のうち残る 3 つ（declared.py・schema.py・util.py）
 │   └── tests/                   lib/ の試験
-├── viewer/                      見る道具（AGENTS.md が E25）。工場の作りの図と run の再生を人が見る物で、工場の中からは頼らない。入口 flowview.py・読む部品と組み立て src/・雛形 page.tpl.html・elkjs の止め elkjs.json
+├── viewer/                      見る道具（AGENTS.md が E25）。工場の作りの図と run の再生を人が見る物で、工場の中からは頼らない。入口 flowview.py・読む部品と組み立て src/・雛形 page.tpl.html・elkjs の止め elkjs.json・指示の md の段落の訳の控え ja/
 ├── tests/                       lib/ 以外の試験（AGENTS.md が試験の決まり）
 │   ├── layers/                  形と層の決まりの yes/no の試験（各決まりの「機械」の行）。block の形は test_block_shape.py
 │   ├── blocks/                  block の試験（tests/blocks/<block の名の - を _ にした物>/。助けは tests/blocks/kit.py）

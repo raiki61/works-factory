@@ -3,6 +3,9 @@
 - render(node_id, values, when=None) -> {"prompt": 字, "system"?: 字}: 呼んだ script の在る block の prompts/<node_id>.md を読み、
   断片と段落を選び、差し込み口に値を入れた指示。prompts/<node_id>.system.md が在れば、同じ値と when で組んだ system prompt も返す
   （YAML の systemPrompt: に文を書かない。README の 13 章）。パスも文も受けない
+- compose(block, node_id, values, when=None, *, shared_root=None) -> render の返り: render と同じ組み立てを、根を受けて回す口。block は
+  block のフォルダ、shared_root は共通の断片の根（prompts/<name>.md を持つフォルダ。None なら pack の .shared）。render と emit も
+  この口を通る。工場の外の見る道具が、run の写しの md や日本語の写しの md の木で、下の値の記録から組み直すのに使う
 - emit(node_id, values, when, n) -> render の返り: 組んだ物を place の <node_id>-prompt-<n>.md（と <node_id>-system-<n>.md）に書き、
   prep の返りの形で返す。AI の node の YAML は prompt: "$<prep>.output.prompt"（と systemPrompt: "$<prep>.output.system"）だけ。
   隣に <node_id>-viewer-values-<n>.json も書く（下の「見る道具のための値の記録」）
@@ -70,7 +73,9 @@ def _read(path: Path, what: str) -> str:
         raise PromptError(f"{what} {path} が無い") from None
 
 
-def _expand(text: str, block: Path, stack: tuple, in_shared: bool) -> str:
+def _expand(text: str, block: Path, stack: tuple, in_shared: bool, shared_root: Path | None = None) -> str:
+    shared_root = ports.SHARED if shared_root is None else shared_root
+
     def one(match: re.Match) -> str:
         kind, name = match.groups()
         if kind == "part" and in_shared:
@@ -78,9 +83,9 @@ def _expand(text: str, block: Path, stack: tuple, in_shared: bool) -> str:
         key = f"{kind}:{name}"
         if key in stack:
             raise PromptError(f"断片が自分を差し込む: {' → '.join(stack + (key,))}")
-        path = (ports.SHARED / "prompts" if kind == "shared" else block / "prompts" / "parts") / f"{name}.md"
+        path = (shared_root / "prompts" if kind == "shared" else block / "prompts" / "parts") / f"{name}.md"
         body = REQUIRED_FOR_TOOLS.sub("", _read(path, "断片") + "\n", count=1).rstrip("\n") if kind == "shared" else _read(path, "断片")
-        return _expand(body, block, stack + (key,), in_shared or kind == "shared")
+        return _expand(body, block, stack + (key,), in_shared or kind == "shared", shared_root)
     return FRAGMENT.sub(one, text)
 
 
@@ -112,14 +117,20 @@ def _select(text: str, when: dict) -> tuple[str, set]:
     return "\n".join(out), names
 
 
-def _compose(block: Path, node_id: str, values: dict, when: dict | None, *, part: bool = False, shared: bool = False) -> dict:
+def compose(block: Path, node_id: str, values: dict, when: dict | None = None, *, shared_root: Path | None = None) -> dict:
+    return _compose(block, node_id, values, when, shared_root=shared_root)
+
+
+def _compose(block: Path, node_id: str, values: dict, when: dict | None, *, part: bool = False, shared: bool = False,
+             shared_root: Path | None = None) -> dict:
+    shared_root = ports.SHARED if shared_root is None else shared_root
     if not NODE_ID.fullmatch(node_id):
         raise PromptError(f"{'断片' if part or shared else 'node'} の id の形でない: {node_id!r}")
     when = dict(when or {})
     if not all(isinstance(v, bool) for v in when.values()):
         raise PromptError("when の値は真偽だけ")
     if shared:
-        files = {"prompt": ports.SHARED / "prompts" / f"{node_id}.md"}
+        files = {"prompt": shared_root / "prompts" / f"{node_id}.md"}
     else:
         files = {"prompt": block / "prompts" / ("parts" if part else "") / f"{node_id}.md"}
     if not (part or shared) and (system := block / "prompts" / f"{node_id}{SYSTEM}.md").is_file():
@@ -128,7 +139,7 @@ def _compose(block: Path, node_id: str, values: dict, when: dict | None, *, part
     def read(path: Path) -> str:
         text = _read(path, "指示の md")
         return REQUIRED_FOR_TOOLS.sub("", text + "\n", count=1).rstrip("\n") if shared else text
-    texts = {key: _expand(read(path), block, (f"shared:{node_id}",) if shared else (), shared).replace("{{", OPEN).replace("}}", CLOSE)
+    texts = {key: _expand(read(path), block, (f"shared:{node_id}",) if shared else (), shared, shared_root).replace("{{", OPEN).replace("}}", CLOSE)
              for key, path in files.items()}
     slots = {name for text in texts.values() for name in SLOT.findall(text)}
     missing, unused = sorted(slots - set(values)), sorted(set(values) - slots)
@@ -151,7 +162,7 @@ def _compose(block: Path, node_id: str, values: dict, when: dict | None, *, part
 
 
 def render(node_id: str, values: dict, when: dict | None = None) -> dict:
-    return _compose(ports.caller_block(), node_id, values, when)
+    return compose(ports.caller_block(), node_id, values, when)
 
 
 def render_part(name: str, values: dict, when: dict | None = None) -> str:
@@ -164,7 +175,7 @@ def render_shared(name: str, values: dict, when: dict | None = None) -> str:
 
 def emit(node_id: str, values: dict, when: dict | None, n: int) -> dict:
     block = ports.caller_block()
-    out = _compose(block, node_id, values, when)
+    out = compose(block, node_id, values, when)
     place = ports.place()
     for key, text in out.items():
         (place / f"{node_id}-{key}-{n}.md").write_text(text, encoding="utf-8")

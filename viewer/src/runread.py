@@ -215,7 +215,8 @@ class _Reader:
             return
         event = by_invocation.get(key)
         if event is None:
-            event = {"tokens": ids, "path": path, "run": self.current, "kind": (execution.get("node") or {}).get("kind") or "", "start": entry.get("ts"),
+            event = {"tokens": ids, "path": path, "run": self.current, "artifacts": str(root / ARTIFACTS / RUNS_DIR / self.current) if root else "",
+                     "kind": (execution.get("node") or {}).get("kind") or "", "start": entry.get("ts"),
                      "end": None, "status": "running", "loop": [step.get("iteration") for step in invocation.get("loopPath") or []],
                      "cost": 0.0, "calls": [], "exec": [], "error": ""}
             by_invocation[key] = event
