@@ -48,6 +48,7 @@
 ## 6.5 ページ（`src/page.py`・`page.tpl.html`・`elkjs.json`）
 
 - ページは 1 枚で完結する（E25 の 3）。データは雛形の `<script type="application/json">` に、JSON の字の `<` を全部 `\u003c` にして埋める（記録の字の `</script>` や `<!--` が script の中身を閉じない）。elkjs の bundle は次の `<script>` に字のまま埋め、`</script` だけを崩す。雛形の印は 1 度ずつ埋め、埋めた字の中の印の字は埋め直さない。
+- ページは HTML のビューアが body の中身を別の要素で包み、拡大縮小の `transform` を掛けて開く事がある。高さは body の直下の flex にも `position:fixed` にも頼らず、雛形のいちばん外の要素 `.app` が `100vh` で持つ（中身の高さが 0 にならない）。
 - elkjs（計画の 4 章の案 E1）: 版と tarball の照らしの値（npm の登録所の `dist.integrity`。tarball の sha512）を `viewer/elkjs.json` に止める。版 0.10.0 は、窓口の手元の見る道具が使ってきた bundle（sha256 の頭 `48d338d5aeddd950`）と同じ物だったので選んだ。tarball は利用者のキャッシュ（`place.cache_dir` の下の `viewer/elkjs-<版>/`）に元の名のまま置き、読むたびに照らす。取った物もキャッシュの物も、合わなければページを書かずに止まる。網に届かない時は、置くべきパスと照らしの値を出して止まる。ページには bundle の前に、版・license（EPL-2.0）・取った所と、tarball の `package/LICENSE.md` の字を注で置く。
 - 画面は 4 つ: 図（graph と block の一覧・elk で上から下に並べたノードの図・ノードを押すと板に作りとこの run の出来事・block と子の run は 2 度押しで中へ）・run の一覧（行ごとに、その run のページを作る命令の 1 行。計画の 3.5）・ログ（ノードの出来事を時刻順に。子の run・飛んだノード・繰り返しの終わりの確かめ・出力が指すファイル。走り中は「ここまで」）・読めなかった物（作りの問題・図に当たらないノード・記録の読めなかった行・会話の記録の読まない行）。記録の字は全部 `textContent` で置き、HTML として読まない。
 - 図の出来事は、同じ graph が何度 include されても、その graph の所に全部寄せる（include の文脈ごとに分けるのは見た目の磨きで回す）。

@@ -21,7 +21,9 @@
 *{box-sizing:border-box}
 html,body{margin:0;height:100%}
 [hidden]{display:none!important}
-body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:13px;line-height:1.55;display:flex;flex-direction:column;overflow:hidden}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:13px;line-height:1.55;overflow:hidden}
+/* 高さは body でなく .app が画面の高さで持つ（ビューアが body の中身を別の要素で包んでも切れない。fixed は包みの transform で崩れるので使わない） */
+.app{height:100vh;display:flex;flex-direction:column}
 button{font:inherit;color:inherit;cursor:pointer}
 code,pre,.mono{font-family:var(--f-mono);font-size:12px}
 pre{white-space:pre-wrap;overflow-wrap:anywhere;margin:4px 0;padding:8px 10px;background:var(--panel2);border:1px solid var(--line);border-radius:8px;max-height:420px;overflow:auto}
@@ -93,6 +95,7 @@ tr.cur td{background:var(--sel-soft)}
 <body>
 <script type="application/json" id="data">__DATA__</script>
 <script>/*__ELK__*/</script>
+<div class="app">
 <div class="top">
   <h1>works-factory の作りと run</h1>
   <div class="facts" id="facts"></div>
@@ -112,6 +115,7 @@ tr.cur td{background:var(--sel-soft)}
   <div class="screen" id="s-runs" hidden></div>
   <div class="screen" id="s-log" hidden></div>
   <div class="screen" id="s-unread" hidden></div>
+</div>
 </div>
 <script>
 'use strict';
