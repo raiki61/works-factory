@@ -91,7 +91,8 @@ def read_ptr(ptr, field: str):
 def returns_of(values: dict, record: dict | None) -> dict:
     """元の役の名の returns: judge（fix-in が運んだ固定材料の値で埋める）・rejudge・plan（計画の往復の記録 plan-out）・plan-review
     （最後の往復の事前審査の値。plan-out の stalled・asks を持つ）・replan・replan-review-result・fix（fixed の合わせ）・before-tests・
-    final-tests・eyes・sealed-diff・applied-diff・structure・start（始めの記録）・theme_descend（テーマの run の降りる道）"""
+    final-tests・eyes・sealed-diff・applied-diff・structure・start（始めの記録）・theme_descend（テーマの run の降りる道）・request_in
+    （依頼の出どころ。台帳の依頼の答えの源）"""
     received = as_dict(as_dict(values.get("fix_in")).get("received"))
     judge = values.get("judge") if isinstance(values.get("judge"), dict) else received.get("judge")
     rounds = values.get("rounds") if isinstance(values.get("rounds"), dict) else received.get("rounds")
@@ -112,6 +113,7 @@ def returns_of(values: dict, record: dict | None) -> dict:
         "applied-diff": values.get("merge_apply") if isinstance(values.get("merge_apply"), dict) else None,
         "structure": values.get("structure") if isinstance(values.get("structure"), dict) else received.get("structure"),
         "theme_descend": values.get("theme_descend") if isinstance(values.get("theme_descend"), dict) else None,
+        "request_in": values.get("request_in") if isinstance(values.get("request_in"), dict) else None,
     }
 
 
@@ -202,18 +204,19 @@ def judgment_doc(returns: dict) -> dict:
     return as_dict(doc)
 
 
-def ledger(returns: dict, gates: dict, record: dict, unattended: bool):
-    """問いの台帳の見え方（元 runreport.ledger。gatemarks.ledger）"""
+def ledger(returns: dict, gates: dict, unattended: bool):
+    """問いの台帳の見え方（元 runreport.ledger。gatemarks.ledger。依頼の答えは request-in の返り。_request_answers）"""
     import gatemarks
     ties_doc, _ = read_ptr(as_dict(returns.get("judge")).get("answer_ties"), "answer_ties")
     ties = gatemarks.ties_of(ties_doc) if ties_doc is not None else []
     mats, _ = materials(returns)
-    return gatemarks.ledger(judgment_doc(returns), answers=_request_answers(record), gate=gates.get("gate-before-fix"), ties=ties,
+    return gatemarks.ledger(judgment_doc(returns), answers=_request_answers(returns), gate=gates.get("gate-before-fix"), ties=ties,
                             materials=mats, takes_push=unattended)
 
 
-def _request_answers(record: dict) -> list:
-    return [a for a in _list(as_dict(record).get("answers")) if isinstance(a, dict)]
+def _request_answers(returns: dict) -> list:
+    """依頼の答え（request-in の返りの request_answers。テーマの run は降りた依頼の答えで、判定が問いを結んだ答えと同じ源）"""
+    return [a for a in _list(as_dict(returns.get("request_in")).get("request_answers")) if isinstance(a, dict)]
 
 
 def _material_row(name: str, status: str, why=None) -> dict:
@@ -888,7 +891,7 @@ def more_lines(values: dict, returns: dict, gates: dict, *, closed: bool, unatte
 
 
 # ---------------------------------------------------------------- 人が決めること
-def decisions(values: dict, returns: dict, gates: dict, record: dict, *, unattended: bool, left: list, closed: bool, got: dict,
+def decisions(values: dict, returns: dict, gates: dict, *, unattended: bool, left: list, closed: bool, got: dict,
               taken: list, cwd=None) -> tuple[dict, list, dict, list]:
     """(decisions {before, after, outside}, asks [{kind, text}], tallied, counted_left)。結末で決まる塊（人が確かめる物・直しきれずに
     残った物・記録が通らないこと）は report が足す（report の設計書の 1.2 の asks）"""
@@ -898,7 +901,7 @@ def decisions(values: dict, returns: dict, gates: dict, record: dict, *, unatten
     plan_qs = [str(as_dict(q).get("text") if isinstance(q, dict) else q) for q in _list(as_dict(values.get("ask_before_fix")).get("deferred"))]
     eye_qs = eye_questions(returns)
     spec_qs = [q for q in _list(as_dict(values.get("spec_check")).get("questions")) if isinstance(q, str) and q.strip()]
-    b = ledger(returns, gates, record, unattended)
+    b = ledger(returns, gates, unattended)
     held_qs = gatemarks.held_questions(b)
     lines_ = gatemarks.held_lines(b)
     held = [*zip(held_qs, lines_), *((None, line) for line in lines_[len(held_qs):])]
@@ -971,7 +974,7 @@ def _item_said(x) -> str:
     return json.dumps(x, ensure_ascii=False)
 
 
-def answer_drafts(values: dict, returns: dict, gates: dict, record: dict, unattended: bool) -> list:
+def answer_drafts(values: dict, returns: dict, gates: dict, unattended: bool) -> list:
     """人の判断を待つ項目への答えの下書き（元 runreport.answer_drafts の、承認し直すかの問い・載せなかった修正前の問いと R4 の問い・
     保留の台帳の問い・問いの立っていない測れていない素材の行）"""
     import gatemarks
@@ -979,7 +982,7 @@ def answer_drafts(values: dict, returns: dict, gates: dict, record: dict, unatte
     spec_qs = [q for q in _list(spec.get("questions")) if isinstance(q, str) and q.strip()]
     words = gatemarks.spec_words(bool(spec_qs) and spec.get("unchecked") is not False)
     out = [gatemarks._draft(q, "", words.source, words.note) for q in spec_qs]
-    b = ledger(returns, gates, record, unattended)
+    b = ledger(returns, gates, unattended)
     held = gatemarks.held_questions(b)
     asked = eye_questions(returns)
     if unattended and as_dict(gates.get("gate-before-fix")).get("decision") not in ("approve", "continue"):
@@ -1127,7 +1130,7 @@ def build(values: dict, record: dict | None, record_why: str = "", cwd=None) -> 
     problems += part("申し出と裁定", lambda: conflict_rows(returns)[1], [])
     problems += part("script の落ちた訳", lambda: script_fall_notes(values), [])
     fixed = as_dict(values.get("fixed"))
-    measured = part("依頼の答えが当たった素材", lambda: _measured(returns, gates, record, unattended), set(), outcome=False)
+    measured = part("依頼の答えが当たった素材", lambda: _measured(returns, gates, unattended), set(), outcome=False)
     facts_ctx = {"eyes_due": fixed.get("eyes_due") if fixed else None, "beside": got, "measured": measured}
     left = part("残りの行", lambda: residue(returns, facts_ctx), [])
     stops = part("止めの語", lambda: stop_rows(values, returns), [])
@@ -1135,15 +1138,15 @@ def build(values: dict, record: dict | None, record_why: str = "", cwd=None) -> 
     waits = part("人待ち", lambda: wait_rows(values, returns), {"conflicts": [], "conflicts_if_closed": [], "others": []})
     cut = part("段の表の切れ目", lambda: cut_row(returns), None)
     closed = cut is None
-    taken = part("無人の run が採った推し", lambda: _taken(returns, gates, record, unattended), [], outcome=False)
+    taken = part("無人の run が採った推し", lambda: _taken(returns, gates, unattended), [], outcome=False)
     dec, asks, tallied, counted_left = part(
-        "人が決めること", lambda: decisions(values, returns, gates, record, unattended=unattended, left=left, closed=closed, got=got,
+        "人が決めること", lambda: decisions(values, returns, gates, unattended=unattended, left=left, closed=closed, got=got,
                                        taken=taken, cwd=cwd),
         ({"before": [], "after": [], "outside": []}, [], {}, []), outcome=False)
     carried_rows = [*_list(fixed.get("carry")), *_list(as_dict(values.get("judged")).get("carry"))]
     findings = part("次の依頼", lambda: next_request(returns, left, closed, got, carried_rows), [])
     prior = part("前の失敗", lambda: prior_failures(returns, left, stops), [])
-    drafts = part("答えの下書き", lambda: answer_drafts(values, returns, gates, record, unattended), [], outcome=False)
+    drafts = part("答えの下書き", lambda: answer_drafts(values, returns, gates, unattended), [], outcome=False)
     constraints = part("次の run の制約", lambda: constraints_of(returns, str(ports_.get("run_id") or "")), [], outcome=False)
     _, material_note = part("素材の状態", lambda: materials(returns), ({}, ""), outcome=False)
     notes += [material_note] if material_note else []
@@ -1189,14 +1192,14 @@ def build(values: dict, record: dict | None, record_why: str = "", cwd=None) -> 
     }
 
 
-def _measured(returns, gates, record, unattended) -> set:
+def _measured(returns, gates, unattended) -> set:
     import gatemarks
-    return gatemarks.measured_materials(ledger(returns, gates, record, unattended)) if _request_answers(record) else set()
+    return gatemarks.measured_materials(ledger(returns, gates, unattended)) if _request_answers(returns) else set()
 
 
-def _taken(returns, gates, record, unattended) -> list:
+def _taken(returns, gates, unattended) -> list:
     import gatemarks
-    return gatemarks.taken_pushes(ledger(returns, gates, record, unattended))
+    return gatemarks.taken_pushes(ledger(returns, gates, unattended))
 
 
 def _suite_note(record: dict) -> list:

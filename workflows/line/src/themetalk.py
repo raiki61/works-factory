@@ -9,7 +9,7 @@
 - items(po) -> [(種類, 文)]: 関所 gate-theme の項目（持ち主に聞く問い・往復の止まり・書き手か事前審査の諦めと落ち）。どの行も通す推しの尾を
   持たない（asks の pick は案の中の選びで、関所を通す推しではない。機械は推しを作らない）ので、無人の run は項目が 1 つでも在れば止まる
 - gate_text(...)・round_text(...): 関所の文と周ごとの控えの文
-- answer_rows(talks, asks, request_answers) -> list: 人の答えの行（id H<n>。shared:human-answers.schema.json）。関所の答えの text の見出しの
+- answer_rows(talks, request_answers=()) -> list: 人の答えの行（id H<n>。shared:human-answers.schema.json）。関所の答えの text の見出しの
   セクション（持ち主の言葉・調べもの・問いへの答え・取り次ぐ会話の読み）を行に分け、見出しの無い字は一言の行にする
 - check(said, asks) -> str: 答えの text のセクションが読めるか（読めない訳か空の字。src.talk.turn の check）
 """

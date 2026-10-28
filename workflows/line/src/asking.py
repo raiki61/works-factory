@@ -1,9 +1,10 @@
 """修正前の承認ノードの材料の読み（docs/design/line.md の 2 節の 2）。修正前の承認ノード ask-before-fix と、対話モードの run の計画の
 往復の末尾の設計の相談 design-talk（src/talk.py）が、同じ材料から同じ行を組むための 1 か所。行の決めは src.gates.before_fix。
 
-- materials(rounds, *, structure_raw, judge_raw, record_raw, unattended, place) -> dict: before_fix に渡す材料（ledger・design_rows_・
+- materials(rounds, *, structure_raw, judge_raw, record_raw, dealt, unattended, place) -> dict: before_fix に渡す材料（ledger・design_rows_・
   policy_row・stuck_reason・record_doc・answered・unread）。読めない控えは unread に名指す（開ける理由）。rounds の agreed（設計の相談で
-  合意した答え）は台帳の問いへの関所の答えとして読む（合意した問いを修正前に聞き直さない）
+  合意した答え）は台帳の問いへの関所の答えとして読む（合意した問いを修正前に聞き直さない）。台帳の依頼の答えは dealt（src.descend.dealt の
+  配る値。テーマの run は降りた依頼の答え）から読む
 - record_doc(ptr, unread) -> dict | None: 往復の記録の 1 つの読み口（src.rounds.read）。読めない記録は unread に名指して None
 - PREVIOUS: 同じ承認ノードの前の答え（answer.taken が書く。resume で回し直した時に聞き直さない）
 """
@@ -32,7 +33,7 @@ def record_doc(ptr, unread: list):
         return None
 
 
-def materials(rounds: dict | None, *, structure_raw, judge_raw, record_raw, unattended: bool, place: Path) -> dict:
+def materials(rounds: dict | None, *, structure_raw, judge_raw, record_raw, dealt: dict, unattended: bool, place: Path) -> dict:
     from src import files, gates, rounds as rounds_mod, startrec
 
     judge = ports.picked(judge_raw, ("judgment", "answer_ties", "materials"), optional=())
@@ -51,7 +52,7 @@ def materials(rounds: dict | None, *, structure_raw, judge_raw, record_raw, unat
         found = gates.located(judge["materials"], "素材の状態", unread, lambda raw: ports.file(raw, "json(shared:materials-state.schema.json)"))
         if isinstance(doc, dict):
             ledger = gatemarks.ledger_files(doc, ties_file=ties or None, materials_file=found or None,
-                                            answers=gates.request_answers(record), gate=agreed, takes_push=unattended)
+                                            answers=gates.request_answers(dealt), gate=agreed, takes_push=unattended)
     change = gates.policy_change(record, Path.cwd(), place)
     previous = gates.read_json(place / PREVIOUS)
     structure = gates.located(structure_raw, "構造の目の控え", unread,   # 形の違う pointer はここで ValueError（落ちる道）

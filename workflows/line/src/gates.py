@@ -13,8 +13,8 @@ lib/boardview.py の方針の文書の変化（policy_change・change_row）と 
   UNATTENDED・UNATTENDED_WORDS・FINAL_KIND・Refused・check・unattended_of・opens・head_words・Push・Passage・
   passage（stuck_pushable は往復の記録の住処 src.rounds が持つ）
 - row_push(text)・_as_push(rec, note): 項目の推しの尾の、無人の方針の読み（元 gatemarks）
-- design_talk(doc)・request_answers(doc): 始めの記録の dict から、設計だけの run か・依頼が先に持っていた答え（元 gatemarks の
-  startrec.read の道）
+- design_talk(doc): 始めの記録の dict から、設計だけの run か（元 gatemarks の startrec.read の道）
+- request_answers(given): 配る値（判定から後ろは src.descend.dealt の写し）の依頼の答え
 - AXES・gather(asks, deviations, design_rows) -> {軸: {ok, note}}: 4 つの軸（元 gate_axes.gather。軸ごとの訳は事前審査の返りの行の why）
 - before_fix(...): 修正前の承認ノード（2 節の 2）の決め（返り {open, go, stop_reason, items, deferred, asked, pushed, passes, policy_changed}）。
   対話モードの run は設計の相談の承認ノード（TALK_GATE）の合意 agreed を受け、合意した行を聞き直さない
@@ -132,9 +132,10 @@ def design_talk(doc) -> bool:
     return isinstance(doc, dict) and doc.get("design_talk") == DESIGN_ONLY
 
 
-def request_answers(doc) -> list:
-    """依頼が先に持っていた答え（始めの記録の dict の欄 answers。配列でなければ空。gatemarks.ledger に値で渡す）"""
-    got = doc.get("answers") if isinstance(doc, dict) else None
+def request_answers(given) -> list:
+    """依頼の答え（配る値の dict の欄 request_answers。配列でなければ空。gatemarks.ledger に値で渡す）。判定から後ろは src.descend.dealt で
+    依頼の欄を request-in の返りに替えた配る値を渡す（テーマの run は降りた依頼の答え。判定が問いを結んだ答えと同じ源）"""
+    got = given.get("request_answers") if isinstance(given, dict) else None
     return [a for a in got if isinstance(a, dict)] if isinstance(got, list) else []
 
 

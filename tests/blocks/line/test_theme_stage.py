@@ -225,11 +225,31 @@ class ThemeStageCase(TalkBase):
         self.assertNotIn(" redesign ", plain["text"])
         self.assertIn(" redesign ", themed["text"])
 
+    def test_the_ledger_reads_the_descended_answers(self):
+        """問いの台帳の依頼の答えは、判定が問いを結んだ答えと同じ降りた依頼の答え（request-in の返り。src.descend.dealt）。始めの記録には
+        設計の段の答えが無いので、記録から読むと結んだ問いを gate-design・最後の承認ノード・報告で聞き直す"""
+        gm = __import__("gatemarks")
+        rin = self.d.request_in(self.given, self.descend(self.agreed()))
+        fork = {"key": "q-a", "kind": "fork", "status": "held", "origin": "u1", "options": ["x", "y"], "reason": "割れる"}
+        (self.run.artifacts / "judgment.json").write_text(json.dumps({"units": [{"key": "u1", "label": "block"}], "questions": [fork]}),
+                                                         encoding="utf-8")
+        ties = {"rounds": {"1": [{"answer": "設計の段の問い Q1", "to": "q-a"}]}}
+        (self.run.artifacts / "answer-ties.json").write_text(json.dumps(ties, ensure_ascii=False), encoding="utf-8")
+        with self.run.env():
+            asking = kit.load(BLOCK, "asking")
+            judge = json.dumps({"judgment": json.loads(self.run.pointer("judgment.json")),
+                                "answer_ties": json.loads(self.run.pointer("answer-ties.json")), "materials": None})
+            for dealt, want in ((self.d.dealt(self.given, json.dumps(rin)), []), (self.given, ["q-a"])):
+                with self.subTest(descended=dealt is not self.given):
+                    kw = asking.materials(None, structure_raw=None, judge_raw=judge, record_raw="", dealt=dealt, unattended=False,
+                                          place=self.run.artifacts)
+                    self.assertEqual([q["key"] for q in gm.pending(kw["ledger"])], want)
+
     def test_back_writes_the_next_run_materials(self):
         descended = self.descend(self.agreed())
         po = self.plan_out()
         rounds_got = {**po, "agreed": {"decision": "redesign", "text": "C1 が成り立たない"}, "talks": [{"decision": "redesign", "text": "C1 が成り立たない"}]}
-        record = {"inputs": {"test_cmd": "make test", "lang": "Japanese", "deliver": ""}}
+        record = {"inputs": {"test_cmd": "make test", "lang": "Japanese", "spec": "on", "deliver": ""}}
         with self.run.env():
             got = self.d.back(rounds_got, given=self.given, record=record, descended=descended, place=self.run.artifacts,
                               env={"WORKS_ANSWER_CMD": "env H=1 /f/bin/works-factory workflow respond --cwd /t"})
@@ -241,7 +261,7 @@ class ThemeStageCase(TalkBase):
         import carry
         self.assertEqual(carry.parts(request)["theme"], str(self.run.artifacts / "theme/next/theme.md"))
         self.assertEqual(got["command"], "env H=1 /f/bin/works-factory workflow run works-factory-line --cwd /t --input request="
-                         f"{self.run.artifacts / 'theme/next/request.json'} --input design_talk=true --input test_cmd='make test' --input lang=Japanese")
+                         f"{self.run.artifacts / 'theme/next/request.json'} --input design_talk=true --input test_cmd='make test' --input lang=Japanese --input spec=on")
         with self.run.env():
             self.assertFalse(self.d.back(po, given=self.given, record={}, descended=descended, place=self.run.artifacts)["back"])
 

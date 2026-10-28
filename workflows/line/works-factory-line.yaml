@@ -776,6 +776,7 @@ nodes:
             judge: "$judge-out.output.got"
             record: "$start.output.record"
             ports: "$start.output.ports"
+            request: "$request-in.output"
           output_format:   # 往復の loop_group の出力（欄は plan-rounds-out が &design_talk_props で受ける）
             type: object
             additionalProperties: false
@@ -861,6 +862,7 @@ nodes:
       judge: "$judge-out.output.got"
       record: "$start.output.record"
       ports: "$start.output.ports"
+      request: "$request-in.output"
   - id: gate-before-fix
     wait:
       # form と options の本体はここ 1 か所。spec-gate-before-fix は attention だけを替えて受ける
@@ -998,6 +1000,7 @@ nodes:
       judge: "$spec-rounds.output.judge"
       record: "$start.output.record"
       ports: "$start.output.ports"
+      request: "$request-in.output"
   - id: spec-gate-before-fix
     wait:
       <<: *before_fix_wait
@@ -1674,8 +1677,8 @@ nodes:
       start_answer: {from: "$answer-start.output.answer", if_skipped: null}
       replan_review: {from: "$replan-review-out.output.got", if_skipped: null}
       judged: "$judged.output"
-      record: "$start.output.record"
       ports: "$start.output.ports"
+      request: "$request-in.output"
     output_format:
       type: object
       additionalProperties: false
@@ -1774,6 +1777,7 @@ nodes:
       record: "$start.output.record"
       final_gate: "$start.output.final_gate"
       ports: "$start.output.ports"
+      request: "$request-in.output"
     output_format:
       type: object
       additionalProperties: false

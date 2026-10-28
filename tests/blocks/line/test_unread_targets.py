@@ -10,6 +10,7 @@ import json
 import unittest
 
 from tests.blocks import kit
+from tests.blocks.line.test_tiers import handed
 from tests.blocks.line.test_gates import ask_row, rounds
 
 BLOCK = "line"
@@ -71,7 +72,7 @@ class AskBeforeFixCase(unittest.TestCase):
         self.g = kit.load(BLOCK, "gates")
 
     def ask(self, judge, *, unattended=False, structure="null"):
-        return self.run.script("ask_before_fix", rounds=json.dumps(rounds()), structure=structure, judge=json.dumps(judge),
+        return self.run.script("ask_before_fix", request=handed({}), rounds=json.dumps(rounds()), structure=structure, judge=json.dumps(judge),
                                record="null", ports=json.dumps({"unattended": unattended, "design_talk": False, "policy": ""}))
 
     def test_missing_judgment_opens_with_its_name(self):
@@ -160,7 +161,7 @@ class AskFinalCase(unittest.TestCase):
                  "stages": [], "replan_items": [], "refixed": False, "skip_why": ""}
         tests = {"ok": True, "green": True, "red_cause": "", "ran_steps": None, "by": "test_cmd", "suites_line": "1 本", "log": "l",
                  "baseline_line": "b", "reason": "", "fingerprint": {"head": "h", "diff_hash": "d"}}
-        return self.run.script("ask_final", fix_in=json.dumps(fix_in), fixed=json.dumps(fixed), judged=json.dumps(judged) if judged else "null", tests=json.dumps(tests),
+        return self.run.script("ask_final", request=handed({}), fix_in=json.dumps(fix_in), fixed=json.dumps(fixed), judged=json.dumps(judged) if judged else "null", tests=json.dumps(tests),
                                eyes="null", seal=json.dumps(seal) if seal else "null", spec_check="null", parallel_after="null",
                                replan_review="null", replan_answer="null", widened="null", start_answer="null", record="null",
                                final_gate=final_gate, ports=json.dumps({"unattended": unattended}))

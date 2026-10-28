@@ -11,7 +11,8 @@ green_ok・eyes_ok・r2）もこの node が受け皿の got から返す（受�
 
 入力（with:）: fix_in・fixed・judged（line の node の返り）・tests・eyes・seal・spec_check・parallel_after・replan_review（受け皿の got か
 null）・replan_answer（案の直しの承認ノードの答えか null）・widened（ask-replan の widened か null）・start_answer（起動の承認ノードの答えか
-null。今は文に載せない）・record（始めの記録の pointer）・final_gate（開き方）・ports（start の配る値）
+null。今は文に載せない）・record（始めの記録の pointer）・final_gate（開き方）・ports（start の配る値）・
+request（request-in の返り。台帳の依頼の答えは src.descend.dealt で替えた配る値から読む）
 """
 import os
 import sys
@@ -38,10 +39,10 @@ def compute() -> dict:
            "replan_review": os.environ.get("INPUTS_REPLAN_REVIEW"), "replan_answer": os.environ.get("INPUTS_REPLAN_ANSWER"),
            "widened": os.environ.get("INPUTS_WIDENED"), "start_answer": os.environ.get("INPUTS_START_ANSWER"),
            "record": os.environ.get("INPUTS_RECORD"), "final_gate": os.environ.get("INPUTS_FINAL_GATE"),
-           "ports": os.environ.get("INPUTS_PORTS")}
-    from src import asking, files, final, rounds, startrec
+           "ports": os.environ.get("INPUTS_PORTS"), "request": os.environ.get("INPUTS_REQUEST")}
+    from src import asking, descend, files, final, rounds, startrec
 
-    given = ports.parsed(raw["ports"]) or {}
+    given = descend.dealt(ports.parsed(raw["ports"]), raw["request"])
     fix_in = ports.picked(raw["fix_in"], FIX_IN)
     fixed = ports.picked(raw["fixed"], FIXED)
     if fix_in is None or fixed is None:

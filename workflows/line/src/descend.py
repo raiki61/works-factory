@@ -35,7 +35,7 @@ NO_ROUNDS = "設計の往復の返りが無い（設計の段が落ちたか飛�
 ORIGIN = "設計の段で承認された設計（{path}）"
 RESUME_RUN = " workflow run works-factory-line "
 # 続きの run の起動の行に運ぶ、前の run の起動の入力（続きでも同じ値が要る物。設計の下書きの 14 章の 15）
-CARRIED_INPUTS = ("test_cmd", "tdd_suite", "final_gate", "thickness", "features_off", "features_on", "policy_md", "lang", "deliver")
+CARRIED_INPUTS = ("test_cmd", "tdd_suite", "final_gate", "thickness", "features_off", "features_on", "policy_md", "lang", "spec", "deliver")
 
 
 def _design(got: dict) -> dict | None:
