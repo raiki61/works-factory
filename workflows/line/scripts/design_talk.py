@@ -37,7 +37,9 @@ def compute() -> dict:
     turn_got = ports.parsed(raw["turn"])
     if not isinstance(given, dict) or not isinstance(turn_got, dict):
         raise ValueError("配る値（ports）か周の頭の出力（turn）が読めない。with: の鍵の結びを確かめる")
-    plan_out = ports.picked(raw["plan_out"], tuple(talk.failed()))   # plan-out の返りの欄（落ちた形と同じ欄）
+    # plan-out の返りの欄（落ちた形と同じ欄）。pointed（人の答えの版に無い名指し）は欄を持たない前の版の返りを空と読む
+    plan_out = ports.picked(raw["plan_out"], tuple(talk.failed()), optional=talk.OPTIONAL)
+    plan_out = {**plan_out, "pointed": plan_out["pointed"] or []} if plan_out is not None else None
     previous = ports.parsed(raw["previous"])
     place = ports.place()
     dealt = descend.dealt(given, raw["request"])
@@ -46,7 +48,7 @@ def compute() -> dict:
         return asking.materials(rounds, structure_raw=raw["structure"], judge_raw=raw["judge"], record_raw=raw["record"],
                                 dealt=dealt, unattended=False, place=place)
 
-    return talk.settle(turn_got=turn_got, plan_out=dict(plan_out) if plan_out is not None else None,
+    return talk.settle(turn_got=turn_got, plan_out=plan_out,
                        previous=previous if isinstance(previous, dict) else None, given=given, materials=materials,
                        run_id=os.environ["WORKFLOW_ID"], place=place)
 
