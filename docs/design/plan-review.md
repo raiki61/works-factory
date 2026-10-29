@@ -727,6 +727,7 @@ Return only JSON that matches the output schema.
 - 指示: 共通の断片 `workflows/.shared/prompts/ask-cases.md` 1 本。計画の役（`plan-writer.md` の決め手の段落の後）・この block の頭（`parts/head.md` の世界の解の段落の後）・判定の役（`diagnose.md` の手順 7 の 3 つの場合の行）が差し込む。
 - 機械: `gatemarks.ask_gaps(node, reply)`。修正案の `narrows` の行と、穴のうち `policy.HUMAN_FACE_KINDS` の行で、`decided` が偽で、柵の印（欄 `fences`。外への書き込み・取り消せない操作など、在れば必ず人に聞く印で、①②③ とは別）も無く、`undecided_because` の頭に ①②③ も無い行を名指す（`decided` が偽・柵の印が無い・印が無いの 3 つが揃った行だけ）。plan の受け付け（`take_plan`・直した項目の受け付け・機械が差し込んだ閉じた項目の照らし）と、この block の受け付け（`_take`）は、名指した行が 1 つでも在れば返答を拒み、`gatemarks.ASK_CASE_REJECT` の文の後に名指した行を並べて役に出し直させる。yes/no の照らしで、字数は縛らない（憲法の 6）。
 - 変えない物: 柵の印の行・守りのパス・無人の run の推しの抜け方・line の `before_fix` の開き方。
+- 再開の注記: plan の `machine_row_errors`（`workflows/plan/src/take.py`）は、機械が往復の記録から差し込んだ閉じた項目の行にも `ask_gaps` を当てる。この照らしを足す前に書かれた往復の記録を持つ run を再開すると、印の無い閉じた行を役が直せず、止まる（halt）ことがある。その時は新しい run で始め直す。
 - E11 の 3 つの答え:
   1. Archon が持っているか: 持たない。Archon の承認ノード（`wait:`）は開くかを決めず、何を聞くかは工場の line と役が決める（`docs/design/archon.md`）。
   2. ASF が持っているか: 持たない。ASF の関所は人に聞く項目の選び方を持たない（`docs/asf-notes.md` に当たる型が無い）。型として近いのは、判定の役の 3 つの場合（`docs/design/diagnose.md` の 9.4 の 39）で、工場の中に在るのでそれを共通の断片に寄せた。
