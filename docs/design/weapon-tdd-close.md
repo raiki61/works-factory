@@ -21,7 +21,7 @@ TDD の輪（`tdd`・`tdd-new`）が赤から緑まで直した単位につい�
 
 ## 頭の段落 `prompts/parts/head.md` の出どころ
 
-D1 の基の main（`e52a1b45`）の `workflows/fix/prompts/parts/tdd-close.md` の、見出し `# Fixing (the writer's job)` と `<!-- end rules -->` の間の字を、字を変えずに移した物。頭の段落は 2 段落: 役の定義（輪がすでに直した単位の答えを書く役で、直し直さない）と、輪の結果のファイルを名指す段落（`{summary_file}`。輪が直した単位の `changes` の行に何を書くか）。`{summary_file}` を持つ md はこの block の頭の段落だけなので、slots の上の段の欄 `summary_file` を読むのもこの block だけ（`SUMMARY` が真）。型ごとの頭の文の照らしは `tests/workflows/test_weapon_assets.py`（頭の文の表の字が、この main の commit の `parts/tdd-close.md` の字に在ることと、組み上がった指示に在ること）。
+D1 の基の main（`da2a5a0e`）の `workflows/fix/prompts/parts/tdd-close.md` の、見出し `# Fixing (the writer's job)` と `<!-- end rules -->` の間の字を、字を変えずに移した物。頭の段落は 2 段落: 役の定義（輪がすでに直した単位の答えを書く役で、直し直さない）と、輪の結果のファイルを名指す段落（`{summary_file}`。輪が直した単位の `changes` の行に何を書くか）。`{summary_file}` を持つ md はこの block の頭の段落だけなので、slots の上の段の欄 `summary_file` を読むのもこの block だけ（`SUMMARY` が真）。型ごとの頭の文の照らしは `tests/workflows/test_weapon_assets.py`（頭の文の表の字が、この main の commit の `parts/tdd-close.md` の字に在ることと、組み上がった指示に在ること）。
 - この型だけの決まり: この型の書き手が走るのは 1 回目の段（tdd の輪の後）だけ。裁定の後の段には tdd の閉じが無く、tdd の単位は `variant` の注文になる（22.5）。そのため block の include は 1 回目の鎖の `w-tdd-close` だけで、裁定の後の鎖（`wr-`）に無い。
 
 ## この型の受け付けの義務の在処

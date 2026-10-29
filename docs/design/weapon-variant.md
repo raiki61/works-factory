@@ -20,7 +20,7 @@ TDD の輪を通らず、振る舞いを変える直し（輪が緑にしなか�
 
 ## 頭の段落 `prompts/parts/head.md` の出どころ
 
-D2 の基の main（`899a69c3`）の `workflows/fix/prompts/parts/variant.md` の、見出し `# Fixing (the writer's job)` と `<!-- end rules -->` の間の字を、字を変えずに移した物。頭の段落は 1 段落（役の定義）。字は `workflows/weapon-variant/prompts/parts/head.md`。型ごとの頭の文の照らしは `tests/workflows/test_weapon_assets.py`（頭の文の表の字が、D1 の基の main の commit の `parts/variant.md` の字に在ることと、組み上がった指示に在ること）。下請けの実装役の指示に型の決まりを渡す段落 `{weapon_rule}` に、この `head.md` を組んで差し込むのは段 2（下書きの 11.8 の決め。案 B）。
+D2 の基の main（`05dbfa97`）の `workflows/fix/prompts/parts/variant.md` の、見出し `# Fixing (the writer's job)` と `<!-- end rules -->` の間の字を、字を変えずに移した物。頭の段落は 1 段落（役の定義）。字は `workflows/weapon-variant/prompts/parts/head.md`。型ごとの頭の文の照らしは `tests/workflows/test_weapon_assets.py`（頭の文の表の字が、D1 の基の main の commit の `parts/variant.md` の字に在ることと、組み上がった指示に在ること）。下請けの実装役の指示に型の決まりを渡す段落 `{weapon_rule}` に、この `head.md` を組んで差し込むのは段 2（下書きの 11.8 の決め。案 B）。
 
 ## この型の受け付けの義務の在処
 

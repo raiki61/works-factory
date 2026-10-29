@@ -256,7 +256,7 @@ bin/works-factory workflow run works-factory-theme --cwd <対象> --input theme=
 
 ## 13 実走の記録（run 1471a930。PR T4 の real-measure）
 
-本物の AI の役で、テーマの run を 1 本回した。テーマは run 19268881（下書きの 1.2）と同じ 2 行（機能を試験ごと消す依頼で TDD の輪が止まる・振る舞いを変えない整理を工場が単独で直せない）。対象は main の `7e19bb47`（PR T3 の後）。承認ノードは `gate-start` に continue、`gate-theme` に approve（設計の周 3 の案で降りる。問いは推しを採る）、計画の往復の `gate-design` に approve（計画の周 4 の案で進める）と答えた。修正前の承認ノード `gate-before-fix` は、`gate-design` の答えを合意として読んだので開かなかった（run の記録で `skipped`。`docs/design/line.md` の 2 章）。入力 `tdd_suite` は渡していない。
+本物の AI の役で、テーマの run を 1 本回した。テーマは run 19268881（下書きの 1.2）と同じ 2 行（機能を試験ごと消す依頼で TDD の輪が止まる・振る舞いを変えない整理を工場が単独で直せない）。対象は main の `38cced23`（PR T3 の後）。承認ノードは `gate-start` に continue、`gate-theme` に approve（設計の周 3 の案で降りる。問いは推しを採る）、計画の往復の `gate-design` に approve（計画の周 4 の案で進める）と答えた。修正前の承認ノード `gate-before-fix` は、`gate-design` の答えを合意として読んだので開かなかった（run の記録で `skipped`。`docs/design/line.md` の 2 章）。入力 `tdd_suite` は渡していない。
 
 この章の語（下書き `docs/plans/2026-10-27-design-stage.md` の「語」・`docs/design/plan-review.md`・`docs/design/line.md` の物）:
 

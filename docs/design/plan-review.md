@@ -366,7 +366,7 @@ Plan: [ { "unit_keys": [ "workflows/merge/scripts/pr_commit.py hook_env: commit 
 Units: [ { "no": 1, "key": "workflows/merge/scripts/pr_commit.py hook_env: …", "label": "…", "disposition": "…", "reason": "…" } ]
 Judge's view: {"framing": "根は 1 つで、commit のフックの環境が、…", "one_shot": "…"}
 Judge's precedents (world): [{"key": "…", "problem": "自動化ツールが…", …}]
-Repository: <run の作業ツリー>（read version: `4428f368…`） BASE: `4428f368…` canonical rules: <工場の根>/lib/REVIEW.md
+Repository: <run の作業ツリー>（read version: `4961c50a…`） BASE: `4961c50a…` canonical rules: <工場の根>/lib/REVIEW.md
 ~~~
 
 2 往復目（`review-material-2.md`）は、5・6 の節が無く、8（前の往復の 1 往復目の block 5 つ〔`narrows-malformed-record-stop` ほか〕・答えの要る suggest 4 つ・修正案の役の答え）と、10 の開いた項目 1 の差分（約束の欄 `narrows`・`files`・`allowed_paths`・`out_of_scope`・`tests.behavior` が変わった。`diff` の囲い 約 25 KB）と波及の一覧の項目 1 の節が在る。指示は `later`・`design_diff` の段落を持つ。承認ノードの答えの名指しの印（`3f2a1c`）は仮に置いた値（例の run の控えの印は描いていない）。
@@ -787,7 +787,7 @@ Return only JSON that matches the output schema.
 
 工場に無い物・違う物と、その訳:
 
-1. 人の承認ノードの答えの記録を材料に貼り、前の周に人が通した後退・方針の穴と同じ穴なら語と key を 1 字も変えずに写せ（graphloops の p2.plan_review.md:8-9）: 工場の事前審査の指示は初めから持たない（#73 `d50e5246`）。工場は承認ノードの側で、人が continue で通した行の字を照らして聞き直さない（今の `gatemarks._continued`・`_human_passed`）。この block も持たない（承認ノードの事は line）。意図して外したかは（未確認: 記録なし）。
+1. 人の承認ノードの答えの記録を材料に貼り、前の周に人が通した後退・方針の穴と同じ穴なら語と key を 1 字も変えずに写せ（graphloops の p2.plan_review.md:8-9）: 工場の事前審査の指示は初めから持たない（#73 `89770074`）。工場は承認ノードの側で、人が continue で通した行の字を照らして聞き直さない（今の `gatemarks._continued`・`_human_passed`）。この block も持たない（承認ノードの事は line）。意図して外したかは（未確認: 記録なし）。
 2. 往復（壁打ち）・中央と端・出自・木・設計との突き合わせ・世界の解の外れ・考えの住処・決め手の欄・推し: graphloops に無い。工場が足した（#231・#621 ほか）。この block が持つ（往復の止めは line）。
 3. 入口の写しの元が `canonical` の「新設」（graphloops の :17）: 工場は `home.concept`・`considered`・`why_not` に替えた（#443 の前後。考えの住処）。この block は工場の形。
 4. 元の works の盤面（共有ボード）: 工場は盤面なしの見え方 `boardview` にした（#73）。この block は見え方を `src/view.py` に写し、place を盤面の代わりにする。

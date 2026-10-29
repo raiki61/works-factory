@@ -55,7 +55,7 @@ ASF の版を進めた時は、各セクションの行を新しい版で読み�
 - ASF: d97d00ef の `W/README.md`:82-93（「Public writes belong to a script」「fails unless the result reads back」）。実例 `W/review/archon-review.yaml`:264-270 の `publish`（コメント「this node owns the one public write」）、`W/merge-queue/scripts/merge-action.ts`:337-369（merge の後に `gh pr view` で `MERGED` を確かめる）。
 - なぜその形か: 書き込みの場所が 1 つなら、監査も再試行もそこだけ見ればよい。forge は書き込みを受けて黙って当てないことがあるので、終了の値 0 を証拠にしない。
 - 採った先: merge の出力ノード `merge`。書き先は run の置き場の `merge/sealed.diff`・`merge/apply.diff`・`merge/refused.diff` だけで、`lib/seal.py` の `write_readback` が書いて読み戻し、合った時だけ置く。report は run の置き場の `report/` に置くだけで外へ書かない。`workflows/AGENTS.md` の E6・E17。
-- 違い: ASF は PR と main へ書く。works-factory の既定は対象のリポジトリにも GitHub にも書かない（E17。持ち主の決め `diff-only-to-target`）。対象へ当てるのは人で、`bin/apply`（中身は `bin/_lib/apply.py`）が封じた hash を照らしてから当てる。PR を作る・merge する道は、使う人が選んだ時だけ働く足しとして後で足し、その時にこの型（1 つの script ノード・読み戻し）を当てる（#765 で消した `docs/design.md`:413。`cbc7297` の版で読める。今の設計は `docs/design/merge.md`）。
+- 違い: ASF は PR と main へ書く。works-factory の既定は対象のリポジトリにも GitHub にも書かない（E17。持ち主の決め `diff-only-to-target`）。対象へ当てるのは人で、`bin/apply`（中身は `bin/_lib/apply.py`）が封じた hash を照らしてから当てる。PR を作る・merge する道は、使う人が選んだ時だけ働く足しとして後で足し、その時にこの型（1 つの script ノード・読み戻し）を当てる（#765 で消した `docs/design.md`:413。`583337e` の版で読める。今の設計は `docs/design/merge.md`）。
 
 ### A6 merge の計画の封印
 
@@ -68,7 +68,7 @@ ASF の版を進めた時は、各セクションの行を新しい版で読み�
 
 - ASF: d97d00ef の `W/merge-queue/archon-merge-queue.yaml`:40-43（入力の説明「A match holds the PR: a human must make that change.」）と :73-81 のノード `path-policy`。拒みは `W/merge-queue/scripts/merge-action.ts`:178。理由は `W/merge-queue/README.md`:34-35（「a reviewed delivery once rewrote one and merged unflagged.」）。
 - なぜその形か: 審査を通っても、決まった所の変更は人がする。
-- 採った先: 2 か所。(1) merge: 対象のリポジトリの守りのパスに当たる差分は人に回す（今の works の `protected.json` と最後の承認ノード）。(2) このリポジトリ自身: 共有のファイル（`workflows/.shared/`・`workflows/line/`）を守りのパスとして ASF の lifecycle に渡し、土台の持ち主の手に残す（#765 で消した `docs/design.md` の作りの順の段 2。`cbc7297` の版で読める）。(2) は dev の ASF に lifecycle も merge-queue も無いので当てていない（`asf-follows-dev`）。
+- 採った先: 2 か所。(1) merge: 対象のリポジトリの守りのパスに当たる差分は人に回す（今の works の `protected.json` と最後の承認ノード）。(2) このリポジトリ自身: 共有のファイル（`workflows/.shared/`・`workflows/line/`）を守りのパスとして ASF の lifecycle に渡し、土台の持ち主の手に残す（#765 で消した `docs/design.md` の作りの順の段 2。`583337e` の版で読める）。(2) は dev の ASF に lifecycle も merge-queue も無いので当てていない（`asf-follows-dev`）。
 - 違い: 無し。
 
 ### A8 engineering.md を横に置き、役が引く

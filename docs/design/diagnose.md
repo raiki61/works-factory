@@ -211,7 +211,7 @@ You only read. Your tools are Read, Grep, Glob, WebSearch, and WebFetch. …
   - `request_findings`: …
   - …
 - Frozen purpose: 出口の語 deliver=pr の run が PR 用の commit を積むとき、commit のフックが、…（約 230 字）
-- Target diff: <run の place>/diff.patch (Read it; it is `git diff 4428f368d229f2d4f4343122c620c3fdeb334184 63c243e8cd9016d930eecfaae0d48962efc546c7` …). Repository: <run の作業ツリー> (read version 63c243e8cd9016d930eecfaae0d48962efc546c7).
+- Target diff: <run の place>/diff.patch (Read it; it is `git diff 4961c50a53410f4bdc4dfb5ece8a4ca13612a916 63c243e8cd9016d930eecfaae0d48962efc546c7` …). Repository: <run の作業ツリー> (read version 63c243e8cd9016d930eecfaae0d48962efc546c7).
 - Review viewpoints: <工場の置き場>/lib/REVIEW.md. …
 - …
 
@@ -292,7 +292,7 @@ Return only JSON that matches the output schema.
 
 ### 2.7 元の works と graphloops の同じ場面
 
-- 元の works の `blk-judge`（`works/blk-judge/`。`lib/judgebrief.py`・`judgetake.py`・`judgeverify.py`）: 工場はほぼ同じ受け付けを写した（#76 `0c4a6793`）。材料を engine の描き方で描いて Read させる形も同じ。この block は描き方を値の JSON と md に替える（11 節の 1）。
+- 元の works の `blk-judge`（`works/blk-judge/`。`lib/judgebrief.py`・`judgetake.py`・`judgeverify.py`）: 工場はほぼ同じ受け付けを写した（#76 `37b7a693`）。材料を engine の描き方で描いて Read させる形も同じ。この block は描き方を値の JSON と md に替える（11 節の 1）。
 - graphloops の `prompts/review-loop/p2.diagnose.md`（48 行）: 手順 1〜9 と台帳の段の元。工場の md はこれに、世界の解の行を先に使う（keep-essence の 12）・目的の外の所見を `out_of_purpose` で名指す・依頼の答えの結び・③ の名乗りの照らし（#478 など）を足した。この block はそのまま持つ。
 - graphloops の `p2.history.md`（周の 2 回目の判定）: 工場に無い。持ち主の決め `no-history-for-now`（`docs/nodes.json:23`（#765 で消した））。この block も持たない。
 - `_carried_r1_accounted`・`_fork_moves_forward`（前の周の R1 の削除候補・前の周の fork）: 工場は 1 run = 1 周（持ち主の決め carry）で、受け付けはいつも空の前の周を渡すので働かない。この block では写さない（11 節の 4）。
@@ -443,7 +443,7 @@ Return only JSON that matches the output schema.
 
 ## 4 再審の出し直しの役: rejudge-fix（今の出し直しの役を残す）
 
-今の再審の輪は、受け付けに拒まれた後の回で、出し直しの役 `rejudge-fix`（拒まれた欄だけを返させ、受け付けが控え `candidate-rejudge.json` と欄ごとに合わせる。#571 `b46ec691`・#588 `249c88ea`）を起こした。この block も置く（統合の設計書 integration.md の 4.1 の 4 の裁定。最初の版は dry-run が輪を 1 周しか回さないので置かない形にしたが、spec の block が筋書きで出し直しの役に届く形を持つので、同じ形で残す）。
+今の再審の輪は、受け付けに拒まれた後の回で、出し直しの役 `rejudge-fix`（拒まれた欄だけを返させ、受け付けが控え `candidate-rejudge.json` と欄ごとに合わせる。#571 `b46ec691`・#588 `3a2bf3f7`）を起こした。この block も置く（統合の設計書 integration.md の 4.1 の 4 の裁定。最初の版は dry-run が輪を 1 周しか回さないので置かない形にしたが、spec の block が筋書きで出し直しの役に届く形を持つので、同じ形で残す）。
 
 - 輪の形（spec の `spec-write-*` と同じ）: `rejudge-prep`（`with: {prev: "$LOOP_PREV.rejudge-accept.output.ok"}`。返り `{prompt, resubmit}`）→ `rejudge`（`when: resubmit != true`）／`rejudge-fix-prep`（script `rejudge_fix_prep`。`depends_on: [rejudge-prep, rejudge]`・`trigger_rule: none_failed_min_one_success`・`when: resubmit == true`。返り `{prompt}`）→ `rejudge-fix`（`depends_on: [rejudge-prep, rejudge-fix-prep, rejudge]`・同じ trigger_rule と when。`output_format` は再審の役と同じ物（#832。型が違うと会話の続きの最初の要求でキャッシュが効かない）。どちらも型の根（一番外の object）は `required: []` で、根の要る欄 `src/files.py` の `REJUDGE_REQUIRED` は受け付けが `rolekit.resubmitted` で確かめ、欠ければ拒む）→ `rejudge-accept`（`depends_on: [rejudge, rejudge-fix]`・`trigger_rule: none_failed_min_one_success`・`with: {reply: {from: $rejudge.output, if_skipped: null}, fix_reply: {from: $rejudge-fix.output, if_skipped: null}}`）。出し直しの道の 2 つの node は頭の prep と 1 回目の役の両方に依るので、続きの会話で起きる役の直前の層は 1 node になる。
 - 出し直しに入る条件: 前の周の受け付けが拒み（`prev` が偽）、`candidate-rejudge.json` が在る（`rolekit.resubmitting`）。resume で輪が 1 周目から回り直した時は `prev` が空で、1 回目の指示を組む。

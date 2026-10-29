@@ -2,12 +2,12 @@
 # #214 の自作の較正の束の比べ（記録）
 
 - 欠陥を仕込んだ自作の較正の束 11 行を、今の works と works-factory に 1 回ずつ無人で回した比べの結果。
-- 束・種・旗の表は持ち主の決め `public-bench-at-major`（2026-10-14）で消した。比べは公開ベンチに移った（#765 で消した `docs/design.md` の段 3 の 3。`cbc7297` の版で読める）。
+- 束・種・旗の表は持ち主の決め `public-bench-at-major`（2026-10-14）で消した。比べは公開ベンチに移った（#765 で消した `docs/design.md` の段 3 の 3。`583337e` の版で読める）。
 - 出典は #214 の最後から 2 つ目のコメント（「## 結論」）。生の証拠は運び役の機械の `~/.local/state/works-factory/calibration/` に在り、リポジトリには入れない。
 
 ## 版と数
 
-- 版: 今の works は `2aa7c66`、works-factory は main の `7d7470b5`。
+- 版: 今の works は `2aa7c66`、works-factory は main の `4b78bd32`。
 - 判定の語:
   - CAUGHT: 当てる先の関門のどれかに旗が立った。
   - ESCAPED: 当てる先に旗が立たなかった。
