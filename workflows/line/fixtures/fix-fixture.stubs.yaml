@@ -114,7 +114,7 @@ test-gate-final__run:
   fingerprint_before: {head: hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh, diff_hash: dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd}
   fingerprint_after: {head: hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh, diff_hash: dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd}
 eyes__ins: {run: true, merge: false, head: hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh}
-eyes__structure-after__measure: {eye: false, reason: ''}
+eyes__structure-after__measure: {eye: false, sketch: false, reason: ''}
 eyes__structure-after__finish:
   ok: true
   status: ok

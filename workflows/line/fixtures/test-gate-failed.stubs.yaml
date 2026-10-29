@@ -116,7 +116,7 @@ judge__verdict:
   report: ['- 判定: 開いた単位 1']
   sections: []
   optional: []
-structure__measure: {eye: false, reason: ''}
+structure__measure: {eye: false, sketch: false, reason: ''}
 structure__finish:
   ok: true
   status: ok
@@ -289,7 +289,7 @@ parallel-pr-after__finish:
 test-gate-final__intake: {ok: true, reason: ''}
 test-gate-final__run: {}
 eyes__ins: {run: true, merge: false, head: hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh}
-eyes__structure-after__measure: {eye: false, reason: ''}
+eyes__structure-after__measure: {eye: false, sketch: false, reason: ''}
 eyes__structure-after__finish:
   ok: true
   status: ok

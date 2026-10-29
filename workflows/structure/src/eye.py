@@ -1,6 +1,7 @@
 """structure-eye の node の中身（docs/design/structure.md の 2・4 節。lib/eye.py の prep・problems・accept・state の写し）。
 
-目は道具を持たない独立の会話の役で、見せるのは view.json の単位ごとの {id, summary, measure, concepts} と、
+目は道具を持たない独立の会話の役で、見せるのは view.json の単位ごとの {id, summary, measure, concepts}（before で構造を描く役と
+一般の構造を描く目が通っていれば system・kind・general も）と、
 問いと 6 つの形（文は prompts/structure-eye.md）。行き先 route は「自分で決める」か「人に上げる」。人に上げるのは決め手を当たっても
 1 つに決まらない汚れる行だけで、決まらない訳（undecided_because）と捨てた案と代償（rejected）が要る。受け付けは返答を機械で確かめ、
 通れば設計の行を design.jsonl に書く。拒めば理由を返し、同じ会話で出し直させる（3 回目の拒否で done・give_up。線は止めない）。
@@ -21,7 +22,7 @@ import structmark   # lib/。設計の行を読み直す
 import rolekit    # lib/。拒否の控えと輪の回の数え
 import listcut    # lib/。duplicates の件数（指示の {shown}）
 
-from src import files, intent
+from src import files, intent, sketch
 
 ROUTES = ("自分で決める", "人に上げる")
 ROUTE, ROUTE_UP = ROUTES
@@ -46,10 +47,22 @@ def _put(out, doc: dict) -> None:
 
 
 def _view(out) -> dict:
+    """目に見せる JSON: view.json に、構造を描く役と一般の構造を描く目の受け付けた行を単位ごとに足した物（system・kind・general）。
+    根拠の JSON Pointer はこの中を指すので、指示と受け付けが同じ物を引く"""
     got = jsonfile.read_or(pathlib.Path(out) / files.VIEW_FILE)
     if not isinstance(got, dict):
         raise ValueError(f"{pathlib.Path(out) / files.VIEW_FILE} が無いか読めない（measure が走っていない）")
-    return got
+    drawn = {r.get("unit_id"): r for r in sketch.sketches(out)}
+    general = {r.get("unit_id"): r for r in sketch.generals(out)}
+    units = []
+    for u in got.get("units") or []:
+        row = dict(u)
+        if u.get("id") in drawn:
+            row.update(system=drawn[u["id"]].get("system"), kind=drawn[u["id"]].get("kind"))
+        if u.get("id") in general:
+            row["general"] = {"structure": general[u["id"]].get("structure"), "why": general[u["id"]].get("why")}
+        units.append(row)
+    return {**got, "units": units}
 
 
 def docs_of(out) -> list:
@@ -77,7 +90,8 @@ def prepare(out, mode="before", lang="") -> dict:
               "min_undecided": MIN_UNDECIDED, "min_quote": MIN_QUOTE, "shown": listcut.SHOWN, "lang": prompt.lang(lang),
               "intent_docs": intent.shown_docs(docs), "diff": _diff(out) if after else "",
               "view": json.dumps(shown, ensure_ascii=False, separators=(",", ":"))}
-    when = {"rejected": bool(rejects), "intent": any(d.get("text") for d in docs), "after": after}
+    when = {"rejected": bool(rejects), "intent": any(d.get("text") for d in docs), "after": after,
+            "general": any("general" in u for u in shown.get("units") or [])}
     got = prompt.emit(files.NAME, values, when, n)
     _put(out, {"started_at": st.get("started_at") or time.time(), "status": "pending", WALL: st.get(WALL, 0)})
     return {"prompt": got["prompt"], "attempt": n}
