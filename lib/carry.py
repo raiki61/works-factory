@@ -123,6 +123,12 @@ def parts(doc) -> dict:
     return out
 
 
+def is_empty(got: dict) -> bool:
+    """parts の返りが依頼の中身を何も持たない（findings も、ほかの欄も全部空）か。容器だけの `{"findings": []}` を入口と判定の段が
+    同じ判じ方で断るための 1 か所。工場が次の run のために書く依頼（findings が空で theme・answers・prior_failures などに中身が在る）は偽"""
+    return not any(got.values())
+
+
 def _constraints(rows) -> list:
     """依頼の constraints（前の run の前提の検算が実態で示した事実。前の run の報告が書いた next-request.json の欄）を約束の Schema の
     constraints の部分（行は {text, measured_how, kind: MEASURED}。知らない欄を拒む）で照らしてそのまま返す。合わなければ ValueError（1 行）"""
