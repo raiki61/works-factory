@@ -1422,8 +1422,9 @@ class FinishCase(PlaceCase):
         """入口の走っていない place・読めない控えでも落ちず、pointer の先（plan-fields.json・ripple.json）が在って空でない約束の形を返す"""
         got = steps.finish(self.place)
         self.assertEqual(set(got), {"ok", "status", "reason", "mode", "round", "owed", "plan", "fix_plan", "reply", "handoff", "replan",
-                                    "ripple", "rejects", "gave_up", "report"})
+                                    "ripple", "rejects", "gave_up", "pointed", "report"})
         self.assertFalse(got["ok"])
+        self.assertEqual(got["pointed"], [])
         self.assertIn(got["status"], ("held", "failed", "gave_up"))
         self.assertEqual((got["round"], got["owed"], got["rejects"], got["fix_plan"], got["reply"]), (1, [], [], None, None))
         for name in ("plan", "ripple"):

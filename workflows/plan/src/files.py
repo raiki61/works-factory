@@ -177,4 +177,4 @@ def crash_finish(place, why: str) -> dict:
     reason = "; ".join(filter(None, (why, plan_note, ripple_note)))
     return {"ok": False, "status": "failed", "reason": reason, "mode": "plan", "round": k, "owed": [], "plan": plan,
             "fix_plan": None, "reply": None, "handoff": None, "replan": None, "ripple": ripple, "rejects": [],
-            "gave_up": None, "report": [f"修正案: 周 {k}・修正案を出せなかった（failed）: {reason}"]}
+            "gave_up": None, "pointed": [], "report": [f"修正案: 周 {k}・修正案を出せなかった（failed）: {reason}"]}

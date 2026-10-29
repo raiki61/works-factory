@@ -153,6 +153,7 @@ plan__finish:
   ripple: {type: archon_artifact, run_id: dry-run, path: plan/ripple.json}
   rejects: []
   gave_up: null
+  pointed: []
   report: ['- 計画: 1 項目']
 plan-out:
   done: true

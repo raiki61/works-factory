@@ -362,8 +362,12 @@ class PointedCase(_RepoCase):
         prompt = self.run.script("prep")["prompt"]
         self.assertIn(f"### {self.CANON} ({self.canon[:12]}, lines 1-1; pointed to by AGENTS.md, not in the version under review", prompt)
         self.take(self.reply_clean())
-        report = self.finish()["report"]
-        self.assertTrue(any(self.CANON in line and "読む版に無い" in line for line in report), report)
+        out = self.finish()
+        self.assertTrue(any(self.CANON in line and "読む版に無い" in line for line in out["report"]), out["report"])
+        state = self.read(out["structure"]["path"])
+        self.assertEqual(state["pointed"], [{"path": self.CANON, "by": "AGENTS.md", "found": True, "at": "canon"},
+                                            {"path": "docs/gone.md", "by": "AGENTS.md", "found": False, "at": ""}],
+                         "控えは版に無い名指しを行で持つ（line が修正前の承認ノードで人に問う。持ち主の決め pointed-ask）")
 
     def test_a_document_in_no_version_is_named_without_text(self):
         self.survey(self.unit)
@@ -373,6 +377,18 @@ class PointedCase(_RepoCase):
         self.assertIn("### docs/gone.md (could not be read:", self.run.script("prep")["prompt"])
         self.take(self.reply_clean())
         self.assertTrue(any("docs/gone.md" in line and "どの版にも無く" in line for line in self.finish()["report"]))
+
+    def test_an_empty_document_on_another_branch_is_found(self):
+        """ほかの版で見つけたかは在るかで決める（本文が空のファイルを「どの版にも無い」側に入れない）"""
+        git(self.run.repo, "checkout", "-q", "-b", "blank")
+        self.target({"docs/gone.md": ""})
+        git(self.run.repo, "checkout", "-q", "-")
+        self.survey(self.unit)
+        self.take(self.reply_clean())
+        out = self.finish()
+        row = next(r for r in self.read(out["structure"]["path"])["pointed"] if r["path"] == "docs/gone.md")
+        self.assertEqual((row["found"], row["at"]), (True, "blank"))
+        self.assertFalse(any("docs/gone.md" in line and "どの版にも無く" in line for line in out["report"]), out["report"])
 
     def reply_clean(self):
         return {"rows": [clean("u1")]}

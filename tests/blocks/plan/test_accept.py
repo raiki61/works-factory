@@ -745,6 +745,8 @@ class PointedCase(unittest.TestCase):
         missing = prompts[0].split(self.MISSING_HEAD, 1)[1].split("\n## ", 1)[0]
         self.assertIn(f"`{self.NEW}`", missing, "どの版にも無い名（作るファイルでもありうる）は名指すだけで止めない")
         self.assertNotIn(f"`{self.CANON}`", missing)
+        self.assertEqual(out["pointed"], [{"path": self.CANON, "found": True, "at": "canon"}, {"path": self.NEW, "found": False, "at": ""}],
+                         "出口は版に無い名指しを行で返す（line が修正前の承認ノードで人に問う。持ち主の決め pointed-ask）")
 
     def test_a_long_document_is_cut_and_a_binary_one_is_not_copied(self):
         run = PlanRun(self, answers=[{"question": "q", "text": f"正典 {self.CANON} と図 docs/canon/chart.png に照らす"}])
@@ -769,9 +771,10 @@ class PointedCase(unittest.TestCase):
 
     def test_answers_that_name_no_file_add_no_section(self):
         run = PlanRun(self, answers=[{"question": "q", "text": "このまま進める"}])
-        _, prompts = go(run, {"plan": [item(1, 2)]})
+        out, prompts = go(run, {"plan": [item(1, 2)]})
         self.assertNotIn(self.FOUND_HEAD, prompts[0])
         self.assertNotIn(self.MISSING_HEAD, prompts[0])
+        self.assertEqual(out["pointed"], [])
 
     def test_role_that_cannot_read_a_named_document_holds_the_round(self):
         run = PlanRun(self, answers=[{"question": "q", "text": f"正典 {self.CANON} に照らして組み直す"}])

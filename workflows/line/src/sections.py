@@ -387,6 +387,10 @@ def rounds_lines(rounds: dict) -> list:
             lines += [str(x) for x in roundslib.lines(doc)]
     except Exception as e:  # noqa: BLE001 — 往復の行を組めなくても節を出す
         lines.append(f"往復ごとの行を組めない（{type(e).__name__}: {e}）")
+    for r in rounds.get("pointed") or []:   # 人の答えが名指し、読む版に無い文書（無人の run はこの行だけ。持ち主の決め pointed-ask）
+        if isinstance(r, dict):
+            where = f"{r.get('at') or '名の無い commit'} の版から読んで修正案の役に渡した" if r.get("found") else "どの版にも無く読めない"
+            lines.append(f"人の答えが名指す {r.get('path')} は、読む版に無い（{where}）")
     return lines
 
 
