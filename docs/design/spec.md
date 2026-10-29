@@ -542,18 +542,18 @@ How to answer:
 
 元の works の `works/blk-spec/`（3 つの loop・spec-ask・spec-gate・spec-answer・collect）と、その指示の元の graphloops の `prompts/review-loop/spec.write.md`・`spec.review.md`・`spec.revise.md`（`graphs/review-loop.json:5718-6117`・`rules/review-loop.py:4531-4750`）から、工場は書く・審査・直す・人の承認・固めるの 5 つを全部持つ。工場に無い物・違う物と、その訳:
 
-1. 同じ run の中での承認し直し（graphloops の `spec.check` は修正の後の周ごとに sha256 を照らし、承認ノードで continue と答えれば新しい sha256 で固め直し、`process.spec.amendments` に積んだ）: 工場は問うだけで、run を人待ちで終え、承認し直すのは次の run の仕様の段（#510 `79f1fbc2`・#542 `9365c286`。graphloops の engine が共有の記録〔盤面〕を問いの答えまで止めた形に替えて、差分の審査・最後の試験・独立の目を回し続け、最後の承認ノード・報告・次の依頼の下書きで問う。#554 `70f059c5` で「照らせなかった」を分けた）。元の works にも無い。この block の check も問うだけ。
+1. 同じ run の中での承認し直し（graphloops の `spec.check` は修正の後の周ごとに sha256 を照らし、承認ノードで continue と答えれば新しい sha256 で固め直し、`process.spec.amendments` に積んだ）: 工場は問うだけで、run を人待ちで終え、承認し直すのは次の run の仕様の段（#510 `79f1fbc2`・#542 `2e593f13`。graphloops の engine が共有の記録〔盤面〕を問いの答えまで止めた形に替えて、差分の審査・最後の試験・独立の目を回し続け、最後の承認ノード・報告・次の依頼の下書きで問う。#554 `425abeda` で「照らせなかった」を分けた）。元の works にも無い。この block の check も問うだけ。
 2. 書く役が名乗らずに変えたファイルの照らし（graphloops 0.22.0 `d1f043f2` の `declared_files: acceptance[].file` と `declared-files.md`。テスト以外を書いたら両側に記録して次の周の判定に渡す）: 元の works（a1202d0 の写し）にも工場にも無い。書く役・直す役の受け付けは作業ツリーを比べず、「テストのファイルだけ」は指示の文だけが言う（`spec.md:49`）。（未確認）: 工場は初めから持たない。この block も足さない（足すかは振る舞いの変更で、この作り直しの外）。
-3. 受け入れ条件の `run` の 600 秒の期限（graphloops の `SPEC_RUN_TIMEOUT`）: 工場は期限を置かない（持ち主の決め `no-timeouts`。`docs/plans/2026-10-13-capabilities/judge.md:625`、#76 `0c4a6793` の写しから）。この block も置かない。
+3. 受け入れ条件の `run` の 600 秒の期限（graphloops の `SPEC_RUN_TIMEOUT`）: 工場は期限を置かない（持ち主の決め `no-timeouts`。`docs/plans/2026-10-13-capabilities/judge.md:625`、#76 `37b7a693` の写しから）。この block も置かない。
 4. 書く役・審査役・直す役が PR の題と本文を読む（元の works と graphloops は `{{inputs.request}}`、`entryshape.request_text` で PR の文を含む）: 工場の指示は依頼の行 `judge/request.json` だけを読む。PR の題と本文だけで仕様の段を選んだ run（`start.py:257` が受ける）では依頼の行が空で、PR の文は役に届かない（目的と判定の役には `pr_file_text` で届く）。（未確認）: #76 から在り、#529 `cce03fcf` は spec=on に依頼の行か PR の文を求めたが、役への配線はしていない。この block は port `pr_text` で戻す（2.6・11 節の 2）。
 5. 止め札の確かめ（元の works の route と ask の `halt.seen`）: 工場は外した（持ち主の決め `stop-at-gates`・`report-on-stop`、#76 と `de3cfa7e`）。承認ノードの一言の頭 `request:` だけが残る。この block も同じ。
 6. 元の works の collect の出口の欄（`tests[{file, sha}]`・`approved_by`・`approval_note`・`frozen_rev`・数の 4 つ）: 工場は `spec` の pointer だけ（読む物が無いので `_head` を消した。`de3cfa7e`、#76）。この block も同じ（中身は `spec.json` に在る）。
-7. 拒まれた後の出し直し（元の works は `fresh_context: true` で新しい会話、最後の拒否 1 件だけ）: 工場は同じ会話の続きで拒まれた欄だけを返させ、受け付けが合わせる（#571 `b46ec691`・`ae823997`・`a14d3c4e`、#588 `249c88ea`）。1 回目の役の再び起きる時には拒否を全部渡す（#345・#351 `a873a13a`・`02fc652a`）。この block も同じ（5 節）。
-8. 承認ノードの形（元の works は `approval:`）: 工場は `wait:`（attention・select・選び肢 4 つ。#637 `1e60d4b1`、Archon の版上げ）。この block も同じ。
+7. 拒まれた後の出し直し（元の works は `fresh_context: true` で新しい会話、最後の拒否 1 件だけ）: 工場は同じ会話の続きで拒まれた欄だけを返させ、受け付けが合わせる（#571 `b46ec691`・`ae823997`・`a14d3c4e`、#588 `3a2bf3f7`）。1 回目の役の再び起きる時には拒否を全部渡す（#345・#351 `a873a13a`・`f3b8b2e0`）。この block も同じ（5 節）。
+8. 承認ノードの形（元の works は `approval:`）: 工場は `wait:`（attention・select・選び肢 4 つ。#637 `a6864142`、Archon の版上げ）。この block も同じ。
 9. 審査役の前の作業ツリーの写しを取る時（元の works は審査役の prep の直前）: 工場は書く役の受け付けが通った時（間に何も走らないので同じ。#76）。この block も同じ。
 10. block の筋書き（元の works の諦め・穴なし・承認ノードで止める）: 工場は単体の試験（`SpecGateCase`・`SpecTakeCase`・`SpecFreezeTest`）に移し、筋書きは `spec-on.stubs.yaml` と line の `spec-changed.stubs.yaml` だけ（（未確認）: 意図の記録なし、#76）。この block は standalone の筋書きを 4 本置く（10 節）。
 
-この block が両方より良く、残す物: 承認したテストが変わったかを照らして run を止めずに最後の承認ノード・報告・次の依頼の下書き・`bin/apply` の注まで届ける（#554。「照らせなかった」を分ける・仕様の指しが無い時も問う）・固めた仕様を修正案に渡して受け入れテストを項目の `tests` に入れる（#75 `26d6f2b0`）・仕様を選んだ run は頭の深さを標準にする（#517。head-depth の block の port `spec`）・受け入れ条件のコマンドを利用者の HOME・XDG に戻し、印を残し、`tree_run.outside_env` で走らせる（#512）・承認の後の作業ツリーの写しの取り直し（#275。この block では各 block が自分で取る形に替わる）・どの止めの道も出力を埋める（J90）・承認ノードの文を組めない・固められない誤りを node の落ちでなく `works:spec` の止めにする・モデルの群を起動の時に付け替えられる。
+この block が両方より良く、残す物: 承認したテストが変わったかを照らして run を止めずに最後の承認ノード・報告・次の依頼の下書き・`bin/apply` の注まで届ける（#554。「照らせなかった」を分ける・仕様の指しが無い時も問う）・固めた仕様を修正案に渡して受け入れテストを項目の `tests` に入れる（#75 `e730d351`）・仕様を選んだ run は頭の深さを標準にする（#517。head-depth の block の port `spec`）・受け入れ条件のコマンドを利用者の HOME・XDG に戻し、印を残し、`tree_run.outside_env` で走らせる（#512）・承認の後の作業ツリーの写しの取り直し（#275。この block では各 block が自分で取る形に替わる）・どの止めの道も出力を埋める（J90）・承認ノードの文を組めない・固められない誤りを node の落ちでなく `works:spec` の止めにする・モデルの群を起動の時に付け替えられる。
 
 graphloops と元の works の仕様の段は、`p0.base` と `p0.local_checks`（直す前の CI の結末）の後に回す（赤いテストが基準を汚さないため）。工場も test-gate の base の後に judge を回す（`works-factory-line.yaml:175`）。この順は line が持ち続ける（1.6）。
 

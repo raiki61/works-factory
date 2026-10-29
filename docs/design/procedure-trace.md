@@ -199,7 +199,7 @@ Your tools are Read, Grep, Glob, Bash, WebSearch, and WebFetch. …
  …（例の run の変更ファイル 23 件のまま）
  "frontend/messages/ja.json"
 ]
-- Review guide (Read it; it defines the labels and the viewpoints): ~/.cache/works-factory-plugin/56032b5a88e2add0e1bda0949986271e1f649ea6/lib/REVIEW.md
+- Review guide (Read it; it defines the labels and the viewpoints): ~/.cache/works-factory-plugin/2eff50966651bb961c234169d7381fc86fc756be/lib/REVIEW.md
 - The target's own review guide (Read it as well): ~/.local/state/works-factory/targets/316e3bbc/archon-home/workspaces/<owner>/<repo>/worktrees/archon/task-works-factory-line-1792307529854/REVIEW.md
 
 ## What to do

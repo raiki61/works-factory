@@ -328,7 +328,7 @@ What to look at: (1) Root cause (`verdict`): … One of `root`, `not_root`, `uns
 元の works は `works/blk-judge/` の中の 3 つの節（`verify-prep`・`judge-verify`・`verify-merge`。設計 `works/docs/plans/2026-10-06-judge-verify.md`）。工場は #76 で judge の中に写した。工場に無い物・違う物と、その訳:
 
 - 独立したブロックにしなかった（元の設計「入力は判定の控えだけで、判定の輪と同じ周に閉じるため」）: この block では、入力が判定の port だけなので独立の block にする（README の 8.1）。周に閉じることは、judge のまとめが diagnose の後に 1 回だけ include することで続く。
-- 回す切り替え: 元はブロックの入力 `verify`（空は on。線が既定の off を渡す）。工場は始めの記録の機能の切り替えと頭の深さの段の足しから `entry.switch` が決める形にした（#76 と `9407b441` の重厚の段）。この block は切り替えを知らず、line の `when:` が決める（README の 1.2 の D）。
+- 回す切り替え: 元はブロックの入力 `verify`（空は on。線が既定の off を渡す）。工場は始めの記録の機能の切り替えと頭の深さの段の足しから `entry.switch` が決める形にした（#76 と `e8385872` の重厚の段）。この block は切り替えを知らず、line の `when:` が決める（README の 1.2 の D）。
 - 答えの置き場: 元は盤面の外の run ごとの置き場（盤面は役が書けない）。工場は judge の置き場の `verify/answers/` にした（#76。盤面が無い）。この block は place の `answers/`。
 - trace の行（元の `TRACE_OP` の `judge_verify`。確かめた数・確かめられなかった数・相乗りの有無）と、まとめの出口の数（`verified`・`unverified`）: 工場に無い（#76。共有の盤面の trace が無い）。この block も足さない。数は申し送りと報告の行から読める。
 - 申し送りを修正前の承認ノードの文にも載せるか（元の設計の「残り」）: 工場も載せていない。この block の外（line の承認ノードの設計書）の事。

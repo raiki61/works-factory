@@ -121,7 +121,7 @@ script の node はどれも `runtime: uv`。`run` のほかは `mutates_checkou
 
 ## 2 node の設計シート: ci（任せ先の CI の役）——外した（2026-10-20）
 
-持ち主の決め `related-tests-only` で、任せ先の CI の役 `ci` とその指示 `prompts/ci.md` を外した。全体の CI は工場が再現せず、CI と人に任せる。外す前の指示と設計は git の履歴（commit `e87f40a` の版）で読める。走らせ方が決まらない道は 14 節。
+持ち主の決め `related-tests-only` で、任せ先の CI の役 `ci` とその指示 `prompts/ci.md` を外した。全体の CI は工場が再現せず、CI と人に任せる。外す前の指示と設計は git の履歴（commit `478fc15` の版）で読める。走らせ方が決まらない道は 14 節。
 
 ## 3 node の設計シート: ci-fix（任せ先の CI の役の出し直し）——外した（2026-10-20）
 
@@ -281,15 +281,15 @@ final は `--input mode=final --input baseline=<base の run の baseline.json �
 
 工場に無い物・違う物と、その訳:
 
-1. 赤の原因の語 `interaction`: 語の一覧（`green_cert.RED_CAUSES`）と出力の enum には在るが、`green_cert.classify` は返さない（`lib/green_cert.py:32` の注記）。語は #69 で ASF の語の一覧から入り、#544 `9ff164bf` で語の持ち主に寄せた。返さないと決めた記録は無い（（未確認））。この block は語を enum に残し、返さない今のままにする。
-2. 素材の札の `carried_over`・`from_round`（元の works の `blk-ci.yaml:120-146`）: 工場は意図して外した（#69 `01d1a09c`「盤面の欄 carried_over と from_round を外した」）。block は周を持たないので要らない。
-3. 機械全体の試験の枠（元の works の `tree_run.slotted_run` の `slotwrap.sh`）: 持ち主の決めで持たない（`f2abe872`（#118）・#202 `3aa6ba83`）。同じ run の中の試験の結果の使い回しは #202 で戻した（この block の `reuse_dir`・`reuse_key`）。
-4. 拒まれた後の出し直し: 元の works は毎回新しい会話（`blk-ci.yaml:72` の `fresh_context: true`）で丸ごと出し直させた。工場は同じ会話の続きで拒まれた欄だけを返させ、機械が合わせる（#588 `249c88ea`、#571）。この block も同じ（3 節）。
-5. 包みの宣言の確かめ: 元の works は別の node `ci-fence`（`blk-ci.yaml:22-41`）。工場は `ci-prep`（役を起こさずに諦める）と `ci-accept`（柵が掛かったか）に畳んだ（#364 `28ed9456`）。この block も同じだった（14 節で `ci-prep`・`ci-accept` ごと外した）。
+1. 赤の原因の語 `interaction`: 語の一覧（`green_cert.RED_CAUSES`）と出力の enum には在るが、`green_cert.classify` は返さない（`lib/green_cert.py:32` の注記）。語は #69 で ASF の語の一覧から入り、#544 `b1b4bfa7` で語の持ち主に寄せた。返さないと決めた記録は無い（（未確認））。この block は語を enum に残し、返さない今のままにする。
+2. 素材の札の `carried_over`・`from_round`（元の works の `blk-ci.yaml:120-146`）: 工場は意図して外した（#69 `ff8d1d42`「盤面の欄 carried_over と from_round を外した」）。block は周を持たないので要らない。
+3. 機械全体の試験の枠（元の works の `tree_run.slotted_run` の `slotwrap.sh`）: 持ち主の決めで持たない（`6ef2854a`（#118）・#202 `686df319`）。同じ run の中の試験の結果の使い回しは #202 で戻した（この block の `reuse_dir`・`reuse_key`）。
+4. 拒まれた後の出し直し: 元の works は毎回新しい会話（`blk-ci.yaml:72` の `fresh_context: true`）で丸ごと出し直させた。工場は同じ会話の続きで拒まれた欄だけを返させ、機械が合わせる（#588 `3a2bf3f7`、#571）。この block も同じ（3 節）。
+5. 包みの宣言の確かめ: 元の works は別の node `ci-fence`（`blk-ci.yaml:22-41`）。工場は `ci-prep`（役を起こさずに諦める）と `ci-accept`（柵が掛かったか）に畳んだ（#364 `4c40f48b`）。この block も同じだった（14 節で `ci-prep`・`ci-accept` ごと外した）。
 6. 任せ先の自己申告の緑: 元の works と graphloops は人への問いに回した（元の `review-loop.py:950,2093-2095` の `_ci_by_engine`）。工場は認証しない（`green_cert.certify` の `self_reported`。#69）。最後の承認ノードと報告がそれを言う（`SELF_REPORTED_NOTE`）。この block も同じ。
-7. TDD の実行器: 元の works は test_cmd が pytest の 1 つのコマンドの時だけ起動の殻が `--junitxml` で包んだ（`skills/works/references/start.md:20`）。工場は取り置きか AI の書き手で、どの test_cmd にも用意し、機械が事実だけを照らす（#516 `2a48db54`）。この block も同じ。実行器を始めの記録に結ぶ所だけを、出力の欄 `suite` に替えた（1.2）。
+7. TDD の実行器: 元の works は test_cmd が pytest の 1 つのコマンドの時だけ起動の殻が `--junitxml` で包んだ（`skills/works/references/start.md:20`）。工場は取り置きか AI の書き手で、どの test_cmd にも用意し、機械が事実だけを照らす（#516 `83d140c2`）。この block も同じ。実行器を始めの記録に結ぶ所だけを、出力の欄 `suite` に替えた（1.2）。
 
-この block が両方より良く、残す物: 指紋つきの緑の認証（走らせる前・後・認証の時が合う時だけ。#69）・1 件ごとの JUnit の元の結末と、それによる元から赤と直しが起こした赤の分け・`test_outcomes`（#69）・走った系統と走らせられなかった系統の名の分け `systems`（#518 `7938ccb8`）と、言いすぎない言い方（`green_cert.py:159-183`）・同じ会話の続きの出し直しと欄ごとの合わせ（#588）・どの test_cmd にも AI が書いて機械が照らす実行器と取り置き（#516）・出力の node が落ちない（誤りは `incomplete` と名指す）。
+この block が両方より良く、残す物: 指紋つきの緑の認証（走らせる前・後・認証の時が合う時だけ。#69）・1 件ごとの JUnit の元の結末と、それによる元から赤と直しが起こした赤の分け・`test_outcomes`（#69）・走った系統と走らせられなかった系統の名の分け `systems`（#518 `40ff7b92`）と、言いすぎない言い方（`green_cert.py:159-183`）・同じ会話の続きの出し直しと欄ごとの合わせ（#588）・どの test_cmd にも AI が書いて機械が照らす実行器と取り置き（#516）・出力の node が落ちない（誤りは `incomplete` と名指す）。
 
 ## 9 守る keep-essence
 

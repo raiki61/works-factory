@@ -20,7 +20,7 @@
 
 ## 頭の段落 `prompts/parts/head.md` の出どころ
 
-D1 の基の main（`e52a1b45`）の `workflows/fix/prompts/parts/tidy.md` の、見出し `# Fixing (the writer's job)` と `<!-- end rules -->` の間の字を、字を変えずに移した物。頭の段落は 1 段落（役の定義）。型ごとの頭の文の照らしは `tests/workflows/test_weapon_assets.py`（頭の文の表の字が、この main の commit の `parts/tidy.md` の字に在ることと、組み上がった指示に在ること）。
+D1 の基の main（`da2a5a0e`）の `workflows/fix/prompts/parts/tidy.md` の、見出し `# Fixing (the writer's job)` と `<!-- end rules -->` の間の字を、字を変えずに移した物。頭の段落は 1 段落（役の定義）。型ごとの頭の文の照らしは `tests/workflows/test_weapon_assets.py`（頭の文の表の字が、この main の commit の `parts/tidy.md` の字に在ることと、組み上がった指示に在ること）。
 
 ## この型の受け付けの義務の在処
 

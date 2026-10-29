@@ -132,7 +132,7 @@ ASF（`.archon/workflows/sdlc/`）の変化のうち、works-factory の役の�
 - 訳: 持ち主の決め `asf-follows-dev`（`docs/owner-decisions.md`）は止めた版に留まる理由を持たないと決めている。24 commit は埋めを塞がず壊しもせず、壊れるのは約束の試験の 2 行だけで、上げの費用は小さい。得る物は ASF の #4517（works-factory 自身を作る run の審査の行き先）と、Archon の file-store の後片付け（#4513）。
 - 上げても変わらない物: #659 の口は無いままで、#671 の答えも同じ。だから #659・#671 は版を待たずに進めてよい。
 
-上げる時の手順（`c1ac36f8` の #716 と同じ形）:
+上げる時の手順（`5202f232` の #716 と同じ形）:
 
 1. `factory/pack.json` の `integration_revision_required` を読んだ dev の頭に替える。CI・試験・`bin/_lib/place.py` はここから源を読むので、版の字を替える所はここだけ。
 2. 試験の段: まず `tests/changed.py` と層の柵、次に `tests/shared/test_archon_contract.py`。`ARCHON_ROWS` の「節が済んだ状態」と「節の一覧の行の id と状態の鍵」の 2 行の在り処を `packages/cli/src/commands/workflow.ts` から `packages/cli/src/commands/workflow-node-summaries.ts` に替える。最後に CI の全部の試験と、本物の Archon で回す試験（`tests/e2e/`）。

@@ -309,7 +309,7 @@ Units you must not put in (the check rejects them): none
 The judge's view: {"framing": "根は 1 つで、…"}
 The judge's precedents (world solution): [{"key": …, "verdict": "adapt", …}]
 
-Repository: <run の作業ツリー> (version read: `4428f368…`)  BASE: `4428f368…`  Viewpoint source: <工場の lib>/REVIEW.md
+Repository: <run の作業ツリー> (version read: `4961c50a…`)  BASE: `4961c50a…`  Viewpoint source: <工場の lib>/REVIEW.md
 
 ## Prescriptions of the judgment (…)
 …
@@ -573,12 +573,12 @@ For `plan`, the rule above does not apply. Return in `plan` only the items the r
 
 ## 7 元の works と graphloops の同じ場面
 
-- 元の works の `works/blk-plan/`（`blk-plan.yaml`・scripts の prep・accept・collect・converge・reads・ripple・snap、`lib/planblk.py`・`ripple.py`）は、独立設計・修正案・事前審査の 3 つの役と壁打ちの往復を 1 つのブロックに持っていた。工場は計画（`workflows/plan/`）と事前審査（`workflows/plan-review/`）のサブグラフに割り、往復を line の輪に移した（#75 `26d6f2b0`）。この block は計画の 1 周分で、往復の記録は line が持つ（README の形の直し 6）。
+- 元の works の `works/blk-plan/`（`blk-plan.yaml`・scripts の prep・accept・collect・converge・reads・ripple・snap、`lib/planblk.py`・`ripple.py`）は、独立設計・修正案・事前審査の 3 つの役と壁打ちの往復を 1 つのブロックに持っていた。工場は計画（`workflows/plan/`）と事前審査（`workflows/plan-review/`）のサブグラフに割り、往復を line の輪に移した（#75 `e730d351`）。この block は計画の 1 周分で、往復の記録は line が持つ（README の形の直し 6）。
 - graphloops の `prompts/review-loop/p2.fix_plan.md`（36 行）にあって、この block の形が違う物:
-  - `adds`（新しく生まれる物と `canonical`）・`removes`: 工場はファイルの行 `files`（`op`・`symbols`・`home`・`considered`）に替えた（#622 `45e649f3`。考えの住処と退けた置き場を持たせ、canonical と kind の列挙をやめた）。この block も `files` のまま。
+  - `adds`（新しく生まれる物と `canonical`）・`removes`: 工場はファイルの行 `files`（`op`・`symbols`・`home`・`considered`）に替えた（#622 `f4030103`。考えの住処と退けた置き場を持たせ、canonical と kind の列挙をやめた）。この block も `files` のまま。
   - 前の周に人が通した狭めを 1 字も変えずに写す決まりと、判定者が名指した狭め `named`（`named_narrowings`）: 元の works にも工場にも無い（（未確認）: 意図して外した記録は見つからなかった。`git log -S named_narrowings` は何も返さない）。振る舞いを変えるので足さない。
   - 人の承認ノードの答えの記録（`record.process.human_items`）を材料に貼る: 工場は記録された方針の行の「承認ノードの人の答え: この役には渡っていない」にしている（案の直しの周も同じ）。（未確認）: 意図の記録なし。この block も今のまま。
-- この block が両方より良く、残す物: 直す義務を問いの台帳から機械が数え、受け付けと材料が同じ述語を読む（#583 の寄せ）・works の欄（直し方の道・受け入れテスト・書き換えるテスト・範囲・整えの申告）と、それを修正の要求の正本にする（keep-essence の 3 の許しの出どころ）・承認ノードの項目の決め手と柵と推し・狭めない案を先に探させて受け付けが縛る・構造の目の行と世界の解の行と判定の処方への行ごとの答えを受け付けが縛る（keep-essence の 12）・項目の間の依存と循環の拒み・考えの住処の重なりの拒み・波及の一覧（変える名と消す名の当たり）・受け付けに拒まれた後の同じ会話での出し直し（#588）・周をまたぐ引き継ぎのメモ（#590 `bbe7cf9a`）・並行 PR の外した範囲（#699 `10535024`）・裏取りの申し送り・頭の深さの未知の種類・前の run の失敗の行・ライブラリの文書・案の直しで約束の欄が変わったかの事実を残す。
+- この block が両方より良く、残す物: 直す義務を問いの台帳から機械が数え、受け付けと材料が同じ述語を読む（#583 の寄せ）・works の欄（直し方の道・受け入れテスト・書き換えるテスト・範囲・整えの申告）と、それを修正の要求の正本にする（keep-essence の 3 の許しの出どころ）・承認ノードの項目の決め手と柵と推し・狭めない案を先に探させて受け付けが縛る・構造の目の行と世界の解の行と判定の処方への行ごとの答えを受け付けが縛る（keep-essence の 12）・項目の間の依存と循環の拒み・考えの住処の重なりの拒み・波及の一覧（変える名と消す名の当たり）・受け付けに拒まれた後の同じ会話での出し直し（#588）・周をまたぐ引き継ぎのメモ（#590 `c8fcadd3`）・並行 PR の外した範囲（#699 `8b847357`）・裏取りの申し送り・頭の深さの未知の種類・前の run の失敗の行・ライブラリの文書・案の直しで約束の欄が変わったかの事実を残す。
 
 ## 8 単独で呼ぶ
 

@@ -107,7 +107,7 @@
 - `workflows/.shared/schemas/units.schema.json`（r1 の PR が structure の `schemas/` から移した。r1・plan も使う）（`{type: array, items: {type: object, required: [id], properties: {id: {type: string, minLength: 1}, paths: {type: array, items: {type: string, minLength: 1}}, summary: {type: string}}}}`）・`intent.schema.json`（`{type: array, items: {type: string, minLength: 1}}`）。
 - 使う `lib/`: `measure`（コマンドとして）・`conceptfence`（`tables`・`places`・`changed`・`scan_change`）・`concepthome`（`tracked_names`・`pick_maps`・`base_of`・`TABLE_NAME`）・`design`（`MAP_NAMES` だけ。根の地図の文書の名）・`eye`（`stamp`・`wall`・`WALL`。ブロックの時間の欄。`structmark` も読む）・`structmark`（`write`・`read`・`rows`・`write_after`・`AFTER_FILE`・`report_lines`・`DIRTY`・`ROUTE_UP`）・`planmarks`（`deviations`）・`listcut`（`SHOWN`）・`rolekit`（`accept_round`・`current_round`・`round_outcome`・`rejected`・`rejects_text`・`rejects_path`）・`jsonfile`・`oneline`。
 - `concepthome.EYE_ASK`・`AXIS` の文（構造の目の問い）は md に移す。`concepthome` の文の定数（`AXIS`・`PLAN_RULE`・`REVIEW_ASK`・`R1_HEAD`・`R3_HEAD`・`EYE_ASK`・地図の節の頭と `section`）は呼び手が無くなったので #764 で消した。
-- `lib/design-row.schema.json` は写さない。今は試験だけが読む（`tests/workflows/test_structure.py:116-131`・`lib/tests/test_structure_eye.py:158-161`。#232 `d91c4b49` から実行の時に読む物は無い）。行の型の正本は `structure-eye` の node の `output_format` と、受け付けが足す `route_reason`（11 節の 9）。
+- `lib/design-row.schema.json` は写さない。今は試験だけが読む（`tests/workflows/test_structure.py:116-131`・`lib/tests/test_structure_eye.py:158-161`。#232 `e0de3403` から実行の時に読む物は無い）。行の型の正本は `structure-eye` の node の `output_format` と、受け付けが足す `route_reason`（11 節の 9）。
 
 ### 1.6 つなぎ方（graph の側。block には書かない）
 
@@ -263,7 +263,7 @@ Each unit below is a fix that is planned but not yet made: …
 
 The machine took these from the target (…). They are all the written intent you are given. …
 
-### AGENTS.md (4428f368d229, lines 1-153)
+### AGENTS.md (4961c50a5341, lines 1-153)
 
 (cut: the first 6000 characters are shown; 14421 more were left out)
 
@@ -271,7 +271,7 @@ The machine took these from the target (…). They are all the written intent yo
 # AGENTS.md（works-factory の AI 向けの決まり）
 …
 
-### workflows/AGENTS.md (4428f368d229, lines 1-…)
+### workflows/AGENTS.md (4961c50a5341, lines 1-…)
 
 (cut: …)
 
@@ -288,7 +288,7 @@ The machine took these from the measurements. They are all you are given.
 Return only JSON that matches the output schema.
 ````
 
-例の run の目は書いた意図の節を見ていない（今の形では根の `AGENTS.md` が実測の JSON の `rules.maps` に 6000 字で入っていた）。上の骨組みの「Written intent」は、新しい探し方（3 節）を例の run の版 `4428f368` に当てた時に入る物で、単位のパス `workflows/merge/scripts/pr_commit.py` の上のフォルダの `workflows/AGENTS.md` が足される。`policy` は空（この run は方針の文書を固めていない）。
+例の run の目は書いた意図の節を見ていない（今の形では根の `AGENTS.md` が実測の JSON の `rules.maps` に 6000 字で入っていた）。上の骨組みの「Written intent」は、新しい探し方（3 節）を例の run の版 `4961c50a` に当てた時に入る物で、単位のパス `workflows/merge/scripts/pr_commit.py` の上のフォルダの `workflows/AGENTS.md` が足される。`policy` は空（この run は方針の文書を固めていない）。
 
 after（例の run の `eyes/structure-after.json` の値。この run では目は起きていない。新しい node の骨組み）:
 
@@ -301,9 +301,9 @@ The change is already made. Below are the diff from the version before the chang
 
 ## Written intent
 
-### AGENTS.md (4428f368d229, lines 1-153)
+### AGENTS.md (4961c50a5341, lines 1-153)
 …
-### bin/AGENTS.md (4428f368d229, …)
+### bin/AGENTS.md (4961c50a5341, …)
 …
 ### lib/AGENTS.md (…)
 …
@@ -315,7 +315,7 @@ The change is already made. Below are the diff from the version before the chang
 ## Units and measurements
 
 ```json
-{"units":[{"id":"workflows/merge/scripts/pr_commit.py hook_env: …","summary":"…","paths":["workflows/merge/scripts/pr_commit.py"]}],"after":{"base_rev":"4428f368d229f2d4f4343122c620c3fdeb334184","changed":["bin/AGENTS.md","bin/_lib/launcher.py","docs/design.md","lib/tree_run.py","lib/userenv.py",…14 本…],"tables":["docs/concepts.json"],"tables_changed":[],"fence_up":[],"new_names":[],"dup_blocks_added":0,"deviations":[{"item":1,"prescription":"workflows/merge/scripts/pr_commit.py hook_env: …","deviation":"処方 2・3 は…"}]},"timing":{"wall_s":191.209}}
+{"units":[{"id":"workflows/merge/scripts/pr_commit.py hook_env: …","summary":"…","paths":["workflows/merge/scripts/pr_commit.py"]}],"after":{"base_rev":"4961c50a53410f4bdc4dfb5ece8a4ca13612a916","changed":["bin/AGENTS.md","bin/_lib/launcher.py","docs/design.md","lib/tree_run.py","lib/userenv.py",…14 本…],"tables":["docs/concepts.json"],"tables_changed":[],"fence_up":[],"new_names":[],"dup_blocks_added":0,"deviations":[{"item":1,"prescription":"workflows/merge/scripts/pr_commit.py hook_env: …","deviation":"処方 2・3 は…"}]},"timing":{"wall_s":191.209}}
 ```
 
 ## Diff
@@ -341,7 +341,7 @@ after では、差分が変えたファイル（14 本）の上のフォルダ�
 - 消した: 区切りの行「=====指示書ここから=====」「=====指示書ここまで=====」と、「指示書には…が書かれている。その指示に従え」の 1 文（本文は md の節になった）。
 - 替えた（持ち主の 2026-10-19 の追加）: 問いを「書いた意図に反するか、知る場所を増やすか」にし、周りのコードの今の書き方を基準にしないと言う段落を足した。書いた意図の文書を実測の JSON の `rules`（`policy`・`maps`）から出し、`## Written intent` の節に文書ごとの見出しつきで並べた（抜き書きを字のまま照らせるように）。汚れる行に `intent`（文書のパスと抜き書き。`$` を含まない所を選べの 1 文つき）を求める箇条を足した。文書の並びの順と、食い違えば近い文書が勝つ決まりを節の頭に書いた（agents.md の決まり。11 節の 2）。書いた意図が 1 つも無い対象では、今の問い（`EYE_ASK`）と同じ文を使う（`<!-- if not intent -->`）。
 - 足した: after の時の段落・`## Diff` の節・`after.deviations` の読み方の箇条（直した後の目は今は無い。README の 8.6 の「入る時」）。
-- 替えた: 形 4 の「サブグラフの境をまたいで、他のサブグラフの中身を前提にする」を「部品（モジュール・block・サブグラフなど）の境」に。#235 `787b55ba`・#253 `1c8c6015` は「ブロック」を工場の語「サブグラフ」に替えたが、目が見るのはどの対象のリポジトリでもあり、工場の語に限らない言い方にした。
+- 替えた: 形 4 の「サブグラフの境をまたいで、他のサブグラフの中身を前提にする」を「部品（モジュール・block・サブグラフなど）の境」に。#235 `787b55ba`・#253 `736fe74f` は「ブロック」を工場の語「サブグラフ」に替えたが、目が見るのはどの対象のリポジトリでもあり、工場の語に限らない言い方にした。
 - 替えた: 役の定義の「人に上げた行には、修正の前に人が答える」を「人への問いになる」に（after の時は修正の後で、承認ノードの振る舞いは line の物）。
 - 替えた: 言語。今は言語の行が無く（役の定義にも返し方にも無い）、目は単位の summary の言語で書いていた。人に見せる欄を名指す 1 文を足し、`lang` が空なら共通の断片 `lang-default` の文（依頼の言語。15 を見よ）。
 - 英語にした（#764）。役の名「構造の目」は "the structure eye"。
@@ -409,15 +409,15 @@ bin/works-factory <同じ引数> workflow run works-factory-structure \
 
 元の works の `works/blk-structure/`（stage-a・stage-b・structure-eye-loop・collect。入力 `units`・`root`・`policy_path`・`base_rev`。line が「structuring」と「measuring-after」の 2 か所で include した）から、工場は目の文・6 つの形・受け付けを同じに写した。graphloops には構造の目も実測も考えの住処も無い（近いのは `p2.fix_plan.md:22-27` の `adds[].canonical`、`p2.plan_review.md:17-25` の copy・contract_drift の見方、`r3.coherence.md` の直した後の周りのコードとの整合。どれも道具を持つ役が周りのコードを読む）。工場に無い物・違う物と、その訳:
 
-1. 1 つの block を 2 回 include する形（元の works は直す前と直した後の両方を 1 つの block で持った）: 工場は段 B を eyes の node `structure-after` に移した（`消した計画（git の履歴。ab47a4d の版で読める）docs/plans/2026-10-12-blocks/plan.md:17`・`eyes.md:28,49`、#67 `bd5c8d89`）。この block で元の形（`mode` で 2 つの時を持つ）に戻す（README の 1.3 の形の直し 7）。
-2. どの line からも include できる入力（`root`・`policy_path`・`base_rev`）: 工場は始めの記録の pointer `start` 1 つに替えた（#75 `26d6f2b0`、方針の写しは #84 `47c71757`・#163 `e9d6bc19`）。（未確認）: 「どの line からも include できる」を失うことを比べた文書は無い。この block は port（`policy`・`base`）に戻す。根は作業ツリー（Archon の cwd）で port にしない（README の 4.2）。
+1. 1 つの block を 2 回 include する形（元の works は直す前と直した後の両方を 1 つの block で持った）: 工場は段 B を eyes の node `structure-after` に移した（`消した計画（git の履歴。ab47a4d の版で読める）docs/plans/2026-10-12-blocks/plan.md:17`・`eyes.md:28,49`、#67 `d3e5923d`）。この block で元の形（`mode` で 2 つの時を持つ）に戻す（README の 1.3 の形の直し 7）。
+2. どの line からも include できる入力（`root`・`policy_path`・`base_rev`）: 工場は始めの記録の pointer `start` 1 つに替えた（#75 `e730d351`、方針の写しは #84 `47c71757`・#163 `a3fe6549`）。（未確認）: 「どの line からも include できる」を失うことを比べた文書は無い。この block は port（`policy`・`base`）に戻す。根は作業ツリー（Archon の cwd）で port にしない（README の 4.2）。
 3. 出口の 3 つのファイル: 工場は控え 1 つの pointer にした（#75、#560 `ca19ba37`・#750）。この block は控え（`structure`）と直した後の控え（`after`）の 2 つ。
-4. plan の中から外へ（工場の #560 `ca19ba37`・merge `13d0d0f9`〔#750〕。後の直し `ac7af0ad`・`a59844c9`・`c4ca79a8`・`b6dabb43`・`259c2889`）: この block も line が run に 1 回 include する（`owed` の when）。
-5. 実行の時に行の型 `design-row.schema.json` を読む受け付け（元の works は知らない鍵・語・形の番号の範囲・route の語を型で照らした）: 工場は node の `output_format` に任せ、二重の型の照らしを外した（#232 `d91c4b49`）。この block も同じで、型のファイルは写さない（1.5）。
+4. plan の中から外へ（工場の #560 `ca19ba37`・merge `153a064f`〔#750〕。後の直し `ac7af0ad`・`a59844c9`・`c4ca79a8`・`b6dabb43`・`259c2889`）: この block も line が run に 1 回 include する（`owed` の when）。
+5. 実行の時に行の型 `design-row.schema.json` を読む受け付け（元の works は知らない鍵・語・形の番号の範囲・route の語を型で照らした）: 工場は node の `output_format` に任せ、二重の型の照らしを外した（#232 `e0de3403`）。この block も同じで、型のファイルは写さない（1.5）。
 6. 回の数えの置き場（元の works は `eye.json`）: 工場は `rolekit` の却下の控え（resume を跨いで数える。#232）。この block も同じ。
 7. 目を Git の外で起こす旗（元の works の `'works-node: structure-eye isolated'`。adapter が一時のフォルダで起こし、git status と対象の案内の文書が目に届かない。`.shared/core/adapter.py:70-71,283-290`）: 工場の目は旗も `systemPrompt` の替えも持たず、既定の system prompt に作業ツリーの cwd と git status が入る（r2 の 2 つの役は `systemPrompt` で替えている。`tests/workflows/test_eyes.py:556`）。（未確認）: 外した記録は無い（`docs/plans/2026-10-13-capabilities/plan.md:552-557` の P076 は旗に触れない）。この block は今のまま足さない（11 節の 8）。
 8. 控えを書く前に設計の行が読めるかの確かめ（元の `line_edge.structure_edge`）: 工場の `write_state` は確かめない（読み手の `structmark._state_rows` が読めない行を落ちとして扱う）。（未確認）: 意図の記録は無い。この block は `take.py` が書いた行を書いた直後に `structmark.rows` で読み直し、読めなければ `status: failed` にする（11 節の 10）。
-9. モデル（元の works は opus・high を直に）: 工場は群 `@wf-plan-structure`（#628・#658 `d0b086a2`）。retry（#476 `8bb804fd`）。この block も同じ。
+9. モデル（元の works は opus・high を直に）: 工場は群 `@wf-plan-structure`（#628・#658 `d337f840`）。retry（#476 `ceb9d5e9`）。この block も同じ。
 10. 元の設計書（`docs/specs/2026-09-29-structure-block-design.md`）の block の中の設計の承認ノード（3 つの答え・全部の案を捨てた時の loop）と前例を探す役: 元の works にも工場にも無い（元の `eye.py:8` が「このブロックは関所を持たない」、設計書の 5 行目が blk-world に替えたと書く）。この block も持たない（人に上げる行は line の修正前の承認ノードが聞く）。
 11. 比べる相手: 元の works の目も、見たのは書いた意図（方針の文書・根の `ARCHITECTURE.md`・`AGENTS.md`・考えの地図と柵の表）と機械の実測だけで、周りのコードを道具で読んだことは無い。ただし、根の地図は `rules.maps` に実測と並べて貼るだけで、問いは「知る場所が増えるか」で、書いた意図に反するかは問わず、抜き書きも求めなかった。この block で、書いた意図を基準にし、単位のファイルの上のフォルダの `AGENTS.md` まで探し、汚れる行に抜き書きを求めて照らす（持ち主の 2026-10-19 の追加）。
 
