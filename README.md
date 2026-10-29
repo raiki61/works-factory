@@ -170,6 +170,22 @@ A finding row needs `where` (where) and `text` (what is happening), and can add 
 }
 ```
 
+#### Showing the factory one PR and letting it find what to fix
+
+To have the factory look at a PR's diff and find the problems itself, give no request file. Name the PR with the `pr` input and start from a worktree checked out at that PR's head branch (the run reads the PR's base and head with your `gh` login, and refuses when the PR's head commit differs from the commit checked out in the `--cwd` directory, that is, the target's `HEAD`):
+
+```sh
+bin/works-factory workflow run works-factory-line --cwd <worktree at the PR's head> --input pr=<number> --input test_cmd='<one line>'
+```
+
+At the start of the run, the entry check (which checks the inputs before any AI role starts) prints one line, which reads "diff <base>..HEAD (N files), 0 requests" (`HEAD` is the same commit as above). A run with no request rows (no items in the request file; here there is no request file) is fine: the judging stage reviews the PR's diff alone.
+
+Forms the entry refuses:
+
+- `--input request=<file>` whose file holds only `{"pr": [<number>]}`: the `pr` key inside a request file is a number carried over from an earlier run, not a way to name a diff. With no rows and no `base` or `pr` input, the diff is empty, so the run is refused as empty. Name the PR with the `pr` input instead.
+- `--input request=<file>` whose file has `findings` empty and every other key (`pr`, `issue`, `answers`, `prior_failures`, `constraints`, `theme`) empty too, such as `{"findings": []}`: the container is there but holds nothing, so the judging stage would run all its viewpoints and then stop at the request. The entry refuses it before any AI starts. Give no request file to have the factory find the problems itself, or put something in the file. A file with empty `findings` but another key filled in (the next-request files the factory writes itself) is accepted.
+- `--input base=<ref> --input pr=<number>` together: they name two different diffs, so it cannot tell which one to use. Give only one.
+
 ### test_cmd and worktrees
 
 `--input test_cmd='<one line>'` is one line that runs the target's tests. It runs at the root of the run's worktree. The run's worktree (and the unit worktrees in which the fix stage fixes things side by side) is created from a commit, so it lacks everything git ignores (dependency folders, virtual environments, build output, `.env`, and so on). Make it one line that sets up the environment inside the worktree and then runs the tests, and do not point at the original clone with an absolute path. The target's commands run with your HOME, so pointing at the original clone with `~` or `$HOME` is the same thing (it points at the original clone even inside the run).
