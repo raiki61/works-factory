@@ -80,10 +80,8 @@ def _sum(n: int, run: dict, through: set[str]) -> dict:
         if not usage:
             continue
         runlog.add_tokens(tokens, usage)
-        # input は新しく読んだ分と cache の読み書きの和（lib/runlog.py の add_tokens）。和より小さい手番は引けないので数だけ持ち、
-        # 新しく読んだ分 uncached を出さない
-        if all(field in usage for field in runlog.CACHE_FIELDS) and usage["input"] < usage["cacheRead"] + usage["cacheWrite"]:
-            odd += 1
+        # 和より小さい手番は引けないので数だけ持ち、新しく読んだ分 uncached を出さない
+        odd += four(usage)["odd"]
     if odd:
         tokens.pop(runlog.UNCACHED, None)
     tokens = {**{field: 0 for field in runlog.TOKEN_FIELDS}, **tokens, "odd": odd}
@@ -98,6 +96,19 @@ def _sum(n: int, run: dict, through: set[str]) -> dict:
             "turns": sum(e.get("turns") or 0 for e in own),
             "rounds": len({(e["run"], *e["path"].split(shape.IN_LOOP)[:-1], *e["loop"]) for e in own if e["loop"]}),
             "cost": round(sum(e["cost"] for e in own), 6), "tokens": tokens}
+
+
+def four(usage: dict) -> dict:
+    """手番 1 回の 4 分けのトークンと新しく読んだ分 uncached（lib/runlog.py の add_tokens と同じ訳。input は新しく読んだ分と cache の
+    読み書きの和で、cache の欄が欠けた手番は uncached を出さずに cacheUnknown を持つ）。input が cache の 2 つの和より小さい手番は
+    引けないので uncached を出さずに odd を真にする（包みの関係は Claude Code と Archon の版で変わりうるので決まりとして照らさない）。
+    段の集計と無駄の手がかり（src/waste.py）が使う"""
+    got = {}
+    runlog.add_tokens(got, usage)
+    odd = all(field in usage for field in runlog.CACHE_FIELDS) and usage["input"] < usage["cacheRead"] + usage["cacheWrite"]
+    if odd:
+        got.pop(runlog.UNCACHED, None)
+    return {**got, "odd": odd}
 
 
 def _role(kind: str) -> str:
