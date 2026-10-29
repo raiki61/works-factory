@@ -277,6 +277,7 @@ eyes__ins:
   head: hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh
 eyes__structure-after__measure:
   eye: false
+  sketch: false
   reason: ''
 eyes__structure-after__finish:
   ok: true
