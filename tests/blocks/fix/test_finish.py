@@ -214,6 +214,24 @@ class CollectCase(FinishPlace):
         self.assertEqual(out["untested"], [{"group_id": "g1", "weapon": "static", "units": ["A"], "why": "文書の言い回しだけ",
                                             "files": [{"path": "docs/a.md", "kind": "docs"}]}])
 
+    def test_finish_returns_ok_false_when_the_returned_rows_do_not_fit_its_output_format(self):
+        """返しの控えの行が finish の output_format に合わない時も finish は落ちない（fallback も同じ行を持つので、2 度目の照らしで
+        removed_tests・untested を空にし、訳を tdd_refused.unread に載せて ok: false で返す。#922 の独立の目の 1）"""
+        self.collect_place()
+        script = kit.BLOCKS / "fix" / "scripts" / "finish.py"
+        wrap = (f"import runpy, sys; sys.argv = [{str(script)!r}]; sys.path[:0] = [{str(kit.SHARED)!r}, {str(kit.BLOCKS / 'fix')!r}]; "
+                "import ports; from src import finish; "
+                "finish.returned_rows = lambda place: ([{'group_id': 'g1', 'weapon': 'remove', 'units': [], 'tests': [], 'only_removed': []}], []); "
+                f"runpy.run_path({str(script)!r}, run_name='__main__')")
+        env = hermetic.child_env(**{**self.run.environ(include="finish"), "PYTHONDONTWRITEBYTECODE": "1"})
+        done = subprocess.run([sys.executable, "-c", wrap], cwd=self.repo, env=env, capture_output=True, text=True, encoding="utf-8")
+        self.assertEqual(done.returncode, 0, done.stderr)
+        out = json.loads(done.stdout)
+        self.assert_contract(out)
+        self.assertFalse(out["ok"])
+        self.assertEqual((out["removed_tests"], out["untested"]), ([], []))
+        self.assertTrue(any("返しの控えの行を返せない" in u for u in out["tdd_refused"]["unread"]), out["tdd_refused"])
+
     def test_collect_returns_the_beside_records_as_ports(self):
         """#681: 出力は diff の隣の控えを欄の pointer で返す（先が無ければ null）。tdd-unit.json は finish が書く"""
         self.collect_place()
