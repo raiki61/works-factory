@@ -313,7 +313,7 @@ Return only JSON that matches the output schema.
 - まとめた: md と lib で 2 回言っていた「渡すのは元の目的と実測した制約だけ」（`r2-design.md:4`）と、それを読み替えさせる文（`DESIGN_PREMISE_REREAD`、`boardview.py:100-101`）を、渡す物を正しく並べた役の定義の 1 か所に。読み替えの文は要らなくなった。
 - まとめた: 「囲みの中に…」の説明（`r2-design.md:6`）と、本文を挟む区切り「=====渡した物ここから=====」「=====渡した物ここまで=====」（:9・:11）は、本文が md の節になったので消した。
 - まとめた: 却下の段落 2 つ（`r2-design.md:7` の「囲みの頭に…セクションが在れば」と、`rolekit.with_reject` が頭に貼る「## 前の回の受け付けが拒んだ理由」`lib/rolekit.py:187-192`）を、共通の断片 `{shared:rejected}` の 1 回に。決まりは今と同じ「丸ごと出し直せ」。理由は今と同じく古い順に全部。
-- 消した: 前提のドリフトの行「前提のドリフト（あれば）: （無い）」（`DRIFT_LINE`、`boardview.py:108`）。修正の前に 1 度だけ走る独立設計では値がいつも「（無い）」（#210 `2c049f3c`）。下げている所の行（`downgrades`）が、ドリフトを設計の入力に載せないことを人に言う（今のまま）。
+- 消した: 前提のドリフトの行「前提のドリフト（あれば）: （無い）」（`DRIFT_LINE`、`boardview.py:108`）。修正の前に 1 度だけ走る独立設計では値がいつも「（無い）」（#210 `5979c7fd`）。下げている所の行（`downgrades`）が、ドリフトを設計の入力に載せないことを人に言う（今のまま）。
 - 消した: 始めの記録が届かない時の名指しの節の 1 行（`NOT_GIVEN_START`、`boardview.py:113`）。block は始めの記録を受けないので、この場合が無い。依頼のファイルが無い時は名指しの節を貼らない（今の「依頼のファイル無し」と同じ）。
 - 足した: 言語の 1 文（`{lang}`）。今の指示は日本語で書かれていたので返答も日本語になっていた。英語にした指示で人に見せる欄の言語を保つため（#764 の求め）。
 - 足した: 役の定義の「人の方針（在る時）」の句。今も方針は本文の後ろに貼られていたが（`boardview.py:743-744`）、指示が渡す物として名指していなかった。
@@ -371,13 +371,13 @@ bin/works-factory workflow run works-factory-independent-design \
 
 工場に無い物・違う物と、その訳:
 
-1. 役を Git の外の置き場で起こす（元の works の `.shared/core/adapter.py:70-71,1089-1090,1305-1313`、graphloops の `engine/commands.py:495-503`）: 工場は作業ツリーで起こし、既定の system prompt を役の前付けだけに替えて枝と最近の commit を渡さない形にした（#73 `017d2238`。本流の main の `d50e5246`）。この block も同じ（1.3）。作業ツリーの cwd に起きることで Archon か Claude Code が別の環境の情報を足すかは（未確認）。
+1. 役を Git の外の置き場で起こす（元の works の `.shared/core/adapter.py:70-71,1089-1090,1305-1313`、graphloops の `engine/commands.py:495-503`）: 工場は作業ツリーで起こし、既定の system prompt を役の前付けだけに替えて枝と最近の commit を渡さない形にした（#73 `017d2238`。本流の main の `89770074`）。この block も同じ（1.3）。作業ツリーの cwd に起きることで Archon か Claude Code が別の環境の情報を足すかは（未確認）。
 2. 周ごとの作り直し（graphloops は機構を足す・替える周、前提のドリフト、差分の大きさの変わり、前提の検算の後に起こし直す。`rules/review-loop.py:424-428,1611-1617,4008-4012`）: 工場は run で 1 度だけ作る（#73 `67bf8383`。`boardview.r2_due` の docstring が外した条件を名指す）。この block も 1 回だけ include される（1.6）。下げている所の行が人に言う。
-3. 前提のドリフトの行（graphloops は `hist.drift_notes` で埋める）: 工場ではいつも「（無い）」（#210 `2c049f3c`）。この block は行ごと消した（2.6）。
-4. 役の定義を別のファイルから足す（元の works の `rolekit.with_role_definition`、`design.py:539`）: 工場は `systemPrompt` に字のまま書いた（（未確認）: 意図の記録なし。#232 `d91c4b49` は `lib/agents/blind-judge.md` を試験が読む元として残した）。この block は共通の断片 `role-blind-judge` を system prompt の md に差し込むので、元の works と同じく定義が 1 か所になる。
+3. 前提のドリフトの行（graphloops は `hist.drift_notes` で埋める）: 工場ではいつも「（無い）」（#210 `5979c7fd`）。この block は行ごと消した（2.6）。
+4. 役の定義を別のファイルから足す（元の works の `rolekit.with_role_definition`、`design.py:539`）: 工場は `systemPrompt` に字のまま書いた（（未確認）: 意図の記録なし。#232 `e0de3403` は `lib/agents/blind-judge.md` を試験が読む元として残した）。この block は共通の断片 `role-blind-judge` を system prompt の md に差し込むので、元の works と同じく定義が 1 か所になる。
 5. 受け付けで返答の型をもう 1 度照らす（元の works の `accept.type_errors`、`design.py:593`）: 工場は `output_format` に任せた（（未確認）: 意図の記録なし）。この block も `output_format` に任せる（Archon が型に合わない返答を落とし、`retry` が起こし直す）。
 
-この block が両方より良く、残す物: 要素 D1… を必須で重ならずに返させる（#621 `dcd54b6c`。両方に無い）・審査する変更が足した行を名指す制約に印を付け、自明の根拠に数えさせない（#418・#423 `f026b324`）・問いが立たない根拠の `<パス>:<行>` を固めた版で検算する（graphloops に無い）・却下の理由を古い順に全部渡す（元の works は最後の 1 つ）・渡さなかった物の控え `withheld` と、「渡されていない」の文と渡した物の対 `claims`・組んだ指示と作業ツリーの姿を place に残す・起動の誤りの `retry`。
+この block が両方より良く、残す物: 要素 D1… を必須で重ならずに返させる（#621 `3fc58956`。両方に無い）・審査する変更が足した行を名指す制約に印を付け、自明の根拠に数えさせない（#418・#423 `c919843a`）・問いが立たない根拠の `<パス>:<行>` を固めた版で検算する（graphloops に無い）・却下の理由を古い順に全部渡す（元の works は最後の 1 つ）・渡さなかった物の控え `withheld` と、「渡されていない」の文と渡した物の対 `claims`・組んだ指示と作業ツリーの姿を place に残す・起動の誤りの `retry`。
 
 ## 7 受け付けの外の確かめ（intake）
 

@@ -170,7 +170,7 @@ Write `why` and `findings_none` in the language of the request (the user's langu
 
 ### 2.7 元の works と graphloops の同じ場面
 
-- 元の works の `works/blk-lens/`（振り分け `lens-route` → レンズの節 → 集め役 → 境。出口 `{ok, reason, lens_file}`）: 形はこの block と同じ（振り分けが go を返し、レンズごとに節が在り、節ごとに model を持てる）。工場は fix の中に写した（#94）。この block は元の独立の形に戻す。違い: 元はレンズの節の model・effort を段に直に書いた（`sonnet`・`medium`）。工場は群 `@wf-fix-review`（同じ sonnet・medium）にした（`d0b086a2`）。この block も群のまま。元の境の node（集め役が終わらなければ盤面を止める）は、この block では出口の `ok: false` で、止めるかは line が決める。
+- 元の works の `works/blk-lens/`（振り分け `lens-route` → レンズの節 → 集め役 → 境。出口 `{ok, reason, lens_file}`）: 形はこの block と同じ（振り分けが go を返し、レンズごとに節が在り、節ごとに model を持てる）。工場は fix の中に写した（#94）。この block は元の独立の形に戻す。違い: 元はレンズの節の model・effort を段に直に書いた（`sonnet`・`medium`）。工場は群 `@wf-fix-review`（同じ sonnet・medium）にした（`d337f840`）。この block も群のまま。元の境の node（集め役が終わらなければ盤面を止める）は、この block では出口の `ok: false` で、止めるかは line が決める。
 - graphloops: 修正の後のレンズは無い（判定の前の局所レビューは素材の観点 local-review の物で、この block と触れない。元の works の `blk-lens` の頭の説明）。
 - 持ち主の決め `lens-per-node`（2026-10-01）・`code-review-lens`（標準の /code-review を兵隊に入れ、精度の高い方を残す）: 今はレンズの表が 1 行で、/code-review のレンズは入っていない。表に足すのは振る舞いを変える話なので、この作り直しの外（11 節）。
 

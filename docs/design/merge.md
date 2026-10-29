@@ -178,13 +178,13 @@ bin/works-factory workflow run works-factory-merge \
 
 工場に無い物・違う物と、その訳:
 
-1. 計画が許したテストの書き換えを、守りのファイルと同じ確かめに通す（元の works は許したテストの一覧を 2 つ目の守りの一覧として同じ確かめに入れ、承認ノードを必ず開いた。`line_edge.py:643-645`）: 工場は別の節にして、今も最後の承認ノードを必ず開く（`ask_final.py:66,170`。#264 `86c3f28c`・`b0708f49`）。ただし apply の拒みの決まり（`seal.apply_refusal`）には許したテストの入力が無い。計画の M30（`docs/plans/2026-10-13-line-wiring.md:336,341`）は「答えが無ければ置かない」と書き、graph の上では承認ノードが必ず開き無人の run は止まるので、答えの無い apply には届かない。apply で拒まないと決めた記録は無い（（未確認））。この block も今のまま足さない（足すのは振る舞いの変更で、作り直しの外）。
-2. 守りの一覧が壊れている時: 元の works は誤りの文と空の当たりを返した（`line_edge.py:640-647`）。工場は確かめられない行を当たりとして数える（#66 `73971978`）。この block も同じ。
-3. 当てる道の旗: 元の works は止まった run を環境変数 `WORKS_USE_ALLOW_STOPPED=1` で通した（`use.sh:405-428`）。工場は `bin/apply` の 1 回ごとの旗 `--allow-stopped`（#114 `39354afc`・`afbc62b4`）。この block の外（`bin/`）。
-4. 出口の語 pr（元の works と graphloops に無い）: 工場が足した（#729 `4d885316`・`e810ce72`、項目ごとの commit は #569 `b2d1e58d`、hooks を利用者の環境で走らせるのは #759 `9fa376ba`）。push と PR の作成は同梱の `archon-pr` に任せる（持ち主の決め `deliver-via-archon-pr`、`docs/owner-decisions.md:381-392`、issue #555）。自前の push と PR の道（gh の探し方の写し・gh の旗の自前の読み・push の hooks を飛ばす）は、持ち主の決め `no-tool-quirks` と `concept-home` に反するとして採らなかった。
-5. 入力 `diff`: 工場は意図して外した（#266 `3adce5e5`「merge の読まない入力 diff をやめ」）。`merge.py` は入力の差分を読まず、作業ツリーと根から組み直して指紋と照らすので、使われない入力が層の柵の許しの行で隠れていた。この block も持たない（10 節の 2）。
+1. 計画が許したテストの書き換えを、守りのファイルと同じ確かめに通す（元の works は許したテストの一覧を 2 つ目の守りの一覧として同じ確かめに入れ、承認ノードを必ず開いた。`line_edge.py:643-645`）: 工場は別の節にして、今も最後の承認ノードを必ず開く（`ask_final.py:66,170`。#264 `cb21409c`・`b0708f49`）。ただし apply の拒みの決まり（`seal.apply_refusal`）には許したテストの入力が無い。計画の M30（`docs/plans/2026-10-13-line-wiring.md:336,341`）は「答えが無ければ置かない」と書き、graph の上では承認ノードが必ず開き無人の run は止まるので、答えの無い apply には届かない。apply で拒まないと決めた記録は無い（（未確認））。この block も今のまま足さない（足すのは振る舞いの変更で、作り直しの外）。
+2. 守りの一覧が壊れている時: 元の works は誤りの文と空の当たりを返した（`line_edge.py:640-647`）。工場は確かめられない行を当たりとして数える（#66 `65b77c6b`）。この block も同じ。
+3. 当てる道の旗: 元の works は止まった run を環境変数 `WORKS_USE_ALLOW_STOPPED=1` で通した（`use.sh:405-428`）。工場は `bin/apply` の 1 回ごとの旗 `--allow-stopped`（#114 `25ec95b9`・`afbc62b4`）。この block の外（`bin/`）。
+4. 出口の語 pr（元の works と graphloops に無い）: 工場が足した（#729 `4d885316`・`e810ce72`、項目ごとの commit は #569 `b2d1e58d`、hooks を利用者の環境で走らせるのは #759 `6b48c869`）。push と PR の作成は同梱の `archon-pr` に任せる（持ち主の決め `deliver-via-archon-pr`、`docs/owner-decisions.md:381-392`、issue #555）。自前の push と PR の道（gh の探し方の写し・gh の旗の自前の読み・push の hooks を飛ばす）は、持ち主の決め `no-tool-quirks` と `concept-home` に反するとして採らなかった。
+5. 入力 `diff`: 工場は意図して外した（#266 `e0865fd3`「merge の読まない入力 diff をやめ」）。`merge.py` は入力の差分を読まず、作業ツリーと根から組み直して指紋と照らすので、使われない入力が層の柵の許しの行で隠れていた。この block も持たない（10 節の 2）。
 
-この block が両方より良く、残す物: 封じた hash を書いて読み戻し、apply・pr の積む前・積んだ後・`bin/apply` の 4 か所で照らす（#66。人が承認した差分と出ていく差分が同じことが確かめられる）・緑の認証の指紋を seal と apply で照らし直す（試験の後に変わった木を緑として出さない）・R2 の作り直しは人の通しの答えでも部分を取り込まない・守りの一覧と宣言が壊れていても確かめられない行で拒む側に倒れる・対象のリポジトリが自分の守りのファイルを宣言でき、差分の根の版の物を読む（修正が宣言を緩めても効かない。#178 `2e392b7a`）・当たりの行を出力では短く切り、全件を place に残す・落ちない（拒んだやり直しに古い `apply.diff` を残さない）・照らすだけの形 check（鎖）・PR は既定の枝の名を拒み、作った PR を枝・版・向け先まで読み戻し、確かめられなければ「確かめられなかった」と言う。
+この block が両方より良く、残す物: 封じた hash を書いて読み戻し、apply・pr の積む前・積んだ後・`bin/apply` の 4 か所で照らす（#66。人が承認した差分と出ていく差分が同じことが確かめられる）・緑の認証の指紋を seal と apply で照らし直す（試験の後に変わった木を緑として出さない）・R2 の作り直しは人の通しの答えでも部分を取り込まない・守りの一覧と宣言が壊れていても確かめられない行で拒む側に倒れる・対象のリポジトリが自分の守りのファイルを宣言でき、差分の根の版の物を読む（修正が宣言を緩めても効かない。#178 `1224be54`）・当たりの行を出力では短く切り、全件を place に残す・落ちない（拒んだやり直しに古い `apply.diff` を残さない）・照らすだけの形 check（鎖）・PR は既定の枝の名を拒み、作った PR を枝・版・向け先まで読み戻し、確かめられなければ「確かめられなかった」と言う。
 
 ## 7 組み込みの時に block の外で直す所（この block の PR では触らない）
 
@@ -215,7 +215,7 @@ bin/works-factory workflow run works-factory-merge \
 ## 10 自分で決めた事
 
 1. PR の作成を、Archon 同梱の `archon-pr` を `workflow:` で子の run として起こす今の形のまま block の中に置く。根拠: 持ち主の決め `deliver-via-archon-pr`（`docs/owner-decisions.md:381-392`）と、根の `AGENTS.md` の E8 の外し（「外しは 1 つだけ: 出口の語 pr の時に merge が `workflow:` で起こす `archon-pr`」）。README 7.1 の 6 は「block の `workflow:` は自分の YAML の名だけ」と書くので、この 1 つの外しを形の検査に足す要がある（README の直し）。外しを line に移す形（merge が枝を返し、line が `archon-pr` を起こし、もう 1 度 merge が読み戻す）は、積む・作る・読み戻すの 1 つの流れが 2 つの block と graph に割れ、`handed.py` の `unconfirmed` の判じ（子の run が落ちたか）が block をまたぐ。
-2. 入力 `diff` を持たない（README の 8.4 は `diff file` を書く）。根拠: #266 `3adce5e5` が意図して外した（読まない入力。差分は作業ツリーと根から組み直し、指紋と照らす）。README 1.3 の変更の歩かせ（代表の commit を新しい形の上で紙で辿った検討）の 4 項が、この commit を歩かせている。README の 8.4 の直し。
+2. 入力 `diff` を持たない（README の 8.4 は `diff file` を書く）。根拠: #266 `e0865fd3` が意図して外した（読まない入力。差分は作業ツリーと根から組み直し、指紋と照らす）。README 1.3 の変更の歩かせ（代表の commit を新しい形の上で紙で辿った検討）の 4 項が、この commit を歩かせている。README の 8.4 の直し。
 3. 形を `seal`・`apply`・`check` の 3 つにする（README の 8.4 は `seal|apply`）。根拠: chain の `hand` が `check` を使う（`workflows/chain/works-factory-chain.yaml:384-395`）。消すと鎖の PR の道が落ちる。
 4. 出力の欄の名を今のまま（`hash`・`diff`・`protected_hits`・`protected_count`・`deliver`）にする（README の 8.4 は `sealed`・`protected_hits`・`pr` と書く）。根拠: line の最後の承認ノード（`ask_final.py` の `SEAL`）・`bin/apply`（--allow-failed で run の記録から読む欄）・chain・報告が今の名で読む。README の名は中身の言い方で、名を替えると読み手の全部と `bin/` が動く。
 5. 差分の根を 3 つの形とも port `base` 1 つで受け、必須にする。根拠: README 4.2（始めの記録を読まない）。今は seal と apply が始めの記録から、check が入力から読み分けていたが、どれも同じ意味（差分の根）。根の無い run は今も `ok: false` なので、必須にして読み込みの時に名指す。

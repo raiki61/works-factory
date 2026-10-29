@@ -269,7 +269,7 @@ run の入口で機械が確かめる事（どれも yes/no。どれかが欠け
 
 試し方:
 
-- 対象: works-factory の clone を commit `c0ce145`（#765 の設計書を置いた commit。block の `workflows/world/` はまだ無く、今の形は `lib/worldblk.py` と judge の中の node）で切り、枝に表の見本 1 本を足した物。起動は今の工場（この PR〔#809〕の元の main）の `bin/works-factory`。
+- 対象: works-factory の clone を commit `659fb70`（#765 の設計書を置いた commit。block の `workflows/world/` はまだ無く、今の形は `lib/worldblk.py` と judge の中の node）で切り、枝に表の見本 1 本を足した物。起動は今の工場（この PR〔#809〕の元の main）の `bin/works-factory`。
 - 仕様の見本: 設計書は `docs/design/world.md`（その commit の版。334 行）、表は手で書いた `docs/design/world.spec.yaml`（目的 1 文・受け入れの条件 4 件〔単独で回る・抜き書きの照らし・web off の道・言い直しの諦め〕・触らない物 2 件・`test_cmd` は空）。
 - 部品に渡す入力は、表と設計書から機械的に組んだ（下の「部品ごとの呼び方」。block の入口の入力の組み立て〔6.7〕はこの組み方を写す）。
 

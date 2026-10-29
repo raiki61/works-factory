@@ -229,7 +229,7 @@ This viewpoint has no condition under which it does not apply, so the acceptance
 Return only JSON that matches the output schema.
 ```
 
-渡し物の中身（例の run）: `cwd` は run の作業ツリー、`base` は `4428f368d229f2d4f4343122c620c3fdeb334184`、`changed_files` は `["workflows/merge/scripts/pr_commit.py"]`、`request_wheres` は `["workflows/merge/scripts/pr_commit.py の hook_env（73 行あたり）"]`、`fallback` は「並行 PR と 1 件交差した（['756']）——交差した hunk を読んで担当の PR に申し送る 6 段は役」。place のパスは include の道（`judge/parallel-pr/`）が入った形で書いた。役は 1 回目で通り、`material.status: found`・`conflicts` 1 行（#756）・`excluded: []` を返した。
+渡し物の中身（例の run）: `cwd` は run の作業ツリー、`base` は `4961c50a53410f4bdc4dfb5ece8a4ca13612a916`、`changed_files` は `["workflows/merge/scripts/pr_commit.py"]`、`request_wheres` は `["workflows/merge/scripts/pr_commit.py の hook_env（73 行あたり）"]`、`fallback` は「並行 PR と 1 件交差した（['756']）——交差した hunk を読んで担当の PR に申し送る 6 段は役」。place のパスは include の道（`judge/parallel-pr/`）が入った形で書いた。役は 1 回目で通り、`material.status: found`・`conflicts` 1 行（#756）・`excluded: []` を返した。
 
 ### 2.6 今の指示との差
 
@@ -283,19 +283,19 @@ bin/works-factory workflow run works-factory-parallel-pr \
 
 ## 6 元の works と graphloops の同じ場面
 
-元の works の `works/blk-pr/`（pr-snap・pr-loop〔pr-check と pr-accept〕・pr-reads・collect）から、工場はほぼ同じコードを写した（#76 `0c4a6793`）。graphloops の `prompts/review-loop/p0.parallel_pr.md`（`graphs/review-loop.json:1833-1975`）は書き手が自分で回す節で、任せ先に落ちるのは機械が決められない時だけ。工場に無い物・違う物と、その訳:
+元の works の `works/blk-pr/`（pr-snap・pr-loop〔pr-check と pr-accept〕・pr-reads・collect）から、工場はほぼ同じコードを写した（#76 `37b7a693`）。graphloops の `prompts/review-loop/p0.parallel_pr.md`（`graphs/review-loop.json:1833-1975`）は書き手が自分で回す節で、任せ先に落ちるのは機械が決められない時だけ。工場に無い物・違う物と、その訳:
 
 1. 担当の PR へ投稿する（graphloops の 6 段は `handed_over: true` で投稿する）: 工場と元の works は下書きだけ。持ち主の決め 2026-09-27（元の works の `docs/specs/2026-09-29-darkfactory-single-run-design.md:33,402` の「案 (a)」）。工場の `docs/owner-decisions.md` にはこの決めの行が無く、跡は `NO_POST` の字と md だけ（（未確認）: 工場の台帳に書き写さなかった訳の記録は無い）。この block は下書きのまま。
 2. 周の条件（graphloops の `parallel_pr_due`。1 周目か、判定から入る run の最初の修正の次の周で回し直し、変更ファイルの集合をその周に固めた版から取り直す）: 工場は写したが使っていない（`lib/judge_accept.py:1612` の関数を名指す節が無い。judge の `pr-scan` は判定の道で 1 回だけ走る）。（未確認）: 外した記録は無い。block は周を知らないので、回し直すかは line の `when:` の決め（line の設計書で扱う）。この block は呼ばれれば今の作業ツリーで数える。
 3. 素材の札ごとの要る欄の照らし（graphloops の `check_record`〔`rules/review-loop.py:4316`〕と元の works の `b.done`。found は count と detail、clean は checked、ほかは reason が要る。carried_over を走った役が書くのを拒む）: 工場は `status` が語のどれかしか見ない（`judge_accept.py:3621-3623`）。md は「流用と書いても拒まれる」と言うのにコードは拒まない。（未確認）: 外した記録は無い。この block の受け付けで戻す（4 節の 4）。graphloops の `na_self_ok: false` に当たる「役は not_applicable を名乗れない」も戻す。
 4. 役の前の作業ツリーの写し（元の works は役の直前に `pr-snap` が取った）: 工場は judge の入口か仕様の承認の後の写し `judge/judge-tree.json` と比べる（#76 から。（未確認）: 訳の記録は無い）。この block は元の works と同じく役の直前（`scan`）で取る。
-5. 外す hunk の読み手: 元の works は判定・修正案・修正に渡す作りだったが配線が無く報告にだけ届いた（`darkfactory.yaml:483,689`）。graphloops は書き手の会話の記憶だけ。工場は plan・plan-review・案の直しと事前審査の頭（`planblk.head`。#699 `10535024`）・再審の材料（`judge_accept.py:3231`）・報告（`runreport.pr_lines`）・`boardview`・`pass_open` が読む。fix と diagnose には渡らず、外した範囲を直したら拒む機械の関門は無い（`fixboard.JUDGE_COPIES` に無い）。`text`・`sha256` の印を読む物はどちらのリポジトリにも無い。この block は形を変えずに出す（読み手を足すかは各 block と line の決め）。
-6. 下げた物の宣言 `lib/downgrades.json`（2 行。p0.parallel_pr の投稿しない事と r2.design の作り直さない事）: 読むのは報告の頭の「下げている所: K 個」だけ（`runreport._downgrade_lines`、#264 `86c3f28c`）。`docs/nodes.json:191-199` の 7 行の一覧と数も字も合っていない。元の works は宣言の node が graph に在るかも照らした（元 `prcheck.py:322`。工場で落ちた。（未確認））。2 つの block の事を 1 つのファイルに持つ形は block の独立に合わないので、この block は自分の行だけを出力の欄 `downgrades` で返す（10 節の 8）。ファイルと読み手の組み直しは report の設計書の決め。
+5. 外す hunk の読み手: 元の works は判定・修正案・修正に渡す作りだったが配線が無く報告にだけ届いた（`darkfactory.yaml:483,689`）。graphloops は書き手の会話の記憶だけ。工場は plan・plan-review・案の直しと事前審査の頭（`planblk.head`。#699 `8b847357`）・再審の材料（`judge_accept.py:3231`）・報告（`runreport.pr_lines`）・`boardview`・`pass_open` が読む。fix と diagnose には渡らず、外した範囲を直したら拒む機械の関門は無い（`fixboard.JUDGE_COPIES` に無い）。`text`・`sha256` の印を読む物はどちらのリポジトリにも無い。この block は形を変えずに出す（読み手を足すかは各 block と line の決め）。
+6. 下げた物の宣言 `lib/downgrades.json`（2 行。p0.parallel_pr の投稿しない事と r2.design の作り直さない事）: 読むのは報告の頭の「下げている所: K 個」だけ（`runreport._downgrade_lines`、#264 `cb21409c`）。`docs/nodes.json:191-199` の 7 行の一覧と数も字も合っていない。元の works は宣言の node が graph に在るかも照らした（元 `prcheck.py:322`。工場で落ちた。（未確認））。2 つの block の事を 1 つのファイルに持つ形は block の独立に合わないので、この block は自分の行だけを出力の欄 `downgrades` で返す（10 節の 8）。ファイルと読み手の組み直しは report の設計書の決め。
 7. 機械の道が落ちた時（元の works の `run_helper` は 1 回やり直して、AI の前に `Refused` で止めた）: 工場は役に任せる（`pr_check.py:18-21`。持ち主の台帳 J32「起こし直しは当たらない」`docs/plans/2026-10-13-capabilities/judge.md:213`）。この block も役に任せる。
 8. 拒まれた後の出し直し（元の works は理由のファイルを読ませ「名指された所だけ直せ」）: 工場は理由を貼って丸ごと出し直させる（#76・#191）。この block も丸ごと（理由は古い順に全部。2.6）。
-9. 読むだけの口 `works-gh` と網の閉じた sandbox: 元の works と同じ（#21 `f1a419d4`・#103 `7cd46ab2`・持ち主の決め `roles-read-only-gh`）。工場は役の環境から GitHub のトークンを外す（#103・#152 `58ed7d4a`）と、Archon の家への書き込みの禁止（#591 `0b1afae3`）を足した。どちらも YAML のまま写す。
+9. 読むだけの口 `works-gh` と網の閉じた sandbox: 元の works と同じ（#21 `622aee9b`・#103 `521f2086`・持ち主の決め `roles-read-only-gh`）。工場は役の環境から GitHub のトークンを外す（#103・#152 `a0dc5e32`）と、Archon の家への書き込みの禁止（#591 `b1c7c9a7`）を足した。どちらも YAML のまま写す。
 
-この block が両方より良く、残す物: `-R HOST/OWNER/REPO` のホストまで書く読み（#203 `36be5332`。GHES を取り違えない）・機械の道が落ちても役に任せる・外への検索の決まり・外す hunk が案と事前審査と再審に届く（#699）・役のトークンを外す（#103・#152）・読んだ証拠の node（#363 `22c70be3`）。
+この block が両方より良く、残す物: `-R HOST/OWNER/REPO` のホストまで書く読み（#203 `24229596`。GHES を取り違えない）・機械の道が落ちても役に任せる・外への検索の決まり・外す hunk が案と事前審査と再審に届く（#699）・役のトークンを外す（#103・#152）・読んだ証拠の node（#363 `6217c6a7`）。
 
 ## 7 試験
 

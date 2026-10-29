@@ -196,7 +196,7 @@ Your tools are Read, Grep, Glob, Bash, WebSearch, and WebFetch. …
 ## Materials
 
 - Repository: ~/.local/state/works-factory/targets/6c76444e/archon-home/workspaces/raiki61/works-factory/worktrees/archon/task-works-factory-line-1792348017642
-- Base commit: 4428f368d229f2d4f4343122c620c3fdeb334184
+- Base commit: 4961c50a53410f4bdc4dfb5ece8a4ca13612a916
 - Files the target diff touches: []
 - Places the request points to (in a run that enters at the judgment; `[]` in a run with a diff): [
  "workflows/merge/scripts/pr_commit.py の hook_env（73 行あたり）"

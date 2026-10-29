@@ -418,7 +418,7 @@ Notes that earlier rounds of you wrote, named by the machine, oldest first. …
   - 検証器の関所（graphloops の `pre: finalize`。通らなければ書き手は起きない）: 工場は結末の語 `record_invalid`（結果を名乗れない run）で書き手のループを飛ばす形にした（#68。`lib/outcome.py` の docstring の 4）。この block も同じ（`ai_go`）。
   - 判定者の生の返答を指示に貼る形: 工場は書き手に判定のファイルを Read させ、構成 7 で「要約で丸めず転記」と求める（#68）。この block も同じ。
   - 周の全部の推移: 工場は 1 run = 1 周（持ち主の決め carry）で、周をまたぐ推移は chain が持つ。この block も持たない。
-  - 冒頭 3 行: 元の works と graphloops は書き手が書いた。工場は機械が run の記録から組む（#660、`427b679c`）。この block も同じ。
+  - 冒頭 3 行: 元の works と graphloops は書き手が書いた。工場は機械が run の記録から組む（#660、`860a242d`）。この block も同じ。
   - 周ごとに新しい会話で起こし、引き継ぎのメモで渡す: 工場の足し（#589）。元の works は同じ会話で出し直させた。この block も持つ。
   - 書き手のループが落ちた run を failed で終え、別のアカウントの resume で書き手だけを走り直す: 工場の足し（#702）。この block も持つ（4 節の finish）。
   - line の node の id と順の決め打ち: 工場は外した（#682）。この block は `sections` と `facts` で受けるので、line の node の id を 1 つも持たない。

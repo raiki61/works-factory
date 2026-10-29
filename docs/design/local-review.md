@@ -264,7 +264,7 @@ Your tools are Read, Grep, Glob, Bash, WebSearch, WebFetch, Skill (to start a sk
 
 - Target diff: ~/.local/state/works-factory/targets/316e3bbc/archon-home/workspaces/<owner>/<repo>/artifacts/runs/53e71318-ac9f-4468-ae72-5f6ed569a667/judge/local-review-run/diff.patch (a copy of the diff from the base commit `7defb7ec5fac098b7302f5bfc11a02f151f4d262` to …)
 - List of changed files: ~/.local/state/works-factory/targets/316e3bbc/…/runs/53e71318-…/judge/local-review-run/changed-files.txt (…)
-- Review viewpoints: ~/.cache/works-factory-plugin/56032b5a88e2add0e1bda0949986271e1f649ea6/lib/REVIEW.md. …
+- Review viewpoints: ~/.cache/works-factory-plugin/2eff50966651bb961c234169d7381fc86fc756be/lib/REVIEW.md. …
 - The target repository's own review viewpoints: ~/.local/state/works-factory/targets/316e3bbc/archon-home/workspaces/<owner>/<repo>/worktrees/archon/task-works-factory-line-1792307529854/REVIEW.md. Read it too.
 
 The lenses to start (…):
@@ -349,7 +349,7 @@ prior-decisions.md の 2.6 の族に共通の差（材料のファイルを指�
 族の形の差は materials.md の 9 節。この観点だけの差:
 
 - 元の works の `works/blk-material/commands/local-review.md`（8 行）は、engine が描いた graphloops の指示書のファイル（`prompt_file`）を Read で読ませる薄い md だった。工場は graphloops の指示書を md の中に写し、値を材料のファイルにした（#76）。新しい形は値も指示の中に入れる。
-- 元の works は局所レビューの役を包みの旗 `text-reply` で起こし（`works/blk-material/blk-material.yaml:480` の `works-node: local-review no-tree-write text-reply`）、返答の型を返答の道具に任せず本文で受けた。旗の訳は、fork で走る `/code-review` が返答の道具を継いで所見を親に返さなくなる形を塞ぐこと（`lib/diverted.py` の docstring）。工場は包みを持ってこず、返答の型は Archon の `output_format` が担う（`docs/concepts.md` の `replycontract` の行。#269 が記録した。包みを落とした決めは `docs/design.md`（#765 で消した。`cbc7297` の版で読める）。PR の番号の記録は無い（未確認））。その代わりに、見ていないレンズの印（`mark_unseen`）を受け付けに置いた（#76）。この block も印を持つ。
+- 元の works は局所レビューの役を包みの旗 `text-reply` で起こし（`works/blk-material/blk-material.yaml:480` の `works-node: local-review no-tree-write text-reply`）、返答の型を返答の道具に任せず本文で受けた。旗の訳は、fork で走る `/code-review` が返答の道具を継いで所見を親に返さなくなる形を塞ぐこと（`lib/diverted.py` の docstring）。工場は包みを持ってこず、返答の型は Archon の `output_format` が担う（`docs/concepts.md` の `replycontract` の行。#269 が記録した。包みを落とした決めは `docs/design.md`（#765 で消した。`583337e` の版で読める）。PR の番号の記録は無い（未確認））。その代わりに、見ていないレンズの印（`mark_unseen`）を受け付けに置いた（#76）。この block も印を持つ。
 - 元の works と graphloops は `/simplify` の持ち越し（`simplify_carried`。前の周の頭の版から 1 ファイルも変わっていない周だけ受ける `_simplify_carry_ok`、`works/blk-material/lib/material.py:421`）を持つ。工場は 1 run = 1 周と決めて持ち越しを受けない（#76 の `carry_ok = False`、持ち主の決め carry）。この block も受けない。返答の型の欄 `simplify_carried` は今のまま残す（型を変えない）。
 - graphloops の今の指示書（`~/src/claude-plugins/graphloops/prompts/review-loop/p1.local_review.md`）は、工場の写し（graphloops 0.21.0）の後の 0.23.0（`921fe1b7`）で、呼び出しの失敗の段を「engine が起こした子」と「会話が回す時」に割った。engine の子の枝は、必須のレンズを起こし直させる所は工場の読み替えの段（md:67）と同じだが、`applies` が真の `required: false` のレンズが起こせなかった時は `failed` に書くだけで material を `awaiting_human` にしない（engine が報告に「未確認のレンズ」として並べる）。工場は今も `awaiting_human` にさせ、受け付けも `invoked` が真でない条件つきのレンズを `awaiting_human` の時だけ通す（`local_review_covers_lenses`）。工場の履歴に、この足しを入れない決めの記録は無い（（未確認）: 写した版がこの足しより前だった）。振る舞いを変える足しなので、この作り直しには入れない。
 - graphloops の node の宣言（`graphs/review-loop.json` の `p1.local_review`）は、レンズの一覧の正本を `skills` の配列 1 か所に置き、`note` は「役に毎周貼られる面なので指示だけを置き、根拠は node の `note` に置く」と決めている。この block は一覧の正本を `src/lenses.py` の 1 か所に置き、指示の文（`note`）を md に置き、根拠は md の実測の 2 文と `src/lenses.py` の docstring に置く。
