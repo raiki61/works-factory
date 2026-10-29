@@ -167,7 +167,7 @@ class PointedAskCase(unittest.TestCase):
         self.assertEqual([k for k, _ in out["items"]], [self.g.POINTED_KIND, self.g.POINTED_KIND])
         canon, rule = out["asked"]
         self.assertIn("docs/canon.md", canon)
-        self.assertIn(self.g.POINTED_BY_ANSWER, canon)
+        self.assertIn(f"{self.g.POINTED_BY_ANSWER}が名指す docs/canon.md", canon)
         self.assertIn("canon", canon)
         self.assertTrue(rule.startswith("AGENTS.md が名指す docs/deploy.adoc"), rule)
         self.assertIsNone(self.gm.push_rec(canon), "従ってよいかは人が決める（機械は推しを作らない）")
@@ -582,6 +582,22 @@ class ScriptCase(unittest.TestCase):
         self.assertEqual((out["open"], out["go"], out["stop_reason"]), (True, True, ""), out)
         self.assertIn(NARROW, out["text"])
         self.assertIn("gate-before-fix", out["text"])
+
+    def test_ask_before_fix_asks_the_structure_pointed_rows(self):
+        """構造の目の控えの版に無い名指しの行が、材料の読み（src.asking.materials）を通って修正前の承認ノードに届く（持ち主の決め pointed-ask）"""
+        record = self.put("r1/start.json", {"answers": []})
+        (self.run.artifacts / "structure" / "design.jsonl").parent.mkdir(parents=True, exist_ok=True)
+        (self.run.artifacts / "structure" / "design.jsonl").write_text("", encoding="utf-8")
+        state = self.put("structure/state.json", {"status": "ok", "reason": "", "wall_s": 0, "skipped": [],
+                                                  "design_file": str(self.run.artifacts / "structure" / "design.jsonl"),
+                                                  "pointed": [PointedAskCase.RULE]})
+        for structure, want in ((state, True), ("null", False)):
+            with self.subTest(structure=structure):
+                out = self.run.script("ask_before_fix", request=handed({}), rounds=json.dumps(rounds()), structure=structure,
+                                      judge=json.dumps({"judgment": None, "answer_ties": None, "materials": None}), record=record,
+                                      ports=self.ports())
+                self.assertEqual((out["open"], out["go"]), (want, True), out)
+                self.assertEqual(any("AGENTS.md が名指す docs/deploy.adoc" in x for x in out["asked"]), want, out["asked"])
 
     def test_before_fix_answer_records_the_asked_rows(self):
         """S46: 答えの asked に載せた行を付け、gates/gate-before-fix.json に書く。方針の変化を通さない答えは配る値の policy のまま"""

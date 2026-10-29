@@ -29,7 +29,6 @@ sys.path[:0] = [str(Path(__file__).resolve().parents[2] / ".shared"), str(Path(_
 import ports  # noqa: E402
 
 PLAN = ("ok", "status", "reason", "round", "owed", "plan", "fix_plan", "reply", "handoff", "ripple", "rejects", "gave_up", "pointed")
-POINTED = ("pointed",)   # plan の出力の欄のうち plan-out の output_format で required でない物
 REVIEW = ("ok", "status", "round", "holes", "blocks", "pass", "asks", "deviations", "reason")
 
 
@@ -106,7 +105,7 @@ def _prior_handoffs(place: Path, files, k: int) -> list:
 def compute() -> dict:
     raw_plan, raw_review = os.environ.get("INPUTS_PLAN"), os.environ.get("INPUTS_REVIEW")
     raw_prior, raw_unattended = os.environ.get("INPUTS_PRIOR"), os.environ.get("INPUTS_UNATTENDED")
-    plan = ports.picked(raw_plan, PLAN, optional=POINTED)
+    plan = ports.picked(raw_plan, PLAN, optional=("pointed",))   # 欄の無い前の版の返りも読む
     if plan is None:
         raise ValueError("plan の出力（plan）が読めない。with: の鍵の結びを確かめる")
     review = ports.picked(raw_review, REVIEW, optional=("gave_up",))

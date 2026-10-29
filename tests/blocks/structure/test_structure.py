@@ -378,6 +378,18 @@ class PointedCase(_RepoCase):
         self.take(self.reply_clean())
         self.assertTrue(any("docs/gone.md" in line and "どの版にも無く" in line for line in self.finish()["report"]))
 
+    def test_an_empty_document_on_another_branch_is_found(self):
+        """ほかの版で見つけたかは在るかで決める（本文が空のファイルを「どの版にも無い」側に入れない）"""
+        git(self.run.repo, "checkout", "-q", "-b", "blank")
+        self.target({"docs/gone.md": ""})
+        git(self.run.repo, "checkout", "-q", "-")
+        self.survey(self.unit)
+        self.take(self.reply_clean())
+        out = self.finish()
+        row = next(r for r in self.read(out["structure"]["path"])["pointed"] if r["path"] == "docs/gone.md")
+        self.assertEqual((row["found"], row["at"]), (True, "blank"))
+        self.assertFalse(any("docs/gone.md" in line and "どの版にも無く" in line for line in out["report"]), out["report"])
+
     def reply_clean(self):
         return {"rows": [clean("u1")]}
 

@@ -61,9 +61,9 @@ def _given(root, rev: str, path: str) -> dict:
 
 
 def pointed(root, rev: str, docs) -> list:
-    """docs の本文が名指したファイルのうち、版 rev に無い物の行 [{path, rev, text, cut, reason, pointed_by, at}]（名指した文書の順・
-    重なりなし）。ほかの版で見つけた物は、その版のパスと commit と本文。どの版にも無い物は名指しのままのパスと空の本文と訳。rev が
-    読めなければ RuntimeError"""
+    """docs の本文が名指したファイルのうち、版 rev に無い物の行 [{path, rev, text, cut, reason, pointed_by, at, elsewhere}]（名指した文書の
+    順・重なりなし）。ほかの版で見つけた物は、その版のパスと commit と本文（空のファイルもある）と elsewhere 真。どの版にも無い物は
+    名指しのままのパスと空の本文と訳と elsewhere 偽。rev が読めなければ RuntimeError"""
     seen, out = {d["path"] for d in docs}, []
     for d in docs:
         paths = [p for p in cite.named_files(d["text"]) if p not in seen]
@@ -76,7 +76,8 @@ def pointed(root, rev: str, docs) -> list:
         for r in rows:
             seen.update({r["path"], r["found"]})
             why = "" if r["commit"] else f"{d['path']} が名指すが、版 {rev[:12]} にもほかのどの版にも無い"
-            out.append({**_doc(r["found"] or r["path"], r["commit"] or rev, r["text"], why), "pointed_by": d["path"], "at": r["at"]})
+            out.append({**_doc(r["found"] or r["path"], r["commit"] or rev, r["text"], why), "pointed_by": d["path"], "at": r["at"],
+                        "elsewhere": bool(r["commit"])})
     return out
 
 
@@ -120,8 +121,8 @@ def shown_docs(docs) -> str:
 def pointed_rows(docs) -> list:
     """控えの欄 pointed: 名指された文書のうち版に無かった物ごとに {path, by（名指した文書）, found（ほかの版で見つけたか）, at（見つけた版の
     ref の名。名が無ければ commit の頭 12 字。無い物は空）}（line が修正前の承認ノードで人に問う。docs/design/structure.md の 3 節）"""
-    return [{"path": d["path"], "by": d["pointed_by"], "found": bool(d["text"]),
-             "at": (d.get("at") or d["rev"][:12]) if d["text"] else ""} for d in docs if d.get("pointed_by")]
+    return [{"path": d["path"], "by": d["pointed_by"], "found": bool(d.get("elsewhere")),
+             "at": (d.get("at") or d["rev"][:12]) if d.get("elsewhere") else ""} for d in docs if d.get("pointed_by")]
 
 
 def report_lines(docs) -> list:
@@ -130,6 +131,6 @@ def report_lines(docs) -> list:
     for d in docs:
         if not d.get("pointed_by"):
             continue
-        where = f"{d.get('at') or d['rev'][:12]} の版から読んで書いた意図に足した" if d["text"] else "どの版にも無く読めない"
+        where = f"{d.get('at') or d['rev'][:12]} の版から読んで書いた意図に足した" if d.get("elsewhere") else "どの版にも無く読めない"
         out.append(f"書いた意図: {d['pointed_by']} が名指す {d['path']} は、読む版に無い（{where}）")
     return out

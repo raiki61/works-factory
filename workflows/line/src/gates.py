@@ -190,7 +190,8 @@ def pointed_items(rows, answers=()) -> tuple:
     for r in rows:
         if not isinstance(r, dict) or not str(r.get("path") or "").strip():
             continue
-        head = f"{r.get('by') or POINTED_BY_ANSWER} が名指す {r['path']} は、読む版に無く"
+        by = r.get("by") or POINTED_BY_ANSWER
+        head = f"{by}{'' if by == POINTED_BY_ANSWER else ' '}が名指す {r['path']} は、読む版に無く"   # 文書のパスの後だけ空白を置く
         if r.get("found"):
             text = (f"{head}、ほかの版（{r.get('at') or '名の無い commit'}）にだけ在る。まだ取り込まれていない枝の文書なら、決まりとしてまだ"
                     "効いていないかもしれない。この run はその本文を読んで進めた——それに従ってよいか（従わないなら一言に）")
