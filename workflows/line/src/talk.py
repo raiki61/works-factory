@@ -423,6 +423,9 @@ def _open_asks(po: dict, stage: Stage) -> bool:
     return bool(themetalk.design_asks(po))
 
 
+OPTIONAL = ("pointed",)   # failed の欄のうち plan-out の返りに無くてよい物（plan-out の output_format で required でない）
+
+
 def failed(stage: Stage = PLAN) -> dict:
     """計画ができなかった形の plan-out の返り（plan-out の落ちた時・plan-out が飛んだ周・design-talk の落ちた時。欄の名の正本）。
     設計の段は theme-out の返りの形（src.themetalk.failed）"""
@@ -432,7 +435,7 @@ def failed(stage: Stage = PLAN) -> dict:
         return themetalk.failed()
     return {"done": True, "ok": False, "status": "failed", "round": 0, "plan_prior": None, "record": None, "plan": None, "fix_plan": None,
             "reply": None, "handoffs": [], "ripple": None, "owed": [], "gave_up": None, "stalled": False, "capped": False, "review": None,
-            "asks": [], "deviations": [], "review_status": "", "review_reason": "", "stop_reason": guard.LINE_SCRIPT}
+            "asks": [], "deviations": [], "review_status": "", "review_reason": "", "stop_reason": guard.LINE_SCRIPT, "pointed": []}
 
 
 def _consult_row(po: dict) -> str:
