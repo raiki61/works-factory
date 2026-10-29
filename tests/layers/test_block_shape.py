@@ -44,6 +44,7 @@
    繰り返しの中の node の id も同じに数える。
    （筋書きはこれを捕まえない: graph の筋書きは include した block の入口と出口を台本で差し替えて中の loop を回さず、block の筋書きは
    block を単独で回す。dry-run は include の中の loop の本体に include の道を渡さないので、本体の script を本物で回す graph の筋書きも組めない）
+15. output_format の additionalProperties: false の object は、required の欄を全部 properties に持つ（持たない欄を書く側は必ず拒まれる）
 14. .shared/prompts/ の断片が頭の 1 行に `<!-- required-for-tools: <道具> <道具> -->` の印を持つなら、そのどれかの道具を allowed_tools に持つ
    AI の node の指示（md と system の md。{shared:…}・{part:…} を入れた後）に、その断片が入っている。段落（<!-- if … -->）の中だけに
    在って段落が外れると消える場合は入っていないと数える（全部の段落を真にした組み立てと全部を偽にした組み立ての両方に在ることを求める。
@@ -549,9 +550,31 @@ def check_include_ids_unique(pack: pathlib.Path) -> list[str]:
     return out
 
 
+def _required_outside_properties(shape, at: str) -> list[str]:
+    out = []
+    if isinstance(shape, dict):
+        props = shape.get("properties")
+        if shape.get("additionalProperties") is False and isinstance(props, dict):
+            out += [f"{at} の required の欄 {name!r} が properties に無い" for name in shape.get("required") or [] if name not in props]
+        for key, value in shape.items():
+            out += _required_outside_properties(value, f"{at}/{key}")
+    elif isinstance(shape, list):
+        for i, value in enumerate(shape):
+            out += _required_outside_properties(value, f"{at}/{i}")
+    return out
+
+
+def check_required_in_properties(pack: pathlib.Path) -> list[str]:
+    """additionalProperties: false の object は、required の欄を全部 properties に持つ（持たないと、その欄を書く側の行は必ず拒まれる。
+    fix の finish の removed_tests・untested が weapon を required に持ちながら properties は writer と宣言していた）"""
+    return [f"{folder.name}: node {node['id']} の output_format の {line}" for folder in folders(pack) for node in nodes(load(folder))
+            for line in _required_outside_properties(node.get("output_format"), "")]
+
+
 CHECKS = (check_prompt_from_prep, check_prompt_files, check_standalone_renders, check_standalone_inputs, check_input_forms,
           check_graphs_have_no_roles, check_no_run_root_or_other_folders, check_returns_carry_outcome_and_report, check_module_names,
-          check_block_tests, check_no_text_in_yaml, check_reply_fields, check_include_ids_unique, check_tool_fragments)
+          check_block_tests, check_no_text_in_yaml, check_reply_fields, check_include_ids_unique, check_tool_fragments,
+          check_required_in_properties)
 
 
 class RealTreeCase(unittest.TestCase):
@@ -677,6 +700,8 @@ class SeedCase(unittest.TestCase):
             return yaml.safe_dump(copy)
         no_report = json.loads(json.dumps(demo))
         no_report["nodes"][2]["output_format"]["required"] = ["ok"]
+        stray = json.loads(json.dumps(demo))
+        stray["nodes"][2]["output_format"].update(additionalProperties=False, required=["ok", "report", "gone"])
         def fixture_with(**decl):
             base = {"reached": ["prep", "role", "finish"], "inputs": {"text_in": "x"}, "resolved-text-contains": {"role": "rules"}}
             return {"demo/fixtures/standalone.stubs.yaml": yaml.safe_dump({"fixture": {**base, **decl}, "exec-code": True, "role": {}})}
@@ -718,6 +743,7 @@ class SeedCase(unittest.TestCase):
             (check_no_run_root_or_other_folders, {"demo/scripts/prep.py": "import os\nos.environ['ARTIFACTS_DIR']\n"}, "字 ARTIFACTS_DIR"),
             (check_no_run_root_or_other_folders, {"demo/src/x.py": "P = '../other/scripts/x.py'\n"}, "'../other'"),
             (check_returns_carry_outcome_and_report, {"demo/works-factory-demo.yaml": yaml.safe_dump(no_report)}, "欄 report が無い"),
+            (check_required_in_properties, {"demo/works-factory-demo.yaml": yaml.safe_dump(stray)}, "required の欄 'gone' が properties に無い"),
             (check_module_names, {"demo/src/__init__.py": None, "demo/src/steps_of_demo.py": ""}, "__init__.py が無い"),
             (check_module_names, {"demo/scripts/steps.py": ""}, "['steps']"),
             (check_module_names, {"demo/scripts/ports.py": ""}, "['ports']"),

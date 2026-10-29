@@ -97,7 +97,7 @@ class FinishPlace(unittest.TestCase):
         return self.run.script(name, **inputs)
 
     def finish(self) -> dict:
-        out = self.script("finish")
+        out = self.script("finish", include="finish")   # Archon が立てる node の記録を置く（ports.returns が自分の output_format で照らす）
         self.assert_contract(out)
         return out
 
@@ -201,6 +201,18 @@ class CollectCase(FinishPlace):
         reply.unlink()
         out = self.finish()
         self.assertIn("組 g1 の修正役の返答", out["item_claims"]["unread"][0])
+
+    def test_finish_returns_rows_of_removed_tests_and_untested_in_its_output_format(self):
+        """返しの控えに「消した試験」「試験を求めなかった直し」が在る place の finish は、実物の行を返せる。戻り値は ports.returns が finish 自身の
+        output_format で照らす（欄の名が宣言と食い違うと finish が落ちる。#922 の /untested/0）"""
+        self.collect_place()
+        write(self.place / "returns" / "1.json", {"group": "g1", "weapon": "remove", "units": [{"key": "A"}], "removed": ["test_stats.py::test_mean"]})
+        write(self.place / "returns" / "2.json", {"group": "g1", "weapon": "static", "units": [{"key": "A"}], "why_untested": "文書の言い回しだけ",
+                                                  "files": ["docs/a.md"]})
+        out = self.finish()
+        self.assertEqual(out["removed_tests"][0]["weapon"], "remove")
+        self.assertEqual(out["untested"], [{"group_id": "g1", "weapon": "static", "units": ["A"], "why": "文書の言い回しだけ",
+                                            "files": [{"path": "docs/a.md", "kind": "docs"}]}])
 
     def test_collect_returns_the_beside_records_as_ports(self):
         """#681: 出力は diff の隣の控えを欄の pointer で返す（先が無ければ null）。tdd-unit.json は finish が書く"""

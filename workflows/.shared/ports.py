@@ -455,9 +455,56 @@ def pointer(path, form: str) -> dict:
     return {"type": POINTER_TYPE, "run_id": os.environ["WORKFLOW_ID"], "path": rel}
 
 
+def _output_formats() -> list[tuple[str, dict]]:
+    """呼んだ script の node 自身の output_format の (node の id, 形)。正本は block の YAML のその節 1 つで写しを持たない（io-in-output-format）。
+    node は ARCHON_NODE_EXECUTION の path の最後の段の id で引く（Archon が script の node に立てる記録。1 つの script を複数の node が
+    使っても取り違えない）。記録が無い時（単独の呼び・試験）、PyYAML が読めない所（Archon が `uv run` で回す script）、node を引けない時は
+    空で、そこは Archon が実行の後に同じ output_format で照らす（止めた Archon の dag-executor.ts の certifyExecOutput）"""
+    try:
+        path = _json.loads(os.environ.get("ARCHON_NODE_EXECUTION") or "{}").get("path")
+    except (ValueError, AttributeError):
+        return []
+    if not isinstance(path, str) or not path:
+        return []
+    try:
+        import yaml
+        block = caller_block()
+        doc = yaml.safe_load((block / f"works-factory-{block.name}.yaml").read_text(encoding="utf-8"))
+    except (ImportError, OSError, ValueError):
+        return []
+    own = path.split(".")[-1].split("__")[-1]
+    stack = list(doc.get("nodes") or []) if isinstance(doc, dict) else []
+    while stack:
+        node = stack.pop()
+        if isinstance(node, dict):
+            if node.get("id") == own and isinstance(node.get("output_format"), dict):
+                if node.get("script") != Path(sys.argv[0]).stem:
+                    return []   # 記録の node が今回している script の node でない（試験が include に別の node を立てた）時は照らさない
+                return [(own, node["output_format"])]
+            stack.extend((node.get("loop_group") or {}).get("nodes") or [])
+    return []
+
+
+def _returned_errors(obj) -> None:
+    """返す値を、この node の output_format で照らす。node が引ければ、その形に合わない時に ShapeError（どの node のどの欄が合わないかを名指す）"""
+    try:
+        from engine.schema import validate_schema   # lib/graphloops/engine/schema.py（lib が読めない所では照らさず返す）
+    except ImportError:
+        return
+    formats = _output_formats()
+    if not formats:
+        return
+    nid, shape = formats[0]
+    if errors := validate_schema(obj, shape):
+        raise ShapeError(f"node {nid} の戻り値が自分の output_format に合わない: {' / '.join(errors[:5])}", obj)
+
+
 def returns(obj: dict) -> None:
-    """node の返り。Archon は JSON.parse で読むので NaN・Infinity は ValueError で止める"""
-    print(_json.dumps(obj, ensure_ascii=False, allow_nan=False), flush=True)
+    """node の戻り値。Archon は JSON.parse で読むので NaN・Infinity は ValueError で止める。node 自身の output_format に合わなければ
+    ShapeError で落ちる（Archon が実行の後に照らすのと同じ形を、出どころの script が返す前に照らす）"""
+    line = _json.dumps(obj, ensure_ascii=False, allow_nan=False)
+    _returned_errors(obj)
+    print(line, flush=True)
 
 
 def run(compute, fallback) -> None:
