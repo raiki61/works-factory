@@ -46,7 +46,7 @@ def write_state(out, mode: str = "before") -> pathlib.Path:
         status, reason = "failed", f"{'段 B の ' + files.AFTER_FILE if after else '段 A の ' + files.STRUCTURE_FILE} が読めない"
     skipped = jsonfile.read_or(out / files.SKIPPED_FILE, [])
     return structmark.write(out / files.STATE_FILE, status=status, reason=reason, design_file=str(design), timed=({} if after else doc, kept),
-                            skipped=skipped if isinstance(skipped, list) else [])
+                            skipped=skipped if isinstance(skipped, list) else [], pointed=intent.pointed_rows(eye.docs_of(out)))
 
 
 UNWRITABLE_STATE = "構造の目の控えを書けない"

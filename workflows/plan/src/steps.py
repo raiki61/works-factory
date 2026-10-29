@@ -292,6 +292,14 @@ def pointed(folder, repo, ctx: dict, unread: list) -> list:
     return out
 
 
+def pointed_out(ctx: dict) -> list:
+    """出口の欄 pointed: intake.json の pointed の行を [{path, found（ほかの版で見つけたか）, at（見つけた版の ref の名。名が無ければ commit
+    の頭 12 字。無い物は空）}] に（line が修正前の承認ノードで人に問う。docs/design/plan.md の 1.2）"""
+    rows = [r for r in ctx.get("pointed") or [] if isinstance(r, dict)]
+    return [{"path": str(r.get("path") or ""), "found": bool(r.get("commit")),
+             "at": str(r.get("at") or str(r.get("commit") or "")[:12])} for r in rows]
+
+
 def cannot_read(reply) -> str:
     """役の返答（JSON に戻した値）の CANNOT_READ の行を 1 行に（`<path>（<why>）` を「・」で。無い・空・形の違う欄は空の字）"""
     rows = reply.get(CANNOT_READ) if isinstance(reply, dict) else None
@@ -568,7 +576,8 @@ def finish(place) -> dict:
             "handoff": ports.pointer(folder / files.HANDOFF, "json(shared:handoff.schema.json)") if (folder / files.HANDOFF).is_file() else None,
             "replan": ports.pointer(folder / files.REPLAN, "json(shared:replan.schema.json)") if (folder / files.REPLAN).is_file() else None,
             "ripple": ports.pointer(paths["ripple"], "json(shared:ripple.schema.json)"),
-            "rejects": rejects, "gave_up": gave_up, "report": report_lines(status, reason, rnd, fields, rejects, gave_up)}
+            "rejects": rejects, "gave_up": gave_up, "pointed": pointed_out(ctx),
+            "report": report_lines(status, reason, rnd, fields, rejects, gave_up)}
 
 
 def record_crash(place, node: str, why: str) -> None:

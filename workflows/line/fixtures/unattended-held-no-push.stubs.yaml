@@ -51,7 +51,7 @@ judge__world__finish: {"ok": true, "status": "ok", "reason": "", "rows": null, "
 judge__world__intake: {"due": false, "findings": 1, "reason": "筋書き: block の中は block の筋書きが見る"}
 judge__world__pick: {"due": false, "web": false, "reason": "筋書き: block の中は block の筋書きが見る"}
 owed: {"owed": true, "why": "", "recorded": [], "stop_reason": ""}
-plan__finish: {"ok": false, "status": "nothing_owed", "reason": "", "mode": "plan", "round": 1, "owed": [], "plan": {"type": "archon_artifact", "run_id": "dry-run", "path": "plan/plan-fields.json"}, "fix_plan": null, "reply": null, "handoff": null, "replan": null, "ripple": {"type": "archon_artifact", "run_id": "dry-run", "path": "plan/ripple.json"}, "rejects": [], "gave_up": null, "report": []}
+plan__finish: {"ok": false, "status": "nothing_owed", "reason": "", "mode": "plan", "round": 1, "owed": [], "plan": {"type": "archon_artifact", "run_id": "dry-run", "path": "plan/plan-fields.json"}, "fix_plan": null, "reply": null, "handoff": null, "replan": null, "ripple": {"type": "archon_artifact", "run_id": "dry-run", "path": "plan/ripple.json"}, "rejects": [], "gave_up": null, "pointed": [], "report": []}
 plan__intake: {"go": false, "mode": "plan", "round": 1, "reason": ""}
 plan__ripple-items: {"ok": false}
 report__facts: {"outcome": "round_limit", "ok": true, "stop_reason": "", "machine": null, "next_request": null, "prior_failures": null, "ai_go": false, "stamp": ""}

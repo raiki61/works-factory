@@ -3,9 +3,9 @@
 割らない）。読み手は控えのファイルのパス（指し札の先）を渡し、隣のファイルを名で開かない（設計の行は控えの design_file から辿る）。
 実行基盤を知らない関数だけを出す。
 
-控えの形: {status: ok|failed, reason, design_file, wall_s, skipped}。failed は「構造の目の行なしで計画した」周（構造のブロックが
+控えの形: {status: ok|failed, reason, design_file, wall_s, skipped, pointed}。failed は「構造の目の行なしで計画した」周（構造のブロックが
 走らなかった・落ちた・status: failed で抜けた・設計の行のファイルが読めない）で、reason に理由の 1 文。skipped は paths が空で
-実測しなかった単位の id。
+実測しなかった単位の id。pointed は指示ファイルが名指し、読む版に無い文書の行 {path, by, found, at}（書き手が渡さなければ空）。
 
 - write(path, …): 控えを書く（書けなければ OSError。受ける側が理由にして返す）。秒は timed（段 A の実測・目の控えか、写す元の控え）の
   秒を eye.wall で読んで足す
@@ -54,11 +54,11 @@ PLAN_NONE = "構造の目が汚れると見た行は無い（structure の欄に
 PLAN_CLEAN_HEAD = "### 汚れないと見た行（参考。structure にこの行への答えを書くと受け付けが拒む）"
 
 
-def write(path, *, status: str, reason: str, design_file: str, timed=(), skipped=()) -> pathlib.Path:
+def write(path, *, status: str, reason: str, design_file: str, timed=(), skipped=(), pointed=()) -> pathlib.Path:
     path = pathlib.Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
     doc = {"status": status, "reason": reason, "design_file": design_file, eye.WALL: round(sum(eye.wall(t) for t in timed), 3),
-           "skipped": list(skipped)}
+           "skipped": list(skipped), "pointed": list(pointed)}
     path.write_text(json.dumps(doc, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
     return path
 
