@@ -418,7 +418,7 @@ bin/works-factory <同じ引数> workflow run works-factory-structure \
 6. 回の数えの置き場（元の works は `eye.json`）: 工場は `rolekit` の却下の控え（resume を跨いで数える。#232）。この block も同じ。
 7. 目を Git の外で起こす旗（元の works の `'works-node: structure-eye isolated'`。adapter が一時のフォルダで起こし、git status と対象の案内の文書が目に届かない。`.shared/core/adapter.py:70-71,283-290`）: 工場の目は旗も `systemPrompt` の替えも持たず、既定の system prompt に作業ツリーの cwd と git status が入る（r2 の 2 つの役は `systemPrompt` で替えている。`tests/workflows/test_eyes.py:556`）。（未確認）: 外した記録は無い（`docs/plans/2026-10-13-capabilities/plan.md:552-557` の P076 は旗に触れない）。この block は今のまま足さない（11 節の 8）。
 8. 控えを書く前に設計の行が読めるかの確かめ（元の `line_edge.structure_edge`）: 工場の `write_state` は確かめない（読み手の `structmark._state_rows` が読めない行を落ちとして扱う）。（未確認）: 意図の記録は無い。この block は `take.py` が書いた行を書いた直後に `structmark.rows` で読み直し、読めなければ `status: failed` にする（11 節の 10）。
-9. モデル（元の works は opus・high を直に）: 工場は群 `@wf-plan-structure`（#628・#658 `d337f840`）。retry（#476 `ceb9d5e9`）。この block も同じ。
+9. モデル（元の works は opus・high を直に）: 工場はモデルの群（起動の時に付け替えられるモデルの名の束）`@wf-plan-structure` を使い（#628・#658 `d337f840`）、AI の node に一過性の誤りの retry（最大 2 回やり直す。#476 `ceb9d5e9`）を付ける。この block も同じ（`structure-eye` が群と retry を持つ）。
 10. 元の設計書（`docs/specs/2026-09-29-structure-block-design.md`）の block の中の設計の承認ノード（3 つの答え・全部の案を捨てた時の loop）と前例を探す役: 元の works にも工場にも無い（元の `eye.py:8` が「このブロックは関所を持たない」、設計書の 5 行目が blk-world に替えたと書く）。この block も持たない（人に上げる行は line の修正前の承認ノードが聞く）。
 11. 比べる相手: 元の works の目も、見たのは書いた意図（方針の文書・根の `ARCHITECTURE.md`・`AGENTS.md`・考えの地図と柵の表）と機械の実測だけで、周りのコードを道具で読んだことは無い。ただし、根の地図は `rules.maps` に実測と並べて貼るだけで、問いは「知る場所が増えるか」で、書いた意図に反するかは問わず、抜き書きも求めなかった。この block で、書いた意図を基準にし、単位のファイルの上のフォルダの `AGENTS.md` まで探し、汚れる行に抜き書きを求めて照らす（持ち主の 2026-10-19 の追加）。
 

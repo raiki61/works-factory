@@ -405,6 +405,32 @@ class CollectCase(unittest.TestCase):
         self.assertIn(steps.PLAIN_REJECT, why)
         self.assertIn("plan[2].narrows[0].no_narrow", why)
 
+    def test_closed_row_without_an_ask_case_neither_halts_nor_rejects(self):
+        """機械が差し込んだ閉じた項目の行は、人に聞く場合の印の照らし（gatemarks.ask_gaps）にも当てない。照らしを足す前の往復の記録の
+        行が決め手も印も持たなくても、再開した run を止めず、役に直せない拒否も返さない"""
+        run = PlanRun(self)
+        line = Line(run)
+        self.assertIs(line.round(writer=writer_of({"plan": [item(1), item(2)]}))["ok"], True)
+        prior = line.prior({"faces": [FACE_MEAN]})
+        prior["record"]["plan"][1]["row"]["narrows"] = [narrow(no_narrow=NO_NARROW)]
+        role = seq({"plan": [item(1, approach=CHANGED_APPROACH)], "block_answers": [FIXED_MEAN]})
+        out = run.include(prior=prior, writer=role, fixer=role)
+        self.assertIs(out["ok"], True, out)
+        self.assertEqual(rolekit.rejected(run.art / "r2", "plan"), [])
+
+    def test_role_row_without_an_ask_case_is_still_rejected(self):
+        """照らしを外すのは記録から差し込んだ行だけ。役が書いた行が決め手も印も持たなければ、今どおり拒む"""
+        run = PlanRun(self)
+        line = Line(run)
+        self.assertIs(line.round(writer=writer_of({"plan": [item(1), item(2)]}))["ok"], True)
+        extra = item(2, narrows=[narrow(no_narrow=NO_NARROW)])
+        role = seq({"plan": [item(1, approach=CHANGED_APPROACH), item(2), extra], "block_answers": [FIXED_MEAN]},
+                   {"whole_plan": True, "plan": [item(1, approach=CHANGED_APPROACH)]})
+        line.round({"faces": [FACE_MEAN]}, writer=role, fixer=role)
+        why = rolekit.rejected(run.art / "r2", "plan")[0]
+        self.assertIn(gatemarks.ASK_CASE_REJECT, why)
+        self.assertIn("plan[2].narrows[0]", why)
+
     def test_closed_rows_tests_declared_by_an_open_item_do_not_halt(self):
         """項目の間の照らし（閉じた項目の files が足すテストを、開いた項目の tests が宣言する）は、閉じた項目の行 1 本だけでは誤りに
         見えても、案の全体で通るなら止めない（行 1 本に当てた項目の間の照らしの分は機械の誤りに数えない）"""

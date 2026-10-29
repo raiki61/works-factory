@@ -113,6 +113,22 @@ class AskCaseCase(unittest.TestCase):
                 self.assertEqual(len(got), 1, got)
                 self.assertIn("plan[0].narrows[0]", got[0])
 
+    def test_row_with_no_standard_found_passes_without_a_case(self):
+        """定石も依頼の本文も見つからず、①②③ のどれにも当たらない行は、decided_by の頭に NO_STANDARD と探した所を書けば
+        聞かずに通る（持ち主の言葉「自明なものは聞かないでね」）。印だけで探した所の無い行は決め手に数えない"""
+        searched = f"{gatemarks.NO_STANDARD} RFC 9110 と主要な HTTP クライアントの文書を探したが、この場面の既定は無い"
+        self.assertTrue(gatemarks.decided({"decided_by": searched}))
+        self.assertEqual(gatemarks.ask_gaps("p2.fix_plan", self.plan(decided_by=searched)), [])
+        for bare in (gatemarks.NO_STANDARD, f"  {gatemarks.NO_STANDARD}  "):
+            with self.subTest(bare=bare):
+                self.assertFalse(gatemarks.decided({"decided_by": bare}))
+                self.assertEqual(len(gatemarks.ask_gaps("p2.fix_plan", self.plan(decided_by=bare))), 1)
+
+    def test_shared_fragment_names_the_no_standard_mark(self):
+        """役が書く印は断片 ask-cases の字と同じ（字のずれを赤にする）"""
+        fragment = pathlib.Path(__file__).resolve().parents[2] / "workflows" / ".shared" / "prompts" / "ask-cases.md"
+        self.assertIn(f"`{gatemarks.NO_STANDARD}`", fragment.read_text(encoding="utf-8"))
+
     def test_review_faces_of_human_kinds_only(self):
         other = {**FACE, "kind": "copy"}
         got = gatemarks.ask_gaps("p2.plan_review", {"faces": [FACE, other, {**FACE, "decided_by": "「空の列は 0 を返す」"}]})

@@ -73,6 +73,18 @@ class AxisWhyCase(unittest.TestCase):
         got = gatemarks.axis_why(facts(cite_ok=lambda text: "決め手の出どころが現物に無い"), DECIDED, ["u"])
         self.assertEqual(got["obvious"], ["決め手の出どころが現物に無い"])
 
+    def test_no_standard_row_needs_no_cited_source_or_world(self):
+        """decided_by が「定石が見つからなかった」形（NO_STANDARD と探した所）の行は、引ける出どころが無いことが中身なので、出どころが
+        無い訳（cite.NO_SOURCE）を軸 obvious に付けず、探した所を世界の解を当たった結果として軸 world も揃える。引いた物が現物に無い
+        訳は今どおり付ける"""
+        mark = {"decided_by": f"{gatemarks.NO_STANDARD} 公式の文書と主要な OSS を探したが既定は無い", "undecided_because": "", "fences": []}
+        got = gatemarks.axis_why(facts(cite_ok=lambda text: gatemarks.cite.NO_SOURCE), mark, ["u"])
+        self.assertEqual(got, {axis: [] for axis in gatemarks.AXES})
+        got = gatemarks.axis_why(facts(cite_ok=lambda text: "決め手の出どころが現物に無い: x"), mark, ["u"])
+        self.assertEqual(got["obvious"], ["決め手の出どころが現物に無い: x"])
+        bare = {**mark, "decided_by": gatemarks.NO_STANDARD}
+        self.assertEqual(gatemarks.axis_why(facts(), bare, ["u"])["obvious"], [gatemarks.NOT_DECIDED])
+
     def test_fences_are_overkill(self):
         got = gatemarks.axis_why(facts(), {**DECIDED, "fences": ["irreversible"]}, ["u"])
         self.assertEqual(got["not_overkill"], [gatemarks.FENCED.format(fences="irreversible")])
