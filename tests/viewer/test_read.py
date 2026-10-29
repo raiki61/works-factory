@@ -71,6 +71,30 @@ class ReadCase(unittest.TestCase):
         con.close()
         self.assertEqual((runread.pick(db), [r["id"] for r in runread.runs(db)]), ("aa-later", ["aa-later", "zz-resumed"]))
 
+    def test_span_runs_from_the_first_event_to_the_last(self):
+        db, rid = self.tmp / runread.DB_FILE, "run-resumed"
+        con = sqlite3.connect(db)
+        con.execute(f"create table {runread.RUN_TABLE} ({', '.join(runread.RUN_COLUMNS)})")
+        con.execute(f"create table {runread.EVENT_TABLE} ({', '.join(runread.EVENT_COLUMNS)})")
+        # 承認の答えで起き直した run は、DB の行の始めが起き直した時刻に書き換わる
+        con.execute(f"insert into {runread.RUN_TABLE} (id, workflow_name, status, parent_run_id, started_at, completed_at, output_root, metadata) "
+                    "values (?, 'g', 'completed', null, '2026-10-25 02:31:34', '2026-10-25 02:34:41', ?, '{}')", (rid, str(self.tmp)))
+        for kind, at in (("workflow_started", "2026-10-25 01:50:54"), ("node_started", "2026-10-25 01:50:54"),
+                         ("workflow_started", "2026-10-25 02:31:34"), ("workflow_completed", "2026-10-25 02:34:41")):
+            con.execute(f"insert into {runread.EVENT_TABLE} (workflow_run_id, event_type, data, created_at) values (?, ?, '{{}}', ?)", (rid, kind, at))
+        con.commit()
+        con.close()
+        log = self.tmp / runread.LOGS / f"{rid}.jsonl"
+        log.parent.mkdir()
+        node = lambda kind, ts, path: {"type": kind, "ts": ts, "step": path, runread.EXECUTION: {"path": path, "invocation": {"id": path}}}
+        log.write_text("\n".join(json.dumps(row) for row in (
+            node("node_start", "2026-10-25T01:50:54.377Z", "a"), node("node_complete", "2026-10-25T01:50:55.000Z", "a"),
+            node("node_start", "2026-10-25T02:34:40.000Z", "b"), node("node_complete", "2026-10-25T02:34:41.278Z", "b"))) + "\n", encoding="utf-8")
+        got = runread.run(db, rid)
+        self.assertEqual((got["started"], got["seconds"]), ("2026-10-25T01:50:54.377Z", 2626.9))
+        listed = runread.runs(db)[0]
+        self.assertEqual((listed["started"], listed["seconds"]), ("2026-10-25 01:50:54", 2627.0))
+
     def test_only_unknown_session_types_are_unread(self):
         path = self.tmp / "s.jsonl"
         known = next(kind for kind in session.UNREAD_TYPES if kind not in session.READ_FROM)

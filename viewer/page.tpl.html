@@ -220,7 +220,8 @@ function sizeApp() {
 sizeApp();
 addEventListener('resize', sizeApp);
 const usd = v => v == null ? '' : '$' + Number(v).toFixed(v < 1 ? 4 : 2);
-const secs = v => v == null ? '' : v < 90 ? `${v} 秒` : `${(v / 60).toFixed(1)} 分`;
+// 長さの丸め: 頭と一覧と大きな数は分を整数に（1 分未満は秒）、畳みの中は「分:秒」（clock）。同じ値はどの画面でも同じ丸めで出す
+const secs = v => v == null ? '' : v < 60 ? `${Math.round(v)} 秒` : `${Math.round(v / 60)} 分`;
 const num = v => v == null ? '' : Number(v).toLocaleString('ja-JP');
 const badge = s => h('span', {class: 'badge ' + s, text: STATUS[s] || s});
 const text = mark => TX[mark] ?? '';

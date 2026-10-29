@@ -51,7 +51,10 @@
     "type": "object",
     "properties": {
      "id": {
-      "type": "string"
+      "type": [
+       "integer",
+       "string"
+      ]
      },
      "group_id": {
       "type": "string"
