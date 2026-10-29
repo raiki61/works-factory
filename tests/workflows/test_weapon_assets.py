@@ -78,7 +78,7 @@ import writerblock  # noqa: E402
 ROWS = json.loads((HERE / "appendix-a.json").read_text(encoding="utf-8"))
 BEFORE = json.loads((HERE / "fixer-reply-before.json").read_text(encoding="utf-8"))
 PIN = "734f54406a8c64ca6d4a4393d6184f6268b4a818"   # 付録 A の行番号の版（#865。A.2 の見出し「#865 で 2 行増えた後の行番号」）
-PLAN_PIN = "3f655145dcb53d4f7d3f6c207862af37c552d936"   # 計画の版（git の blob。PR #883 で付録 A に A.9 を足し、F2 で S4 を足し、F2 の後始末で S4 に書き換えの許しと守りのテストの 1 文を足し、注文が名指す守りのテストに絞った計画。付録 A を直す PR はこの値を替える）
+PLAN_PIN = "6b43e70ea18632d4d0811e4323b678cb110ce890"   # 計画の版（git の blob。PR #883 で付録 A に A.9 を足し、F2 で S4 を足し、F2 の後始末で S4 に書き換えの許しと守りのテストの 1 文を足し、注文が名指す守りのテストに絞った計画。付録 A を直す PR はこの値を替える）
 DEFAULT = {"A.2": "workflows/fix/prompts/parts/fixer.md", "A.4": "workflows/.shared/prompts/writer-rules.md",
            "A.5": "workflows/.shared/prompts/query-rule.md", "A.7": "lib/borrow/unattended.md",
            "A.9": "workflows/.shared/prompts/writer.md"}   # 節の頭が名指す、`:行` だけの引きの置き場
