@@ -188,11 +188,12 @@ def machine_row_errors(record: dict, whole: list, plan: dict, repo) -> list[str]
     return out
 
 
-def role_rows(record: dict, whole: list) -> list:
-    """案の全体 whole の、機械が差し込んだ閉じた項目の行を {} に替えた並び（位置は変えない）。人に聞く文の照らし（gatemarks.plain_gaps）は
-    役の書いた行だけに当てる（照らしを足す前の往復の記録の行が run の中の参照を持っていても、役は閉じた項目を直せず、止める誤りでもない）"""
-    closed = converge.closed_ids(record)
-    return [{} if isinstance(w, dict) and converge.item_id(w.get("unit_keys")) in closed else w for w in whole]
+def role_rows(rows: list, whole: list) -> list:
+    """案の全体 whole の、往復の記録から機械が差し込んだ行（役の返答の行 rows のどれでもない行）を {} に替えた並び（位置は変えない）。
+    人に聞く文の照らし（gatemarks.plain_gaps）は役の書いた行だけに当てる（照らしを足す前の往復の記録の行が run の中の参照を持っていても、
+    役は差し込まれた行を直せず、止める誤りでもない）。項目の id でなく位置で見分けるので、閉じた項目と同じ単位で役が書いた行も照らす"""
+    mine = {id(r) for r in rows}
+    return [w if id(w) in mine else {} for w in whole]
 
 
 # ---------------------------------------------------------------- 往復の記録
@@ -250,7 +251,7 @@ def take_plan(folder, ctx: dict, *, judgment, reply, repo, tables, base_rev: str
         _section(steps.CLOSED_REJECT, closed),
         _section(steps.NO_NARROW_REJECT, gatemarks.narrow_gaps(planmarks.NODE, plan)),
         _section(steps.RECOMMEND_REJECT, gatemarks.recommend_gaps(planmarks.NODE, plan)),
-        _section(steps.PLAIN_REJECT, gatemarks.plain_gaps(planmarks.NODE, {**plan, "plan": role_rows(record, whole)})),
+        _section(steps.PLAIN_REJECT, gatemarks.plain_gaps(planmarks.NODE, {**plan, "plan": role_rows(got["plan"], whole)})),
         _section(f"{steps.NOT_OWED_REJECT} {allowed}。外す単位:", steps.not_allowed(judgment, plan)),
         _section(f"{steps.COVERS_REJECT} {allowed}:", steps.fix_plan_covers_units(
             [{**p, "unit_keys": [k for k in p["unit_keys"] if k not in shut]} if isinstance(p.get("unit_keys"), list) else p

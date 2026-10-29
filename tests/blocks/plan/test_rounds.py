@@ -391,6 +391,20 @@ class CollectCase(unittest.TestCase):
         self.assertIs(out["ok"], True, out)
         self.assertEqual(rolekit.rejected(run.art / "r2", "plan"), [])
 
+    def test_role_row_with_a_closed_items_units_is_still_checked(self):
+        """照らしを外すのは記録から差し込んだ行だけで、位置で見分ける。役が閉じた項目を前のまま書き、同じ単位の行をもう 1 本書いた時、
+        2 本目は役の書いた行なので run の中の参照を拒む"""
+        run = PlanRun(self)
+        line = Line(run)
+        self.assertIs(line.round(writer=writer_of({"plan": [item(1), item(2)]}))["ok"], True)
+        extra = item(2, narrows=[narrow(no_narrow=NO_NARROW + "（plan[0] と同じ形も当たった）")])
+        role = seq({"plan": [item(1, approach=CHANGED_APPROACH), item(2), extra], "block_answers": [FIXED_MEAN]},
+                   {"whole_plan": True, "plan": [item(1, approach=CHANGED_APPROACH)]})
+        line.round({"faces": [FACE_MEAN]}, writer=role, fixer=role)
+        why = rolekit.rejected(run.art / "r2", "plan")[0]
+        self.assertIn(steps.PLAIN_REJECT, why)
+        self.assertIn("plan[2].narrows[0].no_narrow", why)
+
     def test_closed_rows_tests_declared_by_an_open_item_do_not_halt(self):
         """項目の間の照らし（閉じた項目の files が足すテストを、開いた項目の tests が宣言する）は、閉じた項目の行 1 本だけでは誤りに
         見えても、案の全体で通るなら止めない（行 1 本に当てた項目の間の照らしの分は機械の誤りに数えない）"""
