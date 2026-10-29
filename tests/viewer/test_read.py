@@ -4,6 +4,9 @@
   Python 3.13 からなので、警告では版によって照らせない）
 - 始めの時刻が同じ秒の run は、後に作った run を新しいとする。Archon の SQLite は時刻を秒までしか持たず（datetime('now')）、承認で
   再開した run の始めを今に書き直す（packages/core/src/db/workflow-run-resume.ts）ので、再開の直後に起こした run と秒が並ぶ
+- 一覧の並びと一番新しい run は、出来事の最初の時刻で決める（起き直した run が、後に始めた run より上に来ない）
+- 子の run のかかった秒も、run の行の値でなく、その子と孫の出来事の最初の始めと最後の終わりから出す
+- 壊れた時刻（読めない ts）の出来事が在っても、選んだ run は落ちず、その時刻だけを数えない
 - 会話の記録の行は、読む型・読まない型（訳つき）・知らない型に分け、知らない型だけを読めなかった物に数える（帯の数が本当に読めなかった
   物を指す）。読まない型のうち字を別の型から読む物は、その代わりの型が記録に無い会話では知らない型と同じく数える。Claude Code の記録の形は工場が止めていないので、読まない型の表が本物の記録に合うかは人が見る
 
@@ -29,6 +32,7 @@ class ReadCase(unittest.TestCase):
         db = self.tmp / runread.DB_FILE
         con = sqlite3.connect(db)
         con.execute(f"create table {runread.RUN_TABLE} ({', '.join(runread.RUN_COLUMNS)})")
+        con.execute(f"create table {runread.EVENT_TABLE} ({', '.join(runread.EVENT_COLUMNS)})")
         con.execute(f"insert into {runread.RUN_TABLE} (id, parent_run_id, started_at) values ('run-1', null, '2026-10-28')")
         con.commit()
         con.close()
@@ -94,6 +98,52 @@ class ReadCase(unittest.TestCase):
         self.assertEqual((got["started"], got["seconds"]), ("2026-10-25T01:50:54.377Z", 2626.9))
         listed = runread.runs(db)[0]
         self.assertEqual((listed["started"], listed["seconds"]), ("2026-10-25 01:50:54", 2627.0))
+
+    def _db(self, runs: list[tuple], events: list[tuple]) -> Path:
+        """runs は (id, parent, started, completed, metadata)、events は (run, created_at)"""
+        db = self.tmp / runread.DB_FILE
+        con = sqlite3.connect(db)
+        con.execute(f"create table {runread.RUN_TABLE} ({', '.join(runread.RUN_COLUMNS)})")
+        con.execute(f"create table {runread.EVENT_TABLE} ({', '.join(runread.EVENT_COLUMNS)})")
+        for rid, parent, started, completed, metadata in runs:
+            con.execute(f"insert into {runread.RUN_TABLE} (id, workflow_name, status, parent_run_id, started_at, completed_at, output_root, metadata) "
+                        "values (?, 'g', 'completed', ?, ?, ?, ?, ?)", (rid, parent, started, completed, str(self.tmp), metadata))
+        for rid, at in events:
+            con.execute(f"insert into {runread.EVENT_TABLE} (workflow_run_id, event_type, data, created_at) values (?, 'node_started', '{{}}', ?)", (rid, at))
+        con.commit()
+        con.close()
+        return db
+
+    def _log(self, rid: str, rows: list) -> None:
+        log = self.tmp / runread.LOGS / f"{rid}.jsonl"
+        log.parent.mkdir(exist_ok=True)
+        log.write_text("\n".join(json.dumps(row) for row in rows) + "\n", encoding="utf-8")
+
+    @staticmethod
+    def _node(kind, ts, path):
+        return {"type": kind, "ts": ts, "step": path, runread.EXECUTION: {"path": path, "invocation": {"id": path}}}
+
+    def test_resumed_run_sorts_by_its_first_event(self):
+        db = self._db([("resumed", None, "2026-10-28 13:00:00", None, "{}"), ("later", None, "2026-10-28 12:00:00", None, "{}")],
+                      [("resumed", "2026-10-28 10:00:00"), ("resumed", "2026-10-28 13:00:00"), ("later", "2026-10-28 12:00:00")])
+        self.assertEqual((runread.pick(db), [r["id"] for r in runread.runs(db)]), ("later", ["later", "resumed"]))
+
+    def test_child_span_runs_from_its_events(self):
+        db = self._db([("top", None, "2026-10-25 01:00:00", "2026-10-25 02:00:00", "{}"),
+                       ("kid", "top", "2026-10-25 01:55:00", "2026-10-25 01:56:00", json.dumps({runread.PARENT_NODE: "w"})),
+                       ("grand", "kid", "2026-10-25 01:55:30", "2026-10-25 01:56:00", json.dumps({runread.PARENT_NODE: "x"}))], [])
+        self._log("top", [self._node("node_start", "2026-10-25T01:00:00.000Z", "w"), self._node("node_complete", "2026-10-25T02:00:00.000Z", "w")])
+        self._log("kid", [self._node("node_start", "2026-10-25T01:10:00.000Z", "a"), self._node("node_complete", "2026-10-25T01:20:00.000Z", "a")])
+        self._log("grand", [self._node("node_start", "2026-10-25T01:15:00.000Z", "b"), self._node("node_complete", "2026-10-25T01:30:00.500Z", "b")])
+        kids = {c["id"]: (c["started"], c["seconds"]) for c in runread.run(db, "top")["children"]}
+        self.assertEqual(kids, {"kid": ("2026-10-25T01:10:00.000Z", 1200.5), "grand": ("2026-10-25T01:15:00.000Z", 900.5)})
+
+    def test_broken_time_is_not_counted(self):
+        db = self._db([("top", None, "2026-10-25 01:00:00", "2026-10-25 02:00:00", "{}")], [])
+        self._log("top", [self._node("node_start", "2026-10-25T01:00:00.000Z", "a"), self._node("node_complete", "not a time", "a"),
+                          self._node("node_start", "2026-10-25T01:00:10.000Z", "b"), self._node("node_complete", "2026-10-25T01:00:20.000Z", "b")])
+        got = runread.run(db, "top")
+        self.assertEqual((got["started"], got["seconds"]), ("2026-10-25T01:00:00.000Z", 20.0))
 
     def test_only_unknown_session_types_are_unread(self):
         path = self.tmp / "s.jsonl"

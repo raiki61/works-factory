@@ -24,7 +24,7 @@
 - `--target` が無ければ今の木の作りだけを出す。在れば run の家の親の run の一覧を入れ、`--run` が無ければ一番新しい親の run を見る。
 - 出力は工場の clone の下を拒む（ページに対象の字と会話の中身が入る）。拒みの文は見る道具が自分で持つ（`launcher.refuse_in_factory` は run の家のための文で、意味が合わない）。
 - 出力は 1 枚の HTML（6.5）。初めての 1 回だけ elkjs を網から取る。
-- データの欄: `made_at`（作った時刻）・`commit`・`target`・`runs`（一覧）・`run`（選んだ run）・`shape`（図の作り。graph と item に札の 1 行 `what`。4.5）・`shape_from`（`run-copy` か `tree`）・`unmatched`（図に当たらないノードの道）・`texts`（会話の字を 1 つにした表。会話の欄は番号で指す）。
+- データの欄: `made_at`（作った時刻）・`commit`・`target`・`runs`（一覧）・`run`（選んだ run）・`shape`（図の作り。graph と item に札の 1 行 `what`。4.5）・`shape_from`（`run-copy` か `tree`）・`unmatched`（図に当たらないノードの道）・`texts`（会話の字を 1 つにした表。会話の欄は番号で指す）・`stages`（段の表と段ごとの集計。6.8）。
 
 ## 4 作りの読み（`src/shape.py`）
 
@@ -44,8 +44,9 @@
 ## 5 記録の読み（`src/runread.py`）
 
 - run の家の `archon-home/archon.db`（名は `isolate.DIRS`）を読むだけで開く。run の一覧は run の表の親の行（`parent_run_id` が空）だけを読み、ログは読まない。行は id・グラフの名・状態・止まっている承認ノード（状態が `paused` の run だけ。DB の `node_suspended` の後に終わりの無いノード。止めた・放棄した run は `node_completed` を書かずに `cancelled` になるので、状態で絞る）・始め・かかった秒・費用（metadata の `total_cost_usd`）・落ちの訳の頭の 1 行（DB の `workflow_failed`）。
-- run の始めとかかった秒は、run の行の始めと終わりでなく、出来事の最初と最後の時刻から出す（一覧は DB の出来事の表の `created_at`、選んだ run は子の run を含むログの出来事の始めと終わり）。承認の答えで起き直した run は、Archon が run の行の始めを起き直した時刻に書き換える（`packages/core/src/db/workflow-run-resume.ts`）ので、行の値では答えの後の数分しか出ない。出来事の無い run だけ行の値を使う。走り中の run は最後の出来事までの長さ。
-- 長さの丸め（ページ）: 頭の帯・一覧・大きな数は分を整数に（1 分未満は秒）、畳みの中は「分:秒」。同じ値はどの画面でも同じ丸めで出す。
+- run の始めとかかった秒は、run の行の始めと終わりでなく、出来事の最初と最後の時刻から出す（一覧は DB の出来事の表の `created_at`、選んだ run は子の run を含むログの出来事の始めと終わり）。承認の答えで起き直した run は、Archon が run の行の始めを起き直した時刻に書き換える（`packages/core/src/db/workflow-run-resume.ts`）ので、行の値では答えの後の数分しか出ない。出来事の無い run だけ行の値を使う。走り中の run は最後の出来事までの長さ。子の run の行も同じく、その子と孫の出来事から出す。読めない時刻の出来事は数えない（ページを落とさない）。
+- 一覧の並びと、run を名指さない時に開く一番新しい run は、出来事の最初の時刻の新しい順（出来事の無い run は行の始め）。行の始めで並べると、起き直した run が後に始めた run より上に来る。
+- 長さの丸め（ページ）: 頭の帯・一覧・大きな数は分を整数に（秒に丸めて 60 秒未満は秒）、畳みの中は「分:秒」。同じ値はどの画面でも同じ丸めで出す。始めの時刻は、DB の書き方とログの書き方をどの画面でも秒までの `YYYY-MM-DD HH:MM:SS`（UTC）にそろえて出す。
 - 選んだ run の記録は、DB の行の `output_root` から `logs/<run>.jsonl` を読む。子の run は DB の `parent_run_id` と metadata の `parent_node_id` で辿り、子の出来事の道の頭に親のノードの道を足す。run の写しは `<output_root>/workflow-source/runs/<run>/project/.archon/workflows`。写しが無い run は今の木で読み、`shape_from` を `tree` にする。
 - 飛んだノード（`node_skipped`）は、道と飛んだ時刻（`time`）と訳（`cause`）を持つ。
 - 出来事はノードの起動（`execution.invocation.id`）ごとに 1 つ: 始めと終わり・状態（走り中・待ち・済み・落ち）・落ちた時の誤りの字（`node_error` の `error`）・費用（`accounting` が `node` の行だけ。束ねた行は数え直さない）・模型とトークンと往復の数・道具の呼び出し（`provider_event` の `tool_call` と `tool_call_update` を試み〔`attemptId`〕で結ぶ）・script と bash の出力の終わり（`exec_output`）・出力（DB の `node_completed` の `node_output`）と、出力が指す run の置き場の小さなファイル・その run の置き場の根（`artifacts`。日本語の写しが値の記録を引く。6.6）。
@@ -92,6 +93,24 @@
 - 図の上の姿: 今の歩のノード（太い縁と輪）・走り中（縁の色）・済み（普段の姿と終わりの状態の点）・まだ（薄い）・飛んだ（点線で薄い）。include のノードと繰り返しの箱は、中の出来事を自分の所の出来事として数える（中が走っていれば走り中、触れられた後は済み）。
 - 図に当たらない出来事の歩は、図を動かさず帯に「図に当たらない」と出す。
 
+## 6.8 段（`viewer/stages.json`・`src/stages.py`）
+
+- 段は、line（メイングラフ）の一番上のノードを人の言葉で畳んだ単位（受付・判定・計画・修正・報告など 11 個）で、見る道具だけの考え。流れの画面（段の地図と時間の帯）が使う。設計の下書きは `docs/plans/2026-10-29-viewer-overview.md`（#907）の 3〜6 章。
+- E11 の 3 つの答え: Archon は持たない（Web の画面の run の詳細は、include を開いた平たいノードの図とログの並びで、ノードを段に畳む物と段ごとの時間は無い）。ASF も持たない。要る: 図とログからは、どこからどこまでが判定で、どこからが修正か・どの段に何分と幾らかかったかが読めない（下書きの 1 章）。
+- 表の置き場は見る道具の中（持ち主の決め。下書きの 5 章の S2）。工場の文書の形に見る道具の都合を持ち込まない。行ごとに名・1 行の説明・受け渡す物（次の段へ渡る物の人の言葉）・説明の出どころ（`docs/design/line.md` の 1.3 の番号）・中のノードの id を持つ。ノードごとの「何をする物か」の 1 行は表に持たず、工場の字から引く（下書きの 5.6）。
+- 出来事の段は、出来事の道の頭（line の一番上のノード）で引く。include・繰り返しの周・子の run の出来事も道の頭は line のノード。run が line の run でなければ段に集めない（表は line だけ）。
+- 段ごとの集計（データの `stages.run`）: 状態（通った・落ちた・待ち・走り中・飛んだ・記録に無い）・始めと終わり（段の出来事の最初と最後）・人の答え待ちの秒（`wait:` のノードの長さの和）・AI の秒と手番の数（AI のノードの長さの和と数）・往復の数（`turns`。Archon が数える出来事の往復の和）・周の数（`rounds`。繰り返しの本体の場所と周の番号の列 `loop` の組の違う物の数で、入れ子なら内の周まで。本体の場所は道を繰り返しの区切り `.` だけで切った物で、本体に直に在るノードと本体の include の中のノード〔`plan-rounds.design-turn` と `plan-rounds.plan__draft`〕を同じ周に数える〔受付 c31850 の足し 2e1ffb〕。同じ段を何周回ったかで、無駄な回り直しを見る）・費用（ドルの和だけ。4 分けごとのドルは出さない）・4 分けのトークン（記録の `input`・`output`・`cacheRead`・`cacheWrite` の和）。
+  - 新しく読んだ分（`uncached`）と cache の内訳が知れない手番の数（`cacheUnknown`）は、工場の共通の口 `lib/runlog.py` の `add_tokens` と同じ訳で出す: `uncached` は `input` から cache の 2 つを引いた物で、cache の欄が欠けた手番（Archon では「知れない」の意味で 0 ではない。`docs/design/archon.md`）と `cachePartial` の手番が 1 つでも在れば出さない。`input` が cache の 2 つの和より小さい手番は引けないので数を `odd` に持ち、1 つでも在れば `uncached` を出さない（包みの関係は Claude Code と Archon の版で変わりうるので決まりとして照らさない）。
+  - 中の出来事を束ねる器（繰り返しの器 `loop_group`・並べて起こす器 `compose_fan_out`・子の run を起こすノード `workflow`。`runread.GROUP_KINDS`）の出来事は、中の出来事と二重になるので数・長さ・費用に数えない。子の run を起こすノードの行には Archon が子の run の総額を載せ（`docs/design/archon.md`）、子の中の各ノードの費用も同じ段に入るため。
+- 段の表の各段は、ノードの列 `nodes` と、そのうちの配線の列 `wiring`（合流・受け渡しだけで段の仕事をしない物。受け皿の `-out`・返しの `-in`・`fix-in`・`fixed`・`judged`・`eyes-in`・修正前の承認の聞きと受け `ask-before-fix`・`answer-before-fix` と仕様駆動の run の `spec-ask-before-fix`・`spec-answer-before-fix`）を持つ。段の状態（通った・飛んだ）は配線でないノードだけで決める。修正の段が飛んだ run でも `fix-in`・`fixed`・`judged` は走り、数えると修正の段が「通った」に見える（見本で分かった事。下書きの計画 `2026-10-29-viewer-overview.md` の 6.5.1）。`trigger_rule` と `when` の形からは引かない（承認の答えの `answer-*` も同じ形だが、`answer-replan` などは段の仕事をする）。
+  - 修正前の承認の聞きと受け（受付 7521c4。窓口の決め B: 表示を記録の事実に合わせる）: `ask-before-fix`・`answer-before-fix` は、人に聞かずに通しや止めを決めて受け渡すだけでも走る。run 642df5d7 では人が計画の段で止め、修正前の承認の聞き `gate-before-fix` は飛んだのに、聞きと受けが走ったので修正前の承認が「通った」に見えた。2 つを配線にし、段の状態は人の答え待ち `gate-before-fix` で決める。人が答えた run は「通った」、聞かれなかった run は「飛んだ」。
+  - 仕様駆動の run の聞きと受け（受付 03e0e5。決め B と同じ訳）: `spec-ask-before-fix`・`spec-answer-before-fix` は同じ本体（`ask_before_fix`・`before_fix_answer`）を受け、同じく聞かずに受け渡すだけでも走るので配線にし、段の状態は `spec-gate-before-fix` で決める。最後の承認の聞きと受け `ask-final`・`answer-final` は配線にしない（仕様駆動の版は無い）: `ask-final` は前の止めを受け渡さず、封じと試験と目の返りから最後の承認を開くか・規則で通すかを自分で決め、merge に渡す値も組む。段の仕事をする。
+  - 寄せた訳（受付 c31850）: #910 の a693d6b5 は合流を形（前が飛んでも走る `trigger_rule` を持ち `when` の無い物。`runread.JOIN_RULES`）で決めていた。同じ物を表と形の 2 通りで決めないよう、表の 1 つに寄せて `JOIN_RULES` を外した。形は配線と合わない: 承認の答えを受ける `answer-*`・`ask-replan` は合流の形だが段の仕事をし、`when` を持つ返し（`structure-in`・`design-in`）と規則を持たない受け皿の `-out`・`eyes-in` は合流の形でないが配線。流れの画面の地図も表の列と出来事の `through` を読む（下書きの計画の 6.6.8）。どの段にも配線でないノードが在ることを照らすので、「段のノードが全部合流なら数える」の外しも要らない。
+- 止まった所（`stages.stop`）は記録の事実から引く（下書きの計画 `2026-10-29-viewer-overview.md` の 6.6.8。受付 c31850）: 人が止めた run は、答え（`{decision, text}`）が止める語（`lib/answer.py` の `STOP_WORDS`）だった最後の人の答え待ちの出来事の段。そうでなく落ちた run（run の状態が `failed`。`runread.FAILED`）は、受け止めていない最後の落ちた出来事の段。前の形（最後に走った段の 1 つ前に走った段で、間の段が全部飛んだ物）は、止めを受け渡しただけの段を返した。run 642df5d7 では人が計画の段の中の相談（`plan-rounds/gate-design`）で止め、修正前の承認の聞きと受け（`ask-before-fix`・`answer-before-fix`）はその止めを受け渡しただけなのに、修正前の承認を返していた。今は計画を返す。飛んだ段は地図で薄く出るので、道が分かれた所は別の欄にしない。
+  - 受け止めた落ち（受付 d0a7f1。#910 のレビュー）: line は独立の目 `eyes` とレンズ `lens`・`lens-2` の落ちを受け止めて先へ進むが、Archon は落ちたノードの在る run を `failed` で終える（`docs/design/archon.md`）。前の形は落ちた run を人の答えより先に見て、直した run でも、その後に人が最後の承認で止めた run でも独立の目を返した。今は人の止めを先に見て、落ちの方は、その段より後ろの段の配線でないノードが走った物を受け止めた落ちとして外す。報告の段（表の最後の段）は落ちの後でもどの道でも走る（`collect` は `trigger_rule: all_done`）ので、後ろの段に数えない。受け止める段の宣言（`collect` の `optional`）は読まない: 見る道具が工場の script の入力の名に頼らずに、記録の事実だけで決まる。
+  - 出さない結末（窓口の決め。今は出さず、広げるかは後の頼みで決める）: 上のほか、報告の結末（`workflows/report/src/outcome.py`）が line の止め `stopped_by_line`（止める語を script が受け渡しただけで人の答えが無い）・人待ち `needs_human`・記録が通らない `record_invalid` で、落ちていない run。
+- 段の表に無い line のノード（`stages.loose`。古い run の写しの作りなど）は「読めなかった物」に出し、黙って落とさない。
+
 ## 7 照らし
 
 1. 作りの照らし（`tests/viewer/test_shape.py`）: 今の木の全部の graph を読み、`problems` が 0。今の木の line の最初の block の頭のノードに、外から入る道（`via`）が付く（Archon を起こさずに手元で照らす）。図に当てる入口（`tests/viewer/test_flowview.py`）: 飛んだノードに当たる所（`at`）を付けても、飛んだ時刻（`time`）が残る。
@@ -101,3 +120,4 @@
 5. 層の照らし: 2 章の照らし。
 6. 日本語の写しの照らし（`tests/viewer/test_ja.py`）: 取り込みの口が今の木の md の段落の鍵の訳だけを `viewer/ja/` に書き、合わない訳を拒む。写しは値の記録から工場の組み立ての口で組み、訳の無い段落と合わない訳は英語のまま。`viewer/ja/` の訳のうち今の木の md の段落に当たる物は、どれも英語と同じ差し込み口と印の字を持つ。本物の run では（照らしの 3 の試験）、include の中で `prompt.emit` が書いた値の記録から組み直した写しが、訳の無い時に place の英語の指示と字のまま同じ。工場の組み立ての口の照らしは `tests/blocks/shared/test_prompt.py`（値の記録で、写した木からも同じ字に組み直せる）。
 7. 札の 1 行の照らし（`tests/viewer/test_what.py`）: 今の木で、1 行を選ぶ部品が読めない設計書の節（「役」の見出しの下に段落が無い）が 0（読めない節はページの「読めなかった物」にも出す）。1 行が無いノードの数は照らさない（書き足しを試験で強いない）。小さな木で、種類ごとの出どころの順・配線・呼ぶ側での役・1 行が無い物が空であること。
+8. 段の照らし（`tests/viewer/test_stages.py`）: 今の木の line の一番上のノードがどれも段の表のちょうど 1 つの段に入り、表のノードがどれも line に在る。配線の列がその段のノードの中に在り、どの段にも配線でないノードが在る。段ごとの集計は小さな run の記録で、配線のノードだけが走った段（修正の段が飛び、`fix-in`・`fixed`・`judged` だけが走った run）が飛んだになり、修正前の承認は人が `gate-before-fix`（仕様駆動の run は `spec-gate-before-fix`）で答えた run だけ通ったになり（run 642df5d7 の形と、仕様駆動の run で止めを受け渡しただけの形では飛んだ）、止まった所と和が出る。子の run を起こすノードの費用を二重に足さず、cache の欄が欠けた手番と引けない手番では新しく読んだ分を出さず、止まった所は、人が止めた run では答えが stop だった答え待ちの段、落ちた run では受け止めていない最後に落ちた出来事の段になり（run 642df5d7 の形で計画。前の形の修正前の承認を返さない。独立の目とレンズの落ちを受け止めて直した run には出ず、その後に人が最後の承認で止めた run は最後の承認）、通す答えだけの run と落ちて続けて終わった run には出ない。
