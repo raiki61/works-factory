@@ -63,14 +63,19 @@ def _blank(v) -> bool:
     return not isinstance(v, str) or not v.strip()
 
 
+def _coined(name: str) -> bool:
+    """識別子らしい名か（- か _ か数字か語の途中の大文字を持つ）。config・server のような普通の語は持たない"""
+    return re.search(r"[-_0-9]|[a-z][A-Z]", name) is not None
+
+
 def _names(shown: list) -> list:
-    """kind の文に在ってはいけない字: 単位の id・パス・ファイルの名・拡張子を外したファイルの名・パスの各段"""
+    """kind の文に在ってはいけない字: 単位の id・パス・ファイルの名と、拡張子を外したファイルの名とパスの各段のうち識別子らしい物"""
     out = []
     for u in shown:
         out.append(u["id"])
         for p in u["paths"]:
             path = pathlib.PurePosixPath(p)
-            out += [p, path.name, path.stem, *path.parts]
+            out += [p, path.name, *(n for n in (path.stem, *path.parent.parts) if _coined(n))]
     return sorted({n for n in out if isinstance(n, str) and n.strip()}, key=len, reverse=True)
 
 
@@ -97,7 +102,7 @@ def _one_to_one(rows, want: list, key: str, what: str) -> list:
 
 
 def sketch_problems(shown: list, reply) -> list:
-    """構造を描く役の返答の外れ（空なら通る）。単位と 1 対 1・system と kind が空でない・kind に単位の id とパスとファイルの名（拡張子を外した名とパスの各段も）が無い"""
+    """構造を描く役の返答の外れ（空なら通る）。単位と 1 対 1・system と kind が空でない・kind に単位の id とパスとファイルの名（拡張子を外した名とパスの各段は識別子らしい物だけ）が無い"""
     rows = reply.get("rows") if isinstance(reply, dict) else None
     out = _one_to_one(rows, [u["id"] for u in shown], "unit_id", "単位")
     if not isinstance(rows, list):

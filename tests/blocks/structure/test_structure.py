@@ -294,14 +294,23 @@ class SketchCase(_RepoCase):
         got = self.sketch({"rows": [sketched()["rows"][0]]})
         self.assertIn("行の無い単位", got["reason"])
 
-    def test_a_kind_that_names_a_stem_or_a_folder_of_the_paths_is_rejected(self):
-        self.target({"deploy/chart/values-local.yaml": "a: 1\n"})
-        self.survey([{"id": "u1", "paths": ["deploy/chart/values-local.yaml"], "summary": "設定の値"}])
+    def test_a_kind_that_names_a_coined_stem_or_folder_of_the_paths_is_rejected(self):
+        self.target({"deploy/chart_v2/values-local.yaml": "a: 1\n"})
+        self.survey([{"id": "u1", "paths": ["deploy/chart_v2/values-local.yaml"], "summary": "設定の値"}])
         self.run.script("sketch_prep")
-        for leak in ("values-local", "chart", "Deploy"):   # 拡張子を外したファイルの名と、パスの各段
+        for leak in ("values-local", "chart_v2"):   # 識別子らしい、拡張子を外したファイルの名とパスの段
             got = self.sketch({"rows": [{"unit_id": "u1", "system": SYSTEM, "kind": f"配備の設定で {leak} の値を揃えたい"}]})
-            self.assertIn(f"kind が対象の名を持つ（{leak.lower()!r}", got["reason"].lower())
-        got = self.sketch({"rows": [{"unit_id": "u1", "system": SYSTEM, "kind": "配備の設定の値を環境ごとに揃えたい部品の一覧"}]})
+            self.assertIn(f"kind が対象の名を持つ（{leak!r}", got["reason"])
+        got = self.sketch({"rows": [{"unit_id": "u1", "system": SYSTEM, "kind": "Deploy の設定の値を環境ごとに揃えたい部品の一覧"}]})
+        self.assertTrue(got["ok"], got)
+
+    def test_a_kind_with_plain_words_that_are_also_stems_or_folders_passes(self):
+        paths = ["src/server/config.py", "charts/app/values.yaml", "docs/api/README.md"]
+        self.target({p: "a: 1\n" for p in paths})
+        self.survey([{"id": "u1", "paths": paths, "summary": "設定の値"}])
+        self.run.script("sketch_prep")
+        kind = "A web app whose server reads its config, where the api docs and the chart values must agree"
+        got = self.sketch({"rows": [{"unit_id": "u1", "system": SYSTEM, "kind": kind}]})
         self.assertTrue(got["ok"], got)
 
     def test_general_rows_answer_every_number_once(self):

@@ -352,7 +352,7 @@ after では、差分が変えたファイル（14 本）の上のフォルダ�
 - port: 構造の目が見る単位（`view.json` の順）の `{id, paths, summary}`（`paths` は `units.json` から）・却下の控え・`lang`。
 - 組み立て（`prompts/system-sketch.md`）: 却下の段落・役の定義・描く物（`system`・`kind`）・返し方（`{lang}`）・`## Units` と `{units}`（1 行の JSON）・結び。
 - 返す形: `{rows: [{unit_id, system, kind}]}`（3 つとも空白でない字。`additionalProperties: false`）。
-- 受け付け（`src/sketch.py` の `sketch_problems`）: 単位と 1 対 1・`system` と `kind` が空でない・`kind` に単位の id・パス・ファイルの名・拡張子を外したファイルの名・パスの各段（フォルダの名）が無い（大文字小文字を見ず、前後が英数字に続く所は数えない。`chart` は `charts` の中では当たらない）。通れば `sketches.json` に単位の順で書く。3 回目の拒否で諦め、一般の構造を描く目を起こさない（構造の目は描いた行なしで回る）。
+- 受け付け（`src/sketch.py` の `sketch_problems`）: 単位と 1 対 1・`system` と `kind` が空でない・`kind` に単位の id・パス・ファイルの名が無く、拡張子を外したファイルの名とパスの各段（フォルダの名）のうち識別子らしい物（`-`・`_`・数字・語の途中の大文字を持つ物。例 `values-local`）も無い（大文字小文字を見ず、前後が英数字に続く所は数えない。`chart_v2` は `chart_v2s` の中では当たらない）。`config`・`server`・`api`・`app` のような普通の語のフォルダの名と拡張子を外した名は照らさない（照らすと種類の 1 文に普通の語が書けず、3 回の拒否で一般の構造を描く目が黙って飛ぶ。PR #919 の再レビュー）。通れば `sketches.json` に単位の順で書く。3 回目の拒否で諦め、一般の構造を描く目を起こさない（構造の目は描いた行なしで回る）。
 
 ### 2.8 node の設計シート: general-structure（一般の構造を描く目）
 
