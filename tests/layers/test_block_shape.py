@@ -47,7 +47,8 @@
 15. output_format の additionalProperties: false の object は、required の欄を全部 properties に持つ（持たない欄を書く側は必ず拒まれる）
 14. .shared/prompts/ の断片が頭の 1 行に `<!-- required-for-tools: <道具> <道具> -->` の印を持つなら、そのどれかの道具を allowed_tools に持つ
    AI の node の指示が、`<!-- required-for-fields: <欄> <欄> -->` の印を持つなら、そのどれかの欄を output_format のどこかの深さの properties に
-   持つ AI の node の指示（md と system の md。{shared:…}・{part:…} を入れた後）に、その断片が入っている。段落（<!-- if … -->）の中だけに
+   持つ AI の node の指示（欄を `<親の欄>.<欄>` と書けば、親の欄の properties か items の properties に在る欄だけを数える。`why` のような
+   ありふれた名を、人に見せる所で使う置き場に絞る）（md と system の md。{shared:…}・{part:…} を入れた後）に、その断片が入っている。段落（<!-- if … -->）の中だけに
    在って段落が外れると消える場合は入っていないと数える（全部の段落を真にした組み立てと全部を偽にした組み立ての両方に在ることを求める。
    組み立ては workflows/.shared/prompt.py の `_select`）。道具に結びつく断片の印は断片自身が持ち、別の対応表は持たない（憲法の 6）
 
@@ -81,7 +82,7 @@ PROMPT_REF = re.compile(r"^\$([a-z0-9][a-z0-9_-]*)\.output\.prompt$")
 FRAGMENT = re.compile(r"\{(shared|part):([a-z0-9][a-z0-9_-]*)\}")
 RENDER_PART_NAME = re.compile(r"[a-z0-9][a-z0-9-]*")   # workflows/.shared/prompt.py の NODE_ID と同じ字（render_part はほかの名を拒む）
 MARK = re.compile(r"^<!-- (if|if not|end) ([a-z0-9_]+) -->$")
-REQUIRED_FOR = re.compile(r"\A<!-- required-for-(tools|fields): ([A-Za-z_]+(?: [A-Za-z_]+)*) -->\n")   # workflows/.shared/prompt.py の同名と同じ形
+REQUIRED_FOR = re.compile(r"\A<!-- required-for-(tools|fields): ([A-Za-z_.]+(?: [A-Za-z_.]+)*) -->\n")   # workflows/.shared/prompt.py の同名と同じ形
 JSON_KEY = re.compile(r'"([A-Za-z_]\w*)"\s*:', re.ASCII)
 UV_HEAD = ["# /// script", '# requires-python = ">=3.12"', "# dependencies = []", "# ///"]
 STANDALONE = "standalone"
@@ -474,6 +475,23 @@ def shape_names(shape) -> set:
     return names
 
 
+def shape_paths(shape, parent=None) -> set:
+    """形のどの深さの欄も `<親の欄>.<欄>` の名で（items・anyOf などを越えて、いちばん近い親の properties の名を親に数える。根の欄は持たない）"""
+    if isinstance(shape, list):
+        return set().union(*(shape_paths(s, parent) for s in shape))
+    if not isinstance(shape, dict):
+        return set()
+    out = set()
+    for name, sub in (shape.get("properties") or {}).items():
+        if parent:
+            out.add(f"{parent}.{name}")
+        out |= shape_paths(sub, name)
+    out |= shape_paths(list((shape.get("patternProperties") or {}).values()), parent)
+    for key in ("items", "additionalProperties", "anyOf", "oneOf", "allOf"):
+        out |= shape_paths(shape.get(key), parent)
+    return out
+
+
 def _prompt():
     scan.ports()   # .shared を sys.path に足す
     import importlib
@@ -489,7 +507,8 @@ def check_tool_fragments(pack: pathlib.Path) -> list[str]:
     out = []
     for folder in folders(pack):
         for node in ai_nodes(load(folder)):
-            has = {"tools": set(node.get("allowed_tools") or []), "fields": shape_names(node.get("output_format") or {})}
+            shape = node.get("output_format") or {}
+            has = {"tools": set(node.get("allowed_tools") or []), "fields": shape_names(shape) | shape_paths(shape)}
             texts = [_expand(path.read_text(encoding="utf-8"), pack, folder)
                      for path in (folder / "prompts" / f"{node['id']}.md", folder / "prompts" / f"{node['id']}.system.md") if path.is_file()]
             for name, (line, kind, needs) in sorted(marked.items()):
@@ -695,6 +714,22 @@ class SeedCase(unittest.TestCase):
         for role_md, fields in (("{shared:asky}\n", ("questions",)), ("rules\n", ("ok", "reason"))):
             with self.subTest(role_md=role_md, fields=fields):
                 self.assertEqual(self.broken(check_tool_fragments, self.field_fragment(role_md, fields)), [])
+
+    def test_field_fragment_with_a_parent_counts_only_that_place(self):
+        """印の `<親の欄>.<欄>` は、その親の下の欄だけに当たる（同じ名の欄が別の親の下や根に在っても当たらない）"""
+        changes = self.field_fragment("rules\n")
+        changes[".shared/prompts/asky.md"] = "<!-- required-for-fields: faces.why -->\nasky\n"
+        demo = yaml.safe_load(changes["demo/works-factory-demo.yaml"])
+        item = {"type": "object", "properties": {"why": {"type": "string"}}}
+        for parent, red in (("faces", True), ("units", False)):
+            demo["nodes"][1]["output_format"] = {"type": "object", "properties": {
+                "why": {"type": "string"}, parent: {"type": "array", "items": item}}}
+            changes["demo/works-factory-demo.yaml"] = yaml.safe_dump(demo)
+            with self.subTest(parent=parent):
+                got = self.broken(check_tool_fragments, changes)
+                self.assertEqual(bool(got), red, got)
+                if red:
+                    self.assertIn("返す欄 ['faces.why'] を持つが", got[0])
 
     def yaml_with(self, **top):
         doc = yaml.safe_load(self.GOOD["demo/works-factory-demo.yaml"])

@@ -462,6 +462,7 @@ Return only JSON that matches the output schema.
 ### 5.3 組み立ての順（`prompts/spec-write-fix.md`・`prompts/spec-review-fix.md`・`prompts/spec-revise-fix.md`。3 本とも同じ本文）
 
 1. `{shared:resubmit}`（拒まれた後の出し直しの段落。断片の中の `{rejection}` ← 最後の却下の理由、`{candidate}` ← 控えの絶対パス）。
+2. `{shared:query-rule}`・`{shared:plain-ask}`（人に聞く文の決まり。8 節の人に聞く文の照らし）。今の md の本文は 3 本ともこの 3 行。
 
 md の本文（3 本とも）:
 
@@ -562,6 +563,7 @@ graphloops と元の works の仕様の段は、`p0.base` と `p0.local_checks`�
 - 書く役（`role: write`）: 今の `_spec_errors` のまま（鍵が一意・受け入れ条件が要件を指す・要件は受け入れ条件を 1 件以上持つ・テストのファイルが読めてその名と Given・When・Then を含む）。通ったら審査役の前の作業ツリーの写しを `spec-snapshot-spec.review.json` に置く。
 - 審査役（`role: review`）: 写しと今の作業ツリーを `accept.tree_moved`（`status_guarded: true` なので `accept.BEYOND_STATUS` の欄。書く役が書いたテストの未コミットの状態は比べない）で比べ、変わっていれば「読むだけの役が作業ツリーを変えた: …」で拒む。`faces` の鍵が一意・穴が無いなら `faces_none` が 20 字以上。通ったら `revise` は穴が 1 件以上か。
 - 直す役（`role: revise`）: 審査の穴の鍵に 1 度ずつ答える（審査に無い鍵・答えの無い鍵を拒む）・直した仕様に `_spec_errors`。
+- 人に聞く文の照らし（3 つの役とも）: 承認ノードの項目に字のまま載る欄（書く役と直す役の `requirements[].text`・審査役の `faces[].why`・直す役の `handled[].how`。`gate.approve` が並べる）が run の中を指す参照（`<パス>:<行>`・`<名>[<番号>]`。`lib/plainask.py`）を持てば拒む。指示は 3 つの役と出し直しの役が共通の断片 `{shared:plain-ask}` を段落の外で入れる（計画は `docs/plans/2026-10-29-plain-asks.md`）。
 - どの役も: 返答が JSON のオブジェクトでない・形が違う（`KeyError`・`TypeError` など）時も、投げずに拒否として返す（`<節の名>: 返答の形が違う（<型>: <文>）`）。却下の理由の文の頭は `NODES` の名（`spec.write` など。今の字）。日本語のまま（README の 5.3）。
 - 出し直しの役の返答は、`rolekit.resubmitted` で前の答えの控えと欄ごとに合わせてから同じ照らしに通す（空の出し直しは前の答えのまま）。
 - 3 回目の却下で loop を抜ける（`rolekit.GIVE_UP_AFTER`）。`spec-ask` が `rolekit.given_up_reason` を見て、承認ノードを開かずに `stop.json` に `works:spec` と諦めの文を書き、`finish` が `status: failed` を返す。

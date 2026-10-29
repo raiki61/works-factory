@@ -24,6 +24,15 @@ class RefsTest(unittest.TestCase):
             with self.subTest(text=text):
                 self.assertEqual(plainask.refs(text), [])
 
+    def test_ordinary_text_that_only_looks_like_a_ref_passes(self):
+        """番地とポート・製品の名と版・対象のコードの添え字・脚注は数えない。バッククォートの中は字のままの引用なので数えず、
+        <パス>:<行> は拡張子の表（lib/changemap.py）に在る拡張子だけ、<名>[<番号>] は小文字の名（返答の JSON の欄の名の形）だけを数える"""
+        for text in ("試験の台は example.com:8080 で受ける", "版は `Node.js:18` の image に揃える",
+                     "引数は `argv[1]` と `items[0]` で受ける", "Smith[1] の 3 章が同じ形を勧める"):
+            with self.subTest(text=text):
+                self.assertEqual(plainask.refs(text), [])
+        self.assertEqual(plainask.refs("`argv[1]` を読む所は stats.py:3 と items[0] に在る"), ["stats.py:3", "items[0]"])
+
     def test_gaps_names_the_field_and_the_refs(self):
         self.assertEqual(plainask.gaps("questions[0].reason", "平易な文"), [])
         [line] = plainask.gaps("questions[0].reason", "stats.py:3 を見よ")

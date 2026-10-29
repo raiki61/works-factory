@@ -7,7 +7,7 @@ fixture:
   inputs:
     request: '[{"where": "stats.py:4", "text": "mean は 2 でなく 3 を返す。分母を len(xs) にする"}]'
   resolved-text-contains:
-    spec-write: 'You are the spec writer.'
+    spec-write: 'Each item must let them decide from its own text alone'
     spec-review: 'You are the spec reviewer.'
     spec-revise: 'You are the spec reviser.'
 exec-code: true

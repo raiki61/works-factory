@@ -6,7 +6,9 @@
 
 - refs(text) -> list[str]: 文の中の、run の中を指す参照（重ねずに出た順）。2 つの形だけを数える:
   `<パス>:<行>`（`a/b.py:12`・`x.md:3-5`。拡張子の在る名に `:` と数が続く物）と `<名>[<番号>]`（`plan[0]`・`faces[2]` のような返答の
-  JSON の中の位置）。URL の中は数えない（世界の解の出典の URL は引いてよい）
+  JSON の中の位置）。正当な文を差し戻さないよう、次は数えない: URL の中（世界の解の出典の URL は引いてよい）・バッククォートの中
+  （対象のコードの字のままの引用）・拡張子の表（lib/changemap.py の KNOWN_EXT）に無い拡張子の <パス>:<行>（番地とポート・製品の名と版）・
+  大文字の混じる名の <名>[<番号>]（脚注。返答の JSON の欄の名は小文字）。数えなかった物は人が見る
 - gaps(where, text) -> list[str]: 参照を 1 つでも持てば、受け付けが役に返す 1 行（where は欄の名指し）。無ければ []
 - 記録のファイルの名・単位の key・行や答えの id は、対象のリポジトリのファイルの名や役の文と字で見分けられないので照らさない（人が見る）
 """
@@ -14,9 +16,12 @@ from __future__ import annotations
 
 import re
 
+import changemap   # 拡張子の表（KNOWN_EXT）
+
 URL = re.compile(r"https?://\S+")
-LINE_REF = re.compile(r"(?<![A-Za-z0-9_./-])[A-Za-z0-9_./-]*[A-Za-z0-9_-]\.[A-Za-z][A-Za-z0-9]*:\d+(?:-\d+)?")
-INDEX_REF = re.compile(r"(?<![A-Za-z0-9_])[A-Za-z_][A-Za-z0-9_]*\[\d+\]")
+CODE = re.compile(r"`[^`\n]*`")
+LINE_REF = re.compile(r"(?<![A-Za-z0-9_./-])[A-Za-z0-9_./-]*[A-Za-z0-9_-]\.([A-Za-z][A-Za-z0-9]*):\d+(?:-\d+)?")
+INDEX_REF = re.compile(r"(?<![A-Za-z0-9_])[a-z_][a-z0-9_]*\[\d+\]")
 WHY = ("初見の読み手が解けない run の中を指す参照（{refs}）が在る——人に聞く文には <パス>:<行> も <欄>[<番号>] も書かず、"
        "指す物が何かを平易な言葉で書け（出どころの名指しは決め手・根拠の欄に）")
 
@@ -25,8 +30,9 @@ def refs(text) -> list[str]:
     """text の中の run の中を指す参照（重ねずに出た順。文字列でなければ []）"""
     if not isinstance(text, str):
         return []
-    bare = URL.sub(" ", text)
-    found = sorted((m.start(), m.group(0)) for pattern in (LINE_REF, INDEX_REF) for m in pattern.finditer(bare))
+    bare = CODE.sub(" ", URL.sub(" ", text))
+    found = sorted([(m.start(), m.group(0)) for m in LINE_REF.finditer(bare) if m.group(1).lower() in changemap.KNOWN_EXT]
+                   + [(m.start(), m.group(0)) for m in INDEX_REF.finditer(bare)])
     return list(dict.fromkeys(ref for _, ref in found))
 
 

@@ -22,7 +22,8 @@ md の書き方:
 - {shared:<name>} は pack の .shared/prompts/<name>.md、{part:<name>} は同じ block の prompts/parts/<name>.md を差し込む
   （断片の中の断片も差し込む。.shared の断片は {part:…} を持たない）
 - .shared の断片は、頭の 1 行に <!-- required-for-tools: <道具> <道具> --> か <!-- required-for-fields: <欄> <欄> --> を置ける（どれかの
-  道具を allowed_tools に持つ・どれかの欄を output_format に持つ AI の node の指示はこの断片を入れる、という形の検査 7.1 の 14 の印）。
+  道具を allowed_tools に持つ・どれかの欄を output_format に持つ AI の node の指示はこの断片を入れる、という形の検査 7.1 の 14 の印。
+  欄は <親の欄>.<欄> とも書ける）。
   差し込む時に落とすので、指示には出ない
 - 差し込むかを選ぶ段落は、それぞれ 1 行の <!-- if <name> --> か <!-- if not <name> --> と <!-- end <name> --> で囲む。入れ子にしない
 - 入れた値の中の字（{…}・$…）は読み直さない。Archon も prompt: の $<id>.output.prompt に入れた字を読み直さない（止めた版の
@@ -51,7 +52,7 @@ import ports
 SLOT = re.compile(r"\{([a-z0-9_]+)\}")
 FRAGMENT = re.compile(r"\{(shared|part):([a-z0-9][a-z0-9_-]*)\}")
 MARK = re.compile(r"^<!-- (if|if not|end) ([a-z0-9_]+) -->$")
-REQUIRED_FOR = re.compile(r"\A<!-- required-for-(?:tools|fields): [A-Za-z_]+(?: [A-Za-z_]+)* -->\n")   # 共通の断片の頭の印（道具か返す欄。形の検査が読む。指示には出さない）
+REQUIRED_FOR = re.compile(r"\A<!-- required-for-(?:tools|fields): [A-Za-z_.]+(?: [A-Za-z_.]+)* -->\n")   # 共通の断片の頭の印（道具か返す欄。形の検査が読む。指示には出さない）
 NODE_ID = re.compile(r"[a-z0-9][a-z0-9-]*")
 OPEN, CLOSE = "\x00", "\x01"
 LANG_DEFAULT = "lang-default"   # 共通の断片の名（lib/rolekit.py の LANG_DEFAULT と同じ意味の英語の文）

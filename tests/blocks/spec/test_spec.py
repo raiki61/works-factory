@@ -316,6 +316,23 @@ class ErrorsCase(_Case):
             take.revise_output(bad, review_reply(), self.run.repo)
         self.assertIn("gone_test.txt", str(cm.exception))
 
+    def test_text_shown_at_the_approval_node_with_run_refs_rejected(self):
+        """要件の text・審査の穴の why・直しの how は承認ノードの項目に字のまま載るので、<パス>:<行> と <名>[<番号>] を拒む（共通の断片 plain-ask）"""
+        take = self.steps.take
+        self.write_tests()
+        spec = write_reply()
+        spec["requirements"][0]["text"] = "stats.py:3 の mean は 3 つの数の平均を返す"
+        bad_review = review_reply()
+        bad_review["faces"] = [{**FACE, "why": FACE["why"] + "（faces[0] と同じ）"}]
+        bad_revise = revise_reply()
+        bad_revise["handled"][0]["how"] += "（requirements[0] に足した）"
+        for call, where in ((lambda: take.write_output(spec, self.run.repo), "requirements[0].text"),
+                            (lambda: take.review_output(bad_review), "faces[0].why"),
+                            (lambda: take.revise_output(bad_revise, review_reply(), self.run.repo), "handled[0].how")):
+            with self.subTest(where=where), self.assertRaises(take.Reject) as cm:
+                call()
+            self.assertIn(where, str(cm.exception))
+
     def test_review_faces_keys_unique(self):
         take = self.steps.take
         bad = review_reply()
@@ -739,7 +756,7 @@ class PromptCase(_Case):
         self.assertTrue(text.startswith("Your previous answer was rejected by the machine's check."), text[:60])
         self.assertIn("return `{}`", text, "二重の波括弧は字の {} になる")
         for role in ("review", "revise"):
-            self.assertEqual((BLOCK / "prompts" / f"spec-{role}-fix.md").read_text(encoding="utf-8"), "{shared:resubmit}\n\n{shared:query-rule}\n")
+            self.assertEqual((BLOCK / "prompts" / f"spec-{role}-fix.md").read_text(encoding="utf-8"), "{shared:resubmit}\n\n{shared:query-rule}\n\n{shared:plain-ask}\n")
 
 
 class ShapeCase(unittest.TestCase):

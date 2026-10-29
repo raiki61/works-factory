@@ -36,6 +36,8 @@ The answer is JSON with three top-level fields: `faces` (the array of holes; req
 - If you judge there are no holes, leave `faces` empty and write in `faces_none` what you checked that lets you say there are none.
 - When input is insufficient (this is how to write "say it is insufficient" from the role definition above in this answer's form): if the request or the spec file cannot be read, or the test file of an acceptance condition does not exist, do not say there are no holes in `faces_none`. Raise one hole of kind `{missing}` for each thing that cannot be read or does not exist, with that thing (a file path or a requirement key) in `where`, and start `why` with "insufficient:" followed by what you could not check. Write "insufficient" in `reason` too.
 - The writer answers each `key` in `faces` in the next step, saying whether it absorbed it or declared to leave it, and then a person approves the spec.
+{shared:plain-ask}
+
 - Write `faces[].why`, `faces_none`, and `reason` in {lang}. Keep keys, enum values, paths, and test names as they are.
 
 Return only JSON that matches the output schema.

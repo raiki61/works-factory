@@ -33,6 +33,8 @@ In the working tree you may write test files only. Do not write the implementati
 
 ## How to answer
 
+{shared:plain-ask}
+
 - Write `requirements[].text` and `out_of_scope` in {lang}. Keep keys, file paths, test names, and commands as they are.
 
 Return only JSON that matches the output schema.

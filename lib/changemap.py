@@ -284,6 +284,10 @@ FENCE_BY_EXT = {
     "r": {"r"}, "haskell": {"hs"}, "elm": {"elm"}, "elixir": {"ex", "exs"}, "graphql": {"graphql", "gql"},
 }
 
+# 表のどれかに在る拡張子（lib/plainask.py が <パス>:<行> の形の数え方を、番地とポート・製品の名と版から分けるのに使う）
+KNOWN_EXT = frozenset(set(OUTLINE_PATTERNS) | PROSE_EXT | {e for exts in COMMENT_BY_EXT.values() for e in exts}
+                      | {e for exts in FENCE_BY_EXT.values() for e in exts})
+
 
 def fence_lang(path):
     """その file の枠に付ける言語名（highlight.js の名前）。表に無い種類は拡張子そのまま、拡張子の無い file は plaintext。"""

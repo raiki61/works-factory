@@ -79,6 +79,8 @@ When you read a borrowed skill (superpowers), follow the reinterpretation below.
 
 {part:policy}
 
+{shared:plain-ask}
+
 Write the human-facing fields (`why` of a hole, `faces_none`, `why` of `checks`, `read` and `why` of `compliance.items`, `why` of `quality`) in {lang}. Keep keys, enum values, paths, and identifiers as they are.
 
 Return only JSON that matches the output schema.

@@ -27,9 +27,10 @@
 | 計画が変わる時 | 修正案・事前審査（案の直し） |
 | line の最後の承認ノード | 裁定役 |
 | 設計の段 | テーマの書き手 |
+| 仕様の承認ノード | 仕様の書く役・審査役・直す役（spec） |
 | 報告 | 報告の書き手 |
 
-欄の名で言うと、判定の問い（`questions` の `reason`・`options`）、修正案と事前審査の行（`undecided_because`・`world`・`no_narrow`・推し `recommend` と `stuck_recommend` の `note`・`why`）、構造の目の人に上げる行（`undecided_because`・`chosen`・`chosen_reason`・`rejected`）、裁定役の `ask_human`（`text`・`ask_why.line`）、テーマの問い（`asks`）。
+欄の名で言うと、判定の問い（`questions` の `reason`・`options`）、修正案と事前審査の行（`undecided_because`・`world`・`no_narrow`・推し `recommend` と `stuck_recommend` の `note`・`why`）、構造の目の人に上げる行（`undecided_because`・`chosen`・`chosen_reason`・`rejected`）、裁定役の `ask_human`（`text`・`ask_why.line`）、テーマの問い（`asks`）、仕様の要件の `text`・審査の穴の `why`・直しの `how`（`workflows/spec/src/gate.py` の `approve` が字のまま項目に載せる）。
 
 裁定役は、修正役（承認済みの案を直す AI の役）が出した食い違いの申し出を裁く AI の役で、人に回すと決めた物（`ask_human`）の文が最後の承認ノードに載る。
 
@@ -37,8 +38,12 @@
 
 1. 共通の断片 `workflows/.shared/prompts/plain-ask.md`（英語）を 1 本足した。中身は依頼の決まりのまま: 初見の読み手がその文だけで判断できる・短さより判断に要る事実の揃い・run の中を指す参照を書かない・題／今／工場の案／代償／推しの形・同じ論点は 1 項目。
 2. 断片の頭の印 `<!-- required-for-fields: undecided_because asks questions ask_why stuck_recommend -->` を足し、形の検査 7.1 の 14（`docs/design/README.md` の 7.1 節の 14 番。試験は `tests/layers/test_block_shape.py` の `check_tool_fragments`）を、道具の印 `required-for-tools` と同じ形で「印の欄を `output_format` に持つ AI の node は断片を入れる。条件つきの段落（`<!-- if … -->`）の中だけに在って段落が外れると消える入れ方は数えない」に広げた。どの断片をどの node が要るかの別の対応表は持たない（憲法の 6「機械の検査は yes/no の決まりだけにし、許す物の表で縛らない」）。この印で断片を入れる node は 11: 判定 `diagnose`・修正案 `plan-writer` と出し直し `plan-writer-fix`・事前審査 `review`・`review-fix`・木 `review-tree`・`review-tree-fix`・構造の目 `structure-eye`・テーマの書き手 `theme-writer` と出し直し `theme-writer-fix`・裁定役 `ruler`。欄を足した新しい役は、入れ忘れると赤になる。
+   - 仕様の役の漏れ（独立の確かめの指摘）: 仕様の役の欄 `text`・`why`・`how` は名がありふれていて、印に名のまま足すと人に聞かない役まで約 30 の node が照らしに入る（数えた）。そこで印の欄を `<親の欄>.<欄>` とも書けるようにし（親の欄の下の欄だけを数える）、印に `requirements.text`・`faces.why` を足した。欄の名に頼る形のままで、置き場で絞った。`handled.how` は足さない: 同じ置き場を持つ差分の審査の手直しの役（delta-review の `refix-1`・`refix-2`）は `how` に走らせた試験やパスの証拠を書く決まりなので、参照を書かない決まりと食い違う（仕様の直す役は `requirements.text` で照らしに入る）。
+   - これで断片を足した node は 11: 仕様の `spec-write`・`spec-review`・`spec-revise` とそれぞれの出し直し（6）、事前審査の `review-text`・`review-theme`・`review-theme-fix`（3。穴の `why` が修正前の承認ノードの外れの行と計画の変わる時の行に載る）、差分の審査の `review-1`・`review-2`（2。穴の `why` は手直しの役と、残った穴として報告と次の run の依頼の行に回る）。断片の「受け付けが拒む」の文は「この文を受け付けが読む所では」に直した（照らしを足していない役も断片を入れるため）。
 3. 報告の書き手は欄の名が違い、推しの決まりも違う（台帳に書かれた推しだけを写す）ので断片を入れず、`report/prompts/write.md` の「人が決めること」の決まりに、同じ論点を 1 項目にまとめることと、run の中を指す参照を書かないことを足した。
-4. 機械で縛れる部分（yes/no）: `lib/plainask.py` の `refs` が、`<パス>:<行>`（拡張子の在る名に `:` と数）と `<名>[<番号>]`（返答の JSON の中の位置）の 2 つの形を見つける。URL の中は数えない。上の欄を受ける 6 つの受け付け（`gatemarks.plain_gaps` を通る修正案と事前審査・判定・構造の目・裁定役・テーマ）が、この 2 つの形を持つ欄を拒み、同じ会話で出し直させる。
+4. 機械で縛れる部分（yes/no）: `lib/plainask.py` の `refs` が、`<パス>:<行>`（拡張子の在る名に `:` と数）と `<名>[<番号>]`（返答の JSON の中の位置）の 2 つの形を見つける。URL の中は数えない。上の欄を受ける 7 つの受け付け（`gatemarks.plain_gaps` を通る修正案と事前審査・判定・構造の目・裁定役・テーマ・仕様）が、この 2 つの形を持つ欄を拒み、同じ会話で出し直させる。
+   - 正当な文を差し戻さないための除き（独立の確かめの指摘）: バッククォートの中（対象のコードの字のままの引用。`argv[1]`・`items[0]`）は数えない。`<パス>:<行>` は、拡張子が `lib/changemap.py` の拡張子の表（`KNOWN_EXT`。E13 が拡張子の表を許すファイル）に在る物だけを数える（`example.com:8080` を外す）。`<名>[<番号>]` は小文字の名だけを数える（返答の JSON の欄の名は小文字。脚注の `Smith[1]` を外す）。表に無い拡張子のパスと、バッククォートで囲んだ参照は数えないので人が見る。
+   - 修正案の受け付けは、往復の記録から機械が差し込んだ閉じた項目の行を照らさない（`workflows/plan/src/take.py` の `role_rows`）。この変更の前の記録の行が参照を持っていても、役は閉じた項目を直せないので、再開した run が役の直せない拒否を 20 回くり返して諦めていた。
 5. 人が見る部分: 詳しさ・項目の形・同じ論点のまとめ・単位の key や行の id や記録のファイルの名（対象のリポジトリのファイルの名や役の文と字で見分けられない）。数の上限では縛らない（憲法の 6）。
 6. 筋書き: 判定・修正案・事前審査（審査・出し直し・木の出し直し）・構造の目・テーマ・報告の筋書きの `resolved-text-contains` を断片の文（報告は足した文）に替え、組んだ指示に決まりが入ったことを Archon の筋書きで照らす。裁定役は筋書きで届かないので block の試験 `tests/blocks/fix/test_prompts.py` の `test_ruler` で照らす。
 
@@ -56,5 +61,5 @@
 
 ## 6 確かめ
 
-- 直しを外すと赤: 断片の取り込みを外した木で `check_tool_fragments` が、11 の node を名指して赤になった（断片を入れる前の木で確かめた）。`plainask.refs` の照らしは、block ごとの試験（`tests/blocks/{diagnose,plan,plan_review,structure,theme,fix}/`）が参照を持つ返答を拒むことを照らす。
+- 直しを外すと赤: 断片の取り込みを外した木で `check_tool_fragments` が、11 の node を名指して赤になった（断片を入れる前の木で確かめた）。独立の確かめの後の直しも、それぞれ外すと赤になる（PR の本文の「検証」）。`plainask.refs` の照らしは、block ごとの試験（`tests/blocks/{diagnose,plan,plan_review,structure,theme,fix}/`）が参照を持つ返答を拒むことを照らす。
 - 手元: `uv run --isolated python3 tests/changed.py`。Archon を起こす筋書きの試験は CI。
