@@ -30,7 +30,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from bin._lib import isolate, launcher  # noqa: E402
-from viewer.src import ja, page, runread, session, shape, stages, what  # noqa: E402
+from viewer.src import ja, page, runread, session, shape, stages, waste, what  # noqa: E402
 
 PACK = json.loads((ROOT / "pack.json").read_text(encoding="utf-8"))["ours"]
 TREE = ROOT / PACK["folder"]
@@ -92,6 +92,7 @@ def build(target: str | None, wanted: str, user: dict, here: Path) -> tuple[dict
     （AI のノードの最後の出どころが指示の md の写し）"""
     data, pack = read(target, wanted, user, here)
     stages.attach(data)
+    waste.attach(data)
     todo = ja.attach(data, pack, user)
     got = ja.table(user)
     data["shape"]["problems"] += what.attach(data["shape"], ROOT / "docs" / "design", lambda text: ja.translate(text, got)[0])
