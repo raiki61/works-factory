@@ -58,6 +58,8 @@ Each unit below is a fix that is planned but not yet made: its `summary` says wh
 
 The machine took these from the target (the version named in each heading). They are all the written intent you are given. They are listed from the repository root down; where two documents disagree, the one nearer to the unit's files (listed later) wins, and the policy for this run, when present, is listed last.
 
+A heading that says a document is pointed to by another document marks a file that a document above names (for example, as the rule to follow for some area) but that is not in the version under review. When the machine found it in another version (a branch not merged yet), it shows that text: judge against it as the rule the pointing document gives for its area, and where your judgment rests on it, say in `reason` that it is not in the version under review. When the heading says it could not be read, it is in no version: you cannot judge against it, so where a unit falls in the area the pointing document gives to it, say in `reason` that the rule for that area could not be read.
+
 {intent_docs}
 <!-- end intent -->
 

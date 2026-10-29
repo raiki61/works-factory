@@ -15,6 +15,7 @@ import ports
 
 import accept     # lib/
 import carry      # lib/
+import cite       # lib/。人の答えが名指したファイルを、版に無ければほかの版で探す
 import converge   # lib/
 import gatemarks  # lib/
 import handoff    # lib/
@@ -22,6 +23,7 @@ import judgmark   # lib/。開いた単位の選びと、直す義務・周が�
 from judgmark import (LEDGER, NOTHING_OWED, PLAN_STUCK, STUCK_WHY, held_why, is_open, plan_slots, slots, units_of,   # noqa: F401
                       plan_stuck_reason as stuck_reason)
 import jsonfile   # lib/
+import oneline    # lib/
 import planmarks  # lib/
 import rolekit    # lib/
 import structmark  # lib/
@@ -29,6 +31,9 @@ import structmark  # lib/
 from src import files, ripple
 
 RUNTIME_COPY_DIRS = ((ports.RUNTIME_COPY,),)   # 波及の一覧が飛ぶ、Archon が作業ツリーに写す置き場（lib/ の boundary.RUNTIME_COPY_DIRS と同じ値）
+CANNOT_READ = "cannot_read"        # 役が、人や依頼が照らせと指した文書を読めないと申し出る欄 [{path, why}]。在れば受け付けは案を照らさずに止める（held）
+CANNOT_READ_HOLD = ("修正案の役が、人の答えや依頼が照らせと指した文書を読めないと申し出たので、要約から組み直さずに止めた"
+                    "（文書を役が読める版に入れるか、本文を答えに貼って回し直す）: {rows}")
 WHOLE_PLAN = "whole_plan"          # 出し直しの役だけが書く欄（型は 1 回目の役と同じなので受け付けが 1 回目の答えから拒む。#832）。真なら plan が前の案を丸ごと置き換える（合わせた後も控えに残す）
 BASE_TESTS_UNREAD_OP = "writes_base_tests_unread"   # 修正前の版のテストを読み損ねた trace の行 {rev, unread}
 
@@ -160,6 +165,8 @@ def intake(place, repo, k: int, raw: dict) -> dict:
     folder.mkdir(parents=True, exist_ok=True)
     for brief in files.read_round(folder).get("items") or []:
         (folder / files.ITEM_BRIEF.format(no=brief)).unlink(missing_ok=True)
+    for n in range(1, len((files.read_json(folder / files.INTAKE) or {}).get("pointed") or []) + 1):
+        (folder / files.POINTED_TEXT.format(n=n)).unlink(missing_ok=True)
     for name in files.OWN_FILES:
         (folder / name).unlink(missing_ok=True)
     files.write_json(place / files.CURRENT_ROUND, {"round": k})
@@ -228,6 +235,7 @@ def intake(place, repo, k: int, raw: dict) -> dict:
         carry.place_prior(folder, ctx["prior_failures"])
     except ValueError as e:
         unread.append(f"prior_failures: {e}")
+    ctx["pointed"] = pointed(folder, repo, ctx, unread)
     ctx["unread"] = unread
     items: list = []
     if not why and mode == "plan":
@@ -249,6 +257,46 @@ def intake(place, repo, k: int, raw: dict) -> dict:
     files.write_json(folder / files.INTAKE, ctx)
     files.write_json(folder / files.ROUND, {"round": k, "mode": mode, "go": not reason, "why": reason, "items": items})
     return {"go": not reason, "mode": mode, "round": k, "reason": reason}
+
+
+POINTED_CAP = 6000   # pointed が書く本文 1 本の字の上限（structure の TEXT_CAP と同じ形）。超えた分は切り、cut に切った字の数を残す
+
+
+def pointed(folder, repo, ctx: dict, unread: list) -> list:
+    """人の答え（port answers の text。依頼の答えと、承認ノードで人が書いた一言）が名指したファイルのうち、役が読む版（review_rev、空なら
+    base、それも空なら HEAD）に無い物の行 [{path, found, commit, at, rev, file, cut, binary}]（cite.elsewhere。まだ取り込まれていない枝に
+    だけ在る正典など）。ほかの版で見つけた物は本文の頭 POINTED_CAP 字を周のフォルダの POINTED_TEXT に書き、file にそのパス、cut に切った
+    字の数を置く。本文に NUL の在る物（バイナリ）は書かず、binary を真にして file を空にする。どの版にも無い物は found・commit・
+    file が空（新しく作るファイルの名でもありうるので止めない。読めないまま組み直すかは役が決め、cannot_read で止める）。git が版を
+    読めなければ unread に名指して []"""
+    paths = []
+    for row in ctx.get("answers") or []:
+        paths += [p for p in cite.named_files(row.get("text") if isinstance(row, dict) else None) if p not in paths]
+    if not paths:
+        return []
+    rev = ctx.get("review_rev") or ctx.get("base") or "HEAD"
+    try:
+        rows = cite.elsewhere(repo, rev, paths)
+    except OSError as e:
+        unread.append(f"answers が名指したファイル: {e}")
+        return []
+    out = []
+    for n, row in enumerate(rows, 1):
+        file, text = "", row["text"]
+        binary = bool(row["commit"]) and "\0" in text
+        if row["commit"] and not binary:
+            file = folder / files.POINTED_TEXT.format(n=n)
+            file.write_text(text[:POINTED_CAP], encoding="utf-8")
+        out.append({**{k: row[k] for k in ("path", "found", "commit", "at")}, "rev": rev, "file": str(file) if file else "",
+                    "cut": max(0, len(text) - POINTED_CAP) if file else 0, "binary": binary})
+    return out
+
+
+def cannot_read(reply) -> str:
+    """役の返答（JSON に戻した値）の CANNOT_READ の行を 1 行に（`<path>（<why>）` を「・」で。無い・空・形の違う欄は空の字）"""
+    rows = reply.get(CANNOT_READ) if isinstance(reply, dict) else None
+    rows = [r for r in rows if isinstance(r, dict) and str(r.get("path") or "").strip()] if isinstance(rows, list) else []
+    return "・".join(f"{r['path']}（{oneline.one_line(str(r.get('why') or ''))}）" for r in rows)
 
 
 def load(place) -> tuple:
@@ -465,6 +513,8 @@ def status_of(folder, rnd: dict, fields) -> tuple:
     error = files.read_json(folder / files.PROMPT_ERROR)
     if isinstance(error, dict):
         return "failed", f"指示が組めない（{error.get('node')}: {error.get('why')}）"
+    if rnd.get("held"):   # 役が照らせと指された文書を読めないと申し出た（take.halt の held）。故障ではなく人に返す止まり
+        return "held", str(rnd["why"])
     if rnd.get("halt"):   # 受けた案の控えを置けない・差し込んだ閉じた項目の行が形に合わない機械の故障。役が回数を使い切った gave_up ではない
         return "failed", str(rnd["why"])
     try:

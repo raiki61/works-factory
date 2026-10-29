@@ -11,7 +11,7 @@ import jsonfile   # lib/
 import rolekit    # lib/
 import structmark   # lib/
 
-from src import eye, files, survey
+from src import eye, files, intent, survey
 
 
 def _outcome(doc: dict, kept: dict, rejects: list, after: bool = False) -> tuple:
@@ -76,4 +76,4 @@ def finish(out, mode: str = "before") -> dict:
     after = mode == "after" and structmark.read_after(out) is not None
     return returned(st.get("status") or "failed", st.get("reason") or "", ports.pointer(path, "json(shared:structure-state.schema.json)"),
                     ports.pointer(out / files.AFTER_FILE, "json(shared:structure-after.schema.json)") if after else None, len(dirty), len(up),
-                    structmark.report_lines(path, out if mode == "after" else None))
+                    [*intent.report_lines(eye.docs_of(out)), *structmark.report_lines(path, out if mode == "after" else None)])

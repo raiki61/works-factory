@@ -52,7 +52,7 @@ def _view(out) -> dict:
     return got
 
 
-def _docs(out) -> list:
+def docs_of(out) -> list:
     got = jsonfile.read_or(pathlib.Path(out) / files.INTENT_FILE, [])
     return [d for d in got if isinstance(d, dict)] if isinstance(got, list) else []
 
@@ -72,7 +72,7 @@ def prepare(out, mode="before", lang="") -> dict:
     st = state(out)
     rejects = rolekit.rejected(out, files.NAME)
     n = len(rejects) + 1
-    docs = _docs(out)
+    docs = docs_of(out)
     values = {"rejection": rolekit.rejects_text(rejects), "dirty": DIRTY, "clean": CLEAN, "route_self": ROUTE, "route_up": ROUTE_UP,
               "min_undecided": MIN_UNDECIDED, "min_quote": MIN_QUOTE, "shown": listcut.SHOWN, "lang": prompt.lang(lang),
               "intent_docs": intent.shown_docs(docs), "diff": _diff(out) if after else "",
@@ -180,7 +180,7 @@ def accept(out, reply) -> dict:
     st = state(out)
     started = st.get("started_at") or time.time()
     shown = _view(out)
-    docs = _docs(out)
+    docs = docs_of(out)
     attempt, stopped = rolekit.current_round(out, files.NAME)
 
     def take(_):

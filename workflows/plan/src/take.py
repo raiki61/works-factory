@@ -127,11 +127,11 @@ def revised_fields(fields, rows, repo, *, base_tests=None) -> list:
 MACHINE_ROWS_HALT = "往復の記録から差し込んだ閉じた項目の行が受け付けの形に合わない（機械の誤りなので役へ返さず止める）:"
 
 
-def halt(folder, why: str) -> dict:
+def halt(folder, why: str, *, held: bool = False) -> dict:
     """輪を止める返り {ok: False, halt: True, count: False, give_up: True, reason}（拒否ではない。役に出し直させず、回数に数えない）。
-    止める訳を round.json の why に残す（出口は halt の周を failed と読む）。書けなくても止める訳は返す"""
+    止める訳を round.json の why に残す（出口は halt の周を failed と読み、held も真の周は held と読む）。書けなくても止める訳は返す"""
     try:
-        files.write_json(pathlib.Path(folder) / files.ROUND, {**files.read_round(folder), "why": why, "halt": True})
+        files.write_json(pathlib.Path(folder) / files.ROUND, {**files.read_round(folder), "why": why, "halt": True, **({"held": True} if held else {})})
     except OSError as again:
         why += f"（止めの控えも書けなかった: {again}）"
     return {"ok": False, "halt": True, "count": False, "give_up": True, "reason": why}
@@ -374,14 +374,18 @@ def accept(place, repo, reply, fix_reply) -> dict:
     else:
         judgment = steps.read_judgment(ctx)
         merge = lambda prev, part: merge_resubmit(prev, part, steps.round_slots(folder, judgment))   # noqa: E731
-    got_reply, why = rolekit.resubmitted(folder, files.ROLE, reply, fix_reply, merge, required=files.REQUIRED,
-                                         fix_only=(steps.WHOLE_PLAN,))
-    if got_reply is None:
-        out = {"ok": False, "reason": why}
-    elif mode == "replan":
-        out = take_replan(folder, ctx, reply=got_reply, repo=repo, tables=tables, base_rev=ctx["base"], keys=keys)
+    unread = steps.cannot_read(fix_reply if fix_reply is not None else reply)
+    if unread:   # 照らせと指された文書を役が読めない: 要約から組み直させず、拒まずに止めて人に返す
+        out = halt(folder, steps.CANNOT_READ_HOLD.format(rows=unread), held=True)
     else:
-        out = take_plan(folder, ctx, judgment=judgment, reply=got_reply, repo=repo, tables=tables, base_rev=ctx["base"], keys=keys)
+        got_reply, why = rolekit.resubmitted(folder, files.ROLE, reply, fix_reply, merge, required=files.REQUIRED,
+                                             fix_only=(steps.WHOLE_PLAN,))
+        if got_reply is None:
+            out = {"ok": False, "reason": why}
+        elif mode == "replan":
+            out = take_replan(folder, ctx, reply=got_reply, repo=repo, tables=tables, base_rev=ctx["base"], keys=keys)
+        else:
+            out = take_plan(folder, ctx, judgment=judgment, reply=got_reply, repo=repo, tables=tables, base_rev=ctx["base"], keys=keys)
     got = rolekit.accept_round(folder, files.ROLE, None, lambda _: out, net=True)
     tries = n - (1 if out.get("halt") else 0)   # 受けた・拒んだ回は今の回、halt は前の拒否の数
     return {**rolekit.round_outcome(got), "attempt": tries}

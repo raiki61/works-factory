@@ -1,7 +1,7 @@
 """plan の block の place のファイルの名と、標準ライブラリだけの落ちない道（docs/design/plan.md の 1.4・4 節）。名はこのモジュールだけが持つ。
 
 place の直下: current-round.json（{round}）・plan-writer-prompt-<n>.md・plan-writer-fix-prompt-<n>.md（prompt.emit）・libdocs/ と libdocs.json。
-周のフォルダ r<k>/（k は round）の中: intake.json・round.json・slots.json・judgment.json・prior-*.json・prior-failures-in.json・
+周のフォルダ r<k>/（k は round）の中: intake.json・round.json・slots.json・judgment.json・prior-*.json・prior-failures-in.json・pointed-<n>.txt・
 ripple-units.json・tree.json・rejects-plan.json・candidate-plan.json・reply.json・p2.fix_plan.json・plan-fields.json・handoff.json・replan.json・
 replan-gave-up.json・item-brief-<no>.md・ripple.json・trace.jsonl・prompt-error.json・finish-error.txt・off-shape-plan-fields.json・
 off-shape-ripple.json。
@@ -39,6 +39,7 @@ HANDOFF = "handoff.json"                       # lib/handoff.py の path_of が�
 REPLAN = "replan.json"                         # lib/replan.py の TRIP_FILE（同上）
 REPLAN_GAVE_UP = "replan-gave-up.json"
 ITEM_BRIEF = "item-brief-{no}.md"
+POINTED_TEXT = "pointed-{n}.txt"   # 人の答えが名指し、役が読む版に無く、ほかの版で見つけた文書の本文（n は intake.json の pointed の 1 始まりの番）
 RIPPLE = "ripple.json"
 TRACE = "trace.jsonl"                          # lib/planmarks.py の TRACE_FILE（同上）
 PROMPT_ERROR = "prompt-error.json"
