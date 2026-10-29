@@ -25,7 +25,13 @@ def main() -> None:
     try:
         ports.returns(out)
     except ValueError as e:
-        ports.returns(finish.fallback(place, f"fix の出力を書けない（{type(e).__name__}: {e}）"))
+        last = finish.fallback(place, f"fix の出力を書けない（{type(e).__name__}: {e}）")
+        try:
+            ports.returns(last)
+        except ports.ShapeError as again:   # 返しの控えの行が宣言に合わない時も、fallback の返りは同じ行を持つので、その 2 つを空にして返す
+            last["removed_tests"], last["untested"] = [], []
+            last["tdd_refused"]["unread"].append(f"返しの控えの行を返せない（{again}）")
+            ports.returns(last)
 
 
 if __name__ == "__main__":

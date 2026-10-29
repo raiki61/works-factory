@@ -19,6 +19,8 @@ import tempfile
 import unittest
 import unittest.mock
 
+import yaml
+
 from tests.bin.gitkit import git
 from tests.blocks import kit
 from tests.blocks.fix import support
@@ -769,6 +771,10 @@ class AcceptTableCase(unittest.TestCase):
                                     "only_removed": ["test_stats.py"]}])
         self.assertEqual(untested, [{"group_id": "g1", "weapon": "static", "units": ["S"], "why": "文書の言い回しだけ",
                                      "files": [{"path": "docs/a.md", "kind": "docs"}]}])
+        fmt = yaml.safe_load((BLOCK / "works-factory-fix.yaml").read_text(encoding="utf-8"))
+        finish_fmt = next(n for n in fmt["nodes"] if n["id"] == "finish")["output_format"]["properties"]
+        for name, rows in (("removed_tests", removed), ("untested", untested)):   # 実物の行を finish の出力の形に当てる（空の並びでは形の食い違いが見えない）
+            self.assertEqual(validate_schema(rows, finish_fmt[name]), [], name)
         (self.repo / "test_stats.py").write_text("def test_other():\n    assert True\n", encoding="utf-8")
         for p in sorted((self.place / "returns").glob("*.json")):
             p.unlink()
