@@ -353,12 +353,31 @@ class StartCase(Seeded):
         self.assertEqual(got["ports"]["request_answers"], rows)
         self.assertIn(entryshape.EMPTY_REFUSED, self.refused(request=str(path)))
 
-    def test_request_with_empty_findings_container_is_refused_at_entry(self):
-        """依頼が {"findings": []}（容器だけで行が空）の形なら、base で差分が在っても入口で断る（通すと判定が走り切ってから止まる）。
-        findings を省いた形（test_request_without_findings_is_taken）は受ける"""
+    def test_request_with_empty_container_is_refused_at_entry(self):
+        """{"findings": []} の形で、ほかの欄（pr・issue・answers・prior_failures・constraints・theme）も全部空なら、base で差分が在っても
+        入口で断る（通すと判定が走り切ってから止まる）。findings を省いた形（test_request_without_findings_is_taken）は受ける"""
         path = self.outside("empty_findings.json", json.dumps({"findings": []}))
-        reason = self.refused(request=str(path), base="base")
-        self.assertIn("findings が空の配列", reason)
+        self.assertIn("ほかの欄", self.refused(request=str(path), base="base"))
+        every = self.outside("empty_all.json", json.dumps({"findings": [], "pr": [], "issue": [], "answers": [], "prior_failures": [],
+                                                          "constraints": [], "theme": " "}))
+        self.assertIn("ほかの欄", self.refused(request=str(every), base="base"))
+
+    def test_request_the_factory_writes_itself_is_taken(self):
+        """工場が次の run の依頼として自分で書く形は、findings が空でも入口が受ける（descend.py の設計へ戻す依頼 {findings, theme, answers}
+        と、lib/carry.py の compose の next-request.json {findings, prior_failures, answers?, constraints?}。往復が切れると続きの run が起こせない）"""
+        rows = [{"question": "q1", "text": "a を選ぶ"}]
+        theme = self.outside("theme.md", "# テーマ\n")
+        forms = {"descend": {"findings": [], "theme": str(theme), "answers": rows},
+                 "compose": {"findings": [], "prior_failures": [{"where": "run の後の CI", "text": "試験が赤"}]},
+                 "constraints": {"findings": [], "prior_failures": [], "constraints": [
+                     {"text": "t", "measured_how": "m", "kind": "実測"}]}}
+        for name, doc in forms.items():
+            with self.subTest(name):
+                path = self.outside(f"{name}.json", json.dumps(doc))
+                base = {"design_talk": "true"} if name == "descend" else {"base": "base"}   # テーマは差分の根と組めず、設計の相談の run に限る
+                got = self.start(request=str(path), **base)
+                self.assertNotIn("ほかの欄", got.get("reason", ""))
+                self.assertTrue(got["ok"], got)
 
     def test_omitted_tdd_suite_says_how_the_runner_is_prepared(self):
         """#505・#516: tdd_suite を省いた run は、承認ノードの文が TDD の実行器の用意を言う。名指した tdd_suite は記録にそのまま載る"""

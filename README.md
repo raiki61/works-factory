@@ -183,7 +183,7 @@ The entry line then reads "diff <base>..HEAD (N files), 0 requests". A run with 
 Forms the entry refuses:
 
 - `--input request=<file>` whose file holds only `{"pr": [<number>]}`: the `pr` key inside a request file is a number carried over from an earlier run, not a way to name a diff. With no rows and no `base` or `pr` input, the diff is empty, so the run is refused as empty. Name the PR with the `pr` input instead.
-- `--input request=<file>` whose file holds `{"findings": []}` (the container is there but has no rows): the judging stage would run all its viewpoints and then stop at the request, so the entry refuses it before any AI starts. Give no request file to have the factory find the problems itself, or put at least one row in `findings`.
+- `--input request=<file>` whose file has `findings` empty and every other key (`pr`, `issue`, `answers`, `prior_failures`, `constraints`, `theme`) empty too, such as `{"findings": []}`: the container is there but holds nothing, so the judging stage would run all its viewpoints and then stop at the request. The entry refuses it before any AI starts. Give no request file to have the factory find the problems itself, or put something in the file. A file with empty `findings` but another key filled in (the next-request files the factory writes itself) is accepted.
 - `--input base=<ref> --input pr=<number>` together: they name two different diffs, so it cannot tell which one to use. Give only one.
 
 ### test_cmd and worktrees
