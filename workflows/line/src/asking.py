@@ -2,7 +2,7 @@
 往復の末尾の設計の相談 design-talk（src/talk.py）が、同じ材料から同じ行を組むための 1 か所。行の決めは src.gates.before_fix。
 
 - materials(rounds, *, structure_raw, judge_raw, record_raw, dealt, unattended, place) -> dict: before_fix に渡す材料（ledger・design_rows_・
-  policy_row・stuck_reason・record_doc・answered・unread）。読めない控えは unread に名指す（開ける理由）。rounds の agreed（設計の相談で
+  policy_row・stuck_reason・record_doc・answered・unread・pointed〔構造の目の控えの版に無い名指し〕）。読めない控えは unread に名指す（開ける理由）。rounds の agreed（設計の相談で
   合意した答え）は台帳の問いへの関所の答えとして読む（合意した問いを修正前に聞き直さない）。台帳の依頼の答えは dealt（src.descend.dealt の
   配る値。テーマの run は降りた依頼の答え）から読む
 - record_doc(ptr, unread) -> dict | None: 往復の記録の 1 つの読み口（src.rounds.read）。読めない記録は unread に名指して None
@@ -63,4 +63,5 @@ def materials(rounds: dict | None, *, structure_raw, judge_raw, record_raw, deal
         design_rows = []
         unread.append(str(error))
     return {"ledger": ledger, "design_rows_": design_rows, "policy_row": gates.change_row(change) if change else "",
-            "stuck_reason": stuck, "record_doc": rec_doc, "answered": [previous] if isinstance(previous, dict) else [], "unread": unread}
+            "stuck_reason": stuck, "record_doc": rec_doc, "answered": [previous] if isinstance(previous, dict) else [], "unread": unread,
+            "pointed": gates.structure_pointed(structure)}

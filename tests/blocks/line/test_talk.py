@@ -140,6 +140,18 @@ class TalkCase(TalkBase):
     def shown(self) -> dict:
         return self.opened(asks=[ask_row()])
 
+    def test_agreed_pointed_rows_are_not_asked_again_before_fix(self):
+        """gate-design で見せて合意した版に無い名指しの行は、修正前の承認ノードで聞き直さない（持ち主の決め pointed-ask）"""
+        canon = {"path": "docs/canon.md", "found": True, "at": "canon"}
+        shown = self.opened(pointed=[canon])
+        self.assertTrue(shown["open"])
+        self.assertTrue(any("docs/canon.md" in x for x in shown["asked"]), shown["asked"])
+        got = self.settle(self.turn({"decision": "continue", "text": ""}, previous=shown), None, previous=shown)
+        for agreed, want in ((got["agreed"], False), (None, True)):
+            with self.subTest(agreed=agreed is not None):
+                out = self.g.before_fix(rounds(pointed=[canon]), unattended_run=False, design=agreed is None, agreed=agreed)
+                self.assertEqual((out["open"], out["go"]), (want, True))
+
     def test_agreement_ends_the_rounds_and_keeps_the_answer(self):
         shown = self.shown()
         turn = self.turn({"decision": "continue", "text": "a.py だけ"}, previous=shown)
@@ -624,6 +636,16 @@ class ScriptCase(unittest.TestCase):
                               record=self.run.pointer("r1/start.json"),
                               ports=json.dumps({"unattended": False, "design_talk": True, "policy": ""}))
         self.assertEqual((out["open"], out["go"], out["agreed"]), (False, True, agreed), out)
+
+    def test_design_talk_reads_a_plan_out_without_the_pointed_field(self):
+        """欄 pointed の無い前の版の plan-out の返りも読み、空の pointed で写す（落ちた形に倒さない）"""
+        po = {k: v for k, v in rounds().items()}
+        self.assertNotIn("pointed", po)
+        out = self.run.script("design_talk", turn=json.dumps({"plan": True}), plan_out=json.dumps(po), previous="null",
+                              structure="null", judge=json.dumps({"judgment": None, "answer_ties": None, "materials": None}),
+                              record="", request=handed({}),
+                              ports=json.dumps({"unattended": False, "design_talk": False, "policy": ""}))
+        self.assertEqual((out["status"], out["ok"], out["pointed"]), ("ok", True, []), out)
 
 
 class DryRunBodiesCase(unittest.TestCase):

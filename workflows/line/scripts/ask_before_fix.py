@@ -32,6 +32,7 @@ import ports  # noqa: E402
 ROUNDS = ("done", "ok", "status", "round", "plan_prior", "record", "plan", "fix_plan", "reply", "handoffs", "ripple", "owed", "gave_up",
           "stalled", "capped", "review", "asks", "deviations", "review_status", "review_reason", "stop_reason")
 TALKED = ("agreed",)   # 対話モードの run の計画の往復の返りだけが持つ欄（設計の相談の承認ノードの最後の答え。仕様駆動の run の往復の部は持たない）
+POINTED = ("pointed",)   # 人の答えが名指し、読む版に無い文書の行（src.gates.before_fix が読む。plan-out の output_format で required でない）
 RECORD = "run の置き場の gates/gate-before-fix.json"
 QUESTION = "事前審査の 4 つの軸と人への問い。通すなら通す範囲と条件を一言に"
 
@@ -46,7 +47,7 @@ def compute() -> dict:
 
     given = descend.dealt(ports.parsed(raw["ports"]), raw["request"])
     unattended, design = bool(given.get("unattended")), bool(given.get("design_talk"))
-    rounds = ports.picked(raw["rounds"], ROUNDS + TALKED, optional=TALKED)
+    rounds = ports.picked(raw["rounds"], ROUNDS + TALKED + POINTED, optional=TALKED + POINTED)
     agreed = rounds["agreed"] if rounds is not None and isinstance(rounds["agreed"], dict) else None
     kw = materials(dict(rounds) if rounds is not None else None, structure_raw=raw["structure"], judge_raw=raw["judge"],
                    record_raw=raw["record"], dealt=given, unattended=unattended, place=ports.place())
