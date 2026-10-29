@@ -3,7 +3,7 @@
 before の時だけ、構造の目の前に 2 つの役を回す。構造を描く役は Read・Grep・Glob で単位の周りを読み、触る部品を含むシステムを
 部品・流れ・正本・依存の向き・境目で描き（system）、どんな種類のシステムで触る部品が何を揃えたいかを 1 文で言う（kind）。
 一般の構造を描く目は道具を持たず、番号つきの kind の文だけを受けて、その種類のシステムの一般の構造を理由つきで描く。頼み・単位・
-差分・対象の名を運ぶ値を持たない形で独立を守る（受け付けが、kind の文に単位の id とパスとファイルの名が無いことを照らす）。
+差分・対象の名を運ぶ値を持たない形で独立を守る（受け付けが、kind の文に単位の id とパスとファイルの名〔拡張子を外した名とパスの各段も〕が無いことを照らす）。
 受け付けた行は sketches.json・general.json に書き、構造の目が単位ごとに system・kind・general を並べて見る（eye.shown）。
 指示の文は prompts/system-sketch.md・prompts/general-structure.md（と .system.md）が持ち、ここは材料と値と照らしだけを持つ。
 """
@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 import pathlib
+import re
 
 import ports  # noqa: F401  （lib/ を読めるようにする）
 import prompt
@@ -63,13 +64,19 @@ def _blank(v) -> bool:
 
 
 def _names(shown: list) -> list:
-    """kind の文に在ってはいけない字: 単位の id・パス・ファイルの名"""
+    """kind の文に在ってはいけない字: 単位の id・パス・ファイルの名・拡張子を外したファイルの名・パスの各段"""
     out = []
     for u in shown:
         out.append(u["id"])
         for p in u["paths"]:
-            out += [p, pathlib.PurePosixPath(p).name]
+            path = pathlib.PurePosixPath(p)
+            out += [p, path.name, path.stem, *path.parts]
     return sorted({n for n in out if isinstance(n, str) and n.strip()}, key=len, reverse=True)
+
+
+def _named(name: str, text: str) -> bool:
+    """text が name を英数字の続きでない所に持つ（大文字小文字を見ない。chart は charts の中では数えない）"""
+    return re.search(rf"(?<![A-Za-z0-9_]){re.escape(name)}(?![A-Za-z0-9_])", text, re.IGNORECASE) is not None
 
 
 def _one_to_one(rows, want: list, key: str, what: str) -> list:
@@ -90,7 +97,7 @@ def _one_to_one(rows, want: list, key: str, what: str) -> list:
 
 
 def sketch_problems(shown: list, reply) -> list:
-    """構造を描く役の返答の外れ（空なら通る）。単位と 1 対 1・system と kind が空でない・kind に単位の id とパスとファイルの名が無い"""
+    """構造を描く役の返答の外れ（空なら通る）。単位と 1 対 1・system と kind が空でない・kind に単位の id とパスとファイルの名（拡張子を外した名とパスの各段も）が無い"""
     rows = reply.get("rows") if isinstance(reply, dict) else None
     out = _one_to_one(rows, [u["id"] for u in shown], "unit_id", "単位")
     if not isinstance(rows, list):
@@ -104,9 +111,9 @@ def sketch_problems(shown: list, reply) -> list:
             if _blank(r.get(key)):
                 out.append(f"{head}: {key} が空")
         kind = r.get("kind") if isinstance(r.get("kind"), str) else ""
-        hit = [n for n in names if n.lower() in kind.lower()]
+        hit = [n for n in names if _named(n, kind)]
         if hit:
-            out.append(f"{head}: kind が対象の名を持つ（{hit[0]!r}。kind は対象を知らない目に渡すので、単位の id・パス・ファイルの名を書かない）")
+            out.append(f"{head}: kind が対象の名を持つ（{hit[0]!r}。kind は対象を知らない目に渡すので、単位の id・パス・ファイルの名・フォルダの名を書かない）")
     return out
 
 
