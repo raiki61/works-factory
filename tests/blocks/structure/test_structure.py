@@ -295,10 +295,10 @@ class SketchCase(_RepoCase):
         self.assertIn("行の無い単位", got["reason"])
 
     def test_a_kind_that_names_a_coined_stem_or_folder_of_the_paths_is_rejected(self):
-        self.target({"deploy/chart_v2/values-local.yaml": "a: 1\n"})
-        self.survey([{"id": "u1", "paths": ["deploy/chart_v2/values-local.yaml"], "summary": "設定の値"}])
+        self.target({"deploy/stack_v2/app-local.yaml": "a: 1\n"})
+        self.survey([{"id": "u1", "paths": ["deploy/stack_v2/app-local.yaml"], "summary": "設定の値"}])
         self.run.script("sketch_prep")
-        for leak in ("values-local", "chart_v2"):   # 識別子らしい、拡張子を外したファイルの名とパスの段
+        for leak in ("app-local", "stack_v2"):   # 識別子らしい、拡張子を外したファイルの名とパスの段
             got = self.sketch({"rows": [{"unit_id": "u1", "system": SYSTEM, "kind": f"配備の設定で {leak} の値を揃えたい"}]})
             self.assertIn(f"kind が対象の名を持つ（{leak!r}", got["reason"])
         got = self.sketch({"rows": [{"unit_id": "u1", "system": SYSTEM, "kind": "Deploy の設定の値を環境ごとに揃えたい部品の一覧"}]})
@@ -446,18 +446,18 @@ class IntentCase(_RepoCase):
 
 
 class PointedCase(_RepoCase):
-    """指示ファイルが名指した文書が読む版に無い時（guided-resolver #2177 の run: AGENTS.md が「デプロイの設定は <パス> の正典に従う」と
+    """指示ファイルが名指した文書が読む版に無い時（例の対象の run: AGENTS.md が「設定は <パス> の正典に従う」と
     書き、正典はまだ取り込まれていない PR の枝にだけ在った。目は気づかなかった）。ほかの版で見つけた物は本文を書いた意図に足し、
     どの版にも無い物は読めないと名指し、どちらも報告の行に出す"""
 
-    CANON = "docs/explanations/deploy-config.adoc"
-    RULES = f"# 決まり\n\nデプロイの設定は `{CANON}` の正典に従う。試験の書き方は `pkg/a.py` を見る。古い手順は `docs/gone.md` に在った。\n"
+    CANON = "docs/decisions/naming.md"
+    RULES = f"# 決まり\n\n設定は `{CANON}` の正典に従う。試験の書き方は `pkg/a.py` を見る。古い手順は `docs/gone.md` に在った。\n"
 
     def setUp(self):
         super().setUp()
         self.target({"AGENTS.md": self.RULES, "pkg/a.py": "x = 1\n"})
         git(self.run.repo, "checkout", "-q", "-b", "canon")
-        self.target({self.CANON: "名前は chart に持たせず、Terraform から受け渡す。\n"})
+        self.target({self.CANON: "名前は配る側に持たせず、用意する側から受け渡す。\n"})
         self.canon = git(self.run.repo, "rev-parse", "HEAD")
         git(self.run.repo, "checkout", "-q", "-")
         self.unit = [{"id": "u1", "paths": ["pkg/a.py"], "summary": "設定の名を足す"}]
@@ -466,7 +466,7 @@ class PointedCase(_RepoCase):
         self.survey(self.unit)
         docs = {d["path"]: d for d in self.read("intent.json")}
         self.assertEqual((docs[self.CANON]["rev"], docs[self.CANON]["pointed_by"]), (self.canon, "AGENTS.md"))
-        self.assertIn("Terraform から受け渡す", docs[self.CANON]["text"])
+        self.assertIn("用意する側から受け渡す", docs[self.CANON]["text"])
         self.assertNotIn("pkg/a.py", docs, "版に在る名指しは足さない")
         prompt = self.run.script("prep")["prompt"]
         self.assertIn(f"### {self.CANON} ({self.canon[:12]}, lines 1-1; pointed to by AGENTS.md, not in the version under review", prompt)
