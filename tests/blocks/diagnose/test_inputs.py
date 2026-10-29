@@ -253,9 +253,15 @@ class JudgeIntakeCase(_Base):
         self.assertTrue(self.intake(request="[]")["due"])
         self.assertEqual(self.doc("diagnose-input.json")["request_findings"], [])
 
+    def test_empty_array_by_file_or_pointer_is_a_run_without_rows(self):
+        """line は依頼の無い run の写し（中身は [] ）を pointer で渡す。字の [] と同じく行の無い run で、止めない"""
+        got = self.intake(request=self.write("req/empty.json", []))
+        self.assertTrue(got["due"], got)
+        self.assertEqual(self.doc("diagnose-input.json")["request_findings"], [])
+
     def test_declared_request_without_rows_is_works_request(self):
-        """依頼をファイル・pointer・容器の形で渡したのに行が空なら拒む（旧 check_request の minItems 1）。行の無い run は [] だけ"""
-        for request in (self.write("req/empty.json", []), self.write("req/container.json", {"findings": []}), '{"findings": []}'):
+        """依頼を容器の形で渡したのに行が空なら拒む（旧 check_request の minItems 1）。行の無い run は [] だけ（字・ファイル・pointer のどれでも）"""
+        for request in (self.write("req/container.json", {"findings": []}), '{"findings": []}'):
             with self.subTest(request=request):
                 got = self.intake(request=request)
                 self.assertFalse(got["due"])

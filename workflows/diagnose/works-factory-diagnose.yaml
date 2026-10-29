@@ -1,7 +1,7 @@
 name: works-factory-diagnose
 description: '根本の診断と再審の block（docs/design/diagnose.md）。判定の道は、依頼の行・素材の観点の所見・世界の解の行・前提の実測・記録された方針を読んだ判定役が、人の修正依頼を根本の単位に切ってラベルと disposition・処方・欠陥の数え方・先行例・人へ回す問いを返し、機械が作業ツリー・数え方の例と件数・先行例の出どころ・台帳の語彙・目的の外の所見・依頼の答えの結び・記録された方針の名指しで受け付ける。再審の道は、修正役の異議を受けた再審の役が、保存した判定を読んで考え直し、採る・退ける・一部採るを決める。道は port objection が空かで分かれる。単独の run でも、graph から include されても回る'
 inputs:
-  request: {default: '[]', description: 'json(shared:request.schema.json): 依頼の行の配列 [{where, text, mechanism?, measured?, false_positive_if?}]。それを findings の欄に持つ依頼のファイルの形でもよい（その時は answers・prior_failures の欄も読む）。字のままの空の配列 [] は依頼の行の無い run（対象差分だけを審査する）。ファイル・pointer・容器の形で渡して行が空なら works:request で止める。判定の道だけが読む'}
+  request: {default: '[]', description: 'json(shared:request.schema.json): 依頼の行の配列 [{where, text, mechanism?, measured?, false_positive_if?}]。それを findings の欄に持つ依頼のファイルの形でもよい（その時は answers・prior_failures の欄も読む）。空の配列 []（字でもファイル・pointer の中身でも）は依頼の行の無い run（対象差分だけを審査する）。容器の形で渡して行が空なら works:request で止める。判定の道だけが読む'}
   request_origin: {default: '', description: 'text: 依頼の行の出どころの名（判定役に見せる依頼のバッチの origin。例「人の依頼（/path/req.json）」）。空は「人の依頼（依頼の行）」。判定の道だけが読む'}
   objection: {default: '', description: 'text: 修正役が判定に出した異議の文。空は判定の道、空でなければ再審の道'}
   base: {default: '', description: 'text: 対象差分の根の commit（この commit から作業ツリーの今の姿まで。未追跡の新しいファイルも入る）。空は HEAD。判定の道だけが読む'}
