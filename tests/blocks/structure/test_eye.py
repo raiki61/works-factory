@@ -60,6 +60,17 @@ class ProblemsCase(_Case):
                 self.assertTrue(self.eye.problems(SHOWN, {"rows": [{**UP, **bad}]}), name)
         self.assertTrue(any("undecided_because" in g for g in self.eye.problems(SHOWN, {"rows": [{**UP, "undecided_because": ""}]})))
 
+    def test_route_up_text_has_no_run_refs(self):
+        """人に上げる行の訳・推し・捨てた案は承認ノードの項目に字のまま載るので、<パス>:<行> と <名>[<番号>] を拒む（共通の断片
+        plain-ask）。自分で決める行の推しは人に見せないので照らさない"""
+        for field, bad in (("undecided_because", {"undecided_because": "src/a.py:3 と src/b.py:9 の 2 つの置き場を別々に推していて決まらない"}),
+                           ("chosen", {"chosen": "units[0] の置き場に固める"}),
+                           ("rejected の 1 番目の cost", {"rejected": [{"option": "2 か所に置く", "cost": "docs/x.md:4 が割れる"}]})):
+            with self.subTest(field):
+                got = self.eye.problems(SHOWN, {"rows": [{**UP, **bad}]})
+                self.assertTrue(any(field in g and "初見の読み手が解けない" in g for g in got), got)
+        self.assertEqual(self.eye.problems(SHOWN, {"rows": [{**DIRTY, "chosen": "units[0] の置き場に固める"}]}), [])
+
     def test_own_decision_row_must_not_carry_undecided(self):
         got = self.eye.problems(SHOWN, {"rows": [{**DIRTY, "undecided_because": "人の前の決定が 2 つの置き場を別々に推している"}]})
         self.assertEqual(got, ["行 0（u-1）: undecided_because は 人に上げる行だけに書く"])

@@ -122,6 +122,17 @@ class JudgeTakeCase(_Base):
         self.assertIs(got["ok"], False)
         self.assertIn("options", got["reason"])
 
+    def test_question_text_with_run_refs_is_rejected(self):
+        """人に回す問いの理由と選択肢は承認ノードの項目に字のまま載るので、<パス>:<行> と <名>[<番号>] を拒む（共通の断片 plain-ask）"""
+        reply = judge_ok()
+        reply["questions"] = [{"key": "q1", "kind": "fork", "status": "held", "origin": MEAN,
+                               "reason": "stats.py:3 の分母をどう直すかが割れる。推し: 長さで割る——空の列を別に扱える",
+                               "options": ["長さで割る——空の列は例外", "units[0] のまま 2 で割る"]}]
+        got = self.take(reply)
+        self.assertIs(got["ok"], False)
+        self.assertIn("questions[0].reason: 初見の読み手が解けない", got["reason"])
+        self.assertIn("questions[0].options[1]", got["reason"])
+
     def test_judge_that_changed_the_tree_is_rejected(self):
         (self.repo / "extra.txt").write_text("読むだけの役が書いた\n", encoding="utf-8")
         got = self.take(judge_ok())

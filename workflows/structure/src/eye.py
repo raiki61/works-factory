@@ -21,6 +21,7 @@ import jsonfile   # lib/
 import structmark   # lib/。設計の行を読み直す
 import rolekit    # lib/。拒否の控えと輪の回の数え
 import listcut    # lib/。duplicates の件数（指示の {shown}）
+import plainask   # lib/。人に聞く文の照らし（run の中を指す参照を拒む）
 
 from src import files, intent, sketch
 
@@ -152,6 +153,10 @@ def problems(shown: dict, reply, docs=()) -> list:
             rej = r.get("rejected")
             if not isinstance(rej, list) or not rej:
                 out.append(f"{head}: {ROUTE_UP}行は rejected（捨てた案と代償）が 1 つ以上要る")
+            # 人に上げる行の訳・推し・捨てた案は承認ノードの項目に字のまま載る
+            out += [g for k in ("undecided_because", "chosen", "chosen_reason") for g in plainask.gaps(f"{head}.{k}", r.get(k))]
+            out += [g for j, x in enumerate(rej if isinstance(rej, list) else []) if isinstance(x, dict)
+                    for k in ("option", "cost") for g in plainask.gaps(f"{head}.rejected の {j + 1} 番目の {k}", x.get(k))]
         elif r.get("undecided_because"):
             out.append(f"{head}: undecided_because は {ROUTE_UP}行だけに書く")
         out += _quotes(head, r, docs)

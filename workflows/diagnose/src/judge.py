@@ -19,6 +19,7 @@ import jsonfile    # lib/
 import materialkit   # lib/。moved_since
 import oneline     # lib/
 import outpurpose  # lib/
+import plainask    # lib/。人に聞く文の照らし（run の中を指す参照を拒む）
 import policy      # lib/
 import querytest   # lib/
 import rolekit     # lib/
@@ -331,6 +332,9 @@ def judge_output(out, place, root, rev, materials, request_files=()):
                 if u and is_open(u):
                     errs.append(f"questions[{i}]（{kind}）の出どころ '{k}' が [block] / do-now（人に聞く前に直す義務が消える。defer にして構造的理由を書け）")
         errs += [f"questions[{i}]: {m}" for m in settled_state_errors(q, out["units"])]
+        if gatemarks.asks_human(q):   # 人に回す問いの理由と選択肢は承認ノードの項目に字のまま載る
+            errs += plainask.gaps(f"questions[{i}].reason", q.get("reason"))
+            errs += [g for j, o in enumerate(q.get("options") or []) for g in plainask.gaps(f"questions[{i}].options[{j}]", o)]
     awaiting = {name for name, m in (materials or {}).items() if isinstance(m, dict) and m.get("status") == "awaiting_human"}
     listed = {q.get("origin") for q in out["questions"] if q.get("kind") == "awaiting" and q.get("status") in gatemarks.ASKING}
     for name in sorted(awaiting - listed):

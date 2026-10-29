@@ -290,6 +290,16 @@ class ReviewAcceptCase(FlowCase):
         self.assertFalse(got["ok"])
         self.assertTrue(got["reason"].startswith(self.take.RECOMMEND_REJECT), got["reason"])
 
+    def test_recommend_with_run_refs_rejected(self):
+        """推しの文は承認ノードの項目に字のまま載るので、<名>[<番号>] を拒む（共通の断片 plain-ask）"""
+        self.prepped()
+        got = self.flow.accept(review(face("regression-recommend", kind="regression", severity="suggest",
+                                           recommend={"answer": "continue", "note": "plan[0] のまま通す", "why": "推す理由を書いた"},
+                                           undecided_because=CASE)))
+        self.assertFalse(got["ok"])
+        self.assertTrue(got["reason"].startswith(self.take.PLAIN_REJECT), got["reason"])
+        self.assertIn("faces[0].recommend.note", got["reason"])
+
     def test_human_row_without_a_case_rejected(self):
         """settle-by-standard: kind regression・policy の穴で、決め手も人に聞く場合の印も柵も無い行は拒む。ほかの kind は照らさない"""
         self.prepped()

@@ -45,6 +45,8 @@ When every sub-agent has returned, answer only with this node's fields — `reas
 If every open item is clean, start one synergy sub-agent at the end of the same pass ({synergy_file}). If any item has a block, do not start it.
 <!-- end synergy -->
 
+{shared:plain-ask}
+
 Write the text of `reason`, the `why` of `items[].blocks[]`, and `{stuck_push}.note` and `{stuck_push}.why` in {lang}. Keep keys, paths, identifiers, commands, error texts, and the characters inside quotes 「…」 as they are.
 
 Return only JSON that matches the output schema.

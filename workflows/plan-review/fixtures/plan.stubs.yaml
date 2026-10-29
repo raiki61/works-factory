@@ -20,7 +20,7 @@ fixture:
     purpose: 統計の関数が正しい値を返す
     tree: 'off'
   resolved-text-contains:
-    review: Your tools are Read, Grep, Glob, WebSearch, and WebFetch, plus Agent to start sub-agents
+    review: Each item must let them decide from its own text alone
 exec-code: true
 review:
   faces: []

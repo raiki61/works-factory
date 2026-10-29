@@ -27,6 +27,8 @@ In the working tree you may write test files only. Do not change a single charac
 
 ## How to answer
 
+{shared:plain-ask}
+
 - Write `spec.requirements[].text`, `spec.out_of_scope`, and `handled[].how` in {lang}. Keep keys, enum values, file paths, test names, and commands as they are.
 
 Return only JSON that matches the output schema.

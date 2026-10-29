@@ -33,6 +33,7 @@ from src import board as fixboard  # noqa: E402   置き場への作業ツリー
 from src.rulings import write as write_rulings  # noqa: E402   裁定の文のファイル
 from src import runvals  # noqa: E402   依頼のファイル（values.json）
 import jsonfile  # noqa: E402
+import plainask  # noqa: E402   人に聞く文の照らし（run の中を指す参照を拒む）
 import planbrief  # noqa: E402   今の周の brief の行（fix_plan_item を brief の在る単位に限る）
 import querytest  # noqa: E402
 import rolekit  # noqa: E402   輪の回の数え（拒否の控え rejects-rule.json）
@@ -102,7 +103,8 @@ def grounds_problems(r: dict, repo, request: str, roots) -> list:
 
 def ask_why_problems(r: dict) -> list:
     """人に回す訳（ASK_WHY）: ask_human は人の答えで変わる物（ASK_CHANGES の直しの向きか範囲）と 1 行の訳を持ち、訳が名の重なり
-    だけ（NAME_ONLY）なら拒む（名の重なりは人の答えで直しが変わらない。#664）。ほかの裁定は訳を持たない"""
+    だけ（NAME_ONLY）なら拒む（名の重なりは人の答えで直しが変わらない。#664）。ほかの裁定は訳を持たない。
+    ask_human の text と訳の line は、run の中を指す参照（plainask.refs）を持てば拒む"""
     why = r.get(conflict.ASK_WHY)
     if r["decision"] != conflict.ASK:
         return [f"{conflict.ASK_WHY} は {conflict.ASK} の裁定だけに書く"] if why is not None else []
@@ -111,7 +113,8 @@ def ask_why_problems(r: dict) -> list:
                 "人の答えで何が変わるかの 1 行}）が要る"]
     if why.get("changes") == conflict.NAME_ONLY:
         return [NAME_ONLY_REJECT]
-    return []
+    # 人に回す裁定の文と訳は最後の承認ノードの項目に字のまま載る
+    return plainask.gaps("text", r.get("text")) + plainask.gaps(f"{conflict.ASK_WHY}.line", why.get("line"))
 
 
 def plan_item_units(unit_key, briefs) -> tuple:

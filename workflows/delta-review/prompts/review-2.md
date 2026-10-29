@@ -24,6 +24,8 @@ Fix what was rejected and return the whole answer again.
 
 {part:policy}
 
+{shared:plain-ask}
+
 Write the human-facing fields (`why` of a hole, `faces_none`, `why` of `checks`) in {lang}. Keep keys, enum values, paths, and identifiers as they are.
 
 Return only JSON that matches the output schema.

@@ -5,6 +5,7 @@ spec_revise_output・spec_take の写しを、place の名で受ける形にし�
   通ったら審査役の前の作業ツリーの写しを置く
 - 審査役: 作業ツリーが写しから変わっていない（読むだけの役）・穴の鍵が一意・穴が無いなら faces_none に確かめた事
 - 直す役: 審査の穴の鍵に 1 度ずつ答える・直した仕様に書く役と同じ照らし
+- 3 つの役とも、承認ノードの項目に字のまま載る文（要件の text・穴の why・直しの how）が run の中を指す参照（plainask.refs）を持てば拒む
 返答が JSON のオブジェクトでない・形が違う時も、投げずに拒否として返す
 """
 from __future__ import annotations
@@ -12,6 +13,7 @@ from __future__ import annotations
 import pathlib
 
 import accept   # lib/。作業ツリーの写しと比べ
+import plainask   # lib/。人に聞く文の照らし（run の中を指す参照を拒む）
 from engine.util import READ_CAP, Reject, read_capped   # lib/graphloops/engine/util.py
 
 from src import files
@@ -57,15 +59,20 @@ def spec_errors(spec, root) -> list:
     return errs
 
 
+def _plain(rows, label: str, field: str) -> list:
+    """承認ノードの項目に字のまま載る欄（gate.approve が並べる）の、run の中を指す参照の拒否の行"""
+    return [g for i, r in enumerate(rows) for g in plainask.gaps(f"{label}[{i}].{field}", r.get(field))]
+
+
 def write_output(out, root) -> None:
-    errs = spec_errors(out, root)
+    errs = spec_errors(out, root) + _plain(out["requirements"], "requirements", "text")
     if errs:
         raise Reject(f"{files.NODES['write']}: " + "; ".join(errs))
 
 
 def review_output(out) -> None:
     faces = out.get("faces") or []
-    errs = _keys_once(faces, "faces")
+    errs = _keys_once(faces, "faces") + _plain(faces, "faces", "why")
     if not faces and blank(out.get("faces_none"), files.MIN_FACES_NONE):
         errs.append("穴を挙げないなら faces_none に何を確かめて無いと言えるかを書け")
     if errs:
@@ -80,7 +87,7 @@ def revise_output(out, review, root) -> None:
     errs += [f"handled の key '{r['key'][:40]}' は仕様の審査に無い" for r in rows if r["key"] not in asked]
     errs += [f"仕様の審査の '{k[:40]}' に応答が無い——{files.HANDLED[0]}（どう取り込んだか）か {files.HANDLED[1]}（残す理由）で答えろ"
              for k in sorted(asked - {r["key"] for r in rows})]
-    errs += spec_errors(out["spec"], root)
+    errs += spec_errors(out["spec"], root) + _plain(out["spec"]["requirements"], "spec.requirements", "text") + _plain(rows, "handled", "how")
     if errs:
         raise Reject(f"{files.NODES['revise']}: " + "; ".join(errs))
 

@@ -152,6 +152,8 @@ The acceptance check asks for a tie for an answer that matches no question of th
 
 Return one JSON object that matches the output schema. The fields are `units` (`key`, `label`, `disposition`, `reason`, `origin_analysis`, `why_chain`, `prescriptions`, `class_query`), `framing` (the root framing), `one_shot`, `one_shot_closes`, `questions`, `precedents`, `out_of_purpose` (the rule in "Inputs"; an empty array if none), and `answer_ties` (the section above; an empty array if there is neither an answer nor a row to be redone to tie). `materials_missing` is an empty array when every field of the materials has an explicit reply (if one is missing, follow the rule in "Inputs"). No earlier round's independent reviewer reaches this step, so make `carried_r1` an empty array.
 
+{shared:plain-ask}
+
 Write the following fields in {lang}: `reason`, `origin_analysis`, `why_chain`, `prescriptions`, `framing`, `one_shot`, the `reason`, `resolution`, and `options` of questions, the `problem`, `reason`, `searched`, and `undecided_because` of precedents, the `why_outside` of `out_of_purpose`, the `none` of `answer_ties`, the `note` of `class_query`, `examples_unavailable`, and `misses_omitted_why`. Keep keys, the values of enums, code identifiers, paths, commands, error sentences, and the mark `推し:` as they are. Do not translate a key you copied: it is matched by character equality.
 
 Return only JSON that matches the output schema.

@@ -148,6 +148,11 @@ class AcceptTest(_Case):
     def test_3_pick_is_an_option(self):
         self.check(lambda r: r["asks"][0].update(pick="A3"), "pick A3 が案の id")
 
+    def test_3_ask_text_has_no_run_refs(self):
+        """問いの文は設計の段の承認ノードに字のまま載るので、<パス>:<行> と <名>[<番号>] を拒む（共通の断片 plain-ask）"""
+        self.check(lambda r: r["asks"][0].update(ask="Should AGENTS.md:3 stay?"), "asks Q1 の ask: 初見の読み手が解けない")
+        self.check(lambda r: r["asks"][0]["options"][1].update(cost="parts[0] loses its entry."), "asks Q1 の案 A2 の cost")
+
     def test_5_reuse_points_at_current(self):
         self.check(lambda r: r["reuse"][0]["existing"].append("N7"), "existing N7 が current の id に無い")
         self.check(lambda r: r["reuse"][0].update(part="D9"), "reuse の part D9 が parts の id に無い")

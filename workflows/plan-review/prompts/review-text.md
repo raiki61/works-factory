@@ -46,6 +46,8 @@ BASE in this line is the version before this run started fixing: the baseline of
 
 - Do not write `unit_keys` on `faces` or `shrink` rows: a policy statement has no units.
 - `kind` is exactly one of the eight words of "What to look at".
+{shared:plain-ask}
+
 - Write the text of `where`, `why`, `no_add`, the `alternative` and `why` of `shrink`, `faces_none`, and `reason` in {lang}. Keep keys, paths, identifiers, commands, error texts, and the characters inside quotes 「…」 as they are. Write the fixed heads ("{minimal_head}", "{short_head}") as they are, whatever the language.
 
 Return only JSON that matches the output schema.

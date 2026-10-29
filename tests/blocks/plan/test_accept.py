@@ -333,6 +333,18 @@ class AcceptCase(unittest.TestCase):
         self.assertIn(steps.RECOMMEND_REJECT, why)
         self.assertIn("plan[0].narrows[0]", why)
 
+    def test_narrow_text_with_run_refs_rejected(self):
+        """narrows の行の人に見せる文（狭めない案・推し）は承認ノードの項目に字のまま載るので、<パス>:<行> を拒む（共通の断片 plain-ask）"""
+        run = PlanRun(self)
+        bad = narrow(no_narrow=NO_NARROW + "（stats.py:12 の形も当たった）",
+                     recommend={"answer": "continue", "note": "空の列は残す", "why": "呼び手が捕まえる"},
+                     undecided_because=CASE)
+        out, _ = go(run, {"plan": [item(1, 2, narrows=[bad])]}, {"plan": [item(1, 2)]}, typed=False)
+        self.assertIs(out["ok"], True)
+        why = reasons(run)[0]
+        self.assertIn(steps.PLAIN_REJECT, why)
+        self.assertIn("plan[0].narrows[0].no_narrow", why)
+
     def test_row_to_a_person_without_a_case_rejected(self):
         """settle-by-standard: 決め手も人に聞く場合の印も柵も無い narrows の行は拒み、決め手か印の在る行は通す"""
         run = PlanRun(self)

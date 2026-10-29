@@ -112,6 +112,7 @@ import converge
 import jsonfile
 import materialkit   # 素材の状態の表（測れていない状態 UNMEASURED の導き）
 import oneline
+import plainask    # 人に聞く文の照らし（run の中を指す参照を拒む）
 import planmarks   # 修正案の欄 structure（汚れる行への答え）
 import policy     # 記録された方針の一覧（kind policy の穴が名指す行）
 import seal      # 目の状態の語の持ち主
@@ -425,6 +426,33 @@ def recommend_gaps(node: str, reply: dict) -> list:
         gap = _recommend_gap(reply[converge.STUCK_PUSH])
         if gap:
             out.append(f"{converge.STUCK_PUSH}: {gap}")
+    return out
+
+
+PLAIN_FIELDS = ("undecided_because", "world", NO_NARROW)   # 関所の項目に字のまま載る行の欄（推しは RECOMMEND_KEYS[1:] も）
+
+
+def _plain_row(where: str, row) -> list:
+    if not isinstance(row, dict):
+        return []
+    out = [g for f in PLAIN_FIELDS for g in plainask.gaps(f"{where}.{f}", row.get(f))]
+    rec = row.get(RECOMMEND)
+    if isinstance(rec, dict):
+        out += [g for k in RECOMMEND_KEYS[1:] for g in plainask.gaps(f"{where}.{RECOMMEND}.{k}", rec.get(k))]
+    return out
+
+
+def plain_gaps(node: str, reply: dict) -> list:
+    """関所の項目に字のまま載る欄（PLAIN_FIELDS と推しの文）のうち、run の中を指す参照（plainask.refs）を持つ欄の 1 行ずつの文。
+    事前審査の返答は一番上の止まった時の推し（converge.STUCK_PUSH）も照らす（recommend_gaps と同じ行の並び）"""
+    if node not in NODES:
+        return []
+    rows = _rows(node, reply)
+    pairs = ([(f"plan[{i}].narrows[{j}]", n) for i, narrows in enumerate(rows) for j, n in enumerate(narrows)]
+             if node == "p2.fix_plan" else [(f"faces[{j}]", f) for j, f in enumerate(rows)])
+    out = [g for where, row in pairs for g in _plain_row(where, row)]
+    if node == "p2.plan_review" and isinstance(reply, dict) and isinstance(reply.get(converge.STUCK_PUSH), dict):
+        out += [g for k in RECOMMEND_KEYS[1:] for g in plainask.gaps(f"{converge.STUCK_PUSH}.{k}", reply[converge.STUCK_PUSH].get(k))]
     return out
 
 

@@ -818,7 +818,7 @@ ruled(裁定の後の修正の段)が何を使うかは次のとおり。直す�
 
 ### 8.5 rule-accept（裁定役）
 
-今の `ruling.accept_rule` のまま: 作業ツリーが `rule-tree.json` から動いた（読むだけの照らし。`status_guarded: true`）・id の過不足と重なり・fix_test_scope の limits・直す裁定の limits が現物のファイル・fix_plan_item が limits を持たず brief の行を grounds に挙げる・tdd-gave-up の fix_code_as の grounds・rejudge は join-clash だけで limits 無し・replace_query の問いを hits と misses と correct_lines で試す・grounds の現物・依頼の在る run の ask_human の出どころ・ask_why の有無と name_only・同じ項目に直す裁定と fix_plan_item を並べない・同じ組の join-clash の行の裁定を揃える（F209〜F214）。通れば `conflict.apply_rulings` と `conflict-rulings.md`。3 回目で裁かれていない申し出を全部 ask_human にして人に回す（F211）。控えが読めなければ done の拒否で人に回さない（今のまま）。
+今の `ruling.accept_rule` のまま: 作業ツリーが `rule-tree.json` から動いた（読むだけの照らし。`status_guarded: true`）・id の過不足と重なり・fix_test_scope の limits・直す裁定の limits が現物のファイル・fix_plan_item が limits を持たず brief の行を grounds に挙げる・tdd-gave-up の fix_code_as の grounds・rejudge は join-clash だけで limits 無し・replace_query の問いを hits と misses と correct_lines で試す・grounds の現物・依頼の在る run の ask_human の出どころ・ask_why の有無と name_only・ask_human の `text` と `ask_why.line` が run の中を指す参照（`<パス>:<行>`・`<名>[<番号>]`）を持たない（2 欄は line の最後の承認ノードに字のまま載り、人が読む。照らしは `lib/plainask.py`）・同じ項目に直す裁定と fix_plan_item を並べない・同じ組の join-clash の行の裁定を揃える（F209〜F214）。通れば `conflict.apply_rulings` と `conflict-rulings.md`。3 回目で裁かれていない申し出を全部 ask_human にして人に回す（F211）。控えが読めなければ done の拒否で人に回さない（今のまま）。
 
 ### 8.6 clash-accept（合わせ役）
 

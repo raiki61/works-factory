@@ -85,4 +85,6 @@ BASE in this line is the version before this run started: the baseline of check 
 - Write `resolved` only from the second pass on, with the keys of the section "Previous passes" whose holes are gone. A key may not be both in `resolved` and in a block row of `faces`.
 - Write the text of `where`, `why`, `no_add`, the `alternative` and `why` of `shrink`, `faces_none`, and `reason` in {lang}. Keep keys, paths, identifiers, commands, error texts, and the characters inside quotes 「…」 as they are. Write the fixed heads ("{minimal_head}", "{short_head}") as they are, whatever the language.
 
+{shared:plain-ask}
+
 Return only JSON that matches the output schema.
