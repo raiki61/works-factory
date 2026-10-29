@@ -158,6 +158,9 @@ def request(raw: dict, repo: Path) -> dict:
         parts = carry.parts(doc)
     except ValueError as error:
         raise Refused(f"依頼のファイル {rel} の形: {error}") from None
+    if isinstance(doc, dict) and carry.FINDINGS in doc and not any(parts.values()):   # 容器だけで中が全部空（通すと判定の観点が走り切った後で止まる）
+        raise Refused(f"依頼のファイル {rel} の形: findings が空で、ほかの欄（pr・issue・answers・prior_failures・constraints・theme）も"
+                      "空——依頼の中身が何も無い。依頼を渡さない（差分の審査は入力 base か入力 pr を名指す）か、中身を入れる")
     problems = entry.request_problems(parts[carry.FINDINGS]) if parts[carry.FINDINGS] else []   # 空は refuse_empty が見る
     if problems:
         raise Refused(f"依頼のファイル {rel} の形: findings の配列か {{findings, pr, issue, answers}} の形で、findings は "
