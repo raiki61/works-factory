@@ -65,7 +65,7 @@ FACE_MEAN = {"key": "key-a1-mean", "kind": "regression", "where": "stats.py", "w
 FACE_CLAMP = {"key": "key-b1-clamp", "kind": "regression", "where": "stats.py", "why": "下限の枝が抜ける", "severity": "block",
               "unit_keys": [CLAMP]}
 NO_NARROW = "狭めない案として空の列に 0 を返す形を当たったが、呼び手が例外を捕まえている"
-MARKED = narrow(no_narrow=NO_NARROW, undecided_because="空の列を渡す呼び手が在るかは依頼に書いていない",
+MARKED = narrow(no_narrow=NO_NARROW, undecided_because="②空の列を渡す呼び手が在るかは依頼に書いていない",
                 recommend={"answer": "continue", "note": "空の列は例外のまま残す", "why": "呼び手が例外を捕まえている"})
 REWRITE = {"id": "test_stats.py::TestStats::test_clamp_above_range", "behavior": "上限を超えた値に上限を返す",
            "old": "lo を返す", "new": "上限を超えたら hi を返す"}
@@ -430,7 +430,7 @@ class CollectCase(unittest.TestCase):
         bare_record で戻すと、受けた案の全部の項目と字のまま同じになり、hash も受けた項目の物と同じ（欄が欠ける向きも余る向きも無い）"""
         run = PlanRun(self)
         first = run.include(writer=writer_of({"plan": [item(1, narrows=[MARKED]),
-                                                       item(2, rewrite_tests=[REWRITE], narrows=[MARKED, narrow(no_narrow=NO_NARROW)])]}))
+                                                       item(2, rewrite_tests=[REWRITE], narrows=[MARKED, narrow(no_narrow=NO_NARROW, undecided_because=MARKED["undecided_because"])])]}))
         self.assertIs(first["ok"], True, first)
         rows = review_rows(run, first)
         self.assertNotIn(gatemarks.NO_NARROW, rows[1]["row"]["narrows"][0], "事前審査の行は決め手の欄を外した形")
@@ -450,7 +450,7 @@ class CollectCase(unittest.TestCase):
                 line = Line(run)
                 first = line.round(writer=writer_of({"plan": [item(1, narrows=[MARKED]), two]}))
                 self.assertIs(first["ok"], True, first)
-                bare = narrow()   # 役が no_narrow を書かなかった行
+                bare = narrow(undecided_because=MARKED["undecided_because"])   # 役が no_narrow を書かなかった行
                 role = seq({"plan": [item(1, approach=CHANGED_APPROACH, narrows=[bare]), *closed], "block_answers": [FIXED_MEAN]},
                            {"plan": [item(1, approach=CHANGED_APPROACH, narrows=[MARKED]), *closed]})
                 out = line.round({"faces": [FACE_MEAN]}, writer=role, fixer=role, typed=False)   # 欠けを受け付けまで通す

@@ -113,7 +113,9 @@ def summary(verdicts, **extra) -> dict:
                        "blocks": [{"key": k, "why": "下請けが挙げた穴"} for k in keys]} for n, keys in verdicts.items()], **extra}
 
 
-MEAN_BLOCK = face("item1-mean-empty-division", UNIT_MEAN, kind="regression")
+# 人に回る regression の穴が名乗る、人に聞く場合の印つきの訳（持ち主の決め settle-by-standard。受け付けが印の無い行を拒む）
+CASE = "②空の列の扱いは呼び手の優先で割れ、定石も 1 つに決めない"
+MEAN_BLOCK = face("item1-mean-empty-division", UNIT_MEAN, kind="regression", undecided_because=CASE)
 CLAMP_BLOCK = face("item2-clamp-upper-branch", UNIT_CLAMP)
 STUCK_REC = {"answer": "continue", "note": STUCK_NOTE.format(key=MEAN_BLOCK["key"]), "why": "穴は案の項目 1 の直しで閉じられる"}
 SEED_DOCSTRING_FACE = {"key": "seed-docstring", "unit_keys": [UNIT_MEAN], "kind": "policy", "where": f"{SEED_DOCSTRING} の docstring",
@@ -288,6 +290,16 @@ class ReviewAcceptCase(FlowCase):
         self.assertFalse(got["ok"])
         self.assertTrue(got["reason"].startswith(self.take.RECOMMEND_REJECT), got["reason"])
 
+    def test_human_row_without_a_case_rejected(self):
+        """settle-by-standard: kind regression・policy の穴で、決め手も人に聞く場合の印も柵も無い行は拒む。ほかの kind は照らさない"""
+        self.prepped()
+        got = self.flow.accept(review(face("regression-no-case", kind="regression", severity="suggest")))
+        self.assertFalse(got["ok"])
+        self.assertTrue(got["reason"].startswith(self.take.gatemarks.ASK_CASE_REJECT), got["reason"])
+        self.assertIn("faces[0]", got["reason"])
+        self.assertTrue(self.flow.accept(review(face("regression-case", kind="regression", severity="suggest",
+                                                     undecided_because="③記録された方針の行を覆す")))["ok"])
+
     def test_stuck_recommend_rides_on_the_pass_row(self):
         """元 ReviewAcceptCase.test_stuck_recommend_rides_on_the_pass_row: 返答の一番上の止まった時の推し（stuck_recommend）は、形が
         崩れていれば推しの形の拒みになり、整っていれば通る。review.json には欄が無く、pass.json の push に同じ推しが在る（line が往復の
@@ -333,18 +345,18 @@ class ReviewAcceptCase(FlowCase):
         self.prepped()
         for flush in ("項目1のremoves_testsが広い", "removes_testsの13件", "修正案の項目 1 の works の removes_tests（13 件）"):
             with self.subTest(where=flush):
-                got = f.accept(review(face("removes-tests-unrelated", kind="regression", where=flush)))
+                got = f.accept(review(face("removes-tests-unrelated", kind="regression", where=flush, undecided_because=CASE)))
                 self.assertFalse(got["ok"])
                 self.assertIn("removes_tests", got["reason"])
         self.assertFalse((f.place / "pass.json").exists())
         where = "修正案の項目 1 の works の removes_tests（13 件）"
-        self.assertTrue(f.accept(review(face("removes-tests-unrelated", kind="regression", severity="suggest", where=where)))["ok"])
+        self.assertTrue(f.accept(review(face("removes-tests-unrelated", kind="regression", severity="suggest", where=where, undecided_because=CASE)))["ok"])
         self.assertEqual(f.carry()["blocks"], [])
 
     def test_reply_by_number_is_named(self):
         """元 ReviewAcceptCase.test_reply_by_number_is_named: unit_keys を no の整数で指してよく、受けた返答では単位の名に戻る"""
         self.prepped()
-        self.assertTrue(self.flow.accept(review(face("number-pointed-face", unit=2, kind="regression", severity="suggest")))["ok"])
+        self.assertTrue(self.flow.accept(review(face("number-pointed-face", unit=2, kind="regression", severity="suggest", undecided_because=CASE)))["ok"])
         self.assertEqual(self.flow.read("review.json")["faces"][0]["unit_keys"], [UNIT_CLAMP])
         self.assertEqual(self.flow.read("pass.json")["review"]["faces"][0]["unit_keys"], [UNIT_CLAMP])
 

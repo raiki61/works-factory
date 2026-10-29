@@ -15,6 +15,8 @@ narrows を書く前に狭めを避ける形を当たり、無い時だけ narro
 同じ道で役の型にだけ足して盤面へ渡す前に外し、関所の項目の尾に添えるが、関所を通す条件（decided）には使わない。
 - split(node, reply): 受け付け
 - narrow_gaps(node, reply): 修正案の narrows の行で狭めない案の欄を欠く・短い行（planblk.take が拒む）
+- ask_gaps(node, reply)・ASK_CASES: 人に回る行のうち、人に聞く場合の印（①②③）を undecided_because の頭に名乗らない行（plan と
+  plan-review の受け付けが拒む。持ち主の決め settle-by-standard）
 - passes(b)・lines(b): 通した行と、最後の関所の文・報告の行
 
 問いの台帳（record.questions）のうち人に聞く状態（検証器の ASKING）の問いも、修正前の関所の項目に 1 件 1 行で載せる（持ち主
@@ -150,6 +152,12 @@ MARK_SCHEMA = {
                         "why＝推す理由。無人の run では、承認ノードの項目の全部の推しが通すならこの推しで承認ノードを通り、note が修正役への"
                         "一言になる。どれかの推しが無い・止めるなら止まり、推しは次の run の依頼の答えの下書きになる（人が見直すまで使われない）"},
 }
+# 人に回る行が undecided_because の頭で名乗る、人に聞く 3 つの場合の印（判定の役の問いと同じ印。① 決め手が割れる・② 人の優先の
+# 付け方で答えが変わる・③ 記録された方針の行とぶつかる。持ち主の決め settle-by-standard）。決め手でも柵でもなく、どれも名乗れない行は受け付けが拒む
+ASK_CASES = ("①", "②", "③")
+ASK_CASE_REJECT = ("人に回る行が、定石でも依頼の本文でも決まらない訳を名乗っていない。定石（標準・よく知られた OSS・公式の文書）か"
+                   "依頼の本文で答えが 1 つに決まるなら、その出どころを decided_by に書いて聞かずに通せ。決まらない時だけ、undecided_because の頭に"
+                   "① 決め手が割れる・② 人の優先の付け方で答えが変わる・③ 記録された方針の行とぶつかる、のどれかの印を書け:")
 # 狭めない案を探した結果（持ち主の方針 ADR 0002「今ある能力と使い方を減らさない」）。決め手の欄と同じく役の型にだけ足して受け付けが外すが、
 # 関所を通す条件（decided）には使わない。修正案の narrows の行では欠け・短いを受け付けが拒み、事前審査の穴では示せる時だけ書く
 NO_NARROW = "no_narrow"
@@ -359,6 +367,26 @@ def narrow_gaps(node: str, reply: dict) -> list:
             what = n.get("what") if isinstance(n, dict) else n
             out.append(f"plan[{i}].narrows[{j}]（{what}）: {NO_NARROW} が"
                        + (f" {len(got.strip())} 字（{NO_NARROW_MIN} 字以上）" if isinstance(got, str) else "無い（文字列で書く）"))
+    return out
+
+
+def ask_gaps(node: str, reply: dict) -> list:
+    """承認ノードに回しうる行（修正案の narrows の行・事前審査の穴のうち policy.HUMAN_FACE_KINDS の行）のうち、決め手の欄で通らず
+    （decided が偽）、柵の印も無いのに、undecided_because の頭に人に聞く場合の印（ASK_CASES）を名乗らない行の 1 行ずつの文
+    （持ち主の決め settle-by-standard。定石か依頼の本文で決まる行は decided_by に書いて聞かずに通し、決まらない行だけが場合を名乗って
+    人に回る）。ほかの節は空"""
+    if node not in NODES:
+        return []
+    rows = _rows(node, reply)
+    pairs = ([(f"plan[{i}].narrows[{j}]", n) for i, narrows in enumerate(rows) for j, n in enumerate(narrows)]
+             if node == "p2.fix_plan" else
+             [(f"faces[{j}]", f) for j, f in enumerate(rows) if isinstance(f, dict) and f.get("kind") in policy.HUMAN_FACE_KINDS])
+    out = []
+    for where, row in pairs:
+        mark = row if isinstance(row, dict) else {}
+        if decided(mark) or mark.get("fences") or str(mark.get("undecided_because") or "").lstrip().startswith(ASK_CASES):
+            continue
+        out.append(f"{where}: decided_by が無く、undecided_because の頭に {'・'.join(ASK_CASES)} のどれも無い")
     return out
 
 

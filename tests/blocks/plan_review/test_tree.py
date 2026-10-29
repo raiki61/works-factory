@@ -16,7 +16,9 @@ from tests.blocks.plan_review.test_take import (
     BLOCK, DESIGN_OK, NO_EFFECT, PLAN_MARK, PRECEDENTS as BARE_PRECEDENTS, RIPPLE, UNIT_CLAMP, UNIT_MEAN, Flow, answer, dump, face, fields,
     frow, item, review, summary, synergy)
 
-MEAN_BLOCK = face("item1-mean-empty-division", UNIT_MEAN, kind="regression")
+# 人に回る regression の穴が名乗る、人に聞く場合の印つきの訳（持ち主の決め settle-by-standard。受け付けが印の無い行を拒む）
+CASE = "②空の列の扱いは呼び手の優先で割れ、定石も 1 つに決めない"
+MEAN_BLOCK = face("item1-mean-empty-division", UNIT_MEAN, kind="regression", undecided_because=CASE)
 CLAMP_BLOCK = face("item2-clamp-upper-branch", UNIT_CLAMP)
 STUCK_NOTE = "{key} を項目 1 の修正の中で直す範囲で通す"
 STUCK_REC = {"answer": "continue", "note": STUCK_NOTE.format(key=MEAN_BLOCK["key"]), "why": "穴は案の項目 1 の直しで閉じられる"}
