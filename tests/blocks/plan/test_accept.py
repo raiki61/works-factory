@@ -22,12 +22,15 @@ from tests.blocks.plan.base import (CLAMP, DIRTY_ROW, HANDOFF_NOTE, MEAN, NIT, W
 
 brief = kit.load("plan", "brief")
 steps, files = brief.steps, brief.files
-import planbrief  # noqa: E402  （lib/。kit.load が sys.path に足す）
+import gatemarks  # noqa: E402  （lib/。kit.load が sys.path に足す）
+import planbrief  # noqa: E402
 import planmarks  # noqa: E402
 import replan     # noqa: E402
 import rolekit    # noqa: E402
 
 ROLE = files.ROLE
+# 人に回る narrows の行が名乗る、人に聞く場合の印つきの訳（持ち主の決め settle-by-standard）
+CASE = "②空の列の扱いは呼び手の優先で割れ、定石も 1 つに決めない"
 NO_NARROW = "狭めない案として空の列に 0 を返す形を当たったが、呼び手が例外を捕まえている"
 UNITS_HEAD = "## Units to fix in this round"
 CONCEPT_HEAD = "## Map of where concepts live"
@@ -93,7 +96,7 @@ class AcceptCase(unittest.TestCase):
 
     def test_accepted_plan_files(self):
         run = PlanRun(self)
-        out, _ = go(run, {"plan": [item(1, 2, narrows=[narrow(no_narrow=NO_NARROW)])]})
+        out, _ = go(run, {"plan": [item(1, 2, narrows=[narrow(no_narrow=NO_NARROW, undecided_because=CASE)])]})
         self.assertIs(out["ok"], True, out)
         self.assertEqual(out["status"], "ok")
         fields = run.json(out["plan"])
@@ -334,12 +337,24 @@ class AcceptCase(unittest.TestCase):
         """narrows の行の人に見せる文（狭めない案・推し）は承認ノードの項目に字のまま載るので、<パス>:<行> を拒む（共通の断片 plain-ask）"""
         run = PlanRun(self)
         bad = narrow(no_narrow=NO_NARROW + "（stats.py:12 の形も当たった）",
-                     recommend={"answer": "continue", "note": "空の列は残す", "why": "呼び手が捕まえる"})
+                     recommend={"answer": "continue", "note": "空の列は残す", "why": "呼び手が捕まえる"},
+                     undecided_because=CASE)
         out, _ = go(run, {"plan": [item(1, 2, narrows=[bad])]}, {"plan": [item(1, 2)]}, typed=False)
         self.assertIs(out["ok"], True)
         why = reasons(run)[0]
         self.assertIn(steps.PLAIN_REJECT, why)
         self.assertIn("plan[0].narrows[0].no_narrow", why)
+
+    def test_row_to_a_person_without_a_case_rejected(self):
+        """settle-by-standard: 決め手も人に聞く場合の印も柵も無い narrows の行は拒み、決め手か印の在る行は通す"""
+        run = PlanRun(self)
+        why = self.reject_once(run, {"plan": [item(1, 2, narrows=[narrow(no_narrow=NO_NARROW)])]})
+        self.assertIn(gatemarks.ASK_CASE_REJECT, why)
+        self.assertIn("plan[0].narrows[0]", why)
+        for mark in ({"undecided_because": "②強さの好みは運用で割れ、定石も既定を決めない"}, {"decided_by": "https://example.org/std#3"}):
+            with self.subTest(mark=mark):
+                out, _ = go(PlanRun(self), {"plan": [item(1, 2, narrows=[narrow(no_narrow=NO_NARROW, **mark)])]})
+                self.assertIs(out["ok"], True, out)
 
     def test_rewrite_limit_resolved(self):
         rewrite = {"id": "test_stats.py::TestStats::test_clamp_above_range", "behavior": "上限を超えた値に上限を返す",

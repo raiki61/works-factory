@@ -35,6 +35,7 @@ block の script と `src/` が Archon と出入りする口と、2 つ以上の
   - `plain-ask`: 人に聞く文（承認ノードの項目と報告の「人が決めること」に字のまま載る欄）の決まり（初見の読み手がその文だけで判断できる・短さより事実の揃い・run の中を指す参照を書かない・題／今／工場の案／代償／推しの形・同じ論点は 1 項目）。頭の 1 行の印 `<!-- required-for-fields: undecided_because asks questions ask_why stuck_recommend requirements.text faces.why -->` を形の検査 7.1 の 14 が照らす。参照を書かない決まりは、欄を受ける block の受け付けが `lib/plainask.py` で照らす。報告の書き手は欄が違うので断片を入れず、`report/prompts/write.md` に同じ決まりを書く。
   - `lang-default`: `lang` が空の時の言語の文（`prompt.lang` が読む）。
   - `deviation-grounds`: 一般の構造（その種類のシステムの部品の分け方・流れと向き・正本の置き場・依存の向き・境目）から外れてよい理由の決まり（文書で決めた決まりと外の動かせない事実だけ。前例を含む対象の今の状態は理由にしない）と、一般の構造に寄せるのに要る分は同じ変更に入れる決まり。計画の役・構造の目・事前審査・独立設計が段落の外で差し込む（持ち主の決め `general-structure-wins`）。
+  - `ask-cases`: 人に聞くのは定石でも依頼の本文でも決まらない時だけ、という決まりと、人に聞く 3 つの場合の印（①②③。`lib/gatemarks.py` の `ASK_CASES`）。1 段落の 1 行で、行の中に差し込める。計画の役・事前審査・判定の役が差し込む（持ち主の決め `settle-by-standard`）。
   - `design-premises`: 人が決めた前提（承認ノードの答え・依頼が名指した設計書の部分・対象の地図。中の口 `{answers}`・`{named}`・`{map}`。段落 `answers`・`named` の真偽が要る）。独立設計と r2 の比べの役が共に差し込む。
   - `policy`: 人の方針（中の口 `{policy_body}`）。方針を受ける役の全部が、段落の中で差し込む。
   - `resubmit`: 拒まれた後に、同じ会話の続きで拒まれた欄だけを返させる役の指示（中の口 `{rejection}`・`{candidate}`）。

@@ -10,5 +10,5 @@ Follow these rules when you write the fields of your output that ask a person to
   3. Proposal: what the factory would do.
   4. Cost: what that costs, and whether and how it can be undone.
   5. Recommendation: which answer you recommend, and why.
-  When the output schema (the shape of the JSON you return) splits an item over several fields (for example a question's reason and options, or a row's reason for not being settled and its recommendation), put each part in the field that holds it and keep the parts in this order across the fields.
+  When the output schema (the shape of the JSON you return) splits an item over several fields (for example a question's reason and options, or a row's reason for not being settled and its recommendation), put each part in the field that holds it and keep the parts in this order across the fields. When this prompt's rules on what to ask a person tell you to start `undecided_because` with a case's mark (①, ②, ③), keep that mark first and write the "Now" part right after it; the mark names why a person is asked, not an item number, so it is not one of the internal references above.
 - **One point, one item.** When the same point comes up from several angles (a capability that is narrowed, the policy, the world's solutions), raise it once and mention the other angles inside that one item.

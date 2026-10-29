@@ -87,6 +87,39 @@ class GapsCase(unittest.TestCase):
         self.assertEqual(marks[0][0][gatemarks.RECOMMEND], REC)
 
 
+class AskCaseCase(unittest.TestCase):
+    """持ち主の決め settle-by-standard: 人に回る行（決め手の欄で通らず、柵の印も無い行）は、undecided_because の頭に人に聞く
+    場合の印（ASK_CASES）を名乗る。名乗れない行は、定石か依頼の本文を decided_by に書いて聞かずに通す形に直させる"""
+
+    def plan(self, **mark):
+        return {"plan": [{"narrows": [{**NARROW, "no_narrow": NO_NARROW, **mark}]}]}
+
+    def test_row_settled_by_a_source_passes(self):
+        got = gatemarks.ask_gaps("p2.fix_plan", self.plan(decided_by="https://semver.org/#spec-item-8", world="定石で決まる"))
+        self.assertEqual(got, [])
+
+    def test_row_to_a_person_names_its_case(self):
+        for why in ("②運用で強さの好みが割れ、定石も設定に任せるだけで既定を決めない", "①③ 先例が割れ、記録された方針の行とぶつかる"):
+            with self.subTest(why=why):
+                self.assertEqual(gatemarks.ask_gaps("p2.fix_plan", self.plan(undecided_because=why)), [])
+
+    def test_fenced_row_goes_to_a_person_as_before(self):
+        self.assertEqual(gatemarks.ask_gaps("p2.fix_plan", self.plan(decided_by="x", fences=["external_write"])), [])
+
+    def test_row_without_a_source_or_a_case_is_named(self):
+        for mark in ({}, {"undecided_because": "運用の判断なので人に聞く"}, {"decided_by": "", "undecided_because": " "}):
+            with self.subTest(mark=mark):
+                got = gatemarks.ask_gaps("p2.fix_plan", self.plan(**mark))
+                self.assertEqual(len(got), 1, got)
+                self.assertIn("plan[0].narrows[0]", got[0])
+
+    def test_review_faces_of_human_kinds_only(self):
+        other = {**FACE, "kind": "copy"}
+        got = gatemarks.ask_gaps("p2.plan_review", {"faces": [FACE, other, {**FACE, "decided_by": "「空の列は 0 を返す」"}]})
+        self.assertEqual(len(got), 1, got)
+        self.assertIn("faces[0]", got[0])
+
+
 class IntakeCase(unittest.TestCase):
     def test_draft_answers_are_refused_with_how_to_use_them(self):
         """下書きのまま次の run の依頼に渡すと、機械の下書きが人の答えとして関所の問いに当たる。依頼の入口は draft・source の

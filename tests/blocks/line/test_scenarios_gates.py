@@ -1,4 +1,4 @@
-"""line の筋書き（workflows/line/fixtures/）のうち、承認ノード・計画の往復・案の直し・再審・無人の run・修正の後の並行 PR・守りのパスの 21 本を dry-run の trace で照らす
+"""line の筋書き（workflows/line/fixtures/）のうち、承認ノード・計画の往復・案の直し・再審・無人の run・修正の後の並行 PR・守りのパス・定石で決まる行の 22 本を dry-run の trace で照らす
 （docs/design/line.md の 11 節。元は tests/e2e/test_line_scenarios.py の LineReturnsTest・UnattendedGateTest・HeldPushTest・
 ProtectedNotAppliedTest・RefixHandoffTest）。
 
@@ -20,7 +20,7 @@ NAMES = (
     "eyes-failed", "final-stop", "final-when-needed-green", "policy-continue", "policy-stop", "refix-handoff", "rejudge",
     "rejudge-stop", "replan", "replan-answers", "replan-stop", "unattended-held-no-push", "unattended-held-push",
     "unattended-needs-human", "unattended-policy-change", "unattended-push", "unattended-push-stop", "unattended-questions",
-    "parallel-pr-after-found", "seal-protected", "seal-protected-unattended",
+    "parallel-pr-after-found", "seal-protected", "seal-protected-unattended", "settled-by-standard",
 )
 
 
@@ -215,6 +215,24 @@ class RejudgeCase(unittest.TestCase):
             self.assertFalse(ran(trace, node), node)
         got = out(trace, "result")
         self.assertEqual((got["apply"], got["sealed"], got["r2_status"], got["final_answer"]), (None, None, None, None), got)
+
+
+class SettledByStandardCase(unittest.TestCase):
+    """持ち主の決め settle-by-standard: 人の居る run でも、定石で決まる狭めの行（決め手の欄が揃い、軸の訳が無い行）は修正前の
+    承認ノードで聞かず、聞かずに通した行として出どころつきで返して修正へ進む"""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.t = traces(("settled-by-standard",))
+
+    def test_row_settled_by_the_standard_is_not_asked(self):
+        trace = self.t["settled-by-standard"]
+        asked = out(trace, "ask-before-fix")
+        self.assertEqual((asked["open"], asked["go"], asked["asked"]), (False, True, []), asked)
+        self.assertEqual([p["decided_by"] for p in asked["passes"]],
+                         ["https://martinfowler.com/articles/feature-toggles.html#ReleaseToggles"], asked)
+        self.assertFalse(ran(trace, "gate-before-fix"))
+        self.assertTrue(ran(trace, "fix__finish"))
 
 
 class UnattendedCase(unittest.TestCase):
