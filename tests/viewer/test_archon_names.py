@@ -31,6 +31,8 @@ WRITTEN = {
     f"{runread.PARENT_NODE}": "packages/workflows/src/dag-executor.ts",
     f"{runread.TOTAL_COST}:": "packages/workflows/src/dag-executor.ts",
     f"{runread.ATTEMPT_ID}:": "packages/workflows/src/schemas/provider-event.ts",
+    **{f"kind: z.literal('{kind}')": "packages/workflows/src/schemas/dag-node.ts"
+       for kind in (*runread.AI_KINDS, runread.WAIT_NODE, *runread.GROUP_KINDS)},
     **{name: RUN_SCHEMA for name in (f"metadata?.{runread.WAIT}", f"kind: z.literal('{runread.WAIT_KIND}')", f"{runread.WAIT_ANSWER}: attentionAnswerSchema",
                                      f"wait.owner === '{runread.WAIT_LOOP_OWNER}' ? `${{wait.nodeId}}.${{wait.bodyWaitId}}` : wait.nodeId")},
 }
@@ -65,7 +67,7 @@ class ArchonNamesTest(unittest.TestCase):
     def test_statuses_are_the_sources(self):
         found = re.search(r"workflowRunStatusSchema = z\.enum\(\[(.*?)\]\)", self.read(RUN_SCHEMA), re.S)[1]
         self.assertEqual(literals(found), set(runread.STATUSES))
-        self.assertLessEqual({*runread.LIVE, runread.PAUSED}, set(runread.STATUSES))
+        self.assertLessEqual({*runread.LIVE, runread.PAUSED, runread.FAILED}, set(runread.STATUSES))
 
     def test_table_columns_are_in_the_source(self):
         text = self.read(SQLITE)

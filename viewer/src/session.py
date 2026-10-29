@@ -7,10 +7,12 @@ Claude Code の版は工場が止めていないので、記録の形は試験�
 （代わりが無ければ LLM に入った字が帯から消えるので）。
 
 - find(projects, preview) -> run の記録の会話の id の頭（sessionPreview）に当たる記録のパス（無ければ None。Claude Code が消した古い記録は結べない）
-- read(path, keep) -> 1 本の会話。流れ（seq）は LLM に入った順の片で、往復の始まりに ["turn", 往復の番号] を置く（トークンは往復の
-  usage から読む。1 つの返事は行が分かれ、出力のトークンは終わりの行で数え終わるので、流れに写さない）。keep は同じ字を 1 つにして番号で指す関数（同じ system を会話ごとに持たない）。system と道具の一覧
+- read(path, keep) -> 1 本の会話。流れ（seq）は LLM に入った順の片で、往復の最初の行で ["turn", 往復の番号] を置く（usage を持つ
+  行を待たない。トークンは往復の usage から後で埋め、usage の無い往復は空のまま。1 つの返事は行が分かれ、出力のトークンは終わりの行で
+  数え終わるので、流れに写さない）。keep は同じ字を 1 つにして番号で指す関数（同じ system を会話ごとに持たない）。system と道具の一覧
   （api-request-shape）と添え書き（api-request-blob）は、その型の行が記録に在ったかを recorded に持つ（無ければページは欄を空にせず
-  「記録に無い」と出す。普通の利用者の Claude Code でこの 2 つの型が出るかは確かめていない）
+  「記録に無い」と出す。普通の利用者の Claude Code でこの 2 つの型が出るかは確かめていない）。往復は最初の行の時刻 at を持ち、道具の
+  呼び出しは切る前の入力の字の番号 text を持ち、会話は作業の場所 cwd（最初に cwd を持つ行の値）を持つ（無駄の手がかりの数え。src/waste.py）
 """
 import json
 from pathlib import Path
@@ -40,7 +42,7 @@ def find(projects: Path, preview: str) -> Path | None:
 
 def read(path: Path, keep) -> dict:
     got = {"system": [], "tools": [], "inject": [], "prompt": None, "turns": [], "seq": [], "cost": None, "usage": None, "unread": {},
-           "recorded": {SHAPE: False, BLOB: False}}
+           "recorded": {SHAPE: False, BLOB: False}, "cwd": ""}
     turns, by_id, results, held = [], {}, {}, {}
     for line in path.read_text(encoding="utf-8", errors="replace").splitlines():
         try:
@@ -59,6 +61,8 @@ def read(path: Path, keep) -> dict:
         message = row.get("message") or {}
         if kind in got["recorded"]:
             got["recorded"][kind] = True
+        if not got["cwd"] and isinstance(row.get("cwd"), str):
+            got["cwd"] = row["cwd"]
         if kind == SHAPE and not got["system"]:
             shape = row.get("shape") or {}
             got["system"] = [keep(part.get("text", "")) for part in shape.get("system") or []]
@@ -68,7 +72,7 @@ def read(path: Path, keep) -> dict:
         elif kind == "user":
             _user(got, message, keep, results)
         elif kind == "assistant":
-            _assistant(got, message, keep, turns, by_id)
+            _assistant(got, message, keep, turns, by_id, row.get("timestamp"))
         elif kind == "cost-state":
             got["cost"], got["usage"] = row.get("totalCostUSD"), row.get("modelUsage")
     for turn in turns:
@@ -109,25 +113,24 @@ def _user(got, message, keep, results):
             got["seq"].append(["user", keep(part["text"])])
 
 
-def _assistant(got, message, keep, turns, by_id):
-    """1 つの返事は content の片ごとに行が分かれ、同じ message.id を持つ"""
+def _assistant(got, message, keep, turns, by_id, at):
+    """1 つの返事は content の片ごとに行が分かれ、同じ message.id を持つ。往復の時刻は最初の行の時刻"""
     ident = message.get("id") or str(len(turns))
     if ident not in by_id:
-        by_id[ident] = {"usage": {}, "calls": [], "say": ""}
+        by_id[ident] = {"usage": {}, "calls": [], "say": "", "at": at if isinstance(at, str) else None}
+        got["seq"].append(["turn", len(turns)])
         turns.append(by_id[ident])
     turn = by_id[ident]
     usage = message.get("usage") or {}
     if usage:
-        counted = {"in": usage.get("input_tokens", 0), "cache_read": usage.get("cache_read_input_tokens", 0),
-                   "cache_write": usage.get("cache_creation_input_tokens", 0), "out": usage.get("output_tokens", 0)}
-        if not turn["usage"]:
-            got["seq"].append(["turn", turns.index(turn)])
-        turn["usage"] = counted
+        turn["usage"] = {"in": usage.get("input_tokens", 0), "cache_read": usage.get("cache_read_input_tokens", 0),
+                         "cache_write": usage.get("cache_creation_input_tokens", 0), "out": usage.get("output_tokens", 0)}
     for part in message.get("content") or []:
         kind = part.get("type") if isinstance(part, dict) else None
         if kind == "tool_use":
-            turn["calls"].append({"id": part.get("id"), "name": part.get("name"), "input": _clip(_text(part.get("input")), 400)})
-            got["seq"].append(["call", part.get("name"), keep(json.dumps(part.get("input"), ensure_ascii=False, indent=1))])
+            mark = keep(json.dumps(part.get("input"), ensure_ascii=False, indent=1))
+            turn["calls"].append({"id": part.get("id"), "name": part.get("name"), "input": _clip(_text(part.get("input")), 400), "text": mark})
+            got["seq"].append(["call", part.get("name"), mark])
         elif kind == "text" and part.get("text"):
             turn["say"] = _clip(part["text"], 300)
             got["seq"].append(["say", keep(part["text"])])
