@@ -6,7 +6,7 @@ fixture:
   inputs:
     theme: 'README.md'
   resolved-text-contains:
-    theme-writer: 'You are the design writer.'
+    theme-writer: 'Each item must let them decide from its own text alone'
 exec-code: true
 theme-writer:
   question: 'Where should a new review viewpoint live?'

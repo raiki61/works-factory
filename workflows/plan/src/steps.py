@@ -45,6 +45,7 @@ NO_NARROW_REJECT = (f"narrows の行に狭めない案を探した結果（{gate
                     "在ればそれを案に採ってその行を消し、無い時だけ、どの形を当たりなぜ採れないかを書け:")
 RECOMMEND_REJECT = (f"承認ノードの項目の行の推し（{gatemarks.RECOMMEND}）の形が崩れている。"
                     f"書くなら {gatemarks.RECOMMEND_SHAPE} の形で:")
+PLAIN_REJECT = "承認ノードの項目に字のまま載る文に、初見の読み手が解けない run の中の参照が在る:"   # gatemarks.plain_gaps の行の頭
 REPLAN_REJECT = "直した項目の返答に誤りが在る:"   # lib/replan.py の REPLAN_REJECT と同じ字（案の直しの拒否の頭）
 NOT_OWED_REJECT = "案に、直す義務の無い単位が入っている（nit・info・defer など。受け付けが受けない）。案から外せ。案に入れてよい no（必ず入れる物を含む）は"
 ANSWERS_REJECT = "答えの要る穴への答えに誤りが在る:"

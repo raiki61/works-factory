@@ -263,6 +263,8 @@ If a person's answer or the request tells you to follow a document or to check t
 
 Do not write `{whole_plan}` (only a resubmission in this conversation writes it).
 
+{shared:plain-ask}
+
 Write the fields that people read (approach, shrink_first, every why, why_not, no_narrow, undecided_because, world, deviation, the what of narrows, the note and why of recommend, the how of block_answers, and handoff, and any other free-text field shown at approval nodes or in the report, such as the behavior, old and new of tests and rewrite_tests, responsibility, the concept of home, route_why, and red_why) in {lang}. Keep keys, enum values, code identifiers, paths, commands, and error messages as they are (keys are matched across rounds, so do not translate them).
 
 Return only JSON that matches the output schema.

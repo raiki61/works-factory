@@ -79,6 +79,7 @@ class RenderedCase(unittest.TestCase):
         out = run.script("rule_prep")
         self.assert_rendered("ruler", out["prompt"])
         self.assertIn("There is no policy document.", out["prompt"])
+        self.assertIn("Each item must let them decide from its own text alone", out["prompt"])   # 共通の断片 plain-ask（人に回す文の決まり）
         self.assertTrue((place / "ruler-prompt-1.md").is_file())
 
     def test_clash_fix_and_ruled(self):

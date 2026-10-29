@@ -26,7 +26,7 @@ fixture:
     purpose: 統計の関数が正しい値を返す
     tree: 'on'
   resolved-text-contains:
-    review-tree-fix: Your previous answer was rejected by the machine's check.
+    review-tree-fix: Each item must let them decide from its own text alone
 exec-code: true
 review-prep:
   prompt: ''

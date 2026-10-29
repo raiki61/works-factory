@@ -167,6 +167,7 @@ Rules for queries to outside services and for the sources you use: …
 1. 形（`shared:theme-design.schema.json`）。外れたら後の照らしをしない。
 2. `<パス>:<行>` の名指しが固めた版に在る（`lib/design.py` の `anchor_misses`）。`current` の `where`・`decided` の `by`・`checks` の `rule` は名指しを 1 つ以上要る。`parts` の `where`・`checks` の `where` は、名指しが在ればそれを照らす（足す部品の置き場は今は無いので名指しを要らない）。
 3. `asks` の各行の `pick` が案の id のどれか（案が 2 つ以上・`cost` と `gain` が空でないのは形が照らす）。
+   - 続けて、問いの文（`ask`・`pick_why` と案の `what`・`gain`・`cost`）が run の中を指す参照（`<パス>:<行>`・`<名>[<番号>]`）を持てば拒む（設計の段の承認ノードに字のまま載る）（人に聞く文の決まり。`lib/plainask.py`。持ち主の言葉「このユーザに聞くところ全部、初見にもわかりやすく詳しく」。計画は `docs/plans/2026-10-29-plain-asks.md`）。
 4. `decided` の各行の `by`（2 の名指し）。
 5. `reuse` の各行の `part` が `parts` の id、`existing` が `current` の id（空なら `why_not`。形が空でない字を求める）。
 6. 作り変えの照らし（6 章）。

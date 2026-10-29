@@ -330,6 +330,17 @@ class AcceptCase(unittest.TestCase):
         self.assertIn(steps.RECOMMEND_REJECT, why)
         self.assertIn("plan[0].narrows[0]", why)
 
+    def test_narrow_text_with_run_refs_rejected(self):
+        """narrows の行の人に見せる文（狭めない案・推し）は承認ノードの項目に字のまま載るので、<パス>:<行> を拒む（共通の断片 plain-ask）"""
+        run = PlanRun(self)
+        bad = narrow(no_narrow=NO_NARROW + "（stats.py:12 の形も当たった）",
+                     recommend={"answer": "continue", "note": "空の列は残す", "why": "呼び手が捕まえる"})
+        out, _ = go(run, {"plan": [item(1, 2, narrows=[bad])]}, {"plan": [item(1, 2)]}, typed=False)
+        self.assertIs(out["ok"], True)
+        why = reasons(run)[0]
+        self.assertIn(steps.PLAIN_REJECT, why)
+        self.assertIn("plan[0].narrows[0].no_narrow", why)
+
     def test_rewrite_limit_resolved(self):
         rewrite = {"id": "test_stats.py::TestStats::test_clamp_above_range", "behavior": "上限を超えた値に上限を返す",
                    "old": "lo を返す", "new": "上限を超えたら hi を返す"}

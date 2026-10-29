@@ -330,6 +330,9 @@ class RulingSeamCase(unittest.TestCase):
         self.assertTrue(any("ask_why" in e for e in self._rule_errs({k: v for k, v in ask.items() if k != "ask_why"}, CLAIM)))
         code_as = {"decision": "fix_code_as", "text": "コードの返り値を hi に直せ", "limits": [], **self.ASK_WHY}
         self.assertTrue(any("ask_why は ask_human の裁定だけ" in e for e in self._rule_errs(code_as, CLAIM)))
+        inner = {**ask, "text": "src/clamp.py:3 の返り値をどちらに倒すか決めてほしい"}
+        self.assertTrue(any("初見の読み手が解けない" in e and "src/clamp.py:3" in e for e in self._rule_errs(inner, CLAIM)),
+                        "人に回す文に run の中を指す参照（共通の断片 plain-ask）")
         ruling.prep(self.place, self.repo, self.VALUES)
         got = ruling.accept_rule(self.reply(), self.place, self.rev, self.repo)
         self.assertTrue(got["ok"], got)

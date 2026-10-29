@@ -7,7 +7,7 @@ fixture:
     sections: '[{"title": "直した所", "lines": ["単位 u1: 直した"]}]'
     facts: '{"start_ok": true, "proved": true}'
   resolved-text-contains:
-    write: 'You are the writer of the final report, started in a new conversation.'
+    write: 'make it one item and name the other stages inside it.'
     cold: 'You have no context: you are given none of the history, the record, or the diff.'
 exec-code: true
 write:

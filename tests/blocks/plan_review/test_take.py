@@ -288,6 +288,15 @@ class ReviewAcceptCase(FlowCase):
         self.assertFalse(got["ok"])
         self.assertTrue(got["reason"].startswith(self.take.RECOMMEND_REJECT), got["reason"])
 
+    def test_recommend_with_run_refs_rejected(self):
+        """推しの文は承認ノードの項目に字のまま載るので、<名>[<番号>] を拒む（共通の断片 plain-ask）"""
+        self.prepped()
+        got = self.flow.accept(review(face("regression-recommend", kind="regression", severity="suggest",
+                                           recommend={"answer": "continue", "note": "plan[0] のまま通す", "why": "推す理由を書いた"})))
+        self.assertFalse(got["ok"])
+        self.assertTrue(got["reason"].startswith(self.take.PLAIN_REJECT), got["reason"])
+        self.assertIn("faces[0].recommend.note", got["reason"])
+
     def test_stuck_recommend_rides_on_the_pass_row(self):
         """元 ReviewAcceptCase.test_stuck_recommend_rides_on_the_pass_row: 返答の一番上の止まった時の推し（stuck_recommend）は、形が
         崩れていれば推しの形の拒みになり、整っていれば通る。review.json には欄が無く、pass.json の push に同じ推しが在る（line が往復の

@@ -160,7 +160,7 @@ def tree_keys() -> set[str]:
 
 def _structural(line: str) -> bool:
     line = line.strip()
-    return bool(prompt.MARK.match(line) or prompt.REQUIRED_FOR_TOOLS.match(line + "\n") or prompt.FRAGMENT.fullmatch(line))
+    return bool(prompt.MARK.match(line) or prompt.REQUIRED_FOR.match(line + "\n") or prompt.FRAGMENT.fullmatch(line))
 
 
 def _chunks(text: str) -> list[tuple[str, bool]]:

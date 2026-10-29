@@ -33,6 +33,7 @@ REVIEW_NODE = files.REVIEW_NODE
 # 受け付けの拒みの頭（今の lib/planblk.py:83-98 の字）
 RECOMMEND_REJECT = (f"承認ノードの項目の行の推し（{gatemarks.RECOMMEND}）の形が崩れている。"
                     f"書くなら {gatemarks.RECOMMEND_SHAPE} の形で:")
+PLAIN_REJECT = "承認ノードの項目に字のまま載る文に、初見の読み手が解けない run の中の参照が在る:"   # gatemarks.plain_gaps の行の頭
 RESOLVED_REJECT = "前の往復の答えの要る穴の行き先が書かれていない:"
 FACE_REJECT = "穴の行に誤りが在る:"
 TREE_REJECT = "項目ごとの審査の答え（下請けの答えのファイル・束ね役の items）に欠けか誤りが在る:"
@@ -185,6 +186,9 @@ def _take(place: pathlib.Path, intake: dict, reply: dict, repo, keys) -> dict:
     gaps = gatemarks.recommend_gaps(REVIEW_NODE, reply)
     if gaps:
         raise Reject(_lines(RECOMMEND_REJECT, gaps))
+    gaps = gatemarks.plain_gaps(REVIEW_NODE, reply)
+    if gaps:
+        raise Reject(_lines(PLAIN_REJECT, gaps))
     b = view.view(place, intake)
     bare, resolved, tree = marks.split_review(reply)
     form = intake.get("form")

@@ -63,6 +63,8 @@ For such a unit, put `system` and `general.structure` side by side and find the 
 <!-- end after -->
 - Write `reason`, `chosen`, `chosen_reason`, `rejected[].option`, `rejected[].cost`, and `undecided_because` in {lang}. Keep keys, enum values (`verdict`, `route`), identifiers, paths, JSON Pointers, and quotes as they are.
 
+{shared:plain-ask}
+
 <!-- if intent -->
 ## Written intent
 

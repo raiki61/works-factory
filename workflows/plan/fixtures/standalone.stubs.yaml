@@ -7,7 +7,7 @@ fixture:
     judgment: '{"units": [{"key": "stats.py mean: 分母が 1 少ない", "label": "block", "disposition": "do-now"}], "questions": []}'
     units: '[{"id": "stats.py mean: 分母が 1 少ない", "paths": ["README.md"], "summary": "mean は 2 でなく 3 を返す"}]'
   resolved-text-contains:
-    plan-writer: 'You are the planning role, and you only read.'
+    plan-writer: 'Each item must let them decide from its own text alone'
 exec-code: true
 plan-writer:
   plan:

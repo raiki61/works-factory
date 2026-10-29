@@ -83,6 +83,8 @@ The section "Replan items" of the material holds, for each ruled item, the earli
 
 {shared:concept-map}
 
+{shared:plain-ask}
+
 ## How to answer
 
 - In `unit_keys`, point at units by the integer `no` that the machine numbered after `Units:` in the material. Do not copy the key: the machine turns the number back into the unit's name and records it.

@@ -7,7 +7,7 @@ fixture:
   inputs:
     units: '[{"id": "u1", "paths": ["README.md"], "summary": "README の 1 行を直す"}]'
   resolved-text-contains:
-    structure-eye: 'You are the structure eye. Your job is to judge'
+    structure-eye: 'Each item must let them decide from its own text alone'
     system-sketch: 'You are the system sketcher, and you only read'
     general-structure: 'You are the general-structure eye'
 exec-code: true

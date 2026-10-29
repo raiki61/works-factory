@@ -71,6 +71,8 @@ Work in this order, and keep each step in its field.
 9. When a row reworks a file that exists now (`op: rework`), list the file's current content in `inventory` so nothing is lost: cover every non-empty line of the file at version {base_rev} with ranges `lines: "<start>-<end>"` that do not overlap, give each range its `gist` and where it goes (`to`: `keep`, `move`, `merge`, or `drop`; `dest` is the id of the part or change that receives a `move` or `merge`). Do not drop a line whose purpose you cannot tell; keep or move it. A `drop` needs `why`, and a row in `narrows` whose `what` names `<path>:<start>-<end>`. You decide how to split the file into ranges; the machine checks only that the ranges cover it.
 10. Write in `narrows` every place the design narrows what the target can do now, with `decided_by` when a rule or the person decided it, or `undecided_because` when not.
 
+{shared:plain-ask}
+
 ## How to answer
 
 - Return the fields `question`, `purpose`, `premises`, `current`, `parts`, `reuse`, `checks`, `asks`, `decided`, `changes`, `inventory`, `narrows`, `block_answers`, and `answers_used`, every one of them (an empty array when there is nothing).

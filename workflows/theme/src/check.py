@@ -25,6 +25,7 @@ import ports
 
 import converge   # lib/。answer_gaps
 import design     # lib/。anchors・anchor_misses
+import plainask   # lib/。人に聞く文の照らし（run の中を指す参照を拒む）
 
 from src import files
 
@@ -73,8 +74,14 @@ def _anchor_gaps(doc: dict, repo) -> list[str]:
 
 
 def _ask_gaps(doc: dict) -> list[str]:
-    return [f"asks {q['id']} の pick {q['pick']} が案の id（{', '.join(o['id'] for o in q['options'])}）に無い"
-            for q in doc["asks"] if q["pick"] not in {o["id"] for o in q["options"]}]
+    """問いの推しが案の id に在るか。問いの文（ask・pick_why と案の what・gain・cost）は設計の段の承認ノードに字のまま載るので、
+    run の中を指す参照（plainask.refs）を持てば拒む"""
+    out = [f"asks {q['id']} の pick {q['pick']} が案の id（{', '.join(o['id'] for o in q['options'])}）に無い"
+           for q in doc["asks"] if q["pick"] not in {o["id"] for o in q["options"]}]
+    for q in doc["asks"]:
+        out += [g for k in ("ask", "pick_why") for g in plainask.gaps(f"asks {q['id']} の {k}", q.get(k))]
+        out += [g for o in q["options"] for k in ("what", "gain", "cost") for g in plainask.gaps(f"asks {q['id']} の案 {o['id']} の {k}", o.get(k))]
+    return out
 
 
 def _ref_gaps(doc: dict) -> list[str]:
