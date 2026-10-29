@@ -106,13 +106,19 @@ def _role(kind: str) -> str:
 
 
 def _stop(run: dict) -> int | None:
-    """止まった段を記録の事実から引く（下書きの計画 2026-10-29-viewer-overview.md の 6.6.8）。落ちた run は最後に落ちた出来事の段、
-    人が止めた run は答えが止める語（lib/answer.py の STOP_WORDS）だった最後の人の答え待ちの出来事の段。どちらでもなければ無い。
+    """止まった段を記録の事実から引く（下書きの計画 2026-10-29-viewer-overview.md の 6.6.8）。人が止めた run は、答えが止める語
+    （lib/answer.py の STOP_WORDS）だった最後の人の答え待ちの出来事の段。そうでなく落ちた run は、受け止めていない最後の落ちた出来事の段。
+    受け止めた落ちは、その段より後ろの段（どの道でも走る報告の段、表の最後の段のほかで）の配線でないノードが走った物（line は独立の目と
+    レンズの落ちを受け止めて先へ進むが、Archon は run を failed で終える。docs/design/archon.md）。
+    次の run には出さない（窓口の決めで今は出さない。広げるかは後で決める）: 直した・直す物が無かった・まだ走っている run と、報告の結末
+    （workflows/report/src/outcome.py）が line の止め stopped_by_line（止める語を script が受け渡しただけで人の答えが無い）・人待ち
+    needs_human・記録が通らない record_invalid で、落ちていない run。
     道が分かれて先を飛んだ段は使わない（止めを受け渡しただけの段を止まった所と取り違える）"""
-    if run.get("status") == runread.FAILED:
-        rows = [e for e in run["events"] if e["status"] == "failed"]
-    else:
-        rows = [e for e in run["events"] if e["kind"] == runread.WAIT_NODE and _answer(e.get("output")) in answer.STOP_WORDS]
+    rows = [e for e in run["events"] if e["kind"] == runread.WAIT_NODE and _answer(e.get("output")) in answer.STOP_WORDS]
+    if not rows and run.get("status") == runread.FAILED:
+        last = len(TABLE["stages"])
+        went = {e["stage"] for e in run["events"] if e.get("stage") not in (None, last) and not e["through"]}
+        rows = [e for e in run["events"] if e["status"] == "failed" and not any(n > (e.get("stage") or last) for n in went)]
     rows = [e for e in rows if e.get("stage") is not None]
     return rows[-1]["stage"] if rows else None
 

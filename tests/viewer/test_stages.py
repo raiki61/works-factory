@@ -10,8 +10,9 @@
 - 段の表の配線の列（wiring。合流・受け渡しだけで段の仕事をしないノード）は、その段のノードの中に在り、どの段にも配線でない
   ノードが在る。配線のノードだけが走った段は「飛んだ」（修正の段が飛んだ run でも fix-in・fixed・judged は走る。修正前の承認の
   聞きと受け ask-before-fix・answer-before-fix と仕様駆動の spec-ask-before-fix・spec-answer-before-fix は、人が聞かれずに止めや通しを受け渡しただけでも走る。人が答えた run は「通った」）
-- 止まった段は記録の事実から引く: 落ちた run は最後に落ちた出来事の段、人が止めた run は答えが stop だった人の答え待ちの段（run 642df5d7
-  の形で、止めを受け渡しただけの修正前の承認を返さない）。通す答えだけの run と落ちずに終わった run には無い
+- 止まった段は記録の事実から引く: 人が止めた run は答えが stop だった人の答え待ちの段（run 642df5d7 の形で、止めを受け渡しただけの
+  修正前の承認を返さない）、落ちた run は受け止めていない最後に落ちた出来事の段（後ろの段の配線でないノードが走った落ちは受け止めた物）。
+  通す答えだけの run と落ちずに終わった run と、受け止めた落ちだけの run には無い
 - line でない run は段に集めない
 
 試験は小さな作りと run の記録を手で組む。
@@ -159,6 +160,21 @@ class StagesCase(unittest.TestCase):
                          number("collect"))
         self.assertEqual(run_of([event(["start"]), failed, event(["fix"]), event(["collect"])], [], status="completed")["stages"]["stop"], None)
         self.assertEqual(run_of([event(["start"]), event(["fix"], status="running")], [], status="running")["stages"]["stop"], None)
+
+    def test_an_absorbed_failure_is_not_a_stop(self):
+        """line が受け止めて先へ進んだ落ち（独立の目・レンズ）の在る run も、Archon は failed で終える（docs/design/archon.md）。後ろの段
+        （報告の段のほか）の配線でないノードが走った落ちは止まった所でない。直した run には無く、その後に人が最後の承認で止めた run は
+        最後の承認の段、受け止めた落ちの後で本当に落ちた run はその段"""
+        absorbed = [event(["start"]), event(["fix"], kind="agent"), event(["lens", "check"], status="failed"), event(["lens-out"]),
+                    event(["eyes-in"]), event(["eyes", "r1"], kind="agent", status="failed"), event(["eyes-out"]), event(["merge-seal"]),
+                    event(["ask-final"])]
+        tail = [event(["collect"]), event(["report"], kind="workflow"), event(["result"])]
+        fixed = absorbed + [event(["answer-final"]), event(["merge-apply"])] + tail
+        self.assertEqual(run_of(fixed, [], status="failed")["stages"]["stop"], None)
+        stopped = absorbed + [event(["gate-final"], kind="wait", output='{"decision": "stop", "text": ""}'), event(["answer-final"])] + tail
+        self.assertEqual(run_of(stopped, [{"tokens": ["merge-apply"]}], status="failed")["stages"]["stop"], number("gate-final"))
+        failed = absorbed[:4] + [event(["rejudge-run"], kind="workflow", status="failed"), event(["judged"])] + tail
+        self.assertEqual(run_of(failed, [{"tokens": ["eyes"]}], status="failed")["stages"]["stop"], number("rejudge-run"))
 
     def test_a_human_stop_stops_at_the_stage_of_the_answer(self):
         """run 642df5d7 の形: 計画の段の中の相談 plan-rounds/gate-design で人が stop と答え、修正前の承認の聞きと受け（ask-before-fix・
