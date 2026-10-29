@@ -17,7 +17,7 @@ No written intent document of the target could be read: either none was found un
 <!-- end intent -->
 
 <!-- if after -->
-The change is already made. Below are the diff from the version before the change to the current working tree, and what the machine measured on it (`after`: the changed files, the growth of places that know a concept outside its home `fence_up`, new names, and added copied blocks). Each unit names the files of one fix; judge what the diff did in those files. A unit with the id `diff` stands for the whole diff.
+The change is already made. Below are the diff from the version before the change to the current working tree, and what the machine measured on it (`after`: the changed files; `fence_up`, the places where the change grew the number of lines that write a concept's word outside the concept's home, the one place that holds it; new names; and added copied blocks). Each unit names the files of one fix; judge what the diff did in those files. A unit with the id `diff` stands for the whole diff.
 <!-- end after -->
 <!-- if not after -->
 Each unit below is a fix that is planned but not yet made: its `summary` says what the fix will change and why, and `paths` names the files. Judge the fix the summary describes.
