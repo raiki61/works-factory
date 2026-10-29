@@ -714,7 +714,7 @@ class OwedAnswersCase(unittest.TestCase):
 
 
 class PointedCase(unittest.TestCase):
-    """人の答えが名指した文書が、役が読む版に無くほかの枝にだけ在る時（guided-resolver #2177 の run: 承認ノードの一言が照らせと指した正典は
+    """人の答えが名指した文書が、役が読む版に無くほかの枝にだけ在る時（例の対象の run: 承認ノードの一言が照らせと指した正典は
     まだ取り込まれていない PR の枝にだけ在り、Bash の無い役は読めないまま要約から組み直した）。機械がほかの版から本文を取って役に渡し、
     それでも読めない文書は役が cannot_read で申し出て、受け付けが案を照らさずに止める（status held）"""
 
