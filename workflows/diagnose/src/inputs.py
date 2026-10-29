@@ -255,7 +255,8 @@ def base_determination(view) -> dict:
 
 
 def _request_parts(raw) -> dict:
-    """依頼の容器を読む。行の無い run は空の配列 `[]` だけで言う。ファイル・pointer・容器の形で依頼を渡したのに行が空なら拒む
+    """依頼の容器を読む。行の無い run は空の配列 `[]` だけで言う（字のまま・その中身のファイル・その中身を指す pointer のどれでも。
+    line は依頼の無い run の写しを pointer で渡す）。容器の形 `{findings: []}` で行が空なら拒む
     （写す元 judge_accept.intake: 依頼を宣言した run は行が空でも型に通し、findings の minItems 1 で拒んでいた）"""
     got = requestrows.parts(raw)
     if not got[carry.FINDINGS] and _declared(raw):
@@ -264,9 +265,9 @@ def _request_parts(raw) -> dict:
 
 
 def _declared(raw) -> bool:
-    """port request が依頼の行の無い run の印（字のままの空の配列）でないか"""
+    """port request の中身が依頼の行の無い run の印（空の配列）でないか。値は字・ファイル・pointer のどれで来ても解いて見る"""
     try:
-        return json.loads(ports.text(raw)) != []
+        return ports.json(raw, "shared:request.schema.json") != []
     except ValueError:
         return True
 
