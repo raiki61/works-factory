@@ -123,6 +123,13 @@ def parts(doc) -> dict:
     return out
 
 
+def is_empty(got: dict) -> bool:
+    """parts の返りが依頼の中身を何も持たない（findings も、ほかの欄も全部空）か。容器だけの `{"findings": []}` を断る判じ方の 1 か所。
+    入口（`workflows/line/scripts/start.py`）は findings の鍵が在る容器の時だけこれで断り、判定の段は容器の形で渡された run でこれで断る
+    （`{}` や `{"theme": "x"}` は入口を通り、判定の段が形の誤りとして断る）。工場が次の run のために書く依頼（findings が空で theme・answers・prior_failures などに中身が在る）は偽"""
+    return not any(got.values())
+
+
 def _constraints(rows) -> list:
     """依頼の constraints（前の run の前提の検算が実態で示した事実。前の run の報告が書いた next-request.json の欄）を約束の Schema の
     constraints の部分（行は {text, measured_how, kind: MEASURED}。知らない欄を拒む）で照らしてそのまま返す。合わなければ ValueError（1 行）"""
