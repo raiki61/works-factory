@@ -265,7 +265,7 @@ class JudgeIntakeCase(_Base):
             with self.subTest(request=request):
                 got = self.intake(request=request)
                 self.assertFalse(got["due"])
-                self.assertIn("入力 request: 依頼を渡したのに行が空", got["reason"])
+                self.assertIn("入力 request: 依頼の中身が全部空", got["reason"])
                 self.assertEqual(self.doc("intake.json")["stop_reason"], "works:request")
 
     def test_factory_written_next_request_with_empty_findings_is_accepted(self):

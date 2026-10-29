@@ -261,7 +261,7 @@ def _request_parts(raw) -> dict:
     （写す元 judge_accept.intake: 依頼を宣言した run は行が空でも型に通し、findings の minItems 1 で拒んでいた）"""
     got = requestrows.parts(raw)
     if carry.is_empty(got) and _declared(raw):
-        raise ValueError("依頼を渡したのに行が空（依頼の行の無い run は空の配列 [] を渡す）")
+        raise ValueError("依頼の中身が全部空（findings も pr・issue・answers・prior_failures・constraints・theme も空。依頼の行の無い run は空の配列 [] を渡す）")
     return got
 
 

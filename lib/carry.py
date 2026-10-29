@@ -124,8 +124,9 @@ def parts(doc) -> dict:
 
 
 def is_empty(got: dict) -> bool:
-    """parts の返りが依頼の中身を何も持たない（findings も、ほかの欄も全部空）か。容器だけの `{"findings": []}` を入口と判定の段が
-    同じ判じ方で断るための 1 か所。工場が次の run のために書く依頼（findings が空で theme・answers・prior_failures などに中身が在る）は偽"""
+    """parts の返りが依頼の中身を何も持たない（findings も、ほかの欄も全部空）か。容器だけの `{"findings": []}` を断る判じ方の 1 か所。
+    入口（`workflows/line/scripts/start.py`）は findings の鍵が在る容器の時だけこれで断り、判定の段は容器の形で渡された run でこれで断る
+    （`{}` や `{"theme": "x"}` は入口を通り、判定の段が形の誤りとして断る）。工場が次の run のために書く依頼（findings が空で theme・answers・prior_failures などに中身が在る）は偽"""
     return not any(got.values())
 
 
