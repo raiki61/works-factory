@@ -19,6 +19,7 @@ fixture:
 exec-code: true
 structure-after__measure:
   eye: false
+  sketch: false
   reason: '筋書き: block の中は block の筋書きが見る'
 structure-after__finish:
   ok: true

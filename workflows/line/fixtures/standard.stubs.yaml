@@ -117,7 +117,7 @@ judge__verdict:
   report: ['- 判定: 開いた単位 1']
   sections: []
   optional: []
-structure__measure: {eye: false, reason: ''}
+structure__measure: {eye: false, sketch: false, reason: ''}
 structure__finish:
   ok: true
   status: ok
@@ -156,6 +156,7 @@ plan__finish:
   ripple: {type: archon_artifact, run_id: dry-run, path: plan/ripple.json}
   rejects: []
   gave_up: null
+  pointed: []
   report: ['- 計画: 1 項目']
 plan-out:
   done: true
@@ -322,7 +323,7 @@ test-gate-final__result:
   related: {applied: false, whole: false, files: [], left: [], far: [], reasons: [], ran: none}
   report: ['試験の関門（final）: 緑']
 eyes__ins: {run: true, merge: false, head: hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh}
-eyes__structure-after__measure: {eye: false, reason: ''}
+eyes__structure-after__measure: {eye: false, sketch: false, reason: ''}
 eyes__structure-after__finish:
   ok: true
   status: ok

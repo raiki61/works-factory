@@ -3,7 +3,7 @@
 # dependencies = []
 # ///
 """構造の目の入口: port を読み、place のこの block のファイルを消して、書いた意図を探し、before なら単位を測り（段 A）、after なら
-差分を測る（段 B）。中の誤りは控えの status: failed に残し、構造の目を起こさない（落ちない）。返り {eye, reason}"""
+差分を測る（段 B）。中の誤りは控えの status: failed に残し、構造の目を起こさない（落ちない）。返り {eye, sketch, reason}"""
 import os
 import sys
 from pathlib import Path
@@ -20,4 +20,4 @@ def compute():
                       base=os.environ.get("INPUTS_BASE"), plan=os.environ.get("INPUTS_PLAN"))
 
 
-ports.run(compute, lambda why: {"eye": False, "reason": f"実測の支度が落ちた（{why}）"})
+ports.run(compute, lambda why: {"eye": False, "sketch": False, "reason": f"実測の支度が落ちた（{why}）"})

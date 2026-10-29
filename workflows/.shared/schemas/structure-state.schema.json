@@ -1,11 +1,12 @@
 {
-  "description": "構造の目の控え（structure-state.json。書き手は構造の目の block の出口）。design_file は設計の行の JSON Lines のパス（いつも在るファイル）、skipped は測らなかった単位の id",
+  "description": "構造の目の控え（structure-state.json。書き手は構造の目の block の出口）。design_file は設計の行の JSON Lines のパス（いつも在るファイル）、skipped は測らなかった単位の id、pointed は指示ファイルが名指し、読む版に無い文書（by が名指した文書、found がほかの版で見つけたか、at が見つけた版の名）",
   "type": "object",
   "properties": {
     "status": {"type": "string", "enum": ["ok", "failed"]},
     "reason": {"type": "string"},
     "design_file": {"type": "string"},
     "wall_s": {"type": "number"},
-    "skipped": {"type": "array", "items": {"type": ["string", "number", "null"]}}
+    "skipped": {"type": "array", "items": {"type": ["string", "number", "null"]}},
+    "pointed": {"type": "array", "items": {"type": "object", "required": ["path", "by", "found", "at"], "properties": {"path": {"type": "string"}, "by": {"type": "string"}, "found": {"type": "boolean"}, "at": {"type": "string"}}}}
   }
 }

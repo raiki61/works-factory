@@ -39,7 +39,8 @@ def rounds_part(plan: dict, asks: list) -> dict:
     return {"done": True, "ok": True, "status": plan.get("status"), "round": 1, "plan_prior": None, "record": None,
             "plan": plan.get("plan"), "fix_plan": plan.get("fix_plan"), "reply": plan.get("reply"), "handoffs": [],
             "ripple": plan.get("ripple"), "owed": list(plan.get("owed") or []), "gave_up": None, "stalled": False, "capped": False,
-            "review": None, "asks": asks, "deviations": [], "review_status": "ok", "review_reason": "", "stop_reason": ""}
+            "review": None, "asks": asks, "deviations": [], "review_status": "ok", "review_reason": "", "stop_reason": "",
+            "pointed": list(plan.get("pointed") or [])}
 
 
 def narrow_rows(fix_plan, repo, files) -> list:

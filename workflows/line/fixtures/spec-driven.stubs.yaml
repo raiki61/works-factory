@@ -297,6 +297,7 @@ eyes__ins:
   head: hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh
 eyes__structure-after__measure:
   eye: false
+  sketch: false
   reason: ''
 eyes__structure-after__finish:
   ok: true
@@ -578,6 +579,7 @@ spec-plan__finish:
     path: plan/ripple.json
   rejects: []
   gave_up: null
+  pointed: []
   report:
   - '- 計画: 1 項目'
 spec-check__pick:

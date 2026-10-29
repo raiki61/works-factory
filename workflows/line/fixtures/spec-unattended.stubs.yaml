@@ -196,6 +196,7 @@ spec-plan__finish:
     path: plan/ripple.json
   rejects: []
   gave_up: null
+  pointed: []
   report:
   - '- 計画: 1 項目'
 spec-check__pick:

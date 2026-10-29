@@ -1,13 +1,22 @@
-# 単独の run: 単位 1 つだけで最後まで届く（script は本当に走り、AI の役の返答だけを差し替える。対象は tests/archon.py の TARGET_FILES の
-# 小さなリポジトリ）。役の返答は汚れない 1 行で、根拠は view.json の中を指す
+# 単独の run: 単位 1 つだけで、構造を描く役・一般の構造を描く目・構造の目を通って最後まで届く（script は本当に走り、AI の役の返答
+# だけを差し替える。対象は tests/archon.py の TARGET_FILES の小さなリポジトリ）。役の返答は汚れない 1 行で、根拠は目に見せた JSON の中を指す
 fixture:
   expect: completed
-  reached: [measure, structure-eye-prep, structure-eye, structure-eye-accept, finish]
+  reached: [measure, system-sketch-prep, system-sketch, system-sketch-accept, sketched, general-structure-prep, general-structure,
+            general-structure-accept, structure-eye-prep, structure-eye, structure-eye-accept, finish]
   inputs:
     units: '[{"id": "u1", "paths": ["README.md"], "summary": "README の 1 行を直す"}]'
   resolved-text-contains:
     structure-eye: 'You are the structure eye. Your job is to judge'
+    system-sketch: 'You are the system sketcher, and you only read'
+    general-structure: 'You are the general-structure eye'
 exec-code: true
+system-sketch:
+  rows:
+    - {unit_id: u1, system: "stub: 説明の文書（README.md）を人が読む", kind: "stub: 説明の文書を 1 か所に置く小さな道具"}
+general-structure:
+  rows:
+    - {index: 1, structure: "stub: 説明は 1 か所に置き、ほかは指すだけ", why: "stub: 写しは割れる"}
 structure-eye:
   rows:
     - {unit_id: u1, verdict: 汚れない, faces: [], evidence: [/units/0/id], reason: "stub: 知る場所が増えない"}
