@@ -58,7 +58,7 @@ class MovedReadsCase(unittest.TestCase):
 
 class ElsewhereCase(unittest.TestCase):
     """文が名指したファイルのうち版に無い物を、ほかの版で探して読む（人の答えや指示ファイルが指した文書が、まだ取り込まれていない枝に
-    だけ在る時。例の対象 #<番号> の run）"""
+    だけ在る時。例の対象の run）"""
 
     def git(self, *args):
         return subprocess.run(["git", *GIT_ID, "-C", str(self.repo), *args], env=child_env(), capture_output=True, text=True,
