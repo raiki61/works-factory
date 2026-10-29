@@ -697,12 +697,13 @@ function contextView(preview, wide) {
   const piece = (kind, size, body, note) => fold([h('span', {class: 'pk k-' + kind, text: note || PIECE[kind]}), h('span', {class: 'mono empty', text: `${num(size)} 字`})], body);
   const missing = what => h('div', {class: 'ctx-row'}, h('span', {class: 'pk', text: what}), h('span', {class: 'empty', text: NOT_RECORDED}));
   const bar = (u, i) => {
-    const total = tokensIn(u), before = i ? tokensIn(S.turns[i - 1].usage || {}) : 0, w = v => `${(100 * v / max).toFixed(2)}%`;
+    if (!Object.keys(u).length) return h('div', {class: 'ctx-bar'}, h('span', {class: 'mono', text: `往復 ${i + 1}`}), h('span', {class: 'empty', text: 'トークンの記録が無い（返事の行に usage が無い）'}));
+    const prev = i ? S.turns[i - 1].usage || {} : {}, total = tokensIn(u), before = tokensIn(prev), w = v => `${(100 * v / max).toFixed(2)}%`;
     return h('div', {class: 'ctx-bar', title: `入 ${num(u.in)}・cache 読み ${num(u.cache_read)}・cache 書き ${num(u.cache_write)}・出 ${num(u.out)}`},
       h('span', {class: 'mono', text: `往復 ${i + 1}`}),
       h('span', {class: 'track'}, h('span', {}, h('i', {class: 'cr', style: `width:${w(u.cache_read || 0)}`}), h('i', {class: 'cw', style: `width:${w(u.cache_write || 0)}`}),
         h('i', {class: 'in', style: `width:${w(u.in || 0)}`})), h('span', {class: 'o'}, h('i', {class: 'out', style: `width:${w(u.out || 0)}`}))),
-      h('span', {class: 'mono', text: `入 ${num(total)}${i ? `（${total >= before ? '+' : ''}${num(total - before)}）` : ''}・出 ${num(u.out)}`}));
+      h('span', {class: 'mono', text: `入 ${num(total)}${Object.keys(prev).length ? `（${total >= before ? '+' : ''}${num(total - before)}）` : ''}・出 ${num(u.out)}`}));
   };
   const rows = [h('div', {class: 'ctx-group', text: '初めの文脈'})];
   if (rec['api-request-shape'] === false) rows.push(missing('system と道具の一覧'));

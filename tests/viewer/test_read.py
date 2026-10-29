@@ -9,6 +9,8 @@
 - 壊れた時刻（読めない ts）の出来事が在っても、選んだ run は落ちず、その時刻だけを数えない
 - 会話の記録の行は、読む型・読まない型（訳つき）・知らない型に分け、知らない型だけを読めなかった物に数える（帯の数が本当に読めなかった
   物を指す）。読まない型のうち字を別の型から読む物は、その代わりの型が記録に無い会話では知らない型と同じく数える。Claude Code の記録の形は工場が止めていないので、読まない型の表が本物の記録に合うかは人が見る
+- 往復の印は、usage を持つ行を待たず、その往復の最初の行で置く（usage の無い返事が混じっても往復の数がずれず、どの返事にも usage が
+  無くても返事と道具の呼び出しが並びから消えない。usage は後の行で埋める）
 
 試験は一時のフォルダに小さな DB と記録を作る。
 """
@@ -145,6 +147,39 @@ class ReadCase(unittest.TestCase):
         got = runread.run(db, "top")
         self.assertEqual((got["started"], got["seconds"]), ("2026-10-25T01:00:00.000Z", 20.0))
 
+    def test_children_keep_their_run_and_outputs_their_whole_digest(self):
+        """同じノードから起こした子の run 2 つ（fan_out）は出来事の道が同じなので、繰り返しの確かめの行も run の id で分かる。
+        切った出力は、切る前の字の hash（digest）を持つ（頭の 20,000 字が同じで後ろの違う出力を同じと数えない）"""
+        db = self.tmp / runread.DB_FILE
+        con = sqlite3.connect(db)
+        con.execute(f"create table {runread.RUN_TABLE} ({', '.join(runread.RUN_COLUMNS)})")
+        con.execute(f"create table {runread.EVENT_TABLE} ({', '.join(runread.EVENT_COLUMNS)})")
+        con.execute(f"insert into {runread.RUN_TABLE} (id, workflow_name, status, parent_run_id, started_at, output_root, metadata) "
+                    "values ('top', 'g', 'completed', null, '2026-10-25 01:00:00', ?, '{}')", (str(self.tmp),))
+        for child in ("c1", "c2"):
+            con.execute(f"insert into {runread.RUN_TABLE} (id, workflow_name, status, parent_run_id, started_at, output_root, metadata) "
+                        "values (?, 'k', 'completed', 'top', '2026-10-25 01:00:01', ?, ?)",
+                        (child, str(self.tmp), json.dumps({runread.PARENT_NODE: "fan"})))
+            con.execute(f"insert into {runread.EVENT_TABLE} (workflow_run_id, event_type, data, created_at) values (?, ?, ?, '')",
+                        (child, runread.OUTPUT_EVENT, json.dumps({"invocation": {"id": f"{child}-a"},
+                                                                   runread.NODE_OUTPUT: "x" * runread.CLIP + child})))
+        con.commit()
+        con.close()
+        (self.tmp / runread.LOGS).mkdir()
+        (self.tmp / runread.LOGS / "top.jsonl").write_text("", encoding="utf-8")
+        for child in ("c1", "c2"):
+            node = lambda kind: {"type": kind, "ts": "2026-10-25T01:00:02.000Z", "step": "a",
+                                 runread.EXECUTION: {"path": "a", "invocation": {"id": f"{child}-a"}}}
+            check = {"type": runread.EXEC_ROW, "step": f"rounds{runread.ITERATION_MARK}1", runread.runlog.EXIT_CODE: 1,
+                     "ts": "2026-10-25T01:00:03.000Z"}
+            (self.tmp / runread.LOGS / f"{child}.jsonl").write_text(
+                "\n".join(json.dumps(row) for row in (node("node_start"), node("node_complete"), check)) + "\n", encoding="utf-8")
+        got = runread.run(db, "top")
+        self.assertEqual([(row["run"], row["node"]) for row in got["checks"]], [("c1", ["fan"]), ("c2", ["fan"])])
+        a1, a2 = sorted(got["events"], key=lambda e: e["run"])
+        self.assertEqual((a1["tokens"], a1["output"]), (a2["tokens"], a2["output"]))
+        self.assertNotEqual(a1["digest"], a2["digest"])
+
     def test_only_unknown_session_types_are_unread(self):
         path = self.tmp / "s.jsonl"
         known = next(kind for kind in session.UNREAD_TYPES if kind not in session.READ_FROM)
@@ -181,6 +216,35 @@ class ReadCase(unittest.TestCase):
         self.assertEqual([row[0] for row in got["seq"]], ["user", "turn", "say", "call", "result", "turn", "say"])
         self.assertEqual([row[1] for row in got["seq"] if row[0] == "turn"], [0, 1])
         self.assertEqual([turn["usage"]["out"] for turn in got["turns"]], [50, 7])
+
+    def test_flow_marks_turns_without_usage(self):
+        path = self.tmp / "s.jsonl"
+        say = lambda ident, part, **more: {"type": "assistant", "message": {"id": ident, "content": [part], **more}}
+        rows = [{"type": "user", "message": {"content": "go"}},
+                say("m1", {"type": "tool_use", "id": "t1", "name": "Read", "input": {}}),
+                {"type": "user", "message": {"content": [{"type": "tool_result", "tool_use_id": "t1", "content": "body"}]}},
+                say("m2", {"type": "text", "text": "a"}), say("m2", {"type": "text", "text": "b"}, usage={"output_tokens": 4})]
+        path.write_text("\n".join(json.dumps(row) for row in rows) + "\n", encoding="utf-8")
+        got = session.read(path, lambda text: text)
+        self.assertEqual([row[0] for row in got["seq"]], ["user", "turn", "call", "result", "turn", "say", "say"])
+        self.assertEqual([row[1] for row in got["seq"] if row[0] == "turn"], [0, 1])
+        self.assertEqual([turn["usage"].get("out") for turn in got["turns"]], [None, 4])
+
+    def test_turns_keep_their_first_time_and_calls_their_whole_input(self):
+        """往復の時刻は往復の最初の行の時刻（cache の保ち時間を越えた往復を出す。無駄の手がかり）。道具の呼び出しは切る前の入力の字の
+        番号を持ち、会話は作業の場所 cwd を持つ（読み直しの数えが、切った入力でなく全文のパスを読む）"""
+        path = self.tmp / "s.jsonl"
+        long = {"file_path": "/w/a.md", "note": "x" * 1000}
+        say = lambda ident, ts, part: {"type": "assistant", "timestamp": ts, "cwd": "/w", "message": {"id": ident, "content": [part]}}
+        rows = [say("m1", "2026-10-25T01:00:00.000Z", {"type": "tool_use", "id": "t1", "name": "Read", "input": long}),
+                say("m1", "2026-10-25T01:00:09.000Z", {"type": "text", "text": "a"}),
+                say("m2", "2026-10-25T01:07:00.000Z", {"type": "text", "text": "b"})]
+        path.write_text("\n".join(json.dumps(row) for row in rows) + "\n", encoding="utf-8")
+        texts = {}
+        got = session.read(path, lambda text: texts.setdefault(str(len(texts)), text) and next(k for k, v in texts.items() if v == text))
+        self.assertEqual([turn["at"] for turn in got["turns"]], ["2026-10-25T01:00:00.000Z", "2026-10-25T01:07:00.000Z"])
+        self.assertEqual(json.loads(texts[got["turns"][0]["calls"][0]["text"]]), long)
+        self.assertEqual(got["cwd"], "/w")
 
 
 if __name__ == "__main__":
