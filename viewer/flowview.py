@@ -19,6 +19,7 @@ import argparse
 import hashlib
 import json
 import os
+import shlex
 import subprocess
 import sys
 from datetime import datetime, timezone
@@ -29,7 +30,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from bin._lib import isolate, launcher  # noqa: E402
-from viewer.src import ja, page, runread, session, shape  # noqa: E402
+from viewer.src import ja, page, runread, session, shape, stages, waste, what  # noqa: E402
 
 PACK = json.loads((ROOT / "pack.json").read_text(encoding="utf-8"))["ours"]
 TREE = ROOT / PACK["folder"]
@@ -73,7 +74,9 @@ def main(argv: list[str]) -> int:
 
 
 def keep_ja(folder: str | None, prune: bool) -> int:
-    """訳の控えの取り込みと掃除。取り込みは今の木の md の段落の訳だけを viewer/ja/ に、ほかを利用者のキャッシュに書く"""
+    """訳の控えの取り込みと掃除。取り込みは今の木の md の段落の訳だけを viewer/ja/ に、ほかを利用者のキャッシュに書く。
+    拒んだ物（置き場や束が無い・合わない訳）が在れば 1 で終わる（取り込めた訳は取り込む）"""
+    refused = []
     if folder:
         to_repo, to_cache, refused = ja.take(Path(folder), dict(os.environ))
         print(f"取り込んだ viewer/ja/ に {to_repo}・キャッシュに {to_cache}")
@@ -81,13 +84,19 @@ def keep_ja(folder: str | None, prune: bool) -> int:
             print(f"拒んだ: {line}", file=sys.stderr)
     if prune:
         print(f"viewer/ja/ から古い段落の訳 {ja.prune()} 個を消した")
-    return 0
+    return 1 if refused else 0
 
 
 def build(target: str | None, wanted: str, user: dict, here: Path) -> tuple[dict, dict[str, str]]:
-    """出力のデータと、訳の無い段落（{鍵: 英語}）。target が無ければ今の木の作りだけ"""
+    """出力のデータと、訳の無い段落（{鍵: 英語}）。target が無ければ今の木の作りだけ。札の 1 行（what）は日本語の写しの後に選ぶ
+    （AI のノードの最後の出どころが指示の md の写し）"""
     data, pack = read(target, wanted, user, here)
-    return data, ja.attach(data, pack, user)
+    stages.attach(data)
+    waste.attach(data)
+    todo = ja.attach(data, pack, user)
+    got = ja.table(user)
+    data["shape"]["problems"] += what.attach(data["shape"], ROOT / "docs" / "design", lambda text: ja.translate(text, got)[0])
+    return data, todo
 
 
 def read(target: str | None, wanted: str, user: dict, here: Path) -> tuple[dict, Path]:
@@ -122,7 +131,7 @@ def read(target: str | None, wanted: str, user: dict, here: Path) -> tuple[dict,
         data["shape"] = tree_shape()
         return data, TREE
     run = runread.run(db, run_id)
-    run["answer"] = ANSWER.format(run=run_id, target=root) if run["waiting"] else ""
+    run["answer"] = ANSWER.format(run=run_id, target=shlex.quote(str(root))) if run["waiting"] else ""
     copy = Path(run["copy"]) / PACK["pack"] if run["copy"] else None
     pack = copy if copy is not None and copy.is_dir() else TREE
     if pack == copy:

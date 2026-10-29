@@ -7,7 +7,10 @@
 - runs(db) -> 親の run（parent_run_id が空）の一覧。新しい順。DB の run の行だけを読み、ログは読まない
 - run(db, run_id) -> 選んだ run と子の run の記録（ノードごとの出来事・道具の呼び出し・費用・出力・知らない行の数え）
 - pick(db, wanted) -> run の id（wanted が空なら一番新しい親の run。頭の字でもよい）
+- where(path, cwd) -> 会話が読んだファイルのパスを、run ごとに違う頭（作業ツリー・run の置き場・run の写し）を印に替えた字にする
 """
+import contextlib
+import hashlib
 import json
 import sqlite3
 from datetime import datetime
@@ -31,6 +34,10 @@ WORKFLOW_FOLDER = ".archon/workflows"
 RUN_TABLE = "remote_agent_workflow_runs"
 RUN_COLUMNS = ("id", "workflow_name", "status", "parent_run_id", "started_at", "completed_at", "output_root", "metadata")
 EVENT_TABLE = "remote_agent_workflow_events"
+# 新しい順。承認で再開した run は行の始めを今に書き直す（packages/core/src/db/workflow-run-resume.ts）ので、出来事の最初の時刻で並べる
+# （出来事の無い run は行の始め）。時刻は秒まで（datetime('now')）で、並んだら後に作った行（rowid が大きい）を新しいとする
+NEWEST = (f"order by coalesce((select min(created_at) from {EVENT_TABLE} where workflow_run_id = {RUN_TABLE}.id), started_at) desc, "
+          f"{RUN_TABLE}.rowid desc")
 EVENT_COLUMNS = ("workflow_run_id", "event_type", "step_name", "data", "event_order", "created_at")
 # run の状態（packages/workflows/src/schemas/workflow-run.ts の workflowRunStatusSchema）
 STATUSES = ("pending", "running", "completed", "failed", "cancelled", "paused")
@@ -38,6 +45,8 @@ LIVE = ("pending", "running", "paused")
 # 答えを待つ run の状態。待ちはこの状態の run だけに出す（止めた・放棄した run は node_completed を書かずに終わる。
 # packages/core/src/operations/workflow-operations.ts の resolveAndCancelApprovalGate・abandon）
 PAUSED = "paused"
+# 落ちた run の状態。流れの集計（src/stages.py）が止まった段を落ちた出来事から引く
+FAILED = "failed"
 # run の metadata の欄（子の run を起こしたノード・費用。packages/workflows/src/dag-executor.ts）
 PARENT_NODE = "parent_node_id"
 TOTAL_COST = "total_cost_usd"
@@ -47,6 +56,13 @@ WAIT = "wait"
 WAIT_KIND = "attention"
 WAIT_ANSWER = "answer"
 WAIT_LOOP_OWNER = "loop_group"
+# ノードの種類（packages/workflows/src/schemas/dag-node.ts の DagNode の kind。出来事の kind に入る）。流れの集計（src/stages.py）が、
+# AI の手番・人の答え待ち・中の出来事を束ねる器（繰り返しの周の器・並べて起こす器・子の run を起こすノード。長さを足すと中の出来事と
+# 二重になる。子の run を起こすノードの行は子の総額も載せる。packages/workflows/src/node-execution.ts の accounting）を分ける
+AI_KINDS = ("agent", "loop")
+WAIT_NODE = "wait"
+LOOP_GROUP = "loop_group"
+GROUP_KINDS = (LOOP_GROUP, "compose_fan_out", "workflow")
 # DB の出来事の型（ノードの出力と、run の落ちの訳。packages/workflows/src/event-emitter.ts）
 OUTPUT_EVENT = "node_completed"
 NODE_OUTPUT = "node_output"
@@ -58,6 +74,8 @@ SUSPENDED_EVENT = "node_suspended"
 NODE_ROWS = ("node_start", "node_complete", "node_error", "node_skipped", "node_suspended")
 PROVIDER_ROW = runlog.PROVIDER_ROW
 EXEC_ROW = runlog.EXEC_ROW
+# loop_group の until_bash の確かめの行の step の名 `<輪>-iteration-<n>`（packages/workflows/src/dag-executor.ts）
+ITERATION_MARK = runlog.ITERATION_MARK
 READ_ROWS = (*NODE_ROWS, PROVIDER_ROW, EXEC_ROW)
 UNREAD_ROWS = {
     "gate_decision": "古い承認ノード approval: の答え。工場の承認ノード wait: attention はこの行を書かず、答えをノードの出力 {decision, text} に持つ",
@@ -94,21 +112,32 @@ CLIP = 20000
 ARTIFACT_LIMIT = 60000
 
 
-def connect(db: Path) -> sqlite3.Connection:
-    return sqlite3.connect(f"file:{db}?mode=ro", uri=True)
+@contextlib.contextmanager
+def connect(db: Path):
+    """読むだけで開き、抜ける時に閉じる（sqlite3 の with は commit するだけで閉じない）"""
+    con = sqlite3.connect(f"file:{db}?mode=ro", uri=True)
+    try:
+        yield con
+    finally:
+        con.close()
 
 
 def runs(db: Path) -> list[dict]:
-    """親の run の一覧（新しい順）。行は id・グラフの名・状態・止まっている承認ノード・始め・かかった秒・費用・落ちの訳の頭の 1 行"""
+    """親の run の一覧（新しい順）。行は id・グラフの名・状態・止まっている承認ノード・始め・かかった秒・費用・落ちの訳の頭の 1 行。
+    始めとかかった秒は、DB の出来事の最初と最後の時刻から出す（承認の答えで起き直した run は、run の行の始めが起き直した時刻に
+    書き換わる。packages/core/src/db/workflow-run-resume.ts）。出来事の無い run は run の行の始めと終わり"""
     with connect(db) as con:
         rows = con.execute(f"select id, workflow_name, status, started_at, completed_at, metadata from {RUN_TABLE} "
-                           "where parent_run_id is null order by started_at desc").fetchall()
+                           f"where parent_run_id is null {NEWEST}").fetchall()
+        spans = {rid: (first, last) for rid, first, last in con.execute(
+            f"select workflow_run_id, min(created_at), max(created_at) from {EVENT_TABLE} group by workflow_run_id")}
         waiting = _waiting(con)
         errors = {rid: _error(data) for rid, data in con.execute(
             f"select workflow_run_id, data from {EVENT_TABLE} where event_type = ?", (FAILED_EVENT,))}
     out = []
     for rid, name, status, started, completed, metadata in rows:
         meta = _json(metadata)
+        started, completed = spans.get(rid) or (started, completed)
         out.append({"id": rid, "short": rid[:8], "graph": name, "status": status, "waiting": waiting.get(rid, []),
                     "started": started, "seconds": _seconds(started, completed), "cost": runlog.number(meta.get(TOTAL_COST)),
                     "error": errors.get(rid, "")})
@@ -119,7 +148,7 @@ def pick(db: Path, wanted: str = "") -> str:
     """run の id。wanted が空なら一番新しい親の run、在れば id そのものか一意な頭の字。当たらなければ LookupError"""
     with connect(db) as con:
         if not wanted:
-            row = con.execute(f"select id from {RUN_TABLE} where parent_run_id is null order by started_at desc limit 1").fetchone()
+            row = con.execute(f"select id from {RUN_TABLE} where parent_run_id is null {NEWEST} limit 1").fetchone()
             if row is None:
                 raise LookupError("run の家に親の run が無い")
             return row[0]
@@ -130,7 +159,8 @@ def pick(db: Path, wanted: str = "") -> str:
 
 
 def run(db: Path, run_id: str) -> dict:
-    """run と子の run（workflow: のノードが起こした物。DB の parent_run_id と metadata の parent_node_id で辿る）の記録"""
+    """run と子の run（workflow: のノードが起こした物。DB の parent_run_id と metadata の parent_node_id で辿る）の記録。
+    始めとかかった秒は、子の run を含む出来事の最初の始めと最後の終わりから出す（runs と同じ訳）。子の run の行も、その子と孫の出来事から出す"""
     with connect(db) as con:
         top = _row(con, run_id)
         if top is None:
@@ -139,7 +169,7 @@ def run(db: Path, run_id: str) -> dict:
         waiting = _waiting(con)
         reader = _Reader(outputs)
         reader.read(top, [])
-        todo = [(run_id, [])]
+        todo, parents = [(run_id, [])], {}
         while todo:
             parent, head = todo.pop(0)
             for child in con.execute(f"select {', '.join(RUN_COLUMNS)} from {RUN_TABLE} where parent_run_id = ? order by started_at",
@@ -151,11 +181,15 @@ def run(db: Path, run_id: str) -> dict:
                     continue
                 prefix = [*head, node]
                 reader.read(child, prefix)
+                parents[child["id"]] = parent
                 todo.append((child["id"], prefix))
     meta = _json(top["metadata"])
     root = Path(top["output_root"]) if top["output_root"] else None
+    started, ended = _span(reader.events) or (top["started_at"], top["completed_at"])
+    for child in reader.children:
+        child["started"], child["seconds"] = _child_span(child, reader.events, parents)
     return {"id": run_id, "graph": top["workflow_name"], "status": top["status"], "live": top["status"] in LIVE,
-            "waiting": waiting.get(run_id, []), "started": top["started_at"], "seconds": _seconds(top["started_at"], top["completed_at"]),
+            "waiting": waiting.get(run_id, []), "started": started, "seconds": _seconds(started, ended),
             "cost": runlog.number(meta.get(TOTAL_COST)), "copy": str(copy(root, run_id)) if root else "",
             "children": reader.children, "events": sorted(reader.events, key=lambda e: (e["start"] or "", "/".join(e["tokens"]))),
             "skipped": reader.skipped, "checks": reader.checks, "missing_logs": reader.missing, "unread": reader.unread, "artifacts": reader.artifacts}
@@ -164,6 +198,28 @@ def run(db: Path, run_id: str) -> dict:
 def copy(output_root: Path, run_id: str) -> Path:
     """run の写しの中の pack の置き場の親（`<写し>/project/.archon/workflows`）"""
     return output_root / SOURCE / RUNS_DIR / run_id / PROJECT_SCOPE / WORKFLOW_FOLDER
+
+
+# where の頭の印（ページに出す字）
+PLACE_MARK = "（run の置き場）/"
+COPY_MARK = "（run の写し）/"
+
+
+def where(path: str, cwd: str) -> str:
+    """会話が読んだファイルのパス（無駄の手がかりの読み直しの数え）。作業ツリー（会話の cwd）の下は cwd からのパス、run の置き場
+    （`<output_root>/artifacts/runs/<run>/`）と run の写し（`<output_root>/workflow-source/runs/<run>/project/`）の下は印と run の id と
+    その下のパス。同じファイルを相対と絶対のパスで読めば同じ字に、別の run（fan_out の子どうし・親と子）の同じ名のファイルは別の字になる"""
+    if cwd and path.startswith(cwd.rstrip("/") + "/"):
+        return path[len(cwd.rstrip("/")) + 1:]
+    parts = path.split("/")
+    for at in range(len(parts) - 2):
+        if parts[at + 1] != RUNS_DIR:
+            continue
+        if parts[at] == ARTIFACTS:
+            return PLACE_MARK + "/".join(parts[at + 2:])
+        if parts[at] == SOURCE and parts[at + 3:at + 4] == [PROJECT_SCOPE]:
+            return COPY_MARK + "/".join([parts[at + 2], *parts[at + 4:]])
+    return path
 
 
 class _Reader:
@@ -179,7 +235,7 @@ class _Reader:
         log = root / LOGS / f"{row['id']}.jsonl" if root else None
         if prefix:
             self.children.append({"id": row["id"], "graph": row["workflow_name"], "status": row["status"], "node": prefix,
-                                  "started": row["started_at"], "seconds": _seconds(row["started_at"], row["completed_at"])})
+                                  "started": row["started_at"], "completed": row["completed_at"]})
         if log is None or not log.is_file():
             self.missing.append(row["id"])
             return
@@ -211,7 +267,7 @@ class _Reader:
         key = (path, invocation.get("id") or "")
         ids = [*_tokens(prefix), *_tokens([path])]
         if kind == "node_skipped":
-            self.skipped.append({"tokens": ids, "at": entry.get("ts"), "cause": entry.get("cause")})
+            self.skipped.append({"tokens": ids, "time": entry.get("ts"), "cause": entry.get("cause")})
             return
         event = by_invocation.get(key)
         if event is None:
@@ -245,7 +301,8 @@ class _Reader:
                          turns=runlog.measurement(spend, "numTurns")[0])
         output = self.outputs.get(key[1])
         if output is not None:
-            event["output"] = _clip(output if isinstance(output, str) else json.dumps(output, ensure_ascii=False))
+            text = output if isinstance(output, str) else json.dumps(output, ensure_ascii=False)
+            event["output"], event["digest"] = _clip(text), hashlib.sha1(text.encode("utf-8")).hexdigest()
             self._artifacts(output, root)
 
     def _provider(self, entry, by_attempt):
@@ -273,8 +330,9 @@ class _Reader:
 
     def _exec(self, entry, prefix, by_step):
         """script・bash のノードの出力の終わりは、同じ step の最後の起動に付ける。ノードに当たらない物（loop_group の until_bash の
-        確かめ。step は `<輪>-iteration-<n>`）は run の確かめの行にする"""
-        row = {"step": entry.get("step") or "", "node": prefix, "label": entry.get(runlog.EXEC_LABEL) or "", "exit": entry.get(runlog.EXIT_CODE),
+        確かめ。step は `<輪>{ITERATION_MARK}<n>`）は run の確かめの行にする。行は書いた run の id を持つ（同じノードから起こした子の
+        run どうしは node も step も同じになる）"""
+        row = {"step": entry.get("step") or "", "node": prefix, "run": self.current, "label": entry.get(runlog.EXEC_LABEL) or "", "exit": entry.get(runlog.EXIT_CODE),
                "stdout": _clip(entry.get("stdout_tail") or "", 4000), "stderr": _clip(entry.get("stderr_tail") or "", 4000), "at": entry.get("ts")}
         event = by_step.get(row["step"])
         if event is None:
@@ -347,6 +405,25 @@ def _waiting(con) -> dict:
     return {rid: names for rid, names in out.items() if names}
 
 
+def _span(events: list[dict]) -> tuple[str, str] | None:
+    """出来事の最初の始めと最後の終わり（終わりの無い出来事は始め）。読めない時刻は数えない。読める時刻が無ければ None"""
+    times = [(at, t) for e in events for t in (e["start"], e["end"]) if t and (at := _try_time(t))]
+    return (min(times)[1], max(times)[1]) if times else None
+
+
+def _child_span(child: dict, events: list[dict], parents: dict) -> tuple[str, float | None]:
+    """子の run の始めとかかった秒。その子と孫の出来事から出し、出来事が無ければ run の行の値。行の終わりの欄は外す"""
+    def under(rid):
+        while rid in parents:
+            if rid == child["id"]:
+                return True
+            rid = parents[rid]
+        return False
+    completed = child.pop("completed")
+    started, ended = _span([e for e in events if under(e["run"])]) or (child["started"], completed)
+    return started, _seconds(started, ended)
+
+
 def _error(data: str) -> str:
     text = _json(data).get("error") or ""
     return text.splitlines()[0][:300] if isinstance(text, str) and text else ""
@@ -363,6 +440,13 @@ def _seconds(started, completed):
 
 def _time(text: str) -> datetime:
     return datetime.fromisoformat(text.replace("Z", "+00:00"))
+
+
+def _try_time(text) -> datetime | None:
+    try:
+        return _time(text)
+    except (TypeError, ValueError):
+        return None
 
 
 def _json(text) -> dict:

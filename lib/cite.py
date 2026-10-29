@@ -25,6 +25,12 @@
 - ref_problem(source, prefix, known) -> list[str]: 出どころの文の中の prefix で始まる参照（頭に字が添えてあってもよい）の id が、
   呼び手が渡した実在の id の組 known に在るかの照らし。無い id ごとに誤りの 1 文（prefix の語が無ければ空）
 
+- named_files(text) -> list[str]: 文の中で名指されたファイルのパス（URL を除き、`<パス>:<行>` の行を外す。/ を含み、最後の段が
+  名.拡張子の形の語だけ。出た順・重なりなし）。人の答えや指示ファイルが指した文書を拾う 1 か所
+- elsewhere(repo, rev, paths) -> list[dict]: paths のうち版 rev に無いファイルごとに、ほかの版（枝・遠くの枝・tag から辿れ、rev から
+  辿れない commit。rev の履歴で消した物と stash は外す）で探した行 {path, found, commit, at, text}（無ければ found・commit・at・
+  text は空）。修正案（人の答えが指した文書）と構造の目（指示ファイルが指した文書）が使う
+
 - CITE_IN_WHERE: 場所の文の中の名指し 1 つ分の形（CITE の錨を外した物。パスは空でもよい）
 - where_cites(where) -> [(パス, 始め, 終わり)]: 場所の文の中の名指しを順に返す。パスの無い `:<行>` は直前のパス、直前が無ければ空
 
@@ -46,6 +52,7 @@ from __future__ import annotations
 
 import pathlib
 import re
+import subprocess
 import sys
 import unicodedata
 
@@ -147,6 +154,72 @@ def _pathish(word: str) -> bool:
     last = word.rsplit("/", 1)[-1]
     return ("/" in word or bool(re.fullmatch(r"[^.]+\.[A-Za-z][A-Za-z0-9]{0,5}", last))) and not word.startswith(".") \
         and not word.startswith("/")
+
+
+NAME_EXT = re.compile(r"[^/]+\.[A-Za-z][A-Za-z0-9]{0,5}")   # named_files が数える最後の段の形（名.拡張子）
+
+
+def named_files(text) -> list:
+    """文 text の中で名指されたファイルのパス（出た順・重なりなし）。URL を除き、`<パス>:<行>` は行を外し、頭の ./ を外す。/ を含み、
+    / で始まらず、.. の段を持たず、最後の段が名.拡張子の形の語だけ（フォルダ・枝の名・素の名は数えない）"""
+    if not isinstance(text, str):
+        return []
+    out = []
+    for word in TOKEN.findall(URL.sub(" ", text)):
+        word = word.rstrip(".")
+        m = CITE.match(word)
+        path = (m["path"] if m else word).removeprefix("./")
+        parts = path.split("/")
+        if len(parts) > 1 and parts[0] and ".." not in parts and NAME_EXT.fullmatch(parts[-1]) and path not in out:
+            out.append(path)
+    return out
+
+
+def _git_out(repo, *args) -> str | None:
+    """repo で git を起こした標準出力（失敗は None）"""
+    try:
+        p = subprocess.run(["git", "-C", str(repo), *args], capture_output=True, text=True, encoding="utf-8", errors="replace",
+                           stdin=subprocess.DEVNULL)
+    except OSError:
+        return None
+    return p.stdout if p.returncode == 0 else None
+
+
+def _in(tracked: set, path: str) -> bool:
+    """path か、それで終わるパス（/ の境で）が tracked に在るか（指示ファイルがフォルダからの相対で書いた名を、無いと読まない）"""
+    return path in tracked or any(t.endswith("/" + path) for t in tracked)
+
+
+OTHER_REFS = ("--branches", "--remotes", "--tags")
+# elsewhere が探す範囲（refs/stash は入らない。rev の祖先は呼び口の --not rev で外す）
+
+
+def elsewhere(repo, rev: str, paths) -> list:
+    """paths のうち版 rev に無いファイルごとに {path, found, commit, at, text}（paths の順）。版に在るかは、そのパスか、それで終わるパス
+    （/ の境で）が rev に追跡されているかで見る。無い物はほかの版（OTHER_REFS の枝・遠くの枝・tag から辿れ、rev から辿れない commit）の
+    中で、そのパス（か、それで終わるパス）を最後に足した・変えた commit を探し、在れば found（その commit の中のパス）・
+    commit（hash）・at（git name-rev の名。どの ref から辿れるか。名が付かなければ空）・text（その commit の本文）。ほかの版に無ければ found・commit・at・text は空（rev の履歴で消した文書と、
+    stash の中の commit していない書きかけも、ここに入る）。rev が読めなければ OSError"""
+    listed = _git_out(repo, "ls-tree", "-r", "--name-only", rev)
+    if listed is None:
+        raise OSError(f"版 {rev} のファイルの一覧を git で読めない")
+    tracked = set(listed.splitlines())
+    out = []
+    for path in paths:
+        if _in(tracked, path):
+            continue
+        row = {"path": path, "found": "", "commit": "", "at": "", "text": ""}
+        specs = [f":(literal){path}"] + ([] if any(c in path for c in "*?[\\") else [f":(glob)**/{path}"])
+        got = _git_out(repo, "log", "-1", "--format=%H", "--name-only", "--diff-filter=AMR", *OTHER_REFS, "--not", rev, "--",
+                       *specs) or ""
+        lines = [ln for ln in got.splitlines() if ln.strip()]
+        found = next((ln for ln in lines[1:] if ln == path or ln.endswith("/" + path)), "")
+        text = _git_out(repo, "show", f"{lines[0]}:{found}") if found else None
+        if text is not None:
+            at = (_git_out(repo, "name-rev", "--name-only", "--no-undefined", "--exclude=refs/stash", lines[0]) or "").strip()
+            row.update(found=found, commit=lines[0], at=at, text=text)
+        out.append(row)
+    return out
 
 
 def fold(text) -> str:

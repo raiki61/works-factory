@@ -4,7 +4,7 @@
 手書きの DB や記録の見本は作らない（見本は Archon の形から外れても緑のままになる。docs/design/test-double-fidelity.md の型）。
 
 - 読めなかった行（知らない型の行・ノードに当たらない道具の出来事）が 0、記録の無い run が 0
-- 図は run の写しから作り、図に当たらないノードが 0
+- 図は run の写しから作り、図に当たらないノードが 0。include の中のノードには、外の graph から入る道（通った include のノード）が付く
 - run の一覧に、その run が終わりの状態で 1 行在る
 - 落ちたノードの誤りの字が出来事に在る
 - include の中で指示を組んだノード（prompt.emit）の出来事に、値の記録から工場の組み立ての口で組み直した日本語の写しが付き、訳の無い
@@ -22,7 +22,6 @@ Archon の振る舞いの意味の話なので、本物の run で照らす。
 import json
 import pathlib
 import shutil
-import sqlite3
 import subprocess
 import tempfile
 import unittest
@@ -104,7 +103,7 @@ process.exit(done.answered ? 0 : 1);
 def answer_only(tree: pathlib.Path, run_id: str) -> subprocess.CompletedProcess:
     """止まっている run の承認ノードに、Archon の口で答えだけを書く（次へ進む前の間を残す）"""
     db = tree.parent / "archon-home" / runread.DB_FILE
-    with sqlite3.connect(f"file:{db}?mode=ro", uri=True) as con:
+    with runread.connect(db) as con:
         meta = json.loads(con.execute(f"select metadata from {runread.RUN_TABLE} where id = ?", (run_id,)).fetchone()[0])
     script = tree.parent / "answer-only.ts"
     script.write_text(ANSWER_ONLY % (archon.source() / "packages/core/src/db/workflow-run-waits.ts"), encoding="utf-8")
@@ -115,7 +114,7 @@ def answer_only(tree: pathlib.Path, run_id: str) -> subprocess.CompletedProcess:
 
 def rows(tree: pathlib.Path, run_id: str) -> list[str]:
     """run のログの行の型"""
-    with sqlite3.connect(f"file:{tree.parent / 'archon-home' / runread.DB_FILE}?mode=ro", uri=True) as con:
+    with runread.connect(tree.parent / 'archon-home' / runread.DB_FILE) as con:
         root = con.execute(f"select output_root from {runread.RUN_TABLE} where id = ?", (run_id,)).fetchone()[0]
     log = pathlib.Path(root) / runread.LOGS / f"{run_id}.jsonl"
     return [json.loads(line).get("type") for line in log.read_text(encoding="utf-8").splitlines() if line.strip()]
@@ -167,6 +166,9 @@ class RealRunCase(unittest.TestCase):
         self.assertEqual([(r["id"], r["status"]) for r in data["runs"]], [(run["id"], "failed"), (again["run"]["id"], "completed"), (paused["run"]["id"], "cancelled")])
         at = {e["at"]["graph"] + "/" + e["at"]["node"] for e in run["events"]}
         self.assertLessEqual({"seen/make", "seen-leaf/rounds/step", "seen/boom"}, at)
+        # 図が入れ子の graph へ外から入る道（再生が今の歩のノードの graph へ移る）
+        step = next(e for e in run["events"] if e["tokens"] == ["leaf", "rounds", "step"])
+        self.assertEqual(step["at"]["via"], [{"graph": "seen", "node": "leaf"}])
         self.assertIn("boom", next(e for e in run["events"] if e["tokens"] == ["boom"])["error"])
         talk = next(e for e in run["events"] if e["tokens"] == ["leaf", "talk"])
         self.assertEqual([(p["md"], p["n"], p["error"], p["ja"]["prompt"]) for p in talk.get("prompts", [])],
