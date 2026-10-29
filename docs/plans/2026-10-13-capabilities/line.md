@@ -1,7 +1,7 @@
 # 能力の棚卸し — 区分 L（線と、ブロックをまたぐ配線）
 
 - 元: `works/` = raiki61/claude-plugins @ 2aa7c66c の `works/`。
-- 今: 書いた時は線が PR #74 の頭（824dee3。5 回目の直しの前で、fix はまだ代わり `workflows/line/fixtures/stub-blocks/fix/` と組む）、fix のブロックと lib が main（4e0e18d）。今は「証」を main の名で指す（README.md の「指しの形」）。「今」は印（「表」か「無し（表）」、住処を書かなかった行は「無し」か空）だけを持ち、住処の字は docs/works-parity.md の「前の棚卸しの今」が持つ。
+- 今: 書いた時は線が PR #74 の頭（824dee3。5 回目の直しの前で、fix はまだ代わり `workflows/line/fixtures/stub-blocks/fix/` と組む）、fix のブロックと lib が main（eb4f2cc）。今は「証」を main の名で指す（README.md の「指しの形」）。「今」は印（「表」か「無し（表）」、住処を書かなかった行は「無し」か空）だけを持ち、住処の字は docs/works-parity.md の「前の棚卸しの今」が持つ。
 - 小区分は 4 つ: L-E 入口と始めの記録、L-G 人の関所 4 つ・無人の方針・止めの語、L-W 境の節とブロックの間の受け渡し、L-D 深さ・計画の往復・案の直し・再審・前の失敗・周の鎖。
 - その後に「線への申し送り」（S01〜S68）、最後に「穴の要約」。
 - 小区分の間で同じ能力を別の向きから見た行がある（例: `breaks.accepted` は L-W20 と L-G48、plan-review の `conflicts`・`gate_answers` は L-W45・L-D25・L-D26・L-G29・S21・S22）。数えは小区分ごとで、重なりは要約で名指す。

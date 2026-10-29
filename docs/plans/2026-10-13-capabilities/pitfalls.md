@@ -1,6 +1,6 @@
 # 繰り返し踏む落とし穴と、それを縛る機械の在り無し
 
-読み方: 「今の機械」は書いた時に works-factory の origin/main の写し（main（4e0e18d））か、線の PR #74 の頭（#74 の head（824dee3））に在った試験。どちらに在ったかを頭に書く。名は今の main で照らす（README.md の「指しの形」）。Archon の行は止めた源 `d97d00ef`（`packages/` から）。「要る試験」は名前だけの提案で、まだ無い。
+読み方: 「今の機械」は書いた時に works-factory の origin/main の写し（main（eb4f2cc））か、線の PR #74 の頭（#74 の head（824dee3））に在った試験。どちらに在ったかを頭に書く。名は今の main で照らす（README.md の「指しの形」）。Archon の行は止めた源 `d97d00ef`（`packages/` から）。「要る試験」は名前だけの提案で、まだ無い。
 
 - K1 ブロックの返す節（`returns:`）と、返す節が結ぶ節は落ちてはいけない（lib の import は守った main の中に置き、最後の逃げ道は標準ライブラリだけで返す）。落ちた節の出力を結んだ節は `trigger_rule: all_done` でも落ちる
   - 根拠: Archon `workflows/src/dag-executor.ts:495-533`（`resolveBindingDirective`。落ちた作り手は `if_skipped` に戻らず例外）・`:344-357`（`wholeRefLogicalValue`。素の `with:` の `$x.output` も同じ）・`:1443-1455`（指示書や script の本文に埋める時も同じ）・`condition-evaluator.ts:100-111`（`when:` も同じ）・`output-ref.ts:590-597`（`assertProducerNotFailed`）。`all_done` は前の節が終わっていれば走るだけ（`dag-executor.ts:2001-2005`）。PR の指摘: #69 の 1 回目の 3、#67 の 1 回目の 5、#73 の 1 回目の 1、#75 の 1 回目の 1・2（「返す節 `plan` が `$round.output.dir` を束ねている。Archon では落ちた節の出力を束ねた節は `all_done` でも落ちる」）、#68 の 1 回目の 3、#76 の 1 回目の 2、#94 の 1 回目の 10、#74 の 1 回目の 3・11

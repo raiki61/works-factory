@@ -41,7 +41,7 @@
   だけで、機械では引かない（共通の行を下請けの段落へ移す md の直しで、照らす先が後を追って tdd の閉じの書き手から行が消えるのを拒む）。F135（赤を見ない clean を拒む）は付録 A では variant だが、PR A が
   受け付けの照らしを variant・remove・pin に当てた（board.RED_WEAPONS）ので、指示もその型の書き手に出す（照らしと指示をそろえる）。
 - 返答の形: 書き手の返答の形の正本 .shared/schemas/writer-reply.schema.json が、PR A の前の修正役の返答の形（fixer-reply-before.json。#869 の前の
-  main 5aa8530a の fixer の output_format の写し）の必須の欄と空にできない欄（minLength・minItems）を、どの深さでも減らさない（型の block の
+  main cfd3b7c1 の fixer の output_format の写し）の必須の欄と空にできない欄（minLength・minItems）を、どの深さでも減らさない（型の block の
   写しがこの形と等しいことは tests/workflows/test_weapon_blocks.py）。
 
 文の意味が弱まっていないか（言い換え）は、独立のレビューが文で見る（この試験は字の在る無しだけ）。
@@ -77,7 +77,7 @@ import writerblock  # noqa: E402
 
 ROWS = json.loads((HERE / "appendix-a.json").read_text(encoding="utf-8"))
 BEFORE = json.loads((HERE / "fixer-reply-before.json").read_text(encoding="utf-8"))
-PIN = "523599ac3b62f9ad7f707c5846c4ba186b38c1f0"   # 付録 A の行番号の版（#865。A.2 の見出し「#865 で 2 行増えた後の行番号」）
+PIN = "734f54406a8c64ca6d4a4393d6184f6268b4a818"   # 付録 A の行番号の版（#865。A.2 の見出し「#865 で 2 行増えた後の行番号」）
 PLAN_PIN = "3f655145dcb53d4f7d3f6c207862af37c552d936"   # 計画の版（git の blob。PR #883 で付録 A に A.9 を足し、F2 で S4 を足し、F2 の後始末で S4 に書き換えの許しと守りのテストの 1 文を足し、注文が名指す守りのテストに絞った計画。付録 A を直す PR はこの値を替える）
 DEFAULT = {"A.2": "workflows/fix/prompts/parts/fixer.md", "A.4": "workflows/.shared/prompts/writer-rules.md",
            "A.5": "workflows/.shared/prompts/query-rule.md", "A.7": "lib/borrow/unattended.md",
@@ -99,7 +99,7 @@ SPAWN_ONLY = {"Q10"}   # 付録 A は共通。下請けを起こす書き手（�
 MARKUP = re.compile(r"<!--.*?-->|\{[\w:.-]+\}")   # 段落の印と差し込み口（字の観点ではない）
 G18 = "Do not write the report to a file. Your reply is the JSON in the \"fields of the reply\" section of the instructions."   # 消した g1-no-report-file.md の字（付録 A の G16〜G19 の G18）
 RED_ROWS = {"F135"}   # 付録 A は variant。PR A が受け付けの照らしを variant・remove・pin に当てたので（PR A の控えの 3 節）、指示も同じ型にそろえる
-HEADS_PIN = "e52a1b452d330504e1fa5c0b49e8905a817515e7"   # 頭の文の出どころの版（D1 の基の main。PR #875 の後。`git log e52a1b45..origin/main -- 'workflows/fix/prompts/parts/*.md'` が空）
+HEADS_PIN = "da2a5a0efbe3ed63a58305bbaa6c8ac592386aad"   # 頭の文の出どころの版（D1 の基の main。PR #875 の後。`git log da2a5a0e..origin/main -- 'workflows/fix/prompts/parts/*.md'` が空）
 HEADS = {   # 型 → 頭の役の文（組み上がった指示にも、HEADS_PIN の parts/<型>.md にも在る字）
     "tdd": ["You are the TDD loop's closing writer.",
             "the TDD loop has already fixed the units you owe a fix on the working tree, test first, and the machine confirmed each test's red-to-green."],
@@ -252,7 +252,7 @@ def git_show(spec: str, path: str) -> list:
     """git の版の字の行（spec は commit:パス か blob）。引けなければ見送らずに赤"""
     done = subprocess.run(["git", "-C", str(ROOT), "show", spec], env=hermetic.child_env(), capture_output=True, text=True)
     if done.returncode:
-        raise AssertionError(f"固定した版の {path}（{spec}）を git から引けない（履歴の浅い clone か）: {done.stderr.strip()}")
+        raise AssertionError(f"固定した版の {path}（{spec}）を git から引けない（履歴の浅い clone か。履歴を書き換えた後なら、書き換えの commit-map で固定の番号を新しい番号に直す）: {done.stderr.strip()}")
     return done.stdout.split("\n")
 
 

@@ -249,11 +249,11 @@ Write `text` and `measured_how` in the language of the request lines. …
 元の works の `works/blk-premises/`（入力 `request`〔依頼のファイルのパス〕・`base_rev`、出口 10 欄の独立したブロック）から、工場は判定のブロックの中に写した（#76。`消した計画（git の履歴。ab47a4d の版で読める）docs/plans/2026-10-12-blocks/judge.md:30`・`:62`）。graphloops の同じ場面は `prompts/review-loop/p0.premises.md`（`p0.premises`。4 行の短い指示）と、写しの rules の `measured_needs_output`。
 
 - 独立したブロックの形（入力だけで動く）: 工場は judge の中に直に置き、`judge/request.json` を読む形にした（#76）。この block で元の形に戻す。
-- 出口の要約 `constraints_summary`（判定役に貼る 1 行 1 制約の文）と数（`constraints`・`measured`・`hypotheses`・`claims`・`claims_hypothesis`）と `reads_file`: 工場は #232 で `lib/premises.py` の `collect` を「届かない関数」として消した（`d91c4b49`。工場の線では判定役の支度が `premises.json` を直に読むため）。この block は数を戻さない（8 節の自分で決めた 4）。要約の文は戻さない（読み手の md の材料の組み方なので、読み手の block が組む）。`reads_file` は元の works でも「まだ無い（空）」の欄だった。
+- 出口の要約 `constraints_summary`（判定役に貼る 1 行 1 制約の文）と数（`constraints`・`measured`・`hypotheses`・`claims`・`claims_hypothesis`）と `reads_file`: 工場は #232 で `lib/premises.py` の `collect` を「届かない関数」として消した（`e0de3403`。工場の線では判定役の支度が `premises.json` を直に読むため）。この block は数を戻さない（8 節の自分で決めた 4）。要約の文は戻さない（読み手の md の材料の組み方なので、読み手の block が組む）。`reads_file` は元の works でも「まだ無い（空）」の欄だった。
 - 入力 `base_rev`（受け付けが HEAD がその版のままかを見る）: 工場は写しが在る時は写しと比べるだけで、版を受けない（`lib/judge_accept.py:1139-1160` の `_tree_unchanged`。写しが無い時だけ `rev` を見る）。元の works も写しを必ず取ったので、版は写しの無い時の守りだった。この block は写しを `intake` で必ず取るので、版の入力は要らない。意図して外した記録は（未確認）。
 - 依頼の型の確かめを使い捨ての置き場で通すだけで積まない（元の intake）: この block も積まない（place に `intake.json` を書くだけ）。依頼の型は `request.schema.json` が確かめる。
 - 3 回とも拒まれたら、元の works のメイングラフの共有の記録（盤面）に止めの印を置いて、後ろの判定役を起こさない（元の `collect`。元の works の裁定の番号 R50）: 工場は止めの記録 `stopby.PREMISES` を置く形にした。この block は `status: failed` を返し、止めるかは graph が決める（1.6）。
-- 前の run の前提の検算の実測を足す（元 `review-loop.py:3751-3755` の finalize の `facts_to_add`。graphloops では `stop.premise_check` の役が足した）: 工場は run をまたいで依頼の容器の `constraints` で運ぶ形にした（#264。`86c3f28c`）。この block は port `carried` で受ける。
+- 前の run の前提の検算の実測を足す（元 `review-loop.py:3751-3755` の finalize の `facts_to_add`。graphloops では `stop.premise_check` の役が足した）: 工場は run をまたいで依頼の容器の `constraints` で運ぶ形にした（#264。`cb21409c`）。この block は port `carried` で受ける。
 - graphloops の `p0.premises` に無く工場が持つ物（元の works から）: 依頼の `measured` の行の `where` を字のまま含めさせる照らし・作業ツリーの写しとの比べ・戻し方 2 つ・「無い」と書く時のコマンドの出力。この block は全部残す。
 
 ### 2.8 受け付け
