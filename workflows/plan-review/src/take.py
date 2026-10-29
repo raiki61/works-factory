@@ -19,7 +19,7 @@ import re
 import accept      # lib/。tree_moved・guard
 import converge    # lib/
 import design      # lib/
-import gatemarks   # lib/。recommend_gaps
+import gatemarks   # lib/。recommend_gaps・ask_gaps
 import jsonfile    # lib/
 import planmarks   # lib/。machine_face_gaps
 import policy      # lib/。face_gaps・RECORDED_KEY
@@ -185,6 +185,9 @@ def _take(place: pathlib.Path, intake: dict, reply: dict, repo, keys) -> dict:
     gaps = gatemarks.recommend_gaps(REVIEW_NODE, reply)
     if gaps:
         raise Reject(_lines(RECOMMEND_REJECT, gaps))
+    gaps = gatemarks.ask_gaps(REVIEW_NODE, reply)
+    if gaps:
+        raise Reject(_lines(gatemarks.ASK_CASE_REJECT, gaps))
     b = view.view(place, intake)
     bare, resolved, tree = marks.split_review(reply)
     form = intake.get("form")

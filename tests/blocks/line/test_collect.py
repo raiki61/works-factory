@@ -272,7 +272,8 @@ class MoreLinesCase(unittest.TestCase):
         (self.run.artifacts / "judge" / "pr-excluded.json").write_text(json.dumps(
             {"excluded": [{"pr": 7, "file": "a.py", "start": 1, "end": 3, "why": "重なる"}]}))
         v["judge"] = {**v["judge"], "excluded": ptr("judge/pr-excluded.json")}
-        v["ask_before_fix"] = {**v["ask_before_fix"], "passes": [{"node": "p2.human_gate", "round": 1, "by": "decided", "item": "行 x"}],
+        v["ask_before_fix"] = {**v["ask_before_fix"], "passes": [{"node": "p2.human_gate", "round": 1, "by": "decided", "item": "行 x",
+                                                                         "decided_by": "https://example.org/std#3"}],
                                "deferred": [{"kind": "fork", "text": "載せなかった問い"}]}
         v["ask_final"] = {**v["ask_final"], "reasons": ["最後のテストが緑でない"]}
         after = self.after(v)
@@ -280,6 +281,7 @@ class MoreLinesCase(unittest.TestCase):
         self.assertTrue(after[[i for i, x in enumerate(after) if x.startswith("食い違いの申し出: ")][0]].startswith("食い違いの申し出: 0 件"))
         self.assertIn("並行 PR #7 と重なるので外した範囲: a.py:1-3（重なる）", after)
         self.assertIn("修正前の承認ノードが聞かずに通した行（gate-before-fix）: 1 件", after)
+        self.assertIn("（決め手: https://example.org/std#3）", joined)   # 定石で決めた行は出どころつきの 1 行で残る（settle-by-standard）
         self.assertIn(self.f.DEFERRED_HEAD + ": 1 件", after)
         self.assertIn("最後の承認ノードを開けた理由: 1 件", after)
         self.assertNotIn("組めない", joined)

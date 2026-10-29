@@ -720,6 +720,19 @@ Return only JSON that matches the output schema.
 
 今の `replan_asks`（`lib/boardview.py:1131-1154`）の事実の部分。裁かれた項目ごとに `{item, units, contract_changed: planmarks.contract_diff(replan.bare(old), replan.bare(new)), human: [{key, kind, why}]（その項目の穴〔_faces_of〕のうち HUMAN_FACE_KINDS の物）, widened: planmarks.widened(old, new) か null（contract_changed が在り human が無い時だけ計算する。今は無人の run の時だけ計算していた）}`。`replan.json` に同じ行を書く。聞くか（`ask`）は line が決める（無人の run かは line の事実）。
 
+### 10.4 人に回す行が名乗る場合（持ち主の決め `settle-by-standard`）
+
+10.1 の行のうち人に回る行（`decided` が偽）は、定石でも依頼の本文でも決まらない訳を持つ。役は人に回す前に、定石（標準・よく知られた OSS・公式の文書・世界の解の行）か依頼の本文で答えが 1 つに決まるかを先に問い、決まれば出どころを `decided_by` に書いて聞かずに通す（通した行は line が報告に「決め手が在るので聞かずに通した: <行>（決め手: <出どころ>）」の 1 行で出す。今の `passes` の道のまま）。決まらない行は `undecided_because` の頭に人に聞く 3 つの場合の印（`gatemarks.ASK_CASES` の ①②③。判定の役の問いと同じ印。① 決め手が割れる・② 人の優先の付け方で答えが変わり定石も決めない・③ 記録された方針の行を覆す。中身は持ち主の決め `settle-by-standard` の決めの 3）を名乗る。当てはまる印が複数なら並べる。
+
+- 指示: 共通の断片 `workflows/.shared/prompts/ask-cases.md` 1 本。計画の役（`plan-writer.md` の決め手の段落の後）・この block の頭（`parts/head.md` の世界の解の段落の後）・判定の役（`diagnose.md` の手順 7 の 3 つの場合の行）が差し込む。
+- 機械: `gatemarks.ask_gaps(node, reply)`。修正案の `narrows` の行と、穴のうち `policy.HUMAN_FACE_KINDS` の行で、`decided` が偽で、柵の印（欄 `fences`。外への書き込み・取り消せない操作など、在れば必ず人に聞く印で、①②③ とは別）も無く、`undecided_because` の頭に ①②③ も無い行を名指す（`decided` が偽・柵の印が無い・印が無いの 3 つが揃った行だけ）。plan の受け付け（`take_plan`・直した項目の受け付け・機械が差し込んだ閉じた項目の照らし）と、この block の受け付け（`_take`）は、名指した行が 1 つでも在れば返答を拒み、`gatemarks.ASK_CASE_REJECT` の文の後に名指した行を並べて役に出し直させる。yes/no の照らしで、字数は縛らない（憲法の 6）。
+- 変えない物: 柵の印の行・守りのパス・無人の run の推しの抜け方・line の `before_fix` の開き方。
+- 再開の注記: plan の `machine_row_errors`（`workflows/plan/src/take.py`）は、機械が往復の記録から差し込んだ閉じた項目の行にも `ask_gaps` を当てる。この照らしを足す前に書かれた往復の記録を持つ run を再開すると、印の無い閉じた行を役が直せず、止まる（halt）ことがある。その時は新しい run で始め直す。
+- E11 の 3 つの答え:
+  1. Archon が持っているか: 持たない。Archon の承認ノード（`wait:`）は開くかを決めず、何を聞くかは工場の line と役が決める（`docs/design/archon.md`）。
+  2. ASF が持っているか: 持たない。ASF の関所は人に聞く項目の選び方を持たない（`docs/asf-notes.md` に当たる型が無い）。型として近いのは、判定の役の 3 つの場合（`docs/design/diagnose.md` の 9.4 の 39）で、工場の中に在るのでそれを共通の断片に寄せた。
+  3. 本当に要るか: keep-essence の「人に聞くのは答えで動きが変わる時だけ」（`docs/owner-decisions.md` の本質 6）と `world`（定石が有る問いは人に上げない）に当たる。決め手の欄は在ったが、決め手も訳も無い行がそのまま人に回り、定石を当てる前の行を機械が止められなかった。新しい仕組みは足さず、今の受け付けの照らし（`narrow_gaps`・`recommend_gaps`）の隣に 1 つ足す。
+
 ## 11 今の works との比べ（確かめ・守り・落ちた時・やり直し・書く順・指示）
 
 今の役の物を全部並べ、この block のどこに在るか、無くした訳を書く。
