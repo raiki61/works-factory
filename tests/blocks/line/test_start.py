@@ -353,6 +353,13 @@ class StartCase(Seeded):
         self.assertEqual(got["ports"]["request_answers"], rows)
         self.assertIn(entryshape.EMPTY_REFUSED, self.refused(request=str(path)))
 
+    def test_request_with_empty_findings_container_is_refused_at_entry(self):
+        """依頼が {"findings": []}（容器だけで行が空）の形なら、base で差分が在っても入口で断る（通すと判定が走り切ってから止まる）。
+        findings を省いた形（test_request_without_findings_is_taken）は受ける"""
+        path = self.outside("empty_findings.json", json.dumps({"findings": []}))
+        reason = self.refused(request=str(path), base="base")
+        self.assertIn("findings が空の配列", reason)
+
     def test_omitted_tdd_suite_says_how_the_runner_is_prepared(self):
         """#505・#516: tdd_suite を省いた run は、承認ノードの文が TDD の実行器の用意を言う。名指した tdd_suite は記録にそのまま載る"""
         import suitewrite
