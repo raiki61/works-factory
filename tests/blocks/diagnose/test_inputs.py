@@ -265,8 +265,21 @@ class JudgeIntakeCase(_Base):
             with self.subTest(request=request):
                 got = self.intake(request=request)
                 self.assertFalse(got["due"])
-                self.assertIn("入力 request: 依頼を渡したのに行が空", got["reason"])
+                self.assertIn("入力 request: 依頼の中身が全部空", got["reason"])
                 self.assertEqual(self.doc("intake.json")["stop_reason"], "works:request")
+
+    def test_factory_written_next_request_with_empty_findings_is_accepted(self):
+        """工場が次の run のために書く依頼（設計へ戻す形 {findings: [], theme, answers}・compose の {findings: [], prior_failures, ...}）は
+        findings が空でも中身が在る。入口が通した形を、判定の段が通すこと（通さないと観点が走り切った後で works:request で止まる）"""
+        import carry
+        answers = [{"question": "q", "text": "t"}]
+        prior = [{"where": "a.py", "text": "前の run で直せなかった所"}]
+        for doc in ({"findings": [], "theme": "theme.md", "answers": answers}, {"findings": [], "answers": answers},
+                    carry.compose([], prior, [])):
+            with self.subTest(doc=doc):
+                got = self.intake(request=self.write("req/next.json", doc))
+                self.assertTrue(got["due"], got)
+                self.assertEqual(self.doc("diagnose-input.json")["request_findings"], [])
 
     def test_answers_come_from_the_container_unless_the_port_has_rows(self):
         container = json.dumps({"findings": REQUEST, "answers": [{"question": "容器の問い", "text": "容器の答え"}]}, ensure_ascii=False)
