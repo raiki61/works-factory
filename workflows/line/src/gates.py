@@ -167,6 +167,43 @@ def design_rows(structure) -> list:
         raise ValueError(f"構造の目の控え {path} の設計の行を読めない（設計の問いを数えていない）: {error}") from None
 
 
+POINTED_KIND = "pointed_elsewhere"        # 関所の項目の種類: 名指された文書が読む版に無く、ほかの版（まだ取り込まれていない枝など）にだけ在る
+POINTED_MISSING_KIND = "pointed_missing"   # 関所の項目の種類: 名指された文書がどの版にも無い（作るファイルの名や例のパスでもありうる）
+POINTED_BY_ANSWER = "人の答え（依頼の答えか承認ノードの一言）"   # 計画の往復の行 pointed の名指し手（修正案の block の answers）
+POINTED_MISSING_PUSH = {gatemarks.RECOMMEND_KEYS[0]: gatemarks.RECOMMEND_ANSWERS[0], gatemarks.RECOMMEND_KEYS[1]: "気にせず進む",
+                        gatemarks.RECOMMEND_KEYS[2]: "作るファイルの名や説明のための例のパスでもありうる"}
+
+
+def structure_pointed(structure) -> list:
+    """構造の目の控え（structure の block の出力 structure の先 state.json のパス）の pointed の行（指示ファイルが名指し、読む版に無い
+    文書）。控えが無い・読めない・欄の無い控えは []（読めない控えは design_rows が名指す）"""
+    state = structmark.read(pathlib.Path(structure)) if structure else None
+    rows = state.get("pointed") if isinstance(state, dict) else None
+    return [r for r in rows if isinstance(r, dict)] if isinstance(rows, list) else []
+
+
+def pointed_items(rows, answers=()) -> tuple:
+    """版に無い名指しの関所の項目 ([(POINTED_KIND, 文)], [(POINTED_MISSING_KIND, 文)])（持ち主の決め pointed-ask）。rows は
+    {path, by, found, at}。ほかの版にだけ在る文書は、従ってよいかを人に聞く（推しを付けない）。どの版にも無い文書は推し「気にせず進む」を
+    尾に付ける。人が continue で答えた同じ文の行は除く"""
+    found, missing = [], []
+    for r in rows:
+        if not isinstance(r, dict) or not str(r.get("path") or "").strip():
+            continue
+        head = f"{r.get('by') or POINTED_BY_ANSWER} が名指す {r['path']} は、読む版に無く"
+        if r.get("found"):
+            text = (f"{head}、ほかの版（{r.get('at') or '名の無い commit'}）にだけ在る。まだ取り込まれていない枝の文書なら、決まりとしてまだ"
+                    "効いていないかもしれない。この run はその本文を読んで進めた——それに従ってよいか（従わないなら一言に）")
+            kind, out = POINTED_KIND, found
+        else:
+            text = (f"{head}、ほかのどの版にも無い（読めないまま進めた）"
+                    + gatemarks._push({gatemarks.RECOMMEND: POINTED_MISSING_PUSH}))
+            kind, out = POINTED_MISSING_KIND, missing
+        if not _continued(answers, text) and (kind, text) not in out:
+            out.append((kind, text))
+    return found, missing
+
+
 def design_items(rows: list, answers=()) -> list:
     """構造の目が人に上げた行の関所の項目 [(DESIGN_KIND, 文)]（人が continue で答えた同じ文の行は除く。元 gatemarks.design_items）"""
     out = []
@@ -293,12 +330,16 @@ TALK_GATE = "gate-design"   # 設計の相談の承認ノードの id（対話�
 
 
 def before_fix(rounds: dict | None, *, unattended_run: bool, design: bool, ledger=None, design_rows_=(), policy_row: str = "",
-               stuck_reason: str = "", record_doc: dict | None = None, answered=(), unread=(), agreed: dict | None = None) -> dict:
+               stuck_reason: str = "", record_doc: dict | None = None, answered=(), unread=(), agreed: dict | None = None,
+               pointed=()) -> dict:
     """修正前の承認ノードの決め。rounds は計画の往復の受け皿の got（plan-out の返りの欄）、ledger は問いの台帳の値の見え方
     （gatemarks.ledger。判定が無ければ None）、design_rows_ は構造の目の設計の行、policy_row は方針の文書の変化の行（変わっていなければ
     空）、stuck_reason は止まった往復の理由（止まっていなければ空）、record_doc は往復の記録（止まりの行の推しの尾を読む）、answered は
     同じ承認ノードの前の答え（resume で回し直した時に、continue で通した同じ文を聞き直さない）、unread は指す先が無いか読めない控えの訳
-    （判定・結び・素材の状態・構造の目・往復の記録。読めないまま修正へ進めず、UNREAD_KIND の行で開く）。
+    （判定・結び・素材の状態・構造の目・往復の記録。読めないまま修正へ進めず、UNREAD_KIND の行で開く）、pointed は構造の目の控えの
+    版に無い名指しの行（structure_pointed）。計画の往復の行 pointed（人の答えの名指し）と合わせ、人の居る run だけ項目にする
+    （pointed_items。ほかの版にだけ在る文書は開ける理由、どの版にも無い文書はほかの項目が在る時だけ並べる。無人の run は報告の行だけ。
+    持ち主の決め pointed-ask）。
     agreed は対話モードの run で人が設計の相談の承認ノード（TALK_GATE）に返した最後の答え {decision, text, asked}（ほかの run は None）:
     止める語なら開かずに止め（止めの理由 human:gate-design）、通す語なら、その関所で見せた行（asked）を通した答えとして読み、設計だけの
     行を足さない（必ず開く役目は設計の相談の承認ノードが果たした。合意した同じ承認を聞き直さない）。止まった往復と方針の文書の変化に合意した
@@ -355,6 +396,9 @@ def before_fix(rounds: dict | None, *, unattended_run: bool, design: bool, ledge
                            "decided_by": str(mark.get("decided_by"))})
     if policy_row and not _continued(answered, policy_row):
         items.append((POLICY_CHANGED, policy_row))
+    elsewhere, missing = ([], []) if unattended_run else pointed_items(
+        [*({**r, "by": POINTED_BY_ANSWER} for r in rounds.get("pointed") or [] if isinstance(r, dict)), *pointed], answered)
+    items += elsewhere
     if ledger is not None:
         for q in gatemarks.asks(ledger):
             if gatemarks.answered(ledger, q):
@@ -372,6 +416,8 @@ def before_fix(rounds: dict | None, *, unattended_run: bool, design: bool, ledge
         for key, axis in gather(kept_asks, kept_devs, ups).items():
             if not axis["ok"]:
                 items.append((AXIS_KIND, f"{AXIS_WORDS[key]}（{key}）の軸が通らない: {axis['note'] or '（訳が無い）'}"))
+    if items:   # どの版にも無い名指しは、それだけでは開けない（run を止めず、開いた時に並べる）
+        items += missing
     changed = any(kind == POLICY_CHANGED for kind, _ in items) or agreed_policy
     if not items:
         # 諦めた・落ちた事前審査の行を前に continue で通した run（resume）は、計画のまま修正へ進む。設計の相談で止まった往復に合意した

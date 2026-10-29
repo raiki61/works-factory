@@ -28,7 +28,7 @@ NO_DEADLINE = 1728000000
 PORTS = ["judgment", "units", "answer_ties", "materials", "answers", "takes_push", "verify", "excluded", "depth_record", "decisions",
          "world_rows", "structure", "spec", "spec_doc", "policy", "prior_failures", "prior", "ruling", "conflicts", "base", "review_rev", "diff_base", "routes", "lang"]
 RETURNED = ["ok", "status", "reason", "mode", "round", "owed", "plan", "fix_plan", "reply", "handoff", "replan", "ripple", "rejects",
-            "gave_up", "report"]
+            "gave_up", "pointed", "report"]
 
 
 class ShapeCase(unittest.TestCase):

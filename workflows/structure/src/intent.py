@@ -117,6 +117,13 @@ def shown_docs(docs) -> str:
     return "\n\n".join(out)
 
 
+def pointed_rows(docs) -> list:
+    """控えの欄 pointed: 名指された文書のうち版に無かった物ごとに {path, by（名指した文書）, found（ほかの版で見つけたか）, at（見つけた版の
+    ref の名。名が無ければ commit の頭 12 字。無い物は空）}（line が修正前の承認ノードで人に問う。docs/design/structure.md の 3 節）"""
+    return [{"path": d["path"], "by": d["pointed_by"], "found": bool(d["text"]),
+             "at": (d.get("at") or d["rev"][:12]) if d["text"] else ""} for d in docs if d.get("pointed_by")]
+
+
 def report_lines(docs) -> list:
     """報告の日本語の行: 名指された文書のうち版に無かった物ごとに 1 行（ほかの版から読んだか、どの版にも無いか）"""
     out = []

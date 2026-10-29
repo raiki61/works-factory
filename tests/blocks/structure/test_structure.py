@@ -362,8 +362,12 @@ class PointedCase(_RepoCase):
         prompt = self.run.script("prep")["prompt"]
         self.assertIn(f"### {self.CANON} ({self.canon[:12]}, lines 1-1; pointed to by AGENTS.md, not in the version under review", prompt)
         self.take(self.reply_clean())
-        report = self.finish()["report"]
-        self.assertTrue(any(self.CANON in line and "読む版に無い" in line for line in report), report)
+        out = self.finish()
+        self.assertTrue(any(self.CANON in line and "読む版に無い" in line for line in out["report"]), out["report"])
+        state = self.read(out["structure"]["path"])
+        self.assertEqual(state["pointed"], [{"path": self.CANON, "by": "AGENTS.md", "found": True, "at": "canon"},
+                                            {"path": "docs/gone.md", "by": "AGENTS.md", "found": False, "at": ""}],
+                         "控えは版に無い名指しを行で持つ（line が修正前の承認ノードで人に問う。持ち主の決め pointed-ask）")
 
     def test_a_document_in_no_version_is_named_without_text(self):
         self.survey(self.unit)

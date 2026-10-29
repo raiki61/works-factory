@@ -28,7 +28,8 @@ sys.dont_write_bytecode = True
 sys.path[:0] = [str(Path(__file__).resolve().parents[2] / ".shared"), str(Path(__file__).resolve().parents[1])]
 import ports  # noqa: E402
 
-PLAN = ("ok", "status", "reason", "round", "owed", "plan", "fix_plan", "reply", "handoff", "ripple", "rejects", "gave_up")
+PLAN = ("ok", "status", "reason", "round", "owed", "plan", "fix_plan", "reply", "handoff", "ripple", "rejects", "gave_up", "pointed")
+POINTED = ("pointed",)   # plan の出力の欄のうち plan-out の output_format で required でない物
 REVIEW = ("ok", "status", "round", "holes", "blocks", "pass", "asks", "deviations", "reason")
 
 
@@ -79,7 +80,8 @@ def plan_out(plan, review, prior_raw, *, unattended: bool, place: Path) -> dict:
             "stalled": stalled, "capped": rounds.capped(doc), "review": pointer_of_holes,
             "asks": review["asks"] if reviewed and isinstance(review["asks"], list) else [],
             "deviations": review["deviations"] if reviewed and isinstance(review["deviations"], list) else [],
-            "review_status": review_state(plan, review), "review_reason": (review or {}).get("reason") or "", "stop_reason": ""}
+            "review_status": review_state(plan, review), "review_reason": (review or {}).get("reason") or "", "stop_reason": "",
+            "pointed": plan["pointed"] if isinstance(plan["pointed"], list) else []}   # 欄の無い前の版の返りと stub は空と読む
 
 
 def review_state(plan, review) -> str:
@@ -104,7 +106,7 @@ def _prior_handoffs(place: Path, files, k: int) -> list:
 def compute() -> dict:
     raw_plan, raw_review = os.environ.get("INPUTS_PLAN"), os.environ.get("INPUTS_REVIEW")
     raw_prior, raw_unattended = os.environ.get("INPUTS_PRIOR"), os.environ.get("INPUTS_UNATTENDED")
-    plan = ports.picked(raw_plan, PLAN)
+    plan = ports.picked(raw_plan, PLAN, optional=POINTED)
     if plan is None:
         raise ValueError("plan の出力（plan）が読めない。with: の鍵の結びを確かめる")
     review = ports.picked(raw_review, REVIEW, optional=("gave_up",))

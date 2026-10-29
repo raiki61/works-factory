@@ -144,6 +144,78 @@ class AskBeforeFixCase(unittest.TestCase):
         self.assertEqual((out["go"], out["pushed"]), (False, None))
 
 
+class PointedAskCase(unittest.TestCase):
+    """版に無い名指しの文書（持ち主の決め pointed-ask。受付 9d05bd の問い 4 の B）: 人の居る run は修正前の承認ノードで問う。ほかの版にだけ
+    在る文書は従ってよいかを聞いて開き、どの版にも無い文書は推し「気にせず進む」つきで並べるだけ（それだけでは開かない）。無人の run は
+    項目にせず、報告の行だけ（ゲートの抜け方は今のまま）"""
+
+    CANON = {"path": "docs/canon.md", "found": True, "at": "canon"}
+    GONE = {"path": "tests/new_case.py", "found": False, "at": ""}
+    RULE = {"path": "docs/deploy.adoc", "by": "AGENTS.md", "found": True, "at": "remotes/origin/canon"}
+
+    def setUp(self):
+        self.g = kit.load(BLOCK, "gates")
+        self.gm = __import__("gatemarks")
+
+    def ask(self, got=None, **kw):
+        return self.g.before_fix(rounds() if got is None else got, unattended_run=kw.pop("unattended", False),
+                                 design=kw.pop("design", False), **kw)
+
+    def test_a_document_only_on_another_branch_opens_the_gate(self):
+        out = self.ask(rounds(pointed=[self.CANON]), pointed=[self.RULE])
+        self.assertEqual((out["open"], out["go"]), (True, True))
+        self.assertEqual([k for k, _ in out["items"]], [self.g.POINTED_KIND, self.g.POINTED_KIND])
+        canon, rule = out["asked"]
+        self.assertIn("docs/canon.md", canon)
+        self.assertIn(self.g.POINTED_BY_ANSWER, canon)
+        self.assertIn("canon", canon)
+        self.assertTrue(rule.startswith("AGENTS.md が名指す docs/deploy.adoc"), rule)
+        self.assertIsNone(self.gm.push_rec(canon), "従ってよいかは人が決める（機械は推しを作らない）")
+
+    def test_a_document_in_no_version_alone_does_not_open(self):
+        out = self.ask(rounds(pointed=[self.GONE]))
+        self.assertEqual((out["open"], out["go"], out["asked"]), (False, True, []))
+
+    def test_a_document_in_no_version_is_listed_with_the_push_to_go_on(self):
+        out = self.ask(rounds(pointed=[self.GONE], asks=[ask_row()]))
+        self.assertTrue(out["open"])
+        self.assertEqual(out["items"][-1][0], self.g.POINTED_MISSING_KIND)
+        rec = self.gm.push_rec(out["asked"][-1])
+        self.assertEqual((rec["answer"], rec["note"]), ("continue", "気にせず進む"))
+        self.assertIn("tests/new_case.py", rec["item"])
+
+    def test_an_answered_row_is_not_asked_again(self):
+        first = self.ask(rounds(pointed=[self.CANON]))
+        again = self.ask(rounds(pointed=[self.CANON]), answered=[{"decision": "continue", "asked": first["asked"]}])
+        self.assertEqual((again["open"], again["go"]), (False, True))
+
+    def test_unattended_run_keeps_its_way_through_the_gate(self):
+        """無人の run は名指しを項目にしない（報告の行だけ）。推しで抜ける・止まるは名指しの無い run と同じ"""
+        for got in (rounds(pointed=[self.CANON, self.GONE]), rounds(pointed=[self.CANON], asks=[ask_row(mark={"recommend": REC})])):
+            with self.subTest(got=got):
+                bare = self.ask({**got, "pointed": []}, unattended=True)
+                out = self.ask(got, unattended=True, pointed=[self.RULE])
+                self.assertEqual((out["open"], out["go"], out["stop_reason"], out["asked"], out["deferred"]),
+                                 (bare["open"], bare["go"], bare["stop_reason"], bare["asked"], bare["deferred"]))
+
+    def test_structure_state_rows_are_read(self):
+        tmp = pathlib.Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, tmp, True)
+        state = tmp / "state.json"
+        for doc, want in (({"status": "ok", "design_file": "", "pointed": [self.RULE, "x"]}, [self.RULE]),
+                          ({"status": "failed", "reason": "落ちた", "design_file": ""}, [])):
+            with self.subTest(doc=doc):
+                state.write_text(json.dumps(doc), encoding="utf-8")
+                self.assertEqual(self.g.structure_pointed(str(state)), want)
+        self.assertEqual(self.g.structure_pointed(""), [])
+
+    def test_report_lines_name_the_documents_of_the_answers(self):
+        sections = kit.load(BLOCK, "sections")
+        lines = sections.rounds_lines(rounds(pointed=[self.CANON, self.GONE]))
+        self.assertTrue(any("docs/canon.md" in x and "canon" in x for x in lines), lines)
+        self.assertTrue(any("tests/new_case.py" in x and "どの版にも無く" in x for x in lines), lines)
+
+
 class DesignRowsCase(unittest.TestCase):
     """design_rows: 控えが無い・落ちた周は空、壊れた控えは読めないと名指して止まる（空の一覧で設計の問いを黙って消さない）"""
 

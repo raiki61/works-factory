@@ -762,6 +762,8 @@ nodes:
               review_status: {type: string}
               review_reason: {type: string}
               stop_reason: {type: string}
+              # 人の答えが名指し、読む版に無い文書（plan の出力 pointed。修正前の承認ノードが人に問う。持ち主の決め pointed-ask）
+              pointed: {type: array, items: {type: object, additionalProperties: false, required: [path, found, at], properties: {path: {type: string}, found: {type: boolean}, at: {type: string}}}}
         # 往復の返り（本体の唯一の終わりの関所が依る node）。plan-out の欄と設計の相談の欄。plan-out が飛ぶ周（答えた後の周）も走る
         - id: design-talk
           script: design_talk
@@ -782,8 +784,8 @@ nodes:
             type: object
             additionalProperties: false
             required: [done, ok, status, round, plan_prior, record, plan, fix_plan, reply, handoffs, ripple, owed, gave_up, stalled, capped,
-                       review, asks, deviations, review_status, review_reason, stop_reason, open, text, asked, agreed, talks, notes, shown,
-                       timeline]
+                       review, asks, deviations, review_status, review_reason, stop_reason, pointed, open, text, asked, agreed, talks, notes,
+                       shown, timeline]
             properties: &design_talk_props
               <<: *plan_out_props
               open: {type: boolean}
@@ -809,7 +811,7 @@ nodes:
     with:
       got: "$plan-rounds.output"
       names: "done ok status round plan_prior record plan fix_plan reply handoffs ripple owed gave_up stalled capped review asks deviations
-        review_status review_reason stop_reason open text asked agreed talks notes shown timeline"
+        review_status review_reason stop_reason pointed open text asked agreed talks notes shown timeline"
   # 8.5 設計へ戻す（テーマの run で、計画の承認ノード gate-design に redesign と答えた時だけ書き出す。docs/design/line.md の 3.3 節）。
   # run を閉じるのは修正前の承認ノード（agreed の redesign は通す語でないので human:gate-design で止める）
   - id: theme-return
@@ -949,7 +951,7 @@ nodes:
     depends_on: [spec-plan]
     with:
       got: "$spec-plan.output"
-      names: "ok status reason mode round owed plan fix_plan reply handoff replan ripple rejects gave_up report"
+      names: "ok status reason mode round owed plan fix_plan reply handoff replan ripple rejects gave_up pointed report"
   - id: spec-check
     include: works-factory-spec-driven
     depends_on: [spec-entry, test-gate-base, spec-diagnose, spec-plan]
@@ -1297,7 +1299,7 @@ nodes:
     depends_on: [replan]
     with:
       got: "$replan.output"
-      names: "ok status reason mode round owed plan fix_plan reply handoff replan ripple rejects gave_up report"
+      names: "ok status reason mode round owed plan fix_plan reply handoff replan ripple rejects gave_up pointed report"
   - id: replan-review
     include: works-factory-plan-review
     depends_on: [replan]
