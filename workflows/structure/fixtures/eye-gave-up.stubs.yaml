@@ -2,9 +2,16 @@
 # 3 回で諦める数えは tests/blocks/structure の試験が確かめる
 fixture:
   expect: completed
-  reached: [measure, structure-eye-prep, structure-eye, structure-eye-accept, finish]
+  reached: [measure, system-sketch-prep, system-sketch, system-sketch-accept, sketched, general-structure-prep, general-structure,
+            general-structure-accept, structure-eye-prep, structure-eye, structure-eye-accept, finish]
   inputs:
     units: '[{"id": "u1", "paths": ["README.md"], "summary": "README の 1 行を直す"}]'
 exec-code: true
+system-sketch:
+  rows:
+    - {unit_id: u1, system: "stub: 説明の文書（README.md）を人が読む", kind: "stub: 説明の文書を 1 か所に置く小さな道具"}
+general-structure:
+  rows:
+    - {index: 1, structure: "stub: 説明は 1 か所に置き、ほかは指すだけ", why: "stub: 写しは割れる"}
 structure-eye:
   rows: []

@@ -37,6 +37,8 @@ Set `question_stands` to true and write the ideal solution, designed independent
 
 List the design's elements in `elements`, one for each unit of what the design adds or removes: `id` is D1, D2, D3, … in order; `adds` is the list of what that element adds; `removes` is the list of what it removes (empty if nothing). The reviewer points at the plan's rows by these ids, so the elements must not disagree with what you wrote in `design`.
 
+{shared:deviation-grounds}
+
 ## How to answer
 
 - `question_stands`: whether the question stands.
