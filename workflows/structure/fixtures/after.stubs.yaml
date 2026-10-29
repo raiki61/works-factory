@@ -6,7 +6,7 @@ fixture:
   inputs:
     mode: after
     base: '0123456789abcdef0123456789abcdef01234567'
-measure: {eye: true, reason: ''}
+measure: {eye: true, sketch: false, reason: ''}
 structure-eye-prep: {prompt: 'stub: 指示', attempt: 1}
 structure-eye:
   rows:

@@ -79,7 +79,7 @@ class _RepoCase(unittest.TestCase):
 class FlowCase(_RepoCase):
     def test_port_values_alone_reach_the_state(self):
         got = self.walk([{"rows": [clean(MEAN), clean(CLAMP, "/units/1/id")]}])
-        self.assertEqual(got["survey"], {"eye": True, "reason": ""})
+        self.assertEqual(got["survey"], {"eye": True, "sketch": True, "reason": ""})
         self.assertEqual((got["prep"]["attempt"], got["take"]["ok"], got["take"]["done"]), (1, True, True))
         fin = got["finish"]
         self.assertEqual((fin["ok"], fin["status"], fin["dirty"], fin["escalate"]), (True, "ok", 0, 0))
@@ -169,7 +169,7 @@ class FlowCase(_RepoCase):
 
     def test_no_measured_unit_skips_the_eye_but_still_returns_ok(self):
         got = self.survey([{"id": LOOSE, "paths": [], "summary": "書き方の全体"}])
-        self.assertEqual(got, {"eye": False, "reason": "測れた単位が無い"})
+        self.assertEqual(got, {"eye": False, "sketch": False, "reason": "測れた単位が無い"})
         fin = self.finish()
         self.assertEqual((fin["ok"], fin["status"], fin["dirty"]), (True, "ok", 0))
         self.assertEqual(self.read("structure-state.json")["skipped"], [LOOSE])
@@ -230,6 +230,96 @@ QUOTE = "pkg の中の語は pkg/names.py だけが持つ。"
 
 def cites(unit_id, path="pkg/AGENTS.md", quote=QUOTE, **more) -> dict:
     return dirty(unit_id, intent=[{"path": path, "quote": quote}], **more)
+
+
+SYSTEM = "値を用意する側（stats.py）が値を作り、読む側が受け取る"
+KIND = "数の並びから代表の値を出す小さな計算の部品で、分母の決め方を 1 か所に揃えたい"
+GENERAL = {"structure": "分母の決め方は計算の部品の中の 1 か所が持ち、呼び手は値を渡すだけ", "why": "分母を呼び手が持つと呼び手ごとに割れる"}
+
+
+def sketched(kinds=(KIND, KIND)) -> dict:
+    return {"rows": [{"unit_id": MEAN, "system": SYSTEM, "kind": kinds[0]}, {"unit_id": CLAMP, "system": SYSTEM, "kind": kinds[1]}]}
+
+
+def drawn(*indexes) -> dict:
+    return {"rows": [{"index": i, **GENERAL} for i in indexes or (1, 2)]}
+
+
+class SketchCase(_RepoCase):
+    """直す前の時に、構造を描く役と一般の構造を描く目を構造の目の前に回す（docs/design/structure.md の 2.7・2.8）"""
+
+    def sketch(self, reply):
+        return self.run.script("sketch_take", reply=json.dumps(reply, ensure_ascii=False))
+
+    def general(self, reply):
+        return self.run.script("general_take", reply=json.dumps(reply, ensure_ascii=False))
+
+    def test_the_eye_sees_the_drawn_system_beside_the_general_structure(self):
+        self.survey()
+        self.assertEqual(self.run.script("sketched"), {"general": False, "reason": "構造を描く役の行が無い（役が走らなかったか、3 回とも拒まれた）"})
+        prep = self.run.script("sketch_prep")
+        self.assertIn("You are the system sketcher", prep["prompt"])
+        self.assertIn('"paths":["stats.py"]', prep["prompt"])
+        self.assertEqual(self.sketch(sketched())["ok"], True)
+        self.assertEqual(self.run.script("sketched")["general"], True)
+        prep = self.run.script("general_prep")
+        self.assertIn(f"1. {KIND}\n2. {KIND}", prep["prompt"])
+        for leak in (MEAN, CLAMP, "stats.py", SYSTEM, "mean の分母"):   # 種類の 1 文のほかは、頼みも単位も対象の名も渡さない
+            self.assertNotIn(leak, prep["prompt"] + prep["system"])
+        self.assertIn("You are the blind judge", prep["system"])
+        self.assertTrue(self.general(drawn())["ok"])
+        prompt = self.run.script("prep")["prompt"]
+        self.assertIn("## The system and its general structure", prompt)
+        self.assertIn(GENERAL["structure"], prompt)
+        self.assertIn("## Grounds for departing from the general structure", prompt)
+        got = self.take({"rows": [dirty(MEAN, evidence=["/units/0/system", "/units/0/general/structure"]), clean(CLAMP, "/units/1/kind")]})
+        self.assertTrue(got["ok"], got)
+
+    def test_without_the_general_structure_the_eye_still_reads_the_grounds(self):
+        self.survey()
+        prompt = self.run.script("prep")["prompt"]
+        self.assertNotIn("## The system and its general structure", prompt)
+        self.assertIn("## Grounds for departing from the general structure", prompt)
+        got = self.take({"rows": [clean(MEAN, "/units/0/general"), clean(CLAMP, "/units/1/id")]})
+        self.assertFalse(got["ok"])
+        self.assertIn("/units/0/general", got["reason"])
+
+    def test_a_kind_that_names_the_target_is_rejected(self):
+        self.survey()
+        self.run.script("sketch_prep")
+        got = self.sketch(sketched((KIND, "stats.py の上限を揃えたい")))
+        self.assertEqual((got["ok"], got["done"]), (False, False))
+        self.assertIn("kind が対象の名を持つ（'stats.py'", got["reason"])
+        self.assertFalse(self.place("sketches.json").exists())
+        got = self.sketch({"rows": [sketched()["rows"][0]]})
+        self.assertIn("行の無い単位", got["reason"])
+
+    def test_general_rows_answer_every_number_once(self):
+        self.survey()
+        self.sketch(sketched())
+        self.run.script("general_prep")
+        got = self.general(drawn(1, 1))
+        self.assertFalse(got["ok"])
+        self.assertIn("index 1 の 2 行目", got["reason"])
+        self.assertIn("行の無い番号: [2]", got["reason"])
+        self.assertTrue(self.general(drawn(2, 1))["ok"])
+        self.assertEqual([r["unit_id"] for r in self.read("general.json")], [MEAN, CLAMP])
+
+    def test_third_rejection_gives_up_and_the_eye_runs_without_it(self):
+        self.survey()
+        got = [self.sketch({"rows": []}) for _ in range(3)]
+        self.assertEqual([(g["done"], g["give_up"]) for g in got], [(False, False)] * 2 + [(True, True)])
+        self.assertFalse(self.run.script("sketched")["general"])
+        self.assertNotIn("## The system and its general structure", self.run.script("prep")["prompt"])
+
+    def test_fresh_measure_drops_the_drawn_rows(self):
+        self.survey()
+        self.sketch(sketched())
+        self.run.script("general_prep")
+        self.general(drawn())
+        self.survey()
+        for name in ("sketches.json", "general.json", "rejects-system-sketch.json", "general-structure-prompt-1.md", "general-structure-system-1.md"):
+            self.assertFalse(self.place(name).exists(), name)
 
 
 class IntentCase(_RepoCase):
@@ -392,7 +482,7 @@ class AfterCase(_RepoCase):
         return self.survey(list(units), mode="after", base=self.base, **more)
 
     def test_diff_is_measured_and_shown_as_one_unit(self):
-        self.assertEqual(self.after(), {"eye": True, "reason": ""})
+        self.assertEqual(self.after(), {"eye": True, "sketch": False, "reason": ""}, "直した後の時は構造を描く役を起こさない")
         doc = self.read("structure-after.json")
         self.assertEqual(doc["status"], "ok")
         self.assertIn("pkg/a.py", doc["after"]["changed"])
@@ -502,8 +592,7 @@ class ShapeCase(unittest.TestCase):
     def setUp(self):
         self.doc = yaml.safe_load((BLOCK / "works-factory-structure.yaml").read_text(encoding="utf-8"))
         self.nodes = {n["id"]: n for n in self.doc["nodes"]}
-        loop = self.nodes["structure-eye-loop"]["loop_group"]
-        self.body = {n["id"]: n for n in loop["nodes"]}
+        self.body = {n["id"]: n for node in self.doc["nodes"] if "loop_group" in node for n in node["loop_group"]["nodes"]}
 
     def test_contract(self):
         self.assertEqual((self.doc["name"], self.doc["returns"], self.doc["outcome_field"]), ("works-factory-structure", "finish", "ok"))
@@ -528,6 +617,19 @@ class ShapeCase(unittest.TestCase):
         self.assertEqual(eye["sandbox"], {"enabled": True, "allowUnsandboxedCommands": False})
         self.assertEqual(eye["model"], "@wf-plan-structure")
         self.assertEqual(eye["prompt"], "$structure-eye-prep.output.prompt")
+
+    def test_sketcher_reads_and_the_general_eye_is_blind(self):
+        """構造を描く役は読むだけの道具を持ち、一般の構造を描く目は道具も既定の system prompt（作業ツリーの cwd と git status）も持たない"""
+        sketcher, general = self.body["system-sketch"], self.body["general-structure"]
+        self.assertEqual(sketcher["allowed_tools"], ["Read", "Grep", "Glob"])
+        self.assertEqual(general["allowed_tools"], [])
+        self.assertEqual(general["systemPrompt"], "$general-structure-prep.output.system")
+        for role in (sketcher, general):
+            self.assertIs(role["mutates_checkout"], False)
+            self.assertEqual(role["model"], "@wf-plan-structure")
+        self.assertEqual(self.nodes["system-sketch-loop"]["when"], "$measure.output.sketch == true")
+        self.assertEqual(self.nodes["general-structure-loop"]["when"], "$sketched.output.general == true")
+        self.assertEqual(self.nodes["structure-eye-loop"]["trigger_rule"], "all_done", "描く役が飛んでも落ちても構造の目は回る")
 
     def test_scripts_are_read_only_uv_scripts(self):
         for node in [*self.nodes.values(), *self.body.values()]:

@@ -1,7 +1,7 @@
 # block の設計書: structure（構造の目）
 
 - 何の話か: 直しの単位ごとに、直しが対象のリポジトリの構造を汚すか（設計の考えを知る場所を増やすか、書いた意図に反するか）を見る観点「構造の目」を、単独で呼べる block `workflows/structure/` にする設計。直す前（修正案の前に単位を見る）と直した後（差分を見る）の 2 つの時を `mode` で選ぶ。型は [README.md](README.md) に従い、形は [world.md](world.md) を写した。
-- 決めたこと: 今の structure のサブグラフの node（`structure-measure`・loop の中の 3 つ・返す `structure`）と、eyes の `structure-after` の node を、6 つの node の block 1 つにする。比べる相手を、周りのコードでなく対象のリポジトリの書いた意図（根と、単位のファイルの上の各フォルダの `AGENTS.md`・`ARCHITECTURE.md`、人が run に固めた方針）にする（持ち主の 2026-10-19 の追加。README の 8.2・8.6）。汚れると見た行は、書いた意図の原文の抜き書きを付けさせ、機械が見せた本文に字のまま在るかを照らす。直した後の時も同じ役が差分を見る。指示は 1 本の英語の md（`prompts/structure-eye.md`）に書く。
+- 決めたこと: 今の structure のサブグラフの node（`structure-measure`・loop の中の 3 つ・返す `structure`）と、eyes の `structure-after` の node を、6 つの node の block 1 つにする。比べる相手を、周りのコードでなく対象のリポジトリの書いた意図（根と、単位のファイルの上の各フォルダの `AGENTS.md`・`ARCHITECTURE.md`、人が run に固めた方針）にする（持ち主の 2026-10-19 の追加。README の 8.2・8.6）。汚れると見た行は、書いた意図の原文の抜き書きを付けさせ、機械が見せた本文に字のまま在るかを照らす。直した後の時も同じ役が差分を見る。指示は 1 本の英語の md（`prompts/structure-eye.md`）に書く。直す前の時は、構造の目の前に 2 つの役（触る部品を含むシステムを描く役と、種類の 1 文だけから一般の構造を描く道具なしの目）を回し、構造の目に並べて比べさせる（持ち主の 2026-10-29 の答え。計画 `docs/plans/2026-10-29-myturn-essence.md`・持ち主の決め `general-structure-wins`。2.7・2.8 と 11 節の 25〜30）。
 - 持ち主に求めること: なし。この block を作る人（実装の役）は、この設計どおりに 1 本の PR（3 つの commit。7 節）で作る。自分で決めた事は 11 節に集めた（記録として置く。持ち主の確認は待たない）。
 
 この文書の語は README の頭の物を使う（line・eyes〔独立の目のまとめの graph〕・graph・block・port・place・Archon・元の works・graphloops・keep-essence など）。ほかに:
@@ -15,6 +15,9 @@
 - 段 B: 直した後の実測。直す前の版と今の作業ツリーの差分を測る（変わったファイル・住処の外の知る場所の増え `fence_up`・新しい名・増えた写しの塊。今の `lib/stage_b.py`）。
 - 書いた意図: 対象のリポジトリが文で書いた憲法・決まり・設計（この block では、決まった名の文書 `AGENTS.md`・`ARCHITECTURE.md` と、port `intent` で渡された文書と、port `policy` の方針の文書）。
 - 構造の目（structure-eye）: 道具を持たない AI の役。単位ごとに汚れるか汚れないかと、当たった形（6 つ）・根拠・避け方を返す。
+- 一般の構造: その種類のシステムが一般にどんな部品に分かれ、部品の間を何が流れ（向き）、値の正本をどこに置き、依存をどちら向きにし、境目をどこに引くか。解き方やツールではない。
+- 構造を描く役（system-sketch）: 読むだけの道具（Read・Grep・Glob）を持つ AI の役。単位ごとに、触る部品を含むシステムを一般の構造と同じ語（部品・流れ・正本・依存の向き・境目）で描き（`system`）、どんな種類のシステムで触る部品が何を揃えたいかを、対象の名を使わずに 1 文で言う（`kind`）。
+- 一般の構造を描く目（general-structure）: 道具を持たない AI の役。番号つきの `kind` の文だけを受けて、その種類のシステムの一般の構造を理由つきで描く。
 - 設計の行: 構造の目の返答の 1 行（単位 1 つに 1 行）。`design.jsonl` に書く。形の読み口は `lib/structmark.py`（KEEP。plan・plan-review・eyes・line・report が読む）。
 - 人に上げる行: `route` が「人に上げる」の行。line の修正前の承認ノードの項目になる。
 - 例の run: 本物の run `df5e111f-ea97-409b-8066-2245d32746ab`（対象 raiki61/works-factory。置き場 `~/.local/state/works-factory/targets/6c76444e/archon-home/workspaces/raiki61/works-factory/artifacts/runs/df5e111f-…/`）。直す前の目は `plan/structure/681f73b08c5a/`（この run の版では構造の目は plan の中に在った）、直した後の実測は `eyes/structure-after.json`。骨組みの値はここから取った。
@@ -23,7 +26,7 @@
 
 ### 1.1 役
 
-- before: 修正案より前に、判定が切った単位を測り、単位の直しが書いた意図に反するか・設計の考えを知る場所を増やすかを、道具を持たない別の目に判じさせる。汚れると見た単位には推しの避け方を書かせ、決め手を当たっても避け方が 1 つに決まらない単位だけを人に上げる行にさせる。
+- before: 修正案より前に、判定が切った単位を測り、単位の直しが書いた意図に反するか・設計の考えを知る場所を増やすかを、道具を持たない別の目に判じさせる。汚れると見た単位には推しの避け方を書かせ、決め手を当たっても避け方が 1 つに決まらない単位だけを人に上げる行にさせる。目の前に、構造を描く役と一般の構造を描く目を回し、目は単位ごとに描いたシステムと一般の構造を並べて違いを挙げ、違いごとに寄せるか外れるかを外れの理由の決まり（共通の断片 `deviation-grounds`）で決める。
 - after: 直した後の差分を測り（段 B）、同じ目に、差分が書いた意図に反するか・知る場所を増やしたかを判じさせる。修正案が構造の目の避け方から外れた訳（在れば）を並べて残す。PR の差分を単独で見る使い方（README の 8.6 の「入る時」）もこの mode。
 
 どちらの時も、判じる基準は書いた意図で、周りのコードの今の書き方ではない（周りのコードが既に意図から崩れていれば、それを写す直しも汚れる）。書いた意図の文書が対象に 1 つも無い時だけ、今と同じく実測から知る場所の数で判じる。
@@ -55,12 +58,21 @@
 
 ### 1.3 node の並び（`workflows/structure/works-factory-structure.yaml`）
 
-1. `measure`（script `survey.py`。`mutates_checkout: false`）: port を読み、place の中のこの block のファイルを名で引いて消し（place そのものは消さない。README の 13 章）、書いた意図を探して読み、mode に応じて段 A か段 B を回し、目に見せる材料を `view.json` に書く。返り `{eye, reason}`（`eye` は構造の目を起こすか）。`output_format`: `{type: object, additionalProperties: false, required: [eye, reason], properties: {eye: {type: boolean}, reason: {type: string}}}`。
-2. `structure-eye-loop`（`loop_group`、`max_iterations: 3`、`fresh_context: false`、`until_bash: 'done=$structure-eye-accept.output.done; test "$done" = true'`。`depends_on: [measure]`・`when: "$measure.output.eye == true"`）
+1. `measure`（script `survey.py`。`mutates_checkout: false`）: port を読み、place の中のこの block のファイルを名で引いて消し（place そのものは消さない。README の 13 章）、書いた意図を探して読み、mode に応じて段 A か段 B を回し、目に見せる材料を `view.json` に書く。返り `{eye, sketch, reason}`（`eye` は構造の目を起こすか。`sketch` は構造を描く役と一般の構造を描く目を起こすかで、before では `eye` と同じ、after ではいつも偽）。`output_format`: `{type: object, additionalProperties: false, required: [eye, sketch, reason], properties: {eye: {type: boolean}, sketch: {type: boolean}, reason: {type: string}}}`。
+2. `system-sketch-loop`（`loop_group`、`max_iterations: 3`、`fresh_context: false`、`until_bash: 'done=$system-sketch-accept.output.done; test "$done" = true'`。`depends_on: [measure]`・`when: "$measure.output.sketch == true"`）
+   - `system-sketch-prep`（script `sketch_prep.py`）: 指示を組む。返り `{prompt, attempt}`。
+   - `system-sketch`（AI。`allowed_tools: [Read, Grep, Glob]`。ほかの鍵は `structure-eye` と同じ。`output_format` は 2.7 の形）。
+   - `system-sketch-accept`（script `sketch_take.py`。`with: {reply: $system-sketch.output}`）: 返り `{ok, done, give_up, reason, attempt}`。
+3. `sketched`（script `sketched.py`。`depends_on: [measure, system-sketch-loop]`・`trigger_rule: all_done`・`when: "$measure.output.sketch == true"`）: 構造を描く役の行が受け付けられたか。返り `{general, reason}`。
+4. `general-structure-loop`（`loop_group`、形は 2 と同じ。`depends_on: [sketched]`・`when: "$sketched.output.general == true"`）
+   - `general-structure-prep`（script `general_prep.py`）: 指示と system prompt を組む。返り `{prompt, system, attempt}`。
+   - `general-structure`（AI。`allowed_tools: []`・`systemPrompt: "$general-structure-prep.output.system"`。ほかの鍵は `structure-eye` と同じ。`output_format` は 2.8 の形）。
+   - `general-structure-accept`（script `general_take.py`。`with: {reply: $general-structure.output}`）: 返り `{ok, done, give_up, reason, attempt}`。
+5. `structure-eye-loop`（`loop_group`、`max_iterations: 3`、`fresh_context: false`、`until_bash: 'done=$structure-eye-accept.output.done; test "$done" = true'`。`depends_on: [measure, general-structure-loop]`・`trigger_rule: all_done`（描く役が飛んでも落ちても回る）・`when: "$measure.output.eye == true"`）
    - `structure-eye-prep`（script `prep.py`。`mutates_checkout: false`）: 指示を組む。返り `{prompt, attempt}`。
    - `structure-eye`（AI。`prompt: "$structure-eye-prep.output.prompt"`・`depends_on: [structure-eye-prep]`・`model: '@wf-plan-structure'`・`allowed_tools: []`・`settingSources: [user]`・`sandbox: {enabled: true, allowUnsandboxedCommands: false}`・`mutates_checkout: false`・`idle_timeout: 1728000000`・`retry: {max_attempts: 2, on_error: all}`。`output_format` は 2.4 の形）。
    - `structure-eye-accept`（script `take.py`。`depends_on: [structure-eye]`・`with: {reply: $structure-eye.output}`・`mutates_checkout: false`）: 返り `{ok, done, give_up, reason, attempt}`（今のまま）。
-3. `finish`（script `finish.py`。`depends_on: [measure, structure-eye-loop]`・`trigger_rule: all_done`・`mutates_checkout: false`）: 控えを書き、出力を返す。落ちない（今の `structure_collect.py` のまま。境の口と lib の import から先の誤りは全部捕まえ、標準ライブラリだけで `status: failed` の控えを書く）。`output_format` は 1.2 の出力の欄を全部 required にし、`structure`・`after` は `{type: [object, "null"]}`、`dirty`・`escalate` は整数、`optional`・`report` は配列。
+6. `finish`（script `finish.py`。`depends_on: [measure, structure-eye-loop]`・`trigger_rule: all_done`・`mutates_checkout: false`）: 控えを書き、出力を返す。落ちない（今の `structure_collect.py` のまま。境の口と lib の import から先の誤りは全部捕まえ、標準ライブラリだけで `status: failed` の控えを書く）。`output_format` は 1.2 の出力の欄を全部 required にし、`structure`・`after` は `{type: [object, "null"]}`、`dirty`・`escalate` は整数、`optional`・`report` は配列。
 
 今の 4 つの node の id（`structure-measure`・`structure-eye-loop`・`structure`）のうち、`structure-measure` は `measure`、返す node `structure` は `finish` にした（block の名と同じ id の node を持たない。world と同じ）。script の名は `lib/` のモジュールと重ねない（lib に `measure.py`・`eye.py`・`stage_a.py`・`stage_b.py`・`context.py`・`accept.py`・`report.py` が在るので `survey.py`・`prep.py`・`take.py`・`finish.py`）。
 
@@ -72,7 +84,9 @@
 - `intent.json`（見せた書いた意図 `[{path, rev, text, cut, reason}]`。3 節の intent）
 - `structure.json`（before の段 A の実測。今のまま。ただし欄 `rules` は消え、書いた意図は `intent.json` に移る）
 - `structure-after.json`（after の段 B。`structmark.write_after` の形）・`after.diff`（after の差分の全体）
-- `view.json`（目に見せる JSON。根拠の JSON Pointer はこの中を指す）
+- `view.json`（目に見せる JSON。根拠の JSON Pointer は、これに `sketches.json`・`general.json` の行を単位ごとに足した物の中を指す）
+- `sketches.json`（構造を描く役の受け付けた行 `[{unit_id, system, kind}]`）・`general.json`（一般の構造を描く目の受け付けた行 `[{unit_id, kind, structure, why}]`）。before だけ
+- `rejects-system-sketch.json`・`rejects-general-structure.json`・`system-sketch-prompt-<n>.md`・`general-structure-prompt-<n>.md`・`general-structure-system-<n>.md`
 - `design.jsonl`（設計の行。`measure` が 0 バイトで置き、受け付けが書く）
 - `eye.json`（目の控え `{started_at, status, wall_s}`）・`rejects-structure-eye.json`
 - `structure-eye-prompt-<n>.md`（組んだ指示。今の `eye-prompt-<n>.md`）
@@ -88,6 +102,7 @@
 - `workflows/structure/src/stage_b.py`: 今の `lib/stage_b.py` の写し（`MEASURE` は同じ探し方）。
 - `workflows/structure/src/survey.py`: 今の `lib/structfile.py` の `_measured_units`・`_now`・`measure` を mode で 2 つに分けた物（`before(place, units, root, intent_docs)`・`after(place, units, root, base, plan_fields, intent_docs)`）と、目に見せる JSON を組む `view`（今の `eye.view`・`_cut`・`measured`・`due`）。
 - `workflows/structure/src/eye.py`: 今の `lib/eye.py` の `prep`（指示の文の組み立て `render` は md に移り、材料の値だけを組む）・`_pointer`・`problems`（書いた意図の照らしを足す。7 節）・`accept`・`state`・`reset`・`_put`・`_load`・`ROUTES`・`ROUTE`・`ROUTE_UP`・`ROUTE_REASON`・`MIN_UNDECIDED = 20`・`VERDICTS`・`DIRTY`・`FORM_COUNT = 6`・`MIN_QUOTE = 20`。6 つの形の文（今の `FORMS`）は md に移す。
+- `workflows/structure/src/sketch.py`: 構造を描く役と一般の構造を描く目の材料・指示の値・受け付け（2.7・2.8）。目に見せる JSON に行を足すのは `src/eye.py` の `_view`。
 - `workflows/structure/src/state.py`: 今の `structfile._outcome`・`write_state`・`keep_state`（spare の道は消す）の写し。
 - `workflows/.shared/schemas/units.schema.json`（r1 の PR が structure の `schemas/` から移した。r1・plan も使う）（`{type: array, items: {type: object, required: [id], properties: {id: {type: string, minLength: 1}, paths: {type: array, items: {type: string, minLength: 1}}, summary: {type: string}}}}`）・`intent.schema.json`（`{type: array, items: {type: string, minLength: 1}}`）。
 - 使う `lib/`: `measure`（コマンドとして）・`conceptfence`（`tables`・`places`・`changed`・`scan_change`）・`concepthome`（`tracked_names`・`pick_maps`・`base_of`・`TABLE_NAME`）・`design`（`MAP_NAMES` だけ。根の地図の文書の名）・`eye`（`stamp`・`wall`・`WALL`。ブロックの時間の欄。`structmark` も読む）・`structmark`（`write`・`read`・`rows`・`write_after`・`AFTER_FILE`・`report_lines`・`DIRTY`・`ROUTE_UP`）・`planmarks`（`deviations`）・`listcut`（`SHOWN`）・`rolekit`（`accept_round`・`current_round`・`round_outcome`・`rejected`・`rejects_text`・`rejects_path`）・`jsonfile`・`oneline`。
@@ -331,6 +346,23 @@ after では、差分が変えたファイル（14 本）の上のフォルダ�
 - 替えた: 言語。今は言語の行が無く（役の定義にも返し方にも無い）、目は単位の summary の言語で書いていた。人に見せる欄を名指す 1 文を足し、`lang` が空なら共通の断片 `lang-default` の文（依頼の言語。15 を見よ）。
 - 英語にした（#764）。役の名「構造の目」は "the structure eye"。
 
+### 2.7 node の設計シート: system-sketch（構造を描く役）
+
+- 役: 単位ごとに、単位の `paths` とその周りを読み、触る部品を含むシステムを部品・流れと向き・正本・依存の向き・境目で描く（`system`。部品は役の名で呼び、後ろの括弧に対象のパスを添える）。どんな種類のシステムで、触る部品がそこで何を揃えたいかを 1 文で言う（`kind`。対象の名・パス・ファイルの名・識別子・単位の summary の語を使わない）。直しの良し悪しを判じず、解き方を書かない（比べは構造の目がする）。
+- port: 構造の目が見る単位（`view.json` の順）の `{id, paths, summary}`（`paths` は `units.json` から）・却下の控え・`lang`。
+- 組み立て（`prompts/system-sketch.md`）: 却下の段落・役の定義・描く物（`system`・`kind`）・返し方（`{lang}`）・`## Units` と `{units}`（1 行の JSON）・結び。
+- 返す形: `{rows: [{unit_id, system, kind}]}`（3 つとも空白でない字。`additionalProperties: false`）。
+- 受け付け（`src/sketch.py` の `sketch_problems`）: 単位と 1 対 1・`system` と `kind` が空でない・`kind` に単位の id・パス・ファイルの名（大文字小文字を見ない）が無い。通れば `sketches.json` に単位の順で書く。3 回目の拒否で諦め、一般の構造を描く目を起こさない（構造の目は描いた行なしで回る）。
+
+### 2.8 node の設計シート: general-structure（一般の構造を描く目）
+
+- 役: 番号つきの種類の 1 文ごとに、その種類のシステムを実務でよく組む一般の構造（部品・流れと向き・値の正本・依存の向き・境目）と、そう組む訳（ほかに置くと何が崩れるか）を描く。解き方や製品でなく構造を描き、道具は部品の例としてだけ名指す。
+- port: `sketches.json` の `kind` の文だけ（番号は並びの順）・却下の控え・`lang`。頼み・単位の id・paths・summary・差分・対象の名・描いたシステムを運ぶ値を持たない（独立設計の keep-essence 9 と同じ守り方）。system prompt は共通の断片 `role-blind-judge`（`prompts/general-structure.system.md`）で、既定の system prompt が運ぶ作業ツリーの cwd と git status も渡らない。
+- 組み立て（`prompts/general-structure.md`）: 却下の段落・役の定義・一般の構造の語・`## Kinds of systems` と `{kinds}`（`1. <文>` の行）・返し方・結び。
+- 返す形: `{rows: [{index (1 以上の整数), structure, why}]}`（`additionalProperties: false`）。
+- 受け付け（`general_problems`）: 番号と 1 対 1・`structure` と `why` が空でない。通れば `general.json` に、番号を単位に戻して書く。
+- 構造の目への渡し: `src/eye.py` の `_view` が単位ごとに `system`・`kind`・`general: {structure, why}` を足す。目の指示は、どれかの単位が `general` を持つ時に節 `## The system and its general structure`（段落 `general`）を入れ、違いごとに寄せるか外れるかを共通の断片 `deviation-grounds` で決めさせる。断片は段落に依らずいつも入る（前例を外れの理由にしない決まりは、一般の構造が描かれない after の時にも効く）。
+
 ## 3 script の node
 
 - `survey.py`（`measure`）: `INPUTS_MODE`・`INPUTS_UNITS`・`INPUTS_INTENT`・`INPUTS_POLICY`・`INPUTS_BASE`・`INPUTS_PLAN` を `os.environ.get("INPUTS_MODE")` などの字のままで読み、`ports` に渡す。place の中のこの block のファイルを名で引いて消す（place そのものは消さない。README の 13 章）。根は作業ツリー（`Path.cwd()`）。
@@ -344,6 +376,7 @@ after では、差分が変えたファイル（14 本）の上のフォルダ�
   - before: 今の `structfile.measure` と同じ（`units.json`・`skipped-units.json`・`structure.json` を書き、`design.jsonl` を 0 バイトで置き直し、目の控えを消す）。`structure.json` の欄 `rules` は書かない。`view.json` は今の `eye.view` の中身から `rules` を外した物（`{units: [{id, summary, measure, concepts?}], timing}`）。返り `eye` は今の `eye.due`（`structure.json` が ok で、測れた単位が 1 つ以上）。
   - after: `src/stage_b.run(root, base, skip_prefix=<実行基盤の写しのパスの頭>)`（今の `boundary.RUNTIME_COPY_PREFIX`。土台の `ports.py` の同じ値）を回し、`eye.stamp` で秒を残す。`plan` が空でなければ `planmarks.deviations(<fields>)`。`structmark.write_after(place, status, reason, after, deviations)` で `structure-after.json` を書く（今の `structure_after.py` と同じ中身）。差分の全体を `stage_b.patch_of` で `after.diff` に書く。単位は port `units` の paths の在る物、空なら `[{id: "diff", summary: "", paths: <changed>}]`。`view.json` は `{units: [{id, summary, paths}], after: {base_rev, changed, tables, tables_changed, fence_up, new_names, dup_blocks_added, deviations}, timing}`（`fence_up`・`new_names` は `listcut.SHOWN` 件で切り、全件の数を隣の `<名>_total` に置く。今の `eye._cut` と同じ形）。返り `eye` は段 B の `status` が ok で `changed` が空でない時。
   - 中の誤りは `structure.json`（before）か `structure-after.json`（after）の `status: failed` と `reason` に残し、`eye: false` を返す（落ちない）。
+- `sketch_prep.py`・`sketch_take.py`・`sketched.py`・`general_prep.py`・`general_take.py`: `src/sketch.py` の `sketch_prompt`・`sketch_accept`・`sketched`・`general_prompt`・`general_accept` を呼ぶだけ（2.7・2.8）。受け付けと `sketched` は落ちない（`ports.run`）。
 - `prep.py`: 却下の控えと回の数え（`rolekit.rejected`・`len + 1`）を読み、`prompt.render("structure-eye", values, when)` で組む。`values` は 2.3 の差し込み口と、`intent_docs`（`intent.json` の本文の在る文書ごとに `### <path> (<rev の頭 12 字>, lines 1-<行の数>)`・切った時は `(cut: the first <TEXT_CAP> characters are shown; <cut> more were left out)` の 1 行・本文。読めなかった文書は `### <path> (could not be read: <reason>)`。名指された文書で本文の在る物は、見出しの括弧の末に `; pointed to by <名指した文書>, not in the version under review, taken from <at>`。文書の間は空行 1 つ）・`view`（`view.json` を `separators=(",", ":")`・`ensure_ascii=False` で 1 行に）・`diff`（after。`after.diff` の先頭 `DIFF_CAP` バイトを UTF-8 で読み〔読めない字は置き換え〕、切った時は末尾に `(cut: the first <DIFF_CAP> bytes are shown; <n> more were left out)`）・`lang`（空なら共通の断片 `lang-default` の文。依頼の言語）。`when` は `{"rejected": …, "intent": <本文の在る文書が 1 つ以上>, "after": <mode が after>}`。目の控え `eye.json` を `pending` にする（今の `eye.prep` と同じ）。返り `{prompt, attempt}`（今の `prompt_file` の欄は無くす。組んだ指示は place の `structure-eye-prompt-<n>.md`）。
 - `take.py`: 今の `eye.accept` と同じ（`rolekit.current_round`・`accept_round`・`round_outcome`。控えが読めなければ落ちずに done・give_up の拒否）。照らしは 7 節。通れば `design.jsonl` に行を書く（`route` の既定と `route_reason` を足す。今のまま）。
 - `finish.py`: `src/state.write_state(place, mode)` で `structure-state.json` を書き（今の `_outcome` の決め。after では段 B の `status` が failed なら `failed`）、`dirty`・`escalate` を `design.jsonl` から数え、`report` を `structmark.report_lines(<state>, <after なら place>)` で組んで返す。書けなければ（`OSError`）`structure: null`・`status: failed`・`reason` に「構造の控えを書けない（<文>）」。境の口と lib の import から先の誤りは全部捕まえ、標準ライブラリだけで `status: failed` と 0 バイトの `design.jsonl` を書いて返す（今の `structure_collect.failed`）。`optional` はどの返りにも `src/files.py` の `OPTIONAL`。
@@ -355,6 +388,7 @@ after では、差分が変えたファイル（14 本）の上のフォルダ�
   - `intent.json` に本文の在る文書が 1 つ以上の時: 汚れる行は `intent` を 1 つ以上持つ。どの行の `intent` も、`path` が本文の在る文書のどれか（policy は渡された値の字）で、`quote` が `MIN_QUOTE`（20）字以上で、空白の並びを空白 1 つにして前後を落とした `quote` が、同じようにした見せた本文（切った後の物）に字のまま在る。外れは「行 <i>（<unit_id>）: intent の <path> の抜き書きが、見せた本文に字のまま無い（頭: <40 字>）」など、どれに落ちたかを名指す。
   - 本文の在る文書が無い時: `intent` を持つ行を拒む（「書いた意図の文書は見せていない」）。
 - 却下の理由の文は Python（`src/eye.py` の `problems`）が組む日本語のまま（README の 5.3）。
+- 構造を描く役と一般の構造を描く目の受け付けは 2.7・2.8。`evidence` の JSON Pointer は、`system`・`kind`・`general` を足した後の JSON を指してよい。
 - 3 回目の却下で loop を抜ける（`rolekit.GIVE_UP_AFTER`）。`finish` が `status: failed` と「構造の目の返答が 3 回とも受け付けで拒まれた: <最後の理由>」を返す。線は止めない（修正案は構造の目の行なしで進む。今のまま）。
 
 ## 5 単独で呼ぶ
@@ -402,6 +436,7 @@ bin/works-factory <同じ引数> workflow run works-factory-structure \
   - after: 2 つ目の commit を作らずに作業ツリーで `pkg/a.py` を変え、`survey`（`mode: after`・`base` は HEAD）→ `structure-after.json` の `after.changed` に `pkg/a.py`・`after.diff` が在る → 指示に `## Diff` と単位 `diff` が在る → 台本 → `finish` の `after` の pointer。`AGENTS.md` を作業ツリーで書き換えても、指示に入るのは `base` の本文。
   - `base` が空の after → `eye: false`・`status: failed`。
   - `intent` を渡した時は、決まった名を探さずにその文書だけ。
+  - 構造を描く役と一般の構造を描く目（`SketchCase`）: 一般の構造を描く目の指示と system prompt に、種類の 1 文のほかの物（単位の id・パス・summary・描いたシステム）が無い・構造の目の指示に描いたシステムと一般の構造の節と外れの理由の断片が在り、`evidence` が足した欄を指せる・`kind` が対象の名を持てば拒む・番号の重なりと抜けを拒む・3 回の拒否で諦めて構造の目は節なしで回る・測り直しで描いた行を消す。
 - 指示の比べ（README の 11.4。この block は 3 つの commit に分ける。11 節の 3）:
   1. 1 つ目の commit: md を今の字のまま日本語で置き（`structure-eye.md` の役の定義と区切りと `render` の本文。before で、書いた意図を `rules` の JSON に入れる今の形）、例の run の `plan/structure/681f73b08c5a/structure.json` と同じ値で組んだ指示が、今の `eye-prompt-1.md` を区切りの行と役の定義で包んだ字と同じになることを照らす。
   2. 2 つ目の commit: 英語にする（2.6 の「移した」「まとめた」「消した」「言語」の差だけ）。並べて審査に出す。
@@ -468,3 +503,9 @@ mode=before                          mode=after
 22. 筋書き: `standalone`・`eye-gave-up`・`eye-skipped` は script を本当に回し、AI の node だけを差し替える（7 節は `measure` などの返りも差し替える形だったが、土台の検査 `check_standalone_renders` が「script は本当に走る」を求める）。`after` だけは、base に本物の commit が要るので script の node も差し替えて配線だけを見る。差分を本物の対象で回す道は `tests/blocks/structure/test_structure.py` の `AfterCase`。
 23. 指示ファイルが名指したファイルのうち版に無い物を、ほかの版から読んで書いた意図に足し、どの版にも無い物は読めないと名指す（3 節の intent。guided-resolver の #2177 の run で見つかった件 A-2: 指示ファイルが「従え」と指す正典が、まだ取り込まれていない枝にだけ在った）。版に無い物だけを追い、版に在る名指しは足さない。根拠: 指示ファイルは試験やコードのファイルも名指し（この工場の `AGENTS.md` と `workflows/AGENTS.md` で 62 本）、全部を 6000 字ずつ貼ると目の指示が大きく膨らむ。版に無いことは、目にも人にも見えなかった事実で、これだけは機械が足さないと誰も気づけない。根の `AGENTS.md` の E11（仕組みを足す前に確かめる 3 つ: (1) Archon〔工場が上で動く、AI の処理をグラフにして回す道具〕が持つか・(2) ASF〔横に並べて見るだけの、Archon の上の別の工場〕が持つか・(3) 本当に要るか）への答え: (1) Archon は持たない（目は道具を持たず、見せた物だけを読む）。(2) ASF は役に tracker の CLI で linked items を読ませる（`.archon/workflows/sdlc/build-queue/commands/route.md`）。機械が取って渡す形は持たない。(3) 要る: 書いた意図に照らす（11 節の 2）の前提で、意図の文書が「従え」と指す先を読めないと、意図に照らした判じにならない（#2177 では正典が消すと決めた形を、目も計画も前例として選んだ）。
 24. 版に無い名指しを人に知らせるのは、今は報告の行（8 節）と目の見出しまで。始める時の承認ノードや設計の承認ノードで止めて聞くかは持ち主の決めを待つ（無人の run で止めるかが割れる。名指しには例のパスや作る前のファイルの名も混じる）。
+25. 直す前の時に、構造の目の前に構造を描く役と一般の構造を描く目を足した（計画 `docs/plans/2026-10-29-myturn-essence.md` の 4.1。持ち主の答えは問い 1 が A〔一般の構造が勝つ。ただし文書で決めた決まりは一般の構造より強い〕・問い 3 が A〔どの深さでも回す〕）。根拠: guided-resolver の #2177 の run で、構造の目は「1 か所にまとめる」までは言えたが、まとめる先を外の基準で選ぶ材料を持たず、計画の役が前例（chart の `azuriteQueues`）に寄せて正典の退けた形を出した（計画の 2 章）。E11 の 3 つの答えは計画の 4 章の頭と 4.1（Archon も ASF も持たない。ASF の計画役はむしろ対象の前例を読ませる。要る）。深さで飛ばさない: block の中の `when` は `measure` の `sketch` だけを読み、深さの欄を読まない（E20）。
+26. 足す役の名を `system-sketch`・`general-structure`、置き場を structure の block の中にした（依頼の「未決定の問い」）。根拠: 2 つの役の出力を読むのは構造の目だけで、1 つの block だけが使う物はその block に置く（憲法の 4）。別の block にすると、構造の目へ渡すのに line の配線と port が 2 つ増え、独立を守る形（一般の構造を描く目に kind の文だけを渡す）を graph の `with:` で持つことになる。block の中なら、その形を `src/sketch.py` の受け付けと `general_prep` が持ち、試験が 1 か所で縛れる。名は node の id の型（役の働きを英語の名詞句で。`structure-eye` と同じ）に合わせた。
+27. block の port（`inputs:`）と出力の形（`finish` の `output_format`）は変えない。根拠: 2 つの役の材料は `measure` が既に place に書く単位で足り、結果は構造の目の行（`design.jsonl`）の `reason`・`chosen`・`evidence` に載って、今の読み手（plan・plan-review・承認ノード・報告）へ今の配線のまま届く（計画の 4.1 の「下流は今の配線のまま届く」）。行の形も変えない（違いの欄を足すと `structmark` の読み手が変わる）。
+28. 一般の構造を描く目に system prompt の替え（`role-blind-judge`）を付けた（構造の目は今も付けていない。9 節の未確認）。根拠: この目の独立は「1 文のほかを知らない」ことが芯で、既定の system prompt は作業ツリーの cwd と git status（対象の名とファイルの名）を運ぶ。独立設計の役と同じ形（`design.system.md`）。
+29. 構造を描く役の `system` には、部品の後ろの括弧に対象のパスを添えさせた（計画の 3 章の芯 1 は「対象の名を使わずに描く」）。根拠: `system` を読むのは対象を知っている構造の目だけで、違いを直しの単位のファイルに結びつけるのに要る。対象の名を外すのが芯なのは一般の構造を描く目へ渡る `kind` で、受け付けが照らすのも `kind` だけ。
+30. 外れの理由の決まりを共通の断片 `deviation-grounds` 1 本にし、構造の目・計画の役（`plan-writer.md`）・事前審査（`review.md`）・独立設計（`design.md`）に段落の外で読ませた（計画の 4.2）。断片には、一般の構造に寄せるのに要る分を同じ変更に入れる決まり（持ち主の答え 2「ついでに直す。別PRにもしない」）も置いた。計画の役にはさらに、それを案の `allowed_paths` と `files` に入れ `out_of_scope` にしないことと、新しい線引きは作らず、修正の段の範囲の相談 `consult`・範囲を広げるだけの案の直しを通す L-G45・約束の欄が変わる項目で止まる L-D30（`docs/design/line.md` の 6 章）に従うことを書いた。計画の役の決め手 `decided_by` の「対象の中の同じ場面」は、一般の構造と同じ向きの時だけ数える（問い 1 の A）。

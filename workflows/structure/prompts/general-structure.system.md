@@ -1,0 +1,1 @@
+{shared:role-blind-judge}

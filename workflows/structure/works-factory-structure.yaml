@@ -32,12 +32,141 @@ nodes:
     output_format:
       type: object
       additionalProperties: false
-      required: [eye, reason]
+      required: [eye, sketch, reason]
       properties:
         eye: {type: boolean}
+        sketch: {type: boolean}
         reason: {type: string}
-  - id: structure-eye-loop
+  - id: system-sketch-loop
     depends_on: [measure]
+    when: "$measure.output.sketch == true"
+    loop_group:
+      max_iterations: 3
+      fresh_context: false
+      until_bash: 'done=$system-sketch-accept.output.done; test "$done" = true'
+      nodes:
+        - id: system-sketch-prep
+          script: sketch_prep
+          runtime: uv
+          mutates_checkout: false
+          output_format:
+            type: object
+            additionalProperties: false
+            required: [prompt, attempt]
+            properties:
+              prompt: {type: string, minLength: 1}
+              attempt: {type: integer}
+        - id: system-sketch
+          prompt: "$system-sketch-prep.output.prompt"
+          depends_on: [system-sketch-prep]
+          model: '@wf-plan-structure'
+          allowed_tools: [Read, Grep, Glob]
+          settingSources: [user]
+          sandbox: {enabled: true, allowUnsandboxedCommands: false}
+          mutates_checkout: false
+          idle_timeout: 1728000000
+          retry: {max_attempts: 2, on_error: all}
+          output_format:
+            type: object
+            required: [rows]
+            additionalProperties: false
+            properties:
+              rows:
+                type: array
+                items:
+                  type: object
+                  required: [unit_id, system, kind]
+                  additionalProperties: false
+                  properties:
+                    unit_id: {type: string, minLength: 1, pattern: '\S'}
+                    system: {type: string, minLength: 1, pattern: '\S'}
+                    kind: {type: string, minLength: 1, pattern: '\S'}
+        - id: system-sketch-accept
+          script: sketch_take
+          runtime: uv
+          mutates_checkout: false
+          depends_on: [system-sketch]
+          with: {reply: $system-sketch.output}
+          output_format: &accepted
+            type: object
+            additionalProperties: false
+            required: [ok, done, give_up, reason, attempt]
+            properties:
+              ok: {type: boolean}
+              done: {type: boolean}
+              give_up: {type: boolean}
+              reason: {type: string}
+              attempt: {type: integer}
+  - id: sketched
+    script: sketched
+    runtime: uv
+    mutates_checkout: false
+    depends_on: [measure, system-sketch-loop]
+    trigger_rule: all_done
+    when: "$measure.output.sketch == true"
+    output_format:
+      type: object
+      additionalProperties: false
+      required: [general, reason]
+      properties:
+        general: {type: boolean}
+        reason: {type: string}
+  - id: general-structure-loop
+    depends_on: [sketched]
+    when: "$sketched.output.general == true"
+    loop_group:
+      max_iterations: 3
+      fresh_context: false
+      until_bash: 'done=$general-structure-accept.output.done; test "$done" = true'
+      nodes:
+        - id: general-structure-prep
+          script: general_prep
+          runtime: uv
+          mutates_checkout: false
+          output_format:
+            type: object
+            additionalProperties: false
+            required: [prompt, system, attempt]
+            properties:
+              prompt: {type: string, minLength: 1}
+              system: {type: string, minLength: 1}
+              attempt: {type: integer}
+        - id: general-structure
+          prompt: "$general-structure-prep.output.prompt"
+          systemPrompt: "$general-structure-prep.output.system"
+          depends_on: [general-structure-prep]
+          model: '@wf-plan-structure'
+          allowed_tools: []
+          settingSources: [user]
+          sandbox: {enabled: true, allowUnsandboxedCommands: false}
+          mutates_checkout: false
+          idle_timeout: 1728000000
+          retry: {max_attempts: 2, on_error: all}
+          output_format:
+            type: object
+            required: [rows]
+            additionalProperties: false
+            properties:
+              rows:
+                type: array
+                items:
+                  type: object
+                  required: [index, structure, why]
+                  additionalProperties: false
+                  properties:
+                    index: {type: integer, minimum: 1}
+                    structure: {type: string, minLength: 1, pattern: '\S'}
+                    why: {type: string, minLength: 1, pattern: '\S'}
+        - id: general-structure-accept
+          script: general_take
+          runtime: uv
+          mutates_checkout: false
+          depends_on: [general-structure]
+          with: {reply: $general-structure.output}
+          output_format: *accepted
+  - id: structure-eye-loop
+    depends_on: [measure, general-structure-loop]
+    trigger_rule: all_done
     when: "$measure.output.eye == true"
     loop_group:
       max_iterations: 3
@@ -110,16 +239,7 @@ nodes:
           mutates_checkout: false
           depends_on: [structure-eye]
           with: {reply: $structure-eye.output}
-          output_format:
-            type: object
-            additionalProperties: false
-            required: [ok, done, give_up, reason, attempt]
-            properties:
-              ok: {type: boolean}
-              done: {type: boolean}
-              give_up: {type: boolean}
-              reason: {type: string}
-              attempt: {type: integer}
+          output_format: *accepted
   - id: finish
     script: finish
     runtime: uv

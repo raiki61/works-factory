@@ -84,7 +84,8 @@ def _intent(out: pathlib.Path, root, rev: str, paths, given, policy) -> None:
 
 def before(out, units, root, given, policy) -> dict:
     """直す前の実測。paths の在る単位を units.json に、paths の空な単位の id を skipped-units.json に書き、書いた意図を HEAD の版から探して
-    intent.json に書き、単位ごとに測って structure.json と view.json を書き、設計の行のファイルを 0 バイトで置く。返り {eye, reason}"""
+    intent.json に書き、単位ごとに測って structure.json と view.json を書き、設計の行のファイルを 0 バイトで置く。返り {eye, sketch, reason}
+    （sketch は構造を描く役と一般の構造を描く目を起こすか。before では目を起こす時と同じ）"""
     out = pathlib.Path(out)
     rows, skipped = _measured_units(units)
     jsonfile.write(out / files.UNITS_FILE, rows)
@@ -116,7 +117,7 @@ def before(out, units, root, given, policy) -> dict:
     if eye:
         jsonfile.write(out / files.VIEW_FILE, view(doc))
     reason = "" if eye else (f"実測が落ちた: {doc['reason']}" if doc["status"] != "ok" else "測れた単位が無い")
-    return {"eye": eye, "reason": reason}
+    return {"eye": eye, "sketch": eye, "reason": reason}
 
 
 def after_view(units: list, after: dict, deviations: list) -> dict:
@@ -134,7 +135,7 @@ def after_view(units: list, after: dict, deviations: list) -> dict:
 
 def after(out, units, root, base: str, plan, given, policy) -> dict:
     """直した後の実測。base から今の作業ツリーまでの差分を段 B で測って structure-after.json に、差分の全体を after.diff に、書いた意図を
-    base の版から探して intent.json に、目に見せる JSON を view.json に書く。返り {eye, reason}"""
+    base の版から探して intent.json に、目に見せる JSON を view.json に書く。返り {eye, sketch, reason}（after では sketch はいつも偽）"""
     out = pathlib.Path(out)
     root = pathlib.Path(root).resolve()
     rows, skipped = _measured_units(units)
@@ -169,7 +170,7 @@ def after(out, units, root, base: str, plan, given, policy) -> dict:
     eye = status == "ok" and bool(changed)
     if eye:
         jsonfile.write(out / files.VIEW_FILE, after_view(shown_units, got, devs))
-    return {"eye": eye, "reason": "" if eye else (f"直した後の実測が落ちた: {reason}" if reason else "差分が無い")}
+    return {"eye": eye, "sketch": False, "reason": "" if eye else (f"直した後の実測が落ちた: {reason}" if reason else "差分が無い")}
 
 
 def _port(name: str, read):
@@ -180,7 +181,7 @@ def _port(name: str, read):
 
 
 def run(place, *, mode, units, intent_paths, policy, base, plan) -> dict:
-    """measure の node。port を読み、place のこの block のファイルを消して測る。返り {eye, reason}。読めない入力は黙って空にせず、
+    """measure の node。port を読み、place のこの block のファイルを消して測る。返り {eye, sketch, reason}。読めない入力は黙って空にせず、
     控え（before は structure.json、after は structure-after.json）に status: failed と理由を残して目を起こさない"""
     out = pathlib.Path(place)
     _clear(out)
@@ -199,7 +200,7 @@ def run(place, *, mode, units, intent_paths, policy, base, plan) -> dict:
             structmark.write_after(out, status="failed", reason=why, after={}, deviations=[])
         else:
             jsonfile.write(out / files.STRUCTURE_FILE, {"status": "failed", "reason": why, "units": []})
-        return {"eye": False, "reason": why}
+        return {"eye": False, "sketch": False, "reason": why}
     if kind == "after":
         return after(out, rows, pathlib.Path.cwd(), ports.text(base).strip(), plan_file, given, policy_file)
     return before(out, rows, pathlib.Path.cwd(), given, policy_file)
