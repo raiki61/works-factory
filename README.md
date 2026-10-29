@@ -172,13 +172,13 @@ A finding row needs `where` (where) and `text` (what is happening), and can add 
 
 #### Showing the factory one PR and letting it find what to fix
 
-To have the factory look at a PR's diff and find the problems itself, give no request file. Name the PR with the `pr` input and start from a worktree checked out at that PR's head branch (the run reads the PR's base and head with your `gh` login, and refuses when the head differs from the target's `HEAD`):
+To have the factory look at a PR's diff and find the problems itself, give no request file. Name the PR with the `pr` input and start from a worktree checked out at that PR's head branch (the run reads the PR's base and head with your `gh` login, and refuses when the PR's head commit differs from the commit checked out in the `--cwd` directory, that is, the target's `HEAD`):
 
 ```sh
 bin/works-factory workflow run works-factory-line --cwd <worktree at the PR's head> --input pr=<number> --input test_cmd='<one line>'
 ```
 
-The entry line then reads "diff <base>..HEAD (N files), 0 requests". A run with no request rows is fine: the judging stage reviews the PR's diff alone.
+At the start of the run, the entry check (which checks the inputs before any AI role starts) prints one line, which reads "diff <base>..HEAD (N files), 0 requests" (`HEAD` is the same commit as above). A run with no request rows (no items in the request file; here there is no request file) is fine: the judging stage reviews the PR's diff alone.
 
 Forms the entry refuses:
 
