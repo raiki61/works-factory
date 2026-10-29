@@ -4,17 +4,25 @@
 - --ja-import と --ja-prune はページを書かない（出力の名を添えても）
 - --ja-batches の置き場が工場の clone の下なら、何も書かずに止まる
 - 出力の HTML が無ければ止まる
+- 飛んだノードに図の当たる所（at）を付けても、飛んだ時刻（time）は残る。前は時刻も at の名で持っていて、当てる時に上書きされて
+  再生の帯から飛んだノードが消えていた（#906 のレビュー）
 
 試験は一時のフォルダに木と控えと置き場を組み（tests/viewer/test_ja.py の Base）、利用者の環境の置き場を一時のフォルダへ向ける。
+飛んだノードは一時のフォルダに小さな DB と記録を作り、今の木の図に当てる。
 """
 import contextlib
 import io
+import json
 import os
+import sqlite3
+import tempfile
+import unittest
+from pathlib import Path
 from unittest import mock
 
 from tests.viewer.test_ja import HEAD, OTHER, Base
 from viewer import flowview
-from viewer.src import ja
+from viewer.src import ja, runread
 
 
 class FlowviewCase(Base):
@@ -68,3 +76,26 @@ class FlowviewCase(Base):
         code, err = self.main()
         self.assertEqual(code, 2)
         self.assertIn("出力の HTML", err)
+
+
+class PlaceCase(unittest.TestCase):
+    def test_a_skipped_node_keeps_its_time_after_it_is_placed(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        root, rid, ts = Path(tmp.name), "run-skip", "2026-10-25T01:50:54.377Z"
+        graphs = flowview.tree_shape()["graphs"]
+        node = graphs["line"]["items"][0]["id"]
+        con = sqlite3.connect(root / runread.DB_FILE)
+        con.execute(f"create table {runread.RUN_TABLE} ({', '.join(runread.RUN_COLUMNS)})")
+        con.execute(f"create table {runread.EVENT_TABLE} ({', '.join(runread.EVENT_COLUMNS)})")
+        con.execute(f"insert into {runread.RUN_TABLE} (id, workflow_name, status, parent_run_id, started_at, output_root, metadata) "
+                    "values (?, ?, 'completed', null, '2026-10-25 01:50:54', ?, '{}')", (rid, graphs["line"]["name"], str(root)))
+        con.commit()
+        con.close()
+        log = root / runread.LOGS / f"{rid}.jsonl"
+        log.parent.mkdir()
+        log.write_text(json.dumps({"type": "node_skipped", "ts": ts, "step": node, runread.EXECUTION: {"path": node}}) + "\n",
+                       encoding="utf-8")
+        run = runread.run(root / runread.DB_FILE, rid)
+        self.assertEqual(flowview.unmatched(graphs, run), [])
+        self.assertEqual([(s["time"], s["at"]["node"]) for s in run["skipped"]], [(ts, node)])
