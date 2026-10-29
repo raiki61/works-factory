@@ -31,10 +31,11 @@ WORKFLOW_FOLDER = ".archon/workflows"
 # DB の表と欄（packages/core/src/db/adapters/sqlite.ts の CREATE TABLE）
 RUN_TABLE = "remote_agent_workflow_runs"
 RUN_COLUMNS = ("id", "workflow_name", "status", "parent_run_id", "started_at", "completed_at", "output_root", "metadata")
-# 新しい順。started_at は秒まで（datetime('now')）で、承認で再開した run は始めを今に書き直す（packages/core/src/db/workflow-run-resume.ts）
-# ので、再開の直後に起こした run と秒が並ぶ。並んだら後に作った行（rowid が大きい）を新しいとする
-NEWEST = "order by started_at desc, rowid desc"
 EVENT_TABLE = "remote_agent_workflow_events"
+# 新しい順。承認で再開した run は行の始めを今に書き直す（packages/core/src/db/workflow-run-resume.ts）ので、出来事の最初の時刻で並べる
+# （出来事の無い run は行の始め）。時刻は秒まで（datetime('now')）で、並んだら後に作った行（rowid が大きい）を新しいとする
+NEWEST = (f"order by coalesce((select min(created_at) from {EVENT_TABLE} where workflow_run_id = {RUN_TABLE}.id), started_at) desc, "
+          f"{RUN_TABLE}.rowid desc")
 EVENT_COLUMNS = ("workflow_run_id", "event_type", "step_name", "data", "event_order", "created_at")
 # run の状態（packages/workflows/src/schemas/workflow-run.ts の workflowRunStatusSchema）
 STATUSES = ("pending", "running", "completed", "failed", "cancelled", "paused")
@@ -42,6 +43,8 @@ LIVE = ("pending", "running", "paused")
 # 答えを待つ run の状態。待ちはこの状態の run だけに出す（止めた・放棄した run は node_completed を書かずに終わる。
 # packages/core/src/operations/workflow-operations.ts の resolveAndCancelApprovalGate・abandon）
 PAUSED = "paused"
+# 落ちた run の状態。流れの集計（src/stages.py）が止まった段を落ちた出来事から引く
+FAILED = "failed"
 # run の metadata の欄（子の run を起こしたノード・費用。packages/workflows/src/dag-executor.ts）
 PARENT_NODE = "parent_node_id"
 TOTAL_COST = "total_cost_usd"
@@ -51,6 +54,12 @@ WAIT = "wait"
 WAIT_KIND = "attention"
 WAIT_ANSWER = "answer"
 WAIT_LOOP_OWNER = "loop_group"
+# ノードの種類（packages/workflows/src/schemas/dag-node.ts の DagNode の kind。出来事の kind に入る）。流れの集計（src/stages.py）が、
+# AI の手番・人の答え待ち・中の出来事を束ねる器（繰り返しの周の器・並べて起こす器・子の run を起こすノード。長さを足すと中の出来事と
+# 二重になる。子の run を起こすノードの行は子の総額も載せる。packages/workflows/src/node-execution.ts の accounting）を分ける
+AI_KINDS = ("agent", "loop")
+WAIT_NODE = "wait"
+GROUP_KINDS = ("loop_group", "compose_fan_out", "workflow")
 # DB の出来事の型（ノードの出力と、run の落ちの訳。packages/workflows/src/event-emitter.ts）
 OUTPUT_EVENT = "node_completed"
 NODE_OUTPUT = "node_output"
@@ -146,7 +155,7 @@ def pick(db: Path, wanted: str = "") -> str:
 
 def run(db: Path, run_id: str) -> dict:
     """run と子の run（workflow: のノードが起こした物。DB の parent_run_id と metadata の parent_node_id で辿る）の記録。
-    始めとかかった秒は、子の run を含む出来事の最初の始めと最後の終わりから出す（runs と同じ訳）"""
+    始めとかかった秒は、子の run を含む出来事の最初の始めと最後の終わりから出す（runs と同じ訳）。子の run の行も、その子と孫の出来事から出す"""
     with connect(db) as con:
         top = _row(con, run_id)
         if top is None:
@@ -155,7 +164,7 @@ def run(db: Path, run_id: str) -> dict:
         waiting = _waiting(con)
         reader = _Reader(outputs)
         reader.read(top, [])
-        todo = [(run_id, [])]
+        todo, parents = [(run_id, [])], {}
         while todo:
             parent, head = todo.pop(0)
             for child in con.execute(f"select {', '.join(RUN_COLUMNS)} from {RUN_TABLE} where parent_run_id = ? order by started_at",
@@ -167,10 +176,13 @@ def run(db: Path, run_id: str) -> dict:
                     continue
                 prefix = [*head, node]
                 reader.read(child, prefix)
+                parents[child["id"]] = parent
                 todo.append((child["id"], prefix))
     meta = _json(top["metadata"])
     root = Path(top["output_root"]) if top["output_root"] else None
     started, ended = _span(reader.events) or (top["started_at"], top["completed_at"])
+    for child in reader.children:
+        child["started"], child["seconds"] = _child_span(child, reader.events, parents)
     return {"id": run_id, "graph": top["workflow_name"], "status": top["status"], "live": top["status"] in LIVE,
             "waiting": waiting.get(run_id, []), "started": started, "seconds": _seconds(started, ended),
             "cost": runlog.number(meta.get(TOTAL_COST)), "copy": str(copy(root, run_id)) if root else "",
@@ -196,7 +208,7 @@ class _Reader:
         log = root / LOGS / f"{row['id']}.jsonl" if root else None
         if prefix:
             self.children.append({"id": row["id"], "graph": row["workflow_name"], "status": row["status"], "node": prefix,
-                                  "started": row["started_at"], "seconds": _seconds(row["started_at"], row["completed_at"])})
+                                  "started": row["started_at"], "completed": row["completed_at"]})
         if log is None or not log.is_file():
             self.missing.append(row["id"])
             return
@@ -365,9 +377,22 @@ def _waiting(con) -> dict:
 
 
 def _span(events: list[dict]) -> tuple[str, str] | None:
-    """出来事の最初の始めと最後の終わり（終わりの無い出来事は始め）。出来事が無ければ None"""
-    times = [t for e in events for t in (e["start"], e["end"]) if t]
-    return (min(times, key=_time), max(times, key=_time)) if times else None
+    """出来事の最初の始めと最後の終わり（終わりの無い出来事は始め）。読めない時刻は数えない。読める時刻が無ければ None"""
+    times = [(at, t) for e in events for t in (e["start"], e["end"]) if t and (at := _try_time(t))]
+    return (min(times)[1], max(times)[1]) if times else None
+
+
+def _child_span(child: dict, events: list[dict], parents: dict) -> tuple[str, float | None]:
+    """子の run の始めとかかった秒。その子と孫の出来事から出し、出来事が無ければ run の行の値。行の終わりの欄は外す"""
+    def under(rid):
+        while rid in parents:
+            if rid == child["id"]:
+                return True
+            rid = parents[rid]
+        return False
+    completed = child.pop("completed")
+    started, ended = _span([e for e in events if under(e["run"])]) or (child["started"], completed)
+    return started, _seconds(started, ended)
 
 
 def _error(data: str) -> str:
@@ -386,6 +411,13 @@ def _seconds(started, completed):
 
 def _time(text: str) -> datetime:
     return datetime.fromisoformat(text.replace("Z", "+00:00"))
+
+
+def _try_time(text) -> datetime | None:
+    try:
+        return _time(text)
+    except (TypeError, ValueError):
+        return None
 
 
 def _json(text) -> dict:

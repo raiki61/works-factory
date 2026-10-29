@@ -1,0 +1,94 @@
+{
+  "about": "見る道具の「流れ」の画面の段の表。line（メイングラフ）の一番上のノードを、人の言葉の段に畳む。工場の中は読まない（viewer/AGENTS.md の E25）。line にノードを足したら、ここのどれか 1 つの段の nodes に足す（tests/viewer/test_stages.py が照らす）。wiring はその段のノードのうち配線（合流・受け渡しだけで段の仕事をしない物。受け皿の -out・返しの -in・fix-in・fixed・judged・eyes-in・修正前の承認の聞きと受け ask-before-fix・answer-before-fix と仕様駆動の run の spec-ask-before-fix・spec-answer-before-fix）で、段の状態（通った・飛んだ）に数えない。修正の段が飛んだ run でも fix-in・fixed・judged は走るので、数えると飛んだ段が通ったに見える。ask-before-fix・answer-before-fix（仕様駆動の spec- も）も人が聞かれずに止めや通しを受け渡すだけで走る（docs/design/viewer.md の 6.8）。ノードごとの「何をする物か」の 1 行はここに持たず、工場の字から引く（docs/design/viewer.md の 6.8）。source は説明の出どころ（docs/design/line.md の 1.3 の番号）",
+  "graph": "line",
+  "stages": [
+    {
+      "name": "受付",
+      "line": "依頼と試験のコマンドを確かめ、始めてよいかを人に聞く。",
+      "hands": "依頼の行と試験のコマンド",
+      "source": "docs/design/line.md の 1.3 の 0〜2.8",
+      "nodes": ["testcmd", "testcmd-stop", "start", "gate-start", "answer-start", "spec-entry", "spec-entry-out", "request-in"],
+      "wiring": ["spec-entry-out"]
+    },
+    {
+      "name": "設計の段",
+      "line": "テーマの run だけ。テーマを観点ごとに設計し、直す依頼に降ろす。",
+      "hands": "テーマから降ろした依頼",
+      "source": "docs/design/line.md の 1.3 の 2.7・3.3 節",
+      "nodes": ["theme-world", "theme-world-out", "theme-world-in", "theme-blind", "theme-blind-out", "theme-design-in", "theme-rounds", "theme-rounds-out", "theme-descend", "theme-return"],
+      "wiring": ["theme-world-out", "theme-world-in", "theme-blind-out", "theme-design-in", "theme-rounds-out"]
+    },
+    {
+      "name": "試験の土台",
+      "line": "直す前に、試験のコマンドが起こせるかだけを見る。",
+      "hands": "起こせると確かめた試験のコマンド",
+      "source": "docs/design/line.md の 1.3 の 3",
+      "nodes": ["test-gate-base", "test-gate-base-out"],
+      "wiring": ["test-gate-base-out"]
+    },
+    {
+      "name": "判定",
+      "line": "依頼を観点ごとに調べ、根本を診て、直す単位に切る。",
+      "hands": "直す単位と目的",
+      "source": "docs/design/line.md の 1.3 の 4",
+      "nodes": ["judge", "judge-out", "spec-diagnose", "spec-diagnose-out"],
+      "wiring": ["judge-out", "spec-diagnose-out"]
+    },
+    {
+      "name": "計画",
+      "line": "修正案を書き、別の目の審査で書き直す（往復）。",
+      "hands": "修正案と審査の指摘",
+      "source": "docs/design/line.md の 1.3 の 5〜8・3 節",
+      "nodes": ["tiers", "owed", "structure", "structure-out", "structure-in", "independent-design", "independent-design-out", "design-in", "plan-rounds", "plan-rounds-out", "spec-plan", "spec-plan-out", "spec-check", "spec-check-out", "spec-rounds"],
+      "wiring": ["structure-out", "structure-in", "independent-design-out", "design-in", "plan-rounds-out", "spec-plan-out", "spec-check-out"]
+    },
+    {
+      "name": "修正前の承認",
+      "line": "直す前に、人が案を見て通すか止めるかを決める。",
+      "hands": "人が通した案",
+      "source": "docs/design/line.md の 1.3 の 9・2 節の 2",
+      "nodes": ["ask-before-fix", "gate-before-fix", "answer-before-fix", "spec-ask-before-fix", "spec-gate-before-fix", "spec-answer-before-fix"],
+      "wiring": ["ask-before-fix", "answer-before-fix", "spec-ask-before-fix", "spec-answer-before-fix"]
+    },
+    {
+      "name": "修正",
+      "line": "案の項目ごとに試験を先に書いて直し、差分を審査して手直しする。",
+      "hands": "差分",
+      "source": "docs/design/line.md の 1.3 の 10〜17・4 節",
+      "nodes": ["fix-in", "fix", "fix-out", "after-fix", "raise", "lens", "lens-out", "lens-in", "delta-review", "delta-review-out", "replan", "replan-out", "replan-review", "replan-review-out", "ask-replan", "gate-replan", "answer-replan", "refix-run", "refix-run-out", "lens-2", "lens-2-out", "lens-2-in", "delta-review-2", "delta-review-2-out", "fixed"],
+      "wiring": ["fix-in", "fix-out", "lens-out", "lens-in", "delta-review-out", "replan-out", "replan-review-out", "refix-run-out", "lens-2-out", "lens-2-in", "delta-review-2-out", "fixed"]
+    },
+    {
+      "name": "確かめ直し",
+      "line": "並行 PR・再審・仕様を照らし、最後の試験で緑を取る。",
+      "hands": "緑の差分",
+      "source": "docs/design/line.md の 1.3 の 18〜20",
+      "nodes": ["parallel-pr-after", "parallel-pr-after-out", "rejudge-run", "rejudge-run-out", "spec-check-run", "spec-check-run-out", "judged", "test-gate-final", "test-gate-final-out"],
+      "wiring": ["parallel-pr-after-out", "rejudge-run-out", "spec-check-run-out", "judged", "test-gate-final-out"]
+    },
+    {
+      "name": "独立の目",
+      "line": "差分を別の目で見る（最小か・設計と合うかなど）。",
+      "hands": "目の判定",
+      "source": "docs/design/line.md の 1.3 の 21",
+      "nodes": ["eyes-in", "eyes", "eyes-out"],
+      "wiring": ["eyes-in", "eyes-out"]
+    },
+    {
+      "name": "封じと最後の承認",
+      "line": "差分を封じ、人が最後に見て通せば置く。",
+      "hands": "封じて置いた差分",
+      "source": "docs/design/line.md の 1.3 の 22〜24・2 節の 4",
+      "nodes": ["merge-seal", "merge-seal-out", "ask-final", "gate-final", "answer-final", "merge-apply", "merge-apply-out"],
+      "wiring": ["merge-seal-out", "merge-apply-out"]
+    },
+    {
+      "name": "報告",
+      "line": "どの道でも、結末と各段の事実を人の言葉で書く。",
+      "hands": "",
+      "source": "docs/design/line.md の 1.3 の 25〜28・7 節",
+      "nodes": ["collect", "report", "sweep-children", "result"],
+      "wiring": []
+    }
+  ]
+}
