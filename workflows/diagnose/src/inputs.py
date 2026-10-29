@@ -256,11 +256,12 @@ def base_determination(view) -> dict:
 
 def _request_parts(raw) -> dict:
     """依頼の容器を読む。行の無い run は空の配列 `[]` だけで言う（字のまま・その中身のファイル・その中身を指す pointer のどれでも。
-    line は依頼の無い run の写しを pointer で渡す）。容器の形 `{findings: []}` で行が空なら拒む
+    line は依頼の無い run の写しを pointer で渡す）。容器の形 `{findings: []}` で中身が全部空なら拒む
+    （findings が空でも theme・answers・prior_failures などに中身が在る、工場が次の run のために書く依頼は通す。判じ方は carry.is_empty で、入口と同じ）
     （写す元 judge_accept.intake: 依頼を宣言した run は行が空でも型に通し、findings の minItems 1 で拒んでいた）"""
     got = requestrows.parts(raw)
-    if not got[carry.FINDINGS] and _declared(raw):
-        raise ValueError("依頼を渡したのに行が空（依頼の行の無い run は空の配列 [] を渡す）")
+    if carry.is_empty(got) and _declared(raw):
+        raise ValueError("依頼の中身が全部空（findings も pr・issue・answers・prior_failures・constraints・theme も空。依頼の行の無い run は空の配列 [] を渡す）")
     return got
 
 
