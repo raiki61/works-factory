@@ -5,7 +5,7 @@
 
 見る道具は、工場の作り（graph と block の図・指示の md）と、run（工場の 1 回の実行）の一覧と再生を、人が 1 枚で見るための物。工場が直しを作る流れには入らない。
 
-- 入口は `flowview.py`（引数を読み、`src/` の部品を順に呼ぶだけ）。読む部品は `src/`（作りの読み `shape.py`・Archon の記録の読み `runread.py`・Claude Code の会話の記録の読み `session.py`）。1 枚の HTML の組み立ては `src/page.py`、雛形は `page.tpl.html`、図の配置の道具 elkjs の版と照らしの値は `elkjs.json`。日本語の写し（指示の md を段落ごとに訳した、人が読むための射影）は `src/ja.py` が訳の控えから組み、工場の指示の md の段落の訳の控えは `ja/paragraphs.json`（持ち主の決め `viewer-in-repo` の 4）。
+- 入口は `flowview.py`（引数を読み、`src/` の部品を順に呼ぶだけ）。読む部品は `src/`（作りの読み `shape.py`・Archon の記録の読み `runread.py`・Claude Code の会話の記録の読み `session.py`）と、札の「何をする物か」の 1 行の選び `what.py`。1 枚の HTML の組み立ては `src/page.py`、雛形は `page.tpl.html`、図の配置の道具 elkjs の版と照らしの値は `elkjs.json`。日本語の写し（指示の md を段落ごとに訳した、人が読むための射影）は `src/ja.py` が訳の控えから組み、工場の指示の md の段落の訳の控えは `ja/paragraphs.json`（持ち主の決め `viewer-in-repo` の 4）。
 - Archon の名（記録の行の型・DB の表と欄・置き場の形）は `src/runread.py` の 1 か所に置く。run の家は殻の口（`bin/AGENTS.md` の「`viewer/` が読む口」）で引き、字で写さない。
 - 試験は `tests/viewer/`。
 

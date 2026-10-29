@@ -78,6 +78,14 @@ svg.edges path{fill:none;stroke:var(--edge);stroke-width:1.5}
 .node{position:absolute;background:var(--node);border:1.5px solid var(--node-b);border-left:5px solid var(--k);border-radius:9px;padding:4px 8px;cursor:pointer;overflow:hidden;box-shadow:0 1px 2px rgba(16,24,40,.06)}
 .node .t{font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .node .s{font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* 札の主は「何をする物か」の 1 行（2 行で切る）。名と種類は下に小さく。配線（受け皿・返し）は 1 行を出さず細く畳む */
+.node .w{font-size:12.5px;font-weight:600;line-height:1.4;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden;margin-bottom:2px}
+.node .w.one{-webkit-line-clamp:1}
+.node .w.none{color:var(--faint);font-weight:400}
+.node .r{font-size:11px;color:var(--sel);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.node.wire{opacity:.75;border-left-width:3px}
+.node.wire .s{font-size:10.5px}
+.node.box .w{-webkit-line-clamp:1}
 .node.box{background:color-mix(in srgb,var(--k) 6%,transparent);border-style:dashed;border-left-width:1.5px;border-color:var(--k)}
 .node.sel{outline:3px solid var(--sel)}
 /* 再生: 今の歩のノード・走り中・まだ・飛んだ（済んだ物は普段の姿） */
@@ -95,6 +103,12 @@ svg.edges path{fill:none;stroke:var(--edge);stroke-width:1.5}
 .panel .ph h2{font-size:16px;margin:0;overflow-wrap:anywhere}
 .panel .ph .x{margin-left:auto;border:0;background:transparent;font-size:16px}
 .panel .pb{overflow:auto;padding:4px 14px 18px}
+/* 板の頭: 何をする物か（1 行を大きく・呼ぶ側での役・出どころ。全文となぜ在るかは畳み） */
+.what{margin:8px 0 10px}
+.what .line{font-size:15px;font-weight:600;line-height:1.5}
+.what .line.none{color:var(--faint);font-weight:400}
+.what .role{font-size:13px;color:var(--sel);margin-top:2px}
+.what .from{font-size:12px;color:var(--muted);margin-top:4px}
 h3{font-size:12px;color:var(--muted);margin:14px 0 4px}
 .kv{display:grid;grid-template-columns:max-content 1fr;gap:2px 12px}
 .kv>b{color:var(--muted);font-weight:600}
@@ -299,7 +313,7 @@ function statusAt(folder, item) {
 
 // 図: elk で並べて描く
 const elk = new ELK();
-const W = 220, H = 50;
+const W = 220, H = 70, H_WIRE = 36;
 async function show() {
   const folder = stack[stack.length - 1].folder;
   cur = folder; selId = null; closePanel();
@@ -308,7 +322,7 @@ async function show() {
   const node = item => {
     byId[item.path.join('/')] = item;
     if (item.kind === 'loop') return {id: item.path.join('/'), children: item.kids.map(node), layoutOptions: {'elk.padding': '[top=46,left=16,bottom=16,right=16]'}};
-    return {id: item.path.join('/'), width: W, height: H};
+    return {id: item.path.join('/'), width: W, height: wire(item) ? H_WIRE : H};
   };
   // 線は順を決める依りだけを引く（ほかの依りを通って届く依りは引かない。collect のように数十の依りを持つノードへの線が束になって図を
   // 埋めるため）。依りの全部はノードの板に出す
@@ -347,9 +361,9 @@ async function show() {
   const draw = (n, ox, oy) => {
     const x = ox + n.x, y = oy + n.y, item = byId[n.id];
     const st = statusAt(folder, item);
-    const el = h('div', {class: `node k-${item.kind}${n.children ? ' box' : ''}`, 'data-id': n.id, style: `left:${x}px;top:${y}px;width:${n.width}px;height:${n.height}px`,
+    const el = h('div', {class: `node k-${item.kind}${n.children ? ' box' : ''}${wire(item) ? ' wire' : ''}`, 'data-id': n.id, style: `left:${x}px;top:${y}px;width:${n.width}px;height:${n.height}px`,
       onclick: ev => { ev.stopPropagation(); select(n.id, item); }, ondblclick: () => item.target && G[item.target] && enter(item.target, n.id)},
-      h('div', {class: 't', text: item.id}), h('div', {class: 's', text: sub(item)}), RUN && h('span', {class: 'st ' + st, 'data-was': st, title: STATUS[st]}));
+      ...card(item), RUN && h('span', {class: 'st ' + st, 'data-was': st, title: STATUS[st]}));
     world.append(el);
     (n.children || []).forEach(k => draw(k, x, y));
   };
@@ -368,6 +382,29 @@ async function show() {
   world.dataset.cx = first ? first.x + first.width / 2 : 0;
   home();
   paint();
+}
+// 札の 1 行（viewer/src/what.py が工場の字から選んだ物）。無ければ無いと出し、黙って空にしない
+const NO_LINE = '1 行が無い';
+const wire = item => !!(item.what && item.what.wire);
+// include の呼ぶ側での役。無く、呼ぶ先を 2 か所以上で使う時は、札が同じ字で並ぶので無いと出す
+function role(item) {
+  const w = item.what || {};
+  if (w.role) return w.role;
+  const used = item.target && G[item.target] ? G[item.target].used_by.length : 0;
+  return used >= 2 ? 'ここでの役は設計書に無い' : '';
+}
+function card(item) {
+  const meta = h('div', {class: 's', text: `${item.id} · ${sub(item)}`});
+  if (wire(item)) return [meta];
+  const line = (item.what || {}).line, r = role(item);
+  return [h('div', {class: 'w' + (line ? '' : ' none') + (r ? ' one' : ''), title: line || null, text: line || NO_LINE}), r && h('div', {class: 'r', text: r}), meta];
+}
+function whatView(w, r) {
+  w = w || {};
+  return h('div', {class: 'what'}, h('div', {class: 'line' + (w.line ? '' : ' none'), text: w.line || NO_LINE}),
+    r && h('div', {class: 'role', text: r}),
+    w.from && h('div', {class: 'from', text: `出どころ: ${w.from}${w.role_from ? `・ここでの役: ${w.role_from}` : ''}`}),
+    w.why && fold('なぜ在るか（出どころの続き）', h('div', {text: w.why})));
 }
 function sub(item) {
   const bits = [KIND[item.kind] ?? item.kind];
@@ -566,6 +603,7 @@ function graphPanel(folder) {
   const g = G[folder];
   document.querySelectorAll('.node.sel').forEach(n => n.classList.remove('sel'));
   openPanel(g.name, [
+    whatView(g.what),
     g.desc && pre(g.desc),
     kv([['種類', g.kind === 'graph' ? 'graph（block をつなぐ）' : 'block'], ['YAML', g.file], ['ノード', g.nodes], ['設計書', g.docs], ['返す', g.returns],
       ['結果の欄', g.outcome], ['AI のノード', g.ai], ['作業ツリー', g.worktree]]),
@@ -587,6 +625,7 @@ function select(id, item, focus) {
   [...document.querySelectorAll('.node')].find(n => n.dataset.id === id)?.classList.add('sel');
   const at = AT[cur + '/' + id] || {events: [], skipped: []};
   openPanel(item.id, [
+    whatView(item.what, role(item)),
     item.desc && pre(item.desc),
     kv([['種類', KIND[item.kind] ?? item.kind], ['道', item.path.join(' / ')], ['依る', item.deps], ['when', item.when], ['trigger_rule', item.trigger],
       ['always_run', item.always ? 'はい' : ''], ['模型', item.model], ['道具', item.tools], ['禁じた道具', item.denied], ['skill', item.skills],
