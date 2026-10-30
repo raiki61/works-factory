@@ -32,7 +32,6 @@ PASSES = ("first", "ruled")   # 修正役の 1 回目と、裁定の後の 2 回
 HEAD_FILES = dict(zip(PASSES, (board.FIX_HEAD_FILE, board.RULED_HEAD_FILE), strict=True))   # 段 → 段の頭の木の控え
 ANSWER_NODES = dict(zip(PASSES, ("consult-answer", "ruled-consult-answer"), strict=True))   # 段 → 範囲の相談に答える役の節
 KINDS = ("docs", "prompts", "config", "code")   # 変更の種類 → 節 evidence-<種類>
-PHASES = ("route", "test", "fix", "refactor")   # TDD の輪の役の段
 # 種類の見分け（パスの形だけで決める。当たらない物は種類なし）
 PROMPT_DIRS = frozenset({"commands", "prompts", "agents", "skills", "rules", rulebook.CANON.parent.name})
 PROMPT_NAMES = frozenset({"CLAUDE.md", "AGENTS.md", "SKILL.md", "GEMINI.md"})

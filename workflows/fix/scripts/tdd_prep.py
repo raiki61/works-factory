@@ -7,7 +7,6 @@ src/prompts.tdd が prompts/parts/tdd.md に入れる）。単位が替わった
 と新しい単位の役 tdd-new（context: fresh）を振り分ける。輪が済んだ（resume で 1 周目から回り直した）・実行器の無い run は
 {prompt: "", go: false, new_unit: false}。brief の控えが壊れた・座が組めない・指示が組めない時は prompt-error.json に書いて落ちる。
 返り {prompt, go, new_unit}"""
-import os
 import sys
 from pathlib import Path
 
