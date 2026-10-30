@@ -14,7 +14,7 @@ NON_CODE_FILES）の当たりは捨てる（run 68f35d6b: 足す試験の id の
 名指す（消した後に壊れる参照。変える名の当たり code・test とは別の行で、同じ行に両方当たれば両方残る）。消す名に限り設計書の置き場
 docs/plans の当たりも数える（今の設計書に残る古さ。non_code の keep_plans）。CHANGELOG・docs-archive・skip_dirs は捨てたまま。
 
-- names(unit_keys, files)・build(repo, fields, common_files=, skip_dirs=)・for_units(repo, unit_keys, skip_dirs=)・uncovered(doc, n):
+- names(unit_keys, files)・build(repo, fields, common_files=, skip_dirs=)・for_units(repo, unit_keys, skip_dirs=):
   一覧を作る・読む（fields は盤面の plan-fields.json の項目の欄の並び。planmarks.split の形）
 - units_rows(doc)・rows(doc)・item_text(doc, n): 指示書に入れる材料の行（英語の札。見出し・頼み・作れなかった時の文は
   prompts/plan-writer.md に移した。元の HEAD・UNITS_HEAD・SCOPE_ASK・ERROR_NOTE は持たない）
@@ -226,14 +226,6 @@ def for_units(repo, unit_keys: list, *, common_files: int = COMMON_FILES, skip_d
     except OSError as e:
         return {"units": [], "error": str(e) or type(e).__name__}
     return {"units": units, "error": ""}
-
-
-def uncovered(doc: dict, n: int) -> list[dict]:
-    """項目 n（1 始まり）の覆っていない当たり（一覧に項目が無ければ []）"""
-    for it in (doc or {}).get("items") or []:
-        if it.get("item") == n:
-            return list(it.get("uncovered") or [])
-    return []
 
 
 NO_NAME = "- no name of it exists in the target"

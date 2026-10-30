@@ -85,8 +85,13 @@ class RippleCase(unittest.TestCase):
         self.repo = pathlib.Path(self._tmp.name) / "repo"
         committed_copy(self.repo, SRC)
 
+    @staticmethod
+    def hits(doc, n=1):
+        """項目 n（1 始まり）の覆っていない当たり（一覧に項目が無ければ []）"""
+        return next((it["uncovered"] for it in doc["items"] if it["item"] == n), [])
+
     def uncovered(self, doc, n=1):
-        return [(h["kind"], h["at"]) for h in ripple.uncovered(doc, n)]
+        return [(h["kind"], h["at"]) for h in self.hits(doc, n)]
 
     def repo_with(self, extra: dict, base=SEED) -> pathlib.Path:
         """base の種に extra（パス → 中身）を足した種を commit した別のリポジトリ"""
@@ -181,7 +186,7 @@ class RippleCase(unittest.TestCase):
 
     def test_hit_ids_are_stable_per_item(self):
         doc = ripple.build(self.repo, [fields()], skip_dirs=SKIP_DIRS)
-        ids = [h["id"] for h in ripple.uncovered(doc, 1)]
+        ids = [h["id"] for h in self.hits(doc)]
         self.assertEqual(ids, [f"h{i}" for i in range(1, len(ids) + 1)])
 
     def test_common_name_counts_only(self):
@@ -214,7 +219,7 @@ class RippleCase(unittest.TestCase):
     def test_not_a_repo_gives_error_not_raise(self):
         doc = ripple.build(pathlib.Path(self._tmp.name) / "none", [fields()], skip_dirs=SKIP_DIRS)
         self.assertTrue(doc["error"])
-        self.assertEqual(ripple.uncovered(doc, 1), [])
+        self.assertEqual(doc["items"], [])
 
     def test_item_text_names_uncovered_with_ids(self):
         """項目の材料の行: 変える名と当たりの行と、覆っていない当たりを id つきで並べる（頼みの文は md が持つ）"""
@@ -227,7 +232,7 @@ class RippleCase(unittest.TestCase):
         self.assertIn("  - body works/final.py:5", lines)
         self.assertIn("  - test works/tests/test_report.py::TestReport::test_rows", lines)
         self.assertIn("Hits not covered:", lines)
-        for h in ripple.uncovered(doc, 1):
+        for h in self.hits(doc):
             self.assertIn(f"- {h['id']}: {h['kind']} {h['at']} (name {h['name']})", lines)
         self.assertIn("- h2: code works/final.py:1 (name always_rows)", lines)
 
