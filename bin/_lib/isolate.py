@@ -3,8 +3,8 @@
 今の works の works/dev/archon.sh の同じ所を Python に移した物（E15）。Archon と Claude Code が利用者の家の設定・状態を
 読み書きしないようにする。keychain は利用者の HOME で読み（macOS の security はログイン keychain を $HOME 基準で探す）、
 Claude Code 自身の keychain の項目の名と、macOS 以外の保存済みのログイン（.credentials.json）の置き場は利用者の CLAUDE_CONFIG_DIR
-から決まるので、その 2 つ（auth_launch.py の --user-home・--user-config）や hostgh.py write の --home・--gh-config-dir・
---xdg-config-home は、呼ぶ側が隔離の前の env から取る。そのために env は変えずに写しを返す。auth_launch.py はこの子の環境に認証の
+から決まるので、その 2 つ（auth_launch.py の --user-home・--user-config）や hostgh.write の home・config（gh の設定の
+置き場）は、呼ぶ側が隔離の前の env から取る。そのために env は変えずに写しを返す。auth_launch.py はこの子の環境に認証の
 変数だけを足すので、どの認証の道でも子の CLAUDE_CONFIG_DIR は隔離した置き場のまま。
 隔離の前の HOME・XDG_* は、いつも子の userenv.RECORD に控える（対象のコマンドにだけ戻す。決めと訳は userenv）。工場の制御の変数
 （userenv.CONTROL: 控え・戻した印の置き場・印のパス）と読むだけの gh の置き場（userenv.READ_GH_ENV）は、利用者の env から継いだ値を子に残さない（控えは毎回作り直す。印はメイングラフの
