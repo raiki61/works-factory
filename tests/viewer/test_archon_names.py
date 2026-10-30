@@ -4,6 +4,7 @@
 - ログの行の型と道具の出来事の型は、源の型の和と runread の読む型・読まない型の和がちょうど同じ（源に型が足されても消されても赤）
 - run の状態は源の enum とちょうど同じ（生きている状態と答えを待つ状態はその中）
 - DB の表の欄は、源の CREATE TABLE のその表の欄に在る
+- ノードの費用の数え方の accounting の語は、源の enum とちょうど同じ
 - 置き場の名と、DB の出来事・metadata の名は、源のその名を書くファイルに字として在る
 
 行の中の欄（execution.path など）は、本物の run の照らし（tests/viewer/test_real_run.py）が読めたことで照らす。
@@ -12,7 +13,7 @@ import re
 import unittest
 
 from tests import archon
-from viewer.src import runread
+from viewer.src import runread, shape
 
 LOGGER = "packages/workflows/src/logger.ts"
 SETUP = "packages/workflows/src/schemas/worktree-setup.ts"
@@ -26,9 +27,14 @@ WRITTEN = {
        for name in (runread.LOGS, runread.SOURCE, runread.ARTIFACTS, runread.RUNS_DIR, runread.WORKFLOW_FOLDER)},
     f"PROJECT_SCOPE_DIR = '{runread.PROJECT_SCOPE}'": "packages/workflows/src/workflow-source.ts",
     **{f"type: '{name}'": "packages/workflows/src/event-emitter.ts"
-       for name in (runread.OUTPUT_EVENT, runread.FAILED_EVENT, runread.NODE_FAILED_EVENT, runread.SUSPENDED_EVENT)},
+       for name in (runread.OUTPUT_EVENT, runread.NODE_FAILED_EVENT, runread.SUSPENDED_EVENT, *runread.END_EVENTS)},
     **{f"{name}:": "packages/workflows/src/node-record-serialization.ts" for name in (runread.NODE_COST, runread.ACCOUNTING)},
     f"{runread.NODE_OUTPUT}": "packages/workflows/src/node-record-serialization.ts",
+    f"data.{runread.AGGREGATE} === true": "packages/workflows/src/node-record-serialization.ts",
+    f"data.type === '{runread.INSTANCE}'": "packages/workflows/src/dag-resume-snapshot.ts",
+    f"`${{scope}}{shape.INCLUDED}`": "packages/workflows/src/dag-resume-snapshot.ts",
+    f"content: '{runread.PRIOR_SUCCESS}'": "packages/workflows/src/node-event-write.ts",
+    f"sessionOrigin: '{runread.RESUMED}'": "packages/workflows/src/node-execution.ts",
     f"DEFERRED_NODE_USAGE_EVENT_TYPE = '{runread.DEFERRED_EVENT}'": "packages/workflows/src/node-record-serialization.ts",
     f"{runread.PARENT_NODE}": "packages/workflows/src/dag-executor.ts",
     f"{runread.TOTAL_COST}:": "packages/workflows/src/dag-executor.ts",
@@ -70,6 +76,11 @@ class ArchonNamesTest(unittest.TestCase):
         found = re.search(r"workflowRunStatusSchema = z\.enum\(\[(.*?)\]\)", self.read(RUN_SCHEMA), re.S)[1]
         self.assertEqual(literals(found), set(runread.STATUSES))
         self.assertLessEqual({*runread.LIVE, runread.PAUSED, runread.FAILED}, set(runread.STATUSES))
+
+    def test_accounting_words_are_the_sources(self):
+        found = re.search(r"accounting: z\.enum\(\[(.*?)\]\)", self.read("packages/workflows/src/schemas/node-execution.ts"), re.S)[1]
+        self.assertEqual(literals(found), set(runread.ACCOUNTINGS))
+        self.assertIn(runread.runlog.OWN_SPEND, runread.ACCOUNTINGS)
 
     def test_table_columns_are_in_the_source(self):
         text = self.read(SQLITE)

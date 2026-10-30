@@ -6,7 +6,8 @@ src/shape.py）の出す欄だけを読み、記録そのものは読み直さ�
 
 - attach(data) -> data["waste"] に数えを置く（run が無ければ None）。欄は top（AI の手番の費用の大きい順）・time（時間の内訳）・
   rounds（繰り返した周）・idle（前と同じ出力・空の出力・出力の欄を引く先が無いノード）・context（文脈の重なり）・big（大きな道具の結果と
-  往復ごとの積み上がり）・uncounted（数えられない物）。出来事は run["events"] の番号 event で、会話は run["sessions"] の鍵 session で指す
+  往復ごとの積み上がり）・uncounted（数えられない物）。出来事は run["events"] の番号 event で、会話は run["sessions"] の鍵 session で指す。
+  会話の往復は、続けた会話が前の会話から写して持つ物（src/session.py の copied）を数えない（写し元の会話の往復と二重になる）
 """
 import json
 from datetime import datetime, timezone
@@ -47,7 +48,7 @@ def _top(events, sessions) -> dict:
     total = sum(e["cost"] for _, e in ai)
     rows = [{"event": n, "tokens": e["tokens"], "stage": e.get("stage"), "cost": round(e["cost"], 6),
              "share": round(e["cost"] / total, 4) if total else None, "seconds": runread.length(e), "turns": e.get("turns"),
-             "replies": len((sessions.get(e.get("session")) or {}).get("turns") or []) if e.get("session") in sessions else None,
+             "replies": len(_turns(sessions[e["session"]])) if e.get("session") in sessions else None,
              "tokens4": four(e["usage"]) if e.get("usage") else None} for n, e in ai]
     rows.sort(key=lambda row: (-row["cost"], row["event"]))
     return {"rows": rows, "cost": round(total, 6), "odd": [row["event"] for row in rows if row["tokens4"] and row["tokens4"]["odd"]]}
@@ -177,7 +178,7 @@ def _context(events, sessions, first, texts) -> dict:
         for _, mark in got["inject"]:
             injects.setdefault(mark, []).append(sid)
         before = None
-        for k, turn in enumerate(got["turns"]):
+        for k, turn in _turns(got):
             for call in turn["calls"]:
                 if call["name"] != READ_TOOL or not call.get("text"):
                     continue
@@ -219,7 +220,8 @@ def _big(sessions, first) -> dict:
     results, climb, calls = [], [], 0
     for sid, got in sessions.items():
         grown = []
-        for k, turn in enumerate(got["turns"]):
+        mine = _turns(got)
+        for k, turn in mine:
             for call in turn["calls"]:
                 calls += 1
                 chars = (call.get("result") or [0])[0]
@@ -229,8 +231,13 @@ def _big(sessions, first) -> dict:
             if usage:
                 grown.append(usage.get("in", 0) + usage.get("cache_read", 0) + usage.get("cache_write", 0))
         if grown:
-            climb.append({"session": sid, "event": first.get(sid), "turns": len(got["turns"]), "first": grown[0], "last": grown[-1],
+            climb.append({"session": sid, "event": first.get(sid), "turns": len(mine), "first": grown[0], "last": grown[-1],
                           "peak": max(grown)})
     results.sort(key=lambda row: -row["chars"])
     climb.sort(key=lambda row: -(row["last"] - row["first"]))
     return {"line": BIG, "calls": calls, "results": results, "climb": climb}
+
+
+def _turns(got: dict) -> list[tuple[int, dict]]:
+    """会話の往復のうち、前の会話から写して持つ物（copied）を外した物と、その記録の中の番号"""
+    return [(k, turn) for k, turn in enumerate(got["turns"]) if not turn.get("copied")]
