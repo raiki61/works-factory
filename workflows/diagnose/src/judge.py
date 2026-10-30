@@ -45,7 +45,6 @@ QUESTION_KINDS = {
     "field": Kind("none", ()),
 }
 QUESTION_FIELDS = ("key", "kind", "status", "reason", "resolution", "options", "depends", "origin")
-UNIT_FIELDS = ("key", "label", "disposition", "reason", "reopen_evidence")
 QUESTION_STATUS = {"held": (), "decided": ("resolution",), "resolved": ("resolution",), "escalate": ()}
 NO_OPEN_ORIGIN = ("split", "rule")
 EMPTY = ("なし", "無し", "ない", "無い", "特になし", "n/a", "none", "-", "未確認", "不明",
