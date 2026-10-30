@@ -8,14 +8,15 @@
 - run(db, run_id) -> 選んだ run と子の run の記録（ノードごとの出来事・道具の呼び出し・費用・出力・知らない行の数え）
 - pick(db, wanted) -> run の id（wanted が空なら一番新しい親の run。頭の字でもよい）
 - field(output, name) -> ノードの出力（値か JSON の字）の欄 name の字。読めなければ空
-- seconds(started, completed)・length(event)・when(text) -> 時刻の差の秒・出来事の長さ・時刻の読み（段の集計と無駄の手がかりも使う）
+- seconds(started, completed)・length(event)・when(text)・try_when(text) -> 時刻の差の秒・出来事の長さ・時刻の読み（読めなければ
+  ValueError か None。字でない時刻も try_when は None。DB の秒までの時刻は UTC として読む）。段の集計と無駄の手がかりと会話の読みも使う
 - where(path, cwd) -> 会話が読んだファイルのパスを、run ごとに違う頭（作業ツリー・run の置き場・run の写し）を印に替えた字にする
 """
 import contextlib
 import hashlib
 import json
 import sqlite3
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 import runlog   # lib/（viewer/src/__init__.py が sys.path に足す）
@@ -44,10 +45,14 @@ EVENT_COLUMNS = ("workflow_run_id", "event_type", "step_name", "data", "event_or
 # run の状態（packages/workflows/src/schemas/workflow-run.ts の workflowRunStatusSchema）
 STATUSES = ("pending", "running", "completed", "failed", "cancelled", "paused")
 LIVE = ("pending", "running", "paused")
+# metadata の費用 TOTAL_COST が古い run の状態。Archon は TOTAL_COST を run の末尾（待ち・落ち・終わり）で書く（persistRunUsage）ので、
+# 答え待ち（paused）の run の値は待ちに入った時の正で、走っている run の値だけが前の待ちの時の古い値
+SPENDING = ("pending", "running")
 # 答えを待つ run の状態。待ちはこの状態の run だけに出す（止めた・放棄した run は node_completed を書かずに終わる。
 # packages/core/src/operations/workflow-operations.ts の resolveAndCancelApprovalGate・abandon）
 PAUSED = "paused"
-# 落ちた run の状態。流れの集計（src/stages.py）が止まった段を落ちた出来事から引く
+# 落ちた run の状態。流れの集計（src/stages.py）が止まった段を落ちた出来事から引き、落ちの訳もこの状態の run だけに出す（落ちた後に
+# 起き直して終わった run は workflow_failed の行を残す。packages/workflows/src/dag-resume-snapshot.ts の resuming a failed run）
 FAILED = "failed"
 # run の metadata の欄（子の run を起こしたノード・費用。packages/workflows/src/dag-executor.ts）
 PARENT_NODE = "parent_node_id"
@@ -56,6 +61,12 @@ TOTAL_COST = "total_cost_usd"
 # run の費用 TOTAL_COST が空の run は、ノード自身の費用の和で代える（後から書く費用の出来事 DEFERRED_EVENT も同じファイル）
 NODE_COST = "cost_usd"
 ACCOUNTING = "accounting"
+# 費用を数える形は Archon の nodeCostScope（同じファイル）と resume の和（packages/workflows/src/dag-resume-snapshot.ts）に合わせる:
+# accounting の語（schemas/node-execution.ts）の node だけが自前。accounting の無い古い行は印 AGGREGATE が true でなければ自前。
+# compose_fan_out の instance の終わりの行（出力の欄 type が INSTANCE）はその中の全部の正で、中の行（道の頭が `<instance の道>__`）は外す
+ACCOUNTINGS = ("node", "aggregate", "instance", "amendment")
+AGGREGATE = "aggregate"
+INSTANCE = "compose_fan_out_instance"
 # run の metadata の待ち（packages/workflows/src/schemas/workflow-run.ts の workflowWaitAttentionFields と workflowWaitStepName）。
 # 答えが入った待ちは、run が次へ進む前でも答えを待たない（同じファイルの runAttention の「Answered」）
 WAIT = "wait"
@@ -73,6 +84,8 @@ GROUP_KINDS = (LOOP_GROUP, "compose_fan_out", "workflow")
 OUTPUT_EVENT = "node_completed"
 NODE_OUTPUT = "node_output"
 FAILED_EVENT = "workflow_failed"
+# run の終わりの出来事。終わった run は、最後のこの出来事の時刻を run の終わりにする（ログに終わりを書かずに落ちた・止めた run も）
+END_EVENTS = ("workflow_completed", FAILED_EVENT, "workflow_cancelled")
 NODE_FAILED_EVENT = "node_failed"
 DEFERRED_EVENT = "node_deferred_usage"
 SUSPENDED_EVENT = "node_suspended"
@@ -91,6 +104,9 @@ EXEC_ROW = runlog.EXEC_ROW
 # loop_group の until_bash の確かめの行の step の名 `<輪>-iteration-<n>`（packages/workflows/src/dag-executor.ts）
 ITERATION_MARK = runlog.ITERATION_MARK
 READ_ROWS = (*NODE_ROWS, PROVIDER_ROW, EXEC_ROW)
+# 起き直した run が前の起動で済んだノードについて書く node_skipped の content（packages/workflows/src/node-event-write.ts）。
+# 飛んだノードに数えない（その道が済んだことは前の起動の出来事で見える）
+PRIOR_SUCCESS = "prior_success"
 UNREAD_ROWS = {
     "gate_decision": "古い承認ノード approval: の答え。工場の承認ノード wait: attention はこの行を書かず、答えをノードの出力 {decision, text} に持つ",
     "workflow_start": "run の始めの印。始めの時刻は DB の run の行から読む",
@@ -119,6 +135,8 @@ UNREAD_EVENTS = {
 }
 # 行の欄（logger.ts・schemas/node-execution.ts・schemas/provider-event.ts）
 EXECUTION = "execution"
+# 続けた会話の印（execution.binding.sessionOrigin。packages/workflows/src/node-execution.ts）。続けた会話の記録は前の会話の往復を写して持つ
+RESUMED = "resumed"
 EVENT = runlog.PROVIDER_EVENT
 ATTEMPT_ID = "attemptId"
 
@@ -129,7 +147,7 @@ ARTIFACT_LIMIT = 60000
 @contextlib.contextmanager
 def connect(db: Path):
     """読むだけで開き、抜ける時に閉じる（sqlite3 の with は commit するだけで閉じない）"""
-    con = sqlite3.connect(f"file:{db}?mode=ro", uri=True)
+    con = sqlite3.connect(f"{db.absolute().as_uri()}?mode=ro", uri=True)
     try:
         yield con
     finally:
@@ -137,10 +155,11 @@ def connect(db: Path):
 
 
 def runs(db: Path) -> list[dict]:
-    """親の run の一覧（新しい順）。行は id・グラフの名・状態・止まっている承認ノード・始め・かかった秒・費用（_cost）・落ちの訳の頭の 1 行・
-    結末の語（line の返すノード result の出力の outcome。result の出力が無いか読めなければ空）。
+    """親の run の一覧（新しい順）。行は id・グラフの名・状態・止まっている承認ノード・始め・かかった秒・費用（_cost）・落ちの訳の頭の 1 行
+    （状態が failed の run だけ）・結末の語（line の返すノード result の出力の outcome。result の出力が無いか読めなければ空）。
     始めとかかった秒は、DB の出来事の最初と最後の時刻から出す（承認の答えで起き直した run は、run の行の始めが起き直した時刻に
-    書き換わる。packages/core/src/db/workflow-run-resume.ts）。出来事の無い run は run の行の始めと終わり"""
+    書き換わる。packages/core/src/db/workflow-run-resume.ts）。終わった run の終わりは最後の終わりの出来事（_ends）。出来事の無い run は
+    run の行の始めと終わり"""
     with connect(db) as con:
         rows = con.execute(f"select id, workflow_name, status, started_at, completed_at, metadata from {RUN_TABLE} "
                            f"where parent_run_id is null {NEWEST}").fetchall()
@@ -148,6 +167,7 @@ def runs(db: Path) -> list[dict]:
             f"select workflow_run_id, min(created_at), max(created_at) from {EVENT_TABLE} group by workflow_run_id")}
         waiting = _waiting(con)
         spent = _spent(con)
+        ends = _ends(con)
         errors = {rid: _error(data) for rid, data in con.execute(
             f"select workflow_run_id, data from {EVENT_TABLE} where event_type = ?", (FAILED_EVENT,))}
         outcomes = {rid: field(_json(data).get(NODE_OUTPUT), RESULT_OUTCOME) for rid, data in con.execute(
@@ -157,9 +177,10 @@ def runs(db: Path) -> list[dict]:
     for rid, name, status, started, completed, metadata in rows:
         meta = _json(metadata)
         started, completed = spans.get(rid) or (started, completed)
+        completed = _end(status, ends.get(rid)) or completed
         out.append({"id": rid, "short": rid[:8], "graph": name, "status": status, "waiting": waiting.get(rid, []),
-                    "started": started, "seconds": seconds(started, completed), "cost": _cost(meta, spent, rid),
-                    "error": errors.get(rid, ""), "outcome": outcomes.get(rid, "")})
+                    "started": started, "seconds": seconds(started, completed), "cost": _cost(meta, spent, rid, status),
+                    "error": errors.get(rid, "") if status == FAILED else "", "outcome": outcomes.get(rid, "")})
     return out
 
 
@@ -179,7 +200,10 @@ def pick(db: Path, wanted: str = "") -> str:
 
 def run(db: Path, run_id: str) -> dict:
     """run と子の run（workflow: のノードが起こした物。DB の parent_run_id と metadata の parent_node_id で辿る）の記録。
-    始めとかかった秒は、子の run を含む出来事の最初の始めと最後の終わりから出す（runs と同じ訳）。子の run の行も、その子と孫の出来事から出す"""
+    始めとかかった秒は、子の run を含む出来事の最初の始めと最後の終わりから出す（runs と同じ訳）。子の run の行も、その子と孫の出来事から出す。
+    終わった run（子の run も）は、終わりを最後の終わりの出来事の時刻とログの最後の終わりの遅い方にし（DB の時刻は秒までの切り捨て）、
+    終わりの無い出来事（待ちと、走り中のまま止まったノード）をその run の最後の終わりの出来事の時刻で閉じて印 cut を付ける（ログに終わりを
+    書かずに落ちた・止めた run の長さと人の答え待ちの和が、一覧と合う。閉じる時刻はログの形にする）。走り中の run は最後の出来事まで"""
     with connect(db) as con:
         top = _row(con, run_id)
         if top is None:
@@ -187,6 +211,7 @@ def run(db: Path, run_id: str) -> dict:
         outputs = _outputs(con)
         waiting = _waiting(con)
         spent = _spent(con)
+        ends = _ends(con)
         reader = _Reader(outputs)
         reader.read(top, [])
         todo, parents = [(run_id, [])], {}
@@ -205,33 +230,80 @@ def run(db: Path, run_id: str) -> dict:
                 todo.append((child["id"], prefix))
     meta = _json(top["metadata"])
     root = Path(top["output_root"]) if top["output_root"] else None
+    closed = {top["id"]: _end(top["status"], ends.get(top["id"])), **{c["id"]: _end(c["status"], ends.get(c["id"])) for c in reader.children}}
+    for event in reader.events:
+        if event["start"] and not event["end"] and event["status"] in ("waiting", "running") and closed.get(event["run"]):
+            event["end"], event["cut"] = closed[event["run"]], True
     started, ended = _span(reader.events) or (top["started_at"], top["completed_at"])
+    ended = _later(closed[top["id"]], ended)
     for child in reader.children:
-        child["started"], child["seconds"] = _child_span(child, reader.events, parents)
+        child["started"], child["seconds"] = _child_span(child, reader.events, parents, closed[child["id"]])
     return {"id": run_id, "graph": top["workflow_name"], "status": top["status"], "live": top["status"] in LIVE,
             "waiting": waiting.get(run_id, []), "started": started, "seconds": seconds(started, ended),
-            "cost": _cost(meta, spent, run_id), "copy": str(copy(root, run_id)) if root else "",
+            "cost": _cost(meta, spent, run_id, top["status"]), "copy": str(copy(root, run_id)) if root else "",
             "children": reader.children, "events": sorted(reader.events, key=lambda e: (e["start"] or "", "/".join(e["tokens"]))),
             "skipped": reader.skipped, "checks": reader.checks, "missing_logs": reader.missing, "unread": reader.unread, "artifacts": reader.artifacts}
 
 
-def _cost(meta: dict, spent: dict, run_id: str) -> float | None:
-    """run の費用。metadata の TOTAL_COST が空なら、run 自身の AI の呼び出しの費用の和（_spent）。どちらも無ければ空"""
+def _cost(meta: dict, spent: dict, run_id: str, status: str) -> float | None:
+    """run の費用。metadata の TOTAL_COST が空か、run が走っている（SPENDING）なら、run 自身の AI の呼び出しの費用の和（_spent）。
+    Archon は TOTAL_COST を run の末尾（待ち・落ち・終わり）だけで書く（packages/workflows/src/dag-executor.ts の persistRunUsage）ので、
+    承認で起き直して走っている run の TOTAL_COST は待ちの時の古い値。答え待ちの run の値は待ちに入った時に書いた正。どちらも無ければ空"""
     total = runlog.number(meta.get(TOTAL_COST))
-    return total if total is not None else spent.get(run_id)
+    return total if total is not None and status not in SPENDING else spent.get(run_id)
 
 
 def _spent(con) -> dict[str, float]:
-    """run ごとの費用の和（DB のノードの終わりと後から書く費用の出来事のうち、accounting が node の物の和。run 自身の行だけを足す）。
+    """run ごとの費用の和（DB のノードの終わりと後から書く費用の出来事のうち、自前の費用の行〔own_spend〕の和。run 自身の行だけを足す）。
+    compose_fan_out の instance の終わりの行はその中の全部の正で、中の行は外す。費用の欄を持つ行が 1 つも無い run は和を出さない
+    （bash だけの run を無料の AI の run に見せない。persistRunUsage と同じ）。
     子の run の費用は、親の run の子の run を起こすノード（workflow）の行が accounting を node にして子の総額を載せ、TOTAL_COST もこの行を
     通して子の分を含む。子の run の行を別に足すと二重に数える"""
-    own = {}
-    for rid, data in con.execute(f"select workflow_run_id, data from {EVENT_TABLE} where event_type in (?, ?, ?)",
-                                 (OUTPUT_EVENT, NODE_FAILED_EVENT, DEFERRED_EVENT)):
+    rows, scopes = {}, {}
+    for rid, kind, step, data in con.execute(f"select workflow_run_id, event_type, step_name, data from {EVENT_TABLE} "
+                                             "where event_type in (?, ?, ?)", (OUTPUT_EVENT, NODE_FAILED_EVENT, DEFERRED_EVENT)):
         data = _json(data)
-        if data.get(ACCOUNTING) == runlog.OWN_SPEND:
-            own[rid] = own.get(rid, 0.0) + (runlog.number(data.get(NODE_COST)) or 0.0)
-    return {rid: round(cost, 6) for rid, cost in own.items()}
+        if data.get("type") == INSTANCE and kind in (OUTPUT_EVENT, NODE_FAILED_EVENT):
+            scopes.setdefault(rid, set()).add(step or "")
+        elif not own_spend(data.get(ACCOUNTING), data.get(AGGREGATE)):
+            continue
+        cost = runlog.number(data.get(NODE_COST))
+        if cost is not None:
+            rows.setdefault(rid, []).append((step or "", cost))
+    out = {}
+    for rid, costs in rows.items():
+        inner = tuple(f"{scope}{shape.INCLUDED}" for scope in scopes.get(rid, ()))
+        kept = [cost for step, cost in costs if not (inner and step.startswith(inner))]
+        if kept:
+            out[rid] = round(sum(kept), 6)
+    return out
+
+
+def own_spend(accounting, aggregate) -> bool:
+    """行の費用が自前か（Archon の nodeCostScope）。accounting の語が在れば node だけ、無い古い行は aggregate の印が true でなければ自前"""
+    if accounting in ACCOUNTINGS:
+        return accounting == runlog.OWN_SPEND
+    return aggregate is not True
+
+
+def _ends(con) -> dict[str, str]:
+    """run ごとの最後の終わりの出来事（END_EVENTS）の時刻"""
+    marks = ", ".join("?" * len(END_EVENTS))
+    return dict(con.execute(f"select workflow_run_id, max(created_at) from {EVENT_TABLE} where event_type in ({marks}) "
+                            "group by workflow_run_id", END_EVENTS).fetchall())
+
+
+def _end(status: str, end: str | None) -> str | None:
+    """終わった run の終わり（最後の終わりの出来事の時刻をログの形にした物。出来事を閉じる時刻になる）。走り中の run と終わりの出来事の
+    無い run と、読めない時刻は None"""
+    at = try_when(end) if status not in LIVE else None
+    return at.strftime("%Y-%m-%dT%H:%M:%S.") + f"{at.microsecond // 1000:03d}Z" if at else None
+
+
+def _later(a: str | None, b: str | None) -> str | None:
+    """2 つの時刻の遅い方（読めない方と空は外す）"""
+    known = [(at, t) for t in (a, b) if (at := try_when(t))]
+    return max(known)[1] if known else a or b
 
 
 def copy(output_root: Path, run_id: str) -> Path:
@@ -267,6 +339,16 @@ class _Reader:
         self.events, self.skipped, self.children, self.missing, self.checks, self.artifacts = [], [], [], [], [], {}
         self.unread: dict[str, int] = {}
         self.current = ""
+
+    def _ts(self, entry: dict) -> str | None:
+        """行の時刻。読めない時刻は数えずに None にし、読めなかった物に数える（段の集計と無駄の手がかりを落とさない）"""
+        ts = entry.get("ts")
+        if ts is None or ts == "":
+            return None
+        if try_when(ts) is None:
+            self._count("読めない時刻の行")
+            return None
+        return ts
 
     def read(self, row: dict, prefix: list[str]) -> None:
         self.current = row["id"]
@@ -305,13 +387,15 @@ class _Reader:
         invocation = (execution.get("invocation") or {})
         key = (path, invocation.get("id") or "")
         ids = [*_tokens(prefix), *_tokens([path])]
+        ts = self._ts(entry)
         if kind == "node_skipped":
-            self.skipped.append({"tokens": ids, "time": entry.get("ts"), "cause": entry.get("cause")})
+            if entry.get("content") != PRIOR_SUCCESS:
+                self.skipped.append({"tokens": ids, "time": ts, "cause": entry.get("cause")})
             return
         event = by_invocation.get(key)
         if event is None:
             event = {"tokens": ids, "path": path, "run": self.current, "artifacts": str(root / ARTIFACTS / RUNS_DIR / self.current) if root else "",
-                     "kind": (execution.get("node") or {}).get("kind") or "", "start": entry.get("ts"),
+                     "kind": (execution.get("node") or {}).get("kind") or "", "start": ts,
                      "end": None, "status": "running", "loop": [step.get("iteration") for step in invocation.get("loopPath") or []],
                      "cost": 0.0, "calls": [], "exec": [], "error": ""}
             by_invocation[key] = event
@@ -325,16 +409,16 @@ class _Reader:
         if kind == "node_suspended":
             event["status"] = "waiting"
             return
-        event["end"] = entry.get("ts")
+        event["end"] = ts
         event["status"] = "ok" if kind == "node_complete" else "failed"
         if kind == "node_error":
             event["error"] = entry.get("error") or (execution.get("lifecycle") or {}).get("error") or ""
-        if execution.get("accounting") == runlog.OWN_SPEND:
-            event["cost"] += runlog.number(entry.get("cost_usd")) or 0.0
+        if own_spend(execution.get(ACCOUNTING), entry.get(AGGREGATE)):
+            event["cost"] += runlog.number(entry.get(NODE_COST)) or 0.0
         spend, binding = execution.get("spend") or {}, execution.get("binding") or {}
         if binding.get("sessionPreview"):
             model = binding.get("model") or {}
-            event.update(session=binding["sessionPreview"],
+            event.update(session=binding["sessionPreview"], origin=binding.get("sessionOrigin") or "",
                          model=(model.get("resolved") or {}).get("value") or model.get("requested") or "",
                          usage=runlog.tokens(runlog.measurement(spend, "tokens", lambda v: v)[0]),
                          turns=runlog.measurement(spend, "numTurns")[0])
@@ -372,7 +456,7 @@ class _Reader:
         確かめ。step は `<輪>{ITERATION_MARK}<n>`）は run の確かめの行にする。行は書いた run の id を持つ（同じノードから起こした子の
         run どうしは node も step も同じになる）"""
         row = {"step": entry.get("step") or "", "node": prefix, "run": self.current, "label": entry.get(runlog.EXEC_LABEL) or "", "exit": entry.get(runlog.EXIT_CODE),
-               "stdout": _clip(entry.get("stdout_tail") or "", 4000), "stderr": _clip(entry.get("stderr_tail") or "", 4000), "at": entry.get("ts")}
+               "stdout": _clip(entry.get("stdout_tail") or "", 4000), "stderr": _clip(entry.get("stderr_tail") or "", 4000), "at": self._ts(entry)}
         event = by_step.get(row["step"])
         if event is None:
             self.checks.append(row)
@@ -446,12 +530,13 @@ def _waiting(con) -> dict:
 
 def _span(events: list[dict]) -> tuple[str, str] | None:
     """出来事の最初の始めと最後の終わり（終わりの無い出来事は始め）。読めない時刻は数えない。読める時刻が無ければ None"""
-    times = [(at, t) for e in events for t in (e["start"], e["end"]) if t and (at := _try_time(t))]
+    times = [(at, t) for e in events for t in (e["start"], e["end"]) if t and (at := try_when(t))]
     return (min(times)[1], max(times)[1]) if times else None
 
 
-def _child_span(child: dict, events: list[dict], parents: dict) -> tuple[str, float | None]:
-    """子の run の始めとかかった秒。その子と孫の出来事から出し、出来事が無ければ run の行の値。行の終わりの欄は外す"""
+def _child_span(child: dict, events: list[dict], parents: dict, end: str | None) -> tuple[str, float | None]:
+    """子の run の始めとかかった秒。その子と孫の出来事から出し、出来事が無ければ run の行の値。終わった子の run の終わりは end
+    （最後の終わりの出来事）。行の終わりの欄は外す"""
     def under(rid):
         while rid in parents:
             if rid == child["id"]:
@@ -460,7 +545,7 @@ def _child_span(child: dict, events: list[dict], parents: dict) -> tuple[str, fl
         return False
     completed = child.pop("completed")
     started, ended = _span([e for e in events if under(e["run"])]) or (child["started"], completed)
-    return started, seconds(started, ended)
+    return started, seconds(started, _later(end, ended))
 
 
 def _error(data: str) -> str:
@@ -470,12 +555,8 @@ def _error(data: str) -> str:
 
 def seconds(started, completed) -> float | None:
     """始めから終わりまでの秒（0.1 秒に丸める）。どちらかが空か読めなければ None。段の集計と無駄の手がかりも使う"""
-    if not started or not completed:
-        return None
-    try:
-        return round((when(completed) - when(started)).total_seconds(), 1)
-    except (TypeError, ValueError):
-        return None
+    first, last = try_when(started), try_when(completed)
+    return round((last - first).total_seconds(), 1) if first and last else None
 
 
 def length(event: dict) -> float:
@@ -484,10 +565,14 @@ def length(event: dict) -> float:
 
 
 def when(text: str) -> datetime:
-    return datetime.fromisoformat(text.replace("Z", "+00:00"))
+    """時刻の読み。ログの時刻（末尾 Z）と DB の秒までの時刻（datetime('now') の UTC で、時差を持たない）を同じ UTC で読む"""
+    got = datetime.fromisoformat(text.replace("Z", "+00:00"))
+    return got if got.tzinfo else got.replace(tzinfo=timezone.utc)
 
 
-def _try_time(text) -> datetime | None:
+def try_when(text) -> datetime | None:
+    if not isinstance(text, str) or not text:
+        return None
     try:
         return when(text)
     except (TypeError, ValueError):

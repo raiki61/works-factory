@@ -6,16 +6,23 @@ Claude Code の版は工場が止めていないので、記録の形は試験�
 物を指す）。ただし読まない型のうち字を別の型から読む物（READ_FROM）は、その代わりの型が記録に無い会話では、知らない型と同じく数える
 （代わりが無ければ LLM に入った字が帯から消えるので）。
 
-- find(projects, preview) -> run の記録の会話の id の頭（sessionPreview）に当たる記録のパス（無ければ None。Claude Code が消した古い記録は結べない）
-- read(path, keep) -> 1 本の会話。流れ（seq）は LLM に入った順の片で、往復の最初の行で ["turn", 往復の番号] を置く（usage を持つ
+- find(projects, preview) -> run の記録の会話の id の頭（sessionPreview）に当たる記録のパス（無ければ None。Claude Code が消した古い記録は結べない。
+  2 つ以上に当たれば黙って選ばずに LookupError）
+- collect(run, projects, keep) -> run の出来事の会話を読んだ物（鍵は会話の id の頭）。当たる記録が 2 つ以上の頭は run["unread"] に数える。
+  続けた会話（出来事の origin が runread.RESUMED）は、その出来事の始めを since にして読む
+- read(path, keep, since) -> 1 本の会話。流れ（seq）は LLM に入った順の片で、往復の最初の行で ["turn", 往復の番号] を置く（usage を持つ
   行を待たない。トークンは往復の usage から後で埋め、usage の無い往復は空のまま。1 つの返事は行が分かれ、出力のトークンは終わりの行で
   数え終わるので、流れに写さない）。keep は同じ字を 1 つにして番号で指す関数（同じ system を会話ごとに持たない）。system と道具の一覧
   （api-request-shape）と添え書き（api-request-blob）は、その型の行が記録に在ったかを recorded に持つ（無ければページは欄を空にせず
   「記録に無い」と出す。普通の利用者の Claude Code でこの 2 つの型が出るかは確かめていない）。往復は最初の行の時刻 at を持ち、道具の
-  呼び出しは切る前の入力の字の番号 text を持ち、会話は作業の場所 cwd（最初に cwd を持つ行の値）を持つ（無駄の手がかりの数え。src/waste.py）
+  呼び出しは切る前の入力の字の番号 text を持ち、会話は作業の場所 cwd（最初に cwd を持つ行の値）を持つ（無駄の手がかりの数え。src/waste.py）。
+  since が在れば、それより前の往復に copied を付ける（続けた会話の記録は前の会話の往復を写して持つ。無駄の手がかりは数えず、流れには
+  残す。LLM に入った物なので）。読めない時刻の往復は時刻を持たず、読めなかった物に数える
 """
 import json
 from pathlib import Path
+
+from viewer.src import runread
 
 SHAPE = "api-request-shape"
 BLOB = "api-request-blob"
@@ -34,13 +41,36 @@ READ_FROM = {"attachment": (BLOB,), "api-request": (SHAPE, BLOB)}
 REMINDER = "<system-reminder>"
 
 
+AMBIGUOUS = "会話の id の頭が 2 つ以上の記録に当たる"
+
+
 def find(projects: Path, preview: str) -> Path | None:
     if not preview or not projects.is_dir():
         return None
-    return next(iter(sorted(projects.glob(f"*/{preview}*.jsonl"))), None)
+    hits = sorted(projects.glob(f"*/{preview}*.jsonl"))
+    if len(hits) > 1:
+        raise LookupError(f"{AMBIGUOUS}: {preview}")
+    return hits[0] if hits else None
 
 
-def read(path: Path, keep) -> dict:
+def collect(run: dict, projects: Path, keep) -> dict:
+    sessions = {}
+    for event in run["events"]:
+        preview = event.get("session")
+        if not preview or preview in sessions:
+            continue
+        try:
+            found = find(projects, preview)
+        except LookupError:
+            run["unread"][AMBIGUOUS] = run["unread"].get(AMBIGUOUS, 0) + 1
+            sessions[preview] = None
+            continue
+        if found is not None:
+            sessions[preview] = read(found, keep, event.get("start") if event.get("origin") == runread.RESUMED else None)
+    return {preview: got for preview, got in sessions.items() if got is not None}
+
+
+def read(path: Path, keep, since: str | None = None) -> dict:
     got = {"system": [], "tools": [], "inject": [], "turns": [], "seq": [], "cost": None, "unread": {},
            "recorded": {SHAPE: False, BLOB: False}, "cwd": ""}
     turns, by_id, results, held = [], {}, {}, {}
@@ -72,12 +102,19 @@ def read(path: Path, keep) -> dict:
         elif kind == "user":
             _user(got, message, keep, results)
         elif kind == "assistant":
-            _assistant(got, message, keep, turns, by_id, row.get("timestamp"))
+            at = row.get("timestamp") if isinstance(row.get("timestamp"), str) else None
+            if at and runread.try_when(at) is None:
+                _count(got, "読めない時刻")
+                at = None
+            _assistant(got, message, keep, turns, by_id, at)
         elif kind == "cost-state":
             got["cost"] = row.get("totalCostUSD")
+    cut = runread.try_when(since) if since else None
     for turn in turns:
         for call in turn["calls"]:
             call["result"] = results.get(call.pop("id"))
+        if cut and turn["at"] and runread.when(turn["at"]) < cut:
+            turn["copied"] = True
     got["turns"] = turns
     for kind, n in held.items():
         if not all(got["recorded"][sub] for sub in READ_FROM[kind]):
@@ -115,7 +152,7 @@ def _assistant(got, message, keep, turns, by_id, at):
     """1 つの返事は content の片ごとに行が分かれ、同じ message.id を持つ。往復の時刻は最初の行の時刻"""
     ident = message.get("id") or str(len(turns))
     if ident not in by_id:
-        by_id[ident] = {"usage": {}, "calls": [], "at": at if isinstance(at, str) else None}
+        by_id[ident] = {"usage": {}, "calls": [], "at": at}
         got["seq"].append(["turn", len(turns)])
         turns.append(by_id[ident])
     turn = by_id[ident]

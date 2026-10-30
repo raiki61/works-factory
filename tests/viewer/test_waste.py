@@ -1,7 +1,8 @@
 """無駄の手がかりの数え（viewer/src/waste.py。docs/design/viewer.md の 6.9 と照らしの 8）。
 
 小さな作りと run の記録（周 2 つの繰り返し・前と同じ出力・空の出力・同じファイルの 2 回の読み・1 万字を超える結果・空いた往復・
-引く先の無い出力・同じノードから起こした周の数の違う子の run 2 つ・出力の変わらない周・別の run の同じ名のファイル）を手で組み、数えがその値を返すことを照らす。数えを外せば落ちる。run の無いページには数えを置かない。
+引く先の無い出力・同じノードから起こした周の数の違う子の run 2 つ・出力の変わらない周・別の run の同じ名のファイル・続けた会話が
+前の会話から写して持つ往復）を手で組み、数えがその値を返すことを照らす。数えを外せば落ちる。run の無いページには数えを置かない。
 """
 import unittest
 
@@ -117,6 +118,20 @@ class WasteCase(unittest.TestCase):
         data = {"run": None}
         waste.attach(data)
         self.assertIsNone(data["waste"])
+
+    def test_copied_turns_are_not_counted(self):
+        """続けた会話が前の会話から写して持つ往復（copied）は、返事の数・道具の呼び出し・読み直し・大きな結果・空いた往復・積み上がりの
+        どれにも数えない（写し元の会話の往復と二重になる）"""
+        copied = {**turn(0, [call("Read", "r1", 4000), call("Read", "r3", 12000)], {"in": 1, "cache_read": 0, "cache_write": 1}), "copied": True}
+        self.data["run"]["sessions"]["s2"]["turns"].insert(0, copied)
+        waste.attach(self.data)
+        got = self.data["waste"]
+        self.assertEqual([row["replies"] for row in got["top"]["rows"]], [2, 1])
+        self.assertEqual(got["big"]["calls"], 4)
+        self.assertEqual([(row["session"], row["chars"]) for row in got["big"]["results"]], [("s1", 12000), ("s2", 12000)])
+        self.assertEqual([row["times"] for row in got["context"]["reads"]["again"]], [2, 2])
+        self.assertEqual(got["context"]["pauses"], self.got["context"]["pauses"])
+        self.assertEqual(got["big"]["climb"], self.got["big"]["climb"])
 
 
 class RoundsCase(unittest.TestCase):

@@ -139,15 +139,7 @@ def read(target: str | None, wanted: str, user: dict, here: Path) -> tuple[dict,
     else:
         data["shape"] = tree_shape()
     data["unmatched"] = unmatched(data["shape"]["graphs"], run)
-    projects = home / isolate.DIRS["CLAUDE_CONFIG_DIR"] / "projects"
-    sessions = {}
-    for event in run["events"]:
-        preview = event.get("session")
-        if preview and preview not in sessions:
-            found = session.find(projects, preview)
-            if found is not None:
-                sessions[preview] = session.read(found, keep)
-    run["sessions"] = sessions
+    run["sessions"] = session.collect(run, home / isolate.DIRS["CLAUDE_CONFIG_DIR"] / "projects", keep)
     data["run"] = run
     return data, pack
 

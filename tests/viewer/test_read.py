@@ -14,12 +14,27 @@
 - run の費用は metadata の total_cost_usd で、空の run（一覧の行と選んだ run の両方）は DB のノードの終わりの出来事（落ちたノードも）のうち
   accounting が node の物の和（後から書く費用の出来事も）で代える。子の run の費用は、親の子の run を起こすノード（workflow）の行が accounting を
   node にして子の総額を載せる（metadata の total_cost_usd と同じ）。子の run の行は別の run なので親の和に足さない（足すと二重）。どちらも無い run は空
+- 起き直した run のログが書く「前に済んだので飛ばした」行（node_skipped の content が prior_success）は、飛んだノードに数えない
+  （その道が済んだことは前の起動の出来事で見える）
+- 終わった run（状態が completed・failed・cancelled）の終わりは DB の終わりの出来事の時刻で、一覧と選んだ run のかかった秒が合う
+  （終わりの出来事をログに書かずに終わった run でも）。終わりの無い待ちと走り中のまま止まったノードはその時刻で閉じ、印 cut を付ける。
+  走り中の run は最後の出来事まで。DB の終わりは秒までなので、ログの最後の終わりの方が遅ければそちらを run の終わりにする
+- 出来事の時刻の欄は、DB の時刻で閉じた物も含めて全部ログの形（T と Z）
+- run の費用の代わりの和は Archon の nodeCostScope の数え方: accounting の無い古い行は aggregate が true でなければ自前、
+  compose_fan_out の instance の行が正でその中の行（道の頭が instance の道）は外す、費用の欄を持つ行が無ければ空。走り中の run は
+  metadata の古い total_cost_usd でなく代わりの和。答え待ちの run は待ちに入る時に Archon が書いた total_cost_usd
+- 落ちの訳は状態が failed の run だけに出す（落ちた後に起き直して終わった run に古い訳を残さない）
+- 読めない時刻の行（字でない時刻も）は、その時刻を数えずに進み、読めなかった物に数える（段の集計と無駄の手がかりを落とさない）
+- 会話の id の頭が 2 つ以上の記録に当たれば、黙って選ばずに読めなかった物に数える
+- DB のパスに URI の特別な字（? # %）が在っても、そのパスの DB を開く
+- 続けた会話（sessionOrigin が resumed）は、ノードの出来事の始めより前の往復（前の会話から写して持つ物）に copied を付ける
 - 往復の印は、usage を持つ行を待たず、その往復の最初の行で置く（usage の無い返事が混じっても往復の数がずれず、どの返事にも usage が
   無くても返事と道具の呼び出しが並びから消えない。usage は後の行で埋める）
 
 試験は一時のフォルダに小さな DB と記録を作る。
 """
 import json
+import re
 import sqlite3
 import tempfile
 import unittest
@@ -102,7 +117,7 @@ class ReadCase(unittest.TestCase):
             node("node_start", "2026-10-25T01:50:54.377Z", "a"), node("node_complete", "2026-10-25T01:50:55.000Z", "a"),
             node("node_start", "2026-10-25T02:34:40.000Z", "b"), node("node_complete", "2026-10-25T02:34:41.278Z", "b"))) + "\n", encoding="utf-8")
         got = runread.run(db, rid)
-        self.assertEqual((got["started"], got["seconds"]), ("2026-10-25T01:50:54.377Z", 2626.9))
+        self.assertEqual((got["started"], got["seconds"]), ("2026-10-25T01:50:54.377Z", 2626.9))   # 終わりは DB の workflow_completed（秒まで）とログの最後の終わりの遅い方
         listed = runread.runs(db)[0]
         self.assertEqual((listed["started"], listed["seconds"]), ("2026-10-25 01:50:54", 2627.0))
 
@@ -286,6 +301,159 @@ class ReadCase(unittest.TestCase):
         self.assertEqual([turn["at"] for turn in got["turns"]], ["2026-10-25T01:00:00.000Z", "2026-10-25T01:07:00.000Z"])
         self.assertEqual(json.loads(texts[got["turns"][0]["calls"][0]["text"]]), long)
         self.assertEqual(got["cwd"], "/w")
+
+
+    def test_prior_success_rows_are_not_skips(self):
+        db = self._db([("top", None, "2026-10-25 01:00:00", None, "{}")], [])
+        self._log("top", [{"type": "node_skipped", "ts": "2026-10-25T01:00:00.000Z", "step": "a", "content": runread.PRIOR_SUCCESS},
+                          {**self._node("node_skipped", "2026-10-25T01:00:01.000Z", "b"), "cause": "when"}])
+        self.assertEqual([(s["tokens"], s["cause"]) for s in runread.run(db, "top")["skipped"]], [(["b"], "when")])
+
+    def _status(self, db: Path, rid: str, status: str) -> None:
+        con = sqlite3.connect(db)
+        con.execute(f"update {runread.RUN_TABLE} set status = ? where id = ?", (status, rid))
+        con.commit()
+        con.close()
+
+    def _event(self, db: Path, rid: str, kind: str, at: str = "", step: str = "", data: dict | None = None) -> None:
+        con = sqlite3.connect(db)
+        con.execute(f"insert into {runread.EVENT_TABLE} (workflow_run_id, event_type, step_name, data, created_at) values (?, ?, ?, ?, ?)",
+                    (rid, kind, step, json.dumps(data or {}), at))
+        con.commit()
+        con.close()
+
+    def test_a_finished_run_ends_at_its_end_event(self):
+        """ログが待ちの始めで切れた run（待ちのまま止めた）は、DB の終わりの出来事で終わり、一覧と選んだ run の秒が合う。
+        終わりの無い待ちはその時刻で閉じる。走り中の run は最後の出来事まで"""
+        db = self._db([("top", None, "2026-10-25 01:00:00", None, "{}"), ("live", None, "2026-10-25 00:00:00", None, "{}")],
+                      [("top", "2026-10-25 01:00:00"), ("live", "2026-10-25 00:00:00")])
+        self._status(db, "top", "cancelled")
+        self._status(db, "live", "running")
+        self._event(db, "top", "workflow_cancelled", "2026-10-25 01:10:00")
+        self._event(db, "live", "workflow_failed", "2026-10-25 00:00:30")   # 落ちた後に起き直して走っている
+        gate = {**self._node("node_suspended", "2026-10-25T01:00:05.000Z", "gate"),
+                runread.EXECUTION: {"path": "gate", "invocation": {"id": "gate"}, "node": {"kind": runread.WAIT_NODE}}}
+        self._log("top", [self._node("node_start", "2026-10-25T01:00:00.000Z", "a"), self._node("node_complete", "2026-10-25T01:00:05.000Z", "a"),
+                          {**gate, "type": "node_start"}, gate, self._node("node_start", "2026-10-25T01:09:00.000Z", "b")])
+        self._log("live", [self._node("node_start", "2026-10-25T00:00:00.000Z", "a"), self._node("node_complete", "2026-10-25T00:00:40.000Z", "a")])
+        got, listed = runread.run(db, "top"), {r["id"]: r for r in runread.runs(db)}
+        self.assertEqual((got["seconds"], listed["top"]["seconds"]), (600.0, 600.0))
+        by_path = {e["path"]: e for e in got["events"]}
+        self.assertEqual({path: (runread.length(e), e.get("cut", False)) for path, e in by_path.items()},
+                         {"a": (5.0, False), "gate": (595.0, True), "b": (60.0, True)})
+        self.assertEqual(runread.run(db, "live")["seconds"], 40.0)
+
+    def test_a_finished_node_with_a_broken_end_is_not_cut(self):
+        """閉じるのは待ちと走り中のまま止まったノードだけ。終わりの時刻が読めずに済んだノードは、run の終わりで閉じずに終わりを空のままにする"""
+        db = self._db([("top", None, "2026-10-25 01:00:00", None, "{}")], [("top", "2026-10-25 01:00:00")])
+        self._event(db, "top", "workflow_completed", "2026-10-25 03:00:00")
+        self._log("top", [self._node("node_start", "2026-10-25T01:00:00.000Z", "a"), self._node("node_complete", "not a time", "a")])
+        event = runread.run(db, "top")["events"][0]
+        self.assertEqual((event["status"], event["end"], event.get("cut", False)), ("ok", None, False))
+
+    def test_a_run_ends_no_earlier_than_its_last_node(self):
+        """DB の終わりの出来事は秒まで（切り捨て）なので、ログの最後の終わりより前になりうる。run の終わりは遅い方"""
+        db = self._db([("top", None, "2026-10-25 01:00:00", None, "{}")], [("top", "2026-10-25 01:00:00")])
+        self._event(db, "top", "workflow_completed", "2026-10-25 01:00:09")
+        self._log("top", [self._node("node_start", "2026-10-25T01:00:00.000Z", "a"), self._node("node_complete", "2026-10-25T01:00:09.800Z", "a")])
+        self.assertEqual(runread.run(db, "top")["seconds"], 9.8)
+
+    def test_event_times_are_log_times(self):
+        """出来事・飛び・確かめの行の時刻の欄は、DB の時刻で閉じた物も含めて全部ログの形（T と Z）。雛形は Date.parse で読み、
+        再生の歩を字で並べるので、T も Z も無い DB の書き方が混じると時差の分ずれる"""
+        db = self._db([("top", None, "2026-10-25 01:00:00", None, "{}"),
+                       ("kid", "top", "2026-10-25 01:00:01", None, json.dumps({runread.PARENT_NODE: "call"}))], [])
+        self._status(db, "top", "cancelled")
+        self._status(db, "kid", "cancelled")
+        for rid in ("top", "kid"):
+            self._event(db, rid, "workflow_cancelled", "2026-10-25 01:10:00")
+        gate = {**self._node("node_suspended", "2026-10-25T01:00:05.000Z", "gate"),
+                runread.EXECUTION: {"path": "gate", "invocation": {"id": "gate"}, "node": {"kind": runread.WAIT_NODE}}}
+        self._log("top", [{**gate, "type": "node_start"}, gate, {**self._node("node_skipped", "2026-10-25T01:00:06.000Z", "s"), "cause": "when"},
+                          {"type": runread.EXEC_ROW, "ts": "2026-10-25T01:00:07.000Z", "step": "until-iteration-1"}])
+        self._log("kid", [self._node("node_start", "2026-10-25T01:00:02.000Z", "k")])
+        got = runread.run(db, "top")
+        times = [(row.get(name), name) for part in ("events", "skipped", "checks") for row in got[part]
+                 for name in ("start", "end", "time", "at") if name in row]
+        self.assertEqual(len(times), 6)
+        self.assertEqual([t for t in times if not re.fullmatch(r"\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(\.\d+)?Z", t[0] or "")], [])
+
+    def test_failure_text_only_on_a_failed_run(self):
+        db = self._db([("again", None, "2026-10-25 01:00:00", None, "{}"), ("down", None, "2026-10-25 00:00:00", None, "{}")], [])
+        self._status(db, "down", "failed")
+        for rid in ("again", "down"):
+            self._event(db, rid, runread.FAILED_EVENT, "2026-10-25 01:00:00", data={"error": "boom"})
+        self.assertEqual({r["id"]: r["error"] for r in runread.runs(db)}, {"again": "", "down": "boom"})
+
+    def test_spent_follows_the_archon_cost_scope(self):
+        """古い行（accounting が無い）は aggregate が true でなければ自前。compose_fan_out の instance の行が正で、中の行は外す。
+        費用の欄を持つ行が無い run（bash だけの run）は空。走り中の run は metadata の古い合計でなく代わりの和。答え待ちの run は
+        Archon が待ちに入る時に書いた metadata の合計（persistRunUsage）"""
+        db = self._db([("old", None, "2026-10-25 04:00:00", None, "{}"), ("fan", None, "2026-10-25 03:00:00", None, "{}"),
+                       ("bash", None, "2026-10-25 02:00:00", None, "{}"),
+                       ("live", None, "2026-10-25 01:00:00", None, json.dumps({runread.TOTAL_COST: 1.0})),
+                       ("wait", None, "2026-10-25 00:00:00", None, json.dumps({runread.TOTAL_COST: 2.0}))], [])
+        self._status(db, "live", "running")
+        self._status(db, "wait", runread.PAUSED)
+        for rid, step, data in (("old", "a", {runread.NODE_COST: 0.5}), ("old", "l", {runread.NODE_COST: 2.0, runread.AGGREGATE: True}),
+                                ("fan", "i", {runread.NODE_COST: 0.75, "type": runread.INSTANCE, runread.ACCOUNTING: "instance"}),
+                                ("fan", "i__x", {runread.NODE_COST: 0.5, runread.ACCOUNTING: "node"}),
+                                ("fan", "b", {runread.NODE_COST: 0.125, runread.ACCOUNTING: "node"}),
+                                ("bash", "s", {runread.ACCOUNTING: "node"}),
+                                ("live", "a", {runread.NODE_COST: 1.0, runread.ACCOUNTING: "node"}),
+                                ("live", "b", {runread.NODE_COST: 0.5, runread.ACCOUNTING: "node"}),
+                                ("wait", "a", {runread.NODE_COST: 0.5, runread.ACCOUNTING: "node"})):
+            self._event(db, rid, runread.OUTPUT_EVENT, step=step, data=data)
+        self.assertEqual({r["id"]: r["cost"] for r in runread.runs(db)}, {"old": 0.5, "fan": 0.875, "bash": None, "live": 1.5,
+                                                                         "wait": 2.0})
+        self._log("live", [])
+        self.assertEqual(runread.run(db, "live")["cost"], 1.5)
+
+    def test_broken_time_is_listed_as_unread(self):
+        db = self._db([("top", None, "2026-10-25 01:00:00", None, "{}")], [])
+        self._log("top", [self._node("node_start", "2026-10-25T01:00:00.000Z", "a"), self._node("node_complete", "not a time", "a"),
+                          self._node("node_start", 123, "b")])
+        got = runread.run(db, "top")
+        self.assertEqual(([e["end"] for e in got["events"]], got["unread"]), ([None, None], {"読めない時刻の行": 2}))
+        self.assertEqual((runread.try_when(123), runread.seconds(123, "2026-10-25 01:00:00")), (None, None))
+
+    def test_db_path_with_uri_marks_opens_that_file(self):
+        folder = self.tmp / "a?b#c%41"
+        folder.mkdir()
+        db = folder / runread.DB_FILE
+        con = sqlite3.connect(db)
+        con.execute(f"create table {runread.RUN_TABLE} ({', '.join(runread.RUN_COLUMNS)})")
+        con.execute(f"create table {runread.EVENT_TABLE} ({', '.join(runread.EVENT_COLUMNS)})")
+        con.execute(f"insert into {runread.RUN_TABLE} (id, parent_run_id, started_at) values ('only', null, '2026-10-28 12:00:00')")
+        con.commit()
+        con.close()
+        self.assertEqual(runread.pick(db), "only")
+
+    def test_ambiguous_session_head_is_unread(self):
+        projects = self.tmp / "projects"
+        for folder in ("p1", "p2"):
+            (projects / folder).mkdir(parents=True)
+            (projects / folder / "abcd1234-0000.jsonl").write_text("", encoding="utf-8")
+        (projects / "p1" / "ffff0000-1111.jsonl").write_text("", encoding="utf-8")
+        run = {"events": [{"session": "abcd1234", "start": None}, {"session": "ffff0000", "start": None}], "unread": {}}
+        got = session.collect(run, projects, lambda text: text)
+        self.assertEqual((list(got), run["unread"]), (["ffff0000"], {"会話の id の頭が 2 つ以上の記録に当たる": 1}))
+
+    def test_resumed_session_marks_turns_before_its_node(self):
+        """続けた会話は前の会話の往復を写して持つ。ノードの出来事の始めより前の往復に copied を付ける（読み直さず数えから外す）。
+        新しく始めた会話は付けない。読めない時刻は読めなかった物に数える"""
+        projects = self.tmp / "projects"
+        (projects / "p").mkdir(parents=True)
+        say = lambda ident, ts: {"type": "assistant", "timestamp": ts, "message": {"id": ident, "content": [{"type": "text", "text": ident}]}}
+        rows = [say("m1", "2026-10-25T01:00:00.000Z"), say("m2", "2026-10-25T02:00:01.000Z"), say("m3", "not a time")]
+        for name in ("aaaa0000", "bbbb0000"):
+            (projects / "p" / f"{name}.jsonl").write_text("\n".join(json.dumps(row) for row in rows) + "\n", encoding="utf-8")
+        run = {"events": [{"session": "aaaa0000", "start": "2026-10-25T02:00:00.000Z", "origin": runread.RESUMED},
+                          {"session": "bbbb0000", "start": "2026-10-25T02:00:00.000Z", "origin": "fresh"}], "unread": {}}
+        got = session.collect(run, projects, lambda text: text)
+        self.assertEqual([t.get("copied", False) for t in got["aaaa0000"]["turns"]], [True, False, False])
+        self.assertEqual([t.get("copied", False) for t in got["bbbb0000"]["turns"]], [False, False, False])
+        self.assertEqual(got["aaaa0000"]["unread"], {"読めない時刻": 1})
 
 
 if __name__ == "__main__":
