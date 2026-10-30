@@ -38,7 +38,6 @@ import functools
 import io
 import json
 import pathlib
-import re
 import runpy
 import sys
 import unittest
@@ -58,7 +57,6 @@ for p in (ROOT / "lib", kit.SHARED):
 import conflict  # noqa: E402
 import prompt  # noqa: E402
 import rolekit  # noqa: E402
-import seat  # noqa: E402
 
 KEY = test_prompts.KEY
 WEAPONS = ("tdd", "pin", "tidy", "static", "variant", "remove")

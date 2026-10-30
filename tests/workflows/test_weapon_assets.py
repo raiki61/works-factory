@@ -57,14 +57,11 @@ import tempfile
 import unittest
 from unittest import mock
 
-import yaml
-
 from tests.bin import hermetic
 from tests.blocks import kit
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 HERE = pathlib.Path(__file__).resolve().parent
-BLOCK = kit.BLOCKS / "fix"
 PLAN = "docs/plans/2026-10-24-fix-weapons.md"
 for p in (ROOT / "lib", kit.SHARED):
     if str(p) not in sys.path:
