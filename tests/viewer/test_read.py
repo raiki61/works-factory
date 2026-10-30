@@ -17,12 +17,14 @@
 - 起き直した run のログが書く「前に済んだので飛ばした」行（node_skipped の content が prior_success）は、飛んだノードに数えない
   （その道が済んだことは前の起動の出来事で見える）
 - 終わった run（状態が completed・failed・cancelled）の終わりは DB の終わりの出来事の時刻で、一覧と選んだ run のかかった秒が合う
-  （終わりの出来事をログに書かずに終わった run でも）。終わりの無い待ちはその時刻で閉じる。走り中の run は最後の出来事まで
+  （終わりの出来事をログに書かずに終わった run でも）。終わりの無い待ちと走り中のまま止まったノードはその時刻で閉じ、印 cut を付ける。
+  走り中の run は最後の出来事まで。DB の終わりは秒までなので、ログの最後の終わりの方が遅ければそちらを run の終わりにする
+- 出来事の時刻の欄は、DB の時刻で閉じた物も含めて全部ログの形（T と Z）
 - run の費用の代わりの和は Archon の nodeCostScope の数え方: accounting の無い古い行は aggregate が true でなければ自前、
   compose_fan_out の instance の行が正でその中の行（道の頭が instance の道）は外す、費用の欄を持つ行が無ければ空。走り中の run は
-  metadata の古い total_cost_usd でなく代わりの和
+  metadata の古い total_cost_usd でなく代わりの和。答え待ちの run は待ちに入る時に Archon が書いた total_cost_usd
 - 落ちの訳は状態が failed の run だけに出す（落ちた後に起き直して終わった run に古い訳を残さない）
-- 読めない時刻の行は、その時刻を数えずに進み、読めなかった物に数える（段の集計と無駄の手がかりを落とさない）
+- 読めない時刻の行（字でない時刻も）は、その時刻を数えずに進み、読めなかった物に数える（段の集計と無駄の手がかりを落とさない）
 - 会話の id の頭が 2 つ以上の記録に当たれば、黙って選ばずに読めなかった物に数える
 - DB のパスに URI の特別な字（? # %）が在っても、そのパスの DB を開く
 - 続けた会話（sessionOrigin が resumed）は、ノードの出来事の始めより前の往復（前の会話から写して持つ物）に copied を付ける
@@ -32,6 +34,7 @@
 試験は一時のフォルダに小さな DB と記録を作る。
 """
 import json
+import re
 import sqlite3
 import tempfile
 import unittest
@@ -114,7 +117,7 @@ class ReadCase(unittest.TestCase):
             node("node_start", "2026-10-25T01:50:54.377Z", "a"), node("node_complete", "2026-10-25T01:50:55.000Z", "a"),
             node("node_start", "2026-10-25T02:34:40.000Z", "b"), node("node_complete", "2026-10-25T02:34:41.278Z", "b"))) + "\n", encoding="utf-8")
         got = runread.run(db, rid)
-        self.assertEqual((got["started"], got["seconds"]), ("2026-10-25T01:50:54.377Z", 2626.6))   # 終わりは DB の workflow_completed（秒まで）
+        self.assertEqual((got["started"], got["seconds"]), ("2026-10-25T01:50:54.377Z", 2626.9))   # 終わりは DB の workflow_completed（秒まで）とログの最後の終わりの遅い方
         listed = runread.runs(db)[0]
         self.assertEqual((listed["started"], listed["seconds"]), ("2026-10-25 01:50:54", 2627.0))
 
@@ -331,13 +334,41 @@ class ReadCase(unittest.TestCase):
         gate = {**self._node("node_suspended", "2026-10-25T01:00:05.000Z", "gate"),
                 runread.EXECUTION: {"path": "gate", "invocation": {"id": "gate"}, "node": {"kind": runread.WAIT_NODE}}}
         self._log("top", [self._node("node_start", "2026-10-25T01:00:00.000Z", "a"), self._node("node_complete", "2026-10-25T01:00:05.000Z", "a"),
-                          {**gate, "type": "node_start"}, gate])
+                          {**gate, "type": "node_start"}, gate, self._node("node_start", "2026-10-25T01:09:00.000Z", "b")])
         self._log("live", [self._node("node_start", "2026-10-25T00:00:00.000Z", "a"), self._node("node_complete", "2026-10-25T00:00:40.000Z", "a")])
         got, listed = runread.run(db, "top"), {r["id"]: r for r in runread.runs(db)}
         self.assertEqual((got["seconds"], listed["top"]["seconds"]), (600.0, 600.0))
-        (wait,) = [e for e in got["events"] if e["path"] == "gate"]
-        self.assertEqual(runread.length(wait), 595.0)
+        by_path = {e["path"]: e for e in got["events"]}
+        self.assertEqual({path: (runread.length(e), e.get("cut", False)) for path, e in by_path.items()},
+                         {"a": (5.0, False), "gate": (595.0, True), "b": (60.0, True)})
         self.assertEqual(runread.run(db, "live")["seconds"], 40.0)
+
+    def test_a_run_ends_no_earlier_than_its_last_node(self):
+        """DB の終わりの出来事は秒まで（切り捨て）なので、ログの最後の終わりより前になりうる。run の終わりは遅い方"""
+        db = self._db([("top", None, "2026-10-25 01:00:00", None, "{}")], [("top", "2026-10-25 01:00:00")])
+        self._event(db, "top", "workflow_completed", "2026-10-25 01:00:09")
+        self._log("top", [self._node("node_start", "2026-10-25T01:00:00.000Z", "a"), self._node("node_complete", "2026-10-25T01:00:09.800Z", "a")])
+        self.assertEqual(runread.run(db, "top")["seconds"], 9.8)
+
+    def test_event_times_are_log_times(self):
+        """出来事・飛び・確かめの行の時刻の欄は、DB の時刻で閉じた物も含めて全部ログの形（T と Z）。雛形は Date.parse で読み、
+        再生の歩を字で並べるので、T も Z も無い DB の書き方が混じると時差の分ずれる"""
+        db = self._db([("top", None, "2026-10-25 01:00:00", None, "{}"),
+                       ("kid", "top", "2026-10-25 01:00:01", None, json.dumps({runread.PARENT_NODE: "call"}))], [])
+        self._status(db, "top", "cancelled")
+        self._status(db, "kid", "cancelled")
+        for rid in ("top", "kid"):
+            self._event(db, rid, "workflow_cancelled", "2026-10-25 01:10:00")
+        gate = {**self._node("node_suspended", "2026-10-25T01:00:05.000Z", "gate"),
+                runread.EXECUTION: {"path": "gate", "invocation": {"id": "gate"}, "node": {"kind": runread.WAIT_NODE}}}
+        self._log("top", [{**gate, "type": "node_start"}, gate, {**self._node("node_skipped", "2026-10-25T01:00:06.000Z", "s"), "cause": "when"},
+                          {"type": runread.EXEC_ROW, "ts": "2026-10-25T01:00:07.000Z", "step": "until-iteration-1"}])
+        self._log("kid", [self._node("node_start", "2026-10-25T01:00:02.000Z", "k")])
+        got = runread.run(db, "top")
+        times = [(row.get(name), name) for part in ("events", "skipped", "checks") for row in got[part]
+                 for name in ("start", "end", "time", "at") if name in row]
+        self.assertEqual(len(times), 6)
+        self.assertEqual([t for t in times if not re.fullmatch(r"\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(\.\d+)?Z", t[0] or "")], [])
 
     def test_failure_text_only_on_a_failed_run(self):
         db = self._db([("again", None, "2026-10-25 01:00:00", None, "{}"), ("down", None, "2026-10-25 00:00:00", None, "{}")], [])
@@ -348,28 +379,35 @@ class ReadCase(unittest.TestCase):
 
     def test_spent_follows_the_archon_cost_scope(self):
         """古い行（accounting が無い）は aggregate が true でなければ自前。compose_fan_out の instance の行が正で、中の行は外す。
-        費用の欄を持つ行が無い run（bash だけの run）は空。走り中の run は metadata の古い合計でなく代わりの和"""
+        費用の欄を持つ行が無い run（bash だけの run）は空。走り中の run は metadata の古い合計でなく代わりの和。答え待ちの run は
+        Archon が待ちに入る時に書いた metadata の合計（persistRunUsage）"""
         db = self._db([("old", None, "2026-10-25 04:00:00", None, "{}"), ("fan", None, "2026-10-25 03:00:00", None, "{}"),
                        ("bash", None, "2026-10-25 02:00:00", None, "{}"),
-                       ("live", None, "2026-10-25 01:00:00", None, json.dumps({runread.TOTAL_COST: 1.0}))], [])
+                       ("live", None, "2026-10-25 01:00:00", None, json.dumps({runread.TOTAL_COST: 1.0})),
+                       ("wait", None, "2026-10-25 00:00:00", None, json.dumps({runread.TOTAL_COST: 2.0}))], [])
         self._status(db, "live", "running")
+        self._status(db, "wait", runread.PAUSED)
         for rid, step, data in (("old", "a", {runread.NODE_COST: 0.5}), ("old", "l", {runread.NODE_COST: 2.0, runread.AGGREGATE: True}),
                                 ("fan", "i", {runread.NODE_COST: 0.75, "type": runread.INSTANCE, runread.ACCOUNTING: "instance"}),
                                 ("fan", "i__x", {runread.NODE_COST: 0.5, runread.ACCOUNTING: "node"}),
                                 ("fan", "b", {runread.NODE_COST: 0.125, runread.ACCOUNTING: "node"}),
                                 ("bash", "s", {runread.ACCOUNTING: "node"}),
                                 ("live", "a", {runread.NODE_COST: 1.0, runread.ACCOUNTING: "node"}),
-                                ("live", "b", {runread.NODE_COST: 0.5, runread.ACCOUNTING: "node"})):
+                                ("live", "b", {runread.NODE_COST: 0.5, runread.ACCOUNTING: "node"}),
+                                ("wait", "a", {runread.NODE_COST: 0.5, runread.ACCOUNTING: "node"})):
             self._event(db, rid, runread.OUTPUT_EVENT, step=step, data=data)
-        self.assertEqual({r["id"]: r["cost"] for r in runread.runs(db)}, {"old": 0.5, "fan": 0.875, "bash": None, "live": 1.5})
+        self.assertEqual({r["id"]: r["cost"] for r in runread.runs(db)}, {"old": 0.5, "fan": 0.875, "bash": None, "live": 1.5,
+                                                                         "wait": 2.0})
         self._log("live", [])
         self.assertEqual(runread.run(db, "live")["cost"], 1.5)
 
     def test_broken_time_is_listed_as_unread(self):
         db = self._db([("top", None, "2026-10-25 01:00:00", None, "{}")], [])
-        self._log("top", [self._node("node_start", "2026-10-25T01:00:00.000Z", "a"), self._node("node_complete", "not a time", "a")])
+        self._log("top", [self._node("node_start", "2026-10-25T01:00:00.000Z", "a"), self._node("node_complete", "not a time", "a"),
+                          self._node("node_start", 123, "b")])
         got = runread.run(db, "top")
-        self.assertEqual(([e["end"] for e in got["events"]], got["unread"]), ([None], {"読めない時刻の行": 1}))
+        self.assertEqual(([e["end"] for e in got["events"]], got["unread"]), ([None, None], {"読めない時刻の行": 2}))
+        self.assertEqual((runread.try_when(123), runread.seconds(123, "2026-10-25 01:00:00")), (None, None))
 
     def test_db_path_with_uri_marks_opens_that_file(self):
         folder = self.tmp / "a?b#c%41"

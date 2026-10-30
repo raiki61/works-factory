@@ -9,7 +9,7 @@
 - pick(db, wanted) -> run の id（wanted が空なら一番新しい親の run。頭の字でもよい）
 - field(output, name) -> ノードの出力（値か JSON の字）の欄 name の字。読めなければ空
 - seconds(started, completed)・length(event)・when(text)・try_when(text) -> 時刻の差の秒・出来事の長さ・時刻の読み（読めなければ
-  ValueError か None。DB の秒までの時刻は UTC として読む）。段の集計と無駄の手がかりと会話の読みも使う
+  ValueError か None。字でない時刻も try_when は None。DB の秒までの時刻は UTC として読む）。段の集計と無駄の手がかりと会話の読みも使う
 - where(path, cwd) -> 会話が読んだファイルのパスを、run ごとに違う頭（作業ツリー・run の置き場・run の写し）を印に替えた字にする
 """
 import contextlib
@@ -45,6 +45,9 @@ EVENT_COLUMNS = ("workflow_run_id", "event_type", "step_name", "data", "event_or
 # run の状態（packages/workflows/src/schemas/workflow-run.ts の workflowRunStatusSchema）
 STATUSES = ("pending", "running", "completed", "failed", "cancelled", "paused")
 LIVE = ("pending", "running", "paused")
+# metadata の費用 TOTAL_COST が古い run の状態。Archon は TOTAL_COST を run の末尾（待ち・落ち・終わり）で書く（persistRunUsage）ので、
+# 答え待ち（paused）の run の値は待ちに入った時の正で、走っている run の値だけが前の待ちの時の古い値
+SPENDING = ("pending", "running")
 # 答えを待つ run の状態。待ちはこの状態の run だけに出す（止めた・放棄した run は node_completed を書かずに終わる。
 # packages/core/src/operations/workflow-operations.ts の resolveAndCancelApprovalGate・abandon）
 PAUSED = "paused"
@@ -198,8 +201,9 @@ def pick(db: Path, wanted: str = "") -> str:
 def run(db: Path, run_id: str) -> dict:
     """run と子の run（workflow: のノードが起こした物。DB の parent_run_id と metadata の parent_node_id で辿る）の記録。
     始めとかかった秒は、子の run を含む出来事の最初の始めと最後の終わりから出す（runs と同じ訳）。子の run の行も、その子と孫の出来事から出す。
-    終わった run（子の run も）は、終わりを最後の終わりの出来事の時刻にし、終わりの無い待ちの出来事をその時刻で閉じる（ログに終わりを
-    書かずに落ちた・待ちのまま止めた run の長さと人の答え待ちの和が、一覧と合う）。走り中の run は最後の出来事まで"""
+    終わった run（子の run も）は、終わりを最後の終わりの出来事の時刻とログの最後の終わりの遅い方にし（DB の時刻は秒までの切り捨て）、
+    終わりの無い出来事（待ちと、走り中のまま止まったノード）をその run の最後の終わりの出来事の時刻で閉じて印 cut を付ける（ログに終わりを
+    書かずに落ちた・止めた run の長さと人の答え待ちの和が、一覧と合う。閉じる時刻はログの形にする）。走り中の run は最後の出来事まで"""
     with connect(db) as con:
         top = _row(con, run_id)
         if top is None:
@@ -228,10 +232,10 @@ def run(db: Path, run_id: str) -> dict:
     root = Path(top["output_root"]) if top["output_root"] else None
     closed = {top["id"]: _end(top["status"], ends.get(top["id"])), **{c["id"]: _end(c["status"], ends.get(c["id"])) for c in reader.children}}
     for event in reader.events:
-        if event["status"] == "waiting" and not event["end"] and closed.get(event["run"]):
-            event["end"] = closed[event["run"]]
+        if event["start"] and not event["end"] and closed.get(event["run"]):
+            event["end"], event["cut"] = closed[event["run"]], True
     started, ended = _span(reader.events) or (top["started_at"], top["completed_at"])
-    ended = closed[top["id"]] or ended
+    ended = _later(closed[top["id"]], ended)
     for child in reader.children:
         child["started"], child["seconds"] = _child_span(child, reader.events, parents, closed[child["id"]])
     return {"id": run_id, "graph": top["workflow_name"], "status": top["status"], "live": top["status"] in LIVE,
@@ -242,11 +246,11 @@ def run(db: Path, run_id: str) -> dict:
 
 
 def _cost(meta: dict, spent: dict, run_id: str, status: str) -> float | None:
-    """run の費用。metadata の TOTAL_COST が空か、run が走り中なら、run 自身の AI の呼び出しの費用の和（_spent）。Archon は TOTAL_COST を
-    run の末尾（待ち・落ち・終わり）だけで書く（packages/workflows/src/dag-executor.ts の persistRunUsage）ので、承認で起き直して
-    走っている run の TOTAL_COST は待ちの時の古い値。どちらも無ければ空"""
+    """run の費用。metadata の TOTAL_COST が空か、run が走っている（SPENDING）なら、run 自身の AI の呼び出しの費用の和（_spent）。
+    Archon は TOTAL_COST を run の末尾（待ち・落ち・終わり）だけで書く（packages/workflows/src/dag-executor.ts の persistRunUsage）ので、
+    承認で起き直して走っている run の TOTAL_COST は待ちの時の古い値。答え待ちの run の値は待ちに入った時に書いた正。どちらも無ければ空"""
     total = runlog.number(meta.get(TOTAL_COST))
-    return total if total is not None and status not in LIVE else spent.get(run_id)
+    return total if total is not None and status not in SPENDING else spent.get(run_id)
 
 
 def _spent(con) -> dict[str, float]:
@@ -290,8 +294,16 @@ def _ends(con) -> dict[str, str]:
 
 
 def _end(status: str, end: str | None) -> str | None:
-    """終わった run の終わり（最後の終わりの出来事の時刻）。走り中の run と終わりの出来事の無い run は None"""
-    return end if status not in LIVE and end else None
+    """終わった run の終わり（最後の終わりの出来事の時刻をログの形にした物。出来事を閉じる時刻になる）。走り中の run と終わりの出来事の
+    無い run と、読めない時刻は None"""
+    at = try_when(end) if status not in LIVE else None
+    return at.strftime("%Y-%m-%dT%H:%M:%S.") + f"{at.microsecond // 1000:03d}Z" if at else None
+
+
+def _later(a: str | None, b: str | None) -> str | None:
+    """2 つの時刻の遅い方（読めない方と空は外す）"""
+    known = [(at, t) for t in (a, b) if (at := try_when(t))]
+    return max(known)[1] if known else a or b
 
 
 def copy(output_root: Path, run_id: str) -> Path:
@@ -331,7 +343,9 @@ class _Reader:
     def _ts(self, entry: dict) -> str | None:
         """行の時刻。読めない時刻は数えずに None にし、読めなかった物に数える（段の集計と無駄の手がかりを落とさない）"""
         ts = entry.get("ts")
-        if ts and try_when(ts) is None:
+        if ts is None or ts == "":
+            return None
+        if try_when(ts) is None:
             self._count("読めない時刻の行")
             return None
         return ts
@@ -531,7 +545,7 @@ def _child_span(child: dict, events: list[dict], parents: dict, end: str | None)
         return False
     completed = child.pop("completed")
     started, ended = _span([e for e in events if under(e["run"])]) or (child["started"], completed)
-    return started, seconds(started, end or ended)
+    return started, seconds(started, _later(end, ended))
 
 
 def _error(data: str) -> str:
@@ -541,12 +555,8 @@ def _error(data: str) -> str:
 
 def seconds(started, completed) -> float | None:
     """始めから終わりまでの秒（0.1 秒に丸める）。どちらかが空か読めなければ None。段の集計と無駄の手がかりも使う"""
-    if not started or not completed:
-        return None
-    try:
-        return round((when(completed) - when(started)).total_seconds(), 1)
-    except (TypeError, ValueError):
-        return None
+    first, last = try_when(started), try_when(completed)
+    return round((last - first).total_seconds(), 1) if first and last else None
 
 
 def length(event: dict) -> float:
@@ -561,6 +571,8 @@ def when(text: str) -> datetime:
 
 
 def try_when(text) -> datetime | None:
+    if not isinstance(text, str) or not text:
+        return None
     try:
         return when(text)
     except (TypeError, ValueError):
