@@ -52,7 +52,7 @@ def row_of(a: dict, requirement_text: str) -> dict:
             "false_positive_if": f"`{a['run']}` が今の版で exit 0 で、{a['file']} が承認の後に変わっていない（sha256 {str(a['sha256'])[:12]}）なら誤り"}
 
 
-def freeze(place, root, pend, approval) -> dict:
+def freeze(place, root, pend, approval) -> None:
     """承認済みの仕様を spec.json（requirements・acceptance[{key, requirement, file, name, run, sha256, exit_at_approval, run_error?}]・
     out_of_scope・approval）に 1 度だけ固め、受け入れ条件を依頼の行として added-rows.json に書く。pend は承認ノードに見せた仕様
     （gate.approve の pending）、approval は答えの記録。spec.json は最後に書く（在れば固め終わっている）"""
@@ -65,4 +65,3 @@ def freeze(place, root, pend, approval) -> dict:
     added = [row_of(a, texts[a["requirement"]]) for a in rows]
     files.write(place / files.ADDED_ROWS, added)
     files.write(place / files.SPEC, {**pend, "acceptance": rows, "approval": approval})
-    return {"ok": True, "problems": []}

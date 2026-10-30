@@ -114,9 +114,5 @@ def answer(place, root, reply) -> dict:
         return {"go": False, "reason": why}
     approval = {"round": 1, "node": files.APPROVE, "kinds": list(asked.get("asking", {}).get("kinds") or []),
                 "answer": "continue", "note": gate["text"]}
-    got = freeze.freeze(place, root, asked["pending"], approval)
-    if not got["ok"]:
-        why = "仕様を固められない: " + "; ".join(got["problems"])
-        files.write_stop(place, files.STOP, why)
-        return {"go": False, "reason": why}
+    freeze.freeze(place, root, asked["pending"], approval)
     return {"go": True, "reason": ""}
