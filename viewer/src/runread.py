@@ -212,7 +212,8 @@ def run(db: Path, run_id: str) -> dict:
     終わった run（子の run も）は、終わりを最後の終わりの出来事の時刻とログの最後の終わりの遅い方にし（DB の時刻は秒までの切り捨て）、
     終わりの無い出来事（待ちと、走り中のまま止まったノード）を、その run の終わりの出来事のうち始めの後の最初の物の時刻で閉じて印 cut を
     付ける（ログに終わりを書かずに落ちた・止めた run の長さと人の答え待ちの和が、一覧と合う。落ちた後に起き直した run の前の起動の
-    ノードは、その落ちで閉じて状態を落ちたにする。閉じる時刻はログの形にし、始めより前にしない）。走り中の run は最後の出来事まで"""
+    ノードは、その落ちで閉じて状態を落ちたにする。前の起動の id のまま走り直す出来事は、最後の始めの後の終わりで閉じる。閉じる時刻は
+    ログの形にし、始めより前にしない）。走り中の run は最後の出来事まで"""
     with connect(db) as con:
         top = _row(con, run_id)
         if top is None:
@@ -247,11 +248,12 @@ def run(db: Path, run_id: str) -> dict:
     for event in reader.events:
         if not event["start"] or event["end"] or event["status"] not in ("waiting", "running"):
             continue
-        ends = closed[event["run"]]
-        at = _close(event["start"], ends) if ends else next(iter(_since(event["start"], fell[event["run"]])), None)
+        # 起き直した後も同じ起動の id で走り直す出来事は、最後の始めの後の終わり（落ち）で閉じる。前の落ちでは閉じない
+        begun, ends = event["last_start"] or event["start"], closed[event["run"]]
+        at = _close(begun, ends) if ends else next(iter(_since(begun, fell[event["run"]])), None)
         if at is None:
             continue
-        event["end"], event["cut"] = _later(at, event["start"]), True
+        event["end"], event["cut"] = _later(at, begun), True
         if event["status"] == "running" and at in fell[event["run"]] and (not ends or at != ends[-1]):
             event["status"] = FAILED
     started, ended = _span(reader.events) or (top["started_at"], top["completed_at"])
@@ -454,7 +456,7 @@ class _Reader:
         event = by_invocation.get(key)
         if event is None:
             event = {"tokens": ids, "path": path, "run": self.current, "artifacts": str(root / ARTIFACTS / RUNS_DIR / self.current) if root else "",
-                     "kind": (execution.get("node") or {}).get("kind") or "", "start": ts,
+                     "kind": (execution.get("node") or {}).get("kind") or "", "start": ts, "last_start": ts,
                      "end": None, "status": "running", "loop": loop,
                      "cost": 0.0, "calls": [], "exec": [], "error": ""}
             by_invocation[key] = event
@@ -464,9 +466,15 @@ class _Reader:
         if attempt:
             by_attempt[attempt] = event
         if kind == "node_start":
-            # 繰り返しの器は答えの後も同じ起動の id で node_start を書き直す（待ちから走り中へ戻る）
-            if event["status"] == "waiting":
+            # 繰り返しの器は答えの後も同じ起動の id で node_start を書き直す（待ちから走り中へ戻る）。落ちた後に起き直すと、Archon は
+            # 終わっていない（落ちた物を含む）ノードに前の起動の id を使い直す（dag-resume-snapshot.ts の unfinishedInvocations）ので、
+            # 落ちた出来事は走り中に戻し、一度落ちたことを印 fell に残す。閉じる時刻は最後の始め（last_start）の後の物から選ぶ
+            if event["status"] == FAILED:
+                event.update(end=None, fell=True)
+            if event["status"] in ("waiting", FAILED):
                 event["status"] = "running"
+            if ts:
+                event["last_start"] = ts
             return
         if kind == "node_suspended":
             event["status"] = "waiting"

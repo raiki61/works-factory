@@ -2,7 +2,7 @@
 
 小さな作りと run の記録（周 2 つの繰り返し・前と同じ出力・空の出力・同じファイルの 2 回の読み・1 万字を超える結果・空いた往復・
 引く先の無い出力・同じノードから起こした周の数の違う子の run 2 つ・出力の変わらない周・別の run の同じ名のファイル・続けた会話が
-前の会話から写して持つ往復・繰り返しの本体の中の繰り返しの確かめ・切った bash の後ろでだけ引く出力）を手で組み、数えがその値を返すことを照らす。数えを外せば落ちる。run の無いページには数えを置かない。
+前の会話から写して持つ往復・繰り返しの本体の中の繰り返しの確かめ・切った bash と承認の問いの後ろでだけ引く出力）を手で組み、数えがその値を返すことを照らす。数えを外せば落ちる。run の無いページには数えを置かない。
 """
 import unittest
 
@@ -203,6 +203,23 @@ nodes:
             graphs = shape.read(root, prefix)["graphs"]
         self.assertNotIn("$made.output", graphs["g"]["items"][1]["bash"])
         self.assertEqual(waste._unreferenced(graphs), ({("g", "late")}, 2))
+
+    def test_a_reference_past_the_clipped_ask_is_found(self):
+        """作りの読みは承認の問い（ask）を 2,000 字で切って持つ。出力の欄の引きは切る前の字から探し、問いの後ろでだけ引くノードを
+        引く先が無いに並べない"""
+        prefix = "works-factory-"
+        files = {f"g/{prefix}g.yaml": f"""name: {prefix}g
+nodes:
+  - id: made
+    bash: "true"
+  - id: gate
+    approval:
+      message: "{'x' * 4000} $made.output"
+"""}
+        with tree(files) as root:
+            graphs = shape.read(root, prefix)["graphs"]
+        self.assertNotIn("$made.output", graphs["g"]["items"][1]["ask"])
+        self.assertEqual(waste._unreferenced(graphs), (set(), 1))
 
 
 class WhereCase(unittest.TestCase):

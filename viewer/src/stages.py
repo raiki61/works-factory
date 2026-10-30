@@ -102,7 +102,8 @@ def _sum(n: int, run: dict, through: set[str]) -> dict:
     同じ周）と周の番号（入れ子なら内の周まで）の違う物の数。
     段の状態（通った・飛んだ）には、段の表の配線のノード through（合流・受け渡しだけの物。fix-in・fixed・judged は修正の段が
     飛んでも走る）を数えない。状態は所（run・道・周）ごとの最後の出来事（出来事は始めの順）の結果で決め、落ちた後に起き直して
-    通った段は通ったにして、一度落ちたことを印 fell に持つ"""
+    通った段は通ったにして、一度落ちたことを印 fell に持つ（前の起動の id を使い直して走り直した出来事は、出来事の印 fell が持つ。
+    src/runread.py）"""
     events = [e for e in run["events"] if e.get("stage") == n]
     deciding = [e for e in events if e["tokens"][0] not in through]
     own = [e for e in events if e["kind"] not in runread.GROUP_KINDS]
@@ -124,7 +125,7 @@ def _sum(n: int, run: dict, through: set[str]) -> dict:
     state = next((s for s in ("failed", "waiting", "running") if s in seen), "ok" if deciding else
                  "skipped" if any(s.get("stage") == n for s in run["skipped"]) else "none")
     start, end = (min(times, key=runread.when), max(times, key=runread.when)) if times else (None, None)
-    return {"state": state, "fell": state != "failed" and any(e["status"] == "failed" for e in deciding),
+    return {"state": state, "fell": state != "failed" and any(e["status"] == "failed" or e.get("fell") for e in deciding),
             "start": start, "end": end, "seconds": runread.seconds(start, end),
             "wait": round(sum(runread.length(e) for e in own if e["kind"] == runread.WAIT_NODE), 1),
             "ai_seconds": round(sum(runread.length(e) for e in own if e["kind"] in runread.AI_KINDS), 1),
