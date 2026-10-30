@@ -164,9 +164,11 @@ def save(folder, k: int, plan: dict, fields: list, bare: dict, *, amended=None, 
 
 def machine_row_errors(record: dict, whole: list, plan: dict, repo) -> list[str]:
     """往復の記録から機械が差し込んだ閉じた項目の行（役が直せない行）に帰る受け付けの誤り。行を 1 本ずつ、受け付けの形（planmarks.gaps）・
-    narrows の決め手と狭めない案（gatemarks.narrow_gaps）・推し（gatemarks.recommend_gaps）・人に聞く場合の印（gatemarks.ask_gaps）に当て、同じ照らしを案の全体 plan に当てた誤りと
+    narrows の決め手と狭めない案（gatemarks.narrow_gaps）・推し（gatemarks.recommend_gaps）に当て、同じ照らしを案の全体 plan に当てた誤りと
     交わる（1 本の誤りの文の位置 plan[0] は、その行の whole の中の位置に読み替える）。項目の間の照らし（足すテストの宣言・範囲の重なり）を
-    同じ 1 本に当てた分は引く（役の行の変化が生む誤りなので、今どおり役へ拒む）。返りは「閉じた項目 <控えの番号>: <誤り>」の行"""
+    同じ 1 本に当てた分は引く（役の行の変化が生む誤りなので、今どおり役へ拒む）。人に聞く文（gatemarks.plain_gaps）と人に聞く場合の印
+    （gatemarks.ask_gaps）は当てない（照らしを足す前の往復の記録の行を役は直せず、止める誤りでもない。役の行だけに当てる道は role_rows）。
+    返りは「閉じた項目 <控えの番号>: <誤り>」の行"""
     closed = converge.closed_ids(record)
     rows = [(n, it["id"], it["row"]) for n, it in enumerate(record.get("plan") or [], 1)
             if isinstance(it, dict) and it.get("id") in closed and "row" in it]
@@ -176,7 +178,6 @@ def machine_row_errors(record: dict, whole: list, plan: dict, repo) -> list[str]
     shape = set(planmarks.gaps(plan, pathlib.Path(repo)))
     narrow = set(gatemarks.narrow_gaps(planmarks.NODE, plan))
     recommend = set(gatemarks.recommend_gaps(planmarks.NODE, plan))
-    asked = set(gatemarks.ask_gaps(planmarks.NODE, plan))
     out = []
     for n, item_id, row in rows:
         if item_id not in at:
@@ -185,16 +186,15 @@ def machine_row_errors(record: dict, whole: list, plan: dict, repo) -> list[str]
         alone = set(planmarks.gaps(one, pathlib.Path(repo))) - set(planmarks._added_test_gaps([row])) - set(planmarks._scope_overlaps([row]))
         here = f"plan[{at[item_id]}]"
         for got, whole_errors in ((alone, shape), (set(gatemarks.narrow_gaps(planmarks.NODE, one)), narrow),
-                                  (set(gatemarks.recommend_gaps(planmarks.NODE, one)), recommend),
-                                  (set(gatemarks.ask_gaps(planmarks.NODE, one)), asked)):
+                                  (set(gatemarks.recommend_gaps(planmarks.NODE, one)), recommend)):
             out += [f"閉じた項目 {n}: {e}" for e in sorted(e.replace("plan[0]", here) for e in got) if e in whole_errors]
     return out
 
 
 def role_rows(rows: list, whole: list) -> list:
     """案の全体 whole の、往復の記録から機械が差し込んだ行（役の返答の行 rows のどれでもない行）を {} に替えた並び（位置は変えない）。
-    人に聞く文の照らし（gatemarks.plain_gaps）は役の書いた行だけに当てる（照らしを足す前の往復の記録の行が run の中の参照を持っていても、
-    役は差し込まれた行を直せず、止める誤りでもない）。項目の id でなく位置で見分けるので、閉じた項目と同じ単位で役が書いた行も照らす"""
+    人に聞く文の照らし（gatemarks.plain_gaps）と人に聞く場合の印の照らし（gatemarks.ask_gaps）は役の書いた行だけに当てる（照らしを足す前の
+    往復の記録の行が run の中の参照を持っていても、決め手も印も持たなくても、役は差し込まれた行を直せず、止める誤りでもない）。項目の id でなく位置で見分けるので、閉じた項目と同じ単位で役が書いた行も照らす"""
     mine = {id(r) for r in rows}
     return [w if id(w) in mine else {} for w in whole]
 
@@ -249,13 +249,14 @@ def take_plan(folder, ctx: dict, *, judgment, reply, repo, tables, base_rev: str
     owed, opened, _ = steps.plan_slots(judgment)
     shut = set(steps.shut(judgment, plan))
     allowed = list(range(1, len(steps.slots(judgment)) + 1))
+    by_role = {**plan, "plan": role_rows(got["plan"], whole)}   # 役の書いた行だけ（人に聞く文と場合の印の照らし）
     reasons = [
         _section(steps.ANSWERS_REJECT, converge.answer_gaps(record, answers) + converge.fixed_unchanged(record, whole, answers)),
         _section(steps.CLOSED_REJECT, closed),
         _section(steps.NO_NARROW_REJECT, gatemarks.narrow_gaps(planmarks.NODE, plan)),
         _section(steps.RECOMMEND_REJECT, gatemarks.recommend_gaps(planmarks.NODE, plan)),
-        _section(steps.PLAIN_REJECT, gatemarks.plain_gaps(planmarks.NODE, {**plan, "plan": role_rows(got["plan"], whole)})),
-        _section(gatemarks.ASK_CASE_REJECT, gatemarks.ask_gaps(planmarks.NODE, plan)),
+        _section(steps.PLAIN_REJECT, gatemarks.plain_gaps(planmarks.NODE, by_role)),
+        _section(gatemarks.ASK_CASE_REJECT, gatemarks.ask_gaps(planmarks.NODE, by_role)),
         _section(f"{steps.NOT_OWED_REJECT} {allowed}。外す単位:", steps.not_allowed(judgment, plan)),
         _section(f"{steps.COVERS_REJECT} {allowed}:", steps.fix_plan_covers_units(
             [{**p, "unit_keys": [k for k in p["unit_keys"] if k not in shut]} if isinstance(p.get("unit_keys"), list) else p

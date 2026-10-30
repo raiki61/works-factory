@@ -17,6 +17,8 @@ narrows を書く前に狭めを避ける形を当たり、無い時だけ narro
 - narrow_gaps(node, reply): 修正案の narrows の行で狭めない案の欄を欠く・短い行（planblk.take が拒む）
 - ask_gaps(node, reply)・ASK_CASES: 人に回る行のうち、人に聞く場合の印（①②③）を undecided_because の頭に名乗らない行（plan と
   plan-review の受け付けが拒む。持ち主の決め settle-by-standard）
+- NO_STANDARD: decided_by の頭の印。定石も依頼の本文も見つからず ①②③ のどれにも当たらない行は、印の後に探した所を書き、
+  聞かずに推しで進む（出どころが無いことが中身なので軸 obvious の出どころの照らしと軸 world を揃える。報告には探した所を 1 行で残す）
 - passes(b)・lines(b): 通した行と、最後の関所の文・報告の行
 
 問いの台帳（record.questions）のうち人に聞く状態（検証器の ASKING）の問いも、修正前の関所の項目に 1 件 1 行で載せる（持ち主
@@ -136,10 +138,14 @@ RECOMMEND_SHAPE = ("{" + f"{RECOMMEND_KEYS[0]}: " + " か ".join(f"{a}（{RECOMM
 # 決め手が在っても人に聞く行の印（外への書き込み・取り消せない操作・方針の文書の変更・守り（資格・sandbox）を広げる・web の結果が
 # 新しい疑いを出した）
 FENCES = ("external_write", "irreversible", policy.POLICY_DOC_FENCE, "widen_protection", "web_doubt")
+# 定石も依頼の本文も見つからず、①②③ のどれにも当たらない行の decided_by の頭の印（後に探した所を書く）。人に聞かずに推しで進む
+# （持ち主の決め settle-by-standard の 6。持ち主の言葉「自明なものは聞かないでね」）
+NO_STANDARD = "no-standard:"
 MARK_SCHEMA = {
     "decided_by": {"type": "string",
                    "note": "決め手の出どころ（依頼の引用・URL とセクション・対象の同じ場面＝同じ問題をコードがどう解いているか・記録された方針の行の"
-                           "名指し＝人の前の決定・台帳の行）。コメント・docstring が述べる意図は対象の同じ場面に含めない。無ければ書かない"},
+                           "名指し＝人の前の決定・台帳の行）。コメント・docstring が述べる意図は対象の同じ場面に含めない。定石も依頼の本文も"
+                           f"見つからず ①②③ のどれにも当たらないなら、頭に {NO_STANDARD} と書いて探した所を続ける。無ければ書かない"},
     "undecided_because": {"type": "string",
                           "note": "決め手を当たっても答えが 1 つに決まらない理由。書けないなら空（自明なので人に回さない）"},
     "fences": {"type": "array", "uniqueItems": True, "items": {"type": "string", "enum": list(FENCES)},
@@ -158,7 +164,8 @@ MARK_SCHEMA = {
 ASK_CASES = ("①", "②", "③")
 ASK_CASE_REJECT = ("人に回る行が、定石でも依頼の本文でも決まらない訳を名乗っていない。定石（標準・よく知られた OSS・公式の文書）か"
                    "依頼の本文で答えが 1 つに決まるなら、その出どころを decided_by に書いて聞かずに通せ。決まらない時だけ、undecided_because の頭に"
-                   "① 決め手が割れる・② 人の優先の付け方で答えが変わる・③ 記録された方針の行とぶつかる、のどれかの印を書け:")
+                   "① 決め手が割れる・② 人の優先の付け方で答えが変わる・③ 記録された方針の行とぶつかる、のどれかの印を書け。定石も依頼の本文も"
+                   f"見つからず、どの印にも当たらないなら、decided_by の頭に {NO_STANDARD} と書いて探した所を続け、推しで進め:")
 # 狭めない案を探した結果（持ち主の方針 ADR 0002「今ある能力と使い方を減らさない」）。決め手の欄と同じく役の型にだけ足して受け付けが外すが、
 # 関所を通す条件（decided）には使わない。修正案の narrows の行では欠け・短いを受け付けが拒み、事前審査の穴では示せる時だけ書く
 NO_NARROW = "no_narrow"
@@ -473,9 +480,16 @@ def _path(board, name: str) -> pathlib.Path:
     return pathlib.Path(getattr(board, "dir", board)) / name
 
 
+def no_standard(decided_by) -> str:
+    """decided_by が「定石が見つからなかった」形（頭に NO_STANDARD）なら探した所の文（印だけなら ""）、ほかの形なら None"""
+    text = str(decided_by or "").strip()
+    return text[len(NO_STANDARD):].strip() if text.startswith(NO_STANDARD) else None
+
+
 def decided(mark: dict) -> bool:
-    """決め手の出どころが在り、undecided_because が空で、柵の印が無い"""
-    return (bool(str(mark.get("decided_by") or "").strip()) and not str(mark.get("undecided_because") or "").strip()
+    """決め手の出どころ（か、定石が見つからなかった時の探した所）が在り、undecided_because が空で、柵の印が無い"""
+    by = str(mark.get("decided_by") or "").strip()
+    return (bool(by) and no_standard(by) != "" and not str(mark.get("undecided_because") or "").strip()
             and not mark.get("fences"))
 
 
@@ -645,13 +659,15 @@ def axis_why(facts: AxisFacts, mark: dict, units) -> dict:
     仕様駆動の道・盤面の axis_reasons が材料を集めて呼ぶ"""
     out = {axis: [] for axis in AXES}
     decided_by = str(mark.get("decided_by") or "").strip()
-    if not decided_by or str(mark.get("undecided_because") or "").strip():
+    searched = no_standard(decided_by)   # 定石が見つからなかった行は、引ける出どころが無いことが中身で、探した所が世界の解を当たった結果
+    if not decided_by or searched == "" or str(mark.get("undecided_because") or "").strip():
         out["obvious"].append(NOT_DECIDED)
-    elif problem := facts.cite_ok(decided_by):
+    elif (problem := facts.cite_ok(decided_by)) and not (searched and problem == cite.NO_SOURCE):
         out["obvious"].append(problem)
     if mark.get("fences"):
         out["not_overkill"].append(FENCED.format(fences="・".join(map(str, mark["fences"]))))
-    if not facts.world_rows and not str(mark.get("world") or "").strip() and not cite.URL.search(decided_by):
+    if (not facts.world_rows and not searched and not str(mark.get("world") or "").strip()
+            and not cite.URL.search(decided_by)):
         out["world"].append(NO_WORLD)
     hit = sorted(set(units) & set(facts.ups))
     if hit:
@@ -1457,6 +1473,8 @@ def _pass_line(p) -> str:
         who = "人が通した" if p.get("by") == PASSED_BY_HUMAN else "無人の run で推しを採って通した"
         return (f"{named(p['node'])}（周 {p['round']}）で聞き直さなかった——{who}（周 {at.get('round')}・"
                 f"{PLAIN.get(str(at.get('node')), at.get('node'))}）狭まりと同じ: {p['item']}")
+    if searched := no_standard(p.get("decided_by")):
+        return f"{named(p['node'])}（周 {p['round']}）で定石が見つからず、聞かずに推しで進めた: {p['item']}（探した所: {searched}）"
     return f"{named(p['node'])}（周 {p['round']}）で決め手が在るので聞かずに通した: {p['item']}（決め手: {p.get('decided_by')}）"
 
 

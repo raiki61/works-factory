@@ -7,8 +7,8 @@
 - refs(text) -> list[str]: 文の中の、run の中を指す参照（重ねずに出た順）。2 つの形だけを数える:
   `<パス>:<行>`（`a/b.py:12`・`x.md:3-5`。拡張子の在る名に `:` と数が続く物）と `<名>[<番号>]`（`plan[0]`・`faces[2]` のような返答の
   JSON の中の位置）。正当な文を差し戻さないよう、次は数えない: URL の中（世界の解の出典の URL は引いてよい）・バッククォートの中の
-  <名>[<番号>]（対象のコードの添え字の字のままの引用。<パス>:<行> は囲んでも数える）・拡張子の表（lib/changemap.py の KNOWN_EXT）に
-  無い拡張子の <パス>:<行>（番地とポート・製品の名と版）・大文字の混じる名の <名>[<番号>]（脚注。返答の JSON の欄の名は小文字）。
+  <名>[<番号>]（対象のコードの添え字の字のままの引用。<パス>:<行> は囲んでも数える）・拡張子の表（lib/impact.py の KNOWN_EXT。changemap の
+  表から組む）に無い拡張子の <パス>:<行>（番地とポート・製品の名と版）・大文字の混じる名の <名>[<番号>]（脚注。返答の JSON の欄の名は小文字）。
   数えなかった物は人が見る
 - gaps(where, text) -> list[str]: 参照を 1 つでも持てば、受け付けが役に返す 1 行（where は欄の名指し）。無ければ []
 - 記録のファイルの名・単位の key・行や答えの id は、対象のリポジトリのファイルの名や役の文と字で見分けられないので照らさない（人が見る）
@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import re
 
-import changemap   # 拡張子の表（KNOWN_EXT）
+import impact   # 拡張子の表 KNOWN_EXT（E13 が表を置いてよい所）
 
 URL = re.compile(r"https?://\S+")
 CODE = re.compile(r"`[^`\n]*`")
@@ -37,7 +37,7 @@ def refs(text) -> list[str]:
     if not isinstance(text, str):
         return []
     plain = URL.sub(_blank, text)
-    found = sorted([(m.start(), m.group(0)) for m in LINE_REF.finditer(plain) if m.group(1).lower() in changemap.KNOWN_EXT]
+    found = sorted([(m.start(), m.group(0)) for m in LINE_REF.finditer(plain) if m.group(1).lower() in impact.KNOWN_EXT]
                    + [(m.start(), m.group(0)) for m in INDEX_REF.finditer(CODE.sub(_blank, plain))])
     return list(dict.fromkeys(ref for _, ref in found))
 

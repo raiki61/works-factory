@@ -177,6 +177,16 @@ class PushRecCase(unittest.TestCase):
         self.assertNotIn("人が通した", pushed)
         self.assertIn("人が通した", human)
 
+    def test_pass_line_tells_no_standard_from_a_source(self):
+        """定石が見つからず推しで進めた行は、決め手で通した行と分けて、探した所を 1 行に残す"""
+        row = {"node": gatemarks.GATE_NODE, "round": 1, "item": "x", "by": gatemarks.PASSED_BY}
+        found, none = gatemarks.pass_lines([{**row, "decided_by": "https://semver.org/"},
+                                            {**row, "decided_by": f"{gatemarks.NO_STANDARD} 公式の文書を探した"}])
+        self.assertIn("決め手が在るので聞かずに通した", found)
+        self.assertIn("定石が見つからず", none)
+        self.assertIn("探した所: 公式の文書を探した", none)
+        self.assertNotIn(gatemarks.NO_STANDARD, none)
+
 
 
 class EyeWordsCase(unittest.TestCase):
