@@ -635,11 +635,13 @@ function nestEl(it, key) {
 }
 // 板の入れ子の口の字。開け閉めの後と再生で入れ子が開いた・閉じた後は paint が字を替える（板は作り直さない）
 const nestWord = key => isOpen(key) ? `${ITEM[key].it.target} の中を閉じる` : `${ITEM[key].it.target} の中をここで開く ＋`;
+// 再生の今の歩の入れ子の鎖に在るか。人が開いた物を閉じた時は、鎖に在る物だけを SHUT に入れる（鎖に無い物は、後で今が中へ入れば開く）
+const inNow = k => { const w = replaying() && STEPS[at].e.at; return !!(w && w.graph) && chainOf(w).includes(k); };
 function toggleNest(key) {
   if (isOpen(key)) {
     // 閉じた物は、再生が開いた物も人が開いた物も、再生の今の鎖を抜けるまで開き直さない（syncGraph が SHUT を見る）
-    OPEN.delete(key); if (AUTO.delete(key) || replaying()) SHUT.add(key);
-    for (const k of [...OPEN]) if (k.startsWith(key + '>')) { OPEN.delete(k); if (replaying()) SHUT.add(k); }
+    OPEN.delete(key); if (AUTO.delete(key) || inNow(key)) SHUT.add(key);
+    for (const k of [...OPEN]) if (k.startsWith(key + '>')) { OPEN.delete(k); if (inNow(k)) SHUT.add(k); }
     for (const k of [...AUTO]) if (k.startsWith(key + '>')) { AUTO.delete(k); SHUT.add(k); }
   } else { OPEN.add(key); SHUT.delete(key); }
   show({keepPanel: true});
@@ -803,7 +805,7 @@ function crumb() {
   if (cur !== ROOT) c.append(h('span', {class: 'cap', text: '·'}), btn({class: 'cap', text: `⌂ ${ROOT} に戻す`, 'data-f': 'back root', 'data-back': 'explain', onclick: () => setRoot(ROOT)}));
   const reach = reachable(), opened = new Set([...OPEN, ...AUTO]).size;
   $('gtools').replaceChildren(...[
-    opened ? btn({text: `開いた入れ子を全部閉じる（${opened}）`, 'data-f': 'close all', 'data-back': 'explain', onclick: () => { for (const k of AUTO) SHUT.add(k); if (replaying()) for (const k of OPEN) SHUT.add(k); OPEN = new Set(); AUTO = new Set(); show(); }}) : null,
+    opened ? btn({text: `開いた入れ子を全部閉じる（${opened}）`, 'data-f': 'close all', 'data-back': 'explain', onclick: () => { for (const k of AUTO) SHUT.add(k); for (const k of OPEN) if (inNow(k)) SHUT.add(k); OPEN = new Set(); AUTO = new Set(); show(); }}) : null,
     onRunRoot() && isLineTop() ? h('label', {}, h('input', {type: 'checkbox', checked: openOff || null, 'data-f': 'open off', onchange: ev => { openOff = ev.target.checked; show(); }}), ' 走っていない段も開く') : null,
     isLineTop() ? h('label', {}, h('input', {type: 'checkbox', checked: showWire || null, 'data-f': 'wire', onchange: ev => { showWire = ev.target.checked; show(); }}), ' 配線も出す') : null,
     // 依存の線の試作: 今の形（線なし。前と次の札を淡い青に）と、選んだ札の前後にだけ線を引く形を並べて見る
@@ -1053,7 +1055,8 @@ function bandCard() {
     }
     // 鍵盤で押した時（位置の無い押し）は、その段の最初の歩へ移る
     lane.onclick = ev => ev.detail ? seekTime(ev, lane) : seekStage(s);
-    press(lane).removeAttribute('aria-expanded'); lane.setAttribute('aria-label', `${s.n} ${s.name}の時間の帯。押すと、その段の最初の歩へ再生の位置が移る`);
+    // 歩の無い段の帯は、鍵盤で押しても移る歩が無いので、押せる物にしない
+    if (STEPS.some(st => st.e.stage === s.n)) { press(lane).removeAttribute('aria-expanded'); lane.setAttribute('aria-label', `${s.n} ${s.name}の時間の帯。押すと、その段の最初の歩へ再生の位置が移る`); }
     band.append(h('div', {class: 'lab', 'data-n': s.n, text: `${s.n} ${s.name}`}), lane,
       h('div', {class: 'sum n', text: RAN(x.state) ? `${mins(x.seconds || 0)}${x.cost ? ' · ' + usd(x.cost) : ''}` : x.state === 'skipped' ? '飛んだ' : ''}));
   }
@@ -1075,10 +1078,10 @@ function bandCard() {
           h('td', {class: 'r', text: x.wait ? mmss(x.wait) : ''}), h('td', {class: 'r', text: x.ai || ''}), h('td', {class: 'r', text: x.rounds || ''}),
           h('td', {class: 'r', text: x.turns || ''}), h('td', {class: 'r', text: x.cost ? usd(x.cost) : ''})); })))));
 }
-// 帯を押した時刻より前か同じで一番後の歩へ（待ちの中を押すと待ちの始まりの歩に止まる）。最初の歩より前なら最初の歩
 function seekStage(s) {
   const k = STEPS.findIndex(st => st.e.stage === s.n); if (k >= 0) { play(false); go(k); }
 }
+// 帯を押した時刻より前か同じで一番後の歩へ（待ちの中を押すと待ちの始まりの歩に止まる）。最初の歩より前なら最初の歩
 function seekTime(ev, lane) {
   const r = lane.getBoundingClientRect(), t = T0 + (ev.clientX - r.left) / r.width * SPAN * 1000;
   let k = 0; while (k + 1 < STEPS.length && Date.parse(STEPS[k + 1].t) <= t) k++;
