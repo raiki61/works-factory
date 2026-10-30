@@ -55,6 +55,18 @@ class JudgedCase(unittest.TestCase):
         self.assertIn("再審の結果（1 往復）: overturned", got["lines"][0])
         self.assertIn({"where": "u3", "text": "u3（再審が直す単位にした——この run では直していない）"}, got["carry"])
 
+    def test_lowered_units_name_an_unreadable_rejudgment(self):
+        """下げた単位の今のラベルは再審の judgment から読む。読めない時は「判定に無い」と言わずに、読めないと書く（E23）"""
+        run = kit.Run(self, BLOCK)
+        (run.artifacts / "re").mkdir()
+        (run.artifacts / "re" / "exit.json").write_text(json.dumps({"lowered": ["u1"], "verdicts": ["overturned"]}))
+        ptr = {"type": "archon_artifact", "run_id": kit.RUN_ID, "path": "re/exit.json"}
+        unread = {"type": "archon_artifact", "run_id": kit.RUN_ID, "path": "re/j.json"}
+        with run.env():
+            got = self.s.judged(FIRST, rejudge(rejudge_exit=ptr, judgment=unread), due=True, objection="")
+        self.assertIn("u1（再審が block から （再審の判定を読めない） に下げた——人が確かめる）", [c["text"] for c in got["carry"]])
+        self.assertFalse([x for x in got["lines"] if "判定に無い" in x], got["lines"])
+
     def test_units_the_fix_took_are_not_left_open(self):
         """再審が開いた単位のうち、修正の段が受けた単位は「この run では直していない」に数えない（入力 fixed_units）"""
         run = kit.Run(self, BLOCK)

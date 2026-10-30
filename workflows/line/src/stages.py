@@ -526,12 +526,12 @@ def _exit_keys(doc, field: str) -> list:
     return [k for k in (_d(doc).get(field) or []) if isinstance(k, str) and k]
 
 
-def _judgment_units(ptr) -> dict:
-    """判定の judgment の pointer の先の units {key: 単位}。無い・読めなければ空"""
+def _judgment_units(ptr) -> dict | None:
+    """判定の judgment の pointer の先の units {key: 単位}。無ければ空、読めなければ None"""
     try:
         doc = json.loads(resolve(ptr, "judgment").read_text(encoding="utf-8")) if ptr else {}
     except (OSError, *READ_ERRORS):
-        return {}
+        return None
     return {u["key"]: u for u in _d(doc).get("units") or [] if isinstance(u, dict) and isinstance(u.get("key"), str)}
 
 
@@ -583,6 +583,8 @@ def rejudge_opened(exit_doc, fixed_units: list) -> list:
 def rejudge_lowered(rejudge: dict | None, exit_doc) -> list:
     """再審が block から他のラベルに下げた単位 [(key, 今のラベル)]（今のラベルは再審の judgment）"""
     now = _judgment_units(_d(rejudge).get("judgment"))
+    if now is None:
+        return [(k, "（再審の判定を読めない）") for k in _exit_keys(exit_doc, "lowered")]
     return [(k, str(_d(now.get(k)).get("label") or "（判定に無い）")) for k in _exit_keys(exit_doc, "lowered")]
 
 
