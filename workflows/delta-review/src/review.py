@@ -40,16 +40,6 @@ def claimed_closed(place, n: int) -> set:
     return {r.get("key") for r in rows or [] if isinstance(r, dict) and r.get("handled") == CLAIMED[n]}
 
 
-def _keys_once(rows, label) -> list:
-    seen, errs = set(), []
-    for i, r in enumerate(rows):
-        k = r.get("key") if isinstance(r, dict) else None
-        if k in seen:
-            errs.append(f"{label}[{i}] の key が重複: {str(k)[:60]}")
-        seen.add(k)
-    return errs
-
-
 def problems(place, n: int, reply: dict, repo) -> list:
     """n 回目の審査の返答の照らし（拒む行の並び。空なら通る）: 穴の key は一意、kind は事前審査だけの語でない、where はこの往復の差分が
     触ったファイル、cite はそのファイルの今の姿に在る字列、穴が無いなら faces_none（NONE_MIN 字以上）。検算 checks は『塞いだ』と言われた
@@ -57,7 +47,7 @@ def problems(place, n: int, reply: dict, repo) -> list:
     d = cut.read_cut(place, n)
     changed, root = set(d.get("files") or []), pathlib.Path(repo)
     faces = [f for f in reply.get("faces") or [] if isinstance(f, dict)]
-    errs = _keys_once(faces, "faces")
+    errs = touchup.keys_once(faces, "faces")
     for i, f in enumerate(faces):
         kind, where, cite = f.get("kind"), str(f.get("where") or ""), str(f.get("cite") or "")
         if kind in policy.HUMAN_FACE_KINDS:
@@ -75,7 +65,7 @@ def problems(place, n: int, reply: dict, repo) -> list:
     if not faces and len(str(reply.get("faces_none") or "").strip()) < NONE_MIN:
         errs.append("穴を挙げないなら faces_none に何を読んで無いと言えるかを書け")
     claimed, checks = claimed_closed(place, n), [c for c in reply.get("checks") or [] if isinstance(c, dict)]
-    errs += _keys_once(checks, "checks")
+    errs += touchup.keys_once(checks, "checks")
     errs += [f"checks の key '{str(c.get('key'))[:40]}' は塞いだと言われた穴に無い" for c in checks if c.get("key") not in claimed]
     errs += [f"塞いだと言われた穴 '{str(k)[:40]}' に検算が無い——差分で塞がったか（closed）を 1 件ずつ書け"
              for k in sorted(claimed - {c.get("key") for c in checks}, key=str)]
