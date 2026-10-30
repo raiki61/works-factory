@@ -9,21 +9,25 @@
 <style>
 /* 字の段は 4 つ（40/600・22/600・15/400〔強めは 15/600〕・12/400）。色は墨・灰と、押せる所と今の所の青 1 つ。止めたは注意色、落ちたは赤
    色は全部この札（変数）で持ち、下の CSS とスクリプトは札だけを使う。light と dark は札の値だけが違う。
-   値の根拠は WCAG の比: 字は地と 4.5:1 以上（灰は 2 段 --sub・--ter）、状態を伝える縁は地と 3:1 以上（--edge・--dash・--stop・--bad）。
-   白い字を載せる青い面は light・dark とも #0071e3、字の青は dark で明るい #6ab4ff（札の #3a3a3c の上でも 4.5:1 以上）。
-   トークンの 4 分けの「cache から読んだ」--a3 は帯の地 --fill とカードの面 --card に 3:1 以上で、青の 3 段の端に置いて新しく読んだ --accent・
-   cache に書いた --a2 と明るさで分ける: light は紺 #1d3f73（--fill に 8.6:1・--card に 10.4:1・--accent と 2.2:1・--a2 と 4.3:1）、
-   dark は淡い青 #cfe3fa（--fill に 10.6:1・--card に 13.0:1・--accent と 3.6:1・--a2 と 2.2:1）。今の札の淡い青の輪は --ring */
+   値の根拠は WCAG の比: 字は地と 4.5:1 以上（灰は 2 段 --sub・--ter）、状態を伝える縁と面は地と 3:1 以上。
+   白い字を載せる青い面は light・dark とも #0071e3（白に 4.7:1。淡い青の字は 4.5:1 に届かないので、青い面の上の字は全部 --on-accent）。
+   時間の帯の塗り（AI の手番 --k-ai・人の答え待ち --k-wait）は帯の地 --inset と凡例の面 --card に 3:1 以上。dark の --accent は --inset に
+   3:1 に届かないので、AI の手番は dark だけ明るい青にする。
+   トークンの 4 分けの帯（新しく読んだ --t1・cache に書いた --t2・cache から読んだ --t3）は、隣り合う 2 つ（t1 と t2・t2 と t3）が 3:1 以上で、
+   帯の端に来る t1 と t3 は帯の地 --fill に 3:1 以上。真ん中の t2 を明るさの逆の端に置く（light は淡い青、dark は紺）。今の札の淡い青の輪は --ring。
+   下の「比」の行は、上の比を札の組で書いた物（左の札/右の札。light と dark の両方で計る。照らしは tests/viewer/test_page.py）。
+   比 4.5: --ink/--bg --ink/--card --sub/--bg --sub/--card --sub/--inset --ter/--bg --ter/--card --link/--card --link/--now --on-accent/--accent
+   比 3: --edge/--bg --dash/--bg --stop/--card --bad/--card --k-ai/--inset --k-ai/--card --k-ex/--inset --k-wait/--inset --k-wait/--card --t1/--t2 --t2/--t3 --t1/--fill --t3/--fill */
 :root{--th:56px;--pb:0px;color-scheme:light;
   --bg:#f5f5f7;--card:#fff;--raised:#fff;--fill:#e8e8ed;--line:#d2d2d7;--ink:#1d1d1f;--sub:#515154;--ter:#636366;
-  --inset:#f5f5f7;--accent:#0071e3;--link:#0066cc;--on-accent:#fff;--on-accent2:#e3eefc;--a2:#66aaf0;--a3:#1d3f73;--ring:#cfe3fa;--now:#e8f1fc;
-  --k-ex:#86868b;--k-wait:#c7c7cc;--dash:#7c7c80;--edge:#7c7c80;--stop:#c93400;--bad:#d70015;
+  --inset:#f5f5f7;--accent:#0071e3;--link:#0066cc;--on-accent:#fff;--t1:#0071e3;--t2:#cfe3fa;--t3:#1d3f73;--ring:#cfe3fa;--now:#e8f1fc;
+  --k-ai:#0071e3;--k-ex:#86868b;--k-wait:#8944ab;--dash:#7c7c80;--edge:#7c7c80;--stop:#c93400;--bad:#d70015;
   --topbg:rgba(245,245,247,.92);--plbg:rgba(255,255,255,.96);--shadow:#0000001f;--shadow2:#00000033}
 /* dark: 地は黒に近い面（#000）と一段ずつ明るい面（#1c1c1e・#2c2c2e・札の #3a3a3c）の重ね。影が見えないので、上に載る物ほど明るい面にする */
 :root[data-theme=dark]{color-scheme:dark;
   --bg:#000;--card:#1c1c1e;--raised:#3a3a3c;--fill:#2c2c2e;--line:#38383a;--ink:#f5f5f7;--sub:#aeaeb2;--ter:#98989d;
-  --inset:#2c2c2e;--accent:#0071e3;--link:#6ab4ff;--on-accent:#fff;--on-accent2:#e3eefc;--a2:#409cff;--a3:#cfe3fa;--ring:#0a3a6b;--now:#0d2a4a;
-  --k-ex:#8e8e93;--k-wait:#545458;--dash:#8e8e93;--edge:#8e8e93;--stop:#ff9f0a;--bad:#ff6961;
+  --inset:#2c2c2e;--accent:#0071e3;--link:#6ab4ff;--on-accent:#fff;--t1:#409cff;--t2:#0a3a6b;--t3:#cfe3fa;--ring:#0a3a6b;--now:#0d2a4a;
+  --k-ai:#409cff;--k-ex:#8e8e93;--k-wait:#bf5af2;--dash:#8e8e93;--edge:#8e8e93;--stop:#ff9f0a;--bad:#ff6961;
   --topbg:rgba(22,22,23,.88);--plbg:rgba(28,28,30,.94);--shadow:#00000099;--shadow2:#000000cc}
 *{box-sizing:border-box}
 html,body{margin:0}
@@ -91,7 +95,7 @@ pre.err{box-shadow:inset 3px 0 0 var(--bad)}
 .st.stop .cap,.st.fail .cap{color:var(--ink);font-weight:600}
 .st.live{border-color:var(--accent)}
 .st.now{background:var(--accent);color:var(--on-accent);border-color:var(--accent)}
-.st.now .cap{color:var(--on-accent2)}
+.st.now .cap{color:var(--on-accent)}
 /* 流れ: 時間の帯（HTML の %。段の名の列は字の幅で切らない。右に段ごとの時間と費用） */
 .band{display:grid;grid-template-columns:max-content minmax(0,1fr) max-content;row-gap:4px;margin:18px 0 0;position:relative}
 .band .lab{font-size:12px;color:var(--sub);white-space:nowrap;padding-right:14px;line-height:22px}
@@ -99,13 +103,14 @@ pre.err{box-shadow:inset 3px 0 0 var(--bad)}
 .band .sum{font-size:12px;color:var(--sub);white-space:nowrap;padding-left:14px;line-height:22px;text-align:right}
 .lane{position:relative;height:22px;background:var(--inset);border-radius:6px;cursor:crosshair}
 .lane i{position:absolute;top:5px;height:12px;border-radius:3px;min-width:2px}
-.k-ai{background:var(--accent)}.k-ex{background:var(--k-ex)}.k-wait{background:var(--k-wait)}
+.k-ai{background:var(--k-ai)}.k-ex{background:var(--k-ex)}.k-wait{background:var(--k-wait)}
 .axis{position:relative;height:18px;grid-column:2}
 .axis span{position:absolute;font-size:12px;color:var(--sub);transform:translateX(-50%);white-space:nowrap}
 .axis span:first-child{transform:none}
 .nowline{position:absolute;top:0;width:2px;background:var(--accent);pointer-events:none}
 .legend{display:flex;gap:16px;flex-wrap:wrap;margin:10px 0 0}
-.legend span::before{content:"";display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px;vertical-align:-1px;background:var(--c)}
+/* 凡例の四角は --edge の縁で囲む（淡い塗りの --t2 も面の上で形が見える） */
+.legend span::before{content:"";display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px;vertical-align:-1px;background:var(--c);box-shadow:inset 0 0 0 1px var(--edge)}
 .fnow{margin:12px 0 0}
 .scroll{overflow-x:auto}
 table{border-collapse:collapse;width:100%;font-size:12px}
@@ -123,7 +128,7 @@ td.r,th.r{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
 .split{display:flex;height:8px;border-radius:4px;overflow:hidden;background:var(--fill);margin:14px 0 6px}
 .split i,.tok i,.tk i{display:block;height:100%}
 .tok{display:flex;height:8px;width:140px;border-radius:4px;overflow:hidden;background:var(--fill)}
-.c1{background:var(--accent)}.c2{background:var(--a2)}.c3{background:var(--a3)}
+.c1{background:var(--t1)}.c2{background:var(--t2)}.c3{background:var(--t3)}
 
 /* 図と再生: 札を字の流れのように左から右へ並べ、幅で折り返す（横にはみ出さない）。段は行 */
 .gscr .wrap{max-width:1400px;padding:0 20px 24px}
@@ -177,7 +182,7 @@ td.r,th.r{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
 .node.run{background:var(--raised);border-color:var(--accent)}
 /* 再生の今: 青い面に白い字と淡い青の輪（一番深い今の札だけ）。今を中に持つ開いた入れ子の札は淡い青の面と青い縁と「今は中」 */
 .node.now{background:var(--accent);color:var(--on-accent);border-color:var(--accent);box-shadow:0 0 0 4px var(--ring)}
-.node.now .s{color:var(--on-accent2)}
+.node.now .s{color:var(--on-accent)}
 .node.nowin{background:var(--now);border-color:var(--accent)}
 .node.nowin .s{color:var(--link);font-weight:600}
 .node.rel{background:var(--now)}
@@ -196,7 +201,7 @@ td.r,th.r{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
 /* 入れ子の札: 頭に ＋（閉じている）か −（開いている）。押すとその場で開く */
 .node .tw,.nestbox .tw{font-size:15px;font-weight:600;color:var(--link);flex:none;line-height:1}
 .node.opened{border-color:var(--line)}
-.node.now .tw{color:var(--on-accent2)}
+.node.now .tw{color:var(--on-accent)}
 /* 開いた入れ子: 層の後ろで行を折り（幅いっぱい）、字下げと左の縦の線で中を出す。何段でも同じ形 */
 .nestbox{flex:1 0 calc(100% - 14px);max-width:calc(100% - 14px);min-width:0;margin:2px 0 4px 14px;padding:4px 0 6px 14px;border-left:2px solid var(--line);scroll-margin:calc(var(--th) + 16px) 0 calc(var(--pb) + 16px)}
 .nestbox .nh{font-size:15px;margin:0 0 6px;display:flex;gap:4px;align-items:baseline;flex-wrap:wrap}
@@ -223,7 +228,7 @@ td.r,th.r{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
 .turn{display:grid;grid-template-columns:52px minmax(0,1fr) 64px;gap:8px;align-items:center;font-size:12px;color:var(--sub);margin:2px 0}
 .tk{display:flex;height:6px;border-radius:3px;overflow:hidden;background:var(--fill)}
 .tkey{display:flex;gap:12px;flex-wrap:wrap;font-size:12px;color:var(--sub)}
-.tkey i{display:inline-block;width:10px;height:6px;border-radius:2px;margin-right:4px;vertical-align:1px}
+.tkey i{display:inline-block;width:10px;height:6px;border-radius:2px;margin-right:4px;vertical-align:1px;box-shadow:inset 0 0 0 1px var(--edge)}
 @media (max-width:1180px){
   #s-graph.popen .wrap{padding-right:20px}
   /* 狭い時の板は図に右から重ねる */
@@ -298,7 +303,7 @@ main{padding-bottom:calc(var(--pb) + 24px)}
 </main>
 <div class="player" id="player" hidden><div class="in">
   <div class="btns"><button id="p-prev" title="1 歩戻る（←）">‹</button><button class="main" id="p-play" title="再生と止める（空白）">▶</button><button id="p-next" title="1 歩進む（→）">›</button><button id="p-off" title="再生をやめて run の終わりの姿へ">■</button></div>
-  <input type="range" id="p-pos" min="0" value="0" aria-label="再生の位置（歩の番号）">
+  <input type="range" id="p-pos" min="0" value="0" aria-label="再生の位置（歩の番号。右の端は run の終わりの姿）">
   <div class="what" id="p-what"></div>
 </div></div>
 </div>
@@ -319,9 +324,15 @@ function h(tag, attrs, ...kids) {
   for (const kid of kids.flat(Infinity)) if (kid != null && kid !== false) el.append(kid instanceof Node ? kid : String(kid));
   return el;
 }
-// 押せる物は button（.lk は字の口の形）。行のように button にできない物は press で Enter と空白を押したのと同じに動かす
+// 押せる物は button（.lk は字の口の形）。行のように button にできない物は press で Enter と空白を押したのと同じに動かし、
+// 支援技術には押すと畳みが開く物（role が button・開いているかを aria-expanded）と伝える。開け閉めした時は opened で aria-expanded を替える
 const btn = (attrs, ...kids) => h('button', {type: 'button', ...attrs, class: 'lk' + (attrs.class ? ' ' + attrs.class : '')}, ...kids);
-const press = el => { el.addEventListener('keydown', ev => { if (ev.target === el && (ev.key === 'Enter' || ev.key === ' ')) { ev.preventDefault(); el.click(); } }); return el; };
+const press = el => {
+  el.setAttribute('role', 'button'); el.tabIndex = 0; opened(el, false);
+  el.addEventListener('keydown', ev => { if (ev.target === el && (ev.key === 'Enter' || ev.key === ' ')) { ev.preventDefault(); el.click(); } });
+  return el;
+};
+const opened = (el, on) => el.setAttribute('aria-expanded', on ? 'true' : 'false');
 const fold = (title, body, open) => h('details', {open: open || null}, h('summary', {}, title), h('div', {class: 'in'}, body));
 const pre = (s, cls) => h('pre', {class: cls || null, text: s});
 const text = m => TX[m] ?? '';
@@ -568,7 +579,7 @@ function flowOf(list, graph, scope, filter) {
   let idle = [];
   const flushIdle = () => {
     if (!idle.length) return;
-    const n = idle.flat().length, el = btn({class: 'idle', title: idle.flat().map(i => what(i) || i.id).join('・'), text: `走っていない札 ${n} ＋`, onclick: ev => { ev.stopPropagation(); IDLE.add(scope); show({keepPanel: true}); }});
+    const n = idle.flat().length, el = btn({class: 'idle', title: idle.flat().map(i => what(i) || i.id).join('・'), text: `走っていない札 ${n} ＋`, 'data-f': `${scope} idle`, 'data-back': K(scope, graph, idle[0][0].path.join('/')), onclick: ev => { ev.stopPropagation(); IDLE.add(scope); show({keepPanel: true}); }});
     line.append(line.childNodes.length ? h('span', {class: 'seg'}, h('span', {class: 'arr', text: '→'}), el) : el); idle = [];
   };
   groups.forEach(g => {
@@ -593,7 +604,7 @@ function nodeEl(it, graph, scope) {
   const key = K(scope, graph, it.path.join('/')), wl = what(it);
   const nest = canOpen(it, scope, key), open = nest && isOpen(key);
   ITEM[key] = {it, graph, nest};
-  return h('button', {type: 'button', class: 'node' + (open ? ' opened' : ''), 'data-key': key,
+  return h('button', {type: 'button', class: 'node' + (open ? ' opened' : ''), 'data-key': key, 'data-f': key,
     title: `${wl || NO_WHAT}（${KIND_LONG[it.kind] || KIND[it.kind] || it.kind} · ${it.id}${nest ? ` · 押すと ${it.target} の中をここで${open ? '閉じる' : '開く'}` : ''}）`,
     onclick: ev => { ev.stopPropagation(); nest ? toggleNest(key) : selectId(key); }},
     nest ? h('span', {class: 'tw', text: open ? '−' : '＋'}) : null, kindTag(it.kind), aiTag(it, key),
@@ -613,13 +624,15 @@ function nestEl(it, key) {
   const auto = AUTO.has(key) && !OPEN.has(key);
   return h('div', {class: 'nestbox'},
     h('div', {class: 'nh'},
-      btn({class: 'tw', text: '−', title: '閉じる', onclick: () => toggleNest(key)}),
+      btn({class: 'tw', text: '−', title: '閉じる', 'data-f': key + ' −', 'data-back': key, onclick: () => toggleNest(key)}),
       h('b', {text: what(it) || it.id}),
       h('span', {class: 'cap', text: ` · ${KIND[it.kind]} ${it.target} · 札 ${g.nodes}${aiIn(it.target) ? ` · 作りの AI のノード ${aiIn(it.target)}` : ''}${auto ? ' · 再生の今が中に居るので開いた' : ''}`}),
       btn({class: 'cap', text: '詳しい面', onclick: () => selectId(key)}),
-      btn({class: 'cap', text: '閉じる', onclick: () => toggleNest(key)})),
+      btn({class: 'cap', text: '閉じる', 'data-f': key + ' 閉じる', 'data-back': key, onclick: () => toggleNest(key)})),
     flowOf(g.items, it.target, key));
 }
+// 板の入れ子の口の字。開け閉めの後と再生で入れ子が開いた・閉じた後は paint が字を替える（板は作り直さない）
+const nestWord = key => isOpen(key) ? `${ITEM[key].it.target} の中を閉じる` : `${ITEM[key].it.target} の中をここで開く ＋`;
 function toggleNest(key) {
   if (isOpen(key)) {
     OPEN.delete(key); if (AUTO.delete(key)) SHUT.add(key);
@@ -636,7 +649,14 @@ function reveal(key) {
 }
 // 根を替えると開いた入れ子を全部閉じる。再生中は、作り直した図を再生の今に合わせ直す（今の歩の鎖の入れ子を開き直す）
 function setRoot(f) { cur = f; OPEN = new Set(); AUTO = new Set(); SHUT = new Set(); IDLE = new Set(); show(); if (replaying()) syncGraph(); }
+// 図を作り直しても、鍵盤の手前（フォーカス）を同じ物に戻す。作り直す物は data-f に名を持ち、消える物（閉じた入れ子の − と
+// 開いた段の「開く ＋」）は data-back に代わりの名（入れ子の札・段の最初の札）を持つ
 function show(opts) {
+  const was = document.activeElement, f = was && was.closest && was.closest('#s-graph') ? [was.dataset.f, was.dataset.back] : [];
+  draw(opts);
+  for (const n of f) { const el = n && document.querySelector(`#s-graph [data-f="${CSS.escape(n)}"]`); if (el) { el.focus({preventScroll: true}); break; } }
+}
+function draw(opts) {
   const g = G[cur], keepSel = opts && opts.keepPanel ? selId : null;
   if (!keepSel) closePanel();
   for (const k in DEPS) delete DEPS[k];
@@ -644,13 +664,18 @@ function show(opts) {
   crumb();
   const world = $('world'); world.replaceChildren();
   if (isLineTop()) {
+    const top = nowTop();
     for (const s of [...STAGE_ALL, STAGES_NONE]) {
       const mine = i => (STAGE_OF[i.id] || STAGES_NONE) === s;
       if (!g.items.some(mine)) continue;
       const fl = flowOf(g.items, cur, '', mine);
-      // この run で走らなかった段は 1 行に畳む（run の道を 1 画面に入れるため）。開けば札が出る。中に開いた入れ子が在れば畳まない
-      const x = sumOf(s), fold1 = onRunRoot() && x && !RAN(x.state) && s !== STOP && !openOff && !fl.querySelector('.nestbox');
-      const body = fold1 ? h('span', {class: 'cap'}, `走っていない · 札 ${fl.querySelectorAll('.node').length} · `, btn({text: '開く ＋', onclick: () => { openOff = true; show(); }})) : fl;
+      // この run で走らなかった段は 1 行に畳む（run の道を 1 画面に入れるため）。開けば札が出る。
+      // 中に開いた入れ子か再生の今の札（「配線も出す」の時の、走らなかった段の配線の歩）が在れば畳まない
+      const x = sumOf(s), fold1 = onRunRoot() && x && !RAN(x.state) && s !== STOP && !openOff && !fl.querySelector('.nestbox')
+        && !(top && fl.querySelector(`[data-key="${CSS.escape(top)}"]`));
+      const first = fl.querySelector('.node');
+      const body = fold1 ? h('span', {class: 'cap'}, `走っていない · 札 ${fl.querySelectorAll('.node').length} · `,
+        btn({text: '開く ＋', 'data-f': `fold ${s.n}`, 'data-back': first && first.dataset.key, onclick: () => { openOff = true; show(); }})) : fl;
       world.append(h('div', {class: 'row' + (fold1 ? ' folded' : ''), 'data-n': s.n},
         h('div', {class: 'rh'}, h('div', {class: 'name', title: s.line || '', text: s.n ? `${s.n} ${s.name}` : s.name}), h('div', {class: 'cap rst'})), body));
     }
@@ -667,6 +692,11 @@ const deepestNow = () => document.querySelector('#world .node.now, #world .loopg
 const drawn = key => document.querySelector(`#world [data-key="${CSS.escape(key)}"]`);
 // 既定で畳んだ配線の歩か（line の一番上で、「配線も出す」が外れている時）
 const foldedWire = w => !!w && w.graph === cur && isLineTop() && !showWire && !(w.via || []).length && WIRESET.has(w.node);
+// 再生の今の歩の、根の図の一番外の札の鍵（段の行を畳むかと、図を作り直すかに使う）。畳んだ配線の歩と図に当たらない歩は null
+function nowTop() {
+  const w = replaying() ? STEPS[at].e.at : null;
+  return w && w.graph && !foldedWire(w) ? spots(w)[0] : null;
+}
 // 再生の今を塗る所の鍵: 今の歩の一番深い所。畳んだ配線の歩は、前の歩のうち図に見える一番深い所に今を残す
 function nowKey(k) {
   const w = STEPS[k].e.at;
@@ -709,6 +739,7 @@ function paint() {
     else if (inner !== (STOP_HUMAN ? '止めた' : '落ちた') && STOP_KEY && STOP_KEY.startsWith(key + '>') && !el.classList.contains('opened')) word = (word ? word + ' · ' : '') + (STOP_HUMAN ? '中で止めた' : '中で落ちた');
     el.querySelector('.s').textContent = word;
   }
+  const pb = document.querySelector('#panel [data-nest]'); if (pb && ITEM[pb.dataset.nest]) pb.textContent = nestWord(pb.dataset.nest);
   // 繰り返しの器の出来事の歩は、器の枠に今の印を付ける
   for (const lg of document.querySelectorAll('#world .loopg')) lg.classList.toggle('now', !!here && lg.dataset.key === here);
   for (const nb of document.querySelectorAll('#world .nestbox')) nb.classList.toggle('nowin', !!look && !!nb.querySelector('.node.now'));
@@ -762,13 +793,13 @@ function endlessNote() {
 // 図の頭: 根の graph の名と 1 行と「説明」と道具の行。道しるべ（graph を移る口）は持たない
 function crumb() {
   const c = $('crumb'), g = G[cur];
-  c.replaceChildren(h('b', {text: `⌂ ${cur}`}), h('span', {class: 'cap', text: ` · ${gwhat(cur) || g.name}`}), btn({class: 'cap', text: '説明', onclick: () => graphPanel(cur)}));
+  c.replaceChildren(h('b', {text: `⌂ ${cur}`}), h('span', {class: 'cap', text: ` · ${gwhat(cur) || g.name}`}), btn({class: 'cap', text: '説明', 'data-f': 'explain', onclick: () => graphPanel(cur)}));
   if (cur !== ROOT) c.append(h('span', {class: 'cap', text: '·'}), btn({class: 'cap', text: `⌂ ${ROOT} に戻す`, onclick: () => setRoot(ROOT)}));
   const reach = reachable(), opened = new Set([...OPEN, ...AUTO]).size;
   $('gtools').replaceChildren(...[
-    opened ? btn({text: `開いた入れ子を全部閉じる（${opened}）`, onclick: () => { for (const k of AUTO) SHUT.add(k); OPEN = new Set(); AUTO = new Set(); show(); }}) : null,
-    onRunRoot() && isLineTop() ? h('label', {}, h('input', {type: 'checkbox', checked: openOff || null, onchange: ev => { openOff = ev.target.checked; show(); }}), ' 走っていない段も開く') : null,
-    isLineTop() ? h('label', {}, h('input', {type: 'checkbox', checked: showWire || null, onchange: ev => { showWire = ev.target.checked; show(); }}), ' 配線も出す') : null,
+    opened ? btn({text: `開いた入れ子を全部閉じる（${opened}）`, 'data-f': 'close all', 'data-back': 'explain', onclick: () => { for (const k of AUTO) SHUT.add(k); OPEN = new Set(); AUTO = new Set(); show(); }}) : null,
+    onRunRoot() && isLineTop() ? h('label', {}, h('input', {type: 'checkbox', checked: openOff || null, 'data-f': 'open off', onchange: ev => { openOff = ev.target.checked; show(); }}), ' 走っていない段も開く') : null,
+    isLineTop() ? h('label', {}, h('input', {type: 'checkbox', checked: showWire || null, 'data-f': 'wire', onchange: ev => { showWire = ev.target.checked; show(); }}), ' 配線も出す') : null,
     // 依存の線の試作: 今の形（線なし。前と次の札を淡い青に）と、選んだ札の前後にだけ線を引く形を並べて見る
     h('select', {title: '依存の線の試作。どちらを採るかは本物の run の図を見て決める', onchange: ev => { edgeMode = ev.target.value; drawEdges(); }},
       h('option', {value: 'none', selected: edgeMode === 'none' || null, text: '線: 引かない（前と次を淡い青に）'}),
@@ -877,7 +908,7 @@ function selectId(key) {
     place.length ? h('p', {class: 'cap', text: `場所: ${cur} › ${place.join(' › ')}`}) : null,
     s ? h('p', {class: 'cap', text: `段 ${s.n} ${s.name}`}) : null,
     (prev.length || nxt.length) ? h('p', {class: 'cap', text: `前: ${prev.map(nm).join('・') || 'なし'}　次: ${nxt.map(nm).join('・') || 'なし'}`}) : null,
-    x.nest && h('p', {}, btn({text: isOpen(key) ? `${it.target} の中を閉じる` : `${it.target} の中をここで開く ＋`, onclick: () => toggleNest(key)})),
+    x.nest && h('p', {}, btn({text: nestWord(key), 'data-nest': key, onclick: () => toggleNest(key)})),
     onRunRoot() && h('div', {class: 'nums'}, h('div', {}, h('div', {class: 'cap', text: 'この run で'}), h('div', {class: 'v', text: evs.length ? `${evs.length} 回` : sks.length ? '飛んだ' : '走っていない'})),
       evs.length ? h('div', {}, h('div', {class: 'cap', text: '時間'}), h('div', {class: 'v', text: mins(sec)})) : null,
       cost ? h('div', {}, h('div', {class: 'cap', text: 'AI の手番の費用'}), h('div', {class: 'v', text: usd(cost)})) : null),
@@ -1026,7 +1057,7 @@ function bandCard() {
     h('div', {class: 'cap', text: '時間の帯'}),
     h('h2', {text: wait ? `人の答え待ちが ${mins(wait)}（${pct(wait, SPAN)}%）。` : `一番長いのは${long.name}で ${mins(sumOf(long).seconds || 0)}。`}),
     band, h('p', {class: 'cap fnow', id: 'f-now'}),
-    h('div', {class: 'legend cap'}, h('span', {style: '--c:var(--accent)', text: 'AI の手番'}), h('span', {style: '--c:var(--k-ex)', text: '機械'}), h('span', {style: '--c:var(--k-wait)', text: '人の答え待ち'})),
+    h('div', {class: 'legend cap'}, h('span', {style: '--c:var(--k-ai)', text: 'AI の手番'}), h('span', {style: '--c:var(--k-ex)', text: '機械'}), h('span', {style: '--c:var(--k-wait)', text: '人の答え待ち'})),
     fold('段ごとの時間・費用・手番', h('div', {class: 'scroll'}, h('table', {},
       h('tr', {}, [['段'], ['状態'], ['時間', 1], ['うち人の待ち', 1], ['AI の手番', 1], ['周', 1], ['往復', 1], ['費用', 1]].map(([x, r]) => h('th', {class: r ? 'r' : null, text: x}))),
       FLOW_STAGES.map(s => { const x = sumOf(s), ran = RAN(x.state);
@@ -1102,7 +1133,7 @@ function wasteScreen() {
         h('td', {}, kindTag('ai'), ` ${stageName(r.stage) ? stageName(r.stage) + ' / ' : ''}${name(r.event)}`, h('div', {class: 'mono cap', text: r.tokens.join(' / ')})),
         h('td', {text: E[r.event] ? E[r.event].loop.join('.') : ''}), h('td', {class: 'r', text: mmss(r.seconds)}), h('td', {class: 'r', text: r.turns ?? ''}),
         h('td', {class: 'r', text: r.replies ?? ''}), h('td', {}, tok(r.tokens4)), h('td', {class: 'r', text: r.tokens4 ? man(r.tokens4.input) : ''}))))),
-      h('div', {class: 'legend cap'}, h('span', {style: '--c:var(--accent)', text: '新しく読んだ'}), h('span', {style: '--c:var(--a2)', text: 'cache に書いた'}), h('span', {style: '--c:var(--a3)', text: 'cache から読んだ'})),
+      h('div', {class: 'legend cap'}, h('span', {style: '--c:var(--t1)', text: '新しく読んだ'}), h('span', {style: '--c:var(--t2)', text: 'cache に書いた'}), h('span', {style: '--c:var(--t3)', text: 'cache から読んだ'})),
       h('p', {class: 'cap', text: `費用は Archon の記録の手番ごとの合計で、割はこの ${top.length} 件の和 ${usd(W.top.cost)} に対する物。4 分けはトークンの数で、ドルには割らない（値段の表を持たない）。往復は Archon の数え、返事は会話の記録の返事の数。${W.top.odd.length ? `入力が cache の 2 つの和より小さい手番が ${W.top.odd.length} 件在り、その新しく読んだ分は引けない。` : ''}`})])));
   const card = (k, title, bigv, claim, body) => h('div', {class: 'card'}, h('div', {class: 'cap', text: `${k} · ${title}`}), h('div', {class: 'big', text: bigv}), h('p', {class: 'claim', text: claim}), body);
   // 周の中で落ちたノード（waste.rounds[].rounds[].failed の和）。データにその欄が無ければ出さない
@@ -1161,7 +1192,7 @@ function runsScreen() {
     h('h1', {text: `${D.runs.length} 本の run。`}),
     h('p', {text: '行を押すと、その run のページを作る命令が出る（ページは 1 枚なので、ここから移れない）。'}),
     h('p', {class: 'cap', text: `このページを作った時刻 ${D.made_at}${D.commit ? ' · 工場の commit ' + D.commit : ''}`})));
-  const list = h('div', {class: 'rl', role: 'list'},
+  const list = h('div', {class: 'rl'},
     h('div', {class: 'rr rhd cap'}, ['run', '結末', '始め', '長さ', '費用'].map((x, k) => h('span', {class: k > 2 ? 'r' : null, text: x}))));
   for (const r of D.runs) {
     const me = RUN && r.id === RUN.id;
@@ -1170,8 +1201,9 @@ function runsScreen() {
       h('div', {class: 'cap', text: `${r.graph}${r.waiting.length ? ' · 人の答え待ち ' + r.waiting.join('・') : ''}`}),
       r.error ? pre(r.error, 'err') : null,
       h('code', {class: 'mono', text: `uv run --isolated python3 viewer/flowview.py --target ${sh(D.target)} --run ${r.short} <出力>`}));
-    const row = press(h('div', {class: 'rr' + (me ? ' cur' : ''), role: 'listitem', tabindex: 0, title: '押すと開く命令',
-      onclick: () => { const o = cmd.hidden; list.querySelectorAll('.rcmd').forEach(c => c.hidden = true); cmd.hidden = !o; }},
+    const row = press(h('div', {class: 'rr' + (me ? ' cur' : ''), title: '押すと開く命令',
+      onclick: () => { const o = cmd.hidden; list.querySelectorAll('.rcmd').forEach(c => c.hidden = true); list.querySelectorAll('.rr[role=button]').forEach(r => opened(r, false));
+        cmd.hidden = !o; opened(row, o); }},
       h('span', {class: 'mono', text: r.short}),
       h('span', {class: 'oc' + (r.status === 'failed' ? ' bad' : ''), text: word + (me ? ' · 今見ている run' : '')}),
       h('span', {class: 'cap n', text: (r.started || '').slice(5, 16)}),
@@ -1202,8 +1234,8 @@ function logScreen() {
       h('span', {class: 'cap', text: `${es.length} 件${x ? RAN(x.state) ? ' · ' + mins(x.seconds || 0) : ' · 配線のノードだけが走った（段は飛んだ）' : ''}${cost ? ' · ' + usd(cost) : ''}`})));
     for (const e of es) {
       const body = h('div', {class: 'lgb', hidden: true}), it = itemAt(e.at);
-      const row = press(h('div', {class: 'lgr' + (e.status === 'failed' ? ' bad' : ''), tabindex: 0, title: `${e.tokens.join(' / ')}${loopOf(e) ? ' · ' + loopOf(e) : ''}`,
-        onclick: () => { if (!body.firstChild) body.append(eventView(e)); body.hidden = !body.hidden; row.classList.toggle('open', !body.hidden); }},
+      const row = press(h('div', {class: 'lgr' + (e.status === 'failed' ? ' bad' : ''), title: `${e.tokens.join(' / ')}${loopOf(e) ? ' · ' + loopOf(e) : ''}`,
+        onclick: () => { if (!body.firstChild) body.append(eventView(e)); body.hidden = !body.hidden; row.classList.toggle('open', !body.hidden); opened(row, !body.hidden); }},
         h('span', {class: 'n cap', text: since(e.start)}),
         h('span', {}, kindTag(evKind(e), true)),
         h('span', {class: 'w', text: what(it) || e.tokens.join(' / ')}),
@@ -1261,15 +1293,17 @@ function syncGraph() {
   const same = want.size === AUTO.size && [...want].every(k => AUTO.has(k));
   // 図を作り直すと、選んでいた札が入れ子と一緒に消えて板が閉じる。開いていたかは作り直す前に控える
   const panelWas = !$('panel').hidden;
-  if (!same) { AUTO = want; show({keepPanel: true}); } else paint();
+  // 今の札の段の行が畳まれている時（「配線も出す」の時の、走らなかった段の配線の歩）も作り直して開く
+  const top = nowTop();
+  if (!same || (top && !drawn(top))) { AUTO = want; show({keepPanel: true}); } else paint();
   // 歩くたびに板は開かない。板が開いている時だけ、板を今の札の物に替える
   const el = deepestNow();
   if (el && panelWas && selId !== el.dataset.key && ITEM[el.dataset.key]) selectId(el.dataset.key);
   if (el) el.scrollIntoView({block: 'nearest', behavior: same ? SMOOTH : 'auto'});
 }
-// やめる: run の終わりの姿へ戻し、自動で開いた物を全部閉じる。つまみは終わりの位置に置く（← で最後の歩へ戻る）
+// やめる: run の終わりの姿へ戻し、自動で開いた物を全部閉じる。つまみは右の端の終わりの位置（歩の数と同じ値）に置く（← と ‹ で最後の歩へ戻る）
 function stopReplay() {
-  play(false); at = -1; behind = false; $('p-pos').value = STEPS.length - 1; label(); flowNow();
+  play(false); at = -1; behind = false; $('p-pos').value = STEPS.length; label(); flowNow();
   AUTO = new Set(); SHUT = new Set();
   if (!$('s-graph').hidden && cur) show({keepPanel: true});
 }
@@ -1289,13 +1323,13 @@ function play(on) {
 }
 (() => {
   if (!STEPS.length) return;
-  // 開いた時は run の終わりの姿なので、つまみは「やめる」の後と同じ終わりの位置
-  $('p-pos').max = STEPS.length - 1; $('p-pos').value = STEPS.length - 1; label();
+  // つまみの値は歩の番号（0 から）で、右の端（歩の数と同じ値）が run の終わりの姿。開いた時は終わりの姿なので「やめる」の後と同じ右の端
+  $('p-pos').max = STEPS.length; $('p-pos').value = STEPS.length; label();
   $('p-play').onclick = () => { if (playing !== null) return play(false); if (at >= STEPS.length - 1) at = -1; play(true); };
   // 終わりの姿（at が -1）から 1 歩戻ると最後の歩
   $('p-prev').onclick = () => { play(false); go(at < 0 ? STEPS.length - 1 : at - 1); };
   $('p-next').onclick = () => { play(false); go(at + 1); };
-  $('p-pos').oninput = () => { play(false); go(+$('p-pos').value); };
+  $('p-pos').oninput = () => { const v = +$('p-pos').value; if (v >= STEPS.length) stopReplay(); else { play(false); go(v); } };
   $('p-off').onclick = stopReplay;
   // 鍵盤（← → 空白）は再生の帯が見えている時だけ受ける。字の欄・つまみ・押し物の上の空白は除く
   addEventListener('keydown', ev => {

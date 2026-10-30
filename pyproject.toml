@@ -11,3 +11,6 @@ dependencies = [
 bench = [
     "harbor==0.24.0",  # tests/calibration/swepro_agent.py。運び役が uv run --isolated --extra bench で入れる
 ]
+viewer = [
+    "playwright==1.64.1",  # tests/viewer/test_page_ui.py（見る道具のページを画面の無い Chromium で押す）。無ければ試験は名前つきで見送る
+]
