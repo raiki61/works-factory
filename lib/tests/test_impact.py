@@ -394,6 +394,8 @@ class CacheCase(RepoCase):
         units = [{"key": "直す", "reason": "pkg/core.py の compute_total が 1 足りない。solo.py は無関係"},
                  {"key": "別", "reason": "無い file nothere.py", "prescriptions": ["pkg/mid.py を直す"]}]
         self.assertEqual(impact.seeds_from_units(self.repo, units), ["lonely/solo.py", "pkg/core.py", "pkg/mid.py"])
+        # パスは区切りを見て拾う（長い名の一部の字は起点にしない）
+        self.assertEqual(impact.seeds_from_units(self.repo, [{"reason": "mypkg/core.pyc と xpkg/mid.py_old"}]), [])
 
 
 if __name__ == "__main__":
