@@ -923,5 +923,25 @@ class ReuseRunCase(unittest.TestCase):
         self.assertEqual((self.launched(), notes), (2, [{}, {}]))
 
 
+
+class ReuseMaterialCase(unittest.TestCase):
+    def test_output_path_and_its_real_path_both_read_as_the_output_in_every_process(self):
+        """outputs のパスの字が実パスの字の一部の時（/tmp と /private/tmp など）も、argv の両方の形を <out:0> に読む。set の
+        並び（過程ごとの hash の種）で置き換えの順が変わらないことを、種を替えた子で見る"""
+        with tempfile.TemporaryDirectory() as tmp:
+            top = pathlib.Path(os.path.realpath(tmp))
+            real = top / "q" / top.relative_to(top.anchor) / "l"
+            real.mkdir(parents=True)
+            (top / "l").symlink_to(real)
+            out = top / "l" / "o.xml"
+            code = ("import sys; sys.path.append(sys.argv[1]); import tree_run, json; "
+                    "print(json.dumps(tree_run.reuse_material([sys.argv[2], sys.argv[3]], {}, sys.argv[4], [sys.argv[2]], 't')['argv']))")
+            for seed in range(8):
+                got = subprocess.run([sys.executable, "-B", "-c", code, str(LIB), str(out), str(real / "o.xml"), tmp],
+                                     capture_output=True, text=True, env=hermetic.child_env(PYTHONHASHSEED=str(seed)))
+                self.assertEqual(got.returncode, 0, got.stderr)
+                self.assertEqual(json.loads(got.stdout), ["<out:0>", "<out:0>"], f"PYTHONHASHSEED={seed}")
+
+
 if __name__ == "__main__":
     unittest.main()
