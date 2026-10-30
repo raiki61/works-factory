@@ -14,9 +14,9 @@
 - split(reply, repo, base_tests=)・save(board, rnd, fields)・read(b)・rewrites(b)・removes_permits(b): 欄を外す口・盤面の控え・書き換えてよい既存のテストの並び・
   files の change=remove の symbol（消す名）をコードの識別子（と点の付いたパス・属性の名の文字列）として使う既存のテストの並び（base_tests は
   修正前の版のテストの中身。split が欄 removes_tests に置く許しの行）
-- FILES_SCHEMA・FILE_OPS・SYMBOL_CHANGES: 修正案の項目の欄 files（ファイル構成の行。足す物・消す物を 1 ファイルごとの {path, op, from?,
+- FILES_SCHEMA・SYMBOL_CHANGES: 修正案の項目の欄 files（ファイル構成の行。足す物・消す物を 1 ファイルごとの {path, op, from?,
   responsibility, symbols:[{name, change, why?, replaced_by?}], home:{concept, why}, considered:[{path, why_not}], why?, replaced_by?} にした物）の型の住処（yaml の plan_reply の
-  files はその写し）。読みの口は file_rows(item)・symbol_rows(row)・file_symbols(item, change)・file_paths(item, ops)・removed_paths(item)。読み手（planscope・ripple・design・
+  files はその写し）。読みの口は file_rows(item)・symbol_rows(row)・file_symbols(item, change)・removed_paths(item)。読み手（planscope・ripple・design・
   planbrief）は欄の字を自分で読まず、この口を引く
 - IDENT・search_word(name)・declared_name(d)・word_re(name)・test_functions(src, path)・test_names(src, path)・test_defs(tree, path)・code_idents(node)・DOTTED_NAME: files の
   symbols の name を差分や本体で探す語の決まり（1 行の読み方）・テストの関数の源の引き（blk-fix の planscope・tddloop・blk-plan の ripple が
@@ -103,7 +103,7 @@ AMEND_OP = "plan_amended"          # 差し替えの trace の行（planfile が
 # route_why は route が tdd でない時だけ要る（gaps が見る）
 REQUIRED = ("route", "tests", "rewrite_tests", "refactor", "allowed_paths", "out_of_scope")
 # 範囲の相談の合意で入る新しいテストだけが使う赤の種類: 守りのテスト（base で緑でよい。人の条件「X を壊さないことを確かめよ」の型）。
-# 修正案の役の tests は今どおり赤を求めるので RED_KINDS には入れない
+# 修正案の役の tests は今どおり赤を求めるので、修正案の型の red_kind の語には入れない
 GUARD_KIND = "guard"
 AGREED_RED = "red"   # 合意の新しいテストの赤の種類のもう 1 つ: base で赤（failure）を求める（落ち方は機械が照らさない。red_check の事実だけ）
 AGREED_KINDS = (AGREED_RED, GUARD_KIND)   # 範囲の相談の答えの new_tests の red_kind（赤か守りか）
@@ -116,13 +116,11 @@ ROW_SCHEMA_FILE = "plan-item-fields.schema.json"
 _ROW = json.loads((pathlib.Path(__file__).resolve().parent / ROW_SCHEMA_FILE).read_text(encoding="utf-8"))["properties"]
 FILES_SCHEMA = _ROW["files"]
 MIN_WHY = FILES_SCHEMA["items"]["properties"]["why"]["minLength"]   # 訳の欄（消す訳 why・route_why など）の字の下限
-FILE_OPS = tuple(FILES_SCHEMA["items"]["properties"]["op"]["enum"])          # 行の操作。rename は元のパス from を持つ
 SYMBOL_CHANGES = tuple(FILES_SCHEMA["items"]["properties"]["symbols"]["items"]["properties"]["change"]["enum"])   # symbols の行の変え方
 # 直し方の語。tdd・direct のほか、項目がどんな直しかの見分けの 3 語（持ち主の答え。docs/plans/2026-10-24-fix-weapons.md の 9.1 の 10）:
 # static は試験で示す振る舞いの無い直し・tidy は利用者から届かない使われていない物を消す直し・pin はコードが正しく試験だけが欠けた直し。
 # 修正の段は語を表で型に引くだけで、語を推し量らない（workflows/fix/src/route.py）
 ROUTES = tuple(_ROW["route"]["enum"])
-RED_KINDS = tuple(_ROW["tests"]["items"]["properties"]["red_kind"]["enum"])
 # 項目の欄のうち単位の no（か単位の字）を持つ欄の表 (欄の名, 行の中の鍵)。鍵が None の欄は単位の並びそのもの、鍵が在る欄は
 # その鍵に単位を持つ object の並び。renumber が回す
 UNIT_REFS = (("unit_keys", None), (DEPENDS_KEY, "unit"))
@@ -336,11 +334,6 @@ def file_symbols(item, change: str | None = None) -> list[tuple[str, str]]:
             if isinstance(path, str) and isinstance(name, str) and (change is None or sym.get("change") == change):
                 out.append((path, name))
     return list(dict.fromkeys(out))
-
-
-def file_paths(item, ops) -> list[str]:
-    """項目 item の files のうち op が ops の行の path の並び（現れた順・重なりは 1 つ）"""
-    return list(dict.fromkeys(r["path"] for r in file_rows(item) if r.get("op") in ops and isinstance(r.get("path"), str)))
 
 
 def removed_paths(item) -> list[str]:
