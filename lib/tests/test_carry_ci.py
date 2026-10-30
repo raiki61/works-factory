@@ -105,6 +105,13 @@ class CliCase(unittest.TestCase):
         self.assertFalse((self.tmp / "x.json").exists())
         self.assertEqual(len(bad.stderr.strip().splitlines()), 1)
 
+    def test_out_that_cannot_be_written_exits_2_in_one_line(self):
+        req = self.tmp / "next-request.json"
+        req.write_text(json.dumps({"findings": []}), encoding="utf-8")
+        got = self.run_cli("--request", str(req), "--failed", "-", "--out", str(self.tmp / "no" / "x.json"), stdin=f"{TID}\n")
+        self.assertEqual(got.returncode, 2)
+        self.assertEqual(len(got.stderr.strip().splitlines()), 1, got.stderr)
+
 
     def test_readme_names_the_carry_ci_command(self):
         """L-D54: 人が CI の赤を次の依頼へ運ぶ口の使い方が README の使い方に在り、その 1 行の命令がそのまま動く（元

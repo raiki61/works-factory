@@ -291,11 +291,10 @@ def _carry_cli(request: str, failed: str, out: str) -> int:
         doc = json.loads(pathlib.Path(request).read_text(encoding="utf-8"))
         text = sys.stdin.read() if failed == "-" else pathlib.Path(failed).read_text(encoding="utf-8")
         ids = [ln for ln in text.splitlines() if ln.strip() and not ln.lstrip().startswith("#")]
-        got = carry_ci(doc, ids)
+        write(out, carry_ci(doc, ids))
     except (OSError, ValueError) as e:
         print(f"carry carry-ci: {oneline.one_line(e)}", file=sys.stderr)
         return 2
-    write(out, got)
     return 0
 
 
