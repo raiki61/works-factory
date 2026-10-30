@@ -14,18 +14,6 @@ sys.dont_write_bytecode = True
 sys.path[:0] = [str(Path(__file__).resolve().parents[2] / ".shared"), str(Path(__file__).resolve().parents[1])]
 
 
-RECEIVED = ("got", "why")   # 受け皿の返りの欄（受け皿の output_format の required の全部）
-
-
-def _got(ports, raw):
-    whole = ports.picked(raw, RECEIVED)
-    return whole["got"] if whole is not None else None
-
-
-def _value(ports, raw):
-    return ports.parsed(raw)   # 返し spec-in・diagnose-in の返りまるごと（Archon が output_format で照らした値）
-
-
 def _has_rows(ports, ptr) -> tuple:
     """(世界の解の行のファイルに行が在るか, 読めない訳)。行の無い段は空のファイルを置くので、行が 0 なら null で返す（今の J29）"""
     if not isinstance(ptr, dict):
@@ -51,28 +39,29 @@ def _review_reply(ports, got) -> tuple:
 
 def compute(ports):
     import jsonfile
-    from src import files, verdict
+    from src import feed, files, verdict
+    _got = feed.received
     received = {
-        "head-depth": _got(ports, os.environ.get("INPUTS_HEAD_DEPTH_OUT")),
-        "spec": _got(ports, os.environ.get("INPUTS_SPEC_OUT")),
-        "spec-in": _value(ports, os.environ.get("INPUTS_SPEC_IN")),
-        "parallel-pr": _got(ports, os.environ.get("INPUTS_PARALLEL_PR_OUT")),
-        "premises": _got(ports, os.environ.get("INPUTS_PREMISES_OUT")),
-        "purpose": _got(ports, os.environ.get("INPUTS_PURPOSE_OUT")),
-        "world": _got(ports, os.environ.get("INPUTS_WORLD_OUT")),
-        "prior-decisions": _got(ports, os.environ.get("INPUTS_PRIOR_DECISIONS_OUT")),
-        "purpose-review": _got(ports, os.environ.get("INPUTS_PURPOSE_REVIEW_OUT")),
-        "local-review": _got(ports, os.environ.get("INPUTS_LOCAL_REVIEW_OUT")),
-        "consistency-bypass": _got(ports, os.environ.get("INPUTS_CONSISTENCY_BYPASS_OUT")),
-        "hygiene": _got(ports, os.environ.get("INPUTS_HYGIENE_OUT")),
-        "external-standards": _got(ports, os.environ.get("INPUTS_EXTERNAL_STANDARDS_OUT")),
-        "procedure-trace": _got(ports, os.environ.get("INPUTS_PROCEDURE_TRACE_OUT")),
-        "test-double-fidelity": _got(ports, os.environ.get("INPUTS_TEST_DOUBLE_FIDELITY_OUT")),
-        "main-path-observation": _got(ports, os.environ.get("INPUTS_MAIN_PATH_OBSERVATION_OUT")),
-        "provenance": _got(ports, os.environ.get("INPUTS_PROVENANCE_OUT")),
-        "diagnose-in": _value(ports, os.environ.get("INPUTS_DIAGNOSE_IN")),
-        "diagnose": _got(ports, os.environ.get("INPUTS_DIAGNOSE_OUT")),
-        "verify": _got(ports, os.environ.get("INPUTS_VERIFY_OUT")),
+        "head-depth": _got(os.environ.get("INPUTS_HEAD_DEPTH_OUT")),
+        "spec": _got(os.environ.get("INPUTS_SPEC_OUT")),
+        "spec-in": ports.parsed(os.environ.get("INPUTS_SPEC_IN")),   # 返しの返りまるごと（Archon が output_format で照らした値）
+        "parallel-pr": _got(os.environ.get("INPUTS_PARALLEL_PR_OUT")),
+        "premises": _got(os.environ.get("INPUTS_PREMISES_OUT")),
+        "purpose": _got(os.environ.get("INPUTS_PURPOSE_OUT")),
+        "world": _got(os.environ.get("INPUTS_WORLD_OUT")),
+        "prior-decisions": _got(os.environ.get("INPUTS_PRIOR_DECISIONS_OUT")),
+        "purpose-review": _got(os.environ.get("INPUTS_PURPOSE_REVIEW_OUT")),
+        "local-review": _got(os.environ.get("INPUTS_LOCAL_REVIEW_OUT")),
+        "consistency-bypass": _got(os.environ.get("INPUTS_CONSISTENCY_BYPASS_OUT")),
+        "hygiene": _got(os.environ.get("INPUTS_HYGIENE_OUT")),
+        "external-standards": _got(os.environ.get("INPUTS_EXTERNAL_STANDARDS_OUT")),
+        "procedure-trace": _got(os.environ.get("INPUTS_PROCEDURE_TRACE_OUT")),
+        "test-double-fidelity": _got(os.environ.get("INPUTS_TEST_DOUBLE_FIDELITY_OUT")),
+        "main-path-observation": _got(os.environ.get("INPUTS_MAIN_PATH_OBSERVATION_OUT")),
+        "provenance": _got(os.environ.get("INPUTS_PROVENANCE_OUT")),
+        "diagnose-in": ports.parsed(os.environ.get("INPUTS_DIAGNOSE_IN")),
+        "diagnose": _got(os.environ.get("INPUTS_DIAGNOSE_OUT")),
+        "verify": _got(os.environ.get("INPUTS_VERIFY_OUT")),
     }
     world = received["world"]
     reply, unread = _review_reply(ports, received["purpose-review"])

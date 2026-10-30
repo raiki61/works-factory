@@ -15,20 +15,9 @@ sys.path[:0] = [str(Path(__file__).resolve().parents[2] / ".shared"), str(Path(_
 import ports  # noqa: E402
 
 
-RECEIVED = ("got", "why")   # 受け皿の返りの欄（受け皿の output_format の required の全部）
-
-
-def _got(raw):
-    whole = ports.picked(raw, RECEIVED)
-    return whole["got"] if whole is not None else None
-
-
-def _value(raw):
-    return ports.parsed(raw)   # 返し spec-in の返りまるごと（Archon が output_format で照らした値）
-
-
 def compute():
     from src import feed
+    _got = feed.received
     received = {
         "prior-decisions": _got(os.environ.get("INPUTS_PRIOR_DECISIONS_OUT")),
         "purpose-review": _got(os.environ.get("INPUTS_PURPOSE_REVIEW_OUT")),
@@ -45,7 +34,7 @@ def compute():
         "head-depth": _got(os.environ.get("INPUTS_HEAD_DEPTH_OUT")),
         "premises": _got(os.environ.get("INPUTS_PREMISES_OUT")),
         "purpose": _got(os.environ.get("INPUTS_PURPOSE_OUT")),
-        "spec-in": _value(os.environ.get("INPUTS_SPEC_IN")),
+        "spec-in": ports.parsed(os.environ.get("INPUTS_SPEC_IN")),   # 返し spec-in の返りまるごと（Archon が output_format で照らした値）
     }
     try:
         table = ports.json(os.environ.get("INPUTS_VERIFY_BY_TIER") or "{}", "verify-by-tier.schema.json")
