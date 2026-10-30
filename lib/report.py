@@ -115,7 +115,10 @@ def inner_word_hits(diff_text: str, known) -> list:
     for path, lines in changemap.split_diff(diff_text)[0].items():
         for n, ln in changemap.new_side(lines):
             words = list(dict.fromkeys(INNER_WORD.findall(ln))) if ln.startswith("+") else []
-            words = [w for w in words if not seen.setdefault(w, known(w))]
+            for w in words:
+                if w not in seen:
+                    seen[w] = known(w)
+            words = [w for w in words if not seen[w]]
             if words:
                 hits.append({"path": path, "line": n, "words": words, "text": oneline.one_line(ln[1:].strip())})
     return hits

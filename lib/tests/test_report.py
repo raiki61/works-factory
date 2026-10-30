@@ -115,6 +115,15 @@ class InnerWordCase(unittest.TestCase):
             self.assertFalse(report.target_uses(tmp, rev, "この run"))
             self.assertTrue(report.target_uses(tmp, rev, "盤面"))
 
+    def test_inner_word_hits_asks_known_once_per_word(self):
+        """known（対象の版を git grep で引く）は、足した行に何度出ても語ごとに 1 度だけ引く"""
+        asked = []
+        diff = ("diff --git a/a.txt b/a.txt\n--- a/a.txt\n+++ b/a.txt\n@@ -0,0 +1,3 @@\n"
+                "+この周で直す\n+この周も\n+この周の後\n")
+        hits = report.inner_word_hits(diff, lambda w: asked.append(w) or False)
+        self.assertEqual(asked, ["この周"])
+        self.assertEqual([h["line"] for h in hits], [1, 2, 3])
+
 
 class DocCase(unittest.TestCase):
     def test_listed_names_exist(self):
