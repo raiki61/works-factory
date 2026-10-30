@@ -713,7 +713,6 @@ def _outside(returns: dict) -> tuple[list, list, str]:
 def next_request(returns: dict, left: list, closed: bool, got: dict, carried_rows: list) -> list:
     """次の依頼の findings（元 runreport.next_request）: 残りの行（R2 の作り直しの行は前の失敗にだけ）・目的の外の所見・親の木へ戻せ
     なかった組・再審の行（judged の carry）・差分の審査とレンズが残した穴（fixed の carry）・人に回した申し出の単位"""
-    import conflict
     import oneline
     import report
     asked = _asked_rows(returns, closed)
@@ -731,7 +730,6 @@ def next_request(returns: dict, left: list, closed: bool, got: dict, carried_row
         if k not in seen:
             seen.add(k)
             out.append(it)
-    _ = conflict
     return out
 
 
@@ -988,6 +986,7 @@ def _item_said(x) -> str:
 def answer_drafts(values: dict, returns: dict, gates: dict, unattended: bool) -> list:
     """人の判断を待つ項目への答えの下書き（元 runreport.answer_drafts の、承認し直すかの問い・載せなかった修正前の問いと R4 の問い・
     保留の台帳の問い・問いの立っていない測れていない素材の行）"""
+    import answer
     import gatemarks
     spec = as_dict(values.get("spec_check"))
     spec_qs = [q for q in _list(spec.get("questions")) if isinstance(q, str) and q.strip()]
@@ -996,7 +995,7 @@ def answer_drafts(values: dict, returns: dict, gates: dict, unattended: bool) ->
     b = ledger(returns, gates, unattended)
     held = gatemarks.held_questions(b)
     asked = eye_questions(returns)
-    if unattended and as_dict(gates.get("gate-before-fix")).get("decision") not in ("approve", "continue"):
+    if unattended and as_dict(gates.get("gate-before-fix")).get("decision") not in answer.GO_WORDS:
         # 載せなかった修正前の項目のうち台帳の問い（gatemarks.ask_text の文）は、下の保留の台帳の問いとして key で 1 行にする
         ledger_texts = {gatemarks.ask_text(q) for q in held}
         deferred = [str(as_dict(q).get("text") if isinstance(q, dict) else q) for q in _list(as_dict(values.get("ask_before_fix")).get("deferred"))]

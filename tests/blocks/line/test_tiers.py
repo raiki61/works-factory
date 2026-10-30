@@ -38,16 +38,9 @@ class TableCase(unittest.TestCase):
         self.assertEqual((tiers.LIGHT, tiers.STANDARD), (headdepth.LIGHT, headdepth.STANDARD))
         self.assertEqual(tiers.HEADS, ("軽量", "標準", "重厚"))
 
-    def test_light_omits_and_merges_only(self):
+    def test_light_omits_only(self):
         self.assertTrue(tiers.omits("軽量") and not tiers.omits("標準") and not tiers.omits("重厚"))
-        self.assertEqual(tiers.merges("軽量"), ("r3.coherence", "r4.hidden_scope"))
         self.assertEqual(tiers.tier_adds("重厚"), tuple(__import__("entry").FEATURE_DEFAULTS))
-
-    def test_report_line_reads_the_table(self):
-        """元 lib/headdepth.py の report_line（integration.md 4.5-6。表と一緒に line へ移した）"""
-        self.assertTrue(tiers.report_line("軽量", "易しい").startswith("run の頭の深さ: 軽量（根拠: 易しい）／省く物（単位がどれも軽量の時）"))
-        self.assertIn("足した物: judge_verify（名指しで切った）", tiers.report_line("重厚", "", cut=("judge_verify",)))
-        self.assertTrue(tiers.report_line("知らない", "").startswith("run の頭の深さ: 標準"))
 
 
 class SwitchesCase(unittest.TestCase):

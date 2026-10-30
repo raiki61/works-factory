@@ -7,12 +7,11 @@ integration.md の 4.3-追加-6・4.3-9）。
 lib の関数は値を引数で受ける）。名と置き場（src.files.START）は起動の殻と包みと bin/ が同じ所を読むので変えない。
 前は置き場の名を 3 か所が、読む口を 6 か所が別々に持ち、続きの run で機能の切り替えが黙って変わった 8dfebca6 の元になった。
 
-- NAME・REL: 置き場の中の名と、run directory の根からの置き場
+- REL: run directory の根からの置き場
 - path(board_dir): run directory の根からの始めの記録のパス
 - read(board_dir): 始めの記録の dict（無い・読めない・dict でなければ {}。読み手が欠けを欄ごとに扱う）
 - load(file): 始めの記録のファイル file の dict。無い・読めなければ OSError・ValueError、dict でなければ ValueError
 - write(board_dir, doc)・save(file, doc): 始めの記録を置く（書きは lib/jsonfile.py の write。4.3-9）
-- adopt(board_dir, src): 始めの記録のファイル src を path(board_dir) へ字のまま写し、その dict を返す
 - shape(doc): 入口の入力の形（欄 input の dict）。無い前の版の控えは None
 - diff_empty(doc)・requests(doc): 入口の差分が空か・依頼の行の数（入力の形が無ければ None）
 - request_file(doc): 依頼のファイルのパス（欄 request_file、無ければ input.request_file、どちらも無ければ空の字）
@@ -32,7 +31,6 @@ import jsonfile
 
 from src import files
 
-NAME = "start.json"
 REL = files.START
 P1_OFF_WORDS = "P1 の役は起こさない"   # 差分が空の run の入口の文の尻（入口の印が立ち、1 周目の P1 の役を起こさない）
 SPEC_WORDS = "仕様の段あり"
@@ -67,19 +65,6 @@ def write(board_dir, doc: dict) -> pathlib.Path:
 def save(file, doc: dict) -> pathlib.Path:
     """始めの記録 doc をファイル file に置く（一時のファイルから置き換える）"""
     return jsonfile.write(file, doc, indent=2, parents=True)
-
-
-def adopt(board_dir, src) -> dict:
-    """線の始めの記録のファイル src を path(board_dir) へ字のまま写し、その dict を返す。src と写しが同じなら写さない"""
-    src, p = pathlib.Path(src), path(board_dir)
-    data = src.read_bytes()
-    doc = json.loads(data.decode("utf-8"))
-    if not isinstance(doc, dict):
-        raise ValueError(f"始めの記録 {src} が JSON のオブジェクトでない")
-    if src.resolve() != p.resolve():
-        p.parent.mkdir(parents=True, exist_ok=True)
-        p.write_bytes(data)
-    return doc
 
 
 def shape(doc: dict):

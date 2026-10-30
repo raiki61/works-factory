@@ -10,7 +10,7 @@ lib/boardview.py の方針の文書の変化（policy_change・change_row）と 
 始めの記録は src.startrec の口で読み、KEEP の lib に記録を読ませない（integration.md の 4.3-追加-6）。
 
 - 最後の承認ノードの開き方と無人の語（元 gatepolicy）: FINAL_KEY・UNATTENDED_KEY・FINAL_GATES（ALWAYS・WHEN_NEEDED・PROTECTED_ONLY）・
-  UNATTENDED・UNATTENDED_WORDS・FINAL_KIND・Refused・check・unattended_of・opens・head_words・Push・Passage・
+  UNATTENDED・UNATTENDED_WORDS・Refused・check・unattended_of・opens・head_words・Push・Passage・
   passage（stuck_pushable は往復の記録の住処 src.rounds が持つ）
 - row_push(text)・_as_push(rec, note): 項目の推しの尾の、無人の方針の読み（元 gatemarks）
 - design_talk(doc): 始めの記録の dict から、設計だけの run か（元 gatemarks の startrec.read の道）
@@ -46,7 +46,6 @@ FINAL_GATES = ("always", "when_needed", "protected_only")
 ALWAYS, WHEN_NEEDED, PROTECTED_ONLY = FINAL_GATES
 UNATTENDED = "true"
 UNATTENDED_WORDS = ("", UNATTENDED)
-FINAL_KIND = FINAL_KEY
 
 
 class Refused(ValueError):

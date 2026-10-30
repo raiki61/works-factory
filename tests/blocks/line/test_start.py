@@ -214,7 +214,9 @@ class StartCase(Seeded):
         self.assertEqual(json.loads((self.artifacts / "request.json").read_text(encoding="utf-8")),
                          json.loads((self.repo / "request_ok.json").read_text(encoding="utf-8")))
         place = self.tmp / "copy"
-        self.assertEqual(startrec.adopt(place, self.artifacts / got["record"]["path"]), self.record(got))
+        startrec.path(place).parent.mkdir(parents=True)
+        shutil.copyfile(self.artifacts / got["record"]["path"], startrec.path(place))
+        self.assertEqual(startrec.read(place), self.record(got))
         self.assertEqual(startrec.request_file(startrec.read(place)), want)
         bare = self.start(base="base")["ports"]
         self.assertEqual((bare["request"]["path"], bare["request_file"]), ("request.json", ""), "依頼の無い run の request は空の配列の写し")

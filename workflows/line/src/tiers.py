@@ -4,17 +4,15 @@ lib/headdepth.py の report_line〔integration.md 4.5-6〕と lib/consult.py の
 run 全体の深さの段（軽量・標準・重厚）の定義は表 TIERS 1 か所。単位の深さの語は軽量・標準の 2 つ。段の省く物（TIERS の omits）は、
 その段の頭の run で直す義務の単位がどれも軽量の時だけ省く（skip_reason。issue #561 の答え）。省くかを when: に渡す時は、ここで
 引いた結果の真偽（raise の checks・eyes_due）だけにする（when: は深さの語を読まない。tests/layers/test_depth_skip.py）。
-段の語 4 つ（LIGHT・STANDARD・HEAVY・HEADS）の住処は lib/headdepth（README 11.3 の 5）。今の headdepth に HEAVY が無い間は同じ字を
-ここで持つ（lib のレーンが headdepth に移した後は、headdepth の字を読む）。
+段の語 4 つ（LIGHT・STANDARD・HEAVY・HEADS）の住処は lib/headdepth（README 11.3 の 5）。
 
 - unit_depth(items, key, *, checked)・wiring(path)・decide_doc(items, open_units, *, forced, checked)・has_checks(start)・named(thickness)・
-  named_why(word)・tier_adds(head)・tier_auto(head)・merges(head)・raise_doc(doc, *, units, run)・run_paths・outside_cited・late_signals・
+  named_why(word)・tier_adds(head)・tier_auto(head)・raise_doc(doc, *, units, run)・run_paths・outside_cited・late_signals・
   run_depth(doc)・omits(head)・skip_reason(doc, head)・lines(doc, head, *, cmd_skipped): 元 lib/depth.py のまま
 - signals(items, keys, touched, *, origin, head_record, late, declared)・PLAN_ORIGIN・LATE_UNREAD・NO_LATE_RECORD: 元 lib/latedepth.py
 - late_records(fix): fix の返り（欄 tdd_refused・accept_trace）から signals の late を組む（元 lib/fixbeside.py の late_records を、
   fix の出力の欄を直に読む形にした物）
 - consulted_units(rows): 元 lib/consult.py
-- report_line(depth_word, why, cut): 報告の「run の頭の深さ」の 1 行（元 lib/headdepth.py）
 - switches(tier, tree_named, record): 段の切り替え {tier, omits, merge, tree, adds, lines}（node tiers と、固定材料の run の fix-in）
 - docs_of(rows)・rows_of(doc): 単位の深さの行 [{unit_id, depth, why}] と控えの形 {units: {key: {depth, why}}} の行き来
 """
@@ -31,7 +29,7 @@ import planmarks
 
 LIGHT = headdepth.LIGHT
 STANDARD = headdepth.STANDARD
-HEAVY = getattr(headdepth, "HEAVY", "重厚")
+HEAVY = headdepth.HEAVY
 CONTRACT_SUFFIXES = (".json", ".yaml", ".yml", ".toml")
 CONTRACT_DIR = "schemas/"
 GLOB_CHARS = ("*", "?", "[")
@@ -56,7 +54,7 @@ TIERS = {
     STANDARD: {"omits": (), "adds": (), "auto": entry.SWITCH_AUTO, "merges": ()},
     HEAVY: {"omits": (), "adds": tuple(entry.FEATURE_DEFAULTS), "auto": entry.SWITCH_AUTO, "merges": ()},
 }
-HEADS = tuple(getattr(headdepth, "HEADS", tuple(TIERS)))
+HEADS = headdepth.HEADS
 UNKNOWN_TIER = "段の語 {word!r} は表に無いので標準と読んだ"
 TREE_FEATURE = "review_tree"
 ORIGIN_GATE = "gate"              # 元 consult.ORIGIN_GATE（人の関所の continue の条件を機械が相談にした頼み）
@@ -165,10 +163,6 @@ def tier_auto(head) -> str:
     return (TIERS.get(head) or {}).get("auto") or entry.SWITCH_AUTO
 
 
-def merges(head) -> tuple:
-    return tuple((TIERS.get(head) or {}).get("merges") or ())
-
-
 def named_why(word: str) -> str:
     return f"入力 thickness の名指し（{word}）"
 
@@ -243,16 +237,6 @@ def lines(doc, head, *, cmd_skipped: int) -> list:
     elif run_depth(doc) == LIGHT:
         out.append(f"単位はどれも軽量だが、run の頭の深さが {named(head) or STANDARD} なので省かない")
     return out
-
-
-def report_line(depth_word, why, cut=()) -> str:
-    """報告の「run の頭の深さ」の 1 行（元 lib/headdepth.py の report_line。表 TIERS を引くので表と一緒に line へ。integration.md 4.5-6）"""
-    tier = depth_word if depth_word in HEADS and depth_word in TIERS else STANDARD
-    spec = TIERS[tier]
-    head = f"run の頭の深さ: {tier}" + (f"（根拠: {why}）" if why else "")
-    omitted = f"（単位がどれも軽量の時）: {'・'.join(spec['omits'])}" if spec["omits"] else ": 無い"
-    adds = "・".join(f"{name}（名指しで切った）" if name in cut else name for name in spec["adds"]) or "無い"
-    return f"{head}／省く物{omitted}／足した物: {adds}"
 
 
 # ---------------------------------------------------------------- 段の切り替え（node tiers と固定材料の run の fix-in）
