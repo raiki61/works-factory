@@ -6,7 +6,7 @@ line のノード）で引く。
 
 - check(graphs) -> 照らしの問題の字の一覧。今の木の line の一番上のノードがどれもちょうど 1 つの段に入り、表の id がどれも line に在り、
   段の配線の列 wiring がその段のノードの中に在り、どの段にも配線でないノードが在る
-- attach(data) -> data["stages"] に段の表と、run が line の run なら段ごとの集計と止まった所（段の番号 stop・止まり方 stop_by・
+- attach(data) -> data["stages"] に段の表と結末の頭の語の表 outcomes と、run が line の run なら段ごとの集計と止まった所（段の番号 stop・止まり方 stop_by・
   止まった出来事の番号 stop_event）を足し、出来事と飛んだノードに段の番号 stage を、出来事に時間の帯の塗り分け role と、段の状態に
   数えない配線のノードの印 through を付ける。雛形は止まり方を読むだけで、止める語を写さない
 """
@@ -46,6 +46,7 @@ def attach(data: dict) -> None:
     of = {node: n for n, stage in enumerate(TABLE["stages"], 1) for node in stage["nodes"]}
     tops = [item["id"] for item in graph["items"]] if graph else []
     out = {"graph": graph["name"] if graph else "", "table": [{key: stage[key] for key in SHOWN} for stage in TABLE["stages"]],
+           "outcomes": TABLE["outcomes"],
            "loose": [top for top in tops if top not in of], "run": None, "stop": None, "stop_by": None, "stop_event": None}
     data["stages"] = out
     run = data["run"]
@@ -140,13 +141,8 @@ def _stop(run: dict) -> tuple[str | None, int | None]:
 
 
 def _answer(output) -> str:
-    """人の答え待ちの出力（{decision, text}。記録では JSON の字）の答えの語"""
-    if isinstance(output, str):
-        try:
-            output = json.loads(output)
-        except ValueError:
-            return ""
-    return answer.decision(output)["decision"] if isinstance(output, dict) else ""
+    """人の答え待ちの出力（{decision, text}。記録では JSON の字）の答えの語（欄の名は runread.ANSWER_DECISION）"""
+    return runread.field(output, runread.ANSWER_DECISION)
 
 
 def _length(event: dict) -> float:
