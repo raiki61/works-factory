@@ -145,23 +145,19 @@ def _is_content(line: str) -> bool:
     return bool(line.strip()) and not line.lstrip().startswith("#")
 
 
-def _child(lines: list[str], parent: int, key: str) -> tuple[int, int] | None:
-    """lines[parent] の下（親より深い字下げの塊）で、直下の鍵 key の行の位置と、その子の塊の終わり（最後の中身の行の次）を返す。
-    parent が -1 なら全体の最上位。無ければ None"""
+def _child(lines: list[str], parent: int, key: str) -> int | None:
+    """lines[parent] の下（親より深い字下げの塊）で、直下の鍵 key の行の位置を返す。parent が -1 なら全体の最上位。無ければ None"""
     base = _indent(lines[parent]) if parent >= 0 else -1
-    end, child_indent, found = parent + 1, None, None
+    child_indent = None
     for n in range(parent + 1, len(lines)):
         if not _is_content(lines[n]):
             continue
         if _indent(lines[n]) <= base:
             break
-        end = n + 1
         child_indent = _indent(lines[n]) if child_indent is None else child_indent
-        if _indent(lines[n]) == child_indent and found is None and lines[n].split("#")[0].strip().split(":")[0] == key:
-            found = n
-    if found is None:
-        return None
-    return found, end
+        if _indent(lines[n]) == child_indent and lines[n].split("#")[0].strip().split(":")[0] == key:
+            return n
+    return None
 
 
 def _block_end(lines: list[str], at: int) -> int:
@@ -186,10 +182,9 @@ def _locate(lines: list[str]) -> tuple[int | None, int | None, int | None]:
     found = [None, None, None]
     parent = -1
     for slot, key in enumerate(("concurrency", "providers", DEFAULT_PROVIDER)):
-        hit = _child(lines, parent, key)
-        if hit is None:
+        at = _child(lines, parent, key)
+        if at is None:
             break
-        at, _ = hit
         if slot < 2 and not _plain_key(lines[at], key):
             raise ValueError(f"{CAP_FILE} の {key}: が値を持つ形で、鍵だけを足せない。手で {DEFAULT_PROVIDER} の上限を書く")
         found[slot] = at
