@@ -5,8 +5,8 @@ lib/runreport（機械の報告・次の依頼・前の失敗・費用）に移�
 読む語と小さな組み立て:
 - OUTCOMES・OUTCOME_WORDS: 結末の語（報告のブロックの返す節の enum と同じ 10 語）と、冒頭 3 行の 1 行目の平易な言い方
 - OUTCOME_KINDS: 結末の語 → 周の鎖（lib/chain.py）が見る種
-- 報告の見出し（TITLE_HEADING・HEADINGS の冒頭 1〜5・PRIOR_HEADING・OUTSIDE_HEADING・WORLD_HEADING・TDD_HEADING・
-  MODEL_HEADING・COST_HEADING・STRUCTURE_HEADING。人が読む本文の物で役の指示書には貼らない FOR_READERS）と行の where・頭の語
+- 報告の見出し（HEADINGS の冒頭 1〜5・PRIOR_HEADING・TDD_HEADING・MODEL_HEADING・COST_HEADING。人が読む本文の物で、役の
+  指示書には貼らない）と行の where・頭の語
 - prior_lines(rows, next_file): 次の run に運んだ落ちた理由の節の行
 - tdd_lines(stages)・freeze_lines(stages): 修正の段ごとの TDD の輪の単位の結末の行（keep-essence の 11）と、輪を回していない段で
   テストの凍結が効いていないと言う冒頭 2 の行（keep-essence の 3）
@@ -19,7 +19,6 @@ lib/runreport（機械の報告・次の依頼・前の失敗・費用）に移�
 """
 import datetime
 import json
-import os
 import pathlib
 import re
 import subprocess
@@ -52,10 +51,7 @@ CHECKS_LEFT = "人が確かめる物"   # fixed_needs_check の残り（冒頭 3
 EYES_WHERE = "独立の目"
 ABSORBED_WHERE = "受け止めた落ち"
 REPORT_FILE = "report.md"
-FOR_READERS = "人が読む報告の本文の見出し。役の指示書には貼らない"   # 下の見出しの字はどれも人が読む報告の物
 PRIOR_HEADING = "## 次の run に引き継ぐ落ちた理由"
-OUTSIDE_HEADING = "## 判定が目的の外とした所見"   # 1 件ずつの行（outpurpose.report_lines）。冒頭 1 は件数の行だけ（outpurpose.count_line）
-WORLD_HEADING = "## 世界の解"   # 依頼の行ごとの定石と依頼の解き方との比べ（runreport._world_lines。控えの無い run は節を出さない）
 TDD_HEADING = "## TDD のループの単位ごとの結末"   # keep-essence の 11（修正のブロックの出口 tdd を、修正の段ごとに単位の行で）
 TDD_STAGES = ("修正の段", "案を直した後の修正の段")   # build の tdd の並び（ラインの report の with の fix_tdd・refit_tdd の順）
 # 単位ごとの深さの語のうち、緑の後の test_cmd を走らせない語（fix が単位の出口の test_cmd に書き、line が深さの行に数える。
@@ -72,7 +68,6 @@ STOP_HEADING = "## 3. 止めたか"
 READS_HEADING = "## 4. 読んだ証拠と包み"
 WHERE_HEADING = "## 5. 見る所"
 HEADINGS = (DECISIONS_HEADING, ENTRY_HEADING, STOP_HEADING, READS_HEADING, WHERE_HEADING)
-TITLE_HEADING = "# 報告（run {run}）"
 INTERRUPTED_HEAD = "run が途中で終わった"
 RETRIED_HEAD = "前の試みで落ち、続きで済んだノード"
 ABSORBED_HEAD = "落ちたが、メイングラフが宣言のとおり受け止めたノード"
@@ -122,13 +117,6 @@ def inner_word_hits(diff_text: str, known) -> list:
             if words:
                 hits.append({"path": path, "line": n, "words": words, "text": oneline.one_line(ln[1:].strip())})
     return hits
-
-
-# ---------------------------------------------------------------- 小道具
-def _write_text(path: pathlib.Path, text: str) -> None:
-    tmp = path.with_name(path.name + ".tmp")
-    tmp.write_text(text, encoding="utf-8")
-    os.replace(tmp, path)
 
 
 def _first_error(x: dict) -> str:
@@ -276,7 +264,3 @@ def freeze_lines(stages) -> list:
 
 MODEL_HEADING = "## 模型"
 COST_HEADING = "## 費用"
-STRUCTURE_HEADING = "## 構造の目"
-UNSEEN_LENS_HEADING = "## 未確認のレンズ"   # 局所レビューの見ていないレンズ（diverted.report_lines）
-
-

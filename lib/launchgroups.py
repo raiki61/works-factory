@@ -11,7 +11,6 @@
 - MODELS・EFFORTS: 役が選んでよい模型と effort の語（弱い順）
 - direction(default, chosen): 既定の組と選んだ組の向き（上げ・下げ・同じ・混ざる）
 - choices(rows): 頭の深さの役が返した群の選びの行を表と許す語で照らす。外れた行だけ既定に戻して訳を残す（例外を出さない）
-- RECORD_ONLY・brief_section(): 役に貼る 1 セクション（表から描く）と、選びは控えに残すだけの 1 文
 """
 
 GROUPS = {
@@ -42,10 +41,6 @@ def default_of(group: str) -> tuple[str, str]:
 MODELS = ("haiku", "sonnet", "opus")
 EFFORTS = ("low", "medium", "high", "max")
 UP, DOWN, SAME, MIXED = "上げ", "下げ", "同じ", "混ざる"
-# lib は実行基盤の名を書かない（柵 E3）。止めた版の識別は commit の短い字だけを書く
-RECORD_ONLY = ("上げる向きも下げる向きも、役の選びは控えに残すだけで、この run にも子の run にも次の周にも効かない"
-               "（止めた版 a972888a は run の中で後のノードの模型を付け替えられず、子の run は親の模型の設定を受け継ぐ）。")
-SECTION_HEAD = "## ノード群の模型と effort の既定（問い 3 で既定を替える群だけ選ぶ）"
 
 
 def direction(default: tuple, chosen: tuple) -> str:
@@ -98,10 +93,3 @@ def choices(rows) -> list:
             model, effort = default_of(group) if group in GROUPS else (None, None)
         out.append(_line(group, model, effort, why, fallback))
     return out
-
-
-def brief_section() -> str:
-    """頭の深さの役の材料に貼る 1 セクション。群の名・what・既定の組・許す語の並びと順・記録だけの 1 文を表から描く"""
-    rows = [f"- `{name}`: {spec['what']}（既定 {spec['model']}・{spec['effort']}）" for name, spec in GROUPS.items()]
-    return "\n".join([SECTION_HEAD, "", f"許す模型（弱い順）: {'・'.join(MODELS)}", f"許す effort（弱い順）: {'・'.join(EFFORTS)}", "",
-                      *rows, "", RECORD_ONLY, ""])

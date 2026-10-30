@@ -114,8 +114,6 @@ def brief(start) -> dict:
     return {"paste": _capped(pathlib.Path(copy).read_bytes(), copy), "path": copy}
 
 
-
-
 def _capped(data: bytes, where) -> str:
     """上限までの本文。超えたら先頭を切り、続きの置き場 where を末尾に書く（切った後の全体が上限の内）"""
     if len(data) <= PASTE_CAP:
@@ -130,8 +128,6 @@ POLICY_KIND = "policy"            # 方針とのぶつかりの穴の kind
 HUMAN_FACE_KINDS = ("regression", POLICY_KIND)   # 人に回しうる穴の kind（事前審査・差分の審査・line の関所が引く。住処はここ 1 か所）
 POLICY_DOC_FENCE = "policy_doc"   # 方針の文書の行を書き換える穴の柵の語（gatemarks.FENCES が引く）
 RECORDED_TERM = "記録された方針"
-RECORDED_REF = f"「{RECORDED_TERM}」のセクション"
-RECORDED_NONE = f"{RECORDED_TERM}: 無い"
 GATE_NAME = "承認ノードの答え {id}"
 PUSH_NAME = "無人の run が採った推し {id}"
 DOC_FENCE_ONLY = f"{POLICY_DOC_FENCE} は方針の文書の行を書き換える時だけ立てる"
@@ -224,10 +220,3 @@ def face_gaps(faces, rows) -> list:
         if not has_doc and POLICY_DOC_FENCE in (f.get("fences") or []):
             out.append(head + f"方針の文書の無い run で fences に {POLICY_DOC_FENCE} を立てた——{DOC_FENCE_ONLY}")
     return out
-
-
-
-
-
-
-
