@@ -107,8 +107,8 @@ from leftovers import git, git_names  # noqa: E402
 from src import common  # noqa: E402
 from src.common import (  # noqa: E402
     Broken, GATE_OFF, GATE_ON, MIN_WHY, QUOTES_FIELD, UNSENT, _abs_ids, _abs_paths, _blank, _cmd_run, _contract, _id_base,
-    _key, _load, _mark_parked, _norm_id, _owed, _plan_tdd, _reached, _save, _unit, _unnamed_edits, _verified, hashes, id_path,
-    red_check, restore, rules, snapshot, touched)
+    PROMPT, RECORD, _key, _load, _mark_parked, _norm_id, _owed, _plan_tdd, _reached, _save, _unit, _unnamed_edits, _verified, hashes, id_path,
+    red_check, restore, retry_max, rules, snapshot, touched)
 
 MAX_ITERATIONS = 40   # YAML の tdd-loop の max_iterations と同じ値（試験が縛る）。この周に届いたら残りを direct にして抜ける
 ROUTES = fixnames.ROUTES   # 入力 routes の語（src/files.py の 1 か所）
@@ -117,7 +117,7 @@ PLAN_DIRECT = "承認済みの修正案の route が direct（入力 routes: pla
 PLAN_NO_ROW = "承認済みの修正案にこの単位を持つ行が無い（入力 routes: plan は案の route に従い、行の無い単位は direct）"
 SESSION_KEY = "session_key"   # 状態の欄: 前の周の支度が組んだ単位の鍵（prep の new_unit の元。元 write_key の鍵）
 GAVE_UP_WHY = "機械が書いた申し出（TDD の確認が回数の上限まで通らなかった）: "   # 3 回拒まれた単位の申し出の why の頭
-STATE, PROMPT, SUMMARY, RECORD = "state.json", "next.md", "summary.md", fixnames.RECORD_FILE   # STATE は輪の状態のファイルの名。名を持つのはこの部品だけ（輪の外は記録 RECORD を読む）
+STATE, SUMMARY = "state.json", "summary.md"   # STATE は輪の状態のファイルの名。名を持つのはこの部品だけ（輪の外は記録 RECORD を読む）
 # 単位ごとの深さ（入力 unit_depths の値）のうち、緑の後の test_cmd を走らせない語。出口の単位の test_cmd はその時 CMD_LIGHT
 LIGHT = "軽量"
 CMD_LIGHT = "light"
@@ -132,11 +132,6 @@ class _RunnerDown(Exception):
 class _CmdDown(_RunnerDown):
     """run の test_cmd が走らない（実行器が走らない時と同じ道で輪を抜ける。理由の頭の語だけ違う）"""
     head = "テストのコマンドが走らない"
-
-
-def retry_max() -> int:
-    """段ごとの諦めの回数（rolekit.GIVE_UP_AFTER。元の写しの rules の RETRY_MAX と同じ 3）"""
-    return rolekit.GIVE_UP_AFTER
 
 
 # ---------------------------------------------------------------- 一式を走らせる（run_suite・_failure_attrs は baseline_red の物）
