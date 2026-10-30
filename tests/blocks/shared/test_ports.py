@@ -318,10 +318,9 @@ class HelperCase(Base):
             self.assertEqual(ports.suite_keep(), pathlib.Path("/k"))
             ports.drop_runner_env("/marks")
             self.assertNotIn("INPUTS_X", set(os.environ))
+            self.assertNotIn("LOG_DIR", set(os.environ))
             self.assertNotIn("ARTIFACTS_DIR", set(os.environ))
             self.assertEqual(os.environ[ports.USER_ENV_RAN_DIR], "/marks")
-            os.environ["ARTIFACTS_DIR"] = str(self.art)
-            os.environ["WORKFLOW_ID"] = "r1"
 
     def test_shared_cache(self):
         with mock.patch.dict(os.environ, {ports.SHARED_CACHE_ENV: "/state"}):
