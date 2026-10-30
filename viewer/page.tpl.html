@@ -102,6 +102,7 @@ pre.err{box-shadow:inset 3px 0 0 var(--bad)}
 .grp{display:inline-flex;flex-wrap:wrap;gap:4px;background:var(--fill);border-radius:12px;padding:3px;max-width:100%}
 .loopg{display:inline-flex;flex-wrap:wrap;align-items:center;gap:6px 4px;border:1.5px dashed var(--dash);border-radius:12px;padding:5px 7px;max-width:100%}
 .loopg>.cap{width:100%;padding:0 3px}
+.loopg.now{border-color:var(--accent);box-shadow:0 0 0 4px var(--a3)}
 /* 札: 1 行。種類の語の札と何をする物か（15/600）とこの run での姿の語（12/400）。id は札の title と板の頭 */
 .node{display:inline-flex;align-items:baseline;gap:7px;max-width:300px;min-width:0;border-radius:10px;padding:5px 10px;cursor:pointer;white-space:nowrap;border:1.5px solid transparent;scroll-margin:calc(var(--th) + 16px) 0 calc(var(--pb) + 16px)}
 .node .t{font-weight:600;overflow:hidden;text-overflow:ellipsis;min-width:0}
@@ -402,6 +403,8 @@ function tab(id) {
   document.querySelectorAll('.screen').forEach(s => s.hidden = s.id !== 's-' + id);
   // 再生の帯は図と再生にだけ出す
   $('player').hidden = !(STEPS.length && id === 'graph');
+  // 帯が隠れたら ▶ を止める（位置は保つ）
+  if ($('player').hidden) play(false);
   measure();
   scrollTo(0, SCROLL[id] || 0);
   // 図を開いた時に、遅れていれば再生の今へ合わせる（スクロールを戻した後に。今の札を画面に入れる送りが勝つように）
@@ -562,14 +565,28 @@ function show(opts) {
 // 札の姿の語（終わりの姿と再生中で同じ札の形を使う）
 const STWORD = {done: '', yet: '', skip: '飛んだ', fail: '落ちた', run: '走り中', now: '今', nowin: '今は中'};
 // 再生の今の札: 開いた中の一番深い今の札（外の入れ子の札は「今は中」）
-const deepestNow = () => document.querySelector('#world .node.now');
+const deepestNow = () => document.querySelector('#world .node.now, #world .loopg.now');
+const drawn = key => document.querySelector(`#world [data-key="${CSS.escape(key)}"]`);
+// 既定で畳んだ配線の歩か（line の一番上で、「配線も出す」が外れている時）
+const foldedWire = w => !!w && w.graph === cur && isLineTop() && !showWire && !(w.via || []).length && WIRESET.has(w.node);
+// 再生の今を塗る所の鍵: 今の歩の一番深い所。畳んだ配線の歩は、前の歩のうち図に見える一番深い所に今を残す
+function nowKey(k) {
+  const w = STEPS[k].e.at;
+  if (!w || !w.graph) return null;
+  if (!foldedWire(w)) return spots(w).pop();
+  for (let j = k - 1; j >= 0; j--) {
+    const v = STEPS[j].e.at; if (!v || !v.graph || foldedWire(v)) continue;
+    return spots(v).reverse().find(drawn) || null;
+  }
+  return null;
+}
 function paint() {
-  const look = replaying() ? stateAt(at) : null;
+  const look = replaying() ? stateAt(at) : null, here = look ? nowKey(at) : null;
   for (const el of document.querySelectorAll('#world .node')) {
     el.classList.remove('now', 'nowin', 'run', 'yet', 'skip', 'fail', 'done', 'stopat');
     const key = el.dataset.key, x = ITEM[key];
     if (!onRunRoot()) { el.classList.add('done'); el.querySelector('.s').textContent = ''; continue; }
-    const st = look ? look(key) : finalState(key);
+    const st = look ? (key === here ? 'now' : look(key)) : finalState(key);
     let cls = {now: 'now', running: 'run', waiting: 'run', yet: 'yet', skipped: 'skip', failed: 'fail'}[st] || 'done';
     // 開いた入れ子の札は、今が中に居る時は淡い印だけにして、青い面は中の今の札に譲る
     if (cls === 'now' && el.classList.contains('opened')) cls = 'nowin';
@@ -588,6 +605,8 @@ function paint() {
     else if (STOP_KEY && STOP_KEY.startsWith(key + '>') && !el.classList.contains('opened')) word = (word ? word + ' · ' : '') + (STOP_HUMAN ? '中で止めた' : '中で落ちた');
     el.querySelector('.s').textContent = word;
   }
+  // 繰り返しの器の出来事の歩は、器の枠に今の印を付ける
+  for (const lg of document.querySelectorAll('#world .loopg')) lg.classList.toggle('now', !!here && lg.dataset.key === here);
   for (const nb of document.querySelectorAll('#world .nestbox')) nb.classList.toggle('nowin', !!look && !!nb.querySelector('.node.now'));
   // 段の行の状態（line の一番上だけ）。段の集計（配線でない札だけで数えた状態）を読む。再生中は今の段・通った・まだ
   const reached = look ? reachedAt(at) : null, nowS = look ? stageAt(at) : null;
@@ -622,7 +641,9 @@ function note() {
   if (replaying()) {
     const w = STEPS[at].e.at, depth = w && w.graph ? chainOf(w).length : 0;
     n.replaceChildren('青い札が再生の今。縁のある札はここまでに走った所、薄い札はまだの所。',
-      depth ? `今は入れ子の ${depth} 段目の中なので、その入れ子を開いた（抜けると閉じる）。` : '', w && w.graph ? '' : 'この歩の出来事は図に当たらない。');
+      depth ? `今は入れ子の ${depth} 段目の中なので、その入れ子を開いた（抜けると閉じる）。` : '', w && w.graph ? '' : 'この歩の出来事は図に当たらない。',
+      foldedWire(w) ? h('b', {text: 'この歩は配線の歩（図では畳んでいる）。青い札は前の見える歩の所。「配線も出す」で札が出る。'}) : '',
+      STEPS[at].e.kind === 'loop_group' ? '繰り返しの器の歩なので、器の枠を青くした。' : '');
     return;
   }
   n.replaceChildren('縁のある札が走った所、薄い札は走っていない所、点線は飛んだ所。＋ の札は押すとその場で中が開く。',
@@ -937,10 +958,12 @@ function syncGraph() {
   for (const k of [...SHUT]) if (!chain.includes(k)) SHUT.delete(k);
   const want = new Set(chain.filter(k => !SHUT.has(k) && !OPEN.has(k)));
   const same = want.size === AUTO.size && [...want].every(k => AUTO.has(k));
+  // 図を作り直すと、選んでいた札が入れ子と一緒に消えて板が閉じる。開いていたかは作り直す前に控える
+  const panelWas = !$('panel').hidden;
   if (!same) { AUTO = want; show({keepPanel: true}); } else paint();
   // 歩くたびに板は開かない。板が開いている時だけ、板を今の札の物に替える
   const el = deepestNow();
-  if (el && !$('panel').hidden && selId !== el.dataset.key && ITEM[el.dataset.key]) selectId(el.dataset.key);
+  if (el && panelWas && selId !== el.dataset.key && ITEM[el.dataset.key]) selectId(el.dataset.key);
   if (el) el.scrollIntoView({block: 'nearest', behavior: same ? SMOOTH : 'auto'});
 }
 // やめる: run の終わりの姿へ戻し、自動で開いた物を全部閉じる
@@ -955,7 +978,7 @@ function label() {
   const st = STEPS[at], s = stageAt(at), it = itemAt(st.e.at);
   w.replaceChildren(h('b', {text: `${s ? `段 ${s.n} ${s.name} · ` : ''}${what(it) || st.e.tokens.join(' / ')}`}),
     ` · ${at + 1} / ${STEPS.length} · ${since(st.t)} · ${st.end ? `終わり（${STATUS[st.e.status] || st.e.status}）` : '始まり'}${st.e.loop.length ? ' · 周 ' + st.e.loop.join('.') : ''}`,
-    `${st.e.run !== RUN.id ? ' · 子の run ' + st.e.run.slice(0, 8) : ''}${st.e.at && st.e.at.graph ? '' : ' · 図に当たらない'} · ${st.e.tokens.join(' / ')}`);
+    `${st.e.run !== RUN.id ? ' · 子の run ' + st.e.run.slice(0, 8) : ''}${st.e.at && st.e.at.graph ? foldedWire(st.e.at) ? ' · 配線の歩（図では畳んでいる）' : '' : ' · 図に当たらない'} · ${st.e.tokens.join(' / ')}`);
 }
 function play(on) {
   clearTimeout(playing); playing = null; $('p-play').textContent = on ? '⏸' : '▶';
