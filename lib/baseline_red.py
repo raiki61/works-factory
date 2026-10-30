@@ -94,7 +94,7 @@ def _must_pass(c, baseline):
 def _broken_others(cases, baseline, hit, scope=None):
     """名指しの外（hit に無い）で落ちた、通っていなければならないテスト（_must_pass）——赤と緑の確認が同じ 1 本を読む
     （元 works/.shared/core/graphloops/rules/review-loop-tdd.py:102-104）"""
-    return [c for c in cases if id(c) not in hit and c["outcome"] in ("failure", "error") and _must_pass(c, baseline)
+    return [c for c in cases if id(c) not in hit and c["outcome"] in FAILED and _must_pass(c, baseline)
             and (scope is None or _key(c) in scope)]
 
 
@@ -134,7 +134,7 @@ def green_problems(named, cases, exit_code, baseline=None, baseline_exit=0, narr
     scope = None
     if narrow and baseline is not None:
         scope = {_key(c) for c in cases if _key(c) in baseline or any(match_case(t, [c]) for t in (*named, *also))}
-    clean = scope is not None and not any(c["outcome"] in ("failure", "error") for c in cases if _key(c) in scope)
+    clean = scope is not None and not any(c["outcome"] in FAILED for c in cases if _key(c) in scope)
     probs = [] if exit_code == 0 or baseline_exit != 0 or clean else [
         f"テスト一式が exit {exit_code} で終わった——JUnit の結末が全部通っていても、一式としては緑でない"]
     hit = set()
