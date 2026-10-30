@@ -8,9 +8,9 @@ import ports
 import prompt
 
 import converge    # lib/。held・owed_faces・answer_gaps
+import eyekit      # lib/。断片 policy の本文 policy_body
 import jsonfile    # lib/
 import oneline     # lib/
-import policy      # lib/。PASTE_CAP
 import rolekit     # lib/。却下の控え・出し直し・諦め
 import worldmark   # lib/。rows・WEB
 
@@ -92,15 +92,6 @@ def numbered(text: str) -> str:
     return "\n".join(f"{n:>4}  {line}" for n, line in enumerate(text.splitlines(), 1))
 
 
-def policy_body(path) -> str:
-    """方針の文書の本文。policy.PASTE_CAP バイトまで。超えたら先頭を切り、続きの置き場を末尾に書く"""
-    data = pathlib.Path(path).read_bytes()
-    if len(data) <= policy.PASTE_CAP:
-        return data.decode("utf-8", "replace")
-    note = f"\n\n［方針の文書は {len(data)} バイトで、{policy.PASTE_CAP} バイトまでを貼った。続きは {path}］\n"
-    return data[:policy.PASTE_CAP - len(note.encode("utf-8"))].decode("utf-8", "ignore") + note
-
-
 def owed_rows(prior: dict | None) -> str:
     """前の往復の答えの要る穴（converge.owed_faces）の行。1 件 1 行"""
     row = converge.held(prior) if prior else None
@@ -157,7 +148,7 @@ def values(folder: pathlib.Path, ctx: dict) -> tuple[dict, dict]:
     owed = owed_rows(prior_of(ctx))
     v = {"rejection": rolekit.rejects_text(rejected), "theme_file": ctx["theme"], "theme_text": numbered(theme),
          "prior_design_file": ctx["prior_design"], "owed_rows": owed, "answer_rows": answer_rows(ctx["answers"]),
-         "world_rows": world_rows(ctx["world"]), "policy_body": policy_body(ctx["policy"]) if ctx["policy"] else "",
+         "world_rows": world_rows(ctx["world"]), "policy_body": eyekit.policy_body(ctx["policy"]),
          "recorded_rows": recorded_rows(ctx["recorded"]), "base_rev": ctx["base"] or "HEAD", "lang": prompt.lang(ctx["lang"])}
     w = {"rejected": bool(rejected), "prior_design": bool(ctx["prior_design"]), "owed": bool(owed), "answers": bool(ctx["answers"]),
          "world": bool(ctx["world"]), "policy": bool(ctx["policy"]), "recorded_none": not any(r.get("name") for r in ctx["recorded"]),
