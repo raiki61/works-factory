@@ -39,8 +39,8 @@
 - `tdd_suite`: `text: TDD の実行器のパス（人が渡した物か、base の出力の suite）。空は無い（base では用意する）`。既定 `""`。
 - `base`: `text: 修正前の版（範囲の照らしの起点。関わる試験の選びの起点の版にもなる）。空は起点なし（範囲の照らしは依頼の where だけ）`。既定 `""`。
 - `entry_base`: `text: 入口の差分の根（変更の起点の版）。関わる試験の選びが、ここから今の作業ツリーまでに触ったファイルを起点にする。空は修正前の版（base）`。既定 `""`。
-- `request`: `json(shared:request.schema.json): 依頼の行の配列か、それを findings の欄に持つオブジェクト（where だけを読む）。空の配列は無い`。既定 `[]`。
-- `request_scope`: `flag: 真なら base の形で依頼の行の where を範囲の照らしの変更に足す（入口の差分が空の run）`。既定 `false`。
+- `request`: `json(shared:request.schema.json): 依頼の行の配列か、それを findings の欄に持つオブジェクト（where だけを読む）。final だけが読み、読めなければ止めて人の確認に回す。base は読まない。空の配列は無い`。既定 `[]`。
+- `request_scope`: `flag: 真なら final の関わる試験の選び（走らせ方が決まらない道）の起点に依頼の行の where を足す（入口の差分が空の run）`。既定 `false`。
 - `baseline`: `json(lib:baseline.schema.json): final の時、base の出力の baseline のファイル。空は無い（1 件ごとの比べをしない）`。既定 `""`。
 - `reuse_dir`: `text: 同じ run の中の試験の結果の控えの置き場の絶対パス。base の時だけ引いて置く。空は使い回さない`。既定 `""`。
 - `reuse_key`: `text: 控えに書いて引く時に照らす run の名。空はこの run の id`。既定 `""`。

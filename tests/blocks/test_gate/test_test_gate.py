@@ -342,21 +342,18 @@ class IntakeCase(ScriptCase):
                 self.assertFalse(out["ok"])
                 self.assertIn(word, out["reason"])
                 self.given.pop(port)
-        with self.subTest("request"):
-            self.write_start(request="{", request_scope="true")
-            out = self.intake("base")
-            self.assertFalse(out["ok"])
-            self.assertIn("port request", out["reason"])
-            self.given.pop("request"), self.given.pop("request_scope")
 
-    def test_unreadable_request_is_empty_where_scope_does_not_read_it(self):
-        """依頼の行を読むのは request_scope が真の base だけ。ほかで読めない依頼は関門を落とさず [] にする"""
-        for mode, scope in (("final", "true"), ("base", "")):
-            with self.subTest(mode=mode, scope=scope):
-                self.write_start(request="{", **({"request_scope": scope} if scope else {}))
-                self.assertTrue(self.intake(mode)["ok"])
-                self.assertEqual(json.loads((self.place(mode) / "intake.json").read_text(encoding="utf-8"))["request"], [])
-                self.given.pop("request"), self.given.pop("request_scope", None)
+    def test_unreadable_request_stops_final_and_is_not_read_in_base(self):
+        """依頼の行を使うのは final（関わる試験の選び）だけ。final は読めない依頼で止め（人の確認の側に倒す）、base は依頼を読まない"""
+        for scope in ("true", "false"):
+            self.write_start(request="{", request_scope=scope)
+            with self.subTest(mode="final", scope=scope):
+                out = self.intake("final")
+                self.assertFalse(out["ok"])
+                self.assertIn("port request", out["reason"])
+            with self.subTest(mode="base", scope=scope):
+                self.assertTrue(self.intake("base")["ok"])
+                self.assertEqual(json.loads((self.place("base") / "intake.json").read_text(encoding="utf-8"))["request"], [])
 
     def test_deletes_only_its_own_files_and_keeps_earlier_logs(self):
         """単独の run の place は run directory の根。消すのはこの block の名の在るファイルだけで、前の走りのログは残す"""
@@ -910,12 +907,12 @@ class ResultScriptCase(ScriptCase):
         self.assertIn("run.json", self.pointed(out["evidence"]).read_text(encoding="utf-8"))
 
     def test_broken_intake_in_base_names_the_base_mode(self):
-        self.write_start(request="{", request_scope="true")
+        self.write_start(request_scope="maybe")
         out = self.intake("base")
         self.assertFalse(out["ok"])
         failed = self.ok("result", "base")
         self.assertEqual((failed["mode"], failed["ok"], failed["red_cause"], failed["suite"]), ("base", False, "incomplete", ""))
-        self.assertIn("port request", self.pointed(failed["evidence"]).read_text(encoding="utf-8"))
+        self.assertIn("port request_scope", self.pointed(failed["evidence"]).read_text(encoding="utf-8"))
 
     def test_lib_that_cannot_be_imported_returns_incomplete_without_failing(self):
         """lib の import が落ちても、返す node は終了の値 0 で約束の形の偽の結末と、誤りを名指した証拠を返す"""
