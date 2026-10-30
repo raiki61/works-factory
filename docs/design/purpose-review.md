@@ -72,11 +72,10 @@ materials.md の 1.4 の名だけ: `intake.json`・`view.json`・`diff.patch`・
   - `after_accept(reply, place)`: 何もしない。
   - `materials_of(reply)`: `return {}`。
   - `report_lines(doc)`: `reply` が null なら `[]`。在れば `f"  - 判定: {verdict}（根拠 {len(findings)} 件）"` の 1 行と、根拠の行ごとに `f"  - 根拠: {oneline(text)}（{oneline(cite)} が {hits} 行）"`。字下げ 2 つで、materials.md の 2.10 の素材の無い観点の 1 行（`観点 purpose-review: ran`）の下に並ぶ。
-- `workflows/purpose-review/src/cited.py`: 根拠の数え直し。公開の名は `problem(reply, rev, narrows) -> str | None` だけ。写す元（`lib/judge_accept.py`。中身を写し、引数を下のとおりに替える）:
-  - `_repo_root`（`:2223-2225`）・`_grep_count`（`:2228-2234`）・`_count_in_version`（`:2378-2398`）を字のまま。
-  - `_cite_errors`（`:2280-2375`）は、`findings` の道（`CITE_LABELS["findings"]`。指し先を持たない）だけを写した `_errors(rows, rev) -> list[str]`: 行が dict でない・`cite` が空・改行を含む・NUL を含む の 4 つの照らしと `_count_in_version`。`wrote_refs` の道（指し先と書いた場所・`hook_evidence` による読了の記録の照らし）は写さない（この観点は指し先を持たない行だけを出すので、その道に入らない。今も `jdir` はその道でしか使われない）。
-  - `purpose_findings_cited`（`:2401-2410`）を `problem` に。`verdict == narrows` で `findings` が空なら拒む文、`_errors` が在れば拒む文を返し、無ければ `None`。数え直せない時の `Reject`（git が動かない・版を解決できない）も捕まえて、その字を返す。
-  - 使う `lib/`: `graphloops/engine/util.py` の `git`・`_grep`・`repo_root`・`sum_counts`・`Reject`。
+- `workflows/purpose-review/src/cited.py`: 根拠の数え直し。公開の名は `problem(reply, rev, narrows) -> str | None` だけ。
+  - `purpose_findings_cited`（元 `lib/judge_accept.py:2401-2410`）を `problem` に写す。`verdict == narrows` で `findings` が空なら拒む文、行の外れが在れば拒む文を返し、無ければ `None`。数え直せない時の `Reject`（git が動かない・版を解決できない）も捕まえて、その字を返す。
+  - 行の照らしと数え直し（元の `_cite_errors` の `findings` の道・`_count_in_version`・`_grep_count`・`_repo_root`）は写さず、指し先の照らしの 1 か所 `lib/cite.py` の `_cite_errors(None, "観点 purpose-review", rows, rev, "findings")` を使う。`findings` の道は指し先を持たないので、置き場 `jdir` と読了の記録の照らし（`wrote_refs` の道）には入らない。
+  - 使う `lib/`: `cite.py` の `_cite_errors` と、`graphloops/engine/util.py` の `Reject`。
 - `workflows/.shared/schemas/purpose.schema.json`: 固めた目的の形（下）。external-standards の block も使うので `.shared` に置く（materials.md の 1.2「同じ意味の入力は同じ名と同じ形」。置き場の決めは 7 節）。
 
 ```json
@@ -337,7 +336,7 @@ bin/works-factory workflow run works-factory-purpose-review \
 - 1 つ目の commit の材料のファイルの比べを、本物の run の物でなく、今の `judge_accept.material_prep` が同じ試験の置き場で書いた物と比べる。訳: 比べる本物の材料のファイルが無い。今の関数は作り直しの間は残る（materials.md の 1.5）ので、同じ値から今と同じ字が出ることを直に照らせる。
 - 『条件に当たらない』の 4 つの真偽を、族の部品の口（`materialkit.prompt_inputs`）を変えずに、この block の `role_prep.py` で `when` から外す。訳: この md は素材の書き方も `{shared:material-na}` も持たない（返答に `material` の欄が無い）。materials.md の 2.11 のとおり真偽を足したまま渡すと、土台の `prompt.render` が「`when` の名が md に無い」で落ちる（README の 5.2）。hygiene も返答に `material` の欄を持たず同じ所に当たるので、2 本の扱いを hygiene.md の 3 節の形（殻の 1 行）にそろえた。族の部品の口を変える直し（`material` の欄を持たない観点には足さない）は materials.md の 2.11 の直しとして報告に書いた。
 - `purpose` が null の時の回さない訳を「目的の文が渡されていない——監査するのは writer が要約した目的（③writer の要約）だけ」にする。訳: 今の `purpose_review_due` は目的の文が無いと出典を `None` と書いた（「目的テキストの出典が None——」）。block は port で受けるので、渡されていないことをそのまま言う方が直せる。回さない決めは今と同じ。
-- 数え直しの部品を `lib/` に置かず、block の `src/cited.py` に写す。訳: 指し先を持たない根拠の行を版で数える道を使うのはこの観点だけ（`wrote_refs` の道は fix の側。README の 9.2 で `judge_accept` を割る）。憲法の 4。
+- 数え直しの部品は block に写さず、`lib/cite.py` の `_cite_errors` を使う。訳: 組み込みで `judge_accept` の指し先の照らしが `lib/cite.py` の 1 か所に寄り（`findings` と `wrote_refs` の両方の道を持つ）、写しを持つと拒む文の字が食い違う（4 節の字は `lib/cite.py` の字）。憲法の 4。
 - 根拠の拒みの文の頭を `観点 purpose-review: ` にする。訳: 今の頭はコピーした graph の節の id（`p0.purpose_review`）で、新しい形に graph の節は無い。materials.md の 2.8 の替えと同じ。
 - 固めた目的の schema（`purpose.schema.json`）の中身をここで決め、`workflows/.shared/schemas/` に置く（external-standards も同じ字を使う）。訳: materials.md の 1.2 は名と欄だけを書き、中身を決めていない。欄と出典の語は今の目的の役の `output_format` のまま（`means` は目的の block が別のファイルにする）。出典の語を enum で縛るので、目的の block が語を替えれば読みの段で名指して落ちる（黙って `skipped` にならない）。
 - 「足りない」の印の字を md に書かず、役の定義の断片の言い方に任せる。訳: 印は inspector の役の定義の決まり（今の `lib/agents/inspector.md` の 3 つ目の箇条）で、機械はこの印を読まない（`lib/` と `workflows/` に「足りない: 」を比べる所は無い）。字を md に写すと、断片の英語の字と食い違いうる。

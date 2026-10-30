@@ -10,7 +10,7 @@
 - 外部標準照合の役（external-standards）: 対象差分・変更ファイル・目的の文・自覚済みの弱点・観点の正本を渡され、web と手元の依存を当たって定番解からの逸脱を返す AI の役。役の定義は investigator。道具は Read・Grep・Glob・Bash・WebSearch・WebFetch（prior-decisions と同じ起こし方。Bash は網の閉じた sandbox の中）。
 - 順位の行: 返答の `rankings` の 1 行 `{problem, source, ranked, diff_at, why_not_higher?}`。一般化した問題ごとに、一次情報が選択肢に付けた順位（`ranked`、上位から）と、差分が乗る選択肢（`diff_at`。`ranked` のどれかの字のまま）と、最上位でない時に上位を採れない理由。
 - 観点の正本: 工場の `lib/REVIEW.md` の節「外部標準照合観点」と「指摘の提出基準」（と、在れば対象の根の `REVIEW.md`）。パスは `materialkit.review_md_paths(repo)`（materials.md の 5.2 の終わり）。
-- 例の run: 本物の run `53e71318-ac9f-4468-ae72-5f6ed569a667`（対象 <owner>/<repo>。置き場 `~/.local/state/works-factory/targets/316e3bbc/archon-home/workspaces/<owner>/<repo>/artifacts/runs/53e71318-…/judge/`）。差分の在る run（23 ファイル）で、役は 1 回目に拒まれ（`rejects-external-standards.json` の 1 件。`diff_at` が `ranked` の字に無い）、2 回目で受け付けを通った（`material-external-standards.json` の `materials.external_standards.status` が `found`、`count` 2、`rankings` 1 行）。骨組みの値はここから取った。
+- 例の run: 本物の run 1 つ（対象 <owner>/<repo>。置き場は利用者の state の置き場の下の、その run の `judge/`）。差分の在る run（23 ファイル）で、役は 1 回目に拒まれ（`rejects-external-standards.json` の 1 件。`diff_at` が `ranked` の字に無い）、2 回目で受け付けを通った（`material-external-standards.json` の `materials.external_standards.status` が `found`、`count` 2、`rankings` 1 行）。骨組みの値はここから取った。
 
 ## 1 block の全体
 
@@ -70,7 +70,7 @@ materials.md の 1.4 の名だけ: `intake.json`・`view.json`・`diff.patch`・
   - `after_accept(reply, place)`: 何もしない。
   - `materials_of(reply)`: `{"external_standards": reply["material"]} if isinstance(reply.get("material"), dict) else {}`（今の `writes` の `materials.external_standards ← material`。`:1665`）。
   - `report_lines(doc)`: `reply` が null なら `[]`。在れば `rankings` の行ごとに `f"  - 順位: {oneline(problem)}——差分は {k} 位／{len(ranked)} 位中（{oneline(diff_at)}）"`（`k` は `ranked.index(diff_at) + 1`。受け付けを通った返答では `diff_at` はいつも `ranked` に在る）。`rankings` が空なら `f"  - 順位: 付けられる問題なし（{oneline(rankings_none)}）"` の 1 行。字下げ 2 つで、materials.md の 2.10 の素材の 1 行の下に並ぶ。
-- `workflows/external-standards/src/rankings.py`: 順位の行の照らし。公開の名は `problem(reply) -> str | None` だけ。写す元（`lib/judge_accept.py`）: `external_rankings`（`:2146-2157`。`Reject` を上げる代わりに拒む文を返し、通れば `None`）・`blank`（`:248-251`）・`EMPTY`（`:244-245`。字のまま）。
+- `workflows/external-standards/src/rankings.py`: 順位の行の照らし。公開の名は `problem(reply) -> str | None` だけ。写す元（`lib/judge_accept.py`）: `external_rankings`（`:2146-2157`。`Reject` を上げる代わりに拒む文を返し、通れば `None`）。空同然の自由文の見方は写さず、`lib/cite.py` の `blank`（写す元の `blank`・`EMPTY` と同じ表と長さの見方）を使う。
 - `workflows/.shared/schemas/purpose.schema.json`（`shared:purpose.schema.json`）: [purpose-review.md](purpose-review.md) の 1.5 の字のまま。
 - 使う `lib/`: `materialkit`・`rolekit`・`oneline`。
 
@@ -205,17 +205,17 @@ Your tools are Read, Grep, Glob, Bash, WebSearch, and WebFetch. …
 
 ## Materials
 
-- Target diff (Read it): ~/.local/state/works-factory/targets/316e3bbc/archon-home/workspaces/<owner>/<repo>/artifacts/runs/53e71318-ac9f-4468-ae72-5f6ed569a667/judge/diff.patch
+- Target diff (Read it): <利用者の state の置き場>/…/artifacts/runs/<run>/judge/diff.patch
 - Files the target diff touches: [
  "backend/app/api/model/schemas.py",
  "backend/app/api/routers/threads.py",
  …（23 行）
  "frontend/messages/ja.json"
 ]
-- Repository: ~/.local/state/works-factory/targets/316e3bbc/archon-home/workspaces/<owner>/<repo>/worktrees/archon/task-works-factory-line-1792307529854
+- Repository: <利用者の state の置き場>/…/worktrees/<run の作業ツリー>
 - Original purpose: 会話スレッドにピン留めの印を付けてサイドバーの「ピン留め」と「最近のスレッド」の枠に分ける変更（PR #2109）について、…（目的の文の字のまま）
 - Weaknesses already known and accepted: []
-- The viewpoint's source of truth: Read the section "外部標準照合観点" of ~/.cache/works-factory-plugin/2eff50966651bb961c234169d7381fc86fc756be/lib/REVIEW.md and follow it: …
+- The viewpoint's source of truth: Read the section "外部標準照合観点" of <工場のプラグインの写し>/lib/REVIEW.md and follow it: …
 
 ## What to do
 
@@ -260,7 +260,7 @@ Return only JSON that matches the output schema.
 - 元の works の `works/blk-material/commands/external-standards.md`（8 行）は、graphloops の指示書のファイルを Read させる薄い md で、works-gh の段と手順 4（目的の文が無い run）を持った。手順 4 と `PURPOSE_MISSING` は元の works の `blk-material/lib/material.py:176`・`:320-330`（目的の段の無い盤面を埋める）からで、工場は #76 で写した。この block も持つ（`<!-- if not purpose -->`）。
 - 元の graphloops の指示書は、元の works も工場も a1202d0 の写し。graphloops の Bash の段は「gh の読むだけの物（issue・pr の list と view・pr diff・search・repo view）を単独で打てば sandbox の外で通る」と書いた。元の works と工場は、包みが通す形を `works-gh`（pr list・pr view・pr diff・repo view）に絞り、issue と検索を WebFetch・WebSearch に回した（元の works から写した。工場の履歴では #76 の写しと #221 の書き直し）。この block も同じ（`{shared:works-gh}`）。
 - 工場が #221 で替えた所: 役の定義の Bash の箇条の「既にある計器の実行」を「リポジトリに既にある検査のスクリプトや試験のうちファイルを書き換えない物の実行」に・「打ち切った線」を「打ち切った境目」に。この block の英語は替えた後の意味で書いた。
-- graphloops の今の指示書（`~/src/claude-plugins/graphloops/prompts/review-loop/p1.external_standards.md`）は、a1202d0 の後に語の言い換え（c63c2ae3）と穴の名の替え（`hist.snapshot.*`）だけを受けた。意味の差は無い。
+- graphloops の今の指示書（上流のプラグインの写しの `graphloops/prompts/review-loop/p1.external_standards.md`）は、a1202d0 の後に語の言い換え（c63c2ae3）と穴の名の替え（`hist.snapshot.*`）だけを受けた。意味の差は無い。
 - graphloops の節の宣言（`graphs/review-loop.json` の `p1.external_standards`）は、2 周目から「機構を足した／変えた周」「依存の宣言のファイルが変わった周」に引き直し、体裁だけの周は前の判定を流用する（`refire_when`・`carry_reason`）。工場は 1 run = 1 周（持ち主の決め carry）なので 1 周目の枝だけが効き、流用の語 `carried_over` は拒む。新しい形も同じ。宣言の注記 `na_reason_note`（「外部依存が無いのは『見たが無かった』＝clean」）は指示に入っていない（元の works も工場も同じ。（未確認）: 外した記録は無い）が、`{shared:material-na}` の `never` の段が `not_applicable` を拒み `found`・`clean` で書けと言うので、役に届く決まりは同じ。
 - graphloops は `rankings` を盤面の `process.external_rankings` に書く（`writes`）が、graphloops の判定役の指示書もそれを読まない（`prompts/` に名指しが無い）。工場も新しい形も `reply` に残すだけ。
 - 受け付けの順（作業ツリー・所見の場所・`post_check` の `external_rankings`・素材の欄）は元の works・graphloops・工場で同じ。

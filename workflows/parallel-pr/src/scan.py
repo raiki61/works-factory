@@ -161,6 +161,14 @@ def scan(place, repo, *, request, base: str, changed, gh=None, which=None) -> di
     return _done(place, {"go_role": False, "reason": f"機械が決めた: {m['status']}（{m.get('reason') or m.get('checked') or ''}）"})
 
 
+def refuse(place, reason: str) -> dict:
+    """port が読めない時の返り {go_role: False, reason}。前の run のこの block のファイルを先に名で消す（残すと出口が古い素材の控えを
+    この run の結果として読む）"""
+    place = pathlib.Path(place)
+    _clear(place)
+    return _done(place, {"go_role": False, "reason": reason})
+
+
 def _done(place, out: dict) -> dict:
     """返りを scan.json にも残す（出口が読む）"""
     jsonfile.write(place / files.SCAN, out)

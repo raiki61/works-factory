@@ -24,7 +24,7 @@ def compute():
         name = "changed"
         values["changed"] = ports.json(os.environ.get("INPUTS_CHANGED"), "changed.schema.json")
     except ValueError as e:
-        return scan._done(ports.place(), {"go_role": False, "reason": f"入力 {name} が読めない: {e}"})
+        return scan.refuse(ports.place(), f"入力 {name} が読めない: {e}")
     return scan.scan(ports.place(), Path.cwd(), **values)
 
 

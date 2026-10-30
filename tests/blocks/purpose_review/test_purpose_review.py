@@ -58,15 +58,15 @@ class FlowCase(unittest.TestCase):
 
     def test_findings_are_counted_again_against_the_fixed_version(self):
         """写す元 MaterialCase.test_purpose_review_findings_must_cite_the_version: 数の合う根拠だけが material.json の reply に載り、
-        版に無い字・数の合わない申告・根拠の無い『狭めている』は今の字の拒みの文で返る"""
+        版に無い字・数の合わない申告・根拠の無い『狭めている』は今の字の拒みの文（設計書の 4 節。直し方の訳まで）で返る"""
         cases = ((GOOD, ""),
-                 (reply(("どこにも無い字列", 1)), "'どこにも無い字列' が現物に 1 件も無い"),
+                 (reply(("どこにも無い字列", 1)), "'どこにも無い字列' が現物に 1 件も無い——現物に無い字列は受け取らない"),
                  (reply(("件数は 3 件", 2)), "'件数は 3 件' の件数の申告 2 が数え直し 1 と違う"),
                  (reply(), "『狭めている』のに findings が空"),
-                 (reply(("件数は 3 件\n件数", 1)), "cite に改行が入っている"),
+                 (reply(("件数は 3 件\n件数", 1)), "cite に改行が入っている——数えは行単位の git grep なので"),
                  (reply(("  ", 1)), "cite（作業ツリーで引ける字列）が空"),
-                 (reply(("件数\0", 1)), "NUL が入っている"),
-                 ({**GOOD, "findings": ["件数は 3 件"]}, "素の文字列は受け取らない"))
+                 (reply(("件数\0", 1)), "NUL が入っている——検索語にもパスにも使えない"),
+                 ({**GOOD, "findings": ["件数は 3 件"]}, "素の文字列は受け取らない（cite を持つ形で出せ）"))
         for got, why in cases:
             with self.subTest(why=why):
                 self.setUp()

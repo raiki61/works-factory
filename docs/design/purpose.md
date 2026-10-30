@@ -76,7 +76,7 @@ script の名は `lib/` のモジュールの名と重ねない（README の 7.1
 
 - `workflows/purpose/src/__init__.py`: 空。
 - `workflows/purpose/src/steps.py`: 今の `lib/judge_accept.py` の `refuse_if_frozen`（:1224-1230）・`check_purpose`（:1233-1255）・`PURPOSE_RULE`（:1218）と、作業ツリーの比べ `_tree_snapshot`・`_moved_since`・`_tree_unchanged`（:1121-1160。写しの在る道だけ）の写し。`purpose_prep`（:1258-1284）は、材料の文を組む部分を md へ出し、依頼の写しの作り方（`carry.without_prior`）だけを `request_copy(doc)` として写す。place のファイルの名（`INTAKE_FILE`・`TREE_FILE = "tree.json"`・`PURPOSE_FILE = "purpose.json"`・`MEANS_FILE = "purpose-means.json"`・`ROLE = "purpose"`）と、出典の語 `PR_SOURCE = "①PR 説明"`・`PLAN_SOURCE = "②計画・タスク記述"`・`WRITER_SOURCE = "③writer の要約"`・`UNKNOWN_SOURCE = "目的不明"`、制約の `kind` の語 `MEASURED = "実測"`・`HYPOTHESIS = "仮説"` もここだけが持つ。解き方の分け（今の `worldmark.split_means`。`lib/worldmark.py:161-166`）は `split_means(reply)` として写す: 返答の写しから鍵 `means` を外し、`means` の中の空白だけでない字だけを並べる（今の `split_means` が頼る `lib/marks.py` は、README の 9.1 で消すと決まった部品なので使わない）。
-- `workflows/purpose/src/sourcefiles.py`: 今の `lib/purpose.py:24-46` の `_source_files_errors` と、それが頼る `lib/judge_accept.py` の `_resolve_target`（:2250-2260）・`_in_version`（:2236-2247）の写し。根は `engine.util.repo_root(engine.util.git)`、git の向き先は `accept.in_repo(repo)`。拒みの訳の字は今のまま。
+- `workflows/purpose/src/sourcefiles.py`: 今の `lib/purpose.py:24-46` の `_source_files_errors` の写し。それが頼る `_resolve_target`・`_in_version`（元 `lib/judge_accept.py`）は写さず、指し先の照らしの 1 か所 `lib/cite.py` の物を使う（9 節の 1）。根は `engine.util.repo_root(engine.util.git)`、git の向き先は `accept.in_repo(repo)`。拒みの訳の字は今のまま。
 - block の `schemas/` は置かない。依頼の形は共通の `workflows/.shared/schemas/request.schema.json`（依頼の容器の照らしは土台の口 `requestrows.parts`）、前提の実測の形は共通の `workflows/.shared/schemas/constraints.schema.json`（行の欄は今の前提の役の `output_format` と同じで、行は `additionalProperties: false`、`measured_output` は空白だけでない字。容器の外側は閉じない。`実測` の行の `measured_output` の欠けは拒まない: 役の返りには在り、前の run から持ち越した行〔`lib/carry.py` の `carried_constraints`〕には無い）。
 - 使う `lib/`: `accept`（KEEP。`tree_state`・`tree_moved`・`type_errors`・`TREE_SCHEMA`・`status_keys`・`guard`・`in_repo`）・`carry`（KEEP。`without_prior`）・`rolekit`（KEEP。`accept_round`・`rejected`・`rejects_text`・`given_up_reason`）・`graphloops/engine/util.py`（KEEP。`Reject`・`git`・`repo_root`）・`jsonfile`・`oneline`。
 
@@ -408,7 +408,7 @@ PYTEST_XDIST_AUTO_NUM_WORKERS=4 WORKS_FACTORY_ARCHON_CACHE=<Archon の源の置�
 
 ## 9 README へ返す問題
 
-1. 出典のファイルの照らしの部品（`_resolve_target`・`_in_version`。今は `lib/judge_accept.py:2236-2260`）を、purpose・diagnose（`_count_in_version` が使う。:2317-2355）・`lib/recount.py:263` の 3 つが使う。README の 9.2 は `judge_accept` を観点ごとに割るとだけ書き、この共通の部品の行き先が無い。この block は作り直しの間 `src/sourcefiles.py` に写すが、組み込みでは `lib/` の 1 モジュール（例 `lib/versioned.py`）に寄せるのがよい（憲法の 4）。
+1. 出典のファイルの照らしの部品（`_resolve_target`・`_in_version`。今は `lib/judge_accept.py:2236-2260`）を、purpose・diagnose（`_count_in_version` が使う。:2317-2355）・`lib/recount.py:263` の 3 つが使う。README の 9.2 は `judge_accept` を観点ごとに割るとだけ書き、この共通の部品の行き先が無い。→ 決着: 部品は `lib/cite.py`（2 つ以上の block が使う物の置き場。憲法の 4）に移り、この block の `src/sourcefiles.py` はそれを import して使う。写しは持たない。
 2. 制約の行の語（`実測`・`仮説`）は premises が作り、purpose・diagnose・report・`lib/carry.py`（`MEASURED`）が読む。出典の語（`③writer の要約`・`目的不明`）は purpose が作り、line（目的の監査を回すか）・diagnose（目的が無い時の字。`lib/judge_accept.py:2080`）が読む。README の 4.1 の「2 つ以上の block が読む行の形は作り手の出力ごとに `lib/` の 1 モジュール」に当たるが、README の 4.1 と 9.3 の一覧に無い。この block は作り直しの間 `src/steps.py` に語を置く。
 3. 目的の段が落ちた時の止めの語 `works:purpose`（今の `stopby.PURPOSE`）の持ち主（[premises.md](premises.md) の 9 節の 3 と同じ）。
 

@@ -34,7 +34,7 @@ place のファイルの名は `src/steps.py` だけが持つ（`intake.json`・
 4. 返す形: `steps [{file, why}]`・`placed [{path, change}]`・`copied [{path, why}]`・`stuck [字]`・`guessed [字]`。人に見せる欄は why・change・stuck・guessed（`{lang}`）。
 5. 描いた骨組み: 初めての本物の run は fb59418a（頼み 7 件。当たり 1・外れ 6・案内の直し 15 件。直しの当て方は README の 13 章）。
 6. 今の指示との差: 新しい役（今の工場に無い）。
-7. 元の works と graphloops の同じ場面: convergence-loops の firstread-loop の読み役（`~/src/claude-plugins/convergence-loops/`）。違い: 読み手に「止まった所・推測した所」に加えて「置く所・写す手本」を答えさせ、機械が閉じるべき所と比べる。firstread-loop の「読んだ後の誤解」の聞き取りは持たない（この目が見るのは置き場の誤りだけ）。
+7. 元の works と graphloops の同じ場面: convergence-loops の firstread-loop の読み役（上流のプラグインの写しの `convergence-loops/`）。違い: 読み手に「止まった所・推測した所」に加えて「置く所・写す手本」を答えさせ、機械が閉じるべき所と比べる。firstread-loop の「読んだ後の誤解」の聞き取りは持たない（この目が見るのは置き場の誤りだけ）。
 8. 受け付け: `steps` の各ファイルが作業ツリーに在り、見せない所の中でない・パスが根からの相対で `..` を持たない・`placed` と `steps` が空でない。3 回で諦め、`walks.json` にその頼みの諦めた理由を残す。
 9. 試験: `fixtures/standalone.stubs.yaml`（頼み 1 つを外して直しまで）・`tests/blocks/guidance_path/`（当たりと外れ・受け付け・入口の誤り・比べ）。
 

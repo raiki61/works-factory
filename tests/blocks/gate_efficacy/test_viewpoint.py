@@ -140,6 +140,14 @@ class ArmsCase(unittest.TestCase):
                 self.assertIn("status=clean", got)
         self.assertIsNone(self.problem("clean", [self.GOOD]))
 
+    def test_unproven_arms_name_the_status_the_role_wrote(self):
+        """拒む文は役が書いた status を名指す（clean でない status に status=clean と言わない）"""
+        bad = [{**self.GOOD, "red_confirmed": False}]
+        for status in ("clean", "not_run", "not_applicable"):
+            with self.subTest(status):
+                got = self.problem(status, bad)
+                self.assertIn(f"status={status}——", got)
+
     def test_found_and_awaiting_human_pass_the_second_check(self):
         bad = {**self.GOOD, "red_confirmed": False}
         self.assertIsNone(self.problem("found", [bad]))

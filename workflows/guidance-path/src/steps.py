@@ -353,15 +353,18 @@ def finish(out) -> dict:
         if "gave_up" in walk:
             status = "failed"
             reasons.append(f"頼み {req['id']} の読み手の返答を諦めた: {walk['gave_up']}")
+        elif req["id"] not in compared:   # 辿れた頼みの比べの行が無い・控えが読めない時は、当たりとも外れとも読まない（E23）
+            status = "failed"
+            reasons.append(f"頼み {req['id']} を閉じるべき所と比べた控え {COMPARE} が無いか読めない（比べの node が落ちた）")
         rows.append({"id": req["id"], "request": req["request"], "closes": req["closes"],
                      "hit": compared.get(req["id"], {}).get("hit"), **{k: walk.get(k, []) for k in
                                                                      ("steps", "placed", "copied", "stuck", "guessed")},
                      "gave_up": walk.get("gave_up", "")})
     missed = [r["id"] for r in rows if r["hit"] is False]
-    if missed and not (out / FIXES).is_file():
+    if missed and not fixes:   # 受けた直しはいつも外れた頼みごとに 1 つ以上（fix_problems）。空は受けていないか控えが読めない
         status = "failed"
         reasons.append(f"外れた頼み {missed} の案内の直しが受け付けを通らなかった: "
-                       f"{rolekit.given_up_reason(out, FIX_ROLE) or 'ループが走らなかったか落ちた'}")
+                       f"{rolekit.given_up_reason(out, FIX_ROLE) or f'ループが走らなかったか落ちたか、控え {FIXES} が読めない'}")
     paths = None
     if rows:
         jsonfile.write(out / PATHS, rows)

@@ -326,7 +326,7 @@ materials.md の 6 節の雛形のまま。この block だけの物:
 materials.md の 2.8 と 4 節の文のほかに、後の照らし `arms.arms_problem(name, reply)` の 3 つ（今の `gate_arms_all_red` の字の `{nid}:` を `観点 {name}:` に替えた物。順に見て、最初に当たった 1 つを返す）。`arms = reply.get("arms", [])`、`st = reply.get("material", {}).get("status")`、`blank` は `recount.blank`（`blank(s, 10)` は、字が空同然の語の表 `EMPTY`〔「なし」「n/a」「未確認」など〕に当たるか、前後の空白を除いて 10 字未満なら真）:
 
 1. `arms` が空で `st` が `materialkit.OBSERVED_STATUS`（`found`・`clean`）のどれか: `f"観点 {name}: status={st} なのに腕が 0 行——撃った腕を行にするか、撃てた腕が無いなら not_run（理由つき）で書け"`
-2. `st` が `found` でも `awaiting_human` でもなく、`unproven(arms)`（赤・対照の緑・`hit_evidence`〔`blank(…, 10)` でない〕のどれかを欠く腕）が空でない: `f"観点 {name}: 赤を見ていない腕 {unred} / 壊していない写しで緑を確かめていない腕 {nocontrol} / 守る行を通ったことを測っていない腕 {nohit} が在るのに status=clean——未達は found（count と detail に腕を書く）、人の起動待ちなら awaiting_human（reason に何を待つか）"`。`unred`・`nocontrol`・`nohit` は、それぞれ `red_confirmed` が偽・`control_green` が偽・`blank(hit_evidence, 10)` が真の腕の `arm` の list（`repr` の字のまま）。字の `status=clean` は `st` が `not_run` などでも今のまま出す（6 節）。
+2. `st` が `found` でも `awaiting_human` でもなく、`unproven(arms)`（赤・対照の緑・`hit_evidence`〔`blank(…, 10)` でない〕のどれかを欠く腕）が空でない: `f"観点 {name}: 赤を見ていない腕 {unred} / 壊していない写しで緑を確かめていない腕 {nocontrol} / 守る行を通ったことを測っていない腕 {nohit} が在るのに status={st}——未達は found（count と detail に腕を書く）、人の起動待ちなら awaiting_human（reason に何を待つか）"`。`unred`・`nocontrol`・`nohit` は、それぞれ `red_confirmed` が偽・`control_green` が偽・`blank(hit_evidence, 10)` が真の腕の `arm` の list（`repr` の字のまま）。元の `gate_arms_all_red` は `st` が `not_run` などでも字の `status=clean` を出していたので、役が書いた status を出す形に直した。
 3. `red_confirmed` と `control_green` が真で `blank(hit_evidence, 10)` が真の腕が 1 つ以上（status を問わない）: `f"観点 {name}: 腕 {nohit} は赤も control の緑も見ているが、**その腕が守る行を通ったこと**を測っていない（hit_evidence）——赤は柵の不在の検知であって、この腕がその柵に当たった証拠にならない。分岐が書く値を一意の印に替え、その印が出力か記録に現れることを確かめて hit_evidence に書け"`
 
 どれにも当たらなければ `None`。
@@ -343,7 +343,6 @@ bin/works-factory workflow run works-factory-gate-efficacy \
 ## 6 未確認
 
 - 工場の line が始めの記録に `gates` を書くか。今は書き手が無く（2.7）、合流の道は試験でしか通らない。新しい line の設計書が `gates` を始めの記録の欄として残すかを決める。この block は port の既定 `""` で今の run と同じに動く。`GATES_MERGE_WHY` の字の「init --input gates=merge」は元の works の入口の名残で、工場の起動の殻に同じ入力は無い。字は振る舞いを変えないよう今のまま写した。
-- 腕の照らしの 2 つ目の文の「status=clean」が、`st` が `not_run`・`not_applicable` の時にも出ること（今の `gate_arms_all_red` のまま）。直すかは、この作り直しの後に別に扱う（振る舞いを変えない）。
 - 変異の宣言の `argv`・`arms` と読みの誤りの字は対象のリポジトリの中身で、`$` の後に英字が続く字（例 `$HOME`）を含みうる。materials.md の 3.1 の「値に `$…` を置かない」は対象の中身までは縛れない。Archon が `prompt:` の値の中の `$…` を置き換え直すかは、土台の PR の確かめ（README の未確認の一覧の大きい指示の行と同じ所）に寄せる。
 - 判定のまとめが付ける include の id（2.5 の骨組みのパスの `judge/gate-efficacy/`）。
 

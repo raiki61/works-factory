@@ -35,7 +35,8 @@
 - where_cites(where) -> [(パス, 始め, 終わり)]: 場所の文の中の名指しを順に返す。パスの無い `:<行>` は直前のパス、直前が無ければ空
 
 指し先の綴りと版に在るかの照らし（前は judge_accept・boardview に在り recount が遅れて読んでいた。README 9.3 の「指し先の照らし」の
-1 か所。integration.md 4.3-4・4.5-5。使い手は recount〔fix・delta-review〕と purpose・diagnose・independent-design・design）:
+1 か所。integration.md 4.3-4・4.5-5。使い手は recount〔fix・delta-review〕と purpose・purpose-review・diagnose・independent-design・design・r2・
+external-standards）:
 - EMPTY・blank(s, min_len): 役が埋める自由文が空同然か（表と長さの両方で見る）
 - Reject: 確かめられないものを拒む例外（engine.util.Reject と同じ物）
 - _in_version(rels)・_resolve_target(tgt, root)・_not_in_version(full): 指し先の候補を版の一覧で引く・役が書いたパスをリポジトリ
