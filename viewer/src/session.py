@@ -41,7 +41,7 @@ def find(projects: Path, preview: str) -> Path | None:
 
 
 def read(path: Path, keep) -> dict:
-    got = {"system": [], "tools": [], "inject": [], "prompt": None, "turns": [], "seq": [], "cost": None, "usage": None, "unread": {},
+    got = {"system": [], "tools": [], "inject": [], "turns": [], "seq": [], "cost": None, "unread": {},
            "recorded": {SHAPE: False, BLOB: False}, "cwd": ""}
     turns, by_id, results, held = [], {}, {}, {}
     for line in path.read_text(encoding="utf-8", errors="replace").splitlines():
@@ -74,7 +74,7 @@ def read(path: Path, keep) -> dict:
         elif kind == "assistant":
             _assistant(got, message, keep, turns, by_id, row.get("timestamp"))
         elif kind == "cost-state":
-            got["cost"], got["usage"] = row.get("totalCostUSD"), row.get("modelUsage")
+            got["cost"] = row.get("totalCostUSD")
     for turn in turns:
         for call in turn["calls"]:
             call["result"] = results.get(call.pop("id"))
@@ -105,11 +105,9 @@ def _user(got, message, keep, results):
         if part.get("type") == "tool_result":
             body = part.get("content")
             body = body if isinstance(body, str) else "\n".join(p.get("text", "") for p in body or [] if isinstance(p, dict))
-            results[part.get("tool_use_id")] = [len(body), _clip(body, 600), bool(part.get("is_error"))]
+            results[part.get("tool_use_id")] = [len(body)]
             got["seq"].append(["result", keep(body), bool(part.get("is_error"))])
         elif part.get("type") == "text":
-            if got["prompt"] is None:
-                got["prompt"] = keep(part["text"])
             got["seq"].append(["user", keep(part["text"])])
 
 
@@ -117,7 +115,7 @@ def _assistant(got, message, keep, turns, by_id, at):
     """1 つの返事は content の片ごとに行が分かれ、同じ message.id を持つ。往復の時刻は最初の行の時刻"""
     ident = message.get("id") or str(len(turns))
     if ident not in by_id:
-        by_id[ident] = {"usage": {}, "calls": [], "say": "", "at": at if isinstance(at, str) else None}
+        by_id[ident] = {"usage": {}, "calls": [], "at": at if isinstance(at, str) else None}
         got["seq"].append(["turn", len(turns)])
         turns.append(by_id[ident])
     turn = by_id[ident]
@@ -129,10 +127,9 @@ def _assistant(got, message, keep, turns, by_id, at):
         kind = part.get("type") if isinstance(part, dict) else None
         if kind == "tool_use":
             mark = keep(json.dumps(part.get("input"), ensure_ascii=False, indent=1))
-            turn["calls"].append({"id": part.get("id"), "name": part.get("name"), "input": _clip(_text(part.get("input")), 400), "text": mark})
+            turn["calls"].append({"id": part.get("id"), "name": part.get("name"), "text": mark})
             got["seq"].append(["call", part.get("name"), mark])
         elif kind == "text" and part.get("text"):
-            turn["say"] = _clip(part["text"], 300)
             got["seq"].append(["say", keep(part["text"])])
         elif kind == "thinking" and part.get("thinking"):
             got["seq"].append(["think", keep(part["thinking"])])
@@ -141,10 +138,3 @@ def _assistant(got, message, keep, turns, by_id, at):
 def _count(got, what):
     got["unread"][what] = got["unread"].get(what, 0) + 1
 
-
-def _text(value) -> str:
-    return value if isinstance(value, str) else json.dumps(value, ensure_ascii=False)
-
-
-def _clip(text: str, size: int) -> str:
-    return text if len(text) <= size else text[:size] + f"\n…（残り {len(text) - size} 字）"

@@ -46,7 +46,7 @@ def _top(events, sessions) -> dict:
     ai = [(n, e) for n, e in enumerate(events) if e["kind"] in runread.AI_KINDS]
     total = sum(e["cost"] for _, e in ai)
     rows = [{"event": n, "tokens": e["tokens"], "stage": e.get("stage"), "cost": round(e["cost"], 6),
-             "share": round(e["cost"] / total, 4) if total else None, "seconds": _length(e), "turns": e.get("turns"),
+             "share": round(e["cost"] / total, 4) if total else None, "seconds": runread.length(e), "turns": e.get("turns"),
              "replies": len((sessions.get(e.get("session")) or {}).get("turns") or []) if e.get("session") in sessions else None,
              "tokens4": four(e["usage"]) if e.get("usage") else None} for n, e in ai]
     rows.sort(key=lambda row: (-row["cost"], row["event"]))
@@ -59,9 +59,9 @@ def _time_split(run) -> dict:
     own = [e for e in run["events"] if e["kind"] not in runread.GROUP_KINDS]
     split = {"wait": 0.0, "ai": 0.0, "machine": 0.0}
     for e in own:
-        split["wait" if e["kind"] == runread.WAIT_NODE else "ai" if e["kind"] in runread.AI_KINDS else "machine"] += _length(e)
+        split["wait" if e["kind"] == runread.WAIT_NODE else "ai" if e["kind"] in runread.AI_KINDS else "machine"] += runread.length(e)
     return {"run": run["seconds"], **{key: round(value, 1) for key, value in split.items()},
-            "waits": sorted(({"event": n, "seconds": _length(e)} for n, e in enumerate(run["events"]) if e["kind"] == runread.WAIT_NODE),
+            "waits": sorted(({"event": n, "seconds": runread.length(e)} for n, e in enumerate(run["events"]) if e["kind"] == runread.WAIT_NODE),
                             key=lambda row: -row["seconds"])}
 
 
@@ -91,7 +91,7 @@ def _rounds(events, checks) -> list[dict]:
             outputs = sorted(("/".join(e["tokens"][len(head):]), e["digest"]) for e in inner if "digest" in e)
             here = (failed, check["exit"] if check else None, outputs)
             rows.append({"round": k, "events": [m for m, _ in by[k]], "cost": round(sum(e["cost"] for e in inner), 6),
-                         "seconds": _seconds(min(times, key=_at), max(times, key=_at)) if times else None,
+                         "seconds": runread.seconds(min(times, key=runread.when), max(times, key=runread.when)) if times else None,
                          "ai": sum(1 for e in inner if e["kind"] in runread.AI_KINDS), "failed": failed, "check": check,
                          "same": before == here})
             before = here
@@ -108,14 +108,14 @@ def _check(checks, head, k, group) -> dict | None:
             continue
         ids = [t for path in [*row["node"], step[:-len(suffix)]] for t in shape.tokens(path)]
         if ids == head and _inside(row["at"], group):
-            return {"exit": row["exit"], "stdout": row["stdout"][:300], "stderr": row["stderr"][:300]}
+            return {"exit": row["exit"]}
     return None
 
 
 def _inside(at, group) -> bool:
     if not at or not group["start"]:
         return True
-    return _at(group["start"]) <= _at(at) and (not group["end"] or _at(at) <= _at(group["end"]))
+    return runread.when(group["start"]) <= runread.when(at) and (not group["end"] or runread.when(at) <= runread.when(group["end"]))
 
 
 def _idle(events, graphs) -> dict:
@@ -123,7 +123,7 @@ def _idle(events, graphs) -> dict:
     `$<id>.output` の引きが 1 つも無く、graph の返りでもない AI・script・bash のノード。工場は大きい物をファイルに置いて pointer で
     渡すので、引きが無くても読まれていることが多い）。引く先の無いノードは、今の作りの数と、この run で走った物を出す"""
     last, same, empty = {}, [], []
-    for n, e in sorted(enumerate(events), key=lambda pair: (_at(pair[1]["start"]) if pair[1]["start"] else datetime.min.replace(tzinfo=timezone.utc),
+    for n, e in sorted(enumerate(events), key=lambda pair: (runread.when(pair[1]["start"]) if pair[1]["start"] else datetime.min.replace(tzinfo=timezone.utc),
                                                             pair[0])):
         if "output" not in e or e["kind"] in runread.GROUP_KINDS:
             continue
@@ -191,7 +191,7 @@ def _context(events, sessions, first, texts) -> dict:
                     row["chars"] += (call.get("result") or [0])[0]
                     row["sessions"].add(sid)
             if turn.get("at") and before:
-                gap = _seconds(before, turn["at"])
+                gap = runread.seconds(before, turn["at"])
                 if gap is not None and gap >= PAUSE:
                     pauses.append({"session": sid, "event": first.get(sid), "turn": k, "gap": gap,
                                    "cache_write": (turn["usage"] or {}).get("cache_write")})
@@ -208,7 +208,7 @@ def _context(events, sessions, first, texts) -> dict:
                              key=lambda row: -row["sessions"]),
             "tools": sorted(({"names": list(names), **row} for names, row in tools.items()),
                             key=lambda row: -row["sessions"]),
-            "inject": sorted(({"mark": mark, "chars": size([mark]), "sessions": len(set(sids))} for mark, sids in injects.items()
+            "inject": sorted(({"chars": size([mark]), "sessions": len(set(sids))} for mark, sids in injects.items()
                               if len(set(sids)) > 1), key=lambda row: (-row["sessions"], -row["chars"])),
             "cache": {**total, "read_share": round(total["cacheRead"] / total["input"], 4) if total["input"] else None},
             "reads": {"files": len(reads), "again": again}, "pauses": pauses}
@@ -234,18 +234,3 @@ def _big(sessions, first) -> dict:
     results.sort(key=lambda row: -row["chars"])
     climb.sort(key=lambda row: -(row["last"] - row["first"]))
     return {"line": BIG, "calls": calls, "results": results, "climb": climb}
-
-
-def _length(event) -> float:
-    return (_seconds(event["start"], event["end"]) or 0.0) if event["start"] and event["end"] else 0.0
-
-
-def _seconds(start, end):
-    try:
-        return round((_at(end) - _at(start)).total_seconds(), 1)
-    except (TypeError, ValueError):
-        return None
-
-
-def _at(text: str) -> datetime:
-    return datetime.fromisoformat(text.replace("Z", "+00:00"))
