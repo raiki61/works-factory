@@ -64,19 +64,20 @@ class Run:
             env = support.variant_return(env)
         return env
 
-    def script(self, name: str, include: str = "", **inputs) -> dict:
-        done = subprocess.run([sys.executable, str(self.block / "scripts" / f"{name}.py")], cwd=self.repo,
+    def _spawn(self, name: str, include: str, inputs: dict) -> subprocess.CompletedProcess:
+        return subprocess.run([sys.executable, str(self.block / "scripts" / f"{name}.py")], cwd=self.repo,
                               env=hermetic.child_env(**self.environ(include, **inputs)), capture_output=True, text=True,
                               encoding="utf-8")
+
+    def script(self, name: str, include: str = "", **inputs) -> dict:
+        done = self._spawn(name, include, inputs)
         if done.returncode != 0:
             raise AssertionError(f"{name}.py が落ちた（{done.returncode}）: {done.stderr}")
         return json.loads(done.stdout)
 
     def failing(self, name: str, include: str = "", **inputs) -> str:
         """落ちるはずの script を回し、標準エラーを返す"""
-        done = subprocess.run([sys.executable, str(self.block / "scripts" / f"{name}.py")], cwd=self.repo,
-                              env=hermetic.child_env(**self.environ(include, **inputs)), capture_output=True, text=True,
-                              encoding="utf-8")
+        done = self._spawn(name, include, inputs)
         if done.returncode == 0:
             raise AssertionError(f"{name}.py が落ちなかった: {done.stdout}")
         return done.stderr
