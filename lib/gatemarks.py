@@ -19,7 +19,6 @@ narrows を書く前に狭めを避ける形を当たり、無い時だけ narro
   plan-review の受け付けが拒む。持ち主の決め settle-by-standard）
 - NO_STANDARD: decided_by の頭の印。定石も依頼の本文も見つからず ①②③ のどれにも当たらない行は、印の後に探した所を書き、
   聞かずに推しで進む（出どころが無いことが中身なので軸 obvious の出どころの照らしと軸 world を揃える。報告には探した所を 1 行で残す）
-- passes(b)・lines(b): 通した行と、最後の関所の文・報告の行
 
 問いの台帳（record.questions）のうち人に聞く状態（検証器の ASKING）の問いも、修正前の関所の項目に 1 件 1 行で載せる（持ち主
 2026-09-29。run 119 の人の答え）。人に聞くと名乗る問いが人の口に繋がらないまま、出どころの免除だけが効いて
@@ -66,27 +65,23 @@ conflict.owed_units_but_asked が withheld で行う。写しの _owed_units は
   （not_run・awaiting_human）・答えを結ぶ時の問いの出どころ（台帳の origin。origin を持てない field の問いは、key の頭の測れていない
   素材の名）・素材の名で答えた依頼の答え（問いが立っていなくても当たる）・命令と出力つきで答えた素材（報告が検証器の阻害から外す。
   HAND_CHECKED と名乗る）・答えた行に足す素材の行（利用者の声 10-09 の C2）
-- design_only(b): 設計だけの run か（値の見え方 Ledger の design_only）
 - PLAIN・named(node)・status_named(status)・eye_named(name, status): 関所の文と報告が主語にする平易な名（内部の名は括弧へ。plan・specblk・境の節・報告が使う）
 - quote(question)・QUOTE_NOTE: 盤面の問いの文を引用として載せる行と、関所で添える答え方の読み替えの 1 行
 - head3(happened, decide, push)・pushes(texts)・push_of(texts): 関所の文と報告の冒頭 3 行（起きたこと・決めてほしいこと・推し）と、推しを記録から拾う口
 - gate_text(asking, *, run_id, node, record_name): 答えを受ける関所の文（修正前の関所と仕様の関所が呼ぶ 1 つの組み立て）
 - recommend_gaps(node, reply)・recommend_of(mark): 関所の項目の行の推し recommend {answer, note, why}（実の利用者の run ac9e02ab）の
-  形の誤り（受け付けが拒む。事前審査の返答は一番上の止まった時の推し converge.STUCK_PUSH も同じ形で照らす）と、形の整った推し（人に回す項目の末尾「／推し: …」に載る。照らしの _human_passed はこの尾を外す）
+  形の誤り（受け付けが拒む。事前審査の返答は一番上の止まった時の推し converge.STUCK_PUSH も同じ形で照らす）と、形の整った推し（人に回す項目の末尾「／推し: …」に載る。照らしはこの尾を外す）
 - push_rec(text): 項目の推しの尾の読み戻し（その無人の方針の読み row_push は line の src/。持ち主 2026-10-15「人がいないときは推しの答え。」issue #552）
 - answer_key(b, q): 依頼の answers でその問いに答える時の question（保留の行の尾 ANSWER_KEY_HEAD が使う）
 - spec_words(unchecked) -> SpecWords(said, source, head, note): 承認し直すかの問いを「変わった」か「照らせなかった」かで言う語の選び
   （最後の承認ノードの 1 行目の句・次の依頼の下書きの source の頭・最後の承認ノードと報告の人が決めることの節の頭）
-- draft_line(drafts, next_file): 答えの下書き（draft: true・source つき。報告が next-request.json の answers に置き、依頼の入口
-  carry.parts が拒む）の報告の冒頭 1 の行
 グラフの中で決めてよいか（持ち主 2026-10-09 の決め 1。計画 2026-10-09-clean-whole の Task 2.6）: 関所の行を聞かずに通すのは、4 つの軸が
 全部揃う時だけ（人がいる run も無人の run も同じ決まり。揃わない行は今どおり人に回し、無人なら止めて答えの下書きを残す）。
 自明（決め手の欄が揃い、decided_by の出どころ＝URL・パス:行・依頼の引用「…」・設計の決定の記録のパスが現物に在る。cite.sources_problem）・
-世界の解（盤面の根に世界の解の段の控え（worldmark）が在る run は、この軸で見ない——行の外れは下の world_items の項目が 1 度だけ聞く。
+世界の解（盤面の根に世界の解の段の控え（worldmark）が在る run は、この軸で見ない——行の外れは世界の解の外れの項目が 1 度だけ聞く。
 控えが無い・段が落ちた run は今どおり world が在るか、決め手が URL）・汚くない（行の単位に構造の目が人に上げた行が無く、汚れる行には修正案の欄 structure の答えが在る）・やりすぎでない
 （柵の印が無く、行が修正案の単位の外を名指さない）。揃わない訳は人に回す行の尾「（人に聞く訳: …）」に載る。
-- axes(b, mark, units) -> [揃わない軸の訳]: 4 つの軸の確かめ（空ならグラフの中で決める）
-- axis_reasons(b, mark, units) -> {軸: [訳]}: 軸（AXES）ごとの揃わない訳。axes と関所の軸ごとの分け（gate_axes）の 1 つの持ち主
+- AXES: 4 つの軸の名（軸ごとの揃わない訳の組み立ては axis_why）
 - AxisFacts・axis_why(facts, mark, units)・narrow_asks(plan, marks, facts)・ask_row(facts, kind, text, mark, node, units)・mark_of(row)・
   at(doc, *idx)・joined(row, mark): 軸の材料を値で受ける形（place も port も読まない）。narrow_asks は修正案の narrows を承認ノードに回しうる行
   {kind, node, text, units, mark, decided, why} にする芯で、計画の審査の block と本線の仕様駆動の道（docs/design/spec-driven.md の 6.2）が使う
@@ -97,7 +92,7 @@ conflict.owed_units_but_asked が withheld で行う。写しの _owed_units は
 構造の目が人に上げた行（structmark の route が人に上げる行）は、修正前の関所の項目になる（種類 DESIGN_KIND。推し＝chosen、捨てた案と
 代償＝rejected。DESIGN_HEAD で始まる 1 行。人が continue で答えた同じ文の行は聞き直さない）。
 標準ライブラリと core の answer（L1。答えの行）・carry（L1。下書きの印の付け方）・cite（L1。出どころの照らし）・jsonfile・materialkit（素材の状態の表）・
-converge（L3。事前審査の壁打ち。標準ライブラリだけ）・conflict（決め手の出どころを引いてよい根。関数の中で読む）・planmarks（L3）・structmark（L3）・worldmark（L3。世界の解の行）・oneline（1 行に畳む葉。標準ライブラリだけ）だけ。
+converge（L3。事前審査の壁打ち。標準ライブラリだけ）・planmarks（L3）・oneline（1 行に畳む葉。標準ライブラリだけ）だけ。
 """
 import copy
 import json
@@ -118,8 +113,6 @@ import plainask    # 人に聞く文の照らし（run の中を指す参照を�
 import planmarks   # 修正案の欄 structure（汚れる行への答え）
 import policy     # 記録された方針の一覧（kind policy の穴が名指す行）
 import seal      # 目の状態の語の持ち主
-import structmark  # 構造の目の行（汚れる・人に上げる）
-import worldmark   # 世界の解の行と、関所の軸「世界の解か」（world_ok）
 
 ANSWER_TIES_FILE = "answer-ties.json"   # 判定の結びの控え {rounds: {周: [行…]}}
 # 返答の中の決め手の欄を持つ行の道（鍵は行の札。修正案の narrows の行と事前審査の faces の行。graph の node の id ではない）
@@ -205,7 +198,6 @@ DESIGN_HEAD = "構造の目が決めきれない設計の問い"   # その行�
 WORLD_KIND = "world"                  # 関所の項目の kinds（世界の解から外れた修正案の項目。worldmark.ANSWER_KEY と同じ語）
 GIVEN_UP_KIND = "given_up"            # 関所の項目の kinds（事前審査の受け付けが諦めた・返す節が落ちた。案を審査できていない）
 SPEC_CHANGED_KIND = "spec_changed"    # 関所の項目の kinds（修正の後に承認済みの受け入れ条件のテストが変わった。承認し直すかを人に諮る）
-ROW_FIELDS = ("kind", "text")         # 事前審査の返り questions の 1 行 {kind, text}（関所の項目の種類と文）
 UNMEASURED = materialkit.UNMEASURED   # 素材の状態のうち今の周に測れていない物（integration.md 4.2-5）
 ASKING = ("held", "escalate")         # 問いの台帳で人に聞く状態（元の写しの検証器 review-record.py:343 の ASKING）
 _NO_FIX = "修正に進まない（continue で修正へ進む・stop で報告へ。判定・修正案・事前審査・独立設計は報告の見る所に並ぶ）"
@@ -279,11 +271,6 @@ def spec_words(unchecked: bool) -> SpecWords:
     if unchecked:
         return SpecWords(SPEC_UNCHECKED, SPEC_UNCHECKED, SPEC_UNCHECKED_HEAD, SPEC_UNCHECKED_NOTE)
     return SpecWords(KIND_WORDS[SPEC_CHANGED_KIND], SPEC_CHANGED_LABEL, SPEC_CHANGED_HEAD, SPEC_CHANGED_NOTE)
-
-
-def question_row(kind: str, text: str) -> dict:
-    """事前審査の返り questions の 1 行（関所の項目の種類 kind と文 text）"""
-    return dict(zip(ROW_FIELDS, (kind, text)))
 
 
 def row_texts(rows) -> list:
@@ -541,98 +528,6 @@ def push_rec(text) -> dict | None:
             RECOMMEND_KEYS[2]: got.group(4)}
 
 
-
-
-
-
-def _item(text: str, mark: dict, why=()) -> str:
-    """人に回す行の関所の項目の文（世界の解・狭めない案・人に聞く訳・推しの尾つき）"""
-    tail = f"（人に聞く訳: {' / '.join(why)}）" if why else ""
-    return text + _world(mark) + _no_narrow(mark) + tail + _push(mark)
-
-
-def _design_rows(b) -> list:
-    """構造の目の行（控えが無い・落ちた周は []）"""
-    state = structmark.read(b.dir / structmark.COPY_FILE)
-    if not state or state.get("status") != "ok":
-        return []
-    try:
-        return structmark.rows(state.get("design_file") or "")
-    except ValueError:
-        return []
-
-
-def _world_rows(b) -> dict | None:
-    """{類の id: 世界の解の行}（段が行を出した run だけ。控えが無い・落ちた・読めない run は None＝今どおりの軸）"""
-    got = worldmark.stage_rows(b.dir, worldmark.COPY_STATE)
-    return None if got is None else {r["class_id"]: r for r in got}
-
-
-def _world_answers(b) -> list:
-    """[(項目の番号（1 始まり）, 答え)]: 修正案の欄 structure の世界の解の答え（控えが無い・読めない周は []）"""
-    try:
-        fields = planmarks.read(b)
-    except Exception:   # 控えの形の崩れは受け付けと brief が止める（ここは照らさない）
-        return []
-    out = []
-    for n, f in enumerate(fields or [], 1):
-        for a in (f.get("structure") if isinstance(f, dict) and isinstance(f.get("structure"), list) else []):
-            if isinstance(a, dict) and isinstance(a.get(worldmark.ANSWER_KEY), str):
-                out.append((n, a))
-    return out
-
-
-def _cite_check(b):
-    """（決め手の文 → 出どころの誤りの 1 文（無ければ ""）の口, 依頼のファイル, 依頼の解き方の並び, 作業ツリーの根）。出どころの照らしは
-    cite.sources_problem（依頼の引用は依頼の文と照らす）。作業ツリーの外で引いてよい根は conflict.cite_roots の依頼のファイルと run の
-    置き場の根（盤面 b.dir は run の置き場の plan-review/ なので、その親。run の中の指示書・判定を絶対パスで引ける）。依頼のファイルと
-    依頼の解き方（worldmark.means_of）は世界の解の外れの決め手にならない物。目的の文の出典 source_files は目的の審査を走り直すための
-    物で、ここに入れない"""
-    import conflict   # conflict は fixboard を通して gatemarks を読むので、ここで読む
-    req = str(getattr(b, "request_file", "") or "")   # 依頼のファイルは呼び手が値で渡す（始めの記録は読まない。integration.md 4.3-追加-6）
-    quoted = ""
-    try:
-        quoted = pathlib.Path(req).read_text(encoding="utf-8") if req else ""
-        quoted += "\n" + json.dumps(json.loads(quoted), ensure_ascii=False) if quoted else ""   # \u の逃がしを解いた字でも引ける
-    except (OSError, UnicodeDecodeError, ValueError):
-        pass
-    repo = (b.state.get("inputs") or {}).get("cwd") or "."
-    roots = conflict.cite_roots(req, pathlib.Path(b.dir).parent)
-    def cite_ok(text):
-        return cite.sources_problem(text, repo, roots, quoted)
-    return cite_ok, req, worldmark.means_of(b.dir, worldmark.COPY_MEANS), repo
-
-
-def world_items(b) -> list:
-    """世界の解の外れの行 [(文, 決め手の欄の形, 揃わない訳の並び)]（控えの無い run・外れの無い案は []）。揃わない行は修正前の関所の
-    項目、揃う行は聞かずに通す行"""
-    world = _world_rows(b)
-    if world is None:
-        return []
-    cite_ok, request_file, means, repo = _cite_check(b)
-    out = []
-    for n, a in _world_answers(b):
-        if a.get("follows") is True:
-            continue
-        row = world.get(a[worldmark.ANSWER_KEY]) or {"class_id": a[worldmark.ANSWER_KEY]}
-        ok, why = worldmark.world_ok(a, row, request_file, means, cite_ok, repo)
-        text = f"修正案 {n} の{worldmark.gate_line(row, a)}"
-        out.append((text, {"decided_by": str(a.get("deviation") or ""), "world": worldmark.gate_line(row, a)},
-                    [] if ok else [why]))
-    return out
-
-
-def _answered_rows(b) -> set | None:
-    """修正案の欄 structure に答えのある汚れる行の単位（控えが読めなければ None＝照らさない。受け付けが欠けを拒む）"""
-    try:
-        fields = planmarks.read(b)
-    except Exception:   # 控えの形の崩れは受け付けと brief が止める（ここは照らさない）
-        return None
-    if fields is None:
-        return None
-    return {r.get("row") for f in fields if isinstance(f, dict) for r in f.get("structure") or [] if isinstance(r, dict)}
-
-
 AXES = ("obvious", "world", "clean", "not_overkill")
 NOT_DECIDED = "決め手の欄が揃わない（decided_by が無いか、undecided_because が在る）"
 NOT_DECIDED_OR_FENCED = "決め手の欄が揃わない（decided_by が無いか、undecided_because か柵の印が在る）"
@@ -656,7 +551,7 @@ class AxisFacts(NamedTuple):
 
 def axis_why(facts: AxisFacts, mark: dict, units) -> dict:
     """4 つの軸（AXES）ごとの揃わない訳の並び {軸: [訳]}（全部の軸を持つ）。軸の決まりの持ち主はここ 1 か所で、計画の審査の block・
-    仕様駆動の道・盤面の axis_reasons が材料を集めて呼ぶ"""
+    仕様駆動の道が材料を集めて呼ぶ"""
     out = {axis: [] for axis in AXES}
     decided_by = str(mark.get("decided_by") or "").strip()
     searched = no_standard(decided_by)   # 定石が見つからなかった行は、引ける出どころが無いことが中身で、探した所が世界の解を当たった結果
@@ -727,58 +622,6 @@ def narrow_asks(plan, marks, facts: AxisFacts) -> list:
     return out
 
 
-def axis_reasons(b, mark: dict, units) -> dict:
-    """4 つの軸（AXES）ごとの揃わない訳の並び {軸: [訳]}。盤面 b から材料を集めて axis_why に渡す（axes と gate_axes がこれを読む）"""
-    facts = AxisFacts(cite_ok=_cite_check(b)[0], world_rows=_world_rows(b) is not None,
-                      ups=frozenset(r.get("unit_id") for r in _design_rows(b) if r.get("route") == structmark.ROUTE_UP),
-                      dirty=frozenset(structmark.dirty(b.dir / structmark.COPY_FILE)),
-                      answered=None if (got := _answered_rows(b)) is None else frozenset(got),
-                      planned=frozenset(converge.planned_units((b.output_of_round("p2.fix_plan", b.round) or {}).get("plan"))))
-    return axis_why(facts, mark, units)
-
-
-def axes(b, mark: dict, units) -> list:
-    """グラフの中で決めてよいかの 4 つの軸のうち揃わない物の訳（空なら揃う＝聞かずに通す）"""
-    if not decided(mark):
-        return [NOT_DECIDED_OR_FENCED]
-    reasons = axis_reasons(b, mark, units)
-    return [w for axis in AXES for w in reasons[axis]]
-
-
-def design_items(b) -> list:
-    """構造の目が人に上げた行の関所の項目 [(DESIGN_KIND, 文)]（人が continue で答えた同じ文の行は除く）"""
-    out = []
-    for r in _design_rows(b):
-        if r.get("route") != structmark.ROUTE_UP:
-            continue
-        rej = "・".join(f"{x.get('option')}（代償: {x.get('cost')}）" for x in r.get("rejected") or [] if isinstance(x, dict))
-        text = (f"{DESIGN_HEAD} {r.get('unit_id')}: {r.get('undecided_because') or r.get('route_reason') or ''}"
-                f"／捨てた案: {rej or '（無し）'}／推し: {r.get('chosen') or '構造の目が書いていない'}"
-                + (f"（{r['chosen_reason']}）" if r.get("chosen_reason") else ""))
-        if not _continued(b, text):
-            out.append((DESIGN_KIND, text))
-    return out
-
-
-def _continued(b, text: str) -> bool:
-    return any(isinstance(h, dict) and h.get("node") == GATE_NODE and h.get("answer") == "continue"
-               and text in (h.get("asked") or [])
-               for h in (b.record.get("process") or {}).get("human_items") or [])
-
-
-
-
-def design_only(b) -> bool:
-    """run が設計だけの run か（値の見え方 Ledger の design_only。始めの記録は読まない。integration.md 4.3-追加-6）"""
-    return bool(getattr(b, "design_only", False))
-
-
-
-
-
-
-
-
 def _asking(b) -> list:
     qs = [q for q in (b.record.get("questions") or []) if isinstance(q, dict)]
     if not qs:
@@ -797,10 +640,6 @@ def asks(b) -> list:
     """関所に載せる問い（asks_human）。直す義務から外す（withheld）・戻す（returned）も、この問いだけを見る（写しの _owed_units は
     fork だけを外すので、works の差し替え conflict.owed_units_but_asked がこの選び方で外し直す）"""
     return [q for q in _asking(b) if asks_human(q)]
-
-
-def _ask_kind(q) -> str:
-    return ASK_KINDS[0] if q.get("kind") == "fork" else ASK_KINDS[1]
 
 
 def _skips(q) -> list:
@@ -1080,9 +919,6 @@ def _squeeze(v) -> str:
     return oneline.one_line(v or "")
 
 
-DRAFT_HEAD = "人の判断を待つ項目への答えの下書き"
-
-
 def _draft(question: str, text: str, source: str, note: str = "") -> dict:
     """下書きの 1 行。推しの無い行は text を空にし、人が答えを書く材料を note に置く（draft・source だけを消しても、依頼の入口が
     空の text と知らない欄 note で拒む。置き場の文が答えとして問いに当たらない）"""
@@ -1119,16 +955,6 @@ def _material_draft(name: str, st: str, reason) -> dict:
     return _draft(name, "", f"素材 {name}（{st}）",
                   f"run の中で測れなかった（{_squeeze(reason) or '理由なし'}）。手元で確かめ、結果を text に、打った命令と出力を "
                   "command と output に書く（両方が在れば、次の run はこの素材を人が手元で確かめた物として残りに数えない）")
-
-
-def draft_line(drafts: list, next_file: str) -> str:
-    """報告の冒頭 1 の 1 行（下書きが無ければ空）"""
-    if not drafts:
-        return ""
-    return (f"{DRAFT_HEAD}: {len(drafts)} 件——次の run の依頼の下書き{f' {next_file}' if next_file else ''} の answers に置いた"
-            "（draft: true・出どころ source つき。機械は答えていない。推しの無い行は text が空で、材料は note に在る。見直して、台帳の"
-            "問いと素材の行（question が問いの key か素材の名）は採るなら draft と source（と note）を消して text を答えにし、採らないなら行を消す。承認ノードの項目の行（question が承認ノードの項目の文）は次の run の承認ノードの continue の一言の材料で、"
-            "依頼ではどの問いにも当たらないので、一言に写してから行を消す）")
 
 
 def unmatched_answer_lines(b) -> list:
@@ -1300,7 +1126,7 @@ def duty(b) -> set:
 class Ledger(types.SimpleNamespace):
     """盤面の代わりに値で引く問いの台帳の見え方（ledger が作る。asks・answered・pending・withheld_by・withheld・returned・duty・
     returned_lines・held_lines・answered_lines・unmatched_answer_lines・answer_key・answer_tie_lines が読む物だけを持つ。takes_push は
-    無人の run か＝判定の推しを答えに採るか。run_push が読む。design_only は設計だけの run か。design_only(b) が読む）"""
+    無人の run か＝判定の推しを答えに採るか。run_push が読む。design_only は設計だけの run か）"""
 
 
 def ledger(judgment, *, answers=(), gate=None, ties=(), materials=None, takes_push=False, design_only=False) -> Ledger:
@@ -1326,22 +1152,6 @@ def ledger_files(judgment, *, ties_file=None, materials_file=None, answers=(), g
     ties = ties_of(jsonfile.read_or(ties_file)) if ties_file is not None else []
     materials = jsonfile.read_or(materials_file) if materials_file is not None else None
     return ledger(judgment, answers=answers, gate=gate, ties=ties, materials=materials, takes_push=takes_push)
-
-
-def ledger_at(judgment_path, gate=None, *, answers=(), takes_push=False, ties_file=None, materials_file=None) -> Ledger:
-    """ledger_files を判定のファイルから: 判定 judgment_path（judgment.json）・修正前の関所の答え gate・依頼の answers・無人の run か
-    takes_push（判定の推しを答えに採る）・結び ties_file と素材の状態 materials_file（ledger_files）。始めの記録は読まない（answers と
-    takes_push は呼び手が値で渡す。integration.md 4.3-追加-6）。読めなければ OSError・ValueError（読み手が訳を名指す）"""
-    doc = json.loads(pathlib.Path(judgment_path).read_text(encoding="utf-8"))
-    return ledger_files(doc if isinstance(doc, dict) else {}, ties_file=ties_file, materials_file=materials_file,
-                        answers=answers if isinstance(answers, list) else [], gate=gate, takes_push=takes_push)
-
-
-def passes_of(path) -> list:
-    """事前審査の出力の欄 gate_passes の先 path の、決め手で通した行と人が通したので聞き直さなかった行（pass_lines。最後の関所と
-    報告が同じ行を出す）。無い・読めなければ OSError・ValueError（読み手が訳を名指す）"""
-    rows = json.loads(pathlib.Path(path).read_text(encoding="utf-8"))
-    return pass_lines(rows if isinstance(rows, list) else [rows])
 
 
 def gate_items(got) -> list:
@@ -1435,38 +1245,6 @@ def held_questions(b) -> list:
     return [q for q in _asking(b) if not _gate_answered(b, q)]
 
 
-def _keep(b, row: dict) -> None:
-    kept = b.state.setdefault("works", {}).setdefault("gate_passes", [])
-    if row not in kept:
-        kept.append(row)
-
-
-def _record(b, passed) -> None:
-    for text, m in passed:
-        _keep(b, {"node": GATE_NODE, "round": b.round, "by": PASSED_BY, "item": text, "decided_by": m["decided_by"]})
-
-
-def _human_passed(b) -> dict:
-    """修正前の関所で continue で通した行（人の答えか、無人の run の推し）{(種類, 頭を除いた本文): 答えた周}（台帳の問いの行は数えない）"""
-    out = {}
-    for h in (b.record.get("process") or {}).get("human_items") or []:
-        if not (isinstance(h, dict) and h.get("node") == GATE_NODE and h.get("answer") == "continue"):
-            continue
-        for a in h.get("asked") or []:
-            m = NARROW_HEAD.match(a) if isinstance(a, str) else None
-            f = FACE_HEAD.match(a) if isinstance(a, str) and not m else None
-            if m or f:   # 推しの尾（_push。いつも末尾）は外して照らす（R4 の自由文に推しまで写させない）
-                body = PUSH_TAIL.sub("", a[(m or f).end():])
-                out.setdefault(("regression" if m else f.group(1), body), h.get("round"))
-    return out
-
-
-
-
-def passes(b) -> list:
-    return list((b.state.get("works") or {}).get("gate_passes") or [])
-
-
 def _pass_line(p) -> str:
     if p.get("by") in (PASSED_BY_HUMAN, PASSED_BY_PUSH):
         at = p.get("passed_at") or {}
@@ -1476,11 +1254,6 @@ def _pass_line(p) -> str:
     if searched := no_standard(p.get("decided_by")):
         return f"{named(p['node'])}（周 {p['round']}）で定石が見つからず、聞かずに推しで進めた: {p['item']}（探した所: {searched}）"
     return f"{named(p['node'])}（周 {p['round']}）で決め手が在るので聞かずに通した: {p['item']}（決め手: {p.get('decided_by')}）"
-
-
-def lines(b) -> list:
-    """最後の関所の文と報告に載せる、決め手で通した行と、修正前の関所で人が通したので聞き直さなかった行（1 件 1 行）"""
-    return pass_lines(passes(b))
 
 
 def pass_lines(rows) -> list:

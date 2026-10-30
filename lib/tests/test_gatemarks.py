@@ -143,7 +143,7 @@ class PushRecCase(unittest.TestCase):
     BODY = "修正案 1 が狭める能力: 空の列で例外を投げる——0 を返す形に変える（人に聞く訳: 決め手の欄が揃わない）"
 
     def row(self, **rec):
-        return gatemarks._item(self.BODY, {gatemarks.RECOMMEND: {**self.REC, **rec}})
+        return self.BODY + gatemarks._push({gatemarks.RECOMMEND: {**self.REC, **rec}})
 
     def test_round_trip_of_the_push_tail(self):
         got = gatemarks.push_rec(self.row())
