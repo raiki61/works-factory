@@ -146,7 +146,7 @@
 1. 作りの照らし（`tests/viewer/test_shape.py`）: 今の木の全部の graph を読み、`problems` が 0。今の木の line の最初の block の頭のノードに、外から入る道（`via`）が付く（Archon を起こさずに手元で照らす）。図に当てる入口（`tests/viewer/test_flowview.py`）: 飛んだノードに当たる所（`at`）を付けても、飛んだ時刻（`time`）が残る。
 2. Archon の名の照らし（`tests/viewer/test_archon_names.py`。源の字を読むだけで手元でも回る）: 行の型と道具の出来事の型と run の状態が源とちょうど同じ・DB の欄と置き場の名が源に在る。
 3. 本物の run の照らし（`tests/viewer/test_real_run.py`。Archon を起こすので CI だけで回る）: 小さな graph を 1 回回し、読めなかった行が 0・図に当たらないノードが 0・include の中のノードに外の graph から入る道（`via`）が付く・一覧にその run が終わりの状態で 1 行在る。承認ノードで止まった run は待ちと `answer` を出し、答えが入って次へ進む前の間（Archon の答えを書く口 `answerAttentionWait` を bun で直に呼んで作る）と、待ちのまま放棄した後は出さない。答えた承認ノードは出力に答えを持ち、ログに `gate_decision` の行が無い。行の中の欄の名（`execution.path` など）はここで照らす。
-4. 1 枚の照らし（`tests/viewer/test_page.py`）: 雛形に `<script src`・`import(`・`fetch(` が無い。データの字はページの script を閉じず、読み戻せる。本物の run のページを画面なしの Chromium で開いて pageerror が 0 なことは、雛形を直す PR で人が撮って見る（見た目は縛らない。E25 の 4）。
+4. 1 枚の照らし（`tests/viewer/test_page.py`）: 雛形に `<script src`・`import(`・`fetch(` が無い。データの字はページの script を閉じず、読み戻せる。本物の run のページを画面なしの Chromium で開いて pageerror が 0 なことは、雛形を直す PR で人が撮って見る（見た目は縛らない。E25 の 4）。その時、出来事が 0 件の run の形（本物の run のデータの出来事を空にした物）も開いて pageerror が 0 なことを見る。
 5. 層の照らし: 2 章の照らし。
 6. 日本語の写しの照らし（`tests/viewer/test_ja.py`）: 取り込みの口が今の木の md の段落の鍵の訳だけを `viewer/ja/` に書き、合わない訳を拒む。写しは値の記録から工場の組み立ての口で組み、訳の無い段落と合わない訳は英語のまま。`viewer/ja/` の訳のうち今の木の md の段落に当たる物は、どれも英語と同じ差し込み口と印の字を持つ。本物の run では（照らしの 3 の試験）、include の中で `prompt.emit` が書いた値の記録から組み直した写しが、訳の無い時に place の英語の指示と字のまま同じ。工場の組み立ての口の照らしは `tests/blocks/shared/test_prompt.py`（値の記録で、写した木からも同じ字に組み直せる）。
 7. 札の 1 行の照らし（`tests/viewer/test_what.py`）: 今の木で、1 行を選ぶ部品が読めない設計書の節（「役」の見出しの下に段落が無い）が 0（読めない節はページの「読めなかった物」にも出す）。1 行が無いノードの数は照らさない（書き足しを試験で強いない）。小さな木で、種類ごとの出どころの順・配線・呼ぶ側での役・1 行が無い物が空であること。
