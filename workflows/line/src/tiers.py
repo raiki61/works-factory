@@ -1,5 +1,5 @@
 """段 → 回す物の表と単位の深さと修正の後の上げ直し（docs/design/line.md の 5 節。元 lib/depth.py と lib/latedepth.py と、
-lib/headdepth.py の report_line〔integration.md 4.5-6〕と lib/consult.py の consulted_units の写し。名は元のまま）。
+lib/consult.py の consulted_units の写し。名は元のまま）。
 
 run 全体の深さの段（軽量・標準・重厚）の定義は表 TIERS 1 か所。単位の深さの語は軽量・標準の 2 つ。段の省く物（TIERS の omits）は、
 その段の頭の run で直す義務の単位がどれも軽量の時だけ省く（skip_reason。issue #561 の答え）。省くかを when: に渡す時は、ここで

@@ -115,7 +115,7 @@ line は一番上の graph なので、place は run directory の根（README 4
   - `deal.py`（足す）: 始めの記録から配る値を引く（1.6）。
   - `gates.py`: 承認ノードの決め（今の `lib/gatepolicy.py` の全部と、`lib/gatemarks.py` の承認ノードの決めの部分〔開くか・項目の行・軸・通した行・無人の抜け方〕、`lib/gate_axes.py`）。問いの行の形（`ASKING`・`asks_human`・推しの尾の字の形）と承認ノードの文の組み立て `gate_text` は KEEP の `lib/gatemarks` を引く（README 9.3）。
   - `final.py`: 最後の承認ノードの開ける理由と文（今の `ask_final.py` の中身）。
-  - `tiers.py`: 段 → 回す物の表と単位の深さと上げ直し（今の `lib/depth.py` の `TIERS`・`unit_depth`・`decide_doc`・`raise_doc`・`skip_reason`・`omits`・`merges`・`tier_adds`・`tier_auto`・`lines` と、`lib/latedepth.py`）。段の語 4 つ（`LIGHT`・`STANDARD`・`HEAVY`・`HEADS`）は先に `lib/headdepth` へ移す（README 9.3・11.3 の 5）。
+  - `tiers.py`: 段 → 回す物の表と単位の深さと上げ直し（今の `lib/depth.py` の表 `TIERS`（目をまとめる欄 `merges` を含む）・`unit_depth`・`decide_doc`・`raise_doc`・`skip_reason`・`omits`・`tier_adds`・`tier_auto`・`lines` と、`lib/latedepth.py`）。段の語 4 つ（`LIGHT`・`STANDARD`・`HEAVY`・`HEADS`）は先に `lib/headdepth` へ移す（README 9.3・11.3 の 5）。
   - `rounds.py`: 計画の往復の記録と止め（今の `lib/converge.py` の `read`・`add_pass`・`record_pass`・`decide`・`proceeds`・`capped`・`stuck_keys`・`stuck_reason`・`lines`・`open_items`・`held`）と、設計の相談の修正要望を記録に差し込む `ask_again`（3.1 節）。
   - `talk.py`（足す）: 設計の相談の周の頭と終わりの決めと関所の文（3.1 節）。`asking.py`（足す）: 修正前の承認ノードの材料の読み（`ask-before-fix` と `design-talk` が同じ材料から同じ行を組む 1 か所）。項目の読みと穴の札の形（`planned_units`・`central` など、plan と plan-review も使う物）は KEEP の `lib/converge` に残す（README 9.3）。
   - `stages.py`: 2 つの修正の段の合わせ（今の `fixed.py` の中身と、組み込みで DELETE される `fixbeside` の読み口のうち line が読む物〔`stage`・`late_records`・`read`〕。fix の設計書の 1.2 の「`fixbeside.read`・`records` は組み込みで line の src/ に移る」）と、最後の承認ノードと line が組む報告の節だけが読む行の組み立て `closure_lines`・`tests_left_lines`・`gates_lines`・`plan_ask_lines`・`always_rows`（レンズの行でない部分）・`next_items`（手直しの行でない部分）（integration.md の 4.5-3。`branch_rows` とレンズの行・手直しの行は delta-review の `report`・`carry`）。
@@ -353,7 +353,7 @@ line は一番上の graph なので、place は run directory の根（README 4
 
 ### 5.4 独立の目を回すか・まとめるか（`eyes-in`）
 
-`run` ← `$fixed.output.eyes_due`（直す物が無い周は `raise` が飛ぶので、`fixed` が真を返す）。`merge` ← `$fix-in.output.switches.merge` が真で `run` が真（目を省かずに回す軽量の run だけ R3 を R4 に入れる。今の `depth.merges`。持ち主の決め `eyes-by-reason`）。直した後の実測（structure after）は `run` に依らず回す（E71。eyes の graph の側）。
+`run` ← `$fixed.output.eyes_due`（直す物が無い周は `raise` が飛ぶので、`fixed` が真を返す）。`merge` ← `$fix-in.output.switches.merge` が真で `run` が真（目を省かずに回す軽量の run だけ R3 を R4 に入れる。段の表 `TIERS` の欄 `merges` が空でない段。持ち主の決め `eyes-by-reason`）。直した後の実測（structure after）は `run` に依らず回す（E71。eyes の graph の側）。
 
 ## 6 無人の方針（`src/gates.py`。今の `lib/gatepolicy.py` の決めのまま）
 
