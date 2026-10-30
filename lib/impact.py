@@ -23,6 +23,7 @@ AI に探させず、1 回作って使い回す（鍵 = rev・起点・作業ツ
 - is_test(path) -> "module" | "support" | None: 名の慣習でのテストの file の見分け（言語の表でなく名の形）
 - is_test_file(path, declared) -> bool: テストの file か（宣言 declared に在るか、is_test の module）。宣言と慣習を合わせた見分けの
   1 か所（TDD の輪・事後の関門・深さの run の広さの数えが呼ぶ）。純粋
+- KNOWN_EXT: changemap の拡張子の表を合わせた集合（plainask が <パス>:<行> の形を数えるかの見分けに使う）
 
 地図の JSON（schema works-impact/1）の欄:
 - key・rev（commit の sha）・rev_name・seeds {given, files, names, from_diff, missing}
@@ -90,6 +91,11 @@ OTHER_CODE_EXT = frozenset({"js", "jsx", "mjs", "cjs", "ts", "tsx", "go", "rb", 
                             "groovy", "gradle", "ex", "exs", "hs", "elm", "clj", "vue", "svelte", "ps1", "m", "mm"})
 # refs（設定・文書）に数える拡張子。ほかの届いた file は mentions（コード）
 REF_EXT = PATHREF_EXT - {"sh", "bash", "zsh", "bats", "mk"} | DOC_EXT
+# changemap の表のどれかに在る拡張子（plainask が <パス>:<行> の形の数え方を、番地とポート・製品の名と版から分ける。
+# 写しの changemap は直さないので、ここで組む。lib/COPIED_FROM.changemap）
+KNOWN_EXT = frozenset(set(changemap.OUTLINE_PATTERNS) | changemap.PROSE_EXT
+                      | {e for exts in changemap.COMMENT_BY_EXT.values() for e in exts}
+                      | {e for exts in changemap.FENCE_BY_EXT.values() for e in exts})
 TEST_DIRS = frozenset({"tests", "test", "__tests__", "spec"})
 TEST_NAME = re.compile(r"(^test_.*\.py$|.*_test\.(py|go)$|.*\.bats$|.*\.(test|spec)\.[jt]sx?$|.*-(case|suite)\.(py|sh)$"
                        r"|^conftest\.py$)")
