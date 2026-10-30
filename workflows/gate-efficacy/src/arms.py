@@ -21,7 +21,7 @@ def arms_problem(name: str, reply: dict):
     nohit = [a["arm"] for a in arms if recount.blank(a.get("hit_evidence"), 10)]
     if st != "found" and unproven(arms) and st != "awaiting_human":
         return (f"観点 {name}: 赤を見ていない腕 {unred} / 壊していない写しで緑を確かめていない腕 {nocontrol} / "
-                f"守る行を通ったことを測っていない腕 {nohit} が在るのに status=clean"
+                f"守る行を通ったことを測っていない腕 {nohit} が在るのに status={st}"
                 "——未達は found（count と detail に腕を書く）、人の起動待ちなら awaiting_human（reason に何を待つか）")
     proven = [a["arm"] for a in arms
               if a.get("red_confirmed") and a.get("control_green") and recount.blank(a.get("hit_evidence"), 10)]
