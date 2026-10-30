@@ -9,7 +9,9 @@ import pathlib
 import ports
 
 import accept  # lib/
+import jsonfile  # lib/
 import lens  # lib/
+import oneline  # lib/
 
 ROUNDS = (1, 2)
 REVIEW = {1: "review-1", 2: "review-2"}   # 審査役の node の id（却下の控えの名と prompts/<id>.md）
@@ -75,3 +77,9 @@ def trace(place, op: str, **kw) -> None:
     """place の trace.jsonl に {"op": op, **kw} を JSON の 1 行で足す（機械の行。報告が数える）"""
     with open(pathlib.Path(place) / TRACE, "a", encoding="utf-8") as f:
         f.write(json.dumps({"op": op, **kw}, ensure_ascii=False) + "\n")
+
+
+def broke(place, node: str, reason: str) -> None:
+    """壊れた段の訳を errors.json に {node, reason（1 行にした字）} で積む（finish が status: failed の理由にする）"""
+    path = pathlib.Path(place) / ERRORS
+    jsonfile.write(path, [*(jsonfile.read_or(path) or []), {"node": node, "reason": oneline.one_line(reason)}])

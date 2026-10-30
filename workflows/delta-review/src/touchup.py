@@ -174,8 +174,7 @@ class Broken(Exception):
 
 def stop(place, node: str, reason: str) -> dict:
     """出し直しても直らない壊れ: 訳を errors.json に積み、回数を待たずに諦める（出口が status: failed にする）"""
-    path = pathlib.Path(place) / files.ERRORS
-    jsonfile.write(path, [*(jsonfile.read_or(path) or []), {"node": node, "reason": reason}])
+    files.broke(place, node, reason)
     return {"ok": False, "give_up": True, "reason": reason}
 
 
