@@ -503,7 +503,7 @@ class ConvergeCase(unittest.TestCase):
 
     def test_filled_units_are_every_item_with_a_row(self):
         self.assertEqual(converge.filled_units(self.blocked_first()), ["u1", "u2"])
-        self.assertEqual(converge.filled_units(take.EMPTY_RECORD), [])
+        self.assertEqual(converge.filled_units(steps.EMPTY_RECORD), [])
 
     def test_answer_gaps_need_one_answer_per_open_block(self):
         doc = self.blocked_first()
@@ -516,7 +516,7 @@ class ConvergeCase(unittest.TestCase):
     def test_no_answers_asked_on_first_round(self):
         doc = rounds.fresh()
         self.assertEqual(converge.answer_gaps(doc, []), [])
-        self.assertEqual(converge.answer_gaps(take.EMPTY_RECORD, [answer("key-x")]),
+        self.assertEqual(converge.answer_gaps(steps.EMPTY_RECORD, [answer("key-x")]),
                          ["key-x は前の往復の答えの要る穴（block と開いた項目の suggest）に無い"])
 
     def test_splice_fills_closed_item_and_refuses_changed_one(self):
@@ -539,7 +539,7 @@ class ConvergeCase(unittest.TestCase):
     def test_splice_without_passes_takes_reply(self):
         rows = [item("u1"), item("u9")]
         self.assertEqual(converge.splice(rounds.fresh(), rows), (rows, [], []))
-        self.assertEqual(converge.splice(take.EMPTY_RECORD, rows), (rows, [], []))
+        self.assertEqual(converge.splice(steps.EMPTY_RECORD, rows), (rows, [], []))
 
     def test_revise_values_name_blocks_and_closed_items(self):
         got = brief.revise_values(self.blocked_first())
@@ -567,7 +567,7 @@ class ConvergeCase(unittest.TestCase):
         self.assertNotIn("key-s1", got["values"]["revise_notes"])
 
     def test_no_revise_without_a_returned_pass(self):
-        for doc in (take.EMPTY_RECORD, rounds.fresh()):
+        for doc in (steps.EMPTY_RECORD, rounds.fresh()):
             got = brief.revise_values(doc)
             self.assertFalse(any(got[k] for k in ("revise", "owed_suggests", "revise_notes", "revise_keys", "closed_items", "held_items")))
             self.assertEqual(set(got["values"].values()), {""})

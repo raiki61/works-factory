@@ -331,6 +331,14 @@ def read_judgment(ctx: dict) -> dict | None:
     return with_ledger(ctx, jsonfile.read_or(path)) if path else None
 
 
+EMPTY_RECORD = {"round": 0, "passes": [], "outcome": None, "open": {}}   # 往復の記録が無い時の形（まだ事前審査を受けていない）
+
+
+def prior_record(ctx: dict) -> dict:
+    """前の周の往復の記録（prior.record）。無ければ EMPTY_RECORD の写し"""
+    return (ctx.get("prior") or {}).get("record") or copy.deepcopy(EMPTY_RECORD)
+
+
 def prior_rows(ctx: dict, which: str = "reply") -> list:
     """前の周の受け付けた案（prior.reply の plan）の項目の並び。前の周が無ければ []"""
     prior = ctx.get("prior")
