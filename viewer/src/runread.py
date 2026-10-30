@@ -8,6 +8,7 @@
 - run(db, run_id) -> 選んだ run と子の run の記録（ノードごとの出来事・道具の呼び出し・費用・出力・知らない行の数え）
 - pick(db, wanted) -> run の id（wanted が空なら一番新しい親の run。頭の字でもよい）
 - field(output, name) -> ノードの出力（値か JSON の字）の欄 name の字。読めなければ空
+- seconds(started, completed)・length(event)・when(text) -> 時刻の差の秒・出来事の長さ・時刻の読み（段の集計と無駄の手がかりも使う）
 - where(path, cwd) -> 会話が読んだファイルのパスを、run ごとに違う頭（作業ツリー・run の置き場・run の写し）を印に替えた字にする
 """
 import contextlib
@@ -157,7 +158,7 @@ def runs(db: Path) -> list[dict]:
         meta = _json(metadata)
         started, completed = spans.get(rid) or (started, completed)
         out.append({"id": rid, "short": rid[:8], "graph": name, "status": status, "waiting": waiting.get(rid, []),
-                    "started": started, "seconds": _seconds(started, completed), "cost": _cost(meta, spent, rid),
+                    "started": started, "seconds": seconds(started, completed), "cost": _cost(meta, spent, rid),
                     "error": errors.get(rid, ""), "outcome": outcomes.get(rid, "")})
     return out
 
@@ -208,7 +209,7 @@ def run(db: Path, run_id: str) -> dict:
     for child in reader.children:
         child["started"], child["seconds"] = _child_span(child, reader.events, parents)
     return {"id": run_id, "graph": top["workflow_name"], "status": top["status"], "live": top["status"] in LIVE,
-            "waiting": waiting.get(run_id, []), "started": started, "seconds": _seconds(started, ended),
+            "waiting": waiting.get(run_id, []), "started": started, "seconds": seconds(started, ended),
             "cost": _cost(meta, spent, run_id), "copy": str(copy(root, run_id)) if root else "",
             "children": reader.children, "events": sorted(reader.events, key=lambda e: (e["start"] or "", "/".join(e["tokens"]))),
             "skipped": reader.skipped, "checks": reader.checks, "missing_logs": reader.missing, "unread": reader.unread, "artifacts": reader.artifacts}
@@ -333,8 +334,8 @@ class _Reader:
         spend, binding = execution.get("spend") or {}, execution.get("binding") or {}
         if binding.get("sessionPreview"):
             model = binding.get("model") or {}
-            event.update(session=binding["sessionPreview"], origin=binding.get("sessionOrigin") or "",
-                         model=(model.get("resolved") or {}).get("value") or model.get("requested") or "", effort=binding.get("effort") or "",
+            event.update(session=binding["sessionPreview"],
+                         model=(model.get("resolved") or {}).get("value") or model.get("requested") or "",
                          usage=runlog.tokens(runlog.measurement(spend, "tokens", lambda v: v)[0]),
                          turns=runlog.measurement(spend, "numTurns")[0])
         output = self.outputs.get(key[1])
@@ -357,14 +358,14 @@ class _Reader:
             return
         if kind == TOOL_CALL:
             event["calls"].append({"id": got.get("toolCallId"), "name": got.get(runlog.TOOL_NAME), "title": _clip(got.get("title") or "", 400),
-                                   "status": "", "error": False})
+                                   "status": ""})
         elif kind == TOOL_UPDATE:
             call = next((c for c in event["calls"] if c["id"] == got.get("toolCallId")), None)
             if call is not None:
                 call["status"] = got.get("status") or ""
         else:
             event["calls"].append({"id": None, "name": kind, "title": _clip(_text(got.get("message") or got.get("description") or got), 400),
-                                   "status": got.get("status") or "", "error": False})
+                                   "status": got.get("status") or ""})
 
     def _exec(self, entry, prefix, by_step):
         """script・bash のノードの出力の終わりは、同じ step の最後の起動に付ける。ノードに当たらない物（loop_group の until_bash の
@@ -459,7 +460,7 @@ def _child_span(child: dict, events: list[dict], parents: dict) -> tuple[str, fl
         return False
     completed = child.pop("completed")
     started, ended = _span([e for e in events if under(e["run"])]) or (child["started"], completed)
-    return started, _seconds(started, ended)
+    return started, seconds(started, ended)
 
 
 def _error(data: str) -> str:
@@ -467,22 +468,28 @@ def _error(data: str) -> str:
     return text.splitlines()[0][:300] if isinstance(text, str) and text else ""
 
 
-def _seconds(started, completed):
+def seconds(started, completed) -> float | None:
+    """始めから終わりまでの秒（0.1 秒に丸める）。どちらかが空か読めなければ None。段の集計と無駄の手がかりも使う"""
     if not started or not completed:
         return None
     try:
-        return round((_time(completed) - _time(started)).total_seconds(), 1)
-    except ValueError:
+        return round((when(completed) - when(started)).total_seconds(), 1)
+    except (TypeError, ValueError):
         return None
 
 
-def _time(text: str) -> datetime:
+def length(event: dict) -> float:
+    """出来事の長さの秒。終わりの無い出来事と読めない時刻は 0"""
+    return seconds(event["start"], event["end"]) or 0.0
+
+
+def when(text: str) -> datetime:
     return datetime.fromisoformat(text.replace("Z", "+00:00"))
 
 
 def _try_time(text) -> datetime | None:
     try:
-        return _time(text)
+        return when(text)
     except (TypeError, ValueError):
         return None
 

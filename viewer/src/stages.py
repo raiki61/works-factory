@@ -11,7 +11,6 @@ line のノード）で引く。
   数えない配線のノードの印 through を付ける。雛形は止まり方を読むだけで、止める語を写さない
 """
 import json
-from datetime import datetime
 from pathlib import Path
 
 import answer   # lib/（viewer/src/__init__.py が sys.path に足す）
@@ -85,17 +84,17 @@ def _sum(n: int, run: dict, through: set[str]) -> dict:
             continue
         runlog.add_tokens(tokens, usage)
         # 和より小さい手番は引けないので数だけ持ち、新しく読んだ分 uncached を出さない
-        odd += four(usage)["odd"]
+        odd += _odd(usage)
     if odd:
         tokens.pop(runlog.UNCACHED, None)
     tokens = {**{field: 0 for field in runlog.TOKEN_FIELDS}, **tokens, "odd": odd}
     seen = {e["status"] for e in deciding}
     state = next((s for s in ("failed", "waiting", "running") if s in seen), "ok" if deciding else
                  "skipped" if any(s.get("stage") == n for s in run["skipped"]) else "none")
-    return {"state": state, "start": min(times, key=_time) if times else None, "end": max(times, key=_time) if times else None,
-            "seconds": _seconds(min(times, key=_time), max(times, key=_time)) if times else None,
-            "wait": round(sum(_length(e) for e in own if e["kind"] == runread.WAIT_NODE), 1),
-            "ai_seconds": round(sum(_length(e) for e in own if e["kind"] in runread.AI_KINDS), 1),
+    start, end = (min(times, key=runread.when), max(times, key=runread.when)) if times else (None, None)
+    return {"state": state, "start": start, "end": end, "seconds": runread.seconds(start, end),
+            "wait": round(sum(runread.length(e) for e in own if e["kind"] == runread.WAIT_NODE), 1),
+            "ai_seconds": round(sum(runread.length(e) for e in own if e["kind"] in runread.AI_KINDS), 1),
             "ai": sum(1 for e in own if e["kind"] in runread.AI_KINDS), "steps": len(own),
             "turns": sum(e.get("turns") or 0 for e in own),
             "rounds": len({(e["run"], *e["path"].split(shape.IN_LOOP)[:-1], *e["loop"]) for e in own if e["loop"]}),
@@ -109,10 +108,14 @@ def four(usage: dict) -> dict:
     段の集計と無駄の手がかり（src/waste.py）が使う"""
     got = {}
     runlog.add_tokens(got, usage)
-    odd = all(field in usage for field in runlog.CACHE_FIELDS) and usage["input"] < usage["cacheRead"] + usage["cacheWrite"]
+    odd = _odd(usage)
     if odd:
         got.pop(runlog.UNCACHED, None)
     return {**got, "odd": odd}
+
+
+def _odd(usage: dict) -> bool:
+    return all(field in usage for field in runlog.CACHE_FIELDS) and usage["input"] < usage["cacheRead"] + usage["cacheWrite"]
 
 
 def _role(kind: str) -> str:
@@ -143,15 +146,3 @@ def _stop(run: dict) -> tuple[str | None, int | None]:
 def _answer(output) -> str:
     """人の答え待ちの出力（{decision, text}。記録では JSON の字）の答えの語（欄の名は runread.ANSWER_DECISION）"""
     return runread.field(output, runread.ANSWER_DECISION)
-
-
-def _length(event: dict) -> float:
-    return _seconds(event["start"], event["end"]) if event["start"] and event["end"] else 0.0
-
-
-def _seconds(start: str, end: str) -> float:
-    return round((_time(end) - _time(start)).total_seconds(), 1)
-
-
-def _time(text: str) -> datetime:
-    return datetime.fromisoformat(text.replace("Z", "+00:00"))
