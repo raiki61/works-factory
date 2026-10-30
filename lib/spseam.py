@@ -338,9 +338,3 @@ def fill(seam_id: str, values: dict[str, str], src: pathlib.Path, item: dict, se
     return body
 
 
-def word(seam_id: str, said: str, seams: dict | None = None) -> str:
-    """原文の出口の語 said を works の語に読む。対応に無い語は ValueError（推して埋めない）"""
-    words = _section(load_seams() if seams is None else seams, seam_id).get("words", {})
-    if said not in words:
-        raise ValueError(f"{seam_id}: 出口の語 {said} の対応が無い（推して埋めない）")
-    return words[said]

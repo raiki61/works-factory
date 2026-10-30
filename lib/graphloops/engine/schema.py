@@ -116,18 +116,6 @@ KNOWN_KEYWORDS = frozenset({"type", "enum", "const", "required", "properties", "
                             "minItems", "maxItems", "minimum", "maximum", "minLength", "maxLength", "pattern", "allOf", "if", "then", "not", "note", "description"})
 
 
-# 節の鍵のうち engine（と graphcheck の実行の形の検査）が読む物と、人が読むための説明の鍵。ループ固有の鍵は rules が NODE_KEYS
-# （rules が読む）と NODE_NOTE_KEYS（説明）で宣言する——engine はループ固有の語を持たない。この 4 つの和に無い節の鍵は、綴り違いか
-# 誰も読まなくなった鍵で、書いても黙って効かないので graphcheck が落とす（KNOWN_KEYWORDS と同じ閉じた集合。JSON Schema の
-# additionalProperties: false と同じ形）。ENGINE_NODE_KEYS の各鍵を engine か graphcheck が読んでいることは 試験が見る
-ENGINE_NODE_KEYS = frozenset({
-    "active_in", "agent_type", "applies_cond", "builtin", "cond", "delegate", "deps", "engine_run", "fan_out", "forbidden_inputs",
-    "fresh_context", "instance_deps", "once", "optional", "outputs", "pointers", "post_check", "pre", "prompt_append", "prompt_file",
-    "reads", "run_by", "runner_judgment_by_design", "same_context_as", "save_text_as", "schema", "skills", "text", "thickness_from",
-    "thickness_reason_from", "verdict_is_copy", "writes"})
-DOC_NODE_KEYS = frozenset({"note", "does", "source", "stage"})
-
-
 def _is_type(v, t):
     return {
         "object": isinstance(v, dict), "array": isinstance(v, list), "string": isinstance(v, str),
