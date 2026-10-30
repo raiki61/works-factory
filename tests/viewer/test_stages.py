@@ -15,6 +15,8 @@
   通す答えだけの run と落ちずに終わった run と、受け止めた落ちだけの run には無い。止まり方（人が止めた human・落ちた failed）と
   止まった出来事の番号も同じ所で決め、雛形は読むだけ（承認を通した後に同じ段で落ちた run を人の止めと取り違えない）
 - line でない run は段に集めない
+- 図の札ごとの AI の手番の費用（run の ai_cost。札の鍵は入れ子の場所ごと）は、札とその中の AI の手番の費用の和で、機械の手番と
+  中の出来事を束ねる器（子の run を起こすノードの行は子の総額を載せる）を足さない。line でない run にも付ける。雛形は数えずに読む
 - 結末の頭の語の表（outcomes）の語の組は、工場の結末の語の正本 lib/report.py の OUTCOMES と同じ（工場が結末の語を足せば赤）
 
 試験は小さな作りと run の記録を手で組む。
@@ -238,6 +240,23 @@ class StagesCase(unittest.TestCase):
         data = {"shape": {"graphs": line(NODES)}, "run": {"graph": "works-factory-chain", "events": [event(["x"])], "skipped": []}}
         stages.attach(data)
         self.assertEqual((data["stages"]["run"], data["stages"]["stop"], len(data["stages"]["table"])), (None, None, len(stages.TABLE["stages"])))
+
+    def test_the_ai_cost_of_each_card_is_summed_in_the_data(self):
+        """札の鍵は 雛形の K（場所 > graph/道）と同じ形。入れ子の札は中の AI の手番の和、AI の札は自分の和。機械の手番と、子の run を
+        起こすノードの行（子の総額）は足さない"""
+        child = {"graph": "line", "node": "rejudge-run", "via": []}
+        inner = {"graph": "judge", "node": "judge-loop/diagnose", "via": [{"graph": "line", "node": "rejudge-run"}]}
+        events = [event(["rejudge-run"], kind="workflow", cost=3.0, at=child),
+                  event(["rejudge-run", "judge-loop", "diagnose"], kind="agent", cost=1.0, at=inner, loop=[1]),
+                  event(["rejudge-run", "judge-loop", "diagnose"], kind="agent", cost=2.0, at=inner, loop=[2]),
+                  event(["rejudge-run", "judge-loop", "check"], kind="exec", cost=0.5, at={**inner, "node": "judge-loop/check"}),
+                  event(["start"], kind="agent", cost=0.25, at={"graph": "line", "node": "start", "via": []}), event(["x"], kind="agent", cost=9.0, at=None)]
+        self.assertEqual(stages.spots(inner), ["line/rejudge-run", "line/rejudge-run>judge/judge-loop", "line/rejudge-run>judge/judge-loop/diagnose"])
+        want = {"line/rejudge-run": 3.0, "line/rejudge-run>judge/judge-loop": 3.0, "line/rejudge-run>judge/judge-loop/diagnose": 3.0, "line/start": 0.25}
+        self.assertEqual(run_of(events, [])["run"]["ai_cost"], want)
+        other = {"shape": {"graphs": line(NODES)}, "run": {"graph": "works-factory-chain", "events": events, "skipped": []}}
+        stages.attach(other)
+        self.assertEqual(other["run"]["ai_cost"], want)
 
 
 if __name__ == "__main__":
