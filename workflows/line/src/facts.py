@@ -32,6 +32,7 @@ GIVE_UP = "give-up"
 NOT_OK = "not-ok"
 CHAIN_CUT = "chain-cut"
 MATERIAL_WHERE = "素材"
+AFTER_WHERE = "直した後の構造の実測"   # 残りの行の where: 直した後の実測を読めない
 NOT_CLOSED = "直したと申告したが、機械が判定の問いで数え直すと閉じていない"
 MISSING_EYE = "の結果が無い——再実行の要あり（深さは標準で、省いていない）"
 EYE_NAMES = ("r1", "r2", "r3", "r4")
@@ -214,6 +215,12 @@ def ledger(returns: dict, gates: dict, unattended: bool):
                             materials=mats, takes_push=unattended)
 
 
+def ties_note(returns: dict) -> str:
+    """問いの台帳の答えの結びを読めない訳（ledger は結びが無いとして組むので、無いと黙って数えずに notes で名指す。E23）。読めれば空"""
+    _, why = read_ptr(as_dict(returns.get("judge")).get("answer_ties"), "answer_ties")
+    return f"答えの結びを読めない（保留の問いと答えを結ばずに数えた）: {why}" if why else ""
+
+
 def _request_answers(returns: dict) -> list:
     """依頼の答え（request-in の返りの request_answers。テーマの run は降りた依頼の答えで、判定が問いを結んだ答えと同じ源）"""
     return [a for a in _list(as_dict(returns.get("request_in")).get("request_answers")) if isinstance(a, dict)]
@@ -250,15 +257,19 @@ def _eye_rows(returns: dict, eyes_due: bool | None) -> list:
 
 
 def _after_rows(returns: dict) -> list:
-    """直した後の構造の実測が見た、住処の外の知る場所の増え（structmark.after_rows。指し札の先のフォルダを読む）"""
+    """直した後の構造の実測が見た、住処の外の知る場所の増え（structmark.after_rows。指し札の先のフォルダを読む）。指し札か控えを
+    読めない時は、増えが無いと数えずに読めない訳の 1 行（E23）"""
     import structmark
     ptr = as_dict(returns.get("eyes")).get("after")
     if not ptr:
         return []
     try:
-        return structmark.after_rows(stageslib.resolve(ptr, "after").parent)
-    except stageslib.READ_ERRORS:
-        return []
+        folder = stageslib.resolve(ptr, "after").parent
+    except stageslib.READ_ERRORS as error:
+        return [{"where": AFTER_WHERE, "text": f"直した後の実測のポインタを読めない（柵の増えを数えていない。{type(error).__name__}: {error}）"}]
+    if structmark.read_after(folder) is None:
+        return [{"where": AFTER_WHERE, "text": f"直した後の実測の控え {structmark.AFTER_FILE} を読めない（柵の増えを数えていない）"}]
+    return structmark.after_rows(folder)
 
 
 def residue(returns: dict, facts: dict) -> list:
@@ -702,7 +713,6 @@ def _outside(returns: dict) -> tuple[list, list, str]:
 def next_request(returns: dict, left: list, closed: bool, got: dict, carried_rows: list) -> list:
     """次の依頼の findings（元 runreport.next_request）: 残りの行（R2 の作り直しの行は前の失敗にだけ）・目的の外の所見・親の木へ戻せ
     なかった組・再審の行（judged の carry）・差分の審査とレンズが残した穴（fixed の carry）・人に回した申し出の単位"""
-    import conflict
     import oneline
     import report
     asked = _asked_rows(returns, closed)
@@ -720,7 +730,6 @@ def next_request(returns: dict, left: list, closed: bool, got: dict, carried_row
         if k not in seen:
             seen.add(k)
             out.append(it)
-    _ = conflict
     return out
 
 
@@ -977,6 +986,7 @@ def _item_said(x) -> str:
 def answer_drafts(values: dict, returns: dict, gates: dict, unattended: bool) -> list:
     """人の判断を待つ項目への答えの下書き（元 runreport.answer_drafts の、承認し直すかの問い・載せなかった修正前の問いと R4 の問い・
     保留の台帳の問い・問いの立っていない測れていない素材の行）"""
+    import answer
     import gatemarks
     spec = as_dict(values.get("spec_check"))
     spec_qs = [q for q in _list(spec.get("questions")) if isinstance(q, str) and q.strip()]
@@ -985,7 +995,7 @@ def answer_drafts(values: dict, returns: dict, gates: dict, unattended: bool) ->
     b = ledger(returns, gates, unattended)
     held = gatemarks.held_questions(b)
     asked = eye_questions(returns)
-    if unattended and as_dict(gates.get("gate-before-fix")).get("decision") not in ("approve", "continue"):
+    if unattended and as_dict(gates.get("gate-before-fix")).get("decision") not in answer.GO_WORDS:
         # 載せなかった修正前の項目のうち台帳の問い（gatemarks.ask_text の文）は、下の保留の台帳の問いとして key で 1 行にする
         ledger_texts = {gatemarks.ask_text(q) for q in held}
         deferred = [str(as_dict(q).get("text") if isinstance(q, dict) else q) for q in _list(as_dict(values.get("ask_before_fix")).get("deferred"))]
@@ -1150,6 +1160,8 @@ def build(values: dict, record: dict | None, record_why: str = "", cwd=None) -> 
     constraints = part("次の run の制約", lambda: constraints_of(returns, str(ports_.get("run_id") or "")), [], outcome=False)
     _, material_note = part("素材の状態", lambda: materials(returns), ({}, ""), outcome=False)
     notes += [material_note] if material_note else []
+    ties_why = part("答えの結び", lambda: ties_note(returns), "", outcome=False)
+    notes += [ties_why] if ties_why else []
     notes += [f"修正の控え: {x}" for x in got["unread"]]
     before = [x for x in (part("修正の段の分け", lambda: split_line(returns), "", outcome=False),
                           part("推しの句", lambda: pushed_said(gates, taken), "", outcome=False)) if x]

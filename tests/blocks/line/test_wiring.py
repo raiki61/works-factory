@@ -318,7 +318,7 @@ class FlowCase(unittest.TestCase):
     def test_line_has_no_ai_node(self):
         self.assertFalse([k for k, n in NODES.items() if "prompt" in n or "command" in n])
 
-    def test_line_inputs_are_the_current_sixteen(self):
+    def test_line_inputs_are_the_current_seventeen(self):
         self.assertEqual(sorted(DOC["inputs"]), sorted(
             ("request", "base", "pr", "spec", "test_cmd", "tdd_suite", "final_gate", "unattended", "design_talk", "thickness",
              "features_off", "features_on", "policy_md", "fix_fixture", "lang", "deliver", "spec_table")))
@@ -359,10 +359,6 @@ class ScriptReadsCase(unittest.TestCase):
                     read = {name for name in env.read if isinstance(name, str) and name.startswith("INPUTS_")}
                     self.assertTrue({f"INPUTS_{name.upper()}" for name in node["with"]} <= read,
                                     f"with: の鍵を読まない: {sorted({f'INPUTS_{n.upper()}' for n in node['with']} - read)}")
-
-
-if __name__ == "__main__":
-    unittest.main()
 
 
 class SpecDrivenWiringCase(unittest.TestCase):
@@ -416,3 +412,7 @@ class SpecDrivenWiringCase(unittest.TestCase):
         self.assertEqual((new["form"], new["options"]), (old["form"], old["options"]))
         self.assertEqual(new["attention"], "$spec-ask-before-fix.output.text")
         self.assertIn("&before_fix_wait", TEXT)
+
+
+if __name__ == "__main__":
+    unittest.main()

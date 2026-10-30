@@ -203,7 +203,7 @@ fix__finish:
   ok: true
   reason: ''
   units:
-  - {unit_id: u1, group_id: g1, status: fixed, reason: ''}
+  - {unit_id: u1, group_id: g1, status: not_done, reason: '筋書きの stub: 止めた単位'}
   groups:
   - group_id: g1
     unit_ids: [u1]
@@ -227,9 +227,9 @@ fix__finish:
   mismatched: []
   plan_declared: []
   stop_reason: ''
-  allowed_tests: {type: archon_artifact, run_id: dry-run, path: fix/allowed-tests.json}
-  accept_trace: {type: archon_artifact, run_id: dry-run, path: fix/accept-trace.json}
-  closure: {type: archon_artifact, run_id: dry-run, path: fix/closure.json}
+  allowed_tests: null
+  accept_trace: null
+  closure: null
   tdd_unit: null
   frozen: null
   tdd: []
@@ -446,3 +446,59 @@ plan-review-run__review-reads:
   missing: []
   index_file: plan-review/pass-1/reads-plan-review-block.json
   reason: ''
+fix-in:
+  go: true
+  no_fix: false
+  stop_reason: ''
+  reason: ''
+  received: null
+  policy: ''
+  answer: null
+  deferred: []
+  passes: []
+  baseline: null
+  suite: ''
+  suite_made: false
+  judgment: null
+  units:
+  - id: u1
+    paths: [stats.py]
+    summary: 空の列の mean が 0 割りで落ちる
+  answer_ties: null
+  materials: null
+  out_of_purpose: null
+  verify: null
+  excluded: null
+  tier_record: null
+  decisions: null
+  world: null
+  spec: null
+  purpose: null
+  purpose_text: 空の列でも mean が落ちない
+  means: []
+  constraints: null
+  brief: null
+  inputs: null
+  recorded: []
+  structure: null
+  design: null
+  design_reason: ''
+  design_premises: null
+  plan: {type: archon_artifact, run_id: dry-run, path: plan/plan-fields.json}
+  fix_plan: {type: archon_artifact, run_id: dry-run, path: plan/fix-plan.json}
+  ripple: {type: archon_artifact, run_id: dry-run, path: plan/ripple.json}
+  reply: null
+  review: null
+  record: null
+  handoffs: []
+  owed: [u1]
+  round: 1
+  units_tier:
+  - {unit_id: u1, depth: 軽量, why: '筋書きの stub: 配線だけ'}
+  skip_rerun: [u1]
+  switches:
+    tier: 軽量
+    omits: true
+    merge: true
+    tree: 'off'
+    lines: []

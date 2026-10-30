@@ -133,6 +133,17 @@ class ThemeStageCase(TalkBase):
         self.assertEqual((again["open"], again["done"]), (True, False), "同じ文で聞き直す")
         self.assertTrue(again["text"].startswith(got["reason"]))
 
+    def test_each_line_of_the_ask_answers_is_one_answer(self):
+        """問いへの答えは 1 行に 1 つ。「- 」の無い行も行ごとに照らし、つなげて 1 つに読んだり、「- 」の行に混ざった行を捨てたりしない"""
+        asks = [{"id": "Q1", "options": [{"id": "A1"}, {"id": "A2"}]}, {"id": "Q2", "options": [{"id": "A1"}]}]
+        for text in ("## 問いへの答え\nQ1: A2\nQ9: A9\n", "## 問いへの答え\n- Q1: A2\nQ9: A1\n"):
+            with self.subTest(text=text):
+                self.assertIn("Q9 は見せた問いに無い", self.tt.check({"text": text}, asks))
+        text = "## 問いへの答え\n- Q1: A2（消してよい）\nQ2: A1\n"
+        self.assertEqual(self.tt.check({"text": text}, asks), "")
+        rows = self.tt.answer_rows([{"decision": "revise", "text": text}])
+        self.assertEqual([(r["ask"], r["pick"], r["text"]) for r in rows], [("Q1", "A2", "Q1: A2（消してよい）"), ("Q2", "A1", "Q2: A1")])
+
     def test_approval_in_the_inbox_does_not_skip_open_questions(self):
         (self.run.artifacts / "talk").mkdir(exist_ok=True)
         (self.run.artifacts / "talk/notes.txt").write_text("承認: 進めて\n", encoding="utf-8")

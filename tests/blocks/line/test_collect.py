@@ -126,6 +126,21 @@ class FactsCase(unittest.TestCase):
         self.assertEqual(got["head"]["notices"], ["注意（test_cmd）: x"])
         self.assertEqual(got["left"], [])
 
+    def test_unreadable_after_measure_is_a_left_row(self):
+        """直した後の構造の実測を読めない時は、柵の増えが無いと数えずに残りの行にする（E23。最後の承認ノードの final.after_rows と同じ読み）"""
+        v = passing()
+        v["eyes"] = {**v["eyes"], "after": ptr("structure-after/after.json")}
+        got = self.build(v)
+        self.assertEqual([r["where"] for r in got["left"]], [self.f.AFTER_WHERE], got["left"])
+        self.assertIn("柵の増えを数えていない", got["left"][0]["text"])
+
+    def test_unreadable_answer_ties_is_named_in_the_notes(self):
+        """問いの台帳の答えの結びを読めない時は、結びが無いと黙って数えずに訳を notes に名指す（E23。final.ledger_rows と同じ読み）"""
+        v = passing()
+        v["judge"] = {**v["judge"], "answer_ties": ptr("judge/ties.json")}
+        got = self.build(v)
+        self.assertTrue([n for n in got["notes"] if "judge/ties.json" in n], got["notes"])
+
     def test_inner_node_ids_stay_out_of_the_head_lines_and_in_the_named_ones(self):
         """報告の頭の行には、人が読む言葉だけを出す（id・止めの語は出さない。tests/blocks/line/test_head_plain.py）。頭の外の節の行は
         「訳（id）」で名を残す（グラフの名で探せるように）"""

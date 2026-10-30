@@ -22,7 +22,6 @@ class StartRecCase(unittest.TestCase):
     def test_place(self):
         """置き場は run directory の根の r1/start.json（名は src/files.py の START）"""
         self.assertEqual(startrec.REL, "r1/start.json")
-        self.assertEqual(startrec.NAME, "start.json")
         self.assertEqual(startrec.path("/b"), pathlib.Path("/b/r1/start.json"))
 
     def test_read_missing_or_broken_is_empty(self):

@@ -197,6 +197,11 @@ def _items(lines: list) -> list:
     return bullets if bullets else ["\n".join(b.strip() for b in lines)] if lines else []
 
 
+def _ask_items(lines: list) -> list:
+    """問いへの答えのセクションの本文を行に（1 行に 1 つ。頭の「- 」は有っても無くてもよい）"""
+    return [b.strip()[2:].strip() if b.strip().startswith("- ") else b.strip() for b in lines]
+
+
 def check(said: dict, asks: list) -> str:
     """答えの text の見出しのセクションが読めるか。読めない訳（知らない見出し・問いへの答えの行の形・見せた問いに無い Q・案に無い A）か空の字"""
     shown = {str(a.get("id")): {str(o.get("id")) for o in a.get("options") or [] if isinstance(o, dict)} for a in asks}
@@ -207,7 +212,7 @@ def check(said: dict, asks: list) -> str:
             return BAD_HEAD.format(why=f"知らない見出し「{head}」（使えるのは {'・'.join(HEADS)}）")
         if HEADS[head] != "ask_answer":
             continue
-        for row in _items(lines):
+        for row in _ask_items(lines):
             m = ASK_LINE.match(row)
             if m is None:
                 return BAD_HEAD.format(why=f"問いへの答えの行「{row}」が「Q<n>: A<n>（足し）」の形でない")
@@ -228,7 +233,7 @@ def answer_rows(talks: list, request_answers=()) -> list:
             continue
         for head, lines in _sections(t.get("text")):
             kind = HEADS.get(head, "note") if head is not None else "note"
-            for row in _items(lines):
+            for row in _ask_items(lines) if kind == "ask_answer" else _items(lines):
                 if kind == "ask_answer":
                     m = ASK_LINE.match(row)
                     rows.append({"kind": kind, "text": row, "ask": m.group(1), "pick": m.group(2)} if m else {"kind": "note", "text": row})

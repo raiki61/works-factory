@@ -15,7 +15,7 @@ final-diff が落ちた・飛ばされた時は、どれも null（outcome は�
 reason か apply の reason。落ちた・飛ばされた時はそう書く）で、bin/apply が拒む時に名指す。
 deliver は出口の語 pr の時だけ、PR を作った（act: pr と pr の在りか）か、作らずに止めた訳（act: stopped）か、作ったと確かめられ
 なかった訳（act: unconfirmed）。渡しのブロック hand の返りの欄 deliver をそのまま載せ、hand の返りが無い時は訳を組む: 最後の差分を
-置いていなければ stopped、置いたのに返りが無ければ（hand の中で push や PR の作成が済んだかもしれない）unconfirmed。出口の語が空なら null。
+置いていなければ stopped（訳は final-diff の reason か stop_reason）、置いたのに返りが無ければ（hand の中で push や PR の作成が済んだかもしれない）unconfirmed。出口の語が空なら null。
 最後の決めが launch なのに次の決めが無い時は、次の周の子の run が落ちた（親の周のノードが落ち、後ろが飛んだ）ので act: wait と
 続け方を返す。
 lib を読まない。落ちない: ports を読めない時も、標準ライブラリだけで返す。
@@ -24,7 +24,6 @@ lib を読まない。落ちない: ports を読めない時も、標準ライ�
 """
 import json
 import os
-import re
 import sys
 from pathlib import Path
 
@@ -40,7 +39,6 @@ except Exception as error:   # 出力ノードは落ちない（上の docstring
 CLOSED = "closed"
 PR = "pr"   # 出口の語（lib/entry.py の DELIVER_PR。result は lib を読まないので字で持ち、試験が同じことを縛る）
 FINAL = ("apply", "sealed", "report", "r2_status")
-DECISION = re.compile(r"INPUTS_D[1-9][0-9]*")   # 周 k の決めの入力 d<k>。周の数はグラフの with: が持つ。final_diff.py も同じ読み（試験が縛る）
 
 
 def from_final(final) -> dict:
@@ -63,7 +61,8 @@ def delivered(start: dict, final, hand):
         return hand
     got = final if isinstance(final, dict) else {}
     if got.get("placed") is not True:
-        return {"act": "stopped", "pr": None, "reason": f"最後の差分を置いていない（{from_final(final)['stop_reason'] or '訳の記録が無い'}）"}
+        why = got.get("reason") or from_final(final)["stop_reason"] or "訳の記録が無い"
+        return {"act": "stopped", "pr": None, "reason": f"最後の差分を置いていない（{why}）"}
     return {"act": "unconfirmed", "pr": None,
             "reason": "PR を作る渡しのサブグラフ hand の出力が無い（落ちたか飛ばされた。push と PR の作成が済んだかは run の記録で確かめる）"}
 
@@ -96,10 +95,8 @@ def main() -> None:
         print(reason, file=sys.stderr)
         print(json.dumps(fallback(reason), ensure_ascii=False, allow_nan=False), flush=True)
     else:
-        names = sorted(filter(DECISION.fullmatch, os.environ), key=lambda name: int(name[len("INPUTS_D"):]))
-        decisions = [os.environ[name] for name in names]
         ports.run(lambda: result(reads.value(os.environ.get("INPUTS_START")), reads.value(os.environ.get("INPUTS_FINAL")),
-                                    [reads.value(d) for d in decisions], reads.value(os.environ.get("INPUTS_HAND"))), fallback)
+                                    reads.decisions(), reads.value(os.environ.get("INPUTS_HAND"))), fallback)
 
 
 if __name__ == "__main__":

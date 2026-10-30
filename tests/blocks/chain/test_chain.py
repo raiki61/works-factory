@@ -8,12 +8,14 @@ script は子のプロセスとして使い捨ての置き場（runs/<親>・run
 import hashlib
 import importlib.util
 import json
+import os
 import pathlib
 import re
 import subprocess
 import sys
 import tempfile
 import unittest
+from unittest import mock
 
 import yaml
 
@@ -382,7 +384,8 @@ class FinalDiffCase(Tree):
         self.assertEqual(got["sealed"], {"ok": True, "hash": hashlib.sha256(final.read_bytes()).hexdigest(),
                                          "diff": {"type": "archon_artifact", "run_id": "parent", "path": "chain/final.diff"}})
         self.assertEqual(got["apply"], {**got["sealed"], "reason": ""})
-        self.assertIs(got["placed"], True)
+        self.assertIs(got["placed"], False, "周 3 の commit が run の枝に残り、PR の渡しが照らす今の差分が最後の差分と合わない")
+        self.assertIn("周 3", got["reason"])
         left = self.artifacts / "chain" / "round-3.diff"
         self.assertEqual(self.names(left.read_bytes()), ["three.txt"])
         report = (self.artifacts / chain.REPORT).read_text(encoding="utf-8")
@@ -393,6 +396,23 @@ class FinalDiffCase(Tree):
         self.assertIn("| 3 | child-3 | stopped_by_human | 10 | 3.00 | 1 | 1 |", report)
         self.assertIn("合計: 3 周・30 分・$6.00", report)
         self.assertEqual(git(self.repo, "status", "--porcelain"), "", "作業ツリーを変えない")
+
+    def test_halted_round_that_left_no_change_is_placed(self):
+        """止まった周が何も積まなかった（head が採る周と同じ）なら、今の木は最後の差分と同じなので PR へ渡せる"""
+        start, made = three_rounds(self.repo)
+        for d in made:
+            if len(d["rows"]) == 3:
+                d["rows"][2]["head"] = d["rows"][1]["head"]
+        got = self.final(start, *made)
+        self.assertEqual((got["kept"], got["skipped"], got["placed"], got["reason"]), (2, [3], True, ""), got)
+
+    def test_round_whose_kind_was_unread_is_not_taken(self):
+        """結末の語が読めない周（種 None）は決めが halted で止めた周なので、通った周として採らない（E23）"""
+        start, made = three_rounds(self.repo, halted_last=False)
+        made[-1]["rows"][-1].update(outcome="", kind=None)
+        got = self.final(start, *made)
+        self.assertEqual((got["kept"], got["skipped"]), (2, [3]), got)
+        self.assertEqual(self.names((self.artifacts / "chain" / "round-3.diff").read_bytes()), ["three.txt"])
 
     def test_round_without_a_placed_diff_is_sealed_but_not_placed(self):
         start, made = three_rounds(self.repo, halted_last=False, placed=())
@@ -511,6 +531,11 @@ class ResultCase(Tree):
         got = self.result(start, decided, final=unplaced)["deliver"]
         self.assertEqual((got["act"], got["pr"]), ("stopped", None))
         self.assertIn("採れる周が無い", got["reason"])
+        sealed = {"ok": True, "hash": "h", "diff": None}
+        left = {**unplaced, "ok": True, "reason": "採らなかった周 3 の変更が残る", "sealed": sealed, "apply": {**sealed, "reason": ""}}
+        got = self.result(start, decided, final=left)["deliver"]
+        self.assertEqual(got["act"], "stopped")
+        self.assertIn("採らなかった周 3 の変更が残る", got["reason"], "差分を当てられても渡さない訳は final-diff の reason")
         got = self.result(start, decided, final={**unplaced, "ok": True, "placed": True})["deliver"]
         self.assertEqual(got["act"], "unconfirmed", "差分を置いた後の hand の中で push や PR の作成が済んだかもしれない")
         self.assertIn("出力が無い", got["reason"])
@@ -552,6 +577,15 @@ class ResultCase(Tree):
         last = {"act": "stop", "word": "closed", "text": "t", "request": "", "rows": [{"n": n} for n in range(1, chain.MAX_ROUNDS + 1)]}
         got = self.result(start, *made, last)
         self.assertEqual((got["closed"], got["act"], len(got["rounds"])), (True, "stop", chain.MAX_ROUNDS), got)
+
+
+class ReadsCase(unittest.TestCase):
+    def test_decisions_are_read_in_round_number_order(self):
+        """final-diff と result が読む周の決め d<k> は、環境の並びや名の字の順でなく周の番号の順（d10 は d9 の後）。飛ばされた周は外す"""
+        reads = kit.load("chain", "reads")
+        env = {f"INPUTS_D{k}": json.dumps({"n": k}) for k in (10, 2, 9, 1)} | {"INPUTS_D3": "null", "INPUTS_DX": "{}"}
+        with mock.patch.dict(os.environ, env):
+            self.assertEqual([d["n"] for d in reads.decisions()], [1, 2, 9, 10])
 
 
 class FilesCase(unittest.TestCase):

@@ -32,13 +32,13 @@
 
 ### 1.2 port
 
-入力（YAML の `inputs:`。今の line の 16 個）。form は README の 4.1 の物（`text`・`file`・`json(<形>)`・`flag`・`choice(a|b)`）。語を受ける入力は `text` にする（`start` が知らない語を名指して拒む今の文を残すため。`choice` は Archon が照らさず、拒む所が増えるだけ）。説明の字は今の YAML の `description` を、作り手を名指さない形で写す。
+入力（YAML の `inputs:`。今の line の 17 個）。form（入力の受け方の型）は README の 4.1 の物（`text`・`file`・`json(<形>)`・`flag`・`choice(a|b)`）。`json(shared:<名>)` の形は、2 つ以上の block が使う形の置き場 `workflows/.shared/schemas/` に在る。決まった語を受ける入力も `text` にする。訳: line の最初の script の node `start`（入力を確かめ、始めの記録を書く。1.3 の 1）は、知らない語を受けるとその語を名指して拒む文を出す。今のこの文を残すため。`choice` にしても Archon（工場が載る、YAML のグラフを回す道具）が照らさず、拒む所が増えるだけ。各入力の説明の字は、今の YAML の `description` を、値を作る block や node（作り手）を名指さない形で写す。
 
-- `request`: `file: 修正依頼のファイル（findings の JSON の配列か {findings, pr, issue, answers, prior_failures, constraints, theme} の形。theme はテーマの run の入口。3.3 節）。相対なら対象の根から。依頼の行か差分の少なくとも 1 つが要る`。既定 `""`。
+- `request`: `json(shared:request.schema.json): 修正依頼のファイル（findings の JSON の配列か {findings, pr, issue, answers, prior_failures, constraints, theme} の形。theme はテーマの run の入口。3.3 節）。相対なら対象の根から。依頼の行か差分の少なくとも 1 つが要る`。既定 `""`。
 - `base`: `text: 差分の根を名指す版（枝・タグ・commit）。差分の根は base と HEAD の merge-base。pr と一緒には名指さない`。既定 `""`。
 - `pr`: `text: PR の番号。base の版と head は run の中で gh で読む。base と一緒には名指さない`。既定 `""`。
 - `spec`: `text: 仕様の段を挟むか（空か on）。依頼の文が要り、無人の run・固定材料とは組めない`。既定 `""`。
-- `test_cmd`・`tdd_suite`・`final_gate`・`unattended`・`design_talk`・`thickness`・`features_off`・`features_on`・`policy_md`・`fix_fixture`・`lang`・`deliver`: 今の説明のまま（form は `text`）。`design_talk` は対話モードの印で（初めの名は `design_only`。#827 で替え、古い名は起動の殻〔人が打つ起動の命令 `bin/works-factory`。Archon の外で run を起こす〕が止めて新しい名を案内する）、`true` で無人でない run（人が承認ノードに答える run。入力 `unattended` が真の無人の run は、承認ノードを人に聞かず推しで進むか止まる。6 節）は、計画の往復の間に人の指摘と承認を受け箱で受け、承認が無い時だけ往復の末尾で設計を相談して待つ（3.1 節）。`unattended` も真の run（無人の run）で `design_talk` が `true` の時は、今どおり修正前の承認ノードを必ず開く印になる。無人の run は承認ノードを開けない（人が居ない）ので、run はそこで止まる（`works:needs-human`。6 節の「設計だけの run は無人でも止まる」）。
+- `test_cmd`・`tdd_suite`・`final_gate`・`unattended`・`design_talk`・`thickness`・`features_off`・`features_on`・`policy_md`・`fix_fixture`・`lang`・`deliver`: 今の説明のまま（form は `text`）。`spec_table`: `file:` の仕様駆動の道の表（[spec-driven.md](spec-driven.md) の 2.3）。`design_talk` は対話モードの印で（初めの名は `design_only`。#827 で替え、古い名は起動の殻〔人が打つ起動の命令 `bin/works-factory`。Archon の外で run を起こす〕が止めて新しい名を案内する）、`true` で無人でない run（人が承認ノードに答える run。入力 `unattended` が真の無人の run は、承認ノードを人に聞かず推しで進むか止まる。6 節）は、計画の往復の間に人の指摘と承認を受け箱で受け、承認が無い時だけ往復の末尾で設計を相談して待つ（3.1 節）。`unattended` も真の run（無人の run）で `design_talk` が `true` の時は、今どおり修正前の承認ノードを必ず開く印になる。無人の run は承認ノードを開けない（人が居ない）ので、run はそこで止まる（`works:needs-human`。6 節の「設計だけの run は無人でも止まる」）。
 
 出力（`returns: result`・`outcome_field: fixed`）。欄の名は今のまま（`bin/apply`・chain・通しの試験が今の名で読む。report の設計書の 1.6）:
 
@@ -115,7 +115,7 @@ line は一番上の graph なので、place は run directory の根（README 4
   - `deal.py`（足す）: 始めの記録から配る値を引く（1.6）。
   - `gates.py`: 承認ノードの決め（今の `lib/gatepolicy.py` の全部と、`lib/gatemarks.py` の承認ノードの決めの部分〔開くか・項目の行・軸・通した行・無人の抜け方〕、`lib/gate_axes.py`）。問いの行の形（`ASKING`・`asks_human`・推しの尾の字の形）と承認ノードの文の組み立て `gate_text` は KEEP の `lib/gatemarks` を引く（README 9.3）。
   - `final.py`: 最後の承認ノードの開ける理由と文（今の `ask_final.py` の中身）。
-  - `tiers.py`: 段 → 回す物の表と単位の深さと上げ直し（今の `lib/depth.py` の `TIERS`・`unit_depth`・`decide_doc`・`raise_doc`・`skip_reason`・`omits`・`merges`・`tier_adds`・`tier_auto`・`lines` と、`lib/latedepth.py`）。段の語 4 つ（`LIGHT`・`STANDARD`・`HEAVY`・`HEADS`）は先に `lib/headdepth` へ移す（README 9.3・11.3 の 5）。
+  - `tiers.py`: 段 → 回す物の表と単位の深さと上げ直し（今の `lib/depth.py` の表 `TIERS`（目をまとめる欄 `merges` を含む）・`unit_depth`・`decide_doc`・`raise_doc`・`skip_reason`・`omits`・`tier_adds`・`tier_auto`・`lines` と、`lib/latedepth.py`）。段の語 4 つ（`LIGHT`・`STANDARD`・`HEAVY`・`HEADS`）は先に `lib/headdepth` へ移す（README 9.3・11.3 の 5）。
   - `rounds.py`: 計画の往復の記録と止め（今の `lib/converge.py` の `read`・`add_pass`・`record_pass`・`decide`・`proceeds`・`capped`・`stuck_keys`・`stuck_reason`・`lines`・`open_items`・`held`）と、設計の相談の修正要望を記録に差し込む `ask_again`（3.1 節）。
   - `talk.py`（足す）: 設計の相談の周の頭と終わりの決めと関所の文（3.1 節）。`asking.py`（足す）: 修正前の承認ノードの材料の読み（`ask-before-fix` と `design-talk` が同じ材料から同じ行を組む 1 か所）。項目の読みと穴の札の形（`planned_units`・`central` など、plan と plan-review も使う物）は KEEP の `lib/converge` に残す（README 9.3）。
   - `stages.py`: 2 つの修正の段の合わせ（今の `fixed.py` の中身と、組み込みで DELETE される `fixbeside` の読み口のうち line が読む物〔`stage`・`late_records`・`read`〕。fix の設計書の 1.2 の「`fixbeside.read`・`records` は組み込みで line の src/ に移る」）と、最後の承認ノードと line が組む報告の節だけが読む行の組み立て `closure_lines`・`tests_left_lines`・`gates_lines`・`plan_ask_lines`・`always_rows`（レンズの行でない部分）・`next_items`（手直しの行でない部分）（integration.md の 4.5-3。`branch_rows` とレンズの行・手直しの行は delta-review の `report`・`carry`）。
@@ -353,7 +353,7 @@ line は一番上の graph なので、place は run directory の根（README 4
 
 ### 5.4 独立の目を回すか・まとめるか（`eyes-in`）
 
-`run` ← `$fixed.output.eyes_due`（直す物が無い周は `raise` が飛ぶので、`fixed` が真を返す）。`merge` ← `$fix-in.output.switches.merge` が真で `run` が真（目を省かずに回す軽量の run だけ R3 を R4 に入れる。今の `depth.merges`。持ち主の決め `eyes-by-reason`）。直した後の実測（structure after）は `run` に依らず回す（E71。eyes の graph の側）。
+`run` ← `$fixed.output.eyes_due`（直す物が無い周は `raise` が飛ぶので、`fixed` が真を返す）。`merge` ← `$fix-in.output.switches.merge` が真で `run` が真（目を省かずに回す軽量の run だけ R3 を R4 に入れる。段の表 `TIERS` の欄 `merges` が空でない段。持ち主の決め `eyes-by-reason`）。直した後の実測（structure after）は `run` に依らず回す（E71。eyes の graph の側）。
 
 ## 6 無人の方針（`src/gates.py`。今の `lib/gatepolicy.py` の決めのまま）
 
@@ -464,7 +464,7 @@ line は一番上の graph なので、place は run directory の根（README 4
 graph は AI の node を持たないので、README 6 節の node ごとの 9 項（指示の組み立て・描いた骨組み・指示の比べ）は当たらない。確かめは筋書きと振る舞いの試験と通しの試験。
 
 - standalone の筋書き `workflows/line/fixtures/standalone.stubs.yaml`（7.1 の 4）: `fixture.inputs` は `request`（`fixtures/request.json`）・`test_cmd` だけ。include した block の AI の node と、include の中の loop の本体の script を台本で差し替え（README 13 章: dry-run は include の道を loop の本体に渡さない）、line の script は本物で回す。`reached` に `result`。
-- 今の筋書き 36 本（`workflows/line/fixtures/`）を新しい node の id に書き直す（README 11.3 の 2）。足す筋書き: `parallel-pr-after-found`（判定から入る run で、修正の後の並行 PR が found → 最後の承認ノードが開く）・`fix-excluded`（`excluded` が fix に届く。`resolved-text-contains` でなく `with` の値の照らし）・`light-all-units`（軽量で全部の単位が軽量 → lens・delta-review・r1〜r4 が飛び、structure after は走る）。
+- 今の筋書き（block の試験が回す場面の入力。`workflows/line/fixtures/` の `*.stubs.yaml`）36 本を新しい node の id に書き直す（README 11.3 の 2）。足す筋書きは 2 本: `parallel-pr-after-found`（判定を飛ばす固定材料の run でなく判定から入る run で、修正の後の並行 PR の確かめ直しが `found`〔直したファイルが開いている PR と重なった〕→ 最後の承認ノードが開く）・`fix-excluded`（並行 PR が外した hunk `excluded` が fix に届くことを、AI の node の文に字が含まれるかの照らし `resolved-text-contains` でなく、fix に渡す `with` の値で照らす）。足すとしていた `light-all-units`（run の頭の深さが軽量で、判定の単位も全部が軽量 → lens・delta-review・r1〜r4〔頭の語の一覧の block と独立の目〕が飛び、直した後の構造の目 structure after は走る）は、中身が今の `light` の筋書きと同じだったので足さず、`light` の筋書きに寄せた。
 - 振る舞いの試験 `tests/blocks/line/`（今の `tests/workflows/test_line.py`・`test_gate_head.py`・`test_testcmd_head.py` と `lib/tests/test_fixture.py`・`test_startrec.py`・`test_testcmd_check.py`・`test_versions.py` を元にする。README 9.5）:
   - `test_start.py`: 入力の拒み（今の `StartCase` の全部）と、配る値（1.6 の欄ごと。`entry` が差分の空と依頼の数の両方で決まる・`verify_by_tier` が名指しで全段 on/off になる）。
   - `test_gates.py`: 4 つの承認ノード（今の `GateAnswerCase`・`AskBeforeFixCase`・`AskReplanCase`・`AskFinalCase`・`AskFinalReadsCase`・`FinalGateCase`・`UnattendedPolicyCallCase`・`LedgerAsksCase`）。足す試験: 修正の後の並行 PR の確かめ直しが `found`（直したファイルが開いている PR と重なった）か失敗の時、その訳が最後の承認ノードを開く理由に入り、開き方に依らず開く理由（must。2 節の 4）には入らない（8.1）。
@@ -551,7 +551,7 @@ run の頭の深さの 3 段の定義の写し（issue #441・#561。持ち主�
 - gate の機械の止めの run は役を起こさず標準になり、自動では重厚を選ばない。重厚が要るなら入力 `thickness=重厚` で名指す（名指しは役を起こさずに固定し、単位の深さは標準に固定する）。
 - 名指した重厚（`thickness=重厚`）が足す機能を `features_off` で切る組は、入口（`workflows/line/scripts/start.py` の `words`）がぶつかった機能を名指して止める。自動で選んだ重厚は入口の後に決まるので止められず、名指しで切った機能は入れずに、報告の深さの行が「名指しで切った」と言う。
 - 重厚の足しは、判定の裏取りの支度（judge の `verify-prep` が始めの記録と頭の深さの控えから決める）と、事前審査の木（`plan-review` の入力 `head_depth`）が読む。裏取りは開いた単位が 2 つ未満なら重厚でも回さない（報告の裏取りの行が訳を出す）。
-- まとめる目（`TIERS` の `merges`。軽量だけ `r3.coherence`・`r4.hidden_scope`）: 軽量の頭の run で、上げ直しなどで目を省かずに回す時は、この目を 1 つの役 `eyes-one` が 1 つの会話で見る（eyes の `prep` が `depth.merges` を読む）。別の会話にする訳がある目だけを分ける持ち主の決め（`eyes-by-reason`）で、決めは軽量の run の組み方なので、「その目だけが拾う穴」は軽量の run に近い小さい差分（差分 400 行未満の 14 本の run）で数えた。そこでほかの目が挙げない要修正は R1 13 件・R2 5 件・R4 7 件・R3 0 件（43 本全体では R1 74 件・R2 18 件・R3 3 件・R4 14 件。数えの控えは issue #687 のコメント）。R2 は修正を見ない独立設計と突き合わせ、ほかの観点の結論を見ると偏るので分けたまま。R1 は小さい差分でも単独の穴を一番多く拾い、問いの台帳を受け取るのも R1 だけなので、標準の run と同じ前段つきの役のまま。R4 も小さい差分で単独の穴を拾うので分けたまま。R3 は小さい差分で単独の穴が 0 件で、道具（Read・Grep・Glob）と模型の群も R4 と同じなので、R4 の受け付けのループの中の 1 つの役が R4 と一緒に見る。まとめても R3 の観点は審査の指示に残り、同じ会話の中で見続ける。4 つの観点（最小性・設計の比較・整合・見えていない範囲）はどれも審査の指示に残る。標準と重厚の目は目ごとの役のまま。
+- まとめる目（`TIERS` の `merges`。軽量だけ `r3.coherence`・`r4.hidden_scope`）: 軽量の頭の run で、上げ直しなどで目を省かずに回す時は、この目を 1 つの役 `eyes-one` が 1 つの会話で見る（段の表 `TIERS` の欄 `merges` が空でない段。`eyes-in` が `$fix-in.output.switches.merge` で読む。5.4）。別の会話にする訳がある目だけを分ける持ち主の決め（`eyes-by-reason`）で、決めは軽量の run の組み方なので、「その目だけが拾う穴」は軽量の run に近い小さい差分（差分 400 行未満の 14 本の run）で数えた。そこでほかの目が挙げない要修正は R1 13 件・R2 5 件・R4 7 件・R3 0 件（43 本全体では R1 74 件・R2 18 件・R3 3 件・R4 14 件。数えの控えは issue #687 のコメント）。R2 は修正を見ない独立設計と突き合わせ、ほかの観点の結論を見ると偏るので分けたまま。R1 は小さい差分でも単独の穴を一番多く拾い、問いの台帳を受け取るのも R1 だけなので、標準の run と同じ前段つきの役のまま。R4 も小さい差分で単独の穴を拾うので分けたまま。R3 は小さい差分で単独の穴が 0 件で、道具（Read・Grep・Glob）と模型の群も R4 と同じなので、R4 の受け付けのループの中の 1 つの役が R4 と一緒に見る。まとめても R3 の観点は審査の指示に残り、同じ会話の中で見続ける。4 つの観点（最小性・設計の比較・整合・見えていない範囲）はどれも審査の指示に残る。標準と重厚の目は目ごとの役のまま。
 
 載せなかった候補（代わりが無い）:
 

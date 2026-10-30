@@ -1,5 +1,5 @@
 # round-1 の子は round_limit で残りを返し、round-1-facts が運ぶ次の依頼を書いた姿。round-1-decide が launch を決め、round-2 の子の
-# 入力 request に運ぶ次の依頼のパスが渡る（tests/workflows/test_chain.py が trace で照らす）。round-2 の子は fixed で、round-2-decide が
+# 入力 request に運ぶ次の依頼のパスが渡る（tests/blocks/chain/test_chain.py が trace で照らす）。round-2 の子は fixed で、round-2-decide が
 # closed で止め、round-3 は飛ぶ。
 fixture:
   expect: "completed"
