@@ -228,21 +228,22 @@ class WriterBlockCase(unittest.TestCase):
         want = {"spawns": table.SPAWNS, "g1": table.SPAWNS, "ask_variant": table.SPAWNS}
         self.assertEqual(writerblock.paragraphs(table), want)
         given = json.loads(self.inputs["slots"])
-        items = bool(given["subagents"]["owed"])
+        # 筋書きの owed は型ごとに空かどうかが違うので、下請けを起こす単位の在る周を作って回す（(v) と同じ単位）
+        owed = {**given["subagents"], "owed": ["stats.py:4 mean"], "judgment_file": "/p/judgment.json", "base_rev": "abc123", "directory": "/repo"}
         files = lambda: sorted(p.name for p in self.run_.artifacts.glob("g1-*"))   # noqa: E731
         asked = "A subagent (an implementer started with Agent) cannot consult itself"
         for ask in (False, True):
             with self.subTest(ask=ask):
-                slots = {**given, "when": {**given["when"], "ask": ask}}
+                slots = {**given, "subagents": owed, "when": {**given["when"], "ask": ask}}
                 text = self.prep(slots=json.dumps(slots))["prompt"]
-                self.assertEqual("## Running subagents" in text, table.SPAWNS and items)
+                self.assertEqual("## Running subagents" in text, table.SPAWNS)
                 self.assertEqual(asked in text, table.SPAWNS and ask)
-        self.assertEqual(files(), ["g1-impl-1.md", "g1-review-1.md"] if table.SPAWNS and items else [])
-        if table.SPAWNS:   # 下請けを起こす単位が無い周は、真の型でも項目の段落もファイルも無い
-            self.run_ = Run(self, self.block)
-            none = {**given, "subagents": {**given["subagents"], "owed": [], "briefs": []}}
-            self.assertNotIn("## Running subagents", self.prep(slots=json.dumps(none))["prompt"])
-            self.assertEqual(files(), [])
+        self.assertEqual(files(), ["g1-impl-1.md", "g1-review-1.md"] if table.SPAWNS else [])
+        # 下請けを起こす単位が無い周は、真の型でも項目の段落もファイルも無い
+        self.run_ = Run(self, self.block)
+        none = {**given, "subagents": {**given["subagents"], "owed": [], "briefs": []}}
+        self.assertNotIn("## Running subagents", self.prep(slots=json.dumps(none))["prompt"])
+        self.assertEqual(files(), [])
 
     def test_the_head_paragraph_is_handed_to_the_subagents_as_the_rule_of_the_type(self):
         """(v) 下請けを起こす型（表の SPAWNS が真。名の表を持たない）は、block の prompts/parts/head.md を空の値で組めて、組んだ字が、本体が書いた
