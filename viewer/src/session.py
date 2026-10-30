@@ -80,6 +80,9 @@ def read(path: Path, keep, since: str | None = None) -> dict:
         except ValueError:
             _count(got, "JSON でない行")
             continue
+        if not isinstance(row, dict):
+            _count(got, runread.OBJECTLESS)
+            continue
         kind = row.get("type")
         if kind in UNREAD_TYPES:
             if kind in READ_FROM:

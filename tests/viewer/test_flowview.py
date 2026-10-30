@@ -6,6 +6,7 @@
 - 出力の HTML が無ければ止まる
 - 飛んだノードに図の当たる所（at）を付けても、飛んだ時刻（time）は残る。前は時刻も at の名で持っていて、当てる時に上書きされて
   再生の帯から飛んだノードが消えていた（#906 のレビュー）
+- 記録と会話の字に片割れのサロゲート（JSON の \\ud83d だけ）が在っても、ページを落ちずに書く（字は置き換える）
 
 試験は一時のフォルダに木と控えと置き場を組み（tests/viewer/test_ja.py の Base）、利用者の環境の置き場を一時のフォルダへ向ける。
 飛んだノードは一時のフォルダに小さな DB と記録を作り、今の木の図に当てる。
@@ -21,6 +22,7 @@ from pathlib import Path
 from unittest import mock
 
 from tests.viewer.test_ja import HEAD, OTHER, Base
+from bin._lib import isolate
 from viewer import flowview
 from viewer.src import ja, runread
 
@@ -77,6 +79,32 @@ class FlowviewCase(Base):
         self.assertEqual(code, 2)
         self.assertIn("出力の HTML", err)
 
+    def test_a_lone_surrogate_does_not_stop_the_page(self):
+        home, rid = self.tmp / "home", "run-odd"
+        db = home / isolate.DIRS["ARCHON_HOME"] / runread.DB_FILE
+        db.parent.mkdir(parents=True)
+        con = sqlite3.connect(db)
+        con.execute(f"create table {runread.RUN_TABLE} ({', '.join(runread.RUN_COLUMNS)})")
+        con.execute(f"create table {runread.EVENT_TABLE} ({', '.join(runread.EVENT_COLUMNS)})")
+        con.execute(f"insert into {runread.RUN_TABLE} (id, workflow_name, status, parent_run_id, started_at, output_root, metadata) "
+                    "values (?, 'g', 'failed', null, '2026-10-25 01:00:00', ?, '{}')", (rid, str(home)))
+        con.commit()
+        con.close()
+        node = {"step": "a", runread.EXECUTION: {"path": "a", "invocation": {"id": "a"}, "binding": {"sessionPreview": "sess"}}}
+        log = home / runread.LOGS / f"{rid}.jsonl"
+        log.parent.mkdir()
+        log.write_text("\n".join(json.dumps({**node, "type": kind, "ts": ts, "error": "ab\ud83d"})
+                                 for kind, ts in (("node_start", "2026-10-25T01:00:00.000Z"), ("node_error", "2026-10-25T01:00:01.000Z"))),
+                       encoding="utf-8")
+        talk = home / isolate.DIRS["CLAUDE_CONFIG_DIR"] / "projects" / "x" / "sess.jsonl"
+        talk.parent.mkdir(parents=True)
+        talk.write_text(json.dumps({"type": "user", "message": {"content": [{"type": "tool_result", "tool_use_id": "t", "content": "ab\ud83d"}]}}),
+                        encoding="utf-8")
+        with mock.patch.object(flowview.launcher, "target_root", lambda target, here: Path(target)), \
+                mock.patch.object(flowview.launcher, "run_home", lambda user, root: home):
+            code, err = self.main("--target", str(self.tmp), "--run", rid, str(self.out))
+        self.assertEqual(code, 0, err)
+        self.assertIn(runread.REPLACEMENT, self.out.read_text(encoding="utf-8"))
 
 class PlaceCase(unittest.TestCase):
     def test_a_skipped_node_keeps_its_time_after_it_is_placed(self):
@@ -99,3 +127,4 @@ class PlaceCase(unittest.TestCase):
         run = runread.run(root / runread.DB_FILE, rid)
         self.assertEqual(flowview.unmatched(graphs, run), [])
         self.assertEqual([(s["time"], s["at"]["node"]) for s in run["skipped"]], [(ts, node)])
+

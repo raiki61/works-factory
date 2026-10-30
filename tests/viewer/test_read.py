@@ -38,6 +38,14 @@
 - 落ちた後に起き直して終わった run の前の起動の走り中のノードは、最後の終わりでなく、その落ちの時刻で閉じる
 - 閉じる時刻は始めより前にしない（DB の終わりは秒までの切り捨てなので、同じ秒に始めたノードの長さが負にならない）
 - run の費用は metadata の合計と代わりの和の大きい方（費用は減らないので、SIGTERM で落ちて合計を書き直さなかった run の古い合計を出さない）
+- 落ちた後に起き直してまだ走っている（答えを待っている）run でも、前の起動の走り中のノードはその落ちで閉じて落ちた（落ちは過去の事実）
+- 起き直した後に前の起動の id のまま走り直すノード（Archon の書く形）は、前の落ちで閉じず、最後の始めの後の終わりで閉じる
+- 前の起動で落ちて、同じ id で走り直したノードは、1 つの出来事で最後の結果にし、一度落ちたことを印 fell に残す。SIGTERM で落ちて
+  ログに node_error が無くても、始めと最後の始めの間に run の落ちが在れば同じ
+- 走り直した出来事を閉じる時刻は、最後の始めより前にしない
+- JSON として読めるが object でない行は、ログでも会話の記録でも落ちずに読めなかった物に数える
+- 片割れのサロゲートの字は、出力の hash と字で落ちずに置き換える
+- archon_artifact が run の置き場の外（絶対パス・..）を指せば、読まずに読めなかった物に数える（読むだけの範囲。E25 の 2）
 
 試験は一時のフォルダに小さな DB と記録を作る。
 """
@@ -540,6 +548,111 @@ class ReadCase(unittest.TestCase):
                          {"old": ("failed", True), "late": ("failed", True), "tail": ("running", True)})
         self._log("lone", [node("node_start", "2026-10-25T04:10:00.000Z", "only")])
         self.assertEqual([(e["status"], e.get("cut", False)) for e in runread.run(db, "lone")["events"]], [("running", True)])
+
+    def test_a_live_run_closes_the_nodes_of_an_earlier_failure(self):
+        """落ちた後に起き直してまだ走っている（か答えを待っている）run でも、前の起動で走り中のまま止まったノードはその落ちで閉じて落ちた。
+        起き直した後に同じ起動の id（Archon は終わっていないノードの id を使い直す。dag-resume-snapshot.ts）で走り直すノードは、
+        前の落ちで閉じずに走り中のまま（exec も loop_group も）"""
+        node = lambda kind, ts, path, nodekind="exec": {"type": kind, "ts": ts, "step": path,
+                                                          runread.EXECUTION: {"path": path, "invocation": {"id": path}, "node": {"kind": nodekind}}}
+        for status in ("running", "paused"):
+            for kind in ("exec", "loop_group"):
+                with self.subTest(status=status, kind=kind):
+                    (self.tmp / runread.DB_FILE).unlink(missing_ok=True)
+                    db = self._db([("top", None, "2026-10-25 02:00:00", None, "{}")], [("top", "2026-10-25 02:00:00")])
+                    self._status(db, "top", status)
+                    self._event(db, "top", runread.FAILED_EVENT, "2026-10-25 02:21:11")
+                    self._log("top", [node("node_start", "2026-10-25T02:07:15.000Z", "gone"),
+                                      node("node_start", "2026-10-25T02:07:15.000Z", "again", kind),
+                                      node("node_start", "2026-10-25T02:40:00.000Z", "again", kind)])
+                    got = {e["path"]: (e["status"], e["end"], e.get("cut", False)) for e in runread.run(db, "top")["events"]}
+                    self.assertEqual(got, {"gone": ("failed", "2026-10-25T02:21:11.000Z", True), "again": ("running", None, False)})
+
+    def test_a_node_that_ran_again_after_a_fall_keeps_the_fall(self):
+        """同じ起動の id で node_start・node_error・node_start・node_complete と書いたノードは、1 つの出来事で最後の結果の通ったにし、
+        一度落ちたことを印 fell に残す。走り直している間は走り中（前の落ちの終わりを残さない）"""
+        db = self._db([("top", None, "2026-10-25 02:00:00", None, "{}")], [])
+        rows = [self._node("node_start", "2026-10-25T02:07:00.000Z", "try"), self._node("node_error", "2026-10-25T02:08:00.000Z", "try"),
+                self._node("node_start", "2026-10-25T02:40:00.000Z", "try")]
+        self._status(db, "top", "running")
+        self._log("top", rows)
+        (got,) = runread.run(db, "top")["events"]
+        self.assertEqual((got["status"], got["end"], got.get("fell")), ("running", None, True))
+        self._status(db, "top", "completed")
+        self._log("top", [*rows, self._node("node_complete", "2026-10-25T02:41:00.000Z", "try")])
+        (got,) = runread.run(db, "top")["events"]
+        self.assertEqual((got["status"], got["start"], got["end"], got.get("fell")),
+                         ("ok", "2026-10-25T02:07:00.000Z", "2026-10-25T02:41:00.000Z", True))
+
+    def test_a_node_that_ran_again_after_a_sigterm_fall_keeps_the_fall(self):
+        """SIGTERM で落とす道（owned-run-termination.ts の failWorkflowRun）は DB に落ちだけを書き、ログに node_error を書かない。
+        同じ起動の id で始めの後に落ち、走り直して通ったノードも、一度落ちたことを印 fell に残す（exec も loop_group も）。
+        落ちの後に始めたノードと、落ちの無い間に始めを書き直したノードには付けない"""
+        node = lambda kind, ts, path, nodekind="exec": {"type": kind, "ts": ts, "step": path,
+                                                          runread.EXECUTION: {"path": path, "invocation": {"id": path}, "node": {"kind": nodekind}}}
+        for kind in ("exec", "loop_group"):
+            with self.subTest(kind=kind):
+                (self.tmp / runread.DB_FILE).unlink(missing_ok=True)
+                db = self._db([("top", None, "2026-10-25 02:00:00", None, "{}")], [("top", "2026-10-25 02:00:00")])
+                self._status(db, "top", "completed")
+                self._event(db, "top", runread.FAILED_EVENT, "2026-10-25 02:21:11")
+                self._event(db, "top", "workflow_completed", "2026-10-25 03:00:00")
+                self._log("top", [node("node_start", "2026-10-25T02:07:00.000Z", "again", kind),
+                                  node("node_start", "2026-10-25T02:40:00.000Z", "again", kind),
+                                  node("node_complete", "2026-10-25T02:50:00.000Z", "again", kind),
+                                  node("node_start", "2026-10-25T02:41:00.000Z", "after"),
+                                  node("node_complete", "2026-10-25T02:42:00.000Z", "after"),
+                                  node("node_start", "2026-10-25T02:43:00.000Z", "rounds", kind),
+                                  node("node_start", "2026-10-25T02:44:00.000Z", "rounds", kind),
+                                  node("node_complete", "2026-10-25T02:45:00.000Z", "rounds", kind)])
+                got = {e["path"]: (e["status"], e.get("fell")) for e in runread.run(db, "top")["events"]}
+                self.assertEqual(got, {"again": ("ok", True), "after": ("ok", None), "rounds": ("ok", None)})
+
+    def test_a_node_closed_in_the_second_of_its_last_start_ends_there(self):
+        """走り直した出来事を最後の始めと同じ秒の終わりの出来事で閉じる時、終わりは最後の始め（DB の時刻は秒までの切り捨てなので、
+        最後の始めより前にしない）"""
+        db = self._db([("top", None, "2026-10-25 02:00:00", None, "{}")], [("top", "2026-10-25 02:00:00")])
+        self._status(db, "top", "completed")
+        self._event(db, "top", runread.FAILED_EVENT, "2026-10-25 02:21:11")
+        self._event(db, "top", "workflow_completed", "2026-10-25 02:40:00")
+        self._log("top", [self._node("node_start", "2026-10-25T02:07:00.000Z", "try"),
+                          self._node("node_start", "2026-10-25T02:40:00.500Z", "try")])
+        (got,) = runread.run(db, "top")["events"]
+        self.assertEqual((got["end"], got.get("cut")), ("2026-10-25T02:40:00.500Z", True))
+
+    def test_a_line_that_is_not_an_object_is_unread(self):
+        """JSON として読めるが object でない行（数・字・列）は、落ちずに読めなかった物に数える（ログと会話の記録の両方）"""
+        db = self._db([("top", None, "2026-10-25 01:00:00", None, "{}")], [])
+        log = self.tmp / runread.LOGS / "top.jsonl"
+        log.parent.mkdir(exist_ok=True)
+        log.write_text('123\n"x"\n[1]\n', encoding="utf-8")
+        self.assertEqual(runread.run(db, "top")["unread"], {runread.OBJECTLESS: 3})
+        path = self.tmp / "s.jsonl"
+        path.write_text('123\n"x"\n', encoding="utf-8")
+        self.assertEqual(session.read(path, lambda text: text)["unread"], {runread.OBJECTLESS: 2})
+
+    def test_a_lone_surrogate_is_replaced(self):
+        """記録の字の片割れのサロゲート（JSON の \\ud83d だけ）は、出力の hash と字で落ちずに置き換える"""
+        db = self._db([("top", None, "2026-10-25 01:00:00", None, "{}")], [])
+        self._event(db, "top", runread.OUTPUT_EVENT, step="a", data={"invocation": {"id": "a"}, runread.NODE_OUTPUT: "ab\ud83d"})
+        self._log("top", [self._node("node_start", "2026-10-25T01:00:00.000Z", "a"), self._node("node_complete", "2026-10-25T01:00:01.000Z", "a")])
+        (got,) = runread.run(db, "top")["events"]
+        self.assertEqual(got["output"], "ab" + runread.REPLACEMENT)
+        got["output"].encode("utf-8")
+
+    def test_an_artifact_outside_the_run_place_is_not_read(self):
+        """出力の archon_artifact が絶対パスか .. で run の置き場（artifacts/runs/<run>/）の外を指せば、読まずに読めなかった物に数える"""
+        place = self.tmp / runread.ARTIFACTS / runread.RUNS_DIR / "top"
+        place.mkdir(parents=True)
+        (place / "in.md").write_text("inside", encoding="utf-8")
+        secret = self.tmp / "secret.txt"
+        secret.write_text("secret", encoding="utf-8")
+        refs = [{"type": "archon_artifact", "run_id": "top", "path": name} for name in ("in.md", str(secret), "../../../../secret.txt")]
+        refs.append({"type": "archon_artifact", "run_id": "..", "path": "secret.txt"})
+        reader = runread._Reader({})
+        reader._artifacts({"refs": refs}, self.tmp)
+        self.assertEqual(reader.artifacts, {"top/in.md": "inside"})
+        self.assertEqual(reader.unread, {runread.OUTSIDE: 3})
 
     def test_a_stale_total_does_not_hide_later_spend(self):
         """承認で起き直した後に SIGTERM で落ちた run は、Archon が合計を書き直さない（failWorkflowRun）ので、前の待ちの古い合計より大きい和を出す"""

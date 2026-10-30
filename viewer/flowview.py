@@ -63,7 +63,8 @@ def main(argv: list[str]) -> int:
         print(f"flowview: {stop}", file=sys.stderr)
         return 2
     out.parent.mkdir(parents=True, exist_ok=True)
-    out.write_text(html, encoding="utf-8")
+    # 記録の字の片割れのサロゲート（誤りの訳・道具の題など。会話と出力の字は読む時に置き換え済み）で書けずに落ちない
+    out.write_text(runread.mend(html), encoding="utf-8")
     run = data["run"]
     print(f"{out} {round(out.stat().st_size / 1024)} KB・graph {len(data['shape']['graphs'])}・"
           f"run {run['id'][:8] if run else 'なし'}（一覧 {len(data['runs'])}）・図に当たらないノード {len(data['unmatched'])}・"
@@ -104,7 +105,8 @@ def read(target: str | None, wanted: str, user: dict, here: Path) -> tuple[dict,
     texts = {}
 
     def keep(text: str) -> str:
-        """同じ字（Claude Code の既定の system など）を会話ごとに持たず、1 つにして番号で指す"""
+        """同じ字（Claude Code の既定の system など）を会話ごとに持たず、1 つにして番号で指す。片割れのサロゲートは置き換える"""
+        text = runread.mend(text)
         mark = hashlib.sha1(text.encode()).hexdigest()[:12]
         texts.setdefault(mark, text)
         return mark

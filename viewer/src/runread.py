@@ -15,6 +15,8 @@
 import contextlib
 import hashlib
 import json
+import os
+import re
 import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
@@ -139,6 +141,12 @@ ATTEMPT_ID = "attemptId"
 
 CLIP = 20000
 ARTIFACT_LIMIT = 60000
+# 読めなかった物の訳（run["unread"] の鍵）
+OBJECTLESS = "JSON の object でない行"
+OUTSIDE = "run の置き場の外を指す archon_artifact"
+# 片割れのサロゲート（json.loads は組の \ud83d\ude00 を 1 字にするので、字に残るのは片割れだけ）と、置き換える字
+LONE = re.compile("[\ud800-\udfff]")
+REPLACEMENT = "\ufffd"
 
 
 @contextlib.contextmanager
@@ -204,7 +212,8 @@ def run(db: Path, run_id: str) -> dict:
     終わった run（子の run も）は、終わりを最後の終わりの出来事の時刻とログの最後の終わりの遅い方にし（DB の時刻は秒までの切り捨て）、
     終わりの無い出来事（待ちと、走り中のまま止まったノード）を、その run の終わりの出来事のうち始めの後の最初の物の時刻で閉じて印 cut を
     付ける（ログに終わりを書かずに落ちた・止めた run の長さと人の答え待ちの和が、一覧と合う。落ちた後に起き直した run の前の起動の
-    ノードは、その落ちで閉じて状態を落ちたにする。閉じる時刻はログの形にし、始めより前にしない）。走り中の run は最後の出来事まで"""
+    ノードは、その落ちで閉じて状態を落ちたにする。前の起動の id のまま走り直す出来事は、最後の始めの後の終わりで閉じる。閉じる時刻は
+    ログの形にし、始めより前にしない）。走り中の run は最後の出来事まで"""
     with connect(db) as con:
         top = _row(con, run_id)
         if top is None:
@@ -234,13 +243,24 @@ def run(db: Path, run_id: str) -> dict:
     meta = _json(top["metadata"])
     root = Path(top["output_root"]) if top["output_root"] else None
     closed = {row["id"]: [at for t in ends.get(row["id"], []) if (at := _end(row["status"], t))] for row in (top, *reader.children)}
-    fell = {row["id"]: {at for t in falls.get(row["id"], []) if (at := _end(row["status"], t))} for row in (top, *reader.children)}
+    # 落ちは過去の事実なので、走り中の run（落ちた後に起き直した物）でも閉じる
+    fell = {row["id"]: [at for t in falls.get(row["id"], []) if (at := _end(row["status"], t, live=True))] for row in (top, *reader.children)}
     for event in reader.events:
-        if event["start"] and not event["end"] and event["status"] in ("waiting", "running") and closed.get(event["run"]):
-            at = _close(event["start"], closed[event["run"]])
-            event["end"], event["cut"] = _later(at, event["start"]), True
-            if event["status"] == "running" and at != closed[event["run"]][-1] and at in fell[event["run"]]:
-                event["status"] = FAILED
+        # SIGTERM で落とす道（owned-run-termination.ts の failWorkflowRun）はログに node_error を書かず DB に落ちだけを書くので、
+        # 始めから最後の始めの間にその run の落ちが在れば、同じ起動の id で走り直した出来事も一度落ちた
+        if event["start"] and event["last_start"] != event["start"] and any(
+                when(t) < when(event["last_start"]) for t in _since(event["start"], fell[event["run"]])):
+            event["fell"] = True
+        if not event["start"] or event["end"] or event["status"] not in ("waiting", "running"):
+            continue
+        # 起き直した後も同じ起動の id で走り直す出来事は、最後の始めの後の終わり（落ち）で閉じる。前の落ちでは閉じない
+        begun, ends = event["last_start"] or event["start"], closed[event["run"]]
+        at = _close(begun, ends) if ends else next(iter(_since(begun, fell[event["run"]])), None)
+        if at is None:
+            continue
+        event["end"], event["cut"] = _later(at, begun), True
+        if event["status"] == "running" and at in fell[event["run"]] and (not ends or at != ends[-1]):
+            event["status"] = FAILED
     started, ended = _span(reader.events) or (top["started_at"], top["completed_at"])
     started = _earlier(_end(top["status"], first, live=True), started)
     ended = _later((closed[top["id"]] or [None])[-1], ended)
@@ -318,11 +338,16 @@ def _end(status: str, end: str | None, live: bool = False) -> str | None:
 
 
 def _close(start: str, ends: list[str]) -> str:
-    """終わりの無い出来事を閉じる終わりの出来事の時刻: 始めの後の最初の物（DB の時刻は秒までの切り捨てなので、始めと同じ秒の物も数える）。
-    始めの後に無ければ最後の物。閉じる時刻は呼ぶ側が始めより前にしない（長さを負にしない）"""
+    """終わりの無い出来事を閉じる終わりの出来事の時刻: 始めの後の最初の物（_since）。始めの後に無ければ最後の物。閉じる時刻は呼ぶ側が
+    始めより前にしない（長さを負にしない）"""
+    return (_since(start, ends) or ends[-1:])[0]
+
+
+def _since(start: str, ends: list[str]) -> list[str]:
+    """始めの後の終わりの出来事の時刻（DB の時刻は秒までの切り捨てなので、始めと同じ秒の物も数える）"""
     begun = try_when(start)
     floor = begun.replace(microsecond=0) if begun else None
-    return next((t for t in ends if floor is None or when(t) >= floor), ends[-1])
+    return [t for t in ends if floor is None or when(t) >= floor]
 
 
 def _earlier(a: str | None, b: str | None) -> str | None:
@@ -403,6 +428,9 @@ class _Reader:
             except ValueError:
                 self._count("JSON でない行")
                 continue
+            if not isinstance(entry, dict):
+                self._count(OBJECTLESS)
+                continue
             kind = entry.get("type")
             if kind in UNREAD_ROWS:
                 continue
@@ -433,7 +461,7 @@ class _Reader:
         event = by_invocation.get(key)
         if event is None:
             event = {"tokens": ids, "path": path, "run": self.current, "artifacts": str(root / ARTIFACTS / RUNS_DIR / self.current) if root else "",
-                     "kind": (execution.get("node") or {}).get("kind") or "", "start": ts,
+                     "kind": (execution.get("node") or {}).get("kind") or "", "start": ts, "last_start": ts,
                      "end": None, "status": "running", "loop": loop,
                      "cost": 0.0, "calls": [], "exec": [], "error": ""}
             by_invocation[key] = event
@@ -443,9 +471,15 @@ class _Reader:
         if attempt:
             by_attempt[attempt] = event
         if kind == "node_start":
-            # 繰り返しの器は答えの後も同じ起動の id で node_start を書き直す（待ちから走り中へ戻る）
-            if event["status"] == "waiting":
+            # 繰り返しの器は答えの後も同じ起動の id で node_start を書き直す（待ちから走り中へ戻る）。落ちた後に起き直すと、Archon は
+            # 終わっていない（落ちた物を含む）ノードに前の起動の id を使い直す（dag-resume-snapshot.ts の unfinishedInvocations）ので、
+            # 落ちた出来事は走り中に戻し、一度落ちたことを印 fell に残す。閉じる時刻は最後の始め（last_start）の後の物から選ぶ
+            if event["status"] == FAILED:
+                event.update(end=None, fell=True)
+            if event["status"] in ("waiting", FAILED):
                 event["status"] = "running"
+            if ts:
+                event["last_start"] = ts
             return
         if kind == "node_suspended":
             event["status"] = "waiting"
@@ -465,7 +499,7 @@ class _Reader:
                          turns=runlog.measurement(spend, "numTurns")[0])
         output = self.outputs.get(key[1])
         if output is not None:
-            text = output if isinstance(output, str) else json.dumps(output, ensure_ascii=False)
+            text = mend(output if isinstance(output, str) else json.dumps(output, ensure_ascii=False))
             event["output"], event["digest"] = _clip(text), hashlib.sha1(text.encode("utf-8")).hexdigest()
             self._artifacts(output, root)
 
@@ -516,15 +550,35 @@ class _Reader:
             if isinstance(item, dict):
                 if item.get("type") == "archon_artifact" and item.get("path") and root:
                     key = f"{item.get('run_id')}/{item['path']}"
-                    path = root / ARTIFACTS / RUNS_DIR / str(item.get("run_id") or "") / item["path"]
-                    if key not in self.artifacts and path.is_file() and path.stat().st_size <= ARTIFACT_LIMIT:
-                        self.artifacts[key] = path.read_text(encoding="utf-8", errors="replace")
+                    if key not in self.artifacts:
+                        self._artifact(key, root / ARTIFACTS / RUNS_DIR, str(item.get("run_id") or ""), str(item["path"]))
                 stack.extend(item.values())
             elif isinstance(item, list):
                 stack.extend(item)
 
+    def _artifact(self, key: str, runs: Path, run_id: str, name: str) -> None:
+        """run の置き場（`runs/<run_id>/`）の下の小さなファイルの中身。絶対パス・`..`・symlink で置き場の外を指す物は読まずに数える
+        （見る道具は run の記録だけを読む。viewer/AGENTS.md の E25 の 2）"""
+        place = runs / run_id
+        path = place / name
+        if Path(os.path.realpath(place)).parent != Path(os.path.realpath(runs)) or not _within(path, place):
+            self._count(OUTSIDE)
+        elif path.is_file() and path.stat().st_size <= ARTIFACT_LIMIT:
+            self.artifacts[key] = mend(path.read_text(encoding="utf-8", errors="replace"))
+
     def _count(self, what: str) -> None:
         self.unread[what] = self.unread.get(what, 0) + 1
+
+
+def _within(path: Path, base: Path) -> bool:
+    """path の実のパスが base の実のパスの下か（symlink も辿る）"""
+    return Path(os.path.realpath(path)).is_relative_to(os.path.realpath(base))
+
+
+def mend(text: str) -> str:
+    """片割れのサロゲート（JSON の `\\ud83d` だけの字）を置き換えた字。UTF-8 に書けず、hash もページも落ちる。会話の字（flowview の keep）と
+    ページの全体も通す"""
+    return LONE.sub(REPLACEMENT, text)
 
 
 def _tokens(paths: list[str]) -> list[str]:

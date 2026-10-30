@@ -89,7 +89,7 @@ def _rounds(events, checks) -> list[dict]:
             inner = [e for _, e in by[k] if e["kind"] not in runread.GROUP_KINDS]
             times = [t for _, e in by[k] for t in (e["start"], e["end"]) if t]
             failed = sorted("/".join(e["tokens"][len(head):]) for e in inner if e["status"] == "failed")
-            check = _check(checks, head, k, group)
+            check = _check(checks, k, group)
             outputs = sorted(("/".join(e["tokens"][len(head):]), e["digest"]) for e in inner if "digest" in e)
             here = (failed, check["exit"] if check else None, outputs)
             rows.append({"round": k, "events": [m for m, _ in by[k]], "cost": round(sum(e["cost"] for e in inner), 6),
@@ -102,14 +102,13 @@ def _rounds(events, checks) -> list[dict]:
     return out
 
 
-def _check(checks, head, k, group) -> dict | None:
-    suffix = f"{runread.ITERATION_MARK}{k}"
+def _check(checks, k, group) -> dict | None:
+    """周 k の終わりの確かめ。Archon は確かめの step を器の id で書き（`<器の id>-iteration-<k>`。runread.ITERATION_MARK）、繰り返しの本体の中の器の
+    id は外の器の名を付けない（`plan__plan-loop`。道は `plan-rounds.plan__plan-loop`）ので、器の道の最後の本体の区切りの後と比べる。
+    外の周ごとの器は、器の時刻の内で分ける"""
+    step = f"{group['path'].split(shape.IN_LOOP)[-1]}{runread.ITERATION_MARK}{k}"
     for row in checks:
-        step = row["step"]
-        if row["run"] != group["run"] or not step.endswith(suffix):
-            continue
-        ids = [t for path in [*row["node"], step[:-len(suffix)]] for t in shape.tokens(path)]
-        if ids == head and _inside(row["at"], group):
+        if row["run"] == group["run"] and row["step"] == step and _inside(row["at"], group):
             return {"exit": row["exit"]}
     return None
 
@@ -153,7 +152,8 @@ def _unreferenced(graphs) -> tuple[set, int]:
         items = list(shape.walk(graph["items"]))
         text = json.dumps([{k: v for k, v in item.items() if k not in ("kids", "md", "system_md", "doc", "desc")} for item in items],
                           ensure_ascii=False)
-        used = {m[1] for m in shape.REF.finditer(text)}
+        # 切った字（bash・承認の問い）の後ろの引きは、作りの読みが切る前の字から取った refs で数える
+        used = {m[1] for m in shape.REF.finditer(text)} | {ref["node"] for item in items for got in item.get("refs", {}).values() for ref in got}
         for item in items:
             if item["kind"] not in ("ai", "script", "bash"):
                 continue

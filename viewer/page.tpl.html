@@ -413,7 +413,8 @@ function stageLook(s, x) {
     const o = openLook(x.state);
     return o.mark === 'live' ? {...o, label: o.word} : end(o.mark, o.word);
   }
-  if (ran) return {mark: '', word: '通った', label: `${t}${x.cost ? ' · ' + usd(x.cost) : ''}`};
+  // 落ちた後に起き直して通った段（段の集計の印 fell）は、通ったに一度落ちたことを添える
+  if (ran) return {mark: '', word: x.fell ? '通った（1 度落ちた）' : '通った', label: `${x.fell ? '通った（1 度落ちた） · ' : ''}${t}${x.cost ? ' · ' + usd(x.cost) : ''}`};
   const w = x.state === 'skipped' ? '飛んだ' : '走っていない';
   return {mark: 'skip', word: w, label: w};
 }
