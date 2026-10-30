@@ -26,7 +26,8 @@ WRITTEN = {
        for name in (runread.LOGS, runread.SOURCE, runread.ARTIFACTS, runread.RUNS_DIR, runread.WORKFLOW_FOLDER)},
     f"PROJECT_SCOPE_DIR = '{runread.PROJECT_SCOPE}'": "packages/workflows/src/workflow-source.ts",
     **{f"type: '{name}'": "packages/workflows/src/event-emitter.ts"
-       for name in (runread.OUTPUT_EVENT, runread.FAILED_EVENT, runread.SUSPENDED_EVENT)},
+       for name in (runread.OUTPUT_EVENT, runread.FAILED_EVENT, runread.NODE_FAILED_EVENT, runread.SUSPENDED_EVENT)},
+    **{f"{name}:": "packages/workflows/src/node-record-serialization.ts" for name in (runread.NODE_COST, runread.ACCOUNTING)},
     f"{runread.NODE_OUTPUT}": "packages/workflows/src/node-record-serialization.ts",
     f"{runread.PARENT_NODE}": "packages/workflows/src/dag-executor.ts",
     f"{runread.TOTAL_COST}:": "packages/workflows/src/dag-executor.ts",

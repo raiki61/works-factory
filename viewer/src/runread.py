@@ -51,6 +51,10 @@ FAILED = "failed"
 # run の metadata の欄（子の run を起こしたノード・費用。packages/workflows/src/dag-executor.ts）
 PARENT_NODE = "parent_node_id"
 TOTAL_COST = "total_cost_usd"
+# DB のノードの終わりの出来事の欄（AI の呼び出しの費用と、その費用がノード自身の物か。packages/workflows/src/node-record-serialization.ts）。
+# run の費用 TOTAL_COST が空の run は、ノード自身の費用の和で代える
+NODE_COST = "cost_usd"
+ACCOUNTING = "accounting"
 # run の metadata の待ち（packages/workflows/src/schemas/workflow-run.ts の workflowWaitAttentionFields と workflowWaitStepName）。
 # 答えが入った待ちは、run が次へ進む前でも答えを待たない（同じファイルの runAttention の「Answered」）
 WAIT = "wait"
@@ -68,6 +72,7 @@ GROUP_KINDS = (LOOP_GROUP, "compose_fan_out", "workflow")
 OUTPUT_EVENT = "node_completed"
 NODE_OUTPUT = "node_output"
 FAILED_EVENT = "workflow_failed"
+NODE_FAILED_EVENT = "node_failed"
 SUSPENDED_EVENT = "node_suspended"
 # 出力の中の欄（Archon でなく工場の記録の名。読む名はここに置く）: 人の答え待ちの出力 {decision, text} の答えの語（lib/answer.py の
 # decision）と、line の返すノード result の出力の結末の語（workflows/line/works-factory-line.yaml の result の output_format。語の組は
@@ -130,7 +135,7 @@ def connect(db: Path):
 
 
 def runs(db: Path) -> list[dict]:
-    """親の run の一覧（新しい順）。行は id・グラフの名・状態・止まっている承認ノード・始め・かかった秒・費用・落ちの訳の頭の 1 行・
+    """親の run の一覧（新しい順）。行は id・グラフの名・状態・止まっている承認ノード・始め・かかった秒・費用（_cost）・落ちの訳の頭の 1 行・
     結末の語（line の返すノード result の出力の outcome。result の出力が無いか読めなければ空）。
     始めとかかった秒は、DB の出来事の最初と最後の時刻から出す（承認の答えで起き直した run は、run の行の始めが起き直した時刻に
     書き換わる。packages/core/src/db/workflow-run-resume.ts）。出来事の無い run は run の行の始めと終わり"""
@@ -140,6 +145,7 @@ def runs(db: Path) -> list[dict]:
         spans = {rid: (first, last) for rid, first, last in con.execute(
             f"select workflow_run_id, min(created_at), max(created_at) from {EVENT_TABLE} group by workflow_run_id")}
         waiting = _waiting(con)
+        spent = _spent(con)
         errors = {rid: _error(data) for rid, data in con.execute(
             f"select workflow_run_id, data from {EVENT_TABLE} where event_type = ?", (FAILED_EVENT,))}
         outcomes = {rid: field(_json(data).get(NODE_OUTPUT), RESULT_OUTCOME) for rid, data in con.execute(
@@ -150,7 +156,7 @@ def runs(db: Path) -> list[dict]:
         meta = _json(metadata)
         started, completed = spans.get(rid) or (started, completed)
         out.append({"id": rid, "short": rid[:8], "graph": name, "status": status, "waiting": waiting.get(rid, []),
-                    "started": started, "seconds": _seconds(started, completed), "cost": runlog.number(meta.get(TOTAL_COST)),
+                    "started": started, "seconds": _seconds(started, completed), "cost": _cost(meta, spent, rid),
                     "error": errors.get(rid, ""), "outcome": outcomes.get(rid, "")})
     return out
 
@@ -178,6 +184,7 @@ def run(db: Path, run_id: str) -> dict:
             raise LookupError(f"run {run_id} が DB に無い")
         outputs = _outputs(con)
         waiting = _waiting(con)
+        spent = _spent(con)
         reader = _Reader(outputs)
         reader.read(top, [])
         todo, parents = [(run_id, [])], {}
@@ -201,9 +208,34 @@ def run(db: Path, run_id: str) -> dict:
         child["started"], child["seconds"] = _child_span(child, reader.events, parents)
     return {"id": run_id, "graph": top["workflow_name"], "status": top["status"], "live": top["status"] in LIVE,
             "waiting": waiting.get(run_id, []), "started": started, "seconds": _seconds(started, ended),
-            "cost": runlog.number(meta.get(TOTAL_COST)), "copy": str(copy(root, run_id)) if root else "",
+            "cost": _cost(meta, spent, run_id), "copy": str(copy(root, run_id)) if root else "",
             "children": reader.children, "events": sorted(reader.events, key=lambda e: (e["start"] or "", "/".join(e["tokens"]))),
             "skipped": reader.skipped, "checks": reader.checks, "missing_logs": reader.missing, "unread": reader.unread, "artifacts": reader.artifacts}
+
+
+def _cost(meta: dict, spent: dict, run_id: str) -> float | None:
+    """run の費用。metadata の TOTAL_COST が空なら、子と孫の run を含む AI の呼び出しの費用の和（_spent）。どちらも無ければ空"""
+    total = runlog.number(meta.get(TOTAL_COST))
+    return total if total is not None else spent.get(run_id)
+
+
+def _spent(con) -> dict[str, float]:
+    """run ごとの AI の呼び出しの費用の和（DB のノードの終わりの出来事のうち、費用がノード自身の物の和。子と孫の run の分を親に足す。
+    子の run を起こすノードの行は子の総額を載せ、ノード自身の物でないので数えない）"""
+    own = {}
+    for rid, data in con.execute(f"select workflow_run_id, data from {EVENT_TABLE} where event_type in (?, ?)", (OUTPUT_EVENT, NODE_FAILED_EVENT)):
+        data = _json(data)
+        if data.get(ACCOUNTING) == runlog.OWN_SPEND:
+            own[rid] = own.get(rid, 0.0) + (runlog.number(data.get(NODE_COST)) or 0.0)
+    parents = dict(con.execute(f"select id, parent_run_id from {RUN_TABLE} where parent_run_id is not null"))
+    out = {}
+    for rid, cost in own.items():
+        seen = set()
+        while rid and rid not in seen:
+            seen.add(rid)
+            out[rid] = out.get(rid, 0.0) + cost
+            rid = parents.get(rid)
+    return {rid: round(cost, 6) for rid, cost in out.items()}
 
 
 def copy(output_root: Path, run_id: str) -> Path:

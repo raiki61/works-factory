@@ -11,6 +11,8 @@
   物を指す）。読まない型のうち字を別の型から読む物は、その代わりの型が記録に無い会話では知らない型と同じく数える。Claude Code の記録の形は工場が止めていないので、読まない型の表が本物の記録に合うかは人が見る
 - run の一覧の行の結末 outcome は、line の返すノード result の出力（DB の node_completed。JSON の字でも値でも）の結末の語。result の
   出力を持たない run（ほかの graph・result まで走っていない run）と、出力に結末の語が無い run は空
+- run の費用は metadata の total_cost_usd で、空の run（一覧の行と選んだ run の両方）は DB のノードの終わりの出来事（落ちたノードも）のうち
+  費用がノード自身の物の和に子の run の分を足した物で代える。子の総額を載せる行は数えず、どちらも無い run は空
 - 往復の印は、usage を持つ行を待たず、その往復の最初の行で置く（usage の無い返事が混じっても往復の数がずれず、どの返事にも usage が
   無くても返事と道具の呼び出しが並びから消えない。usage は後の行で埋める）
 
@@ -139,6 +141,26 @@ class ReadCase(unittest.TestCase):
         con.commit()
         con.close()
         self.assertEqual({r["id"]: r["outcome"] for r in runread.runs(db)}, {"done": "stopped_by_human", "text": "fixed", "none": "", "odd": ""})
+
+    def test_empty_total_cost_falls_back_to_the_calls(self):
+        db = self._db([("paid", None, "2026-10-28 13:00:00", None, json.dumps({runread.TOTAL_COST: 9.5})),
+                       ("blank", None, "2026-10-28 12:00:00", None, "{}"),
+                       ("kid", "blank", "2026-10-28 12:00:01", None, json.dumps({runread.PARENT_NODE: "w"})),
+                       ("none", None, "2026-10-28 11:00:00", None, "{}")], [])
+        con = sqlite3.connect(db)
+        for rid, kind, accounting, cost in (("paid", runread.OUTPUT_EVENT, runread.runlog.OWN_SPEND, 1.0),
+                                            ("blank", runread.OUTPUT_EVENT, runread.runlog.OWN_SPEND, 0.25),
+                                            ("blank", runread.NODE_FAILED_EVENT, runread.runlog.OWN_SPEND, 0.5),
+                                            ("blank", runread.OUTPUT_EVENT, "children", 0.125),
+                                            ("kid", runread.OUTPUT_EVENT, runread.runlog.OWN_SPEND, 0.125)):
+            con.execute(f"insert into {runread.EVENT_TABLE} (workflow_run_id, event_type, step_name, data, created_at) values (?, ?, 'a', ?, '')",
+                        (rid, kind, json.dumps({runread.ACCOUNTING: accounting, runread.NODE_COST: cost})))
+        con.commit()
+        con.close()
+        (self.tmp / runread.LOGS).mkdir()
+        (self.tmp / runread.LOGS / "blank.jsonl").write_text("", encoding="utf-8")
+        self.assertEqual({r["id"]: r["cost"] for r in runread.runs(db)}, {"paid": 9.5, "blank": 0.875, "none": None})
+        self.assertEqual(runread.run(db, "blank")["cost"], 0.875)
 
     def test_resumed_run_sorts_by_its_first_event(self):
         db = self._db([("resumed", None, "2026-10-28 13:00:00", None, "{}"), ("later", None, "2026-10-28 12:00:00", None, "{}")],

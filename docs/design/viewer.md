@@ -24,7 +24,7 @@
 - `--target` が無ければ今の木の作りだけを出す。在れば run の家の親の run の一覧を入れ、`--run` が無ければ一番新しい親の run を見る。
 - 出力は工場の clone の下を拒む（ページに対象の字と会話の中身が入る）。拒みの文は見る道具が自分で持つ（`launcher.refuse_in_factory` は run の家のための文で、意味が合わない）。
 - 出力は 1 枚の HTML（6.5）。網には出ない。
-- データの欄: `made_at`（作った時刻）・`commit`・`target`・`runs`（一覧。行に結末の語 `outcome`。5 章）・`run`（選んだ run）・`shape`（図の作り。graph と item に札の 1 行 `what`。4.5）・`shape_from`（`run-copy` か `tree`）・`unmatched`（図に当たらないノードの道）・`texts`（会話の字を 1 つにした表。会話の欄は番号で指す）・`stages`（段の表・結末の頭の語の表 `outcomes`・段ごとの集計。6.8）・`waste`（無駄の手がかりの数え。6.9。run が無ければ空）。
+- データの欄: `made_at`（作った時刻）・`commit`・`target`・`runs`（一覧。行に結末の語 `outcome`。5 章）・`run`（選んだ run）・`runs` と `run` の費用 `cost`（metadata の `total_cost_usd`。空の run は、子と孫の run を含む AI の呼び出しごとの費用の和で代える。和を出すのは読む部品 `src/runread.py` の 1 か所で、雛形は数えない。どちらも無ければ空。5 章）・`shape`（図の作り。graph と item に札の 1 行 `what`。4.5）・`shape_from`（`run-copy` か `tree`）・`unmatched`（図に当たらないノードの道）・`texts`（会話の字を 1 つにした表。会話の欄は番号で指す）・`stages`（段の表・結末の頭の語の表 `outcomes`・段ごとの集計。6.8）・`waste`（無駄の手がかりの数え。6.9。run が無ければ空）。
 
 ## 4 作りの読み（`src/shape.py`）
 
@@ -43,7 +43,7 @@
 
 ## 5 記録の読み（`src/runread.py`）
 
-- run の家の `archon-home/archon.db`（名は `isolate.DIRS`）を読むだけで開く。run の一覧は run の表の親の行（`parent_run_id` が空）だけを読み、ログは読まない。行は id・グラフの名・状態・止まっている承認ノード（状態が `paused` の run だけ。DB の `node_suspended` の後に終わりの無いノード。止めた・放棄した run は `node_completed` を書かずに `cancelled` になるので、状態で絞る）・始め・かかった秒・費用（metadata の `total_cost_usd`）・落ちの訳の頭の 1 行（DB の `workflow_failed`）・結末の語 `outcome`（line の返すノード `result` の出力〔DB の `node_completed` の `node_output`〕の欄 `outcome`。`result` の出力が無い run〔ほかの graph・`result` まで走っていない run〕と、出力が読めないか欄が字でない run は空。語は `lib/report.py` の `OUTCOMES` の 10 語の 1 つ）。
+- run の家の `archon-home/archon.db`（名は `isolate.DIRS`）を読むだけで開く。run の一覧は run の表の親の行（`parent_run_id` が空）だけを読み、ログは読まない。行は id・グラフの名・状態・止まっている承認ノード（状態が `paused` の run だけ。DB の `node_suspended` の後に終わりの無いノード。止めた・放棄した run は `node_completed` を書かずに `cancelled` になるので、状態で絞る）・始め・かかった秒・費用（metadata の `total_cost_usd`。空なら DB のノードの終わりの出来事〔`node_completed`・`node_failed`〕のうち `accounting` が `node` の物の `cost_usd` の和に、子と孫の run の分を足した物。子の run を起こすノードの行は子の総額を載せるので数えない。選んだ run の費用も同じ口）・落ちの訳の頭の 1 行（DB の `workflow_failed`）・結末の語 `outcome`（line の返すノード `result` の出力〔DB の `node_completed` の `node_output`〕の欄 `outcome`。`result` の出力が無い run〔ほかの graph・`result` まで走っていない run〕と、出力が読めないか欄が字でない run は空。語は `lib/report.py` の `OUTCOMES` の 10 語の 1 つ）。
 - 出力の中の欄の名（人の答え待ちの出力 `{decision, text}` の `decision`・`result` のノードの名と出力の `outcome`）は Archon でなく工場の記録の名だが、読む名は Archon の名と同じく `src/runread.py` の 1 か所に置く（`ANSWER_DECISION`・`RESULT_NODE`・`RESULT_OUTCOME`。字の読みは `runread.field`）。`result` の `stop_reason` は読まない（止まった段は記録の事実から引き、`stop_reason` では引かない。6.8）。
 - run の始めとかかった秒は、run の行の始めと終わりでなく、出来事の最初と最後の時刻から出す（一覧は DB の出来事の表の `created_at`、選んだ run は子の run を含むログの出来事の始めと終わり）。承認の答えで起き直した run は、Archon が run の行の始めを起き直した時刻に書き換える（`packages/core/src/db/workflow-run-resume.ts`）ので、行の値では答えの後の数分しか出ない。出来事の無い run だけ行の値を使う。走り中の run は最後の出来事までの長さ。子の run の行も同じく、その子と孫の出来事から出す。読めない時刻の出来事は数えない（ページを落とさない）。
 - 一覧の並びと、run を名指さない時に開く一番新しい run は、出来事の最初の時刻の新しい順（出来事の無い run は行の始め）。行の始めで並べると、起き直した run が後に始めた run より上に来る。
