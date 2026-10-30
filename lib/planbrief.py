@@ -18,12 +18,11 @@
 - 呼ぶ時: cut・cut_at は今の周の承認済みの修正案（差し替えを重ねた物）を凍結する。事前審査（p2.plan_review）と人の関所（p2.human_gate）を
   抜けた後にだけ呼ぶ（前に呼ぶと、承認されていない案がその周の正本になる）
 
-読む物（置き場 b のファイルと引数。planmarks・structmark の口だけ）:
+読む物（置き場 b のファイルと引数。planmarks の口だけ）:
 - 承認済みの修正案: planmarks.plan_items（引数 plan＝修正案の役の返答 {"plan": [...]} の plan に、差し替えた項目の核の欄を
   重ねた物。planmarks には fixboard.plan_view で渡す）。項目の並びは控え plan-fields.json と同じ
 - 項目の works の欄: planmarks.frozen（置き場の plan-fields.json。凍結の印と食い違えば LedgerBroken に替えて止める）
-- 判定の単位（引数 judgment＝judgment.json の dict の units）・凍結した目的の文（引数 purpose）・構造の目の行
-  （structmark.plan_section(structure)。structure（構造の目の控えのパス）を渡さなければ無し）
+- 判定の単位（引数 judgment＝judgment.json の dict の units）・凍結した目的の文（引数 purpose）
 - 周は引数 round_（既定 1。fix の 1 回の差し込みが 1 周）
 
 同じ入力からはバイト単位で同じ文を書く（時刻を書かない。辞書は書いた順）。
@@ -48,7 +47,6 @@ sys.dont_write_bytecode = True
 
 import fixboard  # noqa: E402  （置き場の trace.jsonl への 1 行・planmarks に渡す読み口）
 import planmarks  # noqa: E402
-import structmark  # noqa: E402
 
 LEDGER = "briefs.json"
 NAME = "brief-{n}.md"
@@ -200,7 +198,7 @@ def _unit(key: str, units: dict) -> str:
 
 def render(n: int, item: dict, fields: dict, units: dict, purpose: str, structure: str) -> str:
     """修正案の項目 n（1 始まり）の brief の文。item は修正案の項目、fields はその項目の works の欄（planmarks の控えの行）、
-    units は判定の単位の key → 単位、purpose は凍結した目的の文、structure は構造の目の節（structmark.plan_section。空なら無し）"""
+    units は判定の単位の key → 単位、purpose は凍結した目的の文、structure は構造の目の節（呼び手が組む。空なら無し）"""
     keys = [k for k in item.get("unit_keys") or [] if isinstance(k, str)]
     checked = planmarks.scoped([fields])   # 決まりは受け付け（planrange.approved）と同じ planmarks.scoped。ただし受け付けは項目の全部で 1 つに決め（1 つでも欄が無ければ全部を照らさない）、brief はこの項目だけで決める
     parts = [
@@ -237,8 +235,7 @@ def _box(b) -> pathlib.Path:
 
 def _drawn(b, src: dict) -> list[tuple[list, str]] | None:
     """今の周の承認済みの修正案の項目ごとの (unit_keys, brief の文)。案（planmarks.plan_items）か凍結した欄（planmarks.frozen）が
-    無ければ None。控えが凍結の印と食い違う・項目と欄の数が違えば LedgerBroken。src は _sources の形（修正案・判定・目的の文・
-    構造の目の置き場・周）"""
+    無ければ None。控えが凍結の印と食い違う・項目と欄の数が違えば LedgerBroken。src は _sources の形（修正案・判定・目的の文・周）"""
     view = fixboard.plan_view(b, src["plan"], src["judgment"], src["round_"])
     try:
         fields = planmarks.frozen(view)
@@ -252,11 +249,10 @@ def _drawn(b, src: dict) -> list[tuple[list, str]] | None:
     units = {u["key"]: {**u, "prescriptions": given.get(u["key"]) or u.get("prescriptions")}
              for u in (src["judgment"] or {}).get("units") or [] if isinstance(u, dict) and isinstance(u.get("key"), str)}
     purpose = src["purpose"] or ""
-    structure = structmark.plan_section(src["structure"]) if src["structure"] else ""
     out = []
     for n, (item, f) in enumerate(pairs, 1):
         out.append(([k for k in item.get("unit_keys") or [] if isinstance(k, str)],
-                    render(n, item, f, units, purpose, structure)))
+                    render(n, item, f, units, purpose, "")))
     return out
 
 
@@ -402,19 +398,19 @@ def _recut(b, rows: list, items: list[int], src: dict) -> list:
     return rows
 
 
-def _sources(plan, judgment, purpose, structure, round_) -> dict:
-    """cut が読む物の束（修正案の役の返答・判定・目的の文・構造の目の控え・周）"""
-    return {"plan": plan, "judgment": judgment, "purpose": purpose, "structure": structure, "round_": round_}
+def _sources(plan, judgment, purpose, round_) -> dict:
+    """cut が読む物の束（修正案の役の返答・判定・目的の文・周）"""
+    return {"plan": plan, "judgment": judgment, "purpose": purpose, "round_": round_}
 
 
-def cut(b, *, plan=None, judgment=None, purpose: str = "", structure=None, round_: int = 1) -> list[dict]:
+def cut(b, *, plan=None, judgment=None, purpose: str = "", round_: int = 1) -> list[dict]:
     """今の周の brief を返す。b は置き場（控えと brief と plan-fields.json・trace.jsonl の在るフォルダ）。控えが無ければ、修正案
     （plan＝修正案の役の返答 {"plan": [...]} に差し替えた核の欄を重ねた planmarks.plan_items）と置き場の凍結した欄
     （planmarks.frozen）が両方在る時だけ項目ごとに render して書き、控えを書く（どちらか無ければ [] で何も書かない。欄の控えが
     凍結の印と食い違えば LedgerBroken）。控えが在れば作り直さず、最後の切った印の後に差し替えの印が在る時だけ差し替えた項目を
     切り直し（_recut）、控えと違うファイルを書き戻す。judgment は判定（judgment.json の dict。units と処方を読む）、purpose は
-    凍結した目的の文、structure は構造の目の控えのパス（structmark.plan_section に渡す。無ければ構造の目の行は無し）"""
-    src = _sources(plan, judgment, purpose, structure, round_)
+    凍結した目的の文"""
+    src = _sources(plan, judgment, purpose, round_)
     rows = _ledger(b, round_)
     if rows is not None:
         items = _amended_since_cut(b, round_)
