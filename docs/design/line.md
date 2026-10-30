@@ -32,7 +32,7 @@
 
 ### 1.2 port
 
-入力（YAML の `inputs:`。今の line の 17 個）。form は README の 4.1 の物（`text`・`file`・`json(<形>)`・`flag`・`choice(a|b)`）。語を受ける入力は `text` にする（`start` が知らない語を名指して拒む今の文を残すため。`choice` は Archon が照らさず、拒む所が増えるだけ）。説明の字は今の YAML の `description` を、作り手を名指さない形で写す。
+入力（YAML の `inputs:`。今の line の 17 個）。form（入力の受け方の型）は README の 4.1 の物（`text`・`file`・`json(<形>)`・`flag`・`choice(a|b)`）。`json(shared:<名>)` の形は、2 つ以上の block が使う形の置き場 `workflows/.shared/schemas/` に在る。決まった語を受ける入力も `text` にする。訳: line の最初の script の node `start`（入力を確かめ、始めの記録を書く。1.3 の 1）は、知らない語を受けるとその語を名指して拒む文を出す。今のこの文を残すため。`choice` にしても Archon（工場が載る、YAML のグラフを回す道具）が照らさず、拒む所が増えるだけ。各入力の説明の字は、今の YAML の `description` を、値を作る block や node（作り手）を名指さない形で写す。
 
 - `request`: `json(shared:request.schema.json): 修正依頼のファイル（findings の JSON の配列か {findings, pr, issue, answers, prior_failures, constraints, theme} の形。theme はテーマの run の入口。3.3 節）。相対なら対象の根から。依頼の行か差分の少なくとも 1 つが要る`。既定 `""`。
 - `base`: `text: 差分の根を名指す版（枝・タグ・commit）。差分の根は base と HEAD の merge-base。pr と一緒には名指さない`。既定 `""`。
@@ -464,7 +464,7 @@ line は一番上の graph なので、place は run directory の根（README 4
 graph は AI の node を持たないので、README 6 節の node ごとの 9 項（指示の組み立て・描いた骨組み・指示の比べ）は当たらない。確かめは筋書きと振る舞いの試験と通しの試験。
 
 - standalone の筋書き `workflows/line/fixtures/standalone.stubs.yaml`（7.1 の 4）: `fixture.inputs` は `request`（`fixtures/request.json`）・`test_cmd` だけ。include した block の AI の node と、include の中の loop の本体の script を台本で差し替え（README 13 章: dry-run は include の道を loop の本体に渡さない）、line の script は本物で回す。`reached` に `result`。
-- 今の筋書き 36 本（`workflows/line/fixtures/`）を新しい node の id に書き直す（README 11.3 の 2）。足す筋書き: `parallel-pr-after-found`（判定から入る run で、修正の後の並行 PR が found → 最後の承認ノードが開く）・`fix-excluded`（`excluded` が fix に届く。`resolved-text-contains` でなく `with` の値の照らし）・`light-all-units`（軽量で全部の単位が軽量 → lens・delta-review・r1〜r4 が飛び、structure after は走る。中身が `light` と同じだったので `light` の筋書きに寄せた）。
+- 今の筋書き（block の試験が回す場面の入力。`workflows/line/fixtures/` の `*.stubs.yaml`）36 本を新しい node の id に書き直す（README 11.3 の 2）。足す筋書きは 2 本: `parallel-pr-after-found`（判定を飛ばす固定材料の run でなく判定から入る run で、修正の後の並行 PR の確かめ直しが `found`〔直したファイルが開いている PR と重なった〕→ 最後の承認ノードが開く）・`fix-excluded`（並行 PR が外した hunk `excluded` が fix に届くことを、AI の node の文に字が含まれるかの照らし `resolved-text-contains` でなく、fix に渡す `with` の値で照らす）。足すとしていた `light-all-units`（run の頭の深さが軽量で、判定の単位も全部が軽量 → lens・delta-review・r1〜r4〔頭の語の一覧の block と独立の目〕が飛び、直した後の構造の目 structure after は走る）は、中身が今の `light` の筋書きと同じだったので足さず、`light` の筋書きに寄せた。
 - 振る舞いの試験 `tests/blocks/line/`（今の `tests/workflows/test_line.py`・`test_gate_head.py`・`test_testcmd_head.py` と `lib/tests/test_fixture.py`・`test_startrec.py`・`test_testcmd_check.py`・`test_versions.py` を元にする。README 9.5）:
   - `test_start.py`: 入力の拒み（今の `StartCase` の全部）と、配る値（1.6 の欄ごと。`entry` が差分の空と依頼の数の両方で決まる・`verify_by_tier` が名指しで全段 on/off になる）。
   - `test_gates.py`: 4 つの承認ノード（今の `GateAnswerCase`・`AskBeforeFixCase`・`AskReplanCase`・`AskFinalCase`・`AskFinalReadsCase`・`FinalGateCase`・`UnattendedPolicyCallCase`・`LedgerAsksCase`）。足す試験: 修正の後の並行 PR の確かめ直しが `found`（直したファイルが開いている PR と重なった）か失敗の時、その訳が最後の承認ノードを開く理由に入り、開き方に依らず開く理由（must。2 節の 4）には入らない（8.1）。
