@@ -518,7 +518,7 @@ def status_of(folder, rnd: dict, fields) -> tuple:
         return "ok", ""
     if not rnd["go"]:
         if not rnd["why"]:
-            return "failed", str(rnd["why"] or "入口の控え round.json が無い（入口の node が落ちた）")
+            return "failed", "入口の控え round.json が無い（入口の node が落ちた）"
         return ("nothing_owed" if rnd["why"] == NOTHING_OWED else "held"), str(rnd["why"])
     error = files.read_json(folder / files.PROMPT_ERROR)
     if isinstance(error, dict):
