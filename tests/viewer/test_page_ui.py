@@ -7,7 +7,7 @@
 - 終わりの姿では、つまみの ← と ‹ がどちらも最後の歩へ行く
 - run の一覧とログの押せる行は、支援技術に button と、開いているか（aria-expanded）を伝える
 
-見た目（色と形）は縛らない（viewer/AGENTS.md の E25 の 4）。色の比は雛形の「比」の行を test_page.py が計る。
+見た目（色と形）は縛らない（viewer/AGENTS.md の E25 の 4）。
 試験は小さな作りと run の記録を手で組み、src/page.py でページにする。playwright と Chromium が無ければ名前つきで見送る
 （入れ方: uv run --isolated --extra viewer python3 -m playwright install chromium。回し方: uv run --isolated --extra viewer
 python3 -m unittest tests.viewer.test_page_ui）。

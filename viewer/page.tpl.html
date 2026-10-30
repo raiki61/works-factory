@@ -14,10 +14,7 @@
    時間の帯の塗り（AI の手番 --k-ai・人の答え待ち --k-wait）は帯の地 --inset と凡例の面 --card に 3:1 以上。dark の --accent は --inset に
    3:1 に届かないので、AI の手番は dark だけ明るい青にする。
    トークンの 4 分けの帯（新しく読んだ --t1・cache に書いた --t2・cache から読んだ --t3）は、隣り合う 2 つ（t1 と t2・t2 と t3）が 3:1 以上で、
-   帯の端に来る t1 と t3 は帯の地 --fill に 3:1 以上。真ん中の t2 を明るさの逆の端に置く（light は淡い青、dark は紺）。今の札の淡い青の輪は --ring。
-   下の「比」の行は、上の比を札の組で書いた物（左の札/右の札。light と dark の両方で計る。照らしは tests/viewer/test_page.py）。
-   比 4.5: --ink/--bg --ink/--card --sub/--bg --sub/--card --sub/--inset --ter/--bg --ter/--card --link/--card --link/--now --on-accent/--accent
-   比 3: --edge/--bg --dash/--bg --stop/--card --bad/--card --k-ai/--inset --k-ai/--card --k-ex/--inset --k-wait/--inset --k-wait/--card --t1/--t2 --t2/--t3 --t1/--fill --t3/--fill */
+   帯の端に来る t1 と t3 は帯の地 --fill に 3:1 以上。真ん中の t2 を明るさの逆の端に置く（light は淡い青、dark は紺）。今の札の淡い青の輪は --ring */
 :root{--th:56px;--pb:0px;color-scheme:light;
   --bg:#f5f5f7;--card:#fff;--raised:#fff;--fill:#e8e8ed;--line:#d2d2d7;--ink:#1d1d1f;--sub:#515154;--ter:#636366;
   --inset:#f5f5f7;--accent:#0071e3;--link:#0066cc;--on-accent:#fff;--t1:#0071e3;--t2:#cfe3fa;--t3:#1d3f73;--ring:#cfe3fa;--now:#e8f1fc;
