@@ -408,7 +408,7 @@ PYTEST_XDIST_AUTO_NUM_WORKERS=4 WORKS_FACTORY_ARCHON_CACHE=<Archon の源の置�
 
 ## 9 README へ返す問題
 
-1. 出典のファイルの照らしの部品（`_resolve_target`・`_in_version`。今は `lib/judge_accept.py:2236-2260`）を、purpose・diagnose（`_count_in_version` が使う。:2317-2355）・`lib/recount.py:263` の 3 つが使う。README の 9.2 は `judge_accept` を観点ごとに割るとだけ書き、この共通の部品の行き先が無い。組み込みで `lib/cite.py` に寄せ、この block の `src/sourcefiles.py` はそれを使う（憲法の 4。済み）。
+1. 出典のファイルの照らしの部品（`_resolve_target`・`_in_version`。今は `lib/judge_accept.py:2236-2260`）を、purpose・diagnose（`_count_in_version` が使う。:2317-2355）・`lib/recount.py:263` の 3 つが使う。README の 9.2 は `judge_accept` を観点ごとに割るとだけ書き、この共通の部品の行き先が無い。→ 決着: 部品は `lib/cite.py`（2 つ以上の block が使う物の置き場。憲法の 4）に移り、この block の `src/sourcefiles.py` はそれを import して使う。写しは持たない。
 2. 制約の行の語（`実測`・`仮説`）は premises が作り、purpose・diagnose・report・`lib/carry.py`（`MEASURED`）が読む。出典の語（`③writer の要約`・`目的不明`）は purpose が作り、line（目的の監査を回すか）・diagnose（目的が無い時の字。`lib/judge_accept.py:2080`）が読む。README の 4.1 の「2 つ以上の block が読む行の形は作り手の出力ごとに `lib/` の 1 モジュール」に当たるが、README の 4.1 と 9.3 の一覧に無い。この block は作り直しの間 `src/steps.py` に語を置く。
 3. 目的の段が落ちた時の止めの語 `works:purpose`（今の `stopby.PURPOSE`）の持ち主（[premises.md](premises.md) の 9 節の 3 と同じ）。
 
