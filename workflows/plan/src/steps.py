@@ -52,6 +52,7 @@ ANSWERS_REJECT = "答えの要る穴への答えに誤りが在る:"
 CLOSED_REJECT = "閉じた・開いた項目の行が合わない:"
 READONLY_MOVED = "読むだけの役が作業ツリーを変えた: "
 NO_TREE = "役を起こす前の作業ツリーの控え {name} が無い（支度のノードが走っていない）"
+RIPPLE_LOST = "受け付けた案は在るが、波及の一覧のノードが ripple.json を残さなかった（落ちたか走らなかった）"
 PLAN_GAVE_UP_WHY = f"修正案の役の直しが受け付けの網 {rolekit.NET_AFTER} 回まで拒まれ続けた: {{reason}}"
 ROUTES = ("auto", "spec")   # 入力 routes の語（auto は今の指示のまま。spec は固めた仕様の「TDD で直す所」から行の route を決める）
 
@@ -330,6 +331,14 @@ def read_judgment(ctx: dict) -> dict | None:
     return with_ledger(ctx, jsonfile.read_or(path)) if path else None
 
 
+EMPTY_RECORD = {"round": 0, "passes": [], "outcome": None, "open": {}}   # 往復の記録が無い時の形（まだ事前審査を受けていない）
+
+
+def prior_record(ctx: dict) -> dict:
+    """前の周の往復の記録（prior.record）。無ければ EMPTY_RECORD の写し"""
+    return (ctx.get("prior") or {}).get("record") or copy.deepcopy(EMPTY_RECORD)
+
+
 def prior_rows(ctx: dict, which: str = "reply") -> list:
     """前の周の受け付けた案（prior.reply の plan）の項目の並び。前の周が無ければ []"""
     prior = ctx.get("prior")
@@ -517,7 +526,7 @@ def status_of(folder, rnd: dict, fields) -> tuple:
         return "ok", ""
     if not rnd["go"]:
         if not rnd["why"]:
-            return "failed", str(rnd["why"] or "入口の控え round.json が無い（入口の node が落ちた）")
+            return "failed", "入口の控え round.json が無い（入口の node が落ちた）"
         return ("nothing_owed" if rnd["why"] == NOTHING_OWED else "held"), str(rnd["why"])
     error = files.read_json(folder / files.PROMPT_ERROR)
     if isinstance(error, dict):
@@ -563,7 +572,7 @@ def finish(place) -> dict:
     gave_up = None
     if not fields:
         gave_up = note_gave_up(folder, ctx) if ctx else None
-    paths = placeholders(folder, reason)
+    paths = placeholders(folder, reason or (RIPPLE_LOST if fields else ""))
     try:
         rejects = rolekit.reject_rows(folder, files.ROLE)
     except rolekit.BoardGap:

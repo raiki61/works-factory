@@ -40,7 +40,7 @@ class SectionsCase(unittest.TestCase):
     def test_unit_rows_reach_machine_and_detail_unchanged(self):
         stages = [(f"{report.TDD_STAGES[0]}（組 g1）", GROUP_RAN), (f"{report.TDD_STAGES[0]}（組 g2）", GROUP_OFF)]
         lines = report.tdd_lines(stages)
-        self.assertTrue(any(x.startswith("  ") for x in lines) or lines, "見本は字下げの内訳か行を持つ")
+        self.assertTrue(any(x.startswith("  ") for x in lines), "見本は字下げの内訳の行を持つ（字下げの行が「- 」を付けずに届くかを照らす）")
         self.facts([section(TITLE, lines)])
         machine = (self.place / "report.md").read_text(encoding="utf-8")
         body = machine.split(f"## {TITLE}\n\n", 1)[1].split("\n## ", 1)[0].rstrip("\n").splitlines()

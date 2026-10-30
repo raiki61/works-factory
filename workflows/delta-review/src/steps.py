@@ -48,18 +48,12 @@ def read_intake(place) -> dict:
     return doc
 
 
-def broke(place, node: str, reason: str) -> None:
-    """壊れた段の訳を errors.json に積む（finish が status: failed の理由にする）"""
-    path = pathlib.Path(place) / files.ERRORS
-    jsonfile.write(path, [*(jsonfile.read_or(path) or []), {"node": node, "reason": oneline.one_line(reason)}])
-
-
 def guarded(place, node: str, compute, fallback: dict) -> dict:
     """落ちない node の本体: 例外は errors.json に積んで fallback を返す"""
     try:
         return compute()
     except Exception as error:  # noqa: BLE001
-        broke(place, node, f"{type(error).__name__}: {error}")
+        files.broke(place, node, f"{type(error).__name__}: {error}")
         return fallback
 
 
@@ -143,7 +137,7 @@ def _emit(place, node: str, values: dict, when: dict) -> dict:
     try:
         return prompt.emit(node, values, when, prompt.round_of(node))
     except (prompt.PromptError, ValueError) as error:
-        broke(place, node, f"指示が組めない: {error}")
+        files.broke(place, node, f"指示が組めない: {error}")
         raise
 
 
@@ -169,7 +163,7 @@ def review_prompt(place, n: int) -> dict:
             seat = borrowed.review_values(brief_file=values["brief_file"], policy_file=doc["policy"], report_file=str(reply) if reply.is_file() else "",
                                           base=d["base"], head=d["rev"], diff_file=d["file"])
         except ValueError as error:
-            broke(place, role, f"借りた写しが使えない: {error}")
+            files.broke(place, role, f"借りた写しが使えない: {error}")
             raise
         values.update(seat, failed=lens.STATES[2], not_routed=lens.STATES[3], absorbed=review.CLAIMED[1],
                       missing=verdicts.KINDS[0], extra=verdicts.KINDS[1], misunderstood=verdicts.KINDS[2], unverifiable=verdicts.KINDS[3],
@@ -190,7 +184,7 @@ def refix_prompt(place, n: int) -> dict:
     try:
         seat = borrowed.refix_values()
     except ValueError as error:
-        broke(place, role, f"借りた写しが使えない: {error}")
+        files.broke(place, role, f"借りた写しが使えない: {error}")
         raise
     values = {"rejection": rolekit.rejects_text(rejected), "policy_path": doc["policy"], "request_file": str(request) if request.is_file() else "",
               "scope_items": items, "scope_permits": permits, "brief_file": str(place / files.refix_brief(n)),
@@ -218,7 +212,7 @@ def owed(place, n: int, repo) -> dict:
             return {"due": False, "reason": f"{n} 回目の審査が直す義務を出していない（通った）"}
         if not touchup.owed_rows(place, n):   # 通らなかったのに答える義務が無い: 手直しの役はどう答えても拒まれるので起こさず止める
             why = f"{n} 回目の審査の控えが通らなかったと言うのに、手直しが答える義務の行が 0 件（{files.review_reply(n)} と控えが食い違う）"
-            broke(place, f"owed-{n}", why)
+            files.broke(place, f"owed-{n}", why)
             return {"due": False, "reason": why}
         head = place / files.refix_head(n)
         if not head.is_file():

@@ -14,18 +14,10 @@ sys.path[:0] = [str(Path(__file__).resolve().parents[2] / ".shared"), str(Path(_
 import ports  # noqa: E402
 
 
-RECEIVED = ("got", "why")   # 受け皿の返りの欄（受け皿の output_format の required の全部）
-
-
-def _got(raw):
-    whole = ports.picked(raw, RECEIVED)
-    return whole["got"] if whole is not None else None
-
-
 def compute():
     import jsonfile
     from src import feed, files
-    got = _got(os.environ.get("INPUTS_SPEC_OUT"))
+    got = feed.received(os.environ.get("INPUTS_SPEC_OUT"))
     gate = feed.spec_gate(ports.flag(os.environ.get("INPUTS_SPEC")), got)
     added = []
     if gate["go"] and isinstance(got, dict) and got.get("added_rows"):

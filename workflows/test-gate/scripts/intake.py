@@ -41,14 +41,8 @@ def read(modes) -> dict:
     baseline = port("baseline", lambda r: ports.file(r, "json(lib:baseline.schema.json)"), None) if mode == "final" else None   # base では渡されても読まない
     text = lambda name: ports.text(RAW[name]).strip()   # noqa: E731
     scope = port("request_scope", ports.flag, False)
-    # 依頼の行を要るのは、範囲を依頼で絞る base だけ。ほかは読めない依頼で関門を落とさず [] にする（今の工場は where を足さないだけ）
-    if mode == "base" and scope:
-        request = port("request", requestrows.findings, [])
-    else:
-        try:
-            request = port("request", requestrows.findings, [])
-        except ValueError:
-            request = []
+    # 依頼の行を使うのは final の関わる試験の選びだけ。final は読めない依頼で止め（[] と読まず人の確認の側に倒す）、base は依頼を読まない
+    request = port("request", requestrows.findings, []) if mode == "final" else []
     return {"mode": mode, "test_cmd": ports.text(RAW["test_cmd"]), "tdd_suite": text("tdd_suite"), "base": text("base"),
             "entry_base": text("entry_base"), "request": request, "request_scope": scope,
             "baseline": str(baseline) if baseline else "", "reuse_dir": text("reuse_dir"), "reuse_key": text("reuse_key"),

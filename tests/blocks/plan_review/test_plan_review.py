@@ -292,12 +292,6 @@ class IntakeCopyCase(_Case):
         self.assertTrue((art / "libdocs" / "keep.json").is_file(), "ライブラリの文書の控えは消さない")
         self.assertTrue((art / "rejects-other.json").is_file(), "ほかの受け付けの控えを広い形で消さない")
 
-    def test_given_up_head_is_the_accept_one(self):
-        """出口の諦めの頭は受け付けが諦めの review.json に書く頭と同じ字"""
-        steps = kit.load("plan-review", "steps")
-        take = kit.load("plan-review", "take")
-        self.assertEqual(steps.GIVEN_UP_FACES, take.GIVEN_UP_FACES)
-
 
 class ReplanIntakeCase(_Case):
     """形 replan の入口（8 節の intake の 6・11）"""

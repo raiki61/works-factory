@@ -10,6 +10,8 @@ _role_item・replan_items〔:588-612〕・_tree_on〔:692-696〕の写し）。
 - recorded_rows(recorded, policy_path) -> 記録された方針の行（port recorded が空で方針が在れば、方針の文書の行だけ）
 - replan_items(b, approved, marked_rows, ruled, conflicts): 形 replan の裁かれた項目ごとの材料
 - read_intake(out) -> intake.json の中身（無い・読めなければ Missing）・record_crash(out, step, why): prep・accept が落ちた訳（crash.json）
+- reply_value(raw) -> 役の返答の字を値に戻した物（空と null は起きなかった node の None。JSON として読めない字は字のまま渡し、受け付けが
+  拒みの訳にする）。受け付けの script（review_accept・theme_accept）が読む
 - finish(out) -> 出口の返り（docs/design/plan-review.md の 1.2 と 8 節の finish）。finish.json にも写す
 - Missing: 入口の材料が無い・読めない・組めない
 
@@ -74,7 +76,7 @@ CRASHED = "{step} の node が落ちた（{why}）"
 NOT_RUN = "役の loop が回らなかった"
 NOT_PASSED = "受け付けを通らなかった（最後の却下: {last}）"
 NO_INTAKE = "入口の控えが無い（入口の node が落ちた）"
-GIVEN_UP_FACES = "事前審査の受け付けが諦めた: "   # 今の boardview.GIVEN_UP_FACES（src/take.py の同じ名と同じ字。試験が縛る）
+GIVEN_UP_FACES = "事前審査の受け付けが諦めた: "   # 今の boardview.GIVEN_UP_FACES（受け付け src/take.py・src/themeform.py もこれを引く）
 # 形 replan で諦めた時の項目ごとの行の訳（今の planblk.REVIEW_GAVE_UP_WHY）と、裁定の文が無い時の字（今の planfile.NO_ROWS）
 REVIEW_GAVE_UP_WHY = f"事前審査の役の返答が受け付けの網 {rolekit.NET_AFTER} 回まで拒まれ続けた: {{reason}}"
 NO_ROWS = "申し出と裁定の行が見つからない（conflicts の中に、この項目を名指す行が無い）"
@@ -112,6 +114,14 @@ def crash_why(out) -> str:
     return ""
 
 
+def reply_value(raw):
+    """役の返答の字を値に戻す（空と null は起きなかった node の None。JSON として読めない字は字のまま）"""
+    try:
+        return ports.parsed(raw)
+    except ValueError:
+        return ports.text(raw)
+
+
 # ---------------------------------------------------------------- 入力の字
 def _blank(raw) -> bool:
     """graph の with: が値の無い欄を渡す形（空の字・null・空のオブジェクト・空の配列）。既定と同じ「無い」と読む"""
@@ -123,9 +133,6 @@ def _port(name: str, read):
         return read()
     except ValueError as e:
         raise ValueError(f"入力 {name}: {oneline.one_line(str(e))}") from None
-
-
-PLAN_SCHEMA = "shared:fix-plan.schema.json"   # 審査する修正案の形（入力 plan の宣言と同じ名）
 
 
 def proposal_of(raw: dict):
@@ -567,8 +574,7 @@ def _finish_plan(d: pathlib.Path, doc: dict) -> dict:
     from src import gate
     replan = []
     if form == "replan":
-        replan = gate.replan(d, doc, review)
-        jsonfile.write(d / files.REPLAN, replan)
+        replan = gate.replan(d, doc, review)   # replan.json は gate.replan が書く
     return result("ok", "", form=form, k=k, review_file=d / files.REVIEW, pass_file=d / files.PASS if form == "plan" else None,
                   review=review, asks=gate.asks(d, doc, review), deviations=gate.deviations(d, doc, review), replan=replan,
                   ruled=ruled, tree_items=_tree_items(d) if doc.get("tree") else 0, out=d)

@@ -79,8 +79,7 @@ CARD_ROLE = "pr_material"   # 並行 PR の札を包んだ素材の doc の role
 # 外す）。gate-efficacy の block が返す素材は読まない。lib の表は変えない（gate-efficacy の block は単独で回る）
 MATERIALS = tuple(name for name in materialkit.MATERIALS if name != "gate_efficacy")
 
-# ---------------------------------------------------------------- 仕様の足した行・止めの語
-SPEC_ORIGIN_NOTE = "spec_origin"
+# ---------------------------------------------------------------- 止めの語
 JUDGE_STOP = stopby.declare("judge", "受け付けを通った判定が無いままループを抜けた")
 MATERIAL_STOP = stopby.declare("material", "素材集めの役の返答を 3 回とも受けられなかった")
 REQUEST_STOP = stopby.declare("request", "依頼の型が通らない・始めの記録が読めない")

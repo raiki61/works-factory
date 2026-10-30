@@ -40,10 +40,6 @@ def write(place, name: str, text: str) -> pathlib.Path:
     return path
 
 
-def read_json(path):
-    return json.loads(pathlib.Path(path).read_text(encoding="utf-8"))
-
-
 def suite_exit(run: dict):
     """1 件ごとの結末を取った一式の終了コード: tdd_suite が結末を返せばその値、JUnit の報告で試験を走らせた段だけなら最初の赤の段の
     値か 0。1 件ごとの結末を取れていなければ None（final はそれを「元の結末が無い」と読む）"""
@@ -209,7 +205,7 @@ def certified(place, optional_raw) -> dict:
     run_path = place / files.RUN
     if not run_path.is_file():
         raise ValueError(f"{files.RUN} が無い——node run が落ちたか飛ばされた")
-    run = read_json(run_path)
+    run = files.read(place, files.RUN)
     role = run["by"] == declared_checks.ROLE_NEEDED
     if mode == "base":
         material = base_material(run)
@@ -264,9 +260,7 @@ def certified(place, optional_raw) -> dict:
 
 def optional_items(raw) -> list:
     """入力 optional（落ちても線が先へ進めてよい node の宣言 [{node, bare}] の JSON の字）を読んだ並びのまま。空は空の並び"""
-    if raw is None or not raw.strip() or raw.strip() == "null":
-        return []
-    got = json.loads(raw)
+    got = ports.parsed(raw)
     return got if isinstance(got, list) else []
 
 

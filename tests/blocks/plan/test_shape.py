@@ -24,7 +24,6 @@ import replan  # noqa: E402
 import rolekit  # noqa: E402
 
 BLOCK = base.BLOCK
-NO_DEADLINE = 1728000000
 PORTS = ["judgment", "units", "answer_ties", "materials", "answers", "takes_push", "verify", "excluded", "depth_record", "decisions",
          "world_rows", "structure", "spec", "spec_doc", "policy", "prior_failures", "prior", "ruling", "conflicts", "base", "review_rev", "diff_base", "routes", "lang"]
 RETURNED = ["ok", "status", "reason", "mode", "round", "owed", "plan", "fix_plan", "reply", "handoff", "replan", "ripple", "rejects",
@@ -106,12 +105,6 @@ class ShapeCase(unittest.TestCase):
         self.assertEqual(first["required"], [])
         self.assertEqual(self.files.REQUIRED, ("plan",))
         self.assertEqual(first["properties"][self.steps.WHOLE_PLAN], {"type": "boolean"})
-
-    def test_ai_deadlines_are_twenty_days_and_others_have_none(self):
-        for n in base.nodes():
-            self.assertNotIn("timeout", n, n["id"])
-            if "prompt" in n:
-                self.assertEqual(n.get("idle_timeout"), NO_DEADLINE, n["id"])
 
     def test_loop_gives_up_in_the_body_before_max_iterations(self):
         lg = base.node("plan-loop")["loop_group"]

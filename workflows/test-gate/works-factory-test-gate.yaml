@@ -18,10 +18,10 @@ inputs:
     description: 'text: 入口の差分の根（変更の起点の版）。関わる試験の選びが、ここから今の作業ツリーまでに触ったファイルを起点にする。空は修正前の版（base）'
   request:
     default: '[]'
-    description: 'json(shared:request.schema.json): 依頼の行の配列か、それを findings の欄に持つオブジェクト（where だけを読む）。空の配列は無い'
+    description: 'json(shared:request.schema.json): 依頼の行の配列か、それを findings の欄に持つオブジェクト（where だけを読む）。final だけが読み、読めなければ止めて人の確認に回す。base は読まない。空の配列は無い'
   request_scope:
     default: 'false'
-    description: 'flag: 真なら base の形で依頼の行の where を範囲の照らしの変更に足す（入口の差分が空の run）'
+    description: 'flag: 真なら final の関わる試験の選び（走らせ方が決まらない道）の起点に依頼の行の where を足す（入口の差分が空の run）'
   baseline:
     default: ''
     description: 'json(lib:baseline.schema.json): final の時、base の出力の baseline のファイル。空は無い（1 件ごとの比べをしない）'

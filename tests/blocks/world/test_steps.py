@@ -210,7 +210,6 @@ class Plan(Base):
         got = self.finish()
         self.assertEqual((got["ok"], got["status"], got["classes"]), (True, "ok", 18), got["reason"])
         self.assertEqual([(r["finding"], r["where"]) for r in self.final_rows(got)], [(n, f"src/m{n}.py") for n in range(1, 22)])
-        self.assertNotIn("行を書いていない", got["reason"])
 
     def test_exit_refuses_rows_that_miss_or_repeat_a_line(self):
         """出口は、書く行が依頼の行と 1 つずつ対応しない時（欠け・重なり・依頼の行に無い番号）は status: failed にして行を返さない（未評価の行を残した

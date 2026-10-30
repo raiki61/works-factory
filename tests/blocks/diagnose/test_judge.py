@@ -352,7 +352,7 @@ class JudgeTakeCase(_Base):
                 reply["questions"] = [{"key": "q", "reason": "決まらない", **q}]
                 got = self.take(reply)
                 self.assertIs(got["ok"], False)
-                self.assertIn(needle, got["reason"])
+                self.assertEqual(got["reason"].count(needle), 1, got["reason"])
         reply["questions"] = [{"key": "q", "reason": "決まらない", "kind": "stuck", "status": "decided", "resolution": "A を採る",
                                "origin": MEAN}]
         self.assertIs(self.take(reply)["ok"], True)

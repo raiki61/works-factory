@@ -342,7 +342,7 @@ def values(place, repo) -> tuple:
     plan_form = ctx["mode"] == "plan"
     judgment = steps.read_judgment(ctx)
     prior = ctx.get("prior")
-    record = (prior or {}).get("record") or {"round": 0, "passes": [], "outcome": None, "open": {}}
+    record = steps.prior_record(ctx)
     rejected = rolekit.rejected(folder, files.ROLE)
     v = {name: "" for name in (
         "rejection", "excluded_file", "lib_docs", "prior_notes", "prior_redesign", "recorded_rows", "concept_maps", "map_tail",

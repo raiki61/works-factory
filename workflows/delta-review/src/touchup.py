@@ -148,12 +148,14 @@ def undeclared(reply: dict, repo, tree: str) -> list:
     return [UNDECLARED + ", ".join(left)] if left else []
 
 
-def _keys_once(rows) -> list:
+def keys_once(rows, label: str) -> list:
+    """行の並び rows（object の行）で key が重なった行を名指す拒否の文（label は欄の名。審査の faces・checks と手直しの handled が使う）"""
     seen, errs = set(), []
     for i, r in enumerate(rows):
-        if r.get("key") in seen:
-            errs.append(f"handled[{i}] の key が重複: {str(r.get('key'))[:60]}")
-        seen.add(r.get("key"))
+        k = r.get("key")
+        if k in seen:
+            errs.append(f"{label}[{i}] の key が重複: {str(k)[:60]}")
+        seen.add(k)
     return errs
 
 
@@ -161,7 +163,7 @@ def problems(place, n: int, reply: dict) -> list:
     """n 回目の手直しの返答の照らし: 義務の key ごとに 1 度だけ答え、余り・欠けが無く、fixed には files が在る"""
     asked = {r["key"] for r in owed_rows(place, n)}
     rows = [r for r in reply.get("handled") or [] if isinstance(r, dict)]
-    errs = _keys_once(rows)
+    errs = keys_once(rows, "handled")
     errs += [f"handled の key '{str(r.get('key'))[:40]}' は差分の審査に無い" for r in rows if r.get("key") not in asked]
     errs += [f"穴 '{k[:40]}' に応答が無い" for k in sorted(asked - {r.get("key") for r in rows})]
     errs += [f"handled '{str(r.get('key'))[:40]}' は fixed なのに files が空" for r in rows if r.get("handled") == "fixed" and not r.get("files")]
@@ -174,8 +176,7 @@ class Broken(Exception):
 
 def stop(place, node: str, reason: str) -> dict:
     """出し直しても直らない壊れ: 訳を errors.json に積み、回数を待たずに諦める（出口が status: failed にする）"""
-    path = pathlib.Path(place) / files.ERRORS
-    jsonfile.write(path, [*(jsonfile.read_or(path) or []), {"node": node, "reason": reason}])
+    files.broke(place, node, reason)
     return {"ok": False, "give_up": True, "reason": reason}
 
 

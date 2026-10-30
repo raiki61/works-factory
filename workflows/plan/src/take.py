@@ -28,9 +28,6 @@ import worldmark  # lib/
 
 from src import files, steps
 
-EMPTY_RECORD = {"round": 0, "passes": [], "outcome": None, "open": {}}
-
-
 def pop_field(reply, names) -> tuple:
     """(names の欄を外した reply の写し, 外した欄 {名: 値})。reply は変えない。reply が dict でなければ写しと {}"""
     out = copy.deepcopy(reply)
@@ -239,7 +236,7 @@ def take_plan(folder, ctx: dict, *, judgment, reply, repo, tables, base_rev: str
     memo = note.get(handoff.FIELD)
     if replan._malformed(reply):
         return {"ok": False, "reason": steps.MALFORMED_REJECT}
-    record = bare_record((ctx.get("prior") or {}).get("record") or EMPTY_RECORD)
+    record = bare_record(steps.prior_record(ctx))
     bare, answers = converge.split("plan-revise", reply)
     got = steps.named(bare, steps.round_slots(folder, judgment))
     whole, closed, dropped = converge.splice(record, got["plan"], fill=not whole_plan)

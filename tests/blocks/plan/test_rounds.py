@@ -219,6 +219,15 @@ class CollectCase(unittest.TestCase):
         self.assertEqual(out["status"], "failed")
         self.assert_contract(run, out)
 
+    def test_lost_ripple_of_an_accepted_plan_is_not_called_no_plan(self):
+        """案を受けた周で波及の一覧のノードが ripple.json を残さなかった時、出口が補う一覧の訳は「案が無い」でなく、一覧が無い訳"""
+        run = PlanRun(self)
+        run.include()
+        (run.art / "r1" / files.RIPPLE).unlink()
+        out = run.script("finish")
+        self.assertEqual(out["status"], "ok")
+        self.assertEqual(run.json(out["ripple"])["error"], steps.RIPPLE_LOST)
+
     def test_first_round_reads_empty_prior_and_null_review_alike(self):
         """空の prior は 1 周目（前の周の節も写しも無い）。2 周目の review が null でも欄が無くても、受けていない 1 文になる"""
         run = PlanRun(self)

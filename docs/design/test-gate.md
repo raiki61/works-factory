@@ -39,8 +39,8 @@
 - `tdd_suite`: `text: TDD の実行器のパス（人が渡した物か、base の出力の suite）。空は無い（base では用意する）`。既定 `""`。
 - `base`: `text: 修正前の版（範囲の照らしの起点。関わる試験の選びの起点の版にもなる）。空は起点なし（範囲の照らしは依頼の where だけ）`。既定 `""`。
 - `entry_base`: `text: 入口の差分の根（変更の起点の版）。関わる試験の選びが、ここから今の作業ツリーまでに触ったファイルを起点にする。空は修正前の版（base）`。既定 `""`。
-- `request`: `json(shared:request.schema.json): 依頼の行の配列か、それを findings の欄に持つオブジェクト（where だけを読む）。空の配列は無い`。既定 `[]`。
-- `request_scope`: `flag: 真なら base の形で依頼の行の where を範囲の照らしの変更に足す（入口の差分が空の run）`。既定 `false`。
+- `request`: `json(shared:request.schema.json): 依頼の行の配列か、それを findings の欄に持つオブジェクト（where だけを読む）。final だけが読み、読めなければ止めて人の確認に回す。base は読まない。空の配列は無い`。既定 `[]`。
+- `request_scope`: `flag: 真なら final の関わる試験の選び（走らせ方が決まらない道）の起点に依頼の行の where を足す（入口の差分が空の run）`。既定 `false`。
 - `baseline`: `json(lib:baseline.schema.json): final の時、base の出力の baseline のファイル。空は無い（1 件ごとの比べをしない）`。既定 `""`。
 - `reuse_dir`: `text: 同じ run の中の試験の結果の控えの置き場の絶対パス。base の時だけ引いて置く。空は使い回さない`。既定 `""`。
 - `reuse_key`: `text: 控えに書いて引く時に照らす run の名。空はこの run の id`。既定 `""`。
@@ -85,7 +85,7 @@ script の node はどれも `runtime: uv`。`run` のほかは `mutates_checkou
 - `suite-state.json`: 実行器の控え `{test_cmd, tdd_suite, suite_written?}`。`lib/suitewrite.py` の関数の `start_file` に渡すファイル（11 節の 2）。照らしが通ると `tdd_suite` に実行器の絶対パスが入る。
 - `run.json`・`logs/a<k>/`（`<k>` は空いた最初の番号。前の走りのログを上書きしない）・`junit/`（宣言の段の JUnit の報告）。
 - `impact/`（関わる試験の選びの地図の控え。`lib/related.pick` の `cache_dir`）。`run.json` の `related` が選びの結果と走らせたか（`ran`）を持つ。
-- `suite/runner`（照らす実行器）・`suite/writer-brief.md`（`suitewrite.prepare` が書く。読み手は無いが、lib を変えないので残る）・`suite-write-prompt-<n>.md`・`suite-suite.log`・`suite-suite-again.log`・`junit-suite.xml`（`baseline_red.run_suite` が書く）。
+- `suite/runner`（照らす実行器）・`suite/writer-brief.md`（`suitewrite.prepare` が書く。読み手は無いが、lib を変えないので残る）・`suite-write-prompt-<n>.md`・`suite-suite.log`・`junit-suite.xml`・`suite-suite-base-rev.log`・`junit-suite-base-rev.xml`（`baseline_red.run_suite` が書く）。
 - `baseline.json`（base だけ）・`evidence.md`・`failure.txt`（証拠の文が書けない時だけ）。
 
 ### 1.5 コードの置き場と、作る・触るファイル
@@ -97,7 +97,7 @@ script の node はどれも `runtime: uv`。`run` のほかは `mutates_checkou
 - `workflows/test-gate/scripts/intake.py`・`run.py`・`suite_prep.py`・`suite_place.py`・`suite_try.py`・`result.py`
 - `workflows/test-gate/src/__init__.py`（空）
 - `workflows/test-gate/src/files.py`: place のファイルの名（1.4）・`LOGS = "logs"`・`fresh_place(place)`（今の `run.fresh_gate` の消す部分）・`log_dir(place)`（今の `fresh_gate` の `a<k>` を決める部分）。
-- `workflows/test-gate/src/scope.py`: 今の `workflows/test-gate/scripts/run.py` の `changed`（:39-48）と `request_wheres`（:51-61）を port の値で受ける形にした物。`request_wheres(request, mode, request_scope)` は、`mode` が `base` で `request_scope` が真の時だけ依頼の行の `where`（字の物）の並びを返す。
+- `workflows/test-gate/src/scope.py`: 今の `workflows/test-gate/scripts/run.py` の `changed`（:39-48）と `request_wheres`（:51-61）を port の値で受ける形にした物。依頼の行の `where` は、final の関わる試験の選びだけが使う（`related_wheres(request, request_scope)` は `request_scope` が真の時だけ `where`（字の物）の並びを返す。base は依頼を読まず試験も走らせない。持ち主の決め `base-runs-nothing`）。
 - `workflows/test-gate/src/certify.py`: 今の `result.py` の `suite_exit`・`test_outcomes`・`gate_fields`・`evidence`・`role_systems`・`certified`・`failed`（:24-190）の写し。始めの記録の代わりに `intake.json` と `suite-state.json` を読む。`RUN_ROW`・`LOG_ROW`・`INNER_ERROR` もここ（証拠の文の行の頭。e2e の照らしの表が引く）。
 - `workflows/test-gate/src/suite.py`: 実行器の控えの読み書き（`suite-state.json` を作る・読む）と、出力の `suite`・`suite_note` の組み方。
 - `workflows/test-gate/src/prompts.py`: md に渡す値の組み立て（4.3 の差し込み口の一覧）。
@@ -254,7 +254,7 @@ Return only JSON that matches the output schema.
 ## 5 script の node
 
 - `intake.py`: `os.environ.get("INPUTS_MODE")`・`INPUTS_TEST_CMD`・`INPUTS_TDD_SUITE`・`INPUTS_BASE`・`INPUTS_REQUEST`・`INPUTS_REQUEST_SCOPE`・`INPUTS_BASELINE`・`INPUTS_REUSE_DIR`・`INPUTS_REUSE_KEY`・`INPUTS_USER_ENV_DIR`・`INPUTS_LANG` を字のままで読み、`ports` の口に渡す。`mode` が `declared_checks.MODES` の外なら `ok: false`・`reason: mode は base・final のどれか: <値>`。`baseline` は final の時だけ読む（base で渡されても読まない）。読めない port は `ok: false` と、読めなかった port と訳。通れば `src/files.fresh_place(place)` で place の中を `logs/` のほかは消し、`intake.json`（port の値。`request` は行の配列に揃えた物、`baseline` はパスか空）と `suite-state.json`（`{test_cmd, tdd_suite}`）を書いて `{ok: true, reason: ""}`。落ちない。
-- `run.py`: 今の `run.py` と同じ順（:81-118）。値は `intake.json` から: `test_cmd`・`tdd_suite`・`base`（今の `base_rev`）・`reuse`（`tree_run.reuse_place(reuse_dir, reuse_key or os.environ["WORKFLOW_ID"], rerun=bool(os.environ.get(tree_run.RERUN_ENV)))`、base だけ）・`wheres`（`src/scope.request_wheres`）。ログの置き場は `src/files.log_dir(place)`。テストを起こす前に `ports.drop_runner_env(user_env_dir)`。止められたら木を止めてから 128+信号で抜ける・走らせられない（`CiRefused`・`ValueError`）は 1 で抜けて理由を標準エラーに 1 行（今のまま。`result` が拾う）。返りの `suite_owed` は `suitewrite.need(<suite-state.json の dict>, mode)`。 2026-10-20: 走らせ方が決まらない道（`by` が `role_needed`）では、`tdd_suite` の一式を関わる試験だけにし、`run.json` に `related` を置く（14.4）。
+- `run.py`: 今の `run.py` と同じ順（:81-118）。値は `intake.json` から: `test_cmd`・`tdd_suite`・`base`（今の `base_rev`）・`reuse`（`tree_run.reuse_place(reuse_dir, reuse_key or os.environ["WORKFLOW_ID"], rerun=bool(os.environ.get(tree_run.RERUN_ENV)))`、base だけ）。依頼の `where` は範囲の照らしに足さず、final の関わる試験の選びだけが使う（`src/scope.related_wheres`）。ログの置き場は `src/files.log_dir(place)`。テストを起こす前に `ports.drop_runner_env(user_env_dir)`。止められたら木を止めてから 128+信号で抜ける・走らせられない（`CiRefused`・`ValueError`）は 1 で抜けて理由を標準エラーに 1 行（今のまま。`result` が拾う）。返りの `suite_owed` は `suitewrite.need(<suite-state.json の dict>, mode)`。 2026-10-20: 走らせ方が決まらない道（`by` が `role_needed`）では、`tdd_suite` の一式を関わる試験だけにし、`run.json` に `related` を置く（14.4）。
 - `suite_prep.py`: `suitewrite.prepare(<suite-state.json>, <place>/suite, ports.suite_keep(), Path.cwd())` を呼ぶ（取り置きが在れば写して `write: false`、無いか前の周で取り置きが照らしを通らなければ控えに悲観の印を置いて `write: true`）。`write` が真なら `prompt.render("suite-write", …)`（4.3）を組んで `{write: true, prompt}`、偽なら `{write: false, prompt: ""}`。読めない入力は落ちずに `write: false`。
 - `suite_place.py`: `suitewrite.place(<suite-state.json>, <place>/suite, <reply を値に戻した物>)` を返す（今のまま。読めない入力は `made: false` と訳）。
 - `suite_try.py`: 今の `suite_try.py`（:29-55）と同じ。`suitewrite.pending(<suite-state.json>)` が在れば `baseline_red.run_suite` で 1 回走らせ（書き直しの周は `suite-again` の名でログを分ける）、`suitewrite.settle` で照らす。走らせた後の指紋は通らなくても `run.json` の `fingerprint_after` に、通れば `suite` と 1 件ごとの結末を `run.json` に足す。走らせる前に `ports.drop_runner_env(user_env_dir)`（`user_env_dir` は `intake.json` から）。止められたら 128+信号で抜ける。ほかの誤りは `done: true`・`ok: false` と訳。 2026-10-20: `run.json` の `related`（`run` が選んだ物）で、選んだ試験のファイルだけを渡して走らせる。選べなかった・関わる試験が無い時は一式（14.4）。
@@ -396,10 +396,10 @@ test-gate と fix の 2 つの block が使うので `lib/` に置く（憲法�
 
 ### 14.3 起点
 
-関わる試験の起点は、base と final で同じ決めにして、final の選びが base の選びを含むようにする（base の元の結末に無い試験が final で落ちると `introduced` と読まれるのを、直しが触った所に限るため）。
+関わる試験を選ぶのは final だけ（base は試験を何も走らせない。持ち主の決め `base-runs-nothing`）。
 
-- 起点の版 `rev` は新しい port `entry_base`（入口の差分の根）。空なら port `base`（修正前の版）。そこから今の作業ツリーまでに触ったファイル（未追跡を含む）が起点。base では入口の差分、final では入口の差分と直し。
-- 加えて、`request_scope` が真の run（入口の差分が空）は、依頼の行の `where` が名指す追跡中のパスも起点（`src/scope.py` の `request_wheres`。今は base だけが範囲の宣言に使う物を、関わる試験の選びでは base と final の両方に足す）。
+- 起点の版 `rev` は新しい port `entry_base`（入口の差分の根）。空なら port `base`（修正前の版）。そこから今の作業ツリーまでに触ったファイル（未追跡を含む）が起点。final では入口の差分と直し。
+- 加えて、`request_scope` が真の run（入口の差分が空）は、依頼の行の `where` が名指す追跡中のパスも起点（`src/scope.py` の `related_wheres`。依頼の where を使うのは final の関わる試験の選びだけで、範囲の宣言の照らしには足さない）。
 
 ### 14.4 当てる所
 

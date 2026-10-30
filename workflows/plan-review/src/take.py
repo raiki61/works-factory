@@ -42,7 +42,7 @@ NO_TREE = "役を起こす前の作業ツリーの控え {name} が無い（支�
 DESIGN_QUOTE_REJECT = ("独立設計の引用か design_map に誤りが在る（「」は独立設計と案の行の引用だけに使い、"
                        "ほかの引用は『』か `…` で書く）:")
 FENCES_TWICE = "faces[{j}]（{key}）: fences に同じ語が 2 つ（{words}）"
-GIVEN_UP_FACES = "事前審査の受け付けが諦めた: "   # 今の boardview.GIVEN_UP_FACES
+GIVEN_UP_FACES = steps.GIVEN_UP_FACES   # 諦めの返答の頭（出口が同じ字で読む。字の住処は src/steps.py）
 FACE_MARKS = files.FACE_MARKS   # 穴の行から外した決め手の欄（review.json の faces と同じ並び。src/gate.py が読む）
 MATERIAL_N = re.compile(r"review-material-(\d+)\.md")
 

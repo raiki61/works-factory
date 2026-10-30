@@ -21,12 +21,12 @@ def _overlay(kind: str) -> dict:
     return {"overlay_path": str(spseam.BORROW_DIR / spseam.OVERLAY_FILE), "overlay": seat.overlay_body(seat.OVERLAY_KINDS[kind]).rstrip("\n")}
 
 
-def words_rows(seam_id: str = REVIEW_SEAT) -> str:
-    """型の語・works の語・欄の値の表の行（`| <型の語> | <works の語> | `<欄>.verdict`: `<値>` |`）。works の語が seat.VERDICT_WORDS に無ければ ValueError"""
-    words = spseam.load_seams()[seam_id].get("words") or {}
+def words_rows() -> str:
+    """審査役の型の語・works の語・欄の値の表の行（`| <型の語> | <works の語> | `<欄>.verdict`: `<値>` |`）。works の語が seat.VERDICT_WORDS に無ければ ValueError"""
+    words = spseam.load_seams()[REVIEW_SEAT].get("words") or {}
     lack = sorted(w for w in words.values() if w not in seat.VERDICT_WORDS)
     if lack:
-        raise ValueError(f"セクション {seam_id} の語 {lack} が判定の欄の語の対応（seat.VERDICT_WORDS）に無い")
+        raise ValueError(f"セクション {REVIEW_SEAT} の語 {lack} が判定の欄の語の対応（seat.VERDICT_WORDS）に無い")
     return "\n".join(f"| {said} | {w} | `{seat.VERDICT_WORDS[w][0]}.verdict`: `{seat.VERDICT_WORDS[w][1]}` |" for said, w in words.items())
 
 
