@@ -148,6 +148,10 @@ class PageUiCase(unittest.TestCase):
         self.page.click("#p-off")
         self.page.click("#p-prev")
         self.assertEqual(self.page.evaluate("at"), last)
+        # 歩の途中からつまみを右の端へ戻すと、終わりの姿（at が -1）
+        self.page.evaluate("go(0)")
+        self.page.evaluate("(() => { const p = $('p-pos'); p.value = p.max; p.dispatchEvent(new Event('input')); })()")
+        self.assertEqual(self.page.evaluate("at"), -1)
 
     def test_pressable_rows_say_they_are_buttons_and_whether_they_are_open(self):
         self.page.click("[data-tab=log]")

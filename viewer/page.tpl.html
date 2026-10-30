@@ -12,19 +12,19 @@
    値の根拠は WCAG の比: 字は地と 4.5:1 以上（灰は 2 段 --sub・--ter）、状態を伝える縁と面は地と 3:1 以上。
    白い字を載せる青い面は light・dark とも #0071e3（白に 4.7:1。淡い青の字は 4.5:1 に届かないので、青い面の上の字は全部 --on-accent）。
    時間の帯の塗り（AI の手番 --k-ai・人の答え待ち --k-wait）は帯の地 --inset と凡例の面 --card に 3:1 以上。dark の --accent は --inset に
-   3:1 に届かないので、AI の手番は dark だけ明るい青にする。
+   3:1 に届かないので、AI の手番は dark だけ明るい青にする。人の答え待ちは灰で、機械の灰より地から遠い側（light は濃く、dark は明るく）に置く。
    トークンの 4 分けの帯（新しく読んだ --t1・cache に書いた --t2・cache から読んだ --t3）は、隣り合う 2 つ（t1 と t2・t2 と t3）が 3:1 以上で、
    帯の端に来る t1 と t3 は帯の地 --fill に 3:1 以上。真ん中の t2 を明るさの逆の端に置く（light は淡い青、dark は紺）。今の札の淡い青の輪は --ring */
 :root{--th:56px;--pb:0px;color-scheme:light;
   --bg:#f5f5f7;--card:#fff;--raised:#fff;--fill:#e8e8ed;--line:#d2d2d7;--ink:#1d1d1f;--sub:#515154;--ter:#636366;
   --inset:#f5f5f7;--accent:#0071e3;--link:#0066cc;--on-accent:#fff;--t1:#0071e3;--t2:#cfe3fa;--t3:#1d3f73;--ring:#cfe3fa;--now:#e8f1fc;
-  --k-ai:#0071e3;--k-ex:#86868b;--k-wait:#8944ab;--dash:#7c7c80;--edge:#7c7c80;--stop:#c93400;--bad:#d70015;
+  --k-ai:#0071e3;--k-ex:#86868b;--k-wait:#3a3a3c;--dash:#7c7c80;--edge:#7c7c80;--stop:#c93400;--bad:#d70015;
   --topbg:rgba(245,245,247,.92);--plbg:rgba(255,255,255,.96);--shadow:#0000001f;--shadow2:#00000033}
 /* dark: 地は黒に近い面（#000）と一段ずつ明るい面（#1c1c1e・#2c2c2e・札の #3a3a3c）の重ね。影が見えないので、上に載る物ほど明るい面にする */
 :root[data-theme=dark]{color-scheme:dark;
   --bg:#000;--card:#1c1c1e;--raised:#3a3a3c;--fill:#2c2c2e;--line:#38383a;--ink:#f5f5f7;--sub:#aeaeb2;--ter:#98989d;
   --inset:#2c2c2e;--accent:#0071e3;--link:#6ab4ff;--on-accent:#fff;--t1:#409cff;--t2:#0a3a6b;--t3:#cfe3fa;--ring:#0a3a6b;--now:#0d2a4a;
-  --k-ai:#409cff;--k-ex:#8e8e93;--k-wait:#bf5af2;--dash:#8e8e93;--edge:#8e8e93;--stop:#ff9f0a;--bad:#ff6961;
+  --k-ai:#409cff;--k-ex:#8e8e93;--k-wait:#e5e5ea;--dash:#8e8e93;--edge:#8e8e93;--stop:#ff9f0a;--bad:#ff6961;
   --topbg:rgba(22,22,23,.88);--plbg:rgba(28,28,30,.94);--shadow:#00000099;--shadow2:#000000cc}
 *{box-sizing:border-box}
 html,body{margin:0}
