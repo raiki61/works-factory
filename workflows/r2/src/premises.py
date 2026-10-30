@@ -10,6 +10,7 @@ from __future__ import annotations
 import re
 import types
 
+import cite      # lib/。依頼の名指しを引く Markdown の読み（MD_LINK・_md_lines・_md_slugs）
 import design    # lib/
 import eyekit    # lib/
 from rolekit import BoardGap   # lib/
@@ -21,38 +22,8 @@ NONE = "（無い）"
 KINDS = (*design.PREMISE_KINDS, "drift", "constraint")   # 控えの given の kind の許す一覧（貼る入力の種類 + 後半が足す 2 つ）
 
 
-# ---------------------------------------------------------------- 依頼の名指しを引く道具（lib/eyeverdict.py の _MD_FENCE・_md_lines・_md_slugs・_MD_RULES の写し）
-_MD_FENCE = re.compile(r"^\s{0,3}(```|~~~)")
-
-
-def _md_lines(text):
-    """(行番号, 行) を、コードブロック（``` / ~~~ の囲い）の外の行だけ返す"""
-    fence = False
-    for i, line in enumerate(text.splitlines(), 1):
-        if _MD_FENCE.match(line):
-            fence = not fence
-        elif not fence:
-            yield i, line
-
-
-def _md_slugs(text):
-    """見出しのアンカー（GitHub の書き方: 小文字にし、語の文字・- ・空白以外を落とし、空白を - に。重複は -1, -2 …）"""
-    seen, out = {}, set()
-    for _, line in _md_lines(text):
-        m = design.MD_HEAD.match(line)
-        if not m:
-            continue
-        h = re.sub(r"\[([^\]]*)\]\([^)]*\)", r"\1", m.group(2).strip())   # 見出しの中のリンクは文字だけが残る
-        s = re.sub(r"[^\w\- ]", "", h.lower()).replace(" ", "-")
-        n = seen.get(s, 0)
-        seen[s] = n + 1
-        out.add(s if n == 0 else f"{s}-{n}")
-    return out
-
-
-MD_RULES = types.SimpleNamespace(
-    MD_LINK=re.compile(r"(?<!!)\[[^\]\n]*\]\((?:<([^>\n]+)>|([^()\s<]+))(?:\s+\"[^\"]*\")?\)"),
-    _md_lines=_md_lines, _md_slugs=_md_slugs)
+# 依頼の名指しを引く道具（Markdown のリンク・囲いの外の行・見出しのアンカー）は lib/cite.py の物を使う
+MD_RULES = types.SimpleNamespace(MD_LINK=cite.MD_LINK, _md_lines=cite._md_lines, _md_slugs=cite._md_slugs)
 
 
 def view_of(answers, request_text: str) -> types.SimpleNamespace:
