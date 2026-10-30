@@ -15,8 +15,8 @@ import checkscope   # lib/
 
 
 def related_wheres(request, request_scope: bool) -> list:
-    """関わる試験の選びの起点に足す依頼の行の where の並び。base と final の両方に足す（final の選びが base の選びを含むように。
-    docs/design/test-gate.md の 14.3）。request_scope が偽・依頼が無い時は []"""
+    """関わる試験の選びの起点に足す依頼の行の where の並び。使うのは final の関わる試験の選びだけ（base は依頼を読まず試験も
+    走らせない。持ち主の決め base-runs-nothing。docs/design/test-gate.md の 14.3）。request_scope が偽・依頼が無い時は []"""
     if request_scope is not True or not isinstance(request, list):
         return []
     return [row["where"] for row in request if isinstance(row, dict) and isinstance(row.get("where"), str)]
