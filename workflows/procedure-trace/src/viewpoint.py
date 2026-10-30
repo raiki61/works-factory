@@ -20,7 +20,7 @@ GUARDED = False   # AI の node が mutates_checkout: false を持たない（�
 NA = "cond"
 NA_REASON = "対象差分に手順書・スクリプト・CI 定義の変更が無い"
 NA_PARAGRAPH = True   # 返答が material の欄を持ち、md が共通の断片 material-na を差し込む
-# 写す元 lib/judge_accept.py の PROCEDURE_PATTERNS（元 rules:367）。組み込みで lib の側が消えるまで 2 つ在る
+# 写す元 lib/judge_accept.py の PROCEDURE_PATTERNS（元 rules:367）。組み込みで lib の側は消え、ここだけが持つ
 PROCEDURE_PATTERNS = (r"README", r"\.md$", r"\.sh$", r"^scripts/", r"^\.github/workflows/", r"Makefile", r"Dockerfile",
                       r"\.ya?ml$", r"^commands/", r"^hooks/")
 
