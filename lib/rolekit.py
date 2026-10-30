@@ -31,20 +31,13 @@
 - round_outcome:  accept_round の返りの、輪の until が読む 4 つの欄 {ok, done, give_up, reason}
 - _legacy_rows:   前の版の控え（reject-<名>-<k>.md・報告の <名>-rejects.json）の読み替え（resume）。rejects-<名>.json が無い時だけ読み、
                   次に積む時に rejects-<名>.json に合わせて書く。消す期限はこの関数の docstring
-- last_reject(folder): 置き場の下の受け付けの最後の拒否の本文（報告の前の失敗の行が読む）
 - parse_reply:    役の返答（$<役>.output の JSON の文字列）を dict に
 - candidate_path: 受け付けが前の答えと出し直しを合わせた答えの控え（置き場の candidate-<名>.json。次の出し直しを合わせる元）
 - merge_fields:   前の答えに出し直しの欄を合わせる（出し直しに在る欄が前の欄を置き換え、無い欄は前のまま）
-- resubmitting・write_resubmit・RESUBMIT_ASK: 輪の前の周が拒まれた時に、出し直しの役の短い指示書（拒否の文・控えのパス・役ごとの
-                  返し方）を書く。resubmit_brief・FIELD_RULES は、欄ごとに置き換える（merge_fields の）輪の頭の節がそれを 1 行で呼ぶ口
+- resubmitting:   輪の前の周が拒まれ、合わせた答えの控えが在るか（出し直しの周か。指示は共通の断片 resubmit）
 - resubmitted:    受け付けが照らす答えの全体（1 回目の役の返答か、控えの前の答えと出し直しを合わせた物）を控えに書いて返す。
                   役の形が根の欄を要ると書かない（出し直しの役の形を 1 回目と同じにする。#832）ので、要る欄の欠けと、1 回目の答えの
                   出し直しの役だけの欄をここで拒む（MISSING_FIELDS・FIX_ONLY_FIELDS）
-- LANG_RULE・LANG_DEFAULT・lang_line(start): 役の文の頭に足す言語の 1 行（元 rolekit.py 67-68 行・147-150 行。言語は始めの記録の
-                  lang。空なら依頼文の言語。元 board.py 96 行）。判定・計画・修正・独立の目・報告の書き手の役が同じ口で読む
-- record_lang_line(path): 始めの記録のファイル path から lang_line（読めなければ既定の言語の 1 行に読めない訳を添える）
-- pointed(raw, locate): 指し札の字 raw を (パス, 読めない訳) に（指し札が読めない決まりの 1 か所。planfile.pointed も同じ物）
-- pointed_lang_line(raw, locate): 始めの記録の指し札の字 raw から record_lang_line（指し札が読めなくても落ちない。script が呼ぶ 1 か所）
 
 層は L3（盤面と受け付け）。ライン・include の id・ブロックの名前を書かない（tests/test_layers.py）。
 """
@@ -77,56 +70,6 @@ GIVE_UP_AFTER = 3                       # 輪の max_iterations と同じ数（�
 # 同じ数。線の計画の往復の網と同じ 20。ブロックの試験が YAML と突き合わせる）
 NET_AFTER = 20
 NET_WHY = "受け付けの網 {n} 回に届いた。工場の不具合として止めた"
-
-
-# 役の文は関所と報告に機械が字のまま載せるので、書き手に言語を縛る（元 works/.shared/core/rolekit.py 67-68 行。機械で訳さない）
-LANG_RULE = ("人が読む文の欄（reason・how・what・why・異議・所見・申し出の文など、承認ノードと報告に載る文）は {lang} で書け。"
-             "key・enum の値・コード識別子・パス・コマンド・エラー文はそのまま（key は周をまたいで突き合わせるので訳さない）。")
-LANG_DEFAULT = "依頼文の言語（利用者の言語）"   # 元 works/.shared/core/board.py 96 行
-
-
-def lang_line(start) -> str:
-    """役に言語を縛る 1 行。言語は始めの記録 start の欄 lang（無ければ inputs.lang、どちらも空なら LANG_DEFAULT）"""
-    start = start if isinstance(start, dict) else {}
-    got = start.get("lang") or ((start.get("inputs") or {}).get("lang") if isinstance(start.get("inputs"), dict) else "")
-    return LANG_RULE.format(lang=str(got or "").strip() or LANG_DEFAULT)
-
-
-def record_lang_line(path) -> str:
-    """始めの記録のファイル path（None は記録の無い run）の lang_line。読めない・オブジェクトでなければ既定の言語の 1 行に訳を添える"""
-    if path is None:
-        return lang_line({})
-    try:
-        doc = json.loads(pathlib.Path(path).read_text(encoding="utf-8"))
-    except (OSError, ValueError) as e:
-        return f"{lang_line({})}（始めの記録 {path} を読めない: {type(e).__name__}。言語は既定にした）"
-    if not isinstance(doc, dict):
-        return f"{lang_line({})}（始めの記録 {path} が JSON のオブジェクトでない。言語は既定にした）"
-    return lang_line(doc)
-
-
-POINTER_UNREAD = "ポインタが読めない"
-
-
-def pointed(raw: str, locate) -> tuple:
-    """(指し札の字 raw が指すファイルのパス, 読めない訳)。locate は指し札の字をパスに戻す口（境の口の pointed。空の字・null は
-    None）で、None なら (None, "")。ほかの run の札・札の形でない字は POINTER_UNREAD の訳"""
-    try:
-        path = locate(raw)
-    except (ValueError, TypeError, AttributeError, KeyError) as e:
-        return None, f"{POINTER_UNREAD}: {e}"
-    if path is None:
-        return None, ""
-    return (path, "") if pathlib.Path(path).is_file() else (None, f"ポインタの先が無い: {path}")
-
-
-def pointed_lang_line(raw, locate) -> str:
-    """始めの記録の指し札の字 raw の record_lang_line。locate は pointed の口。指し札が読めない・先が無ければ既定の言語の 1 行に
-    訳を添える（言語の 1 行を返す節は落ちない）"""
-    path, why = pointed(raw, locate)
-    if why:
-        return f"{lang_line({})}（始めの記録の{oneline.one_line(why)}。言語は既定にした）"
-    return record_lang_line(path)
 
 
 def rejects_text(reasons) -> str:
@@ -197,7 +140,7 @@ def _legacy_rows(board: pathlib.Path, name: str) -> list:
     （k の順。行 {reason}。修正の輪の受け付け）か、<name>-rejects.json（報告の受け付けの report-rejects.json。行 {node, attempt, kind,
     reason}）。どちらも無ければ空。次に with_done が積む時に rejects-<name>.json にそろえて書く（一度だけの読み替え）。前の版の md は
     はみ出しを相談に積んだ回の分も 1 枚に数えてしまう（版を跨ぐ resume の端）。
-    消す期限: 2027-01-15 以降、この変更より前に始めた run が resume されなくなったら、last_reject の reject-*.md・reject-*.txt の枝と一緒に消す"""
+    消す期限: 2027-01-15 以降、この変更より前に始めた run が resume されなくなったら消す"""
     folder = pathlib.Path(board)
     found = []
     for p in folder.glob("reject-*.md") if folder.is_dir() else ():
@@ -347,26 +290,6 @@ def given_up_reason(board: pathlib.Path, name: str) -> str:
     return text + "。" + NET_WHY.format(n=after) if after == NET_AFTER and not at_once else text
 
 
-def last_reject(folder) -> str:
-    """置き場 folder（の下）の受け付けの最後の拒否の本文（元 report._accept_last_files の reason_file の本文）: 拒否の控え
-    rejects-<名>.json の最後の行の文と、前の版の run の拒否の訳のファイル reject-*.md・reject-*.txt のうち一番新しい物。無い・読めなければ空。
-    reject-*.md・reject-*.txt の枝は前の版の run の置き場で届き、_legacy_rows と一緒に消す"""
-    rows = []
-    for p in pathlib.Path(folder).rglob("reject*") if pathlib.Path(folder).is_dir() else ():
-        try:
-            if p.name.startswith("rejects-") and p.suffix == ".json":
-                got = json.loads(p.read_text(encoding="utf-8"))
-                text = str(got[-1].get("reason", "")) if isinstance(got, list) and got and isinstance(got[-1], dict) else ""
-            elif p.name.startswith("reject-") and p.suffix in (".md", ".txt"):
-                text = p.read_text(encoding="utf-8", errors="replace")
-            else:
-                continue
-            rows.append((p.stat().st_mtime, text))
-        except (OSError, ValueError):
-            continue
-    return oneline.one_line(max(rows, key=lambda r: r[0])[1]) if rows else ""
-
-
 def parse_reply(raw):
     """役の返答（実行基盤が $<役>.output を JSON の文字列で渡す）を dict に。読めなければ (None, 理由)。文は script_io.main と同じ"""
     try:
@@ -393,44 +316,11 @@ def merge_fields(prev: dict, part: dict) -> dict:
     return {**copy.deepcopy(prev), **copy.deepcopy(part)}
 
 
-RESUBMIT_ASK = ("前の回の返答は受け付けで拒まれた。この会話の続きで、拒まれた所だけを直して返せ。材料とリポジトリは、この会話で"
-                "既に読んだ物のまま（読み直すな。拒否の理由を確かめるのに要る所だけ読め）。\n\n"
-                "受け付けが拒んだ理由（字のまま）:\n\n```text\n{reason}\n```\n\n"
-                "機械が合わせた前の回の答えの全体: {candidate}（Read で読める。返さない所はこの形のまま残る）\n\n"
-                "返し方:\n"
-                "- 返すのは前と同じ型の JSON で、直す欄だけを書く（欄を直さずにリポジトリのファイルだけを直したなら {{}}）。{rules}\n"
-                "- 受け付けは、合わせた後の答えの全体をもう 1 度照らす")
-
-
 def resubmitting(board, name: str, prev) -> bool:
     """輪の前の周の受け付け name が拒み（prev は with: に結んだ前の周の ok を値に戻した物）、合わせた答えの控えが在るか。真なら
-    頭の節は材料の代わりに write_resubmit の指示書を書き、出し直しの役（1 回目の役の会話の続き）を起こさせる。resume で輪が 1 周目
+    頭の節は材料の代わりに出し直しの指示（共通の断片 resubmit）を渡し、出し直しの役（1 回目の役の会話の続き）を起こさせる。resume で輪が 1 周目
     から回り直した時は prev が空なので偽"""
     return prev is False and candidate_path(board, name).is_file()
-
-
-FIELD_RULES = "返した欄は前の欄を丸ごと置き換え（配列も、直さない行を含めて全部の行を返す）、返さない欄は前のまま"   # merge_fields の決まり
-
-
-def resubmit_brief(board, name: str, prev, *, rules: str = FIELD_RULES) -> str:
-    """resubmitting なら出し直しの役の指示書を board/resubmit-<name>-<n>.md に write_resubmit で書いてそのパスを、でなければ空の字を
-    返す（頭の節が返す brief。空なら 1 回目の役を起こす）。合わせは merge_fields の輪（rules の既定 FIELD_RULES）が使う"""
-    if not resubmitting(board, name, prev):
-        return ""
-    path, _ = write_resubmit(board, name, f"resubmit-{safe_name(name)}-{{n}}.md", rules)
-    return str(path)
-
-
-def write_resubmit(board, name: str, file: str, rules: str) -> tuple:
-    """拒まれた後の出し直しの役の指示書 board/file（file は回の番号 n の雛形。RESUBMIT_ASK に最後の拒否の文・控え candidate_path・
-    役ごとの返し方 rules を差し込む）を書き、(パス, 回の番号 n) を返す。役は 1 回目の役の会話の続きで起き、材料は会話に在るので貼らない"""
-    board = pathlib.Path(board)
-    n = attempt(board, name)
-    reasons = rejected(board, name)
-    path = board / file.format(n=n)
-    path.write_text(RESUBMIT_ASK.format(reason=reasons[-1] if reasons else "", candidate=candidate_path(board, name), rules=rules),
-                    encoding="utf-8")
-    return path, n
 
 
 def _reply_object(got, what: str) -> tuple:
