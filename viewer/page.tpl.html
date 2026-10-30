@@ -364,7 +364,11 @@ const STOP = ST.stop ? STAGE_ALL[ST.stop - 1] : null;
 const STOP_EV = STOP && RUN && ST.stop_event != null ? RUN.events[ST.stop_event] : null;
 const STOP_HUMAN = ST.stop_by === 'human';
 const STOP_WORD = STOP ? `${STOP.name}で${STOP_HUMAN ? '人が止めた' : '落ちた'}` : '';
-const runWord = () => STOP_WORD || RUNWORD[RUN.status] || RUN.status;
+// 結末の語（line の result の出力の outcome。run の一覧の行の欄）→ 頭の語（段の表の outcomes）。語が空の run は run の状態の語で代える
+const OUTCOMES = ST.outcomes || {};
+const endWord = r => (r.outcome && OUTCOMES[r.outcome]) || RUNWORD[r.status] || r.status;
+const RUNROW = RUN ? (D.runs || []).find(r => r.id === RUN.id) || RUN : null;
+const runWord = () => STOP_WORD || endWord(RUNROW);
 // 段の終わりの姿（流れの地図と表と、図の段の行で同じ形）。mark は箱と行の印（stop・fail・live・skip・空）、word は語、label は時間つきの語。
 // 終わった run で終わりの無い出来事が残った段（走り中・人の答え待ちのまま）は、頭の主張と同じ止まり方（止まった段の止まり方、無ければ run の状態）の語と色にする
 function stageLook(s, x) {
@@ -931,9 +935,9 @@ function flowHead() {
   if (!SUMR) return [`${runWord()}。`, `${mins(SPAN)}・${usd(RUN.cost)}。この run の graph（${RUN.graph}）は段の表（${ST.graph || 'line'}）の外なので、地図は塗らない。`];
   const xs = FLOW_STAGES.map(s => [s, sumOf(s)]);
   const live = RUN.live && (xs.find(([, x]) => x.state === 'waiting') || xs.find(([, x]) => x.state === 'running'));
-  // 主張: 終わっていない run は今の段、終わった run は止まった段と止まり方、止まった段が無ければ run の状態の語
+  // 主張: 終わっていない run は今の段、終わった run は止まった段と止まり方、止まった段が無ければ結末の頭の語（無ければ run の状態の語）
   const claim = live ? `${live[0].name}で${live[1].state === 'waiting' ? '人の答えを待っている' : '走っている'}。`
-    : STOP ? `${STOP.name}で、${STOP_HUMAN ? '人が止めた' : '落ちた'}。` : `${RUNWORD[RUN.status] || RUN.status}。`;
+    : STOP ? `${STOP.name}で、${STOP_HUMAN ? '人が止めた' : '落ちた'}。` : `${endWord(RUNROW)}。`;
   // 止まった段の後で走らなかった段だけを、続いた範囲ごとに言う（報告の段のように止まった後で走る段は入れない）
   const spans = [];
   if (STOP) xs.forEach(([s, x], i) => { if (s.n <= STOP.n || RAN(x.state)) return; const prev = spans[spans.length - 1];
@@ -1108,7 +1112,7 @@ function wasteScreen() {
 }
 
 // ---- run の一覧（1 行 1 本。開く命令は行を押した時だけ） ----
-// 結末の列: 今の run は止まった段の語（人が止めた・落ちた）か状態の語。ほかの run は状態の語（結末の語の欄は後のデータの PR で足す）
+// 結末の列: 今の run は止まった段の語（人が止めた・落ちた）か結末の頭の語。ほかの run は結末の頭の語。語が空なら状態の語
 function runsScreen() {
   const box = $('runs');
   box.append(h('section', {class: 'hero'}, h('div', {class: 'cap', text: `対象のリポジトリ ${D.target}`}),
@@ -1119,7 +1123,7 @@ function runsScreen() {
     h('div', {class: 'rr rhd cap'}, ['run', '結末', '始め', '長さ', '費用'].map((x, k) => h('span', {class: k > 2 ? 'r' : null, text: x}))));
   for (const r of D.runs) {
     const me = RUN && r.id === RUN.id;
-    const word = me ? runWord() : (RUNWORD[r.status] || r.status);
+    const word = me ? runWord() : endWord(r);
     const cmd = h('div', {class: 'rcmd', hidden: true},
       h('div', {class: 'cap', text: `${r.graph}${r.waiting.length ? ' · 人の答え待ち ' + r.waiting.join('・') : ''}`}),
       r.error ? pre(r.error, 'err') : null,
