@@ -754,6 +754,9 @@ class AcceptTableCase(unittest.TestCase):
         self.ordered({"T": "tdd"}, {"tdd": {"units": [{"key": "T", "tests": []}],
                                             "permits": [{"kind": "rewrite", "duty": True, "test": "test_stats.py"}]}})
         self.assertEqual(self.duties.frozen_by_returns(self.place, self.repo), [], "注文の許しの範囲の中は通す")
+        pathlib.Path(got[0]).write_text("{broken", encoding="utf-8")
+        self.assertTrue(any(str(got[0]) in t for t in self.duties.frozen_by_returns(self.place, self.repo)),
+                        "読めない返しの控えを照らしの済んだ物として飛ばさない（E23）")
 
     def test_returns_carry_removed_tests_and_untested_into_the_output_rows(self):
         """下書き 4.1 の 7: 返しの控えは起点の版に在って今の木に無い試験の id（removed）と注文の why_untested を持ち、修正の出力の
