@@ -52,7 +52,7 @@ FAILED = "failed"
 PARENT_NODE = "parent_node_id"
 TOTAL_COST = "total_cost_usd"
 # DB のノードの終わりの出来事の欄（AI の呼び出しの費用と、その費用がノード自身の物か。packages/workflows/src/node-record-serialization.ts）。
-# run の費用 TOTAL_COST が空の run は、ノード自身の費用の和で代える
+# run の費用 TOTAL_COST が空の run は、ノード自身の費用の和で代える（後から書く費用の出来事 DEFERRED_EVENT も同じファイル）
 NODE_COST = "cost_usd"
 ACCOUNTING = "accounting"
 # run の metadata の待ち（packages/workflows/src/schemas/workflow-run.ts の workflowWaitAttentionFields と workflowWaitStepName）。
@@ -73,6 +73,7 @@ OUTPUT_EVENT = "node_completed"
 NODE_OUTPUT = "node_output"
 FAILED_EVENT = "workflow_failed"
 NODE_FAILED_EVENT = "node_failed"
+DEFERRED_EVENT = "node_deferred_usage"
 SUSPENDED_EVENT = "node_suspended"
 # 出力の中の欄（Archon でなく工場の記録の名。読む名はここに置く）: 人の答え待ちの出力 {decision, text} の答えの語（lib/answer.py の
 # decision）と、line の返すノード result の出力の結末の語（workflows/line/works-factory-line.yaml の result の output_format。語の組は
@@ -214,28 +215,21 @@ def run(db: Path, run_id: str) -> dict:
 
 
 def _cost(meta: dict, spent: dict, run_id: str) -> float | None:
-    """run の費用。metadata の TOTAL_COST が空なら、子と孫の run を含む AI の呼び出しの費用の和（_spent）。どちらも無ければ空"""
+    """run の費用。metadata の TOTAL_COST が空なら、run 自身の AI の呼び出しの費用の和（_spent）。どちらも無ければ空"""
     total = runlog.number(meta.get(TOTAL_COST))
     return total if total is not None else spent.get(run_id)
 
 
 def _spent(con) -> dict[str, float]:
-    """run ごとの AI の呼び出しの費用の和（DB のノードの終わりの出来事のうち、費用がノード自身の物の和。子と孫の run の分を親に足す。
-    子の run を起こすノードの行は子の総額を載せ、ノード自身の物でないので数えない）"""
+    """run ごとの AI の呼び出しの費用の和（DB のノードの終わりと後から書く費用の出来事のうち、費用がノード自身の物の和）。TOTAL_COST と
+    同じく子の run の分を含まない。子の run を起こすノードの行は子の総額を載せ、ノード自身の物でないので数えない"""
     own = {}
-    for rid, data in con.execute(f"select workflow_run_id, data from {EVENT_TABLE} where event_type in (?, ?)", (OUTPUT_EVENT, NODE_FAILED_EVENT)):
+    for rid, data in con.execute(f"select workflow_run_id, data from {EVENT_TABLE} where event_type in (?, ?, ?)",
+                                 (OUTPUT_EVENT, NODE_FAILED_EVENT, DEFERRED_EVENT)):
         data = _json(data)
         if data.get(ACCOUNTING) == runlog.OWN_SPEND:
             own[rid] = own.get(rid, 0.0) + (runlog.number(data.get(NODE_COST)) or 0.0)
-    parents = dict(con.execute(f"select id, parent_run_id from {RUN_TABLE} where parent_run_id is not null"))
-    out = {}
-    for rid, cost in own.items():
-        seen = set()
-        while rid and rid not in seen:
-            seen.add(rid)
-            out[rid] = out.get(rid, 0.0) + cost
-            rid = parents.get(rid)
-    return {rid: round(cost, 6) for rid, cost in out.items()}
+    return {rid: round(cost, 6) for rid, cost in own.items()}
 
 
 def copy(output_root: Path, run_id: str) -> Path:

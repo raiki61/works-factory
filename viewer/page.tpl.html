@@ -1066,9 +1066,9 @@ function wasteScreen() {
       h('div', {class: 'legend cap'}, h('span', {style: '--c:var(--accent)', text: '新しく読んだ'}), h('span', {style: '--c:var(--a2)', text: 'cache に書いた'}), h('span', {style: '--c:var(--a3)', text: 'cache から読んだ'})),
       h('p', {class: 'cap', text: `費用は Archon の記録の手番ごとの合計で、割はこの ${top.length} 件の和 ${usd(W.top.cost)} に対する物。4 分けはトークンの数で、ドルには割らない（値段の表を持たない）。往復は Archon の数え、返事は会話の記録の返事の数。${W.top.odd.length ? `入力が cache の 2 つの和より小さい手番が ${W.top.odd.length} 件在り、その新しく読んだ分は引けない。` : ''}`})])));
   const card = (k, title, bigv, claim, body) => h('div', {class: 'card'}, h('div', {class: 'cap', text: `${k} · ${title}`}), h('div', {class: 'big', text: bigv}), h('p', {class: 'claim', text: claim}), body);
-  // 周の中で落ちた手番（waste.rounds[].rounds[].failed の和）。データにその欄が無ければ出さない
+  // 周の中で落ちたノード（waste.rounds[].rounds[].failed の和）。データにその欄が無ければ出さない
   const loops = W.rounds.flatMap(g => g.rounds), withFailed = loops.filter(r => Array.isArray(r.failed));
-  const failedNote = withFailed.length ? `（周の中で落ちた手番は ${withFailed.reduce((a, r) => a + r.failed.length, 0)} 件）` : '';
+  const failedNote = withFailed.length ? `（周の中で落ちたノードは ${withFailed.reduce((a, r) => a + r.failed.length, 0)} 件）` : '';
   const ran = idle.unread.ran;
   const cr = c.cache, topRead = c.reads.again[0], sys = c.system[0];
   box.append(h('div', {class: 'grid'},
