@@ -7,9 +7,8 @@
 数え直した件数は置き場の coverage-after.json（COVERAGE_FILE）に残る。
 
 ここに在る物:
-- FIX_NODE・ROLE・RULED_ROLE: 節の名前、役の名前（印の名）。RULED_ROLE は裁定の後の 2 回目の修正役
-- SITE_PATH・SITE_PATH_SCHEMA・PRECEDENT_MIN_LEN: 修正役の返答の型に足す欄（closure.sites[] の欄 path・
-  changes[].precedent の条件付き必須 allOf）。型は呼び手（ブロックの型の定義）が貼る
+- ROLE: 役の名前（印の名）
+- SITE_PATH: 修正役の返答の closure.sites[] の欄 path
 - accept_fix(reply, place, base_rev, repo, *, judged=, owed=, ...): 受け付けの時の数え直し。1 本目の出口のための changes を足す（v1_changes）
 - recount_problems の照らし: 直す義務の覆い・返答の自己申告の形（閉鎖の状態・interactions・bypass_tried・breaks.result・先行例・
   root_or_symptom）・coverage の数え直し・赤を見ない clean・修正が書いた指し（wrote_refs）・差分が足した Markdown のリンク
@@ -39,14 +38,8 @@ from engine.util import READ_CAP, git, read_capped, read_json, run_count, write_
 import cite  # noqa: E402  （指し先の綴りと版・Markdown のリンクの読み。integration.md 4.3-4・4.5-5）
 import materialkit  # noqa: E402  （黙って通る閉鎖の状態 SILENT_STATUS。integration.md 4.3-4 の (a)）
 
-FIX_NODE = "p3.fix"
 ROLE = "fix"
-RULED_ROLE = "fix-ruled"   # 裁定の後の 2 回目の修正役
 SITE_PATH = "path"   # closure.sites[] の works だけの欄: site が在るファイルの対象の根からの相対パス（unitrows が問いの当たりに結ぶ）
-SITE_PATH_SCHEMA = {"type": "string"}
-
-
-PRECEDENT_MIN_LEN = 4 # 写しの _precedent_gap・blank(problem, 4) の下限（テストが写しと突き合わせる）
 
 
 V1_CHANGE_KEYS = ("unit_key", "files", "what")   # 1 本目の出口の changes の欄（assert-changed・changes.json が読む）
@@ -55,12 +48,7 @@ COUNT_CACHE_FILE = "count-cache.json"
 COUNT_BUDGET_FILE = "count-budget.json"
 # 1 周に数える問いを走らせてよい回数と時間の上限（元 works/.shared/core/graphloops/rules/review-loop.py:3304 の COUNT_BUDGET）
 COUNT_BUDGET = {"calls": 300, "seconds": 900}
-EMPTY = cite.EMPTY   # 「書いていない」と同じ扱いにする語（住処は cite）
 REJECT_HEADING = "数え直しで拒んだ行:"   # 直し方は共通の断片 rejected.md が言う
-
-
-class Unreadable(Exception):
-    """集める節の入力が読めない・修正の返答が置き場に無い（回す側の誤り。スクリプトは 2）"""
 
 
 def v1_changes(rows) -> list:

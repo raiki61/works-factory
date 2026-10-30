@@ -8,7 +8,7 @@ temp_tree（版の姿を一時の git worktree に出す）は fix の TDD の�
 無い赤を版の姿で走らせ直すのに使う（持ち主の決め base-runs-nothing）。
 
 元の結末のファイルの形の住処は lib/baseline.schema.json（必須の欄 suite・test_cmd・rev・exit・cases と型、cases の行の outcome の語）。
-REQUIRED・OUTCOMES はそこから引き、照らしは形の照らし（engine.schema.validate_schema）で当てる。ほかの欄は呼び手だけが読む（extra）。
+OUTCOMES はそこから引き、照らしは形の照らし（engine.schema.validate_schema）で当てる。ほかの欄は呼び手だけが読む（extra）。
 """
 import contextlib
 import json
@@ -39,7 +39,6 @@ NO_NICE = "（この環境では優先度を下げられない——nice -n 19 �
 
 SCHEMA_FILE = "baseline.schema.json"
 SCHEMA = json.loads((pathlib.Path(__file__).resolve().parent / SCHEMA_FILE).read_text(encoding="utf-8"))
-REQUIRED = tuple(SCHEMA["required"])
 # cases の行の outcome の語（parse_junit の出す 4 つ）と、そのうちの落ちた物。元の結末のファイルはこの語だけを持つ
 OUTCOMES = tuple(SCHEMA["properties"]["cases"]["items"]["properties"]["outcome"]["enum"])
 _, FAILURE, ERROR, _ = OUTCOMES

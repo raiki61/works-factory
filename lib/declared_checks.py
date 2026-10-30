@@ -9,7 +9,7 @@
   _reused_material・_reused_note
 - 書き直し: tree_runner・_engine_log・checks_plan・checks_reply・_skipped_note・run_ci・baseline_line
 - 元の盤面の部分を盤面なしで組み直した物: _planned_run・_declaration_moved（宣言の照合）・_fall_back（任せ先へ落とす）
-- 新しい関数: material_problems・role_material_problems・drop_copy・plan_by（走らせる前の止めは _refuse_scope_alone・_refuse_step_name で run_ci と分け合う）
+- 新しい関数: material_problems・role_material_problems・plan_by（走らせる前の止めは _refuse_scope_alone・_refuse_step_name で run_ci と分け合う）
 """
 import contextlib
 import json
@@ -19,7 +19,6 @@ import shlex
 import shutil
 import subprocess
 import sys
-import tempfile
 import time
 
 import baseline_red
@@ -585,20 +584,6 @@ def _fall_back(root: pathlib.Path, test_cmd: str, log_dir: pathlib.Path, runs: l
 
 
 # ---------------------------------------------------------------- 任せ先の役の素材
-CI_ROLE = "ci"                       # 任せ先の CI の役の拒否の控えの名（rolekit.accept_round・rolekit.rejected）
-COPY_PREFIX = "works-factory-ci-"    # 任せ先の役がテストを走らせる写しの置き場（一時の置き場の直下）の頭
-# 包みの宣言の無い run の知らせ（今の works の ci_role.NO_ADAPTER_NOTE から、ここに無い仕組みの語を抜いた）
-NO_ADAPTER_NOTE = "包み無し（起動の殻を通らない run）: CI の任せ先の役は YAML の固定の sandbox だけ（作業ツリーの柵は無い）で走った"
-
-
-def drop_copy(top) -> None:
-    """写しの置き場を消す（一時の置き場の直下の COPY_PREFIX で始まるフォルダだけ。symlink は辿らない）。top は役が書ける
-    控えから読むので、ほかの所を指していても消さない"""
-    if not top or os.path.islink(top):
-        return
-    real = os.path.realpath(top)
-    if os.path.dirname(real) == os.path.realpath(tempfile.gettempdir()) and os.path.basename(real).startswith(COPY_PREFIX):
-        shutil.rmtree(real, ignore_errors=True)
 
 
 def material_problems(material, *, mode: str) -> list:

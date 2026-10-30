@@ -33,7 +33,6 @@ OTHER_HOST = "other_host"
 UNKNOWN = "unknown"
 NO_FORGE = (NO_REMOTE, LOCAL_PATH, OTHER_HOST)
 PREFIX = "no_forge"
-LOOP_KEY = "forge"   # 盤面の loop の欄（works が run の初めに detect の返りを置く）
 
 GITHUB_HOSTS = ("github.com", "www.github.com", "ssh.github.com")
 GHE_CLOUD = re.compile(r"^[a-z0-9][a-z0-9-]*\.ghe\.com$")
