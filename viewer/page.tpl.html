@@ -14,13 +14,13 @@
 :root{--th:56px;--pb:0px;color-scheme:light;
   --bg:#f5f5f7;--card:#fff;--raised:#fff;--fill:#e8e8ed;--line:#d2d2d7;--ink:#1d1d1f;--sub:#515154;--ter:#636366;
   --inset:#f5f5f7;--accent:#0071e3;--link:#0066cc;--on-accent:#fff;--on-accent2:#e3eefc;--a2:#66aaf0;--a3:#cfe3fa;--now:#e8f1fc;
-  --dash:#7c7c80;--edge:#7c7c80;--stop:#c93400;--bad:#d70015;
+  --k-ex:#86868b;--k-wait:#c7c7cc;--dash:#7c7c80;--edge:#7c7c80;--stop:#c93400;--bad:#d70015;
   --topbg:rgba(245,245,247,.92);--plbg:rgba(255,255,255,.96);--shadow:#0000001f;--shadow2:#00000033}
 /* dark: 地は黒に近い面（#000）と一段ずつ明るい面（#1c1c1e・#2c2c2e・札の #3a3a3c）の重ね。影が見えないので、上に載る物ほど明るい面にする */
 :root[data-theme=dark]{color-scheme:dark;
   --bg:#000;--card:#1c1c1e;--raised:#3a3a3c;--fill:#2c2c2e;--line:#38383a;--ink:#f5f5f7;--sub:#aeaeb2;--ter:#98989d;
   --inset:#2c2c2e;--accent:#0071e3;--link:#6ab4ff;--on-accent:#fff;--on-accent2:#e3eefc;--a2:#409cff;--a3:#0a3a6b;--now:#0d2a4a;
-  --dash:#8e8e93;--edge:#8e8e93;--stop:#ff9f0a;--bad:#ff6961;
+  --k-ex:#8e8e93;--k-wait:#545458;--dash:#8e8e93;--edge:#8e8e93;--stop:#ff9f0a;--bad:#ff6961;
   --topbg:rgba(22,22,23,.88);--plbg:rgba(28,28,30,.94);--shadow:#00000099;--shadow2:#000000cc}
 *{box-sizing:border-box}
 html,body{margin:0}
@@ -70,6 +70,44 @@ pre.err{box-shadow:inset 3px 0 0 var(--bad)}
 /* 動きを減らす設定に従う（WCAG 2.3.3）。説明の文は 1 行 40 字前後で折る（WCAG 1.4.8 の CJK の 40 字） */
 @media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important;scroll-behavior:auto!important}}
 .hero p,.claim,.panel p,.gnote{max-width:40em}
+
+/* 流れ: 段の地図（5 つずつの箱。HTML なので幅 900 でも字が縮まない） */
+.stages{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px;margin:18px 0 0}
+.st{background:var(--inset);border-radius:14px;padding:12px 14px;min-width:0;border:2px solid transparent}
+.st .name{font-weight:600}
+.st .name,.st .cap{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+@media (max-width:1000px){ .st{padding:10px} }
+@media (max-width:760px){ .stages{grid-template-columns:repeat(2,minmax(0,1fr))} }
+/* 走らなかった段は薄めない（段が在ることは読める）。面を外して点線の縁と --ter の字と語「飛んだ」「まだ」で分ける */
+.st.skip,.st.yet{background:transparent;border:2px dashed var(--dash);color:var(--ter)}
+.st.skip .cap,.st.yet .cap{color:var(--ter)}
+.st.skip .name,.st.yet .name{font-weight:400}
+.st.stop{border:3px solid var(--stop);padding:11px 13px}
+.st.fail{border:3px solid var(--bad);padding:11px 13px}
+.st.stop .cap,.st.fail .cap{color:var(--ink);font-weight:600}
+.st.live{border-color:var(--accent)}
+.st.now{background:var(--accent);color:var(--on-accent);border-color:var(--accent)}
+.st.now .cap{color:var(--on-accent2)}
+/* 流れ: 時間の帯（HTML の %。段の名の列は字の幅で切らない。右に段ごとの時間と費用） */
+.band{display:grid;grid-template-columns:max-content minmax(0,1fr) max-content;row-gap:4px;margin:18px 0 0;position:relative}
+.band .lab{font-size:12px;color:var(--sub);white-space:nowrap;padding-right:14px;line-height:22px}
+.band .lab.now{color:var(--link);font-weight:600}
+.band .sum{font-size:12px;color:var(--sub);white-space:nowrap;padding-left:14px;line-height:22px;text-align:right}
+.lane{position:relative;height:22px;background:var(--inset);border-radius:6px;cursor:crosshair}
+.lane i{position:absolute;top:5px;height:12px;border-radius:3px;min-width:2px}
+.k-ai{background:var(--accent)}.k-ex{background:var(--k-ex)}.k-wait{background:var(--k-wait)}
+.axis{position:relative;height:18px;grid-column:2}
+.axis span{position:absolute;font-size:12px;color:var(--sub);transform:translateX(-50%);white-space:nowrap}
+.axis span:first-child{transform:none}
+.nowline{position:absolute;top:0;width:2px;background:var(--accent);pointer-events:none}
+.legend{display:flex;gap:16px;flex-wrap:wrap;margin:10px 0 0}
+.legend span::before{content:"";display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px;vertical-align:-1px;background:var(--c)}
+.fnow{margin:12px 0 0}
+.scroll{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:12px}
+th{text-align:left;color:var(--sub);font-weight:400;border-bottom:1px solid var(--line);padding:6px 8px;white-space:nowrap}
+td{padding:6px 8px;border-bottom:1px solid var(--fill);vertical-align:top}
+td.r,th.r{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
 
 /* 図と再生: 札を字の流れのように左から右へ並べ、幅で折り返す（横にはみ出さない）。段は行 */
 .gscr .wrap{max-width:1400px;padding:0 20px 24px}
@@ -231,13 +269,13 @@ main{padding-bottom:calc(var(--pb) + 24px)}
 <div class="app">
 <header class="top"><div class="in"><div class="who" id="who"></div><nav class="tabs" id="tabs"></nav><button class="theme" id="theme" title="表示の明るさ。自動は OS とエディタの設定に従う"></button></div><div class="backbar" id="backbar" hidden></div></header>
 <main>
+  <section class="screen" id="s-flow" hidden><div class="wrap" id="flow"></div></section>
   <section class="screen gscr" id="s-graph" hidden><div class="wrap">
     <div class="gbar"><div class="crumb" id="crumb"></div><div class="tools" id="gtools"></div></div>
     <p class="gkey" id="gkey"></p>
     <p class="gnote" id="gnote"></p>
     <div id="notes"></div>
     <div class="map" id="world"></div>
-    <p class="cap foot" id="gfoot"></p>
     <aside class="panel" id="panel" hidden></aside>
   </div></section>
   <section class="screen" id="s-runs" hidden><div class="wrap" id="runs"></div></section>
@@ -314,6 +352,21 @@ const STOP_EV = STOP && RUN && ST.stop_event != null ? RUN.events[ST.stop_event]
 const STOP_HUMAN = ST.stop_by === 'human';
 const STOP_WORD = STOP ? `${STOP.name}で${STOP_HUMAN ? '人が止めた' : '落ちた'}` : '';
 const runWord = () => STOP_WORD || RUNWORD[RUN.status] || RUN.status;
+// 段の終わりの姿（流れの地図と表と、図の段の行で同じ形）。mark は箱と行の印（stop・fail・live・skip・空）、word は語、label は時間つきの語。
+// 終わった run で終わりの無い出来事が残った段（走り中・人の答え待ちのまま）は、頭の主張と同じ止まり方（止まった段の止まり方、無ければ run の状態）の語と色にする
+function stageLook(s, x) {
+  const t = mins(x.seconds || 0), ran = RAN(x.state);
+  const end = (mark, word) => ({mark, word, label: `${word} · ${t}`});
+  if (s === STOP) return end(STOP_HUMAN ? 'stop' : 'fail', STOP_HUMAN ? '止まった' : '落ちた');
+  if (x.state === 'failed') return end('fail', '落ちた');
+  if (x.state === 'waiting' || x.state === 'running') {
+    if (RUN.live) { const w = x.state === 'waiting' ? '人の答え待ち' : '走り中'; return {mark: 'live', word: w, label: w}; }
+    return (STOP ? STOP_HUMAN : RUN.status !== 'failed') ? end('stop', '止めた') : end('fail', '落ちた');
+  }
+  if (ran) return {mark: '', word: '通った', label: `${t}${x.cost ? ' · ' + usd(x.cost) : ''}`};
+  const w = x.state === 'skipped' ? '飛んだ' : '走っていない';
+  return {mark: 'skip', word: w, label: w};
+}
 
 // ---- 図の根と出来事 ----
 const ROOT = (RUN && Object.keys(G).find(f => G[f].name === RUN.graph)) || (G.line ? 'line' : Object.keys(G)[0]);
@@ -389,7 +442,7 @@ applyTheme();
 // ---- 頭の帯とタブ ----
 let curTab = null;
 function header() {
-  const tabs = [['graph', '図と再生'], ...(D.target ? [['runs', 'run の一覧']] : []), ...(RUN ? [['log', 'ログ']] : []), ...(UNREAD_N ? [['unread', '読めなかった物']] : [])];
+  const tabs = [['flow', '流れ'], ['graph', '図と再生'], ...(D.target ? [['runs', 'run の一覧']] : []), ...(RUN ? [['log', 'ログ']] : []), ...(UNREAD_N ? [['unread', '読めなかった物']] : [])];
   $('who').append(RUN ? h('span', {}, h('b', {text: `run ${RUN.id.slice(0, 8)}`}), ` · ${mins(RUN.seconds)} · ${usd(RUN.cost)} · ${runWord()}`)
     : h('span', {text: `工場の作り${D.commit ? ' · commit ' + D.commit : ''}`}));
   if (UNREAD_N) $('who').append(' · ', h('a', {class: 'warn', text: `読めなかった物 ${UNREAD_N} 件`, onclick: () => tab('unread')}));
@@ -408,6 +461,7 @@ function tab(id) {
   measure();
   scrollTo(0, SCROLL[id] || 0);
   // 図を開いた時に、遅れていれば再生の今へ合わせる（スクロールを戻した後に。今の札を画面に入れる送りが勝つように）
+  if (id === 'flow') flowNow();
   if (id === 'graph') { if (!cur) setRoot(ROOT); if (behind) { behind = false; syncGraph(); } else drawEdges(); }
 }
 
@@ -619,12 +673,11 @@ function paint() {
       row.classList.remove('stop', 'fail'); row.classList.toggle('off', !reached.has(s.n) && nowS !== s);
       st.textContent = nowS === s ? '再生の今' : reached.has(s.n) ? '通った' : 'まだ'; continue;
     }
-    const ran = RAN(x.state), sec = x.seconds || 0;
-    row.classList.toggle('off', !ran);
-    row.classList.toggle('stop', s === STOP && STOP_HUMAN);
-    row.classList.toggle('fail', x.state === 'failed' || (s === STOP && !STOP_HUMAN));
-    st.textContent = s === STOP ? `ここで止まった · ${mins(sec)}` : x.state === 'failed' ? `落ちた · ${mins(sec)}` : x.state === 'waiting' ? '人の答え待ち'
-      : x.state === 'running' ? '走り中' : ran ? `${mins(sec)}${x.cost ? ' · ' + usd(x.cost) : ''}` : '走っていない';
+    const lk = stageLook(s, x);
+    row.classList.toggle('off', lk.mark === 'skip');
+    row.classList.toggle('stop', lk.mark === 'stop');
+    row.classList.toggle('fail', lk.mark === 'fail');
+    st.textContent = s === STOP ? `ここで${lk.label}` : lk.label;
   }
   note();
 }
@@ -849,8 +902,112 @@ function notes() {
   if (D.shape_from === 'tree' && RUN) out.push('この run の写し（run の始めに Archon が写し取った作り）が無いので、図は今の木の作りから作った。');
   if (D.ja && (D.ja.md || D.ja.texts)) out.push(`日本語の写しに訳の無い段落: 指示の md ${D.ja.md} 個・会話 ${D.ja.texts} 個（英語のまま出す。--ja-batches で束にして訳し、--ja-import で取り込む）。`);
   $('notes').replaceChildren(...out.map(x => h('p', {class: 'gnote'}, x)));
-  // 読めなかった物が 0 件の時は、タブを出さずに図の画面の一番下に 1 行（黙って落とさない。分けの名は title）
-  $('gfoot').replaceChildren(UNREAD_N ? '' : h('span', {title: UNREAD.map(l => l[0]).join('・'), text: `ページを作る時に読めなかった物は 0 件（${UNREAD.length} つの分けのどれも）。`}));
+}
+
+// ---- 流れ: 段の地図（案 A）と時間の帯（案 B）。どちらも段の集計（データの欄 stages）を読むだけ ----
+// 再生の位置はページに 1 つ（at）。流れは帯を押して go で位置を移し、地図の今の段・帯の縦の線・帯の下の 1 行で今を映す（flowNow）。
+// 歩く操作（▶・1 歩・鍵盤）は図と再生でだけ受ける
+const pct = (a, b) => b ? Math.round(a / b * 100) : 0;
+// 地図と帯に出す段: run を見ている時は、この run の道に無い段（設計の段はテーマの run だけ。集計の状態 none）を外す
+const FLOW_STAGES = STAGE_ALL.filter(s => !SUMR || sumOf(s).state !== 'none');
+const SPAN = RUN ? RUN.seconds || 1 : 0;
+const atSec = t => (Date.parse(t) - T0) / 1000;
+function flowHead() {
+  if (!RUN) return [`依頼を受けてから報告まで、${STAGE_ALL.length} の段。`, 'run を選ぶと、この地図にその run の通った道と時間が重なる。'];
+  // 段の表は line だけなので、ほかの graph の run は地図を塗らず、時間の帯も出さない
+  if (!SUMR) return [`${runWord()}。`, `${mins(SPAN)}・${usd(RUN.cost)}。この run の graph（${RUN.graph}）は段の表（${ST.graph || 'line'}）の外なので、地図は塗らない。`];
+  const xs = FLOW_STAGES.map(s => [s, sumOf(s)]);
+  const live = RUN.live && (xs.find(([, x]) => x.state === 'waiting') || xs.find(([, x]) => x.state === 'running'));
+  // 主張: 終わっていない run は今の段、終わった run は止まった段と止まり方、止まった段が無ければ run の状態の語
+  const claim = live ? `${live[0].name}で${live[1].state === 'waiting' ? '人の答えを待っている' : '走っている'}。`
+    : STOP ? `${STOP.name}で、${STOP_HUMAN ? '人が止めた' : '落ちた'}。` : `${RUNWORD[RUN.status] || RUN.status}。`;
+  // 止まった段の後で走らなかった段だけを、続いた範囲ごとに言う（報告の段のように止まった後で走る段は入れない）
+  const spans = [];
+  if (STOP) xs.forEach(([s, x], i) => { if (s.n <= STOP.n || RAN(x.state)) return; const prev = spans[spans.length - 1];
+    if (prev && prev.to === i - 1) prev.to = i; else spans.push({from: i, to: i}); });
+  const idle = spans.map(({from, to}) => from === to ? xs[from][0].name : `${xs[from][0].name}から${xs[to][0].name}まで`);
+  const top = xs.reduce((a, b) => b[1].cost > a[1].cost ? b : a, xs[0]);
+  return [claim, `${mins(SPAN)}・${usd(RUN.cost)}。${idle.length ? `${idle.join('・')}${spans[spans.length - 1].from === spans[spans.length - 1].to ? 'は' : ''}走っていない。` : ''}${top && pct(top[1].cost, RUN.cost) ? `費用の ${pct(top[1].cost, RUN.cost)}% は${top[0].name}。` : ''}`];
+}
+function flowScreen() {
+  const box = $('flow'), [claim, sub] = flowHead();
+  box.append(h('section', {class: 'hero'},
+    h('div', {class: 'cap', text: RUN ? `run ${RUN.id.slice(0, 8)} · ${RUN.graph} · ${(RUN.started || '').replace('T', ' ').slice(0, 16)} から` : '工場の流れ'}),
+    h('h1', {text: claim}), h('p', {text: sub})));
+  box.append(h('div', {class: 'card'},
+    h('div', {class: 'cap', text: '段の地図'}), h('h2', {text: RUN ? (STOP ? '通った段と、止まった所。' : '通った段と、飛んだ段。') : '工場の流れ。'}),
+    h('div', {class: 'stages', id: 'f-stages'}),
+    fold('段ごとの説明と、次の段へ渡す物', h('ol', {}, STAGE_ALL.map(s => h('li', {value: s.n}, h('b', {text: s.name}), ` ${s.line}`,
+      s.hands ? h('span', {class: 'cap', text: ` 次へ渡す物 → ${s.hands}`}) : null))))));
+  if (RUN && SUMR) box.append(bandCard());
+  // 読めなかった物が 0 件の時は、タブを出さずに流れの一番下に 1 行（黙って落とさない。分けの名は title）
+  if (!UNREAD_N) box.append(h('p', {class: 'cap foot', title: UNREAD.map(l => l[0]).join('・'), text: `ページを作る時に読めなかった物は 0 件（${UNREAD.length} つの分けのどれも）。`}));
+  flowNow();
+}
+function bandCard() {
+  const band = h('div', {class: 'band', id: 'f-band'});
+  for (const s of FLOW_STAGES) {
+    const x = sumOf(s), lane = h('div', {class: 'lane', 'data-n': s.n, title: '押すと、その時刻へ再生の位置が移る'});
+    // 配線のノード（through）と中の出来事を束ねる器（role が group）は描かない。終わりの無い出来事（走り中・待ち）は右の端まで
+    for (const e of RUN.events) {
+      if (e.stage !== s.n || e.through || e.role === 'group' || !e.start) continue;
+      const l = atSec(e.start), r = e.end ? atSec(e.end) : SPAN;
+      lane.append(h('i', {class: {ai: 'k-ai', wait: 'k-wait'}[e.role] || 'k-ex', style: `left:${(l / SPAN * 100).toFixed(3)}%;width:${(Math.max(0, r - l) / SPAN * 100).toFixed(3)}%`,
+        title: `${what(itemAt(e.at)) || e.tokens.join(' / ')} · ${since(e.start)} から ${mmss(Math.max(0, r - l))}`}));
+    }
+    lane.onclick = ev => seekTime(ev, lane);
+    band.append(h('div', {class: 'lab', 'data-n': s.n, text: `${s.n} ${s.name}`}), lane,
+      h('div', {class: 'sum n', text: RAN(x.state) ? `${mins(x.seconds || 0)}${x.cost ? ' · ' + usd(x.cost) : ''}` : x.state === 'skipped' ? '飛んだ' : ''}));
+  }
+  const axis = h('div', {class: 'axis'}), m = SPAN / 60, step = [1, 2, 5, 10, 15, 30, 60, 120].find(v => m / v <= 6) || 240;
+  for (let v = 0; v <= m; v += step) axis.append(h('span', {style: `left:${(v * 60 / SPAN * 100).toFixed(3)}%`, text: `${v} 分`}));
+  band.append(h('div', {}), axis, h('div', {}), h('div', {class: 'nowline', id: 'f-line', hidden: true}));
+  // 主張: 人の答え待ちが在ればその長さと割合、無ければ一番長い段
+  const wait = FLOW_STAGES.reduce((a, s) => a + (sumOf(s).wait || 0), 0);
+  const long = FLOW_STAGES.reduce((a, s) => (sumOf(s).seconds || 0) > (sumOf(a).seconds || 0) ? s : a, FLOW_STAGES[0]);
+  return h('div', {class: 'card'},
+    h('div', {class: 'cap', text: '時間の帯'}),
+    h('h2', {text: wait ? `人の答え待ちが ${mins(wait)}（${pct(wait, SPAN)}%）。` : `一番長いのは${long.name}で ${mins(sumOf(long).seconds || 0)}。`}),
+    band, h('p', {class: 'cap fnow', id: 'f-now'}),
+    h('div', {class: 'legend cap'}, h('span', {style: '--c:var(--accent)', text: 'AI の手番'}), h('span', {style: '--c:var(--k-ex)', text: '機械'}), h('span', {style: '--c:var(--k-wait)', text: '人の答え待ち'})),
+    fold('段ごとの時間・費用・手番', h('div', {class: 'scroll'}, h('table', {},
+      h('tr', {}, [['段'], ['状態'], ['時間', 1], ['うち人の待ち', 1], ['AI の手番', 1], ['周', 1], ['往復', 1], ['費用', 1]].map(([x, r]) => h('th', {class: r ? 'r' : null, text: x}))),
+      FLOW_STAGES.map(s => { const x = sumOf(s), ran = RAN(x.state);
+        return h('tr', {}, h('td', {text: `${s.n} ${s.name}`}), h('td', {text: stageLook(s, x).word}), h('td', {class: 'r', text: ran ? mmss(x.seconds || 0) : ''}),
+          h('td', {class: 'r', text: x.wait ? mmss(x.wait) : ''}), h('td', {class: 'r', text: x.ai || ''}), h('td', {class: 'r', text: x.rounds || ''}),
+          h('td', {class: 'r', text: x.turns || ''}), h('td', {class: 'r', text: x.cost ? usd(x.cost) : ''})); })))));
+}
+// 帯を押した時刻より前か同じで一番後の歩へ（待ちの中を押すと待ちの始まりの歩に止まる）。最初の歩より前なら最初の歩
+function seekTime(ev, lane) {
+  const r = lane.getBoundingClientRect(), t = T0 + (ev.clientX - r.left) / r.width * SPAN * 1000;
+  let k = 0; while (k + 1 < STEPS.length && Date.parse(STEPS[k + 1].t) <= t) k++;
+  play(false); go(k);
+}
+// 流れの今を映す: 再生していない時は run の終わりの姿、再生中は今の段・通った段・まだの段と、帯の縦の線と下の 1 行
+function flowNow() {
+  const box = $('f-stages'); if (!box) return;
+  const look = RUN && at >= 0, reached = look ? reachedAt(at) : null, nowS = look ? stageAt(at) : null;
+  box.replaceChildren(...FLOW_STAGES.map(s => {
+    const x = sumOf(s);
+    let cls = '', word = s.line;
+    if (x && look) { cls = nowS === s ? 'now' : reached.has(s.n) ? '' : 'yet'; word = nowS === s ? '再生の今' : reached.has(s.n) ? '通った' : 'まだ'; }
+    else if (x) {
+      const lk = stageLook(s, x); cls = lk.mark; word = lk.label;
+    }
+    return h('div', {class: 'st ' + cls, 'data-n': s.n, title: `${s.line}${s.hands ? ` 次へ渡す物 → ${s.hands}` : ''}（出どころ ${s.source || '無し'}）`},
+      h('div', {class: 'cap', text: s.n}), h('div', {class: 'name', text: s.name}), h('div', {class: 'cap', text: word}));
+  }));
+  const band = $('f-band'); if (!band) return;
+  document.querySelectorAll('#f-band .lab').forEach(l => l.classList.toggle('now', !!nowS && +l.dataset.n === nowS.n));
+  $('f-now').replaceChildren(...(!look ? ['帯を押すと、その時刻へ再生の位置が移る。'] : [`再生の今: ${nowS ? `段 ${nowS.n} ${nowS.name} · ` : ''}${since(STEPS[at].t)} · ${at + 1} / ${STEPS.length} 歩。`,
+    h('a', {text: '図と再生で歩く →', onclick: () => tab('graph')})]));
+  // 縦の線の位置は帯の箱の大きさから出すので、流れが隠れている時は引かず、流れを開いた時（tab）に引く
+  const line = $('f-line'), lanes = band.querySelectorAll('.lane'), lane = lanes[0], end = lanes[lanes.length - 1];
+  line.hidden = true;
+  if (!look || !lane || $('s-flow').hidden) return;
+  line.style.left = `${lane.offsetLeft + atSec(STEPS[at].t) / SPAN * lane.offsetWidth - 1}px`;
+  line.style.top = `${lane.offsetTop}px`; line.style.height = `${end.offsetTop + end.offsetHeight - lane.offsetTop}px`;
+  line.hidden = false;
 }
 
 // ---- run の一覧（1 行 1 本。開く命令は行を押した時だけ） ----
@@ -941,11 +1098,11 @@ function unreadScreen() {
 }
 
 // ---- 再生の帯（1 つ。図と再生のタブにだけ出す） ----
-// go が位置を変え、図が見えている時だけ図まで動かす。見えていない時は「図が遅れている」の印を立て、図を開いた時に合わせる
+// go が位置を変え、流れの今（flowNow）を映し、図が見えている時だけ図まで動かす。見えていない時は「図が遅れている」の印を立て、図を開いた時に合わせる
 function go(k) {
   if (!STEPS.length) return;
   at = Math.max(0, Math.min(STEPS.length - 1, k));
-  $('p-pos').value = at; label();
+  $('p-pos').value = at; label(); flowNow();
   if ($('s-graph').hidden) { behind = true; return; }
   syncGraph();
 }
@@ -968,7 +1125,7 @@ function syncGraph() {
 }
 // やめる: run の終わりの姿へ戻し、自動で開いた物を全部閉じる
 function stopReplay() {
-  play(false); at = -1; behind = false; $('p-pos').value = 0; label();
+  play(false); at = -1; behind = false; $('p-pos').value = 0; label(); flowNow();
   AUTO = new Set(); SHUT = new Set();
   if (!$('s-graph').hidden && cur) show({keepPanel: true});
 }
@@ -1012,13 +1169,14 @@ function measure() {
 new ResizeObserver(measure).observe(document.querySelector('.top'));
 new ResizeObserver(measure).observe($('player').querySelector('.in'));
 let edgeTimer = null;
-addEventListener('resize', () => { measure(); clearTimeout(edgeTimer); edgeTimer = setTimeout(drawEdges, 100); });
+addEventListener('resize', () => { measure(); flowNow(); clearTimeout(edgeTimer); edgeTimer = setTimeout(drawEdges, 100); });
 header();
 notes();
+flowScreen();
 if (D.target) runsScreen();
 if (RUN) logScreen();
 if (UNREAD_N) unreadScreen();
-tab('graph');
+tab('flow');
 </script>
 </body>
 </html>
