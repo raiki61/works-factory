@@ -24,7 +24,7 @@ import policy      # lib/
 import querytest   # lib/
 import rolekit     # lib/
 import worldmark   # lib/
-from judgmark import is_open, open_units   # lib/。開いた単位の選び（verify・fix と共に読む判定の行の形）
+from judgmark import is_open   # lib/。開いた単位の選び（verify・fix と共に読む判定の行の形）
 from engine.util import Reject, git as _git, repo_root, run_count   # lib/graphloops/engine/util.py
 
 from src import files
