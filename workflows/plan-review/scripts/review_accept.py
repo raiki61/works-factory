@@ -14,22 +14,14 @@ sys.path[:0] = [str(Path(__file__).resolve().parents[2] / ".shared"), str(Path(_
 import ports  # noqa: E402
 
 
-def _reply(raw: str):
-    """返答の字を値に戻す（空と null は起きなかった node の None。JSON として読めない字は字のまま渡し、受け付けが拒みの訳にする）"""
-    try:
-        return ports.parsed(raw)
-    except ValueError:
-        return ports.text(raw)
-
-
 def compute():
     import accept  # lib/
-    from src import take
-    return take.take(ports.place(), _reply(os.environ.get("INPUTS_REPLY", "")), Path.cwd(),
+    from src import steps, take
+    return take.take(ports.place(), steps.reply_value(os.environ.get("INPUTS_REPLY", "")), Path.cwd(),
                      keys=accept.status_keys(os.environ.get("INPUTS_STATUS_GUARDED", "")),
-                     fix_reply=_reply(os.environ.get("INPUTS_FIX_REPLY", "")),
-                     tree_reply=_reply(os.environ.get("INPUTS_TREE_REPLY", "")),
-                     tree_fix_reply=_reply(os.environ.get("INPUTS_TREE_FIX_REPLY", "")))
+                     fix_reply=steps.reply_value(os.environ.get("INPUTS_FIX_REPLY", "")),
+                     tree_reply=steps.reply_value(os.environ.get("INPUTS_TREE_REPLY", "")),
+                     tree_fix_reply=steps.reply_value(os.environ.get("INPUTS_TREE_FIX_REPLY", "")))
 
 
 def fallback(why: str) -> dict:

@@ -10,7 +10,6 @@
   （converge.resolved_gaps。往復の記録が項目の行 plan を持たないので、項目で絞らずに穴の鍵だけで照らす）。通れば review.json に
   {faces, shrink, reason, faces_none?, resolved?}。拒否の回数では諦めず、受け付けの網 rolekit.NET_AFTER 回目で done・give_up（その時は
   諦めの訳を reason に置いた空の返答を review.json に書く）
-- reply_value(raw) -> 返答の字を値に戻した物（空と null は起きなかった node の None。JSON として読めない字は字のまま）
 
 却下の理由の文は Python が組む日本語のまま（README 5.3）。照らしの部品は形 plan と形 text の受け付け（src/take.py・src/textform.py）の物。
 """
@@ -18,7 +17,6 @@ from __future__ import annotations
 
 import pathlib
 
-import ports
 import prompt
 
 import accept      # lib/
@@ -49,13 +47,6 @@ def fix_values(place, intake: dict) -> tuple[dict, dict]:
     values = {"rejection": rejected[-1] if rejected else "", "candidate": str(rolekit.candidate_path(place, files.THEME_NODE)),
               "lang": prompt.lang(intake.get("lang") or "")}
     return values, {"spawns": False}
-
-
-def reply_value(raw):
-    try:
-        return ports.parsed(raw)
-    except ValueError:
-        return ports.text(raw)
 
 
 def take(place, reply, repo, *, keys=accept.TREE_KEYS, fix_reply=None) -> dict:

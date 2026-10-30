@@ -10,6 +10,8 @@ _role_item・replan_items〔:588-612〕・_tree_on〔:692-696〕の写し）。
 - recorded_rows(recorded, policy_path) -> 記録された方針の行（port recorded が空で方針が在れば、方針の文書の行だけ）
 - replan_items(b, approved, marked_rows, ruled, conflicts): 形 replan の裁かれた項目ごとの材料
 - read_intake(out) -> intake.json の中身（無い・読めなければ Missing）・record_crash(out, step, why): prep・accept が落ちた訳（crash.json）
+- reply_value(raw) -> 役の返答の字を値に戻した物（空と null は起きなかった node の None。JSON として読めない字は字のまま渡し、受け付けが
+  拒みの訳にする）。受け付けの script（review_accept・theme_accept）が読む
 - finish(out) -> 出口の返り（docs/design/plan-review.md の 1.2 と 8 節の finish）。finish.json にも写す
 - Missing: 入口の材料が無い・読めない・組めない
 
@@ -110,6 +112,14 @@ def crash_why(out) -> str:
     if isinstance(crash, dict) and crash.get("why"):
         return CRASHED.format(step=crash.get("step") or "?", why=crash["why"])
     return ""
+
+
+def reply_value(raw):
+    """役の返答の字を値に戻す（空と null は起きなかった node の None。JSON として読めない字は字のまま）"""
+    try:
+        return ports.parsed(raw)
+    except ValueError:
+        return ports.text(raw)
 
 
 # ---------------------------------------------------------------- 入力の字

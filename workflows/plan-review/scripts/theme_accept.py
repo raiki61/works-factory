@@ -16,10 +16,10 @@ import ports  # noqa: E402
 
 def compute():
     import accept  # lib/
-    from src import themeform
-    return themeform.take(ports.place(), themeform.reply_value(os.environ.get("INPUTS_REPLY", "")), Path.cwd(),
+    from src import steps, themeform
+    return themeform.take(ports.place(), steps.reply_value(os.environ.get("INPUTS_REPLY", "")), Path.cwd(),
                           keys=accept.status_keys(os.environ.get("INPUTS_STATUS_GUARDED", "")),
-                          fix_reply=themeform.reply_value(os.environ.get("INPUTS_FIX_REPLY", "")))
+                          fix_reply=steps.reply_value(os.environ.get("INPUTS_FIX_REPLY", "")))
 
 
 def fallback(why: str) -> dict:
