@@ -44,7 +44,9 @@ class ScalarCase(Base):
             ports.choice("maybe", ("on", "off"))
 
 
-class JsonCase(Base):
+class ShapedBase(Base):
+    """形の置き場 shared を一時のフォルダに替える（JsonCase と FileCase が継ぐ。試験を持たない）"""
+
     def setUp(self):
         super().setUp()
         self.shared = self.tmp / "shared"
@@ -55,6 +57,8 @@ class JsonCase(Base):
     def shape(self, name, shape):
         (self.shared / "schemas" / name).write_text(json.dumps(shape), encoding="utf-8")
 
+
+class JsonCase(ShapedBase):
     def test_three_forms_give_the_same_value(self):
         value = [{"where": "README", "text": "x"}]
         (self.art / "req.json").write_text(json.dumps(value), encoding="utf-8")
@@ -186,7 +190,7 @@ class JsonCase(Base):
         self.assertFalse(ports.is_pointer_shape({"type": "object", "properties": {"type": {"type": "string"}}}))
 
 
-class FileCase(JsonCase):
+class FileCase(ShapedBase):
     def test_file_form(self):
         (self.art / "a.txt").write_text("x", encoding="utf-8")
         self.assertEqual(ports.file(self.ptr("a.txt"), "file"), self.art / "a.txt")
