@@ -24,7 +24,6 @@ from __future__ import annotations
 
 import json
 import pathlib
-import re
 
 import ports
 import prompt
@@ -705,15 +704,6 @@ def fragment_values(fragments, place, intake: dict, repo, *, b=None, material=No
     return {n: SLOTS[n](c) for n in sorted(slots)}, {n: bool(WHEN[n](c)) for n in sorted(marks)}
 
 
-def brief_extra(place, b, intake: dict, repo, values: dict, when: dict, *, part: str = "item-brief") -> tuple[dict, dict]:
-    """木の下請けの指示（prompts/parts/<part>.md）の差し込み口と段落のうち、呼び手（src/tree.py）がまだ埋めていない名を SLOTS・WHEN の
-    作り手で足した (values, when)。呼び手の値が先に勝つ。作り手の無い名は足さない（呼び手が埋める。埋め残しは prompt が名を挙げて落ちる）"""
-    slots, marks = names_of([f"part:{part}"])
-    c = _Ctx(place, intake, repo, b=b)
-    return ({**{n: SLOTS[n](c) for n in sorted(slots) if n not in values and n in SLOTS}, **values},
-            {**{n: bool(WHEN[n](c)) for n in sorted(marks) if n not in when and n in WHEN}, **when})
-
-
 # ---------------------------------------------------------------- 材料のファイル
 def material_text(place: pathlib.Path, intake: dict, repo, b) -> str:
     """材料のファイルの字（2 節の 1〜11 の順。指示の文を持たない）"""
@@ -761,7 +751,3 @@ def write_material(place, intake: dict, repo, *, n: int, b=None) -> tuple[pathli
     values, when = fragment_values(["node:review"], place, intake, repo, b=b, material=path, spawns=True)
     return path, values, when
 
-
-def heads_named(text: str) -> list[str]:
-    """字の中の材料の見出しの札（試験と md の照らし）"""
-    return [h for h in MAT_HEADS.values() if re.search(rf"^{re.escape(h)}$", text, re.M)]

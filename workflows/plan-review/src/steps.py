@@ -125,9 +125,6 @@ def _port(name: str, read):
         raise ValueError(f"入力 {name}: {oneline.one_line(str(e))}") from None
 
 
-PLAN_SCHEMA = "shared:fix-plan.schema.json"   # 審査する修正案の形（入力 plan の宣言と同じ名）
-
-
 def proposal_of(raw: dict):
     """審査する物: 入力 plan（修正案。宣言の形で照らした値）か、入力 proposal の字か、入力 proposal_file（方針の文のファイル。在れば中身を
     形 text の方針の文として読む）。2 つ以上を一緒に名指せば ValueError（どれで読んだかを黙って決めない）。読めない先は、一緒に名指した
