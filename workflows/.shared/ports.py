@@ -1,4 +1,4 @@
-"""block の script が Archon と出入りする口（docs/design/README.md の 4 節。今の workflows/.shared/boundary.py の後継）。
+"""block の script が Archon と出入りする口（docs/design/README.md の 4 節）。
 
 口を通さずに書けない物: 入力の読み（text・flag・choice・json・file）・自分の place・出力の pointer・返り。script は入力を
 `os.environ.get("INPUTS_<名>")` の字のままで読んでここへ渡す（名を組んで読まない。Archon の scanEnvironmentReads が照らす字の形）。
@@ -40,13 +40,13 @@
 - picked(raw, names, optional=()): 作り手の返りまるごと（Archon が output_format で照らした値。pointer やパスは開かない）から、宣言した欄 names（と optional）だけを持つ dict。
   宣言の外の名を読むと KeyError、names の欄が返りに無くても KeyError（optional の欄は無ければ None）
 - unknown_keywords(shape): 形の中の、照らしが読まない語の在りか（json の schema はこれが空でないと拒む）
-- 対象のコマンドを起こす block（test-gate・fix など）の口。workflows/.shared/boundary.py と同じ約束の写しで、
-  tests/blocks/shared/test_ports.py が突き合わせる:
+- 対象のコマンドを起こす block（test-gate・fix など）の口。RUNNER_PREFIXES・RUNNER_NAMES は試験の殻 tests/bin/hermetic.py が
+  字で引き、tests/blocks/shared/test_ports.py が突き合わせる:
   RUNTIME_COPY・RUNTIME_COPY_PREFIX（Archon が run の作業ツリーに写す置き場。差分に数えない）・RUNNER_PREFIXES・RUNNER_NAMES・
   drop_runner_env(user_env)（Archon が script の node に立てる変数を落とす。先に印の置き場 user_env を立てる）・suite_keep()（TDD の
   実行器の取り置きの根。起動の殻が渡す）
 - shared_cache() -> Path | None: run をまたぐ控えの根（Archon が project ごとに渡す STATE_DIR の下の works-factory/。渡されなければ None で、
-  控えを使わない。workflows/.shared/boundary.py の shared_cache と同じ約束の写し）
+  控えを使わない）
 - polyfill(name): 埋め（このファイルと同じ .shared/ の <name>.py。fence・childsweep・skip_value）を読んだモジュール。埋めは pack と
   一緒に写し取られるので、run の中でもこのファイルの隣に在る。child_pointer は chain が .shared から直に import する
 
