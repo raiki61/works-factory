@@ -246,6 +246,11 @@ def run(db: Path, run_id: str) -> dict:
     # 落ちは過去の事実なので、走り中の run（落ちた後に起き直した物）でも閉じる
     fell = {row["id"]: [at for t in falls.get(row["id"], []) if (at := _end(row["status"], t, live=True))] for row in (top, *reader.children)}
     for event in reader.events:
+        # SIGTERM で落とす道（owned-run-termination.ts の failWorkflowRun）はログに node_error を書かず DB に落ちだけを書くので、
+        # 始めから最後の始めの間にその run の落ちが在れば、同じ起動の id で走り直した出来事も一度落ちた
+        if event["start"] and event["last_start"] != event["start"] and any(
+                when(t) < when(event["last_start"]) for t in _since(event["start"], fell[event["run"]])):
+            event["fell"] = True
         if not event["start"] or event["end"] or event["status"] not in ("waiting", "running"):
             continue
         # 起き直した後も同じ起動の id で走り直す出来事は、最後の始めの後の終わり（落ち）で閉じる。前の落ちでは閉じない
