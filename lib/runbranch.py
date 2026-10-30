@@ -17,8 +17,8 @@ HEAD に積んだ commit は枝に残らない。呼び手が exclude に名指�
 - default_branch(repo, remote) -> str: remote の既定の枝（remote の HEAD が指す枝）の短い名。git ls-remote --symref で読む
 - pr_branches(repo, remote) -> (branch, base, reason): PR の push 先の run の枝と向け先の既定の枝。積めない・既定の枝を読めない・
   run の枝が既定の枝と同じ名なら reason が訳（枝は空）
-- git(repo, *args, environ=None, stdin=None) -> str: git を repo で 1 回走らせた標準出力（0 でなければ GitFailed）。environ の既定は
-  os.environ、stdin は標準入力に渡す字
+- git(repo, *args, environ=None, stdin=None, strip=True) -> str: git を repo で 1 回走らせた標準出力（0 でなければ GitFailed）。
+  environ の既定は os.environ、stdin は標準入力に渡す字。-z の出力は strip=False で読む（名の頭の空白を落とさない）
 """
 import os
 import subprocess
@@ -46,7 +46,7 @@ class PartFailed(GitFailed):
         self.index = index
 
 
-def git(repo: Path, *args: str, environ: Mapping[str, str] | None = None, stdin: str | None = None) -> str:
+def git(repo: Path, *args: str, environ: Mapping[str, str] | None = None, stdin: str | None = None, strip: bool = True) -> str:
     # 資格の問い合わせで止まらないように、端末にも ssh にも聞かせない
     env = {**(os.environ if environ is None else environ), "GIT_TERMINAL_PROMPT": "0"}
     if "GIT_SSH_COMMAND" not in env and "GIT_SSH" not in env:
@@ -54,7 +54,7 @@ def git(repo: Path, *args: str, environ: Mapping[str, str] | None = None, stdin:
     done = subprocess.run(["git", *args], cwd=repo, input=stdin, capture_output=True, text=True, encoding="utf-8", env=env)
     if done.returncode != 0:
         raise GitFailed(f"git {' '.join(args)} が終了の値 {done.returncode}: {oneline.one_line(done.stderr)}")
-    return done.stdout.strip()
+    return done.stdout.strip() if strip else done.stdout
 
 
 def refusal(repo: Path) -> str:
@@ -76,7 +76,7 @@ def commit(repo: Path, message: str, exclude: str, hook_env: Mapping[str, str] |
 
 def staged(repo: Path, exclude: str) -> list:
     git(repo, "add", "-A", "--", ".", f":(exclude){exclude}")
-    return [p for p in git(repo, "diff", "--cached", "--name-only", "--no-renames", "-z").split("\0") if p]
+    return [p for p in git(repo, "diff", "--cached", "--name-only", "--no-renames", "-z", strip=False).split("\0") if p]
 
 
 def commit_parts(repo: Path, parts, message: Callable[[int, list], str], hook_env: Mapping[str, str] | None) -> list:
