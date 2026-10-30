@@ -11,6 +11,9 @@
   物を指す）。読まない型のうち字を別の型から読む物は、その代わりの型が記録に無い会話では知らない型と同じく数える。Claude Code の記録の形は工場が止めていないので、読まない型の表が本物の記録に合うかは人が見る
 - run の一覧の行の結末 outcome は、line の返すノード result の出力（DB の node_completed。JSON の字でも値でも）の結末の語。result の
   出力を持たない run（ほかの graph・result まで走っていない run）と、出力に結末の語が無い run は空
+- run の費用は metadata の total_cost_usd で、空の run（一覧の行と選んだ run の両方）は DB のノードの終わりの出来事（落ちたノードも）のうち
+  accounting が node の物の和（後から書く費用の出来事も）で代える。子の run の費用は、親の子の run を起こすノード（workflow）の行が accounting を
+  node にして子の総額を載せる（metadata の total_cost_usd と同じ）。子の run の行は別の run なので親の和に足さない（足すと二重）。どちらも無い run は空
 - 往復の印は、usage を持つ行を待たず、その往復の最初の行で置く（usage の無い返事が混じっても往復の数がずれず、どの返事にも usage が
   無くても返事と道具の呼び出しが並びから消えない。usage は後の行で埋める）
 
@@ -139,6 +142,29 @@ class ReadCase(unittest.TestCase):
         con.commit()
         con.close()
         self.assertEqual({r["id"]: r["outcome"] for r in runread.runs(db)}, {"done": "stopped_by_human", "text": "fixed", "none": "", "odd": ""})
+
+    def test_empty_total_cost_falls_back_to_the_calls(self):
+        db = self._db([("paid", None, "2026-10-28 13:00:00", None, json.dumps({runread.TOTAL_COST: 9.5})),
+                       ("blank", None, "2026-10-28 12:00:00", None, "{}"),
+                       ("kid", "blank", "2026-10-28 12:00:01", None, json.dumps({runread.PARENT_NODE: "w"})),
+                       ("none", None, "2026-10-28 11:00:00", None, "{}")], [])
+        con = sqlite3.connect(db)
+        # 子の run を起こすノード w の行（accounting が node）が子の総額 0.125 を載せる。子 kid の行は別の run で、親の和に足さない。
+        # 繰り返しの束ね行（accounting が aggregate）は中のノードの言い直しなので足さない
+        own, loop = runread.runlog.OWN_SPEND, "aggregate"
+        for rid, kind, step, accounting, cost in (("paid", runread.OUTPUT_EVENT, "a", own, 1.0), ("blank", runread.OUTPUT_EVENT, "a", own, 0.25),
+                                                  ("blank", runread.NODE_FAILED_EVENT, "a", own, 0.5),
+                                                  ("blank", runread.DEFERRED_EVENT, "a", own, 0.0625),
+                                                  ("blank", runread.OUTPUT_EVENT, "w", own, 0.125), ("blank", runread.OUTPUT_EVENT, "l", loop, 2.0),
+                                                  ("kid", runread.OUTPUT_EVENT, "a", own, 0.125)):
+            con.execute(f"insert into {runread.EVENT_TABLE} (workflow_run_id, event_type, step_name, data, created_at) values (?, ?, ?, ?, '')",
+                        (rid, kind, step, json.dumps({runread.ACCOUNTING: accounting, runread.NODE_COST: cost})))
+        con.commit()
+        con.close()
+        (self.tmp / runread.LOGS).mkdir()
+        (self.tmp / runread.LOGS / "blank.jsonl").write_text("", encoding="utf-8")
+        self.assertEqual({r["id"]: r["cost"] for r in runread.runs(db)}, {"paid": 9.5, "blank": 0.9375, "none": None})
+        self.assertEqual(runread.run(db, "blank")["cost"], 0.9375)
 
     def test_resumed_run_sorts_by_its_first_event(self):
         db = self._db([("resumed", None, "2026-10-28 13:00:00", None, "{}"), ("later", None, "2026-10-28 12:00:00", None, "{}")],

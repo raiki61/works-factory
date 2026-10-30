@@ -109,6 +109,18 @@ th{text-align:left;color:var(--sub);font-weight:400;border-bottom:1px solid var(
 td{padding:6px 8px;border-bottom:1px solid var(--fill);vertical-align:top}
 td.r,th.r{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
 
+/* 無駄の手がかり: 費用の大きい順の行と、5 つの数のカード（大きな数 1 つと主張 1 文と畳み） */
+.rank{list-style:none;margin:16px 0 0;padding:0}
+.rank li{display:grid;grid-template-columns:minmax(0,1fr) 70px minmax(60px,220px);gap:16px;align-items:center;padding:10px 0;border-top:1px solid var(--fill)}
+.bar{height:8px;border-radius:4px;background:var(--accent)}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:20px;margin:0 0 20px}
+.grid .card{margin:0}
+.big{font-size:40px;font-weight:600;line-height:1.1;margin:10px 0 4px;font-variant-numeric:tabular-nums}
+.split{display:flex;height:8px;border-radius:4px;overflow:hidden;background:var(--fill);margin:14px 0 6px}
+.split i,.tok i{display:block;height:100%}
+.tok{display:flex;height:8px;width:140px;border-radius:4px;overflow:hidden;background:var(--fill)}
+.c1{background:var(--accent)}.c2{background:var(--a2)}.c3{background:var(--a3)}
+
 /* 図と再生: 札を字の流れのように左から右へ並べ、幅で折り返す（横にはみ出さない）。段は行 */
 .gscr .wrap{max-width:1400px;padding:0 20px 24px}
 .gbar{display:flex;gap:6px 16px;align-items:baseline;flex-wrap:wrap;padding:16px 0 4px}
@@ -208,7 +220,6 @@ td.r,th.r{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
 .turn{display:grid;grid-template-columns:52px minmax(0,1fr) 64px;gap:8px;align-items:center;font-size:12px;color:var(--sub);margin:2px 0}
 .tk{display:flex;height:6px;border-radius:3px;overflow:hidden;background:var(--fill)}
 .tk i{display:block;height:100%}
-.c1{background:var(--accent)}.c2{background:var(--a2)}.c3{background:var(--a3)}
 .tkey{display:flex;gap:12px;flex-wrap:wrap;font-size:12px;color:var(--sub)}
 .tkey i{display:inline-block;width:10px;height:6px;border-radius:2px;margin-right:4px;vertical-align:1px}
 @media (max-width:1180px){
@@ -270,6 +281,7 @@ main{padding-bottom:calc(var(--pb) + 24px)}
 <header class="top"><div class="in"><div class="who" id="who"></div><nav class="tabs" id="tabs"></nav><button class="theme" id="theme" title="表示の明るさ。自動は OS とエディタの設定に従う"></button></div><div class="backbar" id="backbar" hidden></div></header>
 <main>
   <section class="screen" id="s-flow" hidden><div class="wrap" id="flow"></div></section>
+  <section class="screen" id="s-waste" hidden><div class="wrap" id="waste"></div></section>
   <section class="screen gscr" id="s-graph" hidden><div class="wrap">
     <div class="gbar"><div class="crumb" id="crumb"></div><div class="tools" id="gtools"></div></div>
     <p class="gkey" id="gkey"></p>
@@ -351,9 +363,14 @@ const STOP = ST.stop ? STAGE_ALL[ST.stop - 1] : null;
 const STOP_EV = STOP && RUN && ST.stop_event != null ? RUN.events[ST.stop_event] : null;
 const STOP_HUMAN = ST.stop_by === 'human';
 const STOP_WORD = STOP ? `${STOP.name}で${STOP_HUMAN ? '人が止めた' : '落ちた'}` : '';
-const runWord = () => STOP_WORD || RUNWORD[RUN.status] || RUN.status;
+// 結末の語（line の result の出力の outcome。run の一覧の行の欄）→ 頭の語（段の表の outcomes）。語が空の run は run の状態の語で代える
+const OUTCOMES = ST.outcomes || {};
+const endWord = r => (r.outcome && OUTCOMES[r.outcome]) || RUNWORD[r.status] || r.status;
+const RUNROW = RUN ? (D.runs || []).find(r => r.id === RUN.id) || RUN : null;
+const runWord = () => STOP_WORD || endWord(RUNROW);
 // 段の終わりの姿（流れの地図と表と、図の段の行で同じ形）。mark は箱と行の印（stop・fail・live・skip・空）、word は語、label は時間つきの語。
-// 終わった run で終わりの無い出来事が残った段（走り中・人の答え待ちのまま）は、頭の主張と同じ止まり方（止まった段の止まり方、無ければ run の状態）の語と色にする
+// 終わった run で終わりの無い出来事が残った段（走り中・人の答え待ちのまま）は、止まった段が在ればその止まり方、無ければ run の状態の語と色にする。
+// 頭の 1 文は止まった段が無い時に結末の語（endWord）を先に見るが、段の印は結末の語を持たないので run の状態で決める
 function stageLook(s, x) {
   const t = mins(x.seconds || 0), ran = RAN(x.state);
   const end = (mark, word) => ({mark, word, label: `${word} · ${t}`});
@@ -442,7 +459,7 @@ applyTheme();
 // ---- 頭の帯とタブ ----
 let curTab = null;
 function header() {
-  const tabs = [['flow', '流れ'], ['graph', '図と再生'], ...(D.target ? [['runs', 'run の一覧']] : []), ...(RUN ? [['log', 'ログ']] : []), ...(UNREAD_N ? [['unread', '読めなかった物']] : [])];
+  const tabs = [['flow', '流れ'], ...(W ? [['waste', '無駄の手がかり']] : []), ['graph', '図と再生'], ...(D.target ? [['runs', 'run の一覧']] : []), ...(RUN ? [['log', 'ログ']] : []), ...(UNREAD_N ? [['unread', '読めなかった物']] : [])];
   $('who').append(RUN ? h('span', {}, h('b', {text: `run ${RUN.id.slice(0, 8)}`}), ` · ${mins(RUN.seconds)} · ${usd(RUN.cost)} · ${runWord()}`)
     : h('span', {text: `工場の作り${D.commit ? ' · commit ' + D.commit : ''}`}));
   if (UNREAD_N) $('who').append(' · ', h('a', {class: 'warn', text: `読めなかった物 ${UNREAD_N} 件`, onclick: () => tab('unread')}));
@@ -918,9 +935,9 @@ function flowHead() {
   if (!SUMR) return [`${runWord()}。`, `${mins(SPAN)}・${usd(RUN.cost)}。この run の graph（${RUN.graph}）は段の表（${ST.graph || 'line'}）の外なので、地図は塗らない。`];
   const xs = FLOW_STAGES.map(s => [s, sumOf(s)]);
   const live = RUN.live && (xs.find(([, x]) => x.state === 'waiting') || xs.find(([, x]) => x.state === 'running'));
-  // 主張: 終わっていない run は今の段、終わった run は止まった段と止まり方、止まった段が無ければ run の状態の語
+  // 主張: 終わっていない run は今の段、終わった run は止まった段と止まり方、止まった段が無ければ結末の頭の語（無ければ run の状態の語）
   const claim = live ? `${live[0].name}で${live[1].state === 'waiting' ? '人の答えを待っている' : '走っている'}。`
-    : STOP ? `${STOP.name}で、${STOP_HUMAN ? '人が止めた' : '落ちた'}。` : `${RUNWORD[RUN.status] || RUN.status}。`;
+    : STOP ? `${STOP.name}で、${STOP_HUMAN ? '人が止めた' : '落ちた'}。` : `${endWord(RUNROW)}。`;
   // 止まった段の後で走らなかった段だけを、続いた範囲ごとに言う（報告の段のように止まった後で走る段は入れない）
   const spans = [];
   if (STOP) xs.forEach(([s, x], i) => { if (s.n <= STOP.n || RAN(x.state)) return; const prev = spans[spans.length - 1];
@@ -1010,8 +1027,94 @@ function flowNow() {
   line.hidden = false;
 }
 
+// ---- 無駄の手がかり（案 D）: 数えの欄 waste（viewer/src/waste.py）を読むだけ。雛形の中では数えない ----
+// 「無駄だ」とは書かず、数えた事実だけを出す。行の頭の種類の札は図と同じ kindTag（欄 1 は AI、欄 3・4 はそのノードの種類）
+const W = RUN && D.waste;
+function wasteScreen() {
+  const box = $('waste'), E = RUN.events, top = W.top.rows, top3 = top.slice(0, 3), top3c = top3.reduce((a, r) => a + r.cost, 0);
+  const T = W.time, span = T.run || SPAN, c = W.context, b = W.big, idle = W.idle;
+  // 札の 1 行は文の中に置くので、終わりの「。」を外す
+  const name = n => { const e = E[n]; return ((e && what(itemAt(e.at))) || (e ? e.tokens.join(' / ') : '')).replace(/。$/, ''); };
+  const stageName = n => n ? (STAGE_ALL[n - 1] || {}).name || '' : '';
+  const loopTxt = n => E[n] && E[n].loop.length ? `周 ${E[n].loop.join('.')}` : '';
+  const where = n => E[n] ? `${E[n].tokens.join(' / ')}${E[n].loop.length ? ` · 周 ${E[n].loop.join('.')}` : ''}` : '';
+  // 会話は、その会話を持つ最初の出来事の札の 1 行で呼ぶ（出来事が無ければ会話の鍵）
+  const sname = x => x.event != null ? name(x.event) : x.session;
+  box.append(h('section', {class: 'hero'},
+    h('div', {class: 'cap', text: `run ${RUN.id.slice(0, 8)} · ${mins(span)} · ${usd(RUN.cost)} · AI の手番 ${top.length}`}),
+    h('h1', {text: top3.length ? `費用の ${pct(top3c, W.top.cost)}% は、${top3.length} つの AI の手番。` : 'AI の手番は走っていない。'}),
+    h('p', {text: `${mins(span)}のうち ${mins(T.wait)}は人の答え待ち。ここに出すのは記録から機械が数えた事実だけで、要らなかったかは見る人が決める。`})));
+  // 1: 費用の大きい順。上の 3 件を行に、全部を畳みの表に
+  const max = top3[0] ? top3[0].cost || 1 : 1;
+  const tok = t => { const all = (t && t.input) || 0; if (!all) return h('span', {class: 'cap', text: '記録に無い'});
+    const w = v => `width:${(v / all * 100).toFixed(2)}%`;
+    return h('div', {class: 'tok', title: `新しく読んだ ${t.uncached == null ? '（引けない）' : man(t.uncached)} · cache に書いた ${man(t.cacheWrite)} · cache から読んだ ${man(t.cacheRead)}`},
+      h('i', {class: 'c1', style: w(t.uncached || 0)}), h('i', {class: 'c2', style: w(t.cacheWrite || 0)}), h('i', {class: 'c3', style: w(t.cacheRead || 0)})); };
+  box.append(h('div', {class: 'card'},
+    h('div', {class: 'cap', text: '1 · 費用の大きい順'}),
+    h('h2', {text: top3.length ? `上の ${top3.length} つで ${usd(top3c)}。` : 'AI の手番は無い。'}),
+    h('ol', {class: 'rank'}, top3.map(r => h('li', {},
+      h('div', {}, h('div', {}, kindTag('ai'), ' ', h('b', {text: name(r.event)}), ' ', h('span', {class: 'cap', text: loopTxt(r.event)})),
+        h('div', {class: 'cap', text: `${stageName(r.stage) ? stageName(r.stage) + ' · ' : ''}${mins(r.seconds)}${r.turns != null ? ` · 往復 ${r.turns}` : ''}`})),
+      h('span', {class: 'n r', text: usd(r.cost)}), h('div', {class: 'bar', style: `width:${(r.cost / max * 100).toFixed(2)}%`})))),
+    fold(`${top.length} 件の全部と、時間・往復・4 分け`, [h('div', {class: 'scroll'}, h('table', {},
+      h('tr', {}, [['費用', 1], ['割', 1], ['段 / 手番'], ['周'], ['時間', 1], ['往復', 1], ['返事', 1], ['入ったトークン（4 分け）'], ['入った量', 1]].map(([x, r]) => h('th', {class: r ? 'r' : null, text: x}))),
+      top.map(r => h('tr', {}, h('td', {class: 'r', text: usd(r.cost)}), h('td', {class: 'r', text: r.share == null ? '' : `${Math.round(r.share * 100)}%`}),
+        h('td', {}, kindTag('ai'), ` ${stageName(r.stage) ? stageName(r.stage) + ' / ' : ''}${name(r.event)}`, h('div', {class: 'mono cap', text: r.tokens.join(' / ')})),
+        h('td', {text: E[r.event] ? E[r.event].loop.join('.') : ''}), h('td', {class: 'r', text: mmss(r.seconds)}), h('td', {class: 'r', text: r.turns ?? ''}),
+        h('td', {class: 'r', text: r.replies ?? ''}), h('td', {}, tok(r.tokens4)), h('td', {class: 'r', text: r.tokens4 ? man(r.tokens4.input) : ''}))))),
+      h('div', {class: 'legend cap'}, h('span', {style: '--c:var(--accent)', text: '新しく読んだ'}), h('span', {style: '--c:var(--a2)', text: 'cache に書いた'}), h('span', {style: '--c:var(--a3)', text: 'cache から読んだ'})),
+      h('p', {class: 'cap', text: `費用は Archon の記録の手番ごとの合計で、割はこの ${top.length} 件の和 ${usd(W.top.cost)} に対する物。4 分けはトークンの数で、ドルには割らない（値段の表を持たない）。往復は Archon の数え、返事は会話の記録の返事の数。${W.top.odd.length ? `入力が cache の 2 つの和より小さい手番が ${W.top.odd.length} 件在り、その新しく読んだ分は引けない。` : ''}`})])));
+  const card = (k, title, bigv, claim, body) => h('div', {class: 'card'}, h('div', {class: 'cap', text: `${k} · ${title}`}), h('div', {class: 'big', text: bigv}), h('p', {class: 'claim', text: claim}), body);
+  // 周の中で落ちたノード（waste.rounds[].rounds[].failed の和）。データにその欄が無ければ出さない
+  const loops = W.rounds.flatMap(g => g.rounds), withFailed = loops.filter(r => Array.isArray(r.failed));
+  const failedNote = withFailed.length ? `（周の中で落ちたノードは ${withFailed.reduce((a, r) => a + r.failed.length, 0)} 件）` : '';
+  const ran = idle.unread.ran;
+  const cr = c.cache, topRead = c.reads.again[0], sys = c.system[0];
+  box.append(h('div', {class: 'grid'},
+    // 2: 時間の内訳
+    card(2, '時間の内訳', `${pct(T.wait, span)}%`, `は人の答え待ち（${mins(T.wait)} / ${mins(span)}）。`, [
+      h('div', {class: 'split'}, h('i', {style: `width:${Math.min(100, pct(T.wait, span))}%;background:var(--accent)`})),
+      fold('内訳', h('ul', {},
+        T.waits.map(x => h('li', {text: `人の答え待ち ${mmss(x.seconds)}（${E[x.event] && stageName(E[x.event].stage) ? stageName(E[x.event].stage) + ' · ' : ''}${name(x.event)}）`})),
+        h('li', {text: `AI の手番の長さの和 ${mmss(T.ai)}・機械の出来事の長さの和 ${mmss(T.machine)}（並んで走る出来事が在るので、足すと run の長さを超えうる）`}),
+        h('li', {text: `run の長さ ${mmss(span)}（出来事の最初の始めから最後の終わりまで）`})))]),
+    // 3: 繰り返した周
+    card(3, '繰り返した周', `${W.rounds.length} か所`, `で 2 周以上回った。前の周と同じ所で落ちて回り直した周は ${loops.filter(r => r.same && r.failed && r.failed.length).length} 件${failedNote}。`,
+      W.rounds.length ? fold('周ごとの費用', h('ul', {}, W.rounds.map(g => h('li', {}, kindTag(evKind(E[g.event]), true), ' ', h('b', {text: name(g.event)}),
+        ` ${g.rounds.length} 周 · ${usd(g.cost)}${stageName(g.stage) ? ' · ' + stageName(g.stage) : ''}`,
+        h('ul', {}, g.rounds.map(r => h('li', {class: 'cap', text: `周 ${r.round} · ${usd(r.cost)} · ${r.seconds == null ? '' : mmss(r.seconds) + ' · '}AI の手番 ${r.ai}${r.check ? ` · 周の終わりの確かめ ${r.check.exit}` : ''}${r.failed && r.failed.length ? ` · 落ちた ${r.failed.join('・')}` : ''}${r.same ? ' · 前の周と同じ' : ''}`}))),
+        h('div', {class: 'mono cap', text: g.tokens.join(' / ')}))))) : null),
+    // 4: 前と同じ出力・空の出力・出力の欄を引く先が無いノード
+    card(4, '前と同じ出力', `${idle.same.length} 件`, `前の起動と字のまま同じ。空の出力は ${idle.empty.length} 件。`,
+      fold('どのノードか', h('ul', {},
+        idle.same.map(x => h('li', {}, kindTag(evKind(E[x.event]), true), ` ${name(x.event)} `, h('span', {class: 'mono cap', text: where(x.event)}))),
+        idle.empty.map(n => h('li', {}, kindTag(evKind(E[n]), true), ` ${name(n)} `, h('span', {class: 'mono cap', text: `${where(n)} · 空の出力`}))),
+        h('li', {text: `出力の欄を引く先が無いノードは、今の作りの ${idle.unread.nodes} のうち ${idle.unread.none.length}。この run で走ったのは ${ran.length ? ran.map(x => x.node.split('/').pop()).join('・') : '0'}${ran.length ? ` の ${ran.length} つ` : ''}。工場は大きい物をファイルで渡すので、引く先が無くても読まれていることが多い。`})))),
+    // 5: 文脈の重なり
+    card(5, '文脈の重なり', cr.read_share == null ? '―' : `${Math.round(cr.read_share * 100)}%`,
+      `は cache の読み。${topRead ? `同じファイルを ${topRead.sessions} つの会話で ${topRead.times} 回読んだ。` : '2 回以上読んだファイルは無い。'}`,
+      fold('system・道具・添え書き・読み直し', h('ul', {},
+        h('li', {text: `入ったトークン ${man(cr.input)} = cache の読み ${man(cr.cacheRead)}・cache の書き ${man(cr.cacheWrite)}・ほか ${man(Math.max(0, cr.input - cr.cacheRead - cr.cacheWrite))}。出力 ${man(cr.output)}。`}),
+        sys ? h('li', {text: `同じ system（${num(sys.chars)} 字）が ${c.sessions} の会話のうち ${sys.sessions} に入った。`}) : null,
+        c.tools.length ? h('li', {text: `道具の一覧は ${c.tools.length} 通り。一番多いのは ${c.tools[0].names.length} 個（${num(c.tools[0].chars)} 字）で ${c.tools[0].sessions} の会話。`}) : null,
+        c.inject.length ? h('li', {text: `2 つ以上の会話に入った添え書きの片 ${c.inject.length} 種。一番多いのは ${num(c.inject[0].chars)} 字で ${c.inject[0].sessions} の会話。`}) : null,
+        h('li', {}, `読み直したファイル ${c.reads.again.length} / ${c.reads.files}。`, c.reads.again.length ? h('ul', {}, c.reads.again.slice(0, 5).map(x =>
+          h('li', {}, h('span', {class: 'mono', text: x.path}), ` · ${x.sessions} つの会話で ${x.times} 回 · のべ ${num(x.chars)} 字`))) : null),
+        c.pauses.length ? h('li', {text: `前の往復から 5 分以上空いた往復 ${c.pauses.length} 件（cache の既定の保ち時間を越えた）。一番長いのは ${mmss(Math.max(...c.pauses.map(x => x.gap)))}。`}) : null))),
+    // 6: 大きな道具の結果と往復ごとの積み上がり
+    card(6, '大きな道具の結果', `${b.results.length} 件`, `が ${num(b.line)} 字を超えた（道具の結果 ${num(b.calls)} 件のうち）。`, [
+      b.results[0] ? h('p', {class: 'cap', text: `一番大きいのは ${num(b.results[0].chars)} 字の ${b.results[0].name}（${sname(b.results[0])} の往復 ${b.results[0].turn + 1}）。`}) : null,
+      fold('内訳と往復ごとの積み上がり', h('ul', {},
+        b.results.slice(0, 12).map(x => h('li', {text: `${num(x.chars)} 字 · ${x.name} · ${sname(x)} の往復 ${x.turn + 1}`})),
+        b.results.length > 12 ? h('li', {class: 'cap', text: `ほか ${b.results.length - 12} 件`}) : null,
+        b.climb.slice(0, 5).map(x => h('li', {text: `${sname(x)}: 往復 ${x.turns} で、入ったトークンが ${man(x.first)} から ${man(x.last)} へ（一番多い往復 ${man(x.peak)}）`}))))]),
+  ));
+  box.append(h('p', {class: 'cap'}, fold('この run の記録では数えられない物', h('ol', {}, W.uncounted.map(x => h('li', {text: x}))))));
+}
+
 // ---- run の一覧（1 行 1 本。開く命令は行を押した時だけ） ----
-// 結末の列: 今の run は止まった段の語（人が止めた・落ちた）か状態の語。ほかの run は状態の語（結末の語の欄は後のデータの PR で足す）
+// 結末の列: 今の run は止まった段の語（人が止めた・落ちた）か結末の頭の語。ほかの run は結末の頭の語。語が空なら状態の語
 function runsScreen() {
   const box = $('runs');
   box.append(h('section', {class: 'hero'}, h('div', {class: 'cap', text: `対象のリポジトリ ${D.target}`}),
@@ -1022,7 +1125,7 @@ function runsScreen() {
     h('div', {class: 'rr rhd cap'}, ['run', '結末', '始め', '長さ', '費用'].map((x, k) => h('span', {class: k > 2 ? 'r' : null, text: x}))));
   for (const r of D.runs) {
     const me = RUN && r.id === RUN.id;
-    const word = me ? runWord() : (RUNWORD[r.status] || r.status);
+    const word = me ? runWord() : endWord(r);
     const cmd = h('div', {class: 'rcmd', hidden: true},
       h('div', {class: 'cap', text: `${r.graph}${r.waiting.length ? ' · 人の答え待ち ' + r.waiting.join('・') : ''}`}),
       r.error ? pre(r.error, 'err') : null,
@@ -1174,6 +1277,7 @@ header();
 notes();
 flowScreen();
 if (D.target) runsScreen();
+if (W) wasteScreen();
 if (RUN) logScreen();
 if (UNREAD_N) unreadScreen();
 tab('flow');
