@@ -973,7 +973,7 @@ node ごとの場面は 2〜6 節の 7。block 全体では:
 8. TDD の役の座の効く所と効かない所は、差し込み口を `{seat_applies}`・`{seat_not_applies}` の 2 つに分けた（見出しの文を md に置くため。4.3 の 8 の `{seat_notes}`）。修正役の座の型の名は `{seat_file}`（今の `PROMPT_HEAD` の `{file}`）。
 9. 範囲の相談の答えの役の指示は、`board.consult_ask` が受ける口 `render`（`src/prompts.consult_render`）が md から組み、place の `consult-<pass>-<turn>-ask.md` と `<node>-prompt-<n>.md` の両方に同じ字が残る（今の `consult_ask` は指示書を書いていた）。頼みごとの節の材料は `src/consult.py` の `asks_text`（今の `question` から決まった文と答え方の行を除いた物）。
 10. 「読む物」の空の値は `(empty)`（今の `rulebook.EMPTY` の「（空）」の英語）。
-11. `src/tdd.py` の `prep` は材料（`{go, new_unit, state, path, briefs}`）だけを返し、`handoff_rows`・`together_rows` を足した（見出しと決まった文を除いた行。見出しと文は md）。今の単位の行 `current_lines` の「上の『前の回の返答を機械が拒んだ理由』」は材料の日本語のまま（13.2 の 5）。
+11. `src/tdd.py` の `prep` は材料（`{go, new_unit, state, path, briefs}`）だけを返し、`handoff_rows`・`together_rows` を足した（見出しと決まった文を除いた行。見出しと文は md）。今の周の段と単位を書く行（関数 `current_lines`）のうち、拒まれた回を書く行「この段の返答は N 回拒まれた（理由は上の「前の回の返答を機械が拒んだ理由」）」は、材料の行なので日本語のまま残す（材料の行は lib が組む日本語のまま入れる決まり。13.2 の 5）。この行が「上の」と指す見出しは、md（`prompts/parts/tdd.md`）では英語の「Why the machine rejected your previous answer」に替わっている。
 12. 裁定役と合わせ役の指示は `src/prompts.py` の `ruler`・`clash` が組む（script と試験が同じ口を呼ぶ。`prompt.render` は block の中の呼び手を要る）。
 13. 出力の `tdd_refused` と受け付けの行の選びは、`lib/fixbeside.py` を import せずに `src/finish.py` が今の関数と同じ中身で組む（1.5.2 の「fixbeside は import しない」）。
 14. 筋書き `tdd.stubs.yaml` の実行器のパス `.archon/workflows/works-factory/fix/fixtures/tdd-runner.py` は `tests/archon.py` の木の cwd から届いた（16 節の 2 は閉じた）。
