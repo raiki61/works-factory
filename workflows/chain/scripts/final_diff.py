@@ -61,6 +61,11 @@ def sealed_at(rel: str, data: bytes) -> tuple:
     return path, {"ok": True, "hash": seal.write_readback(path, data), "diff": ports.pointer(path, "file")}
 
 
+def unread_halted(rows: list) -> list:
+    """結末の種が読めない周（結末の語が無いか表に無い。決めが halted で止めた周）を止まった周に読む。通った周として採らない（E23）"""
+    return [r if r.get("kind") in chain.KINDS else {**r, "kind": chain.KIND_HALTED} for r in rows]
+
+
 def with_diffs(repo: Path, origin: str, rows: list) -> list:
     """周の行に、その周の差分のファイルの数 files と、止まった周の残した差分のパス diff を足す。作れない周が在れば、その周（d<k>）と子の run の id を名指す誤り"""
     out, prev = [], origin
@@ -125,7 +130,7 @@ def final() -> dict:
     made = decisions()
     last = made[-1] if made else start
     origin, repo = start.get("origin") or "", Path.cwd()
-    rows = with_diffs(repo, origin, max((d.get("rows") or [] for d in made), key=len, default=[]))
+    rows = with_diffs(repo, origin, unread_halted(max((d.get("rows") or [] for d in made), key=len, default=[])))
     kept, skipped = chain.pick(rows)
     got = {**nothing(""), "skipped": [r["n"] for r in skipped]}
     if kept is None:

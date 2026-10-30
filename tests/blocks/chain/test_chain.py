@@ -404,6 +404,14 @@ class FinalDiffCase(Tree):
         got = self.final(start, *made)
         self.assertEqual((got["kept"], got["skipped"], got["placed"], got["reason"]), (2, [3], True, ""), got)
 
+    def test_round_whose_kind_was_unread_is_not_taken(self):
+        """結末の語が読めない周（種 None）は決めが halted で止めた周なので、通った周として採らない（E23）"""
+        start, made = three_rounds(self.repo, halted_last=False)
+        made[-1]["rows"][-1].update(outcome="", kind=None)
+        got = self.final(start, *made)
+        self.assertEqual((got["kept"], got["skipped"]), (2, [3]), got)
+        self.assertEqual(self.names((self.artifacts / "chain" / "round-3.diff").read_bytes()), ["three.txt"])
+
     def test_round_without_a_placed_diff_is_sealed_but_not_placed(self):
         start, made = three_rounds(self.repo, halted_last=False, placed=())
         got = self.final(start, *made)
