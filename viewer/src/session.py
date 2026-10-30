@@ -3,7 +3,7 @@
 
 Claude Code の版は工場が止めていないので、記録の形は試験で照らせない（人が見る）。行の型は、読む型と読まない型（訳つき。UNREAD_TYPES）
 に分け、どちらでもない知らない型の行は型ごとに数えて返し、黙って落とさない（読まない型は数えない。ページの帯の数が本当に読めなかった
-物を指す）。ただし読まない型のうち字を別の型から読む物（READ_FROM）は、その代わりの型が記録に無い会話では、知らない型と同じく数える
+物を指す）。読む型の行の中の欄の形が違う行も、落ちずに数える（runread.SHAPELESS）。ただし読まない型のうち字を別の型から読む物（READ_FROM）は、その代わりの型が記録に無い会話では、知らない型と同じく数える
 （代わりが無ければ LLM に入った字が帯から消えるので）。
 
 - find(projects, preview) -> run の記録の会話の id の頭（sessionPreview）に当たる記録のパス（無ければ None。Claude Code が消した古い記録は結べない。
@@ -91,27 +91,31 @@ def read(path: Path, keep, since: str | None = None) -> dict:
         if kind not in READ_TYPES:
             _count(got, f"知らない型 {kind}")
             continue
-        message = row.get("message") or {}
-        if kind in got["recorded"]:
-            got["recorded"][kind] = True
-        if not got["cwd"] and isinstance(row.get("cwd"), str):
-            got["cwd"] = row["cwd"]
-        if kind == SHAPE and not got["system"]:
-            shape = row.get("shape") or {}
-            got["system"] = [keep(part.get("text", "")) for part in shape.get("system") or []]
-            got["tools"] = [[tool.get("name", "?"), len(json.dumps(tool, ensure_ascii=False))] for tool in shape.get("tools") or []]
-        elif kind == BLOB:
-            _inject(got, message, keep)
-        elif kind == "user":
-            _user(got, message, keep, results)
-        elif kind == "assistant":
-            at = row.get("timestamp") if isinstance(row.get("timestamp"), str) else None
-            if at and runread.try_when(at) is None:
-                _count(got, "読めない時刻")
-                at = None
-            _assistant(got, message, keep, turns, by_id, at)
-        elif kind == "cost-state":
-            got["cost"] = row.get("totalCostUSD")
+        try:
+            message = row.get("message") or {}
+            if kind in got["recorded"]:
+                got["recorded"][kind] = True
+            if not got["cwd"] and isinstance(row.get("cwd"), str):
+                got["cwd"] = row["cwd"]
+            if kind == SHAPE and not got["system"]:
+                shape = row.get("shape") or {}
+                got["system"] = [keep(part.get("text", "")) for part in shape.get("system") or []]
+                got["tools"] = [[tool.get("name", "?"), len(json.dumps(tool, ensure_ascii=False))] for tool in shape.get("tools") or []]
+            elif kind == BLOB:
+                _inject(got, message, keep)
+            elif kind == "user":
+                _user(got, message, keep, results)
+            elif kind == "assistant":
+                at = row.get("timestamp") if isinstance(row.get("timestamp"), str) else None
+                if at and runread.try_when(at) is None:
+                    _count(got, "読めない時刻")
+                    at = None
+                _assistant(got, message, keep, turns, by_id, at)
+            elif kind == "cost-state":
+                got["cost"] = row.get("totalCostUSD")
+        except (AttributeError, KeyError, TypeError):
+            # 欄の形が違う行（message・shape が object でない・字の片に text が無いか字でないなど）は、落ちずに数える
+            _count(got, runread.SHAPELESS)
     cut = runread.try_when(since) if since else None
     for turn in turns:
         for call in turn["calls"]:

@@ -40,10 +40,11 @@
 - run の費用は metadata の合計と代わりの和の大きい方（費用は減らないので、SIGTERM で落ちて合計を書き直さなかった run の古い合計を出さない）
 - 落ちた後に起き直してまだ走っている（答えを待っている）run でも、前の起動の走り中のノードはその落ちで閉じて落ちた（落ちは過去の事実）
 - 起き直した後に前の起動の id のまま走り直すノード（Archon の書く形）は、前の落ちで閉じず、最後の始めの後の終わりで閉じる
-- 前の起動で落ちて、同じ id で走り直したノードは、1 つの出来事で最後の結果にし、一度落ちたことを印 fell に残す。SIGTERM で落ちて
-  ログに node_error が無くても、始めと最後の始めの間に run の落ちが在れば同じ
+- 前の起動で落ちて、同じ id で走り直したノードは、起動ごとの出来事にする（長さは走っていた間だけ。費用・トークン・往復・会話・
+  誤りの字はその起動の物）。走り直しの出来事に一度落ちたことを印 fell に残し、段の集計は所ごとの最後の結果とどの起動の分も数える。
+  SIGTERM で落ちてログに node_error が無くても、前の始めと次の始めの間に run の落ちが在れば同じ（前の起動の出来事はその落ちで閉じる）
 - 走り直した出来事を閉じる時刻は、最後の始めより前にしない
-- JSON として読めるが object でない行は、ログでも会話の記録でも落ちずに読めなかった物に数える
+- JSON として読めるが object でない行と、object の行の中の欄の形が違う行は、ログでも会話の記録でも落ちずに読めなかった物に数える
 - 片割れのサロゲートの字は、出力の hash と字で落ちずに置き換える
 - archon_artifact が run の置き場の外（絶対パス・..）を指せば、読まずに読めなかった物に数える（読むだけの範囲。E25 の 2）
 
@@ -57,7 +58,7 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from viewer.src import runread, session
+from viewer.src import runread, session, stages
 
 
 class ReadCase(unittest.TestCase):
@@ -552,7 +553,7 @@ class ReadCase(unittest.TestCase):
     def test_a_live_run_closes_the_nodes_of_an_earlier_failure(self):
         """落ちた後に起き直してまだ走っている（か答えを待っている）run でも、前の起動で走り中のまま止まったノードはその落ちで閉じて落ちた。
         起き直した後に同じ起動の id（Archon は終わっていないノードの id を使い直す。dag-resume-snapshot.ts）で走り直すノードは、
-        前の落ちで閉じずに走り中のまま（exec も loop_group も）"""
+        前の起動の出来事をその落ちで閉じ、走り直しの出来事は前の落ちで閉じずに走り中のまま（exec も loop_group も）"""
         node = lambda kind, ts, path, nodekind="exec": {"type": kind, "ts": ts, "step": path,
                                                           runread.EXECUTION: {"path": path, "invocation": {"id": path}, "node": {"kind": nodekind}}}
         for status in ("running", "paused"):
@@ -565,29 +566,32 @@ class ReadCase(unittest.TestCase):
                     self._log("top", [node("node_start", "2026-10-25T02:07:15.000Z", "gone"),
                                       node("node_start", "2026-10-25T02:07:15.000Z", "again", kind),
                                       node("node_start", "2026-10-25T02:40:00.000Z", "again", kind)])
-                    got = {e["path"]: (e["status"], e["end"], e.get("cut", False)) for e in runread.run(db, "top")["events"]}
-                    self.assertEqual(got, {"gone": ("failed", "2026-10-25T02:21:11.000Z", True), "again": ("running", None, False)})
+                    got = [(e["path"], e["status"], e["end"], e.get("cut", False)) for e in runread.run(db, "top")["events"]]
+                    self.assertEqual(got, [("again", "failed", "2026-10-25T02:21:11.000Z", True), ("gone", "failed", "2026-10-25T02:21:11.000Z", True),
+                                           ("again", "running", None, False)])
 
     def test_a_node_that_ran_again_after_a_fall_keeps_the_fall(self):
-        """同じ起動の id で node_start・node_error・node_start・node_complete と書いたノードは、1 つの出来事で最後の結果の通ったにし、
-        一度落ちたことを印 fell に残す。走り直している間は走り中（前の落ちの終わりを残さない）"""
+        """同じ起動の id で node_start・node_error・node_start・node_complete と書いたノードは、落ちた起動の出来事を残し、走り直しの
+        出来事を最後の結果の通ったにして、一度落ちたことを印 fell に残す。走り直している間は走り中（前の落ちの終わりを持たない）"""
         db = self._db([("top", None, "2026-10-25 02:00:00", None, "{}")], [])
         rows = [self._node("node_start", "2026-10-25T02:07:00.000Z", "try"), self._node("node_error", "2026-10-25T02:08:00.000Z", "try"),
                 self._node("node_start", "2026-10-25T02:40:00.000Z", "try")]
         self._status(db, "top", "running")
         self._log("top", rows)
-        (got,) = runread.run(db, "top")["events"]
-        self.assertEqual((got["status"], got["end"], got.get("fell")), ("running", None, True))
+        got = [(e["status"], e["start"], e["end"], e.get("fell")) for e in runread.run(db, "top")["events"]]
+        self.assertEqual(got, [("failed", "2026-10-25T02:07:00.000Z", "2026-10-25T02:08:00.000Z", None),
+                               ("running", "2026-10-25T02:40:00.000Z", None, True)])
         self._status(db, "top", "completed")
         self._log("top", [*rows, self._node("node_complete", "2026-10-25T02:41:00.000Z", "try")])
-        (got,) = runread.run(db, "top")["events"]
-        self.assertEqual((got["status"], got["start"], got["end"], got.get("fell")),
-                         ("ok", "2026-10-25T02:07:00.000Z", "2026-10-25T02:41:00.000Z", True))
+        got = [(e["status"], e["start"], e["end"], e.get("fell")) for e in runread.run(db, "top")["events"]]
+        self.assertEqual(got, [("failed", "2026-10-25T02:07:00.000Z", "2026-10-25T02:08:00.000Z", None),
+                               ("ok", "2026-10-25T02:40:00.000Z", "2026-10-25T02:41:00.000Z", True)])
 
     def test_a_node_that_ran_again_after_a_sigterm_fall_keeps_the_fall(self):
         """SIGTERM で落とす道（owned-run-termination.ts の failWorkflowRun）は DB に落ちだけを書き、ログに node_error を書かない。
-        同じ起動の id で始めの後に落ち、走り直して通ったノードも、一度落ちたことを印 fell に残す（exec も loop_group も）。
-        落ちの後に始めたノードと、落ちの無い間に始めを書き直したノードには付けない"""
+        同じ起動の id で始めの後に落ち、走り直して通ったノードも、前の起動の出来事をその落ちで閉じて落ちにし（長さに落ちから起き直し
+        までを入れない）、走り直しの出来事に一度落ちたことを印 fell を残す（exec も loop_group も）。落ちの後に始めたノードと、
+        落ちの無い間に始めを書き直したノードは 1 つの出来事のまま、印を付けない"""
         node = lambda kind, ts, path, nodekind="exec": {"type": kind, "ts": ts, "step": path,
                                                           runread.EXECUTION: {"path": path, "invocation": {"id": path}, "node": {"kind": nodekind}}}
         for kind in ("exec", "loop_group"):
@@ -605,8 +609,9 @@ class ReadCase(unittest.TestCase):
                                   node("node_start", "2026-10-25T02:43:00.000Z", "rounds", kind),
                                   node("node_start", "2026-10-25T02:44:00.000Z", "rounds", kind),
                                   node("node_complete", "2026-10-25T02:45:00.000Z", "rounds", kind)])
-                got = {e["path"]: (e["status"], e.get("fell")) for e in runread.run(db, "top")["events"]}
-                self.assertEqual(got, {"again": ("ok", True), "after": ("ok", None), "rounds": ("ok", None)})
+                got = [(e["path"], e["status"], runread.length(e), e.get("cut"), e.get("fell")) for e in runread.run(db, "top")["events"]]
+                self.assertEqual(got, [("again", "failed", 851.0, True, None), ("again", "ok", 600.0, None, True),
+                                       ("after", "ok", 60.0, None, None), ("rounds", "ok", 120.0, None, None)])
 
     def test_a_node_closed_in_the_second_of_its_last_start_ends_there(self):
         """走り直した出来事を最後の始めと同じ秒の終わりの出来事で閉じる時、終わりは最後の始め（DB の時刻は秒までの切り捨てなので、
@@ -617,8 +622,8 @@ class ReadCase(unittest.TestCase):
         self._event(db, "top", "workflow_completed", "2026-10-25 02:40:00")
         self._log("top", [self._node("node_start", "2026-10-25T02:07:00.000Z", "try"),
                           self._node("node_start", "2026-10-25T02:40:00.500Z", "try")])
-        (got,) = runread.run(db, "top")["events"]
-        self.assertEqual((got["end"], got.get("cut")), ("2026-10-25T02:40:00.500Z", True))
+        got = runread.run(db, "top")["events"][-1]
+        self.assertEqual((got["start"], got["end"], got.get("cut")), ("2026-10-25T02:40:00.500Z", "2026-10-25T02:40:00.500Z", True))
 
     def test_a_line_that_is_not_an_object_is_unread(self):
         """JSON として読めるが object でない行（数・字・列）は、落ちずに読めなかった物に数える（ログと会話の記録の両方）"""
@@ -630,6 +635,60 @@ class ReadCase(unittest.TestCase):
         path = self.tmp / "s.jsonl"
         path.write_text('123\n"x"\n', encoding="utf-8")
         self.assertEqual(session.read(path, lambda text: text)["unread"], {runread.OBJECTLESS: 2})
+
+    def test_a_node_that_ran_again_on_the_same_invocation_counts_each_start(self):
+        """同じ起動の id で node_start・node_error・node_start・node_complete と書いた AI のノード（Archon が落ちた後に起き直す形）は、
+        起動ごとの出来事にする。長さは走っていた間だけ（落ちから起き直しまでを入れない）で、費用・トークン・往復・会話はどの起動の分も
+        残し、誤りの字と出力はその起動の物だけ。最後が通った所は通ったで、一度落ちたことを印 fell に持ち、段の集計もどの起動の分も数える"""
+        db = self._db([("top", None, "2026-10-25 02:00:00", None, "{}")], [("top", "2026-10-25 02:07:00")])
+        self._status(db, "top", "completed")
+        self._event(db, "top", runread.FAILED_EVENT, "2026-10-25 02:08:00")
+        self._event(db, "top", runread.OUTPUT_EVENT, "2026-10-25 02:41:00", "fix", {"invocation": {"id": "inv"}, runread.NODE_OUTPUT: "done"})
+        self._event(db, "top", "workflow_completed", "2026-10-25 02:41:00")
+
+        def row(kind, ts, attempt, extra=None):
+            execution = {"path": "fix", "invocation": {"id": "inv"}, "attempt": {"id": attempt}, "node": {"kind": "agent"},
+                         runread.ACCOUNTING: "node", **(extra or {})}
+            return {"type": kind, "ts": ts, "step": "fix", runread.EXECUTION: execution}
+
+        def spent(session, tokens, turns):
+            return {"spend": {"tokens": {"source": "provider", "value": {"input": tokens, "output": 0}},
+                              "numTurns": {"source": "provider", "value": turns}},
+                    "binding": {"sessionPreview": session, "model": {"requested": "m"}}}
+
+        self._log("top", [row("node_start", "2026-10-25T02:07:00.000Z", "a1"),
+                          {**row("node_error", "2026-10-25T02:08:00.000Z", "a1", spent("aaaa1111", 5000, 50)), runread.NODE_COST: 1.0, "error": "boom"},
+                          row("node_start", "2026-10-25T02:40:00.000Z", "a2"),
+                          {**row("node_complete", "2026-10-25T02:41:00.000Z", "a2", spent("bbbb2222", 300, 3)), runread.NODE_COST: 2.0}])
+        got = runread.run(db, "top")
+        self.assertEqual([(e["status"], runread.length(e), e["cost"], e["usage"]["input"], e["turns"], e["session"], e["error"],
+                           e.get("output"), e.get("fell"), e.get("cut")) for e in got["events"]],
+                         [("failed", 60.0, 1.0, 5000, 50, "aaaa1111", "boom", None, None, None),
+                          ("ok", 60.0, 2.0, 300, 3, "bbbb2222", "", "done", True, None)])
+        got["graph"] = stages.TABLE["graph"]
+        data = {"shape": {"graphs": {stages.TABLE["graph"]: {"name": stages.TABLE["graph"], "items": [{"id": "fix"}]}}}, "run": got}
+        stages.attach(data)
+        (row,) = [row for row in data["stages"]["run"] if row["ai"]]
+        self.assertEqual((row["state"], row["fell"], row["ai_seconds"], row["ai"], row["turns"], row["cost"], row["tokens"]["input"]),
+                         ("ok", True, 120.0, 2, 53, 3.0, 5300))
+
+    def test_a_line_with_a_field_of_another_shape_is_unread(self):
+        """object の行の中の欄の形が違う行（欄が object でない・在るはずの字が無いか字でない）は、落ちずに読めなかった物に数える
+        （ログと会話の記録の両方）"""
+        db = self._db([("top", None, "2026-10-25 01:00:00", None, "{}")], [])
+        self._log("top", [{"type": "node_start", "ts": "2026-10-25T01:00:00.000Z", "step": "a", runread.EXECUTION: "x"},
+                          {"type": runread.PROVIDER_ROW, runread.EVENT: "x"},
+                          {"type": "node_start", "ts": "2026-10-25T01:00:00.000Z", "step": "b",
+                           runread.EXECUTION: {"path": "b", "invocation": {"id": "b", "loopPath": [1]}}}])
+        got = runread.run(db, "top")
+        self.assertEqual((got["unread"], got["events"]), ({runread.SHAPELESS: 3}, []))
+        for line in ({"type": "assistant", "message": "x"}, {"type": "user", "message": {"content": [{"type": "text"}]}},
+                     {"type": "user", "message": {"content": [{"type": "text", "text": None}]}},
+                     {"type": session.SHAPE, "shape": {"system": ["x"]}}):
+            with self.subTest(line=line):
+                path = self.tmp / "s.jsonl"
+                path.write_text(json.dumps(line) + "\n", encoding="utf-8")
+                self.assertEqual(session.read(path, runread.mend)["unread"], {runread.SHAPELESS: 1})
 
     def test_a_lone_surrogate_is_replaced(self):
         """記録の字の片割れのサロゲート（JSON の \\ud83d だけ）は、出力の hash と字で落ちずに置き換える"""
@@ -649,7 +708,7 @@ class ReadCase(unittest.TestCase):
         secret.write_text("secret", encoding="utf-8")
         refs = [{"type": "archon_artifact", "run_id": "top", "path": name} for name in ("in.md", str(secret), "../../../../secret.txt")]
         refs.append({"type": "archon_artifact", "run_id": "..", "path": "secret.txt"})
-        reader = runread._Reader({})
+        reader = runread._Reader({}, {})
         reader._artifacts({"refs": refs}, self.tmp)
         self.assertEqual(reader.artifacts, {"top/in.md": "inside"})
         self.assertEqual(reader.unread, {runread.OUTSIDE: 3})

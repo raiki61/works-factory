@@ -102,8 +102,8 @@ def _sum(n: int, run: dict, through: set[str]) -> dict:
     同じ周）と周の番号（入れ子なら内の周まで）の違う物の数。
     段の状態（通った・飛んだ）には、段の表の配線のノード through（合流・受け渡しだけの物。fix-in・fixed・judged は修正の段が
     飛んでも走る）を数えない。状態は所（run・道・周）ごとの最後の出来事（出来事は始めの順）の結果で決め、落ちた後に起き直して
-    通った段は通ったにして、一度落ちたことを印 fell に持つ（前の起動の id を使い直して走り直した出来事は、出来事の印 fell が持つ。
-    src/runread.py）"""
+    通った段は通ったにして、一度落ちたことを印 fell に持つ（前の起動の id を使い直して走り直した物は、読む部品が起動ごとの出来事に
+    分け、走り直しの出来事も印 fell を持つ。src/runread.py）"""
     events = [e for e in run["events"] if e.get("stage") == n]
     deciding = [e for e in events if e["tokens"][0] not in through]
     own = [e for e in events if e["kind"] not in runread.GROUP_KINDS]

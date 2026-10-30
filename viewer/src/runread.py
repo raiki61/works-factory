@@ -143,6 +143,8 @@ CLIP = 20000
 ARTIFACT_LIMIT = 60000
 # 読めなかった物の訳（run["unread"] の鍵）
 OBJECTLESS = "JSON の object でない行"
+# object の行の中の欄の形が違う行（欄が object でない・在るはずの字が無いか字でない）。会話の記録の読み（src/session.py）も使う
+SHAPELESS = "欄の形が違う行"
 OUTSIDE = "run の置き場の外を指す archon_artifact"
 # 片割れのサロゲート（json.loads は組の \ud83d\ude00 を 1 字にするので、字に残るのは片割れだけ）と、置き換える字
 LONE = re.compile("[\ud800-\udfff]")
@@ -213,7 +215,8 @@ def run(db: Path, run_id: str) -> dict:
     終わりの無い出来事（待ちと、走り中のまま止まったノード）を、その run の終わりの出来事のうち始めの後の最初の物の時刻で閉じて印 cut を
     付ける（ログに終わりを書かずに落ちた・止めた run の長さと人の答え待ちの和が、一覧と合う。落ちた後に起き直した run の前の起動の
     ノードは、その落ちで閉じて状態を落ちたにする。前の起動の id のまま走り直す出来事は、最後の始めの後の終わりで閉じる。閉じる時刻は
-    ログの形にし、始めより前にしない）。走り中の run は最後の出来事まで"""
+    ログの形にし、始めより前にしない）。走り中の run は最後の出来事まで。
+    落ちた後に同じ起動の id で走り直したノードは、起動ごとの出来事にする（_Reader._fallen）"""
     with connect(db) as con:
         top = _row(con, run_id)
         if top is None:
@@ -224,7 +227,9 @@ def run(db: Path, run_id: str) -> dict:
         ends = _ends(con)
         falls = _ends(con, (FAILED_EVENT,))
         first = _firsts(con).get(run_id)
-        reader = _Reader(outputs)
+        # 落ちは過去の事実なので、走り中の run（落ちた後に起き直した物）でも閉じる
+        fell = {rid: [at for t in times if (at := _end("", t, live=True))] for rid, times in falls.items()}
+        reader = _Reader(outputs, fell)
         reader.read(top, [])
         todo, parents = [(run_id, [])], {}
         while todo:
@@ -243,23 +248,16 @@ def run(db: Path, run_id: str) -> dict:
     meta = _json(top["metadata"])
     root = Path(top["output_root"]) if top["output_root"] else None
     closed = {row["id"]: [at for t in ends.get(row["id"], []) if (at := _end(row["status"], t))] for row in (top, *reader.children)}
-    # 落ちは過去の事実なので、走り中の run（落ちた後に起き直した物）でも閉じる
-    fell = {row["id"]: [at for t in falls.get(row["id"], []) if (at := _end(row["status"], t, live=True))] for row in (top, *reader.children)}
     for event in reader.events:
-        # SIGTERM で落とす道（owned-run-termination.ts の failWorkflowRun）はログに node_error を書かず DB に落ちだけを書くので、
-        # 始めから最後の始めの間にその run の落ちが在れば、同じ起動の id で走り直した出来事も一度落ちた
-        if event["start"] and event["last_start"] != event["start"] and any(
-                when(t) < when(event["last_start"]) for t in _since(event["start"], fell[event["run"]])):
-            event["fell"] = True
         if not event["start"] or event["end"] or event["status"] not in ("waiting", "running"):
             continue
         # 起き直した後も同じ起動の id で走り直す出来事は、最後の始めの後の終わり（落ち）で閉じる。前の落ちでは閉じない
         begun, ends = event["last_start"] or event["start"], closed[event["run"]]
-        at = _close(begun, ends) if ends else next(iter(_since(begun, fell[event["run"]])), None)
+        at = _close(begun, ends) if ends else next(iter(_since(begun, fell.get(event["run"], []))), None)
         if at is None:
             continue
         event["end"], event["cut"] = _later(at, begun), True
-        if event["status"] == "running" and at in fell[event["run"]] and (not ends or at != ends[-1]):
+        if event["status"] == "running" and at in fell.get(event["run"], []) and (not ends or at != ends[-1]):
             event["status"] = FAILED
     started, ended = _span(reader.events) or (top["started_at"], top["completed_at"])
     started = _earlier(_end(top["status"], first, live=True), started)
@@ -392,8 +390,9 @@ def where(path: str, cwd: str) -> str:
 
 
 class _Reader:
-    def __init__(self, outputs: dict):
-        self.outputs = outputs
+    def __init__(self, outputs: dict, falls: dict[str, list[str]]):
+        """outputs は起動の id ごとの出力（_outputs）、falls は run ごとの落ち（workflow_failed）の時刻（ログの形。古い順）"""
+        self.outputs, self.falls = outputs, falls
         self.events, self.skipped, self.children, self.missing, self.checks, self.artifacts = [], [], [], [], [], {}
         self.unread: dict[str, int] = {}
         self.current = ""
@@ -434,14 +433,18 @@ class _Reader:
             kind = entry.get("type")
             if kind in UNREAD_ROWS:
                 continue
-            if kind not in READ_ROWS:
-                self._count(f"知らない行の型 {kind}")
-            elif kind in NODE_ROWS:
-                self._node(entry, kind, prefix, by_invocation, by_attempt, by_step, root)
-            elif kind == PROVIDER_ROW:
-                self._provider(entry, by_attempt)
-            elif kind == EXEC_ROW:
-                self._exec(entry, prefix, by_step)
+            try:
+                if kind not in READ_ROWS:
+                    self._count(f"知らない行の型 {kind}")
+                elif kind in NODE_ROWS:
+                    self._node(entry, kind, prefix, by_invocation, by_attempt, by_step, root)
+                elif kind == PROVIDER_ROW:
+                    self._provider(entry, by_attempt)
+                elif kind == EXEC_ROW:
+                    self._exec(entry, prefix, by_step)
+            except (AttributeError, KeyError, TypeError):
+                # 欄の形が違う行（execution・event が object でない・loopPath の周が object でないなど）は、落ちずに数える
+                self._count(SHAPELESS)
 
     def _node(self, entry, kind, prefix, by_invocation, by_attempt, by_step, root):
         execution = entry.get(EXECUTION) or {}
@@ -459,11 +462,16 @@ class _Reader:
                 self.skipped.append({"tokens": ids, "time": ts, "cause": entry.get("cause")})
             return
         event = by_invocation.get(key)
-        if event is None:
+        # 落ちた後に起き直すと、Archon は終わっていない（落ちた物を含む）ノードに前の起動の id を使い直す（dag-resume-snapshot.ts の
+        # unfinishedInvocations）。落ちた出来事の走り直しは新しい出来事にし、一度落ちたことを印 fell に持つ
+        again = kind == "node_start" and event is not None and self._fallen(event, ts)
+        if event is None or again:
             event = {"tokens": ids, "path": path, "run": self.current, "artifacts": str(root / ARTIFACTS / RUNS_DIR / self.current) if root else "",
                      "kind": (execution.get("node") or {}).get("kind") or "", "start": ts, "last_start": ts,
                      "end": None, "status": "running", "loop": loop,
                      "cost": 0.0, "calls": [], "exec": [], "error": ""}
+            if again:
+                event["fell"] = True
             by_invocation[key] = event
             self.events.append(event)
         by_step[entry.get("step") or path] = event
@@ -471,12 +479,9 @@ class _Reader:
         if attempt:
             by_attempt[attempt] = event
         if kind == "node_start":
-            # 繰り返しの器は答えの後も同じ起動の id で node_start を書き直す（待ちから走り中へ戻る）。落ちた後に起き直すと、Archon は
-            # 終わっていない（落ちた物を含む）ノードに前の起動の id を使い直す（dag-resume-snapshot.ts の unfinishedInvocations）ので、
-            # 落ちた出来事は走り中に戻し、一度落ちたことを印 fell に残す。閉じる時刻は最後の始め（last_start）の後の物から選ぶ
-            if event["status"] == FAILED:
-                event.update(end=None, fell=True)
-            if event["status"] in ("waiting", FAILED):
+            # 繰り返しの器は答えの後も同じ起動の id で node_start を書き直す（待ちから走り中へ戻る。同じ出来事）。閉じる時刻は
+            # 最後の始め（last_start）の後の物から選ぶ
+            if event["status"] == "waiting":
                 event["status"] = "running"
             if ts:
                 event["last_start"] = ts
@@ -497,11 +502,30 @@ class _Reader:
                          model=(model.get("resolved") or {}).get("value") or model.get("requested") or "",
                          usage=runlog.tokens(runlog.measurement(spend, "tokens", lambda v: v)[0]),
                          turns=runlog.measurement(spend, "numTurns")[0])
-        output = self.outputs.get(key[1])
+        # 出力（DB の node_completed）は通った起動の物で、同じ起動の id の前の落ちた出来事には付けない
+        output = self.outputs.get(key[1]) if kind == "node_complete" else None
         if output is not None:
             text = mend(output if isinstance(output, str) else json.dumps(output, ensure_ascii=False))
             event["output"], event["digest"] = _clip(text), hashlib.sha1(text.encode("utf-8")).hexdigest()
             self._artifacts(output, root)
+
+    def _fallen(self, event: dict, ts: str | None) -> bool:
+        """同じ起動の id で始め直す前に、その出来事が落ちていたか: node_error で落ちたか、前の始めの後・今の始めの前に run が落ちた
+        （SIGTERM で落とす道〔owned-run-termination.ts の failWorkflowRun〕はログに node_error を書かず DB に落ちだけを書く）。
+        後の方は、走り中・待ちのまま止まった出来事をその落ちで閉じて印 cut を付け、走り中の物を落ちにする（run の終わりで閉じる時と同じ形）。
+        落ちから起き直しまでを長さに入れず、費用・トークン・往復・会話・誤りの字を起動ごとに持つため"""
+        if event["status"] == FAILED:
+            return True
+        begun = event["last_start"]
+        if event["status"] not in ("running", "waiting") or not begun or not ts:
+            return False
+        at = next((t for t in _since(begun, self.falls.get(self.current, [])) if when(t) < when(ts)), None)
+        if at is None:
+            return False
+        event["end"], event["cut"] = _later(at, begun), True
+        if event["status"] == "running":
+            event["status"] = FAILED
+        return True
 
     def _provider(self, entry, by_attempt):
         event = by_attempt.get(entry.get(ATTEMPT_ID))
