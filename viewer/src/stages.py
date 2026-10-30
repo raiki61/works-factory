@@ -8,7 +8,9 @@ line のノード）で引く。
   段の配線の列 wiring がその段のノードの中に在り、どの段にも配線でないノードが在る
 - attach(data) -> data["stages"] に段の表と結末の頭の語の表 outcomes と、run が line の run なら段ごとの集計と止まった所（段の番号 stop・止まり方 stop_by・
   止まった出来事の番号 stop_event）を足し、出来事と飛んだノードに段の番号 stage を、出来事に時間の帯の塗り分け role と、段の状態に
-  数えない配線のノードの印 through を付ける。雛形は止まり方を読むだけで、止める語を写さない
+  数えない配線のノードの印 through を付ける。雛形は止まり方を読むだけで、止める語を写さない。どの run にも、図の札ごとの AI の手番の
+  費用 run["ai_cost"]（札の鍵 → 札とその中の AI の手番の費用の和）を付ける。雛形は費用を数えず、この欄と段の集計の cost を読む
+- spots(at) -> 出来事の当たる所（flowview.unmatched が付ける at）が触れる札の鍵の列（外から順）。雛形の spots と同じ形
 """
 import json
 from pathlib import Path
@@ -49,6 +51,8 @@ def attach(data: dict) -> None:
            "loose": [top for top in tops if top not in of], "run": None, "stop": None, "stop_by": None, "stop_event": None}
     data["stages"] = out
     run = data["run"]
+    if run:
+        run["ai_cost"] = _ai_cost(run)
     if not run or not graph or run["graph"] != graph["name"]:
         return
     through = {node for stage in TABLE["stages"] for node in stage["wiring"]}
@@ -64,6 +68,31 @@ def attach(data: dict) -> None:
     by, at = _stop(run)
     if at is not None:
         out.update(stop=run["events"][at]["stage"], stop_by=by, stop_event=at)
+
+
+def spots(at: dict) -> list[str]:
+    """札の鍵は入れ子の場所ごと: 「<外の札の鍵>>graph/道」（一番外は「graph/道」）。道の頭から順の札（繰り返しの器と入れ子の札）も
+    数える。雛形 page.tpl.html の K と spots と同じ形で、雛形はこの鍵で札を引く"""
+    out, scope = [], ""
+    for step in [*(at.get("via") or []), at]:
+        head = f"{scope}>{step['graph']}/" if scope else f"{step['graph']}/"
+        parts = step["node"].split("/")
+        out += [head + "/".join(parts[:i + 1]) for i in range(len(parts))]
+        scope = head + step["node"]
+    return out
+
+
+def _ai_cost(run: dict) -> dict[str, float]:
+    """札ごとの AI の手番の費用（札の語と板の「AI の手番の費用」）。中の出来事を束ねる器は数えない（子の run を起こすノードの行は子の
+    総額を載せ、中の手番と二重になる）。図に当たらない出来事は札が無いので数えない"""
+    out = {}
+    for e in run["events"]:
+        at = e.get("at")
+        if e["kind"] not in runread.AI_KINDS or not at or not at.get("graph"):
+            continue
+        for key in dict.fromkeys(spots(at)):
+            out[key] = out.get(key, 0.0) + e["cost"]
+    return {key: round(cost, 6) for key, cost in out.items()}
 
 
 def _sum(n: int, run: dict, through: set[str]) -> dict:
