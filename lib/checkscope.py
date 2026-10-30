@@ -76,7 +76,7 @@ def skipped_text(skipped: list) -> str:
 
 
 def request_files(root, wheres) -> list:
-    """依頼の where（文字列の並び）のどれかに名として現れる（前後が名の字でない）、追跡中のパス（ルートから・名前の順）。判定から入る run は差分が
+    """依頼の where（文字列の並び）のどれかに名として現れる（前後が名の字でない）、追跡中のパス（ルートから・名前の順。頭の ./ と絶対パスの中のも拾う）。判定から入る run は差分が
     空なので、範囲と照らす変更を依頼の where で決める。git が読めなければ []（足さない）
     （元 works/.shared/core/graphloops/rules/review-loop.py:2293 `_pr_files` の、差分が空の周の分）"""
     wheres = [w for w in wheres or () if isinstance(w, str)]
@@ -90,4 +90,4 @@ def request_files(root, wheres) -> list:
         return []
     tracked = [os.fsdecode(t) for t in out.stdout.split(b"\0") if t]
     text = "\n".join(wheres)
-    return sorted({t for t in tracked if t in text and re.search(r"(?<![A-Za-z0-9_.\-/])" + re.escape(t) + r"(?![A-Za-z0-9_\-])", text)})
+    return sorted({t for t in tracked if t in text and re.search(r"(?<![A-Za-z0-9_.\-])" + re.escape(t) + r"(?![A-Za-z0-9_\-])", text)})

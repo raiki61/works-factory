@@ -124,6 +124,16 @@ class RequestFilesCase(unittest.TestCase):
             self.assertEqual(checkscope.request_files(tmp, ["data.py:3 の数え", "pkg/b.py の頭"]), ["data.py", "pkg/b.py"])
             self.assertEqual(checkscope.request_files(tmp, ["mypkg/b.pyc"]), [])
 
+    def test_where_names_a_path_with_dot_or_absolute_head(self):
+        """頭の ./ と絶対パスの中の、追跡中のパスも拾う"""
+        with tempfile.TemporaryDirectory() as tmp:
+            for name in ("src/a.py", "src/b.py"):
+                (pathlib.Path(tmp) / name).parent.mkdir(parents=True, exist_ok=True)
+                (pathlib.Path(tmp) / name).write_text("x\n", encoding="utf-8")
+            git(tmp, "init", "-q")
+            git(tmp, "add", "-A")
+            self.assertEqual(checkscope.request_files(tmp, ["./src/a.py:3 の数え", "/home/u/proj/src/b.py の頭"]), ["src/a.py", "src/b.py"])
+
 
 if __name__ == "__main__":
     unittest.main()

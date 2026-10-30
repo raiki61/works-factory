@@ -397,6 +397,12 @@ class CacheCase(RepoCase):
         # パスは区切りを見て拾う（長い名の一部の字は起点にしない）
         self.assertEqual(impact.seeds_from_units(self.repo, [{"reason": "mypkg/core.pyc と xpkg/mid.py_old"}]), [])
 
+    def test_seeds_from_units_take_dot_and_absolute_paths(self):
+        """頭の ./ と絶対パスの中の、根からのパスも起点にする（一意でない basename の __init__.py で見る）"""
+        self.write("app/__init__.py", "")
+        self.assertEqual(impact.seeds_from_units(self.repo, [{"reason": "./pkg/__init__.py と /home/u/proj/app/__init__.py"}]),
+                         ["app/__init__.py", "pkg/__init__.py"])
+
 
 if __name__ == "__main__":
     unittest.main()

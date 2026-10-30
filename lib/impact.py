@@ -368,8 +368,8 @@ def _hit_re(kind, key):
 
 
 def _whole_path(path):
-    """リポジトリの根からのパスそのもの（前後が名の字・前が / でない所）"""
-    return re.compile(r"(?<![A-Za-z0-9_.\-/])" + re.escape(path) + r"(?![A-Za-z0-9_\-])")
+    """リポジトリの根からのパスそのもの（前後が名の字でない所。頭の ./ と絶対パスの中のも拾う）"""
+    return re.compile(r"(?<![A-Za-z0-9_.\-])" + re.escape(path) + r"(?![A-Za-z0-9_\-])")
 
 
 def _hits(text, kind, key):
