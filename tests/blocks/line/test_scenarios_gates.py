@@ -2,82 +2,23 @@
 （docs/design/line.md の 11 節。元は tests/e2e/test_line_scenarios.py の LineReturnsTest・UnattendedGateTest・HeldPushTest・
 ProtectedNotAppliedTest・RefixHandoffTest）。
 
-筋書きの宣言（`reached`）は節が走らなかったことを照らせない（止めた Archon の packages/workflows/src/fixture-runner.ts の
+筋書きが通るか（宣言の `reached` など）は層の試験 tests/layers/test_block_shape.py の ArchonCase が workflow test で照らす。宣言は節が走らなかったことを照らせない（止めた Archon の packages/workflows/src/fixture-runner.ts の
 fixtureDeclarationSchema）ので、走らなかったことと節の出力は、筋書きの stub と入力をそのまま `workflow run --dry-run --exec-code` に
 渡した trace で照らす。dry-run は置き場にファイルを書けず、include の入力を名前の script に渡さない（docs/design/README.md の 13 章）ので、
 ファイルを置いて走らせ直す照らしと報告の文の照らしは、line の script の試験（test_gates.py・test_collect.py）に在る。
 Archon の源か bun が無ければ tests/archon.py の見送り。
 """
 import json
-import re
 import unittest
 
-import yaml
-
-from tests.blocks import kit
-
-NAMES = (
-    "eyes-failed", "final-stop", "final-when-needed-green", "policy-continue", "policy-stop", "refix-handoff", "rejudge",
-    "rejudge-stop", "replan", "replan-answers", "replan-stop", "unattended-held-no-push", "unattended-held-push",
-    "unattended-needs-human", "unattended-policy-change", "unattended-push", "unattended-push-stop", "unattended-questions",
-    "parallel-pr-after-found", "seal-protected", "seal-protected-unattended", "settled-by-standard",
-)
-
-
-def included(block: str = "line") -> list[str]:
-    """block が include する block の名（入れ子の中も）。木に一緒に置く"""
-    return sorted(_closure(block) - {block})
-
-
-def _closure(block: str) -> set[str]:
-    seen, todo = set(), [block]
-    while todo:
-        name = todo.pop()
-        if name in seen:
-            continue
-        seen.add(name)
-        text = (kit.BLOCKS / name / f"works-factory-{name}.yaml").read_text(encoding="utf-8")
-        todo += re.findall(r"^\s*include: works-factory-([\w-]+)\s*$", text, re.M)
-    return seen
-
-
-def ran(trace: dict, node: str) -> bool:
-    return node in trace and trace[node]["state"] in ("completed", "stubbed")
-
-
-def out(trace: dict, node: str):
-    return json.loads(trace[node]["output"])
-
-
-def traces(names) -> dict:
-    return kit.dry_run_traces("line", names, included())
-
-
-class DeclaredCase(unittest.TestCase):
-    """18 本が揃い、宣言した `reached` の節が全部走る"""
-
-    @classmethod
-    def setUpClass(cls):
-        cls.traces = traces(NAMES)
-
-    def test_every_scenario_file_exists(self):
-        for name in NAMES:
-            with self.subTest(name=name):
-                self.assertTrue((kit.BLOCKS / "line" / "fixtures" / f"{name}.stubs.yaml").is_file())
-
-    def test_declared_nodes_ran(self):
-        for name in NAMES:
-            reached = kit.fixture("line", name)["fixture"]["reached"]
-            with self.subTest(name=name):
-                self.assertEqual([n for n in reached if not ran(self.traces[name], n)], [])
-
+from tests.blocks.line.test_scenarios import line_traces, out, ran
 
 class GateCase(unittest.TestCase):
     """承認ノードの開き方と答えの受け方（policy-*・final-*・replan-*）"""
 
     @classmethod
     def setUpClass(cls):
-        cls.t = traces(("policy-continue", "policy-stop", "final-stop", "final-when-needed-green", "replan-stop", "replan-answers"))
+        cls.t = line_traces(("policy-continue", "policy-stop", "final-stop", "final-when-needed-green", "replan-stop", "replan-answers"))
 
     def test_policy_continue_opens_before_fix_and_goes_on_to_fix(self):
         trace = self.t["policy-continue"]
@@ -133,7 +74,7 @@ class ReplanCase(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        cls.t = traces(("replan", "refix-handoff"))
+        cls.t = line_traces(("replan", "refix-handoff"))
 
     def test_replan_runs_each_once_stage_once(self):
         trace = self.t["replan"]
@@ -161,7 +102,7 @@ run は止まらず、答えの approve で差分を当てる"""
 
     @classmethod
     def setUpClass(cls):
-        cls.trace = traces(("parallel-pr-after-found",))["parallel-pr-after-found"]
+        cls.trace = line_traces(("parallel-pr-after-found",))["parallel-pr-after-found"]
 
     def test_found_opens_the_final_gate_without_being_a_must(self):
         self.assertTrue(ran(self.trace, "parallel-pr-after__finish"))
@@ -177,7 +118,7 @@ class SealProtectedCase(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        cls.t = traces(("seal-protected", "seal-protected-unattended"))
+        cls.t = line_traces(("seal-protected", "seal-protected-unattended"))
 
     def test_hit_opens_the_final_gate_even_when_needed_only(self):
         trace = self.t["seal-protected"]
@@ -199,7 +140,7 @@ class SealProtectedCase(unittest.TestCase):
 class RejudgeCase(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.t = traces(("rejudge", "rejudge-stop"))
+        cls.t = line_traces(("rejudge", "rejudge-stop"))
 
     def test_rejudge_reaches_judged_and_the_eyes(self):
         trace = self.t["rejudge"]
@@ -223,7 +164,7 @@ class SettledByStandardCase(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        cls.t = traces(("settled-by-standard",))
+        cls.t = line_traces(("settled-by-standard",))
 
     def test_row_settled_by_the_standard_is_not_asked(self):
         trace = self.t["settled-by-standard"]
@@ -241,7 +182,7 @@ class UnattendedCase(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        cls.t = traces(("unattended-questions", "unattended-policy-change", "unattended-push", "unattended-push-stop",
+        cls.t = line_traces(("unattended-questions", "unattended-policy-change", "unattended-push", "unattended-push-stop",
                         "unattended-needs-human", "unattended-held-push", "unattended-held-no-push", "eyes-failed"))
 
     def test_questions_only_go_to_fix_without_the_gate(self):

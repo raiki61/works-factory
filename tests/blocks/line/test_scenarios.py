@@ -2,7 +2,8 @@
 
 元は今の tests/e2e/test_line_scenarios.py と tests/workflows/test_line.py の筋書きの場面。筋書きを新しい line の node の id
 （include した block の中の node は `<include の id>__<中の id>`）に書き直し、各筋書きが何を照らすかは変えない。
-- 筋書きの宣言（expect・reached・fail-node・resolved-text-contains）は Archon の workflow test で照らす（ScenariosCase）
+- 筋書きの宣言（expect・reached・fail-node・resolved-text-contains）は Archon の workflow test で照らす（pack の全部の筋書きを回す層の
+  試験 tests/layers/test_block_shape.py の ArchonCase。ここでは回し直さない）
 - 宣言で照らせない物（節が走らなかったこと・節の出力の値）は dry-run（exec-code）の trace で照らす。workflow test は節の出力を
   返さないので、筋書きの stub と入力をそのまま `workflow run --dry-run` に渡す（tests/blocks/kit.py の dry_run_traces）
 - line の script は本物で回る（dry-run は include の入力を名前の script に渡さず、置き場にファイルを置けないので、判定の控えを
@@ -12,12 +13,10 @@
 組 B の試験は、ここの line_traces・ran・bound を import して使う。
 """
 import json
-import pathlib
 import unittest
 
 import yaml
 
-from tests import archon
 from tests.blocks import kit
 
 BLOCK = "line"
@@ -52,19 +51,6 @@ def included_blocks(block: str = BLOCK) -> list[str]:
 
     walk(block)
     return sorted(seen)
-
-
-def line_results() -> dict:
-    """筋書きの名 → workflow test の 1 件の結果"""
-    with archon.blocks_tree([BLOCK, *included_blocks()]) as tree:
-        done = archon.archon(tree, "workflow", "test", f"works-factory-{BLOCK}", "--cwd", str(tree), "--json")
-        try:
-            report = json.loads(done.stdout)
-        except json.JSONDecodeError as error:
-            raise AssertionError(f"workflow test の返りが読めない（{error}）: {done.stdout}{done.stderr}") from None
-        if "results" not in report:
-            raise AssertionError(f"workflow test が筋書きを回せない: {json.dumps(report, ensure_ascii=False)}")
-        return {pathlib.PurePosixPath(r["fixture"]).name.removesuffix(".stubs.yaml"): r for r in report["results"]}
 
 
 _TRACES: dict = {}
@@ -115,24 +101,6 @@ def bound(trace: dict, value):
     if node in trace:
         return json.loads(trace[node]["output"]).get(field)
     return (json.loads(trace[f"{node}-out"]["output"])["got"] or {}).get(field)
-
-
-class ScenariosCase(unittest.TestCase):
-    """筋書きの宣言（expect・reached・fail-node・resolved-text-contains）が全部通る"""
-
-    @classmethod
-    def setUpClass(cls):
-        cls.results = line_results()
-
-    def test_every_scenario_is_declared(self):
-        self.assertFalse(set(SCENARIOS) - set(self.results), "筋書きが無い")
-
-    def test_every_scenario_passes(self):
-        for name in SCENARIOS:
-            with self.subTest(scenario=name):
-                got_ = self.results.get(name)
-                self.assertIsNotNone(got_, f"筋書き {name} が無い")
-                self.assertTrue(got_["pass"], json.dumps(got_, ensure_ascii=False))
 
 
 class LineReturnsTest(unittest.TestCase):
@@ -208,20 +176,12 @@ class RequestRunsStayTest(unittest.TestCase):
 
 
 class SpecDrivenScenariosTest(unittest.TestCase):
-    """仕様駆動の道の筋書き（SPEC_SCENARIOS）。宣言（reached など）は ScenariosCase と同じく workflow test で照らし、ここは trace で
+    """仕様駆動の道の筋書き（SPEC_SCENARIOS）。宣言（reached など）は層の試験の workflow test で照らし、ここは trace で
     走らなかった node と値を照らす"""
 
     @classmethod
     def setUpClass(cls):
-        cls.results = line_results()
         cls.traces = line_traces(SPEC_SCENARIOS)
-
-    def test_every_spec_scenario_passes(self):
-        for name in SPEC_SCENARIOS:
-            with self.subTest(scenario=name):
-                got_ = self.results.get(name)
-                self.assertIsNotNone(got_, f"筋書き {name} が無い")
-                self.assertTrue(got_["pass"], json.dumps(got_, ensure_ascii=False))
 
     def test_spec_runs_skip_the_judge_graph_and_the_plan_rounds(self):
         for name, trace in self.traces.items():
