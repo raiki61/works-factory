@@ -26,12 +26,7 @@ def fallback(why: str) -> dict:
     """lib や src を読めずに落ちた時も、この block のファイルを名で消す（前の run の控えを後ろの node に読ませない）"""
     try:
         from src import files   # 標準ライブラリだけのモジュール
-        place = ports.place()
-        for name in files.OWN_FILES:
-            (place / name).unlink(missing_ok=True)
-        for pattern in files.OWN_PROMPTS:
-            for path in place.glob(pattern):
-                path.unlink()
+        files.clear(ports.place())
     except Exception as error:  # noqa: BLE001 — 入口は落ちない
         why = f"{why}。この block のファイルも消せない: {type(error).__name__}: {error}"
     return {"due": False, "reason": f"R1 の入口が落ちた（{why}）"}

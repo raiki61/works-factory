@@ -83,11 +83,7 @@ def intake(out, repo, raw: dict, skip) -> dict:
     out = pathlib.Path(out)
     doc = {"due": False, "reason": ""}
     try:
-        for name in files.OWN_FILES:
-            (out / name).unlink(missing_ok=True)
-        for pattern in files.OWN_PROMPTS:
-            for path in out.glob(pattern):
-                path.unlink()
+        files.clear(out)
         values, bad = _read_ports(raw)
         doc.update(values)
         if bad:
