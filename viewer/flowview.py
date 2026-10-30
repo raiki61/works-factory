@@ -1,6 +1,6 @@
 """工場の作りの図と run の一覧と再生を 1 枚の HTML に起こす入口（見る道具。決まりは viewer/AGENTS.md の E25、設計は
-docs/design/viewer.md）。引数を読み、src/ の部品を順に呼ぶだけ。読むだけで、書くのは名指した出力のファイルと、利用者のキャッシュに
-置く図の配置の道具 elkjs（viewer/elkjs.json の版。初めての 1 回だけ網から取る）だけ。
+docs/design/viewer.md）。引数を読み、src/ の部品を順に呼ぶだけ。読むだけで、書くのは名指した出力のファイルと、訳の控え（--ja-batches の
+束・--ja-import と --ja-prune が書く訳の控え）だけ。
 
 使い方（工場の clone の根から）:
     uv run --isolated python3 viewer/flowview.py [--target <対象のリポジトリ> [--run <run の id か頭の字>]] [--ja-batches <束の置き場>] <出力>
@@ -58,8 +58,8 @@ def main(argv: list[str]) -> int:
         out = outside_clone(Path(args.out))
         batches = outside_clone(Path(args.ja_batches)) if args.ja_batches else None
         data, todo = build(args.target, args.run, dict(os.environ), Path.cwd())
-        html = page.render(data, dict(os.environ))
-    except (Refused, launcher.Stop, page.Unfetched) as stop:
+        html = page.render(data)
+    except (Refused, launcher.Stop) as stop:
         print(f"flowview: {stop}", file=sys.stderr)
         return 2
     out.parent.mkdir(parents=True, exist_ok=True)

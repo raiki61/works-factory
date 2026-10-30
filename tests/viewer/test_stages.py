@@ -12,7 +12,8 @@
   聞きと受け ask-before-fix・answer-before-fix と仕様駆動の spec-ask-before-fix・spec-answer-before-fix は、人が聞かれずに止めや通しを受け渡しただけでも走る。人が答えた run は「通った」）
 - 止まった段は記録の事実から引く: 人が止めた run は答えが stop だった人の答え待ちの段（run 642df5d7 の形で、止めを受け渡しただけの
   修正前の承認を返さない）、落ちた run は受け止めていない最後に落ちた出来事の段（後ろの段の配線でないノードが走った落ちは受け止めた物）。
-  通す答えだけの run と落ちずに終わった run と、受け止めた落ちだけの run には無い
+  通す答えだけの run と落ちずに終わった run と、受け止めた落ちだけの run には無い。止まり方（人が止めた human・落ちた failed）と
+  止まった出来事の番号も同じ所で決め、雛形は読むだけ（承認を通した後に同じ段で落ちた run を人の止めと取り違えない）
 - line でない run は段に集めない
 
 試験は小さな作りと run の記録を手で組む。
@@ -175,6 +176,20 @@ class StagesCase(unittest.TestCase):
         self.assertEqual(run_of(stopped, [{"tokens": ["merge-apply"]}], status="failed")["stages"]["stop"], number("gate-final"))
         failed = absorbed[:4] + [event(["rejudge-run"], kind="workflow", status="failed"), event(["judged"])] + tail
         self.assertEqual(run_of(failed, [{"tokens": ["eyes"]}], status="failed")["stages"]["stop"], number("rejudge-run"))
+
+    def test_a_failure_after_an_approval_in_the_same_stage_is_a_failure(self):
+        """最後の承認 gate-final を人が通した後に、同じ段の merge-apply が落ちた run。止まり方は落ちた、止まった出来事は merge-apply
+        （同じ段に人の答え待ちが在っても、答えが止める語でなければ人の止めでない）。人が止めた run は答え待ちの出来事を指す"""
+        events = [event(["start"]), event(["merge-seal"]), event(["ask-final"]),
+                  event(["gate-final"], kind="wait", output='{"decision": "approve", "text": ""}'), event(["answer-final"]),
+                  event(["merge-apply"], status="failed")]
+        got = run_of(events, [], status="failed")["stages"]
+        self.assertEqual((got["stop"], got["stop_by"], got["stop_event"]), (number("merge-apply"), "failed", 5))
+        stopped = events[:3] + [event(["gate-final"], kind="wait", output='{"decision": "stop", "text": ""}'), event(["answer-final"])]
+        got = run_of(stopped, [{"tokens": ["merge-apply"]}], status="completed")["stages"]
+        self.assertEqual((got["stop"], got["stop_by"], got["stop_event"]), (number("gate-final"), "human", 3))
+        got = run_of(events[:5], [], status="completed")["stages"]
+        self.assertEqual((got["stop"], got["stop_by"], got["stop_event"]), (None, None, None))
 
     def test_a_human_stop_stops_at_the_stage_of_the_answer(self):
         """run 642df5d7 の形: 計画の段の中の相談 plan-rounds/gate-design で人が stop と答え、修正前の承認の聞きと受け（ask-before-fix・

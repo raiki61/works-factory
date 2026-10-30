@@ -6,8 +6,9 @@ line のノード）で引く。
 
 - check(graphs) -> 照らしの問題の字の一覧。今の木の line の一番上のノードがどれもちょうど 1 つの段に入り、表の id がどれも line に在り、
   段の配線の列 wiring がその段のノードの中に在り、どの段にも配線でないノードが在る
-- attach(data) -> data["stages"] に段の表と、run が line の run なら段ごとの集計を足し、出来事と飛んだノードに段の番号 stage を、
-  出来事に時間の帯の塗り分け role と、段の状態に数えない配線のノードの印 through を付ける
+- attach(data) -> data["stages"] に段の表と、run が line の run なら段ごとの集計と止まった所（段の番号 stop・止まり方 stop_by・
+  止まった出来事の番号 stop_event）を足し、出来事と飛んだノードに段の番号 stage を、出来事に時間の帯の塗り分け role と、段の状態に
+  数えない配線のノードの印 through を付ける。雛形は止まり方を読むだけで、止める語を写さない
 """
 import json
 from datetime import datetime
@@ -45,7 +46,7 @@ def attach(data: dict) -> None:
     of = {node: n for n, stage in enumerate(TABLE["stages"], 1) for node in stage["nodes"]}
     tops = [item["id"] for item in graph["items"]] if graph else []
     out = {"graph": graph["name"] if graph else "", "table": [{key: stage[key] for key in SHOWN} for stage in TABLE["stages"]],
-           "loose": [top for top in tops if top not in of], "run": None, "stop": None}
+           "loose": [top for top in tops if top not in of], "run": None, "stop": None, "stop_by": None, "stop_event": None}
     data["stages"] = out
     run = data["run"]
     if not run or not graph or run["graph"] != graph["name"]:
@@ -60,7 +61,9 @@ def attach(data: dict) -> None:
         e["role"] = _role(e["kind"])
         e["through"] = e["stage"] is not None and e["tokens"][0] in through
     out["run"] = [_sum(n, run, through) for n in range(1, len(TABLE["stages"]) + 1)]
-    out["stop"] = _stop(run)
+    by, at = _stop(run)
+    if at is not None:
+        out.update(stop=run["events"][at]["stage"], stop_by=by, stop_event=at)
 
 
 def _sum(n: int, run: dict, through: set[str]) -> dict:
@@ -116,22 +119,24 @@ def _role(kind: str) -> str:
     return "ai" if kind in runread.AI_KINDS else "wait" if kind == runread.WAIT_NODE else "group" if kind in runread.GROUP_KINDS else "machine"
 
 
-def _stop(run: dict) -> int | None:
-    """止まった段を記録の事実から引く（下書きの計画 2026-10-29-viewer-overview.md の 6.6.8）。人が止めた run は、答えが止める語
+def _stop(run: dict) -> tuple[str | None, int | None]:
+    """止まり方（人が止めた human・落ちた failed）と止まった出来事の番号（run の events の中の位置）を記録の事実から引く（下書きの計画 2026-10-29-viewer-overview.md の 6.6.8）。人が止めた run は、答えが止める語
     （lib/answer.py の STOP_WORDS）だった最後の人の答え待ちの出来事の段。そうでなく落ちた run は、受け止めていない最後の落ちた出来事の段。
     受け止めた落ちは、その段より後ろの段（どの道でも走る報告の段、表の最後の段のほかで）の配線でないノードが走った物（line は独立の目と
     レンズの落ちを受け止めて先へ進むが、Archon は run を failed で終える。docs/design/archon.md）。
     次の run には出さない（窓口の決めで今は出さない。広げるかは後で決める）: 直した・直す物が無かった・まだ走っている run と、報告の結末
     （workflows/report/src/outcome.py）が line の止め stopped_by_line（止める語を script が受け渡しただけで人の答えが無い）・人待ち
     needs_human・記録が通らない record_invalid で、落ちていない run。
-    道が分かれて先を飛んだ段は使わない（止めを受け渡しただけの段を止まった所と取り違える）"""
-    rows = [e for e in run["events"] if e["kind"] == runread.WAIT_NODE and _answer(e.get("output")) in answer.STOP_WORDS]
+    道が分かれて先を飛んだ段は使わない（止めを受け渡しただけの段を止まった所と取り違える）。止まり方もここで決め、同じ段に人の
+    答え待ちが在っても答えが止める語でなければ人の止めにしない（承認を通した後に同じ段で落ちた run は落ちた）"""
+    events = run["events"]
+    by, rows = "human", [i for i, e in enumerate(events) if e["kind"] == runread.WAIT_NODE and _answer(e.get("output")) in answer.STOP_WORDS]
     if not rows and run.get("status") == runread.FAILED:
         last = len(TABLE["stages"])
-        went = {e["stage"] for e in run["events"] if e.get("stage") not in (None, last) and not e["through"]}
-        rows = [e for e in run["events"] if e["status"] == "failed" and not any(n > (e.get("stage") or last) for n in went)]
-    rows = [e for e in rows if e.get("stage") is not None]
-    return rows[-1]["stage"] if rows else None
+        went = {e["stage"] for e in events if e.get("stage") not in (None, last) and not e["through"]}
+        by, rows = "failed", [i for i, e in enumerate(events) if e["status"] == "failed" and not any(n > (e.get("stage") or last) for n in went)]
+    rows = [i for i in rows if events[i].get("stage") is not None]
+    return (by, rows[-1]) if rows else (None, None)
 
 
 def _answer(output) -> str:
