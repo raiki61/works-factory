@@ -269,7 +269,7 @@ const gwhat = f => (G[f] && G[f].what && G[f].what.line) || '';
 const NO_WHAT = '何をする物かの 1 行が無い';
 
 // ---- 段（viewer/stages.json と段ごとの集計。データの欄 stages） ----
-const ST = D.stages || {table: [], run: null, stop: null, graph: ''};
+const ST = D.stages || {table: [], run: null, stop: null, stop_by: null, stop_event: null, graph: ''};
 const STAGE_ALL = ST.table.map((s, i) => ({n: i + 1, name: s.name, line: s.line, hands: s.hands, ids: s.nodes, wiring: s.wiring}));
 const STAGE_OF = {};
 STAGE_ALL.forEach(s => s.ids.forEach(id => STAGE_OF[id] = s));
@@ -279,13 +279,10 @@ const SUMR = ST.run;   // 段ごとの集計（line の run の時だけ）
 const sumOf = s => SUMR && s && s.n ? SUMR[s.n - 1] : null;
 const RAN = st => ['ok', 'failed', 'waiting', 'running'].includes(st);
 const STOP = ST.stop ? STAGE_ALL[ST.stop - 1] : null;
-// 止まった所の札: 止まった段の最後の人の答え待ち（人が止めた）、無ければ最後の落ちた出来事
-const STOP_EV = (() => {
-  if (!STOP || !RUN) return null;
-  const mine = RUN.events.filter(e => e.stage === STOP.n);
-  return mine.filter(e => e.kind === 'wait').pop() || mine.filter(e => e.status === 'failed').pop() || null;
-})();
-const STOP_WORD = STOP ? `${STOP.name}で${STOP_EV && STOP_EV.kind !== 'wait' ? '落ちた' : '人が止めた'}` : '';
+// 止まった所の札と止まり方（人が止めた human・落ちた failed）は段の集計（viewer/src/stages.py）が決めた物を読むだけ
+const STOP_EV = STOP && RUN && ST.stop_event != null ? RUN.events[ST.stop_event] : null;
+const STOP_HUMAN = ST.stop_by === 'human';
+const STOP_WORD = STOP ? `${STOP.name}で${STOP_HUMAN ? '人が止めた' : '落ちた'}` : '';
 const runWord = () => STOP_WORD || RUNWORD[RUN.status] || RUN.status;
 
 // ---- 図の根と出来事 ----
@@ -507,8 +504,8 @@ function paint() {
       const c = evs.filter(e => e.kind === 'agent').reduce((a, e) => a + (e.cost || 0), 0);
       if (c >= 0.005) word = (word ? word + ' · ' : '') + usd(c);
     }
-    if (key === STOP_KEY) { el.classList.add(STOP_EV.kind === 'wait' ? 'stopat' : 'fail'); word = STOP_EV.kind === 'wait' ? 'ここで止めた' : '落ちた'; }
-    else if (STOP_KEY && STOP_KEY.startsWith(key + '>') && !el.classList.contains('opened')) word = (word ? word + ' · ' : '') + (STOP_EV.kind === 'wait' ? '中で止めた' : '中で落ちた');
+    if (key === STOP_KEY) { el.classList.add(STOP_HUMAN ? 'stopat' : 'fail'); word = STOP_HUMAN ? 'ここで止めた' : '落ちた'; }
+    else if (STOP_KEY && STOP_KEY.startsWith(key + '>') && !el.classList.contains('opened')) word = (word ? word + ' · ' : '') + (STOP_HUMAN ? '中で止めた' : '中で落ちた');
     el.querySelector('.s').textContent = word;
   }
   // 段の行の状態（line の一番上だけ）。段の集計（配線でない札だけで数えた状態）を読む
@@ -518,8 +515,8 @@ function paint() {
     if (!onRunRoot() || !x) { st.textContent = s.line; row.classList.remove('off'); continue; }
     const ran = RAN(x.state), sec = x.seconds || 0;
     row.classList.toggle('off', !ran);
-    row.classList.toggle('stop', s === STOP && STOP_EV && STOP_EV.kind === 'wait');
-    row.classList.toggle('fail', x.state === 'failed' || (s === STOP && !!STOP_EV && STOP_EV.kind !== 'wait'));
+    row.classList.toggle('stop', s === STOP && STOP_HUMAN);
+    row.classList.toggle('fail', x.state === 'failed' || (s === STOP && !STOP_HUMAN));
     st.textContent = s === STOP ? `ここで止まった · ${mins(sec)}` : x.state === 'failed' ? `落ちた · ${mins(sec)}` : x.state === 'waiting' ? '人の答え待ち'
       : x.state === 'running' ? '走り中' : ran ? `${mins(sec)}${x.cost ? ' · ' + usd(x.cost) : ''}` : '走っていない';
   }

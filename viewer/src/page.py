@@ -16,7 +16,7 @@ DATA_MARK = "__DATA__"
 
 def render(data: dict) -> str:
     return fill(TEMPLATE.read_text(encoding="utf-8"), {
-        # JSON の字の < を全部 < にし、記録の字の </script> や <!-- が script の中身を閉じない・読み方を変えないようにする
+        # JSON の字の < を全部 \u003c にし、記録の字の </script> や <!-- が script の中身を閉じない・読み方を変えないようにする
         DATA_MARK: json.dumps(data, ensure_ascii=False).replace("<", "\\u003c"),
     })
 
