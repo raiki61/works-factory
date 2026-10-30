@@ -1038,7 +1038,7 @@ function wasteScreen() {
   // 札の 1 行は文の中に置くので、終わりの「。」を外す
   const name = n => { const e = E[n]; return ((e && what(itemAt(e.at))) || (e ? e.tokens.join(' / ') : '')).replace(/。$/, ''); };
   const stageName = n => n ? (STAGE_ALL[n - 1] || {}).name || '' : '';
-    const where = n => E[n] ? `${E[n].tokens.join(' / ')}${loopOf(E[n]) ? ' · ' + loopOf(E[n]) : ''}` : '';
+  const where = n => E[n] ? `${E[n].tokens.join(' / ')}${loopOf(E[n]) ? ' · ' + loopOf(E[n]) : ''}` : '';
   // 会話は、その会話を持つ最初の出来事の札の 1 行で呼ぶ（出来事が無ければ会話の鍵）
   const sname = x => x.event != null ? name(x.event) : x.session;
   box.append(h('section', {class: 'hero'},
