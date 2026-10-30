@@ -567,8 +567,7 @@ def _finish_plan(d: pathlib.Path, doc: dict) -> dict:
     from src import gate
     replan = []
     if form == "replan":
-        replan = gate.replan(d, doc, review)
-        jsonfile.write(d / files.REPLAN, replan)
+        replan = gate.replan(d, doc, review)   # replan.json は gate.replan が書く
     return result("ok", "", form=form, k=k, review_file=d / files.REVIEW, pass_file=d / files.PASS if form == "plan" else None,
                   review=review, asks=gate.asks(d, doc, review), deviations=gate.deviations(d, doc, review), replan=replan,
                   ruled=ruled, tree_items=_tree_items(d) if doc.get("tree") else 0, out=d)
