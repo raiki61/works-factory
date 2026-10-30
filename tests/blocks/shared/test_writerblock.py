@@ -347,10 +347,12 @@ class SaveCase(Base):
 
     def test_a_reply_that_does_not_hold_the_shape_stops_the_node(self):
         (self.art / "demo-prompt-1.md").write_text("p1", encoding="utf-8")
-        for name, bad in (("空", {}), ("必須の欄が欠ける", {k: v for k, v in self.REPLY.items() if k != "fix_closure"}),
-                          ("知らない欄", {**self.REPLY, "extra": 1}), ("precedent の条件に外れる",
-                           {**self.REPLY, "changes": [{"unit_key": "u"}]})):
-            with self.subTest(name), self.assertRaises(ValueError):
+        change = self.REPLY["changes"][0]
+        unsourced = {**change, "precedent": {k: v for k, v in change["precedent"].items() if k != "source"}}   # adopt なのに source が無い
+        for name, bad, says in (("空", {}, "必須"), ("必須の欄が欠ける", {k: v for k, v in self.REPLY.items() if k != "fix_closure"}, "fix_closure"),
+                                ("知らない欄", {**self.REPLY, "extra": 1}, "extra"),
+                                ("precedent の条件に外れる", {**self.REPLY, "changes": [unsourced]}, r"precedent: 必須の欄 'source'")):
+            with self.subTest(name), self.assertRaisesRegex(ValueError, says):
                 self.save(bad)
         self.assertFalse((self.art / "reply-1.json").exists(), "形に合わない返答は書かない")
 
