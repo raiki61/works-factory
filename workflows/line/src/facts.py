@@ -215,6 +215,12 @@ def ledger(returns: dict, gates: dict, unattended: bool):
                             materials=mats, takes_push=unattended)
 
 
+def ties_note(returns: dict) -> str:
+    """問いの台帳の答えの結びを読めない訳（ledger は結びが無いとして組むので、無いと黙って数えずに notes で名指す。E23）。読めれば空"""
+    _, why = read_ptr(as_dict(returns.get("judge")).get("answer_ties"), "answer_ties")
+    return f"答えの結びを読めない（保留の問いと答えを結ばずに数えた）: {why}" if why else ""
+
+
 def _request_answers(returns: dict) -> list:
     """依頼の答え（request-in の返りの request_answers。テーマの run は降りた依頼の答えで、判定が問いを結んだ答えと同じ源）"""
     return [a for a in _list(as_dict(returns.get("request_in")).get("request_answers")) if isinstance(a, dict)]
@@ -1155,6 +1161,8 @@ def build(values: dict, record: dict | None, record_why: str = "", cwd=None) -> 
     constraints = part("次の run の制約", lambda: constraints_of(returns, str(ports_.get("run_id") or "")), [], outcome=False)
     _, material_note = part("素材の状態", lambda: materials(returns), ({}, ""), outcome=False)
     notes += [material_note] if material_note else []
+    ties_why = part("答えの結び", lambda: ties_note(returns), "", outcome=False)
+    notes += [ties_why] if ties_why else []
     notes += [f"修正の控え: {x}" for x in got["unread"]]
     before = [x for x in (part("修正の段の分け", lambda: split_line(returns), "", outcome=False),
                           part("推しの句", lambda: pushed_said(gates, taken), "", outcome=False)) if x]
