@@ -11,17 +11,17 @@
    色は全部この札（変数）で持ち、下の CSS とスクリプトは札だけを使う。light と dark は札の値だけが違う。
    値の根拠は WCAG の比: 字は地と 4.5:1 以上（灰は 2 段 --sub・--ter）、状態を伝える縁は地と 3:1 以上（--edge・--dash・--stop・--bad）。
    白い字を載せる青い面は light・dark とも #0071e3、字の青は dark で明るい #6ab4ff（札の #3a3a3c の上でも 4.5:1 以上） */
-:root{--th:56px;color-scheme:light;
+:root{--th:56px;--pb:0px;color-scheme:light;
   --bg:#f5f5f7;--card:#fff;--raised:#fff;--fill:#e8e8ed;--line:#d2d2d7;--ink:#1d1d1f;--sub:#515154;--ter:#636366;
   --inset:#f5f5f7;--accent:#0071e3;--link:#0066cc;--on-accent:#fff;--on-accent2:#e3eefc;--a2:#66aaf0;--a3:#cfe3fa;--now:#e8f1fc;
   --dash:#7c7c80;--edge:#7c7c80;--stop:#c93400;--bad:#d70015;
-  --topbg:rgba(245,245,247,.92);--shadow:#0000001f;--shadow2:#00000033}
+  --topbg:rgba(245,245,247,.92);--plbg:rgba(255,255,255,.96);--shadow:#0000001f;--shadow2:#00000033}
 /* dark: 地は黒に近い面（#000）と一段ずつ明るい面（#1c1c1e・#2c2c2e・札の #3a3a3c）の重ね。影が見えないので、上に載る物ほど明るい面にする */
 :root[data-theme=dark]{color-scheme:dark;
   --bg:#000;--card:#1c1c1e;--raised:#3a3a3c;--fill:#2c2c2e;--line:#38383a;--ink:#f5f5f7;--sub:#aeaeb2;--ter:#98989d;
   --inset:#2c2c2e;--accent:#0071e3;--link:#6ab4ff;--on-accent:#fff;--on-accent2:#e3eefc;--a2:#409cff;--a3:#0a3a6b;--now:#0d2a4a;
   --dash:#8e8e93;--edge:#8e8e93;--stop:#ff9f0a;--bad:#ff6961;
-  --topbg:rgba(22,22,23,.88);--shadow:#00000099;--shadow2:#000000cc}
+  --topbg:rgba(22,22,23,.88);--plbg:rgba(28,28,30,.94);--shadow:#00000099;--shadow2:#000000cc}
 *{box-sizing:border-box}
 html,body{margin:0}
 /* 地は html に置き、ビューアの包みの中でもページの下まで続ける */
@@ -85,7 +85,7 @@ pre.err{box-shadow:inset 3px 0 0 var(--bad)}
 #s-graph.popen .wrap{padding-right:420px}
 .map{display:flex;flex-direction:column;gap:2px;min-width:0;position:relative}
 /* 段の行: 左に段の名と状態（いつも見える列）、右にその段の札 */
-.row{display:grid;grid-template-columns:150px minmax(0,1fr);gap:14px;align-items:center;border-radius:14px;padding:7px 10px;scroll-margin:calc(var(--th) + 12px) 0 12px}
+.row{display:grid;grid-template-columns:150px minmax(0,1fr);gap:14px;align-items:center;border-radius:14px;padding:7px 10px;scroll-margin:calc(var(--th) + 12px) 0 calc(var(--pb) + 12px)}
 .row.one{grid-template-columns:minmax(0,1fr)}
 .row .rh{min-width:0}
 .row .rh .name{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -93,6 +93,7 @@ pre.err{box-shadow:inset 3px 0 0 var(--bad)}
 .row.off .rh .name{color:var(--sub);font-weight:400}
 .row.stop{box-shadow:inset 4px 0 0 var(--stop)}
 .row.fail{box-shadow:inset 4px 0 0 var(--bad)}
+.row.now{background:var(--now)}
 .row.stop .rh .rst,.row.fail .rh .rst{color:var(--ink);font-weight:600}
 .row.folded{padding-top:3px;padding-bottom:3px}
 .flowl{display:flex;flex-wrap:wrap;align-items:center;gap:6px 4px;min-width:0}
@@ -101,8 +102,9 @@ pre.err{box-shadow:inset 3px 0 0 var(--bad)}
 .grp{display:inline-flex;flex-wrap:wrap;gap:4px;background:var(--fill);border-radius:12px;padding:3px;max-width:100%}
 .loopg{display:inline-flex;flex-wrap:wrap;align-items:center;gap:6px 4px;border:1.5px dashed var(--dash);border-radius:12px;padding:5px 7px;max-width:100%}
 .loopg>.cap{width:100%;padding:0 3px}
+.loopg.now{border-color:var(--accent);box-shadow:0 0 0 4px var(--a3)}
 /* 札: 1 行。種類の語の札と何をする物か（15/600）とこの run での姿の語（12/400）。id は札の title と板の頭 */
-.node{display:inline-flex;align-items:baseline;gap:7px;max-width:300px;min-width:0;border-radius:10px;padding:5px 10px;cursor:pointer;white-space:nowrap;border:1.5px solid transparent;scroll-margin:calc(var(--th) + 16px) 0 16px}
+.node{display:inline-flex;align-items:baseline;gap:7px;max-width:300px;min-width:0;border-radius:10px;padding:5px 10px;cursor:pointer;white-space:nowrap;border:1.5px solid transparent;scroll-margin:calc(var(--th) + 16px) 0 calc(var(--pb) + 16px)}
 .node .t{font-weight:600;overflow:hidden;text-overflow:ellipsis;min-width:0}
 .node .s{font-size:12px;color:var(--sub);flex:none}
 /* 札の姿: 走った（縁と面）・走っていない（縁も面も無い灰の字）・飛んだ（点線）・止めた（注意色の太い縁と ■）・落ちた（赤の太い縁と ✕）。色だけに頼らない */
@@ -119,6 +121,11 @@ pre.err{box-shadow:inset 3px 0 0 var(--bad)}
 .mk{font-weight:600}
 .mk.stop{color:var(--stop)}.mk.bad{color:var(--bad)}
 .node.run{background:var(--raised);border-color:var(--accent)}
+/* 再生の今: 青い面に白い字と淡い青の輪（一番深い今の札だけ）。今を中に持つ開いた入れ子の札は淡い青の面と青い縁と「今は中」 */
+.node.now{background:var(--accent);color:var(--on-accent);border-color:var(--accent);box-shadow:0 0 0 4px var(--a3)}
+.node.now .s{color:var(--on-accent2)}
+.node.nowin{background:var(--now);border-color:var(--accent)}
+.node.nowin .s{color:var(--link);font-weight:600}
 .node.rel{background:var(--now)}
 .node.sel{outline:2px solid var(--ink);outline-offset:1px}
 /* 種類の札: 札の頭の短い語（AI・人・子の run・止め）。機械（script・bash）は語の札を出さない（札が無いことが印）。
@@ -129,13 +136,18 @@ pre.err{box-shadow:inset 3px 0 0 var(--bad)}
 .kt.gate{border:2px solid var(--ink);color:var(--ink);font-weight:600;line-height:14px}
 .node.yet .kt,.node.skip .kt{border-color:var(--ter);color:var(--ter)}
 .node.yet .kt.ai,.node.skip .kt.ai{background:var(--ter);color:var(--bg)}
+/* 今の札（青い面）の上の種類の札: 縁と字は白、AI は白い面に青い字 */
+.node.now .kt{border-color:var(--on-accent);color:var(--on-accent)}
+.node.now .kt.ai{background:var(--on-accent);border-color:var(--on-accent);color:var(--accent)}
 /* 入れ子の札: 頭に ＋（閉じている）か −（開いている）。押すとその場で開く */
 .node .tw,.nestbox .tw{font-size:15px;font-weight:600;color:var(--link);flex:none;line-height:1}
 .node.opened{border-color:var(--line)}
+.node.now .tw{color:var(--on-accent2)}
 /* 開いた入れ子: 層の後ろで行を折り（幅いっぱい）、字下げと左の縦の線で中を出す。何段でも同じ形 */
-.nestbox{flex:1 0 calc(100% - 14px);max-width:calc(100% - 14px);min-width:0;margin:2px 0 4px 14px;padding:4px 0 6px 14px;border-left:2px solid var(--line);scroll-margin:calc(var(--th) + 16px) 0 16px}
+.nestbox{flex:1 0 calc(100% - 14px);max-width:calc(100% - 14px);min-width:0;margin:2px 0 4px 14px;padding:4px 0 6px 14px;border-left:2px solid var(--line);scroll-margin:calc(var(--th) + 16px) 0 calc(var(--pb) + 16px)}
 .nestbox .nh{font-size:15px;margin:0 0 6px;display:flex;gap:4px;align-items:baseline;flex-wrap:wrap}
 .nestbox .nh .tw{cursor:pointer}
+.nestbox.nowin{border-left-color:var(--accent)}
 /* 開いた入れ子を中に持つ繰り返しと同じ層の束は、幅いっぱいに広げて中を折り返す */
 .loopg:has(>.nestbox),.loopg:has(>.seg>.nestbox){display:flex;width:100%}
 .grp:has(.nestbox){display:flex;width:100%}
@@ -148,7 +160,7 @@ pre.err{box-shadow:inset 3px 0 0 var(--bad)}
 .edges path{fill:none;stroke:var(--link);stroke-width:1.5}
 .edges .head{fill:var(--link)}
 /* 板: 札を押した時だけ開く画面に固定の面。上の端は頭の帯の下 */
-.panel{background:var(--card);border-radius:18px;overflow:auto;padding:20px 24px;position:fixed;right:20px;width:380px;top:calc(var(--th) + 12px);bottom:24px;z-index:15;box-shadow:0 2px 12px var(--shadow)}
+.panel{background:var(--card);border-radius:18px;overflow:auto;padding:20px 24px;position:fixed;right:20px;width:380px;top:calc(var(--th) + 12px);bottom:calc(var(--pb) + 24px);z-index:15;box-shadow:0 2px 12px var(--shadow)}
 .panel .close{float:right;border:0;background:var(--inset);border-radius:8px;width:28px;height:28px;cursor:pointer;font-size:15px;color:var(--sub)}
 .panel h2{margin:4px 0 8px}
 .nums{display:flex;gap:28px;flex-wrap:wrap;margin:14px 0 0}
@@ -167,6 +179,19 @@ pre.err{box-shadow:inset 3px 0 0 var(--bad)}
   .panel{right:12px;width:min(420px,calc(100% - 24px));box-shadow:0 8px 32px var(--shadow2)}
 }
 @media (max-width:760px){ .row{grid-template-columns:minmax(0,1fr)} }
+
+/* 再生の帯: 1 つの物を、図と再生のタブにだけ画面の下に固定して出す。いつも一番上の層。
+   ページの下の余白と板の下の端は、帯の測った高さ（--pb）だけ空け、帯が中身と板を隠さない */
+.player{position:fixed;left:0;right:0;bottom:12px;z-index:30;padding:0 12px;pointer-events:none}
+.player[hidden]{display:none}
+.player .in{pointer-events:auto;max-width:1000px;margin:0 auto;background:var(--plbg);backdrop-filter:blur(12px);border-radius:16px;box-shadow:0 4px 24px var(--shadow);padding:10px 16px;display:grid;grid-template-columns:auto minmax(0,1fr);gap:4px 14px;align-items:center}
+.player .btns{display:flex;gap:4px}
+.player .btns button{border:0;background:var(--inset);border-radius:8px;padding:4px 10px;cursor:pointer;font-size:15px}
+.player .btns button.main{background:var(--accent);color:var(--on-accent);min-width:44px}
+.player input[type=range]{width:100%;accent-color:var(--accent)}
+.player .what{grid-column:1/-1;font-size:12px;color:var(--sub);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.player .what b{color:var(--ink);font-size:15px}
+main{padding-bottom:calc(var(--pb) + 24px)}
 
 /* run の一覧: 1 行 1 本の詰めた並び。今の run は行の面だけを替え、字の位置は動かさない */
 .rl{display:flex;flex-direction:column}
@@ -219,6 +244,11 @@ pre.err{box-shadow:inset 3px 0 0 var(--bad)}
   <section class="screen" id="s-log" hidden><div class="wrap" id="log"></div></section>
   <section class="screen" id="s-unread" hidden><div class="wrap" id="unread"></div></section>
 </main>
+<div class="player" id="player" hidden><div class="in">
+  <div class="btns"><button id="p-prev" title="1 歩戻る（←）">‹</button><button class="main" id="p-play" title="再生と止める（空白）">▶</button><button id="p-next" title="1 歩進む（→）">›</button><button id="p-off" title="再生をやめて run の終わりの姿へ">■</button></div>
+  <input type="range" id="p-pos" min="0" value="0" aria-label="再生の位置（歩の番号）">
+  <div class="what" id="p-what"></div>
+</div></div>
 </div>
 <script>
 'use strict';
@@ -307,6 +337,41 @@ const finalState = key => { const st = FIN[key]; return !st ? 'yet' : st.has('fa
 const STOP_KEY = STOP_EV && STOP_EV.at && STOP_EV.at.graph ? spots(STOP_EV.at).pop() : null;
 const NFAIL = RUN ? RUN.events.filter(e => e.status === 'failed').length : 0;
 
+// ---- 再生の歩（位置はページに 1 つ。変えるのは go と「やめる」だけ） ----
+// 1 歩は出来事の始まりか終わりの 1 つ。時刻順で、同じ時刻は始まりが先。終わりの無い出来事（走り中・待ち）は始まりだけ。
+// 飛んだノードは歩にせず、時の位置が飛んだ時刻を過ぎて、その所がまだ走っていなければ「飛んだ」に見せる
+const STEPS = [], SKIPS = [];
+if (RUN) {
+  for (const e of RUN.events) { if (e.start) STEPS.push({t: e.start, end: false, e}); if (e.end) STEPS.push({t: e.end, end: true, e}); }
+  STEPS.sort((a, b) => a.t < b.t ? -1 : a.t > b.t ? 1 : a.end - b.end);
+  for (const s of RUN.skipped) if (s.at && s.at.graph && s.time) SKIPS.push(s);
+}
+let at = -1, playing = null, behind = false;
+// 歩の入れ子の鎖: その歩を見るために開く入れ子の札の鍵（外から順）
+function chainOf(w) {
+  const out = []; let scope = '';
+  for (const {graph, node} of (w.via || [])) { scope = K(scope, graph, node); out.push(scope); }
+  return out;
+}
+// k 歩目の時の札の姿: 今（その歩の所と外の入れ子）・走り中・終わりの状態・飛んだ・まだ
+function stateAt(k) {
+  const run = {}, last = {}, now = new Set();
+  for (let j = 0; j <= k; j++) {
+    const {e, end} = STEPS[j]; if (!e.at || !e.at.graph) continue;
+    for (const key of new Set(spots(e.at))) {
+      if (end) { run[key] = (run[key] || 0) - 1; last[key] = e.status; }
+      else { run[key] = (run[key] || 0) + 1; last[key] ??= 'running'; }
+    }
+  }
+  const step = STEPS[k];
+  if (step.e.at && step.e.at.graph) spots(step.e.at).forEach(x => now.add(x));
+  const skipped = new Set(SKIPS.filter(s => s.time <= step.t).flatMap(s => spots(s.at)).filter(x => !(x in last)));
+  return key => now.has(key) ? 'now' : run[key] > 0 ? 'running' : key in last ? last[key] : skipped.has(key) ? 'skipped' : 'yet';
+}
+// k 歩目までに通った段（配線でない出来事だけで数える。6.6.9）と、k 歩目の段
+function reachedAt(k) { const out = new Set(); for (let j = 0; j <= k; j++) { const e = STEPS[j].e; if (e.stage && !e.through) out.add(e.stage); } return out; }
+const stageAt = k => k >= 0 && STEPS[k].e.stage ? STAGE_ALL[STEPS[k].e.stage - 1] : null;
+
 // ---- 表示の明るさ ----
 // 既定は OS・エディタの設定（prefers-color-scheme）に従う。頭の帯の札で 自動 → ライト → ダーク と回す。
 // ページは 1 枚で保存の場所を持たないので、手で選んだ値は開いている間だけ（開き直すと自動に戻る）
@@ -336,20 +401,28 @@ function tab(id) {
   curTab = id;
   document.querySelectorAll('[data-tab]').forEach(b => b.setAttribute('aria-pressed', b.dataset.tab === id));
   document.querySelectorAll('.screen').forEach(s => s.hidden = s.id !== 's-' + id);
+  // 再生の帯は図と再生にだけ出す
+  $('player').hidden = !(STEPS.length && id === 'graph');
+  // 帯が隠れたら ▶ を止める（位置は保つ）
+  if ($('player').hidden) play(false);
   measure();
   scrollTo(0, SCROLL[id] || 0);
-  if (id === 'graph') { if (!cur) setRoot(ROOT); else drawEdges(); }
+  // 図を開いた時に、遅れていれば再生の今へ合わせる（スクロールを戻した後に。今の札を画面に入れる送りが勝つように）
+  if (id === 'graph') { if (!cur) setRoot(ROOT); if (behind) { behind = false; syncGraph(); } else drawEdges(); }
 }
 
 // ---- 図: 札を字の流れのように並べる（段は行・依りの層は → で区切る・幅で折り返す） ----
 // 入れ子（block・graph・子の run の札）は、画面を移らずにその場で開く。開くと、その札の層の後ろに中の札の行が字下げで出る。
 // 何段でも同じ形で開ける。外の流れ（前後の札と段の行）は見えたまま
 let cur = null, selId = null, showWire = false, openOff = false, edgeMode = 'none';
-let OPEN = new Set(), IDLE = new Set();
+// 開いている入れ子は 3 つの組で持つ: OPEN（人が開いた物）・AUTO（再生の今が中に居るので自動で開いた物）・
+// SHUT（人が再生の開いた物を閉じた物。その鎖を再生が抜けるまで開き直さない）。再生が抜けると AUTO だけが閉じる
+let OPEN = new Set(), AUTO = new Set(), SHUT = new Set(), IDLE = new Set();
 const ITEM = {};  // 札の鍵 → {it, graph, scope}
 const DEPS = {};  // 札の鍵 → 前の札の鍵（選んだ時に前と次を淡い青で示す）
-const isOpen = k => OPEN.has(k);
+const isOpen = k => OPEN.has(k) || AUTO.has(k);
 const onRunRoot = () => RUN && cur === ROOT;
+const replaying = () => at >= 0 && onRunRoot();
 const isLineTop = () => cur === ROOT && G[cur].name === ST.graph;
 // 配線（段の表の列 wiring）は line の一番上だけを既定で畳む。block と line の外の graph は畳まずに全部描く
 const wiring = (it, top) => top && WIRESET.has(it.id);
@@ -440,27 +513,31 @@ function canOpen(it, graph, scope, key) {
 // 開いた入れ子: 字下げと左の縦の線で、どの札の中かを見せる。頭に中の graph の 1 行と、閉じる・詳しい面
 function nestEl(it, graph, key) {
   const g = G[it.target];
-  return h('div', {class: 'nestbox', 'data-nest': key},
+  const auto = AUTO.has(key) && !OPEN.has(key);
+  return h('div', {class: 'nestbox' + (auto ? ' auto' : ''), 'data-nest': key},
     h('div', {class: 'nh'},
       h('a', {class: 'tw', text: '−', title: '閉じる', onclick: () => toggleNest(key)}),
       h('b', {text: what(it) || it.id}),
-      h('span', {class: 'cap', text: ` · ${KIND[it.kind]} ${it.target} · 札 ${g.nodes}${aiIn(it.target) ? ` · 作りの AI のノード ${aiIn(it.target)}` : ''}`}),
+      h('span', {class: 'cap', text: ` · ${KIND[it.kind]} ${it.target} · 札 ${g.nodes}${aiIn(it.target) ? ` · 作りの AI のノード ${aiIn(it.target)}` : ''}${auto ? ' · 再生の今が中に居るので開いた' : ''}`}),
       h('a', {class: 'cap', text: ' 詳しい面', onclick: () => selectId(key)}),
       h('a', {class: 'cap', text: ' 閉じる', onclick: () => toggleNest(key)})),
     flowOf(g.items, it.target, key));
 }
 function toggleNest(key) {
-  if (isOpen(key)) { OPEN.delete(key); for (const k of [...OPEN]) if (k.startsWith(key + '>')) OPEN.delete(k); }
-  else OPEN.add(key);
+  if (isOpen(key)) {
+    OPEN.delete(key); if (AUTO.delete(key)) SHUT.add(key);
+    for (const k of [...OPEN]) if (k.startsWith(key + '>')) OPEN.delete(k);
+    for (const k of [...AUTO]) if (k.startsWith(key + '>')) { AUTO.delete(k); SHUT.add(k); }
+  } else { OPEN.add(key); SHUT.delete(key); }
   show({keepPanel: true});
   const n = document.querySelector(`#world [data-key="${CSS.escape(key)}"]`); if (n) n.scrollIntoView({block: 'nearest'});
 }
 // 鍵の札を見せる: 外の入れ子を開く（入れ子を探す・板の中の graph から）
 function reveal(key) {
-  const parts = key.split('>'); for (let i = 1; i < parts.length; i++) OPEN.add(parts.slice(0, i).join('>'));
+  const parts = key.split('>'); for (let i = 1; i < parts.length; i++) { const k = parts.slice(0, i).join('>'); OPEN.add(k); SHUT.delete(k); }
   const s = STAGE_OF[parts[0].split('/')[1]]; if (s && RUN && !RAN((sumOf(s) || {}).state)) openOff = true;
 }
-function setRoot(f) { cur = f; OPEN = new Set(); IDLE = new Set(); show(); }
+function setRoot(f) { cur = f; OPEN = new Set(); AUTO = new Set(); SHUT = new Set(); IDLE = new Set(); show(); }
 function show(opts) {
   const g = G[cur], keepSel = opts && opts.keepPanel ? selId : null;
   if (!keepSel) closePanel();
@@ -485,34 +562,63 @@ function show(opts) {
   paint();
   if (keepSel && ITEM[keepSel]) markSel(keepSel); else { if (keepSel) closePanel(); drawEdges(); }
 }
-// 札の姿の語（終わりの姿）
-const STWORD = {done: '', yet: '', skip: '飛んだ', fail: '落ちた', run: '走り中'};
+// 札の姿の語（終わりの姿と再生中で同じ札の形を使う）
+const STWORD = {done: '', yet: '', skip: '飛んだ', fail: '落ちた', run: '走り中', now: '今', nowin: '今は中'};
+// 再生の今の札: 開いた中の一番深い今の札（外の入れ子の札は「今は中」）
+const deepestNow = () => document.querySelector('#world .node.now, #world .loopg.now');
+const drawn = key => document.querySelector(`#world [data-key="${CSS.escape(key)}"]`);
+// 既定で畳んだ配線の歩か（line の一番上で、「配線も出す」が外れている時）
+const foldedWire = w => !!w && w.graph === cur && isLineTop() && !showWire && !(w.via || []).length && WIRESET.has(w.node);
+// 再生の今を塗る所の鍵: 今の歩の一番深い所。畳んだ配線の歩は、前の歩のうち図に見える一番深い所に今を残す
+function nowKey(k) {
+  const w = STEPS[k].e.at;
+  if (!w || !w.graph) return null;
+  if (!foldedWire(w)) return spots(w).pop();
+  for (let j = k - 1; j >= 0; j--) {
+    const v = STEPS[j].e.at; if (!v || !v.graph || foldedWire(v)) continue;
+    return spots(v).reverse().find(drawn) || null;
+  }
+  return null;
+}
 function paint() {
+  const look = replaying() ? stateAt(at) : null, here = look ? nowKey(at) : null;
   for (const el of document.querySelectorAll('#world .node')) {
-    el.classList.remove('run', 'yet', 'skip', 'fail', 'done', 'stopat');
+    el.classList.remove('now', 'nowin', 'run', 'yet', 'skip', 'fail', 'done', 'stopat');
     const key = el.dataset.key, x = ITEM[key];
     if (!onRunRoot()) { el.classList.add('done'); el.querySelector('.s').textContent = ''; continue; }
-    const st = finalState(key);
-    const cls = {running: 'run', waiting: 'run', yet: 'yet', skipped: 'skip', failed: 'fail'}[st] || 'done';
+    const st = look ? (key === here ? 'now' : look(key)) : finalState(key);
+    let cls = {now: 'now', running: 'run', waiting: 'run', yet: 'yet', skipped: 'skip', failed: 'fail'}[st] || 'done';
+    // 開いた入れ子の札は、今が中に居る時は淡い印だけにして、青い面は中の今の札に譲る
+    if (cls === 'now' && el.classList.contains('opened')) cls = 'nowin';
     el.classList.add(cls, ...(cls === 'fail' ? ['done'] : []));
     const evs = (EVS[key] || []).filter(e => e.kind !== 'loop_group');
     let word = st === 'waiting' ? '人の答え待ち' : STWORD[cls];
     if (cls === 'fail' && x && x.nest) word = '中で落ちた';
-    if (cls === 'done' && evs.length > 1) word = `${evs.length} 回`;
-    // AI と入れ子の札は終わりの姿で費用も出す（AI の手番の費用の和。入れ子は中の出来事も数える）
-    if (x && (x.it.kind === 'ai' || x.nest) && cls !== 'yet' && cls !== 'skip') {
+    if (!look && cls === 'done' && evs.length > 1) word = `${evs.length} 回`;
+    // AI と入れ子の札は終わりの姿で費用も出す（AI の手番の費用の和。入れ子は中の出来事も数える）。再生中は姿の語だけ
+    if (!look && x && (x.it.kind === 'ai' || x.nest) && cls !== 'yet' && cls !== 'skip') {
       const c = evs.filter(e => e.kind === 'agent').reduce((a, e) => a + (e.cost || 0), 0);
       if (c >= 0.005) word = (word ? word + ' · ' : '') + usd(c);
     }
+    if (look) { el.querySelector('.s').textContent = word; continue; }
     if (key === STOP_KEY) { el.classList.add(STOP_HUMAN ? 'stopat' : 'fail'); word = STOP_HUMAN ? 'ここで止めた' : '落ちた'; }
     else if (STOP_KEY && STOP_KEY.startsWith(key + '>') && !el.classList.contains('opened')) word = (word ? word + ' · ' : '') + (STOP_HUMAN ? '中で止めた' : '中で落ちた');
     el.querySelector('.s').textContent = word;
   }
-  // 段の行の状態（line の一番上だけ）。段の集計（配線でない札だけで数えた状態）を読む
+  // 繰り返しの器の出来事の歩は、器の枠に今の印を付ける
+  for (const lg of document.querySelectorAll('#world .loopg')) lg.classList.toggle('now', !!here && lg.dataset.key === here);
+  for (const nb of document.querySelectorAll('#world .nestbox')) nb.classList.toggle('nowin', !!look && !!nb.querySelector('.node.now'));
+  // 段の行の状態（line の一番上だけ）。段の集計（配線でない札だけで数えた状態）を読む。再生中は今の段・通った・まだ
+  const reached = look ? reachedAt(at) : null, nowS = look ? stageAt(at) : null;
   for (const row of document.querySelectorAll('#world .row[data-n]')) {
     const s = STAGE_ALL[row.dataset.n - 1], x = sumOf(s), st = row.querySelector('.rst');
+    row.classList.toggle('now', !!nowS && nowS === s);
     if (!s) { st.textContent = '段の表に無いノード'; continue; }
     if (!onRunRoot() || !x) { st.textContent = s.line; row.classList.remove('off'); continue; }
+    if (look) {
+      row.classList.remove('stop', 'fail'); row.classList.toggle('off', !reached.has(s.n) && nowS !== s);
+      st.textContent = nowS === s ? '再生の今' : reached.has(s.n) ? '通った' : 'まだ'; continue;
+    }
     const ran = RAN(x.state), sec = x.seconds || 0;
     row.classList.toggle('off', !ran);
     row.classList.toggle('stop', s === STOP && STOP_HUMAN);
@@ -532,6 +638,14 @@ function note() {
   const n = $('gnote');
   if (RUN && cur !== ROOT) { n.textContent = `この graph（${cur}）は、この run の ${ROOT} から辿れない。作りだけを出す（run の姿は塗らない）。`; return; }
   if (!RUN) { n.textContent = '札を押すと詳しい面が開く。＋ の札は押すとその場で中が開く。'; return; }
+  if (replaying()) {
+    const w = STEPS[at].e.at, depth = w && w.graph ? chainOf(w).length : 0;
+    n.replaceChildren('青い札が再生の今。縁のある札はここまでに走った所、薄い札はまだの所。',
+      depth ? `今は入れ子の ${depth} 段目の中なので、その入れ子を開いた（抜けると閉じる）。` : '', w && w.graph ? '' : 'この歩の出来事は図に当たらない。',
+      foldedWire(w) ? h('b', {text: 'この歩は配線の歩（図では畳んでいる）。青い札は前の見える歩の所。「配線も出す」で札が出る。'}) : '',
+      STEPS[at].e.kind === 'loop_group' ? '繰り返しの器の歩なので、器の枠を青くした。' : '');
+    return;
+  }
   n.replaceChildren('縁のある札が走った所、薄い札は走っていない所、点線は飛んだ所。＋ の札は押すとその場で中が開く。',
     STOP_WORD ? h('b', {text: ` ${STOP_WORD}。`}) : '', NFAIL ? h('b', {}, ' ', h('span', {class: 'mk bad', text: '✕'}), ` 落ちた手番 ${NFAIL} 件。`) : '');
 }
@@ -540,9 +654,9 @@ function crumb() {
   const c = $('crumb'), g = G[cur];
   c.replaceChildren(h('b', {text: `⌂ ${cur}`}), h('span', {class: 'cap', text: ` · ${gwhat(cur) || g.name}`}), h('a', {class: 'cap', text: ' 説明', onclick: () => graphPanel(cur)}));
   if (cur !== ROOT) c.append(h('a', {class: 'cap', text: ` · ⌂ ${ROOT} に戻す`, onclick: () => setRoot(ROOT)}));
-  const reach = reachable();
+  const reach = reachable(), opened = new Set([...OPEN, ...AUTO]).size;
   $('gtools').replaceChildren(...[
-    OPEN.size ? h('a', {text: `開いた入れ子を全部閉じる（${OPEN.size}）`, onclick: () => { OPEN = new Set(); show(); }}) : null,
+    opened ? h('a', {text: `開いた入れ子を全部閉じる（${opened}）`, onclick: () => { for (const k of AUTO) SHUT.add(k); OPEN = new Set(); AUTO = new Set(); show(); }}) : null,
     onRunRoot() && isLineTop() ? h('label', {}, h('input', {type: 'checkbox', checked: openOff || null, onchange: ev => { openOff = ev.target.checked; show(); }}), ' 走っていない段も開く') : null,
     isLineTop() ? h('label', {}, h('input', {type: 'checkbox', checked: showWire || null, onchange: ev => { showWire = ev.target.checked; show(); }}), ' 配線も出す') : null,
     // 依存の線の試作: 今の形（線なし。前と次の札を淡い青に）と、選んだ札の前後にだけ線を引く形を並べて見る
@@ -826,9 +940,77 @@ function unreadScreen() {
     rows.length ? fold('中身', h('ul', {}, rows.map(r => h('li', {class: 'mono', text: r})))) : null))));
 }
 
-// 頭の帯の高さを測り、貼りつく帯の下へ送る時の余白と板の上の端に使う（決め打ちにしない）
-function measure() { document.documentElement.style.setProperty('--th', `${document.querySelector('.top').offsetHeight}px`); }
+// ---- 再生の帯（1 つ。図と再生のタブにだけ出す） ----
+// go が位置を変え、図が見えている時だけ図まで動かす。見えていない時は「図が遅れている」の印を立て、図を開いた時に合わせる
+function go(k) {
+  if (!STEPS.length) return;
+  at = Math.max(0, Math.min(STEPS.length - 1, k));
+  $('p-pos').value = at; label();
+  if ($('s-graph').hidden) { behind = true; return; }
+  syncGraph();
+}
+function syncGraph() {
+  if (at < 0 || !onRunRoot()) { paint(); return; }
+  const w = STEPS[at].e.at;
+  if (!w || !w.graph) { paint(); return; }
+  // 今の歩の入れ子の鎖を自動で開く。前の歩で自動で開いて今の鎖に無い物は閉じる（人が開いた物は閉じない）
+  const chain = chainOf(w);
+  for (const k of [...SHUT]) if (!chain.includes(k)) SHUT.delete(k);
+  const want = new Set(chain.filter(k => !SHUT.has(k) && !OPEN.has(k)));
+  const same = want.size === AUTO.size && [...want].every(k => AUTO.has(k));
+  // 図を作り直すと、選んでいた札が入れ子と一緒に消えて板が閉じる。開いていたかは作り直す前に控える
+  const panelWas = !$('panel').hidden;
+  if (!same) { AUTO = want; show({keepPanel: true}); } else paint();
+  // 歩くたびに板は開かない。板が開いている時だけ、板を今の札の物に替える
+  const el = deepestNow();
+  if (el && panelWas && selId !== el.dataset.key && ITEM[el.dataset.key]) selectId(el.dataset.key);
+  if (el) el.scrollIntoView({block: 'nearest', behavior: same ? SMOOTH : 'auto'});
+}
+// やめる: run の終わりの姿へ戻し、自動で開いた物を全部閉じる
+function stopReplay() {
+  play(false); at = -1; behind = false; $('p-pos').value = 0; label();
+  AUTO = new Set(); SHUT = new Set();
+  if (!$('s-graph').hidden && cur) show({keepPanel: true});
+}
+function label() {
+  const w = $('p-what');
+  if (at < 0) { w.replaceChildren(h('b', {text: 'run の終わりの姿'}), ` · ${STEPS.length} 歩（ノードの始まりと終わり）。▶ で歩き始める`); return; }
+  const st = STEPS[at], s = stageAt(at), it = itemAt(st.e.at);
+  w.replaceChildren(h('b', {text: `${s ? `段 ${s.n} ${s.name} · ` : ''}${what(it) || st.e.tokens.join(' / ')}`}),
+    ` · ${at + 1} / ${STEPS.length} · ${since(st.t)} · ${st.end ? `終わり（${STATUS[st.e.status] || st.e.status}）` : '始まり'}${st.e.loop.length ? ' · 周 ' + st.e.loop.join('.') : ''}`,
+    `${st.e.run !== RUN.id ? ' · 子の run ' + st.e.run.slice(0, 8) : ''}${st.e.at && st.e.at.graph ? foldedWire(st.e.at) ? ' · 配線の歩（図では畳んでいる）' : '' : ' · 図に当たらない'} · ${st.e.tokens.join(' / ')}`);
+}
+function play(on) {
+  clearTimeout(playing); playing = null; $('p-play').textContent = on ? '⏸' : '▶';
+  if (!on) return;
+  const tick = () => { if (at >= STEPS.length - 1) { play(false); return; } go(at + 1); if (playing !== null) playing = setTimeout(tick, 600); };
+  playing = setTimeout(tick, 0);
+}
+(function player() {
+  if (!STEPS.length) return;
+  $('p-pos').max = STEPS.length - 1; label();
+  $('p-play').onclick = () => { if (playing !== null) return play(false); if (at >= STEPS.length - 1) at = -1; play(true); };
+  $('p-prev').onclick = () => { play(false); go(at - 1); };
+  $('p-next').onclick = () => { play(false); go(at + 1); };
+  $('p-pos').oninput = () => { play(false); go(+$('p-pos').value); };
+  $('p-off').onclick = stopReplay;
+  // 鍵盤（← → 空白）は再生の帯が見えている時だけ受ける。字の欄・つまみ・押し物の上の空白は除く
+  addEventListener('keydown', ev => {
+    if ($('player').hidden || ev.altKey || ev.ctrlKey || ev.metaKey || ev.target.closest('input,select,textarea') || (ev.key === ' ' && ev.target.closest('button,a,summary'))) return;
+    if (ev.key === 'ArrowRight') { ev.preventDefault(); $('p-next').click(); }
+    else if (ev.key === 'ArrowLeft') { ev.preventDefault(); $('p-prev').click(); }
+    else if (ev.key === ' ') { ev.preventDefault(); $('p-play').click(); }
+  });
+})();
+
+// 頭の帯と再生の帯の高さを測り、送る時の余白と板の上下の端とページの下の余白に使う（決め打ちにしない）
+function measure() {
+  const r = document.documentElement.style;
+  r.setProperty('--th', `${document.querySelector('.top').offsetHeight}px`);
+  r.setProperty('--pb', $('player').hidden ? '0px' : `${$('player').querySelector('.in').offsetHeight + 12}px`);
+}
 new ResizeObserver(measure).observe(document.querySelector('.top'));
+new ResizeObserver(measure).observe($('player').querySelector('.in'));
 let edgeTimer = null;
 addEventListener('resize', () => { measure(); clearTimeout(edgeTimer); edgeTimer = setTimeout(drawEdges, 100); });
 header();
