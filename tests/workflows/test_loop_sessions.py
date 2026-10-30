@@ -20,7 +20,6 @@ fresh_context: false の輪は前の周の最後の会話を次の周へ渡し 1
   if_skipped: null で受ける。頭が resubmit を返す輪は全部 RESUBMIT に在る
 - pack は tests/archon.py の WORKFLOWS（入れ替えの前も後も同じ口。docs/design/integration.md の 4.5-11）
 """
-import pathlib
 import unittest
 
 import yaml

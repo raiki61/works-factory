@@ -142,7 +142,6 @@ class FragmentCase(Base):
             if not prompt.FRAGMENT.fullmatch("{shared:%s}" % path.stem):
                 continue
             with self.subTest(fragment=path.name):
-                self.md("{shared:%s}\n" % path.stem)
                 text = prompt._expand("{shared:%s}" % path.stem, self.block, (), False)
                 self.assertNotIn("{shared:", text)
                 self.assertNotIn("{part:", text)

@@ -6,7 +6,6 @@ Bash と Grep が立つかを 1 回確かめる（sandbox_refused）。本物の
 見送り、ほかの層の壊れは赤にする。
 """
 import datetime
-import importlib.util
 import json
 import os
 import pathlib
@@ -18,7 +17,7 @@ import tempfile
 import unittest
 from unittest import mock
 
-from bin._lib import isolate, launcher
+from bin._lib import isolate, launcher, place
 from tests.bin import hermetic, sandbox_probe
 from tests.bin.gitkit import git
 from tests.archon import WORKFLOWS
@@ -28,19 +27,7 @@ ROOT = pathlib.Path(__file__).resolve().parents[2]
 FENCE = WORKFLOWS / ".shared" / "fence.py"
 
 
-def load_fence():
-    # .shared は import の名にならないので、ファイルから読む。Archon が置き場をバイトで照らすので __pycache__ を作らない
-    spec = importlib.util.spec_from_file_location("fence", FENCE)
-    module = importlib.util.module_from_spec(spec)
-    saved, sys.dont_write_bytecode = sys.dont_write_bytecode, True
-    try:
-        spec.loader.exec_module(module)
-    finally:
-        sys.dont_write_bytecode = saved
-    return module
-
-
-fence = load_fence()
+fence = place.shared("fence")   # 起動の殻と同じ読み（.shared は import の名にならず、__pycache__ を作らない）
 
 
 def make_tree(tmp: pathlib.Path) -> dict:

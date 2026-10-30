@@ -29,11 +29,12 @@ def fence(node: dict) -> bool:
 
 
 def unwaited(doc: dict) -> list:
-    """返す節が直にも間を通しても待たない、上の階層の節の id（柵を除く）"""
+    """返す節が直にも間を通しても待たない、上の階層の節の id（柵を除く）。returns: が上の階層の節を名指さなければ、そのことの 1 行
+    （照らせないまま緑にしない）"""
     nodes = {n["id"]: n for n in doc.get("nodes") or []}
     ret = doc.get("returns")
     if ret not in nodes:
-        return []
+        return [f"returns: {ret!r} が上の階層の節に無い"]
     seen, stack = set(), [ret]
     while stack:
         for dep in nodes[stack.pop()].get("depends_on") or []:
@@ -54,6 +55,7 @@ class ReturnsWaitTest(unittest.TestCase):
         doc = {"returns": "finish", "nodes": [{"id": "a"}, {"id": "loop", "loop_group": {}}, {"id": "stop", "cancel": "x"},
                                                {"id": "fence", "bash": "true"}, {"id": "finish", "depends_on": ["a"]}]}
         self.assertEqual(unwaited(doc), ["loop"])
+        self.assertEqual(unwaited({**doc, "returns": "absent"}), ["returns: 'absent' が上の階層の節に無い"])
 
 
 if __name__ == "__main__":

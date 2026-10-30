@@ -8,11 +8,8 @@ tests/shared/test_archon_contract.py が照らす）。ここはその字を値�
 
 - parsed(raw): JSON の値に戻す。飛ばされた節の null・宣言した null の欄の空の字・無い入力は None。JSON でなければ ValueError
 - value(raw): parsed と同じで、JSON でなければ字のまま
-- text(raw): 字の欄の値（JSON に戻さない）。null と無い入力は None
 """
 import json
-
-SKIPPED = "null"
 
 
 def parsed(raw):
@@ -24,7 +21,3 @@ def value(raw):
         return parsed(raw)
     except ValueError:
         return raw
-
-
-def text(raw):
-    return None if raw is None or raw == SKIPPED else raw

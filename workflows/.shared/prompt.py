@@ -75,6 +75,11 @@ def _read(path: Path, what: str) -> str:
         raise PromptError(f"{what} {path} が無い") from None
 
 
+def _unmarked(text: str) -> str:
+    """共通の断片の頭の印の行（REQUIRED_FOR）を落とした字"""
+    return REQUIRED_FOR.sub("", text + "\n", count=1).rstrip("\n")
+
+
 def _expand(text: str, block: Path, stack: tuple, in_shared: bool, shared_root: Path | None = None) -> str:
     shared_root = ports.SHARED if shared_root is None else shared_root
 
@@ -86,7 +91,8 @@ def _expand(text: str, block: Path, stack: tuple, in_shared: bool, shared_root: 
         if key in stack:
             raise PromptError(f"断片が自分を差し込む: {' → '.join(stack + (key,))}")
         path = (shared_root / "prompts" if kind == "shared" else block / "prompts" / "parts") / f"{name}.md"
-        body = REQUIRED_FOR.sub("", _read(path, "断片") + "\n", count=1).rstrip("\n") if kind == "shared" else _read(path, "断片")
+        body = _read(path, "断片")
+        body = _unmarked(body) if kind == "shared" else body
         return _expand(body, block, stack + (key,), in_shared or kind == "shared", shared_root)
     return FRAGMENT.sub(one, text)
 
@@ -140,7 +146,7 @@ def _compose(block: Path, node_id: str, values: dict, when: dict | None, *, part
 
     def read(path: Path) -> str:
         text = _read(path, "指示の md")
-        return REQUIRED_FOR.sub("", text + "\n", count=1).rstrip("\n") if shared else text
+        return _unmarked(text) if shared else text
     texts = {key: _expand(read(path), block, (f"shared:{node_id}",) if shared else (), shared, shared_root).replace("{{", OPEN).replace("}}", CLOSE)
              for key, path in files.items()}
     slots = {name for text in texts.values() for name in SLOT.findall(text)}

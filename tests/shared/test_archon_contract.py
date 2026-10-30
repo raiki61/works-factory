@@ -30,7 +30,6 @@ from tests.archon import CACHE_ENV, pinned_source
 from tests.bin import hermetic
 from tests.bin.gitkit import git
 from tests.layers import scan
-from tests.shared.test_fence import fence
 from tests.workflows import test_uv_scripts
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
@@ -39,6 +38,7 @@ if str(ROOT / "lib") not in sys.path:   # 後ろに足す（頭に入れると l
 import runlog  # noqa: E402  （run の記録の読み。今の runreport・境の transcript の行き先。docs/design/integration.md の 4.5-2）
 
 childsweep = place.shared("childsweep")
+fence = place.shared("fence")
 ports = place.shared("ports")   # pack の口（今の境 boundary.py の後継。指し札の解きは _pointer_path。docs/design/integration.md の 4.5-8）
 ARTIFACTS = "/artifacts"
 

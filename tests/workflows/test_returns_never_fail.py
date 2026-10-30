@@ -59,14 +59,12 @@ def blocks(pack: pathlib.Path = WORKFLOWS) -> list[str]:
     return sorted(p.parent.name for p in pack.glob(f"*/{PREFIX}*.yaml") if p.stem == f"{PREFIX}{p.parent.name}")
 
 
-def all_nodes(value) -> list[dict]:
-    """工程の中の節を全部（loop_group の中も）"""
-    if isinstance(value, list):
-        return [n for v in value for n in all_nodes(v)]
-    if isinstance(value, dict):
-        own = [value] if "id" in value else []
-        return own + [n for v in value.values() for n in all_nodes(v)]
-    return []
+def all_nodes(listed) -> list[dict]:
+    """工程の中の節を全部（loop_group の中も）。節の並びと loop_group の nodes だけを辿る（形の欄 id・承認ノードの options の id は節でない）"""
+    out = []
+    for n in listed or []:
+        out += [n, *all_nodes((n.get("loop_group") or {}).get("nodes"))]
+    return out
 
 
 def node(doc: dict, nid: str) -> dict | None:
