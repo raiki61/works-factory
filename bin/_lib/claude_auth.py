@@ -107,8 +107,3 @@ def auth_env(env, platform=sys.platform, runner=subprocess.run, service=None):
 def added(note):
     """認証を足せた段か。足せていない回だけ、呼ぶ側が静かな落ち方の注意を出せるようにする。"""
     return note.startswith(("inherited(", "keychain("))
-
-
-QUIET_FAILURE_NOTE = ("認証は足していない——子自身の保存済み認証で起きる。認証切れは"
-                      "『Failed to authenticate…』の 1 行が**終了コード 0 のまま**返る形で出るので、"
-                      "返答が短い非 JSON ならまずここを疑う")

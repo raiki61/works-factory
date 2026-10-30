@@ -88,8 +88,8 @@ def main(argv: list[str]) -> int:
 
 
 def launch(argv: list[str], user: dict[str, str], here: Path) -> int:
-    """Archon を起こす。workflow cancel だけは子として起こして終了の値を返し（止めた後の木の残りを止める。埋め P13 の runstop）、
-    ほかは Archon に置き換わって戻らない"""
+    """Archon を起こす。workflow cancel（止めた後の木の残りを止める。埋め P13 の runstop）と --detach でない workflow run
+    （終わった後に run の記録の置き場を告げる。recordroot）は子として起こして終了の値を返し、ほかは Archon に置き換わって戻らない"""
     flags = before_double_dash(argv)
     if any(a == "--workflow-source" or a.startswith("--workflow-source=") for a in flags):
         raise Stop("--workflow-source は渡さない。自分のグラフの置き場は殻が渡す")
@@ -110,7 +110,9 @@ def launch(argv: list[str], user: dict[str, str], here: Path) -> int:
     refuse_sandbox_writable("対象", target)
     home = run_home(user, target)
     cache = place.cache_dir(user)
-    refuse_sandbox_writable("XDG_CACHE_HOME" if user.get("XDG_CACHE_HOME") else "HOME", cache)
+    cache_from = "XDG_CACHE_HOME" if user.get("XDG_CACHE_HOME") else "HOME"
+    refuse_relative(cache_from, cache)
+    refuse_sandbox_writable(cache_from, cache)
     try:
         loaded = pack.load(ROOT)
         source = place.archon_source(loaded, cache)
@@ -153,7 +155,6 @@ def launch(argv: list[str], user: dict[str, str], here: Path) -> int:
     bun = shutil.which("bun", path=child.get("PATH"))  # 在ることは place.archon_source が確かめ済み
     child[ARCHON_CLI_ENV] = json.dumps(place.archon(bun, source))
 
-    executing = len(argv) > 1 and argv[0] == "workflow" and argv[1] in EXECUTING
     if executing and workflow is None:
         # 前に始めた run を続ける命令。#679 より前に始めた run は封じた層に ROOT_ENV を持たない。層を持つ run では層の値が勝つ
         child[ROOT_ENV] = str(ROOT)
@@ -451,16 +452,22 @@ def run_home(user: Mapping[str, str], target: Path) -> Path:
     """Archon の DB と隔離した置き場の根。対象ごとに 1 つで起動をまたいで同じ（run・respond・resume が同じ DB を見る）"""
     chosen = user.get(HOME_ENV)
     if chosen:
-        if not os.path.isabs(chosen):
-            raise Stop(f"{HOME_ENV} は絶対パスにする（受けた値: {chosen}）")
+        refuse_relative(HOME_ENV, chosen)
         refuse_sandbox_writable(HOME_ENV, chosen)
         refuse_in_factory(HOME_ENV, chosen)
         return Path(chosen)
     home = factory_state(user) / "targets" / hashlib.sha256(str(target).encode()).hexdigest()[:8]
     what = "XDG_STATE_HOME" if user.get("XDG_STATE_HOME") else "HOME"
+    refuse_relative(what, home)
     refuse_sandbox_writable(what, home)
     refuse_in_factory(what, home)
     return home
+
+
+def refuse_relative(what: str, path) -> None:
+    """相対パスの置き場は打った場所の下を指すので拒む（isolate も相対の家を受けない）"""
+    if not os.path.isabs(path):
+        raise Stop(f"{what} は絶対パスにする（受けた値: {path}）")
 
 
 def factory_state(user: Mapping[str, str]) -> Path:

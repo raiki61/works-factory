@@ -90,45 +90,6 @@ def inherited(*prefixes: str) -> dict:
     return {k: v for k, v in {**_SCRUBBED, **os.environ}.items() if k.startswith(prefixes)}
 
 
-def alias(case, path) -> str:
-    """/private の下の実体のパスの、/ の直下の symlink を通した別名の綴り（macOS の /var・/tmp・/etc）。別名はファイルの仕組み
-    から引く（/<頂> が /private/<頂> を指す symlink か）——包みの綴りの表（adapter._ALIASES）を写さないので、表の抜けを試験が
-    捕まえる。別名が無い場（一時フォルダが /private の外・macOS でない機械）では skip する。呼ぶのは case.subTest の中だけ
-    （skip はその subTest に留まり、同じ試験の元の綴りの主張は検査され続ける。外で呼ぶと試験を丸ごと黙らせるので拒む）"""
-    if getattr(case, "_subtest", None) is None:
-        raise AssertionError("hermetic.alias は case.subTest の中で呼ぶ（別名が無い場の skip が試験の残りを黙らせないように）")
-    p = str(path)
-    top = "/" + p.split("/")[2] if p.startswith("/private/") else ""
-    if top and os.path.islink(top) and os.path.realpath(top) == "/private" + top:
-        return p[len("/private"):]
-    case.skipTest(f"SKIP private-symlink: {p} に /private の別名の綴りが無い")
-
-
-def fake_herdr(tmp, fail=False):
-    """偽の herdr を置く。(PATH の頭に足すフォルダ, 控えのファイル)。偽の herdr を作る所はここだけ。
-    実物の CLI の形（pane の下の report-agent・release-agent）だけを受けて引数を控えに 1 行ずつ書き、ほかは実物と同じ文言で
-    rc=2。形は lib.sh の呼び方でなく実物の --help と公式文書から写す（lib.sh を写すと呼び方の誤りを緑で通す）。
-    fail=True なら受ける形を控えた後、サーバの居ない時の実物と同じく server_not_running を標準エラーに出して rc=1。
-    受けた形ごとに、送り先のサーバ（HERDR_SOCKET_PATH。無ければ (unset)）と引数を herdr_sockets が読む別の控えにも書く"""
-    bin_dir = pathlib.Path(tmp) / "herdr-bin"
-    bin_dir.mkdir()
-    log = pathlib.Path(tmp) / "herdr.txt"
-    accepted = 'echo "error: server_not_running" >&2\n    exit 1' if fail else "exit 0"
-    (bin_dir / "herdr").write_text(f'#!/bin/sh\ncase "$1 $2" in\n  "pane report-agent"|"pane release-agent")\n'
-                                   f'    echo "$*" >> "{log}"\n'
-                                   f'    printf \'%s\\t%s\\n\' "${{HERDR_SOCKET_PATH-(unset)}}" "$*" >> "{log}.socket"\n'
-                                   f'    {accepted} ;;\nesac\n'
-                                   'echo "unknown command: $1" >&2\nexit 2\n')
-    (bin_dir / "herdr").chmod(0o755)
-    return bin_dir, log
-
-
-def herdr_sockets(log):
-    """fake_herdr の控えに対応する (送り先のサーバ, 引数) の並び（呼ばれていなければ空）"""
-    p = pathlib.Path(f"{log}.socket")
-    return [tuple(l.split("\t", 1)) for l in p.read_text().splitlines()] if p.exists() else []
-
-
 def tmpdir(case, **kw) -> pathlib.Path:
     """実体のパス（realpath）の一時フォルダ。case（unittest.TestCase）の後始末で消す"""
     d = pathlib.Path(os.path.realpath(tempfile.mkdtemp(**kw)))

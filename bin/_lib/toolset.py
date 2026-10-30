@@ -195,7 +195,7 @@ INSTALLED_VERSIONS = frozenset({2})        # 読める installed_plugins.json �
 
 
 def _read_installed(user_config: pathlib.Path) -> dict:
-    """利用者の plugins/installed_plugins.json の plugins（{<名>@<marketplace>: [行]}）。無ければ空。知らない形（version が
+    """設定の置き場（利用者の物か隔離した物）の plugins/installed_plugins.json の plugins（{<名>@<marketplace>: [行]}）。無ければ空。知らない形（version が
     INSTALLED_VERSIONS の外・plugins が表でない・行の並びが表の一覧でない・JSON として読めない）は『入っていない』に潰さず、
     形を知らないと名指しして ToolsetError"""
     p = pathlib.Path(user_config) / "plugins" / "installed_plugins.json"
@@ -238,7 +238,7 @@ def source_enabled(user_config: pathlib.Path, key: str, cwd) -> "bool | None":
     return None
 
 
-def _missing_names(name: str, item: dict, src: pathlib.Path) -> list:
+def _missing_names(item: dict, src: pathlib.Path) -> list:
     """works が名前で頼る物のうち、入れた置き場 src に無い物（中身・版は見ない）"""
     out = []
     if item["kind"] == "plugin" and not (src / ".claude-plugin" / "plugin.json").is_file():
@@ -299,7 +299,7 @@ def installed_sources(user_config: pathlib.Path, borrow: dict, cwd=None) -> tupl
                        + _how_to_install(name, item))
             continue
         src = pathlib.Path(row["installPath"])
-        missing = _missing_names(name, item, src)
+        missing = _missing_names(item, src)
         if missing:
             bad.append(f"{name}（{src}）に works が使う {'・'.join(missing)} が無い。"
                        f"版を確かめる（claude plugin update {key}）か入れ直す。" + _how_to_install(name, item))
@@ -640,7 +640,7 @@ def _install_plugins(cfg: pathlib.Path, srcs: dict, claude_bin: str, retired=())
         _claude(claude_bin, cfg, "plugin", "marketplace", "add", str(mp))
     elif changed:
         _claude(claude_bin, cfg, "plugin", "marketplace", "update", MARKETPLACE)
-    installed = (_read_json(cfg / "plugins" / "installed_plugins.json") or {}).get("plugins") or {}
+    installed = _read_installed(cfg)   # 読めない・知らない形は名指して止まる（利用者の置き場と同じ読み）
     enabled = (_read_json(cfg / "settings.json") or {}).get("enabledPlugins") or {}
     for name in retired:
         if installed.get(f"{name}@{MARKETPLACE}"):

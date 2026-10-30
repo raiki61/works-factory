@@ -23,15 +23,11 @@ keychain を持つ）。
 - write(dir, path, home, config) -> str|None: 口を <dir>/<中身の sha256 の頭 16 桁>/gh に書いてそのパスを返す。中身ごとに置き場を
   分けるので、同じ家から並べた起動・入れ子の起動（隔離した HOME を継いだ殻）が、走っている run の口を書き換えない。gh が無ければ
   何も書かずに None（前の口は消さない。別の run が使っているかもしれない）
-- CLI: `python3 -I hostgh.py write --dir <口の置き場> --path "$PATH" --home "$HOME" --gh-config-dir "${GH_CONFIG_DIR:-}"
-  --xdg-config-home "${XDG_CONFIG_HOME:-}"`（隔離の前の値）。書いた口のパスか空を 1 行
 """
-import argparse
 import hashlib
 import os
 import pathlib
 import shlex
-import sys
 
 NO_POST_BIN = pathlib.Path(__file__).resolve().parent / "no-post-bin"
 SHIM = "gh"
@@ -109,25 +105,3 @@ def place_shim(top: pathlib.Path, name: str, body: str) -> str:
     tmp.chmod(0o755)
     os.replace(tmp, shim)
     return str(shim)
-
-
-def main(argv=None) -> int:
-    ap = argparse.ArgumentParser(prog="hostgh.py")
-    sub = ap.add_subparsers(dest="cmd", required=True)
-    w = sub.add_parser("write")
-    w.add_argument("--dir", required=True)
-    w.add_argument("--path", required=True)
-    w.add_argument("--home", required=True)
-    w.add_argument("--gh-config-dir", default="")
-    w.add_argument("--xdg-config-home", default="")
-    a = ap.parse_args(argv)
-    conf = config_dir({"GH_CONFIG_DIR": a.gh_config_dir, "XDG_CONFIG_HOME": a.xdg_config_home, "HOME": a.home})
-    print(write(a.dir, a.path, a.home, conf) or "")
-    return 0
-
-
-if __name__ == "__main__":
-    for _s in (sys.stdout, sys.stderr):   # Windows の既定コーデックに依らない（パスに日本語が在っても落ちない）
-        if hasattr(_s, "reconfigure"):
-            _s.reconfigure(encoding="utf-8")
-    sys.exit(main())

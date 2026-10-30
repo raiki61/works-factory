@@ -34,8 +34,6 @@ keychain は利用者の HOME で読む（security はログイン keychain を 
       殻は check を隔離した子の環境で起こす（役と同じ環境で起動方法を確かめる）。--runtime は利用者が CLAUDE_BIN_PATH を置いた時だけ殻が渡す
   auth_launch.py exec --user-home <path> --user-config <path か空> [--runtime <起動方法>] -- <実行ファイル> <引数…>
       同じ順で子の環境を組み、今のプロセスを実行ファイルに置き換える（WORKS_FACTORY_NO_AUTH=1 なら読まずに置き換える）
-  auth_launch.py howto
-      認証が無い時の案内の 1 行（殻が自分の言葉で止まる時に使う）
   auth_launch.py credential-export --user-home <path> --user-config <path> (--source <settings.json> | --aws <aws> [--profile <名>])
       選ばれた AWS（Bedrock・Mantle）の資格の源を、役の Claude Code が awsCredentialExport として期限の前ごとに走らせ直す包みの中身。
       殻の connection_profile が run の置き場の包み（1 行の sh）に書き、役の Claude Code が起こす。apiKeyHelper と同じ helper_settings_env で
@@ -674,7 +672,6 @@ def child_env(env, got, named):
 def main(argv):
     ap = argparse.ArgumentParser(prog="auth_launch.py")
     sub = ap.add_subparsers(dest="cmd", required=True)
-    sub.add_parser("howto")
     p = sub.add_parser("credential-export")
     p.add_argument("--user-home", required=True)
     p.add_argument("--user-config", required=True)
@@ -691,9 +688,6 @@ def main(argv):
         if cmd == "exec":
             p.add_argument("argv", nargs=argparse.REMAINDER)
     a = ap.parse_args(argv)
-    if a.cmd == "howto":
-        print(HOWTO)
-        return 0
     if a.cmd == "credential-export":
         if bool(a.source) == bool(a.aws):
             ap.error("credential-export には --source か --aws の片方だけが要る")
