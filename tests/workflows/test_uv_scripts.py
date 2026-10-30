@@ -59,20 +59,19 @@ def root_pin() -> str:
     """根の pyproject.toml の PyYAML の版の字（PyYAML==x.y.z）"""
     return PIN.search((ROOT / "pyproject.toml").read_text(encoding="utf-8")).group(1)
 PYPROJECT = '[project]\nname = "target"\nversion = "0"\nrequires-python = ">=3.12"\n'
-DEPTH = 1   # Archon の MAX_SCRIPT_DISCOVERY_DEPTH
 RUNTIMES = {".py": "uv", ".ts": "bun", ".js": "bun"}
 INLINE = re.compile(r"[;(){}&|<>$`\"' ]")
 WAIT = 120   # uv が script の環境を初めて組む回も入る上限（秒）
 
 
 def discover(scripts: pathlib.Path, depth: int = 0) -> dict[str, list[pathlib.Path]]:
-    """Archon の scanScriptDir と同じく、scripts/ から DEPTH 段下までの script を名ごとに集める（同じ名の重なりも残す）。"""
+    """Archon の scanScriptDir と同じく、scripts/ から DISCOVERY_DEPTH 段下までの script を名ごとに集める（同じ名の重なりも残す）。"""
     found: dict[str, list[pathlib.Path]] = {}
     if not scripts.is_dir():
         return found
     for entry in sorted(scripts.iterdir()):
         if entry.is_dir():
-            if depth < DEPTH:
+            if depth < DISCOVERY_DEPTH:
                 for name, paths in discover(entry, depth + 1).items():
                     found.setdefault(name, []).extend(paths)
         elif entry.suffix in RUNTIMES:
