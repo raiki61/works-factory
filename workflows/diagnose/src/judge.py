@@ -63,7 +63,7 @@ _CASE_MARKS = re.compile(r"\s*([①②③][\s・、,]*)+")
 
 
 # ---------------------------------------------------------------- 小さな助け
-def _read_json(path, default=None):
+def read_json(path, default=None):
     """path の JSON。無ければ default。読めない・JSON でなければ ValueError（壊れた控えを黙って空にしない）"""
     p = pathlib.Path(path)
     try:
@@ -74,7 +74,7 @@ def _read_json(path, default=None):
         raise ValueError(f"{p} が読めない（{type(e).__name__}: {e}）") from None
 
 
-def _write_json(path, doc) -> pathlib.Path:
+def write_json(path, doc) -> pathlib.Path:
     return jsonfile.write(path, doc, parents=True)
 
 
@@ -134,12 +134,12 @@ def _run_query(place, where, how, root, rev=None, probe=True):
         return None, f"{where}: how を走らせる場所（リポジトリのルート）を引けない——確かめられない件数は受け取らない"
     place = pathlib.Path(place)
     cf, ck = place / files.COUNT_CACHE_FILE, json.dumps([how, rev], ensure_ascii=False, sort_keys=True)
-    cache = (_read_json(cf, {}) or {}) if rev else {}
+    cache = (read_json(cf, {}) or {}) if rev else {}
     if ck in cache:
         got, why = cache[ck]
         return (got, "") if got is not None else (None, f"{where}: how を機械が走らせられない（{why}）")
     bf = place / files.COUNT_BUDGET_FILE
-    bud = _read_json(bf, {}) or {}
+    bud = read_json(bf, {}) or {}
     if bud.get("round") != 1:
         bud = {"round": 1, "calls": 0, "seconds": 0.0}
     if bud["calls"] >= COUNT_BUDGET["calls"] or bud["seconds"] >= COUNT_BUDGET["seconds"]:
@@ -150,10 +150,10 @@ def _run_query(place, where, how, root, rev=None, probe=True):
     got, why = run_count(how, root, rev=rev, probe=probe)
     bud["calls"] += 1
     bud["seconds"] += time.monotonic() - t0
-    _write_json(bf, bud)
+    write_json(bf, bud)
     if rev and got is not None:
         cache[ck] = [got, why]
-        _write_json(cf, cache)
+        write_json(cf, cache)
     if got is None:
         return None, f"{where}: how を機械が走らせられない（{why}）"
     return got, ""
@@ -475,7 +475,7 @@ def take(place, reply, repo, world_rows, answers, redesign, recorded, materials,
         outpurpose.save(place, 1, outside, material_rows)
         gatemarks.save_answer_ties(place, 1, tie_rows)
         doc = outpurpose.restore(querytest.restore(out, place), place, 1)
-        path = _write_json(pathlib.Path(place) / files.JUDGMENT_FILE, doc)
+        path = write_json(pathlib.Path(place) / files.JUDGMENT_FILE, doc)
         return {"ok": True, "reason": note or "", "open_units": [u["key"] for u in out["units"] if is_open(u)],
                 "judgment_file": str(path)}
     return accept.guard(run, open_units=[], judgment_file="")
@@ -522,5 +522,5 @@ def structure_units(judgment, repo, record=None) -> list:
         reason = u.get("reason") if isinstance(u.get("reason"), str) else ""
         rows.append({"id": u["key"], "paths": paths, "summary": reason})
     if record is not None:
-        _write_json(record, {"units": empty, "paths": list(dict.fromkeys(dropped))})
+        write_json(record, {"units": empty, "paths": list(dict.fromkeys(dropped))})
     return rows

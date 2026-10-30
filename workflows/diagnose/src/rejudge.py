@@ -5,12 +5,10 @@ place に書く。指示の文は持たない（prompts/rejudge.md が持つ）�
 """
 from __future__ import annotations
 
-import json
 import pathlib
 import re
 
 import accept      # lib/
-import jsonfile    # lib/
 import materialkit   # lib/
 import querytest   # lib/
 import rolekit     # lib/
@@ -19,7 +17,7 @@ from engine.util import Reject   # lib/graphloops/engine/util.py
 import ports
 
 from src import files
-from src.judge import blank, is_open
+from src.judge import blank, is_open, read_json, write_json
 
 REJUDGE_VERDICTS = ("採る", "退ける", "一部採る")   # 再審の役の output_format の verdict の enum
 ADOPTED = REJUDGE_VERDICTS[0]                     # 異議を採る答え
@@ -28,20 +26,6 @@ REJUDGE_SETTLED = ("採る", "退ける")               # 決着して異議を�
 REJUDGE_UNIT_FIELDS = ("key", "label", "disposition", "reason", "reopen_evidence")
 # 修正役に貼った番号の書き方（no N・No.N・#N・N 番）。全角の数字も \d に当たる
 _NUMBERS = (re.compile(r"(?<![A-Za-z])no\.?\s*(\d+)", re.IGNORECASE), re.compile(r"[#＃]\s*(\d+)"), re.compile(r"(\d+)\s*番"))
-
-
-def _read_json(path, default=None):
-    p = pathlib.Path(path)
-    try:
-        return json.loads(p.read_text(encoding="utf-8"))
-    except FileNotFoundError:
-        return default
-    except (OSError, UnicodeDecodeError, ValueError) as e:
-        raise ValueError(f"{p} が読めない（{type(e).__name__}: {e}）") from None
-
-
-def _write_json(path, doc) -> pathlib.Path:
-    return jsonfile.write(path, doc, parents=True)
 
 
 def rejudge_output(out):
@@ -114,7 +98,7 @@ def take(place, reply, repo) -> dict:
         if moved:
             raise Reject("読むだけの役が作業ツリーを変えた: 再審の役は読むだけの役で、作業ツリー・HEAD・枝・git が無視する"
                          "ファイルを変えてはいけない（" + "・".join(moved) + "）")
-        before_doc = _read_json(place / files.UNITS_BEFORE_FILE)
+        before_doc = read_json(place / files.UNITS_BEFORE_FILE)
         if not isinstance(before_doc, dict):
             raise Reject(f"{files.REJUDGE_ROLE} の前の単位の写しが無い（入口が先に走る）")
         errs = querytest.problems(reply.get("units"), is_open)
@@ -124,7 +108,7 @@ def take(place, reply, repo) -> dict:
         rejudge_output(reply)
         if not all(isinstance(u, dict) and isinstance(u.get("key"), str) and u.get("key") for u in reply["units"]):
             raise Reject(f"{files.REJUDGE_NODE}: units の行に key（空でない字）が要る")
-        first = _read_json(place / files.FIRST_JUDGMENT_FILE) or {}
+        first = read_json(place / files.FIRST_JUDGMENT_FILE) or {}
     except Reject as e:
         return {**no, "reason": str(e)}
     except (KeyError, TypeError, AttributeError, ValueError) as e:
@@ -132,13 +116,13 @@ def take(place, reply, repo) -> dict:
     if examples:
         querytest.save(place, examples)
     units = [{f: u[f] for f in REJUDGE_UNIT_FIELDS if f in u} for u in reply["units"]]
-    _write_json(place / files.JUDGMENT_FILE, {**(first if isinstance(first, dict) else {}), "units": units})
-    _write_json(place / files.REJUDGE_REPLY_FILE, (_read_json(place / files.REJUDGE_REPLY_FILE, []) or []) + [reply])
+    write_json(place / files.JUDGMENT_FILE, {**(first if isinstance(first, dict) else {}), "units": units})
+    write_json(place / files.REJUDGE_REPLY_FILE, (read_json(place / files.REJUDGE_REPLY_FILE, []) or []) + [reply])
     verdict = reply.get("verdict", "")
     row = {"round": 1, "pass": files.REJUDGE_ROLE, "node": files.REJUDGE_NODE, "verdict": verdict,
            **diff_units(before_doc.get("units") or [], units, before_doc.get("objection") or "",
                         before_doc.get("numbered_keys") or [])}
-    _write_json(place / files.REJUDGE_DIFF_FILE, (_read_json(place / files.REJUDGE_DIFF_FILE, []) or []) + [row])
+    write_json(place / files.REJUDGE_DIFF_FILE, (read_json(place / files.REJUDGE_DIFF_FILE, []) or []) + [row])
     return {"ok": True, "reason": "", "verdict": verdict}
 
 
@@ -149,9 +133,9 @@ def collect(place) -> dict:
     new_open_units と lowered は最初の再審の前の単位（units-before.json）と今の単位の比べ。unsettled は最後の答えが 採る・退ける なら
     決着（異議を降ろす）。reads_file は読んだ証拠を持ち込まないので空"""
     place = pathlib.Path(place)
-    judgment = _read_json(place / files.JUDGMENT_FILE)
-    rows = _read_json(place / files.REJUDGE_DIFF_FILE, []) or []
-    before = _read_json(place / files.UNITS_BEFORE_FILE)
+    judgment = read_json(place / files.JUDGMENT_FILE)
+    rows = read_json(place / files.REJUDGE_DIFF_FILE, []) or []
+    before = read_json(place / files.UNITS_BEFORE_FILE)
     ok, reason = True, ""
     if judgment is None:
         ok = False
@@ -173,7 +157,7 @@ def collect(place) -> dict:
            "unsettled": {"text": "" if settled else objection, "settled": settled},
            "objection": objection, "new_open_units": new_open, "lowered": lowered, "unnamed_changed": unnamed,
            "diff_file": str(diff_p) if diff_p.exists() else "", "reads_file": ""}
-    _write_json(place / files.REJUDGE_EXIT_FILE, out)
+    write_json(place / files.REJUDGE_EXIT_FILE, out)
     return out
 
 
@@ -205,7 +189,7 @@ def accept_reply(place, reply, fix_reply, repo) -> dict:
 def verdict_of(place):
     """再審の答えの語（採る・退ける・一部採る）。rejudge-exit.json の最後の verdicts（受けた再審が無い・出口が読めなければ None）"""
     try:
-        doc = _read_json(pathlib.Path(place) / files.REJUDGE_EXIT_FILE)
+        doc = read_json(pathlib.Path(place) / files.REJUDGE_EXIT_FILE)
     except ValueError:
         return None
     got = (doc.get("verdicts") or [None])[-1] if isinstance(doc, dict) and doc.get("ok") else None
