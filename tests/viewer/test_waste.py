@@ -121,16 +121,17 @@ class WasteCase(unittest.TestCase):
 
     def test_copied_turns_are_not_counted(self):
         """続けた会話が前の会話から写して持つ往復（copied）は、返事の数・道具の呼び出し・読み直し・大きな結果・空いた往復・積み上がりの
-        どれにも数えない（写し元の会話の往復と二重になる）"""
+        どれにも数えない（写し元の会話の往復と二重になる）。ただし最初の新しい往復の前の空きは、写した最後の往復から測る"""
         copied = {**turn(0, [call("Read", "r1", 4000), call("Read", "r3", 12000)], {"in": 1, "cache_read": 0, "cache_write": 1}), "copied": True}
-        self.data["run"]["sessions"]["s2"]["turns"].insert(0, copied)
+        self.data["run"]["sessions"]["s2"]["turns"][:0] = [copied, {**turn(8), "copied": True}]   # 写しどうしの 8 分の空きは数えない
         waste.attach(self.data)
         got = self.data["waste"]
         self.assertEqual([row["replies"] for row in got["top"]["rows"]], [2, 1])
         self.assertEqual(got["big"]["calls"], 4)
         self.assertEqual([(row["session"], row["chars"]) for row in got["big"]["results"]], [("s1", 12000), ("s2", 12000)])
         self.assertEqual([row["times"] for row in got["context"]["reads"]["again"]], [2, 2])
-        self.assertEqual(got["context"]["pauses"], self.got["context"]["pauses"])
+        self.assertEqual(got["context"]["pauses"], [*self.got["context"]["pauses"],
+                                                    {"session": "s2", "event": 4, "turn": 2, "gap": 420.0, "cache_write": None}])
         self.assertEqual(got["big"]["climb"], self.got["big"]["climb"])
 
 
