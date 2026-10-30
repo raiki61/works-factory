@@ -89,6 +89,23 @@ class FlowCase(unittest.TestCase):
         self.assertIn("new-eye", got["reason"])
         self.assertIn("kind は guide・model・block", got["reason"])
 
+    def test_unreadable_records_fail_the_finish(self):
+        """比べの控え・直しの控えが無い・壊れている時、出口は当たりとも直しが通ったとも読まない（E23）"""
+        self.walks(walk(["blocks/world/x.py"]), walk(["lib/y.py"]))
+        for broken in (None, "{"):
+            with self.subTest(compare=broken):
+                (self.run.artifacts / "compare.json").unlink(missing_ok=True)
+                if broken is not None:
+                    (self.run.artifacts / "compare.json").write_text(broken, encoding="utf-8")
+                fin = self.run.script("finish", "finish")
+                self.assertEqual((fin["ok"], fin["status"]), (False, "failed"))
+                self.assertIn("compare.json", fin["reason"])
+        self.run.script("compare", "compare")
+        (self.run.artifacts / "fixes.json").write_text("{", encoding="utf-8")
+        fin = self.run.script("finish", "finish")
+        self.assertEqual((fin["ok"], fin["status"]), (False, "failed"))
+        self.assertIn("fixes.json", fin["reason"])
+
     def test_bad_entry_is_named(self):
         got = self.run.script("intake", requests=json.dumps(REQUESTS), entry="NOPE.md", lang="")
         self.assertFalse(got["due"])
