@@ -26,8 +26,7 @@ LOGS = "logs"
 JUNIT = "junit"
 IMPACT = "impact"
 SUITE = "suite"
-SUITE_LOGS = ("suite-suite.log", "suite-suite-again.log", "junit-suite.xml", "suite-suite-base-rev.log", "junit-suite-base-rev.xml",
-              "suite-suite-whole.log", "junit-suite-whole.xml")
+SUITE_LOGS = ("suite-suite.log", "junit-suite.xml", "suite-suite-base-rev.log", "junit-suite-base-rev.xml")
 JUNIT_BASE_REV = "junit-base-rev"   # 最後のテストが修正前の版で宣言の段を走らせ直した時の JUnit の報告（scripts/run.py の base_rerun）
 BASELINE = "baseline.json"
 EVIDENCE = "evidence.md"

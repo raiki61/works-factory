@@ -85,7 +85,7 @@ script の node はどれも `runtime: uv`。`run` のほかは `mutates_checkou
 - `suite-state.json`: 実行器の控え `{test_cmd, tdd_suite, suite_written?}`。`lib/suitewrite.py` の関数の `start_file` に渡すファイル（11 節の 2）。照らしが通ると `tdd_suite` に実行器の絶対パスが入る。
 - `run.json`・`logs/a<k>/`（`<k>` は空いた最初の番号。前の走りのログを上書きしない）・`junit/`（宣言の段の JUnit の報告）。
 - `impact/`（関わる試験の選びの地図の控え。`lib/related.pick` の `cache_dir`）。`run.json` の `related` が選びの結果と走らせたか（`ran`）を持つ。
-- `suite/runner`（照らす実行器）・`suite/writer-brief.md`（`suitewrite.prepare` が書く。読み手は無いが、lib を変えないので残る）・`suite-write-prompt-<n>.md`・`suite-suite.log`・`suite-suite-again.log`・`junit-suite.xml`（`baseline_red.run_suite` が書く）。
+- `suite/runner`（照らす実行器）・`suite/writer-brief.md`（`suitewrite.prepare` が書く。読み手は無いが、lib を変えないので残る）・`suite-write-prompt-<n>.md`・`suite-suite.log`・`junit-suite.xml`・`suite-suite-base-rev.log`・`junit-suite-base-rev.xml`（`baseline_red.run_suite` が書く）。
 - `baseline.json`（base だけ）・`evidence.md`・`failure.txt`（証拠の文が書けない時だけ）。
 
 ### 1.5 コードの置き場と、作る・触るファイル
