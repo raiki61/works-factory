@@ -28,22 +28,20 @@ GIT_ID = ["-c", "user.email=t@t", "-c", "user.name=t", "-c", "commit.gpgsign=fal
 _made = {}   # (src, sub, ignore) → (型の根, HEAD の版)
 
 
-def git(repo, *args):
-    """repo で git を起こし、標準出力（前後の空白を落とす）を返す。失敗は CalledProcessError。hook・署名・利用者の名前に左右されない"""
-    return subprocess.run(["git", *GIT_ID, "-C", str(repo), *args], capture_output=True, text=True, encoding="utf-8",
-                          check=True, env=hermetic.child_env()).stdout.strip()
+def git(repo, *args, stdin=None):
+    """repo で git を起こし、標準出力（前後の空白を落とす）を返す。失敗は CalledProcessError。hook・署名・利用者の名前に左右されない。
+    stdin は標準入力に渡す字（無ければ渡さない）"""
+    return subprocess.run(["git", *GIT_ID, "-C", str(repo), *args], input=stdin, capture_output=True, text=True,
+                          encoding="utf-8", check=True, env=hermetic.child_env()).stdout.strip()
 
 
 def commit_absent(repo, paths) -> str:
     """paths を中身の同じ 1 つの blob で index に足して commit し、作業ツリーには書かない。作業ツリーから見ると全部が消えた物で、
     何万本の消えたファイルの差分を、ファイルを書かずに作る（書いて消すと、遅いファイルシステムでは 1 万本ごとに数秒かかる）。返りは commit の版"""
-    def run(*args, stdin=""):
-        return subprocess.run(["git", *GIT_ID, "-C", str(repo), *args], input=stdin, capture_output=True, text=True,
-                              encoding="utf-8", check=True, env=hermetic.child_env()).stdout.strip()
-    blob = run("hash-object", "-w", "--stdin", stdin="x\n")
-    run("update-index", "--index-info", stdin="".join(f"100644 {blob}\t{p}\n" for p in paths))
-    run("commit", "-q", "-m", "absent")
-    return run("rev-parse", "HEAD")
+    blob = git(repo, "hash-object", "-w", "--stdin", stdin="x\n")
+    git(repo, "update-index", "--index-info", stdin="".join(f"100644 {blob}\t{p}\n" for p in paths))
+    git(repo, "commit", "-q", "-m", "absent")
+    return git(repo, "rev-parse", "HEAD")
 
 
 def git_url_redirect(url, to):
