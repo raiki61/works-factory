@@ -238,7 +238,7 @@ def source_enabled(user_config: pathlib.Path, key: str, cwd) -> "bool | None":
     return None
 
 
-def _missing_names(name: str, item: dict, src: pathlib.Path) -> list:
+def _missing_names(item: dict, src: pathlib.Path) -> list:
     """works が名前で頼る物のうち、入れた置き場 src に無い物（中身・版は見ない）"""
     out = []
     if item["kind"] == "plugin" and not (src / ".claude-plugin" / "plugin.json").is_file():
@@ -299,7 +299,7 @@ def installed_sources(user_config: pathlib.Path, borrow: dict, cwd=None) -> tupl
                        + _how_to_install(name, item))
             continue
         src = pathlib.Path(row["installPath"])
-        missing = _missing_names(name, item, src)
+        missing = _missing_names(item, src)
         if missing:
             bad.append(f"{name}（{src}）に works が使う {'・'.join(missing)} が無い。"
                        f"版を確かめる（claude plugin update {key}）か入れ直す。" + _how_to_install(name, item))
