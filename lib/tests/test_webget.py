@@ -102,7 +102,7 @@ class FetchCase(unittest.TestCase):
         req = urllib.request.Request("https://pypi.org/pypi/requests/json", headers={"User-Agent": "works-test"})
         h = webget.SafeRedirect()
         self.assertIsNotNone(h.redirect_request(req, None, 302, "Found", {}, "https://elsewhere.example/x"))
-        for url in ("http://elsewhere.example/x", "https://10.1.2.3/x", "https://localhost/x", "https://intranet/x",
+        for url in ("http://elsewhere.example/x", "https://10.1.2.3/x", "https://127.1/x", "https://0x7f.0.0.1/x", "https://localhost/x", "https://intranet/x",
                     "https://u:p@elsewhere.example/x"):
             with self.subTest(url=url):
                 self.assertIsNone(h.redirect_request(req, None, 302, "Found", {}, url))

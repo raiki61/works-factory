@@ -30,6 +30,7 @@ import ipaddress
 import json
 import os
 import pathlib
+import socket
 import tempfile
 import urllib.error
 import urllib.parse
@@ -54,6 +55,11 @@ def safe_url(url) -> bool:
         ipaddress.ip_address(host)
         return False
     except ValueError:
+        pass
+    try:
+        socket.inet_aton(host)   # 名の解き手が IP に読む短い形（127.1・0x7f.0.0.1 など）も IP の字
+        return False
+    except OSError:
         return True
 
 
