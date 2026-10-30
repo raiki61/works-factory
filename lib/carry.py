@@ -35,7 +35,6 @@ findings だけにする（容器の形を規則の側へ漏らさない）。
 import argparse
 import functools
 import json
-import os
 import pathlib
 import sys
 
@@ -47,6 +46,7 @@ if str(_HERE) not in sys.path:   # 同じ置き場の lib のモジュール
     sys.path.insert(0, str(_HERE))
 
 from engine.schema import validate_schema  # noqa: E402
+import jsonfile  # noqa: E402
 import oneline  # noqa: E402
 
 # 依頼の容器の欄の名
@@ -236,11 +236,8 @@ def row_key(row: dict) -> str:
 
 
 def write(path, doc) -> None:
-    """JSON を一時の名に書いて os.replace で一度に置く（indent 2・字のまま・末尾の改行）"""
-    path = pathlib.Path(path)
-    tmp = path.with_name(path.name + ".tmp")
-    tmp.write_text(json.dumps(doc, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    os.replace(tmp, path)
+    """JSON を一時の名に書いて os.replace で一度に置く（indent 2・字のまま・末尾の改行。jsonfile.write）"""
+    jsonfile.write(path, doc, indent=2)
 
 
 def _checked(doc, name: str, what: str):

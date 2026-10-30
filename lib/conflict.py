@@ -77,7 +77,6 @@ fix_plan_item は承認済みの修正案の項目そのものの誤りで、そ
 標準ライブラリだけ。期限は持たない。
 """
 import json
-import os
 import pathlib
 import posixpath
 import sys
@@ -94,6 +93,7 @@ if str(_CORE / "graphloops") not in sys.path:   # 写しの engine（engine.util
 import cite  # noqa: E402
 import fixboard  # noqa: E402  （置き場の trace.jsonl への 1 行）
 import globs  # noqa: E402
+import jsonfile  # noqa: E402
 import oneline  # noqa: E402
 import planmarks  # noqa: E402  （planmarks は conflict・entry を読まないので輪にならない）
 import stopby  # noqa: E402  （L1。止めの理由の住処）
@@ -330,14 +330,8 @@ def _load(b) -> dict:
     return doc
 
 
-def _write(path: pathlib.Path, text: str) -> None:
-    tmp = path.with_name(path.name + ".tmp")
-    tmp.write_text(text, encoding="utf-8")
-    os.replace(tmp, path)
-
-
 def _save(b, doc) -> None:
-    _write(_path(b), json.dumps(doc, ensure_ascii=False, indent=1) + "\n")
+    jsonfile.write(_path(b), doc)
 
 
 def items(b) -> list:

@@ -31,6 +31,7 @@ import time
 _HERE = str(pathlib.Path(__file__).resolve().parent)
 if _HERE not in sys.path:   # 殻（bin/_lib/launcher.py）は from lib import reads で読み、置き場を sys.path に持たない
     sys.path.append(_HERE)
+import jsonfile  # noqa: E402
 import oneline  # noqa: E402
 import writelog  # noqa: E402
 
@@ -157,10 +158,7 @@ def web_searches(rows) -> list:
 
 
 def _write_json(path: pathlib.Path, doc) -> pathlib.Path:
-    tmp = path.with_name(path.name + ".tmp")
-    tmp.write_text(json.dumps(doc, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    os.replace(tmp, path)
-    return path
+    return jsonfile.write(path, doc, indent=2)
 
 
 def _real(p: str, repo: pathlib.Path) -> str:

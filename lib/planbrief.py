@@ -39,13 +39,13 @@ from __future__ import annotations
 
 import hashlib
 import json
-import os
 import pathlib
 import sys
 
 sys.dont_write_bytecode = True
 
 import fixboard  # noqa: E402  （置き場の trace.jsonl への 1 行・planmarks に渡す読み口）
+import jsonfile  # noqa: E402
 import planmarks  # noqa: E402
 
 LEDGER = "briefs.json"
@@ -332,12 +332,7 @@ def _put(p: pathlib.Path, data: bytes) -> None:
 def _write_ledger(p: pathlib.Path, rows: list) -> bytes:
     """控えを一時のファイルから os.replace で置き、置いたバイトを返す（一時のファイルの置き場に先に在る物は消してから書く。
     リンクの先へ書かない）"""
-    raw = (json.dumps({"briefs": rows}, ensure_ascii=False, indent=1) + "\n").encode("utf-8")
-    tmp = p.with_name(p.name + ".tmp")
-    tmp.unlink(missing_ok=True)
-    tmp.write_bytes(raw)
-    os.replace(tmp, p)
-    return raw
+    return jsonfile.dump(p, {"briefs": rows})
 
 
 def _out(b, rows: list) -> list[dict]:
