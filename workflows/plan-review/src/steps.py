@@ -74,7 +74,7 @@ CRASHED = "{step} の node が落ちた（{why}）"
 NOT_RUN = "役の loop が回らなかった"
 NOT_PASSED = "受け付けを通らなかった（最後の却下: {last}）"
 NO_INTAKE = "入口の控えが無い（入口の node が落ちた）"
-GIVEN_UP_FACES = "事前審査の受け付けが諦めた: "   # 今の boardview.GIVEN_UP_FACES（src/take.py の同じ名と同じ字。試験が縛る）
+GIVEN_UP_FACES = "事前審査の受け付けが諦めた: "   # 今の boardview.GIVEN_UP_FACES（受け付け src/take.py・src/themeform.py もこれを引く）
 # 形 replan で諦めた時の項目ごとの行の訳（今の planblk.REVIEW_GAVE_UP_WHY）と、裁定の文が無い時の字（今の planfile.NO_ROWS）
 REVIEW_GAVE_UP_WHY = f"事前審査の役の返答が受け付けの網 {rolekit.NET_AFTER} 回まで拒まれ続けた: {{reason}}"
 NO_ROWS = "申し出と裁定の行が見つからない（conflicts の中に、この項目を名指す行が無い）"
