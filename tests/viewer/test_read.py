@@ -9,6 +9,8 @@
 - 壊れた時刻（読めない ts）の出来事が在っても、選んだ run は落ちず、その時刻だけを数えない
 - 会話の記録の行は、読む型・読まない型（訳つき）・知らない型に分け、知らない型だけを読めなかった物に数える（帯の数が本当に読めなかった
   物を指す）。読まない型のうち字を別の型から読む物は、その代わりの型が記録に無い会話では知らない型と同じく数える。Claude Code の記録の形は工場が止めていないので、読まない型の表が本物の記録に合うかは人が見る
+- run の一覧の行の結末 outcome は、line の返すノード result の出力（DB の node_completed。JSON の字でも値でも）の結末の語。result の
+  出力を持たない run（ほかの graph・result まで走っていない run）と、出力に結末の語が無い run は空
 - 往復の印は、usage を持つ行を待たず、その往復の最初の行で置く（usage の無い返事が混じっても往復の数がずれず、どの返事にも usage が
   無くても返事と道具の呼び出しが並びから消えない。usage は後の行で埋める）
 
@@ -124,6 +126,19 @@ class ReadCase(unittest.TestCase):
     @staticmethod
     def _node(kind, ts, path):
         return {"type": kind, "ts": ts, "step": path, runread.EXECUTION: {"path": path, "invocation": {"id": path}}}
+
+    def test_listed_run_carries_the_outcome_of_its_result(self):
+        db = self._db([(rid, None, f"2026-10-28 1{n}:00:00", None, "{}") for n, rid in enumerate(("done", "text", "none", "odd"))], [])
+        con = sqlite3.connect(db)
+        for rid, output in (("done", {runread.RESULT_OUTCOME: "stopped_by_human", "stop_reason": "gate-design:stop"}),
+                            ("text", json.dumps({runread.RESULT_OUTCOME: "fixed"})), ("odd", {"ok": False})):
+            con.execute(f"insert into {runread.EVENT_TABLE} (workflow_run_id, event_type, step_name, data, created_at) values (?, ?, ?, ?, '')",
+                        (rid, runread.OUTPUT_EVENT, runread.RESULT_NODE, json.dumps({"invocation": {"id": rid}, runread.NODE_OUTPUT: output})))
+        con.execute(f"insert into {runread.EVENT_TABLE} (workflow_run_id, event_type, step_name, data, created_at) values (?, ?, ?, ?, '')",
+                    ("none", runread.OUTPUT_EVENT, "report", json.dumps({"invocation": {"id": "x"}, runread.NODE_OUTPUT: {runread.RESULT_OUTCOME: "fixed"}})))
+        con.commit()
+        con.close()
+        self.assertEqual({r["id"]: r["outcome"] for r in runread.runs(db)}, {"done": "stopped_by_human", "text": "fixed", "none": "", "odd": ""})
 
     def test_resumed_run_sorts_by_its_first_event(self):
         db = self._db([("resumed", None, "2026-10-28 13:00:00", None, "{}"), ("later", None, "2026-10-28 12:00:00", None, "{}")],

@@ -15,6 +15,7 @@
   通す答えだけの run と落ちずに終わった run と、受け止めた落ちだけの run には無い。止まり方（人が止めた human・落ちた failed）と
   止まった出来事の番号も同じ所で決め、雛形は読むだけ（承認を通した後に同じ段で落ちた run を人の止めと取り違えない）
 - line でない run は段に集めない
+- 結末の頭の語の表（outcomes）の語の組は、工場の結末の語の正本 lib/report.py の OUTCOMES と同じ（工場が結末の語を足せば赤）
 
 試験は小さな作りと run の記録を手で組む。
 """
@@ -23,6 +24,8 @@ import unittest.mock
 
 from viewer import flowview
 from viewer.src import stages
+
+import report   # lib/（viewer/src/__init__.py が sys.path に足す）
 
 NODES = [node for stage in stages.TABLE["stages"] for node in stage["nodes"]]
 
@@ -59,6 +62,11 @@ class StagesCase(unittest.TestCase):
         got = stages.check(line([*NODES[1:], "new-node"]))
         self.assertEqual(len(got), 2)
         self.assertTrue(any("new-node" in line for line in got) and any(NODES[0] in line for line in got))
+
+    def test_the_outcome_words_are_the_factorys(self):
+        self.assertEqual(set(stages.TABLE["outcomes"]), set(report.OUTCOMES))
+        self.assertTrue(all(isinstance(head, str) and head for head in stages.TABLE["outcomes"].values()))
+        self.assertEqual(run_of([], [])["stages"]["outcomes"], stages.TABLE["outcomes"])
 
     def test_wiring_outside_its_stage_or_a_stage_of_only_wiring_is_red(self):
         table = {**stages.TABLE, "stages": [{**stage, "wiring": list(stage["wiring"])} for stage in stages.TABLE["stages"]]}

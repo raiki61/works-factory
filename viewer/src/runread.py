@@ -7,6 +7,7 @@
 - runs(db) -> 親の run（parent_run_id が空）の一覧。新しい順。DB の run の行だけを読み、ログは読まない
 - run(db, run_id) -> 選んだ run と子の run の記録（ノードごとの出来事・道具の呼び出し・費用・出力・知らない行の数え）
 - pick(db, wanted) -> run の id（wanted が空なら一番新しい親の run。頭の字でもよい）
+- field(output, name) -> ノードの出力（値か JSON の字）の欄 name の字。読めなければ空
 - where(path, cwd) -> 会話が読んだファイルのパスを、run ごとに違う頭（作業ツリー・run の置き場・run の写し）を印に替えた字にする
 """
 import contextlib
@@ -68,6 +69,12 @@ OUTPUT_EVENT = "node_completed"
 NODE_OUTPUT = "node_output"
 FAILED_EVENT = "workflow_failed"
 SUSPENDED_EVENT = "node_suspended"
+# 出力の中の欄（Archon でなく工場の記録の名。読む名はここに置く）: 人の答え待ちの出力 {decision, text} の答えの語（lib/answer.py の
+# decision）と、line の返すノード result の出力の結末の語（workflows/line/works-factory-line.yaml の result の output_format。語の組は
+# lib/report.py の OUTCOMES）
+ANSWER_DECISION = "decision"
+RESULT_NODE = "result"
+RESULT_OUTCOME = "outcome"
 
 # ログの行の型（packages/workflows/src/logger.ts の WorkflowEvent の type と、packages/workflows/src/schemas/worktree-setup.ts の
 # WORKTREE_SETUP_EVENT_TYPES）。読む型と、読まない型（訳つき）に分ける
@@ -123,7 +130,8 @@ def connect(db: Path):
 
 
 def runs(db: Path) -> list[dict]:
-    """親の run の一覧（新しい順）。行は id・グラフの名・状態・止まっている承認ノード・始め・かかった秒・費用・落ちの訳の頭の 1 行。
+    """親の run の一覧（新しい順）。行は id・グラフの名・状態・止まっている承認ノード・始め・かかった秒・費用・落ちの訳の頭の 1 行・
+    結末の語（line の返すノード result の出力の outcome。result の出力が無いか読めなければ空）。
     始めとかかった秒は、DB の出来事の最初と最後の時刻から出す（承認の答えで起き直した run は、run の行の始めが起き直した時刻に
     書き換わる。packages/core/src/db/workflow-run-resume.ts）。出来事の無い run は run の行の始めと終わり"""
     with connect(db) as con:
@@ -134,13 +142,16 @@ def runs(db: Path) -> list[dict]:
         waiting = _waiting(con)
         errors = {rid: _error(data) for rid, data in con.execute(
             f"select workflow_run_id, data from {EVENT_TABLE} where event_type = ?", (FAILED_EVENT,))}
+        outcomes = {rid: field(_json(data).get(NODE_OUTPUT), RESULT_OUTCOME) for rid, data in con.execute(
+            f"select workflow_run_id, data from {EVENT_TABLE} where event_type = ? and step_name = ? order by created_at, event_order",
+            (OUTPUT_EVENT, RESULT_NODE))}
     out = []
     for rid, name, status, started, completed, metadata in rows:
         meta = _json(metadata)
         started, completed = spans.get(rid) or (started, completed)
         out.append({"id": rid, "short": rid[:8], "graph": name, "status": status, "waiting": waiting.get(rid, []),
                     "started": started, "seconds": _seconds(started, completed), "cost": runlog.number(meta.get(TOTAL_COST)),
-                    "error": errors.get(rid, "")})
+                    "error": errors.get(rid, ""), "outcome": outcomes.get(rid, "")})
     return out
 
 
@@ -447,6 +458,17 @@ def _try_time(text) -> datetime | None:
         return _time(text)
     except (TypeError, ValueError):
         return None
+
+
+def field(output, name: str) -> str:
+    """ノードの出力（値か JSON の字。DB の node_completed の node_output）の欄 name の字。出力が object でないか欄が字でなければ空"""
+    if isinstance(output, str):
+        try:
+            output = json.loads(output)
+        except ValueError:
+            return ""
+    got = output.get(name) if isinstance(output, dict) else None
+    return got if isinstance(got, str) else ""
 
 
 def _json(text) -> dict:
