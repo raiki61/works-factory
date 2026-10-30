@@ -24,7 +24,7 @@ BLOCK = "line"
 LINE = kit.BLOCKS / BLOCK / f"works-factory-{BLOCK}.yaml"
 SCENARIOS = (
     "block-failed", "block-returns-failed", "conflict-ask", "depth-heavy", "depth-light", "depth-no-evidence", "depth-raised", "design-talk",
-    "fix-excluded", "fix-fixture", "light", "light-all-units", "no-fix", "nothing-owed", "plan-failed", "plan-stalled", "spec-changed", "standard",
+    "fix-excluded", "fix-fixture", "light", "no-fix", "nothing-owed", "plan-failed", "plan-stalled", "spec-changed", "standard",
     "start-refused", "test-gate-failed",
 )
 
@@ -397,7 +397,9 @@ class HeadDepthTest(unittest.TestCase):
         raised = out(self.traces["depth-raised"], "raise")
         self.assertIs(raised["checks"], True, raised)
         self.assertIs(raised["eyes_due"], True, raised)
-        self.assertTrue(raised["raised"], raised)
+        self.assertEqual([(u["unit_id"], u["depth"]) for u in raised["units"]], [("u1", tiers_table().STANDARD)], raised)
+        self.assertIn("止めた単位", raised["units"][0]["why"], "上げた訳は止めた単位で、控えが読めないことではない")
+        self.assertEqual(raised["raised"], [], "run 全体を上げる信号（読めない控え）では上げていない")
 
 
 class LightTest(unittest.TestCase):
@@ -412,20 +414,9 @@ class LightTest(unittest.TestCase):
         raised = out(self.trace, "raise")
         self.assertEqual((raised["checks"], raised["eyes_due"]), (False, False), raised)
         self.assertIs(bound(self.trace, nodes()["eyes"]["with"]["run"]), False)
-        for node in ("lens__finish", "delta-review__finish", "eyes__r1__finish", "eyes__r4__finish"):
+        for node in ("lens__finish", "delta-review__finish", "eyes__r1__finish", "eyes__r2__finish", "eyes__r3__finish", "eyes__r4__finish"):
             self.assertFalse(ran(self.trace, node), node)
         self.assertTrue(ran(self.trace, "eyes__structure-after__finish"))
-
-
-class LightAllUnitsTest(unittest.TestCase):
-    """line.md 11 節の light-all-units: 全部の単位が軽量の周は lens・delta-review・r1〜r4 が飛び、structure after は走る"""
-
-    def test_only_the_structure_after_runs(self):
-        trace = line_traces(("light-all-units",))["light-all-units"]
-        for node in ("lens__finish", "delta-review__finish", "eyes__r1__finish", "eyes__r2__finish", "eyes__r3__finish", "eyes__r4__finish"):
-            self.assertFalse(ran(trace, node), node)
-        self.assertTrue(ran(trace, "eyes__structure-after__finish"))
-        self.assertIs(bound(trace, nodes()["eyes"]["with"]["run"]), False)
 
 
 class FixExcludedTest(unittest.TestCase):
