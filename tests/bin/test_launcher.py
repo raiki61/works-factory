@@ -414,6 +414,11 @@ class LauncherTest(unittest.TestCase):
         self.assertEqual(home_of(WORKS_FACTORY_HOME=str(chosen)), str(chosen / "home"))
         err = self.stopped(self.launch("workflow", "status", WORKS_FACTORY_HOME="relative/home"))
         self.assertIn("WORKS_FACTORY_HOME", err)
+        for name in ("XDG_STATE_HOME", "XDG_CACHE_HOME"):   # 家・取り置きを打った場所の下に作らない
+            with self.subTest(name=name):
+                err = self.stopped(self.launch("workflow", "status", **{name: "relative/dir"}))
+                self.assertEqual(len(err.strip().splitlines()), 1, err)
+                self.assertIn(name, err)
 
     def test_sandbox_writable_home_and_target_are_refused(self):
         """役の sandbox の Bash が書ける /tmp/claude-* の下（実パスで照らす）の家・対象・Archon の源の取り置きは、どの命令でも起こさずに拒む
