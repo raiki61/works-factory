@@ -8,12 +8,14 @@ script は子のプロセスとして使い捨ての置き場（runs/<親>・run
 import hashlib
 import importlib.util
 import json
+import os
 import pathlib
 import re
 import subprocess
 import sys
 import tempfile
 import unittest
+from unittest import mock
 
 import yaml
 
@@ -575,6 +577,15 @@ class ResultCase(Tree):
         last = {"act": "stop", "word": "closed", "text": "t", "request": "", "rows": [{"n": n} for n in range(1, chain.MAX_ROUNDS + 1)]}
         got = self.result(start, *made, last)
         self.assertEqual((got["closed"], got["act"], len(got["rounds"])), (True, "stop", chain.MAX_ROUNDS), got)
+
+
+class ReadsCase(unittest.TestCase):
+    def test_decisions_are_read_in_round_number_order(self):
+        """final-diff と result が読む周の決め d<k> は、環境の並びや名の字の順でなく周の番号の順（d10 は d9 の後）。飛ばされた周は外す"""
+        reads = kit.load("chain", "reads")
+        env = {f"INPUTS_D{k}": json.dumps({"n": k}) for k in (10, 2, 9, 1)} | {"INPUTS_D3": "null", "INPUTS_DX": "{}"}
+        with mock.patch.dict(os.environ, env):
+            self.assertEqual([d["n"] for d in reads.decisions()], [1, 2, 9, 10])
 
 
 class FilesCase(unittest.TestCase):

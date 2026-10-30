@@ -26,7 +26,6 @@ stop_reason にし、sealed は null。
 """
 import json
 import os
-import re
 import sys
 from pathlib import Path
 
@@ -43,16 +42,10 @@ except Exception as error:   # 出力ノード result が結ぶので落ちな�
     ports, unread = None, error
 
 SKIP = (ports.RUNTIME_COPY_PREFIX,) if ports is not None else ()   # 差分に数えない（Archon が run の作業ツリーに写す置き場）
-DECISION = re.compile(r"INPUTS_D[1-9][0-9]*")   # 周 k の決めの入力 d<k>。周の数はグラフの with: が持つ。result.py も同じ読み（試験が縛る）
 
 
 def as_dict(value) -> dict:
     return value if isinstance(value, dict) else {}
-
-
-def decisions() -> list:
-    names = sorted(filter(DECISION.fullmatch, os.environ), key=lambda name: int(name[len("INPUTS_D"):]))
-    return [d for d in (reads.value(os.environ[name]) for name in names) if isinstance(d, dict)]
 
 
 def sealed_at(rel: str, data: bytes) -> tuple:
@@ -127,7 +120,7 @@ def final() -> dict:
     start = as_dict(reads.value(os.environ.get("INPUTS_START")))
     if start.get("ok") is not True:
         return nothing(start.get("reason") or "chain-start が鎖を受けなかった")
-    made = decisions()
+    made = reads.decisions()
     last = made[-1] if made else start
     origin, repo = start.get("origin") or "", Path.cwd()
     rows = with_diffs(repo, origin, unread_halted(max((d.get("rows") or [] for d in made), key=len, default=[])))
