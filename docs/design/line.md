@@ -32,13 +32,13 @@
 
 ### 1.2 port
 
-入力（YAML の `inputs:`。今の line の 16 個）。form は README の 4.1 の物（`text`・`file`・`json(<形>)`・`flag`・`choice(a|b)`）。語を受ける入力は `text` にする（`start` が知らない語を名指して拒む今の文を残すため。`choice` は Archon が照らさず、拒む所が増えるだけ）。説明の字は今の YAML の `description` を、作り手を名指さない形で写す。
+入力（YAML の `inputs:`。今の line の 17 個）。form は README の 4.1 の物（`text`・`file`・`json(<形>)`・`flag`・`choice(a|b)`）。語を受ける入力は `text` にする（`start` が知らない語を名指して拒む今の文を残すため。`choice` は Archon が照らさず、拒む所が増えるだけ）。説明の字は今の YAML の `description` を、作り手を名指さない形で写す。
 
-- `request`: `file: 修正依頼のファイル（findings の JSON の配列か {findings, pr, issue, answers, prior_failures, constraints, theme} の形。theme はテーマの run の入口。3.3 節）。相対なら対象の根から。依頼の行か差分の少なくとも 1 つが要る`。既定 `""`。
+- `request`: `json(shared:request.schema.json): 修正依頼のファイル（findings の JSON の配列か {findings, pr, issue, answers, prior_failures, constraints, theme} の形。theme はテーマの run の入口。3.3 節）。相対なら対象の根から。依頼の行か差分の少なくとも 1 つが要る`。既定 `""`。
 - `base`: `text: 差分の根を名指す版（枝・タグ・commit）。差分の根は base と HEAD の merge-base。pr と一緒には名指さない`。既定 `""`。
 - `pr`: `text: PR の番号。base の版と head は run の中で gh で読む。base と一緒には名指さない`。既定 `""`。
 - `spec`: `text: 仕様の段を挟むか（空か on）。依頼の文が要り、無人の run・固定材料とは組めない`。既定 `""`。
-- `test_cmd`・`tdd_suite`・`final_gate`・`unattended`・`design_talk`・`thickness`・`features_off`・`features_on`・`policy_md`・`fix_fixture`・`lang`・`deliver`: 今の説明のまま（form は `text`）。`design_talk` は対話モードの印で（初めの名は `design_only`。#827 で替え、古い名は起動の殻〔人が打つ起動の命令 `bin/works-factory`。Archon の外で run を起こす〕が止めて新しい名を案内する）、`true` で無人でない run（人が承認ノードに答える run。入力 `unattended` が真の無人の run は、承認ノードを人に聞かず推しで進むか止まる。6 節）は、計画の往復の間に人の指摘と承認を受け箱で受け、承認が無い時だけ往復の末尾で設計を相談して待つ（3.1 節）。`unattended` も真の run（無人の run）で `design_talk` が `true` の時は、今どおり修正前の承認ノードを必ず開く印になる。無人の run は承認ノードを開けない（人が居ない）ので、run はそこで止まる（`works:needs-human`。6 節の「設計だけの run は無人でも止まる」）。
+- `test_cmd`・`tdd_suite`・`final_gate`・`unattended`・`design_talk`・`thickness`・`features_off`・`features_on`・`policy_md`・`fix_fixture`・`lang`・`deliver`: 今の説明のまま（form は `text`）。`spec_table`: `file:` の仕様駆動の道の表（[spec-driven.md](spec-driven.md) の 2.3）。`design_talk` は対話モードの印で（初めの名は `design_only`。#827 で替え、古い名は起動の殻〔人が打つ起動の命令 `bin/works-factory`。Archon の外で run を起こす〕が止めて新しい名を案内する）、`true` で無人でない run（人が承認ノードに答える run。入力 `unattended` が真の無人の run は、承認ノードを人に聞かず推しで進むか止まる。6 節）は、計画の往復の間に人の指摘と承認を受け箱で受け、承認が無い時だけ往復の末尾で設計を相談して待つ（3.1 節）。`unattended` も真の run（無人の run）で `design_talk` が `true` の時は、今どおり修正前の承認ノードを必ず開く印になる。無人の run は承認ノードを開けない（人が居ない）ので、run はそこで止まる（`works:needs-human`。6 節の「設計だけの run は無人でも止まる」）。
 
 出力（`returns: result`・`outcome_field: fixed`）。欄の名は今のまま（`bin/apply`・chain・通しの試験が今の名で読む。report の設計書の 1.6）:
 
