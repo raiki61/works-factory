@@ -63,7 +63,8 @@ def _id_parts(test_id):
     """『path/test_x.py::Class::test_y』→（[path, test_x, Class], test_y）。JUnit の classname は実行器の根で頭が変わるので、
     後ろ側の一致で引く（元 works/.shared/core/graphloops/rules/review-loop-tdd.py:52-57）"""
     parts = test_id.split("::")
-    head = list(pathlib.PurePosixPath(parts[0]).with_suffix("").parts) + parts[1:-1]
+    path = pathlib.PurePosixPath(parts[0])
+    head = list((path.with_suffix("") if path.name else path).parts) + parts[1:-1]   # 空のパス（"::x"・"."）は頭なし
     return head, parts[-1]
 
 

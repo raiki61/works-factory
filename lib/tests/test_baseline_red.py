@@ -193,6 +193,8 @@ class JudgeCase(unittest.TestCase):
         self.assertIs(baseline_red.match_case("pkg/test_a.py::TestA::test_x", cases), cases[0])
         self.assertIs(baseline_red.match_case("test_a.py::TestA::test_x", cases), cases[0])
         self.assertIsNone(baseline_red.match_case("test_b.py::TestA::test_x", cases))
+        for bad in ("::test_x", "", "."):   # パスの部分が空の名指し（役が書いた id）は落ちずに当たりなし
+            self.assertIsNone(baseline_red.match_case(bad, cases), bad)
 
     def test_red_problems(self):
         named = ["test_a.py::TestA::test_x"]
