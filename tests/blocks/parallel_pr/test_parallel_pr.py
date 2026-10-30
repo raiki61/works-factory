@@ -130,6 +130,9 @@ class FlowCase(FlowBase):
         self.assertEqual((brief["changed_files"], brief["request_wheres"]), (["stats.py"], ["stats.py:2"]))
 
     def test_unreadable_port_does_not_crash_and_the_exit_says_failed(self):
+        """同じ place の前の run が素材の控えを残していても、読めない port の run の出口はそれを読まない"""
+        self.scan(changed='["stats.py"]')
+        self.take(OK_REPLY)
         got = self.scan(changed="not json")
         self.assertEqual(got["go_role"], False)
         self.assertIn("入力 changed が読めない", got["reason"])
