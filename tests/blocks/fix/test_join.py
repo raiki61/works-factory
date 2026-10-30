@@ -22,7 +22,6 @@ import unittest
 import warnings
 from unittest import mock
 
-import yaml
 
 from tests.bin import hermetic
 from tests.bin.gitkit import committed_copy, git
@@ -1035,7 +1034,7 @@ class GroupBoardCase(unittest.TestCase):
     def test_refused_units_name_the_refused_calls(self):
         """tdd.refused_units は、calls のうち ok が偽で phase が runner でない call の unit_key（振り分けの段の空の key は
         ROUTE_REFUSED）"""
-        from src import common, tdd
+        from src import tdd
         calls = [{"n": 1, "phase": "route", "unit_key": "", "ok": False, "runs": 0, "secs": 0.1},
                  {"n": 2, "phase": "route", "unit_key": "", "ok": True, "runs": 0, "secs": 0.1},
                  {"n": 3, "phase": "test", "unit_key": "A", "ok": False, "runs": 1, "secs": 0.1},
@@ -1057,9 +1056,11 @@ class GroupBoardCase(unittest.TestCase):
         self.assertEqual(len(dropped), 2)
 
     def test_changed_problem_and_declared_files(self):
-        self.assertEqual(board.declared_files([{"changes": [{"files": ["./a.py", "b/c.py"]}]}, {"changes": []}]), ["a.py", "b/c.py"])
+        self.assertEqual(board.declared_files([{"changes": [{"files": ["./a.py", "b/c.py"]}]}, {"changes": []}], self.repo), ["a.py", "b/c.py"])
+        # 絶対パスの申告も受け付け（facts.declared_files）と同じく根からの相対に揃える
+        self.assertEqual(board.declared_files([{"changes": [{"files": [str(self.repo / "stats.py")]}]}], self.repo), ["stats.py"])
         with self.assertRaises(ValueError):
-            board.declared_files([{"changes": [{"files": [""]}]}])
+            board.declared_files([{"changes": [{"files": [""]}]}], self.repo)
         self.assertEqual(board.changed_problem(["a.py"], ["a.py", "b.py"]), (True, ""))
         ok, why = board.changed_problem(["a.py", "c.py"], ["a.py"])
         self.assertFalse(ok)
@@ -1166,7 +1167,7 @@ class GroupBoardCase(unittest.TestCase):
 
     def test_join_group_keeps_a_group_it_could_not_restore_as_applied(self):
         """#403: 当てたパスを戻せなければ、組を当てていないと言わず、当たったままのパスと止めの文を返す"""
-        from src import common, tdd
+        from src import common
         start = leftovers.snapshot(self.repo)
         (self.repo / "extra.py").write_text("X = 1\n", encoding="utf-8")
         end = leftovers.snapshot(self.repo)
@@ -1299,7 +1300,7 @@ class GroupBoardCase(unittest.TestCase):
         外すと緑で走らせ直しに緑が在れば揺れとして cmd_notes に書いて戻さず、3 回とも赤の時だけ戻す。外した木で走らない時は
         uncompared が在れば人に聞き、無ければ戻す。base の無い呼びは今どおり 1 回の赤で戻す。外した木で走らせた後の作業ツリーは
         当てた姿のまま（外した木で出来たファイルも残さない）"""
-        from src import common, tdd
+        from src import common
         from tests.blocks.fix.support import SUITE
         suite = self.tmp / "suite.py"
         suite.write_text(SUITE, encoding="utf-8")

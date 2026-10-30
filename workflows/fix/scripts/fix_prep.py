@@ -9,7 +9,6 @@
 下請けの材料（slots の欄 subagents）は型を問わず同じ組み方で渡し、下請けを起こすか（項目ごとの下請けのファイルを置くか）は型の block の表の SPAWNS が決める（tdd の閉じの外の 5 つ）。tdd の輪の閉じの書き手には輪の要約を渡す（slots の欄 summary_file）。
 返り {go, iteration, writer, order, slots}（writer は起こす include の id。order・slots は go が偽の周は無い）。回す側の誤り（判定の写しが無い・brief の控えが壊れた・slots が組めない）は prompt-error.json に書いて非 0"""
 import functools
-import os
 import sys
 from pathlib import Path
 

@@ -507,6 +507,15 @@ class TestRoute(LoopCase):
         got = self.route(mean="direct", clamp="direct")
         self.assertTrue(got["done"])
 
+    def test_tree_edit_in_route_is_refused_again_on_resubmit(self):
+        """振り分けの段で書いた木は、同じ返答を出し直しても拒む（拒んだ回に前の段の印 handoff を今の木へ進めない）"""
+        self.edit("stats.py", "\n", "\n# 振り分けの段で書いた\n")
+        reply = {"phase": "route", "units": [{"unit_key": MEAN, "route": "tdd"}, {"unit_key": CLAMP, "route": "tdd"}]}
+        for _ in range(2):
+            got = self.step(dict(reply))
+            self.assertFalse(got["ok"], got)
+            self.assertIn("振り分けの段で作業ツリーを変えた", got["reason"])
+
 
 RECORD_SCHEMA = json.loads((kit.BLOCKS / "fix" / "schemas" / "tdd-record.schema.json").read_text(encoding="utf-8"))
 RECORD_UNIT_FIELDS = ("route", "why", "tests", "test_files", "red", "green", "gave_up", "files", "red_tree")
@@ -1589,7 +1598,6 @@ class TestUnruledFrozen(LoopCase):
     指示から消した（付録 A の F13。代わりは check_frozen の拒否）ので、どちらの段でも貼らない"""
 
     def test_unruled_files_are_what_check_frozen_keeps_frozen_under_rulings(self):
-        import planrange
         self.route()
         self.red()
         self.assertTrue(self.fix_mean()["done"])

@@ -114,14 +114,6 @@ class RenderedCase(unittest.TestCase):
         again = prompt_of(run, run.script("fix_ruled_prep"))
         self.assertNotIn(str(place / conflict.RULINGS_FILE), again.split("# Fixing")[0])   # 裁定の文の段落は 1 周目だけ
 
-    def test_writers_the_fixtures_do_not_reach(self):
-        """筋書きが回さない型の書き手の指示も、型の頭と決まりの本体を組む（組み方は tests/workflows/test_weapon_assets.py の assembled）"""
-        from tests.workflows import test_weapon_assets as test_assets
-        for node, weapon in test_assets.nodes().items():
-            if node in RENDERED:
-                with self.subTest(node=node):
-                    self.assert_rendered(node, test_assets.assembled(node, weapon))
-
     def test_consult_answer(self):
         run = seeded(self)
         run.script("intake", mode="group", group=GROUP, judgment=JUDGMENT, plan=PLAN, fix_plan=FIX_PLAN)

@@ -5,7 +5,6 @@
 """node assert-changed（全体の形）: 戻せた組と裁定の後の返答の changes[].files が始めの木から本当に変わったか（申告が空なら、
 直す義務が残らず外れた単位だけの run だけを通す）と、始めの木から今への変更が並行 PR に回した hunk に触れていないか。比べが通らない時は ok: false と理由（落ちない）。比べの外の誤り（groups.json が
 無い・git が効かない）は assert-changed.json に訳を書いて落ちる。今のまま。返り {ok, reason}"""
-import os
 import sys
 from pathlib import Path
 
@@ -38,7 +37,7 @@ def main(place: Path) -> dict:
     plan = board.read_json(place / board.GROUPS_FILE)
     if not isinstance(plan, dict) or not plan.get("start_tree"):
         raise ValueError(f"置き場に groups.json（start_tree）が無い（{place}）")
-    declared = board.declared_files(replies(place, plan))
+    declared = board.declared_files(replies(place, plan), Path.cwd())
     touched = board.touched_since(Path.cwd(), plan["start_tree"], SKIP)
     owed = [k for g in plan["groups"] for k in g["unit_ids"]]
     excused = board.nothing_owed_but_excused(place, set(owed)) if not declared else {}

@@ -30,7 +30,6 @@ site が名指す当たりのファイルも、修正前の版から実際に変
 外した。呼び手の script が判定の問い・conflict.replaced_queries(置き場)・recount._run_query と file_counts で build を回す）
 """
 import copy
-import pathlib
 import posixpath
 import sys
 

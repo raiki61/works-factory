@@ -23,7 +23,7 @@
 - settle_repaired(place, repo, gid, *, log): 組を戻せた組にする（join.json の行と単位。子から親へ写す物は fixboard.adopt_returned）
 - settle_parked(place, repo, gid, *, pass_, why, skip): 当て直す前の木へ戻し、申し出を積み、join.json の行に訳を置く
 - cites(patch_text, files): 申し出の名指し（<パス>:<差分の最初の塊の新しい側の始めの行>）
-- brief(place, gid, pass_)・prompt(rules, pass_, values, ...): 合わせ役の材料のファイル（印を書いたファイルごとの印の頭 markers を載せる）と指示書
+- brief(place, gid): 合わせ役の材料のファイル（印を書いたファイルごとの印の頭 markers を載せる。指示書は src/prompts.py の clash が組む）
 標準ライブラリだけ。期限は持たない。
 """
 import os
@@ -44,11 +44,9 @@ import unittrees  # noqa: E402
 
 FILE = "clash.json"
 BRIEF = "clash-brief-{gid}.json"
-PROMPT = "prompt-clash-{gid}.md"
 STATES = (PENDING, STAGED, REPAIRED, PARKED) = ("pending", "staged", "repaired", "parked")
 PASSES = (FIRST, RULED) = ("first", "ruled")
 KINDS = (RED, TEXT) = ("red", "text")
-ROLES = {FIRST: "clash", RULED: "clash-ruled"}
 CANNOT = "cannot"                   # 合わせ役の返答の handled の語: 直せない（回数を待たずに申し出へ）
 BY_RULED_GIVE_UP = stopby.declare("clash-ruled-give-up",
                                   "裁定の by: 組どうしの合わせの食い違いを裁定の直しで当て直しても受け付けを通らず、人に回した")
@@ -345,7 +343,7 @@ def settle_parked(place, repo, gid: str, *, pass_: str, why: str, skip=()) -> li
     return ids
 
 
-# ---------------------------------------------------------------- 合わせ役の材料と指示書
+# ---------------------------------------------------------------- 合わせ役の材料
 def brief(place, gid: str) -> pathlib.Path:
     """合わせ役の材料のファイル（置き場の clash-brief-<group_id>.json）: 組・単位・控えの差分・触ってよいファイル・前の組とも
     重なったファイル・食い違いの種（kind）・確かめ直しの赤の文か字で当たらなかった訳・食い違いの印を書いたファイル（conflicted）と
@@ -367,4 +365,3 @@ def brief(place, gid: str) -> pathlib.Path:
     return fixboard.write_json(pathlib.Path(place) / BRIEF.format(gid=gid), doc)
 
 
-VALUES = ("brief_file", "patch_file")

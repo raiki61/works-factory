@@ -8,7 +8,6 @@
 （board.group_fix_reply）を名指す。直す義務は board.ruled_owed のうちその型の注文の単位（src/writers.owed）。
 返り {go, iteration, writer, order, slots}（writer は起こす include の id。order・slots は go が偽の周は無い）"""
 import functools
-import os
 import sys
 from pathlib import Path
 

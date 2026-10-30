@@ -7,7 +7,6 @@ prompts/parts/tdd.md に入れる。振り分けの段の字は今の TDD の輪
 振り分けない組は {prompt: "", go: false}。組の頭の返り tdd-start.json が無い（group-start が走らなかった）時は落ちる。brief の控えが
 壊れた・座が組めない・指示が組めない時は prompt-error.json に書いて落ちる。
 返り {prompt, go}"""
-import os
 import sys
 from pathlib import Path
 

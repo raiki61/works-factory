@@ -7,7 +7,6 @@
 控えに積む（clash.record）。直す前から同じ形で赤だった名指しは戻す理由にせず、組の行の old_red に名指す（board.same_red。#837）。直す前の版と比べられなかった赤も戻す理由にせず、組の行の uncompared に名指す（#846）。走らせ直しの test_cmd の赤は組を外した木で走らせて見分け、前から赤か揺れなら戻さず組の行の test_cmd_notes に書く（#855）。当たったままの組が在れば後の組を当てない。戻せた組の子から書き込みの記録・TDD の輪の状態・範囲の相談の
 合意を親の place へ写す（board.adopt_returned）。走らせ直しの test_cmd は board.rerun_cmd が port skip_rerun で決める。今のまま。
 返り {groups, returned}。結果の無い組・git が効かない: 標準エラーに 1 行で 1"""
-import os
 import sys
 from pathlib import Path
 

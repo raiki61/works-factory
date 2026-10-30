@@ -42,7 +42,7 @@ import oneline  # noqa: E402
 from leftovers import Unreadable, git, git_names  # noqa: E402
 
 
-PROMPT, SUMMARY, RECORD = "next.md", "summary.md", fixnames.RECORD_FILE
+PROMPT, RECORD = "next.md", fixnames.RECORD_FILE
 
 
 MIN_WHY = 10
@@ -314,10 +314,7 @@ def _load(state_file) -> dict:
 
 
 def _save(state_file, st: dict) -> None:
-    p = pathlib.Path(state_file)
-    tmp = p.with_name(p.name + ".tmp")
-    tmp.write_text(json.dumps(st, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
-    os.replace(tmp, p)
+    jsonfile.write(state_file, st)
 
 
 def _owed(st) -> list:
@@ -592,7 +589,7 @@ def frozen_asks(record_file, repo, allowed=(), since=None, skip_spans=(), rev=No
         spans = _hunk_functions(old, bad) if path.endswith(".py") else None
         if not spans:
             continue
-        guarded = [_function_span(old.splitlines(), _def_line(_tree_text(repo, base, p), n) or 0) for p, n in mine if p == path]
+        guarded = [_function_span(old.splitlines(), _def_line(old, n) or 0) for p, n in mine if p == path]
         if any(g and s[0] <= g[1] and g[0] <= s[1] for s in spans for g in guarded):
             continue
         before = _tree_text(repo, rev, path)
@@ -690,10 +687,9 @@ def frozen_source(record_file, repo, *, since=None):
     def read(path):
         try:
             st = _load(record_file) if record_file else {}
-            tree = since or st.get("frozen_tree") or st.get("handoff")
-            return git(repo, "show", f"{tree}:{path}") if tree else None
-        except (Broken, Unreadable):
+        except Broken:
             return None
+        return _tree_text(repo, since or st.get("frozen_tree") or st.get("handoff"), path)
     return read
 
 
@@ -701,10 +697,7 @@ def rev_source(repo, rev):
     """版 rev の木から、パスの中身を読む口（conflict.ruled_test_limits の base。範囲の相談の合意の行は修正前の版の行で、凍結の検査が
     読む木へ移す元）。版・パスが読めなければ口は None を返す（許しを捨てる側）"""
     def read(path):
-        try:
-            return git(repo, "show", f"{rev}:{path}") if rev else None
-        except Unreadable:
-            return None
+        return _tree_text(repo, rev, path)
     return read
 
 
@@ -720,12 +713,10 @@ def _hunks_outside(repo, tree, path, spans, new=None) -> list:
     木が無い・木に path が無い時はファイル全体を 1 つの外の塊にする"""
     if new is None:
         new = (_now_text(repo, path) or "").splitlines()
-    try:
-        old = git(repo, "show", f"{tree}:{path}").splitlines() if tree else None
-    except Unreadable:
-        old = None
+    old = _tree_text(repo, tree, path)
     if old is None:
         return ["（ループが済んだ時の姿が読めない）"]
+    old = old.splitlines()
     wide = []
     for s, e, single in (sp for sp in spans if sp):
         w = _function_span(old, s) if single and path.endswith(".py") else None
@@ -1050,8 +1041,7 @@ def _named_files(record) -> list:
 
 def accept_values(place) -> dict:
     """置き場の accept.json（受け付けが書き戻した final_left・final_far・ci_left・suite_made と、写した物の印。無い・読めなければ {}）"""
-    got = jsonfile.read_or(pathlib.Path(place) / fixnames.ACCEPT_FILE) if (pathlib.Path(place) / fixnames.ACCEPT_FILE).is_file() else None
-    return got if isinstance(got, dict) else {}
+    return load_json(pathlib.Path(place) / fixnames.ACCEPT_FILE, {})
 
 
 def accept_dir(record_file) -> pathlib.Path | None:

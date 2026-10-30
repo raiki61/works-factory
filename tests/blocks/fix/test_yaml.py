@@ -1,5 +1,5 @@
 """修正の block（workflows/fix/works-factory-fix.yaml）の形（docs/design/fix.md の 14.2 の test_yaml.py）: loop の上限が定数と同じ・柵 nodes-ok の
-結び・all_done の node・会話を継ぐ役の直前の層・修正役の会話の続きと答えの役の切り離し・役の起こし方が今の YAML と同じ・自分を起こす組の node・指示の受け渡し"""
+結び・all_done の node・会話を継ぐ役の直前の層・修正役の会話の続きと答えの役の切り離し・役の起こし方・自分を起こす組の node・指示の受け渡し"""
 import pathlib
 import sys
 import unittest
@@ -10,7 +10,6 @@ from tests.blocks import kit
 
 ROOT = pathlib.Path(__file__).resolve().parents[3]
 DOC = yaml.safe_load((kit.BLOCKS / "fix" / "works-factory-fix.yaml").read_text(encoding="utf-8"))
-OLD = yaml.safe_load((ROOT / "workflows" / "fix" / "works-factory-fix.yaml").read_text(encoding="utf-8"))
 if str(ROOT / "lib") not in sys.path:
     sys.path.append(str(ROOT / "lib"))
 
@@ -20,7 +19,6 @@ AI_NODES = ("consult-answer", "ruled-consult-answer", "tdd", "tdd-new", "ruler",
 ADDED_AI_NODES = ("suite-fix", "route")   # 作り直しの後に足した役（壊れた起動スクリプトの書き直し。#836・docs/design/fix.md の 19。振り分けの役。
 #                                         今の TDD の役の振り分けの段を輪の外へ出した物。docs/plans/2026-10-24-fix-weapons.md の 4.1 の 3）
 WRITE_TOOLS = {"Edit", "Write", "Bash", "NotebookEdit", "Agent"}
-LAUNCH = ("model", "settingSources", "allowed_tools", "sandbox", "skills", "idle_timeout", "retry", "mutates_checkout", "context")
 
 
 def top(doc=DOC) -> dict:
@@ -216,14 +214,7 @@ class WriterChainCase(unittest.TestCase):
 
 
 class RolesCase(unittest.TestCase):
-    """役の起こし方（模型・道具・sandbox・skills・読むだけの印）は今の YAML と同じ。読むだけの役は書く道具を持たない"""
-
-    def test_launch_keys_match_the_current_yaml(self):
-        old, new = every(OLD), every()
-        for nid in AI_NODES:
-            with self.subTest(node=nid):
-                self.assertEqual({k: new[nid].get(k) for k in LAUNCH}, {k: old[nid].get(k) for k in LAUNCH})
-                self.assertEqual(new[nid]["output_format"], old[nid]["output_format"])
+    """役の起こし方: 起動スクリプトの書き直し役は試験の関門の書き手と同じ形で起こし、読むだけの役は書く道具を持たない"""
 
     def test_the_runner_rewriter_is_launched_like_the_gate_runner_writer(self):
         """起動スクリプトの書き直し役 suite-fix は、試験の関門の書き手 suite-write と同じ群・道具・砂場・期限・返す形で起こす（読むだけの

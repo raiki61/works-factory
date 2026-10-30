@@ -470,7 +470,8 @@ def frozen_by_returns(place, repo) -> list:
     注文の索引の since の木を基準に、注文の permits の範囲（PERMIT_RANGES の行の test）と段の頭の後に取れた範囲の相談の合意
     （orders.later_agreed。注文は段の頭で 1 度しか書かない）だけを許して照らす（common.frozen_problems の
     同じ式。返しの控えは輪の状態と同じ名の欄 frozen・frozen_tree を持つ）。今の照らし facts.check_frozen は外さずに並べる（両方を
-    通る物だけを通す。docs/plans/2026-10-25-fix-weapons-stage1-a.md の 1 の 3）。注文の無い置き場・控えの無い置き場は空"""
+    通る物だけを通す。docs/plans/2026-10-25-fix-weapons-stage1-a.md の 1 の 3）。注文の無い置き場・控えの無い置き場は空。
+    読めない控えは、照らせなかった訳の行にする"""
     import jsonfile   # lib/
     from src import common, files, orders
     idx = jsonfile.read_or(pathlib.Path(place) / files.ORDERS_FILE)
@@ -483,6 +484,8 @@ def frozen_by_returns(place, repo) -> list:
     out: list = []
     for p in sorted(d.glob("*.json"), key=lambda q: (len(q.stem), q.stem)):
         doc = jsonfile.read_or(p)
-        if isinstance(doc, dict) and doc.get("frozen"):
+        if not isinstance(doc, dict):   # 読めない控えを照らしの済んだ物として飛ばさない（E23）
+            out += [f"返しの控え {p} が読めない（凍ったファイルを照らせない）"]
+        elif doc.get("frozen"):
             out += [t for t in common.frozen_problems(str(p), repo, lims, since=since) if t not in out]
     return out

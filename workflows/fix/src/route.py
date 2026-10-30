@@ -240,7 +240,7 @@ def step(state_file, reply, repo, try_query=None, log=None) -> dict:
     st["iterations"] += 1
     if st["phase"] == ROUTED:
         st.update(tries=0, reason="")
-    if got and not got["problems"]:
+    if got and not probs:   # 通った回だけ（拒んだ回に進めると、この段で書いた木が出し直しで見えなくなる）
         st["handoff"] = common.snapshot(repo)
     st.setdefault("calls", []).append({**call, "ok": not probs, "runs": st["runs"] - runs0,
                                        "secs": round(time.monotonic() - t0, 1)})
