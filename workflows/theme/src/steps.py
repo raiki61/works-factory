@@ -8,7 +8,7 @@ import ports
 import prompt
 
 import converge    # lib/。held・owed_faces・answer_gaps
-import eyekit      # lib/。断片 policy の本文 policy_body
+import eyekit      # lib/。断片 policy の本文 policy_body・断片 recorded-policy の値 recorded_rows_text
 import jsonfile    # lib/
 import oneline     # lib/
 import rolekit     # lib/。却下の控え・出し直し・諦め
@@ -121,38 +121,18 @@ def world_rows(rows: list) -> str:
     return "\n".join(out)
 
 
-def recorded_rows(rows: list) -> str:
-    """共通の断片 recorded-policy の {recorded_rows}（名指しの字 name は変えない）"""
-    def cut(text) -> str:
-        text = " ".join(str(text or "").split())
-        return text if len(text) <= 120 else text[:120] + "…"
-    of = {s: [r for r in rows if r.get("source") == s] for s in ("doc", "answer", "gate", "push", "settled")}
-    doc = of["doc"][0] if of["doc"] else None
-    out = ["- policy document: " + (f"named `{doc['name']}:<line>` (lines 1-{doc.get('lines', 0)}; original place "
-                                    f"{doc.get('alias') or 'none'})" if doc else "none")]
-    for source, label in (("answer", "request answers"), ("gate", "a person's answers at approval nodes")):
-        out.append(f"- {label}:" + ("" if of[source] else " none"))
-        out += [f"  - named `{r['name']}`: {cut(r.get('text'))}" for r in of[source]]
-    if of["push"]:
-        out.append("- recommendations an unattended run adopted (not a person's answers):")
-        out += [f"  - named `{r['name']}`: {cut(r.get('text'))}" for r in of["push"]]
-    out.append("- settled points:" + ("" if of["settled"] else " none"))
-    out += [f"  - named `{r['name']}`: {cut(r.get('text'))}" for r in of["settled"]]
-    return "\n".join(out)
-
-
 def values(folder: pathlib.Path, ctx: dict) -> tuple[dict, dict]:
     """書き手の指示の値と段落の真偽"""
     theme = pathlib.Path(ctx["theme"]).read_text(encoding="utf-8")
     rejected = rolekit.rejected(folder, files.ROLE)
     owed = owed_rows(prior_of(ctx))
+    recorded, recorded_none = eyekit.recorded_rows_text(ctx["recorded"])
     v = {"rejection": rolekit.rejects_text(rejected), "theme_file": ctx["theme"], "theme_text": numbered(theme),
          "prior_design_file": ctx["prior_design"], "owed_rows": owed, "answer_rows": answer_rows(ctx["answers"]),
          "world_rows": world_rows(ctx["world"]), "policy_body": eyekit.policy_body(ctx["policy"]),
-         "recorded_rows": recorded_rows(ctx["recorded"]), "base_rev": ctx["base"] or "HEAD", "lang": prompt.lang(ctx["lang"])}
+         "recorded_rows": recorded, "base_rev": ctx["base"] or "HEAD", "lang": prompt.lang(ctx["lang"])}
     w = {"rejected": bool(rejected), "prior_design": bool(ctx["prior_design"]), "owed": bool(owed), "answers": bool(ctx["answers"]),
-         "world": bool(ctx["world"]), "policy": bool(ctx["policy"]), "recorded_none": not any(r.get("name") for r in ctx["recorded"]),
-         "spawns": False}
+         "world": bool(ctx["world"]), "policy": bool(ctx["policy"]), "recorded_none": recorded_none, "spawns": False}
     return v, w
 
 

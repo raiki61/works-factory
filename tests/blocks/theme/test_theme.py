@@ -97,6 +97,17 @@ class RoundTest(_Case):
         self.assertEqual(self.intake(prior=dump(prior))["round"], 3)
         self.assertTrue((self.folder(3) / "intake.json").is_file())
 
+    def test_a_recorded_row_without_a_name_is_not_shown_as_nameable(self):
+        """記録された方針の行は lib/eyekit.recorded_rows_text で組む: 名の無い settled の行（where の無い決め）を名指せる行の形で見せない
+        （断片 recorded-policy は「名を字のまま写せ」と言うので、空の名を見せると役が空の字を名指す）"""
+        recorded = [{"source": "gate", "name": "承認ノードの答え start", "text": "Keep the old index."},
+                    {"source": "settled", "name": "", "text": "Rules stay in English."}]
+        self.assertTrue(self.intake(recorded=dump(recorded))["due"])
+        built = self.prep()["prompt"]
+        self.assertIn("name `承認ノードの答え start`: Keep the old index.", built)
+        self.assertIn("cannot be named) Rules stay in English.", built)
+        self.assertNotIn("``:", built, "空の名を名指せる行の形で見せない")
+
     def test_a_missing_theme_does_not_wake_the_writer(self):
         got = self.intake(theme=str(self.theme.parent / "none.md"))
         self.assertFalse(got["due"])
