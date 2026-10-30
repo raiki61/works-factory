@@ -93,15 +93,14 @@ nodes:
         base: { type: string }
         pr: { type: string }
         spec: { type: string }
-        # 前までの周の行（周の決めのノード decide が組み、final-diff が files・diff を足す）
+        # 前までの周の行（周の決めのノード decide が組む）
         rows: { type: array, items: &round_row
                   { type: object, properties: { n: { type: integer }, run: { type: string }, outcome: { type: string }, kind: { type: [string, "null"] },
                     keys: { type: array, items: { type: string } }, held: { type: integer }, same_tree: { type: boolean },
                     cost: { type: [number, "null"] }, cost_read: { type: boolean }, minutes: { type: [number, "null"] },
                     head: { type: string }, placed: { type: boolean }, r2_status: { type: [string, "null"] },
                     spec_questions: { type: integer }, request: { type: string }, source: { type: string },
-                    act: { type: string }, word: { type: string }, text: { type: string }, files: { type: integer },
-                    diff: { type: string } } } }
+                    act: { type: string }, word: { type: string }, text: { type: string } } } }
         rounds: { type: integer }
         budget: { type: [number, "null"] }
         first_request: { type: string, description: 'json(shared:request.schema.json): 最初の周の依頼のファイル' }
@@ -115,7 +114,7 @@ nodes:
 
   # 周ごとの 4 つのノード。5 組は番号と前の決め（1 周目は chain-start、ほかは前の周の round-<k-1>-decide）のほかは同じ形。
   # 同じ物は 1 周目の定義のアンカーが持ち、2〜5 周目は <<: * で受ける。アンカーが共有するのは commit・facts・decide の本体（script・
-  # runtime・timeout・output_format と、facts・decide の mutates_checkout）と、子の workflow（round_line）と、子へ渡す入力（line_inputs）と facts・decide の入力
+  # runtime・output_format と、facts・decide の mutates_checkout）と、子の workflow（round_line）と、子へ渡す入力（line_inputs）と facts・decide の入力
   # （facts_inputs・decide_inputs）。周ごとに残すのは id・depends_on・when・前の決めから受ける request・base・pr・spec・rows・child と
   # round-k の参照（outcome・apply・r2_status・spec_questions・facts・commit・next_request）。縛るのは tests/blocks/chain/test_chain.py。
   # 前の周が飛ぶと、既定の trigger_rule で後ろの周も全部飛ぶ

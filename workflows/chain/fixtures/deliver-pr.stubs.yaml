@@ -1,5 +1,5 @@
 # 出口の語 pr の鎖: 周の子は出口の語を空で受け（PR を作らない）、1 周目の子が fixed で closed に止まった後、親が最後の差分を封じて
-# ブロック merge を check で 1 度 include し、PR を 1 本作る。result の deliver が PR の在りかを返す（tests/workflows/test_chain.py が trace で照らす）
+# ブロック merge を check で 1 度 include し、PR を 1 本作る。result の deliver が PR の在りかを返す（tests/blocks/chain/test_chain.py が trace で照らす）
 fixture:
   expect: "completed"
   inputs: {"rounds": "2", "request": "request.json", "deliver": "pr"}
