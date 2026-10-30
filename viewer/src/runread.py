@@ -204,7 +204,7 @@ def run(db: Path, run_id: str) -> dict:
     終わった run（子の run も）は、終わりを最後の終わりの出来事の時刻とログの最後の終わりの遅い方にし（DB の時刻は秒までの切り捨て）、
     終わりの無い出来事（待ちと、走り中のまま止まったノード）を、その run の終わりの出来事のうち始めの後の最初の物の時刻で閉じて印 cut を
     付ける（ログに終わりを書かずに落ちた・止めた run の長さと人の答え待ちの和が、一覧と合う。落ちた後に起き直した run の前の起動の
-    ノードは、その落ちで閉じる。閉じる時刻はログの形にし、始めより前にしない）。走り中の run は最後の出来事まで"""
+    ノードは、その落ちで閉じて状態を落ちたにする。閉じる時刻はログの形にし、始めより前にしない）。走り中の run は最後の出来事まで"""
     with connect(db) as con:
         top = _row(con, run_id)
         if top is None:
@@ -213,6 +213,7 @@ def run(db: Path, run_id: str) -> dict:
         waiting = _waiting(con)
         spent = _spent(con)
         ends = _ends(con)
+        falls = _ends(con, (FAILED_EVENT,))
         first = _firsts(con).get(run_id)
         reader = _Reader(outputs)
         reader.read(top, [])
@@ -233,9 +234,13 @@ def run(db: Path, run_id: str) -> dict:
     meta = _json(top["metadata"])
     root = Path(top["output_root"]) if top["output_root"] else None
     closed = {row["id"]: [at for t in ends.get(row["id"], []) if (at := _end(row["status"], t))] for row in (top, *reader.children)}
+    fell = {row["id"]: {at for t in falls.get(row["id"], []) if (at := _end(row["status"], t))} for row in (top, *reader.children)}
     for event in reader.events:
         if event["start"] and not event["end"] and event["status"] in ("waiting", "running") and closed.get(event["run"]):
-            event["end"], event["cut"] = _close(event["start"], closed[event["run"]]), True
+            at = _close(event["start"], closed[event["run"]])
+            event["end"], event["cut"] = _later(at, event["start"]), True
+            if event["status"] == "running" and at != closed[event["run"]][-1] and at in fell[event["run"]]:
+                event["status"] = FAILED
     started, ended = _span(reader.events) or (top["started_at"], top["completed_at"])
     started = _earlier(_end(top["status"], first, live=True), started)
     ended = _later((closed[top["id"]] or [None])[-1], ended)
@@ -290,12 +295,12 @@ def own_spend(accounting, aggregate) -> bool:
     return aggregate is not True
 
 
-def _ends(con) -> dict[str, list[str]]:
-    """run ごとの終わりの出来事（END_EVENTS）の時刻（古い順。落ちた後に起き直した run は 2 つ以上）"""
-    marks = ", ".join("?" * len(END_EVENTS))
+def _ends(con, kinds: tuple[str, ...] = END_EVENTS) -> dict[str, list[str]]:
+    """run ごとの終わりの出来事（既定は END_EVENTS。落ちだけなら FAILED_EVENT）の時刻（古い順。落ちた後に起き直した run は 2 つ以上）"""
+    marks = ", ".join("?" * len(kinds))
     out = {}
     for rid, at in con.execute(f"select workflow_run_id, created_at from {EVENT_TABLE} where event_type in ({marks}) "
-                               "order by created_at, event_order", END_EVENTS):
+                               "order by created_at, event_order", kinds):
         out.setdefault(rid, []).append(at)
     return out
 
@@ -313,12 +318,11 @@ def _end(status: str, end: str | None, live: bool = False) -> str | None:
 
 
 def _close(start: str, ends: list[str]) -> str:
-    """終わりの無い出来事を閉じる時刻: 始めの後の最初の終わりの出来事（DB の時刻は秒までの切り捨てなので、始めと同じ秒の物も数える）。
-    始めの後に無ければ最後の物。始めより前にはしない（長さを負にしない）"""
+    """終わりの無い出来事を閉じる終わりの出来事の時刻: 始めの後の最初の物（DB の時刻は秒までの切り捨てなので、始めと同じ秒の物も数える）。
+    始めの後に無ければ最後の物。閉じる時刻は呼ぶ側が始めより前にしない（長さを負にしない）"""
     begun = try_when(start)
     floor = begun.replace(microsecond=0) if begun else None
-    at = next((t for t in ends if floor is None or when(t) >= floor), ends[-1])
-    return _later(at, start)
+    return next((t for t in ends if floor is None or when(t) >= floor), ends[-1])
 
 
 def _earlier(a: str | None, b: str | None) -> str | None:

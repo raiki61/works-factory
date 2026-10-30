@@ -340,8 +340,8 @@ const dur = e => e.start && e.end ? (Date.parse(e.end) - Date.parse(e.start)) / 
 const STATUS = {ok: '済み', failed: '落ち', running: '走り中', waiting: '人の答え待ち', skipped: '飛んだ'};
 const stWord = st => STATUS[st] || st;
 // 出来事の語（板・ログの行・再生の帯の終わり）。終わった run で読む部品が閉じた出来事（印 cut。走り中・待ちのまま残った物）は、
-// 段と札と同じ止まり方の語（openLook）にする
-const evWord = e => e.cut ? openLook(e.status).word : stWord(e.status);
+// 段と札と同じ止まり方の語（openLook）にする。落ちた後に起き直した run で、その落ちで閉じた物（読む部品が状態を落ちにした物）は落ちた
+const evWord = e => e.cut ? (e.status === 'failed' ? '落ちた' : openLook(e.status).word) : stWord(e.status);
 // 出来事の周の字（「周 1.2」。周の無い出来事は空）
 const loopOf = e => e && e.loop.length ? `周 ${e.loop.join('.')}` : '';
 // 札ごとの AI の手番の費用（札とその中の和。データの欄 run.ai_cost。数えるのは viewer/src/stages.py で、雛形は読むだけ）
@@ -428,8 +428,8 @@ const finalState = key => { const st = FIN[key]; return !st ? 'yet' : st.has('fa
 const STOP_KEY = STOP_EV && STOP_EV.at && STOP_EV.at.graph ? spots(STOP_EV.at).pop() : null;
 const NFAIL = RUN ? RUN.events.filter(e => e.status === 'failed').length : 0;
 // 終わった run に、終わりの無いまま残った出来事（図の頭の 1 文が、段と札と同じ止まり方の語で言う）。読む部品が run の終わりで閉じ、
-// 印 cut を付けた物（終わりの欄は埋まっているので、終わりの欄の空では見つからない）
-const ENDLESS = RUN && !RUN.live ? RUN.events.filter(e => e.cut) : [];
+// 印 cut を付けた物（終わりの欄は埋まっているので、終わりの欄の空では見つからない）。起き直す前の落ちで閉じた物は落ちた手番（NFAIL）に数える
+const ENDLESS = RUN && !RUN.live ? RUN.events.filter(e => e.cut && e.status !== 'failed') : [];
 
 // ---- 再生の歩（位置はページに 1 つ。変えるのは go と「やめる」だけ） ----
 // 1 歩は出来事の始まりか終わりの 1 つ。時刻順で、同じ時刻は始まりが先。終わりの無い出来事（走り中・待ち）は始まりだけ。

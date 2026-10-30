@@ -6,6 +6,8 @@
   終わりの欄が埋まるので、終わりの欄の空では 1 件も見つからない。docs/design/viewer.md の 5 章）
 - 出来事の語（板・ログの行・再生の帯の終わり）は 1 つの関数 evWord で出し、印 cut の出来事は段と札と同じ止まり方の語（openLook）にする
   （状態の語のままだと、終わった run の閉じた出来事が「走り中」「人の答え待ち」と出る。docs/design/viewer.md の 6 章）
+- 落ちた後に起き直した run で、読む部品がその落ちで閉じて状態を落ちたにした出来事（印 cut で状態 failed）は、run の止まり方でなく
+  「落ちた」と言い、終わりの無いまま残った出来事（頭の帯の 1 文）に数えない（落ちた手番に数える。完了した run が「止めた」と出ない）
 """
 import json
 import re
@@ -23,11 +25,11 @@ class PageCase(unittest.TestCase):
 
     def test_endless_events_are_found_by_their_cut_mark(self):
         text = page.TEMPLATE.read_text(encoding="utf-8")
-        self.assertRegex(text, r"const ENDLESS = [^\n]*\.filter\(e => e\.cut\)")
+        self.assertRegex(text, r"const ENDLESS = [^\n]*\.filter\(e => e\.cut && e\.status !== 'failed'\)")
 
     def test_event_words_say_how_a_cut_event_stopped(self):
         text = page.TEMPLATE.read_text(encoding="utf-8")
-        self.assertRegex(text, r"const evWord = e => e\.cut \? openLook\(e\.status\)\.word : ")
+        self.assertRegex(text, r"const evWord = e => e\.cut \? \(e\.status === 'failed' \? '落ちた' : openLook\(e\.status\)\.word\) : ")
         others = [line for line in text.splitlines() if not line.startswith("const evWord = ")]
         self.assertEqual([line.strip() for line in others if re.search(r"stWord\([\w.]*\bstatus\)", line)], [])
 

@@ -521,6 +521,21 @@ class ReadCase(unittest.TestCase):
                          [("2026-10-25T02:21:11.000Z", 836.0), ("2026-10-25T02:21:11.407Z", 0.0), ("2026-10-25T02:58:00.000Z", 1080.0)])
         self.assertEqual(got["seconds"], 3600.0)
 
+    def test_a_node_cut_by_an_earlier_failure_fell(self):
+        """落ちた後に起き直した run で、その落ちで閉じた走り中のノード（同じ秒に始めた物も）は落ちた。run の最後の終わりで閉じた物は
+        状態のまま（止まり方は雛形が run の終わりから決める）"""
+        db = self._db([("top", None, "2026-10-25 02:00:00", None, "{}")], [("top", "2026-10-25 02:00:00")])
+        self._status(db, "top", "completed")
+        self._event(db, "top", runread.FAILED_EVENT, "2026-10-25 02:21:11")
+        self._event(db, "top", "workflow_completed", "2026-10-25 03:00:00")
+        node = lambda kind, ts, invocation: {"type": kind, "ts": ts, "step": invocation,
+                                             runread.EXECUTION: {"path": invocation, "invocation": {"id": invocation}}}
+        self._log("top", [node("node_start", "2026-10-25T02:07:15.000Z", "old"), node("node_start", "2026-10-25T02:21:11.407Z", "late"),
+                          node("node_start", "2026-10-25T02:59:00.000Z", "tail")])
+        got = runread.run(db, "top")
+        self.assertEqual({e["path"]: (e["status"], e.get("cut", False)) for e in got["events"]},
+                         {"old": ("failed", True), "late": ("failed", True), "tail": ("running", True)})
+
     def test_a_stale_total_does_not_hide_later_spend(self):
         """承認で起き直した後に SIGTERM で落ちた run は、Archon が合計を書き直さない（failWorkflowRun）ので、前の待ちの古い合計より大きい和を出す"""
         db = self._db([("top", None, "2026-10-25 01:00:00", None, json.dumps({runread.TOTAL_COST: 8.5}))], [])
