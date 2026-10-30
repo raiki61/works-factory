@@ -83,10 +83,6 @@ BARE = re.compile(r"^v?([0-9][0-9A-Za-z.+-]*)$")
 
 
 # ---------------------------------------------------------------- 見つける
-def _norm(name: str) -> str:
-    return re.sub(r"[-_.]+", "-", name).lower()
-
-
 def _version(spec) -> str | None:
     """依存の宣言の字から版（== は その版、^・~・>=・~= は下の端、字だけの版はそのまま）。分からなければ None"""
     if not isinstance(spec, str):
@@ -110,7 +106,7 @@ def manifests(repo: pathlib.Path) -> tuple:
     deps, bad = {}, []
 
     def put(name, version, where):
-        deps.setdefault(_norm(name), {"name": name, "version": version, "manifest": where})
+        deps.setdefault(libdocs_local.norm(name), {"name": name, "version": version, "manifest": where})
     for p in sorted(repo.iterdir()) if repo.is_dir() else []:
         if not p.is_file():
             continue
@@ -141,11 +137,6 @@ def manifests(repo: pathlib.Path) -> tuple:
         except (OSError, ValueError, ImportError, AttributeError, TypeError) as e:
             bad.append({"path": p.name, "reason": f"{type(e).__name__}: {e}"[:200]})
     return deps, bad
-
-
-def _js_package(spec: str) -> str:
-    parts = spec.split("/")
-    return "/".join(parts[:2]) if spec.startswith("@") and len(parts) > 1 else parts[0]
 
 
 SKIP_DIRS = frozenset({".git", "node_modules", ".venv", "venv", "__pycache__", ".tox", "dist", "build"})
@@ -200,7 +191,7 @@ def detect(repo, files) -> dict:
     stdlib = set(getattr(sys, "stdlib_module_names", ())) | {"__future__"}
 
     def add(key, lang, path, dist=None, via="import", uses=()):
-        d = deps.get(_norm(dist or key))
+        d = deps.get(libdocs_local.norm(dist or key))
         row = libs.setdefault(key, {"name": key, "search": d["name"] if d else (dist or key),
                                     "version": d["version"] if d else None, "manifest": d["manifest"] if d else None,
                                     "uses": [], "lang": lang, "files": [], "via": via})
@@ -251,12 +242,12 @@ def detect(repo, files) -> dict:
         uses = libdocs_local.js_uses(text)
         for spec in dict.fromkeys(m.group(1) for m in JS_IMPORT.finditer(text)):
             counts["imports"] += 1
-            if spec.startswith((".", "/", "~/", "@/")) or _js_package(spec) in own["js"]:
+            if spec.startswith((".", "/", "~/", "@/")) or libdocs_local.js_package(spec) in own["js"]:
                 counts["local"] += 1
             elif spec.startswith("node:") or spec.split("/")[0] in NODE_BUILTINS:
                 counts["stdlib"] += 1
             else:
-                add(_js_package(spec), "js", rel, uses=uses.get(_js_package(spec), ()))
+                add(libdocs_local.js_package(spec), "js", rel, uses=uses.get(libdocs_local.js_package(spec), ()))
     return {"libs": libs, "counts": counts, "unreadable": unreadable}
 
 
@@ -454,7 +445,7 @@ def _section(cache, repo, files, get, env, now, shared) -> str:
             lib = {**lib, "version": local["version"], "declared": lib["version"]}
         # 輸入の名と配る名が違い（import serial・配る名 pyserial）宣言にも PY_DIST にも無い時は、手元の配る名で問う（輸入の名で問うと
         # registry の別のプロジェクトを公式として貼る）
-        if local["status"] == "ok" and local.get("dist") and _norm(local["dist"]) != _norm(lib["search"]):
+        if local["status"] == "ok" and local.get("dist") and libdocs_local.norm(local["dist"]) != libdocs_local.norm(lib["search"]):
             lib = {**lib, "search": local["dist"]}
         # 2. 公式の文書
         if off:
