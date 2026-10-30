@@ -41,19 +41,6 @@ POINTER_FORMS = ("json", "jsonl", "file")   # pointer かファイルのパス�
 UNREAD = re.compile(r"読めな|読めず|読み損|無い|壊れ|unread|missing|not found|No such file")
 
 
-def word(pattern: str) -> re.Pattern:
-    """pattern を語として当てる式。前後が `[\\w\\-/.]` の時は語の一部（plan-fields.json・fix_plan・plan/r1）で数えない"""
-    return re.compile(rf"(?<!(?a:[\w\-/.]))(?:{pattern})(?!(?a:[\w\-/.]))")
-
-
-def reads(text: str, name: str) -> bool:
-    """script の字が入力 name を読むか。Archon は名の - を _ にして大文字の INPUTS_<名> で渡す。`INPUTS_{…}` を組んで読む script は
-    名の字を持つ物を読み手に数える"""
-    if re.search(rf"INPUTS_{re.escape(name.replace('-', '_').upper())}(?![A-Z0-9_])", text):
-        return True
-    return "INPUTS_{" in text and bool(re.search(rf"[\"']{re.escape(name)}[\"']", text))
-
-
 def flat(nodes) -> list[dict]:
     out = []
     for node in nodes or []:
@@ -70,7 +57,7 @@ def pointer_inputs(doc: dict) -> list[str]:
 
 def readers(block: pathlib.Path, doc: dict, name: str) -> list[dict]:
     return [node for node in flat(doc["nodes"]) if "script" in node
-            and reads((block / "scripts" / f"{node['script']}.py").read_text(encoding="utf-8"), name)]
+            and scan.script_reads((block / "scripts" / f"{node['script']}.py").read_text(encoding="utf-8"), name)]
 
 
 def standalone(block: pathlib.Path) -> dict:
@@ -112,7 +99,7 @@ def fresh(broken: set, control: set) -> set:
 
 def named(name: str, strings) -> bool:
     """字のどれかが、入力の名を語として持ち、読めない・無いことも言う"""
-    pattern = word(re.escape(name))
+    pattern = scan.word(re.escape(name))
     return any(pattern.search(s) and UNREAD.search(s) for s in strings)
 
 
@@ -199,9 +186,9 @@ class UnreadNamedCase(unittest.TestCase):
                           "f": {"description": "file: 方針の文書"},
                           "b": {"description": "text: 判定の json(x) を言うだけ"}, "c": {"default": ""}}}
         self.assertEqual(pointer_inputs(doc), ["a", "f"])
-        self.assertTrue(reads('os.environ["INPUTS_START"]', "start"))
-        self.assertFalse(reads('os.environ["INPUTS_START_ANSWERS"]', "start"))
-        self.assertTrue(reads('for name in ("ripple", "world"):\n    os.environ.get(f"INPUTS_{name.upper()}")', "world"))
+        self.assertTrue(scan.script_reads('os.environ["INPUTS_START"]', "start"))
+        self.assertFalse(scan.script_reads('os.environ["INPUTS_START_ANSWERS"]', "start"))
+        self.assertTrue(scan.script_reads('for name in ("ripple", "world"):\n    os.environ.get(f"INPUTS_{name.upper()}")', "world"))
 
 
 if __name__ == "__main__":
