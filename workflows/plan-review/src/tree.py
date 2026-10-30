@@ -36,7 +36,6 @@ SURPLUS_OP = "plan_review_surplus"
 # general-purpose・往復 2・3 が Explore で、型ごとに道具と深さが違った）
 SUBAGENT_TYPE = "general-purpose"
 PRECEDENT_VERDICTS = ("adopt", "adapt")
-NO_RIPPLE = "波及の一覧のノードがこの往復の一覧を置いていない"
 BRIEF = "item-brief"           # 下請けの指示の断片の名（prompts/parts/item-brief.md）
 SYNERGY_BRIEF = "synergy-brief"
 # 項目の材料のファイルの見出しと札（英語の短い札。指示の文は持たない。prompts/parts/item-brief.md がこの見出しを名指す）
@@ -68,12 +67,6 @@ def answer_file(b, n: int) -> pathlib.Path:
 
 def synergy_file(b) -> pathlib.Path:
     return pathlib.Path(b.dir) / files.SYNERGY_ANSWER
-
-
-def _ripple_of(b):
-    """今の往復の項目ごとの波及の一覧（無い・読めなければ None）"""
-    got = jsonfile.read_or(pathlib.Path(b.dir) / files.RIPPLE)
-    return got if isinstance(got, dict) else None
 
 
 uncovered = material.uncovered   # 今の ripple.uncovered の写し（src/material.py）
@@ -295,7 +288,7 @@ def tree_merge(b, bare: dict, tree: dict, resolved: list) -> dict:
     下請けの答えのファイルから組み、束ね役の型はそれらを持たない（node の output_format が拒む）。開いた項目の答えのファイルが
     無ければ、その項目の下請けを起こせと拒む"""
     k = converge.pass_no(b)
-    rip = _ripple_of(b) or {}
+    rip = material._ripple(pathlib.Path(b.dir))
     base = {"review": bare, "resolved": resolved, "synergy": [], "hits": {}, "origins": [], "files": {}, "gaps": []}
     plan = converge.read(b)["plan"]
     opened = converge.open_items(b)
@@ -461,7 +454,7 @@ def write_tree(place, b, intake: dict, material_path, n: int, repo=None) -> tupl
     rows = material._item_rows(b)
     if not rows:
         raise ValueError("木の往復なのに修正案の項目が無い")
-    doc = _ripple_of(b) or {"items": [], "overlaps": [], "error": NO_RIPPLE}
+    doc = material._ripple(pathlib.Path(b.dir))
     folder = place / files.ITEMS_DIR
     folder.mkdir(parents=True, exist_ok=True)
     answers_dir(b).mkdir(parents=True, exist_ok=True)
