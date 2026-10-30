@@ -10,7 +10,8 @@
 chain.md（lib/chain.render）に書く。
 返す apply・sealed は、メイングラフの出力と同じ形（bin/apply が読む {ok, hash, diff}）。最後の差分は元の基からなので、前の周の変更も
 入る。apply.ok は最後の差分に入る（自分の差分のファイルが在る）どの周の子の run も自分の差分を置いた時だけ真で、どれかが置かなかった時は
-sealed だけを当てられる（bin/apply の --allow-stopped）。placed は最後の差分を封じて apply.ok が真の時だけ真（出口の語 pr の渡しが読む）。採る周の結末の語 outcome と、r2_status（最後の差分に入る周のどれかで R2 が
+sealed だけを当てられる（bin/apply の --allow-stopped）。placed は最後の差分を封じて apply.ok が真で、採らなかった周が run の枝と作業ツリーに
+変更を残していない時だけ真（出口の語 pr の渡しが読む。残した時は reason にその周を名指す）。採る周の結末の語 outcome と、r2_status（最後の差分に入る周のどれかで R2 が
 作り直しと言えばそれ、ほかは採る周の物）と、spec_questions（最後の差分に入る周の承認し直すかの問いの数の和）も返す（bin/apply が
 拒む訳と、R2 の作り直しを拒むのと、承認し直しの知らせに読む）。
 書くのは親の置き場だけで、作業ツリーと枝は動かさない（git は commit の間の差分を読むだけ）。final() は始めに前の chain/final.diff と
@@ -93,6 +94,16 @@ def placed(rows: list, kept: dict) -> dict:
             + "・".join(f"周 {r['n']}（結末 {r.get('outcome') or '読めない'}）" for r in unplaced)}
 
 
+def left_over(skipped: list, kept: dict) -> str:
+    """PR へ渡せない訳: 採らなかった周が採る周の head の後に変更を積んだか、commit できずに作業ツリーに残した（周の commit は結末に
+    よらず run の枝に積まれ、出口の語 pr の渡しは元の基から今の作業ツリーまでを最後の差分と照らすので、必ず合わない）。無ければ空"""
+    rest = [r for r in skipped if r.get("head") != kept["head"]]
+    if not rest:
+        return ""
+    return ("採らなかった周の変更が run の枝か作業ツリーに残り、PR の差分が最後の差分と合わない: "
+            + "・".join(f"周 {r['n']}（結末 {r.get('outcome') or '読めない'}）" for r in rest))
+
+
 def r2_of(rows: list, kept: dict):
     """最後の差分に入る周のどれかで R2 が作り直しと言えばそれ、ほかは採る周の r2_status"""
     if any(r.get("r2_status") == seal.REDESIGN for r in carried(rows, kept)):
@@ -132,7 +143,8 @@ def final() -> dict:
             got["r2_status"] = r2_of(rows, kept)
             got["spec_questions"] = spec_of(rows, kept)
             got["ok"] = True
-            got["placed"] = got["apply"]["ok"] is True
+            got["reason"] = left_over(skipped, kept)
+            got["placed"] = got["apply"]["ok"] is True and not got["reason"]
     run = os.environ["WORKFLOW_ID"]
     report_path = ports.place() / files.REPORT
     final_path = str(ports.place() / files.FINAL) if got["sealed"] else ""

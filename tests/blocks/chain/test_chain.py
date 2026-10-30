@@ -382,7 +382,8 @@ class FinalDiffCase(Tree):
         self.assertEqual(got["sealed"], {"ok": True, "hash": hashlib.sha256(final.read_bytes()).hexdigest(),
                                          "diff": {"type": "archon_artifact", "run_id": "parent", "path": "chain/final.diff"}})
         self.assertEqual(got["apply"], {**got["sealed"], "reason": ""})
-        self.assertIs(got["placed"], True)
+        self.assertIs(got["placed"], False, "周 3 の commit が run の枝に残り、PR の渡しが照らす今の差分が最後の差分と合わない")
+        self.assertIn("周 3", got["reason"])
         left = self.artifacts / "chain" / "round-3.diff"
         self.assertEqual(self.names(left.read_bytes()), ["three.txt"])
         report = (self.artifacts / chain.REPORT).read_text(encoding="utf-8")
@@ -393,6 +394,15 @@ class FinalDiffCase(Tree):
         self.assertIn("| 3 | child-3 | stopped_by_human | 10 | 3.00 | 1 | 1 |", report)
         self.assertIn("合計: 3 周・30 分・$6.00", report)
         self.assertEqual(git(self.repo, "status", "--porcelain"), "", "作業ツリーを変えない")
+
+    def test_halted_round_that_left_no_change_is_placed(self):
+        """止まった周が何も積まなかった（head が採る周と同じ）なら、今の木は最後の差分と同じなので PR へ渡せる"""
+        start, made = three_rounds(self.repo)
+        for d in made:
+            if len(d["rows"]) == 3:
+                d["rows"][2]["head"] = d["rows"][1]["head"]
+        got = self.final(start, *made)
+        self.assertEqual((got["kept"], got["skipped"], got["placed"], got["reason"]), (2, [3], True, ""), got)
 
     def test_round_without_a_placed_diff_is_sealed_but_not_placed(self):
         start, made = three_rounds(self.repo, halted_last=False, placed=())
@@ -511,6 +521,11 @@ class ResultCase(Tree):
         got = self.result(start, decided, final=unplaced)["deliver"]
         self.assertEqual((got["act"], got["pr"]), ("stopped", None))
         self.assertIn("採れる周が無い", got["reason"])
+        sealed = {"ok": True, "hash": "h", "diff": None}
+        left = {**unplaced, "ok": True, "reason": "採らなかった周 3 の変更が残る", "sealed": sealed, "apply": {**sealed, "reason": ""}}
+        got = self.result(start, decided, final=left)["deliver"]
+        self.assertEqual(got["act"], "stopped")
+        self.assertIn("採らなかった周 3 の変更が残る", got["reason"], "差分を当てられても渡さない訳は final-diff の reason")
         got = self.result(start, decided, final={**unplaced, "ok": True, "placed": True})["deliver"]
         self.assertEqual(got["act"], "unconfirmed", "差分を置いた後の hand の中で push や PR の作成が済んだかもしれない")
         self.assertIn("出力が無い", got["reason"])
