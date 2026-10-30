@@ -232,7 +232,7 @@ def run(db: Path, run_id: str) -> dict:
     root = Path(top["output_root"]) if top["output_root"] else None
     closed = {top["id"]: _end(top["status"], ends.get(top["id"])), **{c["id"]: _end(c["status"], ends.get(c["id"])) for c in reader.children}}
     for event in reader.events:
-        if event["start"] and not event["end"] and closed.get(event["run"]):
+        if event["start"] and not event["end"] and event["status"] in ("waiting", "running") and closed.get(event["run"]):
             event["end"], event["cut"] = closed[event["run"]], True
     started, ended = _span(reader.events) or (top["started_at"], top["completed_at"])
     ended = _later(closed[top["id"]], ended)

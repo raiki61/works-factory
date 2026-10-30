@@ -343,6 +343,14 @@ class ReadCase(unittest.TestCase):
                          {"a": (5.0, False), "gate": (595.0, True), "b": (60.0, True)})
         self.assertEqual(runread.run(db, "live")["seconds"], 40.0)
 
+    def test_a_finished_node_with_a_broken_end_is_not_cut(self):
+        """閉じるのは待ちと走り中のまま止まったノードだけ。終わりの時刻が読めずに済んだノードは、run の終わりで閉じずに終わりを空のままにする"""
+        db = self._db([("top", None, "2026-10-25 01:00:00", None, "{}")], [("top", "2026-10-25 01:00:00")])
+        self._event(db, "top", "workflow_completed", "2026-10-25 03:00:00")
+        self._log("top", [self._node("node_start", "2026-10-25T01:00:00.000Z", "a"), self._node("node_complete", "not a time", "a")])
+        event = runread.run(db, "top")["events"][0]
+        self.assertEqual((event["status"], event["end"], event.get("cut", False)), ("ok", None, False))
+
     def test_a_run_ends_no_earlier_than_its_last_node(self):
         """DB の終わりの出来事は秒まで（切り捨て）なので、ログの最後の終わりより前になりうる。run の終わりは遅い方"""
         db = self._db([("top", None, "2026-10-25 01:00:00", None, "{}")], [("top", "2026-10-25 01:00:00")])
