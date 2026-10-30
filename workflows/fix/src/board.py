@@ -19,12 +19,12 @@ import jsonfile
 import oneline
 import rolekit
 from fixboard import (  # noqa: F401  lib のまま呼ぶ名（docs/design/fix.md の 1.5.2）
-    trace, trace_rows, TRACE_FILE, read_json, write_json, write_text, plan_view, marks_view, allowed_test_rows, _allowed_row, child_allowed_rows, scope_brief, ALLOWED_SOURCES, FIX_IN_DIFF_CORE, run_diff, DIFF_EMPTY, diff_file, pr_revs, pr_diff, pr_added_lines, UNIT_STATUSES, FIXED, GIVEN_UP, NOT_DONE, UNIT_LEFT, HANDOFF_HEAD, accept_out, round_number, snapshot, touched_since, undeclared_writes, UNDECLARED)
+    trace, trace_rows, TRACE_FILE, read_json, write_json, write_text, plan_view, allowed_test_rows, child_allowed_rows, scope_brief, ALLOWED_SOURCES, FIX_IN_DIFF_CORE, run_diff, DIFF_EMPTY, diff_file, UNIT_STATUSES, FIXED, GIVEN_UP, NOT_DONE, accept_out, round_number, snapshot, touched_since, undeclared_writes, UNDECLARED)
 
 from src import files as fixnames
 from src.rulings import write as write_rulings
 from src.files import (  # noqa: F401
-    GROUPS_FILE, TDD_UNIT_FILE, ASSERT_FILE, RESULT_FILE, PLAN_REPLY_FILE, PLAN_REVIEW_FILE, JUDGMENT_FILE, TIES_FILE, MATERIALS_FILE, JUDGE_COPIES, CHECKED_COPIES, RIPPLE_FILE, ANSWERS_FILE, ONLY_ITEMS_FILE, BASELINE_FILE, NOTES_FILE, BASE_REV_FILE, FIX_REPLY_FILE, VALUES)
+    GROUPS_FILE, ASSERT_FILE, RESULT_FILE, PLAN_REPLY_FILE, PLAN_REVIEW_FILE, JUDGMENT_FILE, TIES_FILE, MATERIALS_FILE, JUDGE_COPIES, RIPPLE_FILE, ANSWERS_FILE, ONLY_ITEMS_FILE, BASELINE_FILE, NOTES_FILE, BASE_REV_FILE, FIX_REPLY_FILE, VALUES)
 
 ACCEPT_TRACE_FILE = fixnames.ACCEPT_TRACE_FILE   # 受け付けが選んだ試験を走らせた回の行の並び（[行, …]。tests_trace が足す。読むのは最後の関所と報告）
 
@@ -848,10 +848,6 @@ def _keys_once(rows, label) -> list:
     return errs
 
 
-def plan_review_file(place):
-    """置き場の事前審査の返答の写し PLAN_REVIEW_FILE のパス（差分の審査の材料 out.p2.plan_review。無ければ None＝事前審査の無い run）"""
-    p = pathlib.Path(place) / PLAN_REVIEW_FILE
-    return p if p.is_file() else None
 def tests_how_text(place) -> str:
     """修正役と TDD の役の指示の段落 tests_how に入れる行: 置き場の BASELINE_FILE の走らせ方の行（見出しと結びの文は md）。行が無ければ空（直す前のテストの
     無い run と、行を持たない前の版の控え）"""
@@ -2266,7 +2262,7 @@ def brief_sources(place) -> dict:
 
 
 def fix_values(place, owed, *, start=None, record: str = "", summary: str = "", answer_node: str = "") -> dict:
-    """修正役の指示書の run の値（fixrules.FIX_VALUES と request_file・plan_session・tdd_record・ripple_file・base_rev）。始めの
+    """修正役の指示書の run の値（judgment_file・open_units・plan_file・policy_path・notes_file・summary_file と request_file・plan_session・tdd_record・ripple_file・base_rev）。始めの
     記録 start の固めた方針の写しは policy_path、request_file は startrec.request_file で読む。plan_session は範囲の相談に答える役の名（answer_node。
     空なら相談の節を載せない）"""
     p = pathlib.Path(place)

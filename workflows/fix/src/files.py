@@ -6,7 +6,6 @@ lib/ のモジュールは import しない（返す node が lib を読めな�
 """
 from __future__ import annotations
 
-import pathlib
 
 MODES = ("whole", "group")   # port mode の語（docs/design/fix.md の 13.1 の 1）
 ROUTES = ("auto", "plan")    # port routes の語（auto は TDD の役が振り分ける。plan は承認済みの案の route をそのまま使う。docs/design/spec-driven.md の 7 章）
@@ -26,7 +25,6 @@ JUDGMENT_FILE = "judgment.json"        # 判定の写し
 TIES_FILE = "judge-ties.json"          # 判定の結びの写し（port answer_ties）
 MATERIALS_FILE = "judge-materials.json"   # 判定の素材の状態の写し（port materials）
 JUDGE_COPIES = {"answer_ties": TIES_FILE, "materials": MATERIALS_FILE}   # prep が写す port → 写しの名
-CHECKED_COPIES = (TIES_FILE, MATERIALS_FILE)   # 読み手が壊れた JSON を無いと読むので、写す前に読めるかを確かめる写し
 RIPPLE_FILE = "ripple.json"            # 波及の一覧の写し
 ANSWERS_FILE = "answers.json"          # 人の関所の答えの写し（port answers {decision, text, asked}）
 ONLY_ITEMS_FILE = "only-items.json"    # 直す項目の絞り（port only_items。空は全部）

@@ -5,7 +5,6 @@
 """node rule-prep（全体の形の裁定の輪の頭）: 作業ツリーの姿を控え（rule-tree.json。読むだけの役の見張り）、裁定役の指示を md から
 組む（src/ruling.prep の値を src/prompts.ruler_values が prompts/ruler.md に入れる）。前の回の却下は控え rejects-rule.json の全部。
 返り {prompt, iteration}"""
-import os
 import sys
 from pathlib import Path
 

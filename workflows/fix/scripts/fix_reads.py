@@ -6,7 +6,6 @@
 フックの記録から集めて place の reads-<役>.json と索引に書く（board.collect_reads。役の session は段の頭の印の後に brief〔無ければ判定の
 写し〕を読んだ物で見分ける。13.1 の 10）。前の node が落ちても飛ばされても走り、落ちない。返り {ok, missing, index_file, reason}"""
 import json
-import os
 import sys
 from pathlib import Path
 

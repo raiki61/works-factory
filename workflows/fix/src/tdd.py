@@ -98,7 +98,6 @@ import impact  # noqa: E402  （.shared/core。変更に当たる試験の選び
 import planbrief  # noqa: E402  （同じブロックの lib。承認済みの修正案の項目ごとの brief の凍結）
 import planmarks  # noqa: E402  （.shared/core。修正案の項目の works の欄。単位の約束）
 from planmarks import test_functions  # noqa: E402,F401  （.shared/core。テストの関数の id（pytest の node id の形）→ 源の引き。fixgates・fixboard が tddloop.test_functions の名で読む）
-import rolekit  # noqa: E402  （lib。諦めの回数 GIVE_UP_AFTER）
 import writelog  # noqa: E402
 import writes  # noqa: E402  （.shared/core。書き込みの出どころの突き合わせ）
 import oneline  # noqa: E402

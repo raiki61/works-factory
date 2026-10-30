@@ -6,7 +6,7 @@
 
 1. 頼みの節（script consult_check）: 機械の先の確かめ（screen・oos_hits）で断る頼みを断り、残りを状態（STATE）に積み、
    答えの役への指示書（render が md から組む）を書く。
-2. 答えの役（consult-answer。AI）: 修正案の指し札と波及の一覧を読む新しい会話で、読むだけの道具で答える（ANSWER_SCHEMA）。
+2. 答えの役（consult-answer。AI）: 修正案の指し札と波及の一覧を読む新しい会話で、読むだけの道具で答える（形は YAML の consult_answer）。
 3. 確かめの節（script consult_accept → settle）: 答えを確かめ（judge。許すのは頼んだ物の中だけ。人の関所の条件の相談を除く）、
    1 頼み 1 行を置き場の trace.jsonl（conflict.ASKED_OP）に書き、修正役が読む答えのファイルを書く。合意（allow の行）は
    conflict.agreed が読み、範囲の照らし（planrange.with_agreed）とテストの変更の許し（conflict.test_permits）に入る。
@@ -40,8 +40,6 @@
 - judge(answer, paths, tests): 答えの 1 件の確かめ（(行の欄 | None, 注記)）
 - asks_text(items, asks): 答えの役の指示の {asks} の材料（頼みごとの節の並び）
 - gate_notes(b, human_items, round_)・gate_asks(b, items, human_items, round_): 人の関所の条件の頼み
-- consulted_units(rows): 受け付けの行（fixboard.accept_trace_rows）のうち、範囲の相談を頼んだ行の単位の名（関所の条件の相談は除く。unit_keys の
-  無い行は『項目 n』）。読むのは修正の後の深さの上げ直し（latedepth.signals）
 - carry_agreed(place, results): 戻せた組の子の結果の置き場の合意の行を、group_id つきで親の置き場 place の trace に足す
 - settle(b, answer, pass_, node, round_=1): 確かめの節の中身。返り {consulted, turn, answer_file, counts}
 - take(b, pass_): 支度の節が、まだ渡していない答えを引く（渡した印を付ける）。返り {turn, answer_file, left} か None
@@ -76,36 +74,7 @@ DECISIONS = (ALLOW, DENY, DEFER)
 MIN_WHY = conflict.CONSULT_MIN_WHY
 CONFIG = "consult.json"
 
-ANSWER_SCHEMA = {
-    "type": "object", "additionalProperties": False,
-    "required": ["answers"],
-    "properties": {
-        "answers": {
-            "type": "array", "minItems": 1,
-            "items": {
-                "type": "object", "additionalProperties": False,
-                "required": ["ask", "decision", "paths", "tests", "spec", "reason"],
-                "properties": {
-                    "ask": {"type": "integer", "minimum": 1},
-                    "decision": {"type": "string", "enum": list(DECISIONS)},
-                    "paths": {"type": "array", "items": {"type": "string", "minLength": 1}},
-                    "tests": {"type": "array", "items": {"type": "string", "minLength": 1}},
-                    "new_tests": {
-                        "type": "array",
-                        "items": {
-                            "type": "object", "additionalProperties": False,
-                            "required": ["id", "red_kind"],
-                            "properties": {"id": {"type": "string", "minLength": 1},
-                                           "red_kind": {"type": "string", "enum": list(planmarks.AGREED_KINDS)}},
-                        },
-                    },
-                    "spec": {"type": "string"},
-                    "reason": {"type": "string", "minLength": MIN_WHY},
-                },
-            },
-        },
-    },
-}
+
 
 
 ASK_TEXT = """\
@@ -527,22 +496,6 @@ def _trace_rows(b, st: dict, answer, by_n: dict, turn: int, pass_: str, node: st
         fixboard.trace(b, conflict.ASKED_OP, **row)
         out_rows.append(row)
     return out_rows
-
-
-def consulted_units(rows) -> list:
-    """受け付けの行 rows（fixboard.accept_trace_rows。修正の出力の欄 accept_trace の先の行）のうち、修正役か受け付けが範囲の相談を
-    頼んだ行（op が conflict.ASKED_OP。人の関所の条件の相談 ORIGIN_GATE は機械が立てた物なので除く）の単位の名（unit_keys。
-    現れた順・重なりは 1 つ）。unit_keys の無い行は『項目 n』（n は行の item）。修正の後に深さを標準へ上げる信号
-    （depth.late_signals の consulted）の元"""
-    out = []
-    for row in rows if isinstance(rows, list) else []:
-        if not isinstance(row, dict) or row.get("op") != conflict.ASKED_OP or row.get("origin") == ORIGIN_GATE:
-            continue
-        keys = [k for k in row.get("unit_keys") or [] if isinstance(k, str) and k]
-        for name in keys or [f"項目 {row.get('item')}"]:
-            if name not in out:
-                out.append(name)
-    return out
 
 
 def carry_agreed(place, results) -> None:

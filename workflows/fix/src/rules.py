@@ -25,9 +25,6 @@ import planmarks  # noqa: E402  （項目の範囲: allowed_paths と受け入�
 import planrange  # noqa: E402  （範囲の値 fix_scope・項目の glob と tests の id。行の文は下の scope_rows・tests_rows）
 import rulebook  # noqa: E402  （決まりの正本のフォルダの名。変更の種類の見分けが読む）
 
-FIX_VALUES = ("judgment_file", "open_units", "plan_file", "policy_path", "notes_file", "summary_file")
-TDD_VALUES = ("judgment_file", "open_units", "plan_file", "policy_path", "notes_file")
-RULER_VALUES = ("conflicts_file", "ids", "judgment_file", "request_file", "policy_path")
 PASSES = ("first", "ruled")   # 修正役の 1 回目と、裁定の後の 2 回目（印 continue=fix の会話の続き）
 HEAD_FILES = dict(zip(PASSES, (board.FIX_HEAD_FILE, board.RULED_HEAD_FILE), strict=True))   # 段 → 段の頭の木の控え
 ANSWER_NODES = dict(zip(PASSES, ("consult-answer", "ruled-consult-answer"), strict=True))   # 段 → 範囲の相談に答える役の節

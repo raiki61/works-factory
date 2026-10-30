@@ -1598,7 +1598,6 @@ class TestUnruledFrozen(LoopCase):
     指示から消した（付録 A の F13。代わりは check_frozen の拒否）ので、どちらの段でも貼らない"""
 
     def test_unruled_files_are_what_check_frozen_keeps_frozen_under_rulings(self):
-        import planrange
         self.route()
         self.red()
         self.assertTrue(self.fix_mean()["done"])

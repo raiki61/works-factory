@@ -4,7 +4,6 @@
 # ///
 """node clean（全体の形）: 控えに無かった git が無視するファイルだけを消す（leftovers.remove_new_ignored。.archon/ と前から
 在ったフォルダは残す）。当たったままの組が在れば何も消さない。今のまま。返り {ok, count}"""
-import os
 import sys
 from pathlib import Path
 

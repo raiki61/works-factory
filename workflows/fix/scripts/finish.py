@@ -4,7 +4,6 @@
 # ///
 """返す node finish（両方の形）: 各 node が place に書いたファイルを読んで出力の欄を組む（src/finish.collect。今の collect.py の後継）。
 落ちない: 中の誤りは ok: false と理由で返し（diff は fix-collect-error.txt を指す）、lib を読めない時も標準ライブラリだけで返す"""
-import os
 import sys
 from pathlib import Path
 

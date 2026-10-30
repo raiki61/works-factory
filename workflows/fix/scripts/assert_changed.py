@@ -5,7 +5,6 @@
 """node assert-changed（全体の形）: 戻せた組と裁定の後の返答の changes[].files が始めの木から本当に変わったか（申告が空なら、
 直す義務が残らず外れた単位だけの run だけを通す）と、始めの木から今への変更が並行 PR に回した hunk に触れていないか。比べが通らない時は ok: false と理由（落ちない）。比べの外の誤り（groups.json が
 無い・git が効かない）は assert-changed.json に訳を書いて落ちる。今のまま。返り {ok, reason}"""
-import os
 import sys
 from pathlib import Path
 

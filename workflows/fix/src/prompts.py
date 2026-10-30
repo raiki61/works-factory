@@ -27,7 +27,6 @@ EMPTY = "(empty)"
 BLOCK = pathlib.Path(__file__).resolve().parents[1]
 OVERLAY_FILE = str(spseam.BORROW_DIR / spseam.OVERLAY_FILE)   # 下請けに Read させる無人の読み替え（今の seat.OVERLAY_HEAD の後半）
 FACTS = BLOCK / "src" / "facts.py"   # 事前の確かめのコマンド（1.5.5）
-ACCEPT = {"first": "fix-accept", "ruled": "fix-ruled-accept"}   # 合わせ役の受け付けの名の頭（型の書き手の受け付けの名は src/writers.accept_name）
 CLASH = {"first": "clash-fix", "ruled": "clash-ruled"}
 CONSULT = {"first": "consult-answer", "ruled": "ruled-consult-answer"}
 WRITER_KINDS = {"docs": "docs", "prompts": "prompts_kind", "config": "config", "code": "code"}   # 種類 → writer-rules の段落の名

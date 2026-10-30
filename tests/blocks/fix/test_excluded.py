@@ -3,7 +3,6 @@
 import hashlib
 import json
 import pathlib
-import subprocess
 import unittest
 
 from tests.bin import hermetic

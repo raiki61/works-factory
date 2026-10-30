@@ -5,7 +5,6 @@
 """node conflict-check（全体の形）: 子と join が集めた食い違いの申し出の名指し（<パス>:<行>）を親の作業ツリーと許した根（依頼の
 ファイルと親と子の place）で現物と照らし、在る申し出を place の conflicts.json に積み、行が無くなった申し出は conflicts-dropped.json に
 名指す。今のまま。返り {go, count}"""
-import os
 import sys
 from pathlib import Path
 
