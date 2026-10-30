@@ -690,9 +690,10 @@ function paint() {
     el.classList.add(cls, ...(cls === 'fail' ? ['done'] : []));
     const evs = (EVS[key] || []).filter(e => e.kind !== 'loop_group');
     let word = open ? open.word : st === 'waiting' ? STATUS.waiting : STWORD[cls];
-    // 入れ子の札は、止まり方の語を自分の姿（openLook か落ちた）で 1 度だけ付け、下の止まった所の枝で重ねない
-    const inner = (cls === 'fail' || cls === 'stopat') && x && x.nest;
-    if (inner) word = `中で${open ? open.word : '落ちた'}`;
+    // 入れ子の札は、止まり方の語を自分の姿（openLook か落ちた）で付ける。下の止まった所の枝は、その語が run の止まり方と同じ時だけ重ねない
+    // （落ちても先へ進んだ手番と人の止めが同じ入れ子に在れば「中で落ちた · 中で止めた」）
+    const inner = (cls === 'fail' || cls === 'stopat') && x && x.nest ? (open ? open.word : '落ちた') : null;
+    if (inner) word = `中で${inner}`;
     if (!look && cls === 'done' && evs.length > 1) word = `${evs.length} 回`;
     // AI と入れ子の札は終わりの姿で AI の手番の費用も出す（入れ子は中の AI の手番の和。データの欄 run.ai_cost）。再生中は姿の語だけ
     if (!look && x && (x.it.kind === 'ai' || x.nest) && cls !== 'yet' && cls !== 'skip') {
@@ -701,7 +702,7 @@ function paint() {
     }
     if (look) { el.querySelector('.s').textContent = word; continue; }
     if (key === STOP_KEY) { el.classList.add(STOP_HUMAN ? 'stopat' : 'fail'); word = STOP_HUMAN ? 'ここで止めた' : '落ちた'; }
-    else if (!inner && STOP_KEY && STOP_KEY.startsWith(key + '>') && !el.classList.contains('opened')) word = (word ? word + ' · ' : '') + (STOP_HUMAN ? '中で止めた' : '中で落ちた');
+    else if (inner !== (STOP_HUMAN ? '止めた' : '落ちた') && STOP_KEY && STOP_KEY.startsWith(key + '>') && !el.classList.contains('opened')) word = (word ? word + ' · ' : '') + (STOP_HUMAN ? '中で止めた' : '中で落ちた');
     el.querySelector('.s').textContent = word;
   }
   // 繰り返しの器の出来事の歩は、器の枠に今の印を付ける
