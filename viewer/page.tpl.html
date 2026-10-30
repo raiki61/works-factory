@@ -339,6 +339,9 @@ const mmss = s => { s = Math.round(s); return `${Math.floor(s / 60)}:${String(s 
 const dur = e => e.start && e.end ? (Date.parse(e.end) - Date.parse(e.start)) / 1000 : 0;
 const STATUS = {ok: '済み', failed: '落ち', running: '走り中', waiting: '人の答え待ち', skipped: '飛んだ'};
 const stWord = st => STATUS[st] || st;
+// 出来事の語（板・ログの行・再生の帯の終わり）。終わった run で読む部品が閉じた出来事（印 cut。走り中・待ちのまま残った物）は、
+// 段と札と同じ止まり方の語（openLook）にする
+const evWord = e => e.cut ? openLook(e.status).word : stWord(e.status);
 // 出来事の周の字（「周 1.2」。周の無い出来事は空）
 const loopOf = e => e && e.loop.length ? `周 ${e.loop.join('.')}` : '';
 // 札ごとの AI の手番の費用（札とその中の和。データの欄 run.ai_cost。数えるのは viewer/src/stages.py で、雛形は読むだけ）
@@ -897,7 +900,7 @@ function selectId(key) {
 function eventView(e) {
   const u = e.usage;
   return h('div', {class: 'ev'},
-    h('div', {}, h('b', {text: stWord(e.status)}), h('span', {class: 'cap', text: ` · ${loopOf(e) ? loopOf(e) + ' · ' : ''}${since(e.start)} から ${mmss(dur(e))}${e.cost ? ' · ' + usd(e.cost) : ''}${e.run !== RUN.id ? ' · 子の run ' + e.run.slice(0, 8) : ''}`})),
+    h('div', {}, h('b', {text: evWord(e)}), h('span', {class: 'cap', text: ` · ${loopOf(e) ? loopOf(e) + ' · ' : ''}${since(e.start)} から ${mmss(dur(e))}${e.cost ? ' · ' + usd(e.cost) : ''}${e.run !== RUN.id ? ' · 子の run ' + e.run.slice(0, 8) : ''}`})),
     e.kind === 'wait' && e.output && h('p', {class: 'claim', text: (() => { try { const o = JSON.parse(e.output); return `答え: ${o.decision}${o.text ? ' — ' + o.text : ''}`; } catch (_) { return ''; } })()}),
     e.error && pre(e.error, 'err'),
     u && h('div', {class: 'cap', text: `トークン 入 ${man(u.input)}（cache の読み ${man(u.cacheRead)}・書き ${man(u.cacheWrite)}）・出 ${man(u.output)} · 往復 ${e.turns}${e.model ? ' · ' + e.model : ''}`}),
@@ -1204,7 +1207,7 @@ function logScreen() {
         h('span', {class: 'n cap', text: since(e.start)}),
         h('span', {}, kindTag(evKind(e), true)),
         h('span', {class: 'w', text: what(it) || e.tokens.join(' / ')}),
-        h('span', {class: 'cap st2', text: `${loopOf(e) ? loopOf(e) + ' · ' : ''}${stWord(e.status)}`}),
+        h('span', {class: 'cap st2', text: `${loopOf(e) ? loopOf(e) + ' · ' : ''}${evWord(e)}`}),
         h('span', {class: 'r n cap', text: e.cost ? usd(e.cost) : mmss(dur(e))})));
       card.append(row, body);
     }
@@ -1275,7 +1278,7 @@ function label() {
   if (at < 0) { w.replaceChildren(h('b', {text: 'run の終わりの姿'}), ` · ${STEPS.length} 歩（ノードの始まりと終わり）。▶ で歩き始める`); return; }
   const st = STEPS[at], s = stageAt(at), it = itemAt(st.e.at);
   w.replaceChildren(h('b', {text: `${s ? `段 ${s.n} ${s.name} · ` : ''}${what(it) || st.e.tokens.join(' / ')}`}),
-    ` · ${at + 1} / ${STEPS.length} · ${since(st.t)} · ${st.end ? `終わり（${stWord(st.e.status)}）` : '始まり'}${loopOf(st.e) ? ' · ' + loopOf(st.e) : ''}`,
+    ` · ${at + 1} / ${STEPS.length} · ${since(st.t)} · ${st.end ? `終わり（${evWord(st.e)}）` : '始まり'}${loopOf(st.e) ? ' · ' + loopOf(st.e) : ''}`,
     `${st.e.run !== RUN.id ? ' · 子の run ' + st.e.run.slice(0, 8) : ''}${st.e.at && st.e.at.graph ? foldedWire(st.e.at) ? ' · 配線の歩（図では畳んでいる）' : '' : ' · 図に当たらない'} · ${st.e.tokens.join(' / ')}`);
 }
 function play(on) {
