@@ -30,6 +30,14 @@
 - 続けた会話（sessionOrigin が resumed）は、ノードの出来事の始めより前の往復（前の会話から写して持つ物）に copied を付ける
 - 往復の印は、usage を持つ行を待たず、その往復の最初の行で置く（usage の無い返事が混じっても往復の数がずれず、どの返事にも usage が
   無くても返事と道具の呼び出しが並びから消えない。usage は後の行で埋める）
+- 起き直すたびに書き直される飛びの行（when・trigger_rule。起動の id は毎回違う）は、同じ run・道・周なら 1 つに数える（周が違えば別）
+- 一覧と選んだ run の始めは同じ定義: DB の出来事の最初（run の始めの印を含む）とログの最初の始めの早い方（同じ秒ならログ）。長さが秒の
+  丸めの内で合う
+- 繰り返しの器が答えの後に同じ起動の id で node_start を書き直せば、待ちから走り中に戻る
+- 繰り返しの中の待ちは、器を待つノードに並べず、答えが入れば器も外す（Archon は本体と器の両方に node_suspended を書く）
+- 落ちた後に起き直して終わった run の前の起動の走り中のノードは、最後の終わりでなく、その落ちの時刻で閉じる
+- 閉じる時刻は始めより前にしない（DB の終わりは秒までの切り捨てなので、同じ秒に始めたノードの長さが負にならない）
+- run の費用は metadata の合計と代わりの和の大きい方（費用は減らないので、SIGTERM で落ちて合計を書き直さなかった run の古い合計を出さない）
 
 試験は一時のフォルダに小さな DB と記録を作る。
 """
@@ -454,6 +462,73 @@ class ReadCase(unittest.TestCase):
         self.assertEqual([t.get("copied", False) for t in got["aaaa0000"]["turns"]], [True, False, False])
         self.assertEqual([t.get("copied", False) for t in got["bbbb0000"]["turns"]], [False, False, False])
         self.assertEqual(got["aaaa0000"]["unread"], {"読めない時刻": 1})
+
+    def test_rewritten_skips_count_once_per_path_and_round(self):
+        db = self._db([("top", None, "2026-10-25 01:00:00", None, "{}")], [])
+        skip = lambda ts, invocation, loop=(): {"type": "node_skipped", "ts": ts, "step": "s", "content": "when_condition", "cause": "when",
+                                                runread.EXECUTION: {"path": "s", "invocation": {"id": invocation,
+                                                                                               "loopPath": [{"iteration": n} for n in loop]}}}
+        self._log("top", [skip("2026-10-25T01:00:00.000Z", "i1"), skip("2026-10-25T01:00:10.000Z", "i2"), skip("2026-10-25T01:40:00.000Z", "i3"),
+                          skip("2026-10-25T01:00:01.000Z", "j1", [1]), skip("2026-10-25T01:00:02.000Z", "j2", [2]),
+                          skip("2026-10-25T01:40:01.000Z", "j3", [2])])
+        self.assertEqual([s["time"] for s in runread.run(db, "top")["skipped"]],
+                         ["2026-10-25T01:00:00.000Z", "2026-10-25T01:00:01.000Z", "2026-10-25T01:00:02.000Z"])
+
+    def test_listed_and_shown_runs_start_alike(self):
+        db = self._db([("top", None, "2026-10-25 02:56:47", None, "{}")], [("top", "2026-10-25 02:56:47")])
+        self._status(db, "top", "completed")
+        self._event(db, "top", "workflow_completed", "2026-10-25 03:04:18")
+        self._log("top", [self._node("node_start", "2026-10-25T02:56:52.335Z", "a"), self._node("node_complete", "2026-10-25T03:04:18.200Z", "a")])
+        got, listed = runread.run(db, "top"), runread.runs(db)[0]
+        self.assertEqual((got["started"], listed["started"]), ("2026-10-25T02:56:47.000Z", "2026-10-25 02:56:47"))
+        self.assertEqual((got["seconds"], listed["seconds"]), (451.2, 451.0))
+
+    def test_a_loop_restarted_after_its_answer_runs_again(self):
+        db = self._db([("top", None, "2026-10-25 01:00:00", None, "{}")], [("top", "2026-10-25 01:00:00")])
+        self._status(db, "top", "running")
+        group = lambda kind, ts: {"type": kind, "ts": ts, "step": "rounds",
+                                  runread.EXECUTION: {"path": "rounds", "invocation": {"id": "g"}, "node": {"kind": runread.LOOP_GROUP}}}
+        self._log("top", [group("node_start", "2026-10-25T01:00:00.000Z"), group("node_suspended", "2026-10-25T01:00:05.000Z"),
+                          group("node_start", "2026-10-25T01:10:00.000Z")])
+        event = runread.run(db, "top")["events"][0]
+        self.assertEqual((event["status"], event["end"]), ("running", None))
+
+    def test_a_wait_in_a_loop_lists_its_body_until_answered(self):
+        db = self._db([("top", None, "2026-10-25 01:00:00", None, "{}")], [])
+        self._status(db, "top", runread.PAUSED)
+        for step in (f"rounds{runread.shape.IN_LOOP}gate", "rounds"):
+            self._event(db, "top", runread.SUSPENDED_EVENT, "2026-10-25 01:00:05", step)
+        self.assertEqual(runread.runs(db)[0]["waiting"], [f"rounds{runread.shape.IN_LOOP}gate"])
+        con = sqlite3.connect(db)
+        wait = {"kind": runread.WAIT_KIND, "owner": runread.WAIT_LOOP_OWNER, "nodeId": "rounds", "bodyWaitId": "gate", runread.WAIT_ANSWER: "ok"}
+        con.execute(f"update {runread.RUN_TABLE} set metadata = ? where id = 'top'", (json.dumps({runread.WAIT: wait}),))
+        con.commit()
+        con.close()
+        self.assertEqual(runread.runs(db)[0]["waiting"], [])
+
+    def test_a_resumed_failure_closes_its_open_nodes_at_that_failure(self):
+        """落ちた後に起き直して終わった run は、前の起動の走り中のノードをその落ちで閉じる。同じ秒に始めたノードの長さは負にしない"""
+        db = self._db([("top", None, "2026-10-25 02:00:00", None, "{}")], [("top", "2026-10-25 02:00:00")])
+        self._status(db, "top", "completed")
+        self._event(db, "top", runread.FAILED_EVENT, "2026-10-25 02:21:11")
+        self._event(db, "top", "workflow_completed", "2026-10-25 03:00:00")
+        node = lambda kind, ts, invocation: {"type": kind, "ts": ts, "step": "try",
+                                             runread.EXECUTION: {"path": "try", "invocation": {"id": invocation}}}
+        self._log("top", [node("node_start", "2026-10-25T02:07:15.000Z", "old"), node("node_start", "2026-10-25T02:21:11.407Z", "late"),
+                          node("node_start", "2026-10-25T02:40:00.000Z", "new"), node("node_complete", "2026-10-25T02:58:00.000Z", "new")])
+        got = runread.run(db, "top")
+        self.assertEqual([(e["end"], runread.length(e)) for e in got["events"]],
+                         [("2026-10-25T02:21:11.000Z", 836.0), ("2026-10-25T02:21:11.407Z", 0.0), ("2026-10-25T02:58:00.000Z", 1080.0)])
+        self.assertEqual(got["seconds"], 3600.0)
+
+    def test_a_stale_total_does_not_hide_later_spend(self):
+        """承認で起き直した後に SIGTERM で落ちた run は、Archon が合計を書き直さない（failWorkflowRun）ので、前の待ちの古い合計より大きい和を出す"""
+        db = self._db([("top", None, "2026-10-25 01:00:00", None, json.dumps({runread.TOTAL_COST: 8.5}))], [])
+        self._status(db, "top", "failed")
+        for step, cost in (("a", 8.5), ("b", 1.25)):
+            self._event(db, "top", runread.OUTPUT_EVENT, step=step, data={runread.NODE_COST: cost, runread.ACCOUNTING: "node"})
+        self._log("top", [])
+        self.assertEqual((runread.runs(db)[0]["cost"], runread.run(db, "top")["cost"]), (9.75, 9.75))
 
 
 if __name__ == "__main__":

@@ -7,7 +7,8 @@ src/shape.py）の出す欄だけを読み、記録そのものは読み直さ�
 - attach(data) -> data["waste"] に数えを置く（run が無ければ None）。欄は top（AI の手番の費用の大きい順）・time（時間の内訳）・
   rounds（繰り返した周）・idle（前と同じ出力・空の出力・出力の欄を引く先が無いノード）・context（文脈の重なり）・big（大きな道具の結果と
   往復ごとの積み上がり）・uncounted（数えられない物）。出来事は run["events"] の番号 event で、会話は run["sessions"] の鍵 session で指す。
-  会話の往復は、続けた会話が前の会話から写して持つ物（src/session.py の copied）を数えない（写し元の会話の往復と二重になる）
+  会話の往復は、続けた会話が前の会話から写して持つ物（src/session.py の copied）を数えない（写し元の会話の往復と二重になる）。空いた往復の
+  空きは写した往復からも測る（続けた会話の最初の新しい往復の前の空き）
 """
 import json
 from datetime import datetime, timezone
@@ -178,7 +179,11 @@ def _context(events, sessions, first, texts) -> dict:
         for _, mark in got["inject"]:
             injects.setdefault(mark, []).append(sid)
         before = None
-        for k, turn in _turns(got):
+        for k, turn in enumerate(got["turns"]):
+            # 写した往復は数えないが、空きは測る（続けた会話の最初の新しい往復の前の空きは、写した最後の往復から）
+            if turn.get("copied"):
+                before = turn.get("at") or before
+                continue
             for call in turn["calls"]:
                 if call["name"] != READ_TOOL or not call.get("text"):
                     continue

@@ -424,8 +424,9 @@ if (RUN) {
 const finalState = key => { const st = FIN[key]; return !st ? 'yet' : st.has('failed') ? 'failed' : st.has('running') ? 'running' : st.has('waiting') ? 'waiting' : st.has('ok') ? 'ok' : 'skipped'; };
 const STOP_KEY = STOP_EV && STOP_EV.at && STOP_EV.at.graph ? spots(STOP_EV.at).pop() : null;
 const NFAIL = RUN ? RUN.events.filter(e => e.status === 'failed').length : 0;
-// 終わった run に、終わりの無いまま残った出来事（図の頭の 1 文が、段と札と同じ止まり方の語で言う）
-const ENDLESS = RUN && !RUN.live ? RUN.events.filter(e => !e.end) : [];
+// 終わった run に、終わりの無いまま残った出来事（図の頭の 1 文が、段と札と同じ止まり方の語で言う）。読む部品が run の終わりで閉じ、
+// 印 cut を付けた物（終わりの欄は埋まっているので、終わりの欄の空では見つからない）
+const ENDLESS = RUN && !RUN.live ? RUN.events.filter(e => e.cut) : [];
 
 // ---- 再生の歩（位置はページに 1 つ。変えるのは go と「やめる」だけ） ----
 // 1 歩は出来事の始まりか終わりの 1 つ。時刻順で、同じ時刻は始まりが先。終わりの無い出来事（走り中・待ち）は始まりだけ。

@@ -45,9 +45,6 @@ EVENT_COLUMNS = ("workflow_run_id", "event_type", "step_name", "data", "event_or
 # run の状態（packages/workflows/src/schemas/workflow-run.ts の workflowRunStatusSchema）
 STATUSES = ("pending", "running", "completed", "failed", "cancelled", "paused")
 LIVE = ("pending", "running", "paused")
-# metadata の費用 TOTAL_COST が古い run の状態。Archon は TOTAL_COST を run の末尾（待ち・落ち・終わり）で書く（persistRunUsage）ので、
-# 答え待ち（paused）の run の値は待ちに入った時の正で、走っている run の値だけが前の待ちの時の古い値
-SPENDING = ("pending", "running")
 # 答えを待つ run の状態。待ちはこの状態の run だけに出す（止めた・放棄した run は node_completed を書かずに終わる。
 # packages/core/src/operations/workflow-operations.ts の resolveAndCancelApprovalGate・abandon）
 PAUSED = "paused"
@@ -158,13 +155,13 @@ def runs(db: Path) -> list[dict]:
     """親の run の一覧（新しい順）。行は id・グラフの名・状態・止まっている承認ノード・始め・かかった秒・費用（_cost）・落ちの訳の頭の 1 行
     （状態が failed の run だけ）・結末の語（line の返すノード result の出力の outcome。result の出力が無いか読めなければ空）。
     始めとかかった秒は、DB の出来事の最初と最後の時刻から出す（承認の答えで起き直した run は、run の行の始めが起き直した時刻に
-    書き換わる。packages/core/src/db/workflow-run-resume.ts）。終わった run の終わりは最後の終わりの出来事（_ends）。出来事の無い run は
-    run の行の始めと終わり"""
+    書き換わる。packages/core/src/db/workflow-run-resume.ts）。始めは選んだ run と同じ定義（_firsts）。終わった run の終わりは最後の
+    終わりの出来事（_ends）。出来事の無い run は run の行の始めと終わり"""
     with connect(db) as con:
         rows = con.execute(f"select id, workflow_name, status, started_at, completed_at, metadata from {RUN_TABLE} "
                            f"where parent_run_id is null {NEWEST}").fetchall()
-        spans = {rid: (first, last) for rid, first, last in con.execute(
-            f"select workflow_run_id, min(created_at), max(created_at) from {EVENT_TABLE} group by workflow_run_id")}
+        firsts = _firsts(con)
+        lasts = dict(con.execute(f"select workflow_run_id, max(created_at) from {EVENT_TABLE} group by workflow_run_id").fetchall())
         waiting = _waiting(con)
         spent = _spent(con)
         ends = _ends(con)
@@ -176,10 +173,11 @@ def runs(db: Path) -> list[dict]:
     out = []
     for rid, name, status, started, completed, metadata in rows:
         meta = _json(metadata)
-        started, completed = spans.get(rid) or (started, completed)
-        completed = _end(status, ends.get(rid)) or completed
+        if rid in firsts:
+            started, completed = firsts[rid], lasts[rid]
+        completed = _end(status, (ends.get(rid) or [None])[-1]) or completed
         out.append({"id": rid, "short": rid[:8], "graph": name, "status": status, "waiting": waiting.get(rid, []),
-                    "started": started, "seconds": seconds(started, completed), "cost": _cost(meta, spent, rid, status),
+                    "started": started, "seconds": seconds(started, completed), "cost": _cost(meta, spent, rid),
                     "error": errors.get(rid, "") if status == FAILED else "", "outcome": outcomes.get(rid, "")})
     return out
 
@@ -201,9 +199,12 @@ def pick(db: Path, wanted: str = "") -> str:
 def run(db: Path, run_id: str) -> dict:
     """run と子の run（workflow: のノードが起こした物。DB の parent_run_id と metadata の parent_node_id で辿る）の記録。
     始めとかかった秒は、子の run を含む出来事の最初の始めと最後の終わりから出す（runs と同じ訳）。子の run の行も、その子と孫の出来事から出す。
+    始めは、ログの最初の始めと DB の出来事の最初（_firsts。run の始めの印 workflow_started を含む）の早い方（DB の時刻は秒までの切り捨て
+    なので、同じ秒ならログ）。一覧と同じ定義にし、長さが秒の丸めの内で合う。
     終わった run（子の run も）は、終わりを最後の終わりの出来事の時刻とログの最後の終わりの遅い方にし（DB の時刻は秒までの切り捨て）、
-    終わりの無い出来事（待ちと、走り中のまま止まったノード）をその run の最後の終わりの出来事の時刻で閉じて印 cut を付ける（ログに終わりを
-    書かずに落ちた・止めた run の長さと人の答え待ちの和が、一覧と合う。閉じる時刻はログの形にする）。走り中の run は最後の出来事まで"""
+    終わりの無い出来事（待ちと、走り中のまま止まったノード）を、その run の終わりの出来事のうち始めの後の最初の物の時刻で閉じて印 cut を
+    付ける（ログに終わりを書かずに落ちた・止めた run の長さと人の答え待ちの和が、一覧と合う。落ちた後に起き直した run の前の起動の
+    ノードは、その落ちで閉じる。閉じる時刻はログの形にし、始めより前にしない）。走り中の run は最後の出来事まで"""
     with connect(db) as con:
         top = _row(con, run_id)
         if top is None:
@@ -212,6 +213,7 @@ def run(db: Path, run_id: str) -> dict:
         waiting = _waiting(con)
         spent = _spent(con)
         ends = _ends(con)
+        first = _firsts(con).get(run_id)
         reader = _Reader(outputs)
         reader.read(top, [])
         todo, parents = [(run_id, [])], {}
@@ -230,27 +232,29 @@ def run(db: Path, run_id: str) -> dict:
                 todo.append((child["id"], prefix))
     meta = _json(top["metadata"])
     root = Path(top["output_root"]) if top["output_root"] else None
-    closed = {top["id"]: _end(top["status"], ends.get(top["id"])), **{c["id"]: _end(c["status"], ends.get(c["id"])) for c in reader.children}}
+    closed = {row["id"]: [at for t in ends.get(row["id"], []) if (at := _end(row["status"], t))] for row in (top, *reader.children)}
     for event in reader.events:
         if event["start"] and not event["end"] and event["status"] in ("waiting", "running") and closed.get(event["run"]):
-            event["end"], event["cut"] = closed[event["run"]], True
+            event["end"], event["cut"] = _close(event["start"], closed[event["run"]]), True
     started, ended = _span(reader.events) or (top["started_at"], top["completed_at"])
-    ended = _later(closed[top["id"]], ended)
+    started = _earlier(_end(top["status"], first, live=True), started)
+    ended = _later((closed[top["id"]] or [None])[-1], ended)
     for child in reader.children:
-        child["started"], child["seconds"] = _child_span(child, reader.events, parents, closed[child["id"]])
+        child["started"], child["seconds"] = _child_span(child, reader.events, parents, (closed[child["id"]] or [None])[-1])
     return {"id": run_id, "graph": top["workflow_name"], "status": top["status"], "live": top["status"] in LIVE,
             "waiting": waiting.get(run_id, []), "started": started, "seconds": seconds(started, ended),
-            "cost": _cost(meta, spent, run_id, top["status"]), "copy": str(copy(root, run_id)) if root else "",
+            "cost": _cost(meta, spent, run_id), "copy": str(copy(root, run_id)) if root else "",
             "children": reader.children, "events": sorted(reader.events, key=lambda e: (e["start"] or "", "/".join(e["tokens"]))),
             "skipped": reader.skipped, "checks": reader.checks, "missing_logs": reader.missing, "unread": reader.unread, "artifacts": reader.artifacts}
 
 
-def _cost(meta: dict, spent: dict, run_id: str, status: str) -> float | None:
-    """run の費用。metadata の TOTAL_COST が空か、run が走っている（SPENDING）なら、run 自身の AI の呼び出しの費用の和（_spent）。
-    Archon は TOTAL_COST を run の末尾（待ち・落ち・終わり）だけで書く（packages/workflows/src/dag-executor.ts の persistRunUsage）ので、
-    承認で起き直して走っている run の TOTAL_COST は待ちの時の古い値。答え待ちの run の値は待ちに入った時に書いた正。どちらも無ければ空"""
-    total = runlog.number(meta.get(TOTAL_COST))
-    return total if total is not None and status not in SPENDING else spent.get(run_id)
+def _cost(meta: dict, spent: dict, run_id: str) -> float | None:
+    """run の費用。metadata の TOTAL_COST と、run 自身の AI の呼び出しの費用の和（_spent）の大きい方（片方だけならそれ、どちらも無ければ空）。
+    Archon は TOTAL_COST を run の末尾（待ち・落ち・終わり）だけで書き（packages/workflows/src/dag-executor.ts の persistRunUsage）、
+    SIGTERM で落とす道（packages/cli/src/utils/owned-run-termination.ts の failWorkflowRun）は書かない。費用は減らないので、古い値は
+    今の和より小さい: 承認で起き直して走っている run と、その後に SIGTERM で落ちた run の TOTAL_COST は前の待ちの時の値で、和の方が大きい"""
+    known = [cost for cost in (runlog.number(meta.get(TOTAL_COST)), spent.get(run_id)) if cost is not None]
+    return max(known) if known else None
 
 
 def _spent(con) -> dict[str, float]:
@@ -286,18 +290,43 @@ def own_spend(accounting, aggregate) -> bool:
     return aggregate is not True
 
 
-def _ends(con) -> dict[str, str]:
-    """run ごとの最後の終わりの出来事（END_EVENTS）の時刻"""
+def _ends(con) -> dict[str, list[str]]:
+    """run ごとの終わりの出来事（END_EVENTS）の時刻（古い順。落ちた後に起き直した run は 2 つ以上）"""
     marks = ", ".join("?" * len(END_EVENTS))
-    return dict(con.execute(f"select workflow_run_id, max(created_at) from {EVENT_TABLE} where event_type in ({marks}) "
-                            "group by workflow_run_id", END_EVENTS).fetchall())
+    out = {}
+    for rid, at in con.execute(f"select workflow_run_id, created_at from {EVENT_TABLE} where event_type in ({marks}) "
+                               "order by created_at, event_order", END_EVENTS):
+        out.setdefault(rid, []).append(at)
+    return out
 
 
-def _end(status: str, end: str | None) -> str | None:
-    """終わった run の終わり（最後の終わりの出来事の時刻をログの形にした物。出来事を閉じる時刻になる）。走り中の run と終わりの出来事の
-    無い run と、読めない時刻は None"""
-    at = try_when(end) if status not in LIVE else None
+def _firsts(con) -> dict[str, str]:
+    """run ごとの DB の出来事の最初の時刻（run の始めの印 workflow_started を含む）。一覧と選んだ run の始めの元"""
+    return dict(con.execute(f"select workflow_run_id, min(created_at) from {EVENT_TABLE} group by workflow_run_id").fetchall())
+
+
+def _end(status: str, end: str | None, live: bool = False) -> str | None:
+    """DB の時刻をログの形にした物（終わった run の終わりの出来事の時刻は、出来事を閉じる時刻になる）。走り中の run（live が偽の時）と
+    時刻の無い run と、読めない時刻は None"""
+    at = try_when(end) if live or status not in LIVE else None
     return at.strftime("%Y-%m-%dT%H:%M:%S.") + f"{at.microsecond // 1000:03d}Z" if at else None
+
+
+def _close(start: str, ends: list[str]) -> str:
+    """終わりの無い出来事を閉じる時刻: 始めの後の最初の終わりの出来事（DB の時刻は秒までの切り捨てなので、始めと同じ秒の物も数える）。
+    始めの後に無ければ最後の物。始めより前にはしない（長さを負にしない）"""
+    begun = try_when(start)
+    floor = begun.replace(microsecond=0) if begun else None
+    at = next((t for t in ends if floor is None or when(t) >= floor), ends[-1])
+    return _later(at, start)
+
+
+def _earlier(a: str | None, b: str | None) -> str | None:
+    """DB の時刻 a とログの時刻 b の早い方。a は秒までの切り捨てなので、b と同じ秒なら b（読めない方と空は外す）"""
+    db, log = try_when(a), try_when(b)
+    if db and log:
+        return a if db < log.replace(microsecond=0) else b
+    return b if log else a
 
 
 def _later(a: str | None, b: str | None) -> str | None:
@@ -339,6 +368,7 @@ class _Reader:
         self.events, self.skipped, self.children, self.missing, self.checks, self.artifacts = [], [], [], [], [], {}
         self.unread: dict[str, int] = {}
         self.current = ""
+        self.seen_skips = set()
 
     def _ts(self, entry: dict) -> str | None:
         """行の時刻。読めない時刻は数えずに None にし、読めなかった物に数える（段の集計と無駄の手がかりを落とさない）"""
@@ -388,15 +418,19 @@ class _Reader:
         key = (path, invocation.get("id") or "")
         ids = [*_tokens(prefix), *_tokens([path])]
         ts = self._ts(entry)
+        loop = [step.get("iteration") for step in invocation.get("loopPath") or []]
         if kind == "node_skipped":
-            if entry.get("content") != PRIOR_SUCCESS:
+            # 起き直すたびに Archon は when・trigger_rule で飛ぶノードの行も新しい起動の id で書き直すので、同じ run・道・周の飛びは最初の 1 つだけ
+            spot = (self.current, tuple(ids), tuple(map(str, loop)))
+            if entry.get("content") != PRIOR_SUCCESS and spot not in self.seen_skips:
+                self.seen_skips.add(spot)
                 self.skipped.append({"tokens": ids, "time": ts, "cause": entry.get("cause")})
             return
         event = by_invocation.get(key)
         if event is None:
             event = {"tokens": ids, "path": path, "run": self.current, "artifacts": str(root / ARTIFACTS / RUNS_DIR / self.current) if root else "",
                      "kind": (execution.get("node") or {}).get("kind") or "", "start": ts,
-                     "end": None, "status": "running", "loop": [step.get("iteration") for step in invocation.get("loopPath") or []],
+                     "end": None, "status": "running", "loop": loop,
                      "cost": 0.0, "calls": [], "exec": [], "error": ""}
             by_invocation[key] = event
             self.events.append(event)
@@ -405,6 +439,9 @@ class _Reader:
         if attempt:
             by_attempt[attempt] = event
         if kind == "node_start":
+            # 繰り返しの器は答えの後も同じ起動の id で node_start を書き直す（待ちから走り中へ戻る）
+            if event["status"] == "waiting":
+                event["status"] = "running"
             return
         if kind == "node_suspended":
             event["status"] = "waiting"
@@ -508,7 +545,8 @@ def _outputs(con) -> dict:
 
 def _waiting(con) -> dict:
     """答えを待つ run（状態が paused）ごとの、止まって答えを待つノード（node_suspended の後に同じノードの終わりが無い物）。
-    答えが入って次へ進む前のノード（metadata の待ちに答えが在る物）は外す"""
+    答えが入って次へ進む前のノード（metadata の待ちに答えが在る物）は外す。繰り返しの中の待ちでは Archon が本体のノード
+    `<器>.<本体>` と器の両方に node_suspended を書くので、待つ本体を持つ器は並べず、答えが入れば器も外す"""
     out = {}
     for rid, step, kind in con.execute(f"select e.workflow_run_id, e.step_name, e.event_type from {EVENT_TABLE} e "
                                        f"join {RUN_TABLE} r on r.id = e.workflow_run_id where r.status = ? and e.event_type in (?, ?) "
@@ -522,9 +560,11 @@ def _waiting(con) -> dict:
     for rid, metadata in con.execute(f"select id, metadata from {RUN_TABLE} where status = ?", (PAUSED,)):
         wait = _json(metadata).get(WAIT)
         if isinstance(wait, dict) and wait.get("kind") == WAIT_KIND and wait.get(WAIT_ANSWER) is not None:
-            step = f"{wait.get('nodeId')}.{wait.get('bodyWaitId')}" if wait.get("owner") == WAIT_LOOP_OWNER else wait.get("nodeId")
-            if step in out.get(rid, []):
-                out[rid].remove(step)
+            steps = [wait.get("nodeId")]
+            if wait.get("owner") == WAIT_LOOP_OWNER:
+                steps.append(f"{wait.get('nodeId')}{shape.IN_LOOP}{wait.get('bodyWaitId')}")
+            out[rid] = [name for name in out.get(rid, []) if name not in steps]
+    out = {rid: [name for name in names if not any(other.startswith(name + shape.IN_LOOP) for other in names)] for rid, names in out.items()}
     return {rid: names for rid, names in out.items() if names}
 
 
