@@ -88,8 +88,8 @@ def main(argv: list[str]) -> int:
 
 
 def launch(argv: list[str], user: dict[str, str], here: Path) -> int:
-    """Archon を起こす。workflow cancel だけは子として起こして終了の値を返し（止めた後の木の残りを止める。埋め P13 の runstop）、
-    ほかは Archon に置き換わって戻らない"""
+    """Archon を起こす。workflow cancel（止めた後の木の残りを止める。埋め P13 の runstop）と --detach でない workflow run
+    （終わった後に run の記録の置き場を告げる。recordroot）は子として起こして終了の値を返し、ほかは Archon に置き換わって戻らない"""
     flags = before_double_dash(argv)
     if any(a == "--workflow-source" or a.startswith("--workflow-source=") for a in flags):
         raise Stop("--workflow-source は渡さない。自分のグラフの置き場は殻が渡す")
@@ -155,7 +155,6 @@ def launch(argv: list[str], user: dict[str, str], here: Path) -> int:
     bun = shutil.which("bun", path=child.get("PATH"))  # 在ることは place.archon_source が確かめ済み
     child[ARCHON_CLI_ENV] = json.dumps(place.archon(bun, source))
 
-    executing = len(argv) > 1 and argv[0] == "workflow" and argv[1] in EXECUTING
     if executing and workflow is None:
         # 前に始めた run を続ける命令。#679 より前に始めた run は封じた層に ROOT_ENV を持たない。層を持つ run では層の値が勝つ
         child[ROOT_ENV] = str(ROOT)
