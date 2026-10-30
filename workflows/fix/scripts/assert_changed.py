@@ -37,7 +37,7 @@ def main(place: Path) -> dict:
     plan = board.read_json(place / board.GROUPS_FILE)
     if not isinstance(plan, dict) or not plan.get("start_tree"):
         raise ValueError(f"置き場に groups.json（start_tree）が無い（{place}）")
-    declared = board.declared_files(replies(place, plan))
+    declared = board.declared_files(replies(place, plan), Path.cwd())
     touched = board.touched_since(Path.cwd(), plan["start_tree"], SKIP)
     owed = [k for g in plan["groups"] for k in g["unit_ids"]]
     excused = board.nothing_owed_but_excused(place, set(owed)) if not declared else {}

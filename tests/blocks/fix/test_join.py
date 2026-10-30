@@ -1056,9 +1056,11 @@ class GroupBoardCase(unittest.TestCase):
         self.assertEqual(len(dropped), 2)
 
     def test_changed_problem_and_declared_files(self):
-        self.assertEqual(board.declared_files([{"changes": [{"files": ["./a.py", "b/c.py"]}]}, {"changes": []}]), ["a.py", "b/c.py"])
+        self.assertEqual(board.declared_files([{"changes": [{"files": ["./a.py", "b/c.py"]}]}, {"changes": []}], self.repo), ["a.py", "b/c.py"])
+        # 絶対パスの申告も受け付け（facts.declared_files）と同じく根からの相対に揃える
+        self.assertEqual(board.declared_files([{"changes": [{"files": [str(self.repo / "stats.py")]}]}], self.repo), ["stats.py"])
         with self.assertRaises(ValueError):
-            board.declared_files([{"changes": [{"files": [""]}]}])
+            board.declared_files([{"changes": [{"files": [""]}]}], self.repo)
         self.assertEqual(board.changed_problem(["a.py"], ["a.py", "b.py"]), (True, ""))
         ok, why = board.changed_problem(["a.py", "c.py"], ["a.py"])
         self.assertFalse(ok)

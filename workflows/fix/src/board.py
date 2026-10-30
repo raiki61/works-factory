@@ -622,9 +622,10 @@ def cited_rows(rows, repo, roots=()) -> tuple:
     return ok, dropped
 
 
-def declared_files(replies) -> list:
-    """受け付けた修正役の返答（dict の並び）の changes[].files を、リポジトリの根からの相対に揃えた並び（重ねない・名の順）。
-    形の違う行は ValueError。元 works/blk-fix/scripts/assert_changed.py の declared_files"""
+def declared_files(replies, repo) -> list:
+    """受け付けた修正役の返答（dict の並び）の changes[].files を、リポジトリ repo の根からの相対に揃えた並び（重ねない・名の順。
+    揃え方は受け付けと同じ facts.declared_files）。形の違う行は ValueError。元 works/blk-fix/scripts/assert_changed.py の declared_files"""
+    from src import facts as factchecks
     out = set()
     for reply in replies:
         changes = reply.get("changes") if isinstance(reply, dict) else None
@@ -634,7 +635,7 @@ def declared_files(replies) -> list:
             for f in c["files"]:
                 if not isinstance(f, str) or not f.strip():
                     raise ValueError(f"changes[].files に空・文字列でない物が在る（{f!r}）")
-                out.add(posixpath.normpath(f.strip()))
+            out |= factchecks.declared_files([c], repo)
     return sorted(out)
 
 
