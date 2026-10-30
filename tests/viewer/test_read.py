@@ -523,11 +523,14 @@ class ReadCase(unittest.TestCase):
 
     def test_a_node_cut_by_an_earlier_failure_fell(self):
         """落ちた後に起き直した run で、その落ちで閉じた走り中のノード（同じ秒に始めた物も）は落ちた。run の最後の終わりで閉じた物は
-        状態のまま（止まり方は雛形が run の終わりから決める）"""
-        db = self._db([("top", None, "2026-10-25 02:00:00", None, "{}")], [("top", "2026-10-25 02:00:00")])
+        状態のまま（止まり方は雛形が run の終わりから決める）。起き直していない落ちた run は、落ちが最後の終わりなので走り中のまま"""
+        db = self._db([("top", None, "2026-10-25 02:00:00", None, "{}"), ("lone", None, "2026-10-25 04:00:00", None, "{}")],
+                      [("top", "2026-10-25 02:00:00"), ("lone", "2026-10-25 04:00:00")])
         self._status(db, "top", "completed")
         self._event(db, "top", runread.FAILED_EVENT, "2026-10-25 02:21:11")
         self._event(db, "top", "workflow_completed", "2026-10-25 03:00:00")
+        self._status(db, "lone", "failed")
+        self._event(db, "lone", runread.FAILED_EVENT, "2026-10-25 04:30:00")
         node = lambda kind, ts, invocation: {"type": kind, "ts": ts, "step": invocation,
                                              runread.EXECUTION: {"path": invocation, "invocation": {"id": invocation}}}
         self._log("top", [node("node_start", "2026-10-25T02:07:15.000Z", "old"), node("node_start", "2026-10-25T02:21:11.407Z", "late"),
@@ -535,6 +538,8 @@ class ReadCase(unittest.TestCase):
         got = runread.run(db, "top")
         self.assertEqual({e["path"]: (e["status"], e.get("cut", False)) for e in got["events"]},
                          {"old": ("failed", True), "late": ("failed", True), "tail": ("running", True)})
+        self._log("lone", [node("node_start", "2026-10-25T04:10:00.000Z", "only")])
+        self.assertEqual([(e["status"], e.get("cut", False)) for e in runread.run(db, "lone")["events"]], [("running", True)])
 
     def test_a_stale_total_does_not_hide_later_spend(self):
         """承認で起き直した後に SIGTERM で落ちた run は、Archon が合計を書き直さない（failWorkflowRun）ので、前の待ちの古い合計より大きい和を出す"""
