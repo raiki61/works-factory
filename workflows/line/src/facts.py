@@ -32,6 +32,7 @@ GIVE_UP = "give-up"
 NOT_OK = "not-ok"
 CHAIN_CUT = "chain-cut"
 MATERIAL_WHERE = "素材"
+AFTER_WHERE = "直した後の構造の実測"   # 残りの行の where: 直した後の実測を読めない
 NOT_CLOSED = "直したと申告したが、機械が判定の問いで数え直すと閉じていない"
 MISSING_EYE = "の結果が無い——再実行の要あり（深さは標準で、省いていない）"
 EYE_NAMES = ("r1", "r2", "r3", "r4")
@@ -250,15 +251,19 @@ def _eye_rows(returns: dict, eyes_due: bool | None) -> list:
 
 
 def _after_rows(returns: dict) -> list:
-    """直した後の構造の実測が見た、住処の外の知る場所の増え（structmark.after_rows。指し札の先のフォルダを読む）"""
+    """直した後の構造の実測が見た、住処の外の知る場所の増え（structmark.after_rows。指し札の先のフォルダを読む）。指し札か控えを
+    読めない時は、増えが無いと数えずに読めない訳の 1 行（E23）"""
     import structmark
     ptr = as_dict(returns.get("eyes")).get("after")
     if not ptr:
         return []
     try:
-        return structmark.after_rows(stageslib.resolve(ptr, "after").parent)
-    except stageslib.READ_ERRORS:
-        return []
+        folder = stageslib.resolve(ptr, "after").parent
+    except stageslib.READ_ERRORS as error:
+        return [{"where": AFTER_WHERE, "text": f"直した後の実測のポインタを読めない（柵の増えを数えていない。{type(error).__name__}: {error}）"}]
+    if structmark.read_after(folder) is None:
+        return [{"where": AFTER_WHERE, "text": f"直した後の実測の控え {structmark.AFTER_FILE} を読めない（柵の増えを数えていない）"}]
+    return structmark.after_rows(folder)
 
 
 def residue(returns: dict, facts: dict) -> list:
