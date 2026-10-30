@@ -352,6 +352,21 @@ const STOP_EV = STOP && RUN && ST.stop_event != null ? RUN.events[ST.stop_event]
 const STOP_HUMAN = ST.stop_by === 'human';
 const STOP_WORD = STOP ? `${STOP.name}で${STOP_HUMAN ? '人が止めた' : '落ちた'}` : '';
 const runWord = () => STOP_WORD || RUNWORD[RUN.status] || RUN.status;
+// 段の終わりの姿（流れの地図と表と、図の段の行で同じ形）。mark は箱と行の印（stop・fail・live・skip・空）、word は語、label は時間つきの語。
+// 終わった run で終わりの無い出来事が残った段（走り中・人の答え待ちのまま）は、頭の主張と同じ止まり方（止まった段の止まり方、無ければ run の状態）の語と色にする
+function stageLook(s, x) {
+  const t = mins(x.seconds || 0), ran = RAN(x.state);
+  const end = (mark, word) => ({mark, word, label: `${word} · ${t}`});
+  if (s === STOP) return end(STOP_HUMAN ? 'stop' : 'fail', STOP_HUMAN ? '止まった' : '落ちた');
+  if (x.state === 'failed') return end('fail', '落ちた');
+  if (x.state === 'waiting' || x.state === 'running') {
+    if (RUN.live) { const w = x.state === 'waiting' ? '人の答え待ち' : '走り中'; return {mark: 'live', word: w, label: w}; }
+    return (STOP ? STOP_HUMAN : RUN.status !== 'failed') ? end('stop', '止めた') : end('fail', '落ちた');
+  }
+  if (ran) return {mark: '', word: '通った', label: `${t}${x.cost ? ' · ' + usd(x.cost) : ''}`};
+  const w = x.state === 'skipped' ? '飛んだ' : '走っていない';
+  return {mark: 'skip', word: w, label: w};
+}
 
 // ---- 図の根と出来事 ----
 const ROOT = (RUN && Object.keys(G).find(f => G[f].name === RUN.graph)) || (G.line ? 'line' : Object.keys(G)[0]);
@@ -658,12 +673,11 @@ function paint() {
       row.classList.remove('stop', 'fail'); row.classList.toggle('off', !reached.has(s.n) && nowS !== s);
       st.textContent = nowS === s ? '再生の今' : reached.has(s.n) ? '通った' : 'まだ'; continue;
     }
-    const ran = RAN(x.state), sec = x.seconds || 0;
-    row.classList.toggle('off', !ran);
-    row.classList.toggle('stop', s === STOP && STOP_HUMAN);
-    row.classList.toggle('fail', x.state === 'failed' || (s === STOP && !STOP_HUMAN));
-    st.textContent = s === STOP ? `ここで止まった · ${mins(sec)}` : x.state === 'failed' ? `落ちた · ${mins(sec)}` : x.state === 'waiting' ? '人の答え待ち'
-      : x.state === 'running' ? '走り中' : ran ? `${mins(sec)}${x.cost ? ' · ' + usd(x.cost) : ''}` : '走っていない';
+    const lk = stageLook(s, x);
+    row.classList.toggle('off', lk.mark === 'skip');
+    row.classList.toggle('stop', lk.mark === 'stop');
+    row.classList.toggle('fail', lk.mark === 'fail');
+    st.textContent = s === STOP ? `ここで${lk.label}` : lk.label;
   }
   note();
 }
@@ -907,9 +921,13 @@ function flowHead() {
   // 主張: 終わっていない run は今の段、終わった run は止まった段と止まり方、止まった段が無ければ run の状態の語
   const claim = live ? `${live[0].name}で${live[1].state === 'waiting' ? '人の答えを待っている' : '走っている'}。`
     : STOP ? `${STOP.name}で、${STOP_HUMAN ? '人が止めた' : '落ちた'}。` : `${RUNWORD[RUN.status] || RUN.status}。`;
-  const after = STOP ? xs.find(([s, x]) => s.n > STOP.n && !RAN(x.state)) : null;
+  // 止まった段の後で走らなかった段だけを、続いた範囲ごとに言う（報告の段のように止まった後で走る段は入れない）
+  const spans = [];
+  if (STOP) xs.forEach(([s, x], i) => { if (s.n <= STOP.n || RAN(x.state)) return; const prev = spans[spans.length - 1];
+    if (prev && prev.to === i - 1) prev.to = i; else spans.push({from: i, to: i}); });
+  const idle = spans.map(({from, to}) => from === to ? xs[from][0].name : `${xs[from][0].name}から${xs[to][0].name}まで`);
   const top = xs.reduce((a, b) => b[1].cost > a[1].cost ? b : a, xs[0]);
-  return [claim, `${mins(SPAN)}・${usd(RUN.cost)}。${after ? `${after[0].name}から先は走っていない。` : ''}${top && pct(top[1].cost, RUN.cost) ? `費用の ${pct(top[1].cost, RUN.cost)}% は${top[0].name}。` : ''}`];
+  return [claim, `${mins(SPAN)}・${usd(RUN.cost)}。${idle.length ? `${idle.join('・')}${spans[spans.length - 1].from === spans[spans.length - 1].to ? 'は' : ''}走っていない。` : ''}${top && pct(top[1].cost, RUN.cost) ? `費用の ${pct(top[1].cost, RUN.cost)}% は${top[0].name}。` : ''}`];
 }
 function flowScreen() {
   const box = $('flow'), [claim, sub] = flowHead();
@@ -955,13 +973,10 @@ function bandCard() {
     fold('段ごとの時間・費用・手番', h('div', {class: 'scroll'}, h('table', {},
       h('tr', {}, [['段'], ['状態'], ['時間', 1], ['うち人の待ち', 1], ['AI の手番', 1], ['周', 1], ['往復', 1], ['費用', 1]].map(([x, r]) => h('th', {class: r ? 'r' : null, text: x}))),
       FLOW_STAGES.map(s => { const x = sumOf(s), ran = RAN(x.state);
-        return h('tr', {}, h('td', {text: `${s.n} ${s.name}`}), h('td', {text: stageWord(s, x)}), h('td', {class: 'r', text: ran ? mmss(x.seconds || 0) : ''}),
+        return h('tr', {}, h('td', {text: `${s.n} ${s.name}`}), h('td', {text: stageLook(s, x).word}), h('td', {class: 'r', text: ran ? mmss(x.seconds || 0) : ''}),
           h('td', {class: 'r', text: x.wait ? mmss(x.wait) : ''}), h('td', {class: 'r', text: x.ai || ''}), h('td', {class: 'r', text: x.rounds || ''}),
           h('td', {class: 'r', text: x.turns || ''}), h('td', {class: 'r', text: x.cost ? usd(x.cost) : ''})); })))));
 }
-// 段の終わりの姿の語（地図の箱と畳みの表で同じ語）
-const stageWord = (s, x) => s === STOP ? (STOP_HUMAN ? '止まった' : '落ちた') : x.state === 'failed' ? '落ちた' : x.state === 'waiting' ? '人の答え待ち'
-  : x.state === 'running' ? '走り中' : RAN(x.state) ? '通った' : x.state === 'skipped' ? '飛んだ' : '走っていない';
 // 帯を押した時刻より前か同じで一番後の歩へ（待ちの中を押すと待ちの始まりの歩に止まる）。最初の歩より前なら最初の歩
 function seekTime(ev, lane) {
   const r = lane.getBoundingClientRect(), t = T0 + (ev.clientX - r.left) / r.width * SPAN * 1000;
@@ -977,9 +992,7 @@ function flowNow() {
     let cls = '', word = s.line;
     if (x && look) { cls = nowS === s ? 'now' : reached.has(s.n) ? '' : 'yet'; word = nowS === s ? '再生の今' : reached.has(s.n) ? '通った' : 'まだ'; }
     else if (x) {
-      const ran = RAN(x.state), w = stageWord(s, x);
-      cls = s === STOP ? (STOP_HUMAN ? 'stop' : 'fail') : x.state === 'failed' ? 'fail' : ['waiting', 'running'].includes(x.state) ? 'live' : ran ? '' : 'skip';
-      word = s === STOP || x.state === 'failed' ? `${w} · ${mins(x.seconds || 0)}` : ran && w === '通った' ? `${mins(x.seconds || 0)}${x.cost ? ' · ' + usd(x.cost) : ''}` : w;
+      const lk = stageLook(s, x); cls = lk.mark; word = lk.label;
     }
     return h('div', {class: 'st ' + cls, 'data-n': s.n, title: `${s.line}${s.hands ? ` 次へ渡す物 → ${s.hands}` : ''}（出どころ ${s.source || '無し'}）`},
       h('div', {class: 'cap', text: s.n}), h('div', {class: 'name', text: s.name}), h('div', {class: 'cap', text: word}));
