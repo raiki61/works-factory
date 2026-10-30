@@ -14,7 +14,8 @@
    時間の帯の塗り（AI の手番 --k-ai・人の答え待ち --k-wait）は帯の地 --inset と凡例の面 --card に 3:1 以上。dark の --accent は --inset に
    3:1 に届かないので、AI の手番は dark だけ明るい青にする。人の答え待ちは灰で、機械の灰より地から遠い側（light は濃く、dark は明るく）に置く。
    トークンの 4 分けの帯（新しく読んだ --t1・cache に書いた --t2・cache から読んだ --t3）は、隣り合う 2 つ（t1 と t2・t2 と t3）が 3:1 以上で、
-   帯の端に来る t1 と t3 は帯の地 --fill に 3:1 以上。真ん中の t2 を明るさの逆の端に置く（light は淡い青、dark は紺）。今の札の淡い青の輪は --ring */
+   帯の端に来る t1 と t3 は帯の地 --fill に 3:1 以上。真ん中の t2 を明るさの逆の端に置く（light は淡い青、dark は紺）。
+   往復ごとの帯（.tk）は端に t2 が来うるので、t2 を --edge の縁で囲む。今の札の淡い青の輪は --ring */
 :root{--th:56px;--pb:0px;color-scheme:light;
   --bg:#f5f5f7;--card:#fff;--raised:#fff;--fill:#e8e8ed;--line:#d2d2d7;--ink:#1d1d1f;--sub:#515154;--ter:#636366;
   --inset:#f5f5f7;--accent:#0071e3;--link:#0066cc;--on-accent:#fff;--t1:#0071e3;--t2:#cfe3fa;--t3:#1d3f73;--ring:#cfe3fa;--now:#e8f1fc;
@@ -104,7 +105,8 @@ pre.err{box-shadow:inset 3px 0 0 var(--bad)}
 .axis{position:relative;height:18px;grid-column:2}
 .axis span{position:absolute;font-size:12px;color:var(--sub);transform:translateX(-50%);white-space:nowrap}
 .axis span:first-child{transform:none}
-.nowline{position:absolute;top:0;width:2px;background:var(--accent);pointer-events:none}
+/* 今の時の縦の線は、今の段の名の字と同じ --link（--accent は dark の --inset に 3:1 に届かない） */
+.nowline{position:absolute;top:0;width:2px;background:var(--link);pointer-events:none}
 .legend{display:flex;gap:16px;flex-wrap:wrap;margin:10px 0 0}
 /* 凡例の四角は --edge の縁で囲む（淡い塗りの --t2 も面の上で形が見える） */
 .legend span::before{content:"";display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px;vertical-align:-1px;background:var(--c);box-shadow:inset 0 0 0 1px var(--edge)}
@@ -224,6 +226,8 @@ td.r,th.r{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
 .turns{margin:8px 0}
 .turn{display:grid;grid-template-columns:52px minmax(0,1fr) 64px;gap:8px;align-items:center;font-size:12px;color:var(--sub);margin:2px 0}
 .tk{display:flex;height:6px;border-radius:3px;overflow:hidden;background:var(--fill)}
+/* 往復の帯は幅が一番大きい往復への割合なので、新しく読んだ分がほぼ 0 だと淡い --t2 が空きの地に触れる。凡例と同じ --edge の縁で終わりを見せる */
+.tk .c2{box-shadow:inset 0 0 0 1px var(--edge)}
 .tkey{display:flex;gap:12px;flex-wrap:wrap;font-size:12px;color:var(--sub)}
 .tkey i{display:inline-block;width:10px;height:6px;border-radius:2px;margin-right:4px;vertical-align:1px;box-shadow:inset 0 0 0 1px var(--edge)}
 @media (max-width:1180px){
@@ -647,15 +651,16 @@ function reveal(key) {
 // 根を替えると開いた入れ子を全部閉じる。再生中は、作り直した図を再生の今に合わせ直す（今の歩の鎖の入れ子を開き直す）
 function setRoot(f) { cur = f; OPEN = new Set(); AUTO = new Set(); SHUT = new Set(); IDLE = new Set(); show(); if (replaying()) syncGraph(); }
 // 図を作り直しても、鍵盤の手前（フォーカス）を同じ物に戻す。作り直す物は data-f に名を持ち、消える物（閉じた入れ子の − と
-// 開いた段の「開く ＋」）は data-back に代わりの名（入れ子の札・段の最初の札）を持つ
+// 開いた段の「開く ＋」と「⌂ に戻す」）は data-back に代わりの名（入れ子の札・段の最初の札・「説明」）を持つ
 function show(opts) {
   const was = document.activeElement, f = was && was.closest && was.closest('#s-graph') ? [was.dataset.f, was.dataset.back] : [];
   draw(opts);
   for (const n of f) { const el = n && document.querySelector(`#s-graph [data-f="${CSS.escape(n)}"]`); if (el) { el.focus({preventScroll: true}); break; } }
 }
 function draw(opts) {
-  const g = G[cur], keepSel = opts && opts.keepPanel ? selId : null;
-  if (!keepSel) closePanel();
+  // keepPanel の時は板を閉じない（札の板も graph の板も）。札の板は、選んだ札が作り直した図に無ければ閉じる
+  const g = G[cur];
+  if (!(opts && opts.keepPanel)) closePanel();
   for (const k in DEPS) delete DEPS[k];
   for (const k in ITEM) delete ITEM[k];
   crumb();
@@ -680,7 +685,7 @@ function draw(opts) {
     world.append(h('div', {class: 'row one'}, flowOf(g.items, cur, '')));
   }
   paint();
-  if (keepSel && ITEM[keepSel]) markSel(keepSel); else { if (keepSel) closePanel(); drawEdges(); }
+  if (selId && ITEM[selId]) markSel(selId); else { if (selId) closePanel(); drawEdges(); }
 }
 // 札の姿の語（終わりの姿と再生中で同じ札の形を使う）
 const STWORD = {done: '', yet: '', skip: '飛んだ', fail: '落ちた', run: '走り中', now: '今', nowin: '今は中'};
@@ -791,7 +796,7 @@ function endlessNote() {
 function crumb() {
   const c = $('crumb'), g = G[cur];
   c.replaceChildren(h('b', {text: `⌂ ${cur}`}), h('span', {class: 'cap', text: ` · ${gwhat(cur) || g.name}`}), btn({class: 'cap', text: '説明', 'data-f': 'explain', onclick: () => graphPanel(cur)}));
-  if (cur !== ROOT) c.append(h('span', {class: 'cap', text: '·'}), btn({class: 'cap', text: `⌂ ${ROOT} に戻す`, onclick: () => setRoot(ROOT)}));
+  if (cur !== ROOT) c.append(h('span', {class: 'cap', text: '·'}), btn({class: 'cap', text: `⌂ ${ROOT} に戻す`, 'data-f': 'back root', 'data-back': 'explain', onclick: () => setRoot(ROOT)}));
   const reach = reachable(), opened = new Set([...OPEN, ...AUTO]).size;
   $('gtools').replaceChildren(...[
     opened ? btn({text: `開いた入れ子を全部閉じる（${opened}）`, 'data-f': 'close all', 'data-back': 'explain', onclick: () => { for (const k of AUTO) SHUT.add(k); OPEN = new Set(); AUTO = new Set(); show(); }}) : null,
@@ -802,11 +807,11 @@ function crumb() {
       h('option', {value: 'none', selected: edgeMode === 'none' || null, text: '線: 引かない（前と次を淡い青に）'}),
       h('option', {value: 'sel', selected: edgeMode === 'sel' || null, text: '線: 選んだ札の前後に引く'})),
     // 入れ子を探す: 選ぶと、その block の最初の場所（走った場所を先に）を外から開いて、札へ送る（画面は移らない）
-    cur === ROOT && reach.length ? h('select', {onchange: ev => { const k = ev.target.value; ev.target.value = ''; if (k) { reveal(k); show(); flash(k); } }},
+    cur === ROOT && reach.length ? h('select', {'data-f': 'find nest', onchange: ev => { const k = ev.target.value; ev.target.value = ''; if (k) { reveal(k); show(); flash(k); } }},
       h('option', {value: '', text: '入れ子を探して開く'}),
       reach.map(([f, k]) => h('option', {value: k, text: `${f}（${G[f].kind === 'graph' ? 'graph' : 'block'}）`}))) : null,
     // 根から辿れない graph（周の鎖ほか）だけは、根に替えて単独で見る
-    h('select', {onchange: ev => { const f = ev.target.value; ev.target.value = ''; if (f) setRoot(f); }},
+    h('select', {'data-f': 'outer graph', onchange: ev => { const f = ev.target.value; ev.target.value = ''; if (f) setRoot(f); }},
       h('option', {value: '', text: `${ROOT} の外の graph`}),
       Object.keys(G).filter(f => f !== ROOT && !reach.some(r => r[0] === f)).sort().map(f => h('option', {value: f, text: f})))].filter(Boolean));
 }
@@ -868,7 +873,7 @@ function graphPanel(f) {
     h('p', {class: 'cap', text: 'ノードを押すと、ここにその詳しい面が出る。＋ の札は押すとその場で中が開く。'}),
     g.desc && fold('説明の全文', pre(g.desc)),
     g.inputs.length && fold(`入力（${g.inputs.length}）`, h('ul', {}, g.inputs.map(i => h('li', {}, h('b', {text: i.name}), ` ${i.desc || ''}`)))),
-    g.subs.length && fold(`中で使う graph と block（${g.subs.length}）`, g.subs.map(s => h('button', {class: 'chip', text: s, onclick: () => { if (firstOf[s]) { reveal(firstOf[s]); show(); flash(firstOf[s]); } }}))),
+    g.subs.length && fold(`中で使う graph と block（${g.subs.length}）`, g.subs.map(s => h('button', {class: 'chip', text: s, onclick: () => { if (firstOf[s]) { reveal(firstOf[s]); show({keepPanel: true}); flash(firstOf[s]); } }}))),
   ]);
 }
 // 選んだ札の印と、前と次の札の淡い青
@@ -1142,7 +1147,7 @@ function wasteScreen() {
     // 2: 時間の内訳（人の答え待ちが無い run は 1 行だけ）
     !T.wait ? h('div', {class: 'card'}, h('div', {class: 'cap', text: '2 · 時間の内訳'}), h('p', {class: 'claim', text: '人の答え待ちは無い。'})) :
     card(2, '時間の内訳', `${pct(T.wait, span)}%`, `は人の答え待ち（${mins(T.wait)} / ${mins(span)}）。`, [
-      h('div', {class: 'split'}, h('i', {style: `width:${Math.min(100, pct(T.wait, span))}%;background:var(--accent)`})),
+      h('div', {class: 'split'}, h('i', {style: `width:${Math.min(100, pct(T.wait, span))}%;background:var(--k-wait)`})),
       fold('内訳', h('ul', {},
         T.waits.map(x => h('li', {text: `人の答え待ち ${mmss(x.seconds)}（${E[x.event] && stageName(E[x.event].stage) ? stageName(E[x.event].stage) + ' · ' : ''}${name(x.event)}）`})),
         h('li', {text: `AI の手番の長さの和 ${mmss(T.ai)}・機械の出来事の長さの和 ${mmss(T.machine)}（並んで走る出来事が在るので、足すと run の長さを超えうる）`}),
@@ -1306,6 +1311,8 @@ function stopReplay() {
 }
 function label() {
   const w = $('p-what');
+  // 読み上げの値は画面の「n / N」と同じ数（つまみの値は 0 から数える歩の番号で、右の端は終わりの姿）
+  $('p-pos').setAttribute('aria-valuetext', at < 0 ? `run の終わりの姿（${STEPS.length} 歩の後）` : `${at + 1} / ${STEPS.length} 歩`);
   if (at < 0) { w.replaceChildren(h('b', {text: 'run の終わりの姿'}), ` · ${STEPS.length} 歩（ノードの始まりと終わり）。▶ で歩き始める`); return; }
   const st = STEPS[at], s = stageAt(at), it = itemAt(st.e.at);
   w.replaceChildren(h('b', {text: `${s ? `段 ${s.n} ${s.name} · ` : ''}${what(it) || st.e.tokens.join(' / ')}`}),

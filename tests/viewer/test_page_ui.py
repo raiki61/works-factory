@@ -4,7 +4,10 @@
 - 板の入れ子の口の字（「<target> の中を閉じる」「<target> の中をここで開く ＋」）は、押した後の開け閉めに合う
 - 図を作り直す操作（入れ子の札・入れ子の頭の −・道具の行のチェック・畳んだ段の「開く ＋」）を鍵盤で押しても、手前（フォーカス）は
   body に落ちない（同じ物か、消えた物の代わりの札に戻る）
+- 図の道具の行の select（入れ子を探す・根の外の graph）と「⌂ に戻す」を鍵盤で使っても、手前は body に落ちない。板の「中で使う
+  graph と block」の札を押しても板は閉じず、手前は押した札に残る
 - 終わりの姿では、つまみの ← と ‹ がどちらも最後の歩へ行く
+- つまみの読み上げの値（aria-valuetext）は、画面の「n / N」と、終わりの姿かを言う
 - run の一覧とログの押せる行は、支援技術に button と、開いているか（aria-expanded）を伝える
 
 見た目（色と形）は縛らない（viewer/AGENTS.md の E25 の 4）。
@@ -27,6 +30,8 @@ except ImportError:   # 外のパッケージの宣言は pyproject.toml の ext
 # 直しの前の雛形でも同じ物を指す（直しが足した印 data-f・data-nest に頼らない）
 WIRE = "#gtools label:has-text('配線も出す') input"
 NEST_WORD = "#panel p button:has-text('の中')"
+FIND = "#gtools select:has(option:has-text('入れ子を探して開く'))"
+OUTER = "#gtools select:has(option:has-text('の外の graph'))"
 RUN = "11111111-0000-0000-0000-000000000000"
 OTHER = "22222222-0000-0000-0000-000000000000"
 
@@ -52,6 +57,8 @@ def data() -> dict:
                  "items": [item("a", []), item("nest", ["a"], "block", target="inner"), item("w", ["nest"]), item("b", ["w"])]},
         "inner": {"name": "works-factory-inner", "kind": "block", "nodes": 1, "desc": "", "inputs": [], "subs": [], "what": None,
                   "items": [item("x", [])]},
+        "outer": {"name": "works-factory-outer", "kind": "graph", "nodes": 1, "desc": "", "inputs": [], "subs": [], "what": None,
+                  "items": [item("y", [])]},
     }
     t = "2026-01-01T00:00:{:02d}.000Z".format
     events = [event("a", t(0), t(1), 1), event("x", t(2), t(3), 1, via=[{"graph": "line", "node": "nest"}], graph="inner"),
@@ -138,6 +145,35 @@ class PageUiCase(unittest.TestCase):
         self.page.focus("#world .row.folded button")
         self.page.keyboard.press("Enter")
         self.assertEqual(self.focused(), "line/b")
+
+    def test_the_tool_row_and_the_panel_chips_keep_the_focus(self):
+        self.graph()
+        self.page.focus(FIND)
+        self.page.select_option(FIND, "line/nest")
+        self.assertTrue(self.page.locator(FIND).evaluate("el => el === document.activeElement"))
+        self.page.focus(OUTER)
+        self.page.select_option(OUTER, "outer")
+        self.assertTrue(self.page.locator(OUTER).evaluate("el => el === document.activeElement"))
+        self.page.focus("#crumb button:has-text('に戻す')")
+        self.page.keyboard.press("Enter")
+        self.assertEqual(self.page.evaluate("cur"), "line")
+        self.assertNotEqual(self.focused(), "BODY")
+        self.page.focus("#crumb button:has-text('説明')")
+        self.page.keyboard.press("Enter")
+        self.page.click("#panel summary:has-text('中で使う')")
+        self.page.focus("#panel .chip:has-text('inner')")
+        self.page.keyboard.press("Enter")
+        self.assertTrue(self.page.is_visible("#panel"))
+        self.assertEqual(self.page.evaluate("document.activeElement.textContent"), "inner")
+
+    def test_the_slider_reads_out_the_step_on_screen_and_the_end(self):
+        n = self.page.evaluate("STEPS.length")
+        self.assertIn("終わりの姿", self.page.get_attribute("#p-pos", "aria-valuetext") or "")
+        self.page.evaluate("go(0)")
+        self.assertIn(f"1 / {n}", self.page.get_attribute("#p-pos", "aria-valuetext") or "")
+        self.page.evaluate(f"go({n - 1})")
+        self.assertIn(f"{n} / {n}", self.page.get_attribute("#p-pos", "aria-valuetext"))
+        self.assertNotIn("終わりの姿", self.page.get_attribute("#p-pos", "aria-valuetext"))
 
     def test_at_the_end_the_slider_left_and_the_back_button_go_to_the_last_step(self):
         self.graph()
