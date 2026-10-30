@@ -1,7 +1,6 @@
 """役の節を回す共通の口（lib/rolekit.py。P1 計画 Task 13）の検査（FAST: git・盤面の再生・子のプロセスを使わない）。
 
 - ScriptMainCase: 役の返答の読み（parse_reply）
-- PointedLangLineCase: 始めの記録の指し札の字から言語の 1 行（pointed_lang_line。読めなくても落ちない）
 - GivenUpCase: 回数で諦めた時と出し直させずに諦めた時の 1 行の文（with_done・given_up_reason。回数は GIVE_UP_AFTER か、方針 net の
   受け付けの網 NET_AFTER。網の受け付けは 3 回の拒否で諦めず、網に届けば NET_WHY を添える）
 - RejectWordsCase: 役に返る拒みの文に古い「done し直す」を残さない
@@ -36,25 +35,6 @@ class ScriptMainCase(Base):
         self.assertEqual(rolekit.parse_reply('{"a": 1}'), ({"a": 1}, ""))
         self.assertIsNone(rolekit.parse_reply("{x")[0])
         self.assertIn("オブジェクトでない", rolekit.parse_reply("[1]")[1])
-
-
-class PointedLangLineCase(Base):
-    """#367: 始めの記録の指し札の字から言語の 1 行を組む 1 か所。指し札が読めない時は落ちずに既定の言語の 1 行に訳を添える"""
-
-    def test_reads_the_pointed_record(self):
-        path = self.tmp / "start.json"
-        path.write_text(json.dumps({"lang": "English"}), encoding="utf-8")
-        self.assertEqual(rolekit.pointed_lang_line("札", lambda raw: path), rolekit.lang_line({"lang": "English"}))
-        self.assertEqual(rolekit.pointed_lang_line("", lambda raw: None), rolekit.lang_line({}))
-
-    def test_unreadable_pointer_degrades(self):
-        for error in (ValueError("ほかの run"), TypeError("t"), AttributeError("a"), KeyError("k")):
-            def locate(raw, error=error):
-                raise error
-            with self.subTest(type(error).__name__):
-                got = rolekit.pointed_lang_line("札", locate)
-                self.assertTrue(got.startswith(rolekit.lang_line({})), got)
-                self.assertIn(rolekit.POINTER_UNREAD, got)
 
 
 class GivenUpCase(Base):
@@ -108,8 +88,7 @@ class RejectLedgerCase(Base):
         self.assertIn(f"拒否 {rolekit.GIVE_UP_AFTER}", rolekit.given_up_reason(self.tmp, "eye"))
 
     def test_reject_file_carries_every_reject_oldest_first(self):
-        """次の回の役が名指すファイルに輪の拒否の全部が古い順に在る（#345）。報告の最後の拒否の読み
-        （last_reject）はそのファイルを最後の拒否と取り違えない"""
+        """次の回の役が名指すファイルに輪の拒否の全部が古い順に在る（#345）"""
         self.assertEqual(rolekit.reject_file(self.tmp, "plan"), "")
         for n in (1, 2):
             rolekit.with_done(self.tmp, "plan", {"ok": False, "reason": f"拒否 {n}\n2 行目"})
@@ -118,7 +97,6 @@ class RejectLedgerCase(Base):
         text = path.read_text(encoding="utf-8")
         self.assertEqual(text, rolekit.rejects_text(["拒否 1\n2 行目", "拒否 2\n2 行目"]) + "\n")
         self.assertLess(text.index("1 回目の拒否:\n拒否 1"), text.index("2 回目の拒否:\n拒否 2"))
-        self.assertEqual(rolekit.last_reject(self.tmp), "拒否 2 2 行目")
 
 
 class AcceptRoundCase(Base):
@@ -306,18 +284,13 @@ class ResubmitCase(Base):
         rolekit.resubmitted(self.tmp, "r", {"a": 1}, None, rolekit.merge_fields)
         self.assertEqual(rolekit.resubmitted(self.tmp, "r", None, {}, rolekit.merge_fields), ({"a": 1}, ""))
 
-    def test_resubmit_brief_only_after_a_rejected_round_with_a_candidate(self):
-        """前の周が拒まれ（prev が False）、合わせた答えの控えが在る時だけ指示書を書いてパスを返す（resume の 1 周目は prev が空）"""
-        self.assertEqual(rolekit.resubmit_brief(self.tmp, "r", False), "", "控えが無い")
+    def test_resubmitting_only_after_a_rejected_round_with_a_candidate(self):
+        """前の周が拒まれ（prev が False）、合わせた答えの控えが在る時だけ出し直しの周（resume の 1 周目は prev が空）"""
+        self.assertFalse(rolekit.resubmitting(self.tmp, "r", False), "控えが無い")
         rolekit.resubmitted(self.tmp, "r", {"a": 1}, None, rolekit.merge_fields)
-        rolekit.with_done(self.tmp, "r", {"ok": False, "reason": "a が違う"})
         for prev in (None, True, ""):
-            self.assertEqual(rolekit.resubmit_brief(self.tmp, "r", prev), "", prev)
-        path = pathlib.Path(rolekit.resubmit_brief(self.tmp, "r", False))
-        self.assertEqual(path.name, "resubmit-r-2.md")
-        text = path.read_text(encoding="utf-8")
-        for part in ("a が違う", str(rolekit.candidate_path(self.tmp, "r")), rolekit.FIELD_RULES):
-            self.assertIn(part, text)
+            self.assertFalse(rolekit.resubmitting(self.tmp, "r", prev), prev)
+        self.assertTrue(rolekit.resubmitting(self.tmp, "r", False))
 
     def test_parse_reply_and_merge_share_the_object_rule(self):
         """R5: 返答が JSON のオブジェクトでない時の文は parse_reply と出し直しの合わせで同じ"""

@@ -40,7 +40,8 @@ PY_ENV_DIRS = (".venv", "venv")
 PY_ENV_GLOBS = (".tox", ".nox")
 
 
-def _norm(name: str) -> str:
+def norm(name: str) -> str:
+    """依存の名の比べの形（- _ . の並びを - 1 つに寄せ、小文字に）"""
     return re.sub(r"[-_.]+", "-", name).lower()
 
 
@@ -161,7 +162,8 @@ def py_uses(text: str):
     return out
 
 
-def _js_package(spec: str) -> str:
+def js_package(spec: str) -> str:
+    """import の指し spec のパッケージの名（@scope/name か頭の段）"""
     parts = spec.split("/")
     return "/".join(parts[:2]) if spec.startswith("@") and len(parts) > 1 else parts[0]
 
@@ -176,7 +178,7 @@ def js_uses(text: str) -> dict:
     """{パッケージ: [名]}（名の import・既定の import は default・名前空間と既定の名の属性。出てくる順）"""
     hits, alias = [], {}
     for m in JS_NAMED.finditer(text):
-        pkg = _js_package(m.group(3))
+        pkg = js_package(m.group(3))
         if m.group(1):
             hits.append((m.start(), pkg, "default"))
             alias[m.group(1)] = pkg
@@ -185,15 +187,15 @@ def js_uses(text: str) -> dict:
             if w:
                 hits.append((m.start(), pkg, w))
     for m in JS_NS.finditer(text):
-        alias[m.group(2)] = _js_package(m.group(3))
+        alias[m.group(2)] = js_package(m.group(3))
         if m.group(1):
-            hits.append((m.start(), _js_package(m.group(3)), "default"))
-            alias[m.group(1)] = _js_package(m.group(3))
+            hits.append((m.start(), js_package(m.group(3)), "default"))
+            alias[m.group(1)] = js_package(m.group(3))
     for rx in (JS_DEFAULT, JS_REQUIRE):
         for m in rx.finditer(text):
             if m.group(1) in ("type",):
                 continue
-            pkg = _js_package(m.group(2))
+            pkg = js_package(m.group(2))
             alias[m.group(1)] = pkg
             if rx is JS_DEFAULT:
                 hits.append((m.start(), pkg, "default"))
@@ -222,7 +224,7 @@ def _metadata(text: str) -> dict:
 
 def _py_dist(sp: pathlib.Path, real: pathlib.Path, lib: dict):
     """(版, Summary, 配る名) か None。METADATA の Name が配る名・輸入の名か、top_level.txt に輸入の名が在る dist-info"""
-    want = {_norm(lib.get("search") or lib["name"]), _norm(lib["name"])}
+    want = {norm(lib.get("search") or lib["name"]), norm(lib["name"])}
     try:
         infos = sorted(sp.glob("*.dist-info"))
     except OSError:
@@ -230,7 +232,7 @@ def _py_dist(sp: pathlib.Path, real: pathlib.Path, lib: dict):
     for info in infos:
         meta = _metadata(_read(info / "METADATA", real) or "")
         top = (_read(info / "top_level.txt", real) or "").split()
-        if _norm(meta.get("Name") or "") in want or lib["name"] in top:
+        if norm(meta.get("Name") or "") in want or lib["name"] in top:
             return meta.get("Version"), meta.get("Summary") or "", meta.get("Name") or ""
     return None
 

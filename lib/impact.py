@@ -367,6 +367,11 @@ def _hit_re(kind, key):
     return re.compile(r"(?<![A-Za-z0-9_])" + k + r"(?![A-Za-z0-9_])")
 
 
+def _whole_path(path):
+    """リポジトリの根からのパスそのもの（前後が名の字でない所。頭の ./ と絶対パスの中のも拾う）"""
+    return re.compile(r"(?<![A-Za-z0-9_.\-])" + re.escape(path) + r"(?![A-Za-z0-9_\-])")
+
+
 def _hits(text, kind, key):
     """[数, 残す行 [[行番号, 行]], パスの形の字（path の時だけ）]。行は 1 文字も変えない"""
     rx = _hit_re(kind, key)
@@ -997,7 +1002,7 @@ def seeds_from_units(repo, units):
                 walk(v)
     walk(units)
     text = "\n".join(texts)
-    out = {p for p in ix.files if p in text}
+    out = {p for p in ix.files if p in text and _whole_path(p).search(text)}
     for base, owners in ix.by_base.items():
         if len(owners) == 1 and len(base) >= KEY_MIN and base not in STOP_KEYS and _hit_re("path", base).search(text):
             out.add(owners[0])

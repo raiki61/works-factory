@@ -17,6 +17,7 @@ if str(LIB) not in sys.path:
     sys.path.append(str(LIB))
 
 import checkscope  # noqa: E402
+from tests.bin.gitkit import git  # noqa: E402
 
 STEPS = [{"name": "far", "argv": ["x"]}, {"name": "near", "argv": ["y"]}]
 SCOPE = {"far": ["works/"]}
@@ -108,6 +109,30 @@ class WordsCase(unittest.TestCase):
         self.assertEqual(checkscope.scope_word(two), "far（変更が全部 works/・docs の下で、段が見ない所）")
         self.assertEqual(checkscope.skipped_text(FAR_SKIPPED),
                          "範囲の外で回さなかった段: far（変更が全部 works/ の下で、段が見ない所）")
+
+
+
+class RequestFilesCase(unittest.TestCase):
+    def test_where_names_a_tracked_path_by_its_whole_name(self):
+        """where の字に区切りを見て現れる追跡中のパスだけ（長い名の一部の字は数えない）"""
+        with tempfile.TemporaryDirectory() as tmp:
+            for name in ("a.py", "data.py", "pkg/b.py"):
+                (pathlib.Path(tmp) / name).parent.mkdir(parents=True, exist_ok=True)
+                (pathlib.Path(tmp) / name).write_text("x\n", encoding="utf-8")
+            git(tmp, "init", "-q")
+            git(tmp, "add", "-A")
+            self.assertEqual(checkscope.request_files(tmp, ["data.py:3 の数え", "pkg/b.py の頭"]), ["data.py", "pkg/b.py"])
+            self.assertEqual(checkscope.request_files(tmp, ["mypkg/b.pyc"]), [])
+
+    def test_where_names_a_path_with_dot_or_absolute_head(self):
+        """頭の ./ と絶対パスの中の、追跡中のパスも拾う"""
+        with tempfile.TemporaryDirectory() as tmp:
+            for name in ("src/a.py", "src/b.py"):
+                (pathlib.Path(tmp) / name).parent.mkdir(parents=True, exist_ok=True)
+                (pathlib.Path(tmp) / name).write_text("x\n", encoding="utf-8")
+            git(tmp, "init", "-q")
+            git(tmp, "add", "-A")
+            self.assertEqual(checkscope.request_files(tmp, ["./src/a.py:3 の数え", "/home/u/proj/src/b.py の頭"]), ["src/a.py", "src/b.py"])
 
 
 if __name__ == "__main__":

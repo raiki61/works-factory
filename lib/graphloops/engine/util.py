@@ -21,12 +21,7 @@ def now():
     return datetime.datetime.now().astimezone().isoformat(timespec="seconds")
 
 
-LAST_DIE = None   # 最後に die した文面（loop.py の最上段が非 0 の終わりに記録器へ渡す。行に残すのは利用者が環境変数で選んだときだけ）
-
-
 def die(msg, code=2):
-    global LAST_DIE
-    LAST_DIE = msg
     print(f"NG {msg}", file=sys.stderr)
     sys.exit(code)
 
@@ -51,19 +46,6 @@ def write_json(path, obj):
 def dump(obj):
     return json.dumps(obj, ensure_ascii=False, indent=1)
 
-
-# run が終わった状態。**2 語を engine の 2 か所に手で並べていた**——どちらかに値を足すと、
-# もう一方だけが古いまま黙って通る（進行が止まらない／終わった run に次の節を出す）。
-TERMINAL_STATUS = ("converged", "stopped")
-# 人の答えとして engine が**実際に動ける語**。`continue` は次の周、`stop` は終端、`escalate` は最上段へ。
-# 表が無かったとき、`ans == "stop"` 以外は全部 else（新しい周を開く）に落ちていた——rules が options に
-# 綴り違いや engine の知らない語を入れると、**その語が「続ける」として通る**（諮った意味が消える）。
-# 知らない語は落とす側に倒す: 諮りの口は「止める／続ける」の分岐なので、既定を「続ける」にしてはいけない。
-ANSWER_ACTIONS = ("continue", "stop", "escalate")
-# **周の途中の問い（ask の in_round が真）**で engine が動ける語。continue は問うた節を済ませて同じ周のまま先へ、
-# stop は run をその場で止める（halted。後の節は 1 つも出さない）。escalate は周を進める語なので持たない——
-# 周の途中の問いは、周の中の工程（仕様の承認・承認後のテストの変更）で人の答えを待つ口で、周の終わりの判定ではない
-IN_ROUND_ACTIONS = ("continue", "stop")
 
 GIT_CWD = None  # 対象リポジトリ。init が記録した inputs.cwd を engine が 1 度だけ入れる（下の _repo_args を見よ）
 
@@ -109,37 +91,6 @@ def git(*args, env=None, why=None):
     if why is not None:
         why.append(r.stderr.strip()[-GIT_WHY_CAP:] or f"exit {r.returncode}（標準エラーは空）")
     return None
-
-
-def porcelain():
-    """作業ツリーの写し。None = git が効かない（作業ツリーの保護はできない——呼ぶ側が止める）。"""
-    out = git("status", "--porcelain")
-    return None if out is None else sorted(out.splitlines())
-
-
-def _step(cur, parts, i, upto):
-    """`cur` の中で `parts[i:upto]` の先頭に最長一致する鍵を探し、`(次の cur, 次の i)` を返す。無ければ None。"""
-    if isinstance(cur, dict):
-        for j in range(upto, i, -1):
-            key = ".".join(parts[i:j])
-            if key in cur:
-                return cur[key], j
-    elif isinstance(cur, list) and parts[i].isdigit() and int(parts[i]) < len(cur):
-        return cur[int(parts[i])], i + 1
-    return None
-
-
-def get_path(obj, path):
-    """`a.b.c` で辿る。節名に点が入る（out.p0.question.x）ので、辞書の鍵は最長一致で食う。"""
-    parts = path.split(".")
-    cur = obj
-    i = 0
-    while i < len(parts):
-        nxt = _step(cur, parts, i, len(parts))
-        if nxt is None:
-            raise KeyError(path)
-        cur, i = nxt
-    return cur
 
 
 def pick(value, fields):
@@ -292,45 +243,6 @@ def repo_root(git_fn=None):
     """対象リポジトリのルート（引けなければ None）。engine と rules が同じ 1 本を使う——rules は差し込まれた git（台本が
     対象リポジトリに固定して撃つ）を git_fn に渡す"""
     return ((git_fn or git)("rev-parse", "--show-toplevel") or "").strip() or None
-
-
-
-
-def copy_worktree(dst):
-    """対象リポジトリの作業ツリーの今の姿を dst に写す（任せ先の作業ディレクトリ）。写せなければ Reject。
-
-    写しは本物の .git を共有しない独立の clone（--shared は本物の object を読むだけで、新しい object は写しの側に書く）で、
-    HEAD は本物と同じ commit、作業ツリーは本物の今の姿——未コミットの変更と未追跡の新規ファイルを載せ、作業ツリーで消した
-    ファイルは消す。index は HEAD のままなので、写しの git diff / git status は本物と同じ変更を映す。.gitignore の対象
-    （依存の置き場・ビルドの出力）は写さない——CI の checkout と同じ姿で、要るなら任せ先が写しの上で入れ直す"""
-    top = repo_root()
-    if not top:
-        raise Reject("作業ツリーのルートを引けない——任せ先の写しを作れない")
-    dst = pathlib.Path(dst)
-    try:
-        subprocess.run(["git", "clone", "-q", "--shared", "--no-checkout", top, str(dst)], check=True,
-                       capture_output=True)
-        head = git("rev-parse", "--verify", "-q", "HEAD")
-        if head and head.strip():
-            subprocess.run(["git", "-C", str(dst), "checkout", "-q", "--detach", head.strip()], check=True,
-                           capture_output=True)
-    except (OSError, subprocess.SubprocessError) as e:
-        raise Reject(f"任せ先の写しを作れない（git clone / checkout: {e}）") from e
-    changed = git("diff", "--name-only", "-z", "HEAD") if head and head.strip() else git("ls-files", "-z")
-    untracked = git("ls-files", "-z", "-o", "--exclude-standard")
-    if changed is None or untracked is None:
-        raise Reject("作業ツリーの変更を引けない（git diff / ls-files）——任せ先の写しを作れない")
-    import shutil  # 写す節でだけ要る
-    for rel in {x for x in (changed + untracked).split("\0") if x}:
-        src, to = pathlib.Path(top) / rel, dst / rel
-        if src.is_symlink() or src.is_file():
-            to.parent.mkdir(parents=True, exist_ok=True)
-            if to.is_symlink() or to.exists():
-                to.unlink()
-            shutil.copy2(src, to, follow_symlinks=False)
-        elif not src.exists() and (to.is_symlink() or to.is_file()):
-            to.unlink()
-    return str(dst)
 
 
 def run_count(how, cwd, rev=None, probe=True):

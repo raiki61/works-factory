@@ -627,7 +627,7 @@ def reuse_material(argv, env, cwd, outputs, tree) -> dict:
 
     def plain(text):
         for i, out in enumerate(outputs):
-            for form in {str(out), os.path.realpath(out)}:
+            for form in sorted({str(out), os.path.realpath(out)}, key=len, reverse=True):   # 長い形から（片方がもう片方の一部の時）
                 text = text.replace(form, f"<out:{i}>")
         return text.replace(real, "<cwd>").replace(str(cwd), "<cwd>")
 

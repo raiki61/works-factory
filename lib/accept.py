@@ -214,7 +214,6 @@ def _cli_owned_only(repo, entry: str) -> bool:
 # 深さを問わず数えない（台帳 R62: 自分食い 23 件目で根の、run 30 で works/docs/specs/ の下の物で読むだけの役が 3 回拒まれた）。
 # 同じ .claude/ の下のほかの物は見る
 CLI_OWNED_PARTS = (".claude", ".cc-writes")
-CLI_OWNED = "/".join(CLI_OWNED_PARTS) + "/"
 
 
 def _porcelain_path(line: str) -> str:

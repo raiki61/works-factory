@@ -7,8 +7,6 @@
 待った時（p4.assemble の後）に、線がその控えを渡す（目的の文の purpose.json と同じ形）。設計の役の入力は目的の文と実測した
 制約・人の方針・人の関所の答え・依頼が名指した設計書の節なので、先に起こしても独立は崩れない（修正案・差分を読む口が無い）。
 
-- unusable(b):   目的の出典が R2 に使えない理由（目的不明・狭めている。無ければ None）。式は写しの rules の purpose_unusable
-                 （p4.assemble と同じ 1 本）を呼ぶ
 - 前提の材料:    R2 の 2 つの役（r2.design・r2.compare）に貼る材料の本文（見出しと頼みの文は持たない。共通の断片 design-premises.md が持つ）と、貼った入力の控え {given, withheld, seen}（kind は PREMISE_KINDS の中だけ）。
                  human_answers（人の関所の答え。asked は写さず、answer の無い機械の行は withheld。seen は貼った答えの数と
                  最後の round の印で、突き合わせの側が独立設計の後に来た答えを分けて並べる）と named_sections（依頼が
@@ -24,7 +22,6 @@
                  無ければ名指しなしと添える
 - read_design(board_dir, schema): design.json（無ければ None。読めない・型 schema に合わなければ Reject）。made は (中身 か None,
                  壊れている理由) で拒まない。schema は r2.design の役の型で、ブロックが渡す（盤面 b を取る関数は b.design_schema を読む）
-- missing(b):    設計が無い理由の 1 文（諦めた・目的が使えない・控えが無い）。事前審査の指示書と独立の目の出口が使う
 - DRIFT_HEAD・UNPAIRED_HEAD: 事前審査の穴の why の頭の 2 語（構造の食い違い・対の無い仕組み）。指示書の決まり・照らし・試験が同じ名を読む
 - stands(board_dir, schema): 設計が在り問いが立つ時のその返答（無い・壊れている・問いが立たないなら None）
 - quote_gaps(board_dir, schema, faces, rows, design_map=None, kept=()): 2 つの頭の穴の引用と、項目の答えの design_map の誤りの行（設計が立たなければ空）。
@@ -63,14 +60,9 @@ import answer  # noqa: E402
 import cite  # noqa: E402
 import impact  # noqa: E402
 import planmarks  # noqa: E402
-import rolekit  # noqa: E402
-from rolekit import BoardGap  # noqa: E402
 
-NODE = "r2.design"
 DESIGN_FILE = "design.json"             # 受け付けた設計の返答（盤面の根。run に 1 つ）
 MISSING = "独立設計が取れなかった"
-HANDED_OP = "r2_design_handed"         # 設計の控えを後段に渡した trace の行（元 works/.shared/core/design.py:74）
-MISSING_OP = "r2_design_missing"       # 設計が無いまま先へ進んだ trace の行（元 :75）
 UNUSABLE = {"目的不明": "目的の出典が取れない（目的不明）——独立設計を回さない",
             "狭めている": "目的の文を監査が『狭めている』と判定した——狭められた目的で独立設計を回さない"}
 DRIFT_HEAD = "独立設計との構造の食い違い: "
@@ -446,12 +438,6 @@ def _named_hit(what, claim) -> bool:
     return path in claim or bool(n and re.search(rf"§\s*{re.escape(n)}(?![\d.])|(?<![\d.]){re.escape(n)}\s*節", claim))
 
 
-def unusable(b):
-    """目的の出典が R2 に使えない理由（None／目的不明／狭めている）。写しの p4.assemble が loop.purpose_unusable に置くのと同じ
-    1 本（写しの rules の purpose_unusable）を、p4.assemble より前に呼ぶ"""
-    return b.rules.purpose_unusable(b)
-
-
 def read_design(board_dir, schema):
     """盤面の根の design.json（無ければ None）。読めない・型 schema（r2.design の役の型。ブロックが渡す）に合わなければ Reject"""
     obj = accept.read_board(board_dir, DESIGN_FILE)
@@ -504,20 +490,6 @@ def anchor_misses(text, repo) -> list:
 def anchor_note(text) -> str:
     """根拠の文に名指し（anchors）が無ければ「（根拠の実物の名指しなし）」、在れば ""（事前審査の指示書と報告が添える）"""
     return "" if anchors(text) else f"（{UNANCHORED}）"
-
-
-def missing(b) -> str:
-    """設計が無い理由の 1 文（控えが在れば空）"""
-    got, broken = made(b.dir, b.design_schema)
-    if got is not None or broken:
-        return broken
-    gave = rolekit.given_up_reason(b.dir, NODE)
-    if gave:
-        return f"{MISSING}: {gave}"
-    why = unusable(b)
-    if why:
-        return UNUSABLE[why]
-    return f"{MISSING}: 修正の前に設計の役を起こしていない（{DESIGN_FILE} が無い）"
 
 
 # design_quote の引き元（受け付けが照らすのは独立設計の本文 design だけ。要素の一覧の行は機械が本文の後ろに描いた別の字）

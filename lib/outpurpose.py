@@ -12,8 +12,8 @@ FILE に周ごとに控え、判定の写し judgment.json に戻す。次の ru
 目的の外から運んだ印 MARK と下書きの印 draft・source つきで載せる（依頼の入口が拒むので、人が見直すまで次の run の目的に
 ならない）。この run では直さない。
 
-- FIELD・FILE・ROW_SCHEMA: 欄の名・控えの名・行の型（控えの形はこの置き場の out-of-purpose.schema.json の 1 つ。port の宣言は
-  json(lib:out-of-purpose.schema.json)。MIN_WHY と ROW_SCHEMA は控えの行の形から機械の足す found を外し、閉じて引く）
+- FIELD・FILE: 欄の名・控えの名（控えの形はこの置き場の out-of-purpose.schema.json の 1 つ。port の宣言は
+  json(lib:out-of-purpose.schema.json)。MIN_WHY は控えの行の形から引く）
 - split(reply): （欄を外した返答の写し, 行の一覧）
 - problems(rows, material): 行の誤り（形・材料に当たらない where）。1 件 1 文
 - save(board_dir, rnd, rows, material)・restore(doc, board_dir, rnd): 周の分を控える・判定の写しに戻す
@@ -22,7 +22,6 @@ FILE に周ごとに控え、判定の写し judgment.json に戻す。次の ru
   利用者の声 10-09 の B。10-09 の利用者は 23 件を読んで 3 件を採った）
 標準ライブラリと JSON の読み書き jsonfile・carry（L1）・1 行に畳む葉 oneline だけ。
 """
-import copy
 import json
 import pathlib
 
@@ -42,8 +41,6 @@ SCHEMA_FILE = "out-of-purpose.schema.json"   # 控えの形（この置き場）
 SHAPE = json.loads((pathlib.Path(__file__).resolve().parent / SCHEMA_FILE).read_text(encoding="utf-8"))
 _ROW = SHAPE["properties"]["rounds"]["patternProperties"]["^[0-9]+$"]["items"]
 MIN_WHY = _ROW["properties"]["why_outside"]["minLength"]
-ROW_SCHEMA = {**copy.deepcopy(_ROW), "additionalProperties": False,
-              "properties": {k: copy.deepcopy(v) for k, v in _ROW["properties"].items() if k != "found"}}   # 判定役が書く行の型
 
 
 def split(reply) -> tuple:

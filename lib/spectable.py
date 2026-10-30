@@ -32,7 +32,6 @@ if str(_HERE / "graphloops") not in sys.path:
 from engine.schema import validate_schema  # noqa: E402
 
 FIELDS = ("purpose", "acceptance", "test_cmd", "out_of_scope")   # 表の 4 つ（持ち主の決め spec-driven-shape）
-CARRY = ("design", "reviews")                                     # run を表 1 本で回すための運ぶ欄
 PLAN_REVIEW, INDEPENDENT_DESIGN, PREMISES, PRIOR_DECISIONS, WORLD = (
     "works-factory-plan-review", "works-factory-independent-design", "works-factory-premises", "works-factory-prior-decisions",
     "works-factory-world")

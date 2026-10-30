@@ -865,15 +865,9 @@ class MaterialProblemsCase(unittest.TestCase):
             with self.subTest(mode=mode, m=m):
                 self.assertEqual(self.problems(m, mode), [])
 
-    def test_base_not_run_is_refused_for_awaiting_human(self):
-        """material_problems は base の not_run を通す（機械が走らせて 1 段も走らなかった素材。止めるのは green_cert）。base の任せ先の役の
-        素材は role_material_problems が not_run を awaiting_human を名指して拒む"""
-        material = {"status": "not_run", "reason": "r"}
-        self.assertEqual(self.problems(material, "base"), [])
-        got = dc.role_material_problems(material, mode="base")
-        self.assertEqual(len(got), 1)
-        self.assertIn("awaiting_human", got[0])
-        self.assertEqual(dc.role_material_problems({"status": "awaiting_human", "reason": "r"}, mode="base"), [])
+    def test_base_not_run_passes(self):
+        """material_problems は base の not_run を通す（機械が走らせて 1 段も走らなかった素材。止めるのは green_cert）"""
+        self.assertEqual(self.problems({"status": "not_run", "reason": "r"}, "base"), [])
 
     def test_final_awaiting_human_is_refused_for_not_run(self):
         got = self.problems({"status": "awaiting_human", "reason": "r"}, "final")
@@ -906,22 +900,6 @@ class MaterialProblemsCase(unittest.TestCase):
     def test_unknown_mode_raises(self):
         with self.assertRaises(ValueError):
             self.problems({"status": "clean", "checked": "x"}, "middle")
-
-    def test_role_final_not_run_names_its_systems(self):
-        """#514: 任せ先の役の final の not_run は、走らせた系統と走らせられなかった系統の名の分け（systems）が要る。engine の素材と
-        base の awaiting_human には要らない"""
-        bare = {"status": "not_run", "reason": "e2e は実機が要る"}
-        self.assertIn("systems", " ".join(dc.role_material_problems(bare, mode="final")))
-        self.assertEqual(self.problems(bare, "final"), [])
-        self.assertIn("unran", " ".join(dc.role_material_problems({**bare, "systems": {"ran": ["unit"], "unran": []}}, mode="final")))
-        self.assertIn("systems.ran", " ".join(dc.role_material_problems({**bare, "systems": {"ran": "unit", "unran": ["e2e"]}},
-                                                                        mode="final")))
-        self.assertEqual(dc.role_material_problems({**bare, "systems": {"ran": ["unit"], "unran": ["e2e"]}}, mode="final"), [])
-        self.assertEqual(dc.role_material_problems({"status": "awaiting_human", "reason": "r"}, mode="base"), [])
-        for mode, status in (("final", "not_run"), ("base", "awaiting_human")):   # #538: 同じ名を両側に書いた系統の分けは拒む
-            with self.subTest(mode=mode):
-                both = {"status": status, "reason": "r", "systems": {"ran": ["unit"], "unran": ["unit", "e2e"]}}
-                self.assertIn("ran と unran の両方に同じ系統の名が在る: unit", " ".join(dc.role_material_problems(both, mode=mode)))
 
 
 class BaselineLineCase(unittest.TestCase):

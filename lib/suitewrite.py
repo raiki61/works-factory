@@ -99,8 +99,8 @@ def prepare(start_file, folder, keep, root) -> dict:
 
 
 def _brief(test_cmd: str, root: pathlib.Path) -> str:
-    fence = "`" * max(3, _longest_tick_run(test_cmd) + 1)
-    cmd = f"{fence}text\n{test_cmd}\n{fence}" if test_cmd.strip() else "無い（人が渡していない）"
+    mark = fence(test_cmd)
+    cmd = f"{mark}text\n{test_cmd}\n{mark}" if test_cmd.strip() else "無い（人が渡していない）"
     decl = "在る" if (root / declared_checks.DECL_NAME).is_file() else "無い"
     return "\n".join(["# 実行器を書く材料", "", f"- 対象の根: {root.resolve()}", f"- 対象の根の宣言 {declared_checks.DECL_NAME}: {decl}",
                       "", "## test_cmd（人が渡したテストのコマンド。字のまま）", "", cmd, ""])

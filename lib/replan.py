@@ -6,7 +6,7 @@
 - new_item(row): 控えの行の直した項目に、外した決め手の欄を narrows の行ごとに戻した形
 - bare(item): 項目から関所の決め手の欄を外した写し（約束の欄の比べ planmarks.contract_diff に渡す形。案の直しの事前審査と受け付けが引く）
 - _malformed(reply): 修正案の返答の形の崩れ
-- WIDEN_OP・WIDEN_LINE・WIDEN_PARTS・widen_text(widened)・AMEND_HEAD・amend_lines(items, …, gate=""): 無人の run で聞かずに通した範囲を
+- WIDEN_LINE・WIDEN_PARTS・widen_text(widened)・AMEND_HEAD・amend_lines(items, …, gate=""): 無人の run で聞かずに通した範囲を
   広げるだけの直しの文と、同じ run の中で直した項目ごとの 1 行とその見出し（線の案の直しの承認の支度・最後の承認の支度と報告が読む）
 """
 from __future__ import annotations
@@ -29,8 +29,6 @@ import report  # noqa: E402  （関所の止める語 FINAL_GATE_STOPS。案の�
 
 TRIP_FILE = "replan.json"
 TRIP_KEYS = ("item", "units", "old", "new", "new_marks", "contract_changed", "widened")
-# 無人の run で範囲を広げるだけの直しを聞かずに通した項目の文（元 replan.py:152-154。案の直しの関所の節と報告が同じ字を読む）
-WIDEN_OP = "replan_widened_unattended"
 WIDEN_LINE = "直した——無人の run なので人に聞かずに範囲を広げた（{what}）"
 WIDEN_PARTS = {"allowed_paths": "allowed_paths に足した", "out_of_scope": "out_of_scope から外した"}
 AMEND_HEAD = "同じ run の中で直した修正案の項目"   # 報告と最後の関所の文の見出し（元 replan.AMEND_HEAD）

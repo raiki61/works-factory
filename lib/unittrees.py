@@ -32,6 +32,8 @@ import shutil
 import subprocess
 import tempfile
 
+import changemap
+
 # 外から継いだ git の居場所の変数は落とす（hook や節の中から呼ばれても、渡した repo・path だけを見る）
 _GIT_PLACE = ("GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE", "GIT_OBJECT_DIRECTORY", "GIT_ALTERNATE_OBJECT_DIRECTORIES",
               "GIT_COMMON_DIR", "GIT_PREFIX")
@@ -174,20 +176,26 @@ def markers_left(repo, marked: dict) -> list:
 
 
 def patch_names(patch: str) -> list:
-    """patch の行先のパス（`diff --git a/x b/x` の b 側。--no-renames なので a と同じ）"""
+    """patch の行先のパス（`diff --git a/x b/x` の b 側。--no-renames なので a と同じ。git が引用符で包んだ名は戻す）"""
     out = []
     for ln in patch.splitlines():
-        if ln.startswith("diff --git a/") and " b/" in ln:
+        if ln.startswith('diff --git "a/') and ' "b/' in ln:
+            name = changemap.unquote_git_path('"' + ln.rsplit(' "b/', 1)[1])
+        elif ln.startswith("diff --git a/") and " b/" in ln:
             name = ln.rsplit(" b/", 1)[1]
-            if name not in out:
-                out.append(name)
+        else:
+            continue
+        if name not in out:
+            out.append(name)
     return out
 
 
 def _unmerged(repo, index: str) -> dict:
     """一時の index の未解決のパス → {段: (mode, sha)}"""
     out = {}
-    for ln in _out(repo, "ls-files", "-u", index=index).splitlines():
+    for ln in _out(repo, "ls-files", "-u", "-z", index=index).split("\0"):   # -z: 名を引用符で包まない
+        if not ln:
+            continue
         head, _, path = ln.partition("\t")
         mode, sha, stage = head.split()
         out.setdefault(path, {})[int(stage)] = (mode, sha)

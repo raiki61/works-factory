@@ -41,6 +41,10 @@ class CommitParts(unittest.TestCase):
     def changed(self, head) -> list:
         return git(self.repo, "diff-tree", "--no-commit-id", "--name-only", "-r", head).split("\n")
 
+    def test_staged_keeps_a_leading_space_in_a_path(self):
+        (self.repo / " lead.txt").write_text("x\n", encoding="utf-8")
+        self.assertIn(" lead.txt", runbranch.staged(self.repo, "copy"))
+
     def test_parts_are_commits_in_order_and_paths_are_literal(self):
         heads = self.parts([["b*.txt"], ["a.txt", "bx.txt"]])
         self.assertEqual([self.changed(h) for h in heads], [["b*.txt"], ["a.txt", "bx.txt"]])

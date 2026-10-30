@@ -380,10 +380,7 @@ def read(b) -> dict:
 
 
 def _write(b, doc: dict) -> None:
-    path = b.work(RECORD)
-    tmp = path.with_name(path.name + ".tmp")
-    tmp.write_text(json.dumps(doc, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
-    os.replace(tmp, path)
+    jsonfile.write(b.work(RECORD), doc)
 
 
 def pass_no(b) -> int:

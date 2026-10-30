@@ -39,13 +39,6 @@ from leftovers import git  # noqa: E402
 
 FIELD = "bash_writes"
 MIN_WHY = 10
-ITEM_SCHEMA = {
-    "type": "object",
-    "additionalProperties": False,
-    "required": ["path", "why"],
-    "properties": {"path": {"type": "string", "minLength": 1}, "why": {"type": "string", "minLength": MIN_WHY}},
-}
-BASH_WRITES_SCHEMA = {"type": "array", "items": ITEM_SCHEMA}
 NO_RECORD = "書き込みの記録が無い run（記録の根の無い起動）——書き込みの出どころを突き合わせずに通した"
 NO_RECORD_OP = "writes_unrecorded_run"   # 置き場の trace.jsonl の行（報告が数える）
 CARRY_TOOL = "unit-merge"               # 単位の worktree の記録を写した行の tool_name（carry）

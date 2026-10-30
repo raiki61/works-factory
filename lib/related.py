@@ -13,7 +13,6 @@
 
 言語・試験の実行器の名を持たない。試験の見分けと関わりの辺は impact が持つ。
 """
-import os
 import pathlib
 import sys
 

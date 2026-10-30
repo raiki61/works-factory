@@ -13,7 +13,7 @@ fix_plan_item は承認済みの修正案の項目そのものの誤りで、そ
 裁定 replace_query が新しい問いを例（hits・misses と correct_lines）で機械に試させてから置き換える（Semgrep の規則の試験の ruleid・ok）。
 
 このモジュールが持つ物（b は fix の run の置き場のフォルダのパス。その作業ファイル FILE {"items": [...]} と置き場の trace.jsonl の行（fixboard.trace）。どのブロック・ラインの名も書かない）:
-- ROW・ITEM_SCHEMA・CONFLICTS_SCHEMA: 控えの行の形（住処は lib/conflicts.schema.json。FIELDS・WHICH・DIV_KINDS もそこから引く）と、1 件の形（unit_key・between・why_both_cannot_hold・which_is_right・kind。query なら correct_lines も）と、
+- ROW・ITEM_SCHEMA: 控えの行の形（住処は lib/conflicts.schema.json。FIELDS・WHICH・DIV_KINDS もそこから引く）と、1 件の形（unit_key・between・why_both_cannot_hold・which_is_right・kind。query なら correct_lines も）と、
   修正役の返答の欄 conflicts。kind は食い違いの起きた場面の種類で、DIV_KINDS の 7 つ（brief_vs_judgment・unnamed_test_broke・
   not_red・scope_needed・query_hits_fixed・needs_context・red_at_base）のどれか。which_is_right（どちらが正しいか）とは別の軸で、
   query_hits_fixed は which_is_right query と対、needs_context は which_is_right unknown と対、
@@ -77,10 +77,8 @@ fix_plan_item は承認済みの修正案の項目そのものの誤りで、そ
 標準ライブラリだけ。期限は持たない。
 """
 import json
-import os
 import pathlib
 import posixpath
-import re
 import sys
 
 sys.dont_write_bytecode = True
@@ -95,6 +93,7 @@ if str(_CORE / "graphloops") not in sys.path:   # 写しの engine（engine.util
 import cite  # noqa: E402
 import fixboard  # noqa: E402  （置き場の trace.jsonl への 1 行）
 import globs  # noqa: E402
+import jsonfile  # noqa: E402
 import oneline  # noqa: E402
 import planmarks  # noqa: E402  （planmarks は conflict・entry を読まないので輪にならない）
 import stopby  # noqa: E402  （L1。止めの理由の住処）
@@ -140,7 +139,6 @@ _, TEST, _, UNKNOWN, QUERY = WHICH
 RED_AT_BASE_DECISIONS = (REPLAN, ASK)   # red_at_base の申し出に許す裁定（fix_code_as は変えない段の注文でコードを変えさせるので許さない）
 UNSET = "unset"                         # kind_counts の鍵: kind の無い前の形の行
 WORD = "divergence"                     # superpowers の状態の語を読み替える works の語（216 の seams.json の words と同じ綴り）
-KIND = "conflict"                       # process.human_items の行の kinds（申し出の種類 KIND_FIELD とは別物）
 HEAD = "食い違いの申し出"                # 最後の関所の文の節の見出し・報告の行の頭
 RULED_TEST_ID = "conflict-ruling"       # 裁定が許したテストの変更を守りのファイルの行にする時の id の頭
 PLAN_TEST_ID = "plan-rewrite"           # 承認済みの修正案が名指した既存テストの書き換えを守りのファイルの行にする時の id の頭
@@ -197,17 +195,9 @@ ITEM_SCHEMA = {
                   "items": {"type": "string", "minLength": 1}},
     },
 }
-CONFLICTS_SCHEMA = {"type": "array", "items": ITEM_SCHEMA}
 
 
 # ---------------------------------------------------------------- 名指しの確かめ
-
-
-def no_requests(requests) -> bool:
-    """依頼の行を持たずに始めた run か（依頼の数 requests が 0。値は呼び手〔line〕が始めの記録の入口の入力の形 input.requests から
-    渡す。入口の種類は見ない）。依頼を読むブロックの intake はこの run でだけ空の依頼を受ける（ブロックを単独で回した時・依頼の在る
-    run・入力の形の無い控え〔None〕の空は今までどおり欠け）。始めの記録は読まない（integration.md 4.3-追加-6）"""
-    return requests == 0
 
 
 def cite_roots(request_file, root) -> list:
@@ -340,14 +330,8 @@ def _load(b) -> dict:
     return doc
 
 
-def _write(path: pathlib.Path, text: str) -> None:
-    tmp = path.with_name(path.name + ".tmp")
-    tmp.write_text(text, encoding="utf-8")
-    os.replace(tmp, path)
-
-
 def _save(b, doc) -> None:
-    _write(_path(b), json.dumps(doc, ensure_ascii=False, indent=1) + "\n")
+    jsonfile.write(_path(b), doc)
 
 
 def items(b) -> list:

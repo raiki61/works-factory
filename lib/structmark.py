@@ -13,8 +13,6 @@
 - rows(design_file):   設計の行（JSON のオブジェクトを 1 行に 1 つ並べたファイル）。読めない・行が壊れていれば ValueError
 - note(state):         落ちた周の 1 文（ok の周・控えが無い周は ""）
 - skipped(path):       実測しなかった単位の id（控えが無い・欄が読めなければ []）
-- plan_section(path): 修正案の指示書の頭に貼る節（汚れる行が在れば守り方の指示とその行だけ、行は在るが汚れる行が無い周は答えの要らない旨の 1 行、
-  汚れない行は別の小見出し PLAN_CLEAN_HEAD の下。落ちた周は note、控えが無い・行が無い周は ""）
 - dirty(path):    汚れると見た行（単位の id → 行）。控えが無い・落ちた周・行が読めない周は {}（修正案の欄 structure の要る行）
 - report_lines(path, after_dir=None): 報告の「構造の目」の節の行（判定の行か落ちの印と、構造の実測と目で増えた時間（段 A と目の秒に、
   after_dir の直しの後の実測の段 B の秒を足す）と、直しの後の実測の行。控えが無い run は after_dir の行だけ）
@@ -45,13 +43,8 @@ AFTER_FILE = "structure-after.json"
 FENCE_UP_LIST = "住処の外の知る場所の増え（after.fence_up）"
 NEW_NAMES_LIST = "新しい名（after.new_names）"
 MISSING = "構造の目の行なしで計画した"
-PLAN_HEAD = "## 構造の目の行（設計を知らない次の人が足す形が増えないかを別の目が見た判定。機械が貼った）"
 DIRTY = "汚れる"           # 設計の行の verdict の語（約束は構造のブロックの設計の行の型の enum）
 ROUTE_UP = "人に上げる"    # 設計の行の route の語（同じ約束。関所の項目にする行。gatemarks が読む）
-PLAN_ASK = ("汚れると見た行の単位を持つ項目は、行ごとに避け方（chosen）に従うか、従わない訳を、項目の works の欄 structure に書け"
-            "（{row: <行の頭の単位の id>, follows: true} か {row, deviation: <訳>}。欠けは受け付けが拒む）。")
-PLAN_NONE = "構造の目が汚れると見た行は無い（structure の欄に構造の目の行への答えは要らない）。"
-PLAN_CLEAN_HEAD = "### 汚れないと見た行（参考。structure にこの行への答えを書くと受け付けが拒む）"
 
 
 def write(path, *, status: str, reason: str, design_file: str, timed=(), skipped=(), pointed=()) -> pathlib.Path:
@@ -132,7 +125,7 @@ def _state_rows(path):
 
 
 def _is_dirty(r: dict) -> bool:
-    """汚れるの判定の式（dirty() と plan_section が共に呼ぶ 1 か所）"""
+    """汚れるの判定の式（dirty() の式）"""
     return r.get("verdict") == DIRTY and isinstance(r.get("unit_id"), str)
 
 
@@ -140,18 +133,6 @@ def dirty(path) -> dict:
     """{単位の id: 汚れると見た設計の行}。控えが無い・落ちた周・行が読めない周は {}（行なしで計画した周は欄を求めない）"""
     _, got, _ = _state_rows(path)
     return {r["unit_id"]: r for r in got if _is_dirty(r)}
-
-
-def plan_section(path) -> str:
-    state, got, missing = _state_rows(path)
-    if missing:
-        return f"{PLAN_HEAD}\n\n{missing}"
-    if not got:
-        return ""
-    dirty_rows = [r for r in got if _is_dirty(r)]
-    clean_rows = [r for r in got if not _is_dirty(r)]
-    out = f"{PLAN_HEAD}\n\n{PLAN_ASK}\n\n{_bullets(dirty_rows)}" if dirty_rows else f"{PLAN_HEAD}\n\n{PLAN_NONE}"
-    return f"{out}\n\n{PLAN_CLEAN_HEAD}\n\n{_bullets(clean_rows)}" if clean_rows else out
 
 
 def report_lines(path, after_dir=None) -> list:

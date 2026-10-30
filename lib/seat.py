@@ -7,7 +7,6 @@
 - 読み替え: overlay_body（lib/borrow/unattended.md の、役の種類 OVERLAY_KINDS の節と共通の文）。頭の 1 行は各 md が持つ
 
 口:
-- carries(node)・SKILL_NODES: 座が載る役・座が skill の役（YAML の skills: と一致）
 - pinned(): 写しが固定（borrow.json の superpowers.pin）と合うかを照らし (借りる物, 写しの置き場) を返す
   （合わなければ ValueError。照らしは spseam.pin_problems）
 - fill(seam_id, values): 固定と照らした写しの、部品の型の穴を埋めた本文（spseam.fill）
@@ -31,7 +30,6 @@ import spseam  # noqa: E402
 
 SEATS = {"tdd": "tdd", "tdd-new": "tdd", "review": "task-review",   # 役の名 → 節の名
          "refix": "receiving-review", "refix2": "receiving-review"}
-SKILL_NODES = frozenset({"tdd", "tdd-new", "refix", "refix2"})   # 座が skill の役（YAML の skills: を持つ節。試験が一致を縛る。
 # tdd と tdd-new は TDD の輪の同じ役を同じ単位の続きと新しい単位に分けた 2 つの節。元も tdd・tdd-rest・tdd-lane-<n> を並べた）
 # 読み替え（unattended.md）の役の種類。`###` の見出しが `・` で並べる名で、見出しの外の文は全部の役に共通
 FIX, TDD, REFIX, REVIEW, READER = "修正の役", "TDD の役", "手直しの役", "審査の役", "読むだけの役"
@@ -41,18 +39,10 @@ KINDS = (FIX, TDD, REFIX, REVIEW, READER)
 OVERLAY_KINDS = {"tdd": (FIX, TDD), "tdd-new": (FIX, TDD), "fix": (FIX,), "fix-ruled": (FIX,), "review": (REVIEW, READER),
                  "refix": (REFIX,), "refix2": (REFIX,), "local-review": (READER,)}
 NONE = "（無し）"   # 型の穴に入れる物が無い時の値（人の方針の文書が無い run の [GLOBAL_CONSTRAINTS] など）
-# 差分の審査役の型（task-review）の出口の語（216 の works の語）→ 差分の審査の返答の 2 判定の欄（deltamarks.KEYS）と欄の語
-# （deltamarks.COMPLIANCE・QUALITY）。審査役の座の型の後ろに words_table の表で載り、役は型の語をこの欄に書く
-VERDICT_SEAM = "task-review"
 VERDICT_WORDS = {"compliance_pass": ("compliance", "pass"), "compliance_fail": ("compliance", "fail"),
                  "compliance_unverifiable": ("compliance", "unverifiable"),
                  "quality_pass": ("quality", "pass"), "quality_fail": ("quality", "fail")}
 ITEM = "superpowers"   # borrow.json の借りる物の名
-
-
-def carries(node: str) -> bool:
-    """役 node に座が載るか"""
-    return node in SEATS
 
 
 def skill_of(seam: dict) -> str:
@@ -62,8 +52,6 @@ def skill_of(seam: dict) -> str:
     if seam.get("use_as") != "skill" or len(parts) < 3 or parts[0] != "skills":
         raise ValueError(f"スキルのセクションでない（use_as {seam.get('use_as')!r}・files {files}）")
     return parts[1]
-
-
 
 
 def pinned() -> tuple[dict, pathlib.Path]:

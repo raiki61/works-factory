@@ -8,7 +8,7 @@ temp_tree（版の姿を一時の git worktree に出す）は fix の TDD の�
 無い赤を版の姿で走らせ直すのに使う（持ち主の決め base-runs-nothing）。
 
 元の結末のファイルの形の住処は lib/baseline.schema.json（必須の欄 suite・test_cmd・rev・exit・cases と型、cases の行の outcome の語）。
-REQUIRED・OUTCOMES はそこから引き、照らしは形の照らし（engine.schema.validate_schema）で当てる。ほかの欄は呼び手だけが読む（extra）。
+OUTCOMES はそこから引き、照らしは形の照らし（engine.schema.validate_schema）で当てる。ほかの欄は呼び手だけが読む（extra）。
 """
 import contextlib
 import json
@@ -39,7 +39,6 @@ NO_NICE = "（この環境では優先度を下げられない——nice -n 19 �
 
 SCHEMA_FILE = "baseline.schema.json"
 SCHEMA = json.loads((pathlib.Path(__file__).resolve().parent / SCHEMA_FILE).read_text(encoding="utf-8"))
-REQUIRED = tuple(SCHEMA["required"])
 # cases の行の outcome の語（parse_junit の出す 4 つ）と、そのうちの落ちた物。元の結末のファイルはこの語だけを持つ
 OUTCOMES = tuple(SCHEMA["properties"]["cases"]["items"]["properties"]["outcome"]["enum"])
 _, FAILURE, ERROR, _ = OUTCOMES
@@ -63,7 +62,8 @@ def _id_parts(test_id):
     """『path/test_x.py::Class::test_y』→（[path, test_x, Class], test_y）。JUnit の classname は実行器の根で頭が変わるので、
     後ろ側の一致で引く（元 works/.shared/core/graphloops/rules/review-loop-tdd.py:52-57）"""
     parts = test_id.split("::")
-    head = list(pathlib.PurePosixPath(parts[0]).with_suffix("").parts) + parts[1:-1]
+    path = pathlib.PurePosixPath(parts[0])
+    head = list((path.with_suffix("") if path.name else path).parts) + parts[1:-1]   # 空のパス（"::x"・"."）は頭なし
     return head, parts[-1]
 
 
@@ -94,7 +94,7 @@ def _must_pass(c, baseline):
 def _broken_others(cases, baseline, hit, scope=None):
     """名指しの外（hit に無い）で落ちた、通っていなければならないテスト（_must_pass）——赤と緑の確認が同じ 1 本を読む
     （元 works/.shared/core/graphloops/rules/review-loop-tdd.py:102-104）"""
-    return [c for c in cases if id(c) not in hit and c["outcome"] in ("failure", "error") and _must_pass(c, baseline)
+    return [c for c in cases if id(c) not in hit and c["outcome"] in FAILED and _must_pass(c, baseline)
             and (scope is None or _key(c) in scope)]
 
 
@@ -134,7 +134,7 @@ def green_problems(named, cases, exit_code, baseline=None, baseline_exit=0, narr
     scope = None
     if narrow and baseline is not None:
         scope = {_key(c) for c in cases if _key(c) in baseline or any(match_case(t, [c]) for t in (*named, *also))}
-    clean = scope is not None and not any(c["outcome"] in ("failure", "error") for c in cases if _key(c) in scope)
+    clean = scope is not None and not any(c["outcome"] in FAILED for c in cases if _key(c) in scope)
     probs = [] if exit_code == 0 or baseline_exit != 0 or clean else [
         f"テスト一式が exit {exit_code} で終わった——JUnit の結末が全部通っていても、一式としては緑でない"]
     hit = set()
