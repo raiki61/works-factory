@@ -6,6 +6,8 @@
 - r3-coherence.json: 役の返答（save が書く）
 - finish.json: 出口の出力の写し
 """
+import pathlib
+
 COHERENCE = "r3-coherence"      # AI の node の id（prompts/r3-coherence.md）
 REPLIES = (COHERENCE,)          # save が書いてよい返答の名（node の id と同じ。<名>.json）
 INTAKE = "intake.json"
@@ -15,3 +17,13 @@ FINISH = "finish.json"
 # 入口が消す物: この block が名を持つファイルだけ（名で引く。広い形で消さない）
 OWN_FILES = (INTAKE, DIFF, DIFF_NONE, FINISH, *(f"{name}.json" for name in REPLIES))
 OWN_PROMPTS = tuple(f"{name}-{kind}-*.md" for name in REPLIES for kind in ("prompt", "system"))
+
+
+def clear(place) -> None:
+    """この block が名を持つファイルと前の回の指示を place から消す（入口と、lib を読めずに落ちた入口の fallback が呼ぶ。標準ライブラリだけ）"""
+    place = pathlib.Path(place)
+    for name in OWN_FILES:
+        (place / name).unlink(missing_ok=True)
+    for pattern in OWN_PROMPTS:
+        for path in place.glob(pattern):
+            path.unlink()
