@@ -31,7 +31,7 @@ from tests.blocks.kit import BLOCKS as WORKFLOWS  # noqa: E402  （pack のフ�
 
 CLASH_PART = WORKFLOWS / "fix" / "prompts" / "parts" / "clash.md"   # 合わせ役の指示（fix の block。pack のフォルダから引く）
 
-SEED = {"a.txt": "a1\na2\na3\n", "b.txt": "b1\nb2\nb3\n", "bin.dat": None, ".gitignore": "ignored.log\n"}
+SEED = {"a.txt": "a1\na2\na3\n", "b.txt": "b1\nb2\nb3\n", "日本.txt": "j1\nj2\n", "bin.dat": None, ".gitignore": "ignored.log\n"}
 _SRC = None
 
 
@@ -112,6 +112,17 @@ class UnitTrees(unittest.TestCase):
         self.assertEqual(marked, {"a.txt": 7})
         self.assertEqual(unittrees.markers_left(self.repo, {**marked, "b.txt": 7, "gone.txt": 7}), ["a.txt"])
         self.assertEqual(self.real_state(), state)
+
+    def test_marked_marks_a_conflict_in_a_file_with_a_non_ascii_name(self):
+        """ASCII の外の字の名（git が既定で引用符と 8 進で包む名）のファイルの食い違いも、名のままで印つきで当たる"""
+        base = groups.end_tree(self.repo)
+        _, p1 = self.unit(base, "u1", {"日本.txt": "j1\nX\n"})
+        _, p2 = self.unit(base, "u2", {"日本.txt": "j1\nY\n"})
+        self.assertEqual(unittrees.apply(self.repo, p1), (True, ""))
+        marked = {}
+        self.assertEqual(unittrees.apply(self.repo, p2, marked=marked), (True, ""))
+        self.assertEqual(marked, {"日本.txt": 7})
+        self.assertIn("<<<<<<< 今の作業ツリー", (self.repo / "日本.txt").read_text(encoding="utf-8").splitlines())
 
     def test_marked_merges_union_files_and_marks_only_the_rest(self):
         base = groups.end_tree(self.repo)
@@ -296,6 +307,8 @@ class Checks(unittest.TestCase):
                  "diff --git a/d/y.txt b/d/y.txt\nnew file mode 100644\n")
         self.assertEqual(unittrees.patch_names(patch), ["x.py", "d/y.txt"])
         self.assertEqual(unittrees.patch_names(""), [])
+        quoted = 'diff --git "a/\\346\\227\\245.txt" "b/\\346\\227\\245.txt"\nnew file mode 100644\n'
+        self.assertEqual(unittrees.patch_names(quoted), ["日.txt"])
 
     def test_clash_prompt_names_the_marker_sides_by_their_labels(self):
         rules = CLASH_PART.read_text(encoding="utf-8")
