@@ -903,6 +903,16 @@ class InstallCase(Base):
                 self.install()
         self.assertIn("pr-review-toolkit", str(cm.exception))
 
+    def test_unreadable_isolated_installed_list_is_named(self):
+        """隔離した設定の installed_plugins.json が読めない・知らない形なら、Python の例外でなく名指しの ToolsetError で止まる"""
+        p = self.cfg / "plugins" / "installed_plugins.json"
+        for body in ("not json", '{"version": 2, "plugins": []}'):
+            with self.subTest(body):
+                _put(p, body)
+                with self.assertRaises(toolset.ToolsetError) as cm:
+                    self.install()
+                self.assertIn(str(p), str(cm.exception))
+
     def test_cli_error_is_reported(self):
         bad = self.tmp / "bin" / "claude-bad"
         bad.write_text("#!/bin/sh\necho 'boom' >&2\nexit 7\n", encoding="utf-8")
