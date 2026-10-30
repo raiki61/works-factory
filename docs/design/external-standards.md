@@ -70,7 +70,7 @@ materials.md の 1.4 の名だけ: `intake.json`・`view.json`・`diff.patch`・
   - `after_accept(reply, place)`: 何もしない。
   - `materials_of(reply)`: `{"external_standards": reply["material"]} if isinstance(reply.get("material"), dict) else {}`（今の `writes` の `materials.external_standards ← material`。`:1665`）。
   - `report_lines(doc)`: `reply` が null なら `[]`。在れば `rankings` の行ごとに `f"  - 順位: {oneline(problem)}——差分は {k} 位／{len(ranked)} 位中（{oneline(diff_at)}）"`（`k` は `ranked.index(diff_at) + 1`。受け付けを通った返答では `diff_at` はいつも `ranked` に在る）。`rankings` が空なら `f"  - 順位: 付けられる問題なし（{oneline(rankings_none)}）"` の 1 行。字下げ 2 つで、materials.md の 2.10 の素材の 1 行の下に並ぶ。
-- `workflows/external-standards/src/rankings.py`: 順位の行の照らし。公開の名は `problem(reply) -> str | None` だけ。写す元（`lib/judge_accept.py`）: `external_rankings`（`:2146-2157`。`Reject` を上げる代わりに拒む文を返し、通れば `None`）・`blank`（`:248-251`）・`EMPTY`（`:244-245`。字のまま）。
+- `workflows/external-standards/src/rankings.py`: 順位の行の照らし。公開の名は `problem(reply) -> str | None` だけ。写す元（`lib/judge_accept.py`）: `external_rankings`（`:2146-2157`。`Reject` を上げる代わりに拒む文を返し、通れば `None`）。空同然の自由文の見方は写さず、`lib/cite.py` の `blank`（写す元の `blank`・`EMPTY` と同じ表と長さの見方）を使う。
 - `workflows/.shared/schemas/purpose.schema.json`（`shared:purpose.schema.json`）: [purpose-review.md](purpose-review.md) の 1.5 の字のまま。
 - 使う `lib/`: `materialkit`・`rolekit`・`oneline`。
 
