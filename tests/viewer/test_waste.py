@@ -2,11 +2,12 @@
 
 小さな作りと run の記録（周 2 つの繰り返し・前と同じ出力・空の出力・同じファイルの 2 回の読み・1 万字を超える結果・空いた往復・
 引く先の無い出力・同じノードから起こした周の数の違う子の run 2 つ・出力の変わらない周・別の run の同じ名のファイル・続けた会話が
-前の会話から写して持つ往復）を手で組み、数えがその値を返すことを照らす。数えを外せば落ちる。run の無いページには数えを置かない。
+前の会話から写して持つ往復・繰り返しの本体の中の繰り返しの確かめ・切った bash の後ろでだけ引く出力）を手で組み、数えがその値を返すことを照らす。数えを外せば落ちる。run の無いページには数えを置かない。
 """
 import unittest
 
-from viewer.src import runread, waste
+from tests.layers.trees import tree
+from viewer.src import runread, shape, waste
 
 T = "2026-10-25T01:{:02d}:{:02d}.000Z"
 
@@ -18,6 +19,7 @@ def at(minute: int, second: int = 0) -> str:
 def event(tokens, kind="exec", start=0, end=1, loop=(), cost=0.0, run="r", **more):
     if "output" in more:
         more.setdefault("digest", more["output"])
+    more.setdefault("path", "__".join(tokens))
     return {"tokens": tokens, "kind": kind, "start": at(start), "end": at(end), "status": "ok", "loop": list(loop), "cost": cost, "run": run,
             **more}
 
@@ -142,10 +144,10 @@ class RoundsCase(unittest.TestCase):
         """同じノードから起こした子の run（fan_out）は出来事の道も周の番号も同じなので、run の id で分ける。c1 は 2 周、c2 は 1 周"""
         events = [
             event(["fan"], kind="workflow", start=0, end=9, run="top"),
-            event(["fan", "rounds"], kind="loop_group", start=0, end=9, run="c1"),
+            event(["fan", "rounds"], kind="loop_group", start=0, end=9, run="c1", path="rounds"),
             event(["fan", "rounds", "plan"], kind="agent", start=0, end=2, loop=[1], cost=1.0, run="c1", output="p"),
             event(["fan", "rounds", "plan"], kind="agent", start=2, end=4, loop=[2], cost=1.0, run="c1", output="q"),
-            event(["fan", "rounds"], kind="loop_group", start=0, end=9, run="c2"),
+            event(["fan", "rounds"], kind="loop_group", start=0, end=9, run="c2", path="rounds"),
             event(["fan", "rounds", "plan"], kind="agent", start=1, end=3, loop=[1], cost=1.0, run="c2", output="p"),
         ]
         checks = [check(f"rounds{runread.ITERATION_MARK}1", 7, 3, run="c2", node=["fan"]),
@@ -156,6 +158,21 @@ class RoundsCase(unittest.TestCase):
         self.assertEqual((group["event"], group["cost"]), (1, 2.0))
         self.assertEqual([(row["round"], row["events"], row["check"]["exit"]) for row in group["rounds"]], [(1, [2], 1), (2, [3], 0)])
         self.assertEqual(data["waste"]["idle"]["same"], [])
+
+    def test_a_loop_in_a_loop_body_finds_its_checks(self):
+        """繰り返しの本体の中の繰り返し（道 outer.inc__inner）の確かめの行の step は、外の器の名を付けない（inc__inner-iteration-<n>）。
+        外の周ごとの器は、器の時刻の内で分ける"""
+        events = [event(["outer"], kind="loop_group", start=0, end=20, path="outer")]
+        for k, (begin, codes) in enumerate(((0, (1, 0)), (10, (1, 1))), 1):
+            events.append(event(["outer", "inc", "inner"], kind="loop_group", start=begin, end=begin + 9, loop=[k], path="outer.inc__inner"))
+            events += [event(["outer", "inc", "inner", "try"], start=begin + n, end=begin + n + 1, loop=[k, n], path="outer.inc__inner.try",
+                             output=f"{k}{n}") for n in (1, 2)]
+        checks = [check(f"inc__inner{runread.ITERATION_MARK}{n}", code, begin + n + 1)
+                  for begin, codes in ((0, (1, 0)), (10, (1, 1))) for n, code in enumerate(codes, 1)]
+        data = {"texts": {}, "shape": {"graphs": {}}, "run": {"seconds": 1200.0, "events": events, "checks": checks, "sessions": {}}}
+        waste.attach(data)
+        self.assertEqual([[row["check"]["exit"] if row["check"] else None for row in group["rounds"]] for group in data["waste"]["rounds"]],
+                         [[None, None], [1, 0], [1, 1]])   # 外の器は確かめを持たない
 
     def test_a_round_is_same_when_its_outputs_did_not_change(self):
         """until_bash の途中の周はどれも終了の値が 1 で落ちが無いので、出力まで比べる。周 3 だけが前の周と同じ。切った字が同じでも、
@@ -169,6 +186,23 @@ class RoundsCase(unittest.TestCase):
         (group,) = data["waste"]["rounds"]
         self.assertEqual([row["same"] for row in group["rounds"]], [False, False, True, False])
         self.assertEqual(data["waste"]["idle"]["same"], [{"event": 3, "before": 2}])
+
+
+class UnreadCase(unittest.TestCase):
+    def test_a_reference_past_the_clipped_bash_is_found(self):
+        """作りの読みは bash を 3,000 字で切って持つ。出力の欄の引きは切る前の字から探し、後ろでだけ引くノードを引く先が無いに並べない"""
+        prefix = "works-factory-"
+        files = {f"g/{prefix}g.yaml": f"""name: {prefix}g
+nodes:
+  - id: made
+    bash: "true"
+  - id: late
+    bash: "echo {'x' * 4000} $made.output"
+"""}
+        with tree(files) as root:
+            graphs = shape.read(root, prefix)["graphs"]
+        self.assertNotIn("$made.output", graphs["g"]["items"][1]["bash"])
+        self.assertEqual(waste._unreferenced(graphs), ({("g", "late")}, 2))
 
 
 class WhereCase(unittest.TestCase):

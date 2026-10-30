@@ -14,6 +14,7 @@
   修正前の承認を返さない）、落ちた run は受け止めていない最後に落ちた出来事の段（後ろの段の配線でないノードが走った落ちは受け止めた物）。
   通す答えだけの run と落ちずに終わった run と、受け止めた落ちだけの run には無い。止まり方（人が止めた human・落ちた failed）と
   止まった出来事の番号も同じ所で決め、雛形は読むだけ（承認を通した後に同じ段で落ちた run を人の止めと取り違えない）
+- 段の状態は所（run・道・周）ごとの最後の結果で決める。落ちた後に起き直して通った段は通ったで、一度落ちたことを印 fell に残す
 - line でない run は段に集めない
 - 図の札ごとの AI の手番の費用（run の ai_cost。札の鍵は入れ子の場所ごと）は、札とその中の AI の手番の費用の和で、機械の手番と
   中の出来事を束ねる器（子の run を起こすノードの行は子の総額を載せる）を足さない。line でない run にも付ける。雛形は数えずに読む
@@ -171,6 +172,16 @@ class StagesCase(unittest.TestCase):
                          number("collect"))
         self.assertEqual(run_of([event(["start"]), failed, event(["fix"]), event(["collect"])], [], status="completed")["stages"]["stop"], None)
         self.assertEqual(run_of([event(["start"]), event(["fix"], status="running")], [], status="running")["stages"]["stop"], None)
+
+    def test_a_stage_that_passed_after_a_fall_passed_and_keeps_the_fall(self):
+        """落ちた後に起き直して完了した run で、前の起動で落ちた所（run・道・周）が起き直した後に通った段は、最後の結果の通ったにし、
+        一度落ちたことを印 fell に残す。最後まで落ちたままの所が在る段は落ちた（印は付けない）"""
+        events = [event(["start"]), event(["fix"], status="failed", start="2026-10-25T01:00:00.000Z", end="2026-10-25T01:01:00.000Z"),
+                  event(["fix"], start="2026-10-25T01:02:00.000Z", end="2026-10-25T01:03:00.000Z"),
+                  event(["eyes", "r1"], kind="agent", status="failed")]
+        rows = run_of(events, [], status="completed")["stages"]["run"]
+        self.assertEqual([(rows[number(node) - 1]["state"], rows[number(node) - 1]["fell"]) for node in ("start", "fix", "eyes")],
+                         [("ok", False), ("ok", True), ("failed", False)])
 
     def test_an_absorbed_failure_is_not_a_stop(self):
         """line が受け止めて先へ進んだ落ち（独立の目・レンズ）の在る run も、Archon は failed で終える（docs/design/archon.md）。後ろの段

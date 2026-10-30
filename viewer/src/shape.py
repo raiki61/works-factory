@@ -153,6 +153,7 @@ class _Graph:
 
     def _gate(self, node, key, item, where):
         item.update(gate=key, ask=_clip(json.dumps(node[key], ensure_ascii=False, indent=1), 2000))
+        item["refs"][key] = refs(node[key])
 
     def _ai(self, node, key, item, where):
         prompts = self.workflows / self.folder / "prompts"
@@ -168,7 +169,8 @@ class _Graph:
         item["halt"] = _text(node[key])
 
     def _bash(self, node, key, item, where):
-        item["bash"] = _clip(_text(node[key]), 3000)
+        # 出力の欄の引きは切る前の字から取る（無駄の手がかりの引く先の無いノード。src/waste.py）
+        item["bash"], item["refs"][key] = _clip(_text(node[key]), 3000), refs(node[key])
 
     def _script(self, node, key, item, where):
         script = self.workflows / self.folder / "scripts" / f"{node[key]}.py"
