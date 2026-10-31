@@ -431,13 +431,22 @@ function spots(w) {
   for (const {graph, node} of [...(w.via || []), w]) { const p = node.split('/'); p.forEach((_, i) => out.push(K(scope, graph, p.slice(0, i + 1).join('/')))); scope = K(scope, graph, node); }
   return out;
 }
+// 札の終わった状態: 札に当たる所（run・道・周）ごとの最後の出来事の状態の組から決める（段の集計と同じ訳。6.8）。
+// 落ちた後に走り直して通った所は通ったで、前の落ちは札の姿に残さない（印 FELL で「1 度落ちた」を添える）
+const PLACE = e => JSON.stringify([e.run, e.tokens, e.loop]);
+const endState = st => st.has('failed') ? 'failed' : st.has('running') ? 'running' : st.has('waiting') ? 'waiting' : st.has('ok') ? 'ok' : 'skipped';
 // 終わりの姿: 出来事が触れた所（入れ子のノードと周の器を含む）。EVS は外の札の鍵にも中の出来事を積む
-const FIN = {}, EVS = {}, SKS = {};
+const FIN = {}, EVS = {}, SKS = {}, FELL = new Set();
 if (RUN) {
-  for (const e of RUN.events) if (e.at && e.at.graph) for (const k of new Set(spots(e.at))) { (EVS[k] ||= []).push(e); (FIN[k] ||= new Set()).add(e.status); }
+  const last = {};
+  for (const e of RUN.events) if (e.at && e.at.graph) for (const k of new Set(spots(e.at))) { (EVS[k] ||= []).push(e); (last[k] ||= {})[PLACE(e)] = e.status; }
+  for (const k in last) {
+    FIN[k] = new Set(Object.values(last[k]));
+    if (!FIN[k].has('failed') && EVS[k].some(e => e.status === 'failed' || e.fell)) FELL.add(k);
+  }
   for (const s of RUN.skipped) if (s.at && s.at.graph) { const ks = spots(s.at); (SKS[ks[ks.length - 1]] ||= []).push(s); for (const k of ks) FIN[k] ||= new Set(['skipped']); }
 }
-const finalState = key => { const st = FIN[key]; return !st ? 'yet' : st.has('failed') ? 'failed' : st.has('running') ? 'running' : st.has('waiting') ? 'waiting' : st.has('ok') ? 'ok' : 'skipped'; };
+const finalState = key => FIN[key] ? endState(FIN[key]) : 'yet';
 const STOP_KEY = STOP_EV && STOP_EV.at && STOP_EV.at.graph ? spots(STOP_EV.at).pop() : null;
 const NFAIL = RUN ? RUN.events.filter(e => e.status === 'failed').length : 0;
 // 終わった run に、終わりの無いまま残った出来事（図の頭の 1 文が、段と札と同じ止まり方の語で言う）。読む部品が run の終わりで閉じ、
@@ -461,6 +470,7 @@ function chainOf(w) {
   return out;
 }
 // k 歩目の時の札の姿: 今（その歩の所と外の入れ子）・走り中か人の答え待ち・終わりの状態・飛んだ・まだ。
+// 終わりの状態は終わりの姿と同じく、所ごとの k 歩目までの最後の終わりの状態の組から決める（最後の歩と終わりの姿の札をそろえる）。
 // 終わりの無い出来事（走り中・待ちのまま）の所は、始まりの後は走り中か待ち（終わりの姿の語と色は paint が最後の歩で openLook から出す）
 function stateAt(k) {
   const run = {}, last = {}, wait = {}, now = new Set();
@@ -468,14 +478,14 @@ function stateAt(k) {
     const {e, end} = STEPS[j]; if (!e.at || !e.at.graph) continue;
     const waits = e.kind === 'wait' ? 1 : 0;
     for (const key of new Set(spots(e.at))) {
-      if (end) { run[key] = (run[key] || 0) - 1; wait[key] = (wait[key] || 0) - waits; last[key] = e.status; }
-      else { run[key] = (run[key] || 0) + 1; wait[key] = (wait[key] || 0) + waits; last[key] ??= 'running'; }
+      if (end) { run[key] = (run[key] || 0) - 1; wait[key] = (wait[key] || 0) - waits; (last[key] ||= {})[PLACE(e)] = e.status; }
+      else { run[key] = (run[key] || 0) + 1; wait[key] = (wait[key] || 0) + waits; last[key] ||= {}; }
     }
   }
   const step = STEPS[k];
   if (step.e.at && step.e.at.graph) spots(step.e.at).forEach(x => now.add(x));
   const skipped = new Set(SKIPS.filter(s => s.time <= step.t).flatMap(s => spots(s.at)).filter(x => !(x in last)));
-  return key => now.has(key) ? 'now' : run[key] > 0 ? (wait[key] > 0 && wait[key] === run[key] ? 'waiting' : 'running') : key in last ? last[key] : skipped.has(key) ? 'skipped' : 'yet';
+  return key => now.has(key) ? 'now' : run[key] > 0 ? (wait[key] > 0 && wait[key] === run[key] ? 'waiting' : 'running') : key in last ? endState(new Set(Object.values(last[key]))) : skipped.has(key) ? 'skipped' : 'yet';
 }
 // k 歩目までに通った段（配線でない出来事だけで数える。6.6.9）と、k 歩目の段
 function reachedAt(k) { const out = new Set(); for (let j = 0; j <= k; j++) { const e = STEPS[j].e; if (e.stage && !e.through) out.add(e.stage); } return out; }
@@ -737,13 +747,16 @@ function paint() {
     const inner = (cls === 'fail' || cls === 'stopat') && x && x.nest ? (open ? open.word : '落ちた') : null;
     if (inner) word = `中で${inner}`;
     if (!look && cls === 'done' && evs.length > 1) word = `${evs.length} 回`;
+    // 落ちた後に走り直して通った札は、段と同じく一度落ちたことを添える
+    if (!look && FELL.has(key) && cls !== 'fail') word = (word ? word + ' · ' : '') + '1 度落ちた';
     // AI と入れ子の札は終わりの姿で AI の手番の費用も出す（入れ子は中の AI の手番の和。データの欄 run.ai_cost）。再生中は姿の語だけ
     if (!look && x && (x.it.kind === 'ai' || x.nest) && cls !== 'yet' && cls !== 'skip') {
       const c = aiCostAt(key);
       if (c >= 0.005) word = (word ? word + ' · ' : '') + usd(c);
     }
     if (look) { el.querySelector('.s').textContent = word; continue; }
-    if (key === STOP_KEY) { el.classList.add(STOP_HUMAN ? 'stopat' : 'fail'); word = STOP_HUMAN ? 'ここで止めた' : '落ちた'; }
+    // 人が止めた札は「止めた」だけで、同じ札の前の周などの落ちの縁は付けない
+    if (key === STOP_KEY) { if (STOP_HUMAN) el.classList.remove('fail', 'done'); el.classList.add(STOP_HUMAN ? 'stopat' : 'fail'); word = STOP_HUMAN ? 'ここで止めた' : '落ちた'; }
     else if (inner !== (STOP_HUMAN ? '止めた' : '落ちた') && STOP_KEY && STOP_KEY.startsWith(key + '>') && !el.classList.contains('opened')) word = (word ? word + ' · ' : '') + (STOP_HUMAN ? '中で止めた' : '中で落ちた');
     el.querySelector('.s').textContent = word;
   }
@@ -1042,21 +1055,23 @@ function flowScreen() {
   if (!UNREAD_N) box.append(h('p', {class: 'cap foot', title: UNREAD.map(l => l[0]).join('・'), text: `ページを作る時に読めなかった物は 0 件（${UNREAD.length} つの分けのどれも）。`}));
   flowNow();
 }
+// 時間の帯に描く出来事（配線のノード〔through〕と中の出来事を束ねる器〔role が group〕と始まりの無い物は描かない）
+const onBand = (e, s) => e.stage === s.n && !e.through && e.role !== 'group' && !!e.start;
 function bandCard() {
   const band = h('div', {class: 'band', id: 'f-band'});
   for (const s of FLOW_STAGES) {
     const x = sumOf(s), lane = h('div', {class: 'lane', 'data-n': s.n, title: '押すと、その時刻へ再生の位置が移る'});
-    // 配線のノード（through）と中の出来事を束ねる器（role が group）は描かない。終わりの無い出来事（走り中・待ち）は右の端まで
+    // 終わりの無い出来事（走り中・待ち）は右の端まで
     for (const e of RUN.events) {
-      if (e.stage !== s.n || e.through || e.role === 'group' || !e.start) continue;
+      if (!onBand(e, s)) continue;
       const l = atSec(e.start), r = e.end ? atSec(e.end) : SPAN;
       lane.append(h('i', {class: {ai: 'k-ai', wait: 'k-wait'}[e.role] || 'k-ex', style: `left:${(l / SPAN * 100).toFixed(3)}%;width:${(Math.max(0, r - l) / SPAN * 100).toFixed(3)}%`,
         title: `${what(itemAt(e.at)) || e.tokens.join(' / ')} · ${since(e.start)} から ${mmss(Math.max(0, r - l))}`}));
     }
-    // 鍵盤で押した時（位置の無い押し）は、その段の最初の歩へ移る
+    // 鍵盤で押した時（位置の無い押し）は、その段の帯の最初の絵の歩へ移る
     lane.onclick = ev => ev.detail ? seekTime(ev, lane) : seekStage(s);
-    // 歩の無い段の帯は、鍵盤で押しても移る歩が無いので、押せる物にしない
-    if (STEPS.some(st => st.e.stage === s.n)) { press(lane).removeAttribute('aria-expanded'); lane.setAttribute('aria-label', `${s.n} ${s.name}の時間の帯。押すと、その段の最初の歩へ再生の位置が移る`); }
+    // 帯に描く歩の無い段（配線の歩だけの段も）の帯は、鍵盤で押しても移る歩が無いので、押せる物にしない
+    if (STEPS.some(st => onBand(st.e, s))) { press(lane).removeAttribute('aria-expanded'); lane.setAttribute('aria-label', `${s.n} ${s.name}の時間の帯。押すと、その段の最初の歩へ再生の位置が移る`); }
     band.append(h('div', {class: 'lab', 'data-n': s.n, text: `${s.n} ${s.name}`}), lane,
       h('div', {class: 'sum n', text: RAN(x.state) ? `${mins(x.seconds || 0)}${x.cost ? ' · ' + usd(x.cost) : ''}` : x.state === 'skipped' ? '飛んだ' : ''}));
   }
@@ -1079,7 +1094,7 @@ function bandCard() {
           h('td', {class: 'r', text: x.turns || ''}), h('td', {class: 'r', text: x.cost ? usd(x.cost) : ''})); })))));
 }
 function seekStage(s) {
-  const k = STEPS.findIndex(st => st.e.stage === s.n); if (k >= 0) { play(false); go(k); }
+  const k = STEPS.findIndex(st => onBand(st.e, s)); if (k >= 0) { play(false); go(k); }
 }
 // 帯を押した時刻より前か同じで一番後の歩へ（待ちの中を押すと待ちの始まりの歩に止まる）。最初の歩より前なら最初の歩
 function seekTime(ev, lane) {
@@ -1346,7 +1361,8 @@ function play(on) {
   $('p-play').onclick = () => { if (playing !== null) return play(false); if (at >= STEPS.length - 1) at = -1; play(true); };
   // 終わりの姿（at が -1）から 1 歩戻ると最後の歩
   $('p-prev').onclick = () => { play(false); go(at < 0 ? STEPS.length - 1 : at - 1); };
-  $('p-next').onclick = () => { play(false); go(at + 1); };
+  // 終わりの姿（at が -1）は右の端なので、つまみの → と同じく 1 歩進んでも動かない（▶ は最初の歩から歩き始める）
+  $('p-next').onclick = () => { if (at < 0) return; play(false); go(at + 1); };
   $('p-pos').oninput = () => { const v = +$('p-pos').value; if (v >= STEPS.length) stopReplay(); else { play(false); go(v); } };
   $('p-off').onclick = stopReplay;
   // 鍵盤（← → 空白）は再生の帯が見えている時だけ受ける。字の欄・つまみ・押し物の上の空白は除く
