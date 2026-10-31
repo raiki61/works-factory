@@ -40,8 +40,9 @@ class NativeWindowsStopTest(unittest.TestCase):
     def run_entry(self, name, platform):
         tmp = hermetic.tmpdir(self)
         code = RUN_ENTRY.format(platform=platform, entry=str(ROOT / "bin" / name))
-        # 止まらなかった時に殻が利用者の家を読まないよう、HOME も一時の置き場へ向ける
-        return subprocess.run([sys.executable, "-c", code, *ENTRIES[name]], env=hermetic.child_env(HOME=str(tmp)), cwd=tmp,
+        # 止まらなかった時に殻が利用者の本物の置き場を読まないよう、HOME と XDG_CACHE_HOME・XDG_CONFIG_HOME も一時の置き場へ向ける（E24）
+        env = hermetic.child_env(HOME=str(tmp), XDG_CACHE_HOME=str(tmp / "xdg-cache"), XDG_CONFIG_HOME=str(tmp / "xdg-config"))
+        return subprocess.run([sys.executable, "-c", code, *ENTRIES[name]], env=env, cwd=tmp,
                               capture_output=True, text=True, encoding="utf-8", timeout=60)
 
     def test_entries_stop_with_one_line_before_loading_parts(self):
