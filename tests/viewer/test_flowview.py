@@ -90,13 +90,13 @@ class FlowviewCase(Base):
                     "values (?, 'g', 'failed', null, '2026-10-25 01:00:00', ?, '{}')", (rid, str(home)))
         con.commit()
         con.close()
-        node = {"step": "a", runread.EXECUTION: {"path": "a", "invocation": {"id": "a"}, "binding": {"sessionPreview": "sess"}}}
+        node = {"step": "a", runread.EXECUTION: {"path": "a", "invocation": {"id": "a"}, "binding": {"sessionPreview": "5e55"}}}
         log = home / runread.LOGS / f"{rid}.jsonl"
         log.parent.mkdir()
         log.write_text("\n".join(json.dumps({**node, "type": kind, "ts": ts, "error": "ab\ud83d"})
                                  for kind, ts in (("node_start", "2026-10-25T01:00:00.000Z"), ("node_error", "2026-10-25T01:00:01.000Z"))),
                        encoding="utf-8")
-        talk = home / isolate.DIRS["CLAUDE_CONFIG_DIR"] / "projects" / "x" / "sess.jsonl"
+        talk = home / isolate.DIRS["CLAUDE_CONFIG_DIR"] / "projects" / "x" / "5e55.jsonl"
         talk.parent.mkdir(parents=True)
         talk.write_text(json.dumps({"type": "user", "message": {"content": [{"type": "tool_result", "tool_use_id": "t", "content": "ab\ud83d"}]}}),
                         encoding="utf-8")
