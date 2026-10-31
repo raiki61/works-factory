@@ -552,8 +552,11 @@ function mark(row, box) {
   document.querySelectorAll('#world .row[data-n]').forEach(r => r.classList.toggle('mark', +r.dataset.n === markRow));
   flowNow();
 }
-function setBack() {
-  back = {t: curTab, y: scrollY, g: curTab === 'graph' ? {root: cur, open: [...OPEN], shut: [...SHUT], idle: [...IDLE], openOff, sel: selId} : null};
+// from は押した口。戻った時に手前（フォーカス）をそこへ戻す。口が作り直しで消えた時は、作り直した物を data-f の名
+// （段の箱・板の口）で探し、無ければ data-back の代わり（板の口は選んでいた札）、それも無ければ元のタブの札へ
+function setBack(from) {
+  back = {t: curTab, y: scrollY, g: curTab === 'graph' ? {root: cur, open: [...OPEN], shut: [...SHUT], idle: [...IDLE], openOff, sel: selId} : null,
+    from, f: from ? [from.dataset.f, from.dataset.back] : []};
   $('backbar').replaceChildren(btn({text: `← ${TABNAME[back.t]}へ戻る`, onclick: goBack}));
   $('backbar').hidden = false;
 }
@@ -573,11 +576,14 @@ function goBack() {
     if (g.sel && ITEM[g.sel]) selectId(g.sel);
   }
   scrollTo(0, b.y);
+  const home = $('s-' + b.t), seen = el => el && el.isConnected && home.contains(el) && el.getClientRects().length;
+  const to = [b.from, ...b.f.map(n => n && home.querySelector(`[data-f="${CSS.escape(n)}"]`))].find(seen) || document.querySelector(`[data-tab="${b.t}"]`);
+  if (to) to.focus({preventScroll: true});
 }
 // 口 1: 流れの段の箱 → 図と再生のその段の行。根を line にし、段の行を淡い青にして送る。入れ子は開かず、再生の位置も変えない
 const stageGate = () => !!G[ROOT] && G[ROOT].name === ST.graph;
-function toStage(s) {
-  setBack(); mark(s.n, null);
+function toStage(s, from) {
+  setBack(from); mark(s.n, null);
   // 走らなかった段は 1 行に畳んでいるので、畳みを開く
   if (RUN && !RAN((sumOf(s) || {}).state)) openOff = true;
   tab('graph');
@@ -586,18 +592,18 @@ function toStage(s) {
   if (row) row.scrollIntoView({block: 'start', behavior: SMOOTH});
 }
 // 口 2: 図の板 → 流れの地図のその段の箱。箱を目立たせてそこまで送る
-function toMap(s) {
-  setBack(); mark(null, s.n);
+function toMap(s, from) {
+  setBack(from); mark(null, s.n);
   tab('flow');
   const box = document.querySelector(`#f-stages .st[data-n="${s.n}"]`);
   if (box) box.scrollIntoView({block: 'center', behavior: SMOOTH});
 }
 // 口 3: 無駄の手がかりの行 → 図と再生のその手番の札と、板の「LLM に入った物」。big は開く道具の結果の片（会話の往復の番号と字の数）。
 // 根は替えず（line の外の graph を見ていた時は根へ戻す）、再生の位置をその手番の終わりの歩へ移す。開く入れ子は再生が開いた物
-function toEvent(n, big) {
+function toEvent(n, big, from) {
   const e = RUN.events[n], k = STEPS.findIndex(st => st.e === e && st.end), at1 = k >= 0 ? k : STEPS.findIndex(st => st.e === e);
   if (at1 < 0) return;
-  setBack(); mark(null, null);
+  setBack(from); mark(null, null);
   tab('graph'); play(false);
   if (cur !== ROOT) setRoot(ROOT);
   // 人が閉じていた入れ子も、この手番の鎖は開く
@@ -611,7 +617,7 @@ function toEvent(n, big) {
   drawn(key).scrollIntoView({block: 'nearest'});
 }
 const eventGate = (n, big) => n == null || !RUN.events[n] || !STEPS.some(st => st.e === RUN.events[n]) ? null
-  : btn({class: 'go', text: big ? 'その結果を見る →' : '会話を見る →', onclick: () => toEvent(n, big)});
+  : btn({class: 'go', text: big ? 'その結果を見る →' : '会話を見る →', onclick: ev => toEvent(n, big, ev.currentTarget)});
 
 // ---- 図: 札を字の流れのように並べる（段は行・依りの層は → で区切る・幅で折り返す） ----
 // 入れ子（block・graph・子の run の札）は、画面を移らずにその場で開く。開くと、その札の層の後ろに中の札の行が字下げで出る。
@@ -1013,7 +1019,7 @@ function selectId(key, focus) {
     fromLine(it.what),
     place.length ? h('p', {class: 'cap', text: `場所: ${cur} › ${place.join(' › ')}`}) : null,
     // 口 2: 段の箱が流れの地図に在る時だけ押せる口にする
-    s ? h('p', {class: 'cap'}, FLOW_STAGES.includes(s) ? btn({text: `段 ${s.n} ${s.name} · 流れの地図で見る →`, onclick: () => toMap(s)}) : `段 ${s.n} ${s.name}`) : null,
+    s ? h('p', {class: 'cap'}, FLOW_STAGES.includes(s) ? btn({text: `段 ${s.n} ${s.name} · 流れの地図で見る →`, 'data-f': 'to map', 'data-back': key, onclick: ev => toMap(s, ev.currentTarget)}) : `段 ${s.n} ${s.name}`) : null,
     (prev.length || nxt.length) ? h('p', {class: 'cap', text: `前: ${prev.map(nm).join('・') || 'なし'}　次: ${nxt.map(nm).join('・') || 'なし'}`}) : null,
     x.nest && h('p', {}, btn({text: nestWord(key), 'data-nest': key, onclick: () => toggleNest(key)})),
     onRunRoot() && h('div', {class: 'nums'}, h('div', {}, h('div', {class: 'cap', text: 'この run で'}), h('div', {class: 'v', text: evs.length ? `${evs.length} 回` : sks.length ? '飛んだ' : '走っていない'})),
@@ -1212,7 +1218,7 @@ function flowNow() {
     const t = `${s.line}${s.hands ? ` 次へ渡す物 → ${s.hands}` : ''}（出どころ ${s.source || '無し'}）`, gate = stageGate();
     // 口 1: 箱を押すと図と再生のその段の行へ
     return h(gate ? 'button' : 'div', {class: 'st ' + cls + (markBox === s.n ? ' mark' : ''), 'data-n': s.n, type: gate ? 'button' : null,
-      title: gate ? `${t}。押すと図と再生のこの段へ` : t, onclick: gate ? () => toStage(s) : null},
+      'data-f': gate ? `map ${s.n}` : null, title: gate ? `${t}。押すと図と再生のこの段へ` : t, onclick: gate ? ev => toStage(s, ev.currentTarget) : null},
       h('div', {class: 'cap', text: s.n}), h('div', {class: 'name', text: s.name}), h('div', {class: 'cap', text: word}));
   }));
   const band = $('f-band'); if (!band) return;

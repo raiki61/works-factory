@@ -28,6 +28,8 @@
 - 口 3 は根の graph を替えず、再生の位置をその手番の終わりの歩へ移し、その手番の入れ子を開いて札を選ぶ。「その結果を見る」は、板の
   「LLM に入った物」の中のその道具の結果の片を開く。戻っても再生の位置は移したまま
 - 再生をやめて、選んでいた札が自動で開いた入れ子と一緒に消えても、板は閉じずに外の入れ子の札の中身に替わる
+- 口を鍵盤で押して移り、戻る札を鍵盤で押して戻ると、手前（フォーカス）は移る前に押した口に戻る（口が作り直しで消えた時は、
+  作り直した同じ口）。body に落ちない
 
 見た目（色と形）は縛らない（viewer/AGENTS.md の E25 の 4）。
 試験は小さな作りと run の記録を手で組み、src/page.py でページにする。playwright と Chromium が無ければ名前つきで見送る
@@ -510,6 +512,31 @@ class PageUiCase(unittest.TestCase):
         self.assertEqual(self.page.locator("#world .nestbox").count(), 0)
         self.assertTrue(self.page.is_visible("#panel"))
         self.assertEqual(self.page.evaluate("selId"), "line/nest")
+
+    def press_back(self):
+        self.page.focus("#backbar button")
+        self.page.keyboard.press("Enter")
+
+    def test_going_back_returns_the_focus_to_the_gate(self):
+        self.open(waste_data())
+        # 口 1: 段の箱は戻る時に作り直されるので、作り直した同じ箱へ
+        self.page.focus("#f-stages .st[data-n='1']")
+        self.page.keyboard.press("Enter")
+        self.press_back()
+        self.assertEqual(self.page.evaluate("[curTab, document.activeElement.matches(\"#f-stages .st[data-n='1']\")]"), ["flow", True])
+        # 口 2: 板は戻る時に作り直されるので、作り直した板の同じ口へ
+        self.graph()
+        self.page.click("#world [data-key='line/a']")
+        self.page.focus("#panel button:has-text('流れの地図で見る')")
+        self.page.keyboard.press("Enter")
+        self.press_back()
+        self.assertEqual(self.page.evaluate("[curTab, document.activeElement.textContent]"), ["graph", "段 1 一 · 流れの地図で見る →"])
+        # 口 3
+        self.page.click("[data-tab=waste]")
+        self.page.focus("#waste .rank button:has-text('会話を見る')")
+        self.page.keyboard.press("Enter")
+        self.press_back()
+        self.assertEqual(self.page.evaluate("[curTab, document.activeElement.textContent]"), ["waste", "会話を見る →"])
 
 
 if __name__ == "__main__":
