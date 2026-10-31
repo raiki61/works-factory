@@ -45,6 +45,9 @@
   SIGTERM で落ちてログに node_error が無くても、前の始めと次の始めの間に run の落ちが在れば同じ（前の起動の出来事はその落ちで閉じる）
 - 走り直した出来事を閉じる時刻は、最後の始めより前にしない
 - JSON として読めるが object でない行と、object の行の中の欄の形が違う行は、ログでも会話の記録でも落ちずに読めなかった物に数える
+  値を出来事や往復に入れる所（周の番号・会話の id の頭・道具の呼び出しの id・往復のトークン・道具の名など）で形を確かめ、後で使う
+  段の集計・会話の読み・無駄の手がかりで落ちない
+- 承認で起き直した繰り返しの器が後で SIGTERM で落ちて起き直した形は、答えの後の始めで分けず、落ちの後の始めでだけ分ける
 - 片割れのサロゲートの字は、出力の hash と字で落ちずに置き換える
 - archon_artifact が run の置き場の外（絶対パス・..）を指せば、読まずに読めなかった物に数える（読むだけの範囲。E25 の 2）
 
@@ -58,7 +61,7 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from viewer.src import runread, session, stages
+from viewer.src import runread, session, stages, waste
 
 
 class ReadCase(unittest.TestCase):
@@ -612,6 +615,68 @@ class ReadCase(unittest.TestCase):
                 got = [(e["path"], e["status"], runread.length(e), e.get("cut"), e.get("fell")) for e in runread.run(db, "top")["events"]]
                 self.assertEqual(got, [("again", "failed", 851.0, True, None), ("again", "ok", 600.0, None, True),
                                        ("after", "ok", 60.0, None, None), ("rounds", "ok", 120.0, None, None)])
+
+    def test_a_loop_group_resumed_by_an_answer_then_killed_splits_at_the_fall(self):
+        """承認で起き直した繰り返しの器（待ちの後に同じ起動の id で node_start を書き直す）が、後で SIGTERM で落ちて起き直した形は、
+        答えの後の始めでは分けず（落ちはその後）、落ちの後の始めで分ける: 落ち（最初の始めから落ちまで。印 cut）と通った（印 fell）の 2 つ"""
+        node = lambda kind, ts: {"type": kind, "ts": ts, "step": "rounds",
+                                 runread.EXECUTION: {"path": "rounds", "invocation": {"id": "rounds"}, "node": {"kind": runread.LOOP_GROUP}}}
+        db = self._db([("top", None, "2026-10-25 02:00:00", None, "{}")], [("top", "2026-10-25 02:00:00")])
+        self._status(db, "top", "completed")
+        self._event(db, "top", runread.FAILED_EVENT, "2026-10-25 02:30:00")
+        self._event(db, "top", "workflow_completed", "2026-10-25 03:00:00")
+        self._log("top", [node("node_start", "2026-10-25T02:01:00.000Z"), node("node_suspended", "2026-10-25T02:02:00.000Z"),
+                          node("node_start", "2026-10-25T02:10:00.000Z"), node("node_start", "2026-10-25T02:40:00.000Z"),
+                          node("node_complete", "2026-10-25T02:50:00.000Z")])
+        got = [(e["status"], e["start"], e["end"], e.get("cut"), e.get("fell")) for e in runread.run(db, "top")["events"]]
+        self.assertEqual(got, [("failed", "2026-10-25T02:01:00.000Z", "2026-10-25T02:30:00.000Z", True, None),
+                               ("ok", "2026-10-25T02:40:00.000Z", "2026-10-25T02:50:00.000Z", None, True)])
+
+    def test_a_value_of_another_shape_is_unread_before_it_is_used(self):
+        """値を出来事や往復に入れる所（周の番号・会話の id の頭・道具の呼び出しの id・往復のトークン・道具の名・step・試みの id・
+        DB の出力の起動の id・子の run を起こしたノード）で形を確かめ、形が違えばその行を欄の形が違う行に数える。段の集計・会話の読み・
+        無駄の手がかりまで通してページのデータを作れる（後で使う所で落ちない）"""
+        line = stages.TABLE["graph"]
+        db = self._db([("top", None, "2026-10-25 01:00:00", None, "{}"),
+                       ("kid", "top", "2026-10-25 01:00:00", None, json.dumps({runread.PARENT_NODE: ["n"]}))], [])
+        self._status(db, "top", "completed")
+        con = sqlite3.connect(db)
+        con.execute(f"update {runread.RUN_TABLE} set workflow_name = ? where id = 'top'", (line,))
+        con.commit()
+        con.close()
+        for data in ({"invocation": {"id": [1]}, runread.NODE_OUTPUT: "x"}, {"invocation": "x", runread.NODE_OUTPUT: "x"}):
+            self._event(db, "top", runread.OUTPUT_EVENT, "2026-10-25 01:00:00", "a", data)
+
+        def row(kind, path, **extra):
+            execution = {"path": path, "invocation": {"id": path}, "node": {"kind": "agent"}, **extra.pop("execution", {})}
+            return {"type": kind, "ts": "2026-10-25T01:00:00.000Z", "step": path, runread.EXECUTION: execution, **extra}
+
+        self._log("top", [row("node_start", "loop", execution={"invocation": {"id": "loop", "loopPath": [{"groupId": "g", "iteration": [1]}]}}),
+                          row("node_start", "a"),
+                          row("node_complete", "a", execution={"binding": {"sessionPreview": ["x"]}}),
+                          row("node_start", "b", step=[1]),
+                          row("node_start", "c", execution={"attempt": {"id": [1]}}),
+                          row("node_start", "d"),
+                          row("node_complete", "d", execution={"binding": {"sessionPreview": "dddd", "model": "m"}}),
+                          row("node_start", "s"),
+                          row("node_complete", "s", execution={"binding": {"sessionPreview": "ssss"}})])
+        projects = self.tmp / "projects"
+        (projects / "p").mkdir(parents=True)
+        lines = [{"type": "assistant", "message": {"id": "m1", "content": [{"type": "tool_use", "id": [1], "name": "Read", "input": {}}]}},
+                 {"type": "assistant", "message": {"id": "m2", "usage": {"input_tokens": "5"}, "content": []}},
+                 {"type": session.SHAPE, "shape": {"system": [], "tools": [{"name": ["Read"]}]}}]
+        (projects / "p" / "ssss.jsonl").write_text("\n".join(map(json.dumps, lines)) + "\n", encoding="utf-8")
+        got = runread.run(db, "top")
+        self.assertEqual(got["unread"], {runread.SHAPELESS: 8})
+        self.assertEqual([(e["path"], e["status"], e.get("session")) for e in got["events"]],
+                         [("a", "running", None), ("d", "running", None), ("s", "ok", "ssss")])
+        got["sessions"] = session.collect(got, projects, runread.mend)
+        said = got["sessions"]["ssss"]
+        self.assertEqual((said["unread"], said["turns"], said["tools"]), ({runread.SHAPELESS: 3}, [], []))
+        data = {"shape": {"graphs": {line: {"name": line, "returns": "", "items": [{"id": p, "kind": "ai"} for p in ("loop", "a", "b", "c", "d", "s")]}}},
+                "run": got, "texts": {}}
+        stages.attach(data)
+        waste.attach(data)
 
     def test_a_node_closed_in_the_second_of_its_last_start_ends_there(self):
         """走り直した出来事を最後の始めと同じ秒の終わりの出来事で閉じる時、終わりは最後の始め（DB の時刻は秒までの切り捨てなので、

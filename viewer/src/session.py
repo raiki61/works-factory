@@ -22,6 +22,7 @@ Claude Code の版は工場が止めていないので、記録の形は試験�
 import json
 from pathlib import Path
 
+import runlog   # lib/（viewer/src/__init__.py が sys.path に足す）
 from viewer.src import runread
 
 SHAPE = "api-request-shape"
@@ -39,6 +40,8 @@ UNREAD_TYPES = {
 # 読まない型のうち、LLM に入った字を別の型から読む物と、その代わりの型（1 つでも記録に無ければ数える）
 READ_FROM = {"attachment": (BLOB,), "api-request": (SHAPE, BLOB)}
 REMINDER = "<system-reminder>"
+# 往復の usage の欄（返す名 → 記録の名）
+USAGE = {"in": "input_tokens", "cache_read": "cache_read_input_tokens", "cache_write": "cache_creation_input_tokens", "out": "output_tokens"}
 
 
 AMBIGUOUS = "会話の id の頭が 2 つ以上の記録に当たる"
@@ -99,8 +102,9 @@ def read(path: Path, keep, since: str | None = None) -> dict:
                 got["cwd"] = row["cwd"]
             if kind == SHAPE and not got["system"]:
                 shape = row.get("shape") or {}
+                tools = [[runread.plain(tool.get("name", "?")), len(json.dumps(tool, ensure_ascii=False))] for tool in shape.get("tools") or []]
                 got["system"] = [keep(part.get("text", "")) for part in shape.get("system") or []]
-                got["tools"] = [[tool.get("name", "?"), len(json.dumps(tool, ensure_ascii=False))] for tool in shape.get("tools") or []]
+                got["tools"] = tools
             elif kind == BLOB:
                 _inject(got, message, keep)
             elif kind == "user":
@@ -156,19 +160,29 @@ def _user(got, message, keep, results):
 
 
 def _assistant(got, message, keep, turns, by_id, at):
-    """1 つの返事は content の片ごとに行が分かれ、同じ message.id を持つ。往復の時刻は最初の行の時刻"""
+    """1 つの返事は content の片ごとに行が分かれ、同じ message.id を持つ。往復の時刻は最初の行の時刻。往復と流れに入れる値（トークンの数・
+    道具の呼び出しの id・字）は、入れる前に形を確かめる（形が違えば行ごと数え、後で使う無駄の手がかりと道具の結果の結びで落ちない）"""
     ident = message.get("id") or str(len(turns))
+    usage = message.get("usage") or {}
+    if usage:
+        usage = {short: usage.get(name, 0) for short, name in USAGE.items()}
+        if any(runlog.number(value) is None for value in usage.values()):
+            raise TypeError(f"数でない usage {usage!r}")
+    parts = [part for part in message.get("content") or [] if isinstance(part, dict)]
+    for part in parts:
+        if part.get("type") == "tool_use":
+            runread.plain(part.get("id"))
+        elif part.get("type") in ("text", "thinking"):
+            runread.plain(part.get(part["type"]) or None)
     if ident not in by_id:
         by_id[ident] = {"usage": {}, "calls": [], "at": at}
         got["seq"].append(["turn", len(turns)])
         turns.append(by_id[ident])
     turn = by_id[ident]
-    usage = message.get("usage") or {}
     if usage:
-        turn["usage"] = {"in": usage.get("input_tokens", 0), "cache_read": usage.get("cache_read_input_tokens", 0),
-                         "cache_write": usage.get("cache_creation_input_tokens", 0), "out": usage.get("output_tokens", 0)}
-    for part in message.get("content") or []:
-        kind = part.get("type") if isinstance(part, dict) else None
+        turn["usage"] = usage
+    for part in parts:
+        kind = part.get("type")
         if kind == "tool_use":
             mark = keep(json.dumps(part.get("input"), ensure_ascii=False, indent=1))
             turn["calls"].append({"id": part.get("id"), "name": part.get("name"), "text": mark})
