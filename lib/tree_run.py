@@ -75,7 +75,8 @@ from engine import declared  # noqa: E402
 KILL_GRACE = 2    # SIGTERM から SIGKILL までの猶予（秒）。実行基盤の cancel の猶予（SIGTERM → 5 秒 → SIGKILL）より短くする:
                   # 同じ 5 秒だと、SIGTERM を無視する孫へ SIGKILL を送る前に殻が実行基盤に殺され、孫が残った（試し P11）
 POLL = 0.2        # 信号と親の替わりを見る間隔（秒）
-STOP_SIGNALS = (signal.SIGINT, signal.SIGTERM, signal.SIGHUP)
+# 素の Windows の signal には SIGHUP が無い。読み込みで落ちないよう在る物だけ並べる（POSIX では 3 つとも在り、並びは同じ）
+STOP_SIGNALS = tuple(getattr(signal, name) for name in ("SIGINT", "SIGTERM", "SIGHUP") if hasattr(signal, name))
 # 印を置けなかった時の OSError の頭。起こせば報告の冒頭がこの run を利用者の環境で走らせたと言えないので、起こさない
 MARK_FAILED = "利用者の HOME・XDG で走らせる印を置けない（コマンドは起こさない）"
 # 対象の準備（宣言の setup）が済まなかった時の OSError の頭。準備の無いまま対象のコマンドを起こすと、新しい作業ツリーを信頼しない道具が

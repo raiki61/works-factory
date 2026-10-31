@@ -65,7 +65,7 @@ def run_and_say(command: list[str], env: Mapping[str, str], head: list[str], cwd
     殻は受け流し、SIGTERM・SIGHUP は子に渡す(exec で入れ替わっていた時と同じに、止める信号が run に届く)"""
     child = subprocess.Popen(command, env=dict(env))
     previous = {sig: signal.signal(sig, lambda number, _frame: child.send_signal(number))
-                for sig in (signal.SIGTERM, signal.SIGHUP)}
+                for sig in (getattr(signal, name) for name in ("SIGTERM", "SIGHUP") if hasattr(signal, name))}   # 素の Windows に SIGHUP は無い
     previous[signal.SIGINT] = signal.signal(signal.SIGINT, signal.SIG_IGN)
     try:
         code = child.wait()
