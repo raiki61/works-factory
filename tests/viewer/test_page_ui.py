@@ -11,7 +11,9 @@
 - run の一覧とログの押せる行は、支援技術に button と、開いているか（aria-expanded）を伝える
 - 「入れ子を探して開く」で走っていない層の畳みの中の札を選ぶと、畳みも開いて札が図に出る
 - 人が開いた入れ子を、再生の今が中に居る時に閉じると、その鎖を抜けるまで次の歩で開き直さない。今が外に居る時に閉じた物
-  （札で閉じても「開いた入れ子を全部閉じる」でも）は、後で今が中へ入れば開く
+  （札で閉じても「開いた入れ子を全部閉じる」でも）は、後で今が中へ入れば開く。今が中に居る時に「開いた入れ子を全部閉じる」を
+  押した物も、次の歩で開き直さない
+- 人が開いた二重の入れ子の外を閉じると、今が中に居る時は中の入れ子も開き直さず、今が外に居る時は後で今が中へ入れば開く
 - 再生の歩で図を作り直しても、入れ子の中の札・二重の入れ子の中の札（外の入れ子の札へ順に上る）・入れ子の頭の「詳しい面」・
   線の select の手前は body に落ちない
 - 札の板の後に「説明」を開くと選んだ札の印が消え、その札を中に持つ入れ子を閉じても graph の板は閉じない
@@ -246,6 +248,33 @@ class PageUiCase(unittest.TestCase):
             self.assertEqual(self.page.locator("#world .nestbox").count(), 0, close)
             self.page.evaluate(f"go({self.step('x')})")
             self.assertEqual(self.page.locator("#world .nestbox").count(), 1, close)
+
+    def test_closing_all_while_the_replay_is_inside_keeps_the_nest_the_person_opened_closed(self):
+        self.graph()
+        self.page.evaluate(f"go({self.step('a', end=True)})")
+        self.page.click("#world [data-key='line/nest']")
+        self.page.evaluate(f"go({self.step('x')})")
+        self.page.click("#gtools button:has-text('開いた入れ子を全部閉じる')")
+        self.page.evaluate(f"go({self.step('x', end=True)})")
+        self.assertEqual(self.page.locator("#world .nestbox").count(), 0)
+
+    def test_closing_a_nest_shuts_the_inner_nest_the_person_opened_only_while_the_replay_is_inside(self):
+        """deep を手で開いて nest を閉じる。今が中（z）なら、nest を手で開き直しても deep は開かない。
+        今が外（a）なら、今が z へ入ると nest も deep も開く"""
+        for where, then, boxes in (("z", "z", 1), ("a", None, 2)):
+            self.page.reload()
+            self.graph()
+            self.page.evaluate(f"go({self.step('a', end=True)})")
+            self.page.click("#world [data-key='line/nest']")
+            self.page.click("#world [data-key='line/nest>inner/deep']")
+            self.page.evaluate(f"go({self.step(where, end=where == 'a')})")
+            self.page.click("#world [data-f='line/nest −']")
+            if then:
+                self.page.evaluate(f"go({self.step(then, end=True)})")
+                self.page.click("#world [data-key='line/nest']")
+            else:
+                self.page.evaluate(f"go({self.step('z')})")
+            self.assertEqual(self.page.locator("#world .nestbox").count(), boxes, where)
 
     def test_replay_steps_that_redraw_the_graph_keep_the_focus(self):
         self.graph()
