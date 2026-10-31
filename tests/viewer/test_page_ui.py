@@ -22,6 +22,14 @@
 - 終わりの姿では、› と → は動かない。▶ は最初の歩から歩き始める
 - 落ちた後に走り直して通った札は、終わりの姿でも最後の歩でも落ちたにせず、終わりの姿で「1 度落ちた」を添える
 - 前に落ちた出来事の在る札で人が止めると、札は「ここで止めた」だけで、落ちたの縁を付けない
+- 口 1（流れの段の箱 → 図と再生のその段の行）・口 2（図の板 → 流れの段の箱）・口 3（無駄の手がかりの行 → 図と再生のその手番の札と
+  板の「LLM に入った物」）で移ると、頭の帯に戻る札が出て、押すと元の画面とスクロールに戻り、札が消える。口 2 から戻ると、根の graph・
+  人が開いた入れ子の組・選んだ札が開き直る（流れで再生の位置を移した後も）。別の口で移ると戻り先が替わり、タブを押すと戻る札が消える
+- 口 3 は根の graph を替えず、再生の位置をその手番の終わりの歩へ移し、その手番の入れ子を開いて札を選ぶ。「その結果を見る」は、板の
+  「LLM に入った物」の中のその道具の結果の片を開く。戻っても再生の位置は移したまま
+- 再生をやめて、選んでいた札が自動で開いた入れ子と一緒に消えても、板は閉じずに外の入れ子の札の中身に替わる
+- 口を鍵盤で押して移り、戻る札を鍵盤で押して戻ると、手前（フォーカス）は移る前に押した口に戻る（口が作り直しで消えた時は、
+  作り直した同じ口）。body に落ちない
 
 見た目（色と形）は縛らない（viewer/AGENTS.md の E25 の 4）。
 試験は小さな作りと run の記録を手で組み、src/page.py でページにする。playwright と Chromium が無ければ名前つきで見送る
@@ -111,6 +119,30 @@ def fell_data(stop=False) -> dict:
     if stop:
         run["status"] = "cancelled"
         d["stages"].update({"stop": 1, "stop_by": "human", "stop_event": 1})
+    return d
+
+
+def waste_data() -> dict:
+    """data() の x を AI の手番（会話 s1。往復 0 で 2 万字の道具の結果を受け取る）にし、無駄の手がかりの数えを足した run"""
+    d = data()
+    x = d["run"]["events"][1]
+    x.update({"kind": "agent", "session": "s1", "cost": 0.5, "role": "ai", "usage": {"input": 10, "output": 1, "cacheRead": 0, "cacheWrite": 0},
+              "turns": 2})
+    d["shape"]["graphs"]["inner"]["items"][0]["kind"] = "ai"
+    d["texts"] = {"m0": "first", "m1": "{}", "m2": "x" * 20000, "m3": "small", "m4": "done"}
+    d["run"]["sessions"] = {"s1": {"system": [], "tools": [], "inject": [], "recorded": {}, "cost": None, "unread": {},
+                                   "seq": [["user", "m0"], ["turn", 0], ["call", "Read", "m1"], ["result", "m3", False], ["result", "m2", False],
+                                           ["turn", 1], ["say", "m4"]],
+                                   "turns": [{"usage": {}, "calls": []}, {"usage": {}, "calls": []}]}}
+    big = {"session": "s1", "event": 1, "turn": 0, "name": "Read", "chars": 20000}
+    d["waste"] = {
+        "top": {"rows": [{"event": 1, "tokens": ["x"], "stage": 1, "cost": 0.5, "seconds": 1, "turns": 2, "replies": 2, "tokens4": None,
+                          "share": 1}], "cost": 0.5, "odd": []},
+        "time": {"run": 8, "wait": 0, "waits": [], "ai": 1, "machine": 3},
+        "rounds": [], "idle": {"same": [], "empty": [], "unread": {"ran": [], "nodes": 0, "none": []}},
+        "context": {"sessions": 1, "system": [], "tools": [], "inject": [], "pauses": [],
+                    "cache": {"input": 10, "output": 1, "cacheRead": 0, "cacheWrite": 0, "read_share": 0}, "reads": {"files": 0, "again": []}},
+        "big": {"line": 10000, "calls": 1, "results": [big], "climb": []}, "uncounted": []}
     return d
 
 
@@ -391,6 +423,120 @@ class PageUiCase(unittest.TestCase):
         self.assertIn("stopat", classes)
         self.assertNotIn("fail", classes)
         self.assertEqual(word, "ここで止めた")
+
+    def back(self) -> str | None:
+        """頭の帯の戻る札の字（出ていなければ None）"""
+        return self.page.evaluate("$('backbar').hidden ? null : $('backbar').textContent")
+
+    def tall(self):
+        """流れと図が画面より長くなる高さにして、スクロールを戻すかを見られるようにする"""
+        self.page.set_viewport_size({"width": 1400, "height": 360})
+
+    def test_the_stage_box_gate_goes_to_the_stage_row_and_back(self):
+        self.tall()
+        self.page.evaluate("scrollTo(0, 200)")
+        y = self.page.evaluate("scrollY")
+        self.page.click("#f-stages .st[data-n='1']")
+        self.assertEqual(self.page.evaluate("curTab"), "graph")
+        self.assertIn("mark", self.page.get_attribute("#world .row[data-n='1']", "class"))
+        self.assertEqual(self.back(), "← 流れへ戻る")
+        self.page.click("#backbar button")
+        self.assertEqual([self.page.evaluate("curTab"), self.page.evaluate("scrollY"), self.back()], ["flow", y, None])
+        self.assertEqual(self.page.locator("#world .row.mark").count(), 0)
+
+    def test_the_panel_gate_goes_to_the_stage_box_and_back_reopens_the_graph(self):
+        self.tall()
+        self.graph()
+        self.page.click("#world [data-key='line/nest']")
+        self.page.click("#world [data-key='line/nest>inner/x']")
+        self.page.evaluate("scrollTo(0, 40)")
+        y = self.page.evaluate("scrollY")
+        self.page.click("#panel button:has-text('流れの地図で見る')")
+        self.assertEqual(self.page.evaluate("curTab"), "flow")
+        self.assertIn("mark", self.page.get_attribute("#f-stages .st[data-n='1']", "class"))
+        self.assertEqual(self.back(), "← 図と再生へ戻る")
+        # 流れで再生の位置を入れ子の外の歩へ移しても、戻ると選んだ札と人が開いた入れ子が開き直る
+        self.page.locator("#f-band .lane[data-n='1']").focus()
+        self.page.keyboard.press("Enter")
+        self.page.click("#backbar button")
+        self.assertEqual([self.page.evaluate("curTab"), self.page.evaluate("cur"), self.page.evaluate("selId"), self.back()],
+                         ["graph", "line", "line/nest>inner/x", None])
+        self.assertTrue(self.page.is_visible("#panel"))
+        self.assertEqual(self.page.locator("#world .nestbox").count(), 1)
+        self.assertEqual(self.page.evaluate("scrollY"), y)
+        self.assertEqual(self.page.locator("#f-stages .st.mark").count(), 0)
+
+    def test_another_gate_replaces_the_way_back_and_a_tab_drops_it(self):
+        self.graph()
+        self.page.click("#world [data-key='line/a']")
+        self.page.click("#panel button:has-text('流れの地図で見る')")
+        self.page.click("#f-stages .st[data-n='1']")
+        self.assertEqual(self.back(), "← 流れへ戻る")
+        self.page.click("#backbar button")
+        self.assertEqual(self.page.evaluate("curTab"), "flow")
+        self.page.click("#f-stages .st[data-n='1']")
+        self.page.click("[data-tab=flow]")
+        self.assertIsNone(self.back())
+
+    def test_the_waste_gate_opens_the_turn_in_place_and_goes_back(self):
+        self.open(waste_data())
+        self.tall()
+        self.page.click("[data-tab=waste]")
+        self.page.evaluate("scrollTo(0, 100)")
+        y = self.page.evaluate("scrollY")
+        self.page.click("#waste .rank button:has-text('会話を見る')")
+        self.assertEqual([self.page.evaluate("curTab"), self.page.evaluate("cur"), self.page.evaluate("at"), self.page.evaluate("selId")],
+                         ["graph", "line", self.step("x", end=True), "line/nest>inner/x"])
+        self.assertEqual(self.page.evaluate("[...AUTO]"), ["line/nest"])
+        self.assertTrue(self.page.evaluate("$('panel').querySelector('.ev.focus details.llm').open"))
+        self.assertEqual(self.back(), "← 無駄の手がかりへ戻る")
+        self.page.click("#backbar button")
+        self.assertEqual([self.page.evaluate("curTab"), self.page.evaluate("scrollY"), self.page.evaluate("at"), self.back()],
+                         ["waste", y, self.step("x", end=True), None])
+
+    def test_the_big_result_gate_opens_that_result_piece(self):
+        self.open(waste_data())
+        self.page.click("[data-tab=waste]")
+        self.page.click("#waste summary:has-text('内訳と往復ごとの積み上がり')")
+        self.page.click("#waste button:has-text('その結果を見る')")
+        piece = self.page.locator("#panel details.focus")
+        self.assertEqual(piece.count(), 1)
+        self.assertTrue(piece.evaluate("el => el.open"))
+        self.assertIn("20,000 字", piece.locator("summary").text_content())
+
+    def test_stopping_the_replay_keeps_the_panel_on_the_outer_card(self):
+        self.graph()
+        self.page.evaluate(f"go({self.step('x')})")
+        self.page.click("#world [data-key='line/nest>inner/x']")
+        self.page.click("#p-off")
+        self.assertEqual(self.page.locator("#world .nestbox").count(), 0)
+        self.assertTrue(self.page.is_visible("#panel"))
+        self.assertEqual(self.page.evaluate("selId"), "line/nest")
+
+    def press_back(self):
+        self.page.focus("#backbar button")
+        self.page.keyboard.press("Enter")
+
+    def test_going_back_returns_the_focus_to_the_gate(self):
+        self.open(waste_data())
+        # 口 1: 段の箱は戻る時に作り直されるので、作り直した同じ箱へ
+        self.page.focus("#f-stages .st[data-n='1']")
+        self.page.keyboard.press("Enter")
+        self.press_back()
+        self.assertEqual(self.page.evaluate("[curTab, document.activeElement.matches(\"#f-stages .st[data-n='1']\")]"), ["flow", True])
+        # 口 2: 板は戻る時に作り直されるので、作り直した板の同じ口へ
+        self.graph()
+        self.page.click("#world [data-key='line/a']")
+        self.page.focus("#panel button:has-text('流れの地図で見る')")
+        self.page.keyboard.press("Enter")
+        self.press_back()
+        self.assertEqual(self.page.evaluate("[curTab, document.activeElement.textContent]"), ["graph", "段 1 一 · 流れの地図で見る →"])
+        # 口 3
+        self.page.click("[data-tab=waste]")
+        self.page.focus("#waste .rank button:has-text('会話を見る')")
+        self.page.keyboard.press("Enter")
+        self.press_back()
+        self.assertEqual(self.page.evaluate("[curTab, document.activeElement.textContent]"), ["waste", "会話を見る →"])
 
 
 if __name__ == "__main__":
