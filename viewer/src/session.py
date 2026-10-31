@@ -3,7 +3,7 @@
 
 Claude Code の版は工場が止めていないので、記録の形は試験で照らせない（人が見る）。行の型は、読む型と読まない型（訳つき。UNREAD_TYPES）
 に分け、どちらでもない知らない型の行は型ごとに数えて返し、黙って落とさない（読まない型は数えない。ページの帯の数が本当に読めなかった
-物を指す）。ただし読まない型のうち字を別の型から読む物（READ_FROM）は、その代わりの型が記録に無い会話では、知らない型と同じく数える
+物を指す）。読む型の行の中の欄の形が違う行も、落ちずに数え、その行の値は何も書かない（runread.SHAPELESS）。ただし読まない型のうち字を別の型から読む物（READ_FROM）は、その代わりの型が記録に無い会話では、知らない型と同じく数える
 （代わりが無ければ LLM に入った字が帯から消えるので）。
 
 - find(projects, preview) -> run の記録の会話の id の頭（sessionPreview）に当たる記録のパス（無ければ None。Claude Code が消した古い記録は結べない。
@@ -22,6 +22,7 @@ Claude Code の版は工場が止めていないので、記録の形は試験�
 import json
 from pathlib import Path
 
+import runlog   # lib/（viewer/src/__init__.py が sys.path に足す）
 from viewer.src import runread
 
 SHAPE = "api-request-shape"
@@ -39,6 +40,8 @@ UNREAD_TYPES = {
 # 読まない型のうち、LLM に入った字を別の型から読む物と、その代わりの型（1 つでも記録に無ければ数える）
 READ_FROM = {"attachment": (BLOB,), "api-request": (SHAPE, BLOB)}
 REMINDER = "<system-reminder>"
+# 往復の usage の欄（返す名 → 記録の名）
+USAGE = {"in": "input_tokens", "cache_read": "cache_read_input_tokens", "cache_write": "cache_creation_input_tokens", "out": "output_tokens"}
 
 
 AMBIGUOUS = "会話の id の頭が 2 つ以上の記録に当たる"
@@ -84,6 +87,10 @@ def read(path: Path, keep, since: str | None = None) -> dict:
             _count(got, runread.OBJECTLESS)
             continue
         kind = row.get("type")
+        if not isinstance(kind, (str, type(None))):
+            # 型の欄が字でない行は、型を引く前に数える（列や object の型は表を引く所で落ちる）
+            _count(got, runread.SHAPELESS)
+            continue
         if kind in UNREAD_TYPES:
             if kind in READ_FROM:
                 held[kind] = held.get(kind, 0) + 1
@@ -91,27 +98,27 @@ def read(path: Path, keep, since: str | None = None) -> dict:
         if kind not in READ_TYPES:
             _count(got, f"知らない型 {kind}")
             continue
-        message = row.get("message") or {}
+        try:
+            cwd = row.get("cwd")
+            if kind == SHAPE:
+                write = _shape(got, row.get("shape") or {}, keep)
+            elif kind == BLOB:
+                write = _inject(got, row.get("message") or {}, keep)
+            elif kind == "user":
+                write = _user(got, row.get("message") or {}, keep, results)
+            elif kind == "assistant":
+                write = _assistant(got, row, keep, turns, by_id)
+            else:
+                write = _cost(got, row)
+        except (AttributeError, KeyError, TypeError):
+            # 欄の形が違う行（message・shape が object でない・字の片に text が無いか字でないなど）は、何も書かずに数える
+            _count(got, runread.SHAPELESS)
+            continue
         if kind in got["recorded"]:
             got["recorded"][kind] = True
-        if not got["cwd"] and isinstance(row.get("cwd"), str):
-            got["cwd"] = row["cwd"]
-        if kind == SHAPE and not got["system"]:
-            shape = row.get("shape") or {}
-            got["system"] = [keep(part.get("text", "")) for part in shape.get("system") or []]
-            got["tools"] = [[tool.get("name", "?"), len(json.dumps(tool, ensure_ascii=False))] for tool in shape.get("tools") or []]
-        elif kind == BLOB:
-            _inject(got, message, keep)
-        elif kind == "user":
-            _user(got, message, keep, results)
-        elif kind == "assistant":
-            at = row.get("timestamp") if isinstance(row.get("timestamp"), str) else None
-            if at and runread.try_when(at) is None:
-                _count(got, "読めない時刻")
-                at = None
-            _assistant(got, message, keep, turns, by_id, at)
-        elif kind == "cost-state":
-            got["cost"] = row.get("totalCostUSD")
+        if not got["cwd"] and isinstance(cwd, str):
+            got["cwd"] = cwd
+        write()
     cut = runread.try_when(since) if since else None
     for turn in turns:
         for call in turn["calls"]:
@@ -125,54 +132,117 @@ def read(path: Path, keep, since: str | None = None) -> dict:
     return got
 
 
+# 行の読みはどれも 2 つに分ける。先に書き込む値を全部取り出して形を確かめ（形が違えば TypeError などで止まり、read が行ごと数える）、
+# 書き込みは返す関数 write に置く。read は全部が通った行だけで write を呼ぶので、途中で止まった行は流れ・往復・添え書き・字の束
+# （keep）を 1 つも変えない。write の中では形を確かめ終えた値だけを使い、止まらない
+
+
+def _shape(got, shape, keep):
+    """system と道具の一覧は、最初に system を持つ行の物"""
+    if got["system"]:
+        return lambda: None
+    tools = [[runread.plain(tool.get("name", "?")), len(json.dumps(tool, ensure_ascii=False))] for tool in shape.get("tools") or []]
+    system = [_string(part.get("text", "")) for part in shape.get("system") or []]
+
+    def write():
+        got["system"] = [keep(text) for text in system]
+        got["tools"] = tools
+    return write
+
+
 def _inject(got, message, keep):
     """添え書きは system の片と <system-reminder> の片だけ。指示そのものと道具の結果も blob に載るので、数えると二重になる"""
-    for part in message.get("content") or []:
-        text = part.get("text") if isinstance(part, dict) else None
-        if text and (message.get("role") == "system" or text.lstrip().startswith(REMINDER)):
+    role = runread.plain(message.get("role")) or ""
+    texts = [runread.plain(part.get("text")) if isinstance(part, dict) else None for part in message.get("content") or []]
+    picked = [text for text in texts if text and (role == "system" or text.lstrip().startswith(REMINDER))]
+
+    def write():
+        for text in picked:
             mark = keep(text)
             if mark not in [i[1] for i in got["inject"]]:
-                got["inject"].append([message.get("role", ""), mark])
+                got["inject"].append([role, mark])
+    return write
 
 
 def _user(got, message, keep, results):
     content = message.get("content")
     if isinstance(content, str):
         content = [{"type": "text", "text": content}]
+    found, pieces = {}, []
     for part in content or []:
         if not isinstance(part, dict):
             continue
         if part.get("type") == "tool_result":
             body = part.get("content")
             body = body if isinstance(body, str) else "\n".join(p.get("text", "") for p in body or [] if isinstance(p, dict))
-            results[part.get("tool_use_id")] = [len(body)]
-            got["seq"].append(["result", keep(body), bool(part.get("is_error"))])
+            found[runread.plain(part.get("tool_use_id"))] = [len(body)]
+            pieces.append(("result", body, bool(part.get("is_error"))))
         elif part.get("type") == "text":
-            got["seq"].append(["user", keep(part["text"])])
+            pieces.append(("user", _string(part["text"])))
+
+    def write():
+        results.update(found)
+        got["seq"].extend([kind, keep(text), *rest] for kind, text, *rest in pieces)
+    return write
 
 
-def _assistant(got, message, keep, turns, by_id, at):
-    """1 つの返事は content の片ごとに行が分かれ、同じ message.id を持つ。往復の時刻は最初の行の時刻"""
-    ident = message.get("id") or str(len(turns))
-    if ident not in by_id:
-        by_id[ident] = {"usage": {}, "calls": [], "at": at}
-        got["seq"].append(["turn", len(turns)])
-        turns.append(by_id[ident])
-    turn = by_id[ident]
+def _assistant(got, row, keep, turns, by_id):
+    """1 つの返事は content の片ごとに行が分かれ、同じ message.id を持つ。往復の時刻は最初の行の時刻。往復と流れに入れる値（返事の
+    id・トークンの数・道具の呼び出しの id と名・字）は、先に形を確かめる（後で使う無駄の手がかりと道具の結果の結びで落ちない）"""
+    message = row.get("message") or {}
+    at = row.get("timestamp") if isinstance(row.get("timestamp"), str) else None
+    odd = bool(at) and runread.try_when(at) is None
+    ident = runread.plain(message.get("id")) or str(len(turns))
     usage = message.get("usage") or {}
     if usage:
-        turn["usage"] = {"in": usage.get("input_tokens", 0), "cache_read": usage.get("cache_read_input_tokens", 0),
-                         "cache_write": usage.get("cache_creation_input_tokens", 0), "out": usage.get("output_tokens", 0)}
+        usage = {short: usage.get(name, 0) for short, name in USAGE.items()}
+        if any(runlog.number(value) is None for value in usage.values()):
+            raise TypeError(f"数でない usage {usage!r}")
+    pieces = []
     for part in message.get("content") or []:
         kind = part.get("type") if isinstance(part, dict) else None
         if kind == "tool_use":
-            mark = keep(json.dumps(part.get("input"), ensure_ascii=False, indent=1))
-            turn["calls"].append({"id": part.get("id"), "name": part.get("name"), "text": mark})
-            got["seq"].append(["call", part.get("name"), mark])
-        elif kind == "text" and part.get("text"):
-            got["seq"].append(["say", keep(part["text"])])
-        elif kind == "thinking" and part.get("thinking"):
-            got["seq"].append(["think", keep(part["thinking"])])
+            pieces.append(("call", runread.plain(part.get("id")), runread.plain(part.get("name")),
+                           json.dumps(part.get("input"), ensure_ascii=False, indent=1)))
+        elif kind in ("text", "thinking"):
+            text = runread.plain(part.get(kind) or None)
+            if text:
+                pieces.append(("say" if kind == "text" else "think", text))
+
+    def write():
+        if odd:
+            _count(got, "読めない時刻")
+        if ident not in by_id:
+            by_id[ident] = {"usage": {}, "calls": [], "at": None if odd else at}
+            got["seq"].append(["turn", len(turns)])
+            turns.append(by_id[ident])
+        turn = by_id[ident]
+        if usage:
+            turn["usage"] = usage
+        for piece in pieces:
+            if piece[0] == "call":
+                _, call, name, text = piece
+                mark = keep(text)
+                turn["calls"].append({"id": call, "name": name, "text": mark})
+                got["seq"].append(["call", name, mark])
+            else:
+                got["seq"].append([piece[0], keep(piece[1])])
+    return write
+
+
+def _cost(got, row):
+    cost = row.get("totalCostUSD")
+
+    def write():
+        got["cost"] = cost
+    return write
+
+
+def _string(value) -> str:
+    """LLM に入った字。ほかの形（None も）は TypeError"""
+    if isinstance(value, str):
+        return value
+    raise TypeError(f"字でない値 {value!r}")
 
 
 def _count(got, what):

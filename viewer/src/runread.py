@@ -11,6 +11,7 @@
 - seconds(started, completed)・length(event)・when(text)・try_when(text) -> 時刻の差の秒・出来事の長さ・時刻の読み（読めなければ
   ValueError か None。字でない時刻も try_when は None。DB の秒までの時刻は UTC として読む）。段の集計と無駄の手がかりと会話の読みも使う
 - where(path, cwd) -> 会話が読んだファイルのパスを、run ごとに違う頭（作業ツリー・run の置き場・run の写し）を印に替えた字にする
+- plain(value) -> 字か None の値をそのまま返す。ほかの形は TypeError（読む側が欄の形が違う行に数える）。会話の読みも使う
 """
 import contextlib
 import hashlib
@@ -143,7 +144,10 @@ CLIP = 20000
 ARTIFACT_LIMIT = 60000
 # 読めなかった物の訳（run["unread"] の鍵）
 OBJECTLESS = "JSON の object でない行"
+# object の行の中の欄の形が違う行（欄が object でない・在るはずの字が無いか字でない）。会話の記録の読み（src/session.py）も使う
+SHAPELESS = "欄の形が違う行"
 OUTSIDE = "run の置き場の外を指す archon_artifact"
+NUL_PATH = "NUL の字を持つ path の archon_artifact"
 # 片割れのサロゲート（json.loads は組の \ud83d\ude00 を 1 字にするので、字に残るのは片割れだけ）と、置き換える字
 LONE = re.compile("[\ud800-\udfff]")
 REPLACEMENT = "\ufffd"
@@ -213,18 +217,23 @@ def run(db: Path, run_id: str) -> dict:
     終わりの無い出来事（待ちと、走り中のまま止まったノード）を、その run の終わりの出来事のうち始めの後の最初の物の時刻で閉じて印 cut を
     付ける（ログに終わりを書かずに落ちた・止めた run の長さと人の答え待ちの和が、一覧と合う。落ちた後に起き直した run の前の起動の
     ノードは、その落ちで閉じて状態を落ちたにする。前の起動の id のまま走り直す出来事は、最後の始めの後の終わりで閉じる。閉じる時刻は
-    ログの形にし、始めより前にしない）。走り中の run は最後の出来事まで"""
+    ログの形にし、始めより前にしない）。走り中の run は最後の出来事まで。
+    落ちた後に同じ起動の id で走り直したノードは、起動ごとの出来事にする（_Reader._fallen）"""
     with connect(db) as con:
         top = _row(con, run_id)
         if top is None:
             raise LookupError(f"run {run_id} が DB に無い")
-        outputs = _outputs(con)
+        outputs, odd = _outputs(con)
         waiting = _waiting(con)
         spent = _spent(con)
         ends = _ends(con)
         falls = _ends(con, (FAILED_EVENT,))
         first = _firsts(con).get(run_id)
-        reader = _Reader(outputs)
+        # 落ちは過去の事実なので、走り中の run（落ちた後に起き直した物）でも閉じる
+        fell = {rid: [at for t in times if (at := _end("", t, live=True))] for rid, times in falls.items()}
+        reader = _Reader(outputs, fell)
+        if odd:
+            reader.unread[SHAPELESS] = odd
         reader.read(top, [])
         todo, parents = [(run_id, [])], {}
         while todo:
@@ -233,6 +242,9 @@ def run(db: Path, run_id: str) -> dict:
                                      (parent,)).fetchall():
                 child = dict(zip(RUN_COLUMNS, child))
                 node = _json(child["metadata"]).get(PARENT_NODE) or ""
+                if not isinstance(node, str):
+                    reader._count(SHAPELESS)
+                    continue
                 if not node:
                     reader.unread["子の run に parent_node_id が無い"] = reader.unread.get("子の run に parent_node_id が無い", 0) + 1
                     continue
@@ -243,23 +255,16 @@ def run(db: Path, run_id: str) -> dict:
     meta = _json(top["metadata"])
     root = Path(top["output_root"]) if top["output_root"] else None
     closed = {row["id"]: [at for t in ends.get(row["id"], []) if (at := _end(row["status"], t))] for row in (top, *reader.children)}
-    # 落ちは過去の事実なので、走り中の run（落ちた後に起き直した物）でも閉じる
-    fell = {row["id"]: [at for t in falls.get(row["id"], []) if (at := _end(row["status"], t, live=True))] for row in (top, *reader.children)}
     for event in reader.events:
-        # SIGTERM で落とす道（owned-run-termination.ts の failWorkflowRun）はログに node_error を書かず DB に落ちだけを書くので、
-        # 始めから最後の始めの間にその run の落ちが在れば、同じ起動の id で走り直した出来事も一度落ちた
-        if event["start"] and event["last_start"] != event["start"] and any(
-                when(t) < when(event["last_start"]) for t in _since(event["start"], fell[event["run"]])):
-            event["fell"] = True
         if not event["start"] or event["end"] or event["status"] not in ("waiting", "running"):
             continue
         # 起き直した後も同じ起動の id で走り直す出来事は、最後の始めの後の終わり（落ち）で閉じる。前の落ちでは閉じない
         begun, ends = event["last_start"] or event["start"], closed[event["run"]]
-        at = _close(begun, ends) if ends else next(iter(_since(begun, fell[event["run"]])), None)
+        at = _close(begun, ends) if ends else next(iter(_since(begun, fell.get(event["run"], []))), None)
         if at is None:
             continue
         event["end"], event["cut"] = _later(at, begun), True
-        if event["status"] == "running" and at in fell[event["run"]] and (not ends or at != ends[-1]):
+        if event["status"] == "running" and at in fell.get(event["run"], []) and (not ends or at != ends[-1]):
             event["status"] = FAILED
     started, ended = _span(reader.events) or (top["started_at"], top["completed_at"])
     started = _earlier(_end(top["status"], first, live=True), started)
@@ -392,8 +397,9 @@ def where(path: str, cwd: str) -> str:
 
 
 class _Reader:
-    def __init__(self, outputs: dict):
-        self.outputs = outputs
+    def __init__(self, outputs: dict, falls: dict[str, list[str]]):
+        """outputs は起動の id ごとの出力（_outputs）、falls は run ごとの落ち（workflow_failed）の時刻（ログの形。古い順）"""
+        self.outputs, self.falls = outputs, falls
         self.events, self.skipped, self.children, self.missing, self.checks, self.artifacts = [], [], [], [], [], {}
         self.unread: dict[str, int] = {}
         self.current = ""
@@ -432,25 +438,46 @@ class _Reader:
                 self._count(OBJECTLESS)
                 continue
             kind = entry.get("type")
+            if not isinstance(kind, (str, type(None))):
+                # 型の欄が字でない行は、型を引く前に数える（列や object の型は表を引く所で落ちる）
+                self._count(SHAPELESS)
+                continue
             if kind in UNREAD_ROWS:
                 continue
-            if kind not in READ_ROWS:
-                self._count(f"知らない行の型 {kind}")
-            elif kind in NODE_ROWS:
-                self._node(entry, kind, prefix, by_invocation, by_attempt, by_step, root)
-            elif kind == PROVIDER_ROW:
-                self._provider(entry, by_attempt)
-            elif kind == EXEC_ROW:
-                self._exec(entry, prefix, by_step)
+            try:
+                if kind not in READ_ROWS:
+                    self._count(f"知らない行の型 {kind}")
+                elif kind in NODE_ROWS:
+                    self._node(entry, kind, prefix, by_invocation, by_attempt, by_step, root)
+                elif kind == PROVIDER_ROW:
+                    self._provider(entry, by_attempt)
+                elif kind == EXEC_ROW:
+                    self._exec(entry, prefix, by_step)
+            except (AttributeError, KeyError, TypeError):
+                # 欄の形が違う行（execution・event が object でない・loopPath の周が object でないなど）は、落ちずに数える
+                self._count(SHAPELESS)
 
     def _node(self, entry, kind, prefix, by_invocation, by_attempt, by_step, root):
+        # 1 行は 2 つに分けて読む。先に出来事に入れる値（周の番号・step・試みの id・会話の欄・誤りの字・費用・出力）を全部取り出して
+        # 形を確かめ、全部が通った後で出来事を一度に書く。形が違えば何も書かずに行ごと数える（途中まで書き換えた出来事を残さず、
+        # 後で使う段の集計と会話の読みで落ちない）
         execution = entry.get(EXECUTION) or {}
         path = execution.get("path") or entry.get("step") or ""
         invocation = (execution.get("invocation") or {})
-        key = (path, invocation.get("id") or "")
+        key = (path, plain(invocation.get("id")) or "")
         ids = [*_tokens(prefix), *_tokens([path])]
+        loop = [_round(step.get("iteration")) for step in invocation.get("loopPath") or []]
+        step = plain(entry.get("step")) or path
+        attempt = plain((execution.get("attempt") or {}).get("id"))
+        node = (execution.get("node") or {}).get("kind") or ""
+        told = _told(execution) if kind in ("node_complete", "node_error") else {}
+        error = (entry.get("error") or (execution.get("lifecycle") or {}).get("error") or "") if kind == "node_error" else ""
+        cost = (runlog.number(entry.get(NODE_COST)) or 0.0) if own_spend(execution.get(ACCOUNTING), entry.get(AGGREGATE)) else 0.0
+        # 出力（DB の node_completed）は通った起動の物で、同じ起動の id の前の落ちた出来事には付けない
+        output = self.outputs.get(key[1]) if kind == "node_complete" else None
+        text = mend(output if isinstance(output, str) else json.dumps(output, ensure_ascii=False)) if output is not None else None
+        # 読めない時刻を数えるのも書き込みなので、読む段の最後に置く
         ts = self._ts(entry)
-        loop = [step.get("iteration") for step in invocation.get("loopPath") or []]
         if kind == "node_skipped":
             # 起き直すたびに Archon は when・trigger_rule で飛ぶノードの行も新しい起動の id で書き直すので、同じ run・道・周の飛びは最初の 1 つだけ
             spot = (self.current, tuple(ids), tuple(map(str, loop)))
@@ -459,24 +486,25 @@ class _Reader:
                 self.skipped.append({"tokens": ids, "time": ts, "cause": entry.get("cause")})
             return
         event = by_invocation.get(key)
-        if event is None:
+        # 落ちた後に起き直すと、Archon は終わっていない（落ちた物を含む）ノードに前の起動の id を使い直す（dag-resume-snapshot.ts の
+        # unfinishedInvocations）。落ちた出来事の走り直しは新しい出来事にし、一度落ちたことを印 fell に持つ
+        again = kind == "node_start" and event is not None and self._fallen(event, ts)
+        if event is None or again:
             event = {"tokens": ids, "path": path, "run": self.current, "artifacts": str(root / ARTIFACTS / RUNS_DIR / self.current) if root else "",
-                     "kind": (execution.get("node") or {}).get("kind") or "", "start": ts, "last_start": ts,
+                     "kind": node, "start": ts, "last_start": ts,
                      "end": None, "status": "running", "loop": loop,
                      "cost": 0.0, "calls": [], "exec": [], "error": ""}
+            if again:
+                event["fell"] = True
             by_invocation[key] = event
             self.events.append(event)
-        by_step[entry.get("step") or path] = event
-        attempt = (execution.get("attempt") or {}).get("id")
+        by_step[step] = event
         if attempt:
             by_attempt[attempt] = event
         if kind == "node_start":
-            # 繰り返しの器は答えの後も同じ起動の id で node_start を書き直す（待ちから走り中へ戻る）。落ちた後に起き直すと、Archon は
-            # 終わっていない（落ちた物を含む）ノードに前の起動の id を使い直す（dag-resume-snapshot.ts の unfinishedInvocations）ので、
-            # 落ちた出来事は走り中に戻し、一度落ちたことを印 fell に残す。閉じる時刻は最後の始め（last_start）の後の物から選ぶ
-            if event["status"] == FAILED:
-                event.update(end=None, fell=True)
-            if event["status"] in ("waiting", FAILED):
+            # 繰り返しの器は答えの後も同じ起動の id で node_start を書き直す（待ちから走り中へ戻る。同じ出来事）。閉じる時刻は
+            # 最後の始め（last_start）の後の物から選ぶ
+            if event["status"] == "waiting":
                 event["status"] = "running"
             if ts:
                 event["last_start"] = ts
@@ -487,21 +515,30 @@ class _Reader:
         event["end"] = ts
         event["status"] = "ok" if kind == "node_complete" else "failed"
         if kind == "node_error":
-            event["error"] = entry.get("error") or (execution.get("lifecycle") or {}).get("error") or ""
-        if own_spend(execution.get(ACCOUNTING), entry.get(AGGREGATE)):
-            event["cost"] += runlog.number(entry.get(NODE_COST)) or 0.0
-        spend, binding = execution.get("spend") or {}, execution.get("binding") or {}
-        if binding.get("sessionPreview"):
-            model = binding.get("model") or {}
-            event.update(session=binding["sessionPreview"], origin=binding.get("sessionOrigin") or "",
-                         model=(model.get("resolved") or {}).get("value") or model.get("requested") or "",
-                         usage=runlog.tokens(runlog.measurement(spend, "tokens", lambda v: v)[0]),
-                         turns=runlog.measurement(spend, "numTurns")[0])
-        output = self.outputs.get(key[1])
-        if output is not None:
-            text = mend(output if isinstance(output, str) else json.dumps(output, ensure_ascii=False))
+            event["error"] = error
+        event["cost"] += cost
+        event.update(told)
+        if text is not None:
             event["output"], event["digest"] = _clip(text), hashlib.sha1(text.encode("utf-8")).hexdigest()
             self._artifacts(output, root)
+
+    def _fallen(self, event: dict, ts: str | None) -> bool:
+        """同じ起動の id で始め直す前に、その出来事が落ちていたか: node_error で落ちたか、前の始めの後・今の始めの前に run が落ちた
+        （SIGTERM で落とす道〔owned-run-termination.ts の failWorkflowRun〕はログに node_error を書かず DB に落ちだけを書く）。
+        後の方は、走り中・待ちのまま止まった出来事をその落ちで閉じて印 cut を付け、走り中の物を落ちにする（run の終わりで閉じる時と同じ形）。
+        落ちから起き直しまでを長さに入れず、費用・トークン・往復・会話・誤りの字を起動ごとに持つため"""
+        if event["status"] == FAILED:
+            return True
+        begun = event["last_start"]
+        if event["status"] not in ("running", "waiting") or not begun or not ts:
+            return False
+        at = next((t for t in _since(begun, self.falls.get(self.current, [])) if when(t) < when(ts)), None)
+        if at is None:
+            return False
+        event["end"], event["cut"] = _later(at, begun), True
+        if event["status"] == "running":
+            event["status"] = FAILED
+        return True
 
     def _provider(self, entry, by_attempt):
         event = by_attempt.get(entry.get(ATTEMPT_ID))
@@ -530,9 +567,12 @@ class _Reader:
         """script・bash のノードの出力の終わりは、同じ step の最後の起動に付ける。ノードに当たらない物（loop_group の until_bash の
         確かめ。step は `<輪>{ITERATION_MARK}<n>`）は run の確かめの行にする。行は書いた run の id を持つ（同じノードから起こした子の
         run どうしは node も step も同じになる）"""
-        row = {"step": entry.get("step") or "", "node": prefix, "run": self.current, "label": entry.get(runlog.EXEC_LABEL) or "", "exit": entry.get(runlog.EXIT_CODE),
-               "stdout": _clip(entry.get("stdout_tail") or "", 4000), "stderr": _clip(entry.get("stderr_tail") or "", 4000), "at": self._ts(entry)}
-        event = by_step.get(row["step"])
+        step = plain(entry.get("step")) or ""
+        label, out, err = entry.get(runlog.EXEC_LABEL) or "", _clip(entry.get("stdout_tail") or "", 4000), _clip(entry.get("stderr_tail") or "", 4000)
+        event = by_step.get(step)
+        # 読めない時刻を数えるのも書き込みなので、確かめの最後に置く（_node と同じ）
+        row = {"step": step, "node": prefix, "run": self.current, "label": label, "exit": entry.get(runlog.EXIT_CODE),
+               "stdout": out, "stderr": err, "at": self._ts(entry)}
         if event is None:
             self.checks.append(row)
         else:
@@ -561,13 +601,43 @@ class _Reader:
         （見る道具は run の記録だけを読む。viewer/AGENTS.md の E25 の 2）"""
         place = runs / run_id
         path = place / name
-        if Path(os.path.realpath(place)).parent != Path(os.path.realpath(runs)) or not _within(path, place):
+        if "\0" in run_id or "\0" in name:
+            # NUL の字はパスにできず、実のパスの引きが ValueError で落ちる
+            self._count(NUL_PATH)
+        elif Path(os.path.realpath(place)).parent != Path(os.path.realpath(runs)) or not _within(path, place):
             self._count(OUTSIDE)
         elif path.is_file() and path.stat().st_size <= ARTIFACT_LIMIT:
             self.artifacts[key] = mend(path.read_text(encoding="utf-8", errors="replace"))
 
     def _count(self, what: str) -> None:
         self.unread[what] = self.unread.get(what, 0) + 1
+
+
+def _told(execution: dict) -> dict:
+    """終わりの行の会話の欄（会話の id の頭・続けたか・模型・トークン・往復の数）。会話の id の頭が無ければ空"""
+    spend, binding = execution.get("spend") or {}, execution.get("binding") or {}
+    preview = plain(binding.get("sessionPreview"))
+    if not preview:
+        return {}
+    model = binding.get("model") or {}
+    return {"session": preview, "origin": binding.get("sessionOrigin") or "",
+            "model": (model.get("resolved") or {}).get("value") or model.get("requested") or "",
+            "usage": runlog.tokens(runlog.measurement(spend, "tokens", lambda v: v)[0]), "turns": runlog.measurement(spend, "numTurns")[0]}
+
+
+def plain(value):
+    """字か None の値（id・step・会話の id の頭・道具の名）。ほかの形は TypeError で、読む側が欄の形が違う行に数える（dict の鍵や
+    集合に入れる所で落ちない）"""
+    if value is None or isinstance(value, str):
+        return value
+    raise TypeError(f"字でない値 {value!r}")
+
+
+def _round(value) -> int:
+    """周の番号（Archon の loopPath の iteration は整数。schemas/node-execution.ts）。ほかの形は TypeError"""
+    if isinstance(value, int) and not isinstance(value, bool):
+        return value
+    raise TypeError(f"整数でない周の番号 {value!r}")
 
 
 def _within(path: Path, base: Path) -> bool:
@@ -590,15 +660,19 @@ def _row(con, run_id: str) -> dict | None:
     return dict(zip(RUN_COLUMNS, row)) if row else None
 
 
-def _outputs(con) -> dict:
-    """ノードの起動（invocation の id）ごとの出力の全文（DB の node_completed）"""
-    out = {}
+def _outputs(con) -> tuple[dict, int]:
+    """ノードの起動（invocation の id）ごとの出力の全文（DB の node_completed）と、欄の形が違う行（invocation が object でない・
+    id が字でない）の数"""
+    out, odd = {}, 0
     for (data,) in con.execute(f"select data from {EVENT_TABLE} where event_type = ?", (OUTPUT_EVENT,)):
         got = _json(data)
-        invocation = (got.get("invocation") or {}).get("id")
-        if invocation and got.get(NODE_OUTPUT) is not None:
-            out[invocation] = got[NODE_OUTPUT]
-    return out
+        invocation = got.get("invocation") or {}
+        ident = invocation.get("id") if isinstance(invocation, dict) else None
+        if not isinstance(invocation, dict) or not isinstance(ident, (str, type(None))):
+            odd += 1
+        elif ident and got.get(NODE_OUTPUT) is not None:
+            out[ident] = got[NODE_OUTPUT]
+    return out, odd
 
 
 def _waiting(con) -> dict:

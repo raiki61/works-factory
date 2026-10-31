@@ -15,7 +15,7 @@
   通す答えだけの run と落ちずに終わった run と、受け止めた落ちだけの run には無い。止まり方（人が止めた human・落ちた failed）と
   止まった出来事の番号も同じ所で決め、雛形は読むだけ（承認を通した後に同じ段で落ちた run を人の止めと取り違えない）
 - 段の状態は所（run・道・周）ごとの最後の結果で決める。落ちた後に起き直して通った段は通ったで、一度落ちたことを印 fell に残す
-  （同じ起動の id で走り直して 1 つの出来事に束ねられた物も、出来事の印 fell から）
+  （出来事の印 fell からも。同じ起動の id で走り直した物は、読む部品が起動ごとの出来事に分けて走り直しに印 fell を付ける）
 - line でない run は段に集めない
 - 図の札ごとの AI の手番の費用（run の ai_cost。札の鍵は入れ子の場所ごと）は、札とその中の AI の手番の費用の和で、機械の手番と
   中の出来事を束ねる器（子の run を起こすノードの行は子の総額を載せる）を足さない。line でない run にも付ける。雛形は数えずに読む
@@ -185,8 +185,8 @@ class StagesCase(unittest.TestCase):
                          [("ok", False), ("ok", True), ("failed", False)])
 
     def test_a_stage_that_ran_again_on_the_same_invocation_keeps_the_fall(self):
-        """Archon は起き直す時に落ちたノードの起動の id を使い直すので、前の起動の落ちと走り直して通った結果は 1 つの出来事に束ねられ、
-        出来事の印 fell（src/runread.py）が落ちたことを持つ。その段も通ったに一度落ちたことを印 fell に残す"""
+        """出来事の印 fell（src/runread.py が、同じ起動の id で走り直した出来事に付ける）だけが落ちたことを持つ段も、通ったに
+        一度落ちたことを印 fell に残す"""
         rows = run_of([event(["start"]), event(["fix"], fell=True)], [], status="completed")["stages"]["run"]
         self.assertEqual([(rows[number(node) - 1]["state"], rows[number(node) - 1]["fell"]) for node in ("start", "fix")],
                          [("ok", False), ("ok", True)])
