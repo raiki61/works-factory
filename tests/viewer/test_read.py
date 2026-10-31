@@ -755,6 +755,34 @@ class ReadCase(unittest.TestCase):
                 path.write_text(json.dumps(line) + "\n", encoding="utf-8")
                 self.assertEqual(session.read(path, runread.mend)["unread"], {runread.SHAPELESS: 1})
 
+    def test_a_line_that_stops_midway_writes_nothing(self):
+        """欄の形が違う行は、途中まで読んだ値も書かない: ログの行は出来事を、会話の記録の行は流れ・往復・添え書き・system・作業の場所・
+        記録に在った型の印と字の束（keep）を 1 つも変えず、欄の形が違う行に 1 つ数えるだけ（形の良い値が先に在り、形の違う値が後に在る行）"""
+        db = self._db([("top", None, "2026-10-25 01:00:00", None, "{}")], [])
+        start = self._node("node_start", "2026-10-25T01:00:00.000Z", "a")
+        self._log("top", [start])
+        before = runread.run(db, "top")["events"]
+        error = self._node("node_error", "2026-10-25T01:00:01.000Z", "a")
+        error[runread.EXECUTION]["lifecycle"] = "x"
+        self._log("top", [start, error])
+        got = runread.run(db, "top")
+        self.assertEqual((got["unread"], got["events"]), ({runread.SHAPELESS: 1}, before))
+        path = self.tmp / "s.jsonl"
+        path.write_text("", encoding="utf-8")
+        empty = session.read(path, runread.mend)
+        for line in ({"type": "user", "message": {"content": [{"type": "text", "text": "hello"},
+                                                             {"type": "tool_result", "tool_use_id": [1], "content": "r"}]}},
+                     {"type": session.BLOB, "message": {"role": "system", "content": [{"text": "sys"}, {"text": 5}]}},
+                     {"type": session.SHAPE, "shape": {"system": [{"text": "sys"}, {"text": 5}]}},
+                     {"type": "assistant", "message": {"id": "m", "content": [{"type": "text", "text": "ok"}, {"type": "text", "text": 5}]}},
+                     {"type": "assistant", "message": {"id": "m", "content": [{"type": "text", "text": "ok"}, {"type": "thinking", "thinking": 5}]}},
+                     {"type": "assistant", "timestamp": "x", "message": {"id": [1], "content": [{"type": "text", "text": "ok"}]}}):
+            with self.subTest(line=line):
+                path.write_text(json.dumps({**line, "cwd": "/w"}) + "\n", encoding="utf-8")
+                kept = []
+                got = session.read(path, lambda text: kept.append(text) or text)
+                self.assertEqual((got, kept), ({**empty, "unread": {runread.SHAPELESS: 1}}, []))
+
     def test_a_lone_surrogate_is_replaced(self):
         """記録の字の片割れのサロゲート（JSON の \\ud83d だけ）は、出力の hash と字で落ちずに置き換える"""
         db = self._db([("top", None, "2026-10-25 01:00:00", None, "{}")], [])

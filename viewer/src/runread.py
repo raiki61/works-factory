@@ -453,19 +453,26 @@ class _Reader:
                 self._count(SHAPELESS)
 
     def _node(self, entry, kind, prefix, by_invocation, by_attempt, by_step, root):
-        # 出来事に入れる値（周の番号・step・試みの id・会話の欄）は、出来事を変える前に形を確かめる（形が違えば行ごと数え、後で使う
-        # 段の集計と会話の読みで落ちない）
+        # 1 行は 2 つに分けて読む。先に出来事に入れる値（周の番号・step・試みの id・会話の欄・誤りの字・費用・出力）を全部取り出して
+        # 形を確かめ、全部が通った後で出来事を一度に書く。形が違えば何も書かずに行ごと数える（途中まで書き換えた出来事を残さず、
+        # 後で使う段の集計と会話の読みで落ちない）
         execution = entry.get(EXECUTION) or {}
         path = execution.get("path") or entry.get("step") or ""
         invocation = (execution.get("invocation") or {})
         key = (path, plain(invocation.get("id")) or "")
         ids = [*_tokens(prefix), *_tokens([path])]
-        ts = self._ts(entry)
         loop = [_round(step.get("iteration")) for step in invocation.get("loopPath") or []]
         step = plain(entry.get("step")) or path
         attempt = plain((execution.get("attempt") or {}).get("id"))
         node = (execution.get("node") or {}).get("kind") or ""
         told = _told(execution) if kind in ("node_complete", "node_error") else {}
+        error = (entry.get("error") or (execution.get("lifecycle") or {}).get("error") or "") if kind == "node_error" else ""
+        cost = (runlog.number(entry.get(NODE_COST)) or 0.0) if own_spend(execution.get(ACCOUNTING), entry.get(AGGREGATE)) else 0.0
+        # 出力（DB の node_completed）は通った起動の物で、同じ起動の id の前の落ちた出来事には付けない
+        output = self.outputs.get(key[1]) if kind == "node_complete" else None
+        text = mend(output if isinstance(output, str) else json.dumps(output, ensure_ascii=False)) if output is not None else None
+        # 読めない時刻を数えるのも書き込みなので、読む段の最後に置く
+        ts = self._ts(entry)
         if kind == "node_skipped":
             # 起き直すたびに Archon は when・trigger_rule で飛ぶノードの行も新しい起動の id で書き直すので、同じ run・道・周の飛びは最初の 1 つだけ
             spot = (self.current, tuple(ids), tuple(map(str, loop)))
@@ -503,14 +510,10 @@ class _Reader:
         event["end"] = ts
         event["status"] = "ok" if kind == "node_complete" else "failed"
         if kind == "node_error":
-            event["error"] = entry.get("error") or (execution.get("lifecycle") or {}).get("error") or ""
-        if own_spend(execution.get(ACCOUNTING), entry.get(AGGREGATE)):
-            event["cost"] += runlog.number(entry.get(NODE_COST)) or 0.0
+            event["error"] = error
+        event["cost"] += cost
         event.update(told)
-        # 出力（DB の node_completed）は通った起動の物で、同じ起動の id の前の落ちた出来事には付けない
-        output = self.outputs.get(key[1]) if kind == "node_complete" else None
-        if output is not None:
-            text = mend(output if isinstance(output, str) else json.dumps(output, ensure_ascii=False))
+        if text is not None:
             event["output"], event["digest"] = _clip(text), hashlib.sha1(text.encode("utf-8")).hexdigest()
             self._artifacts(output, root)
 
