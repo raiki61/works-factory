@@ -18,7 +18,10 @@
   線の select の手前は body に落ちない
 - 札の板の後に「説明」を開くと選んだ札の印が消え、その札を中に持つ入れ子を閉じても graph の板は閉じない
 - 再生の帯のボタン・板の ×・入れ子の頭の − は、読み上げの名が記号でない
-- 流れの時間の帯は、鍵盤で押せる。歩の無い段の帯は押せる物にしない
+- 流れの時間の帯は、鍵盤で押せ、帯の最初の絵の歩へ移る。帯に描く歩の無い段（配線の歩だけの段も）の帯は押せる物にしない
+- 終わりの姿では、› と → は動かない。▶ は最初の歩から歩き始める
+- 落ちた後に走り直して通った札は、終わりの姿でも最後の歩でも落ちたにせず、終わりの姿で「1 度落ちた」を添える
+- 前に落ちた出来事の在る札で人が止めると、札は「ここで止めた」だけで、落ちたの縁を付けない
 
 見た目（色と形）は縛らない（viewer/AGENTS.md の E25 の 4）。
 試験は小さな作りと run の記録を手で組み、src/page.py でページにする。playwright と Chromium が無ければ名前つきで見送る
@@ -96,6 +99,29 @@ def data() -> dict:
                        "run": [stage_sum("ok", 6), stage_sum("skipped", 0), stage_sum("skipped", 0)]}}
 
 
+def fell_data(stop=False) -> dict:
+    """data() の a の前に、同じ所（run・道・周）の落ちた出来事を足す。stop なら通った方の a で人が止めた run、でなければ通った方の a は
+    落ちた後の走り直し（印 fell）"""
+    d = data()
+    run = d["run"]
+    failed = {**event("a", "2026-01-01T00:00:00.000Z", "2026-01-01T00:00:00.400Z", 1), "status": "failed", "error": "boom"}
+    again = {**run["events"][0], "start": "2026-01-01T00:00:00.500Z", **({} if stop else {"fell": True})}
+    run["events"][0:1] = [failed, again]
+    d["stages"]["run"][0]["fell"] = True
+    if stop:
+        run["status"] = "cancelled"
+        d["stages"].update({"stop": 1, "stop_by": "human", "stop_event": 1})
+    return d
+
+
+def band_data() -> dict:
+    """data() の段 2 で、配線の w の後に b も走った run（段 2 の最初の歩は配線の歩）"""
+    d = data()
+    d["run"]["events"].append(event("b", "2026-01-01T00:00:08.000Z", "2026-01-01T00:00:09.000Z", 2))
+    d["stages"]["run"][1] = stage_sum("ok", 3)
+    return d
+
+
 @unittest.skipIf(sync_playwright is None, "playwright が無い（pyproject.toml の extra viewer）")
 class PageUiCase(unittest.TestCase):
     @classmethod
@@ -122,6 +148,15 @@ class PageUiCase(unittest.TestCase):
         self.page.goto(self.html.as_uri())
         self.addCleanup(self.page.close)
         self.addCleanup(lambda: self.assertEqual(self.errors, []))
+
+    def open(self, made: dict):
+        html = Path(self.tmp.name) / f"{self.id().rsplit('.', 1)[-1]}.html"
+        html.write_text(page.render(made), encoding="utf-8")
+        self.page.goto(html.as_uri())
+
+    def card(self, key) -> tuple[list, str]:
+        el = self.page.locator(f"#world [data-key='{key}']")
+        return sorted(el.get_attribute("class").split()), el.locator(".s").text_content()
 
     def graph(self):
         self.page.click("[data-tab=graph]")
@@ -311,13 +346,51 @@ class PageUiCase(unittest.TestCase):
 
     def test_the_time_band_lanes_can_be_pressed_with_keys(self):
         self.page.click("[data-tab=flow]")
-        lane = self.page.locator("#f-band .lane[data-n='2']")
+        lane = self.page.locator("#f-band .lane[data-n='1']")
         self.assertEqual(lane.get_attribute("role"), "button")
         lane.focus()
         self.page.keyboard.press("Enter")
-        self.assertEqual(self.page.evaluate("at"), self.step("w"))
-        empty = self.page.locator("#f-band .lane[data-n='3']")
-        self.assertEqual([empty.get_attribute("role"), empty.get_attribute("tabindex"), empty.get_attribute("aria-label")], [None, None, None])
+        self.assertEqual(self.page.evaluate("at"), self.step("a"))
+        # 段 2 は配線の w だけが走り、帯に絵が無い。段 3 は歩が無い
+        for n in ("2", "3"):
+            empty = self.page.locator(f"#f-band .lane[data-n='{n}']")
+            self.assertEqual([empty.get_attribute("role"), empty.get_attribute("tabindex"), empty.get_attribute("aria-label")],
+                             [None, None, None], n)
+
+    def test_the_time_band_lane_goes_to_the_first_drawn_step_not_a_wiring_step(self):
+        self.open(band_data())
+        self.page.click("[data-tab=flow]")
+        self.page.locator("#f-band .lane[data-n='2']").focus()
+        self.page.keyboard.press("Enter")
+        self.assertEqual(self.page.evaluate("at"), self.step("b"))
+
+    def test_at_the_end_next_and_the_right_key_do_not_move(self):
+        self.graph()
+        self.page.click("#p-next")
+        self.assertEqual(self.page.evaluate("at"), -1)
+        self.page.focus("#crumb button:has-text('説明')")
+        self.page.keyboard.press("ArrowRight")
+        self.assertEqual(self.page.evaluate("at"), -1)
+        self.page.click("#p-play")
+        self.page.wait_for_function("at === 0")
+        self.page.click("#p-play")
+
+    def test_a_node_that_failed_and_then_passed_is_not_shown_as_failed(self):
+        self.open(fell_data())
+        self.graph()
+        classes, word = self.card("line/a")
+        self.assertNotIn("fail", classes)
+        self.assertIn("1 度落ちた", word)
+        self.page.evaluate("go(STEPS.length - 1)")
+        self.assertNotIn("fail", self.card("line/a")[0])
+
+    def test_a_node_a_person_stopped_after_an_earlier_failure_says_only_stopped(self):
+        self.open(fell_data(stop=True))
+        self.graph()
+        classes, word = self.card("line/a")
+        self.assertIn("stopat", classes)
+        self.assertNotIn("fail", classes)
+        self.assertEqual(word, "ここで止めた")
 
 
 if __name__ == "__main__":
