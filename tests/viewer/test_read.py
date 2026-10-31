@@ -755,6 +755,30 @@ class ReadCase(unittest.TestCase):
                 path.write_text(json.dumps(line) + "\n", encoding="utf-8")
                 self.assertEqual(session.read(path, runread.mend)["unread"], {runread.SHAPELESS: 1})
 
+    def test_a_line_whose_type_is_not_a_string_is_unread(self):
+        """型の欄が字でも None でもない行（列・object・数）は、型を引く前に欄の形が違う行に数える（ログと会話の記録の両方）"""
+        db = self._db([("top", None, "2026-10-25 01:00:00", None, "{}")], [])
+        kinds = ([1], {"a": 1}, 5)
+        self._log("top", [{"type": kind} for kind in kinds])
+        self.assertEqual(runread.run(db, "top")["unread"], {runread.SHAPELESS: 3})
+        path = self.tmp / "s.jsonl"
+        path.write_text("".join(json.dumps({"type": kind}) + "\n" for kind in kinds), encoding="utf-8")
+        self.assertEqual(session.read(path, runread.mend)["unread"], {runread.SHAPELESS: 3})
+
+    def test_an_exec_line_of_another_shape_counts_once(self):
+        """script・bash の出力の終わりの行の step が字でなければ、読めない時刻を数える前に止まり、欄の形が違う行の 1 つだけに数える"""
+        db = self._db([("top", None, "2026-10-25 01:00:00", None, "{}")], [])
+        self._log("top", [{"type": runread.EXEC_ROW, "step": [1], "ts": "bad"}])
+        got = runread.run(db, "top")
+        self.assertEqual((got["unread"], got["checks"]), ({runread.SHAPELESS: 1}, []))
+
+    def test_an_artifact_path_with_a_nul_is_not_read(self):
+        """出力の archon_artifact の path か run の id が NUL の字を持てば、落ちずに読まずに読めなかった物に数える"""
+        refs = [{"type": "archon_artifact", "run_id": "top", "path": "a\0b.md"}, {"type": "archon_artifact", "run_id": "to\0p", "path": "a.md"}]
+        reader = runread._Reader({}, {})
+        reader._artifacts({"refs": refs}, self.tmp)
+        self.assertEqual((reader.artifacts, reader.unread), ({}, {runread.NUL_PATH: 2}))
+
     def test_a_line_that_stops_midway_writes_nothing(self):
         """欄の形が違う行は、途中まで読んだ値も書かない: ログの行は出来事を、会話の記録の行は流れ・往復・添え書き・system・作業の場所・
         記録に在った型の印と字の束（keep）を 1 つも変えず、欄の形が違う行に 1 つ数えるだけ（形の良い値が先に在り、形の違う値が後に在る行）"""

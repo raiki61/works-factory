@@ -87,6 +87,10 @@ def read(path: Path, keep, since: str | None = None) -> dict:
             _count(got, runread.OBJECTLESS)
             continue
         kind = row.get("type")
+        if not isinstance(kind, (str, type(None))):
+            # 型の欄が字でない行は、型を引く前に数える（列や object の型は表を引く所で落ちる）
+            _count(got, runread.SHAPELESS)
+            continue
         if kind in UNREAD_TYPES:
             if kind in READ_FROM:
                 held[kind] = held.get(kind, 0) + 1

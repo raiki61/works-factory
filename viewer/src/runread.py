@@ -147,6 +147,7 @@ OBJECTLESS = "JSON の object でない行"
 # object の行の中の欄の形が違う行（欄が object でない・在るはずの字が無いか字でない）。会話の記録の読み（src/session.py）も使う
 SHAPELESS = "欄の形が違う行"
 OUTSIDE = "run の置き場の外を指す archon_artifact"
+NUL_PATH = "NUL の字を持つ path の archon_artifact"
 # 片割れのサロゲート（json.loads は組の \ud83d\ude00 を 1 字にするので、字に残るのは片割れだけ）と、置き換える字
 LONE = re.compile("[\ud800-\udfff]")
 REPLACEMENT = "\ufffd"
@@ -437,6 +438,10 @@ class _Reader:
                 self._count(OBJECTLESS)
                 continue
             kind = entry.get("type")
+            if not isinstance(kind, (str, type(None))):
+                # 型の欄が字でない行は、型を引く前に数える（列や object の型は表を引く所で落ちる）
+                self._count(SHAPELESS)
+                continue
             if kind in UNREAD_ROWS:
                 continue
             try:
@@ -562,9 +567,12 @@ class _Reader:
         """script・bash のノードの出力の終わりは、同じ step の最後の起動に付ける。ノードに当たらない物（loop_group の until_bash の
         確かめ。step は `<輪>{ITERATION_MARK}<n>`）は run の確かめの行にする。行は書いた run の id を持つ（同じノードから起こした子の
         run どうしは node も step も同じになる）"""
-        row = {"step": entry.get("step") or "", "node": prefix, "run": self.current, "label": entry.get(runlog.EXEC_LABEL) or "", "exit": entry.get(runlog.EXIT_CODE),
-               "stdout": _clip(entry.get("stdout_tail") or "", 4000), "stderr": _clip(entry.get("stderr_tail") or "", 4000), "at": self._ts(entry)}
-        event = by_step.get(row["step"])
+        step = plain(entry.get("step")) or ""
+        label, out, err = entry.get(runlog.EXEC_LABEL) or "", _clip(entry.get("stdout_tail") or "", 4000), _clip(entry.get("stderr_tail") or "", 4000)
+        event = by_step.get(step)
+        # 読めない時刻を数えるのも書き込みなので、確かめの最後に置く（_node と同じ）
+        row = {"step": step, "node": prefix, "run": self.current, "label": label, "exit": entry.get(runlog.EXIT_CODE),
+               "stdout": out, "stderr": err, "at": self._ts(entry)}
         if event is None:
             self.checks.append(row)
         else:
@@ -593,7 +601,10 @@ class _Reader:
         （見る道具は run の記録だけを読む。viewer/AGENTS.md の E25 の 2）"""
         place = runs / run_id
         path = place / name
-        if Path(os.path.realpath(place)).parent != Path(os.path.realpath(runs)) or not _within(path, place):
+        if "\0" in run_id or "\0" in name:
+            # NUL の字はパスにできず、実のパスの引きが ValueError で落ちる
+            self._count(NUL_PATH)
+        elif Path(os.path.realpath(place)).parent != Path(os.path.realpath(runs)) or not _within(path, place):
             self._count(OUTSIDE)
         elif path.is_file() and path.stat().st_size <= ARTIFACT_LIMIT:
             self.artifacts[key] = mend(path.read_text(encoding="utf-8", errors="replace"))
