@@ -9,6 +9,16 @@
 - 終わりの姿では、つまみの ← と ‹ がどちらも最後の歩へ行く
 - つまみの読み上げの値（aria-valuetext）は、画面の「n / N」と、終わりの姿かを言う
 - run の一覧とログの押せる行は、支援技術に button と、開いているか（aria-expanded）を伝える
+- 「入れ子を探して開く」で走っていない層の畳みの中の札を選ぶと、畳みも開いて札が図に出る
+- 人が開いた入れ子を、再生の今が中に居る時に閉じると、その鎖を抜けるまで次の歩で開き直さない。今が外に居る時に閉じた物
+  （札で閉じても「開いた入れ子を全部閉じる」でも）は、後で今が中へ入れば開く。今が中に居る時に「開いた入れ子を全部閉じる」を
+  押した物も、次の歩で開き直さない
+- 人が開いた二重の入れ子の外を閉じると、今が中に居る時は中の入れ子も開き直さず、今が外に居る時は後で今が中へ入れば開く
+- 再生の歩で図を作り直しても、入れ子の中の札・二重の入れ子の中の札（外の入れ子の札へ順に上る）・入れ子の頭の「詳しい面」・
+  線の select の手前は body に落ちない
+- 札の板の後に「説明」を開くと選んだ札の印が消え、その札を中に持つ入れ子を閉じても graph の板は閉じない
+- 再生の帯のボタン・板の ×・入れ子の頭の − は、読み上げの名が記号でない
+- 流れの時間の帯は、鍵盤で押せる。歩の無い段の帯は押せる物にしない
 
 見た目（色と形）は縛らない（viewer/AGENTS.md の E25 の 4）。
 試験は小さな作りと run の記録を手で組み、src/page.py でページにする。playwright と Chromium が無ければ名前つきで見送る
@@ -51,30 +61,39 @@ def stage_sum(state, seconds):
 
 
 def data() -> dict:
-    """段 1（a と入れ子 nest）が走り、段 2（配線 w と b）は配線の w だけが走った（段は飛んだ）終わった run"""
+    """段 1（a と入れ子 nest）が走り、段 2（配線 w と b）は配線の w だけが走った（段は飛んだ）終わった run。段 3（c）は出来事が無い。
+    nest の中（inner）は x と入れ子 deep（leaf。中の z が走る）が走り、その後の入れ子 sub（leaf2）は走っていない"""
     graphs = {
-        "line": {"name": "works-factory-line", "kind": "graph", "nodes": 4, "desc": "", "inputs": [], "subs": ["inner"], "what": None,
-                 "items": [item("a", []), item("nest", ["a"], "block", target="inner"), item("w", ["nest"]), item("b", ["w"])]},
-        "inner": {"name": "works-factory-inner", "kind": "block", "nodes": 1, "desc": "", "inputs": [], "subs": [], "what": None,
-                  "items": [item("x", [])]},
+        "line": {"name": "works-factory-line", "kind": "graph", "nodes": 5, "desc": "", "inputs": [], "subs": ["inner"], "what": None,
+                 "items": [item("a", []), item("nest", ["a"], "block", target="inner"), item("w", ["nest"]), item("b", ["w"]),
+                           item("c", ["b"])]},
+        "inner": {"name": "works-factory-inner", "kind": "block", "nodes": 3, "desc": "", "inputs": [], "subs": ["leaf", "leaf2"],
+                  "what": None,
+                  "items": [item("x", []), item("deep", ["x"], "block", target="leaf"), item("sub", ["deep"], "block", target="leaf2")]},
+        "leaf": {"name": "works-factory-leaf", "kind": "block", "nodes": 1, "desc": "", "inputs": [], "subs": [], "what": None,
+                 "items": [item("z", [])]},
+        "leaf2": {"name": "works-factory-leaf2", "kind": "block", "nodes": 1, "desc": "", "inputs": [], "subs": [], "what": None,
+                  "items": [item("q", [])]},
         "outer": {"name": "works-factory-outer", "kind": "graph", "nodes": 1, "desc": "", "inputs": [], "subs": [], "what": None,
                   "items": [item("y", [])]},
     }
     t = "2026-01-01T00:00:{:02d}.000Z".format
     events = [event("a", t(0), t(1), 1), event("x", t(2), t(3), 1, via=[{"graph": "line", "node": "nest"}], graph="inner"),
-              event("w", t(4), t(5), 2, through=True)]
-    run = {"id": RUN, "graph": "works-factory-line", "status": "completed", "live": False, "waiting": [], "started": t(0), "seconds": 6,
+              event("z", t(4), t(5), 1, via=[{"graph": "line", "node": "nest"}, {"graph": "inner", "node": "deep"}], graph="leaf"),
+              event("w", t(6), t(7), 2, through=True)]
+    run = {"id": RUN, "graph": "works-factory-line", "status": "completed", "live": False, "waiting": [], "started": t(0), "seconds": 8,
            "cost": 0, "children": [], "events": events, "skipped": [], "checks": [], "missing_logs": [], "unread": {}, "artifacts": {},
            "answer": "", "sessions": {}, "ai_cost": {}}
     row = {"id": RUN, "short": RUN[:8], "graph": "works-factory-line", "status": "completed", "waiting": [], "started": t(0),
-           "seconds": 6, "cost": 0, "error": "", "outcome": ""}
+           "seconds": 8, "cost": 0, "error": "", "outcome": ""}
     return {"made_at": "now", "commit": "", "target": "/target", "runs": [row, {**row, "id": OTHER, "short": OTHER[:8]}], "run": run,
             "shape_from": "run-copy", "unmatched": [], "texts": {}, "texts_ja": {}, "ja": {},
             "shape": {"graphs": graphs, "problems": []}, "waste": None,
             "stages": {"graph": "works-factory-line", "outcomes": {}, "loose": [], "stop": None, "stop_by": None, "stop_event": None,
                        "table": [{"name": "一", "line": "", "hands": "", "source": "", "nodes": ["a", "nest"], "wiring": []},
-                                 {"name": "二", "line": "", "hands": "", "source": "", "nodes": ["w", "b"], "wiring": ["w"]}],
-                       "run": [stage_sum("ok", 4), stage_sum("skipped", 0)]}}
+                                 {"name": "二", "line": "", "hands": "", "source": "", "nodes": ["w", "b"], "wiring": ["w"]},
+                                 {"name": "三", "line": "", "hands": "", "source": "", "nodes": ["c"], "wiring": []}],
+                       "run": [stage_sum("ok", 6), stage_sum("skipped", 0), stage_sum("skipped", 0)]}}
 
 
 @unittest.skipIf(sync_playwright is None, "playwright が無い（pyproject.toml の extra viewer）")
@@ -202,6 +221,103 @@ class PageUiCase(unittest.TestCase):
         rows.nth(0).click()
         rows.nth(1).click()
         self.assertEqual([rows.nth(i).get_attribute("aria-expanded") for i in range(2)], ["false", "true"])
+
+    def step(self, path, end=False) -> int:
+        return self.page.evaluate(f"STEPS.findIndex(s => s.e.path === '{path}' && s.end === {'true' if end else 'false'})")
+
+    def test_finding_a_nest_inside_a_folded_idle_layer_shows_it(self):
+        self.graph()
+        self.page.focus(FIND)
+        self.page.select_option(FIND, "line/nest>inner/sub")
+        self.assertEqual(self.page.locator("#world [data-key='line/nest>inner/sub']").count(), 1)
+
+    def test_a_nest_the_person_opened_and_closed_while_the_replay_is_inside_stays_closed(self):
+        self.graph()
+        self.page.click("#world [data-key='line/nest']")
+        self.page.evaluate(f"go({self.step('x')})")
+        self.page.click("#world .nestbox .nh button.tw")
+        self.page.evaluate(f"go({self.step('x', end=True)})")
+        self.assertEqual(self.page.locator("#world .nestbox").count(), 0)
+
+    def test_a_nest_the_person_closed_while_the_replay_is_outside_opens_when_the_replay_goes_inside(self):
+        self.graph()
+        for close in ("#world [data-key='line/nest']", "#gtools button:has-text('開いた入れ子を全部閉じる')"):
+            self.page.evaluate(f"go({self.step('a', end=True)})")
+            self.page.click("#world [data-key='line/nest']")
+            self.page.click(close)
+            self.assertEqual(self.page.locator("#world .nestbox").count(), 0, close)
+            self.page.evaluate(f"go({self.step('x')})")
+            self.assertEqual(self.page.locator("#world .nestbox").count(), 1, close)
+
+    def test_closing_all_while_the_replay_is_inside_keeps_the_nest_the_person_opened_closed(self):
+        self.graph()
+        self.page.evaluate(f"go({self.step('a', end=True)})")
+        self.page.click("#world [data-key='line/nest']")
+        self.page.evaluate(f"go({self.step('x')})")
+        self.page.click("#gtools button:has-text('開いた入れ子を全部閉じる')")
+        self.page.evaluate(f"go({self.step('x', end=True)})")
+        self.assertEqual(self.page.locator("#world .nestbox").count(), 0)
+
+    def test_closing_a_nest_shuts_the_inner_nest_the_person_opened_only_while_the_replay_is_inside(self):
+        """deep を手で開いて nest を閉じる。今が中（z）なら、nest を手で開き直しても deep は開かない。
+        今が外（a）なら、今が z へ入ると nest も deep も開く"""
+        for where, then, boxes in (("z", "z", 1), ("a", None, 2)):
+            self.page.reload()
+            self.graph()
+            self.page.evaluate(f"go({self.step('a', end=True)})")
+            self.page.click("#world [data-key='line/nest']")
+            self.page.click("#world [data-key='line/nest>inner/deep']")
+            self.page.evaluate(f"go({self.step(where, end=where == 'a')})")
+            self.page.click("#world [data-f='line/nest −']")
+            if then:
+                self.page.evaluate(f"go({self.step(then, end=True)})")
+                self.page.click("#world [data-key='line/nest']")
+            else:
+                self.page.evaluate(f"go({self.step('z')})")
+            self.assertEqual(self.page.locator("#world .nestbox").count(), boxes, where)
+
+    def test_replay_steps_that_redraw_the_graph_keep_the_focus(self):
+        self.graph()
+        inside, outside = self.step("x"), self.step("a", end=True)
+        for where, back in (("#world [data-key='line/nest>inner/x']", "line/nest"),
+                            ("#world [data-key='line/nest>inner/deep>leaf/z']", "line/nest"),
+                            ("#world .nestbox button:has-text('詳しい面')", "line/nest"),
+                            ("#gtools select:has(option:has-text('線: 引かない'))", "SELECT")):
+            self.page.evaluate(f"go({self.step('z') if 'leaf/z' in where else inside})")
+            self.page.focus(where)
+            self.page.evaluate(f"go({outside})")
+            self.assertEqual(self.focused(), back, where)
+
+    def test_explaining_the_graph_after_a_node_panel_drops_the_selection(self):
+        self.graph()
+        self.page.click("#world [data-key='line/nest']")
+        self.page.click("#world [data-key='line/nest>inner/x']")
+        self.page.click("#crumb button:has-text('説明')")
+        self.assertEqual(self.page.locator("#world .sel").count(), 0)
+        self.page.click("#world [data-key='line/nest']")
+        self.assertTrue(self.page.is_visible("#panel"))
+
+    def test_symbol_buttons_have_names(self):
+        self.graph()
+        for name in ("1 歩戻る（←）", "再生する（空白）", "1 歩進む（→）", "再生をやめて run の終わりの姿へ"):
+            self.assertEqual(self.page.get_by_role("button", name=name, exact=True).count(), 1, name)
+        self.page.click("#p-play")
+        self.assertEqual(self.page.get_by_role("button", name="止める（空白）", exact=True).count(), 1)
+        self.page.click("#p-play")
+        self.page.click("#world [data-key='line/nest']")
+        self.assertEqual(self.page.get_by_role("button", name="inner の中を閉じる", exact=True).count(), 1)
+        self.page.click("#world [data-key='line/a']")
+        self.assertEqual(self.page.get_by_role("button", name="板を閉じる", exact=True).count(), 1)
+
+    def test_the_time_band_lanes_can_be_pressed_with_keys(self):
+        self.page.click("[data-tab=flow]")
+        lane = self.page.locator("#f-band .lane[data-n='2']")
+        self.assertEqual(lane.get_attribute("role"), "button")
+        lane.focus()
+        self.page.keyboard.press("Enter")
+        self.assertEqual(self.page.evaluate("at"), self.step("w"))
+        empty = self.page.locator("#f-band .lane[data-n='3']")
+        self.assertEqual([empty.get_attribute("role"), empty.get_attribute("tabindex"), empty.get_attribute("aria-label")], [None, None, None])
 
 
 if __name__ == "__main__":
