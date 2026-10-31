@@ -174,6 +174,23 @@ class RoundsCase(unittest.TestCase):
         self.assertEqual([[row["check"]["exit"] if row["check"] else None for row in group["rounds"]] for group in data["waste"]["rounds"]],
                          [[None, None], [1, 0], [1, 1]])   # 外の器は確かめを持たない
 
+    def test_a_loop_that_fell_and_ran_again_counts_its_rounds_once(self):
+        """周 2 の途中で落ちて、同じ起動の id で走り直した器（読む部品は落ちた起動と走り直しの 2 つの出来事に分ける）は、同じ所の
+        1 つの器として周を 1 回だけ並べ、周の終わりの確かめはどちらかの起動の時刻の内で当てる（周 3 の確かめは走り直しの時刻の内）"""
+        events = [event(["fix"], kind="loop_group", start=0, end=5, status="failed", cut=True),
+                  event(["fix", "try"], start=1, end=2, loop=[1], cost=1.0, output="a"),
+                  event(["fix", "try"], start=3, end=5, loop=[2], cost=1.0, status="failed"),
+                  event(["fix"], kind="loop_group", start=10, end=20, fell=True),
+                  event(["fix", "try"], start=11, end=12, loop=[2], cost=1.0, output="b"),
+                  event(["fix", "try"], start=13, end=14, loop=[3], cost=1.0, output="c")]
+        checks = [check(f"fix{runread.ITERATION_MARK}{n}", code, minute) for n, code, minute in ((1, 1, 2), (2, 1, 12), (3, 0, 15))]
+        data = {"texts": {}, "shape": {"graphs": {}}, "run": {"seconds": 1200.0, "events": events, "checks": checks, "sessions": {}}}
+        waste.attach(data)
+        (group,) = data["waste"]["rounds"]
+        self.assertEqual((group["event"], group["cost"]), (0, 4.0))
+        self.assertEqual([(row["round"], row["events"], row["check"]["exit"] if row["check"] else None) for row in group["rounds"]],
+                         [(1, [1], 1), (2, [2, 4], 1), (3, [5], 0)])
+
     def test_a_round_is_same_when_its_outputs_did_not_change(self):
         """until_bash の途中の周はどれも終了の値が 1 で落ちが無いので、出力まで比べる。周 3 だけが前の周と同じ。切った字が同じでも、
         切る前の字の hash（digest）が違えば同じと数えない"""

@@ -69,17 +69,21 @@ def _time_split(run) -> dict:
 
 def _rounds(events, checks) -> list[dict]:
     """2 周以上回った繰り返しの器ごとの周。周は器の中の出来事（器と同じ run で、道が器の下で、外の周の番号が器と同じ物）を、器の周の
-    番号で分けた物。同じノードから起こした子の run どうし（fan_out）は道も周の番号も同じなので、run で分ける。周の終わりの確かめ
-    （until_bash の終了の値。runread の checks）は、run と道と周の番号と器の時刻の内で当てる。前の周と落ちた道と確かめの値と中の出力
-    （切る前の字の hash）が同じ周に same を付ける（until_bash の途中の周は終了の値も落ちも同じなので、出力まで比べる）"""
-    out = []
+    番号で分けた物。同じノードから起こした子の run どうし（fan_out）は道も周の番号も同じなので、run で分ける。落ちた後に走り直した器は
+    起動ごとの出来事に分かれる（runread の fell）が、同じ所（run・道・外の周の番号）の器の起動は 1 つの器にまとめ、周を 1 回だけ数える
+    （出す出来事の番号は最初の起動）。周の終わりの確かめ（until_bash の終了の値。runread の checks）は、run と道と周の番号と、器の
+    どの起動かの時刻の内で当てる。前の周と落ちた道と確かめの値と中の出力（切る前の字の hash）が同じ周に same を付ける（until_bash の
+    途中の周は終了の値も落ちも同じなので、出力まで比べる）"""
+    out, starts = [], {}
     for n, group in enumerate(events):
-        if group["kind"] != runread.LOOP_GROUP:
-            continue
+        if group["kind"] == runread.LOOP_GROUP:
+            starts.setdefault((group["run"], tuple(group["tokens"]), tuple(group["loop"])), []).append((n, group))
+    for spot in starts.values():
+        (n, group), groups = spot[0], [g for _, g in spot]
         head, depth = group["tokens"], len(group["loop"])
         by = {}
         for m, e in enumerate(events):
-            if e is not group and e["run"] == group["run"] and e["tokens"][:len(head)] == head and len(e["tokens"]) > len(head) \
+            if all(e is not g for g in groups) and e["run"] == group["run"] and e["tokens"][:len(head)] == head and len(e["tokens"]) > len(head) \
                     and len(e["loop"]) > depth and e["loop"][:depth] == group["loop"]:
                 by.setdefault(e["loop"][depth], []).append((m, e))
         if len(by) < 2:
@@ -89,7 +93,7 @@ def _rounds(events, checks) -> list[dict]:
             inner = [e for _, e in by[k] if e["kind"] not in runread.GROUP_KINDS]
             times = [t for _, e in by[k] for t in (e["start"], e["end"]) if t]
             failed = sorted("/".join(e["tokens"][len(head):]) for e in inner if e["status"] == "failed")
-            check = _check(checks, k, group)
+            check = _check(checks, k, groups)
             outputs = sorted(("/".join(e["tokens"][len(head):]), e["digest"]) for e in inner if "digest" in e)
             here = (failed, check["exit"] if check else None, outputs)
             rows.append({"round": k, "events": [m for m, _ in by[k]], "cost": round(sum(e["cost"] for e in inner), 6),
@@ -102,13 +106,14 @@ def _rounds(events, checks) -> list[dict]:
     return out
 
 
-def _check(checks, k, group) -> dict | None:
+def _check(checks, k, groups) -> dict | None:
     """周 k の終わりの確かめ。Archon は確かめの step を器の id で書き（`<器の id>-iteration-<k>`。runread.ITERATION_MARK）、繰り返しの本体の中の器の
     id は外の器の名を付けない（`plan__plan-loop`。道は `plan-rounds.plan__plan-loop`）ので、器の道の最後の本体の区切りの後と比べる。
-    外の周ごとの器は、器の時刻の内で分ける"""
+    外の周ごとの器は、器の時刻の内で分ける（groups は同じ所の器の起動。どれかの時刻の内なら当てる）"""
+    group = groups[0]
     step = f"{group['path'].split(shape.IN_LOOP)[-1]}{runread.ITERATION_MARK}{k}"
     for row in checks:
-        if row["run"] == group["run"] and row["step"] == step and _inside(row["at"], group):
+        if row["run"] == group["run"] and row["step"] == step and any(_inside(row["at"], g) for g in groups):
             return {"exit": row["exit"]}
     return None
 

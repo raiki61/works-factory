@@ -19,6 +19,7 @@ import json
 import os
 import re
 import sqlite3
+import stat
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -109,8 +110,8 @@ READ_ROWS = (*NODE_ROWS, PROVIDER_ROW, EXEC_ROW)
 PRIOR_SUCCESS = "prior_success"
 UNREAD_ROWS = {
     "gate_decision": "古い承認ノード approval: の答え。工場の承認ノード wait: attention はこの行を書かず、答えをノードの出力 {decision, text} に持つ",
-    "workflow_start": "run の始めの印。始めの時刻は DB の run の行から読む",
-    "workflow_resume": "resume の境の印。ノードの出来事は resume の前と後の行を同じに読む",
+    "workflow_start": "run の始めの印。始めの時刻は DB の run の行から読む（行の時刻は起き直しの時刻として RESTART_ROWS で拾う）",
+    "workflow_resume": "resume の境の印。ノードの出来事は resume の前と後の行を同じに読む（行の時刻は起き直しの時刻として RESTART_ROWS で拾う）",
     "workflow_complete": "run の終わりの印。状態・終わりの時刻・費用は DB の run の行から読む",
     "workflow_error": "run の落ちの印。落ちの訳は DB の workflow_failed から読む",
     "watchdog_reset": "期限の見張りを延ばした印で、中身を持たない",
@@ -121,6 +122,9 @@ UNREAD_ROWS = {
     "worktree_setup_completed": "作業ツリーの用意の終わりで、ノードの出来事でない",
     "worktree_setup_failed": "作業ツリーの用意の落ちで、run の落ちの訳は DB の workflow_failed から読む",
 }
+# 読まない型のうち、時刻だけを起き直しの時刻として拾う行（Archon は起動のたびにノードの前にどちらかを書く。packages/workflows/src/
+# executor.ts の logWorkflowResume・logWorkflowStart。DB の秒までの落ちと同じ秒の始めが、落ちの前か後かを分ける。_since）
+RESTART_ROWS = ("workflow_start", "workflow_resume")
 # 道具の出来事の型（packages/provider-contract/src/events.ts の providerEventSchema の和）
 TOOL_CALL = runlog.TOOL_CALL
 TOOL_UPDATE = "tool_call_update"
@@ -146,8 +150,12 @@ ARTIFACT_LIMIT = 60000
 OBJECTLESS = "JSON の object でない行"
 # object の行の中の欄の形が違う行（欄が object でない・在るはずの字が無いか字でない）。会話の記録の読み（src/session.py）も使う
 SHAPELESS = "欄の形が違う行"
+# 欄の形が違う値に当たって読みが止まる時の誤り（読む側が SHAPELESS に数える。会話の記録の読みも使う）
+SHAPE_ERRORS = (AttributeError, KeyError, TypeError)
 OUTSIDE = "run の置き場の外を指す archon_artifact"
 NUL_PATH = "NUL の字を持つ path の archon_artifact"
+UNREADABLE = "読めない archon_artifact（長すぎる path・読む権限が無いなど）"
+NAMELESS = "step_name の無い node_suspended"
 # 片割れのサロゲート（json.loads は組の \ud83d\ude00 を 1 字にするので、字に残るのは片割れだけ）と、置き換える字
 LONE = re.compile("[\ud800-\udfff]")
 REPLACEMENT = "\ufffd"
@@ -174,7 +182,7 @@ def runs(db: Path) -> list[dict]:
                            f"where parent_run_id is null {NEWEST}").fetchall()
         firsts = _firsts(con)
         lasts = dict(con.execute(f"select workflow_run_id, max(created_at) from {EVENT_TABLE} group by workflow_run_id").fetchall())
-        waiting = _waiting(con)
+        waiting, _ = _waiting(con)
         spent = _spent(con)
         ends = _ends(con)
         errors = {rid: _error(data) for rid, data in con.execute(
@@ -224,7 +232,7 @@ def run(db: Path, run_id: str) -> dict:
         if top is None:
             raise LookupError(f"run {run_id} が DB に無い")
         outputs, odd = _outputs(con)
-        waiting = _waiting(con)
+        waiting, nameless = _waiting(con)
         spent = _spent(con)
         ends = _ends(con)
         falls = _ends(con, (FAILED_EVENT,))
@@ -232,8 +240,6 @@ def run(db: Path, run_id: str) -> dict:
         # 落ちは過去の事実なので、走り中の run（落ちた後に起き直した物）でも閉じる
         fell = {rid: [at for t in times if (at := _end("", t, live=True))] for rid, times in falls.items()}
         reader = _Reader(outputs, fell)
-        if odd:
-            reader.unread[SHAPELESS] = odd
         reader.read(top, [])
         todo, parents = [(run_id, [])], {}
         while todo:
@@ -252,6 +258,11 @@ def run(db: Path, run_id: str) -> dict:
                 reader.read(child, prefix)
                 parents[child["id"]] = parent
                 todo.append((child["id"], prefix))
+    # DB の読みの誤りは、開いた run と読んだ子の run の物だけを数える（別の run の行を帯に入れない。待ちは開いた run だけに出す）
+    for what, got in ((SHAPELESS, sum(odd.get(rid, 0) for rid in (run_id, *(child["id"] for child in reader.children)))),
+                      (NAMELESS, nameless.get(run_id, 0))):
+        if got:
+            reader.unread[what] = reader.unread.get(what, 0) + got
     meta = _json(top["metadata"])
     root = Path(top["output_root"]) if top["output_root"] else None
     closed = {row["id"]: [at for t in ends.get(row["id"], []) if (at := _end(row["status"], t))] for row in (top, *reader.children)}
@@ -260,7 +271,8 @@ def run(db: Path, run_id: str) -> dict:
             continue
         # 起き直した後も同じ起動の id で走り直す出来事は、最後の始めの後の終わり（落ち）で閉じる。前の落ちでは閉じない
         begun, ends = event["last_start"] or event["start"], closed[event["run"]]
-        at = _close(begun, ends) if ends else next(iter(_since(begun, fell.get(event["run"], []))), None)
+        restarts = reader.restarts(event["run"])
+        at = _close(begun, ends, restarts) if ends else next(iter(_since(begun, fell.get(event["run"], []), restarts)), None)
         if at is None:
             continue
         event["end"], event["cut"] = _later(at, begun), True
@@ -342,17 +354,21 @@ def _end(status: str, end: str | None, live: bool = False) -> str | None:
     return at.strftime("%Y-%m-%dT%H:%M:%S.") + f"{at.microsecond // 1000:03d}Z" if at else None
 
 
-def _close(start: str, ends: list[str]) -> str:
+def _close(start: str, ends: list[str], restarts: list[str]) -> str:
     """終わりの無い出来事を閉じる終わりの出来事の時刻: 始めの後の最初の物（_since）。始めの後に無ければ最後の物。閉じる時刻は呼ぶ側が
     始めより前にしない（長さを負にしない）"""
-    return (_since(start, ends) or ends[-1:])[0]
+    return (_since(start, ends, restarts) or ends[-1:])[0]
 
 
-def _since(start: str, ends: list[str]) -> list[str]:
-    """始めの後の終わりの出来事の時刻（DB の時刻は秒までの切り捨てなので、始めと同じ秒の物も数える）"""
+def _since(start: str, ends: list[str], restarts: list[str]) -> list[str]:
+    """始めの後の終わりの出来事の時刻。DB の時刻は秒までの切り捨てなので、始めと同じ秒の物は、その秒の内で始めの前に起き直し
+    （restarts。ログの RESTART_ROWS の時刻）が在れば始めの前（落ちた後に起き直してから始めた）とし、無ければ始めの後に数える"""
     begun = try_when(start)
-    floor = begun.replace(microsecond=0) if begun else None
-    return [t for t in ends if floor is None or when(t) >= floor]
+    if begun is None:
+        return list(ends)
+    floor = begun.replace(microsecond=0)
+    back = any(floor <= at <= begun for t in restarts if (at := try_when(t)))
+    return [t for t in ends if when(t) > floor or (when(t) == floor and not back)]
 
 
 def _earlier(a: str | None, b: str | None) -> str | None:
@@ -404,6 +420,8 @@ class _Reader:
         self.unread: dict[str, int] = {}
         self.current = ""
         self.seen_skips = set()
+        # run ごとの始めと起き直しの時刻（ログの RESTART_ROWS。ログの形。古い順）
+        self.starts: dict[str, list[str]] = {}
 
     def _ts(self, entry: dict) -> str | None:
         """行の時刻。読めない時刻は数えずに None にし、読めなかった物に数える（段の集計と無駄の手がかりを落とさない）"""
@@ -443,6 +461,8 @@ class _Reader:
                 self._count(SHAPELESS)
                 continue
             if kind in UNREAD_ROWS:
+                if kind in RESTART_ROWS and try_when(entry.get("ts")):
+                    self.starts.setdefault(self.current, []).append(entry["ts"])
                 continue
             try:
                 if kind not in READ_ROWS:
@@ -453,14 +473,15 @@ class _Reader:
                     self._provider(entry, by_attempt)
                 elif kind == EXEC_ROW:
                     self._exec(entry, prefix, by_step)
-            except (AttributeError, KeyError, TypeError):
+            except SHAPE_ERRORS:
                 # 欄の形が違う行（execution・event が object でない・loopPath の周が object でないなど）は、落ちずに数える
                 self._count(SHAPELESS)
 
     def _node(self, entry, kind, prefix, by_invocation, by_attempt, by_step, root):
         # 1 行は 2 つに分けて読む。先に出来事に入れる値（周の番号・step・試みの id・会話の欄・誤りの字・費用・出力）を全部取り出して
-        # 形を確かめ、全部が通った後で出来事を一度に書く。形が違えば何も書かずに行ごと数える（途中まで書き換えた出来事を残さず、
-        # 後で使う段の集計と会話の読みで落ちない）
+        # 形を確かめ、全部が通った後で出来事を一度に書く。要の欄（どの出来事か・状態・時刻を決める物）の形が違えば何も書かずに行ごと
+        # 数える（途中まで書き換えた出来事を残さず、後で使う段の集計と会話の読みで落ちない）。添えるだけの欄（会話の欄・誤りの字）の
+        # 形が違えば、その欄だけを捨てて行の残りを読み、欄の形が違う行に 1 つ数える（_side）
         execution = entry.get(EXECUTION) or {}
         path = execution.get("path") or entry.get("step") or ""
         invocation = (execution.get("invocation") or {})
@@ -470,14 +491,18 @@ class _Reader:
         step = plain(entry.get("step")) or path
         attempt = plain((execution.get("attempt") or {}).get("id"))
         node = (execution.get("node") or {}).get("kind") or ""
-        told = _told(execution) if kind in ("node_complete", "node_error") else {}
-        error = (entry.get("error") or (execution.get("lifecycle") or {}).get("error") or "") if kind == "node_error" else ""
+        dropped = []
+        told = _told(execution, dropped) if kind in ("node_complete", "node_error") else {}
+        error = _side(lambda: plain(entry.get("error") or (execution.get("lifecycle") or {}).get("error")) or "", dropped, "") \
+            if kind == "node_error" else ""
         cost = (runlog.number(entry.get(NODE_COST)) or 0.0) if own_spend(execution.get(ACCOUNTING), entry.get(AGGREGATE)) else 0.0
         # 出力（DB の node_completed）は通った起動の物で、同じ起動の id の前の落ちた出来事には付けない
         output = self.outputs.get(key[1]) if kind == "node_complete" else None
         text = mend(output if isinstance(output, str) else json.dumps(output, ensure_ascii=False)) if output is not None else None
-        # 読めない時刻を数えるのも書き込みなので、読む段の最後に置く
+        # 読めない時刻と捨てた添えの欄を数えるのも書き込みなので、読む段の最後に置く
         ts = self._ts(entry)
+        if dropped:
+            self._count(SHAPELESS)
         if kind == "node_skipped":
             # 起き直すたびに Archon は when・trigger_rule で飛ぶノードの行も新しい起動の id で書き直すので、同じ run・道・周の飛びは最初の 1 つだけ
             spot = (self.current, tuple(ids), tuple(map(str, loop)))
@@ -532,7 +557,7 @@ class _Reader:
         begun = event["last_start"]
         if event["status"] not in ("running", "waiting") or not begun or not ts:
             return False
-        at = next((t for t in _since(begun, self.falls.get(self.current, [])) if when(t) < when(ts)), None)
+        at = next((t for t in _since(begun, self.falls.get(self.current, []), self.restarts(self.current)) if when(t) < when(ts)), None)
         if at is None:
             return False
         event["end"], event["cut"] = _later(at, begun), True
@@ -604,25 +629,50 @@ class _Reader:
         if "\0" in run_id or "\0" in name:
             # NUL の字はパスにできず、実のパスの引きが ValueError で落ちる
             self._count(NUL_PATH)
-        elif Path(os.path.realpath(place)).parent != Path(os.path.realpath(runs)) or not _within(path, place):
-            self._count(OUTSIDE)
-        elif path.is_file() and path.stat().st_size <= ARTIFACT_LIMIT:
-            self.artifacts[key] = mend(path.read_text(encoding="utf-8", errors="replace"))
+            return
+        try:
+            if Path(os.path.realpath(place)).parent != Path(os.path.realpath(runs)) or not _within(path, place):
+                self._count(OUTSIDE)
+                return
+            info = path.stat()
+            if stat.S_ISREG(info.st_mode) and info.st_size <= ARTIFACT_LIMIT:
+                self.artifacts[key] = mend(path.read_text(encoding="utf-8", errors="replace"))
+        except (FileNotFoundError, NotADirectoryError):
+            # 置き場に無いファイル（消した・書かなかった）は前から読まずに進む
+            return
+        except OSError:
+            # 長すぎる path・読む権限の無いファイルなど。ページを作れずに落ちず、読めなかった物に数える
+            self._count(UNREADABLE)
+
+    def restarts(self, rid: str) -> list[str]:
+        """run の起き直しの時刻（RESTART_ROWS の行のうち最初の物を除く。最初の行は run の始めで、落ちの後には来ない）"""
+        return self.starts.get(rid, [])[1:]
 
     def _count(self, what: str) -> None:
         self.unread[what] = self.unread.get(what, 0) + 1
 
 
-def _told(execution: dict) -> dict:
-    """終わりの行の会話の欄（会話の id の頭・続けたか・模型・トークン・往復の数）。会話の id の頭が無ければ空"""
+def _told(execution: dict, dropped: list) -> dict:
+    """終わりの行の会話の欄（会話の id の頭・続けたか・模型・トークン・往復の数）。会話の id の頭が無ければ空。どれも添えるだけの欄で、
+    形が違う欄は _side で捨てる（トークンと往復の数の形の違いは runlog の読みが空にする）"""
     spend, binding = execution.get("spend") or {}, execution.get("binding") or {}
-    preview = plain(binding.get("sessionPreview"))
+    preview = _side(lambda: plain(binding.get("sessionPreview")), dropped, None)
     if not preview:
         return {}
     model = binding.get("model") or {}
-    return {"session": preview, "origin": binding.get("sessionOrigin") or "",
-            "model": (model.get("resolved") or {}).get("value") or model.get("requested") or "",
+    return {"session": preview, "origin": _side(lambda: plain(binding.get("sessionOrigin")) or "", dropped, ""),
+            "model": _side(lambda: plain((model.get("resolved") or {}).get("value") or model.get("requested")) or "", dropped, ""),
             "usage": runlog.tokens(runlog.measurement(spend, "tokens", lambda v: v)[0]), "turns": runlog.measurement(spend, "numTurns")[0]}
+
+
+def _side(pick, dropped: list, default):
+    """添えるだけの欄（出来事の状態と終わりを決めない物）の値。形が違えば（pick が SHAPE_ERRORS で止まれば）その欄だけを捨てて
+    default を返し、dropped に印を足す（読む側は行の残りを読み、欄の形が違う行に 1 つ数える）"""
+    try:
+        return pick()
+    except SHAPE_ERRORS:
+        dropped.append(pick)
+        return default
 
 
 def plain(value):
@@ -660,31 +710,36 @@ def _row(con, run_id: str) -> dict | None:
     return dict(zip(RUN_COLUMNS, row)) if row else None
 
 
-def _outputs(con) -> tuple[dict, int]:
-    """ノードの起動（invocation の id）ごとの出力の全文（DB の node_completed）と、欄の形が違う行（invocation が object でない・
+def _outputs(con) -> tuple[dict, dict[str, int]]:
+    """ノードの起動（invocation の id）ごとの出力の全文（DB の node_completed）と、run ごとの欄の形が違う行（invocation が object でない・
     id が字でない）の数"""
-    out, odd = {}, 0
-    for (data,) in con.execute(f"select data from {EVENT_TABLE} where event_type = ?", (OUTPUT_EVENT,)):
+    out, odd = {}, {}
+    for rid, data in con.execute(f"select workflow_run_id, data from {EVENT_TABLE} where event_type = ?", (OUTPUT_EVENT,)):
         got = _json(data)
         invocation = got.get("invocation") or {}
         ident = invocation.get("id") if isinstance(invocation, dict) else None
         if not isinstance(invocation, dict) or not isinstance(ident, (str, type(None))):
-            odd += 1
+            odd[rid] = odd.get(rid, 0) + 1
         elif ident and got.get(NODE_OUTPUT) is not None:
             out[ident] = got[NODE_OUTPUT]
     return out, odd
 
 
-def _waiting(con) -> dict:
-    """答えを待つ run（状態が paused）ごとの、止まって答えを待つノード（node_suspended の後に同じノードの終わりが無い物）。
+def _waiting(con) -> tuple[dict, dict[str, int]]:
+    """答えを待つ run（状態が paused）ごとの、止まって答えを待つノード（node_suspended の後に同じノードの終わりが無い物）と、run ごとの
+    名（step_name）の無いか字でない node_suspended の数（読み飛ばす）。
     答えが入って次へ進む前のノード（metadata の待ちに答えが在る物）は外す。繰り返しの中の待ちでは Archon が本体のノード
     `<器>.<本体>` と器の両方に node_suspended を書くので、待つ本体を持つ器は並べず、答えが入れば器も外す"""
-    out = {}
+    out, nameless = {}, {}
     for rid, step, kind in con.execute(f"select e.workflow_run_id, e.step_name, e.event_type from {EVENT_TABLE} e "
                                        f"join {RUN_TABLE} r on r.id = e.workflow_run_id where r.status = ? and e.event_type in (?, ?) "
                                        "order by e.workflow_run_id, e.created_at, e.event_order",
                                        (PAUSED, SUSPENDED_EVENT, OUTPUT_EVENT)):
         names = out.setdefault(rid, [])
+        if not isinstance(step, str) or not step:
+            if kind == SUSPENDED_EVENT:
+                nameless[rid] = nameless.get(rid, 0) + 1
+            continue
         if kind == SUSPENDED_EVENT and step not in names:
             names.append(step)
         elif kind == OUTPUT_EVENT and step in names:
@@ -697,7 +752,7 @@ def _waiting(con) -> dict:
                 steps.append(f"{wait.get('nodeId')}{shape.IN_LOOP}{wait.get('bodyWaitId')}")
             out[rid] = [name for name in out.get(rid, []) if name not in steps]
     out = {rid: [name for name in names if not any(other.startswith(name + shape.IN_LOOP) for other in names)] for rid, names in out.items()}
-    return {rid: names for rid, names in out.items() if names}
+    return {rid: names for rid, names in out.items() if names}, nameless
 
 
 def _span(events: list[dict]) -> tuple[str, str] | None:

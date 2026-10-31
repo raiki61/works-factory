@@ -7,8 +7,9 @@ Claude Code の版は工場が止めていないので、記録の形は試験�
 （代わりが無ければ LLM に入った字が帯から消えるので）。
 
 - find(projects, preview) -> run の記録の会話の id の頭（sessionPreview）に当たる記録のパス（無ければ None。Claude Code が消した古い記録は結べない。
-  2 つ以上に当たれば黙って選ばずに LookupError）
-- collect(run, projects, keep) -> run の出来事の会話を読んだ物（鍵は会話の id の頭）。当たる記録が 2 つ以上の頭は run["unread"] に数える。
+  2 つ以上に当たれば黙って選ばずに LookupError。頭が 16 進の字と - でなければ探さずに ValueError）
+- collect(run, projects, keep) -> run の出来事の会話を読んだ物（鍵は会話の id の頭）。当たる記録が 2 つ以上の頭と、16 進の字と - でない頭は
+  run["unread"] に数える。
   続けた会話（出来事の origin が runread.RESUMED）は、その出来事の始めを since にして読む
 - read(path, keep, since) -> 1 本の会話。流れ（seq）は LLM に入った順の片で、往復の最初の行で ["turn", 往復の番号] を置く（usage を持つ
   行を待たない。トークンは往復の usage から後で埋め、usage の無い往復は空のまま。1 つの返事は行が分かれ、出力のトークンは終わりの行で
@@ -20,6 +21,7 @@ Claude Code の版は工場が止めていないので、記録の形は試験�
   残す。LLM に入った物なので）。読めない時刻の往復は時刻を持たず、読めなかった物に数える
 """
 import json
+import re
 from pathlib import Path
 
 import runlog   # lib/（viewer/src/__init__.py が sys.path に足す）
@@ -45,11 +47,16 @@ USAGE = {"in": "input_tokens", "cache_read": "cache_read_input_tokens", "cache_w
 
 
 AMBIGUOUS = "会話の id の頭が 2 つ以上の記録に当たる"
+# 会話の id の頭に通す字（Claude Code の会話の id は UUID）。ほかの字（/・..・glob の字）は置き場の外や別の会話に当たるので通さない
+PREVIEW = re.compile(r"[0-9A-Fa-f-]+")
+STRANGE = "会話の id の頭が 16 進の字と - でない"
 
 
 def find(projects: Path, preview: str) -> Path | None:
     if not preview or not projects.is_dir():
         return None
+    if not PREVIEW.fullmatch(preview):
+        raise ValueError(f"{STRANGE}: {preview!r}")
     hits = sorted(projects.glob(f"*/{preview}*.jsonl"))
     if len(hits) > 1:
         raise LookupError(f"{AMBIGUOUS}: {preview}")
@@ -64,8 +71,9 @@ def collect(run: dict, projects: Path, keep) -> dict:
             continue
         try:
             found = find(projects, preview)
-        except LookupError:
-            run["unread"][AMBIGUOUS] = run["unread"].get(AMBIGUOUS, 0) + 1
+        except (LookupError, ValueError) as error:
+            what = AMBIGUOUS if isinstance(error, LookupError) else STRANGE
+            run["unread"][what] = run["unread"].get(what, 0) + 1
             sessions[preview] = None
             continue
         if found is not None:
@@ -110,8 +118,9 @@ def read(path: Path, keep, since: str | None = None) -> dict:
                 write = _assistant(got, row, keep, turns, by_id)
             else:
                 write = _cost(got, row)
-        except (AttributeError, KeyError, TypeError):
-            # 欄の形が違う行（message・shape が object でない・字の片に text が無いか字でないなど）は、何も書かずに数える
+        except runread.SHAPE_ERRORS:
+            # 欄の形が違う行（message・shape が object でない・content が字でも列でもない・字の片に text が無いか字でない・費用が
+            # 数でないなど）は、何も書かずに数える
             _count(got, runread.SHAPELESS)
             continue
         if kind in got["recorded"]:
@@ -165,16 +174,12 @@ def _inject(got, message, keep):
 
 
 def _user(got, message, keep, results):
-    content = message.get("content")
-    if isinstance(content, str):
-        content = [{"type": "text", "text": content}]
     found, pieces = {}, []
-    for part in content or []:
+    for part in _parts(message.get("content")):
         if not isinstance(part, dict):
             continue
         if part.get("type") == "tool_result":
-            body = part.get("content")
-            body = body if isinstance(body, str) else "\n".join(p.get("text", "") for p in body or [] if isinstance(p, dict))
+            body = "\n".join(_string(p.get("text", "")) for p in _parts(part.get("content")) if isinstance(p, dict))
             found[runread.plain(part.get("tool_use_id"))] = [len(body)]
             pieces.append(("result", body, bool(part.get("is_error"))))
         elif part.get("type") == "text":
@@ -199,13 +204,14 @@ def _assistant(got, row, keep, turns, by_id):
         if any(runlog.number(value) is None for value in usage.values()):
             raise TypeError(f"数でない usage {usage!r}")
     pieces = []
-    for part in message.get("content") or []:
+    for part in _parts(message.get("content")):
         kind = part.get("type") if isinstance(part, dict) else None
         if kind == "tool_use":
             pieces.append(("call", runread.plain(part.get("id")), runread.plain(part.get("name")),
                            json.dumps(part.get("input"), ensure_ascii=False, indent=1)))
         elif kind in ("text", "thinking"):
-            text = runread.plain(part.get(kind) or None)
+            # 偽の値（空の列・0）も形を確かめてから捨てる（空の字だけを流れに入れない）
+            text = _string(part.get(kind))
             if text:
                 pieces.append(("say" if kind == "text" else "think", text))
 
@@ -232,10 +238,23 @@ def _assistant(got, row, keep, turns, by_id):
 
 def _cost(got, row):
     cost = row.get("totalCostUSD")
+    if cost is not None and runlog.number(cost) is None:
+        raise TypeError(f"数でない費用 {cost!r}")
 
     def write():
         got["cost"] = cost
     return write
+
+
+def _parts(content) -> list:
+    """message の content の片の列。字は字の片 1 つ（API の形で許される書き方）、None は空。ほかの形（object・数）は TypeError"""
+    if content is None:
+        return []
+    if isinstance(content, str):
+        return [{"type": "text", "text": content}]
+    if isinstance(content, list):
+        return content
+    raise TypeError(f"字でも列でもない content {content!r}")
 
 
 def _string(value) -> str:

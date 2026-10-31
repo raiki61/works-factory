@@ -49,7 +49,12 @@
   段の集計・会話の読み・無駄の手がかりで落ちない
 - 承認で起き直した繰り返しの器が後で SIGTERM で落ちて起き直した形は、答えの後の始めで分けず、落ちの後の始めでだけ分ける
 - 片割れのサロゲートの字は、出力の hash と字で落ちずに置き換える
-- archon_artifact が run の置き場の外（絶対パス・..）を指せば、読まずに読めなかった物に数える（読むだけの範囲。E25 の 2）
+- archon_artifact が run の置き場の外（絶対パス・..）を指せば、読まずに読めなかった物に数える（読むだけの範囲。E25 の 2）。読みで OSError が
+  出る物（長すぎる path・読む権限の無いファイル）も、落ちずに数える
+- ノードの終わりの行の添えるだけの欄（模型・会話の id の頭・誤りの字）の形が違えば、その欄だけを捨てて行の残りを読み、1 つ数える
+- DB の出力の行の形の違いは、開いた run と読んだ子の run の物だけを数える。step_name の無い node_suspended は読み飛ばして数える
+- DB の秒までの落ちと同じ秒の始めは、その秒の内で始めの前にログの起き直しの行が在れば、落ちの後の始めとする
+- 会話の id の頭は 16 進の字と - だけを通す。content は字なら字の片 1 つ、object なら欄の形が違う行。字の片の偽の値と数でない費用も数える
 
 試験は一時のフォルダに小さな DB と記録を作る。
 """
@@ -634,7 +639,8 @@ class ReadCase(unittest.TestCase):
 
     def test_a_value_of_another_shape_is_unread_before_it_is_used(self):
         """値を出来事や往復に入れる所（周の番号・会話の id の頭・道具の呼び出しの id・往復のトークン・道具の名・step・試みの id・
-        DB の出力の起動の id・子の run を起こしたノード）で形を確かめ、形が違えばその行を欄の形が違う行に数える。段の集計・会話の読み・
+        DB の出力の起動の id・子の run を起こしたノード）で形を確かめ、形が違えばその行を欄の形が違う行に数える。終わりの行の添えるだけの
+        欄（会話の id の頭・模型）の形が違えば、その欄だけを捨てて行の残り（通った）を読む。段の集計・会話の読み・
         無駄の手がかりまで通してページのデータを作れる（後で使う所で落ちない）"""
         line = stages.TABLE["graph"]
         db = self._db([("top", None, "2026-10-25 01:00:00", None, "{}"),
@@ -659,19 +665,19 @@ class ReadCase(unittest.TestCase):
                           row("node_start", "d"),
                           row("node_complete", "d", execution={"binding": {"sessionPreview": "dddd", "model": "m"}}),
                           row("node_start", "s"),
-                          row("node_complete", "s", execution={"binding": {"sessionPreview": "ssss"}})])
+                          row("node_complete", "s", execution={"binding": {"sessionPreview": "5555"}})])
         projects = self.tmp / "projects"
         (projects / "p").mkdir(parents=True)
         lines = [{"type": "assistant", "message": {"id": "m1", "content": [{"type": "tool_use", "id": [1], "name": "Read", "input": {}}]}},
                  {"type": "assistant", "message": {"id": "m2", "usage": {"input_tokens": "5"}, "content": []}},
                  {"type": session.SHAPE, "shape": {"system": [], "tools": [{"name": ["Read"]}]}}]
-        (projects / "p" / "ssss.jsonl").write_text("\n".join(map(json.dumps, lines)) + "\n", encoding="utf-8")
+        (projects / "p" / "5555.jsonl").write_text("\n".join(map(json.dumps, lines)) + "\n", encoding="utf-8")
         got = runread.run(db, "top")
         self.assertEqual(got["unread"], {runread.SHAPELESS: 8})
         self.assertEqual([(e["path"], e["status"], e.get("session")) for e in got["events"]],
-                         [("a", "running", None), ("d", "running", None), ("s", "ok", "ssss")])
+                         [("a", "ok", None), ("d", "ok", "dddd"), ("s", "ok", "5555")])
         got["sessions"] = session.collect(got, projects, runread.mend)
-        said = got["sessions"]["ssss"]
+        said = got["sessions"]["5555"]
         self.assertEqual((said["unread"], said["turns"], said["tools"]), ({runread.SHAPELESS: 3}, [], []))
         data = {"shape": {"graphs": {line: {"name": line, "returns": "", "items": [{"id": p, "kind": "ai"} for p in ("loop", "a", "b", "c", "d", "s")]}}},
                 "run": got, "texts": {}}
@@ -787,7 +793,7 @@ class ReadCase(unittest.TestCase):
         self._log("top", [start])
         before = runread.run(db, "top")["events"]
         error = self._node("node_error", "2026-10-25T01:00:01.000Z", "a")
-        error[runread.EXECUTION]["lifecycle"] = "x"
+        error[runread.EXECUTION]["node"] = "x"
         self._log("top", [start, error])
         got = runread.run(db, "top")
         self.assertEqual((got["unread"], got["events"]), ({runread.SHAPELESS: 1}, before))
@@ -838,6 +844,134 @@ class ReadCase(unittest.TestCase):
             self._event(db, "top", runread.OUTPUT_EVENT, step=step, data={runread.NODE_COST: cost, runread.ACCOUNTING: "node"})
         self._log("top", [])
         self.assertEqual((runread.runs(db)[0]["cost"], runread.run(db, "top")["cost"]), (9.75, 9.75))
+    def test_a_side_field_of_another_shape_drops_only_that_field(self):
+        """終わりの行の添えるだけの欄（模型・誤りの字）の形が違えば、その欄だけを捨てて行の残り（状態・終わり・会話の id の頭）を読み、
+        欄の形が違う行に 1 つ数える。要の欄（ノードの種類）の形が違えば、今までどおり行ごと数える"""
+        db = self._db([("top", None, "2026-10-25 01:00:00", None, "{}")], [])
+        done = self._node("node_complete", "2026-10-25T01:00:01.000Z", "a")
+        done[runread.EXECUTION]["binding"] = {"sessionPreview": "abcd", "model": "opus"}
+        error = self._node("node_error", "2026-10-25T01:00:03.000Z", "b")
+        error[runread.EXECUTION]["lifecycle"] = "x"
+        broken = self._node("node_complete", "2026-10-25T01:00:05.000Z", "c")
+        broken[runread.EXECUTION]["node"] = "x"
+        self._log("top", [self._node("node_start", "2026-10-25T01:00:00.000Z", "a"), done,
+                          self._node("node_start", "2026-10-25T01:00:02.000Z", "b"), error,
+                          self._node("node_start", "2026-10-25T01:00:04.000Z", "c"), broken])
+        got = runread.run(db, "top")
+        self.assertEqual([(e["path"], e["status"], e["end"], e.get("session"), e.get("model"), e["error"]) for e in got["events"]],
+                         [("a", "ok", "2026-10-25T01:00:01.000Z", "abcd", "", ""), ("b", "failed", "2026-10-25T01:00:03.000Z", None, None, ""),
+                          ("c", "running", None, None, None, "")])
+        self.assertEqual(got["unread"], {runread.SHAPELESS: 3})
+
+    def test_odd_outputs_of_another_run_are_not_counted(self):
+        """DB の出力の行の形の違いは、開いた run と読んだ子の run の物だけを数える（別の run の行を開いた run の帯に入れない）"""
+        db = self._db([("top", None, "2026-10-25 01:00:00", None, "{}"),
+                       ("kid", "top", "2026-10-25 01:00:00", None, json.dumps({runread.PARENT_NODE: "n"})),
+                       ("other", None, "2026-10-25 02:00:00", None, "{}")], [])
+        for rid in ("kid", "other", "other"):
+            self._event(db, rid, runread.OUTPUT_EVENT, "2026-10-25 01:00:00", "a", {"invocation": "x"})
+        self._log("top", [])
+        self.assertEqual(runread.run(db, "top")["unread"], {runread.SHAPELESS: 1})
+        self.assertEqual(runread.run(db, "other")["unread"], {runread.SHAPELESS: 2})
+
+    def test_false_texts_and_a_cost_that_is_not_a_number_are_unread(self):
+        """会話の字の片の偽の値（空の列・0）も形を確かめて欄の形が違う行に数え、数でない費用は入れずに数える（空の字と費用の無い行は
+        今までどおり数えない）"""
+        path = self.tmp / "s.jsonl"
+        for line, cost in (({"type": "assistant", "message": {"id": "m", "content": [{"type": "text", "text": []}]}}, None),
+                           ({"type": "assistant", "message": {"id": "m", "content": [{"type": "thinking", "thinking": 0}]}}, None),
+                           ({"type": "cost-state", "totalCostUSD": "abc"}, None)):
+            with self.subTest(line=line):
+                path.write_text(json.dumps(line) + "\n", encoding="utf-8")
+                got = session.read(path, runread.mend)
+                self.assertEqual((got["unread"], got["seq"], got["cost"]), ({runread.SHAPELESS: 1}, [], cost))
+        path.write_text("".join(json.dumps(line) + "\n" for line in (
+            {"type": "assistant", "message": {"id": "m", "content": [{"type": "thinking", "thinking": ""}]}},
+            {"type": "cost-state", "totalCostUSD": 1.5})), encoding="utf-8")
+        got = session.read(path, runread.mend)
+        self.assertEqual((got["unread"], got["seq"], got["cost"]), ({}, [["turn", 0]], 1.5))
+
+    def test_an_artifact_that_cannot_be_read_is_counted(self):
+        """出力の archon_artifact の読みで OSError が出れば（長すぎる path・読む権限の無いファイル）、ページの組み立てを落とさずに
+        読めなかった物に数える。置き場に無いファイルは今までどおり数えずに進む"""
+        place = self.tmp / runread.ARTIFACTS / runread.RUNS_DIR / "top"
+        place.mkdir(parents=True)
+        locked = place / "locked.md"
+        locked.write_text("x", encoding="utf-8")
+        locked.chmod(0)
+        self.addCleanup(locked.chmod, 0o600)
+        refs = [{"type": "archon_artifact", "run_id": "top", "path": name} for name in ("a" * 300, "locked.md", "gone.md")]
+        reader = runread._Reader({}, {})
+        reader._artifacts({"refs": refs}, self.tmp)
+        self.assertEqual((reader.artifacts, reader.unread), ({}, {runread.UNREADABLE: 2}))
+
+    def test_a_fall_in_the_second_of_a_later_start_is_before_it(self):
+        """DB の落ちの時刻は秒までの切り捨てなので、同じ秒の始めとの前後はログの起き直しの行（workflow_resume）で分ける。落ちの秒の内で
+        始めの前に起き直しが在れば落ちは始めの前で、答えの後に同じ起動の id で始め直した器を分けない。起き直しが無ければ今までどおり
+        落ちを始めの後に数えて分ける"""
+        node = lambda kind, ts: {"type": kind, "ts": ts, "step": "rounds",
+                                 runread.EXECUTION: {"path": "rounds", "invocation": {"id": "rounds"}, "node": {"kind": runread.LOOP_GROUP}}}
+        for resumed, want in ((True, [("ok", "2026-10-25T01:00:05.700Z", True)]),
+                              (False, [("waiting", "2026-10-25T01:00:05.700Z", True), ("ok", "2026-10-25T01:05:00.100Z", True)])):
+            with self.subTest(resumed=resumed):
+                (self.tmp / runread.DB_FILE).unlink(missing_ok=True)
+                db = self._db([("top", None, "2026-10-25 01:00:00", None, "{}")], [("top", "2026-10-25 01:00:00")])
+                self._status(db, "top", "completed")
+                self._event(db, "top", runread.FAILED_EVENT, "2026-10-25 01:00:05")
+                self._event(db, "top", "workflow_completed", "2026-10-25 01:06:00")
+                rows = [{"type": "workflow_start", "ts": "2026-10-25T01:00:00.000Z"}, node("node_start", "2026-10-25T01:00:01.000Z"),
+                        {"type": "workflow_resume", "ts": "2026-10-25T01:00:05.500Z"} if resumed else None,
+                        node("node_start", "2026-10-25T01:00:05.700Z"), node("node_suspended", "2026-10-25T01:00:06.000Z"),
+                        {"type": "workflow_resume", "ts": "2026-10-25T01:05:00.000Z"}, node("node_start", "2026-10-25T01:05:00.100Z"),
+                        node("node_complete", "2026-10-25T01:06:00.000Z")]
+                self._log("top", [row for row in rows if row])
+                got = runread.run(db, "top")["events"]
+                # 最初の始め（01:00:01）は落ちの前の起動で、落ちで閉じる
+                self.assertEqual((got[0]["status"], got[0]["end"]), ("failed", "2026-10-25T01:00:05.000Z"))
+                self.assertEqual([(e["status"], e["start"], e.get("fell")) for e in got[1:]], want)
+
+    def test_a_nameless_suspension_is_skipped_and_counted(self):
+        """step_name の無い node_suspended は、run の一覧を落とさずに読み飛ばし、開いた run の読めなかった物に数える"""
+        db = self._db([("top", None, "2026-10-25 01:00:00", None, "{}")], [])
+        self._status(db, "top", runread.PAUSED)
+        con = sqlite3.connect(db)
+        con.execute(f"insert into {runread.EVENT_TABLE} (workflow_run_id, event_type, step_name, data, created_at) values (?, ?, null, '{{}}', ?)",
+                    ("top", runread.SUSPENDED_EVENT, "2026-10-25 01:00:01"))
+        con.commit()
+        con.close()
+        self._event(db, "top", runread.SUSPENDED_EVENT, "2026-10-25 01:00:02", "gate")
+        self._log("top", [])
+        self.assertEqual(runread.runs(db)[0]["waiting"], ["gate"])
+        got = runread.run(db, "top")
+        self.assertEqual((got["waiting"], got["unread"]), (["gate"], {runread.NAMELESS: 1}))
+
+    def test_a_session_head_with_other_letters_is_not_searched(self):
+        """会話の id の頭は 16 進の字と - だけを通す。置き場の外を指す頭・glob の字の頭は探さずに読めなかった物に数える"""
+        projects = self.tmp / "projects"
+        (projects / "p").mkdir(parents=True)
+        (projects / "p" / "aaaa1111-x.jsonl").write_text("", encoding="utf-8")
+        (self.tmp / "secret").mkdir()
+        (self.tmp / "secret" / "abc.jsonl").write_text("", encoding="utf-8")
+        heads = ["../../secret/abc", "aaaa111?", "[a]aaa1111", "*"]
+        run = {"events": [{"session": head} for head in heads], "unread": {}}
+        self.assertEqual(session.collect(run, projects, runread.mend), {})
+        self.assertEqual(run["unread"], {session.STRANGE: 4})
+        run = {"events": [{"session": "aaaa1111"}], "unread": {}}
+        self.assertEqual(list(session.collect(run, projects, runread.mend)), ["aaaa1111"])
+
+    def test_a_content_of_another_shape_is_read_or_counted(self):
+        """content が字なら字の片 1 つとして読み（API の形で許される書き方）、object なら欄の形が違う行に数える（返事・指示・道具の結果）"""
+        path = self.tmp / "s.jsonl"
+        path.write_text(json.dumps({"type": "assistant", "message": {"id": "m", "content": "hello"}}) + "\n", encoding="utf-8")
+        got = session.read(path, lambda text: text)
+        self.assertEqual((got["unread"], got["seq"]), ({}, [["turn", 0], ["say", "hello"]]))
+        for line in ({"type": "assistant", "message": {"id": "m", "content": {"type": "text", "text": "x"}}},
+                     {"type": "user", "message": {"content": {"type": "text", "text": "x"}}},
+                     {"type": "user", "message": {"content": [{"type": "tool_result", "tool_use_id": "t", "content": {"text": "x"}}]}}):
+            with self.subTest(line=line):
+                path.write_text(json.dumps(line) + "\n", encoding="utf-8")
+                got = session.read(path, lambda text: text)
+                self.assertEqual((got["unread"], got["seq"]), ({runread.SHAPELESS: 1}, []))
 
 
 if __name__ == "__main__":
