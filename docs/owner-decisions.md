@@ -854,6 +854,23 @@
 - 足す置き場（E10）: 新しい層・置き場・常駐する仕組みは足さない。共通の指示の断片 `workflows/.shared/prompts/ask-cases.md` 1 本と、`lib/gatemarks.py` の受け付けの照らし `ask_gaps` を足す。
 - 当て方: 断片を読むのは計画の役（`plan-writer.md`）・事前審査（`parts/head.md`）・判定の役（`diagnose.md` の手順 7）。照らしは plan と plan-review の受け付け（`src/take.py`）。設計と E11 の 3 つの答えは `docs/design/plan-review.md` の 10.4。
 
+## 2026-11-01 の決め（Windows の道）
+
+出典: 2026-11-01 の持ち主と窓口の会話を窓口が写した頼み。
+
+### `windows-via-wsl2` Windows では工場を WSL2 の中で動かし、素の Windows は入口で止める
+
+- 持ち主の言葉: 「windowsでも動かしたいよ」
+- 持ち主の言葉（窓口が「Archon も、git worktree とシェルの段には WSL2 が要ると書いている」と伝えた後の返事）: 「なら工場もwsl2に乗ればいいと思う」
+- 決め:
+  1. Windows では、工場を WSL2 の中（WSL の Linux）で動かす。
+  2. 素の Windows（WSL2 を使わない Windows）は、入口で 1 行の訳を出して止め、WSL2 を案内する。
+  3. 素の Windows で run を通す直しはしない。
+- 訳:
+  1. 素の Windows では Claude Code の sandbox が効かず、コマンドが sandbox の外で走る。工場の書き込みの制限が黙って外れる。
+  2. Archon も、git worktree とシェルの段には WSL2 が要ると書いている。
+- 当て方: 入口（`bin/works-factory`・`bin/apply`）が部品を読む前に呼ぶ `bin/_lib/nativewin.py` の `stop`。利用者への案内は根の `README.md` の要るものの行。機械は `tests/bin/test_nativewin.py`。
+
 ## 引き継いだ決め
 
 今の works の地図から、works-factory でも生きる物を選んだ。外した物は末尾。

@@ -10,6 +10,10 @@ if sys.version_info < (3, 12):   # pyproject.toml の requires-python。古い P
 sys.dont_write_bytecode = True   # 入口の部品のフォルダに __pycache__ を作らない
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+from bin._lib import nativewin  # noqa: E402
+
+nativewin.stop("apply")   # 素の Windows は下の部品を読む前に 1 行で止める（WSL2 の道を案内する）
+
 from bin._lib import apply  # noqa: E402
 
 if __name__ == "__main__":

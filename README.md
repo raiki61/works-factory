@@ -34,6 +34,7 @@ By default a run asks you at the start and at the end, and in between only when 
 
 The entry script checks Python, `bun`, Claude Code and the plugins when it starts; if one is missing, it prints what to install (one line each) and stops.
 
+- macOS, Linux, or Linux inside WSL2 on Windows. On Windows without WSL2 the entry scripts (`bin/works-factory`, `bin/apply`) stop with a one-line message: there Claude Code runs commands outside its sandbox, so the factory's write limits would silently stop applying, and Archon needs WSL2 for git worktrees and shell steps. Install WSL2 (`wsl --install`), clone the factory inside the Linux side, and run it from there (owner decision `windows-via-wsl2`).
 - Python 3.12 or later (the entry script `bin/works-factory` refuses older versions).
 - git.
 - `bun` (https://bun.sh). The script uses it to start Archon.

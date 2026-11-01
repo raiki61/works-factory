@@ -121,6 +121,8 @@ ALLOWED = {
         "bin/_lib/specreviews.py",
         # run が終わった後に、その run の記録の置き場を 1 行で告げる入口の部品（issue #810 の 2。bin/AGENTS.md の E15）
         "bin/_lib/recordroot.py",
+        # 素の Windows（WSL2 の外）で入口を部品の読み込みの前に 1 行の訳で止める入口の部品（bin/works-factory・bin/apply が呼ぶ）
+        "bin/_lib/nativewin.py",
     ),
     "E3": (
         "lib/AGENTS.md",
