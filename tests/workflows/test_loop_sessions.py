@@ -3,7 +3,8 @@
 頼っている止めた Archon の振る舞いは tests/shared/test_archon_contract.py の ARCHON_ROWS の 5 行が源の字で縛る:
 fresh_context: false の輪は前の周の最後の会話を次の周へ渡し 1 周目はいつも新しい会話・並んだ層は会話を切る・順の節は
 並んだ層か context: fresh の時だけ新しい会話・context: fresh の節も順の層で completed になれば次の節の会話のカーソルになる
-（FRESH_BY_DESIGN の report の訳が頼る）・名指しの続き（context: resume）は輪の本体の中では輪の前の節だけを指せる。
+（FRESH_BY_DESIGN の report の訳が頼る）・名指しの続き（context: resume）は輪の本体の中では輪の前の節か、同じ周の本体の上流の節だけを
+指せる（前の周の続きは無い）。
 
 - 受け付けの出し直しの輪（本体の最後の節の id が accept で終わる輪）は fresh_context: false で、拒まれた後の出し直しは同じ役の
   会話の続きで起きる。外れは FRESH_BY_DESIGN の輪だけ

@@ -136,6 +136,7 @@ UNREAD_EVENTS = {
     "compaction": "会話の縮め",
     "hook": "フックの起動",
     "state_update": "動いているか待っているかの印",
+    "heartbeat": "動いている合図（Archon の止まりの見張りを延ばすだけで、中身が無い）",
 }
 # 行の欄（logger.ts・schemas/node-execution.ts・schemas/provider-event.ts）
 EXECUTION = "execution"

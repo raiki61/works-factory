@@ -26,12 +26,25 @@ import tree_run  # noqa: E402  （bin._lib.runstop が lib/ を sys.path に足�
 HERE = pathlib.Path(__file__).resolve().parent
 PROBE = "works-factory-stop-probe"
 POLL = 0.2
+# Archon は run の頭で、同じ claude を SDK で起こしてログインを確かめる（packages/providers/src/claude/native-auth.ts の
+# checkClaudeNativeAuth。初めの取り決め initialize の返事の account を読み、問いは送らずに閉じる）。偽はその返事にログイン済みの
+# account を返し、問い（type: user）が来た起動だけを AI のノードとして子を起こす。確かめの起動は stdin が閉じれば何も起こさずに抜ける
 STUB = """#!{python}
 import json, os, signal, subprocess, sys
 if sys.argv[1:3] == ["plugin", "list"]:
     print("[]")
     sys.exit(0)
-pause = [sys.executable, "-c", "import signal; signal.pause()"]
+for line in sys.stdin:
+    msg = json.loads(line)
+    if msg.get("type") == "control_request":
+        answer = {{"account": {{"subscriptionType": "stub"}}}} if msg["request"].get("subtype") == "initialize" else {{}}
+        print(json.dumps({{"type": "control_response",
+                          "response": {{"subtype": "success", "request_id": msg["request_id"], "response": answer}}}}), flush=True)
+    elif msg.get("type") == "user":
+        break
+else:
+    sys.exit(0)
+pause =[sys.executable, "-c", "import signal; signal.pause()"]
 near = subprocess.Popen(pause)
 away = subprocess.Popen(pause, start_new_session=True)
 with open({log!r}, "a") as f:

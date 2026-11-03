@@ -149,15 +149,17 @@ def _exec_node_names(body: str) -> list[str]:
     return sorted(k for k in re.findall(r"^    (\w+):", body, re.M) if not k.startswith(hermetic.runner_vars()["RUNNER_PREFIXES"]))
 
 
-def _guards(transform: str, kind: str | None = None) -> list[str]:
-    """節の形を組む transform の if の分かれ（kind を名指せば、その kind を返す物だけ）の、照らす data の欄。
-    data.<欄> で始まらない分かれは、その if の行を値にして赤にする（新しい節の形を黙って見落とさない）"""
-    guards = []
-    for branch in re.split(r"^    if \(", transform, flags=re.M)[1:]:
-        if kind is None or f"kind: '{kind}'" in branch:
-            field = re.match(r"!?data\.(\w+)(?: !== undefined|\))", branch)
-            guards.append(field[1] if field else branch.split("\n", 1)[0])
-    return sorted(guards)
+def _modes(builders: str, kind: str | None = None) -> list[str]:
+    """節の形を組む NODE_BUILDERS の組み手の mode の名（kind を名指せば、その kind を組む物だけ）。mode は節の種類を決める節の鍵。
+    `<mode>: data =>` の形でない組み手は、その行を値にして赤にする（新しい節の形を黙って見落とさない）"""
+    modes = []
+    for entry in re.split(r"^(?=  [^\s/})])", builders, flags=re.M):
+        if not entry.strip():
+            continue
+        if kind is None or re.search(rf"^      kind: '{kind}',$", entry, re.M):
+            head = re.match(r"  (\w+): data =>", entry)
+            modes.append(head[1] if head else entry.split("\n", 1)[0])
+    return sorted(modes)
 
 
 def _string_options(block: str) -> set[str]:
@@ -175,6 +177,11 @@ def _skip_short() -> list[str]:
 
 
 SEPARATOR_CANDIDATES = "/\\:"
+
+# script の節に立つ変数（ports.RUNNER_NAMES）のうち、Archon が USER_CONTROLLED_VARIABLES の表から立てる物。表の側の行が表の全部の名と比べる
+USER_CONTROLLED = frozenset({
+    "USER_MESSAGE", "ARGUMENTS", "LOOP_USER_INPUT", "LOOP_PREV_OUTPUT", "REJECTION_REASON", "CONTEXT", "EXTERNAL_CONTEXT", "ISSUE_CONTEXT",
+})
 
 # consumer にあって写し（place.workflow_run は bun を固定し、いつも --workflow-source を付ける）に無い分かれ道。
 # 食い違いは直さず名前をつけて置き（#36）、元の字が変われば赤にする。
@@ -209,7 +216,7 @@ CONSUMER_ROWS = (
 POINTER = "packages/workflows/src/artifact-pointer.ts"
 SDK = "packages/providers/node_modules/@anthropic-ai/claude-agent-sdk/sdk.mjs"
 POINTER_SCHEMA = "packages/workflows/src/schemas/artifact-pointer.ts"
-NODE_TRANSFORM = r"^  \.transform\(\(data\): DagNode \| IncludeDirective => \{\n(.*?)^  \}\)"
+NODE_BUILDERS = r"^const NODE_BUILDERS: Record<NodeMode, NodeBuilder> = \{\n(.*?)^\};"
 ARCHON_ROWS = (
     Row("指し札の型", lambda: ports.POINTER_TYPE, POINTER_SCHEMA,
         r"export const ARTIFACT_POINTER_TYPE = '([^']+)';"),
@@ -236,74 +243,86 @@ ARCHON_ROWS = (
         lambda: _env_read_by(lambda: ports._pointer_path({"type": ports.POINTER_TYPE, "run_id": "r", "path": "p"}),
                              {"WORKFLOW_ID": "r"}),
         "packages/workflows/src/exec-environment.ts", r"^\s*(\w+): context\.artifactsDir,$"),
-    Row("script の節に立つ変数の名（test-gate・fix が対象のテストの前に落とす）", lambda: sorted(hermetic.runner_vars()["RUNNER_NAMES"]),
-        "packages/workflows/src/exec-environment.ts",
+    Row("script の節に立つ変数の名のうち、Archon が決める物（test-gate・fix が対象のテストの前に落とす）",
+        lambda: sorted(hermetic.runner_vars()["RUNNER_NAMES"] - USER_CONTROLLED), "packages/workflows/src/exec-environment.ts",
         r"export function buildExecNodeEnvironment\(context: ExecNodeEnvironmentContext\): NodeJS\.ProcessEnv \{\n.*?"
-        r"  return \{\n(.*?)\n  \};\n\}", lambda m: _exec_node_names(m[1])),
+        r"  const env: Record<string, string> = \{\n(.*?\n    \.\.\.userVariables,\n.*?)\n  \};\n.*?  return env;\n\}",
+        lambda m: _exec_node_names(m[1])),
+    Row("script の節に立つ変数の名のうち、利用者の字を運ぶ物（buildExecNodeEnvironment が userVariables として広げる）",
+        lambda: sorted(hermetic.runner_vars()["RUNNER_NAMES"] & USER_CONTROLLED), "packages/workflows/src/user-controlled-variables.ts",
+        r"export const USER_CONTROLLED_VARIABLES = \[\n(.*?)\n\] as const",
+        lambda m: sorted(re.findall(r"'(\w+)'", "".join(re.findall(r"names: \[([^\]]*)\]", m[1]))))),
     Row("入力の環境変数の鍵", lambda: re.search(r'os\.environ\.get\("(\w+)<名>"\)', ports.__doc__)[1],
-        "packages/workflows/src/schemas/dag-node.ts",
+        "packages/workflows/src/schemas/node-bindings.ts",
         r"export function inputEnvKey\(name: string\): string \{\n\s*return `(\w+)\$\{name\.replace\(/-/g, '_'\)\.toUpperCase\(\)\}`;"),
     Row("AI の節（agent）の形を決める節の鍵（scan の役の節）", lambda: sorted(scan.ROLE_KINDS),
-        "packages/workflows/src/schemas/dag-node.ts", NODE_TRANSFORM, lambda m: _guards(m[1], "agent")),
+        "packages/workflows/src/schemas/node-normalize.ts", NODE_BUILDERS, lambda m: _modes(m[1], "agent")),
     Row("走らせる節（exec）の形を決める節の鍵（scan の機械の節）", lambda: sorted(scan.CODE_KINDS),
-        "packages/workflows/src/schemas/dag-node.ts", NODE_TRANSFORM, lambda m: _guards(m[1], "exec")),
+        "packages/workflows/src/schemas/node-normalize.ts", NODE_BUILDERS, lambda m: _modes(m[1], "exec")),
     Row("節の種類を決める節の鍵（scan の節の種類）", lambda: sorted(scan.NODE_KINDS),
-        "packages/workflows/src/schemas/dag-node.ts", NODE_TRANSFORM, lambda m: _guards(m[1])),
-    Row("script・bash の節と until_bash の確かめは、書いた timeout だけを子の過程へ渡す（scan の書かない鍵）",
-        lambda: scan.UNSET_DEADLINE_KEY, "packages/workflows/src/dag-executor.ts",
-        r"\A(?!.*node\.timeout \?\?).*?^\s*timeout: node\.(\w+),$"),
+        "packages/workflows/src/schemas/node-normalize.ts", NODE_BUILDERS, lambda m: _modes(m[1])),
+    *(Row(f"script・bash の節と until_bash の確かめは、書いた timeout だけを子の過程へ渡す（scan の書かない鍵。{where}）",
+          lambda: scan.UNSET_DEADLINE_KEY, f"packages/workflows/src/dag/nodes/{where}.ts",
+          r"\A(?!.*node\.timeout \?\?).*?^\s*timeout: node\.(\w+),$")
+      for where in ("exec/bash", "exec/script", "loop-group/until-bash", "loop/iteration")),
     Row("子の過程は timeout が無ければ期限を掛けない", lambda: None, "packages/workflows/src/subprocess.ts",
-        r"^\s*options\.timeout === undefined\n\s*\? undefined\n\s*: setTimeout\(", lambda m: None),
+        r"^function armTimeout\(group: OwnedGroup\): void \{\n\s*if \(group\.timeout === undefined\) return;\n\s*group\.timer = setTimeout\(",
+        lambda m: None),
     Row("output_format で宣言した欄の null は空の解決（境の口は空の字を null と読む）", lambda: ports.parsed("") is None,
         "packages/workflows/src/output-ref.ts",
-        r"if \(paths !== undefined && \(value === undefined \|\| value === null\)\) return \{ kind: 'empty' \};",
+        r"return resolveOutputPath\(\n(?:\s*\w+,\n){6}\s*paths !== undefined\n\s*\);\n\}\n\nfunction resolveOutputPath\(\n"
+        r".*?^\s*declared: boolean\n.*?if \(declared && \(value === undefined \|\| value === null\)\) return \{ kind: 'empty' \};",
         lambda m: True),
     Row("include の入力は節の返りの欄を字に差し込み、空の解決は空の字で届く（境の口はそれを null と読む）", lambda: None,
-        "packages/workflows/src/dag-executor.ts",
+        "packages/workflows/src/dag/references.ts",
         r"readComposedMeta\(node\)\?\.inputs \?\? \{\}\)\) \{\n.*?\? resolveValueTemplate\(value, ctx, runInputs\)\n"
-        r".*?^function resolveValueTemplate\(\n.*?references: nodeTemplateReferences\(template, ctx\),\n"
-        r".*?^function nodeOutputRefToken\(\n"
+        r".*?^export function resolveValueTemplate\(\n.*?references: nodeTemplateReferences\(template, ctx\),\n"
+        r".*?^export function nodeOutputRefToken\(\n"
         r".*?resolution = resolveNodeOutputField\(nodeOutput, nodeId, field, match\);\n"
         r".*?if \(resolution\.kind === 'empty'\) return escapedForBash \? \"''\" : '([^']*)';"
         r".*?^export function nodeTemplateReferences\(\n.*?after: \[\n\s*nodeOutputRefToken\(",
         lambda m: ports.parsed(m[1])),
-    Row("工程の置き場 WORKFLOW_FOLDER", lambda: place.WORKFLOW_FOLDER, "packages/paths/src/archon-paths.ts",
+    Row("工程の置き場 WORKFLOW_FOLDER", lambda: place.WORKFLOW_FOLDER, "packages/paths/src/markdown-discovery.ts",
         r"export function getWorkflowFolderSearchPaths\(\): string\[\] \{\n\s*return \['([^']+)'\];"),
     Row("工程を走らせる命令は run と、run を続ける命令", lambda: sorted(launcher.EXECUTING - launcher.RESUMING - launcher.CONTINUING),
-        "packages/cli/src/cli.ts", r"const executesWorkflow = subcommand === '(\w+)' \|\| isContinueSubcommand\(subcommand\);",
+        "packages/cli/src/routes/workflow.ts", r"const executesWorkflow = subcommand === '(\w+)' \|\| isContinueSubcommand\(subcommand\);",
         lambda m: [m[1]]),
     Row("run を続ける命令", lambda: sorted(launcher.RESUMING), "packages/cli/src/dispatch-guards.ts",
         r"const CONTINUE_SUBCOMMANDS: readonly string\[\] = \[([^\]]+)\];", lambda m: sorted(re.findall(r"'(\w+)'", m[1]))),
     Row("工程を続ける命令", lambda: sorted(launcher.CONTINUING), "packages/cli/src/cli.ts",
         r"if \(command === 'workflow' && \(subcommand === '(\w+)' \|\| subcommand === '(\w+)'\)\) \{\n"
-        r"\s*const \{ workflowContinuationCommand", lambda m: sorted(m.groups())),
+        r"\s*return await workflowRoutes\.runWorkflowContinuation\(ctx, subcommand\);", lambda m: sorted(m.groups())),
     Row("起こす claude の実行ファイルを替える環境変数（殻が書き込みの柵の包みを置く）", lambda: launcher.CLAUDE_BIN_ENV,
         "packages/providers/src/claude/binary-resolver.ts", r"^\s*const envPath = process\.env\.(\w+);$"),
     Row("節の sandbox は置き換えずに SDK へ渡す（包みが起動の直前に足す）", lambda: None,
-        "packages/workflows/src/dag-executor.ts", r"^\s*sandbox: node\.sandbox \?\? workflowLevelOptions\.sandbox,$",
+        "packages/workflows/src/dag/provider-resolution.ts", r"^\s*sandbox: node\.sandbox \?\? workflowLevelOptions\.sandbox,$",
         lambda m: None),
     Row("fresh_context: false の輪は前の周の最後の会話を次の周へ渡し、1 周目はいつも新しい会話（tests/workflows/test_loop_sessions.py）",
-        lambda: None, "packages/workflows/src/dag-executor.ts",
-        r"^\s*lastSequentialSession: group\.fresh_context \|\| i === 1 \? undefined : loopLastSequentialSession,$",
+        lambda: None, "packages/workflows/src/dag/nodes/loop-group/iteration.ts",
+        r"^\s*state\.lastSequentialSession = body\.iterCtx\.lastSequentialSession;$.*?"
+        r"^\s*lastSequentialSession: group\.fresh_context \|\| i === 1 \? undefined : state\.lastSequentialSession,$",
         lambda m: None),
     Row("並んだ層は会話を切る（輪の本体の頭に依存の無い節が 2 つ在ると、役は新しい会話で起きる）", lambda: None,
-        "packages/workflows/src/dag-executor.ts",
+        "packages/workflows/src/dag/run-layers.ts",
         r"^\s*ctx\.lastSequentialSession = undefined; // reset — parallel nodes can't share sessions$", lambda m: None),
     Row("順の節は並んだ層か context: fresh の時だけ新しい会話で、ほかは前の節の会話を続ける", lambda: None,
-        "packages/workflows/src/dag-executor.ts",
-        r"^\s*isParallelLayer \|\| node\.context === 'fresh' \|\| composedBlockEntry;$", lambda m: None),
+        "packages/workflows/src/dag/nodes/agent/dispatch.ts",
+        r"^\s*const isFreshSequential = isParallelLayer \|\| node\.context === 'fresh' \|\| composedBlockEntry;$", lambda m: None),
     Row("順の層で completed になり sessionId を持つ節は、context: fresh の節でも次の節の会話のカーソルになる（tests/workflows/test_loop_sessions.py）",
-        lambda: None, "packages/workflows/src/dag-executor.ts",
-        r"^\s*if \(output\.state === 'completed' && !isParallelLayer && output\.sessionId !== undefined\) \{$", lambda m: None),
-    Row("名指しの続き context: resume は、輪の本体の中では輪の前の節だけを指せる（同じ本体の節は指せない）", lambda: None,
-        "packages/workflows/src/loader.ts",
-        r"context\.resume cannot name a source inside the same loop_group body.*?"
-        r"context\.resume source '\$\{sourceId\}' is not an upstream dependency of the loop_group", lambda m: None),
+        lambda: None, "packages/workflows/src/dag/run-layers.ts",
+        r"^\s*if \(output\.state !== 'completed' \|\| isParallelLayer \|\| output\.sessionId === undefined\) return;\n"
+        r"(?:\s*//[^\n]*\n)*\s*ctx\.lastSequentialSession = completedSession\(result\);$", lambda m: None),
+    Row("名指しの続き context: resume は、輪の本体の中では輪の前の節か、同じ本体の上流の節を指せる（同じ周の中だけ。周をまたぐ続きは無い）",
+        lambda: None, "packages/workflows/src/loader/dag-structure.ts",
+        r"^function checkResumeAncestry\(.*?"
+        r"context\.resume source '\$\{sourceId\}' is not an upstream dependency of the loop_group.*?"
+        r"if \(nodesById\.has\(sourceId\) && !scope\.transitiveDepsOf\(node\.id\)\.has\(sourceId\)\) \{\n"
+        r"\s*return `Node '\$\{node\.id\}' context\.resume source '\$\{sourceId\}' is not an upstream dependency`;", lambda m: None),
     Row("節の設定は object のまま SDK へ渡す（SDK が JSON の字にする）", lambda: None,
-        "packages/providers/src/claude/provider.ts", r"^\s*options\.settings = buildClaudePluginSettings\(", lambda m: None),
+        "packages/providers/src/claude/node-config.ts", r"^\s*options\.settings = buildClaudePluginSettings\(", lambda m: None),
     # toolset の guard は一覧の外のプラグイン（enabledPlugins・installed_plugins.json）を名指さない。その保証は下の 4 行の源の形が持つ
     Row("ワークフローの Claude の節は plugins: を書かない節も、入れた物を全部切る", lambda: None,
-        "packages/providers/src/claude/provider.ts", r"^\s*const namedPlugins = nodeConfig\.plugins \?\? \[\];$", lambda m: None),
+        "packages/providers/src/claude/node-config.ts", r"^\s*const namedPlugins = nodeConfig\.plugins \?\? \[\];$", lambda m: None),
     Row("ワークフローの Claude の節は全部、system/init で読み込まれたプラグインを照らす", lambda: None,
         "packages/providers/src/claude/provider.ts",
         r"isWorkflowNode\(nodeConfig\)\n\s*\? withPluginScopeCheck\(rawEvents, nodeConfig\.plugins \?\? \[\]\)", lambda m: None),
@@ -328,9 +347,10 @@ ARCHON_ROWS = (
         lambda m: (f"--{m[3]}", m[5])),
     Row("script を探すフォルダの深さ", lambda: test_uv_scripts.DISCOVERY_DEPTH, "packages/workflows/src/script-discovery.ts",
         r"^const MAX_SCRIPT_DISCOVERY_DEPTH = (\d+);$", lambda m: int(m[1])),
-    Row("答えの行の run の id・答えの語・一言の位置", _answer_positions, "packages/cli/src/cli.ts",
-        r"case 'respond': \{\n\s*const respondRunId = positionals\[(\d+)\];\n\s*const decision = positionals\[(\d+)\];"
-        r".*?positionals\.slice\((\d+)\)\.join\(' '\)", lambda m: [int(n) for n in m.groups()]),
+    Row("答えの行の run の id・答えの語・一言の位置", _answer_positions, "packages/cli/src/routes/workflow.ts",
+        r"export async function runWorkflowRespond\(route: WorkflowRoute\): Promise<number> \{\n.*?"
+        r"\s*const respondRunId = positionals\[(\d+)\];\n\s*const decision = positionals\[(\d+)\];"
+        r".*?responseText\(values\.text, positionals\.slice\((\d+)\)\)", lambda m: [int(n) for n in m.groups()]),
     Row("答えの行の旗は上の段の値を取る旗", _answer_options, "packages/cli/src/args.ts",
         r"export const cliArgOptions: CliArgOptions = \{\n(.*?)\n\};",
         lambda m: [name for name in _answer_options() if name in _string_options(m[1])]),
@@ -339,14 +359,14 @@ ARCHON_ROWS = (
         lambda m: sorted(set(_skip_names()) & set(re.findall(r"^\s*'?([\w-]+)'?: \{ type:", m[1], re.M)))),
     Row("殻が --from を足さない短い名は枝の旗の短い名", _skip_short, "packages/cli/src/args.ts",
         r"^\s*branch: \{ type: 'string', short: '(\w)' \},$", lambda m: [m[1]]),
-    Row("子の枝の頭", lambda: childsweep.BRANCH_HEAD, "packages/isolation/src/providers/worktree.ts",
-        r"return `(archon/task-)\$\{this\.slugify\(request\.identifier\)\}`;"),
+    Row("子の枝の頭", lambda: childsweep.BRANCH_HEAD, "packages/isolation/src/providers/worktree/branches.ts",
+        r"function generatedTaskBranch\(identifier: string\): string \{\n\s*return `(archon/task-)\$\{slugify\(identifier\)\}`;"),
     Row("子の枝の名の親の run の id の長さ", lambda: childsweep.RUN_HEAD,
         "packages/core/src/workflows/child-isolation-resolver.ts",
         r"return \[parentRunId\.slice\(0, (\d+)\), nodeSlug", lambda m: int(m[1])),
-    Row("子の run の枝の名の鍵", lambda: childsweep.BRANCH_KEY, "packages/workflows/src/executor.ts",
-        r"^\s*(branch_name): childIsolationEnv\.branchName,$"),
-    Row("子の run の親の節の鍵", lambda: childsweep.NODE_KEY, "packages/workflows/src/schemas/workflow-run.ts",
+    Row("子の run の枝の名の鍵", lambda: childsweep.BRANCH_KEY, "packages/workflows/src/child-runs.ts",
+        r"^\s*(branch_name): isolationEnv\.branchName,$"),
+    Row("子の run の親の節の鍵", lambda: childsweep.NODE_KEY, "packages/workflows/src/schemas/run-metadata.ts",
         r"^\s*parentNodeId: '(\w+)',$"),
     Row("complete が消せた行", lambda: childsweep.COMPLETED, "packages/cli/src/commands/isolation.ts",
         r"console\.log\(`  (Completed: )\$\{branch\}`\);"),
@@ -354,16 +374,16 @@ ARCHON_ROWS = (
         r"console\.warn\(`  (Warning: )\$\{warning\}`\);"),
     Row("子の run の親の run の鍵", lambda: childsweep.PARENT_KEY, "packages/workflows/src/schemas/workflow-run.ts",
         r"^\s*(parent_run_id): z\.string\(\)\.nullable\(\),$"),
-    Row("run が終わった status", lambda: childsweep.DONE, "packages/workflows/src/schemas/workflow-run.ts",
+    Row("run が終わった status", lambda: childsweep.DONE, "packages/workflows/src/schemas/run-status.ts",
         r"export const workflowRunStatusSchema = z\.enum\(\[[^\]]*'(completed)',"),
     Row("節が済んだ状態", lambda: childsweep.DONE, "packages/cli/src/commands/workflow-node-summaries.ts",
-        r"case 'node_completed': \{\n[^}]*?state: '(\w+)',"),
-    Row("include した節の id の継ぎ", lambda: childsweep.INCLUDE_SEP, "packages/workflows/src/include-expander.ts",
+        r"case 'node_completed':\n\s*return \{\n[^}]*?state: '(\w+)',"),
+    Row("include した節の id の継ぎ", lambda: childsweep.INCLUDE_SEP, "packages/workflows/src/include/inline.ts",
         r"const prefix = `\$\{includeNode\.id\}(\w+)`;"),
-    Row("workflow get --json --verbose の節の一覧の鍵", lambda: childsweep.NODES, "packages/cli/src/commands/workflow.ts",
+    Row("workflow get --json --verbose の節の一覧の鍵", lambda: childsweep.NODES, "packages/cli/src/commands/workflow-query.ts",
         r"^\s*(nodes): buildNodeSummaries\(events\),$"),
     Row("節の一覧の行の id と状態の鍵", lambda: [childsweep.NODE_ID, childsweep.STATE], "packages/cli/src/commands/workflow-node-summaries.ts",
-        r"case 'node_completed': \{\n.*?summaries\.set\((\w+), \{\n\s*\1,\n\s*(\w+): 'completed',",
+        r"case 'node_completed':\n\s*return \{\n\s*(\w+),\n\s*(\w+): 'completed',",
         lambda m: list(m.groups())),
     Row("run の記録の道具の呼びの行の型と節の欄", lambda: runlog.PROVIDER_ROW, "packages/workflows/src/logger.ts",
         r"type: '(provider_event)',\s*step: stepName,"),
@@ -378,16 +398,18 @@ ARCHON_ROWS = (
         "packages/workflows/src/logger.ts",
         r"type: '(exec_output)',\s*step: nodeId,\s*(content): commandName,\s*(exit_code): output\.exitCode,",
         lambda m: list(m.groups())),
-    Row("ループの until の呼びの名", lambda: runlog.UNTIL_ROW, "packages/workflows/src/dag-executor.ts", r"label: '(<until_bash>)'"),
-    Row("ループの回の step の継ぎ", lambda: runlog.ITERATION_MARK, "packages/workflows/src/dag-executor.ts",
+    Row("ループの until の呼びの名", lambda: runlog.UNTIL_ROW, "packages/workflows/src/dag/nodes/loop-group/until-bash.ts", r"label: '(<until_bash>)'"),
+    Row("ループの回の step の継ぎ", lambda: runlog.ITERATION_MARK, "packages/workflows/src/dag/nodes/loop/iteration.ts",
         r"nodeId: `\$\{node\.id\}(-iteration-)\$\{String\(i\)\}`"),
-    Row("workflow get の出来事の列の旗", lambda: apply.EVENTS_FLAGS, "packages/cli/src/cli.ts",
+    Row("workflow get の出来事の列の旗", lambda: apply.EVENTS_FLAGS, "packages/cli/src/routes/workflow.ts",
         r"'Usage: archon workflow get <run-id> \[--json\] \[(--verbose)\] \[(--events)\]'", lambda m: m.groups()),
-    Row("workflow get --verbose --events の出来事の列の鍵", lambda: apply.EVENTS, "packages/cli/src/commands/workflow.ts",
+    Row("workflow get --verbose --events の出来事の列の鍵", lambda: apply.EVENTS, "packages/cli/src/commands/workflow-query.ts",
         r"rawEvents\n\s*\? \{\n\s*\.\.\.run,\n\s*transcript_path: transcriptPath,\n\s*terminal_record: terminalRecord,\n\s*(events),$"),
     Row("ノードの出力を持つ出来事と済んだ状態", lambda: (*apply.OUTPUT_EVENTS, apply.COMPLETED), "packages/workflows/src/terminal-record.ts",
-        r"case '(node_completed)':\n\s*case '(node_skipped_prior_success)':\n\s*nodes\.set\(nodeId, \{ node_id: nodeId, state: '(\w+)' \}\);",
-        lambda m: m.groups()),
+        r"case '(node_completed)':\n\s*nodes\.set\(\n\s*nodeId,\n\s*withFanOutOutcome\(\{ node_id: nodeId, state: '(\w+)' \}, "
+        r"record\.data\.fan_out_outcome\)\n\s*\);\n\s*outputs\.set\(nodeId, record\.data\);"
+        r".*?case '(node_skipped_prior_success)':\n.*?\{ node_id: nodeId, state: '\2' \},.*?outputs\.set\(nodeId, record\.data\);",
+        lambda m: (m[1], m[3], m[2])),
     Row("記録の出力の読みの鍵（型つきの出力・切り詰めの印・素の出力）", lambda: apply.OUTPUT_KEYS, "packages/workflows/src/terminal-record.ts",
         r"Object\.hasOwn\(data, '(\w+)'\).*?data\?\.(\w+) === true.*?typeof data\?\.(\w+) === 'string'", lambda m: m.groups()),
     Row("tokens の欄の名（tokenUsageSchema。run の記録と出来事の spend.tokens の value）", lambda: sorted([*runlog.TOKEN_FIELDS, runlog.CACHE_PARTIAL]),
@@ -402,7 +424,7 @@ ARCHON_ROWS = (
     Row("tokens の cachePartial は束ねた値にだけ立ち、キャッシュの欄が下限であることを言う", lambda: runlog.CACHE_PARTIAL,
         "packages/provider-contract/src/result.ts",
         r"Set only by aggregation .*?cache axes on this usage are a FLOOR.*?^\s*(cachePartial): z\.literal\(true\)\.optional\(\),"),
-    Row("AI の節の env は設定の層の env（config.envVars）を節の起動の env に渡す", lambda: None, "packages/workflows/src/dag-executor.ts",
+    Row("AI の節の env は設定の層の env（config.envVars）を節の起動の env に渡す", lambda: None, "packages/workflows/src/dag/provider-resolution.ts",
         r"^\s*baseOptions\.env = config\.envVars;$", lambda m: None),
     Row("役の過程の env は process.env の上に節の起動の env を重ねる（起動の最初の CLAUDE_CODE_* の掃除の後に層が重なる）", lambda: None,
         "packages/provider-contract/src/agent-provider.ts",
@@ -412,7 +434,7 @@ ARCHON_ROWS = (
         "packages/core/src/config/config-loader.ts",
         r"export async function loadRepoConfig\(repoPath: string\).*?const configPath = join\(repoPath, '([^']+)', '([^']+)'\);",
         lambda m: m.groups()),
-    Row("対象の .archon/config.yaml の env: は AI の節の env の層に入る", lambda: None, "packages/core/src/config/config-loader.ts",
+    Row("対象の .archon/config.yaml の env: は AI の節の env の層に入る", lambda: None, "packages/core/src/config/config-merge.ts",
         r"^\s*result\.envVars = \{ \.\.\.result\.envVars, \.\.\.repo\.env \};$", lambda m: None),
 )
 
@@ -466,28 +488,36 @@ class ArchonPrTest(unittest.TestCase):
         self.assertLessEqual(set(opened["with"]), set(self.doc["inputs"]))
 
 
-class GuardsTest(unittest.TestCase):
-    """止めた源の分かれは全部 data.<欄> の形なので、形の合わない分かれを赤にする道は作った transform で確かめる"""
+class ModesTest(unittest.TestCase):
+    """止めた源の組み手は全部 `<mode>: data =>` の形なので、形の合わない組み手を赤にする道は作った表で確かめる"""
 
-    TRANSFORM = """\
-    if (data.command !== undefined) {
-      return { ...base, kind: 'agent', command: data.command };
-    }
-    if (data.bash !== undefined) {
-      return { ...base, kind: 'exec', bash: data.bash };
-    }
-    if (isSleep(data)) {
-      return { ...base, kind: 'exec', sleep: data.sleep };
-    }
-    if (!data.loop) throw new Error('unknown node');
+    BUILDERS = """\
+  command: data =>
+    ({
+      kind: 'agent',
+      source: {
+        kind: 'command',
+      },
+    }) as AgentNode,
+  // a comment between builders
+  bash: data =>
+    ({
+      kind: 'exec',
+    }) satisfies ExecNode,
+  sleep: buildSleep,
+  loop: data => {
+    return {
+      kind: 'loop',
+    } as LoopNode;
+  },
 """
 
-    def test_every_branch_is_a_field_or_its_unmatched_line(self):
-        self.assertEqual(_guards(self.TRANSFORM), ["bash", "command", "isSleep(data)) {", "loop"])
+    def test_every_builder_is_a_mode_or_its_unmatched_line(self):
+        self.assertEqual(_modes(self.BUILDERS), ["  sleep: buildSleep,", "bash", "command", "loop"])
 
-    def test_kind_keeps_only_its_branches_with_the_unmatched_line(self):
-        self.assertEqual(_guards(self.TRANSFORM, "exec"), ["bash", "isSleep(data)) {"])
-        self.assertEqual(_guards(self.TRANSFORM, "agent"), ["command"])
+    def test_kind_keeps_only_its_builders(self):
+        self.assertEqual(_modes(self.BUILDERS, "exec"), ["bash"])
+        self.assertEqual(_modes(self.BUILDERS, "agent"), ["command"])
 
 
 class BoundCopyTest(unittest.TestCase):

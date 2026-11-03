@@ -18,31 +18,35 @@ from viewer.src import runread, shape
 LOGGER = "packages/workflows/src/logger.ts"
 SETUP = "packages/workflows/src/schemas/worktree-setup.ts"
 EVENTS = "packages/provider-contract/src/events.ts"
-RUN_SCHEMA = "packages/workflows/src/schemas/workflow-run.ts"
+RUN_STATUS = "packages/workflows/src/schemas/run-status.ts"
+RUN_WAIT = "packages/workflows/src/schemas/run-wait.ts"
 SQLITE = "packages/core/src/db/adapters/sqlite.ts"
 # 名 → それを字として書く源のファイル
 WRITTEN = {
     f"'{runread.DB_FILE}'": "packages/core/src/db/connection.ts",
-    **{f"'{name}'": "packages/paths/src/archon-paths.ts"
-       for name in (runread.LOGS, runread.SOURCE, runread.ARTIFACTS, runread.RUNS_DIR, runread.WORKFLOW_FOLDER)},
-    f"PROJECT_SCOPE_DIR = '{runread.PROJECT_SCOPE}'": "packages/workflows/src/workflow-source.ts",
+    **{f"'{name}'": "packages/paths/src/project-paths.ts" for name in (runread.LOGS, runread.SOURCE, runread.ARTIFACTS)},
+    f"'{runread.RUNS_DIR}'": "packages/paths/src/run-paths.ts",
+    f"'{runread.WORKFLOW_FOLDER}'": "packages/paths/src/markdown-discovery.ts",
+    f"PROJECT_SCOPE_DIR = '{runread.PROJECT_SCOPE}'": "packages/workflows/src/workflow-source/roots.ts",
     **{f"type: '{name}'": "packages/workflows/src/event-emitter.ts"
        for name in (runread.OUTPUT_EVENT, runread.NODE_FAILED_EVENT, runread.SUSPENDED_EVENT, *runread.END_EVENTS)},
     **{f"{name}:": "packages/workflows/src/node-record-serialization.ts" for name in (runread.NODE_COST, runread.ACCOUNTING)},
     f"{runread.NODE_OUTPUT}": "packages/workflows/src/node-record-serialization.ts",
     f"data.{runread.AGGREGATE} === true": "packages/workflows/src/node-record-serialization.ts",
     f"data.type === '{runread.INSTANCE}'": "packages/workflows/src/dag-resume-snapshot.ts",
-    f"`${{scope}}{shape.INCLUDED}`": "packages/workflows/src/dag-resume-snapshot.ts",
+    f"`${{row.step_name}}{shape.INCLUDED}`": "packages/workflows/src/dag-resume-snapshot.ts",
     f"content: '{runread.PRIOR_SUCCESS}'": "packages/workflows/src/node-event-write.ts",
     f"sessionOrigin: '{runread.RESUMED}'": "packages/workflows/src/node-execution.ts",
     f"DEFERRED_NODE_USAGE_EVENT_TYPE = '{runread.DEFERRED_EVENT}'": "packages/workflows/src/node-record-serialization.ts",
-    f"{runread.PARENT_NODE}": "packages/workflows/src/dag-executor.ts",
-    f"{runread.TOTAL_COST}:": "packages/workflows/src/dag-executor.ts",
+    f"parentNodeId: '{runread.PARENT_NODE}'": "packages/workflows/src/schemas/run-metadata.ts",
+    f"cost: '{runread.TOTAL_COST}'": "packages/workflows/src/schemas/run-usage.ts",
     f"{runread.ATTEMPT_ID}:": "packages/workflows/src/schemas/provider-event.ts",
-    **{f"kind: z.literal('{kind}')": "packages/workflows/src/schemas/dag-node.ts"
-       for kind in (*runread.AI_KINDS, runread.WAIT_NODE, *runread.GROUP_KINDS)},
-    **{name: RUN_SCHEMA for name in (f"metadata?.{runread.WAIT}", f"kind: z.literal('{runread.WAIT_KIND}')", f"{runread.WAIT_ANSWER}: attentionAnswerSchema",
-                                     f"wait.owner === '{runread.WAIT_LOOP_OWNER}' ? `${{wait.nodeId}}.${{wait.bodyWaitId}}` : wait.nodeId")},
+    **{f"kind: z.literal('{kind}')": f"packages/workflows/src/schemas/{schema}.ts"
+       for kind, schema in zip((*runread.AI_KINDS, runread.WAIT_NODE, *runread.GROUP_KINDS),
+                               ("agent-node", "loop-node", "wait-node", "dag-node", "include-node", "workflow-node"), strict=True)},
+    f"metadata?.{runread.WAIT}": "packages/workflows/src/schemas/run-attention.ts",
+    **{name: RUN_WAIT for name in (f"kind: z.literal('{runread.WAIT_KIND}')", f"{runread.WAIT_ANSWER}: attentionAnswerSchema",
+                                   f"wait.owner === '{runread.WAIT_LOOP_OWNER}' ? `${{wait.nodeId}}.${{wait.bodyWaitId}}` : wait.nodeId")},
 }
 
 
@@ -73,7 +77,7 @@ class ArchonNamesTest(unittest.TestCase):
         self.assertEqual(types, set(runread.READ_EVENTS) | set(runread.UNREAD_EVENTS))
 
     def test_statuses_are_the_sources(self):
-        found = re.search(r"workflowRunStatusSchema = z\.enum\(\[(.*?)\]\)", self.read(RUN_SCHEMA), re.S)[1]
+        found = re.search(r"workflowRunStatusSchema = z\.enum\(\[(.*?)\]\)", self.read(RUN_STATUS), re.S)[1]
         self.assertEqual(literals(found), set(runread.STATUSES))
         self.assertLessEqual({*runread.LIVE, runread.PAUSED, runread.FAILED}, set(runread.STATUSES))
 
