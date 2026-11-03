@@ -44,7 +44,7 @@ for line in sys.stdin:
         break
 else:
     sys.exit(0)
-pause =[sys.executable, "-c", "import signal; signal.pause()"]
+pause = [sys.executable, "-c", "import signal; signal.pause()"]
 near = subprocess.Popen(pause)
 away = subprocess.Popen(pause, start_new_session=True)
 with open({log!r}, "a") as f:

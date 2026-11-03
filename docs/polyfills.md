@@ -152,7 +152,7 @@
 - 穴: 周をまたいで、同じ役の AI の会話を続けられない。当たるのは 3 つの場合: `include` したサブグラフをまたぐ時、別の run（周の鎖）をまたぐ時、ループの前に同じ役の AI のノードが無いループの中で、別の役のノードを挟む時。前の周の自分が読んだ所も考えも次の周の自分に届かないので、周ごとに新しい会話で起きる役には、書き置き（引き継ぎのメモ）で渡す。
 - 証拠: ループの中の続きの振る舞いは、`tests/shared/test_archon_contract.py` の `ARCHON_ROWS` の行 `名指しの続き context: resume` が `packages/workflows/src/loader/dag-structure.ts` の字でも縛る。
   - `packages/docs-web/src/content/docs/reference/workflow-language.md` の「`archon workflow run` starts a run without a conversation, so its `persist_session` nodes start fresh on every invocation」「Cross-run persistence isn't wired for them in this release」「that completes before entry into the group」「It never continues an earlier iteration's branch」（CLI の別の run は毎回新しい会話で、`loop_group` に run をまたぐ持続は無い。ループの中で続けられるのは、ループの前のノードの会話（周をまたいで続く）と、同じ周の本体の上流のノードの会話（周ごとに分かれ、前の周の分は続かない）だけ）
-  - `packages/docs-web/src/content/docs/guides/loop-nodes.md` の「A command or prompt in the body can continue a statically named pre-loop session」（ループの中で続けられるのは、ループの前の `command:`・`prompt:` のノードを名指した時だけ）
+  - `packages/docs-web/src/content/docs/guides/loop-nodes.md` の「A command or prompt in the body can continue a statically named pre-loop session」（ループの前の `command:`・`prompt:` のノードを名指せる。この文書の字はループの前のノードの場合だけを書いていて、同じ周の本体の上流のノードを名指す場合は上の `reference/workflow-language.md` の字と `loader/dag-structure.ts` の `checkResumeAncestry` が通す）
 - 上流（`2886e883` の後の dev の `2886e883d` まで）: 塞がっていない。`a972888a..2886e883d` の 426 commit のうち `8d8d4e9c0`（#4738）で、ループの本体のノードが、同じ周の本体の上流のノードの会話を続けられるようになった（周ごとに分かれる）。周・run・include をまたいで同じ役の会話を続ける物は無い。
 - 埋め: `lib/handoff.py`。引き継ぎのメモの型・頼み・前の周のノードに貼るセクション・控えを置く。
 - 使う block と graph: plan・report

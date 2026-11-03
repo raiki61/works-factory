@@ -55,7 +55,7 @@ PAUSED = "paused"
 # 落ちた run の状態。流れの集計（src/stages.py）が止まった段を落ちた出来事から引き、落ちの訳もこの状態の run だけに出す（落ちた後に
 # 起き直して終わった run は workflow_failed の行を残す。packages/workflows/src/dag-resume-snapshot.ts の resuming a failed run）
 FAILED = "failed"
-# run の metadata の欄（子の run を起こしたノード・費用。packages/workflows/src/dag-executor.ts）
+# run の metadata の欄（子の run を起こしたノードは packages/workflows/src/run-admission.ts、費用は packages/workflows/src/schemas/run-usage.ts）
 PARENT_NODE = "parent_node_id"
 TOTAL_COST = "total_cost_usd"
 # DB のノードの終わりの出来事の欄（AI の呼び出しの費用と、その費用がノード自身の物か。packages/workflows/src/node-record-serialization.ts）。
@@ -102,7 +102,7 @@ RESULT_OUTCOME = "outcome"
 NODE_ROWS = ("node_start", "node_complete", "node_error", "node_skipped", "node_suspended")
 PROVIDER_ROW = runlog.PROVIDER_ROW
 EXEC_ROW = runlog.EXEC_ROW
-# loop_group の until_bash の確かめの行の step の名 `<輪>-iteration-<n>`（packages/workflows/src/dag-executor.ts）
+# loop_group の until_bash の確かめの行の step の名 `<輪>-iteration-<n>`（packages/workflows/src/dag/nodes/loop-group/until-bash.ts）
 ITERATION_MARK = runlog.ITERATION_MARK
 READ_ROWS = (*NODE_ROWS, PROVIDER_ROW, EXEC_ROW)
 # 起き直した run が前の起動で済んだノードについて書く node_skipped の content（packages/workflows/src/node-event-write.ts）。
