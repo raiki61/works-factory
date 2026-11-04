@@ -218,7 +218,7 @@
 - 状態: 住処あり
 - 住処: `workflows/line/src/startrec.py`（標準ライブラリだけ。置き場の名 `REL`〔字は line の置き場の名の表 `workflows/line/src/files.py` の `START`〕と `path`、読み口 `read`・`load`、書き `write`・`save`、入口の入力の形の読み `shape`・`diff_empty`・`requests`、読む版と差分の根 `read_rev`・`diff_base`、入口の文 `words`、命令の版の 1 行 `cli_version`）
 - 約束: 住処の口だけ（置き場の名と読む口はここ 1 つ。記録の型の Schema は works-factory に無い。試験 `tests/blocks/line/test_startrec.py`）
-- 知ってよい所: 住処と、置き場の名の字を持つ `files.START` の 1 行。書き手はメイングラフの始めのノード `workflows/line/scripts/start.py`（`startrec.write`）と、直しの前の答えで方針を固め直す `workflows/line/scripts/before_fix_answer.py`（`startrec.save`）と、固定材料の取り込み（line の `src/fixture.py` の `adopt`）で、読み手は `startrec.read`・`startrec.load` を引く
+- 知ってよい所: 住処と、置き場の名の字を持つ `files.START` の 1 行。書き手はメイングラフの始めのノード `workflows/line/scripts/start.py`（`startrec.write`）と、直しの前の答えで方針を固め直す `workflows/line/scripts/before_fix_answer.py`（`startrec.save`）と、固定材料の取り込み（line の `src/fixture.py` の `adopt`）と、修正に入る時に固定材料の控えの印を足す同じファイルの `noted_capture`（`workflows/line/scripts/fix_in.py` が呼ぶ）で、読み手は `startrec.read`・`startrec.load` を引く
 - 今: 柵は置き場の名を字で書く形・置き場の名の別名（START_REL・START_FILE）・別の読み口（start_doc の関数）。既知の漏れは、判定の置き場に始めの記録の写しを同じ名で置く `judge_accept.py` の `START_FILE` とそれを引く判定の支度の 2 つの script、最後の承認ノード `workflows/line/scripts/ask_final.py` の包み `start_doc`（4 ファイル 12 行）
 
 ### `human-gates` 人の承認ノードと無人の方針
