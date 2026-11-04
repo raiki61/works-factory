@@ -28,6 +28,8 @@ from viewer.src import runread, sendto, session, shape, stages, trace  # noqa: E
 
 PACK = json.loads((ROOT / "pack.json").read_text(encoding="utf-8"))["ours"]
 TREE = ROOT / PACK["folder"]
+TIMELESS = "works_factory.timeless"   # 時刻が読めず、祖先の時刻で埋めた span の印
+FILLED = "時刻が読めず祖先の時刻で埋めた span"
 
 
 class Refused(Exception):
@@ -53,6 +55,7 @@ def main(argv: list[str]) -> int:
         built = trace.build(data)
         if not built["spans"] or not built["spans"][0]["start"]:
             raise Refused(f"run {data['run']['id']} に時刻の在る出来事が無い")
+        timed(built)
     except (Refused, launcher.Stop) as stop:
         print(f"runtrace: {stop}", file=sys.stderr)
         return 2
@@ -65,6 +68,30 @@ def main(argv: list[str]) -> int:
     unread = sum(built["unread"].values())
     print(f"run {data['run']['id'][:8]}・span {sent} → {where.url}・trace {built['trace_id']}・読めなかった物 {unread}")
     return 0
+
+
+def timed(built: dict) -> None:
+    """時刻の無い span（時刻が 1 つも読めない下請け・時刻の読めない往復。trace.build は始めも終わりも None で返す）を、一番近い
+    時刻の在る祖先の始めと終わりで埋め、印 TIMELESS を付けて読めなかった物に数える。送らずに落とすと、子の span が親を失う"""
+    by_id = {span["id"]: span for span in built["spans"]}
+
+    def times(span: dict) -> tuple:
+        seen = set()
+        while span is not None and not (span["start"] and span["end"]) and span["id"] not in seen:
+            seen.add(span["id"])
+            span = by_id.get(span["parent"])
+        return (span["start"], span["end"]) if span is not None and span["start"] and span["end"] else (None, None)
+
+    filled = 0
+    for span in built["spans"]:
+        if not (span["start"] and span["end"]):
+            span["start"], span["end"] = times(by_id.get(span["parent"])) if span["parent"] else (None, None)
+            if span["start"] is None:
+                span["start"], span["end"] = built["spans"][0]["start"], built["spans"][0]["end"]
+            span["attributes"][TIMELESS] = True
+            filled += 1
+    if filled:
+        built["unread"][FILLED] = built["unread"].get(FILLED, 0) + filled
 
 
 def read(target: str, wanted: str, user: dict, here: Path) -> dict:
