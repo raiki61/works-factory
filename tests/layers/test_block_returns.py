@@ -1,6 +1,7 @@
 """block と graph の返りが 1 つのノードの構造体で、仕事の結末の欄を持つ（`workflows/AGENTS.md` の E5 の機械の行）。
 
 - どの workflow にも `returns:` と `outcome_field:` が在り、返すノードが `output_format` を持ち、`outcome_field` の欄がその `required` に在る（止めた Archon は `required` に在る boolean の欄しか受けない）。
+- 返すノードの `output_format` の `optional` の外の欄は全部 `required` に在る（`required` から外した欄は、書き手が落としても受け手の `ports.picked` まで誰も止めない。無くてよい欄は `optional` に置く）。
 - 返りに `report`（報告に載せる日本語の行の配列）が在ることは `tests/layers/test_block_shape.py`（7.1 の 8）が見る。
 - graph が欄つきの参照 `$<include の id>.output.<欄>` で読む欄が返すノードの `output_format` に在るかは Archon の `validate`（`tests/layers/test_archon_validate.py`）が照らすので、ここでは照らさない。まるごとの参照 `$<include の id>.output` は validate が欄を見られないので、受けてよい置き場（script のノードの `with:<鍵>` の直の字か `with:<鍵>.from` の字）と、受けた script が `ports.picked` の口 1 つで読み、宣言した名が `output_format` に在ることをここで照らす。受けた script は環境変数を字のままの鍵でだけ読み、名を組む・回す・写す・渡す読みは赤。
 - 読み手ゼロなら赤（持ち主の決め `declared-io`）。block の返す節の `output_format` の欄は、どこかの graph（その block を include か
@@ -96,6 +97,16 @@ class BlockReturnsTest(unittest.TestCase):
         self.assertEqual(len(got), 1, got)
         self.assertIn("required", got[0])
 
+    def test_returned_field_not_required_is_red(self):
+        """返す節の optional の外の欄は全部 required に在る（required から外すと、書き手が欄を落としても受け手まで誰も止めない）"""
+        line = LINE_HEAD + READS
+        self.assertEqual(self.problems(RETURNING, line), [])
+        got = self.problems(RETURNING.replace("required: [ready, units]", "required: [ready]"), line)
+        self.assertEqual(len(got), 1, got)
+        self.assertIn("欄 units が required に無い", got[0])
+        optional = RETURNING.replace("        units:", "        optional: {type: array}\n        units:")
+        self.assertFalse([p for p in self.problems(optional, line) if "required" in p], "optional は required に書かない")
+
     def gated(self, script, value='"$judge.output"', reads="", files=None, names=None):
         """script の節 take が with: の got でブロック judge の返りをまるごとで受ける木。script の字は workflows/line/scripts/take.py"""
         line = LINE_HEAD + reads + take_node(value, names)
@@ -189,7 +200,8 @@ class BlockReturnsTest(unittest.TestCase):
     def test_entry_returns_are_not_checked(self):
         """どの graph も呼ばない workflow と一番上のグラフ（line・chain）の返りは人と起動の殻が読むので、読み手を照らさない"""
         self.assertEqual(self.problems(RETURNING, LINE_TOP), [])
-        self.assertEqual(self.files({LINE: LINE_TOP.replace("ok: {type: boolean}\n", "ok: {type: boolean}\n        extra: {type: string}\n")}), [])
+        self.assertEqual(self.files({LINE: LINE_TOP.replace("ok: {type: boolean}\n", "ok: {type: boolean}\n        extra: {type: string}\n")
+                                                .replace("required: [ok]", "required: [ok, extra]")}), [])
 
     def test_block_input_without_a_reader_is_red(self):
         """block の inputs: の名は、その block の YAML の $INPUTS.<名> か、scripts/・src/ の INPUTS_<名> の読みが読む"""
@@ -450,8 +462,10 @@ POINTER = ("{type: object, additionalProperties: false, required: [type, run_id,
 
 
 def judge_returning(fields: str) -> str:
+    """返す節の欄は全部 required に書く（E5）。fields の行の頭の名を足す"""
+    names = ", ".join(["ready", *(line.partition(":")[0].strip() for line in fields.splitlines() if line.strip())])
     return ("name: works-factory-judge\nreturns: verdict\noutcome_field: ready\nnodes:\n  - id: verdict\n    script: stub\n"
-            "    output_format:\n      type: object\n      required: [ready]\n      properties:\n        ready: {type: boolean}\n"
+            f"    output_format:\n      type: object\n      required: [{names}]\n      properties:\n        ready: {{type: boolean}}\n"
             + "".join(f"        {line}\n" for line in fields.splitlines()))
 
 

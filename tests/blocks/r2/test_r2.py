@@ -710,6 +710,15 @@ class MeansCase(_RepoCase):
         self.assertNotIn("推し:", done["questions"][0])
         self.assertIn("引用を照らせなかった", done["questions"][0])
 
+    def test_path_in_the_words_drops_the_push(self):
+        """why か推しの文に run の中を指すパスを書いた行は、人に聞く文の決まり（lib/plainask.py）に外れるので推しの尾を外して聞く"""
+        for row, where in ((conflict(why="app.py:12 の集計を呼び手ごとに置く"), "why"),
+                           (conflict(recommend={**REC, "note": "app.py:12 のまま通す"}), "recommend.note")):
+            with self.subTest(where):
+                q = self.run_with(row)["questions"][0]
+                self.assertNotIn("推し:", q)
+                self.assertIn(f"{where}: ", q)
+
     def test_redesign_needed_stays(self):
         """頼みと関わらない違いが残れば役の redesign-needed のまま（状態の決めは変えない）。問いの行は出す"""
         done = self.run_with(conflict(), status="redesign-needed")

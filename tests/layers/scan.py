@@ -932,7 +932,7 @@ INPUT_REF = re.compile(r"\$INPUTS\.([A-Za-z_][\w-]*)")
 
 def _block_returns(root: Path) -> list[str]:
     """どの workflow（block と graph）にも returns: と outcome_field: が在り、返す節が output_format を持ち、outcome_field の欄がその
-    required に在る。graph のまるごとの参照を受けた script の口が宣言した名は、返す節の output_format の properties に在る。
+    required に在り、optional の外の欄は全部 required に在る。graph のまるごとの参照を受けた script の口が宣言した名は、返す節の output_format の properties に在る。
     返りの欄は読み手を持つ（持ち主の決め declared-io の「読み手ゼロなら赤」）: どこかの graph が欄つきの参照で読むか、まるごとの参照の
     口が宣言した名（optional を含む）に在る。入口（一番上のグラフ line・chain と、どの graph も include:・workflow: で呼ばない workflow）の
     返りは人（workflow get）と起動の殻が読むので照らさない。block の入力の読み手（_inputs_read）と、輪の中の役が自分の with: を結ばない
@@ -964,6 +964,9 @@ def _block_returns(root: Path) -> list[str]:
         required = [item.value for item in getattr(_top(schema, "required"), "value", []) if isinstance(item, yaml.ScalarNode)]
         if isinstance(outcome, yaml.ScalarNode) and outcome.value not in required:
             out.append(f"{rel}:{_line(outcome)}: outcome_field の欄 {outcome.value} が返す節の required に無い")
+        out += [f"{rel}:{_line(value)}: 返す節 {returns.value} の欄 {key} が required に無い（いつも在る欄を required に書く。無くてよい欄は"
+                f" optional の中に置く）" for key, value in _pairs(_top(schema, "properties"))
+                if key not in required and key not in ("optional", getattr(outcome, "value", None))]
         schemas[f"{OURS_PREFIX}{folder.name}"] = (rel, list(_pairs(_top(schema, "properties"))), folder.name)
     for name, (rel, fields, folder) in schemas.items():
         known = {key for key, _ in fields}
