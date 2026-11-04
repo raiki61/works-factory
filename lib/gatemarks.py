@@ -132,6 +132,15 @@ RECOMMEND_SAYS = ("承認ノードの一言にそのまま写せる通す範囲�
 RECOMMEND_SHAPE = ("{" + f"{RECOMMEND_KEYS[0]}: " + " か ".join(f"{a}（{RECOMMEND_WORDS[a]}）" for a in RECOMMEND_ANSWERS)
                    + "".join(f", {k}: {say}（{RECOMMEND_MIN} 字以上）" for k, say in zip(RECOMMEND_KEYS[1:], RECOMMEND_SAYS))
                    + "}")
+
+
+def recommend_shape() -> str:
+    """推しの形の英語の指示の字（RECOMMEND_KEYS・RECOMMEND_ANSWERS・RECOMMEND_MIN から。欄の意味は各 block の md が書く）"""
+    head, *rest = RECOMMEND_KEYS
+    return ("{" + f"{head}: " + " | ".join(RECOMMEND_ANSWERS)
+            + "".join(f", {k}: … ({RECOMMEND_MIN} characters or more)" for k in rest) + "}")
+
+
 # 決め手が在っても人に聞く行の印（外への書き込み・取り消せない操作・方針の文書の変更・守り（資格・sandbox）を広げる・web の結果が
 # 新しい疑いを出した）
 FENCES = ("external_write", "irreversible", policy.POLICY_DOC_FENCE, "widen_protection", "web_doubt")

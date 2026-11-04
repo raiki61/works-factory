@@ -199,6 +199,7 @@ eyes__verdict:
   r3: {status: pass, reason: r3 は通した}
   r4: {status: pass, reason: r4 は通した}
   questions: []
+  means_questions: []
   passes: []
   premise_check: null
   notes: []
@@ -235,4 +236,5 @@ eyes__r2__r2-compare:
   status: pass
   reason: 独立設計も直す物が無いと言う
   differences: []
+  request_conflicts: []
 eyes__r2__r2-compare-save: {saved: true}

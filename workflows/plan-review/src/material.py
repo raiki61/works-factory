@@ -631,10 +631,8 @@ def _framing(c: _Ctx) -> str:
 
 
 def _recommend_shape() -> str:
-    """推しの形（gatemarks の RECOMMEND_KEYS・RECOMMEND_ANSWERS・RECOMMEND_MIN から。欄の意味は md の head.md が書く）"""
-    head, *rest = gatemarks.RECOMMEND_KEYS
-    return ("{" + f"{head}: " + " | ".join(gatemarks.RECOMMEND_ANSWERS)
-            + "".join(f", {k}: … ({gatemarks.RECOMMEND_MIN} characters or more)" for k in rest) + "}")
+    """推しの形（gatemarks.recommend_shape。欄の意味は md の head.md が書く）"""
+    return gatemarks.recommend_shape()
 
 
 # 差し込み口の名 → 作り手（名ごとに 1 つ）

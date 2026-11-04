@@ -18,13 +18,25 @@ ROLES = {i: n for i, n in NODES.items() if "prompt" in n}
 # 役の返答の型の正本（今の works の review-loop.json の r2.compare・premise-check の schema。tests/workflows の test_eyes.py の GRAPH_SCHEMAS の写し）
 GRAPH_SCHEMAS = {
     "r2-compare": {
-        "type": "object", "required": ["status", "reason", "differences"], "additionalProperties": False,
+        "type": "object", "required": ["status", "reason", "differences", "request_conflicts"], "additionalProperties": False,
         "properties": {
             "status": {"type": "string", "enum": ["pass", "redesign-needed"]},
             "reason": {"type": "string", "minLength": 1},
             "differences": {"type": "array", "items": {
                 "type": "object", "required": ["kind", "text"], "additionalProperties": False,
-                "properties": {"kind": {"type": "string", "enum": ["構造", "表現"]}, "text": {"type": "string"}}}}}},
+                "properties": {"kind": {"type": "string", "enum": ["構造", "表現"]}, "text": {"type": "string"}}}},
+            # 頼みどおりの違い（docs/design/plan-review.md の 20 章の 6.2 の 3）。推しの形は plan-review の means_drifts と同じ
+            "request_conflicts": {"type": "array", "items": {
+                "type": "object", "required": ["means", "design_quote", "diff_quote", "why", "recommend"], "additionalProperties": False,
+                "properties": {
+                    "means": {"type": "string", "pattern": "^M[1-9][0-9]*$"},
+                    "design_quote": {"type": "string", "minLength": 4, "pattern": "\\S[\\s\\S]{2,}\\S"},
+                    "diff_quote": {"type": "string", "minLength": 4, "pattern": "\\S[\\s\\S]{2,}\\S"},
+                    "why": {"type": "string", "minLength": 10, "pattern": "\\S[\\s\\S]{8,}\\S"},
+                    "recommend": {"type": "object", "additionalProperties": False, "required": ["answer", "note", "why"], "properties": {
+                        "answer": {"type": "string", "enum": ["continue", "stop"]},
+                        "note": {"type": "string", "minLength": 4, "pattern": "\\S[\\s\\S]{2,}\\S"},
+                        "why": {"type": "string", "minLength": 4, "pattern": "\\S[\\s\\S]{2,}\\S"}}}}}}}},
     "premise-check": {
         "type": "object", "required": ["key", "assumption", "assumption_false", "evidence", "verdict", "reason"],
         "additionalProperties": False,
@@ -85,10 +97,12 @@ class RoleCase(unittest.TestCase):
         self.assertEqual(NODES["finish"].get("trigger_rule"), "all_done")
 
     def test_inputs_carry_no_judgment_or_plan(self):
-        """keep-essence の 9 の R2（元 test_r2_compare_gets_no_forbidden_input）: 比べる役に判定・修正案・単位の目録・修正の結末を運ぶ port が無い"""
-        self.assertEqual(sorted(DOC["inputs"]), sorted(["base", "head", "base_label", "purpose", "design", "design_reason", "design_premises",
-                                                       "answers", "request", "changed", "constraints", "test_outcomes", "tdd", "lang"]))
-        self.assertEqual(len(DOC["inputs"]), 14)
+        """keep-essence の 9 の R2（元 test_r2_compare_gets_no_forbidden_input）: 比べる役に判定・修正案・単位の目録・修正の結末を運ぶ port が無い。
+        means は依頼の文から外した頼みの解き方で、そのどれでもない（docs/design/plan-review.md の 20 章の 6.2 の 1）"""
+        self.assertEqual(sorted(DOC["inputs"]), sorted(["base", "head", "base_label", "purpose", "means", "design", "design_reason",
+                                                       "design_premises", "answers", "request", "changed", "constraints", "test_outcomes",
+                                                       "tdd", "lang"]))
+        self.assertEqual(len(DOC["inputs"]), 15)
         for banned in ("judgment", "plan", "units", "fixes", "materials"):
             self.assertNotIn(banned, DOC["inputs"])
 

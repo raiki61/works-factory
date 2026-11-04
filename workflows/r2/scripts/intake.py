@@ -16,7 +16,7 @@ import ports  # noqa: E402
 def compute():
     from src import steps
     raw = {"base": os.environ.get("INPUTS_BASE"), "head": os.environ.get("INPUTS_HEAD"), "base_label": os.environ.get("INPUTS_BASE_LABEL"),
-           "purpose": os.environ.get("INPUTS_PURPOSE"), "design": os.environ.get("INPUTS_DESIGN"),
+           "purpose": os.environ.get("INPUTS_PURPOSE"), "means": os.environ.get("INPUTS_MEANS"), "design": os.environ.get("INPUTS_DESIGN"),
            "design_reason": os.environ.get("INPUTS_DESIGN_REASON"), "design_premises": os.environ.get("INPUTS_DESIGN_PREMISES"),
            "answers": os.environ.get("INPUTS_ANSWERS"), "request": os.environ.get("INPUTS_REQUEST"),
            "changed": os.environ.get("INPUTS_CHANGED"), "constraints": os.environ.get("INPUTS_CONSTRAINTS"),

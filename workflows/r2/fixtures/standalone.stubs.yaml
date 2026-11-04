@@ -14,3 +14,4 @@ r2-compare:
   reason: 'stub: 構造は一致し、違いは表現だけ'
   differences:
     - {kind: 表現, text: 'stub: 呼び名が違う'}
+  request_conflicts: []
