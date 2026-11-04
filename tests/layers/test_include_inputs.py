@@ -77,13 +77,19 @@ NOT_PASSED = {
     },
     "chain": {   # 鎖の hand は形 check（docs/design/merge.md の chain の hand。答えと確かめは各周の line で済んでいる）
         **{("hand", name): "形 apply の時だけ読む（check は封じた hash と今の差分を照らすだけ）"
-           for name in ("answer", "eyes_ok", "fingerprint", "green_ok", "r2")},
+           for name in ("answer", "eyes_ok", "green_ok", "r2")},
+        ("hand", "fingerprint"): "形 seal と apply の時だけ読む（緑の認証の指紋を照らし直す。check は封じた hash と今の差分を照らすだけ）",
         ("hand", "items"): "鎖の親は修正案の項目の記録を持たない（null で PR の commit を 1 つに倒す）",
     },
     "policy-check": {   # 方針の文だけを入れる入口（docs/design/plan-review.md の policy-check の配線）。形 text は方針の文・目的・世界の解・言語だけを読む
-        **{("review-run", name): "形 text（方針の文の審査）は読まない。修正案・判定・往復・方針の文書を持たない入口"
-           for name in ("conflicts", "design", "design_why", "diff_base", "excluded", "fields", "judgment", "means", "plan", "policy",
-                        "prior", "proposal_file", "recorded", "request", "review_rev", "ripple", "ruling", "structure", "theme_doc", "tree")},
+        **{("review-run", name): "形 text（方針の文の審査）は読まない。修正案・判定・往復を持たない入口"
+           for name in ("conflicts", "design", "design_why", "excluded", "fields", "judgment", "means", "plan",
+                        "prior", "request", "ripple", "ruling", "structure", "theme_doc", "tree")},
+        **{("review-run", name): "形 text も読むが、この入口は人の方針の文書と記録された方針を持たない（入力は方針の文・困り事・目的・web・言語だけ）"
+           for name in ("policy", "recorded")},
+        **{("review-run", name): "形 text も読むが、既定の HEAD で足りる（この入口は版を固めない）"
+           for name in ("review_rev", "diff_base")},
+        ("review-run", "proposal_file"): "在ると形 text に決まるが、方針の文は proposal で渡す",
     },
 }
 

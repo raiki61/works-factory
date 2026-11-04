@@ -964,8 +964,8 @@ def _block_returns(root: Path) -> list[str]:
         required = [item.value for item in getattr(_top(schema, "required"), "value", []) if isinstance(item, yaml.ScalarNode)]
         if isinstance(outcome, yaml.ScalarNode) and outcome.value not in required:
             out.append(f"{rel}:{_line(outcome)}: outcome_field の欄 {outcome.value} が返す節の required に無い")
-        out += [f"{rel}:{_line(value)}: 返す節 {returns.value} の欄 {key} が required に無い（いつも在る欄を required に書く。無くてよい欄は"
-                f" optional の中に置く）" for key, value in _pairs(_top(schema, "properties"))
+        out += [f"{rel}:{_line(value)}: 返す節 {returns.value} の欄 {key} が required に無い（いつも在る欄を required に書く。無くてよい欄も書き手が必ず置き、"
+                f"受け手が ports.picked の optional= で受ける）" for key, value in _pairs(_top(schema, "properties"))
                 if key not in required and key not in ("optional", getattr(outcome, "value", None))]
         schemas[f"{OURS_PREFIX}{folder.name}"] = (rel, list(_pairs(_top(schema, "properties"))), folder.name)
     for name, (rel, fields, folder) in schemas.items():
