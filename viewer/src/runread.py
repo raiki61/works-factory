@@ -4,10 +4,8 @@
 道具の出来事の型は、源の型の和の全部をここに持ち（読む型と読まない型）、源に在ってここに無い型も同じ試験が赤にする。知らない型の行は
 数えて返し、黙って落とさない。DB は読むだけで開く。
 
-- runs(db) -> 親の run（parent_run_id が空）の一覧。新しい順。DB の run の行だけを読み、ログは読まない
 - run(db, run_id) -> 選んだ run と子の run の記録（ノードごとの出来事・道具の呼び出し・費用・出力・知らない行の数え）
 - pick(db, wanted) -> run の id（wanted が空なら一番新しい親の run。頭の字でもよい）
-- field(output, name) -> ノードの出力（値か JSON の字）の欄 name の字。読めなければ空
 - seconds(started, completed)・length(event)・when(text)・try_when(text) -> 時刻の差の秒・出来事の長さ・時刻の読み（読めなければ
   ValueError か None。字でない時刻も try_when は None。DB の秒までの時刻は UTC として読む）。段の集計と無駄の手がかりと会話の読みも使う
 - where(path, cwd) -> 会話が読んだファイルのパスを、run ごとに違う頭（作業ツリー・run の置き場・run の写し）を印に替えた字にする
@@ -52,8 +50,8 @@ LIVE = ("pending", "running", "paused")
 # 答えを待つ run の状態。待ちはこの状態の run だけに出す（止めた・放棄した run は node_completed を書かずに終わる。
 # packages/core/src/operations/workflow-operations.ts の resolveAndCancelApprovalGate・abandon）
 PAUSED = "paused"
-# 落ちた run の状態。流れの集計（src/stages.py）が止まった段を落ちた出来事から引き、落ちの訳もこの状態の run だけに出す（落ちた後に
-# 起き直して終わった run は workflow_failed の行を残す。packages/workflows/src/dag-resume-snapshot.ts の resuming a failed run）
+# 落ちた状態。run が落ちた時刻（FAILED_EVENT）で閉じた走り中の出来事を、この状態にする（run と _Reader._fallen。落ちた後に
+# 起き直して終わった run も workflow_failed の行を残す。packages/workflows/src/dag-resume-snapshot.ts の resuming a failed run）
 FAILED = "failed"
 # run の metadata の欄（子の run を起こしたノードは packages/workflows/src/run-admission.ts、費用は packages/workflows/src/schemas/run-usage.ts）
 PARENT_NODE = "parent_node_id"
@@ -81,7 +79,7 @@ AI_KINDS = ("agent", "loop")
 WAIT_NODE = "wait"
 LOOP_GROUP = "loop_group"
 GROUP_KINDS = (LOOP_GROUP, "compose_fan_out", "workflow")
-# DB の出来事の型（ノードの出力と、run の落ちの訳。packages/workflows/src/event-emitter.ts）
+# DB の出来事の型（ノードの出力と、run の落ち。落ちは時刻だけを読み、出来事の閉じと状態に使う。packages/workflows/src/event-emitter.ts）
 OUTPUT_EVENT = "node_completed"
 NODE_OUTPUT = "node_output"
 FAILED_EVENT = "workflow_failed"
@@ -90,13 +88,6 @@ END_EVENTS = ("workflow_completed", FAILED_EVENT, "workflow_cancelled")
 NODE_FAILED_EVENT = "node_failed"
 DEFERRED_EVENT = "node_deferred_usage"
 SUSPENDED_EVENT = "node_suspended"
-# 出力の中の欄（Archon でなく工場の記録の名。読む名はここに置く）: 人の答え待ちの出力 {decision, text} の答えの語（lib/answer.py の
-# decision）と、line の返すノード result の出力の結末の語（workflows/line/works-factory-line.yaml の result の output_format。語の組は
-# lib/report.py の OUTCOMES）
-ANSWER_DECISION = "decision"
-RESULT_NODE = "result"
-RESULT_OUTCOME = "outcome"
-
 # ログの行の型（packages/workflows/src/logger.ts の WorkflowEvent の type と、packages/workflows/src/schemas/worktree-setup.ts の
 # WORKTREE_SETUP_EVENT_TYPES）。読む型と、読まない型（訳つき）に分ける
 NODE_ROWS = ("node_start", "node_complete", "node_error", "node_skipped", "node_suspended")
@@ -113,14 +104,14 @@ UNREAD_ROWS = {
     "workflow_start": "run の始めの印。始めの時刻は DB の run の行から読む（行の時刻は起き直しの時刻として RESTART_ROWS で拾う）",
     "workflow_resume": "resume の境の印。ノードの出来事は resume の前と後の行を同じに読む（行の時刻は起き直しの時刻として RESTART_ROWS で拾う）",
     "workflow_complete": "run の終わりの印。状態・終わりの時刻・費用は DB の run の行から読む",
-    "workflow_error": "run の落ちの印。落ちの訳は DB の workflow_failed から読む",
+    "workflow_error": "run の落ちの印。落ちの時刻は DB の workflow_failed から読み、落ちの訳は今トレースに載せない",
     "watchdog_reset": "期限の見張りを延ばした印で、中身を持たない",
     "assistant": "古い記録だけの型（provider_event に替わった）",
     "tool": "古い記録だけの型（provider_event に替わった）",
     "validation": "古い記録だけの型（書く所が消えた）",
     "worktree_setup_started": "作業ツリーの用意の始めで、ノードの出来事でない",
     "worktree_setup_completed": "作業ツリーの用意の終わりで、ノードの出来事でない",
-    "worktree_setup_failed": "作業ツリーの用意の落ちで、run の落ちの訳は DB の workflow_failed から読む",
+    "worktree_setup_failed": "作業ツリーの用意の落ちで、ノードの出来事でない（落ちの訳は今トレースに載せない）",
 }
 # 読まない型のうち、時刻だけを起き直しの時刻として拾う行（Archon は起動のたびにノードの前にどちらかを書く。packages/workflows/src/
 # executor.ts の logWorkflowResume・logWorkflowStart。DB の秒までの落ちと同じ秒の始めが、落ちの前か後かを分ける。_since）
@@ -172,37 +163,6 @@ def connect(db: Path):
         con.close()
 
 
-def runs(db: Path) -> list[dict]:
-    """親の run の一覧（新しい順）。行は id・グラフの名・状態・止まっている承認ノード・始め・かかった秒・費用（_cost）・落ちの訳の頭の 1 行
-    （状態が failed の run だけ）・結末の語（line の返すノード result の出力の outcome。result の出力が無いか読めなければ空）。
-    始めとかかった秒は、DB の出来事の最初と最後の時刻から出す（承認の答えで起き直した run は、run の行の始めが起き直した時刻に
-    書き換わる。packages/core/src/db/workflow-run-resume.ts）。始めは選んだ run と同じ定義（_firsts）。終わった run の終わりは最後の
-    終わりの出来事（_ends）。出来事の無い run は run の行の始めと終わり"""
-    with connect(db) as con:
-        rows = con.execute(f"select id, workflow_name, status, started_at, completed_at, metadata from {RUN_TABLE} "
-                           f"where parent_run_id is null {NEWEST}").fetchall()
-        firsts = _firsts(con)
-        lasts = dict(con.execute(f"select workflow_run_id, max(created_at) from {EVENT_TABLE} group by workflow_run_id").fetchall())
-        waiting, _ = _waiting(con)
-        spent = _spent(con)
-        ends = _ends(con)
-        errors = {rid: _error(data) for rid, data in con.execute(
-            f"select workflow_run_id, data from {EVENT_TABLE} where event_type = ?", (FAILED_EVENT,))}
-        outcomes = {rid: field(_json(data).get(NODE_OUTPUT), RESULT_OUTCOME) for rid, data in con.execute(
-            f"select workflow_run_id, data from {EVENT_TABLE} where event_type = ? and step_name = ? order by created_at, event_order",
-            (OUTPUT_EVENT, RESULT_NODE))}
-    out = []
-    for rid, name, status, started, completed, metadata in rows:
-        meta = _json(metadata)
-        if rid in firsts:
-            started, completed = firsts[rid], lasts[rid]
-        completed = _end(status, (ends.get(rid) or [None])[-1]) or completed
-        out.append({"id": rid, "short": rid[:8], "graph": name, "status": status, "waiting": waiting.get(rid, []),
-                    "started": started, "seconds": seconds(started, completed), "cost": _cost(meta, spent, rid),
-                    "error": errors.get(rid, "") if status == FAILED else "", "outcome": outcomes.get(rid, "")})
-    return out
-
-
 def pick(db: Path, wanted: str = "") -> str:
     """run の id。wanted が空なら一番新しい親の run、在れば id そのものか一意な頭の字。当たらなければ LookupError"""
     with connect(db) as con:
@@ -219,12 +179,12 @@ def pick(db: Path, wanted: str = "") -> str:
 
 def run(db: Path, run_id: str) -> dict:
     """run と子の run（workflow: のノードが起こした物。DB の parent_run_id と metadata の parent_node_id で辿る）の記録。
-    始めとかかった秒は、子の run を含む出来事の最初の始めと最後の終わりから出す（runs と同じ訳）。子の run の行も、その子と孫の出来事から出す。
+    始めとかかった秒は、run の行の値でなく、子の run を含む出来事の最初の始めと最後の終わりから出す。子の run の行も、その子と孫の出来事から出す。
     始めは、ログの最初の始めと DB の出来事の最初（_firsts。run の始めの印 workflow_started を含む）の早い方（DB の時刻は秒までの切り捨て
-    なので、同じ秒ならログ）。一覧と同じ定義にし、長さが秒の丸めの内で合う。
+    なので、同じ秒ならログ。ログだけだと始めの印からノードの始めまでの数秒が抜ける）。
     終わった run（子の run も）は、終わりを最後の終わりの出来事の時刻とログの最後の終わりの遅い方にし（DB の時刻は秒までの切り捨て）、
     終わりの無い出来事（待ちと、走り中のまま止まったノード）を、その run の終わりの出来事のうち始めの後の最初の物の時刻で閉じて印 cut を
-    付ける（ログに終わりを書かずに落ちた・止めた run の長さと人の答え待ちの和が、一覧と合う。落ちた後に起き直した run の前の起動の
+    付ける（ログに終わりを書かずに落ちた・止めた run の長さと人の答え待ちの和を、DB の終わりまで数える。落ちた後に起き直した run の前の起動の
     ノードは、その落ちで閉じて状態を落ちたにする。前の起動の id のまま走り直す出来事は、最後の始めの後の終わりで閉じる。閉じる時刻は
     ログの形にし、始めより前にしない）。走り中の run は最後の出来事まで。
     落ちた後に同じ起動の id で走り直したノードは、起動ごとの出来事にする（_Reader._fallen）"""
@@ -344,7 +304,7 @@ def _ends(con, kinds: tuple[str, ...] = END_EVENTS) -> dict[str, list[str]]:
 
 
 def _firsts(con) -> dict[str, str]:
-    """run ごとの DB の出来事の最初の時刻（run の始めの印 workflow_started を含む）。一覧と選んだ run の始めの元"""
+    """run ごとの DB の出来事の最初の時刻（run の始めの印 workflow_started を含む）。選んだ run の始めの元"""
     return dict(con.execute(f"select workflow_run_id, min(created_at) from {EVENT_TABLE} group by workflow_run_id").fetchall())
 
 
@@ -775,11 +735,6 @@ def _child_span(child: dict, events: list[dict], parents: dict, end: str | None)
     return started, seconds(started, _later(end, ended))
 
 
-def _error(data: str) -> str:
-    text = _json(data).get("error") or ""
-    return text.splitlines()[0][:300] if isinstance(text, str) and text else ""
-
-
 def seconds(started, completed) -> float | None:
     """始めから終わりまでの秒（0.1 秒に丸める）。どちらかが空か読めなければ None。段の集計と無駄の手がかりも使う"""
     first, last = try_when(started), try_when(completed)
@@ -804,17 +759,6 @@ def try_when(text) -> datetime | None:
         return when(text)
     except (TypeError, ValueError):
         return None
-
-
-def field(output, name: str) -> str:
-    """ノードの出力（値か JSON の字。DB の node_completed の node_output）の欄 name の字。出力が object でないか欄が字でなければ空"""
-    if isinstance(output, str):
-        try:
-            output = json.loads(output)
-        except ValueError:
-            return ""
-    got = output.get(name) if isinstance(output, dict) else None
-    return got if isinstance(got, str) else ""
 
 
 def _json(text) -> dict:
