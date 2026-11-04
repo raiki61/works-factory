@@ -11,4 +11,4 @@ nodes:
         ready: { type: boolean }
         units: { type: array, items: { type: object, properties: { key: { type: string } } } }
         note: { type: string }
-      required: [ready, units]
+      required: [ready, units, note]

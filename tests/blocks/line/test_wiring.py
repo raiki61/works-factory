@@ -1,5 +1,4 @@
-"""line の YAML の配線（docs/design/line.md の 11 節の test_wiring.py）: 受け皿・返し・一度だけの include・include した block の入力の
-全部が渡るか名指した訳に在るか（L-W67）・when: が名に depth を含む欄を読まない・差分の審査の 3 つの when:・報告がいつも走ること。
+"""line の YAML の配線（docs/design/line.md の 11 節の test_wiring.py）: 受け皿・返し・一度だけの include・when: が名に depth を含む欄を読まない・差分の審査の 3 つの when:・報告がいつも走ること。
 
 元は test_line.py の LineWiringCase・FixWiringCase・NoFixWiringCase・SharedPlacesWiringCase・StructureOnceCase・
 HandoffCase（docs/design/README.md の 9.5）。include した block の中は各 block の試験が見る。include した block の YAML が workflows/ に
@@ -32,53 +31,6 @@ INCLUDES = {k: n for k, n in NODES.items() if "include" in n}
 ONCE = ("replan", "replan-review", "refix-run", "rejudge-run", "parallel-pr-after")
 STAGES = (("lens", "delta-review", "fix"), ("lens-2", "delta-review-2", "refix-run"))
 
-# include した block の入力のうち、line が渡さない物と訳（各設計書の 1.2・1.6）
-NOT_PASSED = {
-    ("test-gate-base", "baseline"): "final の時だけ読む（base は直す前の結末を作る側）",
-    ("structure", "base"): "after の時だけ読む（line は before で回す。after は eyes の graph の中）",
-    ("structure", "plan"): "after の時だけ読む",
-    **{(fix, name): "group の時だけ読む（whole の親が自分を子に起こす時に渡す）"
-       for fix in ("fix", "refix-run") for name in ("group", "from_tree", "out_dir")},
-    ("fix", "notes"): "案の直しの後の 2 回目の修正の段だけ",
-    ("fix", "only_items"): "2 回目の修正の段だけ（1 回目は直す義務の単位の全部）",
-    ("fix", "prior"): "2 回目の修正の段だけ（1 回目の段の申し送り）",
-    ("lens", "lenses"): "block の既定の表（docs/design/line.md の 4.5）",
-    ("lens-2", "lenses"): "block の既定の表",
-    ("plan", "conflicts"): "形 replan だけが読む（往復の中は形 plan）",
-    # 仕様駆動の道の include（docs/design/spec-driven.md の 6.2）。block works-factory-spec-driven は形ごとに読む入力が違う
-    **{("spec-entry", name): "形 check の入力（形 entry は表だけを読む）" for name in
-       ("base", "tdd", "out_of_scope", "ready", "plan", "plan_ok", "out_of_purpose")},
-    ("spec-check", "table"): "形 entry の入力（形 check は表を読み直さず、形 entry の返りの写しを受ける）",
-    **{("spec-diagnose", name): "仕様駆動の run の中で回らない段の値か、再審の道の入力（素材・世界の解・頭の深さ・仕様の段は会話の中か回さない）"
-       for name in ("constraints", "materials", "pr_material", "reply_sources", "world_rows", "row_asks", "depth_why", "spec_rows", "spec_origin", "answers",
-                    "prior_failures", "pr_text", "objection", "prior", "prior_brief", "prior_inputs", "spec", "verify", "excluded")},
-    **{("spec-plan", name): "仕様駆動の run の中で回らない段の値（裏取り・並行 PR・頭の深さ・前の決め・世界の解・構造の目・前の周・申し出）"
-       for name in ("verify", "excluded", "depth_record", "decisions", "world_rows", "structure", "prior_failures", "prior", "conflicts")},
-    ("plan", "routes"): "計画の往復は依頼の文の run だけで回る（既定の auto）。仕様駆動の run は spec-plan が spec を渡す",
-    ("replan", "routes"): "案の直しは仕様駆動の run では回らない（既定の auto）",
-    ("rejudge-run", "request_files"): "再審の道は読まない（判定の道だけの入力）",
-    **{(review, name): "方針の文と方針の文のファイル。仕様を固める会話から単独で回す時だけ使う（line は修正案を plan で渡す）"
-       for review in ("plan-review-run", "replan-review") for name in ("proposal", "proposal_file")},
-    **{(review, "theme_doc"): "形 theme の設計の案。この 2 つは修正案を審査する include で、設計の案は渡さない（設計の案を渡すのは設計の段の theme-review）"
-       for review in ("plan-review-run", "replan-review")},
-    **{(plan, "spec_doc"): "仕様駆動の run だけが渡す人と固めた仕様の本文（依頼の文の run の固めた仕様は spec）" for plan in ("plan", "replan")},
-    ("spec-plan", "spec"): "仕様駆動の run は仕様の段の spec.json を作らない（固めた本文は spec_doc）",
-    ("spec-plan", "means"): "仕様駆動の道は目的の役を通らず、頼みの解き方の文を持たない（docs/design/plan-review.md の 20 章の 3.1 の 1）",
-    ("plan-review-run", "ruling"): "形 replan だけが読む",
-    **{("theme-review", name): "形 theme は読まない（設計の案の審査が読む port は docs/design/plan-review.md の 19.1）"
-       for name in ("proposal", "proposal_file", "plan", "fields", "judgment", "means", "structure", "ripple", "tree", "excluded", "ruling",
-                    "conflicts")},
-    ("theme-world", "means"): "テーマの run は依頼の解き方の文を持たない（入口の欄はテーマの文だけ。docs/design/line.md の 3.3 節）",
-    **{("theme-blind", name): "設計の段は判定の前に回り、目的の固定・目的の監査・前提の実測がまだ無い（テーマの文をそのまま目的にする。3.3 節）"
-       for name in ("purpose_source", "purpose_review", "constraints")},
-    ("plan-review-run", "conflicts"): "形 replan だけが読む",
-    **{("rejudge-run", name): "判定の道だけが読む（再審の道は prior と objection で考え直す。docs/design/diagnose.md の 1.2）"
-       for name in ("answers", "base", "baseline", "constraints", "depth_why", "materials", "pr_material", "pr_text", "prior_failures",
-                    "reply_sources", "request_origin", "row_asks", "spec_origin", "spec_rows")},
-    ("spec-check-run", "request"): "write の時だけ読む", ("spec-check-run", "pr_text"): "write の時だけ読む",
-    **{("merge-seal", name): "apply と check の時だけ読む"
-       for name in ("answer", "deliver", "items", "r2", "request", "sealed_hash", "user_env_dir")},
-}
 
 
 def block_doc(name: str) -> dict:
@@ -167,20 +119,7 @@ class ReceiverCase(unittest.TestCase):
 
 
 class IncludeInputsCase(unittest.TestCase):
-    def test_include_inputs_are_passed_or_named(self):
-        """L-W67: include した block の inputs: の全部が with: で渡るか、渡さない訳の一覧に在る。block の inputs: に無い鍵は渡さない"""
-        for key, node in INCLUDES.items():
-            with self.subTest(include=key):
-                inputs = set(block_doc(node["include"]).get("inputs") or {})
-                given = set(node.get("with") or {})
-                self.assertEqual(sorted(given - inputs), [], "block の inputs: に無い鍵を渡している")
-                self.assertEqual(sorted(i for i in inputs - given if (key, i) not in NOT_PASSED), [])
-
-    def test_not_passed_names_real_inputs(self):
-        for (key, name) in NOT_PASSED:
-            with self.subTest(include=key, name=name):
-                self.assertIn(name, block_doc(INCLUDES[key]["include"]).get("inputs") or {})
-                self.assertNotIn(name, INCLUDES[key].get("with") or {})
+    """include した block の入力が全部渡るか訳の表に在るか（L-W67）は、全部の graph に効く tests/layers/test_include_inputs.py が見る"""
 
     def test_once_only_includes(self):
         """一度だけの include は line に 1 つずつ（案の直し・その事前審査・2 度目の修正・再審・修正の後の並行 PR）"""

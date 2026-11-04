@@ -17,16 +17,6 @@ BLOCK = "judge"
 MATERIALS = ("prior-decisions", "purpose-review", "local-review", "consistency-bypass", "hygiene", "external-standards",
              "procedure-trace", "test-double-fidelity", "main-path-observation", "provenance")
 INCLUDED = ("head-depth", "spec", "parallel-pr", "premises", "purpose", "world", *MATERIALS, "diagnose", "verify")
-# include した block の入力のうち、この graph が渡さない物と訳（README の 8.1・各設計書の 1.2）
-NOT_PASSED = {
-    ("spec", "spec"): "check の時だけ読む（判定の道は write）",
-    ("diagnose", "objection"): "再審の道の入力（再審は line が diagnose を直に include する）",
-    ("diagnose", "request_files"): "仕様駆動の道の入力（依頼そのものを書いたファイル。line の spec-diagnose が渡す。依頼の文の run は既定の空）",
-    ("diagnose", "prior"): "再審の道の入力", ("diagnose", "prior_brief"): "再審の道の入力",
-    ("diagnose", "prior_inputs"): "再審の道の入力", ("diagnose", "spec"): "再審の道の入力",
-    ("diagnose", "verify"): "再審の道の入力", ("diagnose", "excluded"): "再審の道の入力",
-    ("diagnose", "answers"): "空の配列で依頼の容器の answers を読む", ("diagnose", "prior_failures"): "空の配列で依頼の容器の物を読む",
-}
 REQUEST = [{"where": "app.py", "text": "Uploads fail on a flaky link; retry them."}]
 
 
@@ -393,17 +383,6 @@ class WiringCase(unittest.TestCase):
         for name in MATERIALS:
             node = self.includes[name]
             self.assertEqual((node["depends_on"], node["trigger_rule"]), (["purpose-run", "world-out"], "none_failed_min_one_success"))
-
-    def test_include_inputs_are_passed_or_named(self):
-        """include した block の inputs: の全部が with: で渡るか、渡さない訳の一覧に在る（include した block が要る）"""
-        for block, node in self.includes.items():
-            path = kit.BLOCKS / block / f"works-factory-{block}.yaml"
-            with self.subTest(block=block):
-                self.assertTrue(path.is_file(), f"include した block {block} が workflows/ に無い")
-                inputs = set(yaml.safe_load(path.read_text(encoding="utf-8")).get("inputs") or {})
-                given = set(node.get("with") or {})
-                self.assertEqual(sorted(given - inputs), [], "block の inputs: に無い鍵を渡している")
-                self.assertEqual(sorted(i for i in inputs - given if (block, i) not in NOT_PASSED), [])
 
 
 class FixtureCase(unittest.TestCase):
