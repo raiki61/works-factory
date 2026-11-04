@@ -4,9 +4,10 @@ import reads   # lib/
 ROLE = "pr-check"
 NODE = "p0.parallel_pr"   # 控えの node の欄の値。読み手が古い控えと同じ形で読めるように今のまま
 PR_LIMIT = 100            # gh pr list の --limit
+STAGES = ("before", "after")   # port stage の語。after は修正の後の確かめ直しで、hunk を外さない
 
 TREE = "tree.json"                       # 役の前の作業ツリーの写し
-BRIEF = "pr-brief.json"                  # 役への渡し物 {node, cwd, base, changed_files, request_wheres, fallback}
+BRIEF = "pr-brief.json"                  # 役への渡し物 {node, cwd, base, changed_files, request_wheres, fallback, stage}
 MATERIAL = "material-pr-check.json"      # 素材の控え {role, reply, materials: {parallel_pr}}
 EXCLUDED = "pr-excluded.json"            # 外す hunk {node, head, excluded: [{pr, file, start, end, why, text, sha256}]}
 DRAFTS = "pr-downgrades.json"            # 申し送りの下書き [{pr, files, note}]

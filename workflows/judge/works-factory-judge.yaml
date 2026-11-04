@@ -115,6 +115,7 @@ nodes:
       base: "$INPUTS.base"
       changed: "[]"
       lang: "$INPUTS.lang"
+      stage: before
   - id: parallel-pr-out
     <<: *receiver
     output_format: {<<: *received, properties: {got: {type: [object, 'null'], description: 'json(returns:works-factory-parallel-pr): 出力の names の欄。飛ばされた block は null'}, why: {type: string}}}
