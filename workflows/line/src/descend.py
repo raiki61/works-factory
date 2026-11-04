@@ -49,21 +49,32 @@ def _rows(design: dict) -> list:
             for c in design.get("changes") or [] if isinstance(c, dict)]
 
 
-def _answers(design: dict, got: dict, given: dict, *, pushed: bool, approved: Path) -> list:
-    """降りた依頼の answers: 依頼が先に持っていた答え → 関所の答え → 推しを採った問い → 承認された設計の在りか（question は重ねない）"""
+def _answers(design: dict, got: dict, given: dict, *, pushed: dict | None, approved: Path) -> list:
+    """降りた依頼の answers: 依頼が先に持っていた答え → 関所の答え → 推しを採った問い → 承認された設計の在りか（question は重ねない）。
+    無人の run が推しで降りた時（pushed が推しの答え）は、推しを採った問いと承認された設計の在りかの行に欄 answer.PUSHED を付ける
+    （answer.origin。記録された方針の policy.recorded が推しの行に振り、人の決めと数えない）。依頼のファイルに書く時は _plain で外す"""
     origin = answer.PUSHED_NOTE if pushed else OWNER
+    mark = answer.origin(pushed) if pushed else {}
     out = [a for a in given.get("request_answers") or [] if isinstance(a, dict)]
-    out += [{"question": TALK_Q.format(n=n, decision=t.get("decision")), "text": str(t.get("text") or "").strip() or "（一言なし）"}
+    out += [{"question": TALK_Q.format(n=n, decision=t.get("decision")), "text": str(t.get("text") or "").strip() or "（一言なし）",
+             **answer.origin(t)}
             for n, t in enumerate((t for t in got.get("talks") or [] if isinstance(t, dict) and not t.get("bad")), 1)]
     out += [{"question": ASK_Q.format(id=a.get("id")), "text": f"{oneline.one_line(str(a.get('ask') or ''))}——推しの {a.get('pick')} を採った"
-             f"（{origin}。答えの一言に別の案が在ればそれが先）"} for a in design.get("asks") or [] if isinstance(a, dict)]
-    out.append({"question": APPROVED_Q, "text": f"承認された設計の md: {approved}（{origin}。計画はこの設計から外れない。外れは事前審査の中央の穴）"})
+             f"（{origin}。答えの一言に別の案が在ればそれが先）", **mark} for a in design.get("asks") or [] if isinstance(a, dict)]
+    out.append({"question": APPROVED_Q, "text": f"承認された設計の md: {approved}（{origin}。計画はこの設計から外れない。外れは事前審査の中央の穴）",
+                **mark})
     seen, kept = set(), []
     for a in out:
         if a["question"] not in seen:
             seen.add(a["question"])
             kept.append(a)
     return kept
+
+
+def _plain(rows: list) -> list:
+    """依頼のファイルに書く answers の行: 欄 answer.PUSHED を外した写し（依頼の answers の欄は carry.ANSWER_KEYS だけで、知らない欄は
+    読み手が拒む。推しの印は一言の answer.PUSHED_NOTE が字で残す）"""
+    return [{k: v for k, v in a.items() if k != answer.PUSHED} for a in rows]
 
 
 def _stopped(reason: str, word: str, said=None, *, notes=()) -> dict:
@@ -105,8 +116,8 @@ def descend(got, *, given: dict, place: Path) -> dict:
     rows = _rows(design)
     if not rows:
         return {**_stopped(NO_CHANGE, "", said, notes=notes), "no_change": True, "approved": str(approved)}
-    answers = _answers(design, got, given, pushed=pushed is not None, approved=approved)
-    request = jsonfile.write(place / files.THEME_DESCENDED, {"findings": rows, "answers": answers}, parents=True)
+    answers = _answers(design, got, given, pushed=pushed, approved=approved)
+    request = jsonfile.write(place / files.THEME_DESCENDED, {"findings": rows, "answers": _plain(answers)}, parents=True)
     rounds_n = got.get("round") if isinstance(got.get("round"), int) else 0
     return {"go": True, "stop_reason": "", "reason": "", "answer": said, "no_change": False,
             "request": ports.pointer(request, "json(shared:request.schema.json)"), "request_file": str(request), "request_answers": answers,
@@ -183,7 +194,8 @@ def back(rounds_got, *, given: dict, record: dict, descended, place: Path, env=N
     answers = [a for a in (descended or {}).get("request_answers") or [] if isinstance(a, dict) and a.get("question") != APPROVED_Q]
     answers += [{"question": f"計画の段の承認ノードの {n} 番目の答え（{t.get('decision')}）", "text": str(t.get("text") or "").strip() or "（一言なし）"}
                 for n, t in enumerate((t for t in rounds_got.get("talks") or [] if isinstance(t, dict) and not t.get("bad")), 1)]
-    request = jsonfile.write(place / files.THEME_NEXT_REQUEST, {"findings": [], "theme": str(theme_md), "answers": answers}, parents=True)
+    request = jsonfile.write(place / files.THEME_NEXT_REQUEST, {"findings": [], "theme": str(theme_md), "answers": _plain(answers)},
+                             parents=True)
     line = command(record, request, env)
     (place / files.THEME_NEXT_COMMAND).write_text(line + "\n", encoding="utf-8")
     return {"back": True, "next": str(theme_md.parent), "command": line, "reason": said,

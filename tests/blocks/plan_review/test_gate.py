@@ -203,17 +203,35 @@ class SplitCase(GateBase):
 
     def test_recorded_person_row_name_is_a_source(self):
         """足す: 記録された方針の行のうち人の決め（依頼の answers の question など）を字のまま名指す決め手は出どころ（計画の指示
-        plan-writer.md と事前審査の指示 parts/head.md が出どころに挙げる名指し）。無人の run が採った推しの行は人の決めでないので数えない"""
-        name = "修正案 1 が狭める能力: 空の列の mean"
-        recorded = [{"source": "answer", "name": name, "text": "受け入れる"},
-                    {"source": "push", "name": "無人の run が採った推し abc123", "text": "通す"}]
+        plan-writer.md と事前審査の指示 parts/head.md が出どころに挙げる名指し）。無人の run が採った推しの行は人の決めでないので数えない:
+        承認ノードで採った推しの行と、テーマの run が推しで降りた依頼の answers の行（欄 answer.PUSHED。src.descend._answers が付ける）。
+        一覧は policy.recorded が組む（answers の行を推しに振るのは recorded の見分け）"""
+        policy = self.gate.policy
+        name, descended = "修正案 1 が狭める能力: 空の列の mean", "設計の段で推しを採った問い t1"
+        recorded = policy.recorded({"answers": [{"question": name, "text": "受け入れる"},
+                                                {"question": descended, "text": "推しを採った", policy.answer.PUSHED: []}]},
+                                   human_items=[{"note": "通す", policy.answer.PUSHED: []}])
+        pushed = next(r["name"] for r in recorded if r["text"] == "通す")
+        self.assertEqual([r["source"] for r in recorded], ["answer", policy.PUSH_SOURCE, policy.PUSH_SOURCE])
         [got] = self.asks(narrows=[{**NARROW, **DECIDED, "decided_by": name}], recorded=recorded)
         self.assertEqual((got["decided"], got["why"]), (True, {}))
-        [got] = self.asks(narrows=[{**NARROW, **DECIDED, "decided_by": "無人の run が採った推し abc123"}], recorded=recorded)
-        self.assertEqual(self.bad(got), ["obvious"])
-        self.assertIn(self.gate.cite.NO_SOURCE, self.note(got, "obvious"))
+        for by in (pushed, descended):
+            with self.subTest(by=by):
+                [got] = self.asks(narrows=[{**NARROW, **DECIDED, "decided_by": by}], recorded=recorded)
+                self.assertEqual(self.bad(got), ["obvious"])
+                self.assertIn(self.gate.cite.NO_SOURCE, self.note(got, "obvious"))
         [got] = self.asks(narrows=[{**NARROW, **DECIDED, "decided_by": f"{name} と docs/adr/0099-nope.md:3"}], recorded=recorded)
         self.assertIn("docs/adr/0099-nope.md:3", self.note(got, "obvious"))   # 現物に無い名指しは、方針の名が在っても揃わない
+
+    def test_recorded_answer_name_is_a_source_on_face_rows(self):
+        """足す: 事前審査の穴の行（kind regression・policy。_face_rows）の決め手も、narrows の行と同じ照らしで、依頼の answers の行の
+        名指しを出どころと読む（parts/head.md の decided_by と policy.face_gaps の名指しに沿う）"""
+        name = "clamp の上限の意味を変えてよいか"
+        recorded = self.gate.policy.recorded({"answers": [{"question": name, "text": "変えてよい"}]})
+        [got] = self.asks(faces=[{**FACE, **DECIDED, "decided_by": name}], recorded=recorded)
+        self.assertEqual((got["node"], got["decided"], got["why"]), ("p2.plan_review", True, {}))
+        [got] = self.asks(faces=[{**FACE, **DECIDED, "decided_by": name}])
+        self.assertIn(self.gate.cite.NO_SOURCE, self.note(got, "obvious"))
 
     def test_no_world_is_not_world(self):
         """元 SplitCase.test_no_world_is_not_world（元 FourAxesCase.test_no_world_asks）"""

@@ -149,7 +149,8 @@ def _settled_rows(path) -> list:
 
 def recorded(start, decisions_file=None, *, human_items=None, pushes=()) -> list:
     """記録された方針の行 [{source, name, text}]。doc（方針の文書の写し。行数 lines と元の置き場 alias も持つ）・answer（依頼の
-    answers の question）・gate（承認ノードの人の答えのうち note の在る物を、一言の sha256 の頭で。どの段がどの並びを持っても同じ
+    answers の question。無人の run が推しで降りた答え〔answer.by_push。テーマの run の降りた依頼の答え〕は source を push に振り、
+    名は question のまま）・gate（承認ノードの人の答えのうち note の在る物を、一言の sha256 の頭で。どの段がどの並びを持っても同じ
     答えは同じ名指し。human_items が None の段は作らない）・push（無人の run が推しで通した答え（欄 answer.PUSHED）の note を、gate と
     同じ印で PUSH_NAME に。人の答えとは混ぜない。無人の run が判定の保留の問いに採った推しの文 pushes も同じ形で）・settled（決定記録の突合の返答 decisions_file が挙げた決着済みの論点の where。
     where の無い論点は name が空で、名指せない。decisions_file が None なら作らない）"""
@@ -159,7 +160,7 @@ def recorded(start, decisions_file=None, *, human_items=None, pushes=()) -> list
         lines = len(pathlib.Path(copy).read_text(encoding="utf-8", errors="replace").splitlines())
         rows.append({"source": "doc", "name": copy, "text": "", "lines": lines, "alias": (version(start) or {}).get("path") or ""})
     answers = start.get("answers") if isinstance(start, dict) else None
-    rows += [{"source": "answer", "name": a["question"], "text": str(a.get("text") or "")}
+    rows += [{"source": PUSH_SOURCE if answer.by_push(a) else "answer", "name": a["question"], "text": str(a.get("text") or "")}
              for a in answers or [] if isinstance(a, dict) and isinstance(a.get("question"), str) and a["question"].strip()]
     notes = [h for h in human_items or [] if isinstance(h, dict) and str(h.get("note") or "").strip()]
     for h in notes:

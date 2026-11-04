@@ -202,6 +202,10 @@ class ThemeStageCase(TalkBase):
         request = json.loads(pathlib.Path(went["request_file"]).read_text(encoding="utf-8"))
         approved = next(a for a in request["answers"] if a["question"] == self.d.APPROVED_Q)
         self.assertIn(self.answer.PUSHED_NOTE, approved["text"], "持ち主の承認と書かない")
+        self.assertNotIn(self.answer.PUSHED, approved, "依頼のファイルの answers は carry.ANSWER_KEYS の欄だけ（知らない欄は読み手が拒む）")
+        dealt = next(a for a in went["request_answers"] if a["question"] == self.d.APPROVED_Q)
+        self.assertTrue(self.answer.by_push(dealt), "配る値の答えは推しの印を持つ（記録された方針が人の決めと数えない）")
+        self.assertFalse(any(self.answer.by_push(a) for a in went["request_answers"] if a["question"] == "q"), "依頼が先に持つ答えは人の答え")
 
     def test_other_runs_take_the_request_from_the_dealt_values(self):
         given = {"theme": "", **{n: f"v-{n}" for n in REQUEST_FIELDS}}
