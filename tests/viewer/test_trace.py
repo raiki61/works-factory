@@ -102,8 +102,9 @@ class TraceCase(unittest.TestCase):
             told("read the file", at(0, 6, 500), **side),
             ask("req-s1", at(0, 7), **side),
             say("msg_s1", at(0, 8), use("toolu_B", "Read", {"file_path": "plan.md"}), ref="req-s1", used=usage(2, 0, 900, 5), **side),
+            # 実物に多い並び: 頼みが道具の結果の user の行より先に立つ
+            ask("req-s2", at(0, 8, 500), **side),
             result("toolu_B", "x" * (runread.CLIP + 5), at(0, 9), **side),
-            ask("req-s2", at(0, 10), **side),
             # 裏で走る下請けは、親の Agent の道具の span（00:07 まで）より後に終わる
             say("msg_s2", at(4, 0), text("item 1 is fine"), ref="req-s2", used=usage(2, 900, 40, 30), **side),
             say("msg_s2", at(4, 1), use("toolu_C", "Agent", {"description": "item 1a"}), ref="req-s2", used=usage(2, 900, 40, 30), **side),
@@ -217,6 +218,9 @@ class TraceCase(unittest.TestCase):
         agent = self._one(spans, **{trace.AGENT_TYPE: "general-purpose"})
         self.assertEqual((agent["start"], agent["end"]), (at(0, 6, 500), at(4, 3)))
         self.assertGreater(runread.when(agent["end"]), runread.when(tool["end"]))
+        # 頼みが道具の結果の user の行より先に立っても、往復の始めはその頼みの時刻
+        below = sorted(s["start"] for s in spans.values() if s["parent"] == agent["id"] and self._kind(s) == "LLM")
+        self.assertEqual(below, [at(0, 7), at(0, 8, 500)])
         # 往復の始めは requestRef が指す頼みの時刻で、並びのすぐ前の頼み（05:13）ではない
         resumed = self._one(spans, **{trace.LOOP: "2", "name": "plan-rounds.review-tree"})
         late = [s for s in spans.values() if s["parent"] == resumed["id"] and self._kind(s) == "LLM"]
