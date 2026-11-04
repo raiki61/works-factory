@@ -1,6 +1,7 @@
 # all-light: run: false で目を起こさず、直した後の実測だけが回る（E71）。ok は真
 fixture:
   expect: completed
+  authored: succeeded
   reached:
   - ins
   - structure-after__finish

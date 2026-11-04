@@ -1,6 +1,7 @@
 # material-peer-stop: 素材の観点の出口（hygiene-run__finish）は skipped のまま、diagnose の出口が「素材 hygiene の役を諦めた」と works:material を返す台本 → verdict が止める（素材の役が諦めた判断は diagnose の中の物で、ここは graph が diagnose の止めの語をそのまま返すことを見る）
 fixture:
   expect: completed
+  authored: failed
   reached:
   - ins
   - head-depth-run__finish

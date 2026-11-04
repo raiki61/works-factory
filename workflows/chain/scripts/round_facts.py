@@ -4,8 +4,8 @@
 # ///
 """周の事実のノード round-k-facts。決めのノードがファイルを読まずに決められるよう、周の読み書きをここに寄せる。
 
-1. 子の run の出力 next_request（子の置き場の次の依頼の下書きのポインタ）を埋め P6（child_pointer）で読む。null なら次の依頼は無い
-   （閉じた周では普通）
+1. 子の run の出力 next_request（子の置き場の次の依頼の下書きのポインタ）を、止めた Archon の workflow artifacts で読む
+   （src.reads.child_file）。null なら次の依頼は無い（閉じた周では普通）
 2. 運ぶ次の依頼（lib/chain.next_request。1 周目の依頼と、1 周目に名指した PR を chain.first_of で足す）に所見が在れば、親の置き場の
    chain/<子のノードの id>/ に書き、その絶対パスを request に返す（次の周の子の入力 request になる）
 3. 残りの行の鍵 keys・運ばなかった下書きの行 held_rows・読んだ子のファイル source（人が下書きを見直す先）を返す
@@ -24,7 +24,6 @@ sys.dont_write_bytecode = True
 sys.path[:0] = [str(Path(__file__).resolve().parents[2] / ".shared"), str(Path(__file__).resolve().parents[1])]
 try:
     import ports
-    import child_pointer
     import carry
     import chain
     import runlog
@@ -55,8 +54,8 @@ def facts() -> dict:
     if ptr is None:
         return out
     try:
-        source = child_pointer.resolve(ptr)
-        nxt = json.loads(source.read_text(encoding="utf-8"))
+        text, source = reads.child_file(ptr)
+        nxt = json.loads(text)
         wrong = carry.errors(nxt, carry.NEXT_SCHEMA)   # 子の run の札は ports を通らないので、住処の形で読む前に照らす
         if wrong:
             raise ValueError(f"{source.name} が {carry.NEXT_SCHEMA} の形に合わない: {' / '.join(wrong[:5])}")

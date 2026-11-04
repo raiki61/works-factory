@@ -1,6 +1,7 @@
 # one-eye: merge: true で r3 を回さず、R3 の行は r4 の coherence から
 fixture:
   expect: completed
+  authored: succeeded
   reached:
   - ins
   - structure-after__finish

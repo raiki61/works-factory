@@ -223,8 +223,9 @@ class WiringCase(unittest.TestCase):
 
 
 class FixtureCase(unittest.TestCase):
-    """筋書きを dry-run で回し、verdict の出力を見る（include した block が workflows/ に要る）"""
-    SCENARIOS = ("standalone", "pass", "all-light", "one-eye", "premise", "redesign")
+    """筋書きを dry-run で回し、verdict の出力の欄を見る（include した block が workflows/ に要る）。筋書きごとの ok（outcome_field）は
+    筋書きの fixture.authored を Archon の workflow test が照らす（tests/layers/test_block_shape.py の ArchonCase）"""
+    SCENARIOS = ("standalone", "all-light", "one-eye", "premise")
 
     @classmethod
     def setUpClass(cls):
@@ -232,12 +233,6 @@ class FixtureCase(unittest.TestCase):
 
     def verdict(self, name):
         return json.loads(self.traces[name]["verdict"]["output"])
-
-    def test_verdicts(self):
-        want = {"standalone": True, "pass": True, "all-light": True, "one-eye": True, "premise": False, "redesign": False}
-        for name, ok in want.items():
-            with self.subTest(scenario=name):
-                self.assertEqual(self.verdict(name)["ok"], ok, self.verdict(name)["report"])
 
     def test_standalone_with_empty_head_hands_structure_a_real_revision(self):
         """単独（head を渡さない）の筋書きで、ins が HEAD の版に解いた（structure の base が空で落ちない）"""
