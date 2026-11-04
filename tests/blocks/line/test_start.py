@@ -1,10 +1,10 @@
 """line の始めの node start（workflows/line/scripts/start.py。docs/design/line.md の 1.3 の 1・1.6・9 節の start）: 入力の拒み・始めの記録・
 固定材料の取り込み・起動の承認ノードの文と、配る値 ports の欄ごとの式。
 
-元は今の tests/workflows/test_line.py の StartCase（README 9.5）。start を名で読み（compute を回さない）、load の後に start.start を
+元は test_line.py の StartCase（README 9.5）。start を名で読み（compute を回さない）、load の後に start.start を
 直に呼ぶ（gh の読み出しと lib の根を差し替えるため）。始めの記録を読む口は line の src/startrec.py（integration.md の 4.3-追加-6）なので、
 今の StartCase が lib の読み手（conflict.request_file・fixboard.fix_values）で照らした所は、配る値で照らす。
-TestPolicyBrief は lib/tests/test_blk_fix.py の同じ名の場面の line の側（始めの記録が方針の写しを固め、配る値 policy がその写しを指す。
+TestPolicyBrief は test_blk_fix.py の同じ名の場面の line の側（始めの記録が方針の写しを固め、配る値 policy がその写しを指す。
 integration.md の 4.2-7。写しを役に貼る側は fix の試験）。
 """
 import importlib.util

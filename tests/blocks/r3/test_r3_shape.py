@@ -1,6 +1,6 @@
 """block r3 の YAML と指示の md の形（docs/design/r3.md の 7 節）。PyYAML で読み、md を組む口を直に呼ぶだけ（Archon を起こさない）。
 
-今の tests/workflows/test_eyes.py の ShapeCase の r3 の場面（道具・群・新しい会話・retry・返答の型・地図と方針と記録された方針の節・対象の
+元の tests/workflows の test_eyes.py の ShapeCase の r3 の場面（道具・群・新しい会話・retry・返答の型・地図と方針と記録された方針の節・対象の
 REVIEW.md の行）を、英語の md の決まった文で照らす形に作り直した。返答の型の正本は今の試験から写した（組み込みで今の試験は消える）。
 """
 import json
@@ -15,7 +15,7 @@ DOC = yaml.safe_load((BLOCK / "works-factory-r3.yaml").read_text(encoding="utf-8
 NODES = {n["id"]: n for n in DOC["nodes"]}
 ROLES = {i: n for i, n in NODES.items() if "prompt" in n}
 
-# 役の返答の型の正本（今の works の review-loop.json の r3.coherence の schema に seen・unseen を足した物。tests/workflows/test_eyes.py の
+# 役の返答の型の正本（今の works の review-loop.json の r3.coherence の schema に seen・unseen を足した物。tests/workflows の test_eyes.py の
 # GRAPH_SCHEMAS の r3-coherence の写しと SEEN_UNSEEN）
 GRAPH_SCHEMA = {
     "type": "object", "required": ["status", "reason", "seen", "unseen"],

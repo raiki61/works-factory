@@ -95,7 +95,7 @@ works-factory/
 │   ├── layers.json              層の地図（E22）
 │   ├── calibration-214.md       #214 の自作の較正の束の比べの記録（束は消した）
 │   └── plans/                   実装の計画
-├── .github/workflows/tests.yml  CI。check の名は tests（4 つの分けを集める。分けは tests/shard.py）
+├── .github/workflows/tests.yml  CI。check の名は tests（4 つの分けと job trace を集める。分けは tests/shard.py）
 ├── pack.json                    版の止め（Archon の版は factory/pack.json）
 ├── pyproject.toml               Python の外のパッケージの宣言（1 か所。持ち主の決め outside-packages-ok。lib/AGENTS.md の E3）
 ├── .gitignore

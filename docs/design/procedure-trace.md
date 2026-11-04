@@ -51,7 +51,7 @@ materials.md の 1.4 の名だけ: `intake.json`・`view.json`・`diff.patch`・
   - `MATERIALS = ("procedure_trace",)`
   - `GUARDED = False`（AI の node が `mutates_checkout: false` を持たない。今の accept の `with: {status_guarded: false, …}`。`workflows/judge/works-factory-judge.yaml:1458`）
   - `NA = "cond"`、`NA_REASON = "対象差分に手順書・スクリプト・CI 定義の変更が無い"`（今の `MATERIAL_NODES['p1.procedure_trace']['na_reason']`。`lib/judge_accept.py:1668-1673`）
-  - `PROCEDURE_PATTERNS`: 今の `lib/judge_accept.py:1303-1304` の 10 個の正規表現を字のまま写す（名も同じ）。`lib/judge_accept.py` の元は、組み込みまで今の judge のために残す（materials.md の 1.5 の終わり）。
+  - `PROCEDURE_PATTERNS`: 今の `judge_accept.py:1303-1304` の 10 個の正規表現を字のまま写す（名も同じ）。`judge_accept.py` の元は、組み込みまで今の judge のために残す（materials.md の 1.5 の終わり）。
   - `procedure_files(view) -> list[str]`: `sorted({f for f in view.changed_files for p in PROCEDURE_PATTERNS if re.search(p, f)})`（今の `touches_procedures`、`:1393-1398` の中身）。
   - `applies(view, values)`: `hit = procedure_files(view)`、`materialkit.Due(bool(hit), f"差分に手順書・スクリプト・CI 定義が {len(hit)} 件" if hit else "差分に手順書・スクリプト・CI 定義が無い")`（今の `touches_procedures` の訳の字のまま）。
   - `due(view, values)`:
@@ -159,7 +159,7 @@ Write `material.detail`, `material.checked`, `material.reason`, the `text`, `mec
 Return only JSON that matches the output schema.
 ```
 
-md の中に、`$` の直後に英字か `{` が続く字は無い（今の md の `$TMPDIR` は「the temporary directory (the one the TMPDIR environment variable names)」に言い換えた。materials.md の 3.1 の終わり）。REVIEW.md の節の名（「検証の原理」「手順トレース観点」「指摘の提出基準」）は、引いた字なので日本語のまま置く（正本の `lib/REVIEW.md:22`・`:29`・`:109` の見出しの字）。
+md の中に、`$` の直後に英字か `{` が続く字は無い（今の md の `$TMPDIR` は「the temporary directory (the one the TMPDIR environment variable names)」に言い換えた。materials.md の 3.1 の終わり）。REVIEW.md の節の名（「検証の原理」「手順トレース観点」「指摘の提出基準」）は、引いた字なので日本語のまま置く（正本の `workflows/.shared/prompts/REVIEW.md:22`・`:29`・`:109` の見出しの字）。
 
 言語・会話・`{` の扱いは prior-decisions.md の 2.3 の終わりと同じ。
 
@@ -227,7 +227,7 @@ Return only JSON that matches the output schema.
 
 ### 2.6 今の指示との差
 
-今の指示は `workflows/judge/commands/material-procedure-trace.md`（62 行）と、`lib/judge_accept.py` の `material_prep`（`:2116-2135`）が描く材料のファイルの 2 か所に在る。prior-decisions.md の 2.6 と同じ移し方（材料の節 → `## Materials`、『条件に当たらない』の節 → `{shared:material-na}`、却下の段落の 2 回 → `{shared:rejected}` の 1 回、役の定義 → `{shared:role-investigator}` と `{shared:query-rule}`、works-gh の段 → `{shared:works-gh}`、作業ツリーを変えるな → `{shared:material-readonly}`、素材の書き方 → `{shared:material-status}`、所見の場所 → `{shared:material-where}`、言語の 1 行 → md の 1 文、graphloops のノードの名指しと区切りを消した）。この観点だけの差:
+今の指示は `material-procedure-trace.md`（62 行）と、`judge_accept.py` の `material_prep`（`:2116-2135`）が描く材料のファイルの 2 か所に在る。prior-decisions.md の 2.6 と同じ移し方（材料の節 → `## Materials`、『条件に当たらない』の節 → `{shared:material-na}`、却下の段落の 2 回 → `{shared:rejected}` の 1 回、役の定義 → `{shared:role-investigator}` と `{shared:query-rule}`、works-gh の段 → `{shared:works-gh}`、作業ツリーを変えるな → `{shared:material-readonly}`、素材の書き方 → `{shared:material-status}`、所見の場所 → `{shared:material-where}`、言語の 1 行 → md の 1 文、graphloops のノードの名指しと区切りを消した）。この観点だけの差:
 
 - 移した: 観点の正本の行（md:40。`$procedure-trace-prep.output.review_md` と `.repo_review_md`）を `## Materials` の 2 行に。対象の `REVIEW.md` が無い時に今は空のパス（「対象リポジトリ側: ``」）が入っていたのを、段落ごと入れない形（`repo_review`）にした。今の穴（`MATERIAL_HOLES['procedure-trace']`）は `?inputs.repo_review_md` を持たず、対象の側のパスは md の頭の行だけが渡していた。値の出どころは変わらない（`review_md_paths`）。
 - 移した: md:49 の観点の正本の注（「手順トレース観点」——初期状態からの逐次実行・暗黙の環境状態・誤爆半径）を `## What to do` の頭の文に。
@@ -267,7 +267,7 @@ materials.md の 4 節の順のまま。観点の前の照らしと後の照ら�
   - `skipped.stubs.yaml` は置かない（`standalone.stubs.yaml` がその道。materials.md の 8 節の「回す条件を持つ観点は skipped」を満たす）。
   - `gave-up.stubs.yaml`: 入力は standalone と同じ（`base: "HEAD~1"`）。役の返答が受け付けを通らない（手順のファイルに触れる run で `not_applicable`）道。筋書きでは輪が 1 周で終わるので、3 回で諦めて `status: gave_up` を返す数えは、下の子のプロセスの試験が見る。
 - `tests/blocks/procedure_trace/test_procedure_trace.py`: materials.md の 8 節の block の試験（使い捨ての `ARTIFACTS_DIR` と git のリポジトリ、port の値だけ）。
-  - 写す元 `lib/tests/test_judge_accept.py::MaterialCase.test_procedure_trace_reply_is_taken_or_refused`: 作業ツリーに `run.sh` を足した木で回し、`not_applicable` の返答は拒まれる（`cond_true`）。見た返答（`clean`）は受け、`material.json` の `materials` が `{"procedure_trace": <返答の material>}`。今の試験の「条件が偽なら not_applicable を受ける」の枝は、block では役が起きないので、`intake` が `due` 偽で `not_applicable` を機械が書く照らしに替える。
+  - 写す元 `test_judge_accept.py::MaterialCase.test_procedure_trace_reply_is_taken_or_refused`: 作業ツリーに `run.sh` を足した木で回し、`not_applicable` の返答は拒まれる（`cond_true`）。見た返答（`clean`）は受け、`material.json` の `materials` が `{"procedure_trace": <返答の material>}`。今の試験の「条件が偽なら not_applicable を受ける」の枝は、block では役が起きないので、`intake` が `due` 偽で `not_applicable` を機械が書く照らしに替える。
   - 写す元 `DueCase.test_procedure_trace_needs_procedure_files`: 変更ファイルが `src/a.txt` だけなら `due` が偽で、`finish` の `status` が `skipped`・素材の `reason` が `fill_na` の字。
   - 写す元 `DueCase.test_run_with_a_diff_runs_them` の procedure-trace の部分と `test_na_note_for_each_kind_of_node` の procedure-trace の 2 行: `run.sh` を足した木で `due` が真、組んだ指示に `na_cond_true` の段落と `{na_why}` の字「差分に手順書・スクリプト・CI 定義が 1 件」が在り、`na_cond_false` の段落が無い。
   - 写す元 `DueCase.test_empty_diff_run_with_requests_runs_only_prior_decisions` の procedure-trace の部分: `entry` が在り差分が空なら `due` が偽で、`finish` の `reason` が `entry_skip("手順の追跡")` の字、素材が条件外の `not_applicable`（入口の文でない。1.5 の `fill`）。
@@ -301,7 +301,7 @@ bin/works-factory workflow run works-factory-procedure-trace \
 
 - prior-decisions.md の 6 節の 2 つ（役の定義の断片の名・起動の殻の引数）。
 - 他の観点の block の fixture も、`blocks_tree` の 2 つ目の commit に置いた対象の入口のファイルで `base: HEAD~1` を使えるか（この block の試験は通した。ほかは各 block の設計書が見る）。
-- `materialkit.review_md_paths` の引数（materials.md の 5.2 の終わりは `(repo)`、写す元 `lib/judge_accept.py:1765` は `(lib_dir, repo)`）。この block は `(view.repo)` で呼ぶと書いた。
+- `materialkit.review_md_paths` の引数（materials.md の 5.2 の終わりは `(repo)`、写す元 `judge_accept.py:1765` は `(lib_dir, repo)`）。この block は `(view.repo)` で呼ぶと書いた。
 
 ## 7 自分で決めた事（この block だけ）
 

@@ -2,7 +2,8 @@
 integration.md の 4.3-追加-6・4.3-9）。
 
 始めの記録は line の start が run の頭に 1 度書く控えで、入口の入力の形（欄 input）と run の入力の控え（test_cmd・機能の切り替え…）を
-持つ。書き手は start と固定材料の取り込み（src.fixture.adopt）、欄 policy を 1 度書き直すのは修正前の承認ノードの答え。block は
+持つ。書き手は start と固定材料の取り込み（src.fixture.adopt）と修正に入る時に固定材料の控えの印を足す
+src.fixture.noted_capture、欄 policy を 1 度書き直すのは修正前の承認ノードの答え。block は
 読まず、start が引いた配る値（src.deal）を port で受ける。読む口はここ 1 つで、KEEP の lib には読む口を残さない（4.3-追加-6。
 lib の関数は値を引数で受ける）。名と置き場（src.files.START）は起動の殻と包みと bin/ が同じ所を読むので変えない。
 前は置き場の名を 3 か所が、読む口を 6 か所が別々に持ち、続きの run で機能の切り替えが黙って変わった 8dfebca6 の元になった。

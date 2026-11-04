@@ -1,5 +1,5 @@
-"""fix の block の TDD の輪（workflows/fix/src/tdd.py。lib/tddloop.py の写し）と、輪の赤の判定を読む事後の関門の赤緑
-（src/gates.py の red_green）の検査。lib/tests/test_blk_fix_tdd.py・test_tdd_outside.py・test_tdd_frozen_function_span.py・
+"""fix の block の TDD の輪（workflows/fix/src/tdd.py。tddloop.py の写し）と、輪の赤の判定を読む事後の関門の赤緑
+（src/gates.py の red_green）の検査。test_blk_fix_tdd.py・test_tdd_outside.py・test_tdd_frozen_function_span.py・
 test_fix_gates.py の TestRedGreen を src の写しに向け直した物（docs/design/fix.md の 14.2）。
 
 - 実行器が無い run: tdd.start は何も書かずに go: false を返し、出口の tdd は ran: false
@@ -2586,7 +2586,7 @@ class TddloopSeamsGoneCase(Case):
 
 
 
-# ---------------------------------------------------------------- 実行器の段の一覧の外の試験（元 lib/tests/test_tdd_outside.py）
+# ---------------------------------------------------------------- 実行器の段の一覧の外の試験（元 test_tdd_outside.py）
 OUTSIDE = "heavy/test_outside.py"   # 実行器の既定の一覧（TIER）に無い置き場
 NAMED = f"{OUTSIDE}::TestOutside::test_mean_of_two"
 
@@ -3105,7 +3105,7 @@ class TestDirectOnly(OutsideCase):
         self.assertFalse([a for a in args if a.endswith(WRAP_FAR)], f"深さ 2 の試験を緑の回に足した: {args}")
 
 
-# ---------------------------------------------------------------- 裁定の範囲の関数の幅（元 lib/tests/test_tdd_frozen_function_span.py）
+# ---------------------------------------------------------------- 裁定の範囲の関数の幅（元 test_tdd_frozen_function_span.py）
 SPAN_SRC = """import unittest
 
 
@@ -3207,7 +3207,7 @@ class FunctionSpanCase(Case):
 
 
 
-# ---------------------------------------------------------------- 事後の関門の赤緑（元 lib/tests/test_fix_gates.py の TestRedGreen。src/gates.py）
+# ---------------------------------------------------------------- 事後の関門の赤緑（元 test_fix_gates.py の TestRedGreen。src/gates.py）
 THREE_ID = "test_stats.py::TestStats::test_mean_of_three"
 TEST_ROW = {"id": MEAN_ID, "behavior": "2 つの値の平均", "path": "stats.mean を直に呼ぶ", "red_kind": "assertion",
             "red_why": "今は len-1 で割る"}

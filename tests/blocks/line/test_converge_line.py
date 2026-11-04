@@ -768,7 +768,7 @@ class PlaceRecordCase(BoardCase):
 
 
 class PushableCase(unittest.TestCase):
-    """止まった案を推しで越えてよいか（元 lib/gatepolicy.py の stuck_pushable。無人の印を引数で受ける形）"""
+    """止まった案を推しで越えてよいか（元 gatepolicy.py の stuck_pushable。無人の印を引数で受ける形）"""
 
     def doc(self, *, outcome=C.PERSISTED, capped=False, blocks=("key-a1",)):
         return {"outcome": outcome, "passes": [{"pass": 1, "blocks": ["key-a1"], "faces": [face("key-a1")], "persists": []},

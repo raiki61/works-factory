@@ -1,6 +1,6 @@
 """段 → 回す物の表・単位の深さ・修正の後の上げ直し（docs/design/line.md の 5 節。node tiers と raise。src/tiers.py）。
 
-元は今の tests/workflows/test_line.py の RedepthCase と lib/tests/test_depth.py の表の照らし。表の行は今の lib/depth.py の TIERS と同じ
+元は test_line.py の RedepthCase と lib の試験の test_depth.py の表の照らし。表の行は元の depth.py の TIERS と同じ
 （組み込みの前に写しを照らす。lib の元が消えた後は見送る）。上げ直しの信号の全部（止めた単位・申し出・答えていない問い・案の直し・
 修正役の異議・引用の外の差分・TDD の輪の拒否・範囲の相談・直さずに残した事前審査の block・読めない控え）と、checks・eyes_due
 （前の run が運んだ実測が在る run は目を省かない）を見る。

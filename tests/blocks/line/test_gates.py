@@ -1,7 +1,7 @@
 """line の承認ノード（docs/design/line.md の 2 節・6 節・8.1。src/gates.py・src/final.py と script ask_before_fix・before_fix_answer・
 ask_replan・replan_answer・ask_final・eyes_in）。
 
-元は今の tests/workflows/test_line.py の AskBeforeFixCase・AskReplanCase・AskFinalCase・AskFinalReadsCase・FinalGateCase・
+元は test_line.py の AskBeforeFixCase・AskReplanCase・AskFinalCase・AskFinalReadsCase・FinalGateCase・
 UnattendedPolicyCallCase・LedgerAsksCase（docs/design/README.md の 9.5）。新しい形では修正前の承認ノードの軸・項目・聞かずに通した行を
 line が事前審査の返りの行（asks・deviations）から組むので、行の材料は plan-review の出力の形で渡す。足した物: 修正の後の並行 PR の
 確かめ直しの found と失敗が開ける理由に入り、must でない（8.1）。
@@ -295,7 +295,7 @@ class LedgerAsksCase(unittest.TestCase):
 
 
 class GatherCase(unittest.TestCase):
-    """元 lib/tests/test_gate_axes.py の GatherCase（軸ごとの訳は事前審査の返りの行の why から）"""
+    """元 test_gate_axes.py の GatherCase（軸ごとの訳は事前審査の返りの行の why から）"""
 
     def setUp(self):
         self.g = kit.load(BLOCK, "gates")

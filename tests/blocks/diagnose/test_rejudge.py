@@ -1,5 +1,5 @@
-"""再審の役の受け付け（src/rejudge.py）の試験。写す元は lib/tests/test_judge_accept.py の RejudgeCase・RejudgeDiffCase と
-tests/workflows/test_judge.py の再審の場面。受け付けの決まりは docs/design/diagnose.md の 3.8。"""
+"""再審の役の受け付け（src/rejudge.py）の試験。写す元は test_judge_accept.py の RejudgeCase・RejudgeDiffCase と
+tests/workflows の test_judge.py の再審の場面。受け付けの決まりは docs/design/diagnose.md の 3.8。"""
 import json
 import unittest
 

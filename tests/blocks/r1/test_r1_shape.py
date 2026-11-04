@@ -1,6 +1,6 @@
 """block r1 の YAML と指示の md の形（docs/design/r1.md の 8 節）。PyYAML で読み、md を組む口を直に呼ぶだけ（Archon を起こさない）。
 
-今の tests/workflows/test_eyes.py の ShapeCase の r1 の 2 役の場面（道具・群・新しい会話・retry・返答の型・comment-analyzer の定義の字・
+元の tests/workflows の test_eyes.py の ShapeCase の r1 の 2 役の場面（道具・群・新しい会話・retry・返答の型・comment-analyzer の定義の字・
 地図と方針の節・指示の文の行）を、英語の md の決まった文で照らす形に作り直した。返答の型の正本と comment-analyzer の定義の sha256 は、
 今の試験から写した（組み込みで今の試験は消える）。
 """
@@ -18,7 +18,7 @@ NODES = {n["id"]: n for n in DOC["nodes"]}
 ROLES = {i: n for i, n in NODES.items() if "prompt" in n}
 
 # pr-review-toolkit:comment-analyzer の定義の本文（anthropics/claude-plugins-official の ce721c1f1d5da2c281588818e072ae01a05d2e73 の
-# plugins/pr-review-toolkit/agents/comment-analyzer.md。Apache-2.0）の sha256。tests/workflows/test_eyes.py の写し
+# plugins/pr-review-toolkit/agents/comment-analyzer.md。Apache-2.0）の sha256。tests/workflows の test_eyes.py の写し
 COMMENT_ANALYZER_SHA256 = "4a9c1f2eb8234a4b9231983e75739663d512e1aed242388964a165a719b84698"
 COMMENT_ANALYZER_FRONT = """---
 name: comment-analyzer
@@ -30,7 +30,7 @@ color: green
 """
 ROLE_HEAD = "## Role definition (comment analyzer)\n\n"
 
-# 役の返答の型の正本（今の works の review-loop.json の r1.comment_candidates・r1.minimality の schema。tests/workflows/test_eyes.py の
+# 役の返答の型の正本（今の works の review-loop.json の r1.comment_candidates・r1.minimality の schema。tests/workflows の test_eyes.py の
 # GRAPH_SCHEMAS の r1 の 2 つの写し。note は YAML ではコメントに書く）と、r1-minimality に足した物（#663。R1_ADDED）
 GRAPH_SCHEMAS = {
     "r1-comments": {

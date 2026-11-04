@@ -1,6 +1,6 @@
 """plan の block の受け付け・案の直し・直す義務の試験（docs/design/plan.md の 5 節・9.2）。
 
-今の tests/workflows/test_plan.py の AcceptCase・ReplanCase・ReplanWithoutPlanCase・OwedAnswersCase を、base.PlanRun（block の YAML の
+元の test_plan.py の AcceptCase・ReplanCase・ReplanWithoutPlanCase・OwedAnswersCase を、base.PlanRun（block の YAML の
 node を Archon と同じ順に回す）に写した物。写し替え: 始めの記録の pointer `start` は port（answers・takes_push・base・review_rev）に、
 `plan/r<k>/` は place の `r<k>/` に、材料のファイル `brief-<n>.md` は役に渡った指示の字に、返りの `ready` は `ok`・`status` に、
 返りの `depth` は `owed` に、案の直しの元の周（今は周のフォルダを数えて読んだ）は port `prior` に替えた。
