@@ -1005,6 +1005,63 @@ class TestWorldAnswers(PlanFieldsCase):
         self.assertIn("w-doc", got[0])
         self.assertIn("どの項目も答えていない", got[0])
 
+    def test_missing_is_counted_on_the_whole_plan(self):
+        """whole を渡すと、どの項目も答えていない行（missing）だけを whole で数え、行の照らしは plan に当てる（案の直し）"""
+        tables = [self.need(self.rows()[:1])]
+        answered = item(structure=[{"world": "w-mean", "follows": True}])
+        self.assertTrue(planmarks.structure_gaps([item()], tables))
+        self.assertEqual(planmarks.structure_gaps([item()], tables, whole=[answered, item()]), [])
+        got = planmarks.structure_gaps([item(structure=[{"world": "w-none", "follows": True}])], tables, whole=[answered])
+        self.assertTrue(any(g.startswith("plan[0].structure[0].world") for g in got), got)
+
+
+class TestMeansAnswers(PlanFieldsCase):
+    """頼みの解き方への答え（計画 means-answers の 3.1 の 3・4。5 章の 1）: 頼みの解き方の 1 文ごとに、どれかの項目が欄 structure に
+    {means: M<n>, follows: true} か {means: M<n>, deviation} を書く。表は worldmark.means_need が作り、仕組みは世界の解の行と同じ"""
+    WHY = "リポジトリの決まりが別の層に置くと決めているので、頼みの置き場から外して直す"
+    MEANS = ["分母を len(xs) にする", "試験を先に足す"]
+
+    def need(self, means=None):
+        import worldmark
+        return worldmark.means_need(self.MEANS if means is None else means)
+
+    def test_every_means_needs_an_answer(self):
+        got = planmarks.structure_gaps([item(structure=[{"means": "M1", "follows": True}])], [self.need()])
+        self.assertEqual(len(got), 1, got)
+        self.assertIn("頼みの解き方 M2 にどの項目も答えていない", got[0])
+        it = item(structure=[{"means": "M1", "follows": True}, {"means": "M2", "deviation": self.WHY}])
+        self.assertEqual(planmarks.structure_gaps([it], [self.need()]), [])
+        self.assertEqual(self.gaps(it), [])
+        self.assertEqual(planmarks.deviations(planmarks.split({"plan": [it]}, self.repo)[1]),
+                         [{"item": 1, "means": "M2", "deviation": self.WHY}])
+
+    def test_follows_false_is_refused_as_today(self):
+        got = planmarks.structure_gaps([item(structure=[{"means": "M1", "follows": False}])], [self.need(self.MEANS[:1])])
+        self.assertTrue(any("follows は true だけ" in g for g in got), got)
+
+    def test_unknown_means_number_is_named(self):
+        got = planmarks.structure_gaps([item(structure=[{"means": "M3", "follows": True}])], [self.need()])
+        self.assertTrue(any("M3" in g and "頼みの解き方の番号でない" in g for g in got), got)
+
+    def test_recommend_on_the_plan_row_is_refused_by_the_shape(self):
+        """推しは計画の役が書かない（事前審査の役が means_departs に書く）。structure の行は recommend を持たない"""
+        rec = {"answer": "continue", "note": "計画のまま進める", "why": "リポジトリの決まりに合う"}
+        got = self.gaps(item(structure=[{"means": "M1", "deviation": self.WHY, "recommend": rec}]))
+        self.assertTrue(any("recommend" in g for g in got), got)
+        got = self.gaps(item(structure=[{"means": "1", "follows": True}]))
+        self.assertTrue(got, "M<n> でない番号は型で拒む")
+
+    def test_no_means_asks_nothing(self):
+        self.assertEqual(planmarks.structure_gaps([item()], [self.need([])]), [])
+
+    def test_missing_counts_the_whole_plan(self):
+        answered = item(structure=[{"means": "M1", "follows": True}, {"means": "M2", "follows": True}])
+        self.assertEqual(planmarks.structure_gaps([item()], [self.need()], whole=[answered, item()]), [])
+
+    def test_answer_line_names_the_means(self):
+        self.assertEqual(planmarks.answer_line({"item": 2, "means": "M1", "deviation": self.WHY}),
+                         f"項目 2・頼みの解き方 M1から外れる——{self.WHY}")
+
 
 if __name__ == "__main__":
     unittest.main()

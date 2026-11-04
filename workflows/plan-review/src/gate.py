@@ -11,7 +11,7 @@ narrows の行を作る芯と軸の訳の決まり（gatemarks.narrow_asks・ask
 
 - asks(place, intake, review) -> [{kind, node, text, units, mark, decided, why}]: 修正案の narrows の行と、事前審査の穴のうち人に回す
   種類（policy.HUMAN_FACE_KINDS）の行。why は {軸: [揃わない訳]}（揃う軸は載せない。空の dict は 4 つの軸が揃う）
-- deviations(place, intake, review) -> [{source: "world", item, text, mark, why} | {source: "design", key, kind, why}]
+- deviations(place, intake, review) -> [{source: "world" | "means", item, text, mark, why} | {source: "design", key, kind, why}]
 - replan(place, intake, review) -> [{item, units, contract_changed, human, widened}]（files.REPLAN にも同じ行を書く）
 
 決め手の欄は、narrows の行の分は intake.json の plan_marks（入口が外した物）、穴の行の分は受け付けが外した FACE_MARKS
@@ -35,7 +35,7 @@ import replan as replanlib   # lib/。bare
 import structmark  # lib/
 import worldmark   # lib/
 
-from src import files, take, view
+from src import files, material, take, view
 
 PLAN_NODE = files.PLAN_NODE
 REVIEW_NODE = files.REVIEW_NODE
@@ -170,6 +170,21 @@ def world_items(place, intake: dict, b) -> list:
     return out
 
 
+def means_items(place, intake: dict, b, review: dict) -> list:
+    """頼みの解き方の外れの行（計画 means-answers の 3.2 の 8）: 計画の structure の {means, deviation}（推しは積んだ means_departs の
+    同じ鍵の行）と、積んだ means_drifts のうち今の案で生きている行（項目 item の字に plan_quote が在り、項目 item がその番号に
+    follows: true で答えている。ほかの項目が同じ番号に従っても残さない）"""
+    said = worldmark.means_hints(intake.get("means"))
+    rows = material._item_rows(b)
+    out = gatemarks.means_rows(rows, said, take.stacked(place, review, "means_departs"))
+    for d in take.stacked(place, review, "means_drifts"):
+        n = d.get("item")
+        it = rows[n - 1] if isinstance(n, int) and 1 <= n <= len(rows) else None
+        if take._answers(it, d.get(worldmark.MEANS), follows=True) and design.row_quotes(it, d.get("plan_quote")):
+            out += gatemarks.means_drift_rows([d], said)
+    return out
+
+
 # ---------------------------------------------------------------- 返す事実
 def asks(place, intake: dict, review: dict) -> list:
     """人に回しうる行（10.1）。修正案の narrows の行（lib の gatemarks.narrow_asks）と事前審査の人に回す種類の穴の行。形 plan も replan も
@@ -185,6 +200,7 @@ def deviations(place, intake: dict, review: dict) -> list:
     b = _board(place, intake, review)
     out = [{"source": "world", "item": n, "text": text, "mark": mark, "why": why}
            for n, text, mark, why in world_items(place, intake, b)]
+    out += means_items(place, intake, b, review)
     heads = (design.DRIFT_HEAD, design.UNPAIRED_HEAD)
     out += [{"source": "design", "key": f.get("key"), "kind": f.get("kind"), "why": f.get("why")}
             for f in (review or {}).get("faces") or []

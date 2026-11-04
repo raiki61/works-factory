@@ -89,6 +89,10 @@ conflict.owed_units_but_asked が withheld で行う。写しの _owed_units は
 が揃わなければ修正前の関所の項目（種類 WORLD_KIND。文は worldmark.gate_line と人に聞く訳）になり、揃えば聞かずに通して通した行に残す。
 依頼そのもの（依頼のファイル・依頼の引用・依頼の解き方）を出どころにした外れと、web で確かめていない行からの外れは人に回る。人がいる run も
 無人の run も同じ（無人なら止めて答えの下書きを残す）。同じ外れを狭め・穴の行の軸と尾には載せない（外れの住処はこの項目の 1 つ）。
+頼みの解き方の外れ（計画 means-answers）: 修正案の欄 structure の {means: M<n>, deviation} と、事前審査の means_drifts（計画が従うのに
+独立設計と食い違う所）は、いつも修正前の関所の項目（種類 MEANS_KIND。人に聞く訳 MEANS_WHY）になる。推しは事前審査の役が書いた物だけ
+（means_departs・means_drifts の recommend）で、機械は推しを作らない。文の組み立て means_depart_text・means_drift_text・means_rows・
+means_drift_rows・means_item と鍵の読み戻し means_key は事前審査の block と line が使う。
 構造の目が人に上げた行（structmark の route が人に上げる行）は、修正前の関所の項目になる（種類 DESIGN_KIND。推し＝chosen、捨てた案と
 代償＝rejected。DESIGN_HEAD で始まる 1 行。人が continue で答えた同じ文の行は聞き直さない）。
 標準ライブラリと core の answer（L1。答えの行）・carry（L1。下書きの印の付け方）・cite（L1。出どころの照らし）・jsonfile・materialkit（素材の状態の表）・
@@ -196,6 +200,10 @@ DESIGN_ONLY_KIND = "design_only"      # 関所の項目の kinds（設計だけ�
 DESIGN_KIND = "design"                # 関所の項目の kinds（構造の目が決めきれなかった設計の問い）
 DESIGN_HEAD = "構造の目が決めきれない設計の問い"   # その行の頭
 WORLD_KIND = "world"                  # 関所の項目の kinds（世界の解から外れた修正案の項目。worldmark.ANSWER_KEY と同じ語）
+MEANS_KIND = "means"                  # 関所の項目の kinds と外れの行の source（頼みの解き方と独立の目が食い違う修正案の項目。worldmark.MEANS と同じ語）
+MEANS_WHY = "頼みの解き方と独立の目の食い違い（どちらも自動では優先しない。決め means-ask）"   # その項目の人に聞く訳（いつも人に聞く）
+MEANS_HEAD = re.compile(r"^修正案 (\d+) は頼みの解き方 (M[1-9][0-9]*)(?:「.*?」)?に従(わない|うが)")   # その項目の文の頭（means_key が鍵 (項目, M<n>, 向き) を引く）
+MEANS_WAYS = {"わない": "departs", "うが": "drifts"}   # 文の頭の向き → 鍵の向き（従わない・従うが独立設計と食い違う）
 GIVEN_UP_KIND = "given_up"            # 関所の項目の kinds（事前審査の受け付けが諦めた・返す節が落ちた。案を審査できていない）
 SPEC_CHANGED_KIND = "spec_changed"    # 関所の項目の kinds（修正の後に承認済みの受け入れ条件のテストが変わった。承認し直すかを人に諮る）
 UNMEASURED = materialkit.UNMEASURED   # 素材の状態のうち今の周に測れていない物（integration.md 4.2-5）
@@ -245,6 +253,7 @@ KIND_WORDS = {"regression": "今ある能力を減らす・狭める変更", pol
               "policy_changed": "人の方針の文書が変わった", ASK_KINDS[0]: "判定の役が人に聞くと保留にした問い",
               ASK_KINDS[1]: "人でないと決められない問い", DESIGN_ONLY_KIND: "修正に進まない行",
               DESIGN_KIND: "構造の目が決めきれなかった設計の問い", WORLD_KIND: "世界の解（定石）から外れる修正案の項目",
+              MEANS_KIND: "頼みの解き方と独立の目が食い違う修正案の項目",
               "spec_approval": "仕様（要件と受け入れ条件）の承認", SPEC_CHANGED_KIND: "承認の後に受け入れ条件のテストが変わった",
               GIVEN_UP_KIND: "事前審査が案を審査できなかった"}
 SPEC_CHANGED_LABEL = f"{KIND_WORDS[SPEC_CHANGED_KIND]}（{SPEC_CHANGED_KIND}）"   # 承認し直すかの問いの文と下書きの source の頭
@@ -508,6 +517,60 @@ def _push(mark: dict) -> str:
     answer = rec[RECOMMEND_KEYS[0]]
     note, why = (_tail_text(rec[k]) for k in RECOMMEND_KEYS[1:])
     return f"／{PUSH}{RECOMMEND_WORDS[answer]}（{answer}）——{note}（理由: {why}）"
+
+
+# ---------------------------------------------------------------- 頼みの解き方の外れ（計画 means-answers の 3.2 の 8・3.3）
+def _means_said(key: str, said: dict) -> str:
+    text = said.get(key) if isinstance(said, dict) else None
+    return f"{key}「{_squeeze(text)}」" if isinstance(text, str) and text.strip() else key
+
+
+def means_depart_text(item: int, key: str, said: dict, deviation) -> str:
+    """計画の外れの行の文。said は {M<n>: 頼みの解き方の文}（worldmark.means_hints）"""
+    return f"修正案 {item} は頼みの解き方 {_means_said(key, said)}に従わない——{_squeeze(deviation)}"
+
+
+def means_drift_text(item: int, key: str, said: dict, why) -> str:
+    """計画が従うのに独立設計と食い違う行（事前審査の means_drifts）の文"""
+    return f"修正案 {item} は頼みの解き方 {_means_said(key, said)}に従うが、独立設計と食い違う——{_squeeze(why)}"
+
+
+def means_key(text) -> tuple | None:
+    """項目の文の頭の鍵 (項目の番号, M<n>, 向き)（頭が MEANS_HEAD でなければ None。案の直しが前に通した行を推しの文に依らず引く。向き
+    MEANS_WAYS を入れるので、前に通した食い違いの行と同じ項目の新しい外れの行は別の鍵になる）"""
+    m = MEANS_HEAD.match(text) if isinstance(text, str) else None
+    return (int(m.group(1)), m.group(2), MEANS_WAYS[m.group(3)]) if m else None
+
+
+def means_rows(fields, said: dict, departs=()) -> list:
+    """修正案の欄 structure（項目の並び。1 始まりの番号）の頼みの解き方の外れの行 [{source, item, text, mark, why}]。departs は事前審査の
+    means_departs の行 {item, means, why, recommend}（鍵 (item, means) の推しを mark に載せる。無ければ推しなし）"""
+    rec = {(d.get("item"), d.get("means")): d.get(RECOMMEND) for d in departs or [] if isinstance(d, dict)}
+    out = []
+    for n, f in enumerate(fields if isinstance(fields, list) else [], 1):
+        for a in (f.get("structure") if isinstance(f, dict) and isinstance(f.get("structure"), list) else []):
+            if not (isinstance(a, dict) and isinstance(a.get(MEANS_KIND), str) and isinstance(a.get("deviation"), str)):
+                continue
+            mark = {"decided_by": _squeeze(a["deviation"])}
+            if rec.get((n, a[MEANS_KIND])) is not None:
+                mark[RECOMMEND] = rec[(n, a[MEANS_KIND])]
+            out.append({"source": MEANS_KIND, "item": n, "text": means_depart_text(n, a[MEANS_KIND], said, a["deviation"]),
+                        "mark": mark, "why": [MEANS_WHY]})
+    return out
+
+
+def means_drift_rows(drifts, said: dict) -> list:
+    """事前審査の means_drifts の行 {item, means, design_quote, plan_quote, why, recommend} の外れの行 [{source, item, text, mark, why}]"""
+    return [{"source": MEANS_KIND, "item": d.get("item"), "text": means_drift_text(d.get("item"), d.get(MEANS_KIND), said, d.get("why")),
+             "mark": {"decided_by": _squeeze(d.get("why")), RECOMMEND: d.get(RECOMMEND)}, "why": [MEANS_WHY]}
+            for d in drifts or [] if isinstance(d, dict) and isinstance(d.get(MEANS_KIND), str)]
+
+
+def means_item(row: dict) -> str:
+    """外れの行（source が MEANS_KIND）の関所の項目の文: 文・人に聞く訳・推しの尾（世界の解の尾は付けない）"""
+    mark = row.get("mark") if isinstance(row.get("mark"), dict) else {}
+    why = [w for w in row.get("why") or [] if isinstance(w, str)] or [MEANS_WHY]
+    return f"{row.get('text')}（人に聞く訳: {' / '.join(why)}）{_push(mark)}"
 
 
 def _tail_text(v) -> str:

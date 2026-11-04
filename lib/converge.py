@@ -486,8 +486,8 @@ def last_refs(b, n: int) -> list:
 
 
 # 項目の行の並びの行を見分ける欄（sentences の場所の [見分け]。files は path・symbols は name・tests は id・narrows は what・
-# out_of_scope は glob・depends_on は unit・structure は row か prescription か world）
-_ROW_IDS = ("path", "name", "id", "what", "glob", "unit", "row", "prescription", "world")
+# out_of_scope は glob・depends_on は unit・structure は row か prescription か world か means）
+_ROW_IDS = ("path", "name", "id", "what", "glob", "unit", "row", "prescription", "world", "means")
 _SENTENCE_END = re.compile(r"(?<=。)|\n")
 
 
@@ -662,6 +662,9 @@ def fixed_unchanged(doc: dict, rows: list, answers) -> list[str]:
     return out
 
 
+MEANS_ROWS = ("means_drifts", "means_departs")   # 往復の行に写す事前審査の返答の頼みの解き方の欄
+
+
 def add_pass(doc: dict, review: dict, *, answers: list, resolved: list, synergy: list | None = None,
              hits: dict | None = None, origins: list | None = None, at_cap: bool = False, refs: dict | None = None,
              push=None) -> dict:
@@ -686,6 +689,10 @@ def add_pass(doc: dict, review: dict, *, answers: list, resolved: list, synergy:
            "origins": {}, "origins_claimed": [], "files": {}, "rejects": []}
     if push is not None:
         row["push"] = copy.deepcopy(push)
+    for name in MEANS_ROWS:   # 頼みの解き方の行（計画 means-answers の 3.2 の 6。事前審査が全部の往復の行を鍵で後勝ちに積んで読む）
+        got = [copy.deepcopy(r) for r in review.get(name) or [] if isinstance(r, dict)]
+        if got:
+            row[name] = got
     if doc.get("plan"):
         row["face_units"] = {f.get("key"): [str(k) for k in f.get("unit_keys") or []] for f in faces}
         row["items"] = _item_states(doc["plan"], faces, row["face_units"],

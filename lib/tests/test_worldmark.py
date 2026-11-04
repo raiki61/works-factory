@@ -266,5 +266,17 @@ class Contract(unittest.TestCase):
         self.assertEqual(worldmark.NOT_WEB, "web で確かめていない")
 
 
+class MeansNeed(unittest.TestCase):
+    """頼みの解き方の答えの要る表（計画 means-answers の 3.1 の 4。5 章の 2）"""
+
+    def test_hints_and_missing(self):
+        t = worldmark.means_need(["分母を直す", "  ", "試験を足す"])
+        self.assertEqual(t.key, "means")
+        self.assertEqual(t.hints, {"M1": "分母を直す", "M2": "試験を足す"})
+        self.assertEqual(t.of({"structure": []}), [])
+        self.assertEqual(t.missing([{"structure": [{"means": "M2", "follows": True}]}, "壊れ"]), ["M1"])
+        self.assertEqual(worldmark.means_need([]).missing([{}]), [])
+
+
 if __name__ == "__main__":
     unittest.main()

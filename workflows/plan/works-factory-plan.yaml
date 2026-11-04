@@ -19,6 +19,7 @@ inputs:
   decisions: {default: '', description: 'json(shared:material.schema.json): 決定記録の突合の返答（reply.settled が決着済みの論点）。空は突合が無い'}
   world_rows: {default: '', description: 'jsonl(lib:world-row.schema.json): 世界の解の行の JSON Lines（world.jsonl）。空は行が無い'}
   structure: {default: '', description: 'json(shared:structure-state.schema.json): 構造の目の控え（{status, reason, design_file, skipped, …}）。空は構造の目の行が無い'}
+  means: {default: '[]', description: 'json(shared:stated-means.schema.json): 依頼が示した解き方の文の配列（並びの順に M1・M2… と呼ぶ。どれかの項目が structure で従うか外れの訳を書く）。空の配列は示していない'}
   spec: {default: '', description: 'json(shared:spec.schema.json): 固めた仕様（requirements・acceptance を持つ spec.json）。空は仕様が無い'}
   spec_doc: {default: '', description: 'file: 人と固めた仕様の本文（設計書の本文と表の md。字のまま貼る）。空は渡されていない'}
   policy: {default: '', description: 'file: 人の方針の文書の固めた写し。空は方針の文書が無い'}
@@ -393,6 +394,9 @@ nodes:
                           world:
                             type: string
                             minLength: 1
+                          means:
+                            type: string
+                            pattern: "^M[1-9][0-9]*$"
                           follows:
                             type: boolean
                           deviation:

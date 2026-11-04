@@ -12,7 +12,7 @@ inputs:
   design: {default: '', description: 'json(shared:design.schema.json): 独立設計の返答 {question_stands, reason, premise_invalid_reason?, design, elements?}。pointer・パス・値のどれか。空の字は設計が無い'}
   design_why: {default: '', description: 'text: 設計が無い訳の 1 行（設計を作る側が返した訳）。空で設計も無ければ「独立設計の出力が渡されていない」と読む'}
   world_rows: {default: '', description: 'jsonl(lib:world-row.schema.json): 世界の解の行（world.jsonl）。空は世界の解の行が無い run（人に回しうる行の世界の軸は今どおりの決まり）'}
-  means: {default: '[]', description: 'json(stated-means.schema.json): 依頼が示した解き方の文の配列（世界の解からの外れの決め手にならない物）。空の配列は示していない'}
+  means: {default: '[]', description: 'json(shared:stated-means.schema.json): 依頼が示した解き方の文の配列（世界の解からの外れの決め手にならない物）。空の配列は示していない'}
   structure: {default: '', description: 'json(shared:structure-state.schema.json): 構造の目の控え（{status, reason, design_file, …}。design_file が設計の行の jsonl を指す）。空は構造の目が走っていない（控えを failed として写す）'}
   ripple: {default: '', description: 'json(shared:ripple.schema.json): 修正案の項目ごとの波及の一覧（{items, overlaps, error?}）。空は一覧が無い（材料に一覧が無い訳を書く）'}
   prior: {default: '', description: 'json(shared:plan-converge.schema.json): 前の往復までの往復の記録（往復の記録の形に、先行例の出典の確かめの控え precedent_checks を足した物）。空は 1 往復目（形 replan では承認済みの案が無いので failed）'}
@@ -184,6 +184,54 @@ nodes:
                       }
                     }
                   },
+                  "means_drifts": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": ["item", "means", "design_quote", "plan_quote", "why", "recommend"],
+                      "properties": {
+                        "item": {"type": "integer", "minimum": 1},
+                        "means": {"type": "string", "pattern": "^M[1-9][0-9]*$"},
+                        "design_quote": {"type": "string", "minLength": 4, "pattern": "\\S[\\s\\S]{2,}\\S"},
+                        "plan_quote": {"type": "string", "minLength": 4, "pattern": "\\S[\\s\\S]{2,}\\S"},
+                        "why": {"type": "string", "minLength": 10, "pattern": "\\S[\\s\\S]{8,}\\S"},
+                        "recommend": {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "required": ["answer", "note", "why"],
+                          "properties": {
+                            "answer": {"type": "string", "enum": ["continue", "stop"]},
+                            "note": {"type": "string", "minLength": 4, "pattern": "\\S[\\s\\S]{2,}\\S"},
+                            "why": {"type": "string", "minLength": 4, "pattern": "\\S[\\s\\S]{2,}\\S"}
+                          }
+                        }
+                      }
+                    }
+                  },
+                  "means_departs": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": ["item", "means", "why", "recommend"],
+                      "properties": {
+                        "item": {"type": "integer", "minimum": 1},
+                        "means": {"type": "string", "pattern": "^M[1-9][0-9]*$"},
+                        "why": {"type": "string", "minLength": 10, "pattern": "\\S[\\s\\S]{8,}\\S"},
+                        "recommend": {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "required": ["answer", "note", "why"],
+                          "properties": {
+                            "answer": {"type": "string", "enum": ["continue", "stop"]},
+                            "note": {"type": "string", "minLength": 4, "pattern": "\\S[\\s\\S]{2,}\\S"},
+                            "why": {"type": "string", "minLength": 4, "pattern": "\\S[\\s\\S]{2,}\\S"}
+                          }
+                        }
+                      }
+                    }
+                  },
                   "origins": {
                     "type": "array",
                     "items": {
@@ -314,6 +362,54 @@ nodes:
                         "design_ref": {"type": ["string", "null"], "pattern": "^D[0-9]+$"},
                         "design_quote": {"type": ["string", "null"]},
                         "why": {"type": "string", "minLength": 10, "pattern": "\\S[\\s\\S]{8,}\\S"}
+                      }
+                    }
+                  },
+                  "means_drifts": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": ["item", "means", "design_quote", "plan_quote", "why", "recommend"],
+                      "properties": {
+                        "item": {"type": "integer", "minimum": 1},
+                        "means": {"type": "string", "pattern": "^M[1-9][0-9]*$"},
+                        "design_quote": {"type": "string", "minLength": 4, "pattern": "\\S[\\s\\S]{2,}\\S"},
+                        "plan_quote": {"type": "string", "minLength": 4, "pattern": "\\S[\\s\\S]{2,}\\S"},
+                        "why": {"type": "string", "minLength": 10, "pattern": "\\S[\\s\\S]{8,}\\S"},
+                        "recommend": {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "required": ["answer", "note", "why"],
+                          "properties": {
+                            "answer": {"type": "string", "enum": ["continue", "stop"]},
+                            "note": {"type": "string", "minLength": 4, "pattern": "\\S[\\s\\S]{2,}\\S"},
+                            "why": {"type": "string", "minLength": 4, "pattern": "\\S[\\s\\S]{2,}\\S"}
+                          }
+                        }
+                      }
+                    }
+                  },
+                  "means_departs": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": ["item", "means", "why", "recommend"],
+                      "properties": {
+                        "item": {"type": "integer", "minimum": 1},
+                        "means": {"type": "string", "pattern": "^M[1-9][0-9]*$"},
+                        "why": {"type": "string", "minLength": 10, "pattern": "\\S[\\s\\S]{8,}\\S"},
+                        "recommend": {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "required": ["answer", "note", "why"],
+                          "properties": {
+                            "answer": {"type": "string", "enum": ["continue", "stop"]},
+                            "note": {"type": "string", "minLength": 4, "pattern": "\\S[\\s\\S]{2,}\\S"},
+                            "why": {"type": "string", "minLength": 4, "pattern": "\\S[\\s\\S]{2,}\\S"}
+                          }
+                        }
                       }
                     }
                   },
@@ -786,7 +882,7 @@ nodes:
             properties:
               source:
                 type: string
-                enum: [world, design]
+                enum: [world, design, means]
         replan:
           type: array
           items:

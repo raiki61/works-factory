@@ -5,7 +5,7 @@ inputs:
     required: true
     description: 'json(shared:request.schema.json): 依頼の行の配列 [{where, text, mechanism?, measured?, false_positive_if?}]。それを findings の欄に持つオブジェクトでもよい（工場の依頼のファイルの形）'
   purpose: {default: '', description: 'text: 依頼の目的の 1 文。空は渡されていない'}
-  means: {default: '[]', description: 'json(means.schema.json): 依頼が示した解き方の文の配列。空の配列は示していない'}
+  means: {default: '[]', description: 'json(shared:stated-means.schema.json): 依頼が示した解き方の文の配列。空の配列は示していない'}
   web: {default: 'on', description: 'choice(on|off): web で出典を探すか。off なら検索も取得もせず、行は知識だけで書く'}
   lang: {default: '', description: 'text: 人に見せる欄（problem・activity・proposed・practice・applies・not_applies・challenge）の言語。空は依頼の行の言語'}
 returns: finish

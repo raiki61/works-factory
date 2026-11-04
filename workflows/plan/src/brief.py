@@ -41,7 +41,7 @@ WHEN_NAMES = ("rejected", "replan", "excluded", "prior_notes", "prior_redesign",
               "structure_clean_only", "structure_clean", "world", "ripple_units", "ripple_units_error", "verify", "verify_unreadable",
               "unknown_rows", "unknown_none", "spec", "prior", "prior_review", "no_prior_review", "revise", "owed_suggests", "revise_notes",
               "revise_keys", "closed_items", "held_items", "guards", "prior_ripple", "prior_ripple_error", "policy", "unread", "prior_fix_plan", "prior_fields_only",
-              "routes_spec", "pointed", "pointed_missing")
+              "routes_spec", "pointed", "pointed_missing", "means")
 
 
 def _dump(doc) -> str:
@@ -384,6 +384,9 @@ def values(place, repo) -> tuple:
     v["concept_maps"], v["map_tail"], w["maps_found"] = concept_rows(repo)
     v["handoff_rounds"] = handoff_rows(prior)
     w["handoff_rounds"] = bool(v["handoff_rounds"])
+    # 頼みの解き方（形 plan と replan の両方。直した項目が答えを落とすと、どの項目も答えていない行になる）
+    v["means_rows"] = "\n".join(f"- {k}: {oneline.one_line(m)}" for k, m in worldmark.means_hints(ctx.get("means")).items())
+    w["means"] = bool(v["means_rows"])
     # 形 plan の材料
     if plan_form and isinstance(judgment, dict):
         filled = converge.filled_units(record)

@@ -691,6 +691,7 @@ nodes:
             depth_record: "$judge.output.tier_record"
             decisions: "$judge.output.decisions"
             world_rows: "$judge.output.world"
+            means: "$judge.output.means"
             structure: "$structure-in.output.structure"
             spec: "$judge.output.spec"
             policy: "$start.output.ports.policy"
@@ -1330,6 +1331,7 @@ nodes:
       depth_record: "$fix-in.output.tier_record"
       decisions: "$fix-in.output.decisions"
       world_rows: "$fix-in.output.world"
+      means: "$fix-in.output.means"
       structure: "$fix-in.output.structure"
       spec: "$fix-in.output.spec"
       policy: "$fix-in.output.policy"
@@ -1396,6 +1398,7 @@ nodes:
       before_fix: "$fix-in.output.answer"
       record: "$start.output.record"
       ports: "$start.output.ports"
+      means: "$fix-in.output.means"
     output_format:
       type: object
       additionalProperties: false

@@ -349,7 +349,7 @@ def _plan_doc(d: pathlib.Path, repo, raw: dict, proposal: dict, defaults: list, 
     if excluded is not None:
         shutil.copyfile(excluded, d / files.EXCLUDED)
     request_file, request = _request(raw.get("request"), defaults)
-    means = _soft("means", lambda: _read("means", raw.get("means"), lambda v: ports.json(v, "stated-means.schema.json")), defaults) or []
+    means = _soft("means", lambda: _read("means", raw.get("means"), lambda v: ports.json(v, "shared:stated-means.schema.json")), defaults) or []
     design_doc = _read("design", raw.get("design"), lambda v: ports.json(v, "shared:design.schema.json"))
     structure_doc = _read("structure", raw.get("structure"), lambda v: ports.json(v, "shared:structure-state.schema.json"))
     if structure_doc is None:

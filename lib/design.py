@@ -24,6 +24,8 @@
                  壊れている理由) で拒まない。schema は r2.design の役の型で、ブロックが渡す（盤面 b を取る関数は b.design_schema を読む）
 - DRIFT_HEAD・UNPAIRED_HEAD: 事前審査の穴の why の頭の 2 語（構造の食い違い・対の無い仕組み）。指示書の決まり・照らし・試験が同じ名を読む
 - stands(board_dir, schema): 設計が在り問いが立つ時のその返答（無い・壊れている・問いが立たないなら None）
+- row_quotes(row, quote)・means_drift_gaps(board_dir, schema, drifts, plan, faces=()): 案の行に引用が字のまま在るかと、事前審査の
+  means_drifts の行の引用の誤り（計画 means-answers）
 - quote_gaps(board_dir, schema, faces, rows, design_map=None, kept=()): 2 つの頭の穴の引用と、項目の答えの design_map の誤りの行（設計が立たなければ空）。
                  design_map の行の形は converge.DESIGN_MAP_SCHEMA、案→設計で要る行は _wanted から kept を除いた物。coverage_gaps は独立設計の要素の網羅
                  （呼び手が全部の項目の答えの design_ref を合わせて当てる。planblk.coverage_gaps）
@@ -679,6 +681,42 @@ def _pasted(quote, listed, planned) -> str:
     if cite.quoted_in(quote, planned, norm=cite.unspaced):
         return f"修正案の行の字を貼った。対がある時は{QUOTE_FROM}（{QUOTE_NONE}）"
     return QUOTE_NONE
+
+
+def row_quotes(row, quote) -> bool:
+    """案の行（ROW_QUOTE_KEYS の欄）に quote が字のまま在るか（空の引用は在ると数えない）"""
+    return isinstance(row, dict) and isinstance(quote, str) and bool(quote.strip()) and quote in _row_text(row)
+
+
+def means_drift_gaps(board_dir, schema, drifts, plan, faces=()) -> list:
+    """事前審査の means_drifts の行（{item, means, design_quote, plan_quote, …}）の引用の誤りの行（計画 means-answers の 3.2 の 5）。
+    design_quote は独立設計の文に、plan_quote は案の項目 item（plan の 1 始まりの番号）の行に字のまま要る。設計が立たない run の行は誤り。
+    同じ食い違いを faces の DRIFT_HEAD・UNPAIRED_HEAD の穴にも書いた行（穴の why の引用に plan_quote が在る）は誤り（住処を 1 つにする）"""
+    drifts = [d for d in drifts if isinstance(d, dict)] if isinstance(drifts, list) else []
+    if not drifts:
+        return []
+    got = stands(board_dir, schema)
+    source = (got or {}).get("design") or ""
+    rows = plan if isinstance(plan, list) else []
+    quoted = {q for f in faces or [] if isinstance(f, dict) and isinstance(f.get("why"), str) and f["why"].startswith(QUOTE_HEADS)
+              for q in cite.quotes(f["why"])}
+    out = []
+    for j, d in enumerate(drifts):
+        name = f"means_drifts の {j + 1} 行目（修正案 {d.get('item')}・{d.get('means')}）"
+        if got is None:
+            out.append(f"{name}: 独立設計が無い・問いが立たない run には書かない")
+            continue
+        dq, pq = d.get("design_quote"), d.get("plan_quote")
+        if not (isinstance(dq, str) and dq.strip() and dq in source):
+            out.append(f"{name}: design_quote が独立設計の文に字のまま無い")
+        n = d.get("item")
+        row = rows[n - 1] if isinstance(n, int) and 1 <= n <= len(rows) else None
+        if not row_quotes(row, pq):
+            out.append(f"{name}: plan_quote が修正案 {n} の行（{'・'.join(ROW_QUOTE_KEYS)}）に字のまま無い")
+        elif any(pq in q or q in pq for q in quoted):
+            out.append(f"{name}: 同じ食い違いを事前審査の穴（{DRIFT_HEAD.strip()}・{UNPAIRED_HEAD.strip()}）にも書いた（どちらか 1 つに書く。"
+                       "計画が頼みの解き方に従う所は means_drifts）")
+    return out
 
 
 def quote_gaps(board_dir, schema, faces, rows, design_map=None, kept=()) -> list:

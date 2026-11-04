@@ -223,6 +223,39 @@ class SpecWordsCase(unittest.TestCase):
                 self.assertEqual(sum(n.attr == "spec_words" for n in attrs), 2)
 
 
+class MeansRowsCase(unittest.TestCase):
+    """頼みの解き方の外れの行（計画 means-answers の 3.2 の 8・3.3 の 2）: 文の頭・推しの尾・鍵の読み戻し。推しは渡した行の物だけ"""
+    SAID = {"M1": "分母を len(xs) にする"}
+    REC = {"answer": "continue", "note": "計画のまま進める", "why": "リポジトリの決まりに合う"}
+    FIELDS = [{"structure": [{"means": "M1", "follows": True}]},
+              {"structure": [{"means": "M1", "deviation": "リポジトリの決まりが別の層に置くと決めている"}]}]
+
+    def test_plan_row_carries_the_departs_recommend(self):
+        rows = gatemarks.means_rows(self.FIELDS, self.SAID, [{"item": 2, "means": "M1", "why": "決まりに合う", "recommend": self.REC}])
+        self.assertEqual(len(rows), 1, rows)
+        r = rows[0]
+        self.assertEqual((r["source"], r["item"]), (gatemarks.MEANS_KIND, 2))
+        self.assertTrue(r["text"].startswith("修正案 2 は頼みの解き方 M1「分母を len(xs) にする」に従わない——"), r["text"])
+        self.assertEqual(r["mark"]["recommend"], self.REC)
+        self.assertEqual(r["why"], [gatemarks.MEANS_WHY])
+        text = gatemarks.means_item(r)
+        self.assertNotIn("世界の解:", text)
+        self.assertEqual(gatemarks.push_rec(text)["answer"], "continue")
+        self.assertEqual(gatemarks.means_key(text), (2, "M1", "departs"))
+
+    def test_plan_row_without_departs_has_no_push(self):
+        r = gatemarks.means_rows(self.FIELDS, self.SAID)[0]
+        self.assertNotIn("recommend", r["mark"])
+        self.assertIsNone(gatemarks.push_rec(gatemarks.means_item(r)))
+
+    def test_drift_row(self):
+        r = gatemarks.means_drift_rows([{"item": 1, "means": "M1", "design_quote": "設計の字", "plan_quote": "案の字",
+                                         "why": "独立設計は別の層に置く", "recommend": self.REC}], self.SAID)[0]
+        self.assertTrue(r["text"].startswith("修正案 1 は頼みの解き方 M1「分母を len(xs) にする」に従うが、独立設計と食い違う——"))
+        self.assertEqual(gatemarks.means_key(r["text"]), (1, "M1", "drifts"))
+        self.assertIsNone(gatemarks.means_key("修正案 1 の世界の解の行"))
+        self.assertEqual(gatemarks.means_key(gatemarks.means_depart_text(1, "M1", {}, "別の層")), (1, "M1", "departs"))
+
 
 if __name__ == "__main__":
     unittest.main()

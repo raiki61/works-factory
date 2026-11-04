@@ -31,6 +31,7 @@ def compute():
     return steps.intake(ports.place(), Path.cwd(), k, {
         "judgment": os.environ.get("INPUTS_JUDGMENT"),
         "units": os.environ.get("INPUTS_UNITS"),
+        "means": os.environ.get("INPUTS_MEANS"),
         "answer_ties": os.environ.get("INPUTS_ANSWER_TIES"),
         "materials": os.environ.get("INPUTS_MATERIALS"),
         "answers": os.environ.get("INPUTS_ANSWERS"),
