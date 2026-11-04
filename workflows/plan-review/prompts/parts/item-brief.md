@@ -31,6 +31,16 @@ Your item file has the section "## Items that write design_map" (the machine mad
 <!-- end design_stands -->
 {part:design-absent}
 
+<!-- if means_drift -->
+{part:means-drift}
+<!-- end means_drift -->
+
+<!-- if means_ask -->
+{part:means-ask}
+
+The section "The request's means and the plan's answers" is at the end of your item file. Write rows of `means_departs` and `means_drifts` only for your item (the acceptance check rejects a row whose `item` is another item's number).
+<!-- end means_ask -->
+
 <!-- if design_diff -->
 From the second pass on, compare with the design only the sentences the diff added and removed, and the keys in the key list of your item file. The machine carries over the comparison of unchanged rows from the earlier pass (do not write rows for keys not in the list).
 <!-- end design_diff -->

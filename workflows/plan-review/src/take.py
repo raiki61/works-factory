@@ -21,10 +21,12 @@ import converge    # lib/
 import design      # lib/
 import gatemarks   # lib/。recommend_gaps・ask_gaps
 import jsonfile    # lib/
+import plainask    # lib/。人に聞く文の照らし
 import planmarks   # lib/。machine_face_gaps
 import policy      # lib/。face_gaps・RECORDED_KEY
 import recount     # lib/。blank
 import rolekit     # lib/
+import worldmark   # lib/。means_hints
 from engine.util import Reject   # lib/graphloops/engine/util.py
 
 from src import files, marks, material, steps, view
@@ -45,6 +47,9 @@ FENCES_TWICE = "faces[{j}]（{key}）: fences に同じ語が 2 つ（{words}）
 GIVEN_UP_FACES = steps.GIVEN_UP_FACES   # 諦めの返答の頭（出口が同じ字で読む。字の住処は src/steps.py）
 FACE_MARKS = files.FACE_MARKS   # 穴の行から外した決め手の欄（review.json の faces と同じ並び。src/gate.py が読む）
 MATERIAL_N = re.compile(r"review-material-(\d+)\.md")
+MEANS_REJECT = "頼みの解き方の推し（means_departs）か食い違い（means_drifts）の行に欠けか誤りが在る:"
+# 往復をまたいで積む頼みの解き方の行の欄と、後勝ちに合わせる鍵（計画 means-answers の 3.2 の 6）
+MEANS_ROWS = {"means_drifts": ("item", "means", "plan_quote"), "means_departs": ("item", "means")}
 
 
 # ---------------------------------------------------------------- 単位の名（unit_name・_names・_map_rows・kept_keys・_later・_map_items・
@@ -125,6 +130,76 @@ def fences_twice(faces) -> list[str]:
             twice = sorted({str(w) for w in words if words.count(w) > 1})
             if twice:
                 out.append(FENCES_TWICE.format(j=j, key=str(f.get("key"))[:40], words="・".join(twice)))
+    return out
+
+
+# ---------------------------------------------------------------- 頼みの解き方（計画 means-answers の 3.2 の 2・5・6）
+def stacked(place, review, name: str) -> list:
+    """往復の記録の作業の写しの全部の往復の行 name と、今の返答 review の行を、鍵 MEANS_ROWS[name] で後勝ちに合わせた並び
+    （2 往復目から差分だけを見る審査役が書き直さなかった行・木の形で閉じた項目の行を持ち越す）"""
+    record = jsonfile.read_or(pathlib.Path(place) / files.CONVERGE)
+    passes = record.get("passes") if isinstance(record, dict) and isinstance(record.get("passes"), list) else []
+    got: dict = {}
+    for rows in [*(p.get(name) for p in passes if isinstance(p, dict)), (review or {}).get(name)]:
+        for r in rows if isinstance(rows, list) else []:
+            if isinstance(r, dict):
+                key = tuple(r.get(k) for k in MEANS_ROWS[name])
+                got.pop(key, None)
+                got[key] = r
+    return list(got.values())
+
+
+def _answers(it, means: str, *, follows: bool) -> bool:
+    rows = it.get("structure") if isinstance(it, dict) and isinstance(it.get("structure"), list) else []
+    return any(isinstance(a, dict) and a.get(worldmark.MEANS) == means
+               and (a.get("follows") is True if follows else isinstance(a.get("deviation"), str)) for a in rows)
+
+
+def _said_gaps(name: str, row: dict) -> list:
+    """推しの形（gatemarks._recommend_gap）と、承認ノードに字のまま載る文（why・推しの note と why）の人に聞く文の決まり"""
+    rec = row.get(gatemarks.RECOMMEND)
+    gap = gatemarks._recommend_gap(rec)
+    out = [f"{name}: {gap}"] if gap else []
+    texts = [("why", row.get("why"))] + ([(f"recommend.{k}", rec.get(k)) for k in gatemarks.RECOMMEND_KEYS[1:]] if isinstance(rec, dict) else [])
+    for k, text in texts:
+        out += plainask.gaps(f"{name}.{k}", text)
+    return out
+
+
+def means_gaps(b, place, intake: dict, review: dict, faces=None) -> list:
+    """頼みの解き方の行の誤り（yes/no）。means_departs: (item, means) が計画のその項目の外れの行を指す・計画の外れの行の全部に行が在る
+    （今の返答と往復の記録に積んだ行を合わせて数える）・推しの形と文。means_drifts: 番号が頼みの解き方に在る・項目 item がその番号に
+    follows: true で答えている・引用（design.means_drift_gaps。同じ食い違いを穴にも書いた行も）・推しの形と文"""
+    said = worldmark.means_hints(intake.get("means"))
+    rows = material._item_rows(b)
+    out = []
+    departs = review.get("means_departs") if isinstance(review.get("means_departs"), list) else []
+    for j, d in enumerate(departs):
+        d = d if isinstance(d, dict) else {}
+        name = f"means_departs の {j + 1} 行目（修正案 {d.get('item')}・{d.get('means')}）"
+        n = d.get("item")
+        it = rows[n - 1] if isinstance(n, int) and 1 <= n <= len(rows) else None
+        if not _answers(it, d.get("means"), follows=False):
+            out.append(f"{name}: 計画のその項目に、その頼みの解き方からの外れ（structure の deviation）が無い")
+        out += _said_gaps(name, d)
+    have = {(d.get("item"), d.get("means")) for d in stacked(place, review, "means_departs")}
+    for n, it in enumerate(rows, 1):
+        for a in (it.get("structure") if isinstance(it.get("structure"), list) else []):
+            if isinstance(a, dict) and isinstance(a.get(worldmark.MEANS), str) and isinstance(a.get("deviation"), str) \
+                    and (n, a[worldmark.MEANS]) not in have:
+                out.append(f"修正案 {n} の頼みの解き方 {a[worldmark.MEANS]} からの外れに means_departs の推しの行が無い（外れの行ごとに 1 行）")
+    drifts = review.get("means_drifts") if isinstance(review.get("means_drifts"), list) else []
+    for j, d in enumerate(drifts):
+        d = d if isinstance(d, dict) else {}
+        name = f"means_drifts の {j + 1} 行目（修正案 {d.get('item')}・{d.get('means')}）"
+        if d.get("means") not in said:
+            out.append(f"{name}: 頼みの解き方の番号でない（在るのは {sorted(said)}）")
+        n = d.get("item")
+        it = rows[n - 1] if isinstance(n, int) and 1 <= n <= len(rows) else None
+        if not _answers(it, d.get("means"), follows=True):
+            out.append(f"{name}: 計画のその項目は、その頼みの解き方に follows: true で答えていない（外れた所は計画の外れの行が人に回す）")
+        out += _said_gaps(name, d)
+    out += design.means_drift_gaps(b.dir, b.design_schema, drifts, rows, review.get("faces") if faces is None else faces)
     return out
 
 
@@ -219,6 +294,9 @@ def _take(place: pathlib.Path, intake: dict, reply: dict, repo, keys) -> dict:
             gaps += coverage_gaps(b, [*design.refs_of(dmap), *(r for rs in refs.values() for r in rs)], items)
         if gaps:
             raise Reject(_lines(DESIGN_QUOTE_REJECT, gaps))
+    gaps = means_gaps(b, place, intake, merged["review"])
+    if gaps:
+        raise Reject(_lines(MEANS_REJECT, gaps))
     review = named(b, merged["review"])
     if form == "plan":
         gaps = converge.resolved_gaps(b, review.get("faces") or [], merged["resolved"])

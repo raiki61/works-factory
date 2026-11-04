@@ -184,6 +184,54 @@ nodes:
                       }
                     }
                   },
+                  "means_drifts": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": ["item", "means", "design_quote", "plan_quote", "why", "recommend"],
+                      "properties": {
+                        "item": {"type": "integer", "minimum": 1},
+                        "means": {"type": "string", "pattern": "^M[1-9][0-9]*$"},
+                        "design_quote": {"type": "string", "minLength": 4, "pattern": "\\S[\\s\\S]{2,}\\S"},
+                        "plan_quote": {"type": "string", "minLength": 4, "pattern": "\\S[\\s\\S]{2,}\\S"},
+                        "why": {"type": "string", "minLength": 10, "pattern": "\\S[\\s\\S]{8,}\\S"},
+                        "recommend": {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "required": ["answer", "note", "why"],
+                          "properties": {
+                            "answer": {"type": "string", "enum": ["continue", "stop"]},
+                            "note": {"type": "string", "minLength": 4, "pattern": "\\S[\\s\\S]{2,}\\S"},
+                            "why": {"type": "string", "minLength": 4, "pattern": "\\S[\\s\\S]{2,}\\S"}
+                          }
+                        }
+                      }
+                    }
+                  },
+                  "means_departs": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": ["item", "means", "why", "recommend"],
+                      "properties": {
+                        "item": {"type": "integer", "minimum": 1},
+                        "means": {"type": "string", "pattern": "^M[1-9][0-9]*$"},
+                        "why": {"type": "string", "minLength": 10, "pattern": "\\S[\\s\\S]{8,}\\S"},
+                        "recommend": {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "required": ["answer", "note", "why"],
+                          "properties": {
+                            "answer": {"type": "string", "enum": ["continue", "stop"]},
+                            "note": {"type": "string", "minLength": 4, "pattern": "\\S[\\s\\S]{2,}\\S"},
+                            "why": {"type": "string", "minLength": 4, "pattern": "\\S[\\s\\S]{2,}\\S"}
+                          }
+                        }
+                      }
+                    }
+                  },
                   "origins": {
                     "type": "array",
                     "items": {
@@ -314,6 +362,54 @@ nodes:
                         "design_ref": {"type": ["string", "null"], "pattern": "^D[0-9]+$"},
                         "design_quote": {"type": ["string", "null"]},
                         "why": {"type": "string", "minLength": 10, "pattern": "\\S[\\s\\S]{8,}\\S"}
+                      }
+                    }
+                  },
+                  "means_drifts": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": ["item", "means", "design_quote", "plan_quote", "why", "recommend"],
+                      "properties": {
+                        "item": {"type": "integer", "minimum": 1},
+                        "means": {"type": "string", "pattern": "^M[1-9][0-9]*$"},
+                        "design_quote": {"type": "string", "minLength": 4, "pattern": "\\S[\\s\\S]{2,}\\S"},
+                        "plan_quote": {"type": "string", "minLength": 4, "pattern": "\\S[\\s\\S]{2,}\\S"},
+                        "why": {"type": "string", "minLength": 10, "pattern": "\\S[\\s\\S]{8,}\\S"},
+                        "recommend": {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "required": ["answer", "note", "why"],
+                          "properties": {
+                            "answer": {"type": "string", "enum": ["continue", "stop"]},
+                            "note": {"type": "string", "minLength": 4, "pattern": "\\S[\\s\\S]{2,}\\S"},
+                            "why": {"type": "string", "minLength": 4, "pattern": "\\S[\\s\\S]{2,}\\S"}
+                          }
+                        }
+                      }
+                    }
+                  },
+                  "means_departs": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": ["item", "means", "why", "recommend"],
+                      "properties": {
+                        "item": {"type": "integer", "minimum": 1},
+                        "means": {"type": "string", "pattern": "^M[1-9][0-9]*$"},
+                        "why": {"type": "string", "minLength": 10, "pattern": "\\S[\\s\\S]{8,}\\S"},
+                        "recommend": {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "required": ["answer", "note", "why"],
+                          "properties": {
+                            "answer": {"type": "string", "enum": ["continue", "stop"]},
+                            "note": {"type": "string", "minLength": 4, "pattern": "\\S[\\s\\S]{2,}\\S"},
+                            "why": {"type": "string", "minLength": 4, "pattern": "\\S[\\s\\S]{2,}\\S"}
+                          }
+                        }
                       }
                     }
                   },
@@ -786,7 +882,7 @@ nodes:
             properties:
               source:
                 type: string
-                enum: [world, design]
+                enum: [world, design, means]
         replan:
           type: array
           items:

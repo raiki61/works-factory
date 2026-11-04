@@ -14,7 +14,7 @@ Ranges of parallel PRs: the section "Excluded ranges" of the material names a fi
 
 ## Material
 
-Read the whole material file {material_file} with Read. It holds everything the machine pasted for this review, under these sections when they apply: "Inputs read with defaults", "Excluded ranges", "Library documents", "Independent design", "Deviations recorded in the plan", "Works fields of the plan items", "Items that write design_map", "Previous passes", "Replan items", and "Machine-pasted material". The last one holds the plan items (from the second pass on, the diffs and ripple lists of the open items, and "Overlaps and other items' scope"), `Units:`, `Judge's view:`, `Judge's precedents (world):`, and the `Repository:` line: the repository, the read version, BASE, and the canonical rules `REVIEW.md` (BASE is the version before this run started fixing, and the baseline of check 6). You need not read any other instruction file (do read the code you need as evidence).
+Read the whole material file {material_file} with Read. It holds everything the machine pasted for this review, under these sections when they apply: "Inputs read with defaults", "Excluded ranges", "Library documents", "Independent design", "The request's means and the plan's answers", "Deviations recorded in the plan", "Works fields of the plan items", "Items that write design_map", "Previous passes", "Replan items", and "Machine-pasted material". The last one holds the plan items (from the second pass on, the diffs and ripple lists of the open items, and "Overlaps and other items' scope"), `Units:`, `Judge's view:`, `Judge's precedents (world):`, and the `Repository:` line: the repository, the read version, BASE, and the canonical rules `REVIEW.md` (BASE is the version before this run started fixing, and the baseline of check 6). You need not read any other instruction file (do read the code you need as evidence).
 
 <!-- if defaults -->
 Some inputs were read with defaults: the section "Inputs read with defaults" of the material names them and why. Read each of those inputs as absent.
@@ -32,6 +32,14 @@ Some inputs were read with defaults: the section "Inputs read with defaults" of 
 {part:design-ask}
 <!-- end design_stands -->
 {part:design-absent}
+
+<!-- if means_drift -->
+{part:means-drift}
+<!-- end means_drift -->
+
+<!-- if means_ask -->
+{part:means-ask}
+<!-- end means_ask -->
 
 <!-- if design_diff -->
 From the second pass on, compare with the design only the sentences the diffs added and removed, and the keys in the key list of the section "Items that write design_map". The machine carries over the comparison of unchanged rows from the earlier pass (do not write rows for keys not in the list).
