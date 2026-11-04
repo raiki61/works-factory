@@ -1,5 +1,5 @@
 """run の記録のトレースへの組み（viewer/src/trace.py と、会話の記録の読みの足し viewer/src/session.py。docs/design/viewer.md の 8 章と
-照らしの 10）。
+照らしの 6）。
 
 - 木の親子: run → 段 → 繰り返しの器 → 周 → ノード → 往復と道具 → 下請け。下請けは meta の toolUseId の道具の span の下に入り、
   下請けの中の往復と道具はその下請けの span の下に入る（下請けの中の下請けも、名の並びが親の下請けより先でも）。line の段に入るノードは段の span の下

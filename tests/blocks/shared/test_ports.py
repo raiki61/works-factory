@@ -87,7 +87,7 @@ class JsonCase(ShapedBase):
         """形のファイルは呼んだ block の schemas/ から引く。呼び手が block の外なら名指して落ちる（block の中からの呼びは
         tests/blocks/world の IntakeCase）"""
         with self.assertRaisesRegex(ValueError, "block の中に無い"):
-            ports.json("[]", "means.schema.json")
+            ports.json("[]", "received.schema.json")
 
     def test_unknown_schema_keywords_are_named(self):
         """照らしが読まない語（anyOf・oneOf・format…）を持つ形は、黙って効かないので拒む。欄の名は数えない。知らない語を開きより先に見る"""

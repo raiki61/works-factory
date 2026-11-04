@@ -436,8 +436,8 @@ def _include_path() -> list[str]:
 
 
 def include_folders(path) -> list[str]:
-    """node の実行の記録の path（上の _include_path の形）から、place の include の道のフォルダの並び。工場の外の見る道具が、run の記録の
-    node の path から値の記録の在り処を引くのにも使う"""
+    """node の実行の記録の path（上の _include_path の形）から、place の include の道のフォルダの並び。run の記録の
+    node の path から値の記録の在り処を引く工場の外の物は今は無い（読み手だった見る道具のページは持ち主の決め run-trace-otlp の 6 で捨てた）"""
     steps = path.split(".") if isinstance(path, str) else []
     return [part for step in steps for part in step.split("__")[:-1] if part]
 

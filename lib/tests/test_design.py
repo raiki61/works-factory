@@ -55,5 +55,42 @@ class PathCase(unittest.TestCase):
         self.assertEqual(len(design.claims_given(["地図が渡されていない"], [{"kind": "repo_map", "what": "ARCHITECTURE.md:1-3"}])), 1)
 
 
+class MeansDriftQuoteCase(unittest.TestCase):
+    """事前審査の means_drifts の引用の照らし（計画 means-answers の 3.2 の 5）: design_quote は独立設計の文に、plan_quote は項目 item の
+    案の行に字のまま要る。同じ食い違いを穴にも書いた行と、設計の立たない run の行は誤り"""
+    PLAN = [{"approach": "分母を len(xs) にして stats.py の中で直す"}, {"approach": "clamp の上限の枝を hi に直す"}]
+    DESIGN = {"question_stands": True, "reason": "", "design": "平均は集計の層の助け手に置き、stats.py は呼ぶだけにする"}
+
+    def setUp(self):
+        import json
+        import tempfile
+        self._tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+        self.dir = pathlib.Path(self._tmp.name)
+        (self.dir / design.DESIGN_FILE).write_text(json.dumps(self.DESIGN, ensure_ascii=False), encoding="utf-8")
+
+    def gaps(self, drift, faces=()):
+        return design.means_drift_gaps(self.dir, {"type": "object"}, [drift], self.PLAN, faces)
+
+    def drift(self, **kw):
+        return {"item": 1, "means": "M1", "design_quote": "平均は集計の層の助け手に置き", "plan_quote": "stats.py の中で直す",
+                "why": "独立設計は別の層に置く", **kw}
+
+    def test_good_row(self):
+        self.assertEqual(self.gaps(self.drift()), [])
+
+    def test_quotes_must_be_in_their_texts(self):
+        self.assertTrue(any("design_quote" in g for g in self.gaps(self.drift(design_quote="設計に無い字"))))
+        self.assertTrue(any("plan_quote" in g for g in self.gaps(self.drift(item=2))), "plan_quote は項目 item の字から引く")
+
+    def test_same_drift_in_a_face_is_refused(self):
+        face = {"key": "f1", "why": f"{design.DRIFT_HEAD}「stats.py の中で直す」と「平均は集計の層の助け手に置き」が食い違う"}
+        self.assertTrue(any("どちらか 1 つ" in g for g in self.gaps(self.drift(), [face])))
+
+    def test_no_design_refuses_the_row(self):
+        (self.dir / design.DESIGN_FILE).unlink()
+        self.assertTrue(any("独立設計が無い" in g for g in self.gaps(self.drift())))
+
+
 if __name__ == "__main__":
     unittest.main()

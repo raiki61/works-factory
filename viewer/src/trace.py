@@ -1,7 +1,7 @@
 """run の記録（Archon の記録の読み src/runread.py と会話の記録の読み src/session.py と段の集計 src/stages.py）から、OpenTelemetry の
 トレース 1 本の span の木を組む（docs/design/viewer.md の 8 章）。字と数だけの dict の列を返し、網には出ない（送るのは src/otlp.py）。
 
-- build(data) -> {"trace_id", "spans", "unread"}。data は flowview.read と同じ形（run に sessions、stages.attach の後なら出来事に段の
+- build(data) -> {"trace_id", "spans", "unread"}。data は runtrace.py の read の形（run に sessions、stages.attach の後なら出来事に段の
   番号 stage、texts に字の番号 → 字）。span は {id, parent, name, start, end, attributes}。時刻は記録の字のまま（ログの書き方の UTC）。
   属性は Phoenix が読む OpenInference の名（openinference.span.kind・llm.*・input.value・output.value・tool.name・session.id）と、工場の
   物の works_factory.* の名。unread は run と会話と下請けの読めなかった物に、組みで結べなかった物を足した数え

@@ -88,6 +88,7 @@ def item_schema(b) -> dict:
                            "resolved": {"type": "array", "items": {"type": "string"}},
                            converge.DESIGN_MAP: copy.deepcopy(converge.DESIGN_MAP_SCHEMA),
                            converge.ORIGINS: copy.deepcopy(converge.ORIGIN_SCHEMA),
+                           **{name: copy.deepcopy(files.node_schema("review")["properties"][name]) for name in take.MEANS_ROWS},
                            "precedents": {"type": "array", "items": {
                                "type": "object", "additionalProperties": False, "required": ["id", "found", "quote"],
                                "properties": {"id": {"type": "string"}, "found": {"type": "boolean"},
@@ -259,6 +260,13 @@ def item_answer_gaps(b, n: int, got: dict, rip: dict) -> list[str]:
                                                                           take.kept_keys(b, [n]))]
 
 
+def _means_item_gaps(n: int, got: dict) -> list:
+    """項目 n の下請けの means_drifts・means_departs の行は、その項目の番号だけを持つ（ほかの項目の行は拒む。中身の照らしは
+    受け付けが合わせた返答に当てる take.means_gaps）"""
+    return [f"$.{name}[{j}].item: {n} でない（{r.get('item')!r}。項目の下請けは自分の項目の行だけを書く）"
+            for name in take.MEANS_ROWS for j, r in enumerate(got.get(name) or []) if isinstance(r, dict) and r.get("item") != n]
+
+
 def check_item(b, n: int, rip: dict, pre: list | None = None) -> tuple:
     """(通った答え | None, 誤りの行, ファイルが無いか, 捨てた余りの行 _surplus)。通った答えは余りの行を取り除いた写し。
     pre は先行例の出典の開き手を決める開いた項目の並び（precedent_plan）"""
@@ -275,7 +283,7 @@ def check_item(b, n: int, rip: dict, pre: list | None = None) -> tuple:
         got = {**got, "hits": [h for h in got["hits"] if h.get("id") not in dropped["hits"]],
                **({"precedents": [r for r in got["precedents"] if r.get("id") not in dropped["precedents"]]}
                   if "precedents" in got else {})}
-        errs = item_answer_gaps(b, n, got, rip) + _precedent_gaps(rows, n, got)
+        errs = item_answer_gaps(b, n, got, rip) + _precedent_gaps(rows, n, got) + _means_item_gaps(n, got)
     return (None if errs else got), errs, False, dropped
 
 
@@ -345,7 +353,8 @@ def tree_merge(b, bare: dict, tree: dict, resolved: list) -> dict:
     now = {f["key"] for f in faces}
     # suggest は resolved に入っても後の往復の返答に残す（修正の段へ。答えと照らしは converge.owed_faces が除く）
     faces += [f for f in converge.carried_notes(b) if f.get("key") not in now]
-    review = {**bare, "faces": faces, "shrink": [x for n in opened for x in answers[n]["shrink"]]}
+    review = {**bare, "faces": faces, "shrink": [x for n in opened for x in answers[n]["shrink"]],
+              **{name: [r for n in opened for r in answers[n].get(name) or []] for name in take.MEANS_ROWS}}
     if not faces and not review.get("faces_none"):
         review["faces_none"] = " / ".join(f"項目 {n}: {answers[n]['checked']}" for n in opened)
     names = {n: pathlib.PurePath(files.ITEM_ANSWER.format(n=n)).name for n in opened}
@@ -472,7 +481,9 @@ def write_tree(place, b, intake: dict, material_path, n: int, repo=None) -> tupl
             done.append(f"- {converge.ITEM_CITE.format(n=m)}: {path}")
             continue
         retry = retry or not missing
-        path.write_text(_item_material(b, m, rows[m - 1], doc, pre.get(m) or [], errs), encoding="utf-8")
+        means = material.means_section(b, intake)   # 頼みの解き方の節は全部の項目で同じ字（下請けが自分の項目の答えを見る）
+        path.write_text(_item_material(b, m, rows[m - 1], doc, pre.get(m) or [], errs) + (f"\n{means}\n" if means else ""),
+                        encoding="utf-8")
         todo.append(f"- {converge.ITEM_CITE.format(n=m)}: {path}")
     passes = converge.read(b)["passes"]
     last = {it["n"]: it for it in (passes[-1].get("items") or [])} if passes else {}

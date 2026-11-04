@@ -207,7 +207,7 @@ class SharedCase(Base):
 
 
 def replayed(place, node_id: str, n: int, pack=kit.BLOCKS, shared_root=None) -> dict:
-    """place の <node>-viewer-values-<n>.json の値と段落の選びで、見る道具と同じ口 prompt.compose（pack の中の block と、共通の断片の根
+    """place の <node>-viewer-values-<n>.json の値と段落の選びで、値の記録から組み直す口 prompt.compose（pack の中の block と、共通の断片の根
     shared_root を受ける）で指示を組み直し、組んだ物と place の <node>-<key>-<n>.md の字の組を返す"""
     kept = json.loads((place / f"{node_id}-viewer-values-{n}.json").read_text(encoding="utf-8"))
     block = pack / kept["block"]
@@ -220,7 +220,7 @@ def replayed(place, node_id: str, n: int, pack=kit.BLOCKS, shared_root=None) -> 
 
 class ViewerValuesCase(Base):
     def test_emit_keeps_values_that_rebuild_the_same_prompt(self):
-        """emit は組んだ指示の隣に <node>-viewer-values-<n>.json（工場の外の見る道具のための値と段落の選び）を書き、
+        """emit は組んだ指示の隣に <node>-viewer-values-<n>.json（値と段落の選び。今は読む物は無い）を書き、
         その値と when で組み直すと、place の指示と system が字のまま同じになる"""
         self.md("Hello {name}, {count} items.\n<!-- if web -->\nOn {name}\n<!-- end web -->\n{{literal}}\n")
         (self.block / "prompts" / "role.system.md").write_text("You are {name}.\n", encoding="utf-8")

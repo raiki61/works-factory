@@ -293,6 +293,16 @@
           },
           "capped": {
             "type": "boolean"
+          },
+          "means_drifts": {
+            "type": "array",
+            "description": "この往復で受けた頼みの解き方の食い違いの行（計画 means-answers の 3.2 の 6。鍵 (item, means, plan_quote) で後勝ちに積む）",
+            "items": {"type": "object", "properties": {"item": {"type": "integer"}, "means": {"type": "string"}, "design_quote": {"type": "string"}, "plan_quote": {"type": "string"}, "why": {"type": "string"}, "recommend": {"type": "object", "properties": {"answer": {"type": "string"}, "note": {"type": "string"}, "why": {"type": "string"}}}}}
+          },
+          "means_departs": {
+            "type": "array",
+            "description": "この往復で受けた頼みの解き方の外れの推しの行（鍵 (item, means) で後勝ちに積む）",
+            "items": {"type": "object", "properties": {"item": {"type": "integer"}, "means": {"type": "string"}, "why": {"type": "string"}, "recommend": {"type": "object", "properties": {"answer": {"type": "string"}, "note": {"type": "string"}, "why": {"type": "string"}}}}}
           }
         }
       }

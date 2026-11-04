@@ -1,0 +1,5 @@
+{
+  "description": "依頼が示した解き方の文の配列（目的の役が目的の文から外した means）",
+  "type": "array",
+  "items": {"type": "string"}
+}

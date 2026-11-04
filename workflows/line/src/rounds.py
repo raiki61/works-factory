@@ -193,6 +193,9 @@ def _last_items(doc: dict) -> dict:
     return {it["id"]: it for it in (doc["passes"][-1].get("items") or [])} if doc["passes"] else {}
 
 
+MEANS_ROWS = ("means_drifts", "means_departs")   # 往復の行に写す事前審査の返答の頼みの解き方の欄
+
+
 def add_pass(doc: dict, review: dict, *, answers: list, resolved: list, synergy: list | None = None,
              hits: dict | None = None, origins: list | None = None, at_cap: bool = False, refs: dict | None = None,
              push=None) -> dict:
@@ -217,6 +220,10 @@ def add_pass(doc: dict, review: dict, *, answers: list, resolved: list, synergy:
            "origins": {}, "origins_claimed": [], "files": {}, "rejects": []}
     if push is not None:
         row["push"] = copy.deepcopy(push)
+    for name in MEANS_ROWS:   # 頼みの解き方の行（計画 means-answers の 3.2 の 6。事前審査が全部の往復の行を鍵で後勝ちに積んで読む）
+        got = [copy.deepcopy(r) for r in review.get(name) or [] if isinstance(r, dict)]
+        if got:
+            row[name] = got
     if doc.get("plan"):
         row["face_units"] = {f.get("key"): [str(k) for k in f.get("unit_keys") or []] for f in faces}
         row["items"] = _item_states(doc["plan"], faces, row["face_units"],

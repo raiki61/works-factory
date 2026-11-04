@@ -259,7 +259,7 @@ def run(db: Path, run_id: str) -> dict:
                 reader.read(child, prefix)
                 parents[child["id"]] = parent
                 todo.append((child["id"], prefix))
-    # DB の読みの誤りは、開いた run と読んだ子の run の物だけを数える（別の run の行を帯に入れない。待ちは開いた run だけに出す）
+    # DB の読みの誤りは、開いた run と読んだ子の run の物だけを数える（別の run の行をトレースに入れない。待ちは開いた run だけに出す）
     for what, got in ((SHAPELESS, sum(odd.get(rid, 0) for rid in (run_id, *(child["id"] for child in reader.children)))),
                       (NAMELESS, nameless.get(run_id, 0))):
         if got:
@@ -391,7 +391,7 @@ def copy(output_root: Path, run_id: str) -> Path:
     return output_root / SOURCE / RUNS_DIR / run_id / PROJECT_SCOPE / WORKFLOW_FOLDER
 
 
-# where の頭の印（ページに出す字）
+# where の頭の印（パスの run ごとに違う頭に替える字）
 PLACE_MARK = "（run の置き場）/"
 COPY_MARK = "（run の写し）/"
 
@@ -642,7 +642,7 @@ class _Reader:
             # 置き場に無いファイル（消した・書かなかった）は前から読まずに進む
             return
         except OSError:
-            # 長すぎる path・読む権限の無いファイルなど。ページを作れずに落ちず、読めなかった物に数える
+            # 長すぎる path・読む権限の無いファイルなど。読みを止めずに落ちず、読めなかった物に数える
             self._count(UNREADABLE)
 
     def restarts(self, rid: str) -> list[str]:
@@ -697,8 +697,7 @@ def _within(path: Path, base: Path) -> bool:
 
 
 def mend(text: str) -> str:
-    """片割れのサロゲート（JSON の `\\ud83d` だけの字）を置き換えた字。UTF-8 に書けず、hash もページも落ちる。会話の字（flowview の keep）と
-    ページの全体も通す"""
+    """片割れのサロゲート（JSON の `\\ud83d` だけの字）を置き換えた字。UTF-8 に書けず、hash も送りも落ちる。会話の字（runtrace.py の read の keep）を通す"""
     return LONE.sub(REPLACEMENT, text)
 
 

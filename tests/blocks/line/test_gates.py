@@ -90,6 +90,45 @@ class AskBeforeFixCase(unittest.TestCase):
         passed = self.ask(rounds(deviations=[{**dev, "why": []}]))
         self.assertEqual((passed["open"], len(passed["passes"])), (False, 1))
 
+    def means_row(self, rec=REC, item=1):
+        """plan-review の出力 deviations の頼みの解き方の行（計画 means-answers の 3.2 の 8）"""
+        mark = {"decided_by": "リポジトリの決まりが別の層に置く"}
+        if rec is not None:
+            mark["recommend"] = rec
+        return {"source": "means", "item": item, "why": [self.gm.MEANS_WHY], "mark": mark,
+                "text": f"修正案 {item} は頼みの解き方 M1「分母を直す」に従わない——リポジトリの決まりが別の層に置く"}
+
+    def test_means_row_is_asked_with_its_push(self):
+        """計画 means-answers の 3.3: source means の行は種類 means の項目になり、世界の解の尾を付けない。無人の run は役の推しで抜け、
+        推しが stop か無ければ止まる"""
+        out = self.ask(rounds(deviations=[self.means_row()]))
+        self.assertEqual(out["items"][0][0], self.gm.MEANS_KIND)
+        self.assertNotIn("世界の解:", out["asked"][0])
+        self.assertIn(self.gm.MEANS_WHY, out["asked"][0])
+        got = self.ask(rounds(deviations=[self.means_row()]), unattended=True)
+        self.assertTrue(got["go"])
+        self.assertEqual(got["pushed"]["pushed"][0]["answer"], "continue")
+        for rec in (STOP_REC, None):
+            with self.subTest(rec=rec):
+                got = self.ask(rounds(deviations=[self.means_row(rec)]), unattended=True)
+                self.assertFalse(got["go"])
+        again = self.ask(rounds(deviations=[self.means_row()]), answered=[{"decision": "continue", "asked": out["asked"]}])
+        self.assertFalse(again["open"])
+
+    def test_means_departure_is_asked_when_the_review_fell(self):
+        """事前審査が諦めた・落ちた周も、計画の {means, deviation} は推しなしの項目として出る（無人の run は止まる）"""
+        fields = [{"structure": [{"means": "M1", "deviation": "リポジトリの決まりが別の層に置くと決めている"}]}]
+        got = rounds(review_status="gave_up", review_reason="受け付けが諦めた")
+        out = self.ask(got, plan_fields=fields, means=["分母を len(xs) にする"])
+        kinds = [k for k, _ in out["items"]]
+        self.assertIn(self.gm.MEANS_KIND, kinds)
+        text = dict(out["items"])[self.gm.MEANS_KIND]
+        self.assertTrue(text.startswith("修正案 1 は頼みの解き方 M1「分母を len(xs) にする」に従わない——"), text)
+        self.assertIsNone(self.gm.push_rec(text))
+        self.assertFalse(self.ask(got, plan_fields=fields, means=["分母を len(xs) にする"], unattended=True)["go"])
+        self.assertNotIn(self.gm.MEANS_KIND, [k for k, _ in self.ask(rounds(), plan_fields=fields, means=["x"])["items"]],
+                         "事前審査が通った周は計画の欄から組まない（事前審査の deviations が持つ）")
+
     def test_route_up_rows_of_the_structure_eye_are_asked(self):
         row = {"unit_id": "u1", "route": "人に上げる", "undecided_because": "2 つの形が割れる", "chosen": "A"}
         out = self.ask(design_rows_=[row])
@@ -674,6 +713,22 @@ class ScriptCase(unittest.TestCase):
                 self.assertEqual((out["open"], out["go"]), (want, True), out)
                 self.assertEqual(any("AGENTS.md が名指す docs/deploy.adoc" in x for x in out["asked"]), want, out["asked"])
 
+    def test_ask_before_fix_reads_the_plan_fields_when_the_review_fell(self):
+        """計画 means-answers の 3.2 の 8: 事前審査が諦めた周は、材料の読み（src.asking.materials）が判定の means と往復の plan の控え
+        （plan-fields.json）を読んで before_fix に渡し、計画の {means, deviation} が推しなしの項目で出る。事前審査が通った周は読まない"""
+        record = self.put("r1/start.json", {"answers": []})
+        plan = self.put("plan-fields.json", {"round": 1, "fields": [
+            {"unit_keys": ["u1"], "allowed_paths": ["a.py"], "out_of_scope": [],
+             "structure": [{"means": "M1", "deviation": "リポジトリの決まりが別の層に置くと決めている"}]}]})
+        judge = json.dumps({"judgment": None, "answer_ties": None, "materials": None, "means": ["分母を len(xs) にする"]})
+        for status, want in (("gave_up", True), ("ok", False)):
+            with self.subTest(status=status):
+                got = rounds(review_status=status, review_reason="受け付けが諦めた", plan=json.loads(plan))
+                out = self.run.script("ask_before_fix", request=handed({}), rounds=json.dumps(got), structure="null", judge=judge,
+                                      record=record, ports=self.ports())
+                means = [a for a in out["asked"] if a.startswith("修正案 1 は頼みの解き方 M1「分母を len(xs) にする」に従わない——")]
+                self.assertEqual(len(means), 1 if want else 0, out["asked"])
+
     def test_before_fix_answer_records_the_asked_rows(self):
         """S46: 答えの asked に載せた行を付け、gates/gate-before-fix.json に書く。方針の変化を通さない答えは配る値の policy のまま"""
         record = self.put("r1/start.json", {})
@@ -706,7 +761,10 @@ class ScriptCase(unittest.TestCase):
         return {"ok": True, "status": "ok", "reason": "", "plan": json.loads(new), "fix_plan": None, "ripple": None, "round": 1}
 
     def review_got(self, rows, status="ok"):
-        return {"ok": status == "ok", "status": status, "reason": "", "replan": rows, "round": 1, "holes": None, "blocks": []}
+        return {"ok": status == "ok", "status": status, "reason": "", "replan": rows, "round": 1, "holes": None, "blocks": [],
+                "deviations": self.deviations}
+
+    deviations: list = []
 
     def ask_replan(self, rows, *, status="ok", unattended=False, before_fix="null", record=None):
         old, new = self.plans()
@@ -744,6 +802,46 @@ class ScriptCase(unittest.TestCase):
         self.assertTrue(self.ask_replan([row])["open"])
         passed = json.dumps({"decision": "continue", "text": "", "asked": [FACE]})
         self.assertFalse(self.ask_replan([row], before_fix=passed)["open"])
+
+    def test_means_rows_of_revised_items_are_asked_with_their_push(self):
+        """計画 means-answers の 3.3 の 5: 直した項目の頼みの解き方の行を推しの尾つきで聞き（無人の run は推しで抜ける）、直さない項目の
+        行と、修正前の承認ノードが continue で通した同じ鍵 (項目, M<n>, 向き) の行は、推しの文が書き直されていても聞かない（前に通したのが
+        同じ項目の食い違いの行なら、今の外れの行は聞く）"""
+        def dev(item, note):
+            return {"source": "means", "item": item, "why": ["頼みの解き方と独立の目の食い違い"],
+                    "text": f"修正案 {item} は頼みの解き方 M1「分母を直す」に従わない——決まりが別の層に置く",
+                    "mark": {"decided_by": "決まり", "recommend": {**REC, "note": note}}}
+        self.deviations = [dev(1, "計画のまま通す"), dev(2, "計画のまま通す")]
+        row = {"item": 1, "units": ["u1"], "contract_changed": [], "human": [], "widened": None}
+        out = self.ask_replan([row])
+        self.assertTrue(out["open"], out)
+        self.assertEqual([a[:9] for a in out["asked"]], ["修正案 1 は頼み"], out["asked"])
+        self.assertIsNotNone(__import__("gatemarks").push_rec(out["asked"][0]))
+        got = self.ask_replan([row], unattended=True)
+        self.assertTrue(got["go"], got)
+        before = json.dumps({"decision": "continue", "text": "", "asked": [out["asked"][0]]})
+        self.deviations = [dev(1, "前と違う一言で通す")]
+        self.assertFalse(self.ask_replan([row], before_fix=before)["open"])
+        drift = "修正案 1 は頼みの解き方 M1「分母を直す」に従うが、独立設計と食い違う——設計は別の層（人に聞く訳: 食い違い）"
+        got = self.ask_replan([row], before_fix=json.dumps({"decision": "continue", "text": "", "asked": [drift]}))
+        self.assertTrue(got["open"], "前に通したのが同じ項目の食い違いの行なら、今の外れの行は聞く")
+        self.assertEqual([a[:9] for a in got["asked"]], ["修正案 1 は頼み"], got["asked"])
+
+    def test_means_rows_of_revised_items_are_listed_without_push_when_the_review_fell(self):
+        """計画 means-answers の 3.3 の 5: 案の直しの事前審査が諦めた・落ちた時も、直した項目の計画の {means, deviation} を推しなしで
+        並べる（修正前の承認ノードと同じ。直さない項目の行は足さない）"""
+        old, _ = self.plans()
+        dev = {"means": "M1", "deviation": "決まりが別の層に置く"}
+        new = self.put("replan/plan-fields.json", {"round": 1, "fields": [
+            {"unit_keys": ["u1"], "allowed_paths": ["a.py"], "out_of_scope": [], "structure": [dev]},
+            {"unit_keys": ["u2"], "allowed_paths": ["c.py"], "out_of_scope": [], "structure": [dev]}]})
+        out = self.run.script("ask_replan", replan=json.dumps(self.replan_got(new)), review=json.dumps(self.review_got([], "gave_up")),
+                              old_plan=old, items=json.dumps([1]), conflicts="null", before_fix="null",
+                              record=self.put("r1/start.json", {}), means=json.dumps(["分母を直す"]), ports=self.ports())
+        means = [a for a in out["asked"] if a.startswith("修正案")]
+        self.assertEqual(len(means), 1, out["asked"])
+        self.assertTrue(means[0].startswith("修正案 1 は頼みの解き方 M1「分母を直す」に従わない——"), means)
+        self.assertIsNone(__import__("gatemarks").push_rec(means[0]))
 
     def test_replan_answer_carries_the_conditions_in_order(self):
         before = {"decision": "continue", "text": "a.py だけ", "asked": [NARROW]}
@@ -792,7 +890,7 @@ class ScriptCase(unittest.TestCase):
     def test_scripts_do_not_fall_on_null_inputs(self):
         """どの script も with: の全部が null でも落ちず、止めの語 works:line-script の返りにする（L-G52・L-W63）"""
         names = {"ask_before_fix": ("rounds", "structure", "judge", "record", "ports", "request"),
-                 "ask_replan": ("replan", "review", "old_plan", "items", "conflicts", "before_fix", "ports"),
+                 "ask_replan": ("replan", "review", "old_plan", "items", "conflicts", "before_fix", "ports", "means"),
                  "ask_final": ("fix_in", "fixed", "judged", "tests", "eyes", "seal", "spec_check", "parallel_after", "replan_review",
                                "replan_answer", "widened", "start_answer", "record", "final_gate", "ports", "request")}
         for name, keys in names.items():
