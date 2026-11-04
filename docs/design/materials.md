@@ -35,7 +35,7 @@
 
 観点ごとに要る物だけを足す（例: prior-decisions は `request`、purpose-review と external-standards は `purpose`、gate-efficacy は `gates`）。足す入力の名と形は各観点の設計書が決める。同じ意味の入力は同じ名と同じ形にする:
 
-- `request`: `json(request.schema.json): 依頼の行の配列 [{where, text, mechanism?, measured?, false_positive_if?}]。それを findings の欄に持つオブジェクトでもよい（工場の依頼のファイルの形）。空の配列は依頼の行が無い`。既定 `[]`。schema は workflows/world/schemas の `request.schema.json` を字のまま写す。
+- `request`: `json(shared:request.schema.json): 依頼の行の配列 [{where, text, mechanism?, measured?, false_positive_if?}]。それを findings の欄に持つオブジェクトでもよい（工場の依頼のファイルの形）。空の配列は依頼の行が無い`。既定 `[]`。形は共通の `workflows/.shared/schemas/request.schema.json` を使う。
 - `purpose`: `json(shared:purpose.schema.json): 固めた目的 {purpose_text, source, known_weaknesses, source_files}。null は目的の文がこの run に無い`。既定 `null`。
 
 出力（`returns: finish`、`outcome_field: ok`）。どの観点も同じ 5 欄:
