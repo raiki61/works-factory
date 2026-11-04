@@ -1,7 +1,7 @@
 """place のファイルの名（docs/design/fix.md の 1.4）。
 
 名は、ここと、lib から写したモジュール（src/tdd.py・src/consult.py・src/clash.py・src/ruling.py など。写しは元の定数を字のまま
-持つ）だけが持つ。今の lib/fixnames.py・lib/fixbeside.py の名と、lib/fixboard.py の置き場の名の定数（1.5.3）はここに寄せた。
+持つ）だけが持つ。元の fixnames・元の fixbeside の名と、lib/fixboard.py の置き場の名の定数（1.5.3）はここに寄せた。
 lib/ のモジュールは import しない（返す node が lib を読めない時も名を引けるように）。
 """
 from __future__ import annotations
@@ -33,7 +33,7 @@ NOTES_FILE = "human-notes.md"          # 修正前の関所の一言と答えで
 BASE_REV_FILE = "base-rev.json"        # 修正前の版 {rev}（prep が親の作業ツリーの HEAD の sha を控え、組の子が写す）
 FIX_REPLY_FILE = "fix-reply.json"      # 組ごとの修正役の返答をまとめた物（出力 reply）
 
-# 今の lib/fixnames.py の名（出力の欄の先）
+# 元の fixnames の名（出力の欄の先）
 ALLOWED_TESTS_FILE = "allowed-tests.json"   # 許したテストの変更の訳 [{path, permit, source}]（出力 allowed_tests）
 ACCEPT_TRACE_FILE = "accept-trace.json"     # 受け付けが選んだ試験を走らせた回の行の並び（出力 accept_trace）
 WRITER_REPORT_FILE = "writer-report.json"   # 型の block の書き手の報告の行 [{weapon, line}]（受け付けが積む。出力 report が読む）

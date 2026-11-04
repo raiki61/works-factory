@@ -1,7 +1,7 @@
 """報告の定型（P1 計画 Task 27・〔線A計〕T15。仕様 6 節・裁定 TA12・TA15）。AI は書かない。文は機械の定型だけ。
 
-元は works/.shared/core/report.py。盤面（b）を読んだ関数は、ブロックの返りを引数で受ける形で lib/outcome（結末の語の決め方）と
-lib/runreport（機械の報告・次の依頼・前の失敗・費用）に移した。ここに残るのは両方と報告のブロック、差分の審査の受け付け（lib/refix）が
+元は works/.shared/core/report.py。盤面（b）を読んだ関数は、ブロックの返りを引数で受ける形で元の outcome（結末の語の決め方）と
+元の runreport（機械の報告・次の依頼・前の失敗・費用）に移した。ここに残るのは両方と報告のブロック、差分の審査の受け付け（元の refix）が
 読む語と小さな組み立て:
 - OUTCOMES・OUTCOME_WORDS: 結末の語（報告のブロックの返す節の enum と同じ 10 語）と、冒頭 3 行の 1 行目の平易な言い方
 - OUTCOME_KINDS: 結末の語 → 周の鎖（lib/chain.py）が見る種
@@ -13,7 +13,7 @@ lib/runreport（機械の報告・次の依頼・前の失敗・費用）に移�
 - CMD_LIGHT: 単位の出口の test_cmd の軽量の語（fix が書き line が数える）
 - INNER_WORDS・INNER_WORD・INNER_WORDS_HEAD: 直しが対象に書く文に混じってはいけない works の内側の語の表と見出し
 - inner_word_hits(diff_text, known)・target_uses(repo, rev, word)・INNER_FACE_KIND: 差分の足した行への表の照らし（読み手は
-  lib/runreport の報告の一覧と lib/refix の差分の審査の受け付け）と、対象が直す前の版で既に使う語か、機械の穴の kind の語
+  元の runreport の報告の一覧と元の refix の差分の審査の受け付け）と、対象が直す前の版で既に使う語か、機械の穴の kind の語
 
 書き手のモジュール（ライン・ブロック）を import せずに名前で読む（層 L3 は上の層を import しない。裁定 R59）。
 """
@@ -72,8 +72,8 @@ INTERRUPTED_HEAD = "run が途中で終わった"
 RETRIED_HEAD = "前の試みで落ち、続きで済んだノード"
 ABSORBED_HEAD = "落ちたが、メイングラフが宣言のとおり受け止めたノード"
 REJUDGE_WHERE = "判定（再審の結果）"           # 次の run の依頼の再審の結果の行の where
-# 直しが対象に書く文に混じってはいけない works の内側の語と run の中の事情の言い方（修正役の共通の決まり
-# workflows/fix/commands/fix-rules/common.md の「対象に書く文」。利用者の run 8cb2ee00 の差分が Terraform のコメントに「この単位」
+# 直しが対象に書く文に混じってはいけない works の内側の語と run の中の事情の言い方（書く役の共通の決まり
+# workflows/.shared/prompts/writer-rules.md の対象に書く文の決まり。利用者の run 8cb2ee00 の差分が Terraform のコメントに「この単位」
 # 「作業ツリー」を書いた）。報告では拒まず並べ、差分の審査では手直しの義務の穴になる
 INNER_WORDS = ("この単位", "単位の key", "作業ツリー", "共有ボード", "盤面", "この周", "この run", "判定役", "修正役", "独立の目",
                "承認ノード", "関所", "世界の解", "定石")

@@ -1,4 +1,4 @@
-"""固定材料（元 lib/fixture.py。その元 works/.shared/core/fixture.py。docs/design/line.md の 1.5 の MOVE）: 修正の前の run の置き場を写し、次の run が同じ所（判定・承認済みの修正案が済み、
+"""固定材料（元の fixture。その元 works/.shared/core/fixture.py。docs/design/line.md の 1.5 の MOVE）: 修正の前の run の置き場を写し、次の run が同じ所（判定・承認済みの修正案が済み、
 修正を待つ所）から始める。同じ依頼を同じ起点から回し直し、修正の段だけを比べるのに使う。修正前の承認ノードで人の判断待ちに止まった
 run の写し（運ぶ値に GATE_KEY）は、次の run が判定と計画を飛ばして修正前の承認ノードから続けるのに使う（docs/design/line.md の 4.1）。lib からは oneline だけを、line の src からは startrec を import する。
 

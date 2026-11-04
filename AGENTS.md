@@ -52,6 +52,7 @@ works-factory は、修正依頼を受けて確かめ済みの変更と報告を
 | E23 | `workflows/AGENTS.md` |
 | E24 | `tests/AGENTS.md` |
 | E25 | `viewer/AGENTS.md` |
+| E26 | `AGENTS.md` |
 
 ## リポジトリの形
 
@@ -161,3 +162,10 @@ works-factory/
 - block どうしは互いに頼らない（憲法の 3）。block の `src/` を import してよいのは同じ block の `scripts/`・`src/` と、その block の試験だけ（`lib/` とほかの block は読まない）。
 - 見る道具 `viewer/` は、殻と pack の共通の部品と `lib/` に頼ってよく、どの層からも頼られない（`viewer/AGENTS.md` の E25）。
 - 機械: `tests/layers/test_lib_blind.py`（lib の向き）・`tests/layers/test_block_shape.py`（ほかの block のフォルダへのパス）・`tests/layers/test_viewer_apart.py`（見る道具へ頼らない向き）。`workflows/` から `bin/` への import と、見る道具が地図の `may_use` の外（block と graph の中の物）を import しないことは人が見る。
+
+## E26 書いたパスは在る物を指す
+
+元の works の決まりの E26（`docs/design/r1.md`・`tests/e2e/evidence.json` が引く物）とは別。
+
+- 工場の中の字（`bin/`・`lib/`〔試験の `lib/tests/` と借りた写しの `lib/borrow/` を除く〕・`workflows/`・`viewer/` と、どの階層の `AGENTS.md`）に書く、根の直下のフォルダの名（`.` で始まるフォルダは数えない）で始まるパスは、今の木に在る物を指す。消えた物を語る時は、パスでなく名で書く（どこに在ったかは git の履歴が持つ）。わざと無いパスを書く例（対象のリポジトリの例・fixture の偽の対象のパス）は、根の直下のフォルダの名で始まらない形に書く。
+- 機械: `tests/layers/test_paths_exist.py`。`docs/` と試験の中のパスは人が見る。

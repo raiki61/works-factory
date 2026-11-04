@@ -1,4 +1,4 @@
-"""範囲の相談の機械（blk-fix。持ち主 2026-10-06・2026-10-07。設計 docs/plans/2026-10-06-ask-planner.md）。
+"""範囲の相談の機械（blk-fix。持ち主 2026-10-06・2026-10-07）。
 
 修正役（1 回目の fix と裁定の後の fix-ruled）は、承認済みの修正案の項目の範囲（allowed_paths）の外のファイルや、凍ったテストの
 書き換えが要る時、返答の任意の欄 consult（型の正本は修正役の節の output_format &fix_reply の consult。項目ごとに 1 件）に頼みを

@@ -1,4 +1,4 @@
-"""事前審査の block の、盤面の無い見え方と書き先（docs/design/plan-review.md の 1.5。lib/boardview.py:153-303 の見え方の部分の写し）。
+"""事前審査の block の、盤面の無い見え方と書き先（docs/design/plan-review.md の 1.5。元の boardview の見え方の部分の写し）。
 
 今の事前審査の部品（lib の converge・planmarks・design・gatemarks・policy と、この block の src/ に写した planblk の部分）は、盤面 b を
 引数に取る形のまま在る。この block は盤面を持たないので、place（ports.place()）の上で今の盤面と同じ形の読むだけの見え方（view）と

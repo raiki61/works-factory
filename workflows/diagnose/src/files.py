@@ -1,6 +1,6 @@
 """診断の block の place のファイルの名と語（docs/design/diagnose.md の 1.4・1.5）。名はこのモジュールだけが持つ。
 
-控え（rejects-*・query-examples・out-of-purpose・answer-ties）の名の元は lib/rolekit.py と lib/marks.py で、ここは消す時のために名を写して
+控え（rejects-*・query-examples・out-of-purpose・answer-ties）の名の元は lib/rolekit.py と元の marks で、ここは消す時のために名を写して
 並べる（tests/blocks/diagnose/test_files.py が lib の名と突き合わせる）。
 """
 from __future__ import annotations
@@ -21,7 +21,7 @@ REJUDGE_ROLE = "rejudge"
 REJUDGE_REQUIRED = ("verdict", "new_facts", "units")
 REJUDGE_NODE = "p2.rejudge"         # units-before.json と差の行の node に書く今の字
 GUARDED = True                      # 受け付けが作業ツリーの写しと比べる欄（accept.status_keys の引数。役は読むだけ）
-HYPOTHESIS = "仮説"                 # 前提の実測の kind の語（lib/runreport.py の HYPOTHESIS と同じ字。作り直しの間はここに置く）
+HYPOTHESIS = "仮説"                 # 前提の実測の kind の語（元の runreport の HYPOTHESIS と同じ字。作り直しの間はここに置く）
 JUDGE, REJUDGE = "judge", "rejudge"  # intake の mode の語
 
 # ---------------------------------------------------------------- 両方の道

@@ -1,9 +1,9 @@
 """承認ノードの決め（docs/design/line.md の 2 節と 6 節。README 9.2 の MOVE）。
 
-元 lib/gatepolicy.py の全部（最後の承認ノードの開き方と無人の方針）・元 lib/gate_axes.py（4 つの軸を軸ごとにまとめる。材料は事前審査の
+元の gatepolicy の全部（最後の承認ノードの開き方と無人の方針）・元の gate_axes（4 つの軸を軸ごとにまとめる。材料は事前審査の
 返りの行に替えた）・元 lib/gatemarks.py の承認ノードの決めの部分（開くか・項目の行・通した行・無人の抜け方・row_push・_as_push・
 design_talk・request_answers・design_item・stuck_push・design_items・_continued・_item。integration.md の 4.5-4 (a)(b)）と、元
-lib/boardview.py の方針の文書の変化（policy_change・change_row）と replan_asks の「聞くか」の決め。
+元の boardview の方針の文書の変化（policy_change・change_row）と replan_asks の「聞くか」の決め。
 問いの行の形（ASKING・asks_human・ask_text・推しの尾の字の形 push_rec・_push・recommend_of・decided・gate_text・head3・pass_lines）
 と問いの台帳の値の見え方（ledger・ledger_files・answered）は KEEP の lib/gatemarks.py を引く（README 9.3）。
 
@@ -39,7 +39,7 @@ import stopby
 import structmark
 
 
-# ---------------------------------------------------------------- 元 lib/gatepolicy.py
+# ---------------------------------------------------------------- 元の gatepolicy
 FINAL_KEY = "final_gate"
 UNATTENDED_KEY = "unattended"
 FINAL_GATES = ("always", "when_needed", "protected_only")
@@ -250,7 +250,7 @@ def design_item(*, design: bool, reason: str, tail: str = "") -> str:
     return gatemarks.DESIGN_ONLY_ITEM if design else ""
 
 
-# ---------------------------------------------------------------- 4 つの軸（元 lib/gate_axes.py）
+# ---------------------------------------------------------------- 4 つの軸（元の gate_axes）
 AXES = gatemarks.AXES
 AXIS_WORDS = {"obvious": "自明", "world": "世界の解", "clean": "汚くない", "not_overkill": "やりすぎでない"}
 
@@ -279,7 +279,7 @@ def gather(asks: list, deviations: list, design: list) -> dict:
     return {axis: _note(rows) for axis, rows in notes.items()}
 
 
-# ---------------------------------------------------------------- 方針の文書の変化（元 lib/boardview.py の policy_change・change_row）
+# ---------------------------------------------------------------- 方針の文書の変化（元の boardview の policy_change・change_row）
 DIFF_MISSING = "固めた版の写しが無いので差分を作っていない"
 
 
@@ -318,7 +318,7 @@ def change_row(ch: dict) -> str:
 
 
 # ---------------------------------------------------------------- 修正前の承認ノード（docs/design/line.md の 2 節の 2）
-GIVEN_UP_FACES = "事前審査の受け付けが諦めた: "   # 元 lib/boardview.py の GIVEN_UP_FACES（諦めた往復の訳を関所の項目に載せた）
+GIVEN_UP_FACES = "事前審査の受け付けが諦めた: "   # 元の boardview の GIVEN_UP_FACES（諦めた往復の訳を関所の項目に載せた）
 REVIEW_FAILED = "事前審査が落ちた（案を審査できていない）: "
 REVIEW_FELL = {"gave_up": GIVEN_UP_FACES, "failed": REVIEW_FAILED}
 

@@ -1,4 +1,4 @@
-"""measure の node の中身（docs/design/structure.md の 3 節。lib/structfile.py の measure と lib/eye.py の view・due の写しを mode で 2 つに分けた物）。
+"""measure の node の中身（docs/design/structure.md の 3 節。元の structfile の measure と lib/eye.py の view・due の写しを mode で 2 つに分けた物）。
 
 port を読み、place のこの block のファイルを消して（名を持つ物だけ）、書いた意図を探し、before なら段 A の実測、after なら段 B の実測を書いて、
 構造の目に見せる JSON（view.json）を組む。中の誤りは structure.json（before）か structure-after.json（after）の status: failed と reason に

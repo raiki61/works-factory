@@ -1,5 +1,5 @@
 """出口（finish）: 往復の控えから status・holes.json・delta.diff・次の run の依頼の行 carry・報告の行 report を組む
-（docs/design/delta-review.md の 6 節の 9。写す元は lib/fixboard.py の delta_review と lib/fixbeside.py の _ties・branch_rows・next_items・
+（docs/design/delta-review.md の 6 節の 9。写す元は lib/fixboard.py の delta_review と元の fixbeside の _ties・branch_rows・next_items・
 always_rows のレンズの行）。どの段が落ちていても落ちない（呼び手の ports.run が fallback を返す）。
 """
 import pathlib

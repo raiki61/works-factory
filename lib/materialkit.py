@@ -2,8 +2,8 @@
 
 判定の前に集める素材の観点 11 本の block（workflows/<観点>/）が共に使う。観点の block は src/viewpoint.py の宣言（名・素材の名・回す
 条件・『条件に当たらない』の扱い・指示の値・返答から素材への写し・観点だけの受け付け）だけを持ち、対象差分の取り方・作業ツリーの写しと
-照らし・所見の場所の照らし・素材の欄の照らし・受け付けの流れ・出口はここに置く。中身は lib/judge_accept.py の material_* の写しで
-（各関数の docstring に写す元）、置き場は呼び手が渡す place のフォルダだけ。lib/judge_accept.py は import しない。
+照らし・所見の場所の照らし・素材の欄の照らし・受け付けの流れ・出口はここに置く。中身は元の judge_accept の material_* の写しで
+（各関数の docstring に写す元）、置き場は呼び手が渡す place のフォルダだけ。元の judge_accept は import しない。
 
 公開の名:
 - 定数: INTAKE・VIEW・DIFF・CHANGED・TREE・ACCEPTED・MATERIAL（place のファイルの名）・STATUSES・OK_STATUSES・
@@ -57,7 +57,7 @@ OK_STATUSES = ("ran", "skipped")
 NA_MODES = ("never", "cond_true", "cond_false", "judged")
 REVIEW_MD = "REVIEW.md"
 
-# 写す元 lib/judge_accept.py の Rule・STATUS（元 works/.shared/core/scripts/review-record.py:140。表の字は元のまま）
+# 写す元の judge_accept の Rule・STATUS（元 works/.shared/core/scripts/review-record.py:140。表の字は元のまま）
 Rule = collections.namedtuple("Rule", "fields blocks carryable observed")
 STATUS = {name: Rule(*args) for name, args in {
     "found": (("count", "detail"), False, True, True),
@@ -70,7 +70,7 @@ STATUS = {name: Rule(*args) for name, args in {
 SILENT_STATUS = tuple(k for k, r in STATUS.items() if not r.observed and not r.blocks)
 UNMEASURED = tuple(k for k, r in STATUS.items() if r.blocks)   # 今の周に測れていない状態（阻害になる物。gatemarks の写しの代わり。integration.md 4.2-5）
 OBSERVED_STATUS = tuple(k for k, r in STATUS.items() if r.observed)
-# 写す元 lib/judge_accept.py の MATERIALS（元 review-record.py:107）
+# 写す元の judge_accept の MATERIALS（元 review-record.py:107）
 MATERIALS = (
     "base_determination",  # BASE をどの規則で決めたか（P0-1）
     "local_checks",  # CI のテスト・lint のローカル実行（P0-2）
@@ -113,7 +113,7 @@ def _write(path, doc) -> pathlib.Path:
 def review_md_paths(repo, own_file) -> tuple:
     """写す元 judge_accept.review_md_paths（元 rules:35）。(工場の観点の正本 own_file の絶対パス, 対象の根の REVIEW.md の絶対パスか "")。
     工場の正本は workflows/.shared/prompts/REVIEW.md で、lib は block の置き場を名指せないので呼び手の block がパスを渡す
-    （README 9.3。前は lib/REVIEW.md を lib の中から引いた）。対象の根の REVIEW.md は在る時だけ"""
+    （docs/design/README.md の 9.3）。対象の根の REVIEW.md は在る時だけ"""
     own = pathlib.Path(own_file).resolve()
     theirs = pathlib.Path(repo).resolve() / REVIEW_MD
     return str(own), (str(theirs) if theirs.is_file() else "")

@@ -2,7 +2,7 @@
 
 ゲートの定義のファイル（テスト・CI・pre-commit・フック・lint・試験の設定・変異の腕の一覧の宣言など）と、assert を足す・消す行。
 印が 1 つも無い差分でだけ、役の『条件に当たらない』を受ける（viewpoint.judged_na）。機械には差分の分岐がゲートかを決められないので、
-印が在れば役に測らせる側に倒す。元 lib/judge_accept.py の gate_signals と GATE_FILE_PATTERNS（元 works/.shared/core/entry.py）。
+印が在れば役に測らせる側に倒す。元の judge_accept の gate_signals と GATE_FILE_PATTERNS（元 works/.shared/core/entry.py）。
 """
 import re
 

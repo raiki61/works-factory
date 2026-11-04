@@ -107,7 +107,7 @@ def safe_name(instance_id):
 
 # 役が指した文書を engine が読む上限（バイト）。読了の突合の sha・修正側の引用の数え・数える問いの子の出力が同じ値を
 # 使う（別名で 2 つ持っていた頃は、片方だけ動かすと上限が黙ってずれた）。これを超える物は測らずに倒す。**値の根拠**:
-# 追跡下で最大のテキスト（リポジトリ直下の tests/run.sh。`git ls-files -z | xargs -0 wc -c | sort -n | tail` で引ける）
+# 追跡下で最大のテキスト（元の graphloops のリポジトリでは試験の run.sh。`git ls-files -z | xargs -0 wc -c | sort -n | tail` で引ける）
 # の 1 桁上に置き、普通の文書では効かず、誤って巨大な生成物を指した回だけ止める。
 # **hooks/record-read.py に同じ値の写しが在る**（フックは engine を import しないため）
 READ_CAP = 4_000_000
