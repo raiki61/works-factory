@@ -97,7 +97,7 @@ works-factory 自身の木に地図と表の全部を当てる試験は置かな
 
 - 状態: 住処あり
 - 住処: `workflows/.shared/prompt.py`（AI のノードの指示を、そのノードの md `prompts/<node-id>.md` に値を入れて組む口 `render`・`compose`・`emit`・`render_part`・`render_shared`）。セクションの見出しの字は指示の md が持ち、Python は見出しの宣言の型を持たない（憲法の 2）
-- 約束: 指示の md の差し込み口 `{name}`・`{shared:<name>}`・`{part:<name>}` と、段落の選び `<!-- if <name> -->`（書き方は住処の docstring）
+- 約束: 指示の md の値を入れる口 `{name}`・`{shared:<name>}`・`{part:<name>}` と、段落の選び `<!-- if <name> -->`（書き方は住処の docstring）
 - 知ってよい所: 住処だけ。柵は、見出しの宣言の型（`Section`・`Receive`）と宣言を並べる口（`declared_sections`）の定義が Python に出ないことを見る
 - 今: 外の当たりは 0 件
 
@@ -146,14 +146,14 @@ works-factory 自身の木に地図と表の全部を当てる試験は置かな
 - 状態: 住処あり
 - 住処: `workflows/fix/src/lanes.py`（組の分け方 `groups`（タグを共にする物どうしの組。つながりは推移的。引数 `after` の依存の対 (前, 後) も同じ組に繋ぎ、組の中を前から後へ並べる）・当てた結末 `Merge`・組を順に当てる `merge_in_order`）
 - 約束: 住処の口の形（`groups(rows, after=())` の返す並びと、`rows` の外の端を持つ `after` の対は捨てる約束（項目の依存から組の対を引くのは `lib/planmarks.py` の `depends_pairs`）・`Merge` の欄 `why`・`patch`・`names`・`unioned`・`clash`・`merge_in_order` に渡す `merge_one(lane, earlier)`）。何を 1 つの組に当てるか（子の差分を 3 方向で当てる `lib/unittrees.py` の `apply`）は呼び手が渡す
-- 知ってよい所: 住処だけ。呼び手（組を作り子の差分を当てる `workflows/fix/src/board.py` と、締めの節 `workflows/fix/scripts/join.py`）は住処の口を引き、分け方・当てる順のループ・結末の語を写さない
+- 知ってよい所: 住処だけ。呼び手（組を作り子の差分を当てる `workflows/fix/src/board.py` と、締めの node `workflows/fix/scripts/join.py`）は住処の口を引き、分け方・当てる順のループ・結末の語を写さない
 - 今: 外の当たりは 0 件
 
 ### `marks` 返答の足し欄
 
 - 状態: 住処あり
 - 住処: `lib/jsonfile.py`（標準ライブラリだけ。欄の道 `EACH` と道を辿る口 `rows`（欄を持つ行）・`split`（受け付けが共有ボードへ渡す前に欄を外す）と、控えの読み書き `write`・`dump`・`read_or`）
-- 約束: 欄の道（鍵の名か `EACH`）と `split` の返り（欄を外した写しと外した欄）。控えのファイルの名と欄の道は、欄を持つモジュールが自分の定数で持つ
+- 約束: 欄の道（鍵の名か `EACH`）と `split` の返す物（欄を外した写しと外した欄）。控えのファイルの名と欄の道は、欄を持つモジュールが自分の定数で持つ
 - 知ってよい所: 住処だけが欄を手で外す。欄の意味（欄の型・欠けと誤りの検査・控えの名と中身の形・読んだ後の使い方）は欄を持つモジュール（`lib/gatemarks.py`・`lib/planmarks.py`・差分の審査の `workflows/delta-review/src/verdicts.py`・`lib/converge.py`・`lib/querytest.py`・`lib/outpurpose.py`・依頼の解き方 `means` の `lib/worldmark.py`・引き継ぎのメモ `handoff` の `lib/handoff.py`）が持ち、外す手順は住処を呼ぶ
 - 今: 表の既知の漏れは、控えの名を lib の持ち主と同じ字で持ち直す block の名の表（`workflows/diagnose/src/files.py`・`workflows/plan/src/files.py`）、控えのパスを持ち主の定数で直に組む所（`workflows/fix/src/board.py`）、欄を手で外す所（修正役の欄の `lib/fixboard.py`・並行 PR の `workflows/parallel-pr/src/take.py`・手直しの `bash_writes` の `lib/writes.py`）。`workflows/verify/src/steps.py` は自分で組む裏取りの型で、同じ字の形の別の物
 
@@ -230,7 +230,7 @@ works-factory 自身の木に地図と表の全部を当てる試験は置かな
 - 今: 柵は、方針の語の字（住処の口 `gatepolicy.<名>` は数えない）と、住処の定数を別の名に写す形と、推しの尾の読み（`push_rec`・`row_push`）を gatemarks の外で呼ぶ形（推しで進むかの決めの写し）の 3 本。既知の漏れは、メイングラフの入力の宣言と始めのノードの出口の欄を後ろへ写す `workflows/line/works-factory-line.yaml` と、承認ノードの script（`workflows/line/scripts/ask_before_fix.py`・`workflows/line/scripts/ask_final.py`・`workflows/line/scripts/ask_replan.py`）が始めの記録を読まずにメイングラフの入力を写して受ける所（25 行・4 ファイル）
 - 寄せ残し: 無人の run の決めのうち、次の 2 つは住処の口の外に置く。始めの承認ノード（`workflows/line/scripts/start.py`）は無人かの読みを口 `unattended_of` で引き、無人なら開かないだけなので残しではない
   - 最後の承認ノード（`workflows/line/scripts/ask_final.py` の `ask`）の、開くはずの時に無人の run なら needs-human で止める分かれ道。開ける理由（テストが緑でない・守りのファイルを触った…）は機械が読める推しの尾を持たないので、`passage` に渡すと理由を推しの無い項目として渡す形でしか書けず、「いつも止める」を口の中の推しの読みに隠すだけで簡潔にならない。開くかの決めはもう口 `opens` に在る
-  - 判定が保留にした分かれ道の問いの推しを、無人の run が答えに採るか（`lib/gatemarks.py` の `run_push`）。無人の run で推しを採るかは呼び手が盤面の値 `takes_push` で渡すが、採る条件の残り（問いの種類と状態・推しが選択肢を名指すか・出どころと depends が開いた単位か）は問いの台帳の形の決めで、口へ移すと方針の住処が判定の問いと計画の単位の形を知る
+  - 判定が保留にした分かれ道の問いの推しを、無人の run が答えに採るか（`lib/gatemarks.py` の `run_push`）。無人の run で推しを採るかは呼び手が値 `takes_push` で渡すが、採る条件の残り（問いの種類と状態・推しが選択肢を名指すか・出どころと depends が開いた単位か）は問いの台帳の形の決めで、口へ移すと方針の住処が判定の問いと計画の単位の形を知る
 
 ### `gate-evidence` 試験の関門の証拠の文の行の頭
 
