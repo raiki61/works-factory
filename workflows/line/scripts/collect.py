@@ -50,7 +50,7 @@ GOT = {
                "rejudge_verdict rejudge_exit rejudge_diff downgrades report",
     "spec_check": "ok status stop_reason reason spec added_rows added_origin questions unchecked report",
     "test_gate_final": "mode ok green red_cause ran_steps baseline fingerprint test_outcomes evidence by suites_line log baseline_line reason suite suite_note related report",
-    "eyes": "ok r1 r2 r3 r4 questions passes premise_check notes after dirty escalate after_ok report sections",
+    "eyes": "ok r1 r2 r3 r4 questions means_questions passes premise_check notes after dirty escalate after_ok report sections",
     "merge_seal": "mode ok hash diff protected_hits protected_count reason deliver report",
     "merge_apply": "mode ok hash diff protected_hits protected_count reason deliver report",
     "theme_blind": "ok status stands design premises reason downgrades report",
