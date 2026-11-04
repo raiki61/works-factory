@@ -2,7 +2,7 @@
 
 前半 material は independent-design の block の src/premises.py の material を字のまま写した物（2 つの block が同じ物を持つ。組み込みで
 lib の 1 モジュールに寄せる。r2.md の 9 節の 3）。人が決めた前提（承認ノードの答え・依頼が名指した設計書の節・対象の地図）を、見出しと
-頼みの文を除いた形で返す。見出しと頼みの文は共通の断片 design-premises が持つ。後半は lib/eyeverdict.py の premise_section の、
+頼みの文を除いた形で返す。見出しと頼みの文は共通の断片 design-premises が持つ。後半は元の eyeverdict の premise_section の、
 独立設計の後に来た答え・前提のずれ・記録の制約・控えの組み方を、値で受ける形に写した物。
 """
 from __future__ import annotations

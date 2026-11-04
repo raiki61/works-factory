@@ -1,4 +1,4 @@
-"""目的の固定の block の中身（docs/design/purpose.md。lib/judge_accept.py の目的の部分〔refuse_if_frozen・check_purpose・
+"""目的の固定の block の中身（docs/design/purpose.md。元の judge_accept の目的の部分〔refuse_if_frozen・check_purpose・
 purpose_prep・作業ツリーの見張り〕と lib/worldmark.py の split_means を、port の値で受ける形に写した物）。
 
 依頼・PR の説明・前提の実測を port で受け、依頼から前の run の判断（prior_failures）を機械で外した写しを材料にして、目的の役に
@@ -80,7 +80,7 @@ def request_copy(doc):
 
 def constraint_rows(value) -> list:
     """port constraints の値（配列か、{constraints: [...]}）の行。実測の行の measured_output の欠けは拒まない（前の run から持ち越した行
-    〔lib/carry.carried_constraints〕は持たず、元の judge も受け付けの後に足して目的の役へ確かめずに渡した〔lib/judge_accept の with_carried〕。
+    〔lib/carry.carried_constraints〕は持たず、元の judge も受け付けの後に足して目的の役へ確かめずに渡した〔元の judge_accept の with_carried〕。
     役自身の返りの measured_output は前提の block が見る）"""
     return list(value.get("constraints") if isinstance(value, dict) else value)
 

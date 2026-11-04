@@ -95,7 +95,7 @@ def passed_before(before_fix, face: dict) -> bool:
 
 def policy_row(record: dict, folder: Path, answered: list) -> str:
     """方針の文書が始めの記録の固めた版から変わっていれば、その行（src.gates.change_row）。今の案の直しの承認ノードも、事前審査の
-    _asked が方針の変化の行を足して開いた（元 lib/boardview.py の collect）。人が前に continue で通した同じ文の行は聞き直さない
+    _asked が方針の変化の行を足して開いた（元の boardview の collect）。人が前に continue で通した同じ文の行は聞き直さない
     （修正前の承認ノードの答えか、この承認ノードの前の答え。ほかの行と同じ決まり）。修正前に通して固め直した run は、始めの記録の
     方針が今の版なので行が出ない"""
     from src import gates

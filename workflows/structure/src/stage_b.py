@@ -1,4 +1,4 @@
-"""直した後の実測（段 B。docs/design/structure.md の 1.5・3 節。lib/stage_b.py の写し）。直す前の版 base と対象の根 root の今の作業ツリーの
+"""直した後の実測（段 B。docs/design/structure.md の 1.5・3 節。元の stage_b の写し）。直す前の版 base と対象の根 root の今の作業ツリーの
 差分を、lib/measure.py の差分の形（--diff。コマンドとして起こす）と、対象の柵の表（在れば。conceptfence.scan_change）で測る。
 
 after: {status: ok|failed, reason, base_rev, changed: [パス], tables: [表のパス], tables_changed: [直しが変えた表のパス],

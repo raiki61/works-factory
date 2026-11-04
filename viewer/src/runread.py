@@ -624,7 +624,7 @@ class _Reader:
 
     def _artifact(self, key: str, runs: Path, run_id: str, name: str) -> None:
         """run の置き場（`runs/<run_id>/`）の下の小さなファイルの中身。絶対パス・`..`・symlink で置き場の外を指す物は読まずに数える
-        （見る道具は run の記録だけを読む。viewer/AGENTS.md の E25 の 2）"""
+        （見る道具は run の置き場の外を読まない）"""
         place = runs / run_id
         path = place / name
         if "\0" in run_id or "\0" in name:

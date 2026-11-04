@@ -28,7 +28,7 @@ fix_plan_item は承認済みの修正案の項目そのものの誤りで、そ
   grounds）が、その単位の brief の行を名指すかの確かめ（1 つの決まり）
 - park(b, items, source=, ruling=None, round_=1): 止めた単位を置き場の作業ファイルに積み、trace に 1 行（同じ申し出は積み増さない）
 - clash_claims(unit_ids, between, why)・mark_clash_patch(b, ids, patch): 組どうしの合わせの申し出（JOIN_SOURCE）の行の形と、
-  その行に組の直しの控えの差分を置く口（直しの在りかは REVERTED）。積むのは lib/clash.py
+  その行に組の直しの控えの差分を置く口（直しの在りかは REVERTED）。積むのは fix の block の clash（`workflows/fix/src/clash.py`）
 - rejudge_texts(rows): 裁定 rejudge の文（修正の出力の異議に足す）
 - items(b)・unruled(b)・asked(b)・ruled_fix(b)・replaced_queries(b)・counts(b)・
   kind_counts(b): 読む口。asked・waiting・counts・kind_counts の述語は行の並びを受ける asked_rows(rows)・waiting_rows(rows)・
@@ -147,8 +147,7 @@ AGREED_TEST_ID = "plan-agreed"         # 範囲の相談で修正案を書いた
 BROKEN_TEST_ID = "broken-before"       # 関わる試験で直す前から壊れていた物（修正役がついでに直してよい。#836）の許しの行の id の頭
 BROKEN_TESTS_FILE = "broken-tests.json"  # 置き場のその試験の控え {tests: [{path, ids}]}（fix の TDD の輪の頭が書く。test_permits が読む）
 AMENDED_TEST_ID = "plan-amended"        # 案の直しで直した項目の単位の前の輪の受け入れのテストの許しの行の id の頭（範囲の文字列を持たない）
-# 範囲の相談（修正役が返答の欄 consult で頼み、修正の輪の答えの節が修正案を書いた役の会話の続きで答える。設計
-# docs/plans/2026-10-06-ask-planner.md）の 1 問 1 答の trace の行の語。書くのは修正の輪の確かめの節（sandbox の外の機械）、
+# 範囲の相談（修正役が返答の欄 consult で頼み、修正の輪の答えの節が修正案を書いた役の会話の続きで答える）の 1 問 1 答の trace の行の語。書くのは修正の輪の確かめの節（sandbox の外の機械）、
 # 読むのは agreed（範囲とテストの許し）と報告
 ASKED_OP = "plan_scope_asked"
 CONSULT_FIELD = "consult"   # 修正役の返答の任意の欄: 範囲の相談の頼み（在れば受け付けはその周を回さず、答えの節が答える）

@@ -1,6 +1,6 @@
 """目的の監査の根拠の数え直し（docs/design/purpose-review.md の 1.5・4 節）。
 
-写す元 lib/judge_accept.py の purpose_findings_cited。数え直しの本体（_cite_errors の findings の道・_count_in_version・_grep_count）は
+写す元の judge_accept の purpose_findings_cited。数え直しの本体（_cite_errors の findings の道・_count_in_version・_grep_count）は
 写さず、指し先の照らしの 1 か所 lib/cite の物を使う。役の返答の findings の行 {text, cite, hits} の cite を、固めた版 rev に対して
 `git grep -F -cI` で数え直し、件数の申告 hits と突き合わせる。呼ぶのは materialkit.accept で、git の向きは呼び手が accept.in_repo で
 対象のリポジトリに固定している。

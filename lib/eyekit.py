@@ -1,4 +1,4 @@
-"""独立の目の族（workflows/r1〜r4。docs/design/r1.md の 0 節）が共に使う部品。どれも lib/eyeverdict.py の関数の写しか、それを値で
+"""独立の目の族（workflows/r1〜r4。docs/design/r1.md の 0 節）が共に使う部品。どれも元の eyeverdict の関数の写しか、それを値で
 受ける形にした物（写す元は関数ごとの docstring）。標準ライブラリと KEEP の lib の部品だけを読む。実行系を知らない（パスと値を受け、
 値を返す）。ファイルの名は呼び手の block が渡す。
 
@@ -62,7 +62,7 @@ def changed_files(diff_text: str) -> list[str]:
 
 
 def take_diff(place, repo, base: str, skip, name: str, none_name: str) -> dict:
-    """元 workflows/eyes/scripts/prep.py:78。根 base（空なら HEAD）から作業ツリーの今の姿（未追跡の新しいファイルも入れ、除くパスの頭
+    """元は eyes の prep の script。根 base（空なら HEAD）から作業ツリーの今の姿（未追跡の新しいファイルも入れ、除くパスの頭
     skip の下は除く）までの累積差分を place/name に書く。空・取れない時は訳を place/none_name に書いてそれを指す
     （fixboard.diff_file）。返り {file, text, why, lines, changed, base, repo}。why は取れなかった訳（本当に空なら空の字）、base は
     差分を引いた版の名、repo は作業ツリーの根"""

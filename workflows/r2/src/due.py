@@ -1,4 +1,4 @@
-"""独立設計の返答から、どの役を起こすかと、起こさない時の訳の字を決める（docs/design/r2.md の 1.5）。lib/eyeverdict.py の
+"""独立設計の返答から、どの役を起こすかと、起こさない時の訳の字を決める（docs/design/r2.md の 1.5）。元の eyeverdict の
 r2_compare_due・r2_premise_invalid・premise_reason・read_design と字（:55-59・:90）の写しで、ファイルでなく値で受ける形。"""
 from __future__ import annotations
 

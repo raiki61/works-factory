@@ -1,4 +1,4 @@
-"""graph が宣言する plugin の中の物（役割 agent の定義 agents/<役>.md など）の探し方（元 lib/graphloops/engine/validator.py の
+"""graph が宣言する plugin の中の物（役割 agent の定義 agents/<役>.md など）の探し方（元の graphloops の engine の validator の
 env_root・_sibling_is・find_plugin_path・agent_def の写し。integration.md の 4.4-J: engine の validator は消え、agent_def は lens の
 src へ。使い手は lens の lenses.py だけ）。"""
 import glob

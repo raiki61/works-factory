@@ -1,5 +1,5 @@
-"""段 → 回す物の表と単位の深さと修正の後の上げ直し（docs/design/line.md の 5 節。元 lib/depth.py と lib/latedepth.py と、
-lib/consult.py の consulted_units の写し。名は元のまま）。
+"""段 → 回す物の表と単位の深さと修正の後の上げ直し（docs/design/line.md の 5 節。元の depth と元の latedepth と、
+元の consult の consulted_units の写し。名は元のまま）。
 
 run 全体の深さ（軽量・標準・重厚）の定義は表 TIERS 1 か所。単位の深さの語は軽量・標準の 2 つ。段の省く物（TIERS の omits）は、
 その段の頭の run で直す義務の単位がどれも軽量の時だけ省く（skip_reason。issue #561 の答え）。省くかを when: に渡す時は、ここで
@@ -8,11 +8,11 @@ run 全体の深さ（軽量・標準・重厚）の定義は表 TIERS 1 か所�
 
 - unit_depth(items, key, *, checked)・wiring(path)・decide_doc(items, open_units, *, forced, checked)・has_checks(start)・named(thickness)・
   named_why(word)・tier_adds(head)・tier_auto(head)・raise_doc(doc, *, units, run)・run_paths・outside_cited・late_signals・
-  run_depth(doc)・omits(head)・skip_reason(doc, head)・lines(doc, head, *, cmd_skipped): 元 lib/depth.py のまま
-- signals(items, keys, touched, *, origin, head_record, late, declared)・PLAN_ORIGIN・LATE_UNREAD・NO_LATE_RECORD: 元 lib/latedepth.py
-- late_records(fix): fix の返り（欄 tdd_refused・accept_trace）から signals の late を組む（元 lib/fixbeside.py の late_records を、
+  run_depth(doc)・omits(head)・skip_reason(doc, head)・lines(doc, head, *, cmd_skipped): 元の depth のまま
+- signals(items, keys, touched, *, origin, head_record, late, declared)・PLAN_ORIGIN・LATE_UNREAD・NO_LATE_RECORD: 元の latedepth
+- late_records(fix): fix の返り（欄 tdd_refused・accept_trace）から signals の late を組む（元の fixbeside の late_records を、
   fix の出力の欄を直に読む形にした物）
-- consulted_units(rows): 元 lib/consult.py
+- consulted_units(rows): 元の consult
 - switches(tier, tree_named, record): 段の切り替え {tier, omits, merge, tree, adds, lines}（node tiers と、固定材料の run の fix-in）
 - docs_of(rows)・rows_of(doc): 単位の深さの行 [{unit_id, depth, why}] と控えの形 {units: {key: {depth, why}}} の行き来
 """
@@ -45,7 +45,7 @@ OMITS = {"p3.delta_review": "差分の審査（p3.delta_review）と、それに
 UNIT_OMIT = "軽量の単位の、緑の後と親の作業ツリーに当てた後の test_cmd の走らせ直し（TDD の名指しのテストは走らせる）"
 UNCHECKED = "機械の確かめが無い（tdd_suite も test_cmd も空）"
 
-# run 全体の深さの定義（ただ 1 つの表。元 lib/depth.py の TIERS のまま）。omits は段の頭の run で単位がどれも軽量の時に省く確かめ
+# run 全体の深さの定義（ただ 1 つの表。元の depth の TIERS のまま）。omits は段の頭の run で単位がどれも軽量の時に省く確かめ
 # （OMITS の名）。adds は段が足す機能の語（entry.FEATURE_DEFAULTS の名で引く）。auto は名指しの無い auto の機能を読む語で、軽量は
 # 足す物が無いので事前審査の木も off（#687）。merges は省かずに回す時に 1 つの役にまとめる目（持ち主の決め eyes-by-reason）
 TIERS = {
@@ -281,7 +281,7 @@ def skip_rerun(doc: dict, head) -> list:
     return [key for key, row in ((doc or {}).get("units") or {}).items() if row.get("depth") == LIGHT]
 
 
-# ---------------------------------------------------------------- 修正の後の上げ直しの信号（元 lib/latedepth.py）
+# ---------------------------------------------------------------- 修正の後の上げ直しの信号（元の latedepth）
 PLAN_ORIGIN = "計画の allowed_paths"
 LATE_UNREAD = "修正の後の信号の控えが読めない（{why}）"
 NO_LATE_RECORD = "修正の後の信号の控えが無い（{name}）——範囲の相談を数えていない"
@@ -290,7 +290,7 @@ NO_LATE_RECORD = "修正の後の信号の控えが無い（{name}）——範�
 def consulted_units(rows) -> list:
     """受け付けの行 rows（fix の出力の欄 accept_trace の先の行）のうち、修正役か受け付けが範囲の相談を頼んだ行（op が conflict の
     ASKED_OP。人の関所の条件の相談 ORIGIN_GATE は機械が立てた物なので除く）の単位の名（現れた順・重なりは 1 つ）。unit_keys の
-    無い行は『項目 n』（元 lib/consult.py）"""
+    無い行は『項目 n』（元の consult）"""
     import conflict
     out = []
     for row in rows if isinstance(rows, list) else []:
@@ -305,7 +305,7 @@ def consulted_units(rows) -> list:
 
 def late_records(fix, resolve) -> dict:
     """fix の返り（欄 tdd_refused {refused, unread} と accept_trace の pointer）の、修正の後に深さを上げる信号の元
-    {refused, trace, missing, unread}（元 lib/fixbeside.py の late_records。fix の出力の欄を直に読む）。accept_trace が null なら
+    {refused, trace, missing, unread}（元の fixbeside の late_records。fix の出力の欄を直に読む）。accept_trace が null なら
     missing に名を、在るのに読めない・{"error"}・行の配列でない時は unread に訳を足す。resolve は (pointer, 欄の名) → パス（stages.resolve）"""
     got: dict = {"refused": [], "trace": None, "missing": [], "unread": []}
     if not isinstance(fix, dict):
@@ -336,7 +336,7 @@ def late_records(fix, resolve) -> dict:
 
 
 def signals(items, keys, touched, *, origin: str, head_record, late, declared=()) -> tuple:
-    """(run の信号の並び, counted の 1 行)。元 lib/latedepth.py の signals のまま（headdepth の控えの読み口は KEEP）"""
+    """(run の信号の並び, counted の 1 行)。元の latedepth の signals のまま（headdepth の控えの読み口は KEEP）"""
     late = late or {"refused": [], "trace": None, "missing": [], "unread": []}
     cited = headdepth.cited_files(headdepth.read_file(head_record)) if head_record is not None else []
     out = [*late_signals(outside=outside_cited(items, keys, touched, cited), refused=late["refused"],

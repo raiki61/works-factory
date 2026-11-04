@@ -1,4 +1,4 @@
-"""finish の node の中身: 構造の目の控え structure-state.json（docs/design/structure.md の 1.2・3 節。lib/structfile.py の _outcome・
+"""finish の node の中身: 構造の目の控え structure-state.json（docs/design/structure.md の 1.2・3 節。元の structfile の _outcome・
 write_state の写し）。控えの形と読み口は lib/structmark.py（KEEP）。
 """
 from __future__ import annotations
