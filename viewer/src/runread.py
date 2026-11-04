@@ -4,7 +4,7 @@
 道具の出来事の型は、源の型の和の全部をここに持ち（読む型と読まない型）、源に在ってここに無い型も同じ試験が赤にする。知らない型の行は
 数えて返し、黙って落とさない。DB は読むだけで開く。
 
-- run(db, run_id) -> 選んだ run と子の run の記録（結末 outcome・ノードごとの出来事・道具の呼び出し・費用・出力・知らない行の数え）
+- run(db, run_id) -> 選んだ run と子の run の記録（結末 outcome・結果の語 result_word・ノードごとの出来事・道具の呼び出し・費用・出力・知らない行の数え）
 - pick(db, wanted) -> run の id（wanted が空なら一番新しい親の run。頭の字でもよい）
 - seconds(started, completed)・length(event)・when(text)・try_when(text) -> 時刻の差の秒・出来事の長さ・時刻の読み（読めなければ
   ValueError か None。字でない時刻も try_when は None。DB の秒までの時刻は UTC として読む）。段の集計と無駄の手がかりと会話の読みも使う
@@ -21,7 +21,8 @@ import stat
 from datetime import datetime, timezone
 from pathlib import Path
 
-import runlog   # lib/（viewer/src/__init__.py が sys.path に足す）
+import report   # lib/（viewer/src/__init__.py が sys.path に足す）
+import runlog   # lib/
 from viewer.src import shape
 
 # 置き場（packages/core/src/db/connection.ts・packages/paths/src/archon-paths.ts の getStoragePathsForRoot・getRunLogPathForRoot・
@@ -52,6 +53,12 @@ LIVE = ("pending", "running", "paused")
 # persistAuthoredOutcome）。run のその後の成り行きに関わらず書くので、返すノードの後に落ちた・止めた run も結末を持ち、起き直した
 # run は書き直されるまで前の値を持つ。返すノードが終わる前に走り中・答え待ち・落ちた・止めた run は空
 OUTCOMES = ("succeeded", "failed")
+# 工場の結果の語（Archon でなく工場の記録の名。読む名はここに置く）: line の返すノード result の出力の欄 outcome（workflows/line/
+# works-factory-line.yaml の returns: と result の output_format）。語の組は工場の正本 lib/report.py の OUTCOMES を引き、写さない。
+# 読むのは選んだ run の一番上の result の最後の終わり（起き直した run は書き直した物）で、組に無い語（result が報告を受けられない時の空）は空
+RESULT_NODE = "result"
+RESULT_WORD = "outcome"
+RESULT_WORDS = report.OUTCOMES
 # 答えを待つ run の状態。待ちはこの状態の run だけに出す（止めた・放棄した run は node_completed を書かずに終わる。
 # packages/core/src/operations/workflow-operations.ts の resolveAndCancelApprovalGate・abandon）
 PAUSED = "paused"
@@ -203,6 +210,7 @@ def run(db: Path, run_id: str) -> dict:
         ends = _ends(con)
         falls = _ends(con, (FAILED_EVENT,))
         first = _firsts(con).get(run_id)
+        result_word = _result_word(con, run_id)
         # 落ちは過去の事実なので、走り中の run（落ちた後に起き直した物）でも閉じる
         fell = {rid: [at for t in times if (at := _end("", t, live=True))] for rid, times in falls.items()}
         reader = _Reader(outputs, fell)
@@ -250,7 +258,7 @@ def run(db: Path, run_id: str) -> dict:
     for child in reader.children:
         child["started"], child["seconds"] = _child_span(child, reader.events, parents, (closed[child["id"]] or [None])[-1])
     return {"id": run_id, "graph": top["workflow_name"], "status": top["status"], "live": top["status"] in LIVE,
-            "outcome": top["outcome"] if top["outcome"] in OUTCOMES else None,
+            "outcome": top["outcome"] if top["outcome"] in OUTCOMES else None, "result_word": result_word,
             "waiting": waiting.get(run_id, []), "started": started, "seconds": seconds(started, ended),
             "cost": _cost(meta, spent, run_id), "copy": str(copy(root, run_id)) if root else "",
             "children": reader.children, "events": sorted(reader.events, key=lambda e: (e["start"] or "", "/".join(e["tokens"]))),
@@ -674,6 +682,18 @@ def _tokens(paths: list[str]) -> list[str]:
 def _row(con, run_id: str) -> dict | None:
     row = con.execute(f"select {', '.join(RUN_COLUMNS)} from {RUN_TABLE} where id = ?", (run_id,)).fetchone()
     return dict(zip(RUN_COLUMNS, row)) if row else None
+
+
+def _result_word(con, run_id: str) -> str | None:
+    """run の一番上の返すノード RESULT_NODE の最後の出力（DB の node_completed の全文。値でも JSON の字でも）の結果の語。出力が無い・
+    読めない・語が RESULT_WORDS に無ければ None"""
+    row = con.execute(f"select data from {EVENT_TABLE} where workflow_run_id = ? and event_type = ? and step_name = ? "
+                      "order by created_at desc, event_order desc limit 1", (run_id, OUTPUT_EVENT, RESULT_NODE)).fetchone()
+    output = _json(row[0]).get(NODE_OUTPUT) if row else None
+    if isinstance(output, str):
+        output = _json(output)
+    word = output.get(RESULT_WORD) if isinstance(output, dict) else None
+    return word if word in RESULT_WORDS else None
 
 
 def _outputs(con) -> tuple[dict, dict[str, int]]:

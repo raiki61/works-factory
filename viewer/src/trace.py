@@ -6,7 +6,8 @@
   属性は Phoenix が読む OpenInference の名（openinference.span.kind・llm.*・input.value・output.value・tool.name・session.id）と、工場の
   物の works_factory.* の名。unread は run と会話と下請けの読めなかった物に、組みで結べなかった物を足した数え
 
-run の span は結末 works_factory.outcome（Archon が run の行に書く成否。空なら印 NO_OUTCOME）を持ち、段の span は段の集計の欄
+run の span は結末 works_factory.outcome（Archon が run の行に書く成否。空なら印 NO_OUTCOME）を持ち、line の run の span は
+結果の語 works_factory.line_outcome（line の返すノードの出力の語。runread.RESULT_WORDS。無ければ印 NO_OUTCOME）も持ち、段の span は段の集計の欄
 （状態・印 fell・秒・待ち・AI の秒と手番・ノードの数・往復・周・費用・トークン）を属性に持ち、時刻は集計の始めと終わり。
 
 木: run（AGENT）→ 段（CHAIN。line の run だけ）→ 中の出来事を束ねる器（CHAIN。runread.GROUP_KINDS）→ 繰り返しの周（CHAIN）→ ノード
@@ -39,7 +40,9 @@ SESSION = "session.id"
 RUN_ID = "works_factory.run_id"
 STATUS = "works_factory.status"
 OUTCOME = "works_factory.outcome"
-NO_OUTCOME = "none"   # 結末の欄が空の run（返すノードが終わる前の run）の結末の印
+NO_OUTCOME = "none"   # 結末の欄が空の run（返すノードが終わる前の run）の結末の印。結果の語の無い line の run の印も同じ字
+# line の run の結果の語（runread の result_word）。line の run（stages.attach が段の集計を置いた run）だけに置く
+LINE_OUTCOME = "works_factory.line_outcome"
 PATH = "works_factory.path"
 LOOP = "works_factory.loop"
 NODE_KIND = "works_factory.kind"
@@ -83,8 +86,10 @@ def build(data: dict) -> dict:
     table = stages.TABLE["stages"]
     start = run.get("started") or min((e["start"] for e in events), key=runread.when, default=None)
     end = _plus(start, run.get("seconds")) if start else None
+    line = (data.get("stages") or {}).get("run") is not None
     root = tree.span("run", None, run["graph"], start, end or start, {
         KIND: "AGENT", RUN_ID: run["id"], STATUS: run.get("status") or "", OUTCOME: run.get("outcome") or NO_OUTCOME,
+        **({LINE_OUTCOME: run.get("result_word") or NO_OUTCOME} if line else {}),
         **({COST: run["cost"]} if run.get("cost") is not None else {}), OUTPUT: _costs(data, events, table)})
     parents = {}
     for e in events:
