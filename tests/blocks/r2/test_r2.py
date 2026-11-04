@@ -117,6 +117,12 @@ class CompareRoadCase(_RepoCase):
         for name in extra:
             (self.repo / name).write_text("after\n", encoding="utf-8")
 
+    def _commit_tests(self, *paths: str):
+        """テストのファイルを起点の版に入れる（作業ツリーの変更は stats.py だけに戻す。地図の起点がテストのファイル自身にならない）"""
+        git(self.repo, "add", *paths)
+        git(self.repo, "commit", "-q", "-m", "tests")
+        self.base = git(self.repo, "rev-parse", "HEAD").strip()
+
     STATS = [f"tests.test_stats.TestMedian::test_{n}" for n in ("odd", "even", "single")]
     OTHER = [f"tests.test_other.TestOther::test_{n}" for n in ("a", "b")]
 
@@ -154,6 +160,48 @@ class CompareRoadCase(_RepoCase):
         self.assertIn("- 飛ばし→飛ばし: 1 件\n  - ほかに 1 件は名を貼っていない", outcomes)
         self.assertIn("  - `tests.test_other.TestOther::test_red`（base failure・最後 failure: boom）", outcomes)
         self.assertIn("  - `tests.test_other.TestOther::test_fixed`（base failure: was）", outcomes)
+
+    def test_runtime_copy_does_not_make_the_map_undecided(self):
+        """Archon が run の作業ツリーに写す pack（追跡されない .archon/workflows/ の下。動的 import を持つ）を地図の起点に入れない。
+        入れると all_tests_required になり、本番では届かない緑→緑の名がいつも貼られる（絞りが一度も効かない）"""
+        self._stats_repo()
+        copy = self.repo / ".archon" / "workflows" / "works-factory" / ".shared"
+        copy.mkdir(parents=True)
+        (copy / "ports.py").write_text("import importlib\n\n\ndef load(name):\n    return importlib.import_module(name)\n",
+                                       encoding="utf-8")
+        self.intake(test_outcomes=dump(self._outcomes()))
+        outcomes = self.compare()["prompt"].partition("### TDD loop records")[0]
+        self.assertNotIn("TestOther::test_a`", outcomes)
+        self.assertIn("  - ほかに 2 件は名を貼っていない（変更したファイルから地図で届かないテストのファイルの物）", outcomes)
+        for k in self.STATS:
+            self.assertIn(f"  - `{k}`\n", outcomes)
+
+    def test_tests_under_a_test_named_folder_are_named(self):
+        """test_ で始まるフォルダの下のテスト（tests/test_integration/test_stats.py）も、地図が届けば緑→緑の名を貼る。classname の
+        どの部分がテストのファイルの名の幹でもよい"""
+        self._stats_repo()
+        (self.repo / "tests" / "test_integration").mkdir()
+        (self.repo / "tests" / "test_integration" / "test_stats.py").write_text("import stats\n", encoding="utf-8")
+        self._commit_tests("tests/test_integration/test_stats.py")
+        key = "tests.test_integration.test_stats.TestMedian::test_deep"
+        got = self._outcomes()
+        got["rows"].append({"key": key, "base": "passed", "final": "passed", "fail_message": ""})
+        self.intake(test_outcomes=dump(got))
+        self.assertIn(f"  - `{key}`\n", self.compare()["prompt"])
+
+    def test_tests_using_a_conftest_fixture_are_named(self):
+        """conftest.py の fixture 越しに変わった stats を使うテスト（テストのファイルは stats を import しない。client の fixture の
+        形）も、地図が conftest.py の下のテストまで届くと数えるので緑→緑の名を貼る（#384 が fixture の形で再発しない）"""
+        self._stats_repo()
+        (self.repo / "tests" / "api").mkdir()
+        (self.repo / "tests" / "conftest.py").write_text("import stats\n", encoding="utf-8")
+        (self.repo / "tests" / "api" / "test_api.py").write_text("def test_get(client):\n    pass\n", encoding="utf-8")
+        self._commit_tests("tests/conftest.py", "tests/api/test_api.py")
+        key = "tests.api.test_api.TestApi::test_get"
+        got = self._outcomes()
+        got["rows"].append({"key": key, "base": "passed", "final": "passed", "fail_message": ""})
+        self.intake(test_outcomes=dump(got))
+        self.assertIn(f"  - `{key}`\n", self.compare()["prompt"])
 
     def test_all_names_are_pasted_when_the_map_cannot_decide(self):
         """地図が関わりを決められない時（変更の近くに読めない物が在り all_tests_required を返す）は、変わらない行も全部の名を貼る"""

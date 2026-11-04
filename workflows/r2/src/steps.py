@@ -116,7 +116,8 @@ def _measured_values(doc: dict, repo, out) -> dict:
     diff = doc["diff"]
     origin = measured.origin_section(repo, diff["base"], doc["head"] or "HEAD", doc["base_label"],
                                      cumulative_empty=diff["lines"] == 0 and not diff["why"], skip=(ports.RUNTIME_COPY_PREFIX,))
-    scope = measured.named_scope(repo, diff["base"], pathlib.Path(out) / files.IMPACT, doc["tdd"])
+    scope = measured.named_scope(repo, diff["base"], None if diff["why"] else diff["changed"], pathlib.Path(out) / files.IMPACT,
+                                 doc["tdd"])
     return {"outcomes": "\n".join(measured.outcome_lines(doc["test_outcomes"], scope)),
             "tdd_records": "\n".join(measured.tdd_record_lines(doc["tdd"])), "origin": origin}
 

@@ -27,13 +27,16 @@ def outcome_side(outcome: str) -> str:
     return {"passed": "緑", "skipped": "飛ばし", "": "測っていない"}.get(outcome, outcome)
 
 
-def named_scope(repo, rev: str, cache_dir, stages) -> dict | None:
-    """変わらない赤でない行（TRIMMED）のうち名を貼るテストの範囲 {modules, tests}。modules は、起点 rev から作業ツリーまでに変わった
-    ファイルと、そこから地図（impact.map の diff=True）が届くと言うテストのファイルの名の幹（impact._mod）、tests は TDD の記録
-    （port tdd の値 stages）の単位が名指したテスト。地図が引けない・all_tests_required の時は None（全部の名を貼る）"""
+def named_scope(repo, rev: str, changed, cache_dir, stages) -> dict | None:
+    """変わらない赤でない行（TRIMMED）のうち名を貼るテストの範囲 {modules, tests}。modules は、累積差分で変わったファイル changed
+    （除くパスの頭の下を除いた後。Archon が作業ツリーに写す pack の置き場を起点に入れない）と、そこから地図（impact.map の seeds）が
+    届くと言うテストのファイルの名の幹（impact._mod）、tests は TDD の記録（port tdd の値 stages）の単位が名指したテスト。changed が
+    None（累積差分が取れない）・地図が引けない・all_tests_required の時は None（全部の名を貼る）"""
+    if changed is None:
+        return None
     try:
-        m = impact.map(repo, rev=rev or "HEAD", diff=True, cache_dir=cache_dir)
-    except (RuntimeError, OSError, ValueError):
+        m = impact.map(repo, rev=rev or "HEAD", seeds=list(changed), cache_dir=cache_dir)
+    except (RuntimeError, OSError, ValueError, RecursionError):
         return None
     if m["all_tests_required"]:
         return None
@@ -43,12 +46,15 @@ def named_scope(repo, rev: str, cache_dir, stages) -> dict | None:
 
 
 def _named(key: str, scope) -> bool:
-    """変わらない赤でない行の名を貼るか。範囲が無い（決められない）・行のテストのファイルが分からない時は貼る（落とす向きに外さない）"""
+    """変わらない赤でない行の名を貼るか。範囲が無い（決められない）・行のテストのファイルが分からない時は貼る（落とす向きに外さない）。
+    classname の点で切ったどの部分が範囲の名の幹でも貼る（test_ で始まるフォルダの下のテストの classname は、最初の test_ の部分が
+    フォルダの名になる）"""
     if scope is None:
         return True
     cls, _, name = key.partition("::")
-    mod = impact._junit_module({"classname": cls})
-    return mod is None or mod in scope["modules"] or any(
+    if impact._junit_module({"classname": cls}) is None:
+        return True
+    return bool(set(cls.split(".")) & scope["modules"]) or any(
         baseline_red.match_case(t, [{"classname": cls, "name": name}]) for t in scope["tests"])
 
 
