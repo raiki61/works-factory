@@ -597,6 +597,20 @@ class ConvergeCase(unittest.TestCase):
         self.assertEqual(got["values"]["guard_faces"], "- key-a1 (raised in pass 1, closed in pass 2): key-a1 が穴である理由")
         self.assertNotIn("key-a2", got["values"]["guard_faces"])
 
+    def test_closed_faces_skip_reraised_and_suggest_only_keys(self):
+        """閉じた後の往復で block に挙げ直した key（開いた穴で owed_faces が持つ）と、resolved に入った suggest だけの key（block に
+        挙がっていない）は、閉じた穴に載せない"""
+        closed = item("u2", approach="直した案の手順をここに書いた")
+        doc = record(plan_step([item("u1"), item("u2")]),
+                     review_step([face("key-a1", ["u1"]), face("key-s1", ["u1"], severity="suggest"), face("key-b1", ["u2"])]),
+                     plan_step([item("u1", approach="直した案の手順をここに書いた"), closed],
+                               [answer("key-a1"), answer("key-s1"), answer("key-b1")]),
+                     review_step([face("key-a2", ["u1"])], resolved=["key-a1", "key-s1", "key-b1"]),
+                     plan_step([item("u1", approach="もう一度直した案の手順をここに書いた"), closed], [answer("key-a2")]),
+                     review_step([{**face("key-a1", ["u1"]), converge.REACH: converge.PERIPHERAL}], resolved=["key-a2"]))
+        self.assertEqual(self.states(doc)[0], converge.OPEN)
+        self.assertEqual([(f["key"], f["raised"], f["closed"]) for f in converge.closed_faces(doc)], [("key-a2", 2, 3)])
+
     def test_no_guards_before_any_hole_closed(self):
         got = brief.revise_values(self.blocked_first())
         self.assertFalse(got["guards"])

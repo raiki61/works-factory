@@ -438,8 +438,9 @@ def values(place, repo) -> tuple:
             v["prior_review"] = prior.get("review") or ""
             w["prior_review"], w["no_prior_review"] = bool(prior.get("review")), not prior.get("review")
             extra = revise_values(record) if prior.get("review") else revise_values({"passes": []})
-            for name in ("revise", "owed_suggests", "revise_notes", "revise_keys", "closed_items", "held_items", "guards"):
-                w[name] = extra[name]
+            for name, on in extra.items():
+                if name != "values":
+                    w[name] = on
             v.update(extra["values"])
             rip = jsonfile.read_or(prior.get("ripple")) if prior.get("ripple") else None
             if isinstance(rip, dict):

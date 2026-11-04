@@ -53,6 +53,8 @@ note_plan の無い控え（行に items が無い）は今までどおり全体
   （番号の外は空）を組む唯一の口
 - owed_faces(doc, p): 往復の行 p の、次の往復で答えと照らしが要る穴（block と、開いた項目に付いた suggest）。項目の在る控えでは
   今の開いた項目の分だけ。この絞りの住処はここ 1 つ（止め時は decide）
+- closed_faces(doc): 前の往復で block に挙がり後の往復の resolved に入った穴のうち、今の開いた項目に付く物（修正案の役が直しで
+  閉じた穴の裏返しを開かないための守る決まりの元。開いた項目の絞りは owed_faces と同じ _open_scope）
 - answer_gaps(doc, answers)・resolved_gaps(b, faces, resolved): 修正案の役と事前審査の役の返答の欄の欠けと誤りの行（owed_faces の
   穴の分。resolved_gaps は relabel_gaps〔中央の block を訳なしで端に付け替えた行〕も持つ。下請けの答えの受け付けも引く）。fixed_unchanged(doc, rows, answers): fixed と答えて block の項目を変えていない答え
 - split(role, reply): 返答から欄を外す（事前審査の返答の任意の欄 ITEMS（項目ごとの判定の要約）・DESIGN_MAP（独立設計との
