@@ -276,7 +276,7 @@ intake は place の中のファイルを消さない（自分で決めた。10 
   5. どれでもなければ `status: failed`・`reason: f"観点 {NAME} の役の返答を受けた記録が無い（ループが落ちたか、走っていない）"`・素材は全部 `fill_not_run(reason)`。
   6. 1〜5 の素材に `base`・`commits`（`INTAKE` の見方の値。無ければ null）を足して `MATERIAL` に書き、`{ok: status in OK_STATUSES, status, reason, material: pointer(パス), report: report_lines(doc) + viewpoint.report_lines(doc)}` を返す。書けなければ `material: None` と `reason` に書けない訳を足し、`status: failed`。
   - 素材の名は `viewpoint.MATERIALS` の順に並べる。
-  - finish は落ちない: 1〜6 の外の例外も捕まえて `status: failed` と訳で返す（今の `world_finish` と同じ決まり。今の落とし穴の一覧 `docs/plans/2026-10-13-capabilities/pitfalls.md` の K1・K13: 返りの node が落ちると line が先へ進めない・落ちた段の訳が消える）。
+  - finish は落ちない: 1〜6 の外の例外も捕まえて `status: failed` と訳で返す（今の `world_finish` と同じ決まり。落とし穴 K1・K13〔[archon.md](archon.md) の「落とし穴の番号」〕: 返りの node が落ちると line が先へ進めない・落ちた段の訳が消える）。
 - `report_lines(doc) -> list[str]`: 素材ごとに 1 行 `f"素材 {名}: {status}" + 尾`。尾は `found` なら `f"（{count} 件）: {oneline(detail)}"`、`clean` なら `f"（見た所: {oneline(checked)}）"`、ほかは `f"（{oneline(reason)}）"`。素材を書かない観点（purpose-review）は `f"観点 {NAME}: {status}"` の 1 行と `reason`（空でなければ）。
 - `read(path) -> dict`: 読み手の口。`material.json` を読み、`role`（字）・`status`（`STATUSES` のどれか）・`materials`（dict）・`base`（字か null）・`commits`（整数か null）を確かめ、外れれば `ValueError`（訳を名指す）。返りは中身の dict。
 - `assemble(docs: list, *, local_checks: dict | None = None) -> dict`: 読み手（diagnose）が 15 欄にそろえる口。写す元 `fill_materials`（`:2654-2693`）。違いは、受けた素材を place のファイルでなく `docs`（`read` の返りの並び）から取ることと、回さない・諦めた素材の埋めは各 `docs` の `materials` に既に在ること（block が埋めて返すため）。`base_determination` は `base` と `commits` を両方持つ最初の doc から `{status: found, count: commits, detail}` に、どれも持たなければ `not_run`（commit の数を 0 に倒さない）。`fix_closure`・残りの `not_run` の埋めは今のまま。

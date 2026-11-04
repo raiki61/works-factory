@@ -124,5 +124,14 @@ ASF の版を進めた時は、各セクションの行を新しい版で読み�
 
 - ASF: a972888a の `.archon/workflows/sdlc/plan-entry/archon-plan.yaml`（頭の `description` の「the approach chosen with alternatives rejected for stated reasons」と「When the plan stops on questions only a person can answer, the run pauses as one attention item … The answer plans again with the person's note」）。
 - なぜその形か: 何を作るかは決まり、どう作るかが決まっていない時、選んだ案だけを書くと捨てた案の代償が読み手に見えず、人にしか決められない問いが成果物の中に埋もれる。問いで止まって人の一言で計画し直せば、問いを残したまま先へ進まない。
-- 採った先: 設計の案の書き手の block `workflows/theme/`（設計の案の `asks` の案ごとの得と代償・推しと訳。`docs/design/theme.md` の 3 章と 11.1 の 2）。人の一言で設計し直す往復は line の設計の段（`docs/plans/2026-10-27-design-stage.md` の 2.3。PR T3）。
+- 採った先: 設計の案の書き手の block `workflows/theme/`（設計の案の `asks` の案ごとの得と代償・推しと訳。`docs/design/theme.md` の 3 章と 11.1 の 2）。人の一言で設計し直す往復は line の設計の段（`docs/design/line.md` の 3.3。PR T3）。
 - 違い: ASF の計画は 1 本の役で、往復ごとに別の役が攻める目と、計画の後に同じ run で作り始める道を持たない（読んで報告するだけ）。工場は問いを 1 つの欄にまとめず、問いごとに 2 つ以上の案・推し・代償を持たせ、決まりで決まる物は問いにせず出どころつきの部署の決め（`decided`）にする。
+
+## 採るか決めていない候補
+
+#636 の調べ（PR #737。Archon を `a972888a` へ上げる前に読んだ ASF の変化）が挙げ、採るかを決めていない型。採る時は上の書き方で 1 セクションにする。
+
+- 周ごとの新しい会話と、区切りでだけ会話を終える引き継ぎ（ASF #4218。「引き継ぎのメモとコードが食い違えばコードが決める」）。工場の引き継ぎのメモの頼みに足せる。
+- 続きの審査は前の周から今までの「この変更の分」だけを見て、同じ仕組みの指摘は類ごと 1 つにまとめる（ASF #4220）。再審と 2 度目の修正の目に渡せる。
+- 2 度目の同じ指摘は類の一覧つきの直しへ、範囲を越えるかの問いは人へ回し、計画のやり直しにしない（ASF #4517）。
+- 想像した危険に手を打たない。指摘は今そこへ届く道を名指す（ASF #4398）。修正の規則と独立の目の指示に足せる。

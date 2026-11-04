@@ -545,7 +545,7 @@ How to answer:
 
 1. 同じ run の中での承認し直し（graphloops の `spec.check` は修正の後の周ごとに sha256 を照らし、承認ノードで continue と答えれば新しい sha256 で固め直し、`process.spec.amendments` に積んだ）: 工場は問うだけで、run を人待ちで終え、承認し直すのは次の run の仕様の段（#510 `79f1fbc2`・#542 `2e593f13`。graphloops の engine が共有の記録〔盤面〕を問いの答えまで止めた形に替えて、差分の審査・最後の試験・独立の目を回し続け、最後の承認ノード・報告・次の依頼の下書きで問う。#554 `425abeda` で「照らせなかった」を分けた）。元の works にも無い。この block の check も問うだけ。
 2. 書く役が名乗らずに変えたファイルの照らし（graphloops 0.22.0 `d1f043f2` の `declared_files: acceptance[].file` と `declared-files.md`。テスト以外を書いたら両側に記録して次の周の判定に渡す）: 元の works（a1202d0 の写し）にも工場にも無い。書く役・直す役の受け付けは作業ツリーを比べず、「テストのファイルだけ」は指示の文だけが言う（`spec.md:49`）。（未確認）: 工場は初めから持たない。この block も足さない（足すかは振る舞いの変更で、この作り直しの外）。
-3. 受け入れ条件の `run` の 600 秒の期限（graphloops の `SPEC_RUN_TIMEOUT`）: 工場は期限を置かない（持ち主の決め `no-timeouts`。`docs/plans/2026-10-13-capabilities/judge.md:625`、#76 `37b7a693` の写しから）。この block も置かない。
+3. 受け入れ条件の `run` の 600 秒の期限（graphloops の `SPEC_RUN_TIMEOUT`）: 工場は期限を置かない（持ち主の決め `no-timeouts`。#76 `37b7a693` の写しから）。この block も置かない。
 4. 書く役・審査役・直す役が PR の題と本文を読む（元の works と graphloops は `{{inputs.request}}`、`entryshape.request_text` で PR の文を含む）: 工場の指示は依頼の行 `judge/request.json` だけを読む。PR の題と本文だけで仕様の段を選んだ run（`start.py:257` が受ける）では依頼の行が空で、PR の文は役に届かない（目的と判定の役には `pr_file_text` で届く）。（未確認）: #76 から在り、#529 `cce03fcf` は spec=on に依頼の行か PR の文を求めたが、役への配線はしていない。この block は port `pr_text` で戻す（2.6・11 節の 2）。
 5. 止め札の確かめ（元の works の route と ask の `halt.seen`）: 工場は外した（持ち主の決め `stop-at-gates`・`report-on-stop`、#76 と `de3cfa7e`）。承認ノードの一言の頭 `request:` だけが残る。この block も同じ。
 6. 元の works の collect の出口の欄（`tests[{file, sha}]`・`approved_by`・`approval_note`・`frozen_rev`・数の 4 つ）: 工場は `spec` の pointer だけ（読む物が無いので `_head` を消した。`de3cfa7e`、#76）。この block も同じ（中身は `spec.json` に在る）。
@@ -563,7 +563,7 @@ graphloops と元の works の仕様の段は、`p0.base` と `p0.local_checks`�
 - 書く役（`role: write`）: 今の `_spec_errors` のまま（鍵が一意・受け入れ条件が要件を指す・要件は受け入れ条件を 1 件以上持つ・テストのファイルが読めてその名と Given・When・Then を含む）。通ったら審査役の前の作業ツリーの写しを `spec-snapshot-spec.review.json` に置く。
 - 審査役（`role: review`）: 写しと今の作業ツリーを `accept.tree_moved`（`status_guarded: true` なので `accept.BEYOND_STATUS` の欄。書く役が書いたテストの未コミットの状態は比べない）で比べ、変わっていれば「読むだけの役が作業ツリーを変えた: …」で拒む。`faces` の鍵が一意・穴が無いなら `faces_none` が 20 字以上。通ったら `revise` は穴が 1 件以上か。
 - 直す役（`role: revise`）: 審査の穴の鍵に 1 度ずつ答える（審査に無い鍵・答えの無い鍵を拒む）・直した仕様に `_spec_errors`。
-- 人に聞く文の照らし（3 つの役とも）: 承認ノードの項目に字のまま載る欄（書く役と直す役の `requirements[].text`・審査役の `faces[].why`・直す役の `handled[].how`。`gate.approve` が並べる）が run の中を指す参照（`<パス>:<行>`・`<名>[<番号>]`。`lib/plainask.py`）を持てば拒む。指示は 3 つの役と出し直しの役が共通の断片 `{shared:plain-ask}` を段落の外で入れる（計画は `docs/plans/2026-10-29-plain-asks.md`）。
+- 人に聞く文の照らし（3 つの役とも）: 承認ノードの項目に字のまま載る欄（書く役と直す役の `requirements[].text`・審査役の `faces[].why`・直す役の `handled[].how`。`gate.approve` が並べる）が run の中を指す参照（`<パス>:<行>`・`<名>[<番号>]`。`lib/plainask.py`）を持てば拒む。指示は 3 つの役と出し直しの役が共通の断片 `{shared:plain-ask}` を段落の外で入れる。
 - どの役も: 返答が JSON のオブジェクトでない・形が違う（`KeyError`・`TypeError` など）時も、投げずに拒否として返す（`<節の名>: 返答の形が違う（<型>: <文>）`）。却下の理由の文の頭は `NODES` の名（`spec.write` など。今の字）。日本語のまま（README の 5.3）。
 - 出し直しの役の返答は、`rolekit.resubmitted` で前の答えの控えと欄ごとに合わせてから同じ照らしに通す（空の出し直しは前の答えのまま）。
 - 3 回目の却下で loop を抜ける（`rolekit.GIVE_UP_AFTER`）。`spec-ask` が `rolekit.given_up_reason` を見て、承認ノードを開かずに `stop.json` に `works:spec` と諦めの文を書き、`finish` が `status: failed` を返す。

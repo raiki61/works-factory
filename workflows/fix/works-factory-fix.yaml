@@ -445,7 +445,7 @@ nodes:
             limit: 9
           output_format: *accept_out
 
-  # 裁定の後の修正の輪。外の輪 ruled-writers-loop は 1 周に型 1 つ（ruled-writer-pick が注文の在る型を順に選ぶ。docs/plans/2026-10-25-fix-weapons-stage1-b.md の 1）。
+  # 裁定の後の修正の輪。外の輪 ruled-writers-loop は 1 周に型 1 つ（ruled-writer-pick が注文の在る型を順に選ぶ。docs/design/fix.md の 23 節）。
   # 内の輪 fix-ruled-loop は今の修正の輪で、型の書き手を 1 本の鎖に並べ（並んだ層にすると会話が切れる）、fix-ruled-prep が返す型の名で 1 つだけ起こす。
   # 内の輪の 1 周目はいつも新しい会話で、型の中の出し直しは同じ会話を継ぐ（fresh_context: false）。直す裁定が無ければ型を選ばずに抜ける
   - id: ruled-writers-loop
@@ -913,7 +913,7 @@ nodes:
               phase: {type: string}
 
   # 型ごとの注文（route から型を引く表で単位ごとに型を引き、orders/<型>.json に書く）。型ごとの輪を回すかの真偽だけを返す（PR A の形:
-  # tdd でない型の注文は全部、修正役の輪が受ける。docs/plans/2026-10-25-fix-weapons-stage1-a.md の 1）
+  # tdd でない型の注文は全部、修正役の輪が受ける。docs/design/fix.md の 22 節）
   - id: orders
     script: orders
     runtime: uv
@@ -993,7 +993,7 @@ nodes:
               phase: {type: string}
 
   # 書き手の輪。外の輪 writers-loop は 1 周に型 1 つ（writer-pick が注文の在る型を tdd-close・pin・tidy・static・variant・remove の順に選ぶ。
-  # docs/plans/2026-10-25-fix-weapons-stage1-b.md の 1）。内の輪 fix-loop は今の修正の輪で、型の書き手を 1 本の鎖に並べ（並んだ層にすると会話が
+  # docs/design/fix.md の 23 節）。内の輪 fix-loop は今の修正の輪で、型の書き手を 1 本の鎖に並べ（並んだ層にすると会話が
   # 切れる）、fix-prep が返す型の名で 1 つだけ起こす。範囲の外が要る時は返答の欄 consult で頼み、相談の 3 node が答える（その周は受け付けを
   # 回さない）。3 回目の拒否で、名指しの単位だけを型の段の頭の木に戻して諦め、ほかは先へ。max_iterations 12 は拒否 3 回 + 相談の枠 9
   - id: writers-loop

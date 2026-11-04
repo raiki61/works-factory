@@ -5,7 +5,7 @@ workflow get で読み（家・隔離・Archon の起こし方は殻の物）、
 どちらも同じ欄 apply・sealed を持ち、鎖の物は元の基から採る周までの最後の差分）から当てる差分を選ぶ。
 hash の正本は Archon の DB の run の記録で、置き場のファイルではない。今の works の確かめ（works/dev/use.sh の apply_checked:
 消す行の許し・止まった run の許し・git apply --check）に、封じた hash とポインタの照らし・読み戻しを足す。commit はしない。
-封じる前に止まった run の差分は当てず、拒む 1 行に素の git apply で当てる道を書く（docs/plans/2026-10-13-line-wiring.md の M46 の決め）。
+封じる前に止まった run の差分は当てず、拒む 1 行に素の git apply で当てる道を書く（メイングラフの配線の計画の M46 の決め）。
 メイングラフの出力が読めない run（封じた後のノードが落ちた run など）は、旗 --allow-failed が在れば、封じのノード merge-seal の出力を run の記録の
 出来事（workflow get --verbose --events の events）から読んで同じく照らして当てる（#665）。最後の承認ノードの答え（answer-final）が済んでいて
 止めの答えなら、--allow-stopped も要る（M44）。封じのノードが済んでいない・その出力や出来事が読めない時は、今どおり拒む 1 行に素の git apply で

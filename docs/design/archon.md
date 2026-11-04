@@ -75,6 +75,11 @@
   - 工場の 5m に負けて上書きされる選び（殻から見えない）: Archon の DB の codebase の env（Archon の server の API だけが書き、殻から読む口が無い）と、管理の設定（managed settings）の `promptCacheTtl`・`subagentPromptCacheTtl`、下請けの定義の frontmatter の寿命、対象の `.archon/.env` が Archon の process.env に入れる `ENABLE_PROMPT_CACHING_1H`（殻は読まず、`CLAUDE_CODE_PROMPT_CACHE_TTL`・`CLAUDE_CODE_SUBAGENT_PROMPT_CACHE_TTL` の方が順で勝つ）。この既定を載せる前に始めた run を続ける起動は、封じた層を戻すので 1 時間のまま。
   - 1 時間に戻す道は、`--config` の `env:` か対象の `.archon/config.yaml` の `env:` に `ENABLE_PROMPT_CACHING_1H: '1'` を書くこと（shell の env では戻らない）。較正の素の Claude Code の側（`tests/calibration/run.py` の `PlainClaude`）は隔離の環境だけを通り、Archon の層を通らないので、Claude Code の既定の寿命で走る。工場の側は 5 分で走るので、較正の比べで書き込みの費用の差はこの寿命の差を含む。
 
+- 名指しの会話（`context: {resume}`）の続き方（`a972888a` の源で読んだ。#636 の調べ）:
+  - 続く: `loop_group` の周をまたぐ時（`fresh_context: true` も名指しの会話は消さない）、ループの中の待ち（`wait:`・承認ノード）で止まった run の resume（会話の位置を run の metadata の `bodySessionCursors` に置いて戻す。読めなければ黙って新しい会話にせず落ちる）、子の run の中（子の中のループの前のノードと `loop_group` の間。直に縛る試験は無く、同じ実行の道を通ることからの読み）。
+  - 続かない: 落ちた run の resume（`loop_group` は 1 周目からやり直し、元のノードの会話から分かれ直す。文書 `guides/loop-nodes.md` の「Failure resume」からの読み）、`--adopt` の新しい run（継ぐのは作業ツリー・枝・成果物だけ）、run をまたぐ時（名指せるのは同じ YAML のループの前の `command:`・`prompt:`・`loop:` のノードだけ。`loader.ts`）。
+- 入れ子の `loop_group` の中の `wait:` は読み込みが拒む（`loader.ts` の `hasDurableWait`）。だから設計の往復と計画の往復を外の loop で包んで同じ run で戻る形は組めない（[line.md](line.md) の 3.3 節）。
+
 ### 未決（歩く骨組みで決める）
 
 - U1（決めた）`workflow resume <run>` は同じ run を続け、id は変わらない。`workflow run --adopt <run>` は新しい id の run を起こす（`reference/cli.md` の `workflow resume`・`--adopt`）。だから同じ run の中だけで効くポインタは、resume をまたいで使え、adopt をまたいでは使えない（adopt の run は前の run の置き場を `$ADOPTED_RUN_DIR` で読む）。実測（段 1b、2026-10-12。止めた Archon に AI の無い使い捨てのグラフ。run `c7d2bc61-c4a2-43d7-8b32-e74d6dd12160`）: 承認ノードで `workflow approve <run> --json`（答えを記録するだけ。run は `paused` のまま）の後に `workflow resume <run> --detach --json` を打つと、確認の `runId` も、承認ノードの後のノードの `execution.runId` も同じ id で、run の一覧の行は 1 つ。resume は同じ run に 2 つ目の `workflow_started` の出来事を足し、終わったノードを `node_skipped_prior_success` で飛ばす。run の記録は使い捨ての Archon の家と一緒に消え、id から読み戻せない。同じ確かめ（前で起こし承認ノードで止め、approve・resume して run が 1 つのまま終わる）は `tests/e2e/test_resume_probe.py` がグラフ `tests/e2e/resume-probe/` で CI で回す。
@@ -150,3 +155,28 @@ U1〜U3 は持ち主の挙げた物、U4〜U8 はこの文書を書く中で出�
 - AI ノード（`prompt:`・`command:`。`loop_group` の本体の中も）は `retry: {max_attempts: 2, on_error: all}` を持つ（eyes と同じ形）。構造化出力の一過性の失敗 1 つで run 全体が落ちないため。工場の側に自前の出し直しを作らない。回数と、どの失敗で出し直すか（`on_error`）は Archon の機能で、工場はどのノードに付けるかと外す理由だけを持つ。
 - 止めた Archon は、`retry` を書かない AI ノードにも既定の出し直しを当てるが、`on_error: transient` なので、種類が `unknown` の失敗は出し直さない（`packages/workflows/src/dag/retry.ts` の `getEffectiveNodeRetryConfig`・`retryableFailureClass`）。だから `on_error: all` を書く。`loop_group` のノードそのものには書かない（`packages/workflows/src/schemas/node-validation.ts` が「'retry' is not supported on loop_group nodes」の誤りにする）。本体の AI ノードに書けば、本体の中でも出し直す。
 - 2 回走ると困るノード（外への書き込みを持つ物など）だけ外し、ノードの頭の行の真上に `# retry なし: <理由>` を 1 行で書く。
+
+## 落とし穴の番号
+
+試験の docstring・コードのコメント・設計書が引く落とし穴の通し番号 K1〜K20（2026-10-13 に元の works の能力の棚卸しと一緒に数えた物。棚卸しの計画は終えて消し、git の履歴が持つ）。字は数えた時のままで、今の決まりの正本は各階層の `AGENTS.md` と、引いている試験の docstring。K1・K13・K16 の Archon の根拠: 落ちた作り手の出力を結んだ節は `trigger_rule: all_done` でも落ちる（`dag-executor.ts` の `resolveBindingDirective`・`output-ref.ts` の `assertProducerNotFailed`）。返りの指し札の先が無い・空でも節が落ちる。返りは `JSON.parse` で読まれる。
+
+- K1 ブロックの返す節（`returns:`）と、返す節が結ぶ節は落ちてはいけない（lib の import は守った main の中に置き、最後の逃げ道は標準ライブラリだけで返す）。落ちた節の出力を結んだ節は `trigger_rule: all_done` でも落ちる
+- K2 uv で走る script（`runtime: uv`）は、頭に PEP 723 の `# /// script` の宣言を持つ。無いと対象の `pyproject.toml` を拾って作業ツリーに `.venv`・`uv.lock` を作る
+- K3 作業ツリーを変えない節は `mutates_checkout: false` を書く。ただし Archon は `loop:` の節ではこの鍵を無視する
+- K4 skill や agent を借りる役の節は `skills:`・`plugins:` で名指す（Archon はワークフローの節に、名指した skill とプラグインしか渡さない）。同梱の skill は名指してもディスクに無い警告が出るので、表で数えない
+- K5 `loop_group`（輪）の中の役の節は自分の `with:` を結ばない。前の周の値は、輪の頭に置いた script の節が `$LOOP_PREV` で結んで返し、役はその節の出力を読む
+- K6 周ごとの値（`$LOOP_PREV`）は本物の run でしか確かめられない。`archon workflow test` の筋書き（dry-run）は前の周の出力を渡さない
+- K7 層の決まり E3・E4・E13
+- K8 script から script を import しない（script は lib を境の口から読むだけ）。lib の中に読み込みの順で落ちる循環 import を作らない
+- K9 役の指示書と役の定義は、元の works から字のまま写す。写しの文を縛る試験を置く（許した直しだけを差として持つ）
+- K10 どの関所の `reject` も `stop` も、run の取り消しにせず報告へ流す。Archon は `decisions` に `reject` が無い関所の reject を run の取り消しとして扱う
+- K11 ブロックに入力を足す時は既定値をつける（既定値の無い入力を足すと、そのブロックを include する全部の工程が読み込みで落ちる）。既定値つきで足した入力は、線が渡さない限り黙って既定値のままになる
+- K12 ブロックの新しい入力と「隣のファイル」（返りの指し札の横に名で置き、ほかのブロックが名で開くファイル）は、どれも読み手を持ち、配線の試験で縛る
+- K13 返りの指し札の先は在って空でないこと。無い・空だと Archon が節の終わりに節を落とし、K1 を破る
+- K14 同じ run の中のやり直しで、前の回の材料や結末を今回の物として返さない
+- K15 読めない入力を黙って空や「当たり」として扱わず、「読めない・確かめられない」と名指す
+- K16 返りの JSON は `allow_nan=False` で書く。Archon は返りを `JSON.parse` で読むので、NaN が混じると節が落ちる
+- K17 戻した能力に「外すと赤になる試験」を同じ PR で置く（戻しても縛りが無いと、次の直しで黙って消える）
+- K18 元の works がブロックを横に通して照らした YAML の決まりが、新しい木ではブロックごとの表に割れた
+- K19 script の名を lib のモジュールの名と同じにしない。script のフォルダが `sys.path` の頭に来るので、`import <名>` が自分を読む
+- K20 同じ定数や関数を 2 か所に持たない（写しの値がずれる）

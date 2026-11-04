@@ -4,8 +4,8 @@
 orders/<weapon>.json（.shared/schemas/weapon-order.schema.json の形）に書き、索引を orders.json に書く。tdd に引いた単位は輪の状態に
 並べ（tdd.assign）、YAML の when: へは型ごとの輪を回すかの真偽だけを返す（憲法の 1）。
 
-型ごとの注文は、tdd の輪の後の書き手の輪（writers-loop）が型ごとの書き手で 1 つずつ受ける（docs/plans/2026-10-25-fix-weapons-stage1-b.md
-の 1。src/writers.py）。tdd の輪が緑にした単位の行は tdd の輪の閉じの書き手 tdd-close が書くので、書き手の輪は止めの無い組でいつも回る（writer）。
+型ごとの注文は、tdd の輪の後の書き手の輪（writers-loop）が型ごとの書き手で 1 つずつ受ける（docs/design/fix.md
+の 23 節。src/writers.py）。tdd の輪が緑にした単位の行は tdd の輪の閉じの書き手 tdd-close が書くので、書き手の輪は止めの無い組でいつも回る（writer）。
 
 - compute(place, repo) -> {tdd, writer, stop, reason}
 - no_suite_why(place) -> 組の頭で止める訳（下書き 3.9 の止め方の 1。止めないなら空）
@@ -405,7 +405,7 @@ def write_ruled(place, owed: list, *, since: str) -> list:
 
 def restart(place, weapon: str, *, since: str) -> None:
     """型 weapon を回し始める時に、その型の注文と索引の since を今の木にする（型を 1 つずつ順に回すので、後の型の差分の起点は前の型が
-    返した木。下書き 2.1 の since・docs/plans/2026-10-25-fix-weapons-stage1-b.md の 1）"""
+    返した木。下書き 2.1 の since・docs/design/fix.md の 23 節）"""
     place = pathlib.Path(place)
     path = place / files.ORDERS_DIR / f"{weapon}.json"
     doc = jsonfile.read_or(path)

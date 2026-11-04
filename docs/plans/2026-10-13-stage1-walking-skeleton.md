@@ -1,6 +1,6 @@
 # 段 1 歩く骨組み: 本物の 8 ブロックと線を本物の役で小さな対象に通しで回し、今の works の能力を 1 行ずつ run の記録で確かめ、封じた差分を bin/apply で当てるまで届かせる。ASF の archon-lifecycle に渡す筋書きを、動かして確かめた形にする
 
-置く先: `docs/plans/2026-10-13-stage1-walking-skeleton.md`（main に在る版を置き換える。置き換えは issue #101 の merge の後にする。#101 の本文は、main に在る版の「約束」の `bin/apply` の 1〜9・「今の works から狭まる所」・「対象の作り方」・手順の試験の名を正本として指すため）。issue は 2 つに分けて出す（下の「issue の切り方」）。issue の本文はこの文書の全部。main に在る版から動かした物: `bin/apply`・`tests/e2e/make_target.py`・種の実行器は issue #101 に、線の返りの欄（`apply`・`sealed`・`r2_status`・`report`）は線の配線の文書 `docs/plans/2026-10-13-line-wiring.md` の部分 A に移した。足した物: 今の works の能力を本物の run の記録で 1 行ずつ機械で確かめること（「能力の行の照らし」）と、落とし穴の確かめ（K1〜K20）。
+置く先: `docs/plans/2026-10-13-stage1-walking-skeleton.md`（main に在る版を置き換える。置き換えは issue #101 の merge の後にする。#101 の本文は、main に在る版の「約束」の `bin/apply` の 1〜9・「今の works から狭まる所」・「対象の作り方」・手順の試験の名を正本として指すため）。issue は 2 つに分けて出す（下の「issue の切り方」）。issue の本文はこの文書の全部。main に在る版から動かした物: `bin/apply`・`tests/e2e/make_target.py`・種の実行器は issue #101 に、線の返りの欄（`apply`・`sealed`・`r2_status`・`report`）は線の配線の文書 線の配線の計画（終えて消した計画） の部分 A に移した。足した物: 今の works の能力を本物の run の記録で 1 行ずつ機械で確かめること（「能力の行の照らし」）と、落とし穴の確かめ（K1〜K20）。
 
 ## issue の切り方
 
@@ -11,7 +11,7 @@
 ## 冒頭
 
 - 何の話か: works-factory の 8 つのブロックと線は、それぞれの試験と筋書き（役を差し替えて配線だけを見る試験）では確かめてあるが、本物の役（Claude）で通しで回したことが 1 度も無い。ブロックの PR は ASF の審査を通ったのに、持ち主の側の目が毎回、今の works から黙って落ちた能力を見つけた。
-- この issue でする事: 種の対象に本物の通しを回し、今の works の能力の棚卸し（`docs/plans/2026-10-13-capabilities/`。1 行 = 1 能力）の行ごとに、本物の run の記録で「見えた」かを機械で照らす。見えない行は、訳を名指すか、不具合として試験を先に赤にして直す。あわせて未決 U1・U2 の残り・U6・U7・U8・P1・P2・層の E3 の `deps:` を実測で閉じ、ASF の lifecycle に渡す筋書きを本物で `verified` にする。
+- この issue でする事: 種の対象に本物の通しを回し、今の works の能力の棚卸し（能力の棚卸し（終えて消した計画）。1 行 = 1 能力）の行ごとに、本物の run の記録で「見えた」かを機械で照らす。見えない行は、訳を名指すか、不具合として試験を先に赤にして直す。あわせて未決 U1・U2 の残り・U6・U7・U8・P1・P2・層の E3 の `deps:` を実測で閉じ、ASF の lifecycle に渡す筋書きを本物で `verified` にする。
 - 読者に求める物: ASF には「受け入れ」がこの issue の約束。持ち主に聞く事は無い（決めはどれも前の決めか Archon と ASF の文書で 1 つに決まる。末尾の「持ち主に聞くこと」）。
 
 ## 語
@@ -41,7 +41,7 @@ works-factory は今の works の能力を、線・8 つのブロック・助け
 
 - 線の PR #74（issue #60）と 8 つのブロック（PR #66・#69・#67・#75・#73・#68・#76・#94）と PR #100（judge と report の輪の拒否の理由を輪の頭の script の節で渡す形）。
 - issue #101: `bin/apply`（封じた差分を当てる口。土台の計画 Task 7）・`tests/e2e/make_target.py`（`make` と `teardown`）・種の実行器 `tests/e2e/target-seed/junit-suite.sh`。この issue はそれらを使うだけで作らない。
-- 線の配線の文書 `docs/plans/2026-10-13-line-wiring.md` の部分 0（配線の網と落とし穴の機械）と部分 A（入口・始めの記録・今壊れている物・線の返りの欄）。`bin/apply` は線の返りの欄を読む。
+- 線の配線の文書 線の配線の計画（終えて消した計画） の部分 0（配線の網と落とし穴の機械）と部分 A（入口・始めの記録・今壊れている物・線の返りの欄）。`bin/apply` は線の返りの欄を読む。
 - 照らしの表は、線の配線の部分 A・B1・B2・C・D1・D2（#211）が main に入る前に作る（#258）。だから、それらの「閉じる行」は照らしの表で「部分 X 待ち」（`waits-part`）と名指す（部分が入るまでの区分。部分が全部入った後の check では残りを落ちに数える。その部分の issue が戻し、表の行を移す）。段 1 は、その部分が直すファイル（`workflows/line/scripts/ask_final.py`・`collect.py`・`lib/runreport.py` ほか）を、不具合の直しの外では触らない。
 - 依存しない: issue #65（役が利用者の gh を通して GitHub の資格を読める件）。通しの種は GitHub を使わない。
 - 入った YAML の節の id がこの文書と食い違えば、YAML を正として読み替え、PR に書く。
@@ -51,8 +51,8 @@ works-factory は今の works の能力を、線・8 つのブロック・助け
 - 層の決まり: 根の `AGENTS.md`（E8〜E11・E13・E14・E18）・`workflows/AGENTS.md`（E1・E2・E4〜E7・E12・E16・E17）・`lib/AGENTS.md`（E3）・`bin/AGENTS.md`（E15）・`tests/AGENTS.md`。
 - `docs/design.md`: 「線」「ブロックの返りの約束」「Archon の分かっていること」と未決 U1〜U8・「作りの順」。
 - `docs/owner-decisions.md`: `overnight-speed`・`one-launcher`・`report-on-stop`・`diff-only-to-target`・`others-may-use`・`real-measure`・`superset`・`no-narrow`・`no-timeouts`・`small-core`・`carry`・`run-cost` と、「2026-10-11 の決めから導いた事」の「段 0〜1 を回す ASF の工程」。
-- 能力の棚卸し `docs/plans/2026-10-13-capabilities/`（`line.md`・`judge.md`・`plan.md`・`fix.md`・`tail.md`・`pitfalls.md`）。各行の「本物の run」の欄が、この issue の照らしの元。
-- 線の配線の文書 `docs/plans/2026-10-13-line-wiring.md` の「落とし穴の確かめ」（K1〜K20）・部分ごとの「閉じる行」・「この文書の外」。
+- 能力の棚卸し 能力の棚卸し（終えて消した計画）（`line.md`・`judge.md`・`plan.md`・`fix.md`・`tail.md`・`pitfalls.md`）。各行の「本物の run」の欄が、この issue の照らしの元。
+- 線の配線の文書 線の配線の計画（終えて消した計画） の「落とし穴の確かめ」（K1〜K20）・部分ごとの「閉じる行」・「この文書の外」。
 - issue #101 の本文（`bin/apply` の約束・`make_target.py`）。
 - ASF の取り付け命令が置いた物: `harness/END-TO-END.md`・`harness/runtime.scenario.json`・`harness/runtime.inputs.json`・`harness/harness.config.json`・`.factory/holdout/HOLDOUT.md`・`factory/consumer.py`（`invoke`・`harness_inputs`・`read_settings`）。
 - 止めた Archon の源の中:
@@ -85,8 +85,8 @@ works-factory は今の works の能力を、線・8 つのブロック・助け
 
 - 通しで見つかった不具合の直し: 当たったブロックのフォルダ（`workflows/<名>/`）・線・`lib/` のモジュールと、それぞれの試験。どれを直したかは PR に 1 件ずつ書く（手順 4）。
 - `harness/runtime.scenario.json`・`harness/END-TO-END.md`・`harness/runtime.inputs.json`（`description` だけ）・`harness/harness.config.json`（`protected_paths` に `tests/e2e/target-seed/**`・`tests/e2e/make_target.py`・`tests/e2e/evidence.json`）・`.factory/holdout/HOLDOUT.md`
-- `docs/design.md`（U1・U2 の残り・U6・U7 を「決めた」に・U8 と P2 に実物の事実・「作りの順」の段 1 と段 3 の 1・「段 1 の結果」の節を足す）・`docs/polyfills.md`（P1・P2・fan_out の子ごとの作業ツリーの候補の行）・`lib/AGENTS.md`（層の E3 の `deps:`）・`tests/AGENTS.md`（`tests/e2e/evidence.py` は筋書きが命令として呼ぶ照らしの道具で、試験が import する助けではない、と 1 行）・`README.md`（線がまだ無いという文を消す）（`docs/design.md` の「段 1 の結果」に、次の issue から lifecycle に替える入力と条件を 1 段落。`docs/owner-decisions.md` は持ち主の決めの台帳なので、この PR は触らない。運び役が merge の後に「2026-10-11 の決めから導いた事」の「段 0〜1 を回す ASF の工程」から、その段落を指す 1 行を足す）・`docs/plans/2026-10-11-foundation.md`（「段 0 の終わりの確かめ」の印）
-- 能力の棚卸し `docs/plans/2026-10-13-capabilities/` の行の誤り（「本物の run」の欄の置き場の名・元の行番号）は、同じ PR で直し、PR 本文に「行 ID: 旧 → 新」で並べる。行は消さない。
+- `docs/design.md`（U1・U2 の残り・U6・U7 を「決めた」に・U8 と P2 に実物の事実・「作りの順」の段 1 と段 3 の 1・「段 1 の結果」の節を足す）・`docs/polyfills.md`（P1・P2・fan_out の子ごとの作業ツリーの候補の行）・`lib/AGENTS.md`（層の E3 の `deps:`）・`tests/AGENTS.md`（`tests/e2e/evidence.py` は筋書きが命令として呼ぶ照らしの道具で、試験が import する助けではない、と 1 行）・`README.md`（線がまだ無いという文を消す）（`docs/design.md` の「段 1 の結果」に、次の issue から lifecycle に替える入力と条件を 1 段落。`docs/owner-decisions.md` は持ち主の決めの台帳なので、この PR は触らない。運び役が merge の後に「2026-10-11 の決めから導いた事」の「段 0〜1 を回す ASF の工程」から、その段落を指す 1 行を足す）・段 0 の土台の計画（終えて消した計画。「段 0 の終わりの確かめ」の印）
+- 能力の棚卸し 能力の棚卸し（終えて消した計画） の行の誤り（「本物の run」の欄の置き場の名・元の行番号）は、同じ PR で直し、PR 本文に「行 ID: 旧 → 新」で並べる。行は消さない。
 - 上のうち `harness/**`・`docs/design.md`・`README.md`・`**/AGENTS.md` は共有のファイル（`harness/harness.config.json` の `protected_paths`）で、merge queue が人の手に残す。直してよいのは、この文書が名指した所だけ。
 
 ## 種の入力
@@ -165,7 +165,7 @@ works-factory は今の works の能力を、線・8 つのブロック・助け
 
 ## 落とし穴の確かめ（K1〜K20）
 
-詳しい根拠と縛る試験は `docs/plans/2026-10-13-line-wiring.md` の「落とし穴の確かめ」と棚卸しの `pitfalls.md`。この PR が直すたびに、その差分が K1〜K20 の試験を通ることを PR 本文に 1 行ずつ書く（当たる所が無ければ「当たる所が無い」）。要点だけ写す:
+詳しい根拠と縛る試験は 線の配線の計画（終えて消した計画） の「落とし穴の確かめ」と棚卸しの `pitfalls.md`。この PR が直すたびに、その差分が K1〜K20 の試験を通ることを PR 本文に 1 行ずつ書く（当たる所が無ければ「当たる所が無い」）。要点だけ写す:
 
 - K1 返す節と返す節が結ぶ節は落ちない（lib の import は守った `main` の中・最後は標準ライブラリだけで返す。Archon は落ちた節の出力を結んだ節を `all_done` でも落とす。`dag-executor.ts` 495-533 行）
 - K2 `runtime: uv` の script は頭に PEP 723 の 4 行（`scripts/` の 1 段下も）

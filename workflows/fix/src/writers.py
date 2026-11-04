@@ -1,4 +1,4 @@
-"""型ごとの書き手を 1 つずつ順に回す口（docs/plans/2026-10-25-fix-weapons-stage1-b.md の 1。node writer-pick・ruled-writer-pick と、
+"""型ごとの書き手を 1 つずつ順に回す口（docs/design/fix.md の 23 節。node writer-pick・ruled-writer-pick と、
 修正の輪の fix-prep・fix-accept・fix-ruled-prep・fix-ruled-accept・consult-check が読む）。
 
 外の輪の 1 周が型 1 つ。writer-pick が注文の在る型を SEQUENCE の順に選んで置き場の writer.json に書き、その型の段の頭（段の頭の木・

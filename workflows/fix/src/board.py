@@ -1228,7 +1228,7 @@ def adopt_returns(place, sources, *, prior: bool = False, only_prior: bool = Fal
     return out
 
 
-RED_WEAPONS = ("variant", "remove", "pin")   # 赤を見ない clean を拒む照らし（F135）を当てる型（docs/plans/2026-10-25-fix-weapons-stage1-a.md の 3）
+RED_WEAPONS = ("variant", "remove", "pin")   # 赤を見ない clean を拒む照らし（F135）を当てる型（docs/design/fix.md の 22 節）
 
 
 def red_units(place):

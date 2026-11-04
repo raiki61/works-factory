@@ -1,5 +1,4 @@
-"""設計の段から計画の段へ降りる道と、計画の段から設計へ戻す道（docs/design/line.md の 3.3 節。設計の下書き
-docs/plans/2026-10-27-design-stage.md の 2.2 の 7〜9・2.4・8 章）。
+"""設計の段から計画の段へ降りる道と、計画の段から設計へ戻す道（docs/design/line.md の 3.3 節）。
 
 - descend(got, *, given, record, place) -> dict: theme-descend。設計の往復の返り got（theme-rounds-out の got）から、承認された設計の変える所を
   依頼の行に、関所の答えと推しを採った問いを依頼の答えの行にした依頼のファイル（files.THEME_DESCENDED）と、承認された設計の md の写し

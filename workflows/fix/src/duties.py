@@ -6,7 +6,7 @@ API に無い。憲法の 6）: check は「箱の義務の問題 + 型の義務
 
 どの関数も単位の事実 facts（受け付けが組む dict。下の FACTS）だけを読み、yes/no で問題の文を返す。表の行に載せた関数だけが受け付けで
 効く。PR A は機械が自分で決められる照らしだけを表に置き、書き手が返す証拠（evidence.named・kinds・sites の at・fixed_by・test）が
-要る照らしは、関数と試験を置いて段 2 で表に足した（docs/plans/2026-10-25-fix-weapons-stage1-a.md の 3。F1 が kinds・sites の 4 つ、
+要る照らしは、関数と試験を置いて段 2 で表に足した（docs/design/fix.md の 22 節。F1 が kinds・sites の 4 つ、
 F2 が変える段の箱の義務 change_named_or_gone）。
 
 FACTS（単位ごと）: unit（単位の key）・weapon・files（単位の行の files。根からの相対）・test_files（その中の試験のファイル。
@@ -472,7 +472,7 @@ def frozen_by_returns(place, repo) -> list:
     注文の索引の since の木を基準に、注文の permits の範囲（PERMIT_RANGES の行の test）と段の頭の後に取れた範囲の相談の合意
     （orders.later_agreed。注文は段の頭で 1 度しか書かない）だけを許して照らす（common.frozen_problems の
     同じ式。返しの控えは輪の状態と同じ名の欄 frozen・frozen_tree を持つ）。今の照らし facts.check_frozen は外さずに並べる（両方を
-    通る物だけを通す。docs/plans/2026-10-25-fix-weapons-stage1-a.md の 1 の 3）。注文の無い置き場・控えの無い置き場は空。
+    通る物だけを通す。docs/design/fix.md の 22 節）。注文の無い置き場・控えの無い置き場は空。
     読めない控えは、照らせなかった訳の行にする"""
     import jsonfile   # lib/
     from src import common, files, orders
