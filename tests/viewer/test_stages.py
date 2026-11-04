@@ -10,34 +10,18 @@
 - 段の表の配線の列（wiring。合流・受け渡しだけで段の仕事をしないノード）は、その段のノードの中に在り、どの段にも配線でない
   ノードが在る。配線のノードだけが走った段は「飛んだ」（修正の段が飛んだ run でも fix-in・fixed・judged は走る。修正前の承認の
   聞きと受け ask-before-fix・answer-before-fix と仕様駆動の spec-ask-before-fix・spec-answer-before-fix は、人が聞かれずに止めや通しを受け渡しただけでも走る。人が答えた run は「通った」）
-- 止まった段は記録の事実から引く: 人が止めた run は答えが stop だった人の答え待ちの段（run 642df5d7 の形で、止めを受け渡しただけの
-  修正前の承認を返さない）、落ちた run は受け止めていない最後に落ちた出来事の段（後ろの段の配線でないノードが走った落ちは受け止めた物）。
-  通す答えだけの run と落ちずに終わった run と、受け止めた落ちだけの run には無い。止まり方（人が止めた human・落ちた failed）と
-  止まった出来事の番号も同じ所で決め、雛形は読むだけ（承認を通した後に同じ段で落ちた run を人の止めと取り違えない）
 - 段の状態は所（run・道・周）ごとの最後の結果で決める。落ちた後に起き直して通った段は通ったで、一度落ちたことを印 fell に残す
   （出来事の印 fell からも。同じ起動の id で走り直した物は、読む部品が起動ごとの出来事に分けて走り直しに印 fell を付ける）
-- line でない run は段に集めない
-- 図の札ごとの AI の手番の費用（run の ai_cost。札の鍵は入れ子の場所ごと）は、札とその中の AI の手番の費用の和で、機械の手番と
-  中の出来事を束ねる器（子の run を起こすノードの行は子の総額を載せる）を足さない。line でない run にも付ける。雛形は数えずに読む
-- 結末の頭の語の表（outcomes）の語の組は、工場の結末の語の正本 lib/report.py の OUTCOMES と同じ（工場が結末の語を足せば赤）
-- 段ごとの MISSION の語の列（mission。MISSION.md の「流れ」の段階と承認ノードのうち、その段が担う物）は、語がどれも MISSION.md の
-  流れに在り、流れの語がどれもどこかの段に在る（MISSION の流れの語を足す・替えると赤。段の名と MISSION の語が 1 対 1 でないのを
-  画面で読めるようにする）。承認ノードの語は、作りの上で承認ノード（kind が gate の物）に届きうる段にだけ在り、そういう段には必ず在る（語の抜けと余りが
-  赤）。届きうるは、line の一番上のノード・繰り返しの中のノード（計画の往復の gate-design・設計の段の gate-theme）・include の先の
-  graph の中のノード（判定の judge → spec の spec-gate）を辿って決める。include の先の when は読まないので、仕様を照らすだけの
-  spec-check-run（mode check。spec-gate は起きない）を持つ確かめ直しの段も届きうるに入る
+- line でない run は段に集めず、出来事に段の番号を付けない
 
 試験は小さな作りと run の記録を手で組む。
 """
-import re
 import unittest
 import unittest.mock
-from pathlib import Path
 
 from viewer import runtrace
 from viewer.src import shape, stages
 
-import report   # lib/（viewer/src/__init__.py が sys.path に足す）
 
 def tree_shape() -> dict:
     return shape.read(runtrace.TREE, runtrace.PACK["name_prefix"], runtrace.ROOT / "docs" / "design")
@@ -79,36 +63,6 @@ class StagesCase(unittest.TestCase):
         self.assertEqual(len(got), 2)
         self.assertTrue(any("new-node" in line for line in got) and any(NODES[0] in line for line in got))
 
-    def test_the_outcome_words_are_the_factorys(self):
-        self.assertEqual(set(stages.TABLE["outcomes"]), set(report.OUTCOMES))
-        self.assertTrue(all(isinstance(head, str) and head for head in stages.TABLE["outcomes"].values()))
-        self.assertEqual(run_of([], [])["stages"]["outcomes"], stages.TABLE["outcomes"])
-
-    def test_the_mission_words_are_the_flow_of_mission_md(self):
-        text = (Path(__file__).resolve().parents[2] / "MISSION.md").read_text(encoding="utf-8")
-        flow = next(row for row in text.splitlines() if row.startswith("- 流れ: ")).removeprefix("- 流れ: ")
-        steps = [step.strip() for step in re.sub(r"（.*?）", "", flow).split("。")[0].split("→")]
-        words = {*steps, "承認ノード"} if "承認ノード" in flow else set(steps)
-        used = [word for stage in stages.TABLE["stages"] for word in stage["mission"]]
-        self.assertEqual(set(used) - words, set())
-        self.assertEqual(words - set(used), set())
-        self.assertEqual(run_of([], [])["stages"]["table"][0]["mission"], stages.TABLE["stages"][0]["mission"])
-
-    def test_the_stages_with_an_approval_node_say_so(self):
-        graphs = tree_shape()["graphs"]
-
-        def gated(item, seen):
-            if item["kind"] == "gate" or any(gated(kid, seen) for kid in item.get("kids", [])):
-                return True
-            target = item.get("target") if item["kind"] == "block" else None
-            return target in graphs and target not in seen and any(gated(kid, seen | {target}) for kid in graphs[target]["items"])
-        graph = graphs[stages.TABLE["graph"]]
-        gates = {item["id"] for item in graph["items"] if gated(item, {stages.TABLE["graph"]})}
-        self.assertTrue({"plan-rounds", "theme-rounds", "judge"} <= gates)
-        has = {stage["name"] for stage in stages.TABLE["stages"] if gates & set(stage["nodes"])}
-        says = {stage["name"] for stage in stages.TABLE["stages"] if "承認ノード" in stage["mission"]}
-        self.assertEqual(says, has)
-
     def test_wiring_outside_its_stage_or_a_stage_of_only_wiring_is_red(self):
         table = {**stages.TABLE, "stages": [{**stage, "wiring": list(stage["wiring"])} for stage in stages.TABLE["stages"]]}
         table["stages"][0]["wiring"].append("fixed")
@@ -128,7 +82,6 @@ class StagesCase(unittest.TestCase):
         rows = data["stages"]["run"]
         self.assertEqual([rows[number(node) - 1]["state"] for node in ("judge", "gate-before-fix", "fix", "judged", "eyes", "collect")],
                          ["ok", "skipped", "skipped", "skipped", "skipped", "ok"])
-        self.assertEqual([e["through"] for e in events], [False, True, True, True, True, True, True, False])
 
     def test_run_is_summed_by_stage(self):
         usage = {"input": 100, "output": 7, "cacheRead": 60, "cacheWrite": 30}
@@ -148,20 +101,16 @@ class StagesCase(unittest.TestCase):
         data = {"shape": {"graphs": line(NODES)}, "run": {"graph": "works-factory-line", "events": events, "skipped": skipped}}
         stages.attach(data)
         got = data["stages"]
-        states = {stage["name"]: row["state"] for stage, row in zip(got["table"], got["run"])}
+        states = {stage["name"]: row["state"] for stage, row in zip(stages.TABLE["stages"], got["run"])}
         self.assertEqual([states[stages.TABLE["stages"][number(node) - 1]["name"]] for node in
                           ("start", "theme-world", "test-gate-base", "judge", "plan-rounds", "gate-before-fix", "fix", "judged",
                            "eyes", "merge-seal", "collect")],
                          ["ok", "none", "none", "ok", "ok", "none", "skipped", "skipped", "skipped", "skipped", "ok"])
-        self.assertEqual(got["stop"], number("plan-rounds"))
         plan = got["run"][number("plan-rounds") - 1]
         self.assertEqual({key: plan[key] for key in ("seconds", "wait", "ai_seconds", "ai", "steps", "turns", "cost")},
                          {"seconds": 420.0, "wait": 300.0, "ai_seconds": 120.0, "ai": 1, "steps": 2, "turns": 3, "cost": 2.0})
         self.assertEqual(plan["tokens"], {**usage, "uncached": 10, "odd": 0})
         self.assertEqual([e["stage"] for e in events], [number(e["tokens"][0]) for e in events])
-        self.assertEqual([(e["role"], e["through"]) for e in events],
-                         [("machine", False), ("ai", False), ("group", False), ("ai", False), ("wait", False), ("machine", True), ("machine", False)])
-        self.assertEqual(got["loose"], [])
 
     def test_a_child_run_cost_is_counted_once(self):
         # 子の run を起こすノードの行には子の総額が載る（docs/design/archon.md）。子の中の出来事の費用と二重に足さない
@@ -202,15 +151,6 @@ class StagesCase(unittest.TestCase):
         got = summed([event(["judge", "a"], kind="agent", usage=known), event(["judge", "b"], kind="agent", usage=odd)])
         self.assertEqual(got[number("judge") - 1]["tokens"], {"input": 110, "output": 8, "cacheRead": 120, "cacheWrite": 60, "odd": 1})
 
-    def test_a_failed_run_stops_at_the_last_failed_stage(self):
-        # 落ちた後ろを Archon が飛んだと書かない run でも、落ちた出来事の段で止まる。落ちて続けて終わった run は止まっていない
-        failed = event(["fix"], status="failed")
-        self.assertEqual(run_of([event(["start"]), failed], [], status="failed")["stages"]["stop"], number("fix"))
-        self.assertEqual(run_of([event(["start"]), failed, event(["collect"], status="failed")], [{"tokens": ["eyes"]}], status="failed")["stages"]["stop"],
-                         number("collect"))
-        self.assertEqual(run_of([event(["start"]), failed, event(["fix"]), event(["collect"])], [], status="completed")["stages"]["stop"], None)
-        self.assertEqual(run_of([event(["start"]), event(["fix"], status="running")], [], status="running")["stages"]["stop"], None)
-
     def test_a_stage_that_passed_after_a_fall_passed_and_keeps_the_fall(self):
         """落ちた後に起き直して完了した run で、前の起動で落ちた所（run・道・周）が起き直した後に通った段は、最後の結果の通ったにし、
         一度落ちたことを印 fell に残す。最後まで落ちたままの所が在る段は落ちた（印は付けない）"""
@@ -228,38 +168,9 @@ class StagesCase(unittest.TestCase):
         self.assertEqual([(rows[number(node) - 1]["state"], rows[number(node) - 1]["fell"]) for node in ("start", "fix")],
                          [("ok", False), ("ok", True)])
 
-    def test_an_absorbed_failure_is_not_a_stop(self):
-        """line が受け止めて先へ進んだ落ち（独立の目・レンズ）の在る run も、Archon は failed で終える（docs/design/archon.md）。後ろの段
-        （報告の段のほか）の配線でないノードが走った落ちは止まった所でない。直した run には無く、その後に人が最後の承認で止めた run は
-        最後の承認の段、受け止めた落ちの後で本当に落ちた run はその段"""
-        absorbed = [event(["start"]), event(["fix"], kind="agent"), event(["lens", "check"], status="failed"), event(["lens-out"]),
-                    event(["eyes-in"]), event(["eyes", "r1"], kind="agent", status="failed"), event(["eyes-out"]), event(["merge-seal"]),
-                    event(["ask-final"])]
-        tail = [event(["collect"]), event(["report"], kind="workflow"), event(["result"])]
-        fixed = absorbed + [event(["answer-final"]), event(["merge-apply"])] + tail
-        self.assertEqual(run_of(fixed, [], status="failed")["stages"]["stop"], None)
-        stopped = absorbed + [event(["gate-final"], kind="wait", output='{"decision": "stop", "text": ""}'), event(["answer-final"])] + tail
-        self.assertEqual(run_of(stopped, [{"tokens": ["merge-apply"]}], status="failed")["stages"]["stop"], number("gate-final"))
-        failed = absorbed[:4] + [event(["rejudge-run"], kind="workflow", status="failed"), event(["judged"])] + tail
-        self.assertEqual(run_of(failed, [{"tokens": ["eyes"]}], status="failed")["stages"]["stop"], number("rejudge-run"))
-
-    def test_a_failure_after_an_approval_in_the_same_stage_is_a_failure(self):
-        """最後の承認 gate-final を人が通した後に、同じ段の merge-apply が落ちた run。止まり方は落ちた、止まった出来事は merge-apply
-        （同じ段に人の答え待ちが在っても、答えが止める語でなければ人の止めでない）。人が止めた run は答え待ちの出来事を指す"""
-        events = [event(["start"]), event(["merge-seal"]), event(["ask-final"]),
-                  event(["gate-final"], kind="wait", output='{"decision": "approve", "text": ""}'), event(["answer-final"]),
-                  event(["merge-apply"], status="failed")]
-        got = run_of(events, [], status="failed")["stages"]
-        self.assertEqual((got["stop"], got["stop_by"], got["stop_event"]), (number("merge-apply"), "failed", 5))
-        stopped = events[:3] + [event(["gate-final"], kind="wait", output='{"decision": "stop", "text": ""}'), event(["answer-final"])]
-        got = run_of(stopped, [{"tokens": ["merge-apply"]}], status="completed")["stages"]
-        self.assertEqual((got["stop"], got["stop_by"], got["stop_event"]), (number("gate-final"), "human", 3))
-        got = run_of(events[:5], [], status="completed")["stages"]
-        self.assertEqual((got["stop"], got["stop_by"], got["stop_event"]), (None, None, None))
-
-    def test_a_human_stop_stops_at_the_stage_of_the_answer(self):
+    def test_a_before_fix_approval_that_only_handed_a_stop_is_skipped(self):
         """run 642df5d7 の形: 計画の段の中の相談 plan-rounds/gate-design で人が stop と答え、修正前の承認の聞きと受け（ask-before-fix・
-        answer-before-fix）はその stop を受け渡しただけ（承認の聞き gate-before-fix は飛んだ）。止まった段は答えた段（計画）"""
+        answer-before-fix）はその stop を受け渡しただけ（承認の聞き gate-before-fix は飛んだ）"""
         events = [event(["start"]), event(["judge", "diagnose"], kind="agent"), event(["plan-rounds"], kind="loop_group"),
                   event(["plan-rounds", "plan"], kind="agent", loop=[1]),
                   event(["plan-rounds", "gate-design"], kind="wait", loop=[1], output='{"decision": "stop", "text": "止める"}'),
@@ -267,7 +178,6 @@ class StagesCase(unittest.TestCase):
                   event(["collect"]), event(["report"], kind="workflow"), event(["result"])]
         skipped = [{"tokens": [node]} for node in ("gate-before-fix", "fix", "rejudge-run", "test-gate-final", "eyes", "merge-seal")]
         got = run_of(events, skipped, status="completed")["stages"]
-        self.assertEqual(got["stop"], number("plan-rounds"))
         # 修正前の承認は人が聞かれていない（聞きと受けは止めを受け渡しただけ）ので飛んだ
         self.assertEqual(got["run"][number("gate-before-fix") - 1]["state"], "skipped")
 
@@ -287,32 +197,12 @@ class StagesCase(unittest.TestCase):
                     event(["spec-answer-before-fix"]), event(["fix-in"]), event(["fix"], kind="agent")]
         self.assertEqual(summed(answered)[number("spec-gate-before-fix") - 1]["state"], "ok")
 
-    def test_a_go_answer_or_a_run_that_did_not_stop_has_no_stop(self):
-        go = event(["plan-rounds", "gate-design"], kind="wait", output={"decision": "approve", "text": ""})
-        self.assertEqual(run_of([event(["start"]), go, event(["collect"])], [{"tokens": ["fix"]}], status="completed")["stages"]["stop"], None)
-        self.assertEqual(run_of([event(["start"]), event(["fix"]), event(["collect"])], [{"tokens": ["eyes"]}])["stages"]["stop"], None)
-
     def test_a_run_of_another_graph_is_not_summed(self):
         data = {"shape": {"graphs": line(NODES)}, "run": {"graph": "works-factory-chain", "events": [event(["x"])], "skipped": []}}
         stages.attach(data)
-        self.assertEqual((data["stages"]["run"], data["stages"]["stop"], len(data["stages"]["table"])), (None, None, len(stages.TABLE["stages"])))
+        self.assertEqual(data["stages"], {"run": None})
+        self.assertNotIn("stage", data["run"]["events"][0])
 
-    def test_the_ai_cost_of_each_card_is_summed_in_the_data(self):
-        """札の鍵は 雛形の K（場所 > graph/道）と同じ形。入れ子の札は中の AI の手番の和、AI の札は自分の和。機械の手番と、子の run を
-        起こすノードの行（子の総額）は足さない"""
-        child = {"graph": "line", "node": "rejudge-run", "via": []}
-        inner = {"graph": "judge", "node": "judge-loop/diagnose", "via": [{"graph": "line", "node": "rejudge-run"}]}
-        events = [event(["rejudge-run"], kind="workflow", cost=3.0, at=child),
-                  event(["rejudge-run", "judge-loop", "diagnose"], kind="agent", cost=1.0, at=inner, loop=[1]),
-                  event(["rejudge-run", "judge-loop", "diagnose"], kind="agent", cost=2.0, at=inner, loop=[2]),
-                  event(["rejudge-run", "judge-loop", "check"], kind="exec", cost=0.5, at={**inner, "node": "judge-loop/check"}),
-                  event(["start"], kind="agent", cost=0.25, at={"graph": "line", "node": "start", "via": []}), event(["x"], kind="agent", cost=9.0, at=None)]
-        self.assertEqual(stages.spots(inner), ["line/rejudge-run", "line/rejudge-run>judge/judge-loop", "line/rejudge-run>judge/judge-loop/diagnose"])
-        want = {"line/rejudge-run": 3.0, "line/rejudge-run>judge/judge-loop": 3.0, "line/rejudge-run>judge/judge-loop/diagnose": 3.0, "line/start": 0.25}
-        self.assertEqual(run_of(events, [])["run"]["ai_cost"], want)
-        other = {"shape": {"graphs": line(NODES)}, "run": {"graph": "works-factory-chain", "events": events, "skipped": []}}
-        stages.attach(other)
-        self.assertEqual(other["run"]["ai_cost"], want)
 
 
 if __name__ == "__main__":

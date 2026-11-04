@@ -1,4 +1,4 @@
-"""段の表（viewer/stages.json）と段ごとの集計（トレースの段の span と段ごとの費用の表。docs/design/viewer.md の 8 章）。
+"""段の表（viewer/stages.json）と段ごとの集計（トレースの段の span と run の span の段ごとの費用の表が読む。docs/design/viewer.md の 6.5）。
 
 段は、line（メイングラフ）の一番上のノードを人の言葉で畳んだ単位で、見る道具だけの考え。表は工場の中に置かず、工場の中からも読まない
 （viewer/AGENTS.md の E25）。出来事の段は、出来事の道の頭（line の一番上のノード。include・繰り返し・子の run の出来事も、道の頭は
@@ -6,21 +6,16 @@ line のノード）で引く。
 
 - check(graphs) -> 照らしの問題の字の一覧。今の木の line の一番上のノードがどれもちょうど 1 つの段に入り、表の id がどれも line に在り、
   段の配線の列 wiring がその段のノードの中に在り、どの段にも配線でないノードが在る
-- attach(data) -> data["stages"] に段の表と結末の頭の語の表 outcomes と、run が line の run なら段ごとの集計と止まった所（段の番号 stop・止まり方 stop_by・
-  止まった出来事の番号 stop_event）を足し、出来事と飛んだノードに段の番号 stage を、出来事に時間の帯の塗り分け role と、段の状態に
-  数えない配線のノードの印 through を付ける。どの run にも、出来事の場所 at ごとの AI の手番の費用 run["ai_cost"]（場所の鍵 → その場所と
-  中の AI の手番の費用の和）を付ける。止まった所と ai_cost は今は読む物が無く、at を付ける物も無いので ai_cost は空（docs/design/viewer.md の 6.5）
-- spots(at) -> 出来事の場所 at が触れる場所の鍵の列（外から順）
+- attach(data) -> data["stages"] に段ごとの集計 run（line の run でなければ None）を置き、line の run なら出来事と飛んだノードに段の
+  番号 stage を付ける（段の表に無いノードは None）
 """
 import json
 from pathlib import Path
 
-import answer   # lib/（viewer/src/__init__.py が sys.path に足す）
-import runlog
+import runlog   # lib/（viewer/src/__init__.py が sys.path に足す）
 from viewer.src import runread, shape
 
 TABLE = json.loads((Path(__file__).resolve().parents[1] / "stages.json").read_text(encoding="utf-8"))
-SHOWN = ("name", "mission", "line", "hands", "source", "nodes", "wiring")
 
 
 def check(graphs: dict) -> list[str]:
@@ -44,55 +39,15 @@ def check(graphs: dict) -> list[str]:
 
 def attach(data: dict) -> None:
     graph = data["shape"]["graphs"].get(TABLE["graph"])
-    of = {node: n for n, stage in enumerate(TABLE["stages"], 1) for node in stage["nodes"]}
-    tops = [item["id"] for item in graph["items"]] if graph else []
-    out = {"graph": graph["name"] if graph else "", "table": [{key: stage[key] for key in SHOWN} for stage in TABLE["stages"]],
-           "outcomes": TABLE["outcomes"],
-           "loose": [top for top in tops if top not in of], "run": None, "stop": None, "stop_by": None, "stop_event": None}
-    data["stages"] = out
+    data["stages"] = {"run": None}
     run = data["run"]
-    if run:
-        run["ai_cost"] = _ai_cost(run)
     if not run or not graph or run["graph"] != graph["name"]:
         return
+    of = {node: n for n, stage in enumerate(TABLE["stages"], 1) for node in stage["nodes"]}
     through = {node for stage in TABLE["stages"] for node in stage["wiring"]}
     for entry in [*run["events"], *run["skipped"]]:
-        top = entry["tokens"][0] if entry["tokens"] else ""
-        entry["stage"] = of.get(top)
-        if entry["stage"] is None and top not in out["loose"]:
-            out["loose"].append(top)
-    for e in run["events"]:
-        e["role"] = _role(e["kind"])
-        e["through"] = e["stage"] is not None and e["tokens"][0] in through
-    out["run"] = [_sum(n, run, through) for n in range(1, len(TABLE["stages"]) + 1)]
-    by, at = _stop(run)
-    if at is not None:
-        out.update(stop=run["events"][at]["stage"], stop_by=by, stop_event=at)
-
-
-def spots(at: dict) -> list[str]:
-    """場所の鍵は入れ子の場所ごと: 「<外の場所の鍵>>graph/道」（一番外は「graph/道」）。道の頭から順の場所（繰り返しの器と入れ子の
-    場所）も数える"""
-    out, scope = [], ""
-    for step in [*(at.get("via") or []), at]:
-        head = f"{scope}>{step['graph']}/" if scope else f"{step['graph']}/"
-        parts = step["node"].split("/")
-        out += [head + "/".join(parts[:i + 1]) for i in range(len(parts))]
-        scope = head + step["node"]
-    return out
-
-
-def _ai_cost(run: dict) -> dict[str, float]:
-    """場所ごとの AI の手番の費用。中の出来事を束ねる器は数えない（子の run を起こすノードの行は子の総額を載せ、中の手番と二重になる）。
-    場所 at の無い出来事は数えない"""
-    out = {}
-    for e in run["events"]:
-        at = e.get("at")
-        if e["kind"] not in runread.AI_KINDS or not at or not at.get("graph"):
-            continue
-        for key in dict.fromkeys(spots(at)):
-            out[key] = out.get(key, 0.0) + e["cost"]
-    return {key: round(cost, 6) for key, cost in out.items()}
+        entry["stage"] = of.get(entry["tokens"][0] if entry["tokens"] else "")
+    data["stages"]["run"] = [_sum(n, run, through) for n in range(1, len(TABLE["stages"]) + 1)]
 
 
 def _sum(n: int, run: dict, through: set[str]) -> dict:
@@ -135,48 +90,6 @@ def _sum(n: int, run: dict, through: set[str]) -> dict:
             "cost": round(sum(e["cost"] for e in own), 6), "tokens": tokens}
 
 
-def four(usage: dict) -> dict:
-    """手番 1 回の 4 分けのトークンと新しく読んだ分 uncached（lib/runlog.py の add_tokens と同じ訳。input は新しく読んだ分と cache の
-    読み書きの和で、cache の欄が欠けた手番は uncached を出さずに cacheUnknown を持つ）。input が cache の 2 つの和より小さい手番は
-    引けないので uncached を出さずに odd を真にする（包みの関係は Claude Code と Archon の版で変わりうるので決まりとして照らさない）。
-    段の集計が使う"""
-    got = {}
-    runlog.add_tokens(got, usage)
-    odd = _odd(usage)
-    if odd:
-        got.pop(runlog.UNCACHED, None)
-    return {**got, "odd": odd}
-
-
 def _odd(usage: dict) -> bool:
     return all(field in usage for field in runlog.CACHE_FIELDS) and usage["input"] < usage["cacheRead"] + usage["cacheWrite"]
 
-
-def _role(kind: str) -> str:
-    """時間の帯の塗り分け: AI の手番（ai）・人の答え待ち（wait）・中の出来事を束ねる器（group。帯に描かない）・機械の手番（machine）"""
-    return "ai" if kind in runread.AI_KINDS else "wait" if kind == runread.WAIT_NODE else "group" if kind in runread.GROUP_KINDS else "machine"
-
-
-def _stop(run: dict) -> tuple[str | None, int | None]:
-    """止まり方（人が止めた human・落ちた failed）と止まった出来事の番号（run の events の中の位置）を記録の事実から引く。人が止めた run は、答えが止める語
-    （lib/answer.py の STOP_WORDS）だった最後の人の答え待ちの出来事の段。そうでなく落ちた run は、受け止めていない最後の落ちた出来事の段。
-    受け止めた落ちは、その段より後ろの段（どの道でも走る報告の段、表の最後の段のほかで）の配線でないノードが走った物（line は独立の目と
-    レンズの落ちを受け止めて先へ進むが、Archon は run を failed で終える。docs/design/archon.md）。
-    次の run には出さない（窓口の決めで今は出さない。広げるかは後で決める）: 直した・直す物が無かった・まだ走っている run と、報告の結末
-    （workflows/report/src/outcome.py）が line の止め stopped_by_line（止める語を script が受け渡しただけで人の答えが無い）・人待ち
-    needs_human・記録が通らない record_invalid で、落ちていない run。
-    道が分かれて先を飛んだ段は使わない（止めを受け渡しただけの段を止まった所と取り違える）。止まり方もここで決め、同じ段に人の
-    答え待ちが在っても答えが止める語でなければ人の止めにしない（承認を通した後に同じ段で落ちた run は落ちた）"""
-    events = run["events"]
-    by, rows = "human", [i for i, e in enumerate(events) if e["kind"] == runread.WAIT_NODE and _answer(e.get("output")) in answer.STOP_WORDS]
-    if not rows and run.get("status") == runread.FAILED:
-        last = len(TABLE["stages"])
-        went = {e["stage"] for e in events if e.get("stage") not in (None, last) and not e["through"]}
-        by, rows = "failed", [i for i, e in enumerate(events) if e["status"] == "failed" and not any(n > (e.get("stage") or last) for n in went)]
-    rows = [i for i in rows if events[i].get("stage") is not None]
-    return (by, rows[-1]) if rows else (None, None)
-
-
-def _answer(output) -> str:
-    """人の答え待ちの出力（{decision, text}。記録では JSON の字）の答えの語（欄の名は runread.ANSWER_DECISION）"""
-    return runread.field(output, runread.ANSWER_DECISION)

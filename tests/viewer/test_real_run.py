@@ -6,7 +6,6 @@ docs/design/test-double-fidelity.md の型）。
 
 - 読めなかった行（知らない型の行・ノードに当たらない道具の出来事）が 0、記録の無い run が 0
 - 作りは run の写しから読む（runread.copy が指す写しの中の pack の置き場が、本物の Archon の置き方と合う）
-- run の一覧に、その run が終わりの状態で 1 行在る
 - include の中のノードの出来事が、外の graph から入る道（通った include のノード）の token を持つ
 - 落ちたノードの誤りの字が出来事に在る
 - 承認ノードで止まった run は待ちを出し、答えが入って次へ進む前の間（Archon は答えを run の metadata の wait に書くだけで、
@@ -113,10 +112,8 @@ def answer_only(tree: pathlib.Path, run_id: str) -> subprocess.CompletedProcess:
 
 
 def read(tree: pathlib.Path, wanted: str, user: dict) -> dict:
-    """run の一覧と、選んだ run（wanted が空なら一番新しい親の run）の読み。全部の読み（作り・会話・段）は runtrace.read"""
-    data = runtrace.read(str(tree), wanted, user, tree)
-    data["runs"] = runread.runs(tree.parent / "archon-home" / runread.DB_FILE)
-    return data
+    """選んだ run（wanted が空なら一番新しい親の run）の読み。全部の読み（作り・会話・段）は runtrace.read"""
+    return runtrace.read(str(tree), wanted, user, tree)
 
 
 def rows(tree: pathlib.Path, run_id: str) -> list[str]:
@@ -153,12 +150,11 @@ class RealRunCase(unittest.TestCase):
                 done = archon.archon(tree, "workflow", "run", f"{PREFIX}seen", "--no-worktree", "--cwd", str(tree))
                 data = read(tree, "", user)
         self.assertIsNotNone(paused["run"], f"{gate.stdout}{gate.stderr}")
-        self.assertEqual((paused["run"]["status"], paused["run"]["waiting"], paused["runs"][0]["waiting"]), ("paused", ["ask"], ["ask"]))
+        self.assertEqual((paused["run"]["status"], paused["run"]["waiting"]), ("paused", ["ask"]))
         self.assertEqual(answering.returncode, 0, f"{answering.stdout}{answering.stderr}")
-        self.assertEqual((answered_only["run"]["status"], answered_only["run"]["waiting"], answered_only["runs"][0]["waiting"]),
-                         ("paused", [], []))
+        self.assertEqual((answered_only["run"]["status"], answered_only["run"]["waiting"]), ("paused", []))
         self.assertEqual(stopped["run"]["status"], "cancelled", f"{abandoned.stdout}{abandoned.stderr}")
-        self.assertEqual((stopped["run"]["waiting"], stopped["runs"][0]["waiting"]), ([], []))
+        self.assertEqual(stopped["run"]["waiting"], [])
         self.assertEqual(answered["run"]["status"], "completed", f"{approved.stdout}{approved.stderr}")
         self.assertEqual((answered["run"]["unread"], answered["run"]["waiting"]), ({}, []))
         gate = next(e for e in answered["run"]["events"] if e["tokens"] == ["ask"])
@@ -170,7 +166,7 @@ class RealRunCase(unittest.TestCase):
         self.assertEqual((run["unread"], run["missing_logs"]), ({}, []))
         # 作りは run の写しから読む（runread.copy の写しの中の pack の置き場のパスが本物の Archon と合う）
         self.assertEqual(data["shape_from"], "run-copy")
-        self.assertEqual([(r["id"], r["status"]) for r in data["runs"]], [(run["id"], "failed"), (again["run"]["id"], "completed"), (paused["run"]["id"], "cancelled")])
+        self.assertEqual(run["status"], "failed")
         paths = {"/".join(e["tokens"]) for e in run["events"]}
         self.assertLessEqual({"make", "leaf/rounds/step", "leaf/talk", "boom"}, paths)
         self.assertIn("boom", next(e for e in run["events"] if e["tokens"] == ["boom"])["error"])

@@ -4,26 +4,23 @@
   Python 3.13 からなので、警告では版によって照らせない）
 - 始めの時刻が同じ秒の run は、後に作った run を新しいとする。Archon の SQLite は時刻を秒までしか持たず（datetime('now')）、承認で
   再開した run の始めを今に書き直す（packages/core/src/db/workflow-run-resume.ts）ので、再開の直後に起こした run と秒が並ぶ
-- 一覧の並びと一番新しい run は、出来事の最初の時刻で決める（起き直した run が、後に始めた run より上に来ない）
+- 一番新しい run は、出来事の最初の時刻で決める（起き直した run が、後に始めた run より新しくならない）
 - 子の run のかかった秒も、run の行の値でなく、その子と孫の出来事の最初の始めと最後の終わりから出す
 - 壊れた時刻（読めない ts）の出来事が在っても、選んだ run は落ちず、その時刻だけを数えない
 - 会話の記録の行は、読む型・読まない型（訳つき）・知らない型に分け、知らない型だけを読めなかった物に数える（帯の数が本当に読めなかった
   物を指す）。読まない型のうち字を別の型から読む物は、その代わりの型が記録に無い会話では知らない型と同じく数える。Claude Code の記録の形は工場が止めていないので、読まない型の表が本物の記録に合うかは人が見る
-- run の一覧の行の結末 outcome は、line の返すノード result の出力（DB の node_completed。JSON の字でも値でも）の結末の語。result の
-  出力を持たない run（ほかの graph・result まで走っていない run）と、出力に結末の語が無い run は空
-- run の費用は metadata の total_cost_usd で、空の run（一覧の行と選んだ run の両方）は DB のノードの終わりの出来事（落ちたノードも）のうち
+- run の費用は metadata の total_cost_usd で、空の run は DB のノードの終わりの出来事（落ちたノードも）のうち
   accounting が node の物の和（後から書く費用の出来事も）で代える。子の run の費用は、親の子の run を起こすノード（workflow）の行が accounting を
   node にして子の総額を載せる（metadata の total_cost_usd と同じ）。子の run の行は別の run なので親の和に足さない（足すと二重）。どちらも無い run は空
 - 起き直した run のログが書く「前に済んだので飛ばした」行（node_skipped の content が prior_success）は、飛んだノードに数えない
   （その道が済んだことは前の起動の出来事で見える）
-- 終わった run（状態が completed・failed・cancelled）の終わりは DB の終わりの出来事の時刻で、一覧と選んだ run のかかった秒が合う
-  （終わりの出来事をログに書かずに終わった run でも）。終わりの無い待ちと走り中のまま止まったノードはその時刻で閉じ、印 cut を付ける。
+- 終わった run（状態が completed・failed・cancelled）の終わりは DB の終わりの出来事の時刻（終わりの出来事をログに書かずに
+  終わった run でも）。終わりの無い待ちと走り中のまま止まったノードはその時刻で閉じ、印 cut を付ける。
   走り中の run は最後の出来事まで。DB の終わりは秒までなので、ログの最後の終わりの方が遅ければそちらを run の終わりにする
 - 出来事の時刻の欄は、DB の時刻で閉じた物も含めて全部ログの形（T と Z）
 - run の費用の代わりの和は Archon の nodeCostScope の数え方: accounting の無い古い行は aggregate が true でなければ自前、
   compose_fan_out の instance の行が正でその中の行（道の頭が instance の道）は外す、費用の欄を持つ行が無ければ空。走り中の run は
   metadata の古い total_cost_usd でなく代わりの和。答え待ちの run は待ちに入る時に Archon が書いた total_cost_usd
-- 落ちの訳は状態が failed の run だけに出す（落ちた後に起き直して終わった run に古い訳を残さない）
 - 読めない時刻の行（字でない時刻も）は、その時刻を数えずに進み、読めなかった物に数える（段の集計と無駄の手がかりを落とさない）
 - 会話の id の頭が 2 つ以上の記録に当たれば、黙って選ばずに読めなかった物に数える
 - DB のパスに URI の特別な字（? # %）が在っても、そのパスの DB を開く
@@ -31,8 +28,7 @@
 - 往復の印は、usage を持つ行を待たず、その往復の最初の行で置く（usage の無い返事が混じっても往復の数がずれず、どの返事にも usage が
   無くても返事と道具の呼び出しが並びから消えない。usage は後の行で埋める）
 - 起き直すたびに書き直される飛びの行（when・trigger_rule。起動の id は毎回違う）は、同じ run・道・周なら 1 つに数える（周が違えば別）
-- 一覧と選んだ run の始めは同じ定義: DB の出来事の最初（run の始めの印を含む）とログの最初の始めの早い方（同じ秒ならログ）。長さが秒の
-  丸めの内で合う
+- 選んだ run の始めは、DB の出来事の最初（run の始めの印を含む）とログの最初の始めの早い方（同じ秒ならログ）
 - 繰り返しの器が答えの後に同じ起動の id で node_start を書き直せば、待ちから走り中に戻る
 - 繰り返しの中の待ちは、器を待つノードに並べず、答えが入れば器も外す（Archon は本体と器の両方に node_suspended を書く）
 - 落ちた後に起き直して終わった run の前の起動の走り中のノードは、最後の終わりでなく、その落ちの時刻で閉じる
@@ -120,7 +116,7 @@ class ReadCase(unittest.TestCase):
             con.execute(f"insert into {runread.RUN_TABLE} (id, parent_run_id, started_at) values (?, null, '2026-10-28 12:00:00')", (rid,))
         con.commit()
         con.close()
-        self.assertEqual((runread.pick(db), [r["id"] for r in runread.runs(db)]), ("aa-later", ["aa-later", "zz-resumed"]))
+        self.assertEqual(runread.pick(db), "aa-later")
 
     def test_span_runs_from_the_first_event_to_the_last(self):
         db, rid = self.tmp / runread.DB_FILE, "run-resumed"
@@ -143,8 +139,6 @@ class ReadCase(unittest.TestCase):
             node("node_start", "2026-10-25T02:34:40.000Z", "b"), node("node_complete", "2026-10-25T02:34:41.278Z", "b"))) + "\n", encoding="utf-8")
         got = runread.run(db, rid)
         self.assertEqual((got["started"], got["seconds"]), ("2026-10-25T01:50:54.377Z", 2626.9))   # 終わりは DB の workflow_completed（秒まで）とログの最後の終わりの遅い方
-        listed = runread.runs(db)[0]
-        self.assertEqual((listed["started"], listed["seconds"]), ("2026-10-25 01:50:54", 2627.0))
 
     def _db(self, runs: list[tuple], events: list[tuple]) -> Path:
         """runs は (id, parent, started, completed, metadata)、events は (run, created_at)"""
@@ -170,19 +164,6 @@ class ReadCase(unittest.TestCase):
     def _node(kind, ts, path):
         return {"type": kind, "ts": ts, "step": path, runread.EXECUTION: {"path": path, "invocation": {"id": path}}}
 
-    def test_listed_run_carries_the_outcome_of_its_result(self):
-        db = self._db([(rid, None, f"2026-10-28 1{n}:00:00", None, "{}") for n, rid in enumerate(("done", "text", "none", "odd"))], [])
-        con = sqlite3.connect(db)
-        for rid, output in (("done", {runread.RESULT_OUTCOME: "stopped_by_human", "stop_reason": "gate-design:stop"}),
-                            ("text", json.dumps({runread.RESULT_OUTCOME: "fixed"})), ("odd", {"ok": False})):
-            con.execute(f"insert into {runread.EVENT_TABLE} (workflow_run_id, event_type, step_name, data, created_at) values (?, ?, ?, ?, '')",
-                        (rid, runread.OUTPUT_EVENT, runread.RESULT_NODE, json.dumps({"invocation": {"id": rid}, runread.NODE_OUTPUT: output})))
-        con.execute(f"insert into {runread.EVENT_TABLE} (workflow_run_id, event_type, step_name, data, created_at) values (?, ?, ?, ?, '')",
-                    ("none", runread.OUTPUT_EVENT, "report", json.dumps({"invocation": {"id": "x"}, runread.NODE_OUTPUT: {runread.RESULT_OUTCOME: "fixed"}})))
-        con.commit()
-        con.close()
-        self.assertEqual({r["id"]: r["outcome"] for r in runread.runs(db)}, {"done": "stopped_by_human", "text": "fixed", "none": "", "odd": ""})
-
     def test_empty_total_cost_falls_back_to_the_calls(self):
         db = self._db([("paid", None, "2026-10-28 13:00:00", None, json.dumps({runread.TOTAL_COST: 9.5})),
                        ("blank", None, "2026-10-28 12:00:00", None, "{}"),
@@ -203,13 +184,12 @@ class ReadCase(unittest.TestCase):
         con.close()
         (self.tmp / runread.LOGS).mkdir()
         (self.tmp / runread.LOGS / "blank.jsonl").write_text("", encoding="utf-8")
-        self.assertEqual({r["id"]: r["cost"] for r in runread.runs(db)}, {"paid": 9.5, "blank": 0.9375, "none": None})
-        self.assertEqual(runread.run(db, "blank")["cost"], 0.9375)
+        self.assertEqual({rid: runread.run(db, rid)["cost"] for rid in ("paid", "blank", "none")}, {"paid": 9.5, "blank": 0.9375, "none": None})
 
     def test_resumed_run_sorts_by_its_first_event(self):
         db = self._db([("resumed", None, "2026-10-28 13:00:00", None, "{}"), ("later", None, "2026-10-28 12:00:00", None, "{}")],
                       [("resumed", "2026-10-28 10:00:00"), ("resumed", "2026-10-28 13:00:00"), ("later", "2026-10-28 12:00:00")])
-        self.assertEqual((runread.pick(db), [r["id"] for r in runread.runs(db)]), ("later", ["later", "resumed"]))
+        self.assertEqual(runread.pick(db), "later")
 
     def test_child_span_runs_from_its_events(self):
         db = self._db([("top", None, "2026-10-25 01:00:00", "2026-10-25 02:00:00", "{}"),
@@ -348,7 +328,7 @@ class ReadCase(unittest.TestCase):
         con.close()
 
     def test_a_finished_run_ends_at_its_end_event(self):
-        """ログが待ちの始めで切れた run（待ちのまま止めた）は、DB の終わりの出来事で終わり、一覧と選んだ run の秒が合う。
+        """ログが待ちの始めで切れた run（待ちのまま止めた）は、DB の終わりの出来事で終わる。
         終わりの無い待ちはその時刻で閉じる。走り中の run は最後の出来事まで"""
         db = self._db([("top", None, "2026-10-25 01:00:00", None, "{}"), ("live", None, "2026-10-25 00:00:00", None, "{}")],
                       [("top", "2026-10-25 01:00:00"), ("live", "2026-10-25 00:00:00")])
@@ -361,8 +341,8 @@ class ReadCase(unittest.TestCase):
         self._log("top", [self._node("node_start", "2026-10-25T01:00:00.000Z", "a"), self._node("node_complete", "2026-10-25T01:00:05.000Z", "a"),
                           {**gate, "type": "node_start"}, gate, self._node("node_start", "2026-10-25T01:09:00.000Z", "b")])
         self._log("live", [self._node("node_start", "2026-10-25T00:00:00.000Z", "a"), self._node("node_complete", "2026-10-25T00:00:40.000Z", "a")])
-        got, listed = runread.run(db, "top"), {r["id"]: r for r in runread.runs(db)}
-        self.assertEqual((got["seconds"], listed["top"]["seconds"]), (600.0, 600.0))
+        got = runread.run(db, "top")
+        self.assertEqual(got["seconds"], 600.0)
         by_path = {e["path"]: e for e in got["events"]}
         self.assertEqual({path: (runread.length(e), e.get("cut", False)) for path, e in by_path.items()},
                          {"a": (5.0, False), "gate": (595.0, True), "b": (60.0, True)})
@@ -403,13 +383,6 @@ class ReadCase(unittest.TestCase):
         self.assertEqual(len(times), 6)
         self.assertEqual([t for t in times if not re.fullmatch(r"\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(\.\d+)?Z", t[0] or "")], [])
 
-    def test_failure_text_only_on_a_failed_run(self):
-        db = self._db([("again", None, "2026-10-25 01:00:00", None, "{}"), ("down", None, "2026-10-25 00:00:00", None, "{}")], [])
-        self._status(db, "down", "failed")
-        for rid in ("again", "down"):
-            self._event(db, rid, runread.FAILED_EVENT, "2026-10-25 01:00:00", data={"error": "boom"})
-        self.assertEqual({r["id"]: r["error"] for r in runread.runs(db)}, {"again": "", "down": "boom"})
-
     def test_spent_follows_the_archon_cost_scope(self):
         """古い行（accounting が無い）は aggregate が true でなければ自前。compose_fan_out の instance の行が正で、中の行は外す。
         費用の欄を持つ行が無い run（bash だけの run）は空。走り中の run は metadata の古い合計でなく代わりの和。答え待ちの run は
@@ -429,10 +402,8 @@ class ReadCase(unittest.TestCase):
                                 ("live", "b", {runread.NODE_COST: 0.5, runread.ACCOUNTING: "node"}),
                                 ("wait", "a", {runread.NODE_COST: 0.5, runread.ACCOUNTING: "node"})):
             self._event(db, rid, runread.OUTPUT_EVENT, step=step, data=data)
-        self.assertEqual({r["id"]: r["cost"] for r in runread.runs(db)}, {"old": 0.5, "fan": 0.875, "bash": None, "live": 1.5,
-                                                                         "wait": 2.0})
-        self._log("live", [])
-        self.assertEqual(runread.run(db, "live")["cost"], 1.5)
+        self.assertEqual({rid: runread.run(db, rid)["cost"] for rid in ("old", "fan", "bash", "live", "wait")},
+                         {"old": 0.5, "fan": 0.875, "bash": None, "live": 1.5, "wait": 2.0})
 
     def test_broken_time_is_listed_as_unread(self):
         db = self._db([("top", None, "2026-10-25 01:00:00", None, "{}")], [])
@@ -491,14 +462,13 @@ class ReadCase(unittest.TestCase):
         self.assertEqual([s["time"] for s in runread.run(db, "top")["skipped"]],
                          ["2026-10-25T01:00:00.000Z", "2026-10-25T01:00:01.000Z", "2026-10-25T01:00:02.000Z"])
 
-    def test_listed_and_shown_runs_start_alike(self):
+    def test_a_shown_run_starts_at_its_first_db_event(self):
         db = self._db([("top", None, "2026-10-25 02:56:47", None, "{}")], [("top", "2026-10-25 02:56:47")])
         self._status(db, "top", "completed")
         self._event(db, "top", "workflow_completed", "2026-10-25 03:04:18")
         self._log("top", [self._node("node_start", "2026-10-25T02:56:52.335Z", "a"), self._node("node_complete", "2026-10-25T03:04:18.200Z", "a")])
-        got, listed = runread.run(db, "top"), runread.runs(db)[0]
-        self.assertEqual((got["started"], listed["started"]), ("2026-10-25T02:56:47.000Z", "2026-10-25 02:56:47"))
-        self.assertEqual((got["seconds"], listed["seconds"]), (451.2, 451.0))
+        got = runread.run(db, "top")
+        self.assertEqual((got["started"], got["seconds"]), ("2026-10-25T02:56:47.000Z", 451.2))
 
     def test_a_loop_restarted_after_its_answer_runs_again(self):
         db = self._db([("top", None, "2026-10-25 01:00:00", None, "{}")], [("top", "2026-10-25 01:00:00")])
@@ -515,13 +485,13 @@ class ReadCase(unittest.TestCase):
         self._status(db, "top", runread.PAUSED)
         for step in (f"rounds{runread.shape.IN_LOOP}gate", "rounds"):
             self._event(db, "top", runread.SUSPENDED_EVENT, "2026-10-25 01:00:05", step)
-        self.assertEqual(runread.runs(db)[0]["waiting"], [f"rounds{runread.shape.IN_LOOP}gate"])
+        self.assertEqual(runread.run(db, "top")["waiting"], [f"rounds{runread.shape.IN_LOOP}gate"])
         con = sqlite3.connect(db)
         wait = {"kind": runread.WAIT_KIND, "owner": runread.WAIT_LOOP_OWNER, "nodeId": "rounds", "bodyWaitId": "gate", runread.WAIT_ANSWER: "ok"}
         con.execute(f"update {runread.RUN_TABLE} set metadata = ? where id = 'top'", (json.dumps({runread.WAIT: wait}),))
         con.commit()
         con.close()
-        self.assertEqual(runread.runs(db)[0]["waiting"], [])
+        self.assertEqual(runread.run(db, "top")["waiting"], [])
 
     def test_a_resumed_failure_closes_its_open_nodes_at_that_failure(self):
         """落ちた後に起き直して終わった run は、前の起動の走り中のノードをその落ちで閉じる。同じ秒に始めたノードの長さは負にしない"""
@@ -843,7 +813,7 @@ class ReadCase(unittest.TestCase):
         for step, cost in (("a", 8.5), ("b", 1.25)):
             self._event(db, "top", runread.OUTPUT_EVENT, step=step, data={runread.NODE_COST: cost, runread.ACCOUNTING: "node"})
         self._log("top", [])
-        self.assertEqual((runread.runs(db)[0]["cost"], runread.run(db, "top")["cost"]), (9.75, 9.75))
+        self.assertEqual(runread.run(db, "top")["cost"], 9.75)
     def test_a_side_field_of_another_shape_drops_only_that_field(self):
         """終わりの行の添えるだけの欄（模型・誤りの字）の形が違えば、その欄だけを捨てて行の残り（状態・終わり・会話の id の頭）を読み、
         欄の形が違う行に 1 つ数える。要の欄（ノードの種類）の形が違えば、今までどおり行ごと数える"""
@@ -931,7 +901,7 @@ class ReadCase(unittest.TestCase):
                 self.assertEqual([(e["status"], e["start"], e.get("fell")) for e in got[1:]], want)
 
     def test_a_nameless_suspension_is_skipped_and_counted(self):
-        """step_name の無い node_suspended は、run の一覧を落とさずに読み飛ばし、開いた run の読めなかった物に数える"""
+        """step_name の無い node_suspended は、run の読みを落とさずに読み飛ばし、開いた run の読めなかった物に数える"""
         db = self._db([("top", None, "2026-10-25 01:00:00", None, "{}")], [])
         self._status(db, "top", runread.PAUSED)
         con = sqlite3.connect(db)
@@ -941,7 +911,6 @@ class ReadCase(unittest.TestCase):
         con.close()
         self._event(db, "top", runread.SUSPENDED_EVENT, "2026-10-25 01:00:02", "gate")
         self._log("top", [])
-        self.assertEqual(runread.runs(db)[0]["waiting"], ["gate"])
         got = runread.run(db, "top")
         self.assertEqual((got["waiting"], got["unread"]), (["gate"], {runread.NAMELESS: 1}))
 
