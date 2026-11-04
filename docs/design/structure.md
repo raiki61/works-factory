@@ -100,14 +100,14 @@
 - `workflows/structure/src/intent.py`: 書いた意図を探して読む（3 節）。`TEXT_CAP = 6000`（今の `context.TEXT_CAP`）と切り方 `_cut` を持つ。
 - `workflows/structure/src/stage_a.py`: 組み込みの前の lib の `stage_a.py`（`read_units`・`measure_unit`）と `context.py` の `find`・`concepts`・`_sections`・`_rel`・`HEADING` の写し（`context.rules` は `src/intent.py` に替わるので写さない）。`measure_unit` の `MEASURE` は `pathlib.Path(importlib.util.find_spec("measure").origin)`（`lib/measure.py` をコマンドとして起こす。import しない）。
 - `workflows/structure/src/stage_b.py`: 組み込みの前の lib の `stage_b.py` の写し（`MEASURE` は同じ探し方）。
-- `workflows/structure/src/survey.py`: 今の `lib/structfile.py` の `_measured_units`・`_now`・`measure` を mode で 2 つに分けた物（`before(place, units, root, intent_docs)`・`after(place, units, root, base, plan_fields, intent_docs)`）と、目に見せる JSON を組む `view`（今の `eye.view`・`_cut`・`measured`・`due`）。
+- `workflows/structure/src/survey.py`: 今の lib の `structfile.py` の `_measured_units`・`_now`・`measure` を mode で 2 つに分けた物（`before(place, units, root, intent_docs)`・`after(place, units, root, base, plan_fields, intent_docs)`）と、目に見せる JSON を組む `view`（今の `eye.view`・`_cut`・`measured`・`due`）。
 - `workflows/structure/src/eye.py`: 今の `lib/eye.py` の `prep`（指示の文の組み立て `render` は md に移り、材料の値だけを組む）・`_pointer`・`problems`（書いた意図の照らしを足す。7 節）・`accept`・`state`・`reset`・`_put`・`_load`・`ROUTES`・`ROUTE`・`ROUTE_UP`・`ROUTE_REASON`・`MIN_UNDECIDED = 20`・`VERDICTS`・`DIRTY`・`FORM_COUNT = 6`・`MIN_QUOTE = 20`。6 つの形の文（今の `FORMS`）は md に移す。
 - `workflows/structure/src/sketch.py`: 構造を描く役と一般の構造を描く目の材料・指示の値・受け付け（2.7・2.8）。目に見せる JSON に行を足すのは `src/eye.py` の `_view`。
 - `workflows/structure/src/state.py`: 今の `structfile._outcome`・`write_state`・`keep_state`（spare の道は消す）の写し。
 - `workflows/.shared/schemas/units.schema.json`（r1 の PR が structure の `schemas/` から移した。r1・plan も使う）（`{type: array, items: {type: object, required: [id], properties: {id: {type: string, minLength: 1}, paths: {type: array, items: {type: string, minLength: 1}}, summary: {type: string}}}}`）・`intent.schema.json`（`{type: array, items: {type: string, minLength: 1}}`）。
 - 使う `lib/`: `measure`（コマンドとして）・`conceptfence`（`tables`・`places`・`changed`・`scan_change`）・`concepthome`（`tracked_names`・`pick_maps`・`base_of`・`TABLE_NAME`）・`design`（`MAP_NAMES` だけ。根の地図の文書の名）・`eye`（`stamp`・`wall`・`WALL`。ブロックの時間の欄。`structmark` も読む）・`structmark`（`write`・`read`・`rows`・`write_after`・`AFTER_FILE`・`report_lines`・`DIRTY`・`ROUTE_UP`）・`planmarks`（`deviations`）・`listcut`（`SHOWN`）・`rolekit`（`accept_round`・`current_round`・`round_outcome`・`rejected`・`rejects_text`・`rejects_path`）・`jsonfile`・`oneline`。
 - `concepthome.EYE_ASK`・`AXIS` の文（構造の目の問い）は md に移す。`concepthome` の文の定数（`AXIS`・`PLAN_RULE`・`REVIEW_ASK`・`R1_HEAD`・`R3_HEAD`・`EYE_ASK`・地図の節の頭と `section`）は呼び手が無くなったので #764 で消した。
-- `lib/design-row.schema.json` は写さない。今は試験だけが読む（`tests/workflows/test_structure.py:116-131`・`lib/tests/test_structure_eye.py:158-161`。#232 `e0de3403` から実行の時に読む物は無い）。行の型の正本は `structure-eye` の node の `output_format` と、受け付けが足す `route_reason`（11 節の 9）。
+- lib の `design-row.schema.json` は写さない。今は試験だけが読む（tests/workflows の `test_structure.py:116-131`・lib/tests の `test_structure_eye.py:158-161`。#232 `e0de3403` から実行の時に読む物は無い）。行の型の正本は `structure-eye` の node の `output_format` と、受け付けが足す `route_reason`（11 節の 9）。
 
 ### 1.6 つなぎ方（graph の側。block には書かない）
 
@@ -315,7 +315,7 @@ The change is already made. Below are the diff from the version before the chang
 ## Units and measurements
 
 ```json
-{"units":[{"id":"workflows/merge/scripts/pr_commit.py hook_env: …","summary":"…","paths":["workflows/merge/scripts/pr_commit.py"]}],"after":{"base_rev":"4961c50a53410f4bdc4dfb5ece8a4ca13612a916","changed":["bin/AGENTS.md","bin/_lib/launcher.py","docs/design.md","lib/tree_run.py","lib/userenv.py",…14 本…],"tables":["docs/concepts.json"],"tables_changed":[],"fence_up":[],"new_names":[],"dup_blocks_added":0,"deviations":[{"item":1,"prescription":"workflows/merge/scripts/pr_commit.py hook_env: …","deviation":"処方 2・3 は…"}]},"timing":{"wall_s":191.209}}
+{"units":[{"id":"workflows/merge/scripts/pr_commit.py hook_env: …","summary":"…","paths":["workflows/merge/scripts/pr_commit.py"]}],"after":{"base_rev":"4961c50a53410f4bdc4dfb5ece8a4ca13612a916","changed":["bin/AGENTS.md","bin/_lib/launcher.py","docs の design.md","lib/tree_run.py","lib/userenv.py",…14 本…],"tables":["docs/concepts.json"],"tables_changed":[],"fence_up":[],"new_names":[],"dup_blocks_added":0,"deviations":[{"item":1,"prescription":"workflows/merge/scripts/pr_commit.py hook_env: …","deviation":"処方 2・3 は…"}]},"timing":{"wall_s":191.209}}
 ```
 
 ## Diff
@@ -333,7 +333,7 @@ after では、差分が変えたファイル（14 本）の上のフォルダ�
 - 足した差（新旧の指示の比べの納品。2026-10-19）: 「新しい会話で起きている」を消した（輪は `fresh_context: false`）。
 - 足した差（新旧の指示の比べの納品。2026-10-19）: 返答の欄の説明に「or is null」を足した。
 
-今の指示は `workflows/structure/commands/structure-eye.md`（11 行。役の定義と区切り）と、`$structure-eye-prep.output.prompt` に入る `lib/eye.py` の `render`（:129-152）と `lib/concepthome.py` の `EYE_ASK`・`AXIS`（:27-28・:70-76）が組む本文の 3 か所に在る。
+今の指示は workflows/structure の `commands/structure-eye.md`（11 行。役の定義と区切り）と、`$structure-eye-prep.output.prompt` に入る `lib/eye.py` の `render`（:129-152）と `lib/concepthome.py` の `EYE_ASK`・`AXIS`（:27-28・:70-76）が組む本文の 3 か所に在る。
 
 - 移した: `render` の見出し 5 つ（`REJECT_HEAD`・`ASK_HEAD`・`SHAPES_HEAD`・`REPLY_HEAD`・`UNITS_HEAD`）と返し方の 8 行、`FORMS` の 6 つ、`EYE_ASK` と `AXIS` を md へ。lib の Python に残るのは材料（`view` の JSON・書いた意図の文書の見出しと本文・差分）と値（語・下限の数・`SHOWN`）だけ。
 - まとめた: md と lib に二重に書いていた決まりを 1 回に（拒まれたら丸ごと出し直せ md:6 と `render` の却下の段落、人に上げる時の書き方 md:2 と返し方の route の行、道具を持たない md:3）。
@@ -397,7 +397,7 @@ after では、差分が変えたファイル（14 本）の上のフォルダ�
 ```sh
 # 直す前: 単位を見る
 bin/works-factory workflow run works-factory-structure \
-  --cwd <対象> --input units='[{"id":"u1","paths":["lib/a.py"],"summary":"…直す事…"}]'
+  --cwd <対象> --input units='[{"id":"u1","paths":["src/a.py"],"summary":"…直す事…"}]'
 
 # 直した後（PR の差分を書いた意図と比べる）: 作業ツリーを PR の枝にして
 bin/works-factory <同じ引数> workflow run works-factory-structure \
@@ -419,7 +419,7 @@ bin/works-factory <同じ引数> workflow run works-factory-structure \
 7. 目を Git の外で起こす旗（元の works の `'works-node: structure-eye isolated'`。adapter が一時のフォルダで起こし、git status と対象の案内の文書が目に届かない。`.shared/core/adapter.py:70-71,283-290`）: 工場の目は旗も `systemPrompt` の替えも持たず、既定の system prompt に作業ツリーの cwd と git status が入る（r2 の 2 つの役は `systemPrompt` で替えている。tests/workflows の `test_eyes.py:556`）。（未確認）: 外した記録は無い（`docs/plans/2026-10-13-capabilities/plan.md:552-557` の P076 は旗に触れない）。この block は今のまま足さない（11 節の 8）。
 8. 控えを書く前に設計の行が読めるかの確かめ（元の `line_edge.structure_edge`）: 工場の `write_state` は確かめない（読み手の `structmark._state_rows` が読めない行を落ちとして扱う）。（未確認）: 意図の記録は無い。この block は `take.py` が書いた行を書いた直後に `structmark.rows` で読み直し、読めなければ `status: failed` にする（11 節の 10）。
 9. モデル（元の works は opus・high を直に）: 工場はモデルの群（起動の時に付け替えられるモデルの名の束）`@wf-plan-structure` を使い（#628・#658 `d337f840`）、AI の node に一過性の誤りの retry（最大 2 回やり直す。#476 `ceb9d5e9`）を付ける。この block も同じ（`structure-eye` が群と retry を持つ）。
-10. 元の設計書（`docs/specs/2026-09-29-structure-block-design.md`）の block の中の設計の承認ノード（3 つの答え・全部の案を捨てた時の loop）と前例を探す役: 元の works にも工場にも無い（元の `eye.py:8` が「このブロックは関所を持たない」、設計書の 5 行目が blk-world に替えたと書く）。この block も持たない（人に上げる行は line の修正前の承認ノードが聞く）。
+10. 元の設計書（docs の `specs/2026-09-29-structure-block-design.md`）の block の中の設計の承認ノード（3 つの答え・全部の案を捨てた時の loop）と前例を探す役: 元の works にも工場にも無い（元の `eye.py:8` が「このブロックは関所を持たない」、設計書の 5 行目が blk-world に替えたと書く）。この block も持たない（人に上げる行は line の修正前の承認ノードが聞く）。
 11. 比べる相手: 元の works の目も、見たのは書いた意図（方針の文書・根の `ARCHITECTURE.md`・`AGENTS.md`・考えの地図と柵の表）と機械の実測だけで、周りのコードを道具で読んだことは無い。ただし、根の地図は `rules.maps` に実測と並べて貼るだけで、問いは「知る場所が増えるか」で、書いた意図に反するかは問わず、抜き書きも求めなかった。この block で、書いた意図を基準にし、単位のファイルの上のフォルダの `AGENTS.md` まで探し、汚れる行に抜き書きを求めて照らす（持ち主の 2026-10-19 の追加）。
 
 この block が両方より良く、残す物: paths の空な単位を名指して修正案に渡す（#75・#560）・読めない入力は黙って空にせず `status: failed` と訳を残し、目を起こさない（17。#560 の `unread` に残す形は替えた）・返す node が落ちない（#560）・resume を跨ぐ回の数え（#232）・一過性の誤りの retry（#476）・修正案の頭で汚れる行と汚れない行を分ける（#566・#577）・長い一覧を切って名と件数と pointer を残す（#656・#717）・R1・R3 の頭に修正案の外れの訳と事前審査の受け入れを載せる（#353 `0440b970`）・事前審査が控えと行を自分の置き場に写す（#73）。新しく足す物: 書いた意図の抜き書きの機械の照らし（world の抜き書きの照らしと同じ形）・直した後の差分を目が見る。
@@ -442,11 +442,11 @@ bin/works-factory <同じ引数> workflow run works-factory-structure \
   1. 1 つ目の commit: md を今の字のまま日本語で置き（`structure-eye.md` の役の定義と区切りと `render` の本文。before で、書いた意図を `rules` の JSON に入れる今の形）、例の run の `plan/structure/681f73b08c5a/structure.json` と同じ値で組んだ指示が、今の `eye-prompt-1.md` を区切りの行と役の定義で包んだ字と同じになることを照らす。
   2. 2 つ目の commit: 英語にする（2.6 の「移した」「まとめた」「消した」「言語」の差だけ）。並べて審査に出す。
   3. 3 つ目の commit: 書いた意図の節・`intent` の欄と照らし・after の目（2.6 の「替えた（持ち主の 2026-10-19 の追加）」「足した」「形 4」「役の定義」の差）。並べて審査に出す。
-- 振る舞いの試験（今の試験から写す。`structure/` のパスを place に、`start` の pointer を port に替える）:
-  - `tests/workflows/test_structure.py` の `EyeTypeCase`（3 本）・`StageACase`（`test_measures_units_and_writes_empty_design_rows`・`test_measure_failure_and_unreadable_units_do_not_stop`・`test_unit_without_paths_is_skipped_and_named`・`test_eye_sees_concept_rows_and_policy`〔policy は port から〕・`test_fresh_measure_drops_old_eye_state`・`test_concept_rows_only_for_unit_paths`・`test_no_map_no_table_measures_only`・`test_measure_records_timing`）・`CollectCase`（`test_clean_eye_gives_ok_state`・`test_route_up_row_reaches_the_state`・`test_eye_without_rows_leaves_failed_state`・`test_failed_measure_node_still_returns_a_failed_state`・`test_return_survives_a_lib_that_does_not_load`・`test_return_echoes_the_declared_optional`）・`ShapeCase` のうち `test_eye_is_a_toolless_isolated_role`・`test_eye_loop_gives_up_in_the_body_before_max_iterations`・`test_scripts_are_read_only_uv_scripts`・`test_script_names_differ_from_lib_modules`。
-  - `lib/tests/test_structure_eye.py` の全部（`test_six_forms_match_the_design_doc` は md の 6 つの形と `FORM_COUNT` の照らしに、`test_prompt_*` は組んだ指示への照らしに替える）。
-  - `lib/tests/test_structfile.py` の `StateCase`・`MeasureCase`・`KeepStateCase.test_writable_state_stays_in_the_place`。
-  - `lib/tests/test_stage_b.py` の全部（`src/stage_b.py` に向け直す）。
+- 振る舞いの試験（今の試験から写す。試験が名指す今の置き場 `$ARTIFACTS_DIR/structure/` の下のパスを、この block の place〔block が自分のファイルを書く置き場のフォルダ。`ports.place()` が返す。1.4〕の下のパスに替える。試験が始めの記録の pointer〔ファイルを指す値〕`start` から読ませていた方針の写しなどの値は、block の入力 port〔YAML の `inputs:`。1.2〕で渡す形に替える）:
+  - tests/workflows の `test_structure.py` の `EyeTypeCase`（3 本）・`StageACase`（`test_measures_units_and_writes_empty_design_rows`・`test_measure_failure_and_unreadable_units_do_not_stop`・`test_unit_without_paths_is_skipped_and_named`・`test_eye_sees_concept_rows_and_policy`〔policy は port から〕・`test_fresh_measure_drops_old_eye_state`・`test_concept_rows_only_for_unit_paths`・`test_no_map_no_table_measures_only`・`test_measure_records_timing`）・`CollectCase`（`test_clean_eye_gives_ok_state`・`test_route_up_row_reaches_the_state`・`test_eye_without_rows_leaves_failed_state`・`test_failed_measure_node_still_returns_a_failed_state`・`test_return_survives_a_lib_that_does_not_load`・`test_return_echoes_the_declared_optional`）・`ShapeCase` のうち `test_eye_is_a_toolless_isolated_role`・`test_eye_loop_gives_up_in_the_body_before_max_iterations`・`test_scripts_are_read_only_uv_scripts`・`test_script_names_differ_from_lib_modules`。
+  - lib/tests の `test_structure_eye.py` の全部（`test_six_forms_match_the_design_doc` は md の 6 つの形と `FORM_COUNT` の照らしに、`test_prompt_*` は組んだ指示への照らしに替える）。
+  - lib/tests の `test_structfile.py` の `StateCase`・`MeasureCase`・`KeepStateCase.test_writable_state_stays_in_the_place`。
+  - lib/tests の `test_stage_b.py` の全部（`src/stage_b.py` に向け直す）。
   - 写さない: `test_eye_sees_root_map_and_cut_policy`・`test_measure_reads_the_frozen_policy_copy`（`rules.maps` と始めの記録の写しを見る。書いた意図の探しの試験に替わる）・`test_eye_command_reads_only_its_prep`・`test_eye_command_is_the_original`・`test_every_command_is_in_the_ledger`（`command:` と写しの台帳）・`test_eye_schema_is_the_design_row_owner`（型のファイルを写さない）・`test_fallback_names_match_lib`（名の住処）・`KeepStateCase.test_unwritable_state_goes_to_the_spare_folder`（spare を持たない。null を返す試験に替える）・`test_composed_block_declares_no_run_owned_keys`・`test_name_inputs_and_return`・`test_return_node_carries_exactly_the_contract`（入力と返りが変わる。7.1 の形の検査と新しい返りの試験に替える）。
   - `lib/tests/test_blk_structure.py` は `lib/measure.py`（KEEP）の試験なので `lib/tests/` に残す（README の 9.5 は structure へ MOVE と書くが、試す物が lib に残る）。
 - 読み手の側の試験はそれぞれの block と line に残す（plan の `structure_gaps`・plan-review の写し・line の修正前の承認ノードの人に上げる行・eyes の `after_section`・report の行・`outcome` の残りの数え）。
@@ -483,7 +483,7 @@ mode=before                          mode=after
 1. 直した後の時にも構造の目（AI）を起こす。根拠: README の 8.6 は「入る時」の目を「PR の差分を書いた憲法と比べる」と決め、差分は直した後にしか無い。8.2 の port `base` も after の時の物。段 B の機械の実測だけでは、書いた意図の文に反するかは判じられない。
 2. 書いた意図の決まった名を、根と、単位（after では差分のファイルも）の上の各フォルダの `ARCHITECTURE.md`・`AGENTS.md` にした。根拠: 今の目の根の地図の名（`lib/design.py` の `MAP_NAMES`。r2 も使う）と同じ名で、`AGENTS.md` は近いフォルダの物が効く決まり（https://agents.md の "the closest AGENTS.md to the edited file wins"）が業界の定石。対象の言語や道具に依らない。読む版は before が `HEAD`、after が `base`（直しが意図の文書を書き換えても、基準を緩めない。段 B の柵の表と同じ決め）。
 3. 指示の比べを 3 つの commit に分けた（README の 11.4 は 2 つ）。根拠: この block は英語にするだけでなく見方を替える（持ち主の追加）。翻訳の差と見方の差を同じ commit で並べると、審査が「差の一覧どおりか」を分けて見られない。
-4. after の差分を指示に入れる上限を 40000 バイトにした。根拠: 道具を持たない目に差分を読ませる道は指示しか無い。値は今 graph の指示を描く口が使う上限（`lib/graphloops/engine/render.py:27` の `FILE_CAP`。README の 9.1 が「使い手へ移す」と決めた定数）と同じ。切った時は印を付け、全体は `after.diff` に残す。
+4. after の差分を指示に入れる上限を 40000 バイトにした。根拠: 道具を持たない目に差分を読ませる道は指示しか無い。値は今 graph の指示を描く口が使う上限（lib/graphloops/engine の `render.py:27` の `FILE_CAP`。README の 9.1 が「使い手へ移す」と決めた定数）と同じ。切った時は印を付け、全体は `after.diff` に残す。
 5. port `policy` と `plan` を足した（README の 8.2 は `mode`・`units`・`intent`・`base`）。根拠: 今の目は人が固めた方針の文書を見ていて（`context.rules`）、直した後の控えは修正案の外れの訳を持ち、R1・R3 の頭と最後の承認ノードが読む（`structmark.deviation_lines`）。無いと元の能力が落ちる。
 6. place に書けない時の控えの置き場 `structure-spare/` を持たず、`structure: null` を返す。根拠: README の 4.3（block は自分の place のほかを開かない）。spare は place の外。読み手は null を「構造の目の行なしで計画した」と同じに扱える（今も構造が飛ばされた run は `structure-in` が null を渡す）。理由は `reason` と `report` に残る。
 7. 出力に `optional` を残した。根拠: line の collect が、block の中の node が落ちた時に先へ進めてよいかをこの宣言で読み、報告がそれを分ける（`workflows/line/scripts/collect.py:31-33`）。宣言は自分の node の id だけで、ほかの block を名指さない。line の設計書が宣言の形を替えるなら、それに合わせる。

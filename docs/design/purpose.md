@@ -45,7 +45,7 @@
 - `means`: 依頼の解き方の文の配列（無ければ `[]`）。
 - `report`: 報告の行の配列。`ok` の時は `[]`（今の報告に目的の節は無い。目的のファイルの在り処の行は report の block が pointer から組む）。`failed` の時は `目的の文: <reason>` の 1 行。
 
-今との違い: 今は支度が始めの記録の依頼のファイルと PR（`lib/judge_accept.py:1258-1284` の `purpose_prep`）と `judge/premises.json` を読み、止めの記録 `judge/stop.json` を見て役を起こすかを決め（`workflows/judge/scripts/purpose_prep.py:19-24`）、受け付けは `judge/purpose.json`・`judge/purpose-means.json` に書き、諦めた時は止めの記録（`stopby.PURPOSE`）を置いた。出口は judge の返す節の欄 `purpose`・`purpose_means`（pointer）だった。この block は、PR の説明を文の port で、前提の実測を json の port で受け、止めの記録の代わりに `status` を返す。`purpose_text`・`source`・`means` を欄でも返すのは、読み手が 3 つ以上の欄を読まない時に pointer を開かずに済むため（世界の解の block は `purpose_text` と `means` を欄で受ける。world.md の 1.6）。
+今との違い: 今は支度が始めの記録の依頼のファイルと PR（lib の `judge_accept.py:1258-1284` の `purpose_prep`）と `judge/premises.json` を読み、止めの記録 `judge/stop.json` を見て役を起こすかを決め（workflows/judge/scripts の `purpose_prep.py:19-24`）、受け付けは `judge/purpose.json`・`judge/purpose-means.json` に書き、諦めた時は止めの記録（`stopby.PURPOSE`）を置いた。出口は judge の返す節の欄 `purpose`・`purpose_means`（pointer）だった。この block は、PR の説明を文の port で、前提の実測を json の port で受け、止めの記録の代わりに `status` を返す。`purpose_text`・`source`・`means` の 3 つを pointer の先のファイルとは別に出力の欄でも返す。読み手はこの 3 つまでしか読まないので、欄で受ければ pointer の先を開かずに済む（世界の解の block は `purpose_text` と `means` を欄で受ける。world.md の 1.6）。
 
 ### 1.3 node の並び（`workflows/purpose/works-factory-purpose.yaml`）
 
@@ -82,13 +82,13 @@ script の名は `lib/` のモジュールの名と重ねない（README の 7.1
 
 ### 1.6 つなぎ方（graph の側。block には書かない）
 
-- judge のまとめ（`workflows/judge/`）: `include: works-factory-purpose`。`depends_on: [premises]`・`when: $premises.output.ok == true`（今は前提の段が諦めると止めの記録で目的の役を起こさなかった。`workflows/judge/scripts/purpose_prep.py:19-21`）。`with:` は `request: $<依頼の pointer>`・`pr_text: <始めの記録の input.pr から line が組んだ文。PR の無い run は空>`・`constraints: $premises.output.constraints`・`lang: <始めの記録の lang>`。PR の文の組み方（今の `lib/judge_accept.py:1074-1081` の `pr_file_text`。番号・題・本文の見出し）は line の物。
-- `status` が `failed` の時: 今は judge の返りが `stop_reason: works:purpose` になった（`lib/judge_accept.py:3920`）。graph は `$purpose.output.ok == true` を世界の解・素材・diagnose の `when:` に置き、judge のまとめの返りの止めの語に `works:purpose` を入れる。
+- judge のまとめ（`workflows/judge/`）: `include: works-factory-purpose`。`depends_on: [premises]`・`when: $premises.output.ok == true`（今は前提の段が諦めると止めの記録で目的の役を起こさなかった。workflows/judge/scripts の `purpose_prep.py:19-21`）。`with:`（line はメイングラフ `works-factory-line`〔judge のまとめを include する上の graph〕。始めの記録は run の頭に line の node `start` が書く記録〔`workflows/line/src/startrec.py`〕） は `request: $INPUTS.request`（judge のまとめの入力 `request`。line の node `start` が出す、run directory の根の依頼の写し `request.json` の pointer〔ファイルを指す値〕が渡る。line の設計書の 1.6）・`pr_text: <始めの記録の input.pr から line が組んだ文。PR の無い run は空>`・`constraints: $premises.output.constraints`・`lang: <始めの記録の lang>`。PR の文の組み方（今の lib の `judge_accept.py:1074-1081` の `pr_file_text`。番号・題・本文の見出し）は line の物。
+- `status` が `failed` の時: 今は judge の返りが `stop_reason: works:purpose` になった（lib の `judge_accept.py:3920`）。graph は `$purpose.output.ok == true` を世界の解・素材・diagnose の `when:` に置き、judge のまとめの返りの止めの語に `works:purpose` を入れる。
 - 読み手:
   - world: `purpose: $purpose.output.purpose_text`・`means: $purpose.output.means`（world.md の 1.6）。
   - independent-design（独立の目 R2 の設計）: `purpose: $purpose.output.purpose_text`（keep-essence の 9。目的だけを受ける）。
-  - diagnose・plan・素材の観点（purpose-review ほか）・r2: `$purpose.output.purpose`（pointer）。目的の監査（purpose-review）を回すかは、line が `$purpose.output.source` が `③writer の要約` かで決める（今の `lib/judge_accept.py:1597-1602` の `purpose_review_due`）。
-  - report: 目的のファイルの在り処の行（今の `lib/runreport.py:181` の `POINTERS` の「目的」）と、`$purpose.output.report`。
+  - diagnose・plan・素材の観点（purpose-review ほか）・r2: `$purpose.output.purpose`（pointer）。目的の監査（purpose-review）を回すかは、line が `$purpose.output.source` が `③writer の要約` かで決める（今の lib の `judge_accept.py:1597-1602` の `purpose_review_due`）。
+  - report: 目的のファイルの在り処の行（今の lib の `runreport.py:181` の `POINTERS` の「目的」）と、`$purpose.output.report`。
 - 「目的は最初の修正の前に 1 度だけ固める」は、judge のまとめがこの block を 1 回だけ include し、再審の道（diagnose の `objection`）がこの block を通らないことで続く（今と同じ。world.md の 1.6 の「run で 1 回」と同じ形）。
 
 ## 2 node の設計シート: purpose（目的の役）
@@ -213,10 +213,10 @@ Each row of `constraints` has … (`実測` or `仮説`) …
 
 ### 2.6 今の指示との差
 
-今の指示は `workflows/judge/commands/purpose.md`（61 行）と、役に Read させる材料のファイル `purpose-brief.md`（`lib/judge_accept.py:1258-1284` の `purpose_prep` が組む）の 2 か所に在る。
+今の指示は workflows/judge の `commands/purpose.md`（61 行）と、役に Read させる材料のファイル `purpose-brief.md`（lib の `judge_accept.py:1258-1284` の `purpose_prep` が組む）の 2 か所に在る。
 
 - 移した: 材料のファイルを Read させる行（md:38「材料: `$purpose-prep.output.brief_file`（**まず Read せよ**）。機械が組んだ物で、次の 3 つが在る:」）をやめ、材料の 3 つを `## Input` の下の 3 つの節にした。材料の題「# 目的の役の材料（機械が組んだ物。前の run の判断は外してある）」（`judge_accept.py:1276`）は `## Input` の 1 文に、材料の見出し「## 依頼（<パス>）」「## PR の説明」「## 前提の実測（premises.json の constraints）」（:1277-1281）は md の節の見出しにした（パスとファイルの名は外した。中身が指示の中に在るので要らない）。md:39-41 の材料ごとの説明は、それぞれの節の頭に移した。lib の Python に残るのは JSON の字にする所だけ。
-- 替えた: 前提の実測が無い時の字「（前提の実測は無い）」（`lib/judge_accept.py:1282`）を、空の配列 `[]` と、節の説明の 1 文「An empty array means there are no measured premises.」にした。PR の無い時の字「（PR の無い run）」（:1280）は、差し込むかを選ぶ段落にした。
+- 替えた: 前提の実測が無い時の字「（前提の実測は無い）」（lib の `judge_accept.py:1282`）を、空の配列 `[]` と、節の説明の 1 文「An empty array means there are no measured premises.」にした。PR の無い時の字「（PR の無い run）」（:1280）は、差し込むかを選ぶ段落にした。
 - まとめた: md に字で書いていた出典の 4 語（md:39・48-51・61）と `kind` の 2 語（md:41）を、差し込み口 `{pr_source}` などと `{measured}`・`{hypothesis}` にした。
 - 移した: 外への検索の決まりの塊（md:3-10）を共通の断片 `{shared:query-rule}` に（world.md の 3.6 と同じ）。
 - 消した: 頭の拒みの節（md:14-20）と区切り（md:12・22）と、`## 入力` の拒みの行（md:43）。共通の断片 `{shared:rejected}` の 1 回にした。
@@ -234,7 +234,7 @@ Each row of `constraints` has … (`実測` or `仮説`) …
 元の works の `works/blk-purpose/`（入力 `request`〔依頼のファイルのパス〕・`constraints_file`・`base_rev`・`pr_file`、出口 `ok`・`purpose_file`・`purpose_text`・`source` の独立したブロック）から、工場は判定のブロックの中に写した（#76。消した計画（git の履歴。ab47a4d の版で読める）の `2026-10-12-blocks/judge.md:31`・`:111`）。graphloops の同じ場面は `prompts/review-loop/p0.purpose.md`（`p0.purpose`。once の節）。
 
 - 独立したブロックの形と、出口の `purpose_text`・`source`: 工場は judge の返す節の pointer `purpose` だけにした（#76）。この block は元の形（入力だけで動き、文と出典の語を欄で返す）に戻し、`means` も欄で返す。
-- 入力の前提の実測を写しの型と post_check（`measured_needs_output`）に通す（元の intake の `check_constraints`）: 工場には無い。計画（消した計画（git の履歴。ab47a4d の版で読める）の `2026-10-12-blocks/judge.md:111`）は「中身は (b) で `lib/judge_accept.py` へ」と書いたが、今の `judge_accept.py` に無く、`git log -S "def check_constraints"` も工場の履歴に当たらない（#76 で写さなかった。意図の記録は（未確認））。元の judge は前提の役の受け付けの後に持ち越しの行を足し（`judge_accept.py` の `with_carried`〔:1187-1192〕）、目的の役へ確かめずに貼った（:1274-1281）。持ち越しの行は `measured_output` を持たないので、この block も `実測` の行の欠けを拒まず、`constraints.schema.json` の形（知らない欄・空白だけの `measured_output`）だけを確かめる。役自身の返りの `measured_output` は前提の block が見る（[premises.md](premises.md) の 8 節の 3）。
+- 入力の前提の実測を写しの型と post_check（`measured_needs_output`）に通す（元の intake の `check_constraints`）: 工場には無い。計画（消した計画（git の履歴。ab47a4d の版で読める）の `2026-10-12-blocks/judge.md:111`）は中身を (b) で lib の `judge_accept.py` へ置くと書いたが、今の `judge_accept.py` に無く、`git log -S "def check_constraints"` も工場の履歴に当たらない（#76 で写さなかった。意図の記録は（未確認））。元の judge は前提の役の受け付けの後に持ち越しの行を足し（`judge_accept.py` の `with_carried`〔:1187-1192〕）、目的の役へ確かめずに貼った（:1274-1281）。持ち越しの行は `measured_output` を持たないので、この block も `実測` の行の欠けを拒まず、`constraints.schema.json` の形（知らない欄・空白だけの `measured_output`）だけを確かめる。役自身の返りの `measured_output` は前提の block が見る（[premises.md](premises.md) の 8 節の 3）。
 - 入力 `base_rev`（写しが無い時の HEAD の照らし）: 工場は写しを必ず取るので受けない（[premises.md](premises.md) の 2.7 と同じ。意図の記録は（未確認））。この block も写しを `intake` で必ず取る。
 - 依頼の `prior_failures` を外した写しを役に渡す（元の intake）: 工場も同じ（`carry.without_prior`。持ち主の決め `premises-purpose`）。この block も残す。
 - 目的の監査（`p0.purpose_review`）をブロックに入れない（元の YAML の頭の注）: 工場も入れていない。この block も入れない（素材の観点 purpose-review の block と line の物）。
@@ -260,7 +260,7 @@ Each row of `constraints` has … (`実測` or `仮説`) …
 
 ### 3.1 `intake.py`
 
-1. place に `purpose.json` が在れば（同じ place で前に固めた目的）、port を読まず、ほかのファイルも消さずに、`intake.json` に `{frozen: true, failed: false, reason: "目的は既に固めてある（purpose.json）", …}` を書き、`{due: false, reason: <同じ字>}` を返す（今の `purpose_prep` が port の材料を読む前に `refuse_if_frozen` で役を起こさなかった道。`lib/judge_accept.py:1264-1267`）。
+1. place に `purpose.json` が在れば（同じ place で前に固めた目的）、port を読まず、ほかのファイルも消さずに、`intake.json` に `{frozen: true, failed: false, reason: "目的は既に固めてある（purpose.json）", …}` を書き、`{due: false, reason: <同じ字>}` を返す（今の `purpose_prep` が port の材料を読む前に `refuse_if_frozen` で役を起こさなかった道。lib の `judge_accept.py:1264-1267`）。
 2. `request`・`pr_text`・`constraints`・`lang` を `os.environ.get("INPUTS_REQUEST")` などの字のままで読む。`request` は `requestrows.parts(raw)` で照らし（形・知らない鍵・下書きの行）、写しの元は `ports.json(raw, "shared:request.schema.json")` の値。`constraints` は `ports.json(raw, "shared:constraints.schema.json")`、ほかは `ports.text(raw)`。
 3. この block が名を持つファイル（`intake.json`・`tree.json`・`purpose-means.json`・`rejects-purpose.json`・`purpose-prompt-*.md`）を消す。ほかの名のファイルは消さない。
 4. 役に見せる依頼の写し `request = steps.request_copy(doc)`: `carry.without_prior(doc)` が None でなければそれ（容器から `prior_failures` を外した物）、None なら `doc` のまま（今の :1268-1272）。
@@ -268,7 +268,7 @@ Each row of `constraints` has … (`実測` or `仮説`) …
 6. `intake.json` に `{request, pr_text, constraints, lang, frozen: false, failed: false, reason: ""}` を書く。
 7. 作業ツリーの写しを `tree.json` に書く（`accept.tree_state(Path.cwd())`。今の :1283 の `snap_tree`）。
 8. `{due: true, reason: ""}` を返す。
-9. 2〜7 のどこかで例外が出たら、落ちずに `intake.json` に `{failed: true, reason: "目的の役の支度が落ちた（<型>: <訳>）", …}` を書き、`{due: false, reason: <同じ字>}` を返す（今の `workflows/judge/scripts/purpose_prep.py:25-28` の訳の字）。place を作れない時は返りだけを返す。
+9. 2〜7 のどこかで例外が出たら、落ちずに `intake.json` に `{failed: true, reason: "目的の役の支度が落ちた（<型>: <訳>）", …}` を書き、`{due: false, reason: <同じ字>}` を返す（今の workflows/judge/scripts の `purpose_prep.py:25-28` の訳の字）。place を作れない時は返りだけを返す。
 
 ### 3.2 `purpose_prep.py`
 
@@ -283,7 +283,7 @@ Each row of `constraints` has … (`実測` or `仮説`) …
 ### 3.4 `finish.py`
 
 1. `intake.json` を読む。`failed` が真なら `status: failed`、`reason` はその訳。
-2. ほかは `purpose.json` を読む。受け付けは `purpose-means.json` を先に、`purpose.json` を最後に書くので、`purpose.json` が済んだ印になる。在れば `status: ok`（`frozen` が真なら `reason` は「目的は既に固めてある（purpose.json）」、ほかは空の字）。`means` は `purpose-means.json` の `means`。その控えが無い・読めない・字の配列でなければ、空の並びにせず `status: failed`（「目的の解き方の控え purpose-means.json が無いか読めない（目的の控えが書きかけ）」）。`purpose.json` が無ければ `status: failed`、`reason` は `rolekit.given_up_reason(place, "purpose")`、それが空なら最後の拒否の文、それも無ければ「目的の文を受け付けた控えが無い（役が走らなかったか落ちた）」（今の `lib/judge_accept.py:3920` の訳と同じ向き）。
+2. ほかは `purpose.json` を読む。受け付けは `purpose-means.json` を先に、`purpose.json` を最後に書くので、`purpose.json` が済んだ印になる。在れば `status: ok`（`frozen` が真なら `reason` は「目的は既に固めてある（purpose.json）」、ほかは空の字）。`means` は `purpose-means.json` の `means`。その控えが無い・読めない・字の配列でなければ、空の並びにせず `status: failed`（「目的の解き方の控え purpose-means.json が無いか読めない（目的の控えが書きかけ）」）。`purpose.json` が無ければ `status: failed`、`reason` は `rolekit.given_up_reason(place, "purpose")`、それが空なら最後の拒否の文、それも無ければ「目的の文を受け付けた控えが無い（役が走らなかったか落ちた）」（今の lib の `judge_accept.py:3920` の訳と同じ向き）。
 3. 返り: `{ok, status, reason, purpose: ports.pointer(place / "purpose.json", "json(shared:purpose.schema.json)") か None, purpose_text, source, means, report}`。`report` は 1.2 のとおり。
 4. どこで例外が出ても落ちず、`{ok: false, status: failed, reason: "<型>: <訳>", purpose: null, purpose_text: "", source: "", means: [], report: ["目的の文: <訳>"]}` を返す。
 
@@ -360,14 +360,14 @@ bin/works-factory workflow run works-factory-purpose \
 
 ### 7.2 `tests/blocks/purpose/test_purpose.py`
 
-script を子のプロセスで回す（今の `tests/workflows/test_judge.py:695-704` の `Run.run` と同じ形。`hermetic.child_env` で `ARTIFACTS_DIR`・`WORKFLOW_ID`・`WORKS_FACTORY_ROOT`・`PYTHONDONTWRITEBYTECODE=1`・`INPUTS_…` を渡す）。始めの記録は置かない。使い捨ての git のリポジトリに `README.md`・`docs/plan.md`・`sub/x.py`・git が無視するファイルを置く。
+script を子のプロセスで回す（今の tests/workflows の `test_judge.py:695-704` の `Run.run` と同じ形。`hermetic.child_env` で `ARTIFACTS_DIR`・`WORKFLOW_ID`・`WORKS_FACTORY_ROOT`・`PYTHONDONTWRITEBYTECODE=1`・`INPUTS_…` を渡す）。始めの記録は置かない。使い捨ての git のリポジトリに `README.md`・docs の `plan.md`・`sub/x.py`・git が無視するファイルを置く。
 
 - `IntakeCase`（元: `test_judge_accept.py::PurposeCase.test_purpose_material_has_no_prior_failures`〔:1076〕・`test_prep_snapshots_the_tree_the_accept_compares`〔:1067〕と tests/workflows の `test_judge.py::test_purpose_prep_failure_writes_a_stop`〔:1264〕）: 容器の `prior_failures` が `intake.json` の `request` に無く、ほかの欄は字のまま。`tree.json` が取られる。place に `purpose.json` が在れば、読めない port でも `due: false` でほかのファイルも消さない。前の回の自分の控え（却下・指示）を消し、古い却下が次の指示に届かず、指示の回が 1 から数え直す。読めない port・前提の実測の行の形（知らない欄・空白だけの `measured_output`）で `due: false` と「目的の役の支度が落ちた」の訳。持ち越しの形（`実測` で `measured_output` の無い行）は通る。
 - `PromptCase`（元: `PurposeCase.test_pr_body_reaches_purpose_brief`〔:1018〕と tests/workflows の `test_judge.py::test_purpose_role_does_not_see_the_prior_run`〔:501-506〕・`test_roles_that_reach_outside_carry_the_query_rule` の purpose の行）: `purpose_prep` の `prompt` に PR の文が在り、PR の無い run では「(This run has no PR.)」が在る。前提の実測の行が在る。容器に `prior_failures` を持つ依頼でも、`prompt` と YAML の `purpose` の node の欄に `prior_failures`・`prior-failures`・`judgment`・`PRIOR` の字が無い。外への検索の決まりの断片が入る。埋まらない差し込み口が無い。
 - `AcceptCase`（元: `PurposeCase` の `test_good_reply_writes_purpose_and_means`・`test_purpose_role_changed_the_tree_rejected`・`test_source_files_outside_or_missing_rejected`・`test_source_files_nested_ignored_and_subdir`・`test_frozen_purpose_is_not_overwritten`〔:990-1066〕）: 通った返答が `purpose.json`（`means` を外した物）と `purpose-means.json` に書かれる・役が作業ツリーを変えたら拒む・リポジトリの外や無い名を拒む・入れ子・無視されるファイル・サブディレクトリで回した時の決まり・固めた目的を書き直さない。
 - `FinishCase`: 受けた時は `status: ok` と pointer と `purpose_text`・`source`・`means`。固めた目的の時は `status: ok` と固めた中身。3 回拒まれた時は `status: failed` と null と諦めた文（「3 回とも」）と `report` の 1 行。1 回の拒みで輪が終わった時は最後の拒否の文。解き方の控えが無い・読めない時は `status: failed`。include された時は place が include の道に分かれる。
 - `ShapeCase`: YAML の `purpose` の `output_format` の `source` の enum が `steps` の 4 語の並び、`finish` の `source` の enum がその 4 語と `""`、loop の `max_iterations` が `rolekit.GIVE_UP_AFTER`、AI の node の鍵（群・`settingSources`・道具・sandbox・`idle_timeout`・`mutates_checkout`・`retry`）が 1.3 のとおり（元: `test_roles_keep_the_old_settings` の purpose の行）。
-- 写さない試験: `tests/workflows/test_judge.py::test_missing_premises_or_purpose_stops_even_with_an_accepted_judgment`（judge のまとめへ）・`PurposeCase` の `DueCase.test_purpose_review_only_for_writer_summary`（line と素材の観点へ）・`test_missing_purpose_is_said_not_invented`〔:1363〕と `test_verdict_places_purpose_review_sibling`〔:2793〕（diagnose・judge のまとめへ）。
+- 写さない試験: tests/workflows の `test_judge.py::test_missing_premises_or_purpose_stops_even_with_an_accepted_judgment`（judge のまとめへ）・`PurposeCase` の `DueCase.test_purpose_review_only_for_writer_summary`（line と素材の観点へ）・`test_missing_purpose_is_said_not_invented`〔:1363〕と `test_verdict_places_purpose_review_sibling`〔:2793〕（diagnose・judge のまとめへ）。
 
 ### 7.3 指示の比べ（README の 11.4）
 
@@ -390,14 +390,14 @@ PYTEST_XDIST_AUTO_NUM_WORKERS=4 WORKS_FACTORY_ARCHON_CACHE=<Archon の源の置�
 ## 8 根拠を書いて自分で決めた事
 
 1. 材料のファイルを Read させる形をやめ、材料を指示の中に入れた。根拠は [head-depth.md](head-depth.md) の 8 節の 2 と同じ（材料の題と見出しは Python が持つ決まった文。README の 5.2）。
-2. 固めた目的（place に `purpose.json` が在る）の時は役を起こさず、その目的を `status: ok` で返す。根拠: 今の支度も役を起こさず（`lib/judge_accept.py:1264-1267`）、judge の返りは在る `purpose.json` を指した（:3974-3976）。block の出力で同じ事をすると、固めた目的をそのまま返す形になる。受け付けの `refuse_if_frozen` も残す（1 回目の受けで loop を抜けるので当たらないが、once の決まりを受け付けの側でも縛る今の形を変えない）。
+2. 固めた目的（place に `purpose.json` が在る）の時は役を起こさず、その目的を `status: ok` で返す。根拠: 今の支度も役を起こさず（lib の `judge_accept.py:1264-1267`）、judge の返りは在る `purpose.json` を指した（:3974-3976）。block の出力で同じ事をすると、固めた目的をそのまま返す形になる。受け付けの `refuse_if_frozen` も残す（1 回目の受けで loop を抜けるので当たらないが、once の決まりを受け付けの側でも縛る今の形を変えない）。
 3. 前提の実測の空の時の字「（前提の実測は無い）」を、空の配列 `[]` と説明の 1 文にした。根拠: 空の時だけ囲みを外す組み方は、Python が囲みの字を持つか、差し込み口を選ぶ段落の中に置くかになる。空の配列は今の役が読む JSON と同じ形で、意味の説明を md に 1 回書けば済む。
 4. PR の説明は README のとおり文の port `pr_text` で受け、番号・題・本文の見出しを組むのは line に残した。根拠: 単独の run で人が PR の本文をそのまま渡せる。見出しの組み方（`pr_file_text`）は始めの記録の `input.pr` の形を知る line の物。
 5. 出力に `purpose_text`・`source`・`means` を欄で置き、目的の控え全体は pointer で返す。根拠: 世界の解と独立設計は `purpose_text`（と `means`）しか読まない（README の 4.2 の「3 つ以上の欄を読む時だけ pointer」）。素材の観点・diagnose・plan は 4 つの欄を読むので pointer。
 6. 前の回までの却下の理由は、prep が place の却下の控えから全部を読む（`with: {reason: $LOOP_PREV…}` で前の回の 1 つだけを運ぶ形にしない）。根拠: README の 13 章と `.shared/AGENTS.md` の土台の決め（resume で輪が 1 周目から回り直しても数え直さない・#351 の「却下の理由を古い順に全部渡す」）と手本の world。
 7. 依頼の形は共通の `shared:request.schema.json` を使い、前提の実測の形も共通の `workflows/.shared/schemas/constraints.schema.json` に置いて、block の `schemas/` は持たない。根拠: README の 13 章「同じ名の形のファイルが pack の 2 か所に在れば形の検査が赤」「足りない共通の形（`constraints.schema.json` など）は、最初に要った PR が足す」。形の行は今の前提の役の `output_format`（`workflows/judge/works-factory-judge.yaml:594-606`）と [premises.md](premises.md) の行の形に合わせ、`additionalProperties: false` と `measured_output` の `minLength`・`pattern` を持たせた（#772 の審査）。premises.md の形との違い: `if`/`then`・`oneOf`・`$ref`・`$defs` は `KNOWN_KEYWORDS` の外なので使わない（`実測` の行の `measured_output` の扱いは 8）。容器の外側（`{constraints: [...]}` のほかの欄）は閉じない（前提の実測の block の返りまるごとの pointer を受けるため）。依頼の容器の照らしは土台の口 `requestrows.parts` に通し、役に見せる写しは `ports.json` の値から `prior_failures` だけを外す（ほかの欄は字のまま）。
 8. `実測` の行の `measured_output` の欠けは拒まない。根拠: 前の run から持ち越した行（`lib/carry.py:137-141` の `carried_constraints`・`runreport.py:1814`）は `measured_output` を持たず、元の judge は前提の受け付けの後にそれを足して（`judge_accept.py:1187-1192` の `with_carried`）目的の役へ確かめずに貼った（:1274-1281）。拒めば持ち越しの在る run が毎回ここで止まる。役自身の返りの `measured_output` は前提の block が見る。
-9. 固めた目的の照らしを port の読みより先にした。根拠: 今の `purpose_prep` も材料を読む前に `refuse_if_frozen` で役を起こさないと決めた（`lib/judge_accept.py:1264-1267`）。固めた目的は port の値に依らないので、port が読めなくても固めた目的を返す（#772 の審査）。
+9. 固めた目的の照らしを port の読みより先にした。根拠: 今の `purpose_prep` も材料を読む前に `refuse_if_frozen` で役を起こさないと決めた（lib の `judge_accept.py:1264-1267`）。固めた目的は port の値に依らないので、port が読めなくても固めた目的を返す（#772 の審査）。
 10. 入口は place の中の、この block が名を持つファイルだけを消す（`purpose.json` は在れば固めた目的の道に入るので消さない）。根拠: README の 13 章と `.shared/AGENTS.md`「place は作るだけで消さない。消してよいのは自分が名を持つファイルだけ」。
 11. 受け付けは `purpose-means.json` を先に、`purpose.json` を最後に書き、出口は解き方の控えが無い・読めない時に `means: []` にせず `failed` を返す。根拠: `purpose.json` が在れば両方が書き終わっている、と読めるようにする（書きかけの控えを、解き方の無い目的と取り違えない。#772 の審査）。
 12. 出口が `purpose.json` を見つけられない時の訳は、諦めた文（`rolekit.given_up_reason`）→ 最後の拒否の文 → 「目的の文を受け付けた控えが無い」の順。根拠: 手本の world の `_why_failed` と同じ。筋書き（dry-run）は輪を 1 周で終えるので、諦めの数に届かない拒否の訳も残す。
@@ -409,7 +409,7 @@ PYTEST_XDIST_AUTO_NUM_WORKERS=4 WORKS_FACTORY_ARCHON_CACHE=<Archon の源の置�
 ## 9 README へ返す問題
 
 1. 出典のファイルの照らしの部品（`_resolve_target`・`_in_version`。今は `judge_accept.py:2236-2260`）を、purpose・diagnose（`_count_in_version` が使う。:2317-2355）・`lib/recount.py:263` の 3 つが使う。README の 9.2 は `judge_accept` を観点ごとに割るとだけ書き、この共通の部品の行き先が無い。→ 決着: 部品は `lib/cite.py`（2 つ以上の block が使う物の置き場。憲法の 4）に移り、この block の `src/sourcefiles.py` はそれを import して使う。写しは持たない。
-2. 制約の行の語（`実測`・`仮説`）は premises が作り、purpose・diagnose・report・`lib/carry.py`（`MEASURED`）が読む。出典の語（`③writer の要約`・`目的不明`）は purpose が作り、line（目的の監査を回すか）・diagnose（目的が無い時の字。`lib/judge_accept.py:2080`）が読む。README の 4.1 の「2 つ以上の block が読む行の形は作り手の出力ごとに `lib/` の 1 モジュール」に当たるが、README の 4.1 と 9.3 の一覧に無い。この block は作り直しの間 `src/steps.py` に語を置く。
+2. 制約の行の語（`実測`・`仮説`）は premises が作り、purpose・diagnose・report・`lib/carry.py`（`MEASURED`）が読む。出典の語（`③writer の要約`・`目的不明`）は purpose が作り、line（目的の監査を回すか）・diagnose（目的が無い時の字。lib の `judge_accept.py:2080`）が読む。README の 4.1 の「2 つ以上の block が読む行の形は作り手の出力ごとに `lib/` の 1 モジュール」に当たるが、README の 4.1 と 9.3 の一覧に無い。この block は作り直しの間 `src/steps.py` に語を置く。
 3. 目的の段が落ちた時の止めの語 `works:purpose`（今の `stopby.PURPOSE`）の持ち主（[premises.md](premises.md) の 9 節の 3 と同じ）。
 
 ## 10 未確認

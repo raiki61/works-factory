@@ -9,7 +9,7 @@
 
 - ゲートの検算の役（gate-efficacy）: 対象差分が触れた検証ゲートを、リポジトリの写し（`mktemp -d` の下）の上で腕ごとに壊して走らせ、腕ごとの結果（`arms`）と素材の状態を返す AI の役。道具は Read・Grep・Glob・Bash・WebSearch・WebFetch。Bash は網の開いた sandbox の中で走り、作業ツリーの外に写しを作れる（今の `test_run_launch`）。
 - 腕: ゲートの条件の分かれ目 1 つ（例「`if body.pinned is not None:` の柵」）。返答の `arms` の 1 行 `{gate, arm, red_confirmed, control_green, hit_evidence, note?}`。`red_confirmed` は壊した写しで赤を見た、`control_green` は壊していない写しで緑を見た、`hit_evidence` はその腕が守る行を実際に通った印を見た記録。
-- ゲートの印: 差分に機械が見る「ゲートに触れた」印。ゲートの定義のファイル（テスト・CI・pre-commit・フック・lint・試験の設定・変異の腕の一覧の宣言など。`GATE_FILE_PATTERNS`）と、assert を足す・消す行（今の `gate_signals`、`lib/judge_accept.py:2017-2032`）。
+- ゲートの印: 差分に機械が見る「ゲートに触れた」印。ゲートの定義のファイル（テスト・CI・pre-commit・フック・lint・試験の設定・変異の腕の一覧の宣言など。`GATE_FILE_PATTERNS`）と、assert を足す・消す行（今の `gate_signals`、lib の `judge_accept.py:2017-2032`）。
 - 変異の宣言: 対象の根の `.review-checks.json`（`graphloops/engine/declared.py` の `DECL_NAME`）の任意の `mutation` の段 `{argv, arms}`（変異の実行器の呼び方の頭と、腕の一覧のパス）。宣言の必須の段は対象の試験の段の並び `suite` で、`mutation` はその横に置ける任意の段。宣言が JSON でない・`suite` が空などで宣言ごと読めない時は、`declared.read` が誤りの字（`error`）を返す。
 - 合流の道: 始めの記録の `gates` が `merge` の run（今の `GATES_MERGE`、`judge_accept.py:366`）。いくつかの run の直しを 1 つの枝に合わせた後の版で、変異の検算をまとめて 1 回撃つ道（元の works の入口の選び）で、この観点を回さない。
 - 例の run: 本物の run `53e71318-ac9f-4468-ae72-5f6ed569a667`（対象 <owner>/<repo>。置き場 `~/.local/state/works-factory/targets/316e3bbc/archon-home/workspaces/<owner>/<repo>/artifacts/runs/53e71318-…/judge/`）。差分の在る通常の run（変更ファイル 23 本。テストのファイルを含む）で、変異の宣言は無い。ゲートの検算の役は 1 回目で受け付けを通った（`material-gate-efficacy.json` の `materials.gate_efficacy.status` が `found`・`count` 3、`arms` 4 行。全部の腕が赤・対照の緑・通過の印をそろえ、実 DB とフロントエンドの試験は撃てなかったと `detail` に書いた）。同じ対象の run `17ee8ecc-717a-4dc7-92b6-25ecd08fa15b` も同じ形（`found`・`count` 6・`arms` 8 行）。骨組みの値は 53e71318 から取った。
@@ -29,11 +29,11 @@
 - `entry`: materials.md の 1.2 のまま。
 - `lang`: `text: 人に見せる欄（material の detail・checked・reason と、arms の各行の arm・note・hit_evidence）の言語。空は依頼の言語`。既定 `""`。
 
-`request`・`purpose` は持たない（今の穴 `MATERIAL_HOLES['gate-efficacy']`〔`lib/judge_accept.py:1733`〕にも回す条件 `gate_efficacy_due` にも出てこない）。
+`request`・`purpose` は持たない（今の穴 `MATERIAL_HOLES['gate-efficacy']`〔lib の `judge_accept.py:1733`〕にも回す条件 `gate_efficacy_due` にも出てこない）。
 
 出力（`returns: finish`、`outcome_field: ok`）: materials.md の 1.2 の 5 欄だけ。`material.json` の `reply` は受けた返答（`material`・`arms`）、`materials` は `{"gate_efficacy": <返答の material>}`。
 
-今との違い: 今は `gates` を始めの記録（`judge/start.json` の `gates`。`start_view`、`lib/judge_accept.py:3785`）から名で開き、回すかは `material-route` が `gate_efficacy_due` で決め、回さない時の埋めは `_fill_one`（`:1946-1949`）が `material-route.json` に書いた。受けた返答は `judge/material-gate-efficacy.json` に書き、判定役の材料（`_diagnose_ctx`、`:2764-2779`）が `reply.arms` を `record.process.gate_arms` として、`reply` を `out.p1.gate_efficacy` として読んだ。
+今との違い: 今は `gates` を始めの記録（`judge/start.json` の `gates`。`start_view`、lib の `judge_accept.py:3785`）から名で開き、回すかは `material-route` が `gate_efficacy_due` で決め、回さない時の埋めは `_fill_one`（`:1946-1949`）が `material-route.json` に書いた。受けた返答は `judge/material-gate-efficacy.json` に書き、判定役の材料（`_diagnose_ctx`、`:2764-2779`）が `reply.arms` を `record.process.gate_arms` として、`reply` を `out.p1.gate_efficacy` として読んだ。
 
 ### 1.3 node の並び（`workflows/gate-efficacy/works-factory-gate-efficacy.yaml`）
 
@@ -81,7 +81,7 @@ materials.md の 1.4 の名だけ: `intake.json`・`view.json`・`diff.patch`・
   - `after_accept(reply, place)`: 何もしない。
   - `materials_of(reply)`: `{"gate_efficacy": reply["material"]} if isinstance(reply.get("material"), dict) else {}`（今の `writes` の `materials.gate_efficacy ← material`。`:1679`）。
   - `report_lines(doc)`: `reply` が null なら `[]`。ほかは `arms` の行ごとに `f"  - 腕: {oneline(arm)}（{oneline(gate)}。赤 {'見た' if red_confirmed else '見ていない'}・対照の緑 {'見た' if control_green else '見ていない'}・守る行の通過 {'見た' if not recount.blank(hit_evidence, 10) else '見ていない'}）"`。
-- `workflows/gate-efficacy/src/oldbrief.py`（1 つ目の commit だけ）: 今の材料のファイルを同じ字で組む `brief(view, values) -> str`。今の `MATERIAL_BRIEF_HEAD`・頭の 1 文・5 つの穴の節・`MUTATION_UNDECLARED` と `mutation_decl` の文・`_na_note` の文を、この 1 本の中に字のまま持つ（2 つ目の commit でファイルごと消すので、Python が指示の文を持つのはこの間だけ）。
+- workflows/gate-efficacy/src の `oldbrief.py`（1 つ目の commit だけ）: 今の材料のファイルを同じ字で組む `brief(view, values) -> str`。今の `MATERIAL_BRIEF_HEAD`・頭の 1 文・5 つの穴の節・`MUTATION_UNDECLARED` と `mutation_decl` の文・`_na_note` の文を、この 1 本の中に字のまま持つ（2 つ目の commit でファイルごと消すので、Python が指示の文を持つのはこの間だけ）。
 - 使う `lib/`: `materialkit`・`rolekit`・`oneline`・`recount`（`blank`）・`checkscope`（`SCOPE_DECL`）・`graphloops/engine/declared.py`（`read`・`DECL_NAME`）。どれも KEEP（README の 9.3）。`recount` と `checkscope` の使い手の欄に「素材の観点（gate-efficacy）」が足る。
 
 ### 1.6 つなぎ方（graph の側。block には書かない）
@@ -203,7 +203,7 @@ md の中に `$` の字は無い。差し込み口のほかの `{` も無い。�
 
 ### 2.5 描いた骨組み（例の run の値）
 
-例の run では、今の指示は 2 か所に在った: `workflows/judge/commands/material-gate-efficacy.md`（54 行。`$gate-efficacy-prep.output.lang_line`・`.reason`・`.brief_file` を Archon が入れた物）と、役が Read した `judge/material-gate-efficacy-brief.md`（27 行）。新しい指示はこの 2 つを 1 本にする:
+例の run では、今の指示は 2 か所に在った: workflows/judge の `commands/material-gate-efficacy.md`（54 行。`$gate-efficacy-prep.output.lang_line`・`.reason`・`.brief_file` を Archon が入れた物）と、役が Read した `judge/material-gate-efficacy-brief.md`（27 行）。新しい指示はこの 2 つを 1 本にする:
 
 ```markdown
 {shared:query-rule の本文: Rules for queries to outside services …}
@@ -300,11 +300,11 @@ materials.md の 4 節の順。観点の前の照らしは無く、後の照ら�
   - 写す元 `MaterialCase.test_gate_role_may_judge_a_gate_free_diff_not_applicable`: ゲートの印の無い差分（`app.txt` だけ）では、組んだ指示に `na_judged` の段落が入り、`not_applicable` の返答を受ける。`test_app.txt` を足した差分では `na_cond_true` の段落が入り、同じ返答を拒む。
   - 写す元 `MaterialCase.test_gate_prep_shows_the_declared_mutation_stage` の 5 つの場合: 宣言の段が在る（`mutation_declared` の段落が入り、値に `["mutate", "--fast"]` と `arms.txt`）・段が無い（`mutation_undeclared` だけ）・段が壊れている（`mutation_undeclared` と `mutation_unreadable`、値に誤りの字）・宣言が JSON でない・`suite` が空（どちらも `mutation_undeclared` と `mutation_unreadable`）。照らすのは段落の真偽と値で、文の字ではない。
   - 足す（腕の照らし）: 3 節の 3 つの文がそれぞれの返答で出る。`found` で未達の腕は 2 つ目を通る。`awaiting_human` で未達の腕は 2 つ目を通る。3 つがそろった腕だけの `clean` は通る。
-  - 足す（起こし方の照らし）: block の YAML の AI の node の `model`・`allowed_tools`・`sandbox`・`idle_timeout`・`retry` が、今の `tests/workflows/test_judge.py:95` の表の gate-efficacy の行（`"sonnet", "medium", INVESTIGATE, DELEGATE, …`）が照らす物と同じ。
+  - 足す（起こし方の照らし）: block の YAML の AI の node の `model`・`allowed_tools`・`sandbox`・`idle_timeout`・`retry` が、今の tests/workflows の `test_judge.py:95` の表の gate-efficacy の行（`"sonnet", "medium", INVESTIGATE, DELEGATE, …`）が照らす物と同じ。
 - `tests/blocks/gate_efficacy/test_signals.py`: 写す元 `test_judge_accept.py::GateSignalsCase` の 4 本（`test_docstring_only_diff_has_no_signal`・`test_gate_files_are_signals`・`test_added_or_removed_assert_is_a_signal`・`test_context_assert_is_not_a_signal`）を `src.signals.gate_signals` に向ける。`test_only_the_gate_node_lets_the_role_judge`（ほかの節は差し替えを受けない）は写さない（`judged_na` はこの block の宣言だけが持ち、ほかの観点の `judged_na` が偽を返すことは各観点の `test_viewpoint.py` が見る）。
 - `tests/blocks/gate_efficacy/test_viewpoint.py`: materials.md の 8 節。`NA == "cond"` なので `applies` は `Due(True, …)` を返し、`fill` は `due` が真の値で `NotImplementedError` を上げる。
-- 指示の比べ（README の 11.4）: `tests/blocks/gate_efficacy/test_prompts.py`（1 つ目の commit だけ。2 つ目の commit で消した）。
-  - 1 つ目の commit: `prompts/gate-efficacy.md` を、今の `workflows/judge/commands/material-gate-efficacy.md` の `$gate-efficacy-prep.output.lang_line` を `{lang_line}` に、`.reason` を `{reason}` に、`.brief_file` を `{brief_file}` に替えた日本語の字で置く（prior-decisions.md の 2.9 と同じ形）。試験は例の run の値（`base`・リポジトリのパス・変異の宣言なし・ゲートの印あり）で、(a) 組んだ指示が今の md に同じ 3 つの値を入れた字と同じ、(b) `oldbrief.brief` の字が例の run の `judge/material-gate-efficacy-brief.md` と同じ（run directory とリポジトリのパスは試験の物に置き換えて比べる）ことを照らす。
+- 指示の比べ（README の 11.4）: tests/blocks/gate_efficacy の `test_prompts.py`（1 つ目の commit だけ。2 つ目の commit で消した）。
+  - 1 つ目の commit: `prompts/gate-efficacy.md` を、今の workflows/judge の `commands/material-gate-efficacy.md` の `$gate-efficacy-prep.output.lang_line` を `{lang_line}` に、`.reason` を `{reason}` に、`.brief_file` を `{brief_file}` に替えた日本語の字で置く（prior-decisions.md の 2.9 と同じ形）。試験は例の run の値（`base`・リポジトリのパス・変異の宣言なし・ゲートの印あり）で、(a) 組んだ指示が今の md に同じ 3 つの値を入れた字と同じ、(b) `oldbrief.brief` の字が例の run の `judge/material-gate-efficacy-brief.md` と同じ（run directory とリポジトリのパスは試験の物に置き換えて比べる）ことを照らす。
   - 2 つ目の commit（英語）: 1 つ目の試験と `src/oldbrief.py` を消し、例の run の値で組んだ新しい指示と、今の md と材料のファイルを並べた物を PR に載せ、2.6 の差の一覧どおりかを審査に出す。
 - 守る keep-essence の番号: 無い（README の 10 節の 12 の仕組みにこの観点は出てこない。1 の赤緑の機械の判定は fix の仕組みで、この観点の腕の赤とは別）。守るのは「腕が赤・対照の緑・守る行の通過をそろえずに `clean` を名乗れない」と「ゲートの印の無い差分だけ役の『条件に当たらない』を受ける」で、上の試験が見る。
 - 終わりの条件の命令（1 モジュールずつ。1 つ目の commit では `tests.blocks.gate_efficacy.test_prompts` も回した。2 つ目の commit で消した）:

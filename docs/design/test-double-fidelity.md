@@ -28,7 +28,7 @@
 - `base`・`entry`: materials.md の 1.2 の字のまま。
 - `lang`: `text: 人に見せる欄（material の detail・checked・reason と、mismatches の text・mechanism・measured・false_positive_if）の言語。空は依頼の言語`。既定 `""`。
 
-足す入力は無い。今の材料の穴（`MATERIAL_HOLES['test-double-fidelity']`、`lib/judge_accept.py:1734`）は `loop.diff_file`・`loop.changed_files_file`・`inputs.cwd` の 3 つで、どれも `view`（対象差分の見方）から入る。
+足す入力は無い。今の材料の穴（`MATERIAL_HOLES['test-double-fidelity']`、lib の `judge_accept.py:1734`）は `loop.diff_file`・`loop.changed_files_file`・`inputs.cwd` の 3 つで、どれも `view`（対象差分の見方）から入る。
 
 出力（`returns: finish`、`outcome_field: ok`）: materials.md の 1.2 の 5 欄だけ。`material.json` の `reply` は受けた返答（`material`・`mismatches`）、`materials` は `{"test_double_fidelity": <返答の material>}`。
 
@@ -58,7 +58,7 @@ materials.md の 1.4 の名だけ: `intake.json`・`view.json`・`diff.patch`・
   - `NAME = "test-double-fidelity"`
   - `MATERIALS = ("test_double_fidelity",)`
   - `GUARDED = False`（AI の node が `mutates_checkout: false` を持たない。今の accept の `with: {status_guarded: false, …}`。`works-factory-judge.yaml:1621`）
-  - `NA = "cond"`、`NA_REASON = "対象差分は外部との継ぎ目（別プロセス・別サービス・ブラウザ・外部 API・プロトコル）に触れていない"`（今の `MATERIAL_NODES['p1.test_double_fidelity']['na_reason']`、`lib/judge_accept.py:1681-1685` の字のまま）。当たる条件がいつも真なので今は使われない（`fill_na` を呼ぶ道が無い）が、`applies` が偽を返せるようになった時に `materialkit.fill_na` と md の `na_cond_false` の段落が使う
+  - `NA = "cond"`、`NA_REASON = "対象差分は外部との継ぎ目（別プロセス・別サービス・ブラウザ・外部 API・プロトコル）に触れていない"`（今の `MATERIAL_NODES['p1.test_double_fidelity']['na_reason']`、lib の `judge_accept.py:1681-1685` の字のまま）。当たる条件がいつも真なので今は使われない（`fill_na` を呼ぶ道が無い）が、`applies` が偽を返せるようになった時に `materialkit.fill_na` と md の `na_cond_false` の段落が使う
   - `NOUN = "代役の忠実さの確かめ"`（今の `_deep_due` に渡した名詞。`:1573-1574`）
   - `due(view, values)`: `materialkit.is_entry_run(view, values)`（`entry` があり、かつ対象差分が空。族の決め。materials.md の 2.6）が真なら `materialkit.entry_skip(NOUN)`。偽（`entry` が空、または修正が入って差分がある）なら `materialkit.Due(True, "代役の忠実さの確かめは、判定から入る run でなければ run ごとに 1 回回す（1 run は 1 周で、いつも初回。差分が外部との継ぎ目に触れるかは機械が決められないので、触れる側に倒す）")`（自分で決めた。7 節）。
   - `fill(view, values, due)`: `{"test_double_fidelity": materialkit.fill_entry(values["entry"], None)}`。`due` が偽になるのは判定から入る run だけなので、埋めはこの 1 通り（今の `_fill_one` の 1 つ目の枝。`:1937-1941`）。
@@ -71,7 +71,7 @@ materials.md の 1.4 の名だけ: `intake.json`・`view.json`・`diff.patch`・
   - `after_accept(reply, place)`: 何もしない。
   - `materials_of(reply)`: `{"test_double_fidelity": reply["material"]} if isinstance(reply.get("material"), dict) else {}`（今の `writes` の `materials.test_double_fidelity ← material`）。
   - `report_lines(doc)`: `reply` の `mismatches` の行ごとに `f"  - 代役の不一致: {oneline(text)}（{where}）"`。`reply` が null か行が無ければ `[]`。
-- `workflows/test-double-fidelity/src/oldbrief.py`（1 つ目の commit だけ。2.9）: 今の材料のファイルを同じ字で組む `brief(view) -> str`。2 つ目の commit で消す。
+- workflows/test-double-fidelity/src の `oldbrief.py`（1 つ目の commit だけ。2.9）: 今の材料のファイルを同じ字で組む `brief(view) -> str`。2 つ目の commit で消す。
 - schema のファイルは無い（json の入力を持たない）。
 - 使う `lib/`: `materialkit`・`rolekit`・`oneline`。
 
@@ -170,7 +170,7 @@ md の中に、`$` の直後に英字か `{` が続く字は無い（materials.m
 
 ### 2.5 描いた骨組み（例の run の値）
 
-例の run では、今の指示は 2 か所に在った: `workflows/judge/commands/material-test-double-fidelity.md`（47 行。`$test-double-fidelity-prep.output.lang_line`・`.reason`・`.brief_file` を Archon が入れた物）と、役が Read した `judge/material-test-double-fidelity-brief.md`（19 行）。新しい指示はこの 2 つを 1 本にする:
+例の run では、今の指示は 2 か所に在った: workflows/judge の `commands/material-test-double-fidelity.md`（47 行。`$test-double-fidelity-prep.output.lang_line`・`.reason`・`.brief_file` を Archon が入れた物）と、役が Read した `judge/material-test-double-fidelity-brief.md`（19 行）。新しい指示はこの 2 つを 1 本にする:
 
 ```markdown
 {shared:query-rule の本文: Rules for queries to outside services …（7 行）}
@@ -228,10 +228,10 @@ Return only JSON that matches the output schema.
 - 元の works の `works/blk-material/commands/test-double-fidelity.md`（7 行）は、engine が描いた graphloops の指示書（`prompt_file`）を Read させる薄い md だった。工場は graphloops の指示書を md の中に写し、値だけを材料のファイルにした（#76）。新しい形は値も指示の中に入れる。
 - 元の graphloops の指示書（`~/src/claude-plugins/graphloops/prompts/review-loop/p1.test_double_fidelity.md`）と元の works の写し（`works/.shared/core/gl-prompts/prompts/review-loop/p1.test_double_fidelity.md`）の違いは、材料の名（`hist.snapshot.*` と `loop.*`）と語（「ノード」と「節」）だけ。工場はそこに `mismatches` の書き方の段を足し、「線を引く」を「区切る」にした（どちらも #221）。新しい形も持つ。
 - graphloops の節の宣言（`graphs/review-loop.json` の `p1.test_double_fidelity`）が持ち、工場に無い物:
-  - `escalate_note`（同じ欠陥の類〔判定役が欠陥ごとに付ける class〕が周をまたいで直っては戻る run を「昇格した run」とし、その周は回す条件に関わらず走る）と、`test_double_fidelity_due` の昇格の枝: 工場は `loop.escalated` をいつも偽にした（#76。`due_view` の docstring、`lib/judge_accept.py:1337-1345`）。1 run = 1 周なので周をまたぐ戻りが無い。新しい形は枝ごと持たない。
+  - `escalate_note`（同じ欠陥の類〔判定役が欠陥ごとに付ける class〕が周をまたいで直っては戻る run を「昇格した run」とし、その周は回す条件に関わらず走る）と、`test_double_fidelity_due` の昇格の枝: 工場は `loop.escalated` をいつも偽にした（#76。`due_view` の docstring、lib の `judge_accept.py:1337-1345`）。1 run = 1 周なので周をまたぐ戻りが無い。新しい形は枝ごと持たない。
   - `carry_reason`（代役の形に変更が無い周は前の確認を持ち越す）と「前の周の P3 が何かを直した周」の枝: 1 run = 1 周（持ち主の決め carry）で、工場の `prev_fix_touched` はいつも 0 件（#76）。新しい形は持たない。
   - `optional: true`（人が engine の `skip` で節を省ける。`graphloops/engine/commands.py:1842`）: 工場に無い（（未確認）: 工場の履歴に外した記録は見つからない）。新しい形は、判定のまとめの `when:` で機能を切る run に外す形（materials.md の 1.6）だけを持つ。
-  - `delegate.model: sonnet`: 工場は群の名 `'@wf-judge-materials'`（今の試験の表で sonnet・medium。`tests/workflows/test_judge.py:96`）。同じ。
+  - `delegate.model: sonnet`: 工場は群の名 `'@wf-judge-materials'`（今の試験の表で sonnet・medium。tests/workflows の `test_judge.py:96`）。同じ。
 - 元の works の受け付け（`works/blk-material/lib/material.py` の take）と工場の受け付けは同じ順で、この観点に `post_check` は無い（graphloops も持たない）。
 
 この block が両方より良く、残す物: `mismatches` の書き方（頭の欄・1 件 1 行・数と行の数を合わせる）を指示が言う（#221）・不一致の行の場所がファイルに在るかを機械が照らす・判定から入る run で回さない素材に出どころつきの理由を書く。
@@ -258,9 +258,9 @@ materials.md の 4 節の順のまま。観点の前の照らしと後の照ら�
   - 足す: `mismatches` の行の `where` がファイルの行の外なら 1・2 回目は拒まれ、3 回目は `LOCATION_MARK` を付けて受ける（`MaterialCase.test_location_beyond_the_file_is_sent_back_then_marked` の形を、この観点の返答で）。
   - 足す: `entry` が在れば `intake` の `due` が偽で、`finish` が `status: skipped`・素材 `test_double_fidelity` が `not_applicable` で、`reason` に出どころの字と「件数は渡されていない」の句が入る。
   - 足す: `report` に `mismatches` の行ごとの「代役の不一致」の行が出る。
-  - 足す（起こし方の照らし）: block の YAML の AI の node の `model`・`allowed_tools`・`sandbox`・`idle_timeout`・`retry` が、今の `tests/workflows/test_judge.py:96` の行（`"sonnet", "medium", INVESTIGATE, DELEGATE, …`）が照らす物と同じ。
-- 指示の比べ（README の 11.4）: `tests/blocks/test_double_fidelity/test_prompts.py`。
-  - 1 つ目の commit: `prompts/test-double-fidelity.md` を、今の `workflows/judge/commands/material-test-double-fidelity.md` の `$test-double-fidelity-prep.output.lang_line` を `{lang_line}` に、`.reason` を `{reason}` に、`.brief_file` を `{brief_file}` に替えた日本語の字で置く。prep は 1 つ目の commit だけ、この 3 つを値に入れる（prior-decisions.md の 2.9 と同じ作り）。試験は例の run の値（`diff_file`・`changed_files_file`・リポジトリのパス）で、(a) 組んだ指示が今の md に同じ 3 つの値を入れた字と同じ、(b) `oldbrief.brief` の字が例の run の `judge/material-test-double-fidelity-brief.md` と同じ（パスは試験の物に置き換えて比べる）ことを照らす。材料のファイルの末尾の『条件に当たらない』の節は、今の `_na_note` が組んだ字（`seams_touched` が真）をそのまま写す。
+  - 足す（起こし方の照らし）: block の YAML の AI の node の `model`・`allowed_tools`・`sandbox`・`idle_timeout`・`retry` が、今の tests/workflows の `test_judge.py:96` の行（`"sonnet", "medium", INVESTIGATE, DELEGATE, …`）が照らす物と同じ。
+- 指示の比べ（README の 11.4）: tests/blocks/test_double_fidelity の `test_prompts.py`。
+  - 1 つ目の commit: `prompts/test-double-fidelity.md` を、今の workflows/judge の `commands/material-test-double-fidelity.md` の `$test-double-fidelity-prep.output.lang_line` を `{lang_line}` に、`.reason` を `{reason}` に、`.brief_file` を `{brief_file}` に替えた日本語の字で置く。prep は 1 つ目の commit だけ、この 3 つを値に入れる（prior-decisions.md の 2.9 と同じ作り）。試験は例の run の値（`diff_file`・`changed_files_file`・リポジトリのパス）で、(a) 組んだ指示が今の md に同じ 3 つの値を入れた字と同じ、(b) `oldbrief.brief` の字が例の run の `judge/material-test-double-fidelity-brief.md` と同じ（パスは試験の物に置き換えて比べる）ことを照らす。材料のファイルの末尾の『条件に当たらない』の節は、今の `_na_note` が組んだ字（`seams_touched` が真）をそのまま写す。
   - 2 つ目の commit（英語）: 1 つ目の試験と `src/oldbrief.py` を消し、例の run の値で組んだ新しい指示と、今の md と材料のファイルを並べた物を PR に載せ、2.6 の差の一覧どおりかを審査に出す。
 - 守る keep-essence の番号: 無い（keep-essence は元の works が「作り替えで外さない」と決めた 12 の仕組み〔`works/docs/keep-essence.md`、README の 10 節〕で、この観点はそのどれにも当たらない）。
 - 終わりの条件の命令（1 モジュールずつ）:

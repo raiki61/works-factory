@@ -94,7 +94,7 @@
 ### `asf-way-gates-fanout` 承認ノードと並べは最新の ASF の形にする
 
 - 持ち主の言葉: 「1, 2, については最新開発ASFを参考にしたらいいのでは」「なら全部最新の枝ASFのやり方に合わせるように移植するだけでいいってことだよね」
-- 決め: 作り（グラフのフォルダの形・受け渡し・承認ノード・並べ）は最新の ASF（Archon の枝 `factory/sdlc-on-dev`）の形に合わせ、中身（どの確かめと役が在り、どの順でつなぎ、どこで人に聞くか）は今の works から移す。持ち主の決めと食い違う所（期限・模型・言語・コードを写さない）は持ち主の決めが先に立つ。
+- 決め: 作り（グラフのフォルダの形・受け渡し・承認ノード・並べ）は最新の ASF（Archon の枝 `refs/heads/factory/sdlc-on-dev`）の形に合わせ、中身（どの確かめと役が在り、どの順でつなぎ、どこで人に聞くか）は今の works から移す。持ち主の決めと食い違う所（期限・模型・言語・コードを写さない）は持ち主の決めが先に立つ。
 - 当て方: `workflows/AGENTS.md` の E5・E16。
 
 ### `diff-only-to-target` 対象のリポジトリには差分を置くだけ
@@ -137,7 +137,7 @@
 ### `archon-same-as-asf` 自分のグラフも ASF と同じ開発中の Archon で回す
 
 - 持ち主の言葉: 「1: おしで。」（2026-10-11 夜。運び役の問い「私たちの工程を回す Archon の版を、ASF と同じ開発中の版にそろえてよいか（推し：そろえる）」への答え）
-- 決め: 自分のグラフを回す Archon を、公開版 v0.11.1 から、ASF が固定している Archon の源（`coleam00/Archon` の枝 `factory/sdlc-on-dev` の commit。今は `d97d00ef`）にそろえる。Archon は 1 つにする。
+- 決め: 自分のグラフを回す Archon を、公開版 v0.11.1 から、ASF が固定している Archon の源（`coleam00/Archon` の枝 `refs/heads/factory/sdlc-on-dev` の commit。今は `d97d00ef`）にそろえる。Archon は 1 つにする。
 - 訳: 最新の ASF の承認ノードの書き方（`approval:` の `decisions`）が v0.11.1 に無く、開発中の版にだけ在る（`workflows/AGENTS.md` の E16）。
 - 当て方: ASF の止め `factory/pack.json` の版（`integration_revision_required`）をそのまま使い、その 1 つの源から Archon の本体と ASF のグラフの両方を取る。Archon は源から `bun` で起こす（ASF の取り付け命令と同じ形）。公開版の実行ファイルの取り寄せは要らなくなる。根の `pack.json` には Archon の版を書かない。
 
@@ -315,7 +315,7 @@
 ### `asf-follows-dev` ASF は upstream の dev に在る物をそのまま使い、版を固定する理由を持たない
 
 - 持ち主の言葉（2026-10-16、PR #637）: 「asfは他人のものなので、勝手にあがったらそれを使えばいいのでは？今の版に固執する意味はどこにある？」
-- 決め: 止めた Archon は 1 つの止めのまま upstream の dev に上げ、ASF も dev に在るグラフだけを使う。ASF の枝 `factory/sdlc-on-dev` の版に留まる理由を持たない。dev に無い ASF のグラフ（`archon-lifecycle`・`archon-merge-queue`・`archon-verify-runtime`・`archon-verify-runtime-suite`・`archon-deploy`・`archon-backlog`・`archon-discoveries`・`archon-regress`）を指す所は外す。
+- 決め: 止めた Archon は 1 つの止めのまま upstream の dev に上げ、ASF も dev に在るグラフだけを使う。ASF の枝 `refs/heads/factory/sdlc-on-dev` の版に留まる理由を持たない。dev に無い ASF のグラフ（`archon-lifecycle`・`archon-merge-queue`・`archon-verify-runtime`・`archon-verify-runtime-suite`・`archon-deploy`・`archon-backlog`・`archon-discoveries`・`archon-regress`）を指す所は外す。
 - 当て方: `factory/pack.json` の `integration_revision_required` と `entries`。`factory/consumer.py` は merge の方針（必須の check・守りのパス）をグラフの入力に差し込まず、schedule は `.factory/schedule.json` の `workflow` を名指さなければ断る。下の「段 0〜1 を回す ASF のグラフ」と引いた決めの「自分食いと手の直し」の当て方の lifecycle は、この決めで ship に置き換える。
 - 運び役の決め（2026-10-16、PR #637 の修理の依頼 3 回目。持ち主の言葉ではない）: dev に従うのは ASF のグラフと Archon の版で、Archon 本体の既定の値には従わず、工場が自分で決める物がある（既定の provider の claude・`workflows.autoResumeOnQuotaReset: false`）。後者は、使用枠の上限で落ちた run を別のアカウントで resume する今の回復の道と、待ちに入った fan_out の子の起こし方を実測するまで、落とす形を残すため。当て方（#679 で家の `config.yaml` の書き換えをやめた）: 既定の provider は Archon の環境変数 `DEFAULT_AI_ASSISTANT`（家と対象の repo の設定が provider を選んでいればそちらが勝つ）、`workflows.autoResumeOnQuotaReset` は新しい run の `--config` の層（`bin/_lib/place.py` の `run_config`。利用者の `--config` の値が勝つ）。群の別名（`@wf-<群>`）も同じ層で渡す（`run-model-choice`）。
 - 運び役の決め（2026-10-17、#679 の修理の依頼。持ち主の言葉ではない）: 使用枠の方針 `workflows.autoResumeOnQuotaReset` は、対象のリポジトリの設定（`.archon/config.yaml`）より層が勝つ。変えられるのは利用者の `--config` だけ（審査される側のリポジトリに工場の方針を変えさせない）。
@@ -395,7 +395,7 @@
 
 ### `readme-english` 根の README.md は英語の 1 版だけにする
 
-- 持ち主の言葉（2026-10-18、claude-plugins の窓口の会話）: 「うん。いいよ。英語にしましょう。」（works-factory の README.md を英語だけの 1 版にし、日本語の版は並べない案への答え。もとは raiki61/claude-plugins の根の README を英語の 1 版にした決め〔claude-plugins の `docs/readme-language.md`〕）
+- 持ち主の言葉（2026-10-18、claude-plugins の窓口の会話）: 「うん。いいよ。英語にしましょう。」（works-factory の README.md を英語だけの 1 版にし、日本語の版は並べない案への答え。もとは raiki61/claude-plugins の根の README を英語の 1 版にした決め〔claude-plugins の docs の `readme-language.md`〕）
 - 決め: 根の `README.md` は英語だけで書く。日本語の訳の版（`README.ja.md` など）は持たない。ほかの文書（各階層の `AGENTS.md`・`MISSION.md`・`docs/`）と、工場が人に見せる字（殻の案内・報告）は日本語のまま。役の指示書（AI への指示の文）は、2026-10-19 の `prompts-english` で英語に替えた。
 - 当て方: 根の `AGENTS.md` の「文書は日本語。」の例外の 1 文。`README.md` の見出しは英語なので、見出しを名指す所（`workflows/line/src/testcmd_check.py`（#765 で line の `src/testcmd_check.py` へ移った） の `HOW`・`works-parity.md`（#765 で消した） の「今」の欄の `README.md「…」`）は英語の見出しの名で指す。殻や工場が出す日本語の字（`bin/_lib/launcher.py` の `TARGET_ENV_NOTICE`・試験の行の頭「止める（test_cmd）」「注意（test_cmd）」）は、README に字のまま引く。
 
@@ -409,7 +409,7 @@
 - 言語: Python 3.12 以上。外のパッケージは `outside-packages-ok`。根拠: 今の works の確かめが Python で書かれていて移せる。下の `py-floor`。
 - 試験の置き場 `tests/workflows/`: `tests/` は層ごとに鏡の置き場を持つ形（`tests/bin/`・`tests/shared/`）に、グラフ（`workflows/`）の鏡を足す。根拠: 持ち主の決め `agents-md-per-level` の「それ以外はASFが作りやすいようにしてくれていいが、最後には要らないものは全部掃除する感じでもいいよ」。
 - E13 の例外（持ってきた言語の表。持ち主が推しで決めた: 2026-10-12「おすすめでやっておいて」）: 当たる試験の選び（`lib/impact.py`）・変わった所の地図（`lib/changemap.py`）・TDD のループ（`tddloop.py`）・修正の決まり（`fixrules.py`）・手元の文書の探し方（`lib/libdocs.py`・`lib/libdocs_local.py`）は、拡張子と言語の対応とテストのファイルの名の慣習の表をコードの値に持つ。この 6 つに限って、表とそれを作る標準ライブラリの import を E13 から外す（根の `AGENTS.md` の E13 の「例外」。機械の表は `tests/layers/scan.py` の `E13_TABLES` で、外せるファイルはそこに名指した物だけ）。根拠: `lib-port-as-is`（元の中身のまま持ってきて、要らない物は最後の掃除の段で消す）と、表を外すと当たる試験の選びなどが落ちること（`superset`）。表はどの言語も同じに扱う事実の表で、1 つの言語に寄せる書き方ではない（`lang-neutral` の「抽象化すべき」「実質的標準みたいなjunitxmlとかそういうのは書いていいんじゃないかな。」）。掃除の段で言語の知識を外へ出す。持ち主が違えば戻す。（当て方の今: #765 で `tddloop.py`・`fixrules.py` は fix の `src/tdd.py`・`src/rules.py` へ移り、今の外しは根の `AGENTS.md` の E13 の 4 つ〔`lib/impact.py`・`lib/changemap.py`・`lib/libdocs.py`・`lib/libdocs_local.py`〕。機械の表は `tests/layers/scan.py` の `ALLOWED["E13"]`）
-- 再審・案の直し・範囲の相談の答えは新しい会話で回す（持ち主が推しで決めた: 2026-10-12「おすすめでやっておいて」）: 再審（judge）・案の直し（plan）・範囲の相談の答えと 2 度目の修正（fix）は、判定役・計画役・修正役の会話の続きでなく、保存した返答を読む新しい会話で回す。訳: Archon は include したサブグラフ（別の include のまとまり）をまたいで会話を継げず（名指しの続き `context: {resume: <ノード>}` の元は同じグラフの `command:`・`prompt:`・`loop:` のノードだけで、include の展開の札は元にならない。`loop_group` の中で元にできるのはループの前のノードと同じ周の本体の上流のノードだけで、前の周の本体のノードの会話は続かない。止めた Archon `2886e883d` の `packages/workflows/src/loader/dag-structure.ts` の `checkResumeAncestry` と `reference/workflow-language.md` の「It never continues an earlier iteration's branch」。同じ周の中の続きは upstream の #4738 で入ったが、ここの場面はどれも元の役と別の include のノードなので当たらない。2026-11-04 に持ち主の「はい。」で理由の文だけを直した。前の訳は `d97d00ef` の `guides/authoring-workflows.md`:285 の「`loop_group` の中では効かない」に頼っていた）、サブグラフはほかのサブグラフのノードを名指せない（E4）。`persona` の決めの文「引き継ぎは会話の再開か機械が保存した返答で渡す」の、保存した返答で渡す形に当たる。ただし `persona` の当て方「再審は判定役の会話を継ぐ」からは外れ、今の works の `rejudge.py` は新しい会話で黙って回すのを拒んでいたので、能力の狭め（`no-narrow`）として各サブグラフの PR に書く。持ち主が違えば、judge・plan・fix の計画（`消した計画（git の履歴。ab47a4d の版で読める）docs/plans/2026-10-12-blocks/`）のそのセクションだけを差し替える。
+- 再審・案の直し・範囲の相談の答えは新しい会話で回す（持ち主が推しで決めた: 2026-10-12「おすすめでやっておいて」）: 再審（judge）・案の直し（plan）・範囲の相談の答えと 2 度目の修正（fix）は、判定役・計画役・修正役の会話の続きでなく、保存した返答を読む新しい会話で回す。訳: Archon は include したサブグラフ（別の include のまとまり）をまたいで会話を継げず（名指しの続き `context: {resume: <ノード>}` の元は同じグラフの `command:`・`prompt:`・`loop:` のノードだけで、include の展開の札は元にならない。`loop_group` の中で元にできるのはループの前のノードと同じ周の本体の上流のノードだけで、前の周の本体のノードの会話は続かない。止めた Archon `2886e883d` の `packages/workflows/src/loader/dag-structure.ts` の `checkResumeAncestry` と `reference/workflow-language.md` の「It never continues an earlier iteration's branch」。同じ周の中の続きは upstream の #4738 で入ったが、ここの場面はどれも元の役と別の include のノードなので当たらない。2026-11-04 に持ち主の「はい。」で理由の文だけを直した。前の訳は `d97d00ef` の `guides/authoring-workflows.md`:285 の「`loop_group` の中では効かない」に頼っていた）、サブグラフはほかのサブグラフのノードを名指せない（E4）。`persona` の決めの文「引き継ぎは会話の再開か機械が保存した返答で渡す」の、保存した返答で渡す形に当たる。ただし `persona` の当て方「再審は判定役の会話を継ぐ」からは外れ、今の works の `rejudge.py` は新しい会話で黙って回すのを拒んでいたので、能力の狭め（`no-narrow`）として各サブグラフの PR に書く。持ち主が違えば、judge・plan・fix の計画（消した計画 `2026-10-12-blocks/`。git の履歴の ab47a4d の版で読める）のそのセクションだけを差し替える。
   - 計画の往復の周をまたぐ書き直し（#571。2026-10-15）: 計画を書く役が事前審査の指摘を受けて案を書き直す時も、前の周の会話を続けず新しい会話で始める。前の周の自分の案と事前審査の指摘を材料に読み、変えた項目だけを返し、機械が前の案と合わせてから全体を照らし直す（`lib/converge.py` の `splice`）。自前の包みで前の周の会話の id を差し込む形は採らない。持ち主の言葉: 運び役が「A（推し）: 新しい会話で、前の案と指摘を材料に、変えた項目だけ」と「B: 自前の包みで前の周の会話を続ける」を聞き、持ち主は「いいよ」と答えた（PR #588 のコメント）。#571 のコメント 1 の 2 は、この形で満たしたと読む。同じ周の中で受け付けに拒まれた後の出し直しは、これと別で、同じ役の会話の続きで起きる。
 - 計画の役にも前の run の失敗を渡す: メイングラフは judge と同じ前の失敗のポインタ（`$start.output.prior_failures`）を plan の include（`plan`・`replan`）にも渡す。根拠: 今の works の修正案の役は前の run で最後まで通らなかった物のセクション（`carry.prior_section`）を読んでいた（`superset`）。plan の PR #75 が持ち主に聞いた事に、運び役が #74 のコメント（2026-10-11 の 3 回目の直し）で答えた。持ち主が違えば戻す。
 - E16 の例外（自分の中に承認ノードを持つサブグラフの頭の `interactive: true`）: judge は仕様の承認ノード（`approval:`）を中に持つので、グラフの頭に `interactive: true` を残す。根拠: 止めた Archon の単独の `validate` が、無いと警告を出す（E1 の「警告なしで通る」とぶつかる）。メイングラフから include された時はメイングラフの鍵が効き、run の形を一番上のグラフが決める E16 の目当ては崩れない。出典: judge の PR #76 の「約束を変える頼み」1 と、運び役の #76 のコメント（2026-10-11 の 1 回目の 11）。
@@ -1048,7 +1048,7 @@
 - 持ち主の言葉: 「ジャッジからならトークン効率はいいはずでは。」（2026-09-25）／「ただしcatchup単体で結構トークン食うので、機械でできるとこはできるだけ機械でやったり、キャッチアップの結果を使いまわすことが重要かもしれないと思った。」（2026-09-27）。2026-10-06 の決定は要約で逐語は無い。／「どれも地続きじゃないかな」（2026-10-11）／「ようは1回で完璧にしたらもぐらたたきにあわないわけで」（出典は今の works の文書・issue #174 の引き。手元の会話の記録に原文は見つからない）
 - 決め: 使い回すのは入力が変わらない時だけで、確かめそのものは消さない。最後のテストは省かない。
 - 運び役の補足（2026-10-11 の持ち主の言葉の読み。判断は変えない）: 1 回目に網の全部を回して所見を出し切り、後の回は直しが持ち込んだ物（前の回からの案の差分と波及）だけを見る。網は 1 回目で保ったまま二度やる無駄だけを削るので、上の決めの限りに当たらない。1 回目に出し切れたかは測る（1 回目に出た所見の割合。正本は `lib/converge.py` の `LINE_SHARE`）。この割合が数えるのは後の回が見た所の取りこぼしだけで、閉じて後の回が見ない項目の取りこぼしは見えない。run の後で見つかった穴は割合に入らない
-- 出典: V129、今の works の `docs/plans/2026-10-06-review-once.md` の「持ち主の決定（2026-10-06）」、2026-10-11 の持ち主との会話（issue #174）
+- 出典: V129、今の works の docs/plans の `2026-10-06-review-once.md` の「持ち主の決定（2026-10-06）」、2026-10-11 の持ち主との会話（issue #174）
 - 当て方: test-gate の緑の認証は作業ツリーの指紋が同じ時だけ使い回す。
 
 ### 本質 2: 鵜呑みにせず、世の中の解き方と別の目に当てる
@@ -1078,8 +1078,8 @@
 - 日付: 2026-10-09
 - 持ち主の言葉: 「かなりの穴じゃない？」（2026-10-09）／「今の私の解法をエッセンスとしていれないといけないのでは」（2026-10-09）
 - 決め: 設計を決める前に、依頼の各行を対象の名を外した問題の類に言い直し、世の中の解き方と依頼の解き方を比べる（keep-essence の 12）。
-- 出典: 今の works の `docs/plans/2026-10-09-world-solution.md` のセクション 1 とセクション 4（run 167e14c3）
-- 当て方: グラフの中心の 1 つ（judge の定石の段と `lib/world`）。
+- 出典: 今の works の docs/plans の `2026-10-09-world-solution.md` のセクション 1 とセクション 4（run 167e14c3）
+- 当て方: グラフの中心の 1 つ（judge の定石の段と lib の `world`）。
 
 #### `cross-check` 役の判断も鵜呑みにしない・割れたら往復を限って新しい役に裁かせる
 - 日付: 2026-09-13〜2026-09-27
@@ -1319,7 +1319,7 @@
 - 持ち主の言葉: 「コマンドくれたら実行するよ。」（2026-09-15）
 - 決め: 承認ノードは答えで次の動きが変わる時だけ開く。止めるのは 4 種（取り消せない・外に出る／安全／能力を減らす・方針を変える／測れず戻せない）。
 - 出典: V054
-- 当て方: 4 種の基準は `lib/gate_policy` の 1 か所。
+- 当て方: 4 種の基準は lib の `gate_policy` の 1 か所。
 
 #### `ask-shape` 上げる時は案の形で、初見に通じる詳しさで
 - 日付: 2026-09-11〜2026-09-12
@@ -1361,13 +1361,13 @@
 - 持ち主の言葉: 「人がいないときは推しの答え。」（2026-10-15。運び役の問い——無人の run（ベンチなど）が修正の前の承認ノードで人に聞いて止まる扱いを、止まるままにするか、無人では推しで進むか——への答え。issue #552）
 - 決め: 持ち主が寝ている間も進める。無人の run（入力 `unattended=true`）は人の承認ノード（始め・修正の前・案の直し・最後）に着いたら、そのノードの推しの答えで進む。推しが無い時・推しが止める答えの時は今どおり止めて報告へ進む。推しで進んだ事は、報告の冒頭と run の記録に、どの承認ノードで・どの推しを・推しの根拠の文を、人の答えと読み分けられる形で残す。案の直しが範囲を広げるだけなら承認ノードを飛ばす（2026-10-08）。
 - 出典: V058、今の works の引き継ぎの文書の 2026-10-08 朝の決め、issue #552
-- 当て方: ノードの推しは承認ノードの項目の推しの尾（`lib/gatemarks.py` の `push_rec`）だけで、承認ノードに載る項目の全部が通す推しを持つ時だけ進む（`lib/gatepolicy.py` の `passage`。#765 で `lib/gatepolicy.py` は line の `src/gates.py` へ移った〔`passage`・`check` もそこ〕。機械は推しを作らない）。記録は `gates/<承認ノード>.json` の答えの欄 `pushed`（`lib/answer.py` の `PUSHED`）で、報告は冒頭 1 行目と「人が決めること」のセクションに採った推しを並べる。始めの承認ノードは無人の run では開かずに進む。最後の承認ノードの開ける理由は機械が読める推しを持たないので止まる。だから無人の run の `final_gate` の空の既定は `when_needed`（人の居る run の既定 `always` のままでは、開ける理由の無い run も最後の承認ノードで止まり、寝ている間に進まない。`lib/gatepolicy.py` の `check`。2026-10-18）。案の直しの約束の欄が変わった項目の行も推しを持たないので止まる。判定の役が保留にした分かれ道の問い（fork・held）は、`reason` の推し（`gatemarks.reason_push`）が選択肢を名指し、出どころ・depends が開いた単位なら無人の run の答えとして採り、出どころを直す義務に戻す（`gatemarks.run_push`。issue #593）。escalate と、採れる推しの無い問いは採らない。無人の方針の語の住処は `lib/gatepolicy.py`。
+- 当て方: ノードの推しは承認ノードの項目の推しの尾（`lib/gatemarks.py` の `push_rec`）だけで、承認ノードに載る項目の全部が通す推しを持つ時だけ進む（lib の `gatepolicy.py` の `passage`。#765 で lib の `gatepolicy.py` は line の `src/gates.py` へ移った〔`passage`・`check` もそこ〕。機械は推しを作らない）。記録は `gates/<承認ノード>.json` の答えの欄 `pushed`（`lib/answer.py` の `PUSHED`）で、報告は冒頭 1 行目と「人が決めること」のセクションに採った推しを並べる。始めの承認ノードは無人の run では開かずに進む。最後の承認ノードの開ける理由は機械が読める推しを持たないので止まる。だから無人の run の `final_gate` の空の既定は `when_needed`（人の居る run の既定 `always` のままでは、開ける理由の無い run も最後の承認ノードで止まり、寝ている間に進まない。lib の `gatepolicy.py` の `check`。2026-10-18）。案の直しの約束の欄が変わった項目の行も推しを持たないので止まる。判定の役が保留にした分かれ道の問い（fork・held）は、`reason` の推し（`gatemarks.reason_push`）が選択肢を名指し、出どころ・depends が開いた単位なら無人の run の答えとして採り、出どころを直す義務に戻す（`gatemarks.run_push`。issue #593）。escalate と、採れる推しの無い問いは採らない。無人の方針の語の住処は lib の `gatepolicy.py`。
 
 #### `protected-target` 対象が守ると宣言したファイルに触れたら、最後の承認ノードを開く
 - 日付: 記載なし
 - 持ち主の言葉: なし（本文の要約）
 - 決め: keep-essence の 10。守りのファイルに触れた直しは人が最後に見る。
-- 出典: 今の works の `docs/keep-essence.md` の 10
+- 出典: 今の works の docs の `keep-essence.md` の 10
 - 当て方: merge の封じ（`mode` seal）が数える守りのパスの当たり（ASF の型 A7）。最後の承認ノードと `bin/apply` はこの当たりを読む。eyes は守りのパスを見ない（#765 の組み込みで merge に寄せた。`docs/design/integration.md` の 4.5-13）。
 
 #### `tell-downstream` 判定を経ずに当てた変更や処方の変化は後ろに伝える
@@ -1384,7 +1384,7 @@
 - 持ち主の言葉: 「こういわれたと言ってるが。directで直した方がいいよね」（2026-09-28）／「だから入口ブロックみたいなアーキ的に考えを表現するのもありだよね」（2026-10-09）
 - 決め: 依頼・変更・PR は同じ仕事。入口で 1 つの入力の形にそろえ、後の段は入力の中身だけで決める。
 - 出典: V059
-- 当て方: メイングラフの始め（`lib/entry_shape`）の 1 か所。
+- 当て方: メイングラフの始め（lib の `entry_shape`）の 1 か所。
 
 #### `request-to-judge` 人の依頼は判定から流し、2 周目は次の run で
 - 日付: 2026-09-25〜2026-09-26

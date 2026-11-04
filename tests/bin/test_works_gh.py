@@ -16,8 +16,9 @@
 - 口は本物の gh を起こす前に WORKS_FACTORY_GH_ACTIVE を立て、それが立った env で口に入れば拒む（読む側と立てる側の名を
   1 つの試験で縛る。片側だけ名を替えると輪の断ち方が黙って外れる）
 
-- 役への指示の断片（workflows/.shared/prompts/works-gh.md）が `works-gh …` と書く形は、どれも口が通し、口が通す形
-  （ALLOWED の全部と api）は、どれも断片に在る（workflows/ は bin/ を読めないので〔E22〕、両方を読めるここで照らす）
+- 役への指示の断片（workflows/.shared/prompts/works-gh.md）と、その断片を差し込んで自分でも `works-gh …` の形を書く指示の md
+  （workflows/parallel-pr/prompts/pr-check.md）が書く形は、どれも口が通し、口が通す形（ALLOWED の全部と api）は、どれも断片に在る
+  （workflows/ は bin/ を読めないので〔E22〕、両方を読めるここで照らす）
 
 偽の gh（受けた引数と WORKS_FACTORY_GH_ACTIVE を記録する）を口の後ろの PATH に置く。本物の gh・GitHub に触れない。
 """
@@ -33,6 +34,7 @@ import unittest
 TESTS = pathlib.Path(__file__).resolve().parent
 WORKS_GH = TESTS.parents[1] / "bin" / "_lib" / "no-post-bin" / "works-gh"
 PROMPT = TESTS.parents[1] / "workflows" / ".shared" / "prompts" / "works-gh.md"
+USERS = (TESTS.parents[1] / "workflows" / "parallel-pr" / "prompts" / "pr-check.md",)   # 断片の外で形を書く指示の md
 sys.dont_write_bytecode = True
 sys.path.insert(0, str(TESTS))
 
@@ -149,19 +151,20 @@ def gate_module():
 
 
 # 断片の置き場の字（<…>）を、口が照らせる値に替える
-SAMPLES = {"<OWNER/REPO>": "o/r", "<OWNER>": "o", "<REPO>": "r", "<number>": "7", "<number or branch>": "7"}
+SAMPLES = {"<OWNER/REPO>": "o/r", "<owner/repo>": "o/r", "<OWNER>": "o", "<REPO>": "r", "<number>": "7", "<number or branch>": "7",
+           "<n>": "7", "{limit}": "30"}
 
 
 class PromptMatchesGateCase(unittest.TestCase):
-    def forms(self):
-        text = PROMPT.read_text(encoding="utf-8")
+    def forms(self, path=PROMPT):
+        text = path.read_text(encoding="utf-8")
         return [span.split()[1:] for span in re.findall(r"`(works-gh [^`]+)`", text)]
 
     def concrete(self, form):
         line = " ".join(form).replace("[", "").replace("]", "")
         for key, value in SAMPLES.items():
             line = line.replace(key, value)
-        self.assertNotIn("<", line, f"断片の置き場の字に見本の値が無い: {form}")
+        self.assertFalse(re.search(r"[<{]", line), f"断片の置き場の字に見本の値が無い: {form}")
         return line.split()
 
     def test_every_form_in_the_prompt_passes_the_gate(self):
@@ -170,6 +173,15 @@ class PromptMatchesGateCase(unittest.TestCase):
         for form in forms:
             with self.subTest(form=form):
                 self.assertIsNone(gate.form_error(self.concrete(form)))
+
+    def test_every_form_in_the_prompts_using_the_part_passes_the_gate(self):
+        gate = gate_module()
+        for path in USERS:
+            forms = self.forms(path)
+            self.assertTrue(forms, f"{path} に `works-gh …` の形が無い")
+            for form in forms:
+                with self.subTest(path=path.name, form=form):
+                    self.assertIsNone(gate.form_error(self.concrete(form)))
 
     def test_every_form_the_gate_passes_is_in_the_prompt(self):
         gate = gate_module()

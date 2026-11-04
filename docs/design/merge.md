@@ -194,14 +194,14 @@ bin/works-factory workflow run works-factory-merge \
 
 ## 8 守る keep-essence と封じた差分
 
-- 10（守りのファイルに触れたら最後の承認ノードを開く）: 当たりを数えるのはこの block（README 13 節）。開くのは line の最後の承認ノード、拒むのはこの block の apply（答えが無ければ）と `bin/apply`。守りの試験（`tests/blocks/merge/` に作り直す）: `SealTest` の `test_protected_hit_is_named`・`test_many_protected_hits_keep_the_return_short`・`test_index_marks_do_not_hide_a_protected_hit`・`test_broken_manifest_is_an_unknown_hit_and_blocks_apply_without_answer`・`test_uncountable_diff_is_an_unknown_hit`、`ApplyTest` の `test_no_answer_and_protected_hit_refuses`・`test_apply_refuses_target_protected_hit_without_answer`。KEEP の `lib/tests/test_protect.py`。読み手の側の筋書き `workflows/line/fixtures/eyes-failed-protected.stubs.yaml` は新しい line へ（line の設計書）。通しの試験の小さな対象（`tests/e2e/target-seed/`）は守りのファイルに触れない作りなので、この仕組みは本物の run ではまだ一度も通っていない（README 10 節の 10。種に守りの宣言 `.works-protected.json` と、それに当たる依頼を足せば通る。e2e の筋書きの直しで、この block の外）。
+- 10（守りのファイルに触れたら最後の承認ノードを開く）: 当たりを数えるのはこの block（README 13 節）。開くのは line の最後の承認ノード、拒むのはこの block の apply（答えが無ければ）と `bin/apply`。守りの試験（`tests/blocks/merge/` に作り直す）: `SealTest` の `test_protected_hit_is_named`・`test_many_protected_hits_keep_the_return_short`・`test_index_marks_do_not_hide_a_protected_hit`・`test_broken_manifest_is_an_unknown_hit_and_blocks_apply_without_answer`・`test_uncountable_diff_is_an_unknown_hit`、`ApplyTest` の `test_no_answer_and_protected_hit_refuses`・`test_apply_refuses_target_protected_hit_without_answer`。KEEP の `lib/tests/test_protect.py`。読み手の側の筋書き workflows/line/fixtures の `eyes-failed-protected.stubs.yaml` は新しい line へ（line の設計書）。通しの試験の小さな対象（`tests/e2e/target-seed/`）は守りのファイルに触れない作りなので、この仕組みは本物の run ではまだ一度も通っていない（README 10 節の 10。種に守りの宣言 `.works-protected.json` と、それに当たる依頼を足せば通る。e2e の筋書きの直しで、この block の外）。
 - 封じた差分（keep-essence の 12 の番号の外。10 と 1 を支える土台）: 人が最後の承認ノードで見た差分と、置く・積む・当てる差分が同じであることを hash で縛る。緑の認証（test-gate の `fingerprint`）が今の木と合わなければ封じても ok にせず、答えの無い apply は拒む（試験が通った木と出ていく木が同じ）。守りの試験: `SealTest.test_seal_hashes_the_written_diff`・`test_changed_fingerprint_refuses_but_writes`・`test_sealed_diff_has_no_runtime_folder`・`test_empty_diff_is_null`、`ApplyTest.test_same_tree_applies_the_sealed_diff`・`test_tree_changed_after_seal_refuses`・`test_refused_retry_removes_the_earlier_apply`・`test_stop_answer_refuses`・`test_no_answer_and_red_refuses`・`test_no_answer_and_clean_run_applies_only_when_every_check_passed`・`test_unverifiable_r2_with_approve_applies`・`test_redesign_r2_with_continue_refuses`、`CheckTest` の 3 本、`PrCommitTest.test_stacked_tree_is_checked_against_the_sealed_hash_as_a_whole`・`test_other_diff_is_not_committed`。KEEP の `lib/tests/test_seal.py`・`lib/tests/test_green_cert.py`・`tests/bin/test_apply.py`。
 - 1（赤緑の機械の判定）と 2（元から赤の区別）の読み手: apply は答えが無い時に test-gate の `ok`（機械が認証した緑）を読み、緑でなければ置かない。
 - e2e の `tests/e2e/evidence.json` の M1・M3・M7・M16・M17 は、place のパス（`parent/merge/sealed.diff` → `parent/merge-seal/sealed.diff`、`parent/merge/apply.diff` → `parent/merge-apply/apply.diff`）を新しい物に合わせる。
 
 ## 9 報告の行（`src/report.py`）
 
-今の `lib/runreport.py` が merge の返りから組む行のうち、この block の事実だけで決まる物を同じ字で組む（node の id の札は形の語に替える。block は line の中の名を知らない）。
+今の lib の `runreport.py` が merge の返りから組む行のうち、この block の事実だけで決まる物を同じ字で組む（node の id の札は形の語に替える。block は line の中の名を知らない）。
 
 - どの形でも、`ok` でない時に 1 行: `差分の<封じ・置き・照らし>（<mode>）が ok でない: <reason>`（今の `_stop_lines` の `<node> が ok でない: <reason>`）。
 - seal: `sealed.diff` が消すファイルの行（今の `_tests_head_lines` の `seal.deleted_lines(seal.deleted_paths(<封じた差分の字>), where=<sealed.diff の絶対パス>)`。読めなければ `取り込むと消えるファイル: 封じた差分が読めない（<訳>）`）。
@@ -237,7 +237,7 @@ bin/works-factory workflow run works-factory-merge \
   - `apply.stubs.yaml`・`apply-refused.stubs.yaml`・`empty-diff.stubs.yaml`: 置く・拒む・差分が空。
   - `pr.stubs.yaml`・`pr-same-branch.stubs.yaml`・`pr-child-failed.stubs.yaml`: PR を作る・既定の枝の名で止める・子の run が落ちて `unconfirmed`。
   - 差し替えの `diff.path` は `sealed.diff`・`apply.diff`（単独の run の place は run directory の根）。
-- `tests/blocks/merge/test_merge.py`（script を子のプロセスで回す。始めの記録の無い使い捨ての `ARTIFACTS_DIR` と git のリポジトリで、port の値だけを渡す。今の `tests/workflows/test_merge.py` から写す）:
+- `tests/blocks/merge/test_merge.py`（script を子のプロセスで回す。始めの記録の無い使い捨ての `ARTIFACTS_DIR` と git のリポジトリで、port の値だけを渡す。今の tests/workflows の `test_merge.py` から写す）:
   - `ShapeTest`: `test_header`・`test_nodes_are_place_the_pr_path_and_the_return`・`test_pr_path_runs_only_after_the_check_for_the_word_pr`・`test_inputs_are_the_contract`（入力の鍵が 1.2 の 12 個で、`mode` と `base` が必須）・`test_output_format_is_the_contract`（`report` を足し、`diff.path` は pattern）。足す: `workflow:` が `archon-pr` だけ（10 節の 1）。
   - `SealTest`・`ApplyTest`・`CheckTest`・`PrCommitTest`・`PrReadTest`・`HandedTest` の全部。始めの記録の `base_rev` を port `base` に替える。
   - `NeverFailsTest`: `test_unknown_mode`・`test_empty_mode`・`test_unknown_deliver_word`・`test_answer_not_json`・`test_r2_not_json`・`test_lib_missing`・`test_checkout_not_git`。始めの記録の 3 本（`test_start_not_json`・`test_start_of_another_run`・`test_start_record_without_base_rev`）は、`test_empty_base_is_not_ok`（`base` が空なら `ok: false` と「差分の根 base が無い」）の 1 本に替える。

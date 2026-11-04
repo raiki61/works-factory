@@ -34,13 +34,13 @@
 - `status`: `ok` か `failed`。`failed` は、入力 `judgment` が読めない・prep の中で例外・指示が組めない・束ね役か下請けが作業ツリーを変えた・finish の中で例外の時。開いた単位が 2 つ未満で回さなかった時と、束ね役が落ちて答えが無い単位が残った時は `ok`（今も run を止めない。答えの無い単位は申し送りに「確かめられなかった」と載る）。
 - `stop_reason`: 空か `works:judge-verify`（`lib/stopby.py` の `declare("judge-verify", "判定の裏取りの束ね役か下請けが作業ツリーを変えた")`。今の `judge_accept.VERIFY_STOP` と同じ名と同じ意味の字）。作業ツリーが変わった時だけ。run を止めるかは line が決める（今は judge が止めの控えを書き、run が止まる）。
 - `reason`: 日本語の 1 行（人に見せる）。回さなかった訳・落ちた訳・確かめられなかった物の数。全部確かめた時は空。
-- `verify`: pointer（申し送り `verify.json`）か null（finish が申し送りを書けずに落ちた時だけ）。中身の形は今の `judge-verify.json` のまま（読み手 `lib/planblk.py` の `verify_part` と `lib/runreport.py` の `verify_lines` が読む形）:
+- `verify`: pointer（申し送り `verify.json`）か null（finish が申し送りを書けずに落ちた時だけ）。中身の形は今の `judge-verify.json` のまま（読み手 lib の `planblk.py` の `verify_part` と lib の `runreport.py` の `verify_lines` が読む形）:
   - `units`: `[{n, key, state, verdict?, evidence_found?, evidence?, location_ok?, location?, why?, real_root?, errors?}]`。`state` は `checked` か `unverified`。`checked` の行は答えの欄（`unit` を除く）を持ち、`unverified` の行は `errors`（字の配列）を持つ。
   - `synergy`: `{state, why?, duplicates?, relations?, order?, errors?}`。`checked` なら `duplicates`・`relations` の行は `{units: [key…], why, place?}`、`order` の行は `{first: key, then: key, why}`。
   - 回さなかった形: `{"units": [], "synergy": {"state": "unverified", "errors": [<訳>]}}`（今の `verify_not_run`）。
 - `report`: 報告の節「判定の単位の裏取り」の日本語の行の配列（`src/report.py`。5 節）。
 
-今との違い: 今は入力を `judge/judgment.json`・始めの記録（`features_cut`・`lang`）・頭の深さの控え `judge/depth-head.json`・止めの控え `judge/stop.json` から名で開き（`workflows/judge/scripts/verify.py:27-36`・`lib/judge_accept.py:936-940`）、出口は `{ok, reason}` で、申し送りは判定の出力の欄 `verify` で外へ出していた。機能の切り替えと頭の深さと止めの控えの確かめは無くし、回すかは graph の `when:` が決める（README の 4.3・1.2 の D）。
+今との違い: 今は入力を `judge/judgment.json`・始めの記録（`features_cut`・`lang`）・頭の深さの控え `judge/depth-head.json`・止めの控え `judge/stop.json` から名で開き（workflows/judge/scripts の `verify.py:27-36`・lib の `judge_accept.py:936-940`）、出口は `{ok, reason}` で、申し送りは判定の出力の欄 `verify` で外へ出していた。機能の切り替えと頭の深さと止めの控えの確かめは無くし、回すかは graph の `when:` が決める（README の 4.3・1.2 の D）。
 
 ### 1.3 node の並び（`workflows/verify/works-factory-verify.yaml`）
 
@@ -70,7 +70,7 @@ prep の頭で、この block の名のファイルだけを名で引いて消�
 
 - `workflows/verify/src/steps.py`: 入口と出口の中身。写す元（README の 9.2。`judgeverify` は verify へ MOVE、`judge_accept` は観点ごとに割る）:
   - `judgeverify.py` の名と語と型: `MIN_UNITS`（2）・`SUBAGENT_TYPE`（`general-purpose`）・`CHECKED`・`UNVERIFIED`・`VERDICTS`・`PLACES`・`WAITING`・`output_format`（束ね役の返答 `{summary}` の型を返す関数。YAML の `judge-verify` の `output_format` と同じ物。finish の返りの型ではない）・`unit_schema`・`synergy_schema`・`_unit_row`・`_initial`・`_load`。指示の文（`TITLE`・`SUB_HEAD`・`RULES`・`UNIT_HEAD`・`ANSWER_AT`・`UNIT_ASK`・`VIEW_HEAD`・`SYNERGY_HEAD`・`ALL_UNITS_HEAD`・`SYNERGY_ASK`・`AGG`・`AGG_REPLY`）と `_head` は写さず md へ（2.3）。`promptsection` の `Section`・`Receive`・`RECEIVES` は写さない（README の 9.1 で消える）。
-  - `lib/judge_accept.py` の裏取りの部分: `is_open`・`open_units`（:212-222）・`verify_not_run`・`_verify_off`・`prep_on`・`_check_unit`・`_check_synergy`・`merge_on`（:913-1027）・`_tree_snapshot`・`_moved_since`（:1118-1136）と止めの語 `VERIFY_STOP`（:303）。止めの控えの読み書き（`read_stop`・`write_stop`）は写さない（README の 4.3）。
+  - lib の `judge_accept.py` の裏取りの部分: `is_open`・`open_units`（:212-222）・`verify_not_run`・`_verify_off`・`prep_on`・`_check_unit`・`_check_synergy`・`merge_on`（:913-1027）・`_tree_snapshot`・`_moved_since`（:1118-1136）と止めの語 `VERIFY_STOP`（:303）。止めの控えの読み書き（`read_stop`・`write_stop`）は写さない（README の 4.3）。
 - `workflows/verify/src/report.py`: 申し送りの値から報告の行を組む（今の `runreport.py` の `verify_lines`〔:982-1014〕を、判定の返りの pointer でなく申し送りの dict で受ける形にした写しと、回さなかった時の 1 行。5 節）。
 - 使う `lib/`（import するだけ。変えない）: `accept`（`tree_state`・`tree_moved`・`status_keys`・`TREE_SCHEMA`・`type_errors`）・`engine.schema`（`validate_schema`。`lib/graphloops/engine/schema.py`）・`engine.util`（`Reject`）・`stopby`（`declare`）・`jsonfile`・`oneline`。`.shared` の `ports`・`prompt`。
 - `rolekit` は使わない（輪も却下の控えも持たない）。
@@ -308,7 +308,7 @@ What to look at: (1) Root cause (`verdict`): … One of `root`, `not_root`, `uns
 
 作り直しの時の、古い指示との差の記録。後の指示の変更では、ここに足さない。
 
-今の指示は 4 か所に在る: 束ね役の node の md `workflows/judge/commands/judge-verify.md`（14 行。言語の 1 行・外への検索の決まりの塊・「指示書を Read で読め」）、束ね役の指示書 `judge/verify/prompt.md`（`lib/judge_accept.py:965-968` が `AGG`・`AGG_REPLY` から組む）、下請けのファイル `unit-<n>.md`・`synergy.md`（`:948-962` が `TITLE`・`SUB_HEAD`・`RULES`・`VIEW_HEAD`・`UNIT_HEAD`・`UNIT_ASK`・`ANSWER_AT`・`SYNERGY_HEAD`・`ALL_UNITS_HEAD`・`SYNERGY_ASK` から組む。文は `lib/judgeverify.py:46-79`）。
+今の指示は 4 か所に在る: 束ね役の node の md workflows/judge の `commands/judge-verify.md`（14 行。言語の 1 行・外への検索の決まりの塊・「指示書を Read で読め」）、束ね役の指示書 `judge/verify/prompt.md`（lib の `judge_accept.py:965-968` が `AGG`・`AGG_REPLY` から組む）、下請けのファイル `unit-<n>.md`・`synergy.md`（`:948-962` が `TITLE`・`SUB_HEAD`・`RULES`・`VIEW_HEAD`・`UNIT_HEAD`・`UNIT_ASK`・`ANSWER_AT`・`SYNERGY_HEAD`・`ALL_UNITS_HEAD`・`SYNERGY_ASK` から組む。文は lib の `judgeverify.py:46-79`）。
 
 - 移した: lib の Python の文の定数 12 個（`judgeverify.py:46-79`）を md の 1 本へ。lib の Python に残るのは材料の行（単位の行の JSON・下請けのファイルの一覧）と値（語・型・番号・パス）だけ。
 - まとめた: 束ね役の node の md と束ね役の指示書の 2 段（node の md が「指示書 `prompt_file` を Read で読め」と言い、指示書が本文を持つ）を、prep が組んだ指示を `prompt:` に直に入れる 1 段に（README の 5.2）。「返すのは指示書の JSON Schema に合う JSON だけ」（md:14）は `## How to answer` の 1 文に入った。
@@ -413,7 +413,7 @@ bin/works-factory workflow run works-factory-verify --cwd <対象> \
 
 ### 7.2 `tests/blocks/verify/`（`__init__.py` と下の 3 本）
 
-- `test_steps.py`（`kit.load("verify", "steps")` と `kit.env`。git のリポジトリは初めの commit を置いてから使う）。今の `lib/tests/test_judge_accept.py` の `VerifyPrepCase`・`VerifyMergeCase` から写す（`judge/` のパスを place に、`ja.prep_on`・`ja.merge_on` を `steps.prep`・`steps.finish` に替える）:
+- `test_steps.py`（`kit.load("verify", "steps")` と `kit.env`。git のリポジトリは初めの commit を置いてから使う）。今の lib/tests の `test_judge_accept.py` の `VerifyPrepCase`・`VerifyMergeCase` から写す（`judge/` のパスを place に、`ja.prep_on`・`ja.merge_on` を `steps.prep`・`steps.finish` に替える）:
   - 開いた単位の選び（今の :44「元 test_judge_verify の開いた単位の数え」）: `block`・`suggest` かつ `do-now` は開き、`suggest` の `defer`・`nit`・`info`・`key` の無い行は開かない。
   - `test_one_open_unit_does_not_go_and_writes_not_run`（今の `test_one_open_unit_or_off_does_not_go_and_writes_not_run` の 1 単位の部分。機能の切り替えの部分は line の試験へ）: 返り `go` 偽・`prompt` 空・訳が在る。申し送りは `units: []` と `unverified` の相乗り。finish の返りは `status: ok` と回さなかった 1 行。
   - port が読めない（壊れた JSON・`units` の無いオブジェクト・JSON の `null`）: `go` 偽、finish は `status: failed`・`reason` が「入力 judgment: 」で始まる・申し送りは回さなかった形。
@@ -422,9 +422,9 @@ bin/works-factory workflow run works-factory-verify --cwd <対象> \
   - `test_good_answers_are_merged_with_keys`・`test_verification_never_deletes_units`・`test_bad_missing_and_out_of_range_answers_are_unverified`（今のまま。誤りの文の字も今のまま）。
   - `test_tree_moved_returns_stop_reason`（今の `test_tree_moved_writes_verify_stop`）: 追跡しているファイルを書き換えて finish を回すと `status: failed`・`stop_reason: works:judge-verify`・`reason` に「作業ツリーを変えた」、申し送りは単位 2 行のまま書かれる。`tree.json` を消した時も `failed`（写しが無い訳が `reason` に在る）。
   - `test_finish_without_prep_record_writes_not_run`（今の `test_merge_without_prep_record_writes_not_run`）: `plan.json` と申し送りを消すと、finish が回さなかった形を書き `status` は `prep.json` の `failed` による。
-  - 止めの語: `steps` の止めの語が `stopby.HEAD + "judge-verify"` で、`lib/judge_accept` と同じ過程で読んでも `declare` が落ちない（同じ名と同じ意味）。
+  - 止めの語: `steps` の止めの語が `stopby.HEAD + "judge-verify"` で、lib の `judge_accept` と同じ過程で読んでも `declare` が落ちない（同じ名と同じ意味）。
 - `test_report.py`（今の `test_runreport.py` の `test_verify_pr_excluded_and_premise_hypotheses` の裏取りの部分から写し、足す）: `not_root` の行「根本でない: u1（本当の根: b.py。呼び手の側）」・全部合った時の 1 行・`unverified`・`unsure`・証拠なし・場所違い・重複・順番・相乗りが確かめられなかった時の行・回さなかった時の 1 行（訳つき）。
-- `test_verify.py`（script を子のプロセスで回す。`kit.Run(self, "verify")`）: `prep` → 台本の下請けとして `answers/unit-1.json`・`unit-2.json`・`synergy.json` を書く → `finish` と回し、返りの 6 欄（`ok`・`status`・`stop_reason`・`reason`・`verify`・`report`）・`verify` の pointer の先の中身・`report` の行を照らす。`include="judge__verify__prep"`（と finish も同じ道）で回すと place が `judge/verify/` に分かれる。YAML の起こし方の照らし: `judge-verify` の `model`・`context`・`allowed_tools`・`mutates_checkout`・`retry`・`sandbox`・`output_format` が 1.3 の値（今の `tests/workflows/test_judge.py:100` の行と同じ）、`prep` の出力の 3 欄、`finish` の `trigger_rule: all_done`。
+- `test_verify.py`（script を子のプロセスで回す。`kit.Run(self, "verify")`）: `prep` → 台本の下請けとして `answers/unit-1.json`・`unit-2.json`・`synergy.json` を書く → `finish` と回し、返りの 6 欄（`ok`・`status`・`stop_reason`・`reason`・`verify`・`report`）・`verify` の pointer の先の中身・`report` の行を照らす。`include="judge__verify__prep"`（と finish も同じ道）で回すと place が `judge/verify/` に分かれる。YAML の起こし方の照らし: `judge-verify` の `model`・`context`・`allowed_tools`・`mutates_checkout`・`retry`・`sandbox`・`output_format` が 1.3 の値（今の tests/workflows の `test_judge.py:100` の行と同じ）、`prep` の出力の 3 欄、`finish` の `trigger_rule: all_done`。
 
 写さない試験（古い中身だけを見る）: `test_judge_accept.py` の `test_places_are_under_the_brief_dir`（今の置き場の名どうしの照らし）・`test_judgeverify_loads_before_judge_accept`（lib の読み込みの循環）・`test_one_open_unit_or_off_does_not_go_and_writes_not_run` の off の部分（機能の切り替えは line）、tests/workflows の `test_judge.py` の `test_heavy_record_does_not_cut_the_verify`（段の足しは line の表）・`test_verify_waits_on_the_head_depth`（頭の深さの控えを読まない。judge のまとめは `depends_on: [diagnose]`）・`test_verify_merge_waits_on_the_judge_mode`（judge のまとめの `when:` の試験へ）・`BriefCase` の言語の 1 行の照らしの verify の行（言語は `{lang}` の箇条）・`test_unreadable_start_pointer_degrades_in_every_lang_line_script` の verify の行（始めの記録を読まない）、tests/workflows の `test_judge.py:1679-1680` の写しの台帳の行（README の 9.4 で消える）。読み手の側の試験は読み手に残す: `test_line.py:551-565`（plan の指示に申し送りが届く。plan と line へ）・`test_runreport.py:2239` の `test_broken_verify_notes_say_so`（report の読み手が null や壊れた pointer をどう書くかは report の設計書で決める）。
 
