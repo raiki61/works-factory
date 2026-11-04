@@ -6,8 +6,8 @@
 （(b) は D2 の最後の commit で比べを外した。下）。
 - (a) 段落の真偽: `prompt.emit` に渡った when の全部。`prompt.render` は名の欠けを拒むが真偽の誤りは拒まないので、割った組み立てが
   rejected・resume・where_writer などを誤って偽にして観点の文が落ちても、ほかの試験は緑のまま。ここが赤にする
-- (b) 組み上がった指示の字（`emit` の返りの prompt）。置き字（下）に替えた後の字。D2 の最後の commit で比べを外した（控えの prompt の欄は、
-  外す前の字の記録として残り、照らさない。--write も書かない）
+- (b) 組み上がった指示の字（`emit` の返りの prompt）。置き字（下）に替えた後の字。D2 の最後の commit で比べを外し、控えの prompt の欄も
+  消した（--write も書かない。外す前の字は git の履歴の控えの版が持つ）
 - (c) 付録 A の行（下請けの行 G と機械の行を除く。tests/workflows/test_weapon_assets.py の ROWS）のうち、組み上がった字に在る行の id。値を差し込み口の
   字（`{名}`）に替え（ただし unattended は本物の字）、`prompt.render` でもう 1 度組み、test_weapon_assets.py の flat と同じ照らし方（`in`）で見る。
   md だけの直しで文が段落の間を動いて、ある場面から観点が消える道を赤にする
@@ -26,8 +26,9 @@ check_cmd が持つ。uv run --isolated の度に一時のパスが変わる）�
 割る commit と variant を block にした commit は `compose` だけを替え、場面の作り（`scene`）と控えは替えていない。node の名は控えない（裁定の後の段の node は、割る前は `<型>-ruled`、割った後は型の block の中の `<型>` で、指示の中身ではない）。控えは最初の commit の後、書き直したのは 1 度だけ:
 D2 の段 2（設計 11.8 の決め〔案 B〕で pin・tidy・static・remove にも下請けを付けた commit）。狙った変化なので、pin・tidy・static・remove の 16 の組の
 (a) spawns・g1・ask_variant、(c) の増えた行（Q10・F39・F101〜F106・F116・F148a。減った行は無い）、(d) g1_items、(b) の足し（前の字の行は全部残り、
-足したのは下請けの段落と g1_items の行だけ）だけが変わり、variant と tdd の組（7 つ）は 1 字も変えていない。以後は書き直さない
-（`git log --format=%h -- tests/workflows/writer-prompts-before.json` が、最初の commit と段 2 の 2 つだけ）。
+足したのは下請けの段落と g1_items の行だけ）だけが変わり、variant と tdd の組（7 つ）は 1 字も変えていない。以後は (a)・(c)・(d) の欄を
+書き直さない（`git log --format=%h -- tests/workflows/writer-prompts-before.json` は、最初の commit・段 2 と、照らさない (b) の prompt の欄
+だけを消した commit〔残りの欄の字は変えていない〕の 3 つ）。
 
 (b) の字の比べは D2 の最後の commit で外し、(a)・(c)・(d) を残した（指示の文だけを変える依頼を md 1 本で閉じるため。設計 11.6 の D2）。
 
