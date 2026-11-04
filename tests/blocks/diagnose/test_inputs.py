@@ -318,6 +318,15 @@ class JudgeIntakeCase(_Base):
         self.assertIn("  - name `docs/d.md:3`: 出荷——タグは作らない", text)
         self.assertIn("  - (no where, so it cannot be named) 場所の無い論点——決めた", text)
 
+    def test_recorded_text_lists_pushed_answers(self):
+        """テーマの run が推しで降りた依頼の answers の行（source push）も、推しと分かる札で並べる（黙って落とさない）"""
+        import policy   # lib/
+        rows = [{"source": "answer", "name": "人の問い", "text": "A"}, {"source": policy.PUSH_SOURCE, "name": "承認された設計", "text": "md"}]
+        head, _, pushed = self.mod["inputs"].recorded_text(rows).partition("as its push (not a person's answer):")
+        self.assertIn("  - name `承認された設計`: md", pushed)
+        self.assertIn("  - name `人の問い`: A", head)
+        self.assertNotIn("承認された設計", head)
+
     def test_recorded_text_without_rows(self):
         text = self.mod["inputs"].recorded_text([])
         self.assertEqual(text.splitlines(), ["- Policy document: none", "- answers of the request: none",
