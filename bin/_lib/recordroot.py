@@ -6,7 +6,8 @@ run は終わりの記録が無いので、run の行の `output_root` から Ar
 
 run の見つけ方: 殻は run を子のプロセスで起こすので、その番号を知っている。Archon が run の記録に付ける持ち主(`metadata.execution_owner`。
 host と pid)が子の番号と同じ run を、`workflow runs --json` から選ぶ。同じ対象に同じグラフを同時に起こしても取り違えない。
-見つからない・読めない時は、黙らずにそう言う(run は終わっているので、止めない)。
+見つからない・読めない時は、黙らずにそう言う(run は終わっているので、止めない)。Archon が落ちて run が見つからない時は、呼び手の
+訳の口(why。殻は origin に届くかの確かめ。bin/_lib/startpoint.py の unreachable)が返す訳を同じ行に足す。
 """
 import os
 import signal
@@ -45,11 +46,14 @@ def root_of(record: object) -> str | None:
     return os.path.join(base, "artifacts", "runs", run) if isinstance(base, str) and base and isinstance(run, str) and run else None
 
 
-def line(read: Callable[..., object], pid: int, host: str | None = None) -> str:
-    """告げる 1 行。read(*archon の引数) は Archon の JSON を返す(読めなければ ValueError)"""
+def line(read: Callable[..., object], pid: int, host: str | None = None, why: Callable[[], str] | None = None) -> str:
+    """告げる 1 行。read(*archon の引数) は Archon の JSON を返す(読めなければ ValueError)。why は run が見つからない時に訳を返す口
+    (訳が無ければ "")"""
     try:
         run = owned_run(read("workflow", "runs", "--json", "--limit", "100"), pid, host or socket.gethostname())
         if run is None:
+            if why is not None and (reason := why()):
+                return f"{LABEL}を特定できない（Archon は run を記録する前に落ちた）。{reason}"
             return f"{LABEL}を特定できない（持ち主が殻の起こした Archon の run が記録に無い）。`workflow runs` で run を探し、`workflow get <run> --json` の terminal_record.artifacts.root を読む"
         root = root_of(read("workflow", "get", run, "--json"))
     except ValueError as error:
@@ -59,10 +63,11 @@ def line(read: Callable[..., object], pid: int, host: str | None = None) -> str:
     return f"{LABEL}: {root}"
 
 
-def run_and_say(command: list[str], env: Mapping[str, str], head: list[str], cwd: str, name: str) -> int:
+def run_and_say(command: list[str], env: Mapping[str, str], head: list[str], cwd: str, name: str,
+                why: Callable[[], str] | None = None) -> int:
     """command(workflow run)を子のプロセスで走らせ、終わったら(承認ノードで止まった時も)記録の置き場を標準エラーに 1 行出して、
-    子の終了の値を返す。head は Archon を起こす命令の頭、cwd は対象。端末の割り込み(SIGINT)は同じグループの子にも届くので
-    殻は受け流し、SIGTERM・SIGHUP は子に渡す(exec で入れ替わっていた時と同じに、止める信号が run に届く)"""
+    子の終了の値を返す。why は子が 0 以外で終わって run が見つからない時の訳の口(line)。head は Archon を起こす命令の頭、cwd は
+    対象。端末の割り込み(SIGINT)は同じグループの子にも届くので殻は受け流し、SIGTERM・SIGHUP は子に渡す(exec で入れ替わっていた時と同じに、止める信号が run に届く)"""
     child = subprocess.Popen(command, env=dict(env))
     previous = {sig: signal.signal(sig, lambda number, _frame: child.send_signal(number))
                 for sig in (getattr(signal, name) for name in ("SIGTERM", "SIGHUP") if hasattr(signal, name))}   # 素の Windows に SIGHUP は無い
@@ -72,15 +77,16 @@ def run_and_say(command: list[str], env: Mapping[str, str], head: list[str], cwd
     finally:
         for sig, handler in previous.items():
             signal.signal(sig, handler)
-    say(head, env, cwd, child.pid, name)
+    say(head, env, cwd, child.pid, name, why if code != 0 else None)
     return 128 - code if code < 0 else code
 
 
-def say(head: list[str], env: Mapping[str, str], cwd: str | None, pid: int, name: str) -> None:
+def say(head: list[str], env: Mapping[str, str], cwd: str | None, pid: int, name: str,
+        why: Callable[[], str] | None = None) -> None:
     """標準エラーに 1 行出す。head は Archon を起こす命令の頭、cwd は --cwd の値"""
     def read(*args: str) -> object:
         done = subprocess.run([*head, *args, *(["--cwd", cwd] if cwd else [])], env=env, capture_output=True, text=True,
                               encoding="utf-8")
         return childsweep.last_json(done.stdout)
 
-    print(f"{name}: {line(read, pid)}", file=sys.stderr)
+    print(f"{name}: {line(read, pid, why=why)}", file=sys.stderr)
