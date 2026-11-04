@@ -1,4 +1,4 @@
-"""判定の裏取りの block の src/steps を、この過程で呼んで確かめる（docs/design/verify.md の 7.2。今の lib/tests/test_judge_accept.py の
+"""判定の裏取りの block の src/steps を、この過程で呼んで確かめる（docs/design/verify.md の 7.2。元の test_judge_accept.py の
 VerifyPrepCase・VerifyMergeCase から写した）。git のリポジトリは初めの commit を置いてから使う。"""
 import json
 import pathlib

@@ -1,6 +1,6 @@
 """block r4 の YAML と指示の md の形（docs/design/r4.md の 8 節）。PyYAML で読み、md を組む口を直に呼ぶだけ（Archon を起こさない）。
 
-今の tests/workflows/test_eyes.py の ShapeCase の r4 の場面（道具・群・retry・輪の形・返答の型・方針と地図の節）を、英語の md の決まった文で
+元の tests/workflows の test_eyes.py の ShapeCase の r4 の場面（道具・群・retry・輪の形・返答の型・方針と地図の節）を、英語の md の決まった文で
 照らす形に作り直した。
 """
 import json

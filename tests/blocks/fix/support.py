@@ -1,4 +1,4 @@
-"""fix の block の試験が共に使う定数と、型の書き手の block との橋渡し（元 lib/tests/test_blk_fix_tdd.py の SUITE と lib/tests/test_fix_seams.py の SELF_REPORT。
+"""fix の block の試験が共に使う定数と、型の書き手の block との橋渡し（元 test_blk_fix_tdd.py の SUITE と lib/tests/test_fix_seams.py の SELF_REPORT。
 lib/tests は組み込みで消えるので、ここに置く）"""
 import json
 import pathlib

@@ -269,7 +269,7 @@ run の入口で機械が確かめる事（どれも yes/no。どれかが欠け
 
 試し方:
 
-- 対象: works-factory の clone を commit `659fb70`（#765 の設計書を置いた commit。block の `workflows/world/` はまだ無く、今の形は `lib/worldblk.py` と judge の中の node）で切り、枝に表の見本 1 本を足した物。起動は今の工場（この PR〔#809〕の元の main）の `bin/works-factory`。
+- 対象: works-factory の clone を commit `659fb70`（#765 の設計書を置いた commit。block の `workflows/world/` はまだ無く、今の形は `worldblk.py` と judge の中の node）で切り、枝に表の見本 1 本を足した物。起動は今の工場（この PR〔#809〕の元の main）の `bin/works-factory`。
 - 仕様の見本: 設計書は `docs/design/world.md`（その commit の版。334 行）、表は手で書いた `docs/design/world.spec.yaml`（目的 1 文・受け入れの条件 4 件〔単独で回る・抜き書きの照らし・web off の道・言い直しの諦め〕・触らない物 2 件・`test_cmd` は空）。
 - 部品に渡す入力は、表と設計書から機械的に組んだ（下の「部品ごとの呼び方」。block の入口の入力の組み立て〔6.7〕はこの組み方を写す）。
 
@@ -315,7 +315,7 @@ run の id は頭の 8 字（全部の id と記録の置き場は PR #809 の�
 
 部品の返りと、それを表の `findings` に写す形:
 
-- 計画の審査: ファイルの行の無い設計書を形 text で渡して、審査として働いた。照らした先は設計書が名指す今のコード（`lib/worldblk.py`・`lib/worldmark.py`・`lib/runreport.py`・`lib/carry.py`・judge の YAML と md・試験）で、穴は 12（重さ block が 3・suggest が 9）、別案（`shrink`）が 3。block の 3 つ: 依頼の行の形を block ごとに写すと 7 つの写しになる（`request-shape-copy`）・報告の文の出典に使われていない関数を選んでいる（`report-source-dead-fn`）・web が off でも web の役が道具を持ったままで受け入れ a3 を機械で保てない（`web-off-not-enforced`）。1 つ目と 3 つ目は、後の本物の実装が同じ向きに直した（依頼の行の形は共通の `workflows/.shared/schemas/request.schema.json`、web off は道具の無い node `world-judge-offline-loop` に分けた）。返りの `holes` の先 `review.json` の `faces[]` が `{key, kind, where, why, severity}` を持つので、写す形は `findings: [{key: <faces の key>, text: <why の頭の 1 文>, handling: accepted, owner_words: …}]`。
+- 計画の審査: ファイルの行の無い設計書を形 text で渡して、審査として働いた。照らした先は設計書が名指す今のコード（`worldblk.py`・`lib/worldmark.py`・`runreport.py`・`lib/carry.py`・judge の YAML と md・試験）で、穴は 12（重さ block が 3・suggest が 9）、別案（`shrink`）が 3。block の 3 つ: 依頼の行の形を block ごとに写すと 7 つの写しになる（`request-shape-copy`）・報告の文の出典に使われていない関数を選んでいる（`report-source-dead-fn`）・web が off でも web の役が道具を持ったままで受け入れ a3 を機械で保てない（`web-off-not-enforced`）。1 つ目と 3 つ目は、後の本物の実装が同じ向きに直した（依頼の行の形は共通の `workflows/.shared/schemas/request.schema.json`、web off は道具の無い node `world-judge-offline-loop` に分けた）。返りの `holes` の先 `review.json` の `faces[]` が `{key, kind, where, why, severity}` を持つので、写す形は `findings: [{key: <faces の key>, text: <why の頭の 1 文>, handling: accepted, owner_words: …}]`。
 - 世界の解: 類 5 つとも依頼の解き方は定石と同じ（`versus.verdict` が `same`）。1 つは web で出典を取れず知識だけ（`basis: knowledge`）。指摘に当たるのは `versus.verdict` が `differs` の行で、写す形は `{key: <class_id>, text: <challenge>}`。
 - 前提の実測: 制約 8 つ（実測 7・仮説 1）。うち 1 つは設計書の誤り（「今の judge の 9 つの node を 7 つの node の block にする」と言うが、設計書 1.3 の並びを数えると 9 つ）。返りは測った事実の行で、「食い違い」の印の欄は無い。設計書と食い違う行を選ぶのは会話の AI で、写す形は `{key: "premises-<行の番号>", text: <行の text>}`。
 - 前の決めの確かめ: 決着済みの論点 9 つ（`docs/owner-decisions.md` と README）を引き、食い違いは見つからなかった。issue と閉じた PR は読んでいない（`searched` の「見ていない」）。食い違いの行の欄は無く、`detail` の文に書かれる。写す形は前提の実測と同じく、会話の AI が選んだ物を `{key: "prior-<番号>", text: …}`。

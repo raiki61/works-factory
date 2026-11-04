@@ -1,4 +1,4 @@
-"""判定の裏取りの報告の行（src/report.py。docs/design/verify.md の 5 節）。今の lib/tests/test_runreport.py の裏取りの部分から写した。"""
+"""判定の裏取りの報告の行（src/report.py。docs/design/verify.md の 5 節）。元の test_runreport.py の裏取りの部分から写した。"""
 import unittest
 
 from tests.blocks import kit

@@ -1,6 +1,6 @@
 """修正の block（workflows/fix/）の形 group の子の run の試験（docs/design/fix.md の 14.2 の test_group.py）。
 
-今の tests/workflows/test_fix.py の GroupChildScriptsCase と lib/tests/test_fix_seams.py の GroupChildSeamCase を写した物。
+元の test_fix.py の GroupChildScriptsCase と lib/tests/test_fix_seams.py の GroupChildSeamCase を写した物。
 子の run は port だけを渡して回す: intake（mode group・group・out_dir＝親の place の groups/・from_tree）→ group-start → route-go →
 route-prep・route-step → orders → tdd-prep・tdd-step → fix-prep・fix-accept → group-end。親の place は prep が書く写し（intake.json・values.json・judgment.json・baseline.json）を
 試験が置く。返りは節の output_format で照らす。テストの実行器は tests/blocks/fix/support.py の SUITE。

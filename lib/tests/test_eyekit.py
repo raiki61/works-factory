@@ -1,7 +1,7 @@
 """独立の目の族の共通の部品（lib/eyekit.py）の試験（docs/design/r1.md の 8 節）。
 
-今の lib/tests/test_eyeverdict.py の CollectCase の R1 の 3 本・FellTextCase の ran の無い 1 本・test_off_contract_status_is_named・
-HumanPassedCase の行の形の半分と、tests/workflows/test_eyes.py の ScriptCase の差分と頭の場面（test_empty_diff_points_at_the_reason・
+元の test_eyeverdict.py の CollectCase の R1 の 3 本・FellTextCase の ran の無い 1 本・test_off_contract_status_is_named・
+HumanPassedCase の行の形の半分と、tests/workflows の test_eyes.py の ScriptCase の差分と頭の場面（test_empty_diff_points_at_the_reason・
 test_untaken_diff_is_unmeasured_not_zero・test_prep_diff_leaves_out_the_runtime_copy の名の試験・test_r1_head_carries_*・
 test_prep_carries_the_recorded_policy_section）を、関数を直に呼ぶ形で写した。各試験の docstring に元の試験の名を書く。
 """

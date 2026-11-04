@@ -1,6 +1,6 @@
 """plan の block の周と出口と指示の材料の検査（docs/design/plan.md の 1.2〜1.4・2.3・9.2）。
 
-今の tests/workflows/test_plan.py の CollectCase・SurvivesCase・BriefCase の写しと、9.2 の「足す」の 4 つ（値で受けた判定と前の周の欄の写し・
+元の test_plan.py の CollectCase・SurvivesCase・BriefCase の写しと、9.2 の「足す」の 4 つ（値で受けた判定と前の周の欄の写し・
 place の分かれと前の周のフォルダの残り・status の 5 つの語・owed の順）。block は base.PlanRun で Archon と同じ順に回す。
 前の周は line が組む port prior の形で渡す（Line: 前の include の出口の pointer と、受けた事前審査から組み直した往復の記録）。
 指示の字は英語の md の札と、値（パス・key）で照らす（段落が在るか無いかだけを見て、文の全体は見ない）。

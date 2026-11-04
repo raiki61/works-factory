@@ -1,6 +1,6 @@
 """plan の block の試験の助け（テストのモジュールではない）。
 
-- 見本の値: 判定・単位の目録・修正案の項目・構造の目の行・世界の解の行（今の tests/workflows/test_plan.py の見本と同じ値）
+- 見本の値: 判定・単位の目録・修正案の項目・構造の目の行・世界の解の行（元の test_plan.py の見本と同じ値）
 - PlanRun: 始めの記録の無い使い捨ての run directory と、対象（tests/e2e/target-seed の git の写し）。block の YAML の node を Archon と同じ順に、
   script は子のプロセスで、AI の node は試験が渡す返答で回す（include）。port の値は YAML の既定のまま、渡した物だけを替える
 """

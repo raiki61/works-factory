@@ -58,7 +58,7 @@ script の名は `lib/` のモジュールの名と重ねない（README の 7.1
 
 ### 1.5 コードの置き場
 
-- `workflows/world/src/steps.py`: 今の `lib/worldblk.py` の中身（入口・言い直しの材料と受け付け・類の決め・web の役の材料と受け付け・出口）。指示の文（`classes_prep` の「## 返し方」と `judge_prep` の「## 返し方」）は持たず、材料の行と値だけを組む。今の `worldblk.place()`（判定の盤面のフォルダ `judge/board` の隣に `judge/world/` を組む口）は消し、置き場は `ports.place()` が決める。
+- `workflows/world/src/steps.py`: 今の `worldblk.py` の中身（入口・言い直しの材料と受け付け・類の決め・web の役の材料と受け付け・出口）。指示の文（`classes_prep` の「## 返し方」と `judge_prep` の「## 返し方」）は持たず、材料の行と値だけを組む。今の `worldblk.place()`（判定の盤面のフォルダ `judge/board` の隣に `judge/world/` を組む口）は消し、置き場は `ports.place()` が決める。
 - `workflows/world/src/excerpts.py`: 今の `lib/worldcheck.py`（正規化・依頼の識別子の取り出し・抜き書きの照らし）。
 - `workflows/world/src/report.py`: 報告の行を値から組む（今の `worldmark.report_lines` を、控えのファイルでなく値で受ける形にした写し）。
 - `workflows/world/schemas/means.schema.json`。依頼の行の形 `request.schema.json` は 2 つ以上の block が使うので `workflows/.shared/schemas/` に置く（README の 13 章）。
@@ -141,7 +141,7 @@ Return only JSON that matches the output schema.
 
 今の指示は `workflows/judge/commands/world-classes.md`（29 行）と、`$world-intake.output.prompt` に入る `lib/worldblk.py` の `classes_prep`（:177-193）が組む本文の 2 か所に在る。
 
-- 移した: 「## 返し方」の 6 行（`lib/worldblk.py:183-192`）と見出し 3 つ（`FINDINGS_HEAD`・`PURPOSE_HEAD`・`REPLY_HEAD`、:172-174）を md へ。lib の Python に残るのは材料の行（`_finding_lines`）と値（`MAX_QUERIES`・行の数）だけ。
+- 移した: 「## 返し方」の 6 行（`worldblk.py:183-192`）と見出し 3 つ（`FINDINGS_HEAD`・`PURPOSE_HEAD`・`REPLY_HEAD`、:172-174）を md へ。lib の Python に残るのは材料の行（`_finding_lines`）と値（`MAX_QUERIES`・行の数）だけ。
 - まとめた: md と lib に二重に書いていた 4 つの決まりを 1 回に（対象の名の並び md:20 と lib:185、機械が識別子を照らして拒む md:20 と lib:192、`proposed` の写し方 md:19 と lib:187-189、検索語は実践・慣習・標準を問う md:21 と lib:190）。
 - まとめた: 同じ md の中で 2 回言っていた却下の段落（md:5 と md:23）を、共通の断片 `{shared:rejected}` の 1 回に。末尾の言い回し「1 回目の返答である」（4 通りに割れていた物の 1 つ）は、却下が無い時は段落ごと入れない形にして要らなくした。決まりは今と同じ「丸ごと出し直せ」。
 - 移した: 言語の 1 行（`rolekit.LANG_RULE` を `$world-classes-reject.output.lang_line` で入れていた物）を md の 1 文に。汎用の欄の並び（reason・how・what・why・異議…）は、この node の人に見せる欄（problem・activity・proposed）の名指しに替えた。
@@ -220,10 +220,10 @@ Return only JSON that matches the output schema.
 
 今の指示は `workflows/judge/commands/world-judge.md`（41 行）と、`$world-plan.output.prompt` に入る `lib/worldblk.py` の `judge_prep`（:290-325）の 2 か所に在る。
 
-- 移した: 「## 返し方」（`lib/worldblk.py:305-324`）を md へ。web の on と off の 2 通り（:306-314）は、差し込むかを選ぶ段落にした。見出し `PROBLEMS_HEAD`・`CLASS_HEAD`（:279-280）のうち、類ごとに繰り返す `### Class <id>` だけを Python に残した。
+- 移した: 「## 返し方」（`worldblk.py:305-324`）を md へ。web の on と off の 2 通り（:306-314）は、差し込むかを選ぶ段落にした。見出し `PROBLEMS_HEAD`・`CLASS_HEAD`（:279-280）のうち、類ごとに繰り返す `### Class <id>` だけを Python に残した。
 - まとめた: md と lib に二重に書いていた 7 つの決まりを 1 回に（原文のまま写す・機械が取り直して落とす md:27 と lib:309-310、取得したページだけ md:28 と lib:311、検索語を足してよいが名は入れない md:29 と lib:307、印は機械が付ける md:30 と lib:317-318、web が off md:31 と lib:313、「依頼は X、定石は Y」md:32 と lib:322、当たらないなら applies は空 md:33 と lib:319）。
 - まとめた: 同じ md の中で 2 回言っていた却下の段落（md:16 と md:35）を共通の断片の 1 回に。
-- 移した: 外への検索の決まりの塊（md:3-10。元は `lib/agents/judge.md:16-22` で、21 本の md に写されていた）を共通の断片 `workflows/.shared/prompts/query-rule.md` に。写しが字のまま在ることを縛る今の試験（`tests/workflows/test_judge.py:507-519`）は、断片が 1 つになるので要らない。
+- 移した: 外への検索の決まりの塊（md:3-10。元は lib の agents の `judge.md:16-22` で、21 本の md に写されていた）を共通の断片 `workflows/.shared/prompts/query-rule.md` に。写しが字のまま在ることを縛る今の試験（tests/workflows の `test_judge.py:507-519`）は、断片が 1 つになるので要らない。
 - 消した: 塊の頭の「works の包みより」（元の works の包みの名残。この block は包みを知らない）。
 - 消した: md:30 の「web で確かめていない定石として名指される」（下流の承認ノードと報告の振る舞いを、この役に前提として伝えていた）。印を機械が付ける事だけを残した。
 - 残した: 断片の中の「名前が要る調べは引かず、返答の型に『足りない』などの欄があればそこに書け」。この役の返答の型にはその欄が無いので、今と同じく条件の文のまま効かない（（未確認）: 欄を足すかは振る舞いを変えるので、この作り直しの外）。
@@ -251,7 +251,7 @@ Return only JSON that matches the output schema.
 
 元の works の `works/blk-world/`（入力 3 つ・出口 6 欄の独立したブロック）から、工場はほぼ同じコードを写した。工場に無い物・違う物と、その訳:
 
-- 独立したブロックの形: 工場は judge の中に直に置き、`judge/` の決まったファイルを読む形にした（#76。`消した計画（git の履歴。ab47a4d の版で読める）docs/plans/2026-10-12-blocks/judge.md:64`）。この block で元の形（入力だけで動く）に戻す。
+- 独立したブロックの形: 工場は judge の中に直に置き、`judge/` の決まったファイルを読む形にした（#76。消した計画（git の履歴。ab47a4d の版で読める）の `2026-10-12-blocks/judge.md:64`）。この block で元の形（入力だけで動く）に戻す。
 - ループの回ごとの支度の node（元の world-classes-prep・world-judge-prep）: 工場は world-intake・world-plan に畳み、却下の理由を reject の node で渡す形にした（#100）。この block は、回ごとの prep に戻す（README の 5.2 の「AI の node ごとに prep 1 つ」の形）。働きは同じ。
 - run で 1 回の歯止め（元の `line_edge.py:1027` は控えが在れば回さなかった）: 工場に無い（（未確認）: 意図の記録なし）。この block では 1.6 の配線（judge のまとめが 1 回だけ include する）で同じ事になる。
 - 出口での行の検査（元の world_edge が行を読めるか確かめた）: 工場は読み手の `stage_rows` が弾く形にした（#334）。この block の `finish.py` は行を自分で書くので、書く前に `worldmark` の行の形で確かめる（読み手の確かめも残る）。
@@ -259,7 +259,7 @@ Return only JSON that matches the output schema.
 - 行の型のファイル `world-row.schema.json`: 工場に無かった（#29）。#851 で `lib/world-row.schema.json` に置き、`lib/worldmark.py` の `FIELDS`・`VERDICTS`・`BASES`・`VERSUS_FIELDS` はそこから引き、行の照らしもその形で当てる。返す節の `rows` の pointer は `jsonl(lib:world-row.schema.json)`。
 - web が off の道: 工場では機能を切ると段ごと飛ぶので、off の道には実際は届かなかった（`lib/judge_accept.py:3685`）。この block では port `web` で単独の run から off を選べるので、off の道が初めて実際に使える道になる。
 
-graphloops の `prompts/review-loop/p1.external_standards.md` にあって、この block に無い物（順位 ranked・diff_at・why_not_higher、見た範囲と見ていない範囲、「定石は無い」という結論、一次情報とブログの区別、受容済みの弱点の照らし直し、機構を変えた周での回し直し、対象と依存を読むこと）: どれも工場の素材の観点 external-standards（`workflows/judge/commands/material-external-standards.md`）がそのまま持つ。世界の解は「対象を読まずに上の類に上がる」ための別の観点で、元の works の計画（5.2 節「対象の木は読まない」、5.4 節「1 回だけ」）が意図して持たせなかった。この block にも足さない。「定石は無い」と言える道と、一次情報とブログの区別は、振る舞いを変える提案なので、この作り直しの後に別に扱う。
+graphloops の `prompts/review-loop/p1.external_standards.md` にあって、この block に無い物（順位 ranked・diff_at・why_not_higher、見た範囲と見ていない範囲、「定石は無い」という結論、一次情報とブログの区別、受容済みの弱点の照らし直し、機構を変えた周での回し直し、対象と依存を読むこと）: どれも工場の素材の観点 external-standards（`material-external-standards.md`）がそのまま持つ。世界の解は「対象を読まずに上の類に上がる」ための別の観点で、元の works の計画（5.2 節「対象の木は読まない」、5.4 節「1 回だけ」）が意図して持たせなかった。この block にも足さない。「定石は無い」と言える道と、一次情報とブログの区別は、振る舞いを変える提案なので、この作り直しの後に別に扱う。
 
 この block が両方より良く、残す物: 抜き書きを機械が取り直して照らす（graphloops は役の自己申告だけ）・web の役に渡る 4 つの欄から対象の識別子を機械が弾く・根拠の印を機械が付ける・依頼の解き方を目的の文から分ける・下流で答えを強制する（修正案は行ごとに答える、承認ノードは外れを人に回す）・#365 の照らしの精度・却下の理由を古い順に全部渡す（#351）。
 
@@ -284,7 +284,7 @@ bin/works-factory workflow run works-factory-world --cwd <対象> \
 - `tests/blocks/world/test_world.py`: script を子のプロセスで回す。始めの記録の無い使い捨ての `ARTIFACTS_DIR` と git のリポジトリで、port の値だけを渡し、`intake` → `restate_prep` → 台本の返答 → `restate_accept` → `pick` → `web_prep` → 台本の返答と偽の取り直し → `web_accept` → `finish` と回し、`rows` の行と `report` の行を照らす。
 - 指示の比べ（README の 11.4 の、block ごとの 2 つの commit の形。土台の PR では作っていない。9.1 の 11。作る時は）: 例の run の `intake.json`・`judge-input.json` と同じ値で、1 つ目の commit では日本語の md で組んだ指示が今の `classes-prompt-1.md`・`judge-prompt-1.md` と md の本文を合わせた物と同じ字になることを照らす。2 つ目の commit（英語）では、2.6 と 3.6 の差の一覧どおりかを並べて審査に出す。
 - 振る舞いの試験（今の試験から写す）: `lib/tests/test_world_check.py` の全部（Verify・Banned）・`lib/tests/test_blk_world.py` の Classes・Plan・Verify・Judge・Intake の大半・`lib/tests/test_judge_accept.py` の `WorldStageCase`（`judge/` のパスを place に替える）・`tests/workflows/test_judge.py` の `test_world_stage_without_rows_returns_no_world` と `…_with_a_broken_row_…`。
-- 写さない試験（古い中身だけを見る）: `lib/tests/test_blk_world.py` の `test_wording_flag_is_not_an_exception`・`test_reply_class_id_is_ignored`・`test_exit_has_no_cache_or_skip_counts`・`test_intake_has_no_cache_root` と、旧の引数に合わせる助け `accepted()`（:68）、`lib/tests/test_worldmark.py::Notes.test_no_unit_note_or_where_paths`、`tests/workflows/test_judge.py:1912-1923`（元の works の md の hash と node の名の置き換え）・:1239・:1248（`judge/` のパス）。
+- 写さない試験（古い中身だけを見る）: `test_blk_world.py` の `test_wording_flag_is_not_an_exception`・`test_reply_class_id_is_ignored`・`test_exit_has_no_cache_or_skip_counts`・`test_intake_has_no_cache_root` と、旧の引数に合わせる助け `accepted()`（:68）、`lib/tests/test_worldmark.py::Notes.test_no_unit_note_or_where_paths`、tests/workflows の `test_judge.py:1912-1923`（元の works の md の hash と node の名の置き換え）・:1239・:1248（`judge/` のパス）。
 - 読み手の側の試験はそれぞれの block と line に残す: `tests/workflows/test_plan.py::AcceptCase.test_world_row_needs_answer`（plan）・`tests/workflows/test_plan_review.py::WorldGateCase`・`WorldGateRunCase`（plan-review と line）・`lib/tests/test_worldmark.py` の Files・Answers（KEEP）・`lib/tests/test_runreport.py` の world の 4 件（report の行は world の `src/report.py` の試験へ）。
 - keep-essence の 12（世界の解に照らす）を守るのは: 抜き書きの照らし（Verify）・識別子の弾き（Classes・Banned）・`differs` の `challenge`（Judge）・行ごとの答えの強制（plan の試験）・依頼を出どころにした外れが人に回る（plan-review と line の試験）。e2e の `tests/e2e/evidence.json` の J05・J23・J112・R79・P030・P229・P233 は、node の id と place のパスを新しい物に合わせる。
 

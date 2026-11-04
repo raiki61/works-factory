@@ -248,7 +248,7 @@ class ShapeCase(unittest.TestCase):
         import rolekit
         self.assertEqual(self.nodes[LOOP]["loop_group"]["max_iterations"], rolekit.GIVE_UP_AFTER)
 
-    # 今の判定の purpose-review の役の起こし方（tests/workflows/test_judge.py の ROLES["purpose-review"] の行と、
+    # 今の判定の purpose-review の役の起こし方（tests/workflows の test_judge.py の ROLES["purpose-review"] の行と、
     # workflows/judge/works-factory-judge.yaml の錨 read_launch を、作り直しの時に字で写した物）
     LAUNCH = {"model": "@wf-judge-materials", "settingSources": ["user"], "allowed_tools": ["Read", "Grep", "Glob"],
               "sandbox": {"enabled": True, "allowUnsandboxedCommands": False}, "idle_timeout": 1728000000,

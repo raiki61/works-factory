@@ -579,7 +579,7 @@ class AfterCase(_RepoCase):
 
 
 class ConceptsCase(_RepoCase):
-    """考えの地図の行・柵の表・方針の文書・根の地図の文書が目に見せる JSON に載る（元 tests/workflows/test_structure.py の StageACase）"""
+    """考えの地図の行・柵の表・方針の文書・根の地図の文書が目に見せる JSON に載る（元 tests/workflows の test_structure.py の StageACase）"""
 
     def edge(self, files):
         self.target(files)

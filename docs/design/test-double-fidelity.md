@@ -32,7 +32,7 @@
 
 出力（`returns: finish`、`outcome_field: ok`）: materials.md の 1.2 の 5 欄だけ。`material.json` の `reply` は受けた返答（`material`・`mismatches`）、`materials` は `{"test_double_fidelity": <返答の material>}`。
 
-今との違い: 今は入力を `judge/start.json`（差分の根・入口の印）から名で開き、回すかを `material-route` が決め（`test_double_fidelity_due`）、回さない時の埋めは `material-route.json` の `fill` から diagnose-prep の `fill_materials` が写した。受けた返答は `judge/material-test-double-fidelity.json` に書き、判定役は返答の全体を `out.p1.test_double_fidelity` の穴で読んだ（`lib/judge_accept.py:2764-2795` の `_diagnose_ctx`）。
+今との違い: 今は入力を `judge/start.json`（差分の根・入口の印）から名で開き、回すかを `material-route` が決め（`test_double_fidelity_due`）、回さない時の埋めは `material-route.json` の `fill` から diagnose-prep の `fill_materials` が写した。受けた返答は `judge/material-test-double-fidelity.json` に書き、判定役は返答の全体を `out.p1.test_double_fidelity` の穴で読んだ（`judge_accept.py:2764-2795` の `_diagnose_ctx`）。
 
 ### 1.3 node の並び（`workflows/test-double-fidelity/works-factory-test-double-fidelity.yaml`）
 
@@ -253,7 +253,7 @@ materials.md の 4 節の順のまま。観点の前の照らしと後の照ら�
   - `gave-up.stubs.yaml`: 台本の返答が 3 回とも `material.status: not_applicable`（`cond_true` で拒まれる）。`finish` の `status` が `gave_up`、run は `completed`。
   - `skipped.stubs.yaml`: `entry: "人の依頼（standalone）"`。AI の node に届かず（`reached` に `test-double-fidelity` が無い）、`finish` の `status` が `skipped`。
 - `tests/blocks/test_double_fidelity/test_test_double_fidelity.py`: materials.md の 8 節の block の試験。始めの記録の無い使い捨ての `ARTIFACTS_DIR` と git のリポジトリで、port の値だけを渡す。
-  - 写す元 `lib/tests/test_judge_accept.py::MaterialCase.test_test_double_fidelity_reply_is_taken_or_refused`: `carried_over` は拒まれ、拒みの文が「素材 'test_double_fidelity'（観点 test-double-fidelity）は今の周に走ったのに carried_over」を言う。`clean` の返答は通り、`material.json` の `materials` が `{"test_double_fidelity": <返答の material>}`。
+  - 写す元 `test_judge_accept.py::MaterialCase.test_test_double_fidelity_reply_is_taken_or_refused`: `carried_over` は拒まれ、拒みの文が「素材 'test_double_fidelity'（観点 test-double-fidelity）は今の周に走ったのに carried_over」を言う。`clean` の返答は通り、`material.json` の `materials` が `{"test_double_fidelity": <返答の material>}`。
   - 足す: `not_applicable` は拒まれ、拒みの文が「条件が真で走ったのに not_applicable」を言う。組んだ指示に `na_cond_true` の段落と「差分が外部との継ぎ目に触れる」の字が入り、ほかの 3 つの `na_*` の段落が入らない。
   - 足す: `mismatches` の行の `where` がファイルの行の外なら 1・2 回目は拒まれ、3 回目は `LOCATION_MARK` を付けて受ける（`MaterialCase.test_location_beyond_the_file_is_sent_back_then_marked` の形を、この観点の返答で）。
   - 足す: `entry` が在れば `intake` の `due` が偽で、`finish` が `status: skipped`・素材 `test_double_fidelity` が `not_applicable` で、`reason` に出どころの字と「件数は渡されていない」の句が入る。

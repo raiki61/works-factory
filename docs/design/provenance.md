@@ -206,7 +206,7 @@ Return only JSON that matches the output schema.
 
 ### 2.6 今の指示との差
 
-今の指示は `workflows/judge/commands/material-provenance.md`（47 行）と、`lib/judge_accept.py` の `material_prep`（`:2116-2135`）が描く材料のファイルの 2 か所に在る。prior-decisions.md の 2.6 と同じ移し方（材料の節 → `## Materials`、『条件に当たらない』の節 → `{shared:material-na}`、却下の段落 → `{shared:rejected}`、作業ツリーを変えるな → `{shared:material-readonly}`、素材の書き方 → `{shared:material-status}`、所見の場所 → `{shared:material-where}`、言語の 1 行 → md の 1 文、graphloops のノードの名指しと区切りを消した）。この観点だけの差:
+今の指示は `material-provenance.md`（47 行）と、`judge_accept.py` の `material_prep`（`:2116-2135`）が描く材料のファイルの 2 か所に在る。prior-decisions.md の 2.6 と同じ移し方（材料の節 → `## Materials`、『条件に当たらない』の節 → `{shared:material-na}`、却下の段落 → `{shared:rejected}`、作業ツリーを変えるな → `{shared:material-readonly}`、素材の書き方 → `{shared:material-status}`、所見の場所 → `{shared:material-where}`、言語の 1 行 → md の 1 文、graphloops のノードの名指しと区切りを消した）。この観点だけの差:
 
 - 移した: 頭の外への検索の決まりの塊（md:3-10。「Agent で子を起こすなら…含めよ」の前置きつき）を `{shared:query-rule}` に。前置きは断片の `<!-- if spawns -->` の段落に当たり、この役は Agent を持たないので入らない。
 - 移した: md:28 の道具の段（網の開いた Bash・写しは `mktemp -d` の一時の置き場・作業ツリーへの書き込みは包みが止める）を道具の段落に。尾の「対象の作業ツリー…を 1 文字も変えるな…同じ時に別の素材集めの役も走っている」は `{shared:material-readonly}` の「走りうる」に。
@@ -245,7 +245,7 @@ materials.md の 4 節の順のまま。観点の前の照らしと後の照ら�
   - `gave-up.stubs.yaml`: 台本の返答が 3 回とも `material.status: carried_over`（`from_round: 1`・`reason` つき。今の `test_accept_rules` の provenance の返答と同じ形）。`finish` の `status` が `gave_up`、run は `completed`。
   - `skipped.stubs.yaml`: `entry: "人の依頼（standalone）"`。AI の node に届かず、`finish` の `status` が `skipped`、素材が `fill_entry` の字。
 - `tests/blocks/provenance/test_provenance.py`: materials.md の 8 節の block の試験（使い捨ての `ARTIFACTS_DIR` と git のリポジトリ、port の値だけ）。
-  - 写す元 `lib/tests/test_judge_accept.py::MaterialCase.test_accept_rules` の provenance の行: 走った観点の `carried_over` は拒まれる（拒みの文は materials.md の 2.8 の「観点 provenance」の字）。
+  - 写す元 `test_judge_accept.py::MaterialCase.test_accept_rules` の provenance の行: 走った観点の `carried_over` は拒まれる（拒みの文は materials.md の 2.8 の「観点 provenance」の字）。
   - 写す元 `MaterialCase.test_material_role_changed_the_tree_rejected`（provenance で回す今の試験）: 役が作業ツリーにファイルを足した回は拒まれ、拒みの文が「変えたのがこの役とは限らない」を言う。族の部品の試験にも同じ照らしが在るが、網の開いた起こし方のこの観点で block を通して 1 回回す。
   - 写す元 `DueCase.test_run_with_a_diff_runs_them` と `test_empty_diff_run_with_requests_runs_only_prior_decisions` の provenance の部分: `entry` が空なら `due` が真、在れば偽で `finish` の `reason` が `entry_skip("出典の確かめ")` の字。
   - 足す: 見た返答（`found`・`count`・`detail`・`claims` 2 行）は `material.json` の `reply.claims` に字のまま載り、`materials` が `{"provenance": <返答の material>}`。`report` に `exists_at_base` が偽の行だけが出る。

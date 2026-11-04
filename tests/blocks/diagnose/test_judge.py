@@ -1,5 +1,5 @@
-"""判定役の受け付け（src/judge.py）の試験。写す元は lib/tests/test_judge_accept.py の JudgeTakeCase・StructureUnitsCase と
-tests/workflows/test_judge.py の受け付けの場面。受け付けの決まりは docs/design/diagnose.md の 2.8。
+"""判定役の受け付け（src/judge.py）の試験。写す元は test_judge_accept.py の JudgeTakeCase・StructureUnitsCase と
+tests/workflows の test_judge.py の受け付けの場面。受け付けの決まりは docs/design/diagnose.md の 2.8。
 
 keep-essence の 7（class_query の件数を機械が数え直す）は test_engine_recounts_the_class_query_total・
 test_defects_query_needs_misses_and_must_not_match_the_fixed_form・test_class_query_examples_that_do_not_match_are_rejected、

@@ -1,8 +1,8 @@
-"""修正の block（workflows/fix/）の組の合わせ: src/clash.py（lib/clash.py の写し）と、合わせの申し出・裁定の語（conflict.JOIN_SOURCE・
+"""修正の block（workflows/fix/）の組の合わせ: src/clash.py（lib の clash.py の写し）と、合わせの申し出・裁定の語（conflict.JOIN_SOURCE・
 conflict.REJUDGE。持ち主の決め clash-goes-to-ruling）と、join から裁定の後の合わせのループまで script を順に起こす筋書き
 （docs/design/fix.md の 14.2 の test_clash.py）。
 
-今の lib/tests/test_clash.py と tests/workflows/test_fix.py の ClashScenarioCase を写した。役の手は試験がファイルを書いて模す。
+元の lib の試験の test_clash.py と test_fix.py の ClashScenarioCase を写した。役の手は試験がファイルを書いて模す。
 指示は prompt_file の代わりに返りの prompt の字で見る。返す node は今の collect の代わりに finish（全体の形の intake の後）。
 """
 import json

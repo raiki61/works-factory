@@ -147,7 +147,7 @@ class FlowCase(unittest.TestCase):
 class ShapeCase(unittest.TestCase):
     """YAML の揃い（block の形の検査は tests/layers/test_block_shape.py）"""
 
-    # 今の判定の procedure-trace の役の起こし方（tests/workflows/test_judge.py の表の行と、workflows/judge/works-factory-judge.yaml の
+    # 今の判定の procedure-trace の役の起こし方（tests/workflows の test_judge.py の表の行と、workflows/judge/works-factory-judge.yaml の
     # 錨 net_closed_launch を、作り直しの時に字で写した物）
     LAUNCH = {"model": "@wf-judge-materials", "settingSources": ["user"],
               "allowed_tools": ["Read", "Grep", "Glob", "Bash", "WebSearch", "WebFetch"],

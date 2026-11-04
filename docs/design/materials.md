@@ -56,7 +56,7 @@
 
 欄 `role`・`reply`・`materials` は今の `judge/material-<役>.json`（`lib/judge_accept.py:2621` が書く）と同じ名で同じ形。今の読み手（`judge_accept._accepted`・`policy._settled_rows`）が読み方を変えずに読める。`status`・`reason`・`base`・`commits` は足した欄（`base`・`commits` は対象差分の見方〔`view.json`〕の値で、見方が無い道では null。読み手が素材 `base_determination` を組む。2.10）。
 
-今との違い: 今は 11 本が judge の中の 1 つの YAML に在り、要否を `material-route` がまとめて決め（`lib/judge_accept.py:1953-1986`）、差分と作業ツリーの写しを 1 度だけ `judge/` に置き、受けた返答を `judge/material-<役>.json` に書き、回さない素材の埋めと諦めの埋めは diagnose-prep の `fill_materials`（`:2654-2693`）がした。入力は始めの記録・`judge/request.json`・`judge/purpose.json`・`judge/stop.json` を名で開いた。新しい形では block が port だけを読み、自分の place に書き、素材の状態を自分で埋めて返す。止めの記録の確かめ（今の `material_route` の `read_stop`）は無くし、回すかは graph の `when:` が決める（README の 4.3）。
+今との違い: 今は 11 本が judge の中の 1 つの YAML に在り、要否を `material-route` がまとめて決め（`judge_accept.py:1953-1986`）、差分と作業ツリーの写しを 1 度だけ `judge/` に置き、受けた返答を `judge/material-<役>.json` に書き、回さない素材の埋めと諦めの埋めは diagnose-prep の `fill_materials`（`:2654-2693`）がした。入力は始めの記録・`judge/request.json`・`judge/purpose.json`・`judge/stop.json` を名で開いた。新しい形では block が port だけを読み、自分の place に書き、素材の状態を自分で埋めて返す。止めの記録の確かめ（今の `material_route` の `read_stop`）は無くし、回すかは graph の `when:` が決める（README の 4.3）。
 
 ### 1.3 node の並び（雛形 `workflows/<観点>/works-factory-<観点>.yaml`）
 
@@ -192,7 +192,7 @@ intake は place の中のファイルを消さない（自分で決めた。10 
 
 ## 2 共通の部品 `lib/materialkit.py`
 
-このモジュールの docstring の頭に「素材の観点の族の共通の部品（docs/design/materials.md の 2 節）」と、公開の名の一覧を書く（今の lib の docstring の書き方）。公開の名には、下の節の物のほかに `review_md_paths(repo, lib_dir=None)`（5.2 の終わり）・`is_entry_run`・`normal_run`・`not_entry_due`・`fill_problems`（2.6）が入る。下の「写す元」は今の `lib/judge_accept.py` の行で、関数の中身を写し、名と引数を下のとおりに替える。
+このモジュールの docstring の頭に「素材の観点の族の共通の部品（docs/design/materials.md の 2 節）」と、公開の名の一覧を書く（今の lib の docstring の書き方）。公開の名には、下の節の物のほかに `review_md_paths(repo, lib_dir=None)`（5.2 の終わり）・`is_entry_run`・`normal_run`・`not_entry_due`・`fill_problems`（2.6）が入る。下の「写す元」は今の `judge_accept.py` の行で、関数の中身を写し、名と引数を下のとおりに替える。
 
 ### 2.1 定数
 
@@ -430,7 +430,7 @@ README の 5.3 のまま。この族では:
 - main-path-observation: 起こし方 `test_run_launch`／状態の照らし 無し／役の定義 無し（外への検索の決まりだけ）／素材 `main_path_observation`／回す条件 判定から入る run でない（`touches_user_path` は真に倒す）／`NA` cond（`user_path_touched`。いつも真）／後の照らし `main_path_observed`（`:2138-2143`）／穴 `loop.diff_file`・`loop.changed_files_file`・`inputs.cwd`。
 - provenance: 起こし方 `test_run_launch`／状態の照らし 無し／役の定義 無し（外への検索の決まりだけ）／素材 `provenance`／回す条件 判定から入る run でない（`provenance_due`）／`NA` never／穴 `loop.diff_file`・`record.base`・`inputs.cwd`。
 
-`inputs.review_md`・`inputs.repo_review_md` の値は `materialkit.review_md_paths(repo)`（写す元 `review_md_paths`、`:1765-1770`。工場の観点の正本 `lib/REVIEW.md` の絶対パスと、対象の根の `REVIEW.md` の絶対パスか空）から入れる。`lib/REVIEW.md` は README の 9.3 で共通の断片へ移す物だが、作り直しの間は今の置き場を指す（（未確認）: 組み込みで移した後の置き場は、REVIEW.md を移す PR が決める）。
+`inputs.review_md`・`inputs.repo_review_md` の値は `materialkit.review_md_paths(repo)`（写す元 `review_md_paths`、`:1765-1770`。工場の観点の正本 lib の `REVIEW.md` の絶対パスと、対象の根の `REVIEW.md` の絶対パスか空）から入れる。lib の `REVIEW.md` は README の 9.3 で共通の断片へ移す物だが、作り直しの間は今の置き場を指す（（未確認）: 組み込みで移した後の置き場は、REVIEW.md を移す PR が決める）。
 
 ## 6 script の node（4 本の雛形）
 
@@ -461,7 +461,7 @@ README の 5.3 のまま。この族では:
 
 ## 8 試験（族の共通）
 
-- `lib/tests/test_materialkit.py`（族の部品の試験。この族の PR が作る）。元にする今の試験（`lib/tests/test_judge_accept.py`）:
+- `lib/tests/test_materialkit.py`（族の部品の試験。この族の PR が作る）。元にする今の試験（`test_judge_accept.py`）:
   - `MaterialCase.test_diff_sees_files_hidden_by_index_marks`・`test_sparse_checkout_out_of_cone_files_are_not_changes`（`take_view`）。
   - `test_material_role_changed_the_tree_rejected`・`test_test_caches_count_like_any_change`・`test_tagged_environment_folder_is_still_watched`（`moved_since`）。
   - `test_route_keeps_the_first_tree_record`（`snap_tree` が在る写しを書き直さない）。
@@ -504,7 +504,7 @@ keep-essence の 12 の仕組みのうち、この族が担う物は無い（REA
 
 元の works の `works/blk-material/`（1 つの block に 11 本の役。`route`・`prep`・`accept`・`collect` の 4 本の script を役の名の `with:` で使い回した）から、工場は judge の中に直に置き換えた（#76）。新しい形はその間を取り、役ごとに block を分けて、共通の部品を lib の 1 モジュールにする。工場に無い物・違う物と、その訳:
 
-- 共有の記録（盤面）が要否を決める形（元の `mat-route` は、盤面の上でどの観点の node が回せる状態かを読んだ）: 工場は値を渡す見方 `due_view` で、元の条件を 1 run = 1 周の値で評価した（#76。`lib/judge_accept.py:1337` の docstring）。新しい形は条件を観点の block に置く（graph の `when:` でなく。10 節）。
+- 共有の記録（盤面）が要否を決める形（元の `mat-route` は、盤面の上でどの観点の node が回せる状態かを読んだ）: 工場は値を渡す見方 `due_view` で、元の条件を 1 run = 1 周の値で評価した（#76。`judge_accept.py:1337` の docstring）。新しい形は条件を観点の block に置く（graph の `when:` でなく。10 節）。
 - 包みの切符（元の `adapter` の入力。Bash を持つ役の起こす前に切符を確かめた）: 工場は sandbox の `filesystem` と起こす直前の包み `fence.py` に替えた（#293・#309。今の YAML の `net_closed_launch` の注記）。新しい形も同じ埋めを使い、block は切符を持たない。
 - 並んで走るほかの観点の 1 本が盤面を止めた（run を止める印を置いた）後に、残りの観点の支度が `stopped` を返して役を飛ばす形（元の `peer-stop` の筋書き）: 工場は `material-route` が止めの記録を読む形にした（今の `workflows/judge/fixtures/material-peer-stop.stubs.yaml`）。新しい形は止めの記録を読まず、line の `when:` が回すかを決める（README の 4.3）。並んで走るほかの観点が止まっても、この観点は最後まで走る。
 - 支度が出力の在りかを見て役を飛ばす形（元の prep の返り `already`）: 工場に無い（（未確認）: 意図の記録なし）。Archon の resume が済んだ node を回し直さないので、新しい形も持たない。
@@ -512,7 +512,7 @@ keep-essence の 12 の仕組みのうち、この族が担う物は無い（REA
 - 素材の出口（元の `collect` は `{ok, reason}` だけを返し、素材は盤面に在った）: 新しい形は観点ごとに `material.json` を返し、15 欄にそろえるのは読み手（`materialkit.assemble`）。
 - 対象差分と作業ツリーの写しを、観点ごとにその block の intake で取る（今の judge は `material-route` が 1 度だけ取り、11 本が同じ `judge/material-view.json` と `judge/material-tree.json` を読んだ）。訳: block はほかの観点を知らず、自分の place にだけ書く（憲法の 3・README の 4.4）。安全か: 作業ツリーが観点の間で変わらない限り、11 本の差分の中身は同じ（`review_rev` の commit の id は時刻を持つので違いうるが、木と根は同じ）。役が作業ツリーを変えた時は、変えた役の受け付けは自分の写しと比べて拒む（今と同じ）。ただし、その後に intake が走った観点は変わった後の姿を写しに取るので、その変化をその観点の照らしでは見ず、変わった後の差分で判断する。今は 1 つの写しで全部の観点が同じ変化を拒んだので、ここは今より弱い。役の node は sandbox で作業ツリーを書けない（`denyWrite` と包み）ので起きにくいが、起きた時に判定の前で気づく所（観点ごとの `base` と写しの突き合わせ）は judge の設計書が決める（11 節）。
 
-graphloops の `workflows/review-loop/` と `graphs/review-loop.json` は、素材の節を 1 本の graph の節として持ち、engine が条件（`cond`・`applies_cond`・`na_self_ok`）と書き先（`writes`）を宣言から読む。工場の `MATERIAL_NODES` はその写し（`lib/judge_accept.py:1632`）。新しい形は宣言を観点の block の `src/viewpoint.py` に置く。graphloops の engine が持つ周をまたぐ値（前の周の素材の流用 `carried_over`・前の周の修正の申告 `prev.p3.fix.*`・`loop.last_material`）は、工場が 1 run = 1 周（持ち主の決め carry）と決めて使わないので、新しい形も持たない。
+graphloops の `workflows/review-loop/` と `graphs/review-loop.json` は、素材の節を 1 本の graph の節として持ち、engine が条件（`cond`・`applies_cond`・`na_self_ok`）と書き先（`writes`）を宣言から読む。工場の `MATERIAL_NODES` はその写し（`judge_accept.py:1632`）。新しい形は宣言を観点の block の `src/viewpoint.py` に置く。graphloops の engine が持つ周をまたぐ値（前の周の素材の流用 `carried_over`・前の周の修正の申告 `prev.p3.fix.*`・`loop.last_material`）は、工場が 1 run = 1 周（持ち主の決め carry）と決めて使わないので、新しい形も持たない。
 
 この族が両方より良く、残す物: 役を起こす前と後の作業ツリーを機械が比べる・所見の場所の行が作業ツリーのファイルに在るかを機械が照らす（元の works の受け付けの足し）・判定から入る run で回さない素材に出どころつきの理由を書く・諦めた観点を判定の前で止める材料を返す。
 
@@ -558,4 +558,4 @@ graphloops の `workflows/review-loop/` と `graphs/review-loop.json` は、素�
 - 観点ごとに対象差分と作業ツリーを写すので、11 本の見方がずれうる（9 節）。判定のまとめが `material.json` の `base` を突き合わせるか、写しの木の id を足すかは judge の設計書が決める。
 - 土台の `ports` の口の名（6 節）と、`lib/` と block のフォルダを `sys.path` に足す形。
 - 判定のまとめが 11 本の `material` の pointer を 1 つの json の配列にする組み方（Archon の `with:` で配列を組めるか。組めなければ judge のまとめの script の node が組む）。
-- 工場の観点の正本 `lib/REVIEW.md` を共通の断片へ移した後の、`inputs.review_md` の値（5.2 の終わり）。
+- 工場の観点の正本 `workflows/.shared/prompts/REVIEW.md` を共通の断片へ移した後の、`inputs.review_md` の値（5.2 の終わり）。

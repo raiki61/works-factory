@@ -29,7 +29,7 @@
 
 出力（`returns: finish`、`outcome_field: ok`）: materials.md の 1.2 の 5 欄だけ。`material.json` の `reply` は受けた返答（`verdict`・`reason`・`findings`）、`materials` は `{}`（素材を書かない観点）。
 
-今との違い: 今は目的を `judge/purpose.json` から名で開き（`lib/judge_accept.py:1887-1894` の `_purpose_of`）、受けた返答を `judge/material-purpose-review.json` に書き、判定の返す節（`verdict`）がその `reply` を `judge/purpose-review.json` に写して（`:3960-3963`）、判定の出力の欄 `purpose_review`（`PORTS`、`:3881-3882`）で外へ出していた。役が走らなかった run は `{}` を置いた（`_empty_public`、`:3903`）。
+今との違い: 今は目的を `judge/purpose.json` から名で開き（`judge_accept.py:1887-1894` の `_purpose_of`）、受けた返答を `judge/material-purpose-review.json` に書き、判定の返す節（`verdict`）がその `reply` を `judge/purpose-review.json` に写して（`:3960-3963`）、判定の出力の欄 `purpose_review`（`PORTS`、`:3881-3882`）で外へ出していた。役が走らなかった run は `{}` を置いた（`_empty_public`、`:3903`）。
 
 ### 1.3 node の並び（`workflows/purpose-review/works-factory-purpose-review.yaml`）
 
@@ -73,7 +73,7 @@ materials.md の 1.4 の名だけ: `intake.json`・`view.json`・`diff.patch`・
   - `materials_of(reply)`: `return {}`。
   - `report_lines(doc)`: `reply` が null なら `[]`。在れば `f"  - 判定: {verdict}（根拠 {len(findings)} 件）"` の 1 行と、根拠の行ごとに `f"  - 根拠: {oneline(text)}（{oneline(cite)} が {hits} 行）"`。字下げ 2 つで、materials.md の 2.10 の素材の無い観点の 1 行（`観点 purpose-review: ran`）の下に並ぶ。
 - `workflows/purpose-review/src/cited.py`: 根拠の数え直し。公開の名は `problem(reply, rev, narrows) -> str | None` だけ。
-  - `purpose_findings_cited`（元 `lib/judge_accept.py:2401-2410`）を `problem` に写す。`verdict == narrows` で `findings` が空なら拒む文、行の外れが在れば拒む文を返し、無ければ `None`。数え直せない時の `Reject`（git が動かない・版を解決できない）も捕まえて、その字を返す。
+  - `purpose_findings_cited`（元 `judge_accept.py:2401-2410`）を `problem` に写す。`verdict == narrows` で `findings` が空なら拒む文、行の外れが在れば拒む文を返し、無ければ `None`。数え直せない時の `Reject`（git が動かない・版を解決できない）も捕まえて、その字を返す。
   - 行の照らしと数え直し（元の `_cite_errors` の `findings` の道・`_count_in_version`・`_grep_count`・`_repo_root`）は写さず、指し先の照らしの 1 か所 `lib/cite.py` の `_cite_errors(None, "観点 purpose-review", rows, rev, "findings")` を使う。`findings` の道は指し先を持たないので、置き場 `jdir` と読了の記録の照らし（`wrote_refs` の道）には入らない。
   - 使う `lib/`: `cite.py` の `_cite_errors` と、`graphloops/engine/util.py` の `Reject`。
 - `workflows/.shared/schemas/purpose.schema.json`: 固めた目的の形（下）。external-standards の block も使うので `.shared` に置く（materials.md の 1.2「同じ意味の入力は同じ名と同じ形」。置き場の決めは 7 節）。
@@ -193,7 +193,7 @@ md の中に `$` の字は無い。差し込み口のほかに `{` は無い。�
 - `findings`: `[{text (1 字以上), cite (1 字以上), hits (0 以上の整数)}]`・各行 `additionalProperties: false`・`required: [text, cite, hits]`。
 - 全体 `additionalProperties: false`・`required: [verdict, reason, findings]`。
 
-人に見せる欄は `reason` と `findings` の `text`（判定の材料・plan-review の止めの訳・報告に載る）で、言語は `{lang}`。`verdict` は機械が字で比べる語（`lib/boardview.py:201`・`:211`）、`cite` は作業ツリーの字の写しなので、言語を替えない。
+人に見せる欄は `reason` と `findings` の `text`（判定の材料・plan-review の止めの訳・報告に載る）で、言語は `{lang}`。`verdict` は機械が字で比べる語（`boardview.py:201`・`:211`）、`cite` は作業ツリーの字の写しなので、言語を替えない。
 
 ### 2.5 描いた骨組み（例の run の値）
 
@@ -236,7 +236,7 @@ Return only JSON that matches the output schema.
 
 ### 2.6 今の指示との差
 
-今の指示は `workflows/judge/commands/material-purpose-review.md`（62 行）と、`lib/judge_accept.py` の `material_prep`（`:2116-2135`）が描く材料のファイルの 2 か所に在る。prior-decisions.md の 2.6 と同じ移し方（材料の節を `## Materials` の行に・『条件に当たらない』の節を外す・却下の段落 2 か所を `{shared:rejected}` 1 回に・作業ツリーを変えるなの句を `{shared:material-readonly}` に・所見の場所の段を `{shared:material-where}` に・言語の 1 行を md の 1 文に・「graphloops のノード p0.purpose_review を、下の元の graphloops の指示書のとおりに行う」と見出しと区切りを消す）はここに繰り返さない。この観点だけの差:
+今の指示は `material-purpose-review.md`（62 行）と、`judge_accept.py` の `material_prep`（`:2116-2135`）が描く材料のファイルの 2 か所に在る。prior-decisions.md の 2.6 と同じ移し方（材料の節を `## Materials` の行に・『条件に当たらない』の節を外す・却下の段落 2 か所を `{shared:rejected}` 1 回に・作業ツリーを変えるなの句を `{shared:material-readonly}` に・所見の場所の段を `{shared:material-where}` に・言語の 1 行を md の 1 文に・「graphloops のノード p0.purpose_review を、下の元の graphloops の指示書のとおりに行う」と見出しと区切りを消す）はここに繰り返さない。この観点だけの差:
 
 - 移した: 役の定義（md:3-11）を `{shared:role-inspector}` に。今の md は外への検索の決まりを持たない（役が web も外のコマンドも持たない）ので、`{shared:query-rule}` は置かない。
 - 移した: 材料の 3 つの節（`out.p0.purpose.purpose_text`・`inputs.review_rev`・`inputs.cwd`）を `## Materials` の 3 行に。md の「［材料: 〜］」の穴（md:38・40）と、材料のファイルを Read で読めという手順（md:27）は要らなくなった。
@@ -256,7 +256,7 @@ Return only JSON that matches the output schema.
 
 - 元の works の `works/blk-material/commands/purpose-review.md`（9 行）は、engine が描いた graphloops の指示書（`prompt_file`）を Read させる薄い md で、返す JSON の形も指示書に貼った。工場は指示書を md に写し、値を材料のファイルにした（#76）。新しい形は値も指示に入れる。
 - 元の graphloops の指示書は、元の works も工場も a1202d0（0.21.0）の写し。工場はそこに 3 つを足した: 足りない時の返し方（`verdict` を `問題なし`・`findings` を空・`reason` の頭に印）・Bash を持たない役の読み方（作業ツリーのファイルを Read で読む。固めた版と同じ中身）・根拠の行は `where` を持たないの前置き（どれも #221 の書き直しで入った）。この block も持つ。
-- graphloops の今の指示書（`~/src/claude-plugins/graphloops/prompts/review-loop/p0.purpose_review.md`）は、3f5a6a82（2026-10-19）で判定の語を ASCII の鍵 `ok`・`narrows` に替え、読む版の穴を `hist.snapshot.rev` にした。工場は替えていない（（未確認）: 工場の履歴に外した記録は無い。写した版がこの替えより前だった）。工場の読み手（`lib/boardview.py:201`・`:211`、`lib/design.py:77`）が日本語の字で比べるので、この作り直しでは語を替えない（7 節）。
+- graphloops の今の指示書（`~/src/claude-plugins/graphloops/prompts/review-loop/p0.purpose_review.md`）は、3f5a6a82（2026-10-19）で判定の語を ASCII の鍵 `ok`・`narrows` に替え、読む版の穴を `hist.snapshot.rev` にした。工場は替えていない（（未確認）: 工場の履歴に外した記録は無い。写した版がこの替えより前だった）。工場の読み手（`boardview.py:201`・`:211`、`lib/design.py:77`）が日本語の字で比べるので、この作り直しでは語を替えない（7 節）。
 - graphloops の節の宣言（`graphs/review-loop.json` の `p0.purpose_review`）は `optional: true`・`fresh_context: true`・回す条件 `purpose_review_due`（2 周目からは出典のファイルの変わりと記録の監査の形でも回す）。工場は 1 run = 1 周（持ち主の決め carry）なので 1 周目の枝だけが効き、新しい形も同じ。
 - 受け付けの順（作業ツリー・所見の場所・`post_check` の `purpose_findings_cited`）は元の works・graphloops・工場で同じ。工場の数え直しは置き場を読了の記録の在りかに読み替えた（`_cite_errors` の `jdir`）が、指し先を持たない根拠の行はその道に入らないので、この block は読み替えごと持たない。
 
@@ -278,7 +278,7 @@ materials.md の 4 節の順のまま。観点の前の照らしは無く、後�
   - `gave-up.stubs.yaml`: 台本の返答が `verdict: 狭めている`・`findings: []`（台本は 1 周分。3 回の数えは単体の試験 `test_three_rejections_give_up` が見る）。`finish` の `status` が `gave_up`、run は `completed`。
   - `skipped.stubs.yaml`: `purpose` の `source` を `①PR 説明` にする。AI の node は走らず、`finish` の `status` が `skipped`、`reason` が「目的テキストの出典が ①PR 説明——…」。
 - `tests/blocks/purpose_review/test_purpose_review.py`（materials.md の 8 節の block の試験）:
-  - 写す元 `lib/tests/test_judge_accept.py::MaterialCase.test_purpose_review_findings_must_cite_the_version`: 4 つの返答（数の合う根拠・版に無い字・数の合わない申告・根拠の無い『狭めている』）で、1 つ目だけが `material.json` の `reply` に載り、ほかは拒みの文に今の字（「'どこにも無い字列' が現物に 1 件も無い」など）を含む。根拠の字は試験のリポジトリで固めた版に在る字にする。
+  - 写す元 `test_judge_accept.py::MaterialCase.test_purpose_review_findings_must_cite_the_version`: 4 つの返答（数の合う根拠・版に無い字・数の合わない申告・根拠の無い『狭めている』）で、1 つ目だけが `material.json` の `reply` に載り、ほかは拒みの文に今の字（「'どこにも無い字列' が現物に 1 件も無い」など）を含む。根拠の字は試験のリポジトリで固めた版に在る字にする。
   - 写す元 `DueCase.test_purpose_review_only_for_writer_summary`: 出典が `③writer の要約` なら `due` が真、`①PR 説明` なら偽。足す: `purpose` が null なら偽で、`reason` が「目的の文が渡されていない」で始まる。差分が空で `entry` の在る run でも、出典が ③ なら真（入口の印を読まない）。
   - 足す: `material.json` が `materialkit.read` を通り、`materials` が `{}`、`reply.verdict` が受けた語。`skipped` の道で `reply` が null。
   - 足す（語の照らし）: `VERDICTS` が block の YAML の AI の node の `verdict` の enum と同じ並び。`WRITER_SOURCE` が `shared:purpose.schema.json` の `source` の enum に在る。

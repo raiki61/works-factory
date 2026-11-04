@@ -2,7 +2,7 @@
 （board・facts・gates・scope・unitrows・parking・rules）を kit.load で読み、script は kit.Run で子のプロセスで回す。
 
 写した元と、この中の 3 つの部分:
-1. 部品（_l_ の名）: lib/tests/test_fix_gates.py〔TestRedGreen は test_tdd.py〕・test_plan_scope.py・test_fix_units.py・
+1. 部品（_l_ の名）: test_fix_gates.py〔TestRedGreen は test_tdd.py〕・test_plan_scope.py・test_fix_units.py・
    test_fix_duty.py・test_duty_sets.py。元の試験の lib の名（fixgates・planscope・unitrows・parking・fixboard・fixrules・tddloop・ruling）は
    試験ごとに setUp で src の写しに結び直す（_l_bind。src の関数は呼ぶ時に `from src import …` で同じ block の写しを引く）
    - 事後の関門の束（src/gates.py）: base の木の結末の使い回し・輪の記録した赤の木・既存のテストの変更・テストのファイルの申告・帳面と文
@@ -17,7 +17,7 @@
    - 書き込みの出どころ（board.undeclared_writes。keep-essence の 5）
    - class_query の数え直し（recount.accept_fix を board.accept_reply の中で。keep-essence の 7）
    - 範囲の相談の頼み（board.consult_ask が src/prompts.consult_render の md の字で答えの役の指示を組む）
-3. script（_XPlace・_x_ の名）: tests/workflows/test_fix.py の FixLoopScriptsCase・FixAcceptCase・HandoffCase。intake・group_start・
+3. script（_XPlace・_x_ の名）: test_fix.py の FixLoopScriptsCase・FixAcceptCase・HandoffCase。intake・group_start・
    fix_prep・fix_accept・fix_ruled_prep・fix_ruled_accept を、始めの記録の無い使い捨ての run directory と tests/e2e/target-seed/ の
    写しの git のリポジトリで、port の値（INPUTS_<名>）だけを渡して回す。置き場は ports.place()（単独の run は $ARTIFACTS_DIR）。
    修正役の指示は fix_prep・fix_ruled_prep の返りの prompt の字（prompts/parts/fixer.md）。拒否の理由は指示に貼られる
@@ -78,7 +78,7 @@ _l_MEAN = "stats.py mean: 分母が len(xs) - 1 になっている"
 _l_CLAMP = "stats.py clamp: 上限を超えた値に lo を返す"
 
 # 対象リポジトリの根で test_*.py を unittest で回し、JUnit XML を第 1 引数に書く実行器で、pytest の JUnit に合わせる物: 断言の失敗も
-# 本体の例外も failure と書き、message に「<型>: <文>」を付ける（元 lib/tests/test_blk_fix_tdd.py の PYTEST_LIKE）
+# 本体の例外も failure と書き、message に「<型>: <文>」を付ける（元 test_blk_fix_tdd.py の PYTEST_LIKE）
 _l_PYTEST_LIKE = '''
 import sys, unittest, xml.etree.ElementTree as ET
 sys.dont_write_bytecode = True
@@ -107,7 +107,7 @@ _l_NEW_TEST = '''
 '''
 
 
-# ---- lib/tests/test_fix_gates.py の写し
+# ---- test_fix_gates.py の写し
 _l_MEAN_ID = "test_stats.py::TestStats::test_mean_of_two"
 _l_THREE_ID = "test_stats.py::TestStats::test_mean_of_three"
 _l_TEST_ROW = {"id": _l_MEAN_ID, "behavior": "2 つの値の平均", "path": "stats.mean を直に呼ぶ", "red_kind": "assertion",
@@ -802,7 +802,7 @@ class TestAgreedPermitTrees(_LSrc):
 
 
 
-# ---- lib/tests/test_plan_scope.py の写し
+# ---- test_plan_scope.py の写し
 _l_ITEM = {"item": 1, "unit_keys": [_l_MEAN], "files": [], "route": "direct", "tests": [], "rewrite_tests": [],
         "allowed_paths": ["stats.py"], "out_of_scope": []}
 _l_ROW = {"unit_key": _l_MEAN, "files": ["stats.py"]}
@@ -1541,7 +1541,7 @@ class RejectHeadCase(_LSrc):
 
 
 
-# ---- lib/tests/test_fix_units.py の写し
+# ---- test_fix_units.py の写し
 _l_KEY = "stats.py clamp: 上限を超えた値に lo を返す"
 _l_HOW = {"patterns": ["return lo"], "paths": ["stats.py"], "count": "lines", "fixed": True}
 
@@ -2116,7 +2116,7 @@ class GitWaitsWithoutDeadlineCase(_LSrc):
         self.assertFalse(hasattr(util, "GIT_TIMEOUT"))
 
 
-# ---- lib/tests/test_fix_duty.py の写し
+# ---- test_fix_duty.py の写し
 _l_FORK_UNIT = "stats.py mean: 空の列の扱いが決まらない"
 _l_OTHER_UNIT = "stats.py clamp: 上限を超えた値に lo を返す"
 _l_FORK = {"key": "q-empty-mean", "kind": "fork", "status": "held", "origin": _l_FORK_UNIT, "options": ["例外", "0 を返す"],
@@ -2203,7 +2203,7 @@ class TestDeclaredBinding(_LSrc):
 
 
 
-# ---- lib/tests/test_duty_sets.py の写し
+# ---- test_duty_sets.py の写し
 _l_IS_OPEN = [_l_FORK_UNIT, _l_OTHER_UNIT, _l_ESC_UNIT, _l_ASKED_UNIT]   # 判定の出口の is_open の並び（関所で諮った BACK_UNIT は無い）
 
 
@@ -4018,7 +4018,7 @@ class RecountSeamCase(SeamTemp):
 
 
 
-# ------------------------------------------------------------ 3 script（tests/workflows/test_fix.py の写し）
+# ------------------------------------------------------------ 3 script（test_fix.py の写し）
 ROOT = pathlib.Path(__file__).resolve().parents[3]
 
 _X_MEAN = "u-mean"     # 判定者の問いの在る単位（stats.py の mean の分母）

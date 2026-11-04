@@ -1,6 +1,6 @@
 """block r2 の YAML と指示の md の形（docs/design/r2.md の 8 節）。PyYAML で読み、md を直に読むだけ（Archon を起こさない）。
 
-今の tests/workflows/test_eyes.py の ShapeCase の r2 の場面（道具・群・新しい会話・retry・返答の型・system prompt・指示の文の行）を、
+元の tests/workflows の test_eyes.py の ShapeCase の r2 の場面（道具・群・新しい会話・retry・返答の型・system prompt・指示の文の行）を、
 英語の md の決まった文で照らす形に作り直した。
 """
 import json
@@ -15,7 +15,7 @@ DOC = yaml.safe_load((BLOCK / "works-factory-r2.yaml").read_text(encoding="utf-8
 NODES = {n["id"]: n for n in DOC["nodes"]}
 ROLES = {i: n for i, n in NODES.items() if "prompt" in n}
 
-# 役の返答の型の正本（今の works の review-loop.json の r2.compare・premise-check の schema。tests/workflows/test_eyes.py の GRAPH_SCHEMAS の写し）
+# 役の返答の型の正本（今の works の review-loop.json の r2.compare・premise-check の schema。tests/workflows の test_eyes.py の GRAPH_SCHEMAS の写し）
 GRAPH_SCHEMAS = {
     "r2-compare": {
         "type": "object", "required": ["status", "reason", "differences"], "additionalProperties": False,
