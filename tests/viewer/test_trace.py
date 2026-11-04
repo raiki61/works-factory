@@ -14,9 +14,9 @@
 - 読めない行（知らない型）と、親の呼び出しに当たらない下請けは数え、黙って落とさない
 - 出来事の span の id は始めの時刻でも分ける（同じ run・道・周で落ちて走り直した起動が重ならない）
 - 同じ記録から 2 度組むとトレースの id と span の id が同じ値になり、別の run の id では違う値になる
-- run の span の結末は、Archon が run の行に書く成否（返すノードの outcome_field）で、返すノードに届かなかった run は印 none。DB の
+- run の span の結末は、Archon が run の行に書く成否（返すノードの outcome_field）で、返すノードが終わる前の run は印 none。DB の
   記録から読んで組む筋書き（line の run・落ちた run と止めた run・line でない run）のどれでも空でない
-- 段の span は段の集計（stages.attach の stages.run）の欄を属性に持ち、時刻は集計の始めと終わり
+- 段の span は段の集計（stages.attach の stages.run）の欄を属性に持ち、時刻は集計の始めと終わり（始めの無い出来事の終わりも含む）
 
 試験は一時のフォルダに、実物の行の形（型・欄の名）を写した小さな会話の記録と下請けの記録を書き、run の出来事を手で組む。
 """
@@ -328,6 +328,16 @@ class RecordCase(unittest.TestCase):
             ("judge", "agent", "node_start", "2026-11-04T01:00:03.000Z"),
             ("judge", "agent", "node_complete", "2026-11-04T01:00:09.500Z")], [("workflow_completed", "2026-11-04 01:00:10")])
         self.assertEqual(self._root(got)["attributes"][trace.OUTCOME], "succeeded")
+        self._stages_hold_their_sums(got, summed)
+
+    def test_a_stage_span_ends_at_its_sum_even_past_a_timeless_event(self):
+        # 始めの行に時刻の無い出来事は span にならないが、段の集計の終わりには入る。段の span もその終わりまで
+        got, summed = self._built("works-factory-line", "completed", "succeeded", [
+            ("judge", "agent", "node_start", "2026-11-04T01:00:03.000Z"),
+            ("judge", "agent", "node_complete", "2026-11-04T01:00:09.500Z"),
+            ("judge-out", "script", "node_start", ""),
+            ("judge-out", "script", "node_complete", "2026-11-04T01:00:11.000Z")], [("workflow_completed", "2026-11-04 01:00:12")])
+        self.assertIn("2026-11-04T01:00:11.000Z", [row["end"] for row in summed])
         self._stages_hold_their_sums(got, summed)
 
     def test_a_failed_or_stopped_run_carries_none_as_its_outcome(self):

@@ -49,7 +49,8 @@ STATUSES = ("pending", "running", "completed", "failed", "cancelled", "paused")
 LIVE = ("pending", "running", "paused")
 # run の結末（欄 outcome。packages/workflows/src/schemas/run-status.ts の workflowRunOutcomeSchema）。Archon は graph の returns: の
 # ノードが終わった時に、その出力の outcome_field: の欄（boolean）を成否にして書く（packages/workflows/src/dag-executor.ts の
-# persistAuthoredOutcome）。返すノードに届かなかった run（走り中・待ち・落ちた・止めた run）は空
+# persistAuthoredOutcome）。run のその後の成り行きに関わらず書くので、返すノードの後に落ちた・止めた run も結末を持ち、起き直した
+# run は書き直されるまで前の値を持つ。返すノードが終わる前に走り中・答え待ち・落ちた・止めた run は空
 OUTCOMES = ("succeeded", "failed")
 # 答えを待つ run の状態。待ちはこの状態の run だけに出す（止めた・放棄した run は node_completed を書かずに終わる。
 # packages/core/src/operations/workflow-operations.ts の resolveAndCancelApprovalGate・abandon）

@@ -39,7 +39,7 @@ SESSION = "session.id"
 RUN_ID = "works_factory.run_id"
 STATUS = "works_factory.status"
 OUTCOME = "works_factory.outcome"
-NO_OUTCOME = "none"   # 結末の欄が空の run（返すノードに届かなかった）の結末の印
+NO_OUTCOME = "none"   # 結末の欄が空の run（返すノードが終わる前の run）の結末の印
 PATH = "works_factory.path"
 LOOP = "works_factory.loop"
 NODE_KIND = "works_factory.kind"
@@ -89,7 +89,8 @@ def build(data: dict) -> dict:
     parents = {}
     for e in events:
         parents[id(e)] = _parent(e, events)
-    summed = (data.get("stages") or {}).get("run") or []
+    # 段の番号を持つ出来事は stages.attach の後だけに在り、その時は段の集計も在る（無ければ KeyError で止める）
+    summed = data["stages"]["run"] if any(e.get("stage") for e in events) else []
     stage_spans = {}
     for e in events:
         n = e.get("stage")
