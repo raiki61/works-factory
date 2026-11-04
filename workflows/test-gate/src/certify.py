@@ -9,12 +9,14 @@
 - final は、落ちた試験のうち元の結末に無い物を修正前の版で走らせ直した結末（run.json の base_rerun）を元の結末に足してから比べる（with_rerun）
 - base は直す前の結末のファイル baseline.json を書く（baseline_red.write_baseline。suite は suite-state.json の tdd_suite、test_cmd は
   intake.json から）。final は port baseline のファイルを baseline_red.read_baseline で読み、修正前のテストの行を証拠に足し、
-  テストごとの修正前と今の結末（test_outcomes）を返す
+  テストごとの修正前と今の結末を outcomes.json に書いて、返りの欄 test_outcomes でそのファイルを指す（行は対象のテストの数だけ伸び、
+  値で返すと、返りを受ける script の入力の環境変数が OS の引数と環境の上限〔E2BIG〕を越えうる）
 - 起こした段と起こせなかった段の名（ran_steps。任せ先の役の run は素材の systems）・走らせ方（by・suites_line）・ログ（log）・
   修正前のテスト（baseline_line）・認証しなかった訳（reason）は 1 行に畳んで返す。証拠の文 evidence.md の行も同じ値から組む
 - 足した欄: suite・suite_note（src/suite.py）・related（関わる試験の選びと走らせたか）と report（src/report.py）
 - failed: 中の誤りは全部捕まえ、ok: false・green: false・red_cause: incomplete と、誤りを名指した証拠の pointer を返す（返す node が落ちると
-  線が先へ進めない）。by などの字の欄は空、reason は INNER_ERROR。lib の import はこの関数の外（certified の中）に置き、lib が読めなくても
+  線が先へ進めない）。by などの字の欄は空、reason は INNER_ERROR。final の test_outcomes は比べない訳 INNER_ERROR を書いたファイル
+  （書けなければ null）。lib の import はこの関数の外（certified の中）に置き、lib が読めなくても
   failed は返せる
 """
 from __future__ import annotations
@@ -233,7 +235,7 @@ def certified(place, optional_raw) -> dict:
     else:
         steps = runner_steps(run) if role else green_cert.ran_steps(run["runs"], run["junit_unran"])
     out = {"mode": mode, "ok": ok, "green": green, "red_cause": red_cause, "ran_steps": steps,
-           "baseline": None, "fingerprint": None, "test_outcomes": rows}
+           "baseline": None, "fingerprint": None, "test_outcomes": None if rows is None else outcomes_pointer(place, rows)}
     state = suite.load(place)
     if mode == "base":
         baseline_red.write_baseline(place / files.BASELINE, suite=state.get("tdd_suite") or "", test_cmd=doc["test_cmd"],
@@ -281,10 +283,24 @@ def failed(place, error: BaseException) -> dict:
     pointer = _pointer(place, name)
     return {"mode": mode, "ok": False, "green": False, "red_cause": "incomplete", "ran_steps": {"ran": [], "unran": []},
             "baseline": None, "fingerprint": None,
-            "test_outcomes": {"rows": [], "unmeasured": INNER_ERROR} if mode == "final" else None,
+            "test_outcomes": _failed_outcomes(place) if mode == "final" else None,
             "evidence": pointer, "by": "", "suites_line": "", "log": "", "baseline_line": "", "reason": INNER_ERROR,
             "optional": [], "suite": _port_suite(place), "suite_note": "", "related": files.NOT_PICKED,
             "report": [f"試験の関門（{mode}）: {INNER_ERROR}（工場の不具合）——{pointer['path']}"]}
+
+
+def outcomes_pointer(place, rows: dict) -> dict:
+    """テストごとの結末 {rows, unmeasured} を OUTCOMES に書いた pointer（返りの欄 test_outcomes の form と同じ字で照らす）"""
+    write(place, files.OUTCOMES, json.dumps(rows, ensure_ascii=False))
+    return ports.pointer(pathlib.Path(place) / files.OUTCOMES, "json(shared:outcomes.schema.json)")
+
+
+def _failed_outcomes(place):
+    """failed の final の test_outcomes: 比べない訳 INNER_ERROR を書いたファイルの pointer。書けなければ null（渡されていないと読ませる）"""
+    try:
+        return outcomes_pointer(place, {"rows": [], "unmeasured": INNER_ERROR})
+    except Exception:
+        return None
 
 
 def _pointer(place, name: str) -> dict:
