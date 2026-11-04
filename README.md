@@ -148,6 +148,17 @@ Archon's cancel does not stop the processes of the AI nodes (each node's Claude 
 - Cancelling a child run's id stops only that child run (and its grandchild runs).
 - How it finds the processes: those whose env `WORKFLOW_ID` is the run id and their descendants, and, for a running run, those reachable from the process that started it. When it cannot trace from that process (the run is not running, it is a child run, the process is on another machine, and so on), it prints the reason. When it cannot read the env, it prints a one-line command to search by hand.
 
+### Seeing a run in Phoenix
+
+`viewer/runtrace.py` turns one finished run's records (Archon's log and the Claude Code conversations of its AI nodes, subagents included) into one OpenTelemetry trace and sends it over OTLP/HTTP (protobuf) to a receiver you start yourself, such as Arize Phoenix on your machine. The factory does not start Phoenix and has no default destination. The spans carry the conversations and tool contents (your target's text), so a destination that is not `localhost` or a loopback address is refused unless you add `--remote`.
+
+1. Start Phoenix on your machine with its own data in a folder you choose (checked with arize-phoenix 21.0.0): `PHOENIX_TELEMETRY_ENABLED=false PHOENIX_HOST=127.0.0.1 PHOENIX_WORKING_DIR=<folder> PHOENIX_SQL_DATABASE_URL=sqlite:///<folder>/phoenix.db uvx --from 'arize-phoenix==21.0.0' phoenix serve`. The page at http://127.0.0.1:6006 still fetches version and font data from the internet in your browser; spans are not in those requests.
+2. From the root of this clone: `uv run --isolated --extra trace python3 viewer/runtrace.py --target <target> [--run <run id or its first characters>] --endpoint http://127.0.0.1:6006/v1/traces`. Without `--run` it sends the newest top-level run. It prints one line: the run, the number of spans, the destination, the trace id.
+3. Open the trace in Phoenix. The output of the top span is the cost table by stage and by AI node, in Archon's numbers. Phoenix's own "Total Cost" is recomputed from the recorded model calls and its price table, so it can be lower than Archon's total (see `docs/design/viewer.md`, section 8, Japanese).
+
+- Instead of `--endpoint` you can name the destination with the standard `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` (used as is) or `OTEL_EXPORTER_OTLP_ENDPOINT` (`/v1/traces` is added). Headers (`OTEL_EXPORTER_OTLP_TRACES_HEADERS`, `OTEL_EXPORTER_OTLP_HEADERS`) are sent only to a destination named by those env variables. The only `OTEL_` settings the entry reads are the destination, the headers, and the protocol (anything other than `http/protobuf` is refused); it does not use any other `OTEL_` setting (certificates, client keys, timeouts, compression).
+- Sending the same run again does not duplicate it: span ids are fixed by the run, and Phoenix keeps the spans it already has and ignores the resent ones. To see changed records of a run you already sent, delete that trace in Phoenix first.
+
 ### Request file
 
 `--input request=<path>` is the path of a JSON file describing what you want fixed. A relative path is read from the root of the run's worktree (laid out the same as the target's root). An uncommitted file placed inside the target also reaches the run's worktree through the wrapping described in "Worktree start point" below, but to keep the request out of the run's starting commit, it is better to put it outside the target and pass an absolute path.

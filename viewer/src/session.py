@@ -43,6 +43,7 @@ UNREAD_TYPES = {
     "ai-title": "Claude Code が付けた会話の題",
     "atis-latch": "Claude Code の中の印で、会話の中身を持たない",
     "mode": "権限のモードの印",
+    "tools-used": "使った道具の名の控え。呼び出しそのものは assistant の tool_use から読む",
 }
 # LLM に入った字を別の型から読む型（読まない attachment と、時刻だけを読む api-request）と、その代わりの型（1 つでも記録に無ければ数える）
 READ_FROM = {"attachment": (BLOB,), REQUEST: (SHAPE, BLOB)}
