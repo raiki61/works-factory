@@ -1122,10 +1122,60 @@ bin/works-factory workflow run works-factory-plan-review --cwd <対象> \
 3. 世界の解の行・関所の軸（`worldmark.world_ok`）は変えない。世界の解の外れと頼みの解き方の外れが同じ計画の項目で重なっても、項目は別々に出る（問いが違う: 定石と比べてか、頼みと比べてか）。
 4. 新しい置き場・層・常駐の仕組みは足さない。足す形のファイルは、寄せた `.shared/schemas/stated-means.schema.json` の 1 つ（消す 2 つと引き換え）。
 
-### 6 PR 2（案 1-A）との境
+### 6 PR 2（案 1-A）: R2 の比べ役の頼みどおりの違い `request_conflicts`（下書き。実装の前に窓口が見る）
 
-- PR 2 は R2 の比べ役（`workflows/r2/prompts/r2-compare.md`）に port `means` を足し、違いのうち差分が頼みの解き方どおりの物を `request_conflicts` に出して `status` に数えない（形は R4 の `policy_conflicts` と同じ。字は機械が照らす）。並ぶ PR #969（r2 の結末の名を絞る）が r2 の指示と結果の名を触るので、#969 が main に入った後に作る。
-- この PR 1 の `structure` の `means` の答えは PR 2 の入力にしない（R2 は修正の後の差分を頼みと比べる。計画の答えではない）。
+PR 1 は修正の前に、計画が頼みの解き方から外れた所と、頼みどおりの計画が独立設計と食い違う所を人に聞く。PR 2 は修正の後に同じことを差分で行う。R2（修正の後の差分を独立設計と比べる独立の目）は今、構造の本質的な違いが 1 つでも在れば `redesign-needed` にし、その違いが頼みの解き方どおりかを問わない。`redesign-needed` の差分は、人が最後の承認ノードで通しても当たらない（持ち主の決め `small-core`。line の `src/final.py` の `R2_KEEPS_OUT`・#975）。そのため頼みどおりに直した run が、どちらを採るかを人に聞かれずに当たらなくなる（調べの 1 の run）。
+
+#### 6.1 E11 の 3 つの答え
+
+1. Archon が持っているか → 持っていない（承認ノードは問いを出す口だけ。1 章の 1 と同じ）。
+2. ASF が持っているか → 持っていない（ASF の審査の役は差分を独立設計と比べる段を持たない）。
+3. 本当に要るか → 要る。keep-essence の 9（独立設計と R1〜R4）と 12（世界の解。頼みの解き方を疑い、外れる時は人に聞く）の間の、修正の後の側の抜け。足す物は新しい仕組みにしない: 欄の形は R4 の `policy_conflicts`（状態に数えず、最後の承認ノードで 1 行 1 問にする）、推しの形と推しの尾は PR 1 の `means_drifts`（`gatemarks.RECOMMEND_SHAPE`・`gatemarks._push`）、無人の run の抜け方は修正の前の承認ノードの `gates.passage` をそのまま使う。
+
+#### 6.2 R2 の block（`workflows/r2/`）
+
+1. port `means` を足す（`json(shared:stated-means.schema.json)`。既定 `[]`。頼みの解き方の 1 文ずつの並び。番号は並びの順の 1 始まりで、指示と欄では `M1`・`M2`… と書く）。入口（`src/steps.py` の `_read_ports`）が読み、`intake.json` に控える。
+   - 独立の守り（keep-essence の 9）: `means` は依頼の文から外した物で、判定・修正案・単位の目録・修正の結末ではない。`tests/blocks/r2/test_r2_shape.py` の `test_inputs_carry_no_judgment_or_plan` の port の一覧を 15 個にし、禁じる名の照らしはそのまま残す。
+   - 計画の `structure` の `means` の答え（PR 1）は渡さない。R2 が比べるのは修正の後の差分と頼みで、計画の答えではない。
+2. 指示（`prompts/r2-compare.md`）: means が在る時だけの節「The request's means」を足し、機械が `M<n>: <文>` を並べる（札 `means`）。頼みは次の 1 段: 独立設計と差分の構造の違いのうち、差分が頼みの解き方 M<n> どおりで、独立設計がそれと別の形をとる物は、`differences` に書かず `request_conflicts` に 1 行 1 つで書き、`status` に数えない（どちらを採るかは人が最後の承認ノードで決める。役が `redesign-needed` にすると人が決める前に役が決める）。頼みの解き方と関わらない構造の違いは今どおり `differences` に書き、`status` に数える。行ごとに推し `recommend` を書く（差分のまま通すなら continue、独立設計に合わせて直すべきなら stop）。引用は 2 つとも字のまま写す。means が無い run では節が立たず、欄は空の配列。
+3. 返す形（`r2-compare` の `output_format`）に `request_conflicts` を足す。行は `{means, design_quote, diff_quote, why, recommend}`: `means` は `^M[1-9][0-9]*$`、`design_quote` は独立設計の本文の字、`diff_quote` は累積差分の足した行（頭の `+` を外した字）の 1 行の中の字、`why` はどう食い違うか、`recommend` は `gatemarks.RECOMMEND_SHAPE`。欄は必須（無ければ空の配列。R4 の `policy_conflicts` と同じ）。
+4. 照らし（出口 `finish` の前に、返答の控えを読む所。yes/no）: 行ごとに、`means` の番号が port `means` の範囲に在る・`design_quote` が独立設計の本文に字のまま在る・`diff_quote` が累積差分の足した行の 1 行に字のまま在る・`recommend` の形（`gatemarks._recommend_gap`）・`why` と推しの文が人に聞く文の決まりに合う（`plainask.gaps`）。照らし方は PR 1 の `lib/design.py` の `means_drift_gaps`（引用が字のまま在るか）と同じにする。`means_drift_gaps` は事前審査の place と修正案の行を読む口なので R2 にはそのまま渡せず、R2 の材料（独立設計の本文と累積差分）を受ける口を R2 の `src/` に置く（使う block が 1 つなので `lib/` に置かない。憲法 4）。
+5. 照らしを通らなかった行の扱い（**6.6 の問い 1**。下書きの推しは案 C）: 行は人に聞く問いに残し、推しの尾を外して「（引用を照らせなかった: <訳>）」を付ける。状態には数えない。無人の run では推しの無い行なので止まる（6.4）。受け付けの出し直しの輪は足さない。
+6. 出力の `questions`（今はいつも `[]`）に、`request_conflicts` の行ごとの問いの文を入れる。文の組み立ては `lib/gatemarks.py` の 1 つの口 `means_conflict_text`（PR 1 の `means_drift_text` と並べる）に置く: `R2: 差分は頼みの解き方 M<n>「<文>」どおりだが、独立設計と食い違う——<why>（人に聞く訳: <MEANS_WHY>）<推しの尾>`。推しの尾は `gatemarks._push`。報告の R2 の行（`src/report.py`）にも同じ行を並べる。
+7. 状態の決め（`eyekit.verdict_row` の前）は変えない: `status` は役の返答の語のまま。頼みどおりの違いだけなら役は `pass` を返し、頼みと関わらない構造の違いが残れば `redesign-needed` を返す。これで #975 の扱い（`redesign-needed` は人が通しても当たらない）と食い違わない: 頼みどおりの違いだけでは作り直しにならず、関わらない違いが残る run は今どおり当たらない。そのとき問いの行は最後の承認ノードに出るが、`R2_KEEPS_OUT` の文が continue でも当たらないことを言う（今のまま）。
+
+#### 6.3 運ぶ道（eyes と line）
+
+1. eyes のまとめ（`workflows/eyes/works-factory-eyes.yaml`）に port `means`（同じ形）を足し、`include: works-factory-r2` に渡す。line の `include: works-factory-eyes` に `means: "$fix-in.output.means"` を渡す（案の直しと同じ出どころ）。
+2. eyes のまとめの出力 `questions`（`workflows/eyes/src/verdict.py` の `build`。今は R4 の `questions` だけ）を、R2 の `questions` と R4 の `questions` の和にする（R2 が先）。
+3. 最後の承認ノードの問いの節（`workflows/line/src/final.py` の「<R4 の関所>が人に聞いている問い」）の見出しを、目の名を名指さない「独立の目が人に聞いている問い」にする（行の頭が R2・R4 のどちらの目かを言う）。開ける理由「人に聞いている問いが在る」は今のまま数える。
+
+#### 6.4 無人の run（最後の承認ノード）
+
+- 今の事実: 最後の承認ノードは、無人の run で開くはずの時はいつも `works:needs-human` で止まり、推しで抜ける道が無い（`final.ask`）。
+- 足す形: 無人の run で、開ける理由が「人に聞いている問いが在る」だけで、その問いの全部が通す推しの尾を持つ時だけ、`gates.passage(<問いの行>, gates.row_push)` で推しを採って進む。採った推しは `ask-final` の出力 `pushed` に載せ、`answer-final`（`gate_answer`）が `answer.PUSHED` で記録に残す（報告の冒頭の「無人の run が採った推し」の行に出る。決め `means-ask` の 2）。
+- ほかの理由が 1 つでも在る・推しの無い行（R4 の問いの行と、6.2 の 5 の照らせなかった行）か止める推しが 1 つでも在れば、今どおり止まる。機械は推しを作らない（決め `unattended`）。R2 が `redesign-needed` の run は「独立の目が通さなかった」の理由が在るので止まる。
+- これは最後の承認ノードに推しの抜け方を足す振る舞いの変更（**6.6 の問い 2**）。
+
+#### 6.5 足さない物
+
+1. 独立設計の block には means を渡さない（今のまま。`tests/blocks/independent_design/test_independent_design.py` の `test_inputs_carry_no_plan_judgment_or_diff` が port の一覧を縛り続ける）。
+2. 修正の前の承認ノードで continue と答えた頼みの解き方の行と同じ違いでも、R2 の行は聞き直す（照らして外さない）。訳: 修正の前の項目は計画の字と独立設計の比べで、R2 の行は差分の字と独立設計の比べなので、同じ食い違いかを字で決められない。聞きすぎは安全の側（7 章の 6 と同じ訳）。
+3. R4 の `policy_conflicts`・R1・R3 は変えない。merge の apply と `lib/seal.py` の拒みは変えない（R2 の語だけを読む今のまま）。
+4. 新しい置き場・層・常駐の仕組みは足さない。新しい形のファイルも足さない（`stated-means.schema.json` は PR 1 で寄せた物）。
+
+#### 6.6 窓口に決めてほしい事（実装の前）
+
+1. 照らしを通らなかった行（6.2 の 5）: 案 C（推し: 出し直しの輪を足さず、推しを外して人に聞く。状態に数えない）・案 B（R4 と同じ出し直しの輪を R2 に足し、諦めたら案 C）・案 A（照らせない行を `differences` の構造の違いと見て `redesign-needed` にする）。推しの訳: 人が承認ノードで見るので頼みどおりの装いで違いを隠せず、無人の run は推しが無いので止まる。案 B は R2 に受け付けの node と輪を足す大きな形の変更、案 A は引用の写し違い 1 つで差分が当たらなくなる。
+2. 最後の承認ノードの無人の推しの抜け方（6.4）: 足すか。足さなければ、無人の run は R2 の頼みどおりの違いが 1 つでも在れば最後の承認ノードで止まる（推しの欄は、人の居る run の推しにだけ効く）。決め `means-ask` の 2（無人の run は推しを採って進む）に合わせるなら足す。
+
+#### 6.7 試験（直しを外すと落ちる物を先に置く）
+
+1. `tests/blocks/r2/test_r2.py`: means を渡した run の返答に `request_conflicts` の行（引用が合う）と `status: pass` → 出力の `questions` に推しの尾つきの行が 1 つ・判定は `pass`。引用が合わない行 → 推しの尾が無く「引用を照らせなかった」の行。means を渡さない run で行を書いた → 番号が範囲の外で照らせない行。指示に節「The request's means」が means の在る時だけ立つ。
+2. `tests/blocks/r2/test_r2_shape.py`: port の一覧に `means`・返す形の `request_conflicts` の行の形。
+3. `tests/blocks/eyes/test_eyes.py`: R2 の `questions` がまとめの `questions` に入る（今は落ちる）。
+4. line の最後の承認ノードの試験: 無人の run で、理由が問いだけで全部が通す推し → 進み、`pushed` が載る。R4 の推しの無い問いが混じる・ほかの理由が在る → 止まる（今どおり）。
+5. 筋書き `workflows/r2/fixtures/standalone.stubs.yaml` の差し替えの返答に `request_conflicts: []` を足す。
 
 ### 7 決めた細目
 
