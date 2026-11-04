@@ -1,4 +1,4 @@
-"""run ごとの版の控え（始めの記録の欄 versions）。元 lib/versions.py（docs/design/line.md の 1.5 の MOVE）。その元 works/.shared/core/versions.py（名は元のまま。E18）。
+"""run ごとの版の控え（始めの記録の欄 versions）。元の versions（docs/design/line.md の 1.5 の MOVE）。その元 works/.shared/core/versions.py（名は元のまま。E18）。
 
 run の記録は実行基盤の記録と run の置き場が正本で、版だけは誰も残さないので、線の start が始めの記録に 1 つ置き、run どうしを比べる時に
 引けるようにする。分からない値は null にし、unknown[鍵] に理由を書く（推測で埋めない・黙って落とさない。元 versions.py 59-117 行）。

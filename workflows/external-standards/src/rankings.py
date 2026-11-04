@@ -1,6 +1,6 @@
 """順位の行の照らし（docs/design/external-standards.md の 4 節）。外部標準照合の返答の rankings の行を受け付けで照らす。
 
-写す元は lib/judge_accept.py の external_rankings（元 works/.shared/core/graphloops/rules/review-loop.py:2973）。空同然の自由文の
+写す元は judge_accept の external_rankings（元 works/.shared/core/graphloops/rules/review-loop.py:2973）。空同然の自由文の
 見方（同じ表 EMPTY と長さ）は lib/cite.py の blank を使う。Reject を上げる代わりに拒む文を返し、通れば None
 """
 from cite import blank  # lib/

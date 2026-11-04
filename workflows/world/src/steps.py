@@ -1,4 +1,4 @@
-"""世界の解の block の中身（docs/design/world.md。lib/worldblk.py と lib/judge_accept.py の world_* を、port の値で受ける形に写した物）。
+"""世界の解の block の中身（docs/design/world.md。元の worldblk と元の judge_accept の world_* を、port の値で受ける形に写した物）。
 
 依頼の行ごとに、依頼の解き方と対象の名を外した問題の類に言い直させ（言い直す役。道具ゼロ）、言い直した問題の類・作業・検索語・
 依頼の解き方だけを見せた web の役に、世の中の定石の抜き書きを集めさせて類ごとの定石と依頼の解き方との比べを判断させ（web の役。

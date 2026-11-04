@@ -1,4 +1,4 @@
-"""初見の読み手の返答の読み（docs/design/cold-read.md の 1.5。lib/runreport.py の _cold_of・COLD_UNREADABLE・COLD_EMPTY・_cold_lines の写し）。
+"""初見の読み手の返答の読み（docs/design/cold-read.md の 1.5。元の runreport の _cold_of・COLD_UNREADABLE・COLD_EMPTY・_cold_lines の写し）。
 
 - read(reply) -> {verdict, stops, guessed, decidable}: 返答（JSON の字か dict）を読む。読めない・語の外の判定は verdict が ""
 - stuck(c) -> 書き直す側へ渡す 1 件ずつの行の配列（pass で欄が空なら空。redesign-needed で欄が空なら COLD_EMPTY の 1 行）

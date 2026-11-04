@@ -1,6 +1,6 @@
 """変異の宣言の読み（docs/design/gate-efficacy.md の 1.5）: 対象の根の宣言 .review-checks.json の任意の mutation の段
 {argv, arms}（変異の実行器の呼び方の頭と、腕の一覧のパス）。指示の文は md が持ち、ここは run ごとの値と有無だけを返す。
-元 lib/judge_accept.py の mutation_decl の分かれ方（段が在る・無い・無くて読みの誤りが在る）"""
+元の judge_accept の mutation_decl の分かれ方（段が在る・無い・無くて読みの誤りが在る）"""
 import json
 
 import materialkit  # noqa: F401  （lib/。import すると lib/graphloops/ が sys.path に入る）

@@ -35,7 +35,7 @@ SEATS = {"tdd": "tdd", "tdd-new": "tdd", "review": "task-review",   # 役の名 
 FIX, TDD, REFIX, REVIEW, READER = "修正の役", "TDD の役", "手直しの役", "審査の役", "読むだけの役"
 KINDS = (FIX, TDD, REFIX, REVIEW, READER)
 # 読み替えを載せる役 → 受ける種類。TDD の輪の役は修正の役の決まりを返答の欄の読み替え（指示書の tdd-remap）つきで受ける。
-# local-review は素材集めの局所レビュー（指示書の末尾に overlay_body の字を置く。tests/workflows/test_judge.py が照らす）
+# local-review は素材集めの局所レビュー（指示書の末尾に overlay_body の字を置く。lib/tests/test_seat.py が照らす）
 OVERLAY_KINDS = {"tdd": (FIX, TDD), "tdd-new": (FIX, TDD), "fix": (FIX,), "fix-ruled": (FIX,), "review": (REVIEW, READER),
                  "refix": (REFIX,), "refix2": (REFIX,), "local-review": (READER,)}
 NONE = "（無し）"   # 型の穴に入れる物が無い時の値（人の方針の文書が無い run の [GLOBAL_CONSTRAINTS] など）

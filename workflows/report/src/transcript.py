@@ -1,4 +1,4 @@
-"""報告の行の組み立て（docs/design/report.md の 1.5。lib/runreport.py の cost_rows・resubmit_rows・head_cost・_model_lines の
+"""報告の行の組み立て（docs/design/report.md の 1.5。元の runreport の cost_rows・resubmit_rows・head_cost・_model_lines の
 ノードごとの行・_reads_lines の道具の呼びの部分・writer_fell の写し）。run の記録を読む口（read・own_prefix・facts）は lib/runlog.py
 （integration.md の 4.5-2）で、chain も使うので、ここは import して名を引き継ぐ。
 

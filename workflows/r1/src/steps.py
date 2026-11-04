@@ -18,7 +18,7 @@ from src import files, material, report, scalars
 REVIEW_MD = ports.SHARED / "prompts" / "REVIEW.md"   # 観点の正本（工場の物。lib は経由しない）
 
 NOT_GIVEN = "(not given)"                                   # 凍結した目的が渡っていない時の値（md の材料の行）
-NO_CHECKS = "最後の試験の関門の証拠が渡っていない"          # 元 workflows/eyes/scripts/prep.py:87-92 の字
+NO_CHECKS = "最後の試験の関門の証拠が渡っていない"          # 元の eyes の prep の script の字
 CHECKS_UNREAD = "入力 checks の証拠の文が読めない: {why}"
 NO_INTAKE = "入口の控え intake.json が無いか読めない（入口の node が落ちた）"
 UNREAD_INPUT = "入力が読めない: {why}"

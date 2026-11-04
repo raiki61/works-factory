@@ -1,4 +1,4 @@
-"""判定の裏取りの block の中身（docs/design/verify.md。lib/judgeverify.py と lib/judge_accept.py の裏取りの部分を、port の値で
+"""判定の裏取りの block の中身（docs/design/verify.md。元の judgeverify と元の judge_accept の裏取りの部分を、port の値で
 受ける形に写した物）。
 
 判定の開いた単位ごとの下請けのファイルと、相乗りの下請けのファイル、それを並べて起こす束ね役の指示を、prompts/judge-verify.md

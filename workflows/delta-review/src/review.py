@@ -1,5 +1,5 @@
 """審査役（review-1・review-2）の返答の受け付け（docs/design/delta-review.md の 2.8・4 節。写す元は lib/fixboard.py の
-delta_review_problems・claimed_closed・tree_moved_since・take と lib/refix.py の accept_review・inner_faces・_added_text）。
+delta_review_problems・claimed_closed・tree_moved_since・take と元の refix の accept_review・inner_faces・_added_text）。
 
 照らす順: 穴と検算の照らし（problems）→ 1 回目だけ 2 判定の照らし（verdicts.gaps）→ 2 判定の欄を外した返答に機械の穴（内側の語）を
 足す → 役を起こす前に撮った作業ツリーの写しと今の作業ツリーを比べる。通れば review-<n>-reply.json・verdicts.json・review-<n>.json の順に書く。
