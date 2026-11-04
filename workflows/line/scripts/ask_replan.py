@@ -30,6 +30,7 @@ import ports  # noqa: E402
 
 REPLAN = ("ok", "status", "reason", "plan", "fix_plan", "ripple", "round")
 REVIEW = ("ok", "status", "reason", "replan", "round", "holes", "blocks", "deviations")
+REVIEW_OPTIONAL = ("deviations",)   # 頼みの解き方の行を持たない前の版の返りと stub は空と読む
 HEAD = "案の直しの承認ノード"
 RECORD = "run の置き場の gates/gate-replan.json"
 ITEM_HEAD = "## 人に聞く直した項目 {n}（単位 {units}）"   # 元 replan.GATE_ITEM_HEAD
@@ -145,7 +146,7 @@ def ask(replan_got, review_got, old_plan: str, ids: list, conflicts: str, before
         facts = [{"item": i} for i in ids]
     else:
         facts = [r for r in review_got["replan"] or []]
-        rows += means_rows(review_got["deviations"], ids, before_fix)
+        rows += means_rows(review_got["deviations"] or [], ids, before_fix)
     for r in gates.replan_asks(facts, unattended_run=unattended) if facts else []:
         ident = r.get("item") if isinstance(r, dict) else None
         old, new = item(old_fields, ident), item(new_fields, ident)
@@ -199,7 +200,7 @@ def compute() -> dict:
     missing: list = []
     old_plan = gates.located(raw["old_plan"], "承認済みの修正案の欄", missing, lambda raw: ports.file(raw, "json(shared:plan-fields.schema.json)"))
     conflicts = gates.located(raw["conflicts"], "修正の申し出と裁定の控え", missing, lambda raw: ports.file(raw, "json(lib:conflicts.schema.json)"))
-    return ask(ports.picked(raw["replan"], REPLAN), ports.picked(raw["review"], REVIEW), old_plan,
+    return ask(ports.picked(raw["replan"], REPLAN), ports.picked(raw["review"], REVIEW, optional=REVIEW_OPTIONAL), old_plan,
                [str(x) for x in ids] if isinstance(ids, list) else [], conflicts, before_fix,
                unattended=bool(given.get("unattended")), run_id=os.environ["WORKFLOW_ID"], policy=row, missing=missing)
 

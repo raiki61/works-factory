@@ -63,6 +63,7 @@ NOT_PASSED = {
        for review in ("plan-review-run", "replan-review")},
     **{(plan, "spec_doc"): "仕様駆動の run だけが渡す人と固めた仕様の本文（依頼の文の run の固めた仕様は spec）" for plan in ("plan", "replan")},
     ("spec-plan", "spec"): "仕様駆動の run は仕様の段の spec.json を作らない（固めた本文は spec_doc）",
+    ("spec-plan", "means"): "仕様駆動の道は目的の役を通らず、頼みの解き方の文を持たない（docs/design/plan-review.md の 20 章の 3.1 の 1）",
     ("plan-review-run", "ruling"): "形 replan だけが読む",
     **{("theme-review", name): "形 theme は読まない（設計の案の審査が読む port は docs/design/plan-review.md の 19.1）"
        for name in ("proposal", "proposal_file", "plan", "fields", "judgment", "means", "structure", "ripple", "tree", "excluded", "ruling",
