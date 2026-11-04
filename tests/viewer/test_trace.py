@@ -14,10 +14,14 @@
 - 読めない行（知らない型）と、親の呼び出しに当たらない下請けは数え、黙って落とさない
 - 出来事の span の id は始めの時刻でも分ける（同じ run・道・周で落ちて走り直した起動が重ならない）
 - 同じ記録から 2 度組むとトレースの id と span の id が同じ値になり、別の run の id では違う値になる
+- run の span の結末は、Archon が run の行に書く成否（返すノードの outcome_field）で、返すノードに届かなかった run は印 none。DB の
+  記録から読んで組む筋書き（line の run・落ちた run と止めた run・line でない run）のどれでも空でない
+- 段の span は段の集計（stages.attach の stages.run）の欄を属性に持ち、時刻は集計の始めと終わり
 
 試験は一時のフォルダに、実物の行の形（型・欄の名）を写した小さな会話の記録と下請けの記録を書き、run の出来事を手で組む。
 """
 import json
+import sqlite3
 import tempfile
 import unittest
 from pathlib import Path
@@ -263,6 +267,89 @@ class TraceCase(unittest.TestCase):
         self.assertNotEqual(once["trace_id"], other["trace_id"])
         self.assertFalse({s["id"] for s in once["spans"]} & {s["id"] for s in other["spans"]})
         self.assertEqual((len(once["trace_id"]), len(once["spans"][0]["id"])), (32, 16))
+
+
+class RecordCase(unittest.TestCase):
+    """DB とログの小さな記録を読む部品で読み、段を集めて組む（読みから組みまでを通す）"""
+
+    def setUp(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.tmp = Path(tmp.name)
+
+    def _built(self, graph: str, status: str, outcome: str | None, rows: list, ends: list) -> tuple[dict, list]:
+        """rows は (道, 種類, 行の型, 時刻)、ends は DB の run の終わりの出来事 (型, 時刻)。組んだ span と段の集計を返す"""
+        db, rid = self.tmp / runread.DB_FILE, "run-" + status
+        con = sqlite3.connect(db)
+        con.execute(f"create table if not exists {runread.RUN_TABLE} ({', '.join(runread.RUN_COLUMNS)})")
+        con.execute(f"create table if not exists {runread.EVENT_TABLE} ({', '.join(runread.EVENT_COLUMNS)})")
+        con.execute(f"insert into {runread.RUN_TABLE} (id, workflow_name, status, outcome, parent_run_id, started_at, output_root, metadata) "
+                    "values (?, ?, ?, ?, null, '2026-11-04 01:00:00', ?, '{}')", (rid, graph, status, outcome, str(self.tmp)))
+        for kind, when in ends:
+            con.execute(f"insert into {runread.EVENT_TABLE} (workflow_run_id, event_type, data, created_at) values (?, ?, '{{}}', ?)",
+                        (rid, kind, when))
+        con.commit()
+        con.close()
+        log = self.tmp / runread.LOGS / f"{rid}.jsonl"
+        log.parent.mkdir(exist_ok=True)
+        log.write_text("\n".join(json.dumps({"type": kind, "ts": ts, "step": path, **({"error": "boom"} if kind == "node_error" else {}),
+                                              runread.EXECUTION: {"path": path, "invocation": {"id": path}, "node": {"kind": node}}})
+                                  for path, node, kind, ts in rows) + "\n", encoding="utf-8")
+        items = [{"id": i, "trigger": "", "when": ""} for i in NODES]
+        data = {"shape": {"graphs": {stages.TABLE["graph"]: {"name": "works-factory-line", "items": items}}},
+                "run": runread.run(db, rid), "texts": {}}
+        stages.attach(data)
+        return trace.build(data), data["stages"]["run"]
+
+    def _root(self, got: dict) -> dict:
+        return next(s for s in got["spans"] if not s["parent"])
+
+    def _stages_hold_their_sums(self, got: dict, summed: list) -> None:
+        spans = {s["name"]: s for s in got["spans"] if s["parent"] == self._root(got)["id"] and trace.STAGE in s["attributes"]
+                 and s["attributes"][trace.STAGE] == s["name"]}
+        self.assertTrue(spans)
+        for n, row in enumerate(summed):
+            name = stages.TABLE["stages"][n]["name"]
+            if name not in spans:
+                continue
+            with self.subTest(stage=name):
+                span = spans[name]
+                want = {trace.STATUS: row["state"], trace.FELL: row["fell"], trace.SECONDS: row["seconds"], trace.WAIT: row["wait"],
+                        trace.AI_SECONDS: row["ai_seconds"], trace.AI_STEPS: row["ai"], trace.STEPS: row["steps"],
+                        trace.TURNS: row["turns"], trace.ROUNDS: row["rounds"], trace.COST: row["cost"],
+                        **{trace.TOKENS + k: v for k, v in row["tokens"].items()}}
+                self.assertEqual({k: span["attributes"].get(k) for k in want}, {k: v for k, v in want.items()})
+                self.assertEqual((span["start"], span["end"]), (row["start"], row["end"]))
+
+    def test_a_line_run_carries_its_outcome_and_stage_sums(self):
+        got, summed = self._built("works-factory-line", "completed", "succeeded", [
+            ("testcmd", "script", "node_start", "2026-11-04T01:00:00.000Z"),
+            ("testcmd", "script", "node_complete", "2026-11-04T01:00:02.000Z"),
+            ("judge", "agent", "node_start", "2026-11-04T01:00:03.000Z"),
+            ("judge", "agent", "node_complete", "2026-11-04T01:00:09.500Z")], [("workflow_completed", "2026-11-04 01:00:10")])
+        self.assertEqual(self._root(got)["attributes"][trace.OUTCOME], "succeeded")
+        self._stages_hold_their_sums(got, summed)
+
+    def test_a_failed_or_stopped_run_carries_none_as_its_outcome(self):
+        for status, end in (("failed", "workflow_failed"), ("cancelled", "workflow_cancelled")):
+            with self.subTest(status=status):
+                got, summed = self._built("works-factory-line", status, None, [
+                    ("testcmd", "script", "node_start", "2026-11-04T01:00:00.000Z"),
+                    ("testcmd", "script", "node_complete", "2026-11-04T01:00:02.000Z"),
+                    ("judge", "agent", "node_start", "2026-11-04T01:00:03.000Z"),
+                    *([("judge", "agent", "node_error", "2026-11-04T01:00:05.000Z")] if status == "failed" else [])],
+                    [(end, "2026-11-04 01:00:06")])
+                self.assertEqual(self._root(got)["attributes"][trace.OUTCOME], trace.NO_OUTCOME)
+                self._stages_hold_their_sums(got, summed)
+                (self.tmp / runread.DB_FILE).unlink()
+
+    def test_a_run_of_another_graph_carries_its_outcome_without_stages(self):
+        got, summed = self._built("works-factory-judge", "completed", "failed", [
+            ("a", "script", "node_start", "2026-11-04T01:00:00.000Z"),
+            ("a", "script", "node_complete", "2026-11-04T01:00:01.000Z")], [("workflow_completed", "2026-11-04 01:00:02")])
+        self.assertEqual(self._root(got)["attributes"][trace.OUTCOME], "failed")
+        self.assertIsNone(summed)
+        self.assertFalse([s for s in got["spans"] if trace.STAGE in s["attributes"]])
 
 
 if __name__ == "__main__":
