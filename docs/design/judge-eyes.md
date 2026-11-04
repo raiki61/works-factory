@@ -64,7 +64,7 @@
 - `spec`: spec の `spec` の pointer か null。`spec_rows`・`spec_origin`: spec の `added_rows` と `added_origin`（仕様が足した受け入れ条件の行。同じ行は `spec-in` が依頼の行の後ろに積み、並行 PR・前提の実測・世界の解・先行議論の突合が依頼の行として読む〔1.3 の 4〕。diagnose は積んでいない `request` とこの行を別に受け、バッチを分けたまま 2 度数えない）。
 - `excluded`・`pr_drafts`: parallel-pr の `excluded`・`drafts`。`downgrades`: parallel-pr と diagnose の `downgrades` を並べた物。
 - `decisions`: prior-decisions の `material` の pointer（記録された方針の決着済みの論点の出どころ。prior-decisions の設計書の 1.6）。
-- `tier`・`tier_why`・`row_asks`・`tier_record`: head-depth の `tier`・`why`・`rows`・`record`。head-depth が返らなかった run は `標準` と訳「run の頭の深さの段が返らなかった（標準で進む）」と null（今の「落ちても判定は標準で進む」。head-depth の設計書の 1.6）。
+- `tier`・`tier_why`・`row_asks`・`tier_record`: head-depth の `tier`・`why`・`rows`・`record`。head-depth が返らなかった run は `標準` と訳「run の頭の深さが返らなかった（標準で進む）」と null（今の「落ちても判定は標準で進む」。head-depth の設計書の 1.6）。
 - `verify`: verify の `verify` の pointer か null（回さなかった・返らなかった）。`verify_why`: 回さなかった訳（段と名指しの表で切だった・開いた単位が無い・判定が止まった）か空。
 - `report`: このまとめの行（止めの行・回さなかった段の行・返らなかった block の行）。`sections`: 0 節の形。並びは 1.3 の順。
 - `optional`: `world__`・`head-depth-run__`・素材の 10 本の `<include の id>__`（落ちても判定は進む段）。

@@ -1,7 +1,7 @@
 """段 → 回す物の表と単位の深さと修正の後の上げ直し（docs/design/line.md の 5 節。元 lib/depth.py と lib/latedepth.py と、
 lib/consult.py の consulted_units の写し。名は元のまま）。
 
-run 全体の深さの段（軽量・標準・重厚）の定義は表 TIERS 1 か所。単位の深さの語は軽量・標準の 2 つ。段の省く物（TIERS の omits）は、
+run 全体の深さ（軽量・標準・重厚）の定義は表 TIERS 1 か所。単位の深さの語は軽量・標準の 2 つ。段の省く物（TIERS の omits）は、
 その段の頭の run で直す義務の単位がどれも軽量の時だけ省く（skip_reason。issue #561 の答え）。省くかを when: に渡す時は、ここで
 引いた結果の真偽（raise の checks・eyes_due）だけにする（when: は深さの語を読まない。tests/layers/test_depth_skip.py）。
 段の語 4 つ（LIGHT・STANDARD・HEAVY・HEADS）の住処は lib/headdepth（README 11.3 の 5）。
@@ -45,7 +45,7 @@ OMITS = {"p3.delta_review": "差分の審査（p3.delta_review）と、それに
 UNIT_OMIT = "軽量の単位の、緑の後と親の作業ツリーに当てた後の test_cmd の走らせ直し（TDD の名指しのテストは走らせる）"
 UNCHECKED = "機械の確かめが無い（tdd_suite も test_cmd も空）"
 
-# run 全体の深さの段の定義（ただ 1 つの表。元 lib/depth.py の TIERS のまま）。omits は段の頭の run で単位がどれも軽量の時に省く確かめ
+# run 全体の深さの定義（ただ 1 つの表。元 lib/depth.py の TIERS のまま）。omits は段の頭の run で単位がどれも軽量の時に省く確かめ
 # （OMITS の名）。adds は段が足す機能の語（entry.FEATURE_DEFAULTS の名で引く）。auto は名指しの無い auto の機能を読む語で、軽量は
 # 足す物が無いので事前審査の木も off（#687）。merges は省かずに回す時に 1 つの役にまとめる目（持ち主の決め eyes-by-reason）
 TIERS = {

@@ -111,7 +111,7 @@ def entry_lines(values: dict, record: dict, *, cwd, folder) -> list:
     out += _part("承認ノードの開き方の語", lambda: gate_words(record))
     switches = _d(_d(values.get("fix_in")).get("switches")) or _d(values.get("tiers"))
     if switches.get("tier"):
-        out.append(f"run の頭の深さの段: {switches['tier']}")
+        out.append(f"run の頭の深さ: {switches['tier']}")
     out += _part("段と機能の行", lambda: tier_lines(record, switches.get("tier") or ""))
     out += [str(x) for x in _l(switches.get("lines"))]
     out += _part("決めた人の行", lambda: decided_lines(values))

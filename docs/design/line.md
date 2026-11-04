@@ -13,7 +13,7 @@
 - 周: 1 回の修正と確かめの巡り。line の 1 回の run が 1 周で、周をまたぐのは周の鎖（chain）が起こす次の run（parallel-pr の設計書の頭と同じ）。「直す物が無い周」は直す単位が無い run（`$fix-in.output.no_fix` が真）。別に、計画の往復（3 節。plan と事前審査の 1 往復）の 1 回も「計画の周」「前の周」と呼ぶ。
 - 受け皿: 埋め P8（include の返りを受け直す script の node。`<include の id>-out`）。返す node が落ちても受け皿が飛ぶだけにして、`all_done` で集める node を落とさない（今の `workflows/line/scripts/returned.py`）。受け皿の出力の欄 `got` は include の返りまるごと（飛んだ・落ちた時は null）。受け皿の `output_format` は `got` の中を宣言しないので、`got` の中の欄は `with:` や `when:` で `$<id>-out.output.got.<欄>` と読めず（Archon が宣言の外の道を誤りにする）、script の node が受けて読む。include の node そのものの出力（`$eyes.output.ok` など）は block が宣言した欄なので直に読める。
 - 返し: 埋め P2（飛ばされうる値を `{from, if_skipped: null}` で受けて明示の値で返す script の node。include の `with:` は束ねを読まないため）。
-- 段: run の頭の深さ（軽量・標準・重厚。head-depth の出力 `tier`）。ただし「修正の段」は修正の 1 回分（1 回目の `fix` と 2 度目の `refix-run` の 2 つ）で、「段ごとのレンズ・差分の審査」はこの修正の段ごと。7 節の段の表 `stages` の段は、報告が並べる node の役（判定・計画・修正・最後のテストなど）。単位の深さ: 判定の単位ごとの軽量か標準（今の `depth.unit_depth`）。上げ直し: 1 回目の修正の後に、修正で出た信号（止めた単位・拒否・相談など）を見て単位の深さを軽量から標準へ上げ直すこと（5.3）。
+- 深さ: run の頭の深さ（軽量・標準・重厚。head-depth の出力 `tier`）。表と関数の名に残る「段」（段の表 `TIERS`・段の語・段 → 回す物）はこの深さのこと。見る道具の段（line のノードを人の言葉で畳んだ受付・判定・計画などの単位。`viewer/stages.json`）とは別。「修正の段」は修正の 1 回分（1 回目の `fix` と 2 度目の `refix-run` の 2 つ）で、「段ごとのレンズ・差分の審査」はこの修正の段ごと。7 節の段の表 `stages` の段は、報告が並べる node の役（判定・計画・修正・最後のテストなど）。単位の深さ: 判定の単位ごとの軽量か標準（今の `depth.unit_depth`）。上げ直し: 1 回目の修正の後に、修正で出た信号（止めた単位・拒否・相談など）を見て単位の深さを軽量から標準へ上げ直すこと（5.3）。
 - 今の line: `workflows/line/`（YAML 1253 行・script 25 本）。今の棚卸し: `docs/plans/2026-10-13-capabilities/line.md`（L-E 入口・L-G 承認ノード・L-W 受け渡し・L-D 深さと往復と再審の行と、線への申し送り S01〜S68。組み込みで消える表なので、この文書の 9 節が行き先を持つ）。ほかの区分の行 ID は同じフォルダの表: J は `judge.md`（判定）・P は `plan.md`・F は `fix.md`・T／E／R／M は `tail.md`（E は独立の目の行で、AGENTS.md の決まり E1〜E22 とは別）・K は `pitfalls.md`（README の頭）。
 - 組み込み: `blocks/` を `workflows/` に入れ替えて本線を新しい block に切り替え、古いコードを消す 1 本の PR（integration.md の頭）。KEEP／MOVE／DELETE: 組み込みの後も `lib/` に残す／block（ここでは line）の `src/` へ移す／消す（README 9 節）。
 - 固定材料: 前の run が修正に入る時に写した、修正の前の値の写し（入力 `fix_fixture` で名指すフォルダ）。固定材料の run は、`start` が写しを取り込み、直す前のテスト・判定・計画を飛ばして修正から始める（4.1）。
@@ -535,9 +535,9 @@ keep-essence の 12 の仕組みのうち、line が担う物（6・8・10・11�
   - `theme-blind` が依頼の `answers` を受けない。independent-design の port `answers` は承認ノードの答えの形（`answers.schema.json`）しか受けないので、今は起動の承認ノードの答えを渡す（3.3 節の 2）。下書きの 2.2 の 2（人が決めた前提に依頼の `answers`）とは違う形で、どの口で渡すか（下書きの 14 章の 9）は後で決める。
 - 設計の相談（3.1 節）を本物の AI の役（plan・plan-review）で回す run は回していない（工場の run は費用の上限が決まるまで起こさない）。本物の Archon で複数の周を回したのは、2 つの include を模擬の script に替えた写し（`tests/e2e/test_design_talk_real.py`）だけ。人の block を差し込んだ周に、本物の計画の役がその block に答え、本物の事前審査がその key を `resolved` に入れるか挙げ直すか（`converge.answer_gaps`・`resolved_gaps` の受け付けを通るか）は、本物の run で確かめる。
 
-## 16 深さの段の表
+## 16 深さの表
 
-### 深さの段の表
+### 深さの表
 
 run の頭の深さの 3 段の定義の写し（issue #441・#561。持ち主の決め `depth-by-reason`・`three-tiers`）。正本は line の `src/tiers.py` の `TIERS`（5.1）で、表の行（段・省く物・足す物）は `TIERS` と等しい（`workflows/AGENTS.md` の E20。`tests/layers/test_depth_skip.py` が照らす）。省く物は頭の深さがその段の run で、直した後も単位がどれも軽量の時だけ省く確かめ（`tiers.OMITS` の名。頭の深さがその段の run では、軽量の単位ごとに緑の後と親に当てた後の `test_cmd` の走らせ直しも省く。`tiers.UNIT_OMIT`）、足す物は段が足す機能（`lib/entry.py` の `FEATURE_DEFAULTS` の名）。ノードを深さの `when` で飛ばす道は作らない。この表は段から回す物を引く表で、依頼の行の未知の種類から段を決める別の表（未知の種類 → 段）は head-depth の block が持つ（`docs/design/head-depth.md`）。#765 の組み込みの前は `docs/design.md` に在った表と注を、そのまま移した（注の中の古いノードの名は、その時の形の記録）。
 
