@@ -340,7 +340,7 @@ prior-decisions.md の 2.6 の族に共通の差（材料のファイルを指�
 - 消した: 「素材の書き方」の尾の「欄と値の正本は受け付けが使う検証器 review-record.py だが…」（md:61）。役が開かない物の名指し（prior-decisions と同じ）。
 - 消した: 「engine の post_check が拒む」「engine が P1 の前後で突き合わせる」の engine・post_check・P1・P2 の名指し（md:50・54・56）。"the acceptance step" と "the judgment … later in this run" に替えた（役が見ない仕組みの名）。
 - 残した: 実測の訳（2026-09-15 の型設計のレンズが 3 周起きなかった・旗の綴りが旗に取られた）。役が行を省かない・綴りを書かない訳として、返答の形を決めるため。
-- 移した: 借りたスキルの読み替え（md:89-166）の頭の 1 文を英語の決まった文に、本文を `{unattended}` の値に。本文は今も `seat.overlay_body` が `lib/borrow/unattended.md` から組む字で（今の試験 tests/workflows の `test_judge.py:521-530` がそれと md の末尾の一致を見ていた）、新しい形では写しを md に置かず、源から入れる。置く所を結びの前に移した（3.1 の並びの言語の 1 文と結びの 1 文を最後に保つため）。
+- 移した: 借りたスキルの読み替え（借りた superpowers のスキルを無人の役で読む時の読み替えの文。2.5 の `## Reading borrowed skills` の下に入る物）。今の指示の md（組み込みの前の judge の commands の `material-local-review.md`。この節の `md:<行>` はこの md の行）の md:89-166 に在った。その頭の 1 文を英語の決まった文に、本文を差し込み口 `{unattended}` の値にした。読み替えの本文は今も `seat.overlay_body` が `lib/borrow/unattended.md` から組む字で（今の試験 tests/workflows の `test_judge.py:521-530` が、その字と今の md の末尾が一致するかを見ていた）、新しい形では写しを md に置かず、源の `lib/borrow/unattended.md` から入れる。読み替えの段を置く所は、md の結びの 1 文の前に移した（materials.md の 3.1 の並びの、言語の 1 文と結びの 1 文を最後に置く決まりを保つため）。
 - 変えた: 断片 `material-where` の尾の文を、受け付けが照らす範囲（`where` と `text` を持つ行だけ。ほかの行は照らさない）に合わせて狭めた。
 - 役の名「局所レビューの役」は "the local-review role"。
 
@@ -448,10 +448,10 @@ bin/works-factory workflow run works-factory-local-review \
 - プラグインの欠けの拒みの文の入れ直しの道を `bin/_lib/toolset.py install` に直す。訳: 今の字の `dev/toolset.py` は元の works の置き場で、工場には無い（`bin/_lib/launcher.py:361-364` が `bin/_lib/toolset.py install` を打つ）。拒みの文は人に見せる文なので、在る道を名指す。
 - `lens_gap` から持ち越しの変数 `carry_ok` を外す。訳: 今もいつも偽で、1 run = 1 周では真にならない。読む人に「真になる周が在る」と誤らせない。
 - 試験のフォルダの名を `tests/blocks/local_review/` にする（materials.md の 10 節と同じ訳）。
-- 実装で決めた事（main の決まりが設計書と食い違った所）:
-  - `repo_review_md` の値は、対象の根に `REVIEW.md` が無い回も空の字で渡す。訳: 設計書の 1.5 は「空でなければ足す」と言うが、土台の `prompt.render` は選ばれない段落の中の差し込み口も数え、値が無ければ落ちる（materials.md の 2.11 と同じ決まり）。段落の真偽 `repo_review` が入る・入らないを決める。
-  - md の役の 1 段落を `You are the local-review role.` にし、「started in a new conversation」を外した。訳: この輪は `fresh_context: false` で、拒まれた後の回は同じ会話の続きになる。1 回目だけ新しい会話という文は 2 回目以降に嘘になる（調整役の指摘）。fixture の `resolved-text-contains` もこの文に合わせた。
+- 実装で決めた事（main の枝に在る土台のコードの決まりが、この設計書と食い違った所）:
+  - `repo_review_md` の値は、対象の根（対象リポジトリの一番上のフォルダ）に `REVIEW.md` が無い回も空の字で渡す。訳: この設計書の 1.5 の `values` は「空でなければ足す」と言うが、土台の `prompt.render`（`workflows/.shared/prompt.py`）は選ばれない段落の中の差し込み口も数え、値が無ければ落ちる（materials.md の 2.11 と同じ決まり）。段落の真偽 `repo_review` が入る・入らないを決める。
+  - md の役の 1 段落を `You are the local-review role.` にし、「started in a new conversation」を外した。訳: この輪は `fresh_context: false` で、拒まれた後の回は同じ会話の続きになる。1 回目だけ新しい会話という文は 2 回目以降に嘘になる（調整役の指摘）。fixture の `resolved-text-contains`（組んだ指示にその字が在るかを筋書きが照らす欄）もこの文に合わせた。
   - `intake` の `due` は materials.md に従い `materialkit.not_entry_due`（`entry` が空でなく差分が空の時だけ回さない）で決める。
-  - `covers_lenses` の「宣言したレンズが空」の文は `skills` が空の枝として残した（graph への求めだけを外した）。`LENSES` は空にならないので試験は見ない。
-  - 起こし方の照らしは、組み込みの前の tests/workflows の `test_judge.py` の表を import せず、`tests/blocks/local_review/test_local_review.py` の `LAUNCH` に値を写した（今の定数が消えても残る）。
-  - 1 つ目の commit の `oldbrief.py` は、対象の根に `REVIEW.md` が無い回は「対象リポジトリ側」の節を出さない。今の `material_prep` はその回に穴が解けず落ちる（`?` を外して描く）ので、字を比べられるのは `REVIEW.md` が在る回だけ。
+  - `covers_lenses` の「宣言したレンズが空」の文は `skills` が空の枝として残した（1.5 の `covers_lenses` のとおり、文の尾の「graph に宣言を書け」という graph への求めだけを外した）。`LENSES` は空にならないので試験は見ない。
+  - 起こし方の照らし（2.9 の、AI の node の `model`・`allowed_tools` などの設定が今と同じかを見る試験）は、組み込みの前の tests/workflows の `test_judge.py` の表を import せず、`tests/blocks/local_review/test_local_review.py` の `LAUNCH` に値を写した（今の定数が消えても残る）。
+  - 1 つ目の commit（2.9 の指示の比べの、今の字の日本語の md を置いた commit）の `oldbrief.py` は、対象の根に `REVIEW.md` が無い回は「対象リポジトリ側」の節（`## 材料: inputs.repo_review_md`）を出さない。今の `material_prep` はその回も節を出し、中身を語「（この周には無い）」で埋める（`MATERIAL_HOLES` のこの差し込み所は `?inputs.repo_review_md` と書かれ、頭の `?` は「値が無くてよい」の印。engine の描き方は値の無い `?` つきの差し込み所を落とさずにこの語で埋める）。2 つの字が合わないので、字を比べられるのは `REVIEW.md` が在る回だけ。前の版のこの行は「今の `material_prep` はその回に落ちる」と書いていたが、`2b5a0f56` の版の `material_prep` と engine の描き方で、落ちずにこの語で埋めることを確かめた。

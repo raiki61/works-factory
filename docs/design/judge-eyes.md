@@ -137,11 +137,11 @@ line が段ごとに引いた真偽の表 `verify_by_tier` を、head-depth が�
 
 ### 1.8 試験（`tests/blocks/judge/`）
 
-- standalone の筋書き `workflows/judge/fixtures/standalone.stubs.yaml`: `fixture.inputs` は `request` だけ（依頼の行 1 つ）。include した block の AI の node と loop の本体の script を台本で差し替え（README 13 章）、graph の script は本物。`reached` に `verdict`。`verdict` の `ok` が真。
-- 筋書き（今の `workflows/judge/fixtures/` の 8 本を写す）: `bad-request`（依頼の型の拒みは line と block の受け付けに移ったので、premises の出口が `failed` を返す台本 → `works:premises`。`requestrows` の拒みそのものは premises の block の筋書きが見る）・`judge-gave-up`（`works:judge`）・`material-peer-stop`（素材の諦め → `works:material`）・`no-open-units`（`ok` 真・`ready` 偽）・`pass`・`spec-on`（spec が approved を返して先へ進む。承認ノードは spec の block の中で graph は通らない）・`spec-stop`（spec が止めを返す → 人が仕様の承認ノードで止めた語 `human:spec-gate` が返り、後ろを回さない。1.4 の 1）・`world-offline`（`web: off`）・`rejudge` は line へ移す（再審は line の筋書き）。足す: `verify-heavy`（`verify_by_tier` の重厚が真で、head-depth が重厚を返す → verify が回る）・`world-cut`（`world: false` でも素材が回る）。
-- 振る舞いの試験: 止めの語の順（1.4 の 1〜6 を 1 つずつ立てて、最初の物が返る）・返りの無い block の欄が null で `report` に行が在る・`diagnose-in` の配列の順と `missing`・`verify` の選び（段が返らない時は標準）・`verdict` が落ちない（壊れた入力で `ok: false`）。元は組み込みの前の tests/workflows の `test_judge.py` の graph の場面（README 9.5）。
+- standalone の筋書き `workflows/judge/fixtures/standalone.stubs.yaml`: `fixture.inputs` は `request` だけ（依頼の行 1 つ）。include した block の AI の node と loop の本体の script を台本で差し替え（README 13 章）、graph の script は本物。`reached`（筋書きが届いたことを確かめる node の一覧）に `verdict`。`verdict` の `ok` が真。
+- 筋書き（今の `workflows/judge/fixtures/` の 8 本を写す）: `bad-request`（依頼の型の拒みは line と block の受け付けに移ったので、premises の出口が `failed` を返す台本 → `works:premises`。依頼の行の型の拒み〔pack の共通の口 `workflows/.shared/requestrows.py`。1.7 の `intake`〕そのものは premises の block の筋書きが見る）・`judge-gave-up`（`works:judge`）・`material-peer-stop`（素材の諦め → `works:material`）・`no-open-units`（`ok` 真・`ready` 偽）・`pass`・`spec-on`（spec が approved を返して先へ進む。承認ノードは spec の block の中で graph は通らない）・`spec-stop`（spec が止めを返す → 人が仕様の承認ノードで止めた語 `human:spec-gate` が返り、後ろを回さない。1.4 の 1）・`world-offline`（`web: off`）・`rejudge` は line へ移す（再審は line の筋書き）。足す: `verify-heavy`（`verify_by_tier` の重厚が真で、head-depth が重厚を返す → verify が回る）・`world-cut`（graph の入力 `world`〔世界の解の段を回すか。1.2〕が偽でも素材が回る）。
+- 振る舞いの試験: 止めの語の順（1.4 の 1〜6〔仕様・並行 PR・前提の実測・目的の固定・判定・判定の裏取り〕を 1 つずつ立てて、最初の物が返る）・返りの無い block の欄が null で、返りの欄 `report`（このまとめの行。1.2）にその block の行が在る・`diagnose-in`（diagnose へ渡す値をそろえる返し。1.3 の 10）の素材の配列の順と、返りの無い観点を名指す `missing`・`verify` の選び（段が返らない時は標準）・`verdict` が落ちない（壊れた入力で `ok: false`）。元は組み込みの前の tests/workflows の `test_judge.py` の graph の場面（README 9.5）。
 - 配線の yes/no: 8.1 の block の全部を 1 回ずつ include する・再審の道の block（diagnose に `objection` を渡す include）が無い・include した block の `inputs:` が全部 `with:` で渡るか、渡さない訳の一覧に在る。
-- 守る keep-essence: 7（class_query。diagnose が作り、この graph は運ぶ）・12（世界の解の行を diagnose・plan・plan-review・line へ。`world` の欄）。
+- 守る keep-essence（README 10 節の、失ってはならない 12 の仕組みの番号）: 7（class_query。diagnose が作り、この graph は運ぶ）・12（world の block が返す世界の解の行を diagnose・plan・plan-review・line へ。返りの `world` の欄。1.2）。
 
 ## 2 eyes（独立の目のまとめ）
 
@@ -207,11 +207,11 @@ line が段ごとに引いた真偽の表 `verify_by_tier` を、head-depth が�
 
 ### 2.7 試験（`tests/blocks/eyes/`）
 
-- standalone の筋書き: `fixture.inputs` は `base`・`purpose`・`units` だけ。r1〜r4 と structure の AI の node を台本で差し替え（r4 の輪の本体の script も。README 13 章）、`reached` に `verdict`。全部の目が `pass` で `ok` が真。
-- 筋書き（今の `workflows/eyes/fixtures/` の 6 本を写す）: `all-light`（`run: false` → 目は飛び、structure after は走り、`ok` 真）・`one-eye`（`merge: true` → r3 が飛び、`r3` の行が r4 の `coherence` から）・`pass`・`premise`（R2 が前提の検算の道 → `ok` 偽・`premise_check` が在る）・`redesign`・`protected-hit` は merge の筋書きへ移す（守りのパスは merge）。
-- 振る舞いの試験（元は組み込みの前の tests/workflows の `test_eyes.py` と lib の試験の `test_eyeverdict.py` のまとめの部分。README 9.5）: `ok` の決まり（目ごとに 1 つずつ外して偽になる）・受け皿の飛んだ目が `unverifiable` と落ちた筋の訳・「まま R4 を回した」の尾・`run` 偽の行・落ちない。
-- 配線の yes/no: r4 が r1・r2 の受け皿に依り `none_failed_min_one_success` を持つ・structure（after）が `when:` を持たない・r3 の `when:` が `merge` を読む・`ok` に `dirty`・`escalate` を使わない。
-- 守る keep-essence: 9（R1〜R4。独立設計を作った block は修正案・判定・差分を運ぶ port を持たず、この graph は r2 に独立設計の pointer を渡すだけ）。
+- standalone の筋書き: `fixture.inputs` は `base`・`purpose`・`units` だけ。r1〜r4 と structure の AI の node を台本で差し替え（r4 の輪の本体の script も。README 13 章）、`reached`（筋書きが届いたことを確かめる node の一覧）に `verdict`。全部の目が `pass` で `ok` が真。
+- 筋書き（今の `workflows/eyes/fixtures/` の 6 本を写す）: `all-light`（`run: false` → 目は飛び、structure after は走り、`ok` 真）・`one-eye`（`merge: true` → r3 が飛び、返りの `r3` の行は r4 の出力 `coherence` の判定の行になる。2.4）・`pass`・`premise`（R2 が前提の検算の道 → `ok` 偽・`premise_check` が在る）・`redesign`・`protected-hit` は merge の筋書きへ移す（守りのパスは merge）。
+- 振る舞いの試験（元は組み込みの前の tests/workflows の `test_eyes.py` と lib の試験の `test_eyeverdict.py` のまとめの部分。README 9.5）: `ok` の決まり（目ごとに 1 つずつ外して偽になる）・受け皿（include ごとに置く script の node `<id>-out`。0 節）が返りを受けられなかった目が `unverifiable` になり、理由が `eyekit.fell_text` の訳になる（2.4）・落ちた目の訳の尾に「まま R4 を回した」が付く（2.4）・`run` 偽の時の `report` の行・`verdict` が落ちない。
+- 配線の yes/no: r4 が r1・r2 の受け皿（`r1-out`・`r2-out`）に依り、`trigger_rule: none_failed_min_one_success`（Archon の決まり。依る node に落ちた物が無く、1 つ以上が終わっていれば回す）を持つ・structure（after）が `when:` を持たない・r3 の `when:` が `merge` を読む・`ok` の決まりが直した後の実測の `dirty`・`escalate` を使わない（2.4）。
+- 守る keep-essence（README 10 節の番号）: 9（R1〜R4。独立設計を作った block〔independent-design。[independent-design.md](independent-design.md)〕は修正案・判定・差分を運ぶ port を持たず、この graph は r2 に独立設計の pointer〔ファイルを指す値。頭の語の一覧〕を渡すだけ）。
 
 ## 3 自分で決めた事
 

@@ -83,7 +83,7 @@ script の node はどれも `runtime: uv`・`mutates_checkout: false`。レン�
 - `src/lenses.py`: レンズの表 `LENSES = ({"lens": "silent-failure-hunter", "agent": "pr-review-toolkit:silent-failure-hunter"},)`・`key(name)`（`-` を `_` に）・振り分け `route(row, files)`（今の `_any_change`: 変わったファイルが無ければ `(False, "修正の差分に変わったファイルが無い")`）・定義の引き `definition(agent)`（今の `fixboard.lens_route` の引きの部分: `engine.validator.agent_def(agent)` を呼び、例外〔`SystemExit` を含む〕は「<agent> の定義を引けない（<型>: <訳>）」、`None` か本文が空なら「<agent> の定義が役の設定に無い（pr-review-toolkit が入っていない）」を起こさない理由にする）。写す元 lib の `lenses.py` の `LENSES`・`key`・`_any_change` と `fixboard.lens_route`。字の下限 `MIN_CITE = 4`・`MIN_WHY = 20`（YAML の `output_format` の `minLength` と同じ字）も持つ。`lenses.render` の文は md へ出し、ここに持たない。
 - `src/files.py`: 1.4 の名と `SKIP = (ports.RUNTIME_COPY_PREFIX,)`。
 - `src/steps.py`: 入口（差分を切る〔`leftovers.snapshot`・`unittrees.pathspec_without(SKIP)`・`leftovers.git(… text=False)`・`leftovers.git_names`。delta-review の `src/cut.py` の `cut` と同じ手続き〕・振り分け・`lens.write_routes`）・prep の値・受け取り・出口（`lens.collect(place, {<lens>: <reply-<key>.json の中身か None>})`・数え・`carry`・`report`）。
-- 使う `lib/`（KEEP。変えない）: `lens`（`LENS_FILE`・`STATES`・`UNSEEN`・`write_routes`・`collect`・`read`）・`leftovers`・`unittrees`（`pathspec_without`）・`jsonfile`・`oneline`・`graphloops/engine/validator.py`（`agent_def`。README の 9.1 で DELETE の候補。10 節の 1）。
+- 使う `lib/`（KEEP。変えない）: `lens`（`LENS_FILE`・`STATES`・`UNSEEN`・`write_routes`・`collect`・`read`）・`leftovers`・`unittrees`（`pathspec_without`）・`jsonfile`・`oneline`。`agent_def` は lib でなくこの block の `src/validator.py` が持つ（10 節の 1）。
 
 ### 1.6 つなぎ方（graph の側。block には書かない）
 
@@ -305,7 +305,7 @@ PYTEST_XDIST_AUTO_NUM_WORKERS=4 WORKS_FACTORY_ARCHON_CACHE=<Archon の源の置�
 
 ## 10 README へ返す問題
 
-1. lib の `graphloops/engine/validator.py` は README の 9.1 で DELETE（未確認つき）だが、`agent_def` と `find_plugin_path` はこの block が利用者の定義を引くのに使う（使い手はこの block 1 つ）。組み込みで消すなら、その 2 つを `workflows/lens/src/` へ移す（移し済み。今は `workflows/lens/src/validator.py`。1.5 の `graphloops/engine/validator.py` の行は移す前の書き方）。
+1. 利用者の定義を引く `agent_def` と `find_plugin_path` は、使い手がこの block 1 つなので、この block の `workflows/lens/src/validator.py` に置く（憲法 4。元の graphloops の engine の validator の写し）。
 2. `lib/leftovers.py`（README の 9 節に区分が無い）と `lib/unittrees.py` の `pathspec_without`（MOVE fix の中）を、この block と差分の審査の block も使う（delta-review.md の 12 節の 2・3）。
 
 ## 11 未確認
