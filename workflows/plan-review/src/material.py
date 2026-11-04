@@ -78,12 +78,12 @@ LABELS = {
     "objection": "#### Objection and ruling ({id})",
     "revised": "#### Revised item",
     "plan": "Plan:",
-    "open_item": "### Open item {n} ({units})",
-    "item_plan": "#### Plan of item {n}",
+    "open_item": f"### Open {converge.ITEM_CITE} ({{units}})",   # 項目の字は held_row と同じ（2 往復目の材料の項目の引用を 1 つの字に）
+    "item_plan": f"#### Plan of {converge.ITEM_CITE}",
     "diff": "#### Diff since the previous pass",
     "contract": "contract fields changed: {fields}",
     "unchanged": "(unchanged)",
-    "ripple": "#### Ripple list of item {n} (the machine's git grep: callers and tests of the names the item changes)",
+    "ripple": f"#### Ripple list of {converge.ITEM_CITE} (the machine's git grep: callers and tests of the names the item changes)",
     "ripple_missing": "ripple list missing: {error}",
     "cross": "### Overlaps and other items' scope",
     "overlaps": "Overlaps:",
@@ -456,14 +456,14 @@ def _cross_part(rows: list, opened: list, rip: dict) -> str:
     """単独の審査役が項目どうしの食い違いを見る節（木の道では相乗りの審査が持つ。元 planblk._cross_part。頼み CROSS_ASK は md へ）: 波及の
     一覧の重なりのうち開いた項目に当たる行と、開いた項目から見たほかの項目の unit_keys・allowed_paths・files の path。一覧が誤りなら
     重なりは「無い」でなく一覧が無い訳を書く"""
-    over = [f"- {o['at']}: item {', '.join(map(str, o['items']))}" for o in rip.get("overlaps") or [] if set(o["items"]) & set(opened)]
+    over = [f"- {o['at']}: {', '.join(converge.ITEM_CITE.format(n=i) for i in o['items'])}" for o in rip.get("overlaps") or [] if set(o["items"]) & set(opened)]
     if rip.get("error"):
         over = [f"- {LABELS['ripple_missing'].format(error=rip['error'])}"]
     others = [m for m in range(1, len(rows) + 1) if any(m != n for n in opened)]
     scope = []
     for m in others:
         it = rows[m - 1]
-        scope += [f"- item {m} ({_units_of(it)})",
+        scope += [f"- {converge.ITEM_CITE.format(n=m)} ({_units_of(it)})",
                   f"  - allowed_paths: {'、'.join(str(x) for x in it.get('allowed_paths') or []) or LABELS['none']}",
                   f"  - files: {'、'.join(str(f.get('path')) for f in it.get('files') or [] if isinstance(f, dict)) or LABELS['none']}"]
     return "\n".join([LABELS["cross"], "", LABELS["overlaps"], *(over or [f"- {LABELS['none']}"]), "", LABELS["others"], *scope])

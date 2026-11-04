@@ -175,6 +175,19 @@ class OriginReachTest(unittest.TestCase):
         self.assertEqual(startpoint.unreachable(self.target, self.env, sleep=self.waits.append, configured=" upstream "), "",
                          "設定の remote に届けば、届かない origin は問わない")
 
+    def test_configured_remote_that_is_not_there_points_at_the_settings(self):
+        """設定が名指した remote が対象の git に無ければ、網や資格でなく remote の設定を確かめよと言う。在って届かない時は今の案内のまま"""
+        git(self.target, "remote", "add", "origin", str(self.bare))
+        said = startpoint.unreachable(self.target, self.env, sleep=self.waits.append, configured="upstream")
+        self.assertIn("upstream に届かない", said)
+        self.assertIn("upstream は対象の git の remote に無い。remote の設定", said)
+        self.assertIn("worktree.remote", said)
+        self.assertNotIn("網・ssh の鍵・資格", said)
+        git(self.target, "remote", "add", "upstream", str(self.tmp / "gone.git"))
+        said = startpoint.unreachable(self.target, self.env, sleep=self.waits.append, configured="upstream")
+        self.assertIn("網・ssh の鍵・資格を確かめて打ち直す", said)
+        self.assertNotIn("remote の設定", said)
+
     def test_query_never_asks_for_credentials_at_the_terminal(self):
         """問い合わせは利用者の env が GIT_TERMINAL_PROMPT を立てていても 0 で打つ（Archon の packages/git/src/credentials.ts の
         gitCredentialOptions と同じ。端末で資格を尋ねて止まらない）"""

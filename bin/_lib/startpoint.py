@@ -6,7 +6,8 @@
 今の works の dev/use.sh の start の包み（refs/works/wraps/ の ref と clean の片付け）の代わり。origin の無い対象の拒みと既定の枝の
 求めは Archon が持つ。
 
-remote に届くかの確かめ（unreachable）: Archon は新しい作業ツリーを切る前に、--from が在っても remote（設定の worktree.remote、無ければ origin）へ必ず問い合わせ（既定の枝の
+remote に届くかの確かめ（unreachable）: Archon は新しい作業ツリーを切る前に、--from が在っても remote（設定の worktree.remote、無ければ origin、
+それも無ければただ 1 つの remote）へ必ず問い合わせ（既定の枝の
 ls-remote と fetch。packages/isolation/src/providers/worktree/create.ts の syncWorkspaceBeforeCreate）、届かなければ run を記録する前に
 落ちる。殻はその前に Archon と同じ ls-remote を、Archon に渡すのと同じ env で打ち、一時の拒みは打ち直し、駄目なら訳を返す（殻は
 Archon を起こさずに止める）。起こした後に Archon が落ちた時も、同じ確かめを 1 回打って訳を足す（bin/_lib/recordroot.py）。
@@ -60,7 +61,8 @@ def unreachable(target: Path, env: Mapping[str, str], sleep: Callable[[float], o
     packages/git/src/repo.ts の getDefaultRemote）。remote が無い・選べない対象は Archon が自分の文で拒むので、ここは確かめない。
     問い合わせは Archon と同じ ls-remote（packages/git/src/remote-branches.ts の inspectRemoteBranches）を env（Archon に渡す env）で
     打ち、tries 回まで打ち直す。say が在れば、問い合わせる前に待つ物を 1 行渡す（期限は付けない。持ち主の決め no-timeouts。前例は runtime-auth-gate の確かめ）"""
-    remote = (configured or "").strip() or _remote(target, env)
+    names = _remotes(target, env)
+    remote = (configured or "").strip() or _default(names)
     if remote is None:
         return ""
     if say is not None:
@@ -74,13 +76,19 @@ def unreachable(target: Path, env: Mapping[str, str], sleep: Callable[[float], o
         if done.returncode == 0:
             return ""
         reason = " ".join(done.stderr.split()) or f"git ls-remote の終了の値 {done.returncode}"
+    check = "網・ssh の鍵・資格を確かめて打ち直す" if remote in names else (
+        f"{remote} は対象の git の remote に無い。remote の設定（対象の .archon/config.yaml の worktree.remote と git remote -v）を確かめて打ち直す")
     return (f"{remote} に届かない（git ls-remote {remote} を {tries} 回打って全部落ちた: {reason}）。"
-            f"Archon は run の作業ツリーを切る前に {remote} へ問い合わせる。網・ssh の鍵・資格を確かめて打ち直す")
+            f"Archon は run の作業ツリーを切る前に {remote} へ問い合わせる。{check}")
 
 
-def _remote(target: Path, env: Mapping[str, str]) -> str | None:
+def _remotes(target: Path, env: Mapping[str, str]) -> list[str]:
     done = subprocess.run(["git", "-C", str(target), "remote"], capture_output=True, text=True, encoding="utf-8", env=dict(env))
-    names = done.stdout.split() if done.returncode == 0 else []
+    return done.stdout.split() if done.returncode == 0 else []
+
+
+def _default(names: list[str]) -> str | None:
+    """設定の名指しが無い時に Archon が使う remote: origin が在れば origin、無ければただ 1 つの remote（2 つ以上なら選べない）"""
     return "origin" if "origin" in names else names[0] if len(names) == 1 else None
 
 
