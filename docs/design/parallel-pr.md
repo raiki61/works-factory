@@ -1,6 +1,6 @@
 # block の設計書: parallel-pr（並行 PR）
 
-- 何の話か: 開いている PR とこの run の変更ファイルの交差を見て、ぶつかる hunk を run の範囲から外し、担当への申し送りの下書きを作る観点「並行 PR」を、単独で呼べる block `workflows/parallel-pr/` にする設計。型は [README.md](README.md) に従い、形は [world.md](world.md) を写した。
+- 何の話か: 開いている PR とこの run の変更ファイルの交差を見て、ぶつかる hunk を run の範囲から外し（修正の後の段 `after` では外さず、差分に残っていると申し送る）、担当への申し送りの下書きを作る観点「並行 PR」を、単独で呼べる block `workflows/parallel-pr/` にする設計。型は [README.md](README.md) に従い、形は [world.md](world.md) を写した。
 - 決めたこと: 今の judge の 5 つの node（pr-scan・pr-check-loop の 3 つ・pr-check-reads）を、6 つの node の block にする。入力は依頼の行・差分の根・変更ファイル・言語・段の 5 つの port だけで、始めの記録と `judge/` の置き場を読まない。指示は 1 本の英語の md（`prompts/pr-check.md`）にまとめる。振る舞いは変えない（違いは 6 節に全部書いた）。
 - 持ち主に求めること: なし。この block を作る人（実装の役）は、この設計どおりに作る。自分で決めた事は 10 節に集めた（記録として置く。持ち主の確認は待たない）。
 
@@ -13,7 +13,7 @@
 
 - 機械の道: 役を起こさずに、gh の読みだけで交差を数えて決める道（今の `judge_accept.pr_scan`）。交差が無い・remote が GitHub でない・変更ファイルが空・一覧が打ち切られた、のどれかなら機械が決める。
 - 任せ先の役（pr-check）: 機械が決められなかった時（交差が在った・gh が無い・remote から owner/repo を導けない）だけ起きる AI の役。読むだけで、道具は Read・Grep・Glob・Bash・WebSearch・WebFetch。
-- 外す hunk: ぶつかる PR が主導する変更の、今の作業ツリーでの行の範囲。run の後の役に触らせない範囲として出力で渡す。
+- 外す hunk: ぶつかる PR が主導する変更の、今の作業ツリーでの行の範囲。run の後の役に触らせない範囲として出力で渡す。外すのは段 `before`（修正の前）だけで、段 `after`（修正の後）では空。
 - 申し送りの下書き: ぶつかる PR の担当に渡す文の下書き。投稿しない（持ち主の決め 2026-09-27）。人が読んで渡す。
 - 素材の札: 判定の素材の status の語（found・clean・carried_over・not_applicable・awaiting_human・not_run）。diagnose が素材として読む。
 - 例の run: 本物の run `df5e111f-ea97-409b-8066-2245d32746ab`（対象 raiki61/works-factory。置き場 `~/.local/state/works-factory/targets/6c76444e/archon-home/workspaces/raiki61/works-factory/artifacts/runs/df5e111f-…/judge/`）。#756 と 1 件交差し、役が起きて found を返した run。骨組みの値はここから取った。
@@ -22,7 +22,7 @@
 
 ### 1.1 役
 
-この run が触るファイルを、開いている PR が触っていないかを確かめる。触っていれば、どの hunk がぶつかるかを読み、ぶつかる所はその PR の物として run の範囲から外し、担当への申し送りの下書きを作る。GitHub へは書き込まない。確かめられなかった時は、確かめられなかったと言う（clean と書かない）。
+この run が触るファイルを、開いている PR が触っていないかを確かめる。触っていれば、どの hunk がぶつかるかを読み、ぶつかる所はその PR の物として run の範囲から外し（段 `after` では外さず、この run の差分に残っていると申し送る）、担当への申し送りの下書きを作る。GitHub へは書き込まない。確かめられなかった時は、確かめられなかったと言う（clean と書かない）。
 
 ### 1.2 port
 
@@ -47,17 +47,17 @@
 - `stop_reason`: 空か `works:pr`（`lib/stopby.py` の `PR`。役が 3 回とも拒まれた・役の返答の記録が無い）。run を止めるかは line が決める（今は judge がこの語で止める）。
 - `reason`: 日本語の 1 行（人に見せる）。機械が決めた訳・役に任せた訳・諦めた訳。
 - `material`: 素材の札のオブジェクト `{status, count?, detail?, checked?, reason?}`（今の `material-pr-check.json` の `materials.parallel_pr` と同じ中身）。diagnose の `materials` に入る。
-- `excluded`: pointer（`pr-excluded.json`。`{node, head, excluded: [{pr, file, start, end, why, text, sha256}]}`）。機械が決めた時も空の `excluded` で書く。
+- `excluded`: pointer（`pr-excluded.json`。`{node, head, excluded: [{pr, file, start, end, why, text, sha256}]}`）。機械が決めた時と段 `after` の時も空の `excluded` で書く。
 - `drafts`: pointer（`pr-downgrades.json`。`[{pr, files, note}]`）か null（役が起きなかった・下書きが無い）。
 - `reads`: pointer（`reads-pr-check.json`）か null（役が起きなかった・読んだ証拠を集められなかった）。
 - `downgrades`: この block が元の能力から下げている所の宣言 `[{what, versus}]`（日本語。`src/files.py` の定数 1 行: `{what: "担当の PR へ申し送りを投稿しない（下書きを報告に載せる）", versus: "review-graph は任せ先の役が gh で投稿する"}`。今の `lib/downgrades.json` の p0.parallel_pr の行の字）。
 - `report`: 報告の節「並行 PR」の日本語の行の配列（8 節）。
 
-今との違い: 今は差分の根を `judge/start.json`（`start_view` の `diff_base`）から、依頼の行を `judge/request.json` から、止めの控えを `judge/stop.json` から名で開き（`lib/judge_accept.py:3547-3584`）、役の前の作業ツリーの写しは judge の入口（か仕様の承認の後）が置いた `judge/judge-tree.json` を使っていた（`:3622`）。出口は判定の出力の欄 `pr_excluded`・`pr_drafts` と `materials` の中だった。止めの控えの確かめは無くし（回すかは graph の `when:`。README の 4.3）、作業ツリーの写しはこの block が自分で取る。
+今との違い: 今は差分の根を `judge/start.json`（`start_view` の `diff_base`）から、依頼の行を `judge/request.json` から、止めの控えを `judge/stop.json` から名で開き（`lib/judge_accept.py:3547-3584`）、役の前の作業ツリーの写しは judge の入口（か仕様の承認の後）が置いた `judge/judge-tree.json` を使っていた（`:3622`）。出口は判定の出力の欄 `pr_excluded`・`pr_drafts` と `materials` の中だった。止めの控えの確かめは無くし（回すかは graph の `when:`。README の 4.3）、作業ツリーの写しはこの block が自分で取る。段の port `stage` は今に無い（今は修正の後に回し直さない。6 節の 2・10）。
 
 ### 1.3 node の並び（`workflows/parallel-pr/works-factory-parallel-pr.yaml`）
 
-1. `scan`（script `scan.py`）: port を読み、place の中のこの block のファイルを名で引いて消し（place そのものは消さない。README の 13 章）、役の前の作業ツリーの写し `tree.json` を取り、機械の道を回す。返り `{go_role, reason}`。
+1. `scan`（script `scan.py`）: port を読み（`stage` は渡し物 `pr-brief.json` に書く）、place の中のこの block のファイルを名で引いて消し（place そのものは消さない。README の 13 章）、役の前の作業ツリーの写し `tree.json` を取り、機械の道を回す。返り `{go_role, reason}`。
    - `output_format`: `{type: object, additionalProperties: false, required: [go_role, reason], properties: {go_role: {type: boolean}, reason: {type: string}}}`。
 2. `pr-check-loop`（`loop_group`、`max_iterations: 3`、`fresh_context: false`、`until_bash: 'done=$pr-check-accept.output.done; test "$done" = true'`、`when: "$scan.output.go_role == true"`）
    - `pr-check-prep`（script `prep.py`。`mutates_checkout: false`）: 指示を組む。返り `{prompt}`（`output_format` は `prompt` の string だけ）。
@@ -73,7 +73,7 @@ script の名は `lib/` のモジュールの名と重ねない（README の 7.1
 `ports.place()`（単独の run では `$ARTIFACTS_DIR/`、line から judge のまとめを通して include された時は `$ARTIFACTS_DIR/judge/parallel-pr/`）の下に書く。名は `src/files.py` だけが持つ:
 
 - `tree.json`（役の前の作業ツリーの写し。今の `judge/judge-tree.json` の役目のうち、この block の分）
-- `pr-brief.json`（役への渡し物。今のまま `{node, cwd, base, changed_files, request_wheres, fallback}`）
+- `pr-brief.json`（役への渡し物。今の形に段を足した `{node, cwd, base, changed_files, request_wheres, fallback, stage}`。`prep` と受け付けが `src/scan.py` の `stage_of` で `stage` を読む。欄が無い・語の外なら `before`）
 - `material-pr-check.json`（素材の控え。今のまま `{role, reply, materials: {parallel_pr}}`）
 - `pr-excluded.json`・`pr-downgrades.json`（今と同じ名と形）
 - `rejects-pr-check.json`（`rolekit` の却下の控え）
@@ -97,29 +97,30 @@ script の名は `lib/` のモジュールの名と重ねない（README の 7.1
 ### 1.6 つなぎ方（graph の側。block には書かない）
 
 - judge のまとめ（`workflows/judge/`）: `include: works-factory-parallel-pr`。`when:` は今の pr-scan の条件「判定の道（再審の道でない）で、仕様の段が止めていない」を line が引いた真偽。`with:` は `request: $<依頼の pointer>`・`base: <始めの記録の diff_base>`・`changed: "[]"`・`lang: <始めの記録の lang>`・`stage: before`。仕様の段を挟む run では、今と同じく仕様の承認の後に回す（承認で書いた受け入れテストのファイルを、役の前の写しに入れるため。今の `spec_answer` が写しを取り直していた事の替わり）。
-- 読み手: diagnose の `materials`（`$parallel-pr.output.material`）と再審の材料（`excluded`）・plan と plan-review と案の直し（`excluded`。今の `planblk.head` の「外す hunk」の節）・report の `sections`（`$parallel-pr.output.report`）と下げた物（`downgrades`）・line（`stop_reason` で止めるか）。fix には今も渡らない（6 節の 5）。
+- line（`workflows/line/`）: 修正の後に node `parallel-pr-after` で `include: works-factory-parallel-pr` を 1 度だけ回す。`when:` は判定から入る run で直した差分が在る時（`$fixed.output.diffed == true && $request-in.output.entry != ''`）。`with:` は `request`・`base: <修正前の HEAD（base_rev）>`・`changed: "[]"`・`lang`・`stage: after`（line の設計書の 8 節の 1）。
+- 読み手: diagnose の `materials`（`$parallel-pr.output.material`）と再審の材料（`excluded`）・plan と plan-review と案の直し（`excluded`。今の `planblk.head` の「外す hunk」の節）・report の `sections`（`$parallel-pr.output.report`）と下げた物（`downgrades`）・line（`stop_reason` で止めるか）。fix には今も渡らない（6 節の 5）。段 `after` の読み手は line の最後の承認ノードと報告（`status`・`drafts`・`report`）だけで、`excluded` は渡らない（line の設計書の 8 節の 1）。
 
 ## 2 node の設計シート: pr-check（任せ先の役）
 
 ### 2.1 役
 
-機械が決められなかった時に起き、開いている PR とこの run の変更ファイルの交差を 6 段で確かめ直し、ぶつかる hunk を外し、担当への申し送りの下書きを書く。投稿しない。
+機械が決められなかった時に起き、開いている PR とこの run の変更ファイルの交差を 6 段で確かめ直し、ぶつかる hunk を外し（段 after では外さない）、担当への申し送りの下書きを書く。投稿しない。
 
 ### 2.2 port
 
-`pr-brief.json`（← `scan` が port `base`・`changed`・`request` から組んだ渡し物）・前の回までの却下の理由（← `rejects-pr-check.json`）・`lang`（← port `lang`）。リポジトリは run の作業ツリーで、port ではない。
+`pr-brief.json`（← `scan` が port `base`・`changed`・`request`・port `stage` から組んだ渡し物）・前の回までの却下の理由（← `rejects-pr-check.json`）・`lang`（← port `lang`）。リポジトリは run の作業ツリーで、port ではない。
 
 ### 2.3 組み立ての順（`prompts/pr-check.md`）
 
 1. `<!-- if rejected -->` `{shared:rejected}` `<!-- end rejected -->` — 条件: 却下の控えが空でない。断片の中の `{rejection}` ← `rolekit.rejects_text(rolekit.rejected(place, "pr-check"))`（古い順に全部。日本語。4 節）。
 2. `{shared:query-rule}`（外への検索の決まり）。断片の `spawns` には `false` を渡す（この役は Agent の道具を持たない）。
-3. 役の定義と読むだけの決まり（決まった文）。
+3. 役の定義と読むだけの決まり（決まった文）。役の定義の段落は `<!-- if not after -->` と `<!-- if after -->` で選ぶ。条件: 渡し物の `stage` が `after`。
 4. 渡し物の 1 行と `{brief_file}` ← `src/files.py` の `pr-brief.json` の place の絶対パス。
 5. `{shared:works-gh}`（読むだけの口の使い方。materials の設計書の 3.2 が決めた断片）と、口が無い時の 1 文（決まった文）。
 6. 渡し物の欄の説明（決まった文）。
-7. 6 段（決まった文）と差し込み口 `{limit}`（← `src/files.py` の `PR_LIMIT`）。
+7. 6 段（決まった文）と差し込み口 `{limit}`（← `src/files.py` の `PR_LIMIT`）。段 6 は `<!-- if not after -->` と `<!-- if after -->` で選ぶ。条件: 渡し物の `stage` が `after`。
 8. 動かしてはいけない語と、決めてはいけない事（決まった文）。
-9. `## How to answer`（決まった文）と差し込み口 `{lang}`。
+9. `## How to answer`（決まった文）と差し込み口 `{lang}`。`excluded` の箇条は `<!-- if not after -->` と `<!-- if after -->` で選ぶ。条件: 渡し物の `stage` が `after`。
 10. `{shared:material-status}`（素材の書き方。materials の 3.2）。
 11. `## Whether you may write not_applicable` と `{shared:material-na}`（同じ。`na_never: true`）。
 12. 結びの 1 文（決まった文）。
@@ -196,11 +197,11 @@ Return only JSON that matches the output schema.
 
 ### 2.4 返す形
 
-今の `output_format` のまま: `{material: {status (found|clean|carried_over|not_applicable|awaiting_human|not_run), count?, detail?, checked?, reason?, from_round?}, repo, listed (0 以上の整数), truncated (boolean), conflicts: [{pr, files, handed_over, note?}], excluded: [{pr, file, start (1 以上), end (1 以上), why}]}`（全部 required。`excluded` の行の字の欄は `minLength: 1`・`pattern: '\S'`）。`carried_over` と `from_round` は素材の札の共通の形に合わせて残す（受け付けが拒む。4 節）。人に見せる欄は `material.detail`・`checked`・`reason`・`conflicts[].note`・`excluded[].why`（報告と人に載る）で、言語は `{lang}`。
+今の `output_format` のまま: `{material: {status (found|clean|carried_over|not_applicable|awaiting_human|not_run), count?, detail?, checked?, reason?, from_round?}, repo, listed (0 以上の整数), truncated (boolean), conflicts: [{pr, files, handed_over, note?}], excluded: [{pr, file, start (1 以上), end (1 以上), why}]}`（全部 required。`excluded` の行の字の欄は `minLength: 1`・`pattern: '\S'`）。`carried_over` と `from_round` は素材の札の共通の形に合わせて残す（受け付けが拒む。4 節）。人に見せる欄は `material.detail`・`checked`・`reason`・`conflicts[].note`・`excluded[].why`（報告と人に載る）で、言語は `{lang}`。形は段で変えない。段 `after` では受け付けが `excluded` の行を 1 つでも拒む（4 節の 5）。
 
 ### 2.5 描いた骨組み（例の run の値）
 
-例の run の役は今の `workflows/judge/commands/pr-check.md` を Archon が置き換えた指示を受けた（組んだ指示はファイルに残っていない）。下は同じ値を新しい md に入れた骨組み（値は例の run の `judge/pr-brief.json` と、`rejects-pr-check.json` が無いこと〔1 回目で通った〕から）。
+例の run の役は今の `workflows/judge/commands/pr-check.md` を Archon が置き換えた指示を受けた（組んだ指示はファイルに残っていない）。下は同じ値を新しい md に入れた骨組み（例の run は修正の前なので段 `before` の文。値は例の run の `judge/pr-brief.json` と、`rejects-pr-check.json` が無いこと〔1 回目で通った〕から）。
 
 ```markdown
 Rules for queries to outside services …（{shared:query-rule} の本文。spawns が false なので下請けの段落は入らない）
@@ -245,7 +246,7 @@ This viewpoint has no condition under which it does not apply, so the acceptance
 Return only JSON that matches the output schema.
 ```
 
-渡し物の中身（例の run）: `cwd` は run の作業ツリー、`base` は `4961c50a53410f4bdc4dfb5ece8a4ca13612a916`、`changed_files` は `["workflows/merge/scripts/pr_commit.py"]`、`request_wheres` は `["workflows/merge/scripts/pr_commit.py の hook_env（73 行あたり）"]`、`fallback` は「並行 PR と 1 件交差した（['756']）——交差した hunk を読んで担当の PR に申し送る 6 段は役」。place のパスは include の道（`judge/parallel-pr/`）が入った形で書いた。役は 1 回目で通り、`material.status: found`・`conflicts` 1 行（#756）・`excluded: []` を返した。
+渡し物の中身（例の run）: `cwd` は run の作業ツリー、`base` は `4961c50a53410f4bdc4dfb5ece8a4ca13612a916`、`changed_files` は `["workflows/merge/scripts/pr_commit.py"]`、`request_wheres` は `["workflows/merge/scripts/pr_commit.py の hook_env（73 行あたり）"]`、`fallback` は「並行 PR と 1 件交差した（['756']）——交差した hunk を読んで担当の PR に申し送る 6 段は役」。`stage` の欄は無い（例の run は段を足す前。`stage_of` は `before` と読む）。place のパスは include の道（`judge/parallel-pr/`）が入った形で書いた。役は 1 回目で通り、`material.status: found`・`conflicts` 1 行（#756）・`excluded: []` を返した。
 
 ### 2.6 今の指示との差
 
@@ -259,12 +260,13 @@ Return only JSON that matches the output schema.
 - 替えた: 渡し物のパス `$ARTIFACTS_DIR/judge/pr-brief.json` を `{brief_file}`（place の絶対パス）に。上限 100 を `{limit}` に（`src/files.py` の `PR_LIMIT` と受け付けの打ち切りの決めが同じ字を持つ。README の 5.3）。
 - 消した: 見出し「# P0-5 並行 PR 衝突チェック」の段の番号（graphloops の段の名で、この block は知らない）。
 - 消した: 6 段の括弧の中の「外した hunk は後の役——判定・修正案・修正——に触らない範囲として渡る」「下書きは報告の冒頭に載り」（下流の block の振る舞いを役に前提として伝えていた。world の 3.6 と同じ決め）。「人が読んで渡す」だけを残した。
+- 足した: 段 `after` の差し替えの文（2.3 の 3・7・9。頭の段落・段 6・`excluded` の書き方）。今の指示は修正の後に回らないので、段の別を持たなかった。
 - 足した: `pr-check` に、共通の断片 `works-gh` から、WebFetch・WebSearch の使い方の 1 文が入った。
 - 足した物: 共通の断片 `query-rule` の「一次の出典を先に当たる」の 1 項目（今の指示には無い）と、`material-na` の断片の `na_never` の文（「found か clean と書き、確かめられなければ not_run と理由を書く」。今の指示は『条件に当たらない』の段を持たなかった）。どちらも共通の断片が持つ文で、この block では書き換えない。英語にした（#764）。役の名「任せ先の役」は "the parallel-PR role"。
 
 ## 3 script の node
 
-- `scan.py`: `INPUTS_REQUEST`・`INPUTS_BASE`・`INPUTS_CHANGED`・`INPUTS_STAGE`（`ports.choice(…, ("before", "after"))`）を `os.environ.get("INPUTS_REQUEST")` などの字のままで読み、`ports.json(…, "request.schema.json")`・`ports.text(…)`・`ports.json(…, "changed.schema.json")` に渡す（口の名は土台の PR の `ports.py` に合わせる）。place の中のこの block のファイルを名で引いて消し（place そのものは消さない。README の 13 章）、`tree.json` に `accept.tree_state(<作業ツリー>)` を書く。それから今の `pr_scan` と同じ順: `forge.reason(forge.detect(repo))` が空でなければ `not_applicable` の素材、そうでなければ `parallel_pr_plan`（`fallback` なら役へ、`blocked` なら `not_run`）、数えを `parallel_pr_scan` で回して `parallel_pr_reply`。渡し物 `pr-brief.json` はどの道でも書く。機械が決めた時は `material-pr-check.json` と空の `pr-excluded.json`（`{node, head, excluded: []}`）を書く。中の誤りは今の `pr_check.py` と同じく捕まえて役に任せる（`go_role: true`、`reason` は「機械の道が落ちた（<型>: <文>）——役に任せる」）。
+- `scan.py`: `INPUTS_REQUEST`・`INPUTS_BASE`・`INPUTS_CHANGED`・`INPUTS_STAGE`（`ports.choice(…, ("before", "after"))`）を `os.environ.get("INPUTS_REQUEST")` などの字のままで読み、`ports.json(…, "request.schema.json")`・`ports.text(…)`・`ports.json(…, "changed.schema.json")` に渡す（口の名は土台の PR の `ports.py` に合わせる）。place の中のこの block のファイルを名で引いて消し（place そのものは消さない。README の 13 章）、`tree.json` に `accept.tree_state(<作業ツリー>)` を書く。それから今の `pr_scan` と同じ順: `forge.reason(forge.detect(repo))` が空でなければ `not_applicable` の素材、そうでなければ `parallel_pr_plan`（`fallback` なら役へ、`blocked` なら `not_run`）、数えを `parallel_pr_scan` で回して `parallel_pr_reply`。渡し物 `pr-brief.json` はどの道でも書く（`stage` の欄も）。`stage` が語の外なら入力が読めない時と同じく `go_role: false` で拒む（10 節の 10）。機械が決めた時は `material-pr-check.json` と空の `pr-excluded.json`（`{node, head, excluded: []}`）を書く。中の誤りは今の `pr_check.py` と同じく捕まえて役に任せる（`go_role: true`、`reason` は「機械の道が落ちた（<型>: <文>）——役に任せる」）。
 - `prep.py`: 却下の控えを `rolekit.rejected(place, "pr-check")` で読み、`prompt.emit("pr-check", values, when, prompt.round_of("pr-check"))`（組んだ指示を `pr-check-prompt-<n>.md` に書いて返す）で組む。`values` は `brief_file`・`limit`・`lang`（空なら README の 5.3 の既定の英文）・`rejection`（却下が在る時）・`na_why`（空の字。`material-na` の断片の差し込み口）。`when` は `{"rejected": <却下が在るか>, "after": <渡し物の stage が after か>, "spawns": False, "na_never": True, "na_cond_true": False, "na_cond_false": False, "na_judged": False}`（`spawns` は query-rule の断片の下請けの段落）。
 - `take.py`: `rolekit.accept_round(place, "pr-check", INPUTS_REPLY, take)`（3 回目の却下で `done` を返す。諦めた時の後始末の引数は持たない）。`take` は 4 節の順で照らす。諦めた時の控えは別に書かず、`finish` が `rolekit.given_up_reason(place, "pr-check")` を読む（今の止めの控え `write_stop(stopby.PR, …)` の替わり）。
 - `read_proof.py`: 今の `pr_reads.py` と同じく落ちない（中の誤りは `{ok: false, missing: [], index_file: "", reason}` で返す）。`reads.guarded(lambda: src.proof.collect(place, reads.log_here(), repo), owner="pr-check", place=place)`。落ちた時の記録は名に時刻が入る `reads-pr-check-failed-<時刻>.json`（1.4）。
@@ -296,28 +298,29 @@ bin/works-factory workflow run works-factory-parallel-pr \
   --input changed='["path/to/file.py"]'
 ```
 
-`request` を渡せば、`changed` が空で `base` からも取れない時に行の `where` が名指すファイルを使う。remote が GitHub でない対象では役を起こさず `not_applicable` を返す。出力は `workflow get <run>` の `finish` の返り。始めの記録は要らない。殻の引数の名は（未確認）（world の 7 節と同じ。土台の PR で決める）。
+`request` を渡せば、`changed` が空で `base` からも取れない時に行の `where` が名指すファイルを使う。remote が GitHub でない対象では役を起こさず `not_applicable` を返す。出力は `workflow get <run>` の `finish` の返り。`--input stage=after` を足せば修正の後の段（hunk を外さず申し送る）で回る。始めの記録は要らない。殻の引数の名は（未確認）（world の 7 節と同じ。土台の PR で決める）。
 
 ## 6 元の works と graphloops の同じ場面
 
 元の works の `works/blk-pr/`（pr-snap・pr-loop〔pr-check と pr-accept〕・pr-reads・collect）から、工場はほぼ同じコードを写した（#76 `37b7a693`）。graphloops の `prompts/review-loop/p0.parallel_pr.md`（`graphs/review-loop.json:1833-1975`）は書き手が自分で回す節で、任せ先に落ちるのは機械が決められない時だけ。工場に無い物・違う物と、その訳:
 
 1. 担当の PR へ投稿する（graphloops の 6 段は `handed_over: true` で投稿する）: 工場と元の works は下書きだけ。持ち主の決め 2026-09-27（元の works の `docs/specs/2026-09-29-darkfactory-single-run-design.md:33,402` の「案 (a)」）。工場の `docs/owner-decisions.md` にはこの決めの行が無く、跡は `NO_POST` の字と md だけ（（未確認）: 工場の台帳に書き写さなかった訳の記録は無い）。この block は下書きのまま。
-2. 周の条件（graphloops の `parallel_pr_due`。1 周目か、判定から入る run の最初の修正の次の周で回し直し、変更ファイルの集合をその周に固めた版から取り直す）: 工場は写したが使っていない（`lib/judge_accept.py:1612` の関数を名指す節が無い。judge の `pr-scan` は判定の道で 1 回だけ走る）。（未確認）: 外した記録は無い。block は周を知らないので、回し直すかは line の `when:` の決め（line の設計書で扱う）。この block は呼ばれれば今の作業ツリーで数える。
+2. 周の条件（graphloops の `parallel_pr_due`。1 周目か、判定から入る run の最初の修正の次の周で回し直し、変更ファイルの集合をその周に固めた版から取り直す）: 工場は写したが使っていない（`lib/judge_accept.py:1612` の関数を名指す節が無い。judge の `pr-scan` は判定の道で 1 回だけ走る）。（未確認）: 外した記録は無い。block は周を知らないので、回し直すかは line の `when:` の決め。line の設計書の 8 節の 1 が、判定から入る run で直した差分が在る時に修正の後に 1 度回し直すと決めた（node `parallel-pr-after`、`stage: after`）。この block は呼ばれれば今の作業ツリーで数え、hunk を外すかを段で分ける（10）。
 3. 素材の札ごとの要る欄の照らし（graphloops の `check_record`〔`rules/review-loop.py:4316`〕と元の works の `b.done`。found は count と detail、clean は checked、ほかは reason が要る。carried_over を走った役が書くのを拒む）: 工場は `status` が語のどれかしか見ない（`judge_accept.py:3621-3623`）。md は「流用と書いても拒まれる」と言うのにコードは拒まない。（未確認）: 外した記録は無い。この block の受け付けで戻す（4 節の 4）。graphloops の `na_self_ok: false` に当たる「役は not_applicable を名乗れない」も戻す。
 4. 役の前の作業ツリーの写し（元の works は役の直前に `pr-snap` が取った）: 工場は judge の入口か仕様の承認の後の写し `judge/judge-tree.json` と比べる（#76 から。（未確認）: 訳の記録は無い）。この block は元の works と同じく役の直前（`scan`）で取る。
-5. 外す hunk の読み手: 元の works は判定・修正案・修正に渡す作りだったが配線が無く報告にだけ届いた（`darkfactory.yaml:483,689`）。graphloops は書き手の会話の記憶だけ。工場は plan・plan-review・案の直しと事前審査の頭（`planblk.head`。#699 `8b847357`）・再審の材料（`judge_accept.py:3231`）・報告（`runreport.pr_lines`）・`boardview`・`pass_open` が読む。fix と diagnose には渡らず、外した範囲を直したら拒む機械の関門は無い（`fixboard.JUDGE_COPIES` に無い）。`text`・`sha256` の印を読む物はどちらのリポジトリにも無い。この block は形を変えずに出す（読み手を足すかは各 block と line の決め）。
+5. 外す hunk の読み手: 元の works は判定・修正案・修正に渡す作りだったが配線が無く報告にだけ届いた（`darkfactory.yaml:483,689`）。graphloops は書き手の会話の記憶だけ。工場は plan・plan-review・案の直しと事前審査の頭（`planblk.head`。#699 `8b847357`）・再審の材料（`judge_accept.py:3231`）・報告（`runreport.pr_lines`）・`boardview`・`pass_open` が読む。fix と diagnose には渡らず、外した範囲を直したら拒む機械の関門は無い（`fixboard.JUDGE_COPIES` に無い）。`text`・`sha256` の印を読む物はどちらのリポジトリにも無い。この block は形を変えずに出す（読み手を足すかは各 block と line の決め）。読み手が居るのは段 `before` の `excluded` だけで、段 `after` の `excluded` は空で読み手も無い（1.6）。
 6. 下げた物の宣言 `lib/downgrades.json`（2 行。p0.parallel_pr の投稿しない事と r2.design の作り直さない事）: 読むのは報告の頭の「下げている所: K 個」だけ（`runreport._downgrade_lines`、#264 `cb21409c`）。`docs/nodes.json:191-199` の 7 行の一覧と数も字も合っていない。元の works は宣言の node が graph に在るかも照らした（元 `prcheck.py:322`。工場で落ちた。（未確認））。2 つの block の事を 1 つのファイルに持つ形は block の独立に合わないので、この block は自分の行だけを出力の欄 `downgrades` で返す（10 節の 8）。ファイルと読み手の組み直しは report の設計書の決め。
 7. 機械の道が落ちた時（元の works の `run_helper` は 1 回やり直して、AI の前に `Refused` で止めた）: 工場は役に任せる（`pr_check.py:18-21`。持ち主の台帳 J32「起こし直しは当たらない」`docs/plans/2026-10-13-capabilities/judge.md:213`）。この block も役に任せる。
 8. 拒まれた後の出し直し（元の works は理由のファイルを読ませ「名指された所だけ直せ」）: 工場は理由を貼って丸ごと出し直させる（#76・#191）。この block も丸ごと（理由は古い順に全部。2.6）。
 9. 読むだけの口 `works-gh` と網の閉じた sandbox: 元の works と同じ（#21 `622aee9b`・#103 `521f2086`・持ち主の決め `roles-read-only-gh`）。工場は役の環境から GitHub のトークンを外す（#103・#152 `a0dc5e32`）と、Archon の家への書き込みの禁止（#591 `b1c7c9a7`）を足した。どちらも YAML のまま写す。
+10. 修正の後の確かめで hunk を外さない段（`stage: after`）: graphloops の回し直しは次の周で、その周に固めた版から変更ファイルを取り直す（上の 2）。工場の回し直しは同じ run の修正と緑の確かめの後に当たり、ここで hunk を抜くと緑の認証と封じが無効になる。この block は段 `after` では外さず、差分に残っていると下書きに書かせ、受け付けが `excluded` の行を拒む（1.2・4 節の 5）。（未確認）: 元の works が修正の後に回し直したかは見ていない。
 
 この block が両方より良く、残す物: `-R HOST/OWNER/REPO` のホストまで書く読み（#203 `24229596`。GHES を取り違えない）・機械の道が落ちても役に任せる・外への検索の決まり・外す hunk が案と事前審査と再審に届く（#699）・役のトークンを外す（#103・#152）・読んだ証拠の node（#363 `6217c6a7`）。
 
 ## 7 試験
 
 - standalone の fixture（`workflows/parallel-pr/fixtures/`）:
-  - `standalone.stubs.yaml`: 入力は `changed: '["a.py"]'` だけ（`request`・`base` は既定）。役の道: `scan` を `go_role: true` で差し替え（筋書きの作業ツリーは remote が GitHub でなく、本当に走らせると機械が条件外と決めて役を起こさないため）、AI の node `pr-check` に返答を置き、`exec-code: true` でほかの script は本当に走らせる。`reached: [scan, pr-check-prep, pr-check, pr-check-accept, pr-check-reads, finish]`。
+  - `standalone.stubs.yaml`: 入力は `changed: '["a.py"]'` だけ（`request`・`base`・`stage` は既定。`stage` は `before`）。役の道: `scan` を `go_role: true` で差し替え（筋書きの作業ツリーは remote が GitHub でなく、本当に走らせると機械が条件外と決めて役を起こさないため）、AI の node `pr-check` に返答を置き、`exec-code: true` でほかの script は本当に走らせる。`reached: [scan, pr-check-prep, pr-check, pr-check-accept, pr-check-reads, finish]`。
   - `machine.stubs.yaml`: 機械が決める道。差し替えるのは AI の node だけなので何も差し替えず、本物の `scan` が筋書きの作業ツリー（remote が無い）で条件外と決め、`reached: [scan, finish]`。
   - `gave-up.stubs.yaml`: 担当の PR へ投稿したと名乗る返答（`handed_over: true`）で受け付けが拒む道。筋書きでは輪が 1 周で終わるので、3 回で諦めて `stop_reason` が `works:pr` になる数えは tests/blocks/parallel_pr の試験が見る。run は `completed`。
 - `tests/blocks/parallel_pr/test_parallel_pr.py`（試験のフォルダの名は block の名の `-` を `_` にした物。Python の package の名に `-` を使えないため）: script を子のプロセスで回す。始めの記録の無い使い捨ての `ARTIFACTS_DIR` と、remote を GitHub の URL にした git のリポジトリで、port の値だけを渡す。gh は試験の偽の口（今の `_PrBase` の `gh` の差し替えと同じく、`PATH` の頭に置いた偽の `gh` か、`src/scan.py` の口の引数）で返す。回す筋:
@@ -331,7 +334,8 @@ bin/works-factory workflow run works-factory-parallel-pr \
   - `lib/tests/test_judge_accept.py` の `PrScanCase` の全部（`test_no_crossing_is_decided_by_machine`・`test_crossing_falls_back_to_role`・`test_diff_files_win_over_request_wheres`・`test_gh_missing_falls_back`・`test_no_forge_is_not_applicable`・`test_empty_set_is_not_run`・`test_truncated_and_unreadable_wait_for_human`・`test_github_repo_redacts_token`・`test_github_repo_reads_the_url_with_forge`・`test_github_repo_takes_the_tracked_remote_first`）と `PrAcceptCase` の全部（`test_check_no_post`・`test_handed_over_true_rejected`・`test_handover_draft_accepted_with_anchor`・`test_no_conflicts_reply_accepted`・`test_excluded_checked`・`test_fallback_role_reads_only`・`test_head_move_and_ignored_paths_are_refused`）。`test_stopped_run_does_not_go` は写さない（止めの控えを読まない。4.3）。
   - `tests/workflows/test_judge.py` の `ParallelPrThroughReadOnlyGhTest.test_parallel_pr_scan_passes_the_read_only_gh`（gh の打ち方が読むだけの口の許しの表に合う）・`test_pr_check_reply_outside_the_type_is_rejected`・`test_pr_check_must_read_its_brief`・`test_pr_reads_returns_the_same_with_or_without_the_parents_config_dir`・`test_pr_check_reads_runs_after_the_role_on_the_roles_rounds`・`test_pr_check_reads_without_record_does_not_fail`（block では `ReadsCase`・`WiringCase`）。
   - 足す: `carried_over` の素材を拒む・`not_applicable` を拒む・found に count が無い返答を拒む（4 節の 4）・役を諦めた時の `stop_reason: works:pr`・素材の控えが無い時の `not_run` と `stop_reason: works:pr`・`ok` 偽（3 節の `finish`）・読んだ証拠を集める node が落ちた時の落ちた記録の掃除と報告の行。
-- 読み手の側の試験はそれぞれの block と line に残す（diagnose の素材の読み・plan と fix の外す hunk の照らし・report の行）。
+  - 段（1.2 の `stage`。`tests/blocks/parallel_pr/test_parallel_pr.py` の `FlowCase`）: `test_after_stage_keeps_the_hunks_and_refuses_excluded_rows`（段 `after` で渡し物に `stage` が書かれ、指示の段 6 が外させない文に替わり、受け付けが `excluded` の行を持つ返答を拒み、空なら通して `found` で終わる。段 `before` の指示は外させるまま）・`test_unknown_stage_is_refused_at_the_entry`（語の外の `stage` を `scan` が `go_role: false` で拒む）。
+- 読み手の側の試験はそれぞれの block と line に残す（diagnose の素材の読み・plan と fix の外す hunk の照らし・report の行）。段を渡す配線は、judge の `tests/blocks/judge/test_judge.py` の `test_parallel_pr_runs_before_the_fix`（`stage: before`）と line の `tests/blocks/line/test_wiring.py` の `test_parallel_pr_after_runs_for_judged_entries_with_a_diff`（`stage: after`）が照らす。
 - keep-essence の 12 の仕組みのうち、この block が担う物は無い（README の 10 節の割り当てに並行 PR は無い）。守るのは、外す hunk の控えの形を崩さないこと（plan・plan-review・再審の材料が読む）: `pr-excluded.json` の形（`{node, head, excluded: [{pr, file, start, end, why, text, sha256}]}`）を今と同じに保つ試験（`test_handover_draft_accepted_with_anchor` の写し）で縛る。e2e の `tests/e2e/evidence.json` の J33・J36・R80 は、node の id と place のパス（`judge/parallel-pr/…`）を新しい物に合わせる。
 
 ## 8 報告の行（`src/report.py`）
@@ -364,6 +368,7 @@ bin/works-factory workflow run works-factory-parallel-pr \
     - 作業ツリーの写しの照らしは `lib/materialkit.moved_since` を使い、`take.py` に写しの読みを持たない。根拠: 同じ部品が `lib/` に在る（2 つ以上の block が使う）。
     - `scan` は返りを place の `scan.json` にも残し、`finish` がそれを読む（`finish` は `scan` の返りを `with:` で受けない）。根拠: `scan` が落ちた回・飛んだ回でも `finish` が訳を読める。
     - `prep` は `lang` を `INPUTS_LANG` から直に読む（place に控えない）。
+    - `prep` と受け付けは段を port から読まず、`scan` が渡し物に書いた `stage` を `src/scan.py` の `stage_of` で読む（欄が無い・語の外なら `before`）。根拠: 役が読む渡し物と指示と受け付けの段を、1 つの値に揃える。
     - 入力が読めない・作業ツリーの写しが取れない時は、`scan` が `go_role: false` と訳を返し、出口が `status: failed`・素材 `not_run` にする（役を起こしても写しが無く受け付けが比べられない）。
     - `reason`（出口）は `scan` の訳を、機械が決めた時も役に任せた時も入れる（1.2 の「役に任せた訳」に合わせた）。
     - 筋書き: `standalone` は役の道（`scan` だけ差し替え。筋書きの作業ツリーは remote が GitHub でなく、本当に走らせると機械が条件外と決めて役を起こさないため）、`machine` は何も差し替えない機械の道（本物の `scan` が条件外と決める。差し替えは AI の node だけ）、`gave-up` は投稿したと名乗る返答。
