@@ -288,7 +288,7 @@
 
 - 持ち主の言葉（2026-10-15、issue #558）: 「おしで」（運び役の推し「同居のまま」への答え）
 - 決め: 再審の道は判定のサブグラフ（`workflows/judge/`）の中に置いたままにする。再審だけの 9 つ目のサブグラフに分けない。訳: 分けると、再審が判定の置き場を境の外から前提にし、サブグラフの独立（本質 4）が崩れる。
-- 当て方: `workflows/judge/works-factory-judge.yaml` の再審の道（`rejudge-loop`）（#765 で再審は diagnose の block と、それを起こす `workflows/line/works-factory-line.yaml` へ移った）。判定の道だけで走る段は YAML の `when`（`diagnose-prep`・`verify-merge`）で再審の道から外し、`test_judge.py`（#765 で消した） が縛る。
+- 当て方: `workflows/judge/works-factory-judge.yaml` の再審の道（`rejudge-loop`）（#765 で再審は diagnose の block と、それを起こす `workflows/line/works-factory-line.yaml` へ移った）。判定の道だけで走る段は YAML の `when`（`diagnose-prep`・`verify-merge`）で再審の道から外し、tests/workflows の `test_judge.py`（#765 で消した） が縛る。
 
 ### `three-tiers` run の深さは 3 段にし、段の違いは省く物と足す物で作る。計画の壁打ちはどの段でも省かない
 
@@ -364,7 +364,7 @@
   - 使用枠の切れで落ちた時は、別のアカウントの keychain の項目名（`WORKS_FACTORY_KEYCHAIN_ITEM`）で resume すると、書き手のループと `report` だけが走り直して本文が載る（`facts` は走り直さない）。自動では再開せず、人が resume を打つ（工場は Archon の使用枠の待ちを切っている。`bin/_lib/place.py` の `QUOTA_POLICY`・`asf-follows-dev`）。
   - 提供元の安全の判定の誤りで落ちた時は failed のままでよい（同じモデルでは resume しても通らない）。
   - 書き手を fan_out の `join: all_done` で包んで落ちを run に数えない案は採らない（止めた Archon `355f1867` の `all_done` は落ちの印 providerFailure を落とすので、resume のやり直しが消える）。
-- 当て方: `design.md`（#765 で消した。`583337e` の版で読める） の「書き手のループが落ちた run（#702）」の行・`runreport.py` の `writer_fell`・`note_writer_fell`（#765 で report の `src/transcript.py` の `writer_fell` と `src/writer.py` の `note_writer_fell` へ移った）・`lib/answer.py` の `resume`。筋書きは `test_report.py`（#765 で消した） の `WriterRunCase`。
+- 当て方: `design.md`（#765 で消した。`583337e` の版で読める） の「書き手のループが落ちた run（#702）」の行・`runreport.py` の `writer_fell`・`note_writer_fell`（#765 で report の `src/transcript.py` の `writer_fell` と `src/writer.py` の `note_writer_fell` へ移った）・`lib/answer.py` の `resume`。筋書きは tests/workflows の `test_report.py`（#765 で消した） の `WriterRunCase`。
 
 ### `suite-by-ai` tdd_suite を省いた run は、取り置きか AI が書いた実行器を機械が照らして使う
 

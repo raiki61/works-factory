@@ -308,7 +308,7 @@ Return only JSON that matches the output schema.
 今の指示は 4 か所に在る: `workflows/plan-review/commands/r2-design.md`（19 行）・`$r2-prep.output.prompt` に入る `lib/boardview.py` の `r2_prompt`（:714-752）が組む本文（見出しは :99-111）・`lib/design.py` の前提の節の見出しと頼みの文（:83-89・:127-131）・YAML の `systemPrompt`（`works-factory-plan-review.yaml:146-153`）。
 
 - 移した: 本文の見出しと決まった文（`PURPOSE_HEAD`・`CONSTRAINTS_HEAD`・`STALE_LINE`、`boardview.py:102-110`）を md へ。前提の節の見出しと頼み（`DESIGN_PREMISE_HEAD`・`HUMAN_HEAD`・`HUMAN_ASK`・`NAMED_HEAD`・`NAMED_ASK`・`MAP_HEAD`・`MAP_ASK`、`design.py:83-131`）を共通の断片 `design-premises` へ。lib に残るのは材料の行（答えの行・節の本文・地図の本文）と、項目ごとに繰り返す短い見出し（`#### <名>:1-<行数>`・`#### <名指し>（<パス>:<行>）`。README 5.3）だけ。
-- 移した: 方針の節（`policy.section` の `HEAD`・`PREFACE`・`MATERIAL_NOTE`・`RULE`、`lib/policy.py:60-64` と `render.py:141`）を共通の断片 `policy` へ。Python に残るのは本文の切り方（`policy_body`）。
+- 移した: 方針の節（`policy.section` の `HEAD`・`PREFACE`・`MATERIAL_NOTE`・`RULE`、`lib/policy.py:60-64` と lib の `graphloops/engine/render.py:141`）を共通の断片 `policy` へ。Python に残るのは本文の切り方（`policy_body`）。
 - 移した: system prompt の 5 行（YAML の `systemPrompt`）を `prompts/design.system.md` へ。中身は土台の役の定義の断片 `role-blind-judge` と同じ字なので、その断片を差し込む。
 - まとめた: md と lib で 2 回言っていた「渡すのは元の目的と実測した制約だけ」（`r2-design.md:4`）と、それを読み替えさせる文（`DESIGN_PREMISE_REREAD`、`boardview.py:100-101`）を、渡す物を正しく並べた役の定義の 1 か所に。読み替えの文は要らなくなった。
 - まとめた: 「囲みの中に…」の説明（`r2-design.md:6`）と、本文を挟む区切り「=====渡した物ここから=====」「=====渡した物ここまで=====」（:9・:11）は、本文が md の節になったので消した。

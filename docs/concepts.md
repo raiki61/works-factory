@@ -3,7 +3,7 @@
 
 状態: 2026-10-13（issue #254・PR #269）。今の works の地図（`works/docs/concepts.md`）の柵を持つ 31 の考えを 1 つずつ今の木に当て、住処が works-factory に在る考えと散らばりの考えは全部載せ、考えそのものが works-factory に無い物は下の「載せない考え」に訳を書いた。載せた考えの住処の外の当たりは、本当の漏れなら表の既知の漏れに件数と理由を置き、同じ字の別の考えに当たるだけなら語の形を狭めた。行のパスは試験（`tests/layers/test_concept_fences.py`）が在ることを確かめる（まだ無い物は「予定」と書き、試験は見ない）。
 
-#765 の組み込み（2026-10-19）の後: 地図と表は組み込みの前の木（古いサブグラフと lib のモジュール）を名指したまま残る。works-factory 自身の木に全部を当てる試験 `test_concept_fences.py` は組み込みで消した（`docs/design/README.md` の 9.4）。表 `docs/concepts.json` は、run の中で構造の目が対象の表として読む（works-factory 自身を直す run）ので消さない。新しい形の考えの住処は、block の `src/`・`lib/` の行の形のモジュール・`workflows/.shared/` の口（`docs/design/README.md` の 1.2・4.1）。
+#765 の組み込み（2026-10-19）の後: 地図と表は組み込みの前の木（古いサブグラフと lib のモジュール）を名指したまま残る。works-factory 自身の木に全部を当てる試験（`tests/layers` に在った同じ名のファイル `test_concept_fences.py`）は組み込みで消した（`docs/design/README.md` の 9.4）。表 `docs/concepts.json` は、run の中で構造の目が対象の表として読む（works-factory 自身を直す run）ので消さない。新しい形の考えの住処は、block の `src/`・`lib/` の行の形のモジュール・`workflows/.shared/` の口（`docs/design/README.md` の 1.2・4.1）。
 
 載せない考え（今の works の地図に在り、考えそのものが works-factory に無い。漏れの多さは載せない訳にしない）:
 
@@ -218,7 +218,7 @@
 - 状態: 住処あり
 - 住処: `workflows/line/src/startrec.py`（標準ライブラリだけ。置き場の名 `REL`〔字は line の置き場の名の表 `workflows/line/src/files.py` の `START`〕と `path`、読み口 `read`・`load`、書き `write`・`save`、入口の入力の形の読み `shape`・`diff_empty`・`requests`、読む版と差分の根 `read_rev`・`diff_base`、入口の文 `words`、命令の版の 1 行 `cli_version`）
 - 約束: 住処の口だけ（置き場の名と読む口はここ 1 つ。記録の型の Schema は works-factory に無い。試験 `tests/blocks/line/test_startrec.py`）
-- 知ってよい所: 住処と、置き場の名の字を持つ `files.START` の 1 行。書き手はメイングラフの始めのノード `workflows/line/scripts/start.py`（`startrec.write`）と固定材料の取り込み（line の `src/fixture.py` の `adopt`）で、読み手は `startrec.read`・`startrec.load` を引く
+- 知ってよい所: 住処と、置き場の名の字を持つ `files.START` の 1 行。書き手はメイングラフの始めのノード `workflows/line/scripts/start.py`（`startrec.write`）と、直しの前の答えで方針を固め直す `workflows/line/scripts/before_fix_answer.py`（`startrec.save`）と、固定材料の取り込み（line の `src/fixture.py` の `adopt`）で、読み手は `startrec.read`・`startrec.load` を引く
 - 今: 柵は置き場の名を字で書く形・置き場の名の別名（START_REL・START_FILE）・別の読み口（start_doc の関数）。既知の漏れは、判定の置き場に始めの記録の写しを同じ名で置く `judge_accept.py` の `START_FILE` とそれを引く判定の支度の 2 つの script、最後の承認ノード `workflows/line/scripts/ask_final.py` の包み `start_doc`（4 ファイル 12 行）
 
 ### `human-gates` 人の承認ノードと無人の方針
