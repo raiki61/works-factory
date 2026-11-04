@@ -1229,6 +1229,57 @@ class TakePlanCase(PlaceCase):
         self.assertEqual(take.pop_field("字", ("handoff",)), ("字", {}))
 
 
+class MeansTakeCase(PlaceCase):
+    """頼みの解き方への答え（計画 means-answers の 3.1。5 章の 3）: 入口が port means を読み、受け付けの表に頼みの解き方を足す。答えの欠けと、
+    外れの訳に run の中の参照を持つ行を拒み、通った答えは控え plan-fields.json の structure に残る"""
+    MEANS = ["分母を len(xs) にする", "試験を先に足す"]
+    WHY = "リポジトリの決まりが試験を後に足すと決めているので、頼みの順から外す"
+
+    def setUp(self):
+        super().setUp()
+        self.base = git(self.repo, "rev-parse", "HEAD")
+        self.round, self.ctx = self.opened(means=self.MEANS)
+        steps.snap_tree(self.round / files.TREE, self.repo)
+
+    def take(self, reply, *, base_rev=None):
+        return take.take_plan(self.round, self.ctx, judgment=steps.read_judgment(self.ctx), reply=reply, repo=self.repo,
+                              tables=take.tables_of(self.ctx), base_rev=self.base)
+
+    def test_intake_reads_the_means_and_the_writer_sees_them(self):
+        self.assertEqual(self.ctx["means"], self.MEANS)
+        v, w = brief.values(self.place, self.repo)
+        self.assertTrue(w["means"])
+        self.assertEqual(v["means_rows"].splitlines(), ["- M1: 分母を len(xs) にする", "- M2: 試験を先に足す"])
+
+    def test_missing_answer_is_refused(self):
+        got = self.take({"plan": [item(MEAN, CLAMP, structure=[{"means": "M1", "follows": True}])]})
+        self.assertFalse(got["ok"])
+        self.assertIn("頼みの解き方 M2 にどの項目も答えていない", got["reason"])
+
+    def test_deviation_with_a_run_reference_is_refused(self):
+        rows = [{"means": "M1", "follows": True}, {"means": "M2", "deviation": self.WHY + "（stats.py:3 を見た）"}]
+        got = self.take({"plan": [item(MEAN, CLAMP, structure=rows)]})
+        self.assertFalse(got["ok"])
+        self.assertIn("頼みの解き方 M2 の外れの訳", got["reason"])
+
+    def test_answers_stay_in_the_fix_plan(self):
+        rows = [{"means": "M1", "follows": True}, {"means": "M2", "deviation": self.WHY}]
+        self.assertEqual(self.take({"plan": [item(MEAN, CLAMP, structure=rows)]}), {"ok": True, "reason": ""})
+        self.assertEqual(self.read(self.round / files.FIELDS)["fields"][0]["structure"], rows)   # 欄は盤面の控えに分けて置く
+
+    def test_replan_counts_unrevised_answers(self):
+        """形 replan: 直した項目が M1 から外れる答えを書けば通り、直さない項目の M2 の答えは承認済みの案から数える"""
+        first = item(MEAN, structure=[{"means": "M1", "follows": True}])
+        second = item(CLAMP, structure=[{"means": "M2", "follows": True}])
+        rows = [{"item": 1, "old": first}]
+        revised = item(MEAN, structure=[{"means": "M1", "deviation": self.WHY}], approach="mean の分母を len(xs) に直す")
+        tables = take.tables_of(self.ctx)
+        got = take.plan_errors(rows, {"plan": [revised]}, self.repo, take.exists_at(self.repo, "HEAD"), tables, [first, second])
+        self.assertEqual(got, [])
+        got = take.plan_errors(rows, {"plan": [item(MEAN)]}, self.repo, take.exists_at(self.repo, "HEAD"), tables, [first, second])
+        self.assertTrue(any("頼みの解き方 M1 にどの項目も答えていない" in g for g in got), got)
+
+
 class WholePlanTakeCase(PlaceCase):
     """R2: 2 往復目からの出し直しが WHOLE_PLAN で開いた項目を消したら、受け付けは消した項目を前の往復の行で戻さない。往復の記録は
     port prior の record（line が組む物）で受ける"""

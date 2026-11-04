@@ -20,6 +20,7 @@ import gatemarks  # lib/
 import handoff    # lib/
 import impact     # lib/
 import jsonfile   # lib/
+import plainask   # lib/。人に聞く文の照らし
 import planmarks  # lib/
 import replan     # lib/
 import rolekit    # lib/
@@ -77,6 +78,17 @@ def exists_at(repo, rev: str):
     return exists
 
 
+def means_text_gaps(plan) -> list:
+    """欄 structure の頼みの解き方の外れの訳（承認ノードに字のまま載る）のうち、人に聞く文の決まりに合わない行（plainask.gaps。計画 means-answers の 3.1 の 3）"""
+    out = []
+    for i, it in enumerate(plan if isinstance(plan, list) else []):
+        rows = it.get("structure") if isinstance(it, dict) and isinstance(it.get("structure"), list) else []
+        for j, row in enumerate(rows):
+            if isinstance(row, dict) and worldmark.MEANS in row and isinstance(row.get("deviation"), str):
+                out += plainask.gaps(f"plan[{i}].structure[{j}].deviation（頼みの解き方 {row[worldmark.MEANS]} の外れの訳）", row["deviation"])
+    return out
+
+
 # ---------------------------------------------------------------- 案の直し
 def _replaced(whole, rows, plan) -> list:
     """承認済みの案の全体 whole の、rows の項目の番号の所に返答の項目 plan（rows と同じ並び）を差し替えた並び（whole は変えない）"""
@@ -106,6 +118,7 @@ def plan_errors(rows, reply, repo, exists, tables, whole) -> list:
         out += planmarks.depends_gaps(replaced)
         out += planmarks.home_gaps(replaced)
         out += planmarks.structure_gaps(reply.get("plan"), tables, whole=replaced)
+        out += means_text_gaps(reply.get("plan"))
         out += gatemarks.narrow_gaps(planmarks.NODE, reply)
         out += gatemarks.recommend_gaps(planmarks.NODE, reply)
         out += gatemarks.plain_gaps(planmarks.NODE, reply)
@@ -261,7 +274,7 @@ def take_plan(folder, ctx: dict, *, judgment, reply, repo, tables, base_rev: str
              for p in whole], owed, opened)),
         _section(planmarks.REJECT, planmarks.gaps(plan, pathlib.Path(repo)) + planmarks.home_gaps(whole)),
         _section(planmarks.DEPENDS_REJECT, planmarks.depends_gaps(whole)),
-        _section(planmarks.STRUCTURE_REJECT, planmarks.structure_gaps(whole, tables)),
+        _section(planmarks.STRUCTURE_REJECT, planmarks.structure_gaps(whole, tables) + means_text_gaps(by_role["plan"])),
     ]
     machine = machine_row_errors(record, whole, plan, repo)
     if machine:
@@ -377,7 +390,7 @@ def accept(place, repo, reply, fix_reply) -> dict:
     合わせる → take → 控えに積む。返り {ok, done, give_up, reason, attempt}"""
     place = pathlib.Path(place)
     folder, ctx = steps.load(place)
-    tables = [planmarks.design_need(structmark.dirty(ctx["structure"] or None)), worldmark.need(_world_rows(ctx))]
+    tables = tables_of(ctx)
     mode, keys = ctx["mode"], accept_.status_keys("true")   # Archon の状態の照らしと重なる git status の行は比べない
     n, stopped = rolekit.current_round(folder, files.ROLE)
     if stopped:
@@ -402,6 +415,12 @@ def accept(place, repo, reply, fix_reply) -> dict:
     got = rolekit.accept_round(folder, files.ROLE, None, lambda _: out, net=True)
     tries = n - (1 if out.get("halt") else 0)   # 受けた・拒んだ回は今の回、halt は前の拒否の数
     return {**rolekit.round_outcome(got), "attempt": tries}
+
+
+def tables_of(ctx: dict) -> list:
+    """答えの要る行の表（planmarks.Need）の並び: 構造の目の汚れる行・世界の解の行・頼みの解き方（計画 means-answers）"""
+    return [planmarks.design_need(structmark.dirty(ctx["structure"] or None)), worldmark.need(_world_rows(ctx)),
+            worldmark.means_need(ctx.get("means"))]
 
 
 def _world_rows(ctx: dict) -> list:

@@ -118,6 +118,14 @@ Judgment record: {judgment_file}
 For each row that has a place it applies to (a row that needs an answer), some item writes in its works field structure that it follows the practice ({world: <class id>, follows: true}) or why it does not ({world: <class id>, deviation: <reason and source>}) (the check rejects a row that no item answers). The request's way of solving it is a proposal to doubt by comparing it with the practice, and it is not a deciding source: a deviation whose source is the request itself goes to a person before fixing. Answer the rows marked ({not_web}) in the same way.
 <!-- end world -->
 
+<!-- if means -->
+## The request's means (ways of solving that the request itself named, numbered by the machine)
+
+{means_rows}
+
+For each of these means, some item writes in its works field structure that it follows the means ({means: "M<n>", follows: true}) or why it does not ({means: "M<n>", deviation: <why the plan does not take this means, 20 characters or more>}) (the check rejects a means that no item answers). An item departs when the plan does not take that means, including when you set it aside to match the independent design, the practice, or the repository's rules. Every departure is asked of a person before fixing, and the deviation is shown at the approval node as it is, so write it for a reader who knows neither the run nor the factory. Do not write a recommendation for a departure: a different eye writes it.
+<!-- end means -->
+
 <!-- if ripple_units -->
 ## Ripple list before the plan (looked up by the machine with git grep: the callers and tests of the names that the unit keys name. Read it before you write the plan)
 
