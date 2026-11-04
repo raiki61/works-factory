@@ -247,7 +247,7 @@ line は一番上の graph なので、place は run directory の根（README 4
 
 ### 3.3 設計の段（テーマの run。issue #862・持ち主の決め `theme-stage`）
 
-設計の段（issue #862）を line に配線した物。この節の「下書き」は設計の段の設計の下書き（PR T0〜T4 が入り終えて消した計画で、git の履歴が持つ）。書き手の block は [theme.md](theme.md)、審査役の形 `theme` は [plan-review.md](plan-review.md) の 19 章。往復の決まりは 3 節・3.1 節の物を段の名を引数にして使い回し、ここは設計の段で違う所だけを書く。
+設計の段（issue #862）を line に配線した物。この文書の「下書きの N 章」「下書きの N.N」の形で引く「下書き」は設計の段の設計の下書き（PR T0〜T4 が入り終えて消した計画で、git の履歴が持つ。15 章の物も同じ）。書き手の block は [theme.md](theme.md)、審査役の形 `theme` は [plan-review.md](plan-review.md) の 19 章。往復の決まりは 3 節・3.1 節の物を段の名を引数にして使い回し、ここは設計の段で違う所だけを書く。
 
 - 語: テーマはコードに落とす前の設計の問い。テーマの run は依頼のファイルの欄 `theme` を持つ run。設計の段はその run の頭で設計の案を往復で固める段（`theme-*` の node）、降りるは承認された設計の変える所を依頼の行にして同じ run のまま判定と計画の往復へ進むこと、設計へ戻すは計画の段で設計の欠けが見つかった時に run を閉じて続きの run の材料を書き出すこと。
 - 入口（下書きの 2.1）: 依頼のファイル（`lib/carry.py` の `parts`）の欄 `theme` に、テーマの文か対象の根からの md のパスを書く。`start` が中身を run の置き場の `theme.md`（`files.THEME`）に固め、テーマを 1 行の依頼の行（where `テーマ`）にした写し `theme/world-request.json`（`files.THEME_REQUEST`）を書き、配る値に `theme`（写しのパス）・`theme_text`（中身）・`theme_request`（写しの pointer）を足す（テーマの無い run は空）。組めない物（依頼の行・PR〔入力 `pr` か依頼の `pr`〕・`base`・`spec_table`・`fix_fixture`）と一緒の時と、`design_talk` が `true` でない時は、どちらでも AI の前で止める（`start_refused`。止めの文は `design_talk=true` を足す案内）。周の鎖は `design_talk` を拒むので、鎖の子はテーマの run にならない。テーマの run は依頼の行も差分も無くてよい（`refuse_empty` を当てない）。`.md` で終わり改行の無い字でファイルが無ければ、字のテーマと取り違えずに止める。

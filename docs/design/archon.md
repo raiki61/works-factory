@@ -75,10 +75,10 @@
   - 工場の 5m に負けて上書きされる選び（殻から見えない）: Archon の DB の codebase の env（Archon の server の API だけが書き、殻から読む口が無い）と、管理の設定（managed settings）の `promptCacheTtl`・`subagentPromptCacheTtl`、下請けの定義の frontmatter の寿命、対象の `.archon/.env` が Archon の process.env に入れる `ENABLE_PROMPT_CACHING_1H`（殻は読まず、`CLAUDE_CODE_PROMPT_CACHE_TTL`・`CLAUDE_CODE_SUBAGENT_PROMPT_CACHE_TTL` の方が順で勝つ）。この既定を載せる前に始めた run を続ける起動は、封じた層を戻すので 1 時間のまま。
   - 1 時間に戻す道は、`--config` の `env:` か対象の `.archon/config.yaml` の `env:` に `ENABLE_PROMPT_CACHING_1H: '1'` を書くこと（shell の env では戻らない）。較正の素の Claude Code の側（`tests/calibration/run.py` の `PlainClaude`）は隔離の環境だけを通り、Archon の層を通らないので、Claude Code の既定の寿命で走る。工場の側は 5 分で走るので、較正の比べで書き込みの費用の差はこの寿命の差を含む。
 
-- 名指しの会話（`context: {resume}`）の続き方（`a972888a` の源で読んだ。#636 の調べ）:
-  - 続く: `loop_group` の周をまたぐ時（`fresh_context: true` も名指しの会話は消さない）、ループの中の待ち（`wait:`・承認ノード）で止まった run の resume（会話の位置を run の metadata の `bodySessionCursors` に置いて戻す。読めなければ黙って新しい会話にせず落ちる）、子の run の中（子の中のループの前のノードと `loop_group` の間。直に縛る試験は無く、同じ実行の道を通ることからの読み）。
-  - 続かない: 落ちた run の resume（`loop_group` は 1 周目からやり直し、元のノードの会話から分かれ直す。文書 `guides/loop-nodes.md` の「Failure resume」からの読み）、`--adopt` の新しい run（継ぐのは作業ツリー・枝・成果物だけ）、run をまたぐ時（名指せるのは同じ YAML のループの前の `command:`・`prompt:`・`loop:` のノードだけ。`loader.ts`）。
-- 入れ子の `loop_group` の中の `wait:` は読み込みが拒む（`loader.ts` の `hasDurableWait`）。だから設計の往復と計画の往復を外の loop で包んで同じ run で戻る形は組めない（[line.md](line.md) の 3.3 節）。
+- 名指しの会話（`context: {resume}`）の続き方（`a972888a` の源で読んだ。#636 の調べ。2026-11-04 に `2886e883d` で読み直したのは、在り処の名を挙げた物と、名指せる元の行だけ。ほかは `a972888a` の時点の読み）:
+  - 続く: `loop_group` の周をまたぐ時（`fresh_context: true` も名指しの会話は消さない）、ループの中の待ち（`wait:`・承認ノード）で止まった run の resume（会話の位置を run の metadata の `bodySessionCursors` に置いて戻す。`2886e883d` でも在る〔`dag/nodes/loop-group/resume.ts` ほか〕。読めなければ黙って新しい会話にせず落ちる）、子の run の中（子の中のループの前のノードと `loop_group` の間。直に縛る試験は無く、同じ実行の道を通ることからの読み）。
+  - 続かない: 落ちた run の resume（`loop_group` は 1 周目からやり直し、元のノードの会話から分かれ直す。文書 `guides/loop-nodes.md` の「Failure resume」からの読み）、`--adopt` の新しい run（継ぐのは作業ツリー・枝・成果物だけ）、run をまたぐ時（名指せるのは同じ YAML の上流の `command:`・`prompt:`・`loop:` のノードだけ。`a972888a` ではループの前のノードだけで、`2886e883d` では #4738 の後で、同じ周の本体の上流のノードも名指せる〔周ごとに分かれる。埋めの名簿の P10〕。照らすのは `loader/dag-structure.ts` の `checkResumeAncestry`）。
+- 入れ子の `loop_group` の中の `wait:` は読み込みが拒む（`2886e883d` の `loader/dag-structure.ts` の `hasDurableWait`。拒みの字は「wait nodes nested below another loop_group are not supported」）。だから設計の往復と計画の往復を外の loop で包んで同じ run で戻る形は組めない（[line.md](line.md) の 3.3 節）。
 
 ### 未決（歩く骨組みで決める）
 
@@ -158,7 +158,7 @@ U1〜U3 は持ち主の挙げた物、U4〜U8 はこの文書を書く中で出�
 
 ## 落とし穴の番号
 
-試験の docstring・コードのコメント・設計書が引く落とし穴の通し番号 K1〜K20（2026-10-13 に元の works の能力の棚卸しと一緒に数えた物。棚卸しの計画は終えて消し、git の履歴が持つ）。字は数えた時のままで、今の決まりの正本は各階層の `AGENTS.md` と、引いている試験の docstring。K1・K13・K16 の Archon の根拠: 落ちた作り手の出力を結んだ節は `trigger_rule: all_done` でも落ちる（`dag-executor.ts` の `resolveBindingDirective`・`output-ref.ts` の `assertProducerNotFailed`）。返りの指し札の先が無い・空でも節が落ちる。返りは `JSON.parse` で読まれる。
+試験の docstring・コードのコメント・設計書が引く落とし穴の通し番号 K1〜K20（2026-10-13 に元の works の能力の棚卸しと一緒に数えた物。棚卸しの計画は終えて消し、git の履歴が持つ）。字は数えた時のままで、今の決まりの正本は各階層の `AGENTS.md` と、引いている試験の docstring。K1・K13・K16 の Archon の根拠: 落ちた作り手の出力を結んだ節は `trigger_rule: all_done` でも落ちる（`2886e883d` では `dag/references.ts` の `resolveBindingDirective`・`output-ref.ts` の `assertProducerNotFailed`。`a972888a` では前の関数は `dag-executor.ts` に在った）。返りの指し札の先が無い・空でも節が落ちる。返りは `JSON.parse` で読まれる。
 
 - K1 ブロックの返す節（`returns:`）と、返す節が結ぶ節は落ちてはいけない（lib の import は守った main の中に置き、最後の逃げ道は標準ライブラリだけで返す）。落ちた節の出力を結んだ節は `trigger_rule: all_done` でも落ちる
 - K2 uv で走る script（`runtime: uv`）は、頭に PEP 723 の `# /// script` の宣言を持つ。無いと対象の `pyproject.toml` を拾って作業ツリーに `.venv`・`uv.lock` を作る

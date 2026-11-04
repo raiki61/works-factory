@@ -968,6 +968,8 @@ bin/works-factory workflow run works-factory-plan-review --cwd <対象> \
 
 設計の段（`docs/design/line.md` の 3.3 節。持ち主の決め `theme-stage`）の審査役として、この block に 4 つ目の形 `theme` を足した。形 text と同じく案の構造（項目・単位）を前提にしないが、形 plan と同じく往復の記録 `prior` を受けて、前の往復の穴が消えたか（`resolved`）・残ったか（同じ key で挙げ直す）を返す。今の形 plan・replan・text の分かれと字は変えない。書き手の block（`workflows/theme/`）と line の配線は別の PR（下書きの 15 章の T1・T3）。
 
+この節の「下書き」は設計の段の設計の下書き（issue #862。PR T0〜T4 が入り終えて消した計画で、git の履歴が持つ）。
+
 ### 19.1 入口（`src/steps.py` の `_theme_doc`）
 
 - 入力 `theme_doc` が空でなければ、ほかの審査する物の入力（`plan`・`proposal`・`proposal_file`）より先に形 `theme` と決める。一緒に渡された物は読まず、既定の訳の行（`defaults`）に「入力 … は形 theme では読まない（theme_doc が在る）」と名指す（黙って捨てない）。形を字の中身から読み替えない。
