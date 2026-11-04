@@ -94,7 +94,7 @@ loop の出口を `$spec-write-loop.output.ok` で読むのは今の YAML と同
 - `workflows/spec/src/freeze.py`: 今の `sha_file`・`sha_and_why`・`_file_sha`・`_spec_run`（:3089）・`spec_freeze`（:3102）の写しと、足した行の字 `ORIGIN`・`PROVENANCE`（今の `SPEC_ORIGIN`・`SPEC_PROVENANCE`、:2875-2876 の字のまま）。`spec_freeze` は依頼の行のファイルに積まず、`added-rows.json` に書く。
 - `workflows/spec/src/check.py`: 今の `spec_check`（:3177）・`spec_questions`（:3195）の写しと、仕様が渡されない時の問いの字（今の `spec_check.py` の `NO_POINTER` を「照らす承認済みの仕様が渡されていない——受け入れ条件のテストが変わったかを照らせない」に）と、照らしが落ちた時の問いの字（今の `fallback` の字）。問いの頭の語は `lib/gatemarks.py` の `SPEC_CHANGED_LABEL`（問いの行の形。最後の承認ノードと報告も読む）。
 - `workflows/spec/src/report.py`: 報告の行（9 節）。
-- `workflows/spec/schemas/request.schema.json`（world と同じ形の写し）。
+- workflows/spec の `schemas/request.schema.json`（world と同じ形の写し）。
 - 使う `lib/`: `accept`（`tree_state`・`tree_moved`・`TREE_KEYS`・`status_keys`・`Reject`）・`rolekit`（`accept_parsed`・`resubmitted`・`merge_fields`・`resubmitting`・`candidate_path`・`rejected`・`rejects_text`・`given_up_reason`・`attempt`・`BoardGap`）・`tree_run`（`run`・`outside_env`）・`userenv`（印）・`gatemarks`（`gate_text`・`SPEC_CHANGED_LABEL`）・`answer`（`GO_WORDS`・`STOP_WORDS`。`gate_text` の答え方の行）・`stopby`（`HUMAN`・`declare`）・`graphloops/engine/util.py`（`safe_name`）・`jsonfile`・`oneline`。
 
 ### 1.6 つなぎ方（graph の側。block には書かない）
@@ -102,7 +102,7 @@ loop の出口を `$spec-write-loop.output.ok` で読むのは今の YAML と同
 - write: judge のまとめ（`workflows/judge/`）が `include: works-factory-spec` を置く。`when:` は line が始めの記録の `input.spec` から引いた真偽。`with:` は `mode: write`・`request: $<依頼の pointer>`・`pr_text: <依頼が名指す PR の題と本文。purpose の block の pr_text と同じ値>`・`user_env_dir: <始めの記録の user_env_dir>`・`lang`。仕様の段は今と同じく、直す前の試験の関門（test-gate base）の後、並行 PR の前に回す（赤い受け入れテストが直す前の結末を汚さないため。並行 PR の役の前の写しに受け入れテストを入れるため）。`status` が `approved` でなければ、line は今と同じく run を `stop_reason` で止める。
 - write の出力の読み手: diagnose（`added_rows` と `added_origin`。今の `request_batches` が `SPEC_PROVENANCE` の頭で分けていたバッチ）・plan（`spec`。案の項目の `tests` に受け入れテストを入れる。今の `plan_prep.py:18` の `INPUTS_SPEC`）・再審の材料（`spec`）・report（`report`）・check の include（`spec`）。
 - check: line が fix の後・最後の試験の前に `include: works-factory-spec` を置く（今の `spec-check` の node の所）。`when:` は「仕様の段を挟んだ run」（始めの記録の `input.spec`）。`with:` は `mode: check`・`spec: <write の出力の spec。無ければ空>`。line は `questions` が在れば `stop_reason` を `works:spec-changed` にし（今の `spec_check.py:43`）、`unchecked` を最後の承認ノードと報告に渡す。
-- 無人の run と仕様の段の組みは、今と同じく line の入口が拒む（`lib/gatepolicy.py:61` の `check`。仕様の承認は承認ノードで、無人の run は承認ノードで止めるため）。block は無人の方針を知らない。
+- 無人の run と仕様の段の組みは、今と同じく line の入口が拒む（lib の `gatepolicy.py:61` の `check`。仕様の承認は承認ノードで、無人の run は承認ノードで止めるため）。block は無人の方針を知らない。
 
 ## 2 node の設計シート: spec-write（書く役）
 
@@ -206,7 +206,7 @@ Return only JSON that matches the output schema.
 
 ### 2.6 今の指示との差
 
-今の指示は `workflows/judge/commands/spec.md`（52 行）1 本。lib の Python は指示の文を組んでいない（値は Archon の置き換え）。
+今の指示は workflows/judge の `commands/spec.md`（52 行）1 本。lib の Python は指示の文を組んでいない（値は Archon の置き換え）。
 
 - 移した: 却下の段落（md:17-25）を `{shared:rejected}` に。テストのファイルを先に直せの 1 文はこの役だけの物なので md に残し、却下が在る時だけ入れる。「下の理由が空なら、これは 1 回目の返答で…読み飛ばしてよい」は、却下が無い時は段落ごと入れない形にして要らなくした（world と同じ）。
 - 移した: 外への検索の決まりの塊（md:3-12）を `{shared:query-rule}` に。頭の「works の包みより」は消した。
@@ -232,7 +232,7 @@ Return only JSON that matches the output schema.
 ### 3.3 組み立ての順（`prompts/spec-review.md`）
 
 1. `<!-- if rejected -->` `{shared:rejected}` `<!-- end rejected -->`。
-2. `{shared:role-judge}`（役の定義 5 本のうち judge。今の `lib/agents/judge.md` の本文の、外への検索の決まりを除いた部分）。
+2. `{shared:role-judge}`（役の定義 5 本のうち judge。今の lib の `agents/judge.md` の本文の、外への検索の決まりを除いた部分）。
 3. `{shared:query-rule}`（`spawns: false`）。
 4. 役の定義と読むだけの決まり（決まった文）。
 5. `# Review the spec` と読む物: `{request_file}`・`<!-- if pr_text -->` `{pr_text}` `<!-- end pr_text -->`・`{spec_file}`（← `spec-write.json` の絶対パス）・リポジトリ。
@@ -333,7 +333,7 @@ Return only JSON that matches the output schema.
 
 ### 3.6 今の指示との差
 
-今の指示は `workflows/judge/commands/spec-review.md`（59 行）1 本。
+今の指示は workflows/judge の `commands/spec-review.md`（59 行）1 本。
 
 - 移した: 役の定義の塊（md:17-31。lib の agents の `judge.md` の本文の写し）を `{shared:role-judge}` と `{shared:query-rule}` に割った（judge の本文の外への検索の決まりの部分が、query-rule の元と同じ字のため。役の定義の断片は検索の決まりを持たない）。
 - 移した: 却下の段落（md:7-15）を `{shared:rejected}` に。言語の 1 行（md:1）を人に見せる欄を名指す 1 文に。
@@ -439,7 +439,7 @@ Return only JSON that matches the output schema.
 
 ### 4.6 今の指示との差
 
-今の指示は `workflows/judge/commands/spec-revise.md`（39 行）1 本。
+今の指示は workflows/judge の `commands/spec-revise.md`（39 行）1 本。
 
 - 移した: 却下の段落（md:17-25）・外への検索の決まり（md:3-12）・言語の 1 行（md:1）を、2.6 と同じ形に。
 - 替えた: 3 つのパスを `{spec_file}`・`{review_file}`・`{request_file}` に。答えの語と 20 字を差し込み口に（今の md は 20 字を言っていなかった。`output_format` の `minLength: 20` を役が知らずに拒まれる道を塞ぐ。値は今と同じで、振る舞いは変えない）。
@@ -499,7 +499,7 @@ How to answer:
 
 ### 5.5 描いた骨組み
 
-例の run・筋書きのどちらにも、拒まれた後の出し直しの値は無い。今の `tests/workflows/test_judge.py::LoopTest.test_spec_resubmit_returns_only_the_rejected_fields` の値（拒否の理由「spec.write: acceptance 'A1' の … に Given/When/Then が無い」）で描くと:
+例の run・筋書きのどちらにも、拒まれた後の出し直しの値は無い。今の tests/workflows の `test_judge.py::LoopTest.test_spec_resubmit_returns_only_the_rejected_fields` の値（拒否の理由「spec.write: acceptance 'A1' の … に Given/When/Then が無い」）で描くと:
 
 ~~~markdown
 Your previous answer was rejected by the machine. In this same conversation, fix only what was rejected and answer again. …
@@ -574,7 +574,7 @@ graphloops と元の works の仕様の段は、`p0.base` と `p0.local_checks`�
 - write の `approved`: `仕様: 要件 <n> 件・受け入れ条件 <m> 件を人が承認した（<一言が在れば「一言: …」>）` と、受け入れ条件ごとに `- <key>（要件 <requirement>）: <file> の <name>——承認の時 <exit 0 なら「既に緑（赤を見ていない）」、走らなければ「走らない（<run_error>）」、ほかは「exit <n>」>`。
 - `stopped`: `仕様: 人が承認ノードで止めた: <一言>`。`failed`: `仕様: 固まらなかった（<reason>）`。
 - check: 問いが在れば `承認し直すかの問い <k> 件`（`unchecked` なら `受け入れ条件のテストが変わったかを照らせなかった`）と問いの行。無ければ `承認した受け入れ条件のテストは承認の版のまま`。
-- 今の報告は `spec` の pointer を「仕様」の行で並べるだけ（`lib/runreport.py:182`）。上の行は事実を持つ block が組む形（README の 4.1）にした物で、中身は承認ノードの文と `spec.json` に今も在る事。
+- 今の報告は `spec` の pointer を「仕様」の行で並べるだけ（lib の `runreport.py:182`）。上の行は事実を持つ block が組む形（README の 4.1）にした物で、中身は承認ノードの文と `spec.json` に今も在る事。
 
 ## 10 単独で呼ぶ・試験
 
@@ -598,9 +598,9 @@ bin/works-factory workflow run works-factory-spec \
   - `check.stubs.yaml`: 入力 `mode: check`・`spec` は fixture の中のファイルのパス（pointer の値は持たない。README の 7.1 の 4）。`reached: [intake, spec-check, finish]`。
 - `tests/blocks/spec/test_spec.py`: script を子のプロセスで回す。始めの記録の無い使い捨ての `ARTIFACTS_DIR` と git のリポジトリで、port の値だけを渡し、`intake` → `write_prep` → 台本の返答（テストのファイルも試験が書く）→ `take`（write）→ `review_prep` → 台本 → `take`（review）→ `revise_prep` → 台本 → `take`（revise）→ `ask` → 答えの値 → `freeze` → `finish` と回し、`spec.json` の sha256・`exit_at_approval`、`added-rows.json` の行の頭が `PROVENANCE`、`report` の行を照らす。check は `spec.json` を作ってテストのファイルを変え、`check` → `finish` の `questions` を照らす。
 - 指示の比べ（README の 11.4）: 1 つ目の commit では、6 本の md を今の指示の日本語の字のまま（今の md の頭の言語の 1 行と、却下が無い時の「下の理由が空なら…」の段落を含む）置き、今の `spec.md`・`spec-review.md`・`spec-revise.md` の Archon の置き換え（`$spec-reject.output.reason` を空・`lang_line` を `rolekit.LANG_RULE` に既定の言語を入れた字・`$ARTIFACTS_DIR` を place の親）と同じ字になることを照らす。出し直しの md は、今の `rolekit.write_resubmit` が書く指示書と同じ字を照らす。2 つ目の commit（英語）では、2.6・3.6・4.6・5.6 の差の一覧どおりかを並べて審査に出す。
-- 振る舞いの試験（今の試験から写す。`judge/` のパスを place に替える）:
-  - `lib/tests/test_judge_accept.py` の `SpecErrorsCase`（`test_acceptance_without_gwt_rejected`・`test_missing_test_file_and_name_rejected`・`test_keys_unique_and_point_to_requirements`・`test_review_needs_faces_none`・`test_revise_answers_each_face_once`・`test_revise_due_only_with_faces`）・`SpecTakeCase`（`test_review_is_read_only`・`test_review_without_faces_skips_revise`・`test_bad_shape_is_a_reject_not_a_crash`・`test_revise_replaces_the_spec`）・`SpecGateCase`（`test_ask_message`・`test_ask_without_faces_has_no_face_lines`・`test_ask_after_give_up_stops`・`test_freeze_records_sha_and_exit`・`test_gate_stop_words`・`test_gate_skipped`・`test_gate_unknown_word`）・`SpecCheckCase`（`test_changed_acceptance_file_is_a_question`・`test_unchanged_is_no_question`・`test_deleted_file_says_gone`・`test_unmeasurable_file_says_why_not_gone`・`test_same_file_counted_once`・`test_unreadable_spec_is_a_question_not_silence`）・`SpecblkCase`（`test_gate_text_answer_lines`・`test_gate_text_subjects_are_plain_and_quote_the_question`・`test_parse_gate`）。
-  - `tests/workflows/test_judge.py` の `GateTest`（`test_spec_gate_is_an_approval_with_the_four_words`・`test_spec_freeze_may_change_the_checkout`）・`LoopTest` の仕様の分（`test_third_fresh_spec_role_reads_every_reject_of_the_loop`・`test_spec_resubmit_returns_only_the_rejected_fields`・`test_spec_resubmit_after_fixing_only_the_file_returns_nothing`）・`SpecFreezeTest`（`test_stop_word_is_a_human_stop`・`test_request_flag_is_a_request_stop`・`test_approval_freezes_hashes_and_exit_codes`・`test_approval_in_users_env_leaves_the_marker`〔`user_env_dir` が空の時に place に印が置かれる場合を足す〕・`test_spec_stop_still_fills_pointers`〔出力が null を明示する形に〕）。
+- 振る舞いの試験（今の試験から写す。試験が名指す今の置き場 `judge/` の下のパスを、この block の place〔block が自分のファイルを書く run の置き場の中のフォルダ。`ports.place()` が返す。1.4〕の下のパスに替える）:
+  - lib/tests の `test_judge_accept.py` の `SpecErrorsCase`（`test_acceptance_without_gwt_rejected`・`test_missing_test_file_and_name_rejected`・`test_keys_unique_and_point_to_requirements`・`test_review_needs_faces_none`・`test_revise_answers_each_face_once`・`test_revise_due_only_with_faces`）・`SpecTakeCase`（`test_review_is_read_only`・`test_review_without_faces_skips_revise`・`test_bad_shape_is_a_reject_not_a_crash`・`test_revise_replaces_the_spec`）・`SpecGateCase`（`test_ask_message`・`test_ask_without_faces_has_no_face_lines`・`test_ask_after_give_up_stops`・`test_freeze_records_sha_and_exit`・`test_gate_stop_words`・`test_gate_skipped`・`test_gate_unknown_word`）・`SpecCheckCase`（`test_changed_acceptance_file_is_a_question`・`test_unchanged_is_no_question`・`test_deleted_file_says_gone`・`test_unmeasurable_file_says_why_not_gone`・`test_same_file_counted_once`・`test_unreadable_spec_is_a_question_not_silence`）・`SpecblkCase`（`test_gate_text_answer_lines`・`test_gate_text_subjects_are_plain_and_quote_the_question`・`test_parse_gate`）。
+  - tests/workflows の `test_judge.py` の `GateTest`（`test_spec_gate_is_an_approval_with_the_four_words`・`test_spec_freeze_may_change_the_checkout`）・`LoopTest` の仕様の分（`test_third_fresh_spec_role_reads_every_reject_of_the_loop`・`test_spec_resubmit_returns_only_the_rejected_fields`・`test_spec_resubmit_after_fixing_only_the_file_returns_nothing`）・`SpecFreezeTest`（`test_stop_word_is_a_human_stop`・`test_request_flag_is_a_request_stop`・`test_approval_freezes_hashes_and_exit_codes`・`test_approval_in_users_env_leaves_the_marker`〔`user_env_dir` が空の時に place に印が置かれる場合を足す〕・`test_spec_stop_still_fills_pointers`〔出力が null を明示する形に〕）。
   - 足す: `pr_text` が在れば 3 つの役の指示に PR の節が入り、無ければ入らない。`mode: check` で `spec` が空なら「渡されていない」の問いと `unchecked: true`。
   - 写さない: `test_roles_after_approval_take_the_spec_tests_as_given`（判定の写しの取り直しを見る。写しは各 block が取る）。`test_judge_accept.py:877` の `test_features_cut_and_spec_set_the_stage_flags` の仕様の部分（段の切り替えは line）。
 - 読み手の側の試験はそれぞれの block と line に残す: diagnose の受け入れ条件のバッチ（`request_batches` の写し）・plan の `SPEC_HEAD`・line の `spec-changed.stubs.yaml`・report の `answer_drafts`・`bin/apply` の注（`tests/bin/`）。
@@ -620,7 +620,7 @@ bin/works-factory workflow run works-factory-spec \
 ## 12 実装で決めた事（実装の役が書く。設計書と main の決まりが食い違った所・設計書が黙っていた所）
 
 1. 入口が write の回の頭で消すのは、この block が名で持つファイルだけ（`src/files.py` の `own_files()`・`own_prompts()`）。今の judge の入口は place を作り直して中を全部消していたが、「block が消してよいのは自分が名を持つファイルだけ」（`workflows/.shared/AGENTS.md`）に合わせて替えた。ほかの物の名のファイルは残る。消すのは mode が write と分かった直後（依頼を読む前）で、依頼が読めなくても前の回のファイルは残らない。
-2. 依頼の行の形は `shared:request.schema.json` を使い、block に写しを置かない（1.5 の「`workflows/spec/schemas/request.schema.json`（world と同じ形の写し）」を取り下げ）。形のファイルの名は pack の中で 1 か所にしか置けない（`tests/layers/test_block_shape.py` の 5）。
+2. 依頼の行の形は `shared:request.schema.json` を使い、block に写しを置かない（spec の block の `schemas/` に world と同じ形の写しは置かない）。形のファイルの名は pack の中で 1 か所にしか置けない（`tests/layers/test_block_shape.py` の 5）。
 3. 出し直しの指示を組む node `spec-<役>-fix-prep` を役ごとに足した（script は 3 つで 1 本 `fix_prep.py`。`with: {role}`）。`spec-<役>-prep` は出し直すかと 1 回目の指示だけを返す（出し直しの時の `prompt` は空）。訳: 筋書きは輪を 1 周しか回さない（`until_bash` を仮定で満たす）ので、出し直しの役は 1 周目に届かない。出し直すかを決める prep の返りだけを筋書きで差し替え、出し直しの指示を組む prep は差し替えずに本物を回せば、出し直しの役の md を筋書きが照らせる（`check_standalone_renders` は、AI の node の prep を差し替えた筋書きを証にしない）。筋書きは `resubmit-write`・`resubmit-review`・`resubmit-revise` の 3 本を足した。
 4. script は prep を 1 本 `prep.py`（`with: {role, prev}`）、受け付けを 1 本 `take.py` にした（設計書は prep 3 本）。違いは `role` だけで、`with:` に結ぶ入力が node ごとに揃う。
 5. 承認ノードの文に入れる run の id は `ports.run_id()` でなく `ports.pointer(<place のファイル>, <form>)["run_id"]` で引く（`ports.py` にその口は無い。土台の `ports.py` は変えない）。

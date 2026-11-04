@@ -8,7 +8,7 @@
 この文書の語は README・materials.md・prior-decisions.md の頭の物を使う。ほかに:
 
 - 手順トレースの役（procedure-trace）: 変更された手順書・スクリプト・CI 定義の全文を読み、初期状態から上から順に動かしたと仮定して前提の欠け・暗黙の環境状態・誤爆半径を確かめる AI の役。道具は Read・Grep・Glob・Bash・WebSearch・WebFetch。Bash は網の閉じた sandbox の中で走り、既にある計器（テスト一式・計器の台本）を動かせる。
-- 手順のファイル: 変更ファイルのうち、`PROCEDURE_PATTERNS`（今の `lib/judge_accept.py:1303-1304`。`README`・`.md`・`.sh`・`scripts/`・`.github/workflows/`・`Makefile`・`Dockerfile`・`.yml`/`.yaml`・`commands/`・`hooks/`）のどれかに当たる物。
+- 手順のファイル: 変更ファイルのうち、`PROCEDURE_PATTERNS`（今の lib の `judge_accept.py:1303-1304`。`README`・`.md`・`.sh`・`scripts/`・`.github/workflows/`・`Makefile`・`Dockerfile`・`.yml`/`.yaml`・`commands/`・`hooks/`）のどれかに当たる物。
 - 未実測: 実機で確かめられなかった箇所を、仮説として返す行（返答の `unmeasured`）。
 - 例の run: 本物の run `53e71318-ac9f-4468-ae72-5f6ed569a667`（対象 <owner>/<repo>。置き場 `~/.local/state/works-factory/targets/316e3bbc/archon-home/workspaces/<owner>/<repo>/artifacts/runs/53e71318-…/judge/`）。差分の在る通常の run で、変更ファイル 23 件に手順のファイルが無く、この観点は回らなかった（`material-route.json` の `fill.procedure_trace` が `not_applicable`）。記録の在る 148 本の run のどれでも、この観点は一度も回っていない（どの `material-route.json` も `roles.procedure-trace.run` が偽）。骨組みの値は、この run の値に仮の変更ファイル 1 件を足して描いた（2.5。自分で決めた。7 節）。
 
@@ -24,7 +24,7 @@
 
 出力（`returns: finish`、`outcome_field: ok`）: materials.md の 1.2 の 5 欄だけ。`material.json` の `reply` は受けた返答（`material`・`findings`・`unmeasured`）、`materials` は `{"procedure_trace": <返答の material>}`。
 
-今との違い: 今は差分の根と入口の印を `judge/start.json` から、変更ファイルを `judge/material-view.json` から名で開き、回すかを `material-route` の `procedure_trace_due`（`lib/judge_accept.py:1546-1569` の `_deep_due` が作る）が、回さない時の素材を diagnose-prep の `fill_materials` が `material-route.json` の `fill` から埋めた。受けた返答は `judge/material-procedure-trace.json` に書き、判定役の材料が `_diagnose_ctx`（`:2764-2777`）で `findings` を `record.process.procedure_findings` として読んだ。
+今との違い: 今は差分の根と入口の印を `judge/start.json` から、変更ファイルを `judge/material-view.json` から名で開き、回すかを `material-route` の `procedure_trace_due`（lib の `judge_accept.py:1546-1569` の `_deep_due` が作る）が、回さない時の素材を diagnose-prep の `fill_materials` が `material-route.json` の `fill` から埋めた。受けた返答は `judge/material-procedure-trace.json` に書き、判定役の材料が `_diagnose_ctx`（`:2764-2777`）で `findings` を `record.process.procedure_findings` として読んだ。
 
 ### 1.3 node の並び（`workflows/procedure-trace/works-factory-procedure-trace.yaml`）
 
@@ -50,8 +50,8 @@ materials.md の 1.4 の名だけ: `intake.json`・`view.json`・`diff.patch`・
   - `NAME = "procedure-trace"`
   - `MATERIALS = ("procedure_trace",)`
   - `GUARDED = False`（AI の node が `mutates_checkout: false` を持たない。今の accept の `with: {status_guarded: false, …}`。`workflows/judge/works-factory-judge.yaml:1458`）
-  - `NA = "cond"`、`NA_REASON = "対象差分に手順書・スクリプト・CI 定義の変更が無い"`（今の `MATERIAL_NODES['p1.procedure_trace']['na_reason']`。`lib/judge_accept.py:1668-1673`）
-  - `PROCEDURE_PATTERNS`: 今の `judge_accept.py:1303-1304` の 10 個の正規表現を字のまま写す（名も同じ）。`judge_accept.py` の元は、組み込みまで今の judge のために残す（materials.md の 1.5 の終わり）。
+  - `NA = "cond"`、`NA_REASON = "対象差分に手順書・スクリプト・CI 定義の変更が無い"`（今の `MATERIAL_NODES['p1.procedure_trace']['na_reason']`。lib の `judge_accept.py:1668-1673`）
+  - `PROCEDURE_PATTERNS`: 今の `judge_accept.py:1303-1304` の 10 個の正規表現を字のまま写す（名も同じ）。`judge_accept.py` の元は、組み込み（lib の中身を各 block へ移し、block を本線につなぐ #765 の作業）まで今の judge のために残す（materials.md の 1.5 の終わり）。
   - `procedure_files(view) -> list[str]`: `sorted({f for f in view.changed_files for p in PROCEDURE_PATTERNS if re.search(p, f)})`（今の `touches_procedures`、`:1393-1398` の中身）。
   - `applies(view, values)`: `hit = procedure_files(view)`、`materialkit.Due(bool(hit), f"差分に手順書・スクリプト・CI 定義が {len(hit)} 件" if hit else "差分に手順書・スクリプト・CI 定義が無い")`（今の `touches_procedures` の訳の字のまま）。
   - `due(view, values)`:
@@ -66,16 +66,16 @@ materials.md の 1.4 の名だけ: `intake.json`・`view.json`・`diff.patch`・
   - `after_accept(reply, place)`: 何もしない。
   - `materials_of(reply)`: `{"procedure_trace": reply["material"]} if isinstance(reply.get("material"), dict) else {}`（今の `writes` の `materials.procedure_trace ← material`）。
   - `report_lines(doc)`: `reply` が null なら `[]`。ほかは `findings` の行ごとに `f"  - 所見: {oneline(where)}: {oneline(text)}"`、続けて `unmeasured` の行ごとに `f"  - 未実測: {oneline(行)}"`（自分で決めた。7 節）。
-- `workflows/procedure-trace/src/oldbrief.py`（1 つ目の commit だけ。2.9）: 今の材料のファイルを同じ字で組む `brief(view, values) -> str`。
+- workflows/procedure-trace/src の `oldbrief.py`（1 つ目の commit だけ。2.9）: 今の材料のファイルを同じ字で組む `brief(view, values) -> str`。
 - `schemas/` は置かない（json の入力が無い）。
 - 使う `lib/`: `materialkit`・`rolekit`・`oneline`。
 
 ### 1.6 つなぎ方（graph の側。block には書かない）
 
-- 判定のまとめ（`workflows/judge/`）: `include: works-factory-procedure-trace`、`depends_on` は materials.md の 1.6。`with:` は `base: <line が始めの記録から引いた diff_base>`・`entry: <line が始めの記録から引いた出どころの文。判定から入る run でなければ空>`・`lang: <始めの記録の lang>`。
+- 判定のまとめ（`workflows/judge/`）: `include: works-factory-procedure-trace`、`depends_on` は materials.md の 1.6。`with:`（line はメイングラフ `works-factory-line`〔judge のまとめを include する上の graph〕。始めの記録は run の頭に line の node `start` が書く記録〔`workflows/line/src/startrec.py`〕） は `base: <line が始めの記録から引いた diff_base〔差分の根の commit〕>`・`entry: <line が始めの記録から引いた出どころの文。判定から入る run でなければ空>`・`lang: <始めの記録の lang>`。
 - 読み手: diagnose の `materials`（11 本の `material` の配列の 1 つ）。
   - 素材 `procedure_trace` は `materialkit.assemble` で 15 欄の 1 つになる（今の `fill_materials` と同じ）。
-  - 所見の行: 今の判定役の材料は `findings` を「手順トレース: {{?record.process.procedure_findings}}」（`lib/judge_accept.py:2717` の `DIAGNOSE_EXCERPT`、値は `:2777`）で読む。新しい形では diagnose が `materialkit.read` で開いた `material.json` の `reply.findings` を同じ欄に入れる（読み方は diagnose の設計書が決める。この block は `reply` を今の返答のまま置くだけ）。
+  - 所見の行: 今の判定役の材料は `findings` を「手順トレース: {{?record.process.procedure_findings}}」（lib の `judge_accept.py:2717` の `DIAGNOSE_EXCERPT`、値は `:2777`）で読む。新しい形では diagnose が `materialkit.read` で開いた `material.json` の `reply.findings` を同じ欄に入れる（読み方は diagnose の設計書が決める。この block は `reply` を今の返答のまま置くだけ）。
   - `unmeasured` は今どの読み手にも届いていない（`_diagnose_ctx` は返答の全部を `out.p1.procedure_trace` に入れるが、`DIAGNOSE_EXCERPT` に穴が無い。graphloops の `writes` にも無い）。新しい形でも `reply` に在るだけで、届けるかは diagnose の設計書が決める。この block の `report` の行には出す（1.5）。
 
 ## 2 node の設計シート: procedure-trace（手順トレースの役）
@@ -176,7 +176,7 @@ md の中に、`$` の直後に英字か `{` が続く字は無い（今の md �
 
 ### 2.5 描いた骨組み（例の run の値に、仮の変更ファイル 1 件を足した物）
 
-この観点は記録の在るどの run でも回っていないので、今の指示の 2 か所（`workflows/judge/commands/material-procedure-trace.md`〔62 行〕と、`material_prep` が描くはずの `judge/material-procedure-trace-brief.md`）は本物の run の物が無い。例の run `53e71318-…` の値（リポジトリ・観点の正本・対象の `REVIEW.md`・変更ファイル 23 件）に、仮に `README.md` の変更を 1 件足した値で描いた（自分で決めた。7 節）。
+この観点は記録の在るどの run でも回っていないので、今の指示の 2 か所（workflows/judge の `commands/material-procedure-trace.md`〔62 行〕と、`material_prep` が描くはずの `judge/material-procedure-trace-brief.md`）は本物の run の物が無い。例の run `53e71318-…` の値（リポジトリ・観点の正本・対象の `REVIEW.md`・変更ファイル 23 件）に、仮に `README.md` の変更を 1 件足した値で描いた（自分で決めた。7 節）。
 
 ```markdown
 {shared:role-investigator の本文: This role is an investigator. It investigates and brings things back; …}
@@ -274,9 +274,9 @@ materials.md の 4 節の順のまま。観点の前の照らしと後の照ら�
   - 足す: `entry` が在っても対象差分が在れば回す（`due` が真）。
   - 足す: 対象の根に `REVIEW.md` が在れば `repo_review` の段落が入り、無ければ入らない（値 `repo_review_md` も渡さない）。
   - 足す: 拒まれる返答 3 回で `gave_up`（`run.sh` を足した木で）。
-  - 足す（起こし方の照らし）: block の YAML の AI の node の `model`・`allowed_tools`・`sandbox`・`idle_timeout`・`retry` が、今の `tests/workflows/test_judge.py:94` の表の procedure-trace の行（`"sonnet", "medium", INVESTIGATE, CLOSED, False, …`）が照らす物と同じ。
-- `tests/blocks/procedure_trace/test_viewpoint.py`: materials.md の 8 節の物に、`PROCEDURE_PATTERNS` が `lib/judge_accept.PROCEDURE_PATTERNS` と同じ字（組み込みまで 2 つ在るので、ずれを照らす。組み込みで lib の側が消える時にこの照らしを消す）を足す。
-- 指示の比べ（README の 11.4）: `tests/blocks/procedure_trace/test_prompts.py`。prior-decisions.md の 2.9 と同じ 2 つの commit の形。1 つ目の commit の値の口は `lang_line`・`reason`・`brief_file`・`review_md`・`repo_review_md`（今の md が `$procedure-trace-prep.output.<欄>` で読む 5 つ）。値は 2.5 の仮の値（例の run の値に `README.md` を足した物）で、今の `material_prep` が同じ値で描く材料のファイルと `oldbrief.brief` の字が同じことを照らす（本物の run の材料のファイルが無いので、今のコードで描いた字と比べる。自分で決めた。7 節）。
+  - 足す（起こし方の照らし）: block の YAML の AI の node の `model`・`allowed_tools`・`sandbox`・`idle_timeout`・`retry` が、今の tests/workflows の `test_judge.py:94` の表の procedure-trace の行（`"sonnet", "medium", INVESTIGATE, CLOSED, False, …`）が照らす物と同じ。
+- `tests/blocks/procedure_trace/test_viewpoint.py`: materials.md の 8 節の物に、`PROCEDURE_PATTERNS` が lib の `judge_accept.PROCEDURE_PATTERNS` と同じ字（組み込みまで 2 つ在るので、ずれを照らす。組み込みで lib の側が消える時にこの照らしを消す）を足す。
+- 指示の比べ（README の 11.4）: tests/blocks/procedure_trace の `test_prompts.py`。prior-decisions.md の 2.9 と同じ 2 つの commit の形。1 つ目の commit の値の口は `lang_line`・`reason`・`brief_file`・`review_md`・`repo_review_md`（今の md が `$procedure-trace-prep.output.<欄>` で読む 5 つ）。値は 2.5 の仮の値（例の run の値に `README.md` を足した物）で、今の `material_prep` が同じ値で描く材料のファイルと `oldbrief.brief` の字が同じことを照らす（本物の run の材料のファイルが無いので、今のコードで描いた字と比べる。自分で決めた。7 節）。
 - 守る keep-essence の番号: 無い。守るのは「手順のファイルに触れない run で役を起こさず、理由つきの `not_applicable` を書く」と「計器を動かした役の作業ツリーの変化を拒む」で、上の試験が見る。
 - 終わりの条件の命令: materials.md の 8 節の 4 行の `<観点の package の名>` を `procedure_trace` にした物。
 

@@ -1,7 +1,7 @@
 """工場の中の字が書くリポジトリのパスは、在る物を指す（根の `AGENTS.md` の E26 の機械の行）。
 
-- 照らすファイルは `bin/`・`lib/`（試験の `lib/tests/` と借りた写しの `lib/borrow/` を除く）・`workflows/`・見る道具（フォルダ `viewer`）の下の全部と、
-  どの階層の `AGENTS.md` も。
+- 照らすファイルは `bin/`・`lib/`（試験の `lib/tests/` と借りた写しの `lib/borrow/` を除く）・`workflows/`・見る道具（フォルダ `viewer`）・
+  文書 `docs/`（実装の計画 `docs/plans/` を除く。計画は書いた時の木を語る記録で、終わった計画は消す）の下の全部と、どの階層の `AGENTS.md` も。
 - パスは、根の直下のフォルダの名（`.` で始まる物を除く。名の表は持たず、根を読んで決める）で始まり `/` が続く字の並び。
   前が英数字・`_`・`.`・`/`・`-` の所は別の語の途中なので数えない（`src/lib/x.py` の `lib/` など）。
 - 在るとは、パスそのもの・`.py` を足した物（モジュールの名 `lib/rolekit`）が在るか、最後の段の `.` の前に `.py` を足した物が在って
@@ -21,8 +21,8 @@ import unittest
 from tests.layers.trees import tree
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
-SCOPES = ("bin", "lib", "workflows", "viewer")
-SKIPPED = ("lib/tests", "lib/borrow")
+SCOPES = ("bin", "lib", "workflows", "viewer", "docs")
+SKIPPED = ("lib/tests", "lib/borrow", "docs/plans")
 NOT_FILES = ("__pycache__", ".venv", "node_modules")
 PATTERN_MARKS = "*<>{}"
 
@@ -127,6 +127,11 @@ class PathsExistTest(unittest.TestCase):
         files = {"lib/tests/test_a.py": "# docs/gone.md\n", "lib/borrow/x.md": "docs/gone.md\n", "docs/here.md": ""}
         with tree(files) as root:
             self.assertEqual(problems(root), [])
+
+    def test_docs_are_scanned_but_plans_are_not(self):
+        files = {"docs/design/a.md": "- `lib/gone.py` を読む\n", "docs/plans/p.md": "- `lib/gone.py` を読む\n", "lib/here.py": ""}
+        with tree(files) as root:
+            self.assertEqual(problems(root), ["docs/design/a.md:1: lib/gone.py"])
 
 
 if __name__ == "__main__":

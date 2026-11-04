@@ -24,7 +24,7 @@
 
 出力（`returns: finish`、`outcome_field: ok`）: materials.md の 1.2 の 5 欄だけ。`material.json` の `reply` は受けた返答（`material`・`claims`）、`materials` は `{"provenance": <返答の material>}`。
 
-今との違い: 今は差分の根と入口の印を `judge/start.json` から名で開き、回すかを `material-route` の `provenance_due`（`lib/judge_accept.py:1529-1537`）が決め、判定から入る run の素材を diagnose-prep の `fill_materials` が `material-route.json` の `fill` から埋めた。受けた返答は `judge/material-provenance.json` に書き、判定役の材料が `_diagnose_ctx`（`:2764-2794`）で返答の全部を `out.p1.provenance` として読んだ。
+今との違い: 今は差分の根と入口の印を `judge/start.json` から名で開き、回すかを `material-route` の `provenance_due`（lib の `judge_accept.py:1529-1537`）が決め、判定から入る run の素材を diagnose-prep の `fill_materials` が `material-route.json` の `fill` から埋めた。受けた返答は `judge/material-provenance.json` に書き、判定役の材料が `_diagnose_ctx`（`:2764-2794`）で返答の全部を `out.p1.provenance` として読んだ。
 
 ### 1.3 node の並び（`workflows/provenance/works-factory-provenance.yaml`）
 
@@ -50,7 +50,7 @@ materials.md の 1.4 の名だけ: `intake.json`・`view.json`・`diff.patch`・
   - `NAME = "provenance"`
   - `MATERIALS = ("provenance",)`
   - `GUARDED = False`（AI の node が `mutates_checkout: false` を持たない。今の accept の `with: {status_guarded: false, …}`。`workflows/judge/works-factory-judge.yaml:1762`）
-  - `NA = "never"`、`NA_REASON = ""`（今の `MATERIAL_NODES['p1.provenance']` が `applies_cond` を持たず `na_self_ok: False`。`lib/judge_accept.py:1692-1695`）
+  - `NA = "never"`、`NA_REASON = ""`（今の `MATERIAL_NODES['p1.provenance']` が `applies_cond` を持たず `na_self_ok: False`。lib の `judge_accept.py:1692-1695`）
   - `due(view, values)`: `materialkit.is_entry_run(view, values)`（`values["entry"]` が在り、かつ対象差分が空）なら `materialkit.entry_skip("出典の確かめ")`（今の `provenance_due` の入口の枝の名詞。判定から入る run `df5e111f-…` の `material-route.json` の `roles.provenance.why` と同じ字になる）。そうでなければ `materialkit.Due(True, "根拠の出所検査は run ごとに 1 回回す（判定から入る run でない。1 run は 1 周で、いつも初回）")`。今の `_because` の字（「初回か、前の周の P3 が何かを直した周——成り立つ（round=1・前の周の P3 が触ったファイルは 0 件）」）は使わない（prior-decisions.md の 1.5 の `due` と同じ決め方。7 節）。
   - `fill(view, values, due)`: `{"provenance": materialkit.fill_entry(values["entry"], 0)}`（`due` が偽になるのは入口の時だけ。今の `_fill_one` の 1 つ目の枝）。
   - `applies(view, values)`: `raise NotImplementedError`。
@@ -62,7 +62,7 @@ materials.md の 1.4 の名だけ: `intake.json`・`view.json`・`diff.patch`・
   - `after_accept(reply, place)`: 何もしない。
   - `materials_of(reply)`: `{"provenance": reply["material"]} if isinstance(reply.get("material"), dict) else {}`（今の `writes` の `materials.provenance ← material`）。
   - `report_lines(doc)`: `reply` が null なら `[]`。ほかは `claims` のうち `exists_at_base` が偽の行ごとに `f"  - 差分の根に無い根拠: {oneline(claim)}"`（自分で決めた。7 節）。
-- `workflows/provenance/src/oldbrief.py`（1 つ目の commit だけ。2.9）: 今の材料のファイルを同じ字で組む `brief(view, values) -> str`。
+- workflows/provenance/src の `oldbrief.py`（1 つ目の commit だけ。2.9）: 今の材料のファイルを同じ字で組む `brief(view, values) -> str`。
 - `schemas/` は置かない（json の入力が無い）。
 - 使う `lib/`: `materialkit`・`rolekit`・`oneline`。
 
@@ -71,7 +71,7 @@ materials.md の 1.4 の名だけ: `intake.json`・`view.json`・`diff.patch`・
 - 判定のまとめ（`workflows/judge/`）: `include: works-factory-provenance`、`depends_on` は materials.md の 1.6。`with:` は `base: <line が始めの記録から引いた diff_base>`・`entry: <line が始めの記録から引いた出どころの文。判定から入る run でなければ空>`・`lang: <始めの記録の lang>`。
 - 読み手: diagnose の `materials`（11 本の `material` の配列の 1 つ）。
   - 素材 `provenance` は `materialkit.assemble` で 15 欄の 1 つになる。
-  - 主張の行: 今の判定役の材料は返答の全部（`material` と `claims`）を「根拠の出所検査: {{?out.p1.provenance}}」（`lib/judge_accept.py:2717` の `DIAGNOSE_EXCERPT`、値は `:2783-2784` の `out`）で読む。新しい形では diagnose が `materialkit.read` で開いた `material.json` の `reply` を同じ欄に入れる（読み方は diagnose の設計書が決める。この block は `reply` を今の返答のまま置くだけ）。
+  - 主張の行: 今の判定役の材料は返答の全部（`material` と `claims`）を「根拠の出所検査: {{?out.p1.provenance}}」（lib の `judge_accept.py:2717` の `DIAGNOSE_EXCERPT`、値は `:2783-2784` の `out`）で読む。新しい形では diagnose が `materialkit.read` で開いた `material.json` の `reply` を同じ欄に入れる（読み方は diagnose の設計書が決める。この block は `reply` を今の返答のまま置くだけ）。
 
 ## 2 node の設計シート: provenance（出所検査の役）
 
@@ -162,7 +162,7 @@ md の中に、`$` の直後に英字か `{` が続く字は無い（materials.m
 
 ### 2.5 描いた骨組み（例の run の値）
 
-例の run では、今の指示は 2 か所に在った: `workflows/judge/commands/material-provenance.md`（47 行。`$provenance-prep.output.lang_line`・`.reason`・`.brief_file` を Archon が入れた物）と、役が Read した `judge/material-provenance-brief.md`（19 行）。新しい指示はこの 2 つを 1 本にする:
+例の run では、今の指示は 2 か所に在った: workflows/judge の `commands/material-provenance.md`（47 行。`$provenance-prep.output.lang_line`・`.reason`・`.brief_file` を Archon が入れた物）と、役が Read した `judge/material-provenance-brief.md`（19 行）。新しい指示はこの 2 つを 1 本にする:
 
 ```markdown
 {shared:query-rule の本文: Rules for queries to outside services …}
@@ -223,9 +223,9 @@ Return only JSON that matches the output schema.
 
 - 元の works の `works/blk-material/commands/provenance.md`（7 行）は、engine が描いた graphloops の指示書のファイル（`prompt_file`）を Read で読ませる薄い md だった。工場は graphloops の指示書を md の中に写し、値だけを材料のファイルにした（#76）。新しい形は値も指示の中に入れる。
 - 元の graphloops の指示書（元の works の写し `works/.shared/core/gl-prompts/prompts/review-loop/p1.provenance.md`、6 行）と graphloops の今の指示書（`~/src/claude-plugins/graphloops/prompts/review-loop/p1.provenance.md`）は、差分のファイルの穴の名（`loop.diff_file` と `hist.snapshot.diff_file`）と語の言い回しだけが違う。工場はそこに、循環を判定役へ渡す渡し方と `claims` の欄の説明を足した（#221）。この block も持つ。
-- graphloops の graph（`graphs/review-loop.json` の `p1.provenance`）は回す側（`run_by: writer`）に任せ、任せる先の模型を `delegate: {model: sonnet}` で決めた。工場は素材の群の名 `'@wf-judge-materials'`（今の `tests/workflows/test_judge.py:98` の表で sonnet・medium）で起こす。模型は同じ。
+- graphloops の graph（`graphs/review-loop.json` の `p1.provenance`）は回す側（`run_by: writer`）に任せ、任せる先の模型を `delegate: {model: sonnet}` で決めた。工場は素材の群の名 `'@wf-judge-materials'`（今の tests/workflows の `test_judge.py:98` の表で sonnet・medium）で起こす。模型は同じ。
 - graphloops の graph は `na_reason_note`「正当な not_applicable は無い: 事実の主張が無いのは『見たが無かった』＝clean」を持つ。指示書には無く、engine も役に渡さない（graph の注記）。工場と新しい形は `NA = "never"` と `{shared:material-na}` の `na_never` の段落（「見た結果を found か clean で書け」）で同じ事を役に伝える。
-- 返答の型（`material`・`claims`）と書き先（素材 `provenance`）は、元の works・graphloops・工場で同じ（graphloops の `workflows/review-loop/material/exit.schema.json` の `p1.provenance` と今の `output_format` は同じ欄）。`claims` は graphloops の `writes` に無く、判定役は節の出力（`out.p1.provenance`）で読む。
+- 返答の型（`material`・`claims`）と書き先（素材 `provenance`）は、元の works・graphloops・工場で同じ（graphloops の workflows の `review-loop/material/exit.schema.json` の `p1.provenance` と今の `output_format` は同じ欄）。`claims` は graphloops の `writes` に無く、判定役は節の出力（`out.p1.provenance`）で読む。
 - 受け付け: この観点に `post_check` は無い（graphloops の `MATERIAL_NODES` も持たない）。
 
 この block が両方より良く、残す物: 循環の渡し方を役に名指す（#221。graphloops は「素材として P2 へ渡す」だけ）・網の開いた役の作業ツリーの変化を機械が照らす。
@@ -235,7 +235,7 @@ Return only JSON that matches the output schema.
 materials.md の 4 節の順のまま。観点の前の照らしと後の照らしは無い。
 
 - 拒む物: JSON のオブジェクトでない返答・役が作業ツリーを変えた（`GUARDED` が偽なので `porcelain` を含む `TREE_KEYS` の全部。今の `test_material_role_changed_the_tree_rejected` が provenance で照らす振る舞い）・素材 `provenance` が無い・`carried_over`・`not_applicable`（`never`）・知らない status・status ごとの要る欄の欠け。
-- 所見の場所の照らし（materials.md の 4 節の 4）は通るが、この役の返答は `where` と `text` を両方持つ行を持たない（`claims` の行は `claim`・`exists_at_base`・`evidence`）ので、拒む物は出ない。今と同じ（`lib/judge_accept.py:2463-2471` の `_where_rows`）。
+- 所見の場所の照らし（materials.md の 4 節の 4）は通るが、この役の返答は `where` と `text` を両方持つ行を持たない（`claims` の行は `claim`・`exists_at_base`・`evidence`）ので、拒む物は出ない。今と同じ（lib の `judge_accept.py:2463-2471` の `_where_rows`）。
 - 3 回目の拒否でループを抜け、`finish` が `status: gave_up`・素材 `provenance` に `not_run` と訳を書く（materials.md の 2.10 の 4）。
 
 ### 2.9 試験
@@ -249,8 +249,8 @@ materials.md の 4 節の順のまま。観点の前の照らしと後の照ら�
   - 写す元 `MaterialCase.test_material_role_changed_the_tree_rejected`（provenance で回す今の試験）: 役が作業ツリーにファイルを足した回は拒まれ、拒みの文が「変えたのがこの役とは限らない」を言う。族の部品の試験にも同じ照らしが在るが、網の開いた起こし方のこの観点で block を通して 1 回回す。
   - 写す元 `DueCase.test_run_with_a_diff_runs_them` と `test_empty_diff_run_with_requests_runs_only_prior_decisions` の provenance の部分: `entry` が空なら `due` が真、在れば偽で `finish` の `reason` が `entry_skip("出典の確かめ")` の字。
   - 足す: 見た返答（`found`・`count`・`detail`・`claims` 2 行）は `material.json` の `reply.claims` に字のまま載り、`materials` が `{"provenance": <返答の material>}`。`report` に `exists_at_base` が偽の行だけが出る。
-  - 足す（起こし方の照らし）: block の YAML の AI の node の `model`・`allowed_tools`・`sandbox`・`idle_timeout`・`retry` が、今の `tests/workflows/test_judge.py:98` の表の provenance の行（`"sonnet", "medium", INVESTIGATE, DELEGATE, False, …`）が照らす物と同じ。
-- 指示の比べ（README の 11.4）: `tests/blocks/provenance/test_prompts.py`。prior-decisions.md の 2.9 と同じ 2 つの commit の形。1 つ目の commit の値の口は `lang_line`・`reason`・`brief_file`（今の md が `$provenance-prep.output.<欄>` で読む 3 つ）。値は例の run の値（`base`・リポジトリのパス・差分のパス）で、`oldbrief.brief` の字が例の run の `judge/material-provenance-brief.md` と同じ（リポジトリと差分のパスは試験の物に置き換えて比べる）ことを照らす。
+  - 足す（起こし方の照らし）: block の YAML の AI の node の `model`・`allowed_tools`・`sandbox`・`idle_timeout`・`retry` が、今の tests/workflows の `test_judge.py:98` の表の provenance の行（`"sonnet", "medium", INVESTIGATE, DELEGATE, False, …`）が照らす物と同じ。
+- 指示の比べ（README の 11.4）: tests/blocks/provenance の `test_prompts.py`。prior-decisions.md の 2.9 と同じ 2 つの commit の形。1 つ目の commit の値の口は `lang_line`・`reason`・`brief_file`（今の md が `$provenance-prep.output.<欄>` で読む 3 つ）。値は例の run の値（`base`・リポジトリのパス・差分のパス）で、`oldbrief.brief` の字が例の run の `judge/material-provenance-brief.md` と同じ（リポジトリと差分のパスは試験の物に置き換えて比べる）ことを照らす。
 - 守る keep-essence の番号: 無い（README の 10 節の 12 の仕組みにこの観点は出てこない。keep-essence の 5 の「書き込みの出どころ」は `lib/writes.py` の別の仕組みで、この観点ではない）。
 - 終わりの条件の命令: materials.md の 8 節の 4 行の `<観点の package の名>` を `provenance` にした物。
 

@@ -115,7 +115,7 @@ line が段ごとに引いた真偽の表 `verify_by_tier` を、head-depth が�
 
 - place（judge の graph の include の道。line から include されれば `judge/`）に書くのは `verdict` の `purpose-review.json`・`verdict.json`（返りの写し）だけ。名は `src/files.py`。block のファイルは各 block の place（`judge/<include の id>/`。例: `judge/premises-run/`）に在り、graph は pointer で受け渡す。
 - `src/verdict.py`（止めの順・返りの組み立て・節の並び）・`src/files.py`。`scripts/`: `ins.py`・`returned.py`・`spec_in.py`・`diagnose_in.py`・`verdict.py`。
-- 使う `lib/`: `materialkit`（`read`。素材の `status`・purpose-review の `reply` を読む）・`stopby`・`oneline`・`jsonfile`。今の `lib/judge_accept.py` の graph の部分（`intake`・`material_route`・`verdict`・`start_view`・`write_stop`・`read_stop`・`PORTS`・`FIRST_PORTS`・`require_ports`）は使わない（README 9.2 の「`judge/` の決め打ちの包みと `PORTS`・`FIRST_PORTS` は DELETE」）。
+- 使う `lib/`: `materialkit`（`read`。素材の `status`・purpose-review の `reply` を読む）・`stopby`・`oneline`・`jsonfile`。今の lib の `judge_accept.py` の graph の部分（`intake`・`material_route`・`verdict`・`start_view`・`write_stop`・`read_stop`・`PORTS`・`FIRST_PORTS`・`require_ports`）は使わない（README 9.2 の「`judge/` の決め打ちの包みと `PORTS`・`FIRST_PORTS` は DELETE」）。
 
 ### 1.7 今の judge との比べ
 
@@ -199,7 +199,7 @@ line が段ごとに引いた真偽の表 `verify_by_tier` を、head-depth が�
 
 - place に書くのは `verdict.json`（返りの写し）だけ。目の返答は各 block の place に在る。
 - `src/verdict.py`・`src/files.py`。`scripts/`: `ins.py`・`returned.py`・`after_in.py`・`verdict.py`。
-- 使う `lib/`: `eyekit`（`fell_text`・`FELL_MARK`。r1 の PR が足す）・`seal`（判定の語 `PASSED` など）・`oneline`・`jsonfile`。今の `lib/eyeverdict.py` のまとめの部分（`collect`・`unverified`・`write_notes`）はこの graph の `src/` へ（README 9.2）。観点ごとの部分は r1〜r4 へ（r1 の設計書の 0.5）。
+- 使う `lib/`: `eyekit`（`fell_text`・`FELL_MARK`。r1 の PR が足す）・`seal`（判定の語 `PASSED` など）・`oneline`・`jsonfile`。今の lib の `eyeverdict.py` のまとめの部分（`collect`・`unverified`・`write_notes`）はこの graph の `src/` へ（README 9.2）。観点ごとの部分は r1〜r4 へ（r1 の設計書の 0.5）。
 
 ### 2.6 今の eyes との比べ
 
@@ -210,7 +210,7 @@ line が段ごとに引いた真偽の表 `verify_by_tier` を、head-depth が�
 - standalone の筋書き: `fixture.inputs` は `base`・`purpose`・`units` だけ。r1〜r4 と structure の AI の node を台本で差し替え（r4 の輪の本体の script も。README 13 章）、`reached`（筋書きが届いたことを確かめる node の一覧）に `verdict`。全部の目が `pass` で `ok` が真。
 - 筋書き（今の `workflows/eyes/fixtures/` の 6 本を写す）: `all-light`（`run: false` → 目は飛び、structure after は走り、`ok` 真）・`one-eye`（`merge: true` → r3 が飛び、返りの `r3` の行は r4 の出力 `coherence` の判定の行になる。2.4）・`pass`・`premise`（R2 が前提の検算の道 → `ok` 偽・`premise_check` が在る）・`redesign`・`protected-hit` は merge の筋書きへ移す（守りのパスは merge）。
 - 振る舞いの試験（元は組み込みの前の tests/workflows の `test_eyes.py` と lib の試験の `test_eyeverdict.py` のまとめの部分。README 9.5）: `ok` の決まり（目ごとに 1 つずつ外して偽になる）・受け皿（include ごとに置く script の node `<id>-out`。0 節）が返りを受けられなかった目が `unverifiable` になり、理由が `eyekit.fell_text` の訳になる（2.4）・落ちた目の訳の尾に「まま R4 を回した」が付く（2.4）・`run` 偽の時の `report` の行・`verdict` が落ちない。
-- 配線の yes/no: r4 が r1・r2 の受け皿（`r1-out`・`r2-out`）に依り、`trigger_rule: none_failed_min_one_success`（Archon の決まり。依る node に落ちた物が無く、1 つ以上が終わっていれば回す）を持つ・structure（after）が `when:` を持たない・r3 の `when:` が `merge` を読む・`ok` の決まりが直した後の実測の `dirty`・`escalate` を使わない（2.4）。
+- 配線の yes/no: r4 が r1・r2 の受け皿（`r1-out`・`r2-out`）に依り、`trigger_rule: none_failed_min_one_success`（Archon の決まり。依る node に落ちた物が無く、1 つ以上が成功していれば回す）を持つ・structure（after）が `when:` を持たない・r3 の `when:` が `merge` を読む・`ok` が直した後の実測（structure〔after〕の出力）の `dirty`・`escalate` の数に左右されない（どちらの数を増やしても `ok` が変わらない。2.4）。
 - 守る keep-essence（README 10 節の番号）: 9（R1〜R4。独立設計を作った block〔independent-design。[independent-design.md](independent-design.md)〕は修正案・判定・差分を運ぶ port を持たず、この graph は r2 に独立設計の pointer〔ファイルを指す値。頭の語の一覧〕を渡すだけ）。
 
 ## 3 自分で決めた事

@@ -113,9 +113,9 @@ line は一番上の graph なので、place は run directory の根（README 4
   - `files.py`: 1.4 のファイルの名。
   - `startrec.py`・`fixture.py`・`testcmd_check.py`・`versions.py`: README 9.2 の MOVE（`lib/` から block の `src/` へ移す物。ここでは今の `lib/` の同じ名のモジュールを line の `src/` へ移す）。`startrec` の `load`・`save` は形を問わない JSON の読み書きなので、line の外でそれを呼んでいた test-gate と、README 9.3 の KEEP〔2 つ以上の使い手が在るので `lib/` に残す物〕の `suitewrite` は、`lib/jsonfile.py` の `read_dict`・`write(..., indent=2, parents=True)` を直に呼ぶ形に替え（line の中の `save` は `jsonfile.write` を呼ぶ薄い包みとして残す）、始めの記録を読む口そのもの（`read`・`shape` など）は line の `src/startrec.py` にだけ置く。`lib/` に読む口は残さない（integration.md の 4.3-9・4.3-追加-6）。
   - `deal.py`（足す）: 始めの記録から配る値を引く（1.6）。
-  - `gates.py`: 承認ノードの決め（今の `lib/gatepolicy.py` の全部と、`lib/gatemarks.py` の承認ノードの決めの部分〔開くか・項目の行・軸・通した行・無人の抜け方〕、`lib/gate_axes.py`）。問いの行の形（`ASKING`・`asks_human`・推しの尾の字の形）と承認ノードの文の組み立て `gate_text` は KEEP の `lib/gatemarks` を引く（README 9.3）。
+  - `gates.py`: 承認ノードの決め（今の lib の `gatepolicy.py` の全部と、`lib/gatemarks.py` の承認ノードの決めの部分〔開くか・項目の行・軸・通した行・無人の抜け方〕、lib の `gate_axes.py`）。問いの行の形（`ASKING`・`asks_human`・推しの尾〔承認ノードの項目の行の末尾に付く推しの答えの字。無人の run でその行を推しで通してよい印。`push_rec` が読み戻す〕の字の形）と承認ノードの文の組み立て `gate_text` は KEEP の `lib/gatemarks` を引く（README 9.3）。
   - `final.py`: 最後の承認ノードの開ける理由と文（今の `ask_final.py` の中身）。
-  - `tiers.py`: 段 → 回す物の表と単位の深さと上げ直し（今の `lib/depth.py` の表 `TIERS`（目をまとめる欄 `merges` を含む）・`unit_depth`・`decide_doc`・`raise_doc`・`skip_reason`・`omits`・`tier_adds`・`tier_auto`・`lines` と、`lib/latedepth.py`）。段の語 4 つ（`LIGHT`・`STANDARD`・`HEAVY`・`HEADS`）は先に `lib/headdepth` へ移す（README 9.3・11.3 の 5）。
+  - `tiers.py`: 段 → 回す物の表と単位の深さと上げ直し（今の lib の `depth.py` の表 `TIERS`（目をまとめる欄 `merges` を含む）・`unit_depth`・`decide_doc`・`raise_doc`・`skip_reason`・`omits`・`tier_adds`・`tier_auto`・`lines` と、lib の `latedepth.py`）。段の語 4 つ（`LIGHT`・`STANDARD`・`HEAVY`・`HEADS`）は先に `lib/headdepth` へ移す（README 9.3・11.3 の 5）。
   - `rounds.py`: 計画の往復の記録と止め（今の `lib/converge.py` の `read`・`add_pass`・`record_pass`・`decide`・`proceeds`・`capped`・`stuck_keys`・`stuck_reason`・`lines`・`open_items`・`held`）と、設計の相談の修正要望を記録に差し込む `ask_again`（3.1 節）。
   - `talk.py`（足す）: 設計の相談の周の頭と終わりの決めと関所の文（3.1 節）。`asking.py`（足す）: 修正前の承認ノードの材料の読み（`ask-before-fix` と `design-talk` が同じ材料から同じ行を組む 1 か所）。項目の読みと穴の札の形（`planned_units`・`central` など、plan と plan-review も使う物）は KEEP の `lib/converge` に残す（README 9.3）。
   - `stages.py`: 2 つの修正の段の合わせ（今の `fixed.py` の中身と、組み込みで DELETE される `fixbeside` の読み口のうち line が読む物〔`stage`・`late_records`・`read`〕。fix の設計書の 1.2 の「`fixbeside.read`・`records` は組み込みで line の src/ に移る」）と、最後の承認ノードと line が組む報告の節だけが読む行の組み立て `closure_lines`・`tests_left_lines`・`gates_lines`・`plan_ask_lines`・`always_rows`（レンズの行でない部分）・`next_items`（手直しの行でない部分）（integration.md の 4.5-3。`branch_rows` とレンズの行・手直しの行は delta-review の `report`・`carry`）。
@@ -347,7 +347,7 @@ E11（`AGENTS.md` の決まり。仕組みを足す前に、Archon が持つか�
 
 ## 5 深さの表（段 → 回す物）と上げ直し
 
-### 5.1 表（`src/tiers.py` の `TIERS`。今の `lib/depth.py` の `TIERS` を写す）
+### 5.1 表（`src/tiers.py` の `TIERS`。今の lib の `depth.py` の `TIERS` を写す）
 
 - 軽量: 省く物 `omits` = 差分の審査とそれに続くレンズ・手直し、独立の目の R1〜R4（R1 の削除候補を含む）、軽量の単位の緑の後の試験の走らせ直し。足す物は無い。事前審査の木の auto は off。目をまとめる物 `merges` = R3 を R4 の会話に入れる。
 - 標準: 省く物も足す物も無い。木の auto は auto。
@@ -376,11 +376,11 @@ E11（`AGENTS.md` の決まり。仕組みを足す前に、Archon が持つか�
 
 `run` ← `$fixed.output.eyes_due`（直す物が無い周は `raise` が飛ぶので、`fixed` が真を返す）。`merge` ← `$fix-in.output.switches.merge` が真で `run` が真（目を省かずに回す軽量の run だけ R3 を R4 に入れる。段の表 `TIERS` の欄 `merges` が空でない段。持ち主の決め `eyes-by-reason`）。直した後の実測（structure after）は `run` に依らず回す（E71。eyes の graph の側）。
 
-## 6 無人の方針（`src/gates.py`。今の `lib/gatepolicy.py` の決めのまま）
+## 6 無人の方針（`src/gates.py`。今の lib の `gatepolicy.py` の決めのまま）
 
 - 入口: `unattended` は空か `true`。仕様の段と無人の run は組めない（`start` が AI の前で拒む）。無人の run の `final_gate` の空の既定は `when_needed`（人の居る run は `always`）。
 - 起動の承認ノードは開かない（`start.ask` が偽）。
-- 修正前: 判定の推しが選択肢を名指す fork・held は台帳の読みが答えとして採り、出どころを直す義務に戻す。採れない台帳の問い（fork・escalate）は承認ノードに載せず `deferred` で返し、報告と次の依頼の下書きへ回す（L-G33・L-G38・L-G41）。ほかの項目が在れば `passage`: 項目の全部が通す推しの尾を持つ時だけ推しで進み（`pushed`）、ほかは開かずに `works:needs-human` で止める。止まった往復の行も、推しの尾が付く条件（`stuck_pushable`。上限で止めた往復は付かない）を満たせば推しで進む。推しの note は、往復を止めた穴の key（`rounds.stuck_keys`）と項目を字のまま引く。項目を引く字は `converge.ITEM_CITE`（「項目 n」）の 1 か所で、plan-review の md へは差し込み口 `{item_cite}` で渡し、`rounds.uncited` も同じ字で照らす。通す推しを引用の欠けだけで捨てた時は、止めた行の末尾に「推しは在ったが引用が欠けた（欠け: …）」（`gates.CITE_DROPPED`）を付け、報告と次の依頼の下書きに捨てた訳を残す。設計だけの run は無人でも止まる（L-G27）。
+- 修正前（語: 問いの台帳は判定の返答の `questions`。行の `kind` の fork は人に選んでもらう分かれ道の問い、`status` の held は保留中、escalate は人に上げた問い。diagnose の設計書の頭）: fork か held の問いのうち、判定の推し（問いの `reason` に書いた、選択肢を名指す勧め）が在り、出どころが今の周の単位に在る物は、台帳の読みがその推しを答えとして採り、問いの出どころ（問いが生まれた直す単位と、それに頼る単位）を修正の段が直す単位に戻す（人の答えを待つ間は直す単位から外していた物を、推しの答えで直させる）。採れない台帳の問い（推しの無い fork・held と、escalate の問い。escalate は推しが在っても採らない）は承認ノードに載せず `deferred` で返し、報告と次の依頼の下書きへ回す（L-G33・L-G38・L-G41）。承認ノードに載るほかの項目が在れば、`gates.passage`（無人の run で承認ノードを開かずに推しで進むか止めるかを決める関数）が決める: 項目の全部が通す推しの尾（項目の行の末尾に付く推しの答えの字。6 節）を持つ時だけ推しで進み（`pushed`）、ほかは開かずに `works:needs-human` で止める。止まった往復の行も、推しの尾が付く条件（`stuck_pushable`。上限で止めた往復は付かない）を満たせば推しで進む。推しの note は、往復を止めた穴の key（`rounds.stuck_keys`）と項目を字のまま引く。項目を引く字は `converge.ITEM_CITE`（「項目 n」）の 1 か所で、plan-review の md へは差し込み口 `{item_cite}` で渡し、`rounds.uncited` も同じ字で照らす。通す推しを引用の欠けだけで捨てた時は、止めた行の末尾に「推しは在ったが引用が欠けた（欠け: …）」（`gates.CITE_DROPPED`）を付け、報告と次の依頼の下書きに捨てた訳を残す。設計だけの run は無人でも止まる（L-G27）。
 - 案の直し: 範囲を広げるだけの直し（`planmarks.widened`）は聞かずに通し、足した・外した glob を `widened` で返して報告へ（L-G45）。約束の欄が変わった項目は推しを持たないので止まる（L-D30）。
 - 最後: 開くはずの時は開かずに `works:needs-human` で止め、merge の apply を飛ばす（L-G39・L-W25）。
 - 機械は推しを作らない（推しは記録に書かれた物だけ。L-G24）。
@@ -477,9 +477,9 @@ E11（`AGENTS.md` の決まり。仕組みを足す前に、Archon が持つか�
 
 ## 10 元の works と graphloops の同じ場面
 
-- 元の works の線（`works/darkfactory/darkfactory.yaml`・`lib/line_edge.py`）: 承認ノード 4 つ・計画の往復・案の直しの refit・再審の h-rejudge（refit の後）・深さの上げ直し `depth.raise_`・最後の承認ノードの `_final_needs`。工場は同じ順で写し（今の line の docstring が元の行を名指す）、この設計は形を変えない。元の works に在って工場に無い物のうち、入口の `gates` は戻さない（8.3。持ち主の決め 2026-10-19）。元の works の止め札（関所の間で走っている run を外から止める）は持ち込まない（S60 の決め `stop-at-gates`）。
+- 元の works の線（`works/darkfactory/darkfactory.yaml`・lib の `line_edge.py`）: 承認ノード 4 つ・計画の往復・案の直しの refit・再審の h-rejudge（refit の後）・深さの上げ直し `depth.raise_`・最後の承認ノードの `_final_needs`。工場は同じ順で写し（今の line の docstring が元の行を名指す）、この設計は形を変えない。元の works に在って工場に無い物のうち、入口の `gates` は戻さない（8.3。持ち主の決め 2026-10-19）。元の works の止め札（関所の間で走っている run を外から止める）は持ち込まない（S60 の決め `stop-at-gates`）。
 - graphloops の review-graph（`graphs/review-loop.json` の周の loop）: 周ごとに P0〜P4 を回し、次の周の頭で判定を回し直す。工場は 1 run = 1 周で、次の周は chain が別の run で回す。graphloops の周の条件で工場に無い物のうち、並行 PR の回し直しはこの設計で 1 run の中に戻す（8.1）。ほかの周の条件（目的の出典を前の周が触った時の目的の監査の回し直しなど）は、1 run = 1 周ではいつも偽で、今も回らない（素材の観点の族の設計書の 5.2）。
-- 意図して外した記録: 周の鎖の 1 run = 1 周（持ち主の決め `carry`）。並行 PR の回し直しを外した PR の記録は（未確認）（parallel-pr の設計書の 6 節の 2）。
+- 意図して外した記録: 周の鎖の 1 run = 1 周（持ち主の決め `carry`）。並行 PR の回し直し（周ごとに変更ファイルを取り直して数え直すこと）は、意図して外したと書いた記録が見つかっていない（未確認。parallel-pr の設計書の 6 節の 2）ので、ここの「外した物」には数えない。この設計は 8.1 で 1 run の中に戻す。
 
 ## 11 試験
 
@@ -577,7 +577,7 @@ run の頭の深さの 3 段の定義の写し（issue #441・#561。持ち主�
 
 載せなかった候補（代わりが無い）:
 
-- judge の P1 の素材（`local-review`・`consistency-bypass`・`hygiene`・`external-standards`・`provenance`・`procedure-trace`・`gate-efficacy`・`test-double-fidelity`・`main-path-observation`）: 差分の無い依頼の run では今すでに起きない（`lib/judge_accept.py` の `due_view` が入口の印を立てる）。差分の在る run では、ReviewBench で所見を出したのは judge（15 件・最後の差分に 4）と eyes だけで、judge の所見はこの素材から来る。安全面・黙った失敗・ゲートの変異の検算などは eyes が見ない。
+- judge の P1 の素材（`local-review`・`consistency-bypass`・`hygiene`・`external-standards`・`provenance`・`procedure-trace`・`gate-efficacy`・`test-double-fidelity`・`main-path-observation`）: 差分の無い依頼の run（判定から入る run）では、今すでにこの素材の役は起こされない（各観点の block の `due` が `materialkit.is_entry_run` で判定から入る run と見て回さない。materials の設計書の 5.1）。差分の在る run では、ReviewBench で所見を出したのは judge（15 件・最後の差分に 4）と eyes だけで、judge の所見はこの素材から来る。安全面・黙った失敗・ゲートの変異の検算などは eyes が見ない。
 - `judge__prior-decisions-loop`（過去の決定記録の探し）: eyes の R4 が照らすのは記録された方針の文書だけで、git の履歴や issue の決定を探す役はほかに無い。
 - `judge__purpose-review-loop`（書き手が要約した目的の監査）: eyes の R2 の独立設計も同じ目的の文から作るので、要約が狭めていたら R2 も同じく狭まる。
 - 計画の事前審査のループ（`plan-review-run__review-loop`）: 軽量の頭の run で飛ばす道があったが、計画の壁打ちはどの段でも省かないと決めて外した。ReviewBench（PR の審査の公開ベンチ。持ち主の決め `public-bench-at-major`）の測り（2026-10-14）は事前審査が高い（3 課題の和で 3772 秒・33.14 USD・所見 0）ことを示したが、事前審査は省かない。

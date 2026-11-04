@@ -92,7 +92,7 @@ script の名は `lib/` のモジュールの名と重ねない（README の 7.1
 - `workflows/parallel-pr/schemas/changed.schema.json`（`request.schema.json` は block に写さず `shared:request.schema.json` を使う。10 節の 10）（`{type: array, items: {type: string, minLength: 1}}`）。
 - 使う `lib/`: `materialkit`（`STATUS`・`check_record`）・`forge`（`detect`・`reason`・`repo_of`・`redact`・`_git`・`GITHUB`）・`ghreads`（`_gh`。gh の読む口）・`accept`（`touched_files`・`tree_state`・`tree_moved`・`type_errors`・`TREE_SCHEMA`・`Reject`）・`reads`・`rolekit`（`accept_round`・`rejected`・`rejects_text`・`given_up_reason`）・`stopby`（`PR`）・`jsonfile`・`oneline`。
 - 素材の札の語と照らし: 素材の観点の族の共通の部品 `lib/materialkit.py`（[materials.md](materials.md) の 2 節）の `STATUS`・`check_record`。この block の `material` は diagnose が素材の 1 欄（`parallel_pr`）として読むので、同じ語と同じ照らしを使う（自分で決めた。10 節の 2）。この block の PR は、そのモジュールと断片 `works-gh`・`material-status`・`material-na` を置く PR（素材の観点の 1 本目）の後に出す。
-- `lib/downgrades.json` と `prcheck.downgrades`・`head_downgrades` はこの block に写さない（6 節の 6）。
+- lib の `downgrades.json` と `prcheck.downgrades`・`head_downgrades` はこの block に写さない（6 節の 6）。
 
 ### 1.6 つなぎ方（graph の側。block には書かない）
 
@@ -201,7 +201,7 @@ Return only JSON that matches the output schema.
 
 ### 2.5 描いた骨組み（例の run の値）
 
-例の run の役は今の `workflows/judge/commands/pr-check.md` を Archon が置き換えた指示を受けた（組んだ指示はファイルに残っていない）。下は同じ値を新しい md に入れた骨組み（例の run は修正の前なので段 `before` の文。値は例の run の `judge/pr-brief.json` と、`rejects-pr-check.json` が無いこと〔1 回目で通った〕から）。
+例の run の役は今の workflows/judge の `commands/pr-check.md` を Archon が置き換えた指示を受けた（組んだ指示はファイルに残っていない）。下は同じ値を新しい md に入れた骨組み（例の run は修正の前なので段 `before` の文。値は例の run の `judge/pr-brief.json` と、`rejects-pr-check.json` が無いこと〔1 回目で通った〕から）。
 
 ```markdown
 Rules for queries to outside services …（{shared:query-rule} の本文。spawns が false なので下請けの段落は入らない）
@@ -250,7 +250,7 @@ Return only JSON that matches the output schema.
 
 ### 2.6 今の指示との差
 
-今の指示は `workflows/judge/commands/pr-check.md`（41 行）1 本で、lib の Python は指示の文を組んでいない。値は Archon の置き換え（`$pr-check-reject.output.*`・`$ARTIFACTS_DIR`）で入っていた。
+今の指示は workflows/judge の `commands/pr-check.md`（41 行）1 本で、lib の Python は指示の文を組んでいない。値は Archon の置き換え（`$pr-check-reject.output.*`・`$ARTIFACTS_DIR`）で入っていた。
 
 - 移した: 却下の段落（md:16-24）を共通の断片 `{shared:rejected}` に。今は前の回の理由 1 つだけ（`reject.py` が `$LOOP_PREV` の理由を返す）だったが、world と同じく古い順に全部を渡す（`rolekit.rejects_text`。#345 で他の loop に入れた形）。拒まれた回の指示が増えるだけで、1 回目は同じ。
 - 移した: 外への検索の決まりの塊（md:3-14）を `{shared:query-rule}` に。頭の「works の包みより」は消した（world と同じ）。
@@ -304,7 +304,7 @@ bin/works-factory workflow run works-factory-parallel-pr \
 
 元の works の `works/blk-pr/`（pr-snap・pr-loop〔pr-check と pr-accept〕・pr-reads・collect）から、工場はほぼ同じコードを写した（#76 `37b7a693`）。graphloops の `prompts/review-loop/p0.parallel_pr.md`（`graphs/review-loop.json:1833-1975`）は書き手が自分で回す節で、任せ先に落ちるのは機械が決められない時だけ。工場に無い物・違う物と、その訳:
 
-1. 担当の PR へ投稿する（graphloops の 6 段は `handed_over: true` で投稿する）: 工場と元の works は下書きだけ。持ち主の決め 2026-09-27（元の works の `docs/specs/2026-09-29-darkfactory-single-run-design.md:33,402` の「案 (a)」）。工場の `docs/owner-decisions.md` にはこの決めの行が無く、跡は `NO_POST` の字と md だけ（（未確認）: 工場の台帳に書き写さなかった訳の記録は無い）。この block は下書きのまま。
+1. 担当の PR へ投稿する（graphloops の 6 段は `handed_over: true` で投稿する）: 工場と元の works は下書きだけ。持ち主の決め 2026-09-27（元の works の docs の `specs/2026-09-29-darkfactory-single-run-design.md:33,402` の「案 (a)」）。工場の `docs/owner-decisions.md` にはこの決めの行が無く、跡は `NO_POST` の字と md だけ（（未確認）: 工場の台帳に書き写さなかった訳の記録は無い）。この block は下書きのまま。
 2. 周の条件（graphloops の `parallel_pr_due`。1 周目か、判定から入る run の最初の修正の次の周で回し直し、変更ファイルの集合をその周に固めた版から取り直す）: 工場は写したが使っていない（`judge_accept.py:1612` の関数を名指す節が無い。judge の `pr-scan` は判定の道で 1 回だけ走る）。（未確認）: 外した記録は無い。block は周を知らないので、回し直すかは line の `when:` の決め。line の設計書の 8 節の 1 が、判定から入る run で直した差分が在る時に修正の後に 1 度回し直すと決めた（node `parallel-pr-after`、`stage: after`）。この block は呼ばれれば今の作業ツリーで数え、hunk を外すかを段で分ける（10）。
 3. 素材の札ごとの要る欄の照らし（graphloops の `check_record`〔`rules/review-loop.py:4316`〕と元の works の `b.done`。found は count と detail、clean は checked、ほかは reason が要る。carried_over を走った役が書くのを拒む）: 工場は `status` が語のどれかしか見ない（`judge_accept.py:3621-3623`）。md は「流用と書いても拒まれる」と言うのにコードは拒まない。（未確認）: 外した記録は無い。この block の受け付けで戻す（4 節の 4）。graphloops の `na_self_ok: false` に当たる「役は not_applicable を名乗れない」も戻す。
 4. 役の前の作業ツリーの写し（元の works は役の直前に `pr-snap` が取った）: 工場は judge の入口か仕様の承認の後の写し `judge/judge-tree.json` と比べる（#76 から。（未確認）: 訳の記録は無い）。この block は元の works と同じく役の直前（`scan`）で取る。
@@ -331,8 +331,8 @@ bin/works-factory workflow run works-factory-parallel-pr \
   - `changed` が空で `base` も空、`request` の `where` が追跡中のファイルを名指す → 渡し物の `changed_files` がそのファイル。
 - 指示の比べ（README の 11.4。この block の PR を 2 つの commit に分ける。1 つ目は今の指示の日本語の字のまま md を置き、今の指示と同じ字になることを試験で照らす。2 つ目で md を英語にし、1 つ目の試験を消す）: 例の run の `judge/pr-brief.json` と同じ値で、1 つ目の commit では日本語の md で組んだ指示が、今の `pr-check.md` に `$pr-check-reject.output.reason` を空・`lang_line` を例の run の値・`$ARTIFACTS_DIR` を place の親に置き換えた字と同じになることを照らす（2.6 で替えた所〔渡し物のパス・却下の段落の 1 回目の文〕は、1 つ目の commit では今の字に合わせて書く）。2 つ目の commit（英語）では、2.6 の差の一覧どおりかを並べて審査に出す。
 - 振る舞いの試験（今の試験から写す。`judge/` のパスを place に、`ja.pr_scan(jdir, repo)` を `src.scan.scan(place, repo, request=…, base=…, changed=…)` の形に替える）:
-  - `lib/tests/test_judge_accept.py` の `PrScanCase` の全部（`test_no_crossing_is_decided_by_machine`・`test_crossing_falls_back_to_role`・`test_diff_files_win_over_request_wheres`・`test_gh_missing_falls_back`・`test_no_forge_is_not_applicable`・`test_empty_set_is_not_run`・`test_truncated_and_unreadable_wait_for_human`・`test_github_repo_redacts_token`・`test_github_repo_reads_the_url_with_forge`・`test_github_repo_takes_the_tracked_remote_first`）と `PrAcceptCase` の全部（`test_check_no_post`・`test_handed_over_true_rejected`・`test_handover_draft_accepted_with_anchor`・`test_no_conflicts_reply_accepted`・`test_excluded_checked`・`test_fallback_role_reads_only`・`test_head_move_and_ignored_paths_are_refused`）。`test_stopped_run_does_not_go` は写さない（止めの控えを読まない。4.3）。
-  - `tests/workflows/test_judge.py` の `ParallelPrThroughReadOnlyGhTest.test_parallel_pr_scan_passes_the_read_only_gh`（gh の打ち方が読むだけの口の許しの表に合う）・`test_pr_check_reply_outside_the_type_is_rejected`・`test_pr_check_must_read_its_brief`・`test_pr_reads_returns_the_same_with_or_without_the_parents_config_dir`・`test_pr_check_reads_runs_after_the_role_on_the_roles_rounds`・`test_pr_check_reads_without_record_does_not_fail`（block では `ReadsCase`・`WiringCase`）。
+  - lib/tests の `test_judge_accept.py` の `PrScanCase` の全部（`test_no_crossing_is_decided_by_machine`・`test_crossing_falls_back_to_role`・`test_diff_files_win_over_request_wheres`・`test_gh_missing_falls_back`・`test_no_forge_is_not_applicable`・`test_empty_set_is_not_run`・`test_truncated_and_unreadable_wait_for_human`・`test_github_repo_redacts_token`・`test_github_repo_reads_the_url_with_forge`・`test_github_repo_takes_the_tracked_remote_first`）と `PrAcceptCase` の全部（`test_check_no_post`・`test_handed_over_true_rejected`・`test_handover_draft_accepted_with_anchor`・`test_no_conflicts_reply_accepted`・`test_excluded_checked`・`test_fallback_role_reads_only`・`test_head_move_and_ignored_paths_are_refused`）。`test_stopped_run_does_not_go` は写さない（止めの控えを読まない。4.3）。
+  - tests/workflows の `test_judge.py` の `ParallelPrThroughReadOnlyGhTest.test_parallel_pr_scan_passes_the_read_only_gh`（gh の打ち方が読むだけの口の許しの表に合う）・`test_pr_check_reply_outside_the_type_is_rejected`・`test_pr_check_must_read_its_brief`・`test_pr_reads_returns_the_same_with_or_without_the_parents_config_dir`・`test_pr_check_reads_runs_after_the_role_on_the_roles_rounds`・`test_pr_check_reads_without_record_does_not_fail`（block では `ReadsCase`・`WiringCase`）。
   - 足す: `carried_over` の素材を拒む・`not_applicable` を拒む・found に count が無い返答を拒む（4 節の 4）・役を諦めた時の `stop_reason: works:pr`・素材の控えが無い時の `not_run` と `stop_reason: works:pr`・`ok` 偽（3 節の `finish`）・読んだ証拠を集める node が落ちた時の落ちた記録の掃除と報告の行。
   - 段（1.2 の `stage`。`tests/blocks/parallel_pr/test_parallel_pr.py` の `FlowCase`）: `test_after_stage_keeps_the_hunks_and_refuses_excluded_rows`（段 `after` で渡し物に `stage` が書かれ、指示の段 6 が外させない文に替わり、受け付けが `excluded` の行を持つ返答を拒み、空なら通して `found` で終わる。段 `before` の指示は外させるまま）・`test_unknown_stage_is_refused_at_the_entry`（語の外の `stage` を `scan` が `go_role: false` で拒む）。
 - 読み手の側の試験はそれぞれの block と line に残す（diagnose の素材の読み・plan と fix の外す hunk の照らし・report の行）。段を渡す配線は、judge の `tests/blocks/judge/test_judge.py` の `test_parallel_pr_runs_before_the_fix`（`stage: before`）と line の `tests/blocks/line/test_wiring.py` の `test_parallel_pr_after_runs_for_judged_entries_with_a_diff`（`stage: after`）が照らす。
@@ -359,7 +359,7 @@ bin/works-factory workflow run works-factory-parallel-pr \
 5. `carried_over` を受け付けで拒む（今は通る）。根拠: md が書くなと言い、block は周を持たない。
 6. 素材の控えが無いまま出口に来た時に `not_run` を名指し、止める語 `works:pr`（`ok` 偽）を返す。根拠: 無言の空を作らない（持ち主の決め `no-silent-loosen`）。元の工場は役の輪が落ちると下流の判定が止まったので、その能力を残す。
 7. 読んだ証拠の欠けを、この block の報告の行で出す。根拠: README の 4.1。
-8. 下げた物の宣言を、この block の出力の欄 `downgrades` で自分の行だけ返す（`lib/downgrades.json` を写さない）。根拠: ファイルは 2 つの block の事を持ち、読み手は報告の頭だけ（6 節の 6）。block はほかの block の事を持たない（憲法の 3）。
+8. 下げた物（元の手本〔graphloops の review-loop〕がする事のうち、この工場がわざと弱めた所。この block では「担当の PR へ投稿せず下書きだけ」。6 節の 1）の宣言を、この block の出力の欄 `downgrades` で自分の行だけ返す（lib の `downgrades.json` を写さない）。根拠: ファイルは 2 つの block の事を持ち、読み手は報告の頭だけ（6 節の 6）。block はほかの block の事を持たない（憲法の 3）。
 9. 素材の欄の照らし（`carried_over` と `not_applicable` の拒み・札ごとの要る欄）を受け付けに戻す（4 節の 4）。根拠: graphloops（`check_record`・`na_self_ok: false`）と元の works が持ち、工場で記録なく落ちた。md が既に「拒まれる」と言っているので、指示とコードを揃える。照らしは素材の観点の族と同じ `materialkit.check_record` を使い、`mode` は `never`（この役は『条件に当たらない』を名乗れない）。
 10. 実装で決めた事（main の決まりが設計書と食い違った所、設計書が黙っていた所）:
     - `request.schema.json` を block の `schemas/` に写さず、`shared:request.schema.json` を使う（1.2・1.5 はこれに合わせた）。根拠: 形のファイルの名は pack の中で 1 か所（`tests/layers/test_block_shape.py` の 5）。`changed.schema.json` だけ block に置く。

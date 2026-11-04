@@ -7,7 +7,7 @@
 
 この文書の語は README と materials.md の頭の物を使う（line・始めの記録・今・周は materials.md の頭）。ほかに:
 
-- 所見の場所: 返答の中の、`where`（字）と `text`（字）を両方持つ行の `where` に書いた `<パス>:<行>`（`materialkit.where_rows` が拾う物）。この役の返答では `settled` の行は `text` を持たないので当たらない。今の受け付けの照らしと同じ（`lib/judge_accept.py:2463-2487`）。
+- 所見の場所: 返答の中の、`where`（字）と `text`（字）を両方持つ行の `where` に書いた `<パス>:<行>`（`materialkit.where_rows` が拾う物）。この役の返答では `settled` の行は `text` を持たないので当たらない。今の受け付けの照らしと同じ（lib の `judge_accept.py:2463-2487`）。
 
 - 突合の役（prior-decisions）: 決定記録（ADR・意図的保留の台帳・issue や PR の棄却済み一覧・closed issue）を洗い、決着済みの論点を返す AI の役。道具は Read・Grep・Glob・Bash・WebSearch・WebFetch。Bash は網の閉じた sandbox の中で走る。
 - 依頼の行とぶつかる決め: 返答の任意の欄 `conflicts` の 1 行 `{decision, where, why}`（`where` は依頼の行の where。ぶつかる決めが無ければ `conflicts` は空の配列）。返答のまま `material.json` の `reply` に残り、今の読み手は読まない。仕様駆動の道（仕様の表から run を始める道）の入口で機械が表を照らす時、`conflicts` の各行を指摘の 1 つとして数え、表の `findings` に、その行を指す key が在るかを確かめる。`conflicts` の行は key の欄を持たないので、機械が探す key は `prior-<行の番号>`（行の番号は `conflicts` の配列の中でのその行の番号）と決めてある（[spec-driven.md](spec-driven.md) の 2.6 の 2 の e。`conflicts` の欄そのものを返答に足すと決めたのは同じ文書の 2.5 の詰まった所の 4）。
@@ -33,7 +33,7 @@ README の 8.1 の例は「prior-decisions は request・purpose」と書くが�
 
 出力（`returns: finish`、`outcome_field: ok`）: materials.md の 1.2 の 5 欄（`ok`・`status`・`reason`・`material`・`report`）だけ。`material.json` の `reply` は受けた返答（`checked`・`searched`・`settled`・`material`）、`materials` は `{"prior_decisions": <返答の material>}`。
 
-今との違い: 今は入力を `judge/start.json`（差分の根・入口の印）・`judge/request.json`（依頼の行）・`judge/stop.json` から名で開き（`lib/judge_accept.py:1882-1919`・`:1958-1962`）、受けた返答を `judge/material-prior-decisions.json` に書き、判定の出力の欄 `decisions` がそのパスを外へ出していた（`lib/judge_accept.py:3884` の `FIRST_PORTS`）。回すかは `material-route` が決めた（1 run = 1 周ではいつも回す）。
+今との違い: 今は入力を `judge/start.json`（差分の根・入口の印）・`judge/request.json`（依頼の行）・`judge/stop.json` から名で開き（lib の `judge_accept.py:1882-1919`・`:1958-1962`）、受けた返答を `judge/material-prior-decisions.json` に書き、判定の出力の欄 `decisions` がそのパスを外へ出していた（lib の `judge_accept.py:3884` の `FIRST_PORTS`）。回すかは `material-route` が決めた（1 run = 1 周ではいつも回す）。
 
 ### 1.3 node の並び（`workflows/prior-decisions/works-factory-prior-decisions.yaml`）
 
@@ -59,14 +59,14 @@ materials.md の 1.3 の雛形の `<観点>` を `prior-decisions` にした物�
   - `NAME = "prior-decisions"`
   - `MATERIALS = ("prior_decisions",)`
   - `GUARDED = False`（AI の node が `mutates_checkout: false` を持たない。今の accept の `with: {status_guarded: false}`。`workflows/judge/works-factory-judge.yaml:973`）
-  - `NA = "never"`、`NA_REASON = ""`、`NA_PARAGRAPH = True`（返答が `material` を持ち、md が `material-na` を差し込む。今の `MATERIAL_NODES['p0.prior_decisions']` が `applies_cond` を持たず `na_self_ok: False`。`lib/judge_accept.py:1633-1641`）
+  - `NA = "never"`、`NA_REASON = ""`、`NA_PARAGRAPH = True`（返答が `material` を持ち、md が `material-na` を差し込む。今の `MATERIAL_NODES['p0.prior_decisions']` が `applies_cond` を持たず `na_self_ok: False`。lib の `judge_accept.py:1633-1641`）
   - `due(view, values)`: `materialkit.Due(True, "先行議論の突合は run ごとに 1 回回す（1 run は 1 周で、いつも初回）")`。今の `prior_decisions_due`（`:1588-1594`）は 1 周目にいつも真で、ほかの枝（前の周の修正・昇格）は 1 run = 1 周で効かない。
   - `fill(view, values, due)`: `raise NotImplementedError`（`due` がいつも真なので呼ばれない）。materials.md の 5.1 の「全部の名を定義する」を守り、呼ばれないことを試験が見る。
   - `applies(view, values)`: `raise NotImplementedError`。
   - `judged_na(view, values)`: `return False`。
   - `values(view, values)`: `{"repo": str(view.repo), "base": view.base, "changed_files": dump(list(view.changed_files)), "request_lines": dump(request_lines(view, values))}`。`dump` は `json.dumps(x, ensure_ascii=False, indent=1)`（materials.md の 3.3）。
   - `request_lines(view, values) -> list[dict]`: 判定から入る run の周（`materialkit.is_entry_run`: `values["entry"]` が在り、`view.empty`）でなければ `[]`。その周なら、依頼の行のうち `where` が字の物の `{where, text}` を順に並べた物（`text` が字でなければ空の字）。`where` は探す場所、`text` は `conflicts` で前の決めと比べる本文。同じ `where` で本文の違う行（同じ場所に逆のことを頼む 2 行など）を役が見分けられるよう、本文も渡す。前の版は今の `request_wheres`〔`:1913-1918`〕と同じく `where` だけを並べていて、その 2 行を見分けられなかった（#802 のレビューの指摘で替えた）。依頼の行は `values["request"]`（`requestrows.findings` が読んだ配列）。
-  - `when(view, values)`: `{"spawns": False}`（外への検索の決まりの断片の段落。この役は Agent の道具を持たない）。
+  - `when(view, values)`: `{"spawns": False}`（`spawns` は、外への検索の決まりの断片 `{shared:query-rule}` の中の段落「下請けを起こすなら、この決まりを字のまま渡す」を入れるかの条件。この役は下請けを起こす Agent の道具を持たないので、その段落を切る）。
   - `before(view, values, reply, place)`: `return None, reply, False`。
   - `after(view, values, reply, place)`: `return None`。
   - `after_accept(reply, place)`: 何もしない。
@@ -81,7 +81,7 @@ materials.md の 1.3 の雛形の `<観点>` を `prior-decisions` にした物�
 - 判定のまとめ（`workflows/judge/`）: `include: works-factory-prior-decisions`、`depends_on` は materials.md の 1.6。`with:` は `base: <line が始めの記録から引いた diff_base>`・`request: <依頼の pointer>`（world の `request` と同じ物）・`entry: <line が始めの記録から引いた出どころの文。判定から入る run でなければ空>`・`lang: <始めの記録の lang>`。
 - 読み手:
   - diagnose の `materials`（11 本の `material` の配列の 1 つ）。
-  - 記録された方針の読み手（今の判定の出力の欄 `decisions` を受けていた全部: diagnose の判定の材料と受け付け〔`lib/judge_accept.py:799-801`・`:2824`〕・plan・plan-review・fix・r3・r4）。判定のまとめが `$prior-decisions.output.material`（`material.json` を指す Archon の pointer。中身ではない）を返りの欄 `decisions` にして line へ返し、line が今と同じ配線で配る。読み手は `policy.recorded(start, decisions_file)` に、その pointer を開いたパスを渡す。`policy._settled_rows` は `doc["reply"]["settled"]` を読むので、`material.json` の形（`reply` の欄）のまま読める。
+  - 記録された方針の読み手（今の判定の出力の欄 `decisions` を受けていた全部: diagnose の判定の材料と受け付け〔lib の `judge_accept.py:799-801`・`:2824`〕・plan・plan-review・fix・r3・r4）。判定のまとめが `$prior-decisions.output.material`（`material.json` を指す Archon の pointer。中身ではない）を返りの欄 `decisions` にして line（判定のまとめを include するメイングラフ `works-factory-line`）へ返し、line が今と同じ配線で配る。読み手は `policy.recorded(start, decisions_file)` に、その pointer を開いたパスを渡す。`policy._settled_rows` は `doc["reply"]["settled"]` を読むので、`material.json` の形（`reply` の欄）のまま読める。
 - 今の「run で 1 回」は、判定のまとめがこの block を 1 回だけ include し、再審の道（diagnose の `objection`）がこの block を通らないことで続く。
 
 ## 2 node の設計シート: prior-decisions（突合の役）
@@ -180,7 +180,7 @@ md の中に `$` の字は無い（materials.md の 3.1 の終わり）。
 
 ### 2.5 描いた骨組み（例の run の値）
 
-例の run では、今の指示は 2 か所に在った: `workflows/judge/commands/material-prior-decisions.md`（57 行。`$prior-decisions-prep.output.lang_line`・`.reason`・`.brief_file` を Archon が入れた物）と、役が Read した `judge/material-prior-decisions-brief.md`（23 行）。新しい指示はこの 2 つを 1 本にする:
+例の run では、今の指示は 2 か所に在った: workflows/judge の `commands/material-prior-decisions.md`（57 行。`$prior-decisions-prep.output.lang_line`・`.reason`・`.brief_file` を Archon が入れた物）と、役が Read した `judge/material-prior-decisions-brief.md`（23 行）。新しい指示はこの 2 つを 1 本にする:
 
 ```markdown
 {shared:role-investigator の本文: You are the investigator: … と、その中の {shared:query-rule} の本文 Rules for queries to outside services …}
@@ -225,7 +225,7 @@ Return only JSON that matches the output schema.
 
 ### 2.6 今の指示との差
 
-今の指示は `workflows/judge/commands/material-prior-decisions.md`（57 行）と、`lib/judge_accept.py` の `material_prep`（`:2116-2135`）が描く材料のファイルの 2 か所に在る。
+今の指示は workflows/judge の `commands/material-prior-decisions.md`（57 行）と、lib の `judge_accept.py` の `material_prep`（`:2116-2135`）が描く材料のファイルの 2 か所に在る。
 
 - 移した: 材料のファイルの 4 つの節（`inputs.cwd`・`record.base`・`loop.changed_files`・`loop.request_wheres`）を、指示の `## Materials` の 4 行に。md の「［材料: 〜］」の穴（md:44-46）と、材料のファイルを Read で読めという手順（md:34）は要らなくなった。材料のファイルの頭の 2 行（`MATERIAL_BRIEF_HEAD` と「指示書の［材料: 〜］は…」）も要らない。
 - 移した: 材料のファイルの尾の『条件に当たらない』の節（`_na_note` が組む、`:2053-2075`）を、共通の断片 `{shared:material-na}` に。Python に残るのは扱いの語（`never`）だけ。
@@ -247,11 +247,11 @@ Return only JSON that matches the output schema.
 
 - 元の works の `works/blk-material/commands/prior-decisions.md`（8 行）は、engine が描いた graphloops の指示書のファイル（`prompt_file`）を Read で読ませる薄い md だった。工場は graphloops の指示書を md の中に写し、値だけを材料のファイルにした（#76）。新しい形は値も指示の中に入れる。
 - 元の graphloops の指示書は、元の works も工場も graphloops の版 a1202d0（0.21.0、2026-09-26）の写し。工場はそこに 3 つを足した: 差分が空なら依頼が指す場所（`loop.request_wheres` の行と、その見方の文。#76 で元の works から写した）・コメントと docstring とテストの説明文は決定記録に数えず、名指された先を読む・`settled` の `where` が記録された方針の名指しになる（どちらも #443）・返答の頭の `checked` と material の中の `checked` の区別（#221）。この block も持つ。
-- graphloops の今の指示書（`~/src/claude-plugins/graphloops/prompts/review-loop/p0.prior_decisions.md`）は、a1202d0 の後の 0.21.2（`09a9b39f`、2026-09-27）で 1 段落を足した: 決定記録の置き場は対象が宣言していればそこを、無ければ一般の慣例の置き場（`docs/adr/`・`docs/decisions/`・`doc/adr/` とその索引）を読み、`docs/` の下の設計文書と git log も洗う範囲に入れ、置き場が無ければ無かったことを `searched` に書く。元の works にも工場にも無い（（未確認）: 工場の履歴に外した記録は無い。写した版がこの足しより前だった）。振る舞いを変える足しなので、この作り直しには入れず、後に別に扱う。
+- graphloops の今の指示書（`~/src/claude-plugins/graphloops/prompts/review-loop/p0.prior_decisions.md`）は、a1202d0 の後の 0.21.2（`09a9b39f`、2026-09-27）で 1 段落を足した: 決定記録の置き場は対象が宣言していればそこを、無ければ一般の慣例の置き場（docs の `adr/`・docs の `decisions/`・`doc/adr/` とその索引）を読み、`docs/` の下の設計文書と git log も洗う範囲に入れ、置き場が無ければ無かったことを `searched` に書く。元の works にも工場にも無い（（未確認）: 工場の履歴に外した記録は無い。写した版がこの足しより前だった）。振る舞いを変える足しなので、この作り直しには入れず、後に別に扱う。
 - graphloops の返答の型は `settled` の行に `where` を持たない（記録された方針の名指しは工場の足し、#443）。
-- 元の works の受け付け（`works/blk-material/lib/material.py` の take）と工場の受け付けは同じ順（作業ツリー・所見の場所・素材の欄）。この観点に `post_check` は無い（graphloops の `MATERIAL_NODES` も持たない）。
+- 元の works の受け付け（`works/blk-material/lib/material.py` の take）と工場の受け付けは同じ順（作業ツリー・所見の場所・素材の欄）。この観点に `post_check`（素材の欄を照らした後に、観点ごとの決まりで返答を拒む照らし。新しい形では観点の block の `viewpoint.after`。materials の設計書の 4 節の 5）は無い（graphloops の `MATERIAL_NODES` も持たない）。
 
-この block が両方より良く、残す物: 決着済みの論点に `where` を持たせ、後の役が記録された方針として名指せる（graphloops は論点を判定役に渡すだけ）・コメントや docstring を決定記録と取り違えない（#443 の較正の 2 件）・作業ツリーと所見の場所を機械が照らす・洗えなかった時の `clean` を指示で止める（元の graphloops と同じ）。
+この block が両方より良く、残す物: 決着済みの論点に `where` を持たせ、後の役が記録された方針として名指せる（graphloops は論点を判定役に渡すだけ）・コメントや docstring を決定記録と取り違えない（#443 の較正の 2 件）・作業ツリーと所見の場所を機械が照らす・洗えなかった時に素材の状態 `clean`（洗って決着済みの論点が無かった、の意味）と書くことを指示で止める（元の graphloops と同じ）。
 
 ### 2.8 受け付け
 
@@ -273,9 +273,9 @@ materials.md の 4 節の順のまま。観点の前の照らしと後の照ら�
   - 写す元 `test_judge_accept.py::MaterialCase.test_prior_decisions_reply_is_taken_or_refused`: 見た返答は `material.json` の `materials` に `{"prior_decisions": <返答の material>}` で載り、`not_applicable` は拒まれ、`settled` の `where` が `policy.recorded(start, <material.json のパス>)` の `source: settled` の行の `name` に出る（読み手の口が新しいファイルの形のまま読めることの照らし）。
   - 写す元 `DueCase.test_empty_diff_run_with_requests_runs_only_prior_decisions` のうち prior-decisions の部分: 差分が空で `entry` の在る run でも `intake` の `due` が真。
   - 足す: `entry` が空なら `request_lines` の値が `[]`、在れば依頼の行の `where` と `text` の組の並び（`findings` の欄に持つオブジェクトの形でも）。同じ `where` で本文だけが逆の 2 つの依頼が、組んだ指示で見分けられる。依頼が読めない字なら `finish` の `status` が `failed` で、`reason` が入力の名を言う。
-  - 足す（起こし方の照らし）: block の YAML の AI の node の `model`・`allowed_tools`・`sandbox`・`idle_timeout`・`retry` が、今の `tests/workflows/test_judge.py:87` の表の prior-decisions の行（`"sonnet", "medium", INVESTIGATE, CLOSED, …`）が照らす物と同じ。
-- 指示の比べ（README の 11.4）: 済み。1 つ目の commit（`d05a8711`）に `tests/blocks/prior_decisions/test_prompts.py` を置いて下の (a)・(b) を照らし、通した。2 つ目の commit（`f7f7e91b`）で消した。
-  - 1 つ目の commit: `prompts/prior-decisions.md` を、今の `workflows/judge/commands/material-prior-decisions.md` の `$prior-decisions-prep.output.lang_line` を `{lang_line}` に、`.reason` を `{reason}` に、`.brief_file` を `{brief_file}` に替えた日本語の字で置く。prep は 1 つ目の commit だけ `lang_line`（`rolekit.lang_line({"lang": values["lang"]})`）・`reason`（最後の拒否の文。無ければ空）・`brief_file`（`src/oldbrief.py` が書いた `material-prior-decisions-brief.md` の絶対パス）を値に入れる。試験は例の run の値（`base`・`changed_files: []`・`request_wheres` の 1 行・リポジトリのパス）で、(a) 組んだ指示が今の md に同じ 3 つの値を入れた字と同じ、(b) `oldbrief.brief` の字が例の run の `judge/material-prior-decisions-brief.md` と同じ（リポジトリのパスは試験のリポジトリのパスに置き換えて比べる）ことを照らす。
+  - 足す（起こし方の照らし）: block の YAML の AI の node の `model`・`allowed_tools`・`sandbox`・`idle_timeout`・`retry` が、今の tests/workflows の `test_judge.py:87` の表の prior-decisions の行（`"sonnet", "medium", INVESTIGATE, CLOSED, …`）が照らす物と同じ。
+- 指示の比べ（README の 11.4）: 済み。1 つ目の commit（`d05a8711`）に tests/blocks/prior_decisions の `test_prompts.py` を置いて下の (a)・(b) を照らし、通した。2 つ目の commit（`f7f7e91b`）で消した。
+  - 1 つ目の commit: `prompts/prior-decisions.md` を、今の workflows/judge の `commands/material-prior-decisions.md` の `$prior-decisions-prep.output.lang_line` を `{lang_line}` に、`.reason` を `{reason}` に、`.brief_file` を `{brief_file}` に替えた日本語の字で置く。prep は 1 つ目の commit だけ `lang_line`（`rolekit.lang_line({"lang": values["lang"]})`）・`reason`（最後の拒否の文。無ければ空）・`brief_file`（`src/oldbrief.py` が書いた `material-prior-decisions-brief.md` の絶対パス）を値に入れる。試験は例の run の値（`base`・`changed_files: []`・`request_wheres` の 1 行・リポジトリのパス）で、(a) 組んだ指示が今の md に同じ 3 つの値を入れた字と同じ、(b) `oldbrief.brief` の字が例の run の `judge/material-prior-decisions-brief.md` と同じ（リポジトリのパスは試験のリポジトリのパスに置き換えて比べる）ことを照らす。
   - 2 つ目の commit（英語）: 1 つ目の試験と `src/oldbrief.py` を消し、例の run の値で組んだ新しい指示と、今の md と材料のファイルを並べた物を PR に載せ、2.6 の差の一覧どおりかを審査に出す。
 - 振る舞いの試験の残り: 族の部品の試験（`lib/tests/test_materialkit.py`。materials.md の 8 節）が、作業ツリー・所見の場所・素材の欄の照らしを見る。
 - 読み手の側の試験はそれぞれの block に残す: `lib/tests/test_policy.py` の settled の行の読み（KEEP）・tests/workflows の `test_plan_review.py:1438` の `decisions` の入力（plan-review）。`lib/tests/test_policy.py::test_prior_decisions_file_is_the_material_file_of_its_role`（今のファイルの名 `material-prior-decisions.json` を縛る）は、組み込みで判定の出力の欄 `decisions` が新しい `material.json` を指すようになった時に消す。
@@ -289,7 +289,7 @@ uv run --isolated python3 -m unittest tests.layers.test_block_shape
 uv run --isolated python3 -m unittest discover -s tests/blocks/materials -t .
 ```
 
-  `tests/blocks/prior-decisions/` の Python の package の名は字 `-` を持てないので、フォルダの名を `tests/blocks/prior_decisions/` にする（自分で決めた。7 節）。上の 2 行目の `discover -s` もその名で打つ。
+  tests/blocks の `prior-decisions/` の Python の package の名は字 `-` を持てないので、フォルダの名を `tests/blocks/prior_decisions/` にする（自分で決めた。7 節）。上の 2 行目の `discover -s` もその名で打つ。
 
 ## 3 script の node
 
@@ -319,11 +319,11 @@ bin/works-factory workflow run works-factory-prior-decisions \
 
 ## 7 自分で決めた事（この block だけ）
 
-- `purpose` を入力に持たない。訳: 今の材料の穴（`MATERIAL_HOLES['prior-decisions']`、`lib/judge_accept.py:1723`）にも回す条件（`prior_decisions_due`）にも目的の文は出てこない。読まない入力を足すと、graph の配線が読まない値を運ぶ（README の 1.2 の P）。README の 8.1 の例の「request・purpose」は直す（報告に書いた）。
+- `purpose` を入力に持たない。訳: 今の材料の穴（`MATERIAL_HOLES['prior-decisions']`、lib の `judge_accept.py:1723`）にも回す条件（`prior_decisions_due`）にも目的の文は出てこない。読まない入力を足すと、graph の配線が読まない値を運ぶ（README の 1.2 の P）。README の 8.1 の例の「request・purpose」は直す（報告に書いた）。
 - `fill` と `applies` を `NotImplementedError` で定義する。訳: materials.md の 5.1 は全部の名を定義させる。この観点はいつも回し、『条件に当たらない』を名乗れないので、呼ばれた時に黙って既定の値を返すより、落ちて不具合を見せる方が正しい（持ち主の決め `no-silent-loosen`）。
 - 試験のフォルダの名を `tests/blocks/prior_decisions/` にする。訳: unittest は package の名に `-` を持てない（`discover` の時に import できない）。README の 3 節の `tests/blocks/<block>/` の `<block>` は、Python の package の名に直した字と読む。
 - （実装で決めた事・訳だけ。本文は 1.5・2.3・3 節）`request` を共通の形と `requestrows` で読む: 同じ名の形が pack の 2 か所に在ると形の検査が赤で、`requestrows` は下書きの行と知らない鍵を拒む（materials.md の 10.1）。
 - （同）md に `{shared:query-rule}` を置かない: 土台の `role-investigator` が中に持つ（6 節の未確認の答え）。2 回入れると同じ決まりが 2 度届く。
 - （同）`request_wheres` を `is_entry_run`（`entry` と空の差分）で決める: 今の `request_wheres` は入口の印（差分が空で依頼が在る）の周だけ並べた。差分は block が測れる事実なので測る。
-- （同）筋書きは出口の `status` を照らせない（dry-run は輪を 1 周で終える）ので、`ran`・`gave_up` は `tests/blocks/prior_decisions/test_prior_decisions.py` が照らし、筋書きは md の決まった文を照らす（形の検査 7.1 の 3）。
+- （同）筋書き（`fixtures/` の `*.stubs.yaml`。AI の node を台本の返答に差し替えて block を通しで回す試しの run〔dry-run〕の入力）は出口の `status` を照らせない（dry-run は受け付けの輪を 1 周で終え、3 回の拒みまで数えない）ので、`ran`・`gave_up` は `tests/blocks/prior_decisions/test_prior_decisions.py` が照らし、筋書きは md の決まった文を照らす（形の検査 7.1 の 3）。
 - （同）起こし方の照らしは組み込みの前の tests/workflows の `test_judge.py` を import せず、決まった期待の値で照らす: 組み込みで `workflows/` が消えると import が壊れる。

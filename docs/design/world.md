@@ -36,7 +36,7 @@
 - `classes`: 取った問題の類の数。`dropped`: 照らしで落とした抜き書きと、上限を越えて取らなかった抜き書きの数。
 - `report`: 報告の節「世界の解」の日本語の行の配列（今の `worldmark.report_lines` が組む物と同じ中身）。
 
-今との違い: 今は入力を `judge/request.json`・`judge/purpose.json`・`judge/purpose-means.json`・`judge/start.json`（`features_cut`）・`judge/stop.json` から名で開き（`lib/judge_accept.py:3664-3698`）、出口は `{ok, status, reason}` だけで、行と控えは `judge/world.jsonl`・`judge/world-state.json` に書いて判定の出力の欄で外へ出していた。止めの記録の確かめは無くし、回すかは graph の `when:` が決める（README の 4.3）。
+今との違い: 今は入力を `judge/request.json`・`judge/purpose.json`・`judge/purpose-means.json`・`judge/start.json`（`features_cut`）・`judge/stop.json` から名で開き（lib の `judge_accept.py:3664-3698`）、出口は `{ok, status, reason}` だけで、行と控えは `judge/world.jsonl`・`judge/world-state.json` に書いて判定の出力の欄で外へ出していた。止めの記録の確かめは無くし、回すかは graph の `when:` が決める（README の 4.3）。
 
 ### 1.3 node の並び（`workflows/world/works-factory-world.yaml`）
 
@@ -50,7 +50,7 @@
    - `world-judge-prep`（script `web_prep.py`）・`world-judge`（AI。`allowed_tools: [WebSearch, WebFetch]`・model `@wf-judge-materials`。`output_format` は今の `rows`・`excerpts` のまま）・`world-judge-accept`（script `web_accept.py`。抜き書きを取り直して照らす）。
 5. `finish`（script `finish.py`。`trigger_rule: all_done`）: 行を `world.jsonl` に、段の控えを `state.json` に書き、出力を返す。どの段が落ちても落ちない（今の落とし穴 K1・K13 の決まり）。
 
-script の名は `lib/` のモジュールの名と重ねない（README の 7.1 の 9）。今の `world_judge_accept.py` は `lib/judge_accept.py` と字が近いので `web_accept.py` にした。
+script の名は `lib/` のモジュールの名と重ねない（README の 7.1 の 9）。今の `world_judge_accept.py` は lib の `judge_accept.py` と字が近いので `web_accept.py` にした。
 
 ### 1.4 place のファイル
 
@@ -59,7 +59,7 @@ script の名は `lib/` のモジュールの名と重ねない（README の 7.1
 ### 1.5 コードの置き場
 
 - `workflows/world/src/steps.py`: 今の `worldblk.py` の中身（入口・言い直しの材料と受け付け・類の決め・web の役の材料と受け付け・出口）。指示の文（`classes_prep` の「## 返し方」と `judge_prep` の「## 返し方」）は持たず、材料の行と値だけを組む。今の `worldblk.place()`（判定の盤面のフォルダ `judge/board` の隣に `judge/world/` を組む口）は消し、置き場は `ports.place()` が決める。
-- `workflows/world/src/excerpts.py`: 今の `lib/worldcheck.py`（正規化・依頼の識別子の取り出し・抜き書きの照らし）。
+- `workflows/world/src/excerpts.py`: 今の lib の `worldcheck.py`（正規化・依頼の識別子の取り出し・抜き書きの照らし）。
 - `workflows/world/src/report.py`: 報告の行を値から組む（今の `worldmark.report_lines` を、控えのファイルでなく値で受ける形にした写し）。
 - `workflows/world/schemas/means.schema.json`。依頼の行の形 `request.schema.json` は 2 つ以上の block が使うので `workflows/.shared/schemas/` に置く（README の 13 章）。
 - 使う `lib/`: `worldmark`（行の欄と語 `FIELDS`・`VERDICTS`・`BASES`・`NOT_WEB`。ほかの block も読む行の形の正本）・`rolekit`（loop の数え・却下の控え・諦め。`accept_round`・`rejected`・`given_up_reason`）・`webget`（取り直しの口）・`oneline`・`jsonfile`。依頼の容器の読み（今の `carry.parts`）は `request.schema.json` の形で替える。
@@ -139,7 +139,7 @@ Return only JSON that matches the output schema.
 
 作り直しの時の、古い指示との差の記録。後の指示の変更では、ここに足さない。
 
-今の指示は `workflows/judge/commands/world-classes.md`（29 行）と、`$world-intake.output.prompt` に入る `lib/worldblk.py` の `classes_prep`（:177-193）が組む本文の 2 か所に在る。
+今の指示は workflows/judge の `commands/world-classes.md`（29 行）と、`$world-intake.output.prompt` に入る lib の `worldblk.py` の `classes_prep`（:177-193）が組む本文の 2 か所に在る。
 
 - 移した: 「## 返し方」の 6 行（`worldblk.py:183-192`）と見出し 3 つ（`FINDINGS_HEAD`・`PURPOSE_HEAD`・`REPLY_HEAD`、:172-174）を md へ。lib の Python に残るのは材料の行（`_finding_lines`）と値（`MAX_QUERIES`・行の数）だけ。
 - まとめた: md と lib に二重に書いていた 4 つの決まりを 1 回に（対象の名の並び md:20 と lib:185、機械が識別子を照らして拒む md:20 と lib:192、`proposed` の写し方 md:19 と lib:187-189、検索語は実践・慣習・標準を問う md:21 と lib:190）。
@@ -218,7 +218,7 @@ Return only JSON that matches the output schema.
 
 作り直しの時の、古い指示との差の記録。後の指示の変更では、ここに足さない。外への検索と出典の決まり（一次の出典を先に読む）は、土台の後に共通の断片 `query-rule` へ移した（9.1 の 8）。
 
-今の指示は `workflows/judge/commands/world-judge.md`（41 行）と、`$world-plan.output.prompt` に入る `lib/worldblk.py` の `judge_prep`（:290-325）の 2 か所に在る。
+今の指示は workflows/judge の `commands/world-judge.md`（41 行）と、`$world-plan.output.prompt` に入る lib の `worldblk.py` の `judge_prep`（:290-325）の 2 か所に在る。
 
 - 移した: 「## 返し方」（`worldblk.py:305-324`）を md へ。web の on と off の 2 通り（:306-314）は、差し込むかを選ぶ段落にした。見出し `PROBLEMS_HEAD`・`CLASS_HEAD`（:279-280）のうち、類ごとに繰り返す `### Class <id>` だけを Python に残した。
 - まとめた: md と lib に二重に書いていた 7 つの決まりを 1 回に（原文のまま写す・機械が取り直して落とす md:27 と lib:309-310、取得したページだけ md:28 と lib:311、検索語を足してよいが名は入れない md:29 と lib:307、印は機械が付ける md:30 と lib:317-318、web が off md:31 と lib:313、「依頼は X、定石は Y」md:32 と lib:322、当たらないなら applies は空 md:33 と lib:319）。
@@ -257,7 +257,7 @@ Return only JSON that matches the output schema.
 - 出口での行の検査（元の world_edge が行を読めるか確かめた）: 工場は読み手の `stage_rows` が弾く形にした（#334）。この block の `finish.py` は行を自分で書くので、書く前に `worldmark` の行の形で確かめる（読み手の確かめも残る）。
 - 関所の判定に目的の文の出典 `source_files` を使っていた所: 工場は意図して外した（#365「目的の審査を走り直すための物で、意味が違う」）。この block は関わらない（判定は line の承認ノードの側）。
 - 行の型のファイル `world-row.schema.json`: 工場に無かった（#29）。#851 で `lib/world-row.schema.json` に置き、`lib/worldmark.py` の `FIELDS`・`VERDICTS`・`BASES`・`VERSUS_FIELDS` はそこから引き、行の照らしもその形で当てる。返す節の `rows` の pointer は `jsonl(lib:world-row.schema.json)`。
-- web が off の道: 工場では機能を切ると段ごと飛ぶので、off の道には実際は届かなかった（`lib/judge_accept.py:3685`）。この block では port `web` で単独の run から off を選べるので、off の道が初めて実際に使える道になる。
+- web が off の道: 工場では機能を切ると段ごと飛ぶので、off の道には実際は届かなかった（lib の `judge_accept.py:3685`）。この block では port `web` で単独の run から off を選べるので、off の道が初めて実際に使える道になる。
 
 graphloops の `prompts/review-loop/p1.external_standards.md` にあって、この block に無い物（順位 ranked・diff_at・why_not_higher、見た範囲と見ていない範囲、「定石は無い」という結論、一次情報とブログの区別、受容済みの弱点の照らし直し、機構を変えた周での回し直し、対象と依存を読むこと）: どれも工場の素材の観点 external-standards（`material-external-standards.md`）がそのまま持つ。世界の解は「対象を読まずに上の類に上がる」ための別の観点で、元の works の計画（5.2 節「対象の木は読まない」、5.4 節「1 回だけ」）が意図して持たせなかった。この block にも足さない。「定石は無い」と言える道と、一次情報とブログの区別は、振る舞いを変える提案なので、この作り直しの後に別に扱う。
 
@@ -283,9 +283,9 @@ bin/works-factory workflow run works-factory-world --cwd <対象> \
 - 0 行の依頼の試験は `tests/blocks/world/test_steps.py` の Intake。依頼の容器の拒み（知らない鍵・下書きの行）も同じ所と `tests/blocks/shared/test_requestrows.py`。空の依頼の不具合は world の `src/` と、この Intake か `test_world.py` の `FlowCase` で閉じる（共通の口と設計書は直さない）。
 - `tests/blocks/world/test_world.py`: script を子のプロセスで回す。始めの記録の無い使い捨ての `ARTIFACTS_DIR` と git のリポジトリで、port の値だけを渡し、`intake` → `restate_prep` → 台本の返答 → `restate_accept` → `pick` → `web_prep` → 台本の返答と偽の取り直し → `web_accept` → `finish` と回し、`rows` の行と `report` の行を照らす。
 - 指示の比べ（README の 11.4 の、block ごとの 2 つの commit の形。土台の PR では作っていない。9.1 の 11。作る時は）: 例の run の `intake.json`・`judge-input.json` と同じ値で、1 つ目の commit では日本語の md で組んだ指示が今の `classes-prompt-1.md`・`judge-prompt-1.md` と md の本文を合わせた物と同じ字になることを照らす。2 つ目の commit（英語）では、2.6 と 3.6 の差の一覧どおりかを並べて審査に出す。
-- 振る舞いの試験（今の試験から写す）: `lib/tests/test_world_check.py` の全部（Verify・Banned）・`lib/tests/test_blk_world.py` の Classes・Plan・Verify・Judge・Intake の大半・`lib/tests/test_judge_accept.py` の `WorldStageCase`（`judge/` のパスを place に替える）・`tests/workflows/test_judge.py` の `test_world_stage_without_rows_returns_no_world` と `…_with_a_broken_row_…`。
+- 振る舞いの試験（今の試験から写す）: lib/tests の `test_world_check.py` の全部（Verify・Banned）・lib/tests の `test_blk_world.py` の Classes・Plan・Verify・Judge・Intake の大半・lib/tests の `test_judge_accept.py` の `WorldStageCase`（`judge/` のパスを place に替える）・tests/workflows の `test_judge.py` の `test_world_stage_without_rows_returns_no_world` と `…_with_a_broken_row_…`。
 - 写さない試験（古い中身だけを見る）: `test_blk_world.py` の `test_wording_flag_is_not_an_exception`・`test_reply_class_id_is_ignored`・`test_exit_has_no_cache_or_skip_counts`・`test_intake_has_no_cache_root` と、旧の引数に合わせる助け `accepted()`（:68）、`lib/tests/test_worldmark.py::Notes.test_no_unit_note_or_where_paths`、tests/workflows の `test_judge.py:1912-1923`（元の works の md の hash と node の名の置き換え）・:1239・:1248（`judge/` のパス）。
-- 読み手の側の試験はそれぞれの block と line に残す: `tests/workflows/test_plan.py::AcceptCase.test_world_row_needs_answer`（plan）・`tests/workflows/test_plan_review.py::WorldGateCase`・`WorldGateRunCase`（plan-review と line）・`lib/tests/test_worldmark.py` の Files・Answers（KEEP）・`lib/tests/test_runreport.py` の world の 4 件（report の行は world の `src/report.py` の試験へ）。
+- 読み手の側の試験はそれぞれの block と line に残す: tests/workflows の `test_plan.py::AcceptCase.test_world_row_needs_answer`（plan）・tests/workflows の `test_plan_review.py::WorldGateCase`・`WorldGateRunCase`（plan-review と line）・`lib/tests/test_worldmark.py` の Files・Answers（KEEP）・lib/tests の `test_runreport.py` の world の 4 件（report の行は world の `src/report.py` の試験へ）。
 - keep-essence の 12（世界の解に照らす）を守るのは: 抜き書きの照らし（Verify）・識別子の弾き（Classes・Banned）・`differs` の `challenge`（Judge）・行ごとの答えの強制（plan の試験）・依頼を出どころにした外れが人に回る（plan-review と line の試験）。e2e の `tests/e2e/evidence.json` の J05・J23・J112・R79・P030・P229・P233 は、node の id と place のパスを新しい物に合わせる。
 
 ## 9 入口の workflow: policy-check（方針の文だけを評価する）
@@ -310,7 +310,7 @@ node:
 
 承認ノードは持たない。定石からの外れを人に回すのは line の修正前の承認ノードの仕事で、この入口は結果を返すだけ。
 
-試験: `workflows/policy-check/fixtures/standalone.stubs.yaml`（入力は `policy` だけ）と、`tests/blocks/policy-check/` の `policy-in` の行の組み方の試験。
+試験: `workflows/policy-check/fixtures/standalone.stubs.yaml`（入力は `policy` だけ）と、tests/blocks の `policy-check/` の `policy-in` の行の組み方の試験。
 
 ## 9.1 土台の PR で決めた事
 

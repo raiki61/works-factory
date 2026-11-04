@@ -175,7 +175,7 @@ script の名は `lib/` のモジュールの名と重ねない（README 7.1 の
 共通の部品（土台に無い物。この block が最初に要るなら、この block の PR が足す。README 11.1 の並べ方。先に足した PR が在れば、それを使い、足さない）:
 
 - `workflows/.shared/prompt.py` に `render_part(name, values, when) -> str`: 呼んだ script の在る block の `prompts/parts/<name>.md` を、`render` と同じ決まり（断片・段落・差し込み口の数え・落ち方）で組んだ字。木の下請けの指示のファイルに使う（5 節。下請けは AI の node でないので `prompts/<node-id>.md` を持てない）。形の検査（README 7.1 の 2）を「`prompts/parts/` の md は、同じ block のどれかの md から `{part:…}` で差し込まれるか、同じ block の `scripts/`・`src/` の `prompt.render_part("<name>"` の呼びが名指す」に広げる（yes/no の検査のまま。14 節の 7）。
-- `workflows/.shared/ports.py` に `shared_cache() -> Path | None`: 今の `boundary.shared_cache`（`workflows/.shared/boundary.py:279-283`。環境変数 `STATE_DIR` の下の `works-factory/`。無ければ None）と同じ。ライブラリの文書の run をまたぐ控えに使う。
+- `workflows/.shared/ports.py` に `shared_cache() -> Path | None`: 今の `boundary.shared_cache`（workflows/.shared の `boundary.py:279-283`。環境変数 `STATE_DIR` の下の `works-factory/`。無ければ None）と同じ。ライブラリの文書の run をまたぐ控えに使う。
 - 共通の port の形 `workflows/.shared/schemas/judgment.schema.json`: plan の設計書の 1.2 が本文を決めた物（判定を読む block は plan・plan-review・verify・fix・diagnose の再審）。先に足した PR の物を使う。
 - 共通の断片 `workflows/.shared/prompts/policy.md`（方針の節。independent-design の設計書の 2.3 の本文）・`resubmit.md`（拒まれた後の出し直し。test-gate の設計書の 3.3 の本文と差し込み口 `{rejection}`・`{candidate}`）・`recorded-policy.md`（記録された方針の節。plan の設計書の 2.3 の 12 と 2.3 の終わりの本文。段落 `recorded_none`・差し込み口 `{recorded_rows}`）・`concept-map.md`（考えの住処の地図。plan の設計書の同じ所。段落 `maps_found`・差し込み口 `{concept_maps}`・`{map_tail}`）。どちらも先に足した PR の物を使う（断片の名と差し込み口が先の PR で違えば、それに合わせる）。`workflows/.shared/AGENTS.md` の一覧に足した名を書き、取り置いた名から外す。
 - 入口の workflow `workflows/policy-check/`: `review-run` の node と、`result` の事前審査の欄（1.6）。world の設計書の 9 節が「plan-review の PR がこの node を足す」と決めている。
@@ -188,7 +188,7 @@ import しない（組み込みで別の block へ移るか消える）: `boardv
 
 - line の計画の往復（今の `plan-rounds`、`workflows/line/works-factory-line.yaml:279-359`）: 本体の `plan` の後に `include: works-factory-plan-review`（`when` は修正案が出来た時）。`with:` は `proposal: $plan.output.fix_plan`（修正案の役の返答の pointer）・`fields: $plan.output.plan`（欄の pointer）・`judgment: $judge.output.judgment`（判定の pointer）・`purpose: <目的の固定の purpose_text>`・`design`・`design_why`: <独立設計の返りの design と reason>・`world_rows: <世界の解の rows>`・`means: <目的の固定の means>`・`structure: <構造の目（before）の structure>`・`ripple: $plan.output.ripple`・`prior: <line が持つ往復の記録の pointer。1 往復目は空>`・`tree: <line の段 → 回す物の表から引いた on|off|auto>`（今の `review_tree` の名指しと `depth.tier_adds`・`depth.tier_auto`、`boardview.py:426-429`）・`excluded: <並行 PR の excluded>`・`policy: <始めの記録で固めた方針の写し>`・`recorded: <line が policy.recorded で組んだ行>`・`request: <依頼のファイル>`・`review_rev: <始めの記録の read_rev>`・`diff_base: <始めの記録の diff_base>`・`lang`。計画の拒否の行（`$plan.output.rejects`）は line が往復の行に積む（この block は受けない）。
 - line が往復ごとに持つ事（今この block の中に在った物）: `pass` の材料を往復の記録に足す（`converge.add_pass` に `review`・`answers`・`resolved`・`synergy`・`hits`・`origins`・`refs`・`push` を渡し、輪がもう 1 周回せない周は `at_cap`。`files` を記録の往復のフォルダへ写し、計画の拒否と `rejects` を往復の行に積み、`precedent_checks` を記録の頭に置く。今の `converge.record_pass`・`stash_rejects`）・止め時（`converge.decide` の語。`proceeds` で修正へ進むか、`STUCK` で止まるか）・止まった案を推しで進める時に保留の項目の穴（`converge.stuck_faces`）を修正の段へ渡す返答に足す（今の `boardview._take:1065-1068`）・修正前の承認ノードの項目（`asks` の `decided` が偽か `why` の在る行、`deviations` の `world` の `why` の在る行、構造の目の人に上げる行、問いの台帳の問い、設計だけ・止まりの行、方針の文書の変化）・4 つの軸（`asks` と `deviations` の `why` を軸ごとに集める。今の `gate_axes.gather`）・聞かずに通した行（`asks` の `decided` が真で `why` の無い行）・人が continue で通した行を聞き直さないこと（今の `gatemarks._continued`）・往復の報告の行（`converge.lines`）。
-- 案の直しの後（今の `replan-review`、`works-factory-line.yaml:591-616`）: 同じ block をもう 1 度 include する（place は include ごとに分かれる）。`with:` は上と同じ物に、`ruling: <修正の返りの裁かれた項目の番号>`・`conflicts: <修正の返りの申し出と裁定>`・`prior: <計画の往復が終わった時の往復の記録>`（承認済みの案の行がここに在る）を足す。`replan` の行の `ask` は line が決める（`(contract_changed かつ 無人の run で widened でない) か human が在る`。今の `replan_asks`、`lib/boardview.py:1144-1145`）。
+- 案の直しの後（今の `replan-review`、`works-factory-line.yaml:591-616`）: 同じ block をもう 1 度 include する（place は include ごとに分かれる）。`with:` は上と同じ物に、`ruling: <修正の返りの裁かれた項目の番号>`・`conflicts: <修正の返りの申し出と裁定>`・`prior: <計画の往復が終わった時の往復の記録>`（承認済みの案の行がここに在る）を足す。`replan` の行の `ask` は line が決める（`(contract_changed かつ 無人の run で widened でない) か human が在る`。今の `replan_asks`、lib の `boardview.py:1144-1145`）。
 - 直す物が無い周（今の形 design、`works-factory-line.yaml:251-268`）: この block を include しない。独立設計の block だけを回す。
 - 入口の workflow policy-check（`workflows/policy-check/`）: `policy-in` の返りに `policy`（方針の文の字）を足し、`review-run`（`include: works-factory-plan-review`・`depends_on: [policy-in, world]`・`trigger_rule: all_done`）の `with:` は `proposal: $policy-in.output.policy`・`purpose: $policy-in.output.purpose`・`world_rows: $world.output.rows`・`lang: $policy-in.output.lang`。`result` は `$review-run.output` を受け、`holes` の先の `faces` を事前審査の欠陥として返し、`ok` は world と review の両方の `ok`。`report` の頭に `blocks` の穴を並べる（world の設計書の 9 節の 4）。
 - 読み手: line（上）・fix（`holes`。修正役が穴の key ごとに答える。今の `fixboard.plan_face_rows`。止まった案を推しで進めた時は line が保留の穴を足した物）・delta-review と eyes（`holes`。今と同じ `review.json` の形）・report（`report`）。
@@ -366,7 +366,7 @@ Plan: [ { "unit_keys": [ "workflows/merge/scripts/pr_commit.py hook_env: commit 
 Units: [ { "no": 1, "key": "workflows/merge/scripts/pr_commit.py hook_env: …", "label": "…", "disposition": "…", "reason": "…" } ]
 Judge's view: {"framing": "根は 1 つで、commit のフックの環境が、…", "one_shot": "…"}
 Judge's precedents (world): [{"key": "…", "problem": "自動化ツールが…", …}]
-Repository: <run の作業ツリー>（read version: `4961c50a…`） BASE: `4961c50a…` canonical rules: <工場の根>/lib/REVIEW.md
+Repository: <run の作業ツリー>（read version: `4961c50a…`） BASE: `4961c50a…` canonical rules: <工場の根>/workflows/.shared/prompts/REVIEW.md
 ~~~
 
 2 往復目（`review-material-2.md`）は、5・6 の節が無く、8（前の往復の 1 往復目の block 5 つ〔`narrows-malformed-record-stop` ほか〕・答えの要る suggest 4 つ・修正案の役の答え）と、10 の開いた項目 1 の差分（約束の欄 `narrows`・`files`・`allowed_paths`・`out_of_scope`・`tests.behavior` が変わった。`diff` の囲い 約 25 KB）と波及の一覧の項目 1 の節が在る。指示は `later`・`design_diff` の段落を持つ。承認ノードの答えの名指しの印（`3f2a1c`）は仮に置いた値（例の run の控えの印は描いていない）。
@@ -543,7 +543,7 @@ Return only JSON that matches the output schema.
 - 足した差（新旧の指示の比べの納品。2026-10-19）: review-tree は下請けへ理由の行を渡す形にした。
 - 足した差（新旧の指示の比べの納品。2026-10-19）: 下請けの指示に `checked` の使い方の段落を足した（18 節には在る）。
 
-今の指示は、材料のファイルの `tree_part`（`lib/planblk.py:972-1030`。`AGG_HEAD`・`AGG_ASK`・`OPEN_HEAD`・`DONE_HEAD`・`REDO_HEAD`・`AGG_MERGE`・`AGG_SYNERGY`、:108-124）と、下請けのファイルの `brief_head`・`SUB_HEAD`・`SUB_FORMAT`・`SUB_ITEM_ASK`・`SUB_ITEM_DIFF_ASK`・`SUB_SYNERGY_ASK`・`PRECEDENT_*`・`ERRORS_HEAD`・`ANSWER_AT`・`RULES_MISSING`（:125-176・:864-883）に在る。
+今の指示は、材料のファイルの `tree_part`（lib の `planblk.py:972-1030`。`AGG_HEAD`・`AGG_ASK`・`OPEN_HEAD`・`DONE_HEAD`・`REDO_HEAD`・`AGG_MERGE`・`AGG_SYNERGY`、:108-124）と、下請けのファイルの `brief_head`・`SUB_HEAD`・`SUB_FORMAT`・`SUB_ITEM_ASK`・`SUB_ITEM_DIFF_ASK`・`SUB_SYNERGY_ASK`・`PRECEDENT_*`・`ERRORS_HEAD`・`ANSWER_AT`・`RULES_MISSING`（:125-176・:864-883）に在る。
 
 - 移した: 上の文を全部 md と断片へ（束ね役は `review-tree.md`、下請けは `parts/item-brief.md`・`synergy-brief.md`）。下請けのファイルは、今は共通の頭（指示）と項目の節（材料）を 1 本に持っていた。指示の 1 本（`items/brief.md`）と項目の材料のファイルに分けた（下請けの指示が md から組める形にするため。共通の頭は同じバイトのまま）。
 - 消した: 描いた指示書の「リポジトリ:」の行から末尾までを切り出す道（`_review_rules`・`RULES_FROM`）と、切り出せない時に指示書を読ませる文（`RULES_MISSING`）。下請けの指示は断片から組むので切り出しが要らない。
@@ -610,7 +610,7 @@ hook_env を tree_run.outside_env(os.environ) に寄せる。
 - 自動化ツールが利用者のリポジトリにコミットを作るとき、…: practice … (sources: x1, x2, x3) · versus differs · challenge 依頼は …、定石は …
 Use these rows as the precedents of check 8. …
 
-Repository: <run の作業ツリー>（read version: `HEAD`） BASE: `HEAD` canonical rules: <工場の根>/lib/REVIEW.md
+Repository: <run の作業ツリー>（read version: `HEAD`） BASE: `HEAD` canonical rules: <工場の根>/workflows/.shared/prompts/REVIEW.md
 
 ## What to look at
 1. **Copy** …
@@ -734,7 +734,7 @@ Return only JSON that matches the output schema.
 
 ### 10.3 案の直しの事実 `replan`
 
-今の `replan_asks`（`lib/boardview.py:1131-1154`）の事実の部分。裁かれた項目ごとに `{item, units, contract_changed: planmarks.contract_diff(replan.bare(old), replan.bare(new)), human: [{key, kind, why}]（その項目の穴〔_faces_of〕のうち HUMAN_FACE_KINDS の物）, widened: planmarks.widened(old, new) か null（contract_changed が在り human が無い時だけ計算する。今は無人の run の時だけ計算していた）}`。`replan.json` に同じ行を書く。聞くか（`ask`）は line が決める（無人の run かは line の事実）。
+今の `replan_asks`（lib の `boardview.py:1131-1154`）の事実の部分。裁かれた項目ごとに `{item, units, contract_changed: planmarks.contract_diff(replan.bare(old), replan.bare(new)), human: [{key, kind, why}]（その項目の穴〔_faces_of〕のうち HUMAN_FACE_KINDS の物）, widened: planmarks.widened(old, new) か null（contract_changed が在り human が無い時だけ計算する。今は無人の run の時だけ計算していた）}`。`replan.json` に同じ行を書く。聞くか（`ask`）は line が決める（無人の run かは line の事実）。
 
 ### 10.4 人に回す行が名乗る場合（持ち主の決め `settle-by-standard`）
 
@@ -806,7 +806,7 @@ Return only JSON that matches the output schema.
 - 形 plan・replan で通った時: `事前審査（<k> 往復目・<形の語>）: block <key の並びか「無い」>・suggest <n> 件・別案 <n> 件<・木（項目 <n> 本）>`。形 replan は `事前審査（案の直し・項目 <番号>）: …`。
 - 形 text で通った時: 頭の 1 行 `事前審査（方針の文）: 穴 <n> 件（block <m>）・別案 <n> 件` と、block の穴ごとに `- [<kind>] <key>: <why の 1 行>`。
 - 諦めた・落ちた時: `事前審査: <reason>`。
-- 往復ごとの記録の行（今の `converge.lines`）・聞かずに通した行（`gatemarks.lines`）・設計の行は line と独立設計の block が組む。今この block の返りで報告に載っていた物は、往復の行と承認ノードの行だった（`lib/runreport.py` が `plan-review` の控えから組んでいた）。新しい 1 行は 14 節の 21 で決めた。
+- 往復ごとの記録の行（今の `converge.lines`）・聞かずに通した行（`gatemarks.lines`）・設計の行は line と独立設計の block が組む。今この block の返りで報告に載っていた物は、往復の行と承認ノードの行だった（lib の `runreport.py` が `plan-review` の控えから組んでいた）。新しい 1 行は 14 節の 21 で決めた。
 
 ## 13 元の works と graphloops の同じ場面
 

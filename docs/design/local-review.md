@@ -11,7 +11,7 @@
 - 土台: README の 11.1 の 0 の PR（`blocks/` の骨組み・`ports.py`・`prompt.py`・共通の断片・起動の殻の引数を作る、この作り直しの最初の PR）。
 - 局所レビューの役（local-review）: 宣言したレンズを Skill と Agent で 1 本ずつ起こし、レンズごとに 1 行の所見を返す AI の役。採点もラベルの確定もしない。道具は Read・Grep・Glob・Bash・WebSearch・WebFetch・Skill・Agent。Bash は網の閉じた sandbox の中で走る。
 - レンズ: 1 本の検出器（skill `/code-review`・`/simplify`・`/security-review` と、agent `pr-review-toolkit:code-reviewer`・`silent-failure-hunter`・`type-design-analyzer`・`pr-test-analyzer`）。宣言は `src/lenses.py` の `LENSES`。`required` が偽のレンズ（`/security-review`）は条件 `applies_cond` を持つ。
-- 見ていないレンズ: fork（下請けの会話）で走るレンズ（今は `/code-review` だけ）の行が、起こしたのに所見 0 件で返った物。所見が親に届かなかった形と見分けられないので、「所見なし」でなく「見ていない」と印を付けて受ける（`lib/diverted.py` の docstring の実測、run f57a5374）。
+- 見ていないレンズ: fork（下請けの会話）で走るレンズ（今は `/code-review` だけ）の行が、起こしたのに所見 0 件で返った物。所見が親に届かなかった形と見分けられないので、「所見なし」でなく「見ていない」と印を付けて受ける（lib の `diverted.py` の docstring の実測、run f57a5374）。
 - 例の run: 本物の run `53e71318-ac9f-4468-ae72-5f6ed569a667`（対象 <owner>/<repo>。置き場 `~/.local/state/works-factory/targets/316e3bbc/archon-home/workspaces/<owner>/<repo>/artifacts/runs/53e71318-…/judge/`）。差分の在る通常の run。局所レビューの役は 1 回目が所見の場所で拒まれ（`rejects-local-review.json` の 1 件）、2 回目で通った（`material-local-review.json` の `materials.local_review.status` が `found`・`count` 21。`/code-review` の行が見ていないと印され、`local-review-lenses.json` が `{"round": 1, "unseen": ["/code-review"]}`）。骨組みの値はここから取った。同じ対象の run `17ee8ecc-717a-4dc7-92b6-25ecd08fa15b` も同じ形。
 
 ## 1 block の全体
@@ -24,11 +24,11 @@
 
 入力（YAML の `inputs:`）: materials.md の 1.2 の共通の 3 つだけ。`lang` の説明は `text: 人に見せる欄（material の detail・checked・reason、findings の行の failed と items の text・mechanism・measured・false_positive_if）の言語。空は依頼の言語`。
 
-足す入力は無い。今の材料の穴（`MATERIAL_HOLES['local-review']`、`lib/judge_accept.py:1725-1726`）は差分・根・変更ファイル・観点の正本・レンズの宣言で、どれも作業ツリーと `lib/` と block の定数から作れる。レンズの条件 `security_surface_touched` は、今も機械が真に倒している（1.5 の `applies`）ので入力にしない。
+足す入力は無い。今の材料の穴（`MATERIAL_HOLES['local-review']`、lib の `judge_accept.py:1725-1726`）は差分・根・変更ファイル・観点の正本・レンズの宣言で、どれも作業ツリーと `lib/` と block の定数から作れる。レンズの条件 `security_surface_touched` は、今も機械が真に倒している（1.5 の `applies`）ので入力にしない。
 
 出力（`returns: finish`、`outcome_field: ok`）: materials.md の 1.2 の 5 欄だけ。`material.json` の `reply` は受けた返答（`material`・`findings`・`simplify_carried`。見ていないレンズの印を付けた後の写し）、`materials` は `{"local_review": <返答の material>}`。`report` は materials.md の 2.10 の素材の 1 行の後ろに、見ていないレンズごとに 1 行（1.5 の `report_lines`）。
 
-今との違い: 今は `material-route` が `not_request_entry` で回すかを決め、受けた返答を `judge/material-local-review.json` に、見ていないレンズを `judge/local-review-lenses.json` に書き、判定の出力の欄 `review_lenses` が後者のパスを外へ出していた（`lib/judge_accept.py:3885`、`lib/runreport.py:1478-1481` が読む）。新しい形では見ていないレンズは出力の `report` の行で出る（README の 4.1 の「報告の文は事実を持つ block が組む」）。
+今との違い: 今は `material-route` が `not_request_entry` で回すかを決め、受けた返答を `judge/material-local-review.json` に、見ていないレンズを `judge/local-review-lenses.json` に書き、判定の出力の欄 `review_lenses` が後者のパスを外へ出していた（lib の `judge_accept.py:3885`、lib の `runreport.py:1478-1481` が読む）。新しい形では見ていないレンズは出力の `report` の行で出る（README の 4.1 の「報告の文は事実を持つ block が組む」）。
 
 ### 1.3 node の並び（`workflows/local-review/works-factory-local-review.yaml`）
 
@@ -52,8 +52,8 @@ materials.md の 1.4 の名（`intake.json`・`view.json`・`diff.patch`・`chan
 ### 1.5 コードの置き場
 
 - `workflows/local-review/src/__init__.py`（空）。
-- `workflows/local-review/src/lenses.py`（この観点だけの部品。docstring の頭に `lib/diverted.py` の docstring の「なぜ要るか」の段を写す）:
-  - `LENSES: tuple[dict, ...]`: レンズの宣言。今の `LOCAL_REVIEW_SKILLS`（`lib/judge_accept.py:1697-1706`）の 7 本を同じ順で、欄 `skill`・`args`（在る物だけ）・`required`・`applies_cond`（在る物だけ）に絞って写す。`note` は写さない（文は md の 2.3 の `## Notes per lens` へ移す）。
+- `workflows/local-review/src/lenses.py`（この観点だけの部品。docstring の頭に lib の `diverted.py` の docstring の「なぜ要るか」の段を写す）:
+  - `LENSES: tuple[dict, ...]`: レンズの宣言。今の `LOCAL_REVIEW_SKILLS`（lib の `judge_accept.py:1697-1706`）の 7 本を同じ順で、欄 `skill`・`args`（在る物だけ）・`required`・`applies_cond`（在る物だけ）に絞って写す。`note` は写さない（文は md の 2.3 の `## Notes per lens` へ移す）。
     ```python
     LENSES = (
         {"skill": "/code-review", "args": "high", "required": True},
@@ -81,8 +81,8 @@ materials.md の 1.4 の名（`intake.json`・`view.json`・`diff.patch`・`chan
   - `NAME = "local-review"`
   - `MATERIALS = ("local_review",)`
   - `GUARDED = False`（作業ツリーの照らしを外すのではなく、Archon が節の前後の git status を照らさない役なので、accept が `porcelain` も含む全部の欄を比べる、の意味。AI の node が `mutates_checkout: false` を持たない。今の accept の `with: {status_guarded: false}`。`workflows/judge/works-factory-judge.yaml:1123`）
-  - `NA = "never"`、`NA_REASON = ""`（今の `MATERIAL_NODES['p1.local_review']` が `applies_cond` を持たず `na_self_ok: False`。`lib/judge_accept.py:1644-1648`。graphloops の `na_reason_note`「差分が在る限り常に対象」）
-  - `due(view, values)`: `return materialkit.not_entry_due(view, values, "P1 の役")`。判定から入る run の周（`materialkit.is_entry_run`: `entry` が空でなく、対象差分が空）だけ `entry_skip`、それ以外は `normal_run`。族の決め（materials.md の 5.1・`lib/judge_accept.py` の `request_entry`）に従う。差分が出来た run は `entry` が在っても通常の run。
+  - `NA = "never"`、`NA_REASON = ""`（今の `MATERIAL_NODES['p1.local_review']` が `applies_cond` を持たず `na_self_ok: False`。lib の `judge_accept.py:1644-1648`。graphloops の `na_reason_note`「差分が在る限り常に対象」）
+  - `due(view, values)`: `return materialkit.not_entry_due(view, values, "P1 の役")`。判定から入る run の周（`materialkit.is_entry_run`: `entry` が空でなく、対象差分が空）だけ `entry_skip`、それ以外は `normal_run`。族の決め（materials.md の 5.1・lib の `judge_accept.py` の `request_entry`）に従う。差分が出来た run は `entry` が在っても通常の run。
   - `fill(view, values, due)`: `{"local_review": materialkit.fill_entry(values["entry"], None)}`（回さないのは判定から入る run だけ。今の `_fill_one` の 1 つ目の枝）。
   - `applies(view, values)`: `raise NotImplementedError`。
   - `judged_na(view, values)`: `return False`。
@@ -93,15 +93,15 @@ materials.md の 1.4 の名（`intake.json`・`view.json`・`diff.patch`・`chan
   - `after_accept(reply, place)`: `jsonfile` で `place / lenses.LENS_FILE` に `{"round": 1, "unseen": lenses.unseen(reply)}` を書く（今の `:2595`・`:2620-2621`）。
   - `materials_of(reply)`: `{"local_review": reply["material"]} if isinstance(reply.get("material"), dict) else {}`（今の `writes` の `materials.local_review ← material`）。
   - `report_lines(doc)`: `reply` が null なら `[]`。在れば `[f"  - {s}" for s in lenses.unseen_lines(lenses.unseen(doc["reply"]))]`（字下げ 2 つ。materials.md の 2.10 の素材の 1 行の下に並ぶ）。
-- `workflows/local-review/src/oldbrief.py`（1 つ目の commit だけ）: 今の材料のファイルを同じ字で組む `brief(view, values) -> str`。レンズの一覧は今の `LOCAL_REVIEW_SKILLS` の `note` つきの字をこのファイルに写して持つ（`judge_accept.py` は import しない）。2 つ目の commit で消す。
-- 使う `lib/`: `materialkit`・`rolekit`・`jsonfile`・`oneline`・`seat`（`overlay_body` と `OVERLAY_KINDS`。KEEP。README の 9.3）。`lib/diverted.py` は import しない（README の 9.2 で local-review へ MOVE した物）。
+- workflows/local-review/src の `oldbrief.py`（1 つ目の commit だけ）: 今の材料のファイルを同じ字で組む `brief(view, values) -> str`。レンズの一覧は今の `LOCAL_REVIEW_SKILLS` の `note` つきの字をこのファイルに写して持つ（`judge_accept.py` は import しない）。2 つ目の commit で消す。
+- 使う `lib/`: `materialkit`・`rolekit`・`jsonfile`・`oneline`・`seat`（`overlay_body` と `OVERLAY_KINDS`。KEEP。README の 9.3）。lib の `diverted.py` は import しない（README の 9.2 で local-review へ MOVE した物）。
 
 ### 1.6 つなぎ方（graph の側。block には書かない）
 
 - 判定のまとめ（`workflows/judge/`）: `include: works-factory-local-review`、`depends_on` は materials.md の 1.6。`with:` は `base`・`entry`・`lang` の共通の 3 つだけ（作り手は materials.md の 1.6）。
 - 読み手:
-  - diagnose の `materials`（11 本の `material` の配列の 1 つ）。素材 `local_review` は `materialkit.assemble` が 15 欄にそろえる。判定役の材料の「局所の findings」（今の `_diagnose_ctx` の `process.local_findings ← reply.findings`、`lib/judge_accept.py:2769-2773`）は、diagnose が同じ配列の `role == "local-review"` の `materialkit.read` の返りの `reply["findings"]` から取る（読み方は diagnose の設計書が決める）。
-  - 報告の「未確認のレンズ」の節（今の `runreport._unseen_lens_lines` が `review_lenses` の先を `diverted.report_lines` で読んだ物）: この block の `report` の欄の、素材の 1 行の後ろの行。report.md の 1.6 は「未確認のレンズ → local-review」とする。修正の後のレンズの行（今の `fixbeside.lens_lines`）を同じ節に並べるのは line の決め。
+  - diagnose の `materials`（11 本の `material` の配列の 1 つ）。素材 `local_review` は `materialkit.assemble` が 15 欄にそろえる。判定役の材料の「局所の findings」（今の `_diagnose_ctx` の `process.local_findings ← reply.findings`、lib の `judge_accept.py:2769-2773`）は、diagnose が同じ配列の `role == "local-review"` の `materialkit.read` の返りの `reply["findings"]` から取る（読み方は diagnose の設計書が決める）。
+  - 報告の「未確認のレンズ」の節（今の `runreport._unseen_lens_lines` が `review_lenses` の先を `diverted.report_lines` で読んだ物）: この block の `report` の欄の、素材の 1 行の後ろの行。report.md の 1.6 は「未確認のレンズ → local-review」とする。修正の後のレンズの行（今の `fixbeside.lens_lines`）を同じ節に並べるかは、block をつないで run 全体を回すメイングラフ line（`works-factory-line`）が決める。
 - 判定の出力の欄 `review_lenses`（今の line の YAML の `:190`・`:801`）は、組み込みで要らなくなる（読み手は報告だけで、行で届くため）。
 
 ## 2 node の設計シート: local-review（局所レビューの役）
@@ -240,7 +240,7 @@ md の中に `$` の字は無い（今の道具の段の「`$(…)`」は `{shar
 
 ### 2.5 描いた骨組み（例の run の値）
 
-例の run では、今の指示は 2 か所に在った: `workflows/judge/commands/material-local-review.md`（166 行。`$local-review-prep.output.lang_line`・`.reason`・`.brief_file`・`.review_md`・`.repo_review_md` を Archon が入れた物）と、役が Read した `judge/material-local-review-brief.md`（74 行）。新しい指示は 1 本にする。2 回目（1 回目が所見の場所で拒まれた後）の骨組み:
+例の run では、今の指示は 2 か所に在った: workflows/judge の `commands/material-local-review.md`（166 行。`$local-review-prep.output.lang_line`・`.reason`・`.brief_file`・`.review_md`・`.repo_review_md` を Archon が入れた物）と、役が Read した `judge/material-local-review-brief.md`（74 行）。新しい指示は 1 本にする。2 回目（1 回目が所見の場所で拒まれた後）の骨組み:
 
 ```markdown
 {shared:rejected の本文。{rejection} に次の字:
@@ -389,13 +389,13 @@ materials.md の 4 節の順。観点の前の照らし（4 節の 3）と後の
   - `test_local_review_unseen_lens_is_marked`: `/code-review` の行が `items` 空で受けられ、`material.json` の `reply` の行の `failed` が `UNSEEN_TAG` で始まり、`lenses.json` が `{"round": 1, "unseen": ["/code-review"]}`、`finish` の `report` に「局所レビューの /code-review: 所見を受け取れていない」の行が在る。
   - 足す: `entry` が空でない run で `intake` の `due` が偽、`finish` の `status` が `skipped`、素材が `fill_entry` の字（件数の句は「渡されていない」）。
   - 足す: prep が組んだ指示の `{skills}` の値の `/security-review` の要素が `applies: true`・`applies_why: "差分が認証・データの取り扱い・外部との入出力に触れる"` を持ち、どの要素も `note` を持たない。対象の根に `REVIEW.md` が無い時は `repo_review` の段落が入らない。
-  - 足す（起こし方の照らし）: block の YAML の AI の node の `model`・`allowed_tools`・`skills`・`plugins`・`sandbox`・`idle_timeout`・`retry` が、今の `tests/workflows/test_judge.py:89-90` の表の local-review の行（`"sonnet", "medium", [*INVESTIGATE, "Skill", "Agent"], CLOSED, …, LOCAL_REVIEW_SKILLS, LOCAL_REVIEW_PLUGINS`）が照らす物と同じ。
+  - 足す（起こし方の照らし）: block の YAML の AI の node の `model`・`allowed_tools`・`skills`・`plugins`・`sandbox`・`idle_timeout`・`retry` が、今の tests/workflows の `test_judge.py:89-90` の表の local-review の行（`"sonnet", "medium", [*INVESTIGATE, "Skill", "Agent"], CLOSED, …, LOCAL_REVIEW_SKILLS, LOCAL_REVIEW_PLUGINS`）が照らす物と同じ。
 - `tests/blocks/local_review/test_lenses.py`: `test_diverted.py`（README の 9.5 で local-review へ MOVE する物）を `src/lenses.py` の `mark_unseen`・`unseen`・`unseen_lines` に向けて写す。足す: `LENSES` の `skill`・`args`・`required`・`applies_cond` が今の `judge_accept.py` の `LOCAL_REVIEW_SKILLS` と同じ（1 つ目の commit だけ。組み込みで今の定数が消える時に、この照らしも消す）。`applies` が知らない条件で `ValueError`。
 - `tests/blocks/local_review/test_viewpoint.py`: materials.md の 8 節のとおり。
-- 指示の比べ（README の 11.4）: `tests/blocks/local_review/test_prompts.py`。
-  - 1 つ目の commit: `prompts/local-review.md` を、今の `workflows/judge/commands/material-local-review.md` の `$local-review-prep.output.<欄>` の 5 つ（`lang_line`・`reason`・`brief_file`・`review_md`・`repo_review_md`）を `{<欄>}` に替えた日本語の字で置く（末尾の借りたスキルの読み替えも今の字のまま）。prep は 1 つ目の commit だけその 5 つの値を入れる（`reason` は最後の拒否の文か空、`brief_file` は `src/oldbrief.py` が書いた `material-local-review-brief.md` の絶対パス）。試験は例の run の値（`base`・差分と変更ファイルのパス・観点の正本のパス 2 つ・1 回目の拒否の文）で、(a) 組んだ指示が今の md に同じ 5 つの値を入れた字と同じ、(b) `oldbrief.brief` の字が例の run の `judge/material-local-review-brief.md` と同じ（パスは試験の物に置き換えて比べる）ことを照らす。
+- 指示の比べ（README の 11.4）: tests/blocks/local_review の `test_prompts.py`。
+  - 1 つ目の commit: `prompts/local-review.md` を、今の workflows/judge の `commands/material-local-review.md` の `$local-review-prep.output.<欄>` の 5 つ（`lang_line`・`reason`・`brief_file`・`review_md`・`repo_review_md`）を `{<欄>}` に替えた日本語の字で置く（末尾の借りたスキルの読み替えも今の字のまま）。prep は 1 つ目の commit だけその 5 つの値を入れる（`reason` は最後の拒否の文か空、`brief_file` は `src/oldbrief.py` が書いた `material-local-review-brief.md` の絶対パス）。試験は例の run の値（`base`・差分と変更ファイルのパス・観点の正本のパス 2 つ・1 回目の拒否の文）で、(a) 組んだ指示が今の md に同じ 5 つの値を入れた字と同じ、(b) `oldbrief.brief` の字が例の run の `judge/material-local-review-brief.md` と同じ（パスは試験の物に置き換えて比べる）ことを照らす。
   - 2 つ目の commit（英語）: 1 つ目の試験と `src/oldbrief.py` を消し、例の run の値で組んだ新しい指示と、今の md と材料のファイルを並べた物を PR に載せ、2.6 の差の一覧どおりかを審査に出す。
-- 読み手の側の試験はそれぞれの block に残す: 報告の「未確認のレンズ」（今の `lib/tests/test_runreport.py:2352` の J110）は、report の試験が line から渡る行で照らす形に替える（report の設計書が決める）。
+- 読み手の側の試験はそれぞれの block に残す: 報告の「未確認のレンズ」（今の lib/tests の `test_runreport.py:2352` の J110）は、report の試験が line から渡る行で照らす形に替える（report の設計書が決める）。
 - 守る keep-essence の番号: 無い（README の 10 節の 12 の仕組みにこの観点は出てこない）。守るのは「宣言のレンズが黙って起きないまま『所見なし』で通らない」と「fork のレンズの消えた所見を『見ていない』と報告に出す」で、上の照らしが見る。
 - 終わりの条件の命令（1 モジュールずつ）:
 
@@ -416,7 +416,7 @@ materials.md の 6 節の雛形のまま。この block だけの物:
 
 ## 4 受け付けの文
 
-materials.md の 2.8 と 4 節の文に、2.8 の前の照らしと後の照らしの文（`src/lenses.py` の `lens_gap`・`covers_lenses` が組む日本語の字）を足す。どれも今の `lib/judge_accept.py:2186-2220`・`:2435-2460` の字で、1.5 に書いた違い（持ち越しの尾・入れ直しのパス・graph の名指しを外した）だけを当てる。
+materials.md の 2.8 と 4 節の文に、2.8 の前の照らしと後の照らしの文（`src/lenses.py` の `lens_gap`・`covers_lenses` が組む日本語の字）を足す。どれも今の lib の `judge_accept.py:2186-2220`・`:2435-2460` の字で、1.5 に書いた違い（持ち越しの尾・入れ直しのパス・graph の名指しを外した）だけを当てる。
 
 ## 5 単独で呼ぶ
 
@@ -454,4 +454,4 @@ bin/works-factory workflow run works-factory-local-review \
   - `intake` の `due` は materials.md に従い `materialkit.not_entry_due`（`entry` が空でなく差分が空の時だけ回さない）で決める。
   - `covers_lenses` の「宣言したレンズが空」の文は `skills` が空の枝として残した（1.5 の `covers_lenses` のとおり、文の尾の「graph に宣言を書け」という graph への求めだけを外した）。`LENSES` は空にならないので試験は見ない。
   - 起こし方の照らし（2.9 の、AI の node の `model`・`allowed_tools` などの設定が今と同じかを見る試験）は、組み込みの前の tests/workflows の `test_judge.py` の表を import せず、`tests/blocks/local_review/test_local_review.py` の `LAUNCH` に値を写した（今の定数が消えても残る）。
-  - 1 つ目の commit（2.9 の指示の比べの、今の字の日本語の md を置いた commit）の `oldbrief.py` は、対象の根に `REVIEW.md` が無い回は「対象リポジトリ側」の節（`## 材料: inputs.repo_review_md`）を出さない。今の `material_prep` はその回も節を出し、中身を語「（この周には無い）」で埋める（`MATERIAL_HOLES` のこの差し込み所は `?inputs.repo_review_md` と書かれ、頭の `?` は「値が無くてよい」の印。engine の描き方は値の無い `?` つきの差し込み所を落とさずにこの語で埋める）。2 つの字が合わないので、字を比べられるのは `REVIEW.md` が在る回だけ。前の版のこの行は「今の `material_prep` はその回に落ちる」と書いていたが、`2b5a0f56` の版の `material_prep` と engine の描き方で、落ちずにこの語で埋めることを確かめた。
+  - 1 つ目の commit（2.9 の指示の比べの、今の字の日本語の md を置いた commit）の `oldbrief.py` は、対象の根に `REVIEW.md` が無い回は「対象リポジトリ側」の節（`## 材料: inputs.repo_review_md`）を出さない。今の `material_prep` はその回も節を出し、中身を語「（この周には無い）」で埋める（`MATERIAL_HOLES` のこの差し込み所は `?inputs.repo_review_md` と書かれ、頭の `?` は「値が無くてよい」の印。engine の描き方は値の無い `?` つきの差し込み所を落とさずにこの語で埋める）。2 つの字が合わないので、字を比べられるのは `REVIEW.md` が在る回だけ。

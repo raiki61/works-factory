@@ -11,8 +11,9 @@ run の写し（運ぶ値に GATE_KEY）は、次の run が判定と計画を�
     - head・tree は写した時の作業ツリーの `git rev-parse HEAD`・`HEAD^{tree}`。place_root・repo_root は写した run の置き場と作業ツリー。
     - request_sha256 は始めの記録の依頼のファイルの文の sha256（依頼が無ければ空の文の sha256）。
     - commits は写しの字に現れる commit（HEAD を除く）とその木。
-    - carried は修正の段へ運ぶ値（呼び手が渡す JSON の値。中身の形はこのモジュールが決めない）。読むのは pending・gate_inputs だけで、
-      鍵 GATE_KEY の値が dict か（修正前の承認ノードで止まった所の写しか）と、続きの承認ノードへ渡す judge の部と structure の部の structure。
+    - carried は修正の段へ運ぶ値（呼び手が渡す JSON の値。中身の形はこのモジュールが決めない）。欄の意味を読むのは pending・gate_inputs
+      だけで、鍵 GATE_KEY の値が dict か（修正前の承認ノードで止まった所の写しか）と、続きの承認ノードへ渡す rounds（GATE_KEY の値）・
+      judge の部・structure の部の structure。値の字は、capture が commit を拾い出すのと adopt が置き換えるのに丸ごと走査する。
 - 取り込みの決まりは 1 つ: 写しの字のうち取り込み先で違う物は、新しい値に置き換える。
   - 置き場のパス（渡された字と resolve した字の両方）・run の id・HEAD を新しい値にする。
   - commit: 対象に無い commit は同じ木で作り直し（親は今の HEAD）、名を置き換える。木も無ければ拒む。

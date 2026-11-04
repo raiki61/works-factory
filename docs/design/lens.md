@@ -80,7 +80,7 @@ script の node はどれも `runtime: uv`・`mutates_checkout: false`。レン�
 ### 1.5 コードの置き場
 
 - `workflows/lens/src/__init__.py`: 空。
-- `src/lenses.py`: レンズの表 `LENSES = ({"lens": "silent-failure-hunter", "agent": "pr-review-toolkit:silent-failure-hunter"},)`・`key(name)`（`-` を `_` に）・振り分け `route(row, files)`（今の `_any_change`: 変わったファイルが無ければ `(False, "修正の差分に変わったファイルが無い")`）・定義の引き `definition(agent)`（今の `fixboard.lens_route` の引きの部分: `engine.validator.agent_def(agent)` を呼び、例外〔`SystemExit` を含む〕は「<agent> の定義を引けない（<型>: <訳>）」、`None` か本文が空なら「<agent> の定義が役の設定に無い（pr-review-toolkit が入っていない）」を起こさない理由にする）。写す元 lib の `lenses.py` の `LENSES`・`key`・`_any_change` と `fixboard.lens_route`。字の下限 `MIN_CITE = 4`・`MIN_WHY = 20`（YAML の `output_format` の `minLength` と同じ字）も持つ。`lenses.render` の文は md へ出し、ここに持たない。
+- `src/lenses.py`: レンズの表 `LENSES = ({"lens": "silent-failure-hunter", "agent": "pr-review-toolkit:silent-failure-hunter"},)`・`key(name)`（`-` を `_` に）・振り分け `route(row, files)`（今の `_any_change`: 変わったファイルが無ければ `(False, "修正の差分に変わったファイルが無い")`）・定義の引き `definition(agent)`（今の `fixboard.lens_route` の引きの部分: この block の `src/validator.py` の `agent_def(agent)` を呼び、例外〔`SystemExit` を含む〕は「<agent> の定義を引けない（<型>: <訳>）」、`None` か本文が空なら「<agent> の定義が役の設定に無い（pr-review-toolkit が入っていない）」を起こさない理由にする）。写す元 lib の `lenses.py` の `LENSES`・`key`・`_any_change` と `fixboard.lens_route`。字の下限 `MIN_CITE = 4`・`MIN_WHY = 20`（YAML の `output_format` の `minLength` と同じ字）も持つ。`lenses.render` の文は md へ出し、ここに持たない。
 - `src/files.py`: 1.4 の名と `SKIP = (ports.RUNTIME_COPY_PREFIX,)`。
 - `src/steps.py`: 入口（差分を切る〔`leftovers.snapshot`・`unittrees.pathspec_without(SKIP)`・`leftovers.git(… text=False)`・`leftovers.git_names`。delta-review の `src/cut.py` の `cut` と同じ手続き〕・振り分け・`lens.write_routes`）・prep の値・受け取り・出口（`lens.collect(place, {<lens>: <reply-<key>.json の中身か None>})`・数え・`carry`・`report`）。
 - 使う `lib/`（KEEP。変えない）: `lens`（`LENS_FILE`・`STATES`・`UNSEEN`・`write_routes`・`collect`・`read`）・`leftovers`・`unittrees`（`pathspec_without`）・`jsonfile`・`oneline`。`agent_def` は lib でなくこの block の `src/validator.py` が持つ（10 節の 1）。
@@ -142,7 +142,7 @@ You are a lens for a local review after the fix, started in a new conversation. 
 You only read. You can use Read, Grep, and Glob only …
 
 - The fix's diff: `<place>/lens.diff` (Read it. …)
-- Changed files: ["docs/design.md", "docs/works-parity.md", "lib/gatemarks.py", …（20 本）]
+- Changed files: ["docs の design.md", "docs の works-parity.md", "lib/gatemarks.py", …（20 本）]
 
 The diff is a starting point, not a border: read the callers and the readers. …
 
@@ -159,7 +159,7 @@ Write `why` and `findings_none` in the language of the request (the user's langu
 
 ### 2.6 今の指示との差
 
-作り直しの時の、古い指示との差の記録。今の指示は `workflows/fix/commands/lens-silent-failure-hunter.md`（5 行。組んだ指示のファイルを Read せよとだけ言う）と、`lib/lenses.py` の `render`（:32-53）が組む本文の 2 か所に在る。
+作り直しの時の、古い指示との差の記録。今の指示は workflows/fix の `commands/lens-silent-failure-hunter.md`（5 行。組んだ指示のファイルを Read せよとだけ言う）と、lib の `lenses.py` の `render`（:32-53）が組む本文の 2 か所に在る。
 
 - 移した: `render` の文の全部（役の定義の見出し `fixboard.ROLE_DEF_HEAD`・区切り・`TASK_HEAD`「## このセクションでの仕事」と仕事の 3 文・材料の 2 行・起点と境の 1 文・`REPLY_HEAD`「## 返答の書き方」と 3 つの箇条）を md へ。Python に残るのは値（定義の本文・差分のパス・変わったファイル・字の下限）だけ。
 - 消した: 指示のファイルを Read させる command の md（5 行）。指示は `$<lens>-prep.output.prompt` で役に届く（README の 5.2）。
@@ -209,7 +209,7 @@ Write `why` and `findings_none` in the language of the request (the user's langu
 bin/works-factory workflow run works-factory-lens --cwd <対象> --input base=<修正の前の木か commit>
 ```
 
-定義を引くには、起動の隔離した設定に pr-review-toolkit が入っているか、`PR_REVIEW_TOOLKIT_ROOT` がその置き場を指す（`engine.validator.find_plugin_path` の探す順）。どちらも無い手元では、`--input lenses='[{"lens":"silent-failure-hunter","body":"<定義の本文>"}]'` で本文を渡せる。出力は `workflow get <run>` の `finish` の返り。
+定義を引くには、起動の隔離した設定に pr-review-toolkit が入っているか、`PR_REVIEW_TOOLKIT_ROOT` がその置き場を指す（`src/validator.py` の `find_plugin_path` の探す順）。どちらも無い手元では、`--input lenses='[{"lens":"silent-failure-hunter","body":"<定義の本文>"}]'` で本文を渡せる。出力は `workflow get <run>` の `finish` の返り。
 
 ## 5 報告の行（日本語。今の字のまま）
 
