@@ -22,17 +22,17 @@ class ViewerApartTest(unittest.TestCase):
 
     def test_naming_from_the_factory_is_red(self):
         for rel, text in (("bin/_lib/x.py", "from viewer.src import shape\n"), ("lib/y.py", "import viewer\n"),
-                          ("workflows/a/scripts/z.py", 'PAGE = ROOT / "viewer/flowview.py"\n'),
+                          ("workflows/a/scripts/z.py", 'PAGE = ROOT / "viewer/runtrace.py"\n'),
                           ("tests/bin/test_w.py", "# viewer/ の入口を起こす\n"), ("pyproject.toml", 'x = "viewer/"\n'),
-                          ("workflows/a/a.yaml", "bash: python3 ../viewer/flowview.py\n"), ("bin/_lib/v.py", 'X = "./viewer/flowview.py"\n'),
-                          ("lib/z.py", 'X = f"{ROOT}/viewer/flowview.py"\n')):
+                          ("workflows/a/a.yaml", "bash: python3 ../viewer/runtrace.py\n"), ("bin/_lib/v.py", 'X = "./viewer/runtrace.py"\n'),
+                          ("lib/z.py", 'X = f"{ROOT}/viewer/runtrace.py"\n')):
             with self.subTest(rel=rel), tree({rel: text}) as root:
                 got = scan.problems("E25", root)
                 self.assertEqual(len(got), 1, got)
                 self.assertTrue(got[0].startswith(f"{rel}:1: "), got)
 
     def test_homes_and_documents_are_clean(self):
-        files = {"viewer/flowview.py": "from viewer.src import shape\n", "tests/viewer/test_a.py": "from viewer import flowview\n",
+        files = {"viewer/runtrace.py": "from viewer.src import shape\n", "tests/viewer/test_a.py": "from viewer import runtrace\n",
                  "docs/design/viewer.md": "`viewer/`\n", "bin/AGENTS.md": "`viewer/` が読む口\n", "MISSION.md": "`viewer/`\n",
                  "workflows/.shared/prompt.py": 'VIEWER_VALUES = "viewer-values"\n', "workflows/a/b.py": "# <node>-viewer-values-<n>.json\n",
                  ".github/workflows/tests.yml": "run: python3 -m unittest discover -s tests/viewer/\n"}

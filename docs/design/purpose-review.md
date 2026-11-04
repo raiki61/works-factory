@@ -53,7 +53,7 @@ materials.md の 1.4 の名だけ: `intake.json`・`view.json`・`diff.patch`・
 - `workflows/purpose-review/src/__init__.py`（空）。
 - `workflows/purpose-review/src/viewpoint.py`: materials.md の 5.1 の宣言。中身:
   - `NAME = "purpose-review"`
-  - `MATERIALS = ()`（今の `MATERIAL_NODES['p0.purpose_review']` が `materials` を持たない。`lib/judge_accept.py:1641-1643`）
+  - `MATERIALS = ()`（今の `MATERIAL_NODES['p0.purpose_review']` が `materials` を持たない。lib の `judge_accept.py:1641-1643`）
   - `GUARDED = True`（AI の node が `mutates_checkout: false` を持つ。今の accept の `with: {status_guarded: true}`。`workflows/judge/works-factory-judge.yaml:1036`）
   - `NA = "never"`、`NA_REASON = ""`（`applies_cond` も `na_self_ok` も無い。素材を書かないので、`check_record` が照らす物は無い）
   - `WRITER_SOURCE = "③writer の要約"`（目的の block の出典の語の写し。照らしは 2.9 の試験）
@@ -101,8 +101,8 @@ materials.md の 1.4 の名だけ: `intake.json`・`view.json`・`diff.patch`・
 - 判定のまとめ（`workflows/judge/`）: `include: works-factory-purpose-review`、`depends_on` は materials.md の 1.6。`with:` は `base`・`entry`・`lang` を materials.md の 1.6 のとおり、`purpose: $purpose.output.purpose`（目的の block の `purpose.json` の pointer。[purpose.md](purpose.md) の 1.6 の読み手の行）。
 - 回すかは block の intake が `purpose.source` で決める（materials.md の 10 節）。graph の `when:` は機能を切る run だけに置く。[purpose.md](purpose.md) の 1.6 の「目的の監査を回すかは、line が `$purpose.output.source` が `③writer の要約` かで決める」は、この block では採らない（回さない run にも `status: skipped` と訳を返すため。報告に書いた）。
 - 読み手:
-  - diagnose: `materials`（11 本の `material` の配列の 1 つ）。素材の 15 欄には何も足さない（`materialkit.assemble` は `materials` が空の doc を読み飛ばす）。判定役の材料の「目的の監査」の行（今の `record.process.purpose_review`。`lib/judge_accept.py:2780`）は、`role` が `purpose-review` の doc の `reply` から取る（diagnose の設計書の決め）。
-  - plan-review（独立設計〔独立の目 R2 が、差分を見ずに目的の文だけから組む設計。keep-essence の 9〕を止めるかの決めと、裏取りを通っていない判定の行。`lib/boardview.py:199-212`・`:318-330`。今の入力 `purpose_review` は `workflows/plan-review/works-factory-plan-review.yaml:31-33`）: 判定のまとめが `$purpose-review.output.material` を返りの欄 `purpose_review` にして line へ返し、line が今と同じ配線で plan-review に渡す。中身は今の `purpose-review.json`（`{verdict, reason, findings}` か `{}`）でなく `material.json` なので、読み手は `materialkit.read(path)["reply"]` を読み、`reply` が null（`skipped`・`gave_up`・`failed`）なら今の `{}` と同じに読む。読み方の替えは plan-review の設計書が持つ（報告に書いた）。
+  - diagnose: `materials`（11 本の `material` の配列の 1 つ）。素材の 15 欄には何も足さない（`materialkit.assemble` は `materials` が空の doc を読み飛ばす）。判定役の材料の「目的の監査」の行（今の `record.process.purpose_review`。lib の `judge_accept.py:2780`）は、`role` が `purpose-review` の doc の `reply` から取る（diagnose の設計書の決め）。
+  - plan-review（独立設計〔独立の目 R2 が、差分を見ずに目的の文だけから組む設計。keep-essence の 9〕を止めるかの決めと、裏取りを通っていない判定の行。lib の `boardview.py:199-212`・`:318-330`。今の入力 `purpose_review` は `workflows/plan-review/works-factory-plan-review.yaml:31-33`）: 判定のまとめが `$purpose-review.output.material` を返りの欄 `purpose_review` にして line へ返し、line が今と同じ配線で plan-review に渡す。中身は今の `purpose-review.json`（`{verdict, reason, findings}` か `{}`）でなく `material.json` なので、読み手は `materialkit.read(path)["reply"]` を読み、`reply` が null（`skipped`・`gave_up`・`failed`）なら今の `{}` と同じに読む。読み方の替えは plan-review の設計書が持つ（報告に書いた）。
 - 諦めた時（`status: gave_up`）: 今は `materials_given_up`（`:2696-2699`）が目的の監査も数え、判定の前で line を止めた。新しい形も `status` を返すだけで、止めるのは diagnose（materials.md の 1.6）。
 
 ## 2 node の設計シート: purpose-review（目的の監査の役）
@@ -197,7 +197,7 @@ md の中に `$` の字は無い。差し込み口のほかに `{` は無い。�
 
 ### 2.5 描いた骨組み（例の run の値）
 
-この役が走った run の記録は無い（頭の「例の run」）。今の指示は `workflows/judge/commands/material-purpose-review.md`（62 行。`$purpose-review-prep.output.lang_line`・`.reason`・`.brief_file` を Archon が入れる）と、prep が描く材料のファイル `judge/material-purpose-review-brief.md`（`MATERIAL_HOLES['purpose-review']` の 3 つの節と『条件に当たらない』の節）の 2 か所に在る。run `53e71318-…` の値（`judge/material-view.json` の `review_rev`、作業ツリーのパス、`judge/purpose.json` の `purpose_text`。出典の語だけ仮に `③writer の要約`）で描いた新しい指示:
+この役が走った run の記録は無い（頭の「例の run」）。今の指示は workflows/judge の `commands/material-purpose-review.md`（62 行。`$purpose-review-prep.output.lang_line`・`.reason`・`.brief_file` を Archon が入れる）と、prep が描く材料のファイル `judge/material-purpose-review-brief.md`（`MATERIAL_HOLES['purpose-review']` の 3 つの節と『条件に当たらない』の節）の 2 か所に在る。run `53e71318-…` の値（`judge/material-view.json` の `review_rev`、作業ツリーのパス、`judge/purpose.json` の `purpose_text`。出典の語だけ仮に `③writer の要約`）で描いた新しい指示:
 
 ```markdown
 {shared:role-inspector の本文: This role is an inspector. It scores in a context separate from the one that runs this loop; …（6 行）}
@@ -282,11 +282,11 @@ materials.md の 4 節の順のまま。観点の前の照らしは無く、後�
   - 写す元 `DueCase.test_purpose_review_only_for_writer_summary`: 出典が `③writer の要約` なら `due` が真、`①PR 説明` なら偽。足す: `purpose` が null なら偽で、`reason` が「目的の文が渡されていない」で始まる。差分が空で `entry` の在る run でも、出典が ③ なら真（入口の印を読まない）。
   - 足す: `material.json` が `materialkit.read` を通り、`materials` が `{}`、`reply.verdict` が受けた語。`skipped` の道で `reply` が null。
   - 足す（語の照らし）: `VERDICTS` が block の YAML の AI の node の `verdict` の enum と同じ並び。`WRITER_SOURCE` が `shared:purpose.schema.json` の `source` の enum に在る。
-  - 足す（起こし方の照らし）: AI の node の `model`・`allowed_tools`・`sandbox`・`idle_timeout`・`mutates_checkout`・`retry` が、今の `tests/workflows/test_judge.py:88` の purpose-review の行（`"sonnet", "medium", READ, BASE, True, …`）が照らす物と同じ。
+  - 足す（起こし方の照らし）: AI の node の `model`・`allowed_tools`・`sandbox`・`idle_timeout`・`mutates_checkout`・`retry` が、今の tests/workflows の `test_judge.py:88` の purpose-review の行（`"sonnet", "medium", READ, BASE, True, …`）が照らす物と同じ。
 - 指示の比べ（README の 11.4）: 実装では置かなかった（7 節。`test_prompts.py` と `src/oldbrief.py` は無い）。当初の案は次の 2 つの commit:
   - 1 つ目の commit: `prompts/purpose-review.md` を、今の md の `$purpose-review-prep.output.lang_line` を `{lang_line}` に、`.reason` を `{reason}` に、`.brief_file` を `{brief_file}` に替えた日本語の字で置く。prep は 1 つ目の commit だけ、この 3 つを値に入れ（prior-decisions.md の 2.9 と同じ作り方）、`src/oldbrief.py` の `brief(view, values)` で `material-purpose-review-brief.md` を書く。試験は (a) 組んだ指示が今の md に同じ 3 つの値を入れた字と同じ、(b) `oldbrief.brief` の字が、同じ試験のリポジトリと置き場で今の `judge_accept.material_prep(jdir, "purpose-review", repo, review_md)` が書いた材料のファイルと同じ（本物の run の材料のファイルが無いので、今の関数の出力と比べる。自分で決めた。7 節）。
   - 2 つ目の commit（英語）: 1 つ目の試験と `src/oldbrief.py` を消し、2.5 の値で組んだ新しい指示と、今の md と材料のファイルを並べた物を PR に載せ、2.6 の差の一覧どおりかを審査に出す。
-- 守る keep-essence の番号: 無い。守るのは「目的の文の監査の判定に、固めた版で数え直した根拠が付く」と「裏取りを通った『狭めている』で独立設計を止める材料が plan-review に届く」で、上の数え直しの試験と、plan-review の側の試験（`tests/workflows/test_plan_review.py` の目的の監査を読む試験。読み手の block に残す）が見る。
+- 守る keep-essence の番号: 無い。守るのは「目的の文の監査の判定に、固めた版で数え直した根拠が付く」と「裏取りを通った『狭めている』で独立設計を止める材料が plan-review に届く」で、上の数え直しの試験と、plan-review の側の試験（tests/workflows の `test_plan_review.py` の目的の監査を読む試験。読み手の block に残す）が見る。
 - 終わりの条件の命令（1 モジュールずつ。materials.md の 8 節と同じ）:
 
 ```sh
@@ -331,7 +331,7 @@ bin/works-factory workflow run works-factory-purpose-review \
 
 ## 7 自分で決めた事（この block だけ）
 
-- 判定の語 `問題なし`・`狭めている` を今の日本語の字のまま残す。訳: 読み手が字で比べる（`lib/boardview.py:201`・`:211` の `"狭めている"`、`lib/design.py:77`）。graphloops は 3f5a6a82 で ASCII の鍵に替えたが、替えると読み手の lib と YAML の enum を同時に替えることになり、この作り直しの「振る舞いを変えない」と「`lib/` は読むだけ」（README の 11.1）に触れる。英語の md には `{verdict_ok}`・`{verdict_narrows}` で入れ、字のまま書けと言う。ASCII に替えるのは後に別に扱う。
+- 判定の語 `問題なし`・`狭めている` を今の日本語の字のまま残す。訳: 読み手が字で比べる（lib の `boardview.py:201`・`:211` の `"狭めている"`、`lib/design.py:77`）。graphloops は 3f5a6a82 で ASCII の鍵に替えたが、替えると読み手の lib と YAML の enum を同時に替えることになり、この作り直しの「振る舞いを変えない」と「`lib/` は読むだけ」（README の 11.1）に触れる。英語の md には `{verdict_ok}`・`{verdict_narrows}` で入れ、字のまま書けと言う。ASCII に替えるのは後に別に扱う。
 - 骨組みを、役が走っていない run の値と仮の出典の語で描く。訳: 記録の在る 148 本の run のどれでもこの役は走っておらず、本物の指示が無い。値の形（目的の文・作業ツリーのパス・固めた版）は本物の run の物を使い、仮に置いたのは出典の語だけにした。
 - 1 つ目の commit の材料のファイルの比べを、本物の run の物でなく、今の `judge_accept.material_prep` が同じ試験の置き場で書いた物と比べる。訳: 比べる本物の材料のファイルが無い。今の関数は作り直しの間は残る（materials.md の 1.5）ので、同じ値から今と同じ字が出ることを直に照らせる。
 - 『条件に当たらない』の 4 つの真偽を、族の部品の口（`materialkit.prompt_inputs`）を変えずに、この block の `role_prep.py` で `when` から外す。訳: この md は素材の書き方も `{shared:material-na}` も持たない（返答に `material` の欄が無い）。materials.md の 2.11 のとおり真偽を足したまま渡すと、土台の `prompt.render` が「`when` の名が md に無い」で落ちる（README の 5.2）。hygiene も返答に `material` の欄を持たず同じ所に当たるので、2 本の扱いを hygiene.md の 3 節の形（殻の 1 行）にそろえた。族の部品の口を変える直し（`material` の欄を持たない観点には足さない）は materials.md の 2.11 の直しとして報告に書いた。
@@ -339,7 +339,7 @@ bin/works-factory workflow run works-factory-purpose-review \
 - 数え直しの部品は block に写さず、`lib/cite.py` の `_cite_errors` を使う。訳: 組み込みで `judge_accept` の指し先の照らしが `lib/cite.py` の 1 か所に寄り（`findings` と `wrote_refs` の両方の道を持つ）、写しを持つと拒む文の字が食い違う（4 節の字は `lib/cite.py` の字）。憲法の 4。
 - 根拠の拒みの文の頭を `観点 purpose-review: ` にする。訳: 今の頭はコピーした graph の節の id（`p0.purpose_review`）で、新しい形に graph の節は無い。materials.md の 2.8 の替えと同じ。
 - 固めた目的の schema（`purpose.schema.json`）の中身をここで決め、`workflows/.shared/schemas/` に置く（external-standards も同じ字を使う）。訳: materials.md の 1.2 は名と欄だけを書き、中身を決めていない。欄と出典の語は今の目的の役の `output_format` のまま（`means` は目的の block が別のファイルにする）。出典の語を enum で縛るので、目的の block が語を替えれば読みの段で名指して落ちる（黙って `skipped` にならない）。
-- 「足りない」の印の字を md に書かず、役の定義の断片の言い方に任せる。訳: 印は inspector の役の定義の決まり（今の `lib/agents/inspector.md` の 3 つ目の箇条）で、機械はこの印を読まない（`lib/` と `workflows/` に「足りない: 」を比べる所は無い）。字を md に写すと、断片の英語の字と食い違いうる。
+- 「足りない」の印の字を md に書かず、役の定義の断片の言い方に任せる。訳: 印は inspector の役の定義の決まり（今の lib の `agents/inspector.md` の 3 つ目の箇条）で、機械はこの印を読まない（`lib/` と `workflows/` に「足りない: 」を比べる所は無い）。字を md に写すと、断片の英語の字と食い違いうる。
 - 実装で main の決まりに合わせた事（実装者が決めた）:
   - `workflows/.shared/schemas/purpose.schema.json` から `$schema` を外し、`description` を足した。訳: `ports.json` が照らしの知らない語 `$schema` を拒む（`KNOWN_KEYWORDS` に無い）。
   - `role_prep.py` に 4 つの鍵を外す 1 行は要らなかった。訳: main の `materialkit.prompt_inputs` が `NA_PARAGRAPH` が偽の観点には `na_*` を足さない。`viewpoint.NA_PARAGRAPH = False`（`tests/blocks/materials/test_viewpoints.py` が名を要る）。

@@ -71,7 +71,7 @@ script の node はどれも `runtime: uv`・`mutates_checkout: false`。受け�
 - `workflows/cold-read/fixtures/standalone.stubs.yaml`・`redesign.stubs.yaml`・`unreadable.stubs.yaml`（11 節）。
 - `tests/blocks/cold_read/__init__.py`・`test_cold_read.py`（11 節。Python の package の名は `-` を持てないので `_`）。
 
-使う `lib/`（KEEP）: `jsonfile`・`oneline` だけ。`lib/runreport.py`・`lib/report_roles.py` は import しない（どちらも report の物）。
+使う `lib/`（KEEP）: `jsonfile`・`oneline` だけ。lib の `runreport.py`・lib の `report_roles.py` は import しない（どちらも report の物）。
 
 共通の指示の断片: `role-cold-reader`（土台の役の定義の断片）だけ。報告の頭に特有の決まりは report の PR が足す断片 `report-head-check` に在り、この block は使わない。
 
@@ -154,7 +154,7 @@ You are a first-time reader with no context. … Read only the text below.
 起きたこと: 決めた判定から確かめまでの一巡の数のうちに直しきれずに止まった（round_limit）。TDD の実行器を作れなかった（…）
 差分を当ててよいか: PR を作った: https://github.com/raiki61/works-factory/pull/759（下書きの PR #759。…）
 人が決めること: 15 件——許したテストの変更 13 件・直しきれずに残った物 2 件（…）
-- 許したテストの変更: lib/tests/test_runreport.py
+- 許したテストの変更: lib/tests の test_runreport.py
 …（1 件 1 行の 15 行）
 
 ## 人が決めること
@@ -179,7 +179,7 @@ Return only JSON that matches the output schema.
 
 ### 2.6 今の指示との差
 
-今の指示は `workflows/report/commands/cold-check.md`（21 行）に在り、本文は `$cold-prep.output.body` で入る。
+今の指示は workflows/report の `commands/cold-check.md`（21 行）に在り、本文は `$cold-prep.output.body` で入る。
 
 - 移した: 役の定義の 7 行（md:1-7）を、土台の役の定義の断片 `{shared:role-cold-reader}` に。字の違いは最後の箇条だけ（今「下の指示に従え」、断片「呼び出し側の指示に従え」。`cold-reader.md` と同じ字）。意味は同じ。report の中の読み手も同じ断片を差し込む。
 - 写した: 複数の作業を切り替えながら読む読み手の段落（md:9）と、返し方（md:19・md:21）。report の中の読み手の md にも同じ段落が残る（2 つの block が別々に持つ）。
@@ -220,7 +220,7 @@ Return only JSON that matches the output schema.
 
 ```sh
 bin/works-factory workflow run works-factory-cold-read \
-  --cwd <対象> --input text=docs/README-draft.md
+  --cwd <対象> --input text=README.md
 ```
 
 出力は `workflow get <run>` の `finish` の返り。始めの記録は要らない。殻の引数の名は（未確認）（world の 7 節と同じ）。
@@ -245,7 +245,7 @@ bin/works-factory workflow run works-factory-cold-read \
 
 ## 7 守る keep-essence
 
-12 の仕組み（README 10 節。元の works の `docs/keep-essence.md` の、作り替えでも外さない仕組みの一覧）のどれも担わない。
+12 の仕組み（README 10 節。元の works の docs の `keep-essence.md` の、作り替えでも外さない仕組みの一覧）のどれも担わない。
 
 ## 8 試験の前の値（fixture と試験が共に使う）
 
@@ -281,7 +281,7 @@ bin/works-factory workflow run works-factory-cold-read \
   - 本文のファイルが無い・空 → `due: false` と訳。
   - `finish`: `pass` の返答 → `pass: true`・`stuck: []`。`redesign-needed` → `stuck` が `止まった所: …`・`推測で埋めた所: …` の順。`redesign-needed` で欄が空 → `（止まった所・推測の欄が空）`。壊れた返答・語の外 → `failed` と `初見の読み手の返答を読めない（判定の語が無い）`（今の `test_runreport.py:1721-1725` の `_cold_of` の確かめの写し）。null → `failed`。
   - `src/reply.py` の `VERDICTS` が YAML の `cold` の `output_format` の `verdict` の enum と同じ（yes/no）。
-- この block の外に残る試験（report の block と、その試験）: `tests/workflows/test_report.py::ShapeCase.test_cold_reader_is_told_the_machine_heading`・`ColdPrepScriptCase`・`AcceptScriptCase.test_cold_redesign_three_times`、`lib/tests/test_runreport.py` の `ColdBodyCase`・`test_cold_rejects_twice_then_takes_with_mark`。
+- この block の外に残る試験（report の block と、その試験）: tests/workflows の `test_report.py::ShapeCase.test_cold_reader_is_told_the_machine_heading`・`ColdPrepScriptCase`・`AcceptScriptCase.test_cold_redesign_three_times`、lib/tests の `test_runreport.py` の `ColdBodyCase`・`test_cold_rejects_twice_then_takes_with_mark`。
 - e2e の `tests/e2e/evidence.json` に、この block の行は無い（報告の初見の確かめの印は report の行が持つ）。
 
 ## 12 未確認

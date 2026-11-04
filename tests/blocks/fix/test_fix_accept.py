@@ -742,7 +742,7 @@ class TestLedgerAndText(FixGatesCase):
         self.problems(attempt=1, pass_="ruled")
         self.assertEqual(len(self.ledger()["rows"]), 4, "裁定の後の 1 回目は別の回")
 
-    def test_reject_text_lists_every_row(self):
+    def test_reject_lines_list_every_row(self):
         rows = [{"gate": "red_green", "id": _l_MEAN_ID, "detail": "base で緑", "unit_keys": [_l_MEAN]},
                 {"gate": "test_edits", "id": _l_THREE_ID, "detail": "名指しの外", "unit_keys": []}]
         lines = fixgates.reject_lines(rows)
@@ -750,8 +750,7 @@ class TestLedgerAndText(FixGatesCase):
         self.assertTrue(all(t.startswith(fixgates.REJECT) for t in lines), lines)
         self.assertIn(_l_MEAN, lines[0], "red_green の文は項目の単位を名指す")
         self.assertTrue(lines[-1].endswith(fixgates.REDO) and fixgates.REDO not in lines[0], "出し直しの頼みは最後の文の末だけ")
-        text = fixgates.reject_text(rows)
-        self.assertEqual(text, " / ".join(lines))
+        text = " / ".join(lines)
         for w in (f"red_green {_l_MEAN_ID}: base で緑", f"test_edits {_l_THREE_ID}: 名指しの外", "全部"):
             self.assertIn(w, text)
         self.assertEqual(fixgates.GATES, ("red_green", "test_edits"))

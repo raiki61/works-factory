@@ -76,7 +76,7 @@ works-factory/
 │   ├── borrow/                  借りた superpowers の写しと固定（borrow.json）・継ぎ目の表（seams.json）・無人の読み替え（unattended.md）。読み口は lib/spseam.py
 │   ├── graphloops/engine/       元の graphloops の小道具のうち残る 3 つ（declared.py・schema.py・util.py）
 │   └── tests/                   lib/ の試験
-├── viewer/                      見る道具（AGENTS.md が E25）。工場の作りの図と run の再生を人が見る物で、工場の中からは頼らない。入口 flowview.py（ページ）と runtrace.py（run の記録をトレースにして送る）・読む部品と組み立てとトレースの部品 src/（トレースは trace.py・sendto.py・otlp.py）・雛形 page.tpl.html・指示の md の段落の訳の控え ja/
+├── viewer/                      見る道具（AGENTS.md が E25）。run の記録をトレースにして利用者が手元に置いた画面（Phoenix など）へ送る物で、工場の中からは頼らない。入口 runtrace.py・読む部品とトレースの部品 src/（トレースは trace.py・sendto.py・otlp.py）・段の表 stages.json
 ├── tests/                       lib/ 以外の試験（AGENTS.md が試験の決まり）
 │   ├── layers/                  形と層の決まりの yes/no の試験（各決まりの「機械」の行）。block の形は test_block_shape.py
 │   ├── blocks/                  block の試験（tests/blocks/<block の名の - を _ にした物>/。助けは tests/blocks/kit.py）
@@ -160,12 +160,12 @@ works-factory/
 - 層の地図は `docs/layers.json` の 1 か所。層は起動の殻 `bin/`・メイングラフと周の鎖・block と graph・pack の共通の部品 `workflows/.shared/`・共通の lib `lib/`・見る道具 `viewer/` で、層ごとに頼ってよい層（`may_use`）を書く。
 - graph と block（`workflows/`）と `lib/` は `bin/` の物を import しない。Archon の上で動く物は、Archon の外の起動の殻に頼らない。殻の事実が要る時は、殻が組んだ物を env で渡し、その名は読む側の部品が持つ。
 - block どうしは互いに頼らない（憲法の 3）。block の `src/` を import してよいのは同じ block の `scripts/`・`src/` と、その block の試験だけ（`lib/` とほかの block は読まない）。
-- 見る道具 `viewer/` は、殻と pack の共通の部品と `lib/` に頼ってよく、どの層からも頼られない（`viewer/AGENTS.md` の E25）。
+- 見る道具 `viewer/` は、殻と `lib/` に頼ってよく、どの層からも頼られない（`viewer/AGENTS.md` の E25）。
 - 機械: `tests/layers/test_lib_blind.py`（lib の向き）・`tests/layers/test_block_shape.py`（ほかの block のフォルダへのパス）・`tests/layers/test_viewer_apart.py`（見る道具へ頼らない向き）。`workflows/` から `bin/` への import と、見る道具が地図の `may_use` の外（block と graph の中の物）を import しないことは人が見る。
 
 ## E26 書いたパスは在る物を指す
 
 元の works の決まりの E26（`docs/design/r1.md`・`tests/e2e/evidence.json` が引く物）とは別。
 
-- 工場の中の字（`bin/`・`lib/`〔試験の `lib/tests/` と借りた写しの `lib/borrow/` を除く〕・`workflows/`・`viewer/` と、どの階層の `AGENTS.md`）に書く、根の直下のフォルダの名（`.` で始まるフォルダは数えない）で始まるパスは、今の木に在る物を指す。消えた物を語る時は、パスでなく名で書く（どこに在ったかは git の履歴が持つ）。わざと無いパスを書く例（対象のリポジトリの例・fixture の偽の対象のパス）は、根の直下のフォルダの名で始まらない形に書く。
-- 機械: `tests/layers/test_paths_exist.py`。`docs/` と試験の中のパスは人が見る。
+- 工場の中の字（`bin/`・`lib/`〔試験の `lib/tests/` と借りた写しの `lib/borrow/` を除く〕・`workflows/`・`viewer/`・`docs/`〔実装の計画 `docs/plans/` を除く〕と、どの階層の `AGENTS.md`）に書く、根の直下のフォルダの名（`.` で始まるフォルダは数えない）で始まるパスは、今の木に在る物を指す。消えた物を語る時は、パスでなく名で書く（どこに在ったかは git の履歴が持つ）。わざと無いパスを書く例（対象のリポジトリの例・fixture の偽の対象のパス）は、根の直下のフォルダの名で始まらない形に書く。
+- 機械: `tests/layers/test_paths_exist.py`。`docs/plans/` と試験の中のパスは人が見る。

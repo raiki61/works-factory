@@ -169,7 +169,7 @@ class _Graph:
         item["halt"] = _text(node[key])
 
     def _bash(self, node, key, item, where):
-        # 出力の欄の引きは切る前の字から取る（無駄の手がかりの引く先の無いノード。src/waste.py）
+        # 出力の欄の引きは切る前の字から取る
         item["bash"], item["refs"][key] = _clip(_text(node[key]), 3000), refs(node[key])
 
     def _script(self, node, key, item, where):

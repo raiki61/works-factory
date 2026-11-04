@@ -13,7 +13,7 @@
 
 - 観測の役（main-path-observation）: 対象差分が変えた経路を動かして通った値を観測し、観測の行と素材の状態を返す AI の役。道具は Read・Grep・Glob・Bash・WebSearch・WebFetch。Bash は網の開いた sandbox の中で走り、写しは一時の置き場に作る（今の `test_run_launch`）。
 - 観測の行: 返答の `observed` の 1 行 `{path, value}`（動かした経路と観測した値）。`where` を持たないので、所見の場所の照らし（`materialkit.where_rows`）には当たらない。
-- 見たと言う状態: `materialkit.OBSERVED_STATUS`（`found` と `clean`。今の `lib/judge_accept.py:131`）。
+- 見たと言う状態: `materialkit.OBSERVED_STATUS`（`found` と `clean`。今の lib の `judge_accept.py:131`）。
 - 例の run: 本物の run `53e71318-ac9f-4468-ae72-5f6ed569a667`（対象 <owner>/<repo>。置き場 `~/.local/state/works-factory/targets/316e3bbc/archon-home/workspaces/<owner>/<repo>/artifacts/runs/53e71318-…/judge/`）。差分の在る run（23 ファイル）で、観測の役は 1 回目で受け付けを通った（`material-main-path-observation.json` の `materials.main_path_observation.status` が `awaiting_human`。実 DB と実ブラウザが sandbox に無く、模擬の層までの試験 3 本と「未観測」の 1 行を `observed` に 4 行書いた。`rejects-main-path-observation.json` は無い）。同じ対象の run `17ee8ecc-717a-4dc7-92b6-25ecd08fa15b` も同じ形の材料を持つ。
 
 ## 1 block の全体
@@ -29,7 +29,7 @@
 - `base`・`entry`: materials.md の 1.2 の字のまま。
 - `lang`: `text: 人に見せる欄（material の detail・checked・reason と、observed の path・value）の言語。空は依頼の言語`。既定 `""`。block は依頼を受けないので、空の時に `{lang}` へ入るのは言語の名でなく、決まった英語の文 `materialkit.LANG_DEFAULT`（"the language of the request (the user's language)"）で、役がその文を読んで書く言語を決める（materials.md の 2.1・2.11）。
 
-足す入力は無い。今の材料の穴（`MATERIAL_HOLES['main-path-observation']`、`lib/judge_accept.py:1735`）は `loop.diff_file`・`loop.changed_files_file`・`inputs.cwd` の 3 つで、どれも `view` から入る。
+足す入力は無い。今の材料の穴（`MATERIAL_HOLES['main-path-observation']`、lib の `judge_accept.py:1735`）は `loop.diff_file`・`loop.changed_files_file`・`inputs.cwd` の 3 つで、どれも `view` から入る。
 
 出力（`returns: finish`、`outcome_field: ok`）: materials.md の 1.2 の 5 欄だけ。`material.json` の `reply` は受けた返答（`material`・`observed`）、`materials` は `{"main_path_observation": <返答の material>}`。
 
@@ -59,20 +59,20 @@ materials.md の 1.4 の名だけ: `intake.json`・`view.json`・`diff.patch`・
   - `NAME = "main-path-observation"`
   - `MATERIALS = ("main_path_observation",)`
   - `GUARDED = False`（今の accept の `with: {status_guarded: false, …}`。`works-factory-judge.yaml:1691`）
-  - `NA = "cond"`、`NA_REASON = "対象差分は利用者から見える経路・外部との継ぎ目を変えていない"`（今の `MATERIAL_NODES['p1.main_path_observation']['na_reason']`、`lib/judge_accept.py:1686-1691` の字のまま）。当たる条件がいつも真なので今は使われない（test-double-fidelity.md の 1.5 と同じ）
+  - `NA = "cond"`、`NA_REASON = "対象差分は利用者から見える経路・外部との継ぎ目を変えていない"`（今の `MATERIAL_NODES['p1.main_path_observation']['na_reason']`、lib の `judge_accept.py:1686-1691` の字のまま）。当たる条件がいつも真なので今は使われない（test-double-fidelity.md の 1.5 と同じ）
   - `NOUN = "主経路の観察"`（今の `main_path_observation_due` の訳の名詞。`:1578-1586`）
   - `due(view, values)`: `materialkit.is_entry_run(view, values)`（`entry` が在り、対象差分が空）なら `materialkit.entry_skip(NOUN)`。そうでなければ `materialkit.Due(True, "主経路の観察は、判定から入る run でなければ run ごとに 1 回回す（1 run は 1 周で、いつも初回。差分が利用者から見える経路に触れるかは機械が決められないので、触れる側に倒す）")`（自分で決めた。7 節）。
   - `fill(view, values, due)`: `{"main_path_observation": materialkit.fill_entry(values["entry"], None)}`（`due` が偽になるのは判定から入る run だけ）。
   - `applies(view, values)`: `materialkit.Due(True, "差分が利用者から見える経路に触れる")`（今の `user_path_touched` が、機械が真に倒した `touches_user_path` で返す字。`:1474-1486`・`due_view` の `:1357`）。
   - `judged_na(view, values)`: `return False`。
   - `values(view, values)`: `{"diff_file": view.diff_file, "changed_files_file": view.changed_files_file, "repo": str(view.repo)}`。
-  - `when(view, values)`: `{"spawns": False}`。
+  - `when(view, values)`: `{"spawns": False}`（`spawns` は役を起こすかではなく、外への検索の決まりの断片 `{shared:query-rule}` の中の段落「下請け〔sub-agent〕を起こすなら、この決まりを字のまま渡す」を入れるかの条件。この役は下請けを起こさないので常に偽）。
   - `before(view, values, reply, place)`: `return None, reply, False`。
   - `after(view, values, reply, place)`: 今の `main_path_observed`（`:2138-2143`）の写し。`material = reply.get("material")`、`st = material.get("status") if isinstance(material, dict) else None`（`material` が object でなくても落ちない）、`st in materialkit.OBSERVED_STATUS and not reply.get("observed")` なら 3 節の文を返す。ほかは `None`。今は `Reject` を上げたが、宣言の口（materials.md の 5.1）は文を返す形なので、文を返す。
   - `after_accept(reply, place)`: 何もしない。
   - `materials_of(reply)`: `{"main_path_observation": reply["material"]} if isinstance(reply.get("material"), dict) else {}`（今の `writes` の `materials.main_path_observation ← material`）。
   - `report_lines(doc)`: `reply` の `observed` の行ごとに `f"  - 観測: {oneline(path)} → {oneline(value)}"`。`reply` が null か行が無ければ `[]`。
-- `workflows/main-path-observation/src/oldbrief.py`（1 つ目の commit だけ）: 今の材料のファイルを同じ字で組む `brief(view) -> str`。
+- workflows/main-path-observation/src の `oldbrief.py`（1 つ目の commit だけ）: 今の材料のファイルを同じ字で組む `brief(view) -> str`。
 - schema のファイルは無い。
 - 使う `lib/`: `materialkit`（`OBSERVED_STATUS` も）・`rolekit`・`oneline`。
 
@@ -82,7 +82,7 @@ materials.md の 1.4 の名だけ: `intake.json`・`view.json`・`diff.patch`・
 - 読み手: diagnose だけ。
   - port `materials` を `materialkit.assemble` で 15 欄にそろえ、素材 `main_path_observation` を読む。素材が `awaiting_human` なら、判定役は人への問い（`awaiting`）を必ず載せる（今の判定役の指示の「素材が awaiting_human なら awaiting を必ず載せろ」、`DIAGNOSE_EXCERPT` の `:2717`）。これが今の「人待ちが人に届く」道で、新しい形でも diagnose の設計書が持つ。
   - 判定役の材料の「主経路の実行観測」の穴（今の `{{?out.p1.main_path_observation}}`）は返答の全体（`material` と `observed`）だった。新しい形では同じ `material.json` の `reply` の欄から取る。
-- ほかに返答の欄を読む物は無い（`lib/` と `workflows/` を `observed`・`main_path_observation` で探した。`docs/works-parity.md` の S042「問いが測れなかった素材の名なら問いが無くても当てる」は承認ノードの側の決めで、素材の名を読むだけ）。
+- ほかに返答の欄を読む物は無い（`lib/` と `workflows/` を `observed`・`main_path_observation` で探した。docs の `works-parity.md` の S042「問いが測れなかった素材の名なら問いが無くても当てる」は承認ノードの側の決めで、素材の名を読むだけ）。
 
 ## 2 node の設計シート: main-path-observation（観測の役）
 
@@ -173,7 +173,7 @@ md の中に、`$` の直後に英字か `{` が続く字は無い。差し込�
 
 ### 2.5 描いた骨組み（例の run の値）
 
-例の run では、今の指示は `workflows/judge/commands/material-main-path-observation.md`（47 行）と、役が Read した `judge/material-main-path-observation-brief.md`（19 行）の 2 か所に在った。新しい指示はこの 2 つを 1 本にする:
+例の run では、今の指示は workflows/judge の `commands/material-main-path-observation.md`（47 行）と、役が Read した `judge/material-main-path-observation-brief.md`（19 行）の 2 か所に在った。新しい指示はこの 2 つを 1 本にする:
 
 ```markdown
 {shared:query-rule の本文: Rules for queries to outside services …（7 行）}
@@ -230,10 +230,10 @@ Return only JSON that matches the output schema.
 - 元の works の `works/blk-material/commands/main-path-observation.md` は、engine が描いた graphloops の指示書を Read させる薄い md だった（test-double-fidelity と同じ形）。工場は指示書を md に写し、値を材料のファイルにした（#76）。
 - 元の graphloops の指示書（`~/src/claude-plugins/graphloops/prompts/review-loop/p1.main_path_observation.md`）と元の works の写し（`works/.shared/core/gl-prompts/prompts/review-loop/p1.main_path_observation.md`）と工場の md の段は、材料の名と「ノード／節」の語のほかは同じ。工場はこの観点の指示に段を足していない。
 - graphloops の節の宣言と条件が持ち、工場に無い物:
-  - `main_path_observation_due` の「前の周に人待ちだった周」の枝（`loop.last_material.main_path_observation.status == "awaiting_human"` で、経路に触れる差分を 2 周目にもう一度観測させる）: 工場は `loop.last_material.*` をいつも None にした（#76。`due_view` の docstring、`lib/judge_accept.py:1337-1345`。試験 `DueCase.test_view_values` が None を縛る）。1 run = 1 周なので前の周が無く、人待ちは人への問いで人に渡る。新しい形は枝ごと持たない。
+  - `main_path_observation_due` の「前の周に人待ちだった周」の枝（`loop.last_material.main_path_observation.status == "awaiting_human"` で、経路に触れる差分を 2 周目にもう一度観測させる）: 工場は `loop.last_material.*` をいつも None にした（#76。`due_view` の docstring、lib の `judge_accept.py:1337-1345`。試験 `DueCase.test_view_values` が None を縛る）。1 run = 1 周なので前の周が無く、人待ちは人への問いで人に渡る。新しい形は枝ごと持たない。
   - 「前の周の P3 が何かを直した周」の枝と `carry_reason`（経路を変えていない周は前の観測を持ち越す）: 1 run = 1 周（持ち主の決め carry、#76）で効かない。新しい形は持たない。
   - 指示書の「台帳に載り、次の周の judge が再審する」: 盤面の台帳（awaiting の行）と次の周の再審は工場に無い（#76 で 1 run = 1 周にした）。2.6 の替え方。
-  - `delegate.model: sonnet`: 工場は群の名 `'@wf-judge-materials'`（今の試験の表で sonnet・medium。`tests/workflows/test_judge.py:97`）。同じ。
+  - `delegate.model: sonnet`: 工場は群の名 `'@wf-judge-materials'`（今の試験の表で sonnet・medium。tests/workflows の `test_judge.py:97`）。同じ。
 - `post_check: main_path_observed` は graphloops の宣言にも元の works にも在り、工場は字を写した（`judge_accept.py:2138` の docstring「元 rules:2962」）。新しい形も持つ。
 
 この block が両方より良く、残す物: 見たと言う状態に観測の行を機械が求める（graphloops と同じ）・受け付けの決まりを指示が先に言う・作業ツリーを機械が照らす・判定から入る run で回さない素材に出どころつきの理由を書く。
@@ -260,8 +260,8 @@ materials.md の 4 節の順。観点の前の照らしは無く、後の照ら�
   - 足す: `not_applicable` は拒まれる（`cond_true`）。組んだ指示に `na_cond_true` の段落と「差分が利用者から見える経路に触れる」の字が入る。
   - 足す: `entry` が在れば `skipped` で、素材が出どころつきの `not_applicable`。
   - 足す: `report` に `observed` の行ごとの「観測」の行が出る。
-  - 足す（起こし方の照らし）: block の YAML の AI の node が、今の `tests/workflows/test_judge.py:97` の行（`"sonnet", "medium", INVESTIGATE, DELEGATE, …`）が照らす物と同じ。
-- 指示の比べ（README の 11.4）: `tests/blocks/main_path_observation/test_prompts.py`。作り方は [test-double-fidelity.md](test-double-fidelity.md) の 2.9 と同じで、元の md は `material-main-path-observation.md`、元の材料のファイルは例の run の `judge/material-main-path-observation-brief.md`（末尾の節は `user_path_touched` が真の字）。
+  - 足す（起こし方の照らし）: block の YAML の AI の node の起こし方の設定（model・effort・使える道具・sandbox・作業ツリーを変えないか）が、組み込みの前の試験 tests/workflows の `test_judge.py` の役の表 `ROLES` の main-path-observation の行と同じ値（`sonnet`・`medium`・道具は Read・Grep・Glob・Bash・WebSearch・WebFetch・sandbox は組み込みの前の試験の定数 `DELEGATE` の形〔外への通信を全部許し、作業ツリーの中への書き込みだけを禁じる〕）で、node に `mutates_checkout: false` の宣言を付けない点も同じである。
+- 指示の比べ（README の 11.4）: tests/blocks/main_path_observation の `test_prompts.py`。作り方は [test-double-fidelity.md](test-double-fidelity.md) の 2.9 と同じで、元の md は `material-main-path-observation.md`、元の材料のファイルは例の run の `judge/material-main-path-observation-brief.md`（末尾の節は `user_path_touched` が真の字）。
 - 守る keep-essence の番号: 無い（keep-essence は元の works が「作り替えで外さない」と決めた 12 の仕組み〔README の 10 節〕で、この観点はそのどれにも当たらない）。守るのは「動かしていない経路を見たと言わせない」（`main_path_observed`）で、上の受け付けの試験と `gave-up` の fixture が見る。
 - 終わりの条件の命令（1 モジュールずつ）:
 

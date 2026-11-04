@@ -16,7 +16,7 @@
 - 利用者の環境に戻す: 起動の殻（`bin/works-factory`。Archon を隔離した HOME で起こす）が隔離したまま、対象のテストのコマンドだけは利用者の HOME・XDG に戻して起こす事。戻して起こした時に置く印のファイル（`user-env-ran`）の置き場が `user_env_dir`。置き場が空のまま戻そうとする run は、印を置けないので止まる（`lib/userenv.py`）。
 - 包み・柵（埋め fence）: 起動の殻が読むだけの役の claude を起こす直前に、作業ツリーと共有の `.git` への書き込みを塞ぐ部品（`workflows/.shared/fence.py`。名簿は `docs/polyfills.md`）。この block は包みの記録を読まない（記録を読んでいた `ci-prep`・`ci-accept` は 14 節で外した）。
 - 宣言: 対象の根の走らせる段の宣言 `.review-checks.json`（graphloops の `engine/declared.py` の形）と、範囲の宣言 `.works-checks.json`（段ごとの `paths_ignore`）。
-- 走らせ方の語 `by`: `engine`（機械が宣言の段を走らせた）・`role`（機械が test_cmd を走らせた。宣言が無いか、宣言の段から落とした）・`role_needed`（宣言も test_cmd も無く、機械が走らせられない。14 節の道: AI が書いた実行器で変更に関わる試験だけを走らせる。以前は任せ先の CI の役が素材を書いた）。`lib/declared_checks.py` の `RUN_WORDS`。
+- 走らせ方の語 `by`: `engine`（機械が宣言の段を走らせた）・`role`（機械が test_cmd を走らせた。宣言が無いか、宣言の段から落とした）・`role_needed`（宣言も test_cmd も無く、機械が走らせられない。14 節の道: AI が書いた実行器で変更に関わる試験だけを走らせる。以前は任せ先の CI の役が素材を書いた）。`lib/declared_checks.py` の `ENGINE`・`ROLE`・`ROLE_NEEDED`。
 - 素材（material）: 走らせた結果の札 `{status, count?, detail?, checked?, reason?, systems?}`。`status` は `found`・`clean`・`not_applicable`・`awaiting_human`・`not_run`。
 - 赤の原因 `red_cause`: `introduced`（直しが起こした）・`inherited`（元から赤）・`environment`（環境）・`interaction`（語として在るが今は返らない。8 節の 1）・`incomplete`（確かめが終わらない）・空（緑）。`lib/green_cert.py` の `RED_CAUSES`。
 - 指紋: 作業ツリーの `{head, diff_hash}`。走らせる前・後・認証の時の 3 つが合う時だけ緑を認証する。
@@ -242,7 +242,7 @@ Return only JSON that matches the output schema.
 
 ### 4.6 今の指示との差
 
-今の指示は `workflows/test-gate/commands/suite-write.md`（27 行）と、役が Read する材料の文 `test-gate/suite/writer-brief.md`（`lib/suitewrite.py` の `_brief`、:91-97）の 2 か所に在る。
+今の指示は workflows/test-gate の `commands/suite-write.md`（27 行）と、役が Read する材料の文 `test-gate/suite/writer-brief.md`（`lib/suitewrite.py` の `_brief`、:91-97）の 2 か所に在る。
 
 - 移した: 材料の文の中身（対象の根・宣言が在るか・test_cmd の囲い）を md の `## Material` の節に直に入れた。材料の文のファイルを Read させる道（md:5-7「材料の文: $suite-prep.output.brief_file」「まずこのファイルを Read で全部読め」）をやめた。材料の文の見出しと札（「# 実行器を書く材料」「- 対象の根:」「- 対象の根の宣言 …: 在る・無い」「## test_cmd（人が渡したテストのコマンド。字のまま）」「無い（人が渡していない）」、:93-97）は md の決まった文になった。lib の `_brief` は組み込みで、読み手が無くなるので外せる（`suitewrite` は KEEP）。
 - 移した: 実行器の約束の環境変数の名（md:16 の `TDD_SUITE_ONLY`）を差し込み口 `{only_env}` に（`baseline_red.ONLY_ENV` と同じ字）。宣言の名も `{decl_name}` に。
@@ -306,10 +306,10 @@ e2e の `tests/e2e/evidence.json` の L-E38・L-W28・T1・T6・T18・T29・T30�
 
 ## 10 報告の行（`src/report.py`）
 
-今の `lib/runreport.py` が試験の関門の返りから組む行を、この block の返りの値だけで組む（node の id の札は外す。block は line の中の名を知らない）。字は今と同じ。
+今の lib の `runreport.py` が試験の関門の返りから組む行を、この block の返りの値だけで組む（node の id の札は外す。block は line の中の名を知らない）。字は今と同じ。
 
 - base:
-  1. `直す前のテスト: <語>`。語は今の `runreport._base_word`（:1611-1630）の写し（`緑`・`走らせられなかった（<cause>）——<gatemarks.BASELINE_NOT_RUN>——<訳>`・`<素材の語>（<status>）——<訳>`・`赤（赤の原因 <cause>）`）。素材は place の `baseline.json` から読む。
+  1. `直す前のテスト: <語>`。語は今の `runreport._base_word`（:1611-1630）の写し（`緑`・`走らせられなかった（<cause>）——<gatemarks.BASELINE_NOT_RUN>——<訳>`・`<素材の語>（<status>）——<訳>`・`赤（赤の原因 <cause>）`。`<gatemarks.BASELINE_NOT_RUN>` は lib の `gatemarks.py` の定数の字「基準の検査が走らなかった（コードの赤ではない）」）。素材は place の `baseline.json` から読む。
   2. `直す前のテストの走らせ方: <suites>`・`直す前のテストのログ: <log>`（今の `_evidence_lines` の 2 行。値は `declared_checks.gate_values(<返り>)`）。
   3. `試験の関門（base）: <緑・緑でない>・ok <ok>`（赤の原因が在れば `・赤の原因 <cause>`、`ok` が真で原因が `inherited`・`environment` なら `——赤のまま通した（<cause> の赤。直しが起こした赤でないと認証が見た）`）。今の `_green_lines` の 1 行。
   4. `suite_note` が空でなければその 1 行。
@@ -334,7 +334,7 @@ e2e の `tests/e2e/evidence.json` の L-E38・L-W28・T1・T6・T18・T29・T30�
 9. 出し直しの断片の囲いを `~~~` にする。根拠: 却下の理由の字は Python が組み、受け付けの文に `` ``` `` が入りうる（素材の detail の写しなど）。今の `` ``` `` の囲いはそれで閉じる。
 
 10. place の作り直しで消すのは、この block の名の在るファイルとフォルダだけにする（`src/files.py` の `fresh_place`）。1.3 の「place の中を `logs/` のほかは消し」は、単独の run では place が run directory の根なので、ほかの block のファイルまで消す。根拠: 土台の決め「block が消してよいのは、自分が名を持つファイルだけ」。`logs/a<k>/` は消さない（今と同じ）。拒否の控え・合わせた答えの控えの名は `rolekit` が組むので、`rejects`・`candidate` の関数で引く。
-11. port `request` の形は、`workflows/test-gate/schemas/request.schema.json`（1.5 の `anyOf`）でなく、土台の `shared:request.schema.json` で受け、読みは `requestrows.findings`。根拠: `anyOf` は `KNOWN_KEYWORDS` に無く、`ports.json` も形の検査も拒む。同じ名の形のファイルを 2 か所に置くことも検査が拒む（形の名は pack の中で 1 か所）。空の依頼（`[]`・空の字）は `[]` として読む。
+11. port `request` の形は、workflows/test-gate の `schemas/request.schema.json`（1.5 の `anyOf`）でなく、土台の `shared:request.schema.json` で受け、読みは `requestrows.findings`。根拠: `anyOf` は `KNOWN_KEYWORDS` に無く、`ports.json` も形の検査も拒む。同じ名の形のファイルを 2 か所に置くことも検査が拒む（形の名は pack の中で 1 か所）。空の依頼（`[]`・空の字）は `[]` として読む。
 12. （14 節で `ci-loop` ごと外した。以下は外す前の決め）node `ci-fix-prep`（script `ci_fix_prep.py`）を足して 13 の node にし、出し直しの役 `ci-fix` の指示をこの prep が組む（`ci-prep` は出し直しの周は `prompt` を `""` で返す）。根拠: 形の検査 `check_standalone_renders` は、AI の node ごとに「その node の prep を差し替えず、`reached` に在り、`exec-code: true` の筋書き」で指示の字を照らすが、輪（`loop_group`）の 2 周目は dry-run で回らない（`until_bash` は動かず、1 周で終わる）ので、`ci-prep` が `resubmit: true` を返す周を本物の script では作れない。prep を分ければ、筋書きは `ci-prep` を差し替えて出し直しの周を作り、`ci-fix-prep` は本物で指示を組める。振る舞いは変わらない（出し直しの周だけ `ci-fix-prep` が回る）。
 13. （`ci-*` の部分は 14 節で外した。今の `standalone` は AI の `suite-write` だけ差し替える）筋書き（12 節）は検査の決まりに合わせて作る。`standalone` は `exec-code: true` で script を本物に回し、AI の 2 つ（`ci`・`suite-write`）だけ差し替える（宣言も test_cmd も無い作業ツリーなので任せ先の輪と実行器の輪が回る）。`base-resubmit` は `exec-code: true` で `ci-prep`・`ci-fix`・`ci-accept` を差し替える。ほかの 5 本（`base-engine`・`base-suite-kept`・`base-suite-written`・`final-green`・`final-red`）は配線だけを見るので script も差し替える。12 節の `standalone`（engine の形）は `base-engine` に、`base-role` は `standalone` に寄せた。根拠: 検査が `standalone` の `exec-code: true` と、AI の node ごとの本物の prep を求める。
 14. `ports.items(raw)` は足さず、入力 `optional`（`[{node, bare}]` の JSON の字）は `src/certify.py` の `optional_items` で読む。`drop_runner_env`・`suite_keep`・`RUNTIME_COPY_PREFIX`・`pointer` は土台の `ports.py` に既に在るので、土台は触らない。根拠: 1.5 の「土台に無ければ足す」は、`items` だけが無く、使い手がこの block の 1 か所だけ。
@@ -357,12 +357,12 @@ e2e の `tests/e2e/evidence.json` の L-E38・L-W28・T1・T6・T18・T29・T30�
   - `base-suite-kept.stubs.yaml`・`base-suite-written.stubs.yaml`: 実行器の輪（取り置きを使う・書き手が書く）。`result` の返りに `suite`・`suite_note` が入る。
   - `final-green.stubs.yaml`・`final-red.stubs.yaml`: 入力に `mode: final`・`baseline`・`tdd_suite`。
   - 配線だけの 5 本（`base-engine`・`base-suite-kept`・`base-suite-written`・`final-green`・`final-red`）は script も差し替えるが、残す。見るのは script の中身でなく YAML の配線で、node の返りの値に応じて `when`・`trigger_rule` がどの輪を起こしどれを飛ばすか（`reached` の並び）と、`mode: final` の入力の鍵が通ることを Archon の workflow test で照らす。`exec-code: true` の 2 本は、宣言の無い作業ツリーの base の道と出し直しの周しか通らないので、機械が走らせた道・取り置きの実行器の道・final の道の配線はこの 5 本だけが見る。
-- `tests/blocks/test_gate/test_test_gate.py`（script を子のプロセスで回す。始めの記録の無い使い捨ての `ARTIFACTS_DIR` と、試験の対象の git のリポジトリで、port の値だけを渡す。今の `tests/workflows/test_test_gate.py` の `ScriptCase` の始めの記録の組み立てを、`intake.py` を port の値で回す形に替える）:
+- `tests/blocks/test_gate/test_test_gate.py`（script を子のプロセスで回す。始めの記録の無い使い捨ての `ARTIFACTS_DIR` と、試験の対象の git のリポジトリで、port の値だけを渡す。今の tests/workflows の `test_test_gate.py` の `ScriptCase` の始めの記録の組み立てを、`intake.py` を port の値で回す形に替える）:
   - YAML の形（今の `YamlCase` から）: `test_name_inputs_and_return`（入力の鍵が 1.2 の 11 個）・`test_result_output_format_is_the_contract`（`suite`・`suite_note`・`report` を足した 18 欄。`result` の `with:` は `optional` だけ）・`test_role_node_reads_only`（`command` の代わりに `prompt: "$ci-prep.output.prompt"`）・`test_runner_writer_is_launched_like_the_ci_role_and_its_fall_is_declared`・`test_runner_loop_rewrites_only_after_a_kept_runner_fails`・`test_role_cannot_write_the_checkout`・`test_run_material_is_the_material_schema_or_null`・`test_loop_matches_give_up`・`test_loop_does_not_paste_previous_reject_by_loop_prev`・`test_script_inputs_match_with`（`INPUTS_` を読むのは `intake.py` だけ）・`test_readonly_nodes`・`test_scripts_write_nothing_outward`。
   - `RunScriptCase` の全部（`test_base_reads_request_where_as_change` は `request_scope: true` で）・`CiRoleCase` の全部（`test_prep_copies_tree_and_passes_reject` は「却下の文が `ci-prompt-<n>.md` に入る」に、`test_resubmit_returns_only_the_rejected_fields` は「`ci-fix-prompt-<n>.md` に最後の却下と控えのパスが入る」に替える。`test_reject_with_a_reference_reaches_the_prompt_verbatim` は指示の字で照らす）・`ResultScriptCase` の全部・`SuiteLoopCase` の全部（実行器の控えは `suite-state.json` で、`test_written_runner_feeds_the_red_green_check` は出力の `suite` が実行器のパスであることも照らす）。
   - `EvidenceRowsCase`: 試験と e2e の照らしの表が証拠の行の頭を `src/certify.py` の `RUN_ROW`・`LOG_ROW` から引く。
   - 足す: base で実行器を作れなかった時に `suite` が空で `suite_note` が `suitewrite.NOT_MADE` で始まる・final の `suite` が port `tdd_suite` のまま・`report` の行（10 節の base・final・誤りの 3 通り）・`intake` が `mode` の外の語で `ok: false`・md の差し込み口の素材の語が `declared_checks.STATUSES` と同じ（yes/no）。
-- `tests/blocks/test_gate/test_prompt_compare.py`（README 11.4）: 2.6・3.6・4.6 の「1 つ目の commit の作り方」の 3 つの照らし。2 つ目の commit で消し、並べた物を PR に載せる。
+- tests/blocks/test_gate の `test_prompt_compare.py`（README 11.4）: 2.6・3.6・4.6 の「1 つ目の commit の作り方」の 3 つの照らし。2 つ目の commit で消し、並べた物を PR に載せる。
 - 写さない試験: `CopiedTextsCase.test_every_command_is_its_original_with_only_ledgered_edits`（写しの台帳。README 9.4）・`YamlCase.test_ci_command_keeps_the_rules`（日本語の md の字の照らし。決まりが残ることは 11.4 の比べと 2.6 の一覧で審査が見る）・`YamlCase.test_role_node_matches_works_blk_ci`（元の works の YAML との突き合わせ。sandbox の値は `test_role_cannot_write_the_checkout` が縛る）・`FixtureCase.test_fixtures_pass_in_archon` は block の fixture の照らし（7.1 の 4 と 11.2）に替わる。
 - keep-essence の守りの試験は 9 節。
 

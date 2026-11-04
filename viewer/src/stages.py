@@ -1,4 +1,4 @@
-"""段の表（viewer/stages.json）と段ごとの集計（流れの画面。docs/design/viewer.md の 6.8）。
+"""段の表（viewer/stages.json）と段ごとの集計（トレースの段の span と段ごとの費用の表。docs/design/viewer.md の 8 章）。
 
 段は、line（メイングラフ）の一番上のノードを人の言葉で畳んだ単位で、見る道具だけの考え。表は工場の中に置かず、工場の中からも読まない
 （viewer/AGENTS.md の E25）。出来事の段は、出来事の道の頭（line の一番上のノード。include・繰り返し・子の run の出来事も、道の頭は
@@ -8,9 +8,9 @@ line のノード）で引く。
   段の配線の列 wiring がその段のノードの中に在り、どの段にも配線でないノードが在る
 - attach(data) -> data["stages"] に段の表と結末の頭の語の表 outcomes と、run が line の run なら段ごとの集計と止まった所（段の番号 stop・止まり方 stop_by・
   止まった出来事の番号 stop_event）を足し、出来事と飛んだノードに段の番号 stage を、出来事に時間の帯の塗り分け role と、段の状態に
-  数えない配線のノードの印 through を付ける。雛形は止まり方を読むだけで、止める語を写さない。どの run にも、図の札ごとの AI の手番の
-  費用 run["ai_cost"]（札の鍵 → 札とその中の AI の手番の費用の和）を付ける。雛形は費用を数えず、この欄と段の集計の cost を読む
-- spots(at) -> 出来事の当たる所（flowview.unmatched が付ける at）が触れる札の鍵の列（外から順）。雛形の spots と同じ形
+  数えない配線のノードの印 through を付ける。どの run にも、出来事の場所 at ごとの AI の手番の費用 run["ai_cost"]（場所の鍵 → その場所と
+  中の AI の手番の費用の和）を付ける。止まった所と ai_cost は今は読む物が無く、at を付ける物も無いので ai_cost は空（docs/design/viewer.md の 6.5）
+- spots(at) -> 出来事の場所 at が触れる場所の鍵の列（外から順）
 """
 import json
 from pathlib import Path
@@ -71,8 +71,8 @@ def attach(data: dict) -> None:
 
 
 def spots(at: dict) -> list[str]:
-    """札の鍵は入れ子の場所ごと: 「<外の札の鍵>>graph/道」（一番外は「graph/道」）。道の頭から順の札（繰り返しの器と入れ子の札）も
-    数える。雛形 page.tpl.html の K と spots と同じ形で、雛形はこの鍵で札を引く"""
+    """場所の鍵は入れ子の場所ごと: 「<外の場所の鍵>>graph/道」（一番外は「graph/道」）。道の頭から順の場所（繰り返しの器と入れ子の
+    場所）も数える"""
     out, scope = [], ""
     for step in [*(at.get("via") or []), at]:
         head = f"{scope}>{step['graph']}/" if scope else f"{step['graph']}/"
@@ -83,8 +83,8 @@ def spots(at: dict) -> list[str]:
 
 
 def _ai_cost(run: dict) -> dict[str, float]:
-    """札ごとの AI の手番の費用（札の語と板の「AI の手番の費用」）。中の出来事を束ねる器は数えない（子の run を起こすノードの行は子の
-    総額を載せ、中の手番と二重になる）。図に当たらない出来事は札が無いので数えない"""
+    """場所ごとの AI の手番の費用。中の出来事を束ねる器は数えない（子の run を起こすノードの行は子の総額を載せ、中の手番と二重になる）。
+    場所 at の無い出来事は数えない"""
     out = {}
     for e in run["events"]:
         at = e.get("at")
@@ -139,7 +139,7 @@ def four(usage: dict) -> dict:
     """手番 1 回の 4 分けのトークンと新しく読んだ分 uncached（lib/runlog.py の add_tokens と同じ訳。input は新しく読んだ分と cache の
     読み書きの和で、cache の欄が欠けた手番は uncached を出さずに cacheUnknown を持つ）。input が cache の 2 つの和より小さい手番は
     引けないので uncached を出さずに odd を真にする（包みの関係は Claude Code と Archon の版で変わりうるので決まりとして照らさない）。
-    段の集計と無駄の手がかり（src/waste.py）が使う"""
+    段の集計が使う"""
     got = {}
     runlog.add_tokens(got, usage)
     odd = _odd(usage)

@@ -28,7 +28,7 @@
 
 出力（`returns: finish`、`outcome_field: ok`）: materials.md の 1.2 の 5 欄だけ。`material.json` の `reply` は受けた返答（`material`・`findings`・`seen`・`unseen`・`web_refetched`・`rankings`・`rankings_none?`）、`materials` は `{"external_standards": <返答の material>}`。
 
-今との違い: 今は目的を `judge/purpose.json` から名で開き、無ければ目的の文の欄に「目的の文はこの run に無い…」の文（`PURPOSE_MISSING`、`lib/judge_accept.py:1219-1220`）を入れた（`_purpose_or_missing`、`:2078-2080`）。観点の正本のパスは prep の出力の欄 `review_md`・`repo_review_md` で md に入れた（`workflows/judge/commands/material-external-standards.md:41`）。受けた返答は `judge/material-external-standards.json` に書いた。
+今との違い: 今は目的を `judge/purpose.json` から名で開き、無ければ目的の文の欄に「目的の文はこの run に無い…」の文（`PURPOSE_MISSING`、lib の `judge_accept.py:1219-1220`）を入れた（`_purpose_or_missing`、`:2078-2080`）。観点の正本のパスは prep の出力の欄 `review_md`・`repo_review_md` で md に入れた（workflows/judge の `commands/material-external-standards.md:41`）。受けた返答は `judge/material-external-standards.json` に書いた。
 
 ### 1.3 node の並び（`workflows/external-standards/works-factory-external-standards.yaml`）
 
@@ -54,7 +54,7 @@ materials.md の 1.4 の名だけ: `intake.json`・`view.json`・`diff.patch`・
   - `NAME = "external-standards"`
   - `MATERIALS = ("external_standards",)`
   - `GUARDED = False`（AI の node が `mutates_checkout: false` を持たない。今の accept の `with: {status_guarded: false}`。`workflows/judge/works-factory-judge.yaml:1382`）
-  - `NA = "never"`、`NA_REASON = ""`（今の `MATERIAL_NODES['p1.external_standards']` が `applies_cond` を持たず `na_self_ok: False`。`lib/judge_accept.py:1661-1667`）
+  - `NA = "never"`、`NA_REASON = ""`（今の `MATERIAL_NODES['p1.external_standards']` が `applies_cond` を持たず `na_self_ok: False`。lib の `judge_accept.py:1661-1667`）
   - `STANDARDS_SECTION = "外部標準照合観点"`、`CRITERIA_SECTION = "指摘の提出基準"`（観点の正本の見出しの字。md と正本の字が合うべき値。README の 5.3）
   - `due(view, values)`: `values["entry"]` が空でなければ `materialkit.entry_skip("外部標準の照合")`（今の `external_standards_due` の入口の枝の字。`:1521-1524`）。空なら `materialkit.Due(True, "外部標準の照合は、判定から入る run でなければ run ごとに 1 回回す（1 run は 1 周で、いつも初回）")`。今の `:1525-1527` は「初回か、機構を足した／変えた周か、前の周の P3 が何かを直した周——成り立つ（round=1・前の周の P3 が触ったファイルは 0 件）」を返す（例の run の `material-route.json` の `roles.external-standards.why`）。P3 は graphloops の段の名で修正の段。1 run = 1 周なので「前の周の P3」と「機構を変えた周」の枝はいつも効かず、成り立つのは「初回」の枝だけなので、効かない枝の名を外した字にした（自分で決めた。7 節。prior-decisions.md の 1.5 と、ほかの P1 の観点の設計書と同じ替え方）。
   - `fill(view, values, due)`: `{"external_standards": materialkit.fill_entry(values["entry"], None)}`（`due` が偽になるのは `materialkit.is_entry_run(view, values)` が真の時〔判定から入る run〕だけ。依頼の行の port `request` を持たないので、依頼の件数には `None` を渡し、materials.md の 2.6 の「件数は渡されていない」の句になる）。
@@ -77,7 +77,7 @@ materials.md の 1.4 の名だけ: `intake.json`・`view.json`・`diff.patch`・
 ### 1.6 つなぎ方（graph の側。block には書かない）
 
 - 判定のまとめ（`workflows/judge/`）: `include: works-factory-external-standards`、`depends_on` は materials.md の 1.6。`with:` は `base`・`entry`・`lang` を materials.md の 1.6 のとおり、`purpose: $purpose.output.purpose`（目的の block の `purpose.json` の pointer。目的の block が `failed` の run は、目的の block の設計書のとおり graph が判定の前で止めるので、ここに null が来るのは単独の run と目的の block を外した run だけ）。
-- 読み手: diagnose の `materials`（11 本の `material` の配列の 1 つ。素材 `external_standards` の欄）。判定役の材料の「外部標準」の所見の行（今の `record.process.external_findings`。`lib/judge_accept.py:2770`・`:2776`）は、`role` が `external-standards` の doc の `reply.findings` から取る（diagnose の設計書の決め）。
+- 読み手: diagnose の `materials`（11 本の `material` の配列の 1 つ。素材 `external_standards` の欄）。判定役の材料の「外部標準」の所見の行（今の `record.process.external_findings`。lib の `judge_accept.py:2770`・`:2776`）は、`role` が `external-standards` の doc の `reply.findings` から取る（diagnose の設計書の決め）。
 - `rankings` は今どの役の材料にも入っていない（graphloops の `writes` の `process.external_rankings` を工場は写したが、`_diagnose_ctx` は読まない）。新しい形も `reply` に残し、報告の行（1.5 の `report_lines`）だけが読む。
 
 ## 2 node の設計シート: external-standards（外部標準照合の役）
@@ -184,7 +184,7 @@ md の中に `$` の字は無い（今の `$TMPDIR` は「TMPDIR 環境変数が
 
 ### 2.5 描いた骨組み（例の run の値）
 
-例の run では、今の指示は 2 か所に在った: `workflows/judge/commands/material-external-standards.md`（68 行。`$external-standards-prep.output.lang_line`・`.reason`・`.brief_file`・`.review_md`・`.repo_review_md` を Archon が入れた物）と、役が Read した `judge/material-external-standards-brief.md`（55 行）。新しい指示はこの 2 つを 1 本にする。2 回目（1 回拒まれた後）の形:
+例の run では、今の指示は 2 か所に在った: workflows/judge の `commands/material-external-standards.md`（68 行。`$external-standards-prep.output.lang_line`・`.reason`・`.brief_file`・`.review_md`・`.repo_review_md` を Archon が入れた物）と、役が Read した `judge/material-external-standards-brief.md`（55 行）。新しい指示はこの 2 つを 1 本にする。2 回目（1 回拒まれた後）の形:
 
 ```markdown
 {shared:rejected の本文（土台の断片）。中の {rejection} に:
@@ -286,9 +286,9 @@ materials.md の 4 節の順のまま。観点の前の照らしは無く、後�
   - 写す元 `test_missing_purpose_is_said_not_invented`: `purpose` が null の run で組んだ指示が目的の文の無い 1 文を含み、`Original purpose: ` の後に目的の文を持たず、`prompt_inputs` の値に `purpose_text`・`known_weaknesses` が無い。
   - 写す元 `DueCase.test_empty_diff_run_with_requests_runs_only_prior_decisions` の external-standards の部分: 差分が空で `entry` が在れば `due` が偽で、素材が `materialkit.fill_entry` の字。`entry` が空なら真。
   - 足す: 対象の根に `REVIEW.md` を置いた run と置かない run で、`repo_review` の段落の有無と `repo_review_md` の値の有無が合う。
-  - 足す（起こし方の照らし）: AI の node の `model`・`allowed_tools`・`sandbox`・`idle_timeout`・`retry` が、今の `tests/workflows/test_judge.py:93` の external-standards の行（`"sonnet", "medium", INVESTIGATE, CLOSED, False, …`）が照らす物と同じ。
+  - 足す（起こし方の照らし）: AI の node の `model`・`allowed_tools`・`sandbox`・`idle_timeout`・`retry` が、今の tests/workflows の `test_judge.py:93` の external-standards の行（`"sonnet", "medium", INVESTIGATE, CLOSED, False, …`）が照らす物と同じ。
   - 足す（字の照らし）: `STANDARDS_SECTION`・`CRITERIA_SECTION` が `workflows/.shared/prompts/REVIEW.md` の `## ` の見出しの頭に在る（見出しの名を正本が替えたら落ちる）。
-- 指示の比べ（README の 11.4）: `tests/blocks/external_standards/test_prompts.py`。
+- 指示の比べ（README の 11.4）: tests/blocks/external_standards の `test_prompts.py`。
   - 1 つ目の commit: `prompts/external-standards.md` を、今の md の `$external-standards-prep.output.lang_line`・`.reason`・`.brief_file`・`.review_md`・`.repo_review_md` を `{lang_line}`・`{reason}`・`{brief_file}`・`{review_md}`・`{repo_review_md}` に替えた日本語の字で置く。prep は 1 つ目の commit だけこの 5 つを値に入れ（prior-decisions.md の 2.9 と同じ作り方。`review_md`・`repo_review_md` は `materialkit.review_md_paths`）、`src/oldbrief.py` の `brief(view, values)` で `material-external-standards-brief.md` を書く。試験は例の run の値（差分の根・変更ファイルの 23 行・目的の文・`known_weaknesses: []`）で、(a) 組んだ指示が今の md に同じ 5 つの値を入れた字と同じ、(b) `oldbrief.brief` の字が例の run の `judge/material-external-standards-brief.md` と同じ（リポジトリ・差分・`REVIEW.md` のパスは試験の物に置き換えて比べる）。
   - 2 つ目の commit（英語）: 1 つ目の試験と `src/oldbrief.py` を消し、例の run の値で組んだ新しい指示と、今の md と材料のファイルを並べた物を PR に載せ、2.6 の差の一覧どおりかを審査に出す。
 - 守る keep-essence の番号: 無い。守るのは「特徴の一致だけで定番と同型と言わせない（順位の行の照らし）」で、上の受け付けの試験が見る。

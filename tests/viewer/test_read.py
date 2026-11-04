@@ -66,7 +66,7 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from viewer.src import runread, session, stages, waste
+from viewer.src import runread, session, stages, trace
 
 
 class ReadCase(unittest.TestCase):
@@ -641,7 +641,7 @@ class ReadCase(unittest.TestCase):
         """値を出来事や往復に入れる所（周の番号・会話の id の頭・道具の呼び出しの id・往復のトークン・道具の名・step・試みの id・
         DB の出力の起動の id・子の run を起こしたノード）で形を確かめ、形が違えばその行を欄の形が違う行に数える。終わりの行の添えるだけの
         欄（会話の id の頭・模型）の形が違えば、その欄だけを捨てて行の残り（通った）を読む。段の集計・会話の読み・
-        無駄の手がかりまで通してページのデータを作れる（後で使う所で落ちない）"""
+        トレースの組みまで通せる（後で使う所で落ちない）"""
         line = stages.TABLE["graph"]
         db = self._db([("top", None, "2026-10-25 01:00:00", None, "{}"),
                        ("kid", "top", "2026-10-25 01:00:00", None, json.dumps({runread.PARENT_NODE: ["n"]}))], [])
@@ -682,7 +682,7 @@ class ReadCase(unittest.TestCase):
         data = {"shape": {"graphs": {line: {"name": line, "returns": "", "items": [{"id": p, "kind": "ai"} for p in ("loop", "a", "b", "c", "d", "s")]}}},
                 "run": got, "texts": {}}
         stages.attach(data)
-        waste.attach(data)
+        trace.build(data)
 
     def test_a_node_closed_in_the_second_of_its_last_start_ends_there(self):
         """走り直した出来事を最後の始めと同じ秒の終わりの出来事で閉じる時、終わりは最後の始め（DB の時刻は秒までの切り捨てなので、

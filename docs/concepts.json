@@ -1,5 +1,5 @@
 {
- "about": "考えの住処の地図（docs/concepts.md）の柵の表。読むのは lib/conceptfence.py だけ（run の中では構造の目が対象の表として当てる。works-factory 自身の木に全部を当てていた試験 tests/layers/test_concept_fences.py は #765 の組み込みで消した。docs/design/README.md の 9.4）",
+ "about": "考えの住処の地図（docs/concepts.md）の柵の表。読むのは lib/conceptfence.py だけ（run の中では構造の目が対象の表として当てる。works-factory 自身の木に全部を当てる試験は置かない。docs/design/README.md の 9.4）",
  "exclude": [
   "tests/**",
   "lib/tests/**",
@@ -94,7 +94,7 @@
      "what": "指示書のセクションの宣言の型と宣言を並べる口の定義（住処の外に写さない）",
      "pattern": "\\bclass (Section|Receive)\\b|\\bdef declared_sections\\b",
      "allowed": [
-      "lib/promptsection.py"
+      "workflows/.shared/prompt.py"
      ],
      "known": {}
     }
@@ -108,13 +108,17 @@
      "pattern": "\"(fixed_needs_check|no_fix_needed|stopped_by_line|stopped_by_request|stopped_by_human|needs_human)\"|\"round_limit\"(?!\\s*[:\\]])",
      "allowed": [
       "lib/report.py",
-      "lib/outcome.py",
+      "workflows/report/src/outcome.py",
       "workflows/report/works-factory-report.yaml"
      ],
      "known": {
-      "lib/runreport.py": [
-       3,
-       "機械の報告の組み立てが、止まった run の結末の並び STOP_OUTCOMES（bin/apply が拒む）と、残りの行を分ける結末の語を字で持つ（元は住処 report.py の中）"
+      "workflows/report/src/machine.py": [
+       1,
+       "報告の機械の部分が、止まった run の結末の並び STOP_OUTCOMES を字で持つ（語の正本は住処 report.py の OUTCOMES）"
+      ],
+      "workflows/line/src/facts.py": [
+       1,
+       "メイングラフの事実の集めが、止まった run の結末の並び STOP_OUTCOMES を字で持つ（語の正本は住処 report.py の OUTCOMES）"
       ],
       "workflows/line/scripts/result.py": [
        1,
@@ -131,17 +135,13 @@
      "what": "深さの控えと深さの口の名",
      "pattern": "\"depth\\.json\"|\\bdepth\\.(unit_depth|run_depth|decide_doc|raise_doc)\\b",
      "allowed": [
-      "lib/depth.py",
+      "workflows/line/src/tiers.py",
       "workflows/line/**"
      ],
      "known": {
       "lib/fixboard.py": [
        4,
        "修正のサブグラフの置き場が計画の出力の深さの写し depth.json を持ち、修正の後の上げ直し redepth が depth.raise_doc を呼ぶ（元はメイングラフの h-redepth）"
-      ],
-      "lib/planfile.py": [
-       2,
-       "計画のサブグラフの出力ノードが、出力 depth を depth.decide_doc で作る（元はメイングラフの h-depth）"
       ]
      }
     },
@@ -149,7 +149,7 @@
      "what": "修正の後の上げ直しの控えの扱いの字（読めない控えで上げる信号 LATE_UNREAD と、無い控えの訳 NO_LATE_RECORD）",
      "pattern": "\\b(LATE_UNREAD|NO_LATE_RECORD)\\b",
      "allowed": [
-      "lib/latedepth.py"
+      "workflows/line/src/tiers.py"
      ],
      "known": {}
     },
@@ -157,7 +157,7 @@
      "what": "修正の後の上げ直しの数えの中身（数えの部品 run_paths・outside_cited・late_signals・consulted_units の呼び・import と、counted の「触るファイル {n} 個（起点: …）」の形）。呼び手は latedepth.signals を呼ぶ",
      "pattern": "\\.(run_paths|outside_cited|late_signals|consulted_units)\\(|^\\s*from (depth|consult) import\\b[^#\\n]*\\b(run_paths|outside_cited|late_signals|consulted_units)\\b|触るファイル \\{[^}]*\\} 個（起点",
      "allowed": [
-      "lib/latedepth.py"
+      "workflows/line/src/tiers.py"
      ],
      "known": {}
     }
@@ -175,17 +175,17 @@
       "workflows/line/scripts/start.py"
      ],
      "known": {
-      "lib/boardview.py": [
+      "workflows/line/src/tiers.py": [
        1,
-       "事前審査のサブグラフが、始めの控えの features_on・features_off から自分の機能の語 review_tree を引く名 TREE_FEATURE を持つ"
+       "メイングラフの段の切り替えが、事前審査の木の機能の語 review_tree を引く名 TREE_FEATURE を持つ"
       ],
       "lib/fixboard.py": [
        1,
        "修正のサブグラフが、組を並べるかを決める機能の語 fix_lanes・tdd_lanes を LANE_SWITCHES に持つ"
       ],
-      "lib/judge_accept.py": [
+      "workflows/line/src/deal.py": [
        3,
-       "判定のサブグラフが、始めの控えの features_cut の既定と自分の機能の語 judge_verify を持つ（DEFAULT_FEATURES_CUT・VERIFY_FEATURE と docstring）"
+       "メイングラフの配る値の部品が、block に配る機能の語 review_tree・judge_verify・fix_lanes・tdd_lanes を自分の定数 REVIEW_TREE・JUDGE_VERIFY・LANES に字で持つ"
       ]
      }
     }
@@ -201,7 +201,6 @@
       "lib/reads.py",
       "bin/_lib/record-read.py",
       "workflows/fix/scripts/fix_reads.py",
-      "workflows/plan/scripts/plan_reads.py",
       "workflows/plan-review/scripts/review_reads.py"
      ],
      "known": {
@@ -222,18 +221,18 @@
      "allowed": [
       "lib/conflict.py",
       "lib/fixboard.py",
-      "lib/tddloop.py",
-      "lib/ruling.py",
+      "workflows/fix/src/tdd.py",
+      "workflows/fix/src/ruling.py",
       "workflows/fix/**"
      ],
      "known": {
-      "lib/boardview.py": [
+      "workflows/plan-review/src/material.py": [
        2,
-       "案の直しの事前審査の頼みに申し出の行を貼るため、申し出の欄の名を自分の定数 WHY_FIELD・WHICH_FIELD に写す（conflict を import しているのに引かない）"
+       "案の直しの事前審査の材料に申し出の行を貼るため、申し出の欄の名を字で持つ"
       ],
-      "lib/planfile.py": [
+      "workflows/plan/src/brief.py": [
        2,
-       "案の直しの項目のセクションに申し出の行を貼る replan_section が、申し出の欄の名を字で持つ"
+       "案の直しの計画の指示の値に申し出の行を貼るため、申し出の欄の名を字で持つ"
       ],
       "lib/querytest.py": [
        1,
@@ -250,7 +249,7 @@
      "what": "並べの枝の仕組み（分け方の union-find・枝の数のループ・ノードの出口の鍵・単位の worktree の .git の 1 行・枝の数の値・順に当てるループ・締めの語・住処の口の定義とその包み）",
      "pattern": "parent\\[parent\\[|range\\(1, *(lanekit\\.)?MAX_LANES *\\+ *1\\)|lane_\\{n\\}\"|\\b_git_line\\(|\\bMAX_LANES *= *[0-9]|earlier \\|= set\\(|\"(serial|joined)\"|outcome\"\\) == \"merged\"|\\bdef _?(node_names|merge_in_order|relocate|tree_ok|fork_out|revert_strays)\\(",
      "allowed": [
-      "lib/lanekit.py"
+      "workflows/fix/src/lanes.py"
      ],
      "known": {}
     }
@@ -263,17 +262,16 @@
      "what": "足し欄の共有ボードの控えの名",
      "pattern": "\"(gate-marks|plan-fields|delta-verdicts|query-examples|out-of-purpose|answer-ties|pr-excluded|report-terms|purpose-means|handoff)\\.json\"",
      "allowed": [
-      "lib/marks.py",
-      "lib/judgebeside.py"
+      "lib/jsonfile.py"
      ],
      "known": {
-      "lib/judge_accept.py": [
-       1,
-       "判定の受け付けが目的の外の所見の控えの名 OUT_OF_PURPOSE_FILE を字で持ち直す（outpurpose.FILE と同じ字。後で寄せる）"
+      "workflows/diagnose/src/files.py": [
+       3,
+       "診断の block の置き場の名の表が、足し欄の控えの名 query-examples.json・out-of-purpose.json・answer-ties.json を lib の持ち主と同じ字で持ち直す（試験が lib の名と突き合わせる）"
       ],
-      "workflows/plan/scripts/plan_collect.py": [
-       1,
-       "出力ノードの script が lib を読めずに落ちた時も控えを置けるよう planmarks.FIELDS_FILE と同じ字を持つ（試験が突き合わせる）"
+      "workflows/plan/src/files.py": [
+       2,
+       "計画の block の置き場の名の表が、控えの名 plan-fields.json・handoff.json を planmarks.FIELDS_FILE・handoff の名と同じ字で持ち直す"
       ]
      }
     },
@@ -281,20 +279,12 @@
      "what": "足し欄の控えの名の定数を住処を通さずにパスへ組む形",
      "pattern": "(/\\s*|\\.work\\()(planmarks\\.FIELDS_FILE|deltamarks\\.VERDICTS_FILE|querytest\\.EXAMPLES_FILE|outpurpose\\.FILE|prcheck\\.EXCLUDED)\\b",
      "allowed": [
-      "lib/marks.py"
+      "lib/jsonfile.py"
      ],
      "known": {
-      "lib/judge_accept.py": [
-       2,
-       "並行 PR の受け付けが外す hunk の控えのパスを path_of を通さずに prcheck.EXCLUDED で組む"
-      ],
-      "lib/planfile.py": [
-       5,
-       "計画が前の周と今の周の欄の控えのパスを path_of を通さずに planmarks.FIELDS_FILE で組む"
-      ],
-      "lib/refix.py": [
+      "workflows/fix/src/board.py": [
        1,
-       "手直しが差分の審査の控えのパスを path_of を通さずに deltamarks.VERDICTS_FILE で組んで消す"
+       "修正の置き場が計画の欄の控えのパスを planmarks.FIELDS_FILE で直に組む"
       ]
      }
     },
@@ -302,10 +292,10 @@
      "what": "役の型に欄を手で足す・外す形",
      "pattern": "\\[\"properties\"\\]\\[[^\\]]+\\] = |\\[\"properties\"\\]\\.(update|pop)\\(|setdefault\\(\"properties\"",
      "allowed": [
-      "lib/marks.py"
+      "lib/jsonfile.py"
      ],
      "known": {
-      "lib/judgeverify.py": [
+      "workflows/verify/src/steps.py": [
        1,
        "写しの型でなく自分で組む裏取りの型の欄（同じ字の形の別の物）"
       ]
@@ -315,16 +305,16 @@
      "what": "返答から欄を手で外す形",
      "pattern": "for k, v in reply\\.items\\(\\) if k (!=|not in) |\\breply\\.pop\\(|\\.pop\\(k\\) for k in ",
      "allowed": [
-      "lib/marks.py"
+      "lib/jsonfile.py"
      ],
      "known": {
       "lib/fixboard.py": [
        2,
        "修正の受け付けが修正役の欄 conflicts・consult を返答から手で外す（修正役の欄の手順は住処に寄せていない）"
       ],
-      "lib/judge_accept.py": [
+      "workflows/parallel-pr/src/take.py": [
        1,
-       "並行 PR の受け付けが外す hunk の欄を種 pr の split を通さずに返答から外す"
+       "並行 PR の受け付けが外す hunk の欄を jsonfile.split を通さずに返答から外す"
       ],
       "lib/writes.py": [
        1,
@@ -350,7 +340,7 @@
         "workflows/plan/works-factory-plan.yaml"
        ],
        "lines": "^ {16}required: \\[read, kept, set_aside, open\\]$",
-       "by": "tests/workflows/test_plan.py",
+       "by": "tests/blocks/plan/test_shape.py",
        "why": "計画の役の返答の型の handoff の写し。Archon の output_format は YAML の字で書くので写しは YAML に残り、試験 test_role_schemas_match_their_lib_owners が handoff.SCHEMA と等しいことを縛る"
       },
       {
@@ -358,8 +348,8 @@
         "workflows/report/works-factory-report.yaml"
        ],
        "lines": "^ {16}required: \\[read, kept, set_aside, open\\]$",
-       "by": "tests/workflows/test_report.py",
-       "why": "報告の書き手の返答の型の handoff の写し。試験 test_roles が書き手の output_format を report_roles.TEXT_SCHEMA（handoff.SCHEMA を引く）と等しいことを縛る"
+       "by": "tests/blocks/report/test_writer.py",
+       "why": "報告の書き手の返答の型の handoff の写し。試験 HandoffShapeCase が書き手の output_format の handoff を handoff.SCHEMA と等しいことを縛る"
       }
      ]
     }
@@ -381,9 +371,9 @@
        1,
        "別の考え: 守りのファイルの型の当て方の正本を修正案の範囲と同じ glob の下回り（globs.glob_match）に寄せている（修正案の範囲の照らしではない）"
       ],
-      "lib/consult.py": [
+      "workflows/fix/src/consult.py": [
        3,
-       "範囲の相談の事前の確かめ（_inside・out_of_scope の当たり）が planrange.inside・oos_hit と同じ当て方を手で書く（後で寄せる）"
+       "範囲の相談の事前の確かめ（out_of_scope と allowed_paths の当たり）が planrange.inside・oos_hit と同じ当て方を手で書く（後で寄せる）"
       ]
      }
     }
@@ -397,10 +387,10 @@
      "pattern": "test_\\.\\*|\\.\\*_test|\\(test\\|spec\\)|test_\\*\\.py|\\*_test\\.py",
      "allowed": [
       "lib/impact.py",
-      "lib/tddloop.py"
+      "workflows/fix/src/common.py"
      ],
      "known": {
-      "lib/judge_accept.py": [
+      "workflows/gate-efficacy/src/signals.py": [
        1,
        "別の考え: 検証ゲートの定義のファイルの型 GATE_FILE_PATTERNS（当たり過ぎを許す広めの当て方で、テストのフォルダ・CI・lint の設定も並べる。テストのファイルの見分けではない）"
       ]
@@ -415,9 +405,10 @@
      "what": "赤の引用の欄の名（test の段の返答の欄と単位の記録の欄）",
      "pattern": "\\bred_quotes\\b",
      "allowed": [
-      "lib/tddloop.py",
+      "workflows/fix/src/common.py",
+      "workflows/fix/src/tdd.py",
       "lib/report.py",
-      "workflows/fix/commands/fix-rules/tdd.md",
+      "workflows/fix/prompts/parts/tdd.md",
       "workflows/fix/works-factory-fix.yaml"
      ],
      "known": {}
@@ -426,7 +417,7 @@
      "what": "赤の判定の正本 red_problems を呼ぶ式（赤の事実の判定は red_check だけが呼び、ループ・並べの締め・事後の関門は red_check を呼ぶ）",
      "pattern": "\\bred_problems\\(",
      "allowed": [
-      "lib/tddloop.py",
+      "workflows/fix/src/common.py",
       "lib/baseline_red.py"
      ],
      "known": {}
@@ -497,16 +488,9 @@
      "pattern": "world\\.jsonl|world-state\\.json",
      "allowed": [
       "lib/worldmark.py",
-      "lib/worldblk.py",
-      "lib/judgebeside.py",
-      "workflows/judge/scripts/world_*.py"
+      "workflows/world/**"
      ],
-     "known": {
-      "lib/judge_accept.py": [
-       1,
-       "判定のノードの中身が docstring で世界の解の出口の書き先を置き場の名で説明する（コードは worldmark.WORLD_FILE・worldmark.write を引く）"
-      ]
-     }
+     "known": {}
     }
    ]
   },
@@ -520,10 +504,6 @@
       "lib/stopby.py"
      ],
      "known": {
-      "workflows/.shared/boundary.py": [
-       1,
-       "ノードの口の境（標準ライブラリだけで lib を import する前に読まれる）が script の例外の止めの語 works:line-script を字で持つ"
-      ],
       "workflows/judge/scripts/verdict.py": [
        1,
        "落ちない返しのノードが lib を読めない時の素の出力に止めの語 works:rejudge・works:judge を字で書く（works:judge は住処の表に無い語）"
@@ -545,10 +525,6 @@
       "lib/stopby.py"
      ],
      "known": {
-      "lib/outcome.py": [
-       1,
-       "結末の決めが人の答えを待つ語の集まり stopby.WAITING を自分の定数 WAIT_WORDS に写す"
-      ],
       "lib/report.py": [
        1,
        "報告が人の止めの頭 stopby.HUMAN を自分の定数 HUMAN_BY に写す"
@@ -568,18 +544,6 @@
       "workflows/line/src/files.py"
      ],
      "known": {
-      "lib/judge_accept.py": [
-       8,
-       "判定の置き場に始めの記録を既定の値で読んだ写し（start_view）を同じ名 start.json で置き、その名を自分の定数 START_FILE に持って読み書きする"
-      ],
-      "workflows/judge/scripts/diagnose_prep.py": [
-       1,
-       "判定の置き場の始めの記録の写しを judge_accept の別名 START_FILE で読む"
-      ],
-      "workflows/judge/scripts/purpose_prep.py": [
-       1,
-       "判定の置き場の始めの記録の写しを judge_accept の別名 START_FILE で読む"
-      ],
       "workflows/line/scripts/ask_final.py": [
        2,
        "最後の承認ノードがポインタの先の始めの記録を読む包み start_doc を自分で持つ（中は startrec.load）"
@@ -595,7 +559,7 @@
      "what": "人の承認ノードの方針の語（最後の承認ノードの開き方 final_gate とその語 always 以外の when_needed・protected_only、無人の run の入力 unattended、語の表 FINAL_GATES・UNATTENDED）。住処の口を引く gatepolicy.<名> は数えない",
      "pattern": "(?<!gatepolicy\\.)(\\bfinal_gate\\b|\\bFINAL_GATES\\b|\\bunattended\\b(?!\\.md)|\\bUNATTENDED(_WORDS)?\\b|\\bWORKS_USE_UNATTENDED\\b|\\b(when_needed|protected_only)\\b)",
      "allowed": [
-      "lib/gatepolicy.py",
+      "workflows/line/src/gates.py",
       "workflows/line/scripts/start.py",
       "workflows/chain/works-factory-chain.yaml"
      ],
@@ -622,7 +586,7 @@
      "what": "住処の定数を別の名に写す",
      "pattern": "^\\s*[A-Za-z_]\\w*\\s*=\\s*gatepolicy\\.[A-Z][A-Z0-9_]*\\s*(#|$)|^\\s*from gatepolicy import|^\\s*import gatepolicy as",
      "allowed": [
-      "lib/gatepolicy.py"
+      "workflows/line/src/gates.py"
      ],
      "known": {}
     },
@@ -723,26 +687,6 @@
      "pattern": "\\ballowed_tools\\b|^\\s*(model|effort):\\s|\\bWORKS_DEV_MODEL\\b|\\bISOLATED_RUN_BY\\b|\"isolated\"",
      "allowed": [],
      "known": {
-      "lib/agents/blind-judge.md": [
-       2,
-       "散らばり（まとめる計画はまだ無い）: 役の定義の前付けが模型と effort の正本を持つ（YAML の AI のノードの行とは結ばれていない）"
-      ],
-      "lib/agents/cold-reader.md": [
-       2,
-       "散らばり（まとめる計画はまだ無い）: 役の定義の前付けが模型と effort の正本を持つ（YAML の AI のノードの行とは結ばれていない）"
-      ],
-      "lib/agents/inspector.md": [
-       2,
-       "散らばり（まとめる計画はまだ無い）: 役の定義の前付けが模型と effort の正本を持つ（YAML の AI のノードの行とは結ばれていない）"
-      ],
-      "lib/agents/investigator.md": [
-       2,
-       "散らばり（まとめる計画はまだ無い）: 役の定義の前付けが模型と effort の正本を持つ（YAML の AI のノードの行とは結ばれていない）"
-      ],
-      "lib/agents/judge.md": [
-       2,
-       "散らばり（まとめる計画はまだ無い）: 役の定義の前付けが模型と effort の正本を持つ（YAML の AI のノードの行とは結ばれていない）"
-      ],
       "workflows/eyes/works-factory-eyes.yaml": [
        10,
        "散らばり（まとめる計画はまだ無い）: グラフの YAML の AI ノードが模型（群の名 '@wf-<群>'。effort は書かない。模型と effort の既定は lib/launchgroups.py の群の表）・道具をそれぞれ書く（同じ組はファイルの中のアンカーで寄せた。役の定義 lib/agents/*.md の前付けとは試験がノードごとの自分の表で群の既定を縛るだけで、源と結んでいない）"
@@ -778,8 +722,8 @@
         "workflows/structure/works-factory-structure.yaml"
        ],
        "lines": "^ {10}(model: '@wf-plan-structure'|allowed_tools: \\[\\])$",
-       "by": "tests/workflows/test_structure.py",
-       "why": "構造の目の役の模型の群と道具ゼロの 2 行（#560 で計画の YAML から構造のサブグラフの YAML へ移した。計画の YAML の既知の漏れはこの 2 行の分だけ減った）。試験 test_eye_is_a_toolless_isolated_role が、道具ゼロと群の既定（opus・high）を能力 P076 の約束に縛る"
+       "by": "tests/blocks/structure/test_structure.py",
+       "why": "構造の目の役の模型の群と道具ゼロの 2 行（#560 で計画の YAML から構造のサブグラフの YAML へ移した。計画の YAML の既知の漏れはこの 2 行の分だけ減った）。試験 test_eye_is_a_toolless_isolated_role が、構造の目の道具ゼロと群の名 @wf-plan-structure を縛る"
       }
      ]
     }
@@ -793,10 +737,6 @@
      "pattern": "機械が貼った",
      "allowed": [],
      "known": {
-      "lib/boardview.py": [
-       3,
-       "散らばり（まとめる計画はまだ無い）: 計画の記録の表示が案の直しのセクションの見出しと貼った材料のセクションの見出しを自分で持つ"
-      ],
       "lib/carry.py": [
        1,
        "散らばり（まとめる計画はまだ無い）: 役の支度のモジュールが指示書に貼るセクションの見出しを自分の定数で持ち、並べを自分で組む"
@@ -806,14 +746,6 @@
        "散らばり（まとめる計画はまだ無い）: 設計の役に貼る前提のセクションの見出しと、地図の文書の案内"
       ],
       "lib/gatemarks.py": [
-       1,
-       "散らばり（まとめる計画はまだ無い）: 役の支度のモジュールが指示書に貼るセクションの見出しを自分の定数で持ち、並べを自分で組む"
-      ],
-      "lib/planblk.py": [
-       3,
-       "散らばり（まとめる計画はまだ無い）: 役の支度のモジュールが指示書に貼るセクションの見出しを自分の定数で持ち、並べを自分で組む"
-      ],
-      "lib/planfile.py": [
        1,
        "散らばり（まとめる計画はまだ無い）: 役の支度のモジュールが指示書に貼るセクションの見出しを自分の定数で持ち、並べを自分で組む"
       ],
@@ -828,10 +760,6 @@
       "lib/structmark.py": [
        1,
        "散らばり（まとめる計画はまだ無い）: 役の支度のモジュールが指示書に貼るセクションの見出しを自分の定数で持ち、並べを自分で組む"
-      ],
-      "workflows/eyes/commands/r2-compare.md": [
-       2,
-       "散らばり（まとめる計画はまだ無い）: 独立の目の比べの指示書が、機械が貼るセクションの見出しに印を字で書く"
       ],
       "workflows/line/scripts/ask_replan.py": [
        1,
@@ -897,23 +825,23 @@
        1,
        "散らばり（数の歯止め。減らす向きだけ）: 言語ごとの読み方（import の読み取り・ライブラリの文書・波及）を持つ（持ち主の決め lang-neutral の E13 の例外）"
       ],
-      "lib/ripple.py": [
+      "workflows/plan/src/ripple.py": [
        1,
-       "散らばり（数の歯止め。減らす向きだけ）: 言語ごとの読み方（import の読み取り・ライブラリの文書・波及）を持つ（持ち主の決め lang-neutral の E13 の例外）"
+       "散らばり（数の歯止め。減らす向きだけ）: 波及の照らしの docstring が、試験の関数の id の形を言語の名で述べる"
       ],
       "lib/stopby.py": [
        1,
        "散らばり（数の歯止め。減らす向きだけ）: コード・殻のコメントや docstring が works-factory 自身の実装の言語を述べる"
       ],
-      "lib/tddloop.py": [
-       9,
+      "workflows/fix/src/common.py": [
+       7,
        "散らばり（数の歯止め。減らす向きだけ）: TDD のループ・実行器の口が実行器の名を持つ"
       ],
-      "workflows/fix/commands/fix-rules/common.md": [
+      "workflows/fix/src/tdd.py": [
        2,
-       "散らばり（まとめる計画はまだ無い）: 修正役の共通の決まりが、手元の依存の例と生成物の止め方に Python を名指す"
+       "散らばり（数の歯止め。減らす向きだけ）: TDD のループ・実行器の口が実行器の名を持つ"
       ],
-      "workflows/judge/commands/premises.md": [
+      "workflows/premises/prompts/premises.md": [
        1,
        "散らばり（まとめる計画はまだ無い）: 前提の役の指示書が、生成物の止め方に Python を名指す"
       ]
@@ -923,24 +851,22 @@
   }
  },
  "loosened": {
-  "allowed:start-record:始めの記録の置き場の名を字で書く形（引用符かパスの区切りで囲んだ start.json）・置き場の名の別名（START_REL・START_FILE）・別の読み口（start_doc の関数の定義と呼び。同じ字の局所の変数は数えない）:workflows/line/src/startrec.py": "#765 の組み込みで住処の lib/startrec.py を line の src（workflows/line/src/startrec.py）へ移した。読み口（read・load・write・shape など）は住処に残り、置き場の名の字は line の置き場の名の表 files.py の START に移って、住処はそれを REL として引く（柵に当たる字は住処に無い）",
+  "allowed:start-record:始めの記録の置き場の名を字で書く形（引用符かパスの区切りで囲んだ start.json）・置き場の名の別名（START_REL・START_FILE）・別の読み口（start_doc の関数の定義と呼び。同じ字の局所の変数は数えない）:workflows/line/src/startrec.py": "#765 の組み込みで住処の startrec.py を lib から line の src（workflows/line/src/startrec.py）へ移した。読み口（read・load・write・shape など）は住処に残り、置き場の名の字は line の置き場の名の表 files.py の START に移って、住処はそれを REL として引く（柵に当たる字は住処に無い）",
   "allowed:start-record:始めの記録の置き場の名を字で書く形（引用符かパスの区切りで囲んだ start.json）・置き場の名の別名（START_REL・START_FILE）・別の読み口（start_doc の関数の定義と呼び。同じ字の局所の変数は数えない）:workflows/line/src/files.py": "#765 の組み込みで、始めの記録の置き場の名の字 r1/start.json を line の src の置き場の名の表（workflows/line/src/files.py の START）に移した。字を持つのは表の 1 行で、住処 startrec はそれを REL として引き、ほかの書き手と読み手は住処の口を引く",
-  "allowed:marks:足し欄の共有ボードの控えの名:lib/judgebeside.py": "#723 で judge の隣のファイルの名の字を名の住処 lib/judgebeside.py に集めた。種 answers・pr の控えの名 answer-ties.json・pr-excluded.json は judge の隣のファイルでもあるので住処が字を持ち、marks の種の表 KINDS はその定数を引く。手順（add・split・path_of）は marks のまま",
-  "allowed:world:世界の解の行のファイルと控えの名（world.jsonl・world-state.json）:lib/judgebeside.py": "#723 で judge の隣のファイルの名の字を名の住処 lib/judgebeside.py に集めた。世界の解の段の控えの名 world-state.json は judge の隣のファイルなので住処が字を持ち、worldmark の STATE_FILE はその定数を引く。読み書きの口は worldmark のまま",
   "allowed:plan-scope:修正案の項目の範囲（allowed_paths・out_of_scope の glob）を手で当てる形:lib/globs.py": "#655 で glob の下回り（glob_match・glob_problem・globs_meet）を planmarks から lib/globs.py へ移した。読みも当て方も前の planmarks の物と同じで、範囲の照らしの住処 planrange の外で範囲を当てる所は増えていない",
-  "exclude:lib/borrow/**": "#674 で借りた物の置き場を bin/_lib/borrow/ から lib/borrow/ へ移した。外す中身（借りた superpowers の写し・継ぎ目の表・無人の読み替え）は前の bin/_lib/borrow/** と同じ",
+  "exclude:lib/borrow/**": "#674 で借りた物の置き場を 殻の _lib の下の borrow から lib/borrow/ へ移した。外す中身（借りた superpowers の写し・継ぎ目の表・無人の読み替え）は前の置き場の物と同じ",
   "allowed:entry-kind:入口の生の入力（差分の根の名指し base・pr）を読む・渡す形:workflows/chain/scripts/chain_start.py": "周の鎖（#380）の始めのノードが、一番上のグラフとして受けた入力 base・pr を 1 周目の子（メイングラフ）へ写して渡し、1 周目に名指した PR の番号を次の周の依頼の pr の欄で運ぶ。入口の種類の決めはメイングラフの start のまま",
   "allowed:human-gates:人の承認ノードの方針の語（最後の承認ノードの開き方 final_gate とその語 always 以外の when_needed・protected_only、無人の run の入力 unattended、語の表 FINAL_GATES・UNATTENDED）。住処の口を引く gatepolicy.<名> は数えない:workflows/chain/works-factory-chain.yaml": "周の鎖（#380）の親のグラフが、メイングラフの入力 final_gate・unattended を同じ名で宣言し、5 組の周の子へ写して渡す。方針の語の読みはメイングラフの start と gatepolicy のまま",
   "allowed:red-check:赤の引用の欄の名（test の段の返答の欄と単位の記録の欄）:workflows/fix/works-factory-fix.yaml": "TDD の役の返答の型（output_format の &tdd_reply）に赤の引用の欄 red_quotes を足した（#290）。型の正本は output_format だけ（持ち主の決め io-in-output-format）なので、欄の名がこの YAML に在るのは住処の外の漏れでなく型の宣言",
   "bound:entry-kind:入口の生の入力（差分の根の名指し base・pr）を読む・渡す形:bin/_lib/startpoint.py:^SKIP_FLAGS = \\(": "issue #495 の見直し: 利用者が Archon の --base で名指した切り元を、殻の --from が黙って上書きしないよう、--from を足さない旗の並びに --base を入れた。Archon の旗の名の写しで、入口の種類（差分の根の名指し）は読まない",
-  "fence:depth:修正の後の上げ直しの数えの中身（数えの部品 run_wide・outside_cited・late_signals・consulted_units の呼び・import と、counted の「触るファイル {n} 個（起点: …）」の形）。呼び手は latedepth.signals を呼ぶ": "#760 で run 全体の本数で上げる信号 depth.run_wide を消し、counted の数えだけを返す depth.run_paths に替えた。柵は what と pattern の部品の名を run_wide から run_paths に掛け直しただけで、住処 lib/latedepth.py の外を許す範囲は変えていない",
+  "fence:depth:修正の後の上げ直しの数えの中身（数えの部品 run_wide・outside_cited・late_signals・consulted_units の呼び・import と、counted の「触るファイル {n} 個（起点: …）」の形）。呼び手は latedepth.signals を呼ぶ": "#760 で run 全体の本数で上げる信号 depth.run_wide を消し、counted の数えだけを返す depth.run_paths に替えた。柵は what と pattern の部品の名を run_wide から run_paths に掛け直しただけで、住処 latedepth.py の外を許す範囲は変えていない",
   "fence:handoff:引き継ぎのメモの型・頼み・欄の並び（旧い名の宣言 HANDOFF_SCHEMA・HANDOFF_KEYS・HANDOFF_ASK・NO_HANDOFF と、4 つの欄名 read・decided・rejected・doubts|open の並び）": "#712 で引き継ぎのメモの欄 decided・rejected・doubts を kept・set_aside・open に改名した（報告の書き手の返答の型の欄名が、モデルの提供元の安全の判定 reasoning_extraction に止められたため）。柵は what・pattern・bound の字を新しい欄名に合わせて掛け直しただけで、住処 lib/handoff.py の外を許す範囲は変えていない",
   "pattern:marks:足し欄の共有ボードの控えの名": "修正案の役の引き継ぎのメモの控えの名 handoff を marks の種の表に足したので、柵の選びにも足した",
   "pattern:accept-round:諦める回の数 GIVE_UP_AFTER との大小の比べ（最後の回かは rolekit.is_last_attempt が答える）": "#662 で受け付けの網 NET_AFTER（計画と事前審査の受け付けが回数の上限で諦めない代わりの届かない数）を住処 rolekit に足したので、柵の選びにもその名を足した（当たる形が増えるだけで、緩めではない）",
   "pattern:accept-round:諦める回の数の定義 GIVE_UP_AFTER = <数> と、前の回の受け付けが拒んだ理由の見出しの Section の宣言": "#662 で受け付けの網 NET_AFTER（計画と事前審査の受け付けが回数の上限で諦めない代わりの届かない数）を住処 rolekit に足したので、柵の選びにもその名を足した（当たる形が増えるだけで、緩めではない）",
   "bound:ai-launch:AI の起こし方の語（ノードの模型と effort の行 model:・effort:、道具 allowed_tools、道具ゼロの隔離の旗 isolated と ISOLATED_RUN_BY、run の明示の模型 WORKS_DEV_MODEL）:workflows/structure/works-factory-structure.yaml:^ {10}(model: '@wf-plan-structure'|allowed_tools: \\[\\])$": "#560 で構造の目を plan から新しいサブグラフ structure に分けた。散らばりの柵は新しいファイルを既知の漏れに足せず、知ってよい所も空のままなので、移した 2 行（役の群と道具ゼロ）だけを結んだ写しとして数えずに置く。AI の起こし方の行は全体で増えていない（計画の YAML は 4 行から 2 行）",
   "exclude:blocks/**": "#765 の組み込みの前に 2 つ目の pack blocks/ を柵から外した行。入れ替え（git mv blocks workflows）で blocks/ は無くなり、この行は何にも当たらない。新しい pack の形は tests/layers/test_block_shape.py（docs/design/README.md の 7.1 の yes/no）が縛る",
-  "exclude:workflows/.shared/prompts/REVIEW.md": "#765 の組み込みで lib/REVIEW.md（レビューの観点の文）を役の指示の共通の断片 workflows/.shared/prompts/REVIEW.md に移した（README の 9.3）。外す物は同じ文で、置き場だけが替わった",
+  "exclude:workflows/.shared/prompts/REVIEW.md": "#765 の組み込みで lib に在った REVIEW.md（レビューの観点の文）を役の指示の共通の断片 workflows/.shared/prompts/REVIEW.md に移した（README の 9.3）。外す物は同じ文で、置き場だけが替わった",
   "known:carry-over:#765": "#765 の組み込みで blocks が workflows/ に入り、前の失敗の port を読む block（diagnose・plan・line・report）の行が柵に入った。runreport と report の旧 script の 5 行は消えた"
  }
 }

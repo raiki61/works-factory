@@ -1,7 +1,7 @@
 # 設計書（下書き）: spec-driven（仕様駆動の道）
 
 - 何の話か: 人と固めた仕様を渡して実装させる道（仕様駆動の道。issue #802）の設計書の下書き。1〜3 章は issue の「進め方」の 1 と 2（世の中の仕様駆動の 5 つの形との比べ・仕様に入れる物・持ち主の答え）。6〜9 章は進め方の 4〜6 の設計（本線への差し込み・修正の部品への入力・入口の確かめの細目・keep-essence の 7 の形）と、仕様を固める会話から部品を単独で呼ぶ形を本物の run で試した結果（2.5）。block のフォルダと試験のコードは、この設計書が main に入った後に書く。読む人は持ち主と実装の役。持ち主への問いは全部答えが出た（10 章）。
-- 決めたこと: 仕様は #765 の組み直しの設計書くらいの粒度で、設計書（Markdown）と機械が確かめる表（目的・受け入れの条件・試験のコマンド・触らない物の 4 つだけ）の 2 つにする。ファイルごとの行は仕様に書かず、run の中で計画の AI が 1 回だけ起こす。計画と計画の審査の往復は、仕様を固める会話の中で部品を単独で必ず回し、その記録を表に添える。run の入口で機械が形と記録を yes/no で確かめ（記録は起動の殻が Archon の run の記録と照らす）、欠ければ AI を起こさずに止まる。この道は判定と計画の往復を飛ばす道ではなく、その繰り返しに人を混ぜる道で、会話の中で回した往復を工場の中で回し直さない（持ち主の決め `spec-driven-shape`）。道は別の graph にせず、本線 `works-factory-line` に入口を 1 つ足す。工場の中では、今の本線の判定と計画の往復（何周も回す形）を回さず、その代わりに、AI を持たない block `works-factory-spec-driven`・判定の役 diagnose・計画の部品 plan を 1 回ずつ通して修正の入口 `fix-in` へつなぐ（6 章）。新しい AI の役は作らない。直し 1 件ごとの差分の仕様（OpenSpec の ADDED/MODIFIED/REMOVED）は採らない。
+- 決めたこと: 仕様は #765 の組み直しの設計書くらいの粒度で、設計書（Markdown）と機械が確かめる表（目的・受け入れの条件・試験のコマンド・触らない物の 4 つだけ）の 2 つにする。ファイルごとの行は仕様に書かず、run の中で計画の AI が 1 回だけ起こす。計画と計画の審査の往復は、仕様を固める会話の中で部品を単独で必ず回し、その記録を表に添える。run の入口で機械が形と記録を yes/no で確かめ（記録は、起動の殻〔工場を起こす入口のコマンド `bin/works-factory`〕が、Archon〔AI の処理を graph にして YAML で書いて回す道具。工場はその上で動く〕の run の記録と照らす）、欠ければ欠けた物を名指して AI を起こさずに止まる。この道は判定と計画の往復を飛ばす道ではなく、その繰り返しに人を混ぜる道で、会話の中で回した往復を工場の中で回し直さない（持ち主の決め `spec-driven-shape`）。道は別の graph にせず、本線 `works-factory-line` に入口を 1 つ足す。工場の中では、今の本線の判定と計画の往復（何周も回す形）を回さず、その代わりに、AI を持たない block `works-factory-spec-driven`・判定の役 diagnose・計画の部品 plan を 1 回ずつ通して修正の入口 `fix-in` へつなぐ（6 章）。新しい AI の役は作らない。直し 1 件ごとの差分の仕様（OpenSpec の ADDED/MODIFIED/REMOVED）は採らない。
 - 持ち主に求めること: なし。前の版で聞いた 3 つは答えが出た。表の書式と block の形は工場窓口の答え（2026-10-21、受付 20261020-224412-ca616a）、審査の記録を本物の run の記録と照らすかは持ち主の答え（2026-10-21、案 A〔照らす〕。持ち主の決め `spec-driven-shape`）で決まった（10 章）。
 - 読む人: 持ち主と、進め方の 4〜7 を進める設計と実装の役。設計と実装の役は、6〜9 章に沿って実装の PR を書き、末尾の未確認の一覧の物をその PR で決める。持ち主は、自分の答えがどう写ったかを 10 章で引く（求めることは無い）。
 
@@ -32,7 +32,7 @@
 
 どれも 2026-10-21 に読んだ。リポジトリは浅い clone か raw の取得で、コードは走らせていない。
 
-- GitHub Spec Kit: commit `6ad208241af0b94b2dc22b5c0534a9a82465bf0a`。`templates/spec-template.md`・`plan-template.md`・`tasks-template.md`・`templates/commands/specify.md`・`clarify.md`・`analyze.md`・`implement.md`（関わる所）・`docs/guides/evolving-specs.md`。出典の頭は `https://github.com/github/spec-kit/blob/6ad208241af0b94b2dc22b5c0534a9a82465bf0a/`。
+- GitHub Spec Kit: commit `6ad208241af0b94b2dc22b5c0534a9a82465bf0a`。`templates/spec-template.md`・`plan-template.md`・`tasks-template.md`・`templates/commands/specify.md`・`clarify.md`・`analyze.md`・`implement.md`（関わる所）・docs の `guides/evolving-specs.md`。出典の頭は `https://github.com/github/spec-kit/blob/6ad208241af0b94b2dc22b5c0534a9a82465bf0a/`。
 - OpenSpec: commit `c794978f4f8845ce59693373c9dd882ee776588c`。既定の流れ `schemas/spec-driven/schema.yaml` と `templates/`・検査 `src/core/validation/validator.ts`・`constants.ts`・合わせ込み `src/core/specs-apply.ts`・`docs/concepts.md`。出典の頭は `https://github.com/Fission-AI/OpenSpec/blob/c794978f4f8845ce59693373c9dd882ee776588c/`。
 - Kiro: 文書 https://kiro.dev/docs/specs/ とその下（`feature-specs/`・`feature-specs/requirements-first/`・`analyze-requirements/`・`correctness/`・`best-practices/`・`bugfix-specs/`・`quick-spec/`。字は `.md` の版で読んだ）と、Kiro が自分のリポジトリで作った仕様の見本 https://github.com/kirodotdev/Kiro/tree/main/.kiro/specs/github-issue-automation 。EARS は https://alistairmavin.com/ears/ 。
 - superpowers の writing-plans: commit `bb92a77741419a4ab5f06e711a283343f1ada0c3`（`lib/borrow/borrow.json` が止めた 7.0.0 と同じ。手元の写しに writing-plans は無いので上流を読んだ）。`skills/writing-plans/SKILL.md`・`skills/executing-plans/SKILL.md`・`skills/brainstorming/SKILL.md`。
@@ -127,7 +127,7 @@ G/W/T は Given/When/Then。
 
 #### 差分の仕様
 
-- Spec Kit: 無い。機能ごとにフォルダを作り（「You must only create one feature per … invocation」）、出した機能を直す形は 3 つの慣習を並べて「None is required or the default」（`docs/guides/evolving-specs.md`）。
+- Spec Kit: 無い。機能ごとにフォルダを作り（「You must only create one feature per … invocation」）、出した機能を直す形は 3 つの慣習を並べて「None is required or the default」（docs の `guides/evolving-specs.md`）。
 - OpenSpec: 在る。直し 1 件のフォルダの差分の仕様に `## ADDED Requirements`・`MODIFIED`（「MUST include full updated content」）・`REMOVED`（「MUST include **Reason** and **Migration**」）・`RENAMED`（FROM:/TO:）を書き、終わったら「RENAMED → REMOVED → MODIFIED → ADDED」の順に本体の仕様 `openspec/specs/` へ合わせ込む（`src/core/specs-apply.ts`）。
 - Kiro: 無い。仕様をその場で直し、作業の一覧を Sync Files で合わせる（`best-practices/`）。
 - writing-plans: 無い。
@@ -213,7 +213,7 @@ G/W/T は Given/When/Then。
 
 ### 2.3 機械が確かめる表
 
-形（欄の名は仮。schema は実装の PR で `workflows/spec-driven/schemas/spec-table.schema.json` に置く。ファイルは YAML。読む所は 6.7）:
+形（欄の名は仮。schema は実装の PR で workflows/spec-driven/schemas の `spec-table.schema.json` に置く。ファイルは YAML。読む所は 6.7）:
 
 ```yaml
 design: docs/design/<名>.md        # 設計書のパス（対象の根から）
@@ -270,7 +270,7 @@ run の入口で機械が確かめる事（どれも yes/no。どれかが欠け
 試し方:
 
 - 対象: works-factory の clone を commit `659fb70`（#765 の設計書を置いた commit。block の `workflows/world/` はまだ無く、今の形は `worldblk.py` と judge の中の node）で切り、枝に表の見本 1 本を足した物。起動は今の工場（この PR〔#809〕の元の main）の `bin/works-factory`。
-- 仕様の見本: 設計書は `docs/design/world.md`（その commit の版。334 行）、表は手で書いた `docs/design/world.spec.yaml`（目的 1 文・受け入れの条件 4 件〔単独で回る・抜き書きの照らし・web off の道・言い直しの諦め〕・触らない物 2 件・`test_cmd` は空）。
+- 仕様の見本: 設計書は `docs/design/world.md`（その commit の版。334 行）、表は手で書いた docs/design の `world.spec.yaml`（目的 1 文・受け入れの条件 4 件〔単独で回る・抜き書きの照らし・web off の道・言い直しの諦め〕・触らない物 2 件・`test_cmd` は空）。
 - 部品に渡す入力は、表と設計書から機械的に組んだ（下の「部品ごとの呼び方」。block の入口の入力の組み立て〔6.7〕はこの組み方を写す）。
 
 部品ごとの呼び方（計画の審査の「形 text」は、修正案の JSON でなく方針の文を字で渡す形。`<対象>` は対象のリポジトリの根。`<設計書>` は設計書の本文、`<表>` は表から `reviews` を除いた字、`<目的>` は表の `purpose`）:
@@ -545,7 +545,7 @@ PR の分け（頼みの 4。1 本ずつレビューに通せる大きさにす�
 
 ### 6.9 2 本目の PR で決めた事（block・表の読み・殻の照らし）
 
-1. 表の schema の置き場: `lib/spectable.py` の `SCHEMA`（写しの engine の型検査 `validate_schema` で照らす）。前の版の仮の置き場 `workflows/spec-driven/schemas/spec-table.schema.json` は使わない。訳: 表を照らすのは block の入口と起動の殻の 2 か所で、`lib/` は `workflows/` の物を読まない（E22）。block の入力 `table` は形 `file:` で、入力の形の検査（README の 7.1 の 5）が schema のファイルを求めない。
+1. 表の schema の置き場: `lib/spectable.py` の `SCHEMA`（graphloops から写した小道具 `lib/graphloops/engine/schema.py` の型検査 `validate_schema` で照らす）。前の版の仮の置き場 workflows/spec-driven/schemas の `spec-table.schema.json` は使わない。訳: 表を照らすのは block の入口と起動の殻の 2 か所で、`lib/` は `workflows/` の物を読まない（E22）。block の入力 `table` は形 `file:` で、入力の形の検査（README の 7.1 の 5）が schema のファイルを求めない。
 2. block の node: `pick`（入力 `mode` を読む。標準ライブラリだけ）→ 形 entry の `intake`（表を読むただ 1 本。PyYAML を宣言）か形 check の `check` → `finish`（形の控え `entry.json`・`check.json` を読んで返す）。返りは 2 つの形の欄を併せ持ち、使わない形の欄は空の値。止めの語は `works:spec-entry`（入口の確かめ）と `works:spec-mismatch`（食い違いの照らし）。入力 `lang` は持たない（AI を持たず、報告の行は決まった字なので読み手が無い。6.2 の足す node の 1 と 7 の `with:` から外した）。
 3. 形 check の入力: 6.2 の足す node の 7 の `with:` から `table` と `questions` を外し、`out_of_scope`（形 entry の返りの、表の触らない物の写し）を足した。訳: 6.7 は「形 check の script は表を読み直さず、形 entry の出力（`tdd`・表の `out_of_scope` の写し）を受ける」と決めており、表のパスを渡すと PyYAML を持たない形 check が読めない。`questions` は 6.4 の 1 を外した後に読む物が無い。
 4. 2.6 の 2 の d の比べ方（未確認の一覧の 1 つ目）:

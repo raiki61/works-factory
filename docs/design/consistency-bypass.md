@@ -31,11 +31,11 @@
 
 入力（YAML の `inputs:`）: materials.md の 1.2 の共通の 3 つだけ。`lang` の説明は `text: 人に見せる欄（consistency と bypass の detail・checked・reason、findings と bypass_findings の行の text・mechanism・measured・false_positive_if、seen、unseen）の言語。空は依頼の言語`。
 
-足す入力は無い。今の材料の穴（`MATERIAL_HOLES['consistency-bypass']`、`lib/judge_accept.py:1727-1728`）は、どれも対象差分（`view`）と作業ツリーと工場の置き場から引ける。
+足す入力は無い。今の材料の穴（`MATERIAL_HOLES['consistency-bypass']`、lib の `judge_accept.py:1727-1728`）は、どれも対象差分（`view`）と作業ツリーと工場の置き場から引ける。
 
 出力（`returns: finish`、`outcome_field: ok`）: materials.md の 1.2 の 5 欄だけ。`material.json` の `reply` は受けた返答（`consistency`・`bypass`・`findings`・`bypass_findings`・`seen`・`unseen`）、`materials` は `{"consistency": <返答の consistency>, "bypass": <返答の bypass>}`。
 
-今との違い: 今は差分の根・入口の印を `judge/start.json` から名で開き、受けた返答を `judge/material-consistency-bypass.json` に書いた。回すかは `material-route` が `not_request_entry` で決めた（`lib/judge_accept.py:1650-1656`）。
+今との違い: 今は差分の根・入口の印を `judge/start.json` から名で開き、受けた返答を `judge/material-consistency-bypass.json` に書いた。回すかは `material-route` が `not_request_entry` で決めた（lib の `judge_accept.py:1650-1656`）。
 
 ### 1.3 node の並び（`workflows/consistency-bypass/works-factory-consistency-bypass.yaml`）
 
@@ -59,7 +59,7 @@ materials.md の 1.4 の名だけ: `intake.json`・`view.json`・`diff.patch`・
 - `workflows/consistency-bypass/src/__init__.py`（空）。
 - `workflows/consistency-bypass/src/viewpoint.py`: materials.md の 5.1 の宣言。中身:
   - `NAME = "consistency-bypass"`
-  - `MATERIALS = ("consistency", "bypass")`（今の `MATERIAL_NODES['p1.consistency_bypass']['materials']` の順。`lib/judge_accept.py:1650-1656`）
+  - `MATERIALS = ("consistency", "bypass")`（今の `MATERIAL_NODES['p1.consistency_bypass']['materials']` の順。lib の `judge_accept.py:1650-1656`）
   - `GUARDED = True`（AI の node が `mutates_checkout: false` を持つ。今の accept の `with: {status_guarded: true}`。`workflows/judge/works-factory-judge.yaml:1224`）
   - `NA = "never"`、`NA_REASON = ""`（今の節は `applies_cond` を持たず `na_self_ok: False`）
   - `due(view, values)`: `materialkit.not_entry_due(view, values, "P1 の役")`（`values["entry"]` が在り、かつ対象差分が空の時だけ `entry_skip` の訳で回さない）（今の `not_request_entry` の訳「…のため、P1 の役を起こさない」。`:1511-1516`）。空なら `materialkit.Due(True, "判定から入る run でない（port entry が空）——通常の run")`。
@@ -67,7 +67,7 @@ materials.md の 1.4 の名だけ: `intake.json`・`view.json`・`diff.patch`・
   - `applies(view, values)`: `raise NotImplementedError`。
   - `judged_na(view, values)`: `return False`。
   - `values(view, values)`: `{"repo": str(view.repo), "review_rev": view.review_rev, "base": view.base, "diff_file": view.diff_file, "changed_files": dump(list(view.changed_files)), "review_md": own}` に、`"repo_review_md": theirs` を（空の字の回も含め）常に足した物。`own, theirs = materialkit.review_md_paths(view.repo)`。`dump` は `json.dumps(x, ensure_ascii=False, indent=1)`。
-  - `when(view, values)`: `{"repo_review": bool(theirs)}`（対象リポジトリの REVIEW.md の行の段落。`theirs` は `values` と同じく `review_md_paths` から）。外への検索の決まりの断片を入れないので `spawns` は置かない。
+  - `when(view, values)`: `{"repo_review": bool(theirs)}`（対象リポジトリの REVIEW.md の行の段落。`theirs` は `values` と同じく `review_md_paths` から）。`spawns` は、外への検索の決まりの断片（`{shared:query-rule}`。外の検索に対象の名を入れない決まり）の中の段落「下請けを起こすなら、この決まりを字のまま渡す」を入れるかの条件。この役の指示はその断片を入れないので、`spawns` は置かない。
   - `before(view, values, reply, place)`: `return None, reply, False`。
   - `after(view, values, reply, place)`: `return None`（この観点に `post_check` は無い）。
   - `after_accept(reply, place)`: 何もしない。
@@ -80,7 +80,7 @@ materials.md の 1.4 の名だけ: `intake.json`・`view.json`・`diff.patch`・
 - 判定のまとめ（`workflows/judge/`）: `include: works-factory-consistency-bypass`、`depends_on` は materials.md の 1.6。`with:` は `base`・`entry`・`lang` を materials.md の 1.6 のとおりに。
 - 読み手（どれも diagnose。今は置き場の `material-consistency-bypass.json` を名で開いた）:
   - 判定の材料の 15 欄: `materialkit.assemble` が `materials` の `consistency`・`bypass` を取る。
-  - 判定の材料の「隔離フレームからの観察——整合性／標準機構の迂回」: 今は `_diagnose_ctx` が `reply` の `findings` を `process.consistency_findings` に、`bypass_findings` を `process.bypass_findings` に入れた（`lib/judge_accept.py:2769-2775`）。新しい形では diagnose が port `materials` の配列の中の `role` が `consistency-bypass` の `material.json` を `materialkit.read` で読み、`reply.findings`・`reply.bypass_findings` を取る（欄の名と形は今のまま）。返答の全部（今の `out.p1.consistency_bypass`）も同じ `reply` から取れる。
+  - 判定の材料の「隔離フレームからの観察——整合性／標準機構の迂回」: 今は `_diagnose_ctx` が `reply` の `findings` を `process.consistency_findings` に、`bypass_findings` を `process.bypass_findings` に入れた（lib の `judge_accept.py:2769-2775`）。新しい形では diagnose が port `materials` の配列の中の `role` が `consistency-bypass` の `material.json` を `materialkit.read` で読み、`reply.findings`・`reply.bypass_findings` を取る（欄の名と形は今のまま）。返答の全部（今の `out.p1.consistency_bypass`）も同じ `reply` から取れる。
   - 目的の外の行の照らし（今の `material_rows`、`:701-717`）: P1 の観点の `reply` の中の `where`・`text` を持つ行を全部辿る。`findings` と `bypass_findings` の行がこれに当たる。出どころの名（今の `p1.consistency_bypass`）の付け方は diagnose の設計書が決める。
 - 局所の所見・決着済みの論点・前の周の規約を、この block の port に配線しない。graphloops の `forbidden_inputs`（局所の findings・前の周の固有規約の把握・決着済み論点）を、port の形そのもので守る（2.7）。
 
@@ -188,7 +188,7 @@ md の中に `$` の字は無い。`{` は差し込み口と断片だけ。見�
 
 ### 2.5 描いた骨組み（例の run の値）
 
-例の run では、今の指示は 2 か所に在った: `workflows/judge/commands/material-consistency-bypass.md`（63 行。`$consistency-bypass-prep.output.lang_line`・`.reason`・`.brief_file`・`.review_md`・`.repo_review_md` を Archon が入れた物）と、役が Read した `judge/material-consistency-bypass-brief.md`（59 行）。新しい指示はこの 2 つを 1 本にする:
+例の run では、今の指示は 2 か所に在った: workflows/judge の `commands/material-consistency-bypass.md`（63 行。`$consistency-bypass-prep.output.lang_line`・`.reason`・`.brief_file`・`.review_md`・`.repo_review_md` を Archon が入れた物）と、役が Read した `judge/material-consistency-bypass-brief.md`（59 行）。新しい指示はこの 2 つを 1 本にする:
 
 ```markdown
 {shared:role-inspector の本文: This role is an inspector. …（6 行）}
@@ -287,9 +287,9 @@ materials.md の 4 節の順のまま。観点の前の照らしと後の照ら�
   - 写す元 `test_judge_accept.py::MaterialCase.test_consistency_bypass_reply_is_taken_or_refused`（`:1447-1457`）: `bypass` の無い返答は「素材 'bypass' が返答に無い」で拒まれ、2 つを書いた返答は受けて、`material.json` の `materials` が `{"consistency": …, "bypass": …}`。
   - 写す元 `DueCase.test_empty_diff_run_with_requests_runs_only_prior_decisions`（`:1124-1130`）のうちこの観点の部分: `entry` が在れば `intake` の `due` が偽で訳を言い、`finish` が `status: skipped`・2 つの素材が `not_applicable`（`reason` が `entry` の字を含む）。`DueCase.test_run_with_a_diff_runs_them`（`:1136-1139`）の部分: `entry` が空なら `due` が真。
   - 足す: 対象の根に `REVIEW.md` が在れば組んだ指示にそのパスの行が入り、無ければその段落ごと無い（`repo_review` の両方の値）。`MATERIALS` の 2 つのどちらかで `found` の `count` が欠けた返答を拒む。`report_lines` が `unseen` の行を足し、`reply` が null の時は足さない。
-  - 足す（起こし方の照らし）: block の YAML の AI の node の `model`・`allowed_tools`・`sandbox`・`idle_timeout`・`retry`・`mutates_checkout` が、今の `tests/workflows/test_judge.py:91` の表の consistency-bypass の行（`"sonnet", "medium", READ, BASE, True, …`）が照らす物と同じ。
-- 指示の比べ（README の 11.4）: `tests/blocks/consistency_bypass/test_prompts.py`。
-  - 1 つ目の commit: `prompts/consistency-bypass.md` を、今の `workflows/judge/commands/material-consistency-bypass.md` の `$consistency-bypass-prep.output.<欄>` を `{lang_line}`・`{reason}`・`{brief_file}`・`{review_md}`・`{repo_review_md}` に替えた日本語の字で置く。prep は 1 つ目の commit だけこの 5 つ（`lang_line` は `rolekit.lang_line({"lang": values["lang"]})`、`reason` は最後の拒否の文か空、`brief_file` は `src/oldbrief.py` が書いた `material-consistency-bypass-brief.md` の絶対パス、`review_md`・`repo_review_md` は `review_md_paths` の 2 つ〔無ければ空〕）を値に入れる。`src/oldbrief.py` の `brief(view, values)` は今の材料のファイルを同じ字で組む: 頭（`MATERIAL_BRIEF_HEAD` の字と、「素材集めの役 consistency-bypass（graphloops のノード p1.consistency_bypass）の指示書の…」の 1 行）、7 つの「## 材料: <穴>」の節（穴の名は `MATERIAL_HOLES` の順で `?` を外した字、配列は `dump`、`repo_review_md` が空なら「（この周には無い）」）、『条件に当たらない』の見出しと `na_self_ok` の無い時の文（`_na_note` の `ap is None` の枝）、を `"\n\n"` でつなぎ、尾に改行 1 つ。試験は使い捨てのリポジトリ（ファイル 1 つを直した差分）で、(a) 組んだ指示が今の md に同じ 5 つの値を入れた字と同じ、(b) `oldbrief.brief` の字が、同じリポジトリと同じ差分で今の `judge_accept.material_prep(jdir, "consistency-bypass", repo, review_md, repo_review_md)["brief"]` が返す字と同じ（試験は今の lib を import してよい。block は import しない）ことを照らす。例の run の材料のファイルとは比べない（自分で決めた。7 節）。
+  - 足す（起こし方の照らし）: block の YAML の AI の node の `model`・`allowed_tools`・`sandbox`・`idle_timeout`・`retry`・`mutates_checkout` が、今の tests/workflows の `test_judge.py:91` の表の consistency-bypass の行（`"sonnet", "medium", READ, BASE, True, …`）が照らす物と同じ。
+- 指示の比べ（README の 11.4）: tests/blocks/consistency_bypass の `test_prompts.py`。
+  - 1 つ目の commit: `prompts/consistency-bypass.md` を、今の workflows/judge の `commands/material-consistency-bypass.md` の `$consistency-bypass-prep.output.<欄>` を `{lang_line}`・`{reason}`・`{brief_file}`・`{review_md}`・`{repo_review_md}` に替えた日本語の字で置く。prep は 1 つ目の commit だけこの 5 つ（`lang_line` は `rolekit.lang_line({"lang": values["lang"]})`、`reason` は最後の拒否の文か空、`brief_file` は `src/oldbrief.py` が書いた `material-consistency-bypass-brief.md` の絶対パス、`review_md`・`repo_review_md` は `review_md_paths` の 2 つ〔無ければ空〕）を値に入れる。`src/oldbrief.py` の `brief(view, values)` は今の材料のファイルを同じ字で組む: 頭（`MATERIAL_BRIEF_HEAD` の字と、「素材集めの役 consistency-bypass（graphloops のノード p1.consistency_bypass）の指示書の…」の 1 行）、7 つの「## 材料: <穴>」の節（穴の名は `MATERIAL_HOLES` の順で `?` を外した字、配列は `dump`、`repo_review_md` が空なら「（この周には無い）」）、『条件に当たらない』の見出しと `na_self_ok` の無い時の文（`_na_note` の `ap is None` の枝）、を `"\n\n"` でつなぎ、尾に改行 1 つ。試験は使い捨てのリポジトリ（ファイル 1 つを直した差分）で、(a) 組んだ指示が今の md に同じ 5 つの値を入れた字と同じ、(b) `oldbrief.brief` の字が、同じリポジトリと同じ差分で今の `judge_accept.material_prep(jdir, "consistency-bypass", repo, review_md, repo_review_md)["brief"]` が返す字と同じ（試験は今の lib を import してよい。block は import しない）ことを照らす。例の run の材料のファイルとは比べない（自分で決めた。7 節）。
   - 2 つ目の commit（英語）: 1 つ目の試験と `src/oldbrief.py` を消し、例の run の値で組んだ新しい指示と、今の md と材料のファイルを並べた物を PR に載せ、2.6 の差の一覧どおりかを審査に出す。
 - 振る舞いの試験の残り: 族の部品の試験（`lib/tests/test_materialkit.py`）が、作業ツリー・所見の場所・素材の欄の照らしと『条件に当たらない』の扱いの語（今の `test_na_note_for_each_kind_of_node` の consistency-bypass の行）を見る。
 - 守る keep-essence の番号: 無い。守るのは「ほかの役の所見を受けない独立の目」で、port の形（`base`・`entry`・`lang` だけ）がそれを担い、形の検査（`inputs:` の鍵）が変われば試験の fixture の入力の鍵が変わるので見える。
@@ -325,8 +325,8 @@ bin/works-factory workflow run works-factory-consistency-bypass \
 
 ## 6 未確認
 
-- 土台の役の定義の断片の名 `role-inspector`（materials.md の 11 節）。断片が「入力が足りない時の書き方」を今の `lib/agents/inspector.md` のまま持つか（2.6 で印の字をそちらに任せた）。
-- `materialkit.review_md_paths(repo)` の形（materials.md の 5.2 の終わりに名だけが在り、2 節の口の一覧に無い）。この文書は「(工場の `lib/REVIEW.md` の絶対パス, 対象の根の `REVIEW.md` の絶対パスか空)」を返す口と読んだ。
+- 土台の役の定義の断片の名 `role-inspector`（materials.md の 11 節）。断片が「入力が足りない時の書き方」を今の lib の `agents/inspector.md` のまま持つか（2.6 で印の字をそちらに任せた）。
+- `materialkit.review_md_paths(repo)` の形（materials.md の 5.2 の終わりに名だけが在り、2 節の口の一覧に無い）。この文書は「(工場の lib の `REVIEW.md` の絶対パス, 対象の根の `REVIEW.md` の絶対パスか空)」を返す口と読んだ。
 - 5 節の命令の正確な形。
 
 ## 7 自分で決めた事（この block だけ）
