@@ -1,4 +1,4 @@
-"""段の表（viewer/stages.json）と段ごとの集計（viewer/src/stages.py。docs/design/viewer.md の 6.8 と照らしの 8）。
+"""段の表（viewer/stages.json）と段ごとの集計（viewer/src/stages.py。docs/design/viewer.md の 6.5 と照らしの 5）。
 
 - 今の木の line の一番上のノードは、どれも段の表のちょうど 1 つの段に入り、表のノードはどれも line に在る（line にノードを足して
   表に足さなければ赤。表に残った古い id も赤）
@@ -34,10 +34,14 @@ import unittest
 import unittest.mock
 from pathlib import Path
 
-from viewer import flowview
-from viewer.src import stages
+from viewer import runtrace
+from viewer.src import shape, stages
 
 import report   # lib/（viewer/src/__init__.py が sys.path に足す）
+
+def tree_shape() -> dict:
+    return shape.read(runtrace.TREE, runtrace.PACK["name_prefix"], runtrace.ROOT / "docs" / "design")
+
 
 NODES = [node for stage in stages.TABLE["stages"] for node in stage["nodes"]]
 
@@ -68,7 +72,7 @@ def summed(events: list[dict]) -> list[dict]:
 
 class StagesCase(unittest.TestCase):
     def test_every_line_node_is_in_exactly_one_stage(self):
-        self.assertEqual(stages.check(flowview.tree_shape()["graphs"]), [])
+        self.assertEqual(stages.check(tree_shape()["graphs"]), [])
 
     def test_a_new_line_node_and_a_stale_id_are_red(self):
         got = stages.check(line([*NODES[1:], "new-node"]))
@@ -91,7 +95,7 @@ class StagesCase(unittest.TestCase):
         self.assertEqual(run_of([], [])["stages"]["table"][0]["mission"], stages.TABLE["stages"][0]["mission"])
 
     def test_the_stages_with_an_approval_node_say_so(self):
-        graphs = flowview.tree_shape()["graphs"]
+        graphs = tree_shape()["graphs"]
 
         def gated(item, seen):
             if item["kind"] == "gate" or any(gated(kid, seen) for kid in item.get("kids", [])):

@@ -1,15 +1,14 @@
-"""見る道具が本物の run を読める（docs/design/viewer.md の照らしの 3。持ち主の決め light-in-loop で、Archon を起こすので CI だけで回る）。
+"""見る道具の読む部品が本物の run を読める（docs/design/viewer.md の照らしの 3。持ち主の決め light-in-loop で、Archon を起こすので CI だけで回る）。
 
-止めた Archon で小さな graph（include で葉の block を取り込み、1 つのノードが落ちる）を 1 回回し、見る道具の入口の build で読む。
-手書きの DB や記録の見本は作らない（見本は Archon の形から外れても緑のままになる。docs/design/test-double-fidelity.md の型）。
+止めた Archon で小さな graph（include で葉の block を取り込み、1 つのノードが落ちる）を 1 回回し、見る道具の読む部品（src/runread.py）と
+入口 runtrace.py の read で読む。手書きの DB や記録の見本は作らない（見本は Archon の形から外れても緑のままになる。
+docs/design/test-double-fidelity.md の型）。
 
 - 読めなかった行（知らない型の行・ノードに当たらない道具の出来事）が 0、記録の無い run が 0
-- 図は run の写しから作り、図に当たらないノードが 0。include の中のノードには、外の graph から入る道（通った include のノード）が付く
 - run の一覧に、その run が終わりの状態で 1 行在る
+- include の中のノードの出来事が、外の graph から入る道（通った include のノード）の token を持つ
 - 落ちたノードの誤りの字が出来事に在る
-- include の中で指示を組んだノード（prompt.emit）の出来事に、値の記録から工場の組み立ての口で組み直した日本語の写しが付き、訳の無い
-  段落は英語のまま残るので、写しは place に書かれた英語の指示と字のまま同じ（Archon の place の置き場と ports.include_folders の引きが合う）
-- 承認ノードで止まった run は待ちと答える命令を出し、答えが入って次へ進む前の間（Archon は答えを run の metadata の wait に書くだけで、
+- 承認ノードで止まった run は待ちを出し、答えが入って次へ進む前の間（Archon は答えを run の metadata の wait に書くだけで、
   状態は paused のまま node_completed も書かない。Archon の runAttention はこの間を待ちに数えない）と、待ちのまま止めた後（Archon は
   node_completed を書かず、run を cancelled にする）は、どちらも出さない。答えだけを入れた間は、Archon の CLI がすぐ次へ進めて残らないので、
   Archon の答えを書く口（packages/core/src/db/workflow-run-waits.ts の answerAttentionWait）を bun で直に呼んで作る
@@ -28,11 +27,11 @@ import unittest
 
 from tests import archon
 from tests.blocks import kit
-from viewer import flowview
+from viewer import runtrace
 from viewer.src import runread
 
 HEAD = '# /// script\n# requires-python = ">=3.12"\n# dependencies = []\n# ///\n'
-PREFIX = flowview.PACK["name_prefix"]
+PREFIX = runtrace.PACK["name_prefix"]
 FLOWS = {
     f"seen/{PREFIX}seen.yaml": f"""name: {PREFIX}seen
 description: 見る道具に本物の run の記録を渡す試し
@@ -112,6 +111,13 @@ def answer_only(tree: pathlib.Path, run_id: str) -> subprocess.CompletedProcess:
                           encoding="utf-8")
 
 
+def read(tree: pathlib.Path, wanted: str, user: dict) -> dict:
+    """run の一覧と、選んだ run（wanted が空なら一番新しい親の run）の読み。全部の読み（作り・会話・段）は runtrace.read"""
+    data = runtrace.read(str(tree), wanted, user, tree)
+    data["runs"] = runread.runs(tree.parent / "archon-home" / runread.DB_FILE)
+    return data
+
+
 def rows(tree: pathlib.Path, run_id: str) -> list[str]:
     """run のログの行の型"""
     with runread.connect(tree.parent / 'archon-home' / runread.DB_FILE) as con:
@@ -133,28 +139,27 @@ class RealRunCase(unittest.TestCase):
                 # 家は archon.archon が木の横に置く archon-home（isolate.DIRS の名）。殻と同じく WORKS_FACTORY_HOME で向ける
                 user = {"WORKS_FACTORY_HOME": str(tree.parent), "HOME": str(tree.parent)}
                 gate = archon.archon(tree, "workflow", "run", f"{PREFIX}seen-gate", "--no-worktree", "--cwd", str(tree))
-                paused = flowview.build(str(tree), "", user, tree)[0]
+                paused = read(tree, "", user)
                 answering = answer_only(tree, paused["run"]["id"]) if paused["run"] else None
-                answered_only = flowview.build(str(tree), paused["run"]["id"] if paused["run"] else "", user, tree)[0]
+                answered_only = read(tree, paused["run"]["id"] if paused["run"] else "", user)
                 abandoned = archon.archon(tree, "workflow", "abandon", paused["run"]["id"], "--cwd", str(tree)) if paused["run"] else None
-                stopped = flowview.build(str(tree), paused["run"]["id"] if paused["run"] else "", user, tree)[0]
+                stopped = read(tree, paused["run"]["id"] if paused["run"] else "", user)
                 archon.archon(tree, "workflow", "run", f"{PREFIX}seen-gate", "--no-worktree", "--cwd", str(tree))
-                again = flowview.build(str(tree), "", user, tree)[0]
+                again = read(tree, "", user)
                 approved = archon.archon(tree, "workflow", "approve", again["run"]["id"], "よし", "--cwd", str(tree))
-                answered = flowview.build(str(tree), again["run"]["id"], user, tree)[0]
+                answered = read(tree, again["run"]["id"], user)
                 answered_rows = rows(tree, again["run"]["id"])
                 done = archon.archon(tree, "workflow", "run", f"{PREFIX}seen", "--no-worktree", "--cwd", str(tree))
-                data = flowview.build(str(tree), "", user, tree)[0]
+                data = read(tree, "", user)
         self.assertIsNotNone(paused["run"], f"{gate.stdout}{gate.stderr}")
         self.assertEqual((paused["run"]["status"], paused["run"]["waiting"], paused["runs"][0]["waiting"]), ("paused", ["ask"], ["ask"]))
-        self.assertIn(f"respond {paused['run']['id']}", paused["run"]["answer"])
         self.assertEqual(answering.returncode, 0, f"{answering.stdout}{answering.stderr}")
-        self.assertEqual((answered_only["run"]["status"], answered_only["run"]["waiting"], answered_only["run"]["answer"],
-                          answered_only["runs"][0]["waiting"]), ("paused", [], "", []))
+        self.assertEqual((answered_only["run"]["status"], answered_only["run"]["waiting"], answered_only["runs"][0]["waiting"]),
+                         ("paused", [], []))
         self.assertEqual(stopped["run"]["status"], "cancelled", f"{abandoned.stdout}{abandoned.stderr}")
-        self.assertEqual((stopped["run"]["waiting"], stopped["run"]["answer"], stopped["runs"][0]["waiting"]), ([], "", []))
+        self.assertEqual((stopped["run"]["waiting"], stopped["runs"][0]["waiting"]), ([], []))
         self.assertEqual(answered["run"]["status"], "completed", f"{approved.stdout}{approved.stderr}")
-        self.assertEqual((answered["run"]["unread"], answered["run"]["waiting"], answered["run"]["answer"]), ({}, [], ""))
+        self.assertEqual((answered["run"]["unread"], answered["run"]["waiting"]), ({}, []))
         gate = next(e for e in answered["run"]["events"] if e["tokens"] == ["ask"])
         self.assertEqual(json.loads(gate["output"]), {"decision": "approve", "text": "よし"})
         self.assertIn("node_complete", answered_rows)
@@ -162,17 +167,10 @@ class RealRunCase(unittest.TestCase):
         run = data["run"]
         self.assertIsNotNone(run, f"{done.stdout}{done.stderr}")
         self.assertEqual((run["unread"], run["missing_logs"]), ({}, []))
-        self.assertEqual((data["shape_from"], data["unmatched"]), ("run-copy", []))
         self.assertEqual([(r["id"], r["status"]) for r in data["runs"]], [(run["id"], "failed"), (again["run"]["id"], "completed"), (paused["run"]["id"], "cancelled")])
-        at = {e["at"]["graph"] + "/" + e["at"]["node"] for e in run["events"]}
-        self.assertLessEqual({"seen/make", "seen-leaf/rounds/step", "seen/boom"}, at)
-        # 図が入れ子の graph へ外から入る道（再生が今の歩のノードの graph へ移る）
-        step = next(e for e in run["events"] if e["tokens"] == ["leaf", "rounds", "step"])
-        self.assertEqual(step["at"]["via"], [{"graph": "seen", "node": "leaf"}])
+        paths = {"/".join(e["tokens"]) for e in run["events"]}
+        self.assertLessEqual({"make", "leaf/rounds/step", "leaf/talk", "boom"}, paths)
         self.assertIn("boom", next(e for e in run["events"] if e["tokens"] == ["boom"])["error"])
-        talk = next(e for e in run["events"] if e["tokens"] == ["leaf", "talk"])
-        self.assertEqual([(p["md"], p["n"], p["error"], p["ja"]["prompt"]) for p in talk.get("prompts", [])],
-                         [("talk", 1, "", json.loads(talk["output"])["prompt"])])
 
 
 if __name__ == "__main__":

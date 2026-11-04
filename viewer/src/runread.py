@@ -697,8 +697,7 @@ def _within(path: Path, base: Path) -> bool:
 
 
 def mend(text: str) -> str:
-    """片割れのサロゲート（JSON の `\\ud83d` だけの字）を置き換えた字。UTF-8 に書けず、hash もページも落ちる。会話の字（flowview の keep）と
-    ページの全体も通す"""
+    """片割れのサロゲート（JSON の `\\ud83d` だけの字）を置き換えた字。UTF-8 に書けず、hash も送りも落ちる。会話の字（runtrace.py の read の keep）を通す"""
     return LONE.sub(REPLACEMENT, text)
 
 
