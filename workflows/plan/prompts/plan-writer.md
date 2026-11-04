@@ -219,6 +219,14 @@ The items below were held because the same block persisted (you need not fix the
 {held_items}
 <!-- end held_items -->
 
+<!-- if guards -->
+## Rules to keep: holes closed in earlier passes (on the open items; pasted by the machine)
+
+The review raised the blocks below in an earlier pass, and a later pass found them gone, so they are no longer open. Each row reads `- <key> (raised in pass <k>, closed in pass <j>): <why>`, where why is the harm that hole did. Treat each harm as a rule your fix must keep: before you change an item, check that the change does not bring the harm back in another form (for example, by giving up what the earlier fix protected in order to close a new block). If one of the blocks you answer now (the blocks the review raised this time, listed above) cannot be fixed without bringing back one of these harms, say so in the how of that open block's row in block_answers, and name the key of the harm it brings back. The rows below are not open blocks: write no row for them in block_answers.
+
+{guard_faces}
+<!-- end guards -->
+
 <!-- if prior_ripple -->
 ## Ripple list (looked up by the machine with git grep: the callers and tests of the names that the items change)
 

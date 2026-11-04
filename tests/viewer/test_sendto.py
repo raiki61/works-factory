@@ -7,10 +7,13 @@
 - 番地の部分は [v6 の番地] か英数字と . - の名に任意の :数字 だけを通す。\\・userinfo（@）・空白・制御文字を持つ URL は --remote が
   在っても拒み、訳に URL の鍵を出さない（requests は番地を \\ でも切るので、urlsplit が手元と読む字が遠くへ繋がる）。形の崩れた
   [...]（urlsplit が ValueError を投げる形）も traceback でなく拒む
-- query（? の後）を持つ URL は --remote が在っても拒み、訳に URL を出さない（query は成功の 1 行・送りの失敗の文に出る）
+- query（? の後）と fragment（# の後）を持つ URL は --remote が在っても拒み、訳に URL を出さない（どちらも成功の 1 行・送りの失敗の
+  文に出る）
+- 手元でない送り先の拒みも訳に送り先の名を出さない（どの拒みも URL を出さない）
 - 手元の送り先の答えは利用者の proxy の env を使わない（env に proxy が在っても）。手元でない送り先は使う
 - headers は env で名指した送り先にだけ付く（信号ごとの名が勝つ）。引数 --endpoint の時は env に headers が在っても付かない。
-  値の percent の符号を解く。解いた名か値に制御文字（改行など）が在れば、値を出さずに番号で拒む
+  値の percent の符号を解く。解いた名か値に制御文字（改行など）が在れば、端に在っても（strip で削らずに）値を出さずに番号で拒む。
+  項の前後の空白とタブ（W3C Baggage の OWS）は通す
 - 送りの形の env が grpc・http/json なら拒み、http/protobuf と空と未設定は通す（信号ごとの名が勝つ）
 - 外す名の選びは OTEL_ で始まる名を全部選び、ほかの名を選ばない
 
@@ -56,6 +59,7 @@ class WhereTest(unittest.TestCase):
 
     def test_a_far_endpoint_needs_remote(self):
         self.assertIn("--remote", self.refused(FAR))
+        self.assertNotIn("collector", self.refused(FAR))
         self.assertIn("--remote", self.refused(env={BASE: "http://10.0.0.5:4318"}))
         self.assertEqual(decide(FAR, remote=True).url, FAR)
 
@@ -76,9 +80,10 @@ class WhereTest(unittest.TestCase):
             self.assertNotIn("key", self.refused(url, remote=True), url)
             self.refused(env={BASE: url}, remote=True)
 
-    def test_a_url_with_a_query_is_refused_without_the_url(self):
-        """query（?api_key= など）は成功の 1 行・送りの失敗・SDK の誤りの文に出るので拒む。鍵は headers の env で渡す"""
-        for url in ("http://127.0.0.1:6006/v1/traces?api_key=key", "https://collector.example.com/v1/traces?key", "http://127.0.0.1:6006/?"):
+    def test_a_url_with_a_query_or_a_fragment_is_refused_without_the_url(self):
+        """query（?api_key= など）と fragment（# の後）は成功の 1 行・送りの失敗・SDK の誤りの文に出るので拒む。鍵は headers の env で渡す"""
+        for url in ("http://127.0.0.1:6006/v1/traces?api_key=key", "https://collector.example.com/v1/traces?key", "http://127.0.0.1:6006/?",
+                    "http://127.0.0.1:6006/v1/traces#key", "https://collector.example.com/v1/traces#api_key=key", "http://127.0.0.1:6006/#"):
             self.assertNotIn("key", self.refused(url, remote=True), url)
             self.refused(env={TRACES: url}, remote=True)
             self.refused(env={BASE: url}, remote=True)
@@ -122,11 +127,17 @@ class HeadersTest(unittest.TestCase):
         self.assertNotIn("secretvalue", str(caught.exception))
 
     def test_a_control_character_in_a_decoded_header_is_refused_without_its_value(self):
-        for raw in ("a=secret%0Avalue", "a=secret%0D%0Ax-b: c", "a%0Ab=secretvalue", "a=secret%7Fvalue"):
+        for raw in ("a=secret%0Avalue", "a=secret%0D%0Ax-b: c", "a%0Ab=secretvalue", "a=secret%7Fvalue", "a=secretvalue%0A",
+                    "a=%0D%0Asecretvalue", "%0Aa=secretvalue", "a%09=secretvalue", "a=secretvalue\n"):
             env = {TRACES: LOCAL, "OTEL_EXPORTER_OTLP_HEADERS": raw}
             with self.assertRaises(sendto.Refused, msg=raw) as caught:
                 decide(env=env)
             self.assertNotIn("secret", str(caught.exception), raw)
+
+
+    def test_spaces_and_tabs_around_an_item_pass(self):
+        env = {TRACES: LOCAL, "OTEL_EXPORTER_OTLP_HEADERS": "a=1,\tb = 2 , c=3\t"}
+        self.assertEqual(decide(env=env).headers, {"a": "1", "b": "2", "c": "3"})
 
 
 class ProtocolTest(unittest.TestCase):
