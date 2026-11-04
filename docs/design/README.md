@@ -21,7 +21,7 @@
 - pack: Archon が workflow を読む置き場のフォルダ 1 つ（3 節）。
 - 柵: `tests/layers/` の、置き場・名前・層の決まりを縛る CI の検査（layer check）。
 - 止めた Archon: `factory/pack.json` が止めた版の Archon の源。工場が頼る振る舞いの記録は [archon.md](archon.md)。
-- 埋め: Archon に無い物を外から補う部品（polyfill。`workflows/.shared/` の `fence.py`・`childsweep.py`・`child_pointer.py`・`skip_value.py`。名簿は `docs/polyfills.md`）。
+- 埋め: Archon に無い物を外から補う部品（polyfill。`workflows/.shared/` の `fence.py`・`childsweep.py`・`skip_value.py`。名簿は `docs/polyfills.md`）。
 - E1〜E24: AGENTS.md の決まりの番号（置き場の表は根の `AGENTS.md` の「決まりの置き場」）。K の番号は今の落とし穴の一覧（`docs/plans/2026-10-13-capabilities/pitfalls.md`）。
 - 持ち主: リポジトリの owner（決めを下す人）。持ち主の決めは `docs/owner-decisions.md` に名（`overnight-speed` など）で書く。10 節で仕組みを担う block は「担う block」と書く。
 - 起動の殻: 人が打つ入口 `bin/works-factory`（中身は `bin/_lib/`）。認証と隔離を整えて Archon を起こす。
@@ -223,7 +223,7 @@ workflows/                       pack（作り直しの間は blocks/ に置き�
 │   ├── prompt.py                md に値を入れて指示を組む口（5 節）
 │   ├── prompts/<name>.md        2 つ以上の block が使う指示の断片（外への検索の決まり・却下の段落・役の定義・lang の既定の文。名は .shared/AGENTS.md）
 │   ├── schemas/<name>.schema.json   2 つ以上の block が使う port の形（json(shared:<name>) で名指す。13 章）
-│   └── 埋め（fence.py・childsweep.py・child_pointer.py・skip_value.py。名簿は docs/polyfills.md）
+│   └── 埋めの 3 本のファイル（fence.py・childsweep.py・skip_value.py。名簿は docs/polyfills.md）
 ├── <block>/                     block 1 つ（例 world）。名は観点の名
 │   ├── works-factory-<block>.yaml   YAML 1 本（グラフの名も同じ。E9）
 │   ├── prompts/<node-id>.md     AI の node ごとの指示（英語。Archon は読まない。prep が読む。system prompt は <node-id>.system.md）
@@ -522,7 +522,7 @@ form は 4.1 の物。どの block も `lang`（`text`）を持つ物は書く�
 - 割って残す物（integration.md の 4.2-6・4.2-8）: `test_fix_seams`（KEEP のモジュールを試す `TestGroups`・`TestLeftovers`・`TestWritesSeams` は残し、ほかの class は fix の試験へ）・`test_writes`（`WritesLogNameCase` は fix と delta-review の試験へ、残りは KEEP。keep-essence の 5）・`test_impact`（`OverflowRowCase` は fix の `test_fix_accept.py` へ、残りは KEEP。keep-essence の 6）。
 - `tests/layers/` の yes/no の検査: `test_archon_validate.py`・`test_readonly_nodes.py`・`test_no_timeouts.py`・`test_outward_write.py`・`test_gates.py`・`test_role_retry.py`・`test_depth_skip.py`・`test_names.py`・`test_no_asf.py`・`test_no_conversion.py`・`test_no_owner_env.py`・`test_hermetic_env.py`・`test_required_checks.py`・`test_test_commands.py`・`test_rule_index.py`・`test_polyfills_listed.py`・`test_polyfill_evidence.py`・`test_lib_blind.py`・`test_words.py`・`test_layout.py`（新しい木に書き直す）・`test_block_returns.py`（どの workflow の YAML にも、返す node を名指す `returns:` と仕事の結末の欄を名指す `outcome_field:` が在ること。加えて、誰も読まない欄があれば試験を落とす〔持ち主の決め `declared-io` の「読み手ゼロなら赤」〕: block の返す node の `output_format` の欄はどれも、呼ぶ graph の YAML が `$<include の id>.output.<欄>` と書いて読むか、返りまるごとを受けた script が `ports.picked`（`workflows/.shared/ports.py` の、返りまるごとから名指した欄だけを取り出す口）に渡す名の並びに入っている。block の `inputs:` の名はどれも、その block の YAML が `$INPUTS.<名>` と書くか、その block の `scripts/`・`src/` の Python が環境変数 `INPUTS_<名>` を読む。一番上のグラフ line（メイングラフ）・chain（line を子の run として最大 5 回つなぐ親のグラフ）と、どの graph にも呼ばれない workflow の返りは照らさない。その読み手は人（Archon の命令 `workflow get` で run の返りを見る）と起動の殻（`bin/` の works-factory・apply）で、graph の YAML の字に読みが現れないため。照らすかどうかは YAML の形（一番上のグラフか・どこかの graph が include か `workflow:` で呼ぶか）で決め、外す物の表は持たない。今の試験が持つ、照らしを免れるファイルの表 `ALLOWED["E5"]` も消す）・`test_lang_neutral.py`（言語の表を 1 つのモジュールに寄せ、許すファイルの表をやめる）・`test_keep_essence.py`（新しい。10 節）・`trees.py`。どれも新しい pack に当てる。7.1 の 12 の検査は `tests/layers/test_block_shape.py` に置く。決まりの文から移した試験の細目は、各試験の docstring に書く。
 - `tests/workflows/` の形の検査: `test_uv_scripts.py`・`test_nodeflags.py`・`test_loop_sessions.py`・`test_returns_never_fail.py`・`test_role_texts.py`（pack の `prompts/` と `.shared/prompts/` に向け直す。integration.md の 4.2-4）・`test_reply_patterns.py`・`test_fixture_claims.py`・`test_script_imports.py`・`test_count_how_copies.py`・`test_input_reads.py`（`ports` の口に向け直す）・`test_unread_named.py`（同じ）。
-- `tests/shared/`: `test_archon_contract.py`・`test_child_pointer.py`・`test_childsweep.py`・`test_fence.py`（埋めは残る。`boundary.py` の代わりに `ports.py` を読む。4.5-8）。
+- `tests/shared/`: `test_archon_contract.py`・`test_childsweep.py`・`test_fence.py`（埋めは残る。この 3 本は `boundary.py` の代わりに `ports.py` を読む。4.5-8）。`test_child_pointer.py` は 2026-11-04 に消した: それが試す埋め P6（子の run が返したファイルを親が読む部品 `child_pointer.py`）を、止めた Archon の命令 `workflow artifacts` に置き換えて外したため（`docs/polyfills.md` の「外した」）。
 - `tests/e2e/` の全部（`test_line_scenarios.py` と line の筋書きは新しい line の筋書きの試験 `tests/blocks/line/` に置き換えて消す。`test_evidence.py` は棚卸しへの照らしの部分を消し、書き手の指し `writer` の `path::名` の照らしだけを残す。4.2-1f）・`tests/bin/` の全部（`linescripts.py` は呼び手が無くなったので消した。4.5-7）・`tests/calibration/` の全部（`nodes.py` の node の id と判定の控えの道を新しい place に合わせる。4.3-15）・`tests/archon.py`（使い捨ての木に新しい pack を置く。`BLOCKS` の定数は `WORKFLOWS` に寄せる。4.5-11）・`tests/changed.py`・`tests/shard.py`。
 
 ## 10 keep-essence の 12 の仕組みと、守る block と試験

@@ -1,6 +1,7 @@
 # world-cut: world: false で世界の解を回さなくても、素材の観点 10 本と判定は回る
 fixture:
   expect: completed
+  authored: succeeded
   reached:
   - ins
   - head-depth-run__finish

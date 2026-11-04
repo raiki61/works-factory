@@ -48,9 +48,11 @@ def box_of(weapon: str) -> str:
 
 def change_named_or_gone(f: dict) -> list:
     """変える段の箱の義務（2.4）: 単位ごとに、(1) 名指しの試験が 1 つ以上で、どれも起点の木で failure・返した木で通る、か
-    (2) 消す名 removes が空でなく、全部が gone に在る、のどちらか"""
-    named = list(f.get("named") or [])
+    (2) 消す名 removes が空でなく、全部が gone に在る、のどちらか。(1) の名指しから、注文の permits の remove の行（消す名の許し。
+    義務でない。下書き 2.1 の permits）が覆い、返した木に居ない試験（改名した試験の元など）は除く"""
     before, after = f.get("before") or {}, f.get("after") or {}
+    may_go = {r.get("test") for r in f.get("permits") or [] if isinstance(r, dict) and r.get("kind") == "remove"}
+    named = [t for t in f.get("named") or [] if not (t in may_go and after.get(t) == "missing")]
     if named and all(before.get(t) == "failure" and after.get(t) == "passed" for t in named):
         return []
     removes = list(f.get("removes") or [])

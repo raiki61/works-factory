@@ -251,7 +251,6 @@
   "tests.layers.test_test_commands": 0.0,
   "tests.layers.test_words": 3.1,
   "tests.shared.test_archon_contract": 0.2,
-  "tests.shared.test_child_pointer": 0.0,
   "tests.shared.test_childsweep": 0.0,
   "tests.shared.test_fence": 1.3,
   "tests.test_changed": 5.6,

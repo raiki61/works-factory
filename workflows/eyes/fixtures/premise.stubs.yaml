@@ -1,6 +1,7 @@
 # premise: R2 が前提の検算の道（premise_check が在る）→ ok は偽
 fixture:
   expect: completed
+  authored: failed
   reached:
   - ins
   - structure-after__finish
