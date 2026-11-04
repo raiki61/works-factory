@@ -65,6 +65,8 @@ PARALLEL_HEAD = "修正の後の並行 PR の確かめ直し"
 PARALLEL_FOUND = "直したファイルが開いている PR と重なる（{n} 件）"
 PARALLEL_UNCHECKED = "修正の後の並行 PR の確かめ直しができなかった（{why}）"
 PARALLEL_UNDONE = ("not_run", "awaiting_human", "failed")
+R2_KEEPS_OUT = ("R2（修正の後に設計を見直す独立の目）が作り直し（redesign-needed）と言ったので、この run の差分は当てない"
+                "（持ち主の決め small-core。merge も bin/apply も拒む）。報告へ進めても止めても、差分は対象に当たらない")
 SPEC_APPLIES = ("  - 承認して報告へ進める（continue）と、差分は承認し直しを待たずに当たる（merge が run の置き場に置き、bin/apply が"
                 "対象に当てる）。承認し直してから当てるなら stop で止める")
 
@@ -90,6 +92,12 @@ def unpassed_eyes(got: dict) -> list:
     """pass でない目を『R1: 直しが要る』の形で（目の順。言い方は gatemarks.REVIEW_WORDS、表に無い語は字のまま）"""
     rows = [(name.upper(), str(row.get("status"))) for name in EYES if isinstance(row := got["eyes"].get(name), dict)]
     return [f"{label}: {gatemarks.REVIEW_WORDS.get(status, status)}" for label, status in rows if status != seal.PASSED]
+
+
+def r2_redesign(got: dict) -> bool:
+    """R2 が作り直しと言った run か（merge の apply と bin/apply が人の通しの答えでも拒む。lib/seal.py の apply_refusal の 4）"""
+    row = got["eyes"].get("r2")
+    return isinstance(row, dict) and row.get("status") == seal.REDESIGN
 
 
 def removed_only(got: dict) -> set:
@@ -220,7 +228,8 @@ def final_head(got: dict, why: list) -> list:
                 + (f"。判定の役が人に聞くと保留にしたままの問いも在る（{len(held)} 件。承認ノードを開ける理由には数えない）" if held else "")
                 + (f"。{got['split']}" if got["split"] else ""))
     decide = ("報告へ進めて run を終えるか、止めるか（打つ行は末尾の答え方）"
-              + ("。守りのパスと許したテストの変更と消した試験は下の最初のセクションを確かめてから通す" if guarded else ""))
+              + ("。守りのパスと許したテストの変更と消した試験は下の最初のセクションを確かめてから通す" if guarded else "")
+              + (f"。{R2_KEEPS_OUT}" if r2_redesign(got) else ""))
     return gatemarks.head3(happened, decide, gatemarks.pushes([*held, *got["questions"]]))
 
 
@@ -359,7 +368,7 @@ def question_lines(got: dict) -> list:
         lines.append(f"- {head}: {len(got['spec_changed'])} 件")
         lines += [f"  - {q}" for q in got["spec_changed"]]
         lines.append("  - この承認ノードの答えはこの問いに答えない（continue でも仕様は承認し直さない）。問いは報告の冒頭と次の run の依頼の下書きへ渡る")
-        lines.append(SPEC_APPLIES)
+        lines.append(f"  - {R2_KEEPS_OUT}" if r2_redesign(got) else SPEC_APPLIES)
     if got["questions"]:
         lines.append(f"- {gatemarks.named(gatemarks.R4_GATE_NODE)}が人に聞いている問い（記録のまま引く。{len(got['questions'])} 件）:")
         for q in got["questions"]:
@@ -385,6 +394,8 @@ def pr_line(got: dict) -> list:
     if not got["deliver_pr"]:
         return []
     head = f"- 報告へ進める（continue）と（出口 deliver={entry.DELIVER_PR}）: "
+    if r2_redesign(got):
+        return [f"{head}R2 が作り直しと言ったので、積まず PR も作らない"]
     if not (got["sealed"] and got["hash"]):
         return [f"{head}封じた差分が無いので、承認しても積まず PR も作らない"]
     branch, base, reason = runbranch.pr_branches(Path.cwd(), runbranch.ORIGIN)
@@ -425,7 +436,8 @@ def final_text(got: dict, why: list, run_id: str) -> str:
     lines += [f"- {why_}" for why_ in got["unread"]]
     lines += [f"- {note}" for note in got["lost_ties"]]
     lines += [f"- 封じた差分の hash: {got['hash'] or '（無い）'}", *pr_line(got),
-              f"- この文の控え: run の置き場の {files.FINAL_GATE_MD}", "",
+              f"- この文の控え: run の置き場の {files.FINAL_GATE_MD}",
+              *([f"- {R2_KEEPS_OUT}"] if r2_redesign(got) else []), "",
               "答え方（人が決める承認ノード。依頼者に聞いて、その言葉で答える）:",
               f"- 報告へ進める: {answer.line(run_id, 'continue', '<一言>')}（一言は {RECORD} に残る）",
               f"- 止める: {answer.line(run_id, 'stop', '<理由>')}（報告は出る）"]

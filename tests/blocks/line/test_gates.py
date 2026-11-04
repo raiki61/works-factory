@@ -474,6 +474,27 @@ class AskFinalCase(unittest.TestCase):
         self.assertEqual(self.f.final_needs(got), [])
         self.assertFalse(self.ask(got, mode="when_needed")["open"])
 
+    def test_r2_redesign_says_the_diff_is_not_applied_whichever_answer(self):
+        """持ち主の決め small-core の 2026-11-04 の足し（案 1-B）: R2 が作り直しと言った run の最後の承認ノードは、進めても止めても差分を
+        当てないことを冒頭の決めてほしいことと答え方の前に機械の字で書き、continue で当たる・PR を作ると読める行を出さない"""
+        redesign = {"status": "redesign-needed", "reason": "別の設計"}
+        eyes = {**final_got(self.f)["eyes"], "r2": redesign}
+        got = final_got(self.f, eyes=eyes, deliver_pr=True, spec_changed=["受け入れ条件のテストが変わった"])
+        text = self.f.final_text(got, self.f.final_needs(got), RUN)
+        head, answers = text.split("\n")[:3], text.split("答え方（")[1]
+        self.assertIn(self.f.R2_KEEPS_OUT, head[1])
+        self.assertIn(self.f.R2_KEEPS_OUT, text.split("答え方（")[0].rsplit("\n- 封じた差分の hash", 1)[1])
+        self.assertIn("small-core", self.f.R2_KEEPS_OUT)
+        self.assertIn("進めても止めても", self.f.R2_KEEPS_OUT)
+        self.assertNotIn(self.f.SPEC_APPLIES, text)
+        self.assertNotIn("PR を作る", text)
+        self.assertIn("continue", answers)
+        for status in ("pass", "fix-needed", "unverifiable"):
+            with self.subTest(status=status):
+                other = final_got(self.f, eyes={**eyes, "r2": {"status": status, "reason": ""}})
+                self.assertNotIn(self.f.R2_KEEPS_OUT, self.f.final_text(other, self.f.final_needs(other), RUN))
+        self.assertNotIn(self.f.R2_KEEPS_OUT, self.f.final_text(final_got(self.f, eyes={**eyes, "r2": None}), [], RUN))
+
     def test_protected_only_ignores_other_reasons(self):
         self.assertFalse(self.ask(final_got(self.f, tests_ok=False), mode="protected_only")["open"])
         self.assertTrue(self.ask(final_got(self.f, tests_ok=False), mode="when_needed")["open"])
