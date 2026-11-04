@@ -10,7 +10,7 @@ design_talk・request_answers・design_item・stuck_push・design_items・_conti
 始めの記録は src.startrec の口で読み、KEEP の lib に記録を読ませない（integration.md の 4.3-追加-6）。
 
 - 最後の承認ノードの開き方と無人の語（元 gatepolicy）: FINAL_KEY・UNATTENDED_KEY・FINAL_GATES（ALWAYS・WHEN_NEEDED・PROTECTED_ONLY）・
-  UNATTENDED・UNATTENDED_WORDS・Refused・check・unattended_of・opens・head_words・Push・Passage・
+  UNATTENDED・UNATTENDED_WORDS・Refused・unattended_word・asked_unattended・check・unattended_of・opens・head_words・Push・Passage・
   passage（stuck_pushable は往復の記録の住処 src.rounds が持つ）
 - row_push(text)・_as_push(rec, note): 項目の推しの尾の、無人の方針の読み（元 gatemarks）
 - design_talk(doc): 始めの記録の dict から、設計だけの run か（元 gatemarks の startrec.read の道）
@@ -52,9 +52,19 @@ class Refused(ValueError):
     """入口の語が受けられない（入口が InputRefused にする）"""
 
 
+def unattended_word(unattended) -> str:
+    """入口の生の無人の語を、入口が照らす形（前後の空白を落とす）に。照らす物はみなこれで読む（生の字を UNATTENDED と比べない）"""
+    return (unattended or "").strip()
+
+
+def asked_unattended(inputs) -> bool:
+    """生の入力の dict（か None）が無人の run を頼むか（入口の check と同じ読み。始めの記録を読むのは unattended_of）"""
+    return isinstance(inputs, dict) and unattended_word(inputs.get(UNATTENDED_KEY)) == UNATTENDED
+
+
 def check(final, unattended, *, spec) -> dict:
     """入口の 2 つの語を確かめて {FINAL_KEY: 開き方（空は ALWAYS、無人の run の空は WHEN_NEEDED）, UNATTENDED_KEY: 語} を返す"""
-    alone = (unattended or "").strip()
+    alone = unattended_word(unattended)
     if alone not in UNATTENDED_WORDS:
         raise Refused(f"{UNATTENDED_KEY}={unattended!r} は知らない値（空か {UNATTENDED}）")
     mode = (final or "").strip() or (WHEN_NEEDED if alone else ALWAYS)
@@ -326,12 +336,14 @@ def _ask_kind(q) -> str:
     return gatemarks.ASK_KINDS[0] if q.get("kind") == "fork" else gatemarks.ASK_KINDS[1]
 
 
+PLANNED_PUSH = ("（計画はこの問いを無人の run の推し「{push}」で答えたと数えて組んだ。推しのままなら continue、推しと違う答え・保留なら"
+                " stop と答え、答えを依頼の answers に書いて固定材料なしで計画から回し直す）")
 TALK_GATE = "gate-design"   # 設計の相談の承認ノードの id（対話モードの run の計画の往復の末尾。src/talk.py）。人がそこで止めた止めの理由の後ろ
 
 
 def before_fix(rounds: dict | None, *, unattended_run: bool, design: bool, ledger=None, design_rows_=(), policy_row: str = "",
                stuck_reason: str = "", record_doc: dict | None = None, answered=(), unread=(), agreed: dict | None = None,
-               pointed=()) -> dict:
+               pointed=(), planned=None) -> dict:
     """修正前の承認ノードの決め。rounds は計画の往復の受け皿の got（plan-out の返りの欄）、ledger は問いの台帳の値の見え方
     （gatemarks.ledger。判定が無ければ None）、design_rows_ は構造の目の設計の行、policy_row は方針の文書の変化の行（変わっていなければ
     空）、stuck_reason は止まった往復の理由（止まっていなければ空）、record_doc は往復の記録（止まりの行の推しの尾を読む）、answered は
@@ -344,6 +356,9 @@ def before_fix(rounds: dict | None, *, unattended_run: bool, design: bool, ledge
     止める語なら開かずに止め（止めの理由 human:gate-design）、通す語なら、その関所で見せた行（asked）を通した答えとして読み、設計だけの
     行を足さない（必ず開く役目は設計の相談の承認ノードが果たした。合意した同じ承認を聞き直さない）。止まった往復と方針の文書の変化に合意した
     答えは、修正へ進めて方針を固め直す（policy_changed）。合意の後に新しく出た行（読めない控え・変わった方針の文書など）は今どおり開く。
+    planned は直す前で止まった無人の run の写しを人の居る run で続ける時の、写しの計画が数えた問いの台帳（takes_push の見え方。ほかは None）:
+    計画が推しを答えに数えた問いの行に PLANNED_PUSH を足し、推しと違う答えなら止めて計画から回し直すと案内する（計画は推しを前提に組んで
+    あり、続きの承認ノードの答えで組み直さない。答えは自由な一言なので推しと違うかを機械は読まず、人が stop で選ぶ）。
     返り {open, go, stop_reason, items: [(種類, 文)], deferred, asked, pushed, passes, policy_changed}"""
     closed = {"open": False, "go": False, "stop_reason": "", "items": [], "deferred": [], "asked": [], "pushed": None, "passes": [],
               "policy_changed": False}
@@ -406,7 +421,8 @@ def before_fix(rounds: dict | None, *, unattended_run: bool, design: bool, ledge
             if unattended_run:
                 deferred.append(gatemarks.ask_text(q))   # 採れる推しの無い台帳の問いは載せず、報告と次の依頼の下書きへ（L-G33）
             else:
-                items.append((_ask_kind(q), gatemarks.ask_text(q)))
+                push = gatemarks.run_push(planned, q) if planned is not None else ""
+                items.append((_ask_kind(q), gatemarks.ask_text(q) + (PLANNED_PUSH.format(push=push) if push else "")))
     if not any(kind == gatemarks.DESIGN_ONLY_KIND for kind, _ in items):   # 同じ種類の行を 2 度載せない（L-D19・P249）
         tail = stuck_push(record_doc, unattended_run=unattended_run, design=design) if stalled and record_doc else ""
         row = design_item(design=design, reason=stuck_reason if stalled else "", tail=tail)

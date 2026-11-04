@@ -1,12 +1,14 @@
 """比べの役と検算の役に貼る、機械が測ったテストの実測と累積差分の起点の材料（docs/design/r2.md の 1.5）。元の eyeverdict の
 outcome_side・outcome_lines・TRANSITIONS・tdd_record_lines・origin_section・FIX_DIFF_ROW の写し。見出しは写さず、md の部品
 prompts/parts/measured.md が持つ。tdd_record_lines は port tdd の値（段ごとの組の配列か、読めない訳の字）を受ける。
+named_scope は、変わらない赤でない行のうち名を貼るテストの範囲を、変更の周りの地図（lib/impact.map）と TDD の記録から決める。
 origin_section は作り直しの間 lib の fixboard・unittrees・leftovers を読む（docs/design/r1.md の 10 節の 2）。"""
 from __future__ import annotations
 
 import baseline_red   # lib/。FAILED
 import eyekit         # lib/。changed_files
 import fixboard       # lib/
+import impact         # lib/。map・_mod・_junit_module
 import leftovers      # lib/
 import oneline        # lib/
 import report         # lib/。tdd_stage_groups・tdd_lines
@@ -15,6 +17,8 @@ import unittrees      # lib/
 FIX_DIFF_ROW = "この run の直しの差分"   # 起点の訳の行の名（検算の役の md が {fix_diff_row} でこの名の行を指す）
 # 移り方（base の側→最後の側）の並びの順と、名に添える読み。ここに無い移り方（飛ばし・片側に居ない）は後ろに出会った順
 TRANSITIONS = {"赤→緑": "base で赤・最後に緑", "緑→緑": "base でも最後でも緑", "緑→赤": "base で緑・最後に赤", "赤→赤": "base でも最後でも赤"}
+TRIMMED = ("緑→緑", "飛ばし→飛ばし")   # 名を貼る範囲（named_scope）で絞る移り方（結末が変わらず赤でない）
+LEFT_UNNAMED = "  - ほかに {n} 件は名を貼っていない（変更したファイルから地図で届かないテストのファイルの物）"
 
 
 def outcome_side(outcome: str) -> str:
@@ -23,8 +27,46 @@ def outcome_side(outcome: str) -> str:
     return {"passed": "緑", "skipped": "飛ばし", "": "測っていない"}.get(outcome, outcome)
 
 
-def outcome_lines(test_outcomes) -> list[str]:
-    """テストを移り方ごとにまとめ、移り方の行の下に全部のテストを名指す（緑→緑も省かない。赤の側は結末と落ちた文を添える）"""
+def named_scope(repo, rev: str, changed, cache_dir, stages) -> dict | None:
+    """変わらない赤でない行（TRIMMED）のうち名を貼るテストの範囲 {modules, tests}。modules は、累積差分で変わったファイル changed
+    （除くパスの頭の下を除いた後。Archon が作業ツリーに写す pack の置き場を起点に入れない）と、そこから地図（impact.map の seeds）が
+    届くと言うテストのファイル（言及の辺の上限 impact.MENTION_HOPS の先で地図が名だけを返す物も）と、TDD の記録（port tdd の値
+    stages）の単位が名指したテスト（tests）のファイルとテストのファイル（test_files）の名の幹（fix の _named_files と同じ）（impact._mod）、tests はその単位が名指したテスト。changed が
+    None（累積差分が取れない）か空（起点が無く地図が何にも届かない）・地図が引けない・all_tests_required の時は None（全部の名を貼る）"""
+    if not changed:
+        return None
+    try:
+        m = impact.map(repo, rev=rev or "HEAD", seeds=list(changed), cache_dir=cache_dir)
+    except (RuntimeError, OSError, ValueError, RecursionError):
+        return None
+    if m["all_tests_required"]:
+        return None
+    units = [u for stage in stages or [] if isinstance(stage, list) for g in stage if isinstance(g, dict)
+             for u in g.get("units") or [] if isinstance(u, dict)]
+    named = [f.partition("::")[0] for u in units for f in [*(u.get("tests") or []), *(u.get("test_files") or [])]
+             if isinstance(f, str) and f.strip()]
+    files = (*m["seeds"]["files"], *m["tests"], *m["not_seen"]["tests_beyond_mention_hops"], *named)
+    return {"modules": {impact._mod(f) for f in files},
+            "tests": [t for u in units for t in u.get("tests") or [] if isinstance(t, str)]}
+
+
+def _named(key: str, scope) -> bool:
+    """変わらない赤でない行の名を貼るか。範囲が無い（決められない）・行のテストのファイルが分からない時は貼る（落とす向きに外さない）。
+    classname の点で切ったどの部分が範囲の名の幹でも貼る（test_ で始まるフォルダの下のテストの classname は、最初の test_ の部分が
+    フォルダの名になる）"""
+    if scope is None:
+        return True
+    cls, _, name = key.partition("::")
+    if impact._junit_module({"classname": cls}) is None:
+        return True
+    return bool(set(cls.split(".")) & scope["modules"]) or any(
+        baseline_red.match_case(t, [{"classname": cls, "name": name}]) for t in scope["tests"])
+
+
+def outcome_lines(test_outcomes, scope=None) -> list[str]:
+    """テストを移り方ごとにまとめ、移り方の行の下にテストを名指す（赤の側は結末と落ちた文を添える）。結末が変わった行と赤→赤は全部、
+    変わらない赤でない行（TRIMMED）は範囲 scope（named_scope の返り）の物だけを名指し、残りは件数の 1 行（LEFT_UNNAMED）。scope が
+    None なら全部を名指す"""
     if not isinstance(test_outcomes, dict):
         return ["- 試験の関門がテストごとに base と最後を比べた結果（test_outcomes）が渡っていない。どのテストが base と最後に緑か赤かは分からない"]
     if test_outcomes.get("unmeasured"):
@@ -35,12 +77,15 @@ def outcome_lines(test_outcomes) -> list[str]:
         notes = [f"{side} {o}" for side, o in (("base", base), ("最後", final)) if o in baseline_red.FAILED]
         if notes and (why := oneline.one_line(r.get("fail_message") or "")[:200]):
             notes[-1] += f": {why}"
-        groups.setdefault(f"{outcome_side(base)}→{outcome_side(final)}", []).append(
-            f"  - `{r.get('key')}`" + (f"（{'・'.join(notes)}）" if notes else ""))
+        move = f"{outcome_side(base)}→{outcome_side(final)}"
+        shown = move not in TRIMMED or _named(str(r.get("key") or ""), scope)
+        groups.setdefault(move, []).append(f"  - `{r.get('key')}`" + (f"（{'・'.join(notes)}）" if notes else "") if shown else None)
     out = []
     for move, rows in groups.items():
         if rows:
-            out += [f"- {move}{f'（{TRANSITIONS[move]}）' if move in TRANSITIONS else ''}: {len(rows)} 件", *rows]
+            named = [row for row in rows if row is not None]
+            left = [LEFT_UNNAMED.format(n=len(rows) - len(named))] if len(named) < len(rows) else []
+            out += [f"- {move}{f'（{TRANSITIONS[move]}）' if move in TRANSITIONS else ''}: {len(rows)} 件", *named, *left]
     return out or ["- 無い（base と最後のどちらの一式にもテストが居ない）"]
 
 

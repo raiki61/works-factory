@@ -112,11 +112,13 @@ def write_prompt(place, *, run_id: str) -> dict:
 
 
 def cold_prompt(place, raw) -> dict:
-    """初見の読み手の指示を組んで place に書く（本文は人に向けた報告の頭と同じ物を、機械が組んだ行と書き手の頭に分けて貼る）。返り {prompt}"""
+    """初見の読み手の指示を組んで place に書く（本文は人に向けた報告の頭と同じ物を、機械が組んだ行と書き手の頭に分けて貼る）。返す字の言語は
+    facts の lang（書き手と同じ。空は貼った本文の言語）。返り {prompt}"""
     place = pathlib.Path(place)
     machine, body = writer.cold_parts(raw, place=place)
-    values = {"machine": machine, "body": body, "machine_heading": files.bare(writer.MACHINE_HEADING)}
-    out = prompt.emit(files.COLD_NODE, values, {}, prompt.round_of(files.COLD_NODE))
+    lang = ports.text(_facts_doc(place).get("lang")).strip()
+    values = {"machine": machine, "body": body, "machine_heading": files.bare(writer.MACHINE_HEADING), "lang": lang}
+    out = prompt.emit(files.COLD_NODE, values, {"lang_given": bool(lang)}, prompt.round_of(files.COLD_NODE))
     return {"prompt": out["prompt"]}
 
 

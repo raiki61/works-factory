@@ -16,7 +16,8 @@ got）は要る欄を全部名指して読む（欄の欠けた前の版の返�
 fix_in・after_fix・raise・lens_in・ask_replan・answer_replan・lens_2_in・fixed・judged・eyes_in・ask_final・answer_final（line の script の
 出力）・test_gate_base・judge・structure・independent_design・rounds・fix・lens・delta・replan・replan_review・refix・lens_2・delta_2・
 parallel_after・rejudge・spec_check・test_gate_final・eyes・merge_seal・merge_apply（受け皿の got）・optional（line 自身の受け止める段の宣言）・
-テーマの run の theme_world_in・theme_blind（受け皿の got）・theme_design_in・theme_rounds（受け皿の got）・theme_descend・request_in・theme_return
+テーマの run の theme_world_in・theme_blind（受け皿の got）・theme_design_in・theme_rounds（受け皿の got）・theme_descend・request_in・theme_return・
+直す前で止まった写しの run の fixture_ask_before_fix・fixture_answer_before_fix（src.fixture.collect_values が今の欄の名に重ねる）
 """
 import json
 import os
@@ -87,6 +88,8 @@ def raw_inputs() -> dict:
         "spec_driven_check": os.environ.get("INPUTS_SPEC_DRIVEN_CHECK"), "spec_rounds": os.environ.get("INPUTS_SPEC_ROUNDS"),
         "spec_ask_before_fix": os.environ.get("INPUTS_SPEC_ASK_BEFORE_FIX"),
         "spec_answer_before_fix": os.environ.get("INPUTS_SPEC_ANSWER_BEFORE_FIX"),
+        "fixture_ask_before_fix": os.environ.get("INPUTS_FIXTURE_ASK_BEFORE_FIX"),
+        "fixture_answer_before_fix": os.environ.get("INPUTS_FIXTURE_ANSWER_BEFORE_FIX"),
         "theme_world_in": os.environ.get("INPUTS_THEME_WORLD_IN"), "theme_blind": os.environ.get("INPUTS_THEME_BLIND"),
         "theme_design_in": os.environ.get("INPUTS_THEME_DESIGN_IN"), "theme_rounds": os.environ.get("INPUTS_THEME_ROUNDS"),
         "theme_descend": os.environ.get("INPUTS_THEME_DESCEND"), "request_in": os.environ.get("INPUTS_REQUEST_IN"),
@@ -139,8 +142,9 @@ def pointers(secs, doc) -> dict:
 def compute():
     raw = raw_inputs()
     from src import facts, files, sections
-    from src import specrounds
+    from src import fixture, specrounds
     values = specrounds.collect_values(values_of(raw))   # 仕様駆動の run の値を今の欄の名に重ねる（依頼の文の run は values のまま）
+    values = fixture.collect_values(values)   # 直す前で止まった写しの run の続きの修正前の承認ノードの値も同じく重ねる
     record, why = record_of(values.get("start"))
     built = facts.build(values, record, why, cwd=Path.cwd())
     secs = sections.build(values, record or {}, cwd=Path.cwd(), folder=ports.place())
