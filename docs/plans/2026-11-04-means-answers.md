@@ -69,7 +69,7 @@
    - 往復の行（`.shared/schemas/plan-converge.schema.json` の `passes[]`。閉じた形）に欄 `means_drifts` と `means_departs` を足す。本番で往復の行を書くのは line の `src/rounds.py` の `add_pass`（同じファイルの `record_pass` と `src/themetalk.py` から呼ばれる。`lib/converge.py` の写し）で、ここが受け付けた行を書く。`lib/converge.py` の `add_pass` は試験だけが使う写しなので、同じ形に揃えて足す。
    - `means_drifts` の鍵は `(item, means, plan_quote)`。次の 2 つを、この鍵で後勝ちに合わせる: 往復の記録の作業の写しに在る前の往復までの行（`src/steps.py:388-391` が写す `passes`）と、今の返答 `review` の `means_drifts`（`src/steps.py:579` で `gate.deviations` に渡る）。合わせなければ、最後の往復の `means_drifts` が外れの行から抜ける。`means_departs` も鍵 `(item, means)` で同じに積む。
    - 木の形で、閉じた項目（その往復で下請けを立てない項目）の行は、前の往復の値を持ち越す（今の返答に無いのは書き直さなかったからで、消えたからではない）。後勝ちの合わせがこれを満たす。
-   - `src/gate.py` は、積んだ全部の往復の行から外れの行を組む。そのうち `plan_quote` が今の案の字に無い行（計画が直して食い違いの元が消えた行）と、その番号を今の案が `follows: true` で答えていない行は落とす。
+   - `src/gate.py` は、積んだ全部の往復の行から外れの行を組む。行ごとに項目 `item` で見て、`plan_quote` が今の案の項目 `item` の字に無い行（計画が直して食い違いの元が消えた行）と、その番号を項目 `item` が `follows: true` で答えていない行は落とす（ほかの項目が同じ番号に従っても残さない。項目 2 が M1 から外れて項目 3 が従った時に、古い行 (2, M1, …) を落とすため）。
 7. 木の形（項目ごとの下請け。`src/tree.py`）: 項目の下請けがその項目の分の `means_drifts` と `means_departs` を書く。
    - `item_schema` に欄 `means_drifts` と `means_departs`（3.2 の 2・3 と同じ行の形。必須にしない）を足す。今は `additionalProperties: False` なので、足さなければ拒まれる。
    - `check_item` が 3.2 の 5 の照らしを項目の答えに当てる。行の `item` はその下請けの項目 `n` に限り、ほかの番号は拒む（`plan_quote` もその項目の字に限る）。
@@ -82,7 +82,7 @@
    - 積んだ `means_drifts` の行（`item` を持つ）。文は `修正案 <i> は頼みの解き方 M<n>「<文>」に従うが、独立設計と食い違う——<why>`（`<i>` は行の `item`）。`mark` は `{decided_by: <why>, recommend: <役の recommend>}`。
    - 事前審査が諦めた・落ちた周（line の `scripts/plan_out.py` が返す `review_status` が `gave_up` か `failed`。事前審査の `deviations` が無い）でも、計画の `{means, deviation}` の外れは修正の前の承認ノードに出す。行は line の `src/gates.py` の `before_fix` が、事前審査の `deviations` でなく、`plan_out.py` が運ぶ計画（各項目の `structure`）から組む。推しが無いので `mark` は `{decided_by: <deviation>}` だけの「推しなし」として開く（無人の run なら止まる。3.3 の 3）。これが決め means-ask の 1 に合う形。
    - 文の口: 上の 2 つの文の組み立ては plan-review と line の 2 つの block が使うので、`lib/gatemarks.py` の 1 つの口に置き、plan-review の `src/gate.py` と line の `before_fix` が呼ぶ（憲法 4）。
-   - どちらも `why`（人に聞く訳）は「頼みの解き方と独立の目の食い違い（どちらも自動では優先しない。決め means-ask）」の 1 つ。世界の解の外れと違い、聞かずに通す道は無い（決めの 1）。
+   - どれも `why`（人に聞く訳）は「頼みの解き方と独立の目の食い違い（どちらも自動では優先しない。決め means-ask）」の 1 つ。世界の解の外れと違い、聞かずに通す道は無い（決めの 1）。
 9. 返す事実の形: `deviations` の行の `source` の enum（`works-factory-plan-review.yaml` の出力の型。今は `[world, design]`）に `means` を足す。足さなければ `ports.returns` が `ShapeError` で拒む。行のほかの欄は世界の解の行と同じ（`item`・`text`・`mark`・`why`。`means_drifts` の行も `item` を持つ）。line の受け口（`works-factory-line.yaml` の `deviations` の型は `source` だけを名指し、enum を持たない）はそのまま。
 
 ### 3.3 修正の前の承認ノード（line と lib/gatemarks.py）
@@ -114,7 +114,7 @@
 - structure: `src/survey.py:155`（`planmarks.deviations` の読み手）の外れの行の文に、`answer_line` の means の枝を足す。
 - plan: `works-factory-plan.yaml`（port `means`・`&plan_reply` の `structure` の行の写し）・`prompts/plan-writer.md`・`src/steps.py`（port と指示の値）・`src/take.py`（表に `means_need`・外れの文の字の照らし・形 replan の missing の範囲〔`plan_errors` が `structure_gaps(..., whole=replaced)` を呼ぶ。世界の解の表の直しは別の commit〕）・fixtures。
 - plan-review: `works-factory-plan-review.yaml`（役の型 `review` と `review-fix` の両方に `means_drifts`・`means_departs`・出力の `deviations` の `source` の enum に `means`）・`prompts/parts/design-ask.md`（`means_drifts` の段と従うという答えの確かめ）・`prompts/parts/means-ask.md`（足す。`means_departs` の段。3.2 の 2）・`prompts/review.md`（新しい条件の札 2 つと、`means-ask` を節「Independent design」の直下に）・`prompts/parts/item-brief.md`（`means-ask`）・`src/material.py`（札）・`src/steps.py`（積みの合わせ）・`src/take.py`・`src/tree.py`（`item_schema`・`check_item`・`tree_merge`・項目の下請けの指示の値）・`src/gate.py`・fixtures。
-- line: `works-factory-line.yaml`（node `plan`〔`plan-rounds` の中〕と `replan` の include に `means`）・`src/gates.py`（`before_fix`）・`scripts/ask_replan.py`（`REVIEW` に `deviations`・`ask` の聞く行）・`src/rounds.py`（本番の往復の行の書き手 `add_pass` に `means_drifts` と `means_departs`。`record_pass` と `src/themetalk.py` はこれを呼ぶ）・`src/gates.py` の `before_fix`（事前審査が諦めた・落ちた周の計画の外れの行。3.2 の 8）。
+- line: `works-factory-line.yaml`（node `plan`〔`plan-rounds` の中〕と `replan` の include に `means`）・`src/gates.py`（`before_fix`。事前審査が諦めた・落ちた周の計画の外れの行も。3.2 の 8）・`scripts/ask_replan.py`（`REVIEW` に `deviations`・`ask` の聞く行）・`src/rounds.py`（本番の往復の行の書き手 `add_pass` に `means_drifts` と `means_departs`。`record_pass` と `src/themetalk.py` はこれを呼ぶ）。
 - 設計書: `docs/design/plan.md`・`docs/design/plan-review.md`・`docs/design/line.md` の該当の節。
 
 ## 5 試験（直しを外すと落ちる物を先に置く）
@@ -122,7 +122,7 @@
 1. `lib/tests/test_plan_fields.py`（`structure_gaps` の試験の今の置き場）: means 2 文の表で、`M1` にだけ答えた案を拒み、2 文に答えれば通る。`{means: M1, follows: false}` を今の文「follows は true だけ」で拒む。`{means, deviation, recommend}` を型で拒む（推しは計画の役が書かない）。`structure_gaps(plan, tables, whole=...)` が missing だけを `whole` で数える。means の無い表では何も求めない。
 2. `lib/tests/test_worldmark.py`: `means_need` の hints と missing。
 3. `tests/blocks/plan/`: means 2 文の周の受け付けが、答えの欠けと、外れの文に run の中の参照（`<パス>:<行>`）を持つ行を拒む。通った答えが `p2.fix_plan.json` の `structure` に残る。形 replan で、直した項目が `M1` から外れる答えを書けば通り、直さない項目の `M2` の答えは承認済みの案から数える。世界の解の表も同じ: 直さない項目だけが答えた世界の解の行を持つ表で `plan_errors` が拒まない（今のコードで落ちる試験を、世界の解の直しの commit の前に置く。`tests/blocks/plan/test_steps.py` の `plan_errors` の試験の並び）。
-4. `tests/blocks/plan_review/test_gate.py`: `{means, deviation}` の行と同じ番号の `means_departs` の行が、`deviations` の `source: means` の行になり、`mark` に `means_departs` の `recommend` を持つ。`follows: true` だけなら行は出ない。出力の型が `source: means` を通す（`ports.returns`）。事前審査が諦めた・落ちた周でも、計画の `{means, deviation}` の行が推しなしの項目として修正の前の承認ノードに出る（3.2 の 8）。
+4. `tests/blocks/plan_review/test_gate.py`: `{means, deviation}` の行と同じ鍵 `(item, means)` の `means_departs` の行が、`deviations` の `source: means` の行になり、`mark` に `means_departs` の `recommend` を持つ。`follows: true` だけなら行は出ない。出力の型が `source: means` を通す（`ports.returns`）。事前審査が諦めた・落ちた周でも、計画の `{means, deviation}` の行が推しなしの項目として修正の前の承認ノードに出る（3.2 の 8）。
 5. `tests/blocks/plan_review/`: `means_drifts` の照らし（`item` の項目が `follows: true` で答えていない・引用が無い・同じ食い違いを block にも書いた、をそれぞれ拒む）。`means_departs` の照らし（計画の外れの行に推しが無い〔今の返答と積んだ行を合わせて数える。1 往復目に推しを書いた行は 2 往復目に書かなくても通る〕・`(item, means)` が外れの行を指さない、を拒む）。1 往復目の `means_drifts` が、2 往復目の返答に無くても `deviations` に残り、`plan_quote` が案から消えれば落ちる。1 往復で抜けた run（往復の記録の行が無く、今の返答だけに `means_drifts` が在る）の `means_drifts` が `deviations` に在る。木の形で、項目の下請けの `means_drifts` が `item_schema` を通り、`tree_merge` の後の返答に在る。`check_item` が、ほかの項目の `item` を持つ行を拒む。閉じた項目の 1 往復目の行が 2 往復目の後も残る。design-ask の指示に `means_drifts` の段と従うという答えの確かめの段が在り、形 replan の指示に無い。`means_departs` の段（`means-ask`）は両方の形と項目の下請けの指示に在る（指示の字の試験の今の形で。従うという答えの偽りを見分けるのは AI の判断なので、機械の照らしの試験は書かない）。
 6. `tests/blocks/line/`: `before_fix` が `source: means` の行を種類 `means` の項目にし、文に「世界の解:」の尾が無い。無人の run が推しで抜けて `pushed` に残る。推しが stop なら止まる。`ask_replan.ask` が直した項目の `source: means` の行を推しの尾つきで聞き（無人の run が推しで抜ける）、直さない項目の行と、前に continue で通した同じ鍵 `(item, means)` の行（推しの文が書き直されていても）を聞かない。
 7. 指示の組み立ての既存の試験（`tests/workflows/` の指示の比べの JSON）を、足した節の分だけ更新する。
