@@ -1,6 +1,6 @@
 # 段 1 歩く骨組み: 本物の 8 ブロックと線を本物の役で小さな対象に通しで回し、今の works の能力を 1 行ずつ run の記録で確かめ、封じた差分を bin/apply で当てるまで届かせる。ASF の archon-lifecycle に渡す筋書きを、動かして確かめた形にする
 
-置く先: `docs/plans/2026-10-13-stage1-walking-skeleton.md`（main に在る版を置き換える。置き換えは issue #101 の merge の後にする。#101 の本文は、main に在る版の「約束」の `bin/apply` の 1〜9・「今の works から狭まる所」・「対象の作り方」・手順の試験の名を正本として指すため）。issue は 2 つに分けて出す（下の「issue の切り方」）。issue の本文はこの文書の全部。main に在る版から動かした物: `bin/apply`・`tests/e2e/make_target.py`・種の実行器は issue #101 に、線の返りの欄（`apply`・`sealed`・`r2_status`・`report`）は線の配線の計画（終えて消した計画）の部分 A に移した。足した物: 今の works の能力を本物の run の記録で 1 行ずつ機械で確かめること（「能力の行の照らし」）と、落とし穴の確かめ（K1〜K20）。
+置く先: `docs/plans/2026-10-13-stage1-walking-skeleton.md`（main に在る版を置き換える。置き換えは issue #101 の merge の後にする。#101 の本文は、main に在る版の「約束」の `bin/apply` の 1〜9・「今の works から狭まる所」・「対象の作り方」・手順の試験の名を正本として指すため）。issue は 2 つに分けて出す（下の「issue の切り方」）。issue の本文はこの文書の全部。main に在る版から動かした物: `bin/apply`・`tests/e2e/make_target.py`・種の実行器は issue #101 に、線の返りの欄（`apply`・`sealed`・`r2_status`・`report`）は線の配線の計画（終えて消した計画）の部分 A に移した。足した物: 今の works（works-factory の前の形の工場。下の「語」）の能力を本物の run の記録で 1 行ずつ機械で確かめること（「能力の行の照らし」）と、落とし穴の確かめ（K1〜K20）。
 
 ## issue の切り方
 
@@ -165,9 +165,9 @@ works-factory は今の works の能力を、線・8 つのブロック・助け
 
 ## 落とし穴の確かめ（K1〜K20）
 
-詳しい根拠と縛る試験は 線の配線の計画（終えて消した計画）の「落とし穴の確かめ」と棚卸しの `pitfalls.md`。この PR が直すたびに、その差分が K1〜K20 の試験を通ることを PR 本文に 1 行ずつ書く（当たる所が無ければ「当たる所が無い」）。要点だけ写す:
+詳しい根拠と縛る試験は線の配線の計画（終えて消した計画）の「落とし穴の確かめ」と棚卸しの `pitfalls.md`。この PR が直すたびに、その差分が K1〜K20 の試験を通ることを PR 本文に 1 行ずつ書く（当たる所が無ければ「当たる所が無い」）。要点だけ写す:
 
-- K1 返す節と返す節が結ぶ節は落ちない（lib の import は守った `main` の中・最後は標準ライブラリだけで返す。Archon は落ちた節の出力を結んだ節を `all_done` でも落とす。`dag-executor.ts` 495-533 行）
+- K1 ブロックの返す節（ブロックの YAML の `returns:` が名指す、ブロックの返りを作る節）と、返す節が出力を結ぶ（`$<節>.output` で読む）節は落ちない。返す節が落ちるとブロックが値を返さない（守り方: script は lib の読み込みの失敗を受け止めてから `main` で使い、読めなかった時の最後の逃げ道は標準ライブラリの `json` だけで返りを書く。Archon は落ちた節の出力を結んだ節を `trigger_rule: all_done` でも落とすので、返す節が結ぶ節が 1 つ落ちれば返す節も落ちる。`dag-executor.ts` 495-533 行）
 - K2 `runtime: uv` の script は頭に PEP 723 の 4 行（`scripts/` の 1 段下も）
 - K3 読むだけの節は `mutates_checkout: false`。Archon は `loop:` の節ではこの鍵を無視する（`schemas/dag-node.ts` 1025-1031 行）ので、読むだけの役を `loop:` で書かない
 - K4 skill・agent を借りる役の節は `skills:`・`plugins:` で名指す（同梱の skill は `tests/archon.py` の `BUILTIN_SKILLS`）
@@ -177,14 +177,14 @@ works-factory は今の works の能力を、線・8 つのブロック・助け
 - K9 写した指示書と役の定義は元の字のまま、許した直しを試験で縛る（持ち主の決め `prompts-coldread`（2026-10-12、`docs/owner-decisions.md`）で、初見の読み手での書き直しも許した直しとして足す。4 つの約束は `tests/workflows/test_prompt_contracts.py` が別に照らす）
 - K10 どの関所の `reject` も報告へ流す（Archon は `decisions` に `reject` が無いと run を取り消す。`workflow-operations.ts` 1625-1700 行）
 - K11 ブロックに足す入力は既定値つき・K12 新しい入力と隣のファイルは読み手と配線の試験を持つ
-- K13 返りの指し札の先は在って空でない・K14 2 度差し込むブロックの 2 度目が 1 度目の物を拾わない・K15 読めない入力を名指す・K16 返りの JSON は `allow_nan=False`
+- K13 返りの指し札（返りの欄のうち、ファイルのパスを値に持つ欄）の先のファイルは在って空でない・K14 2 度差し込むブロックの 2 度目が 1 度目の物を拾わない・K15 読めない入力を名指す・K16 返りの JSON は `allow_nan=False`
 - K17 戻した能力には「外すと赤」の試験・K18 役の節の決まりを全ブロックで・K19 script の名を lib の名と同じにしない・K20 同じ定数を 2 か所に持たない
 
 筋書きでは確かめられず、この issue が本物で確かめる物:
 
 - K6 周ごとの値: 手順 6 の使い捨ての工程で、輪の頭の script の節が 1 周目は空、2 周目は前の周の受け付けの `reason` を返し、役の文にそれが載ることを本物で見る。通しの run でも、拒みが起きた輪が在れば、その輪の `<役>-reject` の節の出力を照らしの表に載せる（起きなければ「拒みが起きなかった」と PR に書く）。
 - K10 関所の `reject`: 使い捨ての run の最初の関所（`gate-start`）に `reject` で答え、run が取り消されず（`terminal_record.status` が `completed`）、報告が走り、結末の語が `stopped_by_human` になることを見る。
-- 報告がいつも走る（棚卸しの L-W60）の resume の半分: 手順 6 の P1 の確かめで、`--adopt` で続けた run の報告の節が走ることを見る。
+- 報告がいつも走る（能力の棚卸しの行 L-W60。中身は「前の段が落ちても報告が走る」と「Archon の resume〔止まった run の続きを起こすこと〕でも報告を回し直す」の 2 つ）の、resume の側の半分（前の段が落ちた側は筋書きで見る）: 手順 6 の P1 の確かめで、止めた run を `workflow run --adopt <run>`（止まった run の続きを新しい run として起こす Archon の口）で続け、その run で報告の節が走ることを見る。
 - K1・K13: 通しの run の記録で、全部の include の返す節が `completed` で、返りの指し札の先が在って空でないことを、筋書きの every-block-ran（include ごとの節の `completed`）と、照らしの表の各ブロックの `seen` の行（埋め物でない中身）で見る。
 
 ## 手順（試験が先に赤）
