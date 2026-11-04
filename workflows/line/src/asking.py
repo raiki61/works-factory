@@ -36,7 +36,7 @@ def record_doc(ptr, unread: list):
 def materials(rounds: dict | None, *, structure_raw, judge_raw, record_raw, dealt: dict, unattended: bool, place: Path) -> dict:
     from src import files, gates, rounds as rounds_mod, startrec
 
-    judge = ports.picked(judge_raw, ("judgment", "answer_ties", "materials"), optional=())
+    judge = ports.picked(judge_raw, ("judgment", "answer_ties", "materials", "means"), optional=("means",))
     record_path = ports.file(record_raw, "json(start-record.schema.json)")
     record = startrec.load(record_path) if record_path else {}
     unread: list = []   # 指す先が無い・読めない控え（開ける理由にする。形の違う pointer は落ちる）
@@ -62,6 +62,12 @@ def materials(rounds: dict | None, *, structure_raw, judge_raw, record_raw, deal
     except ValueError as error:   # 控えが在るのに壊れている: 読めなかった控えとして承認ノードを開き、控えの名を見せる
         design_rows = []
         unread.append(str(error))
-    return {"ledger": ledger, "design_rows_": design_rows, "policy_row": gates.change_row(change) if change else "",
+    means, plan_fields = [], None
+    if rounds and gates.review_fell_row(rounds):   # 事前審査が諦めた・落ちた周: 頼みの解き方の外れを計画の欄から組む（計画 means-answers の 3.2 の 8）
+        means = judge["means"] if judge is not None and isinstance(judge["means"], list) else []
+        doc = gates.read_located(rounds.get("plan"), "修正案の欄の控え", unread,
+                                 lambda raw: ports.file(raw, "json(shared:plan-fields.schema.json)")) if rounds.get("plan") else None
+        plan_fields = doc.get("fields") if isinstance(doc, dict) else None
+    return {"means": means, "plan_fields": plan_fields, "ledger": ledger, "design_rows_": design_rows, "policy_row": gates.change_row(change) if change else "",
             "stuck_reason": stuck, "record_doc": rec_doc, "answered": [previous] if isinstance(previous, dict) else [], "unread": unread,
             "pointed": gates.structure_pointed(structure)}

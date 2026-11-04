@@ -7,7 +7,7 @@ workflows/line/scripts/ask_replan.py の決まりのまま）。
 
 直した項目ごとの事実は案の直しの事前審査の出力 replan の行 {item, units, contract_changed, human, widened}（plan-review の設計書の
 10.3）。聞くかは line が決める（src.gates.replan_asks: (contract_changed かつ 無人の run で widened でない) か human が在る。読めない
-行は聞く側に倒す）。修正前の承認ノードの答えで通した穴の行（事前審査の穴 [kind] key の頭で始まる asked の行）は聞き直さない
+行は聞く側に倒す）。直した項目の頼みの解き方の外れ（事前審査の deviations の source means）は推しの尾つきで聞く（means_rows）。修正前の承認ノードの答えで通した穴の行（事前審査の穴 [kind] key の頭で始まる asked の行）は聞き直さない
 （L-D26・S22）。無人の run で範囲を広げるだけの直しは聞かずに通し、足した・外した glob を widened で返す（L-G45）。無人の run で聞く
 はずの時は gates.passage（約束の欄が変わった項目の行は推しを持たないので止まる。L-D30）。
 案の直しが計画を作れなかった（replan の ok が偽）時は開かず進めない（fixed が held にする）。事前審査が諦めた・落ちた時は、その訳を
@@ -29,7 +29,7 @@ sys.path[:0] = [str(Path(__file__).resolve().parents[2] / ".shared"), str(Path(_
 import ports  # noqa: E402
 
 REPLAN = ("ok", "status", "reason", "plan", "fix_plan", "ripple", "round")
-REVIEW = ("ok", "status", "reason", "replan", "round", "holes", "blocks")
+REVIEW = ("ok", "status", "reason", "replan", "round", "holes", "blocks", "deviations")
 HEAD = "案の直しの承認ノード"
 RECORD = "run の置き場の gates/gate-replan.json"
 ITEM_HEAD = "## 人に聞く直した項目 {n}（単位 {units}）"   # 元 replan.GATE_ITEM_HEAD
@@ -93,6 +93,26 @@ def passed_before(before_fix, face: dict) -> bool:
     return any(isinstance(a, str) and a.startswith(head) for a in before_fix.get("asked") or [])
 
 
+def means_rows(deviations, ids: list, before_fix) -> list:
+    """案の直しの事前審査の外れの行のうち、直した項目（ids）の頼みの解き方の行の項目の文（gatemarks.means_item。推しの尾つき。計画
+    means-answers の 3.3 の 5）。修正前の承認ノードが continue で通した行と同じ鍵 (項目, M<n>) の行は、推しの文が書き直されていても
+    聞き直さない（鍵は聞いた文の頭 gatemarks.means_key から引く）。直さない項目の行は修正前の承認ノードで答え済みなので足さない"""
+    import answer
+    import gatemarks
+    revised = {int(i) for i in ids if str(i).isdigit()}
+    passed = set()
+    if isinstance(before_fix, dict) and before_fix.get("decision") in answer.GO_WORDS:
+        passed = {k for a in before_fix.get("asked") or [] if (k := gatemarks.means_key(a)) is not None}
+    out = []
+    for d in deviations if isinstance(deviations, list) else []:
+        if not (isinstance(d, dict) and d.get("source") == gatemarks.MEANS_KIND and d.get("item") in revised):
+            continue
+        text = gatemarks.means_item(d)
+        if gatemarks.means_key(text) not in passed:
+            out.append(text)
+    return list(dict.fromkeys(out))
+
+
 def policy_row(record: dict, folder: Path, answered: list) -> str:
     """方針の文書が始めの記録の固めた版から変わっていれば、その行（src.gates.change_row）。今の案の直しの承認ノードも、事前審査の
     _asked が方針の変化の行を足して開いた（元の boardview の collect）。人が前に continue で通した同じ文の行は聞き直さない
@@ -125,6 +145,7 @@ def ask(replan_got, review_got, old_plan: str, ids: list, conflicts: str, before
         facts = [{"item": i} for i in ids]
     else:
         facts = [r for r in review_got["replan"] or []]
+        rows += means_rows(review_got["deviations"], ids, before_fix)
     for r in gates.replan_asks(facts, unattended_run=unattended) if facts else []:
         ident = r.get("item") if isinstance(r, dict) else None
         old, new = item(old_fields, ident), item(new_fields, ident)
