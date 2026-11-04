@@ -31,7 +31,7 @@
   $ARTIFACTS_DIR/）。無ければ作る。run directory の根は返さない（4.3）
 - include_folders(path) -> list[str]: node の実行の記録の path から、place の <include の道> のフォルダの並び（place が使う引き方）
 - inside(rel, root) -> Path: 置き場 root からの相対パス rel の照らし（.. と先頭・末尾の / を拒む）。pointer の path の照らしと
-  child_pointer（ほかの run の置き場の中）が使う
+  line の gates が使う
 - pointer(path, form) -> dict: place の中のファイルを指す Archon の pointer {type: archon_artifact, run_id, path}。form（必須）は
   返す節の pointer の欄の description と同じ字で、中身を照らしてから指す（書き手が書いた時に読み手と同じ形で照らす）
 - returns(obj): node の返り（JSON 1 つを標準出力へ）
@@ -48,7 +48,7 @@
 - shared_cache() -> Path | None: run をまたぐ控えの根（Archon が project ごとに渡す STATE_DIR の下の works-factory/。渡されなければ None で、
   控えを使わない）
 - polyfill(name): 埋め（このファイルと同じ .shared/ の <name>.py。fence・childsweep・skip_value）を読んだモジュール。埋めは pack と
-  一緒に写し取られるので、run の中でもこのファイルの隣に在る。child_pointer は chain が .shared から直に import する
+  一緒に写し取られるので、run の中でもこのファイルの隣に在る
 
 import すると lib/ の置き場（環境変数 WORKS_FACTORY_ROOT の lib/。無ければこのファイルから辿った lib/）を sys.path の後ろに足す。
 Archon は run の始めに pack を写し取るので、run の中ではこのファイルから辿っても lib/ に届かない（起動の殻が根を渡す）。
@@ -126,7 +126,7 @@ def choice(raw, words) -> str:
 
 def inside(rel, root) -> Path:
     """置き場 root からの相対パス rel を、Archon が通す形に限って root の中のパスにする。形が違えば ValueError。Archon は / と \\ の両方で
-    区切って .. を拒み、末尾の / は pathlib が落とすが Archon の stat は ENOTDIR で拒む（child_pointer も子の run の置き場の root で使う）"""
+    区切って .. を拒み、末尾の / は pathlib が落とすが Archon の stat は ENOTDIR で拒む"""
     if (not isinstance(rel, str) or not rel or "\0" in rel or rel.startswith(("/", "\\")) or rel.endswith("/")
             or ".." in re.split(r"[\\/]", rel)):
         raise ValueError(f"pointer の path は run directory からの相対で、.. を持たず、/ で終わらない: {rel!r}")

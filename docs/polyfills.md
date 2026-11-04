@@ -126,24 +126,13 @@
 - 使う block と graph: judge・test-gate
 - 外す条件: ノードの `sandbox` が run ごとの値（cwd・共通の `.git`・worktree の根）を受ける版が出たら
 
-### P6 親が子の run のポインタを読めない
-
-- 穴: `workflow:` のノードが起こした子の run の出力のポインタ（`{type: archon_artifact, run_id, path}`）を、親の run の script が読む口が無い。pack の口 `workflows/.shared/ports.py` の `json`・`file` は自分の run のポインタしか読まない（ほかの run の pointer を拒む）。
-- 証拠:
-  - `packages/workflows/src/artifact-pointer.ts` の「A pointer naming any other run is rejected — a result may only point」（読む側は「in-workflow resolver, the terminal run record」で、読む時に symlink を辿った照らしは「not yet implemented (#3160)」）
-  - `packages/paths/src/run-paths.ts` の「return join(getStoragePathsForRoot(root).artifactsRoot, 'runs', workflowRunId);」（`getRunArtifactsDirForRoot`。子と親は同じ `runs/` の下に兄弟で並ぶ）
-- 上流（`2886e883` の後の dev の `2886e883d` まで）: 塞がっていない（止めた版が読んだ dev の頭。`a972888a..2886e883d` の 426 commit で、証拠の字は `run-paths.ts` へ移った。run の成果物を CLI で一覧して読む `archon workflow artifacts <run> [path] --json`（`b4e03788e`、#4653）が入ったが、親の run の中のノードが子の run のポインタを解く口ではない。埋めを置き換えられるかは確かめていない）。
-- 埋め: `workflows/.shared/child_pointer.py`。自分の place（`ARTIFACTS_DIR`）の隣の `<run_id>` を子の place とし、札の形・run の id の形（空・`..`・`/` を拒む）・相対のパスを照らして、symlink を辿った先が子の place の中に在ることを確かめてから返す。札の形と相対のパスの照らしは pack の口 `ports` の公開の口（`ports.inside`）を使う（#765 の組み込みで境 `boundary.py` から移した。`docs/design/integration.md` の 4.5-1）。周の鎖が直に import する（`ports.polyfill` を通さない）。試験は `tests/shared/test_child_pointer.py`。
-- 使う block と graph: 周の鎖（`workflows/chain/works-factory-chain.yaml` の `round-k-facts`）
-- 外す条件: Archon の run の中から、ほかの run のポインタを読む口が入ったら
-
 ### P7 fan_out の子の作業ツリーが子の終わりで消えない
 
 - 穴: `fan_out:` の子の run が作った作業ツリーと枝は、子が終わっても残る。
 - 証拠:
   - `packages/docs-web/src/content/docs/reference/workflow-language.md` の「It is **not** removed when the child finishes」（`archon complete <branch>` で消す）
 - 上流（`2886e883` の後の dev の `2886e883d` まで）: 一部が動いた。`a972888a..2886e883d` の 426 commit のうち `d850f3643`（#4915）で、終わった run が消すのは push 済みの自分の作業ツリーだけ。fix の子は push しないので、子の作業ツリーはたぶん残る（実測はまだ）。証拠の文は文書の分け直し（`961a23e19`、#4836）で `reference/workflow-language.md` へ移り、字は同じ。
-- 埋め: `workflows/.shared/childsweep.py`。メイングラフの最後のノードから呼ばれ、この run の子だけを選んで止めた Archon の `complete --force` で消す。試験は `tests/shared/test_childsweep.py`。
+- 埋め: `workflows/.shared/childsweep.py`。メイングラフの最後のノードから呼ばれ、この run の子だけを選んで止めた Archon の `complete --force` で消す。試験は `tests/shared/test_childsweep.py`。殻が run に置く Archon の頭の名 `CLI_ENV` とその読み `command_head`・出力の JSON の読み `last_json` は、周の鎖の `workflows/chain/src/reads.py` の `child_file`（P6 を外した後の子の run のファイルの読み）と殻（`bin/_lib/launcher.py`・`bin/_lib/runstop.py`・`bin/_lib/recordroot.py`）も使うので、この埋めを外す時はそれらの置き場を移す。
 - 使う block と graph: メイングラフ（`workflows/line/works-factory-line.yaml` の `sweep-children`）
 - 外す条件: 子の run が終わった時に、その作業ツリーと枝を Archon が自分で消す版が出たら
 
@@ -153,11 +142,11 @@
 - 証拠: ループの中の続きの振る舞いは、`tests/shared/test_archon_contract.py` の `ARCHON_ROWS` の行 `名指しの続き context: resume` が `packages/workflows/src/loader/dag-structure.ts` の字でも縛る。
   - `packages/docs-web/src/content/docs/reference/workflow-language.md` の「`archon workflow run` starts a run without a conversation, so its `persist_session` nodes start fresh on every invocation」「Cross-run persistence isn't wired for them in this release」「that completes before entry into the group」「It never continues an earlier iteration's branch」（CLI の別の run は毎回新しい会話で、`loop_group` に run をまたぐ持続は無い。ループの中で続けられるのは、ループの前のノードの会話（周をまたいで続く）と、同じ周の本体の上流のノードの会話（周ごとに分かれ、前の周の分は続かない）だけ）
   - `packages/docs-web/src/content/docs/guides/loop-nodes.md` の「A command or prompt in the body can continue a statically named pre-loop session」（ループの前の `command:`・`prompt:` のノードを名指せる。この文書の字はループの前のノードの場合だけを書いていて、同じ周の本体の上流のノードを名指す場合は上の `reference/workflow-language.md` の字と `loader/dag-structure.ts` の `checkResumeAncestry` が通す）
-- 上流（`2886e883` の後の dev の `2886e883d` まで）: 塞がっていない。`a972888a..2886e883d` の 426 commit のうち `8d8d4e9c0`（#4738）で、ループの本体のノードが、同じ周の本体の上流のノードの会話を続けられるようになった（周ごとに分かれる）。周・run・include をまたいで同じ役の会話を続ける物は無い。
+- 上流（`2886e883` の後の dev の `2886e883d` まで）: 塞がっていない。`a972888a..2886e883d` の 426 commit のうち `8d8d4e9c0`（#4738）で、ループの本体のノードが、同じ周の本体の上流のノードの会話を続けられるようになった（周ごとに分かれる）。周・run・include をまたいで同じ役の会話を続ける物は無い。2026-11-04 に、この口で減らせる所が無いかを確かめた: 名指しの続き（`context: {resume: <ノード>}`）の元は、同じグラフの `command:`・`prompt:`・`loop:` のノードに限られ（`packages/workflows/src/loader/dag-structure.ts` の `checkResumeAncestry` は include の展開の札を元に取らない）、工場で同じ役が 2 度起きる場所（block の出し直しのループ・report の `write-loop`・`docs/owner-decisions.md` の「再審・案の直し・範囲の相談の答えは新しい会話で回す」の 3 つの場面）は、どれも周をまたぐか別の include のノードの会話なので、この口は届かない。
 - 埋め: `lib/handoff.py`。引き継ぎのメモの型・頼み・前の周のノードに貼るセクション・控えを置く。
 - 使う block と graph: plan・report
 - 外す条件: 場合に分ける。
-  - 計画（plan）: `include` をまたぐか、CLI の別の run で同じノードの会話を続けられる版が出たら。外す前に、`docs/owner-decisions.md` の「計画の往復の周をまたぐ書き直し（#571。2026-10-15）」の行（前の周の会話を続けず新しい会話で始めると持ち主が選んだ）と、同じ文書の「再審・案の直し・範囲の相談の答えは新しい会話で回す」の行の訳（`d97d00ef` の `authoring-workflows.md` の「Addressable resume is not supported inside `loop_group` bodies」に頼っていて、`355f1867` の同じ所の「Inside a `loop_group` body, the source must complete before entry into the group」とはもう合わない）を持ち主に戻す。`docs/owner-decisions.md` はこの名簿からは書き換えない。
+  - 計画（plan）: `include` をまたぐか、CLI の別の run で同じノードの会話を続けられる版が出たら。外す前に、`docs/owner-decisions.md` の「計画の往復の周をまたぐ書き直し（#571。2026-10-15）」の行（前の周の会話を続けず新しい会話で始めると持ち主が選んだ）と、同じ文書の「再審・案の直し・範囲の相談の答えは新しい会話で回す」の行（訳は 2026-11-04 に `2886e883d` の事実に直した）を持ち主に戻す。`docs/owner-decisions.md` はこの名簿からは書き換えない。
   - 報告（report）の `write-loop`: `355f1867` から、ループの前に書き手の AI のノードを置けば（今の `write-loop` の前は `facts` の script だけ）書き手の会話をループの中で続けられるので、既に外せる候補。作り直し（`write-loop` を名指しの持ち主の会話に替えて報告の引き継ぎのメモを外すか）は #671 で確かめる。
 - 外す手順: 外す条件を満たしたら次を全部消し、役の会話を続ける形に替える。`lib/handoff.py` を import する物の全部（`grep -rn "import handoff" lib workflows tests`）も、取りこぼしの入口にする。
   - `lib/handoff.py` の全体と `lib/tests/test_handoff.py`。
@@ -236,6 +225,17 @@ Archon の穴でなく、Archon が決めてそうしている振る舞いに合
 - 外す条件: 見込みは無い（Archon が落ちたノードの出力を `if_skipped` に落とさないと決めている。上の証拠の文）。決めが変わって落ちたノードの出力を `if_skipped` の既定に落として読める版が出たら
 
 ## 外した
+
+### P6 親が子の run のポインタを読めない
+
+- 穴: `workflow:` のノードが起こした子の run の出力のポインタ（`{type: archon_artifact, run_id, path}`）を、親の run の script が読む口が無い。pack の口 `workflows/.shared/ports.py` の `json`・`file` は自分の run のポインタしか読まない（ほかの run の pointer を拒む）。
+- 証拠:
+  - `packages/workflows/src/artifact-pointer.ts` の「A pointer naming any other run is rejected — a result may only point」（読む側は「in-workflow resolver, the terminal run record」で、読む時に symlink を辿った照らしは「not yet implemented (#3160)」）
+  - `packages/paths/src/run-paths.ts` の「return join(getStoragePathsForRoot(root).artifactsRoot, 'runs', workflowRunId);」（`getRunArtifactsDirForRoot`。子と親は同じ `runs/` の下に兄弟で並ぶ）
+- 上流（`2886e883` の後の dev の `2886e883d` まで）: 塞がった（`b4e03788e`、#4653）。run の中のノードがほかの run のポインタを解く口ではないが、run の成果物を一覧して読む命令 `archon workflow artifacts <run> [path] --json` が入り、読む時に realpath で run の置き場の中かを照らす（`packages/cli/src/commands/workflow-artifacts.ts` の「One realpath containment check covers `..`, absolute-looking input and」）。script のノードは、殻が渡す Archon の頭（埋め P7 の `childsweep.CLI_ENV`）でこの命令を打てる。
+- 外した埋め: `workflows/.shared/child_pointer.py` と試験 `tests/shared/test_child_pointer.py`。2026-11-04 に外した。周の鎖の `round-k-facts`（`workflows/chain/scripts/round_facts.py`）は、子の札の先を `workflows/chain/src/reads.py` の `child_file` で読む。`child_file` は札の型と、命令の旗に読まれうる run の id とパスだけを照らし、run の id の解き・置き場の外へ出るパス（`..` も外を指す symlink も）・無いファイル・フォルダの拒みは Archon に任せる。本物の Archon での読みと拒みは `tests/blocks/chain/test_chain.py` の `ChildFileArchonCase` が照らす。自分の置き場の隣のフォルダを子の置き場とみなす読み（Archon の置き場の形への頼り）も一緒に消えた。
+- 使う block と graph: 周の鎖（`workflows/chain/works-factory-chain.yaml` の `round-k-facts`）
+- 外す条件: Archon の run の中から、ほかの run のポインタを読む口が入ったら
 
 ### P9 鍵を書かないノードにも既定の期限が当たる
 

@@ -1,6 +1,7 @@
 # verify-heavy: 段ごとの表の重厚が真で、head-depth が重厚を返す → 判定の裏取りが回る
 fixture:
   expect: completed
+  authored: succeeded
   reached:
   - ins
   - head-depth-run__finish

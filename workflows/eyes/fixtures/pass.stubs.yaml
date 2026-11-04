@@ -1,6 +1,7 @@
 # pass: 名指しの入力つきで、4 つの目と直した後の実測が通る
 fixture:
   expect: completed
+  authored: succeeded
   reached:
   - ins
   - structure-after__finish

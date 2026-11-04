@@ -1,6 +1,7 @@
 # world-offline: web: off でも世界の解の段は回り、判定まで進む
 fixture:
   expect: completed
+  authored: succeeded
   reached:
   - ins
   - head-depth-run__finish

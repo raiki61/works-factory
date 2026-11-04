@@ -3,6 +3,7 @@
 # closed で止め、round-3 は飛ぶ。
 fixture:
   expect: "completed"
+  authored: succeeded
   inputs: {"rounds": "3", "request": "request.json"}
   reached: ["chain-start", "round-1", "round-1-commit", "round-1-facts", "round-1-decide", "round-2", "round-2-commit", "round-2-facts", "round-2-decide", "final-diff", "result"]
 exec-code: true
