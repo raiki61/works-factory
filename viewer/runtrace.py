@@ -94,7 +94,8 @@ def timed(built: dict) -> int:
 
 
 def read(target: str, wanted: str, user: dict, here: Path) -> dict:
-    """trace.build に渡すデータ（run と会話の読みと段の集計）"""
+    """trace.build に渡すデータ（run と会話の読みと段の集計）。作りは run の写しの中の pack から読み、写しが無ければ今の木から読む。
+    どちらから読んだかを shape_from（"run-copy" か "tree"）に持つ（runread.copy の写しの置き場が本物の Archon と合うかの照らしの手がかり）"""
     texts = {}
 
     def keep(text: str) -> str:
@@ -116,7 +117,8 @@ def read(target: str, wanted: str, user: dict, here: Path) -> dict:
     copy = Path(run["copy"]) / PACK["pack"] if run["copy"] else None
     pack = copy if copy is not None and copy.is_dir() else TREE
     run["sessions"] = session.collect(run, home / isolate.DIRS["CLAUDE_CONFIG_DIR"] / "projects", keep)
-    data = {"shape": shape.read(pack, PACK["name_prefix"], ROOT / "docs" / "design"), "run": run, "texts": texts}
+    data = {"shape": shape.read(pack, PACK["name_prefix"], ROOT / "docs" / "design"), "shape_from": "run-copy" if pack == copy else "tree",
+            "run": run, "texts": texts}
     stages.attach(data)
     return data
 

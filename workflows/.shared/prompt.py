@@ -5,7 +5,7 @@
   （YAML の systemPrompt: に文を書かない。README の 13 章）。パスも文も受けない
 - compose(block, node_id, values, when=None, *, shared_root=None) -> render の返り: render と同じ組み立てを、根を受けて回す口。block は
   block のフォルダ、shared_root は共通の断片の根（prompts/<name>.md を持つフォルダ。None なら pack の .shared）。render と emit も
-  この口を通る。工場の外の見る道具が、run の写しの md や日本語の写しの md の木で、下の値の記録から組み直すのに使う
+  この口を通る。値の記録から組み直す工場の外の物は今は無い（読み手だった見る道具のページは持ち主の決め run-trace-otlp の 6 で捨てた）
 - emit(node_id, values, when, n) -> render の返り: 組んだ物を place の <node_id>-prompt-<n>.md（と <node_id>-system-<n>.md）に書き、
   prep の返りの形で返す。AI の node の YAML は prompt: "$<prep>.output.prompt"（と systemPrompt: "$<prep>.output.system"）だけ。
   隣に <node_id>-viewer-values-<n>.json も書く（下の「見る道具のための値の記録」）
@@ -31,13 +31,13 @@ md の書き方:
 
 見る道具のための値の記録（持ち主の決め prompt-values-for-viewer）:
 - emit が place に書く <node_id>-viewer-values-<n>.json は、工場の外の見る道具（run で LLM に入った英語の指示を、日本語の md の写しで
-  同じ形に組み直して人に見せる物）のための記録で、工場の中では読まない。LLM に渡す指示の字は変えない（日本語は人が読む射影で、
-  LLM には英語だけを渡す）
+  同じ形に組み直して人に見せる物）のために置いた記録で、工場の中では読まない。読む物は今は無い（読み手だった見る道具のページは持ち主の決め run-trace-otlp の 6 で捨てた）。
+  LLM に渡す指示の字は変えない（日本語は人が読む射影で、LLM には英語だけを渡す）
 - 形: {"node": node_id, "block": 呼んだ block のフォルダの名, "md": {"prompt": "prompts/<node_id>.md", "system"?: "prompts/<node_id>.system.md"}
   （block からの相対パス。組んだ欄ごと）, "values": 差し込み口の値（字か整数）, "when": 段落の選び（when=None は {}）}。
   この values と when で組み直すと、同じ <node_id>-prompt-<n>.md（と system）が字のまま組み上がる
 - run の置き場を使い直すと、前の試みの <node_id>-viewer-values-<n>.json が残りうる。今の run の記録は、同じ <n> の
-  <node_id>-prompt-<n>.md が在る物だけ。見る道具は prompt の側から引く
+  <node_id>-prompt-<n>.md が在る物だけ。読む物は prompt の側から引く
 
 落ちる時（PromptError。ValueError の子）: md か断片が無い・断片が自分を差し込む・値の無い差し込み口が在る（選ばれない段落の中も、
 system の md の中も数える）・使われない値を渡された・when の名がどの md の if にも無い・md の if の名が when に無い・if と end が
@@ -57,7 +57,7 @@ NODE_ID = re.compile(r"[a-z0-9][a-z0-9-]*")
 OPEN, CLOSE = "\x00", "\x01"
 LANG_DEFAULT = "lang-default"   # 共通の断片の名（lib/rolekit.py の LANG_DEFAULT と同じ意味の英語の文）
 SYSTEM = ".system"
-VIEWER_VALUES = "viewer-values"   # 工場の外の見る道具のための値の記録 <node_id>-viewer-values-<n>.json（工場の中では読まない）
+VIEWER_VALUES = "viewer-values"   # 工場の外の見る道具のために置いた値の記録 <node_id>-viewer-values-<n>.json（工場の中では読まない。読む物は今は無い）
 
 
 class PromptError(ValueError):

@@ -11,9 +11,6 @@ dependencies = [
 bench = [
     "harbor==0.24.0",  # tests/calibration/swepro_agent.py。運び役が uv run --isolated --extra bench で入れる
 ]
-viewer = [
-    "playwright==1.64.1",  # tests/viewer/test_page_ui.py（見る道具のページを画面の無い Chromium で押す）。無ければ試験は名前つきで見送る
-]
 trace = [
     "opentelemetry-sdk==1.45.2",  # tests/viewer/test_otlp.py と、見る道具の run の記録のトレースの送り（--extra trace で回す）。span を組む
     "opentelemetry-exporter-otlp-proto-http==1.45.2",  # 同じ送りの OTLP/HTTP の protobuf
