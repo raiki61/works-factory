@@ -8,6 +8,7 @@ docs/design/test-double-fidelity.md の型）。
 - 作りは run の写しから読む（runread.copy が指す写しの中の pack の置き場が、本物の Archon の置き方と合う）
 - include の中のノードの出来事が、外の graph から入る道（通った include のノード）の token を持つ
 - 落ちたノードの誤りの字が出来事に在る
+- 名指さずに開いた一番新しい run が、落ちた状態で読める
 - 承認ノードで止まった run は待ちを出し、答えが入って次へ進む前の間（Archon は答えを run の metadata の wait に書くだけで、
   状態は paused のまま node_completed も書かない。Archon の runAttention はこの間を待ちに数えない）と、待ちのまま止めた後（Archon は
   node_completed を書かず、run を cancelled にする）は、どちらも出さない。答えだけを入れた間は、Archon の CLI がすぐ次へ進めて残らないので、

@@ -50,8 +50,8 @@ LIVE = ("pending", "running", "paused")
 # 答えを待つ run の状態。待ちはこの状態の run だけに出す（止めた・放棄した run は node_completed を書かずに終わる。
 # packages/core/src/operations/workflow-operations.ts の resolveAndCancelApprovalGate・abandon）
 PAUSED = "paused"
-# 落ちた run の状態。流れの集計（src/stages.py）が止まった段を落ちた出来事から引き、落ちの訳もこの状態の run だけに出す（落ちた後に
-# 起き直して終わった run は workflow_failed の行を残す。packages/workflows/src/dag-resume-snapshot.ts の resuming a failed run）
+# 落ちた状態。run が落ちた時刻（FAILED_EVENT）で閉じた走り中の出来事を、この状態にする（run と _Reader._fallen。落ちた後に
+# 起き直して終わった run も workflow_failed の行を残す。packages/workflows/src/dag-resume-snapshot.ts の resuming a failed run）
 FAILED = "failed"
 # run の metadata の欄（子の run を起こしたノードは packages/workflows/src/run-admission.ts、費用は packages/workflows/src/schemas/run-usage.ts）
 PARENT_NODE = "parent_node_id"
@@ -79,7 +79,7 @@ AI_KINDS = ("agent", "loop")
 WAIT_NODE = "wait"
 LOOP_GROUP = "loop_group"
 GROUP_KINDS = (LOOP_GROUP, "compose_fan_out", "workflow")
-# DB の出来事の型（ノードの出力と、run の落ちの訳。packages/workflows/src/event-emitter.ts）
+# DB の出来事の型（ノードの出力と、run の落ち。落ちは時刻だけを読み、出来事の閉じと状態に使う。packages/workflows/src/event-emitter.ts）
 OUTPUT_EVENT = "node_completed"
 NODE_OUTPUT = "node_output"
 FAILED_EVENT = "workflow_failed"
@@ -104,14 +104,14 @@ UNREAD_ROWS = {
     "workflow_start": "run の始めの印。始めの時刻は DB の run の行から読む（行の時刻は起き直しの時刻として RESTART_ROWS で拾う）",
     "workflow_resume": "resume の境の印。ノードの出来事は resume の前と後の行を同じに読む（行の時刻は起き直しの時刻として RESTART_ROWS で拾う）",
     "workflow_complete": "run の終わりの印。状態・終わりの時刻・費用は DB の run の行から読む",
-    "workflow_error": "run の落ちの印。落ちの訳は DB の workflow_failed から読む",
+    "workflow_error": "run の落ちの印。落ちの時刻は DB の workflow_failed から読み、落ちの訳は今トレースに載せない",
     "watchdog_reset": "期限の見張りを延ばした印で、中身を持たない",
     "assistant": "古い記録だけの型（provider_event に替わった）",
     "tool": "古い記録だけの型（provider_event に替わった）",
     "validation": "古い記録だけの型（書く所が消えた）",
     "worktree_setup_started": "作業ツリーの用意の始めで、ノードの出来事でない",
     "worktree_setup_completed": "作業ツリーの用意の終わりで、ノードの出来事でない",
-    "worktree_setup_failed": "作業ツリーの用意の落ちで、run の落ちの訳は DB の workflow_failed から読む",
+    "worktree_setup_failed": "作業ツリーの用意の落ちで、ノードの出来事でない（落ちの訳は今トレースに載せない）",
 }
 # 読まない型のうち、時刻だけを起き直しの時刻として拾う行（Archon は起動のたびにノードの前にどちらかを書く。packages/workflows/src/
 # executor.ts の logWorkflowResume・logWorkflowStart。DB の秒までの落ちと同じ秒の始めが、落ちの前か後かを分ける。_since）
