@@ -5,7 +5,8 @@
 - パスは、根の直下のフォルダの名（`.` で始まる物を除く。名の表は持たず、根を読んで決める）で始まり `/` が続く字の並び。
   前が英数字・`.`・`/`・`-` の所は別の語の途中なので数えない（`src/lib/x.py` の `lib/` など）。
 - 在るとは、パスそのもの・`.py` を足した物（モジュールの名 `lib/rolekit`）・最後の段の `.` の前に `.py` を足した物
-  （モジュールの中の名 `lib/reads.collect`・`tests/bin/hermetic.child_env`）のどれかが在ること。末の `.` と `/` は文の区切りとして外す。
+  （モジュールの中の名 `lib/reads.collect`・`tests/bin/hermetic.child_env`）のどれかが在ること。
+  最後の段の `.` の前と同じ名のフォルダが在るだけでは在ると読まない（`docs/design/` が在っても `docs/design.md` は無い）。末の `.` と `/` は文の区切りとして外す。
 - 字に `*`・`<`・`>`・`{`・`}` を含む物は型（`workflows/<block>/`・`lib/python*/`）で、1 つのファイルを指さないので数えない。
 - 許すパスの表は持たない（憲法 6）。わざと無いパスを書く例（対象のリポジトリの例の `lib/x.py`、fixture の偽の対象のパス）は、
   根の直下のフォルダの名で始まらない形に書く。消えた物を語る時は、パスでなく名で書く（どこに在ったかは git の履歴が持つ）。
@@ -48,7 +49,7 @@ def _exists(root: pathlib.Path, rel: str) -> bool:
         return True
     folder, _, last = rel.rpartition("/")
     head = last.partition(".")[0]
-    return bool(head) and ((root / folder / f"{head}.py").exists() or (root / folder / head).is_dir())
+    return bool(head) and (root / folder / f"{head}.py").exists()
 
 
 def problems(root: pathlib.Path) -> list[str]:
@@ -94,6 +95,17 @@ class PathsExistTest(unittest.TestCase):
         }
         with tree(files) as root:
             self.assertEqual(problems(root), [])
+
+    def test_folder_of_same_name_does_not_make_missing_file_present(self):
+        files = {
+            "lib/a.py": "# workflows/fix.yaml・docs/design.md・bin/kit.py\n",
+            "workflows/fix/x.yaml": "",
+            "docs/design/x.md": "",
+            "bin/kit/x.py": "",
+        }
+        with tree(files) as root:
+            self.assertEqual(problems(root), ["lib/a.py:1: workflows/fix.yaml", "lib/a.py:1: docs/design.md",
+                                              "lib/a.py:1: bin/kit.py"])
 
     def test_tests_and_borrow_of_lib_are_not_scanned(self):
         files = {"lib/tests/test_a.py": "# docs/gone.md\n", "lib/borrow/x.md": "docs/gone.md\n", "docs/here.md": ""}
