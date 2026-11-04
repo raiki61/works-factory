@@ -391,7 +391,7 @@ def copy(output_root: Path, run_id: str) -> Path:
     return output_root / SOURCE / RUNS_DIR / run_id / PROJECT_SCOPE / WORKFLOW_FOLDER
 
 
-# where の頭の印（ページに出す字）
+# where の頭の印（パスの run ごとに違う頭に替える字）
 PLACE_MARK = "（run の置き場）/"
 COPY_MARK = "（run の写し）/"
 
@@ -642,7 +642,7 @@ class _Reader:
             # 置き場に無いファイル（消した・書かなかった）は前から読まずに進む
             return
         except OSError:
-            # 長すぎる path・読む権限の無いファイルなど。ページを作れずに落ちず、読めなかった物に数える
+            # 長すぎる path・読む権限の無いファイルなど。読みを止めずに落ちず、読めなかった物に数える
             self._count(UNREADABLE)
 
     def restarts(self, rid: str) -> list[str]:

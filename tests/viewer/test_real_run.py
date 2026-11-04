@@ -5,6 +5,7 @@
 docs/design/test-double-fidelity.md の型）。
 
 - 読めなかった行（知らない型の行・ノードに当たらない道具の出来事）が 0、記録の無い run が 0
+- 作りは run の写しから読む（runread.copy が指す写しの中の pack の置き場が、本物の Archon の置き方と合う）
 - run の一覧に、その run が終わりの状態で 1 行在る
 - include の中のノードの出来事が、外の graph から入る道（通った include のノード）の token を持つ
 - 落ちたノードの誤りの字が出来事に在る
@@ -167,6 +168,8 @@ class RealRunCase(unittest.TestCase):
         run = data["run"]
         self.assertIsNotNone(run, f"{done.stdout}{done.stderr}")
         self.assertEqual((run["unread"], run["missing_logs"]), ({}, []))
+        # 作りは run の写しから読む（runread.copy の写しの中の pack の置き場のパスが本物の Archon と合う）
+        self.assertEqual(data["shape_from"], "run-copy")
         self.assertEqual([(r["id"], r["status"]) for r in data["runs"]], [(run["id"], "failed"), (again["run"]["id"], "completed"), (paused["run"]["id"], "cancelled")])
         paths = {"/".join(e["tokens"]) for e in run["events"]}
         self.assertLessEqual({"make", "leaf/rounds/step", "leaf/talk", "boom"}, paths)
