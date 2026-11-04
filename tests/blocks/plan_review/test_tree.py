@@ -435,6 +435,17 @@ class TreeCase(TreeBase):
         self.assertEqual([x["key"] for x in f.read("review.json")["faces"]], [MEAN_BLOCK["key"]], "faces は下請けの答えのファイルの物")
         self.assertEqual(f.carry()["outcome"], self.converge.AGAIN)
 
+    def test_stuck_push_quotes_items_in_the_machines_characters(self):
+        """止まった時の推しの note に項目を引く字は、line の照らし（rounds.uncited）と同じ converge.ITEM_CITE を差し込み口 {item_cite}
+        で受けて「…」に入れ、どの言語の note でも字のまま書けと言う。指示の md が別の字（前は "item n"）を名指すと、無人の run は md の
+        とおりに書いた推しを引用の欠けで捨てる"""
+        text = self.prepped()
+        para = text[text.index("The recommendation when the back-and-forth stops"):]
+        para = para[:para.index("\n")]
+        self.assertIn(f"「{self.converge.ITEM_CITE.format(n='n')}」 with n replaced by the item's number", para)
+        self.assertIn("whatever language the rest of the note is in", para)
+        self.assertNotIn('"item n"', para)
+
     def test_bundler_stuck_push_rides_on_the_pass_row(self):
         """元 test_bundler_stuck_push_rides_on_the_pass_row: 束ね役の指示はまとめの返し方で、一番上の止まった時の推しの欄の名
         （converge.STUCK_PUSH）と推しの形と、block の項目か保留の項目の節が在る往復は頭の決まりのとおり書くこと、書く前に下請けの答えの

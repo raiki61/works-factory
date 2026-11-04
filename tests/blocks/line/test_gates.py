@@ -114,6 +114,36 @@ class AskBeforeFixCase(unittest.TestCase):
         self.assertEqual(len(both["asked"]), 1)
         self.assertTrue(both["asked"][0].startswith(self.gm.DESIGN_ONLY_ITEM))
 
+    def stuck_doc(self, note: str, answer: str = "continue") -> dict:
+        """項目 1 が開いたまま key-a1 が続いて止まった往復の記録（最後の往復の行に、事前審査の役の通す推し note）"""
+        conv = __import__("converge")
+        row = {"blocks": ["key-a1"], "faces": [{"key": "key-a1", "kind": "regression", "where": "a.py:1", "why": "w"}],
+               "items": [{"n": 1, "state": conv.OPEN, "blocks": ["key-a1"]}]}
+        return {"outcome": conv.PERSISTED, "passes": [
+            {"pass": 1, **row, "persists": []},
+            {"pass": 2, **row, "persists": ["key-a1"], "push": {"answer": answer, "note": note, "why": "端の穴だけが残った"}}]}
+
+    def stalled_unattended(self, note: str, answer: str = "continue") -> dict:
+        return self.ask(rounds(ok=False, stalled=True), unattended=True, stuck_reason="同じ block が続いた",
+                        record_doc=self.stuck_doc(note, answer))
+
+    def test_unattended_stuck_push_quoting_the_item_as_the_prompt_says_goes(self):
+        """止まった案の推しの note が、事前審査の指示の md に渡す項目の引用の字（converge.ITEM_CITE。md の差し込み口 {item_cite}）で
+        項目を引けば、無人の run は推しで修正へ進む。指示の字と照らしの字が食い違うと（前は md が "item n"・照らしが『項目 n』）推しは捨てられる"""
+        cite = __import__("converge").ITEM_CITE.format(n=1)
+        out = self.stalled_unattended(f"key-a1 は {cite} の修正の中で片付ける")
+        self.assertEqual((out["go"], out["stop_reason"]), (True, ""), out)
+
+    def test_unattended_stuck_push_dropped_for_a_missing_quote_says_so(self):
+        """通す推しを引用の欠けだけで捨てた時は、止めた行（報告と次の依頼の下書きへ行く）に捨てた訳と欠けた字を出し、黙って落とさない"""
+        out = self.stalled_unattended("key-a1 は item 1 の修正の中で片付ける")
+        self.assertEqual((out["go"], out["stop_reason"]), (False, __import__("stopby").NEEDS_HUMAN))
+        cite = __import__("converge").ITEM_CITE.format(n=1)
+        self.assertEqual(out["deferred"], [f"{self.gm.STUCK_ITEM}。理由: 同じ block が続いた" + self.g.CITE_DROPPED.format(missing=cite)])
+        self.assertIn(f"推しは在ったが引用が欠けた（欠け: {cite}）", out["deferred"][0])
+        stopped = self.stalled_unattended("key-a1 は直しの中で片付かない", answer="stop")
+        self.assertNotIn("引用が欠けた", stopped["deferred"][0], "止める推しは引用の欠けで捨てた物でない")
+
     def test_unattended_stops_where_the_gate_would_open(self):
         out = self.ask(rounds(asks=[ask_row()]), unattended=True)
         self.assertEqual((out["open"], out["go"], out["stop_reason"]), (False, False, __import__("stopby").NEEDS_HUMAN))

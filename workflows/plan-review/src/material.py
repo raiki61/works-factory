@@ -629,6 +629,7 @@ SLOTS = {
     "recommend": lambda c: gatemarks.RECOMMEND,
     "recommend_shape": lambda c: _recommend_shape(),
     "stuck_push": lambda c: converge.STUCK_PUSH,
+    "item_cite": lambda c: converge.ITEM_CITE.format(n="n"),
     "policy_doc_fence": lambda c: policy.POLICY_DOC_FENCE,
     "machine_key": lambda c: planmarks.MACHINE_KEY,
     "minimal_head": lambda c: files.MINIMAL_HEAD,
