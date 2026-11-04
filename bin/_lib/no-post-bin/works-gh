@@ -10,7 +10,7 @@
   -f・-F・--input の 1 つで黙って POST になるので、拒む旗を数えず、この形の字だけを通す。{owner} の埋めも通さない）
 読むホスト（`-R HOST/…`・`--hostname`・URL の引数）は github.com・`<名>.ghe.com`・GH_HOST・GH_REPO のホストだけ（gh は
 GH_ENTERPRISE_TOKEN を github.com の外のどのホストにも付けるので、本文に在る別のホストのリンクを役が読んでトークンを送る事故を塞ぐ）。
-api の外の形では `-w`・`--web`（ブラウザを開く）を拒む。書く命令・`auth token` は表に無いので拒む。本物の gh は PATH の上の最初の gh（この口の置き場は飛ばす）。bin/ の起動の run では
+api の外の形では `-w`・`--web`（ブラウザを開く）を拒む（短い旗の束 `-wL5` の中の w も）。書く命令・`auth token` は表に無いので拒む。本物の gh は PATH の上の最初の gh（この口の置き場は飛ばす）。bin/ の起動の run では
 それが利用者のログインを継ぐ口（bin/_lib/hostgh.py が書く）。本物の gh のパスを env に置かない・断りの文に出さない（役がその値で本物の gh を
 打つ道を作らない。事故の柵で、堅い境ではない）。
 
@@ -114,7 +114,8 @@ def form_error(argv):
     if len(argv) < 2 or (argv[0], argv[1]) not in ALLOWED:
         return " ".join(argv[:2]) or "引数が無い"
     rest = argv[2:]
-    if any(a in ("-w", "--web") or a.startswith("--web=") for a in rest):
+    # 短い旗の束（-wL5 は pflag で -w と -L 5）の中の w も拒む。値を取る旗の後ろの w（-Ro/www）も拒むが、それは分けて書けば通る
+    if any(a == "--web" or a.startswith("--web=") or (a.startswith("-") and not a.startswith("--") and "w" in a) for a in rest):
         return "--web は使わない"
     url = next((a for a in rest if "://" in a and not host_ok(url_host(a))), None)
     if url:

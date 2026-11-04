@@ -1,8 +1,8 @@
 """読むだけの gh の口（bin/_lib/no-post-bin/works-gh）の検査。
 
-- 通すのは pr list・pr view・pr diff・issue view（-R 付き）と repo view <OWNER/REPO>、api は PR の行コメントを読む 1 つの形
+- 通すのは pr list・pr view・pr diff・issue list・issue view（-R 付き）と repo view <OWNER/REPO>、api は PR の行コメントを読む 1 つの形
   （[--paginate] [--hostname <host>] repos/<OWNER>/<REPO>/pulls/<番号>/comments）だけ。ほかの形（書く命令・api の -X・-f・--input
-  など・auth token）と -w・--web は本物の gh を起こさずに 2
+  など・auth token）と -w・--web（短い旗の束の中の w も。-wL5 は -w と -L 5）は本物の gh を起こさずに 2
 - -R・--repo は 1 つだけ（gh は最後の値を使うので、2 つ在ると照らした値と読む先が食い違う）
 - 読むホストは github.com・<名>.ghe.com・GH_HOST・GH_REPO のホストだけ（-R・--hostname・URL の引数。gh は GH_ENTERPRISE_TOKEN を
   github.com の外のどのホストにも付けるので、ほかのホストへトークンを送らない）
@@ -56,7 +56,8 @@ REFUSED = (["pr", "create", "-R", "o/r"], ["pr", "merge", "1", "-R", "o/r"], ["p
            ["api", "--hostname", "evil.example", COMMENTS], ["pr", "view", "1", "-R", "evil.example/o/r"],
            ["repo", "view", "evil.example/o/r"], ["pr", "view", "https://evil.example/o/r/pull/1", "-R", "o/r"],
            ["pr", "view", "1", "-R", "o/r", "-cR", "x/y"], ["pr", "view", "1", "-R=o/r", "-cRx/y"],
-           ["pr", "view", "http://[x", "-R", "o/r"])
+           ["pr", "view", "http://[x", "-R", "o/r"], ["issue", "list", "-R", "o/r", "-wL5"],
+           ["pr", "list", "-R", "o/r", "-dw"], ["issue", "list", "-wRo/r"])
 # GH_HOST か GH_REPO が名指した時だけ通るホスト
 CORP = (["api", "--hostname=ghe.corp.example", COMMENTS], ["pr", "view", "1", "-R", "ghe.corp.example/o/r"],
         ["issue", "view", "1", "-R", "GHE.corp.example/o/r"])
