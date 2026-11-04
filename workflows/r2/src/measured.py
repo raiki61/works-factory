@@ -31,7 +31,7 @@ def named_scope(repo, rev: str, changed, cache_dir, stages) -> dict | None:
     """変わらない赤でない行（TRIMMED）のうち名を貼るテストの範囲 {modules, tests}。modules は、累積差分で変わったファイル changed
     （除くパスの頭の下を除いた後。Archon が作業ツリーに写す pack の置き場を起点に入れない）と、そこから地図（impact.map の seeds）が
     届くと言うテストのファイル（言及の辺の上限 impact.MENTION_HOPS の先で地図が名だけを返す物も）と、TDD の記録（port tdd の値
-    stages）の単位が名指したテストのファイル（test_files）の名の幹（impact._mod）、tests はその単位が名指したテスト。changed が
+    stages）の単位が名指したテスト（tests）のファイルとテストのファイル（test_files）の名の幹（fix の _named_files と同じ）（impact._mod）、tests はその単位が名指したテスト。changed が
     None（累積差分が取れない）か空（起点が無く地図が何にも届かない）・地図が引けない・all_tests_required の時は None（全部の名を貼る）"""
     if not changed:
         return None
@@ -43,7 +43,8 @@ def named_scope(repo, rev: str, changed, cache_dir, stages) -> dict | None:
         return None
     units = [u for stage in stages or [] if isinstance(stage, list) for g in stage if isinstance(g, dict)
              for u in g.get("units") or [] if isinstance(u, dict)]
-    named = [f for u in units for f in u.get("test_files") or [] if isinstance(f, str)]
+    named = [f.partition("::")[0] for u in units for f in [*(u.get("tests") or []), *(u.get("test_files") or [])]
+             if isinstance(f, str) and f.strip()]
     files = (*m["seeds"]["files"], *m["tests"], *m["not_seen"]["tests_beyond_mention_hops"], *named)
     return {"modules": {impact._mod(f) for f in files},
             "tests": [t for u in units for t in u.get("tests") or [] if isinstance(t, str)]}

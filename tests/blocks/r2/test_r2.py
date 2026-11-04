@@ -146,17 +146,13 @@ class CompareRoadCase(_RepoCase):
 
     def test_unrelated_unchanged_tests_become_a_count(self):
         """変更したファイルから地図で届かないテストのファイルの緑→緑・飛ばし→飛ばしは名を貼らず件数の 1 行。結末が変わった行と
-        赤→赤は届かなくても全部貼る。TDD の記録が名指したテストは届かなくても貼る"""
+        赤→赤は届かなくても全部貼る"""
         self._stats_repo()
-        tdd = [[{"group_id": "g1", "ran": True, "reason": "", "suite": "", "reused": {},
-                 "units": [{"unit_key": "u1", "route": "tdd", "red": "ok", "green": "ok",
-                            "tests": ["tests/test_other.py::TestOther::test_b"]}]}]]
-        self.intake(test_outcomes=dump(self._outcomes()), tdd=dump(tdd))
+        self.intake(test_outcomes=dump(self._outcomes()))
         outcomes = self.compare()["prompt"].partition("### TDD loop records")[0]
-        self.assertNotIn("TestOther::test_a`", outcomes)
-        self.assertNotIn("TestOther::test_skip`", outcomes)
-        self.assertIn("  - `tests.test_other.TestOther::test_b`\n", outcomes)
-        self.assertIn("  - ほかに 1 件は名を貼っていない（変更したファイルから地図で届かないテストのファイルの物）", outcomes)
+        for k in (*self.OTHER, "tests.test_other.TestOther::test_skip"):
+            self.assertNotIn(f"{k}`", outcomes)
+        self.assertIn("  - ほかに 2 件は名を貼っていない（変更したファイルから地図で届かないテストのファイルの物）", outcomes)
         self.assertIn("- 飛ばし→飛ばし: 1 件\n  - ほかに 1 件は名を貼っていない", outcomes)
         self.assertIn("  - `tests.test_other.TestOther::test_red`（base failure・最後 failure: boom）", outcomes)
         self.assertIn("  - `tests.test_other.TestOther::test_fixed`（base failure: was）", outcomes)
@@ -228,6 +224,19 @@ class CompareRoadCase(_RepoCase):
         outcomes = self.compare()["prompt"].partition("### TDD loop records")[0]
         for k in self.OTHER:
             self.assertIn(f"  - `{k}`\n", outcomes)
+
+    def test_tests_in_the_files_of_the_tdd_tests_are_named(self):
+        """TDD の記録の単位が tests に名指したテストのファイルの物は、名指されていないテストも地図が届かなくても緑→緑の名を貼る
+        （fix の _named_files と同じく tests のファイルも範囲に入れる）"""
+        self._stats_repo()
+        tdd = [[{"group_id": "g1", "ran": True, "reason": "", "suite": "", "reused": {},
+                 "units": [{"unit_key": "u1", "route": "tdd", "red": "ok", "green": "ok",
+                            "tests": ["tests/test_other.py::TestOther::test_b"]}]}]]
+        self.intake(test_outcomes=dump(self._outcomes()), tdd=dump(tdd))
+        outcomes = self.compare()["prompt"].partition("### TDD loop records")[0]
+        for k in (*self.OTHER, "tests.test_other.TestOther::test_skip"):
+            self.assertIn(f"  - `{k}`\n", outcomes)
+        self.assertNotIn("件は名を貼っていない（", outcomes)
 
     def test_all_names_are_pasted_when_the_cumulative_diff_is_empty(self):
         """累積差分が本当に空（差分は取れたが変わったファイルが無い）なら、地図の起点が無く関わりを決められないので全部の名を貼る
