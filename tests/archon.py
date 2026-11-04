@@ -32,6 +32,7 @@ import pathlib
 import re
 import shutil
 import subprocess
+import sys
 import tempfile
 import unittest
 from collections.abc import Callable, Iterable, Iterator
@@ -184,6 +185,33 @@ def dry_run_bodies(placed: pathlib.Path) -> list[str]:
         if changed:
             path.write_text(yaml.safe_dump(doc, allow_unicode=True, sort_keys=False), encoding="utf-8")
     return out
+
+
+# Archon は run の頭と resume の頭で、claude を SDK で起こしてログインを確かめる（packages/providers/src/claude/native-auth.ts の
+# checkClaudeNativeAuth。初めの取り決め initialize の返事の account を読み、問いは送らずに閉じる）。AI のノードを持つが走らせない
+# 試験は、この偽を CLAUDE_BIN_PATH で渡す。偽は initialize にログイン済みの account を返すだけで、問い（type: user）には答えない
+LOGGED_IN = """#!{python}
+import json, sys
+if sys.argv[1:3] == ["plugin", "list"]:
+    print("[]")
+    sys.exit(0)
+for line in sys.stdin:
+    msg = json.loads(line)
+    if msg.get("type") == "control_request":
+        answer = {{"account": {{"subscriptionType": "stub"}}}} if msg["request"].get("subtype") == "initialize" else {{}}
+        print(json.dumps({{"type": "control_response",
+                          "response": {{"subtype": "success", "request_id": msg["request_id"], "response": answer}}}}), flush=True)
+    elif msg.get("type") == "user":
+        sys.exit("ログインの確かめだけの偽の claude に問いが来た")
+"""
+
+
+def logged_in_claude(folder: pathlib.Path) -> pathlib.Path:
+    """ログインの確かめだけを通す偽の claude を folder に書き、そのパスを返す（CLAUDE_BIN_PATH に渡す）"""
+    stub = folder / "claude"
+    stub.write_text(LOGGED_IN.format(python=sys.executable), encoding="utf-8")
+    stub.chmod(0o755)
+    return stub
 
 
 def archon(cwd: pathlib.Path, *args: str, aliases: bool = True, **env: str | None) -> subprocess.CompletedProcess:

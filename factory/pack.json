@@ -1,6 +1,6 @@
 {
   "repository": "https://github.com/coleam00/Archon",
-  "integration_revision_required": "a972888a7a30a669a3a771e7caef512197de6ac4",
+  "integration_revision_required": "2886e883d67ad422068bdd0a1c4d95709a8a6de9",
   "description": "Pinned workflow-only SDLC source with grounded intake, reviewed delivery and scoped validation reuse. Factory remains a thin consumer; workflow gates own decisions and scheduling remains external.",
   "source_directory": ".archon/workflows/sdlc",
   "entries": {

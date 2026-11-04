@@ -20,7 +20,7 @@ nodes:
     workflow: works-factory-groups-child
 """
 CHILD = f"""name: works-factory-groups-child
-description: 関所で止まる子。AI の節は走らない
+description: 関所で止まる子。AI のノードは走らない
 nodes:
   - id: first
     bash: echo first
@@ -50,20 +50,21 @@ class RunGroupsCase(unittest.TestCase):
                 (src / name).mkdir(parents=True)
                 (src / name / f"works-factory-{name}.yaml").write_text(text, encoding="utf-8")
             with archon.tree(["groups-parent", "groups-child"], workflows=src) as root:
+                self.claude = str(archon.logged_in_claude(pathlib.Path(tmp)))
                 (root / ".archon" / "config.yaml").write_text(
                     f"aliases:\n  '{GROUP}': {{provider: claude, model: haiku, effort: low}}\n", encoding="utf-8")
                 mine = {"env": {"WF_MINE": "1"}, "aliases": {GROUP: {"provider": "claude", "model": "haiku", "effort": "low"}}}
                 argv = place.workflow_run(archon.source(), root, place.run_config(pathlib.Path(tmp), {}, mine), root,
                                           "works-factory-groups-parent", "--no-worktree", "--model", f"{GROUP}=sonnet")
-                paused = archon.archon(root, *argv[2:], aliases=False)
+                paused = self._archon(root, *argv[2:])
                 self.assertEqual(paused.returncode, 0, paused.stdout + paused.stderr)
-                runs = {r["workflow_name"]: r for r in json.loads(archon.archon(root, "workflow", "runs", "--json", aliases=False).stdout)["runs"]}
+                runs = {r["workflow_name"]: r for r in json.loads(self._archon(root, "workflow", "runs", "--json").stdout)["runs"]}
                 child = runs["works-factory-groups-child"]
                 self.assertEqual(child["parent_run_id"], runs["works-factory-groups-parent"]["id"])
                 launched = {name: self._ai(root, run["id"]) for name, run in runs.items()}
-                approved = archon.archon(root, "workflow", "approve", child["id"], "--json", aliases=False)
+                approved = self._archon(root, "workflow", "approve", child["id"], "--json")
                 self.assertEqual(approved.returncode, 0, approved.stdout + approved.stderr)
-                resumed = archon.archon(root, "workflow", "resume", child["id"], aliases=False)
+                resumed = self._archon(root, "workflow", "resume", child["id"])
                 self.assertEqual(resumed.returncode, 0, resumed.stdout + resumed.stderr)
                 after = self._ai(root, child["id"])
                 status = self._get(root, child["id"])["status"]
@@ -77,8 +78,11 @@ class RunGroupsCase(unittest.TestCase):
         self.assertIn("env.WF_MINE", sealed, "利用者の --config の env は run の層に入る")
         self.assertEqual(after, launched["works-factory-groups-child"], "resume は起動の時の記録のまま")
 
+    def _archon(self, root, *args):
+        return archon.archon(root, *args, aliases=False, CLAUDE_BIN_PATH=self.claude)
+
     def _get(self, root, run_id):
-        return json.loads(archon.archon(root, "workflow", "get", run_id, "--json", aliases=False).stdout)
+        return json.loads(self._archon(root, "workflow", "get", run_id, "--json").stdout)
 
     def _ai(self, root, run_id):
         return self._get(root, run_id)["metadata"]["ai_configuration"]

@@ -1,5 +1,5 @@
 """設計の相談（docs/design/line.md の 3.1 節。issue #822）の計画の往復と、設計の段（3.3 節。issue #862）の設計の往復を、止めた Archon
-（a972888a）を bun で直に起こして複数の周で回す。
+（factory/pack.json の版）を bun で直に起こして複数の周で回す。
 
 筋書き（archon workflow test）は until_bash の輪を 1 周で終えたことにし、答えた後の周を回さない（止めた Archon の dry-run.ts の
 loopIterationCompletes）。ここでは line の YAML の plan-rounds の node をそのまま写し、AI を起こす 2 つの include（plan・plan-review-run）
