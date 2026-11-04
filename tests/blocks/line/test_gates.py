@@ -280,6 +280,19 @@ class LedgerAsksCase(unittest.TestCase):
                                 ledger=self.ledger(answers=[{"question": "q-a", "text": "x"}]))
         self.assertFalse(out["open"])
 
+    def test_a_push_the_copied_plan_counted_is_named(self):
+        """直す前で止まった無人の run の写しを人の居る run で続ける時（planned は写しの計画が数えた推しの台帳）: 推しを答えに数えて組んだ
+        計画だと問いの行に名指し、推しと違う答えなら止めて計画から回し直すと案内する。推しを数えていない計画（planned が None）は今どおり"""
+        fork = {**self.FORK, "reason": "割れる。推し: x——帰結が狭い"}
+        doc = {"units": [{"key": "u1", "label": "block"}], "questions": [fork]}
+        planned = self.gm.ledger(doc, takes_push=True)
+        self.assertEqual(self.gm.run_push(planned, fork), "x——帰結が狭い")
+        out = self.g.before_fix(rounds(), unattended_run=False, design=False, ledger=self.gm.ledger(doc), planned=planned)
+        self.assertTrue(out["open"])
+        self.assertIn(self.g.PLANNED_PUSH.format(push="x——帰結が狭い"), out["asked"][0])
+        plain = self.g.before_fix(rounds(), unattended_run=False, design=False, ledger=self.gm.ledger(doc))
+        self.assertNotIn("計画は", plain["asked"][0])
+
 
 class GatherCase(unittest.TestCase):
     """元 lib/tests/test_gate_axes.py の GatherCase（軸ごとの訳は事前審査の返りの行の why から）"""
@@ -582,6 +595,17 @@ class ScriptCase(unittest.TestCase):
         self.assertEqual((out["open"], out["go"], out["stop_reason"]), (True, True, ""), out)
         self.assertIn(NARROW, out["text"])
         self.assertIn("gate-before-fix", out["text"])
+
+    def test_ask_before_fix_reopens_from_a_copy_that_stopped_before_the_fix(self):
+        """直す前で止まった写しの run（fixture- の付いた node）: 計画の往復・判定・構造の目を写しの運ぶ値（fixture）から読み、写した run と
+        同じ項目で承認ノードを開く。人の居る run なので推しで進まず人に聞く"""
+        record = self.put("r1/start.json", {"answers": []})
+        carried = self.put("fixture-carried.json", {"judge": {"judgment": None, "answer_ties": None, "materials": None},
+                                                     "structure": {"structure": None}, "gate_rounds": rounds(asks=[ask_row()])})
+        out = self.run.script("ask_before_fix", request=handed({}), rounds="", structure="", judge="", fixture=carried, record=record,
+                              ports=self.ports())
+        self.assertEqual((out["open"], out["go"], out["stop_reason"]), (True, True, ""), out)
+        self.assertIn(NARROW, out["text"])
 
     def test_ask_before_fix_asks_the_structure_pointed_rows(self):
         """構造の目の控えの版に無い名指しの行が、材料の読み（src.asking.materials）を通って修正前の承認ノードに届く（持ち主の決め pointed-ask）"""

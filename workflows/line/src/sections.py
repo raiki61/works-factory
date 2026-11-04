@@ -107,7 +107,8 @@ def entry_lines(values: dict, record: dict, *, cwd, folder) -> list:
     start = _d(values.get("start"))
     out = [*_part("始めの記録の行", lambda: record_lines(record)), *_part("入口の文", lambda: shape_lines(record))]
     if start.get("from_fixture") is True:
-        out.append(f"固定材料から始めた（判定と修正案を作り直さず、修正から）: {json.dumps(start.get('fixture'), ensure_ascii=False)}")
+        where = "修正前の承認ノードから" if start.get("fixture_gate") is True else "修正から"   # 止まった所の写しは修正前の承認ノードから続ける
+        out.append(f"固定材料から始めた（判定と修正案を作り直さず、{where}）: {json.dumps(start.get('fixture'), ensure_ascii=False)}")
     out += _part("承認ノードの開き方の語", lambda: gate_words(record))
     switches = _d(_d(values.get("fix_in")).get("switches")) or _d(values.get("tiers"))
     if switches.get("tier"):
