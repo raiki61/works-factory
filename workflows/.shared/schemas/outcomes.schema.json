@@ -1,15 +1,19 @@
 {
-  "description": "テストごとの base と最後の結末。null は渡されていない",
+  "description": "テストごとの base と最後の結末（片側に居なければ \"\"）。比べない時は rows が空で unmeasured に訳。null は渡されていない",
   "type": ["object", "null"],
+  "additionalProperties": false,
+  "required": ["rows", "unmeasured"],
   "properties": {
     "rows": {
       "type": "array",
       "items": {
         "type": "object",
+        "additionalProperties": false,
+        "required": ["key", "base", "final", "fail_message"],
         "properties": {
           "key": {"type": "string"},
-          "base": {"type": "string"},
-          "final": {"type": "string"},
+          "base": {"type": "string", "enum": ["passed", "failure", "error", "skipped", ""]},
+          "final": {"type": "string", "enum": ["passed", "failure", "error", "skipped", ""]},
           "fail_message": {"type": "string"}
         }
       }

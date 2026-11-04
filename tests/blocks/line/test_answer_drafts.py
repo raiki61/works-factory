@@ -1,6 +1,6 @@
 """人の判断を待つ項目への答えの下書き（workflows/line/src/facts.py の answer_drafts。報告が次の run の依頼の下書きの answers に置く）。
 
-元は今の lib/tests/test_runreport.py の DraftsCase（元 runreport.answer_drafts。その前は lib/tests/test_gate_drafts.py の DraftsCase。
+元は test_runreport.py の DraftsCase（元 runreport.answer_drafts。その前は lib/tests/test_gate_drafts.py の DraftsCase。
 docs/design/README.md の 9.5）。新しい形では下書きの材料を、承認し直すかの問い（spec_check の questions）・独立の目 R4 の問い・
 無人の run で修正前の承認ノードが通さなかった時の載せなかった台帳の問い（ask_before_fix の deferred）・保留の台帳の問い・問いの
 立っていない測れていない素材の 5 つから組む。修正案の狭める行と事前審査の穴の推しを読む元の下書き（元 test_recommend_of_the_narrow_

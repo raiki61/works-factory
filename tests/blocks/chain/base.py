@@ -1,4 +1,4 @@
-"""chain の block の試験の助け（テストのモジュールではない）。今の tests/e2e/test_line_scenarios.py の bound・scenarios の移し"""
+"""chain の block の試験の助け（テストのモジュールではない）。元の test_line_scenarios.py の bound・scenarios の移し"""
 import json
 import pathlib
 

@@ -1,7 +1,7 @@
 """修正の block（workflows/fix/）の返す node finish と、全体の形の終わりの clean・assert-changed の試験（docs/design/fix.md の 1.2・7 節・
 11 節・14.2）。
 
-今の tests/workflows/test_fix.py の BlockScriptsCase の collect・clean・assert_changed の試験を写した（差分の審査とレンズの欄の物は
+元の test_fix.py の BlockScriptsCase の collect・clean・assert_changed の試験を写した（差分の審査とレンズの欄の物は
 delta-review と lens の block へ移ったので写さない）。script は始めの記録の無い使い捨ての run directory と tests/e2e/target-seed/ の写しの
 git のリポジトリで子のプロセスで回し、port の値だけを渡す（finish は intake が書いた intake.json で形を読む）。足した物:
 - 出力の欄が YAML の finish の output_format の required・properties と同じで、形に合う

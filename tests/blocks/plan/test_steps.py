@@ -1,4 +1,4 @@
-"""修正案の block の中身（workflows/plan/src/steps.py・take.py・brief.py・files.py）の検査。今の lib/tests/test_planfile.py を、port の値で
+"""修正案の block の中身（workflows/plan/src/steps.py・take.py・brief.py・files.py）の検査。元の test_planfile.py を、port の値で
 受ける形に写した物（docs/design/plan.md の 9.2）。
 
 元の関数は盤面の置き場から判定・往復の記録・修正前の版を読んでいた。ここでは入口（steps.intake）を port の値で本当に回して周のフォルダ

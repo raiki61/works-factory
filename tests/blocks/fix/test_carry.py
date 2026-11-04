@@ -2,9 +2,9 @@
 
 1 回目の修正の段（全体の形）の finish が place の申し出と裁定・TDD の輪の状態を carry.json に束ねて出力 carry で指し、2 回目の段の
 prep が port prior でその束を受けて place の prior/ に置き直し、今の adopt_prior_pass と同じ写しをする（今は前の段の place の
-フォルダを入力 prior_conflicts で名指して開いていた）。今の tests/workflows/test_fix.py の RefixCase・BlockScriptsCase の
+フォルダを入力 prior_conflicts で名指して開いていた）。元の test_fix.py の RefixCase・BlockScriptsCase の
 test_refix_place_reads_the_first_pass_rulings・GroupChildScriptsCase の test_refix_child_sees_the_first_pass_and_returns_only_its_rows と、
-lib/tests/test_blk_fix_tdd.py の test_second_place_sees_the_first_place_loops（adopt_prior_pass）を、フォルダの代わりに束で写した。
+test_blk_fix_tdd.py の test_second_place_sees_the_first_place_loops（adopt_prior_pass）を、フォルダの代わりに束で写した。
 2 つの段は 1 つの run の 2 つの include（line__fix・line__refix-run）の place で回す（線の出力 carry の pointer がそのまま届く）。
 写さない物: lib/tests/test_fix_seams.py の RefixSeamCase（差分の審査の手直し refix の継ぎ目。delta-review の block へ移った）
 """
@@ -31,7 +31,7 @@ JUDGMENT = {"units": [{"key": "A", "label": "block"}, {"key": "B", "label": "blo
             "questions": []}
 PLAN = {"round": 1, "fields": [{"allowed_paths": ["**"], "out_of_scope": []}, {"allowed_paths": ["**"], "out_of_scope": []}]}
 FIX_PLAN = {"plan": [{"unit_keys": ["A", "B"]}, {"unit_keys": ["C"]}]}
-# 今の FixLoopPlace の判定と申し出の行（tests/workflows/test_fix.py の _FX_*）
+# 今の FixLoopPlace の判定と申し出の行（test_fix.py の _FX_*）
 MEAN, BOUND = "u-mean", "u-bound"
 FX_JUDGMENT = {"units": [
     {"key": MEAN, "label": "block", "class_query": {

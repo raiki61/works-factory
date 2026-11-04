@@ -1,8 +1,8 @@
 """line の小さな script（docs/design/line.md の 1.5）の振る舞い: testcmd（頭の止め）・gate_answer（承認ノードの答え）・returned（受け皿）・
 relay（返し）・result（line の返す node）・sweep_children（後始末）。
 
-元は今の tests/workflows/test_line.py の GateAnswerCase・ReturnedCase・SweepChildrenCase・CollectAndResultCase の result の部分と
-tests/workflows/test_testcmd_head.py の TestCmdNodeTest（README 9.5）。script は子のプロセスで回すか（kit.Run.script。port の値だけを
+元は test_line.py の GateAnswerCase・ReturnedCase・SweepChildrenCase・CollectAndResultCase の result の部分と
+test_testcmd_head.py の TestCmdNodeTest（README 9.5）。script は子のプロセスで回すか（kit.Run.script。port の値だけを
 INPUTS_<名> で渡す）、名で読んで関数を直に呼ぶ。testcmd が run を cancel する Archon の dry-run の場面は line の筋書きが持つ。
 """
 import json

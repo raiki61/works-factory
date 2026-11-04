@@ -1,4 +1,4 @@
-"""今の line の「事前審査が人に聞く」（lib/boardview.py の ask_human）から新しい形が取りこぼした開き方を戻したことの試験。
+"""今の line の「事前審査が人に聞く」（boardview.py の ask_human）から新しい形が取りこぼした開き方を戻したことの試験。
 
 1. 計画は通ったのに事前審査の受け付けが諦めた（plan-review の status が gave_up）周: 修正前の承認ノードが諦めた訳の行
    （gatemarks.GIVEN_UP_KIND）で開き、無人の run は needs-human で止まる。報告は往復が進まない止めと人待ちを出す

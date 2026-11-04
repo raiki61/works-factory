@@ -255,23 +255,17 @@ nodes:
           properties:
             head: {type: string}
             diff_hash: {type: string}
-        test_outcomes:   # final だけ。テストごとの修正前と今の結末（片側に居なければ ""）。比べない時は rows が空で unmeasured に訳
+        # final だけ（base は null）。行は対象のテストの数だけ伸びるので値で返さずファイルを指す（返りを受ける script は入力を環境変数で
+        # 受け、値で返すと OS の引数と環境の上限〔E2BIG〕を越えうる）
+        test_outcomes:
+          description: 'json(shared:outcomes.schema.json): テストごとの修正前と今の結末（片側に居なければ ""）。比べない時は rows が空で unmeasured に訳'
           type: [object, "null"]
           additionalProperties: false
-          required: [rows, unmeasured]
+          required: [type, run_id, path]
           properties:
-            rows:
-              type: array
-              items:
-                type: object
-                additionalProperties: false
-                required: [key, base, final, fail_message]
-                properties:
-                  key: {type: string}
-                  base: {type: string, enum: [passed, failure, error, skipped, ""]}
-                  final: {type: string, enum: [passed, failure, error, skipped, ""]}
-                  fail_message: {type: string}
-            unmeasured: {type: string}
+            type: {type: string, enum: [archon_artifact]}
+            run_id: {type: string}
+            path: {type: string}
         evidence:
           description: 'file: 証拠の文（evidence.md。書けなければ誤りの 1 行の failure.txt）'
           type: object

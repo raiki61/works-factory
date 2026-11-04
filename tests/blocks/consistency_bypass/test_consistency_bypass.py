@@ -173,7 +173,7 @@ class ViewpointCase(unittest.TestCase):
 class ShapeCase(unittest.TestCase):
     """YAML の揃い（block の形の検査は tests/layers/test_block_shape.py）"""
 
-    # 今の判定の consistency-bypass の役の起こし方（tests/workflows/test_judge.py の ROLES["consistency-bypass"] の行と、
+    # 今の判定の consistency-bypass の役の起こし方（tests/workflows の test_judge.py の ROLES["consistency-bypass"] の行と、
     # workflows/judge/works-factory-judge.yaml の錨 read_launch を、作り直しの時に字で写した物）
     LAUNCH = {"model": "@wf-judge-materials", "settingSources": ["user"], "allowed_tools": ["Read", "Grep", "Glob"],
               "sandbox": {"enabled": True, "allowUnsandboxedCommands": False}, "idle_timeout": 1728000000,

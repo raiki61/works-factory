@@ -1,6 +1,6 @@
 """方針の文書の変化（workflows/line/src/gates.py の policy_change・change_row・DIFF_MISSING）。
 
-元は今の lib/tests/test_boardview.py の、方針の文書の版と変化を見る 4 本（test_policy_version_comes_from_start・
+元は test_boardview.py の、方針の文書の版と変化を見る 4 本（test_policy_version_comes_from_start・
 test_record_without_a_version_freezes_on_first_open・test_document_placed_later_at_the_default_is_a_change・
 test_lost_frozen_copy_is_named_not_diffed。docs/design/README.md の 9.5）。元は事前審査の置き場（boardview の folder）に固めた版を
 置いて policy_change(folder, cwd) を呼んだ。line の policy_change は始めの記録の欄 policy（run の始めに固めた版）を直に受けるので、

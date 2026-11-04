@@ -1,4 +1,4 @@
-"""line の入力の機能の語の決まり（元 lib/tests/test_line_inputs.py の写し。integration.md の 4.2-9。段の表は workflows/line/src/tiers.py）。
+"""line の入力の機能の語の決まり（元 lib の試験の test_line_inputs.py の写し。integration.md の 4.2-9。段の表は workflows/line/src/tiers.py）。
 
 元の試験のうち残っていた FeaturesOffCase: 切る機能と入れる機能（入力 features_off・features_on）を start が確かめて語の順の配列にし、
 機能ごとの on・off・auto（lib/entry.py の feature_words）を line が配る値に写す。名指した語は既定に勝ち、段の足しは名指しの切りに負ける。
@@ -16,7 +16,7 @@ import entry  # noqa: E402
 
 from tests.blocks import kit  # noqa: E402
 
-depth = kit.load("line", "tiers")   # 元 lib/depth.py の段の表は line の src/tiers.py（docs/design/line.md の 5.1）
+depth = kit.load("line", "tiers")   # 元 depth.py の段の表は line の src/tiers.py（docs/design/line.md の 5.1）
 
 
 class FeaturesOffCase(unittest.TestCase):

@@ -11,7 +11,7 @@
 - 深さで省く・上げ直し・戻せない組・案の直し: 差分の審査と同じ条件の語。定義は [delta-review.md](delta-review.md) の頭の語。
 - 依頼の行: run に渡された修正依頼の行（`workflows/.shared/schemas/request.schema.json` の形）。`lang` が空の時の既定の文は共通の断片 `lang-default`。
 - レンズ: 利用者が入れた plugin の review の agent の定義（`agents/<役>.md` の本文）を指示に貼り、修正の後の差分をその観点だけで見させる AI の node。子（Agent）を起こさない。読むだけ（Read・Grep・Glob）。
-- レンズの表: この block が知るレンズの並び（`src/lenses.py` の `LENSES`。今の `lib/lenses.py` の `LENSES` の写し）。行ごとに YAML の node が 3 つずつ在る。
+- レンズの表: この block が知るレンズの並び（`src/lenses.py` の `LENSES`。組み込みの前の lib の `lenses.py` の `LENSES` の写し）。行ごとに YAML の node が 3 つずつ在る。
 - 振り分け: レンズごとに起こすか（`go`）と起こさない理由を決めること。
 - レンズの行: `lib/lens.py` の控え `lens.json` の行 `{lens, agent, go, reason, state: pending|ran|failed|not_routed, findings: [{lens, where, cite, why}], dropped}`。
 - 例の run: 本物の run `fed2db95-cb8e-41ff-913b-92c056872040`（対象は工場自身のリポジトリ。置き場は `<run の置き場>/fix/fix/`）。silent-failure-hunter が 1 本走り、発見 4 件を返した（差分の審査がそのうち 1 件を穴に採った）。
@@ -80,7 +80,7 @@ script の node はどれも `runtime: uv`・`mutates_checkout: false`。レン�
 ### 1.5 コードの置き場
 
 - `workflows/lens/src/__init__.py`: 空。
-- `src/lenses.py`: レンズの表 `LENSES = ({"lens": "silent-failure-hunter", "agent": "pr-review-toolkit:silent-failure-hunter"},)`・`key(name)`（`-` を `_` に）・振り分け `route(row, files)`（今の `_any_change`: 変わったファイルが無ければ `(False, "修正の差分に変わったファイルが無い")`）・定義の引き `definition(agent)`（今の `fixboard.lens_route` の引きの部分: `engine.validator.agent_def(agent)` を呼び、例外〔`SystemExit` を含む〕は「<agent> の定義を引けない（<型>: <訳>）」、`None` か本文が空なら「<agent> の定義が役の設定に無い（pr-review-toolkit が入っていない）」を起こさない理由にする）。写す元 `lib/lenses.py` の `LENSES`・`key`・`_any_change` と `fixboard.lens_route`。字の下限 `MIN_CITE = 4`・`MIN_WHY = 20`（YAML の `output_format` の `minLength` と同じ字）も持つ。`lenses.render` の文は md へ出し、ここに持たない。
+- `src/lenses.py`: レンズの表 `LENSES = ({"lens": "silent-failure-hunter", "agent": "pr-review-toolkit:silent-failure-hunter"},)`・`key(name)`（`-` を `_` に）・振り分け `route(row, files)`（今の `_any_change`: 変わったファイルが無ければ `(False, "修正の差分に変わったファイルが無い")`）・定義の引き `definition(agent)`（今の `fixboard.lens_route` の引きの部分: `engine.validator.agent_def(agent)` を呼び、例外〔`SystemExit` を含む〕は「<agent> の定義を引けない（<型>: <訳>）」、`None` か本文が空なら「<agent> の定義が役の設定に無い（pr-review-toolkit が入っていない）」を起こさない理由にする）。写す元 lib の `lenses.py` の `LENSES`・`key`・`_any_change` と `fixboard.lens_route`。字の下限 `MIN_CITE = 4`・`MIN_WHY = 20`（YAML の `output_format` の `minLength` と同じ字）も持つ。`lenses.render` の文は md へ出し、ここに持たない。
 - `src/files.py`: 1.4 の名と `SKIP = (ports.RUNTIME_COPY_PREFIX,)`。
 - `src/steps.py`: 入口（差分を切る〔`leftovers.snapshot`・`unittrees.pathspec_without(SKIP)`・`leftovers.git(… text=False)`・`leftovers.git_names`。delta-review の `src/cut.py` の `cut` と同じ手続き〕・振り分け・`lens.write_routes`）・prep の値・受け取り・出口（`lens.collect(place, {<lens>: <reply-<key>.json の中身か None>})`・数え・`carry`・`report`）。
 - 使う `lib/`（KEEP。変えない）: `lens`（`LENS_FILE`・`STATES`・`UNSEEN`・`write_routes`・`collect`・`read`）・`leftovers`・`unittrees`（`pathspec_without`）・`jsonfile`・`oneline`・`graphloops/engine/validator.py`（`agent_def`。README の 9.1 で DELETE の候補。10 節の 1）。
@@ -254,7 +254,7 @@ bin/works-factory workflow run works-factory-lens --cwd <対象> --input base=<�
 
 ### 8.2 `tests/blocks/lens/`（`kit.Run` で script を子のプロセスで回す。始めの記録は置かない）
 
-- `IntakeCase`: 読めない port・表に無い名・同じ名の 2 つ・版でない `base` で `failed` と port の名の頭の訳・差分が空で `not_routed`・並びに無いレンズは `not_routed`・`body` が在れば定義を引かない・定義が引けない（差し替えた `agent_def` が `None`・空の本文・例外・`SystemExit`）で `not_routed` と今の字の理由・`.archon/` の下の変更は差分に載らない・前の回の自分のファイルを消し、ほかの名は消さない。元: `tests/workflows/test_fix.py::DeltaScriptsCase.test_lens_prep_without_the_role_definition_is_go_false`・`lib/tests/test_blk_lens.py::test_not_routed_lens_is_counted`。
+- `IntakeCase`: 読めない port・表に無い名・同じ名の 2 つ・版でない `base` で `failed` と port の名の頭の訳・差分が空で `not_routed`・並びに無いレンズは `not_routed`・`body` が在れば定義を引かない・定義が引けない（差し替えた `agent_def` が `None`・空の本文・例外・`SystemExit`）で `not_routed` と今の字の理由・`.archon/` の下の変更は差分に載らない・前の回の自分のファイルを消し、ほかの名は消さない。元: `test_fix.py::DeltaScriptsCase.test_lens_prep_without_the_role_definition_is_go_false`・`test_blk_lens.py::test_not_routed_lens_is_counted`。
 - `PromptCase`: 組んだ指示に定義の本文・レンズの名・差分のパス・変わったファイル・字の下限・言語の文が在る・本文の中の `{…}` が字のまま残る・埋まらない差し込み口が無い。元: `lib/tests/test_fix_seams.py::LensesSeamCase`（`agent_def` が利用者の入れた plugin の `agents/<役>.md` から引いた本文が指示に入る）・`test_fix.py::test_lens_prep_with_the_role_definition_and_collect`。
 - `FinishCase`: 受け取った返答の発見に出どころの名が付く・形の合わない発見を捨てて数える・受け取りの無いレンズは `failed` で `ok` のまま・振り分けの行が無ければ `failed`・控えが書けなければ `failed` と「レンズの集め役が終わらなかった」・`carry` の行・`report` の行・`optional`。include された時は place が include の道に分かれる。元: `test_blk_lens.py` の `test_collect_marks_findings_with_lens_name`・`test_collect_records_failed_lens_and_succeeds`・`test_collect_without_routes_is_not_ok`・`test_findings_keeps_valid_and_counts_dropped`、`test_fix.py` の `test_a_failed_lens_is_recorded_and_the_block_goes_on`・`test_a_failed_lens_leaves_a_failed_row_and_the_collector_goes_on`・`test_lens_collect_failure_is_reported_not_silent`。
 - `ShapeCase`: レンズの表の行ごとに YAML に `<lens>-prep`・`<lens>`・`<lens>-take` が在り、`intake` の返りに `<key>_go` が在り、`finish` の `depends_on` と `OPTIONAL` に全部が在る（今の `test_lens_nodes_match_the_lens_table` の写し）・AI の node の鍵（群・`settingSources`・道具・sandbox・`idle_timeout`・`mutates_checkout`・`retry`・`context: fresh`）・`output_format` の `minLength` が `MIN_CITE`・`MIN_WHY`・`prompts/<lens>.md` がどれも `{part:lens}` の 1 行。
@@ -305,7 +305,7 @@ PYTEST_XDIST_AUTO_NUM_WORKERS=4 WORKS_FACTORY_ARCHON_CACHE=<Archon の源の置�
 
 ## 10 README へ返す問題
 
-1. `lib/graphloops/engine/validator.py` は README の 9.1 で DELETE（未確認つき）だが、`agent_def` と `find_plugin_path` はこの block が利用者の定義を引くのに使う（使い手はこの block 1 つ）。組み込みで消すなら、その 2 つを `workflows/lens/src/` へ移す。
+1. lib の `graphloops/engine/validator.py` は README の 9.1 で DELETE（未確認つき）だが、`agent_def` と `find_plugin_path` はこの block が利用者の定義を引くのに使う（使い手はこの block 1 つ）。組み込みで消すなら、その 2 つを `workflows/lens/src/` へ移す（移し済み。今は `workflows/lens/src/validator.py`。1.5 の `graphloops/engine/validator.py` の行は移す前の書き方）。
 2. `lib/leftovers.py`（README の 9 節に区分が無い）と `lib/unittrees.py` の `pathspec_without`（MOVE fix の中）を、この block と差分の審査の block も使う（delta-review.md の 12 節の 2・3）。
 
 ## 11 未確認

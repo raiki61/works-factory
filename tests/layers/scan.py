@@ -1746,7 +1746,7 @@ def _gate_in_body(rel: str, gate, body: list, until: str) -> list[str]:
     return out
 
 
-DEPTH_TABLE = "docs/design/line.md"   # 16 章の「### 深さの表」（docs/design.md は組み込みで docs/design/ に置き換えた）
+DEPTH_TABLE = "docs/design/line.md"   # 16 章の「### 深さの表」（design.md は組み込みで docs/design/ に置き換えた）
 DEPTH_HEAD = "### 深さの表"
 DEPTH_WHEN = re.compile(r"\.output\.\w*depth\w*")
 DEPTH_NAMED = re.compile(r"`([^`]+)`")
@@ -1792,7 +1792,7 @@ def _graph(root: Path, rel: str) -> list:
 
 @functools.cache
 def tiers() -> dict:
-    """段 → 回す物の表（line の src/tiers.py の TIERS。docs/design/line.md の 1.5。今の lib/depth.py の TIERS の行き先）"""
+    """段 → 回す物の表（line の src/tiers.py の TIERS。docs/design/line.md の 1.5。元の depth.py の TIERS の行き先）"""
     from tests import archon  # noqa: PLC0415  （tests.archon は bin と試験の助けを読むので、使う時だけ読む）
     return archon.src_module(LINE_FOLDER, "tiers").TIERS
 
