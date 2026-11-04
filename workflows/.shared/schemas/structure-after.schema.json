@@ -40,6 +40,7 @@
           "row": {"type": ["string", "number", "null"]},
           "prescription": {"type": ["string", "number", "null"]},
           "world": {"type": ["string", "number", "null"]},
+          "means": {"type": ["string", "null"]},
           "deviation": {"type": "string"}
         }
       }

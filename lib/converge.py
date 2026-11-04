@@ -481,8 +481,8 @@ def last_refs(b, n: int) -> list:
 
 
 # 項目の行の並びの行を見分ける欄（sentences の場所の [見分け]。files は path・symbols は name・tests は id・narrows は what・
-# out_of_scope は glob・depends_on は unit・structure は row か prescription か world）
-_ROW_IDS = ("path", "name", "id", "what", "glob", "unit", "row", "prescription", "world")
+# out_of_scope は glob・depends_on は unit・structure は row か prescription か world か means）
+_ROW_IDS = ("path", "name", "id", "what", "glob", "unit", "row", "prescription", "world", "means")
 _SENTENCE_END = re.compile(r"(?<=。)|\n")
 
 

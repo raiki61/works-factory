@@ -35,7 +35,7 @@
 - 構造の欄 structure（計画 2026-10-09-clean-whole の Task 2.4・計画 world-solution の W8）: structure_gaps(plan, tables) が、答えの
   要る行の表（Need）ごとに、項目に要る行の「従う（follows）か外れの訳（deviation）」の欠けと誤りの行と、どの項目も答えていない行を
   返す（修正案の受け付けと同じ run の中の案の直しが拒む）。表は構造の目が汚れると見た単位（design_need。行の鍵 row）と世界の解の
-  答えの要る行（worldmark.need。行の鍵 world）で、答えの仕組みは 1 つ。判定の処方への答え（prescription）も同じ欄に並べてよい
+  答えの要る行（worldmark.need。行の鍵 world）と頼みの解き方の文（worldmark.means_need。行の鍵 means。計画 means-answers）で、答えの仕組みは 1 つ。判定の処方への答え（prescription）も同じ欄に並べてよい
   （要るのは表の行だけ）。deviations(fields) は控えの欄から外れの訳の並びを引く（事前審査の頭・報告・最後の関所が読む）。
   prescriptions(b) は判定の返答（盤面の節 JUDGE_NODE の最新の出力）の単位ごとの処方（写しの盤面の記録は単位の処方を写さない
   ので、修正案の頭と修正役の brief はここから引く。利用者の声 D2）
@@ -130,8 +130,8 @@ del FIELD_SCHEMA["rewrite_tests"]["items"]["properties"]["limit"]
 
 STRUCTURE_REJECT = ("修正案の項目の works の欄 structure に欠けか誤りが在る（構造の目が汚れると見た単位を持つ項目は、その行ごとに"
                     "避け方に従うか外れの訳を書く。世界の解の答えの要る行は、行ごとにどれかの項目が定石に従うか外れの訳を"
-                    "書く）。拒んだ行:")
-ANSWER_KEYS = ("row", "prescription", "world")   # 欄 structure の行が答える先の鍵（ちょうど 1 つ）
+                    "書く。頼みの解き方は、1 文ごとにどれかの項目が従うか外れの訳を書く）。拒んだ行:")
+ANSWER_KEYS = ("row", "prescription", "world", "means")   # 欄 structure の行が答える先の鍵（ちょうど 1 つ。means は頼みの解き方の番号 M<n>）
 REJECT = ("修正案の項目の works の欄（route・tests・rewrite_tests・refactor・allowed_paths・out_of_scope・depends_on）か、files の行"
           "（symbols の name・消す行の why・replaced_by・home・considered）に欠けか誤りが在る。拒んだ行:")
 DEPENDS_REJECT = (f"修正案の項目の依存 {DEPENDS_KEY} に誤りが在る（unit は案の項目の unit_keys の字・自分の項目の単位でない・受ける物は"
@@ -1015,7 +1015,7 @@ def _structure_row_problem(row) -> str | None:
     if not isinstance(row, dict):
         return "行が object でない"
     if sum(k in row for k in ANSWER_KEYS) != 1:
-        return "row（構造の目の行）か prescription（判定の処方）か world（世界の解の類）のどれか 1 つを書く"
+        return "row（構造の目の行）か prescription（判定の処方）か world（世界の解の類）か means（頼みの解き方の番号）のどれか 1 つを書く"
     has_follow, has_dev = "follows" in row, "deviation" in row
     if has_follow == has_dev:
         return "follows: true（従う）か deviation（外れの訳）のどちらか 1 つを書く"
@@ -1089,14 +1089,14 @@ def answer_line(r: dict) -> str:
         return str(r)
     head = f"項目 {r['item']}・" if "item" in r else ""
     what = (f"設計の行 {r['row']}" if r.get("row") else f"世界の解の行 {r['world']}" if r.get("world")
-            else f"処方 {r.get('prescription')}")
+            else f"頼みの解き方 {r['means']}" if r.get("means") else f"処方 {r.get('prescription')}")
     if r.get("follows") is True:
         return f"{head}{what}に従う（避け方・処方どおりに直す）"
     return f"{head}{what}から外れる——{r.get('deviation')}"
 
 
 def deviations(fields: list | None) -> list[dict]:
-    """控えの欄（split の形）の外れの訳の並び [{item（1 始まり）, row か prescription か world, deviation}]。無ければ空"""
+    """控えの欄（split の形）の外れの訳の並び [{item（1 始まり）, row か prescription か world か means, deviation}]。無ければ空"""
     out = []
     for n, f in enumerate(fields if isinstance(fields, list) else [], 1):
         for row in (f.get("structure") if isinstance(f, dict) and isinstance(f.get("structure"), list) else []):

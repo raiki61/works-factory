@@ -36,6 +36,8 @@ knowledge の行は、頭の節・関所の行に NOT_WEB と名指して並べ�
 足し欄 MEANS に分ける。欄の意味（型・読んだ後の使い方）と控えの名 MEANS_FILE をここが持つ。
 目的の文の型は写しのまま。控えは世界の解の段の入力（言い直す役が依頼の解き方として見る）で、独立設計には渡さない（目的だけから設計する）。
 - split_means(reply): （欄を外した返答の写し, 手段の並び）
+- means_hints(means)・means_need(means): {M<n>: 文}（番号は並びの順の 1 始まり）と、修正案の受け付けに渡す頼みの解き方の答えの要る
+  表（planmarks.Need。行の鍵 MEANS。どの項目も答えていない M<n> を欠けにする。計画 means-answers）
 - write_means(board_dir, means)・means_of(board_dir, name): 控えを置く（空なら置かない）・読む（無い・読めなければ []。name は写しの名）
 - copy_means(src_file, board_dir): 控えのファイル（判定の外の読み手は判定の出力の欄 purpose_means のパス）を別の置き場に写しの名
   COPY_MEANS で写す（事前審査の置き場の関所が世界の解の外れの出どころを照らす）
@@ -72,6 +74,7 @@ SOURCE_PREFIX = "world:"   # 判定の先例の出どころで世界の行を指
 VERDICT_WORDS = {SAME: "定石と同じ", DIFFERS: "定石と違う", NONE: "依頼は解き方を示していない"}
 STATES = ("ok", "failed")
 MEANS = "means"
+MEANS_KEY_HEAD = "M"   # 頼みの解き方の番号の頭（M1・M2…。欄 structure の鍵 MEANS の値と指示と承認ノードの文が使う）
 MEANS_FILE = "purpose-means.json"
 # 判定の外の盤面（事前審査）が、受けた控えを自分の置き場に写す名（判定の置き場の名と分ける。workflows/AGENTS.md の E4）
 COPY_STATE = f"judge-{STATE_FILE}"
@@ -206,6 +209,24 @@ def need(rows) -> planmarks.Need:
     return planmarks.Need(ANSWER_KEY, "世界の解の行", {r["class_id"]: r["practice"] for r in got}, "定石",
                           "答えの要る世界の解の行の類でない", lambda item: [],
                           lambda items: unanswered(got, items))
+
+
+def means_hints(means) -> dict:
+    """{M<n>: 頼みの解き方の文}（n は並びの順の 1 始まり。空の文は数えない。split_means と同じ読み）"""
+    got = [m for m in means or [] if isinstance(m, str) and m.strip()]
+    return {f"{MEANS_KEY_HEAD}{n}": m for n, m in enumerate(got, 1)}
+
+
+def means_need(means) -> planmarks.Need:
+    """頼みの解き方の答えの要る表（planmarks.structure_gaps が受ける。計画 means-answers の 3.1 の 4）。行の鍵は MEANS（M<n>）。
+    項目に場所で結ばず（of は空。need と同じ）、どの項目も答えていない M<n> だけを欠けにする。means が空なら何も求めない"""
+    hints = means_hints(means)
+
+    def missing(items):
+        done = {a.get(MEANS) for it in items or [] if isinstance(it, dict)
+                for a in (it.get("structure") if isinstance(it.get("structure"), list) else []) if isinstance(a, dict)}
+        return [k for k in hints if k not in done]
+    return planmarks.Need(MEANS, "頼みの解き方", hints, "頼みの解き方の文", "頼みの解き方の番号でない", lambda item: [], missing)
 
 
 def challenges(rows) -> dict:
