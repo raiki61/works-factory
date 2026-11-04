@@ -181,7 +181,7 @@ def recorded_rows_text(rows) -> tuple[str, bool]:
     """断片 recorded-policy の値と段落の真偽 (recorded_rows, recorded_none)。行の組み方は元 policy._section（lib/policy.py:295-314）の
     行を英語の札にした物。名指しの字 name は変えない（受け付けと承認ノードが字で照らす）。recorded_none は名指せる行が 1 つも無いか"""
     rows = [r for r in rows or [] if isinstance(r, dict)]
-    of = {s: [r for r in rows if r.get("source") == s] for s in ("doc", "answer", "gate", "push", "settled")}
+    of = policy.by_source(rows)
     doc = of["doc"][0] if of["doc"] else None
     out = ["- Policy document: " + (f"name `{doc['name']}:<line>` (lines 1-{doc.get('lines')}; original location: "
                                      f"{doc.get('alias') or 'none'})" if doc else "none")]
@@ -189,9 +189,9 @@ def recorded_rows_text(rows) -> tuple[str, bool]:
     out += [f"  - name `{r['name']}`: {_head(r.get('text'))}" for r in of["answer"]]
     out.append("- People's answers at the approval nodes:" + ("" if of["gate"] else " none"))
     out += [f"  - name `{r['name']}`: {_head(r.get('text'))}" for r in of["gate"]]
-    if of["push"]:
+    if of[policy.PUSH_SOURCE]:
         out.append("- Pushes the run took on its own, with no person answering, at an approval node or for a held question of the judgment (not a person's answer):")
-        out += [f"  - name `{r['name']}`: {_head(r.get('text'))}" for r in of["push"]]
+        out += [f"  - name `{r['name']}`: {_head(r.get('text'))}" for r in of[policy.PUSH_SOURCE]]
     out.append("- Settled points (from the decision records):" + ("" if of["settled"] else " none"))
     out += [f"  - name `{r['name']}`: {_head(r.get('text'))}" if r.get("name")
             else f"  - (no `where`, so it cannot be named) {_head(r.get('text'))}" for r in of["settled"]]

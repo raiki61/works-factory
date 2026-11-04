@@ -22,6 +22,8 @@ workflows/.shared/prompts/policy.md、記録された方針の節の文（前の
   {source, name, text}。name は役が字のまま写す名指しで、機械はこれだけを照らす
 - hits(rows, *texts)・unrecorded(face, mark, rows)・face_gaps(faces, rows): 名指しの照らし、一覧の行を名指さない kind policy の穴、
   事前審査の受け付けが拒む穴の行
+- SOURCES・by_source(rows): 行の source の全部と、source ごとに分けた行（役への文に並べる側が引く）
+- decides(rows, text)・PUSH_SOURCE: 決め手の文が人の決めの行（推し PUSH_SOURCE の行を除く）を名指すか（修正前の関所の決め手の出どころ）
 - POLICY_KIND・POLICY_DOC_FENCE: 方針の穴の kind・
   方針の文書の柵の語の持ち主（issue #454。judge_accept・fixboard・gatemarks がここから引く）
 """
@@ -130,6 +132,8 @@ POLICY_DOC_FENCE = "policy_doc"   # 方針の文書の行を書き換える穴�
 RECORDED_TERM = "記録された方針"
 GATE_NAME = "承認ノードの答え {id}"
 PUSH_NAME = "無人の run が採った推し {id}"
+PUSH_SOURCE = "push"   # 記録された方針の行の source のうち、人の決めでない物（無人の run が採った推し）
+SOURCES = ("doc", "answer", "gate", PUSH_SOURCE, "settled")   # recorded が作る行の source の全部（並べる側は by_source で引く）
 DOC_FENCE_ONLY = f"{POLICY_DOC_FENCE} は方針の文書の行を書き換える時だけ立てる"
 _GATE_ID = 6   # 承認ノードの答えの名指しの印（一言の sha256 の頭の 16 進の字数）
 
@@ -147,7 +151,8 @@ def _settled_rows(path) -> list:
 
 def recorded(start, decisions_file=None, *, human_items=None, pushes=()) -> list:
     """記録された方針の行 [{source, name, text}]。doc（方針の文書の写し。行数 lines と元の置き場 alias も持つ）・answer（依頼の
-    answers の question）・gate（承認ノードの人の答えのうち note の在る物を、一言の sha256 の頭で。どの段がどの並びを持っても同じ
+    answers の question。無人の run が推しで降りた答え〔answer.by_push。テーマの run の降りた依頼の答え〕は source を push に振り、
+    名は question のまま）・gate（承認ノードの人の答えのうち note の在る物を、一言の sha256 の頭で。どの段がどの並びを持っても同じ
     答えは同じ名指し。human_items が None の段は作らない）・push（無人の run が推しで通した答え（欄 answer.PUSHED）の note を、gate と
     同じ印で PUSH_NAME に。人の答えとは混ぜない。無人の run が判定の保留の問いに採った推しの文 pushes も同じ形で）・settled（決定記録の突合の返答 decisions_file が挙げた決着済みの論点の where。
     where の無い論点は name が空で、名指せない。decisions_file が None なら作らない）"""
@@ -157,17 +162,24 @@ def recorded(start, decisions_file=None, *, human_items=None, pushes=()) -> list
         lines = len(pathlib.Path(copy).read_text(encoding="utf-8", errors="replace").splitlines())
         rows.append({"source": "doc", "name": copy, "text": "", "lines": lines, "alias": (version(start) or {}).get("path") or ""})
     answers = start.get("answers") if isinstance(start, dict) else None
-    rows += [{"source": "answer", "name": a["question"], "text": str(a.get("text") or "")}
+    rows += [{"source": PUSH_SOURCE if answer.by_push(a) else "answer", "name": a["question"], "text": str(a.get("text") or "")}
              for a in answers or [] if isinstance(a, dict) and isinstance(a.get("question"), str) and a["question"].strip()]
     notes = [h for h in human_items or [] if isinstance(h, dict) and str(h.get("note") or "").strip()]
     for h in notes:
-        source, name = ("push", PUSH_NAME) if answer.by_push(h) else ("gate", GATE_NAME)
+        source, name = (PUSH_SOURCE, PUSH_NAME) if answer.by_push(h) else ("gate", GATE_NAME)
         rows.append({"source": source, "name": name.format(id=_gate_id(h["note"])), "text": str(h["note"])})
-    rows += [{"source": "push", "name": PUSH_NAME.format(id=_gate_id(p)), "text": str(p)} for p in pushes if str(p).strip()]
+    rows += [{"source": PUSH_SOURCE, "name": PUSH_NAME.format(id=_gate_id(p)), "text": str(p)} for p in pushes if str(p).strip()]
     rows += [{"source": "settled", "name": str(r.get("where") or "").strip(),
               "text": f"{r.get('topic') or ''}——{r.get('decision') or ''}"}
              for r in (_settled_rows(decisions_file) if decisions_file is not None else [])]
     return rows
+
+
+def by_source(rows) -> dict:
+    """記録された方針の行を source ごとに分けた {source: [行]}（SOURCES の全部を鍵に持つ）。役への文に並べる側はここで引き、
+    source の並びを自分で持たない（並びを別々に持つと、増えた source の行が黙って落ちる）"""
+    rows = [r for r in rows or [] if isinstance(r, dict)]
+    return {s: [r for r in rows if r.get("source") == s] for s in SOURCES}
 
 
 def _gate_id(note) -> str:
@@ -183,7 +195,7 @@ def _hit(row: dict, text: str) -> bool:
                 if 1 <= int(m.group(1)) <= row.get("lines", 0):
                     return True
         return False
-    if row["source"] in ("gate", "push"):
+    if row["source"] in ("gate", PUSH_SOURCE):
         return re.search(re.escape(row["name"]) + r"(?![0-9a-f])", text) is not None
     return row["name"] in text
 
@@ -193,6 +205,13 @@ def hits(rows, *texts) -> list:
     字が続かない一致、answers と論点は字の部分一致）"""
     text = "\n".join(str(t) for t in texts if t)
     return [r["name"] for r in rows if isinstance(r, dict) and _hit(r, text)]
+
+
+def decides(rows, text) -> bool:
+    """決め手の文 text が、記録された方針の行のうち人の決め（方針の文書・依頼の answers・承認ノードの答え・決着済みの論点。無人の run が
+    採った推し PUSH_SOURCE は除く）を名指すか（hits と同じ照らし）。計画の指示が決め手に挙げる「記録された方針の行の名指し」を、修正前の
+    関所の決め手の出どころの照らしが読む口"""
+    return bool(hits([r for r in rows or [] if isinstance(r, dict) and r.get("source") != PUSH_SOURCE], text))
 
 
 def unrecorded(face, mark, rows) -> bool:

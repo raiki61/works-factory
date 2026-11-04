@@ -64,7 +64,7 @@
 - `workflows/.shared/schemas/judgment.schema.json`（新しく足す。判定を読む block は plan のほかに plan-review・verify・fix が在る）: `{"type": "object", "required": ["units"], "properties": {"units": {"type": "array", "items": {"type": "object", "required": ["key"], "properties": {"key": {"type": "string", "minLength": 1}, "label": {"type": "string"}, "disposition": {"type": "string"}, "prescriptions": {"type": "array", "items": {"type": "string"}}}}}, "questions": {"type": "array", "items": {"type": "object"}}}}`。作る時に同じ名の形が `.shared/schemas/` に在れば、それを使い、足さない。
 - `workflows/.shared/schemas/units.schema.json`（#851 で plan の写し unit-catalog.schema.json を消して寄せた）: 直しの単位の目録の形。今はこの 1 つだけで、plan の側に写しは無い（作った時は名を替えて plan の側に unit-catalog.schema.json として写していた。10 節の 6）。
 - `workflows/.shared/schemas/prior-failures.schema.json`（新しく足す。読み手は plan と diagnose）: `{"type": "array", "items": {"type": "object", "required": ["where", "text"], "properties": {"where": {"type": "string"}, "text": {"type": "string"}}}}`。同じ名の形が在れば使う。
-- `workflows/.shared/schemas/request-answers.schema.json`（#851 で .shared へ移した）: 依頼の answers の行 `[{question, text, command?, output?}]`（必須は縛らない。形を確かめる住処は `lib/carry.py`）。
+- `workflows/.shared/schemas/request-answers.schema.json`（#851 で .shared へ移した）: 依頼の answers の行 `[{question, text, command?, output?, pushed?}]`（`pushed` は無人の run が採った推しの行の印。必須は縛らない。形を確かめる住処は `lib/carry.py`）。
 - `workflows/.shared/schemas/replan-items.schema.json`（plan-review の入力 `ruling` と同じ形）: `{"type": "array", "items": {"type": ["integer", "string"]}}`（番号の照らしは `planmarks.handed` のまま）。
 - `workflows/.shared/schemas/plan-prior.schema.json`（#851 で line と plan が同じ名を指すよう .shared へ移した。欄の description が指す先の形を名指す。下は移す前の形）:
 

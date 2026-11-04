@@ -426,6 +426,22 @@ class PrescriptionCase(PlaceCase):
         self.assertEqual(v["judgment_file"], str(self.place / "judge" / "judgment.json"))
 
 
+class RecordedRowsCase(unittest.TestCase):
+    """記録された方針の行の値（brief.recorded_rows）。テーマの run が推しで降りた依頼の answers の行（source push。承認された設計の
+    在りかを含む）も、推しと分かる札で並べる（落とすと、計画の役は承認された設計の在りかを知る口を持たない）"""
+
+    def test_pushed_answers_are_listed_as_not_a_persons_answer(self):
+        import answer   # lib/
+        rows = [{"question": "人の問い", "text": "A を採る"},
+                {"question": "承認された設計", "text": "承認された設計の md: /x/approved.md", answer.PUSHED: []}]
+        text, none = brief.recorded_rows("", rows, "")
+        self.assertFalse(none)
+        self.assertIn("  - name `人の問い`: A を採る", text)
+        head, _, pushed = text.partition("as its push (not a person's answer):")
+        self.assertIn("  - name `承認された設計`: 承認された設計の md: /x/approved.md", pushed)
+        self.assertNotIn("承認された設計", head)
+
+
 class RepoLineCase(PlaceCase):
     """P035 のリポジトリの行の値（修正役の md の `Repository: {repo} (version read: {read_rev}) BASE: {diff_base}`）。読む版は review_rev、
     空なら base、それも空なら HEAD。BASE は diff_base、空なら base、それも空なら読む版"""

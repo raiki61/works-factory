@@ -30,7 +30,7 @@ import design      # lib/。DRIFT_HEAD・UNPAIRED_HEAD
 import gatemarks   # lib/。narrow_asks・ask_row・AxisFacts・mark_of・AXES と訳の字
 import jsonfile    # lib/
 import planmarks   # lib/。read・contract_diff・widened
-import policy      # lib/。unrecorded・RECORDED_KEY
+import policy      # lib/。unrecorded・decides・RECORDED_KEY
 import replan as replanlib   # lib/。bare
 import structmark  # lib/
 import worldmark   # lib/
@@ -136,8 +136,15 @@ def _answered_rows(b) -> set | None:
 def axis_facts(place, intake: dict, b) -> gatemarks.AxisFacts:
     """4 つの軸の材料を place と intake から集める（軸の決まりは lib の gatemarks.axis_why）"""
     answered = _answered_rows(b)
+    cite_ok, recorded = _cite_check(place, intake)[0], intake.get(policy.RECORDED_KEY) or []
+
+    def source_ok(text):
+        """出どころの照らし: 現物の名指し（cite.sources_problem）か、記録された方針の人の決めの行の名指し（policy.decides。計画の指示が
+        決め手に挙げる。依頼の answers に書いた答えを名指した行を人に聞き直さない）。現物に無い名指しの誤りは方針の名が在っても残す"""
+        got = cite_ok(text)
+        return "" if got == cite.NO_SOURCE and policy.decides(recorded, text) else got
     return gatemarks.AxisFacts(
-        cite_ok=_cite_check(place, intake)[0], world_rows=_world_rows(place) is not None,
+        cite_ok=source_ok, world_rows=_world_rows(place) is not None,
         ups=frozenset(r.get("unit_id") for r in _design_rows(place) if r.get("route") == structmark.ROUTE_UP),
         dirty=frozenset(structmark.dirty(pathlib.Path(place) / structmark.COPY_FILE)),
         answered=None if answered is None else frozenset(answered),

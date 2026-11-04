@@ -325,7 +325,7 @@ def _lines(rows: list) -> str:
 def recorded_text(rows: list) -> str:
     """記録された方針の行（policy.recorded の行）を、英語の札で並べた文。名指しの字は変えずに入れる（受け付けが字で照らす）。
     承認ノードの答えはこの役には渡っていない（札がそう言う）"""
-    of = {s: [r for r in rows if r.get("source") == s] for s in ("doc", "answer", "settled")}
+    of = policy.by_source(rows)
     cap = 120
 
     def head(text):
@@ -337,6 +337,9 @@ def recorded_text(rows: list) -> str:
     out.append("- Policy document: " + (f"name `{doc['name']}:<line>` (lines 1–{doc['lines']}; original place: none)" if doc else "none"))
     out.append("- answers of the request: " + ("" if of["answer"] else "none"))
     out += [f"  - name `{r['name']}`: {head(r['text'])}" for r in of["answer"]]
+    if of[policy.PUSH_SOURCE]:
+        out.append("- answers of the request that an unattended run took on its own as its push (not a person's answer):")
+        out += [f"  - name `{r['name']}`: {head(r['text'])}" for r in of[policy.PUSH_SOURCE]]
     out.append("- Answers a person gave at approval nodes: not given to this role")
     out.append("- Settled points (from the decision records): " + ("" if of["settled"] else "none"))
     out += [f"  - name `{r['name']}`: {head(r['text'])}" if r["name"] else f"  - (no where, so it cannot be named) {head(r['text'])}"

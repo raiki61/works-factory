@@ -479,7 +479,7 @@ def _cut(text) -> str:
 
 def recorded_rows(rows: list) -> str:
     """共通の断片 recorded-policy の {recorded_rows}（元 policy._section の行の部分を英語の札にした物。名指しの字 name は変えない）"""
-    of = {s: [r for r in rows if r.get("source") == s] for s in ("doc", "answer", "gate", "push", "settled")}
+    of = policy.by_source(rows)
     doc = of["doc"][0] if of["doc"] else None
     out = ["- policy document: " + (f"named `{doc['name']}:<line>` (lines 1-{doc.get('lines', 0)}; original place "
                                     f"{doc.get('alias') or 'none'})" if doc else "none")]
@@ -487,9 +487,9 @@ def recorded_rows(rows: list) -> str:
     out += [f"  - named `{r['name']}`: {_cut(r.get('text'))}" for r in of["answer"]]
     out.append("- a person's answers at approval nodes:" + ("" if of["gate"] else " none"))
     out += [f"  - named `{r['name']}`: {_cut(r.get('text'))}" for r in of["gate"]]
-    if of["push"]:
+    if of[policy.PUSH_SOURCE]:
         out.append("- recommendations an unattended run adopted at an approval node or a held question (not a person's answers):")
-        out += [f"  - named `{r['name']}`: {_cut(r.get('text'))}" for r in of["push"]]
+        out += [f"  - named `{r['name']}`: {_cut(r.get('text'))}" for r in of[policy.PUSH_SOURCE]]
     out.append("- settled points (from the decision records):" + ("" if of["settled"] else " none"))
     out += [f"  - named `{r['name']}`: {_cut(r.get('text'))}" if r.get("name")
             else f"  - (no `where`, so it cannot be named) {_cut(r.get('text'))}" for r in of["settled"]]
