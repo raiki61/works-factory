@@ -7,7 +7,7 @@
 この文書の語は README の頭の物を使う。ほかに:
 
 - 書く役（spec-write）: 要件と受け入れ条件を書き、受け入れ条件を実行できるテストとして対象のリポジトリに書く AI の役。実装は書かない。
-- 審査役（spec-review）: 書く役と別の目で、要件と受け入れ条件の抜け・曖昧さ・範囲の外を挙げる、読むだけの AI の役。
+- 審査役（spec-review）: 書く役と別の目で、要件と受け入れ条件の抜け・曖昧さ・範囲の外を挙げる、読むだけの AI の役。挙げた 1 件を「穴」と呼び、返答の `faces` の行に key を付けて書く。
 - 直す役（spec-revise）: 審査の穴に key ごとに 1 度だけ答え（absorbed か declared）、直した仕様の全体を返す AI の役。
 - 出し直しの役（spec-write-fix・spec-review-fix・spec-revise-fix）: 受け付けに拒まれた後、同じ会話の続きで拒まれた欄だけを返す AI の役（#571。今の `<役>-fix`）。受け付けが前の答えと欄ごとに合わせる。
 - 仕様の承認ノード（spec-gate）: 要件・受け入れ条件・審査の穴と答えを人に見せ、通すか止めるかを聞く `wait:` の node。
@@ -561,13 +561,13 @@ graphloops と元の works の仕様の段は、`p0.base` と `p0.local_checks`�
 ## 8 受け付け
 
 - 書く役（`role: write`）: 今の `_spec_errors` のまま（鍵が一意・受け入れ条件が要件を指す・要件は受け入れ条件を 1 件以上持つ・テストのファイルが読めてその名と Given・When・Then を含む）。通ったら審査役の前の作業ツリーの写しを `spec-snapshot-spec.review.json` に置く。
-- 審査役（`role: review`）: 写しと今の作業ツリーを `accept.tree_moved`（`status_guarded: true` なので `accept.BEYOND_STATUS` の欄。書く役が書いたテストの未コミットの状態は比べない）で比べ、変わっていれば「読むだけの役が作業ツリーを変えた: …」で拒む。`faces` の鍵が一意・穴が無いなら `faces_none` が 20 字以上。通ったら `revise` は穴が 1 件以上か。
+- 審査役（`role: review`）: 写しと今の作業ツリーを `accept.tree_moved`（`status_guarded: true` なので `accept.BEYOND_STATUS` の欄。書く役が書いたテストの未コミットの状態は比べない）で比べ、変わっていれば「読むだけの役が作業ツリーを変えた: …」で拒む。`faces` の鍵が一意・穴が無いなら `faces_none` が 20 字以上。通ったら、受け付けの返り `revise`（直す役を回すか）を、穴が 1 件以上の時だけ真にする。
 - 直す役（`role: revise`）: 審査の穴の鍵に 1 度ずつ答える（審査に無い鍵・答えの無い鍵を拒む）・直した仕様に `_spec_errors`。
-- 人に聞く文の照らし（3 つの役とも）: 承認ノードの項目に字のまま載る欄（書く役と直す役の `requirements[].text`・審査役の `faces[].why`・直す役の `handled[].how`。`gate.approve` が並べる）が run の中を指す参照（`<パス>:<行>`・`<名>[<番号>]`。`lib/plainask.py`）を持てば拒む。指示は 3 つの役と出し直しの役が共通の断片 `{shared:plain-ask}` を段落の外で入れる。
+- 人に聞く文の照らし（3 つの役とも）: 承認ノードの項目に字のまま載る欄（書く役と直す役の `requirements[].text`・審査役の `faces[].why`・直す役の `handled[].how`。`gate.approve` が並べる）が run の中を指す参照（`a/b.py:12` のような `<パス>:<行>` と、`faces[2]` のような返答の JSON の中の位置 `<名>[<番号>]`。照らしは `lib/plainask.py`）を持てば拒む。指示は 3 つの役と出し直しの役が共通の断片 `{shared:plain-ask}`（`workflows/.shared/prompts/plain-ask.md`）を、条件つきの段落（`<!-- if … -->`）の外で入れる。
 - どの役も: 返答が JSON のオブジェクトでない・形が違う（`KeyError`・`TypeError` など）時も、投げずに拒否として返す（`<節の名>: 返答の形が違う（<型>: <文>）`）。却下の理由の文の頭は `NODES` の名（`spec.write` など。今の字）。日本語のまま（README の 5.3）。
-- 出し直しの役の返答は、`rolekit.resubmitted` で前の答えの控えと欄ごとに合わせてから同じ照らしに通す（空の出し直しは前の答えのまま）。
+- 出し直しの役の返答は、`rolekit.resubmitted` で前の答えの控えと欄ごとに合わせてから同じ照らしに通す（出し直しが返した欄だけが前の答えの欄を置き換え、返さなかった欄は前のまま。空の出し直しは前の答えのまま）。
 - 3 回目の却下で loop を抜ける（`rolekit.GIVE_UP_AFTER`）。`spec-ask` が `rolekit.given_up_reason` を見て、承認ノードを開かずに `stop.json` に `works:spec` と諦めの文を書き、`finish` が `status: failed` を返す。
-- 承認ノードの答え（`spec-freeze`）: 開かなかった（null）→ `stop.json` が無ければ `works:spec`「仕様の承認ノードが開かなかった（仕様が固まっていない）」。止める語（`stop`・`reject`）→ 一言が `request:` で始まれば `request:spec-gate`、ほかは `human:spec-gate`（一言が空なら「承認ノードで止めた」）。通す語（`approve`・`continue`）→ `spec-ask.json` の仕様を固める（もう `spec.json` が在れば 2 度固めない）。知らない語・形の誤り → `works:spec`。
+- 承認ノードの答え（`spec-freeze`）: 開かなかった（null）→ `stop.json` が無ければ `works:spec`「仕様の承認ノードが開かなかった（仕様が固まっていない）」。止める語（`stop`・`reject`）→ 一言が `request:` で始まれば `request:spec-gate`、ほかは `human:spec-gate`（一言が空なら「承認ノードで止めた」）。通す語（`approve`・`continue`）→ `spec-ask.json` の仕様を固める（頭の語の「固める」。もう `spec.json` が在れば 2 度固めない）。知らない語・形の誤り → `works:spec`。
 
 ## 9 報告の行（`src/report.py`）
 
