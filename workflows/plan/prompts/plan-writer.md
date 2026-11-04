@@ -123,7 +123,7 @@ For each row that has a place it applies to (a row that needs an answer), some i
 
 {means_rows}
 
-For each of these means, some item writes in its works field structure that it follows the means ({means: "M<n>", follows: true}) or why it does not ({means: "M<n>", deviation: <why the plan does not take this means, 20 characters or more>}) (the check rejects a means that no item answers). An item departs when the plan does not take that means, including when you set it aside to match the independent design, the practice, or the repository's rules. Every departure is asked of a person before fixing, and the deviation is shown at the approval node as it is, so write it for a reader who knows neither the run nor the factory. Do not write a recommendation for a departure: a different eye writes it.
+For each of these means, some item writes in its works field `structure` (the list of answers described in the works fields above) that it follows the means ({means: "M<n>", follows: true}) or why it does not ({means: "M<n>", deviation: <why the plan does not take this means, 20 characters or more>}) (the check rejects a means that no item answers). An item departs when the plan does not take that means, including when you set it aside to match the independent design, the practice, or the repository's rules. Every departure is asked of a person before the fix starts, and the deviation is shown at the approval node (the point before the fix where a person answers each item) as it is, so write it for a reader who knows neither the run nor the factory. Do not write a recommendation for a departure: a different eye (the plan review, a different AI from you) writes it.
 <!-- end means -->
 
 <!-- if ripple_units -->

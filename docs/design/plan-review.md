@@ -1016,7 +1016,7 @@ bin/works-factory workflow run works-factory-plan-review --cwd <対象> \
 
 ## 20 頼みの解き方と独立の目の食い違い（持ち主の決め `means-ask`。元の計画 means-answers）
 
-計画 means-answers（PR #976 の PR 1。案 3-A・3-B）の設計を、実装の後にここへ移した。節の番号は元の計画のまま（コードと試験が「計画 means-answers の 3.2 の 8」のように引く）。plan の block の側は `docs/design/plan.md` の 10 章の 27、承認ノードの側は `docs/design/line.md` も見る。
+計画 means-answers（PR #976 の PR 1。案 3-A・3-B）の設計を、実装の後にここへ移した。節の番号は元の計画のまま（コードと試験が「計画 means-answers の 3.2 の 8」のように引く）。plan の block の側は `docs/design/plan.md` の 10 章の 27、承認ノードの側は `docs/design/line.md` も見る。形・往復・世界の解・構造の目・設計が立つなどの語は、この文書の頭の語の一覧が定める。
 
 - 何の話か: 頼みがはっきり指定した解き方（means）と、目的の 1 文だけから作った独立設計が食い違うと、今は独立設計の側が黙って勝つ。勝たせているのは計画の事前審査（plan-review の design-ask）と、修正の後の R2。持ち主は「どちらも自動では優先せず、推しつきの問いにして修正の前の承認ノードに出す。無人の run は推しを採って記録する」を選んだ（2026-11-04「おしで」。決め `means-ask`）。
 - 一言で: 計画の項目の今の欄 `structure` の答える先に、頼みの解き方の鍵 `means`（`M1`…）を足す。従うなら `{means: M<n>, follows: true}`、外れるなら `{means: M<n>, deviation}`（計画の役は外れの訳だけを書く）。推しは別の目の事前審査が書く: 計画の外れの行の推しは新しい欄 `means_departs`、計画が頼みどおりなのに独立設計と食い違う所は新しい欄 `means_drifts` に書く。どちらも、修正の前の承認ノードの新しい種類の項目「頼みの解き方」にする。道は世界の解の外れ（`deviations` の `source: world`）と同じで、違いは項目が役の書いた推しの尾を持つこと（無人の run は推しで抜ける）。
@@ -1027,13 +1027,21 @@ bin/works-factory workflow run works-factory-plan-review --cwd <対象> \
 - 頼みの解き方（means）: 目的の役が目的の文から外して足し欄 `means` に 1 文ずつ並べた物（`lib/worldmark.py` の「依頼の解き方」の節）。line は `$judge.output.means` で運ぶ。番号は並びの順の 1 始まりで、`structure` の鍵の値と指示では `M1`・`M2`… と書く。
 - 修正の前の承認ノード: line の `gate-before-fix`（項目は `workflows/line/src/gates.py` の `before_fix` が組む）。
 - 世界の解の外れの道: 計画の項目の欄 `structure` の `{world, deviation}` → 事前審査の `deviations`（`workflows/plan-review/src/gate.py` の `world_items`）→ line の `before_fix` が種類 `gatemarks.WORLD_KIND` の項目にする。
-- 答えの要る行の表（Need）: `lib/planmarks.py` の `Need`。`structure_gaps(plan, tables)` が表ごとに、どの項目も答えていない id を拒む。今の表は構造の目の汚れる行（`design_need`）と世界の解の行（`worldmark.need`）の 2 つ。
+- 答えの要る行の表（Need）: `lib/planmarks.py` の `Need`。`structure_gaps(plan, tables)` が表ごとに、どの項目も答えていない id を拒む。今の表は 2 つ。1 つは構造の目が「このまま直すと作りが汚れる」と見た単位の行（`design_need`。計画は単位ごとに、選んだ避け方に従うか、従わない訳を書く）。もう 1 つは世界の解の行（`worldmark.need`。計画は定石に従うか、従わない訳を書く）。
+- 独立設計: 計画を見ずに、目的の 1 文（と前提の実測）だけから作る設計（independent-design の block）。事前審査は計画をこれと比べる。
+- R1〜R4・R2: 修正の後に、直しを作った AI と別の AI が差分を確かめる 4 つの観点（独立の目。r1〜r4 の block）。R2 はその 1 つで、修正の後の差分を独立設計と比べる。独立設計そのものとは別の段。
+- 推し（recommend）: 承認ノードの項目に付く、役が勧める 1 つの答え（continue で通すか stop で止めるか・承認ノードの一言・その訳）。
+- 周: 計画とその事前審査の 1 回の回し（形 plan の 1 往復か、形 replan の 1 回）。
+- 窓口の決め: 持ち主に聞かず、持ち主と話して計画を書いた会話（窓口）が、持ち主の前の決めから決めた所。持ち主が覆せる。
+- 審査の回: 元の計画 means-answers の文書を、実装の前に別の目が審査した回（1 回目・2 回目・3 回目）。「2 回目の審査の案 2」は 2 回目の審査が出した直し方の案の 2 つ目、「1 回目の直し」「2 回目の直し」はその審査を受けて文書を直した回。
 
 ### 1 E11 の 3 つの答え
 
+根の `AGENTS.md` の E11（仕組みを足す前に、Archon が持っているか・ASF が持っているか・本当に要るかの 3 つを確かめる）への答え。Archon は工場が上で動く、AI の処理をグラフにして回す道具。ASF は横に並べて型だけを見る、別の工場の仕組み（根の `AGENTS.md` の E8）。
+
 1. Archon が持っているか → 持っていない。Archon の承認ノード（`interactive`）は問いを出す口だけで、頼みの指定と別の目の食い違いを見分ける物は無い（`docs/design/archon.md`）。
 2. ASF が持っているか → 持っていない。ASF の `.archon/workflows/sdlc/` の計画と審査の役は、頼みの文を前提に置くだけで、独立の設計と突き合わせる段が無い（`docs/asf-notes.md` にも該当の型は無い）。
-3. 本当に要るか → 要る。keep-essence の 9（独立設計と R1〜R4。目的だけから作る独立を保つ）と 12（世界の解。頼みの解き方を疑い、外れる時は人に聞く）の間の抜け。世界の解の関所は「計画が定石から外れる時」だけ人に聞く。だから頼みの解き方が定石と同じ（`versus.verdict: same`）でも独立設計が別の形を推すと、計画は独立設計に合わせて頼みから外れ、誰にも見せずに通る（調べの 3 の run の `pr-unit-diverges-from-closer`）。その run で世界の解の関所が捕まえなかったのは、関所が計画の役の書いた世界の解の行への答えを読むだけで、`follows: true` の答えの中身を頼みの解き方と比べないため（`worldmark.world_ok` は `follows: true` なら通す）。定石の類は粗く、独立設計に合わせた形でも定石に従うと答えられるので、頼みから外れたことはどの行にも出ない。足す物は新しい仕組みにしない。答えは今の `structure` の答えの仕組み（Need の表を 1 つ足す）で照らし、人に聞くのは今の世界の解の外れの道（種類を 1 つ足す）で行う。読み方の決まり「仕組みで照らせないかを見る」にも当たる。
+3. 本当に要るか → 要る。keep-essence（元の works が守ってきた 12 の仕組み。`docs/design/README.md` の 10 章）の 9（独立設計と R1〜R4。目的だけから作る独立を保つ）と 12（世界の解。頼みの解き方を疑い、外れる時は人に聞く）の間の抜け。世界の解の関所は「計画が定石から外れる時」だけ人に聞く。だから頼みの解き方が定石と同じ（`versus.verdict: same`）でも独立設計が別の形を推すと、計画は独立設計に合わせて頼みから外れ、誰にも見せずに通る（調べの 3 の run の `pr-unit-diverges-from-closer`）。その run で世界の解の関所が捕まえなかったのは、関所が計画の役の書いた世界の解の行への答えを読むだけで、`follows: true` の答えの中身を頼みの解き方と比べないため（`worldmark.world_ok` は `follows: true` なら通す）。定石の類は粗く、独立設計に合わせた形でも定石に従うと答えられるので、頼みから外れたことはどの行にも出ない。足す物は新しい仕組みにしない。答えは今の `structure` の答えの仕組み（Need の表を 1 つ足す）で照らし、人に聞くのは今の世界の解の外れの道（種類を 1 つ足す）で行う。読み方の決まり「仕組みで照らせないかを見る」にも当たる。
 
 ### 2 決め（`docs/owner-decisions.md` の `means-ask`）
 
@@ -1067,7 +1075,7 @@ bin/works-factory workflow run works-factory-plan-review --cwd <対象> \
 #### 3.2 事前審査（plan-review の block。案 3-A の項目と 3-B）
 
 1. 材料（`src/material.py`）: means が在る時、節「The request's means and the plan's answers」に `M<n>: <文> — plan: follows（項目 <i>）| departs（項目 <i>）— <deviation>` を並べる（答えは控えの欄 `structure` から読む）。
-   - 従うという答えの確かめ（指示の段。3.2 の 3 と同じ段に置く）: 計画が `follows: true` と答えた M ごとに、答えた項目が本当にその解き方をとるかを、項目の `files` と変更の文で見る。とらなければ「従うという答えの偽り」として `faces` の block にする（計画の役に直させる。外れなら `deviation` を書き直させる）。AI の判断なので機械の照らしは足さない（憲法 1）。照らすのは指示に段が在ることだけ（5 章の 5）。
+   - 従うという答えの確かめ（指示の段。3.2 の 3 と同じ段に置く）: 計画が `follows: true` と答えた M ごとに、答えた項目が本当にその解き方をとるかを、項目の `files` と変更の文で見る。とらなければ「従うという答えの偽り」として `faces` の block にする（計画の役に直させる。外れなら `deviation` を書き直させる）。AI の判断なので機械の照らしは足さない（憲法 1: 値はコードが計算し、判断は AI がする）。照らすのは指示に段が在ることだけ（5 章の 5）。
 2. 推しの欄 `means_departs`（3-A の推し。窓口の決め）: 計画の `structure` の鍵 `means` の外れの行（follows でない答え）ごとに、事前審査の役が根の欄 `means_departs` の行 `{item, means: "M<n>", why, recommend}` を書く（`item` は外れの行を持つ計画の項目の番号。鍵は `(item, means)`。同じ M を 2 つの項目が外れれば行も 2 つ。`recommend` は `gatemarks.RECOMMEND_SHAPE`〔`{answer: continue|stop, note, why}`〕。計画のまま進めるなら continue・頼みどおりに直すべきなら stop）。形は `means_drifts` と同じ欄の形から引用の 2 つを除いた物。この段は形 plan と形 replan の両方に入れる（案の直しで直した項目の新しい外れにも推しが要る）。
    - 段の置き場: 新しい断片 `prompts/parts/means-ask.md` に置き、`prompts/review.md` の節「Independent design」の直下に、means が在る時だけ立つ条件の札（形 plan と形 replan の両方で立つ。`src/material.py` が渡す）で入れる。`design-ask.md` は札 `design_stands` の中に在り、形 replan で独立設計が無い周には入らないので、そこには置かない。木の形の項目の下請けの指示（`prompts/parts/item-brief.md`）にも同じ断片を入れる。
    - 外れを選んだ役が自分で推しを書くと stop はほぼ出ず、無人の run では外れた側がいつも通り、決め means-ask の「どちらも自動では優先しない」が形だけになる。事前審査は `means_drifts` の推しを既に書くので、同じ別の目に書かせる。
@@ -1093,8 +1101,8 @@ bin/works-factory workflow run works-factory-plan-review --cwd <対象> \
 8. 外れの行（`src/gate.py` の `deviations`）に `source: "means"` の行を足す。元は 2 つで、事前審査が諦めた・落ちた周は line が計画から組む:
    - 計画の `structure` の `{means, deviation}` の行。文は `修正案 <i> は頼みの解き方 M<n>「<文>」に従わない——<deviation>`。`mark` は `{decided_by: <deviation>, recommend: <積んだ means_departs の同じ鍵 `(item, means)` の行の recommend>}`。
    - 積んだ `means_drifts` の行（`item` を持つ）。文は `修正案 <i> は頼みの解き方 M<n>「<文>」に従うが、独立設計と食い違う——<why>`（`<i>` は行の `item`）。`mark` は `{decided_by: <why>, recommend: <役の recommend>}`。
-   - 事前審査が諦めた・落ちた周（line の `scripts/plan_out.py` が返す `review_status` が `gave_up` か `failed`。事前審査の `deviations` が無い）でも、計画の `{means, deviation}` の外れは修正の前の承認ノードに出す。行は line の `src/gates.py` の `before_fix` が、事前審査の `deviations` でなく、`plan_out.py` が運ぶ計画（各項目の `structure`）から組む。推しが無いので `mark` は `{decided_by: <deviation>}` だけの「推しなし」として開く（無人の run なら止まる。3.3 の 3）。これが決め means-ask の 1 に合う形。
-   - 文の口: 上の 2 つの文の組み立ては plan-review と line の 2 つの block が使うので、`lib/gatemarks.py` の 1 つの口に置き、plan-review の `src/gate.py` と line の `before_fix` が呼ぶ（憲法 4）。
+   - 事前審査が諦めた・落ちた周（line の `scripts/plan_out.py` が返す `review_status` が `gave_up` か `failed`。事前審査の `deviations` が無い）でも、計画の `{means, deviation}` の外れは修正の前の承認ノードに出す。行は line の `src/gates.py` の `before_fix` が、事前審査の `deviations` でなく、`plan_out.py` が運ぶ計画（各項目の `structure`）から組む。推しが無いので `mark` は `{decided_by: <deviation>}` だけの「推しなし」として開く（無人の run なら止まる。3.3 の 3）。決めの 2 の「推しを採って進む」は推しが在る時の形で、推しが無い時は機械が代わりの推しを作らない（決めの 2 の後ろの半分・決め `unattended`）ので止まる。例外ではない。これが決め means-ask の 1 に合う形。
+   - 文の口: 上の 2 つの文の組み立ては plan-review と line の 2 つの block が使うので、`lib/gatemarks.py` の 1 つの口に置き、plan-review の `src/gate.py` と line の `before_fix` が呼ぶ（憲法 4: 2 つ以上の block が使うコードは `lib/` に置く）。
    - どれも `why`（人に聞く訳）は「頼みの解き方と独立の目の食い違い（どちらも自動では優先しない。決め means-ask）」の 1 つ。世界の解の外れと違い、聞かずに通す道は無い（決めの 1）。
 9. 返す事実の形: `deviations` の行の `source` の enum（`works-factory-plan-review.yaml` の出力の型。今は `[world, design]`）に `means` を足す。足さなければ `ports.returns` が `ShapeError` で拒む。行のほかの欄は世界の解の行と同じ（`item`・`text`・`mark`・`why`。`means_drifts` の行も `item` を持つ）。line の受け口（`works-factory-line.yaml` の `deviations` の型は `source` だけを名指し、enum を持たない）はそのまま。
 
@@ -1103,7 +1111,7 @@ bin/works-factory workflow run works-factory-plan-review --cwd <対象> \
 1. `lib/gatemarks.py` に種類 `MEANS_KIND = "means"` と、項目の種類の名の表（`WORLD_KIND` と並ぶ所）に「頼みの解き方と独立の目が食い違う修正案の項目」を足す。
 2. `workflows/line/src/gates.py` の `before_fix`: `deviations` の `source == "means"` の行を項目にする。文は `text` に `（人に聞く訳: <why>）` と推しの尾 `gatemarks._push(mark)` だけを付けて組む。`gates._item` は使わない（`gatemarks.FIELDS` に `decided_by` が在るので、`_item` が呼ぶ `gatemarks._world` が「（世界の解: 役が書いていない）」の尾を付けてしまう）。前に continue で通した同じ文の行は聞き直さない（`_continued`。全文一致）。軸の行（`gather`）には足さない（外れの住処はこの項目の 1 つ）。
 3. 無人の run: 今の `passage(texts, row_push)` がこの項目の推しの尾を読む。項目の全部が通す推しを持てば推しで抜け、採った推しは `answer.PUSHED` で記録に残る（決めの 2）。推しが stop か読めない時は止まる。新しい分岐は足さない。
-4. 人の答えの届く先: 修正の前の承認ノードの答えは、独立設計には届かない（独立設計に届くのは始めの承認ノード `answer-start` の答えだけ。`works-factory-line.yaml` の 225 行と 608 行の `answers: "$answer-start.output.answer"`）。R2 は承認ノードの答えを `design.human_answers` で受け、聞いた文 `asked` は写さない。PR 2 の R2 の `request_conflicts` は、この答えに加えて、承認ノードに出なかった頼みどおりの違い（計画の審査を素通りした所）を受ける。
+4. 人の答えの届く先: 修正の前の承認ノードの答えは、独立設計には届かない（独立設計に届くのは始めの承認ノード `answer-start` の答えだけ。`works-factory-line.yaml` の 225 行と 608 行の `answers: "$answer-start.output.answer"`）。修正の後の R2（差分を独立設計と比べる観点。0 の語）は、独立設計とは別の段で、承認ノードの答えを `design.human_answers` で受け、聞いた文 `asked` は写さない。PR 2 の R2 の `request_conflicts` は、この答えに加えて、承認ノードに出なかった頼みどおりの違い（計画の審査を素通りした所）を受ける。
 5. 案の直し（`ask-replan`）: 聞く行を組むのは `workflows/line/scripts/ask_replan.py` の `ask`（`gates.replan_asks` ではない）。`ask_replan.py:32` の `REVIEW`（案の直しの事前審査 `replan-review` の出力から拾う欄）に `deviations` を足し、`ask` が、その `deviations` のうち `source == "means"` で直した項目（`replan` の行の `item`）の行を聞く行に足す（形 replan の照らしが拾った新しい外れを人に見せる。3.1 の 4）。直さない項目の行は修正の前の承認ノードで答え済みなので足さない。足す means の行にも、`before_fix` と同じく推しの尾 `gatemarks._push(mark)` を付ける（付けないと、無人の run の案の直しがいつも止まる）。行の組み立ては `before_fix` と同じ 1 つの口にまとめてよい。
    - 聞き直さない照らし: `gates._continued` は全文一致なので、案の直しの事前審査が推しの文を書き直すと当たらない。そこで案の直しでは、修正の前の承認ノードが continue で通した行の鍵 `(item, means)` で照らし、同じ鍵の行は聞き直さない。鍵は聞いた文 `asked` の頭（機械が組む `修正案 <i> は頼みの解き方 M<n>`。3.2 の 8）から引き、推しの文は比べない。
 
@@ -1122,11 +1130,11 @@ bin/works-factory workflow run works-factory-plan-review --cwd <対象> \
 ### 7 決めた細目
 
 1. 案の直し（形 replan）: 答えは `structure` の行なので、直さない項目の答えは承認済みの案の項目と一緒に持ち越す（`take_replan` は承認済みの案の全体を写して直した項目だけを差し替える）。直した項目の答えは `plan_errors` が同じ表で照らし、新しい外れは `ask-replan` が聞く（3.3 の 5）。3-B の段は形 replan に入れない（3.4 の 2）。
-2. 計画の外れの推しは、事前審査の役（別の目）が `means_departs` の行ごとに `recommend` に書く（2 回目の審査の案 2。窓口の決め）。計画の役は外れの訳（`deviation`）だけを書き、推しは書かない。外れを選んだ役が自分で推しを書くと stop はほぼ出ず、無人の run では外れた側がいつも通り、決めの 1「どちらも自動では優先しない」が形だけになるため。事前審査は `means_drifts` の推しを既に書くので、同じ欄の形で書かせる。形は `gatemarks._recommend_gap`、字は人に聞く文の決まりで照らす。機械は推しを作らない（決め `unattended`・line の設計書の L-G24・`gates.passage`）はそのまま守る。審査役が continue を書けば無人の run は計画のまま進み、stop を書けば止まる。初めの下書きの「機械が決まった文で continue を作る」も、1 回目の直しの「計画の役が推しを書く」も、同じ訳で採らない。人が頼みどおりを選んだ時の計画の直しは、承認ノードの一言での修正役への指示になる。これは世界の解の外れと同じ限りで、この PR では広げない。
+2. 計画の外れの推しは、事前審査の役（別の目）が `means_departs` の行ごとに `recommend` に書く（元の計画の 2 回目の審査の案 2。窓口の決め）。計画の役は外れの訳（`deviation`）だけを書き、推しは書かない。外れを選んだ役が自分で推しを書くと stop はほぼ出ず、無人の run では外れた側がいつも通り、決めの 1「どちらも自動では優先しない」が形だけになるため。事前審査は `means_drifts` の推しを既に書くので、同じ欄の形で書かせる。形は `gatemarks._recommend_gap`、字は人に聞く文の決まりで照らす。機械は推しを作らない（決め `unattended`・line の設計書の L-G24・`gates.passage`）はそのまま守る。審査役が continue を書けば無人の run は計画のまま進み、stop を書けば止まる。初めの下書きの「機械が決まった文で continue を作る」も、1 回目の直しの「計画の役が推しを書く」も、同じ訳（推しを外れた側か機械が書くと、決めの 1 が形だけになる）で採らない。人が頼みどおりを選んだ時の計画の直しは、承認ノードの一言での修正役への指示になる。これは世界の解の外れと同じ限りで、この PR では広げない。
 3. `means_drifts` を `faces` の suggest でなく別の欄にしたのは、`faces` の suggest は開いた項目で次の往復の答えを求める（`converge.owed_faces`）ため。頼みどおりの食い違いは計画の役でなく人が答える問いなので、計画の役に答えを求めない。往復をまたいで消えないよう、往復の行には積む（3.2 の 6）。
 4. 形 `stated-means.schema.json` を `workflows/.shared/schemas/` に寄せ、world と plan-review の写しを消す（3.1 の 2）。
 5. 3-A の答えを根の欄 `means_answers` でなく `structure` の鍵 `means` にした（初めの下書きからの替え）。今の仕組み（`Need`・`structure_gaps`・`worldmark.need`）で照らせ、どの項目が従うかが分かり（3-B の照らしに要る）、往復の持ち越し（`converge.splice`）と案の直しの新しい外れの拾い（`plan_errors`）も付いてくる。`follows: false` を使わずに済み、今の決まり「follows は true だけ。外れは deviation に書く」とも合う。
-6. 取り下げの欄を置かない（窓口の決め。3 回目の審査の後）: 2 回目の直しで足した取り下げの欄 `means_drifts_dropped` と、2 往復目に前の `means_drifts` を貼る段を外した。積み方は全部の往復の行の和で、鍵で後勝ち。訳: 解けた食い違いが残って聞きすぎになるのは安全の側（人が見て continue を答えれば済む）で、取り下げの欄は「取り下げに答えられない」「取り下げた行が後の往復で生き返る」の新しい矛盾を生んだため。`plan_quote` が今の案から消えた行は今どおり落ちる（3.2 の 6）。
+6. 取り下げの欄を置かない（窓口の決め。元の計画の 3 回目の審査の後）: 元の計画の 2 回目の直しで足した取り下げの欄 `means_drifts_dropped` と、2 往復目に前の `means_drifts` を貼る段を外した。積み方は全部の往復の行の和で、鍵で後勝ち。訳: 解けた食い違いが残って聞きすぎになるのは安全の側（人が見て continue を答えれば済む）で、取り下げの欄は「取り下げに答えられない」「取り下げた行が後の往復で生き返る」の新しい矛盾を生んだため。`plan_quote` が今の案から消えた行は今どおり落ちる（3.2 の 6）。
 
 ### 8 実装で下書きから変えた所
 
