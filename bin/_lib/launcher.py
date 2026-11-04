@@ -61,10 +61,13 @@ TARGET_ENV_NOTICE = ("AI が書いた試験のコードを、あなたの権限�
                      "守りが要るなら工場ごとコンテナか VM の中で回す")
 
 
-# 役の claude の会話のキャッシュの寿命の既定（cache_ttl が run の設定の層の env で運ぶ）と、寿命を選ぶ名（Claude Code の
-# Choose the TTL yourself の順。promptCacheTtl の設定は 2 つ目と 3 つ目の間）
-PROMPT_CACHE_TTL = ("CLAUDE_CODE_PROMPT_CACHE_TTL", "5m")
-CHOSEN_TTL_ENVS = ("FORCE_PROMPT_CACHING_5M", PROMPT_CACHE_TTL[0], "ENABLE_PROMPT_CACHING_1H", "ENABLE_PROMPT_CACHING_1H_BEDROCK")
+# claude の会話のキャッシュの寿命の既定（cache_ttl が run の設定の層の env で運ぶ）を組ごとに {既定の名: 値}。Claude Code は寿命を
+# 役の会話の組と、それ以外（役の会話が Agent の道具で起こす下請け〔subagent〕）の組に分けて決める（v2.1.242 から）
+PROMPT_CACHE_TTL = {"CLAUDE_CODE_PROMPT_CACHE_TTL": "5m", "CLAUDE_CODE_SUBAGENT_PROMPT_CACHE_TTL": "5m"}
+# 組ごとの寿命を選ぶ名 {既定の名: 選ぶ名}（https://code.claude.com/docs/en/prompt-caching の Which TTL each request gets の順。
+# 設定の promptCacheTtl・subagentPromptCacheTtl と下請けの定義の frontmatter は 2 つ目と 3 つ目の間）。1 つ目と 3・4 つ目は両方の組に効く
+CHOSEN_TTL_ENVS = {name: ("FORCE_PROMPT_CACHING_5M", name, "ENABLE_PROMPT_CACHING_1H", "ENABLE_PROMPT_CACHING_1H_BEDROCK")
+                   for name in PROMPT_CACHE_TTL}
 # 対象の下の Archon の repo 設定の置き場（対象からの相対。packages/core/src/config/config-loader.ts の loadRepoConfig が読む場所の写しで、
 # tests/shared/test_archon_contract.py が照らす）
 REPO_CONFIG = (".archon", "config.yaml")
@@ -296,15 +299,18 @@ def spec_reviews(workflow: str, flags: list[str], user: Mapping[str, str], child
 
 
 def cache_ttl(*carried: Mapping) -> dict[str, str]:
-    """役の claude の会話のキャッシュの寿命の既定を、run の設定の層の env に載せる {名: 値}。carried は工場の run だけに効く層の env
-    （利用者の --config の env: と、対象の .archon/config.yaml の env:）。
-    (a) carried のどれかが CHOSEN_TTL_ENVS の名を持てば {}（その選びは Archon が運び、載せると潰す）。
-    (既定) 無ければ {PROMPT_CACHE_TTL}。
+    """claude の会話のキャッシュの寿命の既定を、run の設定の層の env に載せる {名: 値}。carried は工場の run だけに効く層の env
+    （利用者の --config の env: と、対象の .archon/config.yaml の env:）。組（役の会話・下請け）ごとに決める:
+    (a) carried のどれかがその組の CHOSEN_TTL_ENVS の名を持てば、その組の既定は載せない（その選びは Archon が運び、載せると潰す）。
+    (既定) 無ければその組の PROMPT_CACHE_TTL を載せる。役の会話の組の名だけを選べば下請けの既定は載り、両方の組に効く名
+    （FORCE_PROMPT_CACHING_5M・ENABLE_PROMPT_CACHING_1H*）を選べばどちらも載らない。
     利用者の shell の env は見ない（持ち主の決め factory-cache-ttl。訳は docs/design/archon.md）。
 
     訳: 加入の利用者では、Claude Code が会話のキャッシュの寿命を既定で 1 時間にし、書き込みの単価が 5 分の 2 倍になる。工場の役の会話は
     ノードをまたいだキャッシュの読みが無く、5 分を超える間も少ないので、書き直しを減らす向きで 5 分を既定にする。1 時間に戻す道は
-    carried の層に ENABLE_PROMPT_CACHING_1H=1 を書くこと。出典: https://code.claude.com/docs/en/prompt-caching の Choose the TTL yourself。
+    carried の層に ENABLE_PROMPT_CACHING_1H=1 を書くこと。下請けも同じ向きなので同じ既定にする（加入の利用者では下請けにも
+    ENABLE_PROMPT_CACHING_1H が当たって 1 時間になる）。出典: https://code.claude.com/docs/en/prompt-caching の Choose the TTL yourself・
+    Which TTL each request gets・Subagents and the cache。
 
     運び方: 役の claude は Archon が起こすので、子の env に置いても CLAUDE_CODE_* の掃除で消える。Archon が AI のノードの env に重ねる層は下から
     対象の .archon/config.yaml の env:、Archon の DB の codebase の env、run の設定の層の env で、どれも掃除の後に重なり、workflow: の子の
@@ -312,16 +318,16 @@ def cache_ttl(*carried: Mapping) -> dict[str, str]:
     ENABLE_PROMPT_CACHING_1H に勝つので、選びが有る時は載せない。
 
     見られない選び: Archon の DB の codebase の env（Archon の server の API だけが書き、殻から読む口が無い）と、管理の設定（managed
-    settings）の promptCacheTtl と、対象の .archon/.env が入れる ENABLE_PROMPT_CACHING_1H は、載せた 5m に負けて上書きされる。前に始めた
+    settings）の promptCacheTtl・subagentPromptCacheTtl と、下請けの定義の frontmatter の寿命と、対象の .archon/.env が入れる
+    ENABLE_PROMPT_CACHING_1H は、載せた 5m に負けて上書きされる。前に始めた
     run を続ける起動は、封じた層を戻すので、この既定を載せる前に始めた run は 1 時間のまま。
 
     対象の .archon/config.yaml は殻が --cwd の対象から読む（repo_env）。新しい run では Archon も同じ --cwd の config.yaml を、commit して
     いない変更や git の無視に入れた変更も含めて読むので、殻と Archon は同じ物を見る。--adopt の起動では、この既定を載せない（run_config が
     呼ばない）: 引き継ぐ run は repo の config を、枝を取り出して作った写し（task branch の commit）か、既に在る作業ツリーから読み、--cwd の
     物とは別なので、殻はそこに寿命の選びが在るか見られず、載せると repo の選び（.archon/config.yaml の env:）を潰しうる"""
-    if any(name in env for env in carried for name in CHOSEN_TTL_ENVS):
-        return {}
-    return dict([PROMPT_CACHE_TTL])
+    return {name: value for name, value in PROMPT_CACHE_TTL.items()
+            if not any(chosen in env for env in carried for chosen in CHOSEN_TTL_ENVS[name])}
 
 
 def repo_env(bun: str, source: Path, target: Path) -> Mapping | None:
@@ -347,7 +353,7 @@ def run_config(bun: str, source: Path, cache: Path, home: Path, target: Path, fl
     持たないので取り置き cache に、利用者の層を合わせた物（env の秘密が入りうる）は対象の家 home（run_home。Archon の DB と封じた層を
     解く鍵の置き場）に置き、家と一緒に消える。
 
-    層の env には run のノードに渡す環境変数（run_env）に加え、役の claude の会話のキャッシュの寿命の既定（cache_ttl）も載る。選びを
+    層の env には run のノードに渡す環境変数（run_env）に加え、役の claude とその下請けの会話のキャッシュの寿命の既定（cache_ttl）も載る。選びを
     潰さないため、利用者の --config の env: と対象の .archon/config.yaml の env:（repo_env）を読んで cache_ttl に渡す。対象の config.yaml が
     読めなければ寿命の既定を載せない。--adopt の起動は寿命の既定を載せず、対象の config.yaml も読まない: 引き継ぐ run は repo の config を
     --cwd の物でなく、枝の写しか既存の作業ツリーから読むので、殻はそこに寿命の選びが在るか見られない（cache_ttl の docstring）"""
