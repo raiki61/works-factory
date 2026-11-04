@@ -203,6 +203,43 @@ class CompareRoadCase(_RepoCase):
         self.intake(test_outcomes=dump(got))
         self.assertIn(f"  - `{key}`\n", self.compare()["prompt"])
 
+    def test_tests_beyond_the_mention_hops_are_named(self):
+        """地図が言及の辺を辿る上限（impact.MENTION_HOPS）の先のテスト（stats.py ← run.sh ← wrap.sh ← tests/test_wrap.py の 3 本目）も、
+        地図が名を返す（not_seen.tests_beyond_mention_hops）ので緑→緑の名を貼る"""
+        self._stats_repo()
+        (self.repo / "run.sh").write_text("#!/bin/sh\npython stats.py\n", encoding="utf-8")
+        (self.repo / "wrap.sh").write_text("#!/bin/sh\n./run.sh \"$@\"\n", encoding="utf-8")
+        (self.repo / "tests" / "test_wrap.py").write_text(
+            "import subprocess\n\n\ndef test_wrap():\n    subprocess.run([\"./wrap.sh\"])\n", encoding="utf-8")
+        self._commit_tests("run.sh", "wrap.sh", "tests/test_wrap.py")
+        key = "tests.test_wrap.TestWrap::test_wrap"
+        got = self._outcomes()
+        got["rows"].append({"key": key, "base": "passed", "final": "passed", "fail_message": ""})
+        self.intake(test_outcomes=dump(got))
+        self.assertIn(f"  - `{key}`\n", self.compare()["prompt"])
+
+    def test_tests_in_the_tdd_test_files_are_named(self):
+        """TDD の記録の単位が test_files に名指したテストのファイルの物は、地図が届かなくても緑→緑の名を貼る（tests だけでなく）"""
+        self._stats_repo()
+        tdd = [[{"group_id": "g1", "ran": True, "reason": "", "suite": "", "reused": {},
+                 "units": [{"unit_key": "u1", "route": "tdd", "red": "ok", "green": "ok", "tests": [],
+                            "test_files": ["tests/test_other.py"]}]}]]
+        self.intake(test_outcomes=dump(self._outcomes()), tdd=dump(tdd))
+        outcomes = self.compare()["prompt"].partition("### TDD loop records")[0]
+        for k in self.OTHER:
+            self.assertIn(f"  - `{k}`\n", outcomes)
+
+    def test_all_names_are_pasted_when_the_cumulative_diff_is_empty(self):
+        """累積差分が本当に空（差分は取れたが変わったファイルが無い）なら、地図の起点が無く関わりを決められないので全部の名を貼る
+        （起点なしの地図は何にも届かず、緑→緑が全部件数になって #384 と同じ誤りになる）"""
+        self._stats_repo()
+        (self.repo / "stats.py").write_text("def median(xs):\n    return xs\n", encoding="utf-8")
+        self.intake(test_outcomes=dump(self._outcomes()))
+        text = self.compare()["prompt"]
+        for k in (*self.STATS, *self.OTHER, "tests.test_other.TestOther::test_skip"):
+            self.assertIn(f"  - `{k}`\n", text)
+        self.assertNotIn("件は名を貼っていない（", text)
+
     def test_all_names_are_pasted_when_the_map_cannot_decide(self):
         """地図が関わりを決められない時（変更の近くに読めない物が在り all_tests_required を返す）は、変わらない行も全部の名を貼る"""
         self._stats_repo("data.zzq")
