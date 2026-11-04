@@ -22,7 +22,7 @@
 - 柵: `tests/layers/` の、置き場・名前・層の決まりを縛る CI の検査（layer check）。
 - 止めた Archon: `factory/pack.json` が止めた版の Archon の源。工場が頼る振る舞いの記録は [archon.md](archon.md)。
 - 埋め: Archon に無い物を外から補う部品（polyfill。`workflows/.shared/` の `fence.py`・`childsweep.py`・`skip_value.py`。名簿は `docs/polyfills.md`）。
-- E1〜E24: AGENTS.md の決まりの番号（置き場の表は根の `AGENTS.md` の「決まりの置き場」）。K の番号は今の落とし穴の一覧（`docs/plans/2026-10-13-capabilities/pitfalls.md`）。
+- E1〜E24: AGENTS.md の決まりの番号（置き場の表は根の `AGENTS.md` の「決まりの置き場」）。K の番号は落とし穴の通し番号（一覧は [archon.md](archon.md) の「落とし穴の番号」）。L・S・J・P・F・T・E（独立の目の行）・R・M の番号は、元の works の能力を 1 行 = 1 能力で並べた棚卸し（2026-10-13。終えて消した計画で、git の履歴が持つ）の行の ID で、行き先は各設計書の対応の節が持つ。
 - 持ち主: リポジトリの owner（決めを下す人）。持ち主の決めは `docs/owner-decisions.md` に名（`overnight-speed` など）で書く。10 節で仕組みを担う block は「担う block」と書く。
 - 起動の殻: 人が打つ入口 `bin/works-factory`（中身は `bin/_lib/`）。認証と隔離を整えて Archon を起こす。
 - 始めの記録: line が run の頭に 1 度書く記録（[line.md](line.md) の語）。block はこれを読まない（4.3）。
@@ -146,7 +146,7 @@
    - 判定: 2 か所（殻と埋め）と文書 2 本。block には届かない。文書は利用者の使い方と埋めの名簿で、リポジトリの決まりが求める物。
 9. `099227ce`（W）独立の目の能力 22 行を、名前つきの試験で縛る。
    - 新しい形で触る所: 行ごとに、その能力を持つ block の試験 1 か所。指示の文の行（E7・E12・E13・E38）は r1・r2 の md の比べ、port の行（地図は R1 と R3 だけ E21・方針は R1・R3・R4 だけ E25）は r1〜r4 の `inputs:` の yes/no、支度の出力の行（E14・E20・E23・E43・E65・E70）は各 r の prep の試験、直した後の実測の行（E68・E74）は structure の block（形の直し 7）、4 つの目が並んで走る・軽い run でも走る（E9・E71）は eyes の graph、escalate で最後の承認ノードが開く（E36）は line。
-   - 起きなくなる分: 能力の棚卸しの表（`nodes.json`・`docs/plans/2026-10-13-capabilities/` の 5 本）と、指示書の写しの台帳（`copied.py`）。
+   - 起きなくなる分: 能力の棚卸しの表（`nodes.json` と、消した棚卸しの計画の 5 本）と、指示書の写しの台帳（`copied.py`）。
    - 判定: 行ごとに 1 か所。commit 全体は 7 か所に触るが、22 行をまとめて縛った棚卸しだからで、形の問題ではない。当てる前の形では、直した後の実測 `stage_b` を eyes の graph の `src/` に置いていた（9.2）ので graph が計算を持ち、E68・E74 が graph に来た（形の直し 7）。
 10. `b2d0c2b3`（G）修正の後の深さの上げ直しの数えの照らしを締める。
     - 新しい形で触る所: line の試験と、line の e2e の照らしの表 `tests/e2e/evidence.json` の書き手の行。上げ直しは line だけが持つ（形の直し 5）。
@@ -353,7 +353,7 @@ block の設計書（`docs/design/<block>.md`）は、頭に block の全体（�
 11. YAML に指示の文を置く鍵（`loop:` の node・`agents:`・`on_reject` と `decisions` の `rework` の `prompt`）が無く、形のファイルは照らしの知らない語を持たず（13 章）、中身を宣言しない所を持たない（`ports.open_shapes`。#851）。
 12. AI の node の md（`{part:…}` と `{shared:…}` を入れた後）に `"欄":` の形で書いた欄が、その node の `output_format` のどこかの深さの `properties` に在る（返答の型が指示の欄を全部持つ。組み込みの前の `test_reply_fields.py` の後継。`docs/design/integration.md` の 4.2-2）。
 13. `include:` の node（loop_group の本体の中の物も）の id が、取り込む workflow の中のどの node の id（上の段も、どの深さの loop_group の本体も）とも違う。役と同じ名を持つ block は `<block の名>-run` で include する（judge-eyes.md の 1.3 の「include の id」）。
-14. `.shared/prompts/` の断片が頭の 1 行に `<!-- required-for-tools: <道具> <道具> -->` の印を持つなら、そのどれかの道具を `allowed_tools` に持つ AI の node の指示、`<!-- required-for-fields: <欄> <欄> -->` の印を持つなら、そのどれかの欄を `output_format` のどこかの深さの `properties` に持つ AI の node の指示（人に聞く文の断片 `plain-ask` が使う。欄を `<親の欄>.<欄>` と書けば、その親の欄の下の欄だけを数え、`why` のようなありふれた名を置き場で絞る）（`{part:…}` と `{shared:…}` を入れた後）に、その断片が入っている。段落（`<!-- if … -->`）の中だけに在って、段落が外れると消える場合は入っていないと数える（7.1 の 3 と同じ `prompt._select` で、全部の段落を真にした組み立てと全部を偽にした組み立ての両方に断片の印の行が残ることを求める）。印は断片自身が持ち、別の対応表は持たない（憲法の 6）。`prompt.py` は断片を差し込む時に印の行を落とすので、指示には出ない。
+14. `.shared/prompts/` の断片が頭の 1 行に `<!-- required-for-tools: <道具> <道具> -->` の印を持つなら、そのどれかの道具を `allowed_tools` に持つ AI の node の指示、`<!-- required-for-fields: <欄> <欄> -->` の印を持つなら、そのどれかの欄を `output_format` のどこかの深さの `properties` に持つ AI の node の指示（人に聞く文の断片 `plain-ask` が使う。断片の書き手が印の欄を `<親の欄>.<欄>`〔例 `faces.why`〕と書けば、その親の欄の下の欄だけを数える。`why` のようなありふれた名は多くの返答の型に在るので、こう書いて数える範囲を絞る）（`{part:…}` と `{shared:…}` を入れた後）に、その断片が入っている。段落（`<!-- if … -->`）の中だけに在って、段落が外れると消える場合は入っていないと数える（7.1 の 3 と同じ `prompt._select` で、全部の段落を真にした組み立てと全部を偽にした組み立ての両方に断片の印の行が残ることを求める）。印は断片自身が持ち、別の対応表は持たない（憲法の 6）。`prompt.py` は断片を差し込む時に印の行を落とすので、指示には出ない。人に聞く文の決まり（断片 `plain-ask`・`lib/plainask.py`）の E11 の答え: (1) Archon の承認ノードは渡された字をそのまま見せるだけで、書き方を縛る口を持たない。(2) ASF の承認ノードは関所の形だけで、問いの文の決まりを持たない。(3) 要る: 聞くなら初見の人がその文だけで答えられる形で聞くため（持ち主の言葉「このユーザに聞くところ全部、初見にもわかりやすく詳しく」）。別々の段から出た同じ論点を承認ノードで 1 項目にまとめる仕組みは無い（各段の役はほかの段の出力を見ず、承認ノードの項目を組む line の script の node `ask-before-fix` は AI を持たない）。まとめる役を足すかは持ち主の決めが要る（E10）。
 
 1 の `systemPrompt:`（`prompts/<node-id>.system.md`）・3 の照らし方（筋書きの `resolved-text-contains` が md の決まった文）・5 の `json(shared:<schema>)`・6 の block と graph の見分けは 13 章の土台の決め。検査は `tests/layers/test_block_shape.py` 1 本。
 
@@ -610,10 +610,10 @@ form（入出力の値の形）は 4.1 の 6 つ: `text` は字、`json` は JSO
   - tdd は fix の中に置き、独立の block にしない。根拠: loop だけが使う部品は無く、別の block に出すと block の間を行き来する物が約 20 増える（#886。何が増えるかは 1.3 の形の直し 2）。
   - 同じ block の node どうしの断片は block の `prompts/parts/` に。根拠: 憲法の 4 と同じ決め方。
   - 2 つ以上の block が読む行の形（block の出力の配列の 1 行ずつが持つ欄・語と、行を読む述語）は、作り手の出力ごとに `lib/` の 1 モジュール（手本 `worldmark`）。根拠: 憲法の 4。読み手が作り手の中身を import しない。
-  - 深さの表を、未知の種類 → 段（`lib/headdepth`。head-depth・diagnose・plan が読む）と、段 → 回す物・上げ直し（line）に割り、fix の中の上げ直しを無くす。根拠: 上げ直しの読み手が 1 つになる。delta-review は fix の外の block。
+  - 深さの表を、未知の種類 → 段（`lib/headdepth`。head-depth・diagnose・plan が読む）と、段 → 回す物・上げ直し（line）に割り、fix の中の上げ直しを無くす。上げ直しは、修正の後に単位の深さを標準へ上げ直すこと（この文書の頭の語の一覧に在る）。根拠: 上げ直しの読み手が 1 つになる。fix の中の上げ直しは差分の審査 delta-review を省くかを決めていたが、delta-review は fix の外の block になったので、その決めも fix と delta-review の間に立つ line 1 つに置ける（1.3 の形の直し 5）。
   - 計画の往復の記録は line が持ち、plan-review は前の周を port `prior` で受ける。根拠: 往復の loop を持つのは line。前の周を見ないと決まらない確かめ（穴の出自〔審査が挙げた穴が、前の周の案の直しから生まれたか〕・続いた穴〔前の周の穴が直らずに残ったか〕）が plan-review に在る。
-  - 直した後の実測は structure の block（`mode` after）に。graph は流れの決めだけを持つ。根拠: 観点の計算を graph に置くと、能力の棚卸し（`docs/plans/2026-10-13-capabilities/` の、能力ごとの行）の担い手が graph になり、graph が流れの決めだけを持つ形が崩れる。
-  - block の外の文書は関数の名を書かない。根拠: block の中の作り替えで block の外の文書が動かない（`4cf7167e` で `owner-decisions.md` が動いた）。
+  - 直した後の実測は structure の block（`mode` after）に。graph は流れの決めだけを持つ。根拠: 観点の計算を graph に置くと、能力の棚卸し（能力ごとの行）の担い手が graph になり、graph が流れの決めだけを持つ形が崩れる。
+  - block の外の文書は関数の名を書かない。根拠: block の中で関数を作り替えても、block の外の文書を書き直さずに済む（`4cf7167e` は `gatemarks.pushed_answer` を `gatepolicy.passage` に替えた時、その名を書いていた `owner-decisions.md` も書き直した）。
 - 報告の文は事実を持つ block が組んで出力の `report` の欄で返す。根拠: 持ち主の決め（block はほかの block を名指さない・1 つの block だけのコードは block に置く）の下では、report が各 block の中身を import する今の形を続けられない。drift-audit の 3 節の直し方 1 と同じ。
 
 ### 土台（11.1 の 0）で決めた事

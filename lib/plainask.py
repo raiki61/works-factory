@@ -12,6 +12,8 @@
   数えなかった物は人が見る
 - gaps(where, text) -> list[str]: 参照を 1 つでも持てば、受け付けが役に返す 1 行（where は欄の名指し）。無ければ []
 - 記録のファイルの名・単位の key・行や答えの id は、対象のリポジトリのファイルの名や役の文と字で見分けられないので照らさない（人が見る）
+- 断片 plain-ask の欄の印（required-for-fields）に handled.how を入れない: 同じ置き場を持つ差分の審査の手直しの役（delta-review の
+  refix-1・refix-2）は how に走らせた試験やパスの証拠を書く決まりで、参照を書かない決まりと食い違う（仕様の直す役は requirements.text で印に入る）
 """
 from __future__ import annotations
 

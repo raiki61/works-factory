@@ -10,7 +10,7 @@
 - pointer: Archon がファイルを指す値 `{type: archon_artifact, run_id, path}`（README 4.1）。大きい中身はファイルに書き、出力ではこれを渡す。
 - 境の口: pack の共通の口 `workflows/.shared/ports.py`（入力の読み・place・出力の書き）。
 - 憲法の番号（憲法 5 など）: README 2 節の 6 行の番号。keep-essence の番号: README 10 節の、失ってはならない 12 の仕組みの番号。
-- E8・E9・E54 などの E の番号（2 章）: eyes の能力の棚卸し `docs/plans/2026-10-13-capabilities/tail.md` の行の番号（AGENTS.md の決まりの番号 E1〜E22 とは別。2.6 に一覧）。J の番号は judge の棚卸し `docs/plans/2026-10-13-capabilities/judge.md` の行。
+- E8・E9・E54 などの E の番号（2 章）: 元の works の eyes の能力の棚卸しの行の番号（AGENTS.md の決まりの番号 E1〜E22 とは別。2.6 に一覧）。J の番号は judge の能力の棚卸しの行（README の頭）。
 - 埋めの P の番号（P2・P8 など）: `docs/polyfills.md` の節の番号。
 - R1〜R4 と r1〜r4: 大文字の R1〜R4 は独立の目の観点（R1 最小性とコメント・R2 独立設計との比べと前提の検算・R3 全体の整合・R4 見えていない範囲）、小文字の r1〜r4 はそれを 1 本ずつ見る block の名と、返りの欄の名。同じ番号は同じ観点を指す。
 
@@ -120,7 +120,7 @@ line が段ごとに引いた真偽の表 `verify_by_tier` を、head-depth が�
 
 ### 1.7 今の judge との比べ
 
-今の node と、`docs/plans/2026-10-13-capabilities/judge.md` の行（J01〜J113）の行き先:
+今の node と、judge の能力の棚卸しの行（J01〜J113）の行き先:
 
 - `intake`（J01〜J05・J07）: 始めの記録の読みと依頼の型の照らしは line の `start` と各 block の `requestrows`（依頼のファイルの 3 つの拒み・findings の型・依頼 1 件以上と言うのに空の行は `start` が AI の前で拒む）。機能の切り替え（J05）は line の `when:` と配る値（`world`・`spec`・`verify_by_tier`）。止めの控え（J07）は使わない（1.4 の止めの語の順）。前の失敗の行（J06）は diagnose が依頼の容器から読む（diagnose の設計書の 1.2）。
 - `head-depth-prep`〜`head-depth-loop`: head-depth の block。再審の道で回らないのは、再審が judge の graph を通らない配線で続く。
@@ -204,7 +204,7 @@ line が段ごとに引いた真偽の表 `verify_by_tier` を、head-depth が�
 
 ### 2.6 今の eyes との比べ
 
-`docs/plans/2026-10-13-capabilities/tail.md` の E の行のうち graph に残る物（r1 の設計書の 0.12）: E8（2.3 の 6）・E9（2.3 の 3〜5）・E48（2.4）・E49（2.4）・E50 の尾（2.4）・E54〜E56（0 節と 2.4）・E58（返りの欄の並び。名は残し、`protected_hits` は merge へ移る）・E71（2.3 の 2）。E57 の型つきの成果物は作らない（読み手の report が読まない）。E36（前提の検算が escalate なら人に聞く）は line の最後の承認ノード。消した物: 守りのパスの節 `protected` と `ok` の守りの条件（merge へ。README 13 節）・`prep` の深さで目を省く決め（`run_eyes`。line の深さの表へ）・まとめた役 `eyes-one` の振り分け（r4 の port `coherence` へ）・支度の控え `eyes/prep.json` を返す node が読む形（目ごとの block の出力を受け皿で読む形へ）。
+能力の棚卸しの E の行のうち graph に残る物（r1 の設計書の 0.12）: E8（2.3 の 6）・E9（2.3 の 3〜5）・E48（2.4）・E49（2.4）・E50 の尾（2.4）・E54〜E56（0 節と 2.4）・E58（返りの欄の並び。名は残し、`protected_hits` は merge へ移る）・E71（2.3 の 2）。E57 の型つきの成果物は作らない（読み手の report が読まない）。E36（前提の検算が escalate なら人に聞く）は line の最後の承認ノード。消した物: 守りのパスの節 `protected` と `ok` の守りの条件（merge へ。README 13 節）・`prep` の深さで目を省く決め（`run_eyes`。line の深さの表へ）・まとめた役 `eyes-one` の振り分け（r4 の port `coherence` へ）・支度の控え `eyes/prep.json` を返す node が読む形（目ごとの block の出力を受け皿で読む形へ）。
 
 ### 2.7 試験（`tests/blocks/eyes/`）
 

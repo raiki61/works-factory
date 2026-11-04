@@ -1,7 +1,7 @@
 """入口の殻 bin/works-factory の中身: 利用者の環境から認証と隔離を整え、止めた Archon を bun で起こし、引数をそのまま渡す。
 
 Archon の命令の別名は作らない（持ち主の決め one-launcher）。持つのはつなぎだけで、認証・隔離・プラグインの選び・gh の口・源の取り寄せ・
-run の作業ツリーの起点は bin/_lib/ の部品を呼ぶ（E15）。順は今の works の works/dev/archon.sh と同じ（計画 docs/plans/2026-10-12-groundwork-line-launcher.md の
+run の作業ツリーの起点は bin/_lib/ の部品を呼ぶ（E15）。順は今の works の works/dev/archon.sh と同じ（土台の足し・メイングラフ・入口の殻の計画の
 B の「約束」1〜11。約束 7 の後半——道具の信頼を子の環境に足す当て物——は消した。場所ごとの信頼は対象の宣言の setup で取り戻す）。止まる時は Archon を起こさない。トークンは読まない・出さない（auth_launch.py が持つ）。
 """
 import fnmatch

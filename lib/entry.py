@@ -3,7 +3,7 @@
 
 線の入口の節（workflows/line/scripts/start.py）が入力の語を確かめ、始めの記録に置き、ブロックへ渡す機能ごとの on・off・auto を作る。
 依頼の行の型（REQUEST_SCHEMA・request_problems）も入口の節が依頼のファイルを読む時に当てる。
-元のファイルのほかの物（盤面の口・CI の節）は盤面に届くので持ってこない（docs/plans/2026-10-12-lib-port.md の
+元のファイルのほかの物（盤面の口・CI の節）は盤面に届くので持ってこない（lib/ へ移した時の計画の
 移し方 2・3）。
 """
 import pathlib

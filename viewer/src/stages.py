@@ -158,7 +158,7 @@ def _role(kind: str) -> str:
 
 
 def _stop(run: dict) -> tuple[str | None, int | None]:
-    """止まり方（人が止めた human・落ちた failed）と止まった出来事の番号（run の events の中の位置）を記録の事実から引く（下書きの計画 2026-10-29-viewer-overview.md の 6.6.8）。人が止めた run は、答えが止める語
+    """止まり方（人が止めた human・落ちた failed）と止まった出来事の番号（run の events の中の位置）を記録の事実から引く。人が止めた run は、答えが止める語
     （lib/answer.py の STOP_WORDS）だった最後の人の答え待ちの出来事の段。そうでなく落ちた run は、受け止めていない最後の落ちた出来事の段。
     受け止めた落ちは、その段より後ろの段（どの道でも走る報告の段、表の最後の段のほかで）の配線でないノードが走った物（line は独立の目と
     レンズの落ちを受け止めて先へ進むが、Archon は run を failed で終える。docs/design/archon.md）。

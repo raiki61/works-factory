@@ -1,5 +1,4 @@
-"""設計の段の往復（テーマの run の loop theme-rounds。docs/design/line.md の 3.3 節。設計の下書き docs/plans/2026-10-27-design-stage.md の
-2.2〜2.4・7 章）の、計画の往復と違う所だけ。周の頭と終わりの決め（受け箱・承認の生き死に・revise・空の revise・上限の周）は src.talk の
+"""設計の段の往復（テーマの run の loop theme-rounds。docs/design/line.md の 3.3 節）の、計画の往復と違う所だけ。周の頭と終わりの決め（受け箱・承認の生き死に・revise・空の revise・上限の周）は src.talk の
 同じ口を段 THEME で使い、ここは設計の段の物だけを持つ。
 
 - record(design, review, prior_raw, *, place) -> dict: 周の終わりの手前の theme-out（書き手の案と事前審査の形 theme の返答を往復の記録

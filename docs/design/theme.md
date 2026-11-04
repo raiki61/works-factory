@@ -1,11 +1,18 @@
 # block の設計書: theme（設計の案の書き手）
 
-- 何の話か: 工場の対話モードの run に足す「設計の段」（issue #862）のうち、テーマ（コードに落とす前の設計の問い）から 1 周分の設計の案を書く役を、単独で呼べる block `workflows/theme/` にする設計。型は [README.md](README.md)、書き方は [world.md](world.md) に従う。設計の段の全体（入口・line の配線・事前審査の形 `theme`・降りる道・設計へ戻す道）は設計の下書き `docs/plans/2026-10-27-design-stage.md` が正本で、この設計書はそのうち書き手の block と設計の案の形と作り変えの照らし（下書きの 3・4・6 章）と、E11 の答え（同じく 11 章）を移した物。
+- 何の話か: 工場の対話モードの run に足す「設計の段」（issue #862）のうち、テーマ（コードに落とす前の設計の問い）から 1 周分の設計の案を書く役を、単独で呼べる block `workflows/theme/` にする設計。型は [README.md](README.md)、書き方は [world.md](world.md) に従う。設計の段の全体（入口・line の配線・事前審査の形 `theme`・降りる道・設計へ戻す道）は [line.md](line.md) の 3.3 節と [plan-review.md](plan-review.md) の 19 章が持ち、この設計書は書き手の block と設計の案の形と作り変えの照らしと E11 の答えを持つ。この文書の「下書き」は設計の段の設計の下書き（issue #862。PR T0〜T4 が入り終えて消した計画で、git の履歴が持つ）を指す。
 - 読む人: この block を直す実装の役と、line の配線（下書きの 15 章の T3）を作る実装の役。
 - 持ち主に求めること: なし。持ち主の決めは `theme-stage`（`docs/owner-decisions.md`）。この block で自分で決めた事は 11 章に集めた。
-- 決めたこと: block は 3 つの頂の node（`intake`・`write-loop`・`finish`）で、loop の本体は prep 2 つ・AI の役 2 つ・受け付け 1 つ（形は plan の block と同じ）。返す設計の案の形は 2 つ以上の block が読むので `workflows/.shared/schemas/theme-design.schema.json` に置く。受け付けは yes/no の照らし 9 つ（4 章）と、作り変えの照らしの覆いの照らし（6 章）。3 回拒まれたら諦める。往復の記録と止めは line が持ち、この block は前の周を port `prior` で受けて 1 周分の案を返す。
+- 決めたこと: block は一番上の段（loop の本体の外）の 3 つの node（`intake`・`write-loop`・`finish`）で、loop の本体は prep 2 つ・AI の役 2 つ・受け付け 1 つ（形は plan の block と同じ）。node は Archon の workflow の 1 段、loop は本体の node を繰り返す node、prep は AI の node の直前で指示を組む script の node、受け付け（accept）は AI の返答を照らす script の node（[README.md](README.md) の頭の語）。返す設計の案の形は 2 つ以上の block が読むので `workflows/.shared/schemas/theme-design.schema.json` に置く。受け付けは yes/no の照らし 9 つ（4 章）で、その 6 番が作り変えの照らし（6 章。作り変える〔`op: rework`〕ファイルの空でない行が、全部どれかの行き先の行〔`inventory`〕に入っているか〔抜けなく覆うか〕と、範囲の重なり・消す行の訳・行き先の名指しを照らす）。3 回拒まれたら諦める。往復の記録と止めは line が持ち、この block は前の周を port `prior` で受けて 1 周分の案を返す。
 
-この文書の語は README の頭の物と、下書きの「語」のセクションの物を使う。ほかに:
+この文書の語は README の頭の物を使う。ほかに:
+
+- テーマ: 修正の依頼でない設計の問い（例「直し方の型を何段に分けるか」）。
+- 設計の段: テーマから設計の案を書き、審査し、持ち主の承認で固める段。機械の名は `theme-*`。
+- 設計の往復: 設計の段の書き手と審査役の往復（line の loop `theme-rounds`）。
+- 受け箱: 対話モードの run の置き場の `talk/notes.txt`。人が往復の間に 1 行ずつ指摘を足す（持ち主の決め `human-notes-in-rounds`）。
+- 中央の穴・端の穴: 審査の指摘のうち、設計のやり直しが要る物（中央）と、後の段へ申し送れば済む細かい調整（端）。
+- 部署の決め: 決まり（`AGENTS.md`・持ち主の決め）で決まるので持ち主に聞かず、出どころの行を付けて書く決め。
 
 - テーマの md: テーマの文を書いた md 1 本。名指す設計書のセクションと、取り次ぐ会話が始めに頼んだ調べものの結果を書いてよい（下書きの 2.1 の 1）。line の `start` が run の置き場の `theme.md` に固めて、この block の port `theme` に渡す。
 - 設計の案: 書き手が 1 周ごとに返す JSON（3 章。形の名 `theme-design`）。
@@ -142,13 +149,13 @@ Rules for queries to outside services and for the sources you use: …
 
 ## 3 設計の案の形（`workflows/.shared/schemas/theme-design.schema.json`）
 
-欄の並びは「何を問うか → 何を前提にしたか → 今何が在るか → 何を足すか（在る物では足りない訳）→ 問い（案・推し・代償）と部署の決め → 変える所 → 作り変えの照らし → 前の穴と人の答えへの答え」。
+欄の並びは「何を問うか（`question`・`purpose`）→ 何を前提にしたか（`premises`）→ 今何が在るか（`current`）→ 何を足すか（`parts`。在る物では足りない訳は `reuse`）→ 問い（案・推し・代償。`asks`）と部署の決め（`decided`。決まり〔`AGENTS.md`・持ち主の決め〕で決まるので持ち主に聞かず、出どころの行を付けて書く決め）→ 変える所（`changes`）→ 作り変えの照らし（`inventory`）→ 前の穴と人の答えへの答え（`block_answers`・`answers_used`）」。
 
 - `question`・`purpose`: 字。
 - `premises[]`: `{id: P<n>, what, by: owner|assumed, from}`。`owner` の `from` は人の答えの id `H<n>` か、テーマの md の行 `theme:<行>`・`theme:<始め>-<終わり>`。`assumed` の `from` は置いた訳。
-- `current[]`: `{id: N<n>, what, where: <パス>:<行>}`。
-- `parts[]`: `{id: D<n>, what, where, why}`。
-- `reuse[]`: `{part: D<n>, existing: [N<n>…], enough: false, why_not}`。
+- `current[]`: 今在る物。`{id: N<n>, what, where: <パス>:<行>}`。
+- `parts[]`: 設計が足す部品。`{id: D<n>, what, where, why}`。
+- `reuse[]`: 足す部品ごとの、近い今在る物と、それでは足りない訳（上の並びの「在る物では足りない訳」）。`{part: D<n>, existing: [N<n>…], enough: false, why_not}`。
 - `checks[]`: `{rule: <パス>:<行>, answer, where}`。
 - `asks[]`: `{id: Q<n>, ask, pick: A<n>, pick_why, options: [{id: A<n>, what, cost, gain}]}`（案は 2 つ以上）。
 - `decided[]`: `{id: R<n>, what, by: <パス>:<行>, why}`。
@@ -165,9 +172,9 @@ Rules for queries to outside services and for the sources you use: …
 `write-accept` が `src/check.py` の順で照らし、外れた所ごとに拒否の行を 1 つ返す。拒否の文は返答の中身で変わるので日本語のまま Python が組む（README の 5.3）。
 
 1. 形（`shared:theme-design.schema.json`）。外れたら後の照らしをしない。
-2. `<パス>:<行>` の名指しが固めた版に在る（`lib/design.py` の `anchor_misses`）。`current` の `where`・`decided` の `by`・`checks` の `rule` は名指しを 1 つ以上要る。`parts` の `where`・`checks` の `where` は、名指しが在ればそれを照らす（足す部品の置き場は今は無いので名指しを要らない）。
+2. `<パス>:<行>` の名指しが固めた版（頭の語。対象のリポジトリの HEAD）に在る（`lib/design.py` の `anchor_misses`）。`current` の `where`・`decided` の `by`・`checks` の `rule` は名指しを 1 つ以上要る。`parts` の `where`・`checks` の `where` は、名指しが在ればそれを照らす（足す部品の置き場は今は無いので名指しを要らない）。
 3. `asks` の各行の `pick` が案の id のどれか（案が 2 つ以上・`cost` と `gain` が空でないのは形が照らす）。
-   - 続けて、問いの文（`ask`・`pick_why` と案の `what`・`gain`・`cost`）が run の中を指す参照（`<パス>:<行>`・`<名>[<番号>]`）を持てば拒む（設計の段の承認ノードに字のまま載る）（人に聞く文の決まり。`lib/plainask.py`。持ち主の言葉「このユーザに聞くところ全部、初見にもわかりやすく詳しく」。計画は `docs/plans/2026-10-29-plain-asks.md`）。
+   - 続けて、問いの文（`ask`・`pick_why` と案の `what`・`gain`・`cost`）が run の中を指す参照（`<パス>:<行>`・`<名>[<番号>]`）を持てば拒む（設計の段の承認ノードに字のまま載る）（人に聞く文の決まり。`lib/plainask.py`。持ち主の言葉「このユーザに聞くところ全部、初見にもわかりやすく詳しく」）。
 4. `decided` の各行の `by`（2 の名指し）。
 5. `reuse` の各行の `part` が `parts` の id、`existing` が `current` の id（空なら `why_not`。形が空でない字を求める）。
 6. 作り変えの照らし（6 章）。
@@ -175,7 +182,7 @@ Rules for queries to outside services and for the sources you use: …
 8. `answers_used` が渡された人の答えの全部の id を持ち、渡していない id を持たず、行ごとに `applied` か `declined_why` を持つ。
 9. `premises` の `by: owner` の各行の `from` が、渡された人の答えの id か、テーマの md の空でない行を指す。
 
-ほかに、欄ごとの id が重ならないこと・`changes` の `parts` が `parts` の id を指すことを照らす（名指しの先を 1 つに決めるため）。拒否は控え `rejects-theme.json` に積み、3 回目（`rolekit.GIVE_UP_AFTER`。loop の `max_iterations` と同じ数）で `done`・`give_up`。諦めた周の出口は `status: gave_up` と最後の拒否を返す（keep-essence の 4）。出し直しは `rolekit.resubmitted` が前の答えの控え `candidate-theme.json` と `rolekit.merge_fields` で合わせてから全体を照らす。
+ほかに、欄ごとの id が重ならないこと・`changes` の `parts` が `parts` の id を指すことを照らす（名指しの先を 1 つに決めるため）。拒否は控え `rejects-theme.json` に積み、3 回目（`rolekit.GIVE_UP_AFTER`。loop の `max_iterations` と同じ数）で受け付けの返りの `done` と `give_up` を真にして輪を抜ける。諦めた周の出口は `status: gave_up` と最後の拒否を返す（keep-essence の 4）。出し直しは `rolekit.resubmitted` が前の答えの控え `candidate-theme.json` と `rolekit.merge_fields` で合わせてから全体を照らす。
 
 ## 5 script の node
 
@@ -258,14 +265,14 @@ bin/works-factory workflow run works-factory-theme --cwd <対象> --input theme=
 
 本物の AI の役で、テーマの run を 1 本回した。テーマは run 19268881（下書きの 1.2）と同じ 2 行（機能を試験ごと消す依頼で TDD の輪が止まる・振る舞いを変えない整理を工場が単独で直せない）。対象は main の `38cced23`（PR T3 の後）。承認ノードは `gate-start` に continue、`gate-theme` に approve（設計の周 3 の案で降りる。問いは推しを採る）、計画の往復の `gate-design` に approve（計画の周 4 の案で進める）と答えた。修正前の承認ノード `gate-before-fix` は、`gate-design` の答えを合意として読んだので開かなかった（run の記録で `skipped`。`docs/design/line.md` の 2 章）。入力 `tdd_suite` は渡していない。
 
-この章の語（下書き `docs/plans/2026-10-27-design-stage.md` の「語」・`docs/design/plan-review.md`・`docs/design/line.md` の物）:
+この章の語（2 章の語・`docs/design/plan-review.md`・`docs/design/line.md` の物）:
 
 - 承認ノードの答え: 承認ノード（`gate-*`。人の答えを待つ所）の選び肢は `approve`・`continue`・`stop`・`reject`（`docs/design/line.md` の 2 章）。`gate-start` の continue は起動をそのまま通す答え、`gate-theme` の approve はその周の設計の案を承認して降りる答え、`gate-design` の approve はその周の計画を承認して修正へ進む答え。
 - 推し: 役が問いに添えた、選び肢を名指す勧めの答え（`docs/design/line.md` の語）。設計の案では `asks` の `pick`（3 章）。
 - 穴・鍵: 穴は事前審査の役が返す指摘 1 件（返りの `faces` の 1 行）。鍵はその穴の識別子（key）で、周をまたいで同じ穴を同じ鍵で挙げ直す。穴の重さは `block`（直しへ進めない穴）か `suggest`。穴の及ぶ所は中央（設計のやり直しが要る）か端（後の段へ申し送れば済む）。
 - 消えた: 審査役が返りの `resolved` に、前の周の鍵を「もう穴でない」として挙げたこと。
 - fixed・disputed: 書き手が前の周の穴ごとに返す答え（`block_answers` の `handled`）。fixed は直した、disputed は穴でないと異を唱えた。
-- clean・settled: 往復の止め時の語（`workflows/line/src/rounds.py` の `decide`）。clean は最後の周の block が 0、settled は 2 周目から最後の周の開いた block に中央が無い（端の block だけを申し送って進む）。
+- clean・settled: 往復の止め時の語（`workflows/line/src/rounds.py` の `decide`）。block は穴の重さの語。clean は最後の周の block の穴が 0、settled は 2 周目から最後の周の開いた block の穴に中央の物が無い（端の block の穴だけを申し送って進む）。
 
 ### 13.1 費用と時間
 

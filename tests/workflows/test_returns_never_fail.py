@@ -1,4 +1,4 @@
-"""返す節と、返す節が結ぶ節は落ちない（落とし穴 K1・K13・K16。docs/plans/2026-10-13-capabilities/pitfalls.md）。
+"""返す節と、返す節が結ぶ節は落ちない（落とし穴 K1・K13・K16。docs/design/archon.md の「落とし穴の番号」）。
 
 止めた Archon は、落ちた節の出力を結んだ節を trigger_rule: all_done でも落とす（packages/workflows/src/dag-executor.ts の
 resolveBindingDirective・output-ref.ts の resolveNodeOutputField・assertProducerNotFailed）。返りの指し札の先が無い・空でも節を落とす（artifact-pointer.ts の checkPointer）。
