@@ -775,7 +775,7 @@ Return only JSON that matches the output schema.
 19. 方針の文書を始めの記録の版で固める（`_frozen_policy`）→ port `policy`（line が固めた写し）。
 20. 記録された方針の行（`_recorded`）→ port `recorded`（空で方針が在れば文書の行だけ、intake の 10）。
 21. 形 replan の項目（`replan_items`）・承認済みの案が無い・項目が案の外（`Missing`）→ intake の 6・11。承認済みの案は `prior` の行から（14 節の 24）。
-22. 木の決め（始めの記録の名指し・頭の深さの段の足し・auto は開いた項目 2 つ以上、`tree_word`・`_tree_on`）→ port `tree`（on・off・auto を line が表から引く）と intake の 12。
+22. 木の決め（始めの記録の名指し・頭の深さの足し・auto は開いた項目 2 つ以上、`tree_word`・`_tree_on`）→ port `tree`（on・off・auto を line が表から引く）と intake の 12。
 23. 独立設計を回すか（`r2_due`）・独立設計の支度と受け付け（`r2_prompt`・`check_design`）→ 別の block。
 24. 出し直しの判じ（`rolekit.resubmitting` と `$LOOP_PREV…ok`）・出し直しの前の作業ツリーの姿の置き直し → review_prep。
 25. 材料の組み立て（`_review_material` の並び）→ 2 節（材料）と 3.3（指示）。並びは今の順を保った（頭の決まり → 独立設計と欄 → design_map → 往復の頼み → 木 → 機械の材料 → リポジトリ → 方針 → 記録された方針 → 地図）。

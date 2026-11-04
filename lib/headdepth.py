@@ -1,7 +1,7 @@
-"""run の頭の深さ（issue #441。docs/design/line.md の 16 章「深さの段の表」）の段の語と控えの読み（README 9.3 の KEEP。integration.md 4.5-6・4.3-5）。
+"""run の頭の深さ（issue #441。docs/design/line.md の 16 章「深さの表」）の段の語と控えの読み（README 9.3 の KEEP。integration.md 4.5-6・4.3-5）。
 使うのは head-depth・line と、行ごとの未知の種類を読む diagnose・plan。
 
-run 全体の深さの段（軽量・標準・重厚）の語と並び HEADS はここ 1 か所（前は lib/depth.py。depth は line へ移る）。依頼の行ごとの
+run 全体の深さ（軽量・標準・重厚）の語と並び HEADS はここ 1 か所（前は lib/depth.py。depth は line へ移る）。依頼の行ごとの
 未知の種類の語と種類 → 段の表（NONE・CAUSE・SHAPE・SCOPE・UNKNOWNS・known・tier_of）は head-depth・diagnose・plan の 3 つが
 読むのでここ。事実の測り・機械の止め・役の材料・返答の照らし（前の facts・gate・brief・check）は head-depth の src/steps.py、種類ごとの受け手への指示の文（前の ASKS・section）は読み手の diagnose・plan の md、報告の冒頭 2 の行
 （前の report_line）は line の src/ に在る。

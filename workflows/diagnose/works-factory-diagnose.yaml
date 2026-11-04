@@ -13,7 +13,7 @@ inputs:
   baseline: {default: '', description: 'json(lib:baseline.schema.json): 直す前の試験の結末（試験の関門が直す前に書いた baseline.json）。素材 local_checks をここから写す。空は local_checks を not_run にする。判定の道だけが読む'}
   world_rows: {default: '', description: 'jsonl(lib:world-row.schema.json): 世界の解の行のファイル（world.jsonl。1 行が依頼の 1 行）。空は世界の解の行が無い'}
   row_asks: {default: '[]', description: 'json(row-asks.schema.json): 頭の深さが依頼の行ごとに返した未知の種類の行 [{item, unknown, cause_quote, where?, code_quote?}]。空の配列は種類が決まっていない。判定の道だけが読む'}
-  depth_why: {default: '', description: 'text: 頭の深さの段の根拠の文（行ごとの種類が決まっていない run で、その訳として役に見せる）。空は「run の頭の深さの控えが無い」。判定の道だけが読む'}
+  depth_why: {default: '', description: 'text: 頭の深さの根拠の文（行ごとの種類が決まっていない run で、その訳として役に見せる）。空は「run の頭の深さの控えが無い」。判定の道だけが読む'}
   spec_rows: {default: '', description: 'json(shared:request.schema.json): 仕様が足した受け入れ条件の行のファイル（added-rows.json。依頼の行の配列）。空は足した行が無い。判定の道だけが読む'}
   spec_origin: {default: '', description: 'text: 仕様が足した行の出どころの名（判定役に見せるバッチの origin）。spec_rows が在る時に要る。判定の道だけが読む'}
   answers: {default: '[]', description: 'json(answer-rows.schema.json): 依頼者が前の run の問いに答えた行 [{question, text, command?, output?}]。空の配列は request の容器の answers を使う。判定の道だけが読む'}

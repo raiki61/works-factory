@@ -24,7 +24,7 @@ TITLES = {"head-depth": "run の頭の深さ", "spec": "仕様", "parallel-pr": 
 OWN_TITLE = fallback.OWN_TITLE
 # 落ちても判定が進む段（line の collect が include の頭を付けて読む）
 OPTIONAL = fallback.OPTIONAL
-NO_TIER_WHY = "run の頭の深さの段が返らなかった（標準で進む）"
+NO_TIER_WHY = "run の頭の深さが返らなかった（標準で進む）"
 FELL = "{title}の段が返らなかった"
 
 

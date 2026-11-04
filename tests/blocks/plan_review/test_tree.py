@@ -4,7 +4,7 @@ synergy-brief.md）を、script を子のプロセスで回して確かめる。
 写した元は tests/workflows/test_plan_review.py の TreeCase（元 tests/test_blk_plan.py の TreeReviewCase の事前審査の側）と
 lib/tests/test_boardview.py の RulesCase.test_unattended_and_tree_words の木の語の半分（試験ごとの docstring に元の名を書く）。
 往復の記録は line の代わりに Flow.carry が pass.json を converge.add_pass で足して port prior に渡す。往復の番号のフォルダ
-（pass-<k>/）は無い。頭の深さの段から木を引く 2 本（test_heavy_head_depth_makes_the_tree・
+（pass-<k>/）は無い。頭の深さから木を引く 2 本（test_heavy_head_depth_makes_the_tree・
 test_light_head_depth_keeps_one_reviewer_unless_named）は段 → on・off・auto の引きが line に移るので line の試験へ。
 """
 import copy

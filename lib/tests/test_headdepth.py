@@ -1,4 +1,4 @@
-"""run の頭の深さの段の語と控えの読み（lib/headdepth.py。issue #441）の検査。関数を直に呼び、一時の置き場に控えを書くだけ。
+"""run の頭の深さの語と控えの読み（lib/headdepth.py。issue #441）の検査。関数を直に呼び、一時の置き場に控えを書くだけ。
 
 見る物:
 - 段の語と並び（前は lib/depth.py。integration.md 4.5-6）と控えの名（integration.md 4.3-5）

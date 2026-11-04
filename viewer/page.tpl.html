@@ -386,7 +386,7 @@ const NO_WHAT = '何をする物かの 1 行が無い';
 
 // ---- 段（viewer/stages.json と段ごとの集計。データの欄 stages） ----
 const ST = D.stages || {table: [], run: null, stop: null, stop_by: null, stop_event: null, graph: ''};
-const STAGE_ALL = ST.table.map((s, i) => ({n: i + 1, name: s.name, line: s.line, hands: s.hands, source: s.source, ids: s.nodes, wiring: s.wiring}));
+const STAGE_ALL = ST.table.map((s, i) => ({n: i + 1, name: s.name, line: s.line, hands: s.hands, source: s.source, mission: s.mission, ids: s.nodes, wiring: s.wiring}));
 const STAGE_OF = {};
 STAGE_ALL.forEach(s => s.ids.forEach(id => STAGE_OF[id] = s));
 const STAGES_NONE = {n: 0, name: '段の表に無い'};
@@ -1215,7 +1215,7 @@ function flowNow() {
     else if (x) {
       const lk = stageLook(s, x); cls = lk.mark; word = lk.label;
     }
-    const t = `${s.line}${s.hands ? ` 次へ渡す物 → ${s.hands}` : ''}（出どころ ${s.source || '無し'}）`, gate = stageGate();
+    const t = `${s.line}${s.hands ? ` 次へ渡す物 → ${s.hands}` : ''}（MISSION の流れ ${(s.mission || []).join('・') || '無し'}。出どころ ${s.source || '無し'}）`, gate = stageGate();
     // 口 1: 箱を押すと図と再生のその段の行へ
     return h(gate ? 'button' : 'div', {class: 'st ' + cls + (markBox === s.n ? ' mark' : ''), 'data-n': s.n, type: gate ? 'button' : null,
       'data-f': gate ? `map ${s.n}` : null, title: gate ? `${t}。押すと図と再生のこの段へ` : t, onclick: gate ? ev => toStage(s, ev.currentTarget) : null},
