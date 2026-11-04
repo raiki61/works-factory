@@ -202,7 +202,8 @@ DESIGN_HEAD = "構造の目が決めきれない設計の問い"   # その行�
 WORLD_KIND = "world"                  # 関所の項目の kinds（世界の解から外れた修正案の項目。worldmark.ANSWER_KEY と同じ語）
 MEANS_KIND = "means"                  # 関所の項目の kinds と外れの行の source（頼みの解き方と独立の目が食い違う修正案の項目。worldmark.MEANS と同じ語）
 MEANS_WHY = "頼みの解き方と独立の目の食い違い（どちらも自動では優先しない。決め means-ask）"   # その項目の人に聞く訳（いつも人に聞く）
-MEANS_HEAD = re.compile(r"^修正案 (\d+) は頼みの解き方 (M[1-9][0-9]*)")   # その項目の文の頭（means_key が鍵 (項目, M<n>) を引く）
+MEANS_HEAD = re.compile(r"^修正案 (\d+) は頼みの解き方 (M[1-9][0-9]*)(?:「.*?」)?に従(わない|うが)")   # その項目の文の頭（means_key が鍵 (項目, M<n>, 向き) を引く）
+MEANS_WAYS = {"わない": "departs", "うが": "drifts"}   # 文の頭の向き → 鍵の向き（従わない・従うが独立設計と食い違う）
 GIVEN_UP_KIND = "given_up"            # 関所の項目の kinds（事前審査の受け付けが諦めた・返す節が落ちた。案を審査できていない）
 SPEC_CHANGED_KIND = "spec_changed"    # 関所の項目の kinds（修正の後に承認済みの受け入れ条件のテストが変わった。承認し直すかを人に諮る）
 UNMEASURED = materialkit.UNMEASURED   # 素材の状態のうち今の周に測れていない物（integration.md 4.2-5）
@@ -535,9 +536,10 @@ def means_drift_text(item: int, key: str, said: dict, why) -> str:
 
 
 def means_key(text) -> tuple | None:
-    """項目の文の頭の鍵 (項目の番号, M<n>)（頭が MEANS_HEAD でなければ None。案の直しが前に通した行を推しの文に依らず引く）"""
+    """項目の文の頭の鍵 (項目の番号, M<n>, 向き)（頭が MEANS_HEAD でなければ None。案の直しが前に通した行を推しの文に依らず引く。向き
+    MEANS_WAYS を入れるので、前に通した食い違いの行と同じ項目の新しい外れの行は別の鍵になる）"""
     m = MEANS_HEAD.match(text) if isinstance(text, str) else None
-    return (int(m.group(1)), m.group(2)) if m else None
+    return (int(m.group(1)), m.group(2), MEANS_WAYS[m.group(3)]) if m else None
 
 
 def means_rows(fields, said: dict, departs=()) -> list:

@@ -1398,6 +1398,7 @@ nodes:
       before_fix: "$fix-in.output.answer"
       record: "$start.output.record"
       ports: "$start.output.ports"
+      means: "$fix-in.output.means"
     output_format:
       type: object
       additionalProperties: false

@@ -683,6 +683,22 @@ class ScriptCase(unittest.TestCase):
                 self.assertEqual((out["open"], out["go"]), (want, True), out)
                 self.assertEqual(any("AGENTS.md が名指す docs/deploy.adoc" in x for x in out["asked"]), want, out["asked"])
 
+    def test_ask_before_fix_reads_the_plan_fields_when_the_review_fell(self):
+        """計画 means-answers の 3.2 の 8: 事前審査が諦めた周は、材料の読み（src.asking.materials）が判定の means と往復の plan の控え
+        （plan-fields.json）を読んで before_fix に渡し、計画の {means, deviation} が推しなしの項目で出る。事前審査が通った周は読まない"""
+        record = self.put("r1/start.json", {"answers": []})
+        plan = self.put("plan-fields.json", {"round": 1, "fields": [
+            {"unit_keys": ["u1"], "allowed_paths": ["a.py"], "out_of_scope": [],
+             "structure": [{"means": "M1", "deviation": "リポジトリの決まりが別の層に置くと決めている"}]}]})
+        judge = json.dumps({"judgment": None, "answer_ties": None, "materials": None, "means": ["分母を len(xs) にする"]})
+        for status, want in (("gave_up", True), ("ok", False)):
+            with self.subTest(status=status):
+                got = rounds(review_status=status, review_reason="受け付けが諦めた", plan=json.loads(plan))
+                out = self.run.script("ask_before_fix", request=handed({}), rounds=json.dumps(got), structure="null", judge=judge,
+                                      record=record, ports=self.ports())
+                means = [a for a in out["asked"] if a.startswith("修正案 1 は頼みの解き方 M1「分母を len(xs) にする」に従わない——")]
+                self.assertEqual(len(means), 1 if want else 0, out["asked"])
+
     def test_before_fix_answer_records_the_asked_rows(self):
         """S46: 答えの asked に載せた行を付け、gates/gate-before-fix.json に書く。方針の変化を通さない答えは配る値の policy のまま"""
         record = self.put("r1/start.json", {})
@@ -759,7 +775,8 @@ class ScriptCase(unittest.TestCase):
 
     def test_means_rows_of_revised_items_are_asked_with_their_push(self):
         """計画 means-answers の 3.3 の 5: 直した項目の頼みの解き方の行を推しの尾つきで聞き（無人の run は推しで抜ける）、直さない項目の
-        行と、修正前の承認ノードが continue で通した同じ鍵 (項目, M<n>) の行は、推しの文が書き直されていても聞かない"""
+        行と、修正前の承認ノードが continue で通した同じ鍵 (項目, M<n>, 向き) の行は、推しの文が書き直されていても聞かない（前に通したのが
+        同じ項目の食い違いの行なら、今の外れの行は聞く）"""
         def dev(item, note):
             return {"source": "means", "item": item, "why": ["頼みの解き方と独立の目の食い違い"],
                     "text": f"修正案 {item} は頼みの解き方 M1「分母を直す」に従わない——決まりが別の層に置く",
@@ -775,6 +792,26 @@ class ScriptCase(unittest.TestCase):
         before = json.dumps({"decision": "continue", "text": "", "asked": [out["asked"][0]]})
         self.deviations = [dev(1, "前と違う一言で通す")]
         self.assertFalse(self.ask_replan([row], before_fix=before)["open"])
+        drift = "修正案 1 は頼みの解き方 M1「分母を直す」に従うが、独立設計と食い違う——設計は別の層（人に聞く訳: 食い違い）"
+        got = self.ask_replan([row], before_fix=json.dumps({"decision": "continue", "text": "", "asked": [drift]}))
+        self.assertTrue(got["open"], "前に通したのが同じ項目の食い違いの行なら、今の外れの行は聞く")
+        self.assertEqual([a[:9] for a in got["asked"]], ["修正案 1 は頼み"], got["asked"])
+
+    def test_means_rows_of_revised_items_are_listed_without_push_when_the_review_fell(self):
+        """計画 means-answers の 3.3 の 5: 案の直しの事前審査が諦めた・落ちた時も、直した項目の計画の {means, deviation} を推しなしで
+        並べる（修正前の承認ノードと同じ。直さない項目の行は足さない）"""
+        old, _ = self.plans()
+        dev = {"means": "M1", "deviation": "決まりが別の層に置く"}
+        new = self.put("replan/plan-fields.json", {"round": 1, "fields": [
+            {"unit_keys": ["u1"], "allowed_paths": ["a.py"], "out_of_scope": [], "structure": [dev]},
+            {"unit_keys": ["u2"], "allowed_paths": ["c.py"], "out_of_scope": [], "structure": [dev]}]})
+        out = self.run.script("ask_replan", replan=json.dumps(self.replan_got(new)), review=json.dumps(self.review_got([], "gave_up")),
+                              old_plan=old, items=json.dumps([1]), conflicts="null", before_fix="null",
+                              record=self.put("r1/start.json", {}), means=json.dumps(["分母を直す"]), ports=self.ports())
+        means = [a for a in out["asked"] if a.startswith("修正案")]
+        self.assertEqual(len(means), 1, out["asked"])
+        self.assertTrue(means[0].startswith("修正案 1 は頼みの解き方 M1「分母を直す」に従わない——"), means)
+        self.assertIsNone(__import__("gatemarks").push_rec(means[0]))
 
     def test_replan_answer_carries_the_conditions_in_order(self):
         before = {"decision": "continue", "text": "a.py だけ", "asked": [NARROW]}
@@ -823,7 +860,7 @@ class ScriptCase(unittest.TestCase):
     def test_scripts_do_not_fall_on_null_inputs(self):
         """どの script も with: の全部が null でも落ちず、止めの語 works:line-script の返りにする（L-G52・L-W63）"""
         names = {"ask_before_fix": ("rounds", "structure", "judge", "record", "ports", "request"),
-                 "ask_replan": ("replan", "review", "old_plan", "items", "conflicts", "before_fix", "ports"),
+                 "ask_replan": ("replan", "review", "old_plan", "items", "conflicts", "before_fix", "ports", "means"),
                  "ask_final": ("fix_in", "fixed", "judged", "tests", "eyes", "seal", "spec_check", "parallel_after", "replan_review",
                                "replan_answer", "widened", "start_answer", "record", "final_gate", "ports", "request")}
         for name, keys in names.items():

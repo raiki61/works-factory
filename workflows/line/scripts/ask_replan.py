@@ -11,13 +11,15 @@ workflows/line/scripts/ask_replan.py の決まりのまま）。
 （L-D26・S22）。無人の run で範囲を広げるだけの直しは聞かずに通し、足した・外した glob を widened で返す（L-G45）。無人の run で聞く
 はずの時は gates.passage（約束の欄が変わった項目の行は推しを持たないので止まる。L-D30）。
 案の直しが計画を作れなかった（replan の ok が偽）時は開かず進めない（fixed が held にする）。事前審査が諦めた・落ちた時は、その訳を
-聞く行にする（案を審査できていない）。
+聞く行にする（案を審査できていない）。その時の頼みの解き方の外れは、直した項目の計画の {means, deviation} を推しなしで並べる
+（修正前の承認ノードと同じ。無人の run なら止まる）。
 文は聞く項目ごとの節（約束の欄の変化・人に聞く穴・その項目を誤りとした申し出の文と裁定の文〔fix の conflicts。字のまま〕・前と後の
 項目の JSON）。asked は承認ノードに見せた項目の行（「項目 <id>: …」と事前審査の問いの行。answer-replan が答えの asked にする）。
 
 入力（with:）: replan（replan-out の got）・review（replan-review-out の got か null）・old_plan（承認済みの案の欄の pointer）・
 items（直す計画の項目の番号）・conflicts（1 回目の修正の申し出と裁定の pointer か null）・before_fix（修正前の承認ノードの答え）・
-record（始めの記録の pointer。方針の文書が固めた版から変わっていれば、その行を聞く項目に足す）・ports（start の配る値）
+record（始めの記録の pointer。方針の文書が固めた版から変わっていれば、その行を聞く項目に足す）・ports（start の配る値）・
+means（依頼が示した解き方の文の並びか null。外れの行の M<n> に文を添える）
 """
 import json
 import os
@@ -96,8 +98,9 @@ def passed_before(before_fix, face: dict) -> bool:
 
 def means_rows(deviations, ids: list, before_fix) -> list:
     """案の直しの事前審査の外れの行のうち、直した項目（ids）の頼みの解き方の行の項目の文（gatemarks.means_item。推しの尾つき。計画
-    means-answers の 3.3 の 5）。修正前の承認ノードが continue で通した行と同じ鍵 (項目, M<n>) の行は、推しの文が書き直されていても
-    聞き直さない（鍵は聞いた文の頭 gatemarks.means_key から引く）。直さない項目の行は修正前の承認ノードで答え済みなので足さない"""
+    means-answers の 3.3 の 5）。修正前の承認ノードが continue で通した行と同じ鍵 (項目, M<n>, 向き) の行は、推しの文が書き直されて
+    いても聞き直さない（鍵は聞いた文の頭 gatemarks.means_key から引く）。直さない項目の行は修正前の承認ノードで答え済みなので足さない。
+    事前審査が諦めた・落ちた時は、deviations に直した案の計画の外れの行（gatemarks.means_rows。推しなし）を渡す"""
     import answer
     import gatemarks
     revised = {int(i) for i in ids if str(i).isdigit()}
@@ -126,10 +129,11 @@ def policy_row(record: dict, folder: Path, answered: list) -> str:
 
 
 def ask(replan_got, review_got, old_plan: str, ids: list, conflicts: str, before_fix, *, unattended: bool, run_id: str,
-        policy: str = "", missing=()) -> dict:
+        policy: str = "", missing=(), means=()) -> dict:
     import answer
     import gatemarks
     import replan
+    import worldmark
     from src import gates
 
     closed = {"open": False, "go": False, "stop_reason": "", "text": "", "widened": [], "asked": [], "pushed": None}
@@ -144,6 +148,7 @@ def ask(replan_got, review_got, old_plan: str, ids: list, conflicts: str, before
         why = "出力が無い" if review_got is None else (review_got["reason"] or review_got["status"])
         rows.append(REVIEW_FELL.format(why=why))
         facts = [{"item": i} for i in ids]
+        rows += means_rows(gatemarks.means_rows(new_fields, worldmark.means_hints(means)), ids, before_fix)
     else:
         facts = [r for r in review_got["replan"] or []]
         rows += means_rows(review_got["deviations"] or [], ids, before_fix)
@@ -187,13 +192,14 @@ def compute() -> dict:
     raw = {"replan": os.environ.get("INPUTS_REPLAN"), "review": os.environ.get("INPUTS_REVIEW"),
            "old_plan": os.environ.get("INPUTS_OLD_PLAN"), "items": os.environ.get("INPUTS_ITEMS"),
            "conflicts": os.environ.get("INPUTS_CONFLICTS"), "before_fix": os.environ.get("INPUTS_BEFORE_FIX"),
-           "record": os.environ.get("INPUTS_RECORD"), "ports": os.environ.get("INPUTS_PORTS")}
+           "record": os.environ.get("INPUTS_RECORD"), "ports": os.environ.get("INPUTS_PORTS"), "means": os.environ.get("INPUTS_MEANS")}
     from src import gates, startrec
 
     given = ports.parsed(raw["ports"]) or {}
     ids = ports.parsed(raw["items"]) or []
     record_path = ports.file(raw["record"], "json(start-record.schema.json)")
     before_fix = ports.parsed(raw["before_fix"])
+    means = ports.parsed(raw["means"])
     previous = gates.read_json(ports.place() / PREVIOUS)
     answered = [a for a in (before_fix, previous) if isinstance(a, dict)]
     row = policy_row(startrec.load(record_path) if record_path else {}, ports.place(), answered)
@@ -202,7 +208,8 @@ def compute() -> dict:
     conflicts = gates.located(raw["conflicts"], "修正の申し出と裁定の控え", missing, lambda raw: ports.file(raw, "json(lib:conflicts.schema.json)"))
     return ask(ports.picked(raw["replan"], REPLAN), ports.picked(raw["review"], REVIEW, optional=REVIEW_OPTIONAL), old_plan,
                [str(x) for x in ids] if isinstance(ids, list) else [], conflicts, before_fix,
-               unattended=bool(given.get("unattended")), run_id=os.environ["WORKFLOW_ID"], policy=row, missing=missing)
+               unattended=bool(given.get("unattended")), run_id=os.environ["WORKFLOW_ID"], policy=row, missing=missing,
+               means=means if isinstance(means, list) else [])
 
 
 def fallback(reason: str) -> dict:

@@ -10,7 +10,8 @@ import json
 import unittest
 
 from tests.blocks import kit
-from tests.blocks.plan_review.test_take import (DESIGN_TEXT, UNIT_CLAMP, UNIT_MEAN, Flow, face, fields, full_map, item, review)
+from tests.blocks.plan_review.test_take import (DESIGN_TEXT, UNIT_CLAMP, UNIT_MEAN, Flow, answer, dump, face, fields, full_map, item,
+                                                review, summary, synergy)
 
 BLOCK = "plan-review"
 MEANS = ["分母を len(xs) にする", "上限の枝を hi にする"]
@@ -170,6 +171,26 @@ class TreeMeansCase(DriftBase):
         brief = f.text("items/brief.md")
         self.assertIn("`means_departs`", brief)
         self.assertIn("## The request's means and the plan's answers", f.text("items/item-1.md"))
+
+    def test_tree_merge_carries_the_item_departs_to_the_deviations(self):
+        """木の往復: 項目の下請けの答えの means_departs が tree_merge で返答に並び、受け付けを通り、finish の deviations の source means の
+        行に推しが載る（tree_merge が take.MEANS_ROWS を並べないと、推しの行が無いと拒まれる）"""
+        tree = kit.load(BLOCK, "tree")
+        f = self.flow
+        f.intake(tree="on")
+        f.prep()
+        b = f.view()
+        maps = {n: [r for r in full_map() if r["item"] == n] for n in (1, 2)}
+        rows = {1: answer(1, means_departs=[depart()], design_map=maps[1]), 2: answer(2, design_map=maps[2])}
+        for n, row in rows.items():
+            path = tree.answer_file(b, n)
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(dump(row), encoding="utf-8")
+        tree.synergy_file(b).write_text(dump(synergy()), encoding="utf-8")
+        got = f.accept(tree=summary({1: [], 2: []}))
+        self.assertTrue(got["ok"], got)
+        rows = self.means_rows(f.finish())
+        self.assertEqual([(r["item"], r["mark"].get("recommend")) for r in rows], [(1, REC)], rows)
 
 
 if __name__ == "__main__":

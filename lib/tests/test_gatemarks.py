@@ -241,7 +241,7 @@ class MeansRowsCase(unittest.TestCase):
         text = gatemarks.means_item(r)
         self.assertNotIn("世界の解:", text)
         self.assertEqual(gatemarks.push_rec(text)["answer"], "continue")
-        self.assertEqual(gatemarks.means_key(text), (2, "M1"))
+        self.assertEqual(gatemarks.means_key(text), (2, "M1", "departs"))
 
     def test_plan_row_without_departs_has_no_push(self):
         r = gatemarks.means_rows(self.FIELDS, self.SAID)[0]
@@ -252,8 +252,9 @@ class MeansRowsCase(unittest.TestCase):
         r = gatemarks.means_drift_rows([{"item": 1, "means": "M1", "design_quote": "設計の字", "plan_quote": "案の字",
                                          "why": "独立設計は別の層に置く", "recommend": self.REC}], self.SAID)[0]
         self.assertTrue(r["text"].startswith("修正案 1 は頼みの解き方 M1「分母を len(xs) にする」に従うが、独立設計と食い違う——"))
-        self.assertEqual(gatemarks.means_key(r["text"]), (1, "M1"))
+        self.assertEqual(gatemarks.means_key(r["text"]), (1, "M1", "drifts"))
         self.assertIsNone(gatemarks.means_key("修正案 1 の世界の解の行"))
+        self.assertEqual(gatemarks.means_key(gatemarks.means_depart_text(1, "M1", {}, "別の層")), (1, "M1", "departs"))
 
 
 if __name__ == "__main__":
