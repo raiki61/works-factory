@@ -1,4 +1,4 @@
-"""範囲の役の返答の受け付け（docs/design/r4.md の 4 節）。lib/eyeverdict.r4_accept に、まとめた形の r3 の照らしを足した物"""
+"""範囲の役の返答の受け付け（docs/design/r4.md の 4 節）。元の eyeverdict.r4_accept に、まとめた形の r3 の照らしを足した物"""
 import accept      # lib/
 import policy      # lib/
 import rolekit     # lib/

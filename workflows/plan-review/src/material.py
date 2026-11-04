@@ -12,8 +12,8 @@
   _map_rows・kept_keys・_later・_map_items・_counts_coverage・MAP_OTHERS・ITEM_MAP_OTHERS・TREE_AUTO_MIN・design_only・
   map_items_section・lib_section・_units_text・_defaults_line・_json_block・_replan_section・_shown_plan・_diff_part・
   _item_plan_part・rereview_part・_cross_part・ripple_section・uncovered・previous_passes・fields_section・deviations_section・
-  recorded_rows・policy_example・concept_maps・policy_body・repository_line（写した元は lib/planblk.py・lib/boardview.py・
-  lib/ripple.py・lib/converge.py・lib/planmarks.py・lib/policy.py・lib/concepthome.py。どの関数の docstring にも元を書く）
+  recorded_rows・policy_example・concept_maps・policy_body・repository_line（写した元は planblk・boardview・
+  ripple・lib/converge.py・lib/planmarks.py・lib/policy.py・lib/concepthome.py。どの関数の docstring にも元を書く）
 
 写した元と違う所: 元の関数が材料と一緒に貼っていた指示の文（DESIGN_ASK・DIFF_ASK・CROSS_ASK・SCOPE_ASK・REREVIEW_ASK・
 planmarks.REVIEW_ASK・NO_MAP_KEYS・UNITS_LINE など）は md へ移し、ここは行と札だけを書く。日本語の見出しは英語の短い札にした。

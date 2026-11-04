@@ -101,8 +101,8 @@ UNPASSED = re.compile(r"渡されていない|渡っていない")
 # 地図は「地図」の語か、what のパスの部分（`:` の前）が文に在る時に当てる
 CLAIM_WORDS = {"human_answer": ("人の答え", "承認ノード"), "repo_map": ("地図",)}
 # 独立設計の指示書の頭に機械が貼ってよい前提の種類（premises の控えの kind の許す一覧）。一覧の外（ほかのブロックの出力など）を
-# 貼る口は作らない（独立設計の隔て。設計書 structure-block-design 7 節）。graph の reads で描く本文はこの柵の外（graph の reads が縛り、
-# その reads と prompt_append などの入口は tests/test_blk_eyes.py の test_r2_design_inputs_are_exactly_the_allowlist が許可の一覧の等式で縛る）
+# 貼る口は作らない（独立設計の隔て。設計書 structure-block-design 7 節）。graph の reads で描く本文はこの柵の外
+# （graph の reads が縛る）
 PREMISE_KINDS = ("human_answer", "named_section", "repo_map")
 # 対象のリポジトリの地図として根から読む名（関所の決め: 根の 2 つだけ。docs/ の下や README は読まない）。中身は分類せず丸ごと貼る。
 # AGENTS.md は blk-fix の fixrules.PROMPT_NAMES（役の指示書として読む名）とも重なる（core から blk-fix へは依らないので別に置く）
@@ -239,7 +239,7 @@ def _heads(lines) -> list:
     3 文字以上だけ。上線と下線が同じ記号で 1 行を挟む題も under で、mark は記号を 2 つ重ねた物）, mark, depth, title}]。
     Markdown でない文書に使う（Markdown は _md_heads）。形式の名前は持たない。記号だけの行が挟む区間（囲み）の中は数えず、
     隣の行と同じ記号・同じ長さの前置きの行は列（箇条・表）とみなして数えない。depth は前置きなら並びの長さ、下線なら下線の
-    mark が文書の中で初めて現れた順（0 始まり）。囲みと列の見分けは形式に依る推測（docs/language-neutral-inventory.md 7-7）"""
+    mark が文書の中で初めて現れた順（0 始まり）。囲みと列の見分けは形式に依る推測"""
     marks = [_marks(x) for x in lines]
     only = [n >= 3 and not rest.strip() for _, n, rest in marks]
 

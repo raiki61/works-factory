@@ -1,4 +1,4 @@
-"""読んだ証拠（docs/design/plan-review.md の 1.3 の review-reads。今の lib/boardview.py の collect_reads の写し）。
+"""読んだ証拠（docs/design/plan-review.md の 1.3 の review-reads。元の boardview の collect_reads の写し）。
 
 この include の審査の役が、機械が渡したパス（材料のファイル review-material-<n>.md と方針の写し）を読んだかを lib/reads の collect で
 集め、place に reads-<役>.json と索引を書く。記録は入口が intake.json を書いた時刻から後の、材料のファイルを読んだ session の行で切る

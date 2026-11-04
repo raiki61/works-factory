@@ -1,5 +1,5 @@
 """plan の block の中身のうち、入口（周を開く）・直す義務の数え・案に入れてよい単位・判定の処方・波及の一覧・出口（docs/design/plan.md の 4 節）。
-今の lib/planfile.py と lib/planblk.py の修正案の役の部分を、port の値で受ける形に写した物。指示の文は prompts/ の md が持ち、ここは値と、
+元の planfile と元の planblk の修正案の役の部分を、port の値で受ける形に写した物。指示の文は prompts/ の md が持ち、ここは値と、
 受け付けが拒否に使う日本語の理由（README の 5.3）だけを組む。
 
 place のファイルの名と、標準ライブラリだけの落ちない道は src/files.py。

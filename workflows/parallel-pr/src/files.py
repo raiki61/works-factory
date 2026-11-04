@@ -22,6 +22,6 @@ READS_FAILED = READS.removesuffix(".json") + "-failed-*.json"
 # この block が place に書く名前つきのファイル（scan が前の run の物を名で引いて消す）。組んだ指示は n を 1 から数えて在る分だけ
 OWN = (TREE, BRIEF, MATERIAL, EXCLUDED, DRAFTS, REJECTS, SCAN, READS, READS_INDEX)
 
-# この block が元の能力から下げている所の宣言（元 lib/downgrades.json の p0.parallel_pr の行の字）
+# この block が元の能力から下げている所の宣言（元の downgrades.json の p0.parallel_pr の行の字）
 DOWNGRADES = [{"what": "担当の PR へ申し送りを投稿しない（下書きを報告に載せる）",
                "versus": "review-graph は任せ先の役が gh で投稿する"}]

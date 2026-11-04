@@ -13,7 +13,7 @@ guidance-walk:
   steps:
     - {file: AGENTS.md, why: the entry file}
   placed:
-    - {path: lib/checks.py, change: add the check as a new function}
+    - {path: src/checks.py, change: add the check as a new function}
   copied: []
   stuck: [the entry file does not say where checks of one role live]
   guessed: [that shared checks go to lib]

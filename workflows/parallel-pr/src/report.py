@@ -3,7 +3,7 @@ import oneline   # lib/
 
 
 def draft_lines(rows) -> list:
-    """申し送りの下書きの行（元 lib/prcheck.py の draft_lines。note を持つ行だけ）"""
+    """申し送りの下書きの行（元の prcheck の draft_lines。note を持つ行だけ）"""
     return [f"並行 PR #{r.get('pr')} の担当への申し送りの下書き（{'・'.join(map(str, r.get('files') or []))}。投稿していない）: "
             f"{r['note']}" for r in rows or [] if isinstance(r, dict) and r.get("note")]
 

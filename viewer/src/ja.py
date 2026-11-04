@@ -3,7 +3,7 @@ prompt-values-for-viewer・viewer-in-repo の 4。設計は docs/design/viewer.m
 
 訳の控えは、段落の字の sha1 の頭 16 字を鍵、訳を値にした JSON で、2 か所に分ける（計画 docs/plans/2026-10-28-viewer.md の 5.2 の案 J1）:
 - REPO（このフォルダの隣の ja/paragraphs.json）: 工場の指示の md（pack の <block>/prompts/ と .shared/prompts/）の段落の訳。リポジトリに入れる
-- 利用者のキャッシュ（殻と同じ取り置きの置き場 bin/_lib/place.py の cache_dir の下の viewer/ja-cache.json）: それ以外の段落（Claude Code の
+- 利用者のキャッシュ（殻と同じ取り置きの置き場 bin/_lib/place.py の <cache_dir>/viewer/ja-cache.json）: それ以外の段落（Claude Code の
   字・run の時に入った字。対象のリポジトリの字を含みうるので、リポジトリに入れない）
 
 段落は、空の行と、組み立ての印の行（段落の選びの印・道具の印・断片だけの行）で区切った行の塊。英字が 40 字を超え、かなが英字の 3 分の 1

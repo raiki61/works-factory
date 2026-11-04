@@ -1,5 +1,5 @@
-"""並行 PR の役 pr-check の返答の受け付け（docs/design/parallel-pr.md の 4 節）。元は lib/judge_accept.py の check_no_post・prcheck_drafts・
-prcheck_take・pr_accept と lib/prcheck.py の _anchored・check_excluded・_write。
+"""並行 PR の役 pr-check の返答の受け付け（docs/design/parallel-pr.md の 4 節）。元は judge_accept の check_no_post・prcheck_drafts・
+prcheck_take・pr_accept と元の prcheck の _anchored・check_excluded・_write。
 
 照らす順: 返答が JSON のオブジェクト → 投稿していない → 読むだけの役が作業ツリーを変えていない → 素材の欄が記録の決まりに合う
 （carried_over と not_applicable は書けない・札ごとの要る欄）→ 段 after（修正の後）なら外す hunk が空 → 外す hunk が合う。通れば外す hunk を中身の印つきで pr-excluded.json に、

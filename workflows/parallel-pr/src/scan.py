@@ -1,5 +1,5 @@
 """並行 PR の機械の道（docs/design/parallel-pr.md の 1.3 の scan）。開いている PR と、この run の変更ファイルの交差を gh の読みだけで数え、
-機械が決められない時だけ役 pr-check を起こす。元は lib/judge_accept.py の _github_repo・_pr_files・parallel_pr_plan・parallel_pr_scan・
+機械が決められない時だけ役 pr-check を起こす。元は judge_accept の _github_repo・_pr_files・parallel_pr_plan・parallel_pr_scan・
 parallel_pr_reply・_pr_material・pr_scan（元 works/.shared/core/graphloops/rules/review-loop.py）。始めの記録・止めの控え・依頼の
 置き場は読まず、port の値を引数で受ける。
 """
