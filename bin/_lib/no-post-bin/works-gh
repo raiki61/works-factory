@@ -78,17 +78,21 @@ def api_read(args):
 
 
 def repo_flags(args):
-    """-R・--repo の値の全部（短い旗の束 -cR o/r・-cRo/r の R も数える。値の無い末尾の旗は空の値）"""
+    """-R・--repo の値の全部（短い旗の束 -cR o/r・-cRo/r の R も数える。値の無い末尾の旗は空の値）。束の値は pflag と同じく、
+    最初の R の後ろが空なら次の語、空でなければ残り（頭の = は外す）。末尾の R だけを見ると -Revil.example/o/R o/r を -R o/r と
+    照らし、gh は evil.example/o/R を読む"""
     out, i = [], 0
     while i < len(args):
         a = args[i]
-        if a == "--repo" or (a.startswith("-") and not a.startswith("--") and a.endswith("R")):
+        short = a.startswith("-") and not a.startswith("--") and "R" in a
+        tail = a.split("R", 1)[1] if short else None
+        if a == "--repo" or tail == "":
             out.append(args[i + 1] if i + 1 < len(args) else "")
             i += 1
         elif a.startswith("--repo="):
             out.append(a.split("=", 1)[1])
-        elif a.startswith("-") and not a.startswith("--") and "R" in a:
-            out.append(a.split("R", 1)[1].removeprefix("="))
+        elif short:
+            out.append(tail.removeprefix("="))
         i += 1
     return out
 
