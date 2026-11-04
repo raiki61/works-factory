@@ -1,6 +1,7 @@
 # redesign: R1 が作り直しを返す → ok は偽
 fixture:
   expect: completed
+  authored: failed
   reached:
   - ins
   - structure-after__finish

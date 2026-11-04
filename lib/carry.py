@@ -10,8 +10,9 @@ next-request.schema.json と prior-failures.schema.json）の読みと照らし�
 "prior_failures": [...], "theme": "..."} の形。prior_failures は前の run で最後まで通らなかった物 [{where, text}]（前の run の報告が書く
 next-request.json の欄。判定役と修正案の役の材料に貼る。受け付けが最後まで拒んだ行は直す穴ではない注意で、独立の目 R2 の作り直しの行
 （where が REDESIGN_WHERE）は次の周の先頭で直す穴）。
-answers は依頼者が前の run の問いに答えた物 [{question, text, command?, output?}]（question は問いの key か出どころ。
-command・output は人が手元で測った命令と出力で、両方か無し。前の run の報告が書いた答えの下書きの印 draft・source の在る行は、
+answers は依頼者が前の run の問いに答えた物 [{question, text, command?, output?, pushed?}]（question は問いの key か出どころ。
+command・output は人が手元で測った命令と出力で、両方か無し。pushed は工場が続きの依頼に写した、無人の run が採った推しの行の印
+〔配列。在れば人の答えではなく、記録された方針が人の決めと数えない〕。前の run の報告が書いた答えの下書きの印 draft・source の在る行は、
 人が見直していないので拒む。findings の行も同じ: 前の run の判定が目的の外とした所見を報告が下書きの印つきで運ぶ）。読み手
 （入口・判定と前提の受け口）はここで解き、graphloops の規則（check_request・add_request・REQUEST_SCHEMA）に渡すのは
 findings だけにする（容器の形を規則の側へ漏らさない）。
@@ -54,6 +55,7 @@ FINDINGS, PR, ISSUE, ANSWERS, PRIOR, CONSTRAINTS = "findings", "pr", "issue", "a
 THEME = "theme"   # テーマ（コードに落とす前の設計の問い）の文か、対象の根からの md のパス（設計の段。docs/design/line.md の 3.3）
 KEYS = (FINDINGS, PR, ISSUE, ANSWERS, PRIOR, CONSTRAINTS, THEME)
 ANSWER_KEYS = ("question", "text", "command", "output")   # 人が見直した答えの欄（Schema の answers は下書きの欄で、別の物）
+PUSHED = "pushed"   # answers の行の推しの印（lib/answer.py の PUSHED と同じ名。工場が書く続きの依頼で、無人の run が採った推しの行が持つ配列）
 DRAFT, SOURCE, NOTE = "draft", "source", "note"
 DRAFT_KEYS = (DRAFT, SOURCE)   # 前の run の報告が next-request.json の answers・findings に置く下書きの印（人が見直して消すまで拒む）
 PRIOR_KEYS = ("where", "text")   # prior_failures の行の欄（前の run の報告が next-request.json に書いた形）
@@ -175,7 +177,7 @@ def _prior_failures(rows) -> list:
 
 
 def _answers(rows) -> list:
-    """依頼の answers を確かめてそのまま返す。question・text は空でない文字列、command・output は両方か無し、
+    """依頼の answers を確かめてそのまま返す。question・text は空でない文字列、command・output は両方か無し、pushed は配列、
     知らない欄と同じ question の 2 度書きは拒む（ValueError。1 行）"""
     if not isinstance(rows, list):
         raise ValueError(f"answers が配列でない（{type(rows).__name__}）")
@@ -189,9 +191,11 @@ def _answers(rows) -> list:
                              "（text は直してよい。推しの無い行は text が空なので、note の材料から答えを書く）、"
                              "採らないなら行を消す。承認ノードの項目の行（question が承認ノードの項目の文）は次の run の承認ノードの continue の一言の材料で、"
                              "依頼ではどの問いにも当たらないので、一言に写してから行を消す")
-        extra = sorted(set(a) - set(ANSWER_KEYS))
+        extra = sorted(set(a) - set(ANSWER_KEYS) - {PUSHED})
         if extra:
-            raise ValueError(f"answers[{i}] の知らない欄 {extra}（使えるのは {list(ANSWER_KEYS)}）")
+            raise ValueError(f"answers[{i}] の知らない欄 {extra}（使えるのは {list(ANSWER_KEYS) + [PUSHED]}）")
+        if PUSHED in a and not isinstance(a[PUSHED], list):
+            raise ValueError(f"answers[{i}] の {PUSHED} が配列でない（{type(a[PUSHED]).__name__}）")
         for key in ANSWER_KEYS:
             if (key in a or key in ("question", "text")) and not (isinstance(a.get(key), str) and a[key].strip()):
                 raise ValueError(f"answers[{i}] の {key} が空でない文字列でない（{a.get(key)!r}）")

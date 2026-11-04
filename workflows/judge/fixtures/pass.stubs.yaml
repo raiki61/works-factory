@@ -1,6 +1,7 @@
 # pass: standalone と同じ流れを、名指しの入力（base・lang）つきで回す
 fixture:
   expect: completed
+  authored: succeeded
   reached:
   - ins
   - head-depth-run__finish

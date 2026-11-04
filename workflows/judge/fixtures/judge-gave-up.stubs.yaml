@@ -1,6 +1,7 @@
 # judge-gave-up: 判定役が 3 回とも拒まれて diagnose が works:judge を返す → verdict が止める（裏取りは回らない）
 fixture:
   expect: completed
+  authored: failed
   reached:
   - ins
   - head-depth-run__finish

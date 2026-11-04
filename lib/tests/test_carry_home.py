@@ -42,6 +42,16 @@ class Contract(unittest.TestCase):
         self.assertEqual(c.DRAFT_KEYS, (c.DRAFT, c.SOURCE))
         # ANSWER_KEYS（人が見直した答えの欄）と Schema の answers（下書きの欄）は別の物で、揃えない
 
+    def test_pushed_mark_is_the_answer_mark(self):
+        """answers の推しの印の欄は lib/answer.py の PUSHED と同じ名（続きの run の依頼で、推しの行が推しのまま読まれる）。配列でなければ拒む"""
+        import answer
+        c = carry()
+        self.assertEqual(c.PUSHED, answer.PUSHED)
+        row = {"question": "q", "text": "推しの a を採った", c.PUSHED: []}
+        self.assertTrue(answer.by_push(c.parts({"findings": [], "answers": [row]})["answers"][0]))
+        with self.assertRaises(ValueError):
+            c.parts({"findings": [], "answers": [{**row, c.PUSHED: "x"}]})
+
     def test_reader_checks_prior_rows_against_schema(self):
         """読み手も prior_failures の行を同じ Schema で照らす（手書きの確かめの後。文は今のまま）"""
         c = carry()

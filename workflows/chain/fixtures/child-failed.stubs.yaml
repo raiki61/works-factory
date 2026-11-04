@@ -2,6 +2,7 @@
 # round-1 の後ろは飛び、決めは走らない。result は落ちずに act: wait と続け方を返す。
 fixture:
   expect: "failed"
+  authored: failed
   fail-node: "round-1"
   inputs: {"rounds": "3", "request": "request.json"}
   reached: ["chain-start", "final-diff", "result"]

@@ -202,6 +202,12 @@ class ThemeStageCase(TalkBase):
         request = json.loads(pathlib.Path(went["request_file"]).read_text(encoding="utf-8"))
         approved = next(a for a in request["answers"] if a["question"] == self.d.APPROVED_Q)
         self.assertIn(self.answer.PUSHED_NOTE, approved["text"], "持ち主の承認と書かない")
+        self.assertTrue(self.answer.by_push(approved), "依頼のファイルの答えも推しの印を持つ（続きの run が人の決めと読まない）")
+        import carry
+        carry.parts(request)   # 読み手が拒まない（欄 carry.PUSHED）
+        dealt = next(a for a in went["request_answers"] if a["question"] == self.d.APPROVED_Q)
+        self.assertTrue(self.answer.by_push(dealt), "配る値の答えは推しの印を持つ（記録された方針が人の決めと数えない）")
+        self.assertFalse(any(self.answer.by_push(a) for a in went["request_answers"] if a["question"] == "q"), "依頼が先に持つ答えは人の答え")
 
     def test_other_runs_take_the_request_from_the_dealt_values(self):
         given = {"theme": "", **{n: f"v-{n}" for n in REQUEST_FIELDS}}
@@ -275,6 +281,83 @@ class ThemeStageCase(TalkBase):
                          f"{self.run.artifacts / 'theme/next/request.json'} --input design_talk=true --input test_cmd='make test' --input lang=Japanese --input spec=on")
         with self.run.env():
             self.assertFalse(self.d.back(po, given=self.given, record={}, descended=descended, place=self.run.artifacts)["back"])
+
+    def test_back_keeps_pushed_answers_pushed_across_runs(self):
+        """続きの run の依頼に写した推しの答えの行は、続きの run が読んでも推し（policy.PUSH_SOURCE）で、人の決めと数えない"""
+        import carry
+        import policy
+        descended = self.descend(self.agreed())
+        ask = self.d.ASK_Q.format(id="a1")
+        descended = {**descended, "request_answers": [*descended["request_answers"],
+                                                      {"question": ask, "text": "推しの b を採った", self.answer.PUSHED: []}]}
+        po = self.plan_out()
+        rounds_got = {**po, "agreed": {"decision": "redesign", "text": "C1 が成り立たない"}, "talks": []}
+        with self.run.env():
+            self.assertTrue(self.d.back(rounds_got, given=self.given, record={"inputs": {}}, descended=descended,
+                                        place=self.run.artifacts, env={})["back"])
+        request = json.loads((self.run.artifacts / "theme/next/request.json").read_text(encoding="utf-8"))
+        rows = policy.recorded({"answers": carry.parts(request)["answers"]})
+        prior = self.d.PRIOR_Q.format(question=ask)
+        self.assertEqual({r["name"]: r["source"] for r in rows}[prior], policy.PUSH_SOURCE)
+        self.assertFalse(policy.decides(rows, f"決め手: {prior}"))
+        shared = json.loads((kit.ROOT / "workflows/.shared/schemas/request-answers.schema.json").read_text(encoding="utf-8"))
+        row = json.loads((kit.ROOT / "lib/push-row.schema.json").read_text(encoding="utf-8"))
+        self.assertEqual(set(shared["items"]["properties"][carry.PUSHED]["items"]["properties"]), set(row["properties"]),
+                         "依頼の answers の推しの行の形は push-row と同じ欄")
+
+
+    def test_next_run_approval_is_not_shadowed_by_the_prior_push(self):
+        """推しで降りる → 計画の承認ノードで redesign → 続きの run で人が承認、の流れで、前の run の推しの行が、今の run で人が承認した
+        同じ番号の問いの行を押しのけない（問いの id は run ごとに Q1 から振り直す。続きの依頼に写す行は名を PRIOR_Q で前の run の物に分ける）"""
+        import carry
+        import policy
+        bare = {**self.theme_out(design=self.design(asks=[])), **self.t.talk_fields({})}
+        first = self.descend(bare, {**self.given, "unattended": True})
+        ask = self.d.ASK_Q.format(id="Q1")
+        first = {**first, "request_answers": [*first["request_answers"],
+                                              {"question": ask, "text": "推しの b を採った", self.answer.PUSHED: []}]}
+        rounds_got = {**self.plan_out(), "agreed": {"decision": "redesign", "text": "C1 が成り立たない"},
+                      "talks": [{"decision": "redesign", "text": "C1 が成り立たない"}]}
+        with self.run.env():
+            self.assertTrue(self.d.back(rounds_got, given=self.given, record={"inputs": {}}, descended=first,
+                                        place=self.run.artifacts, env={})["back"])
+        request = json.loads((self.run.artifacts / "theme/next/request.json").read_text(encoding="utf-8"))
+        carried = carry.parts(request)["answers"]
+        self.assertFalse({a["question"] for a in carried} & {ask, self.d.APPROVED_Q}, "続きの依頼の行の名は今の run の名と重ならない")
+        went = self.descend(self.agreed(), {**self.given, "request_answers": carried})
+        self.assertTrue(went["go"], went)
+        rows = policy.recorded({"answers": went["request_answers"]})
+        self.assertEqual([r["source"] for r in rows if r["name"] == ask], ["answer"], "今の run で人が承認した行が残る")
+        self.assertTrue(policy.decides(rows, f"決め手: {ask}"))
+        prior = self.d.PRIOR_Q.format(question=ask)
+        self.assertEqual([r["source"] for r in rows if r["name"] == prior], [policy.PUSH_SOURCE], "前の run の推しは推しのまま残る")
+
+
+    def test_back_keeps_the_names_people_wrote(self):
+        """続きの依頼に写す行のうち、頭 PRIOR_Q を付けるのは工場が run ごとに振る名（ASK_Q・TALK_Q・PLAN_TALK_Q・頭の付いた名）だけで、
+        人が依頼の answers に書いた名（問いの key か出どころ）はそのまま（続きの run の判定・問いの台帳が字の一致で結ぶ）。続きの続きの
+        run でも名が重ならない（carry.parts が 2 度書きと拒まない）"""
+        import carry
+        given = {**self.given, "request_answers": [{"question": "u1", "text": "受け入れる"}]}
+        descended = self.descend(self.agreed(), given)
+        rounds_got = {**self.plan_out(), "agreed": {"decision": "redesign", "text": "C1 が成り立たない"},
+                      "talks": [{"decision": "redesign", "text": "C1 が成り立たない"}]}
+        names = []
+        for _ in range(2):
+            with self.run.env():
+                self.assertTrue(self.d.back(rounds_got, given=given, record={"inputs": {}}, descended=descended,
+                                            place=self.run.artifacts, env={})["back"])
+            request = json.loads((self.run.artifacts / "theme/next/request.json").read_text(encoding="utf-8"))
+            carried = carry.parts(request)["answers"]
+            names = [a["question"] for a in carried]
+            self.assertIn("u1", names, "人が書いた名はそのまま")
+            self.assertNotIn(self.d.PRIOR_Q.format(question="u1"), names)
+            self.assertIn(self.d.PRIOR_Q.format(question=self.d.ASK_Q.format(id="Q1")), names)
+            self.assertIn(self.d.PRIOR_Q.format(question=self.d.PLAN_TALK_Q.format(n=1, decision="redesign")), names)
+            given = {**self.given, "request_answers": carried}
+            descended = self.descend(self.agreed(), given)
+        self.assertIn(self.d.PRIOR_Q.format(question=self.d.PRIOR_Q.format(question=self.d.ASK_Q.format(id="Q1"))), names,
+                      "続きの続きの run では頭が 2 つ付く")
 
 
 # ---------------------------------------------------------------- YAML の配線
