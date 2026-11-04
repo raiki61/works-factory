@@ -106,9 +106,15 @@ class YamlCase(unittest.TestCase):
         self.assertIs(fmt["additionalProperties"], False)
         self.assertEqual(fmt["properties"]["mode"]["enum"], ["base", "final"])
         self.assertEqual(fmt["properties"]["red_cause"]["enum"], list(green_cert.RED_CAUSES))
+        # テストごとの行は対象のテストの数だけ伸びるので値で返さず、ファイルを指す（受け手の script は入力を環境変数で受け、
+        # OS の引数と環境の上限〔E2BIG〕を越えうる）
         compared = fmt["properties"]["test_outcomes"]
+        self.assertEqual(compared["properties"]["type"]["enum"], ["archon_artifact"])
+        self.assertEqual(compared["type"], ["object", "null"])
+        self.assertTrue(compared["description"].startswith("json(shared:outcomes.schema.json): "), compared)
+        shape = json.loads((kit.BLOCKS / ".shared" / "schemas" / "outcomes.schema.json").read_text(encoding="utf-8"))
         for side in ("base", "final"):
-            self.assertEqual(compared["properties"]["rows"]["items"]["properties"][side]["enum"], [*baseline_red.OUTCOMES, ""])
+            self.assertEqual(shape["properties"]["rows"]["items"]["properties"][side]["enum"], [*baseline_red.OUTCOMES, ""])
         self.assertEqual(fmt["properties"]["ok"]["type"], "boolean")
         self.assertEqual(result["output_type"], "green-cert")
         self.assertEqual((result["trigger_rule"], result["depends_on"]), ("all_done", ["run", "suite-loop"]))
@@ -300,6 +306,12 @@ class ScriptCase(unittest.TestCase):
     def pointed(self, ptr: dict) -> pathlib.Path:
         self.assertEqual((ptr["type"], ptr["run_id"]), ("archon_artifact", RUN_ID))
         return self.artifacts / ptr["path"]
+
+    def outcomes(self, out: dict):
+        """返りの test_outcomes（テストごとの結末 {rows, unmeasured} のファイルの pointer。base は null）が指す中身"""
+        if out["test_outcomes"] is None:
+            return None
+        return json.loads(self.pointed(out["test_outcomes"]).read_text(encoding="utf-8"))
 
 
 class IntakeCase(ScriptCase):
@@ -640,16 +652,16 @@ class ResultScriptCase(ScriptCase):
         self.write_start(tdd_suite=str(suite), test_cmd="true", base=self.head)
         self.ok("run", "base")
         base = self.result("base")
-        self.assertIsNone(base["test_outcomes"])
+        self.assertIsNone(self.outcomes(base))
         (self.repo / "broken.flag").write_text("x\n", encoding="utf-8")
         self.write_start(baseline=str(self.pointed(base["baseline"])))
         self.ok("run", "final")
-        self.assertEqual(self.result("final")["test_outcomes"],
+        self.assertEqual(self.outcomes(self.result("final")),
                          {"rows": [{"key": "s::y", "base": "passed", "final": "passed", "fail_message": ""},
                                    {"key": "s::x", "base": "passed", "final": "failure", "fail_message": "0 != 10"}], "unmeasured": ""})
         self.write_start(baseline="", base="")
         self.ok("run", "final")
-        self.assertEqual(self.result("final")["test_outcomes"],
+        self.assertEqual(self.outcomes(self.result("final")),
                          {"rows": [], "unmeasured": "base の実測（baseline）が無い（実行器の無い run か、base のテストが走っていない）"})
 
     def test_test_outcomes_are_not_compared_when_either_side_has_no_per_test_results(self):
@@ -657,7 +669,7 @@ class ResultScriptCase(ScriptCase):
         （持ち主の決め base-runs-nothing）ので元の結末は 1 件ごとの結末を持たず、最後のテストに赤が無ければ修正前の版でも走らせ直さない"""
         untallied = self.base()
         (self.repo / "fixed.flag").write_text("x\n", encoding="utf-8")
-        self.assertEqual(self.final(untallied)["test_outcomes"],
+        self.assertEqual(self.outcomes(self.final(untallied)),
                          {"rows": [], "unmeasured": "base のテストは 1 件ごとの結末を取っていない"})
 
     def test_bare_name_tdd_suite_runs_from_the_target_root(self):
@@ -843,6 +855,7 @@ class ResultScriptCase(ScriptCase):
         with mock.patch.dict(os.environ, {"ARTIFACTS_DIR": str(self.artifacts), "WORKFLOW_ID": RUN_ID}):
             out = certify.failed(self.place("final"), ValueError("壊れた元の結末"))
         self.assertEqual(out["ran_steps"], {"ran": [], "unran": []})
+        self.assertEqual(self.outcomes(out), {"rows": [], "unmeasured": certify.INNER_ERROR})
         self.assertEqual(green_cert.ran_note(green=out["green"], red_cause=out["red_cause"], by=out["by"]), green_cert.GATE_BROKE)
 
     def test_suite_without_cases_leaves_no_baseline_exit(self):
@@ -1186,7 +1199,7 @@ class RelatedCase(ScriptCase):
     def test_a_red_the_fix_made_is_introduced_and_not_certified(self):
         out = self.base_and_final(final_fails=True)
         self.assertEqual((out["green"], out["ok"], out["red_cause"]), (False, False, green_cert.INTRODUCED))
-        self.assertEqual([r["key"] for r in out["test_outcomes"]["rows"]], ["test_stats.TestStats::test_mean_of_three"])
+        self.assertEqual([r["key"] for r in self.outcomes(out)["rows"]], ["test_stats.TestStats::test_mean_of_three"])
 
     def test_a_red_outside_the_narrow_base_is_not_called_introduced(self):
         """修正前の確かめが関わる試験だけ（1 件）で、最後の確かめが全部の試験（選べなかった）の時、修正前の結果に無い試験の赤は、直しが
@@ -1291,7 +1304,7 @@ class BaseRunsNothingCase(ScriptCase):
         (self.repo / "far.flag").write_text("", encoding="utf-8")   # 追跡していない: 修正前の版の写しには無い
         out = self.base_then_final()
         self.assertEqual((out["ok"], out["green"], out["red_cause"]), (False, False, green_cert.INTRODUCED))
-        rows = {r["key"]: (r["base"], r["final"]) for r in out["test_outcomes"]["rows"]}
+        rows = {r["key"]: (r["base"], r["final"]) for r in self.outcomes(out)["rows"]}
         self.assertEqual(rows["test_far.TestFar::test_far"], ("passed", "failure"))
         self.assertEqual(self.run_doc("final")["base_rerun"]["rev"], self.head)
 
@@ -1303,7 +1316,7 @@ class BaseRunsNothingCase(ScriptCase):
         self.head = git(self.repo, "rev-parse", "HEAD")
         out = self.base_then_final()
         self.assertEqual((out["ok"], out["green"], out["red_cause"]), (False, False, green_cert.INHERITED))
-        rows = {r["key"]: (r["base"], r["final"]) for r in out["test_outcomes"]["rows"]}
+        rows = {r["key"]: (r["base"], r["final"]) for r in self.outcomes(out)["rows"]}
         self.assertEqual(rows["test_far.TestFar::test_far"], ("failure", "failure"))
 
     def test_a_green_final_is_not_run_again_at_the_base_version(self):
