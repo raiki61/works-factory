@@ -201,6 +201,20 @@ class SplitCase(GateBase):
         self.assertEqual(self.bad(got), ["obvious"])
         self.assertIn("依頼の文に無い", self.note(got, "obvious"))
 
+    def test_recorded_person_row_name_is_a_source(self):
+        """足す: 記録された方針の行のうち人の決め（依頼の answers の question など）を字のまま名指す決め手は出どころ（計画の指示
+        plan-writer.md と事前審査の指示 parts/head.md が出どころに挙げる名指し）。無人の run が採った推しの行は人の決めでないので数えない"""
+        name = "修正案 1 が狭める能力: 空の列の mean"
+        recorded = [{"source": "answer", "name": name, "text": "受け入れる"},
+                    {"source": "push", "name": "無人の run が採った推し abc123", "text": "通す"}]
+        [got] = self.asks(narrows=[{**NARROW, **DECIDED, "decided_by": name}], recorded=recorded)
+        self.assertEqual((got["decided"], got["why"]), (True, {}))
+        [got] = self.asks(narrows=[{**NARROW, **DECIDED, "decided_by": "無人の run が採った推し abc123"}], recorded=recorded)
+        self.assertEqual(self.bad(got), ["obvious"])
+        self.assertIn(self.gate.cite.NO_SOURCE, self.note(got, "obvious"))
+        [got] = self.asks(narrows=[{**NARROW, **DECIDED, "decided_by": f"{name} と docs/adr/0099-nope.md:3"}], recorded=recorded)
+        self.assertIn("docs/adr/0099-nope.md:3", self.note(got, "obvious"))   # 現物に無い名指しは、方針の名が在っても揃わない
+
     def test_no_world_is_not_world(self):
         """元 SplitCase.test_no_world_is_not_world（元 FourAxesCase.test_no_world_asks）"""
         (self.tmp / "keep.md").write_text("空の列は例外のまま\n", encoding="utf-8")

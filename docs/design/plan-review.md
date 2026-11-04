@@ -709,6 +709,7 @@ Return only JSON that matches the output schema.
 - `decided`: `gatemarks.decided(mark)`。
 - `why`: `{obvious, world, clean, not_overkill}` ごとの揃わない訳の並び（今の `axis_reasons` のまま: `decided_by` が無いか `undecided_because` が在る・出どころが現物に無い〔下の行〕・柵の印〔`fences` の 5 語。`external_write` など〕が付いている・世界の解の行の無い run で `world` も URL も無い・構造の目が人に上げた単位か、汚れる〔直しが設計の考えを知る場所を増やす〕と見た単位に案の答えが無い・案の単位の外）。訳の無い軸は載せない（揃った軸は鍵ごと無い。全部の軸が揃えば `{}`）。
   - 出どころが現物に在るかの照らし（`cite.sources_problem`）: 依頼の引用は port `request` の本文と照らす。作業ツリーの外を引いた出どころは、依頼のファイルか place の親（この block の place のフォルダの 1 つ上）の下に在れば現物と認め、無ければ揃わない訳に載る。
+  - 記録された方針の行の名指し（`policy.decides`）: 現物の名指しが 1 つも無い（`cite.NO_SOURCE`）決め手でも、`intake.json` の `recorded_policy` のうち人の決めの行（方針の文書・依頼の answers の question・承認ノードの答え・決着済みの論点。無人の run が採った推しの行は除く）を字のまま名指せば出どころと読む。計画の指示（`plan-writer.md`）と事前審査の指示（`parts/head.md`）が決め手の 1 つに挙げる名指しで、依頼の answers に答えを書いた狭める能力の行を、無人の run が人に聞き直さないため（前は照らしが読まず、答えの在る行が毎回人に回った）。現物に無い名指しの誤りは、方針の名が在っても揃わない訳に残す。
   - place の親は、今の line・policy-check（include が 1 段）では run の根と同じだが、単独の run では run の外まで広く、2 段より深い include では run の一部だけに狭い。block は run の根を受けない〔README 4.3・形の検査の 7〕ので、今は place の親で照らし、run の根に揃える直しは持ち主の決めを待つ。
 - 形 replan も同じ行を返す（今は形 replan の承認ノードは `replan_asks` だけを使ったが、事実として返し、使うかは line が決める）。
 
