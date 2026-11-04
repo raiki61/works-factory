@@ -1,6 +1,7 @@
 # no-open-units: 判定は受けたが開いた単位が無い → ok: true・ready: false（止めでない）。裏取りは回らない
 fixture:
   expect: completed
+  authored: succeeded
   reached:
   - ins
   - head-depth-run__finish

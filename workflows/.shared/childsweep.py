@@ -31,7 +31,8 @@ import subprocess
 from collections.abc import Callable, Mapping
 
 # 入口の殻（bin/_lib/launcher.py）が run に置く、止めた Archon の本体を起こす命令の頭（文字列の list の JSON）。名の持ち主はこの埋めで、
-# 殻はこのファイルを読んで名を取る（グラフは bin を読まない。workflows/AGENTS.md の E4）
+# 殻はこのファイルを読んで名を取る（グラフは bin を読まない。workflows/AGENTS.md の E4）。周の鎖が子の run のファイルを Archon で読む
+# 時も、この名と command_head・last_json を使う（workflows/chain/src/reads.py の child_file）
 CLI_ENV = "WORKS_FACTORY_ARCHON_CLI"
 BRANCH_HEAD = "archon/task-"
 RUN_HEAD = 8
@@ -122,7 +123,7 @@ def outcome(branch: str, stdout: str, stderr: str) -> str | None:
 def sweep(run_id: str, checkout: str, env: Mapping[str, str], run: Run = subprocess.run) -> dict:
     """この run の completed の子の作業ツリーと枝を消し、{cleaned, left, error} を返す。checkout は run の作業ツリー（ノードの cwd）"""
     result = {"cleaned": [], "left": [], "error": ""}
-    head = _head(env.get(CLI_ENV))
+    head = command_head(env)
     if head is None:
         result["error"] = f"{CLI_ENV} が無いか、文字列の list の JSON でない（入口の殻 bin/works-factory から起こした run でない）"
         return result
@@ -158,10 +159,10 @@ def sweep(run_id: str, checkout: str, env: Mapping[str, str], run: Run = subproc
     return result
 
 
-def _head(value: str | None) -> list[str] | None:
-    """CLI_ENV の値を命令の頭に読む。無い・JSON でない・空か文字列でない物を含む list なら None"""
+def command_head(env: Mapping[str, str]) -> list[str] | None:
+    """env の CLI_ENV の値を命令の頭に読む。無い・JSON でない・空か文字列でない物を含む list なら None"""
     try:
-        head = json.loads(value or "")
+        head = json.loads(env.get(CLI_ENV) or "")
     except json.JSONDecodeError:
         return None
     return head if isinstance(head, list) and head and all(isinstance(part, str) for part in head) else None

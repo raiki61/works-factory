@@ -4,6 +4,7 @@
 # standalone: 依頼の行 1 つだけ。どの段も通り、verdict が ok: true・ready: true を返す（裏取りは表が空なので回さない）
 fixture:
   expect: completed
+  authored: succeeded
   reached:
   - ins
   - head-depth-run__finish

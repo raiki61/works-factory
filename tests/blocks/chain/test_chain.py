@@ -169,12 +169,36 @@ FINDINGS = [{"where": "a.py:1", "text": "mean が空で落ちる"}, {"where": "b
 MEASURED = {"text": "設定は 3 つ", "measured_how": "前の run の前提の検算（run child）", "kind": carry.MEASURED}
 
 
+# 試験の Archon の替え: workflow artifacts <run> [path] --json --cwd <木> だけを、runs/<run> を run の置き場として答える。答えの形と
+# 拒みの形は止めた Archon の packages/cli/src/commands/workflow-artifacts.ts の写し（本物の Archon での鍵・読み・拒みは
+# ChildFileArchonCase が見る）
+FAKE_ARTIFACTS = """
+import json, os, pathlib, sys
+args = sys.argv[1:]
+assert args[:2] == ["workflow", "artifacts"] and args[-3:-1] == ["--json", "--cwd"], args
+run, rest = args[2], args[3:-3]
+place = pathlib.Path(os.environ["FAKE_RUNS"]) / run
+if not place.is_dir():
+    print(json.dumps({"ok": False, "runId": run, "error": f"Workflow run not found: {run}"})); sys.exit(1)
+if not rest:
+    print(json.dumps({"runId": run, "artifactsDir": str(place), "files": []})); sys.exit(0)
+target = (place / rest[0]).resolve()
+if not target.is_relative_to(place.resolve()) or not target.is_file():
+    print(json.dumps({"ok": False, "runId": run, "error": f"Artifact not found or outside: {rest[0]}"})); sys.exit(1)
+print(json.dumps({"runId": run, "path": rest[0], "content": target.read_text(encoding="utf-8")}))
+"""
+
+
 class RoundFactsCase(Tree):
-    """子の次の依頼を兄弟の置き場から読み、運ぶ次の依頼を親の置き場に書き、周の費用を親の run の記録から読む"""
+    """子の次の依頼を Archon の workflow artifacts（試験では替え FAKE_ARTIFACTS）で読み、運ぶ次の依頼を親の置き場に書き、周の費用を
+    親の run の記録から読む"""
 
     def setUp(self):
         super().setUp()
         runs = self.tmp / "runs"
+        fake = self.tmp / "fake_archon.py"
+        fake.write_text(FAKE_ARTIFACTS, encoding="utf-8")
+        self.cli = {"WORKS_FACTORY_ARCHON_CLI": json.dumps([sys.executable, str(fake)]), "FAKE_RUNS": str(runs)}
         self.parent, child = runs / "parent", runs / "child"
         (child / "report").mkdir(parents=True)
         self.parent.mkdir()
@@ -193,7 +217,7 @@ class RoundFactsCase(Tree):
     def facts(self, pointer="", **env) -> dict:
         base = {"ARTIFACTS_DIR": str(self.parent), "WORKFLOW_ID": "parent", "LOG_DIR": str(self.logs),
                 "INPUTS_NEXT_REQUEST": json.dumps(pointer) if pointer != "" else json.dumps(self.pointer),
-                "INPUTS_CHILD": "round-1", "INPUTS_FIRST_REQUEST": str(self.first), "INPUTS_FIRST_PR": "7"}
+                "INPUTS_CHILD": "round-1", "INPUTS_FIRST_REQUEST": str(self.first), "INPUTS_FIRST_PR": "7", **self.cli}
         return run_script("round_facts", {**base, **env}, self.tmp)
 
     def test_next_request_is_carried_into_the_parent_run(self):
@@ -235,10 +259,26 @@ class RoundFactsCase(Tree):
         self.assertIn(carry.NEXT_SCHEMA, got["error"])
         self.assertEqual(got["request"], "")
 
-    def test_pointer_out_of_the_child_run_is_an_error(self):
-        got = self.facts(pointer={**self.pointer, "path": "../parent/x.json"})
-        self.assertNotEqual(got["error"], "")
-        self.assertEqual(got["request"], "")
+    def test_a_refused_read_is_an_error(self):
+        """Archon が拒んだ読み（置き場の外・無い run）は、運ばずに訳を誤りに出す"""
+        for pointer in ({**self.pointer, "path": "../parent/x.json"}, {**self.pointer, "run_id": "gone"}):
+            with self.subTest(pointer=pointer):
+                got = self.facts(pointer=pointer)
+                self.assertIn("workflow artifacts", got["error"])
+                self.assertEqual(got["request"], "")
+
+    def test_off_shape_pointer_is_refused_before_archon(self):
+        """命令の旗に読まれうる run の id とパス・ほかの型の札は、Archon を起こさずに拒む"""
+        for pointer in ({**self.pointer, "run_id": "--all"}, {**self.pointer, "path": "--json"}, {**self.pointer, "path": "/etc/x"},
+                        {**self.pointer, "type": "file"}):
+            with self.subTest(pointer=pointer):
+                got = self.facts(pointer=pointer, WORKS_FACTORY_ARCHON_CLI=json.dumps(["false"]))
+                self.assertNotEqual(got["error"], "")
+                self.assertNotIn("workflow artifacts", got["error"])
+
+    def test_without_the_archon_head_is_an_error(self):
+        got = self.facts(WORKS_FACTORY_ARCHON_CLI="")
+        self.assertIn("WORKS_FACTORY_ARCHON_CLI", got["error"])
 
 
 class ChainStartCase(Tree):
@@ -588,6 +628,46 @@ class ReadsCase(unittest.TestCase):
             self.assertEqual([d["n"] for d in reads.decisions()], [1, 2, 9, 10])
 
 
+# 本物の Archon で成果物を残す使い捨ての工程（AI の役は無い）。置き場の中のファイル・置き場の外のファイル・外を指す symlink を置く
+ARTIFACTS_PROBE = """name: works-factory-artifacts-probe
+description: 周の鎖が子の run のファイルを workflow artifacts で読む口の確かめ（tests/blocks/chain/test_chain.py の ChildFileArchonCase）
+nodes:
+  - id: put
+    bash: 'mkdir -p "$ARTIFACTS_DIR/report" && echo inside > "$ARTIFACTS_DIR/report/next-request.json" && echo outside > "$ARTIFACTS_DIR/../outside.json" && ln -s ../../outside.json "$ARTIFACTS_DIR/report/link.json"'
+    mutates_checkout: false
+"""
+
+
+class ChildFileArchonCase(unittest.TestCase):
+    """reads.child_file を止めた Archon の workflow artifacts に当てる: 終わった run の置き場のファイルを読み、置き場の外（.. と
+    外を指す symlink）と無い run を拒む。Archon の源か bun が無ければ見送る"""
+
+    def test_reads_inside_and_refuses_outside(self):
+        reads = kit.load("chain", "reads")
+        with tempfile.TemporaryDirectory() as tmp:
+            src = pathlib.Path(tmp) / "probes"
+            (src / "artifacts-probe").mkdir(parents=True)
+            (src / "artifacts-probe" / "works-factory-artifacts-probe.yaml").write_text(ARTIFACTS_PROBE, encoding="utf-8")
+            with archon.tree(["artifacts-probe"], workflows=src) as root:
+                done = archon.archon(root, "workflow", "run", "works-factory-artifacts-probe", "--no-worktree")
+                self.assertEqual(done.returncode, 0, done.stdout + done.stderr)
+                [run] = json.loads(archon.archon(root, "workflow", "runs", "--json").stdout)["runs"]
+                head, env = archon.command(root)
+                env = {**env, "WORKS_FACTORY_ARCHON_CLI": json.dumps(head)}
+
+                def read(run_id: str, rel: str):
+                    return reads.child_file({"type": "archon_artifact", "run_id": run_id, "path": rel}, env=env, cwd=str(root),
+                                           at=pathlib.Path(tmp))
+
+                text, source = read(run["id"], "report/next-request.json")
+                self.assertEqual(text, "inside\n")
+                self.assertEqual(source.read_text(encoding="utf-8"), "inside\n")
+                for run_id, rel in ((run["id"], "../outside.json"), (run["id"], "report/link.json"), (run["id"], "report"),
+                                    (run["id"], "report/none.json"), ("0" * 32, "report/next-request.json")):
+                    with self.subTest(run_id=run_id, rel=rel), self.assertRaisesRegex(ValueError, "workflow artifacts"):
+                        read(run_id, rel)
+
+
 class FilesCase(unittest.TestCase):
     def test_file_names_are_the_ones_bin_apply_reads(self):
         """置き場のファイルの名は workflows/chain/src/files.py が持つ。bin/apply が引く lib/chain.py の FINAL・REPORT と同じ字"""
@@ -716,8 +796,7 @@ class ChainScenariosTest(unittest.TestCase):
         for name in ("base", "pr", "spec"):
             self.assertEqual(bound(trace, NODES["round-2"]["with"][name]), "", name)
         self.assertEqual(self.out("limit-then-fixed", "round-2-decide")["word"], "closed")
-        self.assertFalse(self.ran("limit-then-fixed", "round-3"))
-        self.assertIs(self.out("limit-then-fixed", "result")["closed"], True)
+        self.assertFalse(self.ran("limit-then-fixed", "round-3"))   # 返りの closed は筋書きの fixture.authored を workflow test が照らす
         self.assertEqual(self.out("limit-then-fixed", "result")["sealed"], self.out("limit-then-fixed", "final-diff")["sealed"])
 
     def test_default_word_hands_nothing_and_the_word_pr_makes_one_pr_in_the_parent(self):
@@ -753,8 +832,7 @@ class ChainScenariosTest(unittest.TestCase):
         """wait の 2 つ目の形: 子が落ちると親の周のノードが落ち、決めは走らない。親の出力は落ちずに wait を返す"""
         self.assertEqual(self.traces["child-failed"]["round-1"]["state"], "failed")
         self.assertFalse(self.ran("child-failed", "round-1-decide"))
-        got = self.out("child-failed", "result")
-        self.assertEqual((got["act"], got["closed"]), ("wait", False), got)
+        self.assertEqual(self.out("child-failed", "result")["act"], "wait")   # closed は筋書きの fixture.authored が照らす
 
     def test_out_of_range_rounds_stop_before_any_child(self):
         self.assertEqual(self.out("refused", "chain-start")["act"], "refused")

@@ -1,6 +1,7 @@
 # spec-stop: 仕様の段が止めを返す（人が仕様の承認ノードで止めた）→ 並行 PR から先は回らず、verdict が human:spec-gate で止める（judge-eyes.md の 1.4 の 1）
 fixture:
   expect: completed
+  authored: failed
   reached:
   - ins
   - spec__finish

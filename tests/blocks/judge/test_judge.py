@@ -403,7 +403,8 @@ class WiringCase(unittest.TestCase):
 
 
 class FixtureCase(unittest.TestCase):
-    """筋書きを dry-run で回し、verdict の出力を見る（include した block が workflows/ に要る）"""
+    """筋書きを dry-run で回し、verdict の出力の欄を見る（include した block が workflows/ に要る）。筋書きごとの ok（outcome_field）は
+    筋書きの fixture.authored を Archon の workflow test が照らす（tests/layers/test_block_shape.py の ArchonCase）"""
     SCENARIOS = ("standalone", "pass", "bad-request", "judge-gave-up", "material-peer-stop", "no-open-units", "spec-on",
                  "spec-stop", "world-offline", "world-cut", "verify-heavy")
 
@@ -415,15 +416,14 @@ class FixtureCase(unittest.TestCase):
         return json.loads(self.traces[name]["verdict"]["output"])
 
     def test_verdicts(self):
-        want = {"standalone": (True, True, ""), "pass": (True, True, ""), "bad-request": (False, False, "works:premises"),
-                "judge-gave-up": (False, False, "works:judge"), "material-peer-stop": (False, False, "works:material"),
-                "no-open-units": (True, False, ""), "spec-on": (True, True, ""), "spec-stop": (False, False, "human:spec-gate"),
-                "world-offline": (True, True, ""),
-                "world-cut": (True, True, ""), "verify-heavy": (True, True, "")}
-        for name, (ok, ready, stop) in want.items():
+        want = {"standalone": (True, ""), "pass": (True, ""), "bad-request": (False, "works:premises"),
+                "judge-gave-up": (False, "works:judge"), "material-peer-stop": (False, "works:material"),
+                "no-open-units": (False, ""), "spec-on": (True, ""), "spec-stop": (False, "human:spec-gate"),
+                "world-offline": (True, ""), "world-cut": (True, ""), "verify-heavy": (True, "")}
+        for name, (ready, stop) in want.items():
             with self.subTest(scenario=name):
                 out = self.verdict(name)
-                self.assertEqual((out["ok"], out["ready"], out["stop_reason"]), (ok, ready, stop), out["report"])
+                self.assertEqual((out["ready"], out["stop_reason"]), (ready, stop), out["report"])
 
     def test_verify_runs_only_when_the_tier_picks_it(self):
         self.assertIsNotNone(self.verdict("verify-heavy")["verify"])

@@ -3,6 +3,7 @@
 # standalone: 差分の根・目的・単位だけ。4 つの目が pass を返し、verdict が ok: true
 fixture:
   expect: completed
+  authored: succeeded
   reached:
   - ins
   - structure-after__finish
