@@ -10,7 +10,7 @@ lib/boardview.py の方針の文書の変化（policy_change・change_row）と 
 始めの記録は src.startrec の口で読み、KEEP の lib に記録を読ませない（integration.md の 4.3-追加-6）。
 
 - 最後の承認ノードの開き方と無人の語（元 gatepolicy）: FINAL_KEY・UNATTENDED_KEY・FINAL_GATES（ALWAYS・WHEN_NEEDED・PROTECTED_ONLY）・
-  UNATTENDED・UNATTENDED_WORDS・Refused・check・unattended_of・opens・head_words・Push・Passage・
+  UNATTENDED・UNATTENDED_WORDS・Refused・unattended_word・asked_unattended・check・unattended_of・opens・head_words・Push・Passage・
   passage（stuck_pushable は往復の記録の住処 src.rounds が持つ）
 - row_push(text)・_as_push(rec, note): 項目の推しの尾の、無人の方針の読み（元 gatemarks）
 - design_talk(doc): 始めの記録の dict から、設計だけの run か（元 gatemarks の startrec.read の道）
@@ -52,9 +52,19 @@ class Refused(ValueError):
     """入口の語が受けられない（入口が InputRefused にする）"""
 
 
+def unattended_word(unattended) -> str:
+    """入口の生の無人の語を、入口が照らす形（前後の空白を落とす）に。照らす物はみなこれで読む（生の字を UNATTENDED と比べない）"""
+    return (unattended or "").strip()
+
+
+def asked_unattended(inputs) -> bool:
+    """生の入力の dict（か None）が無人の run を頼むか（入口の check と同じ読み。始めの記録を読むのは unattended_of）"""
+    return isinstance(inputs, dict) and unattended_word(inputs.get(UNATTENDED_KEY)) == UNATTENDED
+
+
 def check(final, unattended, *, spec) -> dict:
     """入口の 2 つの語を確かめて {FINAL_KEY: 開き方（空は ALWAYS、無人の run の空は WHEN_NEEDED）, UNATTENDED_KEY: 語} を返す"""
-    alone = (unattended or "").strip()
+    alone = unattended_word(unattended)
     if alone not in UNATTENDED_WORDS:
         raise Refused(f"{UNATTENDED_KEY}={unattended!r} は知らない値（空か {UNATTENDED}）")
     mode = (final or "").strip() or (WHEN_NEEDED if alone else ALWAYS)

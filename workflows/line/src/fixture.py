@@ -297,7 +297,7 @@ def adopt(place, src, repo, *, run_id: str, inputs: dict, request_text: str) -> 
                              + ("" if held else "。" + "・".join(GATE_CURRENT) + " は修正前の承認ノードで止まった写しだけ") + "）")
     from src import gates
     pushed = gates.unattended_of(doc)   # 写しの計画が無人の run の推しを答えに数えたか（takes_push。start が始めの記録から配る値）
-    if held and gates.unattended_of(inputs) and not pushed:
+    if held and gates.asked_unattended(inputs) and not pushed:   # 入口と同じ照らしで読む（"true " も無人の run）
         raise FixtureRefused(f"写した始めの記録の入力が今の入力と違う: unattended={before.get('unattended')!r}→{inputs['unattended']!r}"
                              "（人の居る run で修正前の承認ノードに止まった写しは、無人の run で続けない。人の居る run で続ける）")
     swap.update(_remade(repo, remake, head))

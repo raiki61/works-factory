@@ -175,10 +175,14 @@ class AdoptCase(Fixture):
 
     def test_a_run_a_person_stopped_before_the_fix_is_not_taken_on_unattended(self):
         """直す前の承認ノードで止まった人の居る run の写し（unattended が空）は、無人の run（unattended=true）では拒む（人が止めた
-        計画を、無人の推しの通しで修正へ運ばせない）。final_gate は今の値にしてよい"""
+        計画を、無人の推しの通しで修正へ運ばせない）。final_gate は今の値にしてよい。入口が前後の空白を落として無人の run として受ける語
+        （"true " など）も拒む（拒みは入口と同じ照らしで無人を読む）"""
         self.carried = {**self.carried, fixture.GATE_KEY: {"done": True, "ok": True}}
         src = self.captured()
-        self.refused("unattended", src=src, inputs={**INPUTS, "unattended": "true", "fix_fixture": "x"})
+        for i, word in enumerate(("true", "true ", " true\n")):
+            with self.subTest(unattended=word):
+                self.refused("unattended", src=src, place=self.tmp / f"art-{i + 3}",
+                             inputs={**INPUTS, "unattended": word, "fix_fixture": "x"})
         doc, _ = self.adopt(src, self.wrapped(),
                             inputs={**INPUTS, "final_gate": "always", "fix_fixture": "x"})
         self.assertEqual(doc["inputs"]["final_gate"], "always")
