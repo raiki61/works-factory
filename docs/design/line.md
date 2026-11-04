@@ -380,7 +380,7 @@ E11（`AGENTS.md` の決まり。仕組みを足す前に、Archon が持つか�
 
 - 入口: `unattended` は空か `true`。仕様の段と無人の run は組めない（`start` が AI の前で拒む）。無人の run の `final_gate` の空の既定は `when_needed`（人の居る run は `always`）。
 - 起動の承認ノードは開かない（`start.ask` が偽）。
-- 修正前: 判定の推しが選択肢を名指す fork・held は台帳の読みが答えとして採り、出どころを直す義務に戻す。採れない台帳の問い（fork・escalate）は承認ノードに載せず `deferred` で返し、報告と次の依頼の下書きへ回す（L-G33・L-G38・L-G41）。ほかの項目が在れば `passage`: 項目の全部が通す推しの尾を持つ時だけ推しで進み（`pushed`）、ほかは開かずに `works:needs-human` で止める。止まった往復の行も、推しの尾が付く条件（`stuck_pushable`。上限で止めた往復は付かない）を満たせば推しで進む。設計だけの run は無人でも止まる（L-G27）。
+- 修正前: 判定の推しが選択肢を名指す fork・held は台帳の読みが答えとして採り、出どころを直す義務に戻す。採れない台帳の問い（fork・escalate）は承認ノードに載せず `deferred` で返し、報告と次の依頼の下書きへ回す（L-G33・L-G38・L-G41）。ほかの項目が在れば `passage`: 項目の全部が通す推しの尾を持つ時だけ推しで進み（`pushed`）、ほかは開かずに `works:needs-human` で止める。止まった往復の行も、推しの尾が付く条件（`stuck_pushable`。上限で止めた往復は付かない）を満たせば推しで進む。推しの note は、往復を止めた穴の key（`rounds.stuck_keys`）と項目を字のまま引く。項目を引く字は `converge.ITEM_CITE`（「項目 n」）の 1 か所で、plan-review の md へは差し込み口 `{item_cite}` で渡し、`rounds.uncited` も同じ字で照らす。通す推しを引用の欠けだけで捨てた時は、止めた行の末尾に「推しは在ったが引用が欠けた（欠け: …）」（`gates.CITE_DROPPED`）を付け、報告と次の依頼の下書きに捨てた訳を残す。設計だけの run は無人でも止まる（L-G27）。
 - 案の直し: 範囲を広げるだけの直し（`planmarks.widened`）は聞かずに通し、足した・外した glob を `widened` で返して報告へ（L-G45）。約束の欄が変わった項目は推しを持たないので止まる（L-D30）。
 - 最後: 開くはずの時は開かずに `works:needs-human` で止め、merge の apply を飛ばす（L-G39・L-W25）。
 - 機械は推しを作らない（推しは記録に書かれた物だけ。L-G24）。

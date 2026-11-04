@@ -69,7 +69,7 @@ LABELS = {
     "face": "#### {key}",
     "answers": "Plan role's answers:",
     "held": "### Held items",
-    "held_row": "- item {n} ({units}): {keys}",
+    "held_row": f"- {converge.ITEM_CITE} ({{units}}): {{keys}}",   # 項目は推しの照らし（line の rounds.uncited）と同じ字
     "replan_item": "### Item {n}",
     "replan_units": "- unit_keys: {keys}",
     "approved": "#### Approved item",
@@ -629,6 +629,7 @@ SLOTS = {
     "recommend": lambda c: gatemarks.RECOMMEND,
     "recommend_shape": lambda c: _recommend_shape(),
     "stuck_push": lambda c: converge.STUCK_PUSH,
+    "item_cite": lambda c: converge.ITEM_CITE.format(n="n"),
     "policy_doc_fence": lambda c: policy.POLICY_DOC_FENCE,
     "machine_key": lambda c: planmarks.MACHINE_KEY,
     "minimal_head": lambda c: files.MINIMAL_HEAD,

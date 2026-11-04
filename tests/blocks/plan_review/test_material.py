@@ -477,6 +477,12 @@ class SecondPassCase(_Case):
         for want in ("## From the second pass on", "Answers to earlier passes", "Origins of new blocks", "How to read the diffs"):
             self.assertIn(want, prompt)
 
+    def test_held_row_cites_items_in_the_machines_characters(self):
+        """保留の項目の節（Held items）の行は、項目を converge.ITEM_CITE（line の照らし rounds.uncited と同じ字）で書く。止まった時の推しの
+        note は役が材料のこの行を写すので、行が別の字（前は "item n"）だと、写した推しが引用の欠けで捨てられる"""
+        row = material.LABELS["held_row"].format(n=7, units="u7", keys="k7")
+        self.assertTrue(row.startswith(f"- {converge.ITEM_CITE.format(n=7)} "), row)
+
     def test_first_material_has_no_rereview(self):
         """元 ConvergeCase.test_first_material_has_no_rereview"""
         prompt, mat = self.texts()

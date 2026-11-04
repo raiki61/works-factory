@@ -229,13 +229,18 @@ def design_items(rows: list, answers=()) -> list:
     return out
 
 
+CITE_DROPPED = "。推しは在ったが引用が欠けた（欠け: {missing}）"   # 止まった時の推しを引用の欠けで捨てた時の行の尾
+
+
 def stuck_push(doc: dict, *, unattended_run: bool, design: bool) -> str:
     """止まった壁打ちの行の尾に付ける、事前審査の役の推し（最後の往復の行の push）の尾 gatemarks._push。付けてよいかは
     src.rounds の stuck_push_due（元 gatepolicy.stuck_pushable。往復の記録の住処が持つ）。ほかは空（推しが無い・止める・崩れた・引用が
-    欠ける時は passage が今どおり止める）"""
+    欠ける時は passage が今どおり止める）。通す推しを引用の欠けだけで捨てた時は、尾を CITE_DROPPED（欠けた字を名指す。推しの尾の
+    形 PUSH_TAIL でないので passage は今どおり止める）にし、報告と次の依頼の下書きに捨てた訳を残す"""
     from src import rounds
     if not rounds.stuck_push_due(doc, unattended=unattended_run, design_talk=design):
-        return ""
+        missing = rounds.dropped_cites(doc, unattended=unattended_run, design_talk=design)
+        return CITE_DROPPED.format(missing="、".join(missing)) if missing else ""
     return gatemarks._push({gatemarks.RECOMMEND: doc["passes"][-1].get("push")})
 
 
