@@ -37,7 +37,7 @@ from engine.schema import validate_schema  # noqa: E402
 DECL_NAME = declared.DECL_NAME
 # 走らせ方の語（返りの by）: engine が宣言を走らせた・engine が任せ先に落ちて test_cmd を走らせた・走らせ方が決まらず（宣言も test_cmd も
 # 無い）AI が書いた実行器で変更に関わる試験だけを走らせる道（持ち主の決め related-tests-only。以前は任せ先の CI の役が素材を書いた）
-RUN_WORDS = ENGINE, ROLE, ROLE_NEEDED = ("engine", "role", "role_needed")
+ENGINE, ROLE, ROLE_NEEDED = ("engine", "role", "role_needed")
 # 自己申告の緑・走らせなかった CI を人に見せる時の次の手（T41。最後の関所と報告が同じ字を出す）
 SELF_REPORTED_NOTE = (f"最後のテストは AI が書いた実行器が変更に関わる試験だけを走らせた結果で、engine が走らせた結果ではない。走らせる語を宣言 "
                       f"{DECL_NAME} に書けば次の run から機械がそれを走らせる（test_cmd を渡してもよい）。全体の試験は CI と人に任せる")

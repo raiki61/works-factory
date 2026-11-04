@@ -16,7 +16,7 @@
 - 利用者の環境に戻す: 起動の殻（`bin/works-factory`。Archon を隔離した HOME で起こす）が隔離したまま、対象のテストのコマンドだけは利用者の HOME・XDG に戻して起こす事。戻して起こした時に置く印のファイル（`user-env-ran`）の置き場が `user_env_dir`。置き場が空のまま戻そうとする run は、印を置けないので止まる（`lib/userenv.py`）。
 - 包み・柵（埋め fence）: 起動の殻が読むだけの役の claude を起こす直前に、作業ツリーと共有の `.git` への書き込みを塞ぐ部品（`workflows/.shared/fence.py`。名簿は `docs/polyfills.md`）。この block は包みの記録を読まない（記録を読んでいた `ci-prep`・`ci-accept` は 14 節で外した）。
 - 宣言: 対象の根の走らせる段の宣言 `.review-checks.json`（graphloops の `engine/declared.py` の形）と、範囲の宣言 `.works-checks.json`（段ごとの `paths_ignore`）。
-- 走らせ方の語 `by`: `engine`（機械が宣言の段を走らせた）・`role`（機械が test_cmd を走らせた。宣言が無いか、宣言の段から落とした）・`role_needed`（宣言も test_cmd も無く、機械が走らせられない。14 節の道: AI が書いた実行器で変更に関わる試験だけを走らせる。以前は任せ先の CI の役が素材を書いた）。`lib/declared_checks.py` の `RUN_WORDS`。
+- 走らせ方の語 `by`: `engine`（機械が宣言の段を走らせた）・`role`（機械が test_cmd を走らせた。宣言が無いか、宣言の段から落とした）・`role_needed`（宣言も test_cmd も無く、機械が走らせられない。14 節の道: AI が書いた実行器で変更に関わる試験だけを走らせる。以前は任せ先の CI の役が素材を書いた）。`lib/declared_checks.py` の `ENGINE`・`ROLE`・`ROLE_NEEDED`。
 - 素材（material）: 走らせた結果の札 `{status, count?, detail?, checked?, reason?, systems?}`。`status` は `found`・`clean`・`not_applicable`・`awaiting_human`・`not_run`。
 - 赤の原因 `red_cause`: `introduced`（直しが起こした）・`inherited`（元から赤）・`environment`（環境）・`interaction`（語として在るが今は返らない。8 節の 1）・`incomplete`（確かめが終わらない）・空（緑）。`lib/green_cert.py` の `RED_CAUSES`。
 - 指紋: 作業ツリーの `{head, diff_hash}`。走らせる前・後・認証の時の 3 つが合う時だけ緑を認証する。

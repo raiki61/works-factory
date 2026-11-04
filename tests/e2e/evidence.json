@@ -659,7 +659,7 @@
 {"id": "F105", "kind": "scenario-only", "why": "筋書きでのみ"},
 {"id": "F106", "kind": "scenario-only", "why": "筋書きでのみ（答え待ちの問いで外れた単位を修正役が 3 回直そうとする run）"},
 {"id": "F107", "kind": "scenario-only", "why": "筋書きでのみ"},
-{"id": "F108", "kind": "scenario-only", "why": "筋書きでのみ（planscope.SCOPE_OP の行を書く呼び手が無く、受けた回の範囲の照らしは置き場に跡を残さない）"},
+{"id": "F108", "kind": "scenario-only", "why": "筋書きでのみ（範囲の照らしの trace の行を書く呼び手が無く、受けた回の範囲の照らしは置き場に跡を残さない）"},
 {"id": "F109", "kind": "scenario-only", "why": "筋書きでのみ"},
 {"id": "F110", "kind": "scenario-only", "why": "筋書きでのみ（健全な種ではみ出しは出ない）。起きれば置き場の `consult-first.json` の行と trace.jsonl の impact.ACCEPT_OVERFLOW_OP の行"},
 {"id": "F111", "kind": "scenario-only", "why": "筋書きでのみ"},
