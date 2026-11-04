@@ -291,7 +291,8 @@ class FlowCase(unittest.TestCase):
 
     def test_four_gates_have_the_same_options(self):
         gates = [k for k, n in TOP.items() if "wait" in n]
-        self.assertEqual(gates, ["gate-start", "gate-before-fix", "spec-gate-before-fix", "gate-replan", "gate-final"])   # spec- は仕様駆動の run の修正前
+        # spec- は仕様駆動の run の修正前、fixture- は直す前で止まった写しの run の修正前
+        self.assertEqual(gates, ["gate-start", "gate-before-fix", "spec-gate-before-fix", "fixture-gate-before-fix", "gate-replan", "gate-final"])
         for key in gates:
             self.assertEqual([o["id"] for o in TOP[key]["wait"]["options"]], ["approve", "continue", "stop", "reject"], key)
         # 往復の本体の関所は設計の相談の gate-design 1 つだけ（本体の唯一の終わり。E16・3.1 節）。選び肢は 4 つの語と revise
@@ -405,14 +406,17 @@ class SpecDrivenWiringCase(unittest.TestCase):
         self.assertEqual(TOP["spec-plan"]["with"]["routes"], "spec")
 
     def test_before_fix_gate_is_shared(self):
-        """6.5 の 8: spec- の付いた 3 つは今の 3 つと同じ script・output_format・wait: の form と options（錨で本体が 1 つ）を持ち、
-        spec-gate-before-fix の attention だけが spec-ask-before-fix を読む"""
-        for old, new in (("ask-before-fix", "spec-ask-before-fix"), ("answer-before-fix", "spec-answer-before-fix")):
-            with self.subTest(new):
-                self.assertEqual((TOP[new]["script"], TOP[new]["output_format"]), (TOP[old]["script"], TOP[old]["output_format"]))
-        old, new = TOP["gate-before-fix"]["wait"], TOP["spec-gate-before-fix"]["wait"]
-        self.assertEqual((new["form"], new["options"]), (old["form"], old["options"]))
-        self.assertEqual(new["attention"], "$spec-ask-before-fix.output.text")
+        """6.5 の 8: spec- の付いた 3 つ（と直す前で止まった写しの run の fixture- の付いた 3 つ。4.1）は今の 3 つと同じ script・
+        output_format・wait: の form と options（錨で本体が 1 つ）を持ち、<頭>-gate-before-fix の attention だけが <頭>-ask-before-fix を読む"""
+        for head in ("spec", "fixture"):
+            for old in ("ask-before-fix", "answer-before-fix"):
+                new = f"{head}-{old}"
+                with self.subTest(new):
+                    self.assertEqual((TOP[new]["script"], TOP[new]["output_format"]), (TOP[old]["script"], TOP[old]["output_format"]))
+            old, new = TOP["gate-before-fix"]["wait"], TOP[f"{head}-gate-before-fix"]["wait"]
+            self.assertEqual((new["form"], new["options"]), (old["form"], old["options"]))
+            self.assertEqual(new["attention"], f"${head}-ask-before-fix.output.text")
+        self.assertEqual(TOP["fixture-ask-before-fix"]["with"]["fixture"], "$start.output.fixture")
         self.assertIn("&before_fix_wait", TEXT)
 
 

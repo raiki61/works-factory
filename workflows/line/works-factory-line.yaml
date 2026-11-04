@@ -14,7 +14,7 @@ inputs:
   features_off: {default: '', description: 'text: 切る機能（語をカンマか空白で区切った 1 行。語と既定は lib/entry.py の FEATURES・FEATURE_DEFAULTS）。知らない語は start が止める'}
   features_on: {default: '', description: 'text: 入れる機能（features_off と同じ語）。features_off と同じ語を名指せば start が止める'}
   policy_md: {default: '', description: 'text: 人の方針の文書のパス（空なら既定の置き場）。相対なら対象の根から。名指した文書が無ければ start が止める'}
-  fix_fixture: {default: '', description: 'text: 固定材料のフォルダ（前の run の報告の「固定材料」の行。前の run の修正の前の写し）。名指すと判定と修正案を作り直さずに修正から始める。相対なら対象の根から。無いフォルダ・写しと違う木や依頼や入力は start が AI の前で止める。spec と周の鎖とは組めない'}
+  fix_fixture: {default: '', description: 'text: 固定材料のフォルダ（前の run の報告の「固定材料」の行。前の run の修正の前の写し）。名指すと判定と修正案を作り直さずに修正から始める。修正前の承認ノードで止まった run の写し（報告の「固定材料（修正前の承認ノードで止まった所の写し）」の行）は、修正前の承認ノードを写しの値で開き直してから修正へ進む（unattended と final_gate は今の値にしてよい）。相対なら対象の根から。無いフォルダ・写しと違う木や依頼や入力は start が AI の前で止める。spec と周の鎖とは組めない'}
   lang: {default: '', description: 'text: 報告と、承認ノード・報告に載る役の文の言語。空は依頼文の言語'}
   spec_table: {default: '', description: 'file: 仕様駆動の道の表（docs/design/spec-driven.md の 2.3）。相対なら対象の根から。名指すと、人と会話で回した計画の往復を工場の中で回し直さず、判定の役を 1 回回して表と設計書から修正へ進む。request・pr・base・spec・fix_fixture とは組めず、周の鎖の子では使えない'}
   deliver: {default: '', description: 'text: 出口の語（lib/entry.py の DELIVERS）。空は封じた差分を run の置き場に置くだけ（既定）。pr は最後の承認ノードの後に、照らした差分を run の枝に修正案の項目ごとの commit で積み（分けられなければ 1 つの commit）、push して対象の既定の枝へ向けた PR を作る（merge はしない）。知らない語は start が止める'}
@@ -48,7 +48,7 @@ nodes:
       type: object
       additionalProperties: false
       required: [ok, stop_reason, reason, record, prior_failures, ask, gate_text, unattended, design_talk, final_gate, from_fixture, fixture,
-                 from_spec, ports]
+                 fixture_gate, from_spec, ports]
       properties:
         ok: {type: boolean}
         stop_reason: {type: string}
@@ -72,6 +72,7 @@ nodes:
         final_gate: {type: string}
         from_fixture: {type: boolean}
         fixture: {<<: *pointer_or_null, description: 'json(received.schema.json): 固定材料の run の運ぶ値（fixture-carried.json）。ほかの run は null'}
+        fixture_gate: {type: boolean, description: '固定材料が修正前の承認ノードで止まった所の写しか（真なら fixture-ask-before-fix が写しの値で開き直す）'}
         from_spec: {type: boolean}
         ports:
           type: object
@@ -863,6 +864,7 @@ nodes:
       rounds: "$plan-rounds-out.output.got"
       structure: "$structure-in.output.structure"
       judge: "$judge-out.output.got"
+      fixture: ""   # 直す前で止まった写しの run の fixture-ask-before-fix だけが写しの運ぶ値を渡す
       record: "$start.output.record"
       ports: "$start.output.ports"
       request: "$request-in.output"
@@ -1001,6 +1003,7 @@ nodes:
       rounds: "$spec-rounds.output.rounds"
       structure: ""
       judge: "$spec-rounds.output.judge"
+      fixture: ""
       record: "$start.output.record"
       ports: "$start.output.ports"
       request: "$request-in.output"
@@ -1028,13 +1031,51 @@ nodes:
       agreed: "$spec-ask-before-fix.output.agreed"
       record: "$start.output.record"
       ports: "$start.output.ports"
+  # 9.7 直す前で止まった写しの run（docs/design/line.md の 4.1）。判定と計画の往復は写しの物で、修正前の承認ノードだけを写しの値で開き直す。
+  # 写しの値は ask-before-fix の script が fixture の運ぶ値から読む（rounds・structure・judge は空の字）
+  - id: fixture-ask-before-fix
+    <<: *ask_before_fix
+    depends_on: [answer-start, request-in]
+    when: "$answer-start.output.go == true && $start.output.fixture_gate == true"
+    with:
+      rounds: ""
+      structure: ""
+      judge: ""
+      fixture: "$start.output.fixture"
+      record: "$start.output.record"
+      ports: "$start.output.ports"
+      request: "$request-in.output"
+  - id: fixture-gate-before-fix
+    wait:
+      <<: *before_fix_wait
+      attention: "$fixture-ask-before-fix.output.text"
+    # 待つ node が 2 つ同時に走らないよう、spec-gate-before-fix の後ろに並べる（Archon の読み込みの決まり）。写しの run でなければ when: の頭の
+    # fixture_gate == false で打ち切り、飛ばされた fixture-ask-before-fix の出力を読まない
+    depends_on: [fixture-ask-before-fix, spec-gate-before-fix]
+    trigger_rule: none_failed_min_one_success
+    when: "$start.output.fixture_gate == true && $fixture-ask-before-fix.output.open == true"
+  - id: fixture-answer-before-fix
+    <<: *before_fix_answer
+    depends_on: [fixture-ask-before-fix, fixture-gate-before-fix]
+    trigger_rule: none_failed_min_one_success
+    with:
+      gate: {from: "$fixture-gate-before-fix.output", if_skipped: null}
+      go: "$fixture-ask-before-fix.output.go"
+      stop_reason: "$fixture-ask-before-fix.output.stop_reason"
+      place: "gate-before-fix"
+      asked: "$fixture-ask-before-fix.output.asked"
+      pushed: "$fixture-ask-before-fix.output.pushed"
+      policy_changed: "$fixture-ask-before-fix.output.policy_changed"
+      agreed: "$fixture-ask-before-fix.output.agreed"
+      record: "$start.output.record"
+      ports: "$start.output.ports"
   # 10 修正の段へ運ぶ値を 1 か所に集める（docs/design/line.md の 4.1・5.2）。修正から後ろの node は判定・構造の目・独立設計・計画の値をここから読む
   - id: fix-in
     script: fix_in
     runtime: uv
     mutates_checkout: false
     depends_on: [answer-start, test-gate-base-out, judge-out, tiers, owed, structure-out, design-in, plan-rounds-out, ask-before-fix,
-                 answer-before-fix, spec-rounds, spec-ask-before-fix, spec-answer-before-fix]
+                 answer-before-fix, spec-rounds, spec-ask-before-fix, spec-answer-before-fix, fixture-ask-before-fix, fixture-answer-before-fix]
     trigger_rule: none_failed_min_one_success
     with:
       fixture: "$start.output.fixture"
@@ -1050,6 +1091,7 @@ nodes:
       before_fix_go: {from: "$answer-before-fix.output.go", if_skipped: null}
       before_fix_answer: {from: "$answer-before-fix.output.answer", if_skipped: null}
       before_fix_policy: {from: "$answer-before-fix.output.policy", if_skipped: null}
+      before_fix_stop: {from: "$answer-before-fix.output.stop_reason", if_skipped: null}
       deferred: {from: "$ask-before-fix.output.deferred", if_skipped: null}
       passes: {from: "$ask-before-fix.output.passes", if_skipped: null}
       recorded: {from: "$owed.output.recorded", if_skipped: null}
@@ -1060,6 +1102,12 @@ nodes:
       spec_before_fix_policy: {from: "$spec-answer-before-fix.output.policy", if_skipped: null}
       spec_deferred: {from: "$spec-ask-before-fix.output.deferred", if_skipped: null}
       spec_passes: {from: "$spec-ask-before-fix.output.passes", if_skipped: null}
+      # 直す前で止まった写しの run だけ（ほかの run は null）。続きの修正前の承認の答え
+      fixture_before_fix_go: {from: "$fixture-answer-before-fix.output.go", if_skipped: null}
+      fixture_before_fix_answer: {from: "$fixture-answer-before-fix.output.answer", if_skipped: null}
+      fixture_before_fix_policy: {from: "$fixture-answer-before-fix.output.policy", if_skipped: null}
+      fixture_deferred: {from: "$fixture-ask-before-fix.output.deferred", if_skipped: null}
+      fixture_passes: {from: "$fixture-ask-before-fix.output.passes", if_skipped: null}
     output_format:
       type: object
       additionalProperties: false
@@ -1850,7 +1898,7 @@ nodes:
                  delta-review-out, replan-out, replan-review-out, ask-replan, answer-replan, refix-run-out, lens-2-out, lens-2-in,
                  delta-review-2-out, fixed, parallel-pr-after-out, rejudge-run-out, spec-check-run-out, judged, test-gate-final-out, eyes-in,
                  eyes-out, merge-seal-out, ask-final, answer-final, merge-apply-out, spec-entry-out, spec-diagnose-out, spec-plan-out,
-                 spec-check-out, spec-rounds, spec-ask-before-fix, spec-answer-before-fix, theme-world-out, theme-world-in, theme-blind-out, theme-design-in,
+                 spec-check-out, spec-rounds, spec-ask-before-fix, spec-answer-before-fix, fixture-ask-before-fix, fixture-answer-before-fix, theme-world-out, theme-world-in, theme-blind-out, theme-design-in,
                  theme-rounds-out, theme-descend, request-in, theme-return]
     trigger_rule: all_done
     always_run: true
@@ -1903,6 +1951,9 @@ nodes:
       spec_rounds: {from: "$spec-rounds.output", if_skipped: null}
       spec_ask_before_fix: {from: "$spec-ask-before-fix.output", if_skipped: null}
       spec_answer_before_fix: {from: "$spec-answer-before-fix.output", if_skipped: null}
+      # 直す前で止まった写しの run だけ（ほかの run は null。docs/design/line.md の 4.1）
+      fixture_ask_before_fix: {from: "$fixture-ask-before-fix.output", if_skipped: null}
+      fixture_answer_before_fix: {from: "$fixture-answer-before-fix.output", if_skipped: null}
       # テーマの run だけ（ほかの run は request-in のほか null。docs/design/line.md の 3.3 節）
       theme_world_in: {from: "$theme-world-in.output", if_skipped: null}
       theme_blind: {from: "$theme-blind-out.output.got", if_skipped: null}

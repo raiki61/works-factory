@@ -1,5 +1,6 @@
 """固定材料（元の fixture。その元 works/.shared/core/fixture.py。docs/design/line.md の 1.5 の MOVE）: 修正の前の run の置き場を写し、次の run が同じ所（判定・承認済みの修正案が済み、
-修正を待つ所）から始める。同じ依頼を同じ起点から回し直し、修正の段だけを比べるのに使う。lib からは oneline だけを、line の src からは startrec を import する。
+修正を待つ所）から始める。同じ依頼を同じ起点から回し直し、修正の段だけを比べるのに使う。修正前の承認ノードで人の判断待ちに止まった
+run の写し（運ぶ値に GATE_KEY）は、次の run が判定と計画を飛ばして修正前の承認ノードから続けるのに使う（docs/design/line.md の 4.1）。lib からは oneline だけを、line の src からは startrec を import する。
 
 語:
 - 固定材料: <run の置き場>/DIR/ のフォルダ。中身は次の 2 つ。
@@ -10,7 +11,7 @@
     - head・tree は写した時の作業ツリーの `git rev-parse HEAD`・`HEAD^{tree}`。place_root・repo_root は写した run の置き場と作業ツリー。
     - request_sha256 は始めの記録の依頼のファイルの文の sha256（依頼が無ければ空の文の sha256）。
     - commits は写しの字に現れる commit（HEAD を除く）とその木。
-    - carried は修正の段へ運ぶ値（呼び手が渡す JSON の値。中身はこのモジュールが決めない）。
+    - carried は修正の段へ運ぶ値（呼び手が渡す JSON の値。中身はこのモジュールが決めない。鍵 GATE_KEY の有無だけを読む）。
 - 取り込みの決まりは 1 つ: 写しの字のうち取り込み先で違う物は、新しい値に置き換える。
   - 置き場のパス（渡された字と resolve した字の両方）・run の id・HEAD を新しい値にする。
   - commit: 対象に無い commit は同じ木で作り直し（親は今の HEAD）、名を置き換える。木も無ければ拒む。
@@ -25,6 +26,9 @@
 - adopt(place, src, repo, *, run_id, inputs, request_text): 固定材料 src を place へ取り込み、(書き換えた始めの記録, 書き換えた
   carried) を返す。carried は place の CARRIED にも置く。合わなければ FixtureRefused（何が違うかを名指す 1 行）。拒む時は何も書かない
 - lines(doc): 始めの記録 doc の固定材料の行（取り込んだ run・写した run。起動の承認ノードの文と報告の入口が同じ字を出す）
+- pending(carried)・gate_inputs(carried): 運ぶ値が修正前の承認ノードで止まった所の写しか、と、続きの修正前の承認ノードが読む
+  {rounds, judge, structure}（止まらずに写した物は None）
+- collect_values(values): collect の読む値に、続きの修正前の承認ノード（fixture- の付いた node）の返りを今の欄の名で重ねる
 """
 from __future__ import annotations
 
@@ -45,13 +49,19 @@ DIR = "fix-fixture"              # run の置き場の下
 MANIFEST = "fixture.json"        # DIR の下の控え
 COPY = "place"                   # DIR の下の run の置き場の写し
 CARRIED = "fixture-carried.json"  # 取り込んだ run の置き場の根の、書き換えた carried
-FORMAT = 9                       # 9: 8 の運ぶ値（今の line の受け皿の got の組）を、新しい line の fix-in が運ぶ欄の組（block の出力の欄と配る値。docs/design/line.md の 4.1）に替えた。前の版の固定材料は取り込まない
+FORMAT = 10                      # 10: 修正前の承認ノードで止まった所も写し、運ぶ値に GATE_KEY を足した（9 は fix-in が運ぶ欄の組。docs/design/line.md の 4.1）。前の版の固定材料は取り込まない
+GATE_KEY = "gate_rounds"         # 運ぶ値の鍵: 修正前の承認ノードで止まった写しだけが持つ、ask-before-fix が読む計画の往復の欄（plan-rounds-out の got）
 KEY = "fixture"                  # 始めの記録の鍵 {source_run, manifest_sha256, at}（取り込んだ run の印）
 CAPTURED_KEY = "fixture_captured"  # 始めの記録の鍵 {dir, error}（写した run の印）
 # 取り込みで今の値にする入力の欄（ほかの入力の欄は写した始めの記録と今の入力が同じでなければ拒む）。request は名指しの字が違っても
 # よい（中身は request_sha256 で照らす）。features_off・features_on は同じ所から替えて比べる欄（判定・修正案の側の機能は写しの物の
 # ままで、修正の段から後ろの機能だけが効く）。deliver は封じた後の渡し方だけを変え、写しの中身に効かない
 CURRENT = ("fix_fixture", "request", "features_off", "features_on", "deliver")
+# 修正前の承認ノードで止まった写し（pending）の時だけ今の値にする欄: 承認ノードの開き方だけを変える（無人の run が人の答えを待って止まった
+# 写しを、人の居る run で続ける。判定・修正案は写しの物のまま）。止まらずに写した物は推しで通った修正前の承認を持つので、替えると拒む。
+# unattended は人の居る向き（今の値が空）にだけ替えてよい: 人の居る run で人が止めた写しを無人の run で続けると、推しの通しが人の止めを
+# 書き直して修正へ進む
+GATE_CURRENT = ("unattended", "final_gate")
 _STR_KEYS = ("source_run", "head", "tree", "place_root", "repo_root", "request_sha256")
 _MAP_KEYS = ("commits", "files")
 HEX40 = re.compile(r"(?<![0-9a-f])[0-9a-f]{40}(?![0-9a-f])")   # 写しの字の中の commit の名の候補
@@ -154,7 +164,7 @@ def noted_capture(place, repo, *, run_id: str, carried) -> None:
     上書きせず ValueError（訳にファイルの名。壊れた記録を captured だけの記録で消さない）"""
     try:
         capture(place, repo, run_id=run_id, carried=carried)
-        note = {"dir": str(pathlib.Path(place) / DIR), "error": ""}
+        note = {"dir": str(pathlib.Path(place) / DIR), "error": "", **({"gate": True} if pending(carried) else {})}
     except (OSError, ValueError) as e:
         note = {"dir": "", "error": oneline.one_line(f"{type(e).__name__}: {e}")}
     file = startrec.path(place)
@@ -265,7 +275,8 @@ def adopt(place, src, repo, *, run_id: str, inputs: dict, request_text: str) -> 
     run_id・inputs（今の入力）・KEY を今の値にした dict（書くのは呼び手）。carried は字を置き換えて place/CARRIED に置く。
     拒む物（FixtureRefused。何も書かない）: 控えが無い・読めない・版が違う・欄の型が違う／ファイルの sha256 が違う・足りない・多い／
     place に始めの記録が既に在る／今の HEAD^{tree} が控えの tree と違う／写しが指す commit もその木も対象に無い／request_text の
-    sha256 が違う／写した始めの記録の入力の欄が inputs と違う（CURRENT の欄を除く。名指す）"""
+    sha256 が違う／写した始めの記録の入力の欄が inputs と違う（CURRENT の欄と、修正前の承認ノードで止まった写しの GATE_CURRENT の欄を
+    除く。名指す）／人の居る run で止まった写しを無人の run（inputs の unattended が true）で続ける。止まった写しの KEY の印は gate と、写しの計画が推しを答えに数えたか pushed を持つ"""
     src, place = pathlib.Path(src), pathlib.Path(place)
     man, man_sha = _manifest(src)
     _check_copy(src, man)
@@ -277,10 +288,18 @@ def adopt(place, src, repo, *, run_id: str, inputs: dict, request_text: str) -> 
     swap = {**_paths(man["place_root"], place), **_paths(man["repo_root"], repo), man["source_run"]: run_id, man["head"]: head}
     doc = json.loads(_swapper(swap)((src / COPY / startrec.REL).read_text(encoding="utf-8")))
     before = doc.get("inputs") if isinstance(doc.get("inputs"), dict) else {}
-    bad = sorted(k for k, v in inputs.items() if k not in CURRENT and before.get(k) != v)
+    held = pending(man["carried"])
+    current = CURRENT + GATE_CURRENT if held else CURRENT
+    bad = sorted(k for k, v in inputs.items() if k not in current and before.get(k) != v)
     if bad:
         raise FixtureRefused("写した始めの記録の入力が今の入力と違う: " + "・".join(f"{k}={before.get(k)!r}→{inputs[k]!r}" for k in bad)
-                             + "（同じ入力の run だけが固定材料から始める。今の値にするのは " + "・".join(CURRENT) + " だけ）")
+                             + "（同じ入力の run だけが固定材料から始める。今の値にするのは " + "・".join(current) + " だけ"
+                             + ("" if held else "。" + "・".join(GATE_CURRENT) + " は修正前の承認ノードで止まった写しだけ") + "）")
+    from src import gates
+    pushed = gates.unattended_of(doc)   # 写しの計画が無人の run の推しを答えに数えたか（takes_push。start が始めの記録から配る値）
+    if held and gates.asked_unattended(inputs) and not pushed:   # 入口と同じ照らしで読む（"true " も無人の run）
+        raise FixtureRefused(f"写した始めの記録の入力が今の入力と違う: unattended={before.get('unattended')!r}→{inputs['unattended']!r}"
+                             "（人の居る run で修正前の承認ノードに止まった写しは、無人の run で続けない。人の居る run で続ける）")
     swap.update(_remade(repo, remake, head))
     shutil.copytree(src / COPY, place, dirs_exist_ok=True)
     copied = [place / rel.removeprefix(f"{COPY}/") for rel in man["files"] if rel.startswith(f"{COPY}/")]
@@ -290,7 +309,7 @@ def adopt(place, src, repo, *, run_id: str, inputs: dict, request_text: str) -> 
     doc = startrec.load(startrec.path(place))
     doc.update({"run_id": run_id, "inputs": inputs,
                 KEY: {"source_run": man["source_run"], "manifest_sha256": man_sha,
-                      "at": datetime.datetime.now().astimezone().isoformat(timespec="seconds")}})
+                      "at": datetime.datetime.now().astimezone().isoformat(timespec="seconds"), **({"gate": True, "pushed": pushed} if pending(carried) else {})}})
     return doc, carried
 
 
@@ -298,11 +317,48 @@ def lines(doc: dict) -> list:
     """始めの記録 doc の固定材料の行: 取り込んだ印（KEY）と写した印（CAPTURED_KEY）。どちらも無ければ空"""
     out = []
     mark = doc.get(KEY) if isinstance(doc, dict) else None
-    if isinstance(mark, dict):
+    if isinstance(mark, dict) and mark.get("gate"):
+        out.append(f"固定材料から: run {mark.get('source_run') or '—'} が修正前の承認ノードで止まった所の写し（判定・修正案・直す前のテストは"
+                   "写しの物。修正前の承認ノードから続け、役は修正から起こす）")
+    elif isinstance(mark, dict):
         out.append(f"固定材料から: run {mark.get('source_run') or '—'} の修正の前の写し（判定・修正案・直す前のテスト・修正前の承認の"
                    "答えは写しの物。役は修正から起こす）")
     note = doc.get(CAPTURED_KEY) if isinstance(doc, dict) else None
-    if isinstance(note, dict):
+    if isinstance(note, dict) and note.get("dir") and note.get("gate"):
+        out.append(f"固定材料（修正前の承認ノードで止まった所の写し）: {note.get('dir')}（次の run の入力 fix_fixture に渡し、unattended を"
+                   "空にして回すと、判定と修正案を作り直さずに修正前の承認ノードから続ける。依頼は同じファイルの中身のまま）")
+    elif isinstance(note, dict):
         out.append(f"固定材料: {note.get('dir')}（次の run の入力 fix_fixture に渡すと、判定と修正案を作り直さずに修正から始める）"
                    if note.get("dir") else f"固定材料を写せなかった: {note.get('error') or '訳が無い'}")
+    return out
+
+
+def planned_push(doc) -> bool:
+    """始めの記録 doc が、無人の run の推しを答えに数えた計画の、止まった写しを取り込んだ run か（続きの承認ノードが推しを名指す）"""
+    mark = doc.get(KEY) if isinstance(doc, dict) else None
+    return isinstance(mark, dict) and mark.get("gate") is True and mark.get("pushed") is True
+
+
+def pending(carried) -> bool:
+    """運ぶ値が修正前の承認ノードで止まった所の写しか（GATE_KEY に計画の往復の欄の dict を持つ）"""
+    return isinstance(carried, dict) and isinstance(carried.get(GATE_KEY), dict)
+
+
+def gate_inputs(carried) -> dict | None:
+    """続きの修正前の承認ノード（ask-before-fix）が読む {rounds, judge, structure}。rounds は GATE_KEY、judge は運ぶ値の判定の部、
+    structure は構造の目の控えの pointer（運ぶ値の structure の部の structure）。止まらずに写した物は None"""
+    if not pending(carried):
+        return None
+    structure = carried.get("structure")
+    return {"rounds": carried[GATE_KEY], "judge": carried.get("judge"),
+            "structure": structure.get("structure") if isinstance(structure, dict) else None}
+
+
+def collect_values(values: dict) -> dict:
+    """collect の読む値に、直す前で止まった写しの run の続きの修正前の承認ノードの返り（fixture_ask_before_fix・fixture_answer_before_fix）を
+    今の欄の名（ask_before_fix・answer_before_fix）で重ねる。今の修正前の承認ノードは写しの run では回らないので、その欄は空"""
+    out = dict(values)
+    for name in ("ask_before_fix", "answer_before_fix"):
+        if out.get(name) is None and values.get(f"fixture_{name}") is not None:
+            out[name] = values[f"fixture_{name}"]
     return out

@@ -286,6 +286,34 @@ class UnanalysableCase(RepoCase):
         self.assertTrue(m["all_tests_required"])
         self.assertIn("py-parse-error", {u["reason"] for u in m["unanalysable"] if u["path"] == "pkg/broken.py"})
 
+    def test_too_deep_python_is_a_parse_error_not_a_crash(self):
+        # 構文木を組む途中で深さが尽きる file（RecursionError・パーサの MemoryError）も読めない物に数え、地図を落とさない
+        self.write("pkg/deep.py", "from pkg import core\nx = 1" + " + 1" * 100000 + "\n")
+        self.write("pkg/deeper.py", "from pkg import core\nx = " + "-" * 100000 + "1\n")
+        m = self.map(["pkg/core.py"])
+        self.assertTrue(m["all_tests_required"])
+        reasons = {u["path"]: u["reason"] for u in m["unanalysable"]}
+        self.assertEqual((reasons.get("pkg/deep.py"), reasons.get("pkg/deeper.py")), ("py-parse-error", "py-parse-error"))
+
+
+class ConftestCase(RepoCase):
+    """conftest.py の fixture 越しに変更を使うテスト（client の fixture の形）は、テストのファイルが変更を import しなくても届く"""
+
+    def test_tests_under_a_reached_conftest_are_reached(self):
+        self.write("tests/conftest.py", "import pytest\n\nfrom pkg import core\n\n\n@pytest.fixture\ndef client():\n"
+                                        "    return core\n")
+        self.write("tests/api/test_api.py", "def test_get(client):\n    assert client.helper() == 2\n")
+        self.write("elsewhere/test_far.py", "def test_far(client):\n    assert client\n")
+        m = self.map(["pkg/core.py"])
+        self.assertIn("tests/conftest.py", m["tests"])
+        self.assertIn("tests/api/test_api.py", m["tests"])
+        self.assertNotIn("elsewhere/test_far.py", m["tests"], "conftest.py のフォルダの外のテストには届かない")
+        r = m["reach"]["tests/api/test_api.py"]
+        self.assertEqual((r["parent"]["from"], r["parent"]["kind"], r["mention_hops"]), ("tests/conftest.py", "conftest", 0))
+        self.assertEqual(r["depth"], m["reach"]["tests/conftest.py"]["depth"] + 1)
+        self.assertIn("tests/api/test_api.py", m["reverse_imports"], "fixture の辺は import と同じく確かな依り")
+        self.assertFalse(r["candidate"])
+
 
 class PrecisionCase(RepoCase):
     """自分の木（works を含むリポジトリ）で回して見つけた取り違えの留め"""

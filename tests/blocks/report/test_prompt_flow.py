@@ -83,6 +83,14 @@ class ColdPrepCase(Flow):
         self.assertIn('under the heading "機械が各段の出力と run の記録から組んだ事実（AI は書き換えていない）"', prompt)
         self.assertTrue((self.place / "cold-prompt-1.md").is_file())
 
+    def test_lang_reaches_the_cold_reader(self):
+        """書き手と同じ言語で、止まった所・推測した所を返させる（言語の行が無いと読み手は指示の英語で返す）。
+        空の lang は貼った本文の言語（cold-read の block の cold.md と同じ形）"""
+        self.facts(lang="日本語")
+        self.assertIn("- Write `stops`, `guessed`, and `machine_lines` in 日本語.", self.cold_prep(base.reply()))
+        self.facts()
+        self.assertIn("- Write `stops`, `guessed`, and `machine_lines` in the language of the text.", self.cold_prep(base.reply()))
+
     def test_unreadable_reply_is_said_in_the_body(self):
         self.facts()
         self.assertIn("（書き手の返答を読めない:", self.cold_prep("壊れた"))
