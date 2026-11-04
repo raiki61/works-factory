@@ -94,7 +94,7 @@
 ### `asf-way-gates-fanout` 承認ノードと並べは最新の ASF の形にする
 
 - 持ち主の言葉: 「1, 2, については最新開発ASFを参考にしたらいいのでは」「なら全部最新の枝ASFのやり方に合わせるように移植するだけでいいってことだよね」
-- 決め: 作り（グラフのフォルダの形・受け渡し・承認ノード・並べ）は最新の ASF（Archon の枝 factory の `sdlc-on-dev`）の形に合わせ、中身（どの確かめと役が在り、どの順でつなぎ、どこで人に聞くか）は今の works から移す。持ち主の決めと食い違う所（期限・模型・言語・コードを写さない）は持ち主の決めが先に立つ。
+- 決め: 作り（グラフのフォルダの形・受け渡し・承認ノード・並べ）は最新の ASF（Archon の枝 `refs/heads/factory/sdlc-on-dev`）の形に合わせ、中身（どの確かめと役が在り、どの順でつなぎ、どこで人に聞くか）は今の works から移す。持ち主の決めと食い違う所（期限・模型・言語・コードを写さない）は持ち主の決めが先に立つ。
 - 当て方: `workflows/AGENTS.md` の E5・E16。
 
 ### `diff-only-to-target` 対象のリポジトリには差分を置くだけ
@@ -137,7 +137,7 @@
 ### `archon-same-as-asf` 自分のグラフも ASF と同じ開発中の Archon で回す
 
 - 持ち主の言葉: 「1: おしで。」（2026-10-11 夜。運び役の問い「私たちの工程を回す Archon の版を、ASF と同じ開発中の版にそろえてよいか（推し：そろえる）」への答え）
-- 決め: 自分のグラフを回す Archon を、公開版 v0.11.1 から、ASF が固定している Archon の源（`coleam00/Archon` の枝 factory の `sdlc-on-dev` の commit。今は `d97d00ef`）にそろえる。Archon は 1 つにする。
+- 決め: 自分のグラフを回す Archon を、公開版 v0.11.1 から、ASF が固定している Archon の源（`coleam00/Archon` の枝 `refs/heads/factory/sdlc-on-dev` の commit。今は `d97d00ef`）にそろえる。Archon は 1 つにする。
 - 訳: 最新の ASF の承認ノードの書き方（`approval:` の `decisions`）が v0.11.1 に無く、開発中の版にだけ在る（`workflows/AGENTS.md` の E16）。
 - 当て方: ASF の止め `factory/pack.json` の版（`integration_revision_required`）をそのまま使い、その 1 つの源から Archon の本体と ASF のグラフの両方を取る。Archon は源から `bun` で起こす（ASF の取り付け命令と同じ形）。公開版の実行ファイルの取り寄せは要らなくなる。根の `pack.json` には Archon の版を書かない。
 
@@ -315,7 +315,7 @@
 ### `asf-follows-dev` ASF は upstream の dev に在る物をそのまま使い、版を固定する理由を持たない
 
 - 持ち主の言葉（2026-10-16、PR #637）: 「asfは他人のものなので、勝手にあがったらそれを使えばいいのでは？今の版に固執する意味はどこにある？」
-- 決め: 止めた Archon は 1 つの止めのまま upstream の dev に上げ、ASF も dev に在るグラフだけを使う。ASF の枝 factory の `sdlc-on-dev` の版に留まる理由を持たない。dev に無い ASF のグラフ（`archon-lifecycle`・`archon-merge-queue`・`archon-verify-runtime`・`archon-verify-runtime-suite`・`archon-deploy`・`archon-backlog`・`archon-discoveries`・`archon-regress`）を指す所は外す。
+- 決め: 止めた Archon は 1 つの止めのまま upstream の dev に上げ、ASF も dev に在るグラフだけを使う。ASF の枝 `refs/heads/factory/sdlc-on-dev` の版に留まる理由を持たない。dev に無い ASF のグラフ（`archon-lifecycle`・`archon-merge-queue`・`archon-verify-runtime`・`archon-verify-runtime-suite`・`archon-deploy`・`archon-backlog`・`archon-discoveries`・`archon-regress`）を指す所は外す。
 - 当て方: `factory/pack.json` の `integration_revision_required` と `entries`。`factory/consumer.py` は merge の方針（必須の check・守りのパス）をグラフの入力に差し込まず、schedule は `.factory/schedule.json` の `workflow` を名指さなければ断る。下の「段 0〜1 を回す ASF のグラフ」と引いた決めの「自分食いと手の直し」の当て方の lifecycle は、この決めで ship に置き換える。
 - 運び役の決め（2026-10-16、PR #637 の修理の依頼 3 回目。持ち主の言葉ではない）: dev に従うのは ASF のグラフと Archon の版で、Archon 本体の既定の値には従わず、工場が自分で決める物がある（既定の provider の claude・`workflows.autoResumeOnQuotaReset: false`）。後者は、使用枠の上限で落ちた run を別のアカウントで resume する今の回復の道と、待ちに入った fan_out の子の起こし方を実測するまで、落とす形を残すため。当て方（#679 で家の `config.yaml` の書き換えをやめた）: 既定の provider は Archon の環境変数 `DEFAULT_AI_ASSISTANT`（家と対象の repo の設定が provider を選んでいればそちらが勝つ）、`workflows.autoResumeOnQuotaReset` は新しい run の `--config` の層（`bin/_lib/place.py` の `run_config`。利用者の `--config` の値が勝つ）。群の別名（`@wf-<群>`）も同じ層で渡す（`run-model-choice`）。
 - 運び役の決め（2026-10-17、#679 の修理の依頼。持ち主の言葉ではない）: 使用枠の方針 `workflows.autoResumeOnQuotaReset` は、対象のリポジトリの設定（`.archon/config.yaml`）より層が勝つ。変えられるのは利用者の `--config` だけ（審査される側のリポジトリに工場の方針を変えさせない）。

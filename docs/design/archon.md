@@ -7,7 +7,7 @@
 ## 語
 
 - Archon: AI のグラフを YAML で書き、機械が順に回す道具。土台は止めた Archon（下）。
-- ASF（AI software factory）: Archon の作者が作った、作業の受け付けから merge までのグラフの束（`coleam00/Archon` の dev の `.archon/workflows/sdlc/`）。工場が読むのは止めた Archon の commit の中の物で、見る版は止めた Archon と同じ。上流の枝 factory の `sdlc-on-dev` は dev の `7009a90a0` から分かれた別の線で、工場は読まない。
+- ASF（AI software factory）: Archon の作者が作った、作業の受け付けから merge までのグラフの束（`coleam00/Archon` の dev の `.archon/workflows/sdlc/`）。工場が読むのは止めた Archon の commit の中の物で、見る版は止めた Archon と同じ。上流の枝 `refs/heads/factory/sdlc-on-dev` は dev の `7009a90a0` から分かれた別の線で、工場は読まない。
 - 止めた Archon: ASF の取り付け命令が置いた `factory/pack.json` の `repository` を、`integration_revision_required` の commit（今は `2886e883d`。2026-11-04 に `a972888a` から上げた。`a972888a` は 2026-10-18 に `64ec0c2e` から上げた。その前は同じ日に `355f1867` から、2026-10-16 に `d97d00ef` から）で取った Archon の源。ASF と同じ開発中の源で、Archon の本体と ASF のグラフの両方をここから取り、`bun` で起こす（持ち主の決め `archon-same-as-asf`。読み方は「pack.json」のセクション）。
 - 元の works: raiki61/claude-plugins の `works/`。工場の移植元で、参照するだけ（`docs/design/README.md` の語）。
 

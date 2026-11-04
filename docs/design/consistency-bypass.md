@@ -326,7 +326,7 @@ bin/works-factory workflow run works-factory-consistency-bypass \
 ## 6 未確認
 
 - 土台の役の定義の断片の名 `role-inspector`（materials.md の 11 節）。断片が「入力が足りない時の書き方」を今の lib の `agents/inspector.md` のまま持つか（2.6 で印の字をそちらに任せた）。
-- `materialkit.review_md_paths(repo)` の形（materials.md の 5.2 の終わりに名だけが在り、2 節の口の一覧に無い）。この文書は「(工場の `workflows/.shared/prompts/REVIEW.md` の絶対パス, 対象の根の `REVIEW.md` の絶対パスか空)」を返す口と読んだ。
+- `materialkit.review_md_paths(repo)` の形（materials.md の 5.2 の終わりに名だけが在り、2 節の口の一覧に無い）。この文書は「(工場の lib の `REVIEW.md` の絶対パス, 対象の根の `REVIEW.md` の絶対パスか空)」を返す口と読んだ。
 - 5 節の命令の正確な形。
 
 ## 7 自分で決めた事（この block だけ）
