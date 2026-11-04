@@ -1,4 +1,4 @@
-"""事前審査の block の入口の部品と、script が共に使う口（docs/design/plan-review.md の 8 節。lib/boardview.py の open_pass から、
+"""事前審査の block の入口の部品と、script が共に使う口（docs/design/plan-review.md の 8 節。元の boardview の open_pass から、
 始めの記録・承認ノードの答え・独立設計・方針の版の固めを除いた写し〔:445-527〕と、_copy_world・_copy_structure〔:666-689〕・
 _role_item・replan_items〔:588-612〕・_tree_on〔:692-696〕の写し）。
 

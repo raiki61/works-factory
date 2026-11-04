@@ -1,4 +1,4 @@
-"""独立設計の block の中身（docs/design/independent-design.md。lib/boardview.py の独立設計の部分と lib/design.py の呼び方を、port の値で
+"""独立設計の block の中身（docs/design/independent-design.md。元の boardview の独立設計の部分と lib/design.py の呼び方を、port の値で
 受ける形に写した物）。
 
 目的の文・実測した制約・人が決めた前提・人の方針だけから、道具を持たない役に理想の設計を作らせる。役は修正案・判定・差分を見ない

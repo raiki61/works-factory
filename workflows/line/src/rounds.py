@@ -6,7 +6,7 @@ plan-review の作業の写し lib/converge.py と、どの読み手も同じ形
 写した物（元 lib/converge.py。名は元のまま。往復の記録と止め時の部分。盤面 b を受けていた口は、記録の dict と place のパスを
 受ける形にした）: decide・proceeds・add_pass（と _item_states・_origins・_quoted・_attributed）・held・capped・stuck_keys・uncited・
 stuck_faces・stuck_reason・lines・open_items と、文の定数（PERSISTED_WHY・UNSETTLED_WHY・CAP_WHY・LINE_*・WORDS・ITEMS_WHY）。
-止まった案を推しで越えてよいかの決め stuck_pushable（元 lib/gatepolicy.py。無人の run の印を引数で受ける形）も持つ。
+止まった案を推しで越えてよいかの決め stuck_pushable（元の gatepolicy。無人の run の印を引数で受ける形）も持つ。
 読み口（block_faces・central・central_keys・sentences・sentence_diff・plan_rows・planned_units と語の定数）は KEEP の lib/converge を
 import する（plan と plan-review も使う。README 9.3）。
 
@@ -32,7 +32,7 @@ from converge import (AGAIN, CLEAN, CLOSED, FACE_KEYS, HELD, HELD_MARK, KEY_CHAR
                       block_faces, central, central_keys, sentence_diff, sentences)
 
 LIMIT = 20
-PLAN_ROLE = "plan"   # 修正案の役の拒否の行の role（元 lib/planfile.py の ROLE）
+PLAN_ROLE = "plan"   # 修正案の役の拒否の行の role（元の planfile の ROLE）
 
 PERSISTED_WHY = ("事前審査（記録の名 p2.plan_review）の同じ block が、案を直した後も残った（{keys}。壁打ち {n} 往復。"
                  "往復ごとの案と審査: {path}）")
@@ -487,7 +487,7 @@ def stuck_pushable(doc: dict, push, *, unattended: bool, design_talk: bool) -> b
     """止まった事前審査の壁打ち（記録 doc）の行に、事前審査の役の推し push（{go, note}。無ければ None）の尾を付けてよいか。全部が
     揃う時だけ: 無人の run・設計だけの run でない・抜け方が止まり・最後の往復が輪の安全の上限の周で止めた物でない（上限での止まりは
     工場の不具合 CAP_WHY で、人が見る）・通す推しで、その note が止まった key と保留・開いた項目の番号の全部を字のまま引く
-    （uncited が空。修正役に届くのは note だけ）。元 lib/gatepolicy.py の stuck_pushable（無人の印を始めの記録でなく引数で受ける）"""
+    （uncited が空。修正役に届くのは note だけ）。元の gatepolicy の stuck_pushable（無人の印を始めの記録でなく引数で受ける）"""
     go = getattr(push, "go", None) if not isinstance(push, dict) else push.get("go")
     note = getattr(push, "note", None) if not isinstance(push, dict) else push.get("note")
     return (unattended and not design_talk and doc.get("outcome") in STUCK and not capped(doc)
@@ -542,7 +542,7 @@ def owed_why(judgment, ties, materials, world, *, answers, takes_push: bool) -> 
 
 def start_items(answer) -> list:
     """起動の承認ノードの答え（{decision, text} か null）を、記録された方針の行の人の答えの行 [{round, node, kinds, answer, note}] に
-    （元 lib/boardview.py の human_items）"""
+    （元の boardview の human_items）"""
     import gatemarks
     rows = answer if isinstance(answer, list) else [answer] if isinstance(answer, dict) else []
     return [{"round": 1, "node": gatemarks.START_GATE_NODE, "kinds": [], "answer": a["decision"], "note": a.get("text") or ""}

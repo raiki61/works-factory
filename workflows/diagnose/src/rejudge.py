@@ -1,4 +1,4 @@
-"""再審の役の受け付けの芯（docs/design/diagnose.md の 3.8。lib/judge_accept.py の再審の部分を、place と値を引数で受ける形に写した物）。
+"""再審の役の受け付けの芯（docs/design/diagnose.md の 3.8。元の judge_accept の再審の部分を、place と値を引数で受ける形に写した物）。
 
 修正役の異議と 1 回目の判定を読んだ再審の役の返答を、作業ツリー・class_query の例・確かめた事実の長さで受け付け、単位の前後の差と出口を
 place に書く。指示の文は持たない（prompts/rejudge.md が持つ）。

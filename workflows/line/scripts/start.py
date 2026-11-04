@@ -210,7 +210,7 @@ def place_theme(artifacts: Path, text: str) -> str:
 
 
 def version_record(root: Path, raw: dict, run_id: str) -> dict:
-    """版の控え（lib/versions.py。元 works/.shared/core/versions.py）。止めた Archon の commit と模型は線が引いて渡す"""
+    """版の控え（元の versions。元 works/.shared/core/versions.py）。止めた Archon の commit と模型は線が引いて渡す"""
     archon, why = versions.pinned(root / PIN[0], PIN[1])
     return versions.snapshot(root, run_id=run_id, settings={k: raw[k] for k in ("features_off", "features_on")},
                              given={"archon": (archon, f"止めた Archon の commit を引けない（{why}）"),

@@ -110,7 +110,7 @@ def problem(cite, repo, roots=()) -> str:
         return f"名指し {cite!r} が文字列でない"
     m = CITE.match(cite.strip())
     if not m:
-        return f"名指し {cite!r} が <パス>:<行> の形でない（例 tests/test_x.py:12・src/x.py:30-34・依頼のファイルの絶対パス:3）"
+        return f"名指し {cite!r} が <パス>:<行> の形でない（例 test/test_x.py:12・src/x.py:30-34・依頼のファイルの絶対パス:3）"
     a, b = int(m["a"]), int(m["b"] or m["a"])
     if b < a:
         return f"名指し {cite!r} の行の範囲が逆"

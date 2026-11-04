@@ -7,7 +7,7 @@ run で値が黙って変わった 8dfebca6 の形が戻る）。
 - ports_of(record, artifacts) -> dict: 配る値の 39 欄（欄と式は line.md の 1.6。YAML の start の output_format の ports と同じ並び）
 - empty() -> dict: 拒んだ run・落ちた run の ports（全部の欄を空の値: 字は ""・flag は false・object は {}・配列は []・pointer の
   request と carried は null。後ろは when: で飛ぶ）
-- pr_text(pr) -> str: PR の番号・題・本文を並べた文（元 lib/judge_accept.py の pr_file_text の字。PR の無い run は ""）
+- pr_text(pr) -> str: PR の番号・題・本文を並べた文（元の judge_accept の pr_file_text の字。PR の無い run は ""）
 - entry_origin(record) -> str: 判定から入る run の出どころの文（入口の差分が空で依頼の行が 1 件以上の時だけ。元 judge_accept.due_view の
   record.process.request_entry.origin と同じ字）
 - thickness_word(word) -> str: 入力 thickness の語 → head-depth の port thickness の語（空・自動 → auto、軽量 → light、標準 → standard、
@@ -20,7 +20,7 @@ from __future__ import annotations
 import pathlib
 
 AUTO = "自動"
-# 元 lib/judge_accept.py の PR_TITLE・PR_SUBJECT_HEAD・PR_BODY_HEAD（元 entryshape.write_pr_file の見出し）
+# 元の judge_accept の PR_TITLE・PR_SUBJECT_HEAD・PR_BODY_HEAD（元 entryshape.write_pr_file の見出し）
 PR_TITLE = "# PR #{number}"
 PR_SUBJECT_HEAD = "## 題"
 PR_BODY_HEAD = "## 本文"

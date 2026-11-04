@@ -6,8 +6,7 @@
 触れる所はこのモジュールに集める。ほかのモジュール・ブロック・境の節は、ここが作る入力の形（欄 input。約束は入口のブロックの
 schemas/input.schema.json）の中身——差分が空か・依頼の行の数・PR の添え物・仕様の段を挟むか——だけを読み、入口の種類を見ない
 （表 docs/concepts.json の柵 entry-kind が、入口の種類の語を読む所をこのモジュールとメイングラフの start に縛る。試験は
-lib/tests/test_concept_fences.py と tests/layers/test_concept_fences.py）。
-計画 docs/plans/2026-10-09-one-entry-shape.md の 2 節。
+lib/tests/test_concept_fences.py）。
 
 - Refused: 入口の入力を受けない（呼び手 entry が InputRefused にする。1 行）
 - named_pr(raw): 入力 pr が名指した PR の番号（無ければ None）。線の入口と周の鎖の始めが同じ読みを使う

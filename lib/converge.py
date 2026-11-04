@@ -24,7 +24,7 @@ origins だけから数え、採らなかった申告（origins_claimed）は数
 後の往復が審査した所だけで、閉じて後の往復が見ない項目の取りこぼしは数に出ない（1 回目に出た割合はその上限）。run の後で
 見つかった穴は割合に入らない。
 
-項目ごとの壁打ち（線の木の段 1。設計 docs/plans/2026-10-06-tree-line.md の 2.3 の 5）: 受けた案の項目を note_plan が控えの
+項目ごとの壁打ち（線の木の段 1）: 受けた案の項目を note_plan が控えの
 "plan"（[{id, unit_keys, hash}]。id は unit_keys の組・hash は名前に戻した項目の行の sha256）に置くと、往復の行に
 "items"（[{n, id, unit_keys, hash, state, blocks, reopened}]）・"synergy"（相乗りの審査が挙げた key）・"face_units"
 （{key: unit_keys}）が付く。face は unit_keys が重なる項目の物（どの項目とも重ならない face は審査した全部の項目の物）。
