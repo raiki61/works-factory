@@ -23,7 +23,7 @@
 - 止めた Archon: `factory/pack.json` が止めた版の Archon の源。工場が頼る振る舞いの記録は [archon.md](archon.md)。
 - 埋め: Archon に無い物を外から補う部品（polyfill。`workflows/.shared/` の `fence.py`・`childsweep.py`・`skip_value.py`。名簿は `docs/polyfills.md`）。
 - E1〜E24: AGENTS.md の決まりの番号（置き場の表は根の `AGENTS.md` の「決まりの置き場」）。K の番号は落とし穴の通し番号（一覧は [archon.md](archon.md) の「落とし穴の番号」）。L・S・J・P・F・T・E（独立の目の行）・R・M の番号は、元の works の能力を 1 行 = 1 能力で並べた棚卸し（2026-10-13。終えて消した計画で、git の履歴が持つ）の行の ID で、行き先は各設計書の対応の節が持つ。
-- 持ち主: リポジトリの owner（決めを下す人）。持ち主の決めは `docs/owner-decisions.md` に名（`overnight-speed` など）で書く。10 節で仕組みを担う block は「担う block」と書く。
+- 持ち主: リポジトリの owner（決めを下す人）。持ち主の決めは `docs/owner-decisions.md` に名（`simple-software` など）で書く。10 節で仕組みを担う block は「担う block」と書く。
 - 起動の殻: 人が打つ入口 `bin/works-factory`（中身は `bin/_lib/`）。認証と隔離を整えて Archon を起こす。
 - 始めの記録: line が run の頭に 1 度書く記録（[line.md](line.md) の語）。block はこれを読まない（4.3）。
 - 段: run の頭の深さ 3 つ（軽量・標準・重厚）。上げ直し: 1 回目の修正の後に、修正の結果に出た印（止めた単位・修正役の異議・案の直しなど。line.md 5.3 の「上げる信号」）を見て、単位（判定が出した、根本の欠陥 1 つ分の直す単位）の深さを標準へ上げ直すこと（line が 1 回だけ持つ）。表は line.md の 5 節と 16 節。

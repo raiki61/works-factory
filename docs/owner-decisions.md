@@ -5,6 +5,7 @@
 - 「持ち主の言葉」は言葉のまま。逐語が無い物は「なし（本文の要約）」と書く。
 - 引き継いだ決めの出典の `V001`〜`V184` は、今の works の地図（raiki61/claude-plugins の `works/docs/owner-decisions.md`）の観点の番号。2026-09-03〜10-09 の全部の会話から持ち主の発言を読み、同じ趣旨をまとめた通し番号。元の行の詳しい言葉はそこを引く。
 - 「当て方」は、その決めを works-factory でどう使うか。
+- 後の決めで置き換わった決めは、吸った決めの「畳んだ決め」の行に名を残す。期限つきで終えた決めは「終えた決め」のセクションに置く（持ち主の決め `decisions-optimize`）。
 
 ## 2026-10-11 の決め（このリポジトリを起こした決め）
 
@@ -22,17 +23,11 @@
 - 決め: ソフトはできるだけ簡単にする。変換の仕組みを置くと、後に続く人（人も AI も）が「変換すればいい」と真似をするので置かない。
 - 当て方: YAML は変換せずに Archon に渡す（`workflows/AGENTS.md` の E1）。
 
-### `own-graph-alongside` 横に自分のグラフを作り始める
-
-- 持ち主の言葉: 「横に自分のグラフつくりはじめるかんじでいいのではって思ってた」
-- 決め: 今の works を直して寄せるのでなく、横に新しく自分のグラフを作る。
-- 当て方: 新しいリポジトリ raiki61/works-factory。今の works は置き換えるまで本番として残す。
-
 ### `watch-latest-asf` 最新の ASF を横目に見られる形にする
 
 - 持ち主の言葉: 「その最新のソフト自動出荷工場を横目に見れる形じゃないとダメなのではという気がしてる」
 - 決め: 最新の ASF を横に並べて見られる形にする。
-- 当て方: `bin/` が ASF の止め（`factory/pack.json`）の Archon の源を取り、その中の ASF のグラフ（`.archon/workflows/sdlc/`）を横に並べて読み、グラフの名で選び分ける（`archon-same-as-asf` で、Archon の家に置く形から変えた）。版を進めたら `docs/asf-notes.md` を読み直す。
+- 当て方: `bin/` が ASF の止め（`factory/pack.json`）の Archon の源を取り、その中の ASF のグラフ（`.archon/workflows/sdlc/`）を横に並べて読み、グラフの名で選び分ける。今の版は upstream の dev（`asf-follows-dev`）。版を進めたら `docs/asf-notes.md` を読み直す。
 
 ### `public-repo` リポジトリは公開、作業のアカウントは raiki61
 
@@ -57,14 +52,14 @@
 ### `essence-is-graph` エッセンスはグラフの内容とグラフ全体の形
 
 - 持ち主の言葉: 「で、私がエッセンスって呼んでるのはグラフの内容やグラフ全体の形かな。」
-- 決め: エッセンスは持ち主のグラフそのもの。どの確かめと役が在り、各々が何をし、どの順でどうつながり、どこで人に聞くか。Archon の書き方で `workflows/`（メイングラフとサブグラフの YAML・役の指示書 `commands/`・ノードの script `scripts/`）に書く。最初に `essence/` と呼んだ最上位のフォルダは `lib/` に改める。`lib/` は script ノードが呼ぶ Archon を知らない Python の助け手（引用の照らし・TDD の赤の判定・元から赤の見分け・範囲の照らしなど）で、エッセンスそのものではない。`lib/` は Archon の名と環境変数を書かない。
-- 当て方: 層は 入口 `bin/`・グラフ（エッセンス）`workflows/`・境 `workflows/.shared/`（入出力の口と埋めだけ）・助け手 `lib/`。`lib/AGENTS.md` の E3。
+- 決め: エッセンスは持ち主のグラフそのもの。どの確かめと役が在り、各々が何をし、どの順でどうつながり、どこで人に聞くか。Archon の書き方で `workflows/`（graph と block の YAML・AI のノードの指示の md `prompts/`・ノードの script `scripts/`）に書く。`lib/` は script ノードが呼ぶ Archon を知らない Python の助け手（引用の照らし・TDD の赤の判定・元から赤の見分け・範囲の照らしなど）で、エッセンスそのものではない。`lib/` は Archon の名と環境変数を書かない。
+- 当て方: 層は層の地図 `docs/layers.json` のとおり（入口 `bin/`・グラフ（エッセンス）`workflows/`・pack の共通の部品 `workflows/.shared/`・助け手 `lib/`・見る道具 `viewer/`）。`lib/AGENTS.md` の E3・根の `AGENTS.md` の E22。
 
 ### `no-queue` 待ち行列はいらない
 
 - 持ち主の言葉: 「待ち行列はいらない。」「まず修正の並べに待ち行列は不要は確定でいい。」「なら今の作りのままで上限抑制とかは不要では」（2026-10-12）
 - 決め: 修正の並べに、待ちの列・固定の枝の数・錠を持たない。機械全体で試験の同時の数を抑える枠（今の works の `slotted_run`・`slotwrap.sh`・`TESTSLOT_N`）も持たない。run の中で走る試験は、対象が宣言した軽い段（`.review-checks.json`）と、直す単位が触った所に直に関わる試験（`lib/impact.py` の `select_tests`）だけで、重い試験は run の外の CI に回るため。Archon の `fan_out:`（0.10.0 から `include:` にも書ける。幅は run の時に決まり、並べの数に上限を付けられ、結果は入力の順に集まる）で、組ごとに並べる。幅は計画の組の数。組は分けない。
-- 当て方: fix（`docs/design/fix.md`）。組ごとの作業ツリーは `workflow:` と `fan_out:` の子の run を推し、段 1 の未決 U8 で確かめる。足りなければその時だけ埋めを足す。
+- 当て方: fix（`docs/design/fix.md`）。組ごとの作業ツリーは `workflow:` と `fan_out:` の子の run で分ける（子の run が自分の作業ツリーを持つことは `docs/design/archon.md` の U8 で実測した）。
 
 ### `no-comment-ratio` コメントの比は数えない
 
@@ -106,13 +101,13 @@
 ### `agents-md-per-level` リポジトリの形と作りの決まりは各階層の AGENTS.md に置く
 
 - 持ち主の言葉: 「最初に想像してたリポジトリ構成とかいろいろしようとしてengireeingmdに固めなくていいか」「まずAI系はAgentsmdに各階層ごとに。」「agentsmdのネストで自動合成されるのは確認済み」「それ以外はASFが作りやすいようにしてくれていいが、最後には要らないものは全部掃除する感じでもいいよ」
-- 決め: AI 向けの決まり（リポジトリの形・作りの決まり E1〜E18）は、各階層の `AGENTS.md` に、その階層に効く物だけを置く。AI の道具は上の階層の物と自動で合わせて読む。それ以外の文書は ASF が作りやすい形でよく、最後に要らない物は全部消す。
+- 決め: AI 向けの決まり（リポジトリの形・作りの決まり E の番号）は、各階層の `AGENTS.md` に、その階層に効く物だけを置く。AI の道具は上の階層の物と自動で合わせて読む。それ以外の文書は ASF が作りやすい形でよく、最後に要らない物は全部消す。
 - 当て方: 根の `AGENTS.md`（リポジトリの形・決まりの番号の置き場の表）・`workflows/AGENTS.md`・`lib/AGENTS.md`・`bin/AGENTS.md`・`tests/AGENTS.md`。`engineering.md` は ASF の役が名指しで読む（ASF の型 A8）ので、`AGENTS.md` を指すだけの入口として残す。`CLAUDE.md` は置かない（在ると Claude Code が `AGENTS.md` を読まない）。
 
 ### `name-by-origin` 取ってきた物と自分の物を名前で見分けられるようにする
 
 - 持ち主の言葉: 「とってきたものはどれでじぶんのやつがどれでとかちゃんとわかるようにした命名とかを意識したいよね」「今のリポジトリみても少しわかりにくい」
-- 決め: 取ってきた物（ASF の取り付け命令が置いた物・Archon の家に置く ASF のグラフ）と自分の物を、名前と置き場で見分けられるようにする。
+- 決め: 取ってきた物（ASF の取り付け命令が置いた物）と自分の物を、名前と置き場で見分けられるようにする。
 - 当て方: `AGENTS.md` の E18 と「リポジトリの形」、README の「Finding your way around the repository」。ASF の物は ASF の命令が場所と名前を決め打ちで読む（`factory/consumer.py`:16-20・231）ので、動かさず名前も変えない。自分の物の側で、それらの名前を使わない。
 
 ### `read-original-works` 今の works を見れば分かる物は元を見る
@@ -121,50 +116,25 @@
 - 決め: 今の works を読めば分かる事は、works-factory の文書に書き直さない。移す時に元を読む。
 - 当て方: 根の `AGENTS.md` の頭。移す元の版は `pack.json` の `works.commit`（`raiki61/claude-plugins` は公開）。
 
-### `overnight-speed` 明日の朝までに作り終える速さで回す
-
-- 持ち主の言葉: 「この調子でいくといつまでに完成しそうですか。」への「おそ」、続けて「明日の朝起きたときに完成しておいてほしい。」（2026-10-11 夜）
-- 決め: 段の順番待ちを外し、残りをほぼ全部同時に回す。
-- 運び役が、この言葉に沿う物として採った事（持ち主が 1 つずつ答えた物ではない。違えば持ち主が戻す）:
-  1. サブグラフ 8 本の issue は、各々が自分のフォルダを中身ごと作る。土台の Task 4 はメイングラフの YAML だけにする。サブグラフとメイングラフの約束は `design.md` の「サブグラフの出力の約束」（#765 で消した。`583337e` の版で読める）。
-  2. 目の当て方は、持ち主の目のサブグラフの「軽い単位は R1〜R4 を省く」に倣う。小さい PR は ASF の審査と R1、大きい PR は 5 つ全部。
-  3. 守るパスに触る PR でも、計画どおりの変更で目が通った物は、聞かずに merge する。新しい決めが要る物だけ聞く。
-  5. issue と PR の単位は大きくする。持ち主の言葉「PRの単位が小さいのでは」「書いたことは忠実にやってくれるのであれば、でっかくかいていいのでは」。サブグラフ 1 つと、それが使う `lib/` の部品と試験を、1 つの issue にまとめる。
-  4. 依存の置き場は根の `pyproject.toml`、試験の命令は `uv run --isolated python3 -m unittest discover -s . -t .`（PR #8。Archon を使う人は uv を持つ。`outside-packages-ok` の当て方）。（2026-10-12 の `full-suite-in-ci` で置き換え: run の中の確かめの命令は `tests/changed.py`、全部の試験は CI だけ）
-- 当て方: 根の `AGENTS.md` の「リポジトリの形」の木に `pyproject.toml` を載せる。計画の Task 4 と「全体の決まり」。
-- 2026-10-19 の `rebuild-speed` で、#765 の作り直しの間だけに狭めた。
-
 ### `archon-same-as-asf` 自分のグラフも ASF と同じ開発中の Archon で回す
 
 - 持ち主の言葉: 「1: おしで。」（2026-10-11 夜。運び役の問い「私たちの工程を回す Archon の版を、ASF と同じ開発中の版にそろえてよいか（推し：そろえる）」への答え）
-- 決め: 自分のグラフを回す Archon を、公開版 v0.11.1 から、ASF が固定している Archon の源（`coleam00/Archon` の枝 `refs/heads/factory/sdlc-on-dev` の commit。今は `d97d00ef`）にそろえる。Archon は 1 つにする。
+- 決め: 自分のグラフを回す Archon を、公開版 v0.11.1 から、ASF が固定している Archon の源（`coleam00/Archon` の commit。止めは `factory/pack.json`、版の向きは `asf-follows-dev` の upstream の dev）にそろえる。Archon は 1 つにする。
 - 訳: 最新の ASF の承認ノードの書き方（`approval:` の `decisions`）が v0.11.1 に無く、開発中の版にだけ在る（`workflows/AGENTS.md` の E16）。
 - 当て方: ASF の止め `factory/pack.json` の版（`integration_revision_required`）をそのまま使い、その 1 つの源から Archon の本体と ASF のグラフの両方を取る。Archon は源から `bun` で起こす（ASF の取り付け命令と同じ形）。公開版の実行ファイルの取り寄せは要らなくなる。根の `pack.json` には Archon の版を書かない。
-
-### `report-on-stop` 止め札で止めた run でも報告を出す
-
-- 持ち主の言葉: 「2: おしは？」への運び役の推し「出す」（2026-10-11 夜。持ち主が違えば戻す）
-- 決め: 人が止め札を置いた run も、止めた上で報告を出す（今の works と同じ。持ち主の決め `superset`）。
-- 当て方: 止め札は、次の承認ノードで「止める」と答えた扱いにし、報告のノードへ流す。Archon の `cancel` は後ろのノードを走らせないので使わない。自前の錠のファイル（今の works の `halt.py`）は持ち込まない。
 
 ### `one-launcher` 人が打つ入口は Archon を起こす殻 1 本
 
 - 持ち主の言葉: 「3: osi」（2026-10-11 夜。運び役の問い「作業 5 の PR #20 を merge せずに閉じてよいか（推し：閉じる）」への答え）
 - 決め: 入口に Archon の命令の別名（start・answer・show）を作らない。認証の環境を整えて Archon を起こす殻 1 本にし、人は Archon の命令をそのまま打つ。
-- 当て方: 作業 6（認証と隔離）の後に、その殻を作る。計画の Task 5 はこの形に書き直す。
+- 当て方: 殻は `bin/works-factory`（中身は `bin/_lib/launcher.py`）。
 
-### `lib-port-as-is` lib/ へは元の名と元の中身のまま、頼る部品ごと持ってくる
+### `stop-at-gates` 走っている run を止めるのは承認ノードの答えだけ。止めた run も報告を出す
 
-- 持ち主の言葉: 「なら全部最新の枝ASFのやり方に合わせるように移植するだけでいいってことだよね」「それ以外はASFが作りやすいようにしてくれていいが、最後には要らないものは全部掃除する感じでもいいよ」「あとは普通に元のworksみたらわかるものはそっちみればいいしね。」
-- 決め: 今の works の部品は、元のファイル名・元の中身・元の相対の置き場（`works/.shared/core/` → `lib/`、その下の `graphloops/engine/` → `lib/graphloops/engine/`）のまま、頼る部品ごと持ってくる。共有ボード（今の works のグラフの状態）と Archon に届く関数は持ってこず、外した名を PR に書く。要らない物は最後の掃除の段で消す。
-- 当て方: 「能力の棚卸し」の表の `lib/<名>` は能力の名で、置くファイルは元の名（E18）。共有ボードに届く能力は、そのサブグラフの issue で扱う。
-- 2026-10-19 に `lib-port-ended` で終えた。
-
-### `stop-at-gates` 走っている run を止めるのは承認ノードの答えだけ
-
-- 持ち主の言葉: 「おすすめでやっておいて」（2026-10-12。運び役の推し「関所と関所の間の止めは報告の無い cancel を受け入れ、止め札は関所の答えだけにする」への答え）
-- 決め: 報告つきで止めるのは、承認ノードで `stop`・`reject` と答えた時だけ。承認ノードと承認ノードの間で止めたい時は Archon の `workflow cancel`（報告は出ない）。今の works の止め札（段の切れ目で止まって報告を出す）は持ち込まない。
-- 当て方: `report-on-stop` の当て方（止め札は次の承認ノードで止めると答えた扱い）のまま。落ちる能力は「承認ノードの間の報告つきの止め」で、これを狭めとして認めた。
+- 持ち主の言葉: 「おすすめでやっておいて」（2026-10-12。運び役の推し「関所と関所の間の止めは報告の無い cancel を受け入れ、止め札は関所の答えだけにする」への答え）。畳んだ `report-on-stop` の分: 「2: おしは？」への運び役の推し「出す」（2026-10-11 夜。持ち主が違えば戻す）
+- 決め: 報告つきで止めるのは、承認ノードで `stop`・`reject` と答えた時だけ。止めた run も、止めた上で報告を出す（今の works と同じ。持ち主の決め `superset`）。承認ノードと承認ノードの間で止めたい時は Archon の `workflow cancel`（報告は出ない）。今の works の止め札（段の切れ目で止まって報告を出す）は持ち込まない。
+- 当て方: 止め札は、次の承認ノードで「止める」と答えた扱いにし、報告のノードへ流す。Archon の `cancel` は後ろのノードを走らせないので、報告つきの止めには使わない。自前の錠のファイル（今の works の `halt.py`）は持ち込まない。落ちる能力は「承認ノードの間の報告つきの止め」で、これを狭めとして認めた。
+- 畳んだ決め: `report-on-stop`（止め札で止めた run でも報告を出す。止め札を次の承認ノードの「止める」の答えとして扱う当て方）
 
 ### `roles-read-only-gh` AI の役には読むだけの gh の口だけを渡す
 
@@ -172,22 +142,17 @@
 - 決め: run の中の AI の役の PATH には、読むだけの口 `bin/_lib/no-post-bin/works-gh` を利用者の gh より前に置く。役の子の環境から GitHub の資格（`GH_TOKEN`・`GITHUB_TOKEN`・`GH_ENTERPRISE_TOKEN`・`GITHUB_ENTERPRISE_TOKEN`）を外す。サブグラフの script ノードが gh を使う時は入口の殻の `hostgh` の口を通す。`auth-middleware`（GitHub の資格は AI の役に渡さない）の当て方。
 - 当て方: issue #65。環境変数だけで gh にログインする利用者の値は、役の環境の gh の標準の名（上の 4 つ）からは外し、gh も他の道具も自動では読まない別名（`bin/_lib/hostgh.py` の `RELAY`）で渡して、`hostgh` の口だけが読み、本物の gh を起こす時だけ標準の名へ戻す。役は自分の環境の別名を読めるので、事故の柵で堅い境ではない。これは持ち主の決めでなく、`others-may-use`・`auth-middleware`・この決めから導いた運び役の決め（#131 のコメント、#132）。
 
-### `follow-ups-by-recommendation` 夜の後の作業の判断は運び役の推しで決める
-
-- 持ち主の言葉: 「おすすめでやっておいて」（2026-10-12）
-- 決め: サブグラフの PR が残した約束の変えの判断 12 件（eyes の最後の承認ノードの材料のポインタ・fix の出力の `x_scalars`・plan の行き止まりの道など）は、メイングラフの配線の issue に書いた運び役の推しのとおりに作る。
-
 ### `graph-words` 語はグラフの語にそろえる
 
 - 持ち主の言葉: 「言葉は統一しようか。そろそろ。ノード、エッジとかグラフ図の考え方で統一して」「あとAIの指示で「お前は」って書いてるのもやめようか」（2026-10-12）
-- 決め: 文書・役の指示書・lib が人や役に見せる字の語を、グラフの語（ノード・エッジ・グラフ・サブグラフ・メイングラフ・承認ノード・ポインタ・共有ボード・ループ）にそろえる。役の指示書で役を「お前」と呼ばない。識別子（ファイル名・フォルダ名・YAML の id・欄の名）と持ち主の言葉の引用は変えない。
+- 決め: 文書・役の指示書・lib が人や役に見せる字の語を、グラフの語（ノード・エッジ・グラフ・サブグラフ・メイングラフ・承認ノード・ポインタ・ループ）にそろえる。役の指示書で役を「お前」と呼ばない。識別子（ファイル名・フォルダ名・YAML の id・欄の名）と持ち主の言葉の引用は変えない。
 - 当て方: `docs/design/README.md` の頭の語の一覧と `tests/layers/test_words.py`。
 
 ### `prompts-coldread` 役の指示書は初見の読み手で詰まりが 0 になるまで書き直してよい
 
 - 持ち主の言葉: 「全部指示文とかはcoldreaderとかcoldwriterで修正していいよ。」（2026-10-12）
-- 決め: 役の指示書は、初見の読み手（cold-reader）が詰まらなくなるまで書き直してよい。禁じた入力の一覧・返す JSON の形・手順の順と止める条件・`{{…}}` などの埋める変数の名の 4 つは前後で同じに保ち、指示書ごとに試験で照らす。写しの台帳（元の works の字の sha256 と許した直しの組）を持つ指示書は、台帳の試験を残し、書き直しを台帳の許した直しとして 1 件ずつ足す。
-- 当て方: `test_prompt_contracts.py`（#765 で消した） と約束の表 `prompt_contracts.json`（#765 で消した）（変えてよいのは quote だけ）。外の作者の本文（`r1-comments.md`（#765 で `workflows/r1/prompts/r1-comments.md` へ移った） の comment-analyzer の定義）はバイトの縛りを残す。書き直しの許した直しは `copied_rewrites.json`（#765 で消した） に指示書ごとに並べ、`copied.py`（#765 で消した） の `assert_is_original` が台帳の直しの後ろに当てる。計画の K9（写しを元の字と許した直しで縛る）はこの決めと両立して残る。替わるのは「元の字に戻す」の既定だけで、書き直しは元に戻さずに許した直しとして記録する（メイングラフの配線の計画の共通の決まり 7・K9・部分 D1 のやる事 2、落とし穴の K9、`docs/plans/2026-10-13-stage1-walking-skeleton.md` の K9）。台帳を残して書き直しを足す形は、PR #221 の運び役の決め（2026-10-12。2 つの決めを満たす形が 1 つに決まるので持ち主には聞いていない）。
+- 決め: 役の指示書（AI のノードの指示の md）は、初見の読み手（cold-reader）が詰まらなくなるまで書き直してよい。禁じた入力の一覧・返す JSON の形・手順の順と止める条件・`{…}` などの埋める変数の名の 4 つは前後で同じに保つ。
+- 当て方: `workflows/*/prompts/` と `workflows/.shared/prompts/` の md。外の作者の本文（`workflows/r1/prompts/r1-comments.md` の comment-analyzer の定義）はバイトの縛りを残す（`tests/blocks/r1/test_r1_shape.py` の sha256）。借りた superpowers の写し（`lib/borrow/superpowers/`。固定は `lib/borrow/borrow.json`）は書き直さない。
 
 ### `full-suite-in-ci` 全部の試験は CI に寄せ、run の中では回さない
 
@@ -204,52 +169,46 @@
 
 ### `no-mutation-in-graph` 変異の検算はグラフに戻さない。変異試験は CI などで別に回す
 
-- 持ち主の言葉: 「戻さない。別途CIとかで変異試験できたりするからね。ここは。mutmutとかで。」（2026-10-13）
-- 決め: review-graph の変異の検算（`p3.delta_gates`・`p4.final_gates`。直したコードをわざと壊して試験が見つけるかを run の中で確かめる仕組み）は works-factory のグラフに戻さない。変異試験が要る対象は、CI などで mutmut のような道具を別に回す。
-- 当て方: `nodes.json`（#765 で消した） の 2 つのノードは absent のまま、訳をこの決めにする。`design.md`（#765 で消した。`583337e` の版で読める） の段 3 の 5 のうち変異の検算の分はこれで決まり、残りは周の記録（`p2.history`）だけ。
+- 持ち主の言葉: 「戻さない。別途CIとかで変異試験できたりするからね。ここは。mutmutとかで。」（2026-10-13）。畳んだ `mutation` の分: 「じゃあためそうかpushして」（2026-09-10）／「撃っていいよ、クラウドでやって」（2026-09-29）
+- 決め: review-graph の変異の検算（`p3.delta_gates`・`p4.final_gates`。直したコードをわざと壊して試験が見つけるかを run の中で確かめる仕組み）は works-factory のグラフに戻さない。変異試験が要る対象は、CI などで mutmut のような道具を別に回す。変異は LLM に壊させず、既製の道具で機械的に並列に回し、範囲は変わった所だけにする。
+- 当て方: run の中では撃たない。判定の中で効き目を測らない向きは `gate-efficacy-outside-judge` と同じ。
+- 畳んだ決め: `mutation`（引き継いだ決め。変異テストは既製の道具で機械的に並列に・範囲は変わった所だけ・撃つのは CI。出典 V106・V107・V108）
 
 ### `no-history-for-now` 周の記録は今は戻さない
 
 - 持ち主の言葉: 「今は戻さない」（2026-10-13。周の記録 `p2.history` を戻すかの問いへの答え）
 - 決め: review-graph の周の記録（`p2.history`。同じ依頼を何周も回す時に、2 周目以降の判定で、消した問題の再燃・答えた問いの蒸し返し・直しの膨らみを前の周と比べる仕組み）は今は戻さない。
-- 当て方: `nodes.json`（#765 で消した） の `p2.history` は absent のまま、訳をこの決めにする。works-factory の run は 1 周で、周をつなぐ鎖（段 3 の鎖の issue）がまだ無い。鎖を作る時に戻すかを改めて持ち主に聞く。これで `design.md`（#765 で消した。`583337e` の版で読める） の段 3 の 5 は全部決まった。
 - 持ち主の言葉（鎖を作る時の聞き直しへの答え）: 「いいですよ。つないで。」（2026-10-14。周の鎖〔#380〕を入れた後も `p2.history` を戻さないままでよいかの問いへの答え）
-- 鎖を入れた後も `p2.history` は戻さない。周の鎖（#380・#381）は、前の周と残りが同じかを親のグラフの中の前の周の決めの出力と比べるだけにし、周の記録の台帳は持たない（今の works も `p2.history` が absent のまま鎖を持っていた）。
+- 当て方: 鎖を入れた後も `p2.history` は戻さない。周の鎖（`workflows/chain/`）は、前の周と残りが同じかを親のグラフの中の前の周の決めの出力と比べるだけにし、周の記録の台帳は持たない（今の works も `p2.history` が absent のまま鎖を持っていた）。
 
 ### `coexist-before-switch` 切り替えは持ち主の動作確認の後。先に works-factory として併存させてよい
 
-- 持ち主の言葉: 「動作確認を私がある程度してからかな。それか。先にworksfactoryとして併存してもいい」（2026-10-13。段 4 の切り替え〔claude-plugins の `/works` を works-factory を呼ぶ薄い入口に替える〕の問いへの答え）
-- 決め: `/works` の差し替え（段 4 の 1）と今の works の pack を退けること（段 4 の 2）は、持ち主が works-factory をある程度動かして確かめた後にする。その前に、今の `/works` を残したまま、works-factory を別の入口として claude-plugins に並べて置いてよい。
-- 当て方: 段 4 の前に「併存」の段を置く。併存の入口は `bin/works-factory` を呼ぶだけの薄い物にし、今の `/works` には触らない。差し替えと退けは持ち主の確かめの後に改めて聞く。
+- 持ち主の言葉: 「動作確認を私がある程度してからかな。それか。先にworksfactoryとして併存してもいい」（2026-10-13。段 4 の切り替え〔claude-plugins の `/works` を works-factory を呼ぶ薄い入口に替える〕の問いへの答え）。畳んだ `own-graph-alongside` の分: 「横に自分のグラフつくりはじめるかんじでいいのではって思ってた」（2026-10-11）
+- 決め: 今の works を直して寄せるのでなく、横に新しく自分のグラフ（raiki61/works-factory）を作り、今の works は置き換えるまで本番として残す。`/works` の差し替え（段 4 の 1）と今の works の pack を退けること（段 4 の 2）は、持ち主が works-factory をある程度動かして確かめた後にする。その前に、今の `/works` を残したまま、works-factory を別の入口として claude-plugins に並べて置いてよい。
+- 当て方: 併存の入口は claude-plugins の works-factory のスキルで、`bin/works-factory` を呼ぶだけの薄い物にし、今の `/works` には触らない。差し替えと退けは持ち主の確かめの後に改めて聞く。
+- 畳んだ決め: `own-graph-alongside`（2026-10-11。今の works を直さず横に自分のグラフを作り、今の works は置き換えるまで残す）
 
 ### `rolekit-give-up` 共有の部品 lib/rolekit.py に「1 回目から諦めた」印を置く変更を受ける
 
 - 持ち主の言葉: 「うける」（2026-10-13。PR #191〔issue #119〕が作業指示の外の共有の部品 `lib/rolekit.py` を変えたことを受けるかの問いへの答え）
 - 決め: `rolekit.with_done` の `give_up`（既定 False）と、拒否の控えの行に残す `give_up: true`、それを読む `given_up_reason` をそのまま残す。判定のサブグラフの中だけで持つと、諦めの状態の持ち主が 2 つに割れるため。
-- 当て方: 既定のままの呼び手の振る舞いは変わらない（`lib/tests/test_rolekit.py::GivenUpCase.test_count_and_at_once_give_up_lines`）。#119 の「持ち主の答え待ち」はこれで閉じる。
+- 当て方: 既定のままの呼び手の振る舞いは変わらない（`lib/tests/test_rolekit.py::GivenUpCase.test_count_and_at_once_give_up_lines`）。
 
 ### `evidence-prefix-one-home` 試験の段の証拠の行の頭の字は書く側の 1 か所に置く
 
 - 持ち主の言葉: 「おし」（2026-10-13。PR #197〔issue #124〕の「持ち主の答え待ち」——試験の段の証拠の行の頭「- 走らせ方: 」「- ログ: 」の字を `workflows/test-gate/scripts/result.py` と `runreport.py`（読む側の写し。#292 で外した）の 2 か所が持つのを 1 か所に寄せるか——に、運び役の推し「書く側に寄せる」で答えた）
 - 決め: 頭の字は書く側の 1 か所に置き、読む側はそれを引く。写しを持たない。
-- 当て方: 頭の字の持ち主は `workflows/test-gate/scripts/result.py` の `RUN_ROW`・`LOG_ROW`。寄せた後は、字の食い違いを赤にしていた結びの試験を、1 か所から引いていることの照らしに替える。#124 の「持ち主の答え待ち」はこれで閉じる。
+- 当て方: 頭の字の持ち主は test-gate の block の `workflows/test-gate/src/certify.py` の `RUN_ROW`・`LOG_ROW`（返す node の script `workflows/test-gate/scripts/result.py` がそれを通して書く）。字の食い違いを赤にしていた結びの試験は、1 か所から引いていることの照らし（`tests/blocks/test_gate/test_test_gate.py` の `EvidenceRowsCase`）に替えた。
 
 ### `clash-goes-to-ruling` 組の合わせで壊れたら、合わせ役が影響した所だけ直し、直せなければ疑って考える役に回す
 
 - 持ち主の言葉: 「今の組だけ戻すというか人間はもっと効率よくやるのでは。内容見て影響してるとこだけ変えたりマージするやつの責務な気がするけどどう思いますか。」「今の形に倒すとかもちょっと危ない気がするな。そこであのどうすればいいか疑ったり考えたりするやつらを呼べばいいのでは。」「よい」（2026-10-13。#121 の F411 の (3)、修正の組を当てた後の赤でどこまで戻すかの問いへの答え）
 - 決め: 修正の段の合わせ役（join）は、組を当てて赤になったら、まず中身を見て影響した所だけを直す（触ってよいのはぶつかった組が変えたファイルだけ・赤の試験が緑に戻る・許しの無い試験の書き換えは拒む、の受け付けを修正役と同じに通す）。直せなければ組を外して作り直すのでなく、「組どうしの合わせの食い違い」の申し出を裁定役に出す。裁定役は直し方の指示・案の直し・再審のどれかで解き、どれでも解けない時だけ人に回す。
-- 当て方: 作るのは段 1a（#154）と段 3（#214）を閉じた後（本物の run で組どうしのぶつかりがほとんど起きていないため）。それまでは、ぶつかりが起きた run を報告で目立つように出して気づけるようにする。今の「その組だけ外して作り直す」形は、作るまでの間の暫定で、正しかった直しを黙って捨てる・同じぶつかりを繰り返す危うさがあるとして記録しておく。#121 の「持ち主の答え待ち」はこれで閉じる。
-
-### `no-asf-in-calibration` 較正の比べに ASF は足さない
-
-- 持ち主の言葉: 「足さない。散々使ってきたので、もうＡＳＦについてはあなた詳しくなったでしょ。」（2026-10-13。較正の束を ASF にも回して並べるかの問いへの答え）
-- 決め: 段 3 の較正（`tests/calibration/`）の比べは、今の works と works-factory の 2 つのまま。ASF との比べは、運び役が ASF で issue を回してきた記録（HANDOFF と PR）からの見立てで足りる。
-- 当て方: `tests/calibration/run.py` に ASF の工場を足さない。
-- 2026-10-14: 束は `public-bench-at-major` で消した。公開ベンチのランナーの作り手にも ASF は足さない（運び役の読み）。
+- 当て方: fix の block の合わせ役（`workflows/fix/src/clash.py`。申し出の形は `lib/conflict.py`）。
 
 ### `public-bench-at-major` 比べは公開ベンチに寄せ、自作の較正の束は消す。公開ベンチは大きい版上げの時だけ回す
 
-- 持ち主の言葉: 「そうじゃない。全部公開ベンチによせて自作問題は消したらいいのでは？って感じに思ってる」「公開ベンチは長くかかってしまうけど、大いにバージョン上げたときとかでいいよね」「ハーネス次第なんじゃないの？それって」「最後はArchonの利便性を利用して履歴とかからノードやブロックの働きを見るように分析すればいいだけじゃないのかな」「ただ自作問題とかは腐ってダメになるので、外のベンチで問題で測りましょうってことですね」（2026-10-14。出典は #214 の最後のコメントと #435 の本文・コメント）
+- 持ち主の言葉: 「そうじゃない。全部公開ベンチによせて自作問題は消したらいいのでは？って感じに思ってる」「公開ベンチは長くかかってしまうけど、大いにバージョン上げたときとかでいいよね」「ハーネス次第なんじゃないの？それって」「最後はArchonの利便性を利用して履歴とかからノードやブロックの働きを見るように分析すればいいだけじゃないのかな」「ただ自作問題とかは腐ってダメになるので、外のベンチで問題で測りましょうってことですね」（2026-10-14。出典は #214 の最後のコメントと #435 の本文・コメント）。畳んだ `no-asf-in-calibration` の分: 「足さない。散々使ってきたので、もうＡＳＦについてはあなた詳しくなったでしょ。」（2026-10-13。較正の束を ASF にも回して並べるかの問いへの答え）
 - 決め:
   - 公開ベンチ（PR の審査は GitHub ReviewBench、依頼から直す力は SWE-Bench Pro。後者は別の issue）を、大きい版上げの時だけ回す。
   - 比べの相手は公表の点でなく、同じ課題を同じ模型・effort の素の Claude Code と工場で回した差と、前の版の工場。
@@ -257,11 +216,12 @@
   - 自作の較正の束は消し、ランナー（工場を無人で回して記録を写す部分）は使い回す。段 4 の切り替えはこれを待たない。
   - 外のベンチも汚染で古くなる（SWE-bench Verified は 2026-02 に OpenAI が報告をやめた）。物差しは手入れの続く物を選び、退役したら入れ替える（`swap-is-the-value`）。
 - 当て方:
-  - `tests/calibration/run.py` の作り手は works-factory・今の works・素の Claude Code の 3 つ。ReviewBench の Python の部分集合を回し、指摘の一覧に変え、判定役で採点し、ノードごとの表（`run.py nodes`）を出す。
+  - `tests/calibration/run.py` の作り手は works-factory・今の works・素の Claude Code の 3 つ。ASF は足さない（ASF との比べは、運び役が ASF で issue を回してきた記録からの見立てで足りる）。ReviewBench の Python の部分集合を回し、指摘の一覧に変え、判定役で採点し、ノードごとの表（`run.py nodes`）を出す。
   - #214 の結果は `docs/calibration-214.md` に残した。
   - 今の works は WebFetch・WebSearch を隔離した設定で塞げない（版を止めた toolset の柵が `permissions` の鍵を拒み、今の works は変えない）。変換の控えの `leak_guard` に書き、今の works の採点は塞いだ 2 つの作り手と同じ重みで読まない。
 - 2026-10-16（出典は PR #639 の持ち主のコメント）: ベンチの台は、docker を回す Linux の kernel そのものが x86_64 であること（x86_64 の機械か、kernel ごと x86_64 を真似る VM）。命令を訳して amd64 を動かす台は起動前に止める。sandbox の柵は弱めない。台の要件は道具の名でなく性質で書く。期限は足さない。
   - 当て方: `tests/calibration/swepro.py` の docstring の「台に要る物」と setup_commands の確かめ。台の要件の中身はそこに置き、ここに写さない。
+- 畳んだ決め: `no-asf-in-calibration`（2026-10-13。較正の比べに ASF を足さない。束を消した後も公開ベンチの作り手に ASF を足さない）
 
 ### `swap-is-the-value` 価値は、簡単に入れ替え・作り変えられることだけに置く
 
@@ -276,23 +236,23 @@
 - 当て方: `docs/design/line.md` の 16 章の「深さの表」（正本は line の `src/tiers.py` の `TIERS`）と `workflows/AGENTS.md` の E20。段の違いは省く確かめと足す機能で作り、ノードを深さの `when` で飛ばす道は作らない（`three-tiers`）。省く物は、測りで何も見つけなかった確かめか代わりに担う物を名指せる物だけを載せ、表の理由の欄に根拠を書く。標準の深さでは道を変えない。
 - 持ち主の言葉（2026-10-17、issue #648）: 「そこは以前sakanaaiの論文とかコンダクターを参考にしただけなので、再度確認しておいて。」「どうぞ」（issue #648 の求めの承認）
   - issue #648 の求め（持ち主が 2026-10-17 に承認。持ち主の言葉ではない）: 未知の種類 `形` を標準へ下げ、重厚は `範囲` だけに残す。行ごとの指示（`ASKS`）・直した後の上げ直し（`redepth`）・照らしが通らない時の標準・`thickness` の名指しは損なわない。形の選びの指示（`ASKS` の `形`）は字のまま残す。
-  - 当て方: 種類→段の表は原典（Conductor・Fugu）に無く、工場自身の設計なので、工場の実測で決める（実測は材料にして門にしない）。種類→段の値の正本は `lib/headdepth.py` の `UNKNOWNS`（`docs/design/line.md` の 16 章の深さの表の理由の欄はその説明。#765 の組み込みの後も表は `lib/headdepth.py` に在り、head-depth・line・diagnose・plan が読む）。PR #640 が入れた値（形→重厚）は、持ち主の言葉（`three-tiers` の issue #627）にも参考にした原典にも無い。この改めでは `範囲` の行の指示（`lib/headdepth.py` の `ASKS`）にも `形` と同じ選びの指示をつないだ。
+  - 当て方: 種類→段の表は原典（Conductor・Fugu）に無く、工場自身の設計なので、工場の実測で決める（実測は材料にして門にしない）。種類→段の値の正本は `lib/headdepth.py` の `UNKNOWNS`（`docs/design/line.md` の 16 章の深さの表の理由の欄はその説明。head-depth・line・diagnose・plan が読む）。PR #640 が入れた値（形→重厚）は、持ち主の言葉（`three-tiers` の issue #627）にも参考にした原典にも無い。この改めでは `範囲` の行の指示にも `形` と同じ選びの指示をつないだ（種類ごとの指示の文は、読み手の diagnose・plan の md に在る）。
 
 ### `answerer-unnamed` 承認ノードの答えに答えた者の名は残さない
 
 - 持ち主の言葉（2026-10-15、issue #511）: 「なら名前は不要」（運び役の説明——答えた者の名は、回している AI が人の承認ノードを自分で通さないための印だった。名を読む所は試験の外に無く、答えの一言は Archon の run の記録に残る——を受けて）
 - 決め: 承認ノードの答えに答えた者の名を残さない。残す能力は「人のいる run では、人が決める承認ノードを、回している AI が自分で通さず、依頼者の言葉で答える」で、その一言は Archon の run の記録が持つ。無人の run が推しで進んだ印（答えの欄 `pushed`。`unattended`）は答えた者の名でなく答えの出どころの印で、この決めと食い違わない。
-- 当て方: 承認ノードの文の答え方の行（`lib/gatemarks.py` の `gate_text` の「人が決める承認ノード。依頼者に聞いて、その言葉で答える」）。照らしの表 `works-parity.md`（#765 で消した） の S135・S136・U060・U125・U126 は要らない。
+- 当て方: 承認ノードの文の答え方の行（`lib/gatemarks.py` の `gate_text` と line の `src/final.py` の「人が決める承認ノード。依頼者に聞いて、その言葉で答える」）。
 
 ### `rejudge-cohabit` 再審は判定のサブグラフに同居のまま、9 つ目のサブグラフは作らない
 
 - 持ち主の言葉（2026-10-15、issue #558）: 「おしで」（運び役の推し「同居のまま」への答え）
-- 決め: 再審の道は判定のサブグラフ（`workflows/judge/`）の中に置いたままにする。再審だけの 9 つ目のサブグラフに分けない。訳: 分けると、再審が判定の置き場を境の外から前提にし、サブグラフの独立（本質 4）が崩れる。
-- 当て方: `workflows/judge/works-factory-judge.yaml` の再審の道（`rejudge-loop`）（#765 で再審は diagnose の block と、それを起こす `workflows/line/works-factory-line.yaml` へ移った）。判定の道だけで走る段は YAML の `when`（`diagnose-prep`・`verify-merge`）で再審の道から外し、tests/workflows の `test_judge.py`（#765 で消した） が縛る。
+- 決め: 再審の道は判定の block（`workflows/diagnose/`）の中に置いたままにする。再審だけの別の block に分けない。訳: 分けると、再審が判定の置き場を境の外から前提にし、block の独立（本質 4）が崩れる。
+- 当て方: diagnose の block の再審（`rejudge`。`workflows/diagnose/scripts/rejudge_prep.py`）と、それを起こす `workflows/line/works-factory-line.yaml`。
 
 ### `three-tiers` run の深さは 3 段にし、段の違いは省く物と足す物で作る。計画の壁打ちはどの段でも省かない
 
-- 持ち主の言葉（2026-10-15、issue #561）: 「はい。調べておいて。ここに参考できるなら反映したらいいかも。3段にするのがいいかもね。どう思いますか。」「そうじゃなくて、あれなんじゃない？省くとこが違うって話なんじゃないの。計画の壁打ちはどれも省かないとして」（運び役の「軽量より軽い段は計画を省くことになるので作らない」への答え）
+- 持ち主の言葉（2026-10-15、issue #561）: 「はい。調べておいて。ここに参考できるなら反映したらいいかも。3段にするのがいいかもね。どう思いますか。」「そうじゃなくて、あれなんじゃない？省くとこが違うって話なんじゃないの。計画の壁打ちはどれも省かないとして」（運び役の「軽量より軽い段は計画を省くことになるので作らない」への答え）。畳んだ `entry-choices` の分: 「んー。なんかエフォートみたいなのをつけたり、入る口を色々選べたりしないといけないと思うんだよね。そういうふうに本家も修正中」（2026-09-26）
 - 決め:
   - run の頭の深さは軽量・標準・重厚の 3 段。自動（既定）は run の頭の役 `head-depth` が依頼の行ごとの未知の種類（無し・原因・形・範囲）を引用つきで返し、段は機械（`headdepth.tier_of`）が一番重い種類から引く。引用が照らせなければ標準。入力 `thickness` で名指せばその段に固定する。
   - 計画の壁打ち（plan と plan-review の往復）はどの段でも省かない。
@@ -301,7 +261,8 @@
 - issue #561 の求め 4 から（運び役の書いた求め。持ち主の言葉ではない）: 名指した重厚が足す機能を `features_off` で切る組は、入口が止める。
 - 当て方: line の `src/tiers.py` の `TIERS` と `docs/design/line.md` の 16 章の「深さの表」（`workflows/AGENTS.md` の E20）。自動の選びは `lib/headdepth.py`。入口の止めは `workflows/line/scripts/start.py` の `words`。模型と effort の替えは段の違いの外で、`run-model-choice` が持つ。
 - 持ち主の言葉（2026-10-16、issue #627）: 「軽量ならすぐ終わるから勝手に省いたりせずとも終わるみたいなことじゃないのかな」「そうなるのが理想です」
-  - 当て方: 段の違いは、ノードを省くより、易しい仕事なら同じ流れが自然に短く終わる形を先に選ぶ。行ごとの未知の種類は判定と修正案の役に種類ごとの指示（`lib/headdepth.py` の `ASKS`）で渡し、「無し」の行は確かめるだけで広げない指示にして、役が自然に短く終わるようにする。
+  - 当て方: 段の違いは、ノードを省くより、易しい仕事なら同じ流れが自然に短く終わる形を先に選ぶ。行ごとの未知の種類は判定と修正案の役に種類ごとの指示（読み手の diagnose・plan の md）で渡し、「無し」の行は確かめるだけで広げない指示にして、役が自然に短く終わるようにする。
+- 畳んだ決め: `entry-choices`（引き継いだ決め。手厚さと入る口を選べる。手厚さは入力 `thickness` と head-depth の自動の選びに替わった。入る口は入力で選び、入った後は 1 つの入力の形〔`one-input`〕。出典 V062）
 
 ### `eyes-by-reason` 独立の目は、別の会話にする訳がある物だけ分ける。分けるのは軽量の run だけ
 
@@ -322,13 +283,14 @@
 
 ### `run-model-choice` run ごとにノード群の模型と effort を替えられる
 
-- 持ち主の言葉（2026-10-16、issue #628）: 「柔軟に変えれるようにして私もいいと思うよ。sakanaのように。」
+- 持ち主の言葉（2026-10-16、issue #628）: 「柔軟に変えれるようにして私もいいと思うよ。sakanaのように。」。畳んだ `model-effort` の分: 「いやブロックごとにここはsonnetとか指定できるようになればいいのでは。実行時に上書きもできればいいしね。」（2026-09-29）／「opusはmediumという選択肢もあるし、ちょっと調べてみましょうか。modelの感じを」（2026-10-06）
 - 決め:
   - run ごとにノード群の模型と effort を替えられる。何も選ばなければ群の既定の値で走り、呼ぶ人の `--model @wf-<群>=<spec>` が何よりも勝つ。
   - 頭の深さの役 `head-depth` の選びは、照らしを通った行だけを控え、外れた行は群の既定に戻す。今の Archon は run の中で後のノードの模型を付け替える口を持たないので、役の選びは記録だけにして効かせない（`docs/polyfills.md` の「候補（まだ埋めでない）: run の中で後のノードの模型と effort を付け替える口」）。#628 の「上げる向きはすぐ選べてよい」も、子の run と次の周を含めて記録だけに留める（下の `head-choice-record-only`）。
   - 下げる向きは、過去の run の数え直しと並べて回した測りで質が落ちないと分かるまで、既定にしない。
   - 群の値を替えうる層は強い順に、呼ぶ人の `--model` > `--config`（run 1 本ぶんの設定の層）> 利用者の AI の好み > 対象の repo の `.archon/config.yaml` > 家の設定。群の別名は殻が新しい run の `--config` で渡すので、対象の repo の `.archon/config.yaml` が工場の群と同じ名の alias を書いても群の値は替わらない（審査される側の repo が審査する役の模型と effort を下げられない。PR #658 の修理の依頼 1）。
 - 当て方: 群の既定は `lib/launchgroups.py` の `GROUPS` が持ち、`bin/_lib/place.py` の `run_config` がその表から run 1 本ぶんの設定の層を書き、`bin/_lib/launcher.py` が新しい run にだけ `--config` で渡す。利用者の `--config` はその層に合わせ、同じ名の群の別名は工場の値が勝つ。`--adopt` の run の層には群の別名を足さない（Archon が記録した run の AI の設定を受け継ぎ、`aliases` を持つ層を拒む）。resume は Archon が起動の時に封じた層を戻し、`workflow:` の子の run は親の記録を受け継ぐ。`--model` の `@wf-` の名が表に無ければ殻が起こす前に止める。ノードは `model: '@wf-<群>'` だけを書き、役にもグラフの頭にも effort を書かない（`workflows/AGENTS.md` の E7。柵は `tests/layers/scan.py`）。役の選びの照らしは `lib/launchgroups.py` の `choices` で、控えは `judge/depth-head.json` の `groups`。報告は `## 模型` のセクション（`lib/headdepth.py` の `groups_lines`）。
+- 畳んだ決め: `model-effort`（引き継いだ決め。段ごとに模型と effort を明示し、実行時に上書きできる。新しい仕組みの前に既存の引数を使う。出典 V074）
 
 ### `head-choice-record-only` 頭の深さの役の模型と effort の選びは、上げる向きも下げる向きも記録だけにし、走りには効かせない
 
@@ -364,7 +326,7 @@
   - 使用枠の切れで落ちた時は、別のアカウントの keychain の項目名（`WORKS_FACTORY_KEYCHAIN_ITEM`）で resume すると、書き手のループと `report` だけが走り直して本文が載る（`facts` は走り直さない）。自動では再開せず、人が resume を打つ（工場は Archon の使用枠の待ちを切っている。`bin/_lib/place.py` の `QUOTA_POLICY`・`asf-follows-dev`）。
   - 提供元の安全の判定の誤りで落ちた時は failed のままでよい（同じモデルでは resume しても通らない）。
   - 書き手を fan_out の `join: all_done` で包んで落ちを run に数えない案は採らない（止めた Archon `355f1867` の `all_done` は落ちの印 providerFailure を落とすので、resume のやり直しが消える）。
-- 当て方: `design.md`（#765 で消した。`583337e` の版で読める） の「書き手のループが落ちた run（#702）」の行・`runreport.py` の `writer_fell`・`note_writer_fell`（#765 で report の `src/transcript.py` の `writer_fell` と `src/writer.py` の `note_writer_fell` へ移った）・`lib/answer.py` の `resume`。筋書きは tests/workflows の `test_report.py`（#765 で消した） の `WriterRunCase`。
+- 当て方: report の block の `workflows/report/src/transcript.py` の `writer_fell` と `workflows/report/src/writer.py` の `note_writer_fell`・`lib/answer.py` の `resume`。
 
 ### `suite-by-ai` tdd_suite を省いた run は、取り置きか AI が書いた実行器を機械が照らして使う
 
@@ -401,57 +363,51 @@
 
 ### 2026-10-11 の決めから導いた事（持ち主の決めでなく、根拠つきの判断）
 
-- 置き換えの条件: 今の works と同じ能力に届いたら置き換え、claude-plugins には `/works` の薄い入口だけを残す。根拠: 下の `superset` と `own-graph-alongside`。
+- 置き換えの条件: 今の works と同じ能力に届いたら置き換え、claude-plugins には `/works` の薄い入口だけを残す。根拠: 引き継いだ決めの `superset` と、上の `coexist-before-switch`（`own-graph-alongside` を畳んだ）。
 - `archon-base` の「差し替え層は作らない」との関係: 差し替え層は作らない。グラフ（エッセンス）は Archon の書き方で直に書き、`lib/` は Archon を知らない助け手にすぎない。だから食い違わない。
 - Archon から乗り換える時の備え（Archon の競合に移る危うさへの備え）: グラフをその道具の書き方で `docs/design/` の設計書から書き直す。役の指示書（中の Archon の変数だけ書き換える）と `lib/` はそのまま持っていける。型の写しは持たない（`io-in-output-format`）。入出力はその時に `output_format` から取り出す。
 - メイングラフの承認ノードの順: `final-gate-order`（2026-09-28）は「承認ノード → 独立の目 → 報告」だが、今の works は R4 の人への問いを最後の承認ノードに載せるため「独立の目 → 最後の承認ノード → 報告」で動いている。後の形に合わせた（`docs/design/line.md`）。持ち主に「独立の目 → 最後の承認ノード → 報告」を推しとして聞き、「あとは全部ok です」（2026-10-11）と答えを得た。`final-gate-order` の前後はこれで置き換える。
 - 段 0〜1 を回す ASF のグラフ: `archon-ship`（issue から PR まで）。持ち主の「一番最初から」（ASF を土台から使う）に従う。最新の ASF の `archon-lifecycle` は、PR ごとに動かす確かめを必ず走らせ、筋書きが確かめられない間は何も取り込まない（`W/lifecycle/archon-lifecycle.yaml`:151-156・`W/lifecycle/commands/qualify-runtime.md`:13・24-26）。段 1 の歩く骨組みが通しで動くまでは筋書きが確かめられないので、lifecycle は段 2 から。ship の PR は運び役が独立の目を当ててから merge する。引き継いだ決めの「段 0〜1 は手の直し」はこれで置き換える。dev の ASF に lifecycle が無いので、段 2 からも ship を回す（`asf-follows-dev`）。
 - 言語: Python 3.12 以上。外のパッケージは `outside-packages-ok`。根拠: 今の works の確かめが Python で書かれていて移せる。下の `py-floor`。
 - 試験の置き場 `tests/workflows/`: `tests/` は層ごとに鏡の置き場を持つ形（`tests/bin/`・`tests/shared/`）に、グラフ（`workflows/`）の鏡を足す。根拠: 持ち主の決め `agents-md-per-level` の「それ以外はASFが作りやすいようにしてくれていいが、最後には要らないものは全部掃除する感じでもいいよ」。
-- E13 の例外（持ってきた言語の表。持ち主が推しで決めた: 2026-10-12「おすすめでやっておいて」）: 当たる試験の選び（`lib/impact.py`）・変わった所の地図（`lib/changemap.py`）・TDD のループ（`tddloop.py`）・修正の決まり（`fixrules.py`）・手元の文書の探し方（`lib/libdocs.py`・`lib/libdocs_local.py`）は、拡張子と言語の対応とテストのファイルの名の慣習の表をコードの値に持つ。この 6 つに限って、表とそれを作る標準ライブラリの import を E13 から外す（根の `AGENTS.md` の E13 の「例外」。機械の表は `tests/layers/scan.py` の `E13_TABLES` で、外せるファイルはそこに名指した物だけ）。根拠: `lib-port-as-is`（元の中身のまま持ってきて、要らない物は最後の掃除の段で消す）と、表を外すと当たる試験の選びなどが落ちること（`superset`）。表はどの言語も同じに扱う事実の表で、1 つの言語に寄せる書き方ではない（`lang-neutral` の「抽象化すべき」「実質的標準みたいなjunitxmlとかそういうのは書いていいんじゃないかな。」）。掃除の段で言語の知識を外へ出す。持ち主が違えば戻す。（当て方の今: #765 で `tddloop.py`・`fixrules.py` は fix の `src/tdd.py`・`src/rules.py` へ移り、今の外しは根の `AGENTS.md` の E13 の 4 つ〔`lib/impact.py`・`lib/changemap.py`・`lib/libdocs.py`・`lib/libdocs_local.py`〕。機械の表は `tests/layers/scan.py` の `ALLOWED["E13"]`）
+- E13 の例外（持ってきた言語の表。持ち主が推しで決めた: 2026-10-12「おすすめでやっておいて」）: 当たる試験の選び（`lib/impact.py`）・変わった所の地図（`lib/changemap.py`）・手元の文書の探し方（`lib/libdocs.py`・`lib/libdocs_local.py`）は、拡張子と言語の対応とテストのファイルの名の慣習の表をコードの値に持つ。この 4 つに限って、表とそれを作る標準ライブラリの import を E13 から外す（根の `AGENTS.md` の E13 の「例外」。機械の表は `tests/layers/scan.py` の `ALLOWED["E13"]` で、外せるファイルはそこに名指した物だけ）。根拠: 表を外すと当たる試験の選びなどが落ちること（`superset`）。表はどの言語も同じに扱う事実の表で、1 つの言語に寄せる書き方ではない（`lang-neutral` の「抽象化すべき」「実質的標準みたいなjunitxmlとかそういうのは書いていいんじゃないかな。」）。持ち主が違えば戻す。
 - 再審・案の直し・範囲の相談の答えは新しい会話で回す（持ち主が推しで決めた: 2026-10-12「おすすめでやっておいて」）: 再審（judge）・案の直し（plan）・範囲の相談の答えと 2 度目の修正（fix）は、判定役・計画役・修正役の会話の続きでなく、保存した返答を読む新しい会話で回す。訳: Archon は include したサブグラフ（別の include のまとまり）をまたいで会話を継げず（名指しの続き `context: {resume: <ノード>}` の元は同じグラフの `command:`・`prompt:`・`loop:` のノードだけで、include の展開の札は元にならない。`loop_group` の中で元にできるのはループの前のノードと同じ周の本体の上流のノードだけで、前の周の本体のノードの会話は続かない。止めた Archon `2886e883d` の `packages/workflows/src/loader/dag-structure.ts` の `checkResumeAncestry` と `reference/workflow-language.md` の「It never continues an earlier iteration's branch」。同じ周の中の続きは upstream の #4738 で入ったが、ここの場面はどれも元の役と別の include のノードなので当たらない。2026-11-04 に持ち主の「はい。」で理由の文だけを直した。前の訳は `d97d00ef` の `guides/authoring-workflows.md`:285 の「`loop_group` の中では効かない」に頼っていた）、サブグラフはほかのサブグラフのノードを名指せない（E4）。`persona` の決めの文「引き継ぎは会話の再開か機械が保存した返答で渡す」の、保存した返答で渡す形に当たる。ただし `persona` の当て方「再審は判定役の会話を継ぐ」からは外れ、今の works の `rejudge.py` は新しい会話で黙って回すのを拒んでいたので、能力の狭め（`no-narrow`）として各サブグラフの PR に書く。持ち主が違えば、judge・plan・fix の計画（消した計画 `2026-10-12-blocks/`。git の履歴の ab47a4d の版で読める）のそのセクションだけを差し替える。
   - 計画の往復の周をまたぐ書き直し（#571。2026-10-15）: 計画を書く役が事前審査の指摘を受けて案を書き直す時も、前の周の会話を続けず新しい会話で始める。前の周の自分の案と事前審査の指摘を材料に読み、変えた項目だけを返し、機械が前の案と合わせてから全体を照らし直す（`lib/converge.py` の `splice`）。自前の包みで前の周の会話の id を差し込む形は採らない。持ち主の言葉: 運び役が「A（推し）: 新しい会話で、前の案と指摘を材料に、変えた項目だけ」と「B: 自前の包みで前の周の会話を続ける」を聞き、持ち主は「いいよ」と答えた（PR #588 のコメント）。#571 のコメント 1 の 2 は、この形で満たしたと読む。同じ周の中で受け付けに拒まれた後の出し直しは、これと別で、同じ役の会話の続きで起きる。
 - 計画の役にも前の run の失敗を渡す: メイングラフは judge と同じ前の失敗のポインタ（`$start.output.prior_failures`）を plan の include（`plan`・`replan`）にも渡す。根拠: 今の works の修正案の役は前の run で最後まで通らなかった物のセクション（`carry.prior_section`）を読んでいた（`superset`）。plan の PR #75 が持ち主に聞いた事に、運び役が #74 のコメント（2026-10-11 の 3 回目の直し）で答えた。持ち主が違えば戻す。
-- E16 の例外（自分の中に承認ノードを持つサブグラフの頭の `interactive: true`）: judge は仕様の承認ノード（`approval:`）を中に持つので、グラフの頭に `interactive: true` を残す。根拠: 止めた Archon の単独の `validate` が、無いと警告を出す（E1 の「警告なしで通る」とぶつかる）。メイングラフから include された時はメイングラフの鍵が効き、run の形を一番上のグラフが決める E16 の目当ては崩れない。出典: judge の PR #76 の「約束を変える頼み」1 と、運び役の #76 のコメント（2026-10-11 の 1 回目の 11）。
 - E1 の例外（同梱の skill と借りる skill の警告）: Claude Code に同梱の skill（`tests/archon.py` の `BUILTIN_SKILLS`）と借りる superpowers の skill（`BORROWED_SKILLS`。`lib/borrow/borrow.json`）を `skills:` に名指したノードの「ディスクに無い」の警告だけは数えない。根拠: 名指さないと局所レビューの役がレンズを起こせず、本物の run で素材集めが諦めて判定の前で止まる（`superset` に反する）。警告は止めた Archon が同梱の skill と、run の隔離した設定へ起動の時に入る借りる skill を、確かめの木のディスクで見つけられないだけで、誤りではない。例外は名前の一覧に載る skill のこの警告 1 つの形に限り、ほかの警告は今までどおり赤。出典: 運び役の #76 のコメント（2026-10-11 の 2 回目の 1）と #76 の本文「約束を変える頼み」2。借りる skill は fix の PR #94 が足した（`tests/archon.py` の `BORROWED_SKILLS`）。
 - メイングラフが後に回した 4 つの能力は、メイングラフの PR #74 の後の issue で戻す: 依頼の答えの結び（`answer_ties`）・測れていない素材の名から問いの出どころを読む結び・案の直しの後の 2 度目の修正に渡す人でない審査の面（今の works の `replan._notes` の 3 つ目）・最後の承認ノードで申し出を人に回した行だけ数える絞り（`lib/conflict`）。根拠: どれも今の works に在った能力で（`superset`・`no-narrow`）、#74 の時点では読む先（judge・plan-review・fix のサブグラフ）がまだ main に無かった。出典: 運び役の #74 のコメント（2026-10-11 の 3 回目の 3）と #74 の本文「今の works から狭めた物」。
 - 周の鎖の置き場（#380）: 親のグラフ `workflows/chain/works-factory-chain.yaml` が、周ごとの `workflow:` のノードでメイングラフを子の run として最大 5 本起こし、`lib/chain.py` が周の間の決めを持つ（E10 の新しい置き場）。持ち主の言葉: 「いいですよ。つないで。」（2026-10-14。この置き場を名指した #380 の本文への答え）。退けた形と訳: メイングラフの末尾から同じメイングラフを起こす形は止めた Archon の祖先の照らし（`executor.ts` の「Sub-run cycle detected」）で落ちる。`loop_group` の中に `include:` でメイングラフを入れる形は、周が同じ run の繰り返しになり `carry`・`request-to-judge` に反し、`loop_group` には `workflow:` を置けない。殻 `bin/works-factory` に置く形は `one-launcher` に反する。1 組を `include:` で 5 回入れる形は、dry-run が include で入った script を走らせず止めの決めを筋書きで照らせない。上限 5 の根拠: 今の works の review-graph（`works/.shared/core/graphloops/graphs/review-loop.json` の `max_rounds: 5`）と `slim`。5 周を越えて続ける時は、最後の周が運んだ次の依頼で鎖を起こし直す。周ごとのノードを #380 の本文の 3 つ（子の run・周の commit・止めの決め）から 4 つにした訳: dry-run には子の run の置き場が無く次の依頼を読めないので、読み書きをノード `round-k-facts` に寄せ、止めの決めのノードはファイルを読まずに筋書きで本当に走らせる。書く script は止めの決め・次の依頼・周の commit の 3 つのまま（`on-archon-only`）。
 
 ## 2026-10-19 の決め（#765 の部品の作り直し）
 
-出典: 2026-10-19 の持ち主と運び役の会話（#765 の設計の依頼。設計は `docs/design/README.md`）。逐語の言葉は運び役の手元に無いので、`gate-efficacy-outside-judge` と `protected-rewrite-765` のほかは「なし（本文の要約）」と書く。持ち主が違えば戻す。
+出典: 2026-10-19 の持ち主と運び役の会話（#765 の設計の依頼。設計は `docs/design/README.md`）。逐語の言葉は運び役の手元に無いので、`gate-efficacy-outside-judge` のほかは「なし（本文の要約）」と書く（同じ日の `rebuild-speed`・`protected-rewrite-765` は末尾の「終えた決め」に移した）。持ち主が違えば戻す。
 
 ### `block-local-code` 1 つの block だけが使うコードは block のフォルダに置き、lib/ は 2 つ以上が使う物だけ
 
 - 持ち主の言葉: なし（本文の要約）
 - 決め: block（`docs/design/README.md` の語）だけが使う Python は、その block の `src/` に置く。`lib/` には 2 つ以上の block（か graph か `bin/`）が使う物だけを置く。`workflows/AGENTS.md` の E4 の「サブグラフの script は lib/ と境の口を呼ぶだけ」「共に使う物は lib か境の口に置く」をこれで置き換える。
-- 訳: サブグラフだけが使うコードの置き場が平らな `lib/` しか無く、lib の import の循環が 2 から 33 モジュールに育ち、指示の文も lib の定数に流れ込んだ（`~/.cache/works-self/tmp/drift-audit.md` の 1 章と 6 章）。
-- 当て方: `docs/design/README.md` の 3 章と 9 章・憲法の 4（根の `AGENTS.md` と `workflows/AGENTS.md` の頭）。#765 の組み込みで `workflows/AGENTS.md` の E4 をこの形に書き直した。
+- 訳: サブグラフだけが使うコードの置き場が平らな `lib/` しか無く、lib の import の循環が 2 から 33 モジュールに育ち、指示の文も lib の定数に流れ込んだ（#765 の設計の時の調べ）。
+- 当て方: `docs/design/README.md` の 3 章と 9 章・憲法の 4（根の `AGENTS.md` と `workflows/AGENTS.md` の頭）・`lib/AGENTS.md`。
 
 ### `lib-port-ended` lib-port-as-is を終える
 
-- 持ち主の言葉: なし（本文の要約）
-- 決め: `lib-port-as-is`（元の works の部品を元の名・元の中身のまま持ってくる。要らない物は最後の掃除の段で消す）を終える。部品は works-factory の置き場の形（`block-local-code`）に直してよい。「最後の掃除の段」は #765 の組み込みが担い、`docs/design/README.md` の 9 章の DELETE・MOVE・KEEP の仕分けで消す。元の works は参照するだけにする（作り直しの目標ではない）。元の works に在って工場に無い物は、工場の git の履歴で意図して外したかを確かめ（PR を引く）、それから戻すかを決める。
+- 持ち主の言葉: なし（本文の要約）。畳んだ `lib-port-as-is` の分: 「なら全部最新の枝ASFのやり方に合わせるように移植するだけでいいってことだよね」「それ以外はASFが作りやすいようにしてくれていいが、最後には要らないものは全部掃除する感じでもいいよ」「あとは普通に元のworksみたらわかるものはそっちみればいいしね。」（2026-10-11）
+- 決め: `lib-port-as-is`（元の works の部品を元の名・元の中身のまま持ってくる。要らない物は最後の掃除の段で消す）を終える。部品は works-factory の置き場の形（`block-local-code`）に直してよい。元の works は参照するだけにする（作り直しの目標ではない）。元の works に在って工場に無い物は、工場の git の履歴で意図して外したかを確かめ（PR を引く）、それから戻すかを決める。
 - 当て方: `docs/design/README.md` の 6 章（設計シートの 7 項）・9 章。根の `AGENTS.md` の E18 の「元と同じファイル名で置く」は、組み込みで MOVE した物には当てない。
+- 畳んだ決め: `lib-port-as-is`（2026-10-11。lib/ へは元の名と元の中身のまま、頼る部品ごと持ってくる。共有ボードと Archon に届く関数は持ってこない）
 
 ### `rules-tests-design-apart` 決まり・試験の仕様・設計を分けて書く
 
 - 持ち主の言葉: なし（本文の要約）
 - 決め: AGENTS.md には決まりとパスだけを書き、試験が見る形の細目は試験のモジュールの docstring に、機能の設計は `docs/design/` に書く。憲法は根の `AGENTS.md` と `workflows/AGENTS.md` の頭に数行だけ置く。
 - 訳: AGENTS.md が決まり・試験の仕様・設計を兼ね、18k 字から 39k 字に育ち、1 つの箇条が 2,860 字になった（drift-audit の 2 章）。
-- 当て方: `docs/design/README.md` の 2 章（憲法 6 行）と 7.2 章。組み込みで書き直す。
+- 当て方: `docs/design/README.md` の 2 章（憲法 6 行）と 7.2 章。
 
 ### `shape-checks-only` 数の歯止め・閾値・許す物の表を検査にしない
 
 - 持ち主の言葉: なし（本文の要約）
 - 決め: 機械の検査は yes/no の形の決まりだけにする（例: YAML に指示の文が無い・AI のノードごとに md が在る・block ごとに standalone の fixture が在る・port を宣言している）。数の上限・既知の漏れの数の表・許すファイルの表で縛る検査は作らない。間違った書き方は、API と置き場の形で書けなくする（例: 指示を組む口は node の md と名前つきの値しか受けない）。
-- 当て方: `docs/design/README.md` の 7.1 章と 9.4 章（`test_layer_map.py` などを消す。#765 で消した）。
-
-### `rebuild-speed` overnight-speed はこの作り直しの間だけ、simple-software で層の検査を小さくする
-
-- 持ち主の言葉: なし（本文の要約）
-- 決め: `overnight-speed`（PR の単位は大きく、聞かずに merge）は #765 の作り直しの間だけ効かせ、組み込みの後に外す（外した日をここに足す）。`simple-software` に沿って、層の検査のコード（`tests/layers/scan.py` の 2,070 行など）を、置き場の形と API に置き換えて小さくする。
-- 当て方: `docs/design/README.md` の 11 章。
+- 当て方: `docs/design/README.md` の 7.1 章と 9.4 章。
 
 ### `prompts-english` AI への指示の文は英語で書く
 
@@ -464,12 +420,6 @@
 - 持ち主の言葉: 「入力gatesは足すどころではなく、重い試験は全部まとめてやるし、なんならＣＩに任せて先に進めたいまである」（2026-10-19。judge の graph に入力 `gates` を足して gate-efficacy を回すかの問いへの答え。PR #792 の本文がこの行を足すと約束した）
 - 決め: judge の graph は gate-efficacy の block（対象の試験と関門が誤りを捕まえるかを変異で測る観点）を include せず、入力 `gates` も持たない。重い計測と試験は判定のたびに回さず、まとめて run の外で回すか CI に任せて、run は先に進める。gate-efficacy の block は単独で回せる形のまま残す。
 - 当て方: `docs/design/judge-eyes.md` の 1 章・`docs/design/line.md` の 8.3。
-
-### `protected-rewrite-765` 守りのファイルの一覧を #765 の新しい置き場に合わせて書き換える
-
-- 持ち主の言葉: 「綺麗にリファクタリングしながら書き換えていいよ」（2026-10-19。`docs/design/integration.md` の 4.3-14 の案〔5 行を直し、3 行を足す〕への答え）
-- 決め: 守りのファイルの一覧 `lib/protected.json` を、組み込みの後の置き場に合わせて書き換える。直す 5 行は、最後の承認ノードを開く所（`final-gate`。line の承認ノードの決めと `workflows/.shared/ports.py`）・その試験（`edge-test`。`tests/blocks/line/` と `tests/blocks/shared/test_ports.py`）・層の検査（`layers-test`）・検査の見本（`yaml-rules-data`）・残す `lib/graphloops/` の部品（`rules-copy`）。足す 3 行は、指示を組む口 `workflows/.shared/prompt.py`・形の検査 `tests/layers/test_block_shape.py`・keep-essence の指しの検査 `tests/layers/test_keep_essence.py`。意味の同じ行は id を変えず、`about` と訳の古い置き場の名は直してよい。ほかの行は消さない。
-- 当て方: 組み込みの PR が `lib/protected.json` を書き換え、`lib/tests/test_protect.py` を緑にする（`docs/design/README.md` の 11.3 の 8）。行を足す・消すのを人だけに許す決まり（`protected.json` の `about`）は変えない。
 
 ## 2026-10-20 の決め
 
@@ -574,8 +524,7 @@
 - 前の決めとの関係:
   - `three-tiers` の「計画の壁打ち（plan と plan-review の往復）はどの段でも省かない」は、この道でも省いていない。この道では壁打ちを run の前の、仕様を固める会話の中で部品を単独で回してする。run の中で往復しないのは、同じ往復を 2 度回さないため。
   - `step-up`（設計を決める前に、世の中の解き方と比べる。keep-essence の 12）は、この道でも省かない。世界の解を、仕様を固める会話の中で必ず回す部品に入れた。
-- 直した記録（2026-10-21、PR #807 のレビュー）: 最初に書いた決めの行は、世界の解を「要る時だけ」にしていた。この語は工場窓口が頼みの文に書いた物で、持ち主の言葉ではない（持ち主の言葉は上の「ある程度壁打ちの中で問題ないかはちゃんと見てほしいけど」）。前の決め `step-up` と keep-essence の 12 にそろえ、必ず回す 5 つに直した。
-- 当て方: `docs/design/spec-driven.md`（2 章が仕様に入れる物、3 章がこの答え。E11 の 3 つの確かめの答えは 4 章）。graph と入口の検査は issue #802 の進め方の 4〜6 で作る。
+- 当て方: `docs/design/spec-driven.md`（2 章が仕様に入れる物、3 章がこの答え。E11 の 3 つの確かめの答えは 4 章）。graph は `workflows/spec-driven/`。
 
 ## 2026-10-22 の決め（設計の相談の承認ノード）
 
@@ -658,7 +607,7 @@
   - 走らせ方を作る役と止めの道は工場に既に在る物へ寄せる。足すのは止めの語と最小の試験の置き場の決まりだけ。
   - 変えない段（tidy・下ごしらえ）にも同じ答えを当てるのは設計の部署の読みで、持ち主が承認した（2026-10-25「どうぞ」。受付 20261024-213356-734220）。
 - この決めで替えた決め: `suite-by-ai` の「照らしが通らなければ、今どおり TDD のループを飛ばして直に直す」。走らせ方を作れない・走らない時は直に直さず、組を止めて訳を出す。
-- 当て方: 計画の 3.9。設計書は `docs/design/fix.md`。
+- 当て方: `docs/design/fix.md` の 19.1（試験なしで直す逃げ道を閉じる行）。止めの語は `lib/stopby.py` の `no-suite`。
 
 ### `rebuild-old-path` 作り直しで新旧の比べが通ったら、古い経路は境目の内側なら同じ依頼で消し、利用者に見える境目なら別の依頼で消す
 
@@ -674,13 +623,13 @@
 
 - 持ち主の言葉: 「おし」（2026-10-25。`route` の語をどうするかの問い〔第 5 版の 9.2 の 3〕への答え。推しの案 A）
 - 決め: `static`・`tidy`・`pin` の 3 つを `route` の語にし、計画を書く AI にその語を選んだ訳を 1 行書かせる。
-- 当て方: 計画の 4.1 の 3・9 と 4.3。
+- 当て方: 語は `lib/plan-item-fields.schema.json` の `route`。振り分けは `docs/design/fix.md` の 22.1。
 
 ### `group-head-base` 仕様の道で tdd の単位が無い組でも、組の子の頭で元の結末を取り、受け付けが元で通っていた試験を壊す直しを拒む
 
 - 持ち主の言葉: 「おしで」（2026-10-25。仕様の道で tdd の単位が無い組でも、組の頭で関わる試験を 1 回走らせるかの問い〔第 7 版の 9.2 の 5〕への答え。推しの案 A。受付 20261024-221204-c21cf7）
 - 決め: 組の子の頭（`group-start`）で元の結末を取り、tdd の単位が無い組でも、受け付けが元で通っていた試験を壊す直しを拒む。代償の「組ごとに関わる試験を 1 回多く走らせる」を受ける。
-- 当て方: 計画の 2.1 の `base`・2.3 の 5。`base-runs-nothing` の「TDD のループの頭」を「組の子の頭」に直したのはこの決めに合わせるため。
+- 当て方: `docs/design/fix.md` の 22.3（元の結末。`src/basecase.py`・`base.json`）。`base-runs-nothing` の「TDD のループの頭」を「組の子の頭」に直したのはこの決めに合わせるため。
 
 ### `no-tests-by-list` 試験らしい名のファイルが 1 本も無い対象では、試験の一覧を走らせずに数え、0 件の時だけ試験が無いと決める
 
@@ -691,7 +640,7 @@
   3. 一覧を出すコマンドは、対象の宣言から取る（例: `.review-checks.json` の `suite`・`setup` の横の欄）。工場の側に道具の名を書かない（E13）。
   4. 一覧のコマンドが無い・失敗した時は `no_tests` を真にしない（fail closed）。下ごしらえは設定のファイルを書けず、止まって訳を報告に出す。
 - 訳（窓口が伝えた持ち主の訳）: 案 A（全部を走らせて数える）を採らなかったのは、巨大なリポジトリでは全部を走らせないため。しかも案 A が発動するのは「慣習に外れた名前で試験を多く持つ大きなリポジトリ」で、費用が一番重い場面になる。世の中の型として Bazel の `bazel query 'kind(test, //...)'` と、試験の道具の一覧だけを出す口（collect-only・listTests の類）が添えられた。
-- 当て方: 計画の 2.1 の `no_tests` の項・2.4 の `pin` の 1・3.9 の止め方の 3・4.4 の作る物の 3・6・12 と作らない物の 5（受付 20261024-231019-b3a840）。この決めの細目（窓口の決め 9.1 の 13・14）は持ち主の言葉ではないので、ここには写さず設計書に書く。
+- 当て方: `docs/design/fix.md` の 19.5 と 22.3（`no_tests`・`test_list`）・`lib/impact.py` の `is_test_file`。この決めの細目（窓口の決め 9.1 の 13・14）は持ち主の言葉ではないので、ここには写さず設計書に書く。
 
 ## 2026-10-26 の決め（直し方の型の段 2）
 
@@ -707,14 +656,14 @@
 - この決めで替えた決め:
   - 憲法の 3（根の `AGENTS.md`・`workflows/AGENTS.md`・`docs/design/README.md` の 2 章）。「block は宣言した port だけで受け渡しし、ほかの block を名指さない。つなぐのは graph だけ。」に、外しの 1 文を足した。
   - `docs/design/README.md` の 13 章の、形の検査 7.1 の 6 の見分けの根拠「名指す物は AI の node を持たない」。include の側だけを、葉の block を許す形に替えた（`workflow:` の側は替えない）。
-- 当て方: 形の検査 7.1 の 6（`docs/design/README.md` の 7.1。機械は `tests/layers/test_block_shape.py`）。最初の使い手は、修正の block（`workflows/fix/`）が型の block（`workflows/weapon-<型>/`）を include する形（計画の 11 章）。
+- 当て方: 形の検査 7.1 の 6（`docs/design/README.md` の 7.1。機械は `tests/layers/test_block_shape.py`）。最初の使い手は、修正の block（`workflows/fix/`）が型の block（`workflows/weapon-<型>/`）を include する形（`docs/design/fix.md` の 24 章）。
 
 ### `no-na` 試験だけ・文書だけの直しでも、返答の 3 つの欄を欠けてよくしない
 
 - 持ち主の言葉: 「問2：おしで」（2026-10-26。窓口の問い「試験や文書だけの直しで、記録の 3 つの欄を空けてよいか。勧めは『いいえ』で、今のまま 3 つとも必ず書かせる」への答え。勧めの『いいえ』を採る、の意。受付 20261026-050100-300b3b）
 - 決め: 修正の書き手の返答の欄 `bypass_tried`（直しを壊しに行った入力）・`breaks`（直しが壊しうる所）・`precedent`（先行例）は、試験だけ・文書だけの直しでも必ず書かせる。当たらない欄を欠けてよくする印 `na` は作らず、欄を欠けてよくしない（受け付けを緩めない）。
 - 訳: 欄を欠けてよくすると返答の必須の欄が減る。持ち主の言葉「アセットが損なわないことが重要」（計画の 11 章の頭）の向き。
-- 当て方: 計画の 11.12 の 4。段 2 に `na` の PR は足さない。前の版の形と試験に残った `na` は、計画の 11.6 の F1 で消す。今の受け付け（字数と空と同じ語の拒み）を緩める直しはこの決めに当たり、強める直しは当たらない。
+- 当て方: `docs/design/fix.md` の 22.4（`na` は作らない）。今の受け付け（字数と空と同じ語の拒み）を緩める直しはこの決めに当たり、強める直しは当たらない。
 
 ## 2026-10-27・28 の決め（設計の段）
 
@@ -737,14 +686,14 @@
   6. 持ち主が設計を承認したら、承認された設計の変える所を依頼の行に直し、同じ run のまま判定から今のメイングラフ（判定 → 計画の往復 → 修正 → 報告）へ流す。人の居る run では、設計は人が決めた前提として計画・事前審査・独立設計に届き、計画が設計から外れた所は事前審査が中央の穴にする。
   7. 承認された設計は run の置き場と報告にだけ残し、対象のリポジトリには自動で書かない。テーマか設計が文書を足すことを変える所に名指した時だけ、ほかの変える所と同じく差分に入る（問い 1 の答え）。
   8. 降りた後は今の判定を全部回す。判定の node と、計画の往復の node の作りは変えない。判定から後ろの並び（判定 → 計画の往復 → 修正 → 報告）で変わるのは、依頼の出どころを node `request-in` 1 つに寄せ、`start` の配る値の依頼を読む 18 か所をその返答に付け替える所と、9 の `gate-design` の答えの語の足しだけ（問い 2 の答え）。
-  9. 計画の段で設計の欠けが見つかったら、持ち主は計画の承認ノード `gate-design` で答えの語 `redesign`（仮の名）と一言を答える。run を閉じ、承認した設計・見つかった欠け・持ち主の一言・それまでの答えと、続きの run を起こす起動の 1 行を run の置き場に書き出す。続きの run は取り次ぐ会話が起こす（問い 4・5 の答え）。設計の往復と計画の往復を外の `loop_group` で包む形は、止めた Archon が読み込みで拒む（入れ子の `loop_group` の中の `wait:`）。同じ run の中で設計へ戻る形のうち組める物（問い 5 の案 B・C）は、ほかの答えか判定の作りを崩すので、持ち主は A を選んだ。
+  9. 計画の段で設計の欠けが見つかったら、持ち主は計画の承認ノード `gate-design` で答えの語 `redesign`（`lib/answer.py` の `REDESIGN`）と一言を答える。run を閉じ、承認した設計・見つかった欠け・持ち主の一言・それまでの答えと、続きの run を起こす起動の 1 行を run の置き場に書き出す。続きの run は取り次ぐ会話が起こす（問い 4・5 の答え）。設計の往復と計画の往復を外の `loop_group` で包む形は、止めた Archon が読み込みで拒む（入れ子の `loop_group` の中の `wait:`）。同じ run の中で設計へ戻る形のうち組める物（問い 5 の案 B・C）は、ほかの答えか判定の作りを崩すので、持ち主は A を選んだ。
 - 窓口と部署の読み（持ち主の言葉ではない）:
   - 問い 2 の「Aじゃない」の「じゃない」は、打ち消しでなく問い返しの口語として読んだ（A を選んだ）。
   - 問い 3: テーマ専用の扱いを作らず、今の無人の run の決まり（`unattended`）を設計の段にもそのまま当てる。設計の案に持ち主への問いが残る・往復が止まった・役が諦めた時は、`gate-theme` を開かずに止めて報告に出す。どの項目も無ければ開かずに計画の往復へ降りる。降りた後は、`design_talk` が真の run を設計だけの run として修正の前で必ず止める今の決まり（`design-only`）が効くので、無人のテーマの run は作り始めない。降りた設計は「持ち主の承認」と書かず、推しで進んだ印を付ける。承認済みの条件「設計が固まったかを決めるのは持ち主の承認」とぶつからないので、部署の決めにした（計画の 2.4・13 章の 14）。
   - 問い 5 の「新しい仕組みは要らない」は、loop・層・常駐の仕組みを足さないの意で読んだ。足すのは今の承認ノードの答えの語 1 つと、書き出しの script 1 つと、報告の「設計の段」のセクションの行（結末の語は足さず、今の `stopped_by_human` のまま）。
 - この決めで替えた決め: `dialogue-gate-in-loop` の「計画の往復の末尾にだけ人の承認ノードを置く」に、対話モードのテーマの run では設計の往復の末尾の `gate-theme` を足した。`gate-design` の答えの語に `redesign` を足した（今の答えの語は減らさない）。
 - 足す置き場（E10）: block のフォルダ `workflows/theme/` 1 つと、run の置き場の中のファイル（テーマの写し・設計の往復の記録・周ごとの控え・承認した設計・設計へ戻した時の続きの材料）。新しい層・常駐する仕組み・受け渡しの置き場は足さない。依頼のファイルの欄 `theme` と `text` のセクションの書き方は今の口の中の形。
-- 当て方: 設計書は、書き手の block を `docs/design/theme.md`（PR T1 で足す）、事前審査の形 `theme` を `docs/design/plan-review.md`（PR T2）、line の配線と設計へ戻す道を `docs/design/line.md` の 3.3（PR T3）に書く。
+- 当て方: 設計書は、書き手の block が `docs/design/theme.md`、事前審査の形 `theme` が `docs/design/plan-review.md`、line の配線と設計へ戻す道が `docs/design/line.md` の 3.3。
 
 ## 2026-10-28 の決め（見る道具のための値の記録）
 
@@ -916,7 +865,7 @@
 - 持ち主の言葉（2026-11-04。窓口が計画で持ち主に出したもう 1 つの問い「自前の見る道具をいつ絞るか」への答え。案は (a) 見本の run を Phoenix で見た後に外す所を決める〔推し〕・(b) 今決める・(c) 絞らない）: 「自前の道具は捨てる」
 - 窓口の読み（決めの 2 と 6 はこの読みに従う。窓口は持ち主にこの 2 つの読みを報告した）:
   - 中身を載せるかの問いへの「のせる」は (a) と (c) のどちらとも読める。外への守り（E14 と、送り先が自分の機械の外かを見て `--remote` が無ければ拒む守り）は残すので、(a) と読んだ: 中身は既定で載せ、送り先が自分の機械の外なら `--remote` を付けた時だけ送る。
-  - 見る道具をいつ絞るかの問いへの「自前の道具は捨てる」は選択肢の外の答え。自前の見る道具の HTML のページ（ページの入口 `flowview.py` が組むページと流れの画面）を、重なる所だけでなく丸ごと捨てる、と読んだ。捨てる「道具」はページで、`runtrace.py` が使う読む部品は捨てない。工場の作りの図の段の表 `viewer/stages.json` と、それを読む `viewer/src/stages.py` も、`runtrace.py` が段の span と段ごとの費用の表に使うので残す。捨てるのは、実物の run を手元の Phoenix に送って人が見る PR が main に入った後の、別の PR。Phoenix で見られるようになる前に捨てると、run を見る手段が無くなる間ができるため。
+  - 見る道具をいつ絞るかの問いへの「自前の道具は捨てる」は選択肢の外の答え。自前の見る道具の HTML のページ（ページの入口 `flowview.py` が組むページと流れの画面）を、重なる所だけでなく丸ごと捨てる、と読んだ。捨てる「道具」はページで、`runtrace.py` が使う読む部品は捨てない。工場の作りの図の段の表 `viewer/stages.json` と、それを読む `viewer/src/stages.py` も、`runtrace.py` が段の span と段ごとの費用の表に使うので残す。
 - 決め:
   1. 見る道具 `viewer/` に、run の記録（Archon の記録と Claude Code の会話の記録と下請けの記録）を OpenTelemetry のトレースに組んで送る入口 `runtrace.py` を足す。工場の中からは頼らない（E25 の 1 のまま）。
   2. 送り先は利用者が引数か OpenTelemetry の標準の env で名指し、既定を持たない。会話と道具の中身は既定で span に載せる。手元でない送り先は、利用者が `--remote` で明示した時だけ送る。送りに使う値は送り先を決める所が 1 か所で読み、OpenTelemetry の SDK に利用者の env を読ませない。
@@ -956,7 +905,7 @@
 - 持ち主の言葉: 「いいかこっちのコマンドを残しておいて。よこに新しいコマンドを作り始めればいいか」（2026-09-12）／「表現を気を付けてね。単に上位互換のものを作りたいってだけだから。移植するときにあるあるは、削ってしまったとかよくあるよね」（2026-10-03）
 - 決め: 判断の基準は review-graph と比べた能力。一部が上がり一部が下がる案は採らない。移し替えで削らない。費用を削る策でも質が落ちないかを必ず問う。
 - 出典: V005・V006・V007・V121
-- 当て方: 今の works と review-graph に対する上位互換として作る。`design.md`（#765 で消した。`583337e` の版で読める） の「受け入れの一覧」と keep-essence の 12（今は `docs/design/README.md` の 10 章） を置き換えの関門にする。
+- 当て方: 今の works と review-graph に対する上位互換として作る。keep-essence の 12（`docs/design/README.md` の 10 章）を置き換えの関門にする。
 
 #### `no-narrow` 能力を削る直しは人に上げる・柵が必要な能力まで殺さない
 - 日付: 2026-09-25
@@ -996,7 +945,7 @@
 #### `independent-verdict` 直ったかは事情を知らない別の目が決める
 - 日付: 2026-09-10〜2026-09-27
 - 持ち主の言葉: 「２もう一週かけましょう」（2026-09-10。答えた相手の案: 「直したものが本当に閉じたかを判定できるのは、事情を知らない別の AI だけです」）／「よくなってるところは、グラフに入ってるか」（2026-09-27）
-- 決め: 直ったかは自分で決めず、事情を知らない別の目に判定させる。run の頭の深さが軽量で全部の単位が軽量の run では R1〜R4 を省く例外がある（`dynamic-depth`）。
+- 決め: 直ったかは自分で決めず、事情を知らない別の目に判定させる。R1〜R4 を省く例外は `dynamic-depth` が持つ。
 - 出典: V087
 - 当て方: eyes の役は別の会話で、禁じた入力が届かないことを試験で縛る。
 
@@ -1005,7 +954,7 @@
 - 持ち主の言葉: 「標準のcodereviewをいれるってやつやりましたか」（2026-09-15）／「借りない方がいいところは同意。作り方で参考になる点はないかな。技術的に。」（2026-09-26）
 - 決め: 観点ごとに並べる審査の下請けに標準の /code-review を入れる。範囲が被る道具は理由なく落とさず、精度の高い方を残す。件数に上限を設けない。
 - 出典: V088
-- 当て方: fix の差分の審査と ASF の review のレンズを比べて作る。
+- 当て方: レンズの表にまだ入っていない（`docs/design/lens.md`。表に足すのは振る舞いを変える話）。
 
 #### `stop-by-rate` 止め時は、見つかる数の減り方から決める
 - 日付: 2026-09-12
@@ -1021,13 +970,6 @@
 - 出典: V097
 - 当て方: fix の範囲の照らしと、eyes の R2 の作り直しの判定の両方を持つ。
 
-#### `mutation` 変異テストは機械で並列に、範囲は変わった所だけ
-- 日付: 2026-09-10〜2026-09-29
-- 持ち主の言葉: 「じゃあためそうかpushして」（2026-09-10）／「撃っていいよ、クラウドでやって」（2026-09-29）
-- 決め: 変異テストは LLM に壊させず、既製の道具で機械的に並列に回す。範囲は変わった所だけ。撃つのは CI。
-- 出典: V106・V107・V108
-- 当て方: run の中では撃たない。対象のリポジトリの run での変異の門は棚上げのまま（`design.md`（#765 で消した。`583337e` の版で読める） の段 3 で聞く）。
-
 #### `light-in-loop` ループの中では軽い試験だけ、広い試験は最後に 1 回
 - 日付: 2026-09-25〜2026-10-06
 - 持ち主の言葉: 「あとはテストの書き方とかも色々変わったりするんじゃないかな。」（2026-09-25）／「手元の重いのはやめます。」（2026-10-06）
@@ -1041,7 +983,7 @@
 - 持ち主の言葉: 「推奨で」（2026-09-12。答えた相手の案: 「残り 5 本を表に畳むのは**構造の変更**」）／「おしで」（2026-09-26）
 - 決め: 消えていた検査は、走る物は走らせ、残りは名前付きの見送りにして見えるようにする。足し忘れると緩むリストは表に畳む。
 - 出典: V114
-- 当て方: review-graph のノードごとの行き先の表（`by` と `absent` の理由）を持ち、全部のノードを数える試験を置く。
+- 当て方: port の読み手（`workflows/.shared/ports.py`）は、読めない pointer や在らないファイルを空にせず理由を名指して落とす（`docs/design/README.md` の 4.2）。
 
 #### `reuse-results` 機械でできる所は機械で、結果は使い回す
 - 日付: 2026-09-25〜2026-09-27（持ち主の決定は 2026-10-06）
@@ -1079,7 +1021,7 @@
 - 持ち主の言葉: 「かなりの穴じゃない？」（2026-10-09）／「今の私の解法をエッセンスとしていれないといけないのでは」（2026-10-09）
 - 決め: 設計を決める前に、依頼の各行を対象の名を外した問題の類に言い直し、世の中の解き方と依頼の解き方を比べる（keep-essence の 12）。
 - 出典: 今の works の docs/plans の `2026-10-09-world-solution.md` のセクション 1 とセクション 4（run 167e14c3）
-- 当て方: グラフの中心の 1 つ（judge の定石の段と lib の `world`）。
+- 当て方: グラフの中心の 1 つ（block `world`。`workflows/world/`）。
 
 #### `cross-check` 役の判断も鵜呑みにしない・割れたら往復を限って新しい役に裁かせる
 - 日付: 2026-09-13〜2026-09-27
@@ -1100,7 +1042,7 @@
 - 持ち主の言葉: 「そういう世の定石にならったり、今のありかたを疑うものはいれたのではなかったか」（2026-09-27）／「あとWEB検索して疑える箇所が増えることにもなるのでは」（2026-09-28）
 - 決め: 定石に倣うことと今のあり方を疑うことをグラフに入れ、AI の選択に任せず常に回す。
 - 出典: V092
-- 当て方: R2 の独立設計と定石の段を外せない段にする。
+- 当て方: 独立設計（修正の前に作る。block `independent-design`）と世界の解（block `world`）を外せない段にする。
 
 #### `cold-read` 初見の読み手は遠慮なく入れる
 - 日付: 2026-09-27
@@ -1151,7 +1093,7 @@
 - 持ち主の言葉: 「このdonowをなおしたことによる新たなdonowが発生するこうぞうは防げないと思うんですよ。」（2026-09-10）／「ほかにも全体見直して、これいらんな？みたいな箇所があればあぶりだしておいて」（2026-10-09）
 - 決め: 要らない入口・機構・自作の仕組みを消す。根拠の無い上限は置かない。
 - 出典: V028・V029
-- 当て方: 今の works から移す時、要らない機構（包み・足し欄・manifest など）は持ち込まない。能力は削らない。
+- 当て方: 要らない機構（包み・足し欄・manifest など）と根拠の無い上限を足さない。能力は削らない。
 
 #### `no-tool-quirks` 外の道具の個別事情を抱えない
 - 日付: 2026-09-26〜2026-10-01
@@ -1165,7 +1107,7 @@
 - 持ち主の言葉: 「ブロックはそれだけでフォルダにしなくていいですか。」（2026-09-27）
 - 決め: フォルダの切り方と依存の向きの設計が大事。
 - 出典: V033
-- 当て方: 4 つの層と依存の向き（グラフ → 境・lib）。層の試験で縛る。
+- 当て方: 層の地図 `docs/layers.json` と根の `AGENTS.md` の E22。層の試験で縛る。
 
 #### `no-timeouts` 期限・タイムアウトを足さない
 - 日付: 2026-09-25
@@ -1189,7 +1131,7 @@
 - 持ち主の言葉: 「そうそこのワークフローっぽい構造をうまく作れないかなと考えている今は保守性が少し悪い気がする。」（2026-09-12）／「ようは、python上で、ほかのコマンドを呼び出してエンジンでコントロールするのが核にある気がするね。このプラグイン」（2026-09-26）
 - 決め: 回し方は散文の手順書でなくグラフに載せる。条件は関数にして単体テストで守る。
 - 出典: V034・V036
-- 当て方: 回し方は Archon の YAML、条件は `lib/` の関数と試験。
+- 当て方: 回し方は Archon の YAML、条件は block の `src/` か `lib/` の関数と試験。
 
 #### `projection` 履歴から作れる値は保存せず、読む時に作る
 - 日付: 2026-09-27
@@ -1217,7 +1159,7 @@
 - 持ち主の言葉: 「engenineに直書きはご法度では」（2026-09-12）／「それが本当に最もスマートな根本ですかね？」（2026-09-28）
 - 決め: サブグラフや engine に他のサブグラフや個別の事情を書かない。
 - 出典: V067
-- 当て方: 結びはメイングラフの YAML だけが持つ（E4）。
+- 当て方: 憲法の 3（つなぐのは graph だけ。外しは `leaf-include`）。
 
 #### `lang-neutral` 対象の言語の知識を持たない（事実上の標準は使ってよい）
 - 日付: 2026-09-25〜2026-10-03
@@ -1245,7 +1187,7 @@
 - 持ち主の言葉: 「langchainとかmastraにもstateてきなものはあるよね。」（2026-10-03）／「機械で差し込みたいからねミドルウェア的に」（2026-10-07）
 - 決め: 部品間の引き継ぎや全体の地図は、手書きでなく機械が差し込む。
 - 出典: V071
-- 当て方: 役に貼るセクションは script ノードが組み、役の指示書は `$<ノード>.output` で受ける。
+- 当て方: 役に貼るセクションは script ノード（prep）が組み、AI のノードの md は `{name}` で値を受ける（憲法の 2）。
 
 #### `lens-per-node` 局所レビューは観点ごとにノードを分ける
 - 日付: 2026-10-01
@@ -1261,14 +1203,14 @@
 - 持ち主の言葉: 「skipはそもそもなんのためにあるんだっけ」（2026-09-04）／「問題を抽象化して、ゆえに superpowers はこうしているのかと分かる所を見つけて、そういう風にしたらいい」（2026-10-10）
 - 決め: 既製の物でできることを LLM にやらせない。機械は事実だけを見る。意味は字面の決まりで近似せず根拠つきの判断にし、根拠が事実と合うかを機械が照らし、正しさは別の目が見る。
 - 出典: V014・V095・V104、2026-10-10 の決め（TDD の赤の判定を言語に依らない形にする依頼）
-- 当て方: `lib/` は事実だけ、役（`commands/`）は根拠つきの判断。
+- 当て方: `lib/` は事実だけ、AI のノードの md（`prompts/`）は根拠つきの判断。
 
 #### `measure` 記録は機械で残し、サブグラフごとの効き目を測る
 - 日付: 2026-09-25〜2026-10-08
 - 持ち主の言葉: 「でもこの修正生産工程が生んだ不具合はまだあまり確認できてないから質が高いかな」（2026-09-25）／「でも分けたほうが正確になって結果として往復が少ないとか、前は計画のとことか修正のとことかが長ったってあったはず」（2026-10-08）
 - 決め: 記録は機械で残して後から集計する。記録は Archon の DB を使い、新しい写しを作らない。
 - 出典: V020・V101・V147
-- 当て方: 段 3 の比べもこの測りで行う。
+- 当て方: 比べは公開ベンチと Archon の run の記録の集計で行う（`public-bench-at-major`）。
 
 #### `refactor-same` TDD の整える段は修正役が同じ会話で
 - 日付: 2026-09-27
@@ -1289,14 +1231,14 @@
 - 持ち主の言葉: 「実際に実行したりしてテストもしておいて」（2026-09-06）／「いやしっかりかくにんして、なんか途中でとまりうるとかなんか言ってた気がするよ。会話ログ見てもいいよ」（2026-09-29）
 - 決め: 机上で済ませず実物で確かめる。無い・できないと言う前に実物を見る。
 - 出典: V099
-- 当て方: 段 1 の歩く骨組みで Archon の未決を実物で決める。置き換えの前に本物の run で確かめる。
+- 当て方: 通しの試験（`tests/e2e/`）と本物の run で確かめる。Archon の振る舞いは実物で確かめて `docs/design/archon.md` に書く。置き換えの前に本物の run で確かめる。
 
 #### `tdd` 修正は TDD のループで
 - 日付: 2026-09-13〜2026-09-27（keep-essence 4 の置き換えは 2026-10-11）
 - 持ち主の言葉: 「それは普通なんじゃないの」（2026-09-13）／「あとSuperPowerが結構TDD的なんだよね」（2026-09-27）／「置き換えてよい」（2026-10-11。keep-essence 4 の置き換えへの答え）
 - 決め: 修正には TDD のループを踏ませる。3 回拒まれた単位は申し出として裁定に回し、裁かれなければ人に回る。
 - 出典: V025・V113・V115
-- 当て方: fix。2026-10-11 に置き換わった後の形（`design.md`（#765 で消した。`583337e` の版で読める） の繰り返し）。
+- 当て方: fix の TDD のループ（`workflows/fix/prompts/parts/tdd.md`）と block `weapon-tdd-close`。
 
 ### 本質 6: 人に聞くのは答えで動きが変わる時だけ
 
@@ -1319,7 +1261,7 @@
 - 持ち主の言葉: 「コマンドくれたら実行するよ。」（2026-09-15）
 - 決め: 承認ノードは答えで次の動きが変わる時だけ開く。止めるのは 4 種（取り消せない・外に出る／安全／能力を減らす・方針を変える／測れず戻せない）。
 - 出典: V054
-- 当て方: 4 種の基準は lib の `gate_policy` の 1 か所。
+- 当て方: 4 種の基準は line の `src/gates.py` と `lib/gatemarks.py`。
 
 #### `ask-shape` 上げる時は案の形で、初見に通じる詳しさで
 - 日付: 2026-09-11〜2026-09-12
@@ -1354,7 +1296,7 @@
 - 持ち主の言葉: 「あとは全部おしでいいよ」（2026-09-26。答えた相手の推し: 「推し：残す」「仕様の承認は「これが私の欲しい物か」というあなたの意図の確認で、AI には代われません。」）
 - 決め: 意図の確認は AI に代えられないので、仕様の承認の関門は残す。
 - 出典: V055
-- 当て方: judge の仕様の段（入力で選ぶ）。
+- 当て方: block `spec` の承認ノード `spec-gate`（入力で選ぶ）。
 
 #### `unattended` 無人の run は止まらずに進める
 - 日付: 2026-10-08・2026-10-15
@@ -1384,7 +1326,7 @@
 - 持ち主の言葉: 「こういわれたと言ってるが。directで直した方がいいよね」（2026-09-28）／「だから入口ブロックみたいなアーキ的に考えを表現するのもありだよね」（2026-10-09）
 - 決め: 依頼・変更・PR は同じ仕事。入口で 1 つの入力の形にそろえ、後の段は入力の中身だけで決める。
 - 出典: V059
-- 当て方: メイングラフの始め（lib の `entry_shape`）の 1 か所。
+- 当て方: メイングラフの始め（`lib/entryshape.py`）の 1 か所。
 
 #### `request-to-judge` 人の依頼は判定から流し、2 周目は次の run で
 - 日付: 2026-09-25〜2026-09-26
@@ -1399,13 +1341,6 @@
 - 決め: 同じ run で 2 周目を回さず、指摘は次の run の依頼にする。止まった所から再開でき、止まった run の差分も捨てない。
 - 出典: V166
 - 当て方: report の持ち越しと、Archon の resume（埋め P1・未決 U1）。長い待ちは `wait:` と承認ノードで書き、Archon の DB が持つ。
-
-#### `entry-choices` 手厚さと入る口を選べる
-- 日付: 2026-09-26
-- 持ち主の言葉: 「んー。なんかエフォートみたいなのをつけたり、入る口を色々選べたりしないといけないと思うんだよね。そういうふうに本家も修正中」（2026-09-26）
-- 決め: 手厚さと入る口を選べる。今は単位ごとの深さを既定で自動にする（10-06 に置き換え）。
-- 出典: V062
-- 当て方: 入る口は入力で選び、入った後は 1 つの入力の形。
 
 #### `install` 入れて「works を使って」と言うだけで使える
 - 日付: 2026-09-27〜2026-09-29
@@ -1422,13 +1357,6 @@
 - 当て方: 設計だけの run を入力の 1 欄で選べる（修正前で止める）。
 
 ### 本質 8: 役は人物として続け、ノードごとに模型を選ぶ
-
-#### `model-effort` 段ごとに模型と effort を明示し、実行時に上書きできる
-- 日付: 2026-09-29〜2026-10-06
-- 持ち主の言葉: 「いやブロックごとにここはsonnetとか指定できるようになればいいのでは。実行時に上書きもできればいいしね。」（2026-09-29）／「opusはmediumという選択肢もあるし、ちょっと調べてみましょうか。modelの感じを」（2026-10-06）
-- 決め: 段ごとに model と effort を指定でき、実行時に上書きもできる。新しい仕組みの前に既存の引数を使う。
-- 出典: V074
-- 当て方: 群の既定は `lib/launchgroups.py` の表を正本にし、run ごとの付け替えは Archon の `--model @wf-<群>=` で効かせる（`run-model-choice`）。
 
 #### `fix-quality` 判定役が丁寧で修正役が雑、を直す
 - 日付: 2026-09-22
@@ -1463,7 +1391,7 @@
 - 持ち主の言葉: 「sonnetとかつかってもいいしね。WEBからとってきてまとめるところは」（2026-09-29）
 - 決め: web から集めてまとめる所に安い模型を使ってよい、という許し。役を割れという要求ではない。
 - 出典: 今の works の記憶の決定 `web-split`（V073 の後の発言）
-- 当て方: judge の定石の web の役にだけ当てる。
+- 当て方: block `world` の web の役などが使う素材集めの群 `@wf-judge-materials`（`lib/launchgroups.py`。sonnet）。
 
 ### 本質 9: 重くなりすぎない
 
@@ -1472,7 +1400,7 @@
 - 持ち主の言葉: 「あとcodereviewをみならってeffortもつけるのはどう思いますか？high low ぐらいで」（2026-09-15）／「AIだからできると思うんだよね。ここが足りなさそうだから今回はこっちの分岐で処理しようみたいな」（2026-09-27）／「すべておしで」（2026-10-06）
 - 決め: 単位ごとの深さを機械が決め、全部の単位が軽量の run は差分の審査と R1〜R4 を省いて報告に名指す。
 - 出典: V123
-- 当て方: メイングラフの深さの決め（`depth`。#765 で line の `src/tiers.py` へ移った）。省くのは run の頭の深さ（`depth-by-reason`）が軽量の run だけで（`depth.py` の `TIERS` の軽量の `omits`）、標準・重厚の頭の run は単位が全部軽量でも差分の審査と R1〜R4 を通る。頭の深さが入る前は単位の深さだけで省いていたが、頭の深さを入れると、頭が標準・重厚と決めた run（引用で原因と直す行を示せなかった・公開の約束を変える run）を単位の形だけで薄くすることになり、段の違いを省く物で作れない。issue #561 の承認ノードの答え（問い skip_reason は 1）でこう狭めた。標準の頭の run の費用は増える。
+- 当て方: メイングラフの深さの決め（line の `src/tiers.py`）。省くのは run の頭の深さ（`depth-by-reason`）が軽量の run だけで（line の `src/tiers.py` の `TIERS` の軽量の `omits`）、標準・重厚の頭の run は単位が全部軽量でも差分の審査と R1〜R4 を通る。頭の深さが入る前は単位の深さだけで省いていたが、頭の深さを入れると、頭が標準・重厚と決めた run（引用で原因と直す行を示せなかった・公開の約束を変える run）を単位の形だけで薄くすることになり、段の違いを省く物で作れない。issue #561 の承認ノードの答え（問い skip_reason は 1）でこう狭めた。標準の頭の run の費用は増える。
 
 #### `run-cost` 1 run が長すぎ・高すぎる、を数字で追う
 - 日付: 2026-09-12〜2026-10-06
@@ -1523,7 +1451,7 @@
 - 持ち主の言葉: 「登録が要らない系で代替手段とかはないの」（2026-10-08）／「context7は辞めていいよ？」（2026-10-09）
 - 決め: ライブラリの文書は手元・公式・Web を重ねて取る。登録の要るサービスはやめてよい。
 - 出典: V149
-- 当て方: そのまま。
+- 当て方: `lib/libdocs.py`・`lib/libdocs_local.py`・`lib/libdocs_web.py`。
 
 #### `py-floor` Python の下限は CI で回す 3.12 にそろえる
 - 日付: 2026-09-12〜2026-09-16
@@ -1552,19 +1480,31 @@
 
 逐語の言葉は無い（本文の要約）。出典の番号の元の行を引く。
 
-- 自分食いと手の直し: 危ない直しは run を通す。グラフ全体を変える直しは会話の下請け（superpowers の手順）で作り、本物の run で確かめる。どちらも同じ機械の関門を CI で通す。出典 V105・V174。当て方: 段 0〜1 は手の直し、段 2 からは ASF の lifecycle（dev の ASF に lifecycle が無いので ship。`asf-follows-dev`）。
+- 自分食いと手の直し: 危ない直しは run を通す。グラフ全体を変える直しは会話の下請け（superpowers の手順）で作り、本物の run で確かめる。どちらも同じ機械の関門を CI で通す。出典 V105・V174。当て方: 段 0〜1 は手の直し、段 2 からは ASF の lifecycle（dev の ASF に lifecycle が無いので ship。`asf-follows-dev`）。持ち主の言葉（手の直し）: 「いれたほうがいいやつだけいれて」（2026-09-30）／「グラフ全体を変えてしまうので、superpowerで軽く治して、実際に動かしてみるのがいいのでは」（2026-10-07）／「工場がよくなったら工場がいい」（2026-10-09）
 - 進め方: 大きな作り替えは先に設計し、旧い物を横に残す。土台とサブグラフ分けを先に。今困っていない事には手を付けない。出典 V023・V024・V040・V015・V016・V035・V103・V090。当て方: 今日の `own-graph-alongside` の元。
 - 外の物: 外の道具の良い所を取り、review-graph と常に比べるが写しにしない。Archon の開発元へ連絡しない。出典 V138・V142・V143・V144・V141・V150。当て方: `docs/asf-notes.md` と `docs/polyfills.md`。
-- 試験と出荷: 重い試験は CI。版上げは最後の commit。wip への push では CI を回さない。出典 V109・V110・V132・V116・V118・V117・V119・V120。
+- 試験と出荷: 重い試験は CI（手元の重い試験はやめる。持ち主の言葉「手元の重いのはやめます。」〔2026-10-06〕。`light-in-loop`）。版上げは最後の commit。タグは作らない（持ち主の言葉「タグはつくりません」〔2026-09-29 09:06〕）。wip への push では CI を回さない。出典 V109・V110・V132・V116・V118・V117・V119・V120。
 - run と枠: run を勝手に止めない。確かめは常に最新の版で。各 run は 1 周。前景で待たない。出典 V160・V161・V162・V163・V164・V172・V165・V167・V169・V170・V171・V127・V122。
 - 下請けと片付け: 開発は superpowers の TDD とサブエージェント方式。並行する他人の PR には書き込まない。出典 V176・V177・V178・V179・V181・V182・V184。
 - 引き継ぎと文書: 引き継ぎはリポジトリの文書に自己完結で残し、引き継ぎ先を推測しない。流れの mermaid 図は今の姿に保つ。出典 V173・V157・V013・V153・V158。
+- 畳んだ決め: 今の works の地図の末尾の「食い違いと解き方」のセクション（タグは作らない・手元の重い試験はやめる・手の直しの 3 つの持ち主の言葉。上の「試験と出荷」と「自分食いと手の直し」の行へ移した）
 
-### 食い違いと解き方（今の works の地図の末尾のセクション）
+## 終えた決め
 
-- タグは作らない: 「タグはつくりません」（2026-09-29 09:06）
-- 手元の重い試験はやめる: 「手元の重いのはやめます。」（2026-10-06）
-- 手の直し: 「いれたほうがいいやつだけいれて」（2026-09-30）／「グラフ全体を変えてしまうので、superpowerで軽く治して、実際に動かしてみるのがいいのでは」（2026-10-07）／「工場がよくなったら工場がいい」（2026-10-09）
+期限つき・1 回きりで終えた決め。設計書の経緯が名で引くので名を残す。
+
+### `rebuild-speed` overnight-speed はこの作り直しの間だけ、simple-software で層の検査を小さくする
+
+- 持ち主の言葉: なし（本文の要約。2026-10-19）。畳んだ `overnight-speed` の分: 「この調子でいくといつまでに完成しそうですか。」への「おそ」、続けて「明日の朝起きたときに完成しておいてほしい。」（2026-10-11 夜）／「PRの単位が小さいのでは」「書いたことは忠実にやってくれるのであれば、でっかくかいていいのでは」
+- 決め: `overnight-speed`（2026-10-11。段の順番待ちを外して残りをほぼ全部同時に回し、issue と PR の単位を大きくし、計画どおりで目が通った PR は聞かずに merge する）を、#765 の作り直しの間だけ効かせ、組み込みの後に外す。`simple-software` に沿って、層の検査のコード（`tests/layers/scan.py`）を置き場の形と API に置き換えて小さくする。
+- 終えた時: 作り直しは #765 の組み込み（PR #794、2026-10-20）で終わり、そこで `scan.py` も縮めた（今は 1,852 行）。`overnight-speed` を外した日の記録は無い。
+- 畳んだ決め: `overnight-speed`（2026-10-11。明日の朝までに作り終える速さで回す）
+
+### `protected-rewrite-765` 守りのファイルの一覧を #765 の新しい置き場に合わせて書き換える
+
+- 持ち主の言葉: 「綺麗にリファクタリングしながら書き換えていいよ」（2026-10-19。`docs/design/integration.md` の 4.3-14 の案〔5 行を直し、3 行を足す〕への答え）
+- 決め: 守りのファイルの一覧 `lib/protected.json` を、組み込みの後の置き場に合わせて書き換える（5 行を直し、3 行を足す。意味の同じ行は id を変えず、ほかの行は消さない）。行を足す・消すのを人だけに許す決まり（`protected.json` の `about`）は変えない。
+- 終えた時: #765 の組み込み（PR #794、2026-10-20）が書き換えた（今の `lib/protected.json` に `final-gate`・`edge-test`・`layers-test`・`yaml-rules-data`・`rules-copy`・`prompt-builder`・`block-shape-test`・`keep-essence-test` の行が在る）。
 
 ## 外した物
 
