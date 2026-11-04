@@ -1,4 +1,4 @@
-"""修正の段へ運ぶ値の中継 fix-in（docs/design/line.md の 4.1・5.2。元 tests/workflows/test_line.py の FixInCase）。
+"""修正の段へ運ぶ値の中継 fix-in（docs/design/line.md の 4.1・5.2。元 test_line.py の FixInCase）。
 
 運ぶ欄の全部・固定材料の run（写しの値を同じ式で運ぶ）・no_fix・excluded（判定のまとめの excluded を fix の 2 段へ。8.2・
 integration.md 4.1-5 の line の側）・units_tier・skip_rerun・switches・修正前の答えの方針の写し・記録された方針の行と、前の版の返り

@@ -3,9 +3,10 @@
 - 照らすファイルは `bin/`・`lib/`（試験の `lib/tests/` と借りた写しの `lib/borrow/` を除く）・`workflows/`・見る道具（フォルダ `viewer`）の下の全部と、
   どの階層の `AGENTS.md` も。
 - パスは、根の直下のフォルダの名（`.` で始まる物を除く。名の表は持たず、根を読んで決める）で始まり `/` が続く字の並び。
-  前が英数字・`.`・`/`・`-` の所は別の語の途中なので数えない（`src/lib/x.py` の `lib/` など）。
-- 在るとは、パスそのもの・`.py` を足した物（モジュールの名 `lib/rolekit`）・最後の段の `.` の前に `.py` を足した物
-  （モジュールの中の名 `lib/reads.collect`・`tests/bin/hermetic.child_env`）のどれかが在ること。
+  前が英数字・`_`・`.`・`/`・`-` の所は別の語の途中なので数えない（`src/lib/x.py` の `lib/` など）。
+- 在るとは、パスそのもの・`.py` を足した物（モジュールの名 `lib/rolekit`）が在るか、最後の段の `.` の前に `.py` を足した物が在って
+  その中に `.` の後の名の `def <名>`・`class <名>`・`<名> =` が在ること（モジュールの中の名 `lib/reads.collect`・
+  `tests/bin/hermetic.child_env`）。同じ名の `.py` が在るだけでは、`.md`・`.json`・中に無い名を在ると読まない。
   最後の段の `.` の前と同じ名のフォルダが在るだけでは在ると読まない（`docs/design/` が在っても `docs/design.md` は無い）。末の `.` と `/` は文の区切りとして外す。
 - 字に `*`・`<`・`>`・`{`・`}` を含む物は型（`workflows/<block>/`・`lib/python*/`）で、1 つのファイルを指さないので数えない。
 - 許すパスの表は持たない（憲法 6）。わざと無いパスを書く例（対象のリポジトリの例の `lib/x.py`、fixture の偽の対象のパス）は、
@@ -48,8 +49,12 @@ def _exists(root: pathlib.Path, rel: str) -> bool:
     if (root / rel).exists() or (root / f"{rel}.py").exists():
         return True
     folder, _, last = rel.rpartition("/")
-    head = last.partition(".")[0]
-    return bool(head) and (root / folder / f"{head}.py").exists()
+    head, _, name = last.partition(".")
+    module = root / folder / f"{head}.py"
+    if not (head and name.isidentifier() and module.is_file()):
+        return False
+    defined = re.compile(rf"^\s*(?:(?:async\s+)?def|class)\s+{name}\b|^\s*{name}\s*=", re.M)
+    return bool(defined.search(module.read_text(encoding="utf-8", errors="replace")))
 
 
 def problems(root: pathlib.Path) -> list[str]:
@@ -87,8 +92,8 @@ class PathsExistTest(unittest.TestCase):
 
     def test_present_paths_and_patterns_pass(self):
         files = {
-            "lib/reads.py": "",
-            "lib/a.py": ("# lib/reads.collect・lib/reads・lib/reads.py・docs/here.md。lib/ の下\n"
+            "lib/reads.py": "def collect():\n    pass\n\n\nclass Rows:\n    pass\n\n\nLIMIT = 3\n",
+            "lib/a.py": ("# lib/reads.collect・lib/reads.Rows・lib/reads.LIMIT・lib/reads・lib/reads.py・docs/here.md。lib/ の下\n"
                          "# workflows/<block>/・lib/python*/・src/lib/x.py・mylib/x.py は数えない\n"),
             "docs/here.md": "",
             "workflows/AGENTS.md": "",
@@ -106,6 +111,15 @@ class PathsExistTest(unittest.TestCase):
         with tree(files) as root:
             self.assertEqual(problems(root), ["lib/a.py:1: workflows/fix.yaml", "lib/a.py:1: docs/design.md",
                                               "lib/a.py:1: bin/kit.py"])
+
+    def test_module_of_same_name_does_not_make_other_names_present(self):
+        files = {
+            "lib/reads.py": "def collect():\n    pass\n# gone は無い\n",
+            "lib/a.py": "# lib/reads.md・lib/reads.json・lib/reads.gone・lib/reads.collect\n",
+        }
+        with tree(files) as root:
+            self.assertEqual(problems(root), ["lib/a.py:1: lib/reads.md", "lib/a.py:1: lib/reads.json",
+                                              "lib/a.py:1: lib/reads.gone"])
 
     def test_tests_and_borrow_of_lib_are_not_scanned(self):
         files = {"lib/tests/test_a.py": "# docs/gone.md\n", "lib/borrow/x.md": "docs/gone.md\n", "docs/here.md": ""}

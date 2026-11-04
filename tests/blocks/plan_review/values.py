@@ -1,6 +1,6 @@
 """事前審査の block の試験と筋書きが共に使う値と助け（docs/design/plan-review.md の 15.3）。
 
-値は今の試験（tests/workflows/test_plan_review.py）の stats.py の例（tests/e2e/target-seed を対象の木にする）の写しで、例の run
+値は今の試験（test_plan_review.py）の stats.py の例（tests/e2e/target-seed を対象の木にする）の写しで、例の run
 （df5e111f・4bcd3c2e）の形（項目と欄・判定の単位と見立てと先行例・独立設計の返答・世界の解の行・2 往復目の往復の記録）をなぞる。
 対象の名前・置き場は使い捨ての木に置き換える。
 

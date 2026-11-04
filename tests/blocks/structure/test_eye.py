@@ -1,4 +1,4 @@
-"""構造の目の受け付けと出口の決定的な試験（src/eye.py・src/survey.py・src/state.py。元 lib/tests/test_structure_eye.py・test_structfile.py）。
+"""構造の目の受け付けと出口の決定的な試験（src/eye.py・src/survey.py・src/state.py。元 test_structure_eye.py・test_structfile.py）。
 script を回す通しの試験は test_structure.py"""
 import json
 import pathlib
@@ -194,7 +194,7 @@ class ViewCase(_Case):
 
 
 class StateCase(_Case):
-    """構造の目の控え structure-state.json（元 lib/tests/test_structfile.py の StateCase）"""
+    """構造の目の控え structure-state.json（元 test_structfile.py の StateCase）"""
 
     MEASURED = {"status": "ok", "reason": "", "units": [{"id": "u-1", "status": "measured", "measure": {"churn": 3}}],
                 "timing": {"wall_s": 0.5}}

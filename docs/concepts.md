@@ -3,16 +3,16 @@
 
 状態: 2026-10-13（issue #254・PR #269）。今の works の地図（`works/docs/concepts.md`）の柵を持つ 31 の考えを 1 つずつ今の木に当て、住処が works-factory に在る考えと散らばりの考えは全部載せ、考えそのものが works-factory に無い物は下の「載せない考え」に訳を書いた。載せた考えの住処の外の当たりは、本当の漏れなら表の既知の漏れに件数と理由を置き、同じ字の別の考えに当たるだけなら語の形を狭めた。行のパスは試験（`tests/layers/test_concept_fences.py`）が在ることを確かめる（まだ無い物は「予定」と書き、試験は見ない）。
 
-#765 の組み込み（2026-10-19）の後: 地図と表は組み込みの前の木（古いサブグラフと lib のモジュール）を名指したまま残る。works-factory 自身の木に全部を当てる試験 `tests/layers/test_concept_fences.py` は組み込みで消した（`docs/design/README.md` の 9.4）。表 `docs/concepts.json` は、run の中で構造の目が対象の表として読む（works-factory 自身を直す run）ので消さない。新しい形の考えの住処は、block の `src/`・`lib/` の行の形のモジュール・`workflows/.shared/` の口（`docs/design/README.md` の 1.2・4.1）。
+#765 の組み込み（2026-10-19）の後: 地図と表は組み込みの前の木（古いサブグラフと lib のモジュール）を名指したまま残る。works-factory 自身の木に全部を当てる試験 `test_concept_fences.py` は組み込みで消した（`docs/design/README.md` の 9.4）。表 `docs/concepts.json` は、run の中で構造の目が対象の表として読む（works-factory 自身を直す run）ので消さない。新しい形の考えの住処は、block の `src/`・`lib/` の行の形のモジュール・`workflows/.shared/` の口（`docs/design/README.md` の 1.2・4.1）。
 
 載せない考え（今の works の地図に在り、考えそのものが works-factory に無い。漏れの多さは載せない訳にしない）:
 
-- `hinge` 境のノード: メイングラフの境のノード（h-* の名のノードと住処 darkfactory/lib/line_edge.py）は works-factory に無く、docs/design.md:472（#765 で消した。583337e の版） の通りメイングラフの when: と小さな script ノード（workflows/line/scripts/ の start・redepth・collect など）が担う
+- `hinge` 境のノード: メイングラフの境のノード（h-* の名のノードと住処 darkfactory/lib/line_edge.py）は works-factory に無く、design.md:472（#765 で消した。583337e の版） の通りメイングラフの when: と小さな script ノード（workflows/line/scripts/ の start・redepth・collect など）が担う
 - `halt` 止め札: 共有ボードの止め札 STOP と住処 halt.py は持ち込まず（持ち主の決め stop-at-gates。lib/halt.py は無い）、報告つきの止めは承認ノードの stop・reject の答え（一言が request: で始まれば止め札の扱い。lib/outcome.py・lib/seal.py）が、承認ノードの間の止めは Archon の workflow cancel が担う
-- `scope` 部品の置き場と宣言: 部品の宣言のファイル manifest.json と住処 scopes.py は落とし（docs/design.md:471（#765 で消した。583337e の版））、入出力の宣言は Archon の YAML の with:・returns: と出力の型が、宣言の外の書き込みは mutates_checkout: false と書き込みの出どころの突き合わせが担う（持ち主の決め declared-io）
-- `injectors` 包みが足す system prompt の塊: AI を起こす包み（前の works の adapter.py の INJECTORS と --append-system-prompt）を持ってきていない（docs/design.md:474（#765 で消した。583337e の版） で落とした）。system prompt を足すのは Archon の AI ノードの systemPrompt（workflows/plan-review・workflows/eyes の YAML）がノードごとに字で担う
-- `replycontract` 返答の契約: 返答を本文で受けて型を確かめ出し直させる包みの旗 text-reply と replycontract.py を持ってきていない（docs/design.md:474（#765 で消した。583337e の版） で包みを落とした）。返答の型は Archon の AI ノードの output_format（SDK の構造化出力 StructuredOutput）が担う
-- `writes` 役の返答を共有ボードに書く規則: graphloops の engine の共有ボードと書く規則（record.py の apply_writes・rules の WRITE_OPS）を持ってきていない（docs/design.md（#765 で消した。583337e の版） の graphloops の写しの行で落とした）。役の返答を後ろへ渡すのは Archon のノードの出力（$<ノード>.output）と各サブグラフの script が置き場に書くファイル
+- `scope` 部品の置き場と宣言: 部品の宣言のファイル manifest.json と住処 scopes.py は落とし（design.md:471（#765 で消した。583337e の版））、入出力の宣言は Archon の YAML の with:・returns: と出力の型が、宣言の外の書き込みは mutates_checkout: false と書き込みの出どころの突き合わせが担う（持ち主の決め declared-io）
+- `injectors` 包みが足す system prompt の塊: AI を起こす包み（前の works の adapter.py の INJECTORS と --append-system-prompt）を持ってきていない（design.md:474（#765 で消した。583337e の版） で落とした）。system prompt を足すのは Archon の AI ノードの systemPrompt（workflows/plan-review・workflows/eyes の YAML）がノードごとに字で担う
+- `replycontract` 返答の契約: 返答を本文で受けて型を確かめ出し直させる包みの旗 text-reply と replycontract.py を持ってきていない（design.md:474（#765 で消した。583337e の版） で包みを落とした）。返答の型は Archon の AI ノードの output_format（SDK の構造化出力 StructuredOutput）が担う
+- `writes` 役の返答を共有ボードに書く規則: graphloops の engine の共有ボードと書く規則（record.py の apply_writes・rules の WRITE_OPS）を持ってきていない（design.md（#765 で消した。583337e の版） の graphloops の写しの行で落とした）。役の返答を後ろへ渡すのは Archon のノードの出力（$<ノード>.output）と各サブグラフの script が置き場に書くファイル
 - `core-seams` 写しの核の差し替えの口: 写しの核（graphloops の review-loop）が無く（lib/graphloops は engine の型検査・描き方の 7 ファイルだけ）、走る時に写しの名を替える CORE_OVERRIDES・組み手の印 rl_builder も無い。承認ノードの組み立て（gatemarks.plan_gate_items）などはグラフの script が直に呼び、写しのバイトの手直しは写しの台帳の読み口 tests/bin/copyledger.py の ! 行が担う
 
 ## 平たく言うと（3 行）
@@ -115,7 +115,7 @@
 - 住処: `lib/depth.py`（単位 1 つの深さ `unit_depth`・控えの形 `decide_doc`・信号での上げ `raise_doc`・修正の後に上げる信号 `outside_cited`（引用の外の差分）・`late_signals`（引用の外の差分・TDD の拒否・範囲の相談の理由）・run 全体の深さ `run_depth`・省く理由の文 `skip_reason`（頭の深さの省く物と単位の深さから）・報告の行 `lines`。run の頭の深さの定義 `TIERS`・語 `HEADS`・段の足し `tier_adds`）と、修正の後の上げ直しの数え `lib/latedepth.py` の `signals`（修正のサブグラフの中の上げ直しとメイングラフの `redepth` が呼ぶ 1 か所。控えが無い時の訳 `NO_LATE_RECORD` と、読めない控えを上げる側へ倒す信号 `LATE_UNREAD`）
 - 約束: 計画の出力 `depth`（`[{unit_id, depth, why}]`。depth は `軽量`・`標準`）と、修正と目のサブグラフへ渡す run の頭の深さの語（平の入力 `head_depth`）。run の頭の深さの語（`軽量`・`標準`・`重厚`）は判定の出力 `depth` で、表 `TIERS` が定義する
 - 知ってよい所: 住処と、メイングラフ `workflows/line/`（始めのノードの入力 `thickness` の確かめと、直した後の上げ直しのノード `redepth`）
-- 今: 既知の漏れは、計画のサブグラフの出力ノード（`lib/planfile.py` が `depth.decide_doc` で出力 depth を作る）と、修正のサブグラフの置き場（`lib/fixboard.py` の `depth.json` の写しと `redepth` が呼ぶ `depth.raise_doc`）の 2 ファイル 6 行。元はメイングラフの境のノードが持っていた所。控えの扱いの字の柵は、`lib/latedepth.py` の外に字が無いことを見る（漏れ無し）
+- 今: 既知の漏れは、計画のサブグラフの出力ノード（`planfile.py` が `depth.decide_doc` で出力 depth を作る）と、修正のサブグラフの置き場（`lib/fixboard.py` の `depth.json` の写しと `redepth` が呼ぶ `depth.raise_doc`）の 2 ファイル 6 行。元はメイングラフの境のノードが持っていた所。控えの扱いの字の柵は、`latedepth.py` の外に字が無いことを見る（漏れ無し）
 
 ### `features` 機能の切り替え
 
@@ -162,7 +162,7 @@
 - 状態: 住処あり
 - 住処: `lib/handoff.py`（欄の名 `FIELD`・欄の並び `KEYS`・型 `SCHEMA`・書けという頼み `ASK`・前の周のセクションの見出し `HEAD`・使い方 `USE`・メモが無い周の文 `NONE`・読めない周の文 `UNREADABLE`・控えのパス `path_of`・控えを置く `save`・読めない控えを返す `unreadable`・前の周のセクションを組む `section`）
 - 約束: 役の返答の欄 `handoff`（4 つの欄 `read`・`kept`・`set_aside`・`open`）と、周のフォルダの控え `handoff.json`（控えの名と置き場は `lib/marks.py` の種 `handoff`）
-- 知ってよい所: 住処だけ。計画の受け付け `lib/planfile.py` と報告の受け付け `lib/runreport.py` は住処の `FIELD`・`path_of`・`save`・`unreadable`・`section`・`ASK` を使い、型・頼み・セクションを写さない。役の返答の型の YAML の写し（`workflows/plan/works-factory-plan.yaml`・`workflows/report/works-factory-report.yaml`）は `SCHEMA` の写しで、`tests/workflows/test_plan.py`・`tests/workflows/test_report.py` が住処と等しいことを縛る（表の bound）
+- 知ってよい所: 住処だけ。計画の受け付け `planfile.py` と報告の受け付け `runreport.py` は住処の `FIELD`・`path_of`・`save`・`unreadable`・`section`・`ASK` を使い、型・頼み・セクションを写さない。役の返答の型の YAML の写し（`workflows/plan/works-factory-plan.yaml`・`workflows/report/works-factory-report.yaml`）は `SCHEMA` の写しで、`test_plan.py`・`test_report.py` が住処と等しいことを縛る（表の bound）
 - 今: 外の当たりは 0 件
 
 ### `plan-scope` 修正案の項目の範囲の照らし
@@ -211,22 +211,22 @@
 - 住処: `lib/stopby.py`（標準ライブラリだけ。機械の語の頭 `HEAD`（`works:`）と頭の読み `is_line`、段の語と 2 つ以上の持ち主が共に書く語の表 `REASONS` とその定数 `ADAPTER`・`LINE_SCRIPT`・`REJUDGE` など、人の止めの頭 `HUMAN`、人の答えを待つ語 `WAITING`、自分だけの語を足す口 `declare` と `declared`）
 - 約束: 語の字は共有ボード・報告・固定材料に残るので変えない（試験 `lib/tests/test_stopby.py`）
 - 知ってよい所: 住処だけ。書き手は住処の定数を引き、自分の定数に写さない
-- 今: 柵は語の字（`"works:<名>"`・頭の `"works:"`）と、住処の定数をそのまま別の名に写す形（`X = stopby.Y`・`from stopby import`・`import stopby as`）。既知の漏れは、落ちない返しのノードが lib を読めない時のために語を字で持つ 4 か所（`workflows/.shared/boundary.py`・`workflows/judge/scripts/verdict.py`・`workflows/line/scripts/collect.py`・`workflows/line/scripts/result.py`）と、定数の写し 2 か所（`lib/outcome.py` の `WAIT_WORDS`・`lib/report.py` の `HUMAN_BY`）
+- 今: 柵は語の字（`"works:<名>"`・頭の `"works:"`）と、住処の定数をそのまま別の名に写す形（`X = stopby.Y`・`from stopby import`・`import stopby as`）。既知の漏れは、落ちない返しのノードが lib を読めない時のために語を字で持つ 4 か所（`boundary.py`・`workflows/judge/scripts/verdict.py`・`workflows/line/scripts/collect.py`・`workflows/line/scripts/result.py`）と、定数の写し 2 か所（`outcome.py` の `WAIT_WORDS`・`lib/report.py` の `HUMAN_BY`）
 
 ### `start-record` 始めの記録 `r1/start.json`
 
 - 状態: 住処あり
-- 住処: `lib/startrec.py`（標準ライブラリだけ。置き場の名 `NAME`・`REL` と `path`、読み口 `read`・`load`、書き `write`・写し `adopt`、入口の入力の形の読み `shape`・`diff_empty`・`requests`、読む版と差分の根 `read_rev`・`diff_base`、入口の文 `words`、命令の版の 1 行 `cli_version`）
-- 約束: 住処の口だけ（置き場の名と読む口はここ 1 つ。記録の型の Schema は works-factory に無い。試験 `lib/tests/test_startrec.py`）
+- 住処: `workflows/line/src/startrec.py`（標準ライブラリだけ。置き場の名 `NAME`・`REL` と `path`、読み口 `read`・`load`、書き `write`・写し `adopt`、入口の入力の形の読み `shape`・`diff_empty`・`requests`、読む版と差分の根 `read_rev`・`diff_base`、入口の文 `words`、命令の版の 1 行 `cli_version`）
+- 約束: 住処の口だけ（置き場の名と読む口はここ 1 つ。記録の型の Schema は works-factory に無い。試験 `tests/blocks/line/test_startrec.py`）
 - 知ってよい所: 住処だけ。書き手はメイングラフの始めのノード `workflows/line/scripts/start.py`（`startrec.write`）で、サブグラフは `startrec.adopt` で写し、読み手は `startrec.read`・`startrec.load` を引く
-- 今: 柵は置き場の名を字で書く形・置き場の名の別名（START_REL・START_FILE）・別の読み口（start_doc の関数）。既知の漏れは、判定の置き場に始めの記録の写しを同じ名で置く `lib/judge_accept.py` の `START_FILE` とそれを引く判定の支度の 2 つの script、最後の承認ノード `workflows/line/scripts/ask_final.py` の包み `start_doc`（4 ファイル 12 行）
+- 今: 柵は置き場の名を字で書く形・置き場の名の別名（START_REL・START_FILE）・別の読み口（start_doc の関数）。既知の漏れは、判定の置き場に始めの記録の写しを同じ名で置く `judge_accept.py` の `START_FILE` とそれを引く判定の支度の 2 つの script、最後の承認ノード `workflows/line/scripts/ask_final.py` の包み `start_doc`（4 ファイル 12 行）
 
 ### `human-gates` 人の承認ノードと無人の方針
 
 - 状態: 住処あり
 - 住処: `lib/gatepolicy.py`（標準ライブラリと始めの記録・答えの行・止めの語と、事前審査の壁打ちの控えの読みだけ。メイングラフの入力と始めの記録の欄の名 `FINAL_KEY`・`UNATTENDED_KEY`、最後の承認ノードの開き方の語 `FINAL_GATES`（既定 `ALWAYS`）と無人の語 `UNATTENDED`、入口の語の確かめ `check`（仕様の段と無人の組みも拒む）、始めの記録からの読み `final_mode`・`unattended`、最後の承認ノードを開くかの決め `opens`、報告の頭の行の句 `head_words`、無人の run が承認ノードを推しで進むか止まるかの口 `passage`（項目を受けて進むか・止める理由・推しの答えを返す）と、止まった事前審査の壁打ちの行に推しの尾を付けてよいかの決め `stuck_pushable`、推しの読みの形 `Push`）
-- 約束: 始めの記録（`lib/startrec.py` の start.json の形）の 2 つの欄。書き手はメイングラフの始めのノードの 1 か所
-- 知ってよい所: 住処と、メイングラフの始めのノードの script `workflows/line/scripts/start.py`（メイングラフの入力 `INPUTS_FINAL_GATE`・`INPUTS_UNATTENDED` を受けて住処の `check` に渡し、始めの記録に置く）と、周の鎖の親のグラフ `workflows/chain/works-factory-chain.yaml`（メイングラフと同じ名の入力を宣言し、周の子へ写して渡すだけ）。読み手（`lib/gatemarks.py`・`lib/boardview.py`・`lib/runreport.py`）は住処の口で始めの記録を読む。推しの尾の字の形の持ち主 `lib/gatemarks.py` は、項目の尾と止まった時の推しの読みを `Push` にして住処の口に渡すだけで、推しで進むかを決めない。修正前と案の直しの承認ノードの script は `passage` を呼ぶだけ
+- 約束: 始めの記録（`workflows/line/src/startrec.py` の start.json の形）の 2 つの欄。書き手はメイングラフの始めのノードの 1 か所
+- 知ってよい所: 住処と、メイングラフの始めのノードの script `workflows/line/scripts/start.py`（メイングラフの入力 `INPUTS_FINAL_GATE`・`INPUTS_UNATTENDED` を受けて住処の `check` に渡し、始めの記録に置く）と、周の鎖の親のグラフ `workflows/chain/works-factory-chain.yaml`（メイングラフと同じ名の入力を宣言し、周の子へ写して渡すだけ）。読み手（`lib/gatemarks.py`・`boardview.py`・`runreport.py`）は住処の口で始めの記録を読む。推しの尾の字の形の持ち主 `lib/gatemarks.py` は、項目の尾と止まった時の推しの読みを `Push` にして住処の口に渡すだけで、推しで進むかを決めない。修正前と案の直しの承認ノードの script は `passage` を呼ぶだけ
 - 今: 柵は、方針の語の字（住処の口 `gatepolicy.<名>` は数えない）と、住処の定数を別の名に写す形と、推しの尾の読み（`push_rec`・`row_push`）を gatemarks の外で呼ぶ形（推しで進むかの決めの写し。住処は推しの読みを `Push` で受けるだけで、尾の読みを呼ばない）の 3 本。既知の漏れは、メイングラフの入力の宣言と始めのノードの出口の欄を後ろへ写す `workflows/line/works-factory-line.yaml` と、承認ノードの script（`workflows/line/scripts/ask_before_fix.py`・`workflows/line/scripts/ask_final.py`・`workflows/line/scripts/ask_replan.py`）が始めの記録を読まずにメイングラフの入力を写して受ける所（25 行・4 ファイル）
 - 寄せ残し: 無人の run の決めのうち、次の 2 つは住処の口の外に置く。始めの承認ノード（`workflows/line/scripts/start.py`）は無人かの読みを口 `unattended_of` で引き、無人なら開かないだけなので残しではない
   - 最後の承認ノード（`workflows/line/scripts/ask_final.py` の `ask`）の、開くはずの時に無人の run なら needs-human で止める分かれ道。開ける理由（テストが緑でない・守りのファイルを触った…）は機械が読める推しの尾を持たないので、`passage` に渡すと理由を推しの無い項目として渡す形でしか書けず、「いつも止める」を口の中の推しの読みに隠すだけで簡潔にならない。開くかの決めはもう口 `opens` に在る
@@ -246,7 +246,7 @@
 - 住処: `lib/rolekit.py`（受け付けの回の口 `accept_round` と、読んだ返答を受けるその本体 `accept_parsed`、その返り値の 4 つの欄 `round_outcome`、控えの誤りで落ちずに今の回を読む `current_round`、拒否の控えの唯一の書き手 `with_done`、拒否の控え `rejects-<名>.json` の読み `reject_rows`・`rejected`・`attempt`・`given_up_reason`、諦める回の数 `GIVE_UP_AFTER` と最後の回かの問い `is_last_attempt`、回数で諦めない受け付け（方針 `net`。計画と事前審査の受け付け）の届かない網の数 `NET_AFTER` と網に届いた訳 `NET_WHY`、拒否の全部のファイル `reject_file`、前の版の控えの読み替え `_legacy_rows`）
 - 約束: 呼び手は `rolekit.accept_round(board, name, raw, take, reject=, on_give_up=, net=)` に返答の字と `take` を渡す。方針 `net` の拒否は `NET_AFTER` 回目で `done` になり、控えの行に `after`（`NET_AFTER`）を残す。`given_up_reason` は控えの最後の行の `after`（無ければ `GIVE_UP_AFTER`）で諦めを判じる。`take` の返り値の欄 `ok`・`reason`・`give_up`（1 回目から諦める）・`count`（false なら控えに積まない）・`kind`（控えの行に残す）を口が読み、1 回の拒否の定義は口の中にだけ在る。返り値は `take` の返り値に `done` を足した物。拒否の控え `rejects-<名>.json` が読めない・書けない時は、落ちずに `done` 真の拒否（理由「拒否の控えが扱えない」）。口の外の `rolekit.reject_file` が書く `rejects-<名>.md` が書けない時は `OSError` が呼び手まで上がる。拒まれた後の出し直しを前の答えと合わせる受け付けは、`take` の前段の `rolekit.resubmitted` で合わせた答えを `rolekit.accept_parsed` に渡す（数え・諦め・控えは口の中のまま）。take の前に今の回が要る呼び手は `current_round` で読み、控えが読めなければ口を回さずにその拒否を返す
 - 知ってよい所: 住処だけ。呼び手（`lib/judge_accept.py`・`lib/boardview.py`・`lib/eye.py`・`lib/ruling.py`・`lib/runreport.py`・`lib/fixboard.py` の `accept_out`、`workflows/` の受け付けの script）は口を引き、控えの名も諦める回の数も字で書かない
-- 今: 柵は、`rolekit.with_done(` の直の呼びと受け付けの回の口の定義と `round_outcome` の `give_up` の欄の写し、`GIVE_UP_AFTER`・`NET_AFTER` との大小の比べ、拒否の控えと拒否の文の置き場の名の字、`GIVE_UP_AFTER = <数>`・`NET_AFTER = <数>` の定義と見出し「前の回の受け付けが拒んだ理由」の別の宣言の 4 本。既知の漏れは無い。TDD の段の自前の数え `lib/tddloop.py` の `tries` と拒否の文のファイル `tdd-step-reject-{}.md` は別のサブシステムで、柵の語の形に当たらない
+- 今: 柵は、`rolekit.with_done(` の直の呼びと受け付けの回の口の定義と `round_outcome` の `give_up` の欄の写し、`GIVE_UP_AFTER`・`NET_AFTER` との大小の比べ、拒否の控えと拒否の文の置き場の名の字、`GIVE_UP_AFTER = <数>`・`NET_AFTER = <数>` の定義と見出し「前の回の受け付けが拒んだ理由」の別の宣言の 4 本。既知の漏れは無い。TDD の段の自前の数え `tddloop.py` の `tries` と拒否の文のファイル `tdd-step-reject-{}.md` は別のサブシステムで、柵の語の形に当たらない
 
 ---
 
@@ -261,17 +261,17 @@
 ### `ai-launch` AI の起こし方（模型・effort・道具・隔離）
 
 - 状態: 散らばり
-- 今: 模型と effort の既定だけが `lib/launchgroups.py` の群の表（`GROUPS`）に住み、グラフの YAML の AI のノードは `model:` に群の名 `'@wf-<群>'` を書くだけ（`effort:` は書かない。run ごとの付け替えは `run-model-choice`）。道具 `allowed_tools:` の行と隔離と役の定義の前付け（`lib/agents/`）は散らばりのまま（役の定義の前付けは模型と effort の行を今も持つ）: YAML の行は役の定義の前付けと結ばれておらず、試験（`tests/workflows/test_judge.py` ほか）はノードごとに自分の表で群の既定を縛るだけ。数の歯止めは表の `known` の 12 ファイル 73 行（`workflows/*/works-factory-*.yaml` の 7 ファイル 63 行・役の定義の前付けの 5 ファイル 10 行）。役の claude の会話のキャッシュの寿命の既定（5 分）は `bin/_lib/launcher.py` の `PROMPT_CACHE_TTL`・`cache_ttl` に住み、運び手は Archon の run の設定の層の env（利用者の `--config` の `env:` か対象の `.archon/config.yaml` の `env:` で寿命を選んでいれば載せず、利用者の shell の env は見ず、`--adopt` の起動でも載せない。訳は `docs/design/archon.md`）。前の works の run の明示の模型 `WORKS_DEV_MODEL`・隔離の旗 `isolated` は今の木に無い
+- 今: 模型と effort の既定だけが `lib/launchgroups.py` の群の表（`GROUPS`）に住み、グラフの YAML の AI のノードは `model:` に群の名 `'@wf-<群>'` を書くだけ（`effort:` は書かない。run ごとの付け替えは `run-model-choice`）。道具 `allowed_tools:` の行と隔離と役の定義の前付け（`lib/agents/`）は散らばりのまま（役の定義の前付けは模型と effort の行を今も持つ）: YAML の行は役の定義の前付けと結ばれておらず、試験（`tests/workflows/test_judge.py` ほか）はノードごとに自分の表で群の既定を縛るだけ。数の歯止めは表の `known` の 12 ファイル 73 行（`workflows/*/works-factory-*.yaml` の 7 ファイル 63 行・役の定義の前付けの 5 ファイル 10 行）。役の claude の会話の組（`CLAUDE_CODE_PROMPT_CACHE_TTL`）と、その会話が Agent の道具で起こす下請け（subagent）の組（`CLAUDE_CODE_SUBAGENT_PROMPT_CACHE_TTL`）のキャッシュの寿命の既定（どちらも 5 分）は `bin/_lib/launcher.py` の `PROMPT_CACHE_TTL`・`cache_ttl` に住み、運び手は Archon の run の設定の層の env（利用者の `--config` の `env:` か対象の `.archon/config.yaml` の `env:` でその組の寿命を選んでいればその組だけ載せず、利用者の shell の env は見ず、`--adopt` の起動でも載せない。訳は `docs/design/archon.md`）。前の works の run の明示の模型 `WORKS_DEV_MODEL`・隔離の旗 `isolated` は今の木に無い
 - 計画: まだ無い
 
 ### `prompt-assembly` 指示書の組み立て
 
 - 状態: 散らばり
-- 今: 写しの指示書を描く式は `lib/rolekit.py` に在るが、「頭のセクション → 写しの本文 → 役の定義 → 前の拒否」の並べは役の支度のモジュールごとに組む（`lib/planblk.py`・`lib/planfile.py`・`lib/design.py`・`lib/replan.py`・`lib/boardview.py` ほか）。貼るセクションの見出しの宣言は考え `prompt-sections` に寄せた。印「機械が貼った」は付け方がそろわないので範囲の定義には使わず、柵はその字を数えるだけ。数の歯止めは表の `known` の 11 ファイル 17 行（独立の目の比べの指示書 `workflows/eyes/commands/r2-compare.md` の見出しの 2 行と、承認ノードの script `workflows/line/scripts/ask_replan.py` が見出しを自分の定数に写す 1 行を含む）
+- 今: 写しの指示書を描く式は `lib/rolekit.py` に在るが、「頭のセクション → 写しの本文 → 役の定義 → 前の拒否」の並べは役の支度のモジュールごとに組む（`planblk.py`・`planfile.py`・`lib/design.py`・`lib/replan.py`・`boardview.py` ほか）。貼るセクションの見出しの宣言は考え `prompt-sections` に寄せた。印「機械が貼った」は付け方がそろわないので範囲の定義には使わず、柵はその字を数えるだけ。数の歯止めは表の `known` の 11 ファイル 17 行（独立の目の比べの指示書 `r2-compare.md` の見出しの 2 行と、承認ノードの script `workflows/line/scripts/ask_replan.py` が見出しを自分の定数に写す 1 行を含む）
 - 計画: まだ無い
 
 ### `lang-names` 特定の言語・テストの実行器の名
 
 - 状態: 散らばり
-- 今: 役の指示書と `lib/` に特定の言語・テストの実行器の名を書かない（持ち主の決め `lang-neutral`。事実上の標準の形式の名は数えない）。今その名を持つ所は、言語ごとの読み方（`lib/impact.py`・`lib/libdocs.py`・`lib/libdocs_local.py`・`lib/libdocs_web.py`・`lib/ripple.py`。持ち主の決めの E13 の例外）・TDD のループと実行器の口（`lib/tddloop.py`・`lib/baseline_red.py`）・起動の殻の版の確かめ（`bin/apply`・`bin/works-factory`）・コメントと docstring。・役の指示書（`workflows/fix/commands/fix-rules/common.md`・`workflows/judge/commands/premises.md` が手元の依存と生成物の止め方に Python を名指す）。数の歯止めは表の `known` の 18 ファイル 44 行。新しい役の指示書が名を書けば赤になる
+- 今: 役の指示書と `lib/` に特定の言語・テストの実行器の名を書かない（持ち主の決め `lang-neutral`。事実上の標準の形式の名は数えない）。今その名を持つ所は、言語ごとの読み方（`lib/impact.py`・`lib/libdocs.py`・`lib/libdocs_local.py`・`lib/libdocs_web.py`・`ripple.py`。持ち主の決めの E13 の例外）・TDD のループと実行器の口（`tddloop.py`・`lib/baseline_red.py`）・起動の殻の版の確かめ（`bin/apply`・`bin/works-factory`）・コメントと docstring。・役の指示書（`common.md`・`premises.md` が手元の依存と生成物の止め方に Python を名指す）。数の歯止めは表の `known` の 18 ファイル 44 行。新しい役の指示書が名を書けば赤になる
 - 計画: まだ無い（持ち主の決めの E13 の例外は掃除の段で言語の知識を外へ出す）

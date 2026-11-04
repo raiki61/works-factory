@@ -62,7 +62,7 @@ TARGET_ENV_NOTICE = ("AI が書いた試験のコードを、あなたの権限�
 
 
 # claude の会話のキャッシュの寿命の既定（cache_ttl が run の設定の層の env で運ぶ）を組ごとに {既定の名: 値}。Claude Code は寿命を
-# 役の会話の組と、それ以外（役の会話が Agent の道具で起こす下請け〔subagent〕）の組に分けて決める（v2.1.242 から）
+# 役の会話の組と、それ以外（役の会話が Agent の道具で起こす下請け〔subagent〕など）の組に分けて決める（v2.1.242 から）
 PROMPT_CACHE_TTL = {"CLAUDE_CODE_PROMPT_CACHE_TTL": "5m", "CLAUDE_CODE_SUBAGENT_PROMPT_CACHE_TTL": "5m"}
 # 組ごとの寿命を選ぶ名 {既定の名: 選ぶ名}（https://code.claude.com/docs/en/prompt-caching の Which TTL each request gets の順。
 # 設定の promptCacheTtl・subagentPromptCacheTtl と下請けの定義の frontmatter は 2 つ目と 3 つ目の間）。1 つ目と 3・4 つ目は両方の組に効く

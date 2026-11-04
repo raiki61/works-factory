@@ -1,4 +1,4 @@
-"""周の鎖 works-factory-chain（workflows/chain/。今の tests/workflows/test_chain.py の移し。docs/design/line.md の 12）の script・グラフの形・筋書きの試験。
+"""周の鎖 works-factory-chain（workflows/chain/。元の test_chain.py の移し。docs/design/line.md の 12）の script・グラフの形・筋書きの試験。
 
 script は子のプロセスとして使い捨ての置き場（runs/<親>・runs/<子>）・run の記録・git の木で走らせる（Archon を起こさない）。
 グラフの形は YAML を読んで照らす（5 組の周のノードが番号と前の決めのほかは同じ形・子へ渡す入力がメイングラフの入力と同じ）。

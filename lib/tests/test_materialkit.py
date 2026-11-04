@@ -1,6 +1,6 @@
 """素材の観点の族の共通の部品（lib/materialkit）の試験（docs/design/materials.md の 8 節）。
 
-今の lib/tests/test_judge_accept.py の MaterialCase・DueCase が judge の置き場の上で確かめていた場面を、観点の宣言（試験の中の
+元の test_judge_accept.py の MaterialCase・DueCase が judge の置き場の上で確かめていた場面を、観点の宣言（試験の中の
 小さな宣言 Viewpoint）と place のフォルダで写した。各試験の docstring に元の試験の名を書く。
 """
 import json

@@ -175,7 +175,7 @@ class FlowCase(FlowBase):
 
 
 class ReadsCase(FlowBase):
-    """読んだ証拠の node pr-check-reads（元 tests/workflows/test_judge.py の ReadsTest の写し）"""
+    """読んだ証拠の node pr-check-reads（元 test_judge.py の ReadsTest の写し）"""
 
     def setUp(self):
         super().setUp()
@@ -238,7 +238,7 @@ class ReadsCase(FlowBase):
 
 
 class WiringCase(unittest.TestCase):
-    """YAML の配線と、役の返答の形（元 tests/workflows/test_judge.py の同名の試験の写し）"""
+    """YAML の配線と、役の返答の形（元 test_judge.py の同名の試験の写し）"""
 
     def setUp(self):
         doc = yaml.safe_load((kit.BLOCKS / NAME / "works-factory-parallel-pr.yaml").read_text(encoding="utf-8"))

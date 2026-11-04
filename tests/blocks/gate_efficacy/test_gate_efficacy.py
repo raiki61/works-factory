@@ -173,7 +173,7 @@ class FlowCase(unittest.TestCase):
 class ShapeCase(unittest.TestCase):
     """YAML の揃い（block の形の検査は tests/layers/test_block_shape.py）"""
 
-    # 今の判定のゲートの検算の役の起こし方（tests/workflows/test_judge.py の ROLES["gate-efficacy"] の行と、
+    # 今の判定のゲートの検算の役の起こし方（test_judge.py の ROLES["gate-efficacy"] の行と、
     # workflows/judge/works-factory-judge.yaml の錨 test_run_launch を、作り直しの時に字で写した物）
     LAUNCH = {"model": "@wf-judge-materials", "settingSources": ["user"],
               "allowed_tools": ["Read", "Grep", "Glob", "Bash", "WebSearch", "WebFetch"],

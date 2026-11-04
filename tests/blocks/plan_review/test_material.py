@@ -2,7 +2,7 @@
 
 script（intake → review_prep）を子のプロセスで回し、place に書かれた材料のファイル review-material-<n>.md と組んだ指示
 review-prompt-<n>.md を読む。材料は機械が貼る行と英語の短い札だけ、指示の文は md だけが持つ。写した元の試験の名は各試験の
-docstring に書く（tests/workflows/test_plan_review.py・lib/tests/test_boardview.py・lib/tests/test_blk_plan.py）。
+docstring に書く（test_plan_review.py・test_boardview.py・test_blk_plan.py）。
 2 往復目の往復の記録（port prior）は、line と同じく 1 往復目の place の作業の写しに converge.add_pass で往復の行を足して組む。
 """
 import json

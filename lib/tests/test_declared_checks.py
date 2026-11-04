@@ -752,7 +752,7 @@ class ReuseCase(RepoCase):
         self.assertEqual(self.run_ci(self.cmd, reuse=self.place())["material"]["status"], "clean")
         exe = self.tmp / "suite.sh"
         exe.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
-        basecase = kit.load("fix", "basecase")   # 頭の test_cmd は fix の src/basecase.py（前は src/tdd.py・lib/tddloop.py。integration.md 4.3-3）
+        basecase = kit.load("fix", "basecase")   # 頭の test_cmd は fix の src/basecase.py（前は src/tdd.py・tddloop.py。integration.md 4.3-3）
         from src import common
         gate, why, _ = basecase._test_cmd_gate(exe, self.cmd, self.repo, self.work / "head.log", reuse=self.place())
         self.assertEqual((gate, why, self.launched()), (common.GATE_ON, "", 1))

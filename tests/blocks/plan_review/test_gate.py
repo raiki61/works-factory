@@ -4,7 +4,7 @@
 直に呼ぶ（place のファイルは試験が書き、intake.json の中身は試験が組む。git も子のプロセスも無し）。port を通す場面（依頼の解き方と
 依頼のファイルを出どころにした外れ・出口の返りの asks）だけ test_take.py の Flow で script を回す。
 
-写した元は lib/tests/test_gate_axes.py の SplitCase・RunRootCase と、tests/workflows/test_plan_review.py の FourAxesCase・WorldGateCase・
+写した元は test_gate_axes.py の SplitCase・RunRootCase と、test_plan_review.py の FourAxesCase・WorldGateCase・
 WorldGateRunCase・GateFromPlanCase・ReplanCase の行の事実の半分（試験ごとの docstring に元の名を書く）。元の「聞かずに通る」は行の
 decided が真で why が空、「聞く」は decided が偽か why が在る、に読み替えた。承認ノードを開くか・聞き直さないか・無人の推し・
 4 つの軸のまとめは line の試験に残す。
@@ -19,7 +19,7 @@ from tests.blocks import kit
 from tests.blocks.plan_review.test_take import (UNIT_CLAMP, UNIT_MEAN, Flow, dump, face, fields, item, review)
 
 BLOCK = "plan-review"
-# 元 lib/tests/test_plan_gate.py の値
+# 元 test_plan_gate.py の値
 NARROW = {"what": "空の列の mean", "why": "空の列の平均は 0 割りの例外のまま"}
 URL = "https://docs.python.org/3/library/statistics.html#statistics.mean"
 DECIDED = {"decided_by": f"{URL} の定義（空の列は StatisticsError）", "undecided_because": "", "fences": [],
@@ -161,7 +161,7 @@ class RowsCase(GateBase):
         self.assertEqual([(r["decided"], r["why"], r["mark"]) for r in got], [(True, {}, DECIDED), (True, {}, DECIDED)])
 
 
-# ---------------------------------------------------------------- 4 つの軸（元 lib/tests/test_gate_axes.py の SplitCase）
+# ---------------------------------------------------------------- 4 つの軸（元 test_gate_axes.py の SplitCase）
 class SplitCase(GateBase):
     def test_decided_url_is_all_ok(self):
         """元 SplitCase.test_decided_url_is_all_ok（元 FourAxesCase.test_decided_by_url_passes）"""
@@ -297,7 +297,7 @@ class SplitCase(GateBase):
         self.assertIn("修正案の単位の外を名指す（別の単位）", self.note(got, "not_overkill"))
 
 
-# ---------------------------------------------------------------- 元 tests/workflows/test_plan_review.py の FourAxesCase
+# ---------------------------------------------------------------- 元 test_plan_review.py の FourAxesCase
 class FourAxesCase(GateBase):
     """承認ノードに載せずに通してよいかは、自明・世界の解・汚くない・やりすぎでないの 4 つが全部揃う時だけ（持ち主 2026-10-09 の決め 1）。
     この block は行ごとの揃わない訳を返し、聞くかは line が決める"""
@@ -367,7 +367,7 @@ class FourAxesCase(GateBase):
         self.assertEqual(got["why"], {})
 
 
-# ---------------------------------------------------------------- 決め手の出どころに引いてよい根（元 lib/tests/test_gate_axes.py の RunRootCase）
+# ---------------------------------------------------------------- 決め手の出どころに引いてよい根（元 test_gate_axes.py の RunRootCase）
 class RunRootCase(GateBase):
     """決め手の出どころに引いてよい作業ツリーの外の根は、依頼のファイル（port request）と place の親。場面は run f3a32503: 計画の役が
     定石から外れる訳に、run の置き場の plan/r1/brief-2.md:62（判定の処方の行）を挙げた"""

@@ -1,7 +1,7 @@
 """判定のまとめの graph（workflows/judge。docs/design/judge-eyes.md の 1 節）: 止めの語の順・返りの無い block の欄・diagnose へ渡す値の
 そろえ方・判定の裏取りの選び・返す node が落ちないこと・配線の yes/no・筋書きの verdict を確かめる。
 
-元は今の tests/workflows/test_judge.py の graph の場面（docs/design/README.md の 9.5）。include した block の中は各 block の試験が見る。
+元は test_judge.py の graph の場面（docs/design/README.md の 9.5）。include した block の中は各 block の試験が見る。
 守る keep-essence: 7（class_query。diagnose が作り、この graph は judgment の pointer を運ぶ）・12（世界の解の行を world の欄で運ぶ）
 """
 import copy

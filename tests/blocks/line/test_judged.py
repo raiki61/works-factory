@@ -1,5 +1,5 @@
 """判定（再審が走れば再審）を後ろへ渡す judged（workflows/line/src/stages.py の judged。docs/design/line.md の 4.4）。元は今の
-tests/workflows/test_line.py の AfterFixAndJudgedCase の judged の場面"""
+test_line.py の AfterFixAndJudgedCase の judged の場面"""
 import json
 import unittest
 

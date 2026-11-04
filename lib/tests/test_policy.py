@@ -88,7 +88,7 @@ class FreezeCase(unittest.TestCase):
 class NameOwnerCase(unittest.TestCase):
     """#454: 方針の 3 つの名（決定記録の突合の返答のファイル名・方針の文書の柵の語・方針の穴の kind）は policy が持ち、使う部品は
     ここから引く。どちらか片方だけを替えると赤（policy の PRIOR_DECISIONS_FILE だけを替えると役の名が変わり、
-    tests/workflows/test_judge.py の YAML の節 id との突き合わせが赤）"""
+    test_judge.py の YAML の節 id との突き合わせが赤）"""
 
     def test_fence_word_is_a_gatemarks_fence(self):
         self.assertIn(policy.POLICY_DOC_FENCE, gatemarks.FENCES)

@@ -1,7 +1,7 @@
 """block r2 を、script を子のプロセスで回して確かめる（docs/design/r2.md の 8 節）。
 
 始めの記録の無い使い捨ての run directory と git のリポジトリで、port の値だけを渡し、intake → 支度 → 台本の返答 → save → finish と回す。
-今の tests/workflows/test_eyes.py の ScriptCase と lib/tests/test_eyeverdict.py の R2 の場面を、port の値で作り直した（各試験の
+元の test_eyes.py の ScriptCase と test_eyeverdict.py の R2 の場面を、port の値で作り直した（各試験の
 docstring に元の試験の名を書く）。筋書きを Archon の workflow test で回すのは tests/layers/test_block_shape.py。
 """
 import json

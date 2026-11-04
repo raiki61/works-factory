@@ -1,6 +1,6 @@
 """line の筋書きの組 A（workflows/line/fixtures/*.stubs.yaml の 20 本）の試験（docs/design/README.md の 11.3 の 2、line.md の 11 節）。
 
-元は今の tests/e2e/test_line_scenarios.py と tests/workflows/test_line.py の筋書きの場面。筋書きを新しい line の node の id
+元は test_line_scenarios.py と test_line.py の筋書きの場面。筋書きを新しい line の node の id
 （include した block の中の node は `<include の id>__<中の id>`）に書き直し、各筋書きが何を照らすかは変えない。
 - 筋書きの宣言（expect・reached・fail-node・resolved-text-contains）は Archon の workflow test で照らす（pack の全部の筋書きを回す層の
   試験 tests/layers/test_block_shape.py の ArchonCase。ここでは回し直さない）
@@ -317,7 +317,7 @@ class FailedBlockTest(unittest.TestCase):
 
 
 def tiers_table():
-    """段の表（段 → 省く物・足す物）。line の src/tiers.py の TIERS（lib/depth.py は組み込みで消えた）"""
+    """段の表（段 → 省く物・足す物）。line の src/tiers.py の TIERS（depth.py は組み込みで消えた）"""
     return kit.load(BLOCK, "tiers")
 
 

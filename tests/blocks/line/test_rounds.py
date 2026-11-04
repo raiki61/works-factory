@@ -1,6 +1,6 @@
 """計画の往復の記録と止め（docs/design/line.md の 3 節。node plan-out と owed。src/rounds.py）。
 
-元は今の tests/workflows/test_line.py の PlanOutCase・PlanOutNothingOwedCase・OwedCase。往復の行・止め時の 5 語・上限 20 と YAML の
+元は test_line.py の PlanOutCase・PlanOutNothingOwedCase・OwedCase。往復の行・止め時の 5 語・上限 20 と YAML の
 max_iterations の突き合わせ・上限で止めた行の capped・止まった案を推しで進める時の保留の穴の足し・2 本の prior が共有の形
 （shared:plan-converge.schema.json と shared:plan-prior.schema.json。書き手の plan-out が書いた時に ports.pointer が照らし、ここは写しを
 持たずに同じ形で照らす）に合うかを見る。往復の記録の行の決まりそのものは test_converge_line.py。

@@ -9,7 +9,7 @@
 
 - 外部標準照合の役（external-standards）: 対象差分・変更ファイル・目的の文・自覚済みの弱点・観点の正本を渡され、web と手元の依存を当たって定番解からの逸脱を返す AI の役。役の定義は investigator。道具は Read・Grep・Glob・Bash・WebSearch・WebFetch（prior-decisions と同じ起こし方。Bash は網の閉じた sandbox の中）。
 - 順位の行: 返答の `rankings` の 1 行 `{problem, source, ranked, diff_at, why_not_higher?}`。一般化した問題ごとに、一次情報が選択肢に付けた順位（`ranked`、上位から）と、差分が乗る選択肢（`diff_at`。`ranked` のどれかの字のまま）と、最上位でない時に上位を採れない理由。
-- 観点の正本: 工場の `lib/REVIEW.md` の節「外部標準照合観点」と「指摘の提出基準」（と、在れば対象の根の `REVIEW.md`）。パスは `materialkit.review_md_paths(repo)`（materials.md の 5.2 の終わり）。
+- 観点の正本: 工場の `workflows/.shared/prompts/REVIEW.md` の節「外部標準照合観点」と「指摘の提出基準」（と、在れば対象の根の `REVIEW.md`）。パスは `materialkit.review_md_paths(repo)`（materials.md の 5.2 の終わり）。
 - 例の run: 本物の run 1 つ（対象 <owner>/<repo>。置き場は利用者の state の置き場の下の、その run の `judge/`）。差分の在る run（23 ファイル）で、役は 1 回目に拒まれ（`rejects-external-standards.json` の 1 件。`diff_at` が `ranked` の字に無い）、2 回目で受け付けを通った（`material-external-standards.json` の `materials.external_standards.status` が `found`、`count` 2、`rankings` 1 行）。骨組みの値はここから取った。
 
 ## 1 block の全体
@@ -70,7 +70,7 @@ materials.md の 1.4 の名だけ: `intake.json`・`view.json`・`diff.patch`・
   - `after_accept(reply, place)`: 何もしない。
   - `materials_of(reply)`: `{"external_standards": reply["material"]} if isinstance(reply.get("material"), dict) else {}`（今の `writes` の `materials.external_standards ← material`。`:1665`）。
   - `report_lines(doc)`: `reply` が null なら `[]`。在れば `rankings` の行ごとに `f"  - 順位: {oneline(problem)}——差分は {k} 位／{len(ranked)} 位中（{oneline(diff_at)}）"`（`k` は `ranked.index(diff_at) + 1`。受け付けを通った返答では `diff_at` はいつも `ranked` に在る）。`rankings` が空なら `f"  - 順位: 付けられる問題なし（{oneline(rankings_none)}）"` の 1 行。字下げ 2 つで、materials.md の 2.10 の素材の 1 行の下に並ぶ。
-- `workflows/external-standards/src/rankings.py`: 順位の行の照らし。公開の名は `problem(reply) -> str | None` だけ。写す元（`lib/judge_accept.py`）: `external_rankings`（`:2146-2157`。`Reject` を上げる代わりに拒む文を返し、通れば `None`）。空同然の自由文の見方は写さず、`lib/cite.py` の `blank`（写す元の `blank`・`EMPTY` と同じ表と長さの見方）を使う。
+- `workflows/external-standards/src/rankings.py`: 順位の行の照らし。公開の名は `problem(reply) -> str | None` だけ。写す元（`judge_accept.py`）: `external_rankings`（`:2146-2157`。`Reject` を上げる代わりに拒む文を返し、通れば `None`）。空同然の自由文の見方は写さず、`lib/cite.py` の `blank`（写す元の `blank`・`EMPTY` と同じ表と長さの見方）を使う。
 - `workflows/.shared/schemas/purpose.schema.json`（`shared:purpose.schema.json`）: [purpose-review.md](purpose-review.md) の 1.5 の字のまま。
 - 使う `lib/`: `materialkit`・`rolekit`・`oneline`。
 
@@ -240,7 +240,7 @@ Return only JSON that matches the output schema.
 
 ### 2.6 今の指示との差
 
-今の指示は `workflows/judge/commands/material-external-standards.md`（68 行）と、`material_prep`（`lib/judge_accept.py:2116-2135`）が描く材料のファイルの 2 か所に在る。prior-decisions.md の 2.6 と同じ移し方（材料の節を `## Materials` の行に・『条件に当たらない』の節を `{shared:material-na}` に・却下の段落 2 か所を `{shared:rejected}` 1 回に・役の定義と外への検索の決まりを `{shared:role-investigator}` と `{shared:query-rule}` に・作業ツリーを変えるなの句を役の定義の Bash の箇条と `{shared:material-readonly}` に・works-gh の段を `{shared:works-gh}` に・素材の書き方を `{shared:material-status}` に・所見の場所の段を `{shared:material-where}` に・言語の 1 行を md の 1 文に・元の指示書との境の文と見出しと区切りを消す・「同じ時に別の素材集めの役も走っている」の断定を消す）はここに繰り返さない。この観点だけの差:
+今の指示は `material-external-standards.md`（68 行）と、`material_prep`（`judge_accept.py:2116-2135`）が描く材料のファイルの 2 か所に在る。prior-decisions.md の 2.6 と同じ移し方（材料の節を `## Materials` の行に・『条件に当たらない』の節を `{shared:material-na}` に・却下の段落 2 か所を `{shared:rejected}` 1 回に・役の定義と外への検索の決まりを `{shared:role-investigator}` と `{shared:query-rule}` に・作業ツリーを変えるなの句を役の定義の Bash の箇条と `{shared:material-readonly}` に・works-gh の段を `{shared:works-gh}` に・素材の書き方を `{shared:material-status}` に・所見の場所の段を `{shared:material-where}` に・言語の 1 行を md の 1 文に・元の指示書との境の文と見出しと区切りを消す・「同じ時に別の素材集めの役も走っている」の断定を消す）はここに繰り返さない。この観点だけの差:
 
 - 移した: 材料の 6 つの節（`loop.diff_file`・`loop.changed_files`・`inputs.review_md`・`out.p0.purpose.purpose_text`・`out.p0.purpose.known_weaknesses`・`inputs.cwd`）と、md:41 の観点の正本の段（prep の出力の `review_md`・`repo_review_md`）を、`## Materials` の行に。md:41 と md:52 で 2 回言っていた観点の正本は 1 行にまとめた（見出しの名指しと、従う中身の並びは md:52 の物）。対象の正本の行は、在る時だけ入れる（今は空でも「空でなければそれも Read せよ」と空のパスを見せた）。
 - 移した: 手順 4（md:37。目的の文が無い run では目的を推し量らず、差分と依存から問題の類を引く）と、目的の文の欄に入れていた `PURPOSE_MISSING` の文を、`<!-- if not purpose -->` の 1 行にまとめた。今は「目的の欄に『目的の文はこの run に無い』と書かれていたら…」と、Python が入れた文を md が名指して読ませていた（README の憲法の 2）。
@@ -282,12 +282,12 @@ materials.md の 4 節の順のまま。観点の前の照らしは無く、後�
   - `gave-up.stubs.yaml`: 台本の返答が 3 回とも `diff_at` が `ranked` に無い。`finish` の `status` が `gave_up`、run は `completed`。
   - `skipped.stubs.yaml`: `entry: "人の依頼（standalone）"`。AI の node は走らず、`finish` の `status` が `skipped`、`material.json` の素材 `external_standards` が `not_applicable` で、`reason` が出どころ「人の依頼（standalone）」と「件数は渡されていない」の句を含む。
 - `tests/blocks/external_standards/test_external_standards.py`（materials.md の 8 節の block の試験）:
-  - 写す元 `lib/tests/test_judge_accept.py::MaterialCase.test_accept_rules` の external-standards の場合（`diff_at` が最上位でなく `why_not_higher` が無い返答を拒み、`material.json` を書かない）。足す: `rankings` が空で `rankings_none` が無い返答を拒む・`diff_at` が `ranked` に無い返答を拒み、文が「ranked に無い」を含む・`rankings` が空でも `rankings_none` に訳が在る `clean` を受ける・拒みの文の頭が `観点 external-standards: `。
+  - 写す元 `test_judge_accept.py::MaterialCase.test_accept_rules` の external-standards の場合（`diff_at` が最上位でなく `why_not_higher` が無い返答を拒み、`material.json` を書かない）。足す: `rankings` が空で `rankings_none` が無い返答を拒む・`diff_at` が `ranked` に無い返答を拒み、文が「ranked に無い」を含む・`rankings` が空でも `rankings_none` に訳が在る `clean` を受ける・拒みの文の頭が `観点 external-standards: `。
   - 写す元 `test_missing_purpose_is_said_not_invented`: `purpose` が null の run で組んだ指示が目的の文の無い 1 文を含み、`Original purpose: ` の後に目的の文を持たず、`prompt_inputs` の値に `purpose_text`・`known_weaknesses` が無い。
   - 写す元 `DueCase.test_empty_diff_run_with_requests_runs_only_prior_decisions` の external-standards の部分: 差分が空で `entry` が在れば `due` が偽で、素材が `materialkit.fill_entry` の字。`entry` が空なら真。
   - 足す: 対象の根に `REVIEW.md` を置いた run と置かない run で、`repo_review` の段落の有無と `repo_review_md` の値の有無が合う。
   - 足す（起こし方の照らし）: AI の node の `model`・`allowed_tools`・`sandbox`・`idle_timeout`・`retry` が、今の `tests/workflows/test_judge.py:93` の external-standards の行（`"sonnet", "medium", INVESTIGATE, CLOSED, False, …`）が照らす物と同じ。
-  - 足す（字の照らし）: `STANDARDS_SECTION`・`CRITERIA_SECTION` が `lib/REVIEW.md` の `## ` の見出しの頭に在る（見出しの名を正本が替えたら落ちる）。
+  - 足す（字の照らし）: `STANDARDS_SECTION`・`CRITERIA_SECTION` が `workflows/.shared/prompts/REVIEW.md` の `## ` の見出しの頭に在る（見出しの名を正本が替えたら落ちる）。
 - 指示の比べ（README の 11.4）: `tests/blocks/external_standards/test_prompts.py`。
   - 1 つ目の commit: `prompts/external-standards.md` を、今の md の `$external-standards-prep.output.lang_line`・`.reason`・`.brief_file`・`.review_md`・`.repo_review_md` を `{lang_line}`・`{reason}`・`{brief_file}`・`{review_md}`・`{repo_review_md}` に替えた日本語の字で置く。prep は 1 つ目の commit だけこの 5 つを値に入れ（prior-decisions.md の 2.9 と同じ作り方。`review_md`・`repo_review_md` は `materialkit.review_md_paths`）、`src/oldbrief.py` の `brief(view, values)` で `material-external-standards-brief.md` を書く。試験は例の run の値（差分の根・変更ファイルの 23 行・目的の文・`known_weaknesses: []`）で、(a) 組んだ指示が今の md に同じ 5 つの値を入れた字と同じ、(b) `oldbrief.brief` の字が例の run の `judge/material-external-standards-brief.md` と同じ（リポジトリ・差分・`REVIEW.md` のパスは試験の物に置き換えて比べる）。
   - 2 つ目の commit（英語）: 1 つ目の試験と `src/oldbrief.py` を消し、例の run の値で組んだ新しい指示と、今の md と材料のファイルを並べた物を PR に載せ、2.6 の差の一覧どおりかを審査に出す。
@@ -333,7 +333,7 @@ bin/works-factory workflow run works-factory-external-standards \
 
 ## 7 自分で決めた事（この block だけ）
 
-- 観点の正本の見出しの名を md に字で書かず、`src/viewpoint.py` の定数から差し込む。訳: 正本（`lib/REVIEW.md`）は日本語で、見出しの字は正本と md が合うべき値（README の 5.3）。英語の md に日本語の字を置かずに済み、正本が見出しを替えた時に試験が名指して落ちる。
+- 観点の正本の見出しの名を md に字で書かず、`src/viewpoint.py` の定数から差し込む。訳: 正本（`workflows/.shared/prompts/REVIEW.md`）は日本語で、見出しの字は正本と md が合うべき値（README の 5.3）。英語の md に日本語の字を置かずに済み、正本が見出しを替えた時に試験が名指して落ちる。
 - 対象の正本（`repo_review_md`）の行を、在る時だけ入れる。訳: 今は空のパスを見せて「空でなければ」と役に判じさせていた。在るかは機械の事実で、段落の真偽で渡せる（README の 5.3 の「段落を差し込むかの真偽」）。役に届く中身は、在る時は今と同じ、無い時は読む物が無いので同じ。
 - 目的の文が無い run の文を、目的の欄の値（`PURPOSE_MISSING`）でなく md の段落にする。訳: 今の文は Python の定数で、md の手順 4 がその字を名指して読ませていた。憲法の 2（Python は指示の文を持たない）。
 - 指摘の提出基準の 4 つを `findings` の 4 欄に書けと md に足す。訳: 返答の形がこの欄を持ち、判定役の材料（`external_findings`）に載るのに、今の md は欄の名を言っていない。返答の形と受け付けは変わらない。同じく `rankings_none` の 1 句は、今の受け付けが拒む決まりを先に言うだけ。
@@ -345,6 +345,6 @@ bin/works-factory workflow run works-factory-external-standards \
   - `purpose` の形 `purpose.schema.json` は `workflows/.shared/schemas/` に 1 つ置く（`shared:purpose.schema.json`）。訳: 1.2 は block ごとの写しを書くが、`tests/layers/test_block_shape.py` の入力の形の検査が「形のファイルの名は pack の中で 1 か所。2 つ以上の block が使う形は `.shared/schemas/`」と決める。`$schema` の鍵は `KNOWN_KEYWORDS` に無いので外した。
   - 役の md の頭の文から「started in a new conversation」を外した（`You are the external-standards role. Your only job …`）。訳: 輪は `fresh_context: false` で、2 回目からは同じ会話を続けるので、「新しい会話」と言うと誤る。standalone の筋書きの決まった文もこの頭の文に合わせた。
   - `NA_PARAGRAPH = True` を宣言に足した（共通の試験が要る名。1.5 は書いていない）。
-  - 1 つ目の commit の材料のファイル `src/oldbrief.py` は、本物の run の物が手元に無いので、今の `judge_accept.material_prep` の字（見出し・節の名・『条件に当たらない』の段）を `lib/judge_accept.py` の定数から組み直して書いた。本物の run の物との字の比べ（2.9 の (b)）はしていない。2 つ目の commit で消した。
-  - 試験は 2.9 のとおり。起こし方の照らしは `tests/workflows/test_judge.py` の行を `ShapeCase.LAUNCH` に字で写した。
+  - 1 つ目の commit の材料のファイル `src/oldbrief.py` は、本物の run の物が手元に無いので、今の `judge_accept.material_prep` の字（見出し・節の名・『条件に当たらない』の段）を `judge_accept.py` の定数から組み直して書いた。本物の run の物との字の比べ（2.9 の (b)）はしていない。2 つ目の commit で消した。
+  - 試験は 2.9 のとおり。起こし方の照らしは、2.9 が名指す pack の試験 `test_judge.py`（#765 で消えた）の行を `ShapeCase.LAUNCH` に字で写した。
   - `values` は目的の値と `repo_review_md` を、段落が入らない時は空の字で渡す。訳: 1.5 は「在る時だけ」と書くが、`workflows/.shared/AGENTS.md` の決め（指示を組む口は選ばれない段落の中の `{name}` も数える。prep はいつも同じ組の値を渡す）が勝つ。

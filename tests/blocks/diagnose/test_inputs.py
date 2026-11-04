@@ -1,5 +1,5 @@
-"""入口と指示の値（src/inputs.py）の試験。写す元は tests/workflows/test_judge.py の BaselineTest・PriorFailuresTest・MaterialGiveUpTest と
-lib/tests/test_judge_accept.py の BriefCase のうち値を見る物。支度の決まりは docs/design/diagnose.md の 5.1〜5.4。"""
+"""入口と指示の値（src/inputs.py）の試験。写す元は test_judge.py の BaselineTest・PriorFailuresTest・MaterialGiveUpTest と
+test_judge_accept.py の BriefCase のうち値を見る物。支度の決まりは docs/design/diagnose.md の 5.1〜5.4。"""
 import json
 import pathlib
 import unittest

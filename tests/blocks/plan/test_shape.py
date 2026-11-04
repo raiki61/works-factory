@@ -1,5 +1,5 @@
 """plan の block の形（docs/design/plan.md の 1.2・1.3・9.2）: 入力と出口の約束・AI の node の起こし方・輪の並び・型が lib の持ち主と同じ・
-md に旧い言い回しが残らない・script の名と fallback の字が揃う。今の tests/workflows/test_plan.py の ShapeCase から。"""
+md に旧い言い回しが残らない・script の名と fallback の字が揃う。元の test_plan.py の ShapeCase から。"""
 import json
 import pathlib
 import re

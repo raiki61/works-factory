@@ -11,7 +11,7 @@
 - 腕: ゲートの条件の分かれ目 1 つ（例「`if body.pinned is not None:` の柵」）。返答の `arms` の 1 行 `{gate, arm, red_confirmed, control_green, hit_evidence, note?}`。`red_confirmed` は壊した写しで赤を見た、`control_green` は壊していない写しで緑を見た、`hit_evidence` はその腕が守る行を実際に通った印を見た記録。
 - ゲートの印: 差分に機械が見る「ゲートに触れた」印。ゲートの定義のファイル（テスト・CI・pre-commit・フック・lint・試験の設定・変異の腕の一覧の宣言など。`GATE_FILE_PATTERNS`）と、assert を足す・消す行（今の `gate_signals`、`lib/judge_accept.py:2017-2032`）。
 - 変異の宣言: 対象の根の `.review-checks.json`（`graphloops/engine/declared.py` の `DECL_NAME`）の任意の `mutation` の段 `{argv, arms}`（変異の実行器の呼び方の頭と、腕の一覧のパス）。宣言の必須の段は対象の試験の段の並び `suite` で、`mutation` はその横に置ける任意の段。宣言が JSON でない・`suite` が空などで宣言ごと読めない時は、`declared.read` が誤りの字（`error`）を返す。
-- 合流の道: 始めの記録の `gates` が `merge` の run（今の `GATES_MERGE`、`lib/judge_accept.py:366`）。いくつかの run の直しを 1 つの枝に合わせた後の版で、変異の検算をまとめて 1 回撃つ道（元の works の入口の選び）で、この観点を回さない。
+- 合流の道: 始めの記録の `gates` が `merge` の run（今の `GATES_MERGE`、`judge_accept.py:366`）。いくつかの run の直しを 1 つの枝に合わせた後の版で、変異の検算をまとめて 1 回撃つ道（元の works の入口の選び）で、この観点を回さない。
 - 例の run: 本物の run `53e71318-ac9f-4468-ae72-5f6ed569a667`（対象 <owner>/<repo>。置き場 `~/.local/state/works-factory/targets/316e3bbc/archon-home/workspaces/<owner>/<repo>/artifacts/runs/53e71318-…/judge/`）。差分の在る通常の run（変更ファイル 23 本。テストのファイルを含む）で、変異の宣言は無い。ゲートの検算の役は 1 回目で受け付けを通った（`material-gate-efficacy.json` の `materials.gate_efficacy.status` が `found`・`count` 3、`arms` 4 行。全部の腕が赤・対照の緑・通過の印をそろえ、実 DB とフロントエンドの試験は撃てなかったと `detail` に書いた）。同じ対象の run `17ee8ecc-717a-4dc7-92b6-25ecd08fa15b` も同じ形（`found`・`count` 6・`arms` 8 行）。骨組みの値は 53e71318 から取った。
 
 ## 1 block の全体
@@ -55,7 +55,7 @@ materials.md の 1.4 の名だけ: `intake.json`・`view.json`・`diff.patch`・
 ### 1.5 コードの置き場
 
 - `workflows/gate-efficacy/src/__init__.py`（空）。
-- `workflows/gate-efficacy/src/signals.py`: ゲートの印。写す元 `lib/judge_accept.py:2003-2032`（注記ごと）。
+- `workflows/gate-efficacy/src/signals.py`: ゲートの印。写す元 `judge_accept.py:2003-2032`（注記ごと）。
   - `GATE_FILE_PATTERNS`（字のまま。最後の要素は `rf"(^|/){re.escape(checkscope.SCOPE_DECL)}$"` で、`lib/checkscope.py`〔KEEP〕を import する）・`GATE_FILES`（今の `_GATE_FILES`）・`ASSERT_LINE`（今の `_ASSERT_LINE`）。
   - `gate_signals(changed_files, diff_text: str) -> list[str]`（字のまま）。
   - `signals_of(view) -> list[str] | None`: `view.diff_file` を `encoding="utf-8", errors="replace"` で読み、`gate_signals(list(view.changed_files), 本文)` を返す。読めなければ（`TypeError`・`OSError`）`None`（今の `role_judged_na` の `:2045-2048`）。
@@ -252,13 +252,13 @@ Return only JSON that matches the output schema.
 
 ### 2.6 今の指示との差
 
-今の指示は `workflows/judge/commands/material-gate-efficacy.md`（54 行）と、`lib/judge_accept.py` の `material_prep`（`:2116-2135`）が描く材料のファイルの 2 か所に在る。prior-decisions.md の 2.6 と同じ移し・まとめ（材料の節を `## Materials` へ・『条件に当たらない』の節を `{shared:material-na}` へ・却下の段落 2 つを `{shared:rejected}` の 1 回へ・作業ツリーを変えるなの句を `{shared:material-readonly}` へ・素材の書き方を `{shared:material-status}` へ・所見の場所の段を `{shared:material-where}` へ・言語の 1 行を md の 1 文へ・「graphloops のノード p1.gate_efficacy を…行う」と見出しと区切りの `---` を消す）は、ここでも同じ。この観点だけの差:
+今の指示は `material-gate-efficacy.md`（54 行）と、`judge_accept.py` の `material_prep`（`:2116-2135`）が描く材料のファイルの 2 か所に在る。prior-decisions.md の 2.6 と同じ移し・まとめ（材料の節を `## Materials` へ・『条件に当たらない』の節を `{shared:material-na}` へ・却下の段落 2 つを `{shared:rejected}` の 1 回へ・作業ツリーを変えるなの句を `{shared:material-readonly}` へ・素材の書き方を `{shared:material-status}` へ・所見の場所の段を `{shared:material-where}` へ・言語の 1 行を md の 1 文へ・「graphloops のノード p1.gate_efficacy を…行う」と見出しと区切りの `---` を消す）は、ここでも同じ。この観点だけの差:
 
 - 移した: 外への検索の決まりの塊（md:3-10）を `{shared:query-rule}` に。今の md の頭の「Agent で子を起こすなら、子への指示に下の塊をそのまま含めよ」は、この役が Agent を持たないので `spawns: false` で入れない段落になる。
 - 割った: 材料のファイルの「## 材料: loop.mutation_decl.text」（Python の `mutation_decl` が `MUTATION_UNDECLARED` などの日本語の文で組んだ 1 段落。`:2083-2096`・`:1733`）を、md の 3 つの段落（`mutation_declared`・`mutation_undeclared`・`mutation_unreadable`）と値（`decl_name`・`mutation_argv`・`mutation_arms`・`mutation_error`）に。決まった文を md に、run ごとの値（宣言の中身と読みの誤り）だけを Python に残す（憲法の 2）。分かれ方（段が在る・無い・無くて誤りが在る）は今の 3 通りのまま。
 - 移した: 道具の段（md:28 の手順 3）の「写しは一時の置き場（mktemp -d）に作れ。対象の作業ツリーへの書き込みは包みが止める」を道具の段落に。手順 3 の尾の「1 文字も変えるな…」は `{shared:material-readonly}` に。
 - 残した: 所見の場所の段の前置き「この役の返答（material と arms）には `where` 欄が無い。下の決まりは、arms の note・hit_evidence や material の detail の中で場所を書く時に当てる」（md:50。#221）を、観点の前置きとして `## Where to point` の頭に。
-- 消した: 「前の周の修正と手直しが足した分岐を、起点の版から機械で作る腕で撃つのは前の周の並行のノード（p3.delta_gates）で、ここでは撃たない」（md:40 の中ほど）。訳: 名指す `p3.delta_gates` は工場に無いノード（持ち主の決め `no-mutation-in-graph`。`docs/nodes.json` の `absent`）で、1 run = 1 周なので「前の周の修正」も無い。block はほかの役を名指さない（憲法の 3）。役のすることは変わらない（撃たない物の名指しが消えるだけ）。
+- 消した: 「前の周の修正と手直しが足した分岐を、起点の版から機械で作る腕で撃つのは前の周の並行のノード（p3.delta_gates）で、ここでは撃たない」（md:40 の中ほど）。訳: 名指す `p3.delta_gates` は工場に無いノード（持ち主の決め `no-mutation-in-graph`。`nodes.json` の `absent`）で、1 run = 1 周なので「前の周の修正」も無い。block はほかの役を名指さない（憲法の 3）。役のすることは変わらない（撃たない物の名指しが消えるだけ）。
 - 消した: graphloops の見出し「P1 ゲートの実効性確認（writer が実行・該当 PR のみ）」（md:34）。「writer が実行」は graphloops の起こす側の名で、この役の振る舞いを決めない。
 - 言い換えた: 「P3（判定の後に差分を直す段）」（md:40 の 2 か所）を "the step that fixes the diff after the judgment" に（段の番号で他の block を名指さない）。「変異の腕の一覧に足す（直す）要あり」の字は、機械が読まない（`lib/`・`workflows/` を探して読み手が無い）ので、決まった字を求めず、`{lang}` で書く人に見せる note の中身として言い換えた。
 - 消した: 素材の書き方の尾「欄と値の正本は review-record.py」（prior-decisions と同じ）。
@@ -271,7 +271,7 @@ Return only JSON that matches the output schema.
 
 - 元の works の `works/blk-material/commands/gate-efficacy.md`（8 行）は、engine が描いた graphloops の指示書のファイル（`prompt_file`）を Read で読ませる薄い md だった。工場は指示書を md の中に写し、値だけを材料のファイルにした（#76）。新しい形は値も指示の中に入れる。
 - 指示書の本文は、元の works が持った graphloops の写し（`works/.shared/core/gl-prompts/prompts/review-loop/p1.gate_efficacy.md`）と、graphloops の今の物（`~/src/claude-plugins/graphloops/prompts/review-loop/p1.gate_efficacy.md`）で、語の違い（「柵」と「チェック」・「節」と「ノード」・`hist.snapshot.diff_file` と `loop.diff_file`）のほかは同じ。工場はそこに 2 つを足した: 一覧を直すのは判定の後に直す段でこの役は一覧も作業ツリーも変えない・足りない腕は写しの上で手で撃って `note` と `detail` に「一覧に足す要あり」と書く（元は「P3 の修正に含めよ」の 1 句。#221）と、所見の場所の段の前置き（#221）。この block も持つ。
-- 差分の形の申告 `touches_gates`: graphloops は p0.base の AI の役が差分を読んで申告する（`prompts/review-loop/p0.base.md:15`）。元の works の線 A と工場は p0.base を機械の節にし（工場 #76・`docs/nodes.json` の `p0.base` は `by: machine`、#129）、`touches_gates` を判定せずに真へ倒す。その代わりに、ゲートの印が無い差分ではゲートの検算の役の『条件に当たらない』を受ける差し替え（元の works の `works/.shared/core/entry.py:206-255` の `gate_signals`・`role_judged_na_works`）を #76 で移した。工場はゲートの定義のファイルの表を `*.ini`・`*.cfg` 全部に広げた（元の works は `tox.ini`・`pytest.ini`・`setup.cfg`・`mypy.ini` の名指し。試験の実行器の名が言語の中立の語の表〔E13〕に当たるため。#76）。この block も同じ表を持つ。graphloops の p0.base の役は、工場に無い（意図して外した記録は #76 の「p0.base は機械」の置き換えだけ。p0.base の役そのものを外した PR は（未確認））。
+- 差分の形の申告 `touches_gates`: graphloops は p0.base の AI の役が差分を読んで申告する（`prompts/review-loop/p0.base.md:15`）。元の works の線 A と工場は p0.base を機械の節にし（工場 #76・`nodes.json` の `p0.base` は `by: machine`、#129）、`touches_gates` を判定せずに真へ倒す。その代わりに、ゲートの印が無い差分ではゲートの検算の役の『条件に当たらない』を受ける差し替え（元の works の `works/.shared/core/entry.py:206-255` の `gate_signals`・`role_judged_na_works`）を #76 で移した。工場はゲートの定義のファイルの表を `*.ini`・`*.cfg` 全部に広げた（元の works は `tox.ini`・`pytest.ini`・`setup.cfg`・`mypy.ini` の名指し。試験の実行器の名が言語の中立の語の表〔E13〕に当たるため。#76）。この block も同じ表を持つ。graphloops の p0.base の役は、工場に無い（意図して外した記録は #76 の「p0.base は機械」の置き換えだけ。p0.base の役そのものを外した PR は（未確認））。
 - graphloops の変異の検算（`p3.delta_gates`・`p4.final_gates`。直したコードを機械で作る腕で撃つ）は、元の works にも工場にも無い。持ち主の決め `no-mutation-in-graph`（2026-10-13、#378）でグラフに戻さない。この観点の役が、対象が宣言した実行器を写しの上で撃つ・手で壊して撃つのは、その決めの外の、判定の前の素材の測りで、今もしている（例の run の 2 本とも、宣言が無く手で撃った）。この block はそれを変えない。
 - 回さない道（合流の道 `gates=merge`）: 元の works は入口の `init --input gates=merge` で選べた（`GATES_MERGE_WHY` の字に名残がある）。工場の line は始めの記録に `gates` を書かない（`lib/`・`workflows/`・`bin/` に書き手が無い。2026-10-19）ので、今の工場の run ではこの道に入らない。意図して外した記録は（未確認）。この block は port `gates` で受け、道そのものは今の条件のまま残す。
 - 受け付け: 元の works の受け付け（`works/blk-material/lib/material.py` の take）と工場の受け付けは同じ順で、後の照らし `gate_arms_all_red` は graphloops の `MATERIAL_NODES` の `post_check` の写し（元 rules:3023）。
@@ -295,13 +295,13 @@ materials.md の 4 節の順。観点の前の照らしは無く、後の照ら�
   - `skipped.stubs.yaml`: `gates: merge`。AI の node に届かず、`finish` の `status` が `skipped`。
   - `entry.stubs.yaml`: `entry: "人の依頼（standalone）"`。`finish` の `status` が `skipped`。
 - `tests/blocks/gate_efficacy/test_gate_efficacy.py`（materials.md の 8 節の block の試験。始めの記録の無い使い捨ての `ARTIFACTS_DIR` と git のリポジトリ）:
-  - 写す元 `lib/tests/test_judge_accept.py::DueCase.test_gates_merge_turns_gate_efficacy_off`: `gates: merge` なら `intake` の `due` が偽で、`material.json` の `gate_efficacy` が `not_applicable`・`reason` が `GATES_MERGE_WHY` で始まる。`entry` が在れば `due` が偽で、`fill_entry` の字。合流と入口が両方在れば合流の字（順の照らし）。
+  - 写す元 `test_judge_accept.py::DueCase.test_gates_merge_turns_gate_efficacy_off`: `gates: merge` なら `intake` の `due` が偽で、`material.json` の `gate_efficacy` が `not_applicable`・`reason` が `GATES_MERGE_WHY` で始まる。`entry` が在れば `due` が偽で、`fill_entry` の字。合流と入口が両方在れば合流の字（順の照らし）。
   - 写す元 `MaterialCase.test_accept_rules` の `gate-efficacy` の部分: `clean` で `red_confirmed: false` の腕を持つ返答は拒まれ、`accepted.json` が無い。
   - 写す元 `MaterialCase.test_gate_role_may_judge_a_gate_free_diff_not_applicable`: ゲートの印の無い差分（`app.txt` だけ）では、組んだ指示に `na_judged` の段落が入り、`not_applicable` の返答を受ける。`test_app.txt` を足した差分では `na_cond_true` の段落が入り、同じ返答を拒む。
   - 写す元 `MaterialCase.test_gate_prep_shows_the_declared_mutation_stage` の 5 つの場合: 宣言の段が在る（`mutation_declared` の段落が入り、値に `["mutate", "--fast"]` と `arms.txt`）・段が無い（`mutation_undeclared` だけ）・段が壊れている（`mutation_undeclared` と `mutation_unreadable`、値に誤りの字）・宣言が JSON でない・`suite` が空（どちらも `mutation_undeclared` と `mutation_unreadable`）。照らすのは段落の真偽と値で、文の字ではない。
   - 足す（腕の照らし）: 3 節の 3 つの文がそれぞれの返答で出る。`found` で未達の腕は 2 つ目を通る。`awaiting_human` で未達の腕は 2 つ目を通る。3 つがそろった腕だけの `clean` は通る。
   - 足す（起こし方の照らし）: block の YAML の AI の node の `model`・`allowed_tools`・`sandbox`・`idle_timeout`・`retry` が、今の `tests/workflows/test_judge.py:95` の表の gate-efficacy の行（`"sonnet", "medium", INVESTIGATE, DELEGATE, …`）が照らす物と同じ。
-- `tests/blocks/gate_efficacy/test_signals.py`: 写す元 `lib/tests/test_judge_accept.py::GateSignalsCase` の 4 本（`test_docstring_only_diff_has_no_signal`・`test_gate_files_are_signals`・`test_added_or_removed_assert_is_a_signal`・`test_context_assert_is_not_a_signal`）を `src.signals.gate_signals` に向ける。`test_only_the_gate_node_lets_the_role_judge`（ほかの節は差し替えを受けない）は写さない（`judged_na` はこの block の宣言だけが持ち、ほかの観点の `judged_na` が偽を返すことは各観点の `test_viewpoint.py` が見る）。
+- `tests/blocks/gate_efficacy/test_signals.py`: 写す元 `test_judge_accept.py::GateSignalsCase` の 4 本（`test_docstring_only_diff_has_no_signal`・`test_gate_files_are_signals`・`test_added_or_removed_assert_is_a_signal`・`test_context_assert_is_not_a_signal`）を `src.signals.gate_signals` に向ける。`test_only_the_gate_node_lets_the_role_judge`（ほかの節は差し替えを受けない）は写さない（`judged_na` はこの block の宣言だけが持ち、ほかの観点の `judged_na` が偽を返すことは各観点の `test_viewpoint.py` が見る）。
 - `tests/blocks/gate_efficacy/test_viewpoint.py`: materials.md の 8 節。`NA == "cond"` なので `applies` は `Due(True, …)` を返し、`fill` は `due` が真の値で `NotImplementedError` を上げる。
 - 指示の比べ（README の 11.4）: `tests/blocks/gate_efficacy/test_prompts.py`（1 つ目の commit だけ。2 つ目の commit で消した）。
   - 1 つ目の commit: `prompts/gate-efficacy.md` を、今の `workflows/judge/commands/material-gate-efficacy.md` の `$gate-efficacy-prep.output.lang_line` を `{lang_line}` に、`.reason` を `{reason}` に、`.brief_file` を `{brief_file}` に替えた日本語の字で置く（prior-decisions.md の 2.9 と同じ形）。試験は例の run の値（`base`・リポジトリのパス・変異の宣言なし・ゲートの印あり）で、(a) 組んだ指示が今の md に同じ 3 つの値を入れた字と同じ、(b) `oldbrief.brief` の字が例の run の `judge/material-gate-efficacy-brief.md` と同じ（run directory とリポジトリのパスは試験の物に置き換えて比べる）ことを照らす。
@@ -352,7 +352,7 @@ bin/works-factory workflow run works-factory-gate-efficacy \
 - 変異の在りかの段（今の `mutation_decl` が Python の日本語の文で組んだ物）を、md の 3 つの段落と 4 つの値に割る。訳: 憲法の 2（Python は指示の文を持たない）。分かれ方は今の 3 通りのままで、run ごとの値（宣言の中身と読みの誤り）だけが Python に残る。`MUTATION_UNDECLARED` の文は 1 つ目の commit の `oldbrief.py` にだけ残る。
 - 「p3.delta_gates で撃つのでここでは撃たない」の句を消す。訳: 名指すノードは工場に無く（`no-mutation-in-graph`）、1 run = 1 周で「前の周の修正」も無い。撃たない物の名指しなので、役のすることは変わらない。
 - 腕の照らしの `blank` に `lib/recount.py` の `blank` を使い、写さない。訳: 同じ表 `EMPTY` と同じ見方（字の欄では同じ値を返す）を持つ KEEP の部品が在る。3 つ目の写しを block に置くと、空同然の語の表が 3 か所に割れる。返答の `hit_evidence` は `output_format` で字に決まるので、`recount.blank` の字でない値の扱い（空とみなす）の違いは効かない。
-- ゲートの印・変異の宣言の読み・腕の照らしを `src/` の 3 つのファイル（`signals.py`・`mutation.py`・`arms.py`）に分ける。訳: 写す元が `lib/judge_accept.py` の別々の所（`:2003-2050`・`:2083-2096`・`:2160-2183`）にあり、試験も別々（`GateSignalsCase`・`test_gate_prep_shows_the_declared_mutation_stage`・`test_accept_rules`）。1 本にすると `viewpoint.py` が宣言の外の中身を持つ。
+- ゲートの印・変異の宣言の読み・腕の照らしを `src/` の 3 つのファイル（`signals.py`・`mutation.py`・`arms.py`）に分ける。訳: 写す元が `judge_accept.py` の別々の所（`:2003-2050`・`:2083-2096`・`:2160-2183`）にあり、試験も別々（`GateSignalsCase`・`test_gate_prep_shows_the_declared_mutation_stage`・`test_accept_rules`）。1 本にすると `viewpoint.py` が宣言の外の中身を持つ。
 - `due` の回す時の訳の字を「ゲートの検算は合流の道でも判定から入る run でもない run で回す（…1 run は 1 周で、いつも初回）」にする。訳: 今の字（「…前の周の P3 が何かを直した周——成り立つ（round=1・…）」）は 1 run = 1 周で効かない枝を名指す。prior-decisions.md の `due` の字と同じ書き方にそろえた。回さない時の訳と素材の埋めの字は今のまま。
 - 回さない時の fixture を、合流（`skipped.stubs.yaml`）と入口（`entry.stubs.yaml`）の 2 本にする。訳: 回さない道が 2 つ在り、埋めの字が違う。
 - 報告の行に腕ごとの 1 行を足す。訳: 素材の 1 行（materials.md の 2.10）は `detail` を 1 行に縮めるので、腕の 3 つの印のどれが欠けたかが報告から見えない。腕の行は判定の材料に載る事実そのまま。

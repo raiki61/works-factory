@@ -1,4 +1,4 @@
-"""直した後の実測（src/stage_b.py。元 lib/tests/test_stage_b.py。docs/design/structure.md の 7 節）。run を直に呼び、返る after の中身を見る
+"""直した後の実測（src/stage_b.py。元 test_stage_b.py。docs/design/structure.md の 7 節）。run を直に呼び、返る after の中身を見る
 （書き出しは survey。script を通す試験は test_structure.py の AfterCase）。実行基盤の写しを数えない試験は、写しの頭を引数 skip_prefix で受ける形。"""
 import json
 import pathlib
