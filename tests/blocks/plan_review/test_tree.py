@@ -1,7 +1,7 @@
 """事前審査の木（docs/design/plan-review.md の 5 節・9.1 の 5。src/tree.py・prompts/review-tree.md・prompts/parts/item-brief.md・
 synergy-brief.md）を、script を子のプロセスで回して確かめる。下請けの答えのファイル（place の answers/）は試験が書く。
 
-写した元は test_plan_review.py の TreeCase（元 tests/test_blk_plan.py の TreeReviewCase の事前審査の側）と
+写した元は tests/workflows の test_plan_review.py の TreeCase（元 tests/test_blk_plan.py の TreeReviewCase の事前審査の側）と
 test_boardview.py の RulesCase.test_unattended_and_tree_words の木の語の半分（試験ごとの docstring に元の名を書く）。
 往復の記録は line の代わりに Flow.carry が pass.json を converge.add_pass で足して port prior に渡す。往復の番号のフォルダ
 （pass-<k>/）は無い。頭の深さから木を引く 2 本（test_heavy_head_depth_makes_the_tree・

@@ -223,7 +223,7 @@ DELETE（どの block にも写さない）: `PREP_INPUTS`・`MODES`・`LANE_SWI
 
 #### 1.5.4 共通の口に足す物（この block が最初に要る）
 
-- 下請けの指示を組む口は、plan-review の枝が置いた `workflows/.shared/prompt.py` の `render_part(name, values, when=None) -> str`（呼んだ script の在る block の `prompts/parts/<name>.md` を `render` と同じ決まりで組んだ字を返し、place には書かない）を使う。書くのは呼び手（修正役に渡す下請けの指示のファイル `g1-impl-<n>.md`・`g1-review-<n>.md`）。訳: 下請けは Archon の node でないので `render` の node の md に置けず、今は決まった文を `lib/seat.py` の定数（`G1_SUB_HEAD`・`G1_SUB_RULES`・`G1_EXTRA`）と `direct.md` の節 `fix-ask-sub` と `judge.md`（検索語の規律）から Python が組んでいた（憲法の 2 に当たる）。block の断片の置き場は `prompts/parts/` の 1 つだけ（`docs/design/README.md` の 3 章）。この枝は初め `sub` と `prompts/sub/` を足したが、窓口の決めで `render_part` と `prompts/parts/` に替え、断片を字を変えずに移した。
+- 下請けの指示を組む口は、plan-review の枝が置いた `workflows/.shared/prompt.py` の `render_part(name, values, when=None) -> str`（呼んだ script の在る block の `prompts/parts/<name>.md` を `render` と同じ決まりで組んだ字を返し、place には書かない）を使う。書くのは呼び手（修正役に渡す下請けの指示のファイル `g1-impl-<n>.md`・`g1-review-<n>.md`）。訳: 下請けは Archon の node でないので `render` の node の md に置けず、今は決まった文を `lib/seat.py` の定数（`G1_SUB_HEAD`・`G1_SUB_RULES`・`G1_EXTRA`）と `direct.md` の節 `fix-ask-sub` と lib の agents の `judge.md`（検索語の規律）から Python が組んでいた（憲法の 2 に当たる）。block の断片の置き場は `prompts/parts/` の 1 つだけ（`docs/design/README.md` の 3 章）。この枝は初め `sub` と `prompts/sub/` を足したが、窓口の決めで `render_part` と `prompts/parts/` に替え、断片を字を変えずに移した。
 - 共通の断片 `writer-rules`（`workflows/.shared/prompts/writer-rules.md`。`{shared:writer-rules}`）: 書く役の決まりの正本（今の `fix-rules/common.md` の `core-fix`・`evidence` と 4 つの種類・`core-conflict`・`core-keep`）。修正役・TDD の役と、delta-review の手直しの役の 2 つの block が使うので共通の断片にする（`workflows/.shared/AGENTS.md` と README 11.1 の決まり。工場の作り直しのまとめ役の決め。README の形の直し 3 は fix の中の断片と書いたが、手直しの役が fix の外の block になった）。置くのは先に作る delta-review の PR で、この block は受けて使うだけ（足さない・直さない）。段落の名は 9 つ: `conflict`（食い違いの申し出）・`docs`・`prompts_kind`・`config`・`code`（証拠の 4 つの種類）・`evidence`（証拠の頭と文。種類の 1 つでも真の時）・`where_writer`・`where_tdd`・`where_rework`（証拠を書く場所の 1 文。役ごとに 1 つだけ真）。ほかの段落（直し方・守ること）はいつも入る。この block は `conflict` をいつも真で渡し、`evidence` は 4 つの種類の 1 つでも真の時に真、書く場所は型ごとの書き手が `where_writer`（PR B で修正役の `closure.verified_how` から返答の `evidence.kinds` に替えた。付録 A の W13）・TDD の役が `where_tdd` を真にして `where_rework` は偽にする（delta-review の手直しの役は `conflict` が偽、4 つの種類と `evidence` が真、`where_rework` だけが真で `where_writer`・`where_tdd` は偽）。
 - 外への検索の決まりは今在る `{shared:query-rule}`、却下の段落は `{shared:rejected}`。ほかの共通の断片は足さない。
 
@@ -359,7 +359,7 @@ slots の形（`{values, when, subagents, summary_file}`）:
 
 D2 で修正の block から `lib/subagents.py`（値と借りた型の埋め）・`.shared/prompts/g1-*.md`・本体 `writerblock.prep`（ファイルを書いて md を組む）へ移した（下書きの 11.8 の決め。案 B。24.9）。
 
-- `g1-impl.md`: `{template}`（← `seat.fill` で項目ごとに埋めた superpowers の implementer-prompt。借りた字のまま）と、works の決まり（今の `seat.G1_SUB_HEAD`・`G1_SUB_RULES`）・`{shared:query-rule}`（`spawns` は偽。今は `judge.md` の写しを入れていた）・範囲の外が要る時の決まり（今の `direct.md` の `fix-ask-sub`。`{check_cmd}`）。
+- `g1-impl.md`: `{template}`（← `seat.fill` で項目ごとに埋めた superpowers の implementer-prompt。借りた字のまま）と、works の決まり（今の `seat.G1_SUB_HEAD`・`G1_SUB_RULES`）・`{shared:query-rule}`（`spawns` は偽。今は lib の agents の `judge.md` の写しを入れていた）・範囲の外が要る時の決まり（今の `direct.md` の `fix-ask-sub`。`{check_cmd}`）。
 - `g1-review.md`: `{template}`（← task-review の型に `BASE_SHA`・`DIFF_FILE`・`GLOBAL_CONSTRAINTS` を入れた物）と今の `seat.G1_EXTRA`。
 - 本体 `writerblock.subagent_items` が `prompt.render_shared` で組んで、型の block の place の `g1-impl-<n>.md`・`g1-review-<n>.md` に書く（名は今のまま。修正役は今どおりファイルの中身を字を変えずに下請けに渡す。D2 で `src/prompts.py` の `g1_files` から移した。24.9）。
 

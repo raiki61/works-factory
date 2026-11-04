@@ -278,7 +278,7 @@ materials.md の 4 節の順のまま。観点の前の照らしと後の照ら�
   - 1 つ目の commit: `prompts/prior-decisions.md` を、今の `workflows/judge/commands/material-prior-decisions.md` の `$prior-decisions-prep.output.lang_line` を `{lang_line}` に、`.reason` を `{reason}` に、`.brief_file` を `{brief_file}` に替えた日本語の字で置く。prep は 1 つ目の commit だけ `lang_line`（`rolekit.lang_line({"lang": values["lang"]})`）・`reason`（最後の拒否の文。無ければ空）・`brief_file`（`src/oldbrief.py` が書いた `material-prior-decisions-brief.md` の絶対パス）を値に入れる。試験は例の run の値（`base`・`changed_files: []`・`request_wheres` の 1 行・リポジトリのパス）で、(a) 組んだ指示が今の md に同じ 3 つの値を入れた字と同じ、(b) `oldbrief.brief` の字が例の run の `judge/material-prior-decisions-brief.md` と同じ（リポジトリのパスは試験のリポジトリのパスに置き換えて比べる）ことを照らす。
   - 2 つ目の commit（英語）: 1 つ目の試験と `src/oldbrief.py` を消し、例の run の値で組んだ新しい指示と、今の md と材料のファイルを並べた物を PR に載せ、2.6 の差の一覧どおりかを審査に出す。
 - 振る舞いの試験の残り: 族の部品の試験（`lib/tests/test_materialkit.py`。materials.md の 8 節）が、作業ツリー・所見の場所・素材の欄の照らしを見る。
-- 読み手の側の試験はそれぞれの block に残す: `lib/tests/test_policy.py` の settled の行の読み（KEEP）・`test_plan_review.py:1438` の `decisions` の入力（plan-review）。`lib/tests/test_policy.py::test_prior_decisions_file_is_the_material_file_of_its_role`（今のファイルの名 `material-prior-decisions.json` を縛る）は、組み込みで判定の出力の欄 `decisions` が新しい `material.json` を指すようになった時に消す。
+- 読み手の側の試験はそれぞれの block に残す: `lib/tests/test_policy.py` の settled の行の読み（KEEP）・tests/workflows の `test_plan_review.py:1438` の `decisions` の入力（plan-review）。`lib/tests/test_policy.py::test_prior_decisions_file_is_the_material_file_of_its_role`（今のファイルの名 `material-prior-decisions.json` を縛る）は、組み込みで判定の出力の欄 `decisions` が新しい `material.json` を指すようになった時に消す。
 - 守る keep-essence の番号: 無い（README の 10 節の 12 の仕組みにこの観点は出てこない）。守るのは「決着済みの論点が記録された方針として後の役に名指しで届く」（#443）で、上の `policy.recorded` の照らしが見る。
 - 終わりの条件の命令（1 モジュールずつ）:
 
@@ -326,4 +326,4 @@ bin/works-factory workflow run works-factory-prior-decisions \
 - （同）md に `{shared:query-rule}` を置かない: 土台の `role-investigator` が中に持つ（6 節の未確認の答え）。2 回入れると同じ決まりが 2 度届く。
 - （同）`request_wheres` を `is_entry_run`（`entry` と空の差分）で決める: 今の `request_wheres` は入口の印（差分が空で依頼が在る）の周だけ並べた。差分は block が測れる事実なので測る。
 - （同）筋書きは出口の `status` を照らせない（dry-run は輪を 1 周で終える）ので、`ran`・`gave_up` は `tests/blocks/prior_decisions/test_prior_decisions.py` が照らし、筋書きは md の決まった文を照らす（形の検査 7.1 の 3）。
-- （同）起こし方の照らしは今の `test_judge.py` を import せず、決まった期待の値で照らす: 組み込みで `workflows/` が消えると import が壊れる。
+- （同）起こし方の照らしは組み込みの前の tests/workflows の `test_judge.py` を import せず、決まった期待の値で照らす: 組み込みで `workflows/` が消えると import が壊れる。

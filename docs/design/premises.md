@@ -41,7 +41,7 @@
 - `constraints`: pointer（place の `premises.json`。中身は `{"constraints": [...]}` で、受けた返答の制約に運ばれた実測を足した物）か null（`failed` の時）。
 - `report`: 報告の行の配列。依頼が `measured` を持っていたのに制約が `仮説` でしか書けなかった行ごとに `依頼の実測を測り直せなかった（前提は仮説）: <where>——<制約の text>`。`failed` の時は `前提の制約: <reason>` の 1 行。どちらも無ければ `[]`。
 
-今との違い: 今は依頼の行を judge の入口が `judge/request.json` に置き（`judge_accept.py:3832-3868` の `intake`）、作業ツリーの写しも入口が `judge/judge-tree.json` に取り、運ばれた実測も入口が `judge/carried-constraints.json` に置いていた。役は `$ARTIFACTS_DIR/judge/request.json` を Read し（`premises.md:38`）、受け付けは `judge/premises.json` に書き、諦めた時は止めの記録 `judge/stop.json`（`stopby.PREMISES`）を置いた（`premises_accept.py:21-24`）。出口は judge の返す節の欄 `premises`（pointer）で、報告の行は `runreport.py:1026-1046` の `premise_lines` が依頼のファイルと控えを読み直して組んでいた。この block は、支度を自分で持ち、止めの記録の代わりに `status` を返し、報告の行を自分で組む。元の works の出口が持っていた数（2.7）は戻さない（8 節の自分で決めた 4）。
+今との違い: 今は依頼の行を judge の入口が `judge/request.json` に置き（`judge_accept.py:3832-3868` の `intake`）、作業ツリーの写しも入口が `judge/judge-tree.json` に取り、運ばれた実測も入口が `judge/carried-constraints.json` に置いていた。役は `$ARTIFACTS_DIR/judge/request.json` を Read し（judge の commands の `premises.md:38`）、受け付けは `judge/premises.json` に書き、諦めた時は止めの記録 `judge/stop.json`（`stopby.PREMISES`）を置いた（`premises_accept.py:21-24`）。出口は judge の返す節の欄 `premises`（pointer）で、報告の行は `runreport.py:1026-1046` の `premise_lines` が依頼のファイルと控えを読み直して組んでいた。この block は、支度を自分で持ち、止めの記録の代わりに `status` を返し、報告の行を自分で組む。元の works の出口が持っていた数（2.7）は戻さない（8 節の自分で決めた 4）。
 
 ### 1.3 node の並び（`workflows/premises/works-factory-premises.yaml`）
 
@@ -69,7 +69,7 @@ script の名は `lib/` のモジュールの名と重ねない（README の 7.1
 ### 1.5 コードの置き場
 
 - `workflows/premises/src/__init__.py`: 空。
-- `workflows/premises/src/steps.py`: 今の `judge_accept.py` の `check_claims`（:1163-1168）・`measured_needs_output`（:1171-1182）・`PREMISES_RULE`（:1184）・`with_carried`（:1187-1192）・`check_premises`（:1195-1215）と、作業ツリーの比べ `_tree_snapshot`・`_moved_since`・`_tree_unchanged`（:1121-1160）の写し、今の `premises.py` の `claims`（:25-29）の写し。place のファイルの名（`INTAKE_FILE`・`TREE_FILE = "tree.json"`・`PREMISES_FILE = "premises.json"`・`ROLE = "premises"`）と、`kind` の語 `MEASURED = "実測"`・`HYPOTHESIS = "仮説"` もここだけが持つ。`_tree_unchanged` は写しが在る道だけを残す（写しは `intake` が必ず取る。無ければ今と同じく「作業ツリーの写し … が無い」で拒む）。
+- `workflows/premises/src/steps.py`: 組み込みの前の lib の `judge_accept.py` の `check_claims`（:1163-1168）・`measured_needs_output`（:1171-1182）・`PREMISES_RULE`（:1184）・`with_carried`（:1187-1192）・`check_premises`（:1195-1215）と、作業ツリーの比べ `_tree_snapshot`・`_moved_since`・`_tree_unchanged`（:1121-1160）の写し、組み込みの前の lib の `premises.py` の `claims`（:25-29）の写し。place のファイルの名（`INTAKE_FILE`・`TREE_FILE = "tree.json"`・`PREMISES_FILE = "premises.json"`・`ROLE = "premises"`）と、`kind` の語 `MEASURED = "実測"`・`HYPOTHESIS = "仮説"` もここだけが持つ。`_tree_unchanged` は写しが在る道だけを残す（写しは `intake` が必ず取る。無ければ今と同じく「作業ツリーの写し … が無い」で拒む）。
 - `workflows/premises/src/report.py`: `lines(findings, constraints) -> list`。今の `runreport.py:1026-1046` の `premise_lines` の、依頼の行と制約を値で受ける形の写し（3.4）。
 - 形のファイルはこの block に置かない。依頼の行は `workflows/.shared/schemas/request.schema.json`（`requestrows` の口）、運ばれた実測は `workflows/.shared/schemas/constraints.schema.json`（`shared:constraints.schema.json`）を使う（4 節・8 節の 3）。
 - 使う `lib/`: `accept`（KEEP。`tree_state`・`tree_moved`・`type_errors`・`TREE_SCHEMA`・`TREE_KEYS`・`guard`・`in_repo`）・`rolekit`（KEEP。`accept_round`・`given_up_reason`）・`graphloops/engine/util.py`（KEEP。`Reject`）・`jsonfile`・`oneline`。
@@ -234,7 +234,7 @@ Write `text` and `measured_how` in the language of the request lines. …
 今の指示は `workflows/judge/commands/premises.md`（68 行）に在り、役が Read する依頼の行のファイル `judge/request.json` は judge の入口が置いていた。
 
 - 移した: 依頼の行を Read させる行（md:38「人の修正依頼の行: `$ARTIFACTS_DIR/judge/request.json`（…**まず Read せよ**）」）をやめ、依頼の行の JSON を指示の中に入れた。行の説明（各行の欄・空の配列の時の決まり）は残した。
-- 移した: 外への検索の決まりの塊（md:3-10。元は `judge.md:16-22`）を共通の断片 `{shared:query-rule}` に（world.md の 3.6 と同じ）。塊の頭の「works の包みより」と「Agent で子を起こすなら…含めよ」は、断片の `spawns` の段落の外に出ない（この役は Agent を持たない）。
+- 移した: 外への検索の決まりの塊（md:3-10。元は lib の agents の `judge.md:16-22`）を共通の断片 `{shared:query-rule}` に（world.md の 3.6 と同じ）。塊の頭の「works の包みより」と「Agent で子を起こすなら…含めよ」は、断片の `spawns` の段落の外に出ない（この役は Agent を持たない）。
 - 消した: 頭の拒みの節（md:14-20）と区切り（md:12・22）と、`## 入力` の拒みの行（md:40「前の回の受け付けが拒んだ理由は、この指示書の頭のセクションに在る…」）と、末尾の 1 文（md:68「拒んだ理由が次の回の指示書の頭に届く。」）。共通の断片 `{shared:rejected}` の 1 回にした。決まりは今と同じ「丸ごと出し直せ」。入る理由は前の回の 1 つから回の全部に変わる（8 節の自分で決めた 7）。
 - 移した: 言語の 1 行（md:1。`$premises-reject.output.lang_line`）を `## Output` の最後の 1 文に。汎用の欄の並びは、この node の人に見せる欄（`text`・`measured_how`）の名指しに替えた。
 - まとめた: md に字で書いていた `kind` の 2 語（md:47-53・63）を差し込み口 `{measured}`・`{hypothesis}` にした。
@@ -246,10 +246,10 @@ Write `text` and `measured_how` in the language of the request lines. …
 
 ### 2.7 元の works と graphloops の同じ場面
 
-元の works の `works/blk-premises/`（入力 `request`〔依頼のファイルのパス〕・`base_rev`、出口 10 欄の独立したブロック）から、工場は判定のブロックの中に写した（#76。`消した計画（git の履歴。ab47a4d の版で読める）judge.md:30`・`:62`）。graphloops の同じ場面は `prompts/review-loop/p0.premises.md`（`p0.premises`。4 行の短い指示）と、写しの rules の `measured_needs_output`。
+元の works の `works/blk-premises/`（入力 `request`〔依頼のファイルのパス〕・`base_rev`、出口 10 欄の独立したブロック）から、工場は判定のブロックの中に写した（#76。消した計画（git の履歴。ab47a4d の版で読める）の `2026-10-12-blocks/judge.md:30`・`:62`）。graphloops の同じ場面は `prompts/review-loop/p0.premises.md`（`p0.premises`。4 行の短い指示）と、写しの rules の `measured_needs_output`。
 
 - 独立したブロックの形（入力だけで動く）: 工場は judge の中に直に置き、`judge/request.json` を読む形にした（#76）。この block で元の形に戻す。
-- 出口の要約 `constraints_summary`（判定役に貼る 1 行 1 制約の文）と数（`constraints`・`measured`・`hypotheses`・`claims`・`claims_hypothesis`）と `reads_file`: 工場は #232 で `premises.py` の `collect` を「届かない関数」として消した（`e0de3403`。工場の線では判定役の支度が `premises.json` を直に読むため）。この block は数を戻さない（8 節の自分で決めた 4）。要約の文は戻さない（読み手の md の材料の組み方なので、読み手の block が組む）。`reads_file` は元の works でも「まだ無い（空）」の欄だった。
+- 出口の要約 `constraints_summary`（判定役に貼る 1 行 1 制約の文）と数（`constraints`・`measured`・`hypotheses`・`claims`・`claims_hypothesis`）と `reads_file`: 工場は #232 で lib の `premises.py` の `collect` を「届かない関数」として消した（`e0de3403`。工場の線では判定役の支度が `premises.json` を直に読むため）。この block は数を戻さない（8 節の自分で決めた 4）。要約の文は戻さない（読み手の md の材料の組み方なので、読み手の block が組む）。`reads_file` は元の works でも「まだ無い（空）」の欄だった。
 - 入力 `base_rev`（受け付けが HEAD がその版のままかを見る）: 工場は写しが在る時は写しと比べるだけで、版を受けない（`judge_accept.py:1139-1160` の `_tree_unchanged`。写しが無い時だけ `rev` を見る）。元の works も写しを必ず取ったので、版は写しの無い時の守りだった。この block は写しを `intake` で必ず取るので、版の入力は要らない。意図して外した記録は（未確認）。
 - 依頼の型の確かめを使い捨ての置き場で通すだけで積まない（元の intake）: この block も積まない（place に `intake.json` を書くだけ）。依頼の型は `request.schema.json` が確かめる。
 - 3 回とも拒まれたら、元の works のメイングラフの共有の記録（盤面）に止めの印を置いて、後ろの判定役を起こさない（元の `collect`。元の works の裁定の番号 R50）: 工場は止めの記録 `stopby.PREMISES` を置く形にした。この block は `status: failed` を返し、止めるかは graph が決める（1.6）。
@@ -374,9 +374,9 @@ bin/works-factory workflow run works-factory-premises \
 script を子のプロセスで回す（今の `tests/workflows/test_judge.py:695-704` の `Run.run` と同じ形。`hermetic.child_env` で `ARTIFACTS_DIR`・`WORKFLOW_ID`・`WORKS_FACTORY_ROOT`・`PYTHONDONTWRITEBYTECODE=1`・`INPUTS_…` を渡す）。始めの記録は置かない。使い捨ての git のリポジトリに `stats.py` を commit して置く。
 
 - `IntakeCase`: 配列の依頼・容器の依頼で `intake.json` の `findings` が同じ。`carried` が空で容器が `constraints` を持てばそれを使う。`tree.json` が `accept.TREE_SCHEMA` に合う。読めない依頼・容器でない鍵で `due: false`。
-- `PromptCase`: `measure_prep` の `prompt` に依頼の行の JSON が在り、`$ARTIFACTS_DIR` と `judge/request.json` の字が無く、埋まらない差し込み口が無い。拒みの理由が空でない時だけ却下の段落が入る。外への検索の決まりの断片が入る（元: `test_judge.py::test_roles_that_reach_outside_carry_the_query_rule` の premises の行）。
-- `AcceptCase`（元: `test_judge_accept.py::PremisesCase` の全部〔:928-985〕）: 実測なのに出力が無い制約を拒む・仮説は出力が要らず通った返答が `premises.json` に書かれる・依頼の実測は測り直させる・役が作業ツリーを変えたら拒む・バイトコードも変更と数える。元の `test_judge.py::test_premises_reply_outside_the_type_is_rejected`（:194-198）は、`output_format` の照らしを Archon が持つので、YAML の `output_format` で同じ 3 つの返答が拒まれることを `engine.schema.validate_schema` で照らす形にする。
-- `CarriedCase`（元: `test_judge_accept.py::CarriedConstraintsCase.test_carried_constraints_join_the_premises`〔:907-926〕と `test_judge.py::CarriedConstraintsCase.test_carried_rows_fit_the_premises_shape`〔:2086-2093〕）: 運ばれた実測が返答に足される（同じ字は 2 度足さない）。`carry.carried_constraints` の行が `constraints.schema.json` と役の `output_format` の両方に通る。
+- `PromptCase`: `measure_prep` の `prompt` に依頼の行の JSON が在り、`$ARTIFACTS_DIR` と `judge/request.json` の字が無く、埋まらない差し込み口が無い。拒みの理由が空でない時だけ却下の段落が入る。外への検索の決まりの断片が入る（元: tests/workflows の `test_judge.py::test_roles_that_reach_outside_carry_the_query_rule` の premises の行）。
+- `AcceptCase`（元: `test_judge_accept.py::PremisesCase` の全部〔:928-985〕）: 実測なのに出力が無い制約を拒む・仮説は出力が要らず通った返答が `premises.json` に書かれる・依頼の実測は測り直させる・役が作業ツリーを変えたら拒む・バイトコードも変更と数える。元の tests/workflows の `test_judge.py::test_premises_reply_outside_the_type_is_rejected`（:194-198）は、`output_format` の照らしを Archon が持つので、YAML の `output_format` で同じ 3 つの返答が拒まれることを `engine.schema.validate_schema` で照らす形にする。
+- `CarriedCase`（元: `test_judge_accept.py::CarriedConstraintsCase.test_carried_constraints_join_the_premises`〔:907-926〕と tests/workflows の `test_judge.py::CarriedConstraintsCase.test_carried_rows_fit_the_premises_shape`〔:2086-2093〕）: 運ばれた実測が返答に足される（同じ字は 2 度足さない）。`carry.carried_constraints` の行が `constraints.schema.json` と役の `output_format` の両方に通る。
 - `FinishCase`: 受けた時は `status: ok` と pointer。3 回拒まれた時は `status: failed`・`constraints: null`・諦めた文。`measured` を持つ依頼の行に `仮説` の制約が当たる時だけ `report` に行が載る（元: `test_runreport.py` の `premise_lines` を見る試験の行。報告の行は block の試験へ移る）。
 - `ShapeCase`: YAML の `premises` の `output_format` の `kind` の enum が `[steps.MEASURED, steps.HYPOTHESIS]`、loop の `max_iterations` が `rolekit.GIVE_UP_AFTER`、AI の node の鍵（群・`settingSources`・道具・sandbox と `denyWrite`・`idle_timeout`・`mutates_checkout`・`retry`）が 1.3 のとおり（元: `test_roles_keep_the_old_settings` の premises の行）。
 - 写さない試験: `tests/workflows/test_judge.py::test_missing_premises_or_purpose_stops_even_with_an_accepted_judgment`（judge のまとめの `when:` と返りの試験へ）・`test_roles_receive_the_reject_reason_through_the_loop_head`・`test_unreadable_start_pointer_degrades_in_every_lang_line_script`（reject の node と始めの記録が無くなる）。

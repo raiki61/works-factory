@@ -1,7 +1,7 @@
 """独立の目のまとめの graph（workflows/eyes。docs/design/judge-eyes.md の 2 節）: ok の決まり・返らなかった目の行と「まま R4 を回した」の尾・
 目を省いた run の行・まとめた R3 の行・返す node が落ちないこと・配線の yes/no・筋書きの verdict を確かめる。
 
-元は test_eyes.py と test_eyeverdict.py のまとめの部分（docs/design/README.md の 9.5）。目の中は各 block の
+元は tests/workflows の test_eyes.py と test_eyeverdict.py のまとめの部分（docs/design/README.md の 9.5）。目の中は各 block の
 試験が見る。守る keep-essence: 9（R1〜R4。この graph は r2 に独立設計の pointer を渡すだけで、修正案・判定・差分を独立設計に運ばない）
 """
 import json

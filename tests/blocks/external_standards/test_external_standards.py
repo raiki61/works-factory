@@ -205,7 +205,7 @@ class ShapeCase(unittest.TestCase):
         import rolekit
         self.assertEqual(self.nodes[LOOP]["loop_group"]["max_iterations"], rolekit.GIVE_UP_AFTER)
 
-    # 今の判定の external-standards の役の起こし方（test_judge.py の ROLES["external-standards"] の行と、
+    # 今の判定の external-standards の役の起こし方（tests/workflows の test_judge.py の ROLES["external-standards"] の行と、
     # workflows/judge/works-factory-judge.yaml の錨 net_closed_launch を、作り直しの時に字で写した物）
     LAUNCH = {"model": "@wf-judge-materials", "settingSources": ["user"],
               "allowed_tools": ["Read", "Grep", "Glob", "Bash", "WebSearch", "WebFetch"],

@@ -2,7 +2,7 @@
 確かめる。始めの記録の無い使い捨ての run directory と git のリポジトリ（tests/e2e/target-seed/ を写した物）で、port の値だけを渡し、
 intake → review_prep → 台本の返答 → review_accept → finish と回す。
 
-写した元は test_plan_review.py の ReviewAcceptCase・ConvergeCase・ReplanCase・ResultCase・PortedMaterialCase と、
+写した元は tests/workflows の test_plan_review.py の ReviewAcceptCase・ConvergeCase・ReplanCase・ResultCase・PortedMaterialCase と、
 test_boardview.py・test_blk_plan.py の受け付けの場面（試験ごとの docstring に元の名を書く）。往復の記録に足す所は
 line へ移ったので、2 往復目は pass.json を converge.add_pass で足した記録を port prior に渡して回す（Flow.carry。line の使い方の見本）。
 
@@ -266,7 +266,7 @@ class FlowCase(unittest.TestCase):
 
 
 class ReviewAcceptCase(FlowCase):
-    """審査役 1 つの受け付け（元 test_plan_review.py の ReviewAcceptCase。元は tests/test_blk_plan.py の ScriptCase・
+    """審査役 1 つの受け付け（元 tests/workflows の test_plan_review.py の ReviewAcceptCase。元は tests/test_blk_plan.py の ScriptCase・
     ConvergeReviewCase の事前審査の側）"""
 
     def prepped(self, **inputs):
@@ -917,7 +917,7 @@ class OpenAndFinishCase(FlowCase):
 
 class PartsCase(FlowCase):
     """受け付けの部品を直に呼ぶ（元 test_boardview.py の RulesCase・UnitNameCase・Owners、test_blk_plan.py の
-    QuoteFoldCase、test_plan_review.py の PortedMaterialCase）"""
+    QuoteFoldCase、tests/workflows の test_plan_review.py の PortedMaterialCase）"""
 
     def test_plan_review_output(self):
         """元 RulesCase.test_plan_review_output: 案に無い単位・重複の key・穴も別案も無いのに faces_none が無いを拒む（返答の全体の照らし）。

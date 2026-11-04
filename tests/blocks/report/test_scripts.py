@@ -1,7 +1,7 @@
 """報告の block を、script を子のプロセスで回して確かめる（docs/design/report.md の 2.9 と 8 節）。
 
 始めの記録の無い使い捨ての run directory で、port の値だけを渡し、facts → write_prep → 台本の返答 → cold_prep → 台本の判定 → write_accept →
-finish と回す。写す元は test_report.py の FactsCase・AcceptScriptCase・RejectScriptCase・ColdPrepScriptCase・CollectScriptCase・
+finish と回す。写す元は tests/workflows の test_report.py の FactsCase・AcceptScriptCase・RejectScriptCase・ColdPrepScriptCase・CollectScriptCase・
 WriterRunCase（#702 の筋書き。書き手が使用枠の切れで落ち、別のトークンの resume で書き直す。block を include する小さな graph の形のまま）。
 """
 import json

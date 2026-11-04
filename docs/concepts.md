@@ -162,7 +162,7 @@
 - 状態: 住処あり
 - 住処: `lib/handoff.py`（欄の名 `FIELD`・欄の並び `KEYS`・型 `SCHEMA`・書けという頼み `ASK`・前の周のセクションの見出し `HEAD`・使い方 `USE`・メモが無い周の文 `NONE`・読めない周の文 `UNREADABLE`・控えのパス `path_of`・控えを置く `save`・読めない控えを返す `unreadable`・前の周のセクションを組む `section`）
 - 約束: 役の返答の欄 `handoff`（4 つの欄 `read`・`kept`・`set_aside`・`open`）と、周のフォルダの控え `handoff.json`（控えの名と置き場は `lib/marks.py` の種 `handoff`）
-- 知ってよい所: 住処だけ。計画の受け付け `planfile.py` と報告の受け付け `runreport.py` は住処の `FIELD`・`path_of`・`save`・`unreadable`・`section`・`ASK` を使い、型・頼み・セクションを写さない。役の返答の型の YAML の写し（`workflows/plan/works-factory-plan.yaml`・`workflows/report/works-factory-report.yaml`）は `SCHEMA` の写しで、`test_plan.py`・`test_report.py` が住処と等しいことを縛る（表の bound）
+- 知ってよい所: 住処だけ。計画の受け付け `planfile.py` と報告の受け付け `runreport.py` は住処の `FIELD`・`path_of`・`save`・`unreadable`・`section`・`ASK` を使い、型・頼み・セクションを写さない。役の返答の型の YAML の写し（`workflows/plan/works-factory-plan.yaml`・`workflows/report/works-factory-report.yaml`）は `SCHEMA` の写しで、`test_plan.py`・tests/workflows の `test_report.py` が住処と等しいことを縛る（表の bound）
 - 今: 外の当たりは 0 件
 
 ### `plan-scope` 修正案の項目の範囲の照らし
@@ -211,14 +211,14 @@
 - 住処: `lib/stopby.py`（標準ライブラリだけ。機械の語の頭 `HEAD`（`works:`）と頭の読み `is_line`、段の語と 2 つ以上の持ち主が共に書く語の表 `REASONS` とその定数 `ADAPTER`・`LINE_SCRIPT`・`REJUDGE` など、人の止めの頭 `HUMAN`、人の答えを待つ語 `WAITING`、自分だけの語を足す口 `declare` と `declared`）
 - 約束: 語の字は共有ボード・報告・固定材料に残るので変えない（試験 `lib/tests/test_stopby.py`）
 - 知ってよい所: 住処だけ。書き手は住処の定数を引き、自分の定数に写さない
-- 今: 柵は語の字（`"works:<名>"`・頭の `"works:"`）と、住処の定数をそのまま別の名に写す形（`X = stopby.Y`・`from stopby import`・`import stopby as`）。既知の漏れは、落ちない返しのノードが lib を読めない時のために語を字で持つ 4 か所（`boundary.py`・`workflows/judge/scripts/verdict.py`・`workflows/line/scripts/collect.py`・`workflows/line/scripts/result.py`）と、定数の写し 2 か所（`outcome.py` の `WAIT_WORDS`・`lib/report.py` の `HUMAN_BY`）
+- 今: 柵は語の字（`"works:<名>"`・頭の `"works:"`）と、住処の定数をそのまま別の名に写す形（`X = stopby.Y`・`from stopby import`・`import stopby as`）。既知の漏れは、落ちない返しのノードが lib を読めない時のために語を字で持つ 4 か所（`boundary.py`・`workflows/judge/scripts/verdict.py`・`workflows/line/scripts/collect.py`・`workflows/line/scripts/result.py`）と、定数の写し 2 か所（lib の `outcome.py` の `WAIT_WORDS`・`lib/report.py` の `HUMAN_BY`）
 
 ### `start-record` 始めの記録 `r1/start.json`
 
 - 状態: 住処あり
-- 住処: `workflows/line/src/startrec.py`（標準ライブラリだけ。置き場の名 `NAME`・`REL` と `path`、読み口 `read`・`load`、書き `write`・写し `adopt`、入口の入力の形の読み `shape`・`diff_empty`・`requests`、読む版と差分の根 `read_rev`・`diff_base`、入口の文 `words`、命令の版の 1 行 `cli_version`）
+- 住処: `workflows/line/src/startrec.py`（標準ライブラリだけ。置き場の名 `REL`〔字は line の置き場の名の表 `workflows/line/src/files.py` の `START`〕と `path`、読み口 `read`・`load`、書き `write`・`save`、入口の入力の形の読み `shape`・`diff_empty`・`requests`、読む版と差分の根 `read_rev`・`diff_base`、入口の文 `words`、命令の版の 1 行 `cli_version`）
 - 約束: 住処の口だけ（置き場の名と読む口はここ 1 つ。記録の型の Schema は works-factory に無い。試験 `tests/blocks/line/test_startrec.py`）
-- 知ってよい所: 住処だけ。書き手はメイングラフの始めのノード `workflows/line/scripts/start.py`（`startrec.write`）で、サブグラフは `startrec.adopt` で写し、読み手は `startrec.read`・`startrec.load` を引く
+- 知ってよい所: 住処と、置き場の名の字を持つ `files.START` の 1 行。書き手はメイングラフの始めのノード `workflows/line/scripts/start.py`（`startrec.write`）と固定材料の取り込み（line の `src/fixture.py` の `adopt`）で、読み手は `startrec.read`・`startrec.load` を引く
 - 今: 柵は置き場の名を字で書く形・置き場の名の別名（START_REL・START_FILE）・別の読み口（start_doc の関数）。既知の漏れは、判定の置き場に始めの記録の写しを同じ名で置く `judge_accept.py` の `START_FILE` とそれを引く判定の支度の 2 つの script、最後の承認ノード `workflows/line/scripts/ask_final.py` の包み `start_doc`（4 ファイル 12 行）
 
 ### `human-gates` 人の承認ノードと無人の方針
@@ -267,11 +267,11 @@
 ### `prompt-assembly` 指示書の組み立て
 
 - 状態: 散らばり
-- 今: 写しの指示書を描く式は `lib/rolekit.py` に在るが、「頭のセクション → 写しの本文 → 役の定義 → 前の拒否」の並べは役の支度のモジュールごとに組む（`planblk.py`・`planfile.py`・`lib/design.py`・`lib/replan.py`・`boardview.py` ほか）。貼るセクションの見出しの宣言は考え `prompt-sections` に寄せた。印「機械が貼った」は付け方がそろわないので範囲の定義には使わず、柵はその字を数えるだけ。数の歯止めは表の `known` の 11 ファイル 17 行（独立の目の比べの指示書 `r2-compare.md` の見出しの 2 行と、承認ノードの script `workflows/line/scripts/ask_replan.py` が見出しを自分の定数に写す 1 行を含む）
+- 今: 写しの指示書を描く式は `lib/rolekit.py` に在るが、「頭のセクション → 写しの本文 → 役の定義 → 前の拒否」の並べは役の支度のモジュールごとに組む（`planblk.py`・`planfile.py`・`lib/design.py`・`lib/replan.py`・`boardview.py` ほか）。貼るセクションの見出しの宣言は考え `prompt-sections` に寄せた。印「機械が貼った」は付け方がそろわないので範囲の定義には使わず、柵はその字を数えるだけ。数の歯止めは表の `known` の 11 ファイル 17 行（独立の目の比べの指示書 eyes の commands の `r2-compare.md` の見出しの 2 行と、承認ノードの script `workflows/line/scripts/ask_replan.py` が見出しを自分の定数に写す 1 行を含む）
 - 計画: まだ無い
 
 ### `lang-names` 特定の言語・テストの実行器の名
 
 - 状態: 散らばり
-- 今: 役の指示書と `lib/` に特定の言語・テストの実行器の名を書かない（持ち主の決め `lang-neutral`。事実上の標準の形式の名は数えない）。今その名を持つ所は、言語ごとの読み方（`lib/impact.py`・`lib/libdocs.py`・`lib/libdocs_local.py`・`lib/libdocs_web.py`・`ripple.py`。持ち主の決めの E13 の例外）・TDD のループと実行器の口（`tddloop.py`・`lib/baseline_red.py`）・起動の殻の版の確かめ（`bin/apply`・`bin/works-factory`）・コメントと docstring。・役の指示書（`common.md`・`premises.md` が手元の依存と生成物の止め方に Python を名指す）。数の歯止めは表の `known` の 18 ファイル 44 行。新しい役の指示書が名を書けば赤になる
+- 今: 役の指示書と `lib/` に特定の言語・テストの実行器の名を書かない（持ち主の決め `lang-neutral`。事実上の標準の形式の名は数えない）。今その名を持つ所は、言語ごとの読み方（`lib/impact.py`・`lib/libdocs.py`・`lib/libdocs_local.py`・`lib/libdocs_web.py`・lib の `ripple.py`。持ち主の決めの E13 の例外）・TDD のループと実行器の口（`tddloop.py`・`lib/baseline_red.py`）・起動の殻の版の確かめ（`bin/apply`・`bin/works-factory`）・コメントと docstring。・役の指示書（`common.md`・judge の commands の `premises.md` が手元の依存と生成物の止め方に Python を名指す）。数の歯止めは表の `known` の 18 ファイル 44 行。新しい役の指示書が名を書けば赤になる
 - 計画: まだ無い（持ち主の決めの E13 の例外は掃除の段で言語の知識を外へ出す）

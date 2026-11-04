@@ -346,5 +346,5 @@ bin/works-factory workflow run works-factory-external-standards \
   - 役の md の頭の文から「started in a new conversation」を外した（`You are the external-standards role. Your only job …`）。訳: 輪は `fresh_context: false` で、2 回目からは同じ会話を続けるので、「新しい会話」と言うと誤る。standalone の筋書きの決まった文もこの頭の文に合わせた。
   - `NA_PARAGRAPH = True` を宣言に足した（共通の試験が要る名。1.5 は書いていない）。
   - 1 つ目の commit の材料のファイル `src/oldbrief.py` は、本物の run の物が手元に無いので、今の `judge_accept.material_prep` の字（見出し・節の名・『条件に当たらない』の段）を `judge_accept.py` の定数から組み直して書いた。本物の run の物との字の比べ（2.9 の (b)）はしていない。2 つ目の commit で消した。
-  - 試験は 2.9 のとおり。起こし方の照らしは、2.9 が名指す pack の試験 `test_judge.py`（#765 で消えた）の行を `ShapeCase.LAUNCH` に字で写した。
+  - 試験は 2.9 のとおり。起こし方の照らしは、2.9 が名指す pack の試験 tests/workflows の `test_judge.py`（#765 で消えた）の行を `ShapeCase.LAUNCH` に字で写した。
   - `values` は目的の値と `repo_review_md` を、段落が入らない時は空の字で渡す。訳: 1.5 は「在る時だけ」と書くが、`workflows/.shared/AGENTS.md` の決め（指示を組む口は選ばれない段落の中の `{name}` も数える。prep はいつも同じ組の値を渡す）が勝つ。

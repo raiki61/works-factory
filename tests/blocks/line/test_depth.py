@@ -1,4 +1,4 @@
-"""単位ごとの深さの検査（元 test_depth.py。integration.md 4.2-9 の MOVE。試す物は line の src/tiers.py に写した
+"""単位ごとの深さの検査（元 lib の試験の test_depth.py。integration.md 4.2-9 の MOVE。試す物は line の src/tiers.py に写した
 depth.py と latedepth.py の関数で、名は元のまま。関数を直に呼び、一時の置き場に控えを書くだけ）。
 
 見る物（元のまま）:

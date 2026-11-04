@@ -335,7 +335,7 @@ Return only JSON that matches the output schema.
 
 今の指示は `workflows/judge/commands/spec-review.md`（59 行）1 本。
 
-- 移した: 役の定義の塊（md:17-31。`judge.md` の本文の写し）を `{shared:role-judge}` と `{shared:query-rule}` に割った（judge の本文の外への検索の決まりの部分が、query-rule の元と同じ字のため。役の定義の断片は検索の決まりを持たない）。
+- 移した: 役の定義の塊（md:17-31。lib の agents の `judge.md` の本文の写し）を `{shared:role-judge}` と `{shared:query-rule}` に割った（judge の本文の外への検索の決まりの部分が、query-rule の元と同じ字のため。役の定義の断片は検索の決まりを持たない）。
 - 移した: 却下の段落（md:7-15）を `{shared:rejected}` に。言語の 1 行（md:1）を人に見せる欄を名指す 1 文に。
 - 替えた: 依頼と書く役の返答のパスを `{request_file}`・`{spec_file}` に。穴の種類の語と 20 字の下限を差し込み口に（md と `output_format` と受け付けが同じ字を持つ。README の 5.3）。
 - 足した: PR の題と本文の節（2.6 と同じ訳）。
@@ -615,7 +615,7 @@ bin/works-factory workflow run works-factory-spec \
 5. 出力に `status`・`stop_reason`・`reason`・`questions`・`unchecked`・`added_origin` を足した。根拠: 今、仕様の段の止めは run を止め（`human:spec-gate` など）、check の問いは最後の承認ノードと報告と `bin/apply` に届く。どれも無いと元の能力が落ちる。止めるかは line が決め、block は語を返す。
 6. 承認ノードの文の組み立て `gatemarks.gate_text` は `lib/` に残る物として使う。根拠: line の修正前の承認ノードと仕様の承認ノードの 2 つが使う（`lib/gatemarks.py:366` の docstring）。README の 9.2 は `gatemarks` の承認ノードの決めの部分を line の `src/` へ移すと書くが、`gate_text` は決めでなく文の組み立てで、2 つの使い手を持つ。
 7. 出し直しの段落を共通の断片 `resubmit` にした。根拠: 仕様の 3 つの役と diagnose の再審の役（今の `rejudge-loop` の `rejudge-fix`）が同じ `RESUBMIT_ASK` を使う。README の 5.1 の決め（2 つ以上の block が使う段落は `workflows/.shared/prompts/`）。
-8. 審査役の指示に `{shared:role-judge}` と `{shared:query-rule}` を並べた。根拠: 今の審査役の指示は `judge.md` の本文を写していて、その中に外への検索の決まりの塊が在る（world の query-rule の元 `judge.md:16-22`）。役の定義の断片に検索の決まりを持たせると 2 か所目の写しになる。断片の名 `role-judge` は、土台の PR が役の定義 5 本に付ける名に合わせる（`role-<役>` を仮の名にした）。
+8. 審査役の指示に `{shared:role-judge}` と `{shared:query-rule}` を並べた。根拠: 今の審査役の指示は lib の agents の `judge.md` の本文を写していて、その中に外への検索の決まりの塊が在る（world の query-rule の元 lib の agents の `judge.md:16-22`）。役の定義の断片に検索の決まりを持たせると 2 か所目の写しになる。断片の名 `role-judge` は、土台の PR が役の定義 5 本に付ける名に合わせる（`role-<役>` を仮の名にした）。
 
 ## 12 実装で決めた事（実装の役が書く。設計書と main の決まりが食い違った所・設計書が黙っていた所）
 

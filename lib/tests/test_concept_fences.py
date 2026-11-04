@@ -1,7 +1,7 @@
 """考えの住処の柵の道具 lib/conceptfence.py の試験（仮の置き場で数え方・歯止め・地図の読みを見る Synthetic、表 docs/concepts.json の
 住処ありの柵が本当に当たることと entry-kind が既知の漏れを持たないことを見る FenceCase、main の表を引く main_table と分かれ目の fork_ref の MainTableCase）。
 
-works-factory 自身の地図と表の全部を本物の木に当てる試験は test_concept_fences.py。
+works-factory 自身の地図と表の全部を本物の木に当てる試験（tests/layers の同じ名のファイル）は #765 で消した。
 """
 import json
 import pathlib
@@ -240,7 +240,7 @@ class FenceCase(unittest.TestCase):
     def test_entry_kind_read_only_by_entryshape(self):
         """L-E55: 入口の種類（依頼・base・PR）を知るのは入口の変換（lib/entryshape.py とメイングラフの start）だけ（元 works/tests/
         test_entry_block.py の ConversionLayerCase.test_only_conversion_layer_knows_entry_kind）。既知の漏れは 0 件（本物の木の
-        当たりが既知と揃うことは test_concept_fences.py の FencesHold が照らす）。
+        当たりが既知と揃うことを照らした tests/layers の同じ名のファイルの FencesHold は #765 で消した）。
         柵の正本は表 docs/concepts.json の entry-kind（2 つ目の「base.from での分岐」の形は、比べる相手を入口の種の語
         （head・base・pr）に限る: 元の形は判定の受け付けの写しの道の指し先 judge_accept.py の w["from"] != "$" にも当たる）"""
         table = cf().load(LIB.parent)
@@ -305,8 +305,8 @@ class FenceCase(unittest.TestCase):
 
 
 class MainTableCase(unittest.TestCase):
-    """main_table: 版は在って表のファイルが無ければ空の表（表を置く最初の差分は比べない）・表が読めなければ (None, 理由)。版を引けない時の (None, 理由) は
-    test_concept_fences.py の NotAboveMain が見る"""
+    """main_table: 版は在って表のファイルが無ければ空の表（表を置く最初の差分は比べない）・表が読めなければ (None, 理由)。版を引けない時の (None, 理由) を
+    見た tests/layers の同じ名のファイルの NotAboveMain は #765 で消した"""
 
     def test_missing_table_is_empty_and_present_table_is_read(self):
         with tempfile.TemporaryDirectory() as tmp:

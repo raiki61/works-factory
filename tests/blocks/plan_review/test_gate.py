@@ -4,7 +4,7 @@
 直に呼ぶ（place のファイルは試験が書き、intake.json の中身は試験が組む。git も子のプロセスも無し）。port を通す場面（依頼の解き方と
 依頼のファイルを出どころにした外れ・出口の返りの asks）だけ test_take.py の Flow で script を回す。
 
-写した元は test_gate_axes.py の SplitCase・RunRootCase と、test_plan_review.py の FourAxesCase・WorldGateCase・
+写した元は test_gate_axes.py の SplitCase・RunRootCase と、tests/workflows の test_plan_review.py の FourAxesCase・WorldGateCase・
 WorldGateRunCase・GateFromPlanCase・ReplanCase の行の事実の半分（試験ごとの docstring に元の名を書く）。元の「聞かずに通る」は行の
 decided が真で why が空、「聞く」は decided が偽か why が在る、に読み替えた。承認ノードを開くか・聞き直さないか・無人の推し・
 4 つの軸のまとめは line の試験に残す。
@@ -297,7 +297,7 @@ class SplitCase(GateBase):
         self.assertIn("修正案の単位の外を名指す（別の単位）", self.note(got, "not_overkill"))
 
 
-# ---------------------------------------------------------------- 元 test_plan_review.py の FourAxesCase
+# ---------------------------------------------------------------- 元 tests/workflows の test_plan_review.py の FourAxesCase
 class FourAxesCase(GateBase):
     """承認ノードに載せずに通してよいかは、自明・世界の解・汚くない・やりすぎでないの 4 つが全部揃う時だけ（持ち主 2026-10-09 の決め 1）。
     この block は行ごとの揃わない訳を返し、聞くかは line が決める"""

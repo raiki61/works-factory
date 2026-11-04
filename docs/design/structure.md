@@ -11,8 +11,8 @@
 - `optional` の `bare`: line の collect が、落ちた node を記録の中で探す時に、include の id の頭（`<include の id>__`）を付けて探すか（false）、付けずに素の id で探すか（true。loop の中の node は記録に素の id で載る）。`node` が `-` で終わる物は頭の一致で読む。
 
 - 単位: 判定が切った直しの単位 `{id, paths, summary}`（`summary` は判定の単位の理由）。
-- 段 A: 直す前の実測。単位の `paths` を `lib/measure.py` で測り（行と伸び・変えた頻度・6 行の写しの塊・入口の数・環境変数の名）、考えの地図 `docs/concepts.md` の行と柵の表 `docs/concepts.json` の知る場所の数を足す（今の `stage_a.py`・`context.py`）。
-- 段 B: 直した後の実測。直す前の版と今の作業ツリーの差分を測る（変わったファイル・住処の外の知る場所の増え `fence_up`・新しい名・増えた写しの塊。今の `stage_b.py`）。
+- 段 A: 直す前の実測。単位の `paths` を `lib/measure.py` で測り（行と伸び・変えた頻度・6 行の写しの塊・入口の数・環境変数の名）、考えの地図 `docs/concepts.md` の行と柵の表 `docs/concepts.json` の知る場所の数を足す（組み込みの前の lib の `stage_a.py`・`context.py`）。
+- 段 B: 直した後の実測。直す前の版と今の作業ツリーの差分を測る（変わったファイル・住処の外の知る場所の増え `fence_up`・新しい名・増えた写しの塊。組み込みの前の lib の `stage_b.py`）。
 - 書いた意図: 対象のリポジトリが文で書いた憲法・決まり・設計（この block では、決まった名の文書 `AGENTS.md`・`ARCHITECTURE.md` と、port `intent` で渡された文書と、port `policy` の方針の文書）。
 - 構造の目（structure-eye）: 道具を持たない AI の役。単位ごとに汚れるか汚れないかと、当たった形（6 つ）・根拠・避け方を返す。
 - 一般の構造: その種類のシステムが一般にどんな部品に分かれ、部品の間を何が流れ（向き）、値の正本をどこに置き、依存をどちら向きにし、境目をどこに引くか。解き方やツールではない。
@@ -98,8 +98,8 @@
 
 - `workflows/structure/src/files.py`: 1.4 の名・`OPTIONAL`（1.2 の `optional` の値: `[{"node": "measure", "bare": false}, {"node": "structure-eye-", "bare": false}, {"node": "structure-eye", "bare": true}, {"node": "structure-eye-", "bare": true}]`）・`NAME = "structure-eye"`（却下の控えの名）。
 - `workflows/structure/src/intent.py`: 書いた意図を探して読む（3 節）。`TEXT_CAP = 6000`（今の `context.TEXT_CAP`）と切り方 `_cut` を持つ。
-- `workflows/structure/src/stage_a.py`: 今の `stage_a.py`（`read_units`・`measure_unit`）と `context.py` の `find`・`concepts`・`_sections`・`_rel`・`HEADING` の写し（`context.rules` は `src/intent.py` に替わるので写さない）。`measure_unit` の `MEASURE` は `pathlib.Path(importlib.util.find_spec("measure").origin)`（`lib/measure.py` をコマンドとして起こす。import しない）。
-- `workflows/structure/src/stage_b.py`: 今の `stage_b.py` の写し（`MEASURE` は同じ探し方）。
+- `workflows/structure/src/stage_a.py`: 組み込みの前の lib の `stage_a.py`（`read_units`・`measure_unit`）と `context.py` の `find`・`concepts`・`_sections`・`_rel`・`HEADING` の写し（`context.rules` は `src/intent.py` に替わるので写さない）。`measure_unit` の `MEASURE` は `pathlib.Path(importlib.util.find_spec("measure").origin)`（`lib/measure.py` をコマンドとして起こす。import しない）。
+- `workflows/structure/src/stage_b.py`: 組み込みの前の lib の `stage_b.py` の写し（`MEASURE` は同じ探し方）。
 - `workflows/structure/src/survey.py`: 今の `lib/structfile.py` の `_measured_units`・`_now`・`measure` を mode で 2 つに分けた物（`before(place, units, root, intent_docs)`・`after(place, units, root, base, plan_fields, intent_docs)`）と、目に見せる JSON を組む `view`（今の `eye.view`・`_cut`・`measured`・`due`）。
 - `workflows/structure/src/eye.py`: 今の `lib/eye.py` の `prep`（指示の文の組み立て `render` は md に移り、材料の値だけを組む）・`_pointer`・`problems`（書いた意図の照らしを足す。7 節）・`accept`・`state`・`reset`・`_put`・`_load`・`ROUTES`・`ROUTE`・`ROUTE_UP`・`ROUTE_REASON`・`MIN_UNDECIDED = 20`・`VERDICTS`・`DIRTY`・`FORM_COUNT = 6`・`MIN_QUOTE = 20`。6 つの形の文（今の `FORMS`）は md に移す。
 - `workflows/structure/src/sketch.py`: 構造を描く役と一般の構造を描く目の材料・指示の値・受け付け（2.7・2.8）。目に見せる JSON に行を足すのは `src/eye.py` の `_view`。
@@ -416,7 +416,7 @@ bin/works-factory <同じ引数> workflow run works-factory-structure \
 4. plan の中から外へ（工場の #560 `ca19ba37`・merge `153a064f`〔#750〕。後の直し `ac7af0ad`・`a59844c9`・`c4ca79a8`・`b6dabb43`・`259c2889`）: この block も line が run に 1 回 include する（`owed` の when）。
 5. 実行の時に行の型 `design-row.schema.json` を読む受け付け（元の works は知らない鍵・語・形の番号の範囲・route の語を型で照らした）: 工場は node の `output_format` に任せ、二重の型の照らしを外した（#232 `e0de3403`）。この block も同じで、型のファイルは写さない（1.5）。
 6. 回の数えの置き場（元の works は `eye.json`）: 工場は `rolekit` の却下の控え（resume を跨いで数える。#232）。この block も同じ。
-7. 目を Git の外で起こす旗（元の works の `'works-node: structure-eye isolated'`。adapter が一時のフォルダで起こし、git status と対象の案内の文書が目に届かない。`.shared/core/adapter.py:70-71,283-290`）: 工場の目は旗も `systemPrompt` の替えも持たず、既定の system prompt に作業ツリーの cwd と git status が入る（r2 の 2 つの役は `systemPrompt` で替えている。`test_eyes.py:556`）。（未確認）: 外した記録は無い（`docs/plans/2026-10-13-capabilities/plan.md:552-557` の P076 は旗に触れない）。この block は今のまま足さない（11 節の 8）。
+7. 目を Git の外で起こす旗（元の works の `'works-node: structure-eye isolated'`。adapter が一時のフォルダで起こし、git status と対象の案内の文書が目に届かない。`.shared/core/adapter.py:70-71,283-290`）: 工場の目は旗も `systemPrompt` の替えも持たず、既定の system prompt に作業ツリーの cwd と git status が入る（r2 の 2 つの役は `systemPrompt` で替えている。tests/workflows の `test_eyes.py:556`）。（未確認）: 外した記録は無い（`docs/plans/2026-10-13-capabilities/plan.md:552-557` の P076 は旗に触れない）。この block は今のまま足さない（11 節の 8）。
 8. 控えを書く前に設計の行が読めるかの確かめ（元の `line_edge.structure_edge`）: 工場の `write_state` は確かめない（読み手の `structmark._state_rows` が読めない行を落ちとして扱う）。（未確認）: 意図の記録は無い。この block は `take.py` が書いた行を書いた直後に `structmark.rows` で読み直し、読めなければ `status: failed` にする（11 節の 10）。
 9. モデル（元の works は opus・high を直に）: 工場はモデルの群（起動の時に付け替えられるモデルの名の束）`@wf-plan-structure` を使い（#628・#658 `d337f840`）、AI の node に一過性の誤りの retry（最大 2 回やり直す。#476 `ceb9d5e9`）を付ける。この block も同じ（`structure-eye` が群と retry を持つ）。
 10. 元の設計書（`docs/specs/2026-09-29-structure-block-design.md`）の block の中の設計の承認ノード（3 つの答え・全部の案を捨てた時の loop）と前例を探す役: 元の works にも工場にも無い（元の `eye.py:8` が「このブロックは関所を持たない」、設計書の 5 行目が blk-world に替えたと書く）。この block も持たない（人に上げる行は line の修正前の承認ノードが聞く）。

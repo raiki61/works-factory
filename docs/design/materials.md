@@ -430,7 +430,7 @@ README の 5.3 のまま。この族では:
 - main-path-observation: 起こし方 `test_run_launch`／状態の照らし 無し／役の定義 無し（外への検索の決まりだけ）／素材 `main_path_observation`／回す条件 判定から入る run でない（`touches_user_path` は真に倒す）／`NA` cond（`user_path_touched`。いつも真）／後の照らし `main_path_observed`（`:2138-2143`）／穴 `loop.diff_file`・`loop.changed_files_file`・`inputs.cwd`。
 - provenance: 起こし方 `test_run_launch`／状態の照らし 無し／役の定義 無し（外への検索の決まりだけ）／素材 `provenance`／回す条件 判定から入る run でない（`provenance_due`）／`NA` never／穴 `loop.diff_file`・`record.base`・`inputs.cwd`。
 
-`inputs.review_md`・`inputs.repo_review_md` の値は `materialkit.review_md_paths(repo)`（写す元 `review_md_paths`、`:1765-1770`。工場の観点の正本 `REVIEW.md` の絶対パスと、対象の根の `REVIEW.md` の絶対パスか空）から入れる。`REVIEW.md` は README の 9.3 で共通の断片へ移す物だが、作り直しの間は今の置き場を指す（（未確認）: 組み込みで移した後の置き場は、REVIEW.md を移す PR が決める）。
+`inputs.review_md`・`inputs.repo_review_md` の値は `materialkit.review_md_paths(repo)`（写す元 `review_md_paths`、`:1765-1770`。工場の観点の正本 lib の `REVIEW.md` の絶対パスと、対象の根の `REVIEW.md` の絶対パスか空）から入れる。lib の `REVIEW.md` は README の 9.3 で共通の断片へ移す物だが、作り直しの間は今の置き場を指す（（未確認）: 組み込みで移した後の置き場は、REVIEW.md を移す PR が決める）。
 
 ## 6 script の node（4 本の雛形）
 

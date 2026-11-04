@@ -138,7 +138,7 @@ class ShapeCase(unittest.TestCase):
     """YAML の揃い（block の形の検査は tests/layers/test_block_shape.py）"""
 
     # 今の判定の test-double-fidelity の役の起こし方（workflows/judge/works-factory-judge.yaml の錨 test_run_launch と
-    # test_judge.py の ROLES の行を、作り直しの時に字で写した物）
+    # tests/workflows の test_judge.py の ROLES の行を、作り直しの時に字で写した物）
     LAUNCH = {"model": "@wf-judge-materials", "settingSources": ["user"],
               "allowed_tools": ["Read", "Grep", "Glob", "Bash", "WebSearch", "WebFetch"],
               "sandbox": {"enabled": True, "allowUnsandboxedCommands": False, "failIfUnavailable": True,

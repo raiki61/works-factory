@@ -1,5 +1,5 @@
 """run の記録の読み（workflows/report/src/transcript.py）。写す元は test_runreport.py の TranscriptCase・WriterFellCase と
-test_report.py の RealRunCase（止めた Archon で本物の run を回し、run の記録の行を読む）"""
+tests/workflows の test_report.py の RealRunCase（止めた Archon で本物の run を回し、run の記録の行を読む）"""
 import json
 import pathlib
 import shutil

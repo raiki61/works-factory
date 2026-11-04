@@ -1,4 +1,4 @@
-"""人の関所と無人の方針（元 test_gatepolicy.py。住処は line の src/gates.py。docs/design/line.md の 6 節）の語・入口の確かめ・
+"""人の関所と無人の方針（元 lib の試験の test_gatepolicy.py。住処は line の src/gates.py。docs/design/line.md の 6 節）の語・入口の確かめ・
 始めの記録の dict からの読み・最後の関所を開くかの決め。一時の置き場のファイルだけ（git・子のプロセスなし）。
 
 元の StuckPushableCase は、止まった壁打ちを推しで越えてよいかの決めが往復の記録の住処 src/rounds.py へ移ったので、

@@ -1,5 +1,5 @@
-"""範囲の相談の部品（workflows/fix/src/consult.py。consult.py の写し）と、相談の script（consult_check・consult_accept）の配線の試験
-（docs/design/fix.md の 3 節・8.4・14.2 の test_consult.py。元の test_consult.py の全部と test_fix.py の
+"""範囲の相談の部品（workflows/fix/src/consult.py。lib の consult.py の写し）と、相談の script（consult_check・consult_accept）の配線の試験
+（docs/design/fix.md の 3 節・8.4・14.2 の lib の試験の test_consult.py。元の test_consult.py の全部と test_fix.py の
 RolesCase の相談の配線を写した）。
 
 縛る事:

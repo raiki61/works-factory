@@ -11,7 +11,7 @@
 - 深さで省く・上げ直し・戻せない組・案の直し: 差分の審査と同じ条件の語。定義は [delta-review.md](delta-review.md) の頭の語。
 - 依頼の行: run に渡された修正依頼の行（`workflows/.shared/schemas/request.schema.json` の形）。`lang` が空の時の既定の文は共通の断片 `lang-default`。
 - レンズ: 利用者が入れた plugin の review の agent の定義（`agents/<役>.md` の本文）を指示に貼り、修正の後の差分をその観点だけで見させる AI の node。子（Agent）を起こさない。読むだけ（Read・Grep・Glob）。
-- レンズの表: この block が知るレンズの並び（`src/lenses.py` の `LENSES`。今の `lenses.py` の `LENSES` の写し）。行ごとに YAML の node が 3 つずつ在る。
+- レンズの表: この block が知るレンズの並び（`src/lenses.py` の `LENSES`。組み込みの前の lib の `lenses.py` の `LENSES` の写し）。行ごとに YAML の node が 3 つずつ在る。
 - 振り分け: レンズごとに起こすか（`go`）と起こさない理由を決めること。
 - レンズの行: `lib/lens.py` の控え `lens.json` の行 `{lens, agent, go, reason, state: pending|ran|failed|not_routed, findings: [{lens, where, cite, why}], dropped}`。
 - 例の run: 本物の run `fed2db95-cb8e-41ff-913b-92c056872040`（対象は工場自身のリポジトリ。置き場は `<run の置き場>/fix/fix/`）。silent-failure-hunter が 1 本走り、発見 4 件を返した（差分の審査がそのうち 1 件を穴に採った）。
@@ -80,7 +80,7 @@ script の node はどれも `runtime: uv`・`mutates_checkout: false`。レン�
 ### 1.5 コードの置き場
 
 - `workflows/lens/src/__init__.py`: 空。
-- `src/lenses.py`: レンズの表 `LENSES = ({"lens": "silent-failure-hunter", "agent": "pr-review-toolkit:silent-failure-hunter"},)`・`key(name)`（`-` を `_` に）・振り分け `route(row, files)`（今の `_any_change`: 変わったファイルが無ければ `(False, "修正の差分に変わったファイルが無い")`）・定義の引き `definition(agent)`（今の `fixboard.lens_route` の引きの部分: `engine.validator.agent_def(agent)` を呼び、例外〔`SystemExit` を含む〕は「<agent> の定義を引けない（<型>: <訳>）」、`None` か本文が空なら「<agent> の定義が役の設定に無い（pr-review-toolkit が入っていない）」を起こさない理由にする）。写す元 `lenses.py` の `LENSES`・`key`・`_any_change` と `fixboard.lens_route`。字の下限 `MIN_CITE = 4`・`MIN_WHY = 20`（YAML の `output_format` の `minLength` と同じ字）も持つ。`lenses.render` の文は md へ出し、ここに持たない。
+- `src/lenses.py`: レンズの表 `LENSES = ({"lens": "silent-failure-hunter", "agent": "pr-review-toolkit:silent-failure-hunter"},)`・`key(name)`（`-` を `_` に）・振り分け `route(row, files)`（今の `_any_change`: 変わったファイルが無ければ `(False, "修正の差分に変わったファイルが無い")`）・定義の引き `definition(agent)`（今の `fixboard.lens_route` の引きの部分: `engine.validator.agent_def(agent)` を呼び、例外〔`SystemExit` を含む〕は「<agent> の定義を引けない（<型>: <訳>）」、`None` か本文が空なら「<agent> の定義が役の設定に無い（pr-review-toolkit が入っていない）」を起こさない理由にする）。写す元 lib の `lenses.py` の `LENSES`・`key`・`_any_change` と `fixboard.lens_route`。字の下限 `MIN_CITE = 4`・`MIN_WHY = 20`（YAML の `output_format` の `minLength` と同じ字）も持つ。`lenses.render` の文は md へ出し、ここに持たない。
 - `src/files.py`: 1.4 の名と `SKIP = (ports.RUNTIME_COPY_PREFIX,)`。
 - `src/steps.py`: 入口（差分を切る〔`leftovers.snapshot`・`unittrees.pathspec_without(SKIP)`・`leftovers.git(… text=False)`・`leftovers.git_names`。delta-review の `src/cut.py` の `cut` と同じ手続き〕・振り分け・`lens.write_routes`）・prep の値・受け取り・出口（`lens.collect(place, {<lens>: <reply-<key>.json の中身か None>})`・数え・`carry`・`report`）。
 - 使う `lib/`（KEEP。変えない）: `lens`（`LENS_FILE`・`STATES`・`UNSEEN`・`write_routes`・`collect`・`read`）・`leftovers`・`unittrees`（`pathspec_without`）・`jsonfile`・`oneline`・`graphloops/engine/validator.py`（`agent_def`。README の 9.1 で DELETE の候補。10 節の 1）。
