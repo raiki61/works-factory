@@ -245,6 +245,7 @@ start:
   final_gate: ''
   from_fixture: true
   fixture: {type: archon_artifact, run_id: dry-run, path: fixture-carried.json}
+  fixture_gate: false
   from_spec: false
   ports:
     request: {type: archon_artifact, run_id: dry-run, path: request.json}

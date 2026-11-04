@@ -910,6 +910,94 @@
     "recorded": {
       "type": "array",
       "description": "json(shared:recorded.schema.json): 記録された方針の行（lib/policy.py の recorded）"
+    },
+    "gate_rounds": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "description": "修正前の承認ノードで人の判断待ちに止まった所の写しだけが持つ、計画の往復の受け皿の got（plan-rounds-out の出力の欄の全部。fixture-ask-before-fix が読む。src/fixture.py の GATE_KEY）。ここに書くのは ask-before-fix が読む欄の主な物で、ほかの欄も持つ。止まらずに写した物は持たない",
+      "properties": {
+        "done": {
+          "type": "boolean"
+        },
+        "ok": {
+          "type": "boolean"
+        },
+        "status": {
+          "type": "string"
+        },
+        "round": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "stalled": {
+          "type": "boolean"
+        },
+        "capped": {
+          "type": "boolean"
+        },
+        "stop_reason": {
+          "type": "string"
+        },
+        "record": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "run_id",
+            "path"
+          ],
+          "properties": {
+            "type": {
+              "type": "string",
+              "enum": [
+                "archon_artifact"
+              ]
+            },
+            "run_id": {
+              "type": "string"
+            },
+            "path": {
+              "type": "string"
+            }
+          },
+          "description": "json(shared:plan-converge.schema.json): 往復の記録 plan-converge.json"
+        },
+        "asks": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "text": {
+                "type": "string"
+              },
+              "kind": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "deviations": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "text": {
+                "type": "string"
+              },
+              "kind": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      }
     }
   }
 }

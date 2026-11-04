@@ -94,7 +94,7 @@ def _target(repo: pathlib.Path, remote: str):
 
 
 def _read_pr(repo: pathlib.Path, target, n: int) -> dict:
-    doc, why, no_host = _gh(repo, "pr", "view", str(n), *_repo_flag(target), "--json", PR_FIELDS)
+    doc, why, no_host = _gh(repo, "pr", "view", *_repo_flag(target), str(n), "--json", PR_FIELDS)
     if not isinstance(doc, dict):
         return _unreadable(why or "gh pr view の出力が object でない", no_host)
     lines, why, _ = _gh(repo, "api", "--paginate", *_comments_path(target, n))
@@ -104,7 +104,7 @@ def _read_pr(repo: pathlib.Path, target, n: int) -> dict:
 
 
 def _read_issue(repo: pathlib.Path, target, n: int) -> dict:
-    doc, why, no_host = _gh(repo, "issue", "view", str(n), *_repo_flag(target), "--json", ISSUE_FIELDS)
+    doc, why, no_host = _gh(repo, "issue", "view", *_repo_flag(target), str(n), "--json", ISSUE_FIELDS)
     if not isinstance(doc, dict):
         return _unreadable(why or "gh issue view の出力が object でない", no_host)
     return {**doc, "status": "ok"}

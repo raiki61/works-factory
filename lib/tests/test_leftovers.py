@@ -80,6 +80,32 @@ class TestLeftovers(TempCase):
         self.assertFalse((self.repo / "vendored").exists(), "既定の () では除かない（空になった親も消す）")
         self.assertTrue((self.repo / ".venv" / "new.txt").is_file())
 
+    def test_new_tool_dir_with_empty_subdir_goes_whole(self):
+        """修正の段の中で出来た道具のフォルダ（uv の .venv は中に `*` の .gitignore を置く形、node_modules は根の .gitignore で
+        無視する形）は、中に空のフォルダ（git は一覧に出さない。修正役の道具が残す .claude/.cc-writes など）が在っても丸ごと消す。
+        ファイルだけ消して空のフォルダが残ると、次の uv sync が「.venv は正しい Python の環境でない」で止まる"""
+        (self.repo / ".gitignore").write_text("*.log\nnode_modules/\n", encoding="utf-8")
+        git(self.repo, "add", ".gitignore")
+        git(self.repo, "commit", "-q", "-m", "ignore")
+        leftovers.record_ignored(self.place, self.repo)
+        venv = self.repo / "new-venv" / ".venv"
+        pkg = venv / "lib" / "python3.14" / "site-packages" / "pkg"
+        (pkg / ".claude" / ".cc-writes").mkdir(parents=True)
+        (venv / ".gitignore").write_text("*\n", encoding="utf-8")
+        (venv / "pyvenv.cfg").write_text("home = /x\n", encoding="utf-8")
+        (pkg / "mod.py").write_text("m\n", encoding="utf-8")
+        mods = self.repo / "web" / "node_modules" / "dep"
+        (mods / "empty").mkdir(parents=True)
+        (mods / "index.js").write_text("j\n", encoding="utf-8")
+        (self.repo / "web" / "app.txt").write_text("追跡しない普通のファイル\n", encoding="utf-8")
+        got = leftovers.remove_new_ignored(self.place, self.repo)
+        removed = json.loads((self.place / leftovers.REMOVED_FILE).read_text(encoding="utf-8"))["removed"]
+        self.assertIn("new-venv/.venv/pyvenv.cfg", removed)
+        self.assertEqual(got["count"], len(removed))
+        self.assertFalse((self.repo / "new-venv").exists(), "新しい .venv は空のフォルダごと消す")
+        self.assertFalse((self.repo / "web" / "node_modules").exists(), "新しい node_modules も空のフォルダごと消す")
+        self.assertTrue((self.repo / "web" / "app.txt").is_file(), "無視されないファイルの在るフォルダは残す")
+
     def test_no_before_is_unreadable(self):
         with self.assertRaises(leftovers.Unreadable):
             leftovers.remove_new_ignored(self.place, self.repo, skip=SKIP)

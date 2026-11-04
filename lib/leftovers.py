@@ -7,6 +7,7 @@
 - head_tree:          控えた段の頭の木（修正の受け付けが最後の回に止めた単位の足跡を戻す先）
 - remove_new_ignored: 控えに無かった無視されるファイルだけを消す。前から在った丸ごと無視されるフォルダ（.venv など）と、除くパスの頭
                       skip（既定 ()。呼び手の script が実行基盤の工程の写しの置き場を渡す）の下は触らない。
+                      それでファイルが 1 本も残らない親のフォルダは中の空のフォルダごと消す（新しい .venv などを半端に残さない）。
                       消した全件は置き場の REMOVED_FILE に書き、件数とそのパスだけを返す（節 clean）
 - found:              盤面の根とその直下の scope の根に clean が書いた消した物のファイルのパスの並び（修正の出力ノードが欄 removed の
                       ポインタにする）。探せなければ Unreadable
@@ -142,8 +143,9 @@ def remove_new_ignored(board, repo, before_name: str = IGNORED_BEFORE_FILE, remo
                        skip: tuple = ()) -> dict:
     """修正役が残した、git が無視するファイルを消す（テストの節を生成物の無い木で回すため）。
     今の ignored_files のうち、控えに無かった物（除くパスの頭 skip の下と、控えの ignored_dirs——前から在った丸ごと無視される
-    フォルダ——の下を除く）だけを消し、それで空になった親のフォルダも消す。ただし控えの dirs のどれか（前から在った
-    未追跡のフォルダ）かその下に来たら、そこで止める。前から在った物は、中身が増えた・変わっていても消さない（元に戻す
+    フォルダ——の下を除く）だけを消し、それでファイルが 1 本も残らない親のフォルダも中の空のフォルダごと消す
+    （_drop_file_free_parents）。ただし控えの dirs のどれか（前から在った未追跡のフォルダ）と、その下・その上のフォルダは
+    消さない。前から在った物は、中身が増えた・変わっていても消さない（元に戻す
     写しが無い。git clean -ffdX を丸ごと走らせると、対象の .venv など前から在った物まで消えてテストが走らなくなる）。
     控えは盤面の before_name を読む。消したパスの全件（名前の順）は盤面の removed_name（既定 REMOVED_FILE）に {"removed": [...]}
     で書き、{"ok": True, "count", "file"} を返す（件数に上限が無いので、子の stdout・節の出口には載せない）。控えが無い・読めない・git が効かなければ Unreadable（何も消さない）"""
@@ -163,13 +165,32 @@ def remove_new_ignored(board, repo, before_name: str = IGNORED_BEFORE_FILE, remo
         else:
             continue
         removed.append(name)
-        parent = p.parent
-        while parent.resolve() != root and parent.is_dir() and not any(parent.iterdir()):
-            if (parent.relative_to(repo).as_posix() + "/").startswith(kept_dirs):
-                break
-            parent.rmdir()
-            parent = parent.parent
+    _drop_file_free_parents(repo, root, removed, kept_dirs)
     return {"ok": True, "count": len(removed), "file": _write_json(_board_path(board, removed_name), {"removed": removed})}
+
+
+def _file_free(d: pathlib.Path) -> bool:
+    """d の下にファイル（リンクも）が 1 本も無い（空のフォルダだけが在るか、空）"""
+    for top, dirs, files in os.walk(d):
+        if files or any(os.path.islink(os.path.join(top, n)) for n in dirs):
+            return False
+    return True
+
+
+def _drop_file_free_parents(repo: pathlib.Path, root: pathlib.Path, removed: list, kept_dirs: tuple) -> None:
+    """消したファイルの親のフォルダ（repo の根は除く）のうち、中にファイルが 1 本も残らない物を、中の空のフォルダごと消す（深い
+    方から。git clean -d と同じく空のフォルダも残さない）。git は空のフォルダを一覧に出さないので、空になった親だけを消す形では、
+    修正役の道具が残した空のフォルダ（.claude/.cc-writes など）が 1 つ挟まると上が全部残り、ファイルの無い .venv が uv に
+    「正しい環境でない」と拒まれる。控えの dirs（前から在った未追跡のフォルダ）と、その下・その上のフォルダは消さない"""
+    parents = {q for name in removed for q in (repo / name.rstrip("/")).parents if q != repo and repo in q.parents}
+    for d in sorted(parents, key=lambda q: len(q.parts), reverse=True):
+        if d.is_symlink() or not d.is_dir() or d.resolve() == root:
+            continue
+        rel = d.relative_to(repo).as_posix() + "/"
+        if rel.startswith(kept_dirs) or any(k.startswith(rel) for k in kept_dirs):
+            continue
+        if _file_free(d):
+            shutil.rmtree(d)
 
 
 def found(board, removed_name: str = REMOVED_FILE) -> list:

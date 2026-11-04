@@ -66,9 +66,11 @@ def fake_gh(tmp: pathlib.Path, *, base="b" * 40, head="h" * 40):
         '  echo "To get started with GitHub CLI, please run:  gh auth login" >&2\n'
         "  exit 4\n"
         "fi\n"
+        # 番号は 3 語目より後ろの最初の数だけの語（-R はサブコマンドの直後に在れば番号の前、無ければ番号が 3 語目）
+        'num="$(printf \'%s\\n\' "$@" | sed -n \'3,$p\' | grep -E \'^[0-9]+$\' | head -n 1)"\n'
         'case "$1" in\n'
-        f'  pr) f="{data}/pr-$3.json" ;;\n'
-        f'  issue) f="{data}/issue-$3.json" ;;\n'
+        f'  pr) f="{data}/pr-$num.json" ;;\n'
+        f'  issue) f="{data}/issue-$num.json" ;;\n'
         f'  api) n="$(printf \'%s\\n\' "$*" | sed -n \'s#.*pulls/\\([0-9]*\\)/comments.*#\\1#p\')"; f="{data}/review-comments-$n.json" ;;\n'
         '  *) f="" ;;\n'
         "esac\n"
@@ -110,7 +112,7 @@ class ReadNamedCase(unittest.TestCase):
 
     def test_reads_named_pr_and_issue_with_user_login(self):
         """利用者のログインが見える env で、名指した PR の本文・コメント・レビュー・行コメントと issue の本文・コメントが載る。
-        gh は対象の根を cwd にして、読むだけの口が通す形（-R <OWNER/REPO>・api --paginate --hostname の 1 つのパス）で呼ぶ"""
+        gh は対象の根を cwd にして、読むだけの口が通す形（サブコマンドの直後の -R <OWNER/REPO>・api --paginate --hostname の 1 つのパス）で呼ぶ"""
         doc = self.read([7], [9])
         self.assertEqual(doc["version"], ghreads.GITHUB_READS_VERSION)
         pr = doc["pr"]["7"]
@@ -127,8 +129,8 @@ class ReadNamedCase(unittest.TestCase):
         self.assertTrue(calls)
         self.assertEqual({cwd for cwd, _ in calls}, {str(self.repo)})
         self.assertEqual(sorted(a.split(" --json")[0] for _, a in calls),
-                         ["api --paginate --hostname github.com repos/o/r/pulls/7/comments", "issue view 9 -R github.com/o/r",
-                          "pr view 7 -R github.com/o/r"])
+                         ["api --paginate --hostname github.com repos/o/r/pulls/7/comments", "issue view -R github.com/o/r 9",
+                          "pr view -R github.com/o/r 7"])
 
     def remote(self, name, url, *, add=False):
         subprocess.run(["git", "-C", str(self.repo), "remote", "add" if add else "set-url", name, url], check=True,
