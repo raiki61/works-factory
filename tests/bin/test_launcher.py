@@ -779,6 +779,48 @@ class LauncherTest(unittest.TestCase):
         self.reached(done)
         self.assertIn(f"{launcher.NAME}: 記録の置き場を特定できない", done.stderr)
 
+    def test_run_that_fell_before_its_record_says_why(self):
+        """run の記録が無い時、訳の口（why）が訳を返せば、記録の置き場を特定できない文に足す。返さなければ前の文のまま"""
+        empty = lambda *args: {"runs": []}
+        said = recordroot.line(empty, 1, "h", why=lambda: "origin に届かない（x）")
+        self.assertIn("記録の置き場を特定できない", said)
+        self.assertIn("origin に届かない（x）", said)
+        self.assertEqual(recordroot.line(empty, 1, "h", why=lambda: ""), recordroot.line(empty, 1, "h"))
+
+    def origin(self, reachable: bool) -> pathlib.Path:
+        """対象に commit と origin を置く（殻が --from を足す run になる）。origin は手元の裸のリポジトリ。届かない時は無いパスを指す"""
+        git(self.target, "commit", "-q", "--allow-empty", "-m", "seed")
+        bare = self.tmp / "origin.git"
+        if reachable:
+            git(self.tmp, "init", "-q", "--bare", str(bare))
+            git(self.target, "push", "-q", str(bare), "HEAD:refs/heads/main")
+        git(self.target, "remote", "add", "origin", str(bare))
+        return bare
+
+    def test_run_stops_before_archon_when_origin_cannot_be_reached(self):
+        """Archon は作業ツリーを切る前に origin へ問い合わせる。殻は先に同じ問い合わせを打ち直しつきで打ち、届かなければ訳の 1 行で
+        Archon を起こさずに止める"""
+        self.origin(reachable=False)
+        said = self.stopped(self.launch("workflow", "run", "works-factory-line"))
+        self.assertIn(f"{launcher.NAME}: origin に届かない", said)
+        self.assertIn("Archon を起こさずに止めた", said)
+        self.assertNotIn(launcher.TARGET_ENV_NOTICE, said)
+
+    def test_run_starts_when_origin_answers(self):
+        self.origin(reachable=True)
+        done = self.launch("workflow", "run", "works-factory-line")
+        argv = self.reached(done)["argv"]
+        self.assertIn("--from", argv)
+        self.assertNotIn("届かない", done.stderr)
+
+    def test_run_that_lost_origin_after_start_says_so(self):
+        """起こした後に Archon が origin に届かずに run を記録する前に落ちた時、殻の文で origin に届かなかったと読める"""
+        bare = self.origin(reachable=True)
+        done = self.launch("workflow", "run", "works-factory-line", FAKE_BUN_BREAK=str(bare))
+        self.assertEqual(done.returncode, 1, done.stderr)
+        self.assertIn(f"{launcher.NAME}: 記録の置き場を特定できない", done.stderr)
+        self.assertIn("origin に届かない", done.stderr)
+
     def test_detached_run_and_other_commands_say_no_record_place(self):
         for args in (["workflow", "run", "works-factory-line", "--detach"], ["workflow", "approve", "run-1"]):
             with self.subTest(args=args):

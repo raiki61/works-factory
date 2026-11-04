@@ -216,6 +216,9 @@ def launch(argv: list[str], user: dict[str, str], here: Path) -> int:
             raise Stop(str(error)) from None
         if said:
             print(f"{NAME}: {said}", file=sys.stderr)
+        if start and (reason := startpoint.unreachable(target, child)):
+            # Archon は --from が在っても作業ツリーを切る前に origin へ問い合わせ、届かなければ何もせずに落ちる
+            raise Stop(f"{reason}（Archon を起こさずに止めた）")
         args = place.workflow_run(source, workflows, config, target, workflow, *start, *rest)[2:]
     if executing:   # 止まる所を全部過ぎた後（起こさずに止まる起動は走らせないので、告げない）
         print(f"{NAME}: {TARGET_ENV_NOTICE}", file=sys.stderr)
@@ -226,7 +229,9 @@ def launch(argv: list[str], user: dict[str, str], here: Path) -> int:
         command = [*auth, "exec", *auth_user, "--", *command]
     if argv[:2] == ["workflow", "run"] and "--detach" not in flags:
         # 殻が入れ替わらず子で走らせ、終わった所で run の記録の置き場を告げる（切り離す run は殻が待たないので告げない）
-        return recordroot.run_and_say(command, child, place.archon(bun, source), str(target), NAME)
+        # 起こした後に Archon が落ちて run が記録に無ければ、origin に届くかを 1 回打って訳を足す
+        why = (lambda: startpoint.unreachable(target, child, tries=1)) if workflow is not None else None
+        return recordroot.run_and_say(command, child, place.archon(bun, source), str(target), NAME, why)
     os.execve(command[0], command, child)
 
 
