@@ -1,4 +1,4 @@
-"""eyes の graph のまとめ（docs/design/judge-eyes.md の 2.4。今の lib/eyeverdict.py の collect のまとめの部分）。目ごとの block の
+"""eyes の graph のまとめ（docs/design/judge-eyes.md の 2.4。元の eyeverdict の collect のまとめの部分）。目ごとの block の
 判定の行と直した後の実測の出力を受け、変更を通してよいか（ok）と、line が読む欄と、報告の節を組む。判定の行は block が決め、ここは
 決め直さない（返らなかった目を unverifiable にし、「まま R4 を回した」の尾を足すだけ）。
 

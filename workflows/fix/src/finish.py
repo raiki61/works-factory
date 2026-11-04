@@ -1,5 +1,5 @@
 """返す node finish（docs/design/fix.md の 1.2 の出力・7 節の finish.py。今の collect.py の block・fields・group の後継）と、
-今の lib/fixbeside.py のうち fix の物（閉鎖の表 CLOSURE_FILE・claimed_of・closure_rows と、受け付けの行の選び _accepted_tests）。
+元の fixbeside のうち fix の物（閉鎖の表 CLOSURE_FILE・claimed_of・closure_rows と、受け付けの行の選び _accepted_tests）。
 
 前の node の返りを with: で束ねず、各 node が place に書いたファイルを読んで出力の欄を組む。差分の審査とレンズの欄は無い
 （この block の外で作る出力）。中の誤りは script が捕まえて fallback で返す（落ちない）。

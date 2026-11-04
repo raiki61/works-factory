@@ -85,7 +85,7 @@ def plan_out(plan, review, prior_raw, *, unattended: bool, place: Path) -> dict:
 
 def review_state(plan, review) -> str:
     """事前審査の状態（修正前の承認ノードが、諦めた・落ちた事前審査を人に見せる。計画が通らず事前審査が飛んだ周は空）。今の事前審査は
-    受け付けが諦めた周の訳を関所の項目に載せた（元 lib/boardview.py の collect の GIVEN_UP_FACES）"""
+    受け付けが諦めた周の訳を関所の項目に載せた（元の boardview の collect の GIVEN_UP_FACES）"""
     if review is None:
         return "" if plan["ok"] is not True else "failed"
     return str(review["status"] or "")

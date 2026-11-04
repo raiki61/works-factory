@@ -1,5 +1,4 @@
-"""修正の受け付けの事実の確かめ（blk-fix。受け付けの script（fix-accept・fix-ruled-accept）と、修正役の事前の確かめが同じ口で回す。設計
-docs/plans/2026-10-06-ask-planner.md）。規則はここ 1 か所で、受け付けはここから import する。
+"""修正の受け付けの事実の確かめ（blk-fix。受け付けの script（fix-accept・fix-ruled-accept）と、修正役の事前の確かめが同じ口で回す）。規則はここ 1 か所で、受け付けはここから import する。
 board はどの口でも fix の run の置き場のフォルダ（scripts が渡す。範囲の相談の合意の trace.jsonl・1 回目に受け付けた返答の控え・
 TDD の輪の状態 tdd-<k>/ を置く所）。返答の番号を名前に戻す仕事は呼び手（script）が先に済ませ、ここは名前の返答を受ける。
 

@@ -1,4 +1,4 @@
-"""承認された仕様を固める（今の lib/judge_accept.py の sha_file・sha_and_why・_file_sha・_spec_run・spec_freeze の写し。
+"""承認された仕様を固める（元の judge_accept の sha_file・sha_and_why・_file_sha・_spec_run・spec_freeze の写し。
 docs/design/spec.md の 1.5）。受け入れ条件の run のコマンドを走らせて終了コードを取り、テストのファイルの sha256 とともに
 spec.json に 1 度だけ書く。足した依頼の行（受け入れ条件 1 件が 1 行）は依頼の行のファイルに積まず added-rows.json に書く。
 期限は置かない（持ち主の決め no-timeouts）。"""

@@ -1,4 +1,4 @@
-"""機械の報告を組む（docs/design/report.md の 1.8。lib/runreport.py の build・head_lines・ask_counts・_apply_lines・apply_said・_apply_answer・
+"""機械の報告を組む（docs/design/report.md の 1.8。元の runreport の build・head_lines・ask_counts・_apply_lines・apply_said・_apply_answer・
 _bullets・fallback_report と lib/gatemarks.py の draft_line を、graph が渡す sections と facts で受ける形に写した物）。
 
 - open_files(sections) -> (開いた節の並び, 開けない訳の行): 節の files の ref を ports の読み方で開けたパスにする

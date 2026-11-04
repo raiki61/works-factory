@@ -1,4 +1,4 @@
-"""承認したテストが変わったかを照らす（今の lib/judge_accept.py の spec_check・spec_questions の写し。docs/design/spec.md の 1.5）。
+"""承認したテストが変わったかを照らす（元の judge_accept の spec_check・spec_questions の写し。docs/design/spec.md の 1.5）。
 固めた仕様の受け入れ条件のファイルごとに（同じファイルは 1 度、初めに出た順）、今の作業ツリーの sha256 を承認の時の sha256 と
 照らす。照らせなかったら黙って 0 件にせず、照らせなかったと言う。"""
 from __future__ import annotations

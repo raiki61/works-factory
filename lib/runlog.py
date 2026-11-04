@@ -1,5 +1,5 @@
 """Archon の run の記録（$LOG_DIR/<WORKFLOW_ID>.jsonl）を読む口（docs/design/integration.md の 4.5-2）。report の block と chain の
-script が使う。元は workflows/.shared/boundary.py の transcript・own_prefix と lib/runreport.py の transcript_facts（今は
+script が使う。元は pack の共通の部品の boundary の transcript・own_prefix と元の runreport の transcript_facts（今は
 workflows/report/src/transcript.py の写し）。報告の行の組み立て（費用・回り直し・道具の呼びの行）は report の src/transcript.py に残る。
 
 - read() -> (行の並び, 読めなかった訳): 読めなければ (None, 訳)

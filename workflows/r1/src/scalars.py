@@ -1,4 +1,4 @@
-"""規模の数値（R1 だけが使う）。lib/eyeverdict.py の scalars・scalars_text・X_SCALAR・DOC_SUFFIXES（:84・:101・:132-163）の写し"""
+"""規模の数値（R1 だけが使う）。元の eyeverdict の scalars・scalars_text・X_SCALAR・DOC_SUFFIXES（:84・:101・:132-163）の写し"""
 import re
 
 import changemap   # lib/

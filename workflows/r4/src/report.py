@@ -2,7 +2,7 @@
 import eyekit      # lib/
 import gatemarks   # lib/
 
-# 元 lib/runreport.py:142 の EYE_PASSES_HEAD の字
+# 元の runreport の EYE_PASSES_HEAD の字
 EYE_PASSES_HEAD = ("修正前の承認ノードで通した行（人が通したか、無人の run が推しで通したので、独立の目 R4 の問いから外して聞き直さ"
                    "なかった行。どちらかは行ごとに書く）")
 R3_NAME = "R3（R4 と同じ会話で見た）"

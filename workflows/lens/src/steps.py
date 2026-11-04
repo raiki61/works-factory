@@ -1,4 +1,4 @@
-"""lens の block の中身（docs/design/lens.md の 3 節。lib/fixboard.py の lens_route・lens_collector と lib/lenses.py の collect を、
+"""lens の block の中身（docs/design/lens.md の 3 節。lib/fixboard.py の lens_route・lens_collector と元の lenses の collect を、
 port の値で受ける形に写した物）。
 
 修正の前の版 base から今の作業ツリーまでの差分を切り、表のレンズのうち入力が名指した物を、変わったファイルが在り定義が引ける時だけ起こす。

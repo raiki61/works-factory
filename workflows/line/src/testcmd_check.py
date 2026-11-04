@@ -1,4 +1,4 @@
-"""test_cmd が run の作業ツリーの直しでなく対象の手元（元の clone）を試す形の見分け（元 lib/testcmd_check.py。docs/design/line.md の 1.5 の MOVE。その元 works/dev/testcmd_check.py）。
+"""test_cmd が run の作業ツリーの直しでなく対象の手元（元の clone）を試す形の見分け（元の testcmd_check。docs/design/line.md の 1.5 の MOVE。その元 works/dev/testcmd_check.py）。
 
 run の作業ツリー（対象の今の姿の commit から切る）と単位の作業ツリー（修正の段が run の作業ツリーの今の姿の commit から切る）には、
 対象の git が無視する物（.venv・ビルドの出力・.env など）が無い。そこで run の試験が対象の手元を走らせると、直しの正誤に関わらず

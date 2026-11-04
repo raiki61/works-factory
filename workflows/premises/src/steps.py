@@ -1,5 +1,5 @@
-"""前提の実測の block の中身（docs/design/premises.md。lib/judge_accept.py の前提の部分〔check_claims・measured_needs_output・
-with_carried・check_premises・作業ツリーの比べ〕と lib/premises.py の claims を、port の値で受ける形に写した物）。
+"""前提の実測の block の中身（docs/design/premises.md。元の judge_accept の前提の部分〔check_claims・measured_needs_output・
+with_carried・check_premises・作業ツリーの比べ〕と元の premises の claims を、port の値で受ける形に写した物）。
 
 依頼の行を port で受け、実測役に作業ツリーで主張を測り直させる。役は作業ツリーを変えない約束で、受け付けは役を起こす前に取った
 作業ツリーの写しと今を比べる。受けた返答に、前の run が運んだ実測を足して premises.json に書く。指示の文は prompts/premises.md が持ち、

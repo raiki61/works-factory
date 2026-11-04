@@ -1,4 +1,4 @@
-"""比べの役と検算の役に貼る、機械が測ったテストの実測と累積差分の起点の材料（docs/design/r2.md の 1.5）。lib/eyeverdict.py の
+"""比べの役と検算の役に貼る、機械が測ったテストの実測と累積差分の起点の材料（docs/design/r2.md の 1.5）。元の eyeverdict の
 outcome_side・outcome_lines・TRANSITIONS・tdd_record_lines・origin_section・FIX_DIFF_ROW の写し。見出しは写さず、md の部品
 prompts/parts/measured.md が持つ。tdd_record_lines は port tdd の値（段ごとの組の配列か、読めない訳の字）を受ける。
 origin_section は作り直しの間 lib の fixboard・unittrees・leftovers を読む（docs/design/r1.md の 10 節の 2）。"""

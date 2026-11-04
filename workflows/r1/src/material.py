@@ -1,4 +1,4 @@
-"""R1 の最小性の役の材料の行（R1 だけが使う）。lib/eyeverdict.py の prompt_texts の units_text・fixes_text（:349-356）の写し"""
+"""R1 の最小性の役の材料の行（R1 だけが使う）。元の eyeverdict の prompt_texts の units_text・fixes_text（:349-356）の写し"""
 NO_UNITS = "（単位の目録が渡っていない）"
 NO_FIXES = "（修正の単位の結末が渡っていない）"
 
