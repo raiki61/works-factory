@@ -1,12 +1,12 @@
 # block の設計書: parallel-pr（並行 PR）
 
 - 何の話か: 開いている PR とこの run の変更ファイルの交差を見て、ぶつかる hunk を run の範囲から外し、担当への申し送りの下書きを作る観点「並行 PR」を、単独で呼べる block `workflows/parallel-pr/` にする設計。型は [README.md](README.md) に従い、形は [world.md](world.md) を写した。
-- 決めたこと: 今の judge の 5 つの node（pr-scan・pr-check-loop の 3 つ・pr-check-reads）を、6 つの node の block にする。入力は依頼の行・差分の根・変更ファイル・言語の 4 つの port だけで、始めの記録と `judge/` の置き場を読まない。指示は 1 本の英語の md（`prompts/pr-check.md`）にまとめる。振る舞いは変えない（違いは 6 節に全部書いた）。
+- 決めたこと: 今の judge の 5 つの node（pr-scan・pr-check-loop の 3 つ・pr-check-reads）を、6 つの node の block にする。入力は依頼の行・差分の根・変更ファイル・言語・段の 5 つの port だけで、始めの記録と `judge/` の置き場を読まない。指示は 1 本の英語の md（`prompts/pr-check.md`）にまとめる。振る舞いは変えない（違いは 6 節に全部書いた）。
 - 持ち主に求めること: なし。この block を作る人（実装の役）は、この設計どおりに作る。自分で決めた事は 10 節に集めた（記録として置く。持ち主の確認は待たない）。
 
 この文書の語は README の頭の物を使う（line・graph・block・port・place・prep・accept・Archon・元の works・graphloops など）。ほかに:
 
-- 判定の道・再審の道: 今の judge の 2 つの道。判定の道は依頼から判定を作る 1 回目、再審の道は修正役の異議を受けて判定をやり直す道（`objection` が空でない run）。並行 PR は判定の道でだけ回る。
+- 判定の道・再審の道: 今の judge の 2 つの道。判定の道は依頼から判定を作る 1 回目、再審の道は修正役の異議を受けて判定をやり直す道（`objection` が空でない run）。並行 PR は、修正の前には判定の道でだけ judge が回し（`stage: before`）、修正の後には判定から入る run で直した差分が在る時に line が 1 度回し直す（`stage: after`。line の設計書の 8 節の 1）。
 - 仕様の段: 依頼の要件と受け入れテストを書いて人が承認する段（[spec.md](spec.md)）。始めの記録が選んだ run でだけ回る。
 - 周: 1 回の修正と確かめの巡り。工場は 1 run を 1 周とし、周をまたぐのは周の鎖（chain）が起こす次の run。graphloops は 1 run の中で周を重ねた。
 - pointer: run directory の中のファイルを指す Archon の値 `{type: archon_artifact, run_id, path}`。
@@ -96,7 +96,7 @@ script の名は `lib/` のモジュールの名と重ねない（README の 7.1
 
 ### 1.6 つなぎ方（graph の側。block には書かない）
 
-- judge のまとめ（`workflows/judge/`）: `include: works-factory-parallel-pr`。`when:` は今の pr-scan の条件「判定の道（再審の道でない）で、仕様の段が止めていない」を line が引いた真偽。`with:` は `request: $<依頼の pointer>`・`base: <始めの記録の diff_base>`・`changed: "[]"`・`lang: <始めの記録の lang>`。仕様の段を挟む run では、今と同じく仕様の承認の後に回す（承認で書いた受け入れテストのファイルを、役の前の写しに入れるため。今の `spec_answer` が写しを取り直していた事の替わり）。
+- judge のまとめ（`workflows/judge/`）: `include: works-factory-parallel-pr`。`when:` は今の pr-scan の条件「判定の道（再審の道でない）で、仕様の段が止めていない」を line が引いた真偽。`with:` は `request: $<依頼の pointer>`・`base: <始めの記録の diff_base>`・`changed: "[]"`・`lang: <始めの記録の lang>`・`stage: before`。仕様の段を挟む run では、今と同じく仕様の承認の後に回す（承認で書いた受け入れテストのファイルを、役の前の写しに入れるため。今の `spec_answer` が写しを取り直していた事の替わり）。
 - 読み手: diagnose の `materials`（`$parallel-pr.output.material`）と再審の材料（`excluded`）・plan と plan-review と案の直し（`excluded`。今の `planblk.head` の「外す hunk」の節）・report の `sections`（`$parallel-pr.output.report`）と下げた物（`downgrades`）・line（`stop_reason` で止めるか）。fix には今も渡らない（6 節の 5）。
 
 ## 2 node の設計シート: pr-check（任せ先の役）

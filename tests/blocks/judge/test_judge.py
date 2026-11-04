@@ -382,6 +382,10 @@ class WiringCase(unittest.TestCase):
         self.assertEqual(self.includes["diagnose"]["with"]["request"], "$INPUTS.request", "判定は仕様の行を spec_rows で別に受ける")
         self.assertEqual(self.includes["diagnose"]["with"]["spec_rows"], "$diagnose-in.output.spec_rows")
 
+    def test_parallel_pr_runs_before_the_fix(self):
+        """判定の道の並行 PR は修正の前の段で、ぶつかる hunk を外す（parallel-pr の設計書の 1.2 の stage。修正の後は line の after）"""
+        self.assertEqual(self.includes["parallel-pr"]["with"]["stage"], "before")
+
     def test_verify_runs_only_when_picked_and_ready(self):
         self.assertEqual(self.includes["verify"]["when"], "$diagnose-in.output.verify == true && $diagnose-run.output.ready == true")
 
