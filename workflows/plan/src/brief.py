@@ -40,7 +40,7 @@ WHEN_NAMES = ("rejected", "replan", "excluded", "prior_notes", "prior_redesign",
               "filled", "skipped", "questions", "view", "precedents", "prescriptions", "structure_missing", "structure_dirty",
               "structure_clean_only", "structure_clean", "world", "ripple_units", "ripple_units_error", "verify", "verify_unreadable",
               "unknown_rows", "unknown_none", "spec", "prior", "prior_review", "no_prior_review", "revise", "owed_suggests", "revise_notes",
-              "revise_keys", "closed_items", "held_items", "prior_ripple", "prior_ripple_error", "policy", "unread", "prior_fix_plan", "prior_fields_only",
+              "revise_keys", "closed_items", "held_items", "guards", "prior_ripple", "prior_ripple_error", "policy", "unread", "prior_fix_plan", "prior_fields_only",
               "routes_spec", "pointed", "pointed_missing")
 
 
@@ -275,6 +275,11 @@ def face_text(f: dict) -> str:
                       *([f"- {converge.REACH}: {f[converge.REACH]}"] if converge.REACH in f else [])])
 
 
+def guard_text(f: dict) -> str:
+    """前に閉じた穴の 1 行（key・挙げた往復と閉じた往復・害の why）。converge.closed_faces の行から"""
+    return f"- {f['key']} (raised in pass {f['raised']}, closed in pass {f['closed']}): {oneline.one_line(f.get('why', ''))}"
+
+
 def _label(it: dict) -> str:
     return f"Item {it['n']} ({', '.join(str(k) for k in it.get('unit_keys') or [])})"
 
@@ -283,8 +288,9 @@ def revise_values(record: dict) -> dict:
     """事前審査が返した block への答えの頼みの材料（修正案の役に返す往復の時。converge.held が行を返す時）"""
     row = converge.held(record)
     out = {"revise": False, "owed_suggests": False, "revise_notes": False, "revise_keys": False, "closed_items": False, "held_items": False,
+           "guards": False,
            "values": {"revise_blocks": "", "revise_pass": "", "owed_suggests": "", "revise_notes": "", "suggest_keys": "",
-                      "closed_items": "", "held_items": ""}}
+                      "closed_items": "", "held_items": "", "guard_faces": ""}}
     if row is None:
         return out
     owed = converge.owed_faces(record, row)
@@ -294,13 +300,16 @@ def revise_values(record: dict) -> dict:
     rest = [f for f in notes or [] if f.get("key") not in asked]
     keys = row.get("suggests") or []
     named = {state: [it for it in row.get("items") or [] if it.get("state") == state] for state in (converge.CLOSED, converge.HELD)}
+    guards = converge.closed_faces(record)
     values = {"revise_blocks": "\n\n".join(face_text(f) for f in owed if f["severity"] == "block"),
               "revise_pass": str(row["pass"]), "owed_suggests": "\n\n".join(face_text(f) for f in suggests),
               "revise_notes": "\n\n".join(face_text(f) for f in rest), "suggest_keys": ", ".join(keys) if keys else "none",
               "closed_items": "\n".join(f"- {_label(it)}" for it in named[converge.CLOSED]),
-              "held_items": "\n".join(f"- {_label(it)}" for it in named[converge.HELD])}
+              "held_items": "\n".join(f"- {_label(it)}" for it in named[converge.HELD]),
+              "guard_faces": "\n".join(guard_text(f) for f in guards)}
     return {"revise": True, "owed_suggests": bool(suggests), "revise_notes": bool(notes) and bool(rest), "revise_keys": not notes,
-            "closed_items": bool(named[converge.CLOSED]), "held_items": bool(named[converge.HELD]), "values": values}
+            "closed_items": bool(named[converge.CLOSED]), "held_items": bool(named[converge.HELD]), "guards": bool(guards),
+            "values": values}
 
 
 # ---------------------------------------------------------------- 形 replan
@@ -353,7 +362,7 @@ def values(place, repo) -> tuple:
         "review_md", "judgment_file", "prescriptions", "structure_note", "dirty_rows", "clean_rows", "world_rows", "ripple_units",
         "ripple_units_error", "verify_rows", "verify_file", "kind_none", "kind_cause", "kind_shape", "kind_scope", "unknown_rows",
         "unknown_why", "spec", "prior_fix_plan", "prior_fields", "prior_review", "revise_blocks", "revise_pass", "owed_suggests",
-        "revise_notes", "suggest_keys", "closed_items", "held_items", "prior_ripple", "prior_ripple_error", "policy_body",
+        "revise_notes", "suggest_keys", "closed_items", "held_items", "guard_faces", "prior_ripple", "prior_ripple_error", "policy_body",
         "replan_items", "unread", "pointed_rows", "pointed_missing", "pointed_rev", "lang", "not_web", "duty_owed", "duty_may", "duty_filled")}
     w = dict.fromkeys(WHEN_NAMES, False)
     v["rejection"], w["rejected"] = rolekit.rejects_text(rejected), bool(rejected)
@@ -429,7 +438,7 @@ def values(place, repo) -> tuple:
             v["prior_review"] = prior.get("review") or ""
             w["prior_review"], w["no_prior_review"] = bool(prior.get("review")), not prior.get("review")
             extra = revise_values(record) if prior.get("review") else revise_values({"passes": []})
-            for name in ("revise", "owed_suggests", "revise_notes", "revise_keys", "closed_items", "held_items"):
+            for name in ("revise", "owed_suggests", "revise_notes", "revise_keys", "closed_items", "held_items", "guards"):
                 w[name] = extra[name]
             v.update(extra["values"])
             rip = jsonfile.read_or(prior.get("ripple")) if prior.get("ripple") else None
