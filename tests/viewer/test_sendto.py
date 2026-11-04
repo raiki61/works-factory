@@ -5,7 +5,9 @@
   土台の env では /v1/traces を足した物（土台が / で終わる時も / を重ねない）
 - 手元でない送り先は --remote 無しで拒み、在れば通す。手元は localhost と loopback の番地（v4 と v6）だけで、ほかの名は手元でない
 - 番地の部分は [v6 の番地] か英数字と . - の名に任意の :数字 だけを通す。\\・userinfo（@）・空白・制御文字を持つ URL は --remote が
-  在っても拒み、訳に URL の鍵を出さない（requests は番地を \\ でも切るので、urlsplit が手元と読む字が遠くへ繋がる）
+  在っても拒み、訳に URL の鍵を出さない（requests は番地を \\ でも切るので、urlsplit が手元と読む字が遠くへ繋がる）。形の崩れた
+  [...]（urlsplit が ValueError を投げる形）も traceback でなく拒む
+- query（? の後）を持つ URL は --remote が在っても拒み、訳に URL を出さない（query は成功の 1 行・送りの失敗の文に出る）
 - 手元の送り先の答えは利用者の proxy の env を使わない（env に proxy が在っても）。手元でない送り先は使う
 - headers は env で名指した送り先にだけ付く（信号ごとの名が勝つ）。引数 --endpoint の時は env に headers が在っても付かない。
   値の percent の符号を解く。解いた名か値に制御文字（改行など）が在れば、値を出さずに番号で拒む
@@ -71,6 +73,19 @@ class WhereTest(unittest.TestCase):
         for url in ("http://collector.example.com\\@127.0.0.1:6006/v1/traces", "http://collector.example.com\\@localhost/v1/traces",
                     "http://key@127.0.0.1:6006", "http://user:key@collector.example.com/v1/traces", "http://127.0.0.1 :6006",
                     "http://127.0.0.1:6006\\x", "http://127.0.0.1:6006/v1/\ntraces", "http://127.0.0.1:x"):
+            self.assertNotIn("key", self.refused(url, remote=True), url)
+            self.refused(env={BASE: url}, remote=True)
+
+    def test_a_url_with_a_query_is_refused_without_the_url(self):
+        """query（?api_key= など）は成功の 1 行・送りの失敗・SDK の誤りの文に出るので拒む。鍵は headers の env で渡す"""
+        for url in ("http://127.0.0.1:6006/v1/traces?api_key=key", "https://collector.example.com/v1/traces?key", "http://127.0.0.1:6006/?"):
+            self.assertNotIn("key", self.refused(url, remote=True), url)
+            self.refused(env={TRACES: url}, remote=True)
+            self.refused(env={BASE: url}, remote=True)
+
+    def test_a_broken_bracket_is_refused_not_raised(self):
+        """urlsplit が ValueError を投げる形の崩れた [...] は、traceback でなく拒む訳の 1 行になる"""
+        for url in ("http://[::1]x.example.com/v1/traces", "http://[::1/v1/traces", "http://[key]/v1/traces"):
             self.assertNotIn("key", self.refused(url, remote=True), url)
             self.refused(env={BASE: url}, remote=True)
 

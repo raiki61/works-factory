@@ -5,7 +5,9 @@
   - 送り先の名指しは 引数 --endpoint → OTEL_EXPORTER_OTLP_TRACES_ENDPOINT → OTEL_EXPORTER_OTLP_ENDPOINT の順に先に在る物。前の 2 つは
     字のまま、土台の env は /v1/traces を足して使う（OpenTelemetry の仕様の「Endpoint URLs for OTLP/HTTP」）。空の値は未設定と同じ
   - 番地の部分は [v6 の番地] か英数字と . - の名に任意の :数字 だけを通し、\\・userinfo（@）・空白・制御文字を持つ URL は remote でも
-    拒む（requests は番地を \\ でも切るので、urlsplit の host だけで決めると手元と読んだ字が遠くへ繋がる）。訳に URL を出さない
+    拒む（requests は番地を \\ でも切るので、urlsplit の host だけで決めると手元と読んだ字が遠くへ繋がる）。urlsplit が ValueError を
+    投げる形の崩れた [...] も拒む。query（? の後）を持つ URL も remote でも拒む（query は成功の 1 行・送りの失敗・SDK の誤りの文に
+    出るので、鍵は headers で渡す）。訳に URL を出さない
   - 既定の送り先を持たない。手元（localhost と loopback の番地。名前は引かない）でない送り先は remote の時だけ送る
   - headers は env で名指した送り先にだけ付ける（OTEL_EXPORTER_OTLP_TRACES_HEADERS が OTEL_EXPORTER_OTLP_HEADERS に勝つ）。値は
     percent-decode し、解いた名か値に制御文字が在れば値を出さずに番号で拒む。引数で名指した送り先には付けない（shell に在る別の
@@ -65,10 +67,16 @@ def decide(endpoint: str | None, env: Mapping[str, str], remote: bool) -> Send:
     else:
         raise Refused(f"送り先が無い。--endpoint か env の {TRACES_ENDPOINT}・{BASE_ENDPOINT} で名指す（既定の送り先は持たない。"
                       "例 http://127.0.0.1:6006/v1/traces）")
-    parts = urlsplit(url)
-    if UNSAFE.search(url) or (parts.netloc and not AUTHORITY.fullmatch(parts.netloc)):
+    try:
+        parts = urlsplit(url)
+    except ValueError:   # 形の崩れた [...]（例 http://[::1]x.example.com/）。訳に URL も誤りの文も出さない
+        parts = None
+    if parts is None or UNSAFE.search(url) or (parts.netloc and not AUTHORITY.fullmatch(parts.netloc)):
         raise Refused(f"{named} の送り先の番地の部分が形でない（[v6 の番地] か英数字と . - の名に任意の :数字 だけを通す。\\・"
                       "userinfo の @・空白・制御文字は使わない。鍵は URL でなく headers の env で渡す）")
+    if "?" in url:
+        raise Refused(f"{named} の送り先が query（? の後）を持つ。query は送りの 1 行と誤りの文に出るので、鍵は URL でなく headers の env"
+                      "（OTEL_EXPORTER_OTLP_TRACES_HEADERS など）で渡す（訳に URL を出さない）")
     if parts.scheme not in ("http", "https") or not parts.hostname:
         raise Refused(f"{named} の送り先は http か https の URL でない（訳に URL を出さない。字に鍵が混じりうる）")
     local = _local(parts.hostname)
