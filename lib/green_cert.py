@@ -34,7 +34,7 @@ NOT_RAN = "工場の中では試験が走っていない"
 PARTLY_RAN = "工場の中では試験の段の一部しか走らせられていない"
 UNVERIFIED_RUN = "工場の中では試験が走ったと確かめられていない"
 GATE_BROKE = "工場の中で試験の関門の script が落ちたか返さなかった（試験が走ったかは分からない。工場の不具合）"
-# 赤の原因の語（試験の関門の返りの red_cause の enum。tests/workflows/test_test_gate.py が照らす）ごとの、試験が走ったかの句。
+# 赤の原因の語（試験の関門の返りの red_cause の enum。tests/blocks/test_gate/test_test_gate.py が照らす）ごとの、試験が走ったかの句。
 # 1 件ごとの事実で分けた赤（introduced・inherited・interaction）は走った赤なので句を出さない
 RAN_BY_CAUSE = {INTRODUCED: "", INHERITED: "", ENVIRONMENT: NOT_RAN, INTERACTION: "", INCOMPLETE: NOT_RAN, "": UNVERIFIED_RUN}
 RED_CAUSES = tuple(RAN_BY_CAUSE)

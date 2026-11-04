@@ -1,5 +1,5 @@
-"""仕様の承認ノードの文を組み（ask）、答えを受けて固める（answer）。今の lib/judge_accept.py の spec_approve・spec_ask・spec_answer と
-lib/specblk.py の APPROVE・GATE_STOP_NOTE・FLAG_BY_PREFIX・gate_text・parse_gate の写し（docs/design/spec.md の 1.5）。
+"""仕様の承認ノードの文を組み（ask）、答えを受けて固める（answer）。元の judge_accept の spec_approve・spec_ask・spec_answer と
+元の specblk の APPROVE・GATE_STOP_NOTE・FLAG_BY_PREFIX・gate_text・parse_gate の写し（docs/design/spec.md の 1.5）。
 承認ノードの文の組み立て gatemarks.gate_text は lib/ に残る物（修正前の承認ノードと共に使う）を呼ぶ。"""
 from __future__ import annotations
 

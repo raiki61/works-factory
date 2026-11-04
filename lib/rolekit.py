@@ -39,7 +39,7 @@
                   役の形が根の欄を要ると書かない（出し直しの役の形を 1 回目と同じにする。#832）ので、要る欄の欠けと、1 回目の答えの
                   出し直しの役だけの欄をここで拒む（MISSING_FIELDS・FIX_ONLY_FIELDS）
 
-層は L3（盤面と受け付け）。ライン・include の id・ブロックの名前を書かない（tests/test_layers.py）。
+層は L3（盤面と受け付け）。ライン・include の id・ブロックの名前を書かない。
 """
 import copy
 import datetime

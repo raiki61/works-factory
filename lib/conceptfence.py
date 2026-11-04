@@ -1,4 +1,4 @@
-"""考えの住処の柵の道具（試験 tests/layers/test_concept_fences.py は works-factory 自身の表に、run の中の構造のブロックは対象の表に当てる）。
+"""考えの住処の柵の道具（試験 lib/tests/test_concept_fences.py は works-factory 自身の表に、run の中の構造のブロックは対象の表に当てる）。
 
 表 docs/concepts.json（地図 docs/concepts.md の隣）が、住処の在る考えごとに柵を持つ: 語の形（pattern。正規表現）・
 知ってよい所（allowed。fnmatch の形で `*` は `/` もまたぐ）・既知の漏れ（known。"<表の持ち主のフォルダからのパス>" → [行の数, 理由]）・
@@ -147,7 +147,7 @@ def growth(main, now):
 
 def unexplained(main, now, loosened) -> list[str]:
     """緩め (鍵, 文) の並びのうち、今の表の loosened に鍵と空でない理由の行が無いか、その行が main に在る物の文（main に入った
-    行で同じ緩めを何度も通さない）。層の地図の柵（tests/layers/test_layer_map.py）も同じ形で使う"""
+    行で同じ緩めを何度も通さない）。層の地図の柵も同じ形で使う"""
     said, merged = now.get("loosened") or {}, main.get("loosened") or {}
     out = []
     for key, text in loosened:

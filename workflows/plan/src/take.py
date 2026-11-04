@@ -1,4 +1,4 @@
-"""修正案の役の返答の受け付け（docs/design/plan.md の 5 節）。今の lib/planfile.py の take_plan・take_replan と、その部品の写し。
+"""修正案の役の返答の受け付け（docs/design/plan.md の 5 節）。元の planfile の take_plan・take_replan と、その部品の写し。
 
 拒否は理由を全部 1 回で並べて {ok: False, reason}。通れば no を id に戻した返答を planmarks.split で works の欄と分け、p2.fix_plan.json・
 plan-fields.json・reply.json・handoff.json の順に置く。どれかを置けなければ置いた物を消し、拒否に数えずに輪を止める

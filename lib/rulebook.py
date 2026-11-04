@@ -1,7 +1,7 @@
 """書く役の指示書の組み立ての口（裁定 R65）。AI を通さず、機械が決まりのファイルを節に切り、run の値の穴を埋めて繋ぐ。
 
 - CANON: 書く役（コードを直す役はどれも）の決まりの正本 writerules/common.md。ブロックの境を越えて読めるよう core に 1 つだけ置く
-  （ほかの置き場に写さない。tests/test_fix_rules.py）。節は core-fix（直し方）・evidence・evidence-<種類>（テストで赤→緑を示せない
+  （ほかの置き場に写さない）。節は core-fix（直し方）・evidence・evidence-<種類>（テストで赤→緑を示せない
   直しの証拠）・core-conflict（食い違いの申し出）・core-keep（守ること）
 - sections(path): `<!-- セクション <id> -->` の行で切った {id: 本文}（印の行は指示書に入れない）
 - fill: 型の穴 <<名>> を `値`（空は EMPTY）で埋める。穴に値が無い時は Unfilled
