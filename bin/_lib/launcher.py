@@ -5,6 +5,7 @@ run の作業ツリーの起点は bin/_lib/ の部品を呼ぶ（E15）。順�
 B の「約束」1〜11。約束 7 の後半——道具の信頼を子の環境に足す当て物——は消した。場所ごとの信頼は対象の宣言の setup で取り戻す）。止まる時は Archon を起こさない。トークンは読まない・出さない（auth_launch.py が持つ）。
 """
 import fnmatch
+import functools
 import hashlib
 import json
 import os
@@ -200,6 +201,8 @@ def launch(argv: list[str], user: dict[str, str], here: Path) -> int:
         child[CLAUDE_BIN_ENV] = write_fence(home, real, child, cache, keep, role_heads)
         child[FENCE_RECORDS_ENV] = str(fence_records(home))
 
+    start: list[str] = []
+    remote: str | None = None
     if workflow is None:
         args = argv
     else:
@@ -216,8 +219,10 @@ def launch(argv: list[str], user: dict[str, str], here: Path) -> int:
             raise Stop(str(error)) from None
         if said:
             print(f"{NAME}: {said}", file=sys.stderr)
-        if start and (reason := startpoint.unreachable(target, child)):
-            # Archon は --from が在っても作業ツリーを切る前に origin へ問い合わせ、届かなければ何もせずに落ちる
+        # Archon は --from が在っても作業ツリーを切る前に remote へ問い合わせ、届かなければ何もせずに落ちる
+        remote = repo_remote(bun, source, target) if start else None
+        tell = lambda line: print(f"{NAME}: {line}", file=sys.stderr)   # noqa: E731
+        if start and (reason := startpoint.unreachable(target, child, configured=remote, say=tell)):
             raise Stop(f"{reason}（Archon を起こさずに止めた）")
         args = place.workflow_run(source, workflows, config, target, workflow, *start, *rest)[2:]
     if executing:   # 止まる所を全部過ぎた後（起こさずに止まる起動は走らせないので、告げない）
@@ -229,8 +234,9 @@ def launch(argv: list[str], user: dict[str, str], here: Path) -> int:
         command = [*auth, "exec", *auth_user, "--", *command]
     if argv[:2] == ["workflow", "run"] and "--detach" not in flags:
         # 殻が入れ替わらず子で走らせ、終わった所で run の記録の置き場を告げる（切り離す run は殻が待たないので告げない）
-        # 起こした後に Archon が落ちて run が記録に無ければ、origin に届くかを 1 回打って訳を足す
-        why = (lambda: startpoint.unreachable(target, child, tries=1)) if workflow is not None else None
+        # 起こした後に Archon が落ちて run が記録に無ければ、remote に届くかを 1 回打って訳を足す
+        # （殻が --from を足して Archon が作業ツリーを切る run だけ。--no-worktree などの run は問い合わせないので訳を足さない）
+        why = (lambda: startpoint.unreachable(target, child, tries=1, configured=remote)) if start else None
         return recordroot.run_and_say(command, child, place.archon(bun, source), str(target), NAME, why)
     os.execve(command[0], command, child)
 
@@ -338,17 +344,36 @@ def cache_ttl(*carried: Mapping) -> dict[str, str]:
 def repo_env(bun: str, source: Path, target: Path) -> Mapping | None:
     """対象の .archon/config.yaml の env:（Archon が AI のノードの env の一番下の層に重ねる物）。ファイルが無ければ bun を起こさず {}、env: が
     無い・object でなければ {}。読めなければ（Archon もこのファイルを読めずに止まる）訳を標準エラーに 1 行言って None"""
-    path = target.joinpath(*REPO_CONFIG)   # 対象の根（--cwd。git の木の中なら git の根）
-    if not path.is_file():
-        return {}
-    try:
-        doc = place.read_yaml(bun, source, path)
-    except RuntimeError as error:
+    doc, error = repo_config(bun, source, target)
+    if error:
         print(f"{NAME}: {error}。対象の .archon/config.yaml が読めないので寿命の既定を載せない（Archon もこのファイルを読めずに止まる）",
               file=sys.stderr)
         return None
     env = doc.get("env") if isinstance(doc, dict) else None
     return env if isinstance(env, dict) else {}
+
+
+def repo_remote(bun: str, source: Path, target: Path) -> str | None:
+    """対象の .archon/config.yaml の worktree.remote（Archon が作業ツリーを切る前に問い合わせる remote の 1 段目。
+    packages/isolation/src/providers/worktree/create.ts の resolveRemote）。無い・字でない・空・ファイルが読めない時は None（読めない
+    訳は repo_env が言い、Archon もこのファイルを読めずに止まる）"""
+    doc, error = repo_config(bun, source, target)
+    worktree = doc.get("worktree") if isinstance(doc, dict) and not error else None
+    remote = worktree.get("remote") if isinstance(worktree, dict) else None
+    return (remote.strip() or None) if isinstance(remote, str) else None
+
+
+@functools.cache
+def repo_config(bun: str, source: Path, target: Path) -> tuple[object, str]:
+    """対象の .archon/config.yaml の値と、読めない時の訳（読めれば ""）。ファイルが無ければ bun を起こさず ({}, "")。1 つの起動の中で
+    寿命の既定（repo_env）と remote（repo_remote）が同じ読みを使う"""
+    path = target.joinpath(*REPO_CONFIG)   # 対象の根（--cwd。git の木の中なら git の根）
+    if not path.is_file():
+        return {}, ""
+    try:
+        return place.read_yaml(bun, source, path), ""
+    except RuntimeError as error:
+        return None, str(error)
 
 
 def run_config(bun: str, source: Path, cache: Path, home: Path, target: Path, flags: list[str],

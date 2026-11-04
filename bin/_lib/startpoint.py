@@ -6,7 +6,7 @@
 今の works の dev/use.sh の start の包み（refs/works/wraps/ の ref と clean の片付け）の代わり。origin の無い対象の拒みと既定の枝の
 求めは Archon が持つ。
 
-origin に届くかの確かめ（unreachable）: Archon は新しい作業ツリーを切る前に、--from が在っても origin へ必ず問い合わせ（既定の枝の
+remote に届くかの確かめ（unreachable）: Archon は新しい作業ツリーを切る前に、--from が在っても remote（設定の worktree.remote、無ければ origin）へ必ず問い合わせ（既定の枝の
 ls-remote と fetch。packages/isolation/src/providers/worktree/create.ts の syncWorkspaceBeforeCreate）、届かなければ run を記録する前に
 落ちる。殻はその前に Archon と同じ ls-remote を、Archon に渡すのと同じ env で打ち、一時の拒みは打ち直し、駄目なら訳を返す（殻は
 Archon を起こさずに止める）。起こした後に Archon が落ちた時も、同じ確かめを 1 回打って訳を足す（bin/_lib/recordroot.py）。
@@ -52,14 +52,19 @@ def choose(flags: list[str], workflow: str, target: Path, prefix: str) -> tuple[
                                  f"run の作業ツリーはそこから切る（対象の作業ツリー・index・枝は動かさない）: {' '.join(changes)}")
 
 
-def unreachable(target: Path, env: Mapping[str, str], sleep: Callable[[float], object] = time.sleep, tries: int = TRIES) -> str:
+def unreachable(target: Path, env: Mapping[str, str], sleep: Callable[[float], object] = time.sleep, tries: int = TRIES,
+                configured: str | None = None, say: Callable[[str], object] | None = None) -> str:
     """Archon が作業ツリーを切る前に問い合わせる remote に届かなければ、その訳の 1 行。届けば・確かめる remote が無ければ ""。
-    remote は Archon と同じに選ぶ（origin が在れば origin、無ければただ 1 つの remote。packages/git/src/repo.ts の getDefaultRemote）。
-    remote が無い・選べない対象は Archon が自分の文で拒むので、ここは確かめない。問い合わせは Archon と同じ ls-remote
-    （packages/git/src/remote-branches.ts の inspectRemoteBranches）を env（Archon に渡す env）で打ち、tries 回まで打ち直す"""
-    remote = _remote(target, env)
+    remote は Archon と同じに選ぶ（対象の .archon/config.yaml の worktree.remote〔configured。殻が読んで渡す〕、無ければ origin が
+    在れば origin、無ければただ 1 つの remote。packages/isolation/src/providers/worktree/create.ts の resolveRemote と
+    packages/git/src/repo.ts の getDefaultRemote）。remote が無い・選べない対象は Archon が自分の文で拒むので、ここは確かめない。
+    問い合わせは Archon と同じ ls-remote（packages/git/src/remote-branches.ts の inspectRemoteBranches）を env（Archon に渡す env）で
+    打ち、tries 回まで打ち直す。say が在れば、問い合わせる前に待つ物を 1 行渡す（期限は付けない。持ち主の決め no-timeouts。前例は runtime-auth-gate の確かめ）"""
+    remote = (configured or "").strip() or _remote(target, env)
     if remote is None:
         return ""
+    if say is not None:
+        say(f"{remote} に届くかを確かめている（待ちの上限は無い。止めるなら Ctrl-C）")
     reason = ""
     for attempt in range(tries):
         if attempt:
