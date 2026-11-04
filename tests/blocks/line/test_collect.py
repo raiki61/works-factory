@@ -49,7 +49,7 @@ def passing() -> dict:
            "tdd_unit": None, "tdd": [{"units": [{"unit_key": "u1", "test_cmd": "light"}]}], "frozen": None, "removed": [],
            "tdd_refused": {"refused": [], "unread": []}, "item_claims": None, "freeze_off": [], "removed_tests": [], "untested": [], "report": ["- u1: fixed"]}
     fix["closure"] = ptr("fix/closure.json")
-    eyes = {"ok": True, **{f"r{n}": {"status": "pass", "reason": ""} for n in range(1, 5)}, "questions": [], "passes": [],
+    eyes = {"ok": True, **{f"r{n}": {"status": "pass", "reason": ""} for n in range(1, 5)}, "questions": [], "means_questions": [], "passes": [],
             "premise_check": None, "notes": [], "after": None, "dirty": 0, "escalate": 0, "after_ok": True, "report": ["- 目: 通した"],
             "sections": [{"title": "独立の目 R1 最小性とコメント", "lines": ["- R1 通した"]}, {"title": "直した後の構造の実測", "lines": ["- 実測"]}]}
     judge = {"ok": True, "stop_reason": "", "reason": "", "ready": True, "units": [{"id": "u1"}], "judgment": None, "answer_ties": None,
@@ -204,6 +204,31 @@ class FactsCase(unittest.TestCase):
         self.assertEqual(got["left"][0]["where"], "独立の目 R2")
         self.assertIn({"at": "eyes", "word": "r4-ask"}, got["waits"]["others"])
         self.assertIn(self.f.EYE_ASK_HEAD, [a["kind"] for a in got["asks"]])
+
+    MEANS_Q = "R2: 差分は頼みの解き方 M1「x」どおりだが、独立設計と食い違う——y"
+
+    def test_means_questions_wait_only_while_unanswered(self):
+        """計画 means-answers の 6.3 の 3 の 2・3: R2 の行は R4 の見出しの下に入れない。最後の承認ノードが continue か stop で答えた
+        run では人待ちに数えず人が決めることにも載せない。答えの無い run と、R2 が redesign-needed の run（差分が当たらないので continue
+        を答えに数えない）では語 r2-means-ask で数え、別の見出しの下に載せる"""
+        v = passing()
+        v["eyes"] = {**v["eyes"], "means_questions": [self.MEANS_Q]}
+        for decision in ("approve", "continue", "stop"):
+            with self.subTest(decision=decision):
+                v["answer_final"] = {"go": decision != "stop", "answer": {"decision": decision, "text": "x"}, "stop_reason": ""}
+                got = self.build(v)
+                self.assertNotIn({"at": "eyes", "word": "r2-means-ask"}, got["waits"]["others"])
+                self.assertNotIn(self.f.MEANS_ASK_HEAD, [a["kind"] for a in got["asks"]])
+        for case, over in (("no-answer", {"answer_final": {"go": False, "answer": None, "stop_reason": "works:needs-human"}}),
+                           ("redesign", {"eyes": {**v["eyes"], "r2": {"status": "redesign-needed", "reason": "別"}}})):
+            with self.subTest(case=case):
+                got = self.build({**v, "answer_final": {"go": True, "answer": {"decision": "continue", "text": "x"}, "stop_reason": ""},
+                                  **over})
+                self.assertIn({"at": "eyes", "word": "r2-means-ask"}, got["waits"]["others"])
+                self.assertNotIn({"at": "eyes", "word": "r4-ask"}, got["waits"]["others"])
+                kinds = {a["kind"]: a["text"] for a in got["asks"]}
+                self.assertIn(self.MEANS_Q, kinds[self.f.MEANS_ASK_HEAD])
+                self.assertNotIn(self.f.EYE_ASK_HEAD, kinds)
 
     def test_cut_when_the_final_test_is_missing(self):
         v = passing()

@@ -371,6 +371,7 @@ eyes__verdict:
     status: pass
     reason: r4 は通した
   questions: []
+  means_questions: []
   passes: []
   premise_check: null
   notes: []

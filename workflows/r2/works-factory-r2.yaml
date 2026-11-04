@@ -5,6 +5,7 @@ inputs:
   head: {default: '', description: 'text: 修正前の HEAD（審査する変更の先の版）。空は HEAD'}
   base_label: {default: '', description: 'text: 累積差分の起点の出どころの文（例「PR #12 の根」）。空は書かない'}
   purpose: {default: '', description: 'text: 元の目的の 1 文。空は渡されていない（比べない）'}
+  means: {default: '[]', description: 'json(shared:stated-means.schema.json): 依頼が示した解き方の文の配列（目的の文から外した物。並びの順の 1 始まりで M1・M2… と呼ぶ）。空の配列は示していない'}
   design: {default: 'null', description: 'json(shared:design.schema.json): 独立設計の役の返答 {question_stands, reason, premise_invalid_reason?, design?, elements?}。null は独立設計が無い'}
   design_reason: {default: '', description: 'text: 独立設計が無い訳。空は訳が無い'}
   design_premises: {default: 'null', description: 'json(shared:design-premises.schema.json): 独立設計を作る役に渡した前提の控え {node, given, withheld, seen, claims}。seen.count は独立設計が見た人の答えの数。null は控えが無い（独立設計の後に来た答えを分けない）'}
@@ -60,7 +61,7 @@ nodes:
     retry: {max_attempts: 2, on_error: all}
     output_format:
       type: object
-      required: [status, reason, differences]
+      required: [status, reason, differences, request_conflicts]
       additionalProperties: false
       properties:
         status: {type: string, enum: [pass, redesign-needed]}
@@ -74,6 +75,25 @@ nodes:
             properties:
               kind: {type: string, enum: [構造, 表現]}
               text: {type: string}
+        request_conflicts:
+          type: array
+          items:
+            type: object
+            required: [means, design_quote, diff_quote, why, recommend]
+            additionalProperties: false
+            properties:
+              means: {type: string, pattern: '^M[1-9][0-9]*$'}
+              design_quote: {type: string, minLength: 4, pattern: '\S[\s\S]{2,}\S'}
+              diff_quote: {type: string, minLength: 4, pattern: '\S[\s\S]{2,}\S'}
+              why: {type: string, minLength: 10, pattern: '\S[\s\S]{8,}\S'}
+              recommend:
+                type: object
+                additionalProperties: false
+                required: [answer, note, why]
+                properties:
+                  answer: {type: string, enum: [continue, stop]}
+                  note: {type: string, minLength: 4, pattern: '\S[\s\S]{2,}\S'}
+                  why: {type: string, minLength: 4, pattern: '\S[\s\S]{2,}\S'}
 
   - id: r2-compare-save
     script: save

@@ -621,3 +621,100 @@ class FailureCase(_RepoCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+MEANS = ["集計は 1 か所の関数にまとめる"]
+REC = {"answer": "continue", "note": "頼みどおりのまま通す", "why": "頼みがこの形を指定した"}
+
+
+def conflict(**over) -> dict:
+    return {"means": "M1", "design_quote": "設計の本文", "diff_quote": "集計の関数を 1 つにした", "why": "独立設計は集計を呼び手ごとに置く",
+            "recommend": REC, **over}
+
+
+class MeansCase(_RepoCase):
+    """計画 means-answers の 6 の R2（docs/design/plan-review.md の 20 章の 6.2・6.7 の 1）: 頼みの解き方どおりの違い request_conflicts"""
+
+    def setUp(self):
+        super().setUp()
+        (self.repo / "a.txt").write_text("集計の関数を 1 つにした\n", encoding="utf-8")
+
+    def reply(self, *rows, status="pass"):
+        return {**PASS, "status": status, "request_conflicts": list(rows)}
+
+    def run_with(self, *rows, means=MEANS, status="pass"):
+        self.intake(**({"means": dump(means)} if means is not None else {}))
+        self.compare()
+        self.save("r2-compare", self.reply(*rows, status=status))
+        return self.finish()
+
+    def test_means_section_only_when_means_given(self):
+        """指示の節「The request's means」は means が在る時だけ立ち、M<n>: <文> を並べる"""
+        self.intake()
+        self.assertNotIn("The request's means", self.compare()["prompt"])
+        self.intake(means=dump(MEANS))
+        got = self.compare()["prompt"]
+        self.assertIn("The request's means", got)
+        self.assertIn("- M1: 集計は 1 か所の関数にまとめる", got)
+        self.assertIn("request_conflicts", got)
+
+    def test_means_is_written_in_the_premises_ledger(self):
+        """前提の控え r2-premises.json の given に kind means の行（最後の承認ノードの「比べる役に渡した前提の入力」に出る）"""
+        done = self.run_with(conflict())
+        given = json.loads((self.place / "r2-premises.json").read_text(encoding="utf-8"))["given"]
+        self.assertIn({"kind": "means", "what": "M1: 集計は 1 か所の関数にまとめる"}, given)
+        self.assertTrue(any("means: M1: 集計は 1 か所の関数にまとめる" in n for n in done["notes"]))
+
+    def test_checked_row_becomes_a_question_with_the_push_tail(self):
+        """引用が合う行は推しの尾つきの問いになり、判定は役の語のまま（pass）。報告の R2 の行にも並ぶ"""
+        done = self.run_with(conflict())
+        self.assertEqual(done["verdict"]["status"], "pass")
+        self.assertEqual(len(done["questions"]), 1)
+        q = done["questions"][0]
+        self.assertTrue(q.startswith("R2: 差分は頼みの解き方 M1「集計は 1 か所の関数にまとめる」どおりだが、独立設計と食い違う——"
+                                     "独立設計は集計を呼び手ごとに置く（人に聞く訳: "), q)
+        self.assertIn("／推し: 通す（continue）——頼みどおりのまま通す（理由: 頼みがこの形を指定した）", q)
+        self.assertNotIn("引用を照らせなかった", q)
+        self.assertIn(f"  - {q}", done["report"])
+
+    def test_deleted_line_can_be_quoted(self):
+        """diff_quote は消した行の字でもよい（頼みが「X を消す」だけの時）。差分の頭の行（--- a/…）の字は引用に数えない"""
+        (self.repo / "old.txt").write_text("呼び手ごとの集計を残す\n", encoding="utf-8")
+        git(self.repo, "add", "-A")
+        git(self.repo, "commit", "-q", "-m", "old")
+        self.base = git(self.repo, "rev-parse", "HEAD").strip()
+        (self.repo / "old.txt").unlink()
+        self.assertNotIn("引用を照らせなかった", self.run_with(conflict(diff_quote="呼び手ごとの集計"))["questions"][0])
+        self.assertIn("引用を照らせなかった", self.run_with(conflict(diff_quote="a/old.txt"))["questions"][0])
+
+    def test_unchecked_quote_drops_the_push(self):
+        """引用が独立設計か差分の字に無い行は、推しの尾を外して「引用を照らせなかった」を付ける（案 C。状態に数えない）"""
+        for row, why in ((conflict(design_quote="設計に無い文"), "design_quote"), (conflict(diff_quote="差分に無い行"), "diff_quote")):
+            with self.subTest(why):
+                done = self.run_with(row)
+                self.assertEqual(done["verdict"]["status"], "pass")
+                q = done["questions"][0]
+                self.assertNotIn("推し:", q)
+                self.assertIn("（引用を照らせなかった: ", q)
+                self.assertIn(why, q)
+
+    def test_row_without_means_is_out_of_range(self):
+        """means を渡さない run で行を書いた → 番号が範囲の外で照らせない行"""
+        done = self.run_with(conflict(), means=None)
+        q = done["questions"][0]
+        self.assertNotIn("推し:", q)
+        self.assertIn("M1 が頼みの解き方の番号の範囲の外", q)
+
+    def test_bad_recommend_drops_the_push(self):
+        done = self.run_with(conflict(recommend={"answer": "maybe", "note": "どちらでも", "why": "分からない"}))
+        self.assertNotIn("推し:", done["questions"][0])
+        self.assertIn("引用を照らせなかった", done["questions"][0])
+
+    def test_redesign_needed_stays(self):
+        """頼みと関わらない違いが残れば役の redesign-needed のまま（状態の決めは変えない）。問いの行は出す"""
+        done = self.run_with(conflict(), status="redesign-needed")
+        self.assertEqual(done["verdict"]["status"], "redesign-needed")
+        self.assertEqual(len(done["questions"]), 1)
+
+    def test_no_rows_no_questions(self):
+        self.assertEqual(self.run_with()["questions"], [])

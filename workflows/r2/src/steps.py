@@ -10,10 +10,12 @@ import ports
 import prompt
 
 import eyekit        # lib/。独立の目の族の共通の部品
+import gatemarks     # lib/。推しの形（recommend_shape）
 import jsonfile      # lib/
 import oneline       # lib/
+import worldmark     # lib/。頼みの解き方の番号（means_hints）
 
-from src import due, files, measured, notes, premises, report
+from src import conflicts, due, files, measured, notes, premises, report
 
 NO_INTAKE = "入口の控え intake.json が無いか読めない（入口の node が落ちた）"
 NOT_DUE = "入口の控えが {kind} の道を起こすと言っていない"
@@ -52,6 +54,7 @@ def _read_ports(raw: dict) -> tuple[dict, list]:
         "head": lambda v: ports.text(v).strip(),
         "base_label": lambda v: ports.text(v).strip(),
         "purpose": lambda v: ports.text(v).strip(),
+        "means": lambda v: [] if _blank(v) else ports.json(v, "shared:stated-means.schema.json"),
         "design": lambda v: None if _blank(v) else ports.json(v, "shared:design.schema.json"),
         "design_reason": lambda v: ports.text(v).strip(),
         "design_premises": lambda v: None if _blank(v) else ports.json(v, "shared:design-premises.schema.json"),
@@ -127,7 +130,8 @@ def compare_prompt(out, repo) -> dict:
     out = pathlib.Path(out)
     doc = _intake(out, "compare")
     got = premises.material(premises.view_of(doc["answers"], doc["request_text"]), repo)
-    post = premises.after(got["ledger"], doc["request_read"], doc["design_premises"], doc["changed"], doc["constraints"])
+    said = worldmark.means_hints(doc.get("means"))
+    post = premises.after(got["ledger"], doc["request_read"], doc["design_premises"], doc["changed"], doc["constraints"], said)
     diff, dv = doc["diff"], eyekit.diff_values(doc["diff"])
     st = eyekit.status_values("r2")
     values = {"diff_file": dv["diff_file"], "diff_lines": str(diff["lines"]), "changed_files": dv["changed_files"],
@@ -135,9 +139,10 @@ def compare_prompt(out, repo) -> dict:
               "late": post["late"], "drift": post["drift"], "constraints": post["constraints"],
               **_measured_values(doc, repo, out),
               "purpose": doc["purpose"], "design_text": str(doc["design"].get("design") or ""),
-              "st_pass": st["st_pass"], "st_redesign": st["st_redesign"], "lang": prompt.lang(doc["lang"])}
+              "st_pass": st["st_pass"], "st_redesign": st["st_redesign"], "lang": prompt.lang(doc["lang"]),
+              "means_rows": "\n".join(f"- {k}: {oneline.one_line(t)}" for k, t in said.items()), "recommend_shape": gatemarks.recommend_shape()}
     when = {"answers": bool(got["answers"]), "named": bool(got["named"]), "request_unread": not doc["request_read"],
-            "late": bool(post["late"])}
+            "late": bool(post["late"]), "means": bool(said)}
     jsonfile.write(out / files.PREMISES, {"node": "r2.compare", **post["ledger"]})
     return prompt.emit(files.COMPARE, values, when, prompt.round_of(files.COMPARE))
 
@@ -177,6 +182,14 @@ def _failed(why: str) -> dict:
             "report": [eyekit.headline("R2", row)]}
 
 
+def _diff_text(out) -> str:
+    """入口が書いた累積差分の本文（無い・読めなければ空。引用の照らしの材料）"""
+    try:
+        return (pathlib.Path(out) / files.DIFF).read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError):
+        return ""
+
+
 def finish(out) -> dict:
     """place の intake.json と役の返答から出力を組み、finish.json にも書く（docs/design/r2.md の 5 節）"""
     out = pathlib.Path(out)
@@ -192,7 +205,7 @@ def finish(out) -> dict:
         note_lines = notes.input_lines(notes.write(out, doc["design_premises"], compare))
     except OSError:
         note_lines = [notes.NO_INPUTS]
-    status, why, premise_check, replied = "ran", "", None, True
+    status, why, premise_check, replied, asks = "ran", "", None, True, []
     if "missing" in design:
         status = "skipped"
         row = {"status": "unverifiable", "reason": due.R2_MISSING_HEAD + str(design["missing"])}
@@ -206,10 +219,12 @@ def finish(out) -> dict:
         row, took = eyekit.verdict_row("r2", compare, unread_compare)
         if not took:
             status, why = "failed", row["reason"]
+        else:
+            asks = conflicts.questions(compare, doc.get("means"), str(design.get("design") or ""), _diff_text(out))
     else:
         status = "skipped"
         row = {"status": "unverifiable", "reason": due.R2_NO_PURPOSE}   # 問いが立つかの欄は port の形（shared:design）が要る
-    got = {"ok": status != "failed", "status": status, "reason": why, "verdict": row, "questions": [], "premise_check": premise_check,
-           "notes": note_lines, "report": report.lines(row, note_lines, premise_check, replied)}
+    got = {"ok": status != "failed", "status": status, "reason": why, "verdict": row, "questions": asks, "premise_check": premise_check,
+           "notes": note_lines, "report": report.lines(row, note_lines, premise_check, replied, asks)}
     jsonfile.write(out / files.FINISH, got)
     return got

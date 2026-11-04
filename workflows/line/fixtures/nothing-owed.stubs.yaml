@@ -227,6 +227,7 @@ eyes__verdict:
   r3: {status: pass, reason: r3 は通した}
   r4: {status: pass, reason: r4 は通した}
   questions: []
+  means_questions: []
   passes: []
   premise_check: null
   notes: []
@@ -263,4 +264,5 @@ eyes__r2__r2-compare:
   status: redesign-needed
   reason: 独立設計は直す物が在ると言う
   differences: []
+  request_conflicts: []
 eyes__r2__r2-compare-save: {saved: true}

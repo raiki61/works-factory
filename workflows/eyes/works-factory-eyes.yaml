@@ -15,6 +15,7 @@ inputs:
   pushes: {default: '[]', description: 'json(shared:pushes.schema.json): 無人の run が判定の保留の問いに採った推しの文の配列。空の配列は無い'}
   decisions: {default: '', description: 'json(shared:material.schema.json): 先行議論の突合の素材（prior-decisions の block の出力 material の先）。空は突合が無い'}
   purpose: {default: '', description: 'text: 元の目的の 1 文（目的の固定の purpose_text）。空は渡されていない'}
+  means: {default: '[]', description: 'json(shared:stated-means.schema.json): 依頼が示した解き方の文の配列（目的の文から外した物）。空の配列は示していない'}
   units: {default: '[]', description: 'json(shared:units.schema.json): 判定が切った根本の単位の目録 [{id, summary, paths}]。空の配列は渡されていない（直した後の実測は差分の全体を 1 つの単位として見る）'}
   judgment: {default: '', description: 'json(shared:judgment.schema.json): 判定の出力（judgment.json）。空は渡されていない'}
   fixes: {default: '[]', description: 'json(shared:fixes.schema.json): この run の修正の単位ごとの結末 [{unit_id, group_id, status, reason}]。空の配列は渡されていない'}
@@ -135,6 +136,7 @@ nodes:
       head: "$INPUTS.head"
       base_label: "$INPUTS.base_label"
       purpose: "$INPUTS.purpose"
+      means: "$INPUTS.means"
       design: "$INPUTS.design"
       design_reason: "$INPUTS.design_reason"
       design_premises: "$INPUTS.design_premises"
@@ -220,7 +222,7 @@ nodes:
     output_format:
       type: object
       additionalProperties: false
-      required: [ok, r1, r2, r3, r4, questions, passes, premise_check, notes, after, dirty, escalate, after_ok, report, sections, optional]
+      required: [ok, r1, r2, r3, r4, questions, means_questions, passes, premise_check, notes, after, dirty, escalate, after_ok, report, sections, optional]
       properties:
         ok: {type: boolean}
         r1: &row
@@ -232,6 +234,7 @@ nodes:
         r3: *row
         r4: *row
         questions: {type: array, items: {type: string}}
+        means_questions: {type: array, items: {type: string}}
         passes:
           type: array
           items:

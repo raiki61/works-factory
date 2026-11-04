@@ -1759,6 +1759,7 @@ nodes:
       units: "$judged.output.units"
       judgment: "$judged.output.judgment"
       purpose: "$fix-in.output.purpose_text"
+      means: "$fix-in.output.means"
       plan: "$fixed.output.plan"
       ripple: "$fixed.output.ripple"
       fixes: "$fixed.output.units"
@@ -1789,7 +1790,7 @@ nodes:
     depends_on: [eyes]
     with:
       got: "$eyes.output"
-      names: "ok r1 r2 r3 r4 questions passes premise_check notes after dirty escalate after_ok report sections"
+      names: "ok r1 r2 r3 r4 questions means_questions passes premise_check notes after dirty escalate after_ok report sections"
   # 22 封じる（直す物が無い周は飛ぶ）。depends_on は eyes でなく受け皿の eyes-out（eyes の返す node が落ちても封じの node を待たせ
   # 続けない）。with: の eyes_ok・fingerprint・green_ok は eyes と test-gate-final の返りの欄を直に読む（main の線と同じ式）
   - id: merge-seal

@@ -60,5 +60,16 @@ Cumulative diff: read the whole file `{diff_file}` with Read as "How the cumulat
 
 What you compare is structure: what is fixed and what is treated as derived, where the seams are, and whether the everyday flows close. A difference in wording is not a difference. List the differences in `differences` with `kind` 構造 (structure) or 表現 (wording). If there is an essential difference in structure, `status` is {st_redesign}; if there is none, `status` is {st_pass}. `reason` is copied as it is into the final report.
 
+<!-- if means -->
+## The request's means (ways of solving that the request itself named, numbered by the machine)
+
+{means_rows}
+
+The independent design was made from the purpose alone, without these means. Where the diff takes one of these means as the request named it and the independent design takes a different form for that part, do not write the difference in `differences` and do not count it toward `status`: a person, not you, decides at the final approval node which side wins (if you set `status` to {st_redesign} for it, you decide before the person does). Write one row per such difference in `request_conflicts`: `{means: "M<n>", design_quote: <a passage of the independent design's body, word for word>, diff_quote: <a passage of one added or removed line of the cumulative diff, without its leading + or -, word for word>, why: <what the disagreement is and what each side would do>, recommend: <your recommendation>}`, where the recommendation has the shape `{recommend_shape}`. Recommend continue to keep the diff as the request named it, and stop when the design's form should win. The machine looks up both quotes word for word; a row whose quote it cannot find goes to the person without your recommendation. A structural difference that has nothing to do with these means is written in `differences` and counts toward `status` as above. `why` and the `note` and `why` of `recommend` are shown at the approval node as they are: write them for a reader who knows neither the run nor the factory (no paths, line numbers, or internal names).
+<!-- end means -->
+<!-- if not means -->
+The request named no means of solving, so `request_conflicts` is an empty array.
+<!-- end means -->
+
 Write `reason` and the `text` of each difference in {lang}. Keep keys, enum values (the `kind` values 構造 and 表現 included), identifiers, paths, commands, and error messages as they are (keys are matched across rounds, so do not translate them).
 Return only JSON that matches this node's output schema (JSON Schema).

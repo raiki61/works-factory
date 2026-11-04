@@ -92,6 +92,7 @@ def build(received: dict, *, run: bool, merge: bool, skip_why: str) -> dict:
     sections.append({"title": OWN_TITLE, "lines": own})
     return {"ok": ok, **got_rows,
             "questions": [str(q) for q in (r4 or {}).get("questions") or []] if run else [],
+            "means_questions": [str(q) for q in (r2 or {}).get("questions") or []] if run else [],
             "passes": list((r4 or {}).get("passes") or []) if run else [],
             "premise_check": premise, "notes": [str(n) for n in (r2 or {}).get("notes") or []] if run else [],
             "after": (after or {}).get("after"), "dirty": int((after or {}).get("dirty") or 0),

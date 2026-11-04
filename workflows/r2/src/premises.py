@@ -19,7 +19,7 @@ NO_REQUEST = "依頼のファイルが渡っていない"
 NO_MARKS = "（修正の印が渡っていない）"
 NO_NOTE = "（申告の文なし）"
 NONE = "（無い）"
-KINDS = (*design.PREMISE_KINDS, "drift", "constraint")   # 控えの given の kind の許す一覧（貼る入力の種類 + 後半が足す 2 つ）
+KINDS = (*design.PREMISE_KINDS, "drift", "constraint", "means")   # 控えの given の kind の許す一覧（貼る入力の種類 + 後半が足す 3 つ）
 
 
 # 依頼の名指しを引く道具（Markdown のリンク・囲いの外の行・見出しのアンカー）は lib/cite.py の物を使う
@@ -82,11 +82,12 @@ def constraints_text(constraints) -> str:
     return _lines(constraint_rows(constraints))
 
 
-def after(ledger: dict, request_read: bool, design_premises, changed, constraints) -> dict:
+def after(ledger: dict, request_read: bool, design_premises, changed, constraints, means=None) -> dict:
     """設計の後の前提。{late, drift, constraints, ledger}。late は独立設計の控えの seen.count より後の人の答えの行（控えが無ければ
     数えず空）、drift は前提のずれの申告（changed.premise_drift が真なら premise_drift_note。空なら「（申告の文なし）」。changed が
     空なら「（修正の印が渡っていない）」）、constraints は記録の制約の行。ledger は貼った物の控え（given に drift・constraint の行を足し、
-    依頼のファイルが読めない時は withheld に足し、控えが在れば after_design を持つ）。kind が KINDS の外なら BoardGap"""
+    依頼のファイルが読めない時は withheld に足し、控えが在れば after_design を持つ）。means は比べの役に貼った頼みの解き方
+    {M<n>: 文}（given に kind means の 1 文 1 行で載る。独立設計の役には渡さないので、その控えには無い）。kind が KINDS の外なら BoardGap"""
     ledger = {"given": list(ledger["given"]), "withheld": list(ledger["withheld"]), "seen": ledger["seen"]}
     if not request_read:
         ledger["withheld"].append({"kind": "named_section", "what": "依頼", "why": NO_REQUEST})
@@ -100,6 +101,7 @@ def after(ledger: dict, request_read: bool, design_premises, changed, constraint
     flag = changed.get("premise_drift") if changed else None
     drift = [str(changed.get("premise_drift_note") or "").strip() or NO_NOTE] if flag is True else []
     ledger["given"] += [{"kind": "drift", "what": d} for d in drift] + [{"kind": "constraint", "what": c} for c in constraint_rows(constraints)]
+    ledger["given"] += [{"kind": "means", "what": f"{k}: {t}"} for k, t in (means or {}).items()]
     outside = sorted({g["kind"] for g in ledger["given"]} - set(KINDS))
     if outside:
         raise BoardGap(f"貼った前提の種類が許す一覧（{' / '.join(KINDS)}）の外: {', '.join(outside)}")

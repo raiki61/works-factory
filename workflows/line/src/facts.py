@@ -51,6 +51,8 @@ UNNAMED_NODE = "名の訳が無いノード"
 UNKNOWN_STOP = "語の意味の記録が無い"
 UNPASSED_WHERE = "指摘の全文は報告の「2. 止めたか」の節"
 EYE_ASK_HEAD = "依頼の範囲を超えていないかを見る目の問い"   # gatemarks.EYES["R4"] の問い。頭の行に目の印 R4 を出さない
+MEANS_ASK_HEAD = "頼みの解き方どおりで独立設計と食い違う所"   # R2 の頼みどおりの違いの問い（計画 means-answers の 6.3 の 3。行の頭の R2: で目が分かる）
+MEANS_WAIT = "r2-means-ask"   # その問いが答えを得ていない人待ちの語
 NO_EYES = "独立の目のサブグラフの出力が無い（飛ばされた・落ちた）"
 DATA_PLACES = "固定のデータの在り処: run の頭の深さの控え {head}"
 NO_HEAD_AT = "（控えが無い）"
@@ -394,6 +396,17 @@ def eye_questions(returns: dict) -> list:
     return [q for q in _list(as_dict(returns.get("eyes")).get("questions")) if isinstance(q, str) and q.strip()]
 
 
+def means_questions(returns: dict, gates: dict) -> list:
+    """R2 の頼みどおりの違いの問いのうち、答えを得ていない物（計画 means-answers の 6.3 の 3）。最後の承認ノードの continue / stop が
+    そのまま答えなので、答えた run は空。R2 が redesign-needed の run は差分が当たらない（決め small-core）ので答えに数えず全部"""
+    import answer
+    import seal
+    eyes = as_dict(returns.get("eyes"))
+    qs = [q for q in _list(eyes.get("means_questions")) if isinstance(q, str) and q.strip()]
+    decided = as_dict(gates.get("gate-final")).get("decision") in (*answer.GO_WORDS, *answer.STOP_WORDS)
+    return [] if decided and as_dict(eyes.get("r2")).get("status") != seal.REDESIGN else qs
+
+
 def wait_rows(values: dict, returns: dict) -> dict:
     """人待ち {conflicts, conflicts_if_closed, others}"""
     import stopby
@@ -404,6 +417,8 @@ def wait_rows(values: dict, returns: dict) -> dict:
         others.append({"at": "eyes", "word": "premise-escalate"})
     if eye_questions(returns):
         others.append({"at": "eyes", "word": "r4-ask"})
+    if means_questions(returns, gates_of(values)):
+        others.append({"at": "eyes", "word": MEANS_WAIT})
     # 修正前に人に聞く物（載せなかった台帳の問いか、承認ノードに載せた行）が残ったまま、答えも修正も無い run（今の outcome._waits の
     # 事前審査の ask_human。ask_human は関所の項目と諦めた往復の行を持った）
     before = as_dict(values.get("ask_before_fix"))
@@ -927,7 +942,8 @@ def decisions(values: dict, returns: dict, gates: dict, *, unattended: bool, lef
     hit_count = seal.get("protected_count") if isinstance(seal.get("protected_count"), int) else len(hits)
     tallied = {PROTECTED_HITS_HEAD: hit_count} if hit_count else {}
     spec_head = gatemarks.spec_words(bool(spec_qs) and as_dict(values.get("spec_check")).get("unchecked") is not False).head
-    questions = [(spec_head, spec_qs), ("修正前の問い", plan_qs), (EYE_ASK_HEAD, eye_qs), ("保留にしたままの問い", held_rows)]
+    questions = [(spec_head, spec_qs), ("修正前の問い", plan_qs), (EYE_ASK_HEAD, eye_qs), (MEANS_ASK_HEAD, means_questions(returns, gates)),
+                 ("保留にしたままの問い", held_rows)]
     parts = [("人に回した食い違いの申し出", asked), (fixboard.HANDOFF_HEAD, handoffs), (PROTECTED_HITS_HEAD, hits[:5]),
              ("直しの対象に戻せなかった項目", unreturned), (UNCOMPARED_HEAD, uncompared_rows(returns)),
              ("前提の検算が人に上げた物", escalate)]
@@ -1000,6 +1016,7 @@ def answer_drafts(values: dict, returns: dict, gates: dict, unattended: bool) ->
         ledger_texts = {gatemarks.ask_text(q) for q in held}
         deferred = [str(as_dict(q).get("text") if isinstance(q, dict) else q) for q in _list(as_dict(values.get("ask_before_fix")).get("deferred"))]
         asked = [q for q in deferred if q not in ledger_texts] + asked
+    asked += means_questions(returns, gates)
     out += [gatemarks._gate_draft(q, {}, gatemarks.GATE_NODE) for q in asked if q.strip()]
     for q in held:
         key = gatemarks.answer_key(b, q)
