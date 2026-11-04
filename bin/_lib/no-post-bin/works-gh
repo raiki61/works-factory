@@ -2,9 +2,12 @@
 """読むだけの gh（bin/ の起動が書く書き込みの柵の包みが、役の claude の PATH の頭に置く口。script のノードの PATH には置かない。今の works では包みが印のある起動の全部に渡した。標準ライブラリだけ・Python 3.9 でも動く形）。
 
 通すのは次の形だけで、ほかは本物の gh を起こさずに 1 行を出して終了コード 2:
-- `pr list -R <OWNER/REPO> …`・`pr view <番号か枝> -R <OWNER/REPO> …`・`pr diff <番号か枝> -R <OWNER/REPO> …`・
-  `issue view <番号> -R <OWNER/REPO> …`（`-R`・`--repo`・`--repo=` のどれか 1 つ。対象の repo を名指しさせ、cwd の remote に頼らない。
-  gh は最後の `-R` を使うので、2 つ在れば照らした値と読む先が食い違う。拒む）
+- `pr list -R <OWNER/REPO> …`・`pr view -R <OWNER/REPO> <番号か枝> …`・`pr diff -R <OWNER/REPO> <番号か枝> …`・
+  `issue view -R <OWNER/REPO> <番号> …`（対象の repo を名指しさせ、cwd の remote に頼らない。repo の語はサブコマンドの直後に
+  `-R X`・`-RX`・`--repo X`・`--repo=X` のどれかで置き、ほかの位置に -R を含む語（`--repo…`・R を含む短い旗の束）が在れば拒む。
+  後ろの -R は、前に値を取る旗が在ると pflag がその値として食べ（`-t -R o/r`・`1 -qRo/r`）、`--` の後ろでは位置の引数になり、
+  どちらも gh は手元の git の remote から repo を決める。remote は hosts.yml の全部のホストで絞られるので別のホストへ繋ぎうる。
+  2 つ在れば gh は最後の値を読むので照らした値と食い違う。サブコマンドの直後の語は旗としてしか読まれないので、旗の表は要らない）
 - `repo view <OWNER/REPO> [--json <FIELDS>]`（gh の repo view は -R を持たないので、repo は位置の引数ちょうど 1 つで名指しする。
   旗は --json だけ。-b・-t・-q は値を取るので、その値の語を repo と取り違えないよう拒む）
 - `api [--paginate] [--hostname <HOST>] repos/<OWNER>/<REPO>/pulls/<番号>/comments`（PR の行コメントを読む 1 つの形。gh api は
@@ -33,7 +36,7 @@ API_RE = re.compile(r"repos/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+/pulls/[0-9]+/comment
 
 
 def refuse(why):
-    sys.stderr.write("works-gh: 通さない（読むだけの役に許すのは pr list・pr view・pr diff・issue view（-R 付き）と"
+    sys.stderr.write("works-gh: 通さない（読むだけの役に許すのは pr list・pr view・pr diff・issue view（直後に -R）と"
                      " repo view <OWNER/REPO>、api [--paginate] [--hostname <HOST>] repos/<OWNER>/<REPO>/pulls/<番号>/comments）"
                      f": {why}\n")
     return 2
@@ -78,24 +81,23 @@ def api_read(args):
     return path is not None
 
 
-def repo_flags(args):
-    """-R・--repo の値の全部（短い旗の束 -cR o/r・-cRo/r の R も数える。値の無い末尾の旗は空の値）。束の値は pflag と同じく、
-    最初の R の後ろが空なら次の語、空でなければ残り（頭の = は外す）。末尾の R だけを見ると -Revil.example/o/R o/r を -R o/r と
-    照らし、gh は evil.example/o/R を読む"""
-    out, i = [], 0
-    while i < len(args):
-        a = args[i]
-        short = a.startswith("-") and not a.startswith("--") and "R" in a
-        tail = a.split("R", 1)[1] if short else None
-        if a == "--repo" or tail == "":
-            out.append(args[i + 1] if i + 1 < len(args) else "")
-            i += 1
-        elif a.startswith("--repo="):
-            out.append(a.split("=", 1)[1])
-        elif short:
-            out.append(tail.removeprefix("="))
-        i += 1
-    return out
+def lead_repo(args):
+    """サブコマンドの直後の語の -R・--repo の値と、その後ろの語。直後の語がそれでなければ None。R を含む短い旗の束は -R で始まる物
+    だけ（-R の後ろが空なら次の語、空でなければ残りで、頭の = は外す。pflag の読み方）。直後の語は前に値を取る旗が無いので必ず
+    旗として読まれる"""
+    a = args[0] if args else ""
+    if a in ("-R", "--repo"):
+        return (args[1], args[2:]) if len(args) > 1 else ("", [])
+    if a.startswith("--repo="):
+        return a.split("=", 1)[1], args[1:]
+    if a.startswith("-R"):
+        return a[2:].removeprefix("="), args[1:]
+    return None
+
+
+def names_repo(word):
+    """-R・--repo として読まれうる語か（--repo…・R を含む短い旗の束）。値の位置でも `--` の後ろでも数える"""
+    return word.startswith("--repo") or (word.startswith("-") and not word.startswith("--") and "R" in word)
 
 
 def repo_view_positionals(args):
@@ -143,10 +145,11 @@ def form_error(argv):
         pos = repo_view_positionals(rest)
         return None if pos is not None and len(pos) == 1 and repo_ok(pos[0]) else \
             "gh repo view は <OWNER/REPO>（読むホストの）1 つと --json だけ"
-    repos = repo_flags(rest)
-    if len(repos) > 1:
-        return f"gh {argv[0]} {argv[1]} の -R は 1 つだけ（gh は最後の値を読む）"
-    return None if repos and repo_ok(repos[0]) else f"gh {argv[0]} {argv[1]} に -R <OWNER/REPO>（読むホストの）が無い"
+    lead = lead_repo(rest)
+    if lead is None or not repo_ok(lead[0]):
+        return f"gh {argv[0]} {argv[1]} の直後に -R <OWNER/REPO>（読むホストの）が無い"
+    stray = next((a for a in lead[1] if names_repo(a)), None)
+    return None if stray is None else f"gh {argv[0]} {argv[1]} の -R は直後の 1 つだけ: {stray}"
 
 
 def main(argv):
