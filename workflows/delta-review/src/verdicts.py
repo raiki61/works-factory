@@ -1,4 +1,4 @@
-"""1 回目の審査の返答の 2 判定の欄（準拠 compliance・品質 quality。写す元は lib/deltamarks.py。依頼 218）。
+"""1 回目の審査の返答の 2 判定の欄（準拠 compliance・品質 quality。写す元は deltamarks。依頼 218）。
 
 承認済みの修正案の項目への準拠と、差分の品質の 2 つの判定を、受け付けが行から決まる語で照らす。
 - gaps(reply, items): 欠けと誤りの行（審査の受け付けが拒む）。items は承認済みの修正案の項目（空は準拠が not_applicable）。裁定で外れた項目は

@@ -1,4 +1,4 @@
-"""前提の実測の報告の行（docs/design/premises.md の 3.4。lib/runreport.py の premise_lines の、依頼の行と制約を値で受ける形の写し）"""
+"""前提の実測の報告の行（docs/design/premises.md の 3.4。元の runreport の premise_lines の、依頼の行と制約を値で受ける形の写し）"""
 from __future__ import annotations
 
 HEAD = "依頼の実測を測り直せなかった（前提は仮説）: "

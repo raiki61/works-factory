@@ -1,4 +1,4 @@
-"""script が Archon から受けた入力の字を値に戻す読み（workflows/.shared/boundary.py の text・value・items と埋め skip_value の後継の
+"""script が Archon から受けた入力の字を値に戻す読み（元の pack の共通の部品 boundary の text・value・items と埋め skip_value の後継の
 うち、ports に無い部分）。飛ばされた節の出力は字の "null" か空の字で届く。子の run の札の先のファイルは、止めた Archon の命令
 workflow artifacts で読む（child_file）。"""
 import os

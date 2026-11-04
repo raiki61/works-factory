@@ -1,4 +1,4 @@
-"""判定役の受け付けの芯（docs/design/diagnose.md の 2.8。lib/judge_accept.py の判定の部分を、place と値を引数で受ける形に写した物）。
+"""判定役の受け付けの芯（docs/design/diagnose.md の 2.8。元の judge_accept の判定の部分を、place と値を引数で受ける形に写した物）。
 
 受けた返答を、検証器の語彙（表）・作業ツリー・class_query の例と件数・先行例の出どころ・目的の外の所見・依頼の答えと作り直しの行の
 結び・記録された方針の名指しで照らす。指示の文は持たない（prompts/diagnose.md が持つ）。表の文（kind と status の意味）も md が持ち、

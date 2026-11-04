@@ -1,10 +1,10 @@
-"""レンズの表と、レンズごとの振り分け・定義の引き（docs/design/lens.md の 1.5。lib/lenses.py の LENSES・key・_any_change と
+"""レンズの表と、レンズごとの振り分け・定義の引き（docs/design/lens.md の 1.5。元の lenses の LENSES・key・_any_change と
 lib/fixboard.py の lens_route の引きの部分の写し）。
 
 表の行ごとに YAML の node が 3 つ（<レンズ>-prep・<レンズ>・<レンズ>-take）在る。表に足す時は YAML の node も足す（試験が結ぶ）。
 """
 import ports  # noqa: F401  （lib/ と lib/graphloops を読めるようにする）
-from src import validator   # 元 lib/graphloops/engine/validator.py の写し。agent_def（利用者の plugin の役の定義を引く）
+from src import validator   # 元の graphloops の engine の validator の写し。agent_def（利用者の plugin の役の定義を引く）
 
 import oneline  # lib/
 

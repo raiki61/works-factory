@@ -1,4 +1,4 @@
-"""波及の一覧（今の lib/ripple.py の写し。docs/design/README.md の 9.2 の MOVE。docs/design/plan.md の 1.5）。
+"""波及の一覧（元の ripple の写し。docs/design/README.md の 9.2 の MOVE。docs/design/plan.md の 1.5）。
 
 修正案の項目が変える名（単位の key の `+` の後から `:` までの ASCII の名と、項目の files の change=add の symbol の名の ASCII の語のうち、対象に在る物）を
 `git grep -n -w` で引き、当たりを本体（呼び出し元・文書）と試験に分ける。Python の試験は当たりを含む試験の関数の id

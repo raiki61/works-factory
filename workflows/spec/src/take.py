@@ -1,4 +1,4 @@
-"""仕様の役（書く・審査・直す）の返答の受け付け（今の lib/judge_accept.py の _spec_errors・spec_write_output・spec_review_output・
+"""仕様の役（書く・審査・直す）の返答の受け付け（元の judge_accept の _spec_errors・spec_write_output・spec_review_output・
 spec_revise_output・spec_take の写しを、place の名で受ける形にした物。docs/design/spec.md の 8 節）。
 
 - 書く役: 鍵が一意・受け入れ条件が要件を指す・要件は受け入れ条件を 1 件以上持つ・テストのファイルが読めて、その名と Given/When/Then を含む。

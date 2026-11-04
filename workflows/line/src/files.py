@@ -3,7 +3,7 @@
 carry の prior-failures-in.json・answer の gates/<承認ノード>.json・policy の方針の写し）は、ここに写さない。
 
 - START: 始めの記録（start が 1 度書く。拒んだ run も版の控えと拒みの訳を書く。起動の殻と包みと bin/ が同じ所を読むので、名と置き場を
-  変えない。今の lib/startrec.py の REL）
+  変えない。元の startrec の REL）
 - CARRIED: 依頼の容器の constraints（start が書く。行が無ければ空の配列。premises の port carried に渡す）
 - REQUEST: 依頼の写し（start が書く。依頼のファイルが無い run は空の配列。block の port request に pointer で渡す）
 - PLAN_CONVERGE: 計画の往復の記録（plan-out が周ごとに 1 行足して書き直す。plan-review の port prior の先）。PLAN_CONVERGE_DIR は

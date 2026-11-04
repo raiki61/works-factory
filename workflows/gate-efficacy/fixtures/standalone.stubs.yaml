@@ -16,7 +16,7 @@ gate-efficacy:
     status: clean
     checked: the arms of the gate the diff adds, on a copy of the repository
   arms:
-    - gate: tests/test_app.py
+    - gate: test/test_app.py
       arm: the fence on a pinned value
       red_confirmed: true
       control_green: true

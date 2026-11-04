@@ -1,4 +1,4 @@
-"""報告に載せる日本語の行（docs/design/merge.md の 9 節）。lib/runreport.py が merge の返りから組んでいた行のうち、この block の事実だけで
+"""報告に載せる日本語の行（docs/design/merge.md の 9 節）。元の runreport が merge の返りから組んでいた行のうち、この block の事実だけで
 決まる物を同じ字で組む。守りの当たりの行と bin/apply の打ち方の行は、ほかの block の事実と合わせて決まるので入れない（欄で返す）。"""
 import oneline  # lib/
 import seal  # lib/
