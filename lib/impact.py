@@ -30,7 +30,7 @@ AI に探させず、1 回作って使い回す（鍵 = rev・起点・作業ツ
 - reach {path: {depth, lang, test, candidate, parent {from, kind, key, line}}}: 起点から届いた file（起点は含まない）
 - edges [{path, dep, kind, key, candidate, count, hits [[行番号, 行]], resolution?}]: path が dep に依る
   （kind: import・path（basename の言及）・stem（拡張子を除いた名が引用符か YAML の値）・module（点の付いたモジュール名）・
-  symbol（起点の関数・クラスの名、起点の名前））
+  symbol（起点の関数・クラスの名、起点の名前）・conftest（conftest.py の下のテストのモジュールが、その fixture に依る））
 - reverse_imports・tests・mentions・refs: reach の分類（パスの一覧）。mentions はコードの file、refs は
   YAML・JSON・MD などの設定と文書
 - unanalysable [{path, reason, line?, text?, in_neighbourhood}]・all_tests_required・all_tests_reasons
@@ -115,6 +115,7 @@ MANIFESTS = frozenset({"pyproject.toml", "setup.py", "setup.cfg", "package.json"
 STOP_KEYS = frozenset({"__init__.py", "__main__.py", "__init__", "__main__", "action.yml", "action.yaml"})
 DYNAMIC = {"import_module": 0, "__import__": 0, "spec_from_file_location": 1, "run_path": 0, "run_module": 0,
            "load_source": 1, "SourceFileLoader": 1, "exec": 0}
+STRUCTURAL = frozenset({"import", "conftest"})   # 字の一致でない確かな辺（言及の段を足さない・reverse_imports に数える）
 UNANALYSABLE_TRIGGERS = frozenset({"unknown-language", "py-parse-error", "dynamic-import", "too-large", "symlink"})
 HEURISTICS = [
     "file の一覧は git ls-files（追跡中）と ls-files -o --exclude-standard（無視されていない未追跡）。中身は作業ツリーの物",
@@ -125,7 +126,9 @@ HEURISTICS = [
     "同じ basename が複数あれば、当たりの行のパスの形で絞り、残りは言及した file に一番近い（共通のフォルダが深い）物",
     "Python・シェル・YAML・JSON などの設定からは先へ伸ばす。文書（md・txt など）・テストのモジュール・テストのフォルダの下の"
     "Python でない file（fixture・golden）で止める"
-    "（テストはほかのテストの import だけで伸ばす）。言及の辺は起点から MENTION_HOPS 本まで（import の辺は数えない）。"
+    "（テストはほかのテストの import と、conftest.py からその下のテストへの辺だけで伸ばす。conftest.py の fixture は import なしに"
+    "下のテストへ渡るので、conftest.py に届いたらその下のテストのモジュールにも届いたと数える）。"
+    "言及の辺は起点から MENTION_HOPS 本まで（import と conftest の辺は数えない）。"
     "超えた先は not_seen.beyond_mention_hops に数え、そこのテストの名を tests_beyond_mention_hops に並べる",
     "起点の関数・クラスの名は、_ を含む名か、SYMBOL_MIN 字以上で大文字を含む名（DiskBoard など）だけを鍵にする。"
     "テストのモジュールの名は鍵にしない。起点の関数・クラスの名の言及（symbol）と拡張子を除いた名の言及（stem）は、起点と同じ project（manifest を持つ"
@@ -290,7 +293,7 @@ def _py_facts(text):
     lines = text.split("\n")
     try:
         tree = ast.parse(text)
-    except (SyntaxError, ValueError) as e:
+    except (SyntaxError, ValueError, RecursionError, MemoryError) as e:   # 深すぎる式は構文木を組む途中で深さが尽きる
         return {"error": f"{type(e).__name__}: {e}", "imports": [], "syspath": [], "dyn": [], "defs": []}
     assigns = {}
     for n in ast.walk(tree):
@@ -766,6 +769,16 @@ def _build(repo, rev, rev_sha, changed, seeds, diff, ix):
                 out.append((f, kind, key, h[1][0][0] if h[1] else None, True))
         return out
 
+    def conftest_deps(x):
+        """conftest.py の fixture はその下のテストへ import なしに渡る（テストの実行器が名で探して差し込む）。下のテストを依る側にする"""
+        root = _dir(x)
+        out = []
+        for t in sorted(ix.files):
+            if t != x and is_test(t) == "module" and (not root or t.startswith(root + "/")):
+                add_edge(t, x, "conftest", "conftest.py", [1, []], False)
+                out.append((t, "conftest", "conftest.py", None, False))
+        return out
+
     reach = {}
     seed_set = set(files)
     ambiguous = set()
@@ -791,10 +804,11 @@ def _build(repo, rev, rev_sha, changed, seeds, diff, ix):
         else:
             keys = _keys(ix, mods, node, node in seed_set, importers)
         deps += mention_deps(node, keys) if keys else []
+        deps += conftest_deps(node) if _base(node) == "conftest.py" else []
         for f, kind, key, line, cand in sorted(deps, key=lambda d: (d[0], d[1] != "import", d[1], d[2])):
             if f in seed_set:
                 continue
-            h2 = hops + (0 if kind == "import" else 1)
+            h2 = hops + (0 if kind in STRUCTURAL else 1)
             if h2 > MENTION_HOPS:
                 if f not in reach:
                     beyond.setdefault(f, {"from": node, "kind": kind, "key": key})
@@ -814,7 +828,7 @@ def _build(repo, rev, rev_sha, changed, seeds, diff, ix):
                     heapq.heappush(heap, (h2, depth + 1, 1, f))
 
     # 分類
-    imp_any = {e["path"] for e in edges.values() if e["kind"] == "import"}
+    imp_any = {e["path"] for e in edges.values() if e["kind"] in STRUCTURAL}
     reverse_imports = sorted(p for p in reach if p in imp_any)
     tests = sorted(p for p in reach.keys() | seed_set if is_test(p) == "module")
     rest = [p for p in reach if p not in imp_any]
@@ -871,7 +885,7 @@ def _build(repo, rev, rev_sha, changed, seeds, diff, ix):
     for u in unanalysable:
         by_reason[u["reason"]] = by_reason.get(u["reason"], 0) + 1
     edge_list = sorted(edges.values(), key=lambda e: (e["path"], e["dep"], e["kind"], e["key"]))
-    cut = sum(max(e["count"] - len(e["hits"]), 0) for e in edge_list if e["kind"] != "import")
+    cut = sum(max(e["count"] - len(e["hits"]), 0) for e in edge_list if e["kind"] not in STRUCTURAL)
     return {
         "schema": SCHEMA, "rev": rev_sha, "rev_name": rev,
         "seeds": {"given": sorted(str(s) for s in seeds), "files": sorted(files), "names": sorted(names),

@@ -45,7 +45,7 @@ Of the answers at the approval nodes above, the following came after the indepen
 
 {part:measured}
 
-Before you write that something is missing from the diff, check it against the measurements above. If the measurements satisfy it, do not count it as a difference. Read green-to-green tests as evidence that it is satisfied too (before you write that you cannot confirm whether an existing test covers a point, look at the names of the green-to-green tests). Do not guess to treat as satisfied what the measurements say "was not measured" or "none".
+Before you write that something is missing from the diff, check it against the measurements above. If the measurements satisfy it, do not count it as a difference. Read green-to-green tests as evidence that it is satisfied too (before you write that you cannot confirm whether an existing test covers a point, look at the names of the green-to-green tests). A line that gives only a count of tests whose names were not pasted is evidence neither that existing tests cover a point nor that they do not; do not read it either way. Do not guess to treat as satisfied what the measurements say "was not measured" or "none".
 
 ---
 
