@@ -32,6 +32,7 @@
 - `base`: `text: 差分の根の commit（今の始めの記録の diff_base）。空なら差分から変更ファイルを取らない`。既定 `""`。
 - `changed`: `json(changed.schema.json): 変更ファイルのパスの配列（作業ツリーの根からの相対）。空の配列なら base から取る`。既定 `[]`。
 - `lang`: `text: 人に見せる欄（material の detail・checked・reason、conflicts の note、excluded の why）の言語。空は依頼の行の言語`。既定 `""`。
+- `stage`: `choice(before|after): 段。before は修正の前の確かめでぶつかる hunk を run の範囲から外す。after は修正の後の確かめ直しで、封じる差分を変えないので外さず、差分に残っていると申し送る（excluded は空）`。既定 `"before"`。line の `parallel-pr-after` だけが `after` を渡す（line の設計書の 8 節の 1）。修正の後に hunk を抜くと緑の認証と封じが無効になり、修正の後の `excluded` には読み手も無い。`scan` が読んで渡し物 `pr-brief.json` の `stage` に書き、`prep`（指示の `<!-- if after -->`）と受け付け（4 節の 5）がそこから読む。
 
 変更ファイルの決め方（`src/scan.py` の `changed_files`。この順で最初に空でない物）:
 
@@ -132,7 +133,12 @@ md の本文（英語。この block の PR でこのまま置く）:
 
 {shared:query-rule}
 
+<!-- if not after -->
 You are the parallel-PR role. Your job is to check whether open pull requests in the target repository touch the same files as this run's change, to take the hunks that collide out of this run's scope, and to draft a hand-over note for the owner of each colliding pull request. Work through the 6 steps below in order. Do not skip a step.
+<!-- end after -->
+<!-- if after -->
+You are the parallel-PR role, checking again after this run's fix. Your job is to check whether open pull requests in the target repository touch the same files as this run's fixed change, to name the hunks that collide, and to draft a hand-over note for the owner of each colliding pull request. The fix is already made and verified, so this check does not change this run's diff: a colliding hunk stays in it. Work through the 6 steps below in order. Do not skip a step.
+<!-- end after -->
 
 You only read. Do not write or delete files, and do not move the git state (HEAD, branch, stash). The machine compares the working tree, the HEAD sha, and the branch from before you started with the ones after you answer, and rejects the answer if they changed.
 
@@ -153,7 +159,12 @@ If `command -v works-gh` prints nothing, the command is missing and you cannot r
 3. Check whether the list was cut: if the number returned equals the `--limit`, the list may have been cut. Then set `truncated` to true and `material` to `awaiting_human`. Do not write "no collision" from a cut list.
 4. The set of changed files is `changed_files` in the hand-off file. **If the set is empty, do not write `clean`**: an intersection with an empty set checks nothing. Return `not_run` with a reason that says what was empty.
 5. The changed files of each remaining pull request: `works-gh pr view <n> -R <owner/repo> --json files --jq '.files[].path'`. A pull request whose files intersect the set is a parallel pull request touching the same file.
+<!-- if not after -->
 6. Hand the colliding places to the pull request that owns them, without posting: read the hunks with `works-gh pr diff <n> -R <owner/repo>`. For each place where a collision or overlap is found, treat that change as belonging to the pull request that leads it and take it out of this run's scope (one row per hunk in `excluded`). Write a draft of the note for that pull request's owner in `conflicts[].note`: which pull request, which file, which hunk, which change of this run it collides with, and a question asking which should go in first. Return `handed_over: false`. This block does not post to pull requests (owner's decision 2026-09-27); a person reads the drafts and passes them on.
+<!-- end after -->
+<!-- if after -->
+6. Hand the colliding places to the pull request that owns them, without posting: read the hunks with `works-gh pr diff <n> -R <owner/repo>`. For each place where a collision or overlap is found, do not take it out of this run's scope: the fix is already made and verified, and removing a hunk now would void that. Return `excluded: []`. Write a draft of the note for that pull request's owner in `conflicts[].note`: which pull request, which file, which hunk, which change of this run it collides with, that the hunk is still in this run's diff, and a question asking which should go in first. Return `handed_over: false`. This block does not post to pull requests (owner's decision 2026-09-27); a person reads the drafts and passes them on.
+<!-- end after -->
 
 **Do not type commands that move HEAD or the branch** (`git checkout`, `git switch`, `git stash`, `git reset`). The read-only command refuses writing gh commands; the only gh commands you may type are `works-gh pr list -R <owner/repo>`, `works-gh pr view <n> -R <owner/repo>`, and `works-gh pr diff <n> -R <owner/repo>`. If you return even one row with `handed_over: true`, the machine rejects the answer.
 
@@ -163,7 +174,12 @@ Do not decide yourself whether the remote is GitHub (whether there is a host tha
 
 - `repo`: the owner/repo you derived in step 1. `listed`: the number returned in step 2 (before removing your own pull request). `truncated`: step 3.
 - `conflicts`: one row per intersecting pull request, `{pr, files, handed_over: false, note}`. `pr` is the pull request number as a string, `files` the intersecting files, `note` the draft from step 6.
+<!-- if not after -->
 - `excluded`: one row per hunk you take out of this run's scope in step 6, `{pr, file, start, end, why}`. `pr` is a pull request in `conflicts`, `file` a file in that row's `files`, `start` and `end` the line range **in the current working tree** of that file (1-based, both ends included), and `why` what it collides with. A pull request that has a hunk to take out needs a `note`. Do not take out a pull request whose hunks do not collide, even if it touches the same file. If there is nothing to take out, return `excluded: []`.
+<!-- end after -->
+<!-- if after -->
+- `excluded`: always `[]` in this check after the fix. The machine rejects an answer with even one row.
+<!-- end after -->
 - `material`: written as below.
 - Write `material.detail`, `material.checked`, `material.reason`, `conflicts[].note`, and `excluded[].why` in {lang}. Keep keys, enum values, pull request numbers, paths, commands, and their output as they are.
 
@@ -248,8 +264,8 @@ Return only JSON that matches the output schema.
 
 ## 3 script の node
 
-- `scan.py`: `INPUTS_REQUEST`・`INPUTS_BASE`・`INPUTS_CHANGED` を `os.environ.get("INPUTS_REQUEST")` などの字のままで読み、`ports.json(…, "request.schema.json")`・`ports.text(…)`・`ports.json(…, "changed.schema.json")` に渡す（口の名は土台の PR の `ports.py` に合わせる）。place の中のこの block のファイルを名で引いて消し（place そのものは消さない。README の 13 章）、`tree.json` に `accept.tree_state(<作業ツリー>)` を書く。それから今の `pr_scan` と同じ順: `forge.reason(forge.detect(repo))` が空でなければ `not_applicable` の素材、そうでなければ `parallel_pr_plan`（`fallback` なら役へ、`blocked` なら `not_run`）、数えを `parallel_pr_scan` で回して `parallel_pr_reply`。渡し物 `pr-brief.json` はどの道でも書く。機械が決めた時は `material-pr-check.json` と空の `pr-excluded.json`（`{node, head, excluded: []}`）を書く。中の誤りは今の `pr_check.py` と同じく捕まえて役に任せる（`go_role: true`、`reason` は「機械の道が落ちた（<型>: <文>）——役に任せる」）。
-- `prep.py`: 却下の控えを `rolekit.rejected(place, "pr-check")` で読み、`prompt.emit("pr-check", values, when, prompt.round_of("pr-check"))`（組んだ指示を `pr-check-prompt-<n>.md` に書いて返す）で組む。`values` は `brief_file`・`limit`・`lang`（空なら README の 5.3 の既定の英文）・`rejection`（却下が在る時）・`na_why`（空の字。`material-na` の断片の差し込み口）。`when` は `{"rejected": <却下が在るか>, "spawns": False, "na_never": True, "na_cond_true": False, "na_cond_false": False, "na_judged": False}`（`spawns` は query-rule の断片の下請けの段落）。
+- `scan.py`: `INPUTS_REQUEST`・`INPUTS_BASE`・`INPUTS_CHANGED`・`INPUTS_STAGE`（`ports.choice(…, ("before", "after"))`）を `os.environ.get("INPUTS_REQUEST")` などの字のままで読み、`ports.json(…, "request.schema.json")`・`ports.text(…)`・`ports.json(…, "changed.schema.json")` に渡す（口の名は土台の PR の `ports.py` に合わせる）。place の中のこの block のファイルを名で引いて消し（place そのものは消さない。README の 13 章）、`tree.json` に `accept.tree_state(<作業ツリー>)` を書く。それから今の `pr_scan` と同じ順: `forge.reason(forge.detect(repo))` が空でなければ `not_applicable` の素材、そうでなければ `parallel_pr_plan`（`fallback` なら役へ、`blocked` なら `not_run`）、数えを `parallel_pr_scan` で回して `parallel_pr_reply`。渡し物 `pr-brief.json` はどの道でも書く。機械が決めた時は `material-pr-check.json` と空の `pr-excluded.json`（`{node, head, excluded: []}`）を書く。中の誤りは今の `pr_check.py` と同じく捕まえて役に任せる（`go_role: true`、`reason` は「機械の道が落ちた（<型>: <文>）——役に任せる」）。
+- `prep.py`: 却下の控えを `rolekit.rejected(place, "pr-check")` で読み、`prompt.emit("pr-check", values, when, prompt.round_of("pr-check"))`（組んだ指示を `pr-check-prompt-<n>.md` に書いて返す）で組む。`values` は `brief_file`・`limit`・`lang`（空なら README の 5.3 の既定の英文）・`rejection`（却下が在る時）・`na_why`（空の字。`material-na` の断片の差し込み口）。`when` は `{"rejected": <却下が在るか>, "after": <渡し物の stage が after か>, "spawns": False, "na_never": True, "na_cond_true": False, "na_cond_false": False, "na_judged": False}`（`spawns` は query-rule の断片の下請けの段落）。
 - `take.py`: `rolekit.accept_round(place, "pr-check", INPUTS_REPLY, take)`（3 回目の却下で `done` を返す。諦めた時の後始末の引数は持たない）。`take` は 4 節の順で照らす。諦めた時の控えは別に書かず、`finish` が `rolekit.given_up_reason(place, "pr-check")` を読む（今の止めの控え `write_stop(stopby.PR, …)` の替わり）。
 - `read_proof.py`: 今の `pr_reads.py` と同じく落ちない（中の誤りは `{ok: false, missing: [], index_file: "", reason}` で返す）。`reads.guarded(lambda: src.proof.collect(place, reads.log_here(), repo), owner="pr-check", place=place)`。落ちた時の記録は名に時刻が入る `reads-pr-check-failed-<時刻>.json`（1.4）。
 - `finish.py`: 素材の控えを読み、`ok`・`status`・`stop_reason`・`reason`・`material`・3 つの pointer・`report` を組んで返す。決め:
@@ -266,7 +282,8 @@ Return only JSON that matches the output schema.
   2. 投稿していない: `conflicts[].handed_over` が真の行が無い。在れば `NO_POST` の文と PR の番号で拒む。
   3. 読むだけの役が作業ツリーを変えていない: `tree.json` と今の作業ツリーを `accept.tree_moved`（`TREE_KEYS` の全部）で比べる。写しが無い・読めない時も拒む（`Reject` の文）。
   4. 素材の欄: `materialkit.check_record("pr-check", ("parallel_pr",), {"parallel_pr": reply["material"]}, "never")`（素材の札の語のどれか・`carried_over` を拒む・`not_applicable` を拒む・札ごとの要る欄。今は札の語だけを見ていた。6 節の 3）。外れれば「素材の欄が記録の決まりに合わない: …」で拒む（materials の設計書の 4 節の 6 と同じ字）。
-  5. 外す hunk: 今の `prcheck.check_excluded` の 5 つ（start <= end・PR が conflicts に在る・ファイルがその行の files に在る・ファイルが今の作業ツリーに在り end が行の数を超えない・note が在る）。
+  5. 段: 渡し物の `stage` が `after`（修正の後の確かめ直し）なら、`excluded` が空でない返答を拒む（hunk を外さず、差分に残っていると `note` に書かせる。1.2 の `stage`）。
+  6. 外す hunk: 今の `prcheck.check_excluded` の 5 つ（start <= end・PR が conflicts に在る・ファイルがその行の files に在る・ファイルが今の作業ツリーに在り end が行の数を超えない・note が在る）。
 - 通れば: 外す hunk を `_anchored`（行の中身 `text` と `sha256` を足す）で `pr-excluded.json` に、下書き（note を持つ交差だけ）を `pr-downgrades.json` に、素材を `material-pr-check.json` に書く。拒めば何も書かない。
 - 却下の理由の文は Python（`src/take.py`）が組む日本語のまま（README の 5.3）。
 - 3 回目の却下で loop を抜ける（`rolekit.GIVE_UP_AFTER`）。`finish` が `status: failed` と `stop_reason: works:pr` を返す。

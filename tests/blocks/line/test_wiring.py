@@ -253,6 +253,8 @@ class WhenCase(unittest.TestCase):
         self.assertEqual(node["when"], "$fixed.output.diffed == true && $request-in.output.entry != ''")
         self.assertEqual((node["with"]["base"], node["with"]["changed"]), ("$start.output.ports.base_rev", "[]"))
         self.assertIn("parallel-pr-after-out", TOP["test-gate-final"]["depends_on"])
+        # 修正の後は封じた差分から hunk を外さず、残っていると申し送る段（parallel-pr の設計書の 1.2 の stage）
+        self.assertEqual(node["with"]["stage"], "after")
 
     def test_excluded_reaches_both_fix_stages(self):
         """8.2・integration.md 4.1-5: 並行 PR が外した hunk を fix の 1 回目と 2 度目に渡す"""

@@ -2,7 +2,7 @@
 prcheck_take・pr_accept と lib/prcheck.py の _anchored・check_excluded・_write。
 
 照らす順: 返答が JSON のオブジェクト → 投稿していない → 読むだけの役が作業ツリーを変えていない → 素材の欄が記録の決まりに合う
-（carried_over と not_applicable は書けない・札ごとの要る欄）→ 外す hunk が合う。通れば外す hunk を中身の印つきで pr-excluded.json に、
+（carried_over と not_applicable は書けない・札ごとの要る欄）→ 段 after（修正の後）なら外す hunk が空 → 外す hunk が合う。通れば外す hunk を中身の印つきで pr-excluded.json に、
 申し送りの下書きを pr-downgrades.json に、素材を material-pr-check.json に書く。拒めば何も書かない。3 回目の拒否で輪を抜ける
 （rolekit.GIVE_UP_AFTER）。諦めた控えは別に書かず、出口が rolekit.given_up_reason を読む。
 """
@@ -16,11 +16,13 @@ import materialkit             # lib/
 import rolekit                 # lib/
 from engine.util import Reject   # lib/graphloops/
 
-from . import files
+from . import files, scan
 
 # 元 works/blk-pr/scripts/accept.py:21
 NO_POST = "このラインは申し送りを投稿しない（持ち主の決定 2026-09-27）。下書きを note に書き handed_over を false にせよ: "
 EXCLUDED_FIELD = "excluded"
+AFTER_KEEPS = ("修正の後の確かめ直し（stage after）では hunk を外さない（外すと緑の認証と封じが無効になる）。excluded を空にし、"
+              "ぶつかる hunk がこの run の差分に残っていることを conflicts[].note に書け")
 
 
 def check_no_post(reply) -> list:
@@ -78,6 +80,7 @@ def anchored(excluded: list, repo) -> list:
 def take(place, repo, reply) -> dict:
     """返り {ok, reason}。拒めば何も書かない"""
     place, repo = pathlib.Path(place), pathlib.Path(repo)
+    stage = scan.stage_of(place)
     if not isinstance(reply, dict):
         return {"ok": False, "reason": "返答が JSON のオブジェクトでない"}
     posted = check_no_post(reply)
@@ -97,6 +100,8 @@ def take(place, repo, reply) -> dict:
             else materialkit.check_record(files.ROLE, ("parallel_pr",), {"parallel_pr": material}, "never"))
     if errs:
         return {"ok": False, "reason": "素材の欄が記録の決まりに合わない: " + "; ".join(errs)}
+    if stage == "after" and reply[EXCLUDED_FIELD]:
+        return {"ok": False, "reason": AFTER_KEEPS}
     errs = check_excluded(reply, repo)
     if errs:
         return {"ok": False, "reason": "外す hunk（excluded）が合わない: " + "; ".join(errs)}

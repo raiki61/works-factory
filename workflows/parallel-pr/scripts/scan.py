@@ -23,6 +23,8 @@ def compute():
         values["base"] = ports.text(os.environ.get("INPUTS_BASE")).strip()
         name = "changed"
         values["changed"] = ports.json(os.environ.get("INPUTS_CHANGED"), "changed.schema.json")
+        name = "stage"
+        values["stage"] = ports.choice(os.environ.get("INPUTS_STAGE"), files.STAGES)
     except ValueError as e:
         return scan.refuse(ports.place(), f"入力 {name} が読めない: {e}")
     return scan.scan(ports.place(), Path.cwd(), **values)
