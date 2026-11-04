@@ -469,14 +469,14 @@ def write_tree(place, b, intake: dict, material_path, n: int, repo=None) -> tupl
         path = place / files.ITEM.format(n=m)
         got, errs, missing, _ = check_item(b, m, doc, opened) if plan else (None, [], True, {})
         if got is not None:
-            done.append(f"- item {m}: {path}")
+            done.append(f"- {converge.ITEM_CITE.format(n=m)}: {path}")
             continue
         retry = retry or not missing
         path.write_text(_item_material(b, m, rows[m - 1], doc, pre.get(m) or [], errs), encoding="utf-8")
-        todo.append(f"- item {m}: {path}")
+        todo.append(f"- {converge.ITEM_CITE.format(n=m)}: {path}")
     passes = converge.read(b)["passes"]
     last = {it["n"]: it for it in (passes[-1].get("items") or [])} if passes else {}
-    rest = [f"- item {m}（{last[m]['state']}）" for m in range(1, len(rows) + 1) if m not in opened and m in last]
+    rest = [f"- {converge.ITEM_CITE.format(n=m)}（{last[m]['state']}）" for m in range(1, len(rows) + 1) if m not in opened and m in last]
     synergy = place / files.SYNERGY_ITEM
     if len(rows) >= 2:
         sv, sw = _fill("part:" + SYNERGY_BRIEF, place, intake, repo, b,

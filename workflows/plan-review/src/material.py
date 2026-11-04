@@ -69,7 +69,7 @@ LABELS = {
     "face": "#### {key}",
     "answers": "Plan role's answers:",
     "held": "### Held items",
-    "held_row": "- item {n} ({units}): {keys}",
+    "held_row": f"- {converge.ITEM_CITE} ({{units}}): {{keys}}",   # 項目は推しの照らし（line の rounds.uncited）と同じ字
     "replan_item": "### Item {n}",
     "replan_units": "- unit_keys: {keys}",
     "approved": "#### Approved item",

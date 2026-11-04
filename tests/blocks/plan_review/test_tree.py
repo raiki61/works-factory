@@ -446,6 +446,26 @@ class TreeCase(TreeBase):
         self.assertIn("whatever language the rest of the note is in", para)
         self.assertNotIn('"item n"', para)
 
+    def test_tree_lists_and_stuck_quote_cite_items_in_the_machines_characters(self):
+        """束ね役が推しの note を書く時に読む物も、項目を converge.ITEM_CITE（line の照らし rounds.uncited と同じ字）で書く: 2 往復目から
+        貼る断片 stuck-quote の段落（差し込み口 {item_cite}）と、木の形の一覧（開く・済んだ・閉じた項目の行）。役がどちらかの別の字
+        （前は "item n"・"the numbers of those items"）を写すと、推しが引用の欠けで捨てられる"""
+        f = self.flow
+        cite = self.converge.ITEM_CITE
+        f.inputs["tree"] = "on"
+        self.first_pass_blocks_item_2()
+        two = item(UNIT_CLAMP, 2, files=[frow("stats.py", "clamp")], approach="clamp の上限の枝で hi を返す")
+        f.plan([item(UNIT_MEAN, 1), two], rnd=2, answers=FIXED)
+        text = self.prepped()
+        para = text[text.index("What to quote in the note of"):]
+        para = para[:para.index("\n")]
+        self.assertIn(f"「{cite.format(n='n')}」 with n replaced by the item's number", para)
+        self.assertIn(f"- {cite.format(n=2)}: {f.place / 'items' / 'item-2.md'}", text)
+        self.assertIn(f"- {cite.format(n=1)}（{self.converge.CLOSED}）", text)
+        self.write_answers({2: {**answer(2, resolved=[CLAMP_BLOCK["key"]]), "hits": []}})
+        again = f.prompt()
+        self.assertIn(f"- {cite.format(n=2)}: {f.place / 'items' / 'item-2.md'}", again[again.index(DONE_HEAD):])
+
     def test_bundler_stuck_push_rides_on_the_pass_row(self):
         """元 test_bundler_stuck_push_rides_on_the_pass_row: 束ね役の指示はまとめの返し方で、一番上の止まった時の推しの欄の名
         （converge.STUCK_PUSH）と推しの形と、block の項目か保留の項目の節が在る往復は頭の決まりのとおり書くこと、書く前に下請けの答えの
