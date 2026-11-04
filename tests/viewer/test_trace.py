@@ -2,8 +2,8 @@
 照らしの 10）。
 
 - 木の親子: run → 段 → 繰り返しの器 → 周 → ノード → 往復と道具 → 下請け。下請けは meta の toolUseId の道具の span の下に入り、
-  下請けの中の往復と道具はその下請けの span の下に入る。line の段に入るノードは段の span の下
-- 時刻: 往復は、返事の行の requestRef が指す api-request の時刻から、同じ message.id の最後の行の時刻まで。api-request の無い往復は
+  下請けの中の往復と道具はその下請けの span の下に入る（下請けの中の下請けも、名の並びが親の下請けより先でも）。line の段に入るノードは段の span の下
+- 時刻: 往復は、返事の行の requestRef が指す api-request（並びのすぐ前の頼みとは限らない）の時刻から、同じ message.id の最後の行の時刻まで。api-request の無い往復は
   前の行（道具の結果か指示）の時刻から。道具は tool_use の行の時刻から、同じ tool_use_id の tool_result の行の時刻まで
 - 続けた会話（sessionOrigin が resumed）の写しの往復（ノードの始めより前の往復）を span にしない
 - 往復のトークン: llm.token_count.prompt は input_tokens と cache の読みと書きの和（Claude Code の input_tokens は cache を含まない）。
@@ -12,6 +12,7 @@
 - 裏で走る下請けの span が親の道具の span より後に終わっても組みは落ちない
 - 中身の字は 1 欄 runread.CLIP 字で切り、切る前の字の数を持つ
 - 読めない行（知らない型）と、親の呼び出しに当たらない下請けは数え、黙って落とさない
+- 出来事の span の id は始めの時刻でも分ける（同じ run・道・周で落ちて走り直した起動が重ならない）
 - 同じ記録から 2 度組むとトレースの id と span の id が同じ値になり、別の run の id では違う値になる
 
 試験は一時のフォルダに、実物の行の形（型・欄の名）を写した小さな会話の記録と下請けの記録を書き、run の出来事を手で組む。
@@ -105,7 +106,14 @@ class TraceCase(unittest.TestCase):
             ask("req-s2", at(0, 10), **side),
             # 裏で走る下請けは、親の Agent の道具の span（00:07 まで）より後に終わる
             say("msg_s2", at(4, 0), text("item 1 is fine"), ref="req-s2", used=usage(2, 900, 40, 30), **side),
+            say("msg_s2", at(4, 1), use("toolu_C", "Agent", {"description": "item 1a"}), ref="req-s2", used=usage(2, 900, 40, 30), **side),
+            result("toolu_C", "item 1a is fine", at(4, 3), **side),
         ])
+        # 下請けの中の下請け（名の並びで親の下請けより先に読む）
+        self._lines(agents / "agent-a0.jsonl", [told("read item 1a", at(4, 1, 500), **side),
+                                                 say("msg_n1", at(4, 2), text("1a ok"), used=usage(1, 0, 0, 2), **side)])
+        (agents / "agent-a0.meta.json").write_text(json.dumps({
+            "agentType": "Explore", "description": "item 1a", "toolUseId": "toolu_C", "spawnDepth": 2}), encoding="utf-8")
         (agents / "agent-a1.meta.json").write_text(json.dumps({
             "agentType": "general-purpose", "description": "item 1", "toolUseId": "toolu_A", "spawnDepth": 1,
             "requestShape": "background"}), encoding="utf-8")
@@ -118,13 +126,18 @@ class TraceCase(unittest.TestCase):
             ask("req-old", at(0, 3)),
             say("msg_old", at(0, 5), text("old"), ref="req-old", used=usage(3, 100, 20, 7)),
             told("again", at(5, 11)),
+            # 返事が指すのはすぐ前の頼みでない（並びで結ぶと 05:13 になる）
             ask("req-new", at(5, 12)),
+            ask("req-retry", at(5, 13)),
             say("msg_new", at(5, 15), text("new"), ref="req-new", used=usage(5, 200, 0, 9)),
         ])
 
     def _data(self, run_id: str = "r1") -> dict:
         events = [
             event(["testcmd"], "script", at(0, 0), at(0, 1)),
+            # 同じ run・道・周で始めの時刻だけが違う出来事（落ちて走り直した起動）
+            event(["start"], "script", at(0, 0, 100), at(0, 0, 200), status="failed"),
+            event(["start"], "script", at(0, 0, 300), at(0, 0, 400), fell=True),
             event(["plan-rounds"], runread.LOOP_GROUP, at(0, 1), at(9, 0), cost=4.0),
             event(["plan-rounds", "review-tree"], "agent", at(0, 1, 500), at(5, 0), cost=3.0, loop=[1], session="aaaa1111",
                   origin="fresh", model=MODEL, usage={"input": 300, "output": 20, "cacheRead": 200, "cacheWrite": 50}, turns=2),
@@ -175,12 +188,18 @@ class TraceCase(unittest.TestCase):
         self.assertEqual(self._kind(node), "AGENT")
         self.assertEqual(self._chain(spans, node), ["round 1", "plan-rounds", "計画", "works-factory-line"])
         self.assertEqual(self._chain(spans, self._one(spans, name="testcmd")), ["受付", "works-factory-line"])
-        tool = self._one(spans, **{trace.TOOL_NAME: "Agent"})
-        self.assertEqual((self._kind(tool), tool["parent"]), ("TOOL", node["id"]))
+        tool = self._one(spans, **{trace.TOOL_NAME: "Agent", "parent": node["id"]})
+        self.assertEqual(self._kind(tool), "TOOL")
         agent = self._one(spans, **{trace.AGENT_TYPE: "general-purpose"})
         self.assertEqual((self._kind(agent), agent["parent"]), ("AGENT", tool["id"]))
         under = sorted(self._kind(s) for s in spans.values() if s["parent"] == agent["id"])
-        self.assertEqual(under, ["LLM", "LLM", "TOOL"])
+        self.assertEqual(under, ["LLM", "LLM", "TOOL", "TOOL"])
+        # 下請けの中の下請けは、親の下請けの Agent の道具の span の下に入り、その中の往復はその下請けの下に入る
+        inner = self._one(spans, **{trace.AGENT_TYPE: "Explore"})
+        spawn = spans[inner["parent"]]
+        self.assertEqual((spawn["parent"], spawn["attributes"][trace.TOOL_NAME], inner["attributes"][trace.AGENT_DEPTH]),
+                         (agent["id"], "Agent", 2))
+        self.assertEqual([self._kind(s) for s in spans.values() if s["parent"] == inner["id"]], ["LLM"])
         read = self._one(spans, **{trace.TOOL_NAME: "Read"})
         self.assertEqual(read["parent"], agent["id"])
         # 中身の字は 1 欄 runread.CLIP 字で切り、切る前の字の数を持つ
@@ -193,11 +212,15 @@ class TraceCase(unittest.TestCase):
         node = self._one(spans, **{trace.LOOP: "1", "name": "plan-rounds.review-tree"})
         turns = sorted((s for s in spans.values() if s["parent"] == node["id"] and self._kind(s) == "LLM"), key=lambda s: s["start"])
         self.assertEqual([(s["start"], s["end"]) for s in turns], [(at(0, 3), at(0, 6)), (at(0, 7), at(0, 9))])
-        tool = self._one(spans, **{trace.TOOL_NAME: "Agent"})
+        tool = self._one(spans, **{trace.TOOL_NAME: "Agent", "parent": node["id"]})
         self.assertEqual((tool["start"], tool["end"]), (at(0, 6), at(0, 7)))
         agent = self._one(spans, **{trace.AGENT_TYPE: "general-purpose"})
-        self.assertEqual((agent["start"], agent["end"]), (at(0, 6, 500), at(4, 0)))
+        self.assertEqual((agent["start"], agent["end"]), (at(0, 6, 500), at(4, 3)))
         self.assertGreater(runread.when(agent["end"]), runread.when(tool["end"]))
+        # 往復の始めは requestRef が指す頼みの時刻で、並びのすぐ前の頼み（05:13）ではない
+        resumed = self._one(spans, **{trace.LOOP: "2", "name": "plan-rounds.review-tree"})
+        late = [s for s in spans.values() if s["parent"] == resumed["id"] and self._kind(s) == "LLM"]
+        self.assertEqual([(s["start"], s["end"]) for s in late], [(at(5, 12), at(5, 15))])
 
     def test_copied_turns_of_a_resumed_session_are_not_spans(self):
         _, spans = self._spans()
@@ -230,6 +253,8 @@ class TraceCase(unittest.TestCase):
         once, again, other = trace.build(self._data()), trace.build(self._data()), trace.build(self._data("r2"))
         self.assertEqual(once["trace_id"], again["trace_id"])
         self.assertEqual([s["id"] for s in once["spans"]], [s["id"] for s in again["spans"]])
+        # 落ちて走り直した起動（同じ run・道・周で始めの時刻だけが違う）も別の id になる
+        self.assertEqual(len([s for s in once["spans"] if s["name"] == "start"]), 2)
         self.assertEqual(len({s["id"] for s in once["spans"]}), len(once["spans"]))
         self.assertNotEqual(once["trace_id"], other["trace_id"])
         self.assertFalse({s["id"] for s in once["spans"]} & {s["id"] for s in other["spans"]})
