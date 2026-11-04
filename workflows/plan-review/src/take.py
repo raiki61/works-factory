@@ -1,5 +1,5 @@
-"""審査の受け付け（docs/design/plan-review.md の 9.1〜9.3）。今の lib/boardview.py の take_review・_take・named・_lines・_pass_rejects
-（:971-1084）と、lib/planblk.py の受け付けの部品 face_row_gaps・design_gaps・kept_keys・item_refs・coverage_gaps・bound_map・_map_rows・
+"""審査の受け付け（docs/design/plan-review.md の 9.1〜9.3）。元の boardview の take_review・_take・named・_lines・_pass_rejects
+（:971-1084）と、元の planblk の受け付けの部品 face_row_gaps・design_gaps・kept_keys・item_refs・coverage_gaps・bound_map・_map_rows・
 unit_name・_names（:630-713）の写し。
 
 往復の記録に足す所（今の converge.record_pass・stash_rejects・止まった時の保留の穴を review.json に足す所）は写さず、往復の記録に足す
@@ -30,7 +30,7 @@ from engine.util import Reject   # lib/graphloops/engine/util.py
 from src import files, marks, material, steps, view
 
 REVIEW_NODE = files.REVIEW_NODE
-# 受け付けの拒みの頭（今の lib/planblk.py:83-98 の字）
+# 受け付けの拒みの頭（元の planblk の字）
 RECOMMEND_REJECT = (f"承認ノードの項目の行の推し（{gatemarks.RECOMMEND}）の形が崩れている。"
                     f"書くなら {gatemarks.RECOMMEND_SHAPE} の形で:")
 PLAIN_REJECT = "承認ノードの項目に字のまま載る文に、初見の読み手が解けない run の中の参照が在る:"   # gatemarks.plain_gaps の行の頭

@@ -1,5 +1,5 @@
 """診断の block の報告の行（docs/design/diagnose.md の 5.7）。人に見せる日本語の行。lib の読み口（outpurpose・querytest・gatemarks）が
-書く字と、今の報告（lib/runreport.py）の字をそのまま使う。再審が直す単位にした単位の行（修正の事実が要る）と「再審されずに残った異議」
+書く字と、今の報告（元の runreport）の字をそのまま使う。再審が直す単位にした単位の行（修正の事実が要る）と「再審されずに残った異議」
 の行は、つなぐ graph が組む。"""
 from __future__ import annotations
 

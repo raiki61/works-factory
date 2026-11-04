@@ -125,7 +125,7 @@ class SealProtectedCase(unittest.TestCase):
         got = out(trace, "ask-final")
         self.assertTrue(got["open"], got)
         self.assertIn("守りのパス", got["text"].splitlines()[0])
-        self.assertIn("tests/test_stats.py", got["text"])
+        self.assertIn("test/test_stats.py", got["text"])
         self.assertTrue(ran(trace, "gate-final"))
 
     def test_hit_stops_an_unattended_run_without_applying(self):

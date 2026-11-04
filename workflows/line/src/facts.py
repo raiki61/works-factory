@@ -1,6 +1,6 @@
 """report の block へ渡す facts を組む（docs/design/line.md の 7.2。欄と意味は docs/design/report.md の 1.2 の表）。
 
-元は組み込みで消える lib/outcome.py（結末の読み分けの部分）と lib/runreport.py（line だけが使う部分）の同じ名の関数（integration.md の
+元は組み込みで消えた outcome（結末の読み分けの部分）と runreport（line だけが使う部分）の同じ名の関数（integration.md の
 4.5-4 (f)）。元は block の返り（returns: 段の役の名 → 返り）を読んだので、ここでも受け皿の got を元の役の名の returns に詰め直して
 （returns_of）、同じ名の関数で読む。pointer は stages.resolve で place の中のパスに戻す。結末の 10 語と決める順は report の
 block の src/outcome.py が持ち、ここは止め・人待ち・残り・証の事実に仕分けるだけ。lib は KEEP の物だけを読む（関数の中で import する）。
@@ -379,7 +379,7 @@ def halt_rows(returns: dict) -> list:
     out = []
     plan = as_dict(returns.get("plan"))
     if (plan.get("stalled") is True or review_fell(returns)) and returns.get("fix") is None:
-        # 事前審査が諦めた・落ちた周も往復が進まない止め（今の事前審査は諦めた周を stalled で返した。元 lib/boardview.py の verdict）
+        # 事前審査が諦めた・落ちた周も往復が進まない止め（今の事前審査は諦めた周を stalled で返した。元の boardview の verdict）
         out.append({"at": "plan-review", "word": stopby.PLAN_CONVERGE})
     if plan_gave_up(returns):
         sr = plan.get("stop_reason")

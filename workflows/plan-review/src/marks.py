@@ -1,6 +1,6 @@
 """返答の行から決め手の欄と壁打ちの欄を外す純粋な関数（docs/design/plan-review.md の 1.5）。
 
-今の gatemarks.split・converge.split・converge.tree_split と同じ欄を外す。住処 lib/marks.py は README 9.1 で消えるので使わず、
+今の gatemarks.split・converge.split・converge.tree_split と同じ欄を外す。住処 marks は README 9.1 で消えるので使わず、
 素の dict の操作で行う。外す欄の名は lib の KEEP のモジュール（gatemarks・converge）の物を使う。
 
 - MARK_KEYS: 決め手の欄（gatemarks.FIELDS）と狭めない案（gatemarks.NO_NARROW）

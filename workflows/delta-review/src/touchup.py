@@ -1,5 +1,5 @@
 """手直しの役（refix-1・refix-2）の材料・指示の値・返答の受け付け（docs/design/delta-review.md の 3.8・5 節）。写す元は lib/fixboard.py の
-_owed_rows・prep_fix・tie_items・hole_ties・delta_fix_problems・undeclared_refix・undeclared_writes・touched_since と lib/refix.py の
+_owed_rows・prep_fix・tie_items・hole_ties・delta_fix_problems・undeclared_refix・undeclared_writes・touched_since と元の refix の
 accept_fix・SCOPE_REJECT・brief_ties。
 
 - owed_rows(place, n): 手直しが答える義務 [{key, from, text}]。n 回目の審査の穴の全部と、塞がっていない検算（closed が false）

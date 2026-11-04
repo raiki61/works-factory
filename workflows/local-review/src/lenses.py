@@ -16,8 +16,8 @@ fork（下請けの会話）で走る。返答の道具 StructuredOutput を継�
 - FORK_LENSES・UNSEEN_TAG・LENS_FILE・mark_unseen・unseen・unseen_lines: 見ていないレンズの印と控えと報告の行
 - installed_plugins・lens_gap・covers_lenses: 必須のレンズの照らし、レンズと行の照らし
 
-写す元は lib/judge_accept.py（LOCAL_REVIEW_SKILLS・_lens_gap・local_review_covers_lenses・_installed_plugins）と
-lib/diverted.py。振る舞いは変えない（違いは各関数の docstring）。
+写す元は judge_accept（LOCAL_REVIEW_SKILLS・_lens_gap・local_review_covers_lenses・_installed_plugins）と
+元の diverted。振る舞いは変えない（違いは各関数の docstring）。
 """
 import copy
 import os

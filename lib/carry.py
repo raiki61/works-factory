@@ -4,7 +4,7 @@
 持つのは形だけ: 依頼の容器の欄の名・下書きの印・前の失敗の行・盤面の根のファイルの名・約束の JSON Schema（この置き場の
 next-request.schema.json と prior-failures.schema.json）の読みと照らし・依頼の解き方・置き場への読み書き。何を運ぶか（残りの行・
 答えの下書きの選び）は書き手の側（報告・関所の足し欄・目的の外の所見）が決める。書き手は書く前に Schema で照らし、読み手は
-依頼を解く時に同じ Schema で前の失敗の行を照らす（欄の名の定数と Schema の欄が揃うことは tests/test_carry_home が縛る）。
+依頼を解く時に同じ Schema で前の失敗の行を照らす（欄の名の定数と Schema の欄を揃える）。
 
 依頼のファイルは findings の JSON の配列か、{"findings": [...], "pr": [<番号>…], "issue": [<番号>…], "answers": [...],
 "prior_failures": [...], "theme": "..."} の形。prior_failures は前の run で最後まで通らなかった物 [{where, text}]（前の run の報告が書く

@@ -1,5 +1,5 @@
 """腕の照らし（docs/design/gate-efficacy.md の 3 節）: 腕が赤・対照の緑・守る行の通過をそろえずに clean を名乗るのを拒む。
-元 lib/judge_accept.py の _unproven・gate_arms_all_red（raise Reject を文の返しに替えた）"""
+元の judge_accept の _unproven・gate_arms_all_red（raise Reject を文の返しに替えた）"""
 import materialkit  # lib/
 import recount  # lib/
 

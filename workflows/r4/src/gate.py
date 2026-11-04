@@ -1,4 +1,4 @@
-"""修正前の承認ノードで通した行と、R4 の問いの行（docs/design/r4.md の 1.5）。lib/eyeverdict.py の写し（_human_passed・
+"""修正前の承認ノードで通した行と、R4 の問いの行（docs/design/r4.md の 1.5）。元の eyeverdict の写し（_human_passed・
 carried_section と declared_section の行の部分・R4_ROWS・_r4_rows・r4_gate_items・passed_by・gate_passes・R4_REJECT・R4_GAVE_UP）。
 R4_REJECT の尾（直し方の段落）は元と違い prompts/parts/rejection-fixes.md が持つ（docs/design/r4.md の 9 の 15）。
 見出しと頼みの文（gatemarks.CARRIED_HEAD・CARRIED_ASK、eyeverdict.DECLARED_HEAD・DECLARED_ASK）は写さず、prompts/r4-scope.md が持つ。

@@ -1,4 +1,4 @@
-"""差分を切る・審査役の材料を置く・審査が要るかを決める（docs/design/delta-review.md の 1.5。写す元は lib/refix.py の _cut_delta・cut と
+"""差分を切る・審査役の材料を置く・審査が要るかを決める（docs/design/delta-review.md の 1.5。写す元は refix の _cut_delta・cut と
 lib/fixboard.py の delta_review_due・snapshot）。
 
 - due(repo, base, reply): 1 回目の審査が要るか (要るか, 訳)
