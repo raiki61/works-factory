@@ -100,16 +100,69 @@ class CompareRoadCase(_RepoCase):
         self.assertIn("u1: 赤 ok・緑 ok", got)
         self.assertIn("名指しのテスト tests/test_stats.py::TestStats::test_clamp_above_range", got)
 
+    def _stats_repo(self, *extra: str):
+        """stats を変え、tests/test_stats.py がそれを import する形（#384 の改名の場面）。tests/test_other.py は other だけを import する。
+        extra は起点に置いて、作業ツリーで中身を変えるファイル"""
+        (self.repo / "tests").mkdir()
+        (self.repo / "stats.py").write_text("def median(xs):\n    return xs\n", encoding="utf-8")
+        (self.repo / "other.py").write_text("X = 1\n", encoding="utf-8")
+        (self.repo / "tests" / "test_stats.py").write_text("import stats\n", encoding="utf-8")
+        (self.repo / "tests" / "test_other.py").write_text("import other\n", encoding="utf-8")
+        for name in extra:
+            (self.repo / name).write_text("before\n", encoding="utf-8")
+        git(self.repo, "add", "-A")
+        git(self.repo, "commit", "-q", "-m", "stats")
+        self.base = git(self.repo, "rev-parse", "HEAD").strip()
+        (self.repo / "stats.py").write_text("def middle(xs):\n    return xs\n", encoding="utf-8")
+        for name in extra:
+            (self.repo / name).write_text("after\n", encoding="utf-8")
+
+    STATS = [f"tests.test_stats.TestMedian::test_{n}" for n in ("odd", "even", "single")]
+    OTHER = [f"tests.test_other.TestOther::test_{n}" for n in ("a", "b")]
+
+    def _outcomes(self) -> dict:
+        rows = [{"key": k, "base": "passed", "final": "passed", "fail_message": ""} for k in (*self.STATS, *self.OTHER)]
+        rows += [{"key": "tests.test_other.TestOther::test_skip", "base": "skipped", "final": "skipped", "fail_message": ""},
+                 {"key": "tests.test_other.TestOther::test_red", "base": "failure", "final": "failure", "fail_message": "boom"},
+                 {"key": "tests.test_other.TestOther::test_fixed", "base": "failure", "final": "passed", "fail_message": "was"}]
+        return {"rows": rows, "unmeasured": ""}
+
     def test_green_to_green_tests_are_named_in_the_compare_prompt(self):
-        """test_rename_without_red_puts_the_green_tests_in_the_compare_prompt（issue #384）"""
-        names = [f"tests.test_stats.TestMedian::test_{n}" for n in ("odd", "even", "single")]
-        outcomes = {"rows": [{"key": k, "base": "passed", "final": "passed", "fail_message": ""} for k in names], "unmeasured": ""}
-        self.intake(test_outcomes=dump(outcomes))
+        """test_rename_without_red_puts_the_green_tests_in_the_compare_prompt（issue #384）: 改名した stats を import するテストの
+        緑→緑は、変更の周りの地図で届くので名を貼る"""
+        self._stats_repo()
+        self.intake(test_outcomes=dump(self._outcomes()))
         text = self.compare()["prompt"]
-        self.assertIn("- 緑→緑（base でも最後でも緑）: 3 件", text)
-        for k in names:
+        self.assertIn("- 緑→緑（base でも最後でも緑）: 5 件", text)
+        for k in self.STATS:
             self.assertIn(f"  - `{k}`\n", text)
-        self.assertLess(text.index(names[-1]), text.index("Before you write that something is missing"))
+        self.assertLess(text.index(self.STATS[-1]), text.index("Before you write that something is missing"))
+
+    def test_unrelated_unchanged_tests_become_a_count(self):
+        """変更したファイルから地図で届かないテストのファイルの緑→緑・飛ばし→飛ばしは名を貼らず件数の 1 行。結末が変わった行と
+        赤→赤は届かなくても全部貼る。TDD の記録が名指したテストは届かなくても貼る"""
+        self._stats_repo()
+        tdd = [[{"group_id": "g1", "ran": True, "reason": "", "suite": "", "reused": {},
+                 "units": [{"unit_key": "u1", "route": "tdd", "red": "ok", "green": "ok",
+                            "tests": ["tests/test_other.py::TestOther::test_b"]}]}]]
+        self.intake(test_outcomes=dump(self._outcomes()), tdd=dump(tdd))
+        outcomes = self.compare()["prompt"].partition("### TDD loop records")[0]
+        self.assertNotIn("TestOther::test_a`", outcomes)
+        self.assertNotIn("TestOther::test_skip`", outcomes)
+        self.assertIn("  - `tests.test_other.TestOther::test_b`\n", outcomes)
+        self.assertIn("  - ほかに 1 件は名を貼っていない（変更したファイルから地図で届かないテストのファイルの物）", outcomes)
+        self.assertIn("- 飛ばし→飛ばし: 1 件\n  - ほかに 1 件は名を貼っていない", outcomes)
+        self.assertIn("  - `tests.test_other.TestOther::test_red`（base failure・最後 failure: boom）", outcomes)
+        self.assertIn("  - `tests.test_other.TestOther::test_fixed`（base failure: was）", outcomes)
+
+    def test_all_names_are_pasted_when_the_map_cannot_decide(self):
+        """地図が関わりを決められない時（変更の近くに読めない物が在り all_tests_required を返す）は、変わらない行も全部の名を貼る"""
+        self._stats_repo("data.zzq")
+        self.intake(test_outcomes=dump(self._outcomes()))
+        text = self.compare()["prompt"]
+        for k in (*self.STATS, *self.OTHER, "tests.test_other.TestOther::test_skip"):
+            self.assertIn(f"  - `{k}`\n", text)
+        self.assertNotIn("件は名を貼っていない（", text)
 
     def test_origin_names_the_pr_diff_and_the_fix_diff_apart(self):
         """test_prep_names_the_pr_diff_and_the_fix_diff_apart（issue #384）: head の port で"""
