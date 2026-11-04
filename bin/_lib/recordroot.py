@@ -7,7 +7,8 @@ run は終わりの記録が無いので、run の行の `output_root` から Ar
 run の見つけ方: 殻は run を子のプロセスで起こすので、その番号を知っている。Archon が run の記録に付ける持ち主(`metadata.execution_owner`。
 host と pid)が子の番号と同じ run を、`workflow runs --json` から選ぶ。同じ対象に同じグラフを同時に起こしても取り違えない。
 見つからない・読めない時は、黙らずにそう言う(run は終わっているので、止めない)。Archon が落ちて run が見つからない時は、呼び手の
-訳の口(why。殻は origin に届くかの確かめ。bin/_lib/startpoint.py の unreachable)が返す訳を同じ行に足す。
+訳の口(why。殻は Archon が問い合わせる remote〔設定の remote、無ければ origin、それも無ければただ 1 つの remote〕に届くかの確かめ。
+bin/_lib/startpoint.py の unreachable)が返す訳を同じ行に足す。
 """
 import os
 import signal
