@@ -10,7 +10,7 @@ docs/plans/2026-10-27-design-stage.md の 2.2 の 7〜9・2.4・8 章）。
   配る値）。判定から後ろは依頼をここからだけ読む
 - dealt(given, request_raw) -> dict: 配る値の依頼の欄を request-in の返りの物に替えた写し（配る値まるごとを受ける script の読み口）
 - back(rounds_got, *, given, record, descended, place, env) -> dict: theme-return。テーマの run の計画の承認ノードで redesign と答えた時だけ、
-  続きの run のテーマの md・依頼のファイル・起動の 1 行を files.THEME_NEXT_DIR に書く
+  続きの run のテーマの md・依頼のファイル・起動の 1 行を files.THEME_NEXT_DIR に書く（依頼の答えの行の名は PRIOR_Q で前の run の物に分ける）
 """
 from __future__ import annotations
 
@@ -29,6 +29,9 @@ APPROVED_Q = "設計の段で承認された設計"
 ASK_Q = "設計の段の問い {id}"
 TALK_Q = "設計の段の承認ノードの {n} 番目の答え（{decision}）"
 OWNER = "持ち主の承認"
+# 続きの run の依頼に写す行の名（問いの id・答えの番号は run ごとに 1 から振り直すので、前の run の名のままだと続きの run の同じ名の行と
+# 重なり、_answers の重ねない並びが今の run の行を落とす。今の run の行の名はこの頭で始まらないので重ならない。続きの続きの run では頭が 2 つ付き、1 つ前の run の行とも分かれる）
+PRIOR_Q = "前の run の{question}"
 ROW_TEXT = "{what}（設計の段 {id}。部品 {parts}）"
 NO_CHANGE = "承認された設計に変える所が無い（設計だけの結末。降りずに報告を出す）"
 NO_ROUNDS = "設計の往復の返りが無い（設計の段が落ちたか飛んだ）"
@@ -189,6 +192,7 @@ def back(rounds_got, *, given: dict, record: dict, descended, place: Path, env=N
     answers = [a for a in (descended or {}).get("request_answers") or [] if isinstance(a, dict) and a.get("question") != APPROVED_Q]
     answers += [{"question": f"計画の段の承認ノードの {n} 番目の答え（{t.get('decision')}）", "text": str(t.get("text") or "").strip() or "（一言なし）"}
                 for n, t in enumerate((t for t in rounds_got.get("talks") or [] if isinstance(t, dict) and not t.get("bad")), 1)]
+    answers = [{**a, "question": PRIOR_Q.format(question=a.get("question"))} for a in answers]
     request = jsonfile.write(place / files.THEME_NEXT_REQUEST, {"findings": [], "theme": str(theme_md), "answers": answers},
                              parents=True)
     line = command(record, request, env)

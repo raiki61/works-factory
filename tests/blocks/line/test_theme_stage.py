@@ -297,12 +297,40 @@ class ThemeStageCase(TalkBase):
                                         place=self.run.artifacts, env={})["back"])
         request = json.loads((self.run.artifacts / "theme/next/request.json").read_text(encoding="utf-8"))
         rows = policy.recorded({"answers": carry.parts(request)["answers"]})
-        self.assertEqual({r["name"]: r["source"] for r in rows}[ask], policy.PUSH_SOURCE)
-        self.assertFalse(policy.decides(rows, f"決め手: {ask}"))
+        prior = self.d.PRIOR_Q.format(question=ask)
+        self.assertEqual({r["name"]: r["source"] for r in rows}[prior], policy.PUSH_SOURCE)
+        self.assertFalse(policy.decides(rows, f"決め手: {prior}"))
         shared = json.loads((kit.ROOT / "workflows/.shared/schemas/request-answers.schema.json").read_text(encoding="utf-8"))
         row = json.loads((kit.ROOT / "lib/push-row.schema.json").read_text(encoding="utf-8"))
         self.assertEqual(set(shared["items"]["properties"][carry.PUSHED]["items"]["properties"]), set(row["properties"]),
                          "依頼の answers の推しの行の形は push-row と同じ欄")
+
+
+    def test_next_run_approval_is_not_shadowed_by_the_prior_push(self):
+        """推しで降りる → 計画の承認ノードで redesign → 続きの run で人が承認、の流れで、前の run の推しの行が、今の run で人が承認した
+        同じ番号の問いの行を押しのけない（問いの id は run ごとに Q1 から振り直す。続きの依頼に写す行は名を PRIOR_Q で前の run の物に分ける）"""
+        import carry
+        import policy
+        bare = {**self.theme_out(design=self.design(asks=[])), **self.t.talk_fields({})}
+        first = self.descend(bare, {**self.given, "unattended": True})
+        ask = self.d.ASK_Q.format(id="Q1")
+        first = {**first, "request_answers": [*first["request_answers"],
+                                              {"question": ask, "text": "推しの b を採った", self.answer.PUSHED: []}]}
+        rounds_got = {**self.plan_out(), "agreed": {"decision": "redesign", "text": "C1 が成り立たない"},
+                      "talks": [{"decision": "redesign", "text": "C1 が成り立たない"}]}
+        with self.run.env():
+            self.assertTrue(self.d.back(rounds_got, given=self.given, record={"inputs": {}}, descended=first,
+                                        place=self.run.artifacts, env={})["back"])
+        request = json.loads((self.run.artifacts / "theme/next/request.json").read_text(encoding="utf-8"))
+        carried = carry.parts(request)["answers"]
+        self.assertFalse({a["question"] for a in carried} & {ask, self.d.APPROVED_Q}, "続きの依頼の行の名は今の run の名と重ならない")
+        went = self.descend(self.agreed(), {**self.given, "request_answers": carried})
+        self.assertTrue(went["go"], went)
+        rows = policy.recorded({"answers": went["request_answers"]})
+        self.assertEqual([r["source"] for r in rows if r["name"] == ask], ["answer"], "今の run で人が承認した行が残る")
+        self.assertTrue(policy.decides(rows, f"決め手: {ask}"))
+        prior = self.d.PRIOR_Q.format(question=ask)
+        self.assertEqual([r["source"] for r in rows if r["name"] == prior], [policy.PUSH_SOURCE], "前の run の推しは推しのまま残る")
 
 
 # ---------------------------------------------------------------- YAML の配線
