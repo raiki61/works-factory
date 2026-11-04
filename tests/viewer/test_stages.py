@@ -22,8 +22,10 @@
 - 結末の頭の語の表（outcomes）の語の組は、工場の結末の語の正本 lib/report.py の OUTCOMES と同じ（工場が結末の語を足せば赤）
 - 段ごとの MISSION の語の列（mission。MISSION.md の「流れ」の段階と承認ノードのうち、その段が担う物）は、語がどれも MISSION.md の
   流れに在り、流れの語がどれもどこかの段に在る（MISSION の流れの語を足す・替えると赤。段の名と MISSION の語が 1 対 1 でないのを
-  画面で読めるようにする）。承認ノードの語は、承認ノード（作りの kind が gate の物。line の一番上のノードと、繰り返しの中の
-  ノード〔計画の往復の gate-design・設計の段の gate-theme〕）を持つ段にだけ在り、そういう段には必ず在る（語の抜けと余りが赤）
+  画面で読めるようにする）。承認ノードの語は、作りの上で承認ノード（kind が gate の物）に届きうる段にだけ在り、そういう段には必ず在る（語の抜けと余りが
+  赤）。届きうるは、line の一番上のノード・繰り返しの中のノード（計画の往復の gate-design・設計の段の gate-theme）・include の先の
+  graph の中のノード（判定の judge → spec の spec-gate）を辿って決める。include の先の when は読まないので、仕様を照らすだけの
+  spec-check-run（mode check。spec-gate は起きない）を持つ確かめ直しの段も届きうるに入る
 
 試験は小さな作りと run の記録を手で組む。
 """
@@ -89,11 +91,16 @@ class StagesCase(unittest.TestCase):
         self.assertEqual(run_of([], [])["stages"]["table"][0]["mission"], stages.TABLE["stages"][0]["mission"])
 
     def test_the_stages_with_an_approval_node_say_so(self):
-        def gated(item):
-            return item["kind"] == "gate" or any(gated(kid) for kid in item.get("kids", []))
-        graph = flowview.tree_shape()["graphs"][stages.TABLE["graph"]]
-        gates = {item["id"] for item in graph["items"] if gated(item)}
-        self.assertTrue({"plan-rounds", "theme-rounds"} <= gates)
+        graphs = flowview.tree_shape()["graphs"]
+
+        def gated(item, seen):
+            if item["kind"] == "gate" or any(gated(kid, seen) for kid in item.get("kids", [])):
+                return True
+            target = item.get("target") if item["kind"] == "block" else None
+            return target in graphs and target not in seen and any(gated(kid, seen | {target}) for kid in graphs[target]["items"])
+        graph = graphs[stages.TABLE["graph"]]
+        gates = {item["id"] for item in graph["items"] if gated(item, {stages.TABLE["graph"]})}
+        self.assertTrue({"plan-rounds", "theme-rounds", "judge"} <= gates)
         has = {stage["name"] for stage in stages.TABLE["stages"] if gates & set(stage["nodes"])}
         says = {stage["name"] for stage in stages.TABLE["stages"] if "承認ノード" in stage["mission"]}
         self.assertEqual(says, has)
