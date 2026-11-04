@@ -190,8 +190,8 @@ line が段ごとに引いた真偽の表 `verify_by_tier` を、head-depth が�
 - `run` が真: 目ごとの行は、その block の出力の `verdict`（受け皿が飛んだ目は `{status: unverifiable, reason: eyekit.fell_text(…)}`。「R<n> の筋が落ちた（<目>: 出力が無い。ノードが落ちた）」）。`merge` が真の時、`r3` の行は r4 の出力 `coherence` の判定の行（r4 の設計書）。
 - 落ちた目の訳の尾（E50）: `r4` の行が在り（r4 が返った）、ほかの目の行の `reason` が `eyekit.FELL_MARK` を含めば、「まま R4 を回した」を足す（今の `fell_text(…, ran)`。r1 の設計書の 0.9 が graph に残した物）。
 - `ok`（E49）: 回した目の全部の行が `pass` で、R2 が前提の検算の道でない（r2 の `premise_check` が null）時だけ真。どれか 1 つでも `fix-needed`・`redesign-needed`・`unverifiable` なら偽。R2 の行は前提の検算の道では r2 が `unverifiable`（「前提不成立: 」の頭）を返すので、行だけでも偽になる。
-- 直した後の実測の `dirty`・`escalate` は `ok` に入れない（今の eyes も入れず、最後の承認ノードが「考えの住処の柵（対象のリポジトリが考えの置き場を縛る表）の当たりの数が増えた」を開ける理由にし、報告が残りに数える。E73。structure の設計書の 1.6 が eyes の設計書に決めを任せた所）。
-- `questions`・`passes` は r4、`premise_check`・`notes` は r2 の出力から写す（受け皿が飛んだ目は空の配列と null）。`means_questions` は r2 の `questions`（頼みどおりの違いの問い。R4 の問いと分ける。`docs/design/plan-review.md` の 20 章の 6.3 の 2）。port `means` は r2 にそのまま渡す。
+- 直した後の実測の `dirty`（構造を汚すと見た行の数）・`escalate`（人に上げる行の数）は `ok` に入れない（今の eyes も入れない）。この数は line が読む: 最後の承認ノードは「考えの住処の柵（対象のリポジトリが考えの置き場を縛る表）に触れる数が増えた」を、人に開けて答えを待つ理由の 1 つにする。報告は直し残りの行（結末で直したと名乗らせない行）に数える（E73。structure の設計書の 1.6 が eyes の設計書に決めを任せた所）。
+- `questions`・`passes` は r4、`premise_check`・`notes` は r2 の出力から写す（受け皿が飛んだ目は空の配列と null）。`means_questions` は r2 の `questions`（頼みどおりの違いの問い。R4 の問いと分ける。`docs/design/plan-review.md` の 20 章の 6.3 の 2）。port `means`（頼みが名指した解き方の一覧）は r2 にそのまま渡す。
 - `sections`: structure（after）・r1・r2・r3（`merge` の時は無い）・r4 の `report` を 1 節ずつ（見出しは「直した後の構造の実測」「独立の目 R1 最小性とコメント」…）と、このまとめの行の節「独立の目のまとめ」（`ok` の訳・省いた目・まとめた目）。
 - 落ちない: 中の誤りは全部捕まえ、`ok: false`・目の行は全部 `unverifiable`（理由に誤りの 1 行）・ほかは null か空で返す（今の `fallen`。E54・E55）。NaN と Infinity は `allow_nan=False` で落ちた返りにする。
 
