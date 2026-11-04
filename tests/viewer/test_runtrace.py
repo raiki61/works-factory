@@ -5,7 +5,8 @@ docs/design/viewer.md の 8.1 の入口の順）。
 - 止まった時の sys.modules に opentelemetry と viewer.src.otlp が無い（拒む道は SDK の無い環境でも走り切る）
 - 対象のフォルダが無くても同じ訳で止まる（run を読む前に決める。読む方が先なら「対象のフォルダが無い」で止まる）
 - 時刻の無い span（時刻が 1 つも読めない下請け・時刻の読めない往復。trace.build は始めも終わりも None で返す）は、送る前に一番近い
-  時刻の在る祖先の始めと終わりで埋め、印 works_factory.timeless を付けて読めなかった物に数える（落とすと子の span が親を失う）
+  時刻の在る祖先の始めと終わりで埋め、印 works_factory.time_from_ancestor を付け、埋めた数を返す。読めなかった物には足さない
+  （時刻の読めない往復は会話の読みが数え済みで、足すと二重になる）。落とすと子の span が親を失う
 
 入口は子のプロセスで、小さな包み（python3 -c）が runpy.run_path で走らせ、SystemExit の後に終了の値と sys.modules の名を 1 行で出す。
 子で起こすのは、extra の在る手元で test_otlp.py が同じプロセスで先に import した物を拾わないため。SDK は要らない。
@@ -18,6 +19,7 @@ from pathlib import Path
 
 from tests.bin import hermetic
 from viewer import runtrace
+from viewer.src import trace
 from viewer.src import sendto
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -70,14 +72,14 @@ class TimelessTest(unittest.TestCase):
             span("tool", "run", "2026-11-04T01:10:00.000Z", "2026-11-04T01:10:01.000Z"),
             span("turn", "agent", "2026-11-04T01:12:00.000Z", "2026-11-04T01:13:00.000Z"),
             span("agent", "tool"), span("lost", "agent")]}
-        runtrace.timed(built)
+        self.assertEqual(runtrace.timed(built), 2)
         got = {s["id"]: s for s in built["spans"]}
         for ident in ("agent", "lost"):
             self.assertEqual((got[ident]["start"], got[ident]["end"]), ("2026-11-04T01:10:00.000Z", "2026-11-04T01:10:01.000Z"))
-            self.assertIs(got[ident]["attributes"][runtrace.TIMELESS], True)
+            self.assertIs(got[ident]["attributes"][trace.TIME_FROM_ANCESTOR], True)
         self.assertEqual(got["turn"]["start"], "2026-11-04T01:12:00.000Z")
-        self.assertNotIn(runtrace.TIMELESS, got["turn"]["attributes"])
-        self.assertEqual(built["unread"], {"x": 1, runtrace.FILLED: 2})
+        self.assertNotIn(trace.TIME_FROM_ANCESTOR, got["turn"]["attributes"])
+        self.assertEqual(built["unread"], {"x": 1})
 
 
 if __name__ == "__main__":

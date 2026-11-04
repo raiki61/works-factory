@@ -4,15 +4,19 @@
 - decide(endpoint, env, remote) -> Send。拒む時は Refused（訳の 1 行）を投げる
   - 送り先の名指しは 引数 --endpoint → OTEL_EXPORTER_OTLP_TRACES_ENDPOINT → OTEL_EXPORTER_OTLP_ENDPOINT の順に先に在る物。前の 2 つは
     字のまま、土台の env は /v1/traces を足して使う（OpenTelemetry の仕様の「Endpoint URLs for OTLP/HTTP」）。空の値は未設定と同じ
+  - 番地の部分は [v6 の番地] か英数字と . - の名に任意の :数字 だけを通し、\\・userinfo（@）・空白・制御文字を持つ URL は remote でも
+    拒む（requests は番地を \\ でも切るので、urlsplit の host だけで決めると手元と読んだ字が遠くへ繋がる）。訳に URL を出さない
   - 既定の送り先を持たない。手元（localhost と loopback の番地。名前は引かない）でない送り先は remote の時だけ送る
   - headers は env で名指した送り先にだけ付ける（OTEL_EXPORTER_OTLP_TRACES_HEADERS が OTEL_EXPORTER_OTLP_HEADERS に勝つ）。値は
-    percent-decode する。引数で名指した送り先には付けない（shell に在る別の受け口の鍵を、引数の宛先へ出さない）
+    percent-decode し、解いた名か値に制御文字が在れば値を出さずに番号で拒む。引数で名指した送り先には付けない（shell に在る別の
+    受け口の鍵を、引数の宛先へ出さない）
   - 送りの形の env（OTEL_EXPORTER_OTLP_TRACES_PROTOCOL が OTEL_EXPORTER_OTLP_PROTOCOL に勝つ）が http/protobuf でなければ拒む
   - 手元の送り先は利用者の proxy の env を使わない（proxy に切られる）
 - dropped(env): 入口が SDK を読む前に自分の過程の env から外す名（OTEL_ で始まる名の全部）。SDK の OTLP/HTTP の exporter は引数を
   渡しても env の headers・圧縮・証明書などを読むので、送りに要る値は全部 Send に入れ、SDK には env を読ませない
 """
 import ipaddress
+import re
 from dataclasses import dataclass, field
 from typing import Mapping
 from urllib.parse import unquote, urlsplit
@@ -26,6 +30,9 @@ TRACES_PROTOCOL = "OTEL_EXPORTER_OTLP_TRACES_PROTOCOL"
 BASE_PROTOCOL = "OTEL_EXPORTER_OTLP_PROTOCOL"
 PROTOCOL = "http/protobuf"
 SIGNAL_PATH = "v1/traces"
+UNSAFE = re.compile(r"[\\\s\x00-\x1f\x7f]")   # バックスラッシュ・空白・制御文字。requests（urllib3）は番地の部分をバックスラッシュでも切る
+CONTROL = re.compile(r"[\x00-\x1f\x7f]")
+AUTHORITY = re.compile(r"(\[[0-9A-Fa-f:.]+\]|[A-Za-z0-9.-]+)(:[0-9]+)?")   # [v6 の番地] か名に任意の :数字（userinfo の @ を通さない）
 
 
 class Refused(Exception):
@@ -59,8 +66,11 @@ def decide(endpoint: str | None, env: Mapping[str, str], remote: bool) -> Send:
         raise Refused(f"送り先が無い。--endpoint か env の {TRACES_ENDPOINT}・{BASE_ENDPOINT} で名指す（既定の送り先は持たない。"
                       "例 http://127.0.0.1:6006/v1/traces）")
     parts = urlsplit(url)
+    if UNSAFE.search(url) or (parts.netloc and not AUTHORITY.fullmatch(parts.netloc)):
+        raise Refused(f"{named} の送り先の番地の部分が形でない（[v6 の番地] か英数字と . - の名に任意の :数字 だけを通す。\\・"
+                      "userinfo の @・空白・制御文字は使わない。鍵は URL でなく headers の env で渡す）")
     if parts.scheme not in ("http", "https") or not parts.hostname:
-        raise Refused(f"{named} の送り先 {url} は http か https の URL でない")
+        raise Refused(f"{named} の送り先は http か https の URL でない（訳に URL を出さない。字に鍵が混じりうる）")
     local = _local(parts.hostname)
     if not local and not remote:
         raise Refused(f"送り先 {parts.hostname} は手元でない。span は会話と道具の中身（対象のリポジトリの字）を持つので、送るなら --remote を付ける")
@@ -94,7 +104,10 @@ def _headers(env: Mapping[str, str]) -> dict:
         name = unquote(name).strip().lower()
         if not eq or not name:
             raise Refused(f"{got[0]} の {n} 番目の項が name=value の形でない")
-        out[name] = unquote(value).strip()
+        value = unquote(value).strip()
+        if CONTROL.search(name) or CONTROL.search(value):
+            raise Refused(f"{got[0]} の {n} 番目の項が percent の符号を解いた後に制御文字（改行など）を持つ")
+        out[name] = value
     return out
 
 

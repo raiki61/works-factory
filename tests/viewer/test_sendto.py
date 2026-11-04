@@ -4,9 +4,11 @@
 - 名指しの順: 引数 --endpoint → OTEL_EXPORTER_OTLP_TRACES_ENDPOINT → OTEL_EXPORTER_OTLP_ENDPOINT。答えの URL は前の 2 つでは字のまま、
   土台の env では /v1/traces を足した物（土台が / で終わる時も / を重ねない）
 - 手元でない送り先は --remote 無しで拒み、在れば通す。手元は localhost と loopback の番地（v4 と v6）だけで、ほかの名は手元でない
+- 番地の部分は [v6 の番地] か英数字と . - の名に任意の :数字 だけを通す。\\・userinfo（@）・空白・制御文字を持つ URL は --remote が
+  在っても拒み、訳に URL の鍵を出さない（requests は番地を \\ でも切るので、urlsplit が手元と読む字が遠くへ繋がる）
 - 手元の送り先の答えは利用者の proxy の env を使わない（env に proxy が在っても）。手元でない送り先は使う
 - headers は env で名指した送り先にだけ付く（信号ごとの名が勝つ）。引数 --endpoint の時は env に headers が在っても付かない。
-  値の percent の符号を解く
+  値の percent の符号を解く。解いた名か値に制御文字（改行など）が在れば、値を出さずに番号で拒む
 - 送りの形の env が grpc・http/json なら拒み、http/protobuf と空と未設定は通す（信号ごとの名が勝つ）
 - 外す名の選びは OTEL_ で始まる名を全部選び、ほかの名を選ばない
 
@@ -64,6 +66,14 @@ class WhereTest(unittest.TestCase):
             self.assertFalse(decide(url, remote=True).local, url)
             self.refused(url)
 
+    def test_an_authority_other_libraries_split_otherwise_is_refused_even_with_remote(self):
+        """requests（urllib3）は番地の部分を \\ でも切るので、urlsplit が手元と読む字が遠くへ繋がる。userinfo・空白・制御文字も拒む"""
+        for url in ("http://collector.example.com\\@127.0.0.1:6006/v1/traces", "http://collector.example.com\\@localhost/v1/traces",
+                    "http://key@127.0.0.1:6006", "http://user:key@collector.example.com/v1/traces", "http://127.0.0.1 :6006",
+                    "http://127.0.0.1:6006\\x", "http://127.0.0.1:6006/v1/\ntraces", "http://127.0.0.1:x"):
+            self.assertNotIn("key", self.refused(url, remote=True), url)
+            self.refused(env={BASE: url}, remote=True)
+
     def test_a_url_without_a_host_is_refused(self):
         self.refused("127.0.0.1:6006")
         self.refused("ftp://127.0.0.1/v1/traces")
@@ -95,6 +105,13 @@ class HeadersTest(unittest.TestCase):
         with self.assertRaises(sendto.Refused) as caught:
             decide(env=env)
         self.assertNotIn("secretvalue", str(caught.exception))
+
+    def test_a_control_character_in_a_decoded_header_is_refused_without_its_value(self):
+        for raw in ("a=secret%0Avalue", "a=secret%0D%0Ax-b: c", "a%0Ab=secretvalue", "a=secret%7Fvalue"):
+            env = {TRACES: LOCAL, "OTEL_EXPORTER_OTLP_HEADERS": raw}
+            with self.assertRaises(sendto.Refused, msg=raw) as caught:
+                decide(env=env)
+            self.assertNotIn("secret", str(caught.exception), raw)
 
 
 class ProtocolTest(unittest.TestCase):
