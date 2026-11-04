@@ -9,7 +9,7 @@
 - 通常の run: 受け皿の got（直す前のテスト・判定のまとめ・構造の目）と返し（段の表・独立設計・計画の往復）と修正前の承認の答えを
   運ぶ値 received_live に組み、平らな欄にする。go は修正前の承認を通ったか。go が真なら、修正の前に 1 度だけ run の置き場を固定材料に
   写す（src.fixture.noted_capture。運ぶ値を控えに入れる。写せなくても止めない）。修正前の承認ノードが人の判断待ちで止めた時
-  （止めの語 before_fix_stop が works:needs-human か human: で始まる）も、計画の往復の got を運ぶ値の fixture.GATE_KEY に足して写す
+  （止めの語 before_fix_stop が works:needs-human か human:gate-before-fix）も、計画の往復の got を運ぶ値の fixture.GATE_KEY に足して写す
   （次の run が判定と計画を飛ばして修正前の承認ノードから続ける）
 - 固定材料の run（start が取り込んだ）: start が置いた運ぶ値を同じ式で平らな欄にする。go は起動の承認を通ったか。写さない。
   修正前の承認ノードで止まった所の写し（fixture.pending）は、go に続きの修正前の承認（fixture- の付いた入力）を通ったかを足し、答え・

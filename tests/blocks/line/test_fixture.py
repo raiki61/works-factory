@@ -173,6 +173,16 @@ class AdoptCase(Fixture):
         self.assertEqual((doc["inputs"]["unattended"], doc["inputs"]["final_gate"]), ("", "always"))
         self.assertEqual((doc[fixture.KEY]["gate"], doc[fixture.KEY]["pushed"]), (True, True))
 
+    def test_a_run_a_person_stopped_before_the_fix_is_not_taken_on_unattended(self):
+        """直す前の承認ノードで止まった人の居る run の写し（unattended が空）は、無人の run（unattended=true）では拒む（人が止めた
+        計画を、無人の推しの通しで修正へ運ばせない）。final_gate は今の値にしてよい"""
+        self.carried = {**self.carried, fixture.GATE_KEY: {"done": True, "ok": True}}
+        src = self.captured()
+        self.refused("unattended", src=src, inputs={**INPUTS, "unattended": "true", "fix_fixture": "x"})
+        doc, _ = self.adopt(src, self.wrapped(),
+                            inputs={**INPUTS, "final_gate": "always", "fix_fixture": "x"})
+        self.assertEqual(doc["inputs"]["final_gate"], "always")
+
     def test_a_copy_that_went_on_to_the_fix_keeps_its_attendance(self):
         """止まらずに修正へ進んだ写し（推しで通った修正前の承認を持つ）は、unattended・final_gate を替えると拒む（人が確かめないまま
         修正へ運ばせない）"""

@@ -58,7 +58,9 @@ CAPTURED_KEY = "fixture_captured"  # 始めの記録の鍵 {dir, error}（写し
 # ままで、修正の段から後ろの機能だけが効く）。deliver は封じた後の渡し方だけを変え、写しの中身に効かない
 CURRENT = ("fix_fixture", "request", "features_off", "features_on", "deliver")
 # 修正前の承認ノードで止まった写し（pending）の時だけ今の値にする欄: 承認ノードの開き方だけを変える（無人の run が人の答えを待って止まった
-# 写しを、人の居る run で続ける。判定・修正案は写しの物のまま）。止まらずに写した物は推しで通った修正前の承認を持つので、替えると拒む
+# 写しを、人の居る run で続ける。判定・修正案は写しの物のまま）。止まらずに写した物は推しで通った修正前の承認を持つので、替えると拒む。
+# unattended は人の居る向き（今の値が空）にだけ替えてよい: 人の居る run で人が止めた写しを無人の run で続けると、推しの通しが人の止めを
+# 書き直して修正へ進む
 GATE_CURRENT = ("unattended", "final_gate")
 _STR_KEYS = ("source_run", "head", "tree", "place_root", "repo_root", "request_sha256")
 _MAP_KEYS = ("commits", "files")
@@ -274,7 +276,7 @@ def adopt(place, src, repo, *, run_id: str, inputs: dict, request_text: str) -> 
     拒む物（FixtureRefused。何も書かない）: 控えが無い・読めない・版が違う・欄の型が違う／ファイルの sha256 が違う・足りない・多い／
     place に始めの記録が既に在る／今の HEAD^{tree} が控えの tree と違う／写しが指す commit もその木も対象に無い／request_text の
     sha256 が違う／写した始めの記録の入力の欄が inputs と違う（CURRENT の欄と、修正前の承認ノードで止まった写しの GATE_CURRENT の欄を
-    除く。名指す）。止まった写しの KEY の印は gate と、写しの計画が推しを答えに数えたか pushed を持つ"""
+    除く。名指す）／人の居る run で止まった写しを無人の run（inputs の unattended が true）で続ける。止まった写しの KEY の印は gate と、写しの計画が推しを答えに数えたか pushed を持つ"""
     src, place = pathlib.Path(src), pathlib.Path(place)
     man, man_sha = _manifest(src)
     _check_copy(src, man)
@@ -295,6 +297,9 @@ def adopt(place, src, repo, *, run_id: str, inputs: dict, request_text: str) -> 
                              + ("" if held else "。" + "・".join(GATE_CURRENT) + " は修正前の承認ノードで止まった写しだけ") + "）")
     from src import gates
     pushed = gates.unattended_of(doc)   # 写しの計画が無人の run の推しを答えに数えたか（takes_push。start が始めの記録から配る値）
+    if held and gates.unattended_of(inputs) and not pushed:
+        raise FixtureRefused(f"写した始めの記録の入力が今の入力と違う: unattended={before.get('unattended')!r}→{inputs['unattended']!r}"
+                             "（人の居る run で修正前の承認ノードに止まった写しは、無人の run で続けない。人の居る run で続ける）")
     swap.update(_remade(repo, remake, head))
     shutil.copytree(src / COPY, place, dirs_exist_ok=True)
     copied = [place / rel.removeprefix(f"{COPY}/") for rel in man["files"] if rel.startswith(f"{COPY}/")]
