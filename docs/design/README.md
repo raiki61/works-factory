@@ -590,7 +590,7 @@ form（入出力の値の形）は 4.1 の 6 つ: `text` は字、`json` は JSO
 
 ## 12 持ち主の決めの変更
 
-`docs/owner-decisions.md` の「2026-10-19 の決め」に、次の 7 件を書いた（最後の 2 件 `gate-efficacy-outside-judge`・`protected-rewrite-765` は組み込みで足した）。
+`docs/owner-decisions.md` の「2026-10-19 の決め」に、次の 7 件を書いた（最後の 2 件 `gate-efficacy-outside-judge`・`protected-rewrite-765` は組み込みで足した）。うち `rebuild-speed`・`protected-rewrite-765` の 2 件は、後に同じ文書の末尾の「終えた決め」へ移した。
 
 - `block-local-code`: 1 つの block だけが使うコードは block のフォルダに置き、`lib/` は 2 つ以上が使う物だけ。今の E4 の「script は lib と境の口を呼ぶだけ」を置き換える。
 - `lib-port-ended`: `lib-port-as-is`（元の名と元の中身のまま持ってくる。要らない物は最後の掃除の段で消す）を終える。最後の掃除はこの作り直しの組み込みが担う。

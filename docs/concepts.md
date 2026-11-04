@@ -274,4 +274,4 @@ works-factory 自身の木に地図と表の全部を当てる試験は置かな
 
 - 状態: 散らばり
 - 今: 役の指示書と `lib/` に特定の言語・テストの実行器の名を書かない（持ち主の決め `lang-neutral`。事実上の標準の形式の名は数えない）。今その名を持つ所は、言語ごとの読み方（`lib/impact.py`・`lib/libdocs.py`・`lib/libdocs_local.py`・`lib/libdocs_web.py`。持ち主の決めの E13 の例外）・TDD のループと実行器の口（`workflows/fix/src/common.py`・`workflows/fix/src/tdd.py`・`lib/baseline_red.py`）・起動の殻の版の確かめ（`bin/apply`・`bin/works-factory`）・コメントと docstring（波及の照らしの `workflows/plan/src/ripple.py` ほか）・役の指示書（`workflows/premises/prompts/premises.md` が生成物の止め方に Python を名指す）。数の歯止めは表の `known` の 17 ファイル 41 行。新しい役の指示書が名を書けば赤になる
-- 計画: まだ無い（持ち主の決めの E13 の例外は掃除の段で言語の知識を外へ出す）
+- 計画: まだ無い（持ち主の決めの E13 の例外は、掃除の段で言語の知識を外へ出すと書く。#765 では外へ出さなかった。外へ出す段はまだ無い）
