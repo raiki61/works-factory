@@ -5,7 +5,7 @@
  "gate-final": "最後の承認ノード",
  "start": "入口の確かめ",
  "answer-start": "着手前の承認ノードの答えの受け",
- "tiers": "深さの段の決め",
+ "tiers": "深さの決め",
  "owed": "直す義務の数え",
  "structure-in": "構造の目への受け渡し",
  "design-in": "独立設計への受け渡し",

@@ -370,10 +370,10 @@ class ValuesCase(_Base):
         values, when = self.mod["inputs"].diagnose_values(self.art)
         self.assertTrue(when["unknown_rows"] and not when["unknown_none"])
         self.assertEqual(values["unknown_rows"], "- line 1 (形): request text 「どちらでも」・place: none (the cause is not visible in code)")
-        self.intake(depth_why="頭の深さの段が走らなかった")
+        self.intake(depth_why="頭の深さが走らなかった")
         values, when = self.mod["inputs"].diagnose_values(self.art)
         self.assertTrue(when["unknown_none"] and not when["unknown_rows"])
-        self.assertEqual((values["unknown_rows"], values["unknown_why"]), ("", "頭の深さの段が走らなかった"))
+        self.assertEqual((values["unknown_rows"], values["unknown_why"]), ("", "頭の深さが走らなかった"))
         self.intake()
         self.assertEqual(self.mod["inputs"].diagnose_values(self.art)[0]["unknown_why"], headdepth.NO_RECORD)
 

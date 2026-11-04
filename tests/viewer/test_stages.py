@@ -20,11 +20,19 @@
 - 図の札ごとの AI の手番の費用（run の ai_cost。札の鍵は入れ子の場所ごと）は、札とその中の AI の手番の費用の和で、機械の手番と
   中の出来事を束ねる器（子の run を起こすノードの行は子の総額を載せる）を足さない。line でない run にも付ける。雛形は数えずに読む
 - 結末の頭の語の表（outcomes）の語の組は、工場の結末の語の正本 lib/report.py の OUTCOMES と同じ（工場が結末の語を足せば赤）
+- 段ごとの MISSION の語の列（mission。MISSION.md の「流れ」の段階と承認ノードのうち、その段が担う物）は、語がどれも MISSION.md の
+  流れに在り、流れの語がどれもどこかの段に在る（MISSION の流れの語を足す・替えると赤。段の名と MISSION の語が 1 対 1 でないのを
+  画面で読めるようにする）。承認ノードの語は、作りの上で承認ノード（kind が gate の物）に届きうる段にだけ在り、そういう段には必ず在る（語の抜けと余りが
+  赤）。届きうるは、line の一番上のノード・繰り返しの中のノード（計画の往復の gate-design・設計の段の gate-theme）・include の先の
+  graph の中のノード（判定の judge → spec の spec-gate）を辿って決める。include の先の when は読まないので、仕様を照らすだけの
+  spec-check-run（mode check。spec-gate は起きない）を持つ確かめ直しの段も届きうるに入る
 
 試験は小さな作りと run の記録を手で組む。
 """
+import re
 import unittest
 import unittest.mock
+from pathlib import Path
 
 from viewer import flowview
 from viewer.src import stages
@@ -71,6 +79,31 @@ class StagesCase(unittest.TestCase):
         self.assertEqual(set(stages.TABLE["outcomes"]), set(report.OUTCOMES))
         self.assertTrue(all(isinstance(head, str) and head for head in stages.TABLE["outcomes"].values()))
         self.assertEqual(run_of([], [])["stages"]["outcomes"], stages.TABLE["outcomes"])
+
+    def test_the_mission_words_are_the_flow_of_mission_md(self):
+        text = (Path(__file__).resolve().parents[2] / "MISSION.md").read_text(encoding="utf-8")
+        flow = next(row for row in text.splitlines() if row.startswith("- 流れ: ")).removeprefix("- 流れ: ")
+        steps = [step.strip() for step in re.sub(r"（.*?）", "", flow).split("。")[0].split("→")]
+        words = {*steps, "承認ノード"} if "承認ノード" in flow else set(steps)
+        used = [word for stage in stages.TABLE["stages"] for word in stage["mission"]]
+        self.assertEqual(set(used) - words, set())
+        self.assertEqual(words - set(used), set())
+        self.assertEqual(run_of([], [])["stages"]["table"][0]["mission"], stages.TABLE["stages"][0]["mission"])
+
+    def test_the_stages_with_an_approval_node_say_so(self):
+        graphs = flowview.tree_shape()["graphs"]
+
+        def gated(item, seen):
+            if item["kind"] == "gate" or any(gated(kid, seen) for kid in item.get("kids", [])):
+                return True
+            target = item.get("target") if item["kind"] == "block" else None
+            return target in graphs and target not in seen and any(gated(kid, seen | {target}) for kid in graphs[target]["items"])
+        graph = graphs[stages.TABLE["graph"]]
+        gates = {item["id"] for item in graph["items"] if gated(item, {stages.TABLE["graph"]})}
+        self.assertTrue({"plan-rounds", "theme-rounds", "judge"} <= gates)
+        has = {stage["name"] for stage in stages.TABLE["stages"] if gates & set(stage["nodes"])}
+        says = {stage["name"] for stage in stages.TABLE["stages"] if "承認ノード" in stage["mission"]}
+        self.assertEqual(says, has)
 
     def test_wiring_outside_its_stage_or_a_stage_of_only_wiring_is_red(self):
         table = {**stages.TABLE, "stages": [{**stage, "wiring": list(stage["wiring"])} for stage in stages.TABLE["stages"]]}

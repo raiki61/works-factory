@@ -522,7 +522,7 @@ issue #802 の受け入れ「本線の振る舞いは変わらない」は、依
    - 判定の役 diagnose の返りをそのまま運ぶ欄: `ready`・`units`・`judgment`・`answer_ties`・`out_of_purpose`・`materials`・`brief`・`inputs`（と `questions`。今の受け皿の `got` も持つ）。
    - `ok` は真、`stop_reason` は空。訳: `spec-rounds` は形 check を通った run（判定の役が直す単位を返し、計画の部品が落ちていない）だけで回るので、判定は止まっていない。`fix_in.py` の `no_fix` の式は `ok` が真・`ready` が真なので今と同じに偽を出す。
    - `purpose` は形 entry が組む目的のファイル（判定の役に渡した物と同じ pointer）、`purpose_text` は表の `purpose`、`means` は空の配列（依頼の解き方は目的の固定の段が依頼から拾う物で、仕様駆動の run では回らない）。
-   - `tier` は、入力 `thickness` が段を名指せばその段（`ports.forced`）、名指さなければ `標準`（`headdepth.STANDARD`）。訳: run の頭の深さの段が回らなかった run で判定のまとめが入れる値と同じ。どちらも段の表の語なので、`tiers.switches` は「段の語が表に無い」の行を出さない。`tier_record` は null（頭の深さの段の記録が無い run と同じ）。
+   - `tier` は、入力 `thickness` が段を名指せばその段（`ports.forced`）、名指さなければ `標準`（`headdepth.STANDARD`）。訳: run の頭の深さが回らなかった run で判定のまとめが入れる値と同じ。どちらも段の表の語なので、`tiers.switches` は「段の語が表に無い」の行を出さない。`tier_record` は null（頭の深さの記録が無い run と同じ）。
    - `constraints`（前提の実測）・`world`（世界の解の行）・`spec`（仕様の段）・`excluded`（並行 PR）・`decisions`（前の決めの確かめ）・`verify`（判定の単位の裏取り）は null。訳: どれも仕様駆動の run の中で回らない段の返りで、今の本線でもその段が回らない run は null になる。前提の実測・世界の解・前の決めの確かめは会話の中で回し、入口が記録を照らした（2.6 の 2）。判定の裏取りは 6.2 で入れない（判定の役を 1 回回すだけ）。`fix-in` の後で `verify` を読むのは案の直し（`replan`）と再審（`rejudge-run`）だけで、どちらも仕様駆動の run では回らない（6.2 の変える node の 6）。
    - 縛り: 6.5 の 8 の試験（`spec-rounds` の返りが今の受け皿の `got` と同じ鍵を持つ）に、この値を照らす行を足す。`tier` が段の表の語で、`fix-in` の返りの `switches.lines` に「段の語が表に無い」の行が無いことも照らす。
 2. `lib/gatemarks.py` の `narrow_asks` が受ける材料。値だけを受ける形にし、place も Archon の port も読まない。

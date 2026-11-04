@@ -38,7 +38,7 @@ FEATURES = {
 }
 # 名指さない機能の既定（持ち主の決め 2026-10-08。測り: 判定の裏取りは 27 単位の 11 run で後の段を 1 度も変えず 1 run に
 # 0.6〜3 USD と 1〜2 分、事前審査の木は審査役 1 つの 2〜3 倍の費用で審査役 1 つが見逃した本物の穴を出さなかった）。ほかの機能は on。
-# auto はブロックが自分の材料で決める語（事前審査の木: 開いた項目が 2 つ以上の往復だけ木。run の頭の深さの段が auto を別の語に読む
+# auto はブロックが自分の材料で決める語（事前審査の木: 開いた項目が 2 つ以上の往復だけ木。run の頭の深さが auto を別の語に読む
 # こともある: depth.tier_auto）。名指した語（features_on・features_off）は既定に勝つ
 FEATURE_DEFAULTS = {"judge_verify": SWITCH_OFF, "review_tree": SWITCH_AUTO}
 FEATURES_KEY = "features_off"   # start の控えの欄（語の順の配列）
@@ -77,8 +77,8 @@ def features_on(word: str) -> list:
 
 def feature_words(off, on=(), adds=(), auto=SWITCH_AUTO) -> dict:
     """start の出口の機能ごとの欄 {<機能>: on | off | auto}（線がブロックの切り替えの入力へ写す）。名指した語が足しに、足しが既定に勝つ:
-    features_on の語は on・features_off の語は off・adds（run の頭の深さの段が足す機能。depth.tier_adds）の語は on・どれにも無ければ
-    FEATURE_DEFAULTS（無ければ on。既定が auto の機能は auto の語。run の頭の深さの段の読み depth.tier_auto）。features_on と features_off の両方に在る語と、名指した段の足しを features_off で切る組は入口の
+    features_on の語は on・features_off の語は off・adds（run の頭の深さが足す機能。depth.tier_adds）の語は on・どれにも無ければ
+    FEATURE_DEFAULTS（無ければ on。既定が auto の機能は auto の語。run の頭の深さの読み depth.tier_auto）。features_on と features_off の両方に在る語と、名指した段の足しを features_off で切る組は入口の
     節（start）が拒むので届かない（features_off が足しに勝つのは、入口の後に head-depth が選んだ段の足しだけ）"""
     off, on, adds = set(off or ()), set(on or ()), set(adds or ())
     return {name: SWITCH_ON if name in on else SWITCH_OFF if name in off else SWITCH_ON if name in adds

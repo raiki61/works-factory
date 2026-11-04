@@ -48,7 +48,7 @@
 - `baseline`（判定）: `json(lib:baseline.schema.json): 直す前の試験の結末（試験の関門が直す前に書いた baseline.json）。素材 local_checks をここから写す。空は local_checks を not_run にする`。既定 `""`。
 - `world_rows`（両方）: `jsonl(lib:world-row.schema.json): 世界の解の行のファイル（world.jsonl。1 行が依頼の 1 行）。空は世界の解の行が無い`。既定 `""`。
 - `row_asks`（判定）: `json(row-asks.schema.json): 頭の深さが依頼の行ごとに返した未知の種類の行 [{item, unknown, cause_quote, where?, code_quote?}]。空の配列は種類が決まっていない`。既定 `[]`。
-- `depth_why`（判定）: `text: 頭の深さの段の根拠の文（行ごとの種類が決まっていない run で、その訳として役に見せる）。空は「run の頭の深さの控えが無い」`。既定 `""`。
+- `depth_why`（判定）: `text: 頭の深さの根拠の文（行ごとの種類が決まっていない run で、その訳として役に見せる）。空は「run の頭の深さの控えが無い」`。既定 `""`。
 - `spec_rows`（判定）: `json(shared:request.schema.json): 仕様が足した受け入れ条件の行のファイル（added-rows.json。依頼の行の配列）。空は足した行が無い`。既定 `""`。
 - `spec_origin`（判定）: `text: 仕様が足した行の出どころの名（判定役に見せるバッチの origin）。spec_rows が在る時に要る`。既定 `""`。
 - `answers`（判定）: `json(answer-rows.schema.json): 依頼者が前の run の問いに答えた行 [{question, text, command?, output?}]。空の配列は request の容器の answers を使う`。既定 `[]`。
@@ -716,7 +716,7 @@ bin/works-factory workflow run works-factory-diagnose --cwd <対象> \
 12. `judgment` の pointer はいつも返し、受けた判定が無ければ空の形を書いて指す。根拠: 今の `verdict` の `_fill` と同じ。読み手（verify・line・report）が null の枝を持たずに済む。ほかの任意の pointer は null（world の 9.1 の 2 と同じ。Archon は pointer の先が空でないかを照らす）。
 13. 再審の道の `answer_ties`・`materials`・`out_of_purpose` は null。根拠: 再審は単位だけを考え直し、結び・素材・目的の外の行は 1 回目の物が正（今の line の `judged` も 1 回目の物を持ち続ける）。
 14. 前の run の行・記録された方針・頭の深さの行の節は、plan.md が名と本文と口を決めた共通の断片 `prior-failures`・`recorded-policy`・`unknown-asks` を使い、行の英語の札も plan.md の 2.3 の字にそろえる。port の形 `judgment.schema.json`・`prior-failures.schema.json` も plan.md の 1.2 の物を `workflows/.shared/schemas/` に置いて共に使う。根拠: 2 つ以上の block が使う段落と形は `workflows/.shared/` に 1 つ（README の 5.1・13 章）。2 波目で plan と同時に書いたので、名を割らないよう先に書かれた方に合わせた。
-15. 頭の深さの段の根拠を port `depth_why` で受ける。根拠: 今の判定役は、種類が決まっていない run で「決まっていない（訳: <控えの why>）」を見ていた（`headdepth.section`）。`row_asks` だけでは訳が落ちる。head-depth の出力 `why` がその字（head-depth.md の 1.2）。
+15. 頭の深さの根拠を port `depth_why` で受ける。根拠: 今の判定役は、種類が決まっていない run で「決まっていない（訳: <控えの why>）」を見ていた（`headdepth.section`）。`row_asks` だけでは訳が落ちる。head-depth の出力 `why` がその字（head-depth.md の 1.2）。
 16. 共通の形 `judgment.schema.json`・`prior-failures.schema.json` と断片 `unknown-asks`・`prior-failures` は plan の作業場（7d93fe30）の物を字のまま、断片 `recorded-policy` は r1 の作業場（6271e0bd）の物を字のまま置く（統合の指示。同じ道は同じ中身）。plan の `judgment.schema.json` は `units` の行の `key` だけを必須にし、`prescriptions`（字の配列）と `questions`（object の配列）の型を縛る。verify の block ごとの形との差は 2 つ: 共通の形は `label` を要らない（`judgmark.is_open` は `label` の無い単位を閉じた物と読む。verify は共通の形を読んだ後に `label` が字かを自分で確かめて拒む）・`prescriptions` が字・`questions` が字の配列の判定は共通の形が拒む（verify の形は通す）。diagnose が書く判定（`output_format` が型を保つ）は両方とも通る。試験 `test_judgment_schema.py` が差を名指しで固定する。
 17. 入力 `answers` の形のファイルは `answer-rows.schema.json` と呼ぶ（最初の版の設計書の port の欄の名は `answers.schema.json` だった。1.2・1.5 は直した）。根拠: `tests/layers/test_block_shape.py` の「形のファイルの名は pack の中で 1 か所」が、independent-design の `answers.schema.json`（別の形）と重なる名を拒む。中身は port の説明のとおり（行の配列、`question`・`text` が必須）。
 18. 判定の受け付けの `_name_hints` と `NUMBER_HINTS` は写さない。根拠: 言い換える相手の文は `_carried_r1_accounted` だけが書き（11 節の 4 で写さない）、この block ではどの拒否の文にも当たらない。働かない規則は外す（リポジトリの決まり）。
