@@ -9,16 +9,23 @@
 - 口は本物の gh を起こす前に WORKS_FACTORY_GH_ACTIVE を立て、それが立った env で口に入れば拒む（読む側と立てる側の名を
   1 つの試験で縛る。片側だけ名を替えると輪の断ち方が黙って外れる）
 
+- 役への指示の断片（workflows/.shared/prompts/works-gh.md）が `works-gh …` と書く形は、どれも口が通し、口が通す形
+  （ALLOWED の全部と api）は、どれも断片に在る（workflows/ は bin/ を読めないので〔E22〕、両方を読めるここで照らす）
+
 偽の gh（受けた引数と WORKS_FACTORY_GH_ACTIVE を記録する）を口の後ろの PATH に置く。本物の gh・GitHub に触れない。
 """
+import importlib.machinery
+import importlib.util
 import os
 import pathlib
+import re
 import subprocess
 import sys
 import unittest
 
 TESTS = pathlib.Path(__file__).resolve().parent
 WORKS_GH = TESTS.parents[1] / "bin" / "_lib" / "no-post-bin" / "works-gh"
+PROMPT = TESTS.parents[1] / "workflows" / ".shared" / "prompts" / "works-gh.md"
 sys.dont_write_bytecode = True
 sys.path.insert(0, str(TESTS))
 
@@ -30,11 +37,14 @@ ALLOWED = (["pr", "list", "-R", "o/r"], ["pr", "view", "1", "-R", "o/r"], ["pr",
            ["api", "--paginate", "--hostname", "github.com", COMMENTS], ["api", "--paginate", COMMENTS],
            ["api", "--hostname=acme.ghe.com", COMMENTS], ["pr", "view", "1", "-R", "acme.ghe.com/o/r"],
            ["pr", "view", "https://github.com/o/r/pull/1", "-R", "o/r"], ["pr", "view", "1", "-c", "-R", "o/r"],
-           ["pr", "view", "1", "-cRo/r"])
+           ["pr", "view", "1", "-cRo/r"], ["issue", "list", "-R", "o/r"],
+           ["issue", "list", "--repo", "o/r", "--state", "open"])
 REFUSED = (["pr", "create", "-R", "o/r"], ["pr", "merge", "1", "-R", "o/r"], ["pr", "comment", "1", "-R", "o/r"],
            ["api", "repos/o/r"], ["issue", "view", "1"], ["issue", "create", "-R", "o/r"], ["issue", "comment", "1", "-R", "o/r"],
            ["pr", "view", "1"], ["repo", "view"], ["pr", "view", "1", "-R", "o/r", "-w"], ["pr", "list", "-R", "o/r", "--web"],
-           ["repo", "view", "o/r", "--web"], ["issue", "view", "1", "-R", "o/r", "--web"], [], ["api"],
+           ["repo", "view", "o/r", "--web"], ["issue", "view", "1", "-R", "o/r", "--web"], ["issue", "list"],
+           ["issue", "list", "-R", "o/r", "--web"], ["issue", "list", "-R", "o/r", "-R", "x/y"],
+           ["issue", "list", "-R", "evil.example/o/r"], [], ["api"],
            ["api", "-X", "POST", COMMENTS], ["api", "--method=POST", COMMENTS], ["api", "--method", "GET", COMMENTS],
            ["api", COMMENTS, "-f", "body=x"], ["api", COMMENTS, "-F", "body=x"], ["api", COMMENTS, "--raw-field", "body=x"],
            ["api", "--input", "f", COMMENTS], ["api", "-H", "X: y", COMMENTS], ["api", "graphql", "-f", "query=x"],
@@ -107,6 +117,42 @@ class WorksGhCase(unittest.TestCase):
         self.assertEqual(r.returncode, 2, r.stderr)
         self.assertIn("起こし直された", r.stderr)
         self.assertEqual(self.gh_calls(), [])
+
+
+def gate_module():
+    loader = importlib.machinery.SourceFileLoader("works_gh_gate", str(WORKS_GH))
+    module = importlib.util.module_from_spec(importlib.util.spec_from_loader(loader.name, loader))
+    loader.exec_module(module)
+    return module
+
+
+# 断片の置き場の字（<…>）を、口が照らせる値に替える
+SAMPLES = {"<OWNER/REPO>": "o/r", "<OWNER>": "o", "<REPO>": "r", "<number>": "7", "<number or branch>": "7"}
+
+
+class PromptMatchesGateCase(unittest.TestCase):
+    def forms(self):
+        text = PROMPT.read_text(encoding="utf-8")
+        return [span.split()[1:] for span in re.findall(r"`(works-gh [^`]+)`", text)]
+
+    def concrete(self, form):
+        line = " ".join(form).replace("[", "").replace("]", "")
+        for key, value in SAMPLES.items():
+            line = line.replace(key, value)
+        self.assertNotIn("<", line, f"断片の置き場の字に見本の値が無い: {form}")
+        return line.split()
+
+    def test_every_form_in_the_prompt_passes_the_gate(self):
+        gate, forms = gate_module(), self.forms()
+        self.assertTrue(forms, f"{PROMPT} に `works-gh …` の形が無い")
+        for form in forms:
+            with self.subTest(form=form):
+                self.assertIsNone(gate.form_error(self.concrete(form)))
+
+    def test_every_form_the_gate_passes_is_in_the_prompt(self):
+        gate = gate_module()
+        named = {tuple(form[:1]) if form[:1] == ["api"] else tuple(form[:2]) for form in self.forms()}
+        self.assertEqual(named, set(gate.ALLOWED) | {("api",)})
 
 
 if __name__ == "__main__":

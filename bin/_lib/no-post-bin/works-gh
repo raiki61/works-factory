@@ -3,7 +3,7 @@
 
 通すのは次の形だけで、ほかは本物の gh を起こさずに 1 行を出して終了コード 2:
 - `pr list -R <OWNER/REPO> …`・`pr view <番号か枝> -R <OWNER/REPO> …`・`pr diff <番号か枝> -R <OWNER/REPO> …`・
-  `issue view <番号> -R <OWNER/REPO> …`（`-R`・`--repo`・`--repo=` のどれか 1 つ。対象の repo を名指しさせ、cwd の remote に頼らない。
+  `issue list -R <OWNER/REPO> …`・`issue view <番号> -R <OWNER/REPO> …`（`-R`・`--repo`・`--repo=` のどれか 1 つ。対象の repo を名指しさせ、cwd の remote に頼らない。
   gh は最後の `-R` を使うので、2 つ在れば照らした値と読む先が食い違う。拒む）
 - `repo view <OWNER/REPO> …`（gh の repo view は -R を持たないので、repo は位置の引数で名指しする）
 - `api [--paginate] [--hostname <HOST>] repos/<OWNER>/<REPO>/pulls/<番号>/comments`（PR の行コメントを読む 1 つの形。gh api は
@@ -23,7 +23,8 @@ import re
 import sys
 import urllib.parse
 
-ALLOWED = {("pr", "list"), ("pr", "view"), ("pr", "diff"), ("issue", "view"), ("repo", "view")}
+# 役への指示の断片 workflows/.shared/prompts/works-gh.md の形の一覧と同じ集合（tests/bin/test_works_gh.py が照らす）
+ALLOWED = {("pr", "list"), ("pr", "view"), ("pr", "diff"), ("issue", "list"), ("issue", "view"), ("repo", "view")}
 HOST = r"[A-Za-z0-9][A-Za-z0-9.-]*"
 REPO_RE = re.compile(rf"(?:({HOST})/)?[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+\Z")
 HOST_RE = re.compile(rf"{HOST}\Z")
@@ -32,7 +33,7 @@ API_RE = re.compile(r"repos/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+/pulls/[0-9]+/comment
 
 
 def refuse(why):
-    sys.stderr.write("works-gh: 通さない（読むだけの役に許すのは pr list・pr view・pr diff・issue view（-R 付き）と"
+    sys.stderr.write("works-gh: 通さない（読むだけの役に許すのは pr list・pr view・pr diff・issue list・issue view（-R 付き）と"
                      " repo view <OWNER/REPO>、api [--paginate] [--hostname <HOST>] repos/<OWNER>/<REPO>/pulls/<番号>/comments）"
                      f": {why}\n")
     return 2
