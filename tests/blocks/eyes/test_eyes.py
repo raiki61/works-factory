@@ -55,6 +55,17 @@ class VerdictCase(unittest.TestCase):
         self.assertEqual((out["after"], out["after_ok"]), (ptr("structure-after/a.json"), True))
         self.assertEqual([s["title"] for s in out["sections"]], [*self.v.TITLES.values(), self.v.OWN_TITLE])
 
+    def test_r2_questions_go_to_means_questions(self):
+        """R2 の問い（頼みどおりの違い。docs/design/plan-review.md の 20 章の 6.3 の 2）はまとめの means_questions に入り、R4 の問いの
+        questions には入らない。目を省いた run は空"""
+        got = passing()
+        got["r2"] = {**got["r2"], "questions": ["R2: 差分は頼みの解き方 M1「x」どおりだが、独立設計と食い違う——y"]}
+        out = self.build(got)
+        self.assertEqual(out["means_questions"], ["R2: 差分は頼みの解き方 M1「x」どおりだが、独立設計と食い違う——y"])
+        self.assertEqual(out["questions"], ["R4 が見た人の方針とのぶつかり: x"])
+        self.assertEqual(self.build(passing())["means_questions"], [])
+        self.assertEqual(self.build({"structure-after": passing()["structure-after"]}, run=False)["means_questions"], [])
+
     def test_any_eye_not_pass_makes_ok_false(self):
         for name in EYES:
             for status in ("fix-needed", "redesign-needed", "unverifiable"):

@@ -347,6 +347,7 @@ eyes__verdict:
   r3: {status: pass, reason: r3 は通した}
   r4: {status: pass, reason: r4 は通した}
   questions: []
+  means_questions: []
   passes: []
   premise_check: null
   notes: []

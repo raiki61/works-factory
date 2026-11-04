@@ -13,6 +13,7 @@ def fallen(why: str) -> dict:
     reason = f"出口が落ちた: {why}"
     row = {"status": "unverifiable", "reason": reason}
     line = f"- 独立の目のまとめが落ちた（{why}）"
-    return {"ok": False, **{eye: dict(row) for eye in EYES}, "questions": [], "passes": [], "premise_check": None, "notes": [],
+    return {"ok": False, **{eye: dict(row) for eye in EYES}, "questions": [], "means_questions": [],
+            "passes": [], "premise_check": None, "notes": [],
             "after": None, "dirty": 0, "escalate": 0, "after_ok": False, "report": [line],
             "sections": [{"title": OWN_TITLE, "lines": [line]}], "optional": [dict(r) for r in OPTIONAL]}
