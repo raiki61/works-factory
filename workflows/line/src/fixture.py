@@ -55,9 +55,11 @@ KEY = "fixture"                  # 始めの記録の鍵 {source_run, manifest_s
 CAPTURED_KEY = "fixture_captured"  # 始めの記録の鍵 {dir, error}（写した run の印）
 # 取り込みで今の値にする入力の欄（ほかの入力の欄は写した始めの記録と今の入力が同じでなければ拒む）。request は名指しの字が違っても
 # よい（中身は request_sha256 で照らす）。features_off・features_on は同じ所から替えて比べる欄（判定・修正案の側の機能は写しの物の
-# ままで、修正の段から後ろの機能だけが効く）。deliver は封じた後の渡し方だけを変え、写しの中身に効かない。unattended・final_gate は
-# 承認ノードの開き方だけを変える（無人の run が修正前の承認ノードで止まった写しを、人の居る run で続ける。判定・修正案は写しの物のまま）
-CURRENT = ("fix_fixture", "request", "features_off", "features_on", "deliver", "unattended", "final_gate")
+# ままで、修正の段から後ろの機能だけが効く）。deliver は封じた後の渡し方だけを変え、写しの中身に効かない
+CURRENT = ("fix_fixture", "request", "features_off", "features_on", "deliver")
+# 修正前の承認ノードで止まった写し（pending）の時だけ今の値にする欄: 承認ノードの開き方だけを変える（無人の run が人の答えを待って止まった
+# 写しを、人の居る run で続ける。判定・修正案は写しの物のまま）。止まらずに写した物は推しで通った修正前の承認を持つので、替えると拒む
+GATE_CURRENT = ("unattended", "final_gate")
 _STR_KEYS = ("source_run", "head", "tree", "place_root", "repo_root", "request_sha256")
 _MAP_KEYS = ("commits", "files")
 HEX40 = re.compile(r"(?<![0-9a-f])[0-9a-f]{40}(?![0-9a-f])")   # 写しの字の中の commit の名の候補
@@ -271,7 +273,8 @@ def adopt(place, src, repo, *, run_id: str, inputs: dict, request_text: str) -> 
     run_id・inputs（今の入力）・KEY を今の値にした dict（書くのは呼び手）。carried は字を置き換えて place/CARRIED に置く。
     拒む物（FixtureRefused。何も書かない）: 控えが無い・読めない・版が違う・欄の型が違う／ファイルの sha256 が違う・足りない・多い／
     place に始めの記録が既に在る／今の HEAD^{tree} が控えの tree と違う／写しが指す commit もその木も対象に無い／request_text の
-    sha256 が違う／写した始めの記録の入力の欄が inputs と違う（CURRENT の欄を除く。名指す）"""
+    sha256 が違う／写した始めの記録の入力の欄が inputs と違う（CURRENT の欄と、修正前の承認ノードで止まった写しの GATE_CURRENT の欄を
+    除く。名指す）。止まった写しの KEY の印は gate と、写しの計画が推しを答えに数えたか pushed を持つ"""
     src, place = pathlib.Path(src), pathlib.Path(place)
     man, man_sha = _manifest(src)
     _check_copy(src, man)
@@ -283,10 +286,15 @@ def adopt(place, src, repo, *, run_id: str, inputs: dict, request_text: str) -> 
     swap = {**_paths(man["place_root"], place), **_paths(man["repo_root"], repo), man["source_run"]: run_id, man["head"]: head}
     doc = json.loads(_swapper(swap)((src / COPY / startrec.REL).read_text(encoding="utf-8")))
     before = doc.get("inputs") if isinstance(doc.get("inputs"), dict) else {}
-    bad = sorted(k for k, v in inputs.items() if k not in CURRENT and before.get(k) != v)
+    held = pending(man["carried"])
+    current = CURRENT + GATE_CURRENT if held else CURRENT
+    bad = sorted(k for k, v in inputs.items() if k not in current and before.get(k) != v)
     if bad:
         raise FixtureRefused("写した始めの記録の入力が今の入力と違う: " + "・".join(f"{k}={before.get(k)!r}→{inputs[k]!r}" for k in bad)
-                             + "（同じ入力の run だけが固定材料から始める。今の値にするのは " + "・".join(CURRENT) + " だけ）")
+                             + "（同じ入力の run だけが固定材料から始める。今の値にするのは " + "・".join(current) + " だけ"
+                             + ("" if held else "。" + "・".join(GATE_CURRENT) + " は修正前の承認ノードで止まった写しだけ") + "）")
+    from src import gates
+    pushed = gates.unattended_of(doc)   # 写しの計画が無人の run の推しを答えに数えたか（takes_push。start が始めの記録から配る値）
     swap.update(_remade(repo, remake, head))
     shutil.copytree(src / COPY, place, dirs_exist_ok=True)
     copied = [place / rel.removeprefix(f"{COPY}/") for rel in man["files"] if rel.startswith(f"{COPY}/")]
@@ -296,7 +304,7 @@ def adopt(place, src, repo, *, run_id: str, inputs: dict, request_text: str) -> 
     doc = startrec.load(startrec.path(place))
     doc.update({"run_id": run_id, "inputs": inputs,
                 KEY: {"source_run": man["source_run"], "manifest_sha256": man_sha,
-                      "at": datetime.datetime.now().astimezone().isoformat(timespec="seconds"), **({"gate": True} if pending(carried) else {})}})
+                      "at": datetime.datetime.now().astimezone().isoformat(timespec="seconds"), **({"gate": True, "pushed": pushed} if pending(carried) else {})}})
     return doc, carried
 
 
@@ -318,6 +326,12 @@ def lines(doc: dict) -> list:
         out.append(f"固定材料: {note.get('dir')}（次の run の入力 fix_fixture に渡すと、判定と修正案を作り直さずに修正から始める）"
                    if note.get("dir") else f"固定材料を写せなかった: {note.get('error') or '訳が無い'}")
     return out
+
+
+def planned_push(doc) -> bool:
+    """始めの記録 doc が、無人の run の推しを答えに数えた計画の、止まった写しを取り込んだ run か（続きの承認ノードが推しを名指す）"""
+    mark = doc.get(KEY) if isinstance(doc, dict) else None
+    return isinstance(mark, dict) and mark.get("gate") is True and mark.get("pushed") is True
 
 
 def pending(carried) -> bool:

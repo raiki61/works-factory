@@ -157,10 +157,12 @@ class FixInCase(unittest.TestCase):
                 self.assertEqual(man["carried"]["gate_rounds"]["done"], True)
 
     def test_other_stops_are_not_copied(self):
-        """人の判断待ちでない止め（script の落ち・計画ができていない）と仕様駆動の run の止まりは写さない"""
+        """人の判断待ちでない止め（script の落ち・計画ができていない）・修正前の承認ノードの外で人が止めた止めと仕様駆動の run の止まりは写さない"""
         self.seeded()
         self.fix_in(before_fix_go=False, before_fix_answer="null", before_fix_stop="works:line-script")
         self.fix_in(before_fix_go=False, before_fix_answer="null", before_fix_stop="")
+        # 対話モードの run で人が設計の相談の承認ノードに止めると答えた（gates.before_fix が human:gate-design を返す）。続けても同じ所で止まる
+        self.fix_in(rounds=self.rounds(done=True), before_fix_go=False, before_fix_answer="null", before_fix_stop="human:gate-design")
         self.assertIsNone(self.manifest())
 
     def test_fixture_run_that_stopped_before_the_fix_takes_the_new_answer(self):

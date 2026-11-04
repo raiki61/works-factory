@@ -280,6 +280,19 @@ class LedgerAsksCase(unittest.TestCase):
                                 ledger=self.ledger(answers=[{"question": "q-a", "text": "x"}]))
         self.assertFalse(out["open"])
 
+    def test_a_push_the_copied_plan_counted_is_named(self):
+        """直す前で止まった無人の run の写しを人の居る run で続ける時（planned は写しの計画が数えた推しの台帳）: 推しを答えに数えて組んだ
+        計画だと問いの行に名指し、推しと違う答えなら止めて計画から回し直すと案内する。推しを数えていない計画（planned が None）は今どおり"""
+        fork = {**self.FORK, "reason": "割れる。推し: x——帰結が狭い"}
+        doc = {"units": [{"key": "u1", "label": "block"}], "questions": [fork]}
+        planned = self.gm.ledger(doc, takes_push=True)
+        self.assertEqual(self.gm.run_push(planned, fork), "x——帰結が狭い")
+        out = self.g.before_fix(rounds(), unattended_run=False, design=False, ledger=self.gm.ledger(doc), planned=planned)
+        self.assertTrue(out["open"])
+        self.assertIn(self.g.PLANNED_PUSH.format(push="x——帰結が狭い"), out["asked"][0])
+        plain = self.g.before_fix(rounds(), unattended_run=False, design=False, ledger=self.gm.ledger(doc))
+        self.assertNotIn("計画は", plain["asked"][0])
+
 
 class GatherCase(unittest.TestCase):
     """元 lib/tests/test_gate_axes.py の GatherCase（軸ごとの訳は事前審査の返りの行の why から）"""

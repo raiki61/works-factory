@@ -157,11 +157,16 @@ def resumed(raw: dict) -> dict:
             "deferred": ports.parsed(raw.get("fixture_deferred")) or [], "passes": ports.parsed(raw.get("fixture_passes")) or []}
 
 
+GATE_NODE = "gate-before-fix"   # 修正前の承認ノードの id（人がそこで止めた止めの理由は stopby.HUMAN + この id）
+
+
 def held_for_person(raw: dict) -> bool:
-    """修正前の承認ノードが人の判断待ちで止めたか（無人の run の推しが揃わない・人が止める語で答えた）"""
+    """修正前の承認ノードそのものが人の判断待ちで止めたか（無人の run の推しが揃わない works:needs-human・人が修正前の承認ノードで
+    止める語で答えた human:gate-before-fix）。ほかの承認ノードで人が止めた物（対話モードの設計の相談の human:gate-design など）は
+    続けても同じ所で止まるので写さない"""
     import stopby
     stop = _text(raw.get("before_fix_stop")) or ""
-    return ports.parsed(raw["before_fix_go"]) is False and (stop == stopby.NEEDS_HUMAN or stop.startswith(stopby.HUMAN))
+    return ports.parsed(raw["before_fix_go"]) is False and stop in (stopby.NEEDS_HUMAN, stopby.HUMAN + GATE_NODE)
 
 
 def fix_in(raw: dict, place: Path, repo: Path, run_id: str) -> dict:
