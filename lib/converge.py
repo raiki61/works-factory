@@ -53,6 +53,8 @@ note_plan の無い控え（行に items が無い）は今までどおり全体
   （番号の外は空）を組む唯一の口
 - owed_faces(doc, p): 往復の行 p の、次の往復で答えと照らしが要る穴（block と、開いた項目に付いた suggest）。項目の在る控えでは
   今の開いた項目の分だけ。この絞りの住処はここ 1 つ（止め時は decide）
+- closed_faces(doc): 前の往復で block に挙がり後の往復の resolved に入った穴のうち、今の開いた項目に付く物（修正案の役が直しで
+  閉じた穴の裏返しを開かないための守る決まりの元。開いた項目の絞りは owed_faces と同じ _open_scope）
 - answer_gaps(doc, answers)・resolved_gaps(b, faces, resolved): 修正案の役と事前審査の役の返答の欄の欠けと誤りの行（owed_faces の
   穴の分。resolved_gaps は relabel_gaps〔中央の block を訳なしで端に付け替えた行〕も持つ。下請けの答えの受け付けも引く）。fixed_unchanged(doc, rows, answers): fixed と答えて block の項目を変えていない答え
 - split(role, reply): 返答から欄を外す（事前審査の返答の任意の欄 ITEMS（項目ごとの判定の要約）・DESIGN_MAP（独立設計との
@@ -817,13 +819,40 @@ def owed_faces(doc: dict, p: dict) -> list[dict]:
     閉じた・保留の項目に付いた物は答えの要る穴でなく、参考の suggest として carried_notes が修正の段へ運ぶ。doc に plan が無いか、
     最後の往復に items が無ければ絞らない。止め時は decide"""
     passes = doc.get("passes") or []
-    items = passes[-1].get("items") if passes and doc.get("plan") else None
-    scoped = items is not None
-    mine = planned_units([it for it in items or [] if _unsettled(it)])
-    every = planned_units(items)
+    in_open = _open_scope(doc)
     resolved = {key for q in passes for key in q.get("resolved", [])}
-    return [f for f in _pass_faces(p)
-            if (f["severity"] == "block" or f["key"] not in resolved) and (not scoped or _touches(f["unit_keys"], mine, every))]
+    return [f for f in _pass_faces(p) if (f["severity"] == "block" or f["key"] not in resolved) and in_open(f["unit_keys"])]
+
+
+def _open_scope(doc: dict):
+    """今の開いた項目の範囲の述語 unit_keys -> bool（owed_faces と closed_faces が共有する）。doc の最後の往復の items のうち _unsettled の
+    項目の unit_keys の和と重なる物か、その往復の項目のどの unit_keys とも重ならない物。doc に plan が無いか、最後の往復に items が
+    無ければ全部"""
+    passes = doc.get("passes") or []
+    items = passes[-1].get("items") if passes and doc.get("plan") else None
+    if items is None:
+        return lambda units: True
+    mine, every = planned_units([it for it in items if _unsettled(it)]), planned_units(items)
+    return lambda units: _touches(units, mine, every)
+
+
+def closed_faces(doc: dict) -> list[dict]:
+    """控え doc で前の往復に閉じた block の穴の行 [{FACE_KEYS, reach?, severity, unit_keys, raised, closed}]（raised は key を最後に
+    block に挙げた往復の番号、closed はその後に審査が resolved に入れた最後の往復の番号）。閉じたとは、block に挙げた往復より後の
+    往復の resolved に key が在ること（後でまた block に挙げた key は開いた穴で、owed_faces が持つ）。owed_faces と同じ _open_scope で
+    今の開いた項目に付く物だけに絞る。修正案の役が、直しで閉じた穴の裏返しを開かないための守る決まりの元。最後に閉じた順"""
+    raised: dict = {}
+    closed: dict = {}
+    for p in doc.get("passes") or []:
+        for key in p.get("resolved") or []:
+            if key in raised:
+                closed[key] = p["pass"]
+        for f in _pass_faces(p):
+            if f["severity"] == "block":
+                raised[f["key"]] = {**f, "raised": p["pass"]}
+                closed.pop(f["key"], None)
+    in_open = _open_scope(doc)
+    return [{**raised[key], "closed": n} for key, n in closed.items() if in_open(raised[key]["unit_keys"])]
 
 
 def answer_gaps(doc: dict, answers) -> list[str]:
