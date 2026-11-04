@@ -98,7 +98,7 @@ script の名は `lib/` のモジュールの名と重ねない（README の 7.1
 
 - judge のまとめ（`workflows/judge/`）: `include: works-factory-parallel-pr`。`when:` は今の pr-scan の条件「判定の道（再審の道でない）で、仕様の段が止めていない」を line が引いた真偽。`with:` は `request: $<依頼の pointer>`・`base: <始めの記録の diff_base>`・`changed: "[]"`・`lang: <始めの記録の lang>`・`stage: before`。仕様の段を挟む run では、今と同じく仕様の承認の後に回す（承認で書いた受け入れテストのファイルを、役の前の写しに入れるため。今の `spec_answer` が写しを取り直していた事の替わり）。
 - line（`workflows/line/`）: 修正の後に node `parallel-pr-after` で `include: works-factory-parallel-pr` を 1 度だけ回す。`when:` は判定から入る run で直した差分が在る時（`$fixed.output.diffed == true && $request-in.output.entry != ''`）。`with:` は `request`・`base: <修正前の HEAD（base_rev）>`・`changed: "[]"`・`lang`・`stage: after`（line の設計書の 8 節の 1）。
-- 読み手: diagnose の `materials`（`$parallel-pr.output.material`）と再審の材料（`excluded`）・plan と plan-review と案の直し（`excluded`。今の `planblk.head` の「外す hunk」の節）・report の `sections`（`$parallel-pr.output.report`）と下げた物（`downgrades`）・line（`stop_reason` で止めるか）。fix には今も渡らない（6 節の 5）。段 `after` の読み手は line の最後の承認ノード（`ok`・`status`・`stop_reason`・`reason`・`material`・`report`）と報告（`report` の行。`drafts` の pointer は読まない）だけで、`excluded` は渡らない（line の設計書の 8 節の 1）。
+- 読み手: diagnose の `materials`（`$parallel-pr.output.material`）と再審の材料（`excluded`）・plan と plan-review と案の直し（`excluded`。今の `planblk.head` の「外す hunk」の節）・report の `sections`（`$parallel-pr.output.report`）と下げた物（`downgrades`）・line（`stop_reason` で止めるか）。fix には今も渡らない（6 節の 5）。段 `after` の読み手は line の最後の承認ノード（`ok`・`status`・`stop_reason`・`reason`・`material`・`report`）と報告（`report` の行と `downgrades`。`drafts` の pointer は読まない）だけで、`excluded` は渡らない（line の設計書の 8 節の 1）。
 
 ## 2 node の設計シート: pr-check（任せ先の役）
 

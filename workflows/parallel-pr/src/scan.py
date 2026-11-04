@@ -122,7 +122,7 @@ def _clear(place) -> None:
 
 def scan(place, repo, *, request, base: str, changed, stage: str = "before", gh=None, which=None) -> dict:
     """機械の道を回す。返り {go_role, reason}: go_role は機械で決められず役 pr-check が要るか。
-    前の run のこの block のファイルを名で引いて消し、役の前の作業ツリーの写し tree.json を取る。渡し物 pr-brief.json はどの道でも書く。
+    前の run のこの block のファイルを名で引いて消し、役の前の作業ツリーの写し tree.json を取る。渡し物 pr-brief.json は役を起こす道と機械が決めた道で書く。
     機械が決めた時は素材の控えと、空の外す hunk の控えを書く。段 stage は渡し物に書き、指示と受け付けがそこから読む。機械の道が落ちたら役に任せる（go_role 真）。
     作業ツリーの写しが取れなければ役を起こさず（受け付けが比べられない）、go_role 偽と訳を返す"""
     place, repo = pathlib.Path(place), pathlib.Path(repo)
