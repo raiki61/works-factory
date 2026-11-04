@@ -333,6 +333,33 @@ class ThemeStageCase(TalkBase):
         self.assertEqual([r["source"] for r in rows if r["name"] == prior], [policy.PUSH_SOURCE], "前の run の推しは推しのまま残る")
 
 
+    def test_back_keeps_the_names_people_wrote(self):
+        """続きの依頼に写す行のうち、頭 PRIOR_Q を付けるのは工場が run ごとに振る名（ASK_Q・TALK_Q・PLAN_TALK_Q・頭の付いた名）だけで、
+        人が依頼の answers に書いた名（問いの key か出どころ）はそのまま（続きの run の判定・問いの台帳が字の一致で結ぶ）。続きの続きの
+        run でも名が重ならない（carry.parts が 2 度書きと拒まない）"""
+        import carry
+        given = {**self.given, "request_answers": [{"question": "u1", "text": "受け入れる"}]}
+        descended = self.descend(self.agreed(), given)
+        rounds_got = {**self.plan_out(), "agreed": {"decision": "redesign", "text": "C1 が成り立たない"},
+                      "talks": [{"decision": "redesign", "text": "C1 が成り立たない"}]}
+        names = []
+        for _ in range(2):
+            with self.run.env():
+                self.assertTrue(self.d.back(rounds_got, given=given, record={"inputs": {}}, descended=descended,
+                                            place=self.run.artifacts, env={})["back"])
+            request = json.loads((self.run.artifacts / "theme/next/request.json").read_text(encoding="utf-8"))
+            carried = carry.parts(request)["answers"]
+            names = [a["question"] for a in carried]
+            self.assertIn("u1", names, "人が書いた名はそのまま")
+            self.assertNotIn(self.d.PRIOR_Q.format(question="u1"), names)
+            self.assertIn(self.d.PRIOR_Q.format(question=self.d.ASK_Q.format(id="Q1")), names)
+            self.assertIn(self.d.PRIOR_Q.format(question=self.d.PLAN_TALK_Q.format(n=1, decision="redesign")), names)
+            given = {**self.given, "request_answers": carried}
+            descended = self.descend(self.agreed(), given)
+        self.assertIn(self.d.PRIOR_Q.format(question=self.d.PRIOR_Q.format(question=self.d.ASK_Q.format(id="Q1"))), names,
+                      "続きの続きの run では頭が 2 つ付く")
+
+
 # ---------------------------------------------------------------- YAML の配線
 class ThemeWiringCase(unittest.TestCase):
     def setUp(self):
