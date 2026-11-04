@@ -4,7 +4,7 @@
 通すのは次の形だけで、ほかは本物の gh を起こさずに 1 行を出して終了コード 2:
 - `pr list -R <OWNER/REPO> …`・`pr view -R <OWNER/REPO> <番号か枝> …`・`pr diff -R <OWNER/REPO> <番号か枝> …`・
   `issue list -R <OWNER/REPO> …`・`issue view -R <OWNER/REPO> <番号> …`（対象の repo を名指しさせ、cwd の remote に頼らない。repo の語はサブコマンドの直後に
-  `-R X`・`-RX`・`--repo X`・`--repo=X` のどれかで置き、ほかの位置に -R を含む語（`--repo…`・R を含む短い旗の束）が在れば拒む。
+  `-R X`・`-RX`・`-R=X`・`--repo X`・`--repo=X` のどれかで置き、ほかの位置に -R を含む語（`--repo…`・R を含む短い旗の束）が在れば拒む。
   後ろの -R は、前に値を取る旗が在ると pflag がその値として食べ（`-t -R o/r`・`1 -qRo/r`）、`--` の後ろでは位置の引数になり、
   どちらも gh は手元の git の remote から repo を決める。remote は hosts.yml の全部のホストで絞られるので別のホストへ繋ぎうる。
   2 つ在れば gh は最後の値を読むので照らした値と食い違う。サブコマンドの直後の語は旗としてしか読まれないので、旗の表は要らない）

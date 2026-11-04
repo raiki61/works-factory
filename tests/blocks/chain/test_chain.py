@@ -268,13 +268,18 @@ class RoundFactsCase(Tree):
                 self.assertEqual(got["request"], "")
 
     def test_off_shape_pointer_is_refused_before_archon(self):
-        """命令の旗に読まれうる run の id とパス・ほかの型の札は、Archon を起こさずに拒む"""
+        """命令の旗に読まれうる run の id とパス・ほかの型の札は、Archon を起こさずに拒む。Archon の頭は、起きたら印のファイルを書く
+        偽の命令にし、印が無いことで起こさなかったことを見る（誤りの文の字では見ない。前の照らしが無くても、偽の頭の出す誤りは
+        「workflow artifacts」を含まないことがある）"""
+        mark = self.tmp / "archon-was-called"
+        head = [sys.executable, "-c", "import pathlib, sys; pathlib.Path(sys.argv[1]).touch()", str(mark)]
         for pointer in ({**self.pointer, "run_id": "--all"}, {**self.pointer, "path": "--json"}, {**self.pointer, "path": "/etc/x"},
                         {**self.pointer, "type": "file"}):
             with self.subTest(pointer=pointer):
-                got = self.facts(pointer=pointer, WORKS_FACTORY_ARCHON_CLI=json.dumps(["false"]))
+                mark.unlink(missing_ok=True)
+                got = self.facts(pointer=pointer, WORKS_FACTORY_ARCHON_CLI=json.dumps(head))
                 self.assertNotEqual(got["error"], "")
-                self.assertNotIn("workflow artifacts", got["error"])
+                self.assertFalse(mark.exists(), "Archon を起こした")
 
     def test_without_the_archon_head_is_an_error(self):
         got = self.facts(WORKS_FACTORY_ARCHON_CLI="")
