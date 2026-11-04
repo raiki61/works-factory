@@ -711,20 +711,20 @@ Return only JSON that matches the output schema.
 - 行: 修正案の項目 `i` の `narrows` の行ごとに `{kind: "regression", node: "p2.fix_plan", text: "修正案 <i+1> が狭める能力: <what>——<why>", units: <項目の unit_keys>, mark: <その行の決め手の欄>}`。穴のうち `kind` が `policy.HUMAN_FACE_KINDS`（人に回しうる穴の kind の住処。#851 で `lib/policy.py` の 1 か所に寄せた）の行で、kind policy なら記録された方針の行を名指す物（`policy.unrecorded` が偽）だけ `{kind, node: "p2.plan_review", text: "事前審査の穴 [<kind>] <key>: <why>", units: <穴の unit_keys>, mark}`。字の形は今のまま（line の承認ノードと修正の後の照らし `gatemarks.NARROW_HEAD`・`FACE_HEAD` がこの頭で読む）。
 - `decided`: `gatemarks.decided(mark)`。
 - `why`: 4 つの軸 `{obvious, world, clean, not_overkill}`（冒頭の語）ごとの、揃わない訳の並び。訳は今の `axis_reasons` のままの次の 7 つで、〔〕の中がその訳の載る軸。訳の無い軸は載せない（揃った軸は鍵ごと無い。全部の軸が揃えば `{}`）。
-  1. `decided_by` が無いか、`undecided_because` が在る〔obvious〕。
+  1. 決め手の出どころ `decided_by` が無いか、決まらない訳 `undecided_because` が在る〔obvious〕。
   2. 出どころが現物に無い（下の照らし）〔obvious〕。
-  3. 柵の印（`fences` の 5 語。`external_write` など）が付いている〔not_overkill〕。
+  3. 柵の印（`fences` の 5 語。`external_write`・`irreversible`・`policy_doc`・`widen_protection`・`web_doubt`。3.4）が付いている〔not_overkill〕。
   4. 世界の解（冒頭の語）の行が無い run で、欄 `world` も、決め手の中の URL も無い〔world〕。
-  5. 行の単位が、構造の目（直しが設計の考えを知る場所を増やすかを見る別の block。冒頭の語）が人に上げた単位に当たる〔clean〕。案の答えの有る無しは問わない。
-  6. 行の単位のうち、構造の目が汚れる（直しが設計の考えを知る場所を増やす）と見た単位に、修正案の答えが無い〔clean〕。
+  5. 行の単位（上の箇条「行の `units`」。5〜7 で同じ）が、構造の目（直しが設計の考えを知る場所を増やすかを見る別の block。冒頭の語）が人に上げた単位（構造の目の控え `structure/` の設計の行で、`route` が「人に上げる」の単位）に当たる〔clean〕。修正案の答え（6）の有る無しは問わない。
+  6. 行の単位のうち、構造の目が汚れる（直しが設計の考えを知る場所を増やす）と見た単位に、修正案の答え（修正案の項目の欄 `structure` に、その単位への答えの行が在ること。冒頭の「構造の目」の語）が無い〔clean〕。
   7. 行の単位が、修正案の単位の外に在る〔not_overkill〕。
-  - 出どころが現物に在るかの照らし（`cite.sources_problem`）: 依頼の引用は port `request` の本文と照らす。作業ツリーの外を引いた出どころは、依頼のファイルか place の親（この block の place のフォルダの 1 つ上）の下に在れば現物と認め、無ければ揃わない訳に載る。
+  - 出どころが現物に在るかの照らし（`cite.sources_problem`）: 依頼の引用は port `request` の本文と照らす。作業ツリー（run が対象のリポジトリを置いた作業ツリー。役が読む現物の根で、3.3 の材料の `Repository:` の行の物）の外を引いた出どころは、依頼のファイルか place の親（この block の place のフォルダの 1 つ上）の下に在れば現物と認め、無ければ揃わない訳に載る。
   - 記録された方針の行の名指し（`policy.decides`）: 上の照らしが「決め手が現物を 1 つも指していない」（`cite.NO_SOURCE`）と言った時だけ、決め手が人の決めた方針の行の名を字のまま含むかを見る。含めば出どころが在ると読み、2 の訳を載せない。
-    - 数える行: `intake.json` の `recorded_policy`（line が `policy.recorded` で組み、port `recorded` で渡す行）のうち、方針の文書・依頼の answers の question・承認ノードの答え・決着済みの論点から作った行。無人の run が採った推しの行（`policy.PUSH_SOURCE`）は人の決めでないので数えない。推しの行は、承認ノードで推しを採った答えと、テーマの run が推しで降りた依頼の answers の行（`workflows/line/src/descend.py` の `_answers` が欄 `answer.PUSHED` を付け、`policy.recorded` が `answer.by_push` で見分ける。依頼のファイルにも欄のまま書き〔`lib/carry.py` の answers の欄 `carry.PUSHED`〕、計画の段から設計へ戻した続きの run が読んでも推しのまま）の両方。推しの行は、事前審査・計画の役・判定の役への文のどれにも「人の答えではない」と分かる札で並べる（並べる側は source の並びを持たず `policy.by_source` で引く）。
-    - 穴の行にも効く: 事前審査の穴の行（kind regression・policy）の決め手も同じ照らしで読む。`parts/head.md` の `decided_by` と `policy.face_gaps` の名指しに沿う狙いどおりの形。
+    - 数える行: `intake.json` の `recorded_policy`（line が `policy.recorded` で組み、port `recorded` で渡す行）のうち、方針の文書・依頼の answers の question・承認ノードの答え・決着済みの論点から作った行。無人の run が採った推し（役が問いに添えた勧めの答えで、人の居ない run が人の答えの代わりに採って進む物。line.md の語）の行（`policy.PUSH_SOURCE`）は人の決めでないので数えない。推しの行は、承認ノードで推しを採った答えと、テーマの run（依頼のファイルの欄 `theme` を持ち、コードに落とす前の設計の問いを頭の設計の段で往復して固める run。line.md 3.3）が、承認された設計を依頼の行にして判定と計画の往復へ進んだ時（降りる。line.md 3.3）に、人の答えでなく推しで進んでいた場合の、降りた依頼の answers の行（`workflows/line/src/descend.py` の `_answers` が欄 `answer.PUSHED` を付け、`policy.recorded` が `answer.by_push` で見分ける。依頼のファイルにも欄のまま書き〔`lib/carry.py` の answers の欄 `carry.PUSHED`〕、計画の段から設計へ戻した続きの run が読んでも推しのまま）の両方。推しの行は、事前審査・計画の役・判定の役への文のどれにも「人の答えではない」と書いた見出しの行（札）の下に並べる（並べる側は source の並びを持たず `policy.by_source` で引く）。
+    - 穴の行にも効く: 事前審査の穴の行（kind regression・policy）の決め手も同じ照らしで読む。これは狙いどおりの形で、事前審査の指示 `parts/head.md` が穴の `decided_by` に書かせる名指しと、`policy.face_gaps` が照らす名指しに沿う。
     - 足した訳: 計画の指示（`plan-writer.md`）と事前審査の指示（`parts/head.md`）は、決め手の 1 つにこの名指しを挙げる。前は照らしがこれを数えなかったので、依頼の answers に答えを書いた狭める能力の行が、無人の run で毎回人に回った。
     - 残す誤り: 無いファイル・無い行を指した決め手（`NO_SOURCE` 以外の訳）は、方針の行の名を含んでも今どおり 2 の訳に載る。
-  - place の親は、今の line・policy-check（include が 1 段）では run の根と同じだが、単独の run では run の外まで広く、2 段より深い include では run の一部だけに狭い。狭いと、run の中に在る出どころを現物に無いと読み、2 の訳を載せて人に回しうる。広いと、run の外の物を現物と認めうる。block は run の根を受けない〔README 4.3・形の検査の 7〕ので、今は place の親で照らし、run の根に揃える直しは持ち主（工場の持ち主）の決めを待つ。
+  - place の親は、今の line・policy-check（include が 1 段）では run の根（run directory の根 `$ARTIFACTS_DIR`。place は `$ARTIFACTS_DIR/<include の道>/` で、単独の run では `$ARTIFACTS_DIR/` そのもの。README 4.4）と同じだが、単独の run では run の外まで広く、2 段より深い include（include の入れ子が 2 段より深い所）では run の一部だけに狭い。狭いと、run の中に在る出どころを現物に無いと読み、2 の訳を載せて人に回しうる。広いと、run の外の物を現物と認めうる。block は run の根を受けない〔README 4.3・形の検査の 7〕ので、今は place の親で照らし、run の根に揃える直しは持ち主（工場の持ち主）の決めを待つ。
 - 形 replan（承認済みの案を裁定で直した項目だけの審査。冒頭の語）も同じ行を返す（今は形 replan の承認ノードは `replan_asks` だけを使ったが、事実として返し、使うかは line が決める）。
 
 ### 10.2 外れ `deviations`
