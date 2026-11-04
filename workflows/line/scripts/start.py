@@ -10,9 +10,11 @@ when: で飛び、collect・report・result だけが走る（AI を起こす前
 並べる（src/deal.py。block は始めの記録を読まない）。拒んだ run の ports は全部の欄を空の値で持つ。
 
 固定材料（fix_fixture。src/fixture.py）を名指した run は、前の run の修正の前の置き場の写しを取り込み（照らしと拒みは
-fixture.adopt。拒みは AI の前）、始めの記録は写しの物を今の run の id・入力・版の控え・機能の切り替え・依頼のファイルの道にして書く。
-GitHub の読み・差分の測り・入口の形・方針の固め・PR のファイルは写しの物を使うので回さない。返りの from_fixture が真で、fixture が
-run directory の根の fixture.CARRIED（修正の段へ運ぶ値）の pointer。配る値は取り込んだ記録から同じ式で引く。
+fixture.adopt。拒みは AI の前）、始めの記録は写しの物を今の run の id・入力・版の控え・機能の切り替え・依頼のファイルの道・
+承認ノードの開き方と無人の語にして書く。GitHub の読み・差分の測り・入口の形・方針の固め・PR のファイルは写しの物を使うので回さない。
+返りの from_fixture が真で、fixture が run directory の根の fixture.CARRIED（修正の段へ運ぶ値）の pointer。fixture_gate は写しが
+修正前の承認ノードで止まった所の物か（fixture.pending。真なら fixture- の付いた修正前の承認ノードを写しの値で開き直す）。
+配る値は取り込んだ記録から同じ式で引く。
 
 依頼の容器の constraints（前の run が運んだ前提の実測）は src/files.py の CARRIED に置き、配る値 carried がその pointer を持つ。
 
@@ -267,17 +269,18 @@ def features(checked: dict) -> dict:
 def from_fixture(raw: dict, checked: dict, asked: dict, repo: Path, artifacts: Path, run_id: str, versions_doc: dict) -> dict:
     """固定材料を取り込んで始めの記録を書き、start の返りを組む。取り込めなければ Refused（何も書かない）"""
     try:
-        doc, _ = fixture.adopt(artifacts, checked["fix_fixture"], repo, run_id=run_id, inputs=raw,
+        doc, carried = fixture.adopt(artifacts, checked["fix_fixture"], repo, run_id=run_id, inputs=raw,
                                request_text=asked["request_text"])
     except fixture.FixtureRefused as error:
         raise Refused(f"固定材料を取り込まない: {error}") from None
     named = asked["request_file"]
     doc.update({"versions": versions_doc, **features(checked), "request_file": named,
+                gates.FINAL_KEY: checked[gates.FINAL_KEY], gates.UNATTENDED_KEY: checked[gates.UNATTENDED_KEY],
                 "input": {**startrec.shape(doc), "request_file": named}})
     prior = (ports.pointer(artifacts / carry.PRIOR_IN_FILE, "json(shared:prior-failures.schema.json)")
              if (artifacts / carry.PRIOR_IN_FILE).is_file() else None)
-    return begun(doc, startrec.shape(doc), prior, raw, repo, artifacts, run_id,
-                 ports.pointer(artifacts / fixture.CARRIED, "json(received.schema.json)"))
+    return {**begun(doc, startrec.shape(doc), prior, raw, repo, artifacts, run_id,
+                    ports.pointer(artifacts / fixture.CARRIED, "json(received.schema.json)")), "fixture_gate": fixture.pending(carried)}
 
 
 def begun(record: dict, shape: dict, prior, raw: dict, repo: Path, artifacts: Path, run_id: str, carried=None) -> dict:
@@ -287,7 +290,7 @@ def begun(record: dict, shape: dict, prior, raw: dict, repo: Path, artifacts: Pa
     return {"ok": True, "stop_reason": "", "reason": "", "record": pointer, "prior_failures": prior,
             "ask": not unattended, "gate_text": gate_text(shape, record, run_id, test_notes(raw, repo)),
             "unattended": unattended, "design_talk": record["design_talk"] == gatemarks.DESIGN_ONLY,
-            "final_gate": record[gates.FINAL_KEY], "from_fixture": carried is not None, "fixture": carried,
+            "final_gate": record[gates.FINAL_KEY], "from_fixture": carried is not None, "fixture": carried, "fixture_gate": False,
             "from_spec": bool(record.get("spec_table")), "ports": deal.ports_of(record, artifacts)}
 
 
@@ -323,7 +326,7 @@ def start(raw: dict, repo: Path, artifacts: Path, run_id: str) -> dict:
         record["refused"] = str(error)
         return {"ok": False, "stop_reason": stopby.START_REFUSED, "reason": str(error),
                 "record": write(artifacts, record), "prior_failures": None, "ask": False, "gate_text": "",
-                "unattended": False, "design_talk": False, "final_gate": "", "from_fixture": False, "fixture": None,
+                "unattended": False, "design_talk": False, "final_gate": "", "from_fixture": False, "fixture": None, "fixture_gate": False,
                 "from_spec": False, "ports": deal.empty()}
     parts = asked["parts"]
     record.update({
@@ -366,7 +369,7 @@ def fallback(reason: str) -> dict:
 
     return {"ok": False, "stop_reason": guard.LINE_SCRIPT, "reason": reason, "record": None, "prior_failures": None,
             "ask": False, "gate_text": "", "unattended": False, "design_talk": False, "final_gate": "", "from_fixture": False,
-            "fixture": None, "from_spec": False, "ports": deal.empty()}
+            "fixture": None, "fixture_gate": False, "from_spec": False, "ports": deal.empty()}
 
 
 if __name__ == "__main__":   # 試験は名で読み、load の後に start を直に呼ぶ

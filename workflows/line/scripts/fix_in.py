@@ -8,8 +8,12 @@
 判定・構造の目・独立設計・計画の往復の値を、ここの返りの欄（$fix-in.output.<欄>）からだけ読む。
 - 通常の run: 受け皿の got（直す前のテスト・判定のまとめ・構造の目）と返し（段の表・独立設計・計画の往復）と修正前の承認の答えを
   運ぶ値 received_live に組み、平らな欄にする。go は修正前の承認を通ったか。go が真なら、修正の前に 1 度だけ run の置き場を固定材料に
-  写す（src.fixture.noted_capture。運ぶ値を控えに入れる。写せなくても止めない）
-- 固定材料の run（start が取り込んだ）: start が置いた運ぶ値を同じ式で平らな欄にする。go は起動の承認を通ったか。写さない
+  写す（src.fixture.noted_capture。運ぶ値を控えに入れる。写せなくても止めない）。修正前の承認ノードが人の判断待ちで止めた時
+  （止めの語 before_fix_stop が works:needs-human か human: で始まる）も、計画の往復の got を運ぶ値の fixture.GATE_KEY に足して写す
+  （次の run が判定と計画を飛ばして修正前の承認ノードから続ける）
+- 固定材料の run（start が取り込んだ）: start が置いた運ぶ値を同じ式で平らな欄にする。go は起動の承認を通ったか。写さない。
+  修正前の承認ノードで止まった所の写し（fixture.pending）は、go に続きの修正前の承認（fixture- の付いた入力）を通ったかを足し、答え・
+  方針の写し・載せなかった問い・聞かずに通した行を続きの承認ノードの物にする
 足す欄: 単位の深さ units_tier（直す義務の単位の全部を承認済みの案の欄から tiers.decide_doc で）・skip_rerun（段が省く物を持つ時だけ、
 軽量の単位の key）・switches（段の切り替え。tiers の返りか、運んだ判定の段で引き直した物）・no_fix（判定が止めずに直す単位を出さな
 かったか、計画の status が nothing_owed）・excluded（判定のまとめの excluded。fix の 2 段に渡す。8.2）・policy（修正前の答えが
@@ -18,8 +22,10 @@
 返りの reason に載せる（collect が報告の problems に出す）。落ちない時の reason は空。
 
 入力（with:）: fixture（start の fixture）・start_go・ports・test_gate_base・judge・tiers・structure・design・rounds・before_fix_go・
-before_fix_answer・before_fix_policy・deferred・passes・recorded（どれも飛ばされうるので {from, if_skipped: null}）と、仕様駆動の run だけが
-渡す spec（spec-rounds の返り）・spec_before_fix_go・spec_before_fix_answer・spec_before_fix_policy・spec_deferred・spec_passes（spec_raw）
+before_fix_answer・before_fix_policy・before_fix_stop・deferred・passes・recorded（どれも飛ばされうるので {from, if_skipped: null}）と、
+仕様駆動の run だけが渡す spec（spec-rounds の返り）・spec_before_fix_go・spec_before_fix_answer・spec_before_fix_policy・spec_deferred・
+spec_passes（spec_raw）と、直す前で止まった写しの run だけが渡す fixture_before_fix_go・fixture_before_fix_answer・
+fixture_before_fix_policy・fixture_deferred・fixture_passes（resumed）
 """
 import json
 import os
@@ -44,6 +50,8 @@ JUDGE_FLAT = ("judgment", "units", "answer_ties", "materials", "out_of_purpose",
               "spec", "purpose", "purpose_text", "means", "constraints", "brief", "inputs")
 ROUND_FLAT = ("plan", "fix_plan", "ripple", "reply", "review", "record", "handoffs", "owed", "round")
 NOTHING_OWED = "nothing_owed"   # plan の出力 status の語（直す義務 0 件の周）
+# 直す前で止まった写しの run だけが渡す、続きの修正前の承認の入力（fixture-ask-before-fix・fixture-answer-before-fix の返り）
+FIXTURE_GATE = ("fixture_before_fix_go", "fixture_before_fix_answer", "fixture_before_fix_policy", "fixture_deferred", "fixture_passes")
 
 
 def _part(raw, names):
@@ -142,6 +150,20 @@ def spec_raw(raw: dict) -> dict:
     return out
 
 
+def resumed(raw: dict) -> dict:
+    """直す前で止まった写しの run の、続きの修正前の承認の値（運ぶ値の鍵の名。写しの止まりの値に替える）"""
+    return {"gate_before_fix": ports.parsed(raw.get("fixture_before_fix_answer")),
+            "before_fix_policy": _text(raw.get("fixture_before_fix_policy")),
+            "deferred": ports.parsed(raw.get("fixture_deferred")) or [], "passes": ports.parsed(raw.get("fixture_passes")) or []}
+
+
+def held_for_person(raw: dict) -> bool:
+    """修正前の承認ノードが人の判断待ちで止めたか（無人の run の推しが揃わない・人が止める語で答えた）"""
+    import stopby
+    stop = _text(raw.get("before_fix_stop")) or ""
+    return ports.parsed(raw["before_fix_go"]) is False and (stop == stopby.NEEDS_HUMAN or stop.startswith(stopby.HUMAN))
+
+
 def fix_in(raw: dict, place: Path, repo: Path, run_id: str) -> dict:
     from src import fixture
     raw = spec_raw(raw)
@@ -152,10 +174,17 @@ def fix_in(raw: dict, place: Path, repo: Path, run_id: str) -> dict:
     live = received_live(raw)
     if carried is not None:
         received = _carried(json.loads(carried.read_text(encoding="utf-8")))
-        return {**flat(received, dealt, record), "go": start_go, "received": received, "stop_reason": "", "reason": ""}
+        go = start_go
+        if fixture.pending(received):
+            received = {**received, **resumed(raw)}
+            go = go and ports.parsed(raw.get("fixture_before_fix_go")) is True
+        return {**flat(received, dealt, record), "go": go, "received": received, "stop_reason": "", "reason": ""}
     go = ports.parsed(raw["before_fix_go"]) is True
+    rounds = ports.parsed(raw["rounds"])
     if go:
         fixture.noted_capture(place, repo, run_id=run_id, carried=live)
+    elif held_for_person(raw) and isinstance(rounds, dict):
+        fixture.noted_capture(place, repo, run_id=run_id, carried={**live, fixture.GATE_KEY: rounds})
     return {**flat(live, dealt, record), "go": go, "received": None, "stop_reason": "", "reason": ""}
 
 
@@ -166,12 +195,14 @@ def compute() -> dict:
            "structure": os.environ.get("INPUTS_STRUCTURE"), "design": os.environ.get("INPUTS_DESIGN"),
            "rounds": os.environ.get("INPUTS_ROUNDS"), "before_fix_go": os.environ.get("INPUTS_BEFORE_FIX_GO"),
            "before_fix_answer": os.environ.get("INPUTS_BEFORE_FIX_ANSWER"), "before_fix_policy": os.environ.get("INPUTS_BEFORE_FIX_POLICY"),
+           "before_fix_stop": os.environ.get("INPUTS_BEFORE_FIX_STOP"),
            "deferred": os.environ.get("INPUTS_DEFERRED"), "passes": os.environ.get("INPUTS_PASSES"),
            "recorded": os.environ.get("INPUTS_RECORDED"), "record": os.environ.get("INPUTS_RECORD"),
            "spec": os.environ.get("INPUTS_SPEC"), "spec_before_fix_go": os.environ.get("INPUTS_SPEC_BEFORE_FIX_GO"),
            "spec_before_fix_answer": os.environ.get("INPUTS_SPEC_BEFORE_FIX_ANSWER"),
            "spec_before_fix_policy": os.environ.get("INPUTS_SPEC_BEFORE_FIX_POLICY"),
-           "spec_deferred": os.environ.get("INPUTS_SPEC_DEFERRED"), "spec_passes": os.environ.get("INPUTS_SPEC_PASSES")}
+           "spec_deferred": os.environ.get("INPUTS_SPEC_DEFERRED"), "spec_passes": os.environ.get("INPUTS_SPEC_PASSES"),
+           **{name: os.environ.get(f"INPUTS_{name.upper()}") for name in FIXTURE_GATE}}
     return fix_in(raw, ports.place(), Path.cwd(), os.environ.get("WORKFLOW_ID", ""))
 
 

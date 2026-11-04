@@ -583,6 +583,17 @@ class ScriptCase(unittest.TestCase):
         self.assertIn(NARROW, out["text"])
         self.assertIn("gate-before-fix", out["text"])
 
+    def test_ask_before_fix_reopens_from_a_copy_that_stopped_before_the_fix(self):
+        """直す前で止まった写しの run（fixture- の付いた node）: 計画の往復・判定・構造の目を写しの運ぶ値（fixture）から読み、写した run と
+        同じ項目で承認ノードを開く。人の居る run なので推しで進まず人に聞く"""
+        record = self.put("r1/start.json", {"answers": []})
+        carried = self.put("fixture-carried.json", {"judge": {"judgment": None, "answer_ties": None, "materials": None},
+                                                     "structure": {"structure": None}, "gate_rounds": rounds(asks=[ask_row()])})
+        out = self.run.script("ask_before_fix", request=handed({}), rounds="", structure="", judge="", fixture=carried, record=record,
+                              ports=self.ports())
+        self.assertEqual((out["open"], out["go"], out["stop_reason"]), (True, True, ""), out)
+        self.assertIn(NARROW, out["text"])
+
     def test_ask_before_fix_asks_the_structure_pointed_rows(self):
         """構造の目の控えの版に無い名指しの行が、材料の読み（src.asking.materials）を通って修正前の承認ノードに届く（持ち主の決め pointed-ask）"""
         record = self.put("r1/start.json", {"answers": []})

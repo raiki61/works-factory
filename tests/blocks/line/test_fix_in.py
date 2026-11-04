@@ -6,10 +6,12 @@ integration.md 4.1-5 の line の側）・units_tier・skip_rerun・switches・�
 """
 import json
 import pathlib
+import shutil
 import unittest
 
 import yaml
 
+from tests.bin.gitkit import git
 from tests.blocks import kit
 
 BLOCK = "line"
@@ -18,6 +20,8 @@ U1 = "u1"
 BEFORE_SPEC = pathlib.Path(__file__).with_name("fix_in_before_spec.json")
 # 仕様駆動の run だけが渡す入力（docs/design/spec-driven.md の 6.2 の変える node の 4。ほかの run では null）
 SPEC_INPUTS = ("spec", "spec_before_fix_go", "spec_before_fix_answer", "spec_before_fix_policy", "spec_deferred", "spec_passes")
+# 直す前で止まった写しの run だけが渡す入力（続きの修正前の承認。ほかの run では null）と、修正前の承認の止めの語
+FIXTURE_INPUTS = ("fixture_before_fix_go", "fixture_before_fix_answer", "fixture_before_fix_policy", "fixture_deferred", "fixture_passes")
 
 
 def line_node(node_id: str) -> dict:
@@ -58,7 +62,7 @@ class FixInCase(unittest.TestCase):
                 "design": {"design": self.ptr("independent-design/design.json"), "reason": "", "premises": None, "stop_reason": ""},
                 "rounds": self.rounds(), "before_fix_go": True, "before_fix_answer": {"decision": "approve", "text": "", "asked": []},
                 "before_fix_policy": None, "deferred": [], "passes": ["通した行"], "recorded": [{"source": "answer", "name": "q", "text": "a"}],
-                **dict.fromkeys(SPEC_INPUTS, "null")}
+                "before_fix_stop": "", **dict.fromkeys(SPEC_INPUTS, "null"), **dict.fromkeys(FIXTURE_INPUTS, "null")}
         base.update(kw)
         return {k: v if isinstance(v, str) else json.dumps(v, ensure_ascii=False) for k, v in base.items()}
 
@@ -126,6 +130,57 @@ class FixInCase(unittest.TestCase):
                          (True, False, self.ptr("judge/excluded.json"), "軽量"))
         self.assertEqual(got["units_tier"][0]["depth"], "軽量")
         self.assertEqual(self.fix_in(fixture=carried, start_go="false", **skipped)["go"], False)
+
+    def seeded(self):
+        """写しは作業ツリーの HEAD を引くので、対象に commit を 1 つ置く"""
+        (self.run.repo / "a.py").write_text("a\n", encoding="utf-8")
+        git(self.run.repo, "add", "a.py")
+        git(self.run.repo, "commit", "-q", "-m", "seed")
+
+    def manifest(self):
+        path = self.run.artifacts / "fix-fixture" / "fixture.json"
+        return json.loads(path.read_text(encoding="utf-8")) if path.is_file() else None
+
+    def test_a_stop_at_the_gate_before_the_fix_is_copied_to_go_on_later(self):
+        """修正前の承認ノードで人の判断が要ると止まった run（無人の推しが揃わない・人が stop と答えた）も、run の置き場を固定材料に写し、
+        運ぶ値の gate_rounds に修正前の承認ノードが読む計画の往復の欄を持つ（次の run が判定と計画を飛ばして承認ノードから続ける）"""
+        self.seeded()
+        for stop in ("works:needs-human", "human:gate-before-fix"):
+            with self.subTest(stop=stop):
+                shutil.rmtree(self.run.artifacts / "fix-fixture", ignore_errors=True)
+                rounds = self.rounds(done=True, asks=[{"text": "問い"}])
+                got = self.fix_in(rounds=rounds, before_fix_go=False, before_fix_answer="null", before_fix_stop=stop)
+                self.assertEqual((got["go"], got["stop_reason"]), (False, ""), got)
+                man = self.manifest()
+                self.assertIsNotNone(man, "止まった所を写す")
+                self.assertEqual(man["carried"]["gate_rounds"]["asks"], [{"text": "問い"}])
+                self.assertEqual(man["carried"]["gate_rounds"]["done"], True)
+
+    def test_other_stops_are_not_copied(self):
+        """人の判断待ちでない止め（script の落ち・計画ができていない）と仕様駆動の run の止まりは写さない"""
+        self.seeded()
+        self.fix_in(before_fix_go=False, before_fix_answer="null", before_fix_stop="works:line-script")
+        self.fix_in(before_fix_go=False, before_fix_answer="null", before_fix_stop="")
+        self.assertIsNone(self.manifest())
+
+    def test_fixture_run_that_stopped_before_the_fix_takes_the_new_answer(self):
+        """直す前で止まった写しの run: go は起動の承認と、続きの修正前の承認（fixture- の付いた入力）の両方。答え・方針・聞かずに
+        通した行・載せなかった問いは続きの承認ノードの物で、写しの止まりの値でない"""
+        received = {name: json.loads(self.inputs()[name]) for name in ("test_gate_base", "judge", "tiers", "structure", "design", "rounds")}
+        received.update({"gate_before_fix": None, "before_fix_policy": None, "deferred": ["前の問い"], "passes": [], "recorded": [],
+                         "gate_rounds": self.rounds(done=True)})
+        carried = self.ptr("fixture-in/carried.json", received)
+        skipped = {name: "null" for name in ("test_gate_base", "judge", "tiers", "structure", "design", "rounds", "before_fix_go",
+                                             "before_fix_answer", "before_fix_policy", "deferred", "passes", "recorded")}
+        answer = {"decision": "continue", "text": "人の答え", "asked": ["問い"]}
+        got = self.fix_in(fixture=carried, **skipped, fixture_before_fix_go=True, fixture_before_fix_answer=answer,
+                          fixture_before_fix_policy="/p/refrozen.md", fixture_deferred=[], fixture_passes=["通した行"])
+        self.assertEqual((got["go"], got["answer"], got["policy"], got["deferred"], got["passes"]),
+                         (True, answer, "/p/refrozen.md", [], ["通した行"]), got)
+        self.assertEqual(got["received"]["gate_before_fix"], answer)
+        self.assertIs(self.fix_in(fixture=carried, **skipped, fixture_before_fix_go=False)["go"], False)
+        self.assertIs(self.fix_in(fixture=carried, **skipped)["go"], False, "続きの承認ノードを通らなければ進まない")
+        self.assertIs(self.fix_in(fixture=carried, **skipped, start_go="false", fixture_before_fix_go=True)["go"], False)
 
     def test_older_returns_are_not_read_as_empty(self):
         """要る欄の欠けた got（前の版の返りを resume で受けた）は空と読まずに止める（integration.md 4.3-12）"""
