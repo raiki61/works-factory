@@ -1,5 +1,5 @@
 {
-  "description": "依頼の answers の行の配列（依頼者が前の run の問いに答えた物 [{question, text, command?, output?}]。形を確かめる住処は lib/carry.py の parts）",
+  "description": "依頼の answers の行の配列（依頼者が前の run の問いに答えた物 [{question, text, command?, output?, pushed?}]。pushed は無人の run が採った推しの行の印で、在れば人の答えではない。形を確かめる住処は lib/carry.py の parts）",
   "type": "array",
   "items": {
     "type": "object",
@@ -7,7 +7,8 @@
       "question": {"type": "string"},
       "text": {"type": "string"},
       "command": {"type": "string"},
-      "output": {"type": "string"}
+      "output": {"type": "string"},
+      "pushed": {"type": "array", "description": "無人の run が推しで進んだ答えを写した行だけが持つ、採った推しの行", "items": {"type": "object", "description": "無人の run が採った推しの行（lib/push-row.schema.json と同じ欄。依頼の読み手は欄 pushed が在ることを印と読み、行の中身は読まない）", "properties": {"item": {"type": "string"}, "answer": {"type": "string"}, "note": {"type": "string"}, "why": {"type": "string"}}}}
     }
   }
 }
