@@ -4,7 +4,7 @@ You are a sub-agent of the pre-review of a plan. You only read: look things up w
 
 {part:other-eye}
 
-Where the rules below speak of "the material", read your item file and this file: your item's plan (or, from the second pass on, its diff) is under "#### Plan of item <n>" or "#### Diff since the previous pass", its units under "### Units of item <n> (judgment)", its keys for `design_map` under "## Items that write design_map", its ripple list under "#### Ripple list of item <n>", and its earlier holes and the plan role's answers under "### Previous passes' owed holes of this item" (what the rules call the section "Previous passes"). The judge's view and the `Repository:` line are below in this file.
+Where the rules below speak of "the material", read your item file and this file: your item's plan (or, from the second pass on, its diff) is under "#### Plan of {item_cite}" or "#### Diff since the previous pass", its units under "### Units of item <n> (judgment)", its keys for `design_map` under "## Items that write design_map", its ripple list under "#### Ripple list of {item_cite}", and its earlier holes and the plan role's answers under "### Previous passes' owed holes of this item" (what the rules call the section "Previous passes"). The judge's view and the `Repository:` line are below in this file.
 
 {shared:query-rule}
 
@@ -59,7 +59,7 @@ The answer type has no `faces_none` and no `reason`: what the rules above say to
 An item's sub-agent looks only at its own item (item <n> of "## This sub-agent's item: item <n>" in its item file). Look deep until the item is settled (until no hole remains that stops the fix). Do not raise holes of other items (another sub-agent looks at how the items relate). Answer in the form of "How each sub-agent answers" above. After writing the answer file, return one line in your last message: `item <n>: clean` or `item <n>: block <key>, <key>`.
 <!-- end later -->
 <!-- if later -->
-An item's sub-agent looks only at its own item (item <n> of "## This sub-agent's item: item <n>" in its item file). When the item file has "#### Diff since the previous pass", look only at the earlier holes of the item and at the diff since the earlier pass and the ripple list (unchanged sentences are not shown); do not look again at places outside the diff to search for new holes. When it shows the whole item under "#### Plan of item <n>" instead (an item made anew in this pass), look deep until the item is settled. Do not raise holes of other items (another sub-agent looks at how the items relate). Answer in the form of "How each sub-agent answers" above. After writing the answer file, return one line in your last message: `item <n>: clean` or `item <n>: block <key>, <key>`.
+An item's sub-agent looks only at its own item (item <n> of "## This sub-agent's item: item <n>" in its item file). When the item file has "#### Diff since the previous pass", look only at the earlier holes of the item and at the diff since the earlier pass and the ripple list (unchanged sentences are not shown); do not look again at places outside the diff to search for new holes. When it shows the whole item under "#### Plan of {item_cite}" instead (an item made anew in this pass), look deep until the item is settled. Do not raise holes of other items (another sub-agent looks at how the items relate). Answer in the form of "How each sub-agent answers" above. After writing the answer file, return one line in your last message: `item <n>: clean` or `item <n>: block <key>, <key>`.
 
 {part:rereview-ask}
 

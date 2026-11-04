@@ -843,6 +843,26 @@ class LauncherTest(unittest.TestCase):
         said = self.stopped(self.launch("workflow", "run", "works-factory-line"))
         self.assertIn(f"{launcher.NAME}: upstream に届かない", said)
 
+    def test_run_that_lost_the_configured_remote_after_start_names_it(self):
+        """起こした後に Archon が落ちた時の訳（why）も、対象の .archon/config.yaml の worktree.remote を確かめる: 起こす前は origin も
+        upstream も届き、起こした後に upstream だけが届かなくなると、「upstream に届かない」と読める（origin を確かめると訳が出ない）"""
+        self.origin(reachable=True)
+        upstream = self.tmp / "upstream.git"
+        git(self.tmp, "init", "-q", "--bare", str(upstream))
+        git(self.target, "push", "-q", str(upstream), "HEAD:refs/heads/main")
+        git(self.target, "remote", "add", "upstream", str(upstream))
+        (self.target / ".archon").mkdir()
+        (self.target / ".archon" / "config.yaml").write_text("worktree:\n  remote: upstream\n", encoding="utf-8")
+        real = shutil.which("bun")
+        if real is None:
+            self.skipTest("bun が無い（対象の .archon/config.yaml は Archon と同じ Bun.YAML.parse で読む）")
+        self.bun.write_text(read_with_real_bun(real), encoding="utf-8")
+        done = self.launch("workflow", "run", "works-factory-line", FAKE_BUN_BREAK=str(upstream))
+        self.assertEqual(done.returncode, 1, done.stderr)
+        self.assertIn(f"{launcher.NAME}: 記録の置き場を特定できない", done.stderr)
+        self.assertIn("upstream に届かない", done.stderr)
+        self.assertNotIn("origin に届かない", done.stderr)
+
     def test_detached_run_and_other_commands_say_no_record_place(self):
         for args in (["workflow", "run", "works-factory-line", "--detach"], ["workflow", "approve", "run-1"]):
             with self.subTest(args=args):

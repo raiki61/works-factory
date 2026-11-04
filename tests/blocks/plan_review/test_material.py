@@ -513,13 +513,29 @@ class SecondPassCase(_Case):
                         files=[V.frow("stats.py", "helper_1", "clamp")]), V.item(V.UNIT_CLAMP, 2)]
         prompt, mat = self.second(items=items, ripple=V.RIPPLE)
         cross = mat[mat.index(material.LABELS["cross"]):]
-        for want in ("- stats.py: item 1, 2", f"- item 2 ({V.UNIT_CLAMP})", "  - allowed_paths: stats.py", "  - files: stats.py"):
+        cite = converge.ITEM_CITE.format
+        for want in (f"- stats.py: {cite(n=1)}, {cite(n=2)}", f"- {cite(n=2)} ({V.UNIT_CLAMP})", "  - allowed_paths: stats.py",
+                     "  - files: stats.py"):
             self.assertIn(want, cross, want)
-        self.assertNotIn(f"- item 1 ({V.UNIT_MEAN})", cross, "開いた項目が 1 つなら自分の範囲は差分の側に在る")
+        self.assertNotIn(f"- {cite(n=1)} ({V.UNIT_MEAN})", cross, "開いた項目が 1 つなら自分の範囲は差分の側に在る")
         self.assertIn("+ files[stats.py].symbols[clamp].name: clamp", mat, "閉じた項目 2 の名に触る直しの文")
         for unchanged in (f"{V.PLAN_MARK} 項目 2 の直し", "helper_2"):
             self.assertNotIn(unchanged, mat, unchanged)
         self.assertIn("\"Overlaps and other items' scope\"", prompt)
+
+    def test_second_pass_material_cites_items_in_the_machines_characters(self):
+        """2 往復目の材料の開いた項目の節（見出し・案・波及の一覧）と項目どうしの節（重なり・ほかの項目の範囲）は、項目を
+        converge.ITEM_CITE（line の照らし rounds.uncited と同じ字。保留の項目の行と同じ）で書き、英語の "item n" を残さない。
+        止まった時の推しの note は役が材料の行を写すので、別の字の行を写した推しが引用の欠けで捨てられる"""
+        _, mat = self.second(ripple=V.RIPPLE)
+        part = mat[mat.index(material.LABELS["open_item"].format(n=1, units=V.UNIT_MEAN)):]
+        self.assertIn(material.LABELS["cross"], part)
+        self.assertEqual(re.findall(r"(?i)\bitems? \d", part), [], "英語の item に番号が続く字")
+        cite = converge.ITEM_CITE.format
+        for want in (f"### Open {cite(n=1)} ({V.UNIT_MEAN})", f"#### Ripple list of {cite(n=1)} ",
+                     f"- stats.py: {cite(n=1)}, {cite(n=2)}", f"- {cite(n=2)} ({V.UNIT_CLAMP})"):
+            self.assertIn(want, part, want)
+        self.assertEqual(material.LABELS["item_plan"].format(n=3), f"#### Plan of {cite(n=3)}")
 
     def test_cross_section_without_ripple_says_the_list_is_missing(self):
         """元 ConvergeCase.test_cross_section_without_ripple_says_the_list_is_missing: 波及の一覧が誤りの時、項目どうしの節の重なりは

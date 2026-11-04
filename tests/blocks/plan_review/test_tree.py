@@ -1059,6 +1059,8 @@ class BriefCase(TreeBase):
         for label in ("How each sub-agent answers", "### Precedent sources of this item", "### Errors in the previous answer",
                       "### Hits answered in a previous pass", "`fetch`", "`by item <m>`"):
             self.assertIn(label, brief)
+        for label in ("item_plan", "ripple"):   # 下請けの指示が名指す材料の見出しは、材料の札と同じ字（項目は converge.ITEM_CITE）
+            self.assertIn(f'"{self.material.LABELS[label].format(n="n").split(" (")[0]}"', brief, label)
 
     def test_brief_carries_the_query_rule_without_spawns(self):
         """下請けの指示に外への検索の決まり（共通の断片 query-rule）が在る。下請けは下請けを起こさないので段落 spawns は無い。束ね役の

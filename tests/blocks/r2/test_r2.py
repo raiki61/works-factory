@@ -386,6 +386,42 @@ class CompareRoadCase(_RepoCase):
         self.assertIn("この run の直しの差分（修正前の HEAD → 作業ツリー）で変わったファイル: 無い", text)
 
 
+class NamedScopeCase(unittest.TestCase):
+    """名を貼る範囲の 2 つの逃げ道（地図が落ちる・行のテストのファイルが分からない）は、落とす向きに外さず全部の名を貼る"""
+
+    def setUp(self):
+        self.measured = kit.load("r2", "measured")
+
+    def test_fallen_map_pastes_all_names(self):
+        """地図（impact.map）が読めない対象で落ちる型（RuntimeError・OSError・ValueError・RecursionError）なら範囲は None（全部の名を貼る）"""
+        for err in (RuntimeError, OSError, ValueError, RecursionError):
+            with self.subTest(err=err.__name__), mock.patch.object(self.measured.impact, "map", side_effect=err("boom")):
+                self.assertIsNone(self.measured.named_scope("repo", "HEAD", ["stats.py"], None, []))
+
+    def test_other_errors_of_the_map_are_not_swallowed(self):
+        """地図の不具合（上の型の外。KeyError・TypeError など）は飲み込まずに上げる。飲むと絞りが黙って毎回外れ、全部の名を貼り続ける"""
+        for err in (KeyError, TypeError, AttributeError):
+            with self.subTest(err=err.__name__), mock.patch.object(self.measured.impact, "map", side_effect=err("bug")), \
+                    self.assertRaises(err):
+                self.measured.named_scope("repo", "HEAD", ["stats.py"], None, [])
+
+    def test_row_whose_test_file_is_unknown_is_named(self):
+        """変わらない緑の行でも、classname からテストのファイルが分からない（test_ の部分が無い・key が空）なら、範囲が空でも名を貼る"""
+        scope = {"modules": set(), "tests": []}
+        rows = [{"key": k, "base": "passed", "final": "passed", "fail_message": ""} for k in ("pkg.Thing::check", "", "tests.test_x.T::a")]
+        lines = self.measured.outcome_lines({"rows": rows, "unmeasured": ""}, scope)
+        self.assertIn("  - `pkg.Thing::check`", lines)
+        self.assertIn("  - ``", lines)
+        self.assertNotIn("  - `tests.test_x.T::a`", lines)
+        self.assertIn(self.measured.LEFT_UNNAMED.format(n=1), lines)
+
+    def test_no_scope_names_every_row(self):
+        """範囲が決められない（None）なら、変わらない緑の行も全部の名を貼り、件数の行を出さない"""
+        rows = [{"key": "tests.test_x.T::a", "base": "passed", "final": "passed", "fail_message": ""}]
+        self.assertEqual(self.measured.outcome_lines({"rows": rows, "unmeasured": ""}, None),
+                         ["- 緑→緑（base でも最後でも緑）: 1 件", "  - `tests.test_x.T::a`"])
+
+
 class PremiseSectionCase(_RepoCase):
     """元 PremiseSectionCase のうち、貼りと後に来た答え以外（名指しの引き方・控えの kind の柵・渡っていない物の言い方）を block の筋で"""
 
