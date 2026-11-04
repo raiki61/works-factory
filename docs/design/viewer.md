@@ -1,14 +1,14 @@
 <!-- coldwrite:skip 設計の一部。語は docs/design/README.md の頭の語の一覧で定義 -->
 # 見る道具（`viewer/`）の設計書
 
-- 何の話か: 工場の作り（graph と block の図・指示の md）と、run（工場の 1 回の実行）の一覧と再生を、人が 1 枚で見る道具の設計。置き場の決めは持ち主の決め `viewer-in-repo`、決まりは `viewer/AGENTS.md` の E25、計画は `docs/plans/2026-10-28-viewer.md`（3〜7 章と 9 章の PR の切り方）。
-- 今在る物（計画の PR T1〜T3）: 置き場・層の地図の行・読む部品（`src/shape.py`・`src/runread.py`・`src/session.py`）・1 枚の HTML の組み立て（`src/page.py`・雛形 `page.tpl.html`）・日本語の写し（`src/ja.py` と訳の控え `ja/paragraphs.json`。6.6）と、ページを書く入口 `flowview.py`。画面は下書き `docs/plans/2026-10-29-viewer-overview.md` の 6.6 の形へ R1〜R5 の 5 本で組み直した。今の雛形は R1〜R5（下書きの 7 章の 5〜9）の範囲: R1（骨と静かな画面と図）・R2（run の再生。6.7）・R3（流れ。6.5）・R4（無駄の手がかり。6.5・6.9）・R5（画面の間の口と戻り先。6.5）。
+- 何の話か: 工場の作り（graph と block の図・指示の md）と、run（工場の 1 回の実行）の一覧と再生を、人が 1 枚で見る道具と、run の記録を OpenTelemetry のトレースにして利用者が手元に置いた既製の画面（Arize Phoenix など）へ送る口の設計。置き場の決めは持ち主の決め `viewer-in-repo` と `run-trace-otlp`、決まりは `viewer/AGENTS.md` の E25、ページの計画は `docs/plans/2026-10-28-viewer.md`（3〜7 章と 9 章の PR の切り方）。
+- 今在る物: 置き場・層の地図の行・読む部品（作りの読み `src/shape.py`・Archon の記録の読み `src/runread.py`・会話の記録の読み `src/session.py`・段の集計 `src/stages.py` と段の表 `stages.json`）と、2 本の入口。ページを書く入口 `flowview.py` は、1 枚の HTML の組み立て（`src/page.py`・雛形 `page.tpl.html`。画面は 6.5）・札の 1 行（`src/what.py`。4.5）・無駄の手がかり（`src/waste.py`。6.9）・日本語の写し（`src/ja.py` と訳の控え `ja/paragraphs.json`。6.6）を使う。トレースを送る入口 `runtrace.py` は、span の木の組み `src/trace.py`（8 章）・送り先の決め `src/sendto.py`・OTLP での送り `src/otlp.py`（8.1）を使う。ページは決め `run-trace-otlp` の 6 で、実物の run を Phoenix で人が見る PR の後に捨てる。
 
 ## 1 E11 の 3 つの答え
 
-1. Archon が持っているか → 半分持っている。止めた Archon の Web の画面（`packages/web/src/experiments/console/`。`archon serve` で起こす常駐のサーバー）は、run の一覧・run の詳細とログ・ノードの状態の図・承認ノードへの答えを持つ。無い物は、block と graph の入れ子で畳んだ図（Archon の図は `include:` を開いた平たい id で並ぶ）・工場の全部の graph の一覧と設計書と port・指示の md と組んだ値と日本語の写し・Claude Code の会話の中。持ち主の答え（計画の 10 章の問い 3「なんか見にくいんだよね。Archonの画面。気にしなくていいよ」）で、重なる所も run の一覧と run ごとのログは見る道具が持つ。走っている run の追い続けと承認の答えは、サーバーなし（E25 の 3）と、送る口が run の後に人が打つ時だけ動くことから持たない。
-2. ASF が持っているか → 持っていない。止めた Archon の `.archon/workflows/sdlc/` に run を図や HTML で見る物は無い。HTML を作る物は `intake/scripts/bench/page.ts` の 1 つ（ベンチの結果を評価のページにし、手元の小さなサーバーが頼みのたびに作って採点を受ける物）で、サーバーなしの 1 枚の逆なので型は採らない。
-3. 本当に要るか → 要る。ただし工場の生産の外の物として。keep-essence（`docs/design/README.md` の 10 章）のどれにも当たらず、工場の中の誰も読まない。`MISSION.md` の持ち主のエッセンス「グラフそのもの」と、1 回の run でそれがどう動いたかを持ち主が 1 枚で見る口が無い。元の works と graphloops に同じ場面の物は無い。
+1. Archon が持っているか → 半分持っている。止めた Archon の Web の画面（`packages/web/src/experiments/console/`。`archon serve` で起こす常駐のサーバー）は、run の一覧・run の詳細とログ・ノードの状態の図・承認ノードへの答えを持つ。無い物は、block と graph の入れ子で畳んだ図（Archon の図は `include:` を開いた平たい id で並ぶ）・工場の全部の graph の一覧と設計書と port・指示の md と組んだ値と日本語の写し・Claude Code の会話の中。持ち主の答え（計画の 10 章の問い 3「なんか見にくいんだよね。Archonの画面。気にしなくていいよ」）で、重なる所も run の一覧と run ごとのログは見る道具が持つ。走っている run の追い続けと承認の答えは、サーバーなし（E25 の 3）と、送る口が run の後に人が打つ時だけ動くことから持たない。トレースを送る物は持たない（止めた Archon `2886e883d` の源に OpenTelemetry・OTLP・`TRACEPARENT` の字は無い。`packages/paths/src/telemetry-transport.ts` は利用統計の送りでトレースではない。Web の画面に往復と下請けの木は無い）。
+2. ASF が持っているか → 持っていない。止めた Archon の `.archon/workflows/sdlc/` に run を図や HTML で見る物は無い。HTML を作る物は `intake/scripts/bench/page.ts` の 1 つ（ベンチの結果を評価のページにし、手元の小さなサーバーが頼みのたびに作って採点を受ける物）で、サーバーなしの 1 枚の逆なので型は採らない。記録を外へ送る物も読む物も無い。
+3. 本当に要るか → 要る。ただし工場の生産の外の物として。keep-essence（`docs/design/README.md` の 10 章）のどれにも当たらず、工場の中の誰も読まない。`MISSION.md` の持ち主のエッセンス「グラフそのもの」と、1 回の run でそれがどう動いたかを持ち主が 1 枚で見る口が無い。元の works と graphloops に同じ場面の物は無い。トレースの口も要る: ページは下請けの会話を出さず、2026-11-04 の line の run では LLM の呼び出し 418 回のうち 198 回（47%）が下請けの物で、費用の膨らみの元がページに出なかった。持ち主の言葉「phoenixみたいなのが至高であれば使えばいいだけ」と本質 10 の `oss-as-is`（磨かれた外の物はそのまま使い、勝る所だけ外側に足す）に沿い、画面は Phoenix に任せ、見る道具は工場の記録を木に組んで送る所だけを持つ。
 
 ## 2 層と頼り
 
@@ -19,11 +19,11 @@
 
 ## 3 起こし方とデータ
 
-工場の clone の根から `uv run --isolated python3 viewer/flowview.py [--target <対象> [--run <run の id か頭の字>]] <出力の html>`。
+工場の clone の根から、ページは `uv run --isolated python3 viewer/flowview.py [--target <対象> [--run <run の id か頭の字>]] <出力の html>`、トレースは `uv run --isolated --extra trace python3 viewer/runtrace.py --target <対象> [--run <run の id か頭の字>] [--endpoint <URL>] [--remote]`（8.1）。
 
 - `--target` が無ければ今の木の作りだけを出す。在れば run の家の親の run の一覧を入れ、`--run` が無ければ一番新しい親の run を見る。
 - 出力は工場の clone の下を拒む（ページに対象の字と会話の中身が入る）。拒みの文は見る道具が自分で持つ（`launcher.refuse_in_factory` は run の家のための文で、意味が合わない）。
-- 出力は 1 枚の HTML（6.5）。網には出ない。
+- ページの出力は 1 枚の HTML（6.5）。`flowview.py` は網に出ない。網に出るのは `runtrace.py` だけで、`src/sendto.py` の答えの送り先へ送る（8.1）。
 - データの欄: `made_at`（作った時刻）・`commit`・`target`・`runs`（一覧。行に結末の語 `outcome`。5 章）・`run`（選んだ run）・`runs` と `run` の費用 `cost`（metadata の `total_cost_usd`。空の run と走り中の run は、run 自身の行の費用の和で代える〔Archon の `nodeCostScope` と同じ数え方。子の run の費用は、親の run の子の run を起こすノード `workflow` の行（`accounting` が `node`）が載せる。子の run の行を別に足すと二重に数える〕。和を出すのは読む部品 `src/runread.py` の 1 か所で、雛形は数えない。どちらも無ければ空。5 章）・`shape`（図の作り。graph と item に札の 1 行 `what`。4.5）・`shape_from`（`run-copy` か `tree`）・`unmatched`（図に当たらないノードの道）・`texts`（会話の字を 1 つにした表。会話の欄は番号で指す）・`stages`（段の表・結末の頭の語の表 `outcomes`・段ごとの集計。6.8）・`run` の `ai_cost`（図の札ごとの AI の手番の費用。札の鍵 → 札とその中の AI の手番の費用の和で、中の出来事を束ねる器は足さない。`src/stages.py` が数え、雛形は札と板で読むだけ。6.8）・`waste`（無駄の手がかりの数え。6.9。run が無ければ空）。
 
 ## 4 作りの読み（`src/shape.py`）
@@ -161,6 +161,9 @@
 8. 段の照らし（`tests/viewer/test_stages.py`）: 今の木の line の一番上のノードがどれも段の表のちょうど 1 つの段に入り、表のノードがどれも line に在る。結末の頭の語の表の語の組が `lib/report.py` の `OUTCOMES` と同じ。段の表の各段の MISSION.md の流れの語（列 `mission`）を全部の段で合わせた組が、MISSION.md の「流れ」の行の語（と、その行に在れば「承認ノード」）の組と抜けも余りも無く同じ（`test_the_mission_words_are_the_flow_of_mission_md`）。作りの上で承認ノードに届きうる段（繰り返しの中と include の先の graph の中も辿る）がちょうど、MISSION.md の流れの語に「承認ノード」を持つ段（抜けも余りも赤。`test_the_stages_with_an_approval_node_say_so`）。配線の列がその段のノードの中に在り、どの段にも配線でないノードが在る。段ごとの集計は小さな run の記録で、配線のノードだけが走った段（修正の段が飛び、`fix-in`・`fixed`・`judged` だけが走った run）が飛んだになり、修正前の承認は人が `gate-before-fix`（仕様駆動の run は `spec-gate-before-fix`）で答えた run だけ通ったになり（run 642df5d7 の形と、仕様駆動の run で止めを受け渡しただけの形では飛んだ）、止まった所と和が出る。子の run を起こすノードの費用を二重に足さず、cache の欄が欠けた手番と引けない手番では新しく読んだ分を出さず、止まった所は、人が止めた run では答えが stop だった答え待ちの段、落ちた run では受け止めていない最後に落ちた出来事の段になり（run 642df5d7 の形で計画。前の形の修正前の承認を返さない。独立の目とレンズの落ちを受け止めて直した run には出ず、その後に人が最後の承認で止めた run は最後の承認）、通す答えだけの run と落ちて続けて終わった run には出ない。落ちた後に起き直して同じ所が通った段は通ったで、印 `fell` を持つ。
 9. 無駄の手がかりの照らし（`tests/viewer/test_waste.py`）: 小さな作りと run の記録（周 2 つの繰り返し・前と同じ出力・空の出力・相対と絶対のパスでの同じファイルの 2 回の読み・1 万字を超える結果・空いた往復・引く先の無い出力・同じノードから起こした周の数の違う子の run 2 つ・出力の変わらない周・別の run の同じ名のファイル・繰り返しの本体の中の繰り返しの確かめ・切った bash の後ろでだけ引く出力）で、数えがその値を返す。数えを外せば落ちる。run の無いページには数えを置かない。
 10. トレースへの組みの照らし（`tests/viewer/test_trace.py`）: 実物の行の形（型と欄の名）を写した小さな会話の記録と下請けの記録と手で組んだ run の出来事で、木の親子（run → 段 → 繰り返しの器 → 周 → ノード → 往復と道具 → 下請け。下請けは meta の `toolUseId` の道具の下）・往復の時刻（`requestRef` の `api-request` から同じ `message.id` の最後の行まで。`api-request` の無い往復は前の行から）と道具の時刻・続けた会話の写しの往復を span にしないこと・往復の `llm.token_count.prompt` が cache の 2 つを含むこと・器と周の span に費用を載せないこと・裏で走る下請けが親の道具より後に終わっても落ちないこと・知らない型の行と親に結べない下請けを数えること・同じ記録から 2 度組むと id が同じで、別の run の id では違うこと。組みを外せば落ちる。
+11. 送り先の決めの照らし（`tests/viewer/test_sendto.py`。SDK が要らず、CI の分けでも `tests/changed.py` でも見送らない）: 8.1 の送り先の名指しの順と空の値・答えの URL（土台の env だけ `/v1/traces` を足し、`/` を重ねない）・手元でない送り先の拒みと `--remote`・手元の見分け（`localhost` と loopback の番地の v4 と v6 だけ）・手元では proxy の env を使わない答え・headers は env の送り先にだけ付き信号ごとの名が勝ち、percent の符号を解く・形の違う headers の項を値を出さずに拒む・`http/protobuf` 以外の送りの形の拒み・外す名の選びが `OTEL_` で始まる名の全部。env は dict で渡し、過程の env を読まない。
+12. 入口の順の照らし（`tests/viewer/test_runtrace.py`。SDK が要らない）: 入口を子のプロセスで起こし、送り先が無い時と手元でない送り先で `--remote` が無い時に、run を読まずに `sendto` の拒む訳の 1 行と終了の値 2 で止まり、`sys.modules` に `opentelemetry` と `viewer.src.otlp` が無い。入口が `sendto.py` を通らずに送る形や、頭で `otlp.py` を読む形に戻すと落ちる。
+13. 送りの照らし（`tests/viewer/test_otlp.py`。extra `trace` が無ければ名前つきで見送り、CI の job `trace` は旗 `WORKS_FACTORY_TRACE_REQUIRED` で見送りを赤にする）: 試験の中で 127.0.0.1 に立てた受け口に、組んだ span が数と親子と時刻と id のまま protobuf で圧縮なしに届く。env で名指した送り先には env の headers が付く。入口を子で起こし（run の家は `WORKS_FACTORY_HOME` で一時のフォルダ）、子の env に `OTEL_EXPORTER_OTLP_HEADERS`・`OTEL_EXPORTER_OTLP_COMPRESSION=gzip` と届かない proxy を置き、`NO_PROXY`・`no_proxy` を空にしても、`--endpoint` の手元の受け口に headers なし・圧縮なしで届く。外の網には出ない。
 
 ## 8 トレースへの組み（`src/trace.py`）
 
@@ -193,3 +196,28 @@
 - id: 乱数にしない。トレースの id は run の id から、span の id は run の id と所の鍵から sha256 で決める（トレースは 32 字・span は 16 字の 16 進）。所の鍵は、段は番号、出来事（ノードと器）はその出来事の run・道・周・始めの時刻、周は器の鍵と周の番号、往復は親の鍵と往復の番号、道具は呼び出しの id、下請けは呼び出しの鍵と下請けの id。出来事は Archon の起動の id を持たず、落ちた後に同じ起動の id で走り直した物も別の出来事（5 章の `fell`）なので、起動は始めの時刻で分ける。同じ run を 2 度送った時に Phoenix が二重に持つか上書きするかは、実物で見る（計画の T3）。
 - 確かめた事（2026-11-04 の工場の line の run の記録。出来事と会話 28・下請け 7）: 組んだ span は 1,214（LLM 421・TOOL 528）で、親の無い span は run の 1 つだけ・id の重なりは 0。計画を審査するノードの周 1 の下請け 2 つは往復 61 と 35、往復の `llm.token_count.prompt` の最大は 189,292 と 198,786。
 - 未確認: `api-request` の行と `requestRef` が普通の利用者の Claude Code の記録にも出るか（無い時の代わりの時刻は上のとおり。記録の形は試験で縛らず人が見る。6 章と同じ）。
+
+## 8.1 送り先の決めと送り（`src/sendto.py`・`src/otlp.py`・`runtrace.py`）
+
+- 何の物か: 8 章の span の木を、利用者が名指した OTLP/HTTP の受け口（手元に置いた Phoenix など）へ protobuf で送る。網に出るのは見る道具の中で `src/otlp.py` の 1 つだけ。決まりは E25 の 2、決めは `run-trace-otlp` の 2。画面（Phoenix）はリポジトリに入れず、工場は起こさない。工場の run の流れにも入らず、run の後に人が打つ時だけ動く。常駐の仕組みは足さない。
+- 送り先の名指し: 既定の送り先を持たない（E14。持ち主の環境の値を書かない）。名指しは 3 つで、先に在る物を使う。
+  1. 引数 `--endpoint`: そのまま使う URL（例 `http://127.0.0.1:6006/v1/traces`）。
+  2. 標準の env `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT`: そのまま使う URL。
+  3. 標準の env `OTEL_EXPORTER_OTLP_ENDPOINT`: 土台の URL。`/v1/traces` を足して使う（土台が `/` で終われば `v1/traces` を足し、`/` を重ねない）。
+  - 2 と 3 の意味の違いと 2 が勝つ順は OpenTelemetry の仕様の「Endpoint URLs for OTLP/HTTP」（https://opentelemetry.io/docs/specs/otel/protocol/exporter/#endpoint-urls-for-otlphttp）による。信号ごとの env は字のまま使う。空の値は未設定と同じに読む（同じ仕様の「Parsing empty value」）。
+  - 名指しが無ければ 1 行の訳で止まる。http か https で番地を持つ URL でなければ拒む。
+- 手元でない送り先の拒み: span は会話と道具の中身（対象のリポジトリの字）を既定で持つので、送り先が手元でなければ `--remote` を付けない限り拒む。手元かは字だけで見る（`localhost` と、`ipaddress` で loopback の番地。ほかの名は名前を引かずに手元でないと扱い、安全な側に倒す）。
+- headers: 送り先を env で名指した時だけ env から取る（`OTEL_EXPORTER_OTLP_TRACES_HEADERS` が `OTEL_EXPORTER_OTLP_HEADERS` に勝つ。空の値は未設定）。`--endpoint` で名指した時は付けない（利用者の shell に別の受け口の鍵が在っても、引数で名指した別の宛先へ出さない）。名と値は percent-decode し、名は小文字にする（仕様の「Specifying headers via environment variables」と SDK の `parse_env_headers` と同じ。自分で読むので、解かないと SDK に任せた時と違う鍵を送る）。`name=value` の形でない項は、値を出さずに番号で拒む。
+- 送りの形: `OTEL_EXPORTER_OTLP_TRACES_PROTOCOL`（勝つ）か `OTEL_EXPORTER_OTLP_PROTOCOL` が `http/protobuf` 以外（`grpc`・`http/json`）なら拒む。入口は HTTP の protobuf だけで送るので、黙って別の形で送ると grpc の口へ HTTP を送って分かりにくく落ちる。ほかの `OTEL_` の設定（証明書・client の鍵・時間切れ・圧縮）は拒まず使わない。証明書が要る送り先は送りの失敗で声高に落ちる。
+- proxy: 手元へは利用者の proxy の env（`HTTP_PROXY`・`HTTPS_PROXY`・`ALL_PROXY` と小文字の名）を通さない（会社の proxy の env が在ると 127.0.0.1 への送りが proxy に切られた。2026-11-04 の手元の確かめ）。`otlp.py` は requests の `trust_env` を切った session を exporter に渡す。手元でない送り先では利用者の proxy を使う。圧縮は付けない。
+- SDK に `OTEL_` の名を読ませない訳: OpenTelemetry の OTLP/HTTP の exporter（1.45.2 の源で確かめた）は、引数で渡しても env を読む。headers は env の物にいつも足し、引数は同じ名の鍵だけを上書きする（`_resolve_headers`）。圧縮・証明書・client の鍵・session を作る口（`OTEL_PYTHON_EXPORTER_OTLP_HTTP_TRACES_CREDENTIAL_PROVIDER`）も、引数が空なら env から取る。`Resource.create` も `OTEL_RESOURCE_ATTRIBUTES` を読む（`otlp.py` は `Resource` を直に作る）。なので「明示して渡す」だけでは足りない。
+- 入口の順（`runtrace.py`）: 引数を読んだらまず `sendto.decide`（入力は引数の送り先・env・`--remote`、答えは送り先の URL と headers と proxy を使うか、か拒む訳の 1 行）で決め、拒む時は run を読まずに訳と終了の値 2 で止まる。送ると決まったら自分の過程の `os.environ` から `OTEL_` で始まる名を全部外し（選びは `sendto.dropped`。入口は 1 回の命令の過程なので自分の env を変えてよい）、run を読んで組み、`otlp.py` を関数の中で import して送る。拒む道は SDK の無い環境でも走り切る。受け口が受けなければ終了の値 1。
+- span の作り: `otlp.py` は SDK の `ReadableSpan` に、8 章の決まった id と記録の時刻（ナノ秒。float を通さない）のまま組んで exporter に渡す（tracer で作ると id が乱数になる）。頼み 1 回に 256 span まで。
+- 外のパッケージ: `pyproject.toml` の extra `trace`（`opentelemetry-sdk`・`opentelemetry-exporter-otlp-proto-http`・`requests`。版は止める。`outside-packages-ok`）。`requests` は `otlp.py` が直に import するので、exporter の依存に頼って黙って入る形にせず宣言する。protobuf は自分で組まない。
+- 試験の隔離: 試験の子の環境（`tests/bin/hermetic.child_env`。E21）と試験を回す口の `scrub` が外す名に `OTEL_` を入れた（利用者の shell の `OTEL_EXPORTER_OTLP_ENDPOINT` で「送り先が無い」の試験が赤になり、`COMPRESSION`・`HEADERS` が読み戻しを割るため）。proxy の名は足さない（`scrub` は試験の過程の env も変えるので、全部の試験の網の扱いが変わる）。手元では `sendto` の答えが proxy の env を使わないので、proxy の名が在っても結果は変わらない（変われば守りが外れた印で、赤になるのが正しい）。
+- 縛り方（比べた 3 案）:
+  1. 採る: 守り（送り先の無い起動を止める・手元でない送り先を `--remote` 無しで拒む・入口が SDK を読む前に決める・headers と proxy の決め）を SDK の要らない関数と入口の順に置き、CI の 4 つの分けと `tests/changed.py` の両方で見送り無しで縛る（7 章の 11・12）。
+  2. 採る: SDK の要る所（答えが exporter に渡ること・`OTEL_` の名が SDK に届かないこと・手元へは proxy を通さないこと）は、CI の job `trace` が `test_otlp.py` の 1 本だけを `--extra trace` で回す（7 章の 13）。旗 `WORKS_FACTORY_TRACE_REQUIRED`（名は `tests/bin/hermetic.py` の `TRACE_REQUIRED_ENV`。`scrub` が残し、`tests/shard.py` が試験の子へ渡す）で見送りを赤にする（`tests/shard.py` は全部が見送りでも成功を返すので、旗が無いと SDK が入らなかった job が緑になる）。集めの job `tests` は分けと `trace` の両方を待つ。採る訳: SDK が env を読む口の数に頼るので、人が見るだけだと SDK の版を上げて口が増えた時に気づけない。
+  3. 採らない: 4 つの分けの全部に `--extra trace` を足す。全部の分けに SDK と protobuf を入れ、それでも `tests/changed.py` では見送られる。今の extra `viewer`（playwright）も分けに足していない。
+  - 残る隙: run の中の確かめ `tests/changed.py` では `test_otlp.py` が見送られる。CI の job `trace` が照らす。
+- E11 の 3 つの答え: 1 章の各項の終わり（Archon と ASF はトレースを送る物を持たない・下請けが LLM の呼び出しの 47% でページに出ない・`oss-as-is` で画面は Phoenix に任せる）。

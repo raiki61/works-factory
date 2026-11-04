@@ -76,7 +76,7 @@ def isolated(action: str, root: pathlib.Path, name: str = "") -> dict:
         output = pathlib.Path(tmp) / "result.json"
         request = {"action": action, "root": str(root), "name": name, "output": str(output),
                    "parent": os.getpid(), "scrubbed": hermetic._SCRUBBED}
-        env = hermetic.child_env(**hermetic.inherited(*hermetic.ARCHON_SETUP))
+        env = hermetic.child_env(**hermetic.inherited(*hermetic.SETUP))
         done = subprocess.run([sys.executable, "-m", "tests.shard", "--child"], cwd=ROOT, env=env,
                               input=json.dumps(request), text=True)
         if done.returncode or not output.exists():

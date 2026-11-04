@@ -328,6 +328,7 @@ class ScrubTest(unittest.TestCase):
     def test_the_run_drops_the_parents_names_before_the_tests_read_them(self):
         """工場の中の run が立てる名は、試験の過程の既定の環境にも残らない。Archon の源の置き場と見送りを赤にする旗は残る"""
         parent = {"WORKS_ANSWER_CMD": "sh respond", "CLAUDE_CONFIG_DIR": "/parent/config", "INPUTS_REPLY": "{}",
+                  "OTEL_EXPORTER_OTLP_ENDPOINT": "http://127.0.0.1:4318",
                   hermetic.ARCHON_CACHE_ENV: "/cache", hermetic.ARCHON_REQUIRED_ENV: "1"}
         with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()), \
                 mock.patch.dict(os.environ, parent), mock.patch.dict(hermetic._SCRUBBED, clear=True):
@@ -335,6 +336,7 @@ class ScrubTest(unittest.TestCase):
             left = {k: os.environ.get(k) for k in parent}
             named = hermetic.inherited("CLAUDE_CONFIG_DIR", "WORKS_ANSWER_CMD", hermetic.ARCHON_CACHE_ENV)
         self.assertEqual(left, {"WORKS_ANSWER_CMD": None, "CLAUDE_CONFIG_DIR": None, "INPUTS_REPLY": None,
+                                "OTEL_EXPORTER_OTLP_ENDPOINT": None,
                                 hermetic.ARCHON_CACHE_ENV: "/cache", hermetic.ARCHON_REQUIRED_ENV: "1"})
         self.assertEqual(named, {"CLAUDE_CONFIG_DIR": "/parent/config", "WORKS_ANSWER_CMD": "sh respond",
                                  hermetic.ARCHON_CACHE_ENV: "/cache"})
@@ -373,6 +375,19 @@ class ScrubTest(unittest.TestCase):
                 root = pathlib.Path(tmp)
                 tree(root, pkg, {"test_env.py": "import os, unittest\nclass T(unittest.TestCase):\n    def test_env(self):\n"
                                  f"        self.assertEqual(os.environ.get({hermetic.ARCHON_DEFER_ENV!r}), '1')\n"})
+                self.assertEqual(run_quietly(shard.suites(root)), 0)
+
+    def test_the_trace_flag_reaches_the_children(self):
+        """CI の job trace が立てる旗（見送りを赤にする）は scrub で外れず、試験の子に届く（tests/viewer/test_otlp.py）"""
+        with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()), \
+                mock.patch.dict(os.environ, {hermetic.TRACE_REQUIRED_ENV: "1"}), mock.patch.dict(hermetic._SCRUBBED, clear=True):
+            shard.main(["--paths", "no/such/dir"])
+            self.assertEqual(os.environ.get(hermetic.TRACE_REQUIRED_ENV), "1")
+            pkg = "shard_trace_env_pkg"
+            with tempfile.TemporaryDirectory() as tmp:
+                root = pathlib.Path(tmp)
+                tree(root, pkg, {"test_env.py": "import os, unittest\nclass T(unittest.TestCase):\n    def test_env(self):\n"
+                                 f"        self.assertEqual(os.environ.get({hermetic.TRACE_REQUIRED_ENV!r}), '1')\n"})
                 self.assertEqual(run_quietly(shard.suites(root)), 0)
 
     def test_deferred_archon_tests_are_named_before_the_count(self):
