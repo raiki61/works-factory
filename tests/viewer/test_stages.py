@@ -22,7 +22,8 @@
 - 結末の頭の語の表（outcomes）の語の組は、工場の結末の語の正本 lib/report.py の OUTCOMES と同じ（工場が結末の語を足せば赤）
 - 段ごとの MISSION の語の列（mission。MISSION.md の「流れ」の段階と承認ノードのうち、その段が担う物）は、語がどれも MISSION.md の
   流れに在り、流れの語がどれもどこかの段に在る（MISSION の流れの語を足す・替えると赤。段の名と MISSION の語が 1 対 1 でないのを
-  画面で読めるようにする）
+  画面で読めるようにする）。承認ノードの語は、line の一番上の承認ノード（作りの kind が gate の物）を持つ段にだけ在り、そういう段には
+  必ず在る（承認ノードを持つ段の語の抜けと、持たない段の語の余りが赤）
 
 試験は小さな作りと run の記録を手で組む。
 """
@@ -86,6 +87,14 @@ class StagesCase(unittest.TestCase):
         self.assertEqual(set(used) - words, set())
         self.assertEqual(words - set(used), set())
         self.assertEqual(run_of([], [])["stages"]["table"][0]["mission"], stages.TABLE["stages"][0]["mission"])
+
+    def test_the_stages_with_an_approval_node_say_so(self):
+        graph = flowview.tree_shape()["graphs"][stages.TABLE["graph"]]
+        gates = {item["id"] for item in graph["items"] if item["kind"] == "gate"}
+        self.assertTrue(gates)
+        has = {stage["name"] for stage in stages.TABLE["stages"] if gates & set(stage["nodes"])}
+        says = {stage["name"] for stage in stages.TABLE["stages"] if "承認ノード" in stage["mission"]}
+        self.assertEqual(says, has)
 
     def test_wiring_outside_its_stage_or_a_stage_of_only_wiring_is_red(self):
         table = {**stages.TABLE, "stages": [{**stage, "wiring": list(stage["wiring"])} for stage in stages.TABLE["stages"]]}
