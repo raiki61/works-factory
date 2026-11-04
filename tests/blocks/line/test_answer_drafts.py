@@ -73,6 +73,18 @@ class AnswerDraftsCase(unittest.TestCase):
                 self.assertEqual(self.drafts(returns, gates={"gate-final": {"decision": "continue", "text": ""}}, unattended=unattended),
                                  drafts)
 
+    def test_means_questions_are_drafted_only_while_unanswered(self):
+        """計画 means-answers の 6.3 の 3 の 4: R2 の頼みどおりの違いの問いは、最後の承認ノードの continue / stop がそのまま答えなので
+        下書きにしない。答えの無い run と、R2 が redesign-needed の run（continue を答えに数えない）だけ下書きにする"""
+        q = "R2: 差分は頼みの解き方 M1「x」どおりだが、独立設計と食い違う——y"
+        returns = {"eyes": {"questions": [], "means_questions": [q]}}
+        self.assertEqual([d["question"] for d in self.drafts(returns, unattended=True)], [q])
+        for decision in ("continue", "stop"):
+            with self.subTest(decision=decision):
+                self.assertEqual(self.drafts(returns, gates={"gate-final": {"decision": decision, "text": ""}}), [])
+        red = {"eyes": {**returns["eyes"], "r2": {"status": "redesign-needed", "reason": "別"}}}
+        self.assertEqual([d["question"] for d in self.drafts(red, gates={"gate-final": {"decision": "continue", "text": ""}})], [q])
+
     def test_each_item_of_a_stopped_unattended_gate_gets_a_draft(self):
         """元 test_each_stopped_item_gets_a_marked_draft: 無人の run で修正前の承認ノードが開かずに止まった時、止めた項目（事前審査が
         人に回した行）ごとに印つきの下書き。gates.before_fix が組んだ出力を ask_before_fix の値としてそのまま渡す"""

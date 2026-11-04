@@ -1122,7 +1122,7 @@ bin/works-factory workflow run works-factory-plan-review --cwd <対象> \
 3. 世界の解の行・関所の軸（`worldmark.world_ok`）は変えない。世界の解の外れと頼みの解き方の外れが同じ計画の項目で重なっても、項目は別々に出る（問いが違う: 定石と比べてか、頼みと比べてか）。
 4. 新しい置き場・層・常駐の仕組みは足さない。足す形のファイルは、寄せた `.shared/schemas/stated-means.schema.json` の 1 つ（消す 2 つと引き換え）。
 
-### 6 PR 2（案 1-A）: R2 の比べ役の頼みどおりの違い `request_conflicts`（下書き。実装の前に窓口が見る）
+### 6 PR 2（案 1-A）: R2 の比べ役の頼みどおりの違い `request_conflicts`（PR #984 で実装。下書きから変えた所は 6.8）
 
 PR 1 は修正の前に、計画が頼みの解き方から外れた所と、頼みどおりの計画が独立設計と食い違う所を人に聞く。PR 2 は修正の後に同じことを差分で行う。R2（修正の後の差分を独立設計と比べる独立の目）は今、構造の本質的な違いが 1 つでも在れば `redesign-needed` にし、その違いが頼みの解き方どおりかを問わない。`redesign-needed` の差分は、人が最後の承認ノードで通しても当たらない（持ち主の決め `small-core`。line の `src/final.py` の `R2_KEEPS_OUT`・#975）。そのため頼みどおりに直した run が、どちらを採るかを人に聞かれずに当たらなくなる（調べの 1 の run）。
 
@@ -1156,7 +1156,7 @@ R2 の `request_conflicts` の行は R4 の問い（最後の承認ノードの�
    - 受け口: `workflows/line/works-factory-line.yaml:1792`（受け皿 `eyes-out` の `names`）に `means_questions` を足す。
    1. `final.py:376`（R4 の問いの節の「この承認ノードの答えはこの問いに答えない」）: R4 の節は今のまま。R2 の行は別の節「頼みの解き方どおりで独立設計と食い違う所（R2）」に並べ、その節の尾は「この承認ノードの continue は頼みどおりの差分を当てる答え、stop は止める答えになる」と書く。R2 が `redesign-needed` の run では、尾を `R2_KEEPS_OUT`（continue でも当たらない）にする（6.2 の 7）。
    2. `facts.py:53` の `EYE_ASK_HEAD`（報告の問いの見出し。R4 の問い）: R2 の行はこの見出しの下に入れず、別の見出し（例 `MEANS_ASK_HEAD = "頼みの解き方どおりで独立設計と食い違う所"`）の下に並べる（`facts.py:930` の `questions` の並びに 1 組足す）。
-   3. `facts.py:405-406` の人待ちの語 `r4-ask`: R4 の問いだけを数える今のまま。R2 の行は、最後の承認ノードが答えを得た run（continue か stop。R2 が `redesign-needed` の run を除く）では人待ちに数えない。答えを得なかった run（無人の run で止まった・人が答えなかった）と、R2 が `redesign-needed` の run では、別の語（例 `r2-means-ask`）で数える。語の意味の表（`stopby`）に 1 語足す。
+   3. `facts.py:405-406` の人待ちの語 `r4-ask`: R4 の問いだけを数える今のまま。R2 の行は、最後の承認ノードが答えを得た run（continue か stop。R2 が `redesign-needed` の run を除く）では人待ちに数えない。答えを得なかった run（無人の run で止まった・人が答えなかった）と、R2 が `redesign-needed` の run では、別の語 `r2-means-ask`（`facts.MEANS_WAIT`）で数える（6.8 の 2）。
    4. `facts.py:997-1003` の次の run の答えの下書き（`answer_drafts` の `asked = eye_questions(returns)`）: `eye_questions` は R4 の欄だけを読む今のまま。R2 の行は、最後の承認ノードの答えが continue か stop の run（R2 が `redesign-needed` の run を除く）では載せない（答えた行）。答えが無い run と、R2 が `redesign-needed` の run だけ、今の R4 の行と同じ `gatemarks._gate_draft` の形で載せる（行の頭の `R2:` で目が分かる）。
 4. 開ける理由（`final.py` の `needs`）に「頼みの解き方どおりの違いを独立の目が聞いている（n 件）」を、開き方に依らず開く理由（must）として足す（6.5 の 5）。今の「人に聞いている問いが在る」（must でない）は R4 の問いだけを数える今のまま。
 
@@ -1186,6 +1186,15 @@ R2 の `request_conflicts` の行は R4 の問い（最後の承認ノードの�
 3. `tests/blocks/eyes/test_eyes.py`: R2 の `questions` がまとめの `means_questions` に入り、`questions` には入らない（今は `means_questions` の欄が無いので落ちる）。
 4. line の最後の承認ノードの試験: 無人の run で、R2 の `request_conflicts` の行が在る（全部が通す推しでも） → `works:needs-human` で止まる（今どおり。推しで進まない）。開き方 `protected_only` で守りのパスに当たらず R2 の行だけが在る → 開く（must。今は開かずに当たるので落ちる）。最後の承認ノードの答えが continue → 差分が当たり、次の run の答えの下書きに R2 の行が載らず、人待ちに数えない（今は R2 の行はどこにも載らないので、この形だけでは落ちない。落ちるのは開く理由と節の形）。R2 が `redesign-needed` の run で continue → R2 の行は人待ちに数え、次の run の答えの下書きに載る。答えが stop → 止まる。最後の承認ノードの節と報告で、R2 の行が R4 の見出しの下に入らない。
 5. 筋書きの差し替えの返答に `request_conflicts: []` を足す: `workflows/r2/fixtures/standalone.stubs.yaml` と、`eyes__r2__r2-compare` を差し替える line の筋書き `workflows/line/fixtures/no-fix.stubs.yaml`・`workflows/line/fixtures/nothing-owed.stubs.yaml`（返す形の欄が必須なので、無いと照らしで落ちる）。eyes のまとめの出力に必須の欄 `means_questions` を足すので、eyes を差し替える `workflows/line/fixtures/` の 19 本（`eyes__verdict` を差し替える物）にも足す。
+
+#### 6.8 実装で下書きから変えた所
+
+1. 引用の照らしの口は、R2 の `src/` の新しいモジュール `src/conflicts.py`（`changed_lines`・`gaps`・`questions`）に置いた。問いの文の口 `means_conflict_text` は下書きどおり `src/report.py`。照らせない訳には、引用の 2 つに加えて番号の範囲・推しの形（`gatemarks._recommend_gap`）・人に聞く文の決まり（`plainask.gaps`）も入れる（6.2 の 4 の照らしの全部）。どれか 1 つでも当たれば推しの尾を外す。
+2. 人待ちの語は `stopby` の表に足さない。今の `r4-ask`・`premise-escalate`・`ask-human` も `stopby` に無く、`facts.py` の中の語（報告の `outcome._wait` は語の意味を引かずに「<段>:<語>」で出す）なので、`r2-means-ask` も `facts.MEANS_WAIT` に置いた。
+3. 報告の「人が決めること」の見出し `MEANS_ASK_HEAD` の組（6.3 の 3 の 2）には、答えを得ていない行だけを載せる。数え方は人待ちと次の run の答えの下書き（6.3 の 3 の 3・4）と同じ口 `facts.means_questions`。答えた行を人が決めることに載せると、答え済みの問いを次も決めると読めるため。
+4. 最後の承認ノードの冒頭の推しの並び（`gatemarks.head3` の 3 行目。`final_head`）に R2 の行の推しを足した（R4 の問いと同じ）。
+5. 推しの形の英語の字（`{answer: continue | stop, note: …, why: …}`）は、plan-review の `src/material.py` の `_recommend_shape` と R2 の指示が同じ物を使うので、`lib/gatemarks.py` の `recommend_shape` に寄せた（憲法 4）。
+6. 筋書き（6.7 の 5）: `eyes__verdict` を差し替える line の筋書き 19 本のうち、`eyes-failed.stubs.yaml` はわざと壊した返り（`{"ok": "壊れた返り", "notes": null}`）なので `means_questions` を足さず、18 本に足した。
 
 ### 7 決めた細目
 

@@ -439,7 +439,7 @@ def final_got(final, **over) -> dict:
            "conflicts_unread": [], "handoffs": [], "mismatched": [],
            "eyes": {"r1": {"status": "pass", "reason": ""}, "r2": {"status": "pass", "reason": ""}, "r3": {"status": "pass", "reason": ""},
                     "r4": {"status": "pass", "reason": ""}, "premise_check": None},
-           "questions": [], "spec_changed": [], "spec_unchecked": False, "objection": "", "rejudge_verdict": "", "rejudge": [],
+           "questions": [], "means_questions": [], "spec_changed": [], "spec_unchecked": False, "objection": "", "rejudge_verdict": "", "rejudge": [],
            "split": "", "unproven": [], "amend": [], "delta": [], "stuck": [], "closure": [], "tests_left": [], "gates": [], "always": [],
            "beside_unread": [], "allowed_tests": [], "allowed_untouched": 0, "removed_tests": [], "untested": [], "unsatisfied": [], "structure_missing": "", "sealed": True, "seal_reason": "",
            "hash": "h", "deleted": [], "sealed_diff": "", "fenced": [], "after": [], "passes": [], "r2_inputs": [], "converge": [],
@@ -542,6 +542,42 @@ class AskFinalCase(unittest.TestCase):
         self.assertIn("組 g1: 単位 u1 → u2", text)
         self.assertEqual(self.f.final_needs(got), [])
         self.assertFalse(self.ask(got, mode="when_needed")["open"])
+
+    MEANS_Q = "R2: 差分は頼みの解き方 M1「集計は 1 か所」どおりだが、独立設計と食い違う——形が違う（人に聞く訳: x）／推し: 通す（continue）——そのまま（理由: 頼みどおり）"
+
+    def test_means_questions_open_in_every_mode(self):
+        """計画 means-answers の 6.3 の 4・6.5 の 5: R2 の頼みどおりの違いの問いは開き方に依らず開く理由（must）。protected_only で
+        守りのパスに当たらなくても開く"""
+        got = final_got(self.f, means_questions=[self.MEANS_Q])
+        for mode in ("when_needed", "protected_only", "always"):
+            with self.subTest(mode=mode):
+                self.assertTrue(self.ask(got, mode=mode)["open"])
+        self.assertIn(("頼みの解き方どおりの違いを独立の目が聞いている（1 件）", True), self.f.needs(got))
+
+    def test_means_questions_stop_an_unattended_run_even_with_a_continue_push(self):
+        """6.4: 無人の run は、推しが全部 continue でも最後の承認ノードで止まる（推しで進む道は持ち主に問い中なので足さない）"""
+        for mode in ("when_needed", "protected_only"):
+            with self.subTest(mode=mode):
+                out = self.ask(final_got(self.f, means_questions=[self.MEANS_Q]), mode=mode, unattended=True)
+                self.assertEqual((out["open"], out["go"], out["stop_reason"]), (False, False, "works:needs-human"))
+
+    def test_means_questions_have_their_own_section(self):
+        """6.3 の 3 の 1: R2 の行は R4 の問いの節に入れず別の節に並べ、continue / stop が答えになると書く。R2 が redesign-needed の
+        run では尾を R2_KEEPS_OUT にする"""
+        got = final_got(self.f, means_questions=[self.MEANS_Q], questions=["R4 の問い"])
+        text = self.f.final_text(got, self.f.final_needs(got), RUN)
+        r4 = text.index("人に聞いている問い（記録のまま引く。1 件）")
+        head = text.index(f"- {self.f.MEANS_HEAD}（R2。1 件）:")
+        self.assertLess(r4, head)
+        self.assertNotIn("集計は 1 か所", text[r4:head])
+        tail = text[head:].split("\n")
+        self.assertIn(f"  - {self.f.MEANS_ANSWERS}", tail[:6])
+        self.assertIn("この承認ノードの continue は頼みどおりの差分を当てる答え", self.f.MEANS_ANSWERS)
+        eyes = {**final_got(self.f)["eyes"], "r2": {"status": "redesign-needed", "reason": "別"}}
+        red = self.f.final_text(final_got(self.f, means_questions=[self.MEANS_Q], eyes=eyes), [], RUN)
+        part = red[red.index(f"- {self.f.MEANS_HEAD}"):].split("\n")[:6]
+        self.assertIn(f"  - {self.f.R2_KEEPS_OUT}", part)
+        self.assertNotIn(f"  - {self.f.MEANS_ANSWERS}", part)
 
     def test_r2_redesign_says_the_diff_is_not_applied_whichever_answer(self):
         """持ち主の決め small-core の 2026-11-04 の足し（案 1-B）: R2 が作り直しと言った run の最後の承認ノードは、進めても止めても差分を

@@ -3,7 +3,8 @@
 開ける理由の列 needs(got) を 1 つ組み、開くかと冒頭の 1 行目をこの列だけから作る（元 works の line_edge._final_needs）。列の行のうち
 守りのパスの当たり（確かめられなかった時も）・書き換えを許したテストに触った・消した試験（修正の出力の removed_tests）・人に回した食い違いの申し出・申し出の控えを読めない・
 修正の段の控えを読めない・承認の後に受け入れ条件のテストが変わった（spec の check の questions。照らせなかった時は「照らせなかった」）・
-読めなかった控え（直した後の実測・封じた差分・問いの台帳の控えなど。got の unread。読めた控えについての注記 lost_ties は数えない）
+読めなかった控え（直した後の実測・封じた差分・問いの台帳の控えなど。got の unread。読めた控えについての注記 lost_ties は数えない）・
+R2 の頼みどおりの違いの問い（eyes の means_questions。docs/design/plan-review.md の 20 章の 6.3。continue / stop がそのまま答え）
 は開き方に依らず開く（must。通すのは人の答えだけ）。ほかは開き方 final_gate で開く（src.gates.opens）。無人の run で開くはずの時は
 開かずに works:needs-human で止め、merge の apply を飛ばす（L-G39・L-W25）。試験を求めなかった直し（untested）は節に分けて並べ、種類 code の
 ファイルを触った時だけ開き方で開く理由にする。計画の依存で前に直すはずの単位が型の順で後に回った対（fixed の groups の unsatisfied）は「守れなかった依存」の節に名で並べ、止めず開ける理由にも数えない。判定の役が保留にしたままの問いは冒頭と本文に見せるが
@@ -67,6 +68,9 @@ PARALLEL_UNCHECKED = "修正の後の並行 PR の確かめ直しができなか
 PARALLEL_UNDONE = ("not_run", "awaiting_human", "failed")
 R2_KEEPS_OUT = ("R2（修正の後に設計を見直す独立の目）が作り直し（redesign-needed）と言ったので、この run の差分は当てない"
                 "（持ち主の決め small-core。merge も bin/apply も拒む）。報告へ進めても止めても、差分は対象に当たらない")
+MEANS_HEAD = "頼みの解き方どおりで独立設計と食い違う所"   # R2 の request_conflicts の問いの節（計画 means-answers の 6.3 の 3。R4 の問いと分ける）
+MEANS_ANSWERS = "この承認ノードの continue は頼みどおりの差分を当てる答え、stop は止める答えになる"
+MEANS_NEED = "頼みの解き方どおりの違いを独立の目が聞いている（{n} 件）"
 SPEC_APPLIES = ("  - 承認して報告へ進める（continue）と、差分は承認し直しを待たずに当たる（merge が run の置き場に置き、bin/apply が"
                 "対象に当てる）。承認し直してから当てるなら stop で止める")
 
@@ -207,6 +211,8 @@ def needs(got: dict) -> list:
         why.append((f"考えの住処の柵の数が増えた（{len(got['fenced'])} 件。住処へ寄せるか、増やすなら地図と柵の表を直す）", False))
     if got["questions"]:
         why.append((f"人に聞いている問いが在る（{len(got['questions'])} 件）", False))
+    if got["means_questions"]:   # 開き方に依らず開く（must）: 開かずに当てると、頼みどおりの違いを人に聞かずに当たる（決め means-ask の 1）
+        why.append((MEANS_NEED.format(n=len(got["means_questions"])), True))
     if left_objection(got):
         why.append(("止めずに残った異議が在る", False))
     if not got["sealed"]:
@@ -230,7 +236,7 @@ def final_head(got: dict, why: list) -> list:
     decide = ("報告へ進めて run を終えるか、止めるか（打つ行は末尾の答え方）"
               + ("。守りのパスと許したテストの変更と消した試験は下の最初のセクションを確かめてから通す" if guarded else "")
               + (f"。{R2_KEEPS_OUT}" if r2_redesign(got) else ""))
-    return gatemarks.head3(happened, decide, gatemarks.pushes([*held, *got["questions"]]))
+    return gatemarks.head3(happened, decide, gatemarks.pushes([*held, *got["questions"], *got["means_questions"]]))
 
 
 def protected_section(got: dict) -> list:
@@ -374,6 +380,11 @@ def question_lines(got: dict) -> list:
         for q in got["questions"]:
             lines += [f"  {x}" for x in gatemarks.quote(q)]
         lines.append("  - この承認ノードの答えはこの問いに答えない。問いは報告の冒頭と次の run の依頼の下書きへ渡る")
+    if got["means_questions"]:
+        lines.append(f"- {MEANS_HEAD}（R2。{len(got['means_questions'])} 件）:")
+        for q in got["means_questions"]:
+            lines += [f"  {x}" for x in gatemarks.quote(q)]
+        lines.append(f"  - {R2_KEEPS_OUT}" if r2_redesign(got) else f"  - {MEANS_ANSWERS}")
     if got["held"]:
         lines.append(f"- 判定の役が人に聞くと保留にしたままの問い（問いの台帳・{len(got['held'])} 件。この承認ノードの答えは問いに答えない。"
                      "問いは報告の冒頭に並ぶ）:")
@@ -384,7 +395,7 @@ def question_lines(got: dict) -> list:
         lines += [f"  - {x}" for x in got["answered"]]
     lines += [f"- {x}" for x in got["unmatched"]]
     lines += [f"- {x}" for x in got["unread_holds"]]
-    if not (got["spec_changed"] or got["questions"] or got["held"] or got["answered"] or got["unmatched"]):
+    if not (got["spec_changed"] or got["questions"] or got["means_questions"] or got["held"] or got["answered"] or got["unmatched"]):
         lines.append("- 共有ボードの問い: 無い")
     return lines
 
@@ -630,6 +641,7 @@ def gather(*, fix_in: dict, fixed: dict, judged: dict | None, tests: dict | None
         "mismatched": [x for x in fixed.get("mismatched") or [] if isinstance(x, str)],
         "eyes": {name: eye.get(name) for name in (*EYES, "premise_check")},
         "questions": [q for q in eye.get("questions") or [] if isinstance(q, str)],
+        "means_questions": [q for q in eye.get("means_questions") or [] if isinstance(q, str)],
         "spec_changed": [q for q in (spec_check or {}).get("questions") or [] if isinstance(q, str)],
         "spec_unchecked": (spec_check or {}).get("unchecked") is True,
         "objection": str(fixed.get("objection") or ""), "rejudge_verdict": str((judged or {}).get("rejudge_verdict") or ""),

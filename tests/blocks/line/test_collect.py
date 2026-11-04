@@ -205,6 +205,31 @@ class FactsCase(unittest.TestCase):
         self.assertIn({"at": "eyes", "word": "r4-ask"}, got["waits"]["others"])
         self.assertIn(self.f.EYE_ASK_HEAD, [a["kind"] for a in got["asks"]])
 
+    MEANS_Q = "R2: 差分は頼みの解き方 M1「x」どおりだが、独立設計と食い違う——y"
+
+    def test_means_questions_wait_only_while_unanswered(self):
+        """計画 means-answers の 6.3 の 3 の 2・3: R2 の行は R4 の見出しの下に入れない。最後の承認ノードが continue か stop で答えた
+        run では人待ちに数えず人が決めることにも載せない。答えの無い run と、R2 が redesign-needed の run（差分が当たらないので continue
+        を答えに数えない）では語 r2-means-ask で数え、別の見出しの下に載せる"""
+        v = passing()
+        v["eyes"] = {**v["eyes"], "means_questions": [self.MEANS_Q]}
+        for decision in ("approve", "continue", "stop"):
+            with self.subTest(decision=decision):
+                v["answer_final"] = {"go": decision != "stop", "answer": {"decision": decision, "text": "x"}, "stop_reason": ""}
+                got = self.build(v)
+                self.assertNotIn({"at": "eyes", "word": "r2-means-ask"}, got["waits"]["others"])
+                self.assertNotIn(self.f.MEANS_ASK_HEAD, [a["kind"] for a in got["asks"]])
+        for case, over in (("no-answer", {"answer_final": {"go": False, "answer": None, "stop_reason": "works:needs-human"}}),
+                           ("redesign", {"eyes": {**v["eyes"], "r2": {"status": "redesign-needed", "reason": "別"}}})):
+            with self.subTest(case=case):
+                got = self.build({**v, "answer_final": {"go": True, "answer": {"decision": "continue", "text": "x"}, "stop_reason": ""},
+                                  **over})
+                self.assertIn({"at": "eyes", "word": "r2-means-ask"}, got["waits"]["others"])
+                self.assertNotIn({"at": "eyes", "word": "r4-ask"}, got["waits"]["others"])
+                kinds = {a["kind"]: a["text"] for a in got["asks"]}
+                self.assertIn(self.MEANS_Q, kinds[self.f.MEANS_ASK_HEAD])
+                self.assertNotIn(self.f.EYE_ASK_HEAD, kinds)
+
     def test_cut_when_the_final_test_is_missing(self):
         v = passing()
         v["test_gate_final"] = None

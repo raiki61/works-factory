@@ -191,7 +191,7 @@ line が段ごとに引いた真偽の表 `verify_by_tier` を、head-depth が�
 - 落ちた目の訳の尾（E50）: `r4` の行が在り（r4 が返った）、ほかの目の行の `reason` が `eyekit.FELL_MARK` を含めば、「まま R4 を回した」を足す（今の `fell_text(…, ran)`。r1 の設計書の 0.9 が graph に残した物）。
 - `ok`（E49）: 回した目の全部の行が `pass` で、R2 が前提の検算の道でない（r2 の `premise_check` が null）時だけ真。どれか 1 つでも `fix-needed`・`redesign-needed`・`unverifiable` なら偽。R2 の行は前提の検算の道では r2 が `unverifiable`（「前提不成立: 」の頭）を返すので、行だけでも偽になる。
 - 直した後の実測の `dirty`・`escalate` は `ok` に入れない（今の eyes も入れず、最後の承認ノードが「考えの住処の柵（対象のリポジトリが考えの置き場を縛る表）の当たりの数が増えた」を開ける理由にし、報告が残りに数える。E73。structure の設計書の 1.6 が eyes の設計書に決めを任せた所）。
-- `questions`・`passes` は r4、`premise_check`・`notes` は r2 の出力から写す（受け皿が飛んだ目は空の配列と null）。
+- `questions`・`passes` は r4、`premise_check`・`notes` は r2 の出力から写す（受け皿が飛んだ目は空の配列と null）。`means_questions` は r2 の `questions`（頼みどおりの違いの問い。R4 の問いと分ける。`docs/design/plan-review.md` の 20 章の 6.3 の 2）。port `means` は r2 にそのまま渡す。
 - `sections`: structure（after）・r1・r2・r3（`merge` の時は無い）・r4 の `report` を 1 節ずつ（見出しは「直した後の構造の実測」「独立の目 R1 最小性とコメント」…）と、このまとめの行の節「独立の目のまとめ」（`ok` の訳・省いた目・まとめた目）。
 - 落ちない: 中の誤りは全部捕まえ、`ok: false`・目の行は全部 `unverifiable`（理由に誤りの 1 行）・ほかは null か空で返す（今の `fallen`。E54・E55）。NaN と Infinity は `allow_nan=False` で落ちた返りにする。
 
