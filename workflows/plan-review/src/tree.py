@@ -1,4 +1,4 @@
-"""事前審査の木の部品（docs/design/plan-review.md の 5 節と 1.5。今の lib/planblk.py の木の部分〔:465-1030〕の写し）。
+"""事前審査の木の部品（docs/design/plan-review.md の 5 節と 1.5。元の planblk の木の部分〔:465-1030〕の写し）。
 
 木の往復では、束ね役（node review-tree）が案の項目を自分で見ずに、開いた項目ごとの下請けと（開いた項目の全部が clean なら）相乗りの
 下請けを Agent の道具で並べて起こす。下請けは指示のファイル items/brief.md（全部の項目で同じバイト。prompts/parts/item-brief.md から

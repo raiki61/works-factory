@@ -1,4 +1,4 @@
-"""始めの記録（run directory の r1/start.json）の書き手と読む口（元 lib/startrec.py。docs/design/line.md の 1.5・1.6 の MOVE と
+"""始めの記録（run directory の r1/start.json）の書き手と読む口（元の startrec。docs/design/line.md の 1.5・1.6 の MOVE と
 integration.md の 4.3-追加-6・4.3-9）。
 
 始めの記録は line の start が run の頭に 1 度書く控えで、入口の入力の形（欄 input）と run の入力の控え（test_cmd・機能の切り替え…）を

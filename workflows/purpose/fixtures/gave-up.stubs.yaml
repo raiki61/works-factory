@@ -10,4 +10,4 @@ purpose:
   purpose_text: 平均の関数が正しい値を返す
   source: ②計画・タスク記述
   known_weaknesses: []
-  source_files: [docs/no-such-plan.md]
+  source_files: [notes/no-such-plan.md]

@@ -1,4 +1,4 @@
-"""修正役と TDD の役の指示に入れる値（lib/fixrules.py の値の関数の写し。docs/design/fix.md の 1.5.1）。
+"""修正役と TDD の役の指示に入れる値（元の fixrules の値の関数の写し。docs/design/fix.md の 1.5.1）。
 
 写しは元の関数の中身を変えない。指示の文は prompts/ の md が持ち、元の rulebook.render に渡した節の組み立て（fix_parts・tdd_parts・
 ruler_parts・write_prompt・tdd_render・ruler_prompt・start_lines）は写さない（src/prompts.py が prompt.emit に渡す値と段落の真偽を

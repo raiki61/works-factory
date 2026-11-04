@@ -59,8 +59,8 @@ judge__world__intake: {"due": false, "findings": 1, "reason": "筋書き: block 
 judge__world__pick: {"due": false, "web": false, "reason": "筋書き: block の中は block の筋書きが見る"}
 lens__finish: {"ok": true, "status": "ok", "reason": "", "rows": null, "ran": 1, "failed": 0, "not_routed": 0, "carry": [], "report": [], "optional": []}
 lens__intake: {"due": false, "reason": "", "silent_failure_hunter_go": false}
-merge-seal__merge: {"mode": "seal", "ok": true, "hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "diff": null, "protected_hits": ["tests/test_stats.py"], "protected_count": 1, "reason": "", "deliver": null, "optional": [], "report": []}
-merge-seal__place: {"mode": "seal", "ok": false, "hash": "", "diff": null, "protected_hits": ["tests/test_stats.py"], "protected_count": 1, "reason": "", "base_rev": "", "deliver": ""}
+merge-seal__merge: {"mode": "seal", "ok": true, "hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "diff": null, "protected_hits": ["test/test_stats.py"], "protected_count": 1, "reason": "", "deliver": null, "optional": [], "report": []}
+merge-seal__place: {"mode": "seal", "ok": false, "hash": "", "diff": null, "protected_hits": ["test/test_stats.py"], "protected_count": 1, "reason": "", "base_rev": "", "deliver": ""}
 owed: {"owed": true, "why": "", "recorded": [], "stop_reason": ""}
 plan-review-run__finish: {"ok": true, "status": "ok", "form": "plan", "round": 1, "reason": "", "holes": {"type": "archon_artifact", "run_id": "dry-run", "path": "plan-review/review.json"}, "blocks": [], "pass": {"type": "archon_artifact", "run_id": "dry-run", "path": "plan-review/pass.json"}, "asks": [], "deviations": [], "replan": [], "gave_up": null, "reads": null, "report": []}
 plan-review-run__intake: {"due": false, "form": "", "tree": false, "k": 0, "reason": ""}

@@ -1,6 +1,6 @@
 """2 つの修正の段の合わせと、修正の段の控えの読み口（docs/design/line.md の 1.5・4.3。integration.md 4.5-3）。
 
-元は今の workflows/line/scripts/fixed.py の中身と、組み込みで消える lib/fixbeside.py の読み口のうち line が読む物（stage・read・tdd・
+元は今の workflows/line/scripts/fixed.py の中身と、組み込みで消えた fixbeside の読み口のうち line が読む物（stage・read・tdd・
 late_records と、最後の承認ノードと報告が同じ行を出す closure_lines・not_closed・tests_left_lines・gates_lines・plan_ask_lines・
 always_rows・next_items）。名は元のまま（E18）。差分の審査の穴の枝（branch_rows）・レンズの行・手直しの行は delta-review と lens の
 block が自分の出力の report・carry で返すので写さない（delta-review の設計書の 1.6）。lib は KEEP の物だけを読む。

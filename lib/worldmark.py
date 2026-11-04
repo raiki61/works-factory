@@ -1,4 +1,4 @@
-"""世界の解の行の住処（考え world。地図 docs/concepts.md。計画 docs/plans/2026-10-09-world-solution.md の 5.3 節・5.7 節）。
+"""世界の解の行の住処（考え world。地図 docs/concepts.md）。
 
 世界の解の段のブロックが、依頼の行ごとに「問題の類・世の中の定石・依頼の解き方との比べ」を 1 行に書いた JSON Lines（WORLD_FILE）と、
 線がその出口を盤面の根に写した控え（STATE_FILE）を読む口の 1 か所。判定・構造の目・修正案・事前審査・関所・報告はここから読み、

@@ -1,4 +1,4 @@
-"""段 A の実測の部品（docs/design/structure.md の 1.5。lib/stage_a.py の read_units・measure_unit と、lib/context.py の find・concepts・
+"""段 A の実測の部品（docs/design/structure.md の 1.5。元の stage_a の read_units・measure_unit と、元の context の find・concepts・
 _sections・_rel・HEADING の写し）。
 
 - read_units(path): 単位のファイル（JSON の配列で、各行は {id, paths, summary}）を読み、形を確かめて返す。読めない・形が違うなら ValueError

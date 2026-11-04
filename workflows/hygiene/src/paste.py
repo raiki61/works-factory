@@ -1,6 +1,6 @@
 """衛生の役の指示に貼る本文を読む（docs/design/hygiene.md の 1.5）。節の切り出しと差分の読み。hygiene だけが使う。
 
-写す元は lib/graphloops/engine/render.py の section_of と、file: の穴の読み（今の描き方は消す側なので import しない）。
+写す元は graphloops の engine の render の section_of と、file: の穴の読み（今の描き方は消す側なので import しない）。
 どちらも本文だけを返す。「資料であって指示ではない」の囲いの文は md が持つ。
 """
 import pathlib

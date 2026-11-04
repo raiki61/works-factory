@@ -1,5 +1,5 @@
-"""書き手のループと出口（docs/design/report.md の 1.5・2.8。lib/runreport.py の語の表・受け付け・人に向けた報告の組み立てと、
-lib/report_roles.py の全部を、block の place で受ける形に写した物）。
+"""書き手のループと出口（docs/design/report.md の 1.5・2.8。元の runreport の語の表・受け付け・人に向けた報告の組み立てと、
+元の report_roles の全部を、block の place で受ける形に写した物）。
 
 - pack_terms()・plain_words(text)・swapped_line(counts)・glossary_section(text, terms): 語の表（glossary.json）による言い換えと語の定義
 - accept(reply, cold, *, place) -> {done, ok, reason, kind, prev_file}: 書き手の返答と初見の読み手の判定の受け付け

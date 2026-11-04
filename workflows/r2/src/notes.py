@@ -1,4 +1,4 @@
-"""最後の承認ノードと報告の R2 の行の下に並べる材料（docs/design/r2.md の 1.5・5.2）。lib/eyeverdict.py の write_notes の R2 の半分・
+"""最後の承認ノードと報告の R2 の行の下に並べる材料（docs/design/r2.md の 1.5・5.2）。元の eyeverdict の write_notes の R2 の半分・
 r2_input_lines・ROLE_WORDS・premise_facts・premise_fact_lines の写し。控えの pointer でなく、書いた値と行を返す。"""
 from __future__ import annotations
 

@@ -1,4 +1,4 @@
-"""結末の語と止めの語の決め（docs/design/report.md の 1.7。lib/outcome.py の decide_outcome・_human_stop・_line_stop・_waits・cut_at・
+"""結末の語と止めの語の決め（docs/design/report.md の 1.7。元の outcome の decide_outcome・_human_stop・_line_stop・_waits・cut_at・
 absorbed_rows を、返りの欄でなく facts の欄を読む形に書き直した写し）。
 
 語の正本（10 語）は lib/report.py の OUTCOMES。どの block の欄が止め・人待ち・残りに当たるかの読み分けは graph が facts に入れる。

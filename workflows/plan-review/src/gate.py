@@ -1,5 +1,5 @@
 """人に回しうる行と外れの事実（docs/design/plan-review.md の 10 節）。#765 で lib/gatemarks.py の盤面を読む行の照らし（_gate_rows・
-_mark・axis_reasons・_cite_check・_design_rows・_world_rows・_world_answers・_answered_rows・world_items）と、lib/boardview.py の
+_mark・axis_reasons・_cite_check・_design_rows・_world_rows・_world_answers・_answered_rows・world_items）と、元の boardview の
 replan_asks の事実の部分（_faces_of・replan_asks）を写した物。このうち narrows の行の組み立て（元の _gate_rows の前半と _mark）と
 軸の訳の決まり（元の axis_reasons）は、#802 で lib/gatemarks.py の narrow_asks・ask_row・axis_why に戻した（下の段落）。
 

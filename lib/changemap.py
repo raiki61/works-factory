@@ -857,7 +857,7 @@ def entries_from_porcelain(porcelain, numstat=None):
     entries = []
     for line in porcelain.splitlines():
         # 位置で切らない。出力全体を strip されると 1 行目の先頭空白が消えて桁がずれる
-        # （" M docs/a.md" → "M docs/a.md"。3 桁目から切ると "ocs/a.md" になる。実測）
+        # （" M src/a.md" → "M src/a.md"。3 桁目から切ると "rc/a.md" になる。実測）
         parts = line.split(maxsplit=1)
         if len(parts) < 2:
             continue
