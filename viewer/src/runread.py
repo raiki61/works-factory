@@ -259,7 +259,7 @@ def run(db: Path, run_id: str) -> dict:
                 reader.read(child, prefix)
                 parents[child["id"]] = parent
                 todo.append((child["id"], prefix))
-    # DB の読みの誤りは、開いた run と読んだ子の run の物だけを数える（別の run の行を帯に入れない。待ちは開いた run だけに出す）
+    # DB の読みの誤りは、開いた run と読んだ子の run の物だけを数える（別の run の行をトレースに入れない。待ちは開いた run だけに出す）
     for what, got in ((SHAPELESS, sum(odd.get(rid, 0) for rid in (run_id, *(child["id"] for child in reader.children)))),
                       (NAMELESS, nameless.get(run_id, 0))):
         if got:
