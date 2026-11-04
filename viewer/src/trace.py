@@ -6,6 +6,9 @@
   属性は Phoenix が読む OpenInference の名（openinference.span.kind・llm.*・input.value・output.value・tool.name・session.id）と、工場の
   物の works_factory.* の名。unread は run と会話と下請けの読めなかった物に、組みで結べなかった物を足した数え
 
+run の span は結末 works_factory.outcome（Archon が run の行に書く成否。空なら印 NO_OUTCOME）を持ち、段の span は段の集計の欄
+（状態・印 fell・秒・待ち・AI の秒と手番・ノードの数・往復・周・費用・トークン）を属性に持ち、時刻は集計の始めと終わり。
+
 木: run（AGENT）→ 段（CHAIN。line の run だけ）→ 中の出来事を束ねる器（CHAIN。runread.GROUP_KINDS）→ 繰り返しの周（CHAIN）→ ノード
 （AI のノードは AGENT、ほかは CHAIN）→ 往復（LLM）と道具（TOOL）→ 下請け（AGENT。meta の toolUseId の道具の下）→ 往復と道具 …。
 器と周の span には費用を載せない（中と二重になる）。続けた会話の写しの往復（session の copied）は span にしない。
@@ -36,12 +39,21 @@ SESSION = "session.id"
 RUN_ID = "works_factory.run_id"
 STATUS = "works_factory.status"
 OUTCOME = "works_factory.outcome"
+NO_OUTCOME = "none"   # 結末の欄が空の run（返すノードが終わる前の run）の結末の印
 PATH = "works_factory.path"
 LOOP = "works_factory.loop"
 NODE_KIND = "works_factory.kind"
 STAGE = "works_factory.stage"
 COST = "works_factory.cost_usd"
 TURNS = "works_factory.turns"
+# 段の span の段の集計（src/stages.py の _sum）の欄。状態は STATUS、費用は COST、往復は TURNS、トークンは TOKENS に置く
+FELL = "works_factory.fell"
+SECONDS = "works_factory.seconds"
+WAIT = "works_factory.wait_seconds"
+AI_SECONDS = "works_factory.ai_seconds"
+AI_STEPS = "works_factory.ai_steps"
+STEPS = "works_factory.steps"
+ROUNDS = "works_factory.rounds"
 TOKENS = "works_factory.tokens."
 RESULT_CHARS = "works_factory.result_chars"
 CHARS = "works_factory.chars."
@@ -72,18 +84,20 @@ def build(data: dict) -> dict:
     start = run.get("started") or min((e["start"] for e in events), key=runread.when, default=None)
     end = _plus(start, run.get("seconds")) if start else None
     root = tree.span("run", None, run["graph"], start, end or start, {
-        KIND: "AGENT", RUN_ID: run["id"], STATUS: run.get("status") or "", OUTCOME: run.get("outcome") or "",
+        KIND: "AGENT", RUN_ID: run["id"], STATUS: run.get("status") or "", OUTCOME: run.get("outcome") or NO_OUTCOME,
         **({COST: run["cost"]} if run.get("cost") is not None else {}), OUTPUT: _costs(data, events, table)})
     parents = {}
     for e in events:
         parents[id(e)] = _parent(e, events)
+    # 段の番号を持つ出来事は stages.attach の後だけに在り、その時は段の集計も在る（無ければ KeyError で止める）
+    summed = data["stages"]["run"] if any(e.get("stage") for e in events) else []
     stage_spans = {}
     for e in events:
         n = e.get("stage")
         if n and parents[id(e)] is None and n not in stage_spans:
-            inner = [x for x in events if x.get("stage") == n]
-            stage_spans[n] = tree.span(f"stage|{n}", root, table[n - 1]["name"], _first(inner), _last(inner),
-                                       {KIND: "CHAIN", STAGE: table[n - 1]["name"]})
+            row = summed[n - 1]
+            stage_spans[n] = tree.span(f"stage|{n}", root, table[n - 1]["name"], row["start"], row["end"],
+                                       {KIND: "CHAIN", STAGE: table[n - 1]["name"], **_stage(row)})
     spans_of, rounds = {}, {}
     used = set()
     for e in sorted(events, key=lambda x: (len(x["tokens"]), runread.when(x["start"]))):
@@ -244,6 +258,13 @@ def _node(e: dict, table: list) -> dict:
             if isinstance(value, (int, float)) and not isinstance(value, bool):
                 attributes[TOKENS + name] = value
     return attributes
+
+
+def _stage(row: dict) -> dict:
+    """段の span の属性: 段の集計の欄（始めと終わりは span の時刻）"""
+    return {STATUS: row["state"], FELL: row["fell"], SECONDS: row["seconds"], WAIT: row["wait"], AI_SECONDS: row["ai_seconds"],
+            AI_STEPS: row["ai"], STEPS: row["steps"], TURNS: row["turns"], ROUNDS: row["rounds"], COST: row["cost"],
+            **{TOKENS + name: value for name, value in row["tokens"].items()}}
 
 
 def _parent(e: dict, events: list) -> dict | None:

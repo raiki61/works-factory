@@ -2,7 +2,7 @@
 （docs/design/viewer.md の照らしの 2）。源の字を読むだけなので手元の確かめでも回る（源が無ければ tests/archon.py の absent。CI は赤）。
 
 - ログの行の型と道具の出来事の型は、源の型の和と runread の読む型・読まない型の和がちょうど同じ（源に型が足されても消されても赤）
-- run の状態は源の enum とちょうど同じ（生きている状態と答えを待つ状態はその中）
+- run の状態は源の enum とちょうど同じ（生きている状態と答えを待つ状態はその中）。run の結末の語も源の enum とちょうど同じ
 - DB の表の欄は、源の CREATE TABLE のその表の欄に在る
 - ノードの費用の数え方の accounting の語は、源の enum とちょうど同じ
 - 置き場の名と、DB の出来事・metadata の名は、源のその名を書くファイルに字として在る
@@ -80,6 +80,8 @@ class ArchonNamesTest(unittest.TestCase):
         found = re.search(r"workflowRunStatusSchema = z\.enum\(\[(.*?)\]\)", self.read(RUN_STATUS), re.S)[1]
         self.assertEqual(literals(found), set(runread.STATUSES))
         self.assertLessEqual({*runread.LIVE, runread.PAUSED, runread.FAILED}, set(runread.STATUSES))
+        outcomes = re.search(r"workflowRunOutcomeSchema = z\.enum\(\[(.*?)\]\)", self.read(RUN_STATUS), re.S)[1]
+        self.assertEqual(literals(outcomes), set(runread.OUTCOMES))
 
     def test_accounting_words_are_the_sources(self):
         found = re.search(r"accounting: z\.enum\(\[(.*?)\]\)", self.read("packages/workflows/src/schemas/node-execution.ts"), re.S)[1]

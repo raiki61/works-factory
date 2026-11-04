@@ -4,7 +4,7 @@
 道具の出来事の型は、源の型の和の全部をここに持ち（読む型と読まない型）、源に在ってここに無い型も同じ試験が赤にする。知らない型の行は
 数えて返し、黙って落とさない。DB は読むだけで開く。
 
-- run(db, run_id) -> 選んだ run と子の run の記録（ノードごとの出来事・道具の呼び出し・費用・出力・知らない行の数え）
+- run(db, run_id) -> 選んだ run と子の run の記録（結末 outcome・ノードごとの出来事・道具の呼び出し・費用・出力・知らない行の数え）
 - pick(db, wanted) -> run の id（wanted が空なら一番新しい親の run。頭の字でもよい）
 - seconds(started, completed)・length(event)・when(text)・try_when(text) -> 時刻の差の秒・出来事の長さ・時刻の読み（読めなければ
   ValueError か None。字でない時刻も try_when は None。DB の秒までの時刻は UTC として読む）。段の集計と無駄の手がかりと会話の読みも使う
@@ -37,7 +37,7 @@ WORKFLOW_FOLDER = ".archon/workflows"
 
 # DB の表と欄（packages/core/src/db/adapters/sqlite.ts の CREATE TABLE）
 RUN_TABLE = "remote_agent_workflow_runs"
-RUN_COLUMNS = ("id", "workflow_name", "status", "parent_run_id", "started_at", "completed_at", "output_root", "metadata")
+RUN_COLUMNS = ("id", "workflow_name", "status", "outcome", "parent_run_id", "started_at", "completed_at", "output_root", "metadata")
 EVENT_TABLE = "remote_agent_workflow_events"
 # 新しい順。承認で再開した run は行の始めを今に書き直す（packages/core/src/db/workflow-run-resume.ts）ので、出来事の最初の時刻で並べる
 # （出来事の無い run は行の始め）。時刻は秒まで（datetime('now')）で、並んだら後に作った行（rowid が大きい）を新しいとする
@@ -47,6 +47,11 @@ EVENT_COLUMNS = ("workflow_run_id", "event_type", "step_name", "data", "event_or
 # run の状態（packages/workflows/src/schemas/workflow-run.ts の workflowRunStatusSchema）
 STATUSES = ("pending", "running", "completed", "failed", "cancelled", "paused")
 LIVE = ("pending", "running", "paused")
+# run の結末（欄 outcome。packages/workflows/src/schemas/run-status.ts の workflowRunOutcomeSchema）。Archon は graph の returns: の
+# ノードが終わった時に、その出力の outcome_field: の欄（boolean）を成否にして書く（packages/workflows/src/dag-executor.ts の
+# persistAuthoredOutcome）。run のその後の成り行きに関わらず書くので、返すノードの後に落ちた・止めた run も結末を持ち、起き直した
+# run は書き直されるまで前の値を持つ。返すノードが終わる前に走り中・答え待ち・落ちた・止めた run は空
+OUTCOMES = ("succeeded", "failed")
 # 答えを待つ run の状態。待ちはこの状態の run だけに出す（止めた・放棄した run は node_completed を書かずに終わる。
 # packages/core/src/operations/workflow-operations.ts の resolveAndCancelApprovalGate・abandon）
 PAUSED = "paused"
@@ -245,6 +250,7 @@ def run(db: Path, run_id: str) -> dict:
     for child in reader.children:
         child["started"], child["seconds"] = _child_span(child, reader.events, parents, (closed[child["id"]] or [None])[-1])
     return {"id": run_id, "graph": top["workflow_name"], "status": top["status"], "live": top["status"] in LIVE,
+            "outcome": top["outcome"] if top["outcome"] in OUTCOMES else None,
             "waiting": waiting.get(run_id, []), "started": started, "seconds": seconds(started, ended),
             "cost": _cost(meta, spent, run_id), "copy": str(copy(root, run_id)) if root else "",
             "children": reader.children, "events": sorted(reader.events, key=lambda e: (e["start"] or "", "/".join(e["tokens"]))),
