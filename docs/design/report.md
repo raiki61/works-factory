@@ -476,7 +476,8 @@ Notes that earlier rounds of you wrote, named by the machine, oldest first. …
 4. 渡した物だけを読めの 1 文（決まった文）。
 5. 区切りの行で分けた 2 つ: `{machine}`（機械が組んだ行。機械の報告の冒頭）と `{body}`（書き手の頭とその頭に現れる語の定義の節）。どちらも `writer.cold_parts(writer, place=place)` が語の表で言い換えた物で、この順につなぐと人に向けた報告の頭と同じ字（`writer.cold_body`）。分けるのは、読み手が止まった所が書き手の書いた所か機械が組んだ行かを返せるようにするため（#834）。
 6. 返す物と判定の決まり（決まった文）。止まった所と推測した所は、書き手の書いた所なら `stops`・`guessed`、機械が組んだ行なら `machine_lines` に置く。どれかに 1 つでも在れば `redesign-needed`（基準は変えない）。
-7. 結びの 1 文。
+7. 書き方の 2 項目: 1 項目に 1 文で本文の所を名指す、と言語の行（`<!-- if lang_given -->` の `{lang}` ← facts の `lang`。空なら `<!-- if not lang_given -->` の「貼った本文の言語」）。cold-read の block の `prompts/cold.md` と同じ形。言語の行が無いと、読み手は指示の英語のまま返すことがあり、その字が書き手への拒否の理由と人に向けた報告の冒頭に載る。
+8. 結びの 1 文。
 
 却下の段落は持たない（初見の読み手は周ごとに新しい会話で、拒まれる側でない。今も持たない）。
 
@@ -484,7 +485,7 @@ md の本文（英語）の正本は `prompts/cold.md` と共通の断片 `workf
 
 ### 3.4 返す形
 
-`output_format`（`workflows/report/works-factory-report.yaml` の cold）: `verdict`（`pass`・`redesign-needed`）・`stops`（字の配列。書き手の書いた所で止まった所）・`guessed`（字の配列。書き手の書いた所で推測した所）・`machine_lines`（字の配列。機械が組んだ行で止まったか推測した所。#834 で足した）・`decidable`（boolean）。`required` は 5 つ全部・`additionalProperties: false`。人に見せる欄は `stops`・`guessed`・`machine_lines`（拒んだ回は書き手への拒否の理由に、受け取った回は人に向けた報告の冒頭の印と詳細のファイルに載る。`machine_lines` の行は「機械が組んだ行で止まった所（書き手には直せない）」と分けて言う）。言語の 1 文は持たない（今も持たない。返す字は読んだ本文の言語に倣う）。
+`output_format`（`workflows/report/works-factory-report.yaml` の cold）: `verdict`（`pass`・`redesign-needed`）・`stops`（字の配列。書き手の書いた所で止まった所）・`guessed`（字の配列。書き手の書いた所で推測した所）・`machine_lines`（字の配列。機械が組んだ行で止まったか推測した所。#834 で足した）・`decidable`（boolean）。`required` は 5 つ全部・`additionalProperties: false`。人に見せる欄は `stops`・`guessed`・`machine_lines`（拒んだ回は書き手への拒否の理由に、受け取った回は人に向けた報告の冒頭の印と詳細のファイルに載る。`machine_lines` の行は「機械が組んだ行で止まった所（書き手には直せない）」と分けて言う）。言語は 3.3 の 7 の行が名指す（facts の `lang`。空は貼った本文の言語）。
 
 ### 3.5 描いた骨組み（例の run の値。3 回目の回）
 
@@ -553,7 +554,7 @@ graphloops の `prompts/review-loop/report.cold_check.md` は書き手の前の�
 
 - `facts.py`: `INPUTS_SECTIONS`・`INPUTS_FACTS`・`INPUTS_LANG` を `os.environ.get(…)` の字のままで読み、`ports.json(…, "shared:sections.schema.json")`・`ports.json(…, "shared:facts.schema.json")`・`ports.text(…)` で値にし、`facts_in.read` で既定を埋める。読めない入力は落とさず、その訳を `problems` に足す（結末は `record_invalid`）。`transcript.read()`、`transcript.facts(rows, exclude_prefix=transcript.own_prefix(), optional=facts.optional)`、`outcome.decide`、`machine.build` の順に呼び、`facts.json` を書いて返す。返り `{outcome, ok, stop_reason, machine, next_request, prior_failures, ai_go, stamp}`（`ai_go` は結末が `record_invalid` でない時に真。`stamp` は `writer.stamp(run_id, <block の YAML のパス>, facts.round, facts.line_rev, facts.start_ok)`）。思わぬ誤りは捕まえ、`machine.fallback_report` の機械の報告（`report-unwritten.md`）を指す `record_invalid` の返りにする。lib を読めない時は標準ライブラリだけで `report-facts-unwritten.md` を書いて返す（今の `facts.py` の 3 段のまま）。
 - `write_prep.py`: `writer.note_writer_fell(<report.md>, None, run_id=…)`（resume の前に finish が置いた行を外す。今の `reject.py`）→ 2.3 の値と真偽を組み、`prompt.render("write", values, when)`、`write-prompt-<n>.md` に書いて `{prompt}` を返す。
-- `cold_prep.py`: `INPUTS_WRITER` を字のままで読み、`machine, body = writer.cold_parts(raw, place=place)`、`prompt.render("cold", {"machine": machine, "body": body, "machine_heading": …}, {})`（3.3 の 5）、`cold-prompt-<n>.md` に書いて `{prompt}` を返す。
+- `cold_prep.py`: `INPUTS_WRITER` を字のままで読み、`machine, body = writer.cold_parts(raw, place=place)`、`prompt.render("cold", {"machine": machine, "body": body, "machine_heading": …, "lang": <facts の lang>}, {"lang_given": <lang が空でないか>})`（3.3 の 5・7）、`cold-prompt-<n>.md` に書いて `{prompt}` を返す。
 - `write_accept.py`: `INPUTS_REPLY`・`INPUTS_COLD` を字のままで読み、`writer.accept(reply, cold, place=place)` の返りから `{done, ok, reason, kind, prev_file}` を返す。思わぬ誤り（`rejects-report.md` に書けないなど）は捕まえない: node が落ちて run が failed になり、finish が「書き手のノードが落ちた」を機械の報告の頭に置き、resume できる（今の `report_accept.py` と同じ）。
 - `finish.py`: `facts.json` と run の記録を読み、書き手のループ（`transcript.own_prefix() + "write-loop"`）が落ちていれば `writer.note_writer_fell(<report.md>, fell, run_id=…)`（使用枠の切れなら resume の命令 `answer.resume(run_id)` を添える。#702）。`writer.collect(<report.md の字>, place=place, stamp=…)` で人に向けた報告と詳細のファイルを書く（`ai.json` が無ければ書かない）。返りは 1.2 の出力の 9 欄。落ちない: 思わぬ誤りは捕まえて `record_invalid` と訳を返し、facts の機械の報告の pointer が在ればそれを指す（今の `collect.py` の `fallen`）。lib を読めない時は `report-finish-unwritten.md` を書いて指す。
 

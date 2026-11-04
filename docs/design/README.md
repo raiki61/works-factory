@@ -466,7 +466,7 @@ form は 4.1 の物。どの block も `lang`（`text`）を持つ物は書く�
 - `accept`（作業ツリーの写しと返答の照らし。役を持つ block の多く。写した graph の規則の部分は割る。作業ツリーの比べ `moved_since` もここに寄せ、block の写しは消す。4.4-H）
 - `answer`（line・chain・`bin/`）・`chain`（chain・`bin/`）・`entry`・`entryshape`・`runbranch`（line・chain・merge）
 - `baseline_red`（test-gate・fix・report）・`green_cert`（test-gate・merge・line・chain）・`declared_checks`（test-gate・report・line）・`suitewrite`（test-gate・line）・`checkscope`（test-gate・素材の観点）
-- `carry`（line・chain・report・test-gate）・`changemap`・`COPIED_FROM.changemap`（line と `impact` の使い手）・`impact`（fix・plan・structure）
+- `carry`（line・chain・report・test-gate）・`changemap`・`COPIED_FROM.changemap`（line と `impact` の使い手）・`impact`（fix・plan・structure・r2）
 - `cite`（fix・diagnose・head-depth・plan-review・line・plan・structure）。指し先の綴りと版に在るかの照らし（今の `judge_accept` の `_resolve_target`・`_in_version` ほか。purpose・diagnose・`recount`。数え直しの `_cite_errors` は purpose-review、空同然の見方の `blank` は external-standards も）と、Markdown のリンクと見出しの読み（今の `boardview` の `MD_LINK`・`_md_lines`・`_md_slugs`。`recount`・independent-design・`design`・r2）もここ（4.3-4・4.5-5）。文が名指したファイルのうち版に無い物をほかの版で探して読む `named_files`・`elsewhere`（plan〔人の答えが指した文書〕・structure〔指示ファイルが指した文書〕。例の対象の run）もここ
 - `conflict` の全部（申し出の行の語・出どころ・人に諮る行の選び・数え・直しの在りかと、申し出と裁定の積み方・テストの許し `test_permits`。fix・delta-review〔`planrange` 経由〕・plan・line・report。4.4-A・4.3-追加-4）・`converge`（plan・plan-review。往復の記録と止めは line の `src/` へ）・`replan`（fix・plan・line）
 - `concepthome`（plan・plan-review・structure・r1・r3。文は md へ）・`conceptfence`（structure・r3。対象のリポジトリの表に当てる道具として残す）・`measure`（structure・eyes。コマンドとして起こす）

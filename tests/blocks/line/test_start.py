@@ -308,6 +308,28 @@ class StartCase(Seeded):
                          "配る値は取り込んだ記録（今の run の id と機能の切り替え）から引く")
         self.assertEqual(got["ports"]["base_rev"], startrec.head_rev(doc))
 
+    def test_fixture_that_stopped_before_the_fix_reopens_the_gate_with_a_person(self):
+        """直す前の承認ノードで止まった無人の run の写し（運ぶ値に gate_rounds）は、人の居る run で取り込める（unattended・final_gate は今の
+        run の値）。返りの fixture_gate が真で、修正前の承認ノードを写しの値で開き直す。止まらずに写した写しは偽"""
+        self.start(request="request_ok.json", unattended="true")
+        fixture.capture(self.artifacts, self.repo, run_id=RUN, carried={"judge": None, fixture.GATE_KEY: {"done": True}})
+        place = self.tmp / "artifacts-2"
+        with mock.patch.dict(os.environ, {"ARTIFACTS_DIR": str(place), "WORKFLOW_ID": "run-2"}):
+            got = start.start(raw(request="request_ok.json", fix_fixture=str(self.artifacts / fixture.DIR)), self.repo, place, "run-2")
+        self.assertEqual((got["ok"], got["from_fixture"], got["fixture_gate"], got["unattended"], got["ask"], got["final_gate"]),
+                         (True, True, True, False, True, "always"), got)
+        doc = json.loads((place / got["record"]["path"]).read_text(encoding="utf-8"))
+        self.assertEqual((doc["unattended"], doc["final_gate"]), ("", "always"), "無人の印は写しの物でなく今の run の物")
+        self.assertIn("修正前の承認ノードから", got["gate_text"])
+
+    def test_fixture_that_went_into_the_fix_does_not_reopen_the_gate(self):
+        self.start(request="request_ok.json")
+        fixture.capture(self.artifacts, self.repo, run_id=RUN, carried={})
+        place = self.tmp / "artifacts-2"
+        with mock.patch.dict(os.environ, {"ARTIFACTS_DIR": str(place), "WORKFLOW_ID": "run-2"}):
+            got = start.start(raw(request="request_ok.json", fix_fixture=str(self.artifacts / fixture.DIR)), self.repo, place, "run-2")
+        self.assertEqual((got["ok"], got["fixture_gate"]), (True, False), got)
+
     def test_fixture_run_points_at_its_own_request_file(self):
         """依頼は今の値にする欄なので、同じ中身の別のファイルで起こした固定材料の run の始めの記録は、今の依頼のファイルを指す"""
         self.start(request="request_ok.json")
@@ -708,7 +730,7 @@ class ScriptCase(unittest.TestCase):
         got = self.run.script("start", request="request_ok.json")
         self.assertTrue(got["ok"], got)
         self.assertEqual(set(got), {"ok", "stop_reason", "reason", "record", "prior_failures", "ask", "gate_text", "unattended",
-                                    "design_talk", "final_gate", "from_fixture", "fixture", "from_spec", "ports"})
+                                    "design_talk", "final_gate", "from_fixture", "fixture", "fixture_gate", "from_spec", "ports"})
         self.assertEqual(got["record"]["path"], "r1/start.json")
         self.assertTrue((self.run.artifacts / "r1" / "start.json").is_file())
 

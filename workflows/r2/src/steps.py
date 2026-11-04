@@ -111,11 +111,14 @@ def _intake(out, kind: str) -> dict:
     return doc
 
 
-def _measured_values(doc: dict, repo) -> dict:
+def _measured_values(doc: dict, repo, out) -> dict:
+    """部品 measured の値。名を貼るテストの範囲は、累積差分の起点から地図を r2 が自分で作って決める（置き場は place の files.IMPACT）"""
     diff = doc["diff"]
     origin = measured.origin_section(repo, diff["base"], doc["head"] or "HEAD", doc["base_label"],
                                      cumulative_empty=diff["lines"] == 0 and not diff["why"], skip=(ports.RUNTIME_COPY_PREFIX,))
-    return {"outcomes": "\n".join(measured.outcome_lines(doc["test_outcomes"])),
+    scope = measured.named_scope(repo, diff["base"], None if diff["why"] else diff["changed"], pathlib.Path(out) / files.IMPACT,
+                                 doc["tdd"])
+    return {"outcomes": "\n".join(measured.outcome_lines(doc["test_outcomes"], scope)),
             "tdd_records": "\n".join(measured.tdd_record_lines(doc["tdd"])), "origin": origin}
 
 
@@ -130,7 +133,7 @@ def compare_prompt(out, repo) -> dict:
     values = {"diff_file": dv["diff_file"], "diff_lines": str(diff["lines"]), "changed_files": dv["changed_files"],
               "answers": got["answers"], "named": got["named"], "map": got["map"],
               "late": post["late"], "drift": post["drift"], "constraints": post["constraints"],
-              **_measured_values(doc, repo),
+              **_measured_values(doc, repo, out),
               "purpose": doc["purpose"], "design_text": str(doc["design"].get("design") or ""),
               "st_pass": st["st_pass"], "st_redesign": st["st_redesign"], "lang": prompt.lang(doc["lang"])}
     when = {"answers": bool(got["answers"]), "named": bool(got["named"]), "request_unread": not doc["request_read"],
@@ -145,7 +148,7 @@ def premise_prompt(out, repo) -> dict:
     doc = _intake(out, "premise")
     values = {"design_reply": json.dumps(doc["design"], ensure_ascii=False, indent=1), "purpose": doc["purpose"],
               "constraints": premises.constraints_text(doc["constraints"]), "repo": str(pathlib.Path(repo).resolve()),
-              **_measured_values(doc, repo), "fix_diff_row": measured.FIX_DIFF_ROW,
+              **_measured_values(doc, repo, out), "fix_diff_row": measured.FIX_DIFF_ROW,
               "resolved": due.VERDICTS[0], "escalate": due.VERDICTS[1], "lang": prompt.lang(doc["lang"])}
     return prompt.emit(files.PREMISE, values, {"spawns": False}, prompt.round_of(files.PREMISE))
 

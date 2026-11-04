@@ -18,6 +18,8 @@ Repository: `{repo}`
 
 {part:measured}
 
+A line that gives only a count of tests whose names were not pasted is evidence neither that existing tests cover a point nor that they do not; do not read it either way when you re-count the assumption.
+
 The places where the work tree differs from the HEAD before the fix (the files that the row "{fix_diff_row}" in the origin section above names) are this run's fix. They are not uncommitted changes to ask a person about, so do not turn them into a question and escalate. If, in re-counting an assumption, you come across a difference between the work tree and the HEAD before the fix, tell from the reasons in the origin section whether it is this run's fix or the change under review (the PR's diff).
 
 Identify the assumption (`assumption`). If you can show it false against the actual state, set `assumption_false` to true and `verdict` to {resolved}, give the fact you showed in `resolution`, and put the measurements to add to the constraints in `facts_to_add` (do not move the purpose). One run is one round, so this run does not run R2 again: re-running R2 with the measurements added to the constraints happens in the next run, and the ledger's row stays held until the judge of that run sees the re-run R2 and resolves it. If the assumption is true, or the grounds close inside the purpose text and cannot be refuted by measurement, set `verdict` to {escalate}. Only in this case, because all the remaining work depends on that answer, stop and ask, whatever other blockers there are. `key` is one sentence of the question (what it decides).

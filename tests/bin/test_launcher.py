@@ -872,10 +872,10 @@ class LauncherTest(unittest.TestCase):
                 self.assertEqual(done.returncode, 2, done.stderr)
                 self.assertTrue(done.stderr.startswith("works-gh: 通さない"), done.stderr)
         self.assertFalse(gh_log.exists(), "拒むはずの命令が利用者の gh に届いた")
-        done = subprocess.run([first, "pr", "view", "1", "-R", "o/r"], env=env, capture_output=True, text=True,
+        done = subprocess.run([first, "pr", "view", "-R", "o/r", "1"], env=env, capture_output=True, text=True,
                               encoding="utf-8", timeout=60)
         self.assertEqual(done.returncode, 0, done.stderr)
-        self.assertEqual(gh_log.read_text(encoding="utf-8").splitlines(), ["pr view 1 -R o/r"])
+        self.assertEqual(gh_log.read_text(encoding="utf-8").splitlines(), ["pr view -R o/r 1"])
 
     def test_target_commands_hit_the_read_only_gh(self):
         """script のノードが起こす対象のコマンド（AI が書いた試験のコードも走る。環境は tree_run.outside_env）が打つ gh は、PATH の頭の
@@ -888,13 +888,13 @@ class LauncherTest(unittest.TestCase):
                  f"sys.path.append({str(self.repo / 'lib')!r})\n"
                  "import tree_run\n"
                  "env = tree_run.outside_env(os.environ)\n"
-                 "for args in (['pr', 'create', '-R', 'o/r'], ['pr', 'view', '1', '-R', 'o/r']):\n"
+                 "for args in (['pr', 'create', '-R', 'o/r'], ['pr', 'view', '-R', 'o/r', '1']):\n"
                  "    print(subprocess.run(['gh', *args], env=env, capture_output=True).returncode)\n")
         done = subprocess.run([sys.executable, "-c", probe], env={**env, userenv.RAN_DIR_ENV: str(self.tmp / "ran")},
                               capture_output=True, text=True, encoding="utf-8", timeout=60)
         self.assertEqual(done.returncode, 0, done.stderr)
         self.assertEqual(done.stdout.split(), ["2", "0"], "書く命令は読むだけの口が拒み、読む命令は通る")
-        self.assertEqual(gh_log.read_text(encoding="utf-8").splitlines(), ["pr view 1 -R o/r"])
+        self.assertEqual(gh_log.read_text(encoding="utf-8").splitlines(), ["pr view -R o/r 1"])
 
     def test_no_gh_without_a_real_gh(self):
         """gh の無い利用者の子に読むだけの口も置かない（並行 PR の確かめの「gh が無い → 役に任せる」を、口の拒否の人待ちに変えない）。

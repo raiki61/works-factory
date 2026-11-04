@@ -14,4 +14,12 @@ You have no context: you are given none of the history, the record, or the diff.
 
 Return (1) where you could not follow the meaning in the text the writer wrote and stopped (`stops`), (2) what you filled in by guessing in the text the writer wrote (`guessed`), (3) where you stopped or filled in by guessing in the lines the machine built, when the text the writer wrote does not make it clear either (`machine_lines`), and (4) whether this text alone lets a person decide (`decidable`). Put each place in exactly one of `stops`, `guessed`, and `machine_lines`, by the part where it is. If there is at least one entry in `stops`, `guessed`, or `machine_lines`, set `verdict` to `redesign-needed`; otherwise set it to `pass`.
 
+- Each entry in `stops`, `guessed`, and `machine_lines` is one sentence that names the place in the text.
+<!-- if lang_given -->
+- Write `stops`, `guessed`, and `machine_lines` in {lang}. Keep quoted words from the text, identifiers, and paths as they are.
+<!-- end lang_given -->
+<!-- if not lang_given -->
+- Write `stops`, `guessed`, and `machine_lines` in the language of the text. Keep quoted words from the text, identifiers, and paths as they are.
+<!-- end lang_given -->
+
 Return only JSON that matches the output schema.

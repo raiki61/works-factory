@@ -19,7 +19,9 @@ policy_changed（方針の文書の変化の行を載せたか。answer-before-f
 
 入力（with:）: rounds（plan-rounds-out の got）・structure（structure-in の structure。構造の目の控えの pointer か null）・judge
 （judge-out の got）・record（始めの記録の pointer）・ports（start の配る値）・
-request（request-in の返り。台帳の依頼の答えは src.descend.dealt で替えた配る値から読む）
+request（request-in の返り。台帳の依頼の答えは src.descend.dealt で替えた配る値から読む）と、直す前で止まった写しの run の
+fixture-ask-before-fix だけが渡す fixture（start の fixture。運ぶ値の pointer）。fixture が在れば rounds・judge・structure は写しの
+運ぶ値から読む（src.fixture.gate_inputs。写した run と同じ材料で開き直す）
 """
 import os
 import sys
@@ -40,10 +42,12 @@ QUESTION = "事前審査の 4 つの軸と人への問い。通すなら通す�
 def compute() -> dict:
     raw = {"rounds": os.environ.get("INPUTS_ROUNDS"), "structure": os.environ.get("INPUTS_STRUCTURE"),
            "judge": os.environ.get("INPUTS_JUDGE"), "record": os.environ.get("INPUTS_RECORD"), "ports": os.environ.get("INPUTS_PORTS"),
-           "request": os.environ.get("INPUTS_REQUEST")}
+           "request": os.environ.get("INPUTS_REQUEST"), "fixture": os.environ.get("INPUTS_FIXTURE")}
     import gatemarks
     from src import descend, gates
     from src.asking import materials
+
+    raw.update(copied(raw["fixture"]))
 
     given = descend.dealt(ports.parsed(raw["ports"]), raw["request"])
     unattended, design = bool(given.get("unattended")), bool(given.get("design_talk"))
@@ -60,6 +64,19 @@ def compute() -> dict:
     return {"open": got["open"], "go": got["go"], "stop_reason": got["stop_reason"], "reason": "", "text": text, "deferred": got["deferred"],
             "asked": got["asked"], "pushed": got["pushed"], "passes": got["passes"], "policy_changed": got["policy_changed"],
             "agreed": agreed}
+
+
+def copied(pointer) -> dict:
+    """直す前で止まった写しの運ぶ値から読む rounds・judge・structure（with: の字の形）。fixture が無ければ何も替えない"""
+    import json
+    from src import fixture
+
+    if ports.parsed(pointer) is None:
+        return {}
+    got = fixture.gate_inputs(json.loads(ports.file(pointer, "json(received.schema.json)").read_text(encoding="utf-8")))
+    if got is None:
+        raise ValueError("固定材料の運ぶ値が修正前の承認ノードで止まった所の写しでない（gate_rounds が無い）")
+    return {name: json.dumps(value, ensure_ascii=False) for name, value in got.items()}
 
 
 def fallback(reason: str) -> dict:

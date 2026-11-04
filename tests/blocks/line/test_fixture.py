@@ -163,6 +163,67 @@ class AdoptCase(Fixture):
                             inputs={**INPUTS, "request": str(self.request), "features_off": "tdd_lanes", "fix_fixture": "x"})
         self.assertEqual((doc["inputs"]["request"], doc["inputs"]["features_off"]), (str(self.request), "tdd_lanes"))
 
+    def test_a_run_stopped_before_the_fix_may_go_on_with_a_person(self):
+        """直す前の承認ノードで止まった無人の run の写しは、人の居る run（unattended と final_gate を今の値にする）で続けられる。
+        始めの記録の印は、写しの計画が無人の run の推しを答えに数えたか（pushed）を持つ"""
+        startrec.write(self.place, {**startrec.read(self.place), "unattended": "true"})
+        self.carried = {**self.carried, fixture.GATE_KEY: {"done": True, "ok": True}}
+        doc, _ = self.adopt(self.captured(), self.wrapped(),
+                            inputs={**INPUTS, "unattended": "", "final_gate": "always", "fix_fixture": "x"})
+        self.assertEqual((doc["inputs"]["unattended"], doc["inputs"]["final_gate"]), ("", "always"))
+        self.assertEqual((doc[fixture.KEY]["gate"], doc[fixture.KEY]["pushed"]), (True, True))
+
+    def test_a_run_a_person_stopped_before_the_fix_is_not_taken_on_unattended(self):
+        """直す前の承認ノードで止まった人の居る run の写し（unattended が空）は、無人の run（unattended=true）では拒む（人が止めた
+        計画を、無人の推しの通しで修正へ運ばせない）。final_gate は今の値にしてよい。入口が前後の空白を落として無人の run として受ける語
+        （"true " など）も拒む（拒みは入口と同じ照らしで無人を読む）"""
+        self.carried = {**self.carried, fixture.GATE_KEY: {"done": True, "ok": True}}
+        src = self.captured()
+        for i, word in enumerate(("true", "true ", " true\n")):
+            with self.subTest(unattended=word):
+                self.refused("unattended", src=src, place=self.tmp / f"art-{i + 3}",
+                             inputs={**INPUTS, "unattended": word, "fix_fixture": "x"})
+        doc, _ = self.adopt(src, self.wrapped(),
+                            inputs={**INPUTS, "final_gate": "always", "fix_fixture": "x"})
+        self.assertEqual(doc["inputs"]["final_gate"], "always")
+
+    def test_a_copy_that_went_on_to_the_fix_keeps_its_attendance(self):
+        """止まらずに修正へ進んだ写し（推しで通った修正前の承認を持つ）は、unattended・final_gate を替えると拒む（人が確かめないまま
+        修正へ運ばせない）"""
+        self.captured()
+        for name, value in (("unattended", ""), ("final_gate", "always")):
+            with self.subTest(name=name):
+                self.refused(name, inputs={**INPUTS, name: value, "fix_fixture": "x"})
+
+
+class GateCase(Fixture):
+    """直す前で止まった所の写し（運ぶ値の GATE_KEY に修正前の承認ノードが読む計画の往復の欄を持つ）"""
+
+    def test_pending_and_gate_inputs(self):
+        self.assertFalse(fixture.pending(self.carried))
+        self.assertIsNone(fixture.gate_inputs(self.carried))
+        rounds = {"done": True, "ok": True, "asks": []}
+        held = {**self.carried, "structure": {"structure": ptr(OLD, "structure/s.json")}, fixture.GATE_KEY: rounds}
+        self.assertTrue(fixture.pending(held))
+        self.assertEqual(fixture.gate_inputs(held), {"rounds": rounds, "judge": held["judge"], "structure": ptr(OLD, "structure/s.json")})
+
+    def test_the_note_of_a_stopped_capture_says_how_to_go_on(self):
+        """写した印の行: 直す前で止まった写しは、修正前の承認ノードから続けると名指す（修正から始めるとは言わない）"""
+        fixture.noted_capture(self.place, self.repo, run_id=OLD, carried={**self.carried, fixture.GATE_KEY: {"ok": True}})
+        line = fixture.lines(startrec.read(self.place))[0]
+        self.assertIn(str(self.place / fixture.DIR), line)
+        self.assertIn("修正前の承認ノードから", line)
+        self.assertNotIn("修正から始める", line)
+
+    def test_collect_reads_the_reopened_gate_as_the_gate_before_fix(self):
+        """報告は続きの修正前の承認ノード（fixture- の付いた node）の返りを、今の修正前の承認ノードの欄で読む（今の物が回れば今の物）"""
+        asked, answered = {"open": True, "deferred": ["q"]}, {"go": True, "answer": {"decision": "continue"}}
+        got = fixture.collect_values({"ask_before_fix": None, "answer_before_fix": None,
+                                      "fixture_ask_before_fix": asked, "fixture_answer_before_fix": answered})
+        self.assertEqual((got["ask_before_fix"], got["answer_before_fix"]), (asked, answered))
+        now = {"open": False}
+        self.assertIs(fixture.collect_values({"ask_before_fix": now, "fixture_ask_before_fix": asked})["ask_before_fix"], now)
+
 
 if __name__ == "__main__":
     unittest.main()

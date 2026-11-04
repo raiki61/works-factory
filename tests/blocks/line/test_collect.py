@@ -370,6 +370,18 @@ class SectionsCase(unittest.TestCase):
         self.assertIn("CI と人", text)
         self.assertIn("最後のテスト: 走らせた: suite／走らせなかった: 無い", text)
 
+    def test_a_fixture_run_names_where_it_went_on(self):
+        """固定材料から始めた run の入口の行は、続けた所を名指す: 修正の前の写しは「修正から」、修正前の承認ノードで止まった所の写し
+        （start の fixture_gate が真）は「修正前の承認ノードから」（修正から始めたとは言わない）"""
+        for gate, said, unsaid in ((False, "修正から", "修正前の承認ノードから"), (True, "修正前の承認ノードから", "修正から）")):
+            with self.subTest(fixture_gate=gate):
+                v = passing()
+                v["start"] = {**v["start"], "from_fixture": True, "fixture": ptr("carried.json"), "fixture_gate": gate}
+                entry = next(s for s in self.build(v) if s["title"] == self.s.ENTRY)["lines"]
+                line = next(x for x in entry if x.startswith("固定材料から始めた"))
+                self.assertIn(said, line)
+                self.assertNotIn(unsaid, line)
+
     def test_review_not_due_names_the_reason(self):
         v = passing()
         v["raise"] = {**v["raise"], "skip_why": "頭が軽量で全部の単位が軽量"}

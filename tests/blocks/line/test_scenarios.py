@@ -424,5 +424,28 @@ class FixFixtureTest(unittest.TestCase):
         self.assertFalse(ran(self.trace, "spec-check-run__finish"))
 
 
+class FixFixtureGateTest(unittest.TestCase):
+    """筋書き fix-fixture-gate（docs/design/line.md の 4.1）: 修正前の承認ノードで止まった写しを名指した人の居る run は、判定と計画を
+    回さずに、写しの値の修正前の承認ノード（fixture- の付いた 3 つ）を通ってから修正へ進む。止まらずに写した写し（fix-fixture）では開かない"""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.traces = line_traces(("fix-fixture-gate", "fix-fixture"))
+
+    def test_the_gate_reopens_from_the_copy_before_the_fix(self):
+        trace = self.traces["fix-fixture-gate"]
+        for node in ("judge__verdict", "plan-rounds", "ask-before-fix", "gate-before-fix", "answer-before-fix"):
+            self.assertFalse(ran(trace, node), node)
+        for node in ("fixture-ask-before-fix", "fixture-gate-before-fix", "fixture-answer-before-fix", "fix-in", "fix__finish", "collect"):
+            self.assertTrue(ran(trace, node), node)
+        answered = out(trace, "fixture-answer-before-fix")
+        self.assertEqual((answered["go"], answered["answer"]["decision"]), (True, "continue"), answered)
+
+    def test_a_copy_that_went_into_the_fix_does_not_reopen_the_gate(self):
+        trace = self.traces["fix-fixture"]
+        for node in ("fixture-ask-before-fix", "fixture-gate-before-fix", "fixture-answer-before-fix"):
+            self.assertFalse(ran(trace, node), node)
+
+
 if __name__ == "__main__":
     unittest.main()

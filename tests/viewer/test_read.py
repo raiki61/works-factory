@@ -49,7 +49,7 @@
   段の集計・会話の読み・無駄の手がかりで落ちない
 - 承認で起き直した繰り返しの器が後で SIGTERM で落ちて起き直した形は、答えの後の始めで分けず、落ちの後の始めでだけ分ける
 - 片割れのサロゲートの字は、出力の hash と字で落ちずに置き換える
-- archon_artifact が run の置き場の外（絶対パス・..）を指せば、読まずに読めなかった物に数える（読むだけの範囲。E25 の 2）。読みで OSError が
+- archon_artifact が run の置き場の外（絶対パス・..）を指せば、読まずに読めなかった物に数える（run の置き場の外は読まない）。読みで OSError が
   出る物（長すぎる path・読む権限の無いファイル）も、落ちずに数える
 - ノードの終わりの行の添えるだけの欄（模型・会話の id の頭・誤りの字）の形が違えば、その欄だけを捨てて行の残りを読み、1 つ数える
 - DB の出力の行の形の違いは、開いた run と読んだ子の run の物だけを数える。step_name の無い node_suspended は読み飛ばして数える
@@ -282,7 +282,7 @@ class ReadCase(unittest.TestCase):
         rows.append({"type": session.SHAPE, "shape": {}})
         path.write_text("\n".join(json.dumps(row) for row in rows) + "\n", encoding="utf-8")
         self.assertEqual(session.read(path, lambda text: text)["unread"], {})
-        self.assertLessEqual(set(session.READ_FROM), set(session.UNREAD_TYPES))
+        self.assertLessEqual(set(session.READ_FROM), {*session.UNREAD_TYPES, *session.READ_TYPES})
 
     def test_flow_marks_each_turn_once_by_its_number(self):
         path = self.tmp / "s.jsonl"
