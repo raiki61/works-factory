@@ -134,6 +134,13 @@ class RecordedCase(unittest.TestCase):
         self.assertEqual((self.rows[0]["lines"], self.rows[0]["alias"]), (2, self.frozen["path"]))
         self.assertEqual([r["source"] for r in policy.recorded(self.start)], ["doc", "answer"])
 
+    def test_by_source_keys_every_source_recorded_makes(self):
+        """recorded の作る行の source はどれも SOURCES に在り、by_source が全部を鍵に持つ（並べる側が source を黙って落とさない）"""
+        rows = self.rows + policy.recorded({"answers": [{"question": "q", "text": "t", "pushed": []}]}, pushes=["p"])
+        self.assertLessEqual({r["source"] for r in rows}, set(policy.SOURCES))
+        self.assertEqual(tuple(policy.by_source(rows)), policy.SOURCES)
+        self.assertEqual(sum(map(len, policy.by_source(rows).values())), len(rows))
+
     def test_gate_name_follows_the_answer_not_its_place_in_the_list(self):
         """#427: plan-review は修正前の承認ノードの答えを積み、eyes は最後の答えだけを持つ。同じ答えはどちらの並びでも同じ名指し"""
         latest = [h["name"] for h in policy.recorded({}, human_items=[{"note": "名前を残す"}])]

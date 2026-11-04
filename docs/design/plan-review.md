@@ -720,7 +720,7 @@ Return only JSON that matches the output schema.
   7. 行の単位が、修正案の単位の外に在る〔not_overkill〕。
   - 出どころが現物に在るかの照らし（`cite.sources_problem`）: 依頼の引用は port `request` の本文と照らす。作業ツリーの外を引いた出どころは、依頼のファイルか place の親（この block の place のフォルダの 1 つ上）の下に在れば現物と認め、無ければ揃わない訳に載る。
   - 記録された方針の行の名指し（`policy.decides`）: 上の照らしが「決め手が現物を 1 つも指していない」（`cite.NO_SOURCE`）と言った時だけ、決め手が人の決めた方針の行の名を字のまま含むかを見る。含めば出どころが在ると読み、2 の訳を載せない。
-    - 数える行: `intake.json` の `recorded_policy`（line が `policy.recorded` で組み、port `recorded` で渡す行）のうち、方針の文書・依頼の answers の question・承認ノードの答え・決着済みの論点から作った行。無人の run が採った推しの行（`policy.PUSH_SOURCE`）は人の決めでないので数えない。推しの行は、承認ノードで推しを採った答えと、テーマの run が推しで降りた依頼の answers の行（`workflows/line/src/descend.py` の `_answers` が欄 `answer.PUSHED` を付け、`policy.recorded` が `answer.by_push` で見分ける。依頼のファイルに書く写しからは欄を外す）の両方。
+    - 数える行: `intake.json` の `recorded_policy`（line が `policy.recorded` で組み、port `recorded` で渡す行）のうち、方針の文書・依頼の answers の question・承認ノードの答え・決着済みの論点から作った行。無人の run が採った推しの行（`policy.PUSH_SOURCE`）は人の決めでないので数えない。推しの行は、承認ノードで推しを採った答えと、テーマの run が推しで降りた依頼の answers の行（`workflows/line/src/descend.py` の `_answers` が欄 `answer.PUSHED` を付け、`policy.recorded` が `answer.by_push` で見分ける。依頼のファイルにも欄のまま書き〔`lib/carry.py` の answers の欄 `carry.PUSHED`〕、計画の段から設計へ戻した続きの run が読んでも推しのまま）の両方。推しの行は、事前審査・計画の役・判定の役への文のどれにも「人の答えではない」と分かる札で並べる（並べる側は source の並びを持たず `policy.by_source` で引く）。
     - 穴の行にも効く: 事前審査の穴の行（kind regression・policy）の決め手も同じ照らしで読む。`parts/head.md` の `decided_by` と `policy.face_gaps` の名指しに沿う狙いどおりの形。
     - 足した訳: 計画の指示（`plan-writer.md`）と事前審査の指示（`parts/head.md`）は、決め手の 1 つにこの名指しを挙げる。前は照らしがこれを数えなかったので、依頼の answers に答えを書いた狭める能力の行が、無人の run で毎回人に回った。
     - 残す誤り: 無いファイル・無い行を指した決め手（`NO_SOURCE` 以外の訳）は、方針の行の名を含んでも今どおり 2 の訳に載る。

@@ -22,6 +22,7 @@ workflows/.shared/prompts/policy.md、記録された方針の節の文（前の
   {source, name, text}。name は役が字のまま写す名指しで、機械はこれだけを照らす
 - hits(rows, *texts)・unrecorded(face, mark, rows)・face_gaps(faces, rows): 名指しの照らし、一覧の行を名指さない kind policy の穴、
   事前審査の受け付けが拒む穴の行
+- SOURCES・by_source(rows): 行の source の全部と、source ごとに分けた行（役への文に並べる側が引く）
 - decides(rows, text)・PUSH_SOURCE: 決め手の文が人の決めの行（推し PUSH_SOURCE の行を除く）を名指すか（修正前の関所の決め手の出どころ）
 - POLICY_KIND・POLICY_DOC_FENCE: 方針の穴の kind・
   方針の文書の柵の語の持ち主（issue #454。judge_accept・fixboard・gatemarks がここから引く）
@@ -132,6 +133,7 @@ RECORDED_TERM = "記録された方針"
 GATE_NAME = "承認ノードの答え {id}"
 PUSH_NAME = "無人の run が採った推し {id}"
 PUSH_SOURCE = "push"   # 記録された方針の行の source のうち、人の決めでない物（無人の run が採った推し）
+SOURCES = ("doc", "answer", "gate", PUSH_SOURCE, "settled")   # recorded が作る行の source の全部（並べる側は by_source で引く）
 DOC_FENCE_ONLY = f"{POLICY_DOC_FENCE} は方針の文書の行を書き換える時だけ立てる"
 _GATE_ID = 6   # 承認ノードの答えの名指しの印（一言の sha256 の頭の 16 進の字数）
 
@@ -171,6 +173,13 @@ def recorded(start, decisions_file=None, *, human_items=None, pushes=()) -> list
               "text": f"{r.get('topic') or ''}——{r.get('decision') or ''}"}
              for r in (_settled_rows(decisions_file) if decisions_file is not None else [])]
     return rows
+
+
+def by_source(rows) -> dict:
+    """記録された方針の行を source ごとに分けた {source: [行]}（SOURCES の全部を鍵に持つ）。役への文に並べる側はここで引き、
+    source の並びを自分で持たない（並びを別々に持つと、増えた source の行が黙って落ちる）"""
+    rows = [r for r in rows or [] if isinstance(r, dict)]
+    return {s: [r for r in rows if r.get("source") == s] for s in SOURCES}
 
 
 def _gate_id(note) -> str:

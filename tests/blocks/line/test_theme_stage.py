@@ -202,7 +202,9 @@ class ThemeStageCase(TalkBase):
         request = json.loads(pathlib.Path(went["request_file"]).read_text(encoding="utf-8"))
         approved = next(a for a in request["answers"] if a["question"] == self.d.APPROVED_Q)
         self.assertIn(self.answer.PUSHED_NOTE, approved["text"], "持ち主の承認と書かない")
-        self.assertNotIn(self.answer.PUSHED, approved, "依頼のファイルの answers は carry.ANSWER_KEYS の欄だけ（知らない欄は読み手が拒む）")
+        self.assertTrue(self.answer.by_push(approved), "依頼のファイルの答えも推しの印を持つ（続きの run が人の決めと読まない）")
+        import carry
+        carry.parts(request)   # 読み手が拒まない（欄 carry.PUSHED）
         dealt = next(a for a in went["request_answers"] if a["question"] == self.d.APPROVED_Q)
         self.assertTrue(self.answer.by_push(dealt), "配る値の答えは推しの印を持つ（記録された方針が人の決めと数えない）")
         self.assertFalse(any(self.answer.by_push(a) for a in went["request_answers"] if a["question"] == "q"), "依頼が先に持つ答えは人の答え")
@@ -279,6 +281,28 @@ class ThemeStageCase(TalkBase):
                          f"{self.run.artifacts / 'theme/next/request.json'} --input design_talk=true --input test_cmd='make test' --input lang=Japanese --input spec=on")
         with self.run.env():
             self.assertFalse(self.d.back(po, given=self.given, record={}, descended=descended, place=self.run.artifacts)["back"])
+
+    def test_back_keeps_pushed_answers_pushed_across_runs(self):
+        """続きの run の依頼に写した推しの答えの行は、続きの run が読んでも推し（policy.PUSH_SOURCE）で、人の決めと数えない"""
+        import carry
+        import policy
+        descended = self.descend(self.agreed())
+        ask = self.d.ASK_Q.format(id="a1")
+        descended = {**descended, "request_answers": [*descended["request_answers"],
+                                                      {"question": ask, "text": "推しの b を採った", self.answer.PUSHED: []}]}
+        po = self.plan_out()
+        rounds_got = {**po, "agreed": {"decision": "redesign", "text": "C1 が成り立たない"}, "talks": []}
+        with self.run.env():
+            self.assertTrue(self.d.back(rounds_got, given=self.given, record={"inputs": {}}, descended=descended,
+                                        place=self.run.artifacts, env={})["back"])
+        request = json.loads((self.run.artifacts / "theme/next/request.json").read_text(encoding="utf-8"))
+        rows = policy.recorded({"answers": carry.parts(request)["answers"]})
+        self.assertEqual({r["name"]: r["source"] for r in rows}[ask], policy.PUSH_SOURCE)
+        self.assertFalse(policy.decides(rows, f"決め手: {ask}"))
+        shared = json.loads((kit.ROOT / "workflows/.shared/schemas/request-answers.schema.json").read_text(encoding="utf-8"))
+        row = json.loads((kit.ROOT / "lib/push-row.schema.json").read_text(encoding="utf-8"))
+        self.assertEqual(set(shared["items"]["properties"][carry.PUSHED]["items"]["properties"]), set(row["properties"]),
+                         "依頼の answers の推しの行の形は push-row と同じ欄")
 
 
 # ---------------------------------------------------------------- YAML の配線
