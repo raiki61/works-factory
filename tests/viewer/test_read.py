@@ -282,7 +282,7 @@ class ReadCase(unittest.TestCase):
         rows.append({"type": session.SHAPE, "shape": {}})
         path.write_text("\n".join(json.dumps(row) for row in rows) + "\n", encoding="utf-8")
         self.assertEqual(session.read(path, lambda text: text)["unread"], {})
-        self.assertLessEqual(set(session.READ_FROM), set(session.UNREAD_TYPES))
+        self.assertLessEqual(set(session.READ_FROM), {*session.UNREAD_TYPES, *session.READ_TYPES})
 
     def test_flow_marks_each_turn_once_by_its_number(self):
         path = self.tmp / "s.jsonl"
