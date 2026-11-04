@@ -20,7 +20,7 @@ import runlog
 from viewer.src import runread, shape
 
 TABLE = json.loads((Path(__file__).resolve().parents[1] / "stages.json").read_text(encoding="utf-8"))
-SHOWN = ("name", "line", "hands", "source", "nodes", "wiring")
+SHOWN = ("name", "mission", "line", "hands", "source", "nodes", "wiring")
 
 
 def check(graphs: dict) -> list[str]:

@@ -1,6 +1,6 @@
 # block の設計書: head-depth（run の頭の深さ）
 
-- 何の話か: 依頼の行ごとに「まだ決まっていない事の種類」（未知の種類）を引用つきで AI に選ばせ、その種類から run 全体の深さの段（軽量・標準・重厚）を機械が引く観点を、単独で呼べる block `workflows/head-depth/` にする設計。型は [README.md](README.md) に、形は手本の [world.md](world.md) に従う。
+- 何の話か: 依頼の行ごとに「まだ決まっていない事の種類」（未知の種類）を引用つきで AI に選ばせ、その種類から run 全体の深さ（軽量・標準・重厚）を機械が引く観点を、単独で呼べる block `workflows/head-depth/` にする設計。型は [README.md](README.md) に、形は手本の [world.md](world.md) に従う。
 - 決めたこと: 今の judge の 4 つの node（head-depth-prep・head-depth-reject・head-depth・head-depth-accept）を、5 つの node の block にする。入力は依頼の行・機械の確かめの有無・段の名指し・仕様の段・設計だけ・言語の 6 つの port だけで、始めの記録と止めの記録を読まない。指示は英語の md 1 本（`prompts/head-depth.md`）にまとめ、今の材料のファイル `depth-head-brief.md` を Read させる形をやめて、材料を指示の中に入れる。lib の Python に在った群の節の見出しと「記録だけ」の 1 文は md へ出す。受け付けは、この block の `src/` に置く。未知の種類 → 段の表（`headdepth.UNKNOWNS`）は、未知の種類を読む diagnose・plan も使うので `lib/headdepth` に残す。振る舞いは変えない。
 - 持ち主に求めること: なし。読み手は、この block を作る実装の役（この文書だけで作れる細かさにした）と、その PR の審査。
 
