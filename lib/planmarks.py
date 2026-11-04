@@ -1027,10 +1027,11 @@ def _structure_row_problem(row) -> str | None:
     return None
 
 
-def structure_gaps(plan, tables) -> list[str]:
+def structure_gaps(plan, tables, whole=None) -> list[str]:
     """構造の欄の欠けと誤りの行（"plan[<i>].structure…: <理由>"）。tables は答えの要る行の表（Need）の並び。表ごとに、項目に要る
     id（Need.of）の 1 件が要り、表の鍵の行は表の id だけを名指し、どの項目も答えていない id（Need.missing）が在れば拒む。
-    plan は名前に戻した unit_keys の案（返答の no の整数は呼び手が戻す）。形を成さない plan は空（写しの規則が型で拒む）"""
+    plan は名前に戻した unit_keys の案（返答の no の整数は呼び手が戻す）。形を成さない plan は空（写しの規則が型で拒む）。
+    whole は missing を数える案の全体（案の直しで、直した項目を差し替えた並び。None なら plan）。行の照らしと Need.of は plan に当てる"""
     if not isinstance(plan, list):
         return []
     tables = list(tables or [])
@@ -1055,7 +1056,7 @@ def structure_gaps(plan, tables) -> list[str]:
                 if k not in named[t.key]:
                     owed.add((t.key, k))
                     out.append(f"plan[{i}].structure: {t.word} {k} に従うか、外れの訳を structure に書け（{t.hint_word}: {t.hints[k]}）")
-    good = [it for it in plan if isinstance(it, dict)]
+    good = [it for it in (plan if whole is None else whole) if isinstance(it, dict)]
     for t in tables:
         for k in t.missing(good):
             if (t.key, k) in owed:

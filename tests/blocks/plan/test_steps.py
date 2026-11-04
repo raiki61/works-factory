@@ -344,6 +344,26 @@ class ReplanErrorsCase(PlaceCase):
         got = self.errors({"plan": "x"})
         self.assertEqual(got, ["plan[] は 1 項目（貼った項目の数）"])
 
+    def test_world_rows_answered_by_an_unrevised_item_count(self):
+        """案の直しで、世界の解の答えの要る行に直さない項目だけが答えた案。直した項目の返答だけで「どの項目も答えていない」を
+        数えると、承認済みの案の答えを見ずに誤って拒む。missing は直した項目を差し替えた案の全体で数える（計画 means-answers の
+        3.1 の 4）。直した項目の行の照らし（知らない類の id）は今のまま返答に当てる"""
+        table = worldmark.need([base.WORLD_ROW])
+        first = item(MEAN, structure=[{"world": "mean-denominator", "follows": True}])
+        second = item(CLAMP)
+        whole = [first, second]
+        self.rows = [{"item": 2, "old": second}]
+        revised = item(CLAMP, approach="clamp の上限の枝を hi に直す")
+        got = take.plan_errors(self.rows, {"plan": [revised]}, self.repo, take.exists_at(self.repo, "HEAD"), [table], whole)
+        self.assertEqual(got, [])
+        self.rows = [{"item": 1, "old": first}]
+        got = take.plan_errors(self.rows, {"plan": [item(MEAN)]}, self.repo, take.exists_at(self.repo, "HEAD"), [table], whole)
+        self.assertTrue(any("どの項目も答えていない" in g for g in got), got)
+        wrong = item(CLAMP, structure=[{"world": "no-such-class", "follows": True}])
+        self.rows = [{"item": 2, "old": second}]
+        got = take.plan_errors(self.rows, {"plan": [wrong]}, self.repo, take.exists_at(self.repo, "HEAD"), [table], whole)
+        self.assertTrue(any(g.startswith("plan[0].structure[0].world") for g in got), got)
+
     def test_depends_on_reads_the_whole_plan_with_revised_items(self):
         """案の直しで、2 項目の案の 2 番目だけを直した返答を扱う。直さない 1 番目の単位を字で指す depends_on は通る。1 番目を直して
         受けられる物を外すと、直さない 2 番目の受けの切れが拒まれる（直した項目だけを見ると、直さない項目を指す行を誤って拒み、

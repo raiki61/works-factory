@@ -1005,6 +1005,15 @@ class TestWorldAnswers(PlanFieldsCase):
         self.assertIn("w-doc", got[0])
         self.assertIn("どの項目も答えていない", got[0])
 
+    def test_missing_is_counted_on_the_whole_plan(self):
+        """whole を渡すと、どの項目も答えていない行（missing）だけを whole で数え、行の照らしは plan に当てる（案の直し）"""
+        tables = [self.need(self.rows()[:1])]
+        answered = item(structure=[{"world": "w-mean", "follows": True}])
+        self.assertTrue(planmarks.structure_gaps([item()], tables))
+        self.assertEqual(planmarks.structure_gaps([item()], tables, whole=[answered, item()]), [])
+        got = planmarks.structure_gaps([item(structure=[{"world": "w-none", "follows": True}])], tables, whole=[answered])
+        self.assertTrue(any(g.startswith("plan[0].structure[0].world") for g in got), got)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -89,7 +89,8 @@ def _replaced(whole, rows, plan) -> list:
 
 def plan_errors(rows, reply, repo, exists, tables, whole) -> list:
     """修正案の役の直した項目の返答の誤りの行の全部（数・unit_keys の字・works の欄・項目の間の依存・構造と世界の解の行への答え・狭めない案）。
-    rows は渡した項目の行（old を持つ）。whole は承認済みの案の全体で、依存と考えの住処の照らしは、直した番号の所に返答の項目を差し替えた並びに当てる。
+    rows は渡した項目の行（old を持つ）。whole は承認済みの案の全体で、依存と考えの住処の照らしと、どの項目も答えていない行（structure_gaps の
+    missing）の数えは、直した番号の所に返答の項目を差し替えた並びに当てる。
     返答は unit_keys を字で写すので、depends_on[].unit も単位の字で書く"""
     plan = reply.get("plan") if isinstance(reply, dict) else None
     out = []
@@ -104,7 +105,7 @@ def plan_errors(rows, reply, repo, exists, tables, whole) -> list:
         replaced = _replaced(whole, rows, plan)
         out += planmarks.depends_gaps(replaced)
         out += planmarks.home_gaps(replaced)
-        out += planmarks.structure_gaps(reply.get("plan"), tables)
+        out += planmarks.structure_gaps(reply.get("plan"), tables, whole=replaced)
         out += gatemarks.narrow_gaps(planmarks.NODE, reply)
         out += gatemarks.recommend_gaps(planmarks.NODE, reply)
         out += gatemarks.plain_gaps(planmarks.NODE, reply)
