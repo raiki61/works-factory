@@ -105,7 +105,7 @@ def intake(out, *, request, purpose, means, web, lang) -> dict:
         doc["web"] = _port("web", lambda: ports.choice(web, ("on", "off"))) == "on"
         doc["findings"] = _port("request", lambda: requestrows.findings(request))
         doc["purpose_text"] = ports.text(purpose).strip()
-        doc["means"] = [m.strip() for m in _port("means", lambda: ports.json(means, "means.schema.json")) if m.strip()]
+        doc["means"] = [m.strip() for m in _port("means", lambda: ports.json(means, "shared:stated-means.schema.json")) if m.strip()]
     except ValueError as e:
         doc["reason"] = oneline.one_line(e)
     _write(out / INTAKE, doc)

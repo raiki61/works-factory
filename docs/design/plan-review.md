@@ -42,7 +42,7 @@
 - `design`: `json(shared:design.schema.json): 独立設計の返答 {question_stands, reason, premise_invalid_reason?, design, elements?}。pointer・パス・値のどれか。空の字は設計が無い`。既定 `""`。
 - `design_why`: `text: 設計が無い訳の 1 行（設計を作る側が返した訳）。空で設計も無ければ「独立設計の返りが渡されていない」と読む`。既定 `""`。
 - `world_rows`: `jsonl(lib:world-row.schema.json): 世界の解の行（world.jsonl）。空は世界の解の行が無い run（人に回しうる行の世界の軸は今どおりの決まり）`。既定 `""`。
-- `means`: `json(stated-means.schema.json): 依頼が示した解き方の文の配列（世界の解からの外れの決め手にならない物）。空の配列は示していない`。既定 `[]`。
+- `means`: `json(shared:stated-means.schema.json): 依頼が示した解き方の文の配列（世界の解からの外れの決め手にならない物）。空の配列は示していない`。既定 `[]`。
 - `structure`: `json(shared:structure-state.schema.json): 構造の目の控え（{status, reason, design_file, …}。design_file が設計の行の jsonl を指す）。空は構造の目が走っていない（控えを failed として写す）`。既定 `""`。
 - `ripple`: `json(shared:ripple.schema.json): 修正案の項目ごとの波及の一覧（{items, overlaps, error?}）。空は一覧が無い（材料に「一覧が無い」と訳を書く）`。既定 `""`。
 - `prior`: `json(shared:plan-converge.schema.json): 前の往復までの往復の記録（往復の記録の形に、先行例の出典の確かめの控え precedent_checks を足した物）。空は 1 往復目（形 replan では承認済みの案が無いので failed）`。既定 `""`。
@@ -160,7 +160,7 @@ script の名は `lib/` のモジュールの名と重ねない（README 7.1 の
 - `workflows/plan-review/src/marks.py`: 返答の行から決め手の欄（`gatemarks.FIELDS` と `gatemarks.NO_NARROW`）と壁打ちの欄（`converge.RESOLVED`・`converge.TREE_KEYS`）を外す純粋な関数 `split_marks(rows)`・`split_review(reply)`（今の `gatemarks.split`・`converge.split`・`converge.tree_split` と同じ欄を外す。住処 `lib/marks.py` は README 9.1 で消えるので使わない）。
 - `workflows/plan-review/src/report.py`: 報告の行（12 節）。
 - `workflows/plan-review/src/proof.py`: 読んだ証拠（今の `boardview.collect_reads` の写し。14 節の 36）。
-- `workflows/plan-review/schemas/stated-means.schema.json`: `{"type": "array", "items": {"type": "string"}}`。
+- `workflows/.shared/schemas/stated-means.schema.json`: `{"type": "array", "items": {"type": "string"}}`（world と plan も読む。計画 means-answers で寄せた）。
 - 独立設計の返答の形は `workflows/.shared/schemas/design.schema.json`（#851 で plan-review の写し review-design.schema.json を消して寄せた）。
 - 入力 `fields` の形は `workflows/.shared/schemas/plan-fields.schema.json`（#851 で plan-review の写し review-fields.schema.json を消して寄せた）。
 - `workflows/.shared/schemas/recorded.schema.json`（#851 で line と同じ名を指すよう .shared へ移した）: `{"type": "array", "items": {"type": "object", "required": ["source", "name"], "properties": {"source": {"type": "string", "enum": ["doc", "answer", "gate", "push", "settled"]}, "name": {"type": "string"}, "text": {"type": "string"}, "lines": {"type": "integer"}, "alias": {"type": "string"}}}}`（今の `policy.recorded` の行の形）。
@@ -843,7 +843,7 @@ Return only JSON that matches the output schema.
 16. `structure`・`ripple`・`design` の空を許す。根拠: 単独で回す（憲法 5）。空の時の意味は今の「控えが無い・一覧が無い・設計が無い」の扱いと同じ。
 17. 目的の文を役に見せる（3.6 の「足した」）。
 18. 下請けの指示に外への検索の決まりを入れる（5.6）。
-19. port の形のファイル: 判定は共通の `judgment.schema.json`（plan の設計書が本文を決めた。先に足した PR の物を使う）。依頼が示した解き方は、この block の `schemas/` に `stated-means` の名で置く（独立設計の返答と記録された方針の行は、#851 で `.shared/schemas/` の `design`・`recorded` に寄せた）。根拠: 同じ名の形を pack の 2 か所に置くと形の検査が赤になる（world の block は `means.schema.json`、r2 の設計書は `r2-design.schema.json` を自分の `schemas/` に置く）。2 つ以上の block が同じ中身を持つ物は、組み込みで共通の形に寄せるかを決める。記録された方針の指示の文は共通の断片 `recorded-policy`・`concept-map`（plan の設計書が名を決めた）を使う。
+19. port の形のファイル: 判定は共通の `judgment.schema.json`（plan の設計書が本文を決めた。先に足した PR の物を使う）。依頼が示した解き方は、world と plan も同じ中身を持つので `.shared/schemas/` の `stated-means` に寄せた（独立設計の返答と記録された方針の行は、#851 で `.shared/schemas/` の `design`・`recorded` に寄せた）。根拠: 同じ名の形を pack の 2 か所に置くと形の検査が赤になる（world の block は `means.schema.json`、r2 の設計書は `r2-design.schema.json` を自分の `schemas/` に置く）。2 つ以上の block が同じ中身を持つ物は、組み込みで共通の形に寄せるかを決める。記録された方針の指示の文は共通の断片 `recorded-policy`・`concept-map`（plan の設計書が名を決めた）を使う。
 20. 頭の決まった字（独立設計の 2 つの頭・「最小性:」・「足りない: 」・「考えの住処: 」）は `{lang}` によらず値で入れる。根拠: 設計の 2 つの頭は受け付けが字で読む（`design.quote_gaps`）。ほかは今の読み手（報告・構造の目の行）と同じ字にそろえる。
 21. 報告の行（12 節）。根拠: README 4.1（報告の文は事実を持つ block が組む）。往復の行は line が持つので、この block は 1 往復分の 1 行だけ。
 22. 出力の `status` を `ok`・`gave_up`・`failed` の 3 つにする。根拠: 今は受け付けが諦めた往復を止まり（`stalled`）、返す節が落ちた時を止まりでない偽の結末に分けていた。line がその分けを続けられるように残す。

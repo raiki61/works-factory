@@ -23,7 +23,7 @@
 
 - `request`（必須）: `json(shared:request.schema.json): 依頼の行の配列 [{where, text, mechanism?, measured?, false_positive_if?}]。それを findings の欄に持つオブジェクトでもよい（工場の依頼のファイルの形）`
 - `purpose`: `text: 依頼の目的の 1 文。空は渡されていない`。既定 `""`。
-- `means`: `json(means.schema.json): 依頼が示した解き方の文の配列。空の配列は示していない`。既定 `[]`。
+- `means`: `json(shared:stated-means.schema.json): 依頼が示した解き方の文の配列。空の配列は示していない`。既定 `[]`。
 - `web`: `choice(on|off): web で出典を探すか。off なら検索も取得もせず、行は知識だけで書く`。既定 `on`。
 - `lang`: `text: 人に見せる欄（problem・activity・proposed・practice・applies・not_applies・challenge）の言語。空は依頼の行の言語`。既定 `""`。
 
@@ -61,7 +61,7 @@ script の名は `lib/` のモジュールの名と重ねない（README の 7.1
 - `workflows/world/src/steps.py`: 今の `lib/worldblk.py` の中身（入口・言い直しの材料と受け付け・類の決め・web の役の材料と受け付け・出口）。指示の文（`classes_prep` の「## 返し方」と `judge_prep` の「## 返し方」）は持たず、材料の行と値だけを組む。今の `worldblk.place()`（判定の盤面のフォルダ `judge/board` の隣に `judge/world/` を組む口）は消し、置き場は `ports.place()` が決める。
 - `workflows/world/src/excerpts.py`: 今の `lib/worldcheck.py`（正規化・依頼の識別子の取り出し・抜き書きの照らし）。
 - `workflows/world/src/report.py`: 報告の行を値から組む（今の `worldmark.report_lines` を、控えのファイルでなく値で受ける形にした写し）。
-- `workflows/world/schemas/means.schema.json`。依頼の行の形 `request.schema.json` は 2 つ以上の block が使うので `workflows/.shared/schemas/` に置く（README の 13 章）。
+- 依頼が示した解き方の形 `stated-means.schema.json` は plan と plan-review も使うので `workflows/.shared/schemas/` に置く。依頼の行の形 `request.schema.json` は 2 つ以上の block が使うので `workflows/.shared/schemas/` に置く（README の 13 章）。
 - 使う `lib/`: `worldmark`（行の欄と語 `FIELDS`・`VERDICTS`・`BASES`・`NOT_WEB`。ほかの block も読む行の形の正本）・`rolekit`（loop の数え・却下の控え・諦め。`accept_round`・`rejected`・`given_up_reason`）・`webget`（取り直しの口）・`oneline`・`jsonfile`。依頼の容器の読み（今の `carry.parts`）は `request.schema.json` の形で替える。
 
 ### 1.6 つなぎ方（graph の側。block には書かない）
