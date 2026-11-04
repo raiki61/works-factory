@@ -8,7 +8,7 @@
 
 - plan_words(place, keys) -> {単位: 計画の語}・plan_removes(place, keys) -> {単位: 消す名やパス}: 凍結した計画の欄から機械が引く
 - weapon_of(p, a, removes) -> 型の名: route から型を引く表（計画の語が先・AI の振りが後。上から順に最初に当たる行）
-- route_keys(keys, words, removes) -> 振り分けの AI に渡す単位の並び（語の在る単位と消す名の在る単位を除く）
+- route_keys(keys, words, removes) -> 振り分けの AI に渡す単位の並び（語の在る単位と、語が tdd でなく消す名の在る単位を除く）
 - path(place)・read(place) -> 振り分けの状態 route.json のパス・中身（無ければ {}）・open_route(place, repo, base_file, keys, ...) -> route.json を置く
 - begin(st, keys) -> 状態を段 route にして振る単位を置く・step(state_file, reply, repo, ...): 振り分けの段
 - start_counts(place, st) -> 注文の型ごとの欄 orders.tdd {iterations, calls, kinds}（輪が数え始める物）
@@ -77,16 +77,24 @@ def plan_removes(place, keys, round_: int = 1) -> dict:
     return out
 
 
+def _removal(p: str, removes) -> bool:
+    """消す名で remove に引く単位か: 消す名が在り、計画の語が tdd でない。語 tdd は「先に落ちる受け入れの試験を書いてから直す」直しで
+    （計画の指示 plan-writer.md の route。利用者に見える消しは direct・届かない物の消しは tidy）、その項目の消す名は直しの付け足し
+    （使わなくなった import・移した名・改名した試験の元）なので、語を消す名で覆さない（docs/design/fix.md の 22.1）"""
+    return bool(removes) and p != "tdd"
+
+
 def weapon_of(p: str, a: str, removes) -> str:
-    """route から型を引く表（下書き 4.1 の 3）。p は計画の語（無ければ ""）、a は振り分けの AI の答え（tdd・direct・無しは ""）。
+    """route から型を引く表（下書き 4.1 の 3。docs/design/fix.md の 22.1）。p は計画の語（無ければ ""）、a は振り分けの AI の答え
+    （tdd・direct・無しは ""）。
     1. p が static・tidy・pin → その語の型（pin は下ごしらえを単独で）
-    2. 単位に消す名が在る → remove
-    3. p が tdd → tdd
+    2. p が tdd → tdd（消す名が在っても）
+    3. 単位に消す名が在る → remove
     4. a が tdd → tdd
     5. 残り → variant（振り分けを諦めた時は a を無しとして同じ表で引く）"""
     if p in WORDS:
         return p
-    if removes:
+    if _removal(p, removes):
         return "remove"
     if p == "tdd" or a == "tdd":
         return "tdd"
@@ -94,8 +102,9 @@ def weapon_of(p: str, a: str, removes) -> str:
 
 
 def route_keys(keys, words: dict, removes: dict) -> list:
-    """振り分けの AI に渡す単位（振る単位の集まり）: keys から、計画の語が WORDS の単位と消す名の在る単位を除いた物（並び順のまま）"""
-    return [k for k in keys if words.get(k) not in WORDS and not removes.get(k)]
+    """振り分けの AI に渡す単位（振る単位の集まり）: keys から、計画の語が WORDS の単位と、表が消す名で remove に引く単位（_removal）を
+    除いた物（並び順のまま）"""
+    return [k for k in keys if words.get(k) not in WORDS and not _removal(words.get(k, ""), removes.get(k))]
 
 
 WORK = "route"   # 振り分けの状態の欄 work（置き場の下の名。作らない。common.conflict_item が親を置き場に引く）

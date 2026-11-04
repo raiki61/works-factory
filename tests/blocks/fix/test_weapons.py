@@ -47,11 +47,14 @@ class WeaponTableCase(unittest.TestCase):
             self.assertEqual(route.weapon_of(word, "tdd", ["x"]), word, "計画の語は振り分けの答えと消す名より先")
 
     def test_removes_go_to_remove(self):
-        self.assertEqual(route.weapon_of("tdd", "tdd", ["old_name"]), "remove")
+        self.assertEqual(route.weapon_of("direct", "tdd", ["old_name"]), "remove")
         self.assertEqual(route.weapon_of("", "", ["a.py"]), "remove")
 
     def test_tdd_by_plan_or_by_the_router(self):
         self.assertEqual(route.weapon_of("tdd", "direct", []), "tdd")
+        # 計画の語 tdd は「先に落ちる受け入れの試験を書く」直しで、消す名（使わなくなった import・移した名・改名した試験の元）は
+        # その付け足し。語が消す名より先（消す名で remove に引くと、赤を見る段の無い型で受け入れの試験を負わせて必ず落ちる）
+        self.assertEqual(route.weapon_of("tdd", "direct", ["old_name"]), "tdd")
         self.assertEqual(route.weapon_of("direct", "tdd", []), "tdd")
 
     def test_the_rest_is_variant(self):
@@ -68,6 +71,8 @@ class WeaponTableCase(unittest.TestCase):
     def test_route_keys_leave_out_words_and_removes(self):
         keys = ["a", "b", "c", "d"]
         self.assertEqual(route.route_keys(keys, {"a": "static", "b": "tdd"}, {"c": ["x"]}), ["b", "d"])
+        self.assertEqual(route.route_keys(keys, {"b": "tdd"}, {"b": ["x"], "c": ["x"]}), ["a", "b", "d"],
+                         "語が tdd の単位は消す名が在っても振る（表で tdd に引く単位を振る単位から外さない）")
 
 
 def _repo(tmp: pathlib.Path, files: dict) -> pathlib.Path:
@@ -204,6 +209,14 @@ class DutyTableCase(unittest.TestCase):
         self.assertTrue(duties.change_named_or_gone({**ok, "before": {"t": "passed"}}))
         self.assertEqual(duties.change_named_or_gone({"removes": ["x"], "gone": ["x"]}), [])
         self.assertTrue(duties.change_named_or_gone({"removes": ["x", "y"], "gone": ["x"]}))
+        # 消す名の許し（permits の remove。義務でない）が覆う名指しは、返した木で居なくても（改名した試験の元）義務に数えない
+        renamed = {**ok, "named": ["t", "old"], "before": {"t": "failure", "old": "missing"}, "after": {"t": "passed", "old": "missing"}}
+        self.assertTrue(duties.change_named_or_gone(renamed))
+        self.assertEqual(duties.change_named_or_gone({**renamed, "permits": [{"kind": "remove", "test": "old"}]}), [])
+        self.assertTrue(duties.change_named_or_gone({**renamed, "after": {"t": "passed", "old": "failure"},
+                                                     "permits": [{"kind": "remove", "test": "old"}]}), "残した試験は義務のまま")
+        self.assertTrue(duties.change_named_or_gone({"named": ["old"], "after": {"old": "missing"},
+                                                     "permits": [{"kind": "remove", "test": "old"}]}), "名指しが残らなければ通さない")
 
 
 class WeaponDutiesCase(unittest.TestCase):

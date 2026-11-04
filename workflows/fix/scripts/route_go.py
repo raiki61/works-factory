@@ -3,7 +3,7 @@
 # dependencies = []
 # ///
 """node route-go（組の形。組の頭の後・振り分けの loop の前）: 振り分けの段の AI を起こすか（src/route）。入力 routes が
-auto で、元の結末が取れていて（base.json の taken）、振る単位（計画の語 static・tidy・pin の単位と消す名の在る単位を除いた物）が
+auto で、元の結末が取れていて（base.json の taken）、振る単位（計画の語 static・tidy・pin の単位と、語が tdd でなく消す名の在る単位を除いた物）が
 在る時だけ、振り分けの状態を段 route で place の route.json に置く（輪の状態は置かない。orders が振り分けの後に作る）。起動スクリプトが
 壊れたままの組と、組の頭が実行器の無い・走らない組として止めた組（no_suite）は止める。
 返り {route, stop}。振り分けの状態を置けない時は標準エラーに 1 行で 1（黙って振り分けを飛ばし、tdd の単位を variant に回さない）"""
