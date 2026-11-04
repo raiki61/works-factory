@@ -3,7 +3,7 @@
 - 何の話か: 工場の対話モードの run に足す「設計の段」（issue #862）のうち、テーマ（コードに落とす前の設計の問い）から 1 周分の設計の案を書く役を、単独で呼べる block `workflows/theme/` にする設計。型は [README.md](README.md)、書き方は [world.md](world.md) に従う。設計の段の全体（入口・line の配線・事前審査の形 `theme`・降りる道・設計へ戻す道）は [line.md](line.md) の 3.3 節と [plan-review.md](plan-review.md) の 19 章が持ち、この設計書は書き手の block と設計の案の形と作り変えの照らしと E11 の答えを持つ。この文書の「下書き」は設計の段の設計の下書き（issue #862。PR T0〜T4 が入り終えて消した計画で、git の履歴が持つ）を指す。
 - 読む人: この block を直す実装の役と、line の配線（下書きの 15 章の T3）を作る実装の役。
 - 持ち主に求めること: なし。持ち主の決めは `theme-stage`（`docs/owner-decisions.md`）。この block で自分で決めた事は 11 章に集めた。
-- 決めたこと: block は一番上の段（loop の本体の外）の 3 つの node（`intake`・`write-loop`・`finish`）で、loop の本体は prep 2 つ・AI の役 2 つ・受け付け 1 つ（形は plan の block と同じ）。node は Archon の workflow の 1 段、loop は本体の node を繰り返す node、prep は AI の node の直前で指示を組む script の node、受け付け（accept）は AI の返答を照らす script の node（[README.md](README.md) の頭の語）。返す設計の案の形は 2 つ以上の block が読むので `workflows/.shared/schemas/theme-design.schema.json` に置く。受け付けは yes/no の照らし 9 つ（4 章）で、その 6 番が作り変えの照らし（6 章。作り変える〔`op: rework`〕ファイルの空でない行が、全部どれかの行き先の行〔`inventory`〕に入っているか〔抜けなく覆うか〕と、範囲の重なり・消す行の訳・行き先の名指しを照らす）。3 回拒まれたら諦める。往復の記録と止めは line が持ち、この block は前の周を port `prior` で受けて 1 周分の案を返す。
+- 決めたこと: block は一番上の段（loop の本体の外）の 3 つの node（`intake`・`write-loop`・`finish`）で、loop の本体は prep 2 つ・AI の役 2 つ・受け付け 1 つ（形は plan の block と同じ）。node は Archon の workflow の 1 段、loop は本体の node を繰り返す node、prep は AI の node の直前で指示を組む script の node、受け付け（accept）は AI の返答を照らす script の node（prep と受け付けは [README.md](README.md) の頭の語。node と loop は Archon の workflow の語で、[archon.md](archon.md) が Archon の振る舞いを持つ）。返す設計の案の形は 2 つ以上の block が読むので `workflows/.shared/schemas/theme-design.schema.json` に置く。受け付けは yes/no の照らし 9 つ（4 章）で、その 6 番が作り変えの照らし（6 章。作り変える〔`op: rework`〕ファイルの空でない行が、全部どれかの行き先の行〔`inventory`〕に入っているか〔抜けなく覆うか〕と、範囲の重なり・消す行の訳・行き先の名指しを照らす）。3 回拒まれたら諦める。往復の記録と止めは line が持ち、この block は前の周を port `prior` で受けて 1 周分の案を返す。
 
 この文書の語は README の頭の物を使う。ほかに:
 
@@ -149,12 +149,12 @@ Rules for queries to outside services and for the sources you use: …
 
 ## 3 設計の案の形（`workflows/.shared/schemas/theme-design.schema.json`）
 
-欄の並びは「何を問うか（`question`・`purpose`）→ 何を前提にしたか（`premises`）→ 今何が在るか（`current`）→ 何を足すか（`parts`。在る物では足りない訳は `reuse`）→ 問い（案・推し・代償。`asks`）と部署の決め（`decided`。決まり〔`AGENTS.md`・持ち主の決め〕で決まるので持ち主に聞かず、出どころの行を付けて書く決め）→ 変える所（`changes`）→ 作り変えの照らし（`inventory`）→ 前の穴と人の答えへの答え（`block_answers`・`answers_used`）」。
+欄の並びは「何を問うか（`question`・`purpose`）→ 何を前提にしたか（`premises`）→ 今何が在るか（`current`）→ 何を足す・変えるか（`parts`。在る物では足りない訳は `reuse`）→ 問い（案・推し・代償。`asks`）と部署の決め（`decided`。決まり〔`AGENTS.md`・持ち主の決め〕で決まるので持ち主に聞かず、出どころの行を付けて書く決め）→ 変える所（`changes`）→ 作り変えの照らし（`inventory`）→ 前の穴と人の答えへの答え（`block_answers`・`answers_used`）」。
 
 - `question`・`purpose`: 字。
 - `premises[]`: `{id: P<n>, what, by: owner|assumed, from}`。`owner` の `from` は人の答えの id `H<n>` か、テーマの md の行 `theme:<行>`・`theme:<始め>-<終わり>`。`assumed` の `from` は置いた訳。
 - `current[]`: 今在る物。`{id: N<n>, what, where: <パス>:<行>}`。
-- `parts[]`: 設計が足す部品。`{id: D<n>, what, where, why}`。
+- `parts[]`: 設計の中身。足す・変える部品ごとに 1 行。`{id: D<n>, what, where, why}`。
 - `reuse[]`: 足す部品ごとの、近い今在る物と、それでは足りない訳（上の並びの「在る物では足りない訳」）。`{part: D<n>, existing: [N<n>…], enough: false, why_not}`。
 - `checks[]`: `{rule: <パス>:<行>, answer, where}`。
 - `asks[]`: `{id: Q<n>, ask, pick: A<n>, pick_why, options: [{id: A<n>, what, cost, gain}]}`（案は 2 つ以上）。
