@@ -1,5 +1,5 @@
 """並行 PR の機械の道と受け付け（src/scan.py・src/take.py）を、関数のまま確かめる。今の judge の試験の写し
-（lib/tests/test_judge_accept.py の PrScanCase・PrAcceptCase。`ja.pr_scan(jdir, repo)` を `scan.scan(place, repo, request=…, base=…, changed=…)`
+（test_judge_accept.py の PrScanCase・PrAcceptCase。`ja.pr_scan(jdir, repo)` を `scan.scan(place, repo, request=…, base=…, changed=…)`
 の形に、judge/ の置き場を place に替えた）。gh は lib/ghreads の読む口の偽で返し、本物の gh・GitHub に触らない。
 """
 import hashlib

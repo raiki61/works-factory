@@ -51,6 +51,7 @@ AGENT_SHAPE = "works_factory.subagent.request_shape"
 DESCRIPTION = "works_factory.subagent.description"
 ERROR = "works_factory.error"
 UNREAD = "works_factory.unread"
+TIME_FROM_ANCESTOR = "works_factory.time_from_ancestor"   # 時刻が読めず、送る前に入口が一番近い時刻の在る祖先の時刻で埋めた span の印
 FIELDS = {INPUT: "input", OUTPUT: "output"}   # 切る欄 → 切る前の字の数の名（CHARS の後ろ）
 TOP = 10   # run の span の出力の表に並べる AI のノードの数
 

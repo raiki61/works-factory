@@ -18,7 +18,7 @@
 
 - 整合性と迂回の役（consistency-bypass）: 対象差分と、その依存先・近傍・呼び元を読み、リポジトリ横断の整合性と、標準の機構の迂回を独立に見る AI の役。道具は Read・Grep・Glob だけ（Bash も web も無い）。ほかの役の所見を受けない。
 - 固めた版: intake が対象差分を取る時に、作業ツリーの今の姿（未追跡のファイルも入る）を固めた commit（`View.review_rev`）。今の「読む版」（`inputs.review_rev`）と同じ物。
-- 観点の正本: 工場の `lib/REVIEW.md`（日本語）と、対象のリポジトリの根の `REVIEW.md`（在れば）。値は `materialkit.review_md_paths(repo)`（materials.md の 5.2 の終わり）。
+- 観点の正本: 工場の `workflows/.shared/prompts/REVIEW.md`（日本語）と、対象のリポジトリの根の `REVIEW.md`（在れば）。値は `materialkit.review_md_paths(repo)`（materials.md の 5.2 の終わり）。
 - 例の run: 本物の run `53e71318-ac9f-4468-ae72-5f6ed569a667`（対象 <owner>/<repo>。置き場 `~/.local/state/works-factory/targets/316e3bbc/archon-home/workspaces/<owner>/<repo>/artifacts/runs/53e71318-…/judge/`）。差分の在る run（変更ファイル 23 件）で、役は 1 回目で受け付けを通った（`material-consistency-bypass.json` の `consistency.status` が `found`〔1 件〕、`bypass.status` が `clean`、`findings` 1 行・`bypass_findings` 0 行）。拒否の控え `rejects-consistency-bypass.json` は無い。骨組みの値はここから取った。同じ対象の run `17ee8ecc-717a-4dc7-92b6-25ecd08fa15b` も同じ形。
 
 ## 1 block の全体
@@ -171,7 +171,7 @@ Write the `detail`, `checked`, and `reason` of `consistency` and `bypass`, the `
 Return only JSON that matches the output schema.
 ```
 
-md の中に `$` の字は無い。`{` は差し込み口と断片だけ。見出しの「整合性観点」などは `lib/REVIEW.md` の見出しの字（日本語）で、役がそのファイルの中で探す名なので、訳さずに引く。
+md の中に `$` の字は無い。`{` は差し込み口と断片だけ。見出しの「整合性観点」などは `workflows/.shared/prompts/REVIEW.md` の見出しの字（日本語）で、役がそのファイルの中で探す名なので、訳さずに引く。
 
 言語・会話・retry: prior-decisions.md の 2.3 の終わりと同じ。
 
@@ -238,17 +238,17 @@ Write the `detail`, `checked`, and `reason` of `consistency` and `bypass`, … i
 Return only JSON that matches the output schema.
 ```
 
-例の run は 1 回目で通ったので、却下の段落は入らない。`lang` は空（始めの記録の `lang` が null）で、`{lang}` に既定の文が入った形。対象の根に REVIEW.md が在ったので `repo_review` の段落が入った。値の字は、今の材料のファイルの「## 材料: inputs.cwd」「inputs.review_rev」「loop.diff_file」「record.base」「loop.changed_files」「inputs.review_md」「inputs.repo_review_md」の節の字と同じ（`review_md` は、新しい形では run の起動の殻が置いた工場の写しの `lib/REVIEW.md`。例の run ではプラグインの写しの置き場だった）。
+例の run は 1 回目で通ったので、却下の段落は入らない。`lang` は空（始めの記録の `lang` が null）で、`{lang}` に既定の文が入った形。対象の根に REVIEW.md が在ったので `repo_review` の段落が入った。値の字は、今の材料のファイルの「## 材料: inputs.cwd」「inputs.review_rev」「loop.diff_file」「record.base」「loop.changed_files」「inputs.review_md」「inputs.repo_review_md」の節の字と同じ（`review_md` は、新しい形では run の起動の殻が置いた工場の写しの `workflows/.shared/prompts/REVIEW.md`。例の run ではプラグインの写しの置き場だった）。
 
 ### 2.6 今の指示との差
 
-今の指示は `workflows/judge/commands/material-consistency-bypass.md`（63 行）と、`material_prep` が描く材料のファイルの 2 か所に在る。prior-decisions.md の 2.6 と同じ差（材料の節を指示に入れた・`MATERIAL_BRIEF_HEAD` と頭の 2 行を消した・『条件に当たらない』の節を `{shared:material-na}` に・却下の段落の 2 回を `{shared:rejected}` の 1 回に〔中身は前の 1 回の理由から拒否の全部に〕・作業ツリーを変えるなを `{shared:material-readonly}` に・素材の書き方と所見の場所を断片に・言語の 1 行を md の 1 文に・「元の graphloops の指示書」の境と見出しを消した・「同じ時に別の素材集めの役も走っている」を「走りうる」に）は繰り返さない。この観点だけの差:
+今の指示は `material-consistency-bypass.md`（63 行）と、`material_prep` が描く材料のファイルの 2 か所に在る。prior-decisions.md の 2.6 と同じ差（材料の節を指示に入れた・`MATERIAL_BRIEF_HEAD` と頭の 2 行を消した・『条件に当たらない』の節を `{shared:material-na}` に・却下の段落の 2 回を `{shared:rejected}` の 1 回に〔中身は前の 1 回の理由から拒否の全部に〕・作業ツリーを変えるなを `{shared:material-readonly}` に・素材の書き方と所見の場所を断片に・言語の 1 行を md の 1 文に・「元の graphloops の指示書」の境と見出しを消した・「同じ時に別の素材集めの役も走っている」を「走りうる」に）は繰り返さない。この観点だけの差:
 
 - まとめた: 役の定義の段（md:3-11）を `{shared:role-inspector}` に。今は md の頭と、md:25「この役は整合性と標準機構の迂回を見る役（inspector）」と、graphloops の段の頭（md:39「この役は inspector。」）の 3 か所で inspector と言っていた。役の定義の断片 1 つと、役の 1 段落の役の名 "the consistency-bypass role" にした。
 - 移した: 観点の正本の段（md:33。`review_md` と `repo_review_md` のパスを Read せよ）と、graphloops の段の「観点の正本: ［材料: inputs.review_md］（「整合性観点」のセクションに従え。対象リポジトリ側の観点: ［材料: inputs.repo_review_md］）」（md:42）を、`## Materials` の 2 行（`Review viewpoints` と `<!-- if repo_review -->` の行）にまとめた。同じパスを 2 回言っていた。
 - 変えた: 対象リポジトリの REVIEW.md が無い run の書き方。今は空の値を入れて「空でなければそれも Read せよ」（md:33）と言い、材料のファイルでは省略可の穴の語「（この周には無い）」（`render.ABSENT`）になった。新しい形は段落ごと入れない（`repo_review` が偽）。役が読む物は同じ（無い物は読まない）。
 - 移した: 「指摘の提出基準」の段（md:47）、「Read・Grep・Glob しか持たず、所見は未実測の仮説」（md:48。#221）、返答の欄の段（md:50。#221 が足した「一番上の欄で、consistency・bypass の中には入れない」と行の 5 つの欄）、見た範囲・見ていない範囲（md:45。#221 が足した「一番上の階層の欄に、素材ごとには書かない」）を、`## What to do` の箇条に。中身は変えない。
-- 移した: 入力が足りない時の決まり（md:51 の尾「consistency と bypass の status をどちらも not_run にし、reason を『足りない: 』で始めて」）を `## What to do` の箇条に。印の字「足りない: 」は言わず、「何が足りないかを言え」にした。訳: この字を機械は読まない（`lib/`・`workflows/*/scripts/` に照らす所が無い）。`reason` は人に見せる欄で `{lang}` で書くので、日本語の印の字を英語の md に置くと言語の決まりと食い違う。役の定義の断片が「足りない」の書き方を持つ（今の `lib/agents/inspector.md` の 3 つ目の箇条）。
+- 移した: 入力が足りない時の決まり（md:51 の尾「consistency と bypass の status をどちらも not_run にし、reason を『足りない: 』で始めて」）を `## What to do` の箇条に。印の字「足りない: 」は言わず、「何が足りないかを言え」にした。訳: この字を機械は読まない（`lib/`・`workflows/*/scripts/` に照らす所が無い）。`reason` は人に見せる欄で `{lang}` で書くので、日本語の印の字を英語の md に置くと言語の決まりと食い違う。役の定義の断片が「足りない」の書き方を持つ（今の `inspector.md` の 3 つ目の箇条）。
 - 移した: 素材の書き方の段（md:51）を `{shared:material-status}` に。この観点の素材は `material` の欄でなく `consistency` と `bypass` の 2 欄なので、断片の前に「2 つとも下の `material` の形で書け」の 1 文と見出しを足した（今は段の中で「素材（material）」と言い、2 欄に当てるのは役に任せていた）。
 - 移した: 固めた版の段（md:53。#221 が Bash の無い役に書き直した物）を `## What to do` の終わりの段落に。中身は変えない。
 - 残した: 所見の場所の段の尾の「この役は Read を持つので、上の『ファイルを読める役』に当たる…」（md:61）を、`{shared:material-where}` の後の 1 段落に（materials.md の 3.1 の 10 の「観点ごとの前置き」。この観点では後ろに置く。断片の中の分かれ道のどちらに当たるかを言う文なので、断片の後でないと指す先が無い）。
@@ -284,7 +284,7 @@ materials.md の 4 節の順のまま。観点の前の照らしと後の照ら�
   - `gave-up.stubs.yaml`: 台本の返答が 3 回とも `consistency.status: not_applicable`。`finish` の `status` が `gave_up`、run は `completed`。
   - `skipped.stubs.yaml`: `entry: "人の依頼（standalone）"`。AI の node に届かず（`reached` に `consistency-bypass` が無い）、`finish` の `status` が `skipped`。
 - `tests/blocks/consistency_bypass/test_consistency_bypass.py`（materials.md の 8 節の block の試験）:
-  - 写す元 `lib/tests/test_judge_accept.py::MaterialCase.test_consistency_bypass_reply_is_taken_or_refused`（`:1447-1457`）: `bypass` の無い返答は「素材 'bypass' が返答に無い」で拒まれ、2 つを書いた返答は受けて、`material.json` の `materials` が `{"consistency": …, "bypass": …}`。
+  - 写す元 `test_judge_accept.py::MaterialCase.test_consistency_bypass_reply_is_taken_or_refused`（`:1447-1457`）: `bypass` の無い返答は「素材 'bypass' が返答に無い」で拒まれ、2 つを書いた返答は受けて、`material.json` の `materials` が `{"consistency": …, "bypass": …}`。
   - 写す元 `DueCase.test_empty_diff_run_with_requests_runs_only_prior_decisions`（`:1124-1130`）のうちこの観点の部分: `entry` が在れば `intake` の `due` が偽で訳を言い、`finish` が `status: skipped`・2 つの素材が `not_applicable`（`reason` が `entry` の字を含む）。`DueCase.test_run_with_a_diff_runs_them`（`:1136-1139`）の部分: `entry` が空なら `due` が真。
   - 足す: 対象の根に `REVIEW.md` が在れば組んだ指示にそのパスの行が入り、無ければその段落ごと無い（`repo_review` の両方の値）。`MATERIALS` の 2 つのどちらかで `found` の `count` が欠けた返答を拒む。`report_lines` が `unseen` の行を足し、`reply` が null の時は足さない。
   - 足す（起こし方の照らし）: block の YAML の AI の node の `model`・`allowed_tools`・`sandbox`・`idle_timeout`・`retry`・`mutates_checkout` が、今の `tests/workflows/test_judge.py:91` の表の consistency-bypass の行（`"sonnet", "medium", READ, BASE, True, …`）が照らす物と同じ。

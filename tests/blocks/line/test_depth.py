@@ -1,5 +1,5 @@
-"""単位ごとの深さの検査（元 lib/tests/test_depth.py。integration.md 4.2-9 の MOVE。試す物は line の src/tiers.py に写した
-lib/depth.py と lib/latedepth.py の関数で、名は元のまま。関数を直に呼び、一時の置き場に控えを書くだけ）。
+"""単位ごとの深さの検査（元 lib の試験の test_depth.py。integration.md 4.2-9 の MOVE。試す物は line の src/tiers.py に写した
+depth.py と latedepth.py の関数で、名は元のまま。関数を直に呼び、一時の置き場に控えを書くだけ）。
 
 見る物（元のまま）:
 - 決め 3 の 3 つの条件（glob が無い・約束の形のファイルが無い・機械の確かめが在る）を全部満たす単位だけが軽量で、1 つ外れれば標準と
@@ -17,12 +17,12 @@ import unittest
 from tests.blocks import kit
 
 depth = kit.load("line", "tiers")
-latedepth = depth   # 元 lib/latedepth.py の signals も src/tiers.py に写した
+latedepth = depth   # 元 latedepth.py の signals も src/tiers.py に写した
 import headdepth  # noqa: E402  （KEEP の lib。kit.load が lib/ を sys.path に足す）
 
 UNKNOWN_NONE = "無し"   # head-depth の行ごとの未知の種類「無し」（workflows/head-depth/src/steps.py の NONE。block の間は import しない）
 
-ROUTE_REFUSED = "振り分けの段（単位の名の無い拒否）"   # 元 lib/tddloop.py の ROUTE_REFUSED の字（tddloop は fix の src へ移る）
+ROUTE_REFUSED = "振り分けの段（単位の名の無い拒否）"   # 元 tddloop.py の ROUTE_REFUSED の字（tddloop は fix の src へ移る）
 
 U1, U2 = "u1: 一つ目の根本", "u2: 二つ目の根本"
 

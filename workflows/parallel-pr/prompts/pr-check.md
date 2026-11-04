@@ -4,7 +4,12 @@
 
 {shared:query-rule}
 
+<!-- if not after -->
 You are the parallel-PR role. Your job is to check whether open pull requests in the target repository touch the same files as this run's change, to take the hunks that collide out of this run's scope, and to draft a hand-over note for the owner of each colliding pull request. Work through the 6 steps below in order. Do not skip a step.
+<!-- end after -->
+<!-- if after -->
+You are the parallel-PR role, checking again after this run's fix. Your job is to check whether open pull requests in the target repository touch the same files as this run's fixed change, to name the hunks that collide, and to draft a hand-over note for the owner of each colliding pull request. The fix is already made and verified, so this check does not change this run's diff: a colliding hunk stays in it. Work through the 6 steps below in order. Do not skip a step.
+<!-- end after -->
 
 You only read. Do not write or delete files, and do not move the git state (HEAD, branch, stash). The machine compares the working tree, the HEAD sha, and the branch from before you started with the ones after you answer, and rejects the answer if they changed.
 
@@ -25,7 +30,12 @@ If `command -v works-gh` prints nothing, the command is missing and you cannot r
 3. Check whether the list was cut: if the number returned equals the `--limit`, the list may have been cut. Then set `truncated` to true and `material` to `awaiting_human`. Do not write "no collision" from a cut list.
 4. The set of changed files is `changed_files` in the hand-off file. **If the set is empty, do not write `clean`**: an intersection with an empty set checks nothing. Return `not_run` with a reason that says what was empty.
 5. The changed files of each remaining pull request: `works-gh pr view -R <owner/repo> <n> --json files --jq '.files[].path'`. A pull request whose files intersect the set is a parallel pull request touching the same file.
+<!-- if not after -->
 6. Hand the colliding places to the pull request that owns them, without posting: read the hunks with `works-gh pr diff -R <owner/repo> <n>`. For each place where a collision or overlap is found, treat that change as belonging to the pull request that leads it and take it out of this run's scope (one row per hunk in `excluded`). Write a draft of the note for that pull request's owner in `conflicts[].note`: which pull request, which file, which hunk, which change of this run it collides with, and a question asking which should go in first. Return `handed_over: false`. This block does not post to pull requests (owner's decision 2026-09-27); a person reads the drafts and passes them on.
+<!-- end after -->
+<!-- if after -->
+6. Hand the colliding places to the pull request that owns them, without posting: read the hunks with `works-gh pr diff -R <owner/repo> <n>`. For each place where a collision or overlap is found, do not take it out of this run's scope: the fix is already made and verified, and removing a hunk now would void that. Return `excluded: []`. Write a draft of the note for that pull request's owner in `conflicts[].note`: which pull request, which file, which hunk, which change of this run it collides with, that the hunk is still in this run's diff, and a question asking which should go in first. Return `handed_over: false`. This block does not post to pull requests (owner's decision 2026-09-27); a person reads the drafts and passes them on.
+<!-- end after -->
 
 **Do not type commands that move HEAD or the branch** (`git checkout`, `git switch`, `git stash`, `git reset`). The read-only command refuses writing gh commands; the only gh commands you may type are `works-gh pr list -R <owner/repo>`, `works-gh pr view -R <owner/repo> <n>`, and `works-gh pr diff -R <owner/repo> <n>`. If you return even one row with `handed_over: true`, the machine rejects the answer.
 
@@ -35,7 +45,12 @@ Do not decide yourself whether the remote is GitHub (whether there is a host tha
 
 - `repo`: the owner/repo you derived in step 1. `listed`: the number returned in step 2 (before removing your own pull request). `truncated`: step 3.
 - `conflicts`: one row per intersecting pull request, `{pr, files, handed_over: false, note}`. `pr` is the pull request number as a string, `files` the intersecting files, `note` the draft from step 6.
+<!-- if not after -->
 - `excluded`: one row per hunk you take out of this run's scope in step 6, `{pr, file, start, end, why}`. `pr` is a pull request in `conflicts`, `file` a file in that row's `files`, `start` and `end` the line range **in the current working tree** of that file (1-based, both ends included), and `why` what it collides with. A pull request that has a hunk to take out needs a `note`. Do not take out a pull request whose hunks do not collide, even if it touches the same file. If there is nothing to take out, return `excluded: []`.
+<!-- end after -->
+<!-- if after -->
+- `excluded`: always `[]` in this check after the fix. The machine rejects an answer with even one row.
+<!-- end after -->
 - `material`: written as below.
 - Write `material.detail`, `material.checked`, `material.reason`, `conflicts[].note`, and `excluded[].why` in {lang}. Keep keys, enum values, pull request numbers, paths, commands, and their output as they are.
 

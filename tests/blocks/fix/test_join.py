@@ -1,7 +1,7 @@
 """修正の block（workflows/fix/）の全体の形の頭と組の戻し: prep・join・conflict-check の script と、src/board.py の組の分けと戻しの口・
 src/lanes.py の試験（docs/design/fix.md の 14.2 の test_join.py）。
 
-今の tests/workflows/test_fix.py の BlockScriptsCase の prep・join・conflict-check の部分、lib/tests/test_lanekit.py、
+元の test_fix.py の BlockScriptsCase の prep・join・conflict-check の部分、test_lanekit.py、
 lib/tests/test_fix_seams.py の GroupScriptsSeamCase を写した。始めの記録の無い使い捨ての run directory（place はその根。単独の run）と
 tests/e2e/target-seed/ の写しの git のリポジトリで、port の値だけを渡す。全体の形の prep は intake（mode=whole）の後に回す。
 組の子は、子の結果（out_dir/<group_id>/result.json）を試験が書いて模す（今の試験と同じ）。
@@ -821,7 +821,7 @@ class ConflictCheckCase(Whole):
 
 
 class LanesCase(unittest.TestCase):
-    """組の部品（src/lanes.py。lib/lanekit.py の写し）の純粋な口（今の lib/tests/test_lanekit.py）"""
+    """組の部品（src/lanes.py。lanekit.py の写し）の純粋な口（元の test_lanekit.py）"""
 
     def setUp(self):
         load_src()

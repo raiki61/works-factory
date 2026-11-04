@@ -1,8 +1,8 @@
 """事前審査の木（docs/design/plan-review.md の 5 節・9.1 の 5。src/tree.py・prompts/review-tree.md・prompts/parts/item-brief.md・
 synergy-brief.md）を、script を子のプロセスで回して確かめる。下請けの答えのファイル（place の answers/）は試験が書く。
 
-写した元は tests/workflows/test_plan_review.py の TreeCase（元 tests/test_blk_plan.py の TreeReviewCase の事前審査の側）と
-lib/tests/test_boardview.py の RulesCase.test_unattended_and_tree_words の木の語の半分（試験ごとの docstring に元の名を書く）。
+写した元は tests/workflows の test_plan_review.py の TreeCase（元 tests/test_blk_plan.py の TreeReviewCase の事前審査の側）と
+test_boardview.py の RulesCase.test_unattended_and_tree_words の木の語の半分（試験ごとの docstring に元の名を書く）。
 往復の記録は line の代わりに Flow.carry が pass.json を converge.add_pass で足して port prior に渡す。往復の番号のフォルダ
 （pass-<k>/）は無い。頭の深さから木を引く 2 本（test_heavy_head_depth_makes_the_tree・
 test_light_head_depth_keeps_one_reviewer_unless_named）は段 → on・off・auto の引きが line に移るので line の試験へ。
@@ -434,6 +434,37 @@ class TreeCase(TreeBase):
         self.ok(f.accept(tree={**summary({1: [MEAN_BLOCK["key"]], 2: []}), "faces": []}))
         self.assertEqual([x["key"] for x in f.read("review.json")["faces"]], [MEAN_BLOCK["key"]], "faces は下請けの答えのファイルの物")
         self.assertEqual(f.carry()["outcome"], self.converge.AGAIN)
+
+    def test_stuck_push_quotes_items_in_the_machines_characters(self):
+        """止まった時の推しの note に項目を引く字は、line の照らし（rounds.uncited）と同じ converge.ITEM_CITE を差し込み口 {item_cite}
+        で受けて「…」に入れ、どの言語の note でも字のまま書けと言う。指示の md が別の字（前は "item n"）を名指すと、無人の run は md の
+        とおりに書いた推しを引用の欠けで捨てる"""
+        text = self.prepped()
+        para = text[text.index("The recommendation when the back-and-forth stops"):]
+        para = para[:para.index("\n")]
+        self.assertIn(f"「{self.converge.ITEM_CITE.format(n='n')}」 with n replaced by the item's number", para)
+        self.assertIn("whatever language the rest of the note is in", para)
+        self.assertNotIn('"item n"', para)
+
+    def test_tree_lists_and_stuck_quote_cite_items_in_the_machines_characters(self):
+        """束ね役が推しの note を書く時に読む物も、項目を converge.ITEM_CITE（line の照らし rounds.uncited と同じ字）で書く: 2 往復目から
+        貼る断片 stuck-quote の段落（差し込み口 {item_cite}）と、木の形の一覧（開く・済んだ・閉じた項目の行）。役がどちらかの別の字
+        （前は "item n"・"the numbers of those items"）を写すと、推しが引用の欠けで捨てられる"""
+        f = self.flow
+        cite = self.converge.ITEM_CITE
+        f.inputs["tree"] = "on"
+        self.first_pass_blocks_item_2()
+        two = item(UNIT_CLAMP, 2, files=[frow("stats.py", "clamp")], approach="clamp の上限の枝で hi を返す")
+        f.plan([item(UNIT_MEAN, 1), two], rnd=2, answers=FIXED)
+        text = self.prepped()
+        para = text[text.index("What to quote in the note of"):]
+        para = para[:para.index("\n")]
+        self.assertIn(f"「{cite.format(n='n')}」 with n replaced by the item's number", para)
+        self.assertIn(f"- {cite.format(n=2)}: {f.place / 'items' / 'item-2.md'}", text)
+        self.assertIn(f"- {cite.format(n=1)}（{self.converge.CLOSED}）", text)
+        self.write_answers({2: {**answer(2, resolved=[CLAMP_BLOCK["key"]]), "hits": []}})
+        again = f.prompt()
+        self.assertIn(f"- {cite.format(n=2)}: {f.place / 'items' / 'item-2.md'}", again[again.index(DONE_HEAD):])
 
     def test_bundler_stuck_push_rides_on_the_pass_row(self):
         """元 test_bundler_stuck_push_rides_on_the_pass_row: 束ね役の指示はまとめの返し方で、一番上の止まった時の推しの欄の名
@@ -975,7 +1006,7 @@ class TreeCase(TreeBase):
         self.assertEqual(f.carry()["outcome"], self.converge.CLEAN)
 
     def test_tree_port_words(self):
-        """元 lib/tests/test_boardview.py の RulesCase.test_unattended_and_tree_words の木の語の半分: port tree の on・off・auto（auto は開いた
+        """元 test_boardview.py の RulesCase.test_unattended_and_tree_words の木の語の半分: port tree の on・off・auto（auto は開いた
         項目が 2 つ以上なら木）。ほかの語は入口が落とす（due が偽）"""
         f = self.flow
         for word, tree in (("on", True), ("off", False), ("auto", True), ("", True)):

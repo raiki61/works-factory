@@ -35,7 +35,7 @@
    package の名は - を持てない）
 12. AI の node の md（と system の md。{shared:…}・{part:…} を入れた後）に `"欄":` の形で書いた欄が、その node の output_format の
    どこかの深さの properties に在る（形に無い欄は Archon の構造化の出力が拒むので、役は指示が求める欄を返せない。
-   docs/design/integration.md の 4.2-2。tests/workflows/test_reply_fields.py の後継。指示の文は md だけなので lib の字は辿らない）
+   docs/design/integration.md の 4.2-2。test_reply_fields.py の後継。指示の文は md だけなので lib の字は辿らない）
 13. include: の node（loop_group の本体の中の物も）の id が、include する workflow の中のどの node の id（上の段も、どの深さの
    loop_group の本体も）とも違う。Archon の include の展開（packages/workflows/src/include-expander.ts）は、取り込む workflow の
    上の段の id だけを `<include の id>__<id>` に改め、loop_group の本体の中の `$<id>.output` は改めない。同じ id だと、本体の中の

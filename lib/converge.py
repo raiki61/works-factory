@@ -194,6 +194,9 @@ STUCK_PUSH = "stuck_recommend"
 HELD_MARK = "held"
 KEY_CHAR = "[A-Za-z0-9_-]"   # key の 1 字（gatemarks の台帳の key の照らしも読む）
 HELD_CITES_HEAD = "止まった時の推し（" + STUCK_PUSH + "）の note に引く物"
+# 止まった時の推しの note が項目を引く字（n に項目の番号。line の rounds.uncited がこの字で照らし、plan-review の md へは差し込み口
+# {item_cite} で n のまま渡す。指示と照らしの字を 1 か所に置き、言い換えの食い違いで推しを捨てない）
+ITEM_CITE = "項目 {n}"
 TREE_KEYS = (ITEMS, DESIGN_MAP, ORIGINS, SYNERGY, STUCK_PUSH)   # 事前審査の返答から外す木の欄
 
 

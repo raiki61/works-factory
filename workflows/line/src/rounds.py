@@ -13,6 +13,7 @@ import する（plan と plan-review も使う。README 9.3）。
 - fresh() / read(path) / write(path, doc): 記録の読み書き（path が None・無ければ往復の無い記録。読めない・形 shared:plan-converge.schema.json に合わなければ ValueError）
 - record_pass(doc, got, *, at_cap, dest, plan_rejects): pass.json の中身 got を往復の行として足し、files を dest へ写し、拒否の行を積む
 - stuck_push_due(doc, *, unattended, design_talk): 止まった案を推しで修正へ進めるか（今の gatemarks.stuck_push の条件）
+- dropped_cites(doc, *, unattended, design_talk): 通す推しを引用の欠けだけで捨てた時の欠けた字（報告に捨てた訳を出す）
 - ask_again(doc, *, key, text): 設計の相談の承認ノードで人が設計し直しを求めた時、その求めを最後の往復の中央の block に差し込み、全部の項目を
   開き直して抜け方を AGAIN にする（次の周の plan が答え、事前審査が消えたか残ったかを照らす。src/talk.py が呼ぶ）
 - LIMIT: 往復の安全の上限（YAML の plan-rounds の max_iterations と同じ数。試験が突き合わせる）
@@ -27,7 +28,7 @@ import re
 import shutil
 
 import cite
-from converge import (AGAIN, CLEAN, CLOSED, FACE_KEYS, HELD, HELD_MARK, KEY_CHAR, OPEN, ORIGIN_INTRODUCED, ORIGIN_MISSED,
+from converge import (AGAIN, CLEAN, CLOSED, FACE_KEYS, HELD, HELD_MARK, ITEM_CITE, KEY_CHAR, OPEN, ORIGIN_INTRODUCED, ORIGIN_MISSED,
                       ORIGIN_REPHRASED, ORIGIN_UNSPLIT, ORIGIN_WORDS, PERIPHERAL, PERSISTED, QUOTE, REACH, SETTLED, STUCK, UNSETTLED,
                       block_faces, central, central_keys, sentence_diff, sentences)
 
@@ -319,12 +320,12 @@ def _stuck_items(doc: dict) -> list:
 
 def uncited(note: str, doc: dict) -> list[str]:
     """止まった時の推し（STUCK_PUSH）の note が字のまま引いていない物の並び: stuck_keys の key（前後に key の字 KEY_CHAR が続かない
-    一致。長い key の断片は引用に数えない）と、最後の往復の保留・開いた項目の『項目 n』（後ろに数字が続かない一致。『項目 12』は
+    一致。長い key の断片は引用に数えない）と、最後の往復の保留・開いた項目の引用の字 ITEM_CITE（『項目 n』。後ろに数字が続かない一致。『項目 12』は
     『項目 1』の引用に数えない）。止まっていなければ []。
     修正役に届くのは note だけなので、推しが修正の義務（止まった key と項目）に触れているかをここで照らす"""
     note = str(note or "")
     out = [k for k in stuck_keys(doc) if not re.search(rf"(?<!{KEY_CHAR})" + re.escape(k) + rf"(?!{KEY_CHAR})", note)]
-    out += [name for n in _stuck_items(doc) for name in [f"項目 {n}"] if not re.search(re.escape(name) + r"(?!\d)", note)]
+    out += [name for n in _stuck_items(doc) for name in [ITEM_CITE.format(n=n)] if not re.search(re.escape(name) + r"(?!\d)", note)]
     return out
 
 
@@ -490,15 +491,33 @@ def lines(doc: dict, path="") -> list[str]:
 
 
 # ---------------------------------------------------------------- 止まった案を推しで進める（元 gatepolicy.stuck_pushable・gatemarks.stuck_push）
+def _push_offered(doc: dict, push, *, unattended: bool, design_talk: bool) -> bool:
+    """引用の照らしのほかの全部が揃う（無人の run・設計だけの run でない・抜け方が止まり・上限の周で止めた物でない・通す推しが在る）"""
+    go = getattr(push, "go", None) if not isinstance(push, dict) else push.get("go")
+    return (unattended and not design_talk and doc.get("outcome") in STUCK and not capped(doc)
+            and push is not None and go is True)
+
+
+def _note_of(push):
+    return getattr(push, "note", None) if not isinstance(push, dict) else push.get("note")
+
+
 def stuck_pushable(doc: dict, push, *, unattended: bool, design_talk: bool) -> bool:
     """止まった事前審査の壁打ち（記録 doc）の行に、事前審査の役の推し push（{go, note}。無ければ None）の尾を付けてよいか。全部が
     揃う時だけ: 無人の run・設計だけの run でない・抜け方が止まり・最後の往復が輪の安全の上限の周で止めた物でない（上限での止まりは
     工場の不具合 CAP_WHY で、人が見る）・通す推しで、その note が止まった key と保留・開いた項目の番号の全部を字のまま引く
     （uncited が空。修正役に届くのは note だけ）。元の gatepolicy の stuck_pushable（無人の印を始めの記録でなく引数で受ける）"""
-    go = getattr(push, "go", None) if not isinstance(push, dict) else push.get("go")
-    note = getattr(push, "note", None) if not isinstance(push, dict) else push.get("note")
-    return (unattended and not design_talk and doc.get("outcome") in STUCK and not capped(doc)
-            and push is not None and go is True and not uncited(note, doc))
+    return (_push_offered(doc, push, unattended=unattended, design_talk=design_talk)
+            and not uncited(_note_of(push), doc))
+
+
+def dropped_cites(doc: dict, *, unattended: bool, design_talk: bool) -> list[str]:
+    """最後の往復の通す推しを、引用の欠けだけで捨てた時の欠け（uncited の並び）。ほかの訳で採らない推し・採る推し・推しの無い時は []
+    （報告に「推しは在ったが引用が欠けた」と出す材料。黙って落とさない）"""
+    push = last_push(doc)
+    if not _push_offered(doc, push, unattended=unattended, design_talk=design_talk):
+        return []
+    return uncited(_note_of(push), doc)
 
 
 def last_push(doc: dict) -> dict | None:

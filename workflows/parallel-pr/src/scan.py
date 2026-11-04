@@ -3,6 +3,7 @@
 parallel_pr_reply・_pr_material・pr_scan（元 works/.shared/core/graphloops/rules/review-loop.py）。始めの記録・止めの控え・依頼の
 置き場は読まず、port の値を引数で受ける。
 """
+import json
 import pathlib
 import shutil
 
@@ -119,10 +120,10 @@ def _clear(place) -> None:
         n += 1
 
 
-def scan(place, repo, *, request, base: str, changed, gh=None, which=None) -> dict:
+def scan(place, repo, *, request, base: str, changed, stage: str = "before", gh=None, which=None) -> dict:
     """機械の道を回す。返り {go_role, reason}: go_role は機械で決められず役 pr-check が要るか。
-    前の run のこの block のファイルを名で引いて消し、役の前の作業ツリーの写し tree.json を取る。渡し物 pr-brief.json はどの道でも書く。
-    機械が決めた時は素材の控えと、空の外す hunk の控えを書く。機械の道が落ちたら役に任せる（go_role 真）。
+    前の run のこの block のファイルを名で引いて消し、役の前の作業ツリーの写し tree.json を取る。渡し物 pr-brief.json は役を起こす道と機械が決めた道で書く。
+    機械が決めた時は素材の控えと、空の外す hunk の控えを書く。段 stage は渡し物に書き、指示と受け付けがそこから読む。機械の道が落ちたら役に任せる（go_role 真）。
     作業ツリーの写しが取れなければ役を起こさず（受け付けが比べられない）、go_role 偽と訳を返す"""
     place, repo = pathlib.Path(place), pathlib.Path(repo)
     _clear(place)
@@ -151,7 +152,7 @@ def scan(place, repo, *, request, base: str, changed, gh=None, which=None) -> di
     except Exception as e:  # noqa: BLE001  機械の道が落ちたら役に任せる（起こし直しは当たらない）
         result = {"fallback": f"機械の道が落ちた（{type(e).__name__}: {e}）——役に任せる"}
     jsonfile.write(place / files.BRIEF, {"node": files.NODE, "cwd": str(repo), "base": base, "changed_files": changed_set,
-                                         "request_wheres": wheres, "fallback": result.get("fallback", "")})
+                                         "request_wheres": wheres, "fallback": result.get("fallback", ""), "stage": stage})
     if "fallback" in result:
         return _done(place, {"go_role": True, "reason": result["fallback"]})
     reply = result["reply"]
@@ -159,6 +160,13 @@ def scan(place, repo, *, request, base: str, changed, gh=None, which=None) -> di
     jsonfile.write(place / files.EXCLUDED, {"node": files.NODE, "head": head, "excluded": []})
     m = reply["material"]
     return _done(place, {"go_role": False, "reason": f"機械が決めた: {m['status']}（{m.get('reason') or m.get('checked') or ''}）"})
+
+
+def stage_of(place) -> str:
+    """scan が渡し物に書いた段（指示の prep と受け付けの take が読む）。渡し物が無い・段の欄が無い時は before"""
+    path = pathlib.Path(place) / files.BRIEF
+    got = json.loads(path.read_text(encoding="utf-8")).get("stage") if path.is_file() else None
+    return got if got in files.STAGES else "before"
 
 
 def refuse(place, reason: str) -> dict:

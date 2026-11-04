@@ -56,7 +56,7 @@ class FlowBase(unittest.TestCase):
         self.addCleanup(patch.stop)
 
     def scan(self, **inputs):
-        return self.run.script("scan", "scan", **{"base": "", "request": "[]", "changed": "[]", "lang": "", **inputs})
+        return self.run.script("scan", "scan", **{"base": "", "request": "[]", "changed": "[]", "lang": "", "stage": "before", **inputs})
 
     def prep(self):
         return self.run.script("prep", f"{LOOP}.pr-check-prep")
@@ -104,6 +104,30 @@ class FlowCase(FlowBase):
         self.assertEqual((hunk["text"], hunk["sha256"]), (SOURCE, hashlib.sha256(SOURCE.encode("utf-8")).hexdigest()))
         self.assertEqual(fin["reads"]["path"], "reads-pr-check.json")
         self.assertIn("並行 PR #7 の担当への申し送りの下書き（stats.py。投稿していない）: ", "\n".join(fin["report"]))
+
+    def test_after_stage_keeps_the_hunks_and_refuses_excluded_rows(self):
+        """stage after（修正の後の確かめ直し）: 指示の段 6 は hunk を外させず「この run の差分に残っている」と書かせ、受け付けは
+        excluded が空でない返答を拒む（修正の後に hunk を抜くと、緑の認証と封じが無効になる）。before の指示は外させるまま"""
+        self.scan(changed='["stats.py"]')
+        before = self.prep()["prompt"]
+        self.assertIn("take it out of this run's scope (one row per hunk in `excluded`)", before)
+        self.scan(changed='["stats.py"]', stage="after")
+        self.assertEqual(self.read("pr-brief.json")["stage"], "after")
+        after = self.prep()["prompt"]
+        self.assertNotIn("take it out of this run's scope (one row per hunk in `excluded`)", after)
+        self.assertIn("is still in this run's diff", after)
+        got = self.take(OK_REPLY)
+        self.assertEqual((got["ok"], got["done"]), (False, False), got)
+        self.assertIn("修正の後の確かめ直し", got["reason"])
+        self.assertEqual(self.take({**OK_REPLY, "excluded": []}), {"ok": True, "done": True, "reason": ""})
+        fin = self.finish()
+        self.assertEqual((fin["ok"], fin["status"]), (True, "found"))
+        self.assertEqual(self.read(fin["excluded"]["path"])["excluded"], [])
+
+    def test_unknown_stage_is_refused_at_the_entry(self):
+        got = self.scan(changed='["stats.py"]', stage="later")
+        self.assertEqual(got["go_role"], False)
+        self.assertIn("入力 stage が読めない", got["reason"])
 
     def test_role_that_changes_the_working_tree_is_refused(self):
         self.scan(changed='["stats.py"]')
@@ -175,7 +199,7 @@ class FlowCase(FlowBase):
 
 
 class ReadsCase(FlowBase):
-    """読んだ証拠の node pr-check-reads（元 tests/workflows/test_judge.py の ReadsTest の写し）"""
+    """読んだ証拠の node pr-check-reads（元 tests/workflows の test_judge.py の ReadsTest の写し）"""
 
     def setUp(self):
         super().setUp()
@@ -238,7 +262,7 @@ class ReadsCase(FlowBase):
 
 
 class WiringCase(unittest.TestCase):
-    """YAML の配線と、役の返答の形（元 tests/workflows/test_judge.py の同名の試験の写し）"""
+    """YAML の配線と、役の返答の形（元 tests/workflows の test_judge.py の同名の試験の写し）"""
 
     def setUp(self):
         doc = yaml.safe_load((kit.BLOCKS / NAME / "works-factory-parallel-pr.yaml").read_text(encoding="utf-8"))

@@ -1,7 +1,7 @@
 """line の YAML の配線（docs/design/line.md の 11 節の test_wiring.py）: 受け皿・返し・一度だけの include・include した block の入力の
 全部が渡るか名指した訳に在るか（L-W67）・when: が名に depth を含む欄を読まない・差分の審査の 3 つの when:・報告がいつも走ること。
 
-元は今の tests/workflows/test_line.py の LineWiringCase・FixWiringCase・NoFixWiringCase・SharedPlacesWiringCase・StructureOnceCase・
+元は test_line.py の LineWiringCase・FixWiringCase・NoFixWiringCase・SharedPlacesWiringCase・StructureOnceCase・
 HandoffCase（docs/design/README.md の 9.5）。include した block の中は各 block の試験が見る。include した block の YAML が workflows/ に
 無い間（組み込みの前に別の枝に在る block）は、その block の照らしだけを見送らずに赤にする（組み込みの後はどれも在る）。
 """
@@ -254,6 +254,8 @@ class WhenCase(unittest.TestCase):
         self.assertEqual(node["when"], "$fixed.output.diffed == true && $request-in.output.entry != ''")
         self.assertEqual((node["with"]["base"], node["with"]["changed"]), ("$start.output.ports.base_rev", "[]"))
         self.assertIn("parallel-pr-after-out", TOP["test-gate-final"]["depends_on"])
+        # 修正の後は封じた差分から hunk を外さず、残っていると申し送る段（parallel-pr の設計書の 1.2 の stage）
+        self.assertEqual(node["with"]["stage"], "after")
 
     def test_excluded_reaches_both_fix_stages(self):
         """8.2・integration.md 4.1-5: 並行 PR が外した hunk を fix の 1 回目と 2 度目に渡す"""

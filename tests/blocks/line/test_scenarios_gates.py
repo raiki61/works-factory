@@ -1,5 +1,5 @@
 """line の筋書き（workflows/line/fixtures/）のうち、承認ノード・計画の往復・案の直し・再審・無人の run・修正の後の並行 PR・守りのパス・定石で決まる行の 22 本を dry-run の trace で照らす
-（docs/design/line.md の 11 節。元は tests/e2e/test_line_scenarios.py の LineReturnsTest・UnattendedGateTest・HeldPushTest・
+（docs/design/line.md の 11 節。元は test_line_scenarios.py の LineReturnsTest・UnattendedGateTest・HeldPushTest・
 ProtectedNotAppliedTest・RefixHandoffTest）。
 
 筋書きが通るか（宣言の `reached` など）は層の試験 tests/layers/test_block_shape.py の ArchonCase が workflow test で照らす。宣言は節が走らなかったことを照らせない（止めた Archon の packages/workflows/src/fixture-runner.ts の

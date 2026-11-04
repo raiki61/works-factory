@@ -33,7 +33,7 @@
 
 出力（`returns: finish`、`outcome_field: ok`）: materials.md の 1.2 の 5 欄だけ。`material.json` の `reply` は受けた返答（`material`・`observed`）、`materials` は `{"main_path_observation": <返答の material>}`。
 
-今との違い: 今は入力を `judge/start.json` から名で開き、回すかを `material-route` が決め（`main_path_observation_due`）、回さない時の埋めは diagnose-prep の `fill_materials` が写した。受けた返答は `judge/material-main-path-observation.json` に書き、判定役は返答の全体を `out.p1.main_path_observation` の穴で読んだ（`lib/judge_accept.py:2764-2795` の `_diagnose_ctx`）。
+今との違い: 今は入力を `judge/start.json` から名で開き、回すかを `material-route` が決め（`main_path_observation_due`）、回さない時の埋めは diagnose-prep の `fill_materials` が写した。受けた返答は `judge/material-main-path-observation.json` に書き、判定役は返答の全体を `out.p1.main_path_observation` の穴で読んだ（`judge_accept.py:2764-2795` の `_diagnose_ctx`）。
 
 ### 1.3 node の並び（`workflows/main-path-observation/works-factory-main-path-observation.yaml`）
 
@@ -234,7 +234,7 @@ Return only JSON that matches the output schema.
   - 「前の周の P3 が何かを直した周」の枝と `carry_reason`（経路を変えていない周は前の観測を持ち越す）: 1 run = 1 周（持ち主の決め carry、#76）で効かない。新しい形は持たない。
   - 指示書の「台帳に載り、次の周の judge が再審する」: 盤面の台帳（awaiting の行）と次の周の再審は工場に無い（#76 で 1 run = 1 周にした）。2.6 の替え方。
   - `delegate.model: sonnet`: 工場は群の名 `'@wf-judge-materials'`（今の試験の表で sonnet・medium。`tests/workflows/test_judge.py:97`）。同じ。
-- `post_check: main_path_observed` は graphloops の宣言にも元の works にも在り、工場は字を写した（`lib/judge_accept.py:2138` の docstring「元 rules:2962」）。新しい形も持つ。
+- `post_check: main_path_observed` は graphloops の宣言にも元の works にも在り、工場は字を写した（`judge_accept.py:2138` の docstring「元 rules:2962」）。新しい形も持つ。
 
 この block が両方より良く、残す物: 見たと言う状態に観測の行を機械が求める（graphloops と同じ）・受け付けの決まりを指示が先に言う・作業ツリーを機械が照らす・判定から入る run で回さない素材に出どころつきの理由を書く。
 
@@ -254,14 +254,14 @@ materials.md の 4 節の順。観点の前の照らしは無く、後の照ら�
   - `gave-up.stubs.yaml`: 台本の返答が 3 回とも `material.status: clean`・`observed: []`（後の照らしで拒まれる）。`finish` の `status` が `gave_up`、run は `completed`。
   - `skipped.stubs.yaml`: `entry: "人の依頼（standalone）"`。AI の node に届かず、`finish` の `status` が `skipped`。
 - `tests/blocks/main_path_observation/test_main_path_observation.py`: materials.md の 8 節の block の試験。
-  - 写す元 `lib/tests/test_judge_accept.py::MaterialCase.test_accept_writes_material_file`: `clean` と `observed` 1 行の返答が通り、`material.json` の `role` が `main-path-observation`、`materials` が `{"main_path_observation": <返答の material>}`。
+  - 写す元 `test_judge_accept.py::MaterialCase.test_accept_writes_material_file`: `clean` と `observed` 1 行の返答が通り、`material.json` の `role` が `main-path-observation`、`materials` が `{"main_path_observation": <返答の material>}`。
   - 写す元 `MaterialCase.test_accept_rules` の main-path-observation の場合: `clean`・`observed: []` は拒まれ、`accepted.json` が書かれない。拒みの文が「main-path-observation: status=clean なのに観測した値（observed）が 1 つも無い」で始まる。
   - 足す: `found`・`observed: []` も同じく拒まれる。`awaiting_human`（`reason` つき）・`observed: []` は通る。`not_run`（`reason` つき）・`observed: []` も通る。
   - 足す: `not_applicable` は拒まれる（`cond_true`）。組んだ指示に `na_cond_true` の段落と「差分が利用者から見える経路に触れる」の字が入る。
   - 足す: `entry` が在れば `skipped` で、素材が出どころつきの `not_applicable`。
   - 足す: `report` に `observed` の行ごとの「観測」の行が出る。
   - 足す（起こし方の照らし）: block の YAML の AI の node が、今の `tests/workflows/test_judge.py:97` の行（`"sonnet", "medium", INVESTIGATE, DELEGATE, …`）が照らす物と同じ。
-- 指示の比べ（README の 11.4）: `tests/blocks/main_path_observation/test_prompts.py`。作り方は [test-double-fidelity.md](test-double-fidelity.md) の 2.9 と同じで、元の md は `workflows/judge/commands/material-main-path-observation.md`、元の材料のファイルは例の run の `judge/material-main-path-observation-brief.md`（末尾の節は `user_path_touched` が真の字）。
+- 指示の比べ（README の 11.4）: `tests/blocks/main_path_observation/test_prompts.py`。作り方は [test-double-fidelity.md](test-double-fidelity.md) の 2.9 と同じで、元の md は `material-main-path-observation.md`、元の材料のファイルは例の run の `judge/material-main-path-observation-brief.md`（末尾の節は `user_path_touched` が真の字）。
 - 守る keep-essence の番号: 無い（keep-essence は元の works が「作り替えで外さない」と決めた 12 の仕組み〔README の 10 節〕で、この観点はそのどれにも当たらない）。守るのは「動かしていない経路を見たと言わせない」（`main_path_observed`）で、上の受け付けの試験と `gave-up` の fixture が見る。
 - 終わりの条件の命令（1 モジュールずつ）:
 

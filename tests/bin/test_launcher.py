@@ -1417,7 +1417,7 @@ class ReadmeUsageTest(unittest.TestCase):
         self.assertEqual(entry.request_problems(parts[carry.FINDINGS]), [])
 
     def test_test_cmd_and_start_point_are_documented(self):
-        testcmd_check = archon.src_module("line", "testcmd_check")   # 今の lib/testcmd_check.py の行き先（line の src。4.5-7）
+        testcmd_check = archon.src_module("line", "testcmd_check")   # 元の lib の testcmd_check.py の行き先（line の src。4.5-7）
         self.assertIn("「test_cmd and worktrees」", testcmd_check.HOW)
         test_cmd = self.section("test_cmd and worktrees")
         for word in ("--input test_cmd=", testcmd_check.ALLOW_ENV, "止める（test_cmd）", "注意（test_cmd）"):

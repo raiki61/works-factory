@@ -1610,6 +1610,7 @@ nodes:
       base: "$start.output.ports.base_rev"
       changed: "[]"
       lang: "$start.output.ports.lang"
+      stage: after
   - id: parallel-pr-after-out
     <<: *receiver
     output_format: {<<: *received, properties: {got: {type: [object, 'null'], description: 'json(returns:works-factory-parallel-pr): 出力の names の欄。飛ばされた block は null'}, why: {type: string}}}

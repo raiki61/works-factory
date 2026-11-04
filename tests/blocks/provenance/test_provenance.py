@@ -155,7 +155,7 @@ class ShapeCase(unittest.TestCase):
         import rolekit
         self.assertEqual(self.nodes[LOOP]["loop_group"]["max_iterations"], rolekit.GIVE_UP_AFTER)
 
-    # 今の判定の provenance の役の起こし方（tests/workflows/test_judge.py の ROLES["provenance"] の行と、
+    # 今の判定の provenance の役の起こし方（tests/workflows の test_judge.py の ROLES["provenance"] の行と、
     # workflows/judge/works-factory-judge.yaml の錨 test_run_launch を、作り直しの時に字で写した物）。組み込みで workflows/ が
     # 入れ替わっても、この期待は block の起こし方の正本として残る
     LAUNCH = {"model": "@wf-judge-materials", "settingSources": ["user"],

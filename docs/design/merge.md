@@ -105,7 +105,7 @@ AI の node を持たないので `prompts/` を置かない（README 7.1 の 2 
   - `merge-apply`（`mode: apply`）: 最後の承認ノードの答えの後。`with:` は seal と同じ物に `sealed_hash` ← `$merge-seal.output.hash`・`answer` ← 最後の答え・`r2` ← eyes のまとめの `r2`・`deliver` ← line の入力 `deliver`・`request` ← 依頼のファイル・`user_env_dir` ← 始めの記録・`items` ← fix の出力の項目の記録（今の `$fixed.output.item_claims`）。
 - chain の `hand`（`mode: check`）: 出口の語 pr の時だけ。`with:` は `base` ← 鎖の元の基・`sealed_hash` ← 最後の差分の封じた hash・`deliver`・`request`・`user_env_dir`（今と同じ）。
 - 守りの当たりの読み手: line の最後の承認ノード（`protected_hits`・`protected_count`。当たりか確かめられない行が在れば、開き方に関わらず必ず開き、冒頭 3 行で名指し、3 行の直後の最初の節に並べる。`gatepolicy.opens` の `guarded`）・`bin/apply`（封じた差分と R2 の作り直しを照らして当てる。--allow-failed の時は line の受け皿の node `merge-seal-out` の出力を run の記録から読む）・report（`report` と、人が決めることの数えに `protected_hits`・`protected_count`）。
-- README 13 節の移し: 今は独立の目（eyes）も同じ当たりを数え（`workflows/eyes/scripts/protected.py`）、eyes の `ok` が「守りのパスを確かめられたか」を含み（`lib/eyeverdict.py:531-553`）、報告が seal の当たりが無い時に eyes の当たりを読んでいた（`runreport._hits`、`lib/runreport.py:1049-1060`）。最後の承認ノードと `merge` の apply が読んでいたのは、もとから seal の当たりだけ（`ask_final.py` の `SEAL`・`seal.apply_refusal` の `protected`）。新しい形では当たりを数えるのはこの block の seal と apply だけで、eyes のまとめは当たりを数えない（eyes の設計書の側の直し）。確かめられない時は、この block の確かめられない行が承認ノードを開き、apply を拒む（今の eyes の `ok` が偽になるのと同じ所に倒れる）。
+- README 13 節の移し: 今は独立の目（eyes）も同じ当たりを数え（`protected.py`）、eyes の `ok` が「守りのパスを確かめられたか」を含み（`eyeverdict.py:531-553`）、報告が seal の当たりが無い時に eyes の当たりを読んでいた（`runreport._hits`、`runreport.py:1049-1060`）。最後の承認ノードと `merge` の apply が読んでいたのは、もとから seal の当たりだけ（`ask_final.py` の `SEAL`・`seal.apply_refusal` の `protected`）。新しい形では当たりを数えるのはこの block の seal と apply だけで、eyes のまとめは当たりを数えない（eyes の設計書の側の直し）。確かめられない時は、この block の確かめられない行が承認ノードを開き、apply を拒む（今の eyes の `ok` が偽になるのと同じ所に倒れる）。
 
 ## 2 AI の node
 
@@ -189,7 +189,7 @@ bin/works-factory workflow run works-factory-merge \
 ## 7 組み込みの時に block の外で直す所（この block の PR では触らない）
 
 - `bin/_lib/apply.py:41` の `APPLY_DIFF, SEALED_DIFF = "merge/apply.diff", "merge/sealed.diff"` と、それを `output_format` の enum と縛る試験（`tests/bin/`）: 出力の `diff.path` は enum でなく末尾の名の形になる（1.3）。`bin/apply` は pointer の先を読むので、字を名の末尾（`apply.diff`・`sealed.diff`）の照らしに替える。
-- `lib/protected.json` の行のうち、作り直しで消える・移るパス（`final-gate` の `workflows/.shared/boundary.py`・`edge-test` の `tests/shared/test_boundary.py`・`layers-test` の `tests/layers/*.py`・`yaml-rules-data` の `tests/layers/seeds/**`）: 一覧は「行を足す・消すのは人だけ」（`protected.json` の `about`）なので、組み込みの PR で行の直しを人に諮る。`lib/tests/test_protect.py` はどの行も追跡のファイルに当たるかを見るので、直さなければ赤になる。守りの関門の新しい住処（この block の `scripts/merge.py`・line の最後の承認ノードの `src/`・`ports.py`）を一覧に足すかも、人の決め。
+- `lib/protected.json` の行のうち、作り直しで消える・移るパス（`final-gate` の `boundary.py`・`edge-test` の `test_boundary.py`・`layers-test` の `tests/layers/*.py`・`yaml-rules-data` の `tests/layers/seeds/**`）: 一覧は「行を足す・消すのは人だけ」（`protected.json` の `about`）なので、組み込みの PR で行の直しを人に諮る。`lib/tests/test_protect.py` はどの行も追跡のファイルに当たるかを見るので、直さなければ赤になる。守りの関門の新しい住処（この block の `scripts/merge.py`・line の最後の承認ノードの `src/`・`ports.py`）を一覧に足すかも、人の決め。
 - line の `ask_final` と report の `_hits` から、eyes の当たりへの落ち（`runreport.py:1056` の `rows or …eyes…`）を外す（1.6）。
 
 ## 8 守る keep-essence と封じた差分

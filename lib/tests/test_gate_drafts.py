@@ -24,7 +24,7 @@ import gatemarks  # noqa: E402
 
 REC = {"answer": "continue", "note": "daemon だけを Recreate にする範囲で通す", "why": "Dagster 公式の chart が同じ分け方"}
 NO_NARROW = "daemon を別の Deployment に分け、webserver は RollingUpdate に残す形を当たったが、決着済みの配置を組み替える"
-# 元 lib/tests/test_plan_gate.py の NARROW・FACE（修正案の狭める行と事前審査の穴の行）
+# 元 test_plan_gate.py の NARROW・FACE（修正案の狭める行と事前審査の穴の行）
 NARROW = {"what": "空の列の mean", "why": "空の列の平均は 0 割りの例外のまま"}
 FACE = {"key": "clamp の上限の意味が変わる", "unit_keys": ["u"], "kind": "regression", "where": "stats.py clamp",
         "why": "上限を超えた値に lo を返す今の振る舞いに頼る呼び手が在れば結果が変わる", "severity": "block"}

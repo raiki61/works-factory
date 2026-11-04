@@ -66,7 +66,7 @@ script の node はどれも `runtime: uv`・`mutates_checkout: false`。受け�
 - `workflows/cold-read/scripts/cold_prep.py`・`cold_save.py`・`finish.py`
 - `workflows/cold-read/src/__init__.py`（空）
 - `workflows/cold-read/src/files.py`: place のファイルの名（1.4）。
-- `workflows/cold-read/src/reply.py`: 返答の読み。今の `lib/runreport.py` の `_cold_of`（:1912-1917）・`COLD_UNREADABLE`・`COLD_EMPTY`（:1920-1921）・`_cold_lines`（:1924-1928）の写しと、`VERDICTS = ("pass", "redesign-needed")`（今の `runreport.COLD_SCHEMA` の `verdict` の enum。md の `{passed}`・`{redesign}` と `output_format` の enum が同じ字を持つ。試験が YAML の enum と突き合わせる）。`stuck(c)` は 1.2 の決まり。
+- `workflows/cold-read/src/reply.py`: 返答の読み。今の `runreport.py` の `_cold_of`（:1912-1917）・`COLD_UNREADABLE`・`COLD_EMPTY`（:1920-1921）・`_cold_lines`（:1924-1928）の写しと、`VERDICTS = ("pass", "redesign-needed")`（今の `runreport.COLD_SCHEMA` の `verdict` の enum。md の `{passed}`・`{redesign}` と `output_format` の enum が同じ字を持つ。試験が YAML の enum と突き合わせる）。`stuck(c)` は 1.2 の決まり。
 - `workflows/cold-read/src/report.py`: 報告の行（9 節）。
 - `workflows/cold-read/fixtures/standalone.stubs.yaml`・`redesign.stubs.yaml`・`unreadable.stubs.yaml`（11 節）。
 - `tests/blocks/cold_read/__init__.py`・`test_cold_read.py`（11 節。Python の package の名は `-` を持てないので `_`）。
@@ -181,7 +181,7 @@ Return only JSON that matches the output schema.
 
 今の指示は `workflows/report/commands/cold-check.md`（21 行）に在り、本文は `$cold-prep.output.body` で入る。
 
-- 移した: 役の定義の 7 行（md:1-7）を、土台の役の定義の断片 `{shared:role-cold-reader}` に。字の違いは最後の箇条だけ（今「下の指示に従え」、断片「呼び出し側の指示に従え」。`lib/agents/cold-reader.md` と同じ字）。意味は同じ。report の中の読み手も同じ断片を差し込む。
+- 移した: 役の定義の 7 行（md:1-7）を、土台の役の定義の断片 `{shared:role-cold-reader}` に。字の違いは最後の箇条だけ（今「下の指示に従え」、断片「呼び出し側の指示に従え」。`cold-reader.md` と同じ字）。意味は同じ。report の中の読み手も同じ断片を差し込む。
 - 写した: 複数の作業を切り替えながら読む読み手の段落（md:9）と、返し方（md:19・md:21）。report の中の読み手の md にも同じ段落が残る（2 つの block が別々に持つ）。
 - 外した: 報告の頭に特有の 2 段落（md:11 の頭の後ろに付く物と機械が組む行の決まり、md:13 の「レビューの最終報告のうち、人に決めてもらうところ」）。報告に特有の決まりは report の断片 `report-head-check` が持ち、この block は報告を知らない。代わりに「本文の出どころも用途も知らされていない」の 1 文を足した。
 - 移した: 判定の語（md:19 と md:21 の `pass`・`redesign-needed`）を差し込み口 `{passed}`・`{redesign}` に（README 5.3。値は `src/reply.py` の 1 か所、YAML の enum と試験で突き合わせる）。
@@ -227,7 +227,7 @@ bin/works-factory workflow run works-factory-cold-read \
 
 ## 6 元の works と graphloops の同じ場面
 
-元の works は `works/blk-report/`（`blk-report.yaml:114-123` の初見の読み手・`commands/report-write-cold.md`・`lib/report_roles.py`）、graphloops は `prompts/review-loop/report.cold_check.md` と `rules/review-loop.py:3619-3626`。ほかに convergence-loops の `agents/cold-reader.md`（汎用の初見の読み役）と gates の `hooks/coldread-gate.py`（投稿の前の初見の確かめ）。どれも `~/src/claude-plugins/` の下。
+元の works は `works/blk-report/`（`blk-report.yaml:114-123` の初見の読み手・`commands/report-write-cold.md`・`report_roles.py`）、graphloops は `prompts/review-loop/report.cold_check.md` と `rules/review-loop.py:3619-3626`。ほかに convergence-loops の `agents/cold-reader.md`（汎用の初見の読み役）と gates の `hooks/coldread-gate.py`（投稿の前の初見の確かめ）。どれも `~/src/claude-plugins/` の下。
 
 同じ物（この block が持つ）: 新しい会話・道具なし・判定の語と 4 つの欄（元の works・graphloops と同じ JSON）・冒頭の 3 行の確かめ（元の works・gates と同じ。graphloops は書き手の指示にしか無い）。
 
@@ -279,7 +279,7 @@ bin/works-factory workflow run works-factory-cold-read \
   - `cold_prep` が組んだ指示に、断片 `role-cold-reader` の本文と本文の字が入り、報告の頭の決まりの字（「頭の後ろ」「機械が組んだ事実」）が入らない。
   - 本文の字がそのまま指示に入る（`$x.output.y` の形の字と `{name}` の形の字を含む本文で、置き換わらずに残る。今の test-gate の `test_reject_with_a_reference_reaches_the_prompt_verbatim` と同じ確かめ）。
   - 本文のファイルが無い・空 → `due: false` と訳。
-  - `finish`: `pass` の返答 → `pass: true`・`stuck: []`。`redesign-needed` → `stuck` が `止まった所: …`・`推測で埋めた所: …` の順。`redesign-needed` で欄が空 → `（止まった所・推測の欄が空）`。壊れた返答・語の外 → `failed` と `初見の読み手の返答を読めない（判定の語が無い）`（今の `lib/tests/test_runreport.py:1721-1725` の `_cold_of` の確かめの写し）。null → `failed`。
+  - `finish`: `pass` の返答 → `pass: true`・`stuck: []`。`redesign-needed` → `stuck` が `止まった所: …`・`推測で埋めた所: …` の順。`redesign-needed` で欄が空 → `（止まった所・推測の欄が空）`。壊れた返答・語の外 → `failed` と `初見の読み手の返答を読めない（判定の語が無い）`（今の `test_runreport.py:1721-1725` の `_cold_of` の確かめの写し）。null → `failed`。
   - `src/reply.py` の `VERDICTS` が YAML の `cold` の `output_format` の `verdict` の enum と同じ（yes/no）。
 - この block の外に残る試験（report の block と、その試験）: `tests/workflows/test_report.py::ShapeCase.test_cold_reader_is_told_the_machine_heading`・`ColdPrepScriptCase`・`AcceptScriptCase.test_cold_redesign_three_times`、`lib/tests/test_runreport.py` の `ColdBodyCase`・`test_cold_rejects_twice_then_takes_with_mark`。
 - e2e の `tests/e2e/evidence.json` に、この block の行は無い（報告の初見の確かめの印は report の行が持つ）。
