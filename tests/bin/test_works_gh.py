@@ -4,6 +4,10 @@
   （[--paginate] [--hostname <host>] repos/<OWNER>/<REPO>/pulls/<番号>/comments）だけ。ほかの形（書く命令・api の -X・-f・--input
   など・auth token）と -w・--web（短い旗の束の中の w も。-wL5 は -w と -L 5）は本物の gh を起こさずに 2
 - -R・--repo は 1 つだけ（gh は最後の値を使うので、2 つ在ると照らした値と読む先が食い違う）
+- 短い旗の束の中の R の値は、R の後ろが空なら次の語、空でなければ残り（pflag の読み方。-Revil.example/o/R o/r は
+  evil.example/o/R を読むので拒む。末尾の R だけを見て次の語を値と読むと、照らした値と gh の読む先が食い違う）
+- repo view は位置の引数がちょうど 1 つで、旗は --json（値は次の語か = の後ろ）だけ。-b・-t・-q など値を取る旗の値の語を
+  位置の引数と数えると、-b o/r evil.example/o/r の o/r を照らし、gh は evil.example/o/r を読む
 - 読むホストは github.com・<名>.ghe.com・GH_HOST・GH_REPO のホストだけ（-R・--hostname・URL の引数。gh は GH_ENTERPRISE_TOKEN を
   github.com の外のどのホストにも付けるので、ほかのホストへトークンを送らない）
 - 口は本物の gh を起こす前に WORKS_FACTORY_GH_ACTIVE を立て、それが立った env で口に入れば拒む（読む側と立てる側の名を
@@ -37,8 +41,8 @@ ALLOWED = (["pr", "list", "-R", "o/r"], ["pr", "view", "1", "-R", "o/r"], ["pr",
            ["api", "--paginate", "--hostname", "github.com", COMMENTS], ["api", "--paginate", COMMENTS],
            ["api", "--hostname=acme.ghe.com", COMMENTS], ["pr", "view", "1", "-R", "acme.ghe.com/o/r"],
            ["pr", "view", "https://github.com/o/r/pull/1", "-R", "o/r"], ["pr", "view", "1", "-c", "-R", "o/r"],
-           ["pr", "view", "1", "-cRo/r"], ["issue", "list", "-R", "o/r"],
-           ["issue", "list", "--repo", "o/r", "--state", "open"])
+           ["pr", "view", "1", "-cRo/r"], ["repo", "view", "o/r", "--json", "name,url"], ["repo", "view", "--json=name", "o/r"],
+           ["issue", "list", "-R", "o/r"], ["issue", "list", "--repo", "o/r", "--state", "open"])
 REFUSED = (["pr", "create", "-R", "o/r"], ["pr", "merge", "1", "-R", "o/r"], ["pr", "comment", "1", "-R", "o/r"],
            ["api", "repos/o/r"], ["issue", "view", "1"], ["issue", "create", "-R", "o/r"], ["issue", "comment", "1", "-R", "o/r"],
            ["pr", "view", "1"], ["repo", "view"], ["pr", "view", "1", "-R", "o/r", "-w"], ["pr", "list", "-R", "o/r", "--web"],
@@ -57,7 +61,11 @@ REFUSED = (["pr", "create", "-R", "o/r"], ["pr", "merge", "1", "-R", "o/r"], ["p
            ["repo", "view", "evil.example/o/r"], ["pr", "view", "https://evil.example/o/r/pull/1", "-R", "o/r"],
            ["pr", "view", "1", "-R", "o/r", "-cR", "x/y"], ["pr", "view", "1", "-R=o/r", "-cRx/y"],
            ["pr", "view", "http://[x", "-R", "o/r"], ["issue", "list", "-R", "o/r", "-wL5"],
-           ["pr", "list", "-R", "o/r", "-dw"], ["issue", "list", "-wRo/r"])
+           ["pr", "list", "-R", "o/r", "-dw"], ["issue", "list", "-wRo/r"],
+           ["pr", "view", "-Revil.example/o/R", "o/r"], ["pr", "diff", "-cRevil.example/o/R", "o/r"],
+           ["repo", "view", "-b", "o/r", "evil.example/o/r"], ["repo", "view", "-b", "o/r", "git@evil.example:o/r"],
+           ["repo", "view", "-t", "o/r", "evil.example/o/r"], ["repo", "view", "--jq=x", "o/r"], ["repo", "view", "o/r", "x/y"],
+           ["repo", "view", "--", "evil.example/o/r"], ["repo", "view", "--json", "name"])
 # GH_HOST か GH_REPO が名指した時だけ通るホスト
 CORP = (["api", "--hostname=ghe.corp.example", COMMENTS], ["pr", "view", "1", "-R", "ghe.corp.example/o/r"],
         ["issue", "view", "1", "-R", "GHE.corp.example/o/r"])

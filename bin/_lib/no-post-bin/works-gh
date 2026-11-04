@@ -5,7 +5,8 @@
 - `pr list -R <OWNER/REPO> …`・`pr view <番号か枝> -R <OWNER/REPO> …`・`pr diff <番号か枝> -R <OWNER/REPO> …`・
   `issue list -R <OWNER/REPO> …`・`issue view <番号> -R <OWNER/REPO> …`（`-R`・`--repo`・`--repo=` のどれか 1 つ。対象の repo を名指しさせ、cwd の remote に頼らない。
   gh は最後の `-R` を使うので、2 つ在れば照らした値と読む先が食い違う。拒む）
-- `repo view <OWNER/REPO> …`（gh の repo view は -R を持たないので、repo は位置の引数で名指しする）
+- `repo view <OWNER/REPO> [--json <FIELDS>]`（gh の repo view は -R を持たないので、repo は位置の引数ちょうど 1 つで名指しする。
+  旗は --json だけ。-b・-t・-q は値を取るので、その値の語を repo と取り違えないよう拒む）
 - `api [--paginate] [--hostname <HOST>] repos/<OWNER>/<REPO>/pulls/<番号>/comments`（PR の行コメントを読む 1 つの形。gh api は
   -f・-F・--input の 1 つで黙って POST になるので、拒む旗を数えず、この形の字だけを通す。{owner} の埋めも通さない）
 読むホスト（`-R HOST/…`・`--hostname`・URL の引数）は github.com・`<名>.ghe.com`・GH_HOST・GH_REPO のホストだけ（gh は
@@ -79,17 +80,37 @@ def api_read(args):
 
 
 def repo_flags(args):
-    """-R・--repo の値の全部（短い旗の束 -cR o/r・-cRo/r の R も数える。値の無い末尾の旗は空の値）"""
+    """-R・--repo の値の全部（短い旗の束 -cR o/r・-cRo/r の R も数える。値の無い末尾の旗は空の値）。束の値は pflag と同じく、
+    最初の R の後ろが空なら次の語、空でなければ残り（頭の = は外す）。末尾の R だけを見ると -Revil.example/o/R o/r を -R o/r と
+    照らし、gh は evil.example/o/R を読む"""
     out, i = [], 0
     while i < len(args):
         a = args[i]
-        if a == "--repo" or (a.startswith("-") and not a.startswith("--") and a.endswith("R")):
+        short = a.startswith("-") and not a.startswith("--") and "R" in a
+        tail = a.split("R", 1)[1] if short else None
+        if a == "--repo" or tail == "":
             out.append(args[i + 1] if i + 1 < len(args) else "")
             i += 1
         elif a.startswith("--repo="):
             out.append(a.split("=", 1)[1])
-        elif a.startswith("-") and not a.startswith("--") and "R" in a:
-            out.append(a.split("R", 1)[1].removeprefix("="))
+        elif short:
+            out.append(tail.removeprefix("="))
+        i += 1
+    return out
+
+
+def repo_view_positionals(args):
+    """repo view の位置の引数の全部。旗は --json（値は次の語か = の後ろ）だけを許し、ほかの旗（-b・-t・-q・-- など）が在れば None。
+    値を取る旗の値の語を位置の引数と数えると、-b o/r evil.example/o/r の o/r を照らし、gh は evil.example/o/r を読む"""
+    out, i = [], 0
+    while i < len(args):
+        a = args[i]
+        if a == "--json":
+            i += 1
+        elif not a.startswith("--json=") and a.startswith("-"):
+            return None
+        elif not a.startswith("-"):
+            out.append(a)
         i += 1
     return out
 
@@ -121,8 +142,9 @@ def form_error(argv):
     if url:
         return f"github.com・<名>.ghe.com・GH_HOST・GH_REPO の外のホストは読まない: {url}"
     if argv[0] == "repo":
-        pos = [a for a in rest if not a.startswith("-")]
-        return None if pos and repo_ok(pos[0]) else "gh repo view に <OWNER/REPO>（読むホストの）が無い"
+        pos = repo_view_positionals(rest)
+        return None if pos is not None and len(pos) == 1 and repo_ok(pos[0]) else \
+            "gh repo view は <OWNER/REPO>（読むホストの）1 つと --json だけ"
     repos = repo_flags(rest)
     if len(repos) > 1:
         return f"gh {argv[0]} {argv[1]} の -R は 1 つだけ（gh は最後の値を読む）"
