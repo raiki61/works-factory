@@ -101,9 +101,9 @@ block と graph の YAML・AI のノードへの指示の md・script・`src/`�
 - AI ノード（`loop_group` の本体の中も）は `retry: {max_attempts: 2, on_error: all}` を持つ。`loop_group` のノードそのものには書かない。2 回走ると困るノードだけ外し、ノードの頭の行の真上に `# retry なし: <理由>` を 1 行で書く。工場の側に自前の出し直しを作らない。
 - 機械: `tests/layers/test_role_retry.py`。
 
-## E20 深さの段は表 1 か所に置き、when の句で飛ばさない
+## E20 深さは表 1 か所に置き、when の句で飛ばさない
 
-- run の頭の深さの段（軽量・標準・重厚）の定義は line の `src/tiers.py` の `TIERS` 1 か所。`docs/design/line.md` の「深さの段の表」はその写しで、行は `TIERS` と等しい。持ち主の決め `depth-by-reason`・`three-tiers`。
+- run の頭の深さ（軽量・標準・重厚）の定義は line の `src/tiers.py` の `TIERS` 1 か所。`docs/design/line.md` の 16 章の「深さの表」はその写しで、行は `TIERS` と等しい。持ち主の決め `depth-by-reason`・`three-tiers`。
 - ノードを深さの値で飛ばさない: どのノードの `when` も、出力の深さの欄を読む句を持たない。省くかを `when:` に渡す時は、line が表から引いた真偽だけにする。計画の壁打ち（plan と plan-review の往復）はどの段でも省かない。
 - 機械: `tests/layers/test_depth_skip.py`。
 

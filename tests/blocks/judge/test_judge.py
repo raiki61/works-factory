@@ -214,7 +214,7 @@ class VerdictCase(unittest.TestCase):
         self.assertEqual((out["world"], out["world_state"]["status"]), (None, "failed"))
         self.assertEqual((out["verify"], out["verify_why"]), (None, "段 標準 では判定の裏取りを回さない（段ごとの表）"))
         text = "\n".join(out["report"])
-        for want in ("run の頭の深さの段が返らなかった", "世界の解の段が返らなかった", "素材: コード衛生の段が返らなかった",
+        for want in ("run の頭の深さが返らなかった", "世界の解の段が返らなかった", "素材: コード衛生の段が返らなかった",
                      "判定の裏取り: 段 標準"):
             self.assertIn(want, text)
         self.assertNotIn("素材: コード衛生", [s["title"] for s in out["sections"]])

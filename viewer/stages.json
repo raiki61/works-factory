@@ -1,10 +1,11 @@
 {
-  "about": "見る道具の「流れ」の画面の段の表。line（メイングラフ）の一番上のノードを、人の言葉の段に畳む。工場の中は読まない（viewer/AGENTS.md の E25）。line にノードを足したら、ここのどれか 1 つの段の nodes に足す（tests/viewer/test_stages.py が照らす）。wiring はその段のノードのうち配線（合流・受け渡しだけで段の仕事をしない物。受け皿の -out・返しの -in・fix-in・fixed・judged・eyes-in・修正前の承認の聞きと受け ask-before-fix・answer-before-fix と仕様駆動の run の spec-ask-before-fix・spec-answer-before-fix）で、段の状態（通った・飛んだ）に数えない。修正の段が飛んだ run でも fix-in・fixed・judged は走るので、数えると飛んだ段が通ったに見える。ask-before-fix・answer-before-fix（仕様駆動の spec- も）も人が聞かれずに止めや通しを受け渡すだけで走る（docs/design/viewer.md の 6.8）。ノードごとの「何をする物か」の 1 行はここに持たず、工場の字から引く（docs/design/viewer.md の 6.8）。source は説明の出どころ（docs/design/line.md の 1.3 の番号）。outcomes は結末の語（line の返すノード result の出力の outcome）→ 頭の帯と流れの頭の 1 文に出す頭の語の表で、語の組は工場の結末の語の正本 lib/report.py の OUTCOMES と同じ（tests/viewer/test_stages.py が照らす。docs/design/viewer.md の 6.8）",
+  "about": "見る道具の「流れ」の画面の段の表。line（メイングラフ）の一番上のノードを、人の言葉の段に畳む。工場の中は読まない（viewer/AGENTS.md の E25）。line にノードを足したら、ここのどれか 1 つの段の nodes に足す（tests/viewer/test_stages.py が照らす）。wiring はその段のノードのうち配線（合流・受け渡しだけで段の仕事をしない物。受け皿の -out・返しの -in・fix-in・fixed・judged・eyes-in・修正前の承認の聞きと受け ask-before-fix・answer-before-fix と仕様駆動の run の spec-ask-before-fix・spec-answer-before-fix）で、段の状態（通った・飛んだ）に数えない。修正の段が飛んだ run でも fix-in・fixed・judged は走るので、数えると飛んだ段が通ったに見える。ask-before-fix・answer-before-fix（仕様駆動の spec- も）も人が聞かれずに止めや通しを受け渡すだけで走る（docs/design/viewer.md の 6.8）。ノードごとの「何をする物か」の 1 行はここに持たず、工場の字から引く（docs/design/viewer.md の 6.8）。source は説明の出どころ（docs/design/line.md の 1.3 の番号）。mission はその段が担う MISSION.md の「流れ」の段階と承認ノード（段の名と MISSION の語は 1 対 1 でない。事前審査は計画の段の中・試験の関門は 2 つの段に割れる。語の組は MISSION.md の流れと同じ。承認ノードの語は、作りの上で承認ノード〔wait: のノード〕に届きうる段にだけ載せ、そういう段には必ず載せる。届きうるは line の一番上のノード・繰り返しの中のノード（計画の往復の gate-design・設計の段の gate-theme）・include の先の graph の中のノード（判定の judge → spec の spec-gate）を辿って決め、include の先の when は読まないので、仕様を照らすだけの spec-check-run を持つ確かめ直しも入る。どちらも tests/viewer/test_stages.py が照らす）。outcomes は結末の語（line の返すノード result の出力の outcome）→ 頭の帯と流れの頭の 1 文に出す頭の語の表で、語の組は工場の結末の語の正本 lib/report.py の OUTCOMES と同じ（tests/viewer/test_stages.py が照らす。docs/design/viewer.md の 6.8）",
   "outcomes": {"fixed": "直した", "fixed_needs_check": "直した・人の確かめが残る", "no_fix_needed": "直す物は無かった", "round_limit": "直しきれずに残った", "stopped_by_human": "人が止めた", "stopped_by_request": "依頼の止め札で止めた", "stopped_by_line": "工場が止めた", "needs_human": "人の判断を待って止めた", "record_invalid": "記録が通らなかった", "interrupted": "途中で終わった"},
   "graph": "line",
   "stages": [
     {
       "name": "受付",
+      "mission": ["承認ノード"],
       "line": "依頼と試験のコマンドを確かめ、始めてよいかを人に聞く。",
       "hands": "依頼の行と試験のコマンド",
       "source": "docs/design/line.md の 1.3 の 0〜2.8",
@@ -13,6 +14,7 @@
     },
     {
       "name": "設計の段",
+      "mission": ["承認ノード"],
       "line": "テーマの run だけ。テーマを観点ごとに設計し、直す依頼に降ろす。",
       "hands": "テーマから降ろした依頼",
       "source": "docs/design/line.md の 1.3 の 2.7・3.3 節",
@@ -21,6 +23,7 @@
     },
     {
       "name": "試験の土台",
+      "mission": ["試験の関門"],
       "line": "直す前に、試験のコマンドが起こせるかだけを見る。",
       "hands": "起こせると確かめた試験のコマンド",
       "source": "docs/design/line.md の 1.3 の 3",
@@ -29,6 +32,7 @@
     },
     {
       "name": "判定",
+      "mission": ["判定", "承認ノード"],
       "line": "依頼を観点ごとに調べ、根本を診て、直す単位に切る。",
       "hands": "直す単位と目的",
       "source": "docs/design/line.md の 1.3 の 4",
@@ -37,6 +41,7 @@
     },
     {
       "name": "計画",
+      "mission": ["計画", "事前審査", "承認ノード"],
       "line": "修正案を書き、別の目の審査で書き直す（往復）。",
       "hands": "修正案と審査の指摘",
       "source": "docs/design/line.md の 1.3 の 5〜8・3 節",
@@ -45,6 +50,7 @@
     },
     {
       "name": "修正前の承認",
+      "mission": ["承認ノード"],
       "line": "直す前に、人が案を見て通すか止めるかを決める。",
       "hands": "人が通した案",
       "source": "docs/design/line.md の 1.3 の 9・2 節の 2",
@@ -53,6 +59,7 @@
     },
     {
       "name": "修正",
+      "mission": ["修正", "承認ノード"],
       "line": "案の項目ごとに試験を先に書いて直し、差分を審査して手直しする。",
       "hands": "差分",
       "source": "docs/design/line.md の 1.3 の 10〜17・4 節",
@@ -61,6 +68,7 @@
     },
     {
       "name": "確かめ直し",
+      "mission": ["試験の関門", "承認ノード"],
       "line": "並行 PR・再審・仕様を照らし、最後の試験で緑を取る。",
       "hands": "緑の差分",
       "source": "docs/design/line.md の 1.3 の 18〜20",
@@ -69,6 +77,7 @@
     },
     {
       "name": "独立の目",
+      "mission": ["独立の目"],
       "line": "差分を別の目で見る（最小か・設計と合うかなど）。",
       "hands": "目の判定",
       "source": "docs/design/line.md の 1.3 の 21",
@@ -77,6 +86,7 @@
     },
     {
       "name": "封じと最後の承認",
+      "mission": ["承認ノード"],
       "line": "差分を封じ、人が最後に見て通せば置く。",
       "hands": "封じて置いた差分",
       "source": "docs/design/line.md の 1.3 の 22〜24・2 節の 4",
@@ -85,6 +95,7 @@
     },
     {
       "name": "報告",
+      "mission": ["報告"],
       "line": "どの道でも、結末と各段の事実を人の言葉で書く。",
       "hands": "",
       "source": "docs/design/line.md の 1.3 の 25〜28・7 節",
