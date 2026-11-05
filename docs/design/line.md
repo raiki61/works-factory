@@ -1,10 +1,10 @@
 # graph の設計書: line（メイングラフ）と chain（周の鎖）
 
 - 何の話か: 工場のメイングラフ `works-factory-line` を、block を `include:` で並べる graph `workflows/line/` に作り直す設計（組み込みの PR で作る設計。組み込みは #794 で済み、今の `workflows/line/` はその後の形。README の 11.3 の 1）。あわせて、line を周ごとに子の run として起こす `works-factory-chain` の移しを 12 節に短く書く。型は [README.md](README.md) の 1 節（graph の定義と形の直し 7）・4 節・8.7 節に従う。判定と独立の目のまとめ（judge・eyes の graph）は [judge-eyes.md](judge-eyes.md)。
-- 決めたこと: line は配線と流れの決めだけを持つ。持つのは、どの block をいつ回すか（`when:`）・承認ノード 4 つ・計画の往復の記録と止めと安全の上限・一度だけの include（案の直し・2 度目の修正・再審・修正の後の並行 PR の確かめ直し）・深さの表（段 → 回す物）と、fix と delta-review の間の 1 回の上げ直し・無人の方針・始めの記録（line だけが書き、block には port の値として配る）・報告への受け渡し（`sections`・`facts`）。AI の node は持たない。README 8.7 の「今の工場の穴」3 つは 8 節で決めた（並行 PR を修正の後に 1 度だけ確かめ直す・fix に外した hunk を渡す・入力 `gates` を足す）。
+- 決めたこと: line は配線と流れの決めだけを持つ。持つのは、どの block をいつ回すか（`when:`）・承認ノード 4 つ・計画の往復の記録と止めと安全の上限・一度だけの include（案の直し・2 度目の修正・再審・修正の後の並行 PR の確かめ直し）・深さの表（段 → 回す物）と、fix と delta-review の間の 1 回の上げ直し・無人の方針・始めの記録（line だけが書き、block には port の値として配る）・報告への受け渡し（`sections`・`facts`）。AI の node は持たない。README 8.7 の「今の工場の穴」3 つは 8 節で決めた（並行 PR を修正の後に 1 度だけ確かめ直す・fix に外した hunk を渡す・入力 `gates` は足さない）。
 - 持ち主（リポジトリの owner）に求めること: なし。入力 `gates`（変異の検算を合流でまとめる道）は、持ち主の決め（2026-10-19）で足さない（8 節の 3）。ほかは README・持ち主の決め・今のコードで決まった（13 節）。決まらない物は 15 節。
 - 2026-10-23 の追記（持ち主の決め `base-runs-nothing`。#828・#836）: `test-gate-base` は直す前の版で試験を何も走らせない（全部の試験も、起動スクリプトの自己点検も置かない。`docs/design/test-gate.md` の 15 節）。試験の環境の壊れは修正の段の TDD の輪が関わる試験を走らせた所で見つけて直す（`docs/design/fix.md` の 19 節）。直す前には試験のコマンドの最初の語が起こせるかだけを走らせずに確かめ、起こせなければ止める。line の変えた所は 4 つ: 直す前の試験の関門が止めた訳を報告の冒頭の知らせの行に出す（`src/facts.py` の `base_stop_notes`）・ `fix-in` が欄 `suite_made`（実行器が試験の関門の用意した物か。返りの `suite_note` が在るか）を足して fix と refix-run に配る・修正の段が起動スクリプトの壊れで組を止めた run は報告の冒頭の知らせの行に訳とログのパスを出す（`src/facts.py` の `suite_broken_notes`）・最後の承認ノードは「ついでに直した試験」（修正役が書き換えてよい試験の行〔許し〕のうち、出どころが `broken` の物）を書き換えを許したテストと分けて出す（`src/final.py`）。判定の `when:`（`$test-gate-base.output.ok == true`）は変えていない。
-- 読む人: 組み込みの PR で line と chain を書く実装の役。block の設計書の書き手（自分の block の port を line がどこから配るかを 1.6・4〜7 節で引く）。
+- 読む人: line と chain を直す実装の役（組み込みの #794 で書いた後の形を語る）。block の設計書の書き手（自分の block の port を line がどこから配るかを 1.6・4〜7 節で引く）。
 
 この文書の語は README の頭の物を使う（block・graph・port・place・prep・accept・pointer・埋め・Archon の YAML の鍵・form の書き方）。ほかに:
 
@@ -347,6 +347,8 @@ E11（`AGENTS.md` の決まり。仕組みを足す前に、Archon が持つか�
 - report: `sections` ← `$collect.output.sections`・`facts` ← `$collect.output.facts`・`lang`。
 
 ## 5 深さの表（段 → 回す物）と上げ直し
+
+この章は段の表の読み方（line の node がどう使うか）を書く。表の行そのもの（段・省く物・足す物・理由）の写しは 16 章の「深さの表」に置く（`tests/layers/test_depth_skip.py` がその見出しの表を `TIERS` と照らすので、置き場の名をほかの文書が「16 章」で名指す）。
 
 ### 5.1 表（`src/tiers.py` の `TIERS`。今の lib の `depth.py` の `TIERS` を写す）
 

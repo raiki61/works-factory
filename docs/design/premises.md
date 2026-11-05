@@ -427,7 +427,7 @@ uv run --isolated python3 tests/changed.py
 下の 3 つは README に当てた（8.2・10 節の 9・9.3・13 章）。
 
 1. 独立設計（independent-design）の入力は README の 8.2 で `purpose` だけだが、今の独立設計の役は実測した制約も貼られている（lib の `boardview.py:714-750` の `r2_prompt` が入力 `premises` の `constraints` を貼る。plan-review の入力 `premises`）。README の 10 節の 9 は「入力は `purpose` だけ」を yes/no で縛るとしているので、このままだと独立設計が今持つ「実測した制約を所与にする」能力が落ちる。independent-design の port に `constraints` を足すか、落とすと決めるかを README で決める必要がある。
-2. （解決済み）制約の行の形は共通の `workflows/.shared/schemas/constraints.schema.json` に 1 つ在り、premises はそれを使う。その形は `if`/`then` を持てないので、`実測` の行の `measured_output` は受け付けが照らす。ただし purpose の `steps.constraint_rows` は port の `constraints` にも `measured_output` を求めており、運ばれる行（`carry.carried_constraints`。`実測` で `measured_output` が無い）を拒む。purpose 側で直す必要があるかを確かめる。
+2. （解決済み）制約の行の形は共通の `workflows/.shared/schemas/constraints.schema.json` に 1 つ在り、premises はそれを使う。その形は `if`/`then` を持てないので、`実測` の行の `measured_output` は受け付けが照らす。purpose の `steps.constraint_rows` は port の `constraints` の `実測` の行に `measured_output` を求めないので、運ばれる行（`carry.carried_constraints`。`実測` で `measured_output` が無い）も受ける（組み込みの #794 で purpose の側を直した。役自身の返りの `measured_output` は premises の受け付けが見る）。
 3. 前提の実測が落ちた時に judge のまとめが止まる語 `works:premises`（今の `stopby.PREMISES`）を誰が持つか（judge のまとめの `src/` か `lib/stopby`）が README の 9 節に無い。`stopby` は KEEP（line・report・chain）なので、judge のまとめも読み手に足すのがよい。
 
 ## 10 未確認
